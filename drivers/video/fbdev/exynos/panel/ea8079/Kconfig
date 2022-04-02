@@ -1,0 +1,7 @@
+menuconfig EXYNOS_DECON_LCD_EA8079
+	tristate "EA8079 DDI Panel Driver"
+	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSIM
+	help
+		This enables EA8079 DDI dependent panel drivers of
+		common panel driver. say Y, if you have a panel based on
+		the EA8079 DDI.
