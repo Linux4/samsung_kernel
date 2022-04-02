@@ -1,0 +1,6 @@
+config FAST_TRACK
+    bool "ftt feature"
+    default y
+    depends on RWSEM_SPIN_ON_OWNER
+    help
+      if set, ftt feature is enable
