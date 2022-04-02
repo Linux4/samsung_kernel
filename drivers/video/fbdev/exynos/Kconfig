@@ -1,0 +1,12 @@
+if SOC_EXYNOS9830 || SOC_EXYNOS9820 || SOC_EXYNOS9610
+
+config EXYNOS_DPU30_DUAL
+	bool "Support dual display"
+	default n
+
+source "drivers/video/fbdev/exynos/dpu30/Kconfig"
+source "drivers/video/fbdev/exynos/dpu30_dual/Kconfig"
+source "drivers/video/fbdev/exynos/panel/Kconfig"
+source "drivers/video/fbdev/exynos/dp_logger/Kconfig"
+
+endif # SOC_EXYNOS9820, SOC_EXYNOS9610
