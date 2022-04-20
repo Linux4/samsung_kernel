@@ -2154,7 +2154,7 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 								read_size);
 						if(rc < 0){
 							CAM_ERR(CAM_EEPROM, "retry %d times read failed rc %d",retry, rc);
-							mdelay(10);
+							usleep_range(10*1000, 11*1000);
 						}else{
 							CAM_ERR(CAM_EEPROM, "retry %d times success read ",retry);
 							break;

@@ -4913,6 +4913,8 @@ static void sec_bat_check_slowcharging_work(struct work_struct *work)
 			(battery->current_event & SEC_BAT_CURRENT_EVENT_USB_100MA)) {
 			battery->usb_slow_chg = true;
 			battery->max_charge_power = (battery->input_voltage * battery->current_max) / 10;
+			__pm_stay_awake(battery->monitor_wake_lock);
+			queue_delayed_work(battery->monitor_wqueue, &battery->monitor_work, 0);
 		}
 	}
 	dev_info(battery->dev, "%s:\n", __func__);

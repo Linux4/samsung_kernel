@@ -809,7 +809,7 @@ static struct dsi_panel_cmd_set *ss_acl_off(struct samsung_display_driver_data *
 
 enum LPMON_CMD_ID {
 	LPM_BL_CMDID_CTRL = 1,
-	LPM_ON_CMDID_BL = 2,
+	LPM_ON_CMDID_BL = 4,
 };
 
 static void ss_set_panel_lpm_brightness(struct samsung_display_driver_data *vdd)

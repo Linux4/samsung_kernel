@@ -22,6 +22,7 @@
 #include <linux/spinlock.h>
 #include <linux/wakelock.h>
 #include <linux/input/pogo_i2c_notifier.h>
+#include <linux/sec_class.h>
 #include "stm/stm32l0/stm32_pogo_i2c.h"
 
 enum LID_POSITION {
@@ -37,7 +38,7 @@ enum LOGICAL_HALL_STATUS
 	LOGICAL_HALL_BACK = 2,
 };
 
-extern struct device *hall_ic;
+struct device *hall_logical;
 
 struct hall_drvdata {
 	struct input_dev 				*input;
@@ -176,7 +177,12 @@ static int hall_logical_probe(struct platform_device *pdev)
 	/* Enable auto repeat feature of Linux input subsystem */
 	__set_bit(EV_REP, input->evbit);
 
-	error = device_create_file(hall_ic, &dev_attr_hall_logical_detect);
+	hall_logical = sec_device_create(ddata, "hall_logical");
+	if (IS_ERR(hall_logical)) {
+		dev_err(dev, "%s: failed to create device for the sysfs\n",__func__);
+	}
+
+	error = device_create_file(hall_logical, &dev_attr_hall_logical_detect);
 	if (error < 0) {
 		pr_err("Failed to create device file(%s)!, error: %d\n",
 		dev_attr_hall_logical_detect.attr.name, error);
