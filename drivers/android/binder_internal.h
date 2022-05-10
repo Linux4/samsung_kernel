@@ -394,6 +394,9 @@ struct binder_priority {
  * @is_dead:              process is dead and awaiting free
  *                        when outstanding transactions are cleaned up
  *                        (protected by @inner_lock)
+ * @is_frozen:            process is frozen and unable to service
+ *                        binder transactions
+ *                        (protected by @inner_lock)
  * @sync_recv:            process received sync transactions since last frozen
  *                        bit 0: received sync transaction after being frozen
  *                        bit 1: new pending sync transaction during freezing
@@ -402,7 +405,7 @@ struct binder_priority {
  *                        (protected by @inner_lock)
  * @freeze_wait:          waitqueue of processes waiting for all outstanding
  *                        transactions to be processed
- *                        (protected by @inner_lock
+ *                        (protected by @inner_lock)
  * @todo:                 list of work for this process
  *                        (protected by @inner_lock)
  * @stats:                per-process binder statistics
