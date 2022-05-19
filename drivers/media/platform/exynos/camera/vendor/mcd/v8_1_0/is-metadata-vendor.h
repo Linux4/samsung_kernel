@@ -45,6 +45,8 @@ struct rational {
 
 #define CAMERA2_MAX_STRIPE_REGION_NUM		5
 
+#define EV_LIST_SIZE						24
+
 #define OPEN_MAGIC_NUMBER		0x20192014
 #define SHOT_MAGIC_NUMBER		0x78923456
 
@@ -53,6 +55,7 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_STILL_PREVIEW_WDR_ON = 1,                                  /* 1: Single preview (HDR On) */
 	ISS_SUB_SCENARIO_STILL_FULL_PREVIEW_WDR_AUTO = 2,                           /* TODO: 2: Full resolution Preview (HDR Auto/Off) */
 	ISS_SUB_SCENARIO_SUPER_NIGHT_SHOT_PREVIEW = 3,                              /* Super night Preview (HDR Auto) */
+	ISS_SUB_SCENARIO_STILL_PREVIEW_GALAXY_RAW = 4,                              /* 4: galaxy raw preview */
 
 	ISS_SUB_SCENARIO_STILL_CAPTURE_WDR_AUTO = 10,                               /* 10: Single/Burst/Snapshot capture (HDR Auto/Off) */
 	ISS_SUB_SCENARIO_STILL_CAPTURE = 11,                                        /* 11: Single capture (HDR Off) : Pro mode	 */
@@ -874,6 +877,7 @@ enum aa_capture_intent {
     AA_CAPTURE_INTENT_STILL_CAPTURE_SUPER_NIGHT_SHOT_TRIPOD_MAX             = 135,
     AA_CAPTURE_INTENT_STILL_CAPTURE_SUPER_NIGHT_SHOT_EXTREME_DARK_MAX       = 136,
     AA_CAPTURE_INTENT_STILL_CAPTURE_SR_HDR_DYNAMIC_SHOT                     = 137,
+    AA_CAPTURE_INTENT_STILL_CAPTURE_GALAXY_RAW_DYNAMIC_SHOT                 = 138,
 
     AA_CAPTURE_INTENT_VIDEO_RECORD_CHANGE_FPS          = 500,
 
@@ -959,6 +963,7 @@ enum aa_scene_mode {
 	AA_SCENE_MODE_BOKEH_VIDEO,
 	AA_SCENE_MODE_SINGLE_TAKE,
 	AA_SCENE_MODE_DIRECTORS_VIEW,
+	AA_SCENE_MODE_GALAXY_RAW,
 };
 
 enum aa_effect_mode {
@@ -1341,6 +1346,7 @@ struct camera2_aa_ctl {
 	enum aa_ae_extra_mode		vendor_aeExtraMode;
 	enum aa_dynamic_bds_mode		vendor_enableDynamicBds;
 	enum aa_transient_capture_action	vendor_transientCaptureAction;
+	char				vendor_multiFrameEvList[EV_LIST_SIZE];
 	uint32_t			vendor_reserved[28];
 };
 
