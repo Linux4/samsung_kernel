@@ -6,4 +6,3 @@ export ARCH=arm64
 
 make exynos9830-y2sxxx_defconfig
 make -j16
-
