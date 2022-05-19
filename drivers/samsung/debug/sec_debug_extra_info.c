@@ -200,11 +200,11 @@ void get_bk_item_val_as_string(const char *key, char *buf)
 
 static int is_ocp;
 
-static int is_key_in_blacklist(const char *key)
+static int is_key_in_blocklist(const char *key)
 {
 	char blkey[][MAX_ITEM_KEY_LEN] = {
 		"KTIME", "BAT", "FTYPE", "ODR", "DDRID",
-		"PSITE", "ASB",
+		"PSITE", "ASB", "GPU",
 	};
 
 	int nr_blkey, keylen, i;
@@ -236,7 +236,7 @@ static void set_key_order(const char *key)
 	int max = MAX_ITEM_VAL_LEN;
 	int len_prev, len_remain, len_this;
 
-	if (is_key_in_blacklist(key))
+	if (is_key_in_blocklist(key))
 		return;
 
 	spin_lock(&keyorder_lock);

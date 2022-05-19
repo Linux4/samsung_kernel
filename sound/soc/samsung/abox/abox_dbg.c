@@ -382,6 +382,7 @@ static void abox_dbg_rmem_init(struct abox_data *data)
 				p_dump->previous++;
 			else
 				p_dump->previous = 0;
+			p_dump->dram = NULL;
 		}
 	}
 
