@@ -918,7 +918,7 @@
 
 		ion_ext_ui {
 			compatible = "exynos9820-ion";
-			size = <0x1800000>;
+			size = <0x1c00000>;
 			alignment = <0x00 0x400000>;
 			ion,heapname = "ext_ui";
 			ion,secure;

@@ -810,12 +810,11 @@ static void sec_bat_change_pdo(struct sec_battery_info *battery, int vol)
 
 		if (target_pd_index != battery->pd_list.now_pd_index) {
 			/* change input current before request new pdo if new pdo's input current is less than now */
-			if (battery->pd_list.pd_info[target_pd_index].max_current < battery->input_current) {
-				battery->input_current = battery->pd_list.pd_info[target_pd_index].max_current;
-				sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SELECT_PDO,
-					SEC_BAT_CURRENT_EVENT_SELECT_PDO);
-				sec_vote(battery->input_vote, VOTER_SELECT_PDO, true, battery->input_current);
-			}
+			sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SELECT_PDO,
+				SEC_BAT_CURRENT_EVENT_SELECT_PDO);
+			sec_vote(battery->input_vote, VOTER_SELECT_PDO, true,
+				min(battery->pd_list.pd_info[target_pd_index].max_current,
+					battery->pd_list.pd_info[battery->pd_list.now_pd_index].max_current));
 			battery->pdic_ps_rdy = false;
 			if (target_pd_index >= 0 && target_pd_index < MAX_PDO_NUM)
 				select_pdo(battery->pd_list.pd_info[target_pd_index].pdo_index);
@@ -6621,7 +6620,7 @@ static int usb_typec_handle_notification(struct notifier_block *nb,
 	PD_NOTI_ATTACH_TYPEDEF usb_typec_info = *(PD_NOTI_ATTACH_TYPEDEF *)data;
 	bool bPdIndexChanged = false;
 	bool bPrintPDlog = true;
-	int max_power = 0, fpdo_power = 0;
+	int max_power = 0, apdo_power = 0;
 #if defined(CONFIG_DIRECT_CHARGING)
 	union power_supply_propval val = {0, };
 #endif
@@ -6866,12 +6865,16 @@ static int usb_typec_handle_notification(struct notifier_block *nb,
 					battery->pdic_info.sink_status.power_list[i].max_voltage *
 					battery->pdic_info.sink_status.power_list[i].max_current);
 
-			if (!battery->pdic_attach && battery->pdic_info.sink_status.has_apdo && !isApdo &&
-				(battery->pdic_info.sink_status.power_list[i].max_voltage *
-				battery->pdic_info.sink_status.power_list[i].max_current) > fpdo_power) {
-				fpdo_power = battery->pdic_info.sink_status.power_list[i].max_voltage *
-					battery->pdic_info.sink_status.power_list[i].max_current / 1000;
-				pr_info("%s: fpdo_power = %dmW\n", __func__, fpdo_power);
+			if (!battery->pdic_attach && isApdo) {
+				int max_current = battery->pdic_info.sink_status.power_list[i].max_current;
+				int max_volt = battery->pdic_info.sink_status.power_list[i].max_voltage;
+				int power_temp;
+
+				max_volt = (max_volt < battery->pdata->apdo_max_volt ?
+					max_volt : battery->pdata->apdo_max_volt);
+				power_temp = max_volt * max_current / 1000;
+				apdo_power = (power_temp > apdo_power ? power_temp : apdo_power);
+				pr_info("%s: apdo_power = %dmW\n", __func__, apdo_power);
 			}
 
 			/* no change apdo */
@@ -6882,9 +6885,9 @@ static int usb_typec_handle_notification(struct notifier_block *nb,
 		if (!battery->pdic_attach) {
 			if (battery->pdic_info.sink_status.has_apdo &&
 				!(battery->current_event & SEC_BAT_CURRENT_EVENT_HV_DISABLE)) {
-				fpdo_power = fpdo_power > battery->pdata->max_charging_charge_power ?
-					battery->pdata->max_charging_charge_power : fpdo_power;
-				battery->max_charge_power = fpdo_power;
+				apdo_power = apdo_power > battery->pdata->max_charging_charge_power ?
+					battery->pdata->max_charging_charge_power : apdo_power;
+				battery->max_charge_power = apdo_power;
 				battery->pd_max_charge_power = battery->max_charge_power;
 				pr_info("%s: pd_max_charge_power = %dmW\n", __func__, battery->pd_max_charge_power);
 			}

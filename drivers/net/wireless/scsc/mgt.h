@@ -602,6 +602,7 @@ struct net_device *slsi_dynamic_interface_create(struct wiphy        *wiphy,
 					     const char          *name,
 					     enum nl80211_iftype type,
 					     struct vif_params   *params);
+void slsi_stop_chip(struct slsi_dev *sdev);
 int slsi_get_beacon_cu(struct slsi_dev *sdev, struct net_device *dev, int *mib_value);
 int slsi_get_mib_roam(struct slsi_dev *sdev, u16 psid, int *mib_value);
 void slsi_roam_channel_cache_add(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
@@ -668,6 +669,7 @@ int slsi_start_ap(struct wiphy *wiphy, struct net_device *dev,
 		  struct cfg80211_ap_settings *settings);
 void slsi_subsystem_reset(struct work_struct *work);
 void slsi_chip_recovery(struct work_struct *work);
+void slsi_system_error_recovery(struct work_struct *work);
 int slsi_set_acl(struct slsi_dev *sdev, struct net_device *dev);
 void slsi_purge_blacklist(struct netdev_vif *ndev_vif);
 void slsi_rx_update_wake_stats(struct slsi_dev *sdev, struct ethhdr *ehdr, int buff_len);

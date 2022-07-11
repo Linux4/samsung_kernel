@@ -73,6 +73,7 @@ static struct device_attribute sysfs_battery_attrs[] = {
 	SYSFS_BATTERY_ATTR(check_ps_ready),
 	SYSFS_BATTERY_ATTR(safety_timer_set),
 	SYSFS_BATTERY_ATTR(batt_swelling_control),
+	SYSFS_BATTERY_ATTR(batt_battery_id),
 	SYSFS_BATTERY_ATTR(batt_temp_control_test),
 	SYSFS_BATTERY_ATTR(safety_timer_info),
 	SYSFS_BATTERY_ATTR(batt_misc_test),
@@ -127,6 +128,7 @@ enum {
 	CHECK_PS_READY,
 	SAFETY_TIMER_SET,
 	BATT_SWELLING_CONTROL,
+	BATT_BATTERY_ID,
 	BATT_TEMP_CONTROL_TEST,
 	SAFETY_TIMER_INFO,
 	BATT_MISC_TEST,
@@ -479,6 +481,13 @@ ssize_t sysfs_battery_show_attrs(struct device *dev,
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 			       battery->skip_swelling);
 		break;
+	case BATT_BATTERY_ID:
+		value.intval = 0;
+		psy_do_property(battery->pdata->fuelgauge_name, get,
+			POWER_SUPPLY_EXT_PROP_BATTERY_ID, value);
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		break;
 	case BATT_TEMP_CONTROL_TEST:
 		{
 			int temp_ctrl_t = 0;
@@ -763,6 +772,8 @@ ssize_t sysfs_battery_store_attrs(
 			}
 			ret = count;
 		}
+		break;
+	case BATT_BATTERY_ID:
 		break;
 	case BATT_TEMP_CONTROL_TEST:
 		if (sscanf(buf, "%10d\n", &x) == 1) {

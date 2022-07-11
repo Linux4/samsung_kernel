@@ -1663,6 +1663,13 @@ int sec_bat_parse_dt(struct device *dev,
 		pdata->max_charging_charge_power = 25000;
 	}
 
+	ret = of_property_read_u32(np, "battery,apdo_max_volt",
+			&pdata->apdo_max_volt);
+	if (ret) {
+		pr_err("%s: apdo_max_volt is Empty\n", __func__);
+		pdata->apdo_max_volt = 10000; /* 10v */
+	}
+
 #if defined(CONFIG_DUAL_BATTERY)
 	ret = of_property_read_u32(np,
 			"battery,support_dual_battery", &temp);

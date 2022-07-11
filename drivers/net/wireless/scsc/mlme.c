@@ -46,6 +46,7 @@ static struct sk_buff *slsi_mlme_wait_for_cfm(struct slsi_dev *sdev, struct slsi
 	struct sk_buff *cfm = NULL;
 	int            tm;
 	int            r;
+	char             log_to_sys_error_buffer[128] = { 0 };
 
 #ifdef CONFIG_SCSC_WLAN_RX_NAPI
 	tm = wait_for_completion_timeout(&sig_wait->completion, msecs_to_jiffies(*sdev->sig_wait_cfm_timeout - (*sdev->sig_wait_cfm_timeout >> 2)));
@@ -77,8 +78,11 @@ static struct sk_buff *slsi_mlme_wait_for_cfm(struct slsi_dev *sdev, struct slsi
 				queue_work(sdev->device_wq, &sdev->trigger_wlan_fail_work);
 				r = wait_for_completion_timeout(&sdev->service_fail_started_indication,
 							msecs_to_jiffies(SLSI_WLAN_FAIL_WORK_TIMEOUT));
-				if (r == 0)
+				if (r == 0) {
 					SLSI_INFO(sdev, "service_fail_started_indication timeout\n");
+					sprintf(log_to_sys_error_buffer, "service_fail_started_indication timeout in cfm\n");
+					slsi_add_log_to_system_error_buffer(sdev, log_to_sys_error_buffer);
+				}
 
 				spin_lock_bh(&sig_wait->send_signal_lock);
 			}
@@ -114,6 +118,7 @@ static struct sk_buff *slsi_mlme_wait_for_ind(struct slsi_dev *sdev, struct net_
 	struct sk_buff    *ind = NULL;
 	int               tm = 0;
 	int               r = 0;
+	char             log_to_sys_error_buffer[128] = { 0 };
 
 	/* The indication and confirm may have been received in the same HIP read.
 	 * The HIP receive buffer processes all received signals in one thread whilst the
@@ -148,8 +153,11 @@ static struct sk_buff *slsi_mlme_wait_for_ind(struct slsi_dev *sdev, struct net_
 				queue_work(sdev->device_wq, &sdev->trigger_wlan_fail_work);
 				r = wait_for_completion_timeout(&sdev->service_fail_started_indication,
 								msecs_to_jiffies(SLSI_WLAN_FAIL_WORK_TIMEOUT));
-				if (r == 0)
+				if (r == 0) {
 					SLSI_INFO(sdev, "service_fail_started_indication timeout\n");
+					sprintf(log_to_sys_error_buffer, "service_fail_started_indication timeout in ind\n");
+					slsi_add_log_to_system_error_buffer(sdev, log_to_sys_error_buffer);
+				}
 				spin_lock_bh(&sig_wait->send_signal_lock);
 			}
 		} else {
@@ -1380,7 +1388,6 @@ static inline int slsi_set_scan_params(
 	fapi_set_u16(req, u.mlme_add_scan_req.scan_id, scan_id);
 	fapi_set_u16(req, u.mlme_add_scan_req.scan_type, scan_type);
 	fapi_set_u16(req, u.mlme_add_scan_req.report_mode_bitmap, report_mode);
-
 
 #ifdef CONFIG_SCSC_WLAN_ENABLE_MAC_RANDOMISATION
 	if (sdev->scan_addr_set)

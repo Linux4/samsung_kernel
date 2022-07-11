@@ -69,6 +69,10 @@
 #include "xfrm.h"
 #include "ebitmap.h"
 #include "audit.h"
+#ifdef CONFIG_KDP_CRED
+#include <linux/uh.h>
+#include <linux/kdp.h>
+#endif
 
 /* Policy capability names */
 const char *selinux_policycap_names[__POLICYDB_CAPABILITY_MAX] = {
@@ -83,7 +87,11 @@ const char *selinux_policycap_names[__POLICYDB_CAPABILITY_MAX] = {
 static struct selinux_ss selinux_ss;
 
 // [ SEC_SELINUX_PORTING_COMMON
+#if (defined CONFIG_KDP_CRED && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
+int ss_initialized __kdp_ro;
+#else
 int ss_initialized;
+#endif
 // [ SEC_SELINUX_PORTING_COMMON
 
 void selinux_ss_init(struct selinux_ss **ss)
@@ -756,7 +764,11 @@ out:
 
 // [ SEC_SELINUX_PORTING_COMMON
 #ifdef CONFIG_ALWAYS_ENFORCE
-    	selinux_enforcing = 1;
+#if (defined CONFIG_KDP_CRED && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
+	enforcing_set(NULL, 1);
+#else
+	selinux_enforcing = 1;
+#endif
 #endif
 	
 	if (!selinux_enforcing) // SEC_SELINUX_PORTING_COMMON Change to use RKP 
@@ -1656,7 +1668,11 @@ out:
 	kfree(n);
 // [ SEC_SELINUX_PORTING_COMMON
 #ifdef CONFIG_ALWAYS_ENFORCE
+#if (defined CONFIG_KDP_CRED && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
+	enforcing_set(NULL, 1);
+#else
 	selinux_enforcing = 1;
+#endif
 #endif
 	if (!selinux_enforcing) // SEC_SELINUX_PORTING_COMMON Change to use RKP 
             return 0;
@@ -1958,9 +1974,13 @@ static inline int convert_context_handle_invalid_context(
 	u32 len;
 
 // [ SEC_SELINUX_PORTING_COMMON 
-	#ifdef CONFIG_ALWAYS_ENFORCE
-	    selinux_enforcing = 1;
-	#endif
+#ifdef CONFIG_ALWAYS_ENFORCE
+#if (defined CONFIG_KDP_CRED && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
+	enforcing_set(NULL, 1);
+#else
+	selinux_enforcing = 1;
+#endif
+#endif
 	if (!selinux_enforcing) // SEC_SELINUX_PORTING_COMMON Change to use RKP
 		return -EINVAL;
 // ] SEC_SELINUX_PORTING_COMMON
@@ -2205,7 +2225,11 @@ int security_load_policy(struct selinux_state *state, void *data, size_t len)
 
 		state->ss->sidtab = newsidtab;
 		security_load_policycaps(state);
-                ss_initialized = 1; // SEC_SELINUX_PORTING_COMMON Change to use RKP
+#if (defined CONFIG_KDP_CRED && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
+		uh_call(UH_APP_KDP, PROTECT_SELINUX_VAR, (u64)&ss_initialized, 1, 0, 0);
+#else
+		ss_initialized = 1; // SEC_SELINUX_PORTING_COMMON Change to use RKP
+#endif
 		seqno = ++state->ss->latest_granting;
 		selinux_complete_init();
 		avc_ss_reset(state->avc, seqno);
@@ -3350,7 +3374,7 @@ int selinux_audit_rule_init(u32 field, u32 op, char *rulestr, void **vrule)
 
 	*rule = NULL;
 
-	if (!ss_initialized) // SEC_SELINUX_PORTING_COMMON Change to use R
+	if (!ss_initialized) // SEC_SELINUX_PORTING_COMMON Change to use RKP
 		return -EOPNOTSUPP;
 
 	switch (field) {

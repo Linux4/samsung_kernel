@@ -22,4 +22,11 @@ void nfc_print_hex_dump(void *buf, void *pref, size_t len);
 int nfc_logger_init(void);
 void nfc_logger_register_nfc_stauts_func(void (*nfc_status_func)(void));
 #endif
+
+#ifdef CONFIG_SEC_NFC_LOGGER_ADD_ACPM_LOG
+u32 nfc_logger_acpm_get_rtc_time(void);
+void nfc_logger_acpm_log_print(void);
+void nfc_logger_acpm_log_init(u32 rtc_addr);
+#endif
+
 #endif

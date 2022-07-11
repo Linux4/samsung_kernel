@@ -583,6 +583,13 @@ static struct scsc_log_collector_client slsi_hcf_client = {
 };
 #endif
 
+void slsi_clear_sys_error_buffer(struct slsi_dev *sdev)
+{
+	SLSI_INFO(sdev, "Clear system error buffer, bytes written = %d\n", sdev->sys_error_log_buf.pos);
+	memset(sdev->sys_error_log_buf.log_buf, 0, sdev->sys_error_log_buf.pos + 1);
+	sdev->sys_error_log_buf.pos = 0;
+}
+
 int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 {
 #ifndef CONFIG_SCSC_DOWNLOAD_FILE
@@ -605,14 +612,17 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 	char *ant_file_path = "/data/vendor/conn/.ant.info";
 	char *antenna_file_path = "/data/vendor/wifi/antenna.info";
 #endif
+	char  log_to_sys_error_buffer[128] = { 0 };
+
+	SLSI_UNUSED_PARAMETER(dev);
 
 	if (WARN_ON(!sdev))
 		return -EINVAL;
 
 	SLSI_MUTEX_LOCK(sdev->start_stop_mutex);
 
-	SLSI_NET_INFO(dev, "recovery_status:%d, device_state:%d, require_service_close:%d, netdev_up_count:%d\n",
-		      sdev->recovery_status, sdev->device_state, sdev->require_service_close, sdev->netdev_up_count);
+	SLSI_INFO(sdev, "recovery_status:%d, device_state:%d, require_service_close:%d, netdev_up_count:%d\n",
+		   sdev->recovery_status, sdev->device_state, sdev->require_service_close, sdev->netdev_up_count);
 
 	if (sdev->device_state != SLSI_DEVICE_STATE_STOPPED) {
 		SLSI_DBG1(sdev, SLSI_INIT_DEINIT, "Device already started\n");
@@ -632,8 +642,13 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 	if (sdev->recovery_status) {
 		r = wait_for_completion_timeout(&sdev->recovery_completed,
 						msecs_to_jiffies(sdev->recovery_timeout));
-		if (r == 0)
+		if (r == 0) {
 			SLSI_INFO(sdev, "recovery_completed timeout\n");
+			sprintf(log_to_sys_error_buffer, "%s: recovery_completed timedout\n", __func__);
+			slsi_add_log_to_system_error_buffer(sdev, log_to_sys_error_buffer);
+		}
+		sprintf(log_to_sys_error_buffer, "%s: recovery_completed\n", __func__);
+		slsi_add_log_to_system_error_buffer(sdev, log_to_sys_error_buffer);
 
 		reinit_completion(&sdev->recovery_completed);
 	}
@@ -681,6 +696,10 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 	err = slsi_sm_wlan_service_start(sdev);
 	if (err) {
 		SLSI_ERR(sdev, "slsi_sm_wlan_service_start failed: err=%d\n", err);
+		sprintf(log_to_sys_error_buffer, "%s: slsi_sm_wlan_service_start failed: err=%d\n",
+			__func__, err);
+		slsi_add_log_to_system_error_buffer(sdev, log_to_sys_error_buffer);
+
 		for (i = 0; i < SLSI_WLAN_MAX_MIB_FILE; i++)
 			slsi_mib_close_file(sdev, fw[i]);
 		if (err != -EILSEQ)
@@ -695,6 +714,9 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 	err = slsi_sm_wlan_service_start(sdev);
 	if (err) {
 		SLSI_ERR(sdev, "slsi_sm_wlan_service_start failed: err=%d\n", err);
+		sprintf(log_to_sys_error_buffer, "%s: slsi_sm_wlan_service_start failed: err=%d\n",
+			__func__, err);
+		slsi_add_log_to_system_error_buffer(sdev, log_to_sys_error_buffer);
 		if (err != -EILSEQ)
 			slsi_sm_wlan_service_close(sdev);
 		goto err_done;
@@ -817,6 +839,7 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 	for (i = 0; i < SLSI_MAX_RTT_ID; i++)
 		sdev->rtt_id_params[i] = NULL;
 	sdev->cm_if.recovery_state = SLSI_RECOVERY_SERVICE_STARTED;
+	slsi_clear_sys_error_buffer(sdev);
 	SLSI_MUTEX_UNLOCK(sdev->start_stop_mutex);
 
 	slsi_kic_system_event(slsi_kic_system_event_category_initialisation,
@@ -917,7 +940,7 @@ struct net_device *slsi_dynamic_interface_create(struct wiphy        *wiphy,
 	return dev;
 }
 
-static void slsi_stop_chip(struct slsi_dev *sdev)
+void slsi_stop_chip(struct slsi_dev *sdev)
 {
 #ifndef SLSI_TEST_DEV
 	int stop_err;
@@ -926,6 +949,8 @@ static void slsi_stop_chip(struct slsi_dev *sdev)
 	u8 index = sdev->collect_mib.num_files;
 	u8 i;
 #endif
+	char log_to_sys_error_buffer[128] = { 0 };
+
 	WARN_ON(!SLSI_MUTEX_IS_LOCKED(sdev->start_stop_mutex));
 
 	SLSI_DBG1(sdev, SLSI_INIT_DEINIT, "netdev_up_count:%d device_state:%d\n", sdev->netdev_up_count, sdev->device_state);
@@ -934,9 +959,16 @@ static void slsi_stop_chip(struct slsi_dev *sdev)
 	if (sdev->device_state != SLSI_DEVICE_STATE_STARTED)
 		return;
 
-	/* Only shutdown on the last device going down. */
-	if (sdev->netdev_up_count)
-		return;
+	sprintf(log_to_sys_error_buffer, "%s\n", __func__);
+	slsi_add_log_to_system_error_buffer(sdev, log_to_sys_error_buffer);
+
+	if (sdev->recovery_fail_safe) {
+		SLSI_INFO(sdev, "Skip netdev_up_count in recovery fail safe\n");
+	} else {
+		/* Only shutdown on the last device going down. */
+		if (sdev->netdev_up_count)
+			return;
+	}
 
 	complete_all(&sdev->sig_wait.completion);
 
@@ -964,7 +996,10 @@ static void slsi_stop_chip(struct slsi_dev *sdev)
 			      slsi_kic_system_events_wifi_service_driver_stopped, GFP_KERNEL);
 
 	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
-	sdev->mlme_blocked = false;
+	if (sdev->recovery_fail_safe)
+		SLSI_INFO(sdev, "Skip setting mlme_blocked in recovery fail safe\n");
+	else
+		sdev->mlme_blocked = false;
 
 	slsi_kic_system_event(slsi_kic_system_event_category_deinitialisation,
 			      slsi_kic_system_events_wifi_off, GFP_KERNEL);
@@ -7450,6 +7485,7 @@ void slsi_failure_reset(struct work_struct *work)
 	struct slsi_dev *sdev = container_of(work, struct slsi_dev, recovery_work_on_stop);
 	int level = atomic_read(&sdev->cm_if.reset_level);
 	int r = 0;
+	char             log_to_sys_error_buffer[128] = { 0 };
 
 	if (sdev->cm_if.recovery_state == SLSI_RECOVERY_SERVICE_STARTED) {
 		r = slsi_sm_recovery_service_stop(sdev);
@@ -7474,6 +7510,9 @@ void slsi_failure_reset(struct work_struct *work)
 		}
 	}
 	SLSI_INFO_NODEV("recovery_work_on_stop completed r:%d\n", r);
+	sprintf(log_to_sys_error_buffer, "%s: recovery_work_on_stop completed r:%d\n",
+		__func__, r);
+	slsi_add_log_to_system_error_buffer(sdev, log_to_sys_error_buffer);
 }
 
 void slsi_chip_recovery(struct work_struct *work)
@@ -7484,6 +7523,7 @@ void slsi_chip_recovery(struct work_struct *work)
 #ifndef CONFIG_SCSC_DOWNLOAD_FILE
 	const struct firmware *fw[SLSI_WLAN_MAX_MIB_FILE] = { NULL, NULL };
 #endif
+	char             log_to_sys_error_buffer[128] = { 0 };
 
 	slsi_wake_lock(&sdev->wlan_wl);
 	SLSI_MUTEX_LOCK(sdev->start_stop_mutex);
@@ -7491,8 +7531,11 @@ void slsi_chip_recovery(struct work_struct *work)
 		if (sdev->recovery_status) {
 			r = wait_for_completion_timeout(&sdev->recovery_completed,
 							msecs_to_jiffies(sdev->recovery_timeout));
-			if (r == 0)
+			if (r == 0) {
 				SLSI_INFO(sdev, "recovery_completed timeout\n");
+				sprintf(log_to_sys_error_buffer, "%s: recovery_completed timedout\n", __func__);
+				slsi_add_log_to_system_error_buffer(sdev, log_to_sys_error_buffer);
+			}
 			reinit_completion(&sdev->recovery_completed);
 		}
 		sdev->device_state = SLSI_DEVICE_STATE_STARTING;
@@ -7531,6 +7574,10 @@ void slsi_chip_recovery(struct work_struct *work)
 		err = slsi_sm_recovery_service_start(sdev);
 		if (err) {
 			SLSI_ERR(sdev, "slsi_sm_wlan_service_start failed: err=%d\n", err);
+			sprintf(log_to_sys_error_buffer, "%s: slsi_sm_wlan_service_start failed: err=%d\n",
+				__func__, err);
+			slsi_add_log_to_system_error_buffer(sdev, log_to_sys_error_buffer);
+
 			for (i = 0; i < SLSI_WLAN_MAX_MIB_FILE; i++)
 				slsi_mib_close_file(sdev, fw[i]);
 			slsi_sm_recovery_service_close(sdev);
@@ -7555,6 +7602,10 @@ void slsi_chip_recovery(struct work_struct *work)
 		/*wlan system recovery actions*/
 		sdev->mlme_blocked = false;
 		sdev->cm_if.recovery_state = SLSI_RECOVERY_SERVICE_STARTED;
+
+		sprintf(log_to_sys_error_buffer, "%s: mlme_blocked[0],  recovery_state[0]\n", __func__);
+		slsi_add_log_to_system_error_buffer(sdev, log_to_sys_error_buffer);
+
 		for (i = 1; i <= CONFIG_SCSC_WLAN_MAX_INTERFACES; i++) {
 			if (sdev->netdev[i]) {
 				ndev_vif = netdev_priv(sdev->netdev[i]);
@@ -7583,6 +7634,37 @@ err_done:
 	sdev->device_state = SLSI_DEVICE_STATE_STOPPED;
 	SLSI_MUTEX_UNLOCK(sdev->start_stop_mutex);
 	slsi_wake_unlock(&sdev->wlan_wl);
+}
+
+void slsi_system_error_recovery(struct work_struct *work)
+{
+	struct slsi_dev *sdev = container_of(work, struct slsi_dev, system_error_user_fail_work);
+	struct net_device *dev = NULL;
+	int r = 0;
+	int err = 0;
+
+	if (sdev->recovery_status) {
+		r = wait_for_completion_timeout(&sdev->recovery_completed,
+						msecs_to_jiffies(sdev->recovery_timeout));
+		if (r == 0)
+			SLSI_INFO(sdev, "recovery_completed timeout\n");
+		else
+			sdev->mlme_blocked = false;
+
+		reinit_completion(&sdev->recovery_completed);
+	} else {
+		sdev->mlme_blocked = false;
+	}
+
+	slsi_wake_lock(&sdev->wlan_wl_init);
+	SLSI_INFO(sdev, "Calling slsi_start\n");
+	err = slsi_start(sdev, dev);
+	if (err)
+		SLSI_INFO(sdev, "slsi_start failed, err = %d\n", err);
+
+	slsi_wake_unlock(&sdev->wlan_wl_init);
+	sdev->recovery_fail_safe = false;
+	complete_all(&sdev->recovery_fail_safe_complete);
 }
 
 #ifdef CONFIG_SCSC_WLAN_DYNAMIC_ITO

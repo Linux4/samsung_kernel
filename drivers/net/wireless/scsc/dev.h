@@ -105,6 +105,9 @@
 			      MAX_CHANNEL_TIME_BIT | \
 			      MAX_CHANNEL_PASSIVE_TIME_BIT)
 
+/* system error buffer size */
+#define SYSTEM_ERROR_BUFFER_SZ    4096
+
 /* indices: 3= BW20->idx_0, BW40->idx_1, BW80->idx_2.
  *             2= noSGI->idx_0, SGI->idx_1
  *             10= mcs index
@@ -1235,6 +1238,13 @@ struct slsi_dev_mib_collect {
 
 #endif
 
+struct sys_error_log {
+	int                        pos;
+	char                       *log_buf;
+	int                        log_buf_size;
+	struct mutex               log_buf_mutex;
+};
+
 struct slsi_dev {
 	/* Devices */
 	struct device              *dev;
@@ -1276,6 +1286,7 @@ struct slsi_dev {
 	struct work_struct recovery_work;   /* Work on subsystem_reset recovery*/
 	struct work_struct recovery_work_on_start;   /* Work on chip recovery*/
 	struct work_struct trigger_wlan_fail_work;   /* Work on mlme cfm or ind timeout*/
+	struct work_struct system_error_user_fail_work;   /* Work on system error */
 	/* Locking used to control Starting and stopping the chip */
 #ifdef CONFIG_SCSC_WLAN_MUTEX_DEBUG
 	struct slsi_mutex          start_stop_mutex;
@@ -1371,7 +1382,9 @@ struct slsi_dev {
 	struct completion          recovery_stop_completion;
 	struct completion          recovery_completed;
 	struct completion          service_fail_started_indication;
+	struct completion          recovery_fail_safe_complete;
 	int                        recovery_status;
+	bool                       recovery_fail_safe;
 	struct slsi_ssid_map       ssid_map[SLSI_SCAN_SSID_MAP_MAX];
 	bool                       band_5g_supported;
 	int                        supported_2g_channels[14];
@@ -1444,6 +1457,7 @@ struct slsi_dev {
 	bool                       igmp_offload_activated;
 	int                        default_scan_ies_len;
 	u8                         *default_scan_ies;
+	struct sys_error_log       sys_error_log_buf;
 };
 
 /* Compact representation of channels a ESS has been seen on
@@ -1515,6 +1529,8 @@ bool slsi_dev_rtt_supported(void);
 #ifdef CONFIG_SCSC_WLAN_DEBUG_MLME_WORK_STRUCT
 struct slsi_dev *slsi_get_sdev(void);
 #endif
+void slsi_dump_system_error_buffer(struct slsi_dev *sdev);
+void slsi_add_log_to_system_error_buffer(struct slsi_dev *sdev, char *input_buffer);
 
 static inline u16 slsi_tx_host_tag(struct slsi_dev *sdev, enum slsi_traffic_q tq)
 {

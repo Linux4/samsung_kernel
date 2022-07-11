@@ -192,3 +192,9 @@ config SCSC_MEMLOG
 	depends on SOC_S5E9815
 	---help---
 	  Enable memlog feature. So mxlogger doesn't allocated in reserved memory, dynamically by memlog API.
+
+config SCSC_MX152_EXT_DUAL_FEM
+	bool "Enable dual fem for MX152"
+	default n
+	help
+		Enable dual fem for MX152

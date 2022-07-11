@@ -280,13 +280,26 @@ static int slsi_net_open(struct net_device *dev)
 #if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 	u8 mhs_or_dual_sta_mac[ETH_ALEN];
 #endif
+	int r = 0;
 
 	if (WARN_ON(ndev_vif->is_available))
 		return -EINVAL;
 
 	if (sdev->mlme_blocked) {
 		SLSI_NET_WARN(dev, "Fail: called when MLME in blocked state\n");
+		slsi_dump_system_error_buffer(sdev);
 		return -EIO;
+	}
+
+	if (sdev->recovery_fail_safe) {
+		r = wait_for_completion_timeout(&sdev->recovery_fail_safe_complete,
+						msecs_to_jiffies(SLSI_SYS_ERROR_RECOVERY_TIMEOUT));
+
+		if (r == 0) {
+			SLSI_INFO(sdev, "Fail: system error recovery still in progress\n");
+			slsi_dump_system_error_buffer(sdev);
+		}
+		reinit_completion(&sdev->recovery_fail_safe_complete);
 	}
 
 	slsi_wake_lock(&sdev->wlan_wl_init);
@@ -412,6 +425,18 @@ static int slsi_net_stop(struct net_device *dev)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct slsi_dev   *sdev = ndev_vif->sdev;
+	int r = 0;
+
+	if (sdev->recovery_fail_safe) {
+		r = wait_for_completion_timeout(&sdev->recovery_fail_safe_complete,
+						msecs_to_jiffies(SLSI_SYS_ERROR_RECOVERY_TIMEOUT));
+
+		if (r == 0) {
+			SLSI_INFO(sdev, "Fail: system error recovery still in progress\n");
+			slsi_dump_system_error_buffer(sdev);
+		}
+		reinit_completion(&sdev->recovery_fail_safe_complete);
+	}
 
 	SLSI_NET_INFO(dev, "ifnum:%d r:%d\n", ndev_vif->ifnum, sdev->recovery_status);
 	slsi_wake_lock(&sdev->wlan_wl);

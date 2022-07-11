@@ -25,6 +25,12 @@
 #include <linux/sched.h>
 #endif
 
+#ifdef CONFIG_SEC_NFC_LOGGER_ADD_ACPM_LOG
+#include <linux/io.h>
+#include <soc/samsung/acpm_ipc_ctrl.h>
+#include <soc/samsung/debug-snapshot.h>
+#endif
+
 #include "nfc_logger.h"
 
 #define BUF_SIZE	SZ_256K
@@ -59,7 +65,11 @@ void nfc_logger_print_date_time(void)
 	snprintf(tmp, sizeof(tmp), "@%02d-%02d %02d:%02d:%02d.%03lu", tm.tm_mon + 1, tm.tm_mday,
 				tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec / 1000000);
 
+#ifdef CONFIG_SEC_NFC_LOGGER_ADD_ACPM_LOG
+	nfc_logger_print("%s, rtc: %u\n", tmp, nfc_logger_acpm_get_rtc_time());
+#else
 	nfc_logger_print("%s\n", tmp);
+#endif
 }
 
 void nfc_logger_print(const char *fmt, ...)
@@ -196,3 +206,46 @@ int nfc_logger_init(void)
 
 	return 0;
 }
+
+#ifdef CONFIG_SEC_NFC_LOGGER_ADD_ACPM_LOG
+static __iomem *g_rtc_reg;
+
+u32 nfc_logger_acpm_get_rtc_time(void)
+{
+	u32 rtc = 0;
+
+	if (g_rtc_reg)
+		rtc = readl(g_rtc_reg);
+
+	return rtc;
+}
+
+void nfc_logger_acpm_log_print(void)
+{
+	struct nfc_clk_req_log *acpm_log;
+	int last_ptr, len, i;
+	u32 rtc;
+
+	if (!acpm_get_nfc_log_buf(&acpm_log, &last_ptr, &len)) {
+		for (i = 0; i < len; i++) {
+			rtc = nfc_logger_acpm_get_rtc_time();
+			NFC_LOG_INFO("rtc: %u - acpm [%d] time: %d, is_on: %d\n",
+				rtc, i, acpm_log[i].timestamp, acpm_log[i].is_on);
+		}
+	}
+}
+
+void nfc_logger_acpm_log_init(u32 rtc_addr)
+{
+	u32 rtc_reg_addr = CONFIG_SEC_NFC_LOGGER_RTC_REG_ADDR;
+
+	if (rtc_addr)
+		rtc_reg_addr = rtc_addr;
+
+	if (rtc_reg_addr) {
+		NFC_LOG_INFO("rtc: 0x%X\n", rtc_reg_addr);
+		g_rtc_reg = ioremap(rtc_reg_addr, 0x4);
+	}
+}
+#endif
+

@@ -277,6 +277,43 @@ static int slsi_dev_inet6addr_changed(struct notifier_block *nb, unsigned long d
 }
 #endif
 
+void slsi_dump_system_error_buffer(struct slsi_dev *sdev)
+{
+	mutex_lock(&sdev->sys_error_log_buf.log_buf_mutex);
+	SLSI_INFO(sdev, "System error saved logs:\n--BEGIN--\n%s--END--\n", sdev->sys_error_log_buf.log_buf);
+	mutex_unlock(&sdev->sys_error_log_buf.log_buf_mutex);
+}
+
+void slsi_add_log_to_system_error_buffer(struct slsi_dev *sdev, char *input_buffer)
+{
+	int pos = sdev->sys_error_log_buf.pos;
+	int buf_size = sdev->sys_error_log_buf.log_buf_size - pos;
+	u32 time[2] = { 0 };
+
+	get_kernel_timestamp(time);
+	mutex_lock(&sdev->sys_error_log_buf.log_buf_mutex);
+	sdev->sys_error_log_buf.pos += scnprintf(sdev->sys_error_log_buf.log_buf + pos, buf_size - pos, "[%d.%d] ", time[0], time[1]);
+
+	pos = sdev->sys_error_log_buf.pos;
+	buf_size = sdev->sys_error_log_buf.log_buf_size - pos;
+
+	sdev->sys_error_log_buf.pos += scnprintf(sdev->sys_error_log_buf.log_buf + pos, buf_size - pos, input_buffer);
+	mutex_unlock(&sdev->sys_error_log_buf.log_buf_mutex);
+}
+
+static void slsi_sys_error_log_init(struct slsi_dev *sdev)
+{
+	mutex_init(&sdev->sys_error_log_buf.log_buf_mutex);
+	sdev->sys_error_log_buf.pos = 0;
+	sdev->sys_error_log_buf.log_buf = NULL;
+	sdev->sys_error_log_buf.log_buf_size = SYSTEM_ERROR_BUFFER_SZ;
+
+	SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "Allocating %d memory for system_error_log_buffer\n", sdev->sys_error_log_buf.log_buf_size);
+	sdev->sys_error_log_buf.log_buf = kzalloc(sdev->sys_error_log_buf.log_buf_size, GFP_KERNEL);
+	if (!sdev->sys_error_log_buf.log_buf)
+		SLSI_ERR_NODEV("Failed to allocate system_error_log_buffer\n");
+}
+
 struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struct scsc_service_client *mx_wlan_client)
 {
 	struct slsi_dev *sdev;
@@ -348,11 +385,13 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 	init_completion(&sdev->recovery_stop_completion);
 	init_completion(&sdev->recovery_completed);
 	init_completion(&sdev->service_fail_started_indication);
+	init_completion(&sdev->recovery_fail_safe_complete);
 	sdev->recovery_status = 0;
 
 	sdev->term_udi_users         = &term_udi_users;
 	sdev->sig_wait_cfm_timeout   = &sig_wait_cfm_timeout;
 	slsi_sig_send_init(&sdev->sig_wait);
+	slsi_sys_error_log_init(sdev);
 
 	for (i = 0; i < SLSI_LLS_AC_MAX; i++)
 		atomic_set(&sdev->tx_host_tag[i], ((1 << 2) | i));
@@ -474,6 +513,7 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 	INIT_WORK(&sdev->recovery_work_on_stop, slsi_failure_reset);
 	INIT_WORK(&sdev->recovery_work, slsi_subsystem_reset);
 	INIT_WORK(&sdev->recovery_work_on_start, slsi_chip_recovery);
+	INIT_WORK(&sdev->system_error_user_fail_work, slsi_system_error_recovery);
 	INIT_WORK(&sdev->trigger_wlan_fail_work, slsi_trigger_service_failure);
 	return sdev;
 
@@ -542,6 +582,7 @@ void slsi_dev_detach(struct slsi_dev *sdev)
 	complete_all(&sdev->recovery_stop_completion);
 	complete_all(&sdev->recovery_completed);
 	complete_all(&sdev->service_fail_started_indication);
+	complete_all(&sdev->recovery_fail_safe_complete);
 
 	SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "Unregister inetaddr_notifier\n");
 	unregister_inetaddr_notifier(&sdev->inetaddr_notifier);
