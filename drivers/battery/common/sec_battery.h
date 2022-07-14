@@ -37,8 +37,8 @@
 #include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
 #else
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
-#include <linux/muic/muic.h>
-#include <linux/muic/muic_notifier.h>
+#include <linux/muic/common/muic.h>
+#include <linux/muic/common/muic_notifier.h>
 #endif
 #endif
 #include <linux/battery/sec_pd.h>
@@ -619,6 +619,7 @@ typedef struct sec_battery_platform_data {
 	char *otg_name;
 	char *fgsrc_switch_name;
 	bool support_fgsrc_change;
+	bool slowcharging_usb_bootcomplete;
 
 	/* wireless charger */
 	char *wireless_charger_name;
@@ -1109,6 +1110,7 @@ struct sec_battery_info {
 	unsigned int wc20_power_class;
 	unsigned int wc20_rx_power;
 	struct delayed_work wc20_current_work;
+	struct wakeup_source *wc20_current_ws;
 #endif
 	struct delayed_work slowcharging_work;
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
@@ -1186,6 +1188,7 @@ struct sec_battery_info {
 	int lrp_sub;
 	int lr_sub_bat_t_1;
 	bool usb_slow_chg;
+	bool usb_bootcomplete;
 };
 
 /* event check */

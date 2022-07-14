@@ -454,6 +454,44 @@ static int p61_rw_spi_message(struct p61_device *p61_dev,
 	kfree(dup);
 	return 0;
 }
+
+#ifdef CONFIG_COMPAT
+static int p61_rw_spi_message_compat(struct p61_device *p61_dev,
+				 unsigned long arg)
+{
+	struct p61_ioctl_transfer32 __user *argp = compat_ptr(arg);
+	struct p61_ioctl_transfer32 it32;
+	struct p61_ioctl_transfer   *dup = NULL;
+	int err = 0;
+
+	dup = kmalloc(sizeof(struct p61_ioctl_transfer), GFP_KERNEL);
+	if (dup == NULL)
+		return -ENOMEM;
+
+	if (copy_from_user(&it32, argp, sizeof(it32)))
+		return -EFAULT;
+
+	dup->rx_buffer = (__u8 *)(uintptr_t)it32.rx_buffer;
+	dup->tx_buffer = (__u8 *)(uintptr_t)it32.tx_buffer;
+	dup->len = it32.len;
+
+	err = p61_xfer(p61_dev, dup);
+	if (err != 0) {
+		kfree(dup);
+		NFC_LOG_ERR("%s: p61_xfer failed!\n", __func__);
+		return err;
+	}
+
+	if (it32.rx_buffer) {
+		if (__put_user(dup->len, &argp->len)) {
+			kfree(dup);
+			return -EFAULT;
+		}
+	}
+	kfree(dup);
+	return 0;
+}
+#endif	/*CONFIG_COMPAT */
 #endif
 
 /**
@@ -647,6 +685,107 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 
 	return ret;
 }
+
+#ifdef CONFIG_COMPAT
+static long p61_dev_compat_ioctl(struct file *filp, unsigned int cmd,
+	unsigned long arg)
+{
+	int ret = 0;
+	struct p61_device *p61_dev = NULL;
+
+	if (_IOC_TYPE(cmd) != P61_MAGIC)
+		return -ENOTTY;
+
+	p61_dev = filp->private_data;
+
+	switch (cmd) {
+	case P61_SET_PWR_COMPAT:
+		if (arg == 2)
+			NFC_LOG_INFO("%s: P61_SET_PWR. No Action.\n", __func__);
+		break;
+
+	case P61_SET_DBG_COMPAT:
+		debug_level = (unsigned char)arg;
+		P61_DBG_MSG(KERN_INFO"[NXP-P61] -  Debug level %d",
+			debug_level);
+		break;
+	case P61_SET_POLL_COMPAT:
+		p61_dev->enable_poll_mode = (unsigned char)arg;
+		if (p61_dev->enable_poll_mode == 0) {
+			P61_DBG_MSG(KERN_INFO"[NXP-P61] - IRQ Mode is set\n");
+		} else {
+			P61_DBG_MSG(KERN_INFO"[NXP-P61] - Poll Mode is set\n");
+			p61_dev->enable_poll_mode = 1;
+		}
+		break;
+
+#if !defined(CONFIG_NFC_FEATURE_SN100U)
+	case P61_SET_SPI_CONFIG:
+		NFC_LOG_INFO("%s P61_SET_SPI_CONFIG. No Action.\n", __func__);
+		break;
+	case P61_ENABLE_SPI_CLK:
+		NFC_LOG_INFO("%s P61_ENABLE_SPI_CLK. No Action.\n", __func__);
+		break;
+	case P61_DISABLE_SPI_CLK:
+		NFC_LOG_INFO("%s P61_DISABLE_SPI_CLK. No Action.\n", __func__);
+		break;
+#endif
+
+	case P61_RW_SPI_DATA_COMPAT:
+#if !defined(CONFIG_ESE_SECURE)
+		ret = p61_rw_spi_message_compat(p61_dev, arg);
+#endif
+		break;
+
+	case P61_SET_SPM_PWR_COMPAT:
+		NFC_LOG_INFO("%s: P61_SET_SPM_PWR: enter\n", __func__);
+		ret = pn547_dev_ioctl(filp, P61_SET_SPI_PWR, arg);
+		if (arg == 0 || arg == 1 || arg == 3)
+			pwr_req_on = arg;
+		NFC_LOG_INFO("%s: P61_SET_SPM_PWR: exit\n", __func__);
+		break;
+
+	case P61_GET_SPM_STATUS_COMPAT:
+		NFC_LOG_INFO("%s: P61_GET_SPM_STATUS: enter\n", __func__);
+		ret = pn547_dev_ioctl(filp, P61_GET_PWR_STATUS, arg);
+		NFC_LOG_INFO("%s: P61_GET_SPM_STATUS: exit\n", __func__);
+		break;
+
+	case P61_GET_ESE_ACCESS_COMPAT:
+		/*P61_DBG_MSG(KERN_ALERT " P61_GET_ESE_ACCESS: enter");*/
+		ret = pn547_dev_ioctl(filp, P547_GET_ESE_ACCESS, arg);
+		NFC_LOG_INFO("%s: P61_GET_ESE_ACCESS ret: %d exit\n", __func__, ret);
+		break;
+
+	case P61_SET_DWNLD_STATUS_COMPAT:
+		P61_DBG_MSG(KERN_ALERT "P61_SET_DWNLD_STATUS: enter\n");
+		ret = pn547_dev_ioctl(filp, PN547_SET_DWNLD_STATUS, arg);
+		NFC_LOG_INFO("%s: P61_SET_DWNLD_STATUS: =%lu exit\n", __func__, arg);
+		break;
+
+#ifdef CONFIG_NFC_FEATURE_SN100U
+	case ESE_PERFORM_COLD_RESET_COMPAT:
+		P61_DBG_MSG(KERN_ALERT " ESE_PERFORM_COLD_RESET: enter");
+		ret = ese_cold_reset(ESE_COLD_RESET_SOURCE_SPI);
+		P61_DBG_MSG(KERN_ALERT " P61_INHIBIT_PWR_CNTRL ret: %d exit", ret);
+		break;
+
+	case PERFORM_RESET_PROTECTION_COMPAT:
+		P61_DBG_MSG(KERN_ALERT " PERFORM_RESET_PROTECTION: enter");
+		ret = do_reset_protection((arg == 1 ? true : false));
+		P61_DBG_MSG(KERN_ALERT " PERFORM_RESET_PROTECTION ret: %d exit", ret);
+	break;
+#endif
+
+	default:
+		NFC_LOG_INFO("%s: no matching ioctl!\n", __func__);
+		ret = -EINVAL;
+	}
+
+	return ret;
+//	return p61_dev_ioctl(filp, cmd, (unsigned long)compat_ptr(arg));
+}
+#endif
 
 #ifdef CONFIG_NFC_FEATURE_SN100U
 /* this function is defined temporarily to fix build error. this function is used by uwb */
@@ -884,6 +1023,9 @@ static const struct file_operations p61_dev_fops = {
 	.write = p61_dev_write,
 	.open = p61_dev_open,
 	.unlocked_ioctl = p61_dev_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = p61_dev_compat_ioctl,
+#endif
 	.release = p61_dev_release,
 };
 

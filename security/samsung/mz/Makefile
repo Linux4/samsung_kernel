@@ -18,5 +18,6 @@ endif
 
 ifeq ($(CONFIG_SEC_KUNIT), y)
 	GCOV_PROFILE := y
+	ccflags-y += -DMEZ_KUNIT_ENABLED
 	obj-$(CONFIG_MEMORY_ZEROISATION) += test/
 endif

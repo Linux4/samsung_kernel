@@ -345,12 +345,16 @@ typedef enum {
 #define SEC_TS_SUPPORT_TOUCH_COUNT		10
 #define SEC_TS_GESTURE_REPORT_BUFF_SIZE		20
 
+/* SPONGE MODE 0x00 */
 #define SEC_TS_MODE_SPONGE_SWIPE		(1 << 1)
 #define SEC_TS_MODE_SPONGE_AOD			(1 << 2)
 #define SEC_TS_MODE_SPONGE_SINGLE_TAP		(1 << 3)
 #define SEC_TS_MODE_SPONGE_PRESS		(1 << 4)
 #define SEC_TS_MODE_SPONGE_DOUBLETAP_TO_WAKEUP	(1 << 5)
 #define SEC_TS_MODE_SPONGE_TWO_FINGER_DOUBLETAP	(1 << 7)
+/* SPONGE MODE 0x01 */
+#define SEC_TS_MODE_SPONGE_INF_DUMP_CLEAR	(1 << 0)
+#define SEC_TS_MODE_SPONGE_INF_DUMP		(1 << 1)
 
 /*SPONGE library parameters*/
 #define SEC_TS_MAX_SPONGE_DUMP_BUFFER	512
@@ -377,6 +381,23 @@ typedef enum {
 #define TSP_EXTERNAL_FW		"tsp.bin"
 #define TSP_EXTERNAL_FW_SIGNED	"tsp_signed.bin"
 #define TSP_SPU_FW_SIGNED		"/TSP/ffu_tsp.bin"
+
+enum display_state {
+	DISPLAY_STATE_SERVICE_SHUTDOWN = -1,
+	DISPLAY_STATE_NONE = 0,
+	DISPLAY_STATE_OFF,
+	DISPLAY_STATE_ON,
+	DISPLAY_STATE_DOZE,
+	DISPLAY_STATE_DOZE_SUSPEND,
+	DISPLAY_STATE_LPM_OFF = 20,
+	DISPLAY_STATE_FORCE_OFF,
+	DISPLAY_STATE_FORCE_ON,
+};
+
+enum display_event {
+	DISPLAY_EVENT_EARLY = 0,
+	DISPLAY_EVENT_LATE,
+};
 
 enum power_mode {
 	SEC_INPUT_STATE_POWER_OFF = 0,
@@ -547,6 +568,7 @@ struct sec_ts_coordinate {
 	u8 max_strength;
 	u8 hover_id_num;
 	u8 noise_status;
+	u8 freq_id;
 };
 
 struct sec_ts_aod_data {
@@ -670,6 +692,7 @@ struct sec_ts_plat_data {
 	u16 touch_functions;
 	u16 ic_status;
 	u8 lowpower_mode;
+	u8 sponge_mode;
 	u8 external_noise_mode;
 	u8 touchable_area;
 	u8 ed_enable;

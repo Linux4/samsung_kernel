@@ -173,6 +173,19 @@ struct typec_manager_gadget_ops {
 	int		(*get_cmply_link_state)(void *dev);
 };
 
+typedef union {
+	struct {
+		uint64_t src:4;
+		uint64_t dest:4;
+		uint64_t id:8;
+		uint64_t sub1:16;
+		uint64_t sub2:16;
+		uint64_t sub3:16;
+	};
+	uint64_t noti_event;
+
+} MANAGER_NOTI_TYPEDEF_REF;
+
 #define PDIC_BATTERY	(1<<0)
 #define PDIC_USB	(1<<1)
 #define PDIC_DP		(1<<2)

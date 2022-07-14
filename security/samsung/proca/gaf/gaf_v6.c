@@ -118,7 +118,7 @@ static struct GAForensicINFO {
 	.list_head_struct_prev = offsetof(struct list_head, prev),
 #if defined(CONFIG_KDP_NS) || defined(CONFIG_RKP_NS_PROT) || defined(CONFIG_RUSTUH_KDP_NS)
 	.is_kdp_ns_on = true,
-#if defined(CONFIG_SOC_EXYNOS2100) || defined(CONFIG_ARCH_LAHAINA) || defined(CONFIG_SOC_S5E9925) \
+#if defined(CONFIG_SOC_EXYNOS2100) || defined(CONFIG_ARCH_LAHAINA) || defined(CONFIG_SOC_S5E9925) || defined(CONFIG_ARCH_HOLI) \
 || defined(CONFIG_SOC_S5E8825)
 	.struct_vfsmount_bp_mount = offsetof(struct kdp_vfsmount, bp_mount),
 #else

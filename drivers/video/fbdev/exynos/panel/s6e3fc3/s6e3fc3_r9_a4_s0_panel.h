@@ -857,6 +857,7 @@ static void *r9_a4_s0_res_init_cmdtbl[] = {
 #ifdef CONFIG_DISPLAY_USE_INFO
 	&s6e3fc3_restbl[RES_SELF_DIAG],
 	&s6e3fc3_restbl[RES_ERR_FG],
+	&s6e3fc3_restbl[RES_ERR],
 	&s6e3fc3_restbl[RES_DSI_ERR],
 #endif
 	&KEYINFO(r9_a4_s0_level3_key_disable),
@@ -928,6 +929,7 @@ static void *r9_a4_s0_exit_cmdtbl[] = {
 #ifdef CONFIG_DISPLAY_USE_INFO
 	&s6e3fc3_dmptbl[DUMP_RDDSM],
 	&s6e3fc3_dmptbl[DUMP_ERR_FG],
+	&s6e3fc3_dmptbl[DUMP_ERR],
 	&s6e3fc3_dmptbl[DUMP_DSI_ERR],
 	&s6e3fc3_dmptbl[DUMP_SELF_DIAG],
 #endif
@@ -990,6 +992,7 @@ static void *r9_a4_s0_dump_cmdtbl[] = {
 	&s6e3fc3_dmptbl[DUMP_DSI_ERR],
 	&s6e3fc3_dmptbl[DUMP_SELF_DIAG],
 	&s6e3fc3_dmptbl[DUMP_ERR_FG],
+	&s6e3fc3_dmptbl[DUMP_ERR],
 	&KEYINFO(r9_a4_s0_level3_key_disable),
 	&KEYINFO(r9_a4_s0_level2_key_disable),
 	&KEYINFO(r9_a4_s0_level1_key_disable),

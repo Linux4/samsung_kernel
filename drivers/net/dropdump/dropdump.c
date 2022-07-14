@@ -9,6 +9,7 @@
 #if defined(CONFIG_ANDROID_VENDOR_HOOKS)
 #include <trace/hooks/net.h>
 #endif
+#include <trace/events/skb.h>
 
 int debug_drd = 0;
 module_param(debug_drd, int, S_IRUGO | S_IWUSR | S_IWGRP);
@@ -53,13 +54,15 @@ static char save_stack[NR_CPUS][ST_SIZE * ST_MAX];
 
 char *__stack(int depth) {
 	char *func = NULL;
-	switch (depth + 4) {
+	switch (depth + 6) {
+#if 0
 		case  4 :
 			func = __builtin_return_address(4);
 			break;
 		case  5 :
 			func = __builtin_return_address(5);
 			break;
+#endif
 		case  6 :
 			func = __builtin_return_address(6);
 			break;
@@ -233,8 +236,7 @@ int pr_stack(struct sk_buff *skb, char *dst)
 			n = snprintf(pos, ST_SIZE, "%pS", st);
 			memset(pos + n, 0, ST_SIZE - n);
 
-			if (depth != 0) // skip depth 0 stack : __traceiter_android_vh_kfree_skb
-				chk = chk_stack(pos, net_pkt);
+			chk = chk_stack(pos, net_pkt);
 			drd_dbg("[%2d:%d] <%s>\n", depth, chk, pos);
 			if (chk < 0)
 				return NOT_TRACE;
@@ -443,12 +445,24 @@ out_unlock:
 
 int skb_validate(struct sk_buff *skb)
 {
-	int err;
+	int err = -1;
 
-	if (unlikely(!virt_addr_valid(skb))) {
-		err = -1;
-	} else {
+	if (virt_addr_valid(skb) && virt_addr_valid(skb->dev)) {
 		struct iphdr *ip4hdr = (struct iphdr *)skb_network_header(skb);
+
+		switch (skb->dev->name[0]) {
+			case 'r' : // rmnet*
+			case 'w' : // wlan
+			case 'v' : // v4-rmnet*
+			case 'l' : // lo
+			case 's' : // swlan
+			case 't' : // tun
+			case 'b' : // bt*
+				break;
+			default :
+				return -8;
+		}
+
 		if (unlikely((ip4hdr->version != 4 && ip4hdr->version != 6)
 				|| ip4hdr->id == 0x6b6b))
 			err = -2;
@@ -463,8 +477,9 @@ int skb_validate(struct sk_buff *skb)
 		else if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
 			err = -7;
 		else
-			return 0;
+			err = 0;
 	}
+
 	return err;
 }
 
@@ -498,11 +513,6 @@ static void drd_ptype_head_handler(void *data, const struct packet_type *pt, str
 {
 	drd_ptype_head(pt, vendor_pt);
 }
-
-static void drd_kfree_skb_handler(void *data, struct sk_buff *skb)
-{
-	drd_kfree_skb(skb);
-}
 #else
 /* can't use macro directing the drd_xxx functions instead of lapper. *
  * because of have to use EXPORT_SYMBOL macro for module parts.       *
@@ -512,13 +522,12 @@ void trace_android_vh_ptype_head(const struct packet_type *pt, struct list_head 
 	drd_ptype_head(pt, vendor_pt);
 }
 EXPORT_SYMBOL_GPL(trace_android_vh_ptype_head);
+#endif
 
-void trace_android_vh_kfree_skb(struct sk_buff *skb)
+static void drd_kfree_skb_handler(void *data, struct sk_buff *skb, void *location)
 {
 	drd_kfree_skb(skb);
 }
-EXPORT_SYMBOL_GPL(trace_android_vh_kfree_skb);
-#endif
 
 static struct ctl_table drd_proc_table[] = {
 	{
@@ -547,12 +556,12 @@ static int __init init_net_drop_dump(void)
 
 #if defined(CONFIG_ANDROID_VENDOR_HOOKS)
 	rc  = register_trace_android_vh_ptype_head(drd_ptype_head_handler, NULL);
-	rc += register_trace_android_vh_kfree_skb(drd_kfree_skb_handler, NULL);
+#endif
+	rc += register_trace_kfree_skb(drd_kfree_skb_handler, NULL);
 	if (rc) {
 		drd_info("fail to register android_trace\n");
 		return -EIO;
 	}
-#endif
 
 	support_dropdump = 0;
 

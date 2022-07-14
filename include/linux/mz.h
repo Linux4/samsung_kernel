@@ -7,7 +7,9 @@
 #include <linux/list.h>
 #include <linux/sched.h>
 
+#if defined(MEZ_KUNIT_ENABLED)
 #include <kunit/mock.h>
+#endif /* !defined(MEZ_KUNIT_ENABLED) */
 
 #define MZ_PAGE_POISON 0x53
 #define PRLIMIT 32768
@@ -100,7 +102,6 @@ extern uint64_t *addr_list;
 extern int addr_list_count_max;
 
 #ifdef CONFIG_MZ_USE_TZDEV
-extern int (*mz_exynos_pmu_write)(unsigned int, unsigned int);
 extern MzResult (*load_trusted_app)(void);
 extern void (*unload_trusted_app)(void);
 #else
@@ -108,21 +109,24 @@ MzResult load_trusted_app(void);
 void unload_trusted_app(void);
 #endif
 
-#ifdef CONFIG_KUNIT
+#ifdef MEZ_KUNIT_ENABLED
+#define MALLOC_FAIL_CUR 2
+#define MALLOC_FAIL_PFN 3
+#define MALLOC_FAIL_PID 4
+#define PANIC_FAIL_PID 5
 MzResult mz_add_new_target(pid_t tgid);
 bool is_mz_target(pid_t tgid);
 bool is_mz_all_zero_target(pid_t tgid);
 MzResult remove_target_from_all_list(pid_t tgid);
 struct task_struct *findts(pid_t tgid);
-#define MALLOC_FAIL_CUR 2
-#define MALLOC_FAIL_PFN 3
-#define MALLOC_FAIL_PID 4
-#define PANIC_FAIL_PID 5
-
 long mz_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
 int mz_ioctl_init(void);
 void mz_ioctl_exit(void);
 #define IOCTL_MZ_FAIL_CMD _IOWR(IOC_MAGIC, 0, struct vainfo_t)
-#endif /* CONFIG_KUNIT */
+#else
+#ifndef __visible_for_testing
+#define __visible_for_testing static
+#endif
+#endif /* MEZ_KUNIT_ENABLED */
 
 #endif /* _LINUX_MZ_H */

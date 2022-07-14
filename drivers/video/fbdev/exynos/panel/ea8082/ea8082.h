@@ -409,8 +409,6 @@ enum {
 	DUMP_RDDPM = 0,
 	DUMP_RDDPM_SLEEP_IN,
 	DUMP_RDDSM,
-	DUMP_ERR,
-	DUMP_ERR_FG,
 	DUMP_DSI_ERR,
 	DUMP_SELF_DIAG,
 	DUMP_SELF_MASK_CRC,
@@ -422,8 +420,6 @@ enum {
 static void show_rddpm(struct dumpinfo *info);
 static void show_rddpm_before_sleep_in(struct dumpinfo *info);
 static void show_rddsm(struct dumpinfo *info);
-static void show_err(struct dumpinfo *info);
-static void show_err_fg(struct dumpinfo *info);
 static void show_dsi_err(struct dumpinfo *info);
 static void show_self_diag(struct dumpinfo *info);
 #ifdef CONFIG_SUPPORT_DDI_CMDLOG
@@ -434,8 +430,6 @@ static struct dumpinfo ea8082_dmptbl[] = {
 	[DUMP_RDDPM] = DUMPINFO_INIT(rddpm, &ea8082_restbl[RES_RDDPM], show_rddpm),
 	[DUMP_RDDPM_SLEEP_IN] = DUMPINFO_INIT(rddpm_sleep_in, &ea8082_restbl[RES_RDDPM], show_rddpm_before_sleep_in),
 	[DUMP_RDDSM] = DUMPINFO_INIT(rddsm, &ea8082_restbl[RES_RDDSM], show_rddsm),
-	[DUMP_ERR] = DUMPINFO_INIT(err, &ea8082_restbl[RES_ERR], show_err),
-	[DUMP_ERR_FG] = DUMPINFO_INIT(err_fg, &ea8082_restbl[RES_ERR_FG], show_err_fg),
 	[DUMP_DSI_ERR] = DUMPINFO_INIT(dsi_err, &ea8082_restbl[RES_DSI_ERR], show_dsi_err),
 	[DUMP_SELF_DIAG] = DUMPINFO_INIT(self_diag, &ea8082_restbl[RES_SELF_DIAG], show_self_diag),
 #ifdef CONFIG_SUPPORT_DDI_CMDLOG

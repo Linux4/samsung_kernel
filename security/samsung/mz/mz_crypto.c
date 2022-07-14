@@ -55,7 +55,6 @@ MzResult register_mz_tee_crypto_driver(struct mz_tee_driver_fns *tee_driver_fns)
 exit:
 	return mz_ret;
 }
-EXPORT_SYMBOL(register_mz_tee_crypto_driver);
 
 void unregister_mz_tee_crypto_driver(void)
 {
@@ -65,5 +64,8 @@ void unregister_mz_tee_crypto_driver(void)
 		is_registered = 0;
 	}
 }
-EXPORT_SYMBOL(unregister_mz_tee_crypto_driver);
 
+#ifdef CONFIG_MZ_USE_TZDEV
+EXPORT_SYMBOL(register_mz_tee_crypto_driver);
+EXPORT_SYMBOL(unregister_mz_tee_crypto_driver);
+#endif

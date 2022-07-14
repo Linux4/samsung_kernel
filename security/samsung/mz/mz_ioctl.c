@@ -22,13 +22,13 @@ static struct cdev mz_ioctl_cdev;
 __visible_for_testing long mz_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = MZ_SUCCESS;
-#ifndef CONFIG_KUNIT
+#ifndef CONFIG_SEC_KUNIT
 	vainfo mzvainfo = { 0, 0};
 
 	uint64_t ava, va, ptwi = 0, len;
 	uint64_t cur_len;
 	unsigned long pfn, old_pfn = 0;
-#endif /* CONFIG_KUNIT */
+#endif /* CONFIG_SEC_KUNIT */
 	struct mm_struct *mm = current->mm;
 	pid_t cur_tid = current->pid;
 	uint8_t __user *buf;
@@ -40,19 +40,19 @@ __visible_for_testing long mz_ioctl(struct file *file, unsigned int cmd, unsigne
 		return ret;
 	}
 
-#ifndef CONFIG_KUNIT
+#ifndef CONFIG_SEC_KUNIT
 	ret = mz_kget_process_name(current->tgid, pname);
 	if (ret != MZ_SUCCESS) {
 		MZ_LOG(err_level_error, "%s get name fail %d %d %d\n", __func__, current->tgid, cur_tid, ret);
 		return ret;
 	}
-#endif /* CONFIG_KUNIT */
+#endif /* CONFIG_SEC_KUNIT */
 	MZ_LOG(err_level_info, "%s start %s %d %d", __func__, pname, current->tgid, cur_tid);
 
 	switch (cmd) {
 	case IOCTL_MZ_SET_CMD:
 #if defined(CONFIG_MEMORY_ZEROISATION)
-#ifndef CONFIG_KUNIT
+#ifndef CONFIG_SEC_KUNIT
 		ret = copy_from_user(&mzvainfo, (void *)arg, sizeof(mzvainfo));
 		if (ret)
 			MZ_LOG(err_level_error, "%s copy from user error\n", __func__);
@@ -61,9 +61,9 @@ __visible_for_testing long mz_ioctl(struct file *file, unsigned int cmd, unsigne
 		va = mzvainfo.va;
 		len = mzvainfo.len;
 		buf = mzvainfo.buf;
-#endif /* CONFIG_KUNIT */
+#endif /* CONFIG_SEC_KUNIT */
 
-#ifndef CONFIG_KUNIT
+#ifndef CONFIG_SEC_KUNIT
 		if (!isaddrset()) {
 			ret = set_mz_mem();
 			if (ret != MZ_SUCCESS) {
@@ -107,7 +107,7 @@ __visible_for_testing long mz_ioctl(struct file *file, unsigned int cmd, unsigne
 				len--;
 			}
 		}
-#endif /* CONFIG_KUNIT */
+#endif /* CONFIG_SEC_KUNIT */
 out:
 #endif /* defined(CONFIG_MEMORY_ZEROISATION) */
 		break;
@@ -132,7 +132,7 @@ static const struct file_operations mz_ioctl_fops = {
 	.compat_ioctl = mz_ioctl,
 };
 
-#ifdef CONFIG_KUNIT
+#ifdef CONFIG_SEC_KUNIT
 int mz_ioctl_init(void)
 #else
 static int __init mz_ioctl_init(void)
@@ -194,7 +194,7 @@ unregister_chrdev_region:
 	return rc;
 }
 
-#ifdef CONFIG_KUNIT
+#ifdef CONFIG_SEC_KUNIT
 void mz_ioctl_exit(void)
 #else
 static void __exit mz_ioctl_exit(void)
@@ -212,8 +212,8 @@ MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("Samsung MZ Driver");
 MODULE_VERSION("1.00");
 
-#ifndef CONFIG_KUNIT
+#ifndef CONFIG_SEC_KUNIT
 module_init(mz_ioctl_init);
 module_exit(mz_ioctl_exit);
-#endif /* CONFIG_KUNIT */
+#endif /* CONFIG_SEC_KUNIT */
 

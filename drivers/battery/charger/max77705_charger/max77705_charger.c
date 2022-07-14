@@ -18,7 +18,7 @@
 #include <linux/mfd/max77705.h>
 #include <linux/of_gpio.h>
 #include "max77705_charger.h"
-#include <linux/muic/muic.h>
+#include <linux/muic/common/muic.h>
 #ifdef CONFIG_USB_HOST_NOTIFY
 #include <linux/usb_notify.h>
 #endif

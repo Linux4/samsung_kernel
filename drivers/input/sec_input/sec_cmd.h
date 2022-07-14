@@ -81,6 +81,18 @@ enum SEC_CMD_STATUS {
 	SEC_CMD_STATUS_NOT_APPLICABLE,	// = 5
 };
 
+#define INPUT_CMD_RESULT_NOT_EXIT	0
+#define INPUT_CMD_RESULT_NEED_EXIT	1
+
+#define input_cmd_result(cmd_state_parm, need_exit)						\
+({										\
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));	\
+	sec->cmd_state = cmd_state_parm;	\
+	if (need_exit == INPUT_CMD_RESULT_NEED_EXIT)	\
+		sec_cmd_set_cmd_exit(sec); \
+	input_info(true, ptsp, "%s: %s\n", __func__, buff);	\
+})
+
 #ifdef USE_SEC_CMD_QUEUE
 #define SEC_CMD_MAX_QUEUE	10
 
@@ -124,7 +136,7 @@ struct sec_cmd_data {
 	u8 cmd_all_factory_state;
 
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
-	struct sec_ts_virtual_sysfs_function *sysfs_fuctions;
+	struct sec_ts_virtual_sysfs_function *sysfs_functions;
 #endif
 };
 

@@ -85,7 +85,7 @@ extern void muic_notifier_logically_detach_attached_dev(muic_attached_dev_t cur_
 extern void vt_muic_notifier_attach_attached_dev(muic_attached_dev_t new_dev);
 extern void vt_muic_notifier_detach_attached_dev(muic_attached_dev_t cur_dev);
 
-#ifdef CONFIG_PDIC_SLSI_NON_MCU
+#if IS_ENABLED(CONFIG_PDIC_SLSI_NON_MCU)
 extern int muic_pdic_notifier_register(struct notifier_block *nb,
 		notifier_fn_t notifier, muic_notifier_device_t listener);
 extern int muic_pdic_notifier_unregister(struct notifier_block *nb);

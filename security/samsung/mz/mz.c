@@ -20,7 +20,7 @@ uint64_t *addr_list;
 static int addr_list_count;
 int addr_list_count_max;
 
-#ifndef CONFIG_KUNIT
+#ifndef CONFIG_SEC_KUNIT
 static bool is_mz_target(pid_t tgid);
 static bool is_mz_all_zero_target(pid_t tgid);
 static MzResult mz_add_new_target(pid_t tgid);
@@ -28,7 +28,7 @@ static MzResult remove_target_from_all_list(pid_t tgid);
 static struct task_struct *findts(pid_t tgid);
 static void compact_addr_list(void);
 static void update_list(void);
-#endif /* CONFIG_KUNIT */
+#endif /* CONFIG_SEC_KUNIT */
 
 static int add_count;
 
@@ -188,12 +188,12 @@ __visible_for_testing MzResult mz_add_new_target(pid_t tgid)
 	}
 
 	pid_node = kmalloc(sizeof(*pid_node), GFP_KERNEL);
-#ifdef CONFIG_KUNIT
+#ifdef CONFIG_SEC_KUNIT
 	if (tgid == MALLOC_FAIL_PID && pid_node) {
 		kfree(pid_node);
 		pid_node = NULL;
 	}
-#endif /* CONFIG_KUNIT */
+#endif /* CONFIG_SEC_KUNIT */
 	if (!pid_node) {
 		MZ_LOG(err_level_error, "%s pid_node kmalloc fail\n", __func__);
 		return MZ_MALLOC_ERROR;
@@ -272,12 +272,12 @@ MzResult mz_add_target_pfn(pid_t tgid, unsigned long pfn, unsigned long offset,
 	}
 
 	cur_encrypted = kmalloc(sizeof(*cur_encrypted), GFP_ATOMIC);
-#ifdef CONFIG_KUNIT
+#ifdef CONFIG_SEC_KUNIT
 	if (tgid == MALLOC_FAIL_CUR && cur_encrypted) {
 		kfree(cur_encrypted);
 		cur_encrypted = NULL;
 	}
-#endif /* CONFIG_KUNIT */
+#endif /* CONFIG_SEC_KUNIT */
 	if (!cur_encrypted) {
 		MZ_LOG(err_level_error, "%s cur_encrypted kmalloc fail\n", __func__);
 		return MZ_MALLOC_ERROR;
@@ -288,12 +288,12 @@ MzResult mz_add_target_pfn(pid_t tgid, unsigned long pfn, unsigned long offset,
 	MZ_LOG(err_level_debug, "%s original addr before migrate/gup %llx\n", __func__, pa + offset);
 #endif
 
-#ifndef CONFIG_KUNIT
+#ifndef CONFIG_SEC_KUNIT
 	//Migration in case of CMA and pin
 	mz_ret = mz_migrate_and_pin(target_page, va, buf, &new_pfn, tgid);
 	if (mz_ret != MZ_SUCCESS)
 		goto free_alloc;
-#endif /* CONFIG_KUNIT */
+#endif /* CONFIG_SEC_KUNIT */
 
 	if (new_pfn != 0)
 		target_page = pfn_to_page(new_pfn);
@@ -353,8 +353,8 @@ MzResult mzinit(void)
 	addr_list_count = 2;
 	addr_list_count_max = 0;
 
-	mz_addr_init();
-	set_mz_mem();
+	if (mz_addr_init())
+		set_mz_mem();
 
 	return MZ_SUCCESS;
 }
@@ -399,6 +399,4 @@ MzResult (*load_trusted_app)(void) = NULL;
 EXPORT_SYMBOL(load_trusted_app);
 void (*unload_trusted_app)(void) = NULL;
 EXPORT_SYMBOL(unload_trusted_app);
-int (*mz_exynos_pmu_write)(unsigned int, unsigned int) = NULL;
-EXPORT_SYMBOL(mz_exynos_pmu_write);
 #endif

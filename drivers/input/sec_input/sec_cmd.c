@@ -246,6 +246,7 @@ __visible_for_testing ssize_t sec_cmd_store(struct device *dev,
 err_out:
 	return count;
 }
+EXPORT_SYMBOL_KUNIT(sec_cmd_store);
 
 #else	/* defined USE_SEC_CMD_QUEUE */
 static void sec_cmd_store_function(struct sec_cmd_data *data)
@@ -482,6 +483,7 @@ __visible_for_testing ssize_t sec_cmd_store(struct device *dev, struct device_at
 	sec_cmd_execution(data, true);
 	return count;
 }
+EXPORT_SYMBOL_KUNIT(sec_cmd_store);
 #endif
 
 __visible_for_testing ssize_t sec_cmd_show_status(struct device *dev,
@@ -515,8 +517,9 @@ __visible_for_testing ssize_t sec_cmd_show_status(struct device *dev,
 
 	pr_debug("%s: %s %s: %d, %s\n", dev_name(data->fac_dev), SECLOG, __func__, data->cmd_state, buff);
 
-	return snprintf(buf, SEC_CMD_BUF_SIZE, "%s\n", buff);
+	return snprintf(buf, sizeof(buff), "%s\n", buff);
 }
+EXPORT_SYMBOL_KUNIT(sec_cmd_show_status);
 
 static ssize_t sec_cmd_show_status_all(struct device *dev,
 				 struct device_attribute *devattr, char *buf)
@@ -549,7 +552,7 @@ static ssize_t sec_cmd_show_status_all(struct device *dev,
 
 	pr_debug("%s: %s %s: %d, %s\n", dev_name(data->fac_dev), SECLOG, __func__, data->cmd_all_factory_state, buff);
 
-	return snprintf(buf, SEC_CMD_BUF_SIZE, "%s\n", buff);
+	return snprintf(buf, sizeof(buff), "%s\n", buff);
 }
 
 __visible_for_testing ssize_t sec_cmd_show_result(struct device *dev,
@@ -579,6 +582,7 @@ __visible_for_testing ssize_t sec_cmd_show_result(struct device *dev,
 
 	return size;
 }
+EXPORT_SYMBOL_KUNIT(sec_cmd_show_result);
 
 static ssize_t sec_cmd_show_result_all(struct device *dev,
 				 struct device_attribute *devattr, char *buf)
@@ -882,8 +886,8 @@ void sec_cmd_virtual_tsp_register(struct sec_cmd_data *sec)
 		main_sec = sec;
 		input_info(true, sec->fac_dev, "%s: main\n", __func__);
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0))
-		main_sec->sysfs_fuctions = devm_kzalloc(main_sec->fac_dev, sizeof(struct sec_ts_virtual_sysfs_function), GFP_KERNEL);
-		if (!main_sec->sysfs_fuctions) {
+		main_sec->sysfs_functions = devm_kzalloc(main_sec->fac_dev, sizeof(struct sec_ts_virtual_sysfs_function), GFP_KERNEL);
+		if (!main_sec->sysfs_functions) {
 			return;
 		}
 #endif
@@ -891,8 +895,8 @@ void sec_cmd_virtual_tsp_register(struct sec_cmd_data *sec)
 		sub_sec = sec;
 		input_info(true, sec->fac_dev, "%s: sub\n", __func__);
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0))
-		sub_sec->sysfs_fuctions = devm_kzalloc(sub_sec->fac_dev, sizeof(struct sec_ts_virtual_sysfs_function), GFP_KERNEL);
-		if (!sub_sec->sysfs_fuctions) {
+		sub_sec->sysfs_functions = devm_kzalloc(sub_sec->fac_dev, sizeof(struct sec_ts_virtual_sysfs_function), GFP_KERNEL);
+		if (!sub_sec->sysfs_functions) {
 			return ;
 		}
 #endif
@@ -914,11 +918,11 @@ int sec_cmd_virtual_tsp_read_sysfs(struct sec_cmd_data *sec, const char *path, c
 		else if (strcmp(path, PATH_MAIN_SEC_CMD_RESULT_ALL) == 0)
 			sec_cmd_show_result_all(main_sec->fac_dev, NULL, buf);
 		else if (strcmp(path, PATH_MAIN_SEC_SYSFS_SUPPORT_FEATURE) == 0) {
-			if (main_sec->sysfs_fuctions->sec_tsp_support_feature_show != NULL)
-				main_sec->sysfs_fuctions->sec_tsp_support_feature_show(main_sec->fac_dev, NULL, buf);
+			if (main_sec->sysfs_functions->sec_tsp_support_feature_show != NULL)
+				main_sec->sysfs_functions->sec_tsp_support_feature_show(main_sec->fac_dev, NULL, buf);
 		} else if (strcmp(path, PATH_MAIN_SEC_SYSFS_PROX_POWER_OFF) == 0) {
-			if (main_sec->sysfs_fuctions->sec_tsp_prox_power_off_show != NULL)
-				main_sec->sysfs_fuctions->sec_tsp_prox_power_off_show(main_sec->fac_dev, NULL, buf);
+			if (main_sec->sysfs_functions->sec_tsp_prox_power_off_show != NULL)
+				main_sec->sysfs_functions->sec_tsp_prox_power_off_show(main_sec->fac_dev, NULL, buf);
 		}
 	}
 
@@ -932,8 +936,8 @@ int sec_cmd_virtual_tsp_read_sysfs(struct sec_cmd_data *sec, const char *path, c
 		else if (strcmp(path, PATH_SUB_SEC_CMD_RESULT_ALL) == 0)
 			sec_cmd_show_result_all(sub_sec->fac_dev, NULL, buf);
 		else if (strcmp(path, PATH_SUB_SEC_SYSFS_PROX_POWER_OFF) == 0) {
-			if (sub_sec->sysfs_fuctions->sec_tsp_prox_power_off_show != NULL)
-				sub_sec->sysfs_fuctions->sec_tsp_prox_power_off_show(sub_sec->fac_dev, NULL, buf);
+			if (sub_sec->sysfs_functions->sec_tsp_prox_power_off_show != NULL)
+				sub_sec->sysfs_functions->sec_tsp_prox_power_off_show(sub_sec->fac_dev, NULL, buf);
 		}
 	}
 
@@ -991,18 +995,18 @@ int sec_cmd_virtual_tsp_write_sysfs(struct sec_cmd_data *sec, const char *path, 
 			ret = sec_cmd_store(sub_sec->fac_dev, NULL, cmd, len);
 	} else if (strcmp(path, PATH_MAIN_SEC_SYSFS_DUALSCREEN_POLICY) == 0) {
 		if (main_sec) {
-			if (main_sec->sysfs_fuctions->dualscreen_policy_store != NULL)
-				ret = main_sec->sysfs_fuctions->dualscreen_policy_store(main_sec->fac_dev, NULL, cmd, len);
+			if (main_sec->sysfs_functions->dualscreen_policy_store != NULL)
+				ret = main_sec->sysfs_functions->dualscreen_policy_store(main_sec->fac_dev, NULL, cmd, len);
 		}
 	} else if (strcmp(path, PATH_MAIN_SEC_SYSFS_PROX_POWER_OFF) == 0) {
 		if (main_sec) {
-			if (main_sec->sysfs_fuctions->sec_tsp_prox_power_off_store != NULL)
-				ret = main_sec->sysfs_fuctions->sec_tsp_prox_power_off_store(main_sec->fac_dev, NULL, cmd, len);
+			if (main_sec->sysfs_functions->sec_tsp_prox_power_off_store != NULL)
+				ret = main_sec->sysfs_functions->sec_tsp_prox_power_off_store(main_sec->fac_dev, NULL, cmd, len);
 		}
 	} else if (strcmp(path, PATH_SUB_SEC_SYSFS_PROX_POWER_OFF) == 0) {
 		if (sub_sec) {
-			if (sub_sec->sysfs_fuctions->sec_tsp_prox_power_off_store != NULL)
-				ret = sub_sec->sysfs_fuctions->sec_tsp_prox_power_off_store(sub_sec->fac_dev, NULL, cmd, len);
+			if (sub_sec->sysfs_functions->sec_tsp_prox_power_off_store != NULL)
+				ret = sub_sec->sysfs_functions->sec_tsp_prox_power_off_store(sub_sec->fac_dev, NULL, cmd, len);
 		}
 	}
 
@@ -1054,7 +1058,7 @@ static int sec_cmd_virtual_tsp_get_cmd_status(struct sec_cmd_data *sec, char *pa
 
 	memset(buff, 0x00, sizeof(buff));
 
-	ret = sec_cmd_virtual_tsp_read_sysfs(sec, path, buff, 16);
+	ret = sec_cmd_virtual_tsp_read_sysfs(sec, path, buff, sizeof(buff));
 	if (ret < 0)
 		return SEC_CMD_STATUS_FAIL;
 
@@ -1181,17 +1185,14 @@ EXPORT_SYMBOL(sec_cmd_virtual_tsp_write_cmd_factory_all);
 #endif
 
 #if IS_ENABLED(CONFIG_SEC_KUNIT) && !IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
-kunit_notifier_chain_init(sec_cmd_test_module);
 
 static int __init sec_cmd_m_init(void)
 {
-	kunit_notifier_chain_register(sec_cmd_test_module);
 	return 0;
 }
 
 static void __exit sec_cmd_m_exit(void)
 {
-	kunit_notifier_chain_unregister(sec_cmd_test_module);
 }
 
 module_init(sec_cmd_m_init);

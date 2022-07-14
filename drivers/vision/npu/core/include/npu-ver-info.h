@@ -3,7 +3,7 @@
 
 #define	DD_VERSION_MAJOR	"1"
 #define	DD_VERSION_MIDDLE	"1"
-#define	DD_VERSION_MINOR	"If1cc8e7fe"
+#define	DD_VERSION_MINOR	"I82ee4d643"
 
 extern const char *npu_git_log_str;
 extern const char *npu_git_hash_str;

@@ -654,7 +654,7 @@ static void sec_input_coord_log(struct device *dev, u8 t_id, int action)
 	if (action == SEC_TS_COORDINATE_ACTION_PRESS) {
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 		input_info(true, dev,
-				"[P] tID:%d.%d x:%d y:%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d\n",
+				"[P] tID:%d.%d x:%d y:%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
 				t_id, (pdata->input_dev->mt->trkid - 1) & TRKID_MAX,
 				pdata->coord[t_id].x, pdata->coord[t_id].y, pdata->coord[t_id].z,
 				pdata->coord[t_id].major, pdata->coord[t_id].minor,
@@ -662,23 +662,25 @@ static void sec_input_coord_log(struct device *dev, u8 t_id, int action)
 				pdata->coord[t_id].ttype,
 				pdata->coord[t_id].noise_status, pdata->touch_noise_status,
 				pdata->touch_pre_noise_status, pdata->coord[t_id].noise_level,
-				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num);
+				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num,
+				pdata->coord[t_id].freq_id);
 #else
 		input_info(true, dev,
-				"[P] tID:%d.%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d\n",
+				"[P] tID:%d.%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
 				t_id, (pdata->input_dev->mt->trkid - 1) & TRKID_MAX,
 				pdata->coord[t_id].z, pdata->coord[t_id].major,
 				pdata->coord[t_id].minor, pdata->location, pdata->touch_count,
 				pdata->coord[t_id].ttype,
 				pdata->coord[t_id].noise_status, pdata->touch_noise_status,
 				pdata->touch_pre_noise_status, pdata->coord[t_id].noise_level,
-				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num);
+				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num,
+				pdata->coord[t_id].freq_id);
 #endif
 
 	} else if (action == SEC_TS_COORDINATE_ACTION_MOVE) {
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 		input_info(true, dev,
-				"[M] tID:%d.%d x:%d y:%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d\n",
+				"[M] tID:%d.%d x:%d y:%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
 				t_id, pdata->input_dev->mt->trkid & TRKID_MAX,
 				pdata->coord[t_id].x, pdata->coord[t_id].y, pdata->coord[t_id].z,
 				pdata->coord[t_id].major, pdata->coord[t_id].minor,
@@ -686,22 +688,22 @@ static void sec_input_coord_log(struct device *dev, u8 t_id, int action)
 				pdata->coord[t_id].ttype, pdata->coord[t_id].noise_status,
 				pdata->touch_noise_status, pdata->touch_pre_noise_status,
 				pdata->coord[t_id].noise_level, pdata->coord[t_id].max_strength,
-				pdata->coord[t_id].hover_id_num);
+				pdata->coord[t_id].hover_id_num, pdata->coord[t_id].freq_id);
 #else
 		input_info(true, dev,
-				"[M] tID:%d.%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d\n",
+				"[M] tID:%d.%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
 				t_id, pdata->input_dev->mt->trkid & TRKID_MAX, pdata->coord[t_id].z,
 				pdata->coord[t_id].major, pdata->coord[t_id].minor,
 				pdata->location, pdata->touch_count,
 				pdata->coord[t_id].ttype, pdata->coord[t_id].noise_status,
 				pdata->touch_noise_status, pdata->touch_pre_noise_status,
 				pdata->coord[t_id].noise_level, pdata->coord[t_id].max_strength,
-				pdata->coord[t_id].hover_id_num);
+				pdata->coord[t_id].hover_id_num, pdata->coord[t_id].freq_id);
 #endif
 	} else if (action == SEC_TS_COORDINATE_ACTION_RELEASE || action == SEC_TS_COORDINATE_ACTION_FORCE_RELEASE) {
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 		input_info(true, dev,
-				"[R%s] tID:%d loc:%s dd:%d,%d mc:%d tc:%d lx:%d ly:%d p:%d noise:(%x,%d%d) nlvl:%d, maxS:%d, hid:%d\n",
+				"[R%s] tID:%d loc:%s dd:%d,%d mc:%d tc:%d lx:%d ly:%d p:%d noise:(%x,%d%d) nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
 				action == SEC_TS_COORDINATE_ACTION_FORCE_RELEASE ? "A" : "",
 				t_id, pdata->location,
 				pdata->coord[t_id].x - pdata->coord[t_id].p_x,
@@ -711,10 +713,11 @@ static void sec_input_coord_log(struct device *dev, u8 t_id, int action)
 				pdata->coord[t_id].palm_count,
 				pdata->coord[t_id].noise_status, pdata->touch_noise_status,
 				pdata->touch_pre_noise_status, pdata->coord[t_id].noise_level,
-				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num);
+				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num,
+				pdata->coord[t_id].freq_id);
 #else
 		input_info(true, dev,
-				"[R%s] tID:%d loc:%s dd:%d,%d mc:%d tc:%d p:%d noise:(%x,%d%d) nlvl:%d, maxS:%d, hid:%d\n",
+				"[R%s] tID:%d loc:%s dd:%d,%d mc:%d tc:%d p:%d noise:(%x,%d%d) nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
 				action == SEC_TS_COORDINATE_ACTION_FORCE_RELEASE ? "A" : "",
 				t_id, pdata->location,
 				pdata->coord[t_id].x - pdata->coord[t_id].p_x,
@@ -723,7 +726,8 @@ static void sec_input_coord_log(struct device *dev, u8 t_id, int action)
 				pdata->coord[t_id].palm_count,
 				pdata->coord[t_id].noise_status, pdata->touch_noise_status,
 				pdata->touch_pre_noise_status, pdata->coord[t_id].noise_level,
-				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num);
+				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num,
+				pdata->coord[t_id].freq_id);
 #endif
 	}
 }
@@ -1539,6 +1543,7 @@ __visible_for_testing ssize_t sec_input_enabled_show(struct device *dev,
 
 	return scnprintf(buf, PAGE_SIZE, "%d\n", pdata->enabled);
 }
+EXPORT_SYMBOL_KUNIT(sec_input_enabled_show);
 
 __visible_for_testing ssize_t sec_input_enabled_store(struct device *dev,
 					struct device_attribute *attr,
@@ -1570,6 +1575,7 @@ __visible_for_testing ssize_t sec_input_enabled_store(struct device *dev,
 out:
 	return size;
 }
+EXPORT_SYMBOL_KUNIT(sec_input_enabled_store);
 
 static DEVICE_ATTR(enabled, 0664, sec_input_enabled_show, sec_input_enabled_store);
 

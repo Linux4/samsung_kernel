@@ -1138,189 +1138,189 @@ show_cur_set(struct kobject *k, struct kobj_attribute *attr, char *buf)
 	int ret = 0;
 	int cpu, group, class;
 
-	ret += sprintf(buf + ret, "current set: %d (%s)\n", cur_set.idx, cur_set.desc);
-	ret += sprintf(buf + ret, "\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "current set: %d (%s)\n", cur_set.idx, cur_set.desc);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 
-	ret += sprintf(buf + ret, "[sched-policy]\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "[sched-policy]\n");
 	for (group = 0; group < STUNE_GROUP_COUNT; group++)
-		ret += sprintf(buf + ret, "%5s", stune_group_simple_name[group]);
-	ret += sprintf(buf + ret, "\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5s", stune_group_simple_name[group]);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	for (group = 0; group < STUNE_GROUP_COUNT; group++)
-		ret += sprintf(buf + ret, "%5d",
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5d",
 				cur_set.sched_policy.policy[group]);
-	ret += sprintf(buf + ret, "\n\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n\n");
 
-	ret += sprintf(buf + ret, "[weight]\n");
-	ret += sprintf(buf + ret, "     ");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "[weight]\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "     ");
 	for (group = 0; group < STUNE_GROUP_COUNT; group++)
-		ret += sprintf(buf + ret, "%5s", stune_group_simple_name[group]);
-	ret += sprintf(buf + ret, "\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5s", stune_group_simple_name[group]);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	for_each_possible_cpu(cpu) {
-		ret += sprintf(buf + ret, "cpu%d:", cpu);
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "cpu%d:", cpu);
 		for (group = 0; group < STUNE_GROUP_COUNT; group++)
-			ret += sprintf(buf + ret, "%5d",
+			ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5d",
 					cur_set.weight.ratio[group][cpu]);
-		ret += sprintf(buf + ret, "\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	}
-	ret += sprintf(buf + ret, "\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 
-	ret += sprintf(buf + ret, "[idle-weight]\n");
-	ret += sprintf(buf + ret, "     ");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "[idle-weight]\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "     ");
 	for (group = 0; group < STUNE_GROUP_COUNT; group++)
-		ret += sprintf(buf + ret, "%5s", stune_group_simple_name[group]);
-	ret += sprintf(buf + ret, "\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5s", stune_group_simple_name[group]);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	for_each_possible_cpu(cpu) {
-		ret += sprintf(buf + ret, "cpu%d:", cpu);
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "cpu%d:", cpu);
 		for (group = 0; group < STUNE_GROUP_COUNT; group++)
-			ret += sprintf(buf + ret, "%5d",
+			ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5d",
 					cur_set.idle_weight.ratio[group][cpu]);
-		ret += sprintf(buf + ret, "\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	}
-	ret += sprintf(buf + ret, "\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 
-	ret += sprintf(buf + ret, "[freq-boost]\n");
-	ret += sprintf(buf + ret, "     ");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "[freq-boost]\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "     ");
 	for (group = 0; group < STUNE_GROUP_COUNT; group++)
-		ret += sprintf(buf + ret, "%5s", stune_group_simple_name[group]);
-	ret += sprintf(buf + ret, "\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5s", stune_group_simple_name[group]);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	for_each_possible_cpu(cpu) {
-		ret += sprintf(buf + ret, "cpu%d:", cpu);
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "cpu%d:", cpu);
 		for (group = 0; group < STUNE_GROUP_COUNT; group++)
-			ret += sprintf(buf + ret, "%5d",
+			ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5d",
 					cur_set.freq_boost.ratio[group][cpu]);
-		ret += sprintf(buf + ret, "\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	}
-	ret += sprintf(buf + ret, "\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 
-	ret += sprintf(buf + ret, "[wakeup-boost]\n");
-	ret += sprintf(buf + ret, "     ");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "[wakeup-boost]\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "     ");
 	for (group = 0; group < STUNE_GROUP_COUNT; group++)
-		ret += sprintf(buf + ret, "%5s", stune_group_simple_name[group]);
-	ret += sprintf(buf + ret, "\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5s", stune_group_simple_name[group]);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	for_each_possible_cpu(cpu) {
-		ret += sprintf(buf + ret, "cpu%d:", cpu);
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "cpu%d:", cpu);
 		for (group = 0; group < STUNE_GROUP_COUNT; group++)
-			ret += sprintf(buf + ret, "%5d",
+			ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5d",
 					cur_set.wakeup_boost.ratio[group][cpu]);
-		ret += sprintf(buf + ret, "\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	}
-	ret += sprintf(buf + ret, "\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 
-	ret += sprintf(buf + ret, "[esg]\n");
-	ret += sprintf(buf + ret, "      step patient margin  boost\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "[esg]\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "      step patient margin  boost\n");
 	for_each_possible_cpu(cpu) {
-		ret += sprintf(buf + ret, "cpu%d:%5d %7d %6d %6d\n",
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "cpu%d:%5d %7d %6d %6d\n",
 				cpu, cur_set.esg.step[cpu],
 				cur_set.esg.patient_mode[cpu],
 				cur_set.esg.pelt_margin[cpu],
 				cur_set.esg.pelt_boost[cpu]);
 	}
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "up rate limit    : %d ms\n", cur_set.esg.up_rate_limit);
-	ret += sprintf(buf + ret, "down rate limit  : %d ms\n", cur_set.esg.down_rate_limit);
-	ret += sprintf(buf + ret, "rapid scale up   : %s\n",
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "up rate limit    : %d ms\n", cur_set.esg.up_rate_limit);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "down rate limit  : %d ms\n", cur_set.esg.down_rate_limit);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "rapid scale up   : %s\n",
 			cur_set.esg.rapid_scale_up ? "enabled" : "disabled");
-	ret += sprintf(buf + ret, "rapid scale down : %s\n",
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "rapid scale down : %s\n",
 			cur_set.esg.rapid_scale_down ? "enabled" : "disabled");
-	ret += sprintf(buf + ret, "\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 
-	ret += sprintf(buf + ret, "[ontime]\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "[ontime]\n");
 	for (group = 0; group < STUNE_GROUP_COUNT; group++)
-		ret += sprintf(buf + ret, "%5s", stune_group_simple_name[group]);
-	ret += sprintf(buf + ret, "\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5s", stune_group_simple_name[group]);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	for (group = 0; group < STUNE_GROUP_COUNT; group++)
-		ret += sprintf(buf + ret, "%5d", cur_set.ontime.enabled[group]);
-	ret += sprintf(buf + ret, "\n\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5d", cur_set.ontime.enabled[group]);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n\n");
 	{
 		struct ontime_dom *dom;
 
-		ret += sprintf(buf + ret, "-----------------------------\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "-----------------------------\n");
 		if (!list_empty(cur_set.ontime.p_dom_list)) {
 			list_for_each_entry(dom, cur_set.ontime.p_dom_list, node) {
-				ret += sprintf(buf + ret, " cpus           : %*pbl\n",
+				ret += scnprintf(buf + ret, PAGE_SIZE - ret, " cpus           : %*pbl\n",
 					cpumask_pr_args(&dom->cpus));
-				ret += sprintf(buf + ret, " upper boundary : %lu\n",
+				ret += scnprintf(buf + ret, PAGE_SIZE - ret, " upper boundary : %lu\n",
 					dom->upper_boundary);
-				ret += sprintf(buf + ret, " lower boundary : %lu\n",
+				ret += scnprintf(buf + ret, PAGE_SIZE - ret, " lower boundary : %lu\n",
 					dom->lower_boundary);
-				ret += sprintf(buf + ret, "-----------------------------\n");
+				ret += scnprintf(buf + ret, PAGE_SIZE - ret, "-----------------------------\n");
 			}
 		} else  {
-			ret += sprintf(buf + ret, "list empty!\n");
-			ret += sprintf(buf + ret, "-----------------------------\n");
+			ret += scnprintf(buf + ret, PAGE_SIZE - ret, "list empty!\n");
+			ret += scnprintf(buf + ret, PAGE_SIZE - ret, "-----------------------------\n");
 		}
 	}
-	ret += sprintf(buf + ret, "\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 
-	ret += sprintf(buf + ret, "[cpus-allowed]\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "[cpus-allowed]\n");
 	for (class = 0; class < NUM_OF_SCHED_CLASS; class++)
-		ret += sprintf(buf + ret, "%5s", get_sched_class_str(1 << class));
-	ret += sprintf(buf + ret, "\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5s", get_sched_class_str(1 << class));
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	for (class = 0; class < NUM_OF_SCHED_CLASS; class++)
-		ret += sprintf(buf + ret, "%5d",
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5d",
 			(cur_set.cpus_allowed.target_sched_class & (1 << class) ? 1 : 0));
-	ret += sprintf(buf + ret, "\n\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n\n");
 	for (group = 0; group < STUNE_GROUP_COUNT; group++)
-		ret += sprintf(buf + ret, "%5s", stune_group_simple_name[group]);
-	ret += sprintf(buf + ret, "\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5s", stune_group_simple_name[group]);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	for (group = 0; group < STUNE_GROUP_COUNT; group++)
-		ret += sprintf(buf + ret, "%#5x",
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%#5x",
 			*(unsigned int *)cpumask_bits(&cur_set.cpus_allowed.mask[group]));
-	ret += sprintf(buf + ret, "\n\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n\n");
 
-	ret += sprintf(buf + ret, "[prio-pinning]\n");
-	ret += sprintf(buf + ret, "mask : %#x\n",
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "[prio-pinning]\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "mask : %#x\n",
 			*(unsigned int *)cpumask_bits(&cur_set.prio_pinning.mask));
-	ret += sprintf(buf + ret, "prio : %d", cur_set.prio_pinning.prio);
-	ret += sprintf(buf + ret, "\n\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "prio : %d", cur_set.prio_pinning.prio);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n\n");
 	for (group = 0; group < STUNE_GROUP_COUNT; group++)
-		ret += sprintf(buf + ret, "%5s", stune_group_simple_name[group]);
-	ret += sprintf(buf + ret, "\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5s", stune_group_simple_name[group]);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	for (group = 0; group < STUNE_GROUP_COUNT; group++)
-		ret += sprintf(buf + ret, "%5d", cur_set.prio_pinning.enabled[group]);
-	ret += sprintf(buf + ret, "\n\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5d", cur_set.prio_pinning.enabled[group]);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n\n");
 
-	ret += sprintf(buf + ret, "[frt]\n");
-	ret += sprintf(buf + ret, "      active\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "[frt]\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "      active\n");
 	for_each_possible_cpu(cpu)
-		ret += sprintf(buf + ret, "cpu%d: %5d%%\n",
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "cpu%d: %5d%%\n",
 				cpu,
 				cur_set.frt.active_ratio[cpu]);
-	ret += sprintf(buf + ret, "\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 
-	ret += sprintf(buf + ret, "[ecs]\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "[ecs]\n");
 	{
 		struct ecs_stage *stage;
 
-		ret += sprintf(buf + ret, "-----------------------------\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "-----------------------------\n");
 		if (!list_empty(cur_set.ecs.p_stage_list)) {
 			list_for_each_entry(stage, cur_set.ecs.p_stage_list, node) {
-				ret += sprintf(buf + ret, " id             : %d\n",
+				ret += scnprintf(buf + ret, PAGE_SIZE - ret, " id             : %d\n",
 					stage->id);
-				ret += sprintf(buf + ret, " cpus           : %*pbl\n",
+				ret += scnprintf(buf + ret, PAGE_SIZE - ret, " cpus           : %*pbl\n",
 					cpumask_pr_args(&stage->cpus));
-				ret += sprintf(buf + ret, " monitor cpus   : %*pbl\n",
+				ret += scnprintf(buf + ret, PAGE_SIZE - ret, " monitor cpus   : %*pbl\n",
 					cpumask_pr_args(&stage->monitor_cpus));
-				ret += sprintf(buf + ret, " busy threshold : %lu\n",
+				ret += scnprintf(buf + ret, PAGE_SIZE - ret, " busy threshold : %lu\n",
 					stage->busy_threshold);
-				ret += sprintf(buf + ret, " busy threshold : %lu (origin)\n",
+				ret += scnprintf(buf + ret, PAGE_SIZE - ret, " busy threshold : %lu (origin)\n",
 					stage->busy_threshold_orig);
-				ret += sprintf(buf + ret, "-----------------------------\n");
+				ret += scnprintf(buf + ret, PAGE_SIZE - ret, "-----------------------------\n");
 			}
 		} else  {
-			ret += sprintf(buf + ret, "list empty!\n");
-			ret += sprintf(buf + ret, "-----------------------------\n");
+			ret += scnprintf(buf + ret, PAGE_SIZE - ret, "list empty!\n");
+			ret += scnprintf(buf + ret, PAGE_SIZE - ret, "-----------------------------\n");
 		}
 	}
-	ret += sprintf(buf + ret, "\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 
-	ret += sprintf(buf + ret, "[tiny cd sched]\n");
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "[tiny cd sched]\n");
 	for (group = 0; group < STUNE_GROUP_COUNT; group++)
-		ret += sprintf(buf + ret, "%5s", stune_group_simple_name[group]);
-	ret += sprintf(buf + ret, "\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5s", stune_group_simple_name[group]);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	for (group = 0; group < STUNE_GROUP_COUNT; group++)
-		ret += sprintf(buf + ret, "%5d", cur_set.tiny_cd_sched.enabled[group]);
-	ret += sprintf(buf + ret, "\n");
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%5d", cur_set.tiny_cd_sched.enabled[group]);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
 
 	return ret;
 }

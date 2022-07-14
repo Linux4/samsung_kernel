@@ -933,7 +933,6 @@ static void *r9_a2_s0_exit_cmdtbl[] = {
 	&ea8082_dmptbl[DUMP_RDDPM_SLEEP_IN],
 #ifdef CONFIG_DISPLAY_USE_INFO
 	&ea8082_dmptbl[DUMP_RDDSM],
-	&ea8082_dmptbl[DUMP_ERR_FG],
 	&ea8082_dmptbl[DUMP_DSI_ERR],
 	&ea8082_dmptbl[DUMP_SELF_DIAG],
 #endif
@@ -1079,7 +1078,6 @@ static void *r9_a2_s0_dump_cmdtbl[] = {
 	&KEYINFO(r9_a2_s0_level2_key_enable),
 	&ea8082_dmptbl[DUMP_RDDPM],
 	&ea8082_dmptbl[DUMP_RDDSM],
-	&ea8082_dmptbl[DUMP_ERR_FG],
 	&ea8082_dmptbl[DUMP_DSI_ERR],
 	&ea8082_dmptbl[DUMP_SELF_DIAG],
 	&KEYINFO(r9_a2_s0_level2_key_disable),

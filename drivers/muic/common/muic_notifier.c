@@ -23,12 +23,12 @@ struct device *switch_device;
 EXPORT_SYMBOL(switch_device);
 
 static struct muic_notifier_struct muic_notifier;
-#ifdef CONFIG_PDIC_SLSI_NON_MCU
+#if IS_ENABLED(CONFIG_PDIC_SLSI_NON_MCU)
 static struct muic_notifier_struct muic_pdic_notifier;
 #endif
 
 static int muic_uses_new_noti;
-#ifdef CONFIG_PDIC_SLSI_NON_MCU
+#if IS_ENABLED(CONFIG_PDIC_SLSI_NON_MCU)
 static int muic_pdic_uses_new_noti;
 #endif
 
@@ -94,7 +94,7 @@ static void __set_noti_cxt(int attach, int type)
 #endif
 }
 
-#ifdef CONFIG_PDIC_SLSI_NON_MCU
+#if IS_ENABLED(CONFIG_PDIC_SLSI_NON_MCU)
 static void __set_pdic_noti_cxt(int attach, int type)
 {
 	if (type < 0) {
@@ -228,7 +228,7 @@ static int muic_notifier_notify(void)
 	return ret;
 }
 
-#ifdef CONFIG_PDIC_SLSI_NON_MCU
+#if IS_ENABLED(CONFIG_PDIC_SLSI_NON_MCU)
 int muic_pdic_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 			muic_notifier_device_t listener)
 {
@@ -330,7 +330,7 @@ void muic_pdic_notifier_attach_attached_dev(muic_attached_dev_t new_dev)
 {
 	pr_info("%s: (%d)\n", __func__, new_dev);
 
-#ifdef CONFIG_PDIC_SLSI_NON_MCU
+#if IS_ENABLED(CONFIG_PDIC_SLSI_NON_MCU)
 	__set_pdic_noti_cxt(MUIC_PDIC_NOTIFY_CMD_ATTACH, new_dev);
 
 	/* muic's attached_device attach broadcast */
@@ -348,7 +348,7 @@ void muic_pdic_notifier_detach_attached_dev(muic_attached_dev_t new_dev)
 {
 	pr_info("%s: (%d)\n", __func__, new_dev);
 
-#ifdef CONFIG_PDIC_SLSI_NON_MCU
+#if IS_ENABLED(CONFIG_PDIC_SLSI_NON_MCU)
 	__set_pdic_noti_cxt(MUIC_PDIC_NOTIFY_CMD_DETACH, new_dev);
 
 	/* muic's attached_device attach broadcast */
@@ -480,7 +480,7 @@ static int muic_notifier_init(void)
 #endif
 	BLOCKING_INIT_NOTIFIER_HEAD(&(muic_notifier.notifier_call_chain));
 	__set_noti_cxt(0, ATTACHED_DEV_NONE_MUIC);
-#ifdef CONFIG_PDIC_SLSI_NON_MCU
+#if IS_ENABLED(CONFIG_PDIC_SLSI_NON_MCU)
 	BLOCKING_INIT_NOTIFIER_HEAD(&(muic_pdic_notifier.notifier_call_chain));
 	__set_pdic_noti_cxt(0, ATTACHED_DEV_UNKNOWN_MUIC);
 	muic_pdic_uses_new_noti = 1;

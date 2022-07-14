@@ -1491,7 +1491,6 @@ static int sx9360_input_init(struct sx9360_p *data)
 	/* save the input pointer and finish initialization */
 	data->input = dev;
 
-	GRIP_ERR("input@GH\n");
 	noti_input_dev = input_allocate_device();
 	if (!noti_input_dev) {
 		GRIP_ERR("input_allocate_device failed\n");
@@ -1634,27 +1633,26 @@ static int sx9360_parse_dt(struct sx9360_p *data, struct device *dev)
 
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 static int sx9360_pdic_handle_notification(struct notifier_block *nb,
-					   unsigned long action, void *data)
+					   unsigned long action, void *pdic_data)
 {
-	PD_NOTI_TYPEDEF usb_event = *(PD_NOTI_TYPEDEF *) data;
+	PD_NOTI_ATTACH_TYPEDEF usb_typec_info = *(PD_NOTI_ATTACH_TYPEDEF *)pdic_data;
 	struct sx9360_p *pdata = container_of(nb, struct sx9360_p, pdic_nb);
 
-	if ((usb_event.src != PDIC_NOTIFY_DEV_CCIC) &&
-	    (usb_event.id != PDIC_NOTIFY_ID_ATTACH))
+	if (usb_typec_info.id != PDIC_NOTIFY_ID_ATTACH)
 		return 0;
 
-	if (pdata->pre_attach == usb_event.sub1)
+	if (pdata->pre_attach == usb_typec_info.attach)
 		return 0;
+
+	GRIP_INFO("src %d id %d attach %d rprd %d\n",
+		usb_typec_info.src, usb_typec_info.id, usb_typec_info.attach, usb_typec_info.rprd);
 
 	if (pdata->init_done == ON) {
-		if ((usb_event.sub1 == 0) || (usb_event.sub1 == 1)) {
-			GRIP_INFO("accept attach = %d\n", usb_event.sub1);
-			sx9360_enter_unknown_mode(pdata, TYPE_USB);
-			sx9360_set_offset_calibration(pdata);
-		}
+		sx9360_enter_unknown_mode(pdata, TYPE_USB);
+		sx9360_set_offset_calibration(pdata);
 	}
 
-	pdata->pre_attach = usb_event.sub1;
+	pdata->pre_attach = usb_typec_info.attach;
 
 	return 0;
 }
@@ -1767,7 +1765,7 @@ static int sx9360_probe(struct i2c_client *client,
 	GRIP_INFO("register pdic notifier\n");
 	manager_notifier_register(&data->pdic_nb,
 				  sx9360_pdic_handle_notification,
-				  MANAGER_NOTIFY_PDIC_USB);
+				  MANAGER_NOTIFY_PDIC_SENSORHUB);
 #endif
 
 	GRIP_INFO("Probe done!\n");

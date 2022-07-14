@@ -410,10 +410,10 @@ static ssize_t ipc_write(struct file *filp, const char __user *data,
 		atomic_dec(&mld->init_end_busy);
 	}
 
-    if (unlikely(!mld->last_init_end_cnt)) {
-            mif_err_limited("%s: INIT_END is not done\n", iod->name);
-            return -EAGAIN;
-    }
+	if (unlikely(!mld->last_init_end_cnt)) {
+		mif_err_limited("%s: INIT_END is not done\n", iod->name);
+		return -EAGAIN;
+	}
 
 	while (copied < cnt) {
 		struct sk_buff *skb;

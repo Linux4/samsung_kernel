@@ -1019,6 +1019,85 @@ static void show_rddsm(struct dumpinfo *info)
 #endif
 }
 
+static void show_err(struct dumpinfo *info)
+{
+	int ret;
+	struct resinfo *res = info->res;
+	u8 err[S6E3FC3_ERR_LEN] = { 0, }, err_15_8, err_7_0;
+
+	if (!res || ARRAY_SIZE(err) != res->dlen) {
+		panel_err("invalid resource\n");
+		return;
+	}
+
+	ret = resource_copy(err, info->res);
+	if (unlikely(ret < 0)) {
+		panel_err("failed to copy err resource\n");
+		return;
+	}
+
+	err_15_8 = err[0];
+	err_7_0 = err[1];
+
+	panel_info("========== SHOW PANEL [E9h:DSIERR] INFO ==========\n");
+	panel_info("* Reg Value : 0x%02x%02x, Result : %s\n", err_15_8, err_7_0,
+			(err[0] || err[1] || err[2] || err[3] || err[4]) ? "NG" : "GOOD");
+
+	if (err_15_8 & 0x80)
+		panel_info("* DSI Protocol Violation\n");
+
+	if (err_15_8 & 0x40)
+		panel_info("* Data P Lane Contention Detetion\n");
+
+	if (err_15_8 & 0x20)
+		panel_info("* Invalid Transmission Length\n");
+
+	if (err_15_8 & 0x10)
+		panel_info("* DSI VC ID Invalid\n");
+
+	if (err_15_8 & 0x08)
+		panel_info("* DSI Data Type Not Recognized\n");
+
+	if (err_15_8 & 0x04)
+		panel_info("* Checksum Error\n");
+
+	if (err_15_8 & 0x02)
+		panel_info("* ECC Error, multi-bit (detected, not corrected)\n");
+
+	if (err_15_8 & 0x01)
+		panel_info("* ECC Error, single-bit (detected and corrected)\n");
+
+	if (err_7_0 & 0x80)
+		panel_info("* Data Lane Contention Detection\n");
+
+	if (err_7_0 & 0x40)
+		panel_info("* False Control Error\n");
+
+	if (err_7_0 & 0x20)
+		panel_info("* HS RX Timeout\n");
+
+	if (err_7_0 & 0x10)
+		panel_info("* Low-Power Transmit Sync Error\n");
+
+	if (err_7_0 & 0x08)
+		panel_info("* Escape Mode Entry Command Error");
+
+	if (err_7_0 & 0x04)
+		panel_info("* EoT Sync Error\n");
+
+	if (err_7_0 & 0x02)
+		panel_info("* SoT Sync Error\n");
+
+	if (err_7_0 & 0x01)
+		panel_info("* SoT Error\n");
+
+	panel_info("* CRC Error Count : %d\n", err[2]);
+	panel_info("* ECC1 Error Count : %d\n", err[3]);
+	panel_info("* ECC2 Error Count : %d\n", err[4]);
+
+	panel_info("==================================================\n");
+}
+
 static void show_err_fg(struct dumpinfo *info)
 {
 	int ret;

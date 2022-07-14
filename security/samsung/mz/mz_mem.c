@@ -20,6 +20,7 @@ static void *list_addr_mz;
 #elif defined(CONFIG_MZ_USE_QSEECOM)
 static void __iomem *list_addr_mz1;
 static void __iomem *list_addr_mz2;
+static void __iomem *list_addr_mz3;
 #endif
 
 bool addrset;
@@ -68,10 +69,25 @@ int mz_addr_init(void)
 		MZ_LOG(err_level_error, "unable to map imem samsung,security_mz2 offset\n");
 		return -ENODEV;
 	}
-	MZ_LOG(err_level_info, "list addr1 : 0x%pK(0x%llx)\n", list_addr_mz1,
+
+	np = of_find_compatible_node(NULL, NULL, "samsung,security_mz3");
+	if (unlikely(!np)) {
+		MZ_LOG(err_level_error, "unable to find DT imem samsung,security_mz3 node\n");
+		return -ENODEV;
+	}
+
+	list_addr_mz3 = of_iomap(np, 0);
+	if (unlikely(!list_addr_mz3)) {
+		MZ_LOG(err_level_error, "unable to map imem samsung,security_mz3 offset\n");
+		return -ENODEV;
+	}
+
+	MZ_LOG(err_level_debug, "list addr1 : 0x%pK(0x%llx)\n", list_addr_mz1,
 			(unsigned long long)virt_to_phys(list_addr_mz1));
-	MZ_LOG(err_level_info, "list addr2 : 0x%pK(0x%llx)\n", list_addr_mz2,
+	MZ_LOG(err_level_debug, "list addr2 : 0x%pK(0x%llx)\n", list_addr_mz2,
 			(unsigned long long)virt_to_phys(list_addr_mz2));
+	MZ_LOG(err_level_debug, "list addr3 : 0x%pK(0x%llx)\n", list_addr_mz3,
+			(unsigned long long)virt_to_phys(list_addr_mz3));
 #endif
 
 	addr_list = kmalloc(sizeof(uint64_t) * ADDR_INIT_SIZE, GFP_KERNEL);
@@ -90,9 +106,9 @@ int mz_addr_init(void)
 int set_mz_mem(void)
 {
 	unsigned long long addr_list1, addr_list2;
-#ifdef CONFIG_MZ_USE_TZDEV
 	uint32_t mz_magic = 0x4D5A4D5A;
-#endif
+
+	MZ_LOG(err_level_debug, "set_mz_mem start\n");
 
 	if (!addr_list) {
 		MZ_LOG(err_level_error, "%s list_addr null\n", __func__);
@@ -107,12 +123,13 @@ int set_mz_mem(void)
 	memcpy(list_addr_mz+4, &addr_list2, 4);
 	memcpy(list_addr_mz+8, &mz_magic, 4);
 #elif defined(CONFIG_MZ_USE_QSEECOM)
-	if (unlikely(!list_addr_mz1) || unlikely(!list_addr_mz2)) {
+	if (unlikely(!list_addr_mz1) || unlikely(!list_addr_mz2) || unlikely(!list_addr_mz3)) {
 		MZ_LOG(err_level_error, "list_addr address unmapped\n");
 		return MZ_GENERAL_ERROR;
 	}
 	__raw_writel(addr_list1, list_addr_mz1);
 	__raw_writel(addr_list2, list_addr_mz2);
+	__raw_writel(mz_magic, list_addr_mz3);
 #endif
 
 	MZ_LOG(err_level_debug, "addr_list addr : (0x%llx) (0x%llx) (0x%llx)\n",

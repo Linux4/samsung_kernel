@@ -124,7 +124,7 @@ static struct kq_nad_block kq_nad_block_data[] = {
 	/* DSU */
 	{ "NONE",		"UNZIP",	"C2",			"CACHE",		 "DIJKSTRA",
 	"CRYPTO",		"SHA",		"FFT",			"MEMTESTER",	 "MEMTESTER_PAC",
-	"TBD1",			"TBD2",		"TBD3",			"TBD4",			 "DIJKSTRA_STG",
+	"TBD1",			"TBD2",		"TBD3",			"SGEMM_STG",	 "DIJKSTRA_STG",
 	"CRYPTO_STG",	"TBD5",		"TBD6",			"MEMTESTER_STG", "TT_PACMAN",
 	"TBD7",			"TBD8",		"TBD9",			"TBD10",		 "BM_DIJKSTRA",
 	"TBD11",		"TBD12",	"TBD13",		"TBD14",		 "BM_TT_PACMAN" },
@@ -135,7 +135,7 @@ static struct kq_nad_block kq_nad_block_data[] = {
 	"MESH_HIGHOP",	"FLATLAND",	"SUBWAY_SUFFER",	"TEXTRI_HUGE",	"SPI_NGG",
 	"TESSELLATION",	"MHT_IFPO",	"SR_GFX",	"MHN_PWR",	"CP_RING",
 	"GC_WALKING",	"SCN_S2MPU",	"SLOW_CAMERA", "CP_ADDRESS", "BOOT_ANIMATION",
-	"GLX_CUBEMAP",	"3D_MARK_IFPO"},
+	"GLX_CUBEMAP",	"3D_MARK_IFPO", "GL2_COMPRESS"},
 
 	/* MIF */
 	{"NONE",		"MEMTESTER",	"SED",			"VWM",			"RANDOM_DVFS",
@@ -191,7 +191,7 @@ static struct kq_nad_block kq_nad_block_data[] = {
 
 	/* FUNC */
 	{"NONE",	"OTP",	"PMU",	"GNSSIF",	"APM_SRAM",
-	"LLC_SICD",	"SRAM_ABOX" },
+	"LLC_SICD",	"SRAM_ABOX", "NONE", "NONE", "NONE", "MMS_ID" },
 
 	/* DRAM */
 	{"NONE",		"PATTERN",		"NONE",			"NONE",			"NONE",

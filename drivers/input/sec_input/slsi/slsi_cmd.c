@@ -1244,6 +1244,7 @@ __visible_for_testing void get_fw_ver_bin(void *device_data)
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
 }
+EXPORT_SYMBOL_KUNIT(get_fw_ver_bin);
 
 __visible_for_testing void get_fw_ver_ic(void *device_data)
 {
@@ -1287,6 +1288,7 @@ __visible_for_testing void get_fw_ver_ic(void *device_data)
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
 }
+EXPORT_SYMBOL_KUNIT(get_fw_ver_ic);
 
 static void get_config_ver(void *device_data)
 {
@@ -4807,6 +4809,7 @@ __visible_for_testing void spay_enable(void *device_data)
 	sec_cmd_set_cmd_exit(sec);
 	return;
 }
+EXPORT_SYMBOL_KUNIT(spay_enable);
 
 static void set_aod_rect(void *device_data)
 {
@@ -4910,6 +4913,7 @@ __visible_for_testing void aod_enable(void *device_data)
 	sec_cmd_set_cmd_exit(sec);
 	return;
 }
+EXPORT_SYMBOL_KUNIT(aod_enable);
 
 __visible_for_testing void aot_enable(void *device_data)
 {
@@ -4943,6 +4947,7 @@ __visible_for_testing void aot_enable(void *device_data)
 	sec_cmd_set_cmd_exit(sec);
 	return;
 }
+EXPORT_SYMBOL_KUNIT(aot_enable);
 
 static void set_fod_rect(void *device_data)
 {
@@ -5043,6 +5048,7 @@ __visible_for_testing void fod_enable(void *device_data)
 	sec_cmd_set_cmd_exit(sec);
 	return;
 }
+EXPORT_SYMBOL_KUNIT(fod_enable);
 
 static void fod_icon_visible(void *device_data)
 {
@@ -5164,6 +5170,7 @@ __visible_for_testing void singletap_enable(void *device_data)
 	sec_cmd_set_cmd_exit(sec);
 	return;
 }
+EXPORT_SYMBOL_KUNIT(singletap_enable);
 
 /*
  *	index  0 :  set edge handler

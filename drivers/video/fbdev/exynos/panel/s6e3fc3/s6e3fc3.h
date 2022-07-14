@@ -67,7 +67,7 @@
 #define S6E3FC3_RDDSM_OFS			0
 #define S6E3FC3_RDDSM_LEN			(PANEL_RDDSM_LEN)
 
-#define S6E3FC3_ERR_REG				0xEA
+#define S6E3FC3_ERR_REG				0xE9
 #define S6E3FC3_ERR_OFS				0
 #define S6E3FC3_ERR_LEN				5
 
@@ -484,6 +484,7 @@ static void show_rddpm(struct dumpinfo *info);
 static void show_rddpm_before_sleep_in(struct dumpinfo *info);
 static void show_rddsm(struct dumpinfo *info);
 static void show_err_fg(struct dumpinfo *info);
+static void show_err(struct dumpinfo *info);
 static void show_dsi_err(struct dumpinfo *info);
 static void show_self_diag(struct dumpinfo *info);
 #ifdef CONFIG_SUPPORT_DDI_CMDLOG
@@ -496,6 +497,7 @@ static struct dumpinfo s6e3fc3_dmptbl[] = {
 	[DUMP_RDDPM_SLEEP_IN] = DUMPINFO_INIT(rddpm_sleep_in, &s6e3fc3_restbl[RES_RDDPM], show_rddpm_before_sleep_in),
 	[DUMP_RDDSM] = DUMPINFO_INIT(rddsm, &s6e3fc3_restbl[RES_RDDSM], show_rddsm),
 	[DUMP_ERR_FG] = DUMPINFO_INIT(err_fg, &s6e3fc3_restbl[RES_ERR_FG], show_err_fg),
+	[DUMP_ERR] = DUMPINFO_INIT(err, &s6e3fc3_restbl[RES_ERR], show_err),
 	[DUMP_DSI_ERR] = DUMPINFO_INIT(dsi_err, &s6e3fc3_restbl[RES_DSI_ERR], show_dsi_err),
 	[DUMP_SELF_DIAG] = DUMPINFO_INIT(self_diag, &s6e3fc3_restbl[RES_SELF_DIAG], show_self_diag),
 #ifdef CONFIG_SUPPORT_DDI_CMDLOG

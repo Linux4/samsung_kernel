@@ -293,7 +293,7 @@ static struct sec_cmd tsp_commands[] = {
 static ssize_t sec_virtual_tsp_support_feature_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	char buffer[10];
+	char buffer[16];
 	int ret;
 
 	memset(buffer, 0x00, sizeof(buffer));
@@ -308,7 +308,7 @@ static ssize_t sec_virtual_tsp_support_feature_show(struct device *dev,
 static ssize_t sec_virtual_tsp_prox_power_off_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	char buffer[10];
+	char buffer[16];
 	int ret;
 
 	memset(buffer, 0x00, sizeof(buffer));
@@ -401,9 +401,12 @@ static int __init __init_sec_virtual_tsp(void)
 
 	input_info(true, dual_sec->fac_dev, "%s\n", __func__);
 
+	mutex_init(&switching_mutex);
+
+	mutex_lock(&switching_mutex);
 	fac_flip_status = FLIP_STATUS_DEFAULT;
 	flip_status = FLIP_STATUS_MAIN;
-	mutex_init(&switching_mutex);
+	mutex_unlock(&switching_mutex);
 
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 	hall_ic_nb.priority = 1;

@@ -52,9 +52,12 @@
 #include <kunit/mock.h>
 #include <kunit/test.h>
 
-kunit_notifier_chain_init(usb_typec_manager_notifier_test_module);
-extern void manager_event_save(struct typec_manager_event_work *event_work);
+int event_index;
+EXPORT_SYMBOL_KUNIT(event_index);
+MANAGER_NOTI_TYPEDEF_REF verify_event[5];
+EXPORT_SYMBOL_KUNIT(verify_event);
 int flag_kunit_test;
+EXPORT_SYMBOL_KUNIT(flag_kunit_test);
 
 #else
 #define __visible_for_testing static
@@ -65,6 +68,7 @@ static int confirm_manager_notifier_register = 0;
 
 static struct device *manager_device;
 __visible_for_testing manager_data_t typec_manager;
+EXPORT_SYMBOL_KUNIT(typec_manager);
 static bool is_hiccup_event_saved = false;
 static bool manager_notify_pdic_battery_init = false;
 
@@ -143,6 +147,20 @@ void manager_dp_state_change(MANAGER_NOTI_TYPEDEF event)
 		break;
 	}
 }
+
+#if defined(CONFIG_SEC_KUNIT)
+__visible_for_testing void manager_event_save(struct typec_manager_event_work *event_work)
+{
+	verify_event[event_index].src = event_work->event.src;
+	verify_event[event_index].dest = event_work->event.dest;
+	verify_event[event_index].id = event_work->event.id;
+	verify_event[event_index].sub1 = event_work->event.sub1;
+	verify_event[event_index].sub2 = event_work->event.sub2;
+	verify_event[event_index].sub3 = event_work->event.sub3;
+	event_index++;
+}
+EXPORT_SYMBOL_KUNIT(manager_event_save);
+#endif
 
 static void manager_event_notify(struct work_struct *data)
 {
@@ -395,6 +413,7 @@ __visible_for_testing void manager_usb_enum_state_check(uint time_ms)
 			typec_manager.usb_enum_check.pending = false;
 	}
 }
+EXPORT_SYMBOL_KUNIT(manager_usb_enum_state_check);
 
 bool get_usb_enumeration_state(void)
 {
@@ -656,6 +675,7 @@ __visible_for_testing void manager_water_status_update(int status)
 					PDIC_NOTIFY_ID_WATER, status, 0, typec_manager.water.report_type);
 		}
 }
+EXPORT_SYMBOL_KUNIT(manager_water_status_update);
 
 __visible_for_testing int manager_handle_pdic_notification(struct notifier_block *nb,
 				unsigned long action, void *data)
@@ -778,6 +798,7 @@ __visible_for_testing int manager_handle_pdic_notification(struct notifier_block
 
 	return ret;
 }
+EXPORT_SYMBOL_KUNIT(manager_handle_pdic_notification);
 
 #if !IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
 static void manager_handle_dedicated_muic(PD_NOTI_ATTACH_TYPEDEF muic_evt)
@@ -942,6 +963,21 @@ static void manager_handle_muic(PD_NOTI_ATTACH_TYPEDEF muic_evt)
 				manager_usb_event_send(USB_STATUS_NOTIFY_DETACH);
 		}
 		break;
+#if defined(CONFIG_MUIC_SM5504_POGO)
+	case ATTACHED_DEV_POGO_DOCK_34K_MUIC:
+	case ATTACHED_DEV_POGO_DOCK_49_9K_MUIC:
+		pr_info("%s: Pogo dock(%d) %s\n", __func__, muic_evt.cable_type,
+				muic_evt.attach ? "Attached" : "Detached");
+		if (muic_evt.attach) {
+			typec_manager.classified_cable_type = MANAGER_NOTIFY_MUIC_OTG;
+			manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_USB,
+					PDIC_NOTIFY_ID_USB, PDIC_NOTIFY_ATTACH, USB_STATUS_NOTIFY_ATTACH_DFP, 0);
+		} else {
+			manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_USB,
+					PDIC_NOTIFY_ID_USB, PDIC_NOTIFY_DETACH, USB_STATUS_NOTIFY_DETACH, 0);
+		}
+		break;
+#endif /* CONFIG_MUIC_SM5504_POGO */
 
 	default:
 		pr_info("%s: Cable(%d) %s\n", __func__, muic_evt.cable_type,
@@ -982,6 +1018,7 @@ __visible_for_testing int manager_handle_muic_notification(struct notifier_block
 	}
 	return 0;
 }
+EXPORT_SYMBOL_KUNIT(manager_handle_muic_notification);
 #endif
 
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
@@ -1018,6 +1055,7 @@ __visible_for_testing int manager_handle_vbus_notification(struct notifier_block
 	mutex_unlock(&typec_manager.mo_lock);
 	return 0;
 }
+EXPORT_SYMBOL_KUNIT(manager_handle_vbus_notification);
 #endif
 
 #if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
@@ -1088,7 +1126,7 @@ int manager_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 		return -1;
 	}
 
-	if (listener == MANAGER_NOTIFY_PDIC_MUIC) {
+	if (listener == MANAGER_NOTIFY_PDIC_MUIC || listener == MANAGER_NOTIFY_PDIC_SENSORHUB) {
 		SET_MANAGER_NOTIFIER_BLOCK(nb, notifier, listener);
 		ret = blocking_notifier_chain_register(&(typec_manager.manager_muic_notifier), nb);
 		if (ret < 0)
@@ -1188,6 +1226,12 @@ int manager_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 			m_noti.sub1 = PDIC_NOTIFY_ATTACH;
 			typec_manager.usb.dr = USB_STATUS_NOTIFY_ATTACH_UFP;
 			m_noti.sub2 = USB_STATUS_NOTIFY_ATTACH_UFP;
+#if defined(CONFIG_MUIC_SM5504_POGO)
+		} else if (typec_manager.classified_cable_type == MANAGER_NOTIFY_MUIC_OTG) {
+			m_noti.sub1 = typec_manager.muic.attach_state;
+			typec_manager.usb.dr = USB_STATUS_NOTIFY_ATTACH_DFP;
+			m_noti.sub2 = USB_STATUS_NOTIFY_ATTACH_DFP;
+#endif
 		}
 		pr_info("%s: [USB] %s\n", __func__, pdic_usbstatus_string(m_noti.sub2));
 		nb->notifier_call(nb, m_noti.id, &(m_noti));
@@ -1233,7 +1277,8 @@ int manager_notifier_unregister(struct notifier_block *nb)
 
 	pr_info("%s: listener=%d unregister\n", __func__, nb->priority);
 
-	if (nb->priority == MANAGER_NOTIFY_PDIC_MUIC) {
+	if (nb->priority == MANAGER_NOTIFY_PDIC_MUIC ||
+		nb->priority == MANAGER_NOTIFY_PDIC_SENSORHUB) {
 		ret = blocking_notifier_chain_unregister(&(typec_manager.manager_muic_notifier), nb);
 		if (ret < 0)
 			pr_err("%s: muic blocking_notifier_chain_unregister error(%d)\n",
@@ -1505,10 +1550,6 @@ static int manager_notifier_init(void)
 	ret = sysfs_create_group(&manager_device->kobj, &typec_manager_sysfs_group);
 #endif
 
-#if defined(CONFIG_SEC_KUNIT)
-	kunit_notifier_chain_register(usb_typec_manager_notifier_test_module);
-#endif
-
 	pr_info("%s end\n", __func__);
 out:
 	return ret;
@@ -1528,9 +1569,6 @@ static void __exit manager_notifier_exit(void)
 	muic_notifier_unregister(&typec_manager.muic_nb);
 #endif
 	usb_external_notify_unregister(&typec_manager.manager_external_notifier_nb);
-#if defined(CONFIG_SEC_KUNIT)
-	kunit_notifier_chain_unregister(usb_typec_manager_notifier_test_module);
-#endif
 }
 
 device_initcall(manager_notifier_init);

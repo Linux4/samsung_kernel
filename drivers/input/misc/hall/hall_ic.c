@@ -76,6 +76,7 @@ struct hall_ic_data {
 	int active_low;
 	unsigned int event;
 	const char *name;
+	int hall_count;
 };
 
 struct hall_ic_pdata {
@@ -200,12 +201,29 @@ static ssize_t debounce_show(struct device *dev,
 	return strlen(buf);
 }
 
+static ssize_t hall_count_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct hall_ic_data *hall;
+
+	list_for_each_entry(hall, &hall_ic_list, list) {
+		if (hall->event == SW_FOLDER) {
+			snprintf(buf, PAGE_SIZE, "\"FCNT\":\"%d\"", hall->hall_count);
+			hall->hall_count = 0;
+			break;
+		}
+	}
+
+	return strlen(buf);
+}
+
 static DEVICE_ATTR_RO(hall_detect);
 static DEVICE_ATTR_RO(certify_hall_detect);
 static DEVICE_ATTR_RO(hall_wacom_detect);
 static DEVICE_ATTR_RO(flip_status);
 static DEVICE_ATTR_RO(hall_number);
 static DEVICE_ATTR_RO(debounce);
+static DEVICE_ATTR_RO(hall_count);
 
 static struct device_attribute *hall_ic_attrs[] = {
 	&dev_attr_hall_detect,
@@ -226,13 +244,14 @@ static void hall_ic_work(struct work_struct *work)
 	char hall_uevent[20] = {0,};
 	char *hall_status[2] = {hall_uevent, NULL};
 
+	mutex_lock(&gddata->lock);
 	first = gpio_get_value_cansleep(hall->gpio);
 	msleep(50);
 	second = gpio_get_value_cansleep(hall->gpio);
 	if (first == second) {
 		hall->state = first;
 		state = first ^ hall->active_low;
-		pr_info("%s %s\n", hall->name,
+		pr_info("%s %s %s\n", __func__, hall->name,
 			state ? "close" : "open");
 
 		if (hall->input) {
@@ -248,9 +267,13 @@ static void hall_ic_work(struct work_struct *work)
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 		hall_notifier_notify(hall->name, state);
 #endif
-	} else
+		hall->hall_count++;
+
+	} else {
 		pr_info("%s %d,%d\n", hall->name,
 			first, second);
+	}
+	mutex_unlock(&gddata->lock);
 }
 #else
 static void hall_ic_work(struct work_struct *work)
@@ -283,6 +306,8 @@ static void hall_ic_work(struct work_struct *work)
 #endif
 	mutex_unlock(&gddata->lock);
 
+	hall->hall_count++;
+	
 #if IS_ENABLED(CONFIG_SAMSUNG_TUI)
 	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
 		stui_cancel_session();
@@ -299,6 +324,26 @@ static void hall_ic_work(struct work_struct *work)
 #endif
 #endif
 }
+#endif
+
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+void hall_ic_request_notitfy(void)
+{
+	struct hall_ic_data *hall;
+	int state;
+
+	list_for_each_entry(hall, &hall_ic_list, list) {
+		mutex_lock(&gddata->lock);
+		hall->state = !!gpio_get_value_cansleep(hall->gpio);
+		state = hall->state ^ hall->active_low;
+		pr_info("%s %s %s(%d)\n", __func__,
+				hall->name, state ? "close" : "open", hall->state);
+
+		hall_notifier_notify(hall->name, state);
+		mutex_unlock(&gddata->lock);
+	}
+}
+EXPORT_SYMBOL(hall_ic_request_notitfy);
 #endif
 
 static irqreturn_t hall_ic_detect(int irq, void *dev_id)
@@ -391,8 +436,16 @@ static int hall_ic_setup_halls(struct hall_ic_drvdata *ddata)
 #endif
 	sec_hall_ic = ddata->sec_dev;
 
-	sysfs_create_file(&ddata->sec_dev->kobj, &dev_attr_hall_number.attr);
-	sysfs_create_file(&ddata->sec_dev->kobj, &dev_attr_debounce.attr);
+	ret = sysfs_create_file(&ddata->sec_dev->kobj, &dev_attr_hall_number.attr);
+	if (ret < 0)
+		pr_err("failed to create sysfs number ret(%d)\n", ret);
+	ret = sysfs_create_file(&ddata->sec_dev->kobj, &dev_attr_debounce.attr);
+	if (ret < 0)
+		pr_err("failed to create sysfs debounce ret(%d)\n", ret);
+	ret = sysfs_create_file(&ddata->sec_dev->kobj, &dev_attr_hall_count.attr);
+	if (ret < 0)
+		pr_err("failed to create sysfs hall_count ret(%d)\n", ret);
+
 	list_for_each_entry(hall, &hall_ic_list, list) {
 		hall->state = gpio_get_value_cansleep(hall->gpio);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)

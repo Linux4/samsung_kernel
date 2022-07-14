@@ -30,7 +30,7 @@
 #include <linux/usb_notify.h>
 #endif
 #include <linux/usb/typec.h>
-#include <linux/muic/muic.h>
+#include <linux/muic/common/muic.h>
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 #include <linux/usb/typec/common/pdic_core.h>
 #include <linux/usb/typec/common/pdic_notifier.h>

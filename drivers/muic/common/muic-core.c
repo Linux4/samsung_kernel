@@ -362,6 +362,7 @@ static int muic_init_gpio_cb(int switch_sel)
 		pdata->rustproof_on = true;
 #endif
 
+#if !IS_ENABLED(CONFIG_HV_MUIC_AFC_DISABLE_ENFORCE)
 	if (get_afc_mode() == CH_MODE_AFC_DISABLE_VAL) {
 		pr_info("AFC mode disabled\n");
 		pdata->afc_disable = true;
@@ -369,6 +370,10 @@ static int muic_init_gpio_cb(int switch_sel)
 		pr_info("AFC mode enabled\n");
 		pdata->afc_disable = false;
 	}
+#else
+	pr_info("AFC mode disable enforce\n");
+	pdata->afc_disable = true;
+#endif /* !CONFIG_HV_MUIC_AFC_DISABLE_ENFORCE */
 
 	if (pdata->set_gpio_uart_sel)
 		ret = pdata->set_gpio_uart_sel(pdata->drv_data, pdata->uart_path);
@@ -429,6 +434,7 @@ static int muic_init_gpio_cb(void)
 	/* These flags MUST be updated again from probe function */
 	pdata->rustproof_on = false;
 
+#if !IS_ENABLED(CONFIG_HV_MUIC_AFC_DISABLE_ENFORCE)
 	if (get_afc_mode() == CH_MODE_AFC_DISABLE_VAL) {
 		pr_info("AFC mode disabled\n");
 		pdata->afc_disable = true;
@@ -436,6 +442,10 @@ static int muic_init_gpio_cb(void)
 		pr_info("AFC mode enabled\n");
 		pdata->afc_disable = false;
 	}
+#else
+	pr_info("AFC mode disable enforce\n");
+	pdata->afc_disable = true;
+#endif /* !CONFIG_HV_MUIC_AFC_DISABLE_ENFORCE */
 
 	if (pdata->set_gpio_usb_sel)
 		ret = pdata->set_gpio_usb_sel(pdata->drv_data, pdata->usb_path);
@@ -578,6 +588,8 @@ int muic_set_hiccup_mode(int on_off)
 {
 	struct muic_platform_data *pdata = &muic_pdata;
 
+	pr_info("%s %d\n", __func__, on_off);
+
 	if (pdata && pdata->muic_set_hiccup_mode_cb)
 		return pdata->muic_set_hiccup_mode_cb(on_off);
 
@@ -585,6 +597,19 @@ int muic_set_hiccup_mode(int on_off)
 	return -ENODEV;
 }
 EXPORT_SYMBOL_GPL(muic_set_hiccup_mode);
+
+#if defined(CONFIG_MUIC_SM5504_POGO)
+int muic_set_pogo_adc(int adc)
+{
+	struct muic_platform_data *pdata = &muic_pdata;
+
+	if (pdata && pdata->muic_set_pogo_adc_cb)
+		return pdata->muic_set_pogo_adc_cb(adc);
+
+	pr_err("%s: cannot supported\n", __func__);
+	return -ENODEV;
+}
+#endif
 
 struct muic_platform_data muic_pdata = {
 	.init_switch_dev_cb	= muic_init_switch_dev_cb,

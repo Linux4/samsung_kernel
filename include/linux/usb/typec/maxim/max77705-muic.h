@@ -34,6 +34,7 @@
 #define MUIC_IRQ_INIT_DETECT		(-1)
 #define MUIC_IRQ_PDIC_HANDLER		(-2)
 #define MUIC_IRQ_VBUS_WA		(-3)
+#define MUIC_IRQ_POGO_ADC		(-4)
 
 enum max77705_adc {
 	MAX77705_UIADC_GND		= 0x00,
@@ -213,6 +214,9 @@ struct max77705_muic_data {
 #else
 	struct notifier_block		ccic_nb;
 #endif
+#if defined(CONFIG_MUIC_SM5504_POGO)
+	int				pogo_adc;
+#endif /* CONFIG_MUIC_SM5504_POGO */
 #endif /* CONFIG_MUIC_MAX77705_PDIC */
 #if IS_ENABLED(CONFIG_IF_CB_MANAGER)
 	struct muic_dev			muic_d;

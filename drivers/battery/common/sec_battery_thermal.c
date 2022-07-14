@@ -143,6 +143,7 @@ void sec_bat_check_mix_temp(struct sec_battery_info *battery)
 		}
 	}
 }
+EXPORT_SYMBOL_KUNIT(sec_bat_check_mix_temp);
 
 int sec_bat_get_temp_by_temp_control_source(struct sec_battery_info *battery, int tcs)
 {
@@ -159,6 +160,7 @@ int sec_bat_get_temp_by_temp_control_source(struct sec_battery_info *battery, in
 		return battery->temperature;
 	}
 }
+EXPORT_SYMBOL_KUNIT(sec_bat_get_temp_by_temp_control_source);
 
 #if IS_ENABLED(CONFIG_WIRELESS_CHARGING)
 void sec_bat_check_wpc_temp(struct sec_battery_info *battery)
@@ -409,6 +411,7 @@ void sec_bat_check_direct_chg_temp(struct sec_battery_info *battery)
 			battery->cable_type, battery->chg_limit);
 	}
 }
+EXPORT_SYMBOL_KUNIT(sec_bat_check_direct_chg_temp);
 #endif
 
 void sec_bat_check_pdic_temp(struct sec_battery_info *battery)
@@ -440,6 +443,7 @@ void sec_bat_check_pdic_temp(struct sec_battery_info *battery)
 		sec_vote(battery->input_vote, VOTER_CHG_TEMP, false, 0);
 	}
 }
+EXPORT_SYMBOL_KUNIT(sec_bat_check_pdic_temp);
 
 void sec_bat_check_afc_temp(struct sec_battery_info *battery)
 {
@@ -504,6 +508,7 @@ void sec_bat_check_afc_temp(struct sec_battery_info *battery)
 		sec_vote(battery->input_vote, VOTER_CHG_TEMP, false, 0);
 	}
 }
+EXPORT_SYMBOL_KUNIT(sec_bat_check_afc_temp);
 
 void sec_bat_set_threshold(struct sec_battery_info *battery, int cable_type)
 {
