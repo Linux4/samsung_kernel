@@ -28,6 +28,16 @@ config SEC_ABC_MOTTO
 	  This config is to support MOTTO Function
 	  It depends on SEC_ABC Feature
 
+comment "Samsung ABC_COMMON KUNIT Options"
+config SEC_ABC_COMMON_KUNIT
+	bool "Samsung ABC_COMMON KUNIT Feature"
+	depends on SEC_ABC && SEC_KUNIT
+	default n
+	help
+	  Samsung ABC(Abnormal Behavior Catcher) KUNIT Function Feature
+	  This config is to support ABC_COMMON KUNIT Function
+	  It depends on SEC_ABC && SEC_KUNIT Feature
+
 comment "Samsung ABC Hub Options"
 config SEC_ABC_HUB
 	tristate "Samsung ABC Hub Feature"
@@ -92,3 +102,13 @@ config SEC_ABC_HUB_BOOTC_ENG
 	  Samsung BOOTC(Booting Time Check) eng mode Feature
 	  This function is to apply eng binary booting time spec
 	  It depends on SEC_ABC_HUB_BOOTC Feature
+
+comment "Samsung ABC_HUB KUNIT Options"
+config SEC_ABC_HUB_KUNIT
+	bool "Samsung ABC_HUB KUNIT Feature"
+	depends on SEC_ABC_HUB && SEC_KUNIT
+	default n
+	help
+	  Samsung ABC(Abnormal Behavior Catcher) Hub KUNIT Function Feature
+	  This config is to support ABC Hub KUNIT Function
+	  It depends on SEC_ABC_HUB && SEC_KUNIT Feature

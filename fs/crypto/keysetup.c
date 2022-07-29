@@ -780,11 +780,8 @@ static inline int __find_and_derive_mode_key(
 		memcpy(fskey->raw, mode_key, mode->keysize);
 		fskey->size = mode->keysize;
 		memzero_explicit(mode_key, mode->keysize);
-		if (err)
-			goto out_unlock;
 	}
 
-	err = 0;
 out_unlock:
 	mutex_unlock(&fscrypt_mode_key_setup_mutex);
 	return err;

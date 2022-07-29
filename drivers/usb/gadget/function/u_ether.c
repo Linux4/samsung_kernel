@@ -65,8 +65,7 @@ static struct workqueue_struct	*uether_wq;
 /* for dual-speed hardware, use deeper queues at high/super speed */
 static inline int qlen(struct usb_gadget *gadget, unsigned qmult)
 {
-	if (gadget_is_dualspeed(gadget) && (gadget->speed == USB_SPEED_HIGH ||
-					    gadget->speed >= USB_SPEED_SUPER))
+	if (gadget_is_dualspeed(gadget))
 		return qmult * DEFAULT_QLEN;
 	else
 		return DEFAULT_QLEN;
@@ -1449,7 +1448,7 @@ int gether_alloc_request(struct gether *link)
 
 	result = alloc_requests(dev, link, qlen(dev->gadget,
 				dev->qmult));
-
+	printk("usb: %s qlen %d\n", __func__, qlen(dev->gadget, dev->qmult));
 	return result;
 }
 EXPORT_SYMBOL_GPL(gether_free_request);

@@ -30,7 +30,8 @@
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 #include <linux/sec_batt.h>
 #endif
-#if defined(CONFIG_ARCH_QCOM)
+
+#if IS_ENABLED(CONFIG_ARCH_QCOM) && !defined(CONFIG_USB_ARCH_EXYNOS) && !defined(CONFIG_ARCH_EXYNOS)
 #include <linux/sec_param.h>
 #else
 #include <linux/sec_ext.h>
@@ -631,29 +632,40 @@ static ssize_t sm5714_muic_set_afc_disable(struct device *dev,
 {
 	struct sm5714_muic_data *muic_data = dev_get_drvdata(dev);
 	struct muic_platform_data *pdata = muic_data->pdata;
-	int ret;
 	int param_val;
+	int ret;
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	union power_supply_propval psy_val;
 #endif
 
-	if (!strncasecmp(buf, "1", 1))
+	if (!strncasecmp(buf, "1", 1)) {
 		pdata->afc_disable = true;
-	else if (!strncasecmp(buf, "0", 1))
+		muic_afc_request_cause_clear();
+	} else if (!strncasecmp(buf, "0", 1))
 		pdata->afc_disable = false;
 	else
 		pr_warn("[%s:%s] invalid value\n", MUIC_DEV_NAME, __func__);
 
 	param_val = (pdata->afc_disable) ? '1' : '0';
+	ret = 0;
 
-#if defined(CONFIG_ARCH_QCOM)
+#if IS_BUILTIN(CONFIG_MUIC_SM5714)
+#ifdef CONFIG_SEC_PARAM
+#if IS_ENABLED(CONFIG_ARCH_QCOM) && !defined(CONFIG_USB_ARCH_EXYNOS) && !defined(CONFIG_ARCH_EXYNOS)
 	ret = sec_set_param(param_index_afc_disable, &param_val);
+	if (ret == false)
+		pr_err("[%s:%s] set_param failed(%d)\n", MUIC_DEV_NAME,
+				__func__, ret);
 #else
 	ret = sec_set_param(CM_OFFSET + 1, param_val);
-#endif
 	if (ret < 0)
 		pr_err("[%s:%s] set_param failed(%d)\n", MUIC_DEV_NAME,
 				__func__, ret);
+#endif
+#else /* CONFIG_SEC_PARAM */
+	pr_err("%s:set_param is NOT supported!\n", __func__);
+#endif
+#endif
 
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	psy_val.intval = param_val;
@@ -686,6 +698,21 @@ static ssize_t sm5714_muic_set_afc_disable(struct device *dev,
 	return count;
 }
 
+static ssize_t sm5714_afc_set_voltage(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	pr_info("%s+\n", __func__);
+	if (!strncasecmp(buf, "5V", 2))
+		muic_afc_set_voltage(0x5);
+	else if (!strncasecmp(buf, "9V", 2))
+		muic_afc_set_voltage(0x9);
+	else
+		pr_warn("%s invalid value : %s\n", __func__, buf);
+
+	pr_info("%s-\n", __func__);
+	return count;
+}
+
 #if defined(CONFIG_HICCUP_CHARGER)
 static ssize_t hiccup_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -699,6 +726,11 @@ static ssize_t hiccup_store(struct device *dev,
 	struct sm5714_muic_data *muic_data = dev_get_drvdata(dev);
 
 	if (!strncasecmp(buf, "DISABLE", 7)) {
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+#if IS_ENABLED(CONFIG_HICCUP_CC_DISABLE)
+		usbpd_hiccup_cc_command(muic_data->man, 0);
+#endif
+#endif
 		muic_data->is_hiccup_mode = false;
 		com_to_open(muic_data);
 	} else
@@ -739,6 +771,9 @@ static DEVICE_ATTR(vbus_value, 0444, muic_show_vbus_value, NULL);
 
 static DEVICE_ATTR(afc_disable, 0664,
 		sm5714_muic_show_afc_disable, sm5714_muic_set_afc_disable);
+
+static DEVICE_ATTR(afc_set_voltage, 0220,
+		NULL, sm5714_afc_set_voltage);
 #if defined(CONFIG_HICCUP_CHARGER)
 static DEVICE_ATTR_RW(hiccup);
 #endif
@@ -766,6 +801,7 @@ static struct attribute *sm5714_muic_attributes[] = {
 #endif
 	&dev_attr_vbus_value.attr,
 	&dev_attr_afc_disable.attr,
+	&dev_attr_afc_set_voltage.attr,
 #if defined(CONFIG_HICCUP_CHARGER)
 	&dev_attr_hiccup.attr,
 #endif
@@ -1055,9 +1091,9 @@ void sm5714_muic_set_bc12_control(int state)
 EXPORT_SYMBOL(sm5714_muic_set_bc12_control);
 
 #ifndef CONFIG_SEC_FACTORY
-static void sm5714_muic_set_bc12(struct sm5714_muic_data *muic_data,
-		int enable)
+static void sm5714_muic_set_bc12(void *data, int enable)
 {
+	struct sm5714_muic_data *muic_data = data;
 	struct i2c_client *i2c = muic_data->i2c;
 	int reg_value = 0;
 
@@ -1075,8 +1111,7 @@ static void sm5714_muic_set_bc12(struct sm5714_muic_data *muic_data,
 			__func__, enable, reg_value);
 }
 #else
-static void sm5714_muic_set_bc12(struct sm5714_muic_data *muic_data,
-		int enable)
+static void sm5714_muic_set_bc12(void *data, int enable)
 {
 	pr_info("[%s:%s] Do nothing\n", MUIC_DEV_NAME, __func__);
 
@@ -1141,7 +1176,7 @@ static void sm5714_muic_set_bypass(void *data, int enable)
 		sm5714_muic_handle_detach(muic_data, 0);
 
 	/* disable bc12 when bypass mode */
-	sm5714_muic_set_bc12(muic_data, !enable);
+	sm5714_muic_set_bc12((void *)muic_data, !enable);
 }
 #endif
 
@@ -1149,9 +1184,9 @@ static void sm5714_muic_set_bypass(void *data, int enable)
 struct muic_ops ops_muic = {
 	.muic_check_usb_killer = sm5714_muic_if_check_usb_killer,
 	.muic_set_bypass = sm5714_muic_set_bypass,
+	.muic_set_bc12 = sm5714_muic_set_bc12,
 };
 #endif
-
 
 static int sm5714_muic_get_adc(struct sm5714_muic_data *muic_data)
 {
@@ -1303,7 +1338,7 @@ static void sm5714_muic_handle_attach(struct sm5714_muic_data *muic_data,
 	switch (new_dev) {
 	case ATTACHED_DEV_OTG_MUIC:
 #ifndef CONFIG_SEC_FACTORY
-		sm5714_muic_set_bc12(muic_data, 0);
+		sm5714_muic_set_bc12((void *)muic_data, 0);
 #endif
 	case ATTACHED_DEV_USB_MUIC:
 	case ATTACHED_DEV_CDP_MUIC:
@@ -1398,7 +1433,7 @@ static void sm5714_muic_handle_detach(struct sm5714_muic_data *muic_data,
 			muic_data->attached_dev);
 
 #ifndef CONFIG_SEC_FACTORY
-	sm5714_muic_set_bc12(muic_data, 1);
+	sm5714_muic_set_bc12((void *)muic_data, 1);
 #endif
 
 	switch (muic_data->attached_dev) {
@@ -1502,6 +1537,7 @@ static void sm5714_muic_handle_detach(struct sm5714_muic_data *muic_data,
 	muic_data->bc12_retry_count = 0;
 #endif
 	muic_data->hv_voltage = 0;
+	muic_afc_request_cause_clear();
 }
 
 static void sm5714_muic_detect_dev(struct sm5714_muic_data *muic_data, int irq)
@@ -1626,7 +1662,7 @@ static void sm5714_muic_detect_dev(struct sm5714_muic_data *muic_data, int irq)
 		new_dev = ATTACHED_DEV_UNOFFICIAL_TA_MUIC;
 		pr_info("[%s:%s] LO_TA\n", MUIC_DEV_NAME, __func__);
 	} else if (dev1 & DEV_TYPE1_U200) {
-		if (irq == SM5714_MUIC_IRQ_WORK) {
+		if ((irq == SM5714_MUIC_IRQ_WORK) || (irq == SM5714_MUIC_IRQ_PROBE)) {
 			if (!vbvolt) {
 				pr_info("[%s:%s] DEV_TYPE1_U200 + NO VBUS\n",
 						MUIC_DEV_NAME, __func__);
@@ -1943,7 +1979,12 @@ static int sm5714_muic_pdic_set_hiccup_mode(int val)
 
 	if (is_lpcharge_pdic_param())
 		return 0;
-
+#if IS_ENABLED(CONFIG_HICCUP_CC_DISABLE)
+	if (muic_data->shut_down) {
+		pr_info("[%s:%s] do not set after shutdown.\n", MUIC_DEV_NAME, __func__);
+		return 0;
+	}
+#endif
 	pr_info("[%s:%s] val = %d\n", MUIC_DEV_NAME, __func__, val);
 
 	if (val == 1) { /* Hiccup mode on */
@@ -2268,6 +2309,7 @@ static int sm5714_muic_probe(struct platform_device *pdev)
 	muic_data->fled_torch_enable = false;
 	muic_data->fled_flash_enable = false;
 	muic_data->hv_voltage = 0;
+	muic_data->is_pdic_ready = false;
 
 #if defined(CONFIG_HICCUP_CHARGER)
 	muic_data->is_hiccup_mode = false;
@@ -2403,6 +2445,8 @@ static int sm5714_muic_probe(struct platform_device *pdev)
 				MUIC_DEV_NAME, __func__);
 #endif
 
+	muic_data->shut_down = 0;
+
 	return 0;
 
 fail_init_irq:
@@ -2457,6 +2501,8 @@ static void sm5714_muic_shutdown(struct platform_device *pdev)
 	struct sm5714_muic_data *muic_data = platform_get_drvdata(pdev);
 	int ret;
 
+	muic_data->shut_down = 1;
+
 	cancel_delayed_work_sync(&muic_data->muic_debug_work);
 	cancel_delayed_work_sync(&muic_data->muic_U200_work);
 
@@ -2484,7 +2530,7 @@ static void sm5714_muic_shutdown(struct platform_device *pdev)
 
 #ifndef CONFIG_SEC_FACTORY
 	/* If the device is in OTG state then BC 1.2 cannot work in BL state */
-	sm5714_muic_set_bc12(muic_data, 1);
+	sm5714_muic_set_bc12((void *)muic_data, 1);
 #endif
 }
 

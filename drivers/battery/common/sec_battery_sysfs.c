@@ -82,6 +82,7 @@ static struct device_attribute sysfs_battery_attrs[] = {
 #endif
 	SYSFS_BATTERY_ATTR(usb_conf_test),
 	SYSFS_BATTERY_ATTR(voter_status),
+	SYSFS_BATTERY_ATTR(batt_full_capacity),
 };
 
 enum {
@@ -137,6 +138,7 @@ enum {
 #endif
 	USB_CONF,
 	VOTER_STATUS,
+	BATT_FULL_CAPACITY,
 };
 
 ssize_t sysfs_battery_show_attrs(struct device *dev,
@@ -520,6 +522,10 @@ ssize_t sysfs_battery_show_attrs(struct device *dev,
 	case VOTER_STATUS:
 		i = show_sec_vote_status(buf, PAGE_SIZE);
 		break;
+	case BATT_FULL_CAPACITY:
+		pr_info("%s: BATT_FULL_CAPACITY = %d\n", __func__, battery->batt_full_capacity);
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", battery->batt_full_capacity);
+		break;
 	default:
 		i = -EINVAL;
 		break;
@@ -843,6 +849,20 @@ ssize_t sysfs_battery_store_attrs(
 		}
 		break;
 	case VOTER_STATUS:
+		break;
+	case BATT_FULL_CAPACITY:
+		if (sscanf(buf, "%10d\n", &x) == 1) {
+			if (x >= 0 && x <= 100) {
+				pr_info("%s: update BATT_FULL_CAPACITY(%d)\n", __func__, x);
+				battery->batt_full_capacity = x;
+				__pm_stay_awake(battery->monitor_ws);
+				queue_delayed_work(battery->monitor_wqueue,
+					&battery->monitor_work, 0);
+			} else {
+				pr_info("%s: out of range(%d)\n", __func__, x);
+			}
+			ret = count;
+		}
 		break;
 	default:
 		ret = -EINVAL;

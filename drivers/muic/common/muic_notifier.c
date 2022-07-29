@@ -11,19 +11,6 @@
 #include <linux/muic/common/muic_notifier.h>
 #include <linux/sec_class.h>
 
-/*
-  * The src & dest addresses of the noti.
-  * keep the same value defined in pdic_notifier.h
-  *     b'0001 : PDIC
-  *     b'0010 : MUIC
-  *     b'1111 : Broadcasting
-  */
-#define NOTI_ADDR_SRC (1 << 1)
-#define NOTI_ADDR_DST (0xf)
-
-/* ATTACH Noti. ID */
-#define NOTI_ID_ATTACH (1)
-
 #define SET_MUIC_NOTIFIER_BLOCK(nb, fn, dev) do {	\
 		(nb)->notifier_call = (fn);		\
 		(nb)->priority = (dev);			\
@@ -68,12 +55,13 @@ void muic_notifier_set_new_noti(bool flag)
 }
 EXPORT_SYMBOL(muic_notifier_set_new_noti);
 
-static void __set_noti_cxt(int attach, int type)
+static void __set_noti_cxt_dest(int attach, int type, int dest)
 {
 	if (type < 0) {
 		muic_notifier.cmd = attach;
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 		muic_notifier.cxt.attach = attach;
+		muic_notifier.cxt.dest = dest;
 #endif
 		return;
 	}
@@ -89,11 +77,20 @@ static void __set_noti_cxt(int attach, int type)
 #else
 	muic_notifier.cxt.src = PDIC_NOTIFY_DEV_MUIC;
 #endif
-	muic_notifier.cxt.dest = NOTI_ADDR_DST;
-	muic_notifier.cxt.id = NOTI_ID_ATTACH;
+	muic_notifier.cxt.dest = dest;
+	muic_notifier.cxt.id = PDIC_NOTIFY_ID_ATTACH;
 	muic_notifier.cxt.attach = attach;
 	muic_notifier.cxt.cable_type = type;
 	muic_notifier.cxt.rprd = 0;
+#endif
+}
+
+static void __set_noti_cxt(int attach, int type)
+{
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+	__set_noti_cxt_dest(attach, type, PDIC_NOTIFY_DEV_ALL);
+#else
+	__set_noti_cxt_dest(attach, type, 0);
 #endif
 }
 
@@ -119,8 +116,8 @@ static void __set_pdic_noti_cxt(int attach, int type)
 #else
 	muic_pdic_notifier.cxt.src = PDIC_NOTIFY_DEV_MUIC;
 #endif
-	muic_pdic_notifier.cxt.dest = NOTI_ADDR_DST;
-	muic_pdic_notifier.cxt.id = NOTI_ID_ATTACH;
+	muic_pdic_notifier.cxt.dest = PDIC_NOTIFY_DEV_ALL;
+	muic_pdic_notifier.cxt.id = PDIC_NOTIFY_ID_ATTACH;
 	muic_pdic_notifier.cxt.attach = attach;
 	muic_pdic_notifier.cxt.cable_type = type;
 	muic_pdic_notifier.cxt.rprd = 0;
@@ -417,6 +414,47 @@ void muic_notifier_logically_detach_attached_dev(muic_attached_dev_t cur_dev)
 	__set_noti_cxt(0, ATTACHED_DEV_NONE_MUIC);
 }
 EXPORT_SYMBOL(muic_notifier_logically_detach_attached_dev);
+
+void vt_muic_notifier_attach_attached_dev(muic_attached_dev_t new_dev)
+{
+	pr_info("%s: (%d)\n", __func__, new_dev);
+
+	__set_noti_cxt_dest(MUIC_NOTIFY_CMD_ATTACH, new_dev, PDIC_NOTIFY_DEV_PDIC);
+
+	/* muic's attached_device attach broadcast */
+	muic_notifier_notify();
+}
+EXPORT_SYMBOL(vt_muic_notifier_attach_attached_dev);
+
+void vt_muic_notifier_detach_attached_dev(muic_attached_dev_t cur_dev)
+{
+	pr_info("%s: (%d)\n", __func__, cur_dev);
+
+	__set_noti_cxt_dest(MUIC_NOTIFY_CMD_DETACH, -1, PDIC_NOTIFY_DEV_PDIC);
+
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+	if (muic_notifier.cxt.cable_type != cur_dev)
+		pr_warn("%s: attached_dev of muic_notifier(%d) != muic_data(%d)\n",
+			__func__, muic_notifier.cxt.cable_type, cur_dev);
+
+	if (muic_notifier.cxt.cable_type != ATTACHED_DEV_NONE_MUIC) {
+		/* muic's attached_device detach broadcast */
+		muic_notifier_notify();
+	}
+#else
+	if (muic_notifier.attached_dev != cur_dev)
+		pr_warn("%s: attached_dev of muic_notifier(%d) != muic_data(%d)\n",
+			__func__, muic_notifier.attached_dev, cur_dev);
+
+	if (muic_notifier.attached_dev != ATTACHED_DEV_NONE_MUIC) {
+		/* muic's attached_device detach broadcast */
+		muic_notifier_notify();
+	}
+#endif
+
+	__set_noti_cxt(0, ATTACHED_DEV_NONE_MUIC);
+}
+EXPORT_SYMBOL(vt_muic_notifier_detach_attached_dev);
 
 static int muic_notifier_init(void)
 {

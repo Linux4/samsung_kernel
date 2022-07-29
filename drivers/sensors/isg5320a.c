@@ -292,7 +292,7 @@ static void isg5320a_force_calibration(struct isg5320a_data *data,
 	if (!only_bfcal) {
 		isg5320a_i2c_write_one(data, ISG5320A_SCANCTRL1_REG,
 				       ISG5320A_SCAN_STOP);
-
+		msleep(30);
 		isg5320a_i2c_write_one(data, ISG5320A_BS_ON_WD_REG, ISG5320A_BS_WD_OFF);
 		isg5320a_i2c_write_one(data, ISG5320A_SCANCTRL2_REG,
 				       ISG5320A_SCAN2_CLEAR);
@@ -305,12 +305,10 @@ static void isg5320a_force_calibration(struct isg5320a_data *data,
 
 		isg5320a_i2c_write_one(data, ISG5320A_SCANCTRL1_REG,
 				       ISG5320A_CFCAL_START);
-		msleep(300);
+		msleep(500);
 	}
 
 	isg5320a_i2c_write_one(data, ISG5320A_SCANCTRL2_REG, ISG5320A_BFCAL_START);
-
-	msleep(100);
 
 	mutex_unlock(&data->lock);
 }
@@ -813,7 +811,6 @@ static ssize_t isg5320a_normal_threshold_show(struct device *dev,
 		       threshold - far_hyst);
 }
 
-
 static ssize_t isg5320a_raw_data_show(struct device *dev,
 				      struct device_attribute *attr, char *buf)
 {
@@ -1265,7 +1262,6 @@ static ssize_t isg5320a_temp_enable_show(struct device *dev,
 
 	return snprintf(buf, PAGE_SIZE, "%d\n", ((buff & 0x40) >> 6));
 }
-
 
 static ssize_t isg5320a_cml_show(struct device *dev,
 				 struct device_attribute *attr, char *buf)

@@ -17,6 +17,13 @@
 #define FEATURE_ESE_WAKELOCK
 /* #define FEATURE_ESE_SPI_DUMMY_ENABLE */
 
+enum coldrst_type {
+	COLDRST_NONE,
+	COLDRST_GPIO,
+	COLDRST_POWER_ONOFF,
+	COLDRST_ERR
+};
+
 #define P3_MAGIC 0xED
 #define P3_SET_PWR _IOW(P3_MAGIC, 0x01, unsigned long)
 #define P3_SET_DBG _IOW(P3_MAGIC, 0x02, unsigned long)
@@ -69,5 +76,6 @@ struct p3_spi_platform_data {
 	unsigned int irq_gpio;
 	unsigned int rst_gpio;
 };
-
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_NFC_PVDD_LATE_ENABLE) && !IS_ENABLED(CONFIG_SAMSUNG_ESE_ONLY)
 extern unsigned int lpcharge; /*for power off charge*/
+#endif

@@ -1455,7 +1455,6 @@ static void audit_log_exit(struct audit_context *context, struct task_struct *ts
 // [ SEC_SELINUX_PORTING_COMMON
 // Disable AUDIT_CWD
 /*
-
 	if (context->pwd.dentry && context->pwd.mnt) {
 		ab = audit_log_start(context, GFP_KERNEL, AUDIT_CWD);
 		if (ab) {

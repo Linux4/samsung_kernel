@@ -120,6 +120,8 @@ int slsi_del_virtual_intf(struct wiphy *wiphy, struct wireless_dev *wdev)
 		rcu_assign_pointer(sdev->netdev_ap, NULL);
 	if (!sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN])
 		rcu_assign_pointer(sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN], sdev->netdev_ap);
+	if (dev == sdev->netdev_p2p)
+		rcu_assign_pointer(sdev->netdev_p2p, NULL);
 	SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
 
 	return 0;
@@ -544,7 +546,7 @@ int slsi_scan(struct wiphy                 *wiphy,
 		ret = slsi_mlme_set_forward_beacon(sdev, dev, FAPI_ACTION_STOP);
 
 		if (!ret) {
-			ret = slsi_send_forward_beacon_abort_vendor_event(sdev,
+			ret = slsi_send_forward_beacon_abort_vendor_event(sdev, dev,
 									  SLSI_FORWARD_BEACON_ABORT_REASON_SCANNING);
 		}
 	}
@@ -958,11 +960,12 @@ int slsi_set_roam_reassoc(struct net_device *dev, struct slsi_dev *sdev, struct 
 	if (WARN_ON(!peer))
 		return -EINVAL;
 
-	if (!sme->bssid) {
+	if (!sme->bssid && !sme->bssid_hint) {
 		SLSI_NET_ERR(dev, "Require bssid in reassoc but received null\n");
 		return -EINVAL;
 	}
-	if (!memcmp(peer->address, sme->bssid, ETH_ALEN)) { /* same bssid */
+	if ((sme->bssid && !memcmp(peer->address, sme->bssid, ETH_ALEN)) ||
+	     (sme->bssid_hint && !memcmp(peer->address, sme->bssid_hint, ETH_ALEN))) { /* same bssid or bssid hint*/
 		r = slsi_mlme_reassociate(sdev, dev);
 		if (r) {
 			SLSI_NET_ERR(dev, "Failed to reassociate : %d\n", r);
@@ -1161,6 +1164,19 @@ int slsi_set_sta_bss_info(struct wiphy *wiphy, struct net_device *dev, struct sl
 			*bssid = ndev_vif->sta.sta_bss->bssid;
 		}
 	} else {
+#ifdef CONFIG_SEC_FACTORY
+		if (sdev->device_config.supported_band != SLSI_FREQ_BAND_AUTO) {
+			int supported_band = sdev->device_config.supported_band;
+			int bss_band = ndev_vif->sta.sta_bss->channel->band;
+
+			SLSI_NET_DBG3(dev, SLSI_CFG80211, "sup_band %d, bss_band %d\n", supported_band, bss_band);
+			if (supported_band == SLSI_FREQ_BAND_2GHZ && bss_band != NL80211_BAND_2GHZ)
+				return -EPERM;
+			if (supported_band == SLSI_FREQ_BAND_5GHZ && bss_band != NL80211_BAND_5GHZ)
+				return -EPERM;
+		}
+#endif
+
 		*channel = ndev_vif->sta.sta_bss->channel;
 		*bssid = ndev_vif->sta.sta_bss->bssid;
 	}
@@ -2543,6 +2559,24 @@ static bool slsi_ap_chandef_vht_ht(struct net_device *dev, struct slsi_dev *sdev
 	return append_vht_ies;
 }
 
+void slsi_stop_p2p_group_iface_on_ap_start(struct slsi_dev *sdev)
+{
+	struct net_device *p2p_dev = sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN];
+	struct netdev_vif *ndev_p2p_vif;
+
+	SLSI_NET_INFO(p2p_dev, "P2P group interface is not removed before starting AP\n");
+	if (!p2p_dev)
+		return;
+	ndev_p2p_vif = netdev_priv(p2p_dev);
+	SLSI_MUTEX_LOCK(ndev_p2p_vif->vif_mutex);
+	slsi_vif_cleanup(sdev, p2p_dev, true, 0);
+	SLSI_MUTEX_UNLOCK(ndev_p2p_vif->vif_mutex);
+	SLSI_MUTEX_LOCK(sdev->netdev_add_remove_mutex);
+	rcu_assign_pointer(sdev->netdev_p2p, sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN]);
+	rcu_assign_pointer(sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN], sdev->netdev_ap);
+	SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
+}
+
 int slsi_start_ap(struct wiphy *wiphy, struct net_device *dev,
 		  struct cfg80211_ap_settings *settings)
 {
@@ -2574,6 +2608,9 @@ int slsi_start_ap(struct wiphy *wiphy, struct net_device *dev,
 		r = -EINVAL;
 		goto exit_with_start_stop_mutex;
 	}
+
+	if (ndev_vif->iftype == NL80211_IFTYPE_AP && sdev->netdev_ap != sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN])
+		slsi_stop_p2p_group_iface_on_ap_start(sdev);
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 	/* Abort any ongoing wlan scan. */

@@ -1,6 +1,6 @@
 /*****************************************************************************
  *
- * Copyright (c) 2012 - 2021 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2022 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -2029,7 +2029,7 @@ int slsi_mlme_start(struct slsi_dev *sdev, struct net_device *dev, u8 *bssid, st
 	u16                    fw_freq;
 	u16                    vht_ies_len = 0;
 	u8                     ext_capab_len = 0;
-	u32                    channel_encode = 0;
+	u16                    channel_encode = 0;
 	const u8			     *recv_vht_capab_ie, *recv_vht_operation_ie;
 	u8                     *vht_ie_capab, *vht_ie_operation;
 
@@ -2100,7 +2100,12 @@ int slsi_mlme_start(struct slsi_dev *sdev, struct net_device *dev, u8 *bssid, st
 	fapi_set_u16(req, u.mlme_start_req.authentication_type, auth_type);
 	fapi_set_u16(req, u.mlme_start_req.hidden_ssid, settings->hidden_ssid < 3 ? settings->hidden_ssid : NL80211_HIDDEN_SSID_ZERO_LEN);
 	channel_encode = ndev_vif->acs == true ? 0 : 1;
-	fapi_set_u32(req, u.mlme_start_req.spare_1, channel_encode);
+	fapi_set_u32(req, u.mlme_start_req.spare_1, 0);
+	fapi_set_low16_u32(req, u.mlme_start_req.spare_1, channel_encode);
+#ifdef CONFIG_SCSC_WLAN_SAE_PWE
+	if (settings->crypto.sae_pwe == NL80211_SAE_PWE_HASH_TO_ELEMENT)
+		fapi_set_high16_u32(req, u.mlme_start_req.spare_1, 1);
+#endif
 
 	fw_freq = ndev_vif->chan->center_freq;
 	chan_info = slsi_get_chann_info(sdev, ndev_vif->chandef);
@@ -4574,7 +4579,7 @@ int slsi_mlme_set_p2p_noa(struct slsi_dev *sdev, struct net_device *dev, unsigne
 	return r;
 }
 
-int slsi_mlme_set_host_state(struct slsi_dev *sdev, struct net_device *dev, u8 host_state)
+int slsi_mlme_set_host_state(struct slsi_dev *sdev, struct net_device *dev, u16 host_state)
 {
 	struct sk_buff    *req;
 	struct sk_buff    *cfm;
@@ -4593,7 +4598,13 @@ int slsi_mlme_set_host_state(struct slsi_dev *sdev, struct net_device *dev, u8 h
 		return -ENOMEM;
 	}
 
-	fapi_set_u16(req, u.mlme_host_state_req.host_state, host_state);
+	if (slsi_get_legacy_sar_backoff()) {
+		fapi_set_u16(req, u.mlme_host_state_req.host_state, host_state);
+	} else {
+		fapi_set_u16(req, u.mlme_host_state_req.host_state, 0xFFFF);
+		fapi_set_u32(req, u.mlme_host_state_req.spare_1, 0);
+		fapi_set_low16_u32(req, u.mlme_host_state_req.spare_1, host_state);
+	}
 
 	cfm = slsi_mlme_req_cfm(sdev, NULL, req, MLME_HOST_STATE_CFM);
 	if (!cfm)

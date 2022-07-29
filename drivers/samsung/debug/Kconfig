@@ -139,7 +139,6 @@ config SEC_DEBUG_EXCEPTION_STACK
 
 config SEC_DEBUG_ATOMIC_SLEEP_PANIC
 	bool "Panic (Reboot) On Atomic Sleep"
-	depends on DEBUG_ATOMIC_SLEEP
 	depends on SEC_DEBUG && !SAMSUNG_PRODUCT_SHIP
 	default y
 	help
@@ -321,3 +320,16 @@ config SEC_DEBUG_QSPIN_OWNER
 	  This option enables spinlock owner information.
 	  The CPU number of owner is written into lock value.
 
+config SEC_DUMP_SINK
+	tristate "Enable to dump_sink"
+	depends on SEC_DEBUG
+	default n
+	help
+	  This option enables dump sink.
+
+config SEC_DEBUG_DUMP_SUMMARY
+	bool "Enable dump summary in rmem"
+	depends on SEC_DEBUG
+	default y
+	help
+	  This option enables dump summary in rmem.

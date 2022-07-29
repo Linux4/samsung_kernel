@@ -436,7 +436,7 @@ void release_timeout_func(struct work_struct* work)
 		return;
 
 	pr_info(ITAG" Release Timeout Func :::: Unique_Id(%d)", target_ib->uniq_id);
-
+	mutex_lock(&sip_rel_lock);
 	for (res_type = 0; res_type < allowed_res_count; res_type++) {
 		res = target_ib->ib_dt->res[allowed_resources[res_type]];
 
@@ -478,6 +478,7 @@ void release_timeout_func(struct work_struct* work)
 	mutex_unlock(&rel_ib_lock);
 
 	remove_ib_instance(target_ib);
+	mutex_unlock(&sip_rel_lock);
 
 }
 
@@ -705,7 +706,7 @@ void input_booster_init(void)
 	mutex_init(&mem_lock);
 
 //Input Booster Trigger Strcut Init
-	ib_trigger = kcalloc(ABS_CNT, sizeof(struct t_ib_trigger) * MAX_IB_COUNT, GFP_KERNEL);
+	ib_trigger = kzalloc(sizeof(struct t_ib_trigger) * MAX_IB_COUNT, GFP_KERNEL);
 	if (ib_trigger == NULL) {
 		pr_err(ITAG" ib_trigger mem alloc fail");
 		goto out;
@@ -723,14 +724,14 @@ void input_booster_init(void)
 	ndevice_in_dt = of_get_child_count(np);
 	pr_info(ITAG" %s   ndevice_in_dt : %d\n", __func__, ndevice_in_dt);
 
-	ib_device_trees = kcalloc(ABS_CNT, ib_dt_size * ndevice_in_dt, GFP_KERNEL);
+	ib_device_trees = kzalloc(ib_dt_size * ndevice_in_dt, GFP_KERNEL);
 	if (ib_device_trees == NULL) {
 		pr_err(ITAG" dt_infor mem alloc fail");
 		goto out;
 	}
 
 // ib list mem alloc
-	ib_list = kcalloc(ABS_CNT, list_head_size * ndevice_in_dt, GFP_KERNEL);
+	ib_list = kzalloc(list_head_size * ndevice_in_dt, GFP_KERNEL);
 	if (ib_list == NULL) {
 		pr_err(ITAG" ib list mem alloc fail");
 		goto out;
@@ -755,7 +756,7 @@ void input_booster_init(void)
 		max_resource_count, max_cluster_count);
 
 //qos list mem alloc
-	qos_list = kcalloc(ABS_CNT, list_head_size * max_resource_count, GFP_KERNEL);
+	qos_list = kzalloc(list_head_size * max_resource_count, GFP_KERNEL);
 	if (qos_list == NULL) {
 		pr_err(ITAG" ib list mem alloc fail");
 		goto out;
@@ -764,7 +765,7 @@ void input_booster_init(void)
 		INIT_LIST_HEAD(&qos_list[res_cnt]);
 
 //Init Cpu Cluster Value
-	cpu_cluster_policy = kcalloc(ABS_CNT, sizeof(int) * max_cluster_count, GFP_KERNEL);
+	cpu_cluster_policy = kzalloc(sizeof(int) * max_cluster_count, GFP_KERNEL);
 	if (cpu_cluster_policy == NULL) {
 		pr_err(ITAG" cpu_cluster_policy mem alloc fail");
 		goto out;
@@ -780,7 +781,7 @@ void input_booster_init(void)
 	}
 
 //Allow Resource
-	allowed_resources = kcalloc(ABS_CNT, sizeof(int) * max_resource_count, GFP_KERNEL);
+	allowed_resources = kzalloc(sizeof(int) * max_resource_count, GFP_KERNEL);
 	if (allowed_resources == NULL) {
 		pr_err(ITAG" allowed_resources mem alloc fail");
 		goto out;
@@ -805,7 +806,7 @@ void input_booster_init(void)
 	}
 
 //Init Resource Release Values
-	release_val = kcalloc(ABS_CNT, sizeof(int) * max_resource_count, GFP_KERNEL);
+	release_val = kzalloc(sizeof(int) * max_resource_count, GFP_KERNEL);
 	if (release_val == NULL) {
 		pr_err(ITAG" release_val mem alloc fail");
 		goto out;
@@ -829,7 +830,7 @@ void input_booster_init(void)
 		struct device_node* child_resource_node;
 		struct device_node* resource_node = of_find_compatible_node(cnp, NULL, "resource");
 
-		ib_dt->res = kcalloc(ABS_CNT, ib_res_size * max_resource_count, GFP_KERNEL);
+		ib_dt->res = kzalloc(ib_res_size * max_resource_count, GFP_KERNEL);
 		for (i = 0; i < max_resource_count; ++i){
 			ib_dt->res[i].res_id = -1;
 			ib_dt->res[i].label = 0;
@@ -918,7 +919,7 @@ out:
 			INIT_SYSFS_CLASS(debug_level)
 			INIT_SYSFS_CLASS(sendevent)
 
-			for (ib_type = 0; ib_type < MAX_DEVICE_TYPE_NUM; ib_type++) {
+			for (ib_type = 0; ib_type < ndevice_in_dt; ib_type++) {
 				init_sysfs_device(sysfs_class, &ib_device_trees[ib_type]);
 			}
 		} 

@@ -15,6 +15,10 @@
 #include <linux/kq/kq_nad_exynos2100.h>
 #elif IS_ENABLED(CONFIG_SOC_EXYNOS3830)
 #include <linux/kq/kq_nad_exynos3830.h>
+#elif IS_ENABLED(CONFIG_SOC_S5E9925)
+#include <linux/kq/kq_nad_exynos9925.h>
+#elif IS_ENABLED(CONFIG_SOC_S5E8825)
+#include <linux/kq/kq_nad_exynos8825.h>
 #elif IS_ENABLED(CONFIG_SEC_KQ_NAD_TEST)
 #include <linux/kq/kq_nad_exynos2100.h>
 #else
@@ -37,6 +41,39 @@
 #define KQ_NAD_FLAG_CUSTOM_FIRST	1010
 #define KQ_NAD_FLAG_CUSTOM_SECOND	1011
 
+#if IS_ENABLED(CONFIG_SEC_KQ_NAD_V2)
+#define KQ_NAD_BIT_PASS			0x80000000
+#define KQ_NAD_CMD_MAGIC		0xDCBA
+
+enum {
+	NAD_MAGIC_ERASE,
+	NAD_MAGIC_ERASE_REWORK,
+	NAD_MAGIC_ACAT,
+	NAD_MAGIC_DRAM_TEST,
+	NAD_MAGIC_ACAT_DRAM_TEST,
+	NAD_MAGIC_NADX_TEST,
+	NAD_MAGIC_REBOOT,
+	NAD_MAGIC_NADC,
+	NAD_MAGIC_NADX_SHORT,
+	NAD_MAGIC_NADO,
+	NAD_MAGIC_MAINTENANCE,
+};
+
+#define KQ_NAD_MAGIC_ERASE				BIT(NAD_MAGIC_ERASE)
+#define KQ_NAD_MAGIC_ERASE_REWORK		BIT(NAD_MAGIC_ERASE_REWORK)
+#define KQ_NAD_MAGIC_ACAT				BIT(NAD_MAGIC_ACAT)
+#define KQ_NAD_MAGIC_DRAM_TEST			BIT(NAD_MAGIC_DRAM_TEST)
+#define KQ_NAD_MAGIC_ACAT_DRAM_TEST		BIT(NAD_MAGIC_ACAT_DRAM_TEST)
+#define KQ_NAD_MAGIC_NADX_TEST			BIT(NAD_MAGIC_NADX_TEST)
+#define KQ_NAD_MAGIC_REBOOT				BIT(NAD_MAGIC_REBOOT)
+#define KQ_NAD_MAGIC_NADC_TEST			BIT(NAD_MAGIC_NADC)
+#define KQ_NAD_MAGIC_NADX_SHORT			BIT(NAD_MAGIC_NADX_SHORT)
+#define KQ_NAD_MAGIC_NADO				BIT(NAD_MAGIC_NADO)
+#define KQ_NAD_MAGIC_MAINTENANCE		BIT(NAD_MAGIC_MAINTENANCE)
+
+#define KQ_NAD_MAGIC_NADX_DONE			0x5A
+#define KQ_NAD_LOOP_CNT_MAINTENANCE	55555
+#else
 #define KQ_NAD_BIT_PASS			0x00002000
 
 #define KQ_NAD_MAGIC_ERASE				0xA5000000
@@ -49,6 +86,7 @@
 #define KQ_NAD_MAGIC_REBOOT				0x5A000000
 
 #define KQ_NAD_MAGIC_NADC_TEST			0x003C0000
+#endif
 
 #define KQ_NAD_MAGIC_CONSTANT_XOR		0xABCDABCD
 
@@ -64,9 +102,9 @@
 
 #define KQ_NAD_LOOP_COUNT_NADX		444
 
-#if IS_ENABLED(CONFIG_SEC_KQ_NAD_55)
 #define KQ_NAD_REWORK_CHECK_TN 50
-#endif
+#define KQ_NAD_MAGIC_FIRST	(0x4E0000)
+#define KQ_NAD_MAGIC_SECOND	(0x5E0000)
 
 #if IS_ENABLED(CONFIG_ARM_EXYNOS_ACME_DISABLE_BOOT_LOCK)
 /*
@@ -110,12 +148,21 @@ enum {
 	KQ_NAD_SHUTDOWN_ENABLE,
 };
 
+#if IS_ENABLED(CONFIG_SEC_KQ_NAD_V2)
+enum {
+	KQ_NAD_INFORM1_BLOCK = 0,
+	KQ_NAD_INFORM1_LEVEL = 8,
+	KQ_NAD_INFORM1_STATE = 13,
+	KQ_NAD_INFORM1_END,
+};
+#else
 enum {
 	KQ_NAD_INFORM1_LEVEL = 0,
 	KQ_NAD_INFORM1_STATE = 5,
 	KQ_NAD_INFORM1_BLOCK = 8,
 	KQ_NAD_INFORM1_END,
 };
+#endif
 
 enum {
 	KQ_NAD_CHECK_TEMPERATURE = 1,
@@ -139,7 +186,7 @@ enum {
 	KQ_NAD_SYSFS_API,
 #endif
 	KQ_NAD_SYSFS_VERSION,
-#if IS_ENABLED(CONFIG_SEC_KQ_NAD_X)
+#if IS_ENABLED(CONFIG_SEC_KQ_NAD_X) || IS_ENABLED(CONFIG_SEC_KQ_NAD_V2)
 	KQ_NAD_SYSFS_FAC_RESULT,
 	KQ_NAD_SYSFS_NADX_RUN,
 #endif
@@ -161,6 +208,8 @@ struct kq_nad_mparam_inform {
 	unsigned int inform1;
 	unsigned int inform2;
 	unsigned int inform3;
+	unsigned int inform4;
+	unsigned int inform5;
 	struct kq_nad_fail fail;
 };
 
@@ -192,9 +241,10 @@ struct kq_nad_env {
 	struct kq_nad_mparam_inform nadc;
 	struct kq_nad_mparam_inform nadc_second;
 
-#if IS_ENABLED(CONFIG_SEC_KQ_NAD_55)
 	unsigned int rework;
-#endif
+	unsigned int skip;
+	unsigned int ecc;
+	unsigned int powermeter;
 
 #if IS_ENABLED(CONFIG_SEC_KQ_NAD_VDD_CAL)
 	struct kq_nad_mparam_vddcal vddcal;

@@ -96,8 +96,8 @@ static void dump_proca_config(const struct proca_config *conf)
 	PROCA_DEBUG_LOG("size:     %u\n", conf->size);
 	PROCA_DEBUG_LOG("magic:    %u\n", conf->magic);
 
-	PROCA_DEBUG_LOG("gaf_addr:         %pK\n", conf->gaf_addr);
-	PROCA_DEBUG_LOG("proca_table_addr: %pK\n", conf->proca_table_addr);
+	PROCA_DEBUG_LOG("gaf_addr:         %llx\n", (uint64_t)conf->gaf_addr);
+	PROCA_DEBUG_LOG("proca_table_addr: %llx\n", (uint64_t)conf->proca_table_addr);
 
 	PROCA_DEBUG_LOG("page_offset:    %llx\n",  conf->page_offset);
 	PROCA_DEBUG_LOG("va_bits:        %llu\n",  conf->va_bits);

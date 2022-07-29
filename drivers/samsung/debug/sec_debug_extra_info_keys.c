@@ -16,14 +16,13 @@ static char key32[][MAX_ITEM_KEY_LEN] = {
 	"DPM", "SMP", "MER", "PCB", "SMD",
 	"CHI", "LPI", "CDI", "LEV", "DCN",
 	"WAK", "ASB", "PSITE", "DDRID", "RST",
-	"INFO2", "INFO3", "RBASE", "MAGIC", "PWR",
-	"PWROFF", "PINT1", "PINT2", "PINT5", "PINT6",
-	"PSTS1", "PSTS2", "RSTCNT",
+	"INFO2", "INFO3", "RBASE", "MAGIC", "RSTCNT",
 };
 
 static char key64[][MAX_ITEM_KEY_LEN] = {
 	"ETC", "BAT", "FAULT", "PINFO", "HINT",
-	"EPD",
+	"EPD", "PWR", "PWROFF", "PINT", "PSTAT",
+	"PWROFFS", "PINTS", "PSTATS",
 };
 
 static char key256[][MAX_ITEM_KEY_LEN] = {
@@ -51,8 +50,8 @@ static char akeys[][MAX_ITEM_KEY_LEN] = {
 static char bkeys[][MAX_ITEM_KEY_LEN] = {
 	"ID", "RR", "ASB", "PSITE", "DDRID",
 	"RST", "INFO2", "INFO3", "RBASE", "MAGIC",
-	"PWR", "PWROFF", "PINT1", "PINT2", "PINT5",
-	"PINT6", "PSTS1", "PSTS2", "FREQ", "EPD",
+	"PWR", "PWROFF", "PINT", "PSTAT",
+	"PWROFFS", "PINTS", "PSTATS", "FREQ", "EPD",
 	"UNFZ",
 };
 

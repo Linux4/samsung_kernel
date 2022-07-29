@@ -406,6 +406,7 @@ struct s2mpu12_dev {
 	struct i2c_client *i2c;
 	struct i2c_client *pmic;
 	struct i2c_client *rtc;
+	struct i2c_client *close;
 	struct mutex i2c_lock;
 	struct apm_ops *ops;
 

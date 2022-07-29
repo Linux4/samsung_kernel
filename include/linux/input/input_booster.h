@@ -10,7 +10,8 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #if IS_ENABLED(CONFIG_SOC_EXYNOS2100) || \
-	IS_ENABLED(CONFIG_ARCH_LAHAINA)
+	IS_ENABLED(CONFIG_ARCH_LAHAINA) || \
+	IS_ENABLED(CONFIG_ARCH_WAIPIO)
 #include <linux/interconnect.h>
 #endif//CONFIG_SOC_EXYNOS2100 || CONFIG_ARCH_LAHAINA
 
@@ -20,7 +21,7 @@
 
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wdeclaration-after-statement"
-#define USE_HMP_BOOST     (IS_ENABLED(CONFIG_SCHED_HMP))
+#define USE_HMP_BOOST     (IS_ENABLED(CONFIG_SCHED_WALT))
 
 #ifndef ITAG
 #define ITAG	" [Input Booster] "
@@ -294,6 +295,7 @@ extern int ib_notifier_unregister(struct notifier_block *nb);
 int set_freq_limit(unsigned long id, unsigned int freq);
 
 #if IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_QC)
+extern void update_hyst_times_kernel(u64 ib_value);
 enum booster_res_type {
 	CPUFREQ = 0,
 	DDRFREQ,

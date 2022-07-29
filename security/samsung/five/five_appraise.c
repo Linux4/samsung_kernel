@@ -438,7 +438,8 @@ int five_appraise_measurement(struct task_struct *task, int func,
 
 out:
 	if (status == FIVE_FILE_FAIL || status == FIVE_FILE_UNKNOWN) {
-		task_integrity_set_reset_reason(TASK_INTEGRITY(task), cause, file);
+		task_integrity_set_reset_reason(TASK_INTEGRITY(task),
+						cause, file);
 		five_audit_verbose(task, file, five_get_string_fn(func),
 				prev_integrity, prev_integrity,
 				tint_reset_cause_to_string(cause), rc);
@@ -739,7 +740,7 @@ int five_fcntl_sign(struct file *file, struct integrity_label __user *label)
 		}
 	} else {
 		enum task_integrity_value tint =
-				    task_integrity_read(TASK_INTEGRITY(current));
+			task_integrity_read(TASK_INTEGRITY(current));
 
 		five_audit_err(current, file, "fcntl_sign", tint, tint,
 				"sign:no-perm", -EPERM);

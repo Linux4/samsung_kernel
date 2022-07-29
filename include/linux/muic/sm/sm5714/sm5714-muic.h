@@ -255,6 +255,8 @@ struct sm5714_muic_data {
 	bool is_factory_start;
 	bool is_rustproof;
 	bool is_otg_test;
+	bool is_pdic_ready;
+	bool is_charger_ready;
 
 #if defined(CONFIG_USB_EXTERNAL_NOTIFY)
 	/* USB Notifier */
@@ -327,6 +329,8 @@ struct sm5714_muic_data {
 
 	struct delayed_work	delayed_523Kto619K_work;
 	int delayed_523Kto619K_state;
+
+	int shut_down;
 };
 
 extern struct device *switch_device;

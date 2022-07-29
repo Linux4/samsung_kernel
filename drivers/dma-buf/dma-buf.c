@@ -96,6 +96,8 @@ static int dma_buf_release(struct inode *inode, struct file *file)
 
 	dmabuf = file->private_data;
 
+	dmabuf_trace_free(dmabuf);
+
 	BUG_ON(dmabuf->vmapping_counter);
 
 	/*
@@ -120,8 +122,6 @@ static int dma_buf_release(struct inode *inode, struct file *file)
 	else
 		pr_warn_ratelimited("Leaking dmabuf %s because destructor failed error:%d\n",
 				    dmabuf->name, dtor_ret);
-
-	dmabuf_trace_free(dmabuf);
 
 	if (dmabuf->resv == (struct reservation_object *)&dmabuf[1])
 		reservation_object_fini(dmabuf->resv);

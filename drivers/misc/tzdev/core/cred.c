@@ -114,8 +114,6 @@ static int tz_format_cred_user(struct tz_cred *cred)
 		}
 	}
 
-	cred_cache_entry = kmalloc(sizeof(struct cred_cache_entry), GFP_KERNEL);
-
 	exe_file = get_mm_exe_file(current->mm);
 	if (!exe_file) {
 		ret = -EINVAL;
@@ -129,6 +127,8 @@ static int tz_format_cred_user(struct tz_cred *cred)
 
 	if (ret)
 		goto unlock;
+
+	cred_cache_entry = kmalloc(sizeof(struct cred_cache_entry), GFP_KERNEL);
 
 	if (cred_cache_entry) {
 		get_pid(pid);

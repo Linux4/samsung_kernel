@@ -1258,7 +1258,7 @@ static int context_struct_to_string(struct policydb *p,
 	if (context->len) {
 		*scontext_len = context->len;
 		if (scontext) {
-			*scontext = kstrdup(context->str, GFP_ATOMIC);			
+			*scontext = kstrdup(context->str, GFP_ATOMIC);		
 			if (!(*scontext))
 				return -ENOMEM;
 		}
@@ -3170,7 +3170,7 @@ int security_net_peersid_resolve(struct selinux_state *state,
 	/*
 	 * We don't need to check initialized here since the only way both
 	 * nlbl_sid and xfrm_sid are not equal to SECSID_NULL would be if the
-	 * security server was initialized and ss_initialized was true.
+	 * security server was initialized and state->initialized was true.
 	 */
 	if (!policydb->mls_enabled)
 		return 0;

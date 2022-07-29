@@ -886,7 +886,7 @@
 
 		ion_video_frame {
 			compatible = "exynos9820-ion";
-			size = <0x5800000>;
+			size = <0x6000000>;
 			alignment = <0x00 0x400000>;
 			ion,heapname = "vframe_heap";
 			ion,secure;
@@ -918,7 +918,7 @@
 
 		ion_ext_ui {
 			compatible = "exynos9820-ion";
-			size = <0x1c00000>;
+			size = <0x2000000>;
 			alignment = <0x00 0x400000>;
 			ion,heapname = "ext_ui";
 			ion,secure;
@@ -5440,7 +5440,7 @@
 		wakeup-masks {
 
 			wakeup-mask {
-				mask = <0xffffffff 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x3e0ffef 0x8007ff6f 0x8007ff6f 0x00 0x8007ff6f 0x8007ff6f>;
+				mask = <0xffffffff 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x360ffef 0x8007ff6f 0x8007ff6f 0x00 0x8007ff6f 0x8007ff6f>;
 				mask-offset = <0x3944>;
 				stat-offset = <0x3950>;
 			};

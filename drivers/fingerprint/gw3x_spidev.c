@@ -179,15 +179,35 @@ int gw3x_ioctl_transfer_raw_cmd(struct gf_device *gf_dev,
 	struct gf_ioc_transfer_raw ioc_xraw;
 	int retval = 0;
 	uint32_t len;
+#ifdef CONFIG_SENSORS_FINGERPRINT_32BITS_PLATFORM_ONLY
+	struct gf_ioc_transfer_raw_32 ioc_xraw_32;
+	u64 read_buf_64;
+	u64 write_buf_64;
+#endif
 
 	do {
+#ifdef CONFIG_SENSORS_FINGERPRINT_32BITS_PLATFORM_ONLY
+		if (copy_from_user(&ioc_xraw_32, (void __user *)arg,
+				sizeof(struct gf_ioc_transfer_raw_32)))
+#else
 		if (copy_from_user(&ioc_xraw, (void __user *)arg,
-				sizeof(struct gf_ioc_transfer_raw))) {
+				sizeof(struct gf_ioc_transfer_raw)))
+#endif
+		{
 			pr_err("Failed to copy gf_ioc_transfer_raw from user to kernel\n");
 			retval = -EFAULT;
 			break;
 		}
 
+#ifdef CONFIG_SENSORS_FINGERPRINT_32BITS_PLATFORM_ONLY
+		read_buf_64 = (u64)ioc_xraw_32.read_buf;
+		write_buf_64 = (u64)ioc_xraw_32.write_buf;
+		ioc_xraw.read_buf = (u8 *)read_buf_64;
+		ioc_xraw.write_buf = (u8 *)write_buf_64;
+		ioc_xraw.high_time = ioc_xraw_32.high_time;
+		ioc_xraw.bits_per_word = ioc_xraw_32.bits_per_word;
+		ioc_xraw.len = ioc_xraw_32.len;
+#endif
 		if ((ioc_xraw.len > bufsiz) || (ioc_xraw.len == 0)) {
 			pr_err("request transfer length larger than maximum buffer\n");
 			retval = -EINVAL;

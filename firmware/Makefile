@@ -34,7 +34,7 @@ fw-shipped-$(CONFIG_FIVE_TEE_DRIVER) += five/ffffffff000000000000000000000072.tl
 fw-external-$(CONFIG_SENSORS_SSP) += sensorhub/shub_nacho_bl.bin
 fw-external-$(CONFIG_SENSORS_SSP_M12) += sensorhub/shub_nacho_m12.bin
 fw-external-$(CONFIG_SENSORS_SSP_XCOVER5) += sensorhub/shub_nacho_xcover5.bin
-fw-external-$(CONFIG_SHUB) += sensorhub/shub_nacho_bl.bin sensorhub/shub_nacho_a12s.bin
+fw-external-$(CONFIG_SHUB) += sensorhub/shub_nacho_bl.bin sensorhub/shub_nacho_a12s.bin sensorhub/shub_nacho_m12.bin sensorhub/shub_nacho_xcover5.bin
 
 fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_m12s.bin abov/a96t356_m12s_sub.bin abov/a96t356_a12_main.bin abov/a96t356_a12_sub.bin
 

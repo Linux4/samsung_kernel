@@ -44,6 +44,7 @@
 #include "link_device.h"
 #include "modem_dump.h"
 #include "link_ctrlmsg_iosm.h"
+#include "modem_ctrl.h"
 #ifdef CONFIG_LINK_DEVICE_PCIE
 #include "s51xx_pcie.h"
 #endif
@@ -141,9 +142,6 @@ enum smc_error_flag {
 	CP_CHECK_SIGN_NOT_FINISH = 0x100
 };
 
-static inline void start_tx_timer(struct mem_link_device *mld,
-				  struct hrtimer *timer);
-
 #if defined(CONFIG_CP_SECURE_BOOT)
 static char *smc_err_string[32] = {
 	"CP_NO_ERROR",
@@ -234,19 +232,6 @@ static inline void purge_txq(struct mem_link_device *mld)
 
 #ifdef GROUP_MEM_CP_CRASH
 
-static void set_modem_state(struct mem_link_device *mld, enum modem_state state)
-{
-	struct link_device *ld = &mld->link_dev;
-	struct modem_ctl *mc = ld->mc;
-	unsigned long flags;
-	struct io_device *iod;
-
-	spin_lock_irqsave(&mc->lock, flags);
-	list_for_each_entry(iod, &mc->modem_state_notify_list, list)
-		iod->modem_state_changed(iod, state);
-	spin_unlock_irqrestore(&mc->lock, flags);
-}
-
 static void shmem_handle_cp_crash(struct mem_link_device *mld,
 		enum modem_state state)
 {
@@ -282,7 +267,7 @@ static void shmem_handle_cp_crash(struct mem_link_device *mld,
 	}
 
 	if (cp_online(mc) || cp_booting(mc))
-		set_modem_state(mld, state);
+		change_modem_state(mc, state);
 
 	atomic_set(&mld->forced_cp_crash, 0);
 }
@@ -547,9 +532,9 @@ static void cmd_init_start_handler(struct mem_link_device *mld)
 	struct modem_ctl *mc = ld->mc;
 	int err;
 
-	mif_err("%s: INIT_START <- %s (%s.state:%s cp_boot_done:%d)\n",
+	mif_err("%s: INIT_START <- %s (%s.state:%s init_end_cnt:%d)\n",
 		ld->name, mc->name, mc->name, mc_state(mc),
-		atomic_read(&mld->cp_boot_done));
+		atomic_read(&mld->init_end_cnt));
 
 	if ((ld->protocol == PROTOCOL_SIT) && (ld->link_type == LINKDEV_SHMEM))
 		write_clk_table_to_shmem(mld);
@@ -594,14 +579,14 @@ static void cmd_phone_start_handler(struct mem_link_device *mld)
 	int err;
 	static int phone_start_count;
 
-	mif_err_limited("%s: CP_START <- %s (%s.state:%s cp_boot_done:%d)\n",
+	mif_err_limited("%s: CP_START <- %s (%s.state:%s init_end_cnt:%d)\n",
 		ld->name, mc->name, mc->name, mc_state(mc),
-		atomic_read(&mld->cp_boot_done));
+		atomic_read(&mld->init_end_cnt));
 
 	if (mld->state == LINK_STATE_OFFLINE)
 		phone_start_count = 0;
 
-	if (atomic_read(&mld->cp_boot_done)) {
+	if (atomic_read(&mld->init_end_cnt)) {
 		mif_err_limited("Abnormal CP_START from CP\n");
 
 		if (phone_start_count < 100) {
@@ -656,12 +641,12 @@ static void cmd_phone_start_handler(struct mem_link_device *mld)
 			if (mld->ap2cp_msg.type == MAILBOX_SR)
 				mcu_ipc_reg_dump(0);
 #endif
+			atomic_inc(&mld->init_end_cnt);
 			send_ipc_irq(mld, cmd2int(CMD_INIT_END));
 #ifdef CONFIG_MCU_IPC
 			if (mld->ap2cp_msg.type == MAILBOX_SR)
 				mcu_ipc_reg_dump(0);
 #endif
-			atomic_set(&mld->cp_boot_done, 1);
 		}
 		goto exit;
 	}
@@ -679,12 +664,12 @@ static void cmd_phone_start_handler(struct mem_link_device *mld)
 		if (mld->ap2cp_msg.type == MAILBOX_SR)
 			mcu_ipc_reg_dump(0);
 #endif
+		atomic_inc(&mld->init_end_cnt);
 		send_ipc_irq(mld, cmd2int(CMD_INIT_END));
 #ifdef CONFIG_MCU_IPC
 		if (mld->ap2cp_msg.type == MAILBOX_SR)
 			mcu_ipc_reg_dump(0);
 #endif
-		atomic_set(&mld->cp_boot_done, 1);
 	}
 
 #ifdef CONFIG_MCU_IPC
@@ -701,7 +686,6 @@ static void cmd_phone_start_handler(struct mem_link_device *mld)
 	modem_notify_event(MODEM_EVENT_ONLINE, mc);
 
 exit:
-	start_tx_timer(mld, &mld->sbd_print_timer);
 	spin_unlock_irqrestore(&mld->state_lock, flags);
 }
 
@@ -1978,12 +1962,13 @@ static int shmem_init_comm(struct link_device *ld, struct io_device *iod)
 {
 	struct mem_link_device *mld = to_mem_link_device(ld);
 	struct modem_ctl *mc = ld->mc;
-	struct io_device *check_iod;
+	struct io_device *check_iod = NULL;
+	bool allow_no_check_iod = false;
 	int id = iod->ch;
 	int fmt2rfs = (ld->chid_rfs_0 - ld->chid_fmt_0);
 	int rfs2fmt = (ld->chid_fmt_0 - ld->chid_rfs_0);
 
-	if (atomic_read(&mld->cp_boot_done))
+	if (atomic_read(&mld->init_end_cnt))
 		return 0;
 
 #ifdef CONFIG_LINK_CONTROL_MSG_IOSM
@@ -2004,40 +1989,25 @@ static int shmem_init_comm(struct link_device *ld, struct io_device *iod)
 	if (ld->protocol == PROTOCOL_SIT)
 		return 0;
 
+	/* FMT will check RFS and vice versa */
 	if (ld->is_fmt_ch(id)) {
 		check_iod = link_get_iod_with_channel(ld, (id + fmt2rfs));
-		if (check_iod ? atomic_read(&check_iod->opened) : true) {
-			if (ld->link_type == LINKDEV_SHMEM)
-				write_clk_table_to_shmem(mld);
-
-			mif_err("%s: %s->INIT_END->%s\n",
-				ld->name, iod->name, mc->name);
-			if (!atomic_read(&mld->cp_boot_done)) {
-				send_ipc_irq(mld, cmd2int(CMD_INIT_END));
-				atomic_set(&mld->cp_boot_done, 1);
-			}
-		} else {
-			mif_err("%s is not opened yet\n", check_iod->name);
-		}
+		allow_no_check_iod = true;
+	} else if (ld->is_rfs_ch(id)) {
+		check_iod = link_get_iod_with_channel(ld, (id + rfs2fmt));
 	}
 
-	if (ld->is_rfs_ch(id)) {
-		check_iod = link_get_iod_with_channel(ld, (id + rfs2fmt));
-		if (check_iod) {
-			if (atomic_read(&check_iod->opened)) {
-				if (ld->link_type == LINKDEV_SHMEM)
-					write_clk_table_to_shmem(mld);
+	if (check_iod ? atomic_read(&check_iod->opened) : allow_no_check_iod) {
+		if (ld->link_type == LINKDEV_SHMEM)
+			write_clk_table_to_shmem(mld);
 
-				mif_err("%s: %s->INIT_END->%s\n",
-					ld->name, iod->name, mc->name);
-				if (!atomic_read(&mld->cp_boot_done)) {
-					send_ipc_irq(mld, cmd2int(CMD_INIT_END));
-					atomic_set(&mld->cp_boot_done, 1);
-				}
-			} else {
-				mif_err("%s not opened yet\n", check_iod->name);
-			}
+		if (cp_online(mc) && !atomic_read(&mld->init_end_cnt)) {
+			mif_err("%s: %s -> INIT_END -> %s\n", ld->name, iod->name, mc->name);
+			atomic_inc(&mld->init_end_cnt);
+			send_ipc_irq(mld, cmd2int(CMD_INIT_END));
 		}
+	} else if (check_iod) {
+		mif_err("%s is not opened yet\n", check_iod->name);
 	}
 
 	return 0;
@@ -2091,7 +2061,9 @@ static void link_prepare_normal_boot(struct link_device *ld, struct io_device *i
 	struct mem_link_device *mld = to_mem_link_device(ld);
 	unsigned long flags;
 
-	atomic_set(&mld->cp_boot_done, 0);
+	atomic_set(&mld->init_end_cnt, 0);
+	atomic_set(&mld->init_end_busy, 0);
+	mld->last_init_end_cnt = 0;
 
 	spin_lock_irqsave(&mld->state_lock, flags);
 	mld->state = LINK_STATE_OFFLINE;
@@ -2215,59 +2187,55 @@ void shmem_check_modem_binary_crc(struct link_device *ld)
 }
 #endif
 
-int shm_get_security_param2(u32 cp_num, unsigned long mode, u32 bl_size,
-			    unsigned long *param)
+unsigned long shm_get_security_param2(u32 cp_num, unsigned long mode, u32 bl_size)
 {
-	int ret = 0;
+	unsigned long ret;
 
 	switch (mode) {
 	case CP_BOOT_MODE_NORMAL:
 	case CP_BOOT_MODE_DUMP:
-		*param = bl_size;
+		ret = bl_size;
 		break;
 	case CP_BOOT_RE_INIT:
-		*param = 0;
+		ret = 0;
 		break;
 	case CP_BOOT_MODE_MANUAL:
-		*param = cp_shmem_get_base(cp_num, SHMEM_CP) + bl_size;
+		ret = cp_shmem_get_base(cp_num, SHMEM_CP) + bl_size;
 		break;
 	default:
 		mif_info("Invalid sec_mode(%lu)\n", mode);
-		ret = -EINVAL;
+		ret = 0;
 		break;
 	}
-
 	return ret;
 }
 
-int shm_get_security_param3(u32 cp_num, unsigned long mode, u32 main_size,
-			    unsigned long *param)
+unsigned long shm_get_security_param3(u32 cp_num, unsigned long mode, u32 main_size)
 {
-	int ret = 0;
+	unsigned long ret;
 
 	switch (mode) {
 	case CP_BOOT_MODE_NORMAL:
-		*param = main_size;
+		ret = main_size;
 		break;
 	case CP_BOOT_MODE_DUMP:
 #ifdef CP_NONSECURE_BOOT
-		*param = cp_shmem_get_base(cp_num, SHMEM_CP);
+		ret = cp_shmem_get_base(cp_num, SHMEM_CP);
 #else
-		*param = cp_shmem_get_base(cp_num, SHMEM_IPC);
+		ret = cp_shmem_get_base(cp_num, SHMEM_IPC);
 #endif
 		break;
 	case CP_BOOT_RE_INIT:
-		*param = 0;
+		ret = 0;
 		break;
 	case CP_BOOT_MODE_MANUAL:
-		*param = main_size;
+		ret = main_size;
 		break;
 	default:
 		mif_info("Invalid sec_mode(%lu)\n", mode);
-		ret = -EINVAL;
+		ret = 0;
 		break;
 	}
-
 	return ret;
 }
 
@@ -2293,16 +2261,8 @@ static int shmem_security_request(struct link_device *ld, struct io_device *iod,
 		goto exit;
 	}
 
-	err = shm_get_security_param2(cp_num, msr.mode, msr.param2, &param2);
-	if (err) {
-		mif_err("%s: ERR! parameter2 is invalid\n", ld->name);
-		goto exit;
-	}
-	err = shm_get_security_param3(cp_num, msr.mode, msr.param3, &param3);
-	if (err) {
-		mif_err("%s: ERR! parameter3 is invalid\n", ld->name);
-		goto exit;
-	}
+	param2 = shm_get_security_param2(cp_num, msr.mode, msr.param2);
+	param3 = shm_get_security_param3(cp_num, msr.mode, msr.param3);
 
 #if !defined(CONFIG_CP_SECURE_BOOT)
 	if (msr.mode == 0)
@@ -3249,7 +3209,6 @@ static ssize_t rb_info_store(struct device *dev,
 	return ret;
 }
 
-#if defined(CONFIG_CP_ZEROCOPY)
 static ssize_t zmc_count_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -3281,9 +3240,6 @@ static ssize_t zmc_count_store(struct device *dev,
 static ssize_t mif_buff_mng_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	if (!g_mif_buff_mng)
-		return 0;
-
 	return sprintf(buf, "used(%d)/free(%d)/total(%d)\n",
 			g_mif_buff_mng->used_cell_count, g_mif_buff_mng->free_cell_count,
 			g_mif_buff_mng->cell_count);
@@ -3314,7 +3270,6 @@ static ssize_t force_use_memcpy_store(struct device *dev,
 		modem->mld->force_use_memcpy = 1;
 	return count;
 }
-#endif
 
 #if defined(CONFIG_SEC_MODEM_S5000AP) && defined(CONFIG_SEC_MODEM_S5100)
 static ssize_t ul_data_path_store(struct device *dev,
@@ -3412,11 +3367,9 @@ static ssize_t cp_uart_sel_store(struct device *dev,
 #endif /* End of CONFIG_SEC_MODEM_S5000AP && CONFIG_SEC_MODEM_S5100 */
 static DEVICE_ATTR_RW(tx_period_ms);
 static DEVICE_ATTR_RW(rb_info);
-#if defined(CONFIG_CP_ZEROCOPY)
 static DEVICE_ATTR_RO(mif_buff_mng);
 static DEVICE_ATTR_RW(zmc_count);
 static DEVICE_ATTR_RW(force_use_memcpy);
-#endif
 #if defined(CONFIG_SEC_MODEM_S5000AP) && defined(CONFIG_SEC_MODEM_S5100)
 static DEVICE_ATTR_RW(ul_data_path);
 static DEVICE_ATTR_RW(cp_uart_sel);
@@ -3425,11 +3378,9 @@ static DEVICE_ATTR_RW(cp_uart_sel);
 static struct attribute *shmem_attrs[] = {
 	&dev_attr_tx_period_ms.attr,
 	&dev_attr_rb_info.attr,
-#if defined(CONFIG_CP_ZEROCOPY)
 	&dev_attr_mif_buff_mng.attr,
 	&dev_attr_zmc_count.attr,
 	&dev_attr_force_use_memcpy.attr,
-#endif
 #if defined(CONFIG_SEC_MODEM_S5000AP) && defined(CONFIG_SEC_MODEM_S5100)
 	&dev_attr_ul_data_path.attr,
 	&dev_attr_cp_uart_sel.attr,
@@ -3567,85 +3518,6 @@ static const struct attribute_group napi_group = {
 	.attrs = napi_attrs,
 	.name = "napi",
 };
-
-#ifdef CONFIG_CP_PKTPROC_V2
-static u32 p_pktproc[3];
-static u32 c_pktproc[3];
-
-static void pktproc_print(struct mem_link_device* mld)
-{
-	struct pktproc_adaptor *ppa = &mld->pktproc;
-	int i;
-	struct pktproc_queue *q;
-
-	for (i = 0; i < ppa->num_queue; i++) {
-		q = ppa->q[i];
-
-		c_pktproc[0] = *q->fore_ptr;
-		c_pktproc[1] = *q->rear_ptr;
-		c_pktproc[2] = q->done_ptr;
-
-		if (memcmp(p_pktproc, c_pktproc, sizeof(u32)*3)) {
-			mif_err("Queue:%d fore:%d rear:%d done:%d\n", i,
-						c_pktproc[0], c_pktproc[1], c_pktproc[2]);
-			memcpy(p_pktproc, c_pktproc, sizeof(u32)*3);
-		}
-	}
-}
-#endif
-
-#define BUFF_SIZE 256
-static u32 p_rwpointer[4];
-static u32 c_rwpointer[4];
-
-static enum hrtimer_restart sbd_print(struct hrtimer *timer)
-{
-	struct mem_link_device *mld = container_of(timer,
-									struct mem_link_device, sbd_print_timer);
-	struct sbd_link_device *sl = &mld->sbd_link_dev;
-	u16 id;
-	struct sbd_ring_buffer *rb[ULDL];
-	struct io_device *iod;
-	char buf[BUFF_SIZE] = { 0, };
-	int len = 0;
-
-#ifdef CONFIG_CP_PKTPROC_V2
-	pktproc_print(mld);
-#endif
-
-	if (likely(sbd_active(sl))) {
-		id = sbd_ch2id(sl, QOS_HIPRIO);
-		rb[TX] = &sl->ipc_dev[id].rb[TX];
-		rb[RX] = &sl->ipc_dev[id].rb[RX];
-
-		c_rwpointer[0] = *(u32 *)rb[TX]->rp;
-		c_rwpointer[1] = *(u32 *)rb[TX]->wp;
-		c_rwpointer[2] = *(u32 *)rb[RX]->rp;
-		c_rwpointer[3] = *(u32 *)rb[RX]->wp;
-
-		if (memcmp(p_rwpointer, c_rwpointer, sizeof(u32)*4)) {
-			mif_err("TX %04d/%04d %04d/%04d RX %04d/%04d %04d/%04d\n",
-				c_rwpointer[0] & 0xFFFF, c_rwpointer[1] & 0xFFFF,
-				c_rwpointer[0] >> 16, c_rwpointer[1] >> 16,
-				c_rwpointer[2] & 0xFFFF, c_rwpointer[3] & 0xFFFF,
-				c_rwpointer[2] >> 16, c_rwpointer[3] >> 16);
-			memcpy(p_rwpointer, c_rwpointer, sizeof(u32)*4);
-
-			spin_lock(&rb[TX]->iod->msd->active_list_lock);
-			list_for_each_entry(iod, &rb[TX]->iod->msd->activated_ndev_list, node_ndev) {
-				len += snprintf(buf + len, BUFF_SIZE - len, "%s: %lu/%lu ", iod->name,
-								iod->ndev->stats.tx_packets, iod->ndev->stats.rx_packets);
-			}
-			spin_unlock(&rb[TX]->iod->msd->active_list_lock);
-
-			mif_err("%s\n", buf);
-		}
-	}
-
-	hrtimer_forward_now(timer, ms_to_ktime(1000));
-
-	return HRTIMER_RESTART;
-}
 
 struct link_device *create_link_device(struct platform_device *pdev, enum modem_link link_type)
 {
@@ -4058,10 +3930,6 @@ struct link_device *create_link_device(struct platform_device *pdev, enum modem_
 		hrtimer_init(&mld->sbd_tx_timer,
 				CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 		mld->sbd_tx_timer.function = sbd_tx_timer_func;
-
-		hrtimer_init(&mld->sbd_print_timer,
-				CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-		mld->sbd_print_timer.function = sbd_print;
 
 		err = create_sbd_link_device(ld,
 				&mld->sbd_link_dev, mld->base, mld->size);
