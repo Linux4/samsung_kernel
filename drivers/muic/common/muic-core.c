@@ -474,7 +474,6 @@ int muic_afc_get_voltage(void)
 }
 EXPORT_SYMBOL(muic_afc_get_voltage);
 
-#if !defined(CONFIG_DISCRETE_CHARGER) || defined(CONFIG_VIRTUAL_MUIC)
 int muic_afc_request_cause_clear(void)
 {
 	struct muic_platform_data *pdata = &muic_pdata;
@@ -548,7 +547,6 @@ int muic_afc_set_voltage(int voltage)
 	return -ENODEV;
 }
 EXPORT_SYMBOL(muic_afc_set_voltage);
-#endif
 
 int muic_hv_charger_disable(bool en)
 {

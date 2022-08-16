@@ -170,6 +170,8 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(batt_tune_chg_temp_high),
 	SEC_BATTERY_ATTR(batt_tune_chg_temp_rec),
 	SEC_BATTERY_ATTR(batt_tune_chg_limit_cur),
+	SEC_BATTERY_ATTR(batt_tune_lrp_temp_high_lcdon),
+	SEC_BATTERY_ATTR(batt_tune_lrp_temp_high_lcdoff),
 	SEC_BATTERY_ATTR(batt_tune_coil_temp_high),
 	SEC_BATTERY_ATTR(batt_tune_coil_temp_rec),
 	SEC_BATTERY_ATTR(batt_tune_coil_limit_cur),
@@ -272,6 +274,7 @@ static struct device_attribute sec_battery_attrs[] = {
 #endif
 	SEC_BATTERY_ATTR(chg_info),
 	SEC_BATTERY_ATTR(batt_full_capacity),
+	SEC_BATTERY_ATTR(lrp),
 };
 
 static struct device_attribute sec_pogo_attrs[] = {
@@ -1200,6 +1203,58 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 				ret);
 		break;
+	case BATT_TUNE_LRP_TEMP_HIGH_LCDON:
+		{
+			char temp_buf[1024] = {0,};
+			int j = 0;
+			int size = 0;
+
+			snprintf(temp_buf, sizeof(temp_buf), "%d %d %d %d\n",
+				battery->pdata->lrp_temp[LRP_NORMAL].trig[ST2][LCD_ON],
+				battery->pdata->lrp_temp[LRP_NORMAL].recov[ST2][LCD_ON],
+				battery->pdata->lrp_temp[LRP_NORMAL].trig[ST1][LCD_ON],
+				battery->pdata->lrp_temp[LRP_NORMAL].recov[ST1][LCD_ON]);
+			size = sizeof(temp_buf) - strlen(temp_buf);
+
+			for (j = LRP_NORMAL + 1; j < LRP_MAX; j++) {
+				snprintf(temp_buf+strlen(temp_buf),
+					size, "%d %d %d %d\n",
+								battery->pdata->lrp_temp[j].trig[ST2][LCD_ON],
+								battery->pdata->lrp_temp[j].recov[ST2][LCD_ON],
+								battery->pdata->lrp_temp[j].trig[ST1][LCD_ON],
+								battery->pdata->lrp_temp[j].recov[ST1][LCD_ON]);
+				size = sizeof(temp_buf) - strlen(temp_buf);
+			}
+
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%s\n", temp_buf);
+		}
+		break;
+	case BATT_TUNE_LRP_TEMP_HIGH_LCDOFF:
+		{
+			char temp_buf[1024] = {0,};
+			int j = 0;
+			int size = 0;
+
+			snprintf(temp_buf, sizeof(temp_buf), "%d %d %d %d\n",
+				battery->pdata->lrp_temp[LRP_NORMAL].trig[ST2][LCD_OFF],
+				battery->pdata->lrp_temp[LRP_NORMAL].recov[ST2][LCD_OFF],
+				battery->pdata->lrp_temp[LRP_NORMAL].trig[ST1][LCD_OFF],
+				battery->pdata->lrp_temp[LRP_NORMAL].recov[ST1][LCD_OFF]);
+			size = sizeof(temp_buf) - strlen(temp_buf);
+
+			for (j = LRP_NORMAL + 1; j < LRP_MAX; j++) {
+				snprintf(temp_buf+strlen(temp_buf),
+					size, "%d %d %d %d\n",
+								battery->pdata->lrp_temp[j].trig[ST2][LCD_OFF],
+								battery->pdata->lrp_temp[j].recov[ST2][LCD_OFF],
+								battery->pdata->lrp_temp[j].trig[ST1][LCD_OFF],
+								battery->pdata->lrp_temp[j].recov[ST1][LCD_OFF]);
+				size = sizeof(temp_buf) - strlen(temp_buf);
+			}
+
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%s\n", temp_buf);
+		}
+		break;
 	case BATT_TUNE_COIL_TEMP_HIGH:
 		break;
 	case BATT_TUNE_COIL_TEMP_REC:
@@ -1734,22 +1789,24 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		break;
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	case BATT_TEMP_TEST:
-		i += scnprintf(buf + i, PAGE_SIZE - i, "%d %d %d %d %d\n",
-			battery->temperature_test_battery,
-			battery->temperature_test_usb,
-			battery->temperature_test_wpc,
-			battery->temperature_test_chg,
-			battery->temperature_test_sub);
-		break;
-#else
-	case BATT_TEMP_TEST:
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d %d %d %d %d %d\n",
 			battery->temperature_test_battery,
 			battery->temperature_test_usb,
 			battery->temperature_test_wpc,
 			battery->temperature_test_chg,
+			battery->temperature_test_sub,
+			battery->lrp_test);
+		break;
+#else
+	case BATT_TEMP_TEST:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d %d %d %d %d %d %d\n",
+			battery->temperature_test_battery,
+			battery->temperature_test_usb,
+			battery->temperature_test_wpc,
+			battery->temperature_test_chg,
 			battery->temperature_test_dchg,
-			battery->temperature_test_blkt);
+			battery->temperature_test_blkt,
+			battery->lrp_test);
 		break;
 #endif
 	case BATT_CURRENT_EVENT:
@@ -2002,6 +2059,9 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 	case BATT_FULL_CAPACITY:
 		pr_info("%s: BATT_FULL_CAPACITY = %d\n", __func__, battery->batt_full_capacity);
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", battery->batt_full_capacity);
+		break;
+	case LRP:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", battery->lrp);
 		break;
 	default:
 		i = -EINVAL;
@@ -3058,6 +3118,54 @@ ssize_t sec_bat_store_attrs(
 			battery->pdata->charging_current[SEC_BATTERY_CABLE_9V_TA].input_current_limit= x;
 		}
 		break;
+	case BATT_TUNE_LRP_TEMP_HIGH_LCDON:
+	{
+		int lrp_m = 0, lrp_t[4] = {0, };
+		int lrp_pt = LRP_NORMAL;
+
+		if (sscanf(buf, "%10d %10d %10d %10d %10d\n",
+				&lrp_m, &lrp_t[0], &lrp_t[1], &lrp_t[2], &lrp_t[3]) == 5) {
+			pr_info("%s : lrp_high_temp_lcd on lrp_m: %c, temp: %d %d %d %d\n",
+				__func__, lrp_m, lrp_t[0], lrp_t[1], lrp_t[2], lrp_t[3]);
+
+			if (lrp_m == 45)
+				lrp_pt = LRP_45W;
+			else if (lrp_m == 25)
+				lrp_pt = LRP_25W;
+
+			if (x < 1000 && x >= -200) {
+				battery->pdata->lrp_temp[lrp_pt].trig[ST2][LCD_ON] = lrp_t[0];
+				battery->pdata->lrp_temp[lrp_pt].recov[ST2][LCD_ON] = lrp_t[1];
+				battery->pdata->lrp_temp[lrp_pt].trig[ST1][LCD_ON] = lrp_t[2];
+				battery->pdata->lrp_temp[lrp_pt].recov[ST1][LCD_ON] = lrp_t[3];
+			}
+		}
+		break;
+	}
+	case BATT_TUNE_LRP_TEMP_HIGH_LCDOFF:
+	{
+		int lrp_m = 0, lrp_t[4] = {0, };
+		int lrp_pt = LRP_NORMAL;
+
+		if (sscanf(buf, "%10d %10d %10d %10d %10d\n",
+				&lrp_m, &lrp_t[0], &lrp_t[1], &lrp_t[2], &lrp_t[3]) == 5) {
+			pr_info("%s : lrp_high_temp_lcd off lrp_m: %dW, temp: %d %d %d %d\n",
+				__func__, lrp_m, lrp_t[0], lrp_t[1], lrp_t[2], lrp_t[3]);
+
+			if (lrp_m == 45)
+				lrp_pt = LRP_45W;
+			else if (lrp_m == 25)
+				lrp_pt = LRP_25W;
+
+			if (x < 1000 && x >= -200) {
+				battery->pdata->lrp_temp[lrp_pt].trig[ST2][LCD_OFF] = lrp_t[0];
+				battery->pdata->lrp_temp[lrp_pt].recov[ST2][LCD_OFF] = lrp_t[1];
+				battery->pdata->lrp_temp[lrp_pt].trig[ST1][LCD_OFF] = lrp_t[2];
+				battery->pdata->lrp_temp[lrp_pt].recov[ST1][LCD_OFF] = lrp_t[3];
+			}
+		}
+		break;
+	}
 	case BATT_TUNE_COIL_TEMP_HIGH:
 		break;
 	case BATT_TUNE_COIL_TEMP_REC:
@@ -3652,6 +3760,9 @@ ssize_t sec_bat_store_attrs(
 #endif
 			} else if (tc == 'k') {
 				battery->temperature_test_blkt = x;
+			} else if (tc == 'r') {
+				battery->lrp_test = x;
+				battery->lrp = x;
 			}
 			ret = count;
 		}
@@ -3932,6 +4043,14 @@ ssize_t sec_bat_store_attrs(
 	case WC_PARAM_INFO:
 		break;
 #endif
+	case LRP:
+		if (sscanf(buf, "%10d\n", &x) == 1) {
+			dev_info(battery->dev, "%s: LRP(%d)\n", __func__, x);
+			if ((x >= -200 && x <= 900) && (battery->lrp_test == 0))
+				battery->lrp = x;
+			ret = count;
+		}
+		break;
 	case BATT_FULL_CAPACITY:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
 			if (x >= 0 && x <= 100) {
@@ -3988,7 +4107,7 @@ ssize_t sec_pogo_show_attrs(struct device *dev,
 		i = -EINVAL;
 		break;
 	}
-	
+
 	return i;
 }
 

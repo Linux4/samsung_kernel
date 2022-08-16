@@ -1621,6 +1621,7 @@ static int ax88179_stop(struct usbnet *dev)
 	return 0;
 }
 
+#if !IS_ENABLED(CONFIG_USB_HOST_SAMSUNG_FEATURE)
 static const struct driver_info ax88179_info = {
 	.description = "ASIX AX88179 USB 3.0 Gigabit Ethernet",
 	.bind = ax88179_bind,
@@ -1633,6 +1634,7 @@ static const struct driver_info ax88179_info = {
 	.rx_fixup = ax88179_rx_fixup,
 	.tx_fixup = ax88179_tx_fixup,
 };
+#endif /* CONFIG_USB_HOST_SAMSUNG_FEATURE */
 
 static const struct driver_info ax88178a_info = {
 	.description = "ASIX AX88178A USB 2.0 Gigabit Ethernet",
@@ -1727,10 +1729,12 @@ static const struct driver_info belkin_info = {
 
 static const struct usb_device_id products[] = {
 {
+#if !IS_ENABLED(CONFIG_USB_HOST_SAMSUNG_FEATURE)
 	/* ASIX AX88179 10/100/1000 */
 	USB_DEVICE(0x0b95, 0x1790),
 	.driver_info = (unsigned long)&ax88179_info,
 }, {
+#endif /* CONFIG_USB_HOST_SAMSUNG_FEATURE */
 	/* ASIX AX88178A 10/100/1000 */
 	USB_DEVICE(0x0b95, 0x178a),
 	.driver_info = (unsigned long)&ax88178a_info,

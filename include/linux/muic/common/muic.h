@@ -32,6 +32,7 @@
 
 #define MUIC_CORE "MUIC_CORE"
 #define SIOP (1 << 0)
+#define AFC_REQUEST_CHARGER SIOP
 #define FLED (1 << 1)
 /* Status of IF PMIC chip (suspend and resume) */
 enum {
@@ -652,11 +653,9 @@ extern int muic_hv_charger_init(void);
 extern int muic_set_pogo_adc(int adc);
 #endif
 extern int muic_afc_get_voltage(void);
-#if !defined(CONFIG_DISCRETE_CHARGER) || defined(CONFIG_VIRTUAL_MUIC)
 extern int muic_afc_set_voltage(int voltage);
 extern int muic_afc_request_voltage(int cause, int voltage);
 extern int muic_afc_request_cause_clear(void);
-#endif
 extern int muic_hv_charger_disable(bool en);
 
 #else
@@ -668,11 +667,9 @@ static inline int muic_afc_get_voltage(void) {return 0; }
 #if defined(CONFIG_MUIC_SM5504_POGO)
 static inline int muic_set_pogo_adc(int adc) {return 0};
 #endif
-#if !defined(CONFIG_DISCRETE_CHARGER) || defined(CONFIG_VIRTUAL_MUIC)
 static inline int muic_afc_set_voltage(int voltage) {return 0; }
 static inline int muic_afc_request_voltage(int cause, int voltage);
 static inline int muic_afc_request_cause_clear(void);
-#endif
 static inline int muic_hv_charger_disable(bool en) {return 0; }
 #endif
 
