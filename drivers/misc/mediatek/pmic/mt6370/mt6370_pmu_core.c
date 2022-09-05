@@ -16,6 +16,15 @@
 
 #define MT6370_PMU_CORE_DRV_VERSION	"1.0.1_MTK"
 
+#ifdef CONFIG_HQ_PROJECT_OT8
+    /* modify code for OT8 */
+/*TabA7 Lite code for OT8-4010 by gaozhengwei at 20210319 start*/
+extern bool g_system_is_shutdown;
+int primary_display_suspend(void);
+void primary_display_shutdown_set_power_mode(void);
+/*TabA7 Lite code for OT8-4010 by gaozhengwei at 20210319 end*/
+#else
+    /* modify code for O6 */
 /* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 start */
 /* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 start */
 #ifndef CONFIG_HQ_SET_LCD_BIAS
@@ -24,6 +33,7 @@ void primary_display_shutdown_set_power_mode(void);
 #endif
 /* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 end */
 /* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 end */
+#endif
 
 struct mt6370_pmu_core_data {
 	struct mt6370_pmu_chip *chip;
@@ -247,6 +257,18 @@ static void mt6370_pmu_core_shutdown(struct platform_device *pdev)
 	struct mt6370_pmu_core_data *core_data = platform_get_drvdata(pdev);
 	int ret;
 
+#ifdef CONFIG_HQ_PROJECT_OT8
+    /* modify code for OT8 */
+	/*TabA7 Lite code for OT8-4010 by gaozhengwei at 20210319 start*/
+	g_system_is_shutdown = 1;
+	primary_display_shutdown_set_power_mode();
+	ret = primary_display_suspend();
+	if (ret < 0) {
+		dev_err(core_data->dev, "primary display suspend failed\n");
+	}
+	/*TabA7 Lite code for OT8-4010 by gaozhengwei at 20210319 end*/
+#else
+    /* modify code for O6 */
 	/* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 start */
 /* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 start */
 #ifndef CONFIG_HQ_SET_LCD_BIAS
@@ -258,6 +280,8 @@ static void mt6370_pmu_core_shutdown(struct platform_device *pdev)
 #endif
 /* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 end */
 	/* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 end */
+#endif
+	
 
 	ret = mt6370_pmu_core_reset(core_data);
 	if (ret < 0)

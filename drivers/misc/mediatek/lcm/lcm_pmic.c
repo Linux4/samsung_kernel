@@ -46,11 +46,14 @@ int display_bias_enable(void)
 	int retval = 0;
 	/* hs03s code for SR-AL5625-01-395 by gaozhengwei at 2021/05/29 start */
 	char *lcm_cmdline = saved_command_line;
-
+	pr_info("lcm_name = %s\n",lcm_cmdline);
 	display_bias_regulator_init();
 
 	/* set voltage with min & max*/
-	if (NULL != strstr(lcm_cmdline, "jd9365t_hdplus1600_dsi_vdo_hlt_boe_6mask")) {
+	if (NULL != strstr(lcm_cmdline, "jd9365t_hdplus1600_dsi_vdo_hlt_boe_6mask")
+		|| NULL != strstr(lcm_cmdline, "hx83102e_hlt_hsd_fhdplus2408")
+        || NULL != strstr(lcm_cmdline, "ft8201ab_dt_qunchuang_inx_vdo_fhdplus2408")
+        || NULL != strstr(lcm_cmdline, "hx83102e_copper_hlt_hsd_fhdplus2408")) {
 		ret = regulator_set_voltage(disp_bias_pos, 5950000, 5950000);
 		if (ret < 0)
 			pr_info("set voltage disp_bias_pos fail, ret = %d\n", ret);
@@ -60,7 +63,9 @@ int display_bias_enable(void)
 		if (ret < 0)
 			pr_info("set voltage disp_bias_neg fail, ret = %d\n", ret);
 		retval |= ret;
-	} else if (NULL != strstr(lcm_cmdline, "jd9365t_hdplus1600_dsi_vdo_hy_mdt")) {
+	} else if (NULL != strstr(lcm_cmdline, "jd9365t_hdplus1600_dsi_vdo_hy_mdt")
+		|| NULL != strstr(lcm_cmdline, "nt36523_hlt_mdt_incell_vdo")
+		|| NULL != strstr(lcm_cmdline, "hx83102e_liansi_mdt_incell_vdo")) {
 		ret = regulator_set_voltage(disp_bias_pos, 5900000, 5900000);
 		if (ret < 0)
 			pr_info("set voltage disp_bias_pos fail, ret = %d\n", ret);
@@ -98,14 +103,12 @@ int display_bias_enable(void)
 	/* enable regulator */
 	ret = regulator_enable(disp_bias_pos);
 	if (ret < 0)
-		pr_info("enable regulator disp_bias_pos fail, ret = %d\n",
-			ret);
+		pr_info("enable regulator disp_bias_pos fail, ret = %d\n",ret);
 	retval |= ret;
 
 	ret = regulator_enable(disp_bias_neg);
 	if (ret < 0)
-		pr_info("enable regulator disp_bias_neg fail, ret = %d\n",
-			ret);
+		pr_info("enable regulator disp_bias_neg fail, ret = %d\n",ret);
 	retval |= ret;
 
 	return retval;

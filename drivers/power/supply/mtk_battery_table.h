@@ -256,6 +256,9 @@
 #define UI_LOW_LIMIT_VTH4	34500
 #define UI_LOW_LIMIT_TIME	99999
 
+#define MOVING_BATTEMP_EN	1
+#define MOVING_BATTEMP_THR	20
+
 /* Qmax for battery  */
 #define Q_MAX_L_CURRENT		0
 #define Q_MAX_H_CURRENT		10000
@@ -430,7 +433,11 @@ int g_temperature[MAX_TABLE] = {
 #define BAT_NTC_47 0
 
 #if (BAT_NTC_10 == 1)
+#ifdef CONFIG_HS03S_SUPPORT
 #define RBAT_PULL_UP_R             16900
+#else
+#define RBAT_PULL_UP_R             390000
+#endif
 #endif
 
 #if (BAT_NTC_47 == 1)
@@ -442,6 +449,7 @@ int g_temperature[MAX_TABLE] = {
 #define BIF_NTC_R 16000
 
 #if (BAT_NTC_10 == 1)
+#ifdef CONFIG_HS03S_SUPPORT
 struct fuelgauge_temperature Fg_Temperature_Table[21] = {
 		{-40 , 205200},
 		{-35 , 154800},
@@ -465,6 +473,36 @@ struct fuelgauge_temperature Fg_Temperature_Table[21] = {
 		{55	 , 3543  },
 		{60	 , 3027  }
 };
+#else
+struct fuelgauge_temperature Fg_Temperature_Table[25] = {
+		{-40, 4397100},
+		{-35, 3088600},
+		{-30, 2197200},
+		{-25, 1581880},
+		{-20, 1151040},
+		{-15, 846580},
+		{-10, 628990},
+		{-5, 471630},
+		{0, 357010},
+		{5, 272500},
+		{10, 209710},
+		{15, 162650},
+		{20, 127080},
+		{25, 100000},
+		{30, 79222},
+		{35, 63167},
+		{40, 50677},
+		{45, 40904},
+		{50, 33195},
+		{55, 27091},
+		{60, 22224},
+		{65, 18323},
+		{70, 15184},
+		{75, 12635},
+		{80, 10566}
+
+};
+#endif
 #endif
 
 #if (BAT_NTC_47 == 1)

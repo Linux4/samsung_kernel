@@ -10,8 +10,68 @@
 #define _LENS_LIST_H
 
 extern void MAIN2AF_PowerDown(void);
-
+/*gaozhenyu add for af start*/
+#define GT9769AF_SetI2Cclient GT9769AF_SetI2Cclient_Main
+#define GT9769AF_Ioctl GT9769AF_Ioctl_Main
+#define GT9769AF_Release GT9769AF_Release_Main
+#define GT9769AF_GetFileName GT9769AF_GetFileName_Main
+extern int GT9769AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long GT9769AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int GT9769AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int GT9769AF_GetFileName(unsigned char *pFileName);
+/*gaozhenyu add for af end*/
+/*TabA7 Lite code for SR-AX3565-01-320 by liuchengfei at 20201127 start*/
+#define GT9772AFHLT_SetI2Cclient GT9772AFHLT_SetI2Cclient_Main
+#define GT9772AFHLT_Ioctl GT9772AFHLT_Ioctl_Main
+#define GT9772AFHLT_Release GT9772AFHLT_Release_Main
+#define GT9772AFHLT_GetFileName GT9772AFHLT_GetFileName_Main
+extern int GT9772AFHLT_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long GT9772AFHLT_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int GT9772AFHLT_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int GT9772AFHLT_GetFileName(unsigned char *pFileName);
+/*TabA7 Lite code for SR-AX3565-01-320 by liuchengfei at 20201127 end*/
+/* TabA7 Lite  code for SR-AX3565-01-320 by lisizhou at 20201129 start */
+#define VA26X802AF_SetI2Cclient VA26X802AF_SetI2Cclient_Main
+#define VA26X802AF_Ioctl VA26X802AF_Ioctl_Main
+#define VA26X802AF_Release VA26X802AF_Release_Main
+#define VA26X802AF_GetFileName VA26X802AF_GetFileName_Main
+extern int VA26X802AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long VA26X802AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int VA26X802AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int VA26X802AF_GetFileName(unsigned char *pFileName);
+/* TabA7 Lite  code for SR-AX3565-01-320 by lisizhou at 20201129 end */
+/*  TabA7 Lite code for SR-AX3565-01-875 by gaozhenyu at 2021/11/19 start */
+#define GT9769sAF_SetI2Cclient GT9769sAF_SetI2Cclient_Main
+#define GT9769sAF_Ioctl GT9769sAF_Ioctl_Main
+#define GT9769sAF_Release GT9769sAF_Release_Main
+#define GT9769sAF_GetFileName GT9769sAF_GetFileName_Main
+extern int GT9769sAF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long GT9769sAF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int GT9769sAF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int GT9769sAF_GetFileName(unsigned char *pFileName);
+/*  TabA7 Lite code for SR-AX3565-01-875 by gaozhenyu at 2021/11/19 end */
+/* TabA7 Lite code for SR-AX3565-01-906  by chenjun at 2022/02/19 start */
+#define FP5510MAIN6AF_SetI2Cclient FP5510MAIN6AF_SetI2Cclient_Main
+#define FP5510MAIN6AF_Ioctl FP5510MAIN6AF_Ioctl_Main
+#define FP5510MAIN6AF_Release FP5510MAIN6AF_Release_Main
+#define FP5510MAIN6AF_GetFileName FP5510MAIN6AF_GetFileName_Main
+extern int FP5510MAIN6AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long FP5510MAIN6AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int FP5510MAIN6AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int FP5510MAIN6AF_GetFileName(unsigned char *pFileName);
+/* TabA7 Lite code for SR-AX3565-01-906  by chenjun at 2022/02/19 end */
 /* A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 start */
+#ifdef CONFIG_HQ_PROJECT_HS03S
 #define GT9772AF_SetI2Cclient GT9772AF_SetI2Cclient_Main
 #define GT9772AF_Ioctl GT9772AF_Ioctl_Main
 #define GT9772AF_Release GT9772AF_Release_Main
@@ -22,6 +82,30 @@ extern long GT9772AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
 			   unsigned long a_u4Param);
 extern int GT9772AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
 extern int GT9772AF_GetFileName(unsigned char *pFileName);
+/* A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 end */
+/*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 start*/
+#define GT9773AF_SetI2Cclient GT9773AF_SetI2Cclient_Main
+#define GT9773AF_Ioctl GT9773AF_Ioctl_Main
+#define GT9773AF_Release GT9773AF_Release_Main
+#define GT9773AF_GetFileName GT9773AF_GetFileName_Main
+extern int GT9773AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long GT9773AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int GT9773AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int GT9773AF_GetFileName(unsigned char *pFileName);
+/* A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 start */
+/*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 end*/
+#define FP5519AF_SetI2Cclient FP5519AF_SetI2Cclient_Main
+#define FP5519AF_Ioctl FP5519AF_Ioctl_Main
+#define FP5519AF_Release FP5519AF_Release_Main
+#define FP5519AF_GetFileName FP5519AF_GetFileName_Main
+extern int FP5519AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long FP5519AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int FP5519AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int FP5519AF_GetFileName(unsigned char *pFileName);
 /* A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 end */
 /* A03s code for CAM-AL5625-01-247 by xuxianwei at 2021/05/18 start */
 #define CN3927OFILMAF_SetI2Cclient CN3927OFILMAF_SetI2Cclient_Main
@@ -58,6 +142,7 @@ extern long CN3927XLAF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
 extern int CN3927XLAF_Release(struct inode *a_pstInode, struct file *a_pstFile);
 extern int CN3927XLAF_GetFileName(unsigned char *pFileName);
 /* A03s code for CAM-AL5625-01-247 by xuxianwei at 2021/05/18 end */
+#endif
 #define AK7371AF_SetI2Cclient AK7371AF_SetI2Cclient_Main
 #define AK7371AF_Ioctl AK7371AF_Ioctl_Main
 #define AK7371AF_Release AK7371AF_Release_Main
@@ -190,18 +275,6 @@ extern int FP5510E2AF_Release(struct inode *a_pstInode,
 	struct file *a_pstFile);
 extern int FP5510E2AF_GetFileName(unsigned char *pFileName);
 
-
-#define FP5519AF_SetI2Cclient FP5519AF_SetI2Cclient_Main
-#define FP5519AF_Ioctl FP5519AF_Ioctl_Main
-#define FP5519AF_Release FP5519AF_Release_Main
-#define FP5519AF_GetFileName FP5519AF_GetFileName_Main
-extern int FP5519AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
-	spinlock_t *pAF_SpinLock, int *pAF_Opened);
-extern long FP5519AF_Ioctl(struct file *a_pstFile,
-	unsigned int a_u4Command, unsigned long a_u4Param);
-extern int FP5519AF_Release(struct inode *a_pstInode,
-	struct file *a_pstFile);
-extern int FP5519AF_GetFileName(unsigned char *pFileName);
 
 #define FP5529AF_SetI2Cclient FP5529AF_SetI2Cclient_Main
 #define FP5529AF_Ioctl FP5529AF_Ioctl_Main

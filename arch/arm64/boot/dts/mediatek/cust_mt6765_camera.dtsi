@@ -128,6 +128,7 @@
 
 };
 /* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/04/22 start */
+/*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 start*/
 &kd_camera_hw1 {
 	pinctrl-names = "default",
 			"cam0_rst0",
@@ -178,14 +179,15 @@
 	cam2_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
 	cam2_vcama-supply = <&mt_pmic_vcama_ldo_reg>;
 
-	cam0_enable_sensor = "hi1336_txd_mipi_raw gc13053_ly_mipi_raw s5k3l6_ofilm_mipi_raw ov13b10_dd_mipi_raw ov13b10_qt_mipi_raw ov13b10_xl_mipi_raw hi1336_hlt_mipi_raw";
-	cam1_enable_sensor = "hi556_txd_mipi_raw hi556_ofilm_mipi_raw gc5035_dd_mipi_raw gc5035_ly_mipi_raw gc5035_xl_mipi_raw";
-	cam2_enable_sensor = "gc2375h_cxt_mipi_raw gc02m1b_ly_mipi_raw ov02b1b_jk_mipi_raw gc2375h_sjc_mipi_raw";
-        cam4_enable_sensor = "gc02m1_cxt_mipi_raw ov02b10_ly_mipi_raw gc02m1_jk_mipi_raw gc02m1_hlt_mipi_raw";
+	cam0_enable_sensor = "hi1336_txd_mipi_raw gc13053_ly_mipi_raw s5k3l6_ofilm_mipi_raw ov13b10_dd_mipi_raw ov13b10_qt_mipi_raw ov13b10_xl_mipi_raw hi1336_hlt_mipi_raw sc1300cs_ly_mipi_raw";
+	cam1_enable_sensor = "hi556_txd_mipi_raw hi556_ofilm_mipi_raw gc5035_dd_mipi_raw gc5035_ly_mipi_raw gc5035_xl_mipi_raw sc500cs_dd_mipi_raw";
+	cam2_enable_sensor = "gc2375h_cxt_mipi_raw gc02m1b_ly_mipi_raw ov02b1b_jk_mipi_raw gc2375h_sjc_mipi_raw sc201cs_cxt_mipi_raw";
+        cam4_enable_sensor = "gc02m1_cxt_mipi_raw ov02b10_ly_mipi_raw gc02m1_jk_mipi_raw gc02m1_hlt_mipi_raw sc201cs_cxt_macro_mipi_raw";
 	status = "okay";
 
 };
 /* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/04/22 end */
+/*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 end */
 &camera_af_hw_node {
 	camaf_m1_pmic-supply = <&mt_pmic_vldo28_ldo_reg>;
 	status = "okay";

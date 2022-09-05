@@ -107,21 +107,3 @@ int sysdep_pid_refcount_read(struct pid *pid)
 	return refcount_read(&pid->count);
 #endif
 }
-
-void sysdep_pinned_vm_add(struct mm_struct *mm, unsigned long nr_pages)
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
-	mm->pinned_vm += nr_pages;
-#else
-	atomic64_add(nr_pages, &mm->pinned_vm);
-#endif
-}
-
-void sysdep_pinned_vm_sub(struct mm_struct *mm, unsigned long nr_pages)
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
-	mm->pinned_vm -= nr_pages;
-#else
-	atomic64_sub(nr_pages, &mm->pinned_vm);
-#endif
-}

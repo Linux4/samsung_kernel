@@ -263,7 +263,6 @@ static ssize_t cali_status_show(struct device_driver *ddri, char *buf)
     atomic_set(&obj->calibration_done, 0);
     return snprintf(buf, PAGE_SIZE, "%d\n", status);
 }
-
 /* hs03s code for SR-AL5625-01-49 by xiongxiaoliang at 2021/05/06 start */
 static ssize_t ps_rawdata_show(struct device_driver *ddri, char *buf)
 {
@@ -277,7 +276,6 @@ static ssize_t ps_rawdata_show(struct device_driver *ddri, char *buf)
 
     return sprintf(buf, "%s:%u\n", ps_devinfo.name, ps_rawdata);
 }
-
 static DRIVER_ATTR_RO(als);
 static DRIVER_ATTR_RO(ps);
 static DRIVER_ATTR_RO(alslv);
@@ -299,6 +297,8 @@ static struct driver_attribute *alspshub_attr_list[] = {
 	&driver_attr_cali,
 	&driver_attr_cali_status,
 	&driver_attr_ps_rawdata,
+
+
 };
 /* hs03s code for SR-AL5625-01-49 by xiongxiaoliang at 2021/05/06 end */
 /* hs03s code for SR-AL5625-01-143 by xiongxiaoliang at 2021/04/25 end */
@@ -743,6 +743,7 @@ static int als_flush(void)
 	return sensor_flush_to_hub(ID_LIGHT);
 }
 
+#ifdef CONFIG_HQ_PROJECT_HS03S
 /* hs03s code for DEVAL5625-928 by xiongxiaoliang at 2021/06/02 start */
 static int als_set_cali(uint8_t *data, uint8_t count)
 {
@@ -792,6 +793,91 @@ static int als_set_cali(uint8_t *data, uint8_t count)
     return sensor_cfg_to_hub(ID_LIGHT, data, 3);
 }
 /* hs03s code for DEVAL5625-928 by xiongxiaoliang at 2021/06/02 end */
+#else
+/*TabA7 Lite code for OT8-3912|SR-AX3565-01-853|SR-AX3565-01-870 by Hujincan at 20210531 start*/
+static int als_set_cali(uint8_t *data, uint8_t count)
+{
+    int32_t *buf = (int32_t *)data;
+    struct alspshub_ipi_data *obj = obj_ipi_data;
+    /*if 0<(data[2] & 0xDF)<32 lcd is first,second,third...*/
+    /*if (data[2] & 0x20) == 1 lcd is white,else lcd is black*/
+    char *command_line = saved_command_line;
+    pr_info("command_line = %s\n", command_line);
+
+    /* TabA7 Lite code for OT8-5323 by duxinqi at 20220218 start */
+    if (NULL != strstr(command_line, "hx83102e_hlt_hsd_fhdplus2408")){
+        pr_info("lcd_first");
+        data[2] = 1;
+    }
+    else if (NULL != strstr(command_line, "nt36523_liansi_hsd_incell_vdo")){
+        pr_info("lcd_second");
+        data[2] = 2;
+    }
+    else if (NULL != strstr(command_line, "ili9881t_liansi_inx_incell_vdo")){
+        pr_info("lcd_third");
+        data[2] = 3;
+    }
+    else if (NULL != strstr(command_line, "nt36523_hlt_mdt_incell_vdo")){
+        pr_info("lcd_fourth");
+        data[2] = 4;
+    }
+    else if (NULL != strstr(command_line, "ft8201ab_dt_qunchuang_inx_vdo_fhdplus2408")){
+        pr_info("lcd_fifth");
+        data[2] = 5;
+    }
+    else if (NULL != strstr(command_line, "nt36523bh_qunchuang_inx_incell_vdo")){
+        pr_info("lcd_sixth");
+        data[2] = 6;
+    }
+    else if (NULL != strstr(command_line, "hx83102e_liansi_mdt_incell_vdo")){
+        pr_info("lcd_seventh");
+        data[2] = 7;
+    }
+    else if (NULL != strstr(command_line, "hx83102e_liansi_huarui_incell_vdo")){
+        pr_info("lcd_eighth");
+        data[2] = 8;
+    }
+    else if (NULL != strstr(command_line, "hx83102e_gx_hsd_incell_vdo")){
+        pr_info("lcd_eleventh");
+        data[2] = 11;
+    }
+    else if (NULL != strstr(command_line, "nt36523b_txd_mdt_incell_vdo")){
+        pr_info("lcd_twelfth");
+        data[2] = 12;
+    }
+    else if (NULL != strstr(command_line, "hx83102e_hy_mdt_incell_vdo")){
+        pr_info("lcd_thirteenth");
+        data[2] = 13;
+    }
+    else{
+        pr_info("can't find lcd!");
+        data[2] = 0;
+    }
+    /* TabA7 Lite code for OT8-5323 by duxinqi at 20220218 end */
+
+    if (NULL != strstr(command_line, "swid:0x20")){
+        pr_info("lcd_black");
+        data[2] += 0;
+    }
+    else if (NULL != strstr(command_line, "swid:0x21")){
+        pr_info("lcd_white");
+        data[2] += 32;
+    }
+    else if (NULL != strstr(command_line, "swid:0x30")){
+        pr_info("lcd_black");
+        data[2] += 0;
+    }
+    else if (NULL != strstr(command_line, "swid:0x31")){
+        pr_info("lcd_white");
+        data[2] += 32;
+    }
+    spin_lock(&calibration_lock);
+    atomic_set(&obj->als_cali, buf[0]);
+    spin_unlock(&calibration_lock);
+    return sensor_cfg_to_hub(ID_LIGHT, data, 3);
+}
+/*TabA7 Lite code for OT8-3912|SR-AX3565-01-853|SR-AX3565-01-870 by Hujincan at 20210531 end*/
+#endif
 
 static int rgbw_enable(int en)
 {

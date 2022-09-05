@@ -103,4 +103,11 @@ static unsigned char CTPM_FW_LS_PANDA[] = {
 	0xFF,
 };
 
+#define LS_INX_INI_NAME_PATH		"/sdcard/mp_ls_inx.ini"
+#define LS_INX_FW_FILP_PATH		"/sdcard/ILITEK_FW_CSOT"
+#define LS_INX_INI_REQUEST_PATH		"mp_ls_inx.ini"
+#define LS_INX_FW_REQUEST_PATH		"ilitek_fw_ls_inx.bin"
+static unsigned char CTPM_FW_LS_INX[] = {
+	0xFF,
+};
 #endif

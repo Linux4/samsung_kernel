@@ -778,6 +778,12 @@ static int sy6974_init_device(struct sy6974 *sy)
 	if (ret)
 		pr_err("Failed to set acovp threshold, ret = %d\n", ret);
 
+	/*HS03s for DEVAL5626-524 by liujie at 20210901 start*/
+	ret = sy6974_disable_safety_timer(sy);
+	if (ret)
+		pr_err("Failed to set safety_timer stop, ret = %d\n", ret);
+	/*HS03s for DEVAL5626-524 by liujie at 20210901 end*/
+
 	ret = sy6974_set_int_mask(sy,
 					REG0A_IINDPM_INT_MASK |
 					REG0A_VINDPM_INT_MASK);

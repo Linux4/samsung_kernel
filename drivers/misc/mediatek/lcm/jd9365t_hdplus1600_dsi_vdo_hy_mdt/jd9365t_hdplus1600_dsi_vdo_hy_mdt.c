@@ -144,7 +144,7 @@ static struct LCM_setting_table init_setting_vdo[] = {
 
 	{0xDE, 1, {0x00}},
 
-	{0xB3, 18, {0x10,0x80,0x85,0x00,0x65,0x1E,0x00,0x00,0x00,0x00,0x50,0x50,0x3C,0x3C,0x11,0x11,0x32,0x32}},
+	{0xB3, 18, {0x10,0x80,0x85,0x00,0x65,0x1E,0x00,0x00,0x00,0x00,0x50,0x50,0x3C,0x3C,0x11,0x11,0x5A,0x5A}},
 
 	{0xB2, 5, {0x01,0x23,0x60,0x88,0x24}},
 
@@ -229,6 +229,7 @@ static struct LCM_setting_table init_setting_vdo[] = {
 
 /* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
 static struct LCM_setting_table lcm_sleep_out_setting[] = {
+
 	{REGFLAG_DELAY,30,{}},
 
 	{0x11, 0, {0x00}},
@@ -414,9 +415,7 @@ static void lcm_init(void)
 
 	/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
 	if ((lcd_pinctrl1 == NULL) ||
-		(lcd_disp_pwm_gpio == NULL) ||
-		(tp_rst_output_low == NULL) ||
-		(tp_rst_output_high == NULL)) {
+		(lcd_disp_pwm_gpio == NULL)) {
 		pr_err("lcd_pinctrl1 is invaild\n");
 		return;
 	}
@@ -427,11 +426,11 @@ static void lcm_init(void)
 	lcm_set_gpio_output(GPIO_LCD_RST, GPIO_OUT_ONE);
 	MDELAY(5);
 	lcm_set_gpio_output(GPIO_LCD_RST, GPIO_OUT_ZERO);
-	/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
+	/* hs03s_NM code added for SR-AL5625-01-609 by fengzhigang at 20220424 start */
 	MDELAY(2);
-	pinctrl_select_state(lcd_pinctrl1, tp_rst_output_low);
+	lcm_set_gpio_output(GPIO_TSP_RST, GPIO_OUT_ZERO);
 	MDELAY(3);
-	/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 end */
+	/* hs03s_NM code added for SR-AL5625-01-609 by fengzhigang at 20220424 end */
 	lcm_set_gpio_output(GPIO_LCD_RST, GPIO_OUT_ONE);
 	MDELAY(5);
 
@@ -443,8 +442,10 @@ static void lcm_init(void)
 		1);
 
 	/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
+	/* hs03s_NM code added for SR-AL5625-01-609 by fengzhigang at 20220424 start */
 	MDELAY(5);
-	pinctrl_select_state(lcd_pinctrl1, tp_rst_output_high);
+	lcm_set_gpio_output(GPIO_TSP_RST, GPIO_OUT_ONE);
+	/* hs03s_NM code added for SR-AL5625-01-609 by fengzhigang at 20220424 end */
 
 	push_table(NULL,
 		lcm_sleep_out_setting,

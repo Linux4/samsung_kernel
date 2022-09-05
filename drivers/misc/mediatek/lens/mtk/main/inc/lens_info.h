@@ -12,7 +12,9 @@
 #include "lens_list.h"
 #include <linux/ioctl.h>
 
-#define MAX_NUM_OF_LENS 32
+/* TabA7 Lite code for SR-AX3565-01-906  by chenjun at 2022/02/19 start */
+#define MAX_NUM_OF_LENS 40
+/* TabA7 Lite code for SR-AX3565-01-906  by chenjun at 2022/02/19 end */
 
 #define AF_MAGIC 'A'
 
@@ -21,15 +23,20 @@
 #else
 #define SUPPORT_GETTING_LENS_FOLDER_NAME 0
 #endif
-
 /* A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 start */
+/*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 start*/
+#ifdef CONFIG_HQ_PROJECT_HS03S
 #define AFDRV_GT9772AF "GT9772AF"
-/* A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 end */
+#define AFDRV_GT9773AF "GT9773AF"
+#define AFDRV_FP5519AF "FP5519AF"
 /* A03s code for CAM-AL5625-01-247 by xuxianwei at 2021/05/18 start */
+/*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 end*/
 #define AFDRV_CN3927OFILMAF "CN3927OFILMAF"
 #define AFDRV_CN3927DDAF "CN3927DDAF"
 #define AFDRV_CN3927XLAF "CN3927XLAF"
 /* A03s code for CAM-AL5625-01-247 by xuxianwei at 2021/05/18 end */
+#endif
+/* A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 end */
 /* AFDRV_XXXX be the same as AF_DRVNAME in (*af).c */
 #define AFDRV_AD5820AF "AD5820AF"
 #define AFDRV_AD5823 "AD5823"
@@ -53,7 +60,6 @@
 #define AFDRV_DW9814AF "DW9814AF"
 #define AFDRV_DW9839AF "DW9839AF"
 #define AFDRV_FP5510E2AF "FP5510E2AF"
-#define AFDRV_FP5519AF "FP5519AF"
 #define AFDRV_FP5529AF "FP5529AF"
 #define AFDRV_FM50AF "FM50AF"
 #define AFDRV_GAF001AF "GAF001AF"
@@ -75,9 +81,22 @@
 #define AFDRV_OV8825AF "OV8825AF"
 #define AFDRV_WV511AAF "WV511AAF"
 #define AFDRV_DW9718TAF "DW9718TAF"
-
+/*gaozhenyu add for af start*/
+#define AFDRV_GT9769AF "GT9769AF"
+/*gaozhenyu add for af end*/
+/*TabA7 Lite code for SR-AX3565-01-320 by liuchengfei at 20201127 start*/
+#define AFDRV_GT9772AFHLT "GT9772AFHLT"
+/*TabA7 Lite code for SR-AX3565-01-320 by liuchengfei at 20201127 end*/
 #define CONVERT_CCU_TIMESTAMP 0x1000
-
+/* TabA7 Lite  code for SR-AX3565-01-320 by lisizhou at 20201129 start */
+#define AFDRV_VA26X802AF "VA26X802AF"
+/* TabA7 Lite  code for SR-AX3565-01-320 by lisizhou at 20201129 end */
+/*  TabA7 Lite code for SR-AX3565-01-875 by gaozhenyu at 2021/11/19 start */
+#define AFDRV_GT9769sAF "GT9769sAF"
+/*  TabA7 Lite code for SR-AX3565-01-875 by gaozhenyu at 2021/11/19 end */
+/* TabA7 Lite code for SR-AX3565-01-906  by chenjun at 2022/02/19 start */
+#define AFDRV_FP5510MAIN6AF "FP5510MAIN6AF"
+/* TabA7 Lite code for SR-AX3565-01-906  by chenjun at 2022/02/19 end */
 /* Structures */
 struct stAF_MotorInfo {
 	/* current position */

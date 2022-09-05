@@ -46,8 +46,8 @@ struct jadard_module_fp {
 	uint8_t (*fp_get_freq_band)(void);
 	void (*fp_log_touch_state)(void);
 	void (*fp_resume_set_func)(bool suspended);
-
 	void (*fp_set_high_sensitivity)(bool enable);
+
 	void (*fp_set_SMWP_enable)(bool SMWP_enable);
 	int (*fp_sorting_test)(void);
 

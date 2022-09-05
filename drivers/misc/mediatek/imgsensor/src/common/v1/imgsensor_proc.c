@@ -22,9 +22,12 @@ char mtk_i2c_dump[camera_info_size] = { 0 };
   char *cameraModuleInfo[4] = {NULL, NULL, NULL,NULL};
 #endif
 /* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/04/22 end */
+#ifdef CONFIG_HQ_PROJECT_HS03S
 /* hs03s code for AR-AL5625-01-502 by xuxianwei at 2021/05/27 start */
 char *cameraMateriaNumber[4] = {NULL, NULL, NULL, NULL};
 /* hs03s code for AR-AL5625-01-502 by xuxianwei at 2021/05/27 end */
+#endif
+
 static int pdaf_type_info_read(struct seq_file *m, void *v)
 {
 #define bufsz 512
@@ -489,24 +492,39 @@ static const struct file_operations fcamera_proc_fops_set_pdaf_type = {
 	.write = proc_SensorType_write
 };
 /* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/04/22 start */
-/* hs03s code for AR-AL5625-01-502 by xuxianwei at 2021/05/27 start */
 #if CAM_MODULE_INFO_CONFIG
+	#ifdef CONFIG_HQ_PROJECT_HS03S
+	static ssize_t cameraModuleInfo_read
+    (struct file *file, char __user *page, size_t size, loff_t *ppos)
+	{
+		char buf[300] = {0};
+		int rc = 0;
+		snprintf(buf, 300,
+		"rear camera:%s : %s\nfront camera:%s : %s\ndepth camera:%s : %s\nmacro camera:%s : %s\n",
+		cameraModuleInfo[0],cameraMateriaNumber[0],
+		cameraModuleInfo[1],cameraMateriaNumber[1],
+		cameraModuleInfo[2],cameraMateriaNumber[2],
+		cameraModuleInfo[3],cameraMateriaNumber[3]);
+		rc = simple_read_from_buffer(page, size, ppos, buf, strlen(buf));
+
+		return rc;
+	}
+#else
 static ssize_t cameraModuleInfo_read
     (struct file *file, char __user *page, size_t size, loff_t *ppos)
 {
-    char buf[300] = {0};
+    char buf[150] = {0};
     int rc = 0;
-    snprintf(buf, 300,
-	"rear camera:%s : %s\nfront camera:%s : %s\ndepth camera:%s : %s\nmacro camera:%s : %s\n",
-	cameraModuleInfo[0],cameraMateriaNumber[0],
-	cameraModuleInfo[1],cameraMateriaNumber[1],
-	cameraModuleInfo[2],cameraMateriaNumber[2],
-	cameraModuleInfo[3],cameraMateriaNumber[3]);
+    snprintf(buf, 150,
+        "rear camera:%s\nfront camera:%s\n",
+        cameraModuleInfo[0],
+        cameraModuleInfo[1]);
+
     rc = simple_read_from_buffer(page, size, ppos, buf, strlen(buf));
 
     return rc;
 }
-/* hs03s code for AR-AL5625-01-502 by xuxianwei at 2021/05/27 end */
+#endif
 static ssize_t cameraModuleInfo_write
     (struct file *filp, const char __user *buffer,
     size_t count, loff_t *off)
@@ -521,6 +539,7 @@ static const struct file_operations cameraModuleInfo_fops = {
 };
 #endif
 /* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/04/22 end */
+
 enum IMGSENSOR_RETURN imgsensor_proc_init(void)
 {
 	memset(mtk_ccm_name, 0, camera_info_size);
@@ -539,6 +558,6 @@ enum IMGSENSOR_RETURN imgsensor_proc_init(void)
 #if CAM_MODULE_INFO_CONFIG
     proc_create(CAM_MODULE_INFO, 0664, NULL, &cameraModuleInfo_fops);
 #endif
-/* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/04/22 end */
-	return IMGSENSOR_RETURN_SUCCESS;
+/* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/04/22 end */	
+return IMGSENSOR_RETURN_SUCCESS;
 }

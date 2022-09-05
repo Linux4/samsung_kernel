@@ -133,6 +133,10 @@
 #define PMIC_AUXADC_NAG_VBAT1_SEL_MASK			0x1
 #define PMIC_AUXADC_NAG_VBAT1_SEL_SHIFT			2
 
+#define PMIC_FG_ZCV_DET_TIME_ADDR                       0xd2e
+#define PMIC_FG_ZCV_DET_TIME_MASK                       0x3F
+#define PMIC_FG_ZCV_DET_TIME_SHIFT                      8
+
 #define PMIC_FG_ZCV_CAR_TH_15_00_ADDR			0xd38
 #define PMIC_FG_ZCV_CAR_TH_15_00_MASK			0xFFFF
 #define PMIC_FG_ZCV_CAR_TH_15_00_SHIFT			0
@@ -199,9 +203,7 @@
 //
 
 #define PMIC_RG_SYSTEM_INFO_CON0_ADDR 0xd9a
-/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210429 start*/
 #define PMIC_RG_SYSTEM_INFO_CON1_ADDR 0xd9c
-/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210429 end*/
 
 #define UNIT_FGCURRENT			(314331)
 /* mt6357 314.331 uA */
@@ -217,7 +219,7 @@
 /* 3600 * 1000 * 1000 / 157166 , for coulomb interrupt */
 #define DEFAULT_R_FG			(100)
 /* 5mm ohm */
-#define UNIT_FGCAR_ZCV			(85)
+#define UNIT_FGCAR_ZCV			(19646)
 /* CHARGE_LSB = 0.085 uAh */
 
 #define VOLTAGE_FULL_RANGES		1800
@@ -495,12 +497,10 @@ void set_rtc_spare_fg_value(struct mtk_gauge *gauge, u8 val)
 static int fgauge_set_info(struct mtk_gauge *gauge,
 	enum gauge_property ginfo, unsigned int value)
 {
-
-	/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210429 start*/
 	int value_mask = 0;
 	int sign_bit = 0;
 	int reg_val = 0;
-	/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210429 end*/
+
 	bm_debug("[%s]info:%d v:%d\n", __func__, ginfo, value);
 
 	if (ginfo == GAUGE_PROP_2SEC_REBOOT)
@@ -539,7 +539,6 @@ static int fgauge_set_info(struct mtk_gauge *gauge,
 		PMIC_RG_SYSTEM_INFO_CON0_ADDR,
 		0x007f << 0x9,
 		value << 0x9);
-	/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210429 start*/
 	} else if (ginfo == GAUGE_PROP_SHUTDOWN_CAR) {
 		if (value == -99999) {
 			/* write invalid */
@@ -574,7 +573,6 @@ static int fgauge_set_info(struct mtk_gauge *gauge,
 		bm_err(
 		"[%s]: GAUGE_PROP_SHUTDOWN_CAR:%d,0x%x,sign:%d, 0x%x,0x%x\n",
 		__func__, value, value, sign_bit, value_mask, reg_val);
-	/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210429 end*/
 	}
 	return 0;
 }
@@ -608,30 +606,24 @@ static int fgauge_get_info(struct mtk_gauge *gauge,
 	else if (ginfo == GAUGE_PROP_CON0_SOC)
 		*value =
 		(reg_val & (0x007F << 0x9))	>> 0x9;
-	/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210429 start*/
 	else if (ginfo == GAUGE_PROP_SHUTDOWN_CAR) {
 		regmap_read(gauge->regmap,
-				PMIC_RG_SYSTEM_INFO_CON1_ADDR, &reg_val);
+			PMIC_RG_SYSTEM_INFO_CON1_ADDR, &reg_val);
 
-		sign_bit = (reg_val & (0x1 << 0xf)) >> 0xf;
-		tmp_val = (reg_val & (0xff << 0x7)) >> 0x7;
+		sign_bit = (reg_val & (0x1 << 0xf))	>> 0xf;
+		tmp_val = (reg_val & (0xff << 0x7))	>> 0x7;
 
 		if (sign_bit == 1 && tmp_val == 0xff) {
 			bm_err("[%s]: GAUGE_PROP_SHUTDOWN_CAR: invalid, sign:%d value:%d,0x%x\n",
-					__func__, sign_bit, tmp_val, reg_val);
+			__func__, sign_bit, tmp_val, reg_val);
 			sign_bit = 0;
 			*value = 0;
 		} else if (sign_bit == 1) {
 			*value = 0 - tmp_val;
 			bm_err("[%s]:GAUGE_PROP_SHUTDOWN_CAR: sign:%d, tmp_val:%d\n",
-					__func__, sign_bit, tmp_val);
-		} else if (sign_bit == 0)
-			*value = tmp_val;
-
-		bm_err("[%s]:GAUGE_PROP_SHUTDOWN_CAR: sign:%d, tmp_val:%d\n",
-				 __func__, sign_bit, tmp_val);
+			__func__, sign_bit, tmp_val);
+		}
 	}
-	/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210429 end*/
 
 	bm_debug("[%s]info:%d v:%d\n", __func__, ginfo, *value);
 
@@ -808,9 +800,12 @@ static void fgauge_set_zcv_intr_internal(
 	int fg_zcv_car_th)
 {
 	int fg_zcv_car_thr_h_reg, fg_zcv_car_thr_l_reg;
-	long long fg_zcv_car_th_reg = fg_zcv_car_th;
+	int slepp_cur_avg = gauge_dev->gm->fg_cust_data.sleep_current_avg;
+	long long fg_zcv_car_th_reg = 0;
 
-	fg_zcv_car_th_reg = (fg_zcv_car_th_reg * 100 * 1000);
+	fg_zcv_car_th = (fg_zcv_det_time + 1) * slepp_cur_avg / 60;
+	fg_zcv_car_th_reg = (long long)fg_zcv_car_th;
+	fg_zcv_car_th_reg = (fg_zcv_car_th_reg * 100 * 3600 * 1000);
 
 #if defined(__LP64__) || defined(_LP64)
 	do_div(fg_zcv_car_th_reg, UNIT_FGCAR_ZCV);
@@ -840,6 +835,12 @@ static void fgauge_set_zcv_intr_internal(
 	fg_zcv_car_thr_h_reg = (fg_zcv_car_th_reg & 0xffff0000) >> 16;
 	fg_zcv_car_thr_l_reg = fg_zcv_car_th_reg & 0x0000ffff;
 
+	regmap_update_bits(gauge_dev->regmap,
+		PMIC_FG_ZCV_DET_TIME_ADDR,
+		PMIC_FG_ZCV_DET_TIME_MASK <<
+		PMIC_FG_ZCV_DET_TIME_SHIFT,
+		fg_zcv_det_time <<
+		PMIC_FG_ZCV_DET_TIME_SHIFT);
 
 	regmap_update_bits(gauge_dev->regmap,
 		PMIC_FG_ZCV_CAR_TH_15_00_ADDR,
@@ -863,14 +864,11 @@ static void fgauge_set_zcv_intr_internal(
 int zcv_intr_threshold_set(struct mtk_gauge *gauge,
 	struct mtk_gauge_sysfs_field_info *attr, int zcv_avg_current)
 {
-	int fg_zcv_det_time;
-	int fg_zcv_car_th = 0;
+	int fg_zcv_det_time = gauge->gm->fg_cust_data.zcv_suspend_time;
+	int fg_zcv_car_th = zcv_avg_current;
 
-	fg_zcv_det_time = gauge->gm->fg_cust_data.zcv_suspend_time;
-	fg_zcv_car_th = (fg_zcv_det_time + 1) * 4 * zcv_avg_current / 60;
-
-	bm_debug("[%s] current:%d, fg_zcv_det_time:%d, fg_zcv_car_th:%d\n",
-		__func__, zcv_avg_current, fg_zcv_det_time, fg_zcv_car_th);
+	bm_debug("[%s] fg_zcv_det_time:%d, fg_zcv_car_th:%d\n",
+		__func__, fg_zcv_det_time, fg_zcv_car_th);
 
 	fgauge_set_zcv_intr_internal(
 		gauge, fg_zcv_det_time, fg_zcv_car_th);
@@ -1480,15 +1478,12 @@ int info_get(struct mtk_gauge *gauge,
 		*val = gauge->hw_status.vbat2_det_time;
 	else if (attr->prop == GAUGE_PROP_VBAT2_DETECT_COUNTER)
 		*val = gauge->hw_status.vbat2_det_counter;
-	/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210429 start*/
 	else if (attr->prop == GAUGE_PROP_SHUTDOWN_CAR) {
 		fgauge_get_info(gauge, attr->prop, val);
 		ret = *val;
 		bm_err("[%s]GAUGE_PROP_SHUTDOWN_CAR ret:%d v:%d\n",
-				__func__, ret, *val);
-	}
-	/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210429 end*/
-	else
+			__func__, ret, *val);
+	} else
 		ret = fgauge_get_info(gauge, attr->prop, val);
 
 	return ret;
@@ -1907,7 +1902,8 @@ static int nafg_c_dltv_get(struct mtk_gauge *gauge,
 
 	return 0;
 }
-
+#ifdef CONFIG_HS03S_SUPPORT
+    /* modify code for O6 */
 static int zcv_get(struct mtk_gauge *gauge_dev,
 	struct mtk_gauge_sysfs_field_info *attr, int *zcv)
 {
@@ -1929,6 +1925,59 @@ static int zcv_get(struct mtk_gauge *gauge_dev,
 	*zcv = adc_result;
 	return 0;
 }
+#else
+    /* modify code for OT8 */
+static int zcv_get(struct mtk_gauge *gauge_dev,
+	struct mtk_gauge_sysfs_field_info *attr, int *zcv)
+{
+	signed int adc_result_reg = 0;
+	signed int adc_result = 0;
+/* TabA7 Lite code for P210617-00791 fix ZCV get error by liufurong at 20210716 start */
+	static int old_zcv = 0;
+/* TabA7 Lite code for P210617-00791 fix ZCV get error by liufurong at 20210716 end */
+
+	regmap_read(gauge_dev->regmap,
+		PMIC_AUXADC_ADC_OUT_FGADC_PCHR_ADDR,
+		&adc_result_reg);
+	adc_result_reg =
+		(adc_result_reg & (PMIC_AUXADC_ADC_OUT_FGADC_PCHR_MASK
+		<< PMIC_AUXADC_ADC_OUT_FGADC_PCHR_SHIFT))
+		>> PMIC_AUXADC_ADC_OUT_FGADC_PCHR_SHIFT;
+
+	adc_result = reg_to_mv_value(adc_result_reg);
+/* TabA7 Lite code for P210617-00791 fix ZCV get error by liufurong at 20210716 start */
+	bm_err("[oam] %s BATSNS  (pchr):adc_result_reg=%d, adc_result=%d, old_zcv = %d\n",
+		 __func__, adc_result_reg, adc_result, old_zcv);
+	if (adc_result != 0) {
+		*zcv = adc_result;
+		old_zcv = adc_result;
+	} else {
+		*zcv = old_zcv;
+	}
+/* TabA7 Lite code for P210617-00791 fix ZCV get error by liufurong at 20210716 end */
+	return 0;
+}
+#endif
+static int get_charger_zcv(struct mtk_gauge *gauge_dev)
+{
+	struct power_supply *chg_psy;
+	union power_supply_propval val;
+	int ret = 0;
+
+	chg_psy = power_supply_get_by_name("mtk-master-charger");
+
+	if (chg_psy == NULL) {
+		bm_err("[%s] can get charger psy\n", __func__);
+		return -ENODEV;
+	}
+
+	ret = power_supply_get_property(chg_psy,
+		POWER_SUPPLY_PROP_VOLTAGE_BOOT, &val);
+
+	bm_err("[%s]_hw_ocv_chgin=%d, ret=%d\n", __func__, val.intval, ret);
+
+	return val.intval;
+}
 
 static int boot_zcv_get(struct mtk_gauge *gauge_dev,
 	struct mtk_gauge_sysfs_field_info *attr, int *val)
@@ -1945,6 +1994,7 @@ static int boot_zcv_get(struct mtk_gauge *gauge_dev,
 	int _hw_ocv_chgin_rdy;
 	int now_temp;
 	int now_thr;
+	int tmp_hwocv_chgin = 0;
 	bool fg_is_charger_exist;
 	struct mtk_battery *gm;
 	struct zcv_data *zcvinfo;
@@ -1957,9 +2007,12 @@ static int boot_zcv_get(struct mtk_gauge *gauge_dev,
 	_hw_ocv_57_pon = read_hw_ocv_6357_power_on(gauge_dev);
 	_hw_ocv_57_plugin = read_hw_ocv_6357_plug_in(gauge_dev);
 
-	/* todo:charger function is not ready to access charger zcv */
-	/* _hw_ocv_chgin = battery_get_charger_zcv() / 100; */
-	_hw_ocv_chgin = 0;
+	tmp_hwocv_chgin = get_charger_zcv(gauge_dev);
+	if (tmp_hwocv_chgin != -ENODEV)
+		_hw_ocv_chgin = tmp_hwocv_chgin / 100;
+	else
+		_hw_ocv_chgin = 0;
+
 	now_temp = gm->bs_data.bat_batt_temp;
 
 	if (gm == NULL)
@@ -2092,6 +2145,13 @@ static int boot_zcv_get(struct mtk_gauge *gauge_dev,
 		_hw_ocv_57_plugin, _hw_ocv_chgin, _sw_ocv,
 		now_temp, now_thr);
 
+	return 0;
+}
+
+static int bat_temp_froze_en_set(struct mtk_gauge *gauge,
+	struct mtk_gauge_sysfs_field_info *attr, int val)
+{
+	/*NO need to do*/
 	return 0;
 }
 
@@ -2696,7 +2756,7 @@ static struct mtk_gauge_sysfs_field_info mt6357_sysfs_field_tbl[] = {
 		GAUGE_PROP_VBAT_HT_INTR_THRESHOLD),
 	GAUGE_SYSFS_FIELD_WO(vbat_lt_set,
 		GAUGE_PROP_VBAT_LT_INTR_THRESHOLD),
-	GAUGE_SYSFS_FIELD_RW(rtc_ui_soc_set, rtc_ui_soc_get,
+	GAUGE_SYSFS_FIELD_RW(rtc_ui_soc, rtc_ui_soc_set, rtc_ui_soc_get,
 		GAUGE_PROP_RTC_UI_SOC),
 	GAUGE_SYSFS_FIELD_RO(ptim_battery_voltage_get,
 		GAUGE_PROP_PTIM_BATTERY_VOLTAGE),
@@ -2714,7 +2774,7 @@ static struct mtk_gauge_sysfs_field_info mt6357_sysfs_field_tbl[] = {
 		GAUGE_PROP_NAFG_CNT),
 	GAUGE_SYSFS_FIELD_RO(nafg_dltv_get,
 		GAUGE_PROP_NAFG_DLTV),
-	GAUGE_SYSFS_FIELD_RW(nafg_c_dltv_set, nafg_c_dltv_get,
+	GAUGE_SYSFS_FIELD_RW(nafg_c_dltv, nafg_c_dltv_set, nafg_c_dltv_get,
 		GAUGE_PROP_NAFG_C_DLTV),
 	GAUGE_SYSFS_FIELD_WO(nafg_en_set,
 		GAUGE_PROP_NAFG_EN),
@@ -2724,7 +2784,7 @@ static struct mtk_gauge_sysfs_field_info mt6357_sysfs_field_tbl[] = {
 		GAUGE_PROP_NAFG_VBAT),
 	GAUGE_SYSFS_FIELD_WO(reset_fg_rtc_set,
 		GAUGE_PROP_RESET_FG_RTC),
-	GAUGE_SYSFS_FIELD_RW(gauge_initialized_set, gauge_initialized_get,
+	GAUGE_SYSFS_FIELD_RW(gauge_initialized, gauge_initialized_set, gauge_initialized_get,
 		GAUGE_PROP_GAUGE_INITIALIZED),
 	GAUGE_SYSFS_FIELD_RO(average_current_get,
 		GAUGE_PROP_AVERAGE_CURRENT),
@@ -2782,6 +2842,8 @@ static struct mtk_gauge_sysfs_field_info mt6357_sysfs_field_tbl[] = {
 		vbat2_detect_time, GAUGE_PROP_VBAT2_DETECT_TIME),
 	GAUGE_SYSFS_INFO_FIELD_RW(
 		vbat2_detect_counter, GAUGE_PROP_VBAT2_DETECT_COUNTER),
+	GAUGE_SYSFS_FIELD_WO(
+		bat_temp_froze_en_set, GAUGE_PROP_BAT_TEMP_FROZE_EN),
 };
 
 static struct attribute *
@@ -3097,7 +3159,6 @@ static int adc_cali_cdev_init(struct platform_device *pdev)
 	return 0;
 }
 
-
 static void mtk_gauge_netlink_handler(struct sk_buff *skb)
 {
 	mtk_battery_netlink_handler(skb);
@@ -3214,9 +3275,7 @@ static int mt6357_gauge_probe(struct platform_device *pdev)
 	gauge->psy = power_supply_register(&pdev->dev, &gauge->psy_desc,
 			&gauge->psy_cfg);
 	mt6357_sysfs_create_group(gauge);
-	/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210428 start*/
 	initial_set(gauge, 0, 0);
-	/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210428 end*/
 	bat_create_netlink(pdev);
 	battery_init(pdev);
 	adc_cali_cdev_init(pdev);

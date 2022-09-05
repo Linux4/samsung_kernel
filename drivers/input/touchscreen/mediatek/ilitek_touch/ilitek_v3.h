@@ -140,8 +140,15 @@
 #define CHARGER_NOTIFIER_CALLBACK	DISABLE
 #define ENABLE_EDGE_PALM_PARA		DISABLE
 #define MULTI_REPORT_RATE		DISABLE
+#ifdef HQ_PROJECT_OT8
+/*TabA7 Lite code for SR-AX3565-01-740 by fengzhigang at 20210126 start*/
+#define AXIS_PACKET			ENABLE
+/*TabA7 Lite code for SR-AX3565-01-740 by fengzhigang at 20210126 end*/
+#else
 /*TabA7 Lite code for SR-AX3565-01-740 by fengzhigang at 20210126 start*/
 #define AXIS_PACKET			DISABLE
+/*TabA7 Lite code for SR-AX3565-01-740 by fengzhigang at 20210126 end*/
+#endif
 /*TabA7 Lite code for SR-AX3565-01-740 by fengzhigang at 20210126 end*/
 #define ENGINEER_FLOW			ENABLE
 /*Proximity mode options*/
@@ -167,9 +174,16 @@
 /* Path */
 #define DEBUG_DATA_FILE_SIZE		(10*K)
 #define DEBUG_DATA_FILE_PATH		"/sdcard/ILITEK_log.csv"
-/* HS03S code for DEVAL5625-2101 by gaozhengwei at 2021/07/14 start */
-#define CSV_LCM_ON_PATH			"/data/tpdata"
-/* HS03S code for DEVAL5625-2101 by gaozhengwei at 2021/07/14 end */
+
+#ifdef HQ_PROJECT_OT8
+    /* modify code for OT8 */
+	#define CSV_LCM_ON_PATH			"/sdcard/tpdata"
+#else
+    /* modify code for O6 */
+	/* HS03S code for DEVAL5625-2101 by gaozhengwei at 2021/07/14 start */
+	#define CSV_LCM_ON_PATH			"/data/tpdata"
+	/* HS03S code for DEVAL5625-2101 by gaozhengwei at 2021/07/14 end */
+#endif
 #define CSV_LCM_OFF_PATH		"/sdcard/ilitek_mp_lcm_off_log"
 #define POWER_STATUS_PATH		"/sys/class/power_supply/battery/status"
 #define DUMP_FLASH_PATH			"/sdcard/flash_dump"
@@ -350,7 +364,8 @@ enum TP_MODEL {
 	MODEL_TXD,
 	MODEL_TM,
 	MODEL_TXD_BOE,
-	MODEL_LS_PANDA
+	MODEL_LS_PANDA,
+	MODEL_LS_INX
 };
 
 enum TP_ERR_CODE {

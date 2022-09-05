@@ -1264,7 +1264,6 @@ static int hx83102d_0f_overlay(int ovl_type, int mode)
 		E("%s: error overlay type %d\n", __func__, ovl_type);
 		return HX_INIT_FAIL;
 	}
-
 /*hs03s  code for DEVAL5626-13 by wangdeyan at 20210610 start*/
 	if (!kp_ovl_idx) {
 		E("%s: kp_ovl_idx is NULL\n", __func__);

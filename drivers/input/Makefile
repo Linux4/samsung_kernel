@@ -33,7 +33,11 @@ obj-$(CONFIG_INPUT_MISC)	+= misc/
 obj-$(CONFIG_INPUT_APMPOWER)	+= apm-power.o
 
 obj-$(CONFIG_RMI4_CORE)		+= rmi4/
+obj-$(CONFIG_FINGER)		+= fingerprint/
 
-obj-y				+= fingerprint/
 
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/performance/include/
+
+#TabA7 Lite code for OT8-54 by Hujincan at 20201126 start
+obj-$(CONFIG_SAR_MODE_DETECT) += sar_mode_detect/
+#TabA7 Lite code for OT8-54 by Hujincan at 20201126 end

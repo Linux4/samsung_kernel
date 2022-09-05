@@ -183,6 +183,36 @@ struct cts_device_gesture_info {
 };
 #pragma pack()
 
+/*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 2022/4/14 start*/
+typedef struct
+{
+    const char *lcd_name;
+    int fw_num;
+    /*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 start*/
+    const char *cts_name_data;
+    /*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 end*/
+}cts_upgrade_module;
+
+enum CTS_TP_MODEL {
+    MODEL_DEFAULT = 0,
+    MODEL_XL_TRULY,
+    MODEL_TXD_HKC,
+};
+/*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 2022/4/14 end*/
+/*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 start*/
+static const cts_upgrade_module cts_module_list[] = {
+    {
+        .lcd_name = "nl9911c_hdplus1600_dsi_vdo_truly_truly",
+        .fw_num = MODEL_XL_TRULY,
+        .cts_name_data = "chipone_xl_truly",
+    },
+    {
+        .lcd_name = "lcd_nl9911c_txd_hkc_mipi_hdp_video",
+        .fw_num = MODEL_TXD_HKC,
+        .cts_name_data = "chipone_txd_hkc",
+    },
+};
+/*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 end*/
 
 struct cts_device;
 
@@ -308,9 +338,15 @@ struct chipone_ts_data {
 #ifdef CONFIG_CTS_LEGACY_TOOL
     struct proc_dir_entry *procfs_entry;
 #endif /* CONFIG_CTS_LEGACY_TOOL */
-
+	
 	struct sec_cmd_data sec;
 	bool gesture_mode;
+    /*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 2022/4/14 start*/
+    char *firmware_filepath;
+    /*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 2022/4/14 end*/
+    /*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 start*/
+    const char *cts_lcd_module_name;
+    /*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 end*/
 };
 
 static inline u32 get_unaligned_le24(const void *p)

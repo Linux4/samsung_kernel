@@ -241,22 +241,9 @@ static void set_dummy(void)
 
 static kal_uint32 return_sensor_id(void)
 {
-	int gc2375h_2m_id = 0;
-        int SENSOR_GPIO_ID = 329;
-	int BASE = 177;
-	u16 mode_set = 0;
 
-	gpio_request(SENSOR_GPIO_ID+BASE,"id_pin");
-	gpio_direction_input(SENSOR_GPIO_ID+BASE);
-	gc2375h_2m_id = gpio_get_value(SENSOR_GPIO_ID+BASE);
-	if (gc2375h_2m_id == 0) {
-		mode_set = 1;
-	} else if (gc2375h_2m_id == 1) {
-		mode_set = 0;
-	}
-        printk("gc2375h_cxt_2m_id: %d\n", gc2375h_2m_id);
 /* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/06/1 start*/
-	return (((read_cmos_sensor(0xf0) << 8) | read_cmos_sensor(0xf1)) + mode_set);
+	return (((read_cmos_sensor(0xf0) << 8) | read_cmos_sensor(0xf1)) );
 /* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/06/1 end*/
 }
 

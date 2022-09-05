@@ -1390,7 +1390,11 @@ int disp_lcm_esd_recover(struct disp_lcm_handle *plcm)
 		} else {
 			disp_lcm_init(plcm, 1);
 			/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 start */
-			DISPDBG("%s, Send Platform default BL cmd(103) again!\n", __func__);
+			#ifdef HQ_PROJECT_OT8
+				DISPCHECK("%s, Send Platform default BL cmd(103) again!\n", __func__);
+			#else
+				DISPDBG("%s, Send Platform default BL cmd(103) again!\n", __func__);
+			#endif
 			disp_lcm_set_backlight(plcm, NULL, 103);
 			/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 end */
 		}
@@ -1400,6 +1404,10 @@ int disp_lcm_esd_recover(struct disp_lcm_handle *plcm)
 	DISPERR("lcm_drv is null\n");
 	return -1;
 }
+
+#ifdef HQ_PROJECT_OT8
+extern int mtk_tpd_smart_wakeup_support(void);
+#endif
 
 int disp_lcm_suspend(struct disp_lcm_handle *plcm)
 {
@@ -1414,7 +1422,12 @@ int disp_lcm_suspend(struct disp_lcm_handle *plcm)
 			DISPERR("FATAL ERROR, lcm_drv->suspend is null\n");
 			return -1;
 		}
-
+#ifdef HQ_PROJECT_OT8
+		if(!mtk_tpd_smart_wakeup_support()){
+			if (lcm_drv->suspend_power)
+				lcm_drv->suspend_power();
+		}
+#endif
 		return 0;
 	}
 	DISPERR("lcm_drv is null\n");
@@ -1428,6 +1441,12 @@ int disp_lcm_resume(struct disp_lcm_handle *plcm)
 	DISPFUNC();
 	if (_is_lcm_inited(plcm)) {
 		lcm_drv = plcm->drv;
+#ifdef HQ_PROJECT_OT8
+		if(!mtk_tpd_smart_wakeup_support()){
+			if (lcm_drv->resume_power)
+				lcm_drv->resume_power();
+		}
+#endif
 
 		if (lcm_drv->resume) {
 			lcm_drv->resume();
@@ -1462,6 +1481,8 @@ int disp_lcm_aod(struct disp_lcm_handle *plcm, int enter)
 	return -1;
 }
 
+#ifdef CONFIG_HQ_PROJECT_OT8
+    /* modify code for OT8 */
 int disp_lcm_disable(struct disp_lcm_handle *plcm)
 {
 	struct LCM_DRIVER *lcm_drv = NULL;
@@ -1481,6 +1502,9 @@ int disp_lcm_disable(struct disp_lcm_handle *plcm)
 	DISPERR("lcm_drv is null\n");
 	return -1;
 }
+#else
+    /* modify code for O6 */
+#endif
 
 int disp_lcm_is_support_adjust_fps(struct disp_lcm_handle *plcm)
 {

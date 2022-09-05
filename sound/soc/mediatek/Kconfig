@@ -253,3 +253,7 @@ config SND_SOC_MTK_AUDIO_DSP
 	  that can be used with other platforms
 	  Select Y if you have such device.
 	  If unsure select "N".
+
+# TabA7 Lite code for OT8-5362 by yingboyang at 20220314 start
+source "sound/soc/mediatek/aw87390/Kconfig"
+# TabA7 Lite code for OT8-5362 by yingboyang at 20220314 end

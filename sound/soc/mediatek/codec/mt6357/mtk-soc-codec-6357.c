@@ -69,6 +69,13 @@
 #include <linux/of_gpio.h>
 /* hs03s code for SR-AL5625-01-247 by zhuqiang at 2021/04/23 end */
 
+#include "mtk-soc-speaker-amp.h"
+
+/*TabA7 Lite code for OT8-5362 by yingboyang at 20220314 start*/
+#ifdef CONFIG_SND_SOC_AW87XXX
+extern int aw87xxx_add_codec_controls(void *codec);
+#endif
+/*TabA7 Lite code for OT8-5362 by yingboyang at 20220314 end*/
 /* Use analog setting to do dc compensation */
 #define ANALOG_HPTRIM
 //#define ANALOG_HPTRIM_FOR_CUST
@@ -164,6 +171,16 @@ int (*set_lch_dc_compensation)(int value) = NULL;
 int (*set_rch_dc_compensation)(int value) = NULL;
 int (*set_ap_dmic)(bool enable) = NULL;
 int (*set_hp_impedance_ctl)(bool enable) = NULL;
+/*TabA7 Lite code for OT8-5362 by yingboyang at 20220314 start*/
+#ifdef CONFIG_SND_SOC_AW87XXX
+    extern int aw87xxx_set_profile(int dev_index, char *profile);
+    static char *aw_profile[] = {"Music", "Off"};/*aw87xxx_acf.bin 文件中配置场景*/
+    enum aw87xxx_dev_index {
+        AW_DEV_0 = 0,
+        AW_DEV_1 = 1,
+    };
+#endif
+/*TabA7 Lite code for OT8-5362 by yingboyang at 20220314 end*/
 /* Jogi: Need? @{ */
 #define SND_SOC_ADV_MT_FMTS (\
 				SNDRV_PCM_FMTBIT_S16_LE |\
@@ -187,6 +204,10 @@ int (*set_hp_impedance_ctl)(bool enable) = NULL;
 #define SOC_HIGH_USE_RATE (\
 				SNDRV_PCM_RATE_CONTINUOUS |\
 				SNDRV_PCM_RATE_8000_192000)
+
+
+
+
 static void Audio_Amp_Change(int channels, bool enable);
 static void SavePowerState(void)
 {
@@ -2509,10 +2530,14 @@ static void get_hp_lr_trim_offset(void)
 {
 #ifdef ANALOG_HPTRIM
 	set_lr_trim_code();
-	set_l_trim_code_spk();
+	if (mtk_spk_get_type() == 0)
+		set_l_trim_code_spk();
 #else
 	get_hp_trim_offset();
-	spkl_dc_offset = get_spk_trim_offset(AUDIO_OFFSET_TRIM_MUX_HPL);
+	if (mtk_spk_get_type() == 0)
+		spkl_dc_offset = get_spk_trim_offset(AUDIO_OFFSET_TRIM_MUX_HPL);
+	else
+		spkl_dc_offset = 0;
 #endif
 	udelay(1000);
 	dctrim_calibrated = 2;
@@ -3723,10 +3748,25 @@ static void Ext_Speaker_Amp_Change(bool enable)
 		AudDrv_GPIO_EXTAMP_Select(false, 3);
 		/*udelay(1000); */
 		usleep_range(1 * 1000, 2 * 1000);
-		AudDrv_GPIO_EXTAMP_Select(true, 3);
+/*TabA7 Lite code for OT8-5362 by yingboyang at 20220314 start*/
+#ifdef CONFIG_SND_SOC_AW87XXX
+    /*切换 PA AW_DEV_0 为 Music 场景*/
+    aw87xxx_set_profile(AW_DEV_0, aw_profile[0]);
+    aw87xxx_set_profile(AW_DEV_1, aw_profile[0]);
+#else
+    AudDrv_GPIO_EXTAMP_Select(true, 3);
+#endif
 		usleep_range(5 * 1000, 10 * 1000);
-	} else {
-		AudDrv_GPIO_EXTAMP_Select(false, 3);
+    } else {
+#ifdef CONFIG_SND_SOC_AW87XXX
+    /*切换 PA AW_DEV_0 为 Off 场景*/
+    aw87xxx_set_profile(AW_DEV_0, aw_profile[1]);
+    aw87xxx_set_profile(AW_DEV_1, aw_profile[1]);
+#else
+    AudDrv_GPIO_EXTAMP_Select(false, 3);
+#endif
+/*TabA7 Lite code for OT8-5362 by yingboyang at 20220314 end*/
+//huaqin add for aw87359 bringup by limengxia at 2020/11/20 end
 		udelay(500);
 	}
 #endif
@@ -3772,6 +3812,64 @@ static int Ext_Speaker_Amp_Set(struct snd_kcontrol *kcontrol,
 	}
 	return 0;
 }
+/*huaqin add for factory speaker by wangzhe at 2022/2/18 start*/
+#ifdef CONFIG_HQ_PROJECT_HS03S
+    /* modify code for O6 */
+#else
+    /* modify code for OT8 */
+/*huaqin add for factory speaker by limengxia at 2020/12/7 start*/
+static int aw_ampl_status;
+static int AW_Speaker_AmpL_Get(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_value *ucontrol)
+{
+	/* pr_debug("%s()\n", __func__); */
+	ucontrol->value.integer.value[0] = aw_ampl_status;
+	return 0;
+}
+static int AW_Speaker_AmpL_Set(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("%s() gain = %ld\n ", __func__,
+		 ucontrol->value.integer.value[0]);
+	if (ucontrol->value.integer.value[0]) {
+		/*TabA7 Lite code for OT8-5362 by yingboyang at 20220314 start*/
+		aw87xxx_set_profile(AW_DEV_0, aw_profile[0]);
+		aw_ampl_status = ucontrol->value.integer.value[0];
+	} else {
+		aw_ampl_status = ucontrol->value.integer.value[0];
+		aw87xxx_set_profile(AW_DEV_0, aw_profile[1]);
+		/*TabA7 Lite code for OT8-5362 by yingboyang at 20220314 end*/
+	}
+	return 0;
+}
+
+static int aw_ampr_status;
+static int AW_Speaker_AmpR_Get(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_value *ucontrol)
+{
+	/* pr_debug("%s()\n", __func__); */
+	ucontrol->value.integer.value[0] = aw_ampr_status;
+	return 0;
+}
+static int AW_Speaker_AmpR_Set(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("%s() gain = %ld\n ", __func__,
+		 ucontrol->value.integer.value[0]);
+	if (ucontrol->value.integer.value[0]) {
+		/*TabA7 Lite code for OT8-5362 by yingboyang at 20220314 start*/
+		aw87xxx_set_profile(AW_DEV_1, aw_profile[0]);
+		aw_ampr_status = ucontrol->value.integer.value[0];
+	} else {
+		aw_ampr_status = ucontrol->value.integer.value[0];
+		aw87xxx_set_profile(AW_DEV_1, aw_profile[1]);
+		/*TabA7 Lite code for OT8-5362 by yingboyang at 20220314 end*/
+	}
+	return 0;
+}
+/*huaqin add for factory speaker by limengxia at 2020/12/7 end*/
+#endif
+/*huaqin add for factory speaker by wangzhe at 2022/2/18 end*/
 static void Receiver_Speaker_Switch_Change(bool enable)
 {
 #ifndef CONFIG_FPGA_EARLY_PORTING
@@ -4454,6 +4552,17 @@ static const struct soc_enum Audio_DL_Enum[] = {
 			    dctrim_control_state),
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(apply_n12db_setting),
 			    apply_n12db_setting),
+/*huaqin add for factory speaker by wangzhe at 2022/2/18 start*/
+#ifdef CONFIG_HQ_PROJECT_HS03S
+    /* modify code for O6 */
+#else
+    /* modify code for OT8 */
+/*huaqin add for factory speaker by limengxia at 2020/12/7 start*/
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(amp_function), amp_function),
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(amp_function), amp_function),
+/*huaqin add for factory speaker by limengxia at 2020/12/7 end*/
+#endif
+/*huaqin add for factory speaker by wangzhe at 2022/2/18 end*/
 };
 static const struct snd_kcontrol_new mt6357_snd_controls[] = {
 	SOC_ENUM_EXT("Audio_Amp_R_Switch", Audio_DL_Enum[0], Audio_AmpR_Get,
@@ -4507,6 +4616,21 @@ static const struct snd_kcontrol_new mt6357_snd_controls[] = {
 		     hp_plugged_in_get, hp_plugged_in_set),
 	SOC_ENUM_EXT("Apply_N12DB_Gain", Audio_DL_Enum[14],
 		     apply_n12db_get, apply_n12db_set),
+/*huaqin add for factory speaker by wangzhe at 2022/2/18 start*/
+#ifdef CONFIG_HQ_PROJECT_HS03S
+    /* modify code for O6 */
+#else
+    /* modify code for OT8 */
+/*huaqin add for factory speaker by limengxia at 2020/12/7 start*/
+	SOC_ENUM_EXT("AW_Speaker_AmpL_Switch", Audio_DL_Enum[15],
+		     AW_Speaker_AmpL_Get,
+		     AW_Speaker_AmpL_Set),
+	SOC_ENUM_EXT("AW_Speaker_AmpR_Switch", Audio_DL_Enum[16],
+		     AW_Speaker_AmpR_Get,
+		     AW_Speaker_AmpR_Set),
+/*huaqin add for factory speaker by limengxia at 2020/12/7 end*/
+#endif
+/*huaqin add for factory speaker by wangzhe at 2022/2/18 end*/
 };
 void SetMicPGAGain(void)
 {
@@ -5986,6 +6110,15 @@ static int mt6357_component_probe(struct snd_soc_component *component)
 				   ARRAY_SIZE(mt6357_pmic_Test_controls));
 	snd_soc_add_component_controls(component, Audio_snd_auxadc_controls,
 				   ARRAY_SIZE(Audio_snd_auxadc_controls));
+/*TabA7 Lite code for OT8-5362 by yingboyang at 20220314 start*/
+#ifdef CONFIG_SND_SOC_AW87XXX
+    ret = aw87xxx_add_codec_controls((void *)component);
+    if (ret < 0) {
+        pr_err("%s: add_codec_controls failed, err %d\n" , __func__ , ret);
+        return ret;
+    }
+#endif
+/*TabA7 Lite code for OT8-5362 by yingboyang at 20220314 end*/
 	/* here to set  private data */
 	mCodec_data = kzalloc(sizeof(struct mt6357_codec_priv), GFP_KERNEL);
 	if (!mCodec_data) {
@@ -6110,7 +6243,7 @@ static int mtk_codec_dev_probe(struct platform_device *pdev)
 
 	mt63xx_set_local_priv(mCodec_priv);
 
-	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(64);
+	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
 	if (pdev->dev.dma_mask == NULL)
 		pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
 	if (pdev->dev.of_node) {

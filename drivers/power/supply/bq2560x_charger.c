@@ -834,6 +834,12 @@ static int bq2560x_init_device(struct bq2560x *bq)
 	if (ret)
 		pr_err("Failed to set acovp threshold, ret = %d\n", ret);
 
+	/*HS03s for DEVAL5626-524 by liujie at 20210901 start*/
+	ret= bq2560x_disable_safety_timer(bq);
+	if (ret)
+		pr_err("Failed to set safety_timer stop, ret = %d\n", ret);
+	/*HS03s for DEVAL5626-524 by liujie at 20210901 end*/
+
 	ret = bq2560x_set_int_mask(bq,
 					REG0A_IINDPM_INT_MASK |
 					REG0A_VINDPM_INT_MASK);

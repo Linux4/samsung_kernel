@@ -71,6 +71,7 @@ static void kpd_keymap_handler(unsigned long data);
 
 static int kpd_pdrv_probe(struct platform_device *pdev);
 
+
 /*hs03s  code for SR-AL5625-01-266 by wangdeyan at 20210408 start*/
 struct device *sec_key;
 

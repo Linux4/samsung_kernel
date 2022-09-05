@@ -349,9 +349,19 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		 * for thermal protection.
 		 */
 		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210429 start*/
+#ifdef CONFIG_HS03S_SUPPORT
+    /* modify code for O6 */
 		#if defined(HQ_FACTORY_BUILD) && (!defined(HQ_D85_BUILD))
 		BUG();
 		#endif
+#else
+    /* modify code for OT8 */
+	/*TabA7 Lite code for OT8-3638 import D85 policy by wenyaqi at 20210301 start*/
+		#ifndef HQ_D85_BUILD
+		BUG();
+		#endif
+		/*TabA7 Lite code for OT8-3638 import D85 policy by wenyaqi at 20210301 end*/
+#endif
 		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210429 end*/
 	}
 

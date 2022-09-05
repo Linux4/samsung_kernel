@@ -151,7 +151,7 @@ config INPUT_JOYDEV
 
 config INPUT_EVDEV
 	tristate "Event interface"
-		select SEC_INPUT_BOOSTER
+	select SEC_INPUT_BOOSTER
 	help
 	  Say Y here if you want your input device events be accessible
 	  under char device 13:64+ - /dev/input/eventX in a generic way.
@@ -194,6 +194,10 @@ config SEC_INPUT_BOOSTER
 
 	  It's triggered in evdev module.
 
+config FINGER
+	tristate "Export input device finger"
+	default n
+  
 comment "Input Device Drivers"
 
 source "drivers/input/keyboard/Kconfig"
@@ -219,6 +223,10 @@ menu "Hardware I/O ports"
 source "drivers/input/serio/Kconfig"
 
 source "drivers/input/gameport/Kconfig"
+
+#TabA7 Lite code for OT8-54 by Hujincan at 20201126 start
+source "drivers/input/sar_mode_detect/Kconfig"
+#TabA7 Lite code for OT8-54 by Hujincan at 20201126 end
 
 endmenu
 

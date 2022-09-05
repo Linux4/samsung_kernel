@@ -45,3 +45,4 @@ config TOUCHSCREEN_JADARD_SEC
 	help
 	  This build sec node.
 # HS03SD code added for SR-AL5625-01-305 by yuanliding at 20210521 end
+

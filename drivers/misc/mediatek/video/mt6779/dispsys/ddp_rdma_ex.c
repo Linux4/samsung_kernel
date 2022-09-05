@@ -21,6 +21,11 @@
 #include "ddp_misc.h"
 #include "ddp_reg_mmsys.h"
 
+#include <ion_sec_heap.h>
+#ifdef CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM
+#include "trusted_mem_api.h"
+#endif
+
 #define MMSYS_CLK_LOW (0)
 #define MMSYS_CLK_HIGH (1)
 
@@ -252,11 +257,12 @@ int rdma_reset(enum DISP_MODULE_ENUM module, void *handle)
 		udelay(10);
 		if (delay_cnt > 10000) {
 			ret = -1;
-			n = snprintf(msg, len,
-				     "rdma%d_reset timeout, stage 1! ", idx);
-			n += snprintf(msg + n, len - n,
-			       "DISP_REG_RDMA_GLOBAL_CON=0x%x\n",
-			       DISP_REG_GET(offset + DISP_REG_RDMA_GLOBAL_CON));
+			n = scnprintf(msg, len,
+				      "rdma%d_reset timeout, stage 1! ", idx);
+			n += scnprintf(msg + n, len - n,
+				"DISP_REG_RDMA_GLOBAL_CON=0x%x\n",
+				DISP_REG_GET(offset +
+				DISP_REG_RDMA_GLOBAL_CON));
 			DDP_PR_ERR("%s", msg);
 			break;
 		}
@@ -272,9 +278,9 @@ int rdma_reset(enum DISP_MODULE_ENUM module, void *handle)
 			continue;
 
 		ret = -1;
-		n = snprintf(msg, len,
+		n = scnprintf(msg, len,
 			     "rdma%d_reset timeout, stage 2! ", idx);
-		n += snprintf(msg + n, len - n,
+		n += scnprintf(msg + n, len - n,
 			      "DISP_REG_RDMA_GLOBAL_CON=0x%x\n",
 			      DISP_REG_GET(offset + DISP_REG_RDMA_GLOBAL_CON));
 		DDP_PR_ERR("%s", msg);
@@ -503,7 +509,8 @@ static int rdma_config(enum DISP_MODULE_ENUM module, enum RDMA_MODE mode,
 		       unsigned long address, enum UNIFIED_COLOR_FMT inFormat,
 		       unsigned int pitch, unsigned int width,
 		       unsigned int height, unsigned int ufoe_enable,
-		       enum DISP_BUFFER_TYPE sec, unsigned int yuv_range,
+		       enum DISP_BUFFER_TYPE sec, struct ion_handle *ion_hnd,
+		       unsigned int yuv_range,
 		       struct rdma_bg_ctrl_t *bg_ctrl, void *handle,
 		       struct golden_setting_context *p_golden_setting,
 		       unsigned int bpp)
@@ -586,6 +593,9 @@ static int rdma_config(enum DISP_MODULE_ENUM module, enum RDMA_MODE mode,
 	} else {
 		int m4u_port;
 		unsigned int size = pitch * height;
+		int sec = -1, sec_id = -1;
+		ion_phys_addr_t sec_hdl = 0;
+		enum TRUSTED_MEM_REQ_TYPE mem_type;
 
 		m4u_port = idx == 0 ?  DISP_M4U_PORT_DISP_RDMA0 :
 						DISP_M4U_PORT_DISP_RDMA1;
@@ -595,9 +605,20 @@ static int rdma_config(enum DISP_MODULE_ENUM module, enum RDMA_MODE mode,
 		 * cmdq sec driver will help to convert handle to
 		 * correct address
 		 */
-		cmdqRecWriteSecure(handle, disp_addr_convert(offset +
+		if (unlikely(!ion_hnd)) {
+			DISP_LOG_E("%s #%d NULL handle for secure layer\n",
+				   __func__, __LINE__);
+			return 0;
+		}
+		mem_type = ion_hdl2sec_type(ion_hnd, &sec, &sec_id, &sec_hdl);
+
+		if (unlikely(mem_type < 0)) {
+			DISP_LOG_E("normal memory set as secure\n");
+			return 0;
+		}
+		cmdqRecWriteSecureMetaData(handle, disp_addr_convert(offset +
 						DISP_REG_RDMA_MEM_START_ADDR),
-				CMDQ_SAM_H_2_MVA, address, 0, size, m4u_port);
+				CMDQ_SAM_H_2_MVA, address, 0, size, m4u_port, mem_type);
 	}
 
 	DISP_REG_SET(handle, offset + DISP_REG_RDMA_MEM_SRC_PITCH, pitch);
@@ -822,7 +843,7 @@ void rdma_dump_analysis(enum DISP_MODULE_ENUM module)
 
 	global_ctrl = DISP_REG_GET(DISP_REG_RDMA_GLOBAL_CON + offset);
 	DDPDUMP("== DISP %s ANALYSIS ==\n", ddp_get_module_name(module));
-	n = snprintf(msg, len,
+	n = scnprintf(msg, len,
 		     "en=%d,mode:%s,smi_busy:%d,wh(%dx%d),pitch=%d,",
 		REG_FLD_VAL_GET(GLOBAL_CON_FLD_ENGINE_EN + offset, global_ctrl),
 		REG_FLD_VAL_GET(GLOBAL_CON_FLD_MODE_SEL + offset,
@@ -831,7 +852,7 @@ void rdma_dump_analysis(enum DISP_MODULE_ENUM module)
 		DISP_REG_GET(DISP_REG_RDMA_SIZE_CON_0 + offset) & 0xfff,
 		DISP_REG_GET(DISP_REG_RDMA_SIZE_CON_1 + offset) & 0xfffff,
 		DISP_REG_GET(DISP_REG_RDMA_MEM_SRC_PITCH + offset));
-	n += snprintf(msg + n, len - n,
+	n += scnprintf(msg + n, len - n,
 		      "addr=0x%08x,fmt=%s,fifo_sz=%u,",
 		DISP_REG_GET(DISP_REG_RDMA_MEM_START_ADDR + offset),
 		unified_color_fmt_name(display_fmt_reg_to_unified_fmt(
@@ -840,13 +861,13 @@ void rdma_dump_analysis(enum DISP_MODULE_ENUM module)
 					(DISP_REG_GET(DISP_REG_RDMA_MEM_CON +
 						      offset) >> 8) & 0x1, 0)),
 		REG_FLD_VAL_GET(FIFO_CON_FLD_FIFO_PSEUDO_SIZE, fifo));
-	n += snprintf(msg + n, len - n,
+	n += scnprintf(msg + n, len - n,
 		      "output_valid_threshold=%u,fifo_min=%d\n",
 		REG_FLD_VAL_GET(FIFO_CON_FLD_OUTPUT_VALID_FIFO_THRESHOLD, fifo),
 		DISP_REG_GET(DISP_REG_RDMA_FIFO_LOG + offset));
 	DDPDUMP("%s", msg);
 
-	n = snprintf(msg, len,
+	n = scnprintf(msg, len,
 		     "pos:in(%d,%d)out(%d,%d),bg(t%d,b%d,l%d,r%d),",
 		     DISP_REG_GET(DISP_REG_RDMA_IN_P_CNT + offset),
 		     DISP_REG_GET(DISP_REG_RDMA_IN_LINE_CNT + offset),
@@ -856,7 +877,7 @@ void rdma_dump_analysis(enum DISP_MODULE_ENUM module)
 		     REG_FLD_VAL_GET(RDMA_BG_CON_1_BOTTOM + offset, bg1),
 		     REG_FLD_VAL_GET(RDMA_BG_CON_0_LEFT + offset, bg0),
 		     REG_FLD_VAL_GET(RDMA_BG_CON_0_RIGHT + offset, bg0));
-	n += snprintf(msg + n, len - n,
+	n += scnprintf(msg + n, len - n,
 		      "start=%lld ns,end=%lld ns\n",
 		      rdma_start_time[idx], rdma_end_time[idx]);
 	DDPDUMP("%s", msg);
@@ -959,7 +980,8 @@ static int do_rdma_config_l(enum DISP_MODULE_ENUM module,
 		    (mode == RDMA_MODE_DIRECT_LINK) ? UFMT_RGB888 : inFormat,
 		    (mode == RDMA_MODE_DIRECT_LINK) ? 0 : cfg->pitch,
 		    width, height, lcm_param->dsi.ufoe_enable,
-		    cfg->security, cfg->yuv_range,
+		    cfg->security, cfg->hnd,
+		    cfg->yuv_range,
 		    &cfg->bg_ctrl, handle, p_golden_setting,
 		    pConfig->lcm_bpp);
 

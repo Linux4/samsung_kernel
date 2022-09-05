@@ -16,9 +16,6 @@
 #include <linux/wait.h>
 #include "mtk_gauge.h"
 
-#if defined(CONFIG_BATTERY_CISD)
-#include "batt_cisd.h"
-#endif
 
 #define NETLINK_FGD 26
 #define UNIT_TRANS_10	10
@@ -243,6 +240,7 @@ enum fg_daemon_cmds {
 	FG_DAEMON_CMD_GET_SOC_DECIMAL_RATE,
 	FG_DAEMON_CMD_GET_DIFF_SOC_SET,
 	FG_DAEMON_CMD_SET_ZCV_INTR_EN,
+	FG_DAEMON_CMD_GET_IS_FORCE_FULL,
 
 	FG_DAEMON_CMD_FROM_USER_NUMBER
 
@@ -736,7 +734,12 @@ struct simulator_log {
 #define AVGVBAT_ARRAY_SIZE 30
 #define INIT_VOLTAGE 3450
 #define BATTERY_SHUTDOWN_TEMPERATURE 60
-
+#ifndef CONFIG_HS03S_SUPPORT
+#ifndef HQ_FACTORY_BUILD	//ss version
+#define BATTERY_SHUTDOWN_TEMPERATURE_VZW 65
+#endif
+/*TabA7 Lite code for P210511-00533 by wenyaqi at 20210713 end*/
+#endif
 struct shutdown_condition {
 	bool is_overheat;
 	bool is_soc_zero_percent;
@@ -819,6 +822,9 @@ struct mtk_battery {
 	bool ntc_disable_nafg;
 	bool cmd_disable_nafg;
 
+/*battery full*/
+	bool is_force_full;
+
 	/*battery plug in out*/
 	int chr_type;
 	bool disable_plug_int;
@@ -828,6 +834,7 @@ struct mtk_battery {
 	int ui_soc;
 	struct timespec uisoc_oldtime;
 	int d_saved_car;
+	int tbat_precise;
 
 	/*battery interrupt*/
 	/* coulomb interrupt */
@@ -949,6 +956,8 @@ struct mtk_battery {
 	int (*resume)(struct mtk_battery *gm);
 
 	int log_level;
+#ifdef CONFIG_HS03S_SUPPORT
+/* modify code for O6 */
 	/*HS03s for SR-AL5625-01-251 by wenyaqi at 20210425 start*/
 	char *battery_type;
 	/*HS03s for SR-AL5625-01-251 by wenyaqi at 20210425 end*/
@@ -957,8 +966,25 @@ struct mtk_battery {
 	int batt_cap_control;
 	#endif
 	/*HS03s for SR-AL5625-01-272 by wenyaqi at 20210427 end*/
-#if defined(CONFIG_BATTERY_CISD)
-	struct cisd cisd;
+#else
+/* modify code for O8 */
+	/*TabA7 Lite  code for SR-AX3565-01-108 by gaoxugang at 20201124 start*/
+	#if !defined(HQ_FACTORY_BUILD)
+	int battery_slate_mode;
+	#endif
+	/*TabA7 Lite code for  SR-AX3565-01-13 add sysFS node named battery/input_suspend by wenyaqi at 20201130 start*/
+	int input_suspend;
+	/*TabA7 Lite code for  SR-AX3565-01-13 add sysFS node named battery/input_suspend by wenyaqi at 20201130 end*/
+	/*TabA7 Lite  code for SR-AX3565-01-108 by gaoxugang at 20201124 end*/
+	/*TabA7 Lite code for SR-QL3095-01-91 add batt_id and battery profile by wenyaqi at 20201201 start*/
+	char *battery_type;
+	/*TabA7 Lite code for SR-QL3095-01-91 add batt_id and battery profile by wenyaqi at 20201201 end*/
+       /* TabA7 Lite code for OT8-5454 by shixuanxuan at 2022040 start */
+	#ifndef HQ_FACTORY_BUILD
+	int cust_batt_cap;
+	int batt_full_flag;
+	#endif
+	/* TabA7 Lite code for OT8-5454 by shixuanxuan at 20220401 end */
 #endif
 };
 

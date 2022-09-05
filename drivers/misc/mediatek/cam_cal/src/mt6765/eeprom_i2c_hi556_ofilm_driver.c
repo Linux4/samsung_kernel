@@ -227,7 +227,7 @@ int hi556_ofilm_iReadData(unsigned int ui4_offset,
 	{
 		pinputdata[i+45] = read_cmos_sensor(0x108);
 		checksum += pinputdata[i+45];
-		printk("HI556_OFILM[%d] lsc_data[%d] = 0x%x", i+45, i,pinputdata[i+45]);
+		pr_debug("HI556_OFILM[%d] lsc_data[%d] = 0x%x", i+45, i,pinputdata[i+45]);
 	}
 	lsc_data_checksum = read_cmos_sensor(0x108);
 	checksum = (checksum % 0xFF) + 1;

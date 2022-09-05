@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--dct_version="2.5" buid_sn="161102" dws_modification_time="06.24.2021.17:23:42"-->
+<!--dct_version="2.5" buid_sn="161102" dws_modification_time="05.07.2021.21:01:11"-->
 <dct_cfg>
     <general chip="MT6765">
         <proj>MT6765</proj>
@@ -55,6 +55,13 @@
                 <sensitive_level>Edge</sensitive_level>
                 <debounce_en>Disable</debounce_en>
             </eint1>
+            <eint2>
+                <varName>MRDUMP_EXT_RST</varName>
+                <debounce_time>512</debounce_time>
+                <polarity>Low</polarity>
+                <sensitive_level>Level</sensitive_level>
+                <debounce_en>Enable</debounce_en>
+            </eint2>
             <eint7>
                 <varName>SMART_PA</varName>
                 <debounce_time>0</debounce_time>
@@ -83,6 +90,13 @@
                 <sensitive_level>Edge</sensitive_level>
                 <debounce_en>Disable</debounce_en>
             </eint11>
+            <eint23>
+                <varName>RT9465_SLAVE_CHR</varName>
+                <debounce_time>0</debounce_time>
+                <polarity>Low</polarity>
+                <sensitive_level>Level</sensitive_level>
+                <debounce_en>Disable</debounce_en>
+            </eint23>
             <eint44>
                 <varName>DSI_TE</varName>
                 <debounce_time>0</debounce_time>
@@ -365,7 +379,7 @@
                 <out_high>false</out_high>
                 <smt>false</smt>
                 <ies>true</ies>
-            </gpio24>
+            </gpio24>            
             <gpio25>
                 <eint_mode>false</eint_mode>
                 <def_mode>1</def_mode>
@@ -638,6 +652,7 @@
                 <def_dir>OUT</def_dir>
                 <out_high>false</out_high>
                 <smt>false</smt>
+
                 <ies>true</ies>
             </gpio50>
             <gpio51>
@@ -648,6 +663,7 @@
                 <def_dir>OUT</def_dir>
                 <out_high>false</out_high>
                 <smt>false</smt>
+
                 <ies>true</ies>
             </gpio51>
             <gpio52>
@@ -1707,7 +1723,7 @@
                 <ies>true</ies>
             </gpio155>
             <gpio156>
-                <eint_mode>false</eint_mode>
+                 <eint_mode>false</eint_mode>
                 <def_mode>1</def_mode>
                 <inpull_en>false</inpull_en>
                 <inpull_selhigh>false</inpull_selhigh>
@@ -1846,7 +1862,7 @@
                 <out_high>false</out_high>
                 <smt>false</smt>
                 <ies>true</ies>
-            </gpio168>
+            </gpio168>            
             <gpio169>
                 <eint_mode>false</eint_mode>
                 <def_mode>0</def_mode>
@@ -2048,6 +2064,13 @@
                 <channel>I2C_CHANNEL_5</channel>
                 <address>0x34</address>
             </device15>
+            <!-- HS03S code for SR-AL5625-01-363 by liaobin at 2022/1/20 start -->  
+ 	    <!--device16>
+                <varName>USB_TYPE_C</varName>
+                <channel>I2C_CHANNEL_5</channel>
+                <address>0x4E</address>
+            </device16-->
+	    <!-- HS03S code for SR-AL5625-01-363 by liaobin at 2022/1/20 end -->
             <device17>
                 <varName>EXT_BUCK_VGPU</varName>
                 <channel>I2C_CHANNEL_6</channel>
@@ -2073,16 +2096,16 @@
                 <channel>I2C_CHANNEL_4</channel>
                 <address>0x11</address>
             </device21>
-            <device22>
-                <varName>CAMERA_MAIN_THREE</varName>
-                <channel>I2C_CHANNEL_2</channel>
-                <address>0x6E</address>
-            </device22>
             <device23>
                 <varName>I2C_LCD_BIAS</varName>
                 <channel>I2C_CHANNEL_5</channel>
                 <address>0x3E</address>
             </device23>
+            <device22>
+                <varName>CAMERA_MAIN_THREE</varName>
+                <channel>I2C_CHANNEL_2</channel>
+                <address>0x6E</address>
+            </device22>
         </module>
         <module name="md1_eint">
             <count>3</count>
@@ -2115,7 +2138,7 @@
                 <defEn>OFF</defEn>
                 <varName0>MAIN_CAMERA_POWER_A</varName0>
                 <varName1>MAIN_CAMERA_2_POWER_A</varName1>
-                <varName2>MAIN_CAMERA_3_POWER_A</varName2>
+                <varName2>MAIN_CAMERA_3_POWER_A</varName2>                
             </pmic0>
             <pmic1>
                 <ldoVar>VSIM1</ldoVar>
@@ -2136,7 +2159,7 @@
                 <varName0>MAIN_CAMERA_POWER_IO</varName0>
                 <varName1>SUB_CAMERA_POWER_IO</varName1>
                 <varName2>MAIN_CAMERA_2_POWER_IO</varName2>
-                <varName3>MAIN_CAMERA_3_POWER_IO</varName3>
+                <varName3>MAIN_CAMERA_3_POWER_IO</varName3>                
             </pmic4>
             <pmic5>
                 <ldoVar>VLDO28</ldoVar>
@@ -2144,6 +2167,10 @@
                 <varName0>MAIN_CAMERA_POWER_AF</varName0>
                 <varName1>SUB_CAMERA_POWER_AF</varName1>
                 <varName2>MAIN_CAMERA_2_POWER_AF</varName2>
+                <!-- HS03S code for SR-AL5625-01-363 by liaobin at 2022/1/20 start -->
+		<!--varName3>CAP_TOUCH_VDD</varName3 -->
+		<!-- HS03S code for SR-AL5625-01-363 by liaobin at 2022/1/20 end -->
+                <varName3>CAP_TOUCH_VDD</varName3>
             </pmic5>
         </module>
         <module name="kpd">

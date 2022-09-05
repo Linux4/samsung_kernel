@@ -89,3 +89,8 @@ do {\
 
 #endif /* end of #ifndef BRING_UP_LOG_MODE */
 #endif /*__CCCI_UTIL_LOG_H__ */
+
+
+/* for direct dump reserved memory */
+extern void mrdump_mini_add_misc_pa(unsigned long va, unsigned long pa,
+		unsigned long size, unsigned long start, char *name);

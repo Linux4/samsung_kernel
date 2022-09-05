@@ -143,6 +143,10 @@
 #define WUSB3801_SNK_1500MA             (0x02 << 5)
 #define WUSB3801_SNK_3000MA             (0x03 << 5)
 #define WUSB3801_ATTACH                  0x1C
+/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 start */
+#define WUSB3801_HUB_STATUS_1			 201
+#define WUSB3801_HUB_STATUS_2			 202
+/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 end */
 
 //#define WUSB3801_TYPE_PWR_ACC           (0x00 << 2) /*Ra/Rd treated as Open*/
 #define WUSB3801_TYPE_INVALID           (0x00)

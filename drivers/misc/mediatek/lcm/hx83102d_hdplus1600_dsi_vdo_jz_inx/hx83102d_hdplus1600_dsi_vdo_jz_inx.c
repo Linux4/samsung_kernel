@@ -308,7 +308,7 @@ static void lcm_init_power(void)
 {
 	pr_notice("[Kernel/LCM] %s enter\n", __func__);
 
-/* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 start */
+	/* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 start */
 #ifdef CONFIG_HQ_SET_LCD_BIAS
 	lcd_bias_set_vspn(ON, VSP_FIRST_VSN_AFTER, 6000);  //open lcd bias
 	MDELAY(15);
@@ -318,6 +318,8 @@ static void lcm_init_power(void)
 #endif
 /* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 end */
 }
+
+extern int mtk_tpd_smart_wakeup_support(void);
 
 static void lcm_suspend_power(void)
 {

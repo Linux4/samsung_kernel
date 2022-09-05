@@ -1380,9 +1380,32 @@ static int silfp_probe(struct spi_device *spi)
 {
     struct silfp_data *fp_dev;
     int    status = 0;
+    /* HS03S code added for DEVAL5625-2567 by hujincan at 20211122 start */
+    int    avdd_gpio = 0;
+    int    ret = 0;
+    char   *command_line = saved_command_line;
     //unsigned long		minor;
 
     LOG_MSG_DEBUG(INFO_LOG, "[%s] enter.\n", __func__);
+    LOG_MSG_DEBUG(DBG_LOG, "[%s] command_line = %s\n", __func__, command_line);
+
+    if (NULL != strstr(command_line, "androidboot.mode=charger")) {
+        avdd_gpio = of_get_named_gpio(spi->dev.of_node, "avdd-gpio", 0);
+        if (avdd_gpio > 0) {
+            gpio_free(avdd_gpio);
+            ret = gpio_request(avdd_gpio, "FPS_AVDD_GPIO");
+            if (ret < 0) {
+                LOG_MSG_DEBUG(DBG_LOG, "[%s] Failed to request avdd_gpio.\n", __func__);
+            }
+            else {
+                gpio_direction_output(avdd_gpio, 0);
+                gpio_free(avdd_gpio);
+                avdd_gpio = 0;
+                LOG_MSG_DEBUG(DBG_LOG, "[%s] Shutdown charging mode,poweroff.\n", __func__);
+            }
+        }
+    }
+    /* HS03S code added for DEVAL5625-2567 by hujincan at 20211122 end */
     /* Allocate driver data */
     fp_dev = kzalloc(sizeof(*fp_dev), GFP_KERNEL);
     if (!fp_dev) {

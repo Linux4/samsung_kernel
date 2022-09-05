@@ -69,7 +69,7 @@ int ccci_log_write(const char *fmt, ...)
 	preempt_disable();
 	this_cpu = smp_processor_id();
 	preempt_enable();
-	write_len = snprintf(temp_log, CCCI_LOG_MAX_WRITE,
+	write_len = scnprintf(temp_log, CCCI_LOG_MAX_WRITE,
 						"[%5lu.%06lu]%c(%x)[%d:%s]",
 						(unsigned long)ts_nsec,
 						rem_nsec / 1000,
@@ -77,12 +77,6 @@ int ccci_log_write(const char *fmt, ...)
 						this_cpu,
 						current->pid,
 						current->comm);
-	if (write_len < 0) {
-		pr_notice("%s-%d:snprintf fail,write_len = %d\n",
-			__func__, __LINE__, write_len);
-		write_len = 0;
-	} else if (write_len >= CCCI_LOG_MAX_WRITE)
-		write_len = CCCI_LOG_MAX_WRITE - 1;
 
 	va_start(args, fmt);
 	write_len +=
@@ -142,22 +136,16 @@ int ccci_log_write_raw(unsigned int set_flags, const char *fmt, ...)
 		preempt_disable();
 		this_cpu = smp_processor_id();
 		preempt_enable();
-		write_len = snprintf(temp_log, CCCI_LOG_MAX_WRITE,
+		write_len = scnprintf(temp_log, CCCI_LOG_MAX_WRITE,
 					"[%5lu.%06lu]%c(%x)",
 					(unsigned long)ts_nsec,
 					rem_nsec / 1000, state,
 					this_cpu);
-		if (write_len < 0) {
-			pr_notice("%s-%d:snprintf fail,write_len = %d\n",
-				__func__, __LINE__, write_len);
-			write_len = 0;
-		} else if (write_len >= CCCI_LOG_MAX_WRITE)
-			write_len = CCCI_LOG_MAX_WRITE - 1;
 	} else
 		write_len = 0;
 
 	if (set_flags & CCCI_DUMP_CURR_FLAG) {
-		write_len += snprintf(temp_log + write_len,
+		write_len += scnprintf(temp_log + write_len,
 						CCCI_LOG_MAX_WRITE - write_len,
 						"[%d:%s]",
 						current->pid, current->comm);
@@ -283,7 +271,7 @@ static const struct file_operations ccci_log_fops = {
 /******************************************************************************/
 /* Dump buffer part, this type log is NON block read, used for AED dump       */
 /******************************************************************************/
-#define CCCI_INIT_SETTING_BUF	(4096*2)
+#define CCCI_INIT_SETTING_BUF		(4096*2)
 #define CCCI_BOOT_UP_BUF		(4096*16)
 
 #ifdef CCCI_LOG_DISABLE
@@ -297,13 +285,15 @@ static const struct file_operations ccci_log_fops = {
 #endif
 
 #define CCCI_REG_DUMP_BUF		(4096*64 * 2)
+#define CCCI_DUMP_MD_INIT_BUF		(1024*16)
 
-#define MD3_CCCI_INIT_SETTING_BUF   (4096*2)
-#define MD3_CCCI_BOOT_UP_BUF                (4096*16)
-#define MD3_CCCI_NORMAL_BUF                 (4096*2)
-#define MD3_CCCI_REPEAT_BUF                 (4096*32)
-#define MD3_CCCI_REG_DUMP_BUF               (4096*32)
-#define MD3_CCCI_HISTORY_BUF                (4096*32)
+#define MD3_CCCI_INIT_SETTING_BUF	(64)
+#define MD3_CCCI_BOOT_UP_BUF		(64)
+#define MD3_CCCI_NORMAL_BUF		(64)
+#define MD3_CCCI_REPEAT_BUF		(64)
+#define MD3_CCCI_REG_DUMP_BUF		(64)
+#define MD3_CCCI_HISTORY_BUF		(64)
+
 
 struct ccci_dump_buffer {
 	void *buffer;
@@ -331,6 +321,8 @@ static struct ccci_dump_buffer repeat_ctlb[2];
 static struct ccci_dump_buffer reg_dump_ctlb[2];
 static struct ccci_dump_buffer history_ctlb[2];
 static struct ccci_dump_buffer ke_dump_ctlb[2];
+static struct ccci_dump_buffer md_init_buf[2];
+
 static int buff_bind_md_id[5];
 static int md_id_bind_buf_id[5];
 static int buff_en_bit_map;
@@ -378,6 +370,8 @@ static struct buffer_node node_array[2][CCCI_DUMP_MAX+1] = {
 		CCCI_DUMP_ATTR_RING, CCCI_DUMP_HISTORY},
 		{&ke_dump_ctlb[0], 32*1024,
 		CCCI_DUMP_ATTR_RING, CCCI_DUMP_REGISTER},
+		{&md_init_buf[0], CCCI_DUMP_MD_INIT_BUF,
+		CCCI_DUMP_ATTR_RING, CCCI_DUMP_MD_INIT},
 	},
 	{
 		{&init_setting_ctlb[1], MD3_CCCI_INIT_SETTING_BUF,
@@ -394,8 +388,35 @@ static struct buffer_node node_array[2][CCCI_DUMP_MAX+1] = {
 		CCCI_DUMP_ATTR_RING, CCCI_DUMP_HISTORY},
 		{&ke_dump_ctlb[1], 1*1024,
 		CCCI_DUMP_ATTR_RING, CCCI_DUMP_REGISTER},
+		{&md_init_buf[1], 64,
+		CCCI_DUMP_ATTR_RING, CCCI_DUMP_MD_INIT},
 	}
 };
+
+#define CCCI_DUMP_WRITE_MAX_LEN 255
+static ssize_t ccci_dump_fops_write(struct file *file,
+	const char __user *buffer, size_t size, loff_t *ppos)
+{
+	char infor_buf[CCCI_DUMP_WRITE_MAX_LEN] = {0};
+	int res = 0;
+	int dump_flag = 0;
+
+	if (size >= CCCI_DUMP_WRITE_MAX_LEN)
+		return -EINVAL;
+
+	if (copy_from_user(infor_buf, buffer, size))
+		return -EFAULT;
+
+	infor_buf[size] = '\0';
+
+	dump_flag = CCCI_DUMP_TIME_FLAG | CCCI_DUMP_ANDROID_TIME_FLAG;
+	res = ccci_dump_write(0, CCCI_DUMP_MD_INIT, dump_flag, "%s\n", infor_buf);
+	if (unlikely(res < 0)) {
+		pr_info("[ccci0/util]ccci dump write fail, size=%d, info:%s, res:%d\n",
+		       size, infor_buf, res);
+	}
+	return size;
+}
 
 int ccci_dump_write(int md_id, int buf_type,
 	unsigned int flag, const char *fmt, ...)
@@ -412,6 +433,8 @@ int ccci_dump_write(int md_id, int buf_type,
 	int can_be_write;
 	int actual_write;
 	struct ccci_dump_buffer *ptr;
+	struct timeval savetv = {0};
+	struct rtc_time now_time;
 
 	/* parameter check */
 	if (unlikely(md_id >= MAX_MD_NUM))
@@ -448,26 +471,44 @@ int ccci_dump_write(int md_id, int buf_type,
 	}
 
 	/* prepare time info */
-	if (flag&CCCI_DUMP_TIME_FLAG) {
+	if (flag & CCCI_DUMP_TIME_FLAG) {
 		state = irqs_disabled() ? '-' : ' ';
 		ts_nsec = local_clock();
 		rem_nsec = do_div(ts_nsec, 1000000000);
-		preempt_disable();
-		this_cpu = smp_processor_id();
-		preempt_enable();
-		write_len = snprintf(temp_log, CCCI_LOG_MAX_WRITE,
-						"[%5lu.%06lu]%c(%x)[%d:%s]",
-						(unsigned long)ts_nsec,
-						rem_nsec / 1000, state,
-						this_cpu,
-						current->pid,
-						current->comm);
-		if (write_len < 0) {
-			pr_notice("%s-%d:snprintf fail,write_len = %d\n",
-				__func__, __LINE__, write_len);
-			write_len = 0;
-		} else if (write_len >= CCCI_LOG_MAX_WRITE)
-			write_len = CCCI_LOG_MAX_WRITE - 1;
+
+		if (flag & CCCI_DUMP_ANDROID_TIME_FLAG) {
+			do_gettimeofday(&savetv);
+			savetv.tv_sec -= sys_tz.tz_minuteswest * 60;
+			rtc_time_to_tm(savetv.tv_sec, &now_time);
+
+			write_len = scnprintf(temp_log, CCCI_LOG_MAX_WRITE,
+					     "[%04ld-%02d-%02d %02d:%02d:%02d.%03d]",
+					     now_time.tm_year + 1900,
+					     now_time.tm_mon + 1,
+					     now_time.tm_mday,
+					     now_time.tm_hour,
+					     now_time.tm_min,
+					     now_time.tm_sec,
+					     (unsigned int)savetv.tv_usec);
+
+			write_len += scnprintf(temp_log + write_len,
+					      CCCI_LOG_MAX_WRITE - write_len,
+					      "[%5lu.%06lu]",
+					      (unsigned long)ts_nsec,
+					      rem_nsec / 1000);
+		} else {
+			preempt_disable();
+			this_cpu = smp_processor_id();
+			preempt_enable();
+
+			write_len = scnprintf(temp_log, CCCI_LOG_MAX_WRITE,
+					     "[%5lu.%06lu]%c(%x)[%d:%s]",
+					     (unsigned long)ts_nsec,
+					     rem_nsec / 1000, state,
+					     this_cpu,
+					     current->pid,
+					     current->comm);
+		}
 	}
 
 	va_start(args, fmt);
@@ -476,8 +517,14 @@ int ccci_dump_write(int md_id, int buf_type,
 					fmt, args);
 	va_end(args);
 
+	if (write_len >= CCCI_LOG_MAX_WRITE) {
+		pr_notice("%s-%d: string too long, write_len(%d) is over max(%d)\n",
+			__func__, __LINE__, write_len, CCCI_LOG_MAX_WRITE);
+		write_len = CCCI_LOG_MAX_WRITE - 1;
+	}
+
 	spin_lock_irqsave(&ptr->lock, flags);
-	if (flag&CCCI_DUMP_CLR_BUF_FLAG) {
+	if (flag & CCCI_DUMP_CLR_BUF_FLAG) {
 		ptr->data_size = 0;
 		ptr->write_pos = 0;
 	}
@@ -558,6 +605,9 @@ static void format_separate_str(char str[], int type)
 	case CCCI_DUMP_REGISTER:
 		sep_str = "[0]REGISTER LOG REGION";
 		break;
+	case CCCI_DUMP_MD_INIT:
+		sep_str = "[0]CCCI MD INIT REGION";
+		break;
 	default:
 		sep_str = "[0]Unsupport REGION";
 		break;
@@ -575,7 +625,7 @@ static void format_separate_str(char str[], int type)
 	}
 }
 
-static ssize_t ccci_dump_read(struct file *file, char __user *buf,
+static ssize_t ccci_dump_fops_read(struct file *file, char __user *buf,
 	size_t size, loff_t *ppos)
 {
 	unsigned int available, read_len;
@@ -752,12 +802,12 @@ _out:
 	return (ssize_t)has_read;
 }
 
-unsigned int ccci_dump_poll(struct file *fp, struct poll_table_struct *poll)
+unsigned int ccci_dump_fops_poll(struct file *fp, struct poll_table_struct *poll)
 {
 	return POLLIN | POLLRDNORM;
 }
 
-static int ccci_dump_open(struct inode *inode, struct file *file)
+static int ccci_dump_fops_open(struct inode *inode, struct file *file)
 {
 	struct ccci_user_ctlb *user_info;
 
@@ -773,7 +823,7 @@ static int ccci_dump_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static int ccci_dump_close(struct inode *inode, struct file *file)
+static int ccci_dump_fops_close(struct inode *inode, struct file *file)
 {
 	struct ccci_user_ctlb *user_info;
 	unsigned long flags;
@@ -803,18 +853,20 @@ static int ccci_dump_close(struct inode *inode, struct file *file)
 }
 
 static const struct file_operations ccci_dump_fops = {
-	.read = ccci_dump_read,
-	.open = ccci_dump_open,
-	.release = ccci_dump_close,
-	.poll = ccci_dump_poll,
+	.read = ccci_dump_fops_read,
+	.write = ccci_dump_fops_write,
+	.open = ccci_dump_fops_open,
+	.release = ccci_dump_fops_close,
+	.poll = ccci_dump_fops_poll,
 };
 
+#ifdef CUST_FT_DUMP_BUF_FROM_DT
 phys_addr_t cccimdee_reserved_phy_addr;
 void *cccimdee_reserved_vir_addr;
 unsigned int cccimdee_reserved_size;
-
 static int cccimdee_reserve_memory_alloc(unsigned int zone,
 	unsigned int id, unsigned int size, struct ccci_dump_buffer *ctlb_ptr);
+#endif
 
 static void ccci_dump_buffer_init(void)
 {
@@ -823,14 +875,18 @@ static void ccci_dump_buffer_init(void)
 	struct proc_dir_entry *ccci_dump_proc;
 	struct buffer_node *node_ptr = NULL;
 	struct ccci_dump_buffer *ptr = NULL;
-	pgprot_t prot;
 
-	ccci_dump_proc = proc_create("ccci_dump", 0440, NULL, &ccci_dump_fops);
+#ifdef CUST_FT_DUMP_BUF_FROM_DT
+	pgprot_t prot;
+#endif
+
+	ccci_dump_proc = proc_create("ccci_dump", 0660, NULL, &ccci_dump_fops);
 	if (ccci_dump_proc == NULL) {
 		pr_notice("[ccci0/util]fail to create proc entry for dump\n");
 		return;
 	}
 
+#ifdef CUST_FT_DUMP_BUF_FROM_DT
 	cccimdee_reserved_phy_addr &= PAGE_MASK;
 	if (!pfn_valid(__phys_to_pfn(cccimdee_reserved_phy_addr)))
 		cccimdee_reserved_vir_addr =
@@ -842,6 +898,7 @@ static void ccci_dump_buffer_init(void)
 			vmap_reserved_mem(cccimdee_reserved_phy_addr,
 				cccimdee_reserved_size, prot);
 	}
+#endif
 
 	spin_lock_init(&file_lock);
 
@@ -873,8 +930,10 @@ static void ccci_dump_buffer_init(void)
 	}
 
 	for (i = 0; i < 2; i++) {
+#ifdef CUST_FT_DUMP_BUF_FROM_DT
 		node_ptr = &node_array[i][0];
 		j = 0;
+
 		while (node_ptr->ctlb_ptr != NULL) {
 			ptr = node_ptr->ctlb_ptr;
 			spin_lock_init(&ptr->lock);
@@ -895,6 +954,25 @@ static void ccci_dump_buffer_init(void)
 			}
 			node_ptr++;
 			j++;
+#else
+		node_ptr = &node_array[i][0];
+		while (node_ptr->ctlb_ptr != NULL) {
+			ptr = node_ptr->ctlb_ptr;
+
+			spin_lock_init(&ptr->lock);
+			if (buff_en_bit_map & (1<<i) && node_ptr->init_size) {
+				/* allocate buffer */
+				ptr->buffer = kmalloc(node_ptr->init_size,
+						GFP_KERNEL);
+				if (ptr->buffer != NULL) {
+					ptr->buf_size = node_ptr->init_size;
+					ptr->attr = node_ptr->init_attr;
+				} else
+					pr_notice("[ccci0/util]fail to allocate buff index %d\n",
+						node_ptr->index);
+			}
+			node_ptr++;
+#endif
 		}
 	}
 }
@@ -906,22 +984,22 @@ int get_dump_buf_usage(char buf[], int size)
 	int i;
 
 	for (i = 0; i < 2; i++) {
-		ret += snprintf(&buf[ret], size - ret,
+		ret += scnprintf(&buf[ret], size - ret,
 					"For dump buf [%d]\n", i);
-		ret += snprintf(&buf[ret], size - ret, "  init:%d\n",
+		ret += scnprintf(&buf[ret], size - ret, "  init:%d\n",
 					init_setting_ctlb[i].max_num);
-		ret += snprintf(&buf[ret], size - ret, "  bootup:%d\n",
+		ret += scnprintf(&buf[ret], size - ret, "  bootup:%d\n",
 					boot_up_ctlb[i].max_num);
-		ret += snprintf(&buf[ret], size - ret, "  normal:%d\n",
+		ret += scnprintf(&buf[ret], size - ret, "  normal:%d\n",
 					normal_ctlb[i].max_num);
-		ret += snprintf(&buf[ret], size - ret, "  repeat:%d\n",
+		ret += scnprintf(&buf[ret], size - ret, "  repeat:%d\n",
 					repeat_ctlb[i].max_num);
-		ret += snprintf(&buf[ret], size - ret,
+		ret += scnprintf(&buf[ret], size - ret,
 					"  reg_dump:%d\n",
 					reg_dump_ctlb[i].max_num);
-		ret += snprintf(&buf[ret], size - ret, "  history:%d\n",
+		ret += scnprintf(&buf[ret], size - ret, "  history:%d\n",
 					history_ctlb[i].max_num);
-		ret += snprintf(&buf[ret], size - ret, "  register:%d\n",
+		ret += scnprintf(&buf[ret], size - ret, "  register:%d\n",
 					ke_dump_ctlb[i].max_num);
 	}
 
@@ -1097,7 +1175,7 @@ int ccci_event_log(const char *fmt, ...)
 	tv_android.tv_sec -= sys_tz.tz_minuteswest * 60;
 	rtc_time_to_tm(tv_android.tv_sec, &tm_android);
 
-	write_len = snprintf(temp_log, CCCI_LOG_MAX_WRITE,
+	write_len = scnprintf(temp_log, CCCI_LOG_MAX_WRITE,
 			"%d%02d%02d-%02d:%02d:%02d.%03d [%5lu.%06lu]%c(%x)[%d:%s]",
 			tm.tm_year + 1900,
 			tm.tm_mon + 1,
@@ -1112,12 +1190,6 @@ int ccci_event_log(const char *fmt, ...)
 			this_cpu,
 			current->pid,
 			current->comm);
-	if (write_len < 0) {
-		pr_notice("%s-%d:snprintf fail,write_len = %d\n",
-			__func__, __LINE__, write_len);
-		write_len = 0;
-	} else if (write_len >= CCCI_LOG_MAX_WRITE)
-		write_len = CCCI_LOG_MAX_WRITE - 1;
 
 	va_start(args, fmt);
 	write_len += vsnprintf(temp_log
@@ -1211,10 +1283,7 @@ void ccci_log_init(void)
 	ccci_event_buffer_init();
 }
 
-/* for direct dump reserved memory */
-extern void mrdump_mini_add_misc_pa(unsigned long va, unsigned long pa,
-		unsigned long size, unsigned long start, char *name);
-
+#ifdef CUST_FT_DUMP_BUF_FROM_DT
 void get_ccci_aee_buffer(unsigned long *vaddr, unsigned long *size)
 {
 	struct ccci_dump_buffer *ctlb_ptr = &ke_dump_ctlb[0];
@@ -1222,7 +1291,6 @@ void get_ccci_aee_buffer(unsigned long *vaddr, unsigned long *size)
 
 	if (data_size > ctlb_ptr->buf_size)
 		data_size = ctlb_ptr->buf_size;
-
 	/* will be dumped directly during exception */
 	if (ctlb_ptr->buf_pa) {
 		*vaddr = 0;
@@ -1242,7 +1310,6 @@ void get_md_aee_buffer(unsigned long *vaddr, unsigned long *size)
 
 	if (data_size > ctlb_ptr->buf_size)
 		data_size = ctlb_ptr->buf_size;
-
 	/* for reserve-mem, will be dumped directly during exception */
 	/* for kmalloc lm-VA, will be dumped by common mrdump */
 	if (ctlb_ptr->buf_pa) {
@@ -1287,7 +1354,6 @@ static int cccimdee_reserve_memory_alloc(unsigned int zone,
 
 	pr_notice("[ccci]alloc ee dump DT reserve memory:zone %d,id:%d, size:0x%x, virt:0x%lx, phy:0x%llx\n",
 		zone, id, size, (unsigned long)ctlb_ptr->buffer, ctlb_ptr->buf_pa);
-
 	cccimdee_reserved_vir_addr += size;
 	cccimdee_reserved_phy_addr += size;
 
@@ -1296,4 +1362,30 @@ static int cccimdee_reserve_memory_alloc(unsigned int zone,
 
 RESERVEDMEM_OF_DECLARE(reserve_memory_cccimdeedump, "mediatek,ccci-md-ee-dump",
 	cccimdee_reserve_memory_init);
+#else
+void get_ccci_aee_buffer(unsigned long *vaddr, unsigned long *size)
+{
+	unsigned long data_size = ke_dump_ctlb[0].data_size;
 
+	if (data_size > ke_dump_ctlb[0].buf_size)
+		data_size = ke_dump_ctlb[0].buf_size;
+
+	*vaddr = (unsigned long)ke_dump_ctlb[0].buffer;
+	*size = data_size;
+
+}
+EXPORT_SYMBOL(get_ccci_aee_buffer);
+
+void get_md_aee_buffer(unsigned long *vaddr, unsigned long *size)
+{
+	unsigned long data_size = reg_dump_ctlb[0].data_size;
+
+	if (data_size > reg_dump_ctlb[0].buf_size)
+		data_size = reg_dump_ctlb[0].buf_size;
+
+	*vaddr = (unsigned long)reg_dump_ctlb[0].buffer;
+	*size = data_size;
+
+}
+EXPORT_SYMBOL(get_md_aee_buffer);
+#endif

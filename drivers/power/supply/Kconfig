@@ -561,7 +561,7 @@ config CHARGER_BQ24257
 	tristate "TI BQ24250/24251/24257 battery charger driver"
 	depends on I2C
 	depends on GPIOLIB || COMPILE_TEST
-	depends on REGMAP_I2C
+	select REGMAP_I2C
 	help
 	  Say Y to enable support for the TI BQ24250, BQ24251, and BQ24257 battery
 	  chargers.
@@ -838,6 +838,15 @@ config CHARGER_SGM41511
 	  SGM41511 driver.
 # HS03s for SR-AL5625-01-510 by wenyaqi at 20210531 end
 
+# hs03s_NM code for SR-AL5625-01-646 by shixuanxuan at 20220414 start
+config CHARGER_SGM41513
+	bool "CHARGER_SGM41513"
+	depends on MTK_CHARGER
+	help
+	  Say Yes to enable
+	  SGM41513 driver.
+# hs03s_NM code for SR-AL5625-01-646 by shixuanxuan at 20220414 end
+
 # HS03s for SR-AL5625-01-543 by wenyaqi at 20210611 start
 config CHARGER_ETA6953
 	bool "CHARGER_ETA6953"
@@ -855,12 +864,6 @@ config CHARGER_SY6974
 	  Say Yes to enable
 	  SY6974 driver.
 # HS03s for SR-AL5625-01-542 by wenyaqi at 20210609 end
-
- config BATTERY_CISD
-	 bool "support for cisd"
-	 help
-	 Say Y to include support for cisd
-	 cisd means cell internal short detection
 
 endif # POWER_SUPPLY
 

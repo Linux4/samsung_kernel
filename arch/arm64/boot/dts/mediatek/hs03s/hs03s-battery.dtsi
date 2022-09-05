@@ -175,3 +175,6 @@
 /*HS03s for SR-AL5625-01-542 by wenyaqi at 20210609 start*/
 #include "sy6974.dtsi"
 /*HS03s for SR-AL5625-01-542 by wenyaqi at 20210609 end*/
+/*hs03s_NM code for SR-AL5625-01-646 by shixuanxuan at 20220414 start*/
+#include "sgm41513.dtsi"
+/*hs03s_NM code for SR-AL5625-01-646 by shixuanxuan at 20220414 end*/

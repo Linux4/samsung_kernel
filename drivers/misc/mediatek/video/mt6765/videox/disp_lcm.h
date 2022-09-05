@@ -63,7 +63,6 @@ int disp_lcm_validate_roi(struct disp_lcm_handle *plcm,
 	int *x, int *y, int *w, int *h);
 int disp_lcm_aod(struct disp_lcm_handle *plcm, int enter);
 int disp_lcm_is_arr_support(struct disp_lcm_handle *plcm);
-int disp_lcm_disable(struct disp_lcm_handle *plcm);
 
 /*-----------------------DynFPS start-----------------------------------*/
 int disp_lcm_is_dynfps_support(struct disp_lcm_handle *plcm);

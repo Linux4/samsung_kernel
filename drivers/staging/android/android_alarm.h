@@ -64,6 +64,10 @@ enum android_alarm_return_flags {
 #define ANDROID_ALARM_GET_POWER_ON_IPO          _IOR('a', 10, struct rtc_wkalrm)
 #define ANDROID_ALARM_WAIT_IPO                  _IO('a', 11)
 
+#ifdef CONFIG_RTC_AUTO_PWRON
+#define ANDROID_ALARM_SET_ALARM_BOOT	    _IOW('a', 7, struct timespec)
+#endif
+
 struct rtc_device *alarmtimer_get_rtcdev(void);
 
 #ifdef CONFIG_COMPAT
@@ -75,6 +79,10 @@ struct rtc_device *alarmtimer_get_rtcdev(void);
 							struct compat_timespec)
 #define ANDROID_ALARM_SET_RTC_COMPAT		_IOW('a', 5, \
 							struct compat_timespec)
+#ifdef CONFIG_RTC_AUTO_PWRON
+#define ANDROID_ALARM_SET_ALARM_BOOT_COMPAT	_IOW('a', 7, \
+							struct compat_timespec)
+#endif
 #define ANDROID_ALARM_SET_IPO_COMPAT(type)		ALARM_IOW(8, type, \
 							struct compat_timespec)
 #define ANDROID_ALARM_SET_AND_WAIT_IPO_COMPAT(type) ALARM_IOW(9, type, \

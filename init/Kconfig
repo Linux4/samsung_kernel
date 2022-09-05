@@ -72,8 +72,7 @@ config INIT_ENV_ARG_LIMIT
 
 config COMPILE_TEST
 	bool "Compile also drivers which will not load"
-	depends on !UML
-	default n
+	depends on HAS_IOMEM
 	help
 	  Some drivers can be compiled on a different platform than they are
 	  intended to be run on. Despite they cannot be loaded there (or even
@@ -589,7 +588,8 @@ config IKHEADERS
 
 config LOG_BUF_SHIFT
 	int "Kernel log buffer size (16 => 64KB, 17 => 128KB)"
-	range 12 25
+	range 12 25 if !H8300
+	range 12 19 if H8300
 	default 17
 	depends on PRINTK
 	help
@@ -728,7 +728,7 @@ config UCLAMP_BUCKETS_COUNT
 
 choice
 	bool "Configure PELT speed for load/utilization tracking"
-	default PELT_HALFLIFE_32
+	default PELT_HALFLIFE_16
 	help
 	  Allows to choose one of the possible values for the PELT half-life to
 	  be used for the update of the load and utilization of tasks and CPUs.

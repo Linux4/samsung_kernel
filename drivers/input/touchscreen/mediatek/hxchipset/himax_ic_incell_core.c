@@ -2666,7 +2666,7 @@ static void himax_mcu_touch_information(void)
 
 	ic_data->HX_Y_RES = private_ts->pdata->screenHeight;
 	ic_data->HX_X_RES = private_ts->pdata->screenWidth;
-
+	
 	if(strcmp(HX_83112A_LS_BOE, private_ts->chip_name) == 0 ){
 		ic_data->HX_RX_NUM = FIX_HX_RX_NUM;
 		ic_data->HX_TX_NUM = FIX_HX_TX_NUM;

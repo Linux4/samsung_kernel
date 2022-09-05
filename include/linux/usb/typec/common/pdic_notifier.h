@@ -20,20 +20,24 @@
  * refer Team Docs > ETC > 1. USB Type C >
  * code managing > pdic_notifier, pdic_notifier
  */
+#define PDIC_NOTI_DEST_NUM			(12)
+#define PDIC_NOTI_ID_NUM			(17)
+#define PDIC_NOTI_RID_NUM			(8)
+#define PDIC_NOTI_USB_STATUS_NUM	(5)
+#define PDIC_NOTI_PIN_STATUS_NUM	(8)
+
 typedef enum {
 	PDIC_NOTIFY_DEV_INITIAL		= 0,
-	PDIC_NOTIFY_DEV_USB		= 1,
+	PDIC_NOTIFY_DEV_USB			= 1,
 	PDIC_NOTIFY_DEV_BATT		= 2,
 	PDIC_NOTIFY_DEV_PDIC		= 3,
 	PDIC_NOTIFY_DEV_MUIC		= 4,
-	PDIC_NOTIFY_DEV_CCIC		= 5,
 	PDIC_NOTIFY_DEV_MANAGER		= 6,
-	PDIC_NOTIFY_DEV_DP		= 7,
+	PDIC_NOTIFY_DEV_DP			= 7,
 	PDIC_NOTIFY_DEV_USB_DP		= 8,
 	PDIC_NOTIFY_DEV_SUB_BATTERY	= 9,
-	PDIC_NOTIFY_DEV_SECOND_MUIC	= 10,
-	PDIC_NOTIFY_DEV_DEDICATED_MUIC	= 11,
-	PDIC_NOTIFY_DEV_ALL 		= 12,
+	PDIC_NOTIFY_DEV_SECOND_MUIC = 10,
+	PDIC_NOTIFY_DEV_ALL 		= 11,
 } pdic_notifier_device;
 
 typedef enum {
@@ -52,9 +56,8 @@ typedef enum {
 	PDIC_NOTIFY_ID_USB_DP			= 12,
 	PDIC_NOTIFY_ID_ROLE_SWAP		= 13,
 	PDIC_NOTIFY_ID_FAC				= 14,
-	PDIC_NOTIFY_ID_CC_PIN_STATUS	= 15,
+	PDIC_NOTIFY_ID_PD_PIN_STATUS	= 15,
 	PDIC_NOTIFY_ID_WATER_CABLE		= 16,
-	PDIC_NOTIFY_ID_POFF_WATER		= 17,
 } pdic_notifier_id_t;
 
 typedef enum {
@@ -69,22 +72,22 @@ typedef enum {
 } pdic_notifier_rid_t;
 
 typedef enum {
-	USB_STATUS_NOTIFY_DETACH	= 0,
+	USB_STATUS_NOTIFY_DETACH		= 0,
 	USB_STATUS_NOTIFY_ATTACH_DFP	= 1,
 	USB_STATUS_NOTIFY_ATTACH_UFP	= 2,
 	USB_STATUS_NOTIFY_ATTACH_DRP	= 3,
+	USB_STATUS_NOTIFY_ATTACH_NO_USB	= 4,
 } USB_STATUS;
 
 typedef enum {
 	PDIC_NOTIFY_PIN_STATUS_NO_DETERMINATION = 0,
-	PDIC_NOTIFY_PIN_STATUS_CC1_ACTIVE		= 1,
-	PDIC_NOTIFY_PIN_STATUS_CC2_ACTIVE		= 2,
+	PDIC_NOTIFY_PIN_STATUS_PD1_ACTIVE		= 1,
+	PDIC_NOTIFY_PIN_STATUS_PD2_ACTIVE		= 2,
 	PDIC_NOTIFY_PIN_STATUS_AUDIO_ACCESSORY	= 3,
 	PDIC_NOTIFY_PIN_STATUS_DEBUG_ACCESSORY	= 4,
 	PDIC_NOTIFY_PIN_STATUS_PDIC_ERROR		= 5,
 	PDIC_NOTIFY_PIN_STATUS_DISABLED			= 6,
 	PDIC_NOTIFY_PIN_STATUS_RFU				= 7,
-	PDIC_NOTIFY_PIN_STATUS_NOCC_USB_ACTIVE	= 8,
 } pdic_notifier_pin_status_t;
 
 typedef enum {
@@ -113,15 +116,6 @@ typedef enum {
 	PDIC_NOTIFY_IRQ		= 2,
 } pdic_notifier_dp_hpd_t;
 
-typedef enum {
-	PDIC_NOTIFY_PD_EVENT_DETACH = 0,
-	PDIC_NOTIFY_PD_EVENT_CCIC_ATTACH,
-	PDIC_NOTIFY_PD_EVENT_SINK,
-	PDIC_NOTIFY_PD_EVENT_SOURCE,
-	PDIC_NOTIFY_PD_EVENT_SINK_CAP,
-	PDIC_NOTIFY_PD_EVENT_PRSWAP_SNKTOSRC,
-} pdic_notifier_pd_event_t;
-
 typedef struct {
 	uint64_t src:4;
 	uint64_t dest:4;
@@ -129,7 +123,7 @@ typedef struct {
 	uint64_t sub1:16;
 	uint64_t sub2:16;
 	uint64_t sub3:16;
-#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
 	void *pd;
 #endif
 } PD_NOTI_TYPEDEF;
@@ -142,7 +136,7 @@ typedef struct {
 	uint64_t attach:16;
 	uint64_t rprd:16;
 	uint64_t cable_type:16;
-#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
 	void *pd;
 #endif
 } PD_NOTI_ATTACH_TYPEDEF;
@@ -155,7 +149,7 @@ typedef struct {
 	uint64_t rid:16;
 	uint64_t sub2:16;
 	uint64_t sub3:16;
-#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
 	void *pd;
 #endif
 } PD_NOTI_RID_TYPEDEF;
@@ -168,7 +162,7 @@ typedef struct {
 	uint64_t attach:16;
 	uint64_t drp:16;
 	uint64_t sub3:16;
-#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
 	void *pd;
 #endif
 } PD_NOTI_USB_STATUS_TYPEDEF;
@@ -180,23 +174,10 @@ typedef struct {
 	uint64_t is_connect:16;
 	uint64_t hs_connect:16;
 	uint64_t reserved:16;
-#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
 	void *pd;
 #endif
 } USB_DP_NOTI_TYPEDEF;
-
-/* ID = 4 : POWER STATUS */
-typedef struct {
-	uint64_t src:4;
-	uint64_t dest:4;
-	uint64_t id:8;
-	uint64_t attach:16;
-	uint64_t event:16;
-	uint64_t data:16;
-#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
-	void *pd;
-#endif
-} PD_NOTI_POWER_STATUS_TYPEDEF;
 
 struct pdic_notifier_data {
 	PD_NOTI_TYPEDEF pdic_template;
@@ -206,28 +187,15 @@ struct pdic_notifier_data {
 #define PDIC_NOTIFIER_BLOCK(name)	\
 	struct notifier_block (name)
 
-#define SET_PDIC_NOTIFIER_BLOCK(nb, fn, dev) do {	\
-		(nb)->notifier_call = (fn);		\
-		(nb)->priority = (dev);			\
-	} while (0)
-
-#define DESTROY_PDIC_NOTIFIER_BLOCK(nb)			\
-		SET_PDIC_NOTIFIER_BLOCK(nb, NULL, -1)
+extern char PDIC_NOTI_DEST_Print[PDIC_NOTI_DEST_NUM][10];
+extern char PDIC_NOTI_ID_Print[PDIC_NOTI_ID_NUM][20];
+extern char PDIC_NOTI_RID_Print[PDIC_NOTI_RID_NUM][15];
+extern char PDIC_NOTI_USB_STATUS_Print[PDIC_NOTI_USB_STATUS_NUM][20];
 
 extern int pdic_notifier_notify(PD_NOTI_TYPEDEF *noti, void *pd,
 		int pdic_attach);
 extern int pdic_notifier_register(struct notifier_block *nb,
 		notifier_fn_t notifier, pdic_notifier_device listener);
 extern int pdic_notifier_unregister(struct notifier_block *nb);
-extern void pdic_uevent_work(int id, int state);
-
-const char *pdic_event_src_string(pdic_notifier_device src);
-const char *pdic_event_dest_string(pdic_notifier_device dest);
-const char *pdic_event_id_string(pdic_notifier_id_t id);
-const char *pdic_rid_string(pdic_notifier_rid_t rid);
-const char *pdic_usbstatus_string(USB_STATUS usbstatus);
-
-#ifndef MODULE
 extern int pdic_notifier_init(void);
-#endif
 #endif /* __PDIC_NOTIFIER_H__ */

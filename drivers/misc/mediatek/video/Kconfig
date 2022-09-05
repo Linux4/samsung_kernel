@@ -158,9 +158,3 @@ config MTK_DISPLAY_LOW_MEMORY_DEBUG_SUPPORT
 	  If enable this option, display some debug buffer will be reduced or closed.
 	  If you want to use Meditek display low memory debug, please make sure it is Y in xxx_defconfig.mk.
 	  If unsure, set N.
-config MTK_VSYNC_PRINT
-	bool "print vsync signal in systrace for samsung customer"
-	default y
-	help
-	  define CONFIG_MTK_VSYNC_PRINT
-	  to enable vsync signal print in systrace for samsung customer

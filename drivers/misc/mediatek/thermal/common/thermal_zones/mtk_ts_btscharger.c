@@ -52,8 +52,15 @@ do { \
 	pr_notice("[Thermal/tzcharger]" fmt, ##args)
 
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
+
+#ifdef CONFIG_HS03S_SUPPORT
 struct iio_channel *thermistor_ch2;
+#else
+struct iio_channel *thermistor_ch4;
 #endif
+
+#endif
+
 
 static kuid_t uid = KUIDT_INIT(0);
 static kgid_t gid = KGIDT_INIT(1000);
@@ -548,7 +555,11 @@ static int mtktscharger_get_hw_temp(void)
 #endif
 
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
+#ifdef CONFIG_HS03S_SUPPORT
 	ret = iio_read_channel_processed(thermistor_ch2, &val);
+#else
+	ret = iio_read_channel_processed(thermistor_ch4, &val);
+#endif
 	if (ret < 0) {
 		mtktscharger_dprintk_always(
 			"Busy/Timeout, IIO ch read failed %d\n", ret);
@@ -822,6 +833,8 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		pr_notice("*****************************************\n");
 		pr_notice("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
 
+#ifdef CONFIG_HS03S_SUPPORT
+    /* modify code for O6 */
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
@@ -830,6 +843,15 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		BUG();
 		#endif
 		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210429 end*/
+#else
+    /* modify code for OT8 */
+		/*TabA7 Lite code for OT8-3638 import D85 policy by wenyaqi at 20210301 start*/
+		#ifndef HQ_D85_BUILD
+		BUG();
+		#endif
+		/*TabA7 Lite code for OT8-3638 import D85 policy by wenyaqi at 20210301 end*/
+#endif
+
 	}
 
 	return 0;
@@ -1260,6 +1282,7 @@ static int mtktscharger_pdrv_probe(struct platform_device *pdev)
 			__func__);
 		return -ENODEV;
 	}
+#ifdef CONFIG_HS03S_SUPPORT
 
 	thermistor_ch2 = devm_kzalloc(&pdev->dev, sizeof(*thermistor_ch2),
 		GFP_KERNEL);
@@ -1275,7 +1298,25 @@ static int mtktscharger_pdrv_probe(struct platform_device *pdev)
 			__func__, ret);
 		return ret;
 	}
+#else
+	/*TabA7 Lite code for SR-AX3565-01-55 modify charger temp ntc by wenyaqi at 20201123 start*/
+	thermistor_ch4 = devm_kzalloc(&pdev->dev, sizeof(*thermistor_ch4),
+		GFP_KERNEL);
+	if (!thermistor_ch4)
+		return -ENOMEM;
 
+
+	thermistor_ch4 = iio_channel_get(&pdev->dev, "thermistor-ch4");
+	ret = IS_ERR(thermistor_ch4);
+	if (ret) {
+		mtktscharger_dprintk_always(
+			"[%s] fail to get auxadc iio ch4: %d\n",
+			__func__, ret);
+		return ret;
+	}
+	/*TabA7 Lite code for SR-AX3565-01-55 modify charger temp ntc by wenyaqi at 20201123 end*/
+
+#endif
 	err = mtktscharger_register_thermal();
 	if (err)
 		goto err_unreg;
@@ -1309,6 +1350,7 @@ static int mtktscharger_pdrv_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_HS03S_SUPPORT
 
 #ifdef CONFIG_OF
 const struct of_device_id mt_thermistor_of_match3[2] = {
@@ -1316,8 +1358,24 @@ const struct of_device_id mt_thermistor_of_match3[2] = {
 	{},
 };
 #endif
-
 #define THERMAL_THERMISTOR_NAME    "mtboard-thermistor3"
+
+#else
+
+#ifdef CONFIG_OF
+const struct of_device_id mt_thermistor_of_match3[2] = {
+	/*TabA7 Lite code for SR-AX3565-01-55 modify charger temp ntc by wenyaqi at 20201123 start*/
+	{.compatible = "mediatek,mtboard-thermistor5",},
+	/*TabA7 Lite code for SR-AX3565-01-55 modify charger temp ntc by wenyaqi at 20201123 end*/
+	{},
+};
+#endif
+
+/*TabA7 Lite code for SR-AX3565-01-55 modify charger temp ntc by wenyaqi at 20201123 start*/
+#define THERMAL_THERMISTOR_NAME    "mtboard-thermistor5"
+/*TabA7 Lite code for SR-AX3565-01-55 modify charger temp ntc by wenyaqi at 20201123 end*/
+
+#endif
 static struct platform_driver mtktscharger_driver = {
 	.probe = mtktscharger_pdrv_probe,
 	.remove = mtktscharger_pdrv_remove,

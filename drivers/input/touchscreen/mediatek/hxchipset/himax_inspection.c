@@ -2453,7 +2453,7 @@ static int himax_self_test_data_init(void)
 	}else {
 		file_name_2 = "hx_83102d_criteria.csv";
 	}
-
+	
 	/*
 	 * 5: one value will not over than 99999, so get this size of string
 	 * 2: get twice size
@@ -2805,12 +2805,17 @@ static int himax_chip_self_test(struct seq_file *s, void *v)
 		hx_print_ic_id();
 	}
 
+/*hs03s  code for DEVAL5625-500 by wangdeyan at 20210525 start*/
 	if (himax_check_mode(HX_RAWDATA)) {
 		I("%s:try to  Need to back to Normal!\n", __func__);
 		himax_switch_mode_inspection(HX_RAWDATA);
 		if (private_ts->debug_log_level & BIT(4))
 			I("%s:start sense on!\n", __func__);
-		g_core_fp.fp_sense_on(0);
+			#if defined(HX_ZERO_FLASH)
+				g_core_fp.fp_power_on_init();
+			#else		
+				g_core_fp.fp_sense_on(0);
+			#endif
 		if (private_ts->debug_log_level & BIT(4))
 			I("%s:end sense on!\n", __func__);
 		himax_wait_sorting_mode(HX_RAWDATA);
@@ -2818,10 +2823,16 @@ static int himax_chip_self_test(struct seq_file *s, void *v)
 		I("%s: It has been in Normal!\n", __func__);
 		if (private_ts->debug_log_level & BIT(4))
 			I("%s:start sense on!\n", __func__);
-		g_core_fp.fp_sense_on(0);
+			#if defined(HX_ZERO_FLASH)
+				g_core_fp.fp_power_on_init();
+			#else
+				g_core_fp.fp_sense_on(0);
+			#endif
 		if (private_ts->debug_log_level & BIT(4))
 			I("%s:end sense on!\n", __func__);
 	}
+
+/*hs03s  code for DEVAL5625-500 by wangdeyan at 20210525 end*/
 
 	if (ret == HX_INSP_OK)
 		seq_puts(s, "Self_Test Pass:\n");
@@ -2897,7 +2908,6 @@ void himax_ito_test_work(struct work_struct *work)
 		filp_close(file_p, NULL);
 	}
 	/* HS03S code for DEVAL5625-2101 by gaozhengwei at 2021/07/14 end */
-
 	if (!kp_putname_kernel) {
 			E("kp_putname_kernel is NULL, not open file!\n");
 			file_w_flag = false;
@@ -2930,6 +2940,7 @@ static int dev_mkdir(char *name, umode_t mode)
 }
 /* HS03S code for DEVAL5625-2101 by gaozhengwei at 2021/07/14 end */
 
+
 static int himax_chip_self_test_for_hq(void)
 {
         uint32_t ret = HX_INSP_OK;
@@ -2947,8 +2958,8 @@ static int himax_chip_self_test_for_hq(void)
         I("%s:IN\n", __func__);
         mutex_lock(&private_ts->ito_lock);
         private_ts->suspend_resume_done = 0;
-
-        /* HS03S code for DEVAL5625-2101 by gaozhengwei at 2021/07/14 start */
+	
+	/* HS03S code for DEVAL5625-2101 by gaozhengwei at 2021/07/14 start */
         if ((dev_mkdir(HX_RSLT_OUT_PATH, 0777)) != 0)
             E("%s: Failed to create directory for mp_test\n", __func__);
         /* HS03S code for DEVAL5625-2101 by gaozhengwei at 2021/07/14 end */
@@ -3095,17 +3106,12 @@ static int himax_chip_self_test_for_hq(void)
 #endif
 #endif
 
-/*hs03s  code for DEVAL5625-500 by wangdeyan at 20210525 start*/
         if (himax_check_mode(HX_RAWDATA)) {
                 I("%s:try to  Need to back to Normal!\n", __func__);
                 himax_switch_mode_inspection(HX_RAWDATA);
                 if (private_ts->debug_log_level & BIT(4))
                         I("%s:start sense on!\n", __func__);
-				#if defined(HX_ZERO_FLASH)
-						g_core_fp.fp_power_on_init();
-				#else
-						g_core_fp.fp_sense_on(0);
-				#endif
+                g_core_fp.fp_sense_on(0);
                 if (private_ts->debug_log_level & BIT(4))
                         I("%s:end sense on!\n", __func__);
                 himax_wait_sorting_mode(HX_RAWDATA);
@@ -3113,15 +3119,10 @@ static int himax_chip_self_test_for_hq(void)
                 I("%s: It has been in Normal!\n", __func__);
                 if (private_ts->debug_log_level & BIT(4))
                         I("%s:start sense on!\n", __func__);
-				#if defined(HX_ZERO_FLASH)
-						g_core_fp.fp_power_on_init();
-				#else
-						g_core_fp.fp_sense_on(0);
-				#endif
+                g_core_fp.fp_sense_on(0);
                 if (private_ts->debug_log_level & BIT(4))
                         I("%s:end sense on!\n", __func__);
         }
-/*hs03s  code for DEVAL5625-500 by wangdeyan at 20210525 end*/
 
         if (ret == HX_INSP_OK)
                 I("Self_Test Pass:\n");

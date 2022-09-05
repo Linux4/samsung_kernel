@@ -44,7 +44,14 @@ struct pinctrl_state *pins_default;
 struct pinctrl_state *eint_as_int, *eint_output0,
 		*eint_output1, *rst_output0, *rst_output1;
 
+#ifdef CONFIG_HQ_PROJECT_OT8
+    /* modify code for OT8 */
+extern enum tp_module_used tp_is_used;
+#else
+    /* modify code for O6 */
 enum tp_module_used tp_is_used = UNKNOWN_TP;
+#endif
+
 const struct of_device_id touch_of_match[] = {
 	{ .compatible = "mediatek,touch", },
 	{},
@@ -407,7 +414,6 @@ static struct tpd_driver_t *g_tpd_drv;
 /* hh: use fb_notifier */
 static struct notifier_block tpd_fb_notifier;
 /* use fb_notifier */
-/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 start */
 static void touch_resume_workqueue_callback(struct work_struct *work)
 {
 	TPD_DEBUG("GTP %s\n", __func__);
@@ -423,12 +429,18 @@ static int tpd_fb_notifier_callback(
 	int err = 0;
 
 	TPD_DEBUG("%s\n", __func__);
-
+	#ifdef HQ_PROJECT_OT8
+    /* modify code for OT8 */
 	if ((event != FB_EVENT_BLANK) && (event != FB_EARLY_EVENT_BLANK)){
-		TPD_DMESG("do not care this event\n");
+	TPD_DMESG("do not care this event\n");
+
+#else
+    /* modify code for O6 */
+		if(!tpd_load_status){
+#endif
 		return 0;
 	}
-
+	TPD_DEBUG("%d\n", tpd_load_status);
 	evdata = data;
 
 	blank = *(int *)evdata->data;
@@ -461,43 +473,8 @@ static int tpd_fb_notifier_callback(
 	}
 
 	return 0;
+
 }
-
-/* ESD RECOVERY */
-int tpd_driver_esd_suspend(void)
-{
-	int err = 0;
-
-	if (g_tpd_drv && !tpd_suspend_flag) {
-		err = cancel_work_sync(&touch_resume_work);
-		if (!err)
-			TPD_DMESG("cancel resume_workqueue failed\n");
-		g_tpd_drv->suspend(NULL);
-	}
-	tpd_suspend_flag = 1;
-
-	return 0;
-}
-EXPORT_SYMBOL(tpd_driver_esd_suspend);
-
-int tpd_driver_esd_resume(void)
-{
-	int err = 0;
-
-	if (g_tpd_drv && tpd_suspend_flag) {
-		err = queue_work(touch_resume_workqueue,
-					&touch_resume_work);
-		if (!err) {
-			TPD_DMESG("start resume_workqueue failed\n");
-			return err;
-		}
-	}
-
-	return 0;
-}
-EXPORT_SYMBOL(tpd_driver_esd_resume);
-/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 end */
-
 /* Add driver: if find TPD_TYPE_CAPACITIVE driver successfully, loading it */
 int tpd_driver_add(struct tpd_driver_t *tpd_drv)
 {
@@ -542,6 +519,38 @@ int tpd_driver_add(struct tpd_driver_t *tpd_drv)
 	return 0;
 }
 
+/* ESD RECOVERY */
+int tpd_driver_esd_suspend(void)
+{
+	int err = 0;
+
+	if (g_tpd_drv && !tpd_suspend_flag) {
+		err = cancel_work_sync(&touch_resume_work);
+		if (!err)
+			TPD_DMESG("cancel resume_workqueue failed\n");
+		g_tpd_drv->suspend(NULL);
+	}
+	tpd_suspend_flag = 1;
+
+	return 0;
+}
+
+int tpd_driver_esd_resume(void)
+{
+	int err = 0;
+
+	if (g_tpd_drv && tpd_suspend_flag) {
+		err = queue_work(touch_resume_workqueue,
+					&touch_resume_work);
+		if (!err) {
+			TPD_DMESG("start resume_workqueue failed\n");
+			return err;
+		}
+	}
+
+	return 0;
+}
+
 int tpd_driver_remove(struct tpd_driver_t *tpd_drv)
 {
 	int i = 0;
@@ -579,7 +588,16 @@ static ssize_t mtk_tpd_proc_getinfo_read(struct file *filp, char __user *buff, s
 {
         int rc = 0;
 	char tp_info_buf[150] = {0};
+	#ifdef HQ_PROJECT_OT8
+    /* modify code for OT8 */
+	/*TabA7 Lite code for OT8-5106 by hehaoran at 20210805 start*/
+	snprintf(tp_info_buf, 150, "IC_MODULE: %s,TOUCH_VER: %X\n",mtp_chip_name,mtp_fw_ver);
+	/*TabA7 Lite code for OT8-5106 by hehaoran at 20210805 start*/
+	#else
+    /* modify code for O6 */
 	snprintf(tp_info_buf, 150, "IC_NAME: %s,TOUCH_VER: %X\n",mtp_chip_name,mtp_fw_ver);
+	#endif
+
 	rc = simple_read_from_buffer(buff, size, pPos, tp_info_buf, strlen(tp_info_buf));
 	return rc;
 }
@@ -609,24 +627,22 @@ int smart_wakeup_open_flag = 1;
 #else
 int smart_wakeup_open_flag = 0;
 #endif
-
 int mtk_tpd_smart_wakeup_support(void)
 {
 	return smart_wakeup_open_flag;
 }
 EXPORT_SYMBOL(mtk_tpd_smart_wakeup_support);
-
+#ifndef HQ_PROJECT_OT8
 static int tpd_input_open(struct input_dev *dev)
 {
-    tpd->tp_is_enabled = 1;
-        return 0;
+	tpd->tp_is_enabled = 1;
+	return 0;
 }
-
 static void tpd_input_close(struct input_dev *dev)
 {
     tpd->tp_is_enabled = 0;
 }
-
+#endif
 /* touch panel probe */
 static int tpd_probe(struct platform_device *pdev)
 {
@@ -702,7 +718,14 @@ static int tpd_probe(struct platform_device *pdev)
 	if (2560 == TPD_RES_X)
 		TPD_RES_X = 2048;
 	if (1600 == TPD_RES_Y)
+	#ifdef HQ_PROJECT_OT8
+    /* modify code for OT8 */
+		TPD_RES_Y = 1536
+    #else
+    /* modify code for O6 */
 		TPD_RES_Y = 1600;
+    #endif
+
 	pr_debug("mtk_tpd: TPD_RES_X = %lu, TPD_RES_Y = %lu\n",
 		TPD_RES_X, TPD_RES_Y);
 
@@ -713,7 +736,9 @@ static int tpd_probe(struct platform_device *pdev)
 	tpd_mode_keypad_tolerance = TPD_RES_X * TPD_RES_X / 1600;
 	/* struct input_dev dev initialization and registration */
 	tpd->dev->name = TPD_DEVICE;
+#ifndef HQ_PROJECT_OT8
 	tpd->tp_is_enabled = 1;
+#endif
 	set_bit(EV_ABS, tpd->dev->evbit);
 	set_bit(EV_KEY, tpd->dev->evbit);
 	set_bit(ABS_X, tpd->dev->absbit);
@@ -749,14 +774,20 @@ static int tpd_probe(struct platform_device *pdev)
 			/* touch_type:0: r-touch, 1: C-touch */
 			touch_type = 0;
 			g_tpd_drv->tpd_local_init();
-			/* HS03S code for DEVAL5625-30 by gaozhengwei at 2021/05/06 start */
-			if (tp_is_used != UNKNOWN_TP) {
-				TPD_DMESG("Generic touch panel driver\n");
-			} else {
-				TPD_DMESG("we have checked all touch driver, but no touch driver is loaded!!\n");
-				return 0;
-			}
-			/* HS03S code for DEVAL5625-30 by gaozhengwei at 2021/05/06 end */
+#ifdef HQ_PROJECT_OT8
+    /* modify code for OT8 */
+		TPD_DMESG("Generic touch panel driver\n");
+#else
+    /* modify code for O6 */
+	/* HS03S code for DEVAL5625-30 by gaozhengwei at 2021/05/06 start */
+	if (tp_is_used != UNKNOWN_TP) {
+		TPD_DMESG("Generic touch panel driver\n");
+	} else {
+		TPD_DMESG("we have checked all touch driver, but no touch driver is loaded!!\n");
+		return 0;
+	}
+	/* HS03S code for DEVAL5625-30 by gaozhengwei at 2021/05/06 end */
+#endif
 		} else {
 			TPD_DMESG("no touch driver is loaded!!\n");
 			return 0;
@@ -805,10 +836,10 @@ static int tpd_probe(struct platform_device *pdev)
 	input_abs_set_res(tpd->dev, ABS_Y, TPD_RES_Y);
 	input_set_abs_params(tpd->dev, ABS_PRESSURE, 0, 255, 0, 0);
 	input_set_abs_params(tpd->dev, ABS_MT_TRACKING_ID, 0, 10, 0, 0);
-
+	#ifndef HQ_PROJECT_OT8
 	tpd->dev->open = tpd_input_open;
 	tpd->dev->close = tpd_input_close;
-
+	#endif
 	if (input_register_device(tpd->dev))
 		TPD_DMESG("input_register_device failed.(tpd)\n");
 	else
@@ -818,9 +849,7 @@ static int tpd_probe(struct platform_device *pdev)
 
 	if (g_tpd_drv->attrs.num)
 		tpd_create_attributes(&pdev->dev, &g_tpd_drv->attrs);
-
 	mtk_tpd_proc_init();
-
 	return 0;
 }
 static int tpd_remove(struct platform_device *pdev)

@@ -17,6 +17,8 @@ obj-$(CONFIG_CUSTOM_KERNEL_SENSOR_FUSION) += sensorfusion/
 else
 obj-y += dummy.o
 endif
+#TabA7 Lite code for SR-AX3565-01-101 by Hujincan at 20201123 start
 # hs03s code for SR-AL5625-01-168 by xiongxiaoliang at 2021/06/09 start
 obj-$(CONFIG_CUSTOM_KERNEL_SAR_SENSOR) += sar/
 # hs03s code for SR-AL5625-01-168 by xiongxiaoliang at 2021/06/09 end
+#TabA7 Lite code for SR-AX3565-01-101 by Hujincan at 20201123 end

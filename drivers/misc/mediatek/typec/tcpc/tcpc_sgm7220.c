@@ -68,6 +68,9 @@
 #define MOD_CURRENT_MODE_DETECT         (0x03 << MOD_CURRENT_MODE_DETECT_SHIFT)    /*RU*/
 #define MOD_CURRENT_MODE_ADVERTISE_SHIFT    6
 #define MOD_CURRENT_MODE_ADVERTISE          (0x03 << MOD_CURRENT_MODE_ADVERTISE_SHIFT)    /*RW*/
+/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 start */
+#define SGM7220_HUB_STATUS				 144
+/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 end */
 
 /* REG_INT (0x09) */
 #define INT_DRP_DUTY_CYCLE_SHIFT    1
@@ -366,10 +369,26 @@ static void process_mode_register(struct sgm7220_chip *info)
 	info->type_c_param.active_cable_attach = val;
 }
 
+/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 start */
+extern bool hub_plugin_flag;
+/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 end */
 static void process_interrupt_register(struct sgm7220_chip *info)
 {
 	u8 val, tmp, reg_val;
 	int ret;
+	/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 start */
+	ret = sgm7220_read_reg(info->client, REG_MOD, &reg_val);
+	if (ret < 0) {
+		pr_err("%s fail to read CC status \n", __func__);
+	}
+
+	if (reg_val == SGM7220_HUB_STATUS) {
+		hub_plugin_flag = true;
+	} else {
+		hub_plugin_flag = false;
+	}
+	pr_debug("reg_val = %d, hub_plugin_flag = %d\n", reg_val, hub_plugin_flag);
+	/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 end */
 	// pr_info("sgm7220 %s enter\n", __func__);
 	ret = sgm7220_read_reg(info->client, REG_INT, &reg_val);
 	if (ret < 0) {
@@ -960,6 +979,9 @@ static void sgm7220_first_check_typec_work(struct work_struct *work)
 
 	process_mode_register(chip);
 	process_interrupt_register(chip);
+	/*HS03s for DEVAL5625-1943 by wangzikang at 20210629 start*/
+	sgm7220_process_set_register(chip);
+	/*HS03s for DEVAL5625-1943 by wangzikang at 20210629 end*/
 	ret = sgm7220_update_reg(chip->client,
 				   REG_INT, (0x1 << INT_INTERRUPT_STATUS_SHIFT), INT_INTERRUPT_STATUS);
 
@@ -1079,7 +1101,7 @@ static int sgm7220_tcpcdev_init(struct sgm7220_chip *chip, struct device *dev)
 	chip->tcpc->tcpc_flags = TCPC_FLAGS_LPM_WAKEUP_WATCHDOG;
 
 	schedule_delayed_work(
-						&chip->first_check_typec_work, msecs_to_jiffies(3000));
+						&chip->first_check_typec_work, msecs_to_jiffies(20000));
 	return 0;
 }
 

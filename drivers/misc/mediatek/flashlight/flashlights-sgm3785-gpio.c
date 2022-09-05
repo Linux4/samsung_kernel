@@ -57,7 +57,7 @@ unsigned int current_level;
 
 /* hs03s code for CAM-AL5625-01-247 by lisizhou at 2021/06/25 start */
 static int pin_status = 0;
-static int base = 329;
+static int base = 73;
 static int pin_id = 163;
 /* hs03s code for CAM-AL5625-01-247 by lisizhou at 2021/06/25 end */
 

@@ -16,17 +16,17 @@
 
 #include "mmc_crypto.h"
 
-struct mmc_host;
-struct mmc_card;
-struct mmc_request;
-
-#define MMC_CMD_RETRIES        3
-
 #ifdef CONFIG_MMC_SUPPORT_STLOG
 #include <linux/fslog.h>
 #else
 #define ST_LOG(fmt, ...)
 #endif
+
+struct mmc_host;
+struct mmc_card;
+struct mmc_request;
+
+#define MMC_CMD_RETRIES        3
 
 struct mmc_bus_ops {
 	void (*remove)(struct mmc_host *);

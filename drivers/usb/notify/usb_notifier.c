@@ -275,7 +275,7 @@ static int __init usb_notifier_init(void)
 	return platform_driver_register(&usb_notifier_driver);
 }
 
-static void __init usb_notifier_exit(void)
+static void __exit usb_notifier_exit(void)
 {
 	platform_driver_unregister(&usb_notifier_driver);
 }

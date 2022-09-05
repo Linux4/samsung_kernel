@@ -33,6 +33,9 @@ struct fp_plat_t {
     struct pinctrl_state *spi_default;
 #ifdef BSP_SIL_POWER_SUPPLY_PINCTRL
     struct pinctrl_state *pins_avdd_h, *pins_vddio_h;
+/* HS03S code added for DEVAL5625-2567 by wurui at 20211122 start */
+    struct pinctrl_state *pins_avdd_l;
+/* HS03S code added for DEVAL5625-2567 by wurui at 20211122 end */
 #endif /* BSP_SIL_POWER_SUPPLY_PINCTRL */
 #endif
 };

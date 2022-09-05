@@ -396,11 +396,15 @@ static int ilitek_plat_probe(void)
 	init_completion(&ilits->pm_completion);
 
 	ILI_INFO("ILITEK Driver loaded successfully!");
-
+	#ifdef HQ_PROJECT_OT8
+	/*TabA7 Lite code for SR-AX3565-01-45 by gaozhengwei at 20201229 start*/
+	tp_is_used = Ilitek;
+	/*TabA7 Lite code for SR-AX3565-01-45 by gaozhengwei at 20201229 end*/
+	#else
 	/*TabA7 Lite code for SR-AX3565-01-45 by gaozhengwei at 20201229 start*/
 	tp_is_used = ILITEK_ILI7807S;
 	/*TabA7 Lite code for SR-AX3565-01-45 by gaozhengwei at 20201229 end*/
-
+	#endif
 	return 0;
 }
 

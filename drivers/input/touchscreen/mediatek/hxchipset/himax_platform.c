@@ -734,7 +734,7 @@ static void himax_common_resume(struct device *dev)
 		E("private_ts is NULL\n");
 		return;
 	}
-
+	
 	himax_chip_common_resume(ts);
 	I("%s: END\n", __func__);
 }

@@ -235,24 +235,25 @@ int disp_layer_info_statistic(struct disp_ddp_path_config *last_config,
 		char str[200];
 		int offset = 0;
 
-		offset += snprintf(str + offset, sizeof(str) - offset,
+		offset += scnprintf(str + offset, sizeof(str) - offset,
 				   "total:%ld.layers:",
 				   layer_stat.total_frame_cnt);
 		for (i = 1; i <= 12; i++)
-			offset += snprintf(str + offset, sizeof(str) - offset,
+			offset += scnprintf(str + offset, sizeof(str) - offset,
 					   "%ld,", layer_stat.cnt_by_layers[i]);
 		DISPMSG("layer_cnt %s\n", str);
 
 		offset = 0;
-		offset += snprintf(str + offset, sizeof(str) - offset, ".ext:");
+		offset += scnprintf(str + offset,
+			sizeof(str) - offset, ".ext:");
 		for (i = 1; i <= 6 ; i++)
-			offset += snprintf(str + offset, sizeof(str) - offset,
+			offset += scnprintf(str + offset, sizeof(str) - offset,
 				"%ld,", layer_stat.cnt_by_layers_with_ext[i]);
 
-		offset += snprintf(str + offset, sizeof(str) - offset,
+		offset += scnprintf(str + offset, sizeof(str) - offset,
 				   ".arm_ext:");
 		for (i = 1; i <= 6 ; i++)
-			offset += snprintf(str + offset, sizeof(str) - offset,
+			offset += scnprintf(str + offset, sizeof(str) - offset,
 				"%ld,",
 				layer_stat.cnt_by_layers_with_arm_ext[i]);
 		DISPMSG("layer_cnt %s\n", str);
@@ -313,8 +314,6 @@ static int alloc_buffer_from_ion(size_t size, struct test_buf_info *buf_info)
 	struct ion_client *client;
 	struct ion_mm_data mm_data;
 	struct ion_handle *handle;
-	size_t mva_size;
-	ion_phys_addr_t phy_addr;
 
 	client = ion_client_create(g_ion_device, "disp_test");
 	buf_info->ion_client = client;
@@ -336,8 +335,9 @@ static int alloc_buffer_from_ion(size_t size, struct test_buf_info *buf_info)
 		ion_client_destroy(client);
 		return -1;
 	}
-	mm_data.config_buffer_param.kernel_handle = handle;
-	mm_data.mm_cmd = ION_MM_CONFIG_BUFFER;
+	mm_data.get_phys_param.kernel_handle = handle;
+	mm_data.get_phys_param.module_id = DISP_M4U_PORT_DISP_OVL0;
+	mm_data.mm_cmd = ION_MM_GET_IOVA;
 	if (ion_kernel_ioctl(client, ION_CMD_MULTIMEDIA,
 		(unsigned long)&mm_data) < 0) {
 		DISP_PR_INFO("ion_test_drv: Config buffer failed.\n");
@@ -346,8 +346,7 @@ static int alloc_buffer_from_ion(size_t size, struct test_buf_info *buf_info)
 		return -1;
 	}
 
-	ion_phys(client, handle, &phy_addr, (size_t *)&mva_size);
-	buf_info->buf_mva = (unsigned int)phy_addr;
+	buf_info->buf_mva = (unsigned int)mm_data.get_phys_param.phy_addr;
 	if (buf_info->buf_mva == 0) {
 		DISP_PR_INFO("Fatal Error, get mva failed\n");
 		ion_free(client, handle);
@@ -376,14 +375,10 @@ static int alloc_buffer_from_dma(size_t size, struct test_buf_info *buf_info)
 		char msg[len];
 		int n = 0;
 
-		n = snprintf(msg, len,
+		n = scnprintf(msg, len,
 			     "dma_alloc_coherent error! dma memory not available. size=%zu\n",
 			     size);
-		if (n < 0) {
-			DISP_LOG_E("[%s %d]snprintf err:%d\n",
-				   __func__, __LINE__, n);
-		} else
-			DISPMSG("%s", msg);
+		DISPMSG("%s", msg);
 		return -1;
 	}
 
@@ -571,15 +566,12 @@ primary_display_basic_test(int layer_num, unsigned int layer_en_mask,
 	size = w * h * Bpp;
 	mutex_lock(&basic_test_lock);
 
-	n = snprintf(msg, len,
+	n = scnprintf(msg, len,
 		     "%s: layer_num=%u,en=0x%x,w=%d,h=%d,fmt=%s,frame_num=%d,vsync=%d, size=%lu\n",
 		     __func__, layer_num, layer_en_mask,
 		     w, h, unified_color_fmt_name(ufmt),
 		     frame_num, vsync_num, (unsigned long)size);
-	if (n < 0)
-		DISPINFO("[%s %d]snprintf err:%d\n", __func__, __LINE__, n);
-	else
-		DISPMSG("%s", msg);
+	DISPMSG("%s", msg);
 
 	if (layer_num > PRIMARY_SESSION_INPUT_LAYER_COUNT)
 		goto out_unlock;
@@ -1559,7 +1551,7 @@ static ssize_t partial_read(struct file *file, char __user *ubuf,
 				support = 1;
 		}
 	}
-	snprintf(p, 10, "%d\n", support);
+	scnprintf(p, 10, "%d\n", support);
 	return simple_read_from_buffer(ubuf, count, ppos, p, strlen(p));
 }
 

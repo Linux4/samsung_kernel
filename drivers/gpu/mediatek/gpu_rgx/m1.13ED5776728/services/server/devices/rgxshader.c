@@ -139,7 +139,7 @@ PVRSRVTQLoadShaders(PVRSRV_DEVICE_NODE * psDeviceNode)
 
 	_GetShaderFileName(psDeviceNode, aszShaderFilenameStr, aszShaderpFilenameStr);
 
-	pszLoadedShaderStr = aszShaderFilenameStr;
+	pszLoadedShaderStr = RGX_SH_FILENAME;
 	psShaderFW = OSLoadFirmware(psDeviceNode, pszLoadedShaderStr, NULL);
 
 	if (psShaderFW == NULL)

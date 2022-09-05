@@ -5939,7 +5939,7 @@ static int __init lock_monitor_init(void)
 	proc_create("3rd_th_ms", 0664, root, &lock_mon_3rd_th_fops);
 	proc_create("period_cnt", 0664, root, &lock_mon_period_cnt_fops);
 
-	lock_mon_enable = 0;
+	lock_mon_enable = 1;
 	kthread_run(lock_monitor_work, NULL, "lock_monitor");
 
 #ifdef CONFIG_MTK_BOOT

@@ -46,7 +46,9 @@ struct alarm {
 	int			state;
 	void			*data;
 };
-
+#ifdef CONFIG_RTC_AUTO_PWRON
+int alarm_set_alarm(char *alarm_data);
+#endif
 void alarm_init(struct alarm *alarm, enum alarmtimer_type type,
 		enum alarmtimer_restart (*function)(struct alarm *, ktime_t));
 void alarm_start(struct alarm *alarm, ktime_t start);

@@ -62,12 +62,27 @@ static bool blinkenlights;
 module_param(blinkenlights, bool, S_IRUGO);
 MODULE_PARM_DESC(blinkenlights, "true to cycle leds on hubs");
 
+#ifdef CONFIG_HS03S_SUPPORT
+    /* modify code for O6 */
 /*HS03s for SR-AL5625-01-282 by wenyaqi at 20210426 start*/
 #ifndef HQ_FACTORY_BUILD	//ss version
 int g_usb_connected_unconfigured = 0;
 EXPORT_SYMBOL(g_usb_connected_unconfigured);
 #endif
 /*HS03s for SR-AL5625-01-282 by wenyaqi at 20210426 end*/
+#else
+    /* modify code for O8 */
+#ifndef HQ_FACTORY_BUILD	//ss version
+int g_usb_connected_unconfigured = 0;
+EXPORT_SYMBOL(g_usb_connected_unconfigured);
+#endif
+/*TabA7 Lite  code for SR-AX3565-01-110 by gaoxugang at 20201124 start*/
+#if !defined(HQ_FACTORY_BUILD)
+int g_sec_battery_cable_timeout = 0;
+EXPORT_SYMBOL(g_sec_battery_cable_timeout);
+#endif
+/*TabA7 Lite  code for SR-AX3565-01-110 by gaoxugang at 20201124 end*/
+#endif
 
 /*
  * Device SATA8000 FW1.0 from DATAST0R Technology Corp requires about
@@ -5123,7 +5138,16 @@ static void hub_port_connect(struct usb_hub *hub, int port1, u16 portstatus,
 		status = hub_power_remaining(hub);
 		if (status)
 			dev_dbg(hub->intfdev, "%dmA power budget left\n", status);
-
+		#ifdef CONFIG_HS03S_SUPPORT
+    	/* modify code for O6 */
+	#else
+    	/* modify code for O8 */
+		/*TabA7 Lite  code for SR-AX3565-01-110 by gaoxugang at 20201124 start*/
+		#if !defined(HQ_FACTORY_BUILD)
+		g_sec_battery_cable_timeout = 0;
+		#endif
+		/*TabA7 Lite  code for SR-AX3565-01-110 by gaoxugang at 20201124 end*/
+	#endif
 		return;
 
 loop_disable:
@@ -5148,6 +5172,16 @@ loop:
 	if (hub->hdev->parent ||
 			!hcd->driver->port_handed_over ||
 			!(hcd->driver->port_handed_over)(hcd, port1)) {
+		#ifdef CONFIG_HS03S_SUPPORT
+    	/* modify code for O6 */
+		#else
+    	/* modify code for O8 */
+		/*TabA7 Lite  code for SR-AX3565-01-110 by gaoxugang at 20201124 start*/
+		#if !defined(HQ_FACTORY_BUILD)
+		g_sec_battery_cable_timeout = 1;
+		#endif
+		/*TabA7 Lite  code for SR-AX3565-01-110 by gaoxugang at 20201124 end*/
+		#endif
 		if (status != -ENOTCONN && status != -ENODEV)
 			dev_err(&port_dev->dev,
 					"unable to enumerate USB device\n");

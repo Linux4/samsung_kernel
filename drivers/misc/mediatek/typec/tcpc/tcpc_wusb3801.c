@@ -239,7 +239,9 @@ static int test_cc_patch(struct wusb3801_chip *chip)
 /*TCPCI_ALART_ADDED_WZK START*/
 
 /*TCPCI_ALART_ADDED_WZK END*/
-
+/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 start */
+extern bool hub_plugin_flag;
+/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 end */
 static int first_check_flag;
 static void wusb3801_irq_work_handler(struct kthread_work *work)
 {
@@ -271,6 +273,14 @@ static void wusb3801_irq_work_handler(struct kthread_work *work)
 		return;
 	}
 	pr_info("%s WUSB3801_REG_STATUS : 0x%02x\n", __func__, rc);
+	/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 start */
+	if (rc == WUSB3801_HUB_STATUS_1 || rc ==WUSB3801_HUB_STATUS_2) {
+		hub_plugin_flag = true;
+	} else {
+		hub_plugin_flag = false;
+	}
+	pr_debug("rc = %d, hub_plugin_flag = %d\n", rc, hub_plugin_flag);
+	/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 end */
 
 	pr_info("%s: int_sts[0x%02x]\n", __func__, int_sts);
 		status = (rc & WUSB3801_ATTACH) ? true : false;
@@ -861,7 +871,7 @@ static int wusb3801_tcpcdev_init(struct wusb3801_chip *chip, struct device *dev)
     //tcpci_report_usb_port_detached(chip->tcpc); lsm
     //chip->tcpc->typec_role = TYPEC_ROLE_UNKNOWN;
 	schedule_delayed_work(
-						&chip->first_check_typec_work, msecs_to_jiffies(3000));
+						&chip->first_check_typec_work, msecs_to_jiffies(20000));
 	return 0;
 }
 

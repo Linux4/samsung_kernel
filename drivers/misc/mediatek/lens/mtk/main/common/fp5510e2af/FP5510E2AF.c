@@ -37,7 +37,7 @@ static unsigned long g_u4AF_INF;
 static unsigned long g_u4AF_MACRO = 1023;
 static unsigned long g_u4CurrPosition;
 
-/* A03s code for CAM-AL5625-01-247 by xuxianwei at 2021/06/12 start */
+
 static int s4AF_WriteReg(u16 a_u2Data)
 {
 	int i4RetValue = 0;
@@ -209,7 +209,7 @@ int FP5510E2AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
 
 	return 1;
 }
-/* A03s code for CAM-AL5625-01-247 by xuxianwei at 2021/06/12 end */
+
 int FP5510E2AF_GetFileName(unsigned char *pFileName)
 {
 	#if SUPPORT_GETTING_LENS_FOLDER_NAME

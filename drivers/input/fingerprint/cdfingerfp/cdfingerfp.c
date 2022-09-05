@@ -151,6 +151,7 @@ typedef struct key_report{
 #define CDFINGER_SPI_CLK               _IOW(CDFINGER_IOCTL_MAGIC_NO, 16, uint8_t)
 #define CDFINGER_INIT_IRQ                   _IO(CDFINGER_IOCTL_MAGIC_NO, 21)
 #define CDFINGER_POWER_ON                   _IO(CDFINGER_IOCTL_MAGIC_NO, 22)
+#define CDFINGER_POWER_OFF                  _IO(CDFINGER_IOCTL_MAGIC_NO,24)
 #define CDFINGER_RELEASE_DEVICE 		 _IO(CDFINGER_IOCTL_MAGIC_NO, 25)
 #define CDFINGER_WAKE_LOCK	           _IOW(CDFINGER_IOCTL_MAGIC_NO,26,uint8_t)
 #define CDFINGER_ENABLE_CLK				  _IOW(CDFINGER_IOCTL_MAGIC_NO, 30, uint8_t)
@@ -422,6 +423,7 @@ static int cdfinger_get_id(struct cdfinger_data *cdfinger)
         if (ret != 0)
         {
             CDFINGER_ERR("work mode faild %d", ret);
+            disable_clk(cdfinger);
             return -1;
         }
 
@@ -627,6 +629,29 @@ static void cdfinger_power_on(struct cdfinger_data *cdfinger)
         pinctrl_select_state(cdfinger->fps_pinctrl, cdfinger->cdfinger_spi_mosi);
         pinctrl_select_state(cdfinger->fps_pinctrl, cdfinger->cdfinger_spi_sck);
         pinctrl_select_state(cdfinger->fps_pinctrl, cdfinger->cdfinger_spi_cs);
+    }
+
+    if(cdfinger->vdd_ldo_enable == 1)
+    {
+        pinctrl_select_state(cdfinger->fps_pinctrl, cdfinger->fps_power_on);
+        CDFINGER_ERR("cdfinger pinctrl power_on\n");
+    }
+}
+
+static void cdfinger_power_off(struct cdfinger_data *cdfinger)
+{
+    if(cdfinger->config_spi_pin == 1)
+    {
+        pinctrl_select_state(cdfinger->fps_pinctrl, cdfinger->cdfinger_spi_miso);
+        pinctrl_select_state(cdfinger->fps_pinctrl, cdfinger->cdfinger_spi_mosi);
+        pinctrl_select_state(cdfinger->fps_pinctrl, cdfinger->cdfinger_spi_sck);
+        pinctrl_select_state(cdfinger->fps_pinctrl, cdfinger->cdfinger_spi_cs);
+    }
+
+    if(cdfinger->vdd_ldo_enable == 1)
+    {
+        pinctrl_select_state(cdfinger->fps_pinctrl, cdfinger->fps_power_off);
+        CDFINGER_ERR("cdfinger pinctrl power_off\n");
     }
 }
 
@@ -862,6 +887,10 @@ static long cdfinger_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
             if(ret)
             {
                 CDFINGER_ERR("%s: parse dts failed!\n", __func__);
+                kfree(cdfinger);
+                cdfinger = NULL;
+            } else {
+                cdfinger_power_on(cdfinger);
             }
             break;
         case CDFINGER_POWER_ON:
@@ -896,6 +925,9 @@ static long cdfinger_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
         case CDFINGER_REPORT_KEY_LEGACY:
             break;
         case CDFINGER_POWERDOWN:
+            break;
+        case CDFINGER_POWER_OFF:
+            cdfinger_power_off(cdfinger);
             break;
         case CDFINGER_ENABLE_IRQ:
             cdfinger_enable_irq(cdfinger);

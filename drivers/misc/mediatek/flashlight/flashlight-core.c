@@ -857,6 +857,7 @@ static long _flashlight_ioctl(
 	return ret;
 }
 
+
 /* HS03s code for DEVAL5625-1829 by chenjun at 2021/07/01 start */
 /******************************************************************************
  * File operations
@@ -925,7 +926,6 @@ static long k_hs03s_flashlight_ioctl(
 	return ret;
 }
 /* HS03s code for DEVAL5625-1829 by chenjun at 2021/07/01 end */
-
 static long flashlight_ioctl(
 		struct file *file, unsigned int cmd, unsigned long arg)
 {

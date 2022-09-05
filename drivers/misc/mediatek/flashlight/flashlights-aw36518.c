@@ -142,7 +142,6 @@ typedef enum {
 }aw36518_mode_t;
 
 aw36518_mode_t aw36518_mode = 0;
-
 /******************************************************************************
  * aw36518 operations
  *****************************************************************************/
@@ -159,9 +158,9 @@ static const unsigned char aw36518_flash_level[AW36518_LEVEL_NUM] = {
 	14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58, 62, 66,
 	70, 74, 78, 82, 86, 90, 94, 98, 102, 106, 110, 114, 118, 122, 126, 130};
 /* hs03s code for CAM-AL5625-01-247 by lisizhou at 2021/07/20 end */
-
 static volatile unsigned char aw36518_reg_enable;
 static volatile int aw36518_level_ch1 = -1;
+
 
 static int aw36518_verify_level(int level)
 {
@@ -284,9 +283,11 @@ static int aw36518_disable(int channel)
 		pr_err("Error channel\n");
 		return -1;
 	}
+
 	return 0;
 }
 
+/* HS03s code for DEVAL5625-1829 by chenjun at 2021/07/01 start */
 /* set flashlight level */
 static int aw36518_set_level_ch1(int level)
 {
@@ -406,7 +407,6 @@ int aw36518_timer_cancel(int channel)
 /******************************************************************************
  * Flashlight operations
  *****************************************************************************/
-/* hs03s code for CAM-AL5625-01-247 by lisizhou at 2021/07/20 start */
 static int aw36518_ioctl(unsigned int cmd, unsigned long arg)
 {
 	struct flashlight_dev_arg *fl_arg;
@@ -473,7 +473,6 @@ static int aw36518_ioctl(unsigned int cmd, unsigned long arg)
 
 	return 0;
 }
-/* hs03s code for CAM-AL5625-01-247 by lisizhou at 2021/07/20 end */
 
 static int aw36518_open(void)
 {

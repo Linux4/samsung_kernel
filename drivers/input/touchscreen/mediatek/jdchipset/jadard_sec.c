@@ -124,3 +124,4 @@ static void not_support_cmd(void *device_data)
 
 	JD_I("%s: %s\n", __func__, buff);
 }
+

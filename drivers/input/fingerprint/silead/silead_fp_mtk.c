@@ -124,8 +124,10 @@ static void silfp_hw_poweron(struct silfp_data *fp_dev)
     LOG_MSG_DEBUG(INFO_LOG, "%s: power supply ret:%d \n", __func__, err);
 }
 
+/* HS03S code added for DEVAL5625-2567 by wurui at 20211122 start */
 static void silfp_hw_poweroff(struct silfp_data *fp_dev)
 {
+    int err = 0;
     LOG_MSG_DEBUG(INFO_LOG, "[%s] enter.\n", __func__);
 #ifdef BSP_SIL_POWER_SUPPLY_REGULATOR
     /* Power control by Regulators(LDO) */
@@ -140,6 +142,10 @@ static void silfp_hw_poweroff(struct silfp_data *fp_dev)
 #endif /* BSP_SIL_POWER_SUPPLY_REGULATOR */
 
 #ifdef BSP_SIL_POWER_SUPPLY_PINCTRL
+    if ( fp_dev->pin.pins_avdd_l ) {
+        err = pinctrl_select_state(fp_dev->pin.pinctrl, fp_dev->pin.pins_avdd_l);
+        LOG_MSG_DEBUG(INFO_LOG, "%s: pins_avdd_h power supply ret:%d \n", __func__, err);
+    }
     /* Power control by GPIOs */
     //fp_dev->pin.pins_avdd_h = NULL;
     //fp_dev->pin.pins_vddio_h = NULL;
@@ -155,6 +161,7 @@ static void silfp_hw_poweroff(struct silfp_data *fp_dev)
 #endif /* BSP_SIL_POWER_SUPPLY_GPIO */
     fp_dev->power_is_off = 1;
 }
+/* HS03S code added for DEVAL5625-2567 by wurui at 20211122 end */
 
 static void silfp_power_deinit(struct silfp_data *fp_dev)
 {
@@ -311,6 +318,14 @@ static int silfp_parse_dts(struct silfp_data* fp_dev)
         LOG_MSG_DEBUG(ERR_LOG, "%s can't find silfp avdd-enable\n", __func__);
         // Ignore error
     }
+/* HS03S code added for DEVAL5625-2567 by wurui at 20211122 start */
+    fp_dev->pin.pins_avdd_l = pinctrl_lookup_state(fp_dev->pin.pinctrl, "avdd-disable"); // fp_vdd
+    if (IS_ERR_OR_NULL(fp_dev->pin.pins_avdd_l)) {
+        fp_dev->pin.pins_avdd_l = NULL;
+        LOG_MSG_DEBUG(ERR_LOG, "%s can't find silfp avdd-disable\n", __func__);
+        // Ignore error
+    }
+/* HS03S code added for DEVAL5625-2567 by wurui at 20211122 end */
 #ifdef VDDIO
     fp_dev->pin.pins_vddio_h = pinctrl_lookup_state(fp_dev->pin.pinctrl, "vddio-enable");
     if (IS_ERR_OR_NULL(fp_dev->pin.pins_vddio_h)) {

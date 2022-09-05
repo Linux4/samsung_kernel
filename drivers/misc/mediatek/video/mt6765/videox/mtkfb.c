@@ -1062,7 +1062,7 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd,
 
 		aod_pm = (enum mtkfb_aod_power_mode)arg;
 		DISPCHECK("AOD: ioctl: %s\n",
-			aod_pm ? "AOD_DOZE_SUSPEND" : "AOD_DOZE");
+			aod_pm != MTKFB_AOD_DOZE ? "AOD_DOZE_SUSPEND" : "AOD_DOZE");
 
 		if (!primary_is_aod_supported()) {
 			DISPCHECK("AOD: feature not support\n");
@@ -1098,7 +1098,8 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd,
 		}
 		if (ret < 0)
 			DISPERR("AOD: set %s failed\n",
-				aod_pm ? "AOD_SUSPEND" : "AOD_RESUME");
+				(aod_pm == MTKFB_AOD_DOZE_SUSPEND) ?
+					"AOD_SUSPEND" : "AOD_RESUME");
 
 		break;
 	}
@@ -2514,12 +2515,6 @@ static int mtkfb_probe(struct platform_device *pdev)
 		primary_display_diagnose();
 
 
-	/* this function will get fb_heap base address to ion
-	 * for management frame buffer
-	 */
-#ifdef MTK_FB_ION_SUPPORT
-	ion_drv_create_FB_heap(mtkfb_get_fb_base(), mtkfb_get_fb_size());
-#endif
 	fbdev->state = MTKFB_ACTIVE;
 
 	MSG_FUNC_LEAVE();
@@ -2586,14 +2581,25 @@ static void mtkfb_shutdown(struct platform_device *pdev)
 		MTKFB_LOG("mtkfb has been power off\n");
 		return;
 	}
-
+	
+	
+#ifdef CONFIG_HQ_PROJECT_OT8
+    /* modify code for OT8 */
+	/*TabA7 Lite code for OT8-4010 by gaozhengwei at 20210319 start*/
+	// primary_display_set_power_mode(FB_SUSPEND);
+	// primary_display_suspend();
+	/*TabA7 Lite code for OT8-4010 by gaozhengwei at 20210319 end*/
+#else
+    /* modify code for O6 */
 /* HS03S code for DEVAL5625-1451 by gaozhengwei at 2021/06/17 start */
 #ifdef CONFIG_HQ_SET_LCD_BIAS
 	primary_display_set_power_mode(FB_SUSPEND);
 	primary_display_suspend();
 #endif
 /* HS03S code for DEVAL5625-1451 by gaozhengwei at 2021/06/17 end */
+#endif
 
+	
 	MTKFB_LOG("[FB Driver] leave mtkfb_shutdown\n");
 }
 

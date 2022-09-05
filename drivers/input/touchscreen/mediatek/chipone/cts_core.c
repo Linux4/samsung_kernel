@@ -2598,7 +2598,6 @@ init_hwdata:
         cts_err("Device hwid: %06x fwid: %04x not found", hwid, fwid);
         return -ENODEV;
     }
-    mtp_chip_name = "TRULY_NL9911C";
 
 #if 0
 #ifdef CFG_CTS_FIRMWARE_FORCE_UPDATE
@@ -2709,12 +2708,12 @@ int cts_get_gesture_info(const struct cts_device *cts_dev,
 static void cts_esd_protection_work(struct work_struct *work)
 {
     struct chipone_ts_data *cts_data;
-	struct cts_device *cts_dev;
+    struct cts_device *cts_dev;
     int ret;
 
     cts_info("ESD protection work");
     cts_data = container_of(work, struct chipone_ts_data, esd_work.work);
-	cts_dev = &cts_data->cts_dev;
+    cts_dev = &cts_data->cts_dev;
     cts_lock_device(&cts_data->cts_dev);
 #ifdef CONFIG_CTS_I2C_HOST
     if (!cts_plat_is_i2c_online(cts_data->pdata, CTS_DEV_NORMAL_MODE_I2CADDR))
@@ -3296,6 +3295,48 @@ void cts_log(int level, const char *fmt, ...)
     va_end(args);
 }
 
+/*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 2022/4/14 start*/
+static int cts_get_tp_module(void)
+{
+    int i;
+    char *command_line = saved_command_line;
+
+    for (i = 0; i < ARRAY_SIZE(cts_module_list); i++) {
+        if (NULL != strstr(command_line, cts_module_list[i].lcd_name)) {
+            return cts_module_list[i].fw_num;
+        }
+    }
+
+    cts_info("%s: Not find tp module !!\n", __func__);
+
+    return MODEL_DEFAULT;
+}
+
+static void cts_update_module_info(void)
+{
+    int module = 0;
+
+    cts_info("%s: start", __func__);
+    module = cts_get_tp_module();
+    switch (module)
+    {
+    case MODEL_XL_TRULY:
+        chipone_ts_data->firmware_filepath = "/vendor/firmware/xl_truly_firmware_nl9911c.bin";
+        mtp_chip_name = "TRULY_NL9911C";
+        break;
+    case MODEL_TXD_HKC:
+        chipone_ts_data->firmware_filepath = "/vendor/firmware/txd_hkc_firmware_nl9911c.bin";
+        mtp_chip_name = "HKC_NL9911C";
+        break;
+    default:
+        chipone_ts_data->firmware_filepath = "UNKNOWN";
+        mtp_chip_name = "UNKNOWN";
+        break;
+    }
+    cts_info("%s: end, mtp_chip_name = %s", __func__, mtp_chip_name);
+}
+/*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 2022/4/14 end*/
+
 void cts_firmware_upgrade_work(struct work_struct *work)
 {
     struct chipone_ts_data *cts_data;
@@ -3310,10 +3351,14 @@ void cts_firmware_upgrade_work(struct work_struct *work)
         fw_upgrade_work.work);
     cts_dev = &cts_data->cts_dev;
 
-	ret = sysfs_create_link(&cts_data->sec.fac_dev->kobj, &tpd->dev->dev.kobj, "input");
-	if (ret < 0) {
-		cts_err("%s: Failed to sysfs_create_link,ret is %d", __func__, ret);
-	}
+    ret = sysfs_create_link(&cts_data->sec.fac_dev->kobj, &tpd->dev->dev.kobj, "input");
+    if (ret < 0) {
+        cts_err("%s: Failed to sysfs_create_link,ret is %d", __func__, ret);
+    }
+
+    /*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 2022/4/14 start*/
+    cts_update_module_info();
+    /*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 2022/4/14 end*/
 
     firmware = cts_request_firmware(cts_dev, cts_dev->hwdata->hwid,
         CTS_DEV_FWID_ANY, cts_dev->fwdata.version);

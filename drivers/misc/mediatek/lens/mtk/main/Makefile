@@ -36,8 +36,22 @@ endif
 obj-$(CONFIG_MTK_LENS)    += mainaf.o
 
 mainaf-y  += main_lens.o
+# TabA7 Lite  code for SR-AX3565-01-320 by liuchengfei at 20201127 start
+mainaf-y  += common/gt9772afhlt/GT9772AFHLT.o
+# TabA7 Lite  code for SR-AX3565-01-320 by liuchengfei at 20201127 end
+#gaozhenyu add for samsung af start
+mainaf-y  += common/gt9769af/GT9769AF.o
+#gaozhenyu add for samsung af end
+# TabA7 Lite  code for SR-AX3565-01-320 by lisizhou at 20201129 start
+mainaf-y  += common/va26x802af/VA26X802AF.o
+# TabA7 Lite  code for SR-AX3565-01-320 by lisizhou at 20201129 end
+#TabA7 Lite code for SR-AX3565-01-875 by gaozhenyu at 2021/11/19 start
+mainaf-y  += common/gt9769saf/GT9769sAF.o
+#TabA7 Lite code for SR-AX3565-01-875 by gaozhenyu at 2021/11/19 end
+#TabA7 Lite code for SR-AX3565-01-906  by chenjun at 2022/02/19 start
+mainaf-y  += common/fp5510main6af/FP5510MAIN6AF.o
+#TabA7 Lite code for SR-AX3565-01-906  by chenjun at 2022/02/19 end
 mainaf-y  += common/fp5510e2af/FP5510E2AF.o
-mainaf-y  += common/fp5519af/FP5519AF.o
 mainaf-y  += common/fp5529af/FP5529AF.o
 mainaf-y  += common/bu6424af/BU6424AF.o
 mainaf-y  += common/bu6429af/BU6429AF.o
@@ -56,7 +70,11 @@ mainaf-y  += common/gt9764af/GT9764AF.o
 # A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 start
 mainaf-y  += common/gt9772af/GT9772AF.o
 # A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 end
+#hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 start
+mainaf-y  += common/gt9773af/GT9773AF.o
+mainaf-y  += common/fp5519af/FP5519AF.o
 #A03s code for CAM-AL5625-01-247 by xuxianwei at 2021/05/18 start
+#hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 start
 mainaf-y  += common/cn3927ddaf/CN3927DDAF.o
 mainaf-y  += common/cn3927ofilmaf/CN3927OFILMAF.o
 mainaf-y  += common/cn3927xlaf/CN3927XLAF.o

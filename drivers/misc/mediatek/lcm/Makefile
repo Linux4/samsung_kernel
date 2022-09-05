@@ -21,9 +21,26 @@ obj-$(CONFIG_MTK_LCM) += mt65xx_lcm_list.o        \
                          lcm_gpio.o               \
                          lcm_i2c.o                \
                          lcm_pmic.o               \
-                         lcm_util.o               \
-                         lcm_drv.o
+                         lcm_util.o               
+
+ifeq ($(strip $(CONFIG_HQ_PROJECT_HS03S)),y)
+obj-$(CONFIG_MTK_LCM) += lcm_drv.o
+endif
+
+ifeq ($(strip $(CONFIG_HQ_PROJECT_OT8)),y)
+obj-$(CONFIG_MTK_LCM) += mtk_lcd_gpio_ctrl.o
+#else
+#obj-$(CONFIG_MTK_LCM) += lcm_drv.o
+endif
+
+#ifeq ($(strip $(CONFIG_HQ_PROJECT_OT8)),y)
+#obj-$(CONFIG_MTK_LCM) += mtk_lcd_gpio_ctrl.c
+#endif
 # HS03S code added for SR-AL5625-01-310 by gaozhengwei at 20210423 end.
+
+#ifeq ($(MTK_TARGET_PROJECT), ot8)
+#      LOCAL_CFLAGS += -DHQ_PROJECT_OT8
+#endif
 
 # HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 start
 obj-$(CONFIG_HQ_SET_LCD_BIAS) += lcm_bias.o

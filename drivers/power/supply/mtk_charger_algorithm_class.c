@@ -108,7 +108,7 @@ EXPORT_SYMBOL(chg_alg_notifier_call);
 int chg_alg_set_current_limit(struct chg_alg_device *alg_dev,
 	struct chg_limit_setting *setting)
 {
-	pr_notice("%s\n", __func__);
+//	pr_notice("%s\n", __func__);
 	if (alg_dev != NULL && alg_dev->ops != NULL &&
 	    alg_dev->ops->set_current_limit)
 		return alg_dev->ops->set_current_limit(alg_dev, setting);

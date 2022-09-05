@@ -83,10 +83,37 @@ static struct stAF_OisPosInfo OisPosInfo;
 /* ------------------------- */
 
 static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
+/*TabA7 Lite code for SR-AX3565-01-320 by liuchengfei at 20201127 start*/
+	{1, AFDRV_GT9772AFHLT, GT9772AFHLT_SetI2Cclient, GT9772AFHLT_Ioctl,
+	 GT9772AFHLT_Release, GT9772AFHLT_GetFileName, NULL},
+/*TabA7 Lite code for SR-AX3565-01-320 by liuchengfei at 20201127 end*/
+/*gaozhenyu add for af start*/
+	{1, AFDRV_GT9769AF, GT9769AF_SetI2Cclient, GT9769AF_Ioctl,
+	 GT9769AF_Release, GT9769AF_GetFileName, NULL},
+/*gaozhenyu add for af end*/
+/* TabA7 Lite  code for SR-AX3565-01-320 by lisizhou at 20201129 start */
+	{1, AFDRV_VA26X802AF, VA26X802AF_SetI2Cclient, VA26X802AF_Ioctl,
+	 VA26X802AF_Release, VA26X802AF_GetFileName, NULL},
+/* TabA7 Lite  code for SR-AX3565-01-320 by lisizhou at 20201129 end */
+/*  TabA7 Lite code for SR-AX3565-01-875 by gaozhenyu at 2021/11/19 start */ 
+	{1, AFDRV_GT9769sAF, GT9769sAF_SetI2Cclient, GT9769sAF_Ioctl,
+	 GT9769sAF_Release, GT9769sAF_GetFileName, NULL},     
+/*  TabA7 Lite code for SR-AX3565-01-875 by gaozhenyu at 2021/11/19 end */
+/* TabA7 Lite code for SR-AX3565-01-906  by chenjun at 2022/02/19 start */
+	{1, AFDRV_FP5510MAIN6AF, FP5510MAIN6AF_SetI2Cclient, FP5510MAIN6AF_Ioctl,
+	 FP5510MAIN6AF_Release, FP5510MAIN6AF_GetFileName, NULL},
+/* TabA7 Lite code for SR-AX3565-01-906  by chenjun at 2022/02/19 end */
 /* A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 start */
+/*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 start*/
+#ifdef CONFIG_HQ_PROJECT_HS03S
 	{1, AFDRV_GT9772AF, GT9772AF_SetI2Cclient, GT9772AF_Ioctl,
 	 GT9772AF_Release, GT9772AF_GetFileName, NULL},
-/* A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 end */
+	 /* TabA7 Lite code for by SL6215DEV-4183 liluling at 2022/4/5 start */
+    {1, AFDRV_GT9773AF, GT9773AF_SetI2Cclient, GT9773AF_Ioctl,
+	 GT9773AF_Release, GT9773AF_GetFileName, NULL},
+/*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 end */
+	{1, AFDRV_FP5519AF,FP5519AF_SetI2Cclient, FP5519AF_Ioctl,
+	 FP5519AF_Release, FP5519AF_GetFileName, NULL},	 
 /* A03s code for CAM-AL5625-01-247 by xuxianwei at 2021/05/18 start */
 	{1, AFDRV_CN3927OFILMAF, CN3927OFILMAF_SetI2Cclient, CN3927OFILMAF_Ioctl,
 	 CN3927OFILMAF_Release, CN3927OFILMAF_GetFileName, NULL},
@@ -95,6 +122,8 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 	{1, AFDRV_CN3927XLAF, CN3927XLAF_SetI2Cclient, CN3927XLAF_Ioctl,
 	 CN3927XLAF_Release, CN3927XLAF_GetFileName, NULL},
 /* A03s code for CAM-AL5625-01-247 by xuxianwei at 2021/05/18 end */
+#endif
+/* A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 end */
 	{1, AFDRV_DW9718TAF, DW9718TAF_SetI2Cclient, DW9718TAF_Ioctl,
 	 DW9718TAF_Release, DW9718TAF_GetFileName, NULL},
 	{1, AFDRV_AK7371AF, AK7371AF_SetI2Cclient, AK7371AF_Ioctl,
@@ -134,8 +163,6 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 	 DW9839AF_Release, DW9839AF_GetFileName, NULL},
 	{1, AFDRV_FP5510E2AF, FP5510E2AF_SetI2Cclient, FP5510E2AF_Ioctl,
 	 FP5510E2AF_Release, FP5510E2AF_GetFileName, NULL},
-	{1, AFDRV_FP5519AF, FP5519AF_SetI2Cclient, FP5519AF_Ioctl,
-	 FP5519AF_Release, FP5519AF_GetFileName, NULL},
 	{1, AFDRV_FP5529AF, FP5529AF_SetI2Cclient, FP5529AF_Ioctl,
 	 FP5529AF_Release, FP5529AF_GetFileName, NULL},
 	{1, AFDRV_DW9718AF, DW9718AF_SetI2Cclient, DW9718AF_Ioctl,
@@ -356,9 +383,9 @@ static long AF_ControlParam(unsigned long a_u4Param)
 		LOG_INF("copy to user failed\n");
 
 	switch (CtrlCmd.i8CmdID) {
-#if defined(CONFIG_MACH_MT6779)
 	case CONVERT_CCU_TIMESTAMP:
 		{
+#if defined(CONFIG_MACH_MT6779)
 		long long monotonicTime = 0;
 		long long hwTickCnt     = 0;
 
@@ -371,19 +398,17 @@ static long AF_ControlParam(unsigned long a_u4Param)
 		monotonicTime = archcounter_timesync_to_monotonic(hwTickCnt);
 		/* do_div(monotonicTime, 1000); */ /* ns to us */
 		CtrlCmd.i8Param[1] = monotonicTime;
-		}
-		i4RetValue = 1;
-		break;
-#endif
-	default:
-		i4RetValue = -1;
-		break;
-	}
 
-	if (i4RetValue > 0) {
 		if (copy_to_user(pCtrlCmd, &CtrlCmd,
 			sizeof(struct stAF_CtrlCmd)))
 			LOG_INF("copy to user failed\n");
+#endif
+		}
+		i4RetValue = 1;
+		break;
+	default:
+		i4RetValue = -1;
+		break;
 	}
 
 	return i4RetValue;

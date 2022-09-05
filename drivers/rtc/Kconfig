@@ -20,6 +20,12 @@ menuconfig RTC_CLASS
 	  probably want to enable one or more of the interfaces below.
 
 if RTC_CLASS
+config RTC_AUTO_PWRON
+        bool "RTC Auto Power On Alarm by PMICs"
+        default n
+        help
+          Support for the auto power on alarm on alarm booting supporting PMICs.
+          Say Y if you want to enable this feature.
 
 config RTC_HCTOSYS
 	bool "Set system time from RTC on startup and resume"
@@ -639,6 +645,7 @@ config RTC_DRV_S5M
 	tristate "Samsung S2M/S5M series"
 	depends on MFD_SEC_CORE || COMPILE_TEST
 	select REGMAP_IRQ
+	select REGMAP_I2C
 	help
 	  If you say yes here you will get support for the
 	  RTC of Samsung S2MPS14 and S5M PMIC series.

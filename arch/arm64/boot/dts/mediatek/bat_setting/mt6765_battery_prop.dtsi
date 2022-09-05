@@ -13,7 +13,7 @@
 	KEEP_100_PERCENT = <(1)>;
 	R_FG_VALUE = <(10)>;
 	/* R_sense resistance */
-	EMBEDDED_SEL = <(0)>;
+	EMBEDDED_SEL = <(1)>;
 	/* Configures whether using embedded battery or not */
 	PMIC_SHUTDOWN_CURRENT = <(20)>;
 	/* System shutdown current */
@@ -43,9 +43,9 @@
 	/* Pseudo 100% percentage at T0 */
 	g_FG_PSEUDO100_T1 = <(100)>;
 	/* Pseudo 100% percentage at T1 */
-	g_FG_PSEUDO100_T2 = <(100)>;
+	g_FG_PSEUDO100_T2 = <(99)>;
 	/* Pseudo 100% percentage at T2 */
-	g_FG_PSEUDO100_T3 = <(100)>;
+	g_FG_PSEUDO100_T3 = <(99)>;
 	/* Pseudo 100% percentage at T3 */
 	g_FG_PSEUDO100_T4 = <(100)>;
 	/* Pseudo 100% percentage at T4 */
@@ -67,7 +67,13 @@
 	/* Table numbers per battery */
 	MULTI_TEMP_GAUGE0 = <(1)>;
 	/* Multi gauge0 enable */
+#ifdef CONFIG_HS03S_SUPPORT
+	/* modify code for O6 */
 	RBAT_PULL_UP_R = <(16900)>;
+#else
+	/* modify code for O8 */
+	RBAT_PULL_UP_R = <(390000)>;
+#endif
 	RBAT_PULL_UP_VOLT = <(1800)>;
 
 #include "mt6765_battery_table_ext.dtsi"

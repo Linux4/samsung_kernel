@@ -17,7 +17,14 @@ obj-$(CONFIG_SND_SOC_MT6797) += mt6797/
 obj-$(CONFIG_SND_SOC_MT6779) += mt6779/
 obj-$(CONFIG_SND_SOC_MT8173) += mt8173/
 obj-$(CONFIG_SND_SOC_AW87519) += aw87519/
-
+ifeq ($(MTK_TARGET_PROJECT), hs03s)
+# modify code for O6
+else
+# modify code for OT8
+#TabA7 Lite code for OT8-5362 by yingboyang at 20220314 start
+obj-$(CONFIG_SND_SOC_AW87XXX) += aw87390/
+#TabA7 Lite code for OT8-5362 by yingboyang at 20220314 end
+endif
 # include path
 subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/include/mt-plat
 

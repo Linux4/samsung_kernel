@@ -35,9 +35,10 @@
 	interrupts = <0 IRQ_TYPE_EDGE_FALLING 0 0>;
 	goodix,eint-gpio = <&pio 0 0x0>;
 	goodix,reset-gpio = <&pio 174 0x0>;
-/* A03s code for DEVAL5625-973 by xuxianwei at 2021/06/16 start */
+	/* A03s code for DEVAL5625-973 by xuxianwei at 2021/06/16 start */
 	//vtouch-supply = <&mt_pmic_vldo28_ldo_reg>;
-/* A03s code for DEVAL5625-973 by xuxianwei at 2021/06/16 end */
+	/* A03s code for DEVAL5625-973 by xuxianwei at 2021/06/16 end */
+
 	/* Rotate cord when open blew lables */
 	/*goodix,x2x;*/
 	/*goodix,y2y;*/

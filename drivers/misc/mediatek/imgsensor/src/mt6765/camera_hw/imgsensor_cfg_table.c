@@ -23,6 +23,7 @@ enum IMGSENSOR_RETURN
 };
 
 struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
+#ifdef CONFIG_HQ_PROJECT_HS03S
 	{
 		IMGSENSOR_SENSOR_IDX_MAIN,
 		IMGSENSOR_I2C_DEV_0,
@@ -89,6 +90,75 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 	},
 
 	{IMGSENSOR_SENSOR_IDX_NONE}
+#else
+	{
+		IMGSENSOR_SENSOR_IDX_MAIN,
+		IMGSENSOR_I2C_DEV_0,
+		{
+			{IMGSENSOR_HW_ID_MCLK, IMGSENSOR_HW_PIN_MCLK},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_AVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DOVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DVDD},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_PDN},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_RST},
+			{IMGSENSOR_HW_ID_NONE, IMGSENSOR_HW_PIN_NONE},
+		},
+	},
+	{
+		IMGSENSOR_SENSOR_IDX_SUB,
+		IMGSENSOR_I2C_DEV_1,
+		{
+			{IMGSENSOR_HW_ID_MCLK, IMGSENSOR_HW_PIN_MCLK},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_AVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DOVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DVDD},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_PDN},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_RST},
+			{IMGSENSOR_HW_ID_NONE, IMGSENSOR_HW_PIN_NONE},
+		},
+	},
+	{
+		IMGSENSOR_SENSOR_IDX_MAIN2,
+		IMGSENSOR_I2C_DEV_2,
+		{
+			{IMGSENSOR_HW_ID_MCLK, IMGSENSOR_HW_PIN_MCLK},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DOVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_AVDD},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_PDN},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_RST},
+			{IMGSENSOR_HW_ID_NONE, IMGSENSOR_HW_PIN_NONE},
+		},
+	},
+	{
+		IMGSENSOR_SENSOR_IDX_SUB2,
+		IMGSENSOR_I2C_DEV_1,
+		{
+			{IMGSENSOR_HW_ID_MCLK, IMGSENSOR_HW_PIN_MCLK},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_AVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DOVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DVDD},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_PDN},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_RST},
+			{IMGSENSOR_HW_ID_NONE, IMGSENSOR_HW_PIN_NONE},
+		},
+	},
+	{
+		IMGSENSOR_SENSOR_IDX_MAIN3,
+		IMGSENSOR_I2C_DEV_2,
+		{
+			{IMGSENSOR_HW_ID_MCLK, IMGSENSOR_HW_PIN_MCLK},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_AVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DOVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DVDD},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_PDN},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_RST},
+			{IMGSENSOR_HW_ID_NONE, IMGSENSOR_HW_PIN_NONE},
+		},
+	},
+
+	{IMGSENSOR_SENSOR_IDX_NONE}
+#endif
 };
 
 struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[] = {
@@ -140,7 +210,160 @@ struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[] = {
 
 /* Legacy design */
 struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
-/* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/05/11 start */
+/************gaozhenyu add for camera start *****************/
+#if defined(HI846_SJC_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_HI846_SJC_MIPI_RAW,
+		{
+			{RST, Vol_Low, 1},
+			{DOVDD, Vol_1800, 1},
+			{AFVDD, Vol_2800, 2},
+			{DVDD, Vol_1200, 1},
+/*TabA7 Lite code for SR-AX3565-01-320 by lisizhou at 20201212 start*/
+			{AVDD, Vol_2800, 0},
+			{PDN, Vol_High, 1},
+/*TabA7 Lite code for SR-AX3565-01-320 by lisizhou at 20201212 end*/
+			{SensorMCLK, Vol_High, 1},
+			{RST, Vol_High, 1}
+		},
+	},
+#endif
+#if defined(GC8054_HLT_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_GC8054_HLT_MIPI_RAW,
+		{
+			{SensorMCLK, Vol_High, 1},
+			{RST, Vol_Low, 1},
+			{DOVDD, Vol_1800, 1},
+			{DVDD, Vol_1200, 1},
+			{AVDD, Vol_2800, 0},
+			{PDN, Vol_High, 1},
+/*TabA7 Lite code for SR-AX3565-01-320 by liuchengfei at 20201127 start*/
+			{AFVDD, Vol_2800, 2},
+/*TabA7 Lite code for SR-AX3565-01-320 by liuchengfei at 20201127 end*/
+			{RST, Vol_High, 1}
+		},
+	},
+#endif
+#if defined(HI846_TXD_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_HI846_TXD_MIPI_RAW,
+		{
+			{RST, Vol_Low, 1},
+			{DOVDD, Vol_1800, 1},
+			{AFVDD, Vol_2800, 2},
+			{DVDD, Vol_1200, 1},
+			{AVDD, Vol_2800, 0},
+			{PDN, Vol_High, 1},
+			{SensorMCLK, Vol_High, 1},
+			{RST, Vol_High, 1}
+		},
+	},
+#endif
+/*TabA7 Lite code for SR-AX3565-01-320 by wangqi at 20201224 start*/
+#if defined(GC8054_CXT_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_GC8054_CXT_MIPI_RAW,
+		{
+			{SensorMCLK, Vol_High, 1},
+			{RST, Vol_Low, 1},
+			{DOVDD, Vol_1800, 1},
+			{DVDD, Vol_1200, 1},
+			{AVDD, Vol_2800, 0},
+			{PDN, Vol_High, 1},
+/*TabA7 Lite code for SR-AX3565-01-320 by liuchengfei at 20201228 start*/
+			{AFVDD, Vol_2800, 2},
+/*TabA7 Lite code for SR-AX3565-01-320 by liuchengfei at 20201228 end*/
+			{RST, Vol_High, 1}
+		},
+	},
+#endif
+/*  TabA7 Lite code for SR-AX3565-01-875 by gaozhenyu at 2021/11/19 start */
+#if defined(SC800CS_LY_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_SC800CS_LY_MIPI_RAW,
+		{
+/*  TabA7 Lite code for SR-AX3565-01-880 by gaozhenyu at 2021/12/01 start */
+                        {RST, Vol_Low, 1},
+                        {DOVDD, Vol_1800, 1},
+			{AFVDD, Vol_2800, 2},
+			{DVDD, Vol_1200, 1},
+                        {AVDD, Vol_2800, 0},
+                        {PDN, Vol_High, 1},
+                        {RST, Vol_High, 1},
+			{SensorMCLK, Vol_High, 1}
+/*  TabA7 Lite code for SR-AX3565-01-880 by gaozhenyu at 2021/12/01 end */
+		},
+	},
+#endif
+/*  TabA7 Lite code for SR-AX3565-01-875 by gaozhenyu at 2021/11/19 end*/
+/*TabA7 Lite code for SR-AX3565-01-320 by wangqi at 20201224 end*/
+
+/*  TabA7 Lite code for SR-AX3565-01-904 by chenjun at 2021/02/16 start */
+#if defined(S5K4H7_HLT_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_S5K4H7_HLT_MIPI_RAW,
+		{
+			{RST, Vol_Low, 1},
+			{DOVDD, Vol_1800, 1},
+			{AFVDD, Vol_2800, 1},
+			{DVDD, Vol_1200, 1},
+			{AVDD, Vol_2800, 2},
+			{SensorMCLK, Vol_High, 1},
+			{PDN, Vol_High, 1},
+			{RST, Vol_High, 5},
+		},
+	},
+#endif
+/*  TabA7 Lite code for SR-AX3565-01-904 by chenjun at 2021/02/16 end */
+
+#if defined(GC02M1_SJC_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_GC02M1_SJC_MIPI_RAW,
+		{
+			{RST, Vol_Low, 1},
+			{DOVDD, Vol_1800, 1},
+			{DVDD, Vol_1200, 1},
+			{AVDD, Vol_2800, 0},
+			{PDN, Vol_High, 1},
+			{SensorMCLK, Vol_High, 1},
+			{RST, Vol_High, 1},
+		},
+	},
+#endif
+#if defined(GC02M1SUB_CXT_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_GC02M1SUB_CXT_MIPI_RAW,
+		{
+			{RST, Vol_Low, 1},
+			{DOVDD, Vol_1800, 1},
+			{DVDD, Vol_1200, 1},
+			{AVDD, Vol_2800, 0},
+			{PDN, Vol_High, 1},
+			{SensorMCLK, Vol_High, 1},
+			{RST, Vol_High, 1},
+		},
+	},
+#endif
+/*TabA7 Lite code for SR-AX3565-01-320 by wangqi at 20210225 start*/
+#if defined(OV02B10_JK_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_OV02B10_JK_MIPI_RAW,
+		{
+			{RST, Vol_Low, 1},
+			{DOVDD, Vol_1800, 4},
+			{DVDD, Vol_High, 1},
+			{AVDD, Vol_2800, 0},
+			{PDN, Vol_High, 1},
+			{SensorMCLK, Vol_High, 9},
+			{RST, Vol_High, 1},
+		},
+	},
+#endif
+/*TabA7 Lite code for SR-AX3565-01-320 by wangqi at 20210225 end*/
+/************gaozhenyu add for camera end *****************/
+#ifdef CONFIG_HQ_PROJECT_HS03S
+/* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/05/11 start */	
 #if defined(HI1336_TXD_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_HI1336_TXD_MIPI_RAW,
@@ -315,7 +538,6 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 /* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/04/25 start */
 /* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/05/11 end */
 /* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/05/11 start */
-/* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/06/1 start*/
 #if defined(GC2375H_CXT_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_GC2375H_CXT_MIPI_RAW,
@@ -328,7 +550,6 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 		},
 	},
 #endif
-/* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/06/1 end*/
 #if defined(GC02M1B_LY_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_GC02M1B_LY_MIPI_RAW,
@@ -337,7 +558,20 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 			{DOVDD, Vol_1800, 1},
 			{AVDD, Vol_2800, 1},
 			{RST, Vol_High, 3},
-                        {SensorMCLK, Vol_High, 3},
+			{SensorMCLK, Vol_High, 3},
+		},
+	},
+#endif
+/*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 start */
+#if defined(SC201CS_CXT_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_SC201CS_CXT_MIPI_RAW,
+		{
+			{RST, Vol_Low, 1},
+			{DOVDD, Vol_1800, 1},
+			{AVDD, Vol_2800, 1},
+			{RST, Vol_High, 3},
+                        {SensorMCLK, Vol_High, 5},
 		},
 	},
 #endif
@@ -356,7 +590,6 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 		},
 	},
 #endif
-/* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/06/1 start*/
 #if defined(GC2375H_SJC_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_GC2375H_SJC_MIPI_RAW,
@@ -369,7 +602,6 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 		},
 	},
 #endif
-/* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/06/1 end*/
 #if defined(GC02M1_JK_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_GC02M1_JK_MIPI_RAW,
@@ -425,7 +657,53 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 	},
 #endif
 /* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/05/11 end */
+#if defined(SC1300CS_LY_MIPI_RAW)
+    {
+        SENSOR_DRVNAME_SC1300CS_LY_MIPI_RAW,
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 1},
+            {DVDD, Vol_1200, 1},
+            {AVDD, Vol_2800, 1},
+			{AFVDD, Vol_2800, 0},
+            {RST, Vol_High, 1},
+            {PDN, Vol_High, 5},
+            {SensorMCLK, Vol_High, 5},
+        },
+    },
+#endif
+/*hs03s_NM code for DEVAL5625-2576 by liluling at 2022/5/10 start*/
+#if defined(SC500CS_DD_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_SC500CS_DD_MIPI_RAW,
+		{
+			{RST, Vol_Low, 1},
+			{DOVDD, Vol_1800, 1},
+			{PDN, Vol_High, 1},
+			{DVDD, Vol_1200, 1},
+			{AVDD, Vol_2800, 1},
+			{RST, Vol_High, 1},
+			{SensorMCLK, Vol_High, 5},
+		},
+	},
+#endif
+/*hs03s_NM code for DEVAL5625-2576 by liluling at 2022/5/10 end*/
+#if defined(SC201CS_CXT_MACRO_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_SC201CS_CXT_MACRO_MIPI_RAW,
+		{
+			{RST, Vol_Low, 1},
+			{DOVDD, Vol_1800, 1},
+			{DVDD, Vol_1200, 1},
+			{AVDD, Vol_2800, 1},
+			{RST, Vol_High, 1},
+			{SensorMCLK, Vol_High, 5},
+		},
+	},
+#endif
 /* A03s code for SR-AL5625-01-324 by gaozhenyu at 2021/04/24 end */
+/*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 end*/
+#endif
 #if defined(IMX398_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_IMX398_MIPI_RAW,

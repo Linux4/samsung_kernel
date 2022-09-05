@@ -1262,7 +1262,7 @@ static int context_struct_to_string(struct policydb *p,
 	if (!in_interrupt() && !in_atomic())
 		kmalloc_flag = GFP_KERNEL;
 	scontextp = kmalloc(*scontext_len, kmalloc_flag);
-// ] SEC_SELINUX_PORTING_COMMON
+// ] SEC_SELINUX_PORTING_COMMON 
 	if (!scontextp)
 		return -ENOMEM;
 	*scontext = scontextp;
@@ -1287,6 +1287,12 @@ static int context_struct_to_string(struct policydb *p,
 int security_sidtab_hash_stats(struct selinux_state *state, char *page)
 {
 	int rc;
+
+	if (!state->initialized) {
+		pr_err("SELinux: %s:  called before initial load_policy\n",
+		       __func__);
+		return -EINVAL;
+	}
 
 	read_lock(&state->ss->policy_rwlock);
 	rc = sidtab_hash_stats(state->ss->sidtab, page);
@@ -2906,8 +2912,12 @@ err:
 	if (*names) {
 		for (i = 0; i < *len; i++)
 			kfree((*names)[i]);
+		kfree(*names);
 	}
 	kfree(*values);
+	*len = 0;
+	*names = NULL;
+	*values = NULL;
 	goto out;
 }
 
@@ -3774,4 +3784,3 @@ int security_read_policy(struct selinux_state *state,
 	return 0;
 
 }
-

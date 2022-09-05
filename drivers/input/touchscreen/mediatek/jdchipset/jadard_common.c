@@ -602,7 +602,6 @@ static int jadard_err_ctrl(uint8_t *buf, int ts_status)
 		JD_I("[rst_active]:%s: Back from reset, ready to serve.\n", __func__);
 		ts_status = JD_RST_OK;
 	}
-
 	JD_D("%s: end, ts_status=%d\n", __func__, ts_status);
 
 	return ts_status;
@@ -665,7 +664,6 @@ void jadard_cable_detect(bool renew)
 	jd_usb_detect_flag = mtk_touch_get_usb_status();
 	connect_status = jd_usb_detect_flag;
 	/*hs03s code for DEVAL5625-1433/DEVAL5625-1483 by yuanliding at 20210625 end*/
-
 	if (ts->usb_status) {
 		if (((!!connect_status) != ts->usb_connected) || renew) {
 			if (!!connect_status) {
@@ -1182,7 +1180,6 @@ int jadard_common_proc_init(void)
 		goto fail_4;
 	}
 #endif
-
 	return 0;
 
 #ifdef JD_HIGH_SENSITIVITY
@@ -1192,6 +1189,7 @@ fail_4:
 	#endif
 #endif
 /*hs03s code for SR-AL5625-01-305 by yuanliding at 20210521 end*/
+
 #ifdef JD_SMART_WAKEUP
 fail_3:
 	remove_proc_entry(JADARD_PROC_SMWP_FILE, pjadard_touch_proc_dir);
@@ -1218,6 +1216,7 @@ void jadard_common_proc_deinit(void)
 	remove_proc_entry(JADARD_PROC_HIGH_SENSITIVITY_FILE, pjadard_touch_proc_dir);
 #endif
 }
+
 /*hs03s code for DEVAL5626-589 by huangzhongjie at 20210902 start*/
 static int jadard_input_open(struct input_dev *dev)
 {
@@ -1230,6 +1229,7 @@ static void jadard_input_close(struct input_dev *dev)
     pjadard_ts_data->tp_is_enabled = 0;
 }
 /*hs03s code for DEVAL5626-589 by huangzhongjie at 20210902 end*/
+
 int jadard_input_register(struct jadard_ts_data *ts)
 {
 	int ret = 0;
@@ -1285,7 +1285,6 @@ int jadard_input_register(struct jadard_ts_data *ts)
 	ts->input_dev->open = jadard_input_open;
 	ts->input_dev->close = jadard_input_close;
 	/*hs03s code for DEVAL5626-589 by huangzhongjie at 20210902 end*/
-
 	if (jadard_input_register_device(ts->input_dev) == 0) {
 		return JD_NO_ERR;
 	} else {
@@ -1374,6 +1373,7 @@ static int jd_test_node_init(struct platform_device *tpinfo_device)
 /**************************************
 *** END: Add for system application ***
 ***************************************/
+
 /*hs03s  code for SR-AL5625-01-96 by wangdeyan at 20210519 start*/
 static int jd_get_tp_module(void)
 {
@@ -1391,6 +1391,12 @@ static int jd_get_tp_module(void)
 		ts->firmware_name = "mdt_jadard_firmware.bin";
 		mtp_chip_name = "MDT_MDT_JD9365";
 		JD_I("mdt panel has been found\n");
+	/*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 2022/4/14 start*/
+    } else if (NULL != strstr(command_line, "lcd_jd9365t_txd_ctc_mipi_hdp_video")){
+		ts->firmware_name = "txd_jadard_firmware.bin";
+		mtp_chip_name = "TXD_CTC_JD9365";
+		JD_I("txd panel has been found\n");
+	/*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 2022/4/14 end*/
     }
     else{
         JD_I("can't find lcd!");
@@ -1581,13 +1587,15 @@ int jadard_chip_common_init(void)
 		JD_I("%s: sec_cmd_init success!\n", __func__);
 	}
 	/*hs03s code for SR-AL5625-01-305 by yuanliding at 20210521 end*/
+
 	/*hs03s code for DEVAL5626-589 by huangzhongjie at 20210902 start*/
 	ret = sysfs_create_link(&ts->sec.fac_dev->kobj,&ts->input_dev->dev.kobj, "input");
 	if (ret < 0)
 	{
 		JD_E("create enable node fail\n");
 	}
-	/*hs03s code for DEVAL5626-589 by huangzhongjie at 20210902 end*/
+	/*hs03s code for DEVAL5626-589 by huangzhongjie at 20210902 end*/	
+
 	platform_device_register(&hwinfo_device);
 	jd_test_node_init(&hwinfo_device);
 
@@ -1705,10 +1713,17 @@ int jadard_chip_common_suspend(struct jadard_ts_data *ts)
 		ts->suspended = true;
 	}
 
+/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+#if defined(JD_SMART_WAKEUP) || defined(JD_USB_DETECT_GLOBAL)|| defined(JD_HIGH_SENSITIVITY)
+	g_module_fp.fp_resume_set_func(ts->suspended);
+#endif
+/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 end*/
+
 	if ((pjadard_debug != NULL) && (*pjadard_debug->fw_dump_going)) {
 		JD_I("%s: Flash dump is going, reject suspend\n", __func__);
 		return 0;
 	}
+
 
 #ifdef JD_SMART_WAKEUP
 	if (ts->SMWP_enable) {
@@ -1730,7 +1745,6 @@ int jadard_chip_common_suspend(struct jadard_ts_data *ts)
 
 int jadard_chip_common_resume(struct jadard_ts_data *ts)
 {
-
 	if (!ts->suspended) {
 		JD_I("%s: Already resumed, Skipped\n", __func__);
 		return 0;
@@ -1741,11 +1755,12 @@ int jadard_chip_common_resume(struct jadard_ts_data *ts)
 
 	atomic_set(&ts->suspend_mode, 0);
 
-#if defined(JD_SMART_WAKEUP) || defined(JD_USB_DETECT_GLOBAL)|| defined(JD_HIGH_SENSITIVITY)
-	/*hs03sd code for SR-AL5625-01-305 by yuanliding at 20210609 start*/
-	irq_set_irq_wake(ts->jd_irq , 0);
-	/*hs03sd code for SR-AL5625-01-305 by yuanliding at 20210609 end*/
-	g_module_fp.fp_resume_set_func(ts->suspended);
+#if defined(JD_SMART_WAKEUP)
+	/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+	if (ts->SMWP_enable) {
+		irq_set_irq_wake(ts->jd_irq , 0);
+	}
+	/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 end*/
 #endif
 
 #ifdef JD_ZERO_FLASH
@@ -1759,6 +1774,13 @@ int jadard_chip_common_resume(struct jadard_ts_data *ts)
 #endif
 
 	jadard_report_all_leave_event(ts);
+
+/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+#if defined(JD_SMART_WAKEUP) || defined(JD_USB_DETECT_GLOBAL)|| defined(JD_HIGH_SENSITIVITY)
+	g_module_fp.fp_resume_set_func(ts->suspended);
+#endif
+/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 end*/
+
 	jadard_int_enable(true);
 
 	JD_I("%s: end \n", __func__);

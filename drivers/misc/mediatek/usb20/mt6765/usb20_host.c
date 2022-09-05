@@ -3,6 +3,11 @@
  * Copyright (C) 2018 MediaTek Inc.
  */
 
+#include <usb20.h>
+#include <musb_io.h>
+#include <mtk_musb_reg.h>
+#include <musb_core.h>
+
 #ifdef CONFIG_USB_MTK_OTG
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -11,10 +16,8 @@
 #include <linux/list.h>
 #include <linux/gpio.h>
 #include <linux/io.h>
-#include "musb_core.h"
 #include <linux/platform_device.h>
-#include "musbhsdma.h"
-#include "usb20.h"
+#include <mtk_musb.h>
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
 #if defined(CONFIG_CABLE_TYPE_NOTIFIER)
@@ -22,17 +25,32 @@
 #endif
 #ifdef CONFIG_MTK_USB_TYPEC
 #ifdef CONFIG_TCPC_CLASS
-#include "tcpm.h"
+#include <tcpm.h>
+#endif
+#endif
 #include <linux/workqueue.h>
 #include <linux/mutex.h>
-#include <linux/jiffies.h>
+#include <linux/phy/phy.h>
 
+#include <mtk_musb.h>
+
+#ifdef CONFIG_MTK_MUSB_PHY
+#include <usb20_phy.h>
+#endif
+
+MODULE_LICENSE("GPL v2");
+
+#include <mt-plat/mtk_boot_common.h>
+
+//#ifdef CONFIG_HS03S_SUPPORT
 static struct notifier_block otg_nb;
 static struct tcpc_device *otg_tcpc_dev;
 static struct delayed_work register_otg_work;
-#if !defined(CONFIG_CABLE_TYPE_NOTIFIER)
 static unsigned long swch_d_time, swch_h_time;
-#endif
+//#endif /*CONFIG_HS03S_SUPPORT*/
+
+#ifdef CONFIG_MTK_USB_TYPEC
+#ifdef CONFIG_TCPC_CLASS
 static int otg_tcp_notifier_call(struct notifier_block *nb,
 		unsigned long event, void *data);
 #define TCPC_OTG_DEV_NAME "type_c_port0"
@@ -72,50 +90,55 @@ void mt_usb_host_disconnect(int delay);
 
 /* HS03s for SR-AL5625-01-515 by wangzikang at 21210610 start*/
 #include <charger_class.h>
+#ifdef CONFIG_HS03S_SUPPORT
 static struct charger_device *primary_charger;
+#endif
 /* HS03s for SR-AL5625-01-515 by wangzikang at 21210610 end*/
 #include <mt-plat/mtk_boot_common.h>
 
-struct device_node		*usb_node;
-static int iddig_eint_num;
-static ktime_t ktime_start, ktime_end;
+struct device_node	*usb_node;
+static int		iddig_eint_num;
+static ktime_t		ktime_start, ktime_end;
 /* HS03s for SR-AL5625-01-515 by wangzikang at 21210610 start*/
-//static struct regulator *reg_vbus; //delete
+
+#ifndef CONFIG_HS03S_SUPPORT
+static struct		regulator *reg_vbus;
+#endif
 /* HS03s for SR-AL5625-01-515 by wangzikang at 21210610 end*/
 
 static struct musb_fifo_cfg fifo_cfg_host[] = {
-{ .hw_ep_num = 1, .style = MUSB_FIFO_TX,
-		.maxpacket = 512, .mode = MUSB_BUF_SINGLE},
-{ .hw_ep_num = 1, .style = MUSB_FIFO_RX,
-		.maxpacket = 512, .mode = MUSB_BUF_SINGLE},
-{ .hw_ep_num = 2, .style = MUSB_FIFO_TX,
-		.maxpacket = 512, .mode = MUSB_BUF_SINGLE},
-{ .hw_ep_num = 2, .style = MUSB_FIFO_RX,
-		.maxpacket = 512, .mode = MUSB_BUF_SINGLE},
-{ .hw_ep_num = 3, .style = MUSB_FIFO_TX,
-		.maxpacket = 512, .mode = MUSB_BUF_SINGLE},
-{ .hw_ep_num = 3, .style = MUSB_FIFO_RX,
-		.maxpacket = 512, .mode = MUSB_BUF_SINGLE},
-{ .hw_ep_num = 4, .style = MUSB_FIFO_TX,
-		.maxpacket = 512, .mode = MUSB_BUF_SINGLE},
-{ .hw_ep_num = 4, .style = MUSB_FIFO_RX,
-		.maxpacket = 512, .mode = MUSB_BUF_SINGLE},
-{ .hw_ep_num = 5, .style = MUSB_FIFO_TX,
-		.maxpacket = 512, .mode = MUSB_BUF_SINGLE},
-{ .hw_ep_num = 5, .style = MUSB_FIFO_RX,
-		.maxpacket = 512, .mode = MUSB_BUF_SINGLE},
-{ .hw_ep_num = 6, .style = MUSB_FIFO_TX,
-		.maxpacket = 512, .mode = MUSB_BUF_SINGLE},
-{ .hw_ep_num = 6, .style = MUSB_FIFO_RX,
-		.maxpacket = 512, .mode = MUSB_BUF_SINGLE},
-{ .hw_ep_num = 7, .style = MUSB_FIFO_TX,
-		.maxpacket = 512, .mode = MUSB_BUF_SINGLE},
-{ .hw_ep_num = 7, .style = MUSB_FIFO_RX,
-		.maxpacket = 512, .mode = MUSB_BUF_SINGLE},
-{ .hw_ep_num = 8, .style = MUSB_FIFO_TX,
-		.maxpacket = 512, .mode = MUSB_BUF_SINGLE},
-{ .hw_ep_num = 8, .style = MUSB_FIFO_RX,
-		.maxpacket = 64,  .mode = MUSB_BUF_SINGLE},
+{ .hw_ep_num = 1, .style = FIFO_TX,
+		.maxpacket = 512, .mode = BUF_SINGLE},
+{ .hw_ep_num = 1, .style = FIFO_RX,
+		.maxpacket = 512, .mode = BUF_SINGLE},
+{ .hw_ep_num = 2, .style = FIFO_TX,
+		.maxpacket = 512, .mode = BUF_SINGLE},
+{ .hw_ep_num = 2, .style = FIFO_RX,
+		.maxpacket = 512, .mode = BUF_SINGLE},
+{ .hw_ep_num = 3, .style = FIFO_TX,
+		.maxpacket = 512, .mode = BUF_SINGLE},
+{ .hw_ep_num = 3, .style = FIFO_RX,
+		.maxpacket = 512, .mode = BUF_SINGLE},
+{ .hw_ep_num = 4, .style = FIFO_TX,
+		.maxpacket = 512, .mode = BUF_SINGLE},
+{ .hw_ep_num = 4, .style = FIFO_RX,
+		.maxpacket = 512, .mode = BUF_SINGLE},
+{ .hw_ep_num = 5, .style = FIFO_TX,
+		.maxpacket = 512, .mode = BUF_SINGLE},
+{ .hw_ep_num = 5, .style = FIFO_RX,
+		.maxpacket = 512, .mode = BUF_SINGLE},
+{ .hw_ep_num = 6, .style = FIFO_TX,
+		.maxpacket = 512, .mode = BUF_SINGLE},
+{ .hw_ep_num = 6, .style = FIFO_RX,
+		.maxpacket = 512, .mode = BUF_SINGLE},
+{ .hw_ep_num = 7, .style = FIFO_TX,
+		.maxpacket = 512, .mode = BUF_SINGLE},
+{ .hw_ep_num = 7, .style = FIFO_RX,
+		.maxpacket = 512, .mode = BUF_SINGLE},
+{ .hw_ep_num = 8, .style = FIFO_TX,
+		.maxpacket = 512, .mode = BUF_SINGLE},
+{ .hw_ep_num = 8, .style = FIFO_RX,
+		.maxpacket = 64,  .mode = BUF_SINGLE},
 };
 
 u32 delay_time = 15;
@@ -130,16 +153,89 @@ module_param(vbus_on, bool, 0644);
 static int vbus_control;
 module_param(vbus_control, int, 0644);
 
-bool usb20_check_vbus_on(void)
+/*HS03s for DEVAL5625-8 by wenyaqi at 20210425 start*/
+void set_usb_eye_diagram(s32 u2_vrt_ref, s32 u2_term_ref, s32 u2_hstx_srctrl,
+	s32 u2_enhance)
 {
-	DBG(0, "vbus_on<%d>\n", vbus_on);
-	return vbus_on;
+	if (u2_vrt_ref != -1) {
+		if (u2_vrt_ref <= VAL_MAX_WIDTH_3) {
+			USBPHY_CLR32(OFFSET_RG_USB20_VRT_VREF_SEL,
+				VAL_MAX_WIDTH_3 << SHFT_RG_USB20_VRT_VREF_SEL);
+			USBPHY_SET32(OFFSET_RG_USB20_VRT_VREF_SEL,
+				u2_vrt_ref << SHFT_RG_USB20_VRT_VREF_SEL);
+		}
+	}
+	if (u2_term_ref != -1) {
+		if (u2_term_ref <= VAL_MAX_WIDTH_3) {
+			USBPHY_CLR32(OFFSET_RG_USB20_TERM_VREF_SEL,
+				VAL_MAX_WIDTH_3 << SHFT_RG_USB20_TERM_VREF_SEL);
+			USBPHY_SET32(OFFSET_RG_USB20_TERM_VREF_SEL,
+				u2_term_ref << SHFT_RG_USB20_TERM_VREF_SEL);
+		}
+	}
+	if (u2_hstx_srctrl != -1) {
+		if (u2_hstx_srctrl <= VAL_MAX_WIDTH_3) {
+			USBPHY_CLR32(0x14, VAL_MAX_WIDTH_3 << 12);
+			USBPHY_SET32(0x14, u2_hstx_srctrl << 12);
+		}
+	}
+	if (u2_enhance != -1) {
+		if (u2_enhance <= VAL_MAX_WIDTH_2) {
+			USBPHY_CLR32(OFFSET_RG_USB20_PHY_REV6,
+				VAL_MAX_WIDTH_2 << SHFT_RG_USB20_PHY_REV6);
+			USBPHY_SET32(OFFSET_RG_USB20_PHY_REV6,
+					u2_enhance<<SHFT_RG_USB20_PHY_REV6);
+		}
+	}
+	/*HS03s for DEVAL5625-8 by wangzikang at 20210615 start*/
+	pr_info("%s:u2_vrt_ref=0x%x, u2_term_ref=0x%x, u2_hstx_srctrl=0x%x,u2_enhance=0x%x\n",
+			__func__,u2_vrt_ref,u2_term_ref,u2_hstx_srctrl,u2_enhance);
+	/*HS03s for DEVAL5625-8 by wangzikang at 20210615 end*/
 }
 
+void set_usb_phy_mode(int mode)
+{
+	switch (mode) {
+	case PHY_DEV_ACTIVE:
+	/* VBUSVALID=1, AVALID=1, BVALID=1, SESSEND=0, IDDIG=1, IDPULLUP=1 */
+		USBPHY_CLR32(0x6C, (0x10<<0));
+		USBPHY_SET32(0x6C, (0x2F<<0));
+		USBPHY_SET32(0x6C, (0x3F<<8));
+		USBPHY_CLR32(0x14, 1 << 16);
+		set_usb_eye_diagram(U2_VRT_REF, U2_TERM_REF, U2_HSTX_SRCTRL, U2_ENHANCE);
+		break;
+	case PHY_HOST_ACTIVE:
+	/* VBUSVALID=1, AVALID=1, BVALID=1, SESSEND=0, IDDIG=0, IDPULLUP=1 */
+		USBPHY_CLR32(0x6c, (0x12<<0));
+		USBPHY_SET32(0x6c, (0x2d<<0));
+		USBPHY_SET32(0x6c, (0x3f<<8));
+		USBPHY_SET32(0x14, 1 << 16);
+		set_usb_eye_diagram(HOST_U2_VRT_REF, HOST_U2_TERM_REF, HOST_U2_HSTX_SRCTRL,
+			HOST_U2_ENHANCE);
+		break;
+	case PHY_IDLE_MODE:
+	/* VBUSVALID=0, AVALID=0, BVALID=0, SESSEND=1, IDDIG=0, IDPULLUP=1 */
+		USBPHY_SET32(0x6c, (0x11<<0));
+		USBPHY_CLR32(0x6c, (0x2e<<0));
+		USBPHY_SET32(0x6c, (0x3f<<8));
+		USBPHY_CLR32(0x14, 1 << 16);
+		set_usb_eye_diagram(U2_VRT_REF, U2_TERM_REF, U2_HSTX_SRCTRL, U2_ENHANCE);
+		break;
+	default:
+		set_usb_eye_diagram(U2_VRT_REF, U2_TERM_REF, U2_HSTX_SRCTRL, U2_ENHANCE);
+		DBG(0, "mode error %d\n", mode);
+	}
+	DBG(0, "force PHY to mode %d, 0x6c=%x\n", mode, USBPHY_READ32(0x6c));
+}
+
+bool usb_data_enabled = true;
+EXPORT_SYMBOL(usb_data_enabled);
+
+#ifdef CONFIG_HS03S_SUPPORT
 static void _set_vbus(int is_on)
 {
-/* HS03s for SR-AL5625-01-515 by wangzikang at 21210610 start*/
-/*   //delete
+	/* HS03s for SR-AL5625-01-515 by wangzikang at 21210610 start*/
+	/*   //delete
 	if (!reg_vbus) {
 		DBG(0, "vbus_init\n");
 		reg_vbus = regulator_get(mtk_musb->controller, "usb-otg-vbus");
@@ -161,16 +257,17 @@ static void _set_vbus(int is_on)
 /* HS03s for SR-AL5625-01-515 by wangzikang at 21210610 end*/
 
 	DBG(0, "op<%d>, status<%d>\n", is_on, vbus_on);
-	if (is_on && !vbus_on) {
+	if (is_on && !vbus_on && usb_data_enabled) {
 		/* update flag 1st then enable VBUS to make
 		 * host mode correct used by PMIC
 		 */
 		vbus_on = true;
-/* HS03s for SR-AL5625-01-515 by wangzikang at 21210610 start*/
+	/* HS03s for SR-AL5625-01-515 by wangzikang at 21210610 start*/
 		charger_dev_enable_otg(primary_charger, true);
 		charger_dev_set_boost_current_limit(primary_charger, 1500000);
 		charger_dev_enable(primary_charger, false);
 /*
+
 		if (regulator_set_voltage(reg_vbus, 5000000, 5000000))
 			DBG(0, "vbus regulator set voltage failed\n");
 
@@ -195,9 +292,51 @@ static void _set_vbus(int is_on)
 /* HS03s for SR-AL5625-01-515 by wangzikang at 21210610 end*/
 	}
 }
-//-Bug612420,xuejizhou.wt,MODIFY,20201224,OTG charger
+#else
+static void _set_vbus(int is_on)
+{
+        if (!reg_vbus) {
+                DBG(1, "vbus_init\n");
+                reg_vbus = regulator_get(mtk_musb->controller, "usb-otg-vbus");
+                if (IS_ERR_OR_NULL(reg_vbus)) {
+                        DBG(0, "failed to get vbus\n");
+                        return;
+                }
+        }
+
+        DBG(1, "op<%d>, status<%d>\n", is_on, vbus_on);
+        if (is_on && !vbus_on && usb_data_enabled) {
+                /* update flag 1st then enable VBUS to make
+                 * host mode correct used by PMIC
+                 */
+                vbus_on = true;
+
+                if (regulator_set_voltage(reg_vbus, 5000000, 5000000))
+                        DBG(0, "vbus regulator set voltage failed\n");
+
+                if (regulator_set_current_limit(reg_vbus, 1500000, 1800000))
+                        DBG(0, "vbus regulator set current limit failed\n");
+
+                if (regulator_enable(reg_vbus))
+                        DBG(0, "vbus regulator enable failed\n");
+
+        } else if (!is_on && vbus_on) {
+                /* disable VBUS 1st then update flag
+                 * to make host mode correct used by PMIC
+                 */
+                vbus_on = false;
+                regulator_disable(reg_vbus);
+        }
+}
+#endif
+
+void set_otg_vbus(bool val) {
+	if(!val)
+		_set_vbus(val);
+}
+EXPORT_SYMBOL(set_otg_vbus);
+
 #if defined(CONFIG_CABLE_TYPE_NOTIFIER)
-void mt_usb_set_vbus(struct musb *musb, int is_on) {}
 void mt_otg_accessory_power(int is_on)
 {
 	DBG(0, "is_on<%d>, control<%d>\n", is_on, vbus_control);
@@ -210,24 +349,6 @@ void mt_otg_accessory_power(int is_on)
 	else
 		_set_vbus(0);
 }
-#else
-void mt_usb_set_vbus(struct musb *musb, int is_on)
-{
-#ifndef FPGA_PLATFORM
-
-	DBG(0, "is_on<%d>, control<%d>\n", is_on, vbus_control);
-	/* HS03s for SR-AL5625-01-515 by wangzikang at 21210610 start*/
-	//if (!vbus_control)
-	//	return;
-	/* HS03s for SR-AL5625-01-515 by wangzikang at 21210610 end*/
-
-	if (is_on)
-		_set_vbus(1);
-	else
-		_set_vbus(0);
-#endif
-}
-void mt_otg_accessory_power(int is_on) {}
 #endif
 int mt_usb_get_vbus_status(struct musb *musb)
 {
@@ -256,6 +377,7 @@ module_param(sw_deboun_time, int, 0644);
 
 u32 typec_control;
 module_param(typec_control, int, 0644);
+
 static bool typec_req_host;
 static bool iddig_req_host;
 
@@ -295,12 +417,16 @@ void mt_usb_host_connect(int delay)
 	DBG(0, "%s\n", typec_req_host ? "connect" : "disconnect");
 	issue_host_work(CONNECTION_OPS_CONN, delay, true);
 }
+EXPORT_SYMBOL(mt_usb_host_connect);
+
 void mt_usb_host_disconnect(int delay)
 {
 	typec_req_host = false;
 	DBG(0, "%s\n", typec_req_host ? "connect" : "disconnect");
 	issue_host_work(CONNECTION_OPS_DISC, delay, true);
 }
+EXPORT_SYMBOL(mt_usb_host_disconnect);
+
 #ifdef CONFIG_MTK_USB_TYPEC
 #ifdef CONFIG_TCPC_CLASS
 static void do_vbus_work(struct work_struct *data)
@@ -351,9 +477,10 @@ static void mt_usb_vbus_off(int delay)
 	issue_vbus_work(VBUS_OPS_OFF, delay);
 }
 
-/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210428 start*/
+/*TabA7 Lite code for P210226-03264 by wenyaqi at 20210309 start*/
 bool sink_to_src_flag = false;
 bool src_to_sink_flag = false;
+/*TabA7 Lite code for P210226-03264 by wenyaqi at 20210309 end*/
 static int otg_tcp_notifier_call(struct notifier_block *nb,
 		unsigned long event, void *data)
 {
@@ -371,6 +498,7 @@ static int otg_tcp_notifier_call(struct notifier_block *nb,
 		DBG(0, "TCP_NOTIFY_TYPEC_STATE, old_state=%d, new_state=%d\n",
 				noti->typec_state.old_state,
 				noti->typec_state.new_state);
+		/*TabA7 Lite code for P210226-03264 by wenyaqi at 20210309 start*/
 		if(unlikely(noti->typec_state.old_state == TYPEC_ATTACHED_SNK &&
 			noti->typec_state.new_state == TYPEC_ATTACHED_SRC)) {
 			sink_to_src_flag = true;
@@ -383,16 +511,11 @@ static int otg_tcp_notifier_call(struct notifier_block *nb,
 			sink_to_src_flag = false;
 			src_to_sink_flag = false;
 		}
-/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210428 end*/
+		/*TabA7 Lite code for P210226-03264 by wenyaqi at 20210309 end*/
 		if (noti->typec_state.old_state == TYPEC_UNATTACHED &&
 			noti->typec_state.new_state == TYPEC_ATTACHED_SRC) {
 			DBG(0, "OTG Plug in\n");
-#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
-			typec_req_host = true;
-			cable_type_notifier_set_attached_dev(CABLE_TYPE_OTG);
-#else
 			mt_usb_host_connect(0);
-#endif
 		} else if ((noti->typec_state.old_state == TYPEC_ATTACHED_SRC ||
 			noti->typec_state.old_state == TYPEC_ATTACHED_SNK ||
 			noti->typec_state.old_state ==
@@ -400,20 +523,10 @@ static int otg_tcp_notifier_call(struct notifier_block *nb,
 			noti->typec_state.new_state == TYPEC_UNATTACHED) {
 			if (is_host_active(mtk_musb)) {
 				DBG(0, "OTG Plug out\n");
-#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
-				typec_req_host = false;
-				cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
-#else
 				mt_usb_host_disconnect(0);
-#endif
 			} else {
 				DBG(0, "USB Plug out\n");
-#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
-				typec_req_host = false;
-				cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
-#else
 				mt_usb_dev_disconnect();
-#endif
 			}
 #ifdef CONFIG_MTK_UART_USB_SWITCH
 		} else if ((noti->typec_state.new_state ==
@@ -435,28 +548,16 @@ static int otg_tcp_notifier_call(struct notifier_block *nb,
 		if (is_host_active(mtk_musb) &&
 			noti->swap_state.new_role == PD_ROLE_UFP) {
 			DBG(0, "switch role to device\n");
-#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
-			cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
-			typec_req_host = false;
-			cable_type_notifier_set_attached_dev(CABLE_TYPE_USB_SDP);
-#else
 			mt_usb_host_disconnect(0);
 			swch_d_time = jiffies;
 			if (!time_after(swch_d_time, swch_h_time + HZ)) {
 				pr_info("%s delay for switch\n", __func__);
 				msleep(100);
 			}
-
 			mt_usb_connect();
-#endif
 		} else if (is_peripheral_active(mtk_musb) &&
 			noti->swap_state.new_role == PD_ROLE_DFP) {
 			DBG(0, "switch role to host\n");
-#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
-			cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
-			typec_req_host = true;
-			cable_type_notifier_set_attached_dev(CABLE_TYPE_OTG);
-#else
 			mt_usb_dev_disconnect();
 			swch_h_time = jiffies;
 			if (!time_after(swch_h_time, swch_d_time + HZ)) {
@@ -464,7 +565,6 @@ static int otg_tcp_notifier_call(struct notifier_block *nb,
 				msleep(100);
 			}
 			mt_usb_host_connect(0);
-#endif
 		}
 		break;
 	}
@@ -506,6 +606,7 @@ void musb_session_restart(struct musb *musb)
 	musb_writeb(mbase, MUSB_DEVCTL,
 				(musb_readb(mbase,
 				MUSB_DEVCTL) & (~MUSB_DEVCTL_SESSION)));
+#ifdef CONFIG_MTK_MUSB_PHY
 	DBG(0, "[MUSB] stopped session for VBUSERROR interrupt\n");
 	USBPHY_SET32(0x6c, (0x3c<<8));
 	USBPHY_SET32(0x6c, (0x10<<0));
@@ -516,11 +617,13 @@ void musb_session_restart(struct musb *musb)
 	USBPHY_CLR32(0x6c, (0x3c<<0));
 	DBG(0, "[MUSB] let PHY resample VBUS, 0x6c=%x\n"
 				, USBPHY_READ32(0x6c));
+#endif
 	musb_writeb(mbase, MUSB_DEVCTL,
 				(musb_readb(mbase,
 				MUSB_DEVCTL) | MUSB_DEVCTL_SESSION));
 	DBG(0, "[MUSB] restart session\n");
 }
+EXPORT_SYMBOL(musb_session_restart);
 
 static struct delayed_work host_plug_test_work;
 int host_plug_test_enable; /* default disable */
@@ -626,8 +729,11 @@ static void do_host_work(struct work_struct *data)
 	int usb_clk_state = NO_CHANGE;
 	struct mt_usb_work *work =
 		container_of(data, struct mt_usb_work, dwork.work);
-
-	/* kernel_init_done should be set in
+#ifdef CONFIG_PHY_MTK_TPHY
+	struct mt_usb_glue *glue = mtk_musb->glue;
+#endif
+	/*
+	 * kernel_init_done should be set in
 	 * early-init stage through init.$platform.usb.rc
 	 */
 	while (!inited && !kernel_init_done &&
@@ -687,8 +793,9 @@ static void do_host_work(struct work_struct *data)
 #endif
 		/* setup fifo for host mode */
 		ep_config_from_table_for_host(mtk_musb);
-		__pm_stay_awake(mtk_musb->usb_lock);
-		mt_usb_set_vbus(mtk_musb, 1);
+
+		if (!mtk_musb->host_suspend)
+			__pm_stay_awake(mtk_musb->usb_lock);
 
 		/* this make PHY operation workable */
 		musb_platform_enable(mtk_musb);
@@ -702,6 +809,9 @@ static void do_host_work(struct work_struct *data)
 		musb_writeb(mtk_musb->mregs,
 				MUSB_DEVCTL, (devctl&(~MUSB_DEVCTL_SESSION)));
 		set_usb_phy_mode(PHY_IDLE_MODE);
+#ifdef CONFIG_PHY_MTK_TPHY
+		phy_set_mode(glue->phy, PHY_MODE_INVALID);
+#endif
 		/* wait */
 		mdelay(5);
 		/* restart session */
@@ -709,8 +819,11 @@ static void do_host_work(struct work_struct *data)
 		musb_writeb(mtk_musb->mregs,
 				MUSB_DEVCTL, (devctl | MUSB_DEVCTL_SESSION));
 		set_usb_phy_mode(PHY_HOST_ACTIVE);
-
+#ifdef CONFIG_PHY_MTK_TPHY
+		phy_set_mode(glue->phy, PHY_MODE_USB_HOST);
+#endif
 		musb_start(mtk_musb);
+
 		if (!typec_control && !host_plug_test_triggered)
 			switch_int_to_device(mtk_musb);
 
@@ -734,11 +847,13 @@ static void do_host_work(struct work_struct *data)
 		musb_writeb(mtk_musb->mregs, MUSB_DEVCTL, 0);
 		if (mtk_musb->usb_lock->active)
 			__pm_relax(mtk_musb->usb_lock);
-		mt_usb_set_vbus(mtk_musb, 0);
 
 		/* for no VBUS sensing IP */
 		set_usb_phy_mode(PHY_IDLE_MODE);
-
+#ifdef CONFIG_PHY_MTK_TPHY
+		/* for no VBUS sensing IP */
+		phy_set_mode(glue->phy, PHY_MODE_INVALID);
+#endif
 		musb_stop(mtk_musb);
 
 		if (!typec_control && !host_plug_test_triggered)
@@ -868,29 +983,32 @@ void mt_usb_otg_init(struct musb *musb)
 	INIT_DELAYED_WORK(&register_otg_work, do_register_otg_work);
 	queue_delayed_work(mtk_musb->st_wq, &register_otg_work, 0);
 	vbus_control = 0;
-#endif
+#endif /* CONFIG_TCPC_CLASS */
 #else
 	DBG(0, "host controlled by IDDIG\n");
 	iddig_int_init();
 	vbus_control = 1;
-#endif
+#endif /* CONFIG_MTK_USB_TYPEC */
 
 	/* EP table */
 	musb->fifo_cfg_host = fifo_cfg_host;
 	musb->fifo_cfg_host_size = ARRAY_SIZE(fifo_cfg_host);
 
 }
+EXPORT_SYMBOL(mt_usb_otg_init);
+
 void mt_usb_otg_exit(struct musb *musb)
 {
 	DBG(0, "OTG disable vbus\n");
-	mt_usb_set_vbus(mtk_musb, 0);
 }
+EXPORT_SYMBOL(mt_usb_otg_exit);
 
 enum {
 	DO_IT = 0,
 	REVERT,
 };
 
+#ifdef CONFIG_MTK_MUSB_PHY
 static void bypass_disc_circuit(int act)
 {
 	u32 val;
@@ -936,6 +1054,7 @@ static void disc_threshold_to_max(int act)
 
 	usb_prepare_enable_clock(false);
 }
+#endif
 
 static int option;
 static int set_option(const char *val, const struct kernel_param *kp)
@@ -976,6 +1095,7 @@ static int set_option(const char *val, const struct kernel_param *kp)
 		DBG(0, "case %d\n", local_option);
 		mt_usb_host_disconnect(3000);
 		break;
+#ifdef CONFIG_MTK_MUSB_PHY
 	case 5:
 		DBG(0, "case %d\n", local_option);
 		disc_threshold_to_max(DO_IT);
@@ -992,6 +1112,7 @@ static int set_option(const char *val, const struct kernel_param *kp)
 		DBG(0, "case %d\n", local_option);
 		bypass_disc_circuit(REVERT);
 		break;
+#endif
 	case 9:
 		DBG(0, "case %d\n", local_option);
 		_set_vbus(1);
@@ -1014,10 +1135,16 @@ module_param_cb(option, &option_param_ops, &option, 0644);
 #include "musb_core.h"
 /* for not define CONFIG_USB_MTK_OTG */
 void mt_usb_otg_init(struct musb *musb) {}
+EXPORT_SYMBOL(mt_usb_otg_init);
+
 void mt_usb_otg_exit(struct musb *musb) {}
+EXPORT_SYMBOL(mt_usb_otg_exit);
+
 void mt_usb_set_vbus(struct musb *musb, int is_on) {}
 int mt_usb_get_vbus_status(struct musb *musb) {return 1; }
 void switch_int_to_device(struct musb *musb) {}
 void switch_int_to_host(struct musb *musb) {}
+
 void musb_session_restart(struct musb *musb) {}
+EXPORT_SYMBOL(musb_session_restart);
 #endif

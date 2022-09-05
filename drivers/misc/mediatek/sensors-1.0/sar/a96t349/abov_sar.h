@@ -102,6 +102,10 @@ static struct _buttonInfo psmtcButtons[] = {
 struct abov_platform_data {
     int i2c_reg_num;
     struct smtc_reg_data *pi2c_reg;
+    struct regulator *vdd;
+    /*TabA7 Lite code for OT8-221 by Hujincan at 20201218 start*/
+    //struct regulator *vddio;
+    /*TabA7 Lite code for OT8-221 by Hujincan at 20201218 start*/
     unsigned irq_gpio;
     /* used for custom setting for channel and scan period */
     int cap_channel_bottom;
@@ -114,7 +118,11 @@ struct abov_platform_data {
     void (*exit_platform_hw)(void);
 #if defined(CONFIG_SENSORS)
     struct device *factory_device;
+#ifdef CONFIG_HQ_PROJECT_HS03S
     struct device *factory_device_sub;
+#else
+    struct device *factory_device_wifi;
+#endif  //hs03s
 #endif
 };
 typedef struct abov_platform_data abov_platform_data_t;

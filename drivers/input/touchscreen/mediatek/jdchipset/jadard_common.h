@@ -168,6 +168,7 @@ struct jadard_ts_data {
 	int rst_gpio;
 	bool rst_active;
 	bool sorting_active;
+	
 /*hs03s  code for SR-AL5625-01-96 by wangdeyan at 20210519 start*/
 	char *firmware_name;
 /*hs03s  code for SR-AL5625-01-96 by wangdeyan at 20210519 end*/
@@ -291,6 +292,7 @@ struct jadard_debug {
 	bool *fw_dump_going;
 	void (*fp_touch_dbg_func)(struct jadard_ts_data *ts, uint8_t start);
 };
+
 
 int jadard_chip_common_init(void);
 void jadard_chip_common_deinit(void);

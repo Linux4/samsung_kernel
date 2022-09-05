@@ -1833,9 +1833,11 @@ int sensor_set_cmd_to_hub(uint8_t sensorType,
 					pr_err("scp_sHub_req_send fail!\n");
 					return -1;
 				}
+				/* hs03s code for SR-AL5625-01-49 by xiongxiaoliang at 2021/05/06 start */
 				pGetRawData = &req.set_cust_rsp.getRawData;
-				*((uint8_t *) data) =
-					pGetRawData->uint8_data[0];
+				*((uint32_t *) data) =
+					pGetRawData->pdata_offset;
+				/* hs03s code for SR-AL5625-01-49 by xiongxiaoliang at 2021/05/06 end */
 			} else {
 				pr_err("scp_sensorHub_req_send failed!\n");
 			}
@@ -1919,11 +1921,9 @@ int sensor_set_cmd_to_hub(uint8_t sensorType,
 					pr_err("scp_sHub_req_send fail!\n");
 					return -1;
 				}
-				/* hs03s code for SR-AL5625-01-49 by xiongxiaoliang at 2021/05/06 start */
 				pGetRawData = &req.set_cust_rsp.getRawData;
-				*((uint32_t *) data) =
-					pGetRawData->pdata_offset;
-				/* hs03s code for SR-AL5625-01-49 by xiongxiaoliang at 2021/05/06 end */
+				*((uint16_t *) data) =
+					pGetRawData->uint16_data[0];
 			} else {
 				pr_err("scp_sensorHub_req_send failed!\n");
 			}

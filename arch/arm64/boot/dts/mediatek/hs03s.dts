@@ -62,7 +62,7 @@
 		data = <1>;
 		pwm_config = <0 0 0 0 0>;
 	};
-
+	
 	/* HS03S code added for SR-AL5625-01-310 by gaozhengwei at 20210423 start */
 	led6:led@6 {
 		compatible = "mediatek,lcd-backlight";
@@ -73,16 +73,15 @@
 	panel: panel@0 {
 		compatible = "mediatek,lcm-panel";
 		gpio_lcd_rst = <&pio 45 0>;
-		/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
-		pinctrl-names = "disp_pwm", "disp_pwm_gpio", "tp_rst_output0", "tp_rst_output1";
+		/* hs03s_NM code added for SR-AL5625-01-609 by fengzhigang at 20220424 start */
+		gpio_tsp_rst = <&pio 172 0>;
+		pinctrl-names = "disp_pwm", "disp_pwm_gpio";
 		pinctrl-0 = <&lcd_disp_pwm>;
 		pinctrl-1 = <&lcd_disp_pwm_gpio>;
-		pinctrl-2 = <&ctp_pins_rst_output0>;
-		pinctrl-3 = <&ctp_pins_rst_output1>;
-		/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 end */
+		/* hs03s_NM code added for SR-AL5625-01-609 by fengzhigang at 20220424 end */
 	};
 	/* HS03S code added for SR-AL5625-01-310 by gaozhengwei at 20210423 end */
-
+	
 	vibrator0:vibrator@0 {
 		compatible = "mediatek,vibrator";
 		vib_timer = <25>;
@@ -115,7 +114,6 @@
 		vsel_pin = <2>;
 	};
 };
-
 /*hs03s code add for flashlights_aw36518 by chengzhi at 2021.06.13 begin*/
 &i2c6 {
     flashlights_aw36518@63 {
@@ -142,7 +140,7 @@
 		};
 	};
 	/* HS03S code added for SR-AL5625-01-310 by gaozhengwei at 20210423 end */
-
+	
 	consys_pins_default: consys_default {
 	};
 	gpslna_pins_init: gpslna@0 {
@@ -224,13 +222,14 @@
 };
 /* accdet end */
 
+
 &spi1 {
 	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
 	/delete-property/mediatek,pad-select;
-	mediatek,pad-select = <0>, <0>, <0>, <0>;
-	cs-gpios = <0>, <0>, <0>, <0>;
+	mediatek,pad-select = <0>, <0>, <0>, <0>, <0>;
+	cs-gpios = <0>, <0>, <0>, <0>, <0>;
 
 	himax_touch@0 {
 		compatible = "mediatek,himax_spi_touch";
@@ -267,30 +266,55 @@
         chipone,touch-earjack-state-filepath = "/sys/bus/platform/drivers/Accdet_Driver/state";
         chipone,touch-earjack-poll-interval = <1000>;
 
-        /* selftest settings */
-		chipone,test-reset-pin;
-		//chipone,test-int-pin;
+		/*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 start*/
+		/* selftest settings */
+		chipone_xl_truly,test-reset-pin;
+		//chipone_xl_truly,test-int-pin;
 
-		chipone,test-rawdata;
-		chipone,test-rawdata-frames = <1>;
-        chipone,rawdata-min = <1500>;//base 2200
-        chipone,rawdata-max = <2900>;
+		chipone_xl_truly,test-rawdata;
+		chipone_xl_truly,test-rawdata-frames = <1>;
+		chipone_xl_truly,rawdata-min = <1500>;//base 2200
+		chipone_xl_truly,rawdata-max = <2900>;
 
-		chipone,test-noise;
-		chipone,test-noise-frames = <16>;
-		chipone,noise-max = <100>;
+		chipone_xl_truly,test-noise;
+		chipone_xl_truly,test-noise-frames = <16>;
+		chipone_xl_truly,noise-max = <100>;
 
-		chipone,test-open;
-		chipone,open-min = <3100>;
+		chipone_xl_truly,test-open;
+		chipone_xl_truly,open-min = <3100>;
 
-		chipone,test-short;
-		chipone,short-min = <500>;
+		chipone_xl_truly,test-short;
+		chipone_xl_truly,short-min = <500>;
 
-		chipone,test-compensate-cap;
-		chipone,compensate-cap-min = <1>;
-		chipone,compensate-cap-max = <126>;
+		chipone_xl_truly,test-compensate-cap;
+		chipone_xl_truly,compensate-cap-min = <1>;
+		chipone_xl_truly,compensate-cap-max = <126>;
+
+		/* txd_hkc selftest settings */
+		chipone_txd_hkc,test-reset-pin;
+		//chipone_txd_hkc,test-int-pin;
+
+		chipone_txd_hkc,test-rawdata;
+		chipone_txd_hkc,test-rawdata-frames = <1>;
+		chipone_txd_hkc,rawdata-min = <1300>;//base 2200
+		chipone_txd_hkc,rawdata-max = <2700>;
+
+		chipone_txd_hkc,test-noise;
+		chipone_txd_hkc,test-noise-frames = <50>;
+		chipone_txd_hkc,noise-max = <76>;
+
+		chipone_txd_hkc,test-open;
+		chipone_txd_hkc,open-min = <2770>;
+
+		chipone_txd_hkc,test-short;
+		chipone_txd_hkc,short-min = <500>;
+
+		chipone_txd_hkc,test-compensate-cap;
+		chipone_txd_hkc,compensate-cap-min = <1>;
+		chipone_txd_hkc,compensate-cap-max = <126>;
+		/*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 end*/
     };
-
+	
 	jadard@3 {
 		compatible = "jadard,jdcommon";
 		reg = <3>;
@@ -305,6 +329,15 @@
 		jadard,rst-gpio = <&pio 172 0x00>;
 
 	};
+
+	/*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 20220414 start*/
+	galaxycore@4 {
+		compatible = "gcore,touchscreen";
+		reg = <4>;
+		status = "okay";
+		spi-max-frequency = <10000000>;
+	};
+	/*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 20220414 end*/
 };
 
 /* TOUCH start */
@@ -432,20 +465,11 @@
 		pins_cmd0_dat {
 			pinmux = <PINMUX_GPIO136__FUNC_GPIO136>;
 		};
-		pins_cmd1_dat {
-			pinmux = <PINMUX_GPIO137__FUNC_GPIO137>;
-		};
-
 	};
 
 	aud_clk_mosi_on: aud_clk_mosi_on {
 		pins_cmd0_dat {
 			pinmux = <PINMUX_GPIO136__FUNC_AUD_CLK_MOSI>;
-			input-schmitt-enable;
-		};
-		pins_cmd1_dat {
-			pinmux = <PINMUX_GPIO137__FUNC_AUD_SYNC_MOSI>;
-			input-schmitt-enable;
 		};
 	};
 
@@ -453,36 +477,22 @@
 		pins_cmd0_dat {
 			pinmux = <PINMUX_GPIO140__FUNC_GPIO140>;
 		};
-		pins_cmd1_dat {
-			pinmux = <PINMUX_GPIO141__FUNC_GPIO141>;
-		};
 	};
 
 	aud_clk_miso_on: aud_clk_miso_on {
 		pins_cmd0_dat {
 			pinmux = <PINMUX_GPIO140__FUNC_AUD_CLK_MISO>;
-			input-schmitt-enable;
-		};
-		pins_cmd1_dat {
-			pinmux = <PINMUX_GPIO141__FUNC_AUD_SYNC_MISO>;
-			input-schmitt-enable;
 		};
 	};
 
 	aud_dat_mosi_off: aud_dat_mosi_off {
-		pins_cmd0_dat {
-			pinmux = <PINMUX_GPIO136__FUNC_GPIO136>;
-		};
 		pins_cmd1_dat {
-			pinmux = <PINMUX_GPIO137__FUNC_GPIO137>;
-		};
-		pins_cmd2_dat {
 			pinmux = <PINMUX_GPIO138__FUNC_GPIO138>;
 			input-enable;
 			slew-rate = <0>;
 			bias-disable;
 		};
-		pins_cmd3_dat {
+		pins_cmd2_dat {
 			pinmux = <PINMUX_GPIO139__FUNC_GPIO139>;
 			input-enable;
 			slew-rate = <0>;
@@ -491,60 +501,35 @@
 	};
 
 	aud_dat_mosi_on: aud_dat_mosi_on {
-		pins_cmd0_dat {
-			pinmux = <PINMUX_GPIO136__FUNC_AUD_CLK_MOSI>;
-			input-schmitt-enable;
-		};
 		pins_cmd1_dat {
-			pinmux = <PINMUX_GPIO137__FUNC_AUD_SYNC_MOSI>;
-			input-schmitt-enable;
+			pinmux = <PINMUX_GPIO138__FUNC_AUD_DAT_MOSI0>;
 		};
 		pins_cmd2_dat {
-			pinmux = <PINMUX_GPIO138__FUNC_AUD_DAT_MOSI0>;
-			input-schmitt-enable;
-		};
-		pins_cmd3_dat {
 			pinmux = <PINMUX_GPIO139__FUNC_AUD_DAT_MOSI1>;
-			input-schmitt-enable;
 		};
 	};
 
 	aud_dat_miso_off: aud_dat_miso_off {
-		pins_cmd0_dat {
-			pinmux = <PINMUX_GPIO140__FUNC_GPIO140>;
-		};
 		pins_cmd1_dat {
-			pinmux = <PINMUX_GPIO141__FUNC_GPIO141>;
-		};
-		pins_cmd2_dat {
 			pinmux = <PINMUX_GPIO142__FUNC_GPIO142>;
 			input-enable;
 			slew-rate = <0>;
 			bias-disable;
 		};
-		pins_cmd3_dat {
+		pins_cmd2_dat {
 			pinmux = <PINMUX_GPIO143__FUNC_GPIO143>;
 			input-enable;
 			slew-rate = <0>;
 			bias-disable;
 		};
 	};
+
 	aud_dat_miso_on: aud_dat_miso_on {
-		pins_cmd0_dat {
-			pinmux = <PINMUX_GPIO140__FUNC_AUD_CLK_MISO>;
-			input-schmitt-enable;
-		};
 		pins_cmd1_dat {
-			pinmux = <PINMUX_GPIO141__FUNC_AUD_SYNC_MISO>;
-			input-schmitt-enable;
+			pinmux = <PINMUX_GPIO142__FUNC_AUD_DAT_MISO0>;
 		};
 		pins_cmd2_dat {
-			pinmux = <PINMUX_GPIO142__FUNC_AUD_DAT_MISO0>;
-			input-schmitt-enable;
-		};
-		pins_cmd3_dat {
 			pinmux = <PINMUX_GPIO143__FUNC_AUD_DAT_MISO1>;
-			input-schmitt-enable;
 		};
 	};
 
@@ -562,6 +547,7 @@
 			pinmux = <PINMUX_GPIO20__FUNC_GPIO20>;
 		};
 	};
+
 	aud_pins_smartpa_on: aud_pins_smartpa_on {
 		pins_cmd0_dat {
 			pinmux = <PINMUX_GPIO17__FUNC_I2S0_DI>;
@@ -577,23 +563,90 @@
 		};
 	};
 };
-
-&soc_codec {
-	always_pull_down_enable = <0>; /* select 1: enable, 0: disable */
-	always_pull_low_off = <1>; /* select 1: enable, 0: disable */
-};
 /* AUDIO end */
 
 &mt6370_pmu {
 	mt6370,intr_gpio_num = <11>; /* direct defined GPIO num */
 	mt6370,intr_gpio = <&pio 11 0x0>;
+	bled {
+			compatible = "mediatek,mt6370_pmu_bled";
+			interrupt-names = "bled_ocp";
+			mt,bled_name = "mt6370_pmu_bled";
+			/* mt,ext_en_pin; */
+			/* HS03S code added for SR-AL5625-01-357 by gaozhengwei at 20210423 start */
+			mt,chan_en  = <0xC>; /* bit 0 1 2 3 -> chan 1 2 3 4 */
+			/* HS03S code added for SR-AL5625-01-357 by gaozhengwei at 20210423 end */
+			mt,map_linear;
+			mt,bl_ovp_level = <3>;	/* 0: 17v */
+						/* 1: 21v */
+						/* 2: 25v */
+						/* 3: 29v */
+			mt,bl_ocp_level = <2>;	/* 0: 900mA */
+						/* 1: 1200mA */
+						/* 2: 1500mA */
+						/* 3: 1800mA */
+			mt,use_pwm;
+			mt,pwm_fsample = <2>;	/* 0: 1MHz */
+						/* 1: 4MHz */
+						/* 2: or 3: 24mHz */
+			mt,pwm_deglitch = <1>;	/* 0: no filter */
+						/* 1: 100ns */
+						/* 2: 160ns */
+						/* 3: 200ns */
+			mt,pwm_hys_en = <1>;	/* PWM Input Hysteresis */
+			/* hs03s code for SR-AL5625-01-394 by gaozhengwei at 2021/05/29 start */
+			mt,pwm_hys = <2>;	/* 0: 1 bit, 1: 2 bit */
+						/* 2: 4 bit, 3: 6 bit */
+			/* hs03s code for SR-AL5625-01-394 by gaozhengwei at 2021/05/29 end */
+			mt,pwm_avg_cycle = <0>; /* 0: disable avg */
+						/* 1: avg 2 cycle */
+						/* 2: avg 4 cycle */
+						/* 3: avg 8 cycle */
+						/* 4: avg 16 cycle */
+						/* 5: avg 32 cycle */
+			mt,bled_ramptime = <3>; /* 0, 500us, 750us, 1ms, 2ms */
+						/* 5ms, 10ms, 20ms, 50ms */
+						/* 100ms, 250ms, 800ms */
+						/* 1s, 2s, 4s, 8s */
+			mt,bled_flash_ramp = <1>;	/* 0, 500us, 750us */
+							/* 1ms, 2ms, 5ms */
+
+			/* we have 11 bit resolution, quantize in driver */
+			/* HS03S code added for SR-AL5625-01-357 by gaozhengwei at 20210423 start */
+			mt,max_bled_brightness = <1570>; /* maximum 2047 */
+			/* HS03S code added for SR-AL5625-01-357 by gaozhengwei at 20210423 end */
+
+			mt,bled_curr_scale = <0>;	/* 0: 30mA, 1: 22.5mA */
+							/* 2: 20mA, 3: 17.5mA */
+			/* If use bled lpf,
+			 * Set	//mt,map_linear;
+			 *	pwm_lpf_coef = <2>;
+			 *	mt,pwm_lpf_en;
+			 *	mt,bled_curr_mode;
+			 * Else
+			 * Set	mt,map_linear;
+			 *	pwm_lpf_coef = <0>;
+			 *	//mt,pwm_lpf_en;
+			 *	//mt,bled_curr_mode;
+			 */
+			mt,pwm_lpf_coef = <0>;	/* 0: (1)/(2^15) */
+						/* 1: (2)/(2^15) */
+						/* 2: (3)/(2^15) */
+						/* 3: (4)/(2^15) */
+			/* with it, Alpha-LPF enable */
+			/* mt,pwm_lpf_en; */
+			/* with it, pwm duty is multiplied after
+			 * linear/expenential mapper
+			 */
+			/* mt,bled_curr_mode; */
+		};
 };
 
 /*HS03s for SR-AL5625-01-515 by wangzikang at 20210607 start*/
-// &mt6370_typec {
-// 	mt6370pd,intr_gpio_num = <41>; /* direct defined GPIO num */
-// 	mt6370pd,intr_gpio = <&pio 41 0x0>;
-// };
+//&mt6370_typec {
+//	mt6370pd,intr_gpio_num = <41>; /* direct defined GPIO num */
+//	mt6370pd,intr_gpio = <&pio 41 0x0>;
+//};
 /*HS03s for SR-AL5625-01-515 by wangzikang at 20210607 end*/
 
 &mt6370_chg {
@@ -604,4 +657,3 @@
 #include "mediatek/hs03s/hs03s-common.dtsi"
 #include "mediatek/cust_mt6765_camera.dtsi"
 /*End of this file, DO NOT ADD ANYTHING HERE*/
-

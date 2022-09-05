@@ -811,23 +811,6 @@ config GUP_BENCHMARK
 config ARCH_HAS_PTE_SPECIAL
 	bool
 
-config LARGE_DIRTY_BUFFER
-	bool "Use large dirty_threshold value by enabling dirty_ratio"
-	default n
-	help
-	  This config enables dirty_ratio/dirty_background_ratio,
-	  and it means large dirty_threshold value in 64bit architectures.
-	  If unsure, say N to use kernel default value
-
-config MAX_DIRTY_THRESH_PAGES
-	int "The upper bound of VM dirty_thresh value in number of pages"
-	depends on LARGE_DIRTY_BUFFER
-	default 25600
-	help
-	  This value is the upper bound of VM dirty-thresh. (0 means no limit.)
-	  It is only effective when dirty_ratio is used.
-	  (Setting dirty_bytes disables this option.)
-
 config ARCH_SUPPORTS_SPECULATIVE_PAGE_FAULT
        def_bool n
 
@@ -857,11 +840,6 @@ config MTK_MM_DEBUG
 	  sometimes we need to use BUG() to catch specific
 	  type of errors. Wrap the debug code with this config,
 	  so we can remove the debug code by disabling it.
-
-config INCREASE_MAXIMUM_SWAPPINESS
-	bool "Allow swappiness to be set up to 200"
-	depends on SWAP
-	default y
 
 config DIRECT_RECLAIM_FILE_PAGES_ONLY
 	bool "Reclaim file pages only on direct reclaim path"
@@ -894,9 +872,26 @@ config FAULT_AROUND_4KB
 
 config KSWAPD_CPU
 	hex "Set kswapd cpu affinity by default"
-	default 0x3F
+	default 0xF0
 	help
 	  Set kswapd cpu affinity by default. 0x3F means allowing CPU as 0 to 5.
 	  To disable this config, set this to 0.
+
+config LARGE_DIRTY_BUFFER
+	bool "Use large dirty_threshold value by enabling dirty_ratio"
+	default n
+	help
+	  This config enables dirty_ratio/dirty_background_ratio,
+	  and it means large dirty_threshold value in 64bit architectures.
+	  If unsure, say N to use kernel default value
+
+config MAX_DIRTY_THRESH_PAGES
+	int "The upper bound of VM dirty_thresh value in number of pages"
+	depends on LARGE_DIRTY_BUFFER
+	default 25600
+	help
+	  This value is the upper bound of VM dirty-thresh. (0 means no limit.)
+	  It is only effective when dirty_ratio is used.
+	  (Setting dirty_bytes disables this option.)
 
 endmenu

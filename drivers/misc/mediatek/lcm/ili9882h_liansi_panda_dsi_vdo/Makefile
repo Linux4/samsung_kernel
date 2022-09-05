@@ -19,3 +19,4 @@ obj-y += ili9882h_liansi_panda_dsi_vdo.o
 
 ccflags-$(CONFIG_MTK_LCM) += -I$(srctree)/drivers/misc/mediatek/lcm/inc
 
+

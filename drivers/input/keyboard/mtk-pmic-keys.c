@@ -164,8 +164,9 @@ enum mtk_pmic_keys_lp_mode {
 /*hs03s  code for SR-AL5625-01-266 by wangdeyan at 20210408 start*/
 extern void power_homekey_pressed(int keycode);
 extern void power_homekey_released(int keycode);
-struct mtk_pmic_keys *keys;
 /*hs03s  code for SR-AL5625-01-266 by wangdeyan at 20210408 end*/
+
+struct mtk_pmic_keys *keys;
 
 static void mtk_pmic_keys_lp_reset_setup(struct mtk_pmic_keys *keys,
 		const struct mtk_pmic_regs *pmic_regs)
@@ -328,6 +329,32 @@ int mtk_pmic_pwrkey_status(void)
 	return pressed;
 }
 EXPORT_SYMBOL(mtk_pmic_pwrkey_status);
+
+#ifdef CONFIG_SEC_DEBUG
+int mtk_pmic_homekey_status(void)
+{
+	struct mtk_pmic_keys_info *homekey;
+	const struct mtk_pmic_keys_regs *regs;
+	u32 key_deb, pressed;
+
+	if (!keys)
+		return -EINVAL;
+
+	homekey = &keys->keys[MTK_PMIC_HOMEKEY_INDEX];
+	regs = homekey->regs;
+
+	regmap_read(keys->regmap, regs->deb_reg, &key_deb);
+	dev_info(keys->dev, "Read register 0x%x and mask 0x%x and value: 0x%x\n",
+		 regs->deb_reg, regs->deb_mask, key_deb);
+	key_deb &= regs->deb_mask;
+	pressed = !key_deb;
+
+	dev_info(keys->dev, "%s home key\n", pressed ? "pressed" : "released");
+
+	return pressed;
+}
+EXPORT_SYMBOL(mtk_pmic_homekey_status);
+#endif
 
 static int __maybe_unused mtk_pmic_keys_suspend(struct device *dev)
 {

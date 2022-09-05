@@ -42,7 +42,6 @@ const struct flashlight_device_id flashlight_id[] = {
 	};
 	#endif
 #elif defined(mt6758)
-/* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/05/21 start */
 const struct flashlight_device_id flashlight_id[] = {
 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
 	{0, 0, 0, "flashlights-mt6370", 0, 0},
@@ -80,7 +79,6 @@ const struct flashlight_device_id flashlight_id[] = {
 	{0, 0, 0, "flashlights-mt6370", 0, 0},
 	{0, 1, 0, "flashlights-none", -1, 0},
 };
-/* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/05/21 end */
 #elif defined(mt6799)
 const struct flashlight_device_id flashlight_id[] = {
 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
@@ -100,7 +98,6 @@ const struct flashlight_device_id flashlight_id[] = {
 #else
 /* hs03s code for CAM-AL5625-01-324 by lisizhou at 2021/05/31 start */
 const struct flashlight_device_id flashlight_id[] = {
-	/*hs03s code add for flashlights_aw36518 by chengzhi at 2021.06.24 begin*/
 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
 	{0, 0, 0, "flashlights-aw36518", 0, 0},
 	{0, 0, 0, "flashlights-sgm3785-gpio", 0, 0},
@@ -110,7 +107,6 @@ const struct flashlight_device_id flashlight_id[] = {
 	{0, 1, 1, "flashlights-none", -1, 0},
 	{1, 0, 1, "flashlights-none", -1, 0},
 	{1, 1, 1, "flashlights-none", -1, 0},
-	/*hs03s code add for flashlights_aw36518 by chengzhi at 2021.06.24 end*/
 };
 /* hs03s code for CAM-AL5625-01-324 by lisizhou at 2021/05/31 end */
 #endif

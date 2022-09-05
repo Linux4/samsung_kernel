@@ -106,6 +106,7 @@ config SCSI_UFS_MEDIATEK
 	tristate "Mediatek specific hooks to UFS controller platform driver"
 	depends on SCSI_UFSHCD_PLATFORM && ARCH_MEDIATEK
 	select PHY_MTK_UFS
+	select RESET_TI_SYSCON
 	help
 	  This selects the Mediatek specific additions to UFSHCD platform driver.
 	  UFS host on Mediatek needs some vendor specific configuration before
@@ -152,3 +153,14 @@ config SCSI_UFS_CRYPTO
 	  Enabling this makes it possible for the kernel to use the crypto
 	  capabilities of the UFS device (if present) to perform crypto
 	  operations on data being transferred to/from the device.
+
+config MTK_UFS_BLOCK_IO_LOG
+	bool "UFS Block IO log"
+	depends on MTK_BLOCK_TAG && SCSI_UFS_MEDIATEK
+	default y
+	help
+	  Enable IO trace for performance analysis and application access
+	  pattern study.
+	  Say Y if you want to have IO trace.
+
+	  If unsure, say N

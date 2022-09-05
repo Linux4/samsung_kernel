@@ -156,6 +156,10 @@
 #define ROLE_SWITCH_TIMEOUT		1500
 #define FUSB301_TRY_TIMEOUT		600
 #define FUSB301_CC_DEBOUNCE_TIMEOUT	200
+/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 start */
+#define FUSB301_HUB_STATUS_1	29
+#define FUSB301_HUB_STATUS_2	45
+/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 end */
 struct fusb301_data {
 	u32 int_gpio;
 	u32 init_mode;
@@ -185,6 +189,9 @@ struct fusb301_chip {
 	int try_attcnt;
 	struct work_struct dwork;
 	struct delayed_work twork;
+	//SXX
+	struct delayed_work fdwork;
+
 	struct wakeup_source *wlock;
 	struct mutex mlock;
 	//struct power_supply *usb_psy;
@@ -927,6 +934,9 @@ static int fusb301_power_set_icurrent_max(struct fusb301_chip *chip,
 {
 	return -ENXIO;
 }
+/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 start */
+extern bool hub_plugin_flag;
+/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 end */
 static void fusb301_bclvl_changed(struct fusb301_chip *chip)
 {
 	struct device *cdev = &chip->client->dev;
@@ -942,6 +952,14 @@ static void fusb301_bclvl_changed(struct fusb301_chip *chip)
 		return;
 	}
 	status = rc & 0xFF;
+	/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 start */
+	if (status == FUSB301_HUB_STATUS_1 || status == FUSB301_HUB_STATUS_2) {
+		hub_plugin_flag = true;
+	} else {
+		hub_plugin_flag = false;
+	}
+	pr_err("status = %d, hub_plugin_flag = %d\n", status, hub_plugin_flag);
+	/* HS03s for DEVAL5626-623 by shixuanxuan at 20210927 end */
 	type = (status & FUSB301_ATTACH) ?
 			(rc >> 8) & FUSB301_TYPE_MASK : FUSB301_TYPE_INVALID;
 
@@ -1384,6 +1402,35 @@ work_unlock:
 	mutex_unlock(&chip->mlock);
 	__pm_relax(chip->wlock);
 }
+
+static void fusb301_first_check_typec_work(struct work_struct *work)
+{
+	struct fusb301_chip *chip =
+			container_of(work, struct fusb301_chip, fdwork.work);
+	struct device *cdev = &chip->client->dev;
+	int rc;
+
+	dev_info(cdev, "fusb301 to fusb301_work_handler open \n");
+	__pm_stay_awake(chip->wlock);
+	mutex_lock(&chip->mlock);
+	/* get interrupt */
+	rc = i2c_smbus_read_byte_data(chip->client, FUSB301_REG_TYPE);
+	if (IS_ERR_VALUE_FUSB301(rc)) {
+		dev_err(cdev, "%s: fusb301 failed to read interrupt\n", __func__);
+		goto work_unlock;
+	}
+
+	dev_info(cdev, "%s: TCPC SR_SN status = [0x%02x]\n", __func__, rc);
+	if (rc & FUSB301_TYPE_SNK) {
+		fusb301_attach(chip);
+	}
+
+work_unlock:
+	mutex_unlock(&chip->mlock);
+	__pm_relax(chip->wlock);
+
+}
+
 static irqreturn_t fusb301_interrupt(int irq, void *data)
 {
 	struct fusb301_chip *chip = (struct fusb301_chip *)data;
@@ -1765,6 +1812,9 @@ static int fusb301_probe(struct i2c_client *client,
 	}
 	INIT_WORK(&chip->dwork, fusb301_work_handler);
 	INIT_DELAYED_WORK(&chip->twork, fusb301_timer_work_handler);
+	//SXX
+	INIT_DELAYED_WORK(&chip->fdwork, fusb301_first_check_typec_work);
+	schedule_delayed_work(&chip->fdwork, msecs_to_jiffies(20000));
 	chip->wlock = wakeup_source_register(cdev, "fusb301_wake");
 	mutex_init(&chip->mlock);
 
@@ -1809,6 +1859,7 @@ static int fusb301_probe(struct i2c_client *client,
 		ret = -ENXIO;
 		goto err4;
 	}
+
 	ret = devm_request_irq(cdev, chip->irq_gpio,
 				fusb301_interrupt,
 				IRQF_TRIGGER_FALLING,
@@ -1817,6 +1868,7 @@ static int fusb301_probe(struct i2c_client *client,
 		dev_err(cdev, "failed to reqeust IRQ\n");
 		goto err4;
 	}
+
 	dev_info(cdev, "fusb301_probe  irq_gpio (0x%2x)\n", chip->irq_gpio);
 
 	g_fusb301_chip = chip;

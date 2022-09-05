@@ -58,3 +58,4 @@ extern void pmic_lcd_bias_set_vspn_en(unsigned int en, unsigned int seq);
 void lcd_bias_set_vspn(unsigned int en, unsigned int seq, unsigned int value);
 
 #endif /* _LCM_BIAS_H */
+

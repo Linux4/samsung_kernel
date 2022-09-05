@@ -24,6 +24,7 @@ static int chipone_tpd_local_init(void)
 #endif
 
     int ret;
+
 /*hs03s  code for DEVAL5625-1915 by wangdeyan at 20210706 start*/
 	if(tp_is_used != UNKNOWN_TP) {
         cts_err("it is not chipone tp\n");

@@ -193,7 +193,6 @@ config MTK_FLASHLIGHT_DLPT
 	  Dynamic low power throttling is a mechanism to monitor
 	  the current of battary dynamicly. It will start by request
 	  and notice user by kernel notifier.
-
 #hs03s code add for flashlights_aw36518 by chengzhi at 2021.06.13 begin
 config MTK_FLASHLIGHT_AW36518
 	tristate "Mediatek flashlight with driver IC (AW36518)"

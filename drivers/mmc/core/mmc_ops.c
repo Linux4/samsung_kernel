@@ -1040,6 +1040,8 @@ static int mmc_cmdq_switch(struct mmc_card *card, bool enable)
 			 val, card->ext_csd.generic_cmd6_time);
 	if (!err)
 		card->ext_csd.cmdq_en = enable;
+	else
+		mmc_card_error_logging(card, NULL, CQ_EN_DIS_ERR);
 
 	return err;
 }

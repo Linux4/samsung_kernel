@@ -891,7 +891,7 @@ int himax_input_register(struct himax_ts_data *ts)
 	set_bit(EV_SYN, ts->input_dev->evbit);
 	set_bit(EV_ABS, ts->input_dev->evbit);
 	set_bit(EV_KEY, ts->input_dev->evbit);
-	set_bit(KEY_BACK, ts->input_dev->keybit);
+	//set_bit(KEY_BACK, ts->input_dev->keybit);
 	set_bit(KEY_HOME, ts->input_dev->keybit);
 	set_bit(KEY_MENU, ts->input_dev->keybit);
 	set_bit(KEY_SEARCH, ts->input_dev->keybit);
@@ -1051,6 +1051,7 @@ static int himax_auto_update_check(void)
 static int i_get_FW(void)
 {
 	int result = NO_ERR;
+
 	int retry_count = 0;
 
 /*hs03s  code for DEVAL5626-13 by wangdeyan at 20210610 start*/
@@ -1076,6 +1077,7 @@ static int i_get_FW(void)
 // #endif
 // 	}
 /*hs03s  code for DEVAL5626-13 by wangdeyan at 20210610 end*/
+
 
 	return result;
 }

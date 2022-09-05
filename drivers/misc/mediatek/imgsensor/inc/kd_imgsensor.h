@@ -114,8 +114,59 @@
  *
  ************************************************************************/
 /* SENSOR CHIP VERSION */
+/*********gaozhenyu add for samsung camera start ******************/
+#define HI846_SJC_SENSOR_ID  0x846
+#define GC8054_HLT_SENSOR_ID  0x8054
+#define HI846_TXD_SENSOR_ID  0x847
+/*TabA7 Lite code for SR-AX3565-01-320 by wangqi at 20201224 start*/
+#define GC8054_CXT_SENSOR_ID  0x8055
+/*TabA7 Lite code for SR-AX3565-01-320 by wangqi at 20201224 end*/
+#define SC800CS_LY_SENSOR_ID  0xD126
+/*TabA7 Lite code for SR-AX3565-01-904 by chenjun at 2022/02/16 start*/
+#define S5K4H7_HLT_SENSOR_ID  0x487B
+/*TabA7 Lite code for SR-AX3565-01-904 by chenjun at 2022/02/16 end*/
+#define GC02M1_SJC_SENSOR_ID  0x2e1
+#define GC02M1SUB_CXT_SENSOR_ID  0x2e0
+#define OV02B10_JK_SENSOR_ID  0x2b
+#define SENSOR_DRVNAME_HI846_SJC_MIPI_RAW  "hi846_sjc_mipi_raw"
+#define SENSOR_DRVNAME_GC8054_HLT_MIPI_RAW  "gc8054_hlt_mipi_raw"
+#define SENSOR_DRVNAME_HI846_TXD_MIPI_RAW  "hi846_txd_mipi_raw"
+/*TabA7 Lite code for SR-AX3565-01-320 by wangqi at 20201224 start*/
+#define SENSOR_DRVNAME_GC8054_CXT_MIPI_RAW  "gc8054_cxt_mipi_raw"
+/*TabA7 Lite code for SR-AX3565-01-320 by wangqi at 20201224 end*/
+/*  TabA7 Lite code for SR-AX3565-01-875 by gaozhenyu at 2021/11/19 start */
+#define SENSOR_DRVNAME_SC800CS_LY_MIPI_RAW  "sc800cs_ly_mipi_raw"
+/*TabA7 Lite code for SR-AX3565-01-904 by chenjun at 2022/02/16 start*/
+#define SENSOR_DRVNAME_S5K4H7_HLT_MIPI_RAW  "s5k4h7_hlt_mipi_raw"
+/*TabA7 Lite code for SR-AX3565-01-904 by chenjun at 2022/02/16 end*/
+#define SENSOR_DRVNAME_GC02M1_SJC_MIPI_RAW  "gc02m1_sjc_mipi_raw"
+#define SENSOR_DRVNAME_GC02M1SUB_CXT_MIPI_RAW  "gc02m1sub_cxt_mipi_raw"
+#define SENSOR_DRVNAME_OV02B10_JK_MIPI_RAW  "ov02b10_jk_mipi_raw"
+/***********gaozhenyu add for samsung camera end**************/
+/***********lisizhou add for tmo camera start**************/
+#define HI846_SJC_TMO_SENSOR_ID  	0x846
+#define GC8054_HLT_TMO_SENSOR_ID  	0x8054
+#define HI846_TXD_TMO_SENSOR_ID  	0x847
+#define GC8054_CXT_TMO_SENSOR_ID  	0x8055
+#define SC800CS_LY_TMO_SENSOR_ID        0xD126
+#define GC02M1_SJC_TMO_SENSOR_ID  	0x2e1
+#define GC02M1_CXT_TMO_SENSOR_ID  	0x2e0
+#define OV02B10_JK_TMO_SENSOR_ID  	0x2b
+
+#define SENSOR_DRVNAME_HI846_SJC_TMO_MIPI_RAW  "hi846_sjc_mipi_raw_tmo"
+#define SENSOR_DRVNAME_GC8054_HLT_TMO_MIPI_RAW  "gc8054_hlt_mipi_raw_tmo"
+#define SENSOR_DRVNAME_HI846_TXD_TMO_MIPI_RAW  "hi846_txd_mipi_raw_tmo"
+#define SENSOR_DRVNAME_GC8054_CXT_TMO_MIPI_RAW  "gc8054_cxt_mipi_raw_tmo"
+#define SENSOR_DRVNAME_SC800CS_LY_TMO_MIPI_RAW  "sc800cs_ly_mipi_raw_tmo"
+#define SENSOR_DRVNAME_GC02M1_SJC_TMO_MIPI_RAW  "gc02m1_sjc_mipi_raw_tmo"
+#define SENSOR_DRVNAME_GC02M1_CXT_TMO_MIPI_RAW  "gc02m1_cxt_mipi_raw_tmo"
+#define SENSOR_DRVNAME_OV02B10_JK_TMO_MIPI_RAW  "ov02b10_jk_mipi_raw_tmo"
+/*  TabA7 Lite code for SR-AX3565-01-875 by gaozhenyu at 2021/11/19 end */
+/***********lisizhou add for tmo camera start**************/
+/*IMX*/
 /* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/05/13 start */
 /* A03s code for SR-AL5625-01-247 by lisizhou at  2021/04/20 start */
+#ifdef CONFIG_HQ_PROJECT_HS03S
 #define HI1336_TXD_SENSOR_ID                        0x1336
 #define GC13053_LY_SENSOR_ID                        0xD033
 #define HI1336_HLT_SENSOR_ID                        0x1337
@@ -132,20 +183,16 @@
 #define SENSOR_DRVNAME_HI1336_HLT_MIPI_RAW         "hi1336_hlt_mipi_raw"
 /* A03s code for SR-AL5625-01-247 by lisizhou at 2021/04/20 end */
 /* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/04/22 start */
-/* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/05/7 start */
 #define HI556_TXD_SENSOR_ID  0x0557
-/* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/05/7 end */
 #define SENSOR_DRVNAME_HI556_TXD_MIPI_RAW  "hi556_txd_mipi_raw"
 #define HI556_OFILM_SENSOR_ID  0x0556
 #define SENSOR_DRVNAME_HI556_OFILM_MIPI_RAW  "hi556_ofilm_mipi_raw"
 #define GC5035_DD_SENSOR_ID  0x5035
 #define SENSOR_DRVNAME_GC5035_DD_MIPI_RAW  "gc5035_dd_mipi_raw"
-/*A03s code for SR-AL5625-01-332 by xuxianwei at 2021/05/20 start*/
 #define GC5035_LY_SENSOR_ID  0x5036
 #define SENSOR_DRVNAME_GC5035_LY_MIPI_RAW  "gc5035_ly_mipi_raw"
 #define GC5035_XL_SENSOR_ID  0x5037
 #define SENSOR_DRVNAME_GC5035_XL_MIPI_RAW  "gc5035_xl_mipi_raw"
-/*A03s code for SR-AL5625-01-332 by xuxianwei at 2021/05/20 end*/
 /* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/05/13 end */
 /* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/04/22 end */
 /* A03s code for SR-AL5625-01-324 by gaozhenyu at 2021/04/22 start */
@@ -155,6 +202,13 @@
 #define GC02M1B_LY_SENSOR_ID                        0x2e1
 #define SENSOR_DRVNAME_GC02M1B_LY_MIPI_RAW         "gc02m1b_ly_mipi_raw"
 /* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/04/27 end */
+/*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 start*/
+#define SC201CS_CXT_SENSOR_ID                        0xeb2d
+#define SENSOR_DRVNAME_SC201CS_CXT_MIPI_RAW         "sc201cs_cxt_mipi_raw"
+#define GC02M1_CXT_SENSOR_ID                        0x2e0
+#define SENSOR_DRVNAME_GC02M1_CXT_MIPI_RAW         "gc02m1_cxt_mipi_raw"
+#define OV02B10_LY_SENSOR_ID  	                    0x2b
+#define SENSOR_DRVNAME_OV02B10_LY_MIPI_RAW         "ov02b10_ly_mipi_raw"
 /* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/05/12 start */
 #define OV02B1B_JK_SENSOR_ID                        0x2c
 #define SENSOR_DRVNAME_OV02B1B_JK_MIPI_RAW         "ov02b1b_jk_mipi_raw"
@@ -165,10 +219,6 @@
 #define GC02M1_HLT_SENSOR_ID                        0x2e3
 #define SENSOR_DRVNAME_GC02M1_HLT_MIPI_RAW         "gc02m1_hlt_mipi_raw"
 /* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/05/12 end */
-#define GC02M1_CXT_SENSOR_ID                        0x2e0
-#define SENSOR_DRVNAME_GC02M1_CXT_MIPI_RAW         "gc02m1_cxt_mipi_raw"
-#define OV02B10_LY_SENSOR_ID  	                    0x2b
-#define SENSOR_DRVNAME_OV02B10_LY_MIPI_RAW         "ov02b10_ly_mipi_raw"
 /* A03s code for SR-AL5625-01-324 by gaozhenyu at 2021/04/24 end */
 /*hs03s code for DEVAL5625-1281 by gaozhenyu at 2021/07/14 start*/
 #define GC2375H_CXT_MIX_LY_SENSOR_ID                       0x2375
@@ -184,7 +234,26 @@
 #define OV02B1B_JK_MIX_LY_SENSOR_ID                        0x2c
 #define SENSOR_DRVNAME_OV02B1B_JK_MIX_LY_MIPI_RAW         "ov02b1b_jk_mipi_raw_mix_ly"
 /*hs03s code for DEVAL5625-1281 by gaozhenyu at 2021/07/14 end*/
-/*IMX*/
+/*hs03s_NM code for DEVAL5625-2576V-4183 by liluling at 2022/5/5 start*/
+#define SC201CS_CXT_MIX_TXD_SENSOR_ID                      0xeb2d
+#define SENSOR_DRVNAME_SC201CS_CXT_MIX_TXD_MIPI_RAW        "sc201cs_cxt_mipi_raw_mix_txd"
+#define SC201CS_CXT_MIX_HLT_SENSOR_ID                      0xeb2d
+#define SENSOR_DRVNAME_SC201CS_CXT_MIX_HLT_MIPI_RAW        "sc201cs_cxt_mipi_raw_mix_hlt"
+#define GC2375H_CXT_MIX_LY_SC_SENSOR_ID						0x2375
+#define SENSOR_DRVNAME_GC2375H_CXT_MIX_LY_SC_MIPI_RAW       "gc2375h_cxt_mipi_raw_mix_ly_sc"
+#define GC02M1B_LY_MIX_LY_SC_SENSOR_ID						0x2e1
+#define SENSOR_DRVNAME_GC02M1B_LY_MIX_LY_SC_MIPI_RAW		"gc02m1b_ly_mipi_raw_mix_ly_sc"
+#define OV02B1B_JK_MIX_LY_SC_SENSOR_ID                       0x2c
+#define SENSOR_DRVNAME_OV02B1B_JK_MIX_LY_SC_MIPI_RAW        "ov02b1b_jk_mipi_raw_mix_ly_sc"
+/*hs03s_NM code for DEVAL5625-2576V-4183 by liluling at 2022/5/5 end*/
+#define SC1300CS_LY_SENSOR_ID                       0xc628
+#define SENSOR_DRVNAME_SC1300CS_LY_MIPI_RAW         "sc1300cs_ly_mipi_raw"
+#define SC500CS_DD_SENSOR_ID                        0xee27
+#define SENSOR_DRVNAME_SC500CS_DD_MIPI_RAW          "sc500cs_dd_mipi_raw"
+#define SC201CS_CXT_MACRO_SENSOR_ID                 0xeb2c
+#define SENSOR_DRVNAME_SC201CS_CXT_MACRO_MIPI_RAW   "sc201cs_cxt_macro_mipi_raw"
+/*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 start*/
+#endif
 #define IMX499_SENSOR_ID                        0x0499
 #define IMX486_SENSOR_ID                        0x0486
 #define IMX586_SENSOR_ID                        0x0586
@@ -616,7 +685,6 @@
 #define SENSOR_DRVNAME_IMX135_MIPI_RAW_8MP      "imx135_mipi_raw_8mp"
 #define SENSOR_DRVNAME_OV13870_MIPI_RAW_5MP     "ov13870_mipi_raw_5mp"
 #define SENSOR_DRVNAME_OV8856_MIPI_RAW_5MP      "ov8856_mipi_raw_5mp"
-
 
 /******************************************************************************
  *

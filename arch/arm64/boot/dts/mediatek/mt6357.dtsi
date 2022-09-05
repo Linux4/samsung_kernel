@@ -38,7 +38,7 @@
 		/* moisture SW mode config end */
 		status = "okay";
 	};
-
+#ifdef CONFIG_HS03S_SUPPORT
 	mt6357keys: mt6357keys {
 		compatible = "mediatek,mt6357-keys";
 		mediatek,long-press-mode = <2>;
@@ -48,11 +48,25 @@
 			linux,keycodes = <116>;
 			wakeup-source;
 		};
-
 		home {
 			linux,keycodes = <114>;
 		};
 	};
+#else
+	mt6357keys: mt6357keys {
+		compatible = "mediatek,mt6357-keys";
+		mediatek,long-press-mode = <2>;
+		power-off-time-sec = <0>;
+
+		power {
+			linux,keycodes = <116>;
+			wakeup-source;
+		};
+	        home {
+			linux,keycodes = <114>;
+		};
+	};
+#endif
 
 	pmic_auxadc: pmic_auxadc {
 		compatible = "mediatek,pmic-auxadc",
@@ -113,7 +127,25 @@
 			channel = <AUXADC_IMIX_R>;
 		};
 	};
-
+#ifdef CONFIG_HS03S_SUPPORT
+	mtk_gauge: mtk_gauge {
+		compatible = "mediatek,mt6357-gauge";
+		charger = <&mt6370_chg>;
+		bootmode = <&chosen>;
+		io-channels = <&pmic_auxadc AUXADC_BAT_TEMP>,
+				<&pmic_auxadc AUXADC_ISENSE>,
+				<&pmic_auxadc AUXADC_VBIF>,
+				<&pmic_auxadc AUXADC_IMP>,
+				<&pmic_auxadc AUXADC_IMIX_R>;
+		io-channel-names = "pmic_battery_temp",
+				"pmic_battery_voltage",
+				"pmic_bif_voltage",
+				"pmic_ptim_voltage",
+				"pmic_ptim_r";
+		nvmem-cells = <&fg_init>, <&fg_soc>;
+		nvmem-cell-names = "initialization", "state-of-charge";
+	};
+#else
 	mtk_gauge: mtk_gauge {
 		compatible = "mediatek,mt6357-gauge";
 		charger = <&mt6370_chg>;
@@ -129,6 +161,7 @@
 		nvmem-cells = <&fg_init>, <&fg_soc>;
 		nvmem-cell-names = "initialization", "state-of-charge";
 	};
+#endif
 
 	mtk_charger_type: mtk_charger_type {
 		compatible = "mediatek,mt6357-charger-type";

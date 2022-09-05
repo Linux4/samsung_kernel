@@ -31,33 +31,8 @@ extern struct musb *mtk_musb;
 #define USBPHY_CLR32(offset, mask) \
 	USBPHY_WRITE32(offset, (USBPHY_READ32(offset)) & (~(mask)))
 
-#ifdef MTK_UART_USB_SWITCH
-#define UART2_BASE 0x11003000
-#endif
+#endif /* End of CONFIG_OF define */
 
-#else
-
-#include <mach/mt_reg_base.h>
-
-#define USBPHY_READ8(offset) \
-		readb((void __iomem *)(USB_SIF_BASE+0x800+offset))
-#define USBPHY_WRITE8(offset, value) \
-		writeb(value, (void __iomem *)(USB_SIF_BASE+0x800+offset))
-#define USBPHY_SET8(offset, mask) \
-	USBPHY_WRITE8(offset, (USBPHY_READ8(offset)) | (mask))
-#define USBPHY_CLR8(offset, mask) \
-	USBPHY_WRITE8(offset, (USBPHY_READ8(offset)) & (~mask))
-
-#define USBPHY_READ32(offset) \
-		readl((void __iomem *)(USB_SIF_BASE+0x800+offset))
-#define USBPHY_WRITE32(offset, value) \
-		writel(value, (void __iomem *)(USB_SIF_BASE+0x800+offset))
-#define USBPHY_SET32(offset, mask) \
-		USBPHY_WRITE32(offset, (USBPHY_READ32(offset)) | (mask))
-#define USBPHY_CLR32(offset, mask) \
-		USBPHY_WRITE32(offset, (USBPHY_READ32(offset)) & (~mask))
-
-#endif
 struct musb;
 
 enum usb_state_enum {
@@ -83,10 +58,9 @@ extern void mt_usb_connect(void);
 extern void mt_usb_disconnect(void);
 extern void mt_usb_reconnect(void);
 extern bool usb_cable_connected(struct musb *musb);
-extern void musb_platform_reset(struct musb *musb);
 extern void musb_sync_with_bat(struct musb *musb, int usb_state);
 
-extern bool is_saving_mode(void);
+bool is_saving_mode(void);
 
 /* host and otg */
 extern void mt_usb_host_connect(int delay);
@@ -95,7 +69,6 @@ extern void mt_otg_accessory_power(int is_on);
 extern void mt_usb_otg_init(struct musb *musb);
 extern void mt_usb_otg_exit(struct musb *musb);
 extern void mt_usb_init_drvvbus(void);
-extern void mt_usb_set_vbus(struct musb *musb, int is_on);
 extern int mt_usb_get_vbus_status(struct musb *musb);
 extern void mt_usb_iddig_int(struct musb *musb);
 extern void switch_int_to_device(struct musb *musb);

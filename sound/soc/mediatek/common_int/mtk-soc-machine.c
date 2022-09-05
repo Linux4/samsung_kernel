@@ -711,7 +711,9 @@ static struct snd_soc_card mt_snd_soc_card_mt = {
 	.num_aux_devs = 1,
 #endif
 };
-
+/*huaqin add for sndcard name by limengxia at 2020/11/23 start*/
+int snd_card_flag = 0;
+/*huaqin add for sndcard name by limengxia at 2020/11/23 end*/
 static int mt_soc_snd_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &mt_snd_soc_card_mt;
@@ -720,7 +722,18 @@ static int mt_soc_snd_probe(struct platform_device *pdev)
 #endif
 	int ret;
 	int daiLinkNum = 0;
-
+/*huaqin add for sndcard name by limengxia at 2020/11/23 start*/
+	switch (snd_card_flag)
+	{
+#ifdef CONFIG_SND_SOC_AW87XXX
+	case 1:
+		card->name = "mt-snd-card-aw87359";
+		break;
+#endif
+	default:
+		break;
+	}
+/*huaqin add for sndcard name by limengxia at 2020/11/23 end*/
 	ret = mtk_spk_update_dai_link(mt_soc_extspk_dai, pdev);
 	if (ret) {
 		dev_err(&pdev->dev, "%s(), mtk_spk_update_dai_link error\n",

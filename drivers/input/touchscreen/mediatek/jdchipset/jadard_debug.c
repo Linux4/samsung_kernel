@@ -140,7 +140,6 @@ static struct file_operations jadard_proc_debug_level_ops = {
 	.write = jadard_debug_level_write,
 };
 
-
 static ssize_t jadard_fw_package_read(struct file *file, char *buf,
 										size_t len, loff_t *pos)
 {
@@ -222,6 +221,7 @@ static struct file_operations jadard_proc_fw_package_ops = {
 extern int jd9365t_EnterBackDoor(uint16_t *pRomID);
 extern int jd9365t_ExitBackDoor(void);
 /*hs03s code for SR-AL5625-01-305 by yuanliding at 20210528 end*/
+
 static ssize_t jadard_reset_write(struct file *file, const char *buf,
 									size_t len, loff_t *pos)
 {

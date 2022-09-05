@@ -792,6 +792,12 @@ static int eta6953_init_device(struct eta6953 *eta)
 	if (ret)
 		pr_err("Failed to set acovp threshold, ret = %d\n", ret);
 
+	/*HS03s for DEVAL5626-524 by liujie at 20210901 start*/
+	ret= eta6953_disable_safety_timer(eta);
+	if (ret)
+		pr_err("Failed to set safety_timer stop, ret = %d\n", ret);
+	/*HS03s for DEVAL5626-524 by liujie at 20210901 end*/
+
 	ret = eta6953_set_int_mask(eta,
 					REG0A_IINDPM_INT_MASK |
 					REG0A_VINDPM_INT_MASK);

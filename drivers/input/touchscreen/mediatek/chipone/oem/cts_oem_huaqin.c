@@ -38,7 +38,10 @@ static struct platform_device hwinfo_device = {
 #define OEM_OF_DEF_PROPVAL_COMP_CAP_MIN     20
 #define OEM_OF_DEF_PROPVAL_COMP_CAP_MAX     110
 
-#define OEM_OF_PROPNAME_PREFIX                 "chipone," //modify
+/*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 start*/
+#define TEST_FILE_PATH_LENGTH               100
+#define OEM_OF_PROPNAME_PREFIX              "," //modify
+/*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 end*/
 
 #define OEM_OF_PROPNAME_TEST_RESET_PIN      OEM_OF_PROPNAME_PREFIX"test-reset-pin"
 #define OEM_OF_PROPNAME_TEST_INT_PIN        OEM_OF_PROPNAME_PREFIX"test-int-pin"
@@ -61,11 +64,13 @@ static struct platform_device hwinfo_device = {
 
 
 #define OEM_TEST_DATA_DIR                   "/data/tpdata"
-#define OEM_RAWDATA_TEST_DATA_FILEPATH      OEM_TEST_DATA_DIR"/FWMutualTest.csv"
-#define OEM_NOISE_TEST_DATA_FILEPATH        OEM_TEST_DATA_DIR"/NoiseTest.csv"
-#define OEM_OPEN_TEST_DATA_FILEPATH         OEM_TEST_DATA_DIR"/OpenTest.csv"
-#define OEM_SHORT_TEST_DATA_FILEPATH        OEM_TEST_DATA_DIR"/ShortTest.csv"
-#define OEM_COMP_CAP_TEST_DATA_FILEPATH     OEM_TEST_DATA_DIR"/FWCCTest.csv"
+/*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 start*/
+#define OEM_RAWDATA_TEST_DATA_FILEPATH      OEM_TEST_DATA_DIR"/FWMutualTest_"
+#define OEM_NOISE_TEST_DATA_FILEPATH        OEM_TEST_DATA_DIR"/NoiseTest_"
+#define OEM_OPEN_TEST_DATA_FILEPATH         OEM_TEST_DATA_DIR"/OpenTest_"
+#define OEM_SHORT_TEST_DATA_FILEPATH        OEM_TEST_DATA_DIR"/ShortTest_"
+#define OEM_COMP_CAP_TEST_DATA_FILEPATH     OEM_TEST_DATA_DIR"/FWCCTest_"
+/*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 end*/
 
 struct cts_oem_data {
     struct proc_dir_entry *selftest_proc_entry;
@@ -181,92 +186,128 @@ static int parse_selftest_dt(struct cts_oem_data *oem_data,
     struct device_node *np)
 {
     int ret;
+    /*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 start*/
+    char ito_test_file_path[TEST_FILE_PATH_LENGTH];
 
     cts_info("Parse selftest dt");
+    sprintf(ito_test_file_path, "%s%s", oem_data->cts_data->cts_lcd_module_name, OEM_OF_PROPNAME_TEST_RESET_PIN);
 
     oem_data->test_reset_pin = OEM_OF_DEF_PROPVAL_TEST_RESET_PIN ||
-        of_property_read_bool(np, OEM_OF_PROPNAME_TEST_RESET_PIN);
+        of_property_read_bool(np, ito_test_file_path);
 
+    memset(ito_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+    sprintf(ito_test_file_path, "%s%s", oem_data->cts_data->cts_lcd_module_name, OEM_OF_PROPNAME_TEST_INT_PIN);
     oem_data->test_int_pin = OEM_OF_DEF_PROPVAL_TEST_INT_PIN ||
-        of_property_read_bool(np, OEM_OF_PROPNAME_TEST_INT_PIN);
+        of_property_read_bool(np, ito_test_file_path);
 
+    memset(ito_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+    sprintf(ito_test_file_path, "%s%s", oem_data->cts_data->cts_lcd_module_name, OEM_OF_PROPNAME_TEST_RAWDATA);
     oem_data->test_rawdata = OEM_OF_DEF_PROPVAL_TEST_RAWDATA ||
-        of_property_read_bool(np, OEM_OF_PROPNAME_TEST_RAWDATA);
+        of_property_read_bool(np, ito_test_file_path);
+
     if (oem_data->test_rawdata) {
+        memset(ito_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+        sprintf(ito_test_file_path, "%s%s", oem_data->cts_data->cts_lcd_module_name, OEM_OF_PROPNAME_RAWDATA_FRAMES);
         oem_data->rawdata_test_frames = OEM_OF_DEF_PROPVAL_RAWDATA_FRAMES;
-        ret = of_property_read_u32(np, OEM_OF_PROPNAME_RAWDATA_FRAMES,
+        ret = of_property_read_u32(np, ito_test_file_path,
             &oem_data->rawdata_test_frames);
         if (ret) {
             cts_warn("Parse '"OEM_OF_PROPNAME_RAWDATA_FRAMES"' failed %d", ret);
         }
 
+        memset(ito_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+        sprintf(ito_test_file_path, "%s%s", oem_data->cts_data->cts_lcd_module_name, OEM_OF_PROPNAME_RAWDATA_MIN);
         oem_data->rawdata_min = OEM_OF_DEF_PROPVAL_RAWDATA_MIN;
-        ret = of_property_read_u32(np, OEM_OF_PROPNAME_RAWDATA_MIN,
+        ret = of_property_read_u32(np, ito_test_file_path,
             &oem_data->rawdata_min);
         if (ret) {
             cts_warn("Parse '"OEM_OF_PROPNAME_RAWDATA_MIN"' failed %d", ret);
         }
 
+        memset(ito_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+        sprintf(ito_test_file_path, "%s%s", oem_data->cts_data->cts_lcd_module_name, OEM_OF_PROPNAME_RAWDATA_MAX);
         oem_data->rawdata_max = OEM_OF_DEF_PROPVAL_RAWDATA_MAX;
-        ret = of_property_read_u32(np, OEM_OF_PROPNAME_RAWDATA_MAX,
+        ret = of_property_read_u32(np, ito_test_file_path,
             (u32 *)&oem_data->rawdata_max);
         if (ret) {
             cts_warn("Parse '"OEM_OF_PROPNAME_RAWDATA_MAX"' failed %d", ret);
         }
         }
 
+    memset(ito_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+    sprintf(ito_test_file_path, "%s%s", oem_data->cts_data->cts_lcd_module_name, OEM_OF_PROPNAME_TEST_NOISE);
     oem_data->test_noise = OEM_OF_DEF_PROPVAL_TEST_NOISE ||
-        of_property_read_bool(np, OEM_OF_PROPNAME_TEST_NOISE);
+        of_property_read_bool(np, ito_test_file_path);
+
+    memset(ito_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+    sprintf(ito_test_file_path, "%s%s", oem_data->cts_data->cts_lcd_module_name, OEM_OF_PROPNAME_NOISE_FRAMES);
     if (oem_data->test_noise) {
         oem_data->noise_test_frames = OEM_OF_DEF_PROPVAL_NOISE_FRAMES;
-        ret = of_property_read_u32(np, OEM_OF_PROPNAME_NOISE_FRAMES,
+        ret = of_property_read_u32(np, ito_test_file_path,
             &oem_data->noise_test_frames);
         if (ret) {
             cts_warn("Parse '"OEM_OF_PROPNAME_NOISE_FRAMES"' failed %d", ret);
         }
 
+        memset(ito_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+        sprintf(ito_test_file_path, "%s%s", oem_data->cts_data->cts_lcd_module_name, OEM_OF_PROPNAME_NOISE_MAX);
         oem_data->noise_max = OEM_OF_DEF_PROPVAL_NOISE_MAX;
-        ret = of_property_read_u32(np, OEM_OF_PROPNAME_NOISE_MAX,
+        ret = of_property_read_u32(np, ito_test_file_path,
             (u32 *)&oem_data->noise_max);
         if (ret) {
             cts_warn("Parse '"OEM_OF_PROPNAME_NOISE_MAX"' failed %d", ret);
         }
     }
 
+    memset(ito_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+    sprintf(ito_test_file_path, "%s%s", oem_data->cts_data->cts_lcd_module_name, OEM_OF_PROPNAME_TEST_OPEN);
     oem_data->test_open = OEM_OF_DEF_PROPVAL_TEST_OPEN ||
-        of_property_read_bool(np, OEM_OF_PROPNAME_TEST_OPEN);
+        of_property_read_bool(np, ito_test_file_path);
     if (oem_data->test_open) {
+        memset(ito_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+        sprintf(ito_test_file_path, "%s%s", oem_data->cts_data->cts_lcd_module_name, OEM_OF_PROPNAME_OPEN_MIN);
         oem_data->open_min = OEM_OF_DEF_PROPVAL_OPEN_MIN;
-        ret = of_property_read_u32(np, OEM_OF_PROPNAME_OPEN_MIN,
+        ret = of_property_read_u32(np, ito_test_file_path,
             (u32 *)&oem_data->open_min);
         if (ret) {
             cts_warn("Parse '"OEM_OF_PROPNAME_OPEN_MIN"' failed %d", ret);
         }
     }
 
+    memset(ito_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+    sprintf(ito_test_file_path, "%s%s", oem_data->cts_data->cts_lcd_module_name, OEM_OF_PROPNAME_TEST_SHORT);
     oem_data->test_short = OEM_OF_DEF_PROPVAL_TEST_SHORT ||
-        of_property_read_bool(np, OEM_OF_PROPNAME_TEST_SHORT);
+        of_property_read_bool(np, ito_test_file_path);
     if (oem_data->test_short) {
+        memset(ito_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+        sprintf(ito_test_file_path, "%s%s", oem_data->cts_data->cts_lcd_module_name, OEM_OF_PROPNAME_SHORT_MIN);
         oem_data->short_min = OEM_OF_DEF_PROPVAL_SHORT_MIN;
-        ret = of_property_read_u32(np, OEM_OF_PROPNAME_SHORT_MIN,
+        ret = of_property_read_u32(np, ito_test_file_path,
             (u32 *)&oem_data->short_min);
         if (ret) {
             cts_warn("Parse '"OEM_OF_PROPNAME_SHORT_MIN"' failed %d", ret);
         }
     }
 
+    memset(ito_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+    sprintf(ito_test_file_path, "%s%s", oem_data->cts_data->cts_lcd_module_name, OEM_OF_PROPNAME_TEST_COMP_CAP);
     oem_data->test_comp_cap = OEM_OF_DEF_PROPVAL_TEST_COMP_CAP ||
-        of_property_read_bool(np, OEM_OF_PROPNAME_TEST_COMP_CAP);
+        of_property_read_bool(np, ito_test_file_path);
     if (oem_data->test_comp_cap) {
+        memset(ito_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+        sprintf(ito_test_file_path, "%s%s", oem_data->cts_data->cts_lcd_module_name, OEM_OF_PROPNAME_COMP_CAP_MIN);
         oem_data->comp_cap_min = OEM_OF_DEF_PROPVAL_COMP_CAP_MIN;
-        ret = of_property_read_u32(np, OEM_OF_PROPNAME_COMP_CAP_MIN,
+        ret = of_property_read_u32(np, ito_test_file_path,
             (u32 *)&oem_data->comp_cap_min);
         if (ret) {
             cts_warn("Parse '"OEM_OF_PROPNAME_COMP_CAP_MIN"' failed %d", ret);
         }
 
+        memset(ito_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+        sprintf(ito_test_file_path, "%s%s", oem_data->cts_data->cts_lcd_module_name, OEM_OF_PROPNAME_COMP_CAP_MAX);
         oem_data->comp_cap_max = OEM_OF_DEF_PROPVAL_COMP_CAP_MAX;
-        ret = of_property_read_u32(np, OEM_OF_PROPNAME_COMP_CAP_MAX,
+        ret = of_property_read_u32(np, ito_test_file_path,
+        /*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 end*/
             (u32 *)&oem_data->comp_cap_max);
         if (ret) {
             cts_warn("Parse '"OEM_OF_PROPNAME_COMP_CAP_MAX"' failed %d", ret);
@@ -687,10 +728,48 @@ static int dev_mkdir(char *name, umode_t mode)
 	return err;
 }
 
+/*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 start*/
+static void cts_multi_module_compatible_init(struct chipone_ts_data *cts_data)
+{
+    int i = 0;
+    cts_data->cts_lcd_module_name = "chipone";//default
+    if (saved_command_line) {
+       for (i = 0; i < ARRAY_SIZE(cts_module_list); i++) {
+            if (NULL != strstr(saved_command_line, cts_module_list[i].lcd_name)) {
+                cts_data->cts_lcd_module_name = cts_module_list[i].cts_name_data;
+                cts_info("lcd_name = %s",cts_module_list[i].lcd_name);
+                return;
+            } else {
+                cts_err("lcd_name not match");
+            }
+        }
+    } else {
+        cts_err("saved_command_line is NULL");
+    }
+    return;
+}
+
+static char *get_date_time_str(void)
+{
+	struct timespec now_time;
+	struct rtc_time rtc_now_time;
+	static char time_data_buf[128] = { 0 };
+
+	getnstimeofday(&now_time);
+	rtc_time_to_tm(now_time.tv_sec, &rtc_now_time);
+	snprintf(time_data_buf, sizeof(time_data_buf), "%04d%02d%02d-%02d%02d%02d",
+		(rtc_now_time.tm_year + 1900), rtc_now_time.tm_mon + 1,
+		rtc_now_time.tm_mday, rtc_now_time.tm_hour, rtc_now_time.tm_min,
+		rtc_now_time.tm_sec);
+
+	return time_data_buf;
+}
+
 static int save_selftest_data_to_file(struct cts_oem_data *oem_data)
 {
     int rows, cols;
     int ret;
+    char oem_test_file_path[TEST_FILE_PATH_LENGTH];
 
     cts_info("Save selftest data to file");
 
@@ -701,7 +780,11 @@ static int save_selftest_data_to_file(struct cts_oem_data *oem_data)
 		cts_err("Failed to create directory for mp_test\n");
 
     if (oem_data->test_rawdata) {
-            ret = dump_tsdata_to_csv_file(OEM_RAWDATA_TEST_DATA_FILEPATH,
+        memset(oem_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+        sprintf(oem_test_file_path, "%s%s_%s%s.csv", OEM_RAWDATA_TEST_DATA_FILEPATH,
+                oem_data->cts_data->cts_lcd_module_name, get_date_time_str(),
+                oem_data->rawdata_test_result == 0 ? "_pass" : "_fail");
+            ret = dump_tsdata_to_csv_file(oem_test_file_path,
             O_RDWR | O_CREAT | O_TRUNC, oem_data->rawdata_test_data,
             oem_data->rawdata_test_frames, rows, cols);
             if (ret < 0) {
@@ -711,7 +794,11 @@ static int save_selftest_data_to_file(struct cts_oem_data *oem_data)
         }
 
     if (oem_data->test_noise) {
-            ret = dump_tsdata_to_csv_file(OEM_NOISE_TEST_DATA_FILEPATH,
+        memset(oem_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+        sprintf(oem_test_file_path, "%s%s_%s%s.csv", OEM_NOISE_TEST_DATA_FILEPATH,
+                oem_data->cts_data->cts_lcd_module_name, get_date_time_str(),
+                oem_data->rawdata_test_result == 0 ? "_pass" : "_fail");
+            ret = dump_tsdata_to_csv_file(oem_test_file_path,
             O_RDWR | O_CREAT | O_TRUNC, oem_data->noise_test_data,
             oem_data->noise_test_frames, rows, cols);
             if (ret < 0) {
@@ -721,7 +808,11 @@ static int save_selftest_data_to_file(struct cts_oem_data *oem_data)
         }
 
     if (oem_data->test_open) {
-        ret = dump_tsdata_to_csv_file(OEM_OPEN_TEST_DATA_FILEPATH,
+        memset(oem_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+        sprintf(oem_test_file_path, "%s%s_%s%s.csv", OEM_OPEN_TEST_DATA_FILEPATH,
+                oem_data->cts_data->cts_lcd_module_name, get_date_time_str(),
+                oem_data->rawdata_test_result == 0 ? "_pass" : "_fail");
+        ret = dump_tsdata_to_csv_file(oem_test_file_path,
             O_RDWR | O_CREAT | O_TRUNC, oem_data->open_test_data,
             1, rows, cols);
         if (ret < 0) {
@@ -731,7 +822,11 @@ static int save_selftest_data_to_file(struct cts_oem_data *oem_data)
     }
 
     if (oem_data->test_short) {
-            ret = dump_tsdata_to_csv_file(OEM_SHORT_TEST_DATA_FILEPATH,
+        memset(oem_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+        sprintf(oem_test_file_path, "%s%s_%s%s.csv", OEM_SHORT_TEST_DATA_FILEPATH,
+                oem_data->cts_data->cts_lcd_module_name, get_date_time_str(),
+                oem_data->rawdata_test_result == 0 ? "_pass" : "_fail");
+            ret = dump_tsdata_to_csv_file(oem_test_file_path,
             O_RDWR | O_CREAT | O_TRUNC, oem_data->short_test_data,
             7, rows, cols);
             if (ret < 0) {
@@ -741,7 +836,11 @@ static int save_selftest_data_to_file(struct cts_oem_data *oem_data)
         }
 
     if (oem_data->test_comp_cap) {
-        ret = dump_comp_cap_to_csv_file(OEM_COMP_CAP_TEST_DATA_FILEPATH,
+        memset(oem_test_file_path,0,TEST_FILE_PATH_LENGTH * sizeof(char));
+        sprintf(oem_test_file_path, "%s%s_%s%s.csv", OEM_COMP_CAP_TEST_DATA_FILEPATH,
+                oem_data->cts_data->cts_lcd_module_name, get_date_time_str(),
+                oem_data->rawdata_test_result == 0 ? "_pass" : "_fail");
+        ret = dump_comp_cap_to_csv_file(oem_test_file_path,
             O_RDWR | O_CREAT | O_TRUNC,
             oem_data->comp_cap_test_data, rows, cols);
         if (ret < 0) {
@@ -752,6 +851,7 @@ static int save_selftest_data_to_file(struct cts_oem_data *oem_data)
 
     return 0;
 }
+/*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 end*/
 
 static void *selftest_seq_start(struct seq_file *m, loff_t *pos)
 {
@@ -1062,7 +1162,11 @@ int cts_oem_init(struct chipone_ts_data *cts_data)
     }
 
     cts_data->oem_data = oem_data;
-	oem_data->cts_data = cts_data;
+    oem_data->cts_data = cts_data;
+
+    /*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 start*/
+    cts_multi_module_compatible_init(cts_data);
+    /*hs03s_NM code for SR-AL5625-01-641 by yuli at 2022/4/24 end*/
 
 #ifdef CONFIG_CTS_TEST_FOR_HQ
 	cts_data->platform_device = hwinfo_device;//&cts_platform_device;

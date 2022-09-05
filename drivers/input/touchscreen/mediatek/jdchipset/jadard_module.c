@@ -13,6 +13,9 @@ extern uint8_t *g_jadard_fw;
 extern uint32_t g_jadard_fw_len;
 #if defined(JD_ZERO_FLASH)
 bool jd_g_f_0f_update = false;
+/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+bool jadard_fw_ready = false;
+/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 end*/
 #endif
 #endif
 
@@ -154,8 +157,13 @@ int jadard_mcu_0f_upgrade_fw(char *file_name)
 		JD_I("FW size = %d\n", (int)fw->size);
 		err = g_module_fp.fp_ram_write(0, g_jadard_fw, fw->size);
 		jd_g_f_0f_update = false;
-	}
 
+		/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+		if (err >= 0) {
+			jadard_fw_ready = true;
+		}
+		/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 end*/
+	}
 fw_upgrade_fail:
 	release_firmware(fw);
 

@@ -30,3 +30,15 @@ source "crypto/Kconfig"
 source "lib/Kconfig"
 
 source "lib/Kconfig.debug"
+
+config HQ_PROJECT_HS03S
+	bool CONFIG_HQ_PROJECT_HS03S
+	default n
+	help
+	HQ PROJECT HS03S
+
+config HQ_PROJECT_OT8
+   bool CONFIG_HQ_PROJECT_OT8
+   default n
+   help
+   HQ PROJECT OT8

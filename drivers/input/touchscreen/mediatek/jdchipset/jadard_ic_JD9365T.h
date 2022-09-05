@@ -300,4 +300,5 @@ enum JD9365T_STC1_RELATED_SETTING {
 int jd9365t_EnterBackDoor(uint16_t *pRomID);
 int jd9365t_ExitBackDoor(void);
 /*hs03s code for SR-AL5625-01-305 by yuanliding at 20210528 end*/
+
 #endif

@@ -45,7 +45,8 @@
 #define VENDOR_NAME      "ABOV"
 #define MODEL_NAME       "A96T3X6"
 #define MODULE_NAME      "grip_sensor"
-#define SUB_MODULE_NAME "grip_sensor_sub"
+#define SUB_MODULE_NAME  "grip_sensor_sub"
+#define WIFI_MODULE_NAME "grip_sensor_wifi"
 #endif
 
 #define SLEEP(x)    mdelay(x)
@@ -211,9 +212,10 @@ static struct attribute *abov_attributes[] = {
 static struct attribute_group abov_attr_group = {
     .attrs = abov_attributes,
 };
-
+/* TabA7 Lite code for OT8S-2 by chenyuqi at 20220218 start */ 
 /* hs03s code for SR-AL5625-01-264 by xiongxiaoliang at 2021/06/11 start */
 #ifdef SAR_USB_CALIBRATION
+#ifdef CONFIG_HQ_PROJECT_HS03S
 static int sar_charger_notifier_callback(struct notifier_block *nb,
                                 unsigned long val, void *v) {
     int ret = 0;
@@ -246,6 +248,43 @@ static int sar_charger_notifier_callback(struct notifier_block *nb,
     return 0;
 }
 /* hs03s code for SR-AL5625-01-264 by xiongxiaoliang at 2021/06/11 end */
+#else
+/*TabA7 Lite code for P210226-03264 by Hujincan at 20210309 start*/
+static int sar_charger_notifier_callback(struct notifier_block *nb,
+                                unsigned long val, void *v) {
+    int ret = 0;
+    struct power_supply *psy = NULL;
+    union power_supply_propval prop;
+
+    LOG_INFO("sar_charger_notifier_callback\n");
+    psy= power_supply_get_by_name("usb");
+    if (!psy) {
+        LOG_INFO("Couldn't get usbpsy\n");
+        return 0;
+    }
+
+    LOG_INFO("sar_charger_notifier_callback val = %ld\n", val);
+    if (!strcmp(psy->desc->name, "usb")) {
+        if (psy && val == POWER_SUPPLY_PROP_STATUS) {
+            ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_TYPEC_CC_ORIENTATION, &prop);
+
+            LOG_INFO("power_supply_get_property prop.intval = %d\n", prop.intval);
+
+            if (prop.intval == 0) {
+                LOG_INFO("USB is not inserted\n", ret);
+                return 0;
+            }
+            else {
+                if(abov_sar_ptr->charger_notify_wq != NULL)
+                    queue_work(abov_sar_ptr->charger_notify_wq, &abov_sar_ptr->update_charger);
+            }
+        }
+    }
+    return 0;
+}
+#endif
+/* TabA7 Lite code for OT8S-2 by chenyuqi at 20220218 end */
+/*TabA7 Lite code for P210226-03264 by Hujincan at 20210309 end*/
 
 static void sar_update_charger(struct work_struct *work)
 {
@@ -663,6 +702,8 @@ static ssize_t enable_store(struct class *class,
 
     if (!strncmp(buf, "1", 1)) {
         LOG_DBG("enable cap sensor\n");
+/* TabA7 Lite code for OT8S-2 by chenyuqi at 20220218 start */
+#ifdef CONFIG_HQ_PROJECT_HS03S
         enable_irq_wake(this->irq);
         write_register(this, ABOV_CTRL_MODE_REG, 0x00);//activity mode
         this->statusFunc[0](this);
@@ -671,6 +712,16 @@ static ssize_t enable_store(struct class *class,
         LOG_DBG("disable cap sensor\n");
         disable_irq(this->irq);
         disable_irq_wake(this->irq);//Ensure irq will not wake up AP
+#else
+        enable_irq(this->irq);
+        write_register(this, ABOV_CTRL_MODE_REG, 0x00);
+        this->statusFunc[0](this);
+        mEnabled = 1;
+    } else if (!strncmp(buf, "0", 1)) {
+        LOG_DBG("disable cap sensor\n");
+        disable_irq(this->irq);
+#endif
+/* TabA7 Lite code for OT8S-2 by chenyuqi at 20220218 end */
         write_register(this, ABOV_CTRL_MODE_REG, 0x01);//sleep mode, Notice:State change will change sar mode from sleep to activity
         #ifdef HQ_FACTORY_BUILD
         input_report_key(input_bottom_sar, KEY_SAR2_FAR, 1);
@@ -768,7 +819,11 @@ static int enable_bottom(unsigned int enable)
         if(this->channel_status == 0) {
             write_register(this, ABOV_CTRL_MODE_REG, 0x00);
             if(this->irq_disabled == 1){
+#ifdef CONFIG_HQ_PROJECT_HS03S
                 enable_irq_wake(this->irq);
+#else
+                enable_irq(this->irq);
+#endif
                 this->irq_disabled = 0;
             }
             mEnabled = 1;
@@ -806,7 +861,11 @@ static int enable_bottom(unsigned int enable)
         if(this->channel_status == 0) {
             write_register(this, ABOV_CTRL_MODE_REG, 0x01);
             if(this->irq_disabled == 0){
+#ifdef CONFIG_HQ_PROJECT_HS03S
                 disable_irq_wake(this->irq);
+#else
+                disable_irq(this->irq);
+#endif
                 this->irq_disabled = 1;
             }
             mEnabled = 0;
@@ -836,7 +895,11 @@ static int enable_top(unsigned int enable)
         if(this->channel_status == 0) {
             write_register(this, ABOV_CTRL_MODE_REG, 0x00);
             if(this->irq_disabled == 1){
+#ifdef CONFIG_HQ_PROJECT_HS03S
                 enable_irq_wake(this->irq);
+#else
+                enable_irq(this->irq);
+#endif
                 this->irq_disabled = 0;
             }
             mEnabled = 1;
@@ -874,7 +937,11 @@ static int enable_top(unsigned int enable)
         if(this->channel_status == 0) {
             write_register(this, ABOV_CTRL_MODE_REG, 0x01);
             if(this->irq_disabled == 0){
+#ifdef CONFIG_HQ_PROJECT_HS03S
                 disable_irq_wake(this->irq);
+#else
+                disable_irq(this->irq);
+#endif
                 this->irq_disabled = 1;
             }
             mEnabled = 0;
@@ -907,6 +974,7 @@ static ssize_t abovxx_enable_show(struct device *dev,
         }
     }
 
+#ifdef CONFIG_HQ_PROJECT_HS03S
     if(!strncmp(temp_input_dev->name,"grip_sensor_sub",sizeof("grip_sensor_sub")))
     {
         if(this->channel_status & 0x02) {
@@ -915,6 +983,16 @@ static ssize_t abovxx_enable_show(struct device *dev,
             status = 0;
         }
     }
+#else
+    if(!strncmp(temp_input_dev->name,"grip_sensor_wifi",sizeof("grip_sensor_wifi")))
+    {
+        if(this->channel_status & 0x02) {
+            status = 1;    
+        } else {
+            status = 0;
+        }
+    }
+#endif
 
     return snprintf(buf, 8, "%d\n", status);
 }
@@ -945,7 +1023,7 @@ static ssize_t abovxx_enable_store (struct device *dev,
             enable_bottom(0);
         }
     }
-
+#ifdef CONFIG_HQ_PROJECT_HS03S
     if(!strncmp(temp_input_dev->name,"grip_sensor_sub",sizeof("grip_sensor_sub")))
     {
         if (enable == 1) {
@@ -954,6 +1032,16 @@ static ssize_t abovxx_enable_store (struct device *dev,
             enable_top(0);
         }
     }
+#else
+    if(!strncmp(temp_input_dev->name,"grip_sensor_wifi",sizeof("grip_sensor_wifi")))
+    {
+        if (enable == 1) {
+            enable_top(1);
+        } else {
+            enable_top(0);
+        }
+    }
+#endif
 
     return count;
 }
@@ -1048,7 +1136,11 @@ static ssize_t abovxx_grip_flush_store(struct device *dev,
     if(!strncmp(dev->kobj.name,"grip_sensor",sizeof("grip_sensor"))) {
         input_report_rel(input_bottom_sar, REL_MAX, val);
         input_sync(input_bottom_sar);
+#ifdef CONFIG_HQ_PROJECT_HS03S
     } else if(!strncmp(dev->kobj.name,"grip_sensor_sub",sizeof("grip_sensor_sub"))) {
+#else
+    } else if(!strncmp(dev->kobj.name,"grip_sensor_wifi",sizeof("grip_sensor_wifi"))) {
+#endif
         input_report_rel(input_top_sar, REL_MAX, val);
         input_sync(input_top_sar);
     }
@@ -1074,12 +1166,21 @@ static struct device_attribute *sensor_attrs[] = {
     NULL,
 };
 
+#ifdef CONFIG_HQ_PROJECT_HS03S
 static struct device_attribute *sub_sensor_attrs[] = {
     &dev_attr_name,
     &dev_attr_vendor,
     &dev_attr_grip_flush,
     NULL,
 };
+#else
+static struct device_attribute *wifi_sensor_attrs[] = {
+    &dev_attr_name,
+    &dev_attr_vendor,
+    &dev_attr_grip_flush,
+    NULL,
+};
+#endif //hs03s
 #endif
 
 static int _i2c_adapter_block_write(struct i2c_client *client, u8 *data, u8 len)
@@ -1752,7 +1853,11 @@ static int abov_probe(struct i2c_client *client, const struct i2c_device_id *id)
     /* save the input pointer and finish initialization */
     pDevice->pbuttonInformation->input_top_sar = input_top_sar;
     /* save the input pointer and finish initialization */
+#ifdef CONFIG_HQ_PROJECT_HS03S
     input_top_sar->name = "grip_sensor_sub";
+#else
+    input_top_sar->name = "grip_sensor_wifi";
+#endif
     input_top_sar->id.bustype = BUS_I2C;
     if (input_register_device(input_top_sar)) {
         LOG_ERR("add abov sar sensor top unsuccess\n");
@@ -1769,11 +1874,19 @@ static int abov_probe(struct i2c_client *client, const struct i2c_device_id *id)
         goto exit_sensors_register;
     }
 
+#ifdef CONFIG_HQ_PROJECT_HS03S
     ret = sensors_register(&pplatData->factory_device_sub, pplatData, sub_sensor_attrs, SUB_MODULE_NAME);
     if (ret) {
         LOG_ERR("%s - cound not register sensor(%d).\n", __func__, ret);
         goto exit_sensors_register_sub;
     }
+#else
+    ret = sensors_register(&pplatData->factory_device_wifi, pplatData, wifi_sensor_attrs, WIFI_MODULE_NAME);
+    if (ret) {
+        LOG_ERR("%s - cound not register sensor(%d).\n", __func__, ret);
+        goto exit_sensors_register_wifi;
+    }
+#endif
 
     ret = sysfs_create_group(&input_bottom_sar->dev.kobj, &abovxx_attributes_group);
     if (ret) {
@@ -1835,8 +1948,13 @@ exit_creat_file:
     sysfs_remove_group(&input_bottom_sar->dev.kobj,&abovxx_attributes_group);
     sysfs_remove_group(&input_top_sar->dev.kobj,&abovxx_attributes_group);
 exit_input_create:
+#ifdef CONFIG_HQ_PROJECT_HS03S
     sensors_unregister(pplatData->factory_device_sub, sub_sensor_attrs);
 exit_sensors_register_sub:
+#else
+    sensors_unregister(pplatData->factory_device_wifi, wifi_sensor_attrs);
+exit_sensors_register_wifi:
+#endif
     sensors_unregister(pplatData->factory_device, sensor_attrs);
 exit_sensors_register:
 #endif
@@ -1879,7 +1997,8 @@ static int abov_remove(struct i2c_client *client)
     }
     return abovXX_sar_remove(this);
 }
-
+/* TabA7 Lite code for OT8S-2 by chenyuqi at 20220218 start */
+#ifdef CONFIG_HQ_PROJECT_HS03S
 /*TabA7 Lite code for OT8-2395 by Hujincan at 20210129 start*/
 /* hs03s code for DEVAL5625-2136 by xiongxiaoliang at 2021/07/29 start */
 static int abov_suspend(struct device *dev)
@@ -1909,7 +2028,38 @@ static int abov_resume(struct device *dev)
     return 0;
 }
 /*TabA7 Lite code for OT8-2395 by Hujincan at 20210129 end*/
-
+#else
+/*TabA7 Lite code for OT8-2395 by Hujincan at 20210129 start*/
+static int abov_suspend(struct device *dev)
+{
+    pabovXX_t this = dev_get_drvdata(dev);
+    if (this){
+        LOG_INFO("ABOV suspend: disable irq!\n");
+        disable_irq(this->irq);
+        if (mEnabled){
+            write_register(this, ABOV_CTRL_MODE_REG, 0x01);//sleep mode 30ms check
+        }
+        else{
+            write_register(this, ABOV_CTRL_MODE_REG, 0x02);//stop mode
+        }
+    }
+    return 0;
+}
+static int abov_resume(struct device *dev)
+{
+    pabovXX_t this = dev_get_drvdata(dev);
+    if (this){
+        LOG_INFO("ABOV resume: enable irq!\n");
+        if (mEnabled){
+            write_register(this, ABOV_CTRL_MODE_REG, 0x00);//activity mode
+        }
+        enable_irq(this->irq);
+    }
+    return 0;
+}
+/*TabA7 Lite code for OT8-2395 by Hujincan at 20210129 end*/
+#endif
+/* TabA7 Lite code for OT8S-2 by chenyuqi at 20220218 endif */
 static const struct dev_pm_ops abov_pm_ops = {
     .suspend = abov_suspend,
     .resume = abov_resume,

@@ -54,6 +54,7 @@ void jadard_int_en_set(bool enable);
 void jadard_int_enable(bool enable);
 int jadard_ts_register_interrupt(void);
 int jadard_gpio_power_config(struct jadard_i2c_platform_data *pdata);
+
 void jadard_gpio_power_deconfig(struct jadard_i2c_platform_data *pdata);
 
 #if defined(JD_CONFIG_FB)

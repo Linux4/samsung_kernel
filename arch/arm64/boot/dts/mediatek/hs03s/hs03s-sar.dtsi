@@ -1,3 +1,4 @@
+/* hs03s code for SR-AL5625-01-168 by xiongxiaoliang at 2021/06/09 start */
 &i2c6 {
     abov_sar@20 {
         status = "ok";
@@ -12,3 +13,4 @@
         cap,use_channel_top = <0x01>;
     };
 };
+/* hs03s code for SR-AL5625-01-168 by xiongxiaoliang at 2021/06/09 end */

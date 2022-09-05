@@ -281,7 +281,6 @@ static int jd9365t_ReadRegMulti(uint32_t addr, uint8_t *rdata, uint16_t rlen)
 	int ReCode;
 
 	jd9365t_EnterBackDoor(NULL);
-
 	if (g_jd9365t_chip_info.back_door_mode) {
 		ReCode = jd9365t_Read_BackDoor_RegMulti(addr, rdata, rlen);
 	} else {
@@ -301,7 +300,6 @@ static int jd9365t_WriteRegMulti(uint32_t addr, uint8_t *wdata, uint16_t wlen)
 	int ReCode;
 
 	jd9365t_EnterBackDoor(NULL);
-
 	if (g_jd9365t_chip_info.back_door_mode) {
 		ReCode = jd9365t_Write_BackDoor_RegMulti(addr, wdata, wlen);
 	} else {
@@ -378,6 +376,7 @@ int jd9365t_ExitBackDoor(void)
 	}
 	return ReCode;
 }
+
 /* static int jd9365t_DisableSleepOutInt(void)
 {
 	return jd9365t_WriteRegSingle((uint32_t)JD9365T_SOC_REG_ADDR_SLPOUT_INT_EN,
@@ -1005,7 +1004,6 @@ static void jd9365t_ReadSectionInfo(bool reinit_config)
 	struct JD9365T_INFO_CONTENT dsram_info_content[JD9365T_MAX_DSRAM_NUM];
 	struct JD9365T_INFO_CONTENT esram_info_content[JD9365T_MAX_ESRAM_NUM];
 	uint8_t rbuf[JD_SIX_SIZE];
-
 
 	/* 1. Get section ready */
 	if (jd9365t_GetSectionFirstValueStatus(50) == true) {
@@ -1956,7 +1954,7 @@ static int jd9365t_HostWriteFlash(uint32_t WriteAddr, uint8_t *pFileData, uint32
 	}
 
 	/* 16. Reload section info. */
-	jd9365t_ReadSectionInfo(true);
+	jd9365t_ReadSectionInfo(false);
 
 	return ReCode;
 }
@@ -2170,7 +2168,7 @@ static int jd9365t_HostWritePram(uint32_t WriteAddr, uint8_t *pFileData, uint32_
 	}
 
 	/* 12. Reload section info. */
-	jd9365t_ReadSectionInfo(false);
+	jd9365t_ReadSectionInfo(true);
 
 	return ReCode;
 }
@@ -2428,7 +2426,7 @@ static void module_jd9365t_read_fw_ver(void)
 	/*hs03s  code for SR-AL5625-01-96 by wangdeyan at 20210519 start*/
 	mtp_fw_ver = pjadard_ic_data->fw_ver;
 	/*hs03s  code for SR-AL5625-01-96 by wangdeyan at 20210519 end*/
-
+	
 	JD_I("FW_VER: %08x\n", pjadard_ic_data->fw_ver);
 	JD_I("FW_CID_VER: %08x\n", pjadard_ic_data->fw_cid_ver);
 }

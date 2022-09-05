@@ -630,15 +630,15 @@ const struct cts_firmware *cts_request_firmware(
         hwid, fwid, curr_firmware_ver);
 #endif /* CFG_CTS_DRIVER_BUILTIN_FIRMWARE */
 
-#ifdef CFG_CTS_FIRMWARE_IN_FS
+    /*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 2022/4/14 start*/
     /* Check firmware in file system when probe only when build to .ko */
-    if (is_filesystem_mounted(CFG_CTS_FIRMWARE_FILEPATH)) {
+    if (is_filesystem_mounted(chipone_ts_data->firmware_filepath)) {
         firmware_from_file = cts_request_newer_firmware_from_fs(
-            cts_dev, CFG_CTS_FIRMWARE_FILEPATH,
+            cts_dev, chipone_ts_data->firmware_filepath,
             firmware_builtin ? FIRMWARE_VERSION(firmware_builtin) :
                                curr_firmware_ver);
     }
-#endif /* CFG_CTS_FIRMWARE_IN_FS */
+    /*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 2022/4/14 end*/
 
     return firmware_from_file ? firmware_from_file : firmware_builtin;
 }

@@ -4,9 +4,6 @@
 #
 subdir-ccflags-$(CONFIG_USB_GADGET_DEBUG)	:= -DDEBUG
 subdir-ccflags-$(CONFIG_USB_GADGET_VERBOSE)	+= -DVERBOSE_DEBUG
-subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/typec/inc
-subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/typec/tcpc/inc
-
 ccflags-y				+= -I$(srctree)/drivers/usb/gadget/udc
 
 obj-$(CONFIG_USB_LIBCOMPOSITE)	+= libcomposite.o

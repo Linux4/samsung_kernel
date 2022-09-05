@@ -173,7 +173,6 @@ int DW9714AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 {
 	LOG_INF("Start\n");
 
-/* Huaqin modify for o6 Reduce motor sound by gaozhenyu at 2021/5/22 start */
 	if (*g_pAF_Opened == 2) {
 		LOG_INF("Wait\n");
 	        s4AF_WriteReg(200); /* Power down mode */
@@ -185,7 +184,7 @@ int DW9714AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
                 s4AF_WriteReg(5);
                 msleep(20);
 	}
-/* Huaqin modify for o6 Reduce motor sound by gaozhenyu at 2021/5/22 end */
+
 	if (*g_pAF_Opened) {
 		LOG_INF("Free\n");
 

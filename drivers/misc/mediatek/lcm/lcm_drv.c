@@ -47,15 +47,14 @@
 #endif
 #endif
 
-
+#ifdef CONFIG_HQ_PROJECT_HS03S
 unsigned int GPIO_LCD_RST;
+/* hs03s_NM code added for SR-AL5625-01-609 by fengzhigang at 20220424 start */
+unsigned int GPIO_TSP_RST;
+/* hs03s_NM code added for SR-AL5625-01-609 by fengzhigang at 20220424 end */
 struct pinctrl *lcd_pinctrl1;
 struct pinctrl_state *lcd_disp_pwm;
 struct pinctrl_state *lcd_disp_pwm_gpio;
-/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
-struct pinctrl_state *tp_rst_output_low;
-struct pinctrl_state *tp_rst_output_high;
-/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 end */
 
 void lcm_set_gpio_output(unsigned int GPIO, unsigned int output)
 {
@@ -68,7 +67,6 @@ void lcm_set_gpio_output(unsigned int GPIO, unsigned int output)
 	gpio_set_value(GPIO, output);
 #endif
 }
-
 static void lcm_request_gpio_control(struct device *dev)
 {
 	int ret;
@@ -77,6 +75,10 @@ static void lcm_request_gpio_control(struct device *dev)
 
 	GPIO_LCD_RST = of_get_named_gpio(dev->of_node, "gpio_lcd_rst", 0);
 	gpio_request(GPIO_LCD_RST, "GPIO_LCD_RST");
+	/* hs03s_NM code added for SR-AL5625-01-609 by fengzhigang at 20220424 start */
+	GPIO_TSP_RST = of_get_named_gpio(dev->of_node, "gpio_tsp_rst", 0);
+	gpio_request(GPIO_TSP_RST, "GPIO_TSP_RST");
+	/* hs03s_NM code added for SR-AL5625-01-609 by fengzhigang at 20220424 end */
 
 	lcd_pinctrl1 = devm_pinctrl_get(dev);
 	if (IS_ERR(lcd_pinctrl1)) {
@@ -93,28 +95,15 @@ static void lcm_request_gpio_control(struct device *dev)
 	lcd_disp_pwm_gpio = pinctrl_lookup_state(lcd_pinctrl1, "disp_pwm_gpio");
 	if (IS_ERR(lcd_pinctrl1)) {
 		ret = PTR_ERR(lcd_pinctrl1);
-		pr_notice(" Cannot find lcd_disp_pwm_gpio %d!\n", ret);
 	}
-
-	/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
-	tp_rst_output_low = pinctrl_lookup_state(lcd_pinctrl1, "tp_rst_output0");
-	if (IS_ERR(lcd_pinctrl1)) {
-		ret = PTR_ERR(lcd_pinctrl1);
-		pr_notice(" Cannot find tp_rst_output_low %d!\n", ret);
-	}
-
-	tp_rst_output_high = pinctrl_lookup_state(lcd_pinctrl1, "tp_rst_output1");
-	if (IS_ERR(lcd_pinctrl1)) {
-		ret = PTR_ERR(lcd_pinctrl1);
-		pr_notice(" Cannot find tp_rst_output_high %d!\n", ret);
-	}
-	/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 end */
 }
+#endif
 
 static int lcm_driver_probe(struct device *dev, void const *data)
 {
+#ifdef CONFIG_HQ_PROJECT_HS03S
 	lcm_request_gpio_control(dev);
-
+#endif
 	return 0;
 }
 

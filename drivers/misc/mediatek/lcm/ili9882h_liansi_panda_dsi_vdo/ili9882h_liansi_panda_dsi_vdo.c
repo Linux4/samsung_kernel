@@ -593,3 +593,4 @@ struct LCM_DRIVER ili9882h_liansi_panda_dsi_vdo_lcm_drv = {
 	.set_backlight_cmdq = lcm_setbacklight_cmdq,
 };
 
+

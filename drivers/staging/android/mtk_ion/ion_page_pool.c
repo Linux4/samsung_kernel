@@ -24,6 +24,13 @@ static unsigned long long last_alloc_ts;
  */
 static long nr_total_pages;
 
+// gaochao-debug
+long ion_get_nr_total_pages(void)
+{
+	return nr_total_pages;
+}
+// gaochao-debug
+
 static void *ion_page_pool_alloc_pages(struct ion_page_pool *pool)
 {
 	unsigned long long start, end;

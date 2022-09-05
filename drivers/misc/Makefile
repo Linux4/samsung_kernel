@@ -61,10 +61,20 @@ obj-$(CONFIG_MISC_RTSX)		+= cardreader/
 obj-$(CONFIG_UID_SYS_STATS)	+= uid_sys_stats.o
 obj-y				+= mediatek/
 obj-$(CONFIG_DEV_RIL_BRIDGE) += dev_ril_bridge.o
-# HS03S code added for SR-AL5625-01-302 by zhaoxiangxiang at 20210422 start
-obj-y                           += huaqin/
-# HS03S code added for SR-AL5625-01-302 by zhaoxiangxiang at 20210422 end
 
 # TEEGRIS kernel driver
 ccflags-$(CONFIG_TZDEV) += -I$(srctree)/drivers/misc/tzdev/include
 obj-$(CONFIG_TZDEV)		+= tzdev/
+# HS03S code added for SR-AL5625-01-302 by zhaoxiangxiang at 20210422 start
+obj-y               += huaqin/
+# HS03S code added for SR-AL5625-01-302 by zhaoxiangxiang at 20210422 end
+# TabA7 Lite code for OT8S-7 by chengerui at 20220302 start
+# TabA7 Lite code for SR-AX3565-01-320 by zhengxu at 20220307 start
+ifeq ($(strip $(CONFIG_HQ_PROJECT_OT8)),y)
+# OT8S Lite code OT8S-7 by lilei at 20220311 start
+# obj-y           += grdm_spi/
+# OT8S Lite code OT8S-7 by lilei at 20220311 end
+obj-y           += grdm/
+endif
+# TabA7 Lite code for SR-AX3565-01-320 by zhengxu at 20220307 end
+# TabA7 Lite code for OT8S-7 by chengerui at 20220302 end

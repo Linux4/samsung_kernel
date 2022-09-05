@@ -343,6 +343,8 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		pr_notice("*****************************************\n");
 		pr_notice("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
 
+#ifdef CONFIG_HS03S_SUPPORT
+    /* modify code for O6 */
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
@@ -351,6 +353,14 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		BUG();
 		#endif
 		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210429 end*/
+#else
+    /* modify code for OT8 */
+		/*TabA7 Lite code for OT8-3638 import D85 policy by wenyaqi at 20210301 start*/
+		#ifndef HQ_D85_BUILD
+		BUG();
+		#endif
+		/*TabA7 Lite code for OT8-3638 import D85 policy by wenyaqi at 20210301 end*/
+#endif
 	}
 
 	return 0;

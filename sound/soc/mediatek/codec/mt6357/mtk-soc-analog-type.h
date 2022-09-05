@@ -180,7 +180,9 @@ struct mt6357_codec_priv {
 	int mAudio_BackUpAna_DevicePower[AUDIO_ANALOG_DEVICE_MAX];
 };
 
-/* hs03s code for SR-AL5625-01-247 by zhuqiang at 2021/04/23 start */
+
+/* hs03s code for SR-AL5625-01-247 by zhangbing at 2022/03/15 start */
+#ifdef CONFIG_HS03S_SUPPORT
 #define ANALOG_PA_SUPPORT
 struct mt6357_priv {
 	struct device *dev;
@@ -188,10 +190,17 @@ struct mt6357_priv {
 	struct iio_channel *codec_auxadc, *accdet_auxadc;
 	struct nvmem_device *hp_efuse;
 	int mtkaif_protocol;
-#ifdef ANALOG_PA_SUPPORT
 	int ctrl_mod;
-#endif
 };
-/* hs03s code for SR-AL5625-01-247 by zhuqiang at 2021/04/23 end */
+#else
+struct mt6357_priv {
+	struct device *dev;
+	struct regmap *regmap;
+	struct iio_channel *codec_auxadc, *accdet_auxadc;
+	struct nvmem_device *hp_efuse;
+	int mtkaif_protocol;
+};
+#endif
+/* hs03s code for SR-AL5625-01-247 by zhangbing at 2022/03/15 end */
 
 #endif

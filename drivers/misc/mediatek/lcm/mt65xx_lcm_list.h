@@ -304,6 +304,11 @@ extern struct LCM_DRIVER nt51021h_wuxga_vdo_oncell_boe_lcm_drv;
 extern struct LCM_DRIVER nt36672ah_hdp_dsi_vdo_tcl_csot_lcm_drv;
 extern struct LCM_DRIVER nt36672ah_hdp_dsi_vdo_tcl_csot_fwvplus_lcm_drv;
 extern struct LCM_DRIVER sofeg01_fhdplus_dsi_cmd_samsung_lcm_drv;
+
+#if defined(NT36672C_FHDP_DSI_VDO_AUO_CPHY_90HZ_TIANMA)
+extern struct LCM_DRIVER nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_tianma_lcm_drv;
+#endif
+
 extern struct LCM_DRIVER oppo_tianma_td4310_fhdp_dsi_vdo_rt5081_lcm_drv;
 
 extern struct LCM_DRIVER td4150_hdp_dsi_lm36274_lcm_drv;
@@ -323,8 +328,46 @@ extern struct LCM_DRIVER jd9365t_hdplus1600_dsi_vdo_hy_mdt_lcm_drv;
 /* HS03S code added for SR-AL5625-01-572 by fengzhigang at 20210719 start */
 extern struct LCM_DRIVER ili9882h_liansi_panda_dsi_vdo_lcm_drv;
 /* HS03S code added for SR-AL5625-01-572 by fengzhigang at 20210719 end */
+/* hs03s_NM code added for SR-AL5625-01-644 by fengzhigang at 20220414 start */
+extern struct LCM_DRIVER lcd_jd9365t_txd_ctc_mipi_hdp_video_lcm_drv;
+extern struct LCM_DRIVER lcd_nl9911c_txd_hkc_mipi_hdp_video_lcm_drv;
+extern struct LCM_DRIVER lcd_gc7202_ls_hsd_mipi_hdp_video_lcm_drv;
+/* hs03s_NM code added for SR-AL5625-01-644 by fengzhigang at 20220414 end */
 extern struct LCM_DRIVER hs03s_hdplus1600_dsi_default_vdo_lcm_drv;
 /* HS03S code added for SR-AL5625-01-310 by gaozhengwei at 20210423 end */
+
+/*TabA7 Lite code for SR-AX3565-01-91 by gaozhengwei at 20201210 start*/
+extern struct LCM_DRIVER hx83102e_hlt_hsd_fhdplus2408_lcm_drv;
+extern struct LCM_DRIVER hx83102e_boe_boe_dsi_vdo_hdp_wxga_lcm_drv;
+extern struct LCM_DRIVER nt36523_liansi_hsd_incell_vdo_lcm_drv;
+/*TabA7 Lite code for SR-AX3565-01-895 by fengzhigang at 20220117 start*/
+extern struct LCM_DRIVER nt36523_liansi_hsd_ntfpc_incell_vdo_lcm_drv;
+/*TabA7 Lite code for SR-AX3565-01-895 by fengzhigang at 20220117 end*/
+/*TabA7 Lite code for SR-AX3565-01-91 by gaozhengwei at 20201210 end*/
+/*TabA7 Lite code for SR-AX3565-01-53 by gaozhengwei at 20201215 start*/
+extern struct LCM_DRIVER ili9881t_liansi_inx_incell_vdo_lcm_drv;
+/*TabA7 Lite code for SR-AX3565-01-53 by gaozhengwei at 20201215 end*/
+/*TabA7 Lite code for SR-AX3565-01-718 by weiqiang at 20210202 start*/
+extern struct LCM_DRIVER nt36523_hlt_mdt_incell_vdo_lcm_drv;
+/*TabA7 Lite code for SR-AX3565-01-718 by weiqiang at 20210202 end*/
+/*TabA7 Lite code for SR-AX3565-01-706 by weiqiang at 20210107 start*/
+extern struct LCM_DRIVER ft8201ab_dt_qunchuang_inx_vdo_fhdplus2408_lcm_drv;
+/*TabA7 Lite code for SR-AX3565-01-706 by weiqiang at 20210107 end*/
+/*TabA7 Lite code for SR-AX3565-01-825 by weiqiang at 20210308 start*/
+extern struct LCM_DRIVER nt36523bh_qunchuang_inx_incell_vdo_lcm_drv;
+/*TabA7 Lite code for SR-AX3565-01-825 by weiqiang at 20210308 end*/
+/*TabA7 Lite code for SR-AX3565-01-836 by weiqiang at 20210524 start*/
+extern struct LCM_DRIVER hx83102e_liansi_mdt_incell_vdo_lcm_drv;
+/*TabA7 Lite code for SR-AX3565-01-836 by weiqiang at 20210524 end*/
+/*TabA7 Lite code for OT8-5212 by huangzhongjie at 20211021 start*/
+extern struct LCM_DRIVER hx83102e_copper_hlt_hsd_fhdplus2408_lcm_drv;
+/*TabA7 Lite code for OT8-5212 by huangzhongjie at 20211021 end*/
+extern struct LCM_DRIVER ft8201_lianchuang_boe_dsi_vdo_hdp_wxga_lcm_drv;
+/*TabA7 Lite code for OT8-5317 by huangzhongjie at 20220217 start*/
+extern struct LCM_DRIVER hx83102e_gx_hsd_incell_vdo_lcm_drv;
+extern struct LCM_DRIVER nt36523b_txd_mdt_incell_vdo_lcm_drv;
+extern struct LCM_DRIVER hx83102e_hy_mdt_incell_vdo_lcm_drv;
+/*TabA7 Lite code for OT8-5317 by huangzhongjie at 20220217 end*/
 
 #ifdef BUILD_LK
 extern void mdelay(unsigned long msec);

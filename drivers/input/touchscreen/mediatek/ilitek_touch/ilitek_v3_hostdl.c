@@ -699,8 +699,10 @@ static int ilitek_tddi_fw_hex_convert(u8 *phex, int size, u8 *pfw)
 	return 0;
 }
 
+
 static int ilitek_tdd_fw_hex_open(u8 op, u8 *pfw)
 {
+	#ifndef HQ_PROJECT_OT8
 	int ret =0, fsize = 0, retry_count = 0;
 	const struct firmware *fw = NULL;
 	struct file *f = NULL;
@@ -710,7 +712,7 @@ static int ilitek_tdd_fw_hex_open(u8 op, u8 *pfw)
 	ILI_INFO("Open file method = %s, path = %s\n",
 		op ? "FILP_OPEN" : "REQUEST_FIRMWARE",
 		op ? ilits->md_fw_filp_path : ilits->md_fw_rq_path);
-
+	
 	switch (op) {
 	case REQUEST_FIRMWARE:
 		while (request_firmware(&fw, ilits->md_fw_rq_path, ilits->dev) < 0) {
@@ -797,7 +799,100 @@ static int ilitek_tdd_fw_hex_open(u8 op, u8 *pfw)
 		ILI_ERR("Unknown open file method, %d\n", op);
 		break;
 	}
+	#else
+	int ret =0, fsize = 0;
+	const struct firmware *fw = NULL;
+	struct file *f = NULL;
+	mm_segment_t old_fs;
+	loff_t pos = 0;
 
+	ILI_INFO("Open file method = %s, path = %s\n",
+		op ? "FILP_OPEN" : "REQUEST_FIRMWARE",
+		op ? ilits->md_fw_filp_path : ilits->md_fw_rq_path);
+
+	switch (op) {
+	case REQUEST_FIRMWARE:
+		if (request_firmware(&fw, ilits->md_fw_rq_path, ilits->dev) < 0) {
+			ILI_ERR("Request firmware failed, try again\n");
+			if (request_firmware(&fw, ilits->md_fw_rq_path, ilits->dev) < 0) {
+				ILI_ERR("Request firmware failed after retry\n");
+				ret = -1;
+				goto out;
+			}
+		}
+
+		fsize = fw->size;
+		ILI_INFO("fsize = %d\n", fsize);
+		if (fsize <= 0) {
+			ILI_ERR("The size of file is invaild\n");
+			release_firmware(fw);
+			ret = -1;
+			goto out;
+		}
+
+		ilits->tp_fw.size = 0;
+		ilits->tp_fw.data = vmalloc(fsize);
+		if (ERR_ALLOC_MEM(ilits->tp_fw.data)) {
+			ILI_ERR("Failed to allocate tp_fw by vmalloc, try again\n");
+			ilits->tp_fw.data = vmalloc(fsize);
+			if (ERR_ALLOC_MEM(ilits->tp_fw.data)) {
+				ILI_ERR("Failed to allocate tp_fw after retry\n");
+				release_firmware(fw);
+				ret = -ENOMEM;
+				goto out;
+			}
+		}
+
+		/* Copy fw data got from request_firmware to global */
+		ipio_memcpy((u8 *)ilits->tp_fw.data, fw->data, fsize * sizeof(*fw->data), fsize);
+		ilits->tp_fw.size = fsize;
+		release_firmware(fw);
+		break;
+	case FILP_OPEN:
+		f = filp_open(ilits->md_fw_filp_path, O_RDONLY, 0644);
+		if (ERR_ALLOC_MEM(f)) {
+			ILI_ERR("Failed to open the file, %ld\n", PTR_ERR(f));
+			ret = -1;
+			goto out;
+		}
+
+		fsize = f->f_inode->i_size;
+		ILI_INFO("fsize = %d\n", fsize);
+		if (fsize <= 0) {
+			ILI_ERR("The size of file is invaild\n");
+			filp_close(f, NULL);
+			ret = -1;
+			goto out;
+		}
+
+		ipio_vfree((void **)&(ilits->tp_fw.data));
+		ilits->tp_fw.size = 0;
+		ilits->tp_fw.data = vmalloc(fsize);
+		if (ERR_ALLOC_MEM(ilits->tp_fw.data)) {
+			ILI_ERR("Failed to allocate tp_fw by vmalloc, try again\n");
+			ilits->tp_fw.data = vmalloc(fsize);
+			if (ERR_ALLOC_MEM(ilits->tp_fw.data)) {
+				ILI_ERR("Failed to allocate tp_fw after retry\n");
+				filp_close(f, NULL);
+				ret = -ENOMEM;
+				goto out;
+			}
+		}
+
+		/* ready to map user's memory to obtain data by reading files */
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		pos = 0;
+		vfs_read(f, (u8 *)ilits->tp_fw.data, fsize, &pos);
+		set_fs(old_fs);
+		filp_close(f, NULL);
+		ilits->tp_fw.size = fsize;
+		break;
+	default:
+		ILI_ERR("Unknown open file method, %d\n", op);
+		break;
+	}
+	#endif
 	if (ERR_ALLOC_MEM(ilits->tp_fw.data) || ilits->tp_fw.size <= 0) {
 		ILI_ERR("fw data/size is invaild\n");
 		ret = -1;

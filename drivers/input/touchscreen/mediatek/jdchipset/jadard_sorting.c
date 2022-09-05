@@ -25,7 +25,7 @@ static int jd_test_data_pop_out(char *rslt_buf, char *filepath)
 	JD_I("data size=0x%04X\n", (uint32_t)strlen(rslt_buf));
 	vts_name = getname_kernel(filepath);
 
-/*hs03s  code for DEVAL5625-1921 by wangdeyan at 20210701 start*/
+	/*hs03s  code for DEVAL5625-1921 by wangdeyan at 20210701 start*/
 	if (raw_file == NULL)
 		raw_file = filp_open(filepath, O_WRONLY | O_CREAT | O_TRUNC, 660);
 
@@ -35,7 +35,7 @@ static int jd_test_data_pop_out(char *rslt_buf, char *filepath)
 		ret_val = -EIO;
 		goto SAVE_DATA_ERR;
 	}
-/*hs03s  code for DEVAL5625-1921 by wangdeyan at 20210701 end*/
+	/*hs03s  code for DEVAL5625-1921 by wangdeyan at 20210701 end*/
 
 	fs = get_fs();
 	set_fs(get_ds());
@@ -57,7 +57,12 @@ static void jadard_sorting_data_deinit(void)
 
 	if (jd_g_sorting_threshold) {
 		for (i = 0; i < JD_READ_THRESHOLD_SIZE; i++) {
-			kfree(jd_g_sorting_threshold[i]);
+			/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+			if (jd_g_sorting_threshold[i]) {
+				kfree(jd_g_sorting_threshold[i]);
+				jd_g_sorting_threshold[i] = NULL;
+			}
+			/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 end*/
 		}
 		kfree(jd_g_sorting_threshold);
 		jd_g_sorting_threshold = NULL;
@@ -588,6 +593,12 @@ static void jd_test_data_get(uint8_t *RAW, char *start_log, char *result, int no
 	JD_D("%s: Entering, Now type=%s!\n", __func__, jd_action_item_name[now_item]);
 
 	testdata = kzalloc(sizeof(char) * SZ_SIZE, GFP_KERNEL);
+	/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+	if (testdata == NULL) {
+		JD_E("%s: Memory alloc fail\n", __func__);
+		return;
+	}
+	/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 end*/
 
 	len += snprintf((testdata + len), SZ_SIZE - len, "%s", start_log);
 	for (i = 0; i < pjadard_ic_data->JD_Y_NUM*pjadard_ic_data->JD_X_NUM; i++) {
@@ -631,7 +642,18 @@ static uint32_t jadard_Item_Test_Function(uint8_t checktype)
 	int ret_val = JD_SORTING_OK;
 
 	rslt_log = kzalloc(256 * sizeof(char), GFP_KERNEL);
+	/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+	if (rslt_log == NULL) {
+		JD_E("%s: rslt_log memory alloc fail\n", __func__);
+		return -1;
+	}
+
 	start_log = kzalloc(256 * sizeof(char), GFP_KERNEL);
+	if (start_log == NULL) {
+		JD_E("%s: start_log memory alloc fail\n", __func__);
+		return -1;
+	}
+	/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 end*/
 
 	if (checktype >= JD_SORTING_OPEN_CHECK) {
 		sprintf(start_log, "\n%s%s\n", jd_action_item_name[checktype - JD_SORTING_OPEN_CHECK], ": data as follow!\n");
@@ -857,7 +879,9 @@ END_FUNC:
 	return ret_val;
 }
 
-static uint32_t jadard_TestItem_Select(uint8_t sorting_item)
+/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+static uint32_t jadard_TestItem_Select(uint8_t sorting_item, bool retry_flag)
+/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 end*/
 {
 	Fail_flag = false;
 
@@ -875,140 +899,292 @@ static uint32_t jadard_TestItem_Select(uint8_t sorting_item)
 
 		case JD_SORTING_OPEN_CHECK:
 			jadard_PST_Open_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_OPEN_CHECK_ERR;
+			/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_PST_Enter_RawData_Type_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_OPEN_CHECK_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_Start_to_Get_RawData_Function();
-			if (Fail_flag == true)
-				return JD_SORTING_OPEN_CHECK_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			if (jadard_Item_Test_Function(JD_SORTING_OPEN_CHECK) != JD_SORTING_OK)
 				return JD_SORTING_OPEN_CHECK_ERR;
 			break;
 
 		case JD_SORTING_SHORT_CHECK:
 			jadard_PST_Short_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_SHORT_CHECK_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_PST_Enter_RawData_Type_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_SHORT_CHECK_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_Start_to_Get_RawData_Function();
-			if (Fail_flag == true)
-				return JD_SORTING_SHORT_CHECK_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			if (jadard_Item_Test_Function(JD_SORTING_SHORT_CHECK) != JD_SORTING_OK)
 				return JD_SORTING_SHORT_CHECK_ERR;
 			break;
 
 		case JD_SORTING_NORMALACTIVE_SB_DEV:
 			jadard_PST_NormalActive_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_NORMALACTIVE_SB_DEV_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_PST_Enter_RawData_Type_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_NORMALACTIVE_SB_DEV_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_Start_to_Get_RawData_Function();
-			if (Fail_flag == true)
-				return JD_SORTING_NORMALACTIVE_SB_DEV_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			if (jadard_Item_Test_Function(JD_SORTING_NORMALACTIVE_SB_DEV) != JD_SORTING_OK)
 				return JD_SORTING_NORMALACTIVE_SB_DEV_ERR;
 			break;
 
 		case JD_SORTING_NORMALACTIVE_NOISE:
 			jadard_PST_NormalActive_Diff_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_NORMALACTIVE_NOISE_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_PST_Enter_Diff_Type_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_NORMALACTIVE_NOISE_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_Start_to_Get_DiffData_Function();
-			if (Fail_flag == true)
-				return JD_SORTING_NORMALACTIVE_NOISE_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			if (jadard_Item_Test_Function(JD_SORTING_NORMALACTIVE_NOISE) != JD_SORTING_OK)
 				return JD_SORTING_NORMALACTIVE_NOISE_ERR;
 			break;
 
 		case JD_SORTING_NORMALIDLE_RAWDATA_CHECK:
 			jadard_PST_NormalIdle_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_NORMALIDLE_RAWDATA_CHECK_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_PST_Enter_RawData_Type_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_NORMALIDLE_RAWDATA_CHECK_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_Start_to_Get_RawData_Function();
-			if (Fail_flag == true)
-				return JD_SORTING_NORMALIDLE_RAWDATA_CHECK_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			if (jadard_Item_Test_Function(JD_SORTING_NORMALIDLE_RAWDATA_CHECK) != JD_SORTING_OK)
 				return JD_SORTING_NORMALIDLE_RAWDATA_CHECK_ERR;
 			break;
 
 		case JD_SORTING_NORMALIDLE_NOISE:
 			jadard_PST_NormalIdle_Diff_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_NORMALIDLE_NOISE_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_PST_Enter_Diff_Type_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_NORMALIDLE_NOISE_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_Start_to_Get_DiffData_Function();
-			if (Fail_flag == true)
-				return JD_SORTING_NORMALIDLE_NOISE_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			if (jadard_Item_Test_Function(JD_SORTING_NORMALIDLE_NOISE) != JD_SORTING_OK)
 				return JD_SORTING_NORMALIDLE_NOISE_ERR;
 			break;
 
 		case JD_SORTING_LPWUGACTIVE_SB_DEV:
 			jadard_PST_LpwugActive_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_LPWUGACTIVE_SB_DEV_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_PST_Enter_RawData_Type_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_LPWUGACTIVE_SB_DEV_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_Start_to_Get_RawData_Function();
-			if (Fail_flag == true)
-				return JD_SORTING_LPWUGACTIVE_SB_DEV_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			if (jadard_Item_Test_Function(JD_SORTING_LPWUGACTIVE_SB_DEV) != JD_SORTING_OK)
 				return JD_SORTING_LPWUGACTIVE_SB_DEV_ERR;
 			break;
 
 		case JD_SORTING_LPWUGACTIVE_NOISE:
 			jadard_PST_LpwugActive_Diff_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_LPWUGACTIVE_NOISE_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_PST_Enter_Diff_Type_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_LPWUGACTIVE_NOISE_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_Start_to_Get_DiffData_Function();
-			if (Fail_flag == true)
-				return JD_SORTING_LPWUGACTIVE_NOISE_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			if (jadard_Item_Test_Function(JD_SORTING_LPWUGACTIVE_NOISE) != JD_SORTING_OK)
 				return JD_SORTING_LPWUGACTIVE_NOISE_ERR;
 			break;
 
 		case JD_SORTING_LPWUGIDLE_RAWDATA_CHECK:
 			jadard_PST_LpwugIdle_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_LPWUGIDLE_RAWDATA_CHECK_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_PST_Enter_RawData_Type_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_LPWUGIDLE_RAWDATA_CHECK_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_Start_to_Get_RawData_Function();
-			if (Fail_flag == true)
-				return JD_SORTING_LPWUGIDLE_RAWDATA_CHECK_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			if (jadard_Item_Test_Function(JD_SORTING_LPWUGIDLE_RAWDATA_CHECK) != JD_SORTING_OK)
 				return JD_SORTING_LPWUGIDLE_RAWDATA_CHECK_ERR;
 			break;
 
 		case JD_SORTING_LPWUGIDLE_NOISE:
 			jadard_PST_LpwugIdle_Diff_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_LPWUGIDLE_NOISE_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_PST_Enter_Diff_Type_Mode();
-			if (Fail_flag == true)
-				return JD_SORTING_LPWUGIDLE_NOISE_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
 			jadard_Start_to_Get_DiffData_Function();
-			if (Fail_flag == true)
-				return JD_SORTING_LPWUGIDLE_NOISE_ERR;
+			if (Fail_flag == true) {
+				if (retry_flag == false) {
+					return jadard_TestItem_Select(sorting_item, true);
+				} else {
+					return JD_SORTING_OK;
+				}
+			}
+			/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 end*/
 			if (jadard_Item_Test_Function(JD_SORTING_LPWUGIDLE_NOISE) != JD_SORTING_OK)
 				return JD_SORTING_LPWUGIDLE_NOISE_ERR;
 			break;
@@ -1150,6 +1326,15 @@ static int jadard_remove_space_cr(const struct firmware *file_entry, char **resu
 		default:
 			result[str_count][char_count++] = file_entry->data[count];
 			count++;
+
+			/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+			/* Handle no newline characters */
+			if (count == file_entry->size) {
+				if (char_count != 0) {
+					result[str_count][char_count] = ASCII_LF;
+				}
+			}
+			/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 end*/
 			break;
 		}
 	} while ((count < file_entry->size) && (str_count < data_lines));
@@ -1164,6 +1349,7 @@ static int jadard_parse_sorting_threshold_file(void)
 	char **result = NULL;
 	int data_lines = (pjadard_ic_data->JD_X_NUM + 1) * JD_SORTING_ACTIVE_ITEM;
 	int line_max_len = pjadard_ic_data->JD_Y_NUM * 12 + 4;
+
 	char *command_line = saved_command_line;
 	struct jadard_ts_data *ts = pjadard_ts_data;
 
@@ -1177,7 +1363,13 @@ static int jadard_parse_sorting_threshold_file(void)
 	else if (NULL != strstr(command_line, "jd9365t_hdplus1600_dsi_vdo_hy_mdt")){
 		ts->ito_file_name = "mdt_jd_sorting_threshold.txt";
 		JD_I("sorting threshold file name = %s\n", ts->ito_file_name);
+	/*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 2022/4/14 start*/
 	}
+	else if (NULL != strstr(command_line, "lcd_jd9365t_txd_ctc_mipi_hdp_video")){
+		ts->ito_file_name = "txd_jd_sorting_threshold.txt";
+		JD_I("sorting threshold file name = %s\n", ts->ito_file_name);
+	}
+	/*hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 2022/4/14 end*/
 	else{
 		JD_E("%s:can't find lcd!", __func__);
 		err = JD_FILE_OPEN_FAIL;
@@ -1193,8 +1385,20 @@ static int jadard_parse_sorting_threshold_file(void)
 	}
 
 	result = kzalloc(data_lines * sizeof(char *), GFP_KERNEL);
-	for (i = 0 ; i < data_lines; i++)
+	/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+	if (result == NULL) {
+		JD_E("%s: result memory alloc fail\n", __func__);
+		return -1;
+	}
+
+	for (i = 0 ; i < data_lines; i++) {
 		result[i] = kzalloc(line_max_len * sizeof(char), GFP_KERNEL);
+		if (result[i] == NULL) {
+			JD_E("%s: result[%d] memory alloc fail\n", __func__, i);
+			goto END_FUNC;
+		}
+	}
+	/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 end*/
 
 	JD_I("data_lines=%d ,line_max_len=%d\n", data_lines, line_max_len);
 	JD_I("file_size=%d\n", (int)file_entry->size);
@@ -1254,14 +1458,40 @@ static int jadard_read_sorting_threshold(void)
 	JD_I("JD_SORTING_ACTIVE_ITEM(%d) JD_READ_THRESHOLD_SIZE(%d)\n", JD_SORTING_ACTIVE_ITEM, JD_READ_THRESHOLD_SIZE);
 
 	jd_g_sorting_threshold = kzalloc(sizeof(int *)*JD_READ_THRESHOLD_SIZE, GFP_KERNEL);
+	/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+	if (jd_g_sorting_threshold == NULL) {
+		JD_E("jd_g_sorting_threshold memory alloc fail\n");
+		return -1;
+	}
+
 	for (i = 0; i < JD_READ_THRESHOLD_SIZE; i++) {
 		jd_g_sorting_threshold[i] = kzalloc(sizeof(int)*(pjadard_ic_data->JD_X_NUM * pjadard_ic_data->JD_Y_NUM), GFP_KERNEL);
+		if (jd_g_sorting_threshold[i] == NULL) {
+			JD_E("jd_g_sorting_threshold[%d] memory alloc fail\n", i);
+			return -1;
+		}
 	}
 	ret = jadard_parse_sorting_threshold_file();
 
 	jd_g_file_path = kzalloc(64 * sizeof(char), GFP_KERNEL);
+	if (jd_g_file_path == NULL) {
+		JD_E("jd_g_file_path memory alloc fail\n");
+		return -1;
+	}
+
 	jd_g_rslt_data = kzalloc(JD_OUTPUT_BUFFER_SIZE * JD_SORTING_ACTIVE_ITEM * sizeof(char), GFP_KERNEL);
+	if (jd_g_rslt_data == NULL) {
+		JD_E("jd_g_rslt_data memory alloc fail\n");
+		return -1;
+	}
+
 	GET_RAWDATA = kzalloc(pjadard_ic_data->JD_X_NUM * pjadard_ic_data->JD_Y_NUM * sizeof(uint16_t), GFP_KERNEL);
+	if (GET_RAWDATA == NULL) {
+		JD_E("GET_RAWDATA memory alloc fail\n");
+		return -1;
+	}
+	/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 end*/
+
 	/*hs03s  code for SR-AL5625-01-96 by wangdeyan at 20210519 start*/
 	sprintf(jd_g_file_path, "%s%s_%s.txt", JD_RSLT_OUT_PATH, mtp_chip_name, get_date_time_str());
 	/*hs03s  code for SR-AL5625-01-96 by wangdeyan at 20210519 end*/
@@ -1317,63 +1547,65 @@ static int jadard_sorting_test(void)
 #if SORTING_LPWUG_CHECK
 	/* 0.Sleep in/out */
 	JD_I("[JD_SORTING_SLEEP_IN]\n");
-	ret += jadard_TestItem_Select(JD_SORTING_SLEEP_IN);
+	/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+	ret += jadard_TestItem_Select(JD_SORTING_SLEEP_IN, false);
 	JD_I("JD_SORTING_SLEEP_IN: End %d\n\n", ret);
 
 	JD_I("[JD_SORTING_SLEEP_OUT]\n");
-	ret += jadard_TestItem_Select(JD_SORTING_SLEEP_OUT);
+	ret += jadard_TestItem_Select(JD_SORTING_SLEEP_OUT, false);
 	JD_I("JD_SORTING_SLEEP_OUT: End %d\n\n", ret);
 #endif
 
 	/* 1.Open Test */
 	JD_I("[JD_SORTING_OPEN_CHECK]\n");
-	ret += jadard_TestItem_Select(JD_SORTING_OPEN_CHECK);
+	ret += jadard_TestItem_Select(JD_SORTING_OPEN_CHECK, false);
 	JD_I("JD_SORTING_OPEN_CHECK: End %d\n\n", ret);
 
 	/* 2. Short Test */
 	JD_I("[JD_SORTING_SHORT_CHECK]\n");
-	ret += jadard_TestItem_Select(JD_SORTING_SHORT_CHECK);
+	ret += jadard_TestItem_Select(JD_SORTING_SHORT_CHECK, false);
 	JD_I("JD_SORTING_SHORT_CHECK: End %d\n\n", ret);
 
 	/* 3. NORMAL ACTIVE SB_DEV Test */
 	JD_I("[JD_SORTING_NORMALACTIVE_SB_DEV]\n");
-	ret += jadard_TestItem_Select(JD_SORTING_NORMALACTIVE_SB_DEV);
+	ret += jadard_TestItem_Select(JD_SORTING_NORMALACTIVE_SB_DEV, false);
 	JD_I("JD_SORTING_NORMALACTIVE_SB_DEV: End %d\n\n", ret);
 
 	/* 4. NORMAL ACTIVE NOISE Test */
 	JD_I("[JD_SORTING_NORMALACTIVE_NOISE]\n");
-	ret += jadard_TestItem_Select(JD_SORTING_NORMALACTIVE_NOISE);
+	ret += jadard_TestItem_Select(JD_SORTING_NORMALACTIVE_NOISE, false);
 	JD_I("JD_SORTING_NORMALACTIVE_NOISE: End %d\n\n", ret);
 
 	/* 5. NORMAL IDLE RAWDATA CHECK Test */
 	JD_I("[JD_SORTING_NORMALIDLE_RAWDATA_CHECK]\n");
-	ret += jadard_TestItem_Select(JD_SORTING_NORMALIDLE_RAWDATA_CHECK);
+	ret += jadard_TestItem_Select(JD_SORTING_NORMALIDLE_RAWDATA_CHECK, false);
 	JD_I("JD_SORTING_NORMALIDLE_RAWDATA_CHECK: End %d\n\n", ret);
 
 	/* 6. NORMAL IDLE NOISE Test */
 	JD_I("[JD_SORTING_NORMALIDLE_NOISE]\n");
-	ret += jadard_TestItem_Select(JD_SORTING_NORMALIDLE_NOISE);
+	ret += jadard_TestItem_Select(JD_SORTING_NORMALIDLE_NOISE, false);
 	JD_I("JD_SORTING_NORMALIDLE_NOISE: End %d\n\n", ret);
 
 #if SORTING_LPWUG_CHECK
 	/* 7. NORMAL IDLE NOISE Test */
 	JD_I("[JD_SORTING_LPWUGACTIVE_SB_DEV]\n");
-	ret += jadard_TestItem_Select(JD_SORTING_LPWUGACTIVE_SB_DEV);
+	ret += jadard_TestItem_Select(JD_SORTING_LPWUGACTIVE_SB_DEV, false);
 	JD_I("JD_SORTING_LPWUGACTIVE_SB_DEV: End %d\n\n", ret);
 
 	/* 8. NORMAL IDLE NOISE Test */
 	JD_I("[JD_SORTING_LPWUGACTIVE_NOISE]\n");
-	ret += jadard_TestItem_Select(JD_SORTING_LPWUGACTIVE_NOISE);
+	ret += jadard_TestItem_Select(JD_SORTING_LPWUGACTIVE_NOISE, false);
 	JD_I("JD_SORTING_LPWUGACTIVE_NOISE: End %d\n\n", ret);
 
 	/* 9. NORMAL IDLE NOISE Test */
 	JD_I("[JD_SORTING_LPWUGIDLE_RAWDATA_CHECK]\n");
-	ret += jadard_TestItem_Select(JD_SORTING_LPWUGIDLE_RAWDATA_CHECK);
+	ret += jadard_TestItem_Select(JD_SORTING_LPWUGIDLE_RAWDATA_CHECK, false);
 	JD_I("JD_SORTING_LPWUGIDLE_RAWDATA_CHECK: End %d\n\n", ret);
 
 	/* 10. NORMAL IDLE NOISE Test */
 	JD_I("[JD_SORTING_LPWUGIDLE_NOISE]\n");
-	ret += jadard_TestItem_Select(JD_SORTING_LPWUGIDLE_NOISE);
+	ret += jadard_TestItem_Select(JD_SORTING_LPWUGIDLE_NOISE, false);
+	/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 end*/
 	JD_I("JD_SORTING_LPWUGIDLE_NOISE: End %d\n\n", ret);
 #endif
 

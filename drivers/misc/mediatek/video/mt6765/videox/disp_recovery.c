@@ -83,14 +83,24 @@ static unsigned int esd_check_enable;
 unsigned int esd_checking;
 static int te_irq;
 
+#ifdef HQ_PROJECT_OT8
+extern int tpd_driver_esd_suspend(void);
+extern int tpd_driver_esd_resume(void);
+#else
 /* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 start */
 int tpd_driver_esd_suspend(void);
 int tpd_driver_esd_resume(void);
 /* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 end */
+#endif
+
+#ifdef CONFIG_HQ_PROJECT_HS03S
 /* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
 extern enum tp_module_used tp_is_used;
+/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 start */
+int gcore_tp_esd_fail = false;
+/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 end */
 /* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 end */
-
+#endif
 #if defined(CONFIG_MTK_DUAL_DISPLAY_SUPPORT) && \
 	(CONFIG_MTK_DUAL_DISPLAY_SUPPORT == 2)
 /***********external display dual LCM ESD check******************/
@@ -1007,10 +1017,23 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 	int i = 0;
 	int esd_try_cnt = 5; /* 20; */
 	int recovery_done = 0;
+/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 start */
+#ifdef CONFIG_HQ_PROJECT_HS03S
+	char *lcm_cmdline = saved_command_line;
+#endif
+/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 end */
 
 	DISPFUNC();
 	sched_setscheduler(current, SCHED_RR, &param);
 
+#ifdef CONFIG_HQ_PROJECT_OT8
+    /* modify code for OT8 */
+	/*TabA7 Lite code for SR-AX3565-01-72 by gaozhengwei at 20201217 start*/
+	msleep(6000);   /* wait lcm init finish, then do esd check */
+	/*TabA7 Lite code for SR-AX3565-01-72 by gaozhengwei at 20201217 end*/
+#else
+    /* modify code for O6 */
+#endif
 	while (1) {
 		msleep(2000); /* 2s */
 		ret = wait_event_interruptible(_check_task_wq,
@@ -1042,9 +1065,21 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 		i = 0; /* repeat */
 		do {
 			ret = primary_display_esd_check();
+#ifdef CONFIG_HQ_PROJECT_HS03S
+			/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 start */
+			if (NULL != strstr(lcm_cmdline, "lcd_gc7202_ls_hsd_mipi_hdp_video")) {
+				DISPWARN("Esd check from Tp, gcore_tp_esd_fail = %d\n", gcore_tp_esd_fail);
+				if (gcore_tp_esd_fail == true) {
+					ret = 1;
+				} else {
+					ret = 0;
+				}
+			}
+			/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 end */
+#endif
 			if (!ret) /* success */
 				break;
-
+#ifdef CONFIG_HQ_PROJECT_HS03S
 			/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
 			if (tp_is_used == JADARD_JD9365T) {
 				if (((i%2) == 0) && (i > 0)) {
@@ -1062,6 +1097,13 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 				recovery_done = 1;
 			}
 			/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 end */
+#else
+				DISPERR(
+					"[ESD]esd check fail, will do esd recovery. try=%d\n",
+					i);
+				primary_display_esd_recovery();
+				recovery_done = 1;
+#endif
 		} while (++i < esd_try_cnt);
 
 		if (ret == 1) {
@@ -1141,22 +1183,43 @@ int primary_display_esd_recovery(void)
 	DISPCHECK("[ESD]reset display path[end]\n");
 
 	mmprofile_log_ex(mmp_r, MMPROFILE_FLAG_PULSE, 0, 6);
-
+	
+#ifdef CONFIG_HQ_PROJECT_HS03S
 	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 start */
 	tpd_driver_esd_suspend();
 	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 end */
-
+#endif
 	DISPDBG("[POWER]lcm suspend[begin]\n");
 	/*after dsi_stop, we should enable the dsi basic irq.*/
 	dsi_basic_irq_enable(DISP_MODULE_DSI0, NULL);
+#ifdef CONFIG_HQ_PROJECT_OT8
+    /* modify code for OT8 */
+	tpd_driver_esd_suspend();
+#else
+    /* modify code for O6 */
+#endif
 	disp_lcm_suspend(primary_get_lcm());
+#ifdef CONFIG_HQ_PROJECT_OT8
+    /* modify code for OT8 */
+	/*TabA7 Lite code for OT8-2745 by gaozhengwei at 20210209 start*/
+	if (pgc->plcm->drv)
+		if (pgc->plcm->drv->suspend_power)
+			pgc->plcm->drv->suspend_power();
+	/*TabA7 Lite code for OT8-2745 by gaozhengwei at 20210209 end*/
+#else
+    /* modify code for O6 */
+#endif
 	DISPCHECK("[POWER]lcm suspend[end]\n");
 
 	mmprofile_log_ex(mmp_r, MMPROFILE_FLAG_PULSE, 0, 7);
 
 	DISPDBG("[ESD]dsi power reset[begine]\n");
 	dpmgr_path_dsi_power_off(primary_get_dpmgr_handle(), NULL);
-
+	
+#ifdef CONFIG_HQ_PROJECT_OT8
+    /* modify code for OT8 */
+#else
+    /* modify code for O6 */
 	/* A03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/21 start */
 	if (pgc->plcm->drv)
 		if (pgc->plcm->drv->suspend_power)
@@ -1164,12 +1227,21 @@ int primary_display_esd_recovery(void)
 
 	msleep(20); /* esd revovery : (AVDD power on - AVDD power off) > 20ms */
 	/* A03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/21 end */
-
+#endif
+	
 	dpmgr_path_dsi_power_on(primary_get_dpmgr_handle(), NULL);
 	if (!primary_display_is_video_mode())
 		dpmgr_path_ioctl(primary_get_dpmgr_handle(), NULL,
 				DDP_DSI_ENABLE_TE, NULL);
 	DISPCHECK("[ESD]dsi power reset[end]\n");
+#ifdef CONFIG_HQ_PROJECT_OT8
+    /* modify code for OT8 */
+	/*TabA7 Lite code for SR-AX3565-01-45 by gaozhengwei at 20210104 start*/
+	msleep(20); /* esd revovery : (AVDD power on - AVDD power off) > 20ms */
+	/*TabA7 Lite code for SR-AX3565-01-45 by gaozhengwei at 20210104 end*/
+#else
+    /* modify code for O6 */
+#endif
 
 
 
@@ -1177,10 +1249,15 @@ int primary_display_esd_recovery(void)
 	disp_lcm_esd_recover(primary_get_lcm());
 	DISPCHECK("[ESD]lcm recover[end]\n");
 
+#ifdef CONFIG_HQ_PROJECT_HS03S
 	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 start */
 	tpd_driver_esd_resume();
 	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 end */
+#endif
 
+#ifdef CONFIG_HQ_PROJECT_OT8
+	tpd_driver_esd_resume();
+#endif
 	mmprofile_log_ex(mmp_r, MMPROFILE_FLAG_PULSE, 0, 8);
 
 	DISPDBG("[ESD]start dpmgr path[begin]\n");

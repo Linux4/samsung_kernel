@@ -1085,9 +1085,9 @@ int cts_plat_process_touch_msg(struct cts_platform_data *pdata,
         }
         finger_last[i] = finger_current[i];
     }
-
-    if (tpd->tp_is_enabled)
-        input_report_key(input_dev, BTN_TOUCH, contact > 0);
+	
+	if (tpd->tp_is_enabled)
+    	input_report_key(input_dev, BTN_TOUCH, contact > 0);
 #else
     if (contact == 0) {
         input_report_key(input_dev, BTN_TOUCH, 0);

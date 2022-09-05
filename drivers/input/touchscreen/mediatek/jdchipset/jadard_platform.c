@@ -5,7 +5,13 @@ static struct spi_device *spi = NULL;
 extern struct jadard_module_fp g_module_fp;
 extern struct jadard_ts_data *pjadard_ts_data;
 extern struct jadard_ic_data *pjadard_ic_data;
+
 static int jd_g_mmi_refcnt;
+/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+#ifdef JD_ZERO_FLASH
+extern bool jadard_fw_ready;
+#endif
+/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 end*/
 
 unsigned int jadard_tpd_rst_gpio_number = -1;
 unsigned int jadard_tpd_int_gpio_number = -1;
@@ -87,7 +93,6 @@ int jadard_parse_dt(struct jadard_ts_data *ts,
 {
 	pjadard_ic_data->JD_MAX_PT = 10;
 	pjadard_ic_data->JD_INT_EDGE = true;
-
 	JD_I("DT:MAX_PT = %d, INT_IS_EDGE = %d\n", pjadard_ic_data->JD_MAX_PT,
 		pjadard_ic_data->JD_INT_EDGE);
 
@@ -110,6 +115,7 @@ int jadard_parse_dt(struct jadard_ts_data *ts,
 	jadard_tpd_int_gpio_number = GTP_INT_PORT;
 	pdata->gpio_reset = jadard_tpd_rst_gpio_number;
 	pdata->gpio_irq = jadard_tpd_int_gpio_number;
+
 	JD_I("DT:gpio_irq = %d, gpio_rst = %d\n", pdata->gpio_irq, pdata->gpio_reset);
 
 	return 0;
@@ -121,11 +127,9 @@ int jadard_bus_read(uint8_t *cmd, uint8_t cmd_len, uint8_t *data, uint32_t data_
 	struct spi_transfer t[2];
 	int retry;
 	int error;
-
 	mutex_lock(&(pjadard_ts_data->spi_lock));
 
 	memset(&t, 0, sizeof(t));
-
 	spi_message_init(&m);
 	/*hs03s code for SR-AL5625-01-439 by yuanliding at 20210601 start*/
 	/*Fix: Read overflow*/
@@ -145,6 +149,7 @@ int jadard_bus_read(uint8_t *cmd, uint8_t cmd_len, uint8_t *data, uint32_t data_
 			break;
 		}
 	}
+
 
 	if (retry == toRetry) {
 		JD_E("%s: SPI read error retry over %d\n",
@@ -259,7 +264,15 @@ void jadard_gpio_power_deconfig(struct jadard_i2c_platform_data *pdata)
 
 irqreturn_t jadard_ts_isr_func(int irq, void *ptr)
 {
+/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+#ifdef JD_ZERO_FLASH
+	if (jadard_fw_ready == true) {
+		jadard_ts_work((struct jadard_ts_data *)ptr);
+	}
+#else
 	jadard_ts_work((struct jadard_ts_data *)ptr);
+#endif
+/*hs03s_NM code for DEVAL5626-806 by yuli at 2022/5/12 end*/
 
 	return IRQ_HANDLED;
 }
@@ -320,7 +333,6 @@ int jadard_ts_register_interrupt(void)
 				__func__);
 		ts->jd_irq = 0;
 	}
-
 	ts->irq_enabled = 0;
 
 	/* Work functon */
@@ -339,7 +351,6 @@ int jadard_ts_register_interrupt(void)
 	} else {
 		JD_I("%s: ts->jd_irq is empty.\n", __func__);
 	}
-
 	tpd_load_status = 1;
 
 	return ret;
@@ -451,6 +462,12 @@ int jadard_chip_common_probe(struct spi_device *spi)
 	ts->dev = &spi->dev;
 	dev_set_drvdata(&spi->dev, ts);
 	spi_set_drvdata(spi, ts);
+
+/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 start*/
+#ifdef JD_ZERO_FLASH
+	jadard_fw_ready = false;
+#endif
+/*hs03s_NM code for SR-AL5625-01-642 by yuli at 2022/5/16 end*/
 
 	return jadard_chip_common_init();
 }

@@ -191,33 +191,35 @@ static struct port_t md1_ccci_ports[] = {
 	{CCCI_BIP_TX, CCCI_BIP_RX, 1, 1, 0xFF, 0xFF,
 		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
 		&char_port_ops, 27, "ccci_bip",},
-
-#ifdef CONFIG_MTK_SRIL_SUPPORT
-	{CCCI_RIL_IPC0_TX, CCCI_RIL_IPC0_RX, 1, 1, 0xFF, 0xFF,
-		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
-		&char_port_ops, 28, "ccci_umts_ipc0",},
-	{CCCI_RIL_IPC1_TX, CCCI_RIL_IPC1_RX, 1, 1, 0xFF, 0xFF,
-		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
-		&char_port_ops, 29, "ccci_umts_ipc1",},
-	{CCCI_VT_CTL_TX, CCCI_VT_CTL_RX, 1, 1, 0xFF, 0xFF,
-		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
-		&char_port_ops, 30, "ttyC4",},
-	{CCCI_CIQ_TX, CCCI_CIQ_RX, 2, 2, 0xFF, 0xFF,
-		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
-		&char_port_ops, 39, "ccci_ciq",},
-#endif
-
 	{CCCI_TCHE_TX, CCCI_TCHE_RX, DATA_TCHE, DATA_TCHE, 0xFF, 0xFF,
 		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
 		&char_port_ops, 31, "ttyC5",},
 	{CCCI_DISP_TX, CCCI_DISP_RX, 1, 1, 0xFF, 0xFF,
 		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
 		&char_port_ops, 32, "ttyC6",},
-#if (MD_GENERATION >= 6293)
 	{CCCI_UDC_TX, CCCI_UDC_RX, 1, 1, 0xFF, 0xFF,
 		MD1_NORMAL_HIF, 0,
 		&ccci_udc_port_ops, 0, "ccci_udc",},
+
+#ifdef CONFIG_MTK_SRIL_SUPPORT
+	/*
+	 * ALPS07138413:
+	 * minor number 80~99 are reserved for SS items
+	 * */
+	{CCCI_RIL_IPC0_TX, CCCI_RIL_IPC0_RX, 1, 1, 0xFF, 0xFF,
+		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
+		&char_port_ops, 80, "ccci_umts_ipc0",},
+	{CCCI_RIL_IPC1_TX, CCCI_RIL_IPC1_RX, 1, 1, 0xFF, 0xFF,
+		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
+		&char_port_ops, 81, "ccci_umts_ipc1",},
+	{CCCI_VT_CTL_TX, CCCI_VT_CTL_RX, 1, 1, 0xFF, 0xFF,
+		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
+		&char_port_ops, 82, "ttyC4",},
+	{CCCI_CIQ_TX, CCCI_CIQ_RX, 2, 2, 0xFF, 0xFF,
+		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
+		&char_port_ops, 83, "ccci_ciq",},
 #endif
+
 /* IPC char port minor= minor idx + CCCI_IPC_MINOR_BASE(100) */
 	{CCCI_IPC_TX, CCCI_IPC_RX, 1, 1, 0xFF, 0xFF,
 		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,

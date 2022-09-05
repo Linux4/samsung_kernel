@@ -1114,11 +1114,19 @@ port_type_store(struct device *dev, struct device_attribute *attr,
 	int ret;
 	enum typec_port_type type;
 
+#ifdef CONFIG_HS03S_SUPPORT
+    /* modify code for O6 */
 	if (!port->cap->port_type_set || port->cap->type != TYPEC_PORT_DRP) {
 		dev_dbg(dev, "changing port type not supported\n");
 		return -EOPNOTSUPP;
 	}
-
+#else
+    /* modify code for OT8 */
+	if (!port->cap->port_type_set) {
+		dev_dbg(dev, "changing port type not supported\n");
+		return -EOPNOTSUPP;
+	}
+#endif
 	ret = sysfs_match_string(typec_port_power_roles, buf);
 	if (ret < 0)
 		return ret;
@@ -1271,56 +1279,7 @@ static struct attribute *typec_attrs[] = {
 	&dev_attr_port_type.attr,
 	NULL,
 };
-#ifndef CONFIG_USB_HOST_SAMSUNG_FEATURE
 ATTRIBUTE_GROUPS(typec);
-#else
-static umode_t typec_attr_is_visible(struct kobject *kobj,
-				     struct attribute *attr, int n)
-{
-	struct typec_port *port = to_typec_port(kobj_to_dev(kobj));
-
-	pr_info("%s: %s\n", __func__, attr->name);
-
-	if (attr == &dev_attr_data_role.attr) {
-		if (port->cap->data != TYPEC_PORT_DRD ||
-		    !port->cap || !port->cap->dr_set)
-			return 0444;
-	} else if (attr == &dev_attr_power_role.attr) {
-		if (port->cap->type != TYPEC_PORT_DRP ||
-		    !port->cap || !port->cap->pr_set)
-			return 0444;
-	} else if (attr == &dev_attr_vconn_source.attr) {
-		if (!port->cap->pd_revision ||
-		    !port->cap || !port->cap->vconn_set)
-			return 0444;
-	} else if (attr == &dev_attr_preferred_role.attr) {
-		if (port->cap->type != TYPEC_PORT_DRP ||
-		    !port->cap || !port->cap->try_role)
-			return 0444;
-	} else if (attr == &dev_attr_port_type.attr) {
-		if (!port->cap || !port->cap->port_type_set) {
-			pr_info("%s: port_type is not supported.\n",
-				__func__);
-			return 0;
-		}
-		if (port->cap->type != TYPEC_PORT_DRP)
-			return 0444;
-	}
-
-	return attr->mode;
-}
-
-static const struct attribute_group typec_group = {
-	.is_visible = typec_attr_is_visible,
-	.attrs = typec_attrs,
-};
-
-static const struct attribute_group *typec_groups[] = {
-	&typec_group,
-	NULL
-};
-#endif
-
 
 static int typec_uevent(struct device *dev, struct kobj_uevent_env *env)
 {
@@ -1429,16 +1388,12 @@ void typec_set_pwr_opmode(struct typec_port *port,
 {
 	struct device *partner_dev;
 
-    pr_info("%s pwr_opmode=%d opmode=%d\n", __func__, port->pwr_opmode, opmode);
-
 	if (port->pwr_opmode == opmode)
 		return;
 
 	port->pwr_opmode = opmode;
 	sysfs_notify(&port->dev.kobj, NULL, "power_operation_mode");
-#ifndef CONFIG_USB_HOST_SAMSUNG_FEATURE
 	kobject_uevent(&port->dev.kobj, KOBJ_CHANGE);
-#endif
 
 	partner_dev = device_find_child(&port->dev, NULL, partner_match);
 	if (partner_dev) {
@@ -1451,9 +1406,6 @@ void typec_set_pwr_opmode(struct typec_port *port,
 		}
 		put_device(partner_dev);
 	}
-#ifdef CONFIG_USB_HOST_SAMSUNG_FEATURE
-    kobject_uevent(&port->dev.kobj, KOBJ_CHANGE);
-#endif
 }
 EXPORT_SYMBOL_GPL(typec_set_pwr_opmode);
 

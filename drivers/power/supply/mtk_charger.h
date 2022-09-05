@@ -52,8 +52,15 @@ struct mtk_charger;
 #define BATTERY_CV 4400000
 /*HS03s for SR-AL5625-01-261 by wenyaqi at 20210425 end*/
 //#define V_CHARGER_MAX 6500000 /* 6.5 V */
+#ifdef CONFIG_HS03S_SUPPORT
+ /* modify code for O6 */
 #define V_CHARGER_MAX 10400000 /* 10.4 V */
 #define V_CHARGER_MIN 4600000 /* 4.6 V */
+#else
+ /* modify code for OT8 */
+#define V_CHARGER_MAX 6500000 /* 6.5 V */
+#define V_CHARGER_MIN 4600000 /* 4.6 V */
+#endif
 
 #define USB_CHARGER_CURRENT_SUSPEND		0 /* def CONFIG_USB_IF */
 #define USB_CHARGER_CURRENT_UNCONFIGURED	70000 /* 70mA */
@@ -123,11 +130,11 @@ struct battery_thermal_protection_data {
 	int max_charge_temp;
 	int max_charge_temp_minus_x_degree;
 };
+#define MAX_CV_ENTRIES	8
 
+#define MAX_CYCLE_COUNT	0xFFFF
 /*HS03s for SR-AL5625-01-293 by wenyaqi at 20210426 start*/
 #ifndef HQ_FACTORY_BUILD	//ss version
-#define MAX_CV_ENTRIES	8
-#define MAX_CYCLE_COUNT	0xFFFF
 #define is_between(left, right, value) \
 		(((left) >= (right) && (left) >= (value) \
 			&& (value) >= (right)) \
@@ -140,6 +147,8 @@ struct range_data {
 	u32 value;
 };
 #endif
+#ifdef CONFIG_HS03S_SUPPORT
+ /* modify code for O6 */
 /*HS03s for SR-AL5625-01-293 by wenyaqi at 20210426 end*/
 /* sw jeita */
 /*HS03s for SR-AL5625-01-261 by wenyaqi at 20210425 start*/
@@ -167,7 +176,32 @@ struct range_data {
 #define TEMP_T0_THRES_PLUS_X_DEGREE  2
 #define TEMP_NEG_10_THRES	         0
 /*HS03s for SR-AL5625-01-261 by wenyaqi at 20210425 end*/
-
+#else
+#define JEITA_TEMP_ABOVE_T4_CV	4100000
+#define JEITA_TEMP_T3_TO_T4_CV	4400000
+#define JEITA_TEMP_T2_TO_T3_CV	4400000
+#define JEITA_TEMP_T1_TO_T2_CV	4400000
+#define JEITA_TEMP_T0_TO_T1_CV	4400000
+#define JEITA_TEMP_BELOW_T0_CV	4400000
+#define JEITA_TEMP_ABOVE_T4_CUR      0
+#define JEITA_TEMP_T3_TO_T4_CUR      1750000
+#define JEITA_TEMP_T2_TO_T3_CUR      2000000
+#define JEITA_TEMP_T1_TO_T2_CUR      1500000
+#define JEITA_TEMP_T0_TO_T1_CUR      500000
+#define JEITA_TEMP_BELOW_T0_CUR      0
+#define TEMP_T4_THRES  50
+#define TEMP_T4_THRES_MINUS_X_DEGREE 47
+#define TEMP_T3_THRES  45
+#define TEMP_T3_THRES_MINUS_X_DEGREE 42
+#define TEMP_T2_THRES  20
+#define TEMP_T2_THRES_PLUS_X_DEGREE 17
+#define TEMP_T1_THRES  10
+#define TEMP_T1_THRES_PLUS_X_DEGREE 7
+#define TEMP_T0_THRES  0
+#define TEMP_T0_THRES_PLUS_X_DEGREE  0
+#define TEMP_NEG_10_THRES 0
+ /* modify code for OT8 */
+#endif
 /*
  * Software JEITA
  * T0: -10 degree Celsius
@@ -291,7 +325,7 @@ enum chg_data_idx_enum {
 	CHG2_SETTING,
 	CHGS_SETTING_MAX,
 };
-
+#ifdef HQ_PROJECT_HS03S
 struct mtk_charger {
 	struct platform_device *pdev;
 	struct charger_device *chg1_dev;
@@ -309,6 +343,9 @@ struct mtk_charger {
 	struct power_supply_desc psy_desc2;
 	struct power_supply_config psy_cfg2;
 	struct power_supply *psy2;
+
+	struct power_supply  *chg_psy;
+	struct power_supply  *bat_psy;
 
 	struct adapter_device *pd_adapter;
 	struct notifier_block pd_nb;
@@ -355,6 +392,24 @@ struct mtk_charger {
 	bool safety_timeout;
 	bool vbusov_stat;
 	bool is_chg_done;
+#ifndef CONFIG_HS03S_SUPPORT
+/*TabA7 Lite code for OT8-384 fix confliction between input_suspend and sw_ovp by wenyaqi at 20201224 start*/
+	bool input_suspend;
+	/*TabA7 Lite code for OT8-384 fix confliction between input_suspend and sw_ovp by wenyaqi at 20201224 end*/
+	/*TabA7 Lite code for OT8-592 update battery/status when input_suspend or sw_ovp by wenyaqi at 20201231 start*/
+	bool ovp_disable;
+	/*TabA7 Lite code for OT8-592 update battery/status when input_suspend or sw_ovp by wenyaqi at 20201231 end*/
+	/*TabA7 Lite code for OT8-739 discharging over 80 by wenyaqi at 20210104 start*/
+	#ifdef HQ_FACTORY_BUILD //factory version
+	bool batt_cap_control;
+	#endif
+	/*TabA7 Lite code for OT8-739 discharging over 80 by wenyaqi at 20210104 end*/
+	/*TabA7 Lite code for P210330-05709 by wenyaqi at 20210401 start*/
+	#ifndef HQ_FACTORY_BUILD	//ss version
+	bool batt_store_mode;
+	#endif
+	/*TabA7 Lite code for P210330-05709 by wenyaqi at 20210401 end*/
+#endif
 	/* HS03s code for SR-AL5625-01-260 by shixuanxuan at 20210425 start */
 	#if !defined(HQ_FACTORY_BUILD)
 	int base_time;
@@ -405,6 +460,8 @@ struct mtk_charger {
 
 	bool enable_dynamic_mivr;
 
+#ifdef CONFIG_HS03S_SUPPORT
+    /* modify code for O6 */
 	/* HS03s code for SR-AL5625-01-35 by wenyaqi at 20210420 start */
 	bool input_suspend;
 	/* A03s code for SR-AL5625-01-35 by wenyaqi at 20210420 end */
@@ -433,7 +490,207 @@ struct mtk_charger {
 	#ifndef HQ_FACTORY_BUILD	//ss version
 	struct delayed_work poweroff_dwork;
 	#endif
+#else
+	int ss_vchr;
+    /*TabA7 Lite  code for SR-AX3565-01-107 by gaoxugang at 20201124 start*/
+	#if !defined(HQ_FACTORY_BUILD)
+	unsigned int store_mode_of_fcc;
+	#endif
+	/*TabA7 Lite  code for SR-AX3565-01-107 by gaoxugang at 20201124 end*/
+	#ifndef HQ_FACTORY_BUILD	//ss version
+	struct delayed_work poweroff_dwork;
+	#endif
+#endif
+
+#ifndef CONFIG_HS03S_SUPPORT
+/* modify code for O8 */
+	/*TabA7 Lite  code for SR-AX3565-01-109 by gaoxugang at 20201124 start*/
+	#if !defined(HQ_FACTORY_BUILD)
+	struct wakeup_source *charger_wakelock_app;
+	struct delayed_work retail_app_status_change_work;
+	#endif
+	/*TabA7 Lite  code for SR-AX3565-01-109 by gaoxugang at 20201124 end*/
+	/*TabA7 Lite code for OT8-106 add afc charger driver by wenyaqi at 20201210 start*/
+	#ifdef CONFIG_AFC_CHARGER
+	struct afc_dev afc;
+	bool enable_afc;
+	int hv_disable;
+	int afc_sts;
+	#endif
+	/*TabA7 Lite  code for SR-AX3565-01-109 by gaoxugang at 20201124 end*/
+#endif
 };
+#else
+struct mtk_charger {
+	struct platform_device *pdev;
+	struct charger_device *chg1_dev;
+	struct notifier_block chg1_nb;
+	struct charger_device *chg2_dev;
+
+	struct charger_data chg_data[CHGS_SETTING_MAX];
+	struct chg_limit_setting setting;
+	enum charger_configuration config;
+
+	struct power_supply_desc psy_desc1;
+	struct power_supply_config psy_cfg1;
+	struct power_supply *psy1;
+
+	struct power_supply_desc psy_desc2;
+	struct power_supply_config psy_cfg2;
+	struct power_supply *psy2;
+
+	struct power_supply  *chg_psy;
+	struct power_supply  *bat_psy;
+
+	struct adapter_device *pd_adapter;
+	struct notifier_block pd_nb;
+	struct mutex pd_lock;
+	int pd_type;
+	bool pd_reset;
+
+	u32 bootmode;
+	u32 boottype;
+
+	int chr_type;
+	int usb_state;
+
+	struct mutex cable_out_lock;
+	int cable_out_cnt;
+
+	/* system lock */
+	spinlock_t slock;
+	struct wakeup_source *charger_wakelock;
+	struct mutex charger_lock;
+
+	/* thread related */
+	wait_queue_head_t  wait_que;
+	bool charger_thread_timeout;
+	unsigned int polling_interval;
+	bool charger_thread_polling;
+
+	/* alarm timer */
+	struct alarm charger_timer;
+	struct timespec endtime;
+	bool is_suspend;
+	struct notifier_block pm_notifier;
+
+	/* notify charger user */
+	struct srcu_notifier_head evt_nh;
+
+	/* common info */
+	int log_level;
+	bool usb_unlimited;
+	bool disable_charger;
+	int battery_temp;
+	bool can_charging;
+	bool cmd_discharging;
+	bool safety_timeout;
+	bool vbusov_stat;
+	bool is_chg_done;
+/*TabA7 Lite code for OT8-384 fix confliction between input_suspend and sw_ovp by wenyaqi at 20201224 start*/
+	bool input_suspend;
+	/*TabA7 Lite code for OT8-384 fix confliction between input_suspend and sw_ovp by wenyaqi at 20201224 end*/
+	/*TabA7 Lite code for OT8-592 update battery/status when input_suspend or sw_ovp by wenyaqi at 20201231 start*/
+	bool ovp_disable;
+	/*TabA7 Lite code for OT8-592 update battery/status when input_suspend or sw_ovp by wenyaqi at 20201231 end*/
+	/*TabA7 Lite code for OT8-739 discharging over 80 by wenyaqi at 20210104 start*/
+	#ifdef HQ_FACTORY_BUILD //factory version
+	bool batt_cap_control;
+	#endif
+	/*TabA7 Lite code for OT8-739 discharging over 80 by wenyaqi at 20210104 end*/
+	/*TabA7 Lite code for P210330-05709 by wenyaqi at 20210401 start*/
+	#ifndef HQ_FACTORY_BUILD	//ss version
+	bool batt_store_mode;
+	#endif
+        #ifndef HQ_FACTORY_BUILD
+	int cust_batt_cap;
+	int batt_full_flag;
+	int batt_status;
+        #endif
+	/*TabA7 Lite code for P210330-05709 by wenyaqi at 20210401 end*/
+	/* HS03s code for SR-AL5625-01-260 by shixuanxuan at 20210425 start */
+	#if !defined(HQ_FACTORY_BUILD)
+	int base_time;
+	int current_time;
+	int interval_time;
+	int cap_hold_count;
+	int recharge_count;
+	int over_cap_count;
+	/* HS03s code for HQ00001 Modify battery protect function by shixuanxuan at 2021/05/10 start */
+	bool vbus_rising;
+	/* HS03s code for HQ00001 Modify battery protect function by shixuanxuan at 2021/05/10 end */
+	int en_batt_protect;
+	bool batt_protect_flag;
+	struct delayed_work charging_count_work;
+	#endif
+	/* HS03s code for SR-AL5625-01-260 by shixuanxuan at 20210425 end */
+	/* ATM */
+	bool atm_enabled;
+
+	const char *algorithm_name;
+	struct mtk_charger_algorithm algo;
+
+	/* dtsi custom data */
+	struct charger_custom_data data;
+
+	/* battery warning */
+	unsigned int notify_code;
+	unsigned int notify_test_mode;
+
+	/* sw safety timer */
+	bool enable_sw_safety_timer;
+	bool sw_safety_timer_setting;
+	struct timespec charging_begin_time;
+
+	/* sw jeita */
+	bool enable_sw_jeita;
+	struct sw_jeita_data sw_jeita;
+
+	/* battery thermal protection */
+	struct battery_thermal_protection_data thermal;
+
+	struct chg_alg_device *alg[MAX_ALG_NO];
+	struct notifier_block chg_alg_nb;
+	bool enable_hv_charging;
+
+	/* water detection */
+	bool water_detected;
+
+	bool enable_dynamic_mivr;
+
+	int ss_vchr;
+    /*TabA7 Lite  code for SR-AX3565-01-107 by gaoxugang at 20201124 start*/
+	#if !defined(HQ_FACTORY_BUILD)
+	unsigned int store_mode_of_fcc;
+	#endif
+	/*TabA7 Lite  code for SR-AX3565-01-107 by gaoxugang at 20201124 end*/
+	#ifndef HQ_FACTORY_BUILD	//ss version
+	struct delayed_work poweroff_dwork;
+	#endif
+
+    /* modify code for O8 */
+	/*TabA7 Lite  code for SR-AX3565-01-109 by gaoxugang at 20201124 start*/
+	#if !defined(HQ_FACTORY_BUILD)
+	struct wakeup_source *charger_wakelock_app;
+	struct delayed_work retail_app_status_change_work;
+	#endif
+	/*TabA7 Lite  code for SR-AX3565-01-109 by gaoxugang at 20201124 end*/
+	/*TabA7 Lite code for OT8-106 add afc charger driver by wenyaqi at 20201210 start*/
+	#ifdef CONFIG_AFC_CHARGER
+	struct afc_dev afc;
+	bool enable_afc;
+	int hv_disable;
+	int afc_sts;
+	#endif
+	/*TabA7 Lite  code for SR-AX3565-01-109 by gaoxugang at 20201124 end*/
+	/*TabA7 Lite code for P210511-00511 by wenyaqi at 20210518 start*/
+	#ifndef HQ_FACTORY_BUILD
+	int ss_chr_type_detect;
+	#endif
+	/*TabA7 Lite code for P210511-00511 by wenyaqi at 20210518 end*/
+	int capacity;
+};
+#endif
 
 /* functions which framework needs*/
 extern int mtk_basic_charger_init(struct mtk_charger *info);
@@ -462,6 +719,10 @@ extern void _wake_up_charger(struct mtk_charger *info);
 /* functions for afc */
 extern void afc_set_is_enable(struct mtk_charger *pinfo, bool enable);
 extern int afc_check_charger(struct mtk_charger *pinfo);
+#ifndef CONFIG_HS03S_SUPPORT
+/* modify code for O8 */
+extern int afc_start_algorithm(struct mtk_charger *pinfo);
+#endif
 extern int afc_charge_init(struct mtk_charger *pinfo);
 extern int afc_plugout_reset(struct mtk_charger *pinfo);
 extern int is_afc_result(struct mtk_charger *info,int result);

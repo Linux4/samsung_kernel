@@ -10,6 +10,9 @@
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
+#include <linux/touchscreen_info.h>
+
+extern enum tp_module_used tp_is_used;
 
 #ifndef ARY_SIZE
 #define ARY_SIZE(x) (sizeof((x)) / sizeof((x[0])))
@@ -1044,6 +1047,7 @@ extern enum LCM_DSI_MODE_CON lcm_dsi_mode;
 extern int display_bias_enable(void);
 extern int display_bias_disable(void);
 extern int display_bias_regulator_init(void);
+#ifdef CONFIG_HQ_PROJECT_HS03S
 extern int mtk_tpd_smart_wakeup_support(void);
 
 /* HS03S code added for SR-AL5625-01-310 by gaozhengwei at 20210423 start */
@@ -1052,17 +1056,18 @@ extern int mtk_tpd_smart_wakeup_support(void);
 #define GPIO_OUT_ZERO 0
 extern void lcm_set_gpio_output(unsigned int GPIO, unsigned int output);
 extern unsigned int GPIO_LCD_RST;
+/* hs03s_NM code added for SR-AL5625-01-609 by fengzhigang at 20220424 start */
+extern unsigned int GPIO_TSP_RST;
+/* hs03s_NM code added for SR-AL5625-01-609 by fengzhigang at 20220424 end */
 extern struct pinctrl *lcd_pinctrl1;
 extern struct pinctrl_state *lcd_disp_pwm;
 extern struct pinctrl_state *lcd_disp_pwm_gpio;
-/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
-extern struct pinctrl_state *tp_rst_output_low;
-extern struct pinctrl_state *tp_rst_output_high;
-/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 end */
+
 /* HS03S code added for SR-AL5625-01-310 by gaozhengwei at 20210423 end */
 
 /* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 start */
 extern bool g_system_is_shutdown;
 /* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 end */
+#endif
 
 #endif /* __LCM_DRV_H__ */

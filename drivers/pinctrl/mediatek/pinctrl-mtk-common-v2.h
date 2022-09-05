@@ -204,7 +204,7 @@ struct mtk_pin_soc {
 	/* Specific parameters per SoC */
 	u8				gpio_m;
 	bool				ies_present;
-	bool				race_free_access;
+	bool                            race_free_access;
 	const char * const		*base_names;
 	unsigned int			nbase_names;
 

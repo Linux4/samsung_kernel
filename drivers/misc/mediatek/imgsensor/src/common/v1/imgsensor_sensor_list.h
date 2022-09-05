@@ -14,8 +14,20 @@ struct IMGSENSOR_INIT_FUNC_LIST {
 	MUINT8    name[32];
 	MUINT32 (*init)(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 };
+UINT32 HI846_SJC_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 GC8054_HLT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 HI846_TXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 GC8054_CXT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 SC800CS_LY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+/*TabA7 Lite code for SR-AX3565-01-904 by chenjun at 2022/02/16 start*/
+UINT32 S5K4H7_HLT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+/*TabA7 Lite code for SR-AX3565-01-904 by chenjun at 2022/02/16 end*/
+UINT32 GC02M1_SJC_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 GC02M1SUB_CXT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 OV02B10_JK_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+
 /* A03s code for SR-AL5625-01-247 by lisizhou at 2021/04/20 start */
-/* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/05/13 start */
+#ifdef CONFIG_HQ_PROJECT_HS03S
 UINT32 HI1336_TXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC13053_LY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 S5K3L6_OFILM_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
@@ -32,20 +44,26 @@ UINT32 GC5035_LY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC5035_XL_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 /* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/05/13 end */
 /* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/04/22 end */
-/* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/04/25 start */
+/*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 start*/
 UINT32 GC2375H_CXT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC02M1B_LY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-/* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/04/25 end */
+UINT32 SC201CS_CXT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 /* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/05/12 start */
 UINT32 OV02B1B_JK_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC2375H_SJC_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC02M1_JK_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC02M1_HLT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 /* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/05/12 end */
+/* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/04/25 end */
 /* A03s code for SR-AL5625-01-324 by gaozhenyu at 2021/04/24 start */
 UINT32 GC02M1_CXT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 OV02B10_LY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 /* A03s code for SR-AL5625-01-324 by gaozhenyu at 2021/04/24 end */
+UINT32 SC1300CS_LY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 SC500CS_DD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+UINT32 SC201CS_CXT_MACRO_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+/*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 end*/
+#endif
 /*IMX*/
 UINT32 IMX519_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 IMX499_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);

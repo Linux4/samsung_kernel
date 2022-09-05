@@ -350,3 +350,4 @@ MODULE_AUTHOR("Lucas Gao <gaozhengwei@huaqin.com>");
 MODULE_DESCRIPTION("MTK LCD BIAS I2C Driver");
 MODULE_LICENSE("GPL");
 #endif
+

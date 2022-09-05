@@ -793,6 +793,12 @@ static int sgm41511_init_device(struct sgm41511 *sgm)
 	if (ret)
 		pr_err("Failed to set acovp threshold, ret = %d\n", ret);
 
+	/*HS03s for DEVAL5626-524 by liujie at 20210901 start*/
+	ret= sgm41511_disable_safety_timer(sgm);
+	if (ret)
+		pr_err("Failed to set safety_timer stop, ret = %d\n", ret);
+	/*HS03s for DEVAL5626-524 by liujie at 20210901 end*/
+
 	ret = sgm41511_set_int_mask(sgm,
 					REG0A_IINDPM_INT_MASK |
 					REG0A_VINDPM_INT_MASK);

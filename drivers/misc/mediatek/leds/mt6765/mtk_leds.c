@@ -575,7 +575,13 @@ int mt_brightness_set_pmic_duty_store(u32 level, u32 div)
 int mt_mt65xx_led_set_cust(struct cust_mt65xx_led *cust, int level)
 {
 	struct nled_setting led_tmp_setting = { 0, 0, 0 };
+#ifdef CONFIG_HQ_PROJECT_OT8
+    /* modify code for OT8 */
+	//int tmp_level = level;
+#else
+    /* modify code for O6 */
 	int tmp_level = level;
+#endif
 	static bool button_flag;
 	unsigned int BacklightLevelSupport =
 	    Cust_GetBacklightLevelSupport_byPWM();
@@ -594,9 +600,21 @@ int mt_mt65xx_led_set_cust(struct cust_mt65xx_led *cust, int level)
 
 				if (BacklightLevelSupport ==
 				    BACKLIGHT_LEVEL_PWM_256_SUPPORT)
+#ifdef CONFIG_HQ_PROJECT_OT8
+    				/* modify code for OT8 */
+					level = brightness_mapping(level);
+#else
+    				/* modify code for O6 */
 					level = brightness_mapping(tmp_level);
+#endif
 				else
+#ifdef CONFIG_HQ_PROJECT_OT8
+    				/* modify code for OT8 */
+					level = brightness_mapto64(level);
+#else
+    				/* modify code for O6 */
 					level = brightness_mapto64(tmp_level);
+#endif
 				mt_backlight_set_pwm(cust->data, level,
 						     bl_div_hal,
 						     &cust->config_data);

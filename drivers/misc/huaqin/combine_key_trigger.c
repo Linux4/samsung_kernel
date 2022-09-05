@@ -1,4 +1,4 @@
-//hs03s code for trigger crash with key by yutao at 2021/05/24 start
+//hs03s code for DEVAL5625-88 by ningkaixuan at 2022/02/15 start
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
@@ -146,5 +146,5 @@ static int __init combine_key_trigger_init(void)
 }
 
 device_initcall(combine_key_trigger_init);
-//hs03s code for trigger crash with key by yutao at 2021/05/24 end
+//hs03s code for DEVAL5625-88 by ningkaixuan at 2022/02/15 end
 

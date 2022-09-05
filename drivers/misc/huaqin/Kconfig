@@ -11,12 +11,12 @@ config HQ_SIM_TRAY_CHECK
 
 	  If unsure, say N.
 
-#hs03s code for trigger crash with key by yutao at 2021/05/24 start
+#hs03s code for DEVAL5625-88 by ningkaixuan at 2022/02/15 start
 config TRIGGER_CRASH_BY_KEY
 	default n
 	bool "Enable trigger crash by keys"
 	help
 	  You can trigger crash by pressing keys in strict order:
 	  VOLUMEUP twice + VOLUMEDOWN twice + POWER twice.
-#hs03s code for trigger crash with key by yutao at 2021/05/24 end
+#hs03s code for DEVAL5625-88 by ningkaixuan at 2022/02/15 end
 

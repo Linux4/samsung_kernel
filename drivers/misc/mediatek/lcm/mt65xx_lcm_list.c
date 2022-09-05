@@ -21,6 +21,67 @@ enum LCM_DSI_MODE_CON lcm_dsi_mode;
 #define LCD_HW_ID_STATUS_ERROR  0x03
 
 struct LCM_DRIVER *lcm_driver_list[] = {
+/*TabA7 Lite code for SR-AX3565-01-91 by gaozhengwei at 20201210 start*/
+#if defined(HX83102E_HLT_HSD_FHDPLUS2408)
+	&hx83102e_hlt_hsd_fhdplus2408_lcm_drv,
+#endif
+#if defined(HX83102E_BOE_BOE_DSI_VDO_HDP_WXGA)
+	&hx83102e_boe_boe_dsi_vdo_hdp_wxga_lcm_drv,
+#endif
+#if defined(NT36523_LIANSI_HSD_INCELL_VDO)
+	&nt36523_liansi_hsd_incell_vdo_lcm_drv,
+#endif
+/*TabA7 Lite code for SR-AX3565-01-895 by fengzhigang at 20220117 start*/
+#if defined(NT36523_LIANSI_HSD_NTFPC_INCELL_VDO)
+	&nt36523_liansi_hsd_ntfpc_incell_vdo_lcm_drv,
+#endif
+/*TabA7 Lite code for SR-AX3565-01-895 by fengzhigang at 20220117 end*/
+/*TabA7 Lite code for SR-AX3565-01-91 by gaozhengwei at 20201210 end*/
+/*TabA7 Lite code for SR-AX3565-01-53 by gaozhengwei at 20201215 start*/
+#if defined(ILI9881T_LIANSI_INX_INCELL_VDO)
+	&ili9881t_liansi_inx_incell_vdo_lcm_drv,
+#endif
+/*TabA7 Lite code for SR-AX3565-01-53 by gaozhengwei at 20201215 end*/
+/*TabA7 Lite code for SR-AX3565-01-718 by weiqiang at 20210202 start*/
+#if defined(NT36523_HLT_MDT_INCELL_VDO)
+	&nt36523_hlt_mdt_incell_vdo_lcm_drv,
+#endif
+/*TabA7 Lite code for SR-AX3565-01-718 by weiqiang at 20210202 end*/
+/*TabA7 Lite code for SR-AX3565-01-706 by weiqiang at 20210107 start*/
+#if defined(FT8201AB_DT_QUNCHUANG_INX_VDO_FHDPLUS2408)
+	&ft8201ab_dt_qunchuang_inx_vdo_fhdplus2408_lcm_drv,
+#endif
+/*TabA7 Lite code for SR-AX3565-01-706 by weiqiang at 20210107 end*/
+/*TabA7 Lite code for SR-AX3565-01-825 by weiqiang at 20210308 start*/
+#if defined(NT36523BH_QUNCHUANG_INX_INCELL_VDO)
+	&nt36523bh_qunchuang_inx_incell_vdo_lcm_drv,
+#endif
+/*TabA7 Lite code for SR-AX3565-01-825 by weiqiang at 20210308 end*/
+/*TabA7 Lite code for SR-AX3565-01-836 by weiqiang at 20210524 start*/
+#if defined(HX83102E_LIANSI_MDT_INCELL_VDO)
+	&hx83102e_liansi_mdt_incell_vdo_lcm_drv,
+#endif
+/*TabA7 Lite code for SR-AX3565-01-836 by weiqiang at 20210524 end*/
+/*TabA7 Lite code for OT8-5212 by huangzhongjie at 20211021 start*/
+#if defined(HX83102E_COPPER_HLT_HSD_FHDPLUS2408)
+	&hx83102e_copper_hlt_hsd_fhdplus2408_lcm_drv,
+#endif
+#if defined(FT8201_LIANCHUANG_BOE_DSI_VDO_HDP_WXGA)
+	&ft8201_lianchuang_boe_dsi_vdo_hdp_wxga_lcm_drv,
+#endif
+/*TabA7 Lite code for OT8-5212 by huangzhongjie at 20211021 end*/
+/*TabA7 Lite code for OT8-5317 by huangzhongjie at 20220217 start*/
+#if defined(HX83102E_GX_HSD_INCELL_VDO)
+	&hx83102e_gx_hsd_incell_vdo_lcm_drv,
+#endif
+#if defined(NT36523B_TXD_MDT_INCELL_VDO)
+	&nt36523b_txd_mdt_incell_vdo_lcm_drv,
+#endif
+#if defined(HX83102E_HY_MDT_INCELL_VDO)
+	&hx83102e_hy_mdt_incell_vdo_lcm_drv,
+#endif
+/*TabA7 Lite code for OT8-5317 by huangzhongjie at 20220217 end*/
+
 /* HS03S code added for SR-AL5625-01-310 by gaozhengwei at 20210423 start */
 #if defined(HX83112A_HDPLUS1600_DSI_VDO_LS_BOE_9MASK_55NM)
 	&hx83112a_hdplus1600_dsi_vdo_ls_boe_9mask_55nm_lcm_drv,
@@ -49,6 +110,17 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 	&ili9882h_liansi_panda_dsi_vdo_lcm_drv,
 #endif
 /* HS03S code added for SR-AL5625-01-572 by fengzhigang at 20210719 end */
+/* hs03s_NM code added for SR-AL5625-01-644 by fengzhigang at 20220407 start */
+#if defined(LCD_JD9365T_TXD_CTC_MIPI_HDP_VIDEO)
+	&lcd_jd9365t_txd_ctc_mipi_hdp_video_lcm_drv,
+#endif
+#if defined(LCD_NL9911C_TXD_HKC_MIPI_HDP_VIDEO)
+	&lcd_nl9911c_txd_hkc_mipi_hdp_video_lcm_drv,
+#endif
+#if defined(LCD_GC7202_LS_HSD_MIPI_HDP_VIDEO)
+	&lcd_gc7202_ls_hsd_mipi_hdp_video_lcm_drv,
+#endif
+/* hs03s_NM code added for SR-AL5625-01-644 by fengzhigang at 20220414 end */
 #if defined(HS03S_HDPLUS1600_DSI_DEFAULT_VDO)
 	&hs03s_hdplus1600_dsi_default_vdo_lcm_drv,
 #endif
@@ -1216,6 +1288,10 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 #endif
 #if defined(SOFEG01_FHDPLUS_DSI_CMD_SAMSUNG)
 	&sofeg01_fhdplus_dsi_cmd_samsung_lcm_drv,
+#endif
+
+#if defined(NT36672C_FHDP_DSI_VDO_AUO_CPHY_90HZ_TIANMA)
+	&nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_tianma_lcm_drv,
 #endif
 
 #if defined(OPPO_TIANMA_TD4310_FHDP_DSI_VDO_RT5081)
