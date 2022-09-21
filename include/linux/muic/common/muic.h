@@ -486,7 +486,8 @@ typedef enum tx_data{
 } muic_afc_txdata_t;
 
 enum power_supply_lsi_property {
-#if IS_MODULE(CONFIG_MFD_S2MU106) || defined(CONFIG_BATTERY_GKI)
+#if !defined(CONFIG_BATTERY_SAMSUNG) || \
+	IS_ENABLED(CONFIG_MFD_S2MU106) || IS_ENABLED(CONFIG_MFD_S2MF301) || defined(CONFIG_BATTERY_GKI)
 	POWER_SUPPLY_LSI_PROP_MIN = 10000,
 #else
 	POWER_SUPPLY_LSI_PROP_MIN = POWER_SUPPLY_EXT_PROP_MAX + 1,
@@ -526,7 +527,9 @@ enum power_supply_lsi_property {
 	POWER_SUPPLY_LSI_PROP_CO_ENABLE,
 	POWER_SUPPLY_LSI_PROP_RR_ENABLE,
 	POWER_SUPPLY_LSI_PROP_PM_FACTORY,
-#if IS_ENABLED(CONFIG_MFD_S2MU106) || defined(CONFIG_BATTERY_GKI)
+	POWER_SUPPLY_LSI_PROP_PCP_CLK,
+	POWER_SUPPLY_LSI_PROP_RID_OPS,
+#if IS_ENABLED(CONFIG_MFD_S2MU106) || IS_ENABLED(CONFIG_MFD_S2MF301) || defined(CONFIG_BATTERY_GKI)
 	POWER_SUPPLY_LSI_PROP_MAX,
 #endif
 };
@@ -649,7 +652,7 @@ enum power_supply_lsi_property {
 extern void muic_send_lcd_on_uevent(struct muic_platform_data *muic_pdata);
 extern int muic_set_hiccup_mode(int on_off);
 extern int muic_hv_charger_init(void);
-#if defined(CONFIG_MUIC_SM5504_POGO)
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
 extern int muic_set_pogo_adc(int adc);
 #endif
 extern int muic_afc_get_voltage(void);
@@ -664,7 +667,7 @@ static inline void muic_send_lcd_on_uevent(struct muic_platform_data *muic_pdata
 static inline int muic_set_hiccup_mode(int on_off) {return 0; }
 static inline int muic_hv_charger_init(void) {return 0; }
 static inline int muic_afc_get_voltage(void) {return 0; }
-#if defined(CONFIG_MUIC_SM5504_POGO)
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
 static inline int muic_set_pogo_adc(int adc) {return 0};
 #endif
 static inline int muic_afc_set_voltage(int voltage) {return 0; }

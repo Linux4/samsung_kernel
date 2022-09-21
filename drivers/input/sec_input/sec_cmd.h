@@ -63,6 +63,7 @@
 #define PATH_SUB_SEC_CMD_STATUS_ALL	"/sys/class/sec/tsp2/cmd_status_all"
 #define PATH_SUB_SEC_CMD_RESULT_ALL	"/sys/class/sec/tsp2/cmd_result_all"
 #define PATH_SUB_SEC_SYSFS_PROX_POWER_OFF "/sys/class/sec/tsp2/prox_power_off"
+#define PATH_SUB_SEC_SYSFS_DUALSCREEN_POLICY "/sys/class/sec/tsp2/dualscreen_policy"
 #endif
 
 struct sec_cmd {

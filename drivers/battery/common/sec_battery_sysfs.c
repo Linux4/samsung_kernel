@@ -2767,6 +2767,13 @@ ssize_t sec_bat_store_attrs(
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 				sec_bat_check_battery_health(battery);
 #endif
+
+				if ((prev_battery_cycle - battery->batt_cycle) >= 9000) {
+					value.intval = 0;
+					psy_do_property(battery->pdata->fuelgauge_name, set,
+									POWER_SUPPLY_PROP_ENERGY_NOW, value);
+					dev_info(battery->dev, "%s: change the concept of battery protection mode.\n", __func__);
+				}
 			}
 			ret = count;
 		}

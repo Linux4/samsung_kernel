@@ -468,8 +468,10 @@ static int p61_rw_spi_message_compat(struct p61_device *p61_dev,
 	if (dup == NULL)
 		return -ENOMEM;
 
-	if (copy_from_user(&it32, argp, sizeof(it32)))
+	if (copy_from_user(&it32, argp, sizeof(it32))) {
+		kfree(dup);
 		return -EFAULT;
+	}
 
 	dup->rx_buffer = (__u8 *)(uintptr_t)it32.rx_buffer;
 	dup->tx_buffer = (__u8 *)(uintptr_t)it32.tx_buffer;

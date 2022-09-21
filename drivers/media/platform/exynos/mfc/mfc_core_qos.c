@@ -688,7 +688,7 @@ void mfc_core_qos_on(struct mfc_core *core, struct mfc_ctx *ctx)
 		return;
 	}
 
-	if (core->core_ctx[ctx->num]->state == MFCINST_FREE) {
+	if (core->core_ctx[ctx->num] && (core->core_ctx[ctx->num]->state == MFCINST_FREE)) {
 		mfc_ctx_info("[QoS] instance not started yet\n");
 		return;
 	}

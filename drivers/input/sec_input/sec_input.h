@@ -41,6 +41,9 @@
 #include <linux/power_supply.h>
 #include <linux/proc_fs.h>
 #include <linux/version.h>
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#include <linux/sti/abc_common.h>
+#endif
 
 #include "sec_cmd.h"
 #include "sec_tclm_v2.h"
@@ -84,6 +87,9 @@ const struct file_operations ops_name = {				\
 #define INPUT_FEATURE_ENABLE_MULTI_CALIBRATION		(1 << 10) /* multi calibration support */
 
 #define INPUT_FEATURE_SUPPORT_INPUT_MONITOR			(1 << 16) /* input monitor support */
+
+#define INPUT_FEATURE_SUPPORT_MOTION_PALM			(1 << 20) /* rawdata motion control: palm */
+#define INPUT_FEATURE_SUPPORT_MOTION_AIVF			(1 << 21) /* rawdata motion control: aivf */
 
 /*
  * sec Log
@@ -326,6 +332,7 @@ typedef enum {
 	SPONGE_EVENT_TYPE_FOD_PRESS		= 0x0F,
 	SPONGE_EVENT_TYPE_FOD_RELEASE		= 0x10,
 	SPONGE_EVENT_TYPE_FOD_OUT		= 0x11,
+	SPONGE_EVENT_TYPE_LONG_PRESS		= 0x12,
 	SPONGE_EVENT_TYPE_TSP_SCAN_UNBLOCK	= 0xE1,
 	SPONGE_EVENT_TYPE_TSP_SCAN_BLOCK	= 0xE2,
 } SPONGE_EVENT_TYPE;
@@ -352,6 +359,8 @@ typedef enum {
 #define SEC_TS_MODE_SPONGE_PRESS		(1 << 4)
 #define SEC_TS_MODE_SPONGE_DOUBLETAP_TO_WAKEUP	(1 << 5)
 #define SEC_TS_MODE_SPONGE_TWO_FINGER_DOUBLETAP	(1 << 7)
+#define SEC_TS_MODE_SPONGE_VVC			(1 << 8)
+
 /* SPONGE MODE 0x01 */
 #define SEC_TS_MODE_SPONGE_INF_DUMP_CLEAR	(1 << 0)
 #define SEC_TS_MODE_SPONGE_INF_DUMP		(1 << 1)
@@ -381,6 +390,11 @@ typedef enum {
 #define TSP_EXTERNAL_FW		"tsp.bin"
 #define TSP_EXTERNAL_FW_SIGNED	"tsp_signed.bin"
 #define TSP_SPU_FW_SIGNED		"/TSP/ffu_tsp.bin"
+
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#define SEC_ABC_SEND_EVENT_TYPE "MODULE=tsp@WARN=tsp_int_fault"
+#define SEC_ABC_SEND_EVENT_TYPE_SUB "MODULE=tsp_sub@WARN=tsp_int_fault"
+#endif
 
 enum display_state {
 	DISPLAY_STATE_SERVICE_SHUTDOWN = -1,
@@ -687,6 +701,7 @@ struct sec_ts_plat_data {
 
 	volatile bool enabled;
 	volatile int power_state;
+	volatile int display_state;
 	volatile bool shutdown_called;
 
 	u16 touch_functions;
@@ -731,6 +746,8 @@ struct sec_ts_plat_data {
 	bool unuse_dvdd_power;
 	bool chip_on_board;
 	bool enable_sysinput_enabled;
+	bool support_rawdata_motion_aivf;
+	bool support_rawdata_motion_palm;
 	bool not_support_io_ldo;
 	bool not_support_vdd;
 	bool sense_off_when_cover_closed;

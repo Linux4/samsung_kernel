@@ -6,18 +6,19 @@
  * as published by the Free Software Foundation.
  */
 
+#include <linux/kconfig.h>
 #include <linux/kernel.h>
 #include <linux/of_address.h>
 #include <linux/random.h>
 #include <linux/sched/task.h>
-#include <linux/mz.h>
+#include "mz_internal.h"
 #include "mz_log.h"
 
 #define ADDR_INIT_SIZE 56
 
 #ifdef CONFIG_MZ_USE_TZDEV
 static void *list_addr_mz;
-#elif defined(CONFIG_MZ_USE_QSEECOM)
+#elif IS_ENABLED(CONFIG_MZ_USE_QSEECOM)
 static void __iomem *list_addr_mz1;
 static void __iomem *list_addr_mz2;
 static void __iomem *list_addr_mz3;
@@ -45,7 +46,7 @@ int mz_addr_init(void)
 		return -ENODEV;
 	}
 	list_addr_mz = phys_to_virt(res.start);
-#elif defined(CONFIG_MZ_USE_QSEECOM)
+#elif IS_ENABLED(CONFIG_MZ_USE_QSEECOM)
 	np = of_find_compatible_node(NULL, NULL, "samsung,security_mz1");
 	if (unlikely(!np)) {
 		MZ_LOG(err_level_error, "unable to find DT imem samsung,security_mz1 node\n");
@@ -122,7 +123,7 @@ int set_mz_mem(void)
 	memcpy(list_addr_mz, &addr_list1, 4);
 	memcpy(list_addr_mz+4, &addr_list2, 4);
 	memcpy(list_addr_mz+8, &mz_magic, 4);
-#elif defined(CONFIG_MZ_USE_QSEECOM)
+#elif IS_ENABLED(CONFIG_MZ_USE_QSEECOM)
 	if (unlikely(!list_addr_mz1) || unlikely(!list_addr_mz2) || unlikely(!list_addr_mz3)) {
 		MZ_LOG(err_level_error, "list_addr address unmapped\n");
 		return MZ_GENERAL_ERROR;

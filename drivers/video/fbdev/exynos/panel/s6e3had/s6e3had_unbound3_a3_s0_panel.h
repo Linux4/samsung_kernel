@@ -1073,7 +1073,7 @@ static u8 UNBOUND3_A3_S0_TSP_HSYNC[] = {
 static u8 UNBOUND3_A3_S0_SET_TE_FRAME_SEL[] = {
 	0xB9,
 	0x09,	/* to be updated by TE_FRAME_SEL_MAPTBL */
-	0x0C, 0x81, 0x00, 0x18
+	0x0B, 0xB8, 0x00, 0x18
 };
 
 static u8 UNBOUND3_A3_S0_CLR_TE_FRAME_SEL[] = {

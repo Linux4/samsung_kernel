@@ -20,12 +20,11 @@ struct workqueue_struct *ib_handle_highwq;
 
 int total_ib_cnt;
 int ib_init_succeed;
-int u_ib_mode;
-
 int level_value = IB_MAX;
 
 unsigned int debug_flag;
 unsigned int enable_event_booster = INIT_ZERO;
+unsigned int u_ib_mode;
 
 // Input Booster Init Variables
 int *release_val;
@@ -33,9 +32,14 @@ int *cpu_cluster_policy;
 int *allowed_resources;
 
 int max_resource_count;
-int device_count;
 int max_cluster_count;
 int allowed_res_count;
+
+static int allowed_mask;
+static struct t_ib_boost_mode* ib_boost_modes;
+static unsigned int ib_mode_mask;
+static int num_of_mode;
+
 struct t_ib_device_tree* ib_device_trees;
 struct t_ib_trigger* ib_trigger;
 
@@ -65,6 +69,7 @@ void trigger_input_booster(struct work_struct *work)
 	struct t_ib_trigger *p_IbTrigger = container_of(work, struct t_ib_trigger, ib_trigger_work);
 
 	if (p_IbTrigger == NULL) {
+		pr_err(ITAG" IB Trigger instance is null");
 		return;
 	}
 
@@ -72,13 +77,11 @@ void trigger_input_booster(struct work_struct *work)
 
 	// Input booster On/Off handling
 	if (p_IbTrigger->event_type == BOOSTER_ON) {
-
 		if (find_release_ib(p_IbTrigger->dev_type, p_IbTrigger->key_id) != NULL) {
 			pr_err(ITAG" IB Trigger :: ib already exist. Key(%d)", p_IbTrigger->key_id);
 			mutex_unlock(&trigger_ib_lock);
 			return;
 		}
-
 		// Check if uniqId exits.
 		do {
 			uniq_id = total_ib_cnt++;
@@ -93,9 +96,16 @@ void trigger_input_booster(struct work_struct *work)
 
 		pr_info(ITAG" IB Trigger Press :: IB Uniq Id(%d)", uniq_id);
 
-		if (ib == NULL) {
+		if (ib == NULL || ib->ib_dt == NULL || ib->ib_dt->res == NULL) {
 			mutex_unlock(&trigger_ib_lock);
 			pr_err(ITAG" Creating ib object fail");
+			return;
+		}
+
+		// Head time must be existed
+		if (ib->ib_dt->head_time == 0) {
+			mutex_unlock(&trigger_ib_lock);
+			remove_ib_instance(ib);
 			return;
 		}
 
@@ -104,7 +114,7 @@ void trigger_input_booster(struct work_struct *work)
 		// When create ib instance, insert resource info in qos list with value 0.
 		for (res_type = 0; res_type < allowed_res_count; res_type++) {
 			if (allowed_resources[res_type] > max_resource_count) {
-				pr_err(ITAG" allow res num exceeds over max res count",
+				pr_err(ITAG" allow res num(%d) exceeds over max res count",
 					allowed_resources[res_type]);
 				continue;
 			}
@@ -179,6 +189,7 @@ struct t_ib_info* create_ib_instance(struct t_ib_trigger* p_IbTrigger, int uniqI
 {
 	struct t_ib_info* ib = kmalloc(sizeof(struct t_ib_info), GFP_KERNEL);
 	int dev_type = p_IbTrigger->dev_type;
+	int idx = 0, conv_idx = 0;
 
 	if (ib == NULL)
 		return NULL;
@@ -189,7 +200,21 @@ struct t_ib_info* create_ib_instance(struct t_ib_trigger* p_IbTrigger, int uniqI
 	ib->rel_flag = FLAG_OFF;
 	ib->isHeadFinished = 0;
 
-	ib->ib_dt = &ib_device_trees[dev_type];
+	if (!(ib_mode_mask & (1 << u_ib_mode)) || !((1 <<dev_type) & ib_boost_modes[u_ib_mode].dt_mask)) {
+		pr_booster("Current Ib Mode(%d) is not allowed(Masking : %0.8x, Type : %d)",
+			u_ib_mode, ib_boost_modes[u_ib_mode].dt_mask, dev_type);
+		if (dev_type > ib_boost_modes[0].dt_count) {
+			pr_err(ITAG" dev_type(%d) is over dt count(%d)", dev_type, ib_boost_modes[0].dt_count);
+			kfree(ib);
+			ib = NULL;
+			return NULL;
+		}
+		conv_idx = ib_boost_modes[0].type_to_idx_table[dev_type];
+		ib->ib_dt = &ib_boost_modes[0].dt[dev_type];
+	} else {
+		conv_idx = ib_boost_modes[u_ib_mode].type_to_idx_table[dev_type];
+		ib->ib_dt = &ib_boost_modes[u_ib_mode].dt[conv_idx];
+	}
 
 	INIT_WORK(&ib->ib_state_work[IB_HEAD], press_state_func);
 	INIT_DELAYED_WORK(&ib->ib_timeout_work[IB_HEAD], press_timeout_func);
@@ -211,7 +236,7 @@ bool is_validate_uniqid(unsigned int uniq_id)
 	struct t_ib_info* ib = NULL;
 	rcu_read_lock();
 
-	for (dev_type = 0; dev_type < device_count; dev_type++) {
+	for (dev_type = 0; dev_type < MAX_DEVICE_TYPE_NUM; dev_type++) {
 		if (list_empty(&ib_list[dev_type])) {
 			pr_booster("IB List(%d) Empty", dev_type);
 			continue;
@@ -265,7 +290,8 @@ void press_state_func(struct work_struct* work)
 
 	struct t_ib_info* target_ib = container_of(work, struct t_ib_info, ib_state_work[IB_HEAD]);
 
-	pr_info(ITAG" Press State Func :::: Unique_Id(%d)", target_ib->uniq_id);
+	pr_info(ITAG" Press State Func :::: Unique_Id(%d) Head_Time(%d)",
+		target_ib->uniq_id, target_ib->ib_dt->head_time);
 
 	// Get_Res_List(head) and update head value.
 	for (res_type = 0; res_type < allowed_res_count; res_type++) {
@@ -291,8 +317,6 @@ void press_state_func(struct work_struct* work)
 	}
 
 	ib_set_booster(qos_values);
-	pr_booster("Press State Func :::: Press Delay Time(%lu)",
-		msecs_to_jiffies(target_ib->ib_dt->head_time));
 
 	queue_delayed_work(ib_handle_highwq, &(target_ib->ib_timeout_work[IB_HEAD]),
 		msecs_to_jiffies(target_ib->ib_dt->head_time));
@@ -487,9 +511,12 @@ struct t_ib_target* find_update_target(int uniq_id, int res_id)
 {
 	struct t_ib_target* tv;
 
+	if (res_id < 0 || res_id >= MAX_RES_COUNT)
+		return NULL;
+
 	rcu_read_lock();
 	list_for_each_entry_rcu(tv, &qos_list[res_id], list) {
-		if (tv->uniq_id == uniq_id) {
+		if (tv != NULL && tv->uniq_id == uniq_id) {
 			rcu_read_unlock();
 			return tv;
 		}
@@ -554,7 +581,6 @@ void remove_ib_instance(struct t_ib_info* target_ib)
 
 unsigned int create_uniq_id(int type, int code, int slot)
 {
-	//id1 | (id2 << num_bits_id1) | (id3 << (num_bits_id2 + num_bits_id1))
 	pr_booster("Create Key Id -> type(%d), code(%d), slot(%d)", type, code, slot);
 	return (type << (TYPE_BITS + CODE_BITS)) | (code << CODE_BITS) | slot;
 }
@@ -567,6 +593,7 @@ void ib_auto_test(int type, int code, int val)
 //+++++++++++++++++++++++++++++++++++++++++++++++  STRUCT & VARIABLE FOR SYSFS  +++++++++++++++++++++++++++++++++++++++++++++++//
 SYSFS_CLASS(enable_event, (buf, "%u\n", enable_event), 1)
 SYSFS_CLASS(debug_level, (buf, "%u\n", debug_level), 1)
+SYSFS_CLASS(ib_mode_state, (buf, "%u\n", ib_mode_state), 1)
 SYSFS_CLASS(sendevent, (buf, "%d\n", sendevent), 3)
 HEAD_TAIL_SYSFS_DEVICE(head)
 HEAD_TAIL_SYSFS_DEVICE(tail)
@@ -583,10 +610,11 @@ struct attribute_group dvfs_attr_group = {
 	.attrs = dvfs_attributes,
 };
 
-void init_sysfs_device(struct class* sysfs_class, struct t_ib_device_tree* ib_dt) {
+void init_sysfs_device(struct class* sysfs_class, struct device* pdev, struct t_ib_device_tree* ib_dt) {
 	struct device* sysfs_dev;
 	int ret = 0;
 	int bus_ret = 0;
+
 	sysfs_dev = device_create(sysfs_class, NULL, 0, ib_dt, "%s", ib_dt->label);
 	if (IS_ERR(sysfs_dev)) {
 		ret = IS_ERR(sysfs_dev);
@@ -612,8 +640,10 @@ int parse_dtsi_str(struct device_node *np, const char *target_node, void *target
 	int copy_result;
 	const char *full_str = of_get_property(np, target_node, NULL);
 
-	if (full_str == NULL)
+	if (full_str == NULL) {
+		pr_err(ITAG" Target Node(%s) is null", target_node);
 		return -1;
+	}
 
 	if (isIntType)
 		int_target_arr_ptr = (int *)target_arr;
@@ -625,20 +655,20 @@ int parse_dtsi_str(struct device_node *np, const char *target_node, void *target
 	token = strsep(&prop_pointer, ",");
 
 	while (token != NULL) {
-		pr_booster("%s %d's Type Value(%s)", target_node, iter, token);
+		pr_info("%s %d's Type Value(%s)", target_node, iter, token);
 
 		//Release Values inserted inside array
 		if (isIntType) {
 			copy_result = sscanf(token, "%d", &int_target_arr_ptr[iter]);
 			if (!copy_result) {
-				pr_err(ITAG"DTSI string value parsing fail");
+				pr_err(ITAG" DTSI string value parsing fail");
 				return -1;
 			}
-			pr_booster("Target_arr[%d] : %d", iter, int_target_arr_ptr[iter]);
+			pr_info("Target_arr[%d] : %d", iter, int_target_arr_ptr[iter]);
 		} else {
 			copy_result = sscanf(token, "%s", &str_target_arr_ptr[iter]);
 			if (!copy_result) {
-				pr_err(ITAG"DTSI string value parsing fail");
+				pr_err(ITAG" DTSI string value parsing fail");
 				return -1;
 			}
 		}
@@ -652,7 +682,7 @@ int parse_dtsi_str(struct device_node *np, const char *target_node, void *target
 
 int is_ib_init_succeed(void)
 {
-	return (ib_trigger != NULL && ib_device_trees != NULL &&
+	return (ib_trigger != NULL && ib_boost_modes != NULL &&
 		ib_list != NULL && qos_list != NULL) ? 1 : 0;
 }
 
@@ -660,6 +690,7 @@ void input_booster_exit(void)
 {
 
 	kfree(ib_trigger);
+	kfree(ib_boost_modes);
 	kfree(ib_device_trees);
 	kfree(ib_list);
 	kfree(qos_list);
@@ -672,6 +703,84 @@ void input_booster_exit(void)
 }
 
 // ********** Init Booster ********** //
+int parse_device_info(struct device_node* np, struct t_ib_device_tree* ib_device_trees) {
+	int ib_res_size = sizeof(struct t_ib_res_info);
+	struct device_node* cnp;
+	int device_count = 0, i;
+
+	for_each_child_of_node(np, cnp) {
+		/************************************************/
+		// fill all needed data into res_info instance in dt instance.
+		struct t_ib_device_tree* ib_dt = (ib_device_trees + device_count);
+		struct device_node* child_resource_node;
+		struct device_node* resource_node = of_find_compatible_node(cnp, NULL, "resource");
+
+		ib_dt->res = kzalloc(ib_res_size * max_resource_count, GFP_KERNEL);
+		for (i = 0; i < max_resource_count; ++i){
+			ib_dt->res[i].res_id = -1;
+		}
+
+		int res_type = 0, res_id = 0;
+
+		for_each_child_of_node(resource_node, child_resource_node) {
+			int result = parse_dtsi_str(child_resource_node, "resource,id", &res_id, 1);
+			pr_info(ITAG" res_id(%d) result(%d)", res_id, result);
+			if (result == 0 || result == -1) continue;
+
+			if (!(allowed_mask & (1<<res_id))) {
+				pr_err(ITAG" res_id(%d) is not allowed res", res_id);
+				continue;
+			}
+
+			ib_dt->res[res_id].res_id = res_id;
+			ib_dt->res[res_id].label = of_get_property(child_resource_node, "resource,label", NULL);
+
+			int inputbooster_size = 0;
+			const u32* is_exist_inputbooster_size = of_get_property(child_resource_node, "resource,value", &inputbooster_size);
+
+			if (is_exist_inputbooster_size && inputbooster_size) {
+				inputbooster_size = inputbooster_size / sizeof(u32);
+			}
+
+			if (inputbooster_size != 2) {
+				pr_err(ITAG" inputbooster size must be 2!");
+				return -1; // error
+			}
+
+			for (res_type = 0; res_type < inputbooster_size; ++res_type) {
+				if (res_type == IB_HEAD) {
+					of_property_read_u32_index(child_resource_node, "resource,value",
+						res_type, &ib_dt->res[res_id].head_value);
+				}
+				else if (res_type == IB_TAIL) {
+					of_property_read_u32_index(child_resource_node, "resource,value",
+						res_type, &ib_dt->res[res_id].tail_value);
+				}
+			}
+		}
+
+		ib_dt->label = of_get_property(cnp, "input_booster,label", NULL);
+		pr_info(ITAG"ib_dt->label : %s\n", ib_dt->label);
+
+		if (of_property_read_u32(cnp, "input_booster,type", &ib_dt->type)) {
+			pr_err(ITAG" Failed to get type property\n");
+			break;
+		}
+		if (of_property_read_u32(cnp, "input_booster,head_time", &ib_dt->head_time)) {
+			pr_err(ITAG" Fail Get Head Time\n");
+			break;
+		}
+		if (of_property_read_u32(cnp, "input_booster,tail_time", &ib_dt->tail_time)) {
+			pr_err(ITAG" Fail Get Tail Time\n");
+			break;
+		}
+		//Init all type of ib list.
+		INIT_LIST_HEAD(&ib_list[device_count]);
+		device_count++;
+	}
+
+	return device_count;
+}
 
 void input_booster_init(void)
 {
@@ -694,7 +803,6 @@ void input_booster_init(void)
 	enable_event_booster = INIT_ZERO;
 	max_resource_count = 0;
 	allowed_res_count = 0;
-	device_count = 0;
 	evdev_mt_slot = 0;
 	trigger_cnt = 0;
 	send_ev_enable = 0;
@@ -708,6 +816,7 @@ void input_booster_init(void)
 
 //Input Booster Trigger Strcut Init
 	ib_trigger = kzalloc(sizeof(struct t_ib_trigger) * MAX_IB_COUNT, GFP_KERNEL);
+
 	if (ib_trigger == NULL) {
 		pr_err(ITAG" ib_trigger mem alloc fail");
 		goto out;
@@ -718,12 +827,12 @@ void input_booster_init(void)
 
 	np = of_find_compatible_node(NULL, NULL, "input_booster");
 	if (np == NULL) {
+		pr_err(ITAG" Input Booster Compatible wasn't found in dtsi");
 		goto out;
 	}
 
 // Geting the count of devices.
 	ndevice_in_dt = of_get_child_count(np);
-	pr_info(ITAG" %s   ndevice_in_dt : %d\n", __func__, ndevice_in_dt);
 
 	ib_device_trees = kzalloc(ib_dt_size * ndevice_in_dt, GFP_KERNEL);
 	if (ib_device_trees == NULL) {
@@ -732,7 +841,7 @@ void input_booster_init(void)
 	}
 
 // ib list mem alloc
-	ib_list = kzalloc(list_head_size * ndevice_in_dt, GFP_KERNEL);
+	ib_list = kzalloc(list_head_size * MAX_DEVICE_TYPE_NUM, GFP_KERNEL);
 	if (ib_list == NULL) {
 		pr_err(ITAG" ib list mem alloc fail");
 		goto out;
@@ -771,6 +880,7 @@ void input_booster_init(void)
 		pr_err(ITAG" cpu_cluster_policy mem alloc fail");
 		goto out;
 	}
+
 	result = parse_dtsi_str(np, "cpu_cluster_policy", cpu_cluster_policy, 1);
 	pr_info(ITAG" Init:: Total Cpu Cluster Count : %d", result);
 	if (result < 0)
@@ -794,6 +904,7 @@ void input_booster_init(void)
 		goto out;
 
 	for (i = 0; i < result; i++) {
+		allowed_mask |= (1<<allowed_resources[i]);
 		if (allowed_resources[i] >= max_resource_count) {
 			pr_err(ITAG" allow res index exceeds over max res count",
 				allowed_resources[i]);
@@ -814,7 +925,7 @@ void input_booster_init(void)
 	}
 	result = parse_dtsi_str(np, "ib_release_values", release_val, 1);
 	pr_info(ITAG" Init:: Total Release Value Count: %d", result);
-	if (result < 0)
+	if (result == 0)
 		goto out;
 
 	if (result > max_resource_count) {
@@ -822,81 +933,55 @@ void input_booster_init(void)
 		goto out;
 	}
 
+// Geting the count of sub boosters.
+	num_of_mode = of_get_child_count(np);
+	//ib_dt_grp = kzalloc(sizeof(t_ib_device_tree*) * num_of_mode, GFP_KERNEL);
+	pr_info(ITAG" %s : Total IB Mode Cnt : %d\n", __func__, num_of_mode);
+	ib_boost_modes = kzalloc(sizeof(struct t_ib_boost_mode) * num_of_mode, GFP_KERNEL);
+
+// ib_boost_modes Init
 	struct device_node* cnp;
-
 	for_each_child_of_node(np, cnp) {
-		/************************************************/
-		// fill all needed data into res_info instance that is in dt instance.
-		struct t_ib_device_tree* ib_dt = (ib_device_trees + device_count);
-		struct device_node* child_resource_node;
-		struct device_node* resource_node = of_find_compatible_node(cnp, NULL, "resource");
+		struct t_ib_device_tree* ib_dt;
+		int boost_mode = 0;
 
-		ib_dt->res = kzalloc(ib_res_size * max_resource_count, GFP_KERNEL);
-		for (i = 0; i < max_resource_count; ++i){
-			ib_dt->res[i].res_id = -1;
-			ib_dt->res[i].label = 0;
-			ib_dt->res[i].head_value = 0;
-			ib_dt->res[i].tail_value = 0;
+		// Getting Mode Type
+		result = parse_dtsi_str(cnp, "booster,mode", &boost_mode, 1);
+		if (result == 0 || boost_mode < 0 || boost_mode >= num_of_mode) {
+			pr_err(ITAG "Booster Mode(%d) exceeds max number of mode(%d)", boost_mode, num_of_mode);
+			continue;
 		}
 
-		int resource_node_index = 0;
-		int res_type = 0;
-		for_each_child_of_node(resource_node, child_resource_node) {
-			// allowed_resources[resource_node_index] is same as Resource's ID.
-			ib_dt->res[allowed_resources[resource_node_index]].res_id = allowed_resources[resource_node_index];
-			ib_dt->res[allowed_resources[resource_node_index]].label = of_get_property(child_resource_node, "resource,label", NULL);
+		ib_boost_modes[boost_mode].type = boost_mode;
+		ib_mode_mask |= (1 << boost_mode);
 
-			int inputbooster_size = 0;
+		//Getting Sub Booster Label
+		ib_boost_modes[boost_mode].label = of_get_property(cnp, "booster,label", NULL);
+		pr_info(ITAG" %s : Mode_label : %s\n", __func__, ib_boost_modes[boost_mode].label);
 
-			const u32* is_exist_inputbooster_size = of_get_property(child_resource_node, "resource,value", &inputbooster_size);
-
-			if (is_exist_inputbooster_size && inputbooster_size) {
-				inputbooster_size = inputbooster_size / sizeof(u32);
-			}
-
-			if (inputbooster_size != 2) {
-				pr_err(ITAG" inputbooster size must be 2!");
-				return; // error
-			}
-
-			for (res_type = 0; res_type < inputbooster_size; ++res_type) {
-				if (res_type == IB_HEAD) {
-					of_property_read_u32_index(child_resource_node, "resource,value",
-						res_type, &ib_dt->res[allowed_resources[resource_node_index]].head_value);
-				}
-				else if (res_type == IB_TAIL) {
-					of_property_read_u32_index(child_resource_node, "resource,value",
-						res_type, &ib_dt->res[allowed_resources[resource_node_index]].tail_value);
-				}
-			}
-
-			resource_node_index++;
+		ib_boost_modes[boost_mode].dt_count = of_get_child_count(cnp);
+		ib_dt = ib_boost_modes[boost_mode].dt =
+			kzalloc(ib_dt_size * ib_boost_modes[boost_mode].dt_count, GFP_KERNEL);
+		if (ib_dt == NULL) {
+			pr_err(ITAG" Mode[%d] ib_dt mem alloc fail\n", boost_mode);
+			goto out;
 		}
 
-		ib_dt->label = of_get_property(cnp, "input_booster,label", NULL);
-		pr_info(ITAG" %s   ib_dt->label : %s\n", __func__, ib_dt->label);
+		result = parse_device_info(cnp, ib_dt);
+		if (result < 0)
+			goto out;
 
-		if (of_property_read_u32(cnp, "input_booster,type", &ib_dt->type)) {
-			pr_err(ITAG" Failed to get type property\n");
-			break;
-		}
-		if (of_property_read_u32(cnp, "input_booster,head_time", &ib_dt->head_time)) {
-			pr_err(ITAG" Fail Get Head Time\n");
-			break;
-		}
-		if (of_property_read_u32(cnp, "input_booster,tail_time", &ib_dt->tail_time)) {
-			pr_err(ITAG" Fail Get Tail Time\n");
-			break;
+		for (i=0; i<ib_boost_modes[boost_mode].dt_count; i++) {
+			//Masking all device types in current mode
+			ib_boost_modes[boost_mode].dt_mask |= (1 << (ib_dt + i)->type);
+			//Make table to convert type to index;
+			ib_boost_modes[boost_mode].type_to_idx_table[(ib_dt + i)->type] = i;
 		}
 
-		//Init all type of ib list.
-		INIT_LIST_HEAD(&ib_list[device_count]);
-
-		device_count++;
+		pr_info(ITAG"%s Total Input Device Count(%d)", ib_boost_modes[boost_mode].label, result);
 	}
 
 	ib_init_succeed = is_ib_init_succeed();
-	pr_info(ITAG" Total Input Device Count(%d), IsSuccess(%d)", device_count, ib_init_succeed);
 	ib_init_succeed = input_booster_init_vendor();
 
 	if (ib_init_succeed)
@@ -907,26 +992,32 @@ out:
 	// ********** Initialize Sysfs **********
 	{
 		struct class* sysfs_class;
+		struct device* sysfs_dev;
 		int ret;
-		int ib_type;
-		sysfs_class = class_create(THIS_MODULE, "input_booster");
+		int dev_type, mode_type;
+		struct t_ib_boost_mode* ib_mode;
 
-		if (IS_ERR(sysfs_class)) {
-			pr_err(ITAG" Failed to create class\n");
-			return;
-		}
 		if (ib_init_succeed) {
-			INIT_SYSFS_CLASS(enable_event)
-			INIT_SYSFS_CLASS(debug_level)
-			INIT_SYSFS_CLASS(sendevent)
+			for (mode_type = 0; mode_type < num_of_mode; mode_type++) {
+				ib_mode = &ib_boost_modes[mode_type];
+				sysfs_class = class_create(THIS_MODULE, ib_mode->label);
+				if (IS_ERR(sysfs_class)) {
+					pr_err(ITAG" Failed to create class\n");
+					continue;
+				}
+				if (!mode_type) {
+					INIT_SYSFS_CLASS(enable_event)
+					INIT_SYSFS_CLASS(debug_level)
+					INIT_SYSFS_CLASS(ib_mode_state)
+					INIT_SYSFS_CLASS(sendevent)
+				}
 
-			for (ib_type = 0; ib_type < ndevice_in_dt; ib_type++) {
-				init_sysfs_device(sysfs_class, &ib_device_trees[ib_type]);
+				for (dev_type = 0; dev_type < ib_mode->dt_count; dev_type++) {
+					init_sysfs_device(sysfs_class, NULL, &ib_mode->dt[dev_type]);
+				}
 			}
-		} 
+		}
 	}
 }
-
 #endif //CONFIG_SEC_INPUT_BOOSTER_QC || CONFIG_SEC_INPUT_BOOSTER_SLSI || CONFIG_SEC_INPUT_BOOSTER_MTK
-
 MODULE_LICENSE("GPL");

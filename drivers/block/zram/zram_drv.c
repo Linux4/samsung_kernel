@@ -1077,10 +1077,11 @@ static bool zram_should_writeback(struct zram *zram,
 	if (min_writtenback_ratio < writtenback_ratio)
 		ret = false;
 
-	if (zram->disksize < SZ_4G)
-		min_stored_byte = SZ_512M;
-	else
+	if (zram->disksize / 4 > SZ_1G)
 		min_stored_byte = SZ_1G;
+	else
+		min_stored_byte = zram->disksize / 4;
+
 	if ((stored << PAGE_SHIFT) < min_stored_byte)
 		ret = false;
 
@@ -2091,7 +2092,7 @@ static ssize_t read_block_state(struct file *file, char __user *buf,
 			zram_test_flag(zram, index, ZRAM_HUGE) ? 'h' : '.',
 			zram_test_flag(zram, index, ZRAM_IDLE) ? 'i' : '.');
 
-		if (count < copied) {
+		if (count <= copied) {
 			zram_slot_unlock(zram, index);
 			break;
 		}

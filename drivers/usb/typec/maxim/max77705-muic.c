@@ -279,24 +279,6 @@ static const struct max77705_muic_vps_data muic_vps_table[] = {
 		.attached_dev	= ATTACHED_DEV_QC_CHARGER_5V_MUIC,
 	},
 #endif
-#if defined(CONFIG_MUIC_SM5504_POGO)
-	{
-		.adc		= ADC_HMT,
-		.vbvolt		= VB_DONTCARE,
-		.chgtyp		= CHGTYP_DONTCARE,
-		.muic_switch	= COM_USB,
-		.vps_name	= "POGO Dock 49.9K",
-		.attached_dev	= ATTACHED_DEV_POGO_DOCK_49_9K_MUIC,
-	},
-	{
-		.adc		= ADC_INCOMPATIBLE_VZW,
-		.vbvolt		= VB_DONTCARE,
-		.chgtyp		= CHGTYP_DONTCARE,
-		.muic_switch	= COM_USB,
-		.vps_name	= "POGO Dock 34K",
-		.attached_dev	= ATTACHED_DEV_POGO_DOCK_34K_MUIC,
-	},
-#endif /* CONFIG_MUIC_SM5504_POGO */
 };
 
 static int muic_lookup_vps_table(muic_attached_dev_t new_dev,
@@ -384,6 +366,13 @@ static int com_to_usb_ap(struct max77705_muic_data *muic_data)
 	int ret = 0;
 
 	pr_info("%s\n", __func__);
+
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	if (muic_data->pogo_adc ==ADC_HMT) {
+		pr_info("%s: pogo adc is 49.9K just return\n", __func__);
+		return ret;
+	}
+#endif
 
 	reg_val = COM_USB;
 
@@ -571,7 +560,7 @@ static void max77705_muic_enable_chgdet(struct max77705_muic_data *muic_data)
 	max77705_usbc_opcode_update(usbc_pdata, &update_data);
 }
 
-#if 0
+#if defined(CONFIG_MUIC_DISABLE_CHGDET)
 static void max77705_muic_disable_chgdet(struct max77705_muic_data *muic_data)
 {
 	struct max77705_usbc_platform_data *usbc_pdata = muic_data->usbc_pdata;
@@ -821,10 +810,24 @@ static ssize_t max77705_muic_show_attached_dev(struct device *dev,
 	int vps_index;
 
 	vps_index = muic_lookup_vps_table(muic_data->attached_dev, muic_data);
-	if (vps_index < 0)
+	if (vps_index < 0) {
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+		if (muic_data->pogo_adc == ADC_HMT)
+			return sprintf(buf, "POGO Dock 49.9K\n");
+		else if (muic_data->pogo_adc == ADC_INCOMPATIBLE_VZW)
+			return sprintf(buf, "POGO Dock 34K\n");
+#endif /* CONFIG_MUIC_SM5504_POGO */
 		return sprintf(buf, "No VPS\n");
+	}
 
 	tmp_vps = &(muic_vps_table[vps_index]);
+
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	if (muic_data->pogo_adc == ADC_HMT)
+		return sprintf(buf, "POGO Dock 49.9K+%s\n", tmp_vps->vps_name);
+	else if (muic_data->pogo_adc == ADC_INCOMPATIBLE_VZW)
+		return sprintf(buf, "POGO Dock 34K+%s\n", tmp_vps->vps_name);
+#endif /* CONFIG_MUIC_SM5504_POGO */
 
 	return sprintf(buf, "%s\n", tmp_vps->vps_name);
 }
@@ -1247,12 +1250,6 @@ static int max77705_muic_handle_detach(struct max77705_muic_data *muic_data, int
 		if (muic_data->ccic_info_data.ccic_evt_attached == MUIC_PDIC_NOTI_DETACH)
 			com_to_open(muic_data);
 		break;
-#if defined(CONFIG_MUIC_SM5504_POGO)
-	case ATTACHED_DEV_POGO_DOCK_34K_MUIC:
-	case ATTACHED_DEV_POGO_DOCK_49_9K_MUIC:
-		com_to_open(muic_data);
-		break;
-#endif /* CONFIG_MUIC_SM5504_POGO */
 	case ATTACHED_DEV_UNOFFICIAL_ID_MUIC:
 		goto out_without_noti;
 	default:
@@ -1332,12 +1329,6 @@ static int max77705_muic_logically_detach(struct max77705_muic_data *muic_data,
 	case ATTACHED_DEV_NONE_MUIC:
 		force_path_open = false;
 		goto out;
-#if defined(CONFIG_MUIC_SM5504_POGO)
-	case ATTACHED_DEV_POGO_DOCK_34K_MUIC:
-	case ATTACHED_DEV_POGO_DOCK_49_9K_MUIC:
-		force_path_open = false;
-		break;
-#endif /* CONFIG_MUIC_SM5504_POGO */
 	default:
 		pr_warn("%s try to attach without logically detach\n",
 				__func__);
@@ -1442,12 +1433,6 @@ handle_attach:
 			notify_skip = true;
 		break;
 #endif /* CONFIG_HICCUP_CHARGER */
-#if defined(CONFIG_MUIC_SM5504_POGO)
-	case ATTACHED_DEV_POGO_DOCK_34K_MUIC:
-	case ATTACHED_DEV_POGO_DOCK_49_9K_MUIC:
-		ret = com_to_usb_ap(muic_data);
-		break;
-#endif /* CONFIG_MUIC_SM5504_POGO */
 	default:
 		pr_warn("%s unsupported dev(%d)\n", __func__,
 				new_dev);
@@ -1693,14 +1678,6 @@ muic_attached_dev_t max77705_muic_check_new_dev(struct max77705_muic_data *muic_
 	if ((muic_data->pdata->opmode & OPMODE_PDIC) && (adc == MAX77705_UIADC_523K))
 		vbvolt = 0;
 #endif /* CONFIG_MUIC_MAX77705_PDIC */
-
-#if defined(CONFIG_MUIC_SM5504_POGO)
-	if (muic_data->pogo_adc != ADC_OPEN) {
-		pr_info("%s: pogo adc(0x%x->0x%x)\n", __func__, adc,
-				muic_data->pogo_adc);
-		adc = muic_data->pogo_adc;
-	}
-#endif /* CONFIG_MUIC_SM5504_POGO */
 
 	for (i = 0; i < (int)ARRAY_SIZE(muic_vps_table); i++) {
 		tmp_vps = &(muic_vps_table[i]);
@@ -2119,7 +2096,7 @@ void max77705_muic_handle_detect_dev_hv(struct max77705_muic_data *muic_data, un
 }
 #endif /* CONFIG_HV_MUIC_MAX77705_AFC */
 
-#if defined(CONFIG_MUIC_SM5504_POGO)
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
 static int max77705_muic_set_pogo_adc(int adc)
 {
 	struct max77705_muic_data *muic_data = g_muic_data;
@@ -2127,12 +2104,19 @@ static int max77705_muic_set_pogo_adc(int adc)
 	pr_info("%s adc(0x%x)\n", __func__, adc);
 	muic_data->pogo_adc = adc;
 
-	mutex_lock(&muic_data->muic_mutex);
-	if (muic_data->is_muic_ready == true)
-		max77705_muic_detect_dev(muic_data, MUIC_IRQ_POGO_ADC);
-	else
-		pr_info("%s MUIC is not ready, just return\n", __func__);
-	mutex_unlock(&muic_data->muic_mutex);
+#if defined(CONFIG_MUIC_DISABLE_CHGDET)
+	if (adc == ADC_HMT) {
+		pr_info("%s adc is POGO pogo keyboard, path open, bc12 off\n", __func__);
+		com_to_open(muic_data);
+
+		max77705_muic_disable_chgdet(muic_data);
+	}
+
+	if (adc == ADC_OPEN) {
+		pr_info("%s adc is open, bc12 on\n", __func__);
+		max77705_muic_enable_chgdet(muic_data);
+	}
+#endif
 
 	return 0;
 }
@@ -2603,7 +2587,7 @@ int max77705_muic_probe(struct max77705_usbc_platform_data *usbc_data)
 	muic_data->pdata->muic_afc_set_voltage_cb = max77705_muic_afc_set_voltage;
 	muic_data->pdata->muic_hv_charger_disable_cb = max77705_muic_hv_charger_disable;
 
-#if defined(CONFIG_MUIC_SM5504_POGO)
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
 	muic_data->pdata->muic_set_pogo_adc_cb = max77705_muic_set_pogo_adc;
 	muic_data->pogo_adc = ADC_OPEN;
 #endif /* CONFIG_MUIC_SM5504_POGO */

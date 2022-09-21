@@ -298,7 +298,7 @@ static ssize_t sec_virtual_tsp_support_feature_show(struct device *dev,
 
 	memset(buffer, 0x00, sizeof(buffer));
 
-	ret = sec_cmd_virtual_tsp_read_sysfs(dual_sec, "/sys/class/sec/tsp1/support_feature", buffer, sizeof(buffer));
+	ret = sec_cmd_virtual_tsp_read_sysfs(dual_sec, PATH_MAIN_SEC_SYSFS_SUPPORT_FEATURE, buffer, sizeof(buffer));
 	if (ret < 0)
 		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG\n");
 
@@ -314,9 +314,9 @@ static ssize_t sec_virtual_tsp_prox_power_off_show(struct device *dev,
 	memset(buffer, 0x00, sizeof(buffer));
 
 	if (flip_status)
-		ret = sec_cmd_virtual_tsp_read_sysfs(dual_sec, "/sys/class/sec/tsp2/prox_power_off", buffer, sizeof(buffer));
+		ret = sec_cmd_virtual_tsp_read_sysfs(dual_sec, PATH_SUB_SEC_SYSFS_PROX_POWER_OFF, buffer, sizeof(buffer));
 	else
-		ret = sec_cmd_virtual_tsp_read_sysfs(dual_sec, "/sys/class/sec/tsp1/prox_power_off", buffer, sizeof(buffer));
+		ret = sec_cmd_virtual_tsp_read_sysfs(dual_sec, PATH_MAIN_SEC_SYSFS_PROX_POWER_OFF, buffer, sizeof(buffer));
 
 	input_info(false, dual_sec->fac_dev, "%s: %s, ret:%d\n", __func__,
 			 flip_status ? "close" : "open", ret);
@@ -333,9 +333,9 @@ static ssize_t sec_virtual_tsp_prox_power_off_store(struct device *dev,
 	int ret;
 
 	if (flip_status)
-		ret = sec_cmd_virtual_tsp_write_sysfs(dual_sec, "/sys/class/sec/tsp2/prox_power_off", buf);
+		ret = sec_cmd_virtual_tsp_write_sysfs(dual_sec, PATH_SUB_SEC_SYSFS_PROX_POWER_OFF, buf);
 	else
-		ret = sec_cmd_virtual_tsp_write_sysfs(dual_sec, "/sys/class/sec/tsp1/prox_power_off", buf);
+		ret = sec_cmd_virtual_tsp_write_sysfs(dual_sec, PATH_MAIN_SEC_SYSFS_PROX_POWER_OFF, buf);
 
 	input_info(false, dual_sec->fac_dev, "%s: %s, ret:%d\n", __func__,
 			 flip_status ? "close" : "open", ret);
@@ -362,11 +362,13 @@ static ssize_t dualscreen_policy_store(struct device *dev,
 	flip_status = value;
 	mutex_unlock(&switching_mutex);
 
-	if (value == FLIP_STATUS_MAIN)
-		ret = sec_cmd_virtual_tsp_write_sysfs(dual_sec, "/sys/class/sec/tsp1/dualscreen_policy", buf);
+	if (value == FLIP_STATUS_MAIN) {
+		sec_cmd_virtual_tsp_write_sysfs(dual_sec, PATH_MAIN_SEC_SYSFS_DUALSCREEN_POLICY, buf);
+		sec_cmd_virtual_tsp_write_sysfs(dual_sec, PATH_SUB_SEC_SYSFS_DUALSCREEN_POLICY, buf);
+	}
 
-	input_info(false, dual_sec->fac_dev, "%s: value=%d %s, ret:%d\n", __func__, value,
-			 flip_status ? "close" : "open", ret);
+	input_info(false, dual_sec->fac_dev, "%s: value=%d %s\n", __func__, value,
+			 flip_status ? "close" : "open");
 
 	return count;
 }

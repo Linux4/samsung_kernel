@@ -196,11 +196,25 @@ void ReadBufferByPosition(struct tRingBuffer *buffer,
 {
 	if (start < end) {
 		*length = end - start;
+
+		if (*length > PERFLOG_PACKET_SIZE) {
+			*length = 0;
+			return;
+		}
+
 		memcpy(data, buffer->data + start, *length);
-	} else {
+	} else if (buffer->length > start) {
 		*length = buffer->length - start;
+
+		if ((*length + end) > PERFLOG_PACKET_SIZE) {
+			*length = 0;
+			return;
+		}
+
 		memcpy(data, buffer->data + start, *length);
 		memcpy(data + *length, buffer->data, end);
+	} else {
+		*length = 0;
 	}
 }
 

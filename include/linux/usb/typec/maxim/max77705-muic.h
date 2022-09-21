@@ -214,7 +214,7 @@ struct max77705_muic_data {
 #else
 	struct notifier_block		ccic_nb;
 #endif
-#if defined(CONFIG_MUIC_SM5504_POGO)
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
 	int				pogo_adc;
 #endif /* CONFIG_MUIC_SM5504_POGO */
 #endif /* CONFIG_MUIC_MAX77705_PDIC */

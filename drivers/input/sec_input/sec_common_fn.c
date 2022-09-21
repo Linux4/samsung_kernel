@@ -345,7 +345,7 @@ ssize_t sec_input_get_fod_info(struct device *dev, char *buf)
 
 	if (!pdata->support_fod) {
 		input_err(true, dev, "%s: fod is not supported\n", __func__);
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	if (pdata->x_node_num <= 0 || pdata->y_node_num <= 0) {
@@ -577,6 +577,8 @@ void sec_input_gesture_report(struct device *dev, int id, int x, int y)
 		snprintf(buff, sizeof(buff), "SCAN UNBLOCK");
 	} else if (id == SPONGE_EVENT_TYPE_TSP_SCAN_BLOCK) {
 		snprintf(buff, sizeof(buff), "SCAN BLOCK");
+	} else if (id == SPONGE_EVENT_TYPE_LONG_PRESS) {
+		snprintf(buff, sizeof(buff), "LONG PRESS");
 	} else {
 		snprintf(buff, sizeof(buff), "");
 	}
@@ -1145,11 +1147,14 @@ int sec_input_parse_dt(struct device *dev)
 	if (of_property_read_u32(np, "sec,support_dual_foldable", &pdata->support_dual_foldable) < 0)
 		pdata->support_dual_foldable = 0;
 
+	pdata->chip_on_board = of_property_read_bool(np, "chip_on_board");
+
 	lcd_type = sec_input_get_lcd_id(dev);
 #if !defined(DUAL_FOLDABLE_GKI)
 	if (lcd_type < 0) {
 		input_err(true, dev, "%s: lcd is not attached\n", __func__);
-		return -ENODEV;
+		if (!pdata->chip_on_board)
+			return -ENODEV;
 	}
 #endif
 	input_info(true, dev, "%s: lcdtype 0x%08X\n", __func__, lcd_type);
@@ -1328,7 +1333,6 @@ int sec_input_parse_dt(struct device *dev)
 	pdata->support_mis_calibration_test = of_property_read_bool(np, "support_mis_calibration_test");
 	pdata->support_wireless_tx = of_property_read_bool(np, "support_wireless_tx");
 	pdata->support_input_monitor = of_property_read_bool(np, "support_input_monitor");
-	pdata->chip_on_board = of_property_read_bool(np, "chip_on_board");
 	pdata->disable_vsync_scan = of_property_read_bool(np, "disable_vsync_scan");
 	pdata->unuse_dvdd_power = of_property_read_bool(np, "sec,unuse_dvdd_power");
 	pdata->sense_off_when_cover_closed = of_property_read_bool(np, "sense_off_when_cover_closed");
@@ -1345,6 +1349,13 @@ int sec_input_parse_dt(struct device *dev)
 	pdata->enable_sysinput_enabled = of_property_read_bool(np, "sec,enable_sysinput_enabled");
 	input_info(true, dev, "%s: Sysinput enabled %s\n",
 				__func__, pdata->enable_sysinput_enabled ? "ON" : "OFF");
+
+	pdata->support_rawdata_motion_aivf = of_property_read_bool(np, "sec,support_rawdata_motion_aivf");
+	input_info(true, dev, "%s: motion aivf %s\n",
+				__func__, pdata->support_rawdata_motion_aivf ? "ON" : "OFF");
+	pdata->support_rawdata_motion_palm = of_property_read_bool(np, "sec,support_rawdata_motion_palm");
+	input_info(true, dev, "%s: motion palm %s\n",
+				__func__, pdata->support_rawdata_motion_palm ? "ON" : "OFF");
 
 	if (of_property_read_u32_array(np, "sec,area-size", px_zone, 3)) {
 		input_info(true, dev, "Failed to get zone's size\n");
@@ -1543,7 +1554,9 @@ __visible_for_testing ssize_t sec_input_enabled_show(struct device *dev,
 
 	return scnprintf(buf, PAGE_SIZE, "%d\n", pdata->enabled);
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(sec_input_enabled_show);
+#endif
 
 __visible_for_testing ssize_t sec_input_enabled_store(struct device *dev,
 					struct device_attribute *attr,
@@ -1575,7 +1588,9 @@ __visible_for_testing ssize_t sec_input_enabled_store(struct device *dev,
 out:
 	return size;
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(sec_input_enabled_store);
+#endif
 
 static DEVICE_ATTR(enabled, 0664, sec_input_enabled_show, sec_input_enabled_store);
 

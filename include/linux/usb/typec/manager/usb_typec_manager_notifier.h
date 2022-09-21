@@ -138,9 +138,15 @@ typedef struct _manager_data_t
 	struct workqueue_struct *manager_muic_noti_wq;
 	struct manager_dwork usb_enum_check;
 	struct manager_dwork usb_event_by_vbus;
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	struct manager_dwork usb_event_by_pogo;
+#endif
 
 	struct mutex mo_lock;
 	int vbus_state;
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	int is_muic_pogo;
+#endif
 	int classified_cable_type;
 
 	int pdic_attach_state;

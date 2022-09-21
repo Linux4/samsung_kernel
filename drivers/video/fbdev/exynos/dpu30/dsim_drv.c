@@ -439,7 +439,8 @@ int __mockable dsim_sr_write_data(struct dsim_device *dsim, const u8 *cmd, u32 s
 			if (dsim_is_fifo_empty_status(dsim))
 				break;
 			usleep_range(10, 11);
-		} while (cnt--);
+			cnt--;
+		} while (cnt);
 
 		if (!cnt) {
 			dsim_err("ID(%d): DSIM command(%x) fail\n", dsim->id, cmd[0]);
@@ -500,9 +501,11 @@ int __mockable dsim_write_cmd_set(struct dsim_device *dsim, struct exynos_dsim_c
 	int ret = 0;
 	int cnt = 5000;
 	int pl_sum;
+	u32 ph_num1, ph_num2;
 	struct decon_device *decon = get_decon_drvdata(dsim->id);
 	struct exynos_dsim_cmd *cmd;
 	struct exynos_dsim_cmd_set set;
+	struct dsim_regs regs;
 
 	decon_hiber_block_exit(decon);
 	mutex_lock(&dsim->cmd_lock);
@@ -592,6 +595,7 @@ int __mockable dsim_write_cmd_set(struct dsim_device *dsim, struct exynos_dsim_c
 			if(wait_vsync)
 				decon_wait_for_vsync(decon, VSYNC_TIMEOUT_MSEC);
 		}
+		ph_num1 = dsim_reg_get_ph_num(dsim->id);
 		/* set packet go ready*/
 		dsim_reg_set_packetgo_ready(dsim->id);
 
@@ -599,9 +603,14 @@ int __mockable dsim_write_cmd_set(struct dsim_device *dsim, struct exynos_dsim_c
 			if (dsim_is_fifo_empty_status(dsim))
 				break;
 			usleep_range(10, 11);
-		} while (cnt--);
+			cnt--;
+		} while (cnt);
 		if (!cnt) {
-			dsim_err("DSIM command set fail, cmd_cnt : %d\n", cmd_cnt);
+			ph_num2 = dsim_reg_get_ph_num(dsim->id);
+			dsim_err("DSIM command set fail, cmd_cnt: %d(ok_cnt: %d)\n",
+					cmd_cnt, (ph_num1 - ph_num2));
+			dsim_to_regs_param(dsim, &regs);
+			__dsim_dump(dsim->id, &regs);
 			ret = -EINVAL;
 			goto err_exit;
 		}
@@ -716,7 +725,8 @@ int __mockable dsim_write_data(struct dsim_device *dsim, u32 id, unsigned long d
 			if (dsim_is_fifo_empty_status(dsim))
 				break;
 			usleep_range(10, 11);
-		} while (cnt--);
+			cnt--;
+		} while (cnt);
 
 		if (!cnt) {
 			dsim_err("ID(%d): DSIM command(%lx) fail\n", id, d0);
@@ -881,7 +891,8 @@ int dsim_wait_fifo_empty(struct dsim_device *dsim, u32 frames)
 		if (dsim_is_fifo_empty_status(dsim))
 			break;
 		usleep_range(10, 11);
-	} while (cnt--);
+		cnt--;
+	} while (cnt);
 
 	return cnt;
 }
