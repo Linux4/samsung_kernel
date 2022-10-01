@@ -1,0 +1,7 @@
+#
+# Makefile for muic devices
+#
+subdir-ccflags-y := -Wformat
+
+obj-$(CONFIG_MUIC_NOTIFIER)	+= common_muic.o
+common_muic-y	:= muic-core.o muic_notifier.o

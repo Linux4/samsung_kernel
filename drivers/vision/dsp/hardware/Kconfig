@@ -1,0 +1,7 @@
+menuconfig EXYNOS_DSP_HARDWARE
+	bool "hardware dependent driver"
+
+config EXYNOS_DSP_EXYNOS9630
+	bool "Use Exynos9630 platform"
+	depends on EXYNOS_DSP_HARDWARE
+	depends on SOC_EXYNOS9630
