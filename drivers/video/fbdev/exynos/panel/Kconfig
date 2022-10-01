@@ -1,0 +1,175 @@
+config EXYNOS_DECON_LCD
+	depends on EXYNOS_DPU30
+	bool "Select LCD panel driver"
+
+config EXYNOS_DECON_MDNIE
+	depends on EXYNOS_DECON_LCD
+	tristate "Support MDNIE"
+	default n
+
+config SUPPORT_AFC
+	depends on EXYNOS_DECON_LCD && EXYNOS_DECON_MDNIE
+	tristate "Support AFC"
+	default n
+
+config SUPPORT_ISC_TUNE_TEST
+	depends on EXYNOS_DECON_LCD
+	tristate "Support ISC TUNE TEST"
+	default n
+
+config EXYNOS_DECON_LCD_SYSFS
+	depends on EXYNOS_DECON_LCD
+	tristate "Support LCD SYSFS"
+	default y
+
+config EXYNOS_DECON_LCD_SPI
+	depends on EXYNOS_DECON_LCD
+	tristate "Support LCD SPI"
+	default n
+
+config EXYNOS_DECON_LCD_COPR
+	depends on EXYNOS_DECON_LCD
+	tristate "Support COPR"
+	default n
+
+config EXYNOS_DECON_LCD_TUNING
+	depends on EXYNOS_DECON_LCD
+	tristate "Support LCD TUNING"
+	default n
+
+config PANEL_AID_DIMMING
+	depends on EXYNOS_DECON_LCD
+	tristate "Support AID Dimming"
+	default y
+
+config PANEL_AID_DIMMING_DEBUG
+	depends on PANEL_AID_DIMMING
+	depends on !SAMSUNG_PRODUCT_SHIP
+	tristate "Support AID Dimming Debug"
+	default y
+
+config SUPPORT_DSU
+	tristate "Support DSU(Multi Resolution)"
+	depends on EXYNOS_DECON_LCD
+	default n
+
+config SUPPORT_HMD
+	tristate "Support HMD(Head Mount Display - VR)"
+	depends on EXYNOS_DECON_LCD
+	default n
+
+config SUPPORT_DOZE
+	depends on EXYNOS_DECON_LCD
+	tristate "Support Panel AOD"
+	default n
+
+config SUPPORT_INDISPLAY
+	depends on EXYNOS_DECON_LCD
+	tristate "Support Panel indisplay FOD"
+	default n
+
+config EXTEND_LIVE_CLOCK
+	tristate "Support Extend Live Clock Functions(For Always On Display)"
+	depends on EXYNOS_DECON_LCD
+	default n
+
+config SUPPORT_AOD_BL
+	depends on EXYNOS_DECON_LCD && SUPPORT_DOZE
+	tristate "Support AOD(Active On Display) BL(BackLight) Driver"
+	default n
+
+config PANEL_BACKLIGHT_PAC_3_0
+	depends on EXYNOS_DECON_LCD
+	tristate "Support baclight PAC 3.0"
+	default n
+
+config DISPLAY_USE_INFO
+	depends on EXYNOS_DECON_LCD
+	tristate "Support display use info logging"
+	default n
+
+config PANEL_NOTIFY
+	depends on EXYNOS_DECON_LCD
+	tristate "Support panel notifier"
+	default n
+
+config SUPPORT_POC_SPI
+	depends on EXYNOS_DECON_LCD
+	tristate "Support poc SPI connection"
+	default n
+
+config SUPPORT_I2C
+	depends on EXYNOS_DECON_LCD
+	tristate "Support LCD I2C"
+	default n
+
+config DYNAMIC_FREQ
+	depends on EXYNOS_DECON_LCD
+	tristate "Support Dynamic Freq"
+	default n
+
+config SUPPORT_ERRFG_RECOVERY
+	depends on EXYNOS_DECON_LCD
+	tristate "Support ERRFG recovery"
+	default n
+
+config SUPPORT_ERRFG_RECOVERY_BY_FB_BLANK
+	depends on SUPPORT_ERRFG_RECOVERY
+	tristate "Support ERRFG recovery by fb blank"
+	default n
+
+config EXYNOS_DECON_LCD_EA8076_A21S
+	depends on EXYNOS_DECON_LCD
+	tristate "EA8076_A21S LCD driver"
+
+config EXYNOS_DECON_LCD_ILI9882N_M12S
+	depends on EXYNOS_DECON_LCD
+	tristate "ILI9882N_M12S LCD driver"
+
+config EXYNOS_DECON_LCD_NT36525_XCOVER5
+	depends on EXYNOS_DECON_LCD
+	tristate "NT36525_XCOVER5 LCD driver"
+
+config EXYNOS_DECON_LCD_NT36675_M12
+	depends on EXYNOS_DECON_LCD
+	tristate "NT36675_M12 LCD driver"
+
+config EXYNOS_DECON_LCD_ILI7806S_M12
+	depends on EXYNOS_DECON_LCD
+	tristate "ILI7806S_M12 LCD driver"
+
+config EXYNOS_DECON_LCD_NT36525B_CTC_A12S
+	depends on EXYNOS_DECON_LCD
+	tristate "NT36525B_CTC_A12S LCD driver"
+
+config EXYNOS_DECON_LCD_ILI9882Q_BOE_A12S
+	depends on EXYNOS_DECON_LCD
+	tristate "ILI9882Q_A12S LCD driver"
+
+config EXYNOS_DECON_LCD_NT36525B_SHARP_A12S
+	depends on EXYNOS_DECON_LCD
+	tristate "NT36525B_SHARP_A12S LCD driver"
+
+config EXYNOS_DECON_LCD_NT36525B_DTC_A12S
+	depends on EXYNOS_DECON_LCD
+	tristate "NT36525B_DTC_A12S LCD driver"
+
+config EXYNOS_DECON_LCD_TD4150_BOE_A12S
+	depends on EXYNOS_DECON_LCD
+	tristate "TD4150_BOE_A12S LCD driver"
+	
+config EXYNOS_DECON_LCD_TD4375_BOE_A12S
+	depends on EXYNOS_DECON_LCD
+	tristate "TD4375_BOE_A12S LCD driver"
+
+config EXYNOS_DECON_LCD_ILI7807S_A12S
+	depends on EXYNOS_DECON_LCD
+	tristate "ILI7807S_A12S LCD driver"
+
+config EXYNOS_DECON_LCD_TD4160_BOE_A12S
+	depends on EXYNOS_DECON_LCD
+	tristate "TD4160_BOE_A12S LCD driver"
+
+config EXYNOS_DECON_LCD_A12S_BLIC_DUAL
+	depends on EXYNOS_DECON_LCD
+	tristate "A12S BLIC DUAL"
