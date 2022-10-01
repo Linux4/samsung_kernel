@@ -1,0 +1,2177 @@
+/*
+ * sound/soc/codec/aud3004x.h
+ *
+ * ALSA SoC Audio Layer - Samsung Codec Driver
+ *
+ * Copyright (C) 2019 Samsung Electronics
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#ifndef _AUD3004X_H
+#define _AUD3004X_H
+
+#include <linux/completion.h>
+#include <sound/soc.h>
+#include <linux/iio/consumer.h>
+
+#define CONFIG_SND_SOC_SAMSUNG_VERBOSE_DEBUG 1
+
+#define AUD3004X_COMMON_ADDR			0x00
+#define AUD3004X_PMIC_ADDR				0x01
+#define AUD3004X_OTP_ADDR				0x03
+#define AUD3004X_DIGITAL_ADDR			0x07
+#define AUD3004X_ANALOG_ADDR			0X08
+#define AUD3004X_CLOSE_ADDR				0x0F
+
+#define AUD3004X_REGCACHE_SYNC_START	0x00
+#define AUD3004X_REGCACHE_SYNC_END		0xFF
+
+#define AUD3004X_SAMPLE_RATE_48KHZ		48000
+#define AUD3004X_SAMPLE_RATE_192KHZ		192000
+#define AUD3004X_SAMPLE_RATE_384KHZ		384000
+
+#define BIT_RATE_16		16
+#define BIT_RATE_24		24
+#define BIT_RATE_32		32
+
+#define AUD3004X_DAC_MUTE_USEC				10000
+#define AUD3004X_ADC_MUTE_USEC				10000
+#define AUD3004X_RESETB_TIME_USEC			1000
+#define AUD3004X_APW_TIME_MSEC				20
+#define AUD3004X_PDB_CLK_MSEC				20
+#define AUD3004X_AMIC_MUTE_DEF_MSEC			320
+#define AUD3004X_DMIC_MUTE_DEF_MSEC			120
+#define AUD3004X_OVP_ON_SETTING_DEF_MSEC	200
+#define AUD3004X_OVP_OFF_MSEC				30
+#define AUD3004X_OVP_DET_DEF_MSEC			2000
+
+struct aud3004x_jack;
+
+enum aud3004x_type {
+	CODEC_CLOSE = -1,
+	AUD3004D = 0,
+	AUD3004A,
+	AUD3004O,
+};
+
+struct aud3004x_priv {
+	/* codec driver default */
+	struct snd_soc_component *codec;
+	struct aud3004x_jack *p_jackdet;
+	struct device *dev;
+	struct i2c_client *i2c_priv[3];
+	struct regmap *regmap[3];
+	/* regulator */
+	struct regulator *vdd;
+	struct regulator *vdd2;
+	int regulator_count;
+	/* codec mutex */
+	struct mutex adc_mute_lock;
+	struct mutex dacl_mute_lock;
+	struct mutex dacr_mute_lock;
+	struct mutex regcache_lock;
+	struct mutex regmap_lock;
+	/* codec workqueue */
+	struct delayed_work adc_mute_work;
+	struct workqueue_struct *adc_mute_wq;
+	struct delayed_work ovp_on_setting_work;
+	struct workqueue_struct *ovp_on_setting_wq;
+	/* codec parse dt */
+	u16 model_feature_flag;
+	/* codec mixer */
+	unsigned int amic_mute, dmic_mute;
+	unsigned int ovp_on_setting;
+	unsigned int ovp_det_delay;
+	/* saved information */
+	int codec_ver;
+	bool is_ext_ant;
+	bool is_suspend;
+	bool pm_suspend;
+	bool is_probe_done;
+	bool playback_on;
+	bool capture_on;
+	unsigned int playback_aifrate;
+	unsigned int capture_aifrate;
+	unsigned int lvol;
+	unsigned int rvol;
+	unsigned int mic_status;
+	int dmic_bias_gpio;
+};
+
+/* Forward Declarations */
+/* Main Functions */
+int aud3004x_disable(struct device *dev);
+int aud3004x_enable(struct device *dev);
+void regcache_cache_switch(struct aud3004x_priv *aud3004x, bool on);
+void aud3004x_adc_digital_mute(struct snd_soc_component *codec, unsigned int channel, bool on);
+void aud3004x_usleep(unsigned int u_sec);
+int aud3004x_acpm_read_reg(unsigned int slave, unsigned int reg, unsigned int *val);
+int aud3004x_acpm_write_reg(unsigned int slave, unsigned int reg, unsigned int val);
+int aud3004x_acpm_update_reg(unsigned int slave, unsigned int reg, unsigned int val, unsigned int mask);
+unsigned int aud3004x_read(struct aud3004x_priv *aud3004x, unsigned int reg);
+int aud3004x_write(struct aud3004x_priv *aud3004x, unsigned int reg, unsigned int val);
+int aud3004x_update_bits(struct aud3004x_priv *aud3004x, unsigned int reg, unsigned int mask, unsigned int value);
+/* Jack Functions */
+bool aud3004x_notifier_check(void);
+void aud3004x_call_notifier(u8 irq_codec[], int count);
+int aud3004x_jack_probe(struct snd_soc_component *codec);
+int aud3004x_jack_remove(struct snd_soc_component *codec);
+
+/*
+ * Helper macros for creating bitmasks
+ */
+#define MASK(width, shift)	(((0x1 << (width)) - 1) << shift)
+
+/*
+ * Register Map
+ */
+
+/* Audio IRQ and Status */
+#define AUD3004X_00_BASE_REG		0x00
+#define AUD3004X_01_IRQ1PEND		0x01
+#define AUD3004X_02_IRQ2PEND		0x02
+#define AUD3004X_03_IRQ3PEND		0x03
+#define AUD3004X_04_IRQ4PEND		0x04
+#define AUD3004X_05_IRQ5PEND		0x05
+#define AUD3004X_06_IRQ6PEND		0x06
+#define AUD3004X_08_IRQ1M			0x08
+#define AUD3004X_09_IRQ2M			0x09
+#define AUD3004X_0A_IRQ3M			0x0A
+#define AUD3004X_0B_IRQ4M			0x0B
+#define AUD3004X_0C_IRQ5M			0x0C
+#define AUD3004X_0D_IRQ6M			0x0D
+
+/* Clock and Reset */
+#define AUD3004X_10_CLKGATE0		0x10
+#define AUD3004X_11_CLKGATE1		0x11
+#define AUD3004X_12_CLKGATE2		0x12
+#define AUD3004X_14_RESETB0			0X14
+#define AUD3004X_16_CLK_MODE_SEL	0x16
+#define AUD3004X_18_PWAUTO_AD		0x18
+#define AUD3004X_19_PWAUTO_DA		0x19
+#define AUD3004X_1A_DRIVER_MUTE		0X1A
+#define AUD3004X_1E_CHOP1			0x1E
+#define AUD3004X_1F_CHOP2			0x1F
+
+/* Digital Audio Interface */
+#define AUD3004X_20_IF_FORM1		0x20
+#define AUD3004X_21_IF_FORM2		0x21
+#define AUD3004X_22_IF_FORM3		0x22
+#define AUD3004X_23_IF_FORM4		0x23
+#define AUD3004X_24_IF_FORM5		0x24
+#define AUD3004X_29_IF_FORM6		0x29
+#define AUD3004X_2F_DMIC_ST			0x2F
+
+/* Recording Path Digital Setting */
+#define AUD3004X_30_ADC1			0x30
+#define AUD3004X_31_ADC2			0x31
+#define AUD3004X_32_ADC3			0x32
+#define AUD3004X_33_ADC4			0x33
+#define AUD3004X_34_AD_VOLL			0x34
+#define AUD3004X_35_AD_VOLR			0x35
+#define AUD3004X_37_AD_HPF			0x37
+#define AUD3004X_38_AD_TRIM1		0x38
+#define AUD3004X_39_AD_TRIM2		0x39
+
+/* Playback Path Digital Setting */
+#define AUD3004X_40_PLAY_MODE1		0x40
+#define AUD3004X_41_PLAY_VOLL		0x41
+#define AUD3004X_42_PLAY_VOLR		0x42
+#define AUD3004X_43_PLAY_VOLC		0x43
+#define AUD3004X_44_PLAY_MODE2		0x44
+#define AUD3004X_45_PLAY_MIX1		0x45
+#define AUD3004X_46_PLAY_MIX2		0x46
+#define AUD3004X_47_TRIM_DAC0		0x47
+#define AUD3004x_48_TRIM_DAC1		0x48
+#define AUD3004X_49_DSMDWA1_DA		0x49
+#define AUD3004X_4A_DSMDWA2_DA		0x4A
+#define AUD3004X_4B_DSM_OPT1		0x4B
+#define AUD3004X_4C_DSM_OPT2		0x4C
+#define AUD3004X_4D_DSM_OPT3		0x4D
+#define AUD3004X_4E_OFFSET_OPT		0x4E
+
+/* Adaptive Volume Control for Playback Path */
+#define AUD3004X_50_AVC1			0x50
+#define AUD3004X_53_AVC4			0x53
+#define AUD3004X_58_AVC9			0x58
+#define AUD3004X_5C_AVC13			0x5C
+#define AUD3004X_68_AVC25			0x68
+#define AUD3004X_71_AVC34			0x71
+#define AUD3004X_72_AVC35			0x72
+#define AUD3004X_73_AVC36			0x73
+#define AUD3004X_74_AVC37			0x74
+#define AUD3004X_7A_AVC43			0x7A
+#define AUD3004X_7C_OCPCTRL0		0x7C
+
+/* Interrupt Register for LV */
+#define AUD3004X_8B_OVP_INTR_POS	0X8B
+#define AUD3004X_8C_OVP_INTR_NEG	0X8C
+
+/* DAC Digital DSM Control */
+#define AUD3004X_90_BOOST_HR0		0x90
+#define AUD3004X_91_BOOST_HR1		0x91
+#define AUD3004X_92_BOOST_CTRL0		0x92
+#define AUD3004X_95_VBAT_M0			0x95
+#define AUD3004X_96_VBAT_M1			0x96
+#define AUD3004X_97_TEST_VBAT0		0x97
+#define AUD3004X_9D_AVC_TIMER_M1	0x9D
+#define AUD3004X_9E_AVC_TIMER_M2	0x9E
+
+/* Auto SEQ - Detail Control */
+#define AUD3004X_A6_AUTO_HP7		0xA6
+#define AUD3004X_B0_AUTO_COM1		0xB0
+#define AUD3004X_B1_AUTO_SPK1		0xB1
+#define AUD3004X_B5_ODSEL0			0xB5
+#define AUD3004X_B6_ODSEL1			0xB6
+#define AUD3004X_B8_ODSEL3			0xB8
+#define AUD3004X_B9_ODSEL4			0xB9
+#define AUD3004X_BB_ODSEL6			0xBB
+
+/* HP Management Unit Control */
+#define AUD3004X_C0_ACTR_JD1		0xC0
+#define AUD3004X_C1_ACTR_JD2		0xC1
+#define AUD3004X_C2_ACTR_BTN		0xC2
+#define AUD3004X_C5_ACTR_MCB3		0xC5
+#define AUD3004X_C6_ACTR_MCB4		0xC6
+#define AUD3004X_CB_ACTR_GP			0xCB
+#define AUD3004X_CC_ACTR_DLDO		0xCC
+#define AUD3004X_D0_DCTR_CM			0xD0
+#define AUD3004X_D1_DCTR_TEST1		0xD1
+#define AUD3004X_D2_DCTR_TEST2		0xD2
+#define AUD3004X_D3_DCTR_TEST3		0xD3
+#define AUD3004X_D4_DCTR_TEST4		0xD4
+#define AUD3004X_D5_DCTR_TEST5		0xD5
+#define AUD3004X_D6_DCTR_TEST6		0xD6
+#define AUD3004X_D7_DCTR_TEST7		0xD7
+#define AUD3004X_D8_DCTR_DBNC1		0xD8
+#define AUD3004X_D9_DCTR_DBNC2		0xD9
+#define AUD3004X_DA_DCTR_DBNC3		0xDA
+#define AUD3004X_DB_DCTR_DBNC4		0xDB
+#define AUD3004X_DC_DCTR_DBNC5		0xDC
+#define AUD3004X_DD_DCTR_DBNC6		0xDD
+#define AUD3004X_E2_DCTR_FSM1		0xE2
+#define AUD3004X_E3_DCTR_FSM2		0xE3
+#define AUD3004X_E4_DCTR_FSM3		0xE4
+#define AUD3004X_E5_DCTR_FSM4		0xE5
+#define AUD3004X_E6_DCTR_GP			0xE6
+#define AUD3004X_F0_STATUS1			0xF0
+#define AUD3004X_F1_STATUS2			0xF1
+#define AUD3004X_F5_STATUS6			0xF5
+#define AUD3004X_F7_STATUS8			0xF7
+#define AUD3004X_F8_STATUS9			0xF8
+
+/* Analog Recording Path Control */
+#define AUD3004X_102_CLK3_COD		0x102
+#define AUD3004X_106_DSM_AD			0x106
+#define AUD3004X_107_LPF_AD			0x107
+#define AUD3004X_110_PD_REF			0x110
+#define AUD3004X_111_PD_AD1			0x111
+#define AUD3004X_112_PD_AD2			0x112
+#define AUD3004X_113_PD_AD3			0x113
+#define AUD3004X_114_PD_DA1			0x114
+#define AUD3004X_115_PD_DA2			0x115
+#define AUD3004X_116_PD_DA3			0x116
+#define AUD3004X_117_CTRL_REF		0x117
+#define AUD3004X_11C_CTRL_LINE1		0x11C
+#define AUD3004X_11D_CTRL_LINE2		0x11D
+#define AUD3004X_11E_CTRL_LINE3		0x11E
+#define AUD3004X_11F_CTRL_LINE4		0x11F
+
+/* Analog Playback Path Control */
+#define AUD3004X_130_MIX_AD1		0x130
+#define AUD3004X_134_VOL_AD1		0x134
+#define AUD3004X_135_VOL_AD2		0x135
+#define AUD3004X_136_VOL_AD3		0x136
+
+/* Analog Clock Control */
+#define AUD3004X_150_CTRL_EP		0x150
+#define AUD3004X_153_CTRL_SPK1		0x153
+#define AUD3004X_156_CTRL_SPK4		0x156
+#define AUD3004X_157_CTRL_SPK5		0x157
+#define AUD3004X_158_MIX_DA1		0x158
+#define AUD3004X_159_MIX_DA2		0x159
+#define AUD3004X_15B_CTRL_DCTC		0x15B
+#define AUD3004X_15E_VOL_EP			0x15E
+#define AUD3004X_15F_OVP1			0x15F
+#define AUD3004X_160_OVP2			0x160
+#define AUD3004X_161_OVP3			0x161
+
+/* OTP Register for Analog */
+#define AUD3004X_28B_SPKOFF_S_0		0x28B
+#define AUD3004X_2A2_CTRL_IREF1		0x2A2
+#define AUD3004X_2A3_CTRL_IREF2		0x2A3
+#define AUD3004X_2A4_CTRL_IREF3		0X2A4
+#define AUD3004X_2A6_CTRL_IREF5		0x2A6
+#define AUD3004X_2A7_SPK_MODE		0x2A7
+#define AUD3004X_2A8_RCV_MODE		0x2A8
+#define AUD3004X_2B0_CTRL_HPS		0x2B0
+
+/* COMMON Register */
+#define AUD3004X_007_IRQM				0x07
+
+/* AUD3004X_01_IRQ1PEND */
+#define ST_JACKIN_R					BIT(7)
+#define ST_JACKOUT_R				BIT(6)
+#define ST_APCHECK_R				BIT(5)
+#define ST_WTJACKIN_R				BIT(4)
+#define ST_WTJACKOUT_R				BIT(3)
+#define ST_MOIST_R					BIT(2)
+#define ST_ANT_JACKOUT_R			BIT(1)
+#define JACK_DET_R					BIT(0)
+
+/* AUD3004X_02_IRQ2PEND */
+#define ST_JACKIN_F					BIT(7)
+#define ST_JACKOUT_F				BIT(6)
+#define ST_APCHECK_F				BIT(5)
+#define ST_WTJACKIN_F				BIT(4)
+#define ST_WTJACKOUT_F				BIT(3)
+#define ST_MOIST_F					BIT(2)
+#define ST_ANT_JACKOUT_F			BIT(1)
+#define JACK_DET_F					BIT(0)
+
+/* AUD3004X_03_IRQ3PEND */
+#define ST_POLE_R					BIT(5)
+#define ANT_MDET_R					BIT(3)
+#define ANT_MDET2_R					BIT(2)
+#define ANT_LDET_R					BIT(1)
+#define BTN_DET_R					BIT(0)
+
+/* AUD3004X_04_IRQ4PEND */
+#define ST_POLE_F					BIT(5)
+#define ANT_MDET_F					BIT(3)
+#define ANT_MDET2_F					BIT(2)
+#define ANT_LDET_F					BIT(1)
+#define BTN_DET_F					BIT(0)
+
+/* AUD3004X_05_IRQ5PEND */
+#define OCP_IRQ_R					BIT(5)
+#define ASEQ_IRQ_R					BIT(4)
+#define I2S_IRQ_R					BIT(2)
+#define NOISE_IRQ_R					BIT(1)
+
+/* AUD3004X_06_IRQ6PEND */
+#define OCP_IRQ_F					BIT(5)
+#define ASEQ_IRQ_F					BIT(4)
+#define I2S_IRQ_F					BIT(2)
+#define NOISE_IRQ_F					BIT(1)
+
+/* AUD3004X_08_IRQ1M */
+#define ST_JACKIN_R_M_SHIFT			7
+#define ST_JACKIN_R_M_MASK			BIT(ST_JACKIN_R_M_SHIFT)
+
+#define ST_JACKOUT_R_M_SHIFT		6
+#define ST_JACKOUT_R_M_MASK			BIT(ST_JACKOUT_R_M_SHIFT)
+
+#define ST_APCHECK_R_M_SHIFT		5
+#define ST_APCHECK_R_M_MASK			BIT(ST_APCHECK_R_M_SHIFT)
+
+#define ST_WTJACKIN_R_M_SHIFT		4
+#define ST_WTJACKIN_R_M_MASK		BIT(ST_WTJACKIN_R_M_SHIFT)
+
+#define ST_WTJACKOUT_R_M_SHIFT		3
+#define ST_WTJACKOUT_R_M_MASK		BIT(ST_WTJACKOUT_R_M_SHIFT)
+
+#define ST_MOIST_R_M_SHIFT			2
+#define ST_MOIST_R_M_MASK			BIT(ST_MOIST_R_M_SHIFT)
+
+#define ANT_JACKOUT_R_M_SHIFT		1
+#define ANT_JACKOUT_R_M_MASK		BIT(ANT_JACKOUT_R_M_SHIFT)
+
+#define JACK_DET_R_M_SHIFT			0
+#define JACK_DET_R_M_MASK			BIT(JACK_DET_R_M_SHIFT)
+
+#define IRQ1M_MASK_ALL				0xFF
+
+/* AUD3004X_09_IRQ2M */
+#define ST_JACKIN_F_M_SHIFT			7
+#define ST_JACKIN_F_M_MASK			BIT(ST_JACKIN_F_M_SHIFT)
+
+#define ST_JACKOUT_F_M_SHIFT		6
+#define ST_JACKOUT_F_M_MASK			BIT(ST_JACKOUT_F_M_SHIFT)
+
+#define ST_APCHECK_F_M_SHIFT		5
+#define ST_APCHECK_F_M_MASK			BIT(ST_APCHECK_F_M_SHIFT)
+
+#define ST_WTJACKIN_F_M_SHIFT		4
+#define ST_WTJACKIN_F_M_MASK		BIT(ST_WTJACKIN_F_M_SHIFT)
+
+#define ST_WTJACKOUT_F_M_SHIFT		3
+#define ST_WTJACKOUT_F_M_MASK		BIT(ST_WTJACKOUT_F_M_SHIFT)
+
+#define ST_MOIST_F_M_SHIFT			2
+#define ST_MOIST_F_M_MASK			BIT(ST_MOIST_F_M_SHIFT)
+
+#define ANT_JACKOUT_F_M_SHIFT		1
+#define ANT_JACKOUT_F_M_MASK		BIT(ANT_JACKOUT_F_M_SHIFT)
+
+#define JACK_DET_F_M_SHIFT			0
+#define JACK_DET_F_M_MASK			BIT(JACK_DET_F_M_SHIFT)
+
+#define IRQ2M_MASK_ALL				0xFF
+
+/* AUD3004X_0A_IRQ3M */
+#define ST_POLE_R_SHIFT				5
+#define ST_POLE_R_MASK				BIT(ST_POLE_R_SHIFT)
+
+#define ANT_MDET_R_M_SHIFT			3
+#define ANT_MDET_R_M_MASK			BIT(ANT_MDET_R_M_SHIFT)
+
+#define ANT_MDET2_R_M_SHIFT			2
+#define ANT_MDET2_R_M_MASK			BIT(ANT_MDET2_R_M_SHIFT)
+
+#define ANT_LDET_R_M_SHIFT			1
+#define ANT_LDET_R_M_MASK			BIT(ANT_LDET_R_M_SHIFT)
+
+#define BTN_DET_R_M_SHIFT			0
+#define BTN_DET_R_M_MASK			BIT(BTN_DET_R_M_SHIFT)
+
+#define IRQ3M_MASK_ALL				0x3F
+
+/* AUD3004X_0B_IRQ4M */
+#define ST_POLE_F_SHIFT				5
+#define ST_POLE_F_MASK				BIT(ST_POLE_F_SHIFT)
+
+#define ANT_MDET_F_M_SHIFT			3
+#define ANT_MDET_F_M_MASK			BIT(ANT_MDET_F_M_SHIFT)
+
+#define ANT_MDET2_F_M_SHIFT			2
+#define ANT_MDET2_F_M_MASK			BIT(ANT_MDET2_F_M_SHIFT)
+
+#define ANT_LDET_F_M_SHIFT			1
+#define ANT_LDET_F_M_MASK			BIT(ANT_LDET_F_M_SHIFT)
+
+#define BTN_DET_F_M_SHIFT			0
+#define BTN_DET_F_M_MASK			BIT(BTN_DET_F_M_SHIFT)
+
+#define IRQ4M_MASK_ALL				0x3F
+
+/* AUD3004X_0C_IRQ5M */
+#define OCP_IRQ_R_M_SHIFT			5
+#define OCP_IRQ_R_M_MASK			BIT(OCP_IRQ_R_M_SHIFT)
+
+#define ASEQ_IRQ_R_M_SHIFT			4
+#define ASEC_IRQ_R_M_MASK			BIT(ASEQ_IRQ_R_M_SHIFT)
+
+#define I2S_IRQ_R_M_SHIFT			2
+#define I2S_IRQ_R_M_MASK			BIT(I2S_IRQ_R_M_SHIFT)
+
+#define NOISE_IRQ_R_M_SHIFT			1
+#define NOISE_IRQ_R_M_MASK			BIT(NOISE_IRQ_R_M_SHIFT)
+
+/* AUD3004X_0D_IRQ6M */
+#define OCP_IRQ_F_M_SHIFT			5
+#define OCP_IRQ_F_M_MASK			BIT(OCP_IRQ_F_M_SHIFT)
+
+#define ASEQ_IRQ_F_M_SHIFT			4
+#define ASEC_IRQ_F_M_MASK			BIT(ASEQ_IRQ_F_M_SHIFT)
+
+#define I2S_IRQ_F_M_SHIFT			2
+#define I2S_IRQ_F_M_MASK			BIT(I2S_IRQ_F_M_SHIFT)
+
+#define NOISE_IRQ_F_M_SHIFT			1
+#define NOISE_IRQ_F_M_MASK			BIT(NOISE_IRQ_F_M_SHIFT)
+
+/* AUD3004X_10_CLKGATE0 */
+#define OVP_CLK_GATE_SHIFT			6
+#define OVP_CLK_GATE_MASK			BIT(OVP_CLK_GATE_SHIFT)
+
+#define SEQ_CLK_GATE_SHIFT			5
+#define SEQ_CLK_GATE_MASK			BIT(SEQ_CLK_GATE_SHIFT)
+
+#define AVC_CLK_GATE_SHIFT			4
+#define AVC_CLK_GATE_MASK			BIT(AVC_CLK_GATE_SHIFT)
+
+#define DMIC_CLK_GATE_SHIFT			3
+#define DMIC_CLK_GATE_MASK			BIT(DMIC_CLK_GATE_SHIFT)
+
+#define ADC_CLK_GATE_SHIFT			2
+#define ADC_CLK_GATE_MASK			BIT(ADC_CLK_GATE_SHIFT)
+
+#define DAC_CLK_GATE_SHIFT			1
+#define DAC_CLK_GATE_MASK			BIT(DAC_CLK_GATE_SHIFT)
+
+#define COM_CLK_GATE_SHIFT			0
+#define COM_CLK_GATE_MASK			BIT(COM_CLK_GATE_SHIFT)
+
+/* AUD3004X_11_CLKGATE1 */
+#define DSML_CLK_GATE_SHIFT			6
+#define DSML_CLK_GATE_MASK			BIT(DSML_CLK_GATE_SHIFT)
+
+#define DSMR_CLK_GATE_SHIFT			5
+#define DSMR_CLK_GATE_MASK			BIT(DSMR_CLK_GATE_SHIFT)
+
+#define DSMC_CLK_GATE_SHIFT			4
+#define DSMC_CLK_GATE_MASK			BIT(DSMC_CLK_GATE_SHIFT)
+
+#define APC_CLK_GATE_SHIFT			3
+#define APC_CLK_GATE_MASK			BIT(APC_CLK_GATE_SHIFT)
+
+#define DAC_CIC_CGL_SHIFT			2
+#define DAC_CIC_CGL_MASK			BIT(DAC_CIC_CGL_SHIFT)
+
+#define DAC_CIC_CGR_SHIFT			1
+#define DAC_CIC_CGR_MASK			BIT(DAC_CIC_CGR_SHIFT)
+
+#define DAC_CIC_CGC_SHIFT			0
+#define DAC_CIC_CGC_MASK			BIT(DAC_CIC_CGC_SHIFT)
+
+/* AUD3004X_12_CLKGATE2 */
+#define CED_CLK_GATE_SHIFT			5
+#define CED_CLK_GATE_MASK			BIT(CED_CLK_GATE_SHIFT)
+
+#define VTS_CLK_GATE_SHIFT			4
+#define VTS_CLK_GATE_MASK			BIT(VTS_CLK_GATE_SHIFT)
+
+#define ADC_CIC_CGL_SHIFT			2
+#define ADC_CIC_CGL_MASK			BIT(ADC_CIC_CGL_SHIFT)
+
+#define ADC_CIC_CGR_SHIFT			1
+#define ADC_CIC_CGR_MASK			BIT(ADC_CIC_CGR_SHIFT)
+
+#define ADC_CIC_CGC_SHIFT			0
+#define ADC_CIC_CGC_MASK			BIT(ADC_CIC_CGC_SHIFT)
+
+/* AUD3004X_14_RESETB0 */
+#define AVC_RESETB_SHIFT			7
+#define AVC_RESETB_MASK				BIT(AVC_RESETB_SHIFT)
+
+#define ENOF_RESETDAC_SHIFT			6
+#define ENOF_RESETDAC_MASK			BIT(ENOF_RESETDAC_SHIFT)
+
+#define RSTB_ADC_SHIFT				5
+#define RSTB_ADC_MASK				BIT(RSTB_ADC_SHIFT)
+
+#define RSTB_DAC_DSM_SHIFT			4
+#define RSTB_DAC_DSM_MASK			BIT(RSTB_DAC_DSM_SHIFT)
+
+#define ADC_RESETB_SHIFT			3
+#define ADC_RESETB_MASK				BIT(ADC_RESETB_SHIFT)
+
+#define DAC_RESETB_SHIFT			2
+#define DAC_RESETB_MASK				BIT(DAC_RESETB_SHIFT)
+
+#define CORE_RESETB_SHIFT			1
+#define CORE_RESETB_MASK			BIT(CORE_RESETB_SHIFT)
+
+#define SYSTEM_RESET_SHIFT			0
+#define SYSTEM_RESET_MASK			BIT(SYSTEM_RESET_SHIFT)
+
+/* AUD3004X_16_CLK_MODE_SEL */
+#define ADC_FSEL_SHIFT				4
+#define ADC_FSEL_WIDTH				2
+#define ADC_FSEL_MASK				MASK(ADC_FSEL_WIDTH, ADC_FSEL_SHIFT)
+
+#define CLK_MODE_STEREO				0
+#define CLK_MODE_TRIPLE				1
+#define CLK_MODE_MONO				2
+
+#define DAC_DSEL_SHIFT				3
+#define DAC_DSEL_MASK				BIT(DAC_DSEL_SHIFT)
+
+#define DSM_DSEL_128FS				0
+#define DSM_DSEL_64FS				1
+
+#define DAC_FSEL_SHIFT				1
+#define DAC_FSEL_WIDTH				2
+#define DAC_FSEL_MASK				MASK(DAC_FSEL_WIDTH, DAC_FSEL_SHIFT)
+
+#define CLK_DAC_256_STEREO			0
+#define CLK_DAC_512_UHQA			1
+#define CLK_DAC_128_MONO			2
+#define CLK_DAC_64_NORMAL			3
+
+#define AVC_CLK_SEL_SHIFT			0
+#define AVC_CLK_SEL_MASK			BIT(AVC_CLK_SEL_SHIFT)
+
+#define CLK_AVC_48_192K				0
+#define CLK_AVC_384K				1
+
+/* AUD3004X_18_PWAUTO_AD */
+#define FAST_CHG_AD_SHIFT			6
+#define FAST_CHG_AD_MASK			BIT(FAST_CHG_AD_SHIFT)
+
+#define APW_MIC1L_SHIFT				5
+#define APW_MIC1L_MASK				BIT(APW_MIC1L_SHIFT)
+
+#define APW_MIC1R_SHIFT				4
+#define APW_MIC1R_MASK				BIT(APW_MIC1R_SHIFT)
+
+#define APW_MIC2L_SHIFT				3
+#define APW_MIC2L_MASK				BIT(APW_MIC2L_SHIFT)
+
+#define APW_MIC2R_SHIFT				2
+#define APW_MIC2R_MASK				BIT(APW_MIC2R_SHIFT)
+
+#define APW_MIC3L_SHIFT				1
+#define APW_MIC3L_MASK				BIT(APW_MIC3L_SHIFT)
+
+#define APW_MIC3R_SHIFT				0
+#define APW_MIC3R_MASK				BIT(APW_MIC3R_SHIFT)
+
+/* AUD3004X_19_PWAUTO_DA */
+#define FAST_CHG_DA_SHIFT			4
+#define FAST_CHG_DA_WIDTH			2
+#define FAST_CHG_DA_MASK			MASK(FAST_CHG_DA_WIDTH, FAST_CHG_DA_SHIFT)
+
+#define APW_SPK_SHIFT				3
+#define APW_SPK_MASK				BIT(APW_SPK_SHIFT)
+
+#define APW_LINE_SHIFT				2
+#define APW_LINE_MASK				BIT(APW_LINE_SHIFT)
+
+#define APW_HP_SHIFT				1
+#define APW_HP_MASK					BIT(APW_HP_SHIFT)
+
+#define APW_EP_SHIFT				0
+#define APW_EP_MASK					BIT(APW_EP_SHIFT)
+
+/* AUD3004X_1A_DRIVER_MUTE */
+#define MUTE_SPK_SHIFT				3
+#define MUTE_SPK_MASK				BIT(MUTE_SPK_SHIFT)
+
+#define MUTE_LINE_SHIFT				2
+#define MUTE_LINE_MASK				BIT(MUTE_LINE_SHIFT)
+
+#define MUTE_HP_SHIFT				1
+#define MUTE_HP_MASK				BIT(MUTE_HP_SHIFT)
+
+#define MUTE_EP_SHIFT				0
+#define MUTE_EP_MASK				BIT(MUTE_EP_SHIFT)
+
+/* AUD3004X_1E_CHOP1 */
+#define MIX_MIC3R_SHIFT				7
+#define MIX_MIC3R_MASK				BIT(MIX_MIC3R_SHIFT)
+
+#define MIX_MIC3L_SHIFT				6
+#define MIX_MIC3L_MASK				BIT(MIX_MIC3L_SHIFT)
+
+#define MIX_MIC2R_SHIFT				5
+#define MIX_MIC2R_MASK				BIT(MIX_MIC2R_SHIFT)
+
+#define MIX_MIC2L_SHIFT				4
+#define MIX_MIC2L_MASK				BIT(MIX_MIC2L_SHIFT)
+
+#define MIX_MIC1R_SHIFT				3
+#define MIX_MIC1R_MASK				BIT(MIX_MIC1R_SHIFT)
+
+#define MIX_MIC1L_SHIFT				2
+#define MIX_MIC1L_MASK				BIT(MIX_MIC1L_SHIFT)
+
+#define DMIC2_ON_SHIFT				1
+#define DMIC2_ON_MASK				BIT(DMIC2_ON_SHIFT)
+
+#define DMIC1_ON_SHIFT				0
+#define DMIC1_ON_MASK				BIT(DMIC1_ON_SHIFT)
+
+#define DMIC_ON_SHIFT				0
+#define DMIC_ON_WIDTH				2
+#define DMIC_ON_MASK				MASK(DMIC_ON_WIDTH, DMIC_ON_SHIFT)
+
+/* AUD3004X_1F_CHOP2 */
+#define LINEOUT_ON_SHIFT			6
+#define LINEOUT_ON_MASK				BIT(LINEOUT_ON_SHIFT)
+
+#define HP_ON_SHIFT					5
+#define HP_ON_MASK					BIT(HP_ON_SHIFT)
+
+#define EP_ON_SHIFT					4
+#define EP_ON_MASK					BIT(EP_ON_SHIFT)
+
+#define SPK_ON_SHIFT				3
+#define SPK_ON_MASK					BIT(SPK_ON_SHIFT)
+
+#define MIC3_ON_SHIFT				2
+#define MIC3_ON_MASK				BIT(MIC3_ON_SHIFT)
+
+#define MIC2_ON_SHIFT				1
+#define MIC2_ON_MASK				BIT(MIC2_ON_SHIFT)
+
+#define MIC1_ON_SHIFT				0
+#define MIC1_ON_MASK				BIT(MIC1_ON_SHIFT)
+
+#define AMIC_ON_SHIFT				0
+#define AMIC_ON_WIDTH				3
+#define AMIC_ON_MASK				MASK(AMIC_ON_WIDTH, AMIC_ON_SHIFT)
+
+#define DAC_ON_SHIFT				3
+#define DAC_ON_WIDTH				4
+#define DAC_ON_MASK					MASK(DAC_ON_WIDTH, DAC_ON_SHIFT)
+
+/* AUD3004X_20_IF_FORM1 */
+#define I2S_DF_SHIFT				4
+#define I2S_DF_WIDTH				3
+#define I2S_DF_MASK					MASK(I2S_DF_WIDTH, I2S_DF_SHIFT)
+
+#define BCK_POL_SHIFT				1
+#define BCK_POL_MASK				BIT(BCK_POL_SHIFT)
+
+#define LRCK_POL_SHIFT				0
+#define LRCK_POL_MASK				BIT(LRCK_POL_SHIFT)
+
+/* AUD3004X_21_IF_FORM2 */
+#define I2S_XFS_IF2_SHIFT			7
+#define I2S_XFS_IF2_MASK			BIT(I2S_XFS_IF2_SHIFT)
+
+#define I2S_DL_SHIFT				0
+#define I2S_DL_WIDTH				6
+#define I2S_DL_MASK					MASK(I2S_DL_WIDTH, I2S_DL_SHIFT)
+
+#define I2S_DL_16					0x10
+#define I2S_DL_20					0x14
+#define I2S_DL_24					0x18
+#define I2S_DL_32					0x20
+
+/* AUD3004X_22_IF_FORM3 */
+#define I2S_XFS_IF3_SHIFT			0
+#define I2S_XFS_IF3_WIDTH			8
+#define I2S_XFS_IF3_MASK			MASK(I2S_XFS_IF3_WIDTH, I2S_XFS_IF3_SHIFT)
+
+#define I2S_XFS_32					0x20
+#define I2S_XFS_48					0x30
+#define I2S_XFS_64					0x40
+
+/* AUD3004X_23_IF_FORM4 */
+#define SEL_ADC3_SHIFT				6
+#define SEL_ADC3_WIDTH				2
+#define SEL_ADC3_MASK				MASK(SEL_ADC3_WIDTH, SEL_ADC3_SHIFT)
+
+#define SEL_ADC2_SHIFT				4
+#define SEL_ADC2_WIDTH				2
+#define SEL_ADC2_MASK				MASK(SEL_ADC2_WIDTH, SEL_ADC2_SHIFT)
+
+#define SEL_ADC1_SHIFT				2
+#define SEL_ADC1_WIDTH				2
+#define SEL_ADC1_MASK				MASK(SEL_ADC1_WIDTH, SEL_ADC1_SHIFT)
+
+#define SEL_ADC0_SHIFT				0
+#define SEL_ADC0_WIDTH				2
+#define SEL_ADC0_MASK				MASK(SEL_ADC0_WIDTH, SEL_ADC0_SHIFT)
+
+/* AUD3004X_24_IF_FORM5 */
+#define SDIN_TIE0_SHIFT				7
+#define SDIN_TIE0_MASK				BIT(SDIN_TIE0_SHIFT)
+
+#define SDOUT_TIE0_SHIFT			6
+#define SDOUT_TIE0_MASK				BIT(SDOUT_TIE0_SHIFT)
+
+#define SEL_DAC1_SHIFT				4
+#define SEL_DAC1_WIDTH				2
+#define SEL_DAC1_MASK				MASK(SEL_DAC1_WIDTH, SEL_DAC1_SHIFT)
+
+#define SEL_DAC0_SHIFT				0
+#define SEL_DAC0_WIDTH				2
+#define SEL_DAC0_MASK				MASK(SEL_DAC0_WIDTH, SEL_DAC0_SHIFT)
+
+#define DAC_I2S_CH0					0
+#define DAC_I2S_CH1					1
+#define DAC_I2S_CH2					2
+#define DAC_I2S_CH3					3
+
+/* AUD3004X_29_IF_FORM6 */
+#define ADC_OUT_FORMAT_SEL_SHIFT	0
+#define ADC_OUT_FORMAT_SEL_WIDTH	3
+#define ADC_OUT_FORMAT_SEL_MASK		MASK(ADC_OUT_FORMAT_SEL_WIDTH, ADC_OUT_FORMAT_SEL_SHIFT)
+
+#define ADC_FM_48K_AT_48K			0
+#define ADC_FM_192K_AT_192K			1
+#define ADC_FM_48K_ZP_AT_192K		2
+#define ADC_FM_48K_4COPY_AT_192K	3
+#define ADC_FM_192K_ZP_AT_384K		4
+#define ADC_FM_192K_2COPY_AT_384K	5
+#define ADC_FM_48K_ZP_AT_384K		6
+#define ADC_FM_48K_8COPY_AT_384K	7
+
+/* AUD3004X_2F_DMIC_ST */
+#define DMIC_ST_SHIFT				0
+#define DMIC_ST_WIDTH				2
+#define DMIC_ST_MASK				MASK(DMIC_ST_WIDTH, DMIC_ST_SHIFT)
+
+#define DMIC_IO_ST_4				0
+#define DMIC_IO_ST_8				1
+#define DMIC_IO_ST_12				2
+#define DMIC_IO_ST_16				3
+
+/* AUD3004X_30_ADC1 */
+#define FS_SEL_SHIFT				6
+#define FS_SEL_MASK					BIT(FS_SEL_SHIFT)
+
+#define FS_NORMAL_48K				0
+#define FS_UHQA_192K				1
+
+#define CH_MODE_SHIFT				4
+#define CH_MODE_WIDTH				2
+#define CH_MODE_MASK				MASK(CH_MODE_WIDTH, CH_MODE_SHIFT)
+
+#define ADC_CH_STEREO				0
+#define ADC_CH_MONO					1
+#define ADC_CH_TRIPLE				2
+
+#define MU_TYPE_SHIFT				3
+#define MU_TYPE_MASK				BIT(MU_TYPE_SHIFT)
+
+#define ADC_MUTEL_SHIFT				2
+#define ADC_MUTEL_MASK				BIT(ADC_MUTEL_SHIFT)
+
+#define ADC_MUTER_SHIFT				1
+#define ADC_MUTER_MASK				BIT(ADC_MUTER_SHIFT)
+
+#define ADC_MUTEC_SHIFT				0
+#define ADC_MUTEC_MASK				BIT(ADC_MUTEC_SHIFT)
+
+#define ADC_MUTE_ALL				7
+
+/* AUD3004X_31_ADC2 */
+#define DMIC_POL_SHIFT				7
+#define DMIC_POL_MASK				BIT(DMIC_POL_SHIFT)
+
+#define INP_SEL_R_SHIFT				4
+#define INP_SEL_R_WIDTH				3
+#define INP_SEL_R_MASK				MASK(INP_SEL_R_WIDTH, INP_SEL_R_SHIFT)
+
+#define EN_DMIC_SHIFT				3
+#define EN_DMIC_MASK				BIT(EN_DMIC_SHIFT)
+
+#define DMIC_DISABLE				0
+#define DMIC_ENABLE					1
+
+#define INP_SEL_L_SHIFT				0
+#define INP_SEL_L_WIDTH				3
+#define INP_SEL_L_MASK				MASK(INP_SEL_L_WIDTH, INP_SEL_L_SHIFT)
+
+/* AUD3004X_32_ADC3 */
+#define DMIC_CLK_ZTIE_SHIFT			7
+#define DMIC_CLK_ZTIE_MASK			BIT(DMIC_CLK_ZTIE_SHIFT)
+
+#define DMIC_GAIN_PRE_SHIFT			4
+#define DMIC_GAIN_PRE_WIDTH			3
+#define DMIC_GAIN_PRE_MASK			MASK(DMIC_GAIN_PRE_WIDTH, DMIC_GAIN_PRE_SHIFT)
+
+#define DMIC_GAIN_1					0
+#define DMIC_GAIN_3					1
+#define DMIC_GAIN_5					2
+#define DMIC_GAIN_7					3
+#define DMIC_GAIN_9					4
+#define DMIC_GAIN_11				5
+#define DMIC_GAIN_13				6
+#define DMIC_GAIN_15				7
+
+/* AUD3004X_33_ADC4 */
+#define DMIC_EN2_SHIFT				7
+#define DMIC_EN2_MASK				BIT(DMIC_EN2_SHIFT)
+
+#define DMIC_EN1_SHIFT				6
+#define DMIC_EN1_MASK				BIT(DMIC_EN1_SHIFT)
+
+#define CP_TYPE_SEL_SHIFT			2
+#define CP_TYPE_SEL_WIDTH			3
+#define CP_TYPE_SEL_MASK			MASK(CP_TYPE_SEL_WIDTH, CP_TYPE_SEL_SHIFT)
+
+#define FILTER_TYPE_NORMAL_AMIC		0
+#define FILTER_TYPE_UHQA_W_LP_AMIC	1
+#define FILTER_TYPE_UHQA_WO_LP_AMIC	2
+#define FILTER_TYPE_NORMAL_DMIC		4
+#define FILTER_TYPE_UHQA_WO_LP_DMIC	5
+#define FILTER_TYPE_BYPASS_COMP		6
+
+#define DMIC_OSR_SHIFT				0
+#define DMIC_OSR_WIDTH				2
+#define DMIC_OSR_MASK				MASK(DMIC_OSR_WIDTH, DMIC_OSR_SHIFT)
+
+#define DMIC_OSR_NO					0
+#define DMIC_OSR_64					1
+#define DMIC_OSR_32					2
+
+/*
+ * AUD3004X_34_AD_VOLL
+ * AUD3004X_35_AD_VOLR
+ */
+#define DVOL_ADC_SHIFT				0
+#define DVOL_ADC_WIDTH				8
+#define DVOL_ADC_MASK				MASK(DVOL_ADC_WIDTH, DVOL_ADC_SHIFT)
+
+#define ADC_DVOL_MAXNUM				0xE5
+
+/* AUD3004X_37_AD_HPF */
+#define ADC_GT_37_SHIFT				6
+#define ADC_GT_37_WIDTH				2
+#define ADC_GT_37_MASK				MASK(ADC_GT_37_WIDTH, ADC_GT_37_SHIFT)
+
+#define ADC_GT_37_0					0
+#define ADC_GT_37_1					1
+#define ADC_GT_37_2					2
+#define ADC_GT_37_3					3
+
+#define HPF_SEL_SHIFT				4
+#define HPF_SEL_WIDTH				2
+#define HPF_SEL_MASK				MASK(HPF_SEL_WIDTH, HPF_SEL_SHIFT)
+
+#define HPF_15_15HZ					0
+#define HPF_33_31HZ					1
+#define HPF_60_61HZ					2
+#define HPF_113_117HZ				3
+
+#define HPF_ORDER_SHIFT				3
+#define HPF_ORDER_MASK				BIT(HPF_ORDER_SHIFT)
+
+#define HPF_ORDER_2ND				0
+#define HPF_ORDER_1ST				1
+
+#define HPF_ENL_SHIFT				2
+#define HPF_ENL_MASK				BIT(HPF_ENL_SHIFT)
+
+#define HPF_ENR_SHIFT				1
+#define HPF_ENR_MASK				BIT(HPF_ENR_SHIFT)
+
+#define HPF_ENC_SHIFT				0
+#define HPF_ENC_MASK				BIT(HPF_ENC_SHIFT)
+
+/* AUD3004X_40_PLAY_MODE1 */
+#define PLAY_MODE_SEL_SHIFT			4
+#define PLAY_MODE_SEL_WIDTH			3
+#define PLAY_MODE_SEL_MASK			MASK(PLAY_MODE_SEL_WIDTH, PLAY_MODE_SEL_SHIFT)
+
+#define DAC_FREQ_STEREO_48K			0
+#define DAC_FREQ_TRIPLE_48K			3
+#define DAC_FREQ_STEREO_192K		4
+#define DAC_FREQ_MONO_48K			6
+
+#define DSM_RATE_SEL_SHIFT			3
+#define DSM_RATE_SEL_MASK			BIT(DSM_RATE_SEL_SHIFT)
+
+#define DSM_RATE_128FS				0
+#define DSM_RATE_64FS				1
+
+#define DA_SMUTEL_SHIFT				2
+#define DA_SMUTEL_MASK				BIT(DA_SMUTEL_SHIFT)
+
+#define DA_SMUTER_SHIFT				1
+#define DA_SMUTER_MASK				BIT(DA_SMUTER_SHIFT)
+
+#define DA_SMUTEC_SHIFT				0
+#define DA_SMUTEC_MASK				BIT(DA_SMUTEC_SHIFT)
+
+#define DAC_MUTE_ALL				7
+
+/*
+ * AUD3004X_41_PLAY_VOLL
+ * AUD3004X_42_PLAY_VOLR
+ * AUD3004X_43_PLAY_VOLC
+ */
+#define DVOL_DA_SHIFT				0
+#define DVOL_DA_WIDTH				8
+#define DVOL_DA_MASK				MASK(DVOL_DA_WIDTH, DVOL_DA_SHIFT)
+
+#define DAC_DVOL_MAXNUM				0x00
+#define DAC_DVOL_MINNUM				0xEA
+
+/* AUD3004X_44_PLAY_MODE2 */
+#define DAC_CH_MODE_SHIFT			6
+#define DAC_CH_MODE_WIDTH			2
+#define DAC_CH_MODE_MASK			MASK(DAC_CH_MODE_WIDTH, DAC_CH_MODE_SHIFT)
+
+#define DAC_CH_MODE_MONO			0
+#define DAC_CH_MODE_STEREO			1
+#define DAC_CH_MODE_TRIPLE			2
+#define DAC_CH_MODE_NONE			3
+
+#define LCH_COM_SEL_SHIFT			4
+#define LCH_COM_SEL_WIDTH			2
+#define LCH_COM_SEL_MASK			MASK(LCH_COM_SEL_WIDTH, LCH_COM_SEL_SHIFT)
+
+#define RCH_COM_SEL_SHIFT			2
+#define RCH_COM_SEL_WIDTH			2
+#define RCH_COM_SEL_MASK			MASK(RCH_COM_SEL_WIDTH, RCH_COM_SEL_SHIFT)
+
+#define CCH_COM_SEL_SHIFT			0
+#define CCH_COM_SEL_WIDTH			2
+#define CCH_COM_SEL_MASK			MASK(CCH_COM_SEL_WIDTH, CCH_COM_SEL_SHIFT)
+
+#define COM_SEL_48K					0
+#define COM_SEL_192K				1
+#define COM_SEL_384K				2
+#define COM_SEL_48K_SPK				3
+
+/* AUD3004X_45_PLAY_MIX1 */
+#define VOL_INTERVAL_SHIFT			5
+#define VOL_INTERVAL_WIDTH			3
+#define VOL_INTERVAL_MASK			MASK(VOL_INTERVAL_WIDTH, VOL_INTERVAL_SHIFT)
+
+#define CON_STEP_1_BY_4_FS			0
+#define CON_STEP_1_BY_2_FS			1
+#define CON_STEP_1_BY_FS			2
+#define CON_STEP_1_BY_FS_BY_2		3
+#define CON_STEP_1_BY_FS_BY_4		4
+#define CON_STEP_1_BY_FS_BY_8		5
+#define CON_STEP_1_BY_FS_BY_16		6
+#define CON_STEP_1_BY_FS_BY_32		7
+
+#define INL_CH_SEL_SHIFT			4
+#define INL_CH_SEL_MASK				BIT(INL_CH_SEL_SHIFT)
+
+#define OUTC_CH_SEL_SHIFT			3
+#define OUTC_CH_SEL_MASK			BIT(OUTC_CH_SEL_SHIFT)
+
+#define L_CH_DATA					0
+#define C_CH_DATA					1
+
+#define DAC_MIXC_SHIFT				0
+#define DAC_MIXC_WIDTH				3
+#define DAC_MIXC_MASK				MASK(DAC_MIXC_WIDTH, DAC_MIXC_SHIFT)
+
+#define MIXC_DATA_L					0
+#define MIXC_LR_BY_2_POL_CH			1
+#define MIXC_LR_BY_2				3
+#define MIXC_DATA_R					5
+#define MIXC_ZERO					7
+
+/* AUD3004X_49_DSMDWA1_DA */
+#define DWAENB_SHIFT				5
+#define DWAENB_WIDTH				3
+#define DWAENB_MASK					MASK(DWAENB_WIDTH, DWAENB_SHIFT)
+
+#define DTHON_SHIFT					4
+#define DTHON_MASK					BIT(DTHON_SHIFT)
+
+#define DTHON_ENABLE				1
+#define DTHON_DISABLE				0
+
+#define SYM_DTH_SHIFT				3
+#define SYM_DTH_MASK				BIT(SYM_DTH_SHIFT)
+
+#define DTH_ASYM_MODE				0
+#define DTH_SYM_MODE				1
+
+#define AMT_DTH_SHIFT				0
+#define AMT_DTH_WIDTH				3
+#define AMT_DTH_MASK				MASK(AMT_DTH_WIDTH, AMT_DTH_SHIFT)
+
+#define ANT_LEVEL_7					7
+#define ANT_LEVEL_6					6
+#define ANT_LEVEL_5					5
+#define ANT_LEVEL_4					4
+#define ANT_LEVEL_3					3
+#define ANT_LEVEL_2					2
+#define ANT_LEVEL_1					1
+#define ANT_LEVEL_0					0
+
+/* AUD3004X_4A_DSMDWA2_DA */
+#define DTH_RNG_SHIFT				6
+#define DTH_RNG_MASK				BIT(DTH_RNG_SHIFT)
+
+#define AMT_DTH_LEVEL_1				0
+#define AMT_DTH_LEVEL_16			1
+
+#define DWA_MODEC_SHIFT				0
+#define DWA_MODEC_WIDTH				2
+#define DWA_MODEC_MASK				MASK(DWA_MODEC_WIDTH, DWA_MODEC_SHIFT)
+
+#define DAC_DWA_ORDER_1				0
+#define DAC_DWA_ORDER_2				1
+#define DAC_DWA_ORDER_3				2
+#define DAC_DWA_ORDER_4				3
+
+/* AUD3004X_4B_DSM_OPT1 */
+#define ZERO_CNT2_SHIFT				7
+#define ZERO_CNT2_MASK				BIT(ZERO_CNT2_SHIFT)
+
+#define DSM_MODEL_SHIFT				2
+#define DSM_MODEL_MASK				BIT(DSM_MODEL_SHIFT)
+
+#define DSM_MODER_SHIFT				1
+#define DSM_MODER_MASK				BIT(DSM_MODER_SHIFT)
+
+#define DSM_MODEC_SHIFT				0
+#define DSM_MODEC_MASK				BIT(DSM_MODEC_SHIFT)
+
+#define DSM_ORDER_2ND				0
+#define DSM_ORDER_3RD				1
+
+/* AUD3004X_4C_DSM_OPT2 */
+#define ZERO_CNT_SHIFT				6
+#define ZERO_CNT_WIDTH				2
+#define ZERO_CNT_MASK				MASK(ZERO_CNT_WIDTH, ZERO_CNT_SHIFT)
+
+#define ZERO_CNT_20K				0
+#define ZERO_CNT_24K				1
+#define ZERO_CNT_28_5K				2
+#define ZERO_CNT_40_5K				3
+#define ZERO_CNT_57K				4
+#define ZERO_CNT_81K				5
+#define ZERO_CNT_115K				6
+#define ZERO_CNT_200K				7
+
+#define DSM_OFFSETL_SHIFT			4
+#define DSM_OFFSETL_WIDTH			2
+#define DSM_OFFSETL_MASK			MASK(DSM_OFFSETL_WIDTH, DSM_OFFSETL_SHIFT)
+
+#define DSM_OFFSETR_SHIFT			4
+#define DSM_OFFSETR_WIDTH			2
+#define DSM_OFFSETR_MASK			MASK(DSM_OFFSETR_WIDTH, DSM_OFFSETR_SHIFT)
+
+#define DSM_OFFSETC_SHIFT			4
+#define DSM_OFFSETC_WIDTH			2
+#define DSM_OFFSETC_MASK			MASK(DSM_OFFSETC_WIDTH, DSM_OFFSETC_SHIFT)
+
+#define	DSM_OFFSET_0				0
+#define DSM_OFFSET_2				1
+#define DSM_OFFSET_4				2
+#define DSM_OFFSET_8				3
+
+/* AUD3004X_4D_DSM_OPT3 */
+#define DSM_3RDL_SHIFT				7
+#define DSM_3RDL_MASK				BIT(DSM_3RDL_SHIFT)
+
+#define DSM_3RDR_SHIFT				6
+#define DSM_3RDR_MASK				BIT(DSM_3RDR_SHIFT)
+
+#define DSM_3RDC_SHIFT				5
+#define DSM_3RDC_MASK				BIT(DSM_3RDC_SHIFT)
+
+#define DSM_3RD_CASE2				1
+#define DSM_3RD_CASE1				0
+
+#define DTH_OPTL_SHIFT				4
+#define DTH_OPTL_MASK				BIT(DTH_OPTL_SHIFT)
+
+#define DTH_OPTR_SHIFT				3
+#define DTH_OPTR_MASK				BIT(DTH_OPTR_SHIFT)
+
+#define DTH_OPTC_SHIFT				2
+#define DTH_OPTC_MASK				BIT(DTH_OPTC_SHIFT)
+
+#define DTH_OPTLV_SHIFT				0
+#define DTH_OPTLV_WIDTH				2
+#define DTH_OPTLV_MASK				MASK(DTH_OPTLV_WIDTH, DTH_OPTLV_SHIFT)
+
+#define DTH_OPTLV_OPTION0			0
+#define DTH_OPTLV_OPTION1			1
+#define DTH_OPTLV_OPTION2			2
+#define DTH_OPTLV_OPTION3			3
+
+/* AUD3004X_4E_OFFSET_OPT */
+#define OFFSET_RNGL_SHIFT			4
+#define OFFSET_RNGL_WIDTH			2
+#define OFFSET_RNGL_MASK			MASK(OFFSET_RNGL_WIDTH, OFFSET_RNGL_SHIFT)
+
+#define OFFSET_RNGR_SHIFT			2
+#define OFFSET_RNGR_WIDTH			2
+#define OFFSET_RNGR_MASK			MASK(OFFSET_RNGR_WIDTH, OFFSET_RNGR_SHIFT)
+
+#define OFFSET_RNGC_SHIFT			0
+#define OFFSET_RNGC_WIDTH			2
+#define OFFSET_RNGC_MASK			MASK(OFFSET_RNGC_WIDTH, OFFSET_RNGC_SHIFT)
+
+/* AUD3004X_50_AVC1 */
+#define AVC_CON_FLAG_SHIFT			6
+#define AVC_CON_FLAG_MASK			BIT(AVC_CON_FLAG_SHIFT)
+
+#define AVC_VA_FLAG_SHIFT			5
+#define AVC_VA_FLAG_MASK			BIT(AVC_VA_FLAG_SHIFT)
+
+#define AVC_MU_FLAG_SHIFT			4
+#define AVC_MU_FLAG_MASK			BIT(AVC_MU_FLAG_SHIFT)
+
+#define AVC_BYPS_SHIFT				3
+#define AVC_BYPS_MASK				BIT(AVC_BYPS_SHIFT)
+
+#define AVC_VA_EN_SHIFT				2
+#define AVC_VA_EN_MASK				BIT(AVC_VA_EN_SHIFT)
+
+#define AVC_MU_EN_SHIFT				1
+#define AVC_MU_EN_MASK				BIT(AVC_MU_EN_SHIFT)
+
+#define AVC_EN_SHIFT				0
+#define AVC_EN_MASK					BIT(AVC_EN_SHIFT)
+
+/* AUD3004X_53_AVC4 */
+#define DRC_SLOPE_EN_SHIFT			7
+#define DRC_SLOPE_EN_MASK			BIT(DRC_SLOPE_EN_SHIFT)
+
+#define DRC_SLOPE_SEL_SHIFT			4
+#define DRC_SLOPE_SEL_WIDTH			3
+#define DRC_SLOPE_SEL_MASK			MASK(DRC_SLOPE_SEL_WIDTH, DRC_SLOPE_SEL_SHIFT)
+
+#define CTVOL_AVC_PO_GAIN_SHIFT		0
+#define CTVOL_AVC_PO_GAIN_WIDTH		3
+#define CTVOL_AVC_PO_GAIN_MASK		MASK(CTVOL_AVC_PO_GAIN_WIDTH, CTVOL_AVC_PO_GAIN_SHIFT)
+
+#define AVC_PO_GAIN_7				7
+#define AVC_PO_GAIN_6				6
+#define AVC_PO_GAIN_5				5
+#define AVC_PO_GAIN_4				4
+#define AVC_PO_GAIN_3				3
+#define AVC_PO_GAIN_2				2
+#define AVC_PO_GAIN_1				1
+#define AVC_PO_GAIN_0				0
+
+/* AUD3004X_71_AVC34 */
+#define AVC_DELAY0_SHIFT			0
+#define AVC_DELAY0_WIDTH			8
+#define AVC_DELAY0_MASK				MASK(AVC_DELAY0_WIDTH, AVC_DELAY0_SHIFT)
+
+#define AVC_DELAY0_48K				0x18
+#define AVC_DELAY0_192K_384K		0xC7
+
+/* AUD3004X_72_AVC35 */
+#define AVC_DELAY1_SHIFT			0
+#define AVC_DELAY1_WIDTH			8
+#define AVC_DELAY1_MASK				MASK(AVC_DELAY1_WIDTH, AVC_DELAY1_SHIFT)
+
+#define AVC_DELAY1_48K				0xDD
+#define AVC_DELAY1_192K				0x39
+#define AVC_DELAY1_384K				0x3A
+
+/* AUD3004X_73_AVC36 */
+#define AVC_DELAY2_SHIFT			0
+#define AVC_DELAY2_WIDTH			8
+#define AVC_DELAY2_MASK				MASK(AVC_DELAY2_WIDTH, AVC_DELAY2_SHIFT)
+
+#define AVC_DELAY2_48K				0x17
+#define AVC_DELAY2_192K_384K		0xC4
+
+/* AUD3004X_74_AVC37 */
+#define AVC_DELAY3_SHIFT			0
+#define AVC_DELAY3_WIDTH			8
+#define AVC_DELAY3_MASK				MASK(AVC_DELAY3_WIDTH, AVC_DELAY3_SHIFT)
+
+#define AVC_DELAY3_48K				0xE9
+#define AVC_DELAY3_192K				0x39
+#define AVC_DELAY3_384K				0x3A
+
+/* AUD3004X_7A_AVC43 */
+#define DRC_LIMIT_SHIFT				3
+#define DRC_LIMIT_WIDTH				5
+#define DRC_LIMIT_MASK				MASK(DRC_LIMIT_WIDTH, DRC_LIMIT_SHIFT)
+
+/* AUD3004X_7C_OCPCTRL0 */
+#define OCP_EN_SHIFT				1
+#define OCP_EN_MASK					BIT(OCP_EN_SHIFT)
+
+#define DIG_MUTE_DATA_C_SHIFT		0
+#define DIG_MUTE_DATA_C_MASK		BIT(DIG_MUTE_DATA_C_SHIFT)
+
+/* AUD3004X_92_BOOST_CTRL0 */
+#define DBFS_ADJ_SHIFT				4
+#define DBFS_ADJ_WIDTH				4
+#define DBFS_ADJ_MASK				MASK(DBFS_ADJ_WIDTH, DBFS_ADJ_SHIFT)
+
+#define DBFS_ADJ_0					0
+#define DBFS_ADJ_1					1
+
+#define BOOST_CTRL_EN_SHIFT			3
+#define BOOST_CTRL_EN_MASK			BIT(BOOST_CTRL_EN_SHIFT)
+
+/* AUD3004X_95_VBAT_M0 */
+#define FG_MDATA_M0_SHIFT			0
+#define FG_MDATA_M0_WIDTH			8
+#define FG_MDATA_M0_MASK			MASK(FG_MDATA_M0_WIDTH, FG_MDATA_M0_SHIFT)
+
+/* AUD3004X_96_VBAT_M1 */
+#define FG_MDATA_M1_SHIFT			0
+#define FG_MDATA_M1_WIDTH			8
+#define FG_MDATA_M1_MASK			MASK(FG_MDATA_M1_WIDTH, FG_MDATA_M1_SHIFT)
+
+/* AUD3004X_97_TEST_VBAT0 */
+#define FG_MSYNC_SHIFT				5
+#define FG_MSYNC_MASK				BIT(FG_MSYNC_SHIFT)
+
+/* AUD3004X_9D_AVC_TIMER_M1 */
+#define AVC_DLY_FIN_MONO_SHIFT		0
+#define AVC_DLY_FIN_MONO_WIDTH		8
+#define AVC_DLY_FIN_MONO_MASK		MASK(AVC_DLY_FIN_MONO_WIDTH, AVC_DLY_FIN_MONO_SHIFT)
+
+/* AUD3004X_9E_AVC_TIMER_M2 */
+#define CIC_DLY_FIN_SHIFT			0
+#define CIC_DLY_FIN_WIDTH			8
+#define CIC_DLY_FIN_MASK			MASK(CIC_DLY_FIN_WIDTH, CIC_DLY_FIN_SHIFT)
+
+/* AUD3004X_B5_ODSEL0 */
+#define T_PDB_IGEN_SHIFT			7
+#define T_PDB_IGEN_MASK				BIT(T_PDB_IGEN_SHIFT)
+
+#define T_PDB_VMID_SHIFT			6
+#define T_PDB_VMID_MASK				BIT(T_PDB_VMID_SHIFT)
+
+#define T_PDB_DCTC_SHIFT			5
+#define T_PDB_DCTC_MASK				BIT(T_PDB_DCTC_SHIFT)
+
+#define T_RESETB_DCTC_SHIFT			4
+#define T_RESETB_DCTC_MASK			BIT(T_RESETB_DCTC_SHIFT)
+
+#define T_PDB_CP_SHIFT				3
+#define T_PDB_CP_MASK				BIT(T_PDB_CP_SHIFT)
+
+#define T_PDB_CP_INRUSH_SHIFT		2
+#define T_PDB_CP_INRUSH_MASK		BIT(T_PDB_CP_INRUSH_SHIFT)
+
+#define T_EN_DCTC_PREQ_SHIFT		1
+#define T_EN_DCTC_PREQ_MASK			BIT(T_EN_DCTC_PREQ_SHIFT)
+
+#define T_CTMF_FCP_SHIFT			0
+#define T_CTMF_FCP_MASK				BIT(T_CTMF_FCP_SHIFT)
+
+/* AUD3004X_B6_ODSEL1 */
+#define T_RESETB_BST3_SHIFT			5
+#define T_RESETB_BST3_MASK			BIT(T_RESETB_BST3_SHIFT)
+
+/* AUD3004X_B9_ODSEL4 */
+#define T_EN_EP_OCP_SHIFT			7
+#define T_EN_EP_OCP_MASK			BIT(T_EN_EP_OCP_SHIFT)
+
+/* AUD3004X_C0_ACTR_JD1 */
+#define CTRV_GDET_VTG_SHIFT			5
+#define CTRV_GDET_VTG_WIDTH			3
+#define CTRV_GDET_VTG_MASK			MASK(CTRV_GDET_VTG_WIDTH, CTRV_GDET_VTG_SHIFT)
+
+#define GDET_VTG_0_675V				0
+#define GDET_VTG_0_8V				1
+#define GDET_VTG_0_9V				2
+#define GDET_VTG_0_982V				3
+#define GDET_VTG_1_05V				4
+#define GDET_VTG_1_11V				5
+#define GDET_VTG_1_16V				6
+#define GDET_VTG_1_2V				7
+
+#define CTRV_GDET_POP_SHIFT			2
+#define CTRV_GDET_POP_WIDTH			3
+#define CTRV_GDET_POP_MASK			MASK(CTRV_GDET_POP_WIDTH, CTRV_GDET_POP_SHIFT)
+
+#define GDET_POP_50K				0
+#define GDET_POP_100K				1
+#define GDET_POP_200K				2
+#define GDET_POP_300K				3
+#define GDET_POP_500K				4
+#define GDET_POP_1000K				5
+#define GDET_POP_1500K				6
+#define GDET_POP_2000K				7
+
+#define PDB_JD_SHIFT				1
+#define PDB_JD_MASK					BIT(PDB_JD_SHIFT)
+
+#define PDB_ANT_LDET_SHIFT			0
+#define PDB_ANT_LDET_MASK			BIT(PDB_ANT_LDET_SHIFT)
+
+#define ACTR_JD1_SET				1
+#define ACTR_JD1_UNSET				0
+
+/* AUD3004X_C1_ACTR_JD2 */
+#define PDB_BTN_DET_SHIFT			6
+#define PDB_BTN_DET_MASK			BIT(PDB_BTN_DET_SHIFT)
+
+#define CTRV_ANT_LDET_VTH_SHIFT		4
+#define CTRV_ANT_LDET_VTH_WIDTH		2
+#define CTRV_ANT_LDET_VTH_MASK		MASK(CTRV_ANT_LDET_VTH_WIDTH, CTRV_ANT_LDET_VTH_SHIFT)
+
+#define CTRV_LDET_VTH_SHIFT			2
+#define CTRV_LDET_VTH_WIDTH			2
+#define CTRV_LDET_VTH_MASK			MASK(CTRV_LDET_VTH_WIDTH, CTRV_LDET_VTH_SHIFT)
+
+#define LDET_VTH_1_63V				0
+#define LDET_VTH_1_57V				1
+#define LDET_VTH_1_24V				2
+#define LDET_VTH_0_90V				3
+
+#define CTRV_LDET_POP_SHIFT			0
+#define CTRV_LDET_POP_WIDTH			2
+#define CTRV_LDET_POP_MASK			MASK(CTRV_LDET_POP_WIDTH, CTRV_LDET_POP_SHIFT)
+
+#define LDET_POP_500K				0
+#define LDET_POP_1000K				1
+#define LDET_POP_1500K				2
+#define LDET_POP_2000K				3
+
+/* AUD3004X_C2_ACTR_BTN */
+#define PDB_ANT_MDET_SHIFT			7
+#define PDB_ANT_MDET_MASK			BIT(PDB_ANT_MDET_SHIFT)
+
+#define PDB_ANT_MDET2_SHIFT			6
+#define PDB_ANT_MDET2_MASK			BIT(PDB_ANT_MDET2_SHIFT)
+
+#define CTRV_BTN_REF_SHIFT			3
+#define CTRV_BTN_REF_WIDTH			3
+#define CTRV_BTN_REF_MASK			MASK(CTRV_BTN_REF_WIDTH, CTRV_BTN_REF_SHIFT)
+
+#define CTRV_ANT_MDET_SHIFT			0
+#define CTRV_ANT_MDET_WIDTH			3
+#define CTRV_ANT_MDET_MASK			MASK(CTRV_ANT_MDET_WIDTH, CTRV_ANT_MDET_SHIFT)
+
+/* AUD3004X_C5_ACTR_MCB3 */
+#define EN_MCB_BYPASS_SHIFT			7
+#define EN_MCB_BYPASS_MASK			BIT(EN_MCB_BYPASS_SHIFT)
+
+#define PDB_MCB_LDO_SHIFT			3
+#define PDB_MCB_LDO_MASK			BIT(PDB_MCB_LDO_SHIFT)
+
+#define PDB_MCB2_SHIFT				1
+#define PDB_MCB2_MASK				BIT(PDB_MCB2_SHIFT)
+
+/* AUD3004X_C6_ACTR_MCB4 */
+#define PDB_MCB4_SHIFT				4
+#define PDB_MCB4_MASK				BIT(PDB_MCB4_SHIFT)
+
+#define CTRV_MCB2_SHIFT				2
+#define CTRV_MCB2_WIDTH				2
+#define CTRV_MCB2_MASK				MASK(CTRV_MCB2_WIDTH, CTRV_MCB2_SHIFT)
+
+#define MIC_BIAS2_VO_3_0V			3
+#define MIC_BIAS2_VO_2_6V			2
+#define MIC_BIAS2_VO_2_8V			1
+#define MIC_BIAS2_VO_1_7V			0
+
+#define CTRV_MCB_LDO_SHIFT			0
+#define CTRV_MCB_LDO_WIDTH			2
+#define CTRV_MCB_LDO_MASK			MASK(CTRV_MCB_LDO_WIDTH, CTRV_MCB_LDO_SHIFT)
+
+#define MIC_BIAS_LDO_3_2V			3
+#define MIC_BIAS_LDO_2_88V			2
+#define MIC_BIAS_LDO_2_64V			1
+#define MIC_BIAS_LDO_2_0V			0
+
+/* AUD3004X_CB_ACTR_GP */
+#define EN_SPK_HVS_SHIFT			7
+#define EN_SPK_HVS_MASK				BIT(EN_SPK_HVS_SHIFT)
+
+#define EN_DLDO_MINLOAD_SHIFT		5
+#define EN_DLDO_MINLOAD_MASK		BIT(EN_DLDO_MINLOAD_SHIFT)
+
+#define EN_DIG_RET_SHIFT			4
+#define EN_DIG_RET_MASK				BIT(EN_DIG_RET_SHIFT)
+
+#define CTMP_GPADCIN_SHIFT			1
+#define CTMP_GPADCIN_WIDTH			3
+#define CTMP_GPADCIN_MASK			MASK(CTMP_GPADCIN_WIDTH, CTMP_GPADCIN_SHIFT)
+
+#define PDB_GPADC_SHIFT				0
+#define PDB_GPADC_MASK				BIT(PDB_GPADC_SHIFT)
+
+/* AUD3004X_CC_ACTR_DLDO */
+#define EN_DLDO_SHIFT				7
+#define EN_DLDO_MASK				BIT(EN_DLDO_SHIFT)
+
+#define CTRV_DIG_LDO_SHIFT			4
+#define CTRV_DIG_LDO_WIDTH			3
+#define CTRV_DIG_LDO_MASK			MASK(CTRV_DIG_LDO_WIDTH, CTRV_DIG_LDO_SHIFT)
+
+#define DLDO_1_1V					0
+#define DLDO_1_15V					1
+#define DLDO_1_2V					2
+#define DLDO_1_25V					3
+#define DLDO_1_3V					4
+#define DLDO_1_4V					5
+#define DLDO_1_5V					6
+#define DLDO_1_6V					7
+
+#define EN_DLDO_BYPASS_SHIFT		3
+#define EN_DLDO_BYPASS_MASK			BIT(EN_DLDO_BYPASS_SHIFT)
+
+#define CTMI_DLDO_SHIFT				0
+#define CTMI_DLDO_WIDTH				3
+#define CTMI_DLDO_MASK				MASK(CTMI_DLDO_WIDTH, CTMI_DLDO_SHIFT)
+
+/* AUD3004X_D0_DCTR_CM */
+#define DVS_CTRL_EN_SHIFT			6
+#define DVS_CTRL_EN_MASK			BIT(DVS_CTRL_EN_SHIFT)
+
+#define EN_ANT_SHIFT				4
+#define EN_ANT_MASK					BIT(EN_ANT_SHIFT)
+
+#define EN_FIVE_SHIFT				3
+#define EN_FIVE_MASK				BIT(EN_FIVE_SHIFT)
+
+#define EN_OCC_SHIFT				1
+#define EN_OCC_MASK					BIT(EN_OCC_SHIFT)
+
+#define PDB_JD_CLK_EN_SHIFT			0
+#define PDB_JD_CLK_EN_MASK			BIT(PDB_JD_CLK_EN_SHIFT)
+
+#define DCTR_CM_SET					1
+#define DCTR_CM_UNSET				0
+
+/* AUD3004X_D1_DCTR_TEST1 */
+#define T_CTRV_LDET_POP_SHIFT		4
+#define T_CTRV_LDET_POP_MASK		BIT(T_CTRV_LDET_POP_SHIFT)
+
+#define T_CTRV_GDET_POP_SHIFT		3
+#define T_CTRV_GDET_POP_MASK		BIT(T_CTRV_GDET_POP_SHIFT)
+
+#define T_PDB_ANT_LDET_SHIFT		0
+#define T_PDB_ANT_LDET_MASK			BIT(T_PDB_ANT_LDET_SHIFT)
+
+/* AUD3004X_D2_DCTR_TEST2 */
+#define T_PDB_MCB4_SHIFT			7
+#define T_PDB_MCB4_MASK				BIT(T_PDB_MCB4_SHIFT)
+
+#define T_PDB_MCB_LDO_SHIFT			6
+#define T_PDB_MCB_LDO_MASK			BIT(T_PDB_MCB_LDO_SHIFT)
+
+#define T_PDB_MCB2_SHIFT			5
+#define T_PDB_MCB2_MASK				BIT(T_PDB_MCB2_SHIFT)
+
+#define T_CTRV_ANT_MDET_SHIFT		3
+#define T_CTRV_ANT_MDET_MASK		BIT(T_CTRV_ANT_MDET_SHIFT)
+
+#define T_PDB_ANT_MDET_SHIFT		2
+#define T_PDB_ANT_MDET_MASK			BIT(T_PDB_ANT_MDET_SHIFT)
+
+#define T_PDB_ANT_MDET2_SHIFT		1
+#define T_PDB_ANT_MDET2_MASK		BIT(T_PDB_ANT_MDET2_SHIFT)
+
+#define T_PDB_BTN_DET_SHIFT			0
+#define T_PDB_BTN_DET_MASK			BIT(T_PDB_BTN_DET_SHIFT)
+
+/* AUD3004X_D4_DCTR_TEST4 */
+#define T_EN_DIG_RET_SHIFT			5
+#define T_EN_DIG_RET_MASK			BIT(T_EN_DIG_RET_SHIFT)
+
+#define T_CTMP_GPADCIN_SHIFT		4
+#define T_CTMP_GPADCIN_MASK			BIT(T_CTMP_GPADCIN_SHIFT)
+
+#define T_PDB_GPADC_SHIFT			3
+#define T_PDB_GPADC_MASK			BIT(T_PDB_GPADC_SHIFT)
+
+/* AUD3004X_D5_DCTR_TEST5 */
+#define T_A2D_GDET_OUT_SHIFT		4
+#define T_A2D_GDET_OUT_WIDTH		2
+#define T_A2D_GDET_OUT_MASK			MASK(T_A2D_GDET_OUT_WIDTH, T_A2D_GDET_OUT_SHIFT)
+
+#define T_A2D_LDET_OUT_SHIFT		2
+#define T_A2D_LDET_OUT_WIDTH		2
+#define T_A2D_LDET_OUT_MASK			MASK(T_A2D_LDET_OUT_WIDTH, T_A2D_LDET_OUT_SHIFT)
+
+#define T_A2D_ANT_LDET_OUT_SHIFT	0
+#define T_A2D_ANT_LDET_OUT_WIDTH	2
+#define T_A2D_ANT_LDET_OUT_MASK		MASK(T_A2D_ANT_LDET_OUT_WIDTH, T_A2D_ANT_LDET_OUT_SHIFT)
+
+/* AUD3004X_D6_DCTR_TEST6 */
+#define T_A2D_ANT_MDET2_OUT_SHIFT	6
+#define T_A2D_ANT_MDET2_OUT_WIDTH	2
+#define T_A2D_ANT_MDET2_OUT_MASK	MASK(T_A2D_ANT_MDET2_OUT_WIDTH, T_A2D_ANT_MDET2_OUT_SHIFT)
+
+#define T_A2D_ANT_MDET_OUT_SHIFT	4
+#define T_A2D_ANT_MDET_OUT_WIDTH	2
+#define T_A2D_ANT_MDET_OUT_MASK		MASK(T_A2D_ANT_MDET_OUT_WIDTH, T_A2D_ANT_MDET_OUT_SHIFT)
+
+#define T_A2D_BTN_OUT_SHIFT			2
+#define T_A2D_BTN_OUT_WIDTH			2
+#define T_A2D_BTN_OUT_MASK			MASK(T_A2D_BTN_OUT_WIDTH, T_A2D_BTN_OUT_SHIFT)
+
+#define T_D2A_IN_JD_SHIFT			0
+#define T_D2A_IN_JD_WIDTH			2
+#define T_D2A_IN_JD_MASK			MASK(T_D2A_IN_JD_WIDTH, T_D2A_IN_JD_SHIFT)
+
+/* AUD3004X_D7_DCTR_TEST7 */
+#define T_D2D_BNT_DBNCB_SHIFT		4
+#define T_D2D_BNT_DBNCB_WIDTH		2
+#define T_D2D_BNT_DBNCB_MASK		MASK(T_D2D_BNT_DBNCB_WIDTH, T_D2D_BNT_DBNCB_SHIFT)
+
+/* AUD3004X_D8_DCTR_DBNC1 */
+#define A2D_JACK_DBNC_IN_SHIFT		4
+#define A2D_JACK_DBNC_IN_WIDTH		4
+#define A2D_JACK_DBNC_IN_MASK		MASK(A2D_JACK_DBNC_IN_WIDTH, A2D_JACK_DBNC_IN_SHIFT)
+
+#define A2D_JACK_DBNC_OUT_SHIFT		0
+#define A2D_JACK_DBNC_OUT_WIDTH		4
+#define A2D_JACK_DBNC_OUT_MASK		MASK(A2D_JACK_DBNC_OUT_WIDTH, A2D_JACK_DBNC_OUT_SHIFT)
+
+#define A2D_JACK_DBNC_MAX			0xF
+
+/* AUD3004X_D9_DCTR_DBNC2 */
+#define A2D_JACK_DBNC_INT_IN_SHIFT	4
+#define A2D_JACK_DBNC_INT_IN_WIDTH	4
+#define A2D_JACK_DBNC_INT_IN_MASK	MASK(A2D_JACK_DBNC_INT_IN_WIDTH, A2D_JACK_DBNC_INT_IN_SHIFT)
+
+#define A2D_JACK_DBNC_INT_OUT_SHIFT	0
+#define A2D_JACK_DBNC_INT_OUT_WIDTH	4
+#define A2D_JACK_DBNC_INT_OUT_MASK	MASK(A2D_JACK_DBNC_INT_OUT_WIDTH, A2D_JACK_DBNC_INT_OUT_SHIFT)
+
+/* AUD3004X_DA_DCTR_DBNC3 */
+#define ANT_LDET_DBNC_IN_SHIFT		4
+#define ANT_LDET_DBNC_IN_WIDTH		4
+#define ANT_LDET_DBNC_IN_MASK		MASK(ANT_LDET_DBNC_IN_WIDTH, ANT_LDET_DBNC_IN_SHIFT)
+
+#define DA_DCTR_DBNC3_12			12
+#define DA_DCTR_DBNC3_2				2
+
+#define ANT_LDET_DBNC_OUT_SHIFT		0
+#define ANT_LDET_DBNC_OUT_WIDTH		4
+#define ANT_LDET_DBNC_OUT_MASK		MASK(ANT_LDET_DBNC_OUT_WIDTH, ANT_LDET_DBNC_OUT_SHIFT)
+
+/* AUD3004X_DB_DCTR_DBNC4 */
+#define ANT_MDET_DBNC_IN_SHIFT		4
+#define ANT_MDET_DBNC_IN_WIDTH		4
+#define ANT_MDET_DBNC_IN_MASK		MASK(ANT_MDET_DBNC_IN_WIDTH, ANT_MDET_DBNC_IN_SHIFT)
+
+#define ANT_MDET_DBNC_OUT_SHIFT		0
+#define ANT_MDET_DBNC_OUT_WIDTH		4
+#define ANT_MDET_DBNC_OUT_MASK		MASK(ANT_MDET_DBNC_OUT_WIDTH, ANT_MDET_DBNC_OUT_SHIFT)
+
+/* AUD3004X_DC_DCTR_DBNC5 */
+#define ANT_MDET2_DBNC_IN_SHIFT		4
+#define ANT_MDET2_DBNC_IN_WIDTH		4
+#define ANT_MDET2_DBNC_IN_MASK		MASK(ANT_MDET2_DBNC_IN_WIDTH, ANT_MDET2_DBNC_IN_SHIFT)
+
+#define ANT_MDET2_DBNC_OUT_SHIFT	0
+#define ANT_MDET2_DBNC_OUT_WIDTH	4
+#define ANT_MDET2_DBNC_OUT_MASK		MASK(ANT_MDET2_DBNC_OUT_WIDTH, ANT_MDET2_DBNC_OUT_SHIFT)
+
+/* AUD3004X_DD_DCTR_DBNC6 */
+#define CTMD_BTN_DBNC_SHIFT			0
+#define CTMD_BTN_DBNC_WIDTH			4
+#define CTMD_BTN_DBNC_MASK			MASK(CTMD_BTN_DBNC_WIDTH, CTMD_BTN_DBNC_SHIFT)
+
+/* AUD3004X_E2_DCTR_FSM1 */
+#define CNT_POLLING_SHIFT			6
+#define CNT_POLLING_WIDTH			2
+#define CNT_POLLING_MASK			MASK(CNT_POLLING_WIDTH, CNT_POLLING_SHIFT)
+
+#define D2A_IN_JD_DELAY_SHIFT		0
+#define D2A_IN_JD_DELAY_WIDTH		4
+#define D2A_IN_JD_DELAY_MASK		MASK(D2A_IN_JD_DELAY_WIDTH, D2A_IN_JD_DELAY_SHIFT)
+
+/* AUD3004X_E3_DCTR_FSM2 */
+#define POLE_VALUE_SHIFT			4
+#define POLE_VALUE_WIDTH			2
+#define POLE_VALUE_MASK				MASK(POLE_VALUE_WIDTH, POLE_VALUE_SHIFT)
+
+/* AUD3004X_E4_DCTR_FSM3 */
+#define AP_ANT_RJIN_SHIFT			7
+#define AP_ANT_RJIN_MASK			BIT(AP_ANT_RJIN_SHIFT)
+
+#define AP_POLLING_SHIFT			6
+#define AP_POLLING_MASK				BIT(AP_POLLING_SHIFT)
+
+#define AP_JACK_IN_SHIFT			5
+#define AP_JACK_IN_MASK				BIT(AP_JACK_IN_SHIFT)
+
+#define AP_JACK_OUT_SHIFT			4
+#define AP_JACK_OUT_MASK			BIT(AP_JACK_OUT_SHIFT)
+
+#define SEL_ANT_RJDET_SHIFT			1
+#define SEL_ANT_RJDET_MASK			BIT(SEL_ANT_RJDET_SHIFT)
+
+/* AUD3004X_E5_DCTR_FSM4 */
+#define RST_POLE_SHIFT				3
+#define RST_POLE_MASK				BIT(RST_POLE_SHIFT)
+
+#define EN_MCB2_HQ_SHIFT			2
+#define EN_MCB2_HQ_MASK				BIT(EN_MCB2_HQ_SHIFT)
+
+/* AUD3004X_E6_DCTR_GP */
+#define EN_DATA_HOLD_SHIFT			7
+#define EN_DATA_HOLD_MASK			BIT(EN_DATA_HOLD_SHIFT)
+
+#define T_CNT_ADC_DIV_SHIFT			6
+#define T_CNT_ADC_DIV_MASK			BIT(T_CNT_ADC_DIV_SHIFT)
+
+#define CNT_ADC_DIV_SHIFT			4
+#define CNT_ADC_DIV_WIDTH			2
+#define CNT_ADC_DIV_MASK			MASK(CNT_ADC_DIV_WIDTH, CNT_ADC_DIV_SHIFT)
+
+#define CNT_GPADC_DUMP_SHIFT		0
+#define CNT_GPADC_DUMP_WIDTH		3
+#define CNT_GPADC_DUMP_MASK			MASK(CNT_GPADC_DUMP_WIDTH, CNT_GPADC_DUMP_SHIFT)
+
+/* AUD3004X_F0_STATUS1 */
+#define ANT_MDET2_DET_SHIFT			6
+#define ANT_MDET2_DET_MASK			BIT(ANT_MDET2_DET_SHIFT)
+
+#define ANT_MDET_DET_SHIFT			5
+#define ANT_MDET_DET_MASK			BIT(ANT_MDET_DET_SHIFT)
+
+#define ANT_LDET_DET_SHIFT			4
+#define ANT_LDET_DET_MASK			BIT(ANT_LDET_DET_SHIFT)
+
+#define BNT_DET_SHIFT				3
+#define BNT_DET_MASK				BIT(BNT_DET_SHIFT)
+
+#define HPG_DET_SHIFT				2
+#define HPG_DET_MASK				BIT(HPG_DET_SHIFT)
+
+#define HPL_DET_SHIFT				1
+#define HPL_DET_MASK				BIT(HPL_DET_SHIFT)
+
+#define JACK_DET_SHIFT				0
+#define JACK_DET_MASK				BIT(JACK_DET_SHIFT)
+
+/* AUD3004X_F1_STATUS2 */
+#define WTP_STATE_SHIFT				0
+#define WTP_STATE_WIDTH				2
+#define WTP_STATE_MASK				MASK(WTP_STATE_WIDTH, WTP_STATE_SHIFT)
+
+#define WTP_JO						0
+#define WTP_JI						1
+#define WTP_AP						2
+
+/* AUD3004X_F5_STATUS6 */
+#define GPADC_AVG_DATA0_SHIFT		0
+#define GPADC_AVG_DATA0_WIDTH		8
+#define GPADC_AVG_DATA0_MASK		MASK(GPADC_AVG_DATA0_WIDTH, GPADC_AVG_DATA0_SHIFT)
+
+/* AUD3004X_F7_STATUS8 */
+#define GPADC_AVG_DATA1_SHIFT		0
+#define GPADC_AVG_DATA1_WIDTH		4
+#define GPADC_AVG_DATA1_MASK		MASK(GPADC_AVG_DATA1_WIDTH, GPADC_AVG_DATA1_SHIFT)
+
+/* AUD3004X_F8_STATUS9 */
+#define GPADC_AVG_DONE_SHIFT		4
+#define GPADC_AVG_DONE_MASK			BIT(GPADC_AVG_DONE_SHIFT)
+
+/* AUD3004X_102_CLK3_COD */
+#define SEL_DIGMUTE_HP_SHIFT		0
+#define SEL_DIGMUTE_HP_WIDTH		2
+#define SEL_DIGMUTE_HP_MASK			MASK(SEL_DIGMUTE_HP_WIDTH, SEL_DIGMUTE_HP_SHIFT)
+
+/* AUD3004X_106_DSM_AD */
+#define EN_BST_CHOP_SHIFT			3
+#define EN_BST_CHOP_MASK			BIT(EN_BST_CHOP_SHIFT)
+
+#define EN_DWAC_SHIFT				2
+#define EN_DWAC_MASK				BIT(EN_DWAC_SHIFT)
+
+#define EN_DWAL_SHIFT				1
+#define EN_DWAL_MASK				BIT(EN_DWAL_SHIFT)
+
+#define EN_DWAR_SHIFT				0
+#define EN_DWAR_MASK				BIT(EN_DWAR_SHIFT)
+
+/* AUD3004X_107_LPF_AD */
+#define CTMF_LPF_SHIFT				0
+#define CTMF_LPF_WIDTH				5
+#define CTMF_LPF_MASK				MASK(CTMF_LPF_WIDTH, CTMF_LPF_SHIFT)
+
+/* AUD3004X_110_PD_REF */
+#define PDB_VMID_SHIFT				5
+#define PDB_VMID_MASK				BIT(PDB_VMID_SHIFT)
+
+#define PDB_IGEN_SHIFT				4
+#define PDB_IGEN_MASK				BIT(PDB_IGEN_SHIFT)
+
+#define PDB_IGEN_AD_SHIFT			3
+#define PDB_IGEN_AD_MASK			BIT(PDB_IGEN_AD_SHIFT)
+
+#define PDB_MCB1_SHIFT				2
+#define PDB_MCB1_MASK				BIT(PDB_MCB1_SHIFT)
+
+#define PDB_MCB2_CODEC_SHIFT		1
+#define PDB_MCB2_CODEC_MASK			BIT(PDB_MCB2_CODEC_SHIFT)
+
+#define PDB_MCB_LDO_CODEC_SHIFT		0
+#define PDB_MCB_LDO_CODEC_MASK		BIT(PDB_MCB_LDO_CODEC_SHIFT)
+
+/* AUD3004X_111_PD_AD1 */
+#define PDB_MIXL_SHIFT				7
+#define PDB_MIXL_MASK				BIT(PDB_MIXL_SHIFT)
+
+#define PDB_MIXR_SHIFT				6
+#define PDB_MIXR_MASK				BIT(PDB_MIXR_SHIFT)
+
+#define EN_DSML_PREQ_SHIFT			5
+#define EN_DSML_PREQ_MASK			BIT(EN_DSML_PREQ_SHIFT)
+
+#define EN_DSMR_PREQ_SHIFT			4
+#define EN_DSMR_PREQ_MASK			BIT(EN_DSMR_PREQ_SHIFT)
+
+#define PDB_DSML_SHIFT				3
+#define PDB_DSML_MASK				BIT(PDB_DSML_SHIFT)
+
+#define PDB_DSMR_SHIFT				2
+#define PDB_DSMR_MASK				BIT(PDB_DSMR_SHIFT)
+
+#define RESETB_DSML_SHIFT			1
+#define RESETB_DSML_MASK			BIT(RESETB_DSML_SHIFT)
+
+#define RESETB_DSMR_SHIFT			0
+#define RESETB_DSMR_MASK			BIT(RESETB_DSMR_SHIFT)
+
+/* AUD3004X_112_PD_AD2 */
+#define PDB_LNL_SHIFT				7
+#define PDB_LNL_MASK				BIT(PDB_LNL_SHIFT)
+
+#define PDB_LNR_SHIFT				6
+#define PDB_LNR_MASK				BIT(PDB_LNR_SHIFT)
+
+#define PDB_MIC_BST1_SHIFT			5
+#define PDB_MIC_BST1_MASK			BIT(PDB_MIC_BST1_SHIFT)
+
+#define PDB_MIC_BST2_SHIFT			4
+#define PDB_MIC_BST2_MASK			BIT(PDB_MIC_BST2_SHIFT)
+
+#define PDB_MIC_BST3_SHIFT			3
+#define PDB_MIC_BST3_MASK			BIT(PDB_MIC_BST3_SHIFT)
+
+#define PDB_MIC_AMP1_SHIFT			2
+#define PDB_MIC_AMP1_MASK			BIT(PDB_MIC_AMP1_SHIFT)
+
+#define PDB_MIC_AMP2_SHIFT			1
+#define PDB_MIC_AMP2_MASK			BIT(PDB_MIC_AMP2_SHIFT)
+
+#define PDB_MIC_AMP3_SHIFT			0
+#define PDB_MIC_AMP3_MASK			BIT(PDB_MIC_AMP3_SHIFT)
+
+/* AUD3004X_113_PD_AD3 */
+#define EN_BST_DIODE_SHIFT			7
+#define EN_BST_DIODE_MASK			BIT(EN_BST_DIODE_SHIFT)
+
+#define PDB_MIXC_SHIFT				6
+#define PDB_MIXC_MASK				BIT(PDB_MIXC_SHIFT)
+
+#define EN_DSMC_PREQ_SHIFT			5
+#define EN_DSMC_PREQ_MASK			BIT(EN_DSMC_PREQ_SHIFT)
+
+#define PDB_DSMC_SHIFT				4
+#define PDB_DSMC_MASK				BIT(PDB_DSMC_SHIFT)
+
+#define RESETB_DSMC_SHIFT			3
+#define RESETB_DSMC_MASK			BIT(RESETB_DSMC_SHIFT)
+
+#define RESETB_BST1_SHIFT			2
+#define RESETB_BST1_MASK			BIT(RESETB_BST1_SHIFT)
+
+#define RESETB_BST2_SHIFT			1
+#define RESETB_BST2_MASK			BIT(RESETB_BST2_SHIFT)
+
+#define RESETB_BST3_SHIFT			0
+#define RESETB_BST3_MASK			BIT(RESETB_BST3_SHIFT)
+
+/* AUD3004X_114_PD_DA1 */
+#define EN_DCTL_PREQ_SHIFT			5
+#define EN_DCTL_PREQ_MASK			BIT(EN_DCTL_PREQ_SHIFT)
+
+#define EN_DCTR_PREQ_SHIFT			4
+#define EN_DCTR_PREQ_MASK			BIT(EN_DCTR_PREQ_SHIFT)
+
+#define PDB_DCTL_SHIFT				3
+#define PDB_DCTL_MASK				BIT(PDB_DCTL_SHIFT)
+
+#define PDB_DCTR_SHIFT				2
+#define PDB_DCTR_MASK				BIT(PDB_DCTR_SHIFT)
+
+#define RESETB_DCTL_SHIFT			1
+#define RESETB_DCTL_MASK			BIT(RESETB_DCTL_SHIFT)
+
+#define RESETB_DCTR_SHIFT			0
+#define RESETB_DCTR_MASK			BIT(RESETB_DCTR_SHIFT)
+
+/* AUD3004X_115_PD_DA2 */
+#define PDB_HP_IBIAS_SHIFT			7
+#define PDB_HP_IBIAS_MASK			BIT(PDB_HP_IBIAS_SHIFT)
+
+#define PDB_CP_SHIFT				6
+#define PDB_CP_MASK					BIT(PDB_CP_SHIFT)
+
+#define PDB_EP_CORE_SHIFT			5
+#define PDB_EP_CORE_MASK			BIT(PDB_EP_CORE_SHIFT)
+
+#define PDB_EP_DRV_SHIFT			4
+#define PDB_EP_DRV_MASK				BIT(PDB_EP_DRV_SHIFT)
+
+/* AUD3004X_116_PD_DA3 */
+#define PDB_HP_CORE1L_SHIFT			7
+#define PDB_HP_CORE1L_MASK			BIT(PDB_HP_CORE1L_SHIFT)
+
+#define PDB_HP_CORE1R_SHIFT			6
+#define PDB_HP_CORE1R_MASK			BIT(PDB_HP_CORE1R_SHIFT)
+
+#define PDB_HP_CORE2L_SHIFT			5
+#define PDB_HP_CORE2L_MASK			BIT(PDB_HP_CORE2L_SHIFT)
+
+#define PDB_HP_CORE2R_SHIFT			4
+#define PDB_HP_CORE2R_MASK			BIT(PDB_HP_CORE2R_SHIFT)
+
+#define PDB_HP_DRVL_SHIFT			3
+#define PDB_HP_DRVL_MASK			BIT(PDB_HP_DRVL_SHIFT)
+
+#define PDB_HP_DRVR_SHIFT			2
+#define PDB_HP_DRVR_MASK			BIT(PDB_HP_DRVR_SHIFT)
+
+#define PDB_HP_MIXERL_SHIFT			1
+#define PDB_HP_MIXERL_MASK			BIT(PDB_HP_MIXERL_SHIFT)
+
+#define PDB_HP_MIXERR_SHIFT			0
+#define PDB_HP_MIXERR_MASK			BIT(PDB_HP_MIXERR_SHIFT)
+
+/* AUD3004X_117_CTRL_REF */
+#define CTMF_VMID_SHIFT				6
+#define CTMF_VMID_WIDTH				2
+#define CTMF_VMID_MASK				MASK(CTMF_VMID_WIDTH, CTMF_VMID_SHIFT)
+
+#define CTRV_MCB1_SHIFT				4
+#define CTRV_MCB1_WIDTH				2
+#define CTRV_MCB1_MASK				MASK(CTRV_MCB1_WIDTH, CTRV_MCB1_SHIFT)
+
+#define MIC_BIAS1_VO_3_0V			3
+#define MIC_BIAS1_VO_2_6V			2
+#define MIC_BIAS1_VO_2_8V			1
+#define MIC_BIAS1_VO_N_A			0
+
+#define CTRM_MCB2_SHIFT				3
+#define CTRM_MCB2_MASK				BIT(CTRM_MCB2_SHIFT)
+
+#define EN_DET_CLK_SHIFT			0
+#define EN_DET_CLK_MASK				BIT(EN_DET_CLK_SHIFT)
+
+/* AUD3004X_11C_CTRL_LINE1 */
+#define CTMF_LINE_CAP_SHIFT			6
+#define CTMF_LINE_CAP_WIDTH			2
+#define CTMF_LINE_CAP_MASK			MASK(CTMF_LINE_CAP_WIDTH, CTMF_LINE_CAP_SHIFT)
+
+#define CTMI_LINE_A_SHIFT			3
+#define CTMI_LINE_A_WIDTH			3
+#define CTMI_LINE_A_MASK			MASK(CTMI_LINE_A_WIDTH, CTMI_LINE_A_SHIFT)
+
+#define CTMI_LINE_P_SHIFT			0
+#define CTMI_LINE_P_WIDTH			3
+#define CTMI_LINE_P_MASK			MASK(CTMI_LINE_P_WIDTH, CTMI_LINE_P_SHIFT)
+
+/* AUD3004X_11D_CTRL_LINE2 */
+#define CTMI_LINE_PRE_SHIFT			6
+#define CTMI_LINE_PRE_WIDTH			2
+#define CTMI_LINE_PRE_MASK			MASK(CTMI_LINE_PRE_WIDTH, CTMI_LINE_PRE_SHIFT)
+
+#define CTVOL_LINE_SHIFT			0
+#define CTVOL_LINE_WIDTH			6
+#define CTVOL_LINE_MASK				MASK(CTVOL_LINE_WIDTH, CTVOL_LINE_SHIFT)
+
+/* AUD3004X_11E_CTRL_LINE3 */
+#define CTPOP_LINE_SHIFT			7
+#define CTPOP_LINE_MASK				BIT(CTPOP_LINE_SHIFT)
+
+#define EN_LINEMIC_DCTC_SHIFT		6
+#define EN_LINEMIC_DCTC_MASK		BIT(EN_LINEMIC_DCTC_SHIFT)
+
+#define EN_LINE_MIX_MIXL_SHIFT		5
+#define EN_LINE_MIX_MIXL_MASK		BIT(EN_LINE_MIX_MIXL_SHIFT)
+
+#define EN_LINE_MIX_MIXR_SHIFT		4
+#define EN_LINE_MIX_MIXR_MASK		BIT(EN_LINE_MIX_MIXR_SHIFT)
+
+#define EN_LINE_MUTE_SHIFT			3
+#define EN_LINE_MUTE_MASK			BIT(EN_LINE_MUTE_SHIFT)
+
+#define EN_LINE_OUTTIE_SHIFT		2
+#define EN_LINE_OUTTIE_MASK			BIT(EN_LINE_OUTTIE_SHIFT)
+
+#define EN_LINE_PRT_SHIFT			1
+#define EN_LINE_PRT_MASK			BIT(EN_LINE_PRT_SHIFT)
+
+/* AUD3004X_11F_CTRL_LINE4 */
+#define PDB_LINE_CORE1_SHIFT		6
+#define PDB_LINE_CORE1_MASK			BIT(PDB_LINE_CORE1_SHIFT)
+
+#define PDB_LINE_CORE2_SHIFT		5
+#define PDB_LINE_CORE2_MASK			BIT(PDB_LINE_CORE2_SHIFT)
+
+#define PDB_LINE_DRV_SHIFT			4
+#define PDB_LINE_DRV_MASK			BIT(PDB_LINE_DRV_SHIFT)
+
+#define PDB_LINE_IBIAS_SHIFT		3
+#define PDB_LINE_IBIAS_MASK			BIT(PDB_LINE_IBIAS_SHIFT)
+
+#define PDB_LINE_MIX_SHIFT			2
+#define PDB_LINE_MIX_MASK			BIT(PDB_LINE_MIX_SHIFT)
+
+/* AUD3004X_130_MIX_AD1 */
+#define EN_MIX_MIC1L_SHIFT			5
+#define EN_MIX_MIC1L_MASK			BIT(EN_MIX_MIC1L_SHIFT)
+
+#define EN_MIX_MIC1R_SHIFT			4
+#define EN_MIX_MIC1R_MASK			BIT(EN_MIX_MIC1R_SHIFT)
+
+#define EN_MIX_MIC2L_SHIFT			3
+#define EN_MIX_MIC2L_MASK			BIT(EN_MIX_MIC2L_SHIFT)
+
+#define EN_MIX_MIC2R_SHIFT			2
+#define EN_MIX_MIC2R_MASK			BIT(EN_MIX_MIC2R_SHIFT)
+
+#define EN_MIX_MIC3L_SHIFT			1
+#define EN_MIX_MIC3L_MASK			BIT(EN_MIX_MIC3L_SHIFT)
+
+#define EN_MIX_MIC3R_SHIFT			0
+#define EN_MIX_MIC3R_MASK			BIT(EN_MIX_MIC3R_SHIFT)
+
+/* AUD3004X_134_VOL_AD1 */
+#define CTVOL_BST1_SHIFT			5
+#define CTVOL_BST1_WIDTH			2
+#define CTVOL_BST1_MASK				MASK(CTVOL_BST1_WIDTH, CTVOL_BST1_SHIFT)
+
+#define CTVOL_ALOG_GAIN_0			0
+#define CTVOL_ALOG_GAIN_12			1
+#define CTVOL_ALOG_GAIN_20			2
+
+#define CTVOL_BST_PGA1_SHIFT		0
+#define CTVOL_BST_PGA1_WIDTH		5
+#define CTVOL_BST_PGA1_MASK			MASK(CTVOL_BST_PGA1_WIDTH, CTVOL_BST_PGA1_SHIFT)
+
+/* AUD3004X_135_VOL_AD2 */
+#define CTVOL_BST2_SHIFT			5
+#define CTVOL_BST2_WIDTH			2
+#define CTVOL_BST2_MASK				MASK(CTVOL_BST2_WIDTH, CTVOL_BST2_SHIFT)
+
+#define CTVOL_BST_PGA2_SHIFT		0
+#define CTVOL_BST_PGA2_WIDTH		5
+#define CTVOL_BST_PGA2_MASK			MASK(CTVOL_BST_PGA2_WIDTH, CTVOL_BST_PGA2_SHIFT)
+
+/* AUD3004X_136_VOL_AD3 */
+#define CTVOL_BST3_SHIFT			5
+#define CTVOL_BST3_WIDTH			2
+#define CTVOL_BST3_MASK				MASK(CTVOL_BST3_WIDTH, CTVOL_BST3_SHIFT)
+
+#define CTVOL_BST_PGA3_SHIFT		0
+#define CTVOL_BST_PGA3_WIDTH		5
+#define CTVOL_BST_PGA3_MASK			MASK(CTVOL_BST_PGA3_WIDTH, CTVOL_BST_PGA3_SHIFT)
+
+/* AUD3004X_150_CTRL_EP */
+#define PDB_CP_INRUSH_SHIFT			6
+#define PDB_CP_INRUSH_MASK			BIT(PDB_CP_INRUSH_SHIFT)
+
+#define EN_CP_AUTOSEL_SHIFT			3
+#define EN_CP_AUTOSEL_MASK			BIT(EN_CP_AUTOSEL_SHIFT)
+
+#define EN_EP_OCP_SHIFT				1
+#define EN_EP_OCP_MASK				BIT(EN_EP_OCP_SHIFT)
+
+/* AUD3004X_153_CTRL_SPK1 */
+#define EN_SPK_SDN_SHIFT			6
+#define EN_SPK_SDN_MASK				BIT(EN_SPK_SDN_SHIFT)
+
+#define CTMF_SPK_OSC_SHIFT			4
+#define CTMF_SPK_OSC_WIDTH			2
+#define CTMF_SPK_OSC_MASK			MASK(CTMF_SPK_OSC_WIDTH, CTMF_SPK_OSC_SHIFT)
+
+#define CTMI_SPK_PROT_SHIFT			0
+#define CTMI_SPK_PROT_WIDTH			2
+#define CTMI_SPK_PROT_MASK			MASK(CTMI_SPK_PROT_WIDTH, CTMI_SPK_PROT_SHIFT)
+
+/* AUD3004X_157_CTRL_SPK5 */
+#define CTVOL_SPK_PG_SHIFT			0
+#define CTVOL_SPK_PG_WIDTH			5
+#define CTVOL_SPK_PG_MASK			MASK(CTVOL_SPK_PG_WIDTH, CTVOL_SPK_PG_SHIFT)
+
+/* AUD3004X_158_MIX_DA1 */
+#define EN_HP_MIXL_DCTL_SHIFT		7
+#define EN_HP_MIXL_DCTL_MASK		BIT(EN_HP_MIXL_DCTL_SHIFT)
+
+#define EN_HP_MIXL_DCTR_SHIFT		6
+#define EN_HP_MIXL_DCTR_MASK		BIT(EN_HP_MIXL_DCTR_SHIFT)
+
+#define EN_HP_MIXL_MIXL_SHIFT		5
+#define EN_HP_MIXL_MIXL_MASK		BIT(EN_HP_MIXL_MIXL_SHIFT)
+
+#define EN_HP_MIXL_MIXR_SHIFT		4
+#define EN_HP_MIXL_MIXR_MASK		BIT(EN_HP_MIXL_MIXR_SHIFT)
+
+#define EN_HP_MIXR_DCTL_SHIFT		3
+#define EN_HP_MIXR_DCTL_MASK		BIT(EN_HP_MIXR_DCTL_SHIFT)
+
+#define EN_HP_MIXR_DCTR_SHIFT		2
+#define EN_HP_MIXR_DCTR_MASK		BIT(EN_HP_MIXR_DCTR_SHIFT)
+
+#define EN_HP_MIXR_MIXL_SHIFT		1
+#define EN_HP_MIXR_MIXL_MASK		BIT(EN_HP_MIXR_MIXL_SHIFT)
+
+#define EN_HP_MIXR_MIXR_SHIFT		0
+#define EN_HP_MIXR_MIXR_MASK		BIT(EN_HP_MIXR_MIXR_SHIFT)
+
+/* AUD3004X_159_MIX_DA2 */
+#define EN_EP_MIX_DCTC_SHIFT		7
+#define EN_EP_MIX_DCTC_MASK			BIT(EN_EP_MIX_DCTC_SHIFT)
+
+#define EN_EP_MIX_DCTR_SHIFT		6
+#define EN_EP_MIX_DCTR_MASK			BIT(EN_EP_MIX_DCTR_SHIFT)
+
+#define EN_EP_MIX_MIXL_SHIFT		5
+#define EN_EP_MIX_MIXL_MASK			BIT(EN_EP_MIX_MIXL_SHIFT)
+
+#define EN_EP_MIX_MIXR_SHIFT		4
+#define EN_EP_MIX_MIXR_MASK			BIT(EN_EP_MIX_MIXR_SHIFT)
+
+#define EN_SPK_MIX_DCTC_SHIFT		3
+#define EN_SPK_MIX_DCTC_MASK		BIT(EN_SPK_MIX_DCTC_SHIFT)
+
+#define EN_SPK_MIX_MIXL_SHIFT		1
+#define EN_SPK_MIX_MIXL_MASK		BIT(EN_SPK_MIX_MIXL_SHIFT)
+
+#define EN_SPK_MIX_MIXR_SHIFT		0
+#define EN_SPK_MIX_MIXR_MASK		BIT(EN_SPK_MIX_MIXR_SHIFT)
+
+/* AUD3004X_15E_VOL_EP */
+#define CTVOL_EP_SHIFT				3
+#define CTVOL_EP_WIDTH				5
+#define CTVOL_EP_MASK				MASK(CTVOL_EP_WIDTH, CTVOL_EP_SHIFT)
+
+#define EN_EP_COMPEN_SW_SHIFT		1
+#define EN_EP_COMPEN_SW_MASK		BIT(EN_EP_COMPEN_SW_SHIFT)
+
+/* AUD3004X_15F_OVP1 */
+#define OVP_MUTE_SEL_SHIFT			7
+#define OVP_MUTE_SEL_MASK			BIT(OVP_MUTE_SEL_SHIFT)
+
+#define CTRV_SURGE_REFP_SHIFT		4
+#define CTRV_SURGE_REFP_WIDTH		3
+#define CTRV_SURGE_REFP_MASK		MASK(CTRV_SURGE_REFP_WIDTH, CTRV_SURGE_REFP_SHIFT)
+
+#define CTRV_SURGE_REFN_SHIFT		0
+#define CTRV_SURGE_REFN_WIDTH		4
+#define CTRV_SURGE_REFN_MASK		MASK(CTRV_SURGE_REFN_WIDTH, CTRV_SURGE_REFN_SHIFT)
+
+#define SURGE_REFP_MINNUM			0
+#define SURGE_REFP_MAXNUM			7
+#define SURGE_REFN_MINNUM			0
+#define SURGE_REFN_MAXNUM			15
+
+/* AUD3004X_160_OVP2 */
+#define OVP_TIME_SLOT_SHIFT			6
+#define OVP_TIME_SLOT_WIDTH			2
+#define OVP_TIME_SLOT_MASK			MASK(OVP_TIME_SLOT_WIDTH, OVP_TIME_SLOT_SHIFT)
+
+#define OVP_MASK_SHIFT				5
+#define OVP_MASK_MASK				BIT(OVP_MASK_SHIFT)
+
+#define OVP_APON_SHIFT				4
+#define OVP_APON_MASK				BIT(OVP_APON_SHIFT)
+
+#define OVP_UNMUTE_SHIFT			3
+#define OVP_UNMUTE_MASK				BIT(OVP_UNMUTE_SHIFT)
+
+#define OVP_POL_SHIFT				2
+#define OVP_POL_MASK				BIT(OVP_POL_SHIFT)
+
+#define CTMI_SURGE_SHIFT			0
+#define CTMI_SURGE_WIDTH			2
+#define CTMI_SURGE_MASK				MASK(CTMI_SURGE_WIDTH, CTMI_SURGE_SHIFT)
+
+#define SURGE_TIME_MINNUM			0
+#define SURGE_TIME_MAXNUM			3
+
+/* AUD3004X_2A2_CTRL_IREF1 */
+#define CTMI_VCM_SHIFT				4
+#define CTMI_VCM_WIDTH				3
+#define CTMI_VCM_MASK				MASK(CTMI_VCM_WIDTH, CTMI_VCM_SHIFT)
+
+#define CTMI_MIX_SHIFT				0
+#define CTMI_MIX_WIDTH				3
+#define CTMI_MIX_MASK				MASK(CTMI_MIX_WIDTH, CTMI_MIX_SHIFT)
+
+/* AUD3004X_2A3_CTRL_IREF2 */
+#define CTMI_INT1_SHIFT				0
+#define CTMI_INT1_WIDTH				3
+#define CTMI_INT1_MASK				MASK(CTMI_INT1_WIDTH, CTMI_INT1_SHIFT)
+
+/* AUD3004X_2A4_CTRL_IREF3 */
+#define CTMI_LN_BUFF_SHIFT			4
+#define CTMI_LN_BUFF_WIDTH			3
+#define CTMI_LN_BUFF_MASK			MASK(CTMI_LN_BUFF_WIDTH, CTMI_LN_BUFF_SHIFT)
+
+#define CTMI_MIC_PGA_SHIFT			0
+#define CTMI_MIC_PGA_WIDTH			3
+#define CTMI_MIC_PGA_MASK			MASK(CTMI_MIC_PGA_WIDTH, CTMI_MIC_PGA_SHIFT)
+
+/* AUD3004X_007_IRQM */
+#define CDC_IRQM_SHIFT				1
+#define CDC_IRQM_MASK				BIT(CDC_IRQM_SHIFT)
+
+#endif /* _AUD3004X_H */
+

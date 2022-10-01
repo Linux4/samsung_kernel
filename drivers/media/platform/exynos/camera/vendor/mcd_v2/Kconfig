@@ -1,0 +1,72 @@
+config SENSOR_RETENTION_USE
+	bool "Use sensor retention"
+	depends on VENDER_MCD_V2
+	default n
+	help
+	  Use sensor retention.
+config OIS_USE
+        bool "Use ois"
+        depends on VENDER_MCD_V2
+        default n
+        help
+          Use ois.
+config OIS_FW_UPDATE_THREAD_USE
+        bool "Enable ois fw update thread"
+        depends on OIS_USE
+        default n
+        help
+          Enable ois fw update thread.
+config AF_HOST_CONTROL
+        bool "Enable host af control"
+        depends on VENDER_MCD_V2
+        default n
+        help
+          Enable host af control.
+config IS_DDK_DATA_LOAD
+        bool "Enable signed binary processing."
+        depends on VENDER_MCD_V2
+        default n
+        help
+          Enable signed binary processing.
+config TORCH_CURRENT_CHANGE_SUPPORT
+        bool "Change torch current in recording mode"
+        depends on VENDER_MCD_V2
+        default n
+        help
+          Change torch current in recording mode.
+config OIS_USE_RUMBA_S4
+        bool "Use RUMBA S4 ois driver IC"
+        depends on OIS_USE
+        default n
+        help
+          Use RUMBA S4 ois driver IC.
+config CAMERA_AAS_V21S
+        bool "This camera is aas_v21s project"
+        depends on VENDER_MCD_V2
+        default n
+        help
+          This camera is aas_v21s project.
+config CAMERA_MMT_V12
+        bool "This camera is mmt_v12 project"
+        depends on VENDER_MCD_V2
+        default n
+        help
+          This camera is mmt_v12 project.
+config CAMERA_XXT_V5
+        bool "This camera is xxt_v5 project"
+        depends on VENDER_MCD_V2
+        default n
+        help
+          This camera is xxt_v5 project.
+config CAMERA_AAU_V12S
+        bool "This camera is aau_v12s project"
+        depends on VENDER_MCD_V2
+        default n
+        help
+          This camera is aau_v21s project.
+config SECURE_CAMERA_USE
+	bool "Use secure camera"
+	depends on VENDER_MCD_V2
+	default n
+	help
+	  Use secure camera.
