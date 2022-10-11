@@ -2702,38 +2702,33 @@ static int slsi_wes_mode_write(struct net_device *dev, char *command, int buf_le
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct slsi_dev   *sdev = ndev_vif->sdev;
 	struct slsi_ioctl_args *ioctl_args = NULL;
-	int               result = 0;
+	int               result = -EINVAL;
 	u32               action_frame_bmap = SLSI_STA_ACTION_FRAME_BITMAP;
 	int mode = 0;
 
 	ioctl_args = slsi_get_private_command_args(command, buf_len, 1);
 	SLSI_VERIFY_IOCTL_ARGS(sdev, ioctl_args);
-
+	
+    SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
 
 	if (!sdev->device_config.ncho_mode) {
 		SLSI_INFO(sdev, "Command not allowed, NCHO is disabled\n");
-		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
-		kfree(ioctl_args);
-		return -EINVAL;
+		goto exit;
 	}
 
 	if (!slsi_str_to_int(ioctl_args->args[0], &mode)) {
 		SLSI_ERR(sdev, "Invalid string: '%s'\n", ioctl_args->args[0]);
-		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
-		kfree(ioctl_args);
-		return -EINVAL;
+		goto exit;
 	}
 
 	if (mode == 0 || mode == 1) {
 		sdev->device_config.wes_mode = mode;
 	} else {
 		SLSI_ERR(sdev, "Invalid WES Mode: Must be 0 or 1 Not '%d'\n", mode);
-		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
-		kfree(ioctl_args);
-		return -EINVAL;
+		goto exit;
 	}
-	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+	result = 0;
 
 	if (ndev_vif->activated && ndev_vif->vif_type == FAPI_VIFTYPE_STATION &&
 	    ndev_vif->sta.vif_status == SLSI_VIF_STATUS_CONNECTED) {
@@ -2743,8 +2738,9 @@ static int slsi_wes_mode_write(struct net_device *dev, char *command, int buf_le
 		result = slsi_mlme_register_action_frame(sdev, dev, action_frame_bmap, action_frame_bmap);
 	}
 
-	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+	exit:
 	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	kfree(ioctl_args);
 	return result;
 }

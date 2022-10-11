@@ -143,7 +143,7 @@ static void sensor_imx616_cis_data_calculation(const struct sensor_pll_info_comp
 		KERN_CONT "(pll_info->frame_length_lines(%d) * pll_info->line_length_pck(%d))\n",
 		cis_data->min_frame_us_time, frame_rate, pixel_rate, pll_info->frame_length_lines, pll_info->line_length_pck);
 
-	/* calculate max fps */
+	/* calculate max fps  */
 	max_fps = (pixel_rate * 10) / (pll_info->frame_length_lines * pll_info->line_length_pck);
 	max_fps = (max_fps % 10 >= 5 ? frame_rate + 1 : frame_rate);
 

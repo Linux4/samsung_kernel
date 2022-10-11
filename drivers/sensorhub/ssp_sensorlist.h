@@ -48,5 +48,6 @@
 #define SENSOR_INFO_PROTOS_MOTION		       {"protos_motion", true, 1, 1}
 #define SENSOR_INFO_DEVICE_ORIENTATION			{"device_orientation", true, 1, 1}
 #define SENSOR_INFO_DEVICE_ORIENTATION_WU		{"device_orientation_wu", true, 1, 1}
+#define SENSOR_INFO_SAR_BACKOFF_MOTION          {"sar_backoff_motion", true, 1, 1}
 #endif
 
