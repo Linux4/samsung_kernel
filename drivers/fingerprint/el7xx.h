@@ -42,7 +42,11 @@ static DECLARE_BITMAP(minors, N_SPI_MINORS);
 static LIST_HEAD(device_list);
 static DEFINE_MUTEX(device_list_lock);
 
+#ifdef ENABLE_SENSORS_FPRINT_SECURE
 static unsigned int bufsiz = 1024;
+#else
+static unsigned int bufsiz = 256 * 1024;
+#endif
 
 /* spi communication opcode */
 #define OP_REG_R					0x20

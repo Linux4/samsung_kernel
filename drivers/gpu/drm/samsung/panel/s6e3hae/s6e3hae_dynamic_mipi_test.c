@@ -274,3 +274,5 @@ static struct test_module s6e3hae_dynamic_mipi_test_module = {
  * tests that need to be run.
  */
 module_test(s6e3hae_dynamic_mipi_test_module);
+
+MODULE_LICENSE("GPL v2");

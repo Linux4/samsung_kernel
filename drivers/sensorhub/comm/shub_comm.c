@@ -41,6 +41,7 @@
 #define SHUB2AP_MAG_CAL		0x0B
 #define SHUB2AP_DUMP_DATA	0xDD
 #define SHUB2AP_CALLSTACK	0x0F
+#define SHUB2AP_LOG_DUMP	0x12
 #define SHUB2AP_SYSTEM_INFO	0x31
 #define SHUB2AP_SENSOR_SPEC	0x41
 
@@ -318,6 +319,9 @@ static int parse_dataframe(char *dataframe, int frame_len)
 			if (sensor)
 				sensor->funcs->parsing_data(dataframe, &index, frame_len);
 			break;
+		case SHUB2AP_LOG_DUMP:
+			ret = save_log_dump(dataframe, &index, frame_len);
+			break;
 		default:
 			shub_errf("0x%x cmd doesn't support, index = %d", cmd, index);
 			ret = -1;
@@ -474,8 +478,8 @@ void handle_packet(char *packet, int packet_size)
 		parse_dataframe(msg.buffer, msg.length);
 		kfree(msg.buffer);
 	} else {
-		shub_errf("msg_cmd : %d", msg.cmd);
-		kfree(msg.buffer);
+		shub_errf("msg_cmd : %d, packet size %d", msg.cmd, packet_size);
+		print_dataframe(packet, packet_size);
 	}
 }
 

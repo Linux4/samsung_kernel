@@ -36,8 +36,8 @@
 #include <linux/smc.h> // for Kinibi
 #endif
 
-#if defined(CONFIG_MST_ARCH_MTK)
-#include <linux/arm-smccc.h> // for Kinibi
+#if defined(CONFIG_MST_ARCH_MTK) && !defined(CONFIG_MST_TEEGRIS) && !defined(CONFIG_MST_NONSECURE) // for Kinibi
+#include <linux/arm-smccc.h>
 #include <mt-plat/mtk_secure_api.h>
 #endif
 

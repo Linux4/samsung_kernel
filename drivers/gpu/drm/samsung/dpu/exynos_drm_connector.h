@@ -17,6 +17,7 @@
 /* bit mask for modeset_flags */
 #define SEAMLESS_MODESET_MRES	BIT(0)
 #define SEAMLESS_MODESET_VREF	BIT(1)
+#define SEAMLESS_MODESET_LP	BIT(2)
 
 struct exynos_drm_connector;
 

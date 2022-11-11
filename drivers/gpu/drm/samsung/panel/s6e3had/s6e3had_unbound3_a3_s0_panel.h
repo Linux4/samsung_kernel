@@ -41,11 +41,6 @@
 #include "../aod/aod_drv.h"
 #endif
 
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-#include "s6e3had_profiler_panel.h"
-#include "../display_profiler/display_profiler.h"
-#endif
-
 #if defined(__PANEL_NOT_USED_VARIABLE__)
 #include "s6e3had_unbound3_a3_s0_panel_irc.h"
 #endif
@@ -2872,12 +2867,8 @@ struct common_panel_info s6e3had_unbound3_a3_s0_panel_info = {
 #ifdef CONFIG_DYNAMIC_MIPI
 	.dm_total_band = u3_dynamic_freq_set,
 #endif
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	.profile_tune = &s6e3had_profiler_tune,
-#endif
 #ifdef CONFIG_SUPPORT_MAFPC
 	.mafpc_info = &s6e3had_unbound3_mafpc,
 #endif
-
 };
 #endif /* __S6E3HAD_UNBOUND3_A3_S0_PANEL_H__ */

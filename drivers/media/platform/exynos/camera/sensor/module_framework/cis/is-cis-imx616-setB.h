@@ -3192,7 +3192,7 @@ const struct sensor_pll_info_compact sensor_imx616_pllinfo_B_2X2BIN_2640x1488_30
 const struct sensor_pll_info_compact sensor_imx616_pllinfo_B_H2V2_1632x1224_120FPS = {
 	EXT_CLK_Mhz * 1000 * 1000,	/* ext_clk */
 	2054000000ULL,			/* mipi_datarate = OPSYCK */
-	174200000ULL,			/* pclk = VTPXCK of Clock Information */
+	87100000ULL,			/* pclk = VTPXCK of Clock Information */
 	1290,				/* frame_length_lines */
 	2248,				/* line_length_pck */
 };

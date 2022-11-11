@@ -36,10 +36,6 @@
 #endif
 
 #include "s6e3fab_unbound1_resol.h"
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-#include "s6e3fab_profiler_panel.h"
-#include "../display_profiler/display_profiler.h"
-#endif
 
 #ifdef CONFIG_DYNAMIC_MIPI
 #include "unbound_dm_band.h"
@@ -2202,9 +2198,6 @@ struct common_panel_info s6e3fab_unbound1_a3_s0_panel_info = {
 #endif
 #ifdef CONFIG_EXTEND_LIVE_CLOCK
 	.aod_tune = &s6e3fab_unbound1_aod,
-#endif
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	.profile_tune = &fab_profiler_tune,
 #endif
 #ifdef CONFIG_DYNAMIC_MIPI
 	.dm_total_band = unbound_dynamic_freq_set,

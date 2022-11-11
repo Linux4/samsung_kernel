@@ -865,8 +865,8 @@ static int mxman_res_transports_init_wlan(struct mxman *mxman, void *data, size_
 	mxconf->version.minor = MXCONF_VERSION_MINOR;
 	/* Pass pre-existing FM status to FW */
 	mxconf->flags = 0;
-#ifdef CONFIG_SCSC_FM
-	mxconf->flags |= is_fm_on ? MXCONF_FLAGS_FM_ON : 0;
+#if IS_ENABLED(CONFIG_SCSC_FM)
+	mxconf->flags |= mxman->on_halt_ldos_on ? MXCONF_FLAGS_FM_ON : 0;
 #endif
 	SCSC_TAG_INFO(MXMAN, "mxconf flags 0x%08x\n", mxconf->flags);
 
@@ -1009,8 +1009,8 @@ static int mxman_res_transports_init_wpan(struct mxman *mxman, void *data, size_
 	mxconf_wpan->version.minor = MXCONF_VERSION_MINOR;
 	/* Pass pre-existing FM status to FW */
 	mxconf_wpan->flags = 0;
-#ifdef CONFIG_SCSC_FM
-	mxconf_wpan->flags |= is_fm_on ? MXCONF_FLAGS_FM_ON : 0;
+#if IS_ENABLED(CONFIG_SCSC_FM)
+	mxconf_wpan->flags |= mxman->on_halt_ldos_on ? MXCONF_FLAGS_FM_ON : 0;
 #endif
 	SCSC_TAG_INFO(MXMAN, "mxconf_wpan flags 0x%08x\n", mxconf_wpan->flags);
 

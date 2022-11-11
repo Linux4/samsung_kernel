@@ -143,6 +143,9 @@ static void s2mu106_pm_set_gpadc_mode(struct s2mu106_pmeter_data *pmeter,
 
 	if (w_val != r_val) {
 		pr_info("%s mode:%d, reg_val(%#x->%#x)\n", __func__, mode, r_val, w_val);
+#if defined(CONFIG_S2MU106_TYPEC_WATER)
+		pmeter->gpadc_mode = mode;
+#endif
 		s2mu106_pm_write_reg(pmeter, S2MU106_PM_CTRL4, w_val);
 	}
 }
@@ -297,8 +300,10 @@ static int s2mu106_pm_get_vgpadc_extern(struct s2mu106_pmeter_data *pmeter)
 	int buf[20] =  {0, };
 	int i = 0, size = MAX_BUF_SIZE;
 	char str[MAX_BUF_SIZE] = {0,};
+	int mode;
 
 	mutex_lock(&pmeter->water_mutex);
+	mode = pmeter->gpadc_mode;
 	s2mu106_pm_mask_irq(pmeter, true, PM_TYPE_VGPADC);
 	s2mu106_pm_set_gpadc_hyst_lev(pmeter, HYST_LEV_VGPADC_MAX);
 	s2mu106_pm_set_gpadc_mode(pmeter, PM_VMODE);
@@ -312,7 +317,7 @@ static int s2mu106_pm_get_vgpadc_extern(struct s2mu106_pmeter_data *pmeter)
 	vgpadc = buf[5];
 	pr_info("%s %s(mV)\n", __func__, str);
 
-	s2mu106_pm_set_gpadc_mode(pmeter, PM_RMODE);
+	s2mu106_pm_set_gpadc_mode(pmeter, mode);
 	s2mu106_pm_set_gpadc_hyst_lev(pmeter, HYST_LEV_VGPADC_DEFALUT);
 	s2mu106_pm_mask_irq(pmeter, false, PM_TYPE_VGPADC);
 	mutex_unlock(&pmeter->water_mutex);
@@ -559,8 +564,10 @@ static int s2mu106_pm_set_property(struct power_supply *psy,
 static void s2mu106_pm_psy_set_property(struct power_supply *psy,
 		int prop, union power_supply_propval *value)
 {
-	if (!psy)
+	if (!psy) {
 		pr_err("%s invalid psy, prop(%d)\n", __func__, prop);
+		return;
+	}
 
 	power_supply_set_property(psy, (enum power_supply_property)prop, value);
 }
@@ -568,8 +575,10 @@ static void s2mu106_pm_psy_set_property(struct power_supply *psy,
 static void s2mu106_pm_psy_get_property(struct power_supply *psy,
 		int prop, union power_supply_propval *value)
 {
-	if (!psy)
+	if (!psy) {
 		pr_err("%s invalid psy, prop(%d)\n", __func__, prop);
+		return;
+	}
 
 	power_supply_get_property(psy, (enum power_supply_property)prop, value);
 }
@@ -662,15 +671,65 @@ static void s2mu106_pm_mask_irq(struct s2mu106_pmeter_data *pmeter,
  *}
  */
 
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER_SBU)
+static int s2mu106_pm_gpadc_get_mode_value(int vgpadc[])
+{
+	/* array size = 6 */
+	int i;
+	int min = 9999, max = 0;
+	int group[3] = {0, };
+
+	pr_info("%s, %d, %d, %d, %d, %d, %d\n", __func__,
+			vgpadc[0], vgpadc[1], vgpadc[2], vgpadc[3], vgpadc[4], vgpadc[5]);
+
+	for (i = 0; i < 6; i++) {
+		if (min > vgpadc[i])
+			min = vgpadc[i];
+		if (max < vgpadc[i])
+			max = vgpadc[i];
+	}
+
+	/* not need get mode, all low or all high */
+	if (max - min < 200)
+		return max;
+
+	for (i = 0; i < 6; i++) {
+		if ((((max - min) / 3) + min) > vgpadc[i])
+			group[0]++;
+		else if (max - (((max - min) / 3)) < vgpadc[i])
+			group[2]++;
+		else
+			group[1]++;
+	}
+	pr_info("%s, [%d, %d] %d / %d / %d\n", __func__, min, max, group[0], group[1], group[2]);
+
+	if (group[2] >= group[1] && group[2] >= group[0])
+		return max;
+	else if (group[0] >= group[1] && group[0] > group[2])
+		return min;
+	else
+		return ((((max - min) / 3) + min) + (max - ((max - min) / 3))) / 2;
+}
+#endif
 static int s2mu106_pm_gpadc_check_water_extern(struct s2mu106_pmeter_data *pmeter)
 {
 	int ret = false;
 	int vgpadc[20] =  {0, };
 	int i = 0, size = MAX_BUF_SIZE;
 	char str[MAX_BUF_SIZE] = {0,};
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER_SBU)
+	union power_supply_propval value;
+	int vgpadc_check[6] = {0, };
+	int mode_vgpadc;
+#endif
 
 	mutex_lock(&pmeter->water_mutex);
 	pr_info("%s water_status(%s)\n", __func__, pm_water_status_str[pmeter->water_status]);
+
+	if (!pmeter->pdic_psy) {
+		pr_err("%s, pdic_psy is null\n", __func__);
+		pmeter->pdic_psy = power_supply_get_by_name("usbpd-manager");
+	}
 
 	if (pmeter->water_status == PM_WATER_IDLE) {
 		ret = true;
@@ -682,7 +741,6 @@ static int s2mu106_pm_gpadc_check_water_extern(struct s2mu106_pmeter_data *pmete
 	usleep_range(5000, 5100);
 	ret = s2mu106_pm_gpadc_water_detector(pmeter, PM_WATER_SALT);
 	if (ret) {
-#endif
 		s2mu106_pm_mask_irq(pmeter, true, PM_TYPE_VGPADC);
 		s2mu106_pm_set_gpadc_hyst_lev(pmeter, HYST_LEV_VGPADC_MAX);
 		s2mu106_pm_set_gpadc_mode(pmeter, PM_VMODE);
@@ -705,8 +763,55 @@ static int s2mu106_pm_gpadc_check_water_extern(struct s2mu106_pmeter_data *pmete
 
 		s2mu106_pm_set_gpadc_hyst_lev(pmeter, HYST_LEV_VGPADC_DEFALUT);
 		s2mu106_pm_mask_irq(pmeter, false, PM_TYPE_VGPADC);
-#if !IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER_SBU)
 	}
+#else
+	s2mu106_pm_mask_irq(pmeter, true, PM_TYPE_VGPADC);
+	s2mu106_pm_set_gpadc_hyst_lev(pmeter, HYST_LEV_VGPADC_MAX);
+	s2mu106_pm_set_gpadc_mode(pmeter, PM_VMODE);
+
+	for (i = 0; i < 10; i++) {
+		usleep_range(5000, 5100);
+		vgpadc[i] = s2mu106_pm_get_vgpadc(pmeter);
+		snprintf(str+strlen(str), size, "%d, ", vgpadc[i]);
+		size = sizeof(str) - strlen(str);
+		if (i >= 4)
+			vgpadc_check[i - 4] = vgpadc[i];
+	}
+
+	value.intval = 1;
+	s2mu106_pm_psy_set_property(pmeter->pdic_psy,
+		(enum power_supply_property)POWER_SUPPLY_LSI_PROP_USBPD_RPCUR, &value);
+	snprintf(str+strlen(str), size, " / ");
+
+	for (; i < 20; i++) {
+		usleep_range(5000, 5100);
+		vgpadc[i] = s2mu106_pm_get_vgpadc(pmeter);
+		snprintf(str+strlen(str), size, "%d, ", vgpadc[i]);
+		size = sizeof(str) - strlen(str);
+	}
+
+	value.intval = 0;
+	s2mu106_pm_psy_set_property(pmeter->pdic_psy,
+		(enum power_supply_property)POWER_SUPPLY_LSI_PROP_USBPD_RPCUR, &value);
+
+
+	mode_vgpadc = s2mu106_pm_gpadc_get_mode_value(vgpadc_check);
+	snprintf(str+strlen(str), size, "mode : %dmV, ", mode_vgpadc);
+	size = sizeof(str) - strlen(str);
+
+	pr_info("%s %s(mV)\n", __func__, str);
+
+
+	if (IS_VGPADC_WATER(mode_vgpadc) && (mode_vgpadc + 50 < vgpadc[18])) {
+		ret = true;
+		s2mu106_pm_water_handler(pmeter);
+	} else {
+		ret = false;
+		s2mu106_pm_set_gpadc_mode(pmeter, PM_RMODE);
+	}
+
+	s2mu106_pm_set_gpadc_hyst_lev(pmeter, HYST_LEV_VGPADC_DEFALUT);
+	s2mu106_pm_mask_irq(pmeter, false, PM_TYPE_VGPADC);
 #endif
 exit:
 	mutex_unlock(&pmeter->water_mutex);
@@ -1025,14 +1130,16 @@ static void s2mu106_pm_late_init_work(struct work_struct *work)
 
 	pr_info("%s dev_drv_version(%#x)\n", __func__, DEV_DRV_VERSION);
 
-	pmeter->pdic_psy = power_supply_get_by_name("s2mu106-usbpd");
+	pmeter->pdic_psy = power_supply_get_by_name("usbpd-manager");
 	if (!pmeter->muic_psy)
 		pmeter->muic_psy = power_supply_get_by_name("muic-manager");
 
 #if defined(CONFIG_SEC_FACTORY)
 	s2mu106_pm_mask_irq(pmeter, true, PM_TYPE_VGPADC);
 #else
+	mutex_lock(&pmeter->water_mutex);
 	s2mu106_pm_set_gpadc_mode(pmeter, PM_RMODE);
+	mutex_unlock(&pmeter->water_mutex);
 
 	pmeter->irq_gpadc = pmeter->s2mu106->pdata->irq_base + S2MU106_PM_IRQ1_VGPADCUP;
 	ret = request_threaded_irq(pmeter->irq_gpadc, NULL,

@@ -624,7 +624,7 @@ static int of_get_panel_blic(struct panel_blic_dev *blic_dev, struct device_node
 	for_each_property_of_node(seq_np, pp) {
 		if (!strcmp(pp->name, "name") || !strcmp(pp->name, "phandle"))
 			continue;
-		p_seq = kmalloc(sizeof(struct panel_power_ctrl), GFP_KERNEL);
+		p_seq = kzalloc(sizeof(struct panel_power_ctrl), GFP_KERNEL);
 		if (!p_seq) {
 			ret = -ENOMEM;
 			goto exit_power;

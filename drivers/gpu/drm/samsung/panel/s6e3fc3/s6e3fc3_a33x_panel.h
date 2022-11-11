@@ -1039,9 +1039,5 @@ struct common_panel_info s6e3fc3_a33x_panel_info = {
 #ifdef CONFIG_DYNAMIC_FREQ
 	.df_freq_tbl = a33x_s6e3fc3_dynamic_freq_set,
 #endif
-
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	.profile_tune = NULL,
-#endif
 };
 #endif /* __S6E3FC3_A33X_PANEL_H__ */

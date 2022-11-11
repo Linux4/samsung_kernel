@@ -255,6 +255,7 @@ struct s2mu106_pmeter_data {
 	int water_det_cnt[PM_WATER_SEN_CNT_MAX];
 	int water_work_call_cnt;
 	bool is_pwr_off_water;
+	int gpadc_mode;
 #endif
 #if defined(CONFIG_ARCH_QCOM)
 	struct wakeup_source *gpadc_ws;

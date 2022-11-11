@@ -37,7 +37,7 @@ const char *cisd_data_str_d[] = {
 	"CHG_CHG_THM_MAX_D", "CHG_CHG_THM_MIN_D", "CHG_USB_THM_MAX_D", "CHG_USB_THM_MIN_D",
 	"USB_OVERHEAT_CHARGING_D", "UNSAFETY_VOLT_D", "UNSAFETY_TEMP_D",
 	"SAFETY_TIMER_D", "VSYS_OVP_D", "VBAT_OVP_D", "USB_OVERHEAT_RAPID_CHANGE_D", "BUCK_OFF_D",
-	"USB_OVERHEAT_ALONE_D", "DROP_SENSOR_D"
+	"USB_OVERHEAT_ALONE_D", "DROP_SENSOR_D", "CHG_TIME_D", "TOTAL_CHG_TIME_D"
 };
 EXPORT_SYMBOL(cisd_data_str_d);
 
@@ -45,7 +45,11 @@ const char *cisd_cable_data_str[] = {"TA", "AFC", "AFC_FAIL", "QC", "QC_FAIL", "
 EXPORT_SYMBOL(cisd_cable_data_str);
 const char *cisd_tx_data_str[] = {"ON", "OTHER", "GEAR", "PHONE", "BUDS"};
 EXPORT_SYMBOL(cisd_tx_data_str);
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
+const char *cisd_event_data_str[] = {"DC_ERR", "TA_OCP_DET", "TA_OCP_ON", "OVP_EVENT_POWER", "OVP_EVENT_SIGNAL", "MAIN_BAT_ERR", "SUB_BAT_ERR", "WA_ERR"};
+#else
 const char *cisd_event_data_str[] = {"DC_ERR", "TA_OCP_DET", "TA_OCP_ON", "OVP_EVENT_POWER", "OVP_EVENT_SIGNAL"};
+#endif
 EXPORT_SYMBOL(cisd_event_data_str);
 
 bool sec_bat_cisd_check(struct sec_battery_info *battery)
@@ -348,6 +352,8 @@ void sec_battery_cisd_init(struct sec_battery_info *battery)
 	battery->cisd.data[CISD_DATA_CHG_SUB_BATT_TEMP_MIN_PER_DAY] = 1000;
 	battery->cisd.data[CISD_DATA_CHG_CHG_TEMP_MIN_PER_DAY] = 1000;
 	battery->cisd.data[CISD_DATA_CHG_USB_TEMP_MIN_PER_DAY] = 1000;
+	battery->cisd.data[CISD_DATA_CHG_RETENTION_TIME_PER_DAY] = 0;
+	battery->cisd.data[CISD_DATA_TOTAL_CHG_RETENTION_TIME_PER_DAY] = 0;
 
 	battery->cisd.ab_vbat_max_count = 2; /* should be 2 */
 	battery->cisd.ab_vbat_check_count = 0;

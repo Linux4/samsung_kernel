@@ -875,11 +875,9 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 	slsi_cfg80211_update_wiphy(sdev);
 
 	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
-	if (sdev->mac_changed) {
-		err = slsi_mlme_set_host_state(sdev, dev, sdev->device_config.host_state);
-	} else {
-		sdev->device_config.host_state = SLSI_HOSTSTATE_CELLULAR_ACTIVE;
-	}
+
+	slsi_mlme_set_host_state(sdev, dev, sdev->device_config.host_state);
+
 	reg_err = slsi_read_regulatory(sdev);
 	if (reg_err) {
 		SLSI_INFO(sdev, "Error in reading regulatory!\n");
@@ -4059,7 +4057,7 @@ static void slsi_create_packet_filter_element(u8                               f
 					      u8                               num_pattern_desc,
 					      struct slsi_mlme_pattern_desc    *pattern_desc,
 					      struct slsi_mlme_pkt_filter_elem *pkt_filter_elem,
-					      u8                               *pkt_filters_len)
+					      int                              *pkt_filters_len)
 {
 	u8 pkt_filter_hdr[SLSI_PKT_FILTER_ELEM_HDR_LEN] = { 0xdd,             /* vendor ie*/
 							    0x00,             /*Length to be filled*/
@@ -4068,7 +4066,8 @@ static void slsi_create_packet_filter_element(u8                               f
 							    filterid,         /*filter id to be filled*/
 							    pkt_filter_mode   /* pkt filter mode to be filled */
 	};
-	u8 i, pattern_desc_len = 0;
+	u8 i;
+	int pattern_desc_len = 0;
 
 	WARN_ON(num_pattern_desc > SLSI_MAX_PATTERN_DESC);
 
@@ -4094,7 +4093,8 @@ static int slsi_set_common_packet_filters(struct slsi_dev *sdev, struct net_devi
 {
 	struct slsi_mlme_pattern_desc pattern_desc;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem[1];
-	u8 pkt_filters_len = 0, num_filters = 0;
+	int pkt_filters_len = 0;
+	u8 num_filters = 0;
 
 	/*Opt out all broadcast and multicast packets (filter on I/G bit)*/
 	pattern_desc.offset = 0;
@@ -4113,7 +4113,8 @@ int  slsi_set_arp_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[SLSI_MAX_PATTERN_DESC];
 	int num_pattern_desc = 0;
-	u8 pkt_filters_len = 0, num_filters = 0;
+	int pkt_filters_len = 0;
+	u8 num_filters = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem[2];
 	int ret;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
@@ -4257,7 +4258,7 @@ int slsi_set_enhanced_pkt_filter(struct net_device *dev, char *command, int buf_
 static int slsi_set_opt_out_unicast_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc;
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem;
 
@@ -4280,7 +4281,7 @@ static int slsi_set_opt_out_unicast_packet_filter(struct slsi_dev *sdev, struct 
 static int  slsi_set_opt_in_tcp4_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[2];
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem;
 
@@ -4313,7 +4314,7 @@ static int  slsi_set_opt_in_tcp4_packet_filter(struct slsi_dev *sdev, struct net
 static int  slsi_set_opt_in_tcp6_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[2];
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem;
 
@@ -4346,7 +4347,8 @@ static int  slsi_set_opt_in_tcp6_packet_filter(struct slsi_dev *sdev, struct net
 int  slsi_set_multicast_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[3];
-	u8 pkt_filters_len = 0, i, num_filters = 0;
+	int pkt_filters_len = 0;
+	u8 i, num_filters = 0;
 	u8 num_pattern_desc = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem *pkt_filter_elem = NULL;
@@ -4461,7 +4463,8 @@ int  slsi_clear_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct slsi_peer *peer = slsi_get_peer_from_qs(sdev, dev, SLSI_STA_PEER_QUEUESET);
 
-	u8 i, pkt_filters_len = 0;
+	u8 i;
+	int pkt_filters_len = 0;
 	int num_filters = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem *pkt_filter_elem;
@@ -4595,7 +4598,7 @@ void slsi_set_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[SLSI_MAX_PATTERN_DESC];
 	int num_pattern_desc = 0;
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int num_filters = 0;
 
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem[SLSI_ON_CONNECT_FILTERS_COUNT];
@@ -4666,7 +4669,7 @@ int slsi_ip_address_changed(struct slsi_dev *sdev, struct net_device *dev, __be3
 		struct slsi_mlme_pattern_desc pattern_desc[1];
 		u8 num_patterns = 0;
 		struct slsi_mlme_pkt_filter_elem pkt_filter_elem[1];
-		u8 pkt_filters_len = 0;
+		int pkt_filters_len = 0;
 		u8 num_filters = 0;
 #endif
 
@@ -8199,4 +8202,72 @@ int slsi_add_probe_ies_request(struct slsi_dev *sdev, struct net_device *dev)
 		kfree(add_info_ies);
 	}
 	return r;
+}
+
+int slsi_dump_eth_packet(struct slsi_dev *sdev, struct sk_buff *skb)
+{
+	struct ieee80211_hdr *hdr;
+	int offset = 0;
+	int payload_len, remain_len;
+	bool is_ciphered;
+	u8 *qc = NULL;
+
+	hdr = (struct ieee80211_hdr *)fapi_get_data(skb);
+	payload_len = skb->len - fapi_get_siglen(skb);
+	is_ciphered = (fapi_get_u16(skb, u.ma_unitdata_ind.configuration_option) & FAPI_OPTION_KEYRSC) >> 3;
+
+	if (!ieee80211_is_data(hdr->frame_control)) {
+		SLSI_INFO(sdev, "Ignore this packet. It is not data\n");
+		SCSC_BIN_TAG_INFO(BINARY, hdr, payload_len > 54 ? 54 : payload_len);
+		return -EINVAL;
+	}
+
+	/* 1.calc offset 80211_hdr */
+	if (ieee80211_has_a4(hdr->frame_control))
+		offset += sizeof(struct ieee80211_hdr);
+	else
+		offset += sizeof(struct ieee80211_hdr_3addr);
+
+	if (ieee80211_is_data_qos(hdr->frame_control)) {
+		qc = ieee80211_get_qos_ctl(hdr);
+		offset += IEEE80211_QOS_CTL_LEN;
+	}
+
+	if (ieee80211_has_order(hdr->frame_control))
+		offset += IEEE80211_HT_CTL_LEN;
+
+	/* 3.calc offset of key-RSC if FAPI_OPTION_KEYRSC is set */
+	if (is_ciphered)
+		offset += SLSI_EAPOL_KEY_RSC_LENGTH;
+
+	/* 4.dump DA and SA */
+	if (qc && (*qc & IEEE80211_QOS_CTL_A_MSDU_PRESENT)) {
+		SLSI_DBG4(sdev, SLSI_RX, "Packet is A-MSDU offset:%d\n", offset);
+		remain_len = payload_len - offset;
+		if (remain_len < 0) {
+			SLSI_INFO(sdev, "Invalid packet len\n");
+			return -EINVAL;
+		}
+		SCSC_BIN_TAG_INFO(BINARY, (u8 *)hdr + offset, remain_len > 2 * ETH_ALEN ? 2 * ETH_ALEN : remain_len);
+
+		offset += 2 * ETH_ALEN + LLC_SNAP_HDR_LEN;
+	} else {
+		SLSI_DBG4(sdev, SLSI_RX, "Packet is MSDU offset:%d\n", offset);
+		SCSC_BIN_TAG_INFO(BINARY, ieee80211_get_DA(hdr), ETH_ALEN);
+		SCSC_BIN_TAG_INFO(BINARY, ieee80211_get_SA(hdr), ETH_ALEN);
+
+		offset += LLC_SNAP_HDR_LEN - 2;
+	}
+	/* 5. dump ETH_TYPE and Data */
+	remain_len = payload_len - offset;
+	if (remain_len < 0) {
+		SLSI_INFO(sdev, "Invalid packet len\n");
+		return -EINVAL;
+	}
+#ifdef CONFIG_SCSC_WLAN_DEBUG
+	SCSC_BIN_TAG_INFO(BINARY, (u8 *)hdr + offset, remain_len > 116 ? 116 : remain_len);
+#else
+	SCSC_BIN_TAG_INFO(BINARY, (u8 *)hdr + offset, remain_len > 42 ? 42 : remain_len);
+#endif
+	return 0;
 }

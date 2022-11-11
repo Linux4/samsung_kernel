@@ -89,7 +89,7 @@ static int npu_hwdev_default_boot(struct npu_hw_device *hdev, bool on)
 				npu_err("fail to prepare/enable npu_clk(%d)\n", ret);
 			npu_info("%s clock %s (%d)\n", hdev->name, on ? "on" : "off", ret);
 		}
-		hdev->status = NPU_HWDEV_STATUS_PWR_CLK_ON << 16 | NPU_HWDEV_STATUS_PWR_CLK_ON;
+		hdev->status = NPU_HWDEV_STATUS_ACTIVE << 16 | NPU_HWDEV_STATUS_PWR_CLK_ON;
 	}
 	else {
 		if (hdev->type & NPU_HWDEV_TYPE_CLKCTRL) {
@@ -305,15 +305,18 @@ static int npu_hwdev_probe(struct platform_device *pdev)
 	if (!strcmp(hdev->name, "DSP")) {
 		hdev->ops.boot = npu_hwdev_default_boot;
 		hdev->ops.init = npu_hwdev_dsp_init;
-	}
-	else if (!strcmp(hdev->name, "DNC")) {
+	} else if (!strcmp(hdev->name, "DNC")) {
 		hdev->ops.boot = npu_hwdev_default_boot;
 		hdev->ops.init = npu_hwdev_dnc_init;
-	}
-	else {
+	} else if (!strcmp(hdev->name, "NPU")) {
 		hdev->ops.boot = npu_hwdev_default_boot;
 		hdev->ops.init = npu_hwdev_npu_init;
+	} else {
+		probe_warn("no boot/init function for %s\n", hdev->name);
+		hdev->ops.boot = NULL;
+		hdev->ops.init = NULL;
 	}
+
 	npu_hw_ref_setup(&hdev->boot_cnt, hdev,
 			npu_hw_ref_open, npu_hw_ref_close);
 	npu_hw_ref_setup(&hdev->init_cnt, hdev,
@@ -458,7 +461,7 @@ int npu_hwdev_recovery_shutdown(struct npu_device *device)
 		isleft = 0;
 		for (hi = g_hwdev_num - 1; hi >= 0; hi--) {
 			hdev = g_hwdev_list[hi];
-			if (hdev) {
+			if (hdev && strcmp(hdev->name, "DNC") && hdev->status) {
 				npu_hw_ref_put(device, &hdev->init_cnt);
 				npu_dbg("%s deinit\n", hdev->name);
 				if (atomic_read(&hdev->init_cnt.refcount))
@@ -473,7 +476,7 @@ int npu_hwdev_recovery_shutdown(struct npu_device *device)
 		isleft = 0;
 		for (hi = g_hwdev_num - 1; hi >= 0; hi--) {
 			hdev = g_hwdev_list[hi];
-			if (hdev) {
+			if (hdev && strcmp(hdev->name, "DNC") && hdev->status) {
 				npu_hw_ref_put(device, &hdev->boot_cnt);
 				npu_dbg("%s shutdown\n", hdev->name);
 				if (atomic_read(&hdev->boot_cnt.refcount))

@@ -35,7 +35,6 @@ config S2MU106_TYPEC_WATER_SBU
 	  If you say yes here you will get support for
 	  the S2MU Type-C Water with SBU1/2 functions.
 
-
 config SUPPORT_USB_TYPEC_OPS
 	bool "Using TYPEC OPS since kernel 5.4 version"
 	default n

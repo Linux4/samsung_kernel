@@ -102,6 +102,12 @@ struct proximity_stk3x6x_data {
 	u8 prox_cal_mode;
 };
 
+struct proximity_stk3328_data {
+	u16 prox_cal_add_value;
+	u16 prox_cal_thresh[PROX_THRESH_SIZE];
+	u16 prox_thresh_default[PROX_THRESH_SIZE];
+};
+
 int open_default_proximity_calibration(void);
 
 void set_proximity_threshold(void);
@@ -116,3 +122,6 @@ struct proximity_chipset_funcs *get_proximity_stk3x6x_function_pointer(char *nam
 struct proximity_chipset_funcs *get_proximity_gp2ap110s_function_pointer(char *name);
 struct proximity_chipset_funcs *get_proximity_stk3328_function_pointer(char *name);
 struct proximity_chipset_funcs *get_proximity_stk33910_function_pointer(char *name);
+struct proximity_chipset_funcs *get_proximity_stk33512_function_pointer(char *name);
+
+u16 get_prox_raw_data(void);

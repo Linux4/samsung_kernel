@@ -50,8 +50,6 @@ init_sensor init_sensor_funcs[] = {
 	init_gyroscope_uncal,
 	init_light,
 	init_light_cct,
-	init_light_ir,
-	init_light_seamless,
 	init_light_autobrightness,
 	init_proximity,
 	init_proximity_raw,
@@ -68,17 +66,12 @@ init_sensor init_sensor_funcs[] = {
 	init_call_gesture,
 	init_wake_up_motion,
 	init_protos_motion,
-	init_pocket_mode,
 	init_pocket_mode_lite,
 	init_super,
 	init_hub_debugger,
-	init_thermistor,
-	init_tap_tracker,
-	init_shake_tracker,
-	init_move_detector,
-	init_led_cover_event,
 	init_device_orientation,
 	init_device_orientation_wu,
+	init_sar_backoff_motion,
 };
 
 static int make_sensor_instance(void)
@@ -441,7 +434,7 @@ int parsing_bypass_data(char *dataframe, int *index, int frame_len)
 
 	do {
 		if (get_sensor_value(type, dataframe, index, event, frame_len) < 0) {
-			shub_errf("Parsing error : sensor(%d) event error");
+			shub_errf("Parsing error : sensor(%d) event error", type);
 			return -EINVAL;
 		}
 		EXECUTE_FUNC(sensor, sensor->funcs->report_event);
@@ -696,7 +689,7 @@ int get_sensor_spec_from_hub(void)
 	int i = 0, count;
 	struct sensor_spec_t *specs = NULL;
 
-	ret = shub_send_command_wait(CMD_GETVALUE, TYPE_MCU, SENSOR_SPEC, 1000, NULL, 0, &buffer, &buffer_length, true);
+	ret = shub_send_command_wait(CMD_GETVALUE, TYPE_HUB, SENSOR_SPEC, 1000, NULL, 0, &buffer, &buffer_length, true);
 
 	if (ret < 0 || buffer_length < 1) {
 		shub_errf("fail %d", ret);

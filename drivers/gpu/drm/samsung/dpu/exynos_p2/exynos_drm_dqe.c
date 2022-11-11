@@ -179,7 +179,7 @@ static void dqe_reset_update_cnt(struct exynos_dqe *dqe,
 			atomic_set(&dqe->cgc_update_cnt, MAX_RESET_CNT);
 		break;
 	default:
-		dqe_err(dqe, "%s invalid parameter\n", __func__);
+		dqe_err(dqe, "invalid parameter\n");
 		break;
 	}
 	dqe_debug(dqe, "%d updates reqired\n", atomic_read(&dqe->update_cnt));
@@ -256,7 +256,7 @@ static int dqe_alloc_cgc_dma(struct exynos_dqe *dqe, size_t size,
 	struct sg_table *sg_table;
 	dma_addr_t dma_addr;
 
-	dqe_debug(dqe, "%s +\n", __func__);
+	dqe_debug(dqe, "+\n");
 
 	size = PAGE_ALIGN(size);
 
@@ -312,7 +312,7 @@ static void dqe_load_context(struct exynos_dqe *dqe)
 	u32 val;
 	u32 id = dqe->id;
 
-	dqe_debug(dqe, "%s\n", __func__);
+	dqe_debug(dqe, "\n");
 
 	dqe->ctx.version = dqe_reg_get_version(id);
 
@@ -366,7 +366,7 @@ static void dqe_init_context(struct exynos_dqe *dqe, struct device *dev)
 	int i, j, k, mode_type, ret, bpc;
 	struct dqe_ctx_int *lut;
 
-	dqe_debug(dqe, "%s\n", __func__);
+	dqe_debug(dqe, "\n");
 
 	memset(&dqe->colormode, 0, sizeof(dqe->colormode));
 	dqe->colormode.dqe_fd = -1;
@@ -559,7 +559,7 @@ static int dqe_restore_context(struct exynos_dqe *dqe)
 		dqe_print_onoff(&dqe->ctx.hsc_on),
 		dqe_print_onoff(&dqe->ctx.atc_on));
 
-	DPU_EVENT_LOG(DPU_EVT_DQE_RESTORE, dqe->decon->crtc, NULL);
+	DPU_EVENT_LOG("DQE_RESTORE", dqe->decon->crtc, 0, NULL);
 
 	mutex_unlock(&dqe->lock);
 
@@ -802,8 +802,8 @@ static u32 dqe_update_colormode(struct exynos_dqe *dqe,
 		dqe_warn(dqe, "number of data %d vs %d mismatch\n", count+count_cgc, hdr->num_data);
 
 	if (likely(updated)) {
-		dqe_debug(dqe, "%s context updated (%x)\n", __func__, updated);
-		DPU_EVENT_LOG(DPU_EVT_DQE_COLORMODE, dqe->decon->crtc, NULL);
+		dqe_debug(dqe, "context updated (%x)\n", updated);
+		DPU_EVENT_LOG("DQE_COLORMODE", dqe->decon->crtc, 0, NULL);
 	}
 	updated = DQE_UPDATED_CONTEXT;
 done:
@@ -812,7 +812,7 @@ done:
 error_locked:
 	mutex_unlock(&dqe->lock);
 error:
-	dqe_err(dqe, "%s parsing error\n", __func__);
+	dqe_err(dqe, "parsing error\n");
 	return DQE_UPDATED_NONE;
 }
 
@@ -911,8 +911,8 @@ static u32 dqe_update_preset(struct exynos_dqe *dqe,
 	mutex_unlock(&dqe->lock);
 
 	if (unlikely(updated)) {
-		dqe_debug(dqe, "%s context updated (%x)\n", __func__, updated);
-		DPU_EVENT_LOG(DPU_EVT_DQE_PRESET, dqe->decon->crtc, NULL);
+		dqe_debug(dqe, "context updated (%x)\n", updated);
+		DPU_EVENT_LOG("DQE_PRESET", dqe->decon->crtc, 0, NULL);
 		updated = DQE_UPDATED_CONTEXT;
 	}
 	return updated;
@@ -956,10 +956,10 @@ static u32 dqe_update_config(struct exynos_dqe *dqe,
 		dqe->cfg.height = height;
 		dqe->cfg.in_bpc = cfg->in_bpc;
 		dqe->cfg.out_bpc = cfg->out_bpc;
-		dqe_debug(dqe, "%s: w x h (%d x %d), bpc (%d/%d)\n",
-				__func__, dqe->cfg.width, dqe->cfg.height,
+		dqe_debug(dqe, "w x h (%d x %d), bpc (%d/%d)\n",
+				dqe->cfg.width, dqe->cfg.height,
 				dqe->cfg.in_bpc, dqe->cfg.out_bpc);
-		DPU_EVENT_LOG(DPU_EVT_DQE_CONFIG, dqe->decon->crtc, NULL);
+		DPU_EVENT_LOG("DQE_CONFIG", dqe->decon->crtc, 0, NULL);
 		updated = DQE_UPDATED_CONFIG;
 	}
 
@@ -1117,7 +1117,7 @@ static irqreturn_t dqe_irq_handler(int irq, void *dev_data)
 		goto irq_end;
 
 	irqs = edma_reg_get_interrupt_and_clear(dqe->id);
-	dqe_debug(dqe, "%s: irq_sts_reg = %x\n", __func__, irqs);
+	dqe_debug(dqe, "irq_sts_reg = %x\n", irqs);
 
 irq_end:
 	spin_unlock(&dqe->slock);
@@ -1330,7 +1330,7 @@ static void dqe_set_cgc17_lut(struct exynos_dqe *dqe,
 {
 	int i, rgb;
 
-	dqe_debug(dqe, "%s\n", __func__);
+	dqe_debug(dqe, "\n");
 
 	/* DQE0_CGC_LUT*/
 	for (i = 0; i < DQE_CGC_LUT_MAX; i++)
@@ -1367,7 +1367,7 @@ static void dqe_set_disp_dither(struct exynos_dqe *dqe,
 {
 	u32 *disp_dither = lut->disp_dither;
 
-	dqe_debug(dqe, "%s\n", __func__);
+	dqe_debug(dqe, "\n");
 
 	/* DQE0_DISP_DITHER*/
 	dqe->ctx.disp_dither = (
@@ -1385,7 +1385,7 @@ static void dqe_set_cgc_dither(struct exynos_dqe *dqe,
 {
 	u32 *cgc_dither = lut->cgc_dither;
 
-	dqe_debug(dqe, "%s\n", __func__);
+	dqe_debug(dqe, "\n");
 
 	/* DQE0_CGC_DITHER*/
 	dqe->ctx.cgc_dither = (
@@ -1422,7 +1422,7 @@ static void dqe_set_gamma_matrix(struct exynos_dqe *dqe,
 	int bound, tmp;
 	u32 shift;
 
-	dqe_debug(dqe, "%s\n", __func__);
+	dqe_debug(dqe, "\n");
 
 	dqe_get_bpc_info(dqe, &shift, NULL, 0);
 
@@ -1707,9 +1707,9 @@ static inline u32 dqe_get_aps_range(struct exynos_dqe *dqe, u32 value,
 
 	if (value == 0) // if input is zero, just return zero
 		return 0;
-	// if input is non-zero, check the range
+	// As per ATC architecture team request, uses this instead of 2 bit shift
 	if (bpc == DQE_BPC_TYPE_8)
-		value = value * 255 / 1023; // As per ATC architecture team request, uses this instead of 2 bit shift
+		value = DIV_ROUND_CLOSEST(value * 255, 1023);
 	if (value < aps_range[type][bpc].min)
 		return aps_range[type][bpc].min;
 	if (value > aps_range[type][bpc].max)
@@ -1838,12 +1838,12 @@ static void dqe_restore_lpd(struct exynos_dqe *dqe)
 		if (dqe == NULL || buf == NULL || dqe_lut == NULL) \
 			return -1;\
 		mutex_lock(&dqe->lock); \
-		dqe_debug(dqe, "%s +\n", __func__); \
+		dqe_debug(dqe, "+\n"); \
 		ret = dqe_ ## name ## _show(dqe, &dqe_lut[mode_idx], buf); \
 		if (ret < 0) \
-			dqe_err(dqe, "%s err -\n", __func__); \
+			dqe_err(dqe, "err -\n"); \
 		else \
-			dqe_debug(dqe, "%s -\n", __func__); \
+			dqe_debug(dqe, "-\n"); \
 		mutex_unlock(&dqe->lock); \
 		return ret; \
 	} \
@@ -1855,12 +1855,12 @@ static void dqe_restore_lpd(struct exynos_dqe *dqe)
 		if (dqe == NULL || count <= 0 || buffer == NULL || dqe_lut == NULL) \
 			return -1; \
 		mutex_lock(&dqe->lock); \
-		dqe_debug(dqe, "%s +\n", __func__); \
+		dqe_debug(dqe, "+\n"); \
 		ret = dqe_ ## name ## _store(dqe, &dqe_lut[mode_idx], buffer, count); \
 		if (ret < 0) \
-			dqe_err(dqe, "%s err -\n", __func__); \
+			dqe_err(dqe, "err -\n"); \
 		else \
-			dqe_debug(dqe, "%s -\n", __func__); \
+			dqe_debug(dqe, "-\n"); \
 		mutex_unlock(&dqe->lock); \
 		return ret; \
 	} \
@@ -1877,12 +1877,12 @@ static void dqe_restore_lpd(struct exynos_dqe *dqe)
 		if (dqe == NULL || buf == NULL || dqe_lut == NULL) \
 			return -1;\
 		mutex_lock(&dqe->lock); \
-		dqe_debug(dqe, "%s +\n", __func__); \
+		dqe_debug(dqe, "+\n"); \
 		ret = dqe_ ## name ## _show(dqe, &dqe_lut[mode_idx], buf); \
 		if (ret < 0) \
-			dqe_err(dqe, "%s err -\n", __func__); \
+			dqe_err(dqe, "err -\n"); \
 		else \
-			dqe_debug(dqe, "%s -\n", __func__); \
+			dqe_debug(dqe, "-\n"); \
 		mutex_unlock(&dqe->lock); \
 		return ret; \
 	} \
@@ -2147,7 +2147,7 @@ static ssize_t dqe_cgc17_idx_store(struct exynos_dqe *dqe,
 
 	lut->cgc17_enc_rgb = val1;
 	lut->cgc17_enc_idx = val2;
-	dqe_debug(dqe, "%s: %d %d\n", __func__, lut->cgc17_enc_rgb, lut->cgc17_enc_idx);
+	dqe_debug(dqe, "%d %d\n", lut->cgc17_enc_rgb, lut->cgc17_enc_idx);
 	return count;
 }
 
@@ -2270,7 +2270,7 @@ static ssize_t dqe_gamma_ext_store(struct exynos_dqe *dqe,
 	}
 
 	lut->regamma_lut_ext = value;
-	dqe_info(dqe, "%s regamma extension %d\n", __func__, lut->regamma_lut_ext);
+	dqe_info(dqe, "regamma extension %d\n", lut->regamma_lut_ext);
 	return count;
 }
 
@@ -2326,7 +2326,7 @@ static ssize_t dqe_degamma_ext_store(struct exynos_dqe *dqe,
 	}
 
 	lut->degamma_lut_ext = value;
-	dqe_info(dqe, "%s degamma extension %d\n", __func__, lut->degamma_lut_ext);
+	dqe_info(dqe, "degamma extension %d\n", lut->degamma_lut_ext);
 	return count;
 }
 
@@ -2382,7 +2382,7 @@ static ssize_t dqe_hsc48_idx_store(struct exynos_dqe *dqe,
 	}
 
 	lut->hsc48_lcg_idx = value;
-	dqe_info(dqe, "%s lcg idx %d\n", __func__, lut->hsc48_lcg_idx);
+	dqe_info(dqe, "lcg idx %d\n", lut->hsc48_lcg_idx);
 	return count;
 }
 
@@ -2493,7 +2493,7 @@ static ssize_t dqe_aps_lux_store(struct exynos_dqe *dqe,
 	if (ret < 0)
 		return ret;
 	dqe->ctx.atc_lux = value;
-	dqe_info(dqe, "%s: lux %d\n", __func__, dqe->ctx.atc_lux);
+	dqe_info(dqe, "lux %d\n", dqe->ctx.atc_lux);
 	return count;
 }
 
@@ -2515,7 +2515,7 @@ static ssize_t dqe_aps_dim_off_store(struct exynos_dqe *dqe,
 	if (ret < 0)
 		return ret;
 	dqe->ctx.atc_dim_off = value;
-	dqe_info(dqe, "%s: %d\n", __func__, value);
+	dqe_info(dqe, "%d\n", value);
 	return count;
 }
 
@@ -2538,7 +2538,7 @@ static ssize_t dqe_color_mode_store(struct exynos_dqe *dqe,
 	ret = kstrtouint(buffer, 0, &value);
 	if (ret < 0)
 		return ret;
-	dqe_info(dqe, "%s: color mode %d\n", __func__, value);
+	dqe_info(dqe, "color mode %d\n", value);
 	return count;
 }
 
@@ -2760,9 +2760,9 @@ static void __exynos_dqe_dump(struct exynos_dqe *dqe)
 static void __exynos_dqe_prepare(struct exynos_dqe *dqe,
 				struct drm_crtc_state *crtc_state)
 {
-	dqe_debug(dqe, "%s +\n", __func__);
+	dqe_debug(dqe, "+\n");
 	dqe_prepare_context(dqe, crtc_state);
-	dqe_debug(dqe, "%s -\n", __func__);
+	dqe_debug(dqe, "-\n");
 }
 
 static void __exynos_dqe_update(struct exynos_dqe *dqe,
@@ -2770,7 +2770,7 @@ static void __exynos_dqe_update(struct exynos_dqe *dqe,
 {
 	u32 updated = DQE_UPDATED_NONE;
 
-	dqe_debug(dqe, "%s +\n", __func__);
+	dqe_debug(dqe, "+\n");
 
 	updated |= dqe_update_context(dqe, crtc_state);
 	updated |= dqe_update_config(dqe, crtc_state);
@@ -2785,41 +2785,81 @@ static void __exynos_dqe_update(struct exynos_dqe *dqe,
 		decon_reg_update_req_dqe(dqe->id);
 	}
 
-	dqe_debug(dqe, "%s -\n", __func__);
+	dqe_debug(dqe, "-\n");
 }
 
 static void __exynos_dqe_enable(struct exynos_dqe *dqe)
 {
-	dqe_debug(dqe, "%s +\n", __func__);
+	dqe_debug(dqe, "+\n");
 	dqe_restore_lpd(dqe);
 	dqe_reset_update_cnt(dqe, DQE_RESET_GLOBAL, DQE_RESET_FULL);
 	dqe_reset_update_cnt(dqe, DQE_RESET_CGC, DQE_RESET_OPT);
 	dqe_enable_irqs(dqe);
 	dqe->state = DQE_STATE_ENABLE;
-	dqe_debug(dqe, "%s -\n", __func__);
+	dqe_debug(dqe, "-\n");
 }
 
 static void __exynos_dqe_disable(struct exynos_dqe *dqe)
 {
-	dqe_debug(dqe, "%s +\n", __func__);
+	dqe_debug(dqe, "+\n");
 	dqe_save_lpd(dqe);
 	dqe_disable_irqs(dqe);
 	dqe->state = DQE_STATE_DISABLE;
-	dqe_debug(dqe, "%s -\n", __func__);
+	dqe_debug(dqe, "-\n");
 }
 
 static void __exynos_dqe_suspend(struct exynos_dqe *dqe)
 {
-	dqe_debug(dqe, "%s +\n", __func__);
-	dqe_debug(dqe, "%s -\n", __func__);
+	dqe_debug(dqe, "+\n");
+	dqe_debug(dqe, "-\n");
 }
 
 static void __exynos_dqe_resume(struct exynos_dqe *dqe)
 {
-	dqe_debug(dqe, "%s +\n", __func__);
+	dqe_debug(dqe, "+\n");
 	// SRAM retention reset on sleep mif down
 	dqe_reset_update_cnt(dqe, DQE_RESET_CGC, DQE_RESET_FULL);
-	dqe_debug(dqe, "%s -\n", __func__);
+	dqe_debug(dqe, "-\n");
+}
+
+static void __exynos_dqe_state(struct exynos_dqe *dqe,
+				enum dqe_reg_type type, bool *enabled)
+{
+	dqe_debug(dqe, "+\n");
+	mutex_lock(&dqe->lock);
+	switch (type) {
+	case DQE_REG_GAMMA_MATRIX:
+		*enabled = IS_DQE_ON(&dqe->ctx.gamma_matrix_on);
+		break;
+	case DQE_REG_DISP_DITHER:
+		*enabled = IS_DQE_ON(&dqe->ctx.disp_dither_on);
+		break;
+	case DQE_REG_CGC_DITHER:
+		*enabled = IS_DQE_ON(&dqe->ctx.cgc_dither_on);
+		break;
+	case DQE_REG_CGC_CON:
+	case DQE_REG_CGC_DMA:
+	case DQE_REG_CGC:
+		*enabled = IS_DQE_ON(&dqe->ctx.cgc_on);
+		break;
+	case DQE_REG_DEGAMMA:
+		*enabled = IS_DQE_ON(&dqe->ctx.degamma_on);
+		break;
+	case DQE_REG_REGAMMA:
+		*enabled = IS_DQE_ON(&dqe->ctx.regamma_on);
+		break;
+	case DQE_REG_HSC:
+		*enabled = IS_DQE_ON(&dqe->ctx.hsc_on);
+		break;
+	case DQE_REG_ATC:
+		*enabled = IS_DQE_ON(&dqe->ctx.atc_on);
+		break;
+	default:
+		*enabled = false;
+		break;
+	}
+	mutex_unlock(&dqe->lock);
+	dqe_debug(dqe, "-\n");
 }
 
 static const struct exynos_dqe_funcs dqe_funcs = {
@@ -2830,6 +2870,7 @@ static const struct exynos_dqe_funcs dqe_funcs = {
 	.disable = __exynos_dqe_disable,
 	.suspend = __exynos_dqe_suspend,
 	.resume = __exynos_dqe_resume,
+	.state = __exynos_dqe_state,
 };
 
 void exynos_dqe_dump(struct exynos_dqe *dqe)
@@ -2916,6 +2957,24 @@ void exynos_dqe_resume(struct exynos_dqe *dqe)
 	funcs = dqe->funcs;
 	if (funcs)
 		funcs->resume(dqe);
+}
+
+void exynos_dqe_state(struct exynos_dqe *dqe,
+			enum dqe_reg_type type,	bool *enabled)
+{
+	const struct exynos_dqe_funcs *funcs;
+
+	if (!enabled)
+		return;
+
+	*enabled = false;
+
+	if (!dqe || dqe->initialized == false || type >= DQE_REG_MAX)
+		return;
+
+	funcs = dqe->funcs;
+	if (funcs)
+		funcs->state(dqe, type, enabled);
 }
 
 struct exynos_dqe *exynos_dqe_register(struct decon_device *decon)

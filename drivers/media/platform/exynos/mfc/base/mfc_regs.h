@@ -951,7 +951,9 @@
 #define MFC_REG_E_RC_CBR_FIX				0
 #define MFC_REG_E_RC_CBR_VAR				1
 #define MFC_REG_E_RC_VBR				2
-#define MFC_REG_E_RC_CBR_I_LIMIT			3
+#define MFC_REG_E_RC_CBR_I_LIMIT_VT			3
+#define MFC_REG_E_RC_VBR_BS				4
+#define MFC_REG_E_RC_CBR_I_LIMIT_WFD			5
 
 
 /* 0xFA84: MFC_REG_E_SLICE_TYPE */

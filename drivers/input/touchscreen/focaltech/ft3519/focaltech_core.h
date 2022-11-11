@@ -71,6 +71,8 @@
 #include <linux/vbus_notifier.h>
 #endif
 
+extern struct device *ptsp;
+
 /*****************************************************************************
 * Private constant and macro definitions using #define
 *****************************************************************************/

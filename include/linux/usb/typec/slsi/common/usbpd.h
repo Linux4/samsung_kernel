@@ -9,6 +9,8 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/ktime.h>
+#include <linux/power_supply.h>
+#include <linux/usb/typec.h>
 
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 #if IS_ENABLED(CONFIG_BATTERY_NOTIFIER)
@@ -60,6 +62,18 @@
 #define tTypeCSendSourceCap (100) /* 100~200ms */
 #define tSrcRecover (880) /* 660~1000ms */
 #define tNoResponse (5500) /* 660~1000ms */
+#define tDRPtry (75) /* 75~150ms */
+#define tTryCCDebounce (15) /* 10~20ms */
+
+enum s2m_pdic_power_role {
+	PDIC_SINK,
+	PDIC_SOURCE
+};
+
+typedef enum {
+	VBUS_OFF = 0,
+	VBUS_ON = 1,
+} PDIC_VBUS_SEL;
 
 /* Protocol States */
 typedef enum {
@@ -280,6 +294,9 @@ typedef enum {
 	PE_FRS_SNK_SRC_Assert_Rp		= 0x23,
 	PE_FRS_SNK_SRC_Source_on		= 0x24,
 
+	/* custom */
+	PE_DFP_VDM_EVALUATE,
+
 	Error_Recovery			= 0xFF
 } policy_state;
 
@@ -454,6 +471,7 @@ typedef enum {
 enum  {
 	S2MU106_USBPD_IP,
 	S2MU107_USBPD_IP,
+	S2MF301_USBPD_IP,
 };
 
 enum usbpd_pdic_rid {
@@ -465,6 +483,82 @@ enum usbpd_pdic_rid {
     REG_RID_OPEN = 0x07,
     REG_RID_MAX  = 0x08,
 };
+
+enum {
+	D2D_NONE	= 0,
+	D2D_SNKONLY,
+	D2D_SRCSNK,
+};
+
+typedef enum {
+	PDO_TYPE_FIXED = 0,
+	PDO_TYPE_BATTERY,
+	PDO_TYPE_VARIABLE,
+	PDO_TYPE_APDO
+} pdo_supply_type_t;
+
+enum {
+	USBPD_ATTACH,
+	USBPD_DETACH,
+	USBPD_DEVICE_INFO,
+	USBPD_CLEAR_INFO,
+};
+
+enum s2m_water_treshold {
+	TH_PD_WATER,		//0
+	TH_PD_WATER_POST,	//1
+	TH_PD_DRY,		//2
+	TH_PD_DRY_POST,		//3
+	TH_PD_WATER_DELAY,	//4
+	TH_PD_WATER_RA,		//5
+	TH_PD_GPADC_SHORT,	//6
+	TH_PD_GPADC_POWEROFF,	//7
+	TH_PM_RWATER,		//8
+	TH_PM_VWATER,		//9
+	TH_PM_RDRY,		//10
+	TH_PM_VDRY,		//11
+	TH_PM_DRY_TIMER,	//12
+	TH_PM_WATER_DELAY,	//13
+	TH_MAX,			//14
+};
+
+typedef enum {
+	PD_SINK,
+	PD_SOURCE,
+	PD_DETACH,
+	PD_WATER,
+	PD_RID,
+} PDIC_WATER_POWER_ROLE;
+
+typedef enum {
+	WATER_CC_OPEN,
+	WATER_CC_RD,
+	WATER_CC_DRP,
+	WATER_CC_DEFAULT,
+}PDIC_WATER_CC_STATUS;
+
+typedef enum {
+	PD_WATER_IDLE,
+	PD_DRY_IDLE,
+	PD_WATER_CHECKING,
+	PD_DRY_CHECKING,
+	PD_WATER_DEFAULT,
+} PDIC_WATER_STATUS;
+
+#define PDIC_OPS_FUNC(func, _data) \
+	((pd_data->phy_ops.func) ? \
+	 (pd_data->phy_ops.func(_data)) : \
+	 (pr_info("%s, %s is not enabled\n", __func__, #func), -1))
+
+#define PDIC_OPS_PARAM_FUNC(func, _data, param) \
+	((pd_data->phy_ops.func) ? \
+	 (pd_data->phy_ops.func(_data, param)) : \
+	 (pr_info("%s, %s is not enabled\n", __func__, #func), -1))
+
+#define PDIC_OPS_PARAM2_FUNC(func, _data, param1, param2) \
+	((pd_data->phy_ops.func) ? \
+	 (pd_data->phy_ops.func(_data, param1, param2))	: \
+	 (pr_info("%s, %s is not enabled\n", __func__, #func), -1))
 
 typedef struct usbpd_phy_ops {
 	/*    1st param should be 'usbpd_data *'    */
@@ -513,7 +607,30 @@ typedef struct usbpd_phy_ops {
 	int    (*pps_enable)(void *, int);
 	int    (*get_pps_enable)(void *, int *);
 #endif
-	void    (*send_pd_info)(void *, int);
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+	int		(*water_get_power_role)(void *);
+	int		(*ops_water_check)(void *);
+	int		(*ops_dry_check)(void *);
+	void	(*water_opmode)(void *, int );
+	int		(*ops_get_is_water_detect)(void *);
+	int		(*ops_power_off_water)(void *);
+	int		(*ops_prt_water_threshold)(void *, char *);
+	void	(*ops_set_water_threshold)(void *, int, int);
+#endif
+	void	(*energy_now)(void *, int);
+	void	(*authentic)(void *);
+	void	(*set_usbpd_reset)(void *);
+	int		(*ops_get_fsm_state)(void *);
+	int		(*get_detach_valid)(void *);
+	void	(*rprd_mode_change)(void *, u8);
+	void	(*irq_control)(void *, int);
+	void	(*set_is_otg_vboost)(void *, int);
+	int		(*ops_get_lpm_mode)(void *);
+	int		(*ops_get_rid)(void *);
+	void	(*ops_control_option_command)(void *, int);
+	void	(*ops_sysfs_lpm_mode)(void *, int cmd);
+	void	(*set_pcp_clk)(void *, int);
+
 } usbpd_phy_ops_type;
 
 struct policy_data {
@@ -537,6 +654,10 @@ struct policy_data {
 	int				send_reject;
 	bool			pd_src_ready;
 	bool			got_pps_apdo;
+	int				selected_pdo_type;
+	int				selected_pdo_num;
+	int				requested_pdo_type;
+	int				requested_pdo_num;
 };
 
 struct protocol_data {
@@ -621,15 +742,26 @@ struct usbpd_manager_data {
 	struct delayed_work	acc_detach_handler;
 	struct delayed_work select_pdo_handler;
 	struct delayed_work start_discover_msg_handler;
+	struct delayed_work short_check_work;
 	muic_attached_dev_t	attached_dev;
 
 	int pd_attached;
 	bool support_vpdo;
+
+	struct delayed_work d2d_work;
+
+	int src_cap_done;
+	int auth_type;
+	int d2d_type;
+	int req_pdo_type;
+	bool psrdy_sent;
 };
 
 struct usbpd_data {
 	struct device		*dev;
 	void			*phy_driver_data;
+	struct power_supply_desc pdic_desc;
+	struct power_supply *psy_pdic;
 	struct usbpd_counter	counter;
 	struct hrtimer		timers[USBPD_TIMER_MAX_COUNT];
 	unsigned                expired_timers;
@@ -638,7 +770,7 @@ struct usbpd_data {
 	struct protocol_data	protocol_rx;
 	struct policy_data	policy;
 	msg_header_type		source_msg_header;
-	data_obj_type           source_data_obj;
+	data_obj_type           source_data_obj[7];
 	msg_header_type		sink_msg_header;
 	data_obj_type           sink_data_obj[2];
 	data_obj_type		source_request_obj;
@@ -654,15 +786,33 @@ struct usbpd_data {
 	int					specification_revision;
 	struct mutex		accept_mutex;
 	int					is_prswap;
+	struct timespec64	time_vdm;
 	struct timespec64	time1;
 	struct timespec64	time2;
 	struct timespec64	check_time;
 
 	struct wakeup_source	*policy_wake;
 	int					ip_num;
+	char				*pmeter_name;
 
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	struct pdic_notifier_struct pd_noti;
+#endif
+
+#if IS_ENABLED(CONFIG_TYPEC)
+	struct typec_port *port;
+	struct typec_partner *partner;
+	struct usb_pd_identity partner_identity;
+	struct typec_capability typec_cap;
+	struct completion role_reverse_completion;
+	int typec_power_role;
+	int typec_data_role;
+	int typec_try_state_change;
+	struct delayed_work typec_role_swap_work;
+#endif
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+	ppdic_data_t ppdic_data;
+	struct workqueue_struct *pdic_wq;
 #endif
 };
 
@@ -686,6 +836,8 @@ static inline struct usbpd_data *manager_to_usbpd(struct usbpd_manager_data *man
 	return container_of(manager, struct usbpd_data, manager);
 }
 
+extern char *pdo_type_to_str[];
+
 extern int usbpd_init(struct device *dev, void *phy_driver_data);
 extern void usbpd_init_policy(struct usbpd_data *);
 
@@ -696,6 +848,7 @@ extern void usbpd_manager_plug_attach(struct device *, muic_attached_dev_t);
 extern void usbpd_manager_plug_detach(struct device *dev, bool notify);
 extern void usbpd_manager_acc_detach(struct device *dev);
 extern int  usbpd_manager_match_request(struct usbpd_data *);
+extern void usbpd_manager_response_req_pdo(struct usbpd_data *pd_data, int req_pdo_type, int req_pdo_num);
 extern bool usbpd_manager_power_role_swap(struct usbpd_data *);
 extern bool usbpd_manager_vconn_source_swap(struct usbpd_data *);
 extern void usbpd_manager_turn_on_source(struct usbpd_data *);
@@ -715,10 +868,16 @@ extern data_obj_type usbpd_manager_select_capability(struct usbpd_data *);
 extern bool usbpd_manager_vdm_request_enabled(struct usbpd_data *);
 extern void usbpd_manager_acc_handler_cancel(struct device *);
 extern void usbpd_manager_acc_detach_handler(struct work_struct *);
+extern void usbpd_manager_short_check(struct usbpd_data *pd_data);
 extern void usbpd_manager_send_pr_swap(struct device *);
 extern void usbpd_manager_send_dr_swap(struct device *);
 extern void usbpd_manager_match_sink_cap(struct usbpd_data *);
 extern void usbpd_manager_remove_new_cap(struct usbpd_data *);
+extern int usbpd_manager_command_to_policy(struct device *dev, usbpd_manager_command_type command);
+extern void usbpd_manager_restart_discover_msg(struct usbpd_data *pd_data);
+extern int usbpd_manager_psy_init(struct usbpd_data *_data, struct device *parent);
+extern void usbpd_manager_vbus_turn_on_ctrl(void *_data, bool enbale);
+extern void init_source_cap_data(struct usbpd_manager_data *_data);
 extern void usbpd_policy_work(struct work_struct *);
 extern void usbpd_protocol_tx(struct usbpd_data *);
 extern void usbpd_protocol_rx(struct usbpd_data *);
@@ -751,5 +910,7 @@ void usbpd_timer1_start(struct usbpd_data *pd_data);
 long long usbpd_check_time1(struct usbpd_data *pd_data);
 void usbpd_timer2_start(struct usbpd_data *pd_data);
 long long usbpd_check_time2(struct usbpd_data *pd_data);
+void usbpd_timer_vdm_start(struct usbpd_data *pd_data);
+long long usbpd_check_timer_vdm(struct usbpd_data *pd_data);
 
 #endif

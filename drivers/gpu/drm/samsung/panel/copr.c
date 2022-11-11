@@ -10,6 +10,7 @@
 #include <linux/of_gpio.h>
 #include "panel.h"
 #include "panel_drv.h"
+#include "panel_debug.h"
 #include "copr.h"
 
 #ifdef PANEL_PR_TAG
@@ -209,6 +210,202 @@ static struct copr_reg_info copr_reg_v6_list[] = {
 	{ .name = "copr_roi5_y_e=", .offset = offsetof(struct copr_reg_v6, roi[4].roi_ye) },
 };
 
+static int get_copr_ver(struct copr_info *copr)
+{
+	return copr->props.version;
+}
+
+static void SET_COPR_REG_GAMMA(struct copr_info *copr, unsigned int copr_gamma)
+{
+	u32 version = get_copr_ver(copr);
+
+	if (version == COPR_VER_0)
+		copr->props.reg.v0.copr_gamma = copr_gamma;
+	else if (version == COPR_VER_1)
+		copr->props.reg.v1.copr_gamma = copr_gamma;
+	else if (version == COPR_VER_2)
+		copr->props.reg.v2.copr_gamma = copr_gamma;
+	else if (version == COPR_VER_3)
+		copr->props.reg.v3.copr_gamma = copr_gamma;
+	else if (version == COPR_VER_5)
+		copr->props.reg.v5.copr_gamma = copr_gamma;
+	else if (version == COPR_VER_6)
+		copr->props.reg.v6.copr_gamma = copr_gamma;
+	else
+		panel_warn("unsupprted in ver%d\n", version);
+}
+
+static void SET_COPR_REG_E(struct copr_info *copr, int r, int g, int b)
+{
+	u32 version = get_copr_ver(copr);
+
+	if (version == COPR_VER_0) {
+		copr->props.reg.v0.copr_er = r;
+		copr->props.reg.v0.copr_eg = g;
+		copr->props.reg.v0.copr_eb = b;
+	} else if (version == COPR_VER_1) {
+		copr->props.reg.v1.copr_er = r;
+		copr->props.reg.v1.copr_eg = g;
+		copr->props.reg.v1.copr_eb = b;
+	} else if (version == COPR_VER_2) {
+		copr->props.reg.v2.copr_er = r;
+		copr->props.reg.v2.copr_eg = g;
+		copr->props.reg.v2.copr_eb = b;
+	} else if (version == COPR_VER_3) {
+		copr->props.reg.v3.copr_er = r;
+		copr->props.reg.v3.copr_eg = g;
+		copr->props.reg.v3.copr_eb = b;
+	} else if (version == COPR_VER_5) {
+		copr->props.reg.v5.copr_er = r;
+		copr->props.reg.v5.copr_eg = g;
+		copr->props.reg.v5.copr_eb = b;
+	} else if (version == COPR_VER_6) {
+		panel_warn("unsupprted in ver%d\n", version);
+	} else {
+		panel_warn("unsupprted in ver%d\n", version);
+	}
+}
+
+static void SET_COPR_REG_EC(struct copr_info *copr, int r, int g, int b)
+{
+	u32 version = get_copr_ver(copr);
+
+	if (version == COPR_VER_0) {
+		panel_warn("unsupprted in ver%d\n", version);
+	} else if (version == COPR_VER_1) {
+		panel_warn("unsupprted in ver%d\n", version);
+	} else if (version == COPR_VER_2) {
+		copr->props.reg.v2.copr_erc = r;
+		copr->props.reg.v2.copr_egc = g;
+		copr->props.reg.v2.copr_ebc = b;
+	} else if (version == COPR_VER_3) {
+		copr->props.reg.v3.copr_erc = r;
+		copr->props.reg.v3.copr_egc = g;
+		copr->props.reg.v3.copr_ebc = b;
+	} else if (version == COPR_VER_5) {
+		copr->props.reg.v5.copr_erc = r;
+		copr->props.reg.v5.copr_egc = g;
+		copr->props.reg.v5.copr_ebc = b;
+	} else if (version == COPR_VER_6) {
+		panel_warn("unsupprted in ver%d\n", version);
+	} else {
+		panel_warn("unsupprted in ver%d\n", version);
+	}
+}
+
+#if 0
+static void SET_COPR_REG_CNT_RE(struct copr_info *copr, int cnt_re)
+{
+	u32 version = get_copr_ver(copr);
+
+	if (version == COPR_VER_0)
+		panel_warn("unsupprted in ver%d\n", version);
+	else if (version == COPR_VER_1)
+		copr->props.reg.v1.cnt_re = cnt_re;
+	else if (version == COPR_VER_2)
+		copr->props.reg.v2.cnt_re = cnt_re;
+	else if (version == COPR_VER_3)
+		copr->props.reg.v3.cnt_re = cnt_re;
+	else if (version == COPR_VER_5)
+		copr->props.reg.v5.cnt_re = cnt_re;
+	else if (version == COPR_VER_6)
+		panel_warn("unsupprted in ver%d\n", version);
+	else
+		panel_warn("unsupprted in ver%d\n", version);
+}
+#endif
+
+static void SET_COPR_REG_ROI(struct copr_info *copr, struct copr_roi *roi, int nr_roi)
+{
+	u32 version = get_copr_ver(copr);
+	struct copr_properties *props = &copr->props;
+	int i;
+
+	if (version == COPR_VER_2) {
+		if (roi == NULL) {
+			props->reg.v2.roi_xs = 0;
+			props->reg.v2.roi_ys = 0;
+			props->reg.v2.roi_xe = 0;
+			props->reg.v2.roi_ye = 0;
+			props->reg.v2.roi_on = 0;
+		} else {
+			props->reg.v2.roi_xs = roi[0].roi_xs;
+			props->reg.v2.roi_ys = roi[0].roi_ys;
+			props->reg.v2.roi_xe = roi[0].roi_xe;
+			props->reg.v2.roi_ye = roi[0].roi_ye;
+			props->reg.v2.roi_on = true;
+		}
+	} else if (version == COPR_VER_3) {
+		if (roi == NULL) {
+			props->reg.v3.roi_on = 0;
+			memset(props->reg.v3.roi, 0, sizeof(props->reg.v3.roi));
+		} else {
+			props->reg.v3.roi_on = 0;
+			for (i = 0; i < min_t(int, ARRAY_SIZE(props->reg.v3.roi), nr_roi); i++) {
+				props->reg.v3.roi[i].roi_xs = roi[i].roi_xs;
+				props->reg.v3.roi[i].roi_ys = roi[i].roi_ys;
+				props->reg.v3.roi[i].roi_xe = roi[i].roi_xe;
+				props->reg.v3.roi[i].roi_ye = roi[i].roi_ye;
+				props->reg.v3.roi_on |= 0x1 << i;
+			}
+		}
+	} else if (version == COPR_VER_5) {
+		if (roi == NULL) {
+			props->reg.v5.roi_on = 0;
+			memset(props->reg.v5.roi, 0, sizeof(props->reg.v5.roi));
+		} else {
+			props->reg.v5.roi_on = 0;
+			for (i = 0; i < min_t(int, ARRAY_SIZE(props->reg.v5.roi), nr_roi); i++) {
+				props->reg.v5.roi[i].roi_xs = roi[i].roi_xs;
+				props->reg.v5.roi[i].roi_ys = roi[i].roi_ys;
+				props->reg.v5.roi[i].roi_xe = roi[i].roi_xe;
+				props->reg.v5.roi[i].roi_ye = roi[i].roi_ye;
+				props->reg.v5.roi_on |= 0x1 << i;
+			}
+		}
+	} else if (version == COPR_VER_6) {
+		if (roi == NULL) {
+			props->reg.v6.roi_on = 0;
+			memset(props->reg.v6.roi, 0, sizeof(props->reg.v6.roi));
+		} else {
+			props->reg.v6.roi_on = 0;
+			for (i = 0; i < min_t(int, ARRAY_SIZE(props->reg.v6.roi), nr_roi); i++) {
+				props->reg.v6.roi[i].roi_er = roi[i].roi_er;
+				props->reg.v6.roi[i].roi_eg = roi[i].roi_eg;
+				props->reg.v6.roi[i].roi_eb = roi[i].roi_eb;
+				props->reg.v6.roi[i].roi_xs = roi[i].roi_xs;
+				props->reg.v6.roi[i].roi_ys = roi[i].roi_ys;
+				props->reg.v6.roi[i].roi_xe = roi[i].roi_xe;
+				props->reg.v6.roi[i].roi_ye = roi[i].roi_ye;
+				props->reg.v6.roi_on |= 0x1 << i;
+			}
+		}
+	}
+}
+
+int get_copr_reg_copr_en(struct copr_info *copr)
+{
+	u32 version = get_copr_ver(copr);
+	int copr_en = COPR_REG_OFF;
+
+	if (version == COPR_VER_0)
+		copr_en = copr->props.reg.v0.copr_en;
+	else if (version == COPR_VER_1)
+		copr_en = copr->props.reg.v1.copr_en;
+	else if (version == COPR_VER_2)
+		copr_en = copr->props.reg.v2.copr_en;
+	else if (version == COPR_VER_3)
+		copr_en = copr->props.reg.v3.copr_en;
+	else if (version == COPR_VER_5)
+		copr_en = copr->props.reg.v5.copr_en;
+	else if (version == COPR_VER_6)
+		copr_en = copr->props.reg.v6.copr_en;
+	else
+		panel_warn("unsupprted in ver%d\n", version);
+
+	return copr_en;
+}
+
 int get_copr_reg_size(int version)
 {
 	if (version == COPR_VER_0)
@@ -394,11 +591,11 @@ EXPORT_SYMBOL(copr_reg_to_byte_array);
 
 ssize_t copr_reg_show(struct copr_info *copr, char *buf)
 {
-	int i, len = 0, version, size;
+	int i, len = 0, size;
 	const char *name;
 	u32 *ptr;
+	u32 version = get_copr_ver(copr);
 
-	version = copr->props.version;
 	size = get_copr_reg_size(version);
 	for (i = 0; i < size; i++) {
 		name = get_copr_reg_name(version, i);
@@ -412,12 +609,10 @@ ssize_t copr_reg_show(struct copr_info *copr, char *buf)
 
 int copr_reg_store(struct copr_info *copr, int index, u32 value)
 {
-	int version, size;
 	const char *name;
 	u32 *ptr;
-
-	version = copr->props.version;
-	size = get_copr_reg_size(version);
+	u32 version = get_copr_ver(copr);
+	int size = get_copr_reg_size(version);
 
 	if (index >= size)
 		return -EINVAL;
@@ -534,7 +729,8 @@ static int panel_read_copr_spi(struct copr_info *copr)
 	struct panel_device *panel = to_panel_device(copr);
 	struct panel_info *panel_data;
 	struct copr_properties *props = &copr->props;
-	int max_color = (props->version == COPR_VER_6) ?
+	u32 version = get_copr_ver(copr);
+	int max_color = (version == COPR_VER_6) ?
 		MAX_RGBW_COLOR : MAX_COLOR;
 
 	if (unlikely(!panel)) {
@@ -570,7 +766,7 @@ static int panel_read_copr_spi(struct copr_info *copr)
 		goto get_copr_error;
 	}
 
-	if (props->version == COPR_VER_6) {
+	if (version == COPR_VER_6) {
 		for (i = 0; i < 5; i++) {
 			for (c = 0; c < max_color; c++) {
 				index = i * (max_color * 2) + c * 2;
@@ -588,8 +784,7 @@ static int panel_read_copr_spi(struct copr_info *copr)
 					props->copr_roi_r[i][RGBW_BLUE],
 					props->copr_roi_r[i][RGBW_WHITE]);
 		}
-	} else if (props->version == COPR_VER_3 ||
-		props->version == COPR_VER_5) {
+	} else if (version == COPR_VER_3 || version == COPR_VER_5) {
 		props->copr_ready = buf[0] & 0x01;
 		props->cur_cnt = (buf[1] << 8) | buf[2];
 		props->cur_copr = (buf[3] << 8) | buf[4];
@@ -609,7 +804,7 @@ static int panel_read_copr_spi(struct copr_info *copr)
 		panel_dbg("copr_spi: cur_cnt %d, cur_copr %d, avg_copr %d, s_cur_cnt %d, s_avg_copr %d, copr_ready %d, comp_copr %d\n",
 				props->cur_cnt, props->cur_copr, props->avg_copr,
 				props->s_cur_cnt, props->s_avg_copr, props->copr_ready, props->comp_copr);
-	} else if (props->version == COPR_VER_2) {
+	} else if (version == COPR_VER_2) {
 		props->copr_ready = ((buf[0] & 0x80) ? 1 : 0);
 		props->cur_cnt = ((buf[0] & 0x7F) << 9) |
 			(buf[1] << 1) | ((buf[2] & 0x80) ? 1 : 0);
@@ -622,7 +817,7 @@ static int panel_read_copr_spi(struct copr_info *copr)
 		panel_dbg("copr_spi: cur_cnt %d, cur_copr %d, avg_copr %d, s_cur_cnt %d, s_avg_copr %d, copr_ready %d, comp_copr %d\n",
 				props->cur_cnt, props->cur_copr, props->avg_copr,
 				props->s_cur_cnt, props->s_avg_copr, props->copr_ready, props->comp_copr);
-	} else if (props->version == COPR_VER_1) {
+	} else if (version == COPR_VER_1) {
 		props->copr_ready = ((buf[0] & 0x80) ? 1 : 0);
 		props->cur_cnt = ((buf[0] & 0x7F) << 9) |
 			(buf[1] << 1) | ((buf[2] & 0x80) ? 1 : 0);
@@ -634,7 +829,7 @@ static int panel_read_copr_spi(struct copr_info *copr)
 		panel_dbg("copr_spi: cur_cnt %d, cur_copr %d, avg_copr %d, s_cur_cnt %d, s_avg_copr %d, copr_ready %d\n",
 				props->cur_cnt, props->cur_copr, props->avg_copr,
 				props->s_cur_cnt, props->s_avg_copr, props->copr_ready);
-	} else if (props->version == COPR_VER_0) {
+	} else if (version == COPR_VER_0) {
 		props->cur_copr = buf[0];
 	}
 
@@ -651,7 +846,8 @@ static int panel_read_copr_dsi(struct copr_info *copr)
 	struct panel_device *panel = to_panel_device(copr);
 	struct panel_info *panel_data;
 	struct copr_properties *props = &copr->props;
-	int max_color = (props->version == COPR_VER_6) ?
+	u32 version = get_copr_ver(copr);
+	int max_color = (version == COPR_VER_6) ?
 		MAX_RGBW_COLOR : MAX_COLOR;
 
 	if (unlikely(!panel)) {
@@ -687,7 +883,7 @@ static int panel_read_copr_dsi(struct copr_info *copr)
 		goto get_copr_error;
 	}
 
-	if (props->version == COPR_VER_6) {
+	if (version == COPR_VER_6) {
 		for (i = 0; i < 5; i++) {
 			for (c = 0; c < max_color; c++) {
 				index = i * (max_color * 2) + c * 2;
@@ -705,8 +901,7 @@ static int panel_read_copr_dsi(struct copr_info *copr)
 					props->copr_roi_r[i][RGBW_BLUE],
 					props->copr_roi_r[i][RGBW_WHITE]);
 		}
-	} else if (props->version == COPR_VER_3 ||
-		props->version == COPR_VER_5) {
+	} else if (version == COPR_VER_3 || version == COPR_VER_5) {
 		props->copr_ready = buf[0] & 0x01;
 		props->cur_cnt = (buf[1] << 8) | buf[2];
 		props->cur_copr = (buf[3] << 8) | buf[4];
@@ -726,7 +921,7 @@ static int panel_read_copr_dsi(struct copr_info *copr)
 		panel_dbg("copr_dsi: cur_cnt %d, cur_copr %d, avg_copr %d, s_cur_cnt %d, s_avg_copr %d, copr_ready %d\n",
 				props->cur_cnt, props->cur_copr, props->avg_copr,
 				props->s_cur_cnt, props->s_avg_copr, props->copr_ready);
-	} else if (props->version == COPR_VER_2) {
+	} else if (version == COPR_VER_2) {
 		props->copr_ready = ((buf[10] & 0x80) ? 1 : 0);
 		props->cur_cnt = (buf[0] << 8) | buf[1];
 		props->cur_copr = (buf[2] << 8) | buf[3];
@@ -737,7 +932,7 @@ static int panel_read_copr_dsi(struct copr_info *copr)
 		panel_dbg("copr_dsi: cur_cnt %d, cur_copr %d, avg_copr %d, s_cur_cnt %d, s_avg_copr %d, copr_ready %d, comp_copr %d\n",
 				props->cur_cnt, props->cur_copr, props->avg_copr,
 				props->s_cur_cnt, props->s_avg_copr, props->copr_ready, props->comp_copr);
-	} else if (props->version == COPR_VER_1) {
+	} else if (version == COPR_VER_1) {
 		props->copr_ready = ((buf[8] & 0x80) ? 1 : 0);
 		props->cur_cnt = (buf[0] << 8) | buf[1];
 		props->cur_copr = (buf[2] << 8) | buf[3];
@@ -840,6 +1035,7 @@ int copr_update_average(struct copr_info *copr)
 	struct timespec64 cur_ts;
 	int ret;
 	int cur_copr;
+	u32 version = get_copr_ver(copr);
 
 	if (unlikely(!copr->props.support))
 		return -ENODEV;
@@ -861,10 +1057,10 @@ int copr_update_average(struct copr_info *copr)
 		return -EINVAL;
 	}
 
-	if (copr->props.version == COPR_VER_2 ||
-		copr->props.version == COPR_VER_3 ||
-		copr->props.version == COPR_VER_5 ||
-		copr->props.version == COPR_VER_6) {
+	if (version == COPR_VER_2 ||
+		version == COPR_VER_3 ||
+		version == COPR_VER_5 ||
+		version == COPR_VER_6) {
 #ifdef CONFIG_SUPPORT_COPR_AVG
 		ret = panel_clear_copr(copr);
 		if (unlikely(ret < 0))
@@ -924,6 +1120,7 @@ int copr_iter_roi_get_value(struct copr_info *copr, struct copr_roi *roi, int si
 	int ret;
 	int i, c, cur_copr;
 	struct copr_reg reg;
+	u32 version = get_copr_ver(copr);
 
 	if (unlikely(!copr->props.support))
 		return -ENODEV;
@@ -946,7 +1143,7 @@ int copr_iter_roi_get_value(struct copr_info *copr, struct copr_roi *roi, int si
 	panel_dbg("set roi\n");
 	memcpy(&reg, &copr->props.reg, sizeof(reg));
 	SET_COPR_REG_GAMMA(copr, 0);
-	if (copr->props.version == COPR_VER_2) {
+	if (version == COPR_VER_2) {
 		for (i = 0; i < size; i++) {
 			SET_COPR_REG_ROI(copr, &roi[i], 1);
 			SET_COPR_REG_E(copr, 0x300, 0, 0);
@@ -976,7 +1173,7 @@ int copr_iter_roi_get_value(struct copr_info *copr, struct copr_roi *roi, int si
 			}
 			out[i * 3 + 2] = props->cur_copr;
 		}
-	} else if (copr->props.version == COPR_VER_1) {
+	} else if (version == COPR_VER_1) {
 		for (i = 0; i < size; i++) {
 			for (c = 0; c < MAX_COLOR; c++) {
 				SET_COPR_REG_ROI(copr, &roi[i], 1);
@@ -1004,8 +1201,8 @@ int copr_iter_roi_get_value(struct copr_info *copr, struct copr_roi *roi, int si
 	/* restore r/g/b efficiency & roi */
 	memcpy(&copr->props.reg, &reg, sizeof(copr->props.reg));
 #ifdef CONFIG_SUPPORT_COPR_AVG
-	if (copr->props.version == COPR_VER_2 ||
-		copr->props.version == COPR_VER_1) {
+	if (version == COPR_VER_2 ||
+		version == COPR_VER_1) {
 		ret = panel_do_copr_seqtbl_by_index(copr, COPR_CLR_CNT_ON_SEQ);
 		if (unlikely(ret < 0))
 			panel_err("failed to do seqtbl\n");
@@ -1107,9 +1304,11 @@ int copr_roi_set_value(struct copr_info *copr, struct copr_roi *roi, int size)
  */
 int copr_roi_get_value(struct copr_info *copr, struct copr_roi *roi, int size, u32 *out)
 {
-	if (copr->props.version > COPR_VER_2 ||
-		copr->props.version == COPR_VER_5 ||
-		copr->props.version == COPR_VER_6)
+	u32 version = get_copr_ver(copr);
+
+	if (version > COPR_VER_2 ||
+		version == COPR_VER_5 ||
+		version == COPR_VER_6)
 		return copr_cur_roi_get_value(copr, roi, size, out);
 	else
 		return copr_iter_roi_get_value(copr, roi, size, out);
@@ -1253,6 +1452,7 @@ int copr_enable(struct copr_info *copr)
 	struct panel_state *state = &panel->state;
 	struct copr_properties *props = &copr->props;
 	int ret;
+	u32 version = get_copr_ver(copr);
 
 	if (unlikely(!copr->props.support))
 		return -ENODEV;
@@ -1282,11 +1482,11 @@ int copr_enable(struct copr_info *copr)
 	if (copr->props.options.check_avg) {
 		copr_res_init(copr);
 #ifdef CONFIG_SUPPORT_COPR_AVG
-		if (copr->props.version == COPR_VER_1 ||
-			copr->props.version == COPR_VER_2 ||
-			copr->props.version == COPR_VER_3 ||
-			copr->props.version == COPR_VER_5 ||
-			copr->props.version == COPR_VER_6) {
+		if (version == COPR_VER_1 ||
+			version == COPR_VER_2 ||
+			version == COPR_VER_3 ||
+			version == COPR_VER_5 ||
+			version == COPR_VER_6) {
 			ret = panel_clear_copr(copr);
 			if (unlikely(ret < 0))
 				panel_err("failed to reset copr\n");
@@ -1322,7 +1522,7 @@ int copr_disable(struct copr_info *copr)
 	atomic_set(&copr->stop, 1);
 	mutex_lock(&copr->lock);
 	if (copr->props.options.check_avg) {
-		if (copr->props.version < COPR_VER_2)
+		if (get_copr_ver(copr) < COPR_VER_2)
 			copr_update_average(copr);
 	}
 	if (props->enable) {
@@ -1348,7 +1548,7 @@ static int copr_thread(void *data)
 	int ret;
 	bool should_stop = false;
 #ifdef CONFIG_SUPPORT_COPR_AVG
-	bool runnable = (copr->props.version < COPR_VER_2);
+	bool runnable = (get_copr_ver(copr) < COPR_VER_2);
 #else
 	bool runnable = true;
 #endif

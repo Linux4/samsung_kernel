@@ -98,6 +98,7 @@ static void simulate_EMERGENT_REBOOT(char **argv, int argc);
 static void simulate_SHUTDOWN_LOCKUP(char **argv, int argc);
 static void simulate_SUSPEND_LOCKUP(char **argv, int argc);
 static void simulate_FLUSH_WQ(char **argv, int argc);
+static void simulate_FLUSH_WORK(char **argv, int argc);
 static void simulate_PAC_TEST(char **argv, int argc);
 static void simulate_PTRAUTH_FAULT(char **argv, int argc);
 static void simulate_FREE_DEBUG_OBJECTS(char **argv, int argc);
@@ -106,6 +107,8 @@ static void simulate_TIMER_ACTIVATE2INIT(char **argv, int argc);
 static void simulate_HRTIMER_REACTIVATE(char **argv, int argc);
 static void simulate_HRTIMER_ACTIVATE2INIT(char **argv, int argc);
 static void simulate_WORK_ACTIVATE2INIT(char **argv, int argc);
+static void simulate_UBSAN_OOB(char **argv, int argc);
+static void simulate_UBSAN_OOB_PTR(char **argv, int argc);
 
 enum {
 	FORCE_KERNEL_PANIC = 0,		/* KP */
@@ -169,14 +172,17 @@ enum {
 	FORCE_SHUTDOWN_LOCKUP,		/* SHUTDOWN LOCKUP */
 	FORCE_SUSPEND_LOCKUP,		/* SUSPEND LOCKUP */
 	FORCE_FLUSH_WQ,			/* FLUSH WQ */
+	FORCE_FLUSH_WORK,		/* FLUSH WORK */
 	FORCE_PAC_TEST,			/* PAC TEST */
 	FORCE_PTRAUTH_FAULT,		/* PTR AUTH FAULT */
 	FORCE_FREE_DEBUG_OBJECTS,	/* Free activate DEBUG OBJECTs */
 	FORCE_TIMER_REACTIVATE,		/* TIMER ACTIVATE->ACTIVATE */
-	FORCE_TIMER_ACTIVATE2INIT,  /* TIMER ACTIVATE->INIT */
+	FORCE_TIMER_ACTIVATE2INIT,	/* TIMER ACTIVATE->INIT */
 	FORCE_HRTIMER_REACTIVATE,	/* HRTIMER ACTIVATE->ACTIVATE */
 	FORCE_HRTIMER_ACTIVATE2INIT,	/* HRTIMER ACTIVATE->INIT */
-	FORCE_WORK_ACTIVATE2INIT,		/* WORK ACTIVATE->INIT */
+	FORCE_WORK_ACTIVATE2INIT,	/* WORK ACTIVATE->INIT */
+	FORCE_UBSAN_OOB,		/* UBSAN OUT-OF-BOUND */
+	FORCE_UBSAN_OOB_PTR,		/* UBSAN OUT-OF-BOUND PTR */
 	NR_FORCE_ERROR,
 };
 
@@ -252,6 +258,7 @@ struct force_error force_error_vector = {
 		{"shutdownlockup",	&simulate_SHUTDOWN_LOCKUP},
 		{"suspendlockup",	&simulate_SUSPEND_LOCKUP},
 		{"flushwq",	&simulate_FLUSH_WQ},
+		{"flushwork",	&simulate_FLUSH_WORK},
 		{"pactest",	&simulate_PAC_TEST},
 		{"ptrauthfault",	&simulate_PTRAUTH_FAULT},
 		{"free-debugobjects",	&simulate_FREE_DEBUG_OBJECTS},
@@ -260,6 +267,8 @@ struct force_error force_error_vector = {
 		{"hrtimer-reactivate",	&simulate_HRTIMER_REACTIVATE},
 		{"hrtimer-activate2init", &simulate_HRTIMER_ACTIVATE2INIT},
 		{"work-activate2init",	&simulate_WORK_ACTIVATE2INIT},
+		{"ubsan-oob",	&simulate_UBSAN_OOB},
+		{"ubsan-oobptr",	&simulate_UBSAN_OOB_PTR},
 	}
 };
 
@@ -949,14 +958,14 @@ static void simulate_IRQ_STORM(char **argv, int argc)
 			struct irq_desc *desc = irq_to_desc(i);
 
 			if (desc && desc->action && desc->action->name)
-				if (!strcmp(desc->action->name, "gpio-keys: KEY_VOLUMEDOWN")) {
+				if (!strcmp(desc->action->name, "gpio-keys: KEY_VOLUMEUP")) {
 					irq_set_irq_type(i,
 						IRQF_TRIGGER_HIGH | IRQF_SHARED);
 					break;
 				}
 		}
 		if (i == nr_irqs)
-			pr_crit("%s : irq (gpio-keys: KEY_VOLUMEDOWN) not found\n", __func__);
+			pr_crit("%s : irq (gpio-keys: KEY_VOLUMEUP) not found\n", __func__);
 
 	}
 }
@@ -1528,34 +1537,7 @@ static void simulate_EMERGENT_REBOOT(char **argv, int argc)
 }
 
 static bool is_shutdown_test;
-
-static void do_shutdown_test(void)
-{
-	if (!is_shutdown_test)
-		return;
-
-	pr_info("%s: lockup test\n", __func__);
-	cpu_park_loop();
-}
-
-static void simulate_SHUTDOWN_LOCKUP(char **argv, int argc)
-{
-	int ret;
-	unsigned int type = 1;
-
-	if (argc > 0) {
-		ret = kstrtouint(argv[0], 0, &type);
-		if (ret)
-			pr_err("%s: Failed to get first argument\n", __func__);
-	}
-
-	is_shutdown_test = !!type;
-	pr_info("%s: test %sabled\n", __func__, type ? "en" : "dis");
-}
-
-static bool is_suspend_test;
-static bool is_resume_test;
-static bool is_busyloop_method;
+static bool is_shutdown_busyloop;
 
 static void do_test_lockup_func(bool busyloop)
 {
@@ -1564,6 +1546,48 @@ static void do_test_lockup_func(bool busyloop)
 	else
 		dummy_wait_for_completion();
 }
+
+static void do_shutdown_test(void)
+{
+	if (!is_shutdown_test)
+		return;
+
+	pr_info("%s: lockup test\n", __func__);
+	do_test_lockup_func(is_shutdown_busyloop);
+}
+
+static void simulate_SHUTDOWN_LOCKUP(char **argv, int argc)
+{
+	int ret;
+	bool is_busyloop = false;
+	unsigned int type = 1;
+
+	if (argc > 0) {
+		ret = strncmp(argv[0], "busyloop", 6);
+		if (!ret)
+			is_busyloop = true;
+
+		ret = kstrtouint(argv[0], 0, &type);
+		if (ret)
+			pr_err("%s: Failed to get first argument\n", __func__);
+	}
+
+	if (!type) {
+		is_shutdown_test = false;
+		is_shutdown_busyloop = false;
+	} else if (is_busyloop) {
+		is_shutdown_busyloop = true;
+	} else {
+		is_shutdown_test = true;
+	}
+	pr_info("%s: test %sabled%s\n", __func__,
+			is_shutdown_test ? "en" : "dis",
+			is_shutdown_busyloop ? " (busyloop)" : "");
+}
+
+static bool is_suspend_test;
+static bool is_resume_test;
+static bool is_busyloop_method;
 
 static void do_suspend_test(void)
 {
@@ -1617,10 +1641,10 @@ static void simulate_SUSPEND_LOCKUP(char **argv, int argc)
 	}
 	pr_info("%s: suspend test %sabled%s\n", __func__,
 			is_suspend_test ? "en" : "dis",
-			is_busyloop_method ? "" : " (busyloop)");
+			is_busyloop_method ? " (busyloop)" : "");
 	pr_info("%s: resume test %sabled%s\n", __func__,
 			is_resume_test ? "en" : "dis",
-			is_busyloop_method ? "" : " (busyloop)");
+			is_busyloop_method ? " (busyloop)" : "");
 }
 
 static void sec_debug_wq_sleep_func(struct work_struct *work)
@@ -1628,6 +1652,13 @@ static void sec_debug_wq_sleep_func(struct work_struct *work)
 	pr_crit("%s\n", __func__);
 	set_current_state(TASK_UNINTERRUPTIBLE);
 	schedule();
+	pr_crit("end %s\n", __func__);
+}
+
+static void sec_debug_wq_busy_func(struct work_struct *work)
+{
+	pr_crit("%s\n", __func__);
+	cpu_park_loop();
 	pr_crit("end %s\n", __func__);
 }
 
@@ -1642,6 +1673,59 @@ static void simulate_FLUSH_WQ(char **argv, int argc)
 	schedule_work(&secdbg_wq_sleep_work3);
 
 	flush_scheduled_work();
+}
+
+/*
+ * @count : busy work before the target work
+ *    ex) 0 : might make the target In-flight
+ *       10 : might make the target Pending
+ *       20 : might make the target Inactive
+ */
+static void simulate_FLUSH_WORK(char **argv, int argc)
+{
+	int i;
+	int count = 0;
+	int ret;
+	struct workqueue_struct *wq;
+
+	DECLARE_WORK(secdbg_wq_sleep_work1, sec_debug_wq_sleep_func);
+	DECLARE_WORK(secdbg_wq_sleep_work2, sec_debug_wq_sleep_func);
+	DECLARE_WORK(secdbg_wq_sleep_work3, sec_debug_wq_sleep_func);
+
+	if (argc > 0) {
+		ret = kstrtoint(argv[0], 0, &count);
+		if (ret)
+			pr_err("%s: Failed 1st arg: %s\n", __func__, argv[0]);
+	}
+
+	if (count < 0)
+		count = 0;
+	if (count > 100)
+		count = 100;
+
+	pr_info("%s: try to schedule %d works\n", __func__, count);
+
+	wq = alloc_workqueue("sec_test_wq", 0, 10);
+
+	for (i = 0; i < count; i++) {
+		struct work_struct *work;
+
+		work = kzalloc(sizeof(*work), GFP_KERNEL);
+		INIT_WORK(work, sec_debug_wq_busy_func);
+		queue_work(wq, work);
+	}
+
+	pr_info("%s: %d works are scheduled\n", __func__, i);
+
+	queue_work(wq, &secdbg_wq_sleep_work1);
+	queue_work(wq, &secdbg_wq_sleep_work2);
+	queue_work(wq, &secdbg_wq_sleep_work3);
+
+	msleep(100);
+
+	flush_work(&secdbg_wq_sleep_work1);
+	flush_work(&secdbg_wq_sleep_work2);
+	flush_work(&secdbg_wq_sleep_work3);
 }
 
 static void _read_reg_apiakey(u64 *keyh, u64 *keyl)
@@ -1895,6 +1979,55 @@ static void simulate_WORK_ACTIVATE2INIT(char **argv, int argc)
 	INIT_WORK(&info->work, dummy_sec_debug_work_func);
 	queue_work_on(0, system_wq, &info->work);
 	INIT_WORK(&info->work, dummy_sec_debug_work_func);
+}
+
+#define TEST_OOB_ARRAY_SIZE	6
+
+/*
+ * Leave it as an extern to avoid optimization.
+ * If CONFIG_UBSAN_BOUNDS is enabled, we expect the compiler
+ * inserts "brk #0x5512" into this function.
+ */
+void do_test_out_of_bound_index(int index)
+{
+	volatile int tmp_array[TEST_OOB_ARRAY_SIZE];
+
+	tmp_array[index] = 0;
+}
+
+static void simulate_UBSAN_OOB(char **argv, int argc)
+{
+	pr_crit("%s()\n", __func__);
+
+	do_test_out_of_bound_index(TEST_OOB_ARRAY_SIZE + 1);
+}
+
+struct oob_struct {
+	int a;
+	int b;
+	char c;
+};
+
+/*
+ * Leave it as an extern to avoid optimization.
+ * If CONFIG_UBSAN_LCOAL_BOUNDS is enabled, we expect the compiler
+ * inserts "brk #0x1" into this function.
+ */
+void do_test_out_of_bound_pointer(int size)
+{
+	struct oob_struct tmp_array[TEST_OOB_ARRAY_SIZE];
+	struct oob_struct *ptr = tmp_array;
+	int i;
+
+	for (i = 0; i < size; i++, ptr++)
+		pr_info("%d\n", ptr->c);
+}
+
+static void simulate_UBSAN_OOB_PTR(char **argv, int argc)
+{
+	pr_crit("%s()\n", __func__);
+
+	do_test_out_of_bound_pointer(TEST_OOB_ARRAY_SIZE + 1);
 }
 
 static int sec_debug_get_force_error(char *buffer, const struct kernel_param *kp)

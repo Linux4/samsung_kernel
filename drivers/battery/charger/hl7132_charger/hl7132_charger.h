@@ -85,7 +85,7 @@
 #define BIT_IIN_ADJ_1						BIT(1)
 #define BIT_IIN_ADJ_0						BIT(0)
 
-#define REG_REG_CTRL10_0					0x10
+#define REG_CTRL10_0					0x10
 #define BIT_TDIE_REG_DIS					BIT(7)
 #define BIT_IIN_REG_DIS						BIT(6)
 #define BITS_TDIE_REG_TH					BITS(5,4)
@@ -207,11 +207,14 @@
 /*i2c regmap init setting */
 #define REG_MAX         0x2A
 #define HL7132_I2C_NAME "hl7132"
+#define HL7132_MODULE_VERSION "1.0.13.06032022"
+
+#define CONFIG_HALO_PASS_THROUGH
 
 /*Input Current Limit Default Setting*/
 #define HL7132_IIN_CFG_DFT                  2000000         // 2A
 #define HL7132_IIN_CFG_MIN                  500000          // 500mA
-#define HL7132_IIN_CFG_MAX                  5000000         // 5A
+#define HL7132_IIN_CFG_MAX                  3500000         // 3.5A
 
 /*Charging Current Setting*/
 #define HL7132_ICHG_CFG_DFT                 6000000         // 6A
@@ -241,13 +244,16 @@
 
 //VBAT_REG_TH (V) = 4.0V + DEC (5:0) * 10mV 
 #define HL7132_VBAT_REG(_vbat_reg)          ((_vbat_reg-4000000)/10000)
-#define HL7132_IIN_OFFSET_CUR               100000          //100mA
+//#define HL7132_IIN_OFFSET_CUR               100000          //100mA
+/* For Low CC-Current issue, TA has tolerance +- 150mA even high (almost 200mA) */
+#define HL7132_IIN_OFFSET_CUR               200000          //200mA
 
 /* pre cc mode ta-vol step*/
 #define HL7132_TA_VOL_STEP_PRE_CC           100000  //100mV
 #define HL7132_TA_VOL_STEP_PRE_CV           20000   //20mV
 /* TA OFFSET V */
-#define HL7132_TA_V_OFFSET                  200000 //200mV 
+//#define HL7132_TA_V_OFFSET                  200000 //200mV
+#define HL7132_TA_V_OFFSET                  100000 //100mV //workaround for iin-reg-loop 
 /* TA TOP-OFF CURRENT */
 #define HL7132_TA_TOPOFF_CUR                500000 //500mA
 /* PD Message Voltage and Current Step */
@@ -287,7 +293,7 @@
 #define HL7132_TDIE_DENOM                   10   // 10, denomitor
 
 /* Workqueue delay time for VBATMIN */
-#ifdef CONFIG_SEC_FACTORY
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 #define HL7132_VBATMIN_CHECK_T              0
 #else
 #define HL7132_VBATMIN_CHECK_T              1000
@@ -311,6 +317,21 @@
 /* LOG BUFFER for RPI */
 #define LOG_BUFFER_ENTRIES	                1024  
 #define LOG_BUFFER_ENTRY_SIZE	            128 
+
+#ifdef CONFIG_HALO_PASS_THROUGH
+/* Default IIN default in pass through mode */
+#define HL7132_PT_IIN_DFT                   3000000 // 3A
+/* Preset TA VOLtage offset in pass through mode */
+#define HL7132_PT_VOL_PRE_OFFSET            200000  // 200mV
+/* Preset TA Current offset in pass through mode */
+#define HL7132_PT_TA_CUR_LOW_OFFSET         200000  // 200mA
+/*  Vbat regulation Volatage in pass through mode */
+#define HL7132_PT_VBAT_REG                  4400000 //4.4V
+/* Workqueue delay time for entering pass through mode */
+#define HL7132_PT_ACTIVE_DELAY_T            150     // 150ms
+/* Workqueue delay time for pass through mode */
+#define HL7132_PTMODE_DELAY_T               10000	// 10000ms
+#endif
 
 /*STEP CHARGING SETTING */
 //#define HL7132_STEP_CHARGING
@@ -346,7 +367,7 @@ enum {
 
 /* Switching Frequency */
 enum {
-	FSW_CFG_500KHZ, 
+	FSW_CFG_500KHZ = 0,
 	FSW_CFG_600KHZ,
 	FSW_CFG_700KHZ,
 	FSW_CFG_800KHZ,
@@ -395,6 +416,11 @@ enum {
 
 	TIMER_ADJUST_TAVOL,
 	TIMER_ADJUST_TACUR,
+#ifdef CONFIG_HALO_PASS_THROUGH
+	TIMER_PRESET_PT,
+	TIMER_PRESET_CONFIG_PT,
+	TIMER_CHECK_PTMODE,
+#endif
 };
 
 /* DC STATE for matching Timer ID*/
@@ -410,6 +436,11 @@ enum {
 	DC_STATE_CHARGING_DONE,
 	DC_STATE_ADJUST_TAVOL,
 	DC_STATE_ADJUST_TACUR,
+#ifdef CONFIG_HALO_PASS_THROUGH
+	DC_STATE_PT_MODE,
+	DC_STATE_PRESET_PT,
+	DC_STATE_PRESET_CONFIG_PT,
+#endif
 };
 
 /* ADC Channel */
@@ -482,6 +513,9 @@ struct hl7132_platform_data{
 
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	char *sec_dc_name;
+#endif
+#ifdef CONFIG_HALO_PASS_THROUGH
+	bool pass_through_mode;
 #endif
 };
 
@@ -574,6 +608,10 @@ struct hl7132_charger{
 	int input_current;
 	int float_voltage;
 	int health_status;
+#endif
+#ifdef CONFIG_HALO_PASS_THROUGH
+	bool pass_through_mode;
+	bool req_pt_mode;
 #endif
 };
 

@@ -35,11 +35,6 @@
 #include "../aod/aod_drv.h"
 #endif
 
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-#include "s6e3hae_profiler_panel.h"
-#include "../display_profiler/display_profiler.h"
-#endif
-
 #if defined(__PANEL_NOT_USED_VARIABLE__)
 #include "s6e3hae_rainbow_b0_panel_irc.h"
 #endif
@@ -1061,6 +1056,11 @@ static u8 rainbow_b0_paset_table[][MAX_S6E3HAE_SCALER][4] = {
 	}
 };
 
+static u8 rainbow_b0_dimming_frame_init_table[MAX_S6E3HAE_VRR_MODE][1] = {
+	[S6E3HAE_VRR_MODE_NS] = { 0x02 },
+	[S6E3HAE_VRR_MODE_HS] = { 0x01 },
+};
+
 static u8 rainbow_b0_lfd_frame_insertion_onoff_table[MAX_S6E3HAE_VRR][1] = {
 	[S6E3HAE_VRR_60NS] = { 0x10 },
 	[S6E3HAE_VRR_48NS] = { 0x10 },
@@ -1475,6 +1475,7 @@ static struct maptbl rainbow_b0_maptbl[MAX_MAPTBL] = {
 	[GLUT_CTRL_MAPTBL] = DEFINE_2D_MAPTBL(rainbow_b0_glut_ctrl_table, init_common_table, getidx_vrr_fps_table, copy_common_maptbl),
 	[GLUT_MAPTBL] = DEFINE_3D_MAPTBL(rainbow_b0_glut_table, init_common_table, getidx_vrr_brt_table, copy_common_maptbl),
 	[TSET_MAPTBL] = DEFINE_0D_MAPTBL(rainbow_b0_tset_table, init_common_table, NULL, copy_tset_maptbl),
+	[DIMMING_FRAME_INIT_MAPTBL] = DEFINE_2D_MAPTBL(rainbow_b0_dimming_frame_init_table, init_common_table, getidx_vrr_mode_table, copy_common_maptbl),
 	[DIMMING_FRAME_MAPTBL] = DEFINE_3D_MAPTBL(rainbow_b0_dimming_frame_table, init_common_table, getidx_dimming_frame_table, copy_common_maptbl),
 	[DIMMING_TRANSITION_MAPTBL] = DEFINE_3D_MAPTBL(rainbow_b0_dimming_transition_table, init_common_table, getidx_dimming_frame_table, copy_common_maptbl),
 	[SYNC_CONTROL_MAPTBL] = DEFINE_3D_MAPTBL(rainbow_b0_sync_control_table, init_common_table, getidx_dimming_frame_table, copy_common_maptbl),
@@ -1554,7 +1555,7 @@ static u8 RAINBOW_B0_SLEEP_IN[] = { 0x10 };
 static u8 RAINBOW_B0_DISPLAY_OFF[] = { 0x28 };
 static u8 RAINBOW_B0_DISPLAY_ON[] = { 0x29 };
 static u8 RAINBOW_B0_OTP_LOADING_WA1[] = {
-	0xF8, 
+	0xF8,
 	0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x10, 0x00, 0x0A, 0x22, 0x00,
 	0x08, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -1736,6 +1737,18 @@ static u8 RAINBOW_B0_GRAM_DBV_MAX[] = { 0x51, 0x07, 0xFF };
 static u8 RAINBOW_B0_GRAM_BCTRL_ON[] = { 0x53, 0x20 };
 #endif
 
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+static u8 RAINBOW_B0_DECODER_TEST_CASET[] = { 0x2A, 0x00, 0x00, 0x04, 0x37 };
+static u8 RAINBOW_B0_DECODER_TEST_PASET[] = { 0x2B, 0x00, 0x00, 0x09, 0x0B };
+static u8 RAINBOW_B0_DECODER_TEST_2C[] = { 0x2C, 0x00 };
+static u8 RAINBOW_B0_DECODER_TEST_LFD_MAX_SET[] = { 0xBD, 0x00, 0x00 };
+static u8 RAINBOW_B0_DECODER_TEST_LFD_FRAME_INSERT[] = { 0xBD, 0x30 };
+static u8 RAINBOW_B0_DECODER_TEST_1[] = { 0xBE, 0x05 };
+static u8 RAINBOW_B0_DECODER_TEST_2[] = { 0xD8, 0x13 };
+static u8 RAINBOW_B0_DECODER_TEST_RETURN_1[] = { 0xBE, 0x00 };
+static u8 RAINBOW_B0_DECODER_TEST_RETURN_2[] = { 0xD8, 0x00 };
+#endif
+
 #ifdef CONFIG_SUPPORT_MST
 static u8 RAINBOW_B0_MST_ON_01[] = { 0xCB, 0x16 };
 static u8 RAINBOW_B0_MST_ON_02[] = { 0xCB, 0x16 };
@@ -1816,7 +1829,9 @@ static DEFINE_VARIABLE_PACKET(rainbow_b0_te_frame_sel, DSI_PKT_TYPE_WR, RAINBOW_
 
 static DEFINE_STATIC_PACKET(rainbow_b0_lpm_te_frame_sel, DSI_PKT_TYPE_WR, RAINBOW_B0_LPM_TE_FRAME_SEL, 0);
 
-static DEFINE_STATIC_PACKET(rainbow_b0_smooth_dimming_init, DSI_PKT_TYPE_WR, RAINBOW_B0_SMOOTH_DIMMING_INIT, 0x0E);
+static DEFINE_PKTUI(rainbow_b0_smooth_dimming_init, &rainbow_b0_maptbl[DIMMING_FRAME_INIT_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(rainbow_b0_smooth_dimming_init, DSI_PKT_TYPE_WR, RAINBOW_B0_SMOOTH_DIMMING_INIT, 0x0E);
+
 static DEFINE_PKTUI(rainbow_b0_smooth_dimming, &rainbow_b0_maptbl[DIMMING_FRAME_MAPTBL], 1);
 static DEFINE_VARIABLE_PACKET(rainbow_b0_smooth_dimming, DSI_PKT_TYPE_WR, RAINBOW_B0_SMOOTH_DIMMING, 0x0E);
 
@@ -1972,7 +1987,19 @@ static DEFINE_STATIC_PACKET(rainbow_b0_gram_bctrl_on, DSI_PKT_TYPE_WR, RAINBOW_B
 static DEFINE_PCTRL(rainbow_b0_gram_vddr_1p8, "panel_vddr_1p8");
 static DEFINE_PCTRL(rainbow_b0_gram_vddr_1p675, "panel_vddr_1p6");
 #endif
-
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+static DEFINE_STATIC_PACKET(rainbow_b0_decoder_test_caset, DSI_PKT_TYPE_WR, RAINBOW_B0_DECODER_TEST_CASET, 0);
+static DEFINE_STATIC_PACKET(rainbow_b0_decoder_test_paset, DSI_PKT_TYPE_WR, RAINBOW_B0_DECODER_TEST_PASET, 0);
+static DEFINE_STATIC_PACKET(rainbow_b0_decoder_test_2c, DSI_PKT_TYPE_WR, RAINBOW_B0_DECODER_TEST_2C, 0);
+static DEFINE_STATIC_PACKET(rainbow_b0_decoder_test_lfd_max_set, DSI_PKT_TYPE_WR,
+	RAINBOW_B0_DECODER_TEST_LFD_MAX_SET, 0x11);
+static DEFINE_STATIC_PACKET(rainbow_b0_decoder_test_lfd_frame_insert, DSI_PKT_TYPE_WR,
+	RAINBOW_B0_DECODER_TEST_LFD_FRAME_INSERT, 0x0E);
+static DEFINE_STATIC_PACKET(rainbow_b0_decoder_test_1, DSI_PKT_TYPE_WR, RAINBOW_B0_DECODER_TEST_1, 0);
+static DEFINE_STATIC_PACKET(rainbow_b0_decoder_test_2, DSI_PKT_TYPE_WR, RAINBOW_B0_DECODER_TEST_2, 0x27);
+static DEFINE_STATIC_PACKET(rainbow_b0_decoder_test_return_1, DSI_PKT_TYPE_WR, RAINBOW_B0_DECODER_TEST_RETURN_1, 0);
+static DEFINE_STATIC_PACKET(rainbow_b0_decoder_test_return_2, DSI_PKT_TYPE_WR, RAINBOW_B0_DECODER_TEST_RETURN_2, 0x27);
+#endif
 #ifdef CONFIG_SUPPORT_CCD_TEST
 static DEFINE_STATIC_PACKET(rainbow_b0_ccd_test_enable, DSI_PKT_TYPE_WR, RAINBOW_B0_CCD_ENABLE, 0);
 static DEFINE_STATIC_PACKET(rainbow_b0_ccd_test_disable, DSI_PKT_TYPE_WR, RAINBOW_B0_CCD_DISABLE, 0);
@@ -2078,6 +2105,7 @@ static DEFINE_PANEL_UDELAY(rainbow_b0_wait_16p7msec, 16700);
 static DEFINE_PANEL_MDELAY(rainbow_b0_wait_20msec, 20);
 static DEFINE_PANEL_MDELAY(rainbow_b0_wait_100msec, 100);
 static DEFINE_PANEL_MDELAY(rainbow_b0_wait_124msec, 124);
+static DEFINE_PANEL_MDELAY(rainbow_b0_wait_200msec, 200);
 static DEFINE_PANEL_TIMER_MDELAY(rainbow_b0_wait_sleep_out_104msec, 104);
 static DEFINE_PANEL_TIMER_BEGIN(rainbow_b0_wait_sleep_out_104msec,
 		TIMER_DLYINFO(&rainbow_b0_wait_sleep_out_104msec));
@@ -3037,6 +3065,7 @@ static void *rainbow_b0_alpm_exit_cmdtbl[] = {
 	&PKTINFO(rainbow_b0_sync_control),
 	&PKTINFO(rainbow_b0_dimming_transition),
 	&PKTINFO(rainbow_b0_wrdisbv),
+	&DLYINFO(rainbow_b0_wait_1_vsync),
 	&PKTINFO(rainbow_b0_lpm_exit_control),
 	&PKTINFO(rainbow_b0_irc_mode_0),
 	&PKTINFO(rainbow_b0_irc_mode_1),
@@ -3047,6 +3076,69 @@ static void *rainbow_b0_alpm_exit_cmdtbl[] = {
 	&KEYINFO(rainbow_b0_level2_key_disable),
 	&KEYINFO(rainbow_b0_level1_key_disable),
 };
+
+
+static void *rainbow_b0_alpm_exit_after_cmdtbl[] = {
+	&KEYINFO(rainbow_b0_level1_key_enable),
+	&KEYINFO(rainbow_b0_level2_key_enable),
+	&CONDINFO_IF(rainbow_b0_cond_is_96hs_based_fps),
+		&PKTINFO(rainbow_b0_glut),
+	&CONDINFO_FI(rainbow_b0_cond_is_96hs_based_fps),
+	&PKTINFO(rainbow_b0_elvss_control),
+	&PKTINFO(rainbow_b0_irc_mode_0),
+	&PKTINFO(rainbow_b0_irc_mode_1),
+	&PKTINFO(rainbow_b0_acl_control),
+	&PKTINFO(rainbow_b0_acl_dim),
+	&PKTINFO(rainbow_b0_acl_coefficient),
+	&PKTINFO(rainbow_b0_acl_opr),
+	&PKTINFO(rainbow_b0_tset),
+#ifdef CONFIG_SUPPORT_BRIGHTDOT_TEST
+	&CONDINFO_IF(rainbow_b0_cond_is_brightdot_enabled),
+		&PKTINFO(rainbow_b0_wrdisbv_brightdot_max),
+	&CONDINFO_EL(rainbow_b0_cond_is_brightdot_enabled),
+		&PKTINFO(rainbow_b0_wrdisbv),
+	&CONDINFO_FI(rainbow_b0_cond_is_brightdot_enabled),
+#else
+	&PKTINFO(rainbow_b0_wrdisbv),
+#endif
+#ifdef CONFIG_SUPPORT_XTALK_MODE
+	&PKTINFO(rainbow_b0_xtalk_vgh),
+#endif
+	&PKTINFO(rainbow_b0_gamma_update_enable),
+#ifdef CONFIG_SUPPORT_MAFPC
+	&PKTINFO(rainbow_b0_mafpc_scale_gparam),
+	&PKTINFO(rainbow_b0_mafpc_scale),
+#endif
+	&SEQINFO(rainbow_b0_set_fps_param_seq),
+	&PKTINFO(rainbow_b0_vfp),
+	&PKTINFO(rainbow_b0_gamma_update_enable),
+#ifdef CONFIG_SUPPORT_BRIGHTDOT_TEST
+	&CONDINFO_IF(rainbow_b0_cond_is_brightdot_enabled),
+		&PKTINFO(rainbow_b0_brightdot_aor),
+		&PKTINFO(rainbow_b0_brightdot_aor_enable),
+	&CONDINFO_EL(rainbow_b0_cond_is_brightdot_enabled),
+		&PKTINFO(rainbow_b0_aor_manual_onoff),
+		&PKTINFO(rainbow_b0_aor_manual_value),
+		&PKTINFO(rainbow_b0_aor_manual_cycle_1),
+	&CONDINFO_FI(rainbow_b0_cond_is_brightdot_enabled),
+#else
+	&PKTINFO(rainbow_b0_aor_manual_value),
+	&PKTINFO(rainbow_b0_aor_manual_cycle_1),
+#endif
+	&PKTINFO(rainbow_b0_glut_ctrl),
+	&PKTINFO(rainbow_b0_smooth_dimming),
+	&PKTINFO(rainbow_b0_dimming_transition),
+	&PKTINFO(rainbow_b0_sync_control),
+	&PKTINFO(rainbow_b0_tsp_sync),
+	&PKTINFO(rainbow_b0_wacom_sync_1_normal),
+	&PKTINFO(rainbow_b0_wacom_sync_2_normal),
+	&PKTINFO(rainbow_b0_gamma_update_enable),
+
+	&KEYINFO(rainbow_b0_level1_key_disable),
+	&KEYINFO(rainbow_b0_level2_key_disable),
+};
+
+
 
 static void *rainbow_b0_dia_onoff_cmdtbl[] = {
 	&KEYINFO(rainbow_b0_level2_key_enable),
@@ -3344,6 +3436,29 @@ static void *rainbow_b0_dump_cmdtbl[] = {
 	&KEYINFO(rainbow_b0_level1_key_disable),
 };
 
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+static void *rainbow_b0_decoder_test_cmdtbl[] = {
+	&KEYINFO(rainbow_b0_level1_key_enable),
+	&KEYINFO(rainbow_b0_level2_key_enable),
+	&KEYINFO(rainbow_b0_level3_key_enable),
+	&PKTINFO(rainbow_b0_decoder_test_caset),
+	&PKTINFO(rainbow_b0_decoder_test_paset),
+	&PKTINFO(rainbow_b0_decoder_test_2c),
+	&PKTINFO(rainbow_b0_decoder_test_lfd_max_set),
+	&PKTINFO(rainbow_b0_decoder_test_lfd_frame_insert),
+	&PKTINFO(rainbow_b0_gamma_update_enable),
+	&PKTINFO(rainbow_b0_decoder_test_1),
+	&PKTINFO(rainbow_b0_decoder_test_2),
+	&DLYINFO(rainbow_b0_wait_200msec),
+	&s6e3hae_restbl[RES_DECODER_TEST],
+	&PKTINFO(rainbow_b0_decoder_test_return_1),
+	&PKTINFO(rainbow_b0_decoder_test_return_2),
+	&KEYINFO(rainbow_b0_level3_key_disable),
+	&KEYINFO(rainbow_b0_level2_key_disable),
+	&KEYINFO(rainbow_b0_level1_key_disable),
+};
+#endif
+
 static void *rainbow_b0_dummy_cmdtbl[] = {
 	NULL,
 };
@@ -3367,6 +3482,7 @@ static struct seqinfo rainbow_b0_seqtbl[MAX_PANEL_SEQ] = {
 	[PANEL_ALPM_SET_BL_SEQ] = SEQINFO_INIT("alpm-set-bl-seq", rainbow_b0_alpm_set_bl_cmdtbl),
 	[PANEL_ALPM_DELAY_SEQ] = SEQINFO_INIT("alpm-enter-delay-seq", rainbow_b0_alpm_enter_delay_cmdtbl),
 	[PANEL_ALPM_EXIT_SEQ] = SEQINFO_INIT("alpm-exit-seq", rainbow_b0_alpm_exit_cmdtbl),
+	[PANEL_ALPM_EXIT_AFTER_SEQ] = SEQINFO_INIT("alpm-exit-after-seq", rainbow_b0_alpm_exit_after_cmdtbl),
 	[PANEL_CHECK_CONDITION_SEQ] = SEQINFO_INIT("check-condition-seq", rainbow_b0_check_condition_cmdtbl),
 	[PANEL_DUMP_SEQ] = SEQINFO_INIT("dump-seq", rainbow_b0_dump_cmdtbl),
 #ifdef CONFIG_SUPPORT_DYNAMIC_HLPM
@@ -3416,6 +3532,9 @@ static struct seqinfo rainbow_b0_seqtbl[MAX_PANEL_SEQ] = {
 #ifdef CONFIG_SUPPORT_ECC_TEST
 	[PANEL_ECC_TEST_SEQ] = SEQINFO_INIT("ecc-test-seq", rainbow_b0_ecc_test_cmdtbl),
 #endif
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+	[PANEL_DECODER_TEST_SEQ] = SEQINFO_INIT("decoder-test-seq", rainbow_b0_decoder_test_cmdtbl),
+#endif
 	[PANEL_DUMMY_SEQ] = SEQINFO_INIT("dummy-seq", rainbow_b0_dummy_cmdtbl),
 };
 
@@ -3447,6 +3566,9 @@ struct common_panel_info s6e3hae_rainbow_b0_panel_info = {
 #endif
 #ifdef CONFIG_SUPPORT_ECC_TEST
 		.ecc_test = s6e3hae_ecc_test,
+#endif
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+		.decoder_test = s6e3hae_decoder_test,
 #endif
 	},
 #ifdef CONFIG_SUPPORT_DSU
@@ -3488,13 +3610,8 @@ struct common_panel_info s6e3hae_rainbow_b0_panel_info = {
 #ifdef CONFIG_EXTEND_LIVE_CLOCK
 	.aod_tune = &s6e3hae_rainbow_b0_aod,
 #endif
-
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	.profile_tune = &s6e3hae_profiler_tune,
-#endif
 #ifdef CONFIG_SUPPORT_MAFPC
 	.mafpc_info = &s6e3hae_rainbow_b0_mafpc,
 #endif
-
 };
 #endif /* __S6E3HAE_RAINBOW_B0_PANEL_H__ */

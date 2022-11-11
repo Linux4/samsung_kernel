@@ -2131,10 +2131,10 @@ static void abox_boot_done_work_func(struct work_struct *work)
 	abox_dbg(dev, "%s\n", __func__);
 
 	abox_cpu_pm_ipc(data, true);
-	abox_request_cpu_gear(dev, data, DEFAULT_CPU_GEAR_ID, 0, "boot_done");
 	/* notify current cpu gear level */
 	abox_notify_cpu_gear(data, abox_qos_get_request(dev, ABOX_QOS_AUD),
 			abox_qos_get_request(dev, ABOX_QOS_AUD_MAX));
+	abox_request_cpu_gear(dev, data, DEFAULT_CPU_GEAR_ID, 0, "boot_done");
 }
 
 long abox_wait_for_boot(struct abox_data *data, unsigned long jiffies)
@@ -3678,12 +3678,24 @@ EXPORT_SYMBOL(abox_notify_modem_event);
 static int abox_itmon_notifier(struct notifier_block *nb,
 		unsigned long action, void *nb_data)
 {
+	const char keyword[] = "AUD";
 	struct abox_data *data = container_of(nb, struct abox_data, itmon_nb);
 	struct device *dev = data->dev;
 	struct itmon_notifier *itmon_data = nb_data;
 
-	if (itmon_data && itmon_data->dest && (strncmp("AUD", itmon_data->dest,
-			sizeof("AUD") - 1) == 0)) {
+	if (!itmon_data)
+		return NOTIFY_DONE;
+
+	if (itmon_data->port && strstr(itmon_data->port, keyword)) {
+		abox_info(dev, "%s(%lu)\n", __func__, action);
+		abox_dbg_print_gpr(dev, data);
+		abox_dbg_dump_gpr(dev, data, ABOX_DBG_DUMP_KERNEL, "itmon");
+		abox_dbg_dump_mem(dev, data, ABOX_DBG_DUMP_KERNEL, "itmon");
+		data->enabled = false;
+		return NOTIFY_BAD;
+	}
+
+	if (itmon_data->dest && strstr(itmon_data->dest, keyword)) {
 		abox_info(dev, "%s(%lu)\n", __func__, action);
 		data->enabled = false;
 		return NOTIFY_BAD;

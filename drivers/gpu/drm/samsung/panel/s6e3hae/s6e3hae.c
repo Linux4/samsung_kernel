@@ -12,7 +12,7 @@
 
 #include <linux/of_gpio.h>
 #include <video/mipi_display.h>
-#include <kunit/mock.h>
+#include "../panel_kunit.h"
 #include <linux/bits.h>
 #include "../panel.h"
 #include "s6e3hae.h"
@@ -219,6 +219,8 @@ __visible_for_testing int s6e3hae_get_vrr_lfd_min_div_count(struct panel_info *p
 
 	if (vrr_lfd_config->fix == VRR_LFD_FREQ_HIGH) {
 		lfd_min_div_count = vrr_div_count;
+	} else if (vrr_lfd_config->fix == VRR_LFD_FREQ_HIGH_UPTO_SCAN_FREQ) {
+		lfd_min_div_count = TE_SKIP_TO_DIV(0, 0);
 	} else if (vrr_lfd_config->fix == VRR_LFD_FREQ_LOW ||
 			vrr_lfd_config->min == 0 ||
 			vrr_div_count == 0) {
@@ -275,6 +277,8 @@ __visible_for_testing int s6e3hae_get_vrr_lfd_max_div_count(struct panel_info *p
 	lfd_min_freq = ret;
 	if (vrr_lfd_config->fix == VRR_LFD_FREQ_LOW) {
 		lfd_max_div_count = disp_div_round((u32)vrr_fps, lfd_min_freq);
+	} else if (vrr_lfd_config->fix == VRR_LFD_FREQ_HIGH_UPTO_SCAN_FREQ) {
+		lfd_max_div_count = TE_SKIP_TO_DIV(0, 0);
 	} else if (vrr_lfd_config->fix == VRR_LFD_FREQ_HIGH ||
 		vrr_lfd_config->max == 0 ||
 		vrr_div_count == 0) {
@@ -347,7 +351,8 @@ __visible_for_testing int getidx_lpm_fps_table(struct maptbl *tbl)
 	vrr_lfd_status->lfd_min_freq_div = 30;
 
 	vrr_lfd_config = &props->vrr_lfd_info.cur[VRR_LFD_SCOPE_LPM];
-	if (vrr_lfd_config->fix == VRR_LFD_FREQ_HIGH) {
+	if (vrr_lfd_config->fix == VRR_LFD_FREQ_HIGH ||
+		vrr_lfd_config->fix == VRR_LFD_FREQ_HIGH_UPTO_SCAN_FREQ) {
 		row = LPM_LFD_30HZ;
 		vrr_lfd_status->lfd_min_freq = 30;
 		vrr_lfd_status->lfd_min_freq_div = 1;
@@ -1158,7 +1163,8 @@ __visible_for_testing int getidx_lpm_brt_table(struct maptbl *tbl)
 	vrr_lfd_status->lfd_min_freq_div = 30;
 
 	vrr_lfd_config = &props->vrr_lfd_info.cur[VRR_LFD_SCOPE_LPM];
-	if (vrr_lfd_config->fix == VRR_LFD_FREQ_HIGH) {
+	if (vrr_lfd_config->fix == VRR_LFD_FREQ_HIGH ||
+		vrr_lfd_config->fix == VRR_LFD_FREQ_HIGH_UPTO_SCAN_FREQ) {
 		layer = LPM_LFD_30HZ;
 		vrr_lfd_status->lfd_min_freq = 30;
 		vrr_lfd_status->lfd_min_freq_div = 1;
@@ -2176,7 +2182,7 @@ __visible_for_testing int show_err(struct dumpinfo *info)
 	err_15_8 = err[0];
 	err_7_0 = err[1];
 
-	panel_info("========== SHOW PANEL [EAh:DSI-ERR] INFO ==========\n");
+	panel_info("========== SHOW PANEL [E9h:DSI-ERR] INFO ==========\n");
 	panel_info("* Reg Value : 0x%02x%02x, Result : %s\n", err_15_8, err_7_0,
 			(err[0] || err[1] || err[2] || err[3] || err[4]) ? "NG" : "GOOD");
 
@@ -2913,6 +2919,51 @@ __visible_for_testing int s6e3hae_ecc_test(struct panel_device *panel, void *dat
 		ret = PANEL_ECC_TEST_PASS;
 
 	panel_info("[0]: 0x%02x [1]: 0x%02x [2]: 0x%02x ret: %d\n", read_buf[0], read_buf[1], read_buf[2], ret);
+	return ret;
+}
+#endif
+
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+/*
+ * s6e3hae_decoder_test - test ddi's decoder function
+ *
+ * description of state values:
+ * [0](14h 1st): 0xA7 (OK) other (NG)
+ * [1](14h 2nd): 0xC5 (OK) other (NG)
+ */
+__visible_for_testing int s6e3hae_decoder_test(struct panel_device *panel, void *data, u32 len)
+{
+	struct panel_info *panel_data;
+	int ret = 0;
+	u8 read_buf[S6E3HAE_DECODER_TEST_LEN] = { -1, -1 };
+
+	if (!panel)
+		return -EINVAL;
+
+	panel_data = &panel->panel_data;
+
+	ret = panel_do_seqtbl_by_index_nolock(panel, PANEL_DECODER_TEST_SEQ);
+	if (unlikely(ret < 0)) {
+		panel_err("failed to write decoder-test seq\n");
+		return ret;
+	}
+
+	ret = resource_copy_by_name(panel_data, read_buf, "decoder_test");
+	if (unlikely(ret < 0)) {
+		panel_err("decoder_test copy failed\n");
+		return -ENODATA;
+	}
+
+	if ((read_buf[0] == 0xA7) && (read_buf[1] == 0xC5)) {
+		ret = PANEL_DECODER_TEST_PASS;
+		panel_info("Pass [0]: 0x%02x [1]: 0x%02x ret: %d\n", read_buf[0], read_buf[1], ret);
+	} else {
+		ret = PANEL_DECODER_TEST_FAIL;
+		panel_info("Fail [0]: 0x%02x [1]: 0x%02x ret: %d\n", read_buf[0], read_buf[1], ret);
+	}
+
+	snprintf((char *)data, len, "%02x %02x", read_buf[0], read_buf[1]);
+
 	return ret;
 }
 #endif

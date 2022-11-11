@@ -324,7 +324,7 @@
 						boost_name = "RPS";
 						target = <0x00>;
 						extra_idx = <0x00>;
-						level = <0x13 0x40>;
+						level = <0x13 0x80>;
 
 						boost0 {
 							enable = <0x01>;
@@ -399,7 +399,7 @@
 						boost_name = "IRQ_DIT";
 						target = <0x06>;
 						extra_idx = <0x00>;
-						level = <0x05 0x07>;
+						level = <0x05 0x06>;
 
 						boost0 {
 							enable = <0x01>;
@@ -615,7 +615,7 @@
 						cp_irq,idx = <0x00>;
 						cp_irq,name = "cp_mbox_irq_0";
 						cp_irq,sfr = <0x00 0x10 0x14 0x00>;
-						cp_irq,affinity = <0x03>;
+						cp_irq,affinity = <0x02>;
 					};
 
 					cp_irq_1 {

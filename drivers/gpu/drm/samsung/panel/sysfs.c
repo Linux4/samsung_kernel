@@ -1404,19 +1404,7 @@ ssize_t mst_store(struct device *dev, struct device_attribute *attr, const char 
 }
 #endif
 
-#ifdef CONFIG_SUPPORT_GRAM_CHECKSUM
-u8 checksum[4] = { 0x12, 0x34, 0x56, 0x78 };
-static bool gct_chksum_is_valid(struct panel_device *panel)
-{
-	int i;
-	struct panel_info *panel_data = &panel->panel_data;
-
-	for (i = 0; i < 4; i++)
-		if (checksum[i] != panel_data->props.gct_valid_chksum[i])
-			return false;
-	return true;
-}
-
+#if defined(CONFIG_SUPPORT_GRAM_CHECKSUM) || defined(CONFIG_SUPPORT_PANEL_DECODER_TEST)
 static void prepare_gct_mode(struct panel_device *panel)
 {
 	int ret;
@@ -1474,6 +1462,19 @@ static void clear_gct_mode(struct panel_device *panel)
 	panel_dsi_set_bypass(panel, false);
 	panel_dsi_set_commit_retry(panel, false);
 	msleep(20);
+}
+#endif
+#ifdef CONFIG_SUPPORT_GRAM_CHECKSUM
+u8 checksum[4] = { 0x12, 0x34, 0x56, 0x78 };
+static bool gct_chksum_is_valid(struct panel_device *panel)
+{
+	int i;
+	struct panel_info *panel_data = &panel->panel_data;
+
+	for (i = 0; i < 4; i++)
+		if (checksum[i] != panel_data->props.gct_valid_chksum[i])
+			return false;
+	return true;
 }
 
 static ssize_t gct_show(struct device *dev,
@@ -1658,6 +1659,145 @@ out:
 }
 #endif
 
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+int decoder_test_result = 0;
+char decoder_test_result_str[32] = { 0, };
+static ssize_t dsc_crc_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct panel_info *panel_data;
+	struct panel_device *panel = dev_get_drvdata(dev);
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+	panel_data = &panel->panel_data;
+
+	snprintf(buf, PAGE_SIZE, "%d %s\n",
+		decoder_test_result, decoder_test_result_str);
+	panel_info("%s", buf);
+
+	return strlen(buf);
+}
+
+static ssize_t dsc_crc_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int value, rc, ret = 0, i;
+	struct panel_info *panel_data;
+	struct panel_device *panel = dev_get_drvdata(dev);
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	panel_data = &panel->panel_data;
+
+	rc = kstrtouint(buf, 0, &value);
+	if (rc < 0)
+		return rc;
+
+	if (value != DECODER_TEST_ON) {
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	memset(decoder_test_result_str, 0, ARRAY_SIZE(decoder_test_result_str));
+
+	if (!check_panel_decoder_test_exists(panel)) {
+		panel_warn("cannot found dsc_crc test seq. skip\n");
+		decoder_test_result = 0;
+		snprintf(decoder_test_result_str, ARRAY_SIZE(decoder_test_result_str), "0");
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	panel_info("++");
+
+	/* clear checksum buffer */
+	mutex_lock(&panel->io_lock);
+	if (!IS_PANEL_ACTIVE(panel)) {
+		panel_err("panel is not active\n");
+		mutex_unlock(&panel->io_lock);
+		ret = -EAGAIN;
+		goto exit;
+	}
+
+	if (panel->state.cur_state == PANEL_STATE_ALPM) {
+		panel_warn("dsc_crc not supported on LPM\n");
+		mutex_unlock(&panel->io_lock);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+#ifdef CONFIG_EXYNOS_DECON_LCD_COPR
+	copr_disable(&panel->copr);
+#endif
+#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
+	mdnie_disable(&panel->mdnie);
+
+	mutex_lock(&panel->mdnie.lock);
+#endif
+	mutex_lock(&panel->op_lock);
+	prepare_gct_mode(panel);
+
+#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
+#ifdef CONFIG_SUPPORT_AFC
+	if (panel->mdnie.props.afc_on &&
+			panel->mdnie.nr_seqtbl > MDNIE_AFC_OFF_SEQ) {
+		panel_info("afc off\n");
+		ret = panel_do_seqtbl(panel, &panel->mdnie.seqtbl[MDNIE_AFC_OFF_SEQ]);
+		if (unlikely(ret < 0))
+			panel_err("failed to write afc off seqtbl\n");
+	}
+#endif
+#endif
+
+	decoder_test_result = panel_decoder_test(panel, decoder_test_result_str, ARRAY_SIZE(decoder_test_result_str));
+	panel_info("-- chksum %s %s\n",
+			(decoder_test_result > 0) ? "ok" : "nok", decoder_test_result_str);
+
+	clear_gct_mode(panel);
+	mutex_unlock(&panel->op_lock);
+#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
+	mutex_unlock(&panel->mdnie.lock);
+#endif
+	mutex_unlock(&panel->io_lock);
+
+	if (panel_data->ddi_props.support_avoid_sandstorm) {
+		panel_info("display on\n");
+		ret = panel_display_on(panel);
+		if (ret < 0)
+			panel_err("failed to display on\n");
+	} else {
+		panel_info("wait display on\n");
+		for (i = 0; i < 20; i++) {
+			if (panel->state.disp_on == PANEL_DISPLAY_ON)
+				break;
+			msleep(50);
+		}
+
+		if (i == 20) {
+			panel_info("display on\n");
+			ret = panel_display_on(panel);
+			if (ret < 0)
+				panel_err("failed to display on\n");
+		}
+	}
+
+	if (decoder_test_result < 0) {
+		panel_info("ret %d\n", decoder_test_result);
+		panel_dsi_print_dpu_event_log(panel);
+	}
+exit:
+	if (ret < 0)
+		return ret;
+	return size;
+}
+#endif
 #ifdef CONFIG_SUPPORT_XTALK_MODE
 static ssize_t xtalk_mode_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -4113,6 +4253,34 @@ static ssize_t actual_mask_brightness_show(struct device *dev,
 	return strlen(buf);
 }
 #endif
+
+#define DISP_TE_POLL_SLEEP_USEC (10UL)
+#define DISP_TE_POLL_TIMEOUT_USEC (400 * 1000UL)
+static ssize_t te_check_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct panel_device *panel = dev_get_drvdata(dev);
+	int ret;
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+
+	/* expected gpio level : high */
+	ret = panel_poll_gpio(panel, PANEL_GPIO_DISP_TE, 1,
+			DISP_TE_POLL_SLEEP_USEC, DISP_TE_POLL_TIMEOUT_USEC);
+	if (ret == -EINVAL) {
+		panel_err("gpio('disp-te') is not supported\n");
+		return -EINVAL;
+	}
+
+	if (ret == -ETIMEDOUT)
+		panel_info("polling gpio('disp-te') timeout\n");
+
+	return sprintf(buf, "%d\n", (ret == 0) ? 1 : 0);
+}
+
 struct device_attribute panel_attrs[] = {
 	__PANEL_ATTR_RO(lcd_type, 0444),
 	__PANEL_ATTR_RO(window_type, 0444),
@@ -4143,6 +4311,9 @@ struct device_attribute panel_attrs[] = {
 #endif
 #ifdef CONFIG_SUPPORT_GRAM_CHECKSUM
 	__PANEL_ATTR_RW(gct, 0664),
+#endif
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+	__PANEL_ATTR_RW(dsc_crc, 0664),
 #endif
 #ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
 	__PANEL_ATTR_RW(grayspot, 0664),
@@ -4237,6 +4408,7 @@ struct device_attribute panel_attrs[] = {
 #ifdef CONFIG_SUPPORT_BRIGHTDOT_TEST
 	__PANEL_ATTR_RW(brightdot, 0664),
 #endif
+	__PANEL_ATTR_RO(te_check, 0440),
 };
 
 static int attr_find_and_store(struct device *dev, void *data)

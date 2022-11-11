@@ -124,6 +124,16 @@ config BATTERY_AGE_FORECAST
 	  it include some charging scenario for aged batteries.
 	  it need age forecast charging tables.
 
+config BATTERY_AGE_FORECAST_DETACHABLE
+	tristate "battery age forecast for detachable"
+	default n
+	select BATTERY_AGE_FORECAST
+	help
+	  Say Y here to enable
+	  support AGE FORECAST functions for detachable model.
+	  it include some charging scenario for aged batteries.
+	  it need age forecast charging tables.
+
 config BATTERY_AGE_FORECAST_B2B
 	tristate "battery age forecast for B2B"
 	default n

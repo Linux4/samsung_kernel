@@ -2425,7 +2425,6 @@ static DEFINE_SETPROP_VALUE(m33x_00_set_wait_tx_done_property_off, PANEL_OBJ_PRO
 static DEFINE_SETPROP_VALUE(m33x_00_set_wait_tx_done_property_auto, PANEL_OBJ_PROPERTY_WAIT_TX_DONE, WAIT_TX_DONE_AUTO);
 
 static void *nt36672c_m33x_00_init_cmdtbl[] = {
-	&tft_common_restbl[RES_ID],
 	&PKTINFO(nt36672c_m33x_00_001),
 	&PKTINFO(nt36672c_m33x_00_002),
 	&PKTINFO(nt36672c_m33x_00_003),

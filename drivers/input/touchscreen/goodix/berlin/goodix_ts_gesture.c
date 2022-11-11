@@ -91,10 +91,10 @@ static void gsx_set_utc_sponge(struct goodix_ts_core *cd)
 		ts_err("failed to write UTC");
 }
 
-static int gsx_set_lowpowermode(struct goodix_ts_core *cd, u8 mode)
+int gsx_set_lowpowermode(void *data, u8 mode)
 {
+	struct goodix_ts_core *cd = (struct goodix_ts_core *)data;
 	int ret = 0;
-	struct goodix_ts_cmd temp_cmd;
 
 	ts_info("%s[%X]", mode == TO_LOWPOWER_MODE ? "ENTER" : "EXIT", cd->plat_data->lowpower_mode);
 
@@ -103,17 +103,13 @@ static int gsx_set_lowpowermode(struct goodix_ts_core *cd, u8 mode)
 		gsx_set_utc_sponge(cd);
 
 		/* switch gesture mode */
-		temp_cmd.len = 4;
-		temp_cmd.cmd = 0xA6;
-		ret = cd->hw_ops->send_cmd(cd, &temp_cmd);
+		ret = cd->hw_ops->gesture(cd, true);
 		if (ret < 0)
 			ts_err("failed to switch gesture mode");
 		cd->plat_data->power_state = SEC_INPUT_STATE_LPM;
 	} else {
 		/* switch coor mode */
-		temp_cmd.len = 4;
-		temp_cmd.cmd = 0xA7;
-		ret = cd->hw_ops->send_cmd(cd, &temp_cmd);
+		ret = cd->hw_ops->gesture(cd, false);
 		if (ret < 0)
 			ts_err("failed to switch coor mode");
 		cd->plat_data->power_state = SEC_INPUT_STATE_POWER_ON;
@@ -314,6 +310,8 @@ static int gsx_gesture_before_suspend(struct goodix_ts_core *cd,
 	ret = gsx_set_lowpowermode(cd, TO_LOWPOWER_MODE);
 	if (ret < 0)
 		ts_err("failed to enter lowpowermode");
+
+	cd->lpm_coord_event_cnt = 0;
 	hw_ops->irq_enable(cd, true);
 	enable_irq_wake(cd->irq);
 

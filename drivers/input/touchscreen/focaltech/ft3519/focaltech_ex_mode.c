@@ -71,21 +71,24 @@ static int fts_ex_mode_switch(enum _ex_mode mode, u8 value)
 	switch (mode) {
 	case MODE_GLOVE:
 		ret = fts_write_reg(FTS_REG_GLOVE_MODE_EN, m_val);
-		if (ret < 0) {
+		if (ret < 0)
 			FTS_ERROR("MODE_GLOVE switch to %d fail", m_val);
-		}
+		else
+			FTS_INFO("MODE_GLOVE switch to %d", m_val);
 		break;
 	case MODE_COVER:
 		ret = fts_write_reg(FTS_REG_COVER_MODE_EN, m_val);
-		if (ret < 0) {
+		if (ret < 0)
 			FTS_ERROR("MODE_COVER switch to %d fail", m_val);
-		}
+		else
+			FTS_INFO("MODE_COVER switch to %d", m_val);
 		break;
 	case MODE_CHARGER:
 		ret = fts_write_reg(FTS_REG_CHARGER_MODE_EN, m_val);
-		if (ret < 0) {
+		if (ret < 0)
 			FTS_ERROR("MODE_CHARGER switch to %d fail", m_val);
-		}
+		else
+			FTS_INFO("MODE_CHARGER switch to %d", m_val);
 		break;
 	default:
 		FTS_ERROR("mode(%d) unsupport", mode);
@@ -300,6 +303,11 @@ int fts_ex_mode_recovery(struct fts_ts_data *ts_data)
 	if (ts_data->fod_mode & 0x01) {
 		fts_write_reg(FTS_REG_FOD_MODE, ts_data->fod_mode);
 	}
+
+	FTS_INFO("gesture_mode=0x%02X pm:0x%02X, AOT:%d, ST:%d, SPAY:%d, ED:%d, Pocket:%d, FOD:%d",
+				ts_data->gesture_mode, ts_data->power_mode,
+				ts_data->aot_enable, ts_data->singletap_enable, ts_data->spay_enable,
+				ts_data->pdata->ed_enable, ts_data->pdata->pocket_mode, ts_data->fod_mode);
 
 	if (ts_data->pdata->support_fod) {
 		fts_read_fod_data(ts_data);

@@ -443,9 +443,9 @@ enum decon_regs_type {
  * [ 0] AUTO_CG_EN_BLD
  */
 /* clock gating is disabled during initial bringup */
-#define CLOCK_CON_AUTO_CG_MASK			(0x11111 << 0)
-#define CLOCK_CON_QACTIVE_MASK			((0x1 << 24) | (0x1 << 28))
-#define CLOCK_CON_QACTIVE_PLL_ON		(0x1 << 28)
+#define CLOCK_CON_QACTIVE_PLL_MASK             (0x1 << 28)
+#define CLOCK_CON_QACTIVE_MASK                 (0x1 << 24)
+#define CLOCK_CON_AUTO_CG_MASK                 (0x111111 << 0)
 
 #define SECURE_CON				(0x5010)
 #define PSLVERR_EN				(1 << 0)

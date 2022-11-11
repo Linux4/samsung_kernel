@@ -17,5 +17,7 @@ ems-y += ego.o
 ems-y += cpufreq.o
 ems-$ += frt.o
 ems-$(CONFIG_SCHED_EMS_TUNE) += tune.o
+ems-y += gsc.o
+ems-y += balance.o
 
 obj-y += idle.o

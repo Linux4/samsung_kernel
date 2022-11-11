@@ -412,6 +412,17 @@ static void s2mu106_enable_charger_switch(
 	}
 }
 
+static bool s2mu106_chgin_status(struct s2mu106_charger_data * charger)
+{
+	u8 chg_sts0;
+	s2mu106_read_reg(charger->i2c, S2MU106_CHG_STATUS0, &chg_sts0);
+
+	if ((chg_sts0 & CHGIN_STATUS_MASK) == 0x03 || (chg_sts0 & CHGIN_STATUS_MASK) == 0x05)
+		return true;
+	else
+		return false;
+}
+
 static void s2mu106_set_buck(
 	struct s2mu106_charger_data *charger, int enable)
 {
@@ -426,19 +437,25 @@ static void s2mu106_set_buck(
 		pr_info("[DEBUG]%s: set buck on\n", __func__);
 		s2mu106_enable_charger_switch(charger, charger->is_charging);
 	} else {
+		bool chgin_sts = s2mu106_chgin_status(charger);
+
 		pr_info("[DEBUG]%s: set buck off (charger off mode)\n", __func__);
-		prev_current = s2mu106_get_input_current_limit(charger);
-		pr_info("[DEBUG]%s: check input current(%d, %d)\n",
-			__func__, prev_current, charger->input_current);
-		s2mu106_set_input_current_limit(charger, 50);
-		msleep(50);
-		/* async mode */
-		s2mu106_update_reg(charger->i2c, 0x3A, 0x03, 0x03);
-		msleep(50);
+		if (chgin_sts) {
+			prev_current = s2mu106_get_input_current_limit(charger);
+			pr_info("[DEBUG]%s: check input current(%d, %d)\n",
+					__func__, prev_current, charger->input_current);
+			s2mu106_set_input_current_limit(charger, 50);
+			msleep(50);
+			/* async mode */
+			s2mu106_update_reg(charger->i2c, 0x3A, 0x03, 0x03);
+			usleep_range(1000, 1100);
+		}
 		regmode_vote(charger, REG_MODE_CHG|REG_MODE_BUCK, 0);
-		/* auto async mode */
-		s2mu106_update_reg(charger->i2c, 0x3A, 0x01, 0x03);
-		s2mu106_set_input_current_limit(charger, prev_current);
+		if (chgin_sts) {
+			/* auto async mode */
+			s2mu106_update_reg(charger->i2c, 0x3A, 0x01, 0x03);
+			s2mu106_set_input_current_limit(charger, prev_current);
+		}
 	}
 }
 
@@ -803,6 +820,12 @@ static bool s2mu106_chg_init(struct s2mu106_charger_data *charger)
 
 	/* change ramp delay 128usec 0x92[3:0] = 0x05 */
 	s2mu106_update_reg(charger->i2c, 0x92, 0x05, 0x0F);
+
+	if (charger->pdata->change_3_level_osc) {
+		/* change 3 level osc 0x98[6:4] = 011 */
+		s2mu106_update_reg(charger->i2c, 0x98, 0x30, 0x70);
+		pr_info("%s: change_3_level_osc\n", __func__);
+	}
 
 	/* OTG OCP 1200mA, TX OCP 1500mA */
 	s2mu106_update_reg(charger->i2c, S2MU106_CHG_CTRL3,
@@ -1361,7 +1384,6 @@ static int s2mu106_chg_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_ENERGY_NOW:
 		if (val->intval) {
 			/* forced set buck on /charge off in 523k case */
-			factory_mode = 1;
 			regmode_vote(charger, REG_MODE_CHG|REG_MODE_BUCK, REG_MODE_BUCK);
 			if (charger->pdata->chg_sido_ovp) {
 				pr_info("%s: Set Factory Mode (nvbus + 523K / vbus + 301K)\n", __func__);
@@ -1514,7 +1536,7 @@ static int s2mu106_chg_set_property(struct power_supply *psy,
 				s2mu106_update_reg(charger->i2c, 0x72, 0x00, 0x80);
 
 				/* CC Detach Operation w/o VBUS */
-				psy_do_property("s2mu106-usbpd", set,
+				psy_do_property("usbpd-manager", set,
 						POWER_SUPPLY_PROP_AUTHENTIC, value);
 
 				/* PM Disable */
@@ -1534,15 +1556,21 @@ static int s2mu106_chg_set_property(struct power_supply *psy,
 		}
 		break;
 	case POWER_SUPPLY_PROP_ENERGY_AVG:
-		regmode_vote(charger, REG_MODE_BUCK_OFF_FOR_FLASH, REG_MODE_BUCK_OFF_FOR_FLASH);
-		if (val->intval) {
-			pr_info("[DEBUG]%s: FLED turn on charger driver\n", __func__);
-			usleep_range(1000, 1100);
-		//	regmode_vote(charger, REG_MODE_BUCK_OFF_FOR_FLASH | REG_MODE_BST, REG_MODE_BST);
+		mutex_lock(&charger->charger_mutex);
+		if (charger->otg_on) {
+			pr_info("[DEBUG]%s: OTG enabled, Skip charger driver control in FLED\n", __func__);
 		} else {
-			pr_info("[DEBUG]%s: FLED turn off charger driver\n", __func__);
-			regmode_vote(charger, REG_MODE_BUCK_OFF_FOR_FLASH | REG_MODE_BST, 0);
+			regmode_vote(charger, REG_MODE_BUCK_OFF_FOR_FLASH, REG_MODE_BUCK_OFF_FOR_FLASH);
+			if (val->intval) {
+				pr_info("[DEBUG]%s: FLED turn on charger driver\n", __func__);
+				usleep_range(1000, 1100);
+				//	regmode_vote(charger, REG_MODE_BUCK_OFF_FOR_FLASH | REG_MODE_BST, REG_MODE_BST);
+			} else {
+				pr_info("[DEBUG]%s: FLED turn off charger driver\n", __func__);
+				regmode_vote(charger, REG_MODE_BUCK_OFF_FOR_FLASH | REG_MODE_BST, 0);
+			}
 		}
+		mutex_unlock(&charger->charger_mutex);
 		break;
 	case POWER_SUPPLY_EXT_PROP_MIN ... POWER_SUPPLY_LSI_PROP_MAX:
 		switch ((int)ext_psp) {
@@ -1662,6 +1690,10 @@ static int s2mu106_chg_set_property(struct power_supply *psy,
 			pr_info("%s : HW Factory Enable\n", __func__);
 			s2mu106_update_reg(charger->i2c, 0xF3, 0x02, 0x02);
 			s2mu106_update_reg(charger->i2c, 0x88, 0x00, 0x04);
+			/* QBAT off for prevent SMPL when detach cable */
+			s2mu106_update_reg(charger->i2c, 0x2F, 0xC0, 0xC0);
+			s2mu106_update_reg(charger->i2c, 0x8B, 0x00, 0x08);
+			s2mu106_update_reg(charger->i2c, 0x38, 0x00, 0x03);
 			break;
 		case POWER_SUPPLY_EXT_PROP_CHARGING_ENABLED:
 			charger->charge_mode = val->intval;
@@ -1913,7 +1945,7 @@ static irqreturn_t s2mu106_event_isr(int irq, void *data)
 	if (fault == CHG_STATUS_WD_SUSPEND || fault == CHG_STATUS_WD_RST) {
 		value.intval = 1;
 		pr_info("%s, reset USBPD\n", __func__);
-		psy_do_property("s2mu106-usbpd", set,
+		psy_do_property("usbpd-manager", set,
 					POWER_SUPPLY_LSI_PROP_USBPD_RESET, value);
 	}
 
@@ -2295,6 +2327,9 @@ static int s2mu106_charger_parse_dt(struct device *dev,
 
 		pdata->lx_freq_recover = of_property_read_bool(np,
 				"charger,lx_freq_recover");
+
+		pdata->change_3_level_osc = of_property_read_bool(np,
+				"charger,change_3_level_osc");
 	}
 
 	np = of_find_node_by_name(NULL, "battery");

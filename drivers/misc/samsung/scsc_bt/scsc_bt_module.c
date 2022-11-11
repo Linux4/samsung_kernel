@@ -152,39 +152,6 @@ module_param(disable_service, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(disable_service,
 		 "Disables service startup");
 
-#ifdef CONFIG_SCSC_INDEPENDENT_SUBSYSTEM
-struct bhcd_boot
-{
-	/* Length value */
-	struct bhcd_tag_length total_length_tl;
-	uint32_t total_length;
-
-	/* Bluetooth address */
-	struct bhcd_tag_length bt_address_tl;
-	struct bhcd_bluetooth_address bt_address;
-
-	struct bhcd_tag_length bt_log_enables_tl;
-	uint32_t bt_log_enables[4];
-
-	struct bhcd_tag_length entropy_tl;
-	uint8_t entropy[32];
-
-	struct bhcd_tag_length config_tl;
-	uint8_t config[];
-};
-
-struct bhcd_start
-{
-	/* Length value */
-	struct bhcd_tag_length total_length_tl;
-	uint32_t total_length;
-
-	/* BHCD Protocol */
-	struct bhcd_tag_length protocol_tl;
-	struct bhcd_offset_length protocol;
-};
-#endif /* CONFIG_SCSC_INDEPENDENT_SUBSYSTEM */
-
 /*
  * Service event callbacks called from mx-core when things go wrong
  */
@@ -534,7 +501,7 @@ static int slsi_sm_bt_service_cleanup(void)
 					bt_service.bsmhcp_ref);
 			bt_service.bsmhcp_ref = 0;
 		}
-#ifdef CONFIG_SCSC_INDEPENDENT_SUBSYSTEM
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
 
 		if (bt_service.bhcd_start_ref != 0) {
 			scsc_mx_service_mifram_free(
@@ -873,9 +840,9 @@ static const struct firmware *load_config(void)
 	return firm;
 }
 
-#ifdef CONFIG_SCSC_INDEPENDENT_SUBSYSTEM
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
 /* If this returns 0 be sure to kfree boot_data later */
-static int get_boot_data(struct bhcd_boot **boot_data_ptr)
+int scsc_bt_get_boot_data(struct bhcd_boot **boot_data_ptr)
 {
 	const struct firmware *firm = NULL;
 	int config_size;
@@ -925,7 +892,7 @@ static int get_boot_data(struct bhcd_boot **boot_data_ptr)
 
 	return 0;
 }
-
+EXPORT_SYMBOL(scsc_bt_get_boot_data);
 #else
 
 static int setup_bhcs(struct scsc_service *service,
@@ -997,7 +964,7 @@ static int setup_bhcs(struct scsc_service *service,
 int slsi_sm_bt_service_start(void)
 {
 	int err = 0;
-#ifdef CONFIG_SCSC_INDEPENDENT_SUBSYSTEM
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
 	struct bhcd_boot *boot_data;
 	struct bhcd_start *start_data;
 #else
@@ -1053,8 +1020,8 @@ int slsi_sm_bt_service_start(void)
 		       SCSC_SERVICE_ID_BT, service_start_count);
 	wake_lock(&bt_service.service_wake_lock);
 
-#ifdef CONFIG_SCSC_INDEPENDENT_SUBSYSTEM
-	err = get_boot_data(&boot_data);
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
+	err = scsc_bt_get_boot_data(&boot_data);
 	if (err)
 		goto exit;
 
@@ -1091,7 +1058,7 @@ int slsi_sm_bt_service_start(void)
 		recovery_timeout = SLSI_BT_SERVICE_STOP_RECOVERY_TIMEOUT;
 
 	SCSC_TAG_DEBUG(BT_COMMON, "allocate mifram regions\n");
-#ifdef CONFIG_SCSC_INDEPENDENT_SUBSYSTEM
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
 	err = scsc_mx_service_mifram_alloc(
 		bt_service.service,
 		sizeof(*start_data),
@@ -1123,7 +1090,7 @@ int slsi_sm_bt_service_start(void)
 		goto exit;
 	}
 
-#ifdef CONFIG_SCSC_INDEPENDENT_SUBSYSTEM
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
 	/* Map the configuration pointer */
 	start_data = (struct bhcd_start *) scsc_mx_service_mif_addr_to_ptr(
 		bt_service.service,
@@ -1206,7 +1173,7 @@ int slsi_sm_bt_service_start(void)
 		bt_audio.dev = bt_service.dev;
 	}
 
-#ifdef CONFIG_SCSC_INDEPENDENT_SUBSYSTEM
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
 	SCSC_TAG_INFO(
 		BT_COMMON,
 		"regions (bsmhcp_ref=0x%08x, abox_ref=0x%08x)\n",
@@ -1287,7 +1254,7 @@ int slsi_sm_bt_service_start(void)
 
 	/* Start service last - after setting up shared memory resources */
 	SCSC_TAG_DEBUG(BT_COMMON, "starting Bluetooth service\n");
-#ifdef CONFIG_SCSC_INDEPENDENT_SUBSYSTEM
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
 	err = scsc_mx_service_start(bt_service.service, bt_service.bhcd_start_ref);
 #else
 	err = scsc_mx_service_start(bt_service.service, bt_service.bhcs_ref);

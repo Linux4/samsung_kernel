@@ -83,27 +83,27 @@ int sb_tx_init_aov(void);
 bool sb_tx_is_aov_enabled(int cable_type);
 int sb_tx_monitor_aov(int vout, bool phm);
 #else
-inline int sb_tx_init(struct sec_battery_info *battery, char *wrl_name) { return SB_TX_DISABLE; }
+static inline int sb_tx_init(struct sec_battery_info *battery, char *wrl_name) { return SB_TX_DISABLE; }
 
-inline int sb_tx_set_enable(bool tx_enable, int cable_type) { return SB_TX_DISABLE; }
-inline bool sb_tx_get_enable(void) { return false; }
+static inline int sb_tx_set_enable(bool tx_enable, int cable_type) { return SB_TX_DISABLE; }
+static inline bool sb_tx_get_enable(void) { return false; }
 
-inline int sb_tx_set_event(int value, int mask) { return SB_TX_DISABLE; }
+static inline int sb_tx_set_event(int value, int mask) { return SB_TX_DISABLE; }
 
 /* for set/get properties - called in wireless set/get property */
-inline int sb_tx_psy_set_property(enum power_supply_property psp, const union power_supply_propval *value)
+static inline int sb_tx_psy_set_property(enum power_supply_property psp, const union power_supply_propval *value)
 { return SB_TX_DISABLE; }
-inline int sb_tx_psy_get_property(enum power_supply_property psp, union power_supply_propval *value)
+static inline int sb_tx_psy_get_property(enum power_supply_property psp, union power_supply_propval *value)
 { return SB_TX_DISABLE; }
 
 /* for monitor tx state - called in battery drv */
-inline int sb_tx_monitor(int cable_type, int capacity, int lcd_state) { return SB_TX_DISABLE; }
+static inline int sb_tx_monitor(int cable_type, int capacity, int lcd_state) { return SB_TX_DISABLE; }
 
 
 /* temporary function */
-inline int sb_tx_init_aov(void) { return SB_TX_DISABLE; }
-inline bool sb_tx_is_aov_enabled(int cable_type) { return false; }
-inline int sb_tx_monitor_aov(int vout, bool phm) { return SB_TX_DISABLE; }
+static inline int sb_tx_init_aov(void) { return SB_TX_DISABLE; }
+static inline bool sb_tx_is_aov_enabled(int cable_type) { return false; }
+static inline int sb_tx_monitor_aov(int vout, bool phm) { return SB_TX_DISABLE; }
 #endif
 
 #endif /* __SB_TX_H */

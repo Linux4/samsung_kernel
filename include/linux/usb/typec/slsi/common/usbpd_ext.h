@@ -18,7 +18,7 @@
 #ifndef __USBPD_EXT_H__
 #define __USBPD_EXT_H__
 
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 extern struct usbpd_data *g_pd_data;
 #endif
 
@@ -55,7 +55,7 @@ extern struct usbpd_data *g_pd_data;
 #define DP_PIN_ASSIGNMENT_F	0x00000020	/* ( 1 << 5 ) */
 
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
-extern void pdic_event_work(void *data, int dest, int id, int attach, int event);
+extern void pdic_event_work(void *data, int dest, int id, int attach, int event, int sub);
 extern void select_pdo(int num);
 extern int sec_pd_select_pps(int num, int ppsVol, int ppsCur);
 extern int sec_pd_get_apdo_max_power(unsigned int *pdo_pos,
@@ -83,6 +83,8 @@ extern int typec_port_type_set(struct typec_port *_port, enum typec_port_type po
 extern int typec_port_type_set(const struct typec_capability *cap, enum typec_port_type port_type);
 #endif
 extern int typec_get_pd_support(void *_data);
-extern int typec_init(void *_data);
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+extern int typec_init(struct usbpd_data *_data);
+#endif
 #endif
 #endif

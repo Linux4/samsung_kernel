@@ -27,7 +27,7 @@
 #include <linux/sti/abc_common.h>
 #endif
 
-#define SM5451_DC_VERSION  "VA1"
+#define SM5451_DC_VERSION  "VF1"
 
 static int sm5451_read_reg(struct sm5451_charger *sm5451, u8 reg, u8 *dest)
 {
@@ -303,6 +303,23 @@ static int sm5451_sw_reset(struct sm5451_charger *sm5451)
 	return 0;
 }
 
+static u8 sm5451_get_reverse_boost_ocp(struct sm5451_charger *sm5451)
+{
+	u8 reg, op_mode;
+	u8 revbsocp = 0;
+
+	op_mode = sm5451_get_op_mode(sm5451);
+	if (op_mode == OP_MODE_INIT) {
+		sm5451_read_reg(sm5451, SM5451_REG_FLAG4, &reg);
+		dev_info(sm5451->dev, "%s: FLAG4=0x%x\n", __func__, reg);
+		if (reg & SM5451_FLAG4_IBUSOCP_RVS) {
+			revbsocp = 1;
+			dev_err(sm5451->dev, "%s: detect reverse_boost_ocp\n", __func__);
+		}
+	}
+	return revbsocp;
+}
+
 static void sm5451_init_reg_param(struct sm5451_charger *sm5451)
 {
 	sm5451_set_wdt_timer(sm5451, WDT_TIMER_S_40);
@@ -329,10 +346,11 @@ static int sm5451_convert_adc(struct sm5451_charger *sm5451, u8 index)
 	u8 ret = 0x0;
 	int adc, cnt;
 
-#if !defined(CONFIG_SEC_FACTORY) && !defined(CONFIG_DUAL_BATTERY_CELL_SENSING)
+/* User binary only check ADC block during CHG-ON status and Factory binary/Dual Battery feature check ADC block all the time */
+#if !defined(CONFIG_SEC_FACTORY) && !defined(CONFIG_DUAL_BATTERY)
 	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5451);
 
-	if (sm_dc_get_current_state(sm_dc) < SM_DC_CHECK_VBAT) {
+	if (sm_dc_get_current_state(sm_dc) < SM_DC_CHECK_VBAT && !(sm5451->rev_boost) && !(sm5451->force_adc_on)) {
 		/* Didn't worked ADC block during on CHG-OFF status */
 		return 0;
 	}
@@ -386,6 +404,28 @@ static int sm5451_convert_adc(struct sm5451_charger *sm5451, u8 index)
 	return adc;
 }
 
+static int sm5451_set_adc_mode(struct i2c_client *i2c, u8 mode)
+{
+	struct sm5451_charger *sm5451 = i2c_get_clientdata(i2c);
+
+	switch (mode) {
+	case SM_DC_ADC_MODE_ONESHOT:
+		/* covered by continuous mode */
+	case SM_DC_ADC_MODE_CONTINUOUS:
+		/* SM5451 continuous mode reflash time : 200ms */
+		sm5451_set_adcmode(sm5451, 0);
+		sm5451_enable_adc(sm5451, 1);
+		break;
+	case SM_DC_ADC_MODE_OFF:
+	default:
+		sm5451_set_adcmode(sm5451, 0);
+		sm5451_enable_adc(sm5451, 0);
+		break;
+	}
+
+	return 0;
+}
+
 static void sm5451_print_regmap(struct sm5451_charger *sm5451)
 {
 	u8 print_reg_num, regs[64] = {0x0, };
@@ -413,14 +453,28 @@ static void sm5451_print_regmap(struct sm5451_charger *sm5451)
 
 static int sm5451_reverse_boost_enable(struct sm5451_charger *sm5451, bool enable)
 {
-	u8 i, reg;
+	u8 i, flag1, flag2, flag3, flag4;
 
-	if (enable) {
+	if (enable && !sm5451->rev_boost) {
+		for (i = 0; i < 2; ++i) {
+			flag3 = sm5451_get_flag_status(sm5451, SM5451_REG_FLAG3);
+			dev_info(sm5451->dev, "%s: FLAG3:0x%x i=%d\n", __func__, flag3, i);
+			if (flag3 & (SM5451_FLAG3_VBUSUVLO | SM5451_FLAG3_VBUSPOK))
+				msleep(20);
+			else
+				break;
+		}
+
 		sm5451_set_op_mode(sm5451, OP_MODE_REV_BOOST);
 		for (i = 0; i < 12; ++i) {
 			usleep_range(10000, 11000);
-			sm5451_read_reg(sm5451, SM5451_REG_FLAG4, &reg);
-			if (reg & (0x1 << 4))
+			sm5451_read_reg(sm5451, SM5451_REG_FLAG1, &flag1);
+			sm5451_read_reg(sm5451, SM5451_REG_FLAG2, &flag2);
+			sm5451_read_reg(sm5451, SM5451_REG_FLAG3, &flag3);
+			sm5451_read_reg(sm5451, SM5451_REG_FLAG4, &flag4);
+			dev_info(sm5451->dev, "%s: FLAG:0x%x:0x%x:0x%x:0x%x i=%d\n",
+				__func__, flag1, flag2, flag3, flag4, i);
+			if (flag4 & SM5451_FLAG4_RVSRDY)
 				break;
 		}
 		if (i == 12) {
@@ -429,9 +483,11 @@ static int sm5451_reverse_boost_enable(struct sm5451_charger *sm5451, bool enabl
 			sm5451->rev_boost = false;
 			return -EINVAL;
 		}
+		sm5451_set_adc_mode(sm5451->i2c, SM_DC_ADC_MODE_CONTINUOUS);
 		dev_info(sm5451->dev, "%s: ON\n", __func__);
-	} else {
+	} else if (!enable) {
 		sm5451_set_op_mode(sm5451, OP_MODE_INIT);
+		sm5451_set_adc_mode(sm5451->i2c, SM_DC_ADC_MODE_OFF);
 		dev_info(sm5451->dev, "%s: OFF\n", __func__);
 	}
 	sm5451->rev_boost = enable;
@@ -448,6 +504,41 @@ static bool sm5451_check_charging_enable(struct sm5451_charger *sm5451)
 		return true;
 	else
 		return false;
+}
+
+static int sm5451_prechg_enable(struct sm5451_charger *sm5451, bool enable)
+{
+	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5451);
+	int state = sm_dc_get_current_state(sm_dc);
+	u8 reg, i;
+
+	if (enable) {
+		if (state > SM_DC_EOC || sm5451_check_charging_enable(sm5451)) {
+			dev_info(sm5451->dev, "%s: charging state (state=%d)\n", __func__, state);
+		} else {
+			dev_info(sm5451->dev, "%s: ON\n", __func__);
+			for (i = 0; i < 2; ++i) {
+				sm5451_write_reg(sm5451, SM5451_REG_PRECHG_MODE, 0xEA);
+				sm5451_write_reg(sm5451, SM5451_REG_PRECHG_MODE, 0xAE);
+				sm5451_write_reg(sm5451, SM5451_REG_CTRL_STM_0, 0xB0);
+				sm5451_write_reg(sm5451, SM5451_REG_CTRL_STM_3, 0x80);
+				sm5451_write_reg(sm5451, SM5451_REG_CTRL_STM_5, 0x08);
+				sm5451_write_reg(sm5451, SM5451_REG_CTRL_STM_2, 0x08);
+				sm5451_read_reg(sm5451, SM5451_REG_CTRL_STM_0, &reg);
+
+				if (reg != 0xB0)
+					sm5451_write_reg(sm5451, SM5451_REG_PRECHG_MODE, 0x00);
+				else
+					break;
+				dev_info(sm5451->dev, "%s: fail to pre-charging\n", __func__);
+			}
+			usleep_range(10000, 11000);
+		}
+	} else {
+		dev_info(sm5451->dev, "%s: OFF\n", __func__);
+		sm5451_write_reg(sm5451, SM5451_REG_PRECHG_MODE, 0x00);
+	}
+	return 0;
 }
 
 static int sm5451_start_charging(struct sm5451_charger *sm5451)
@@ -470,6 +561,7 @@ static int sm5451_start_charging(struct sm5451_charger *sm5451)
 			return ret;
 		}
 		sm5451_init_reg_param(sm5451);
+		sm5451_prechg_enable(sm5451, 1);
 	} else if (state == SM_DC_CV_MAN) {
 		dev_info(sm5451->dev, "%s: skip start charging (state=%d)\n", __func__, state);
 		return 0;
@@ -515,6 +607,7 @@ static int sm5451_start_pass_through_charging(struct sm5451_charger *sm5451)
 	}
 
 	sm5451_stop_charging(sm5451);
+	sm5451_prechg_enable(sm5451, 1);
 	msleep(200);
 
 	/* Disable IBUSUCP & Set freq*/
@@ -739,7 +832,7 @@ static int sm5451_chg_get_property(struct power_supply *psy,
 		adc_them = sm5451_convert_adc(sm5451, SM5451_ADC_THEM);
 		val->intval = adc_them;
 		break;
-#if defined(CONFIG_DUAL_BATTERY_CELL_SENSING)
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		val->intval = sm5451_convert_adc(sm5451, SM5451_ADC_VBAT);
 		break;
@@ -772,6 +865,21 @@ static int sm5451_chg_get_property(struct power_supply *psy,
 		case POWER_SUPPLY_EXT_PROP_PASS_THROUGH_MODE_TA_VOL:
 			break;
 
+		case POWER_SUPPLY_EXT_PROP_D2D_REVERSE_VOLTAGE:
+			val->intval = sm5451->rev_boost ? 1 : 0;
+			break;
+
+		case POWER_SUPPLY_EXT_PROP_D2D_REVERSE_OCP:
+			val->intval = sm5451_get_reverse_boost_ocp(sm5451);
+			break;
+
+		case POWER_SUPPLY_EXT_PROP_D2D_REVERSE_VBUS:
+			val->intval = sm5451_convert_adc(sm5451, SM5451_ADC_VBUS);
+			break;
+
+		case POWER_SUPPLY_EXT_PROP_DC_OP_MODE:
+			val->intval = sm5451_get_op_mode(sm5451);
+			break;
 		default:
 			return -EINVAL;
 		}
@@ -804,11 +912,12 @@ static int psy_chg_set_online(struct sm5451_charger *sm5451, int online)
 static int psy_chg_set_const_chg_voltage(struct sm5451_charger *sm5451, int vbat)
 {
 	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5451);
+	int state = sm_dc_get_current_state(sm_dc);
 	int ret = 0;
 
 	dev_info(sm5451->dev, "%s: [%dmV] to [%dmV]\n", __func__, sm5451->target_vbat, vbat);
 
-	if (sm5451->target_vbat != vbat) {
+	if (sm5451->target_vbat != vbat || state < SM_DC_CHECK_VBAT) {
 		sm5451->target_vbat = vbat;
 		ret = sm_dc_set_target_vbat(sm_dc, sm5451->target_vbat);
 	}
@@ -829,11 +938,12 @@ static int psy_chg_set_chg_curr(struct sm5451_charger *sm5451, int ibat)
 static int psy_chg_set_input_curr(struct sm5451_charger *sm5451, int ibus)
 {
 	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5451);
+	int state = sm_dc_get_current_state(sm_dc);
 	int ret = 0;
 
 	dev_info(sm5451->dev, "%s: ibus [%dmA] to [%dmA]\n", __func__, sm5451->target_ibus, ibus);
 
-	if (sm5451->target_ibus != ibus) {
+	if (sm5451->target_ibus != ibus || state < SM_DC_CHECK_VBAT) {
 		sm5451->target_ibus = ibus;
 		if (sm5451->target_ibus < SM5451_TA_MIN_CURRENT) {
 			dev_info(sm5451->dev, "%s: can't used less then ta_min_current(%dmA)\n",
@@ -920,6 +1030,7 @@ static int sm5451_chg_set_property(struct power_supply *psy,
 				sm5451_enable_adc_oneshot(sm5451, 1);
 			else
 				sm5451_enable_adc_oneshot(sm5451, 0);
+			sm5451->force_adc_on = val->intval;
 			pr_info("%s: ADC_CTRL : %d\n", __func__, val->intval);
 			break;
 
@@ -934,6 +1045,24 @@ static int sm5451_chg_set_property(struct power_supply *psy,
 		case POWER_SUPPLY_EXT_PROP_PASS_THROUGH_MODE_TA_VOL:
 			pr_info("[PASS_THROUGH_VOL] %s: called\n", __func__);
 			sm5451_set_pass_through_ta_vol(sm5451, val->intval);
+			break;
+
+		case POWER_SUPPLY_EXT_PROP_D2D_REVERSE_VOLTAGE:
+			sm5451_reverse_boost_enable(sm5451, val->intval);
+			break;
+
+		case POWER_SUPPLY_EXT_PROP_ADC_MODE:
+			if (val->intval)
+				sm5451_set_adc_mode(sm5451->i2c, SM_DC_ADC_MODE_CONTINUOUS);
+			else
+				sm5451_set_adc_mode(sm5451->i2c, SM_DC_ADC_MODE_OFF);
+			break;
+
+		case POWER_SUPPLY_EXT_PROP_DC_OP_MODE:
+			if (val->intval == 1)
+				sm5451_set_op_mode(sm5451, OP_MODE_REV_BOOST);
+			else if (val->intval == 0)
+				sm5451_set_op_mode(sm5451, OP_MODE_INIT);
 			break;
 
 		default:
@@ -1000,28 +1129,6 @@ static int sm5451_get_adc_value(struct i2c_client *i2c, u8 adc_ch)
 	return adc;
 }
 
-static int sm5451_set_adc_mode(struct i2c_client *i2c, u8 mode)
-{
-	struct sm5451_charger *sm5451 = i2c_get_clientdata(i2c);
-
-	switch (mode) {
-	case SM_DC_ADC_MODE_ONESHOT:
-		/* covered by continuous mode */
-	case SM_DC_ADC_MODE_CONTINUOUS:
-		/* SM5451 continuous mode reflash time : 200ms */
-		sm5451_set_adcmode(sm5451, 0);
-		sm5451_enable_adc(sm5451, 1);
-		break;
-	case SM_DC_ADC_MODE_OFF:
-	default:
-		sm5451_set_adcmode(sm5451, 0);
-		sm5451_enable_adc(sm5451, 0);
-		break;
-	}
-
-	return 0;
-}
-
 static int sm5451_get_charging_enable(struct i2c_client *i2c)
 {
 	struct sm5451_charger *sm5451 = i2c_get_clientdata(i2c);
@@ -1034,6 +1141,7 @@ static int sm5451_set_charging_enable(struct i2c_client *i2c, bool enable)
 	struct sm5451_charger *sm5451 = i2c_get_clientdata(i2c);
 	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5451);
 
+	sm5451_prechg_enable(sm5451, 0);
 	if (enable) {
 		if (sm_dc->ta.v_max < SM_DC_BYPASS_TA_MAX_VOL)
 			sm5451_set_op_mode(sm5451, OP_MODE_FW_BYPASS);
@@ -1329,6 +1437,7 @@ static void sm5451_hw_init_config(struct sm5451_charger *sm5451)
 
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	psy_chg_set_const_chg_voltage(sm5451, sm5451->pdata->battery.chg_float_voltage);
+	sm5451_reverse_boost_enable(sm5451, false);
 #endif
 }
 

@@ -122,7 +122,7 @@ static ssize_t thresh_low_store(struct device *dev, struct device_attribute *att
 	return size;
 }
 
-static ssize_t raw_data_show(struct device *dev, struct device_attribute *attr, char *buf)
+u16 get_prox_raw_data(void)
 {
 	u16 raw_data = 0;
 	s32 ms_delay = 20;
@@ -143,7 +143,13 @@ static ssize_t raw_data_show(struct device *dev, struct device_attribute *attr, 
 		raw_data = sensor_value->prox_raw;
 	}
 
-	return sprintf(buf, "%u\n", raw_data);
+	return raw_data;
+}
+
+
+static ssize_t raw_data_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", get_prox_raw_data());
 }
 
 static ssize_t prox_avg_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -217,6 +223,7 @@ get_chipset_dev_attrs get_proximity_chipset_dev_attrs[] = {
 	get_proximity_stk3328_dev_attrs,
 	get_proximity_tmd4912_dev_attrs,
 	get_proximity_stk33910_dev_attrs,
+	get_proximity_stk33512_dev_attrs,
 };
 
 static void check_proximity_dev_attr(void)

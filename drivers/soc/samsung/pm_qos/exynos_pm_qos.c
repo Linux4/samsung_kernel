@@ -1069,9 +1069,9 @@ static ssize_t exynos_pm_qos_log_show(struct file *file, struct kobject *kobj,
 	if (offset == 0) {
 		index = c->log[c->log_index].time ? c->log_index : 0;
 		if (c->log[index].time != 0)
-			printed += snprintf(buf, PAGE_SIZE, "%15s %29s  %7s %7s %6s\n", "time", "node", "request", "target", "type");
+			printed += snprintf(buf, count, "%15s %29s  %7s %7s %6s\n", "time", "node", "request", "target", "type");
 		else {
-			printed += snprintf(buf, PAGE_SIZE, "There has no PM QoS history\n");
+			printed += snprintf(buf, count, "There has no PM QoS history\n");
 			goto out;
 		}
 	}

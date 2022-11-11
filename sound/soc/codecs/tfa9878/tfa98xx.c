@@ -3095,6 +3095,13 @@ static int tfa98xx_create_controls(struct tfa98xx *tfa98xx)
 	char *name;
 	struct tfa98xx_baseprofile *bprofile;
 	struct device *cdev;
+	int ret;
+	static int is_control_created;
+
+	if (is_control_created) {
+		pr_info("%s: Already created\n", __func__);
+		return 0;
+	}
 
 #if KERNEL_VERSION(4, 18, 0) <= LINUX_VERSION_CODE
 	cdev = tfa98xx->component->dev;
@@ -3222,7 +3229,10 @@ static int tfa98xx_create_controls(struct tfa98xx *tfa98xx)
 	}
 
 	/* set the number of user selectable profiles in the mixer */
-	tfa98xx_mixer_profiles = id;
+	if (id > 0) /* if any profile to be registered */
+		tfa98xx_mixer_profiles = id;
+	else if (tfa98xx_mixer_profiles == 0)
+		tfa98xx_mixer_profiles = nprof;
 
 #if defined(TFA_MIXER_ON_DEVICE)
 	/* set active device for the following sessions */
@@ -3314,12 +3324,17 @@ static int tfa98xx_create_controls(struct tfa98xx *tfa98xx)
 	}
 
 #if KERNEL_VERSION(4, 18, 0) <= LINUX_VERSION_CODE
-	return snd_soc_add_component_controls(tfa98xx->component,
+	ret = snd_soc_add_component_controls(tfa98xx->component,
 		tfa98xx_controls, mix_index);
 #else
-	return snd_soc_add_codec_controls(tfa98xx->codec,
+	ret = snd_soc_add_codec_controls(tfa98xx->codec,
 		tfa98xx_controls, mix_index);
 #endif
+
+	if (!ret)
+		is_control_created = 1;
+
+	return ret;
 }
 
 static void *tfa98xx_devm_kstrdup(struct device *dev, char *buf)
@@ -4031,6 +4046,11 @@ static void tfa98xx_container_loaded
 
 	mutex_lock(&probe_lock);
 
+	if (tfa98xx->dsp_fw_state == TFA98XX_DSP_FW_OK) {
+		pr_info("%s: Already loaded\n", __func__);
+		mutex_unlock(&probe_lock);
+		return;
+	}
 	tfa98xx->dsp_fw_state = TFA98XX_DSP_FW_FAIL;
 
 	if (!cont) {
@@ -4263,6 +4283,7 @@ static void tfa98xx_container_loaded
 static int tfa98xx_load_container(struct tfa98xx *tfa98xx)
 {
 	int tries = 0, ret;
+
 	mutex_lock(&probe_lock);
 	tfa98xx->dsp_fw_state = TFA98XX_DSP_FW_PENDING;
 	mutex_unlock(&probe_lock);
@@ -4270,9 +4291,10 @@ static int tfa98xx_load_container(struct tfa98xx *tfa98xx)
 	do {
 		ret = request_firmware_nowait(THIS_MODULE,
 			FW_ACTION_HOTPLUG,
-		fw_name, tfa98xx->dev, GFP_KERNEL,
-		tfa98xx, tfa98xx_container_loaded);
+			fw_name, tfa98xx->dev, GFP_KERNEL,
+			tfa98xx, tfa98xx_container_loaded);
 
+		/* wait until driver completes loading */
 		msleep_interruptible(20);
 		if (tfa98xx->dsp_fw_state == TFA98XX_DSP_FW_OK)
 			break;
@@ -4281,6 +4303,7 @@ static int tfa98xx_load_container(struct tfa98xx *tfa98xx)
 		tries++;
 	} while (tries < TFA98XX_LOADFW_NTRIES
 		&& tfa98xx->dsp_fw_state != TFA98XX_DSP_FW_OK);
+
 	return ret;
 }
 

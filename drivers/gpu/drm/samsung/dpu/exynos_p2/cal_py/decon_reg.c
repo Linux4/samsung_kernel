@@ -197,7 +197,7 @@ static void decon_reg_set_clkgate_mode(u32 id, u32 en)
 
 	val = en ? ~0 : 0;
 	/* all unmask */
-	mask = CLOCK_CON_AUTO_CG_MASK | CLOCK_CON_QACTIVE_MASK;
+	mask = CLOCK_CON_AUTO_CG_MASK | CLOCK_CON_QACTIVE_MASK | CLOCK_CON_QACTIVE_PLL_MASK;
 	decon_write_mask(0, CLOCK_CON, val, mask);
 }
 
@@ -210,17 +210,15 @@ static void decon_reg_set_pslave_err(u32 id, u32 en)
 	decon_write_mask(0, SECURE_CON, val, mask);
 }
 
-#if 0
-static void decon_reg_set_te_qactive_pll_mode(u32 id, u32 en)
+void decon_reg_set_te_qactive_pll_mode(u32 id, u32 en)
 {
 	u32 val, mask;
 
 	val = en ? ~0 : 0;
 	/* all unmask */
-	mask = CLOCK_CON_QACTIVE_PLL_ON;
+	mask = CLOCK_CON_QACTIVE_PLL_MASK;
 	decon_write_mask(0, CLOCK_CON, val, mask);
 }
-#endif
 
 static void decon_reg_set_sram_enable(u32 id)
 {
@@ -1700,6 +1698,7 @@ void decon_reg_update_req_global(u32 id)
 int decon_reg_init(u32 id, struct decon_config *config)
 {
 	decon_reg_set_clkgate_mode(id, 0);
+
 	decon_reg_set_pslave_err(id, 1);
 
 	decon_reg_set_sram_enable(id);
@@ -1744,6 +1743,9 @@ int decon_reg_init(u32 id, struct decon_config *config)
 			config->mode.dsi_mode != DSI_MODE_DUAL_DSI)
 		decon_reg_set_pll_sleep(id, 1);
 #endif
+
+	if (config->mode.op_mode == DECON_VIDEO_MODE)
+		decon_reg_set_te_qactive_pll_mode(id, 1);
 
 	return 0;
 }
@@ -2198,6 +2200,7 @@ void __decon_dump(u32 id, struct decon_regs *regs, bool dsc_en)
 	cal_log_info(id, "\n=== DECON%d_MAIN SFR DUMP ===\n", id);
 	dpu_print_hex_dump(main_regs, main_regs + 0x0000, 0x344);
 	dpu_print_hex_dump(main_regs, main_regs + 0x0400, 0x300);
+	dpu_print_hex_dump(main_regs, main_regs + 0x5000, 0x14);
 	/* shadow */
 	cal_log_info(id, "=== DECON%d_MAIN SHADOW SFR DUMP ===\n", id);
 	dpu_print_hex_dump(main_regs, main_regs + SHADOW_OFFSET, 0x2B0);

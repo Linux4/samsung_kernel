@@ -16,6 +16,7 @@
 #include <linux/slab.h>
 
 #include "shub_sensor_dump.h"
+#include "shub_debug.h"
 #include "../comm/shub_comm.h"
 #include "../sensormanager/shub_sensor_type.h"
 #include "../sensormanager/shub_sensor_manager.h"
@@ -107,6 +108,13 @@ int send_sensor_dump_command(u8 sensor_type)
 	return ret;
 }
 
+void send_hub_dump_command(void)
+{
+	shub_infof("");
+	init_log_dump();
+	shub_send_command(CMD_SETVALUE, TYPE_HUB, SENSOR_REGISTER_DUMP, NULL, 0);
+}
+
 int send_all_sensor_dump_command(void)
 {
 	int types[] = SENSOR_DUMP_SENSOR_LIST;
@@ -118,7 +126,7 @@ int send_all_sensor_dump_command(void)
 		if (temp != 0)
 			ret = temp;
 	}
-
+	send_hub_dump_command();
 	return ret;
 }
 

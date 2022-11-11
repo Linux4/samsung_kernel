@@ -16,6 +16,7 @@
 
 #include "mfc_core_otf.h"
 #include "mfc_hwfc_internal.h"
+#include "mfc_core_qos.h"
 
 #include "mfc_core_reg_api.h"
 #include "mfc_core_cmd.h"
@@ -514,7 +515,8 @@ int mfc_core_otf_run_enc_frame(struct mfc_core *core, struct mfc_ctx *ctx)
 	/* Change timestamp usec -> nsec */
 	mfc_qos_update_last_framerate(ctx, handle->otf_time_stamp * 1000);
 	mfc_qos_update_framerate(ctx);
-	mfc_rm_qos_control(ctx, MFC_QOS_TRIGGER);
+	if (ctx->update_framerate)
+		mfc_core_qos_on(core, ctx);
 
 	/* Set stream buffer size to handle buffer full */
 	mfc_clean_core_ctx_int_flags(core_ctx);

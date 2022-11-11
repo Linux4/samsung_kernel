@@ -157,55 +157,61 @@ static void sensor_gd2_cis_data_calculation(const struct sensor_pll_info_compact
 	cis_data->max_fine_integration_time = SENSOR_GD2_FINE_INTEGRATION_TIME;
 }
 
-int sensor_gd2_cis_check_rev(struct is_cis *cis)
+int sensor_gd2_cis_check_rev_on_init(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
-	u8 status = 0;
 	u8 rev = 0;
-	u8 data1, data2 = 0;
 	struct i2c_client *client;
+	u8 status = 0;
+	struct is_cis *cis = NULL;
 
+	FIMC_BUG(!subdev);
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
 	FIMC_BUG(!cis);
 	FIMC_BUG(!cis->cis_data);
 
 	client = cis->client;
 	if (unlikely(!client)) {
 		err("client is NULL");
-		ret = -EINVAL;
+		return -EINVAL;
 	}
+
+	memset(cis->cis_data, 0, sizeof(cis_shared_data));
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
 	is_sensor_write16(client, 0x6028, 0x4000);
 
 	/* Specify OTP Page Address for READ - Page0(dec) */
-	is_sensor_write16(client, SENSOR_GD2_OTP_PAGE_SETUP_ADDR, 0x0001);
+	ret = is_sensor_write16(client, SENSOR_GD2_OTP_PAGE_SETUP_ADDR, 0x0001);
 
 	/* Turn ON OTP Read MODE - Read Start */
-	is_sensor_write16(client, SENSOR_GD2_OTP_READ_TRANSFER_MODE_ADDR,  0x0100);
+	ret |= is_sensor_write16(client, SENSOR_GD2_OTP_READ_TRANSFER_MODE_ADDR,  0x0100);
+	if (ret < 0) {
+		err("is_sensor_write8 fail (ret %d)", ret);
+		I2C_MUTEX_UNLOCK(cis->i2c_lock);
+		return -EAGAIN;
+	}
 
 	/* Check status - 0x00 : read ready*/
 	is_sensor_read8(client, SENSOR_GD2_OTP_STATUS_REGISTER_ADDR,  &status);
-	if (status != 0x0) {
-		err("status fail, (%d)", status);
-		msleep(40);
-	}
+	if (status != 0x0)
+		err("status fail, (%#x)", status);
 
 	ret = is_sensor_read8(client, SENSOR_GD2_OTP_CHIP_REVISION_ADDR, &rev);
 	if (ret < 0) {
 		err("is_sensor_read8 fail (ret %d)", ret);
 		I2C_MUTEX_UNLOCK(cis->i2c_lock);
-		return ret;
+		return -EAGAIN;
 	}
-	ret = is_sensor_read8(client, 0x000D, &data1);
-	ret = is_sensor_read8(client, 0x000E, &data2);
-	
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	cis->cis_data->cis_rev = rev;
 
-	probe_info("S5KGD2 Rev:%#x  (%#x, %#x)", rev, data1, data2);
-	return 0;
+	pr_info("%s : [%d] Sensor version. Rev(addr:0x%X). 0x%X\n",
+		__func__, cis->id, SENSOR_GD2_OTP_CHIP_REVISION_ADDR, cis->cis_data->cis_rev);
+	return ret;
 }
 
 /* CIS OPS */
@@ -231,16 +237,6 @@ int sensor_gd2_cis_init(struct v4l2_subdev *subdev)
 	}
 
 	FIMC_BUG(!cis->cis_data);
-	memset(cis->cis_data, 0, sizeof(cis_shared_data));
-
-	cis->rev_flag = false;
-
-	ret = sensor_gd2_cis_check_rev(cis);
-	if (ret < 0) {
-		warn("sensor_gd2_check_rev is fail when cis init");
-		cis->rev_flag = true;
-		ret = 0;
-	}
 
 	cis->cis_data->cur_width = SENSOR_GD2_MAX_WIDTH;
 	cis->cis_data->cur_height = SENSOR_GD2_MAX_HEIGHT;
@@ -320,9 +316,9 @@ int sensor_gd2_cis_log_status(struct v4l2_subdev *subdev)
 	return ret;
 }
 
-#if USE_GROUP_PARAM_HOLD
 static int sensor_gd2_cis_group_param_hold_func(struct v4l2_subdev *subdev, unsigned int hold)
 {
+#if USE_GROUP_PARAM_HOLD
 	int ret = 0;
 	struct is_cis *cis = NULL;
 	struct i2c_client *client = NULL;
@@ -354,23 +350,21 @@ static int sensor_gd2_cis_group_param_hold_func(struct v4l2_subdev *subdev, unsi
 	ret = 1;
 p_err:
 	return ret;
-}
 #else
-static inline int sensor_gd2_cis_group_param_hold_func(struct v4l2_subdev *subdev, unsigned int hold)
-{ return 0; }
+	return 0;
 #endif
+}
 
-/* Input
- *	hold : true - hold, flase - no hold
- * Output
- *      return: 0 - no effect(already hold or no hold)
- *		positive - setted by request
- *		negative - ERROR value
- */
+/*
+  hold control register for updating multiple-parameters within the same frame. 
+  true : hold, flase : no hold/release
+*/
+#if USE_GROUP_PARAM_HOLD
 int sensor_gd2_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 {
 	int ret = 0;
 	struct is_cis *cis = NULL;
+	u32 mode = 0;
 
 	FIMC_BUG(!subdev);
 
@@ -379,17 +373,33 @@ int sensor_gd2_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 	FIMC_BUG(!cis);
 	FIMC_BUG(!cis->cis_data);
 
+	if (cis->cis_data->stream_on == false && hold == true) {
+		ret = 0;
+		dbg_sensor(1, "%s : sensor stream off skip group_param_hold", __func__);
+		goto p_err;
+	}
+
+	mode = cis->cis_data->sens_config_index_cur;
+
+	if (mode == SENSOR_GD2_2SUM_CROP_1632X1224_120FPS) {
+		ret = 0;
+		dbg_sensor(1, "%s : fast ae skip group_param_hold", __func__);
+		goto p_err;
+	}
+
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
 	ret = sensor_gd2_cis_group_param_hold_func(subdev, hold);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
-p_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
+p_err:
 	return ret;
 }
+#endif
 
 int sensor_gd2_apply_cross_talk_settings(struct is_cis *cis)
 {
@@ -504,40 +514,40 @@ int sensor_gd2_cis_set_global_setting(struct v4l2_subdev *subdev)
 	ret = sensor_cis_set_registers(subdev, sensor_gd2_initial_settings_setfile_B, ARRAY_SIZE(sensor_gd2_initial_settings_setfile_B));
 	if (ret < 0) {
 		err("sensor_gd2_set_registers fail!!");
-		goto p_err;
+		goto p_err_unlock;
 	}
 
 	//tnp settings
 	ret = sensor_cis_set_registers(subdev, sensor_gd2_tnp_settings_setfile_B, ARRAY_SIZE(sensor_gd2_tnp_settings_setfile_B));
 	if (ret < 0) {
 		err("sensor_gd2_set_registers fail!!");
-		goto p_err;
+		goto p_err_unlock;
 	}
 
 	//global for calibration
 	ret = sensor_cis_set_registers(subdev, sensor_gd2_global_calibration_settings_setfile_B, ARRAY_SIZE(sensor_gd2_global_calibration_settings_setfile_B));
 	if (ret < 0) {
 		err("sensor_gd2_set_registers fail!!");
-		goto p_err;
+		goto p_err_unlock;
 	}
 
 	//cross talk
 	ret = sensor_gd2_apply_cross_talk_settings(cis);
 	if (ret < 0) {
 		err("sensor_gd2_pdaf_off_setfiles fail!!");
-		goto p_err;
+		goto p_err_unlock;
 	}
 
 	//lsc
 	ret = sensor_gd2_apply_lsc_settings(cis);
 	if (ret < 0) {
 		err("sensor_gd2_pdaf_off_setfiles fail!!");
-		goto p_err;
+		goto p_err_unlock;
 	}
 
 	dbg_sensor(1, "[%s] global setting done\n", __func__);
 
-p_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -568,14 +578,14 @@ int sensor_gd2_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 	ret = sensor_cis_set_registers(subdev, sensor_gd2_setfiles[mode], sensor_gd2_setfile_sizes[mode]);
 	if (ret < 0) {
 		err("sensor_gd2_setfiles fail!!");
-		goto p_err;
+		goto p_err_unlock;
 	}
 
 #ifdef DISABLE_GD2_PDAF_TAIL_MODE
 	ret = sensor_cis_set_registers(subdev, sensor_gd2_pdaf_off_setfile_B, ARRAY_SIZE(sensor_gd2_pdaf_off_setfile_B));
 	if (ret < 0) {
 		err("sensor_gd2_pdaf_off_setfiles fail!!");
-		goto p_err;
+		goto p_err_unlock;
 	}
 #endif
 
@@ -586,7 +596,7 @@ int sensor_gd2_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 
 	dbg_sensor(1, "[%s] mode changed(%d)\n", __func__, mode);
 
-p_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -629,10 +639,6 @@ int sensor_gd2_cis_stream_on(struct v4l2_subdev *subdev)
 	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-
-	ret = sensor_gd2_cis_group_param_hold_func(subdev, 0x00);
-	if (ret < 0)
-		err("group_param_hold_func failed at stream on");
 
 #ifdef DEBUG_GD2_PLL
 	{
@@ -703,6 +709,8 @@ int sensor_gd2_cis_stream_off(struct v4l2_subdev *subdev)
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
+	cis_data->stream_on = false;
+
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
 	ret = sensor_gd2_cis_group_param_hold_func(subdev, 0x00);
@@ -712,8 +720,6 @@ int sensor_gd2_cis_stream_off(struct v4l2_subdev *subdev)
 	/* Sensor stream off */
 	is_sensor_write16(client, 0x6028, 0x4000);
 	is_sensor_write8(client, 0x0100, 0x00);
-
-	cis_data->stream_on = false;
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
@@ -726,7 +732,6 @@ int sensor_gd2_cis_stream_off(struct v4l2_subdev *subdev)
 int sensor_gd2_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_param *target_exposure)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -799,22 +804,16 @@ int sensor_gd2_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_param
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	hold = sensor_gd2_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	/* Short exposure */
 	ret = is_sensor_write16(client, SENSOR_GD2_COARSE_INTEG_TIME_ADDR, short_coarse_int);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	/* Long exposure */
 	if (is_vender_wdr_mode_on(cis_data)) {
 		ret = is_sensor_write16(client, SENSOR_GD2_LONG_COARSE_INTEG_TIME_ADDR, long_coarse_int);
 		if (ret < 0)
-			goto p_err;
+			goto p_err_unlock;
 	}
 
 	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), vt_pic_clk(%d), line_length_pck(%d), min_fine_int (%d)\n",
@@ -826,13 +825,7 @@ int sensor_gd2_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_param
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_gd2_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -990,7 +983,6 @@ int sensor_gd2_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 int sensor_gd2_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_duration)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1032,15 +1024,9 @@ int sensor_gd2_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_dura
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	hold = sensor_gd2_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	ret = is_sensor_write16(client, SENSOR_GD2_FRAME_LENGTH_LINE_ADDR, frame_length_lines);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	cis_data->cur_frame_us_time = frame_duration;
 	cis_data->frame_length_lines = frame_length_lines;
@@ -1051,13 +1037,7 @@ int sensor_gd2_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_dura
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_gd2_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -1162,7 +1142,6 @@ int sensor_gd2_cis_adjust_analog_gain(struct v4l2_subdev *subdev, u32 input_agai
 int sensor_gd2_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_param *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1195,26 +1174,14 @@ int sensor_gd2_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_param *
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	hold = sensor_gd2_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	ret = is_sensor_write16(client, SENSOR_GD2_ANALOG_GAIN_ADDR, analog_gain);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_gd2_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -1223,7 +1190,6 @@ p_err:
 int sensor_gd2_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1245,15 +1211,9 @@ int sensor_gd2_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	hold = sensor_gd2_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	ret = is_sensor_read16(client, SENSOR_GD2_ANALOG_GAIN_ADDR, &analog_gain);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	*again = sensor_cis_calc_again_permile(analog_gain);
 
@@ -1263,13 +1223,7 @@ int sensor_gd2_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_gd2_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -1350,7 +1304,6 @@ int sensor_gd2_cis_get_max_analog_gain(struct v4l2_subdev *subdev, u32 *max_agai
 int sensor_gd2_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1397,28 +1350,16 @@ int sensor_gd2_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param 
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	hold = sensor_gd2_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	dgains[0] = dgains[1] = dgains[2] = dgains[3] = short_gain;
 	/* Short digital gain */
 	ret = is_sensor_write16_array(client, SENSOR_GD2_DIG_GAIN_ADDR, dgains, 4);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_gd2_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -1427,7 +1368,6 @@ p_err:
 int sensor_gd2_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1449,15 +1389,9 @@ int sensor_gd2_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	hold = sensor_gd2_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	ret = is_sensor_read16(client, SENSOR_GD2_DIG_GAIN_ADDR, &digital_gain);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	*dgain = sensor_cis_calc_dgain_permile(digital_gain);
 
@@ -1467,13 +1401,7 @@ int sensor_gd2_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_gd2_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -1672,7 +1600,6 @@ int sensor_gd2_cis_set_dual_setting(struct v4l2_subdev *subdev, u32 mode)
 
 void sensor_gd2_cis_data_calc(struct v4l2_subdev *subdev, u32 mode)
 {
-	int ret = 0;
 	struct is_cis *cis = NULL;
 
 	FIMC_BUG_VOID(!subdev);
@@ -1686,23 +1613,15 @@ void sensor_gd2_cis_data_calc(struct v4l2_subdev *subdev, u32 mode)
 		return;
 	}
 
-	/* If check_rev fail when cis_init, one more check_rev in mode_change */
-	if (cis->rev_flag == true) {
-		cis->rev_flag = false;
-		ret = sensor_gd2_cis_check_rev(cis);
-		if (ret < 0) {
-			err("sensor_gd2_check_rev is fail: ret(%d)", ret);
-			return;
-		}
-	}
-
 	sensor_gd2_cis_data_calculation(sensor_gd2_pllinfos[mode], cis->cis_data);
 }
 
 static struct is_cis_ops cis_ops = {
 	.cis_init = sensor_gd2_cis_init,
 	.cis_log_status = sensor_gd2_cis_log_status,
+#if USE_GROUP_PARAM_HOLD
 	.cis_group_param_hold = sensor_gd2_cis_group_param_hold,
+#endif	
 	.cis_set_global_setting = sensor_gd2_cis_set_global_setting,
 	.cis_mode_change = sensor_gd2_cis_mode_change,
 	.cis_set_size = sensor_gd2_cis_set_size,
@@ -1727,7 +1646,7 @@ static struct is_cis_ops cis_ops = {
 	.cis_wait_streamoff = sensor_cis_wait_streamoff,
 	.cis_wait_streamon = sensor_cis_wait_streamon,
 	.cis_set_initial_exposure = sensor_cis_set_initial_exposure,
-	.cis_check_rev_on_init = sensor_cis_check_rev_on_init,
+	.cis_check_rev_on_init = sensor_gd2_cis_check_rev_on_init,
 	.cis_active_test = sensor_cis_active_test,
 	.cis_set_long_term_exposure = sensor_gd2_cis_long_term_exposure,
 	.cis_set_dual_setting = sensor_gd2_cis_set_dual_setting,

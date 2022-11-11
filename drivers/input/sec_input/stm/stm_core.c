@@ -12,6 +12,8 @@
 #include "stm_dev.h"
 #include "stm_reg.h"
 
+struct stm_ts_data *g_ts;
+
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 #if IS_ENABLED(CONFIG_GH_RM_DRV)
 static void stm_ts_trusted_touch_abort_handler(struct stm_ts_data *ts,
@@ -839,15 +841,15 @@ static int stm_ts_vm_mem_lend(struct stm_ts_data *ts)
 
 	acl_desc = stm_ts_vm_get_acl(GH_TRUSTED_VM);
 	if (IS_ERR(acl_desc)) {
-		input_err(true, &ts->client->dev, "Failed to get acl of IO memories for Trusted touch\n");
-		PTR_ERR(acl_desc);
+		input_err(true, &ts->client->dev, "Failed to get acl of IO memories for Trusted touch. rc=%ld\n",
+			PTR_ERR(acl_desc));
 		return -EINVAL;
 	}
 
 	sgl_desc = stm_ts_vm_get_sgl(ts->vm_info);
 	if (IS_ERR(sgl_desc)) {
-		input_err(true, &ts->client->dev, "Failed to get sgl of IO memories for Trusted touch\n");
-		PTR_ERR(sgl_desc);
+		input_err(true, &ts->client->dev, "Failed to get sgl of IO memories for Trusted touch. rc=%ld\n",
+			PTR_ERR(sgl_desc));
 		rc = -EINVAL;
 		goto sgl_error;
 	}
@@ -1178,6 +1180,11 @@ static ssize_t trusted_touch_enable_store(struct device *dev, struct device_attr
 #endif
 		return -EINVAL;
 	}
+
+	if (value == 1)
+		reinit_completion(&ts->secure_powerdown);
+	else
+		complete_all(&ts->secure_powerdown);
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 	if (value == 0)
@@ -1823,6 +1830,14 @@ static int stm_ts_get_event(struct stm_ts_data *ts, u8 *data, int *remain_event_
 
 	if (data[0] == 0) {
 		input_info(true, &ts->client->dev, "%s: event buffer is empty\n", __func__);
+#if IS_ENABLED(CONFIG_SEC_ABC) && IS_ENABLED(CONFIG_SEC_FACTORY)
+		ts->irq_empty_count++;
+		if (ts->irq_empty_count >= 100) {
+			ts->irq_empty_count = 0;
+			sec_abc_send_event(SEC_ABC_SEND_EVENT_TYPE);
+		}
+#endif
+
 		return SEC_ERROR;
 	}
 
@@ -1853,6 +1868,161 @@ static int stm_ts_get_event(struct stm_ts_data *ts, u8 *data, int *remain_event_
 	return SEC_SUCCESS;
 }
 
+#ifdef ENABLE_RAWDATA_SERVICE
+#ifdef RAWDATA_MMAP
+static int stm_ts_get_rawdata(struct stm_ts_data *ts)
+{
+	u8 reg[3];
+	int ret;
+	s16 *val;
+	int ii;
+	int jj;
+	int kk = 0;
+	int num;
+	static int prev_touch_count;
+
+	if (ts->raw_mode == 0)
+		return 0;
+
+	if (!ts->raw_addr_h && !ts->raw_addr_l)
+		return 0;
+
+	if (ts->raw_len == 0)
+		return 0;
+
+	if (!ts->raw_u8)
+		return 0;
+
+	if (!ts->raw)
+		return 0;
+
+	reg[0] = 0xA7;
+	reg[1] = ts->raw_addr_h;
+	reg[2] = ts->raw_addr_l;
+
+	mutex_lock(&ts->raw_lock);
+	if (prev_touch_count == 0 && ts->plat_data->touch_count != 0) {
+		/* first press */
+		ts->raw_irq_count = 1;
+		ts->before_irq_count = 1;
+	} else if (prev_touch_count != 0 && ts->plat_data->touch_count == 0) {
+		/* all finger released */
+		ts->raw_irq_count++;
+		ts->before_irq_count = 0;
+	} else if (prev_touch_count != 0 && ts->plat_data->touch_count != 0) {
+		/* move */
+		ts->raw_irq_count++;
+		ts->before_irq_count++;
+	}
+	prev_touch_count = ts->plat_data->touch_count;
+
+	ret = ts->stm_ts_read(ts, reg, 3, ts->raw_u8, ts->tx_count * ts->rx_count * 2);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: failed to get rawdata: %d\n", __func__, ret);
+		mutex_unlock(&ts->raw_lock);
+		return ret;
+	}
+
+	val = (s16 *)ts->raw_u8;
+
+	for (ii = 0; ii < ts->tx_count; ii++) {
+		for (jj = (ts->rx_count - 1); jj >= 0; jj--)
+			ts->raw[4 + jj * ts->tx_count + ii] = val[kk++];
+	}
+
+	ts->raw[3] = ts->plat_data->coord[0].action == 0 ? 3 : ts->plat_data->coord[0].action;
+	ts->raw[1] = ts->raw_irq_count;
+
+	num = ts->raw_irq_count % 5;
+	if (num == 0)
+		memcpy(ts->raw_v0, ts->raw, ts->raw_len);
+	else if (num == 1)
+		memcpy(ts->raw_v1, ts->raw, ts->raw_len);
+	else if (num == 2)
+		memcpy(ts->raw_v2, ts->raw, ts->raw_len);
+	else if (num == 3)
+		memcpy(ts->raw_v3, ts->raw, ts->raw_len);
+	else if (num == 4)
+		memcpy(ts->raw_v4, ts->raw, ts->raw_len);
+
+	input_info(true, &ts->client->dev, "%s: num: %d | %d | %d | %d | %d\n", __func__, num, ts->raw[0], ts->raw[1], ts->raw[2], ts->raw[3]);
+	mutex_unlock(&ts->raw_lock);
+
+	sysfs_notify(&ts->sec.fac_dev->kobj, NULL, "raw_irq");
+
+	return ret;
+}
+#endif //#ifdef RAWDATA_MMAP
+#ifdef RAWDATA_IOCTL
+static int stm_ts_get_rawdata(struct stm_ts_data *ts)
+{
+	u8 reg[5];
+	int ret;
+	s16 *val;
+	int ii;
+	int jj;
+	int kk = 0;
+	static int prev_touch_count;
+	u8 *target_mem;
+
+	if (ts->raw_mode == 0)
+		return 0;
+
+	if (!ts->raw_addr_h && !ts->raw_addr_l)
+		return 0;
+
+	if (ts->raw_len == 0)
+		return 0;
+
+	if (!ts->raw_u8)
+		return 0;
+
+	if (!ts->raw)
+		return 0;
+
+	reg[0] = STM_TS_CMD_REG_R;
+	reg[1] = 0x20;
+	reg[2] = 0x01;
+	reg[3] = ts->raw_addr_h;
+	reg[4] = ts->raw_addr_l;
+
+	mutex_lock(&ts->raw_lock);
+	prev_touch_count = ts->plat_data->touch_count;
+	ret = ts->stm_ts_read(ts, &reg[0], 5, ts->raw_u8, ts->tx_count * ts->rx_count * 2);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: failed to get rawdata: %d\n", __func__, ret);
+		mutex_unlock(&ts->raw_lock);
+		return ret;
+	}
+
+	val = (s16 *)ts->raw_u8;
+
+	for (ii = 0; ii < ts->tx_count; ii++) {
+		for (jj = (ts->rx_count - 1); jj >= 0; jj--)
+			ts->raw[4 + jj * ts->tx_count + ii] = val[kk++];
+	}
+
+	ts->raw[3] = ts->plat_data->coord[0].action == 0 ? 3 : ts->plat_data->coord[0].action;
+
+	target_mem = ts->raw_pool[ts->raw_write_index++];
+	memcpy(target_mem, ts->raw, ts->raw_len);
+
+	if (ts->raw_write_index >= 3)
+		ts->raw_write_index = 0;
+
+/*	input_info(true, &ts->client->dev, "%s: | %d | %d | %d | %d\n", __func__, ts->raw[0], ts->raw[1], ts->raw[2], ts->raw[3]);*/
+
+	mutex_unlock(&ts->raw_lock);
+
+	sysfs_notify(&ts->sec.fac_dev->kobj, NULL, "raw_irq");
+
+	return ret;
+}
+
+
+#endif //RAWDATA_IOCTL
+#endif
+
 irqreturn_t stm_ts_irq_thread(int irq, void *ptr)
 {
 	struct stm_ts_data *ts = (struct stm_ts_data *)ptr;
@@ -1864,6 +2034,8 @@ irqreturn_t stm_ts_irq_thread(int irq, void *ptr)
 	int remain_event_count;
 	char taas[32];
 	char tresult[64];
+	int raw_irq_flag = 0;
+
 	ret = event_id = curr_pos = remain_event_count = 0;
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
@@ -1904,6 +2076,7 @@ irqreturn_t stm_ts_irq_thread(int irq, void *ptr)
 			stm_ts_status_event(ts, event_buff);
 		} else if (event_id == STM_TS_COORDINATE_EVENT) {
 			stm_ts_coordinate_event(ts, event_buff);
+			raw_irq_flag = 1;
 		} else if (event_id == STM_TS_GESTURE_EVENT) {
 			stm_ts_gesture_event(ts, event_buff);
 		} else if (event_id == STM_TS_VENDOR_EVENT) {
@@ -1947,6 +2120,11 @@ irqreturn_t stm_ts_irq_thread(int irq, void *ptr)
 
 	mutex_unlock(&ts->eventlock);
 
+#ifdef ENABLE_RAWDATA_SERVICE
+	if (raw_irq_flag/* && !ts->game_mode*/) {
+		stm_ts_get_rawdata(ts);
+	}
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -1957,6 +2135,10 @@ int stm_ts_input_open(struct input_dev *dev)
 	u8 data[2] = { 0 };
 	int retrycnt = 0;
 
+	if (!ts->probe_done) {
+		input_err(true, &ts->client->dev, "%s: device probe is not done\n", __func__);
+		return 0;
+	}
 	cancel_delayed_work_sync(&ts->work_read_info);
 
 	mutex_lock(&ts->modechange);
@@ -2023,6 +2205,10 @@ void stm_ts_input_close(struct input_dev *dev)
 {
 	struct stm_ts_data *ts = input_get_drvdata(dev);
 
+	if (!ts->probe_done) {
+		input_err(true, &ts->client->dev, "%s: device probe is not done\n", __func__);
+		return;
+	}
 	cancel_delayed_work_sync(&ts->work_read_info);
 
 	if (ts->plat_data->shutdown_called) {
@@ -2041,6 +2227,12 @@ void stm_ts_input_close(struct input_dev *dev)
 	sec_input_print_info(&ts->client->dev, ts->tdata);
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	secure_touch_stop(ts, 1);
+#if IS_ENABLED(CONFIG_GH_RM_DRV)
+	if (atomic_read(&ts->trusted_touch_enabled)) {
+		input_info(true, &ts->client->dev, "%s wait for disabling trusted touch\n", __func__);
+		wait_for_completion_interruptible(&ts->secure_powerdown);
+	}
+#endif
 #endif
 #if IS_ENABLED(CONFIG_SAMSUNG_TUI)
 	stui_cancel_session();
@@ -2218,6 +2410,7 @@ static int stm_ts_hw_init(struct stm_ts_data *ts)
 	ts->plat_data->touch_count = 0;
 	ts->touch_opmode = STM_TS_OPMODE_NORMAL;
 	ts->charger_mode = STM_TS_BIT_CHARGER_MODE_NORMAL;
+	ts->irq_empty_count = 0;
 
 #ifdef TCLM_CONCEPT
 	ts->tdata->external_factory = false;
@@ -2239,6 +2432,16 @@ static int stm_ts_hw_init(struct stm_ts_data *ts)
 	return ret;
 }
 
+static void stm_ts_parse_dt(struct device *dev, struct stm_ts_data *ts)
+{
+	struct device_node *np = dev->of_node;
+
+	if (of_property_read_u32(np, "stm,lpmode_change_delay", &ts->lpmode_change_delay))
+		ts->lpmode_change_delay = 5;
+
+	input_info(true, dev, "%s: lpmode_change_delay:%d\n", __func__, ts->lpmode_change_delay);
+}
+
 static int stm_ts_init(struct stm_ts_data *ts)
 {
 	int ret = 0;
@@ -2249,6 +2452,9 @@ static int stm_ts_init(struct stm_ts_data *ts)
 			input_err(true, &ts->client->dev, "%s: Failed to parse dt\n", __func__);
 			goto error_allocate_mem;
 		}
+
+		stm_ts_parse_dt(&ts->client->dev, ts);
+
 #ifdef TCLM_CONCEPT
 		sec_tclm_parse_dt(&ts->client->dev, ts->tdata);
 #endif
@@ -2281,6 +2487,7 @@ static int stm_ts_init(struct stm_ts_data *ts)
 	ts->plat_data->set_temperature = stm_ts_set_temperature;
 
 	ptsp = &ts->client->dev;
+	g_ts = ts;
 
 #ifdef TCLM_CONCEPT
 	sec_tclm_initialize(ts->tdata);
@@ -2302,7 +2509,9 @@ static int stm_ts_init(struct stm_ts_data *ts)
 	mutex_init(&ts->modechange);
 	mutex_init(&ts->sponge_mutex);
 	mutex_init(&ts->fn_mutex);
-
+#ifdef ENABLE_RAWDATA_SERVICE
+	mutex_init(&ts->raw_lock);
+#endif
 	ts->plat_data->sec_ws = wakeup_source_register(&ts->client->dev, "tsp");
 	device_init_wakeup(&ts->client->dev, true);
 
@@ -2448,6 +2657,9 @@ int stm_ts_probe(struct stm_ts_data *ts)
 #endif
 
 	input_err(true, &ts->client->dev, "%s: done\n", __func__);
+#ifdef ENABLE_RAWDATA_SERVICE
+	stm_ts_rawdata_init(ts);
+#endif
 	input_log_fix();
 
 	if (!ts->plat_data->shutdown_called)

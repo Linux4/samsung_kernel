@@ -12,7 +12,7 @@
 #include <linux/pm_wakeup.h>
 #include <linux/version.h>
 
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 #if IS_ENABLED(CONFIG_BATTERY_NOTIFIER)
 #include <linux/battery/battery_notifier.h>
 #else
@@ -21,8 +21,54 @@
 struct usbpd_data *g_pd_data;
 EXPORT_SYMBOL(g_pd_data);
 #endif
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+#include <linux/usb/typec/common/pdic_sysfs.h>
+#endif
 
 #define MS_TO_NS(msec)		((msec) * 1000 * 1000)
+
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+enum pdic_sysfs_property usbpd_sysfs_properties[] = {
+	PDIC_SYSFS_PROP_CHIP_NAME,
+	PDIC_SYSFS_PROP_LPM_MODE,
+	PDIC_SYSFS_PROP_STATE,
+	PDIC_SYSFS_PROP_RID,
+	PDIC_SYSFS_PROP_CTRL_OPTION,
+	PDIC_SYSFS_PROP_FW_WATER,
+	PDIC_SYSFS_PROP_ACC_DEVICE_VERSION,
+	PDIC_SYSFS_PROP_USBPD_IDS,
+	PDIC_SYSFS_PROP_USBPD_TYPE,
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+	PDIC_SYSFS_PROP_SET_WATER_THRESHOLD,
+#endif
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+	PDIC_SYSFS_PROP_USBPD_WATER_CHECK,
+	PDIC_SYSFS_PROP_15MODE_WATERTEST_TYPE,
+#endif
+};
+extern struct device *pdic_device;
+#endif
+
+void usbpd_timer_vdm_start(struct usbpd_data *pd_data)
+{
+	ktime_get_real_ts64(&pd_data->time_vdm);
+}
+EXPORT_SYMBOL(usbpd_timer_vdm_start);
+
+long long usbpd_check_timer_vdm(struct usbpd_data *pd_data)
+{
+	uint32_t ms = 0;
+	uint32_t sec = 0;
+	struct timespec64 time;
+
+	ktime_get_real_ts64(&time);
+
+    sec = time.tv_sec - pd_data->time_vdm.tv_sec;
+    ms = (uint32_t)((time.tv_nsec - pd_data->time_vdm.tv_nsec) / 1000000);
+
+    return (sec * 1000) + ms;
+}
+EXPORT_SYMBOL(usbpd_check_timer_vdm);
 
 void usbpd_timer1_start(struct usbpd_data *pd_data)
 {
@@ -39,14 +85,14 @@ long long usbpd_check_time1(struct usbpd_data *pd_data)
 	ktime_get_real_ts64(&time);
 
     sec = time.tv_sec - pd_data->time1.tv_sec;
-    ms = (time.tv_nsec - pd_data->time1.tv_nsec) / 1000000;
+    ms = (uint32_t)((time.tv_nsec - pd_data->time1.tv_nsec) / 1000000);
 
     pd_data->check_time.tv_sec = time.tv_sec;
     pd_data->check_time.tv_nsec = time.tv_nsec;
 
 
     /* for demon update after boot */
-    if ((sec > 100) | (sec < 0)) {
+    if ((sec > 100) || (sec < 0)) {
         pr_info("%s, timer changed\n", __func__);
         usbpd_timer1_start(pd_data);
         return 0;
@@ -222,7 +268,7 @@ protocol_state usbpd_protocol_tx_construct_message(struct protocol_data *tx)
 	tx->msg_header.msg_id = pd_data->counter.message_id_counter;
 	tx->status = DEFAULT_PROTOCOL_NONE;
 
-	if (pd_data->phy_ops.tx_msg(pd_data, &tx->msg_header, tx->data_obj)) {
+	if (PDIC_OPS_PARAM2_FUNC(tx_msg, pd_data, &tx->msg_header, tx->data_obj)) {
 		dev_err(pd_data->dev, "%s error\n", __func__);
 		return PRL_Tx_Construct_Message;
 	}
@@ -243,7 +289,7 @@ protocol_state usbpd_protocol_tx_wait_for_phy_response(struct protocol_data *tx)
 	/* pd_data->phy_ops.poll_status(pd_data); */
 
 	for (CrcCheck_cnt = 0; CrcCheck_cnt < 2; CrcCheck_cnt++) {
-		if (pd_data->phy_ops.get_status(pd_data, MSG_GOODCRC)) {
+		if (PDIC_OPS_PARAM_FUNC(get_status, pd_data, MSG_GOODCRC)) {
 			pr_info("%s : %p\n", __func__, pd_data);
 			state = PRL_Tx_Message_Sent;
 			dev_info(pd_data->dev, "got GoodCRC.\n");
@@ -360,7 +406,6 @@ void usbpd_set_ops(struct device *dev, usbpd_phy_ops_type *ops)
 	pd_data->phy_ops.pr_swap = ops->pr_swap;
 	pd_data->phy_ops.vbus_on_check = ops->vbus_on_check;
 	pd_data->phy_ops.set_rp_control = ops->set_rp_control;
-	pd_data->phy_ops.send_pd_info = ops->send_pd_info;
 	pd_data->phy_ops.set_chg_lv_mode = ops->set_chg_lv_mode;
 #if IS_ENABLED(CONFIG_TYPEC)
 	pd_data->phy_ops.set_pwr_opmode = ops->set_pwr_opmode;
@@ -369,14 +414,12 @@ void usbpd_set_ops(struct device *dev, usbpd_phy_ops_type *ops)
 	pd_data->phy_ops.op_mode_clear = ops->op_mode_clear;
 
 #if IS_ENABLED(CONFIG_PDIC_PD30)
-	if (pd_data->ip_num == S2MU107_USBPD_IP) {
-		pd_data->phy_ops.pps_enable = ops->pps_enable;
-		pd_data->phy_ops.get_pps_enable = ops->get_pps_enable;
-		pd_data->phy_ops.get_pps_voltage = ops->get_pps_voltage;
-		pd_data->phy_ops.send_psrdy = ops->send_psrdy;
-		pd_data->phy_ops.send_hard_reset_dc = ops->send_hard_reset_dc;
-		pd_data->phy_ops.force_pps_disable = ops->force_pps_disable;
-	}
+	pd_data->phy_ops.pps_enable = ops->pps_enable;
+	pd_data->phy_ops.get_pps_enable = ops->get_pps_enable;
+	pd_data->phy_ops.get_pps_voltage = ops->get_pps_voltage;
+	pd_data->phy_ops.send_psrdy = ops->send_psrdy;
+	pd_data->phy_ops.send_hard_reset_dc = ops->send_hard_reset_dc;
+	pd_data->phy_ops.force_pps_disable = ops->force_pps_disable;
 #endif
 	pd_data->phy_ops.get_lpm_mode = ops->get_lpm_mode;
 	pd_data->phy_ops.set_lpm_mode = ops->set_lpm_mode;
@@ -387,6 +430,32 @@ void usbpd_set_ops(struct device *dev, usbpd_phy_ops_type *ops)
 	pd_data->phy_ops.power_off_water_check = ops->power_off_water_check;
 #endif
 	pd_data->phy_ops.get_water_detect = ops->get_water_detect;
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+	pd_data->phy_ops.water_get_power_role	= ops->water_get_power_role;
+	pd_data->phy_ops.ops_water_check		= ops->ops_water_check;
+	pd_data->phy_ops.ops_dry_check			= ops->ops_dry_check;
+	pd_data->phy_ops.water_opmode			= ops->water_opmode;
+#endif
+	pd_data->phy_ops.authentic			= ops->authentic;
+	pd_data->phy_ops.energy_now			= ops->energy_now;
+	pd_data->phy_ops.set_usbpd_reset		= ops->set_usbpd_reset;
+	pd_data->phy_ops.ops_get_fsm_state		= ops->ops_get_fsm_state;
+	pd_data->phy_ops.set_is_otg_vboost		= ops->set_is_otg_vboost;
+	pd_data->phy_ops.get_detach_valid		= ops->get_detach_valid;
+	pd_data->phy_ops.rprd_mode_change		= ops->rprd_mode_change;
+	pd_data->phy_ops.irq_control			= ops->irq_control;
+
+	pd_data->phy_ops.ops_get_lpm_mode		= ops->ops_get_lpm_mode;
+	pd_data->phy_ops.ops_get_rid			= ops->ops_get_rid;
+	pd_data->phy_ops.ops_sysfs_lpm_mode		= ops->ops_sysfs_lpm_mode;
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+	pd_data->phy_ops.ops_power_off_water	= ops->ops_power_off_water;
+	pd_data->phy_ops.ops_get_is_water_detect	= ops->ops_get_is_water_detect;
+	pd_data->phy_ops.ops_prt_water_threshold	= ops->ops_prt_water_threshold;
+	pd_data->phy_ops.ops_set_water_threshold	= ops->ops_set_water_threshold;
+#endif
+	pd_data->phy_ops.ops_control_option_command	= ops->ops_control_option_command;
+	pd_data->phy_ops.set_pcp_clk			= ops->set_pcp_clk;
 }
 EXPORT_SYMBOL(usbpd_set_ops);
 
@@ -411,14 +480,14 @@ protocol_state usbpd_protocol_rx_wait_for_phy_message(struct protocol_data *rx)
 	struct usbpd_data *pd_data = protocol_rx_to_usbpd(rx);
 	protocol_state state = PRL_Rx_Wait_for_PHY_Message;
 
-	if (pd_data->phy_ops.rx_msg(pd_data, &rx->msg_header, rx->data_obj)) {
+	if (PDIC_OPS_PARAM2_FUNC(rx_msg, pd_data, &rx->msg_header, rx->data_obj)) {
 		dev_err(pd_data->dev, "%s IO Error\n", __func__);
 		return state;
 	} else {
 		if (rx->msg_header.word == 0) {
 			dev_err(pd_data->dev, "%s No Message\n", __func__);
 			return state; /* no message */
-		} else if (pd_data->phy_ops.get_status(pd_data, MSG_SOFTRESET))	{
+		} else if (PDIC_OPS_PARAM_FUNC(get_status, pd_data, MSG_SOFTRESET))	{
 			dev_err(pd_data->dev, "[Rx] Got SOFTRESET.\n");
 			state = PRL_Rx_Layer_Reset_for_Receive;
 		} else {
@@ -602,7 +671,7 @@ inline unsigned usbpd_wait_msg(struct usbpd_data *pd_data,
 {
 	unsigned long ret;
 
-	ret = pd_data->phy_ops.get_status(pd_data, msg_status);
+	ret = PDIC_OPS_PARAM_FUNC(get_status, pd_data, msg_status);
 	if (ret) {
 		pd_data->policy.abnormal_state = false;
 		return ret;
@@ -615,7 +684,7 @@ inline unsigned usbpd_wait_msg(struct usbpd_data *pd_data,
 	ret = wait_for_completion_timeout(&pd_data->msg_arrived,
 			msecs_to_jiffies(ms));
 
-	if (!pd_data->policy.state) {
+	if (pd_data->policy.state == 0) {
 		dev_err(pd_data->dev, "%s : return for policy state error\n", __func__);
 		pd_data->policy.abnormal_state = true;
 		return 0;
@@ -623,7 +692,7 @@ inline unsigned usbpd_wait_msg(struct usbpd_data *pd_data,
 
 	pd_data->policy.abnormal_state = false;
 
-	return pd_data->phy_ops.get_status(pd_data, msg_status);
+	return PDIC_OPS_PARAM_FUNC(get_status, pd_data, msg_status);
 }
 
 void usbpd_rx_hard_reset(struct device *dev)
@@ -661,9 +730,184 @@ EXPORT_SYMBOL(usbpd_reinit);
  *
  * Returns 0 on success; negative errno on failure
 */
+int usbpd_sysfs_get_prop(struct _pdic_data_t *ppdic_data,
+		enum pdic_sysfs_property prop, char *buf)
+{
+	struct usbpd_data *pd_data = ppdic_data->drv_data;
+	struct usbpd_manager_data *manager;
+	int retval = -ENODEV;
+	int var;
+
+	if (!pd_data) {
+		pr_info("pd_data is null : request prop = %d", prop);
+		return -ENODEV;
+	}
+
+	manager = &pd_data->manager;
+	if (!manager) {
+		pr_err("%s manager_data is null!!\n", __func__);
+		return -ENODEV;
+	}
+
+	switch (prop) {
+	case PDIC_SYSFS_PROP_CUR_VERSION:
+		pr_info("Need implementation\n");
+		break;
+	case PDIC_SYSFS_PROP_SRC_VERSION:
+		pr_info("Need implementation\n");
+		break;
+	case PDIC_SYSFS_PROP_LPM_MODE:
+		retval = sprintf(buf, "%d\n", PDIC_OPS_FUNC(ops_get_lpm_mode, pd_data));
+		break;
+	case PDIC_SYSFS_PROP_STATE:
+		retval = sprintf(buf, "%d\n", pd_data->policy.plug_valid);
+		break;
+	case PDIC_SYSFS_PROP_RID:
+		var = PDIC_OPS_FUNC(ops_get_rid, pd_data);
+		retval = sprintf(buf, "%d\n", var == REG_RID_MAX ? REG_RID_OPEN : var);
+		break;
+	case PDIC_SYSFS_PROP_BOOTING_DRY:
+		pr_info("%s booting_run_dry is not supported \n", __func__);
+		break;
+	case PDIC_SYSFS_PROP_FW_UPDATE_STATUS:
+		pr_info("Need implementation\n");
+		break;
+	case PDIC_SYSFS_PROP_FW_WATER:
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+		var = PDIC_OPS_FUNC(ops_get_is_water_detect, pd_data);
+		pr_info("%s is_water_detect=%d\n", __func__, var);
+		retval = sprintf(buf, "%d\n", var);
+#endif
+		break;
+	case PDIC_SYSFS_PROP_ACC_DEVICE_VERSION:
+		pr_info("khos %s 0x%04x\n", __func__, manager->Device_Version);
+		retval = sprintf(buf, "%04x\n", manager->Device_Version);
+		break;
+	case PDIC_SYSFS_PROP_USBPD_IDS:
+		retval = sprintf(buf, "%04x:%04x\n",
+			le16_to_cpu(manager->Vendor_ID),
+			le16_to_cpu(manager->Product_ID));
+		break;
+	case PDIC_SYSFS_PROP_USBPD_TYPE:	/* for SWITCH_STATE */
+		retval = sprintf(buf, "%d\n", manager->acc_type);
+		pr_info("usb: %s : %d",
+			__func__, manager->acc_type);
+		break;
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+	case PDIC_SYSFS_PROP_USBPD_WATER_CHECK:
+		retval = PDIC_OPS_FUNC(ops_power_off_water, pd_data);
+		sprintf(buf, "%d\n", retval);
+		break;
+#endif
+	case PDIC_SYSFS_PROP_SET_WATER_THRESHOLD:
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+		pr_info("%s, WATER_THRESHOLD\n", __func__);
+		retval = PDIC_OPS_PARAM_FUNC(ops_prt_water_threshold, pd_data, buf);
+#endif
+		break;
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+	case PDIC_SYSFS_PROP_15MODE_WATERTEST_TYPE:
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+		retval = sprintf(buf, "uevent\n");
+#else
+		retval = sprintf(buf, "unsupport\n");
+#endif
+		pr_info("%s : PDIC_SYSFS_PROP_15MODE_WATERTEST_TYPE : %s", __func__, buf);
+		break;
+#endif
+	default:
+		pr_info("prop read not supported prop (%d)", prop);
+		retval = -ENODATA;
+		break;
+	}
+
+	return retval;
+}
+EXPORT_SYMBOL_GPL(usbpd_sysfs_get_prop);
+
+
+ssize_t usbpd_sysfs_set_prop(struct _pdic_data_t *ppdic_data,
+				enum pdic_sysfs_property prop,
+				const char *buf, size_t size)
+{
+	struct usbpd_data *pd_data = ppdic_data->drv_data;
+	struct usbpd_manager_data *manager;
+	int retval = -ENODEV, cmd;
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+	int val1, val2;
+#endif
+
+	if (!pd_data) {
+		pr_info("pd_data is null : request prop = %d", prop);
+		return -ENODEV;
+	}
+
+	manager = &pd_data->manager;
+	if (!manager) {
+		pr_err("%s manager_data is null!!\n", __func__);
+		return -ENODEV;
+	}
+
+	switch (prop) {
+	case PDIC_SYSFS_PROP_SET_WATER_THRESHOLD:
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+		sscanf(buf, "%d %d", &val1, &val2);
+		pr_info("%s, buf : %s\n", __func__, buf);
+		pr_info("%s, #%d is set to %d\n", __func__, val1, val2);
+		PDIC_OPS_PARAM2_FUNC(ops_set_water_threshold, pd_data, val1, val2);
+		retval = 0;
+#endif
+		break;
+	case PDIC_SYSFS_PROP_CTRL_OPTION:
+		sscanf(buf, "%d", &cmd);
+		pr_info("usb: %s mode=%d\n", __func__, cmd);
+		PDIC_OPS_PARAM_FUNC(ops_control_option_command, pd_data, cmd);
+		retval = 0;
+		break;
+	case PDIC_SYSFS_PROP_LPM_MODE:
+		sscanf(buf, "%d", &cmd);
+		pr_info("usb: %s mode=%d\n", __func__, cmd);
+		PDIC_OPS_PARAM_FUNC(ops_sysfs_lpm_mode, pd_data, cmd);
+		retval = size;
+		break;
+	default:
+		pr_info("prop read not supported prop (%d)", prop);
+		retval = -ENODATA;
+		break;
+	}
+
+	return retval;
+}
+EXPORT_SYMBOL_GPL(usbpd_sysfs_set_prop);
+
+int usbpd_sysfs_is_writeable(struct _pdic_data_t *ppdic_data,
+				enum pdic_sysfs_property prop)
+{
+	int ret = 0;
+
+	switch (prop) {
+	case PDIC_SYSFS_PROP_CTRL_OPTION:
+	case PDIC_SYSFS_PROP_SET_WATER_THRESHOLD:
+		ret = 1;
+		break;
+	default:
+		ret = 0;
+		break;
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(usbpd_sysfs_is_writeable);
+
 int usbpd_init(struct device *dev, void *phy_driver_data)
 {
 	struct usbpd_data *pd_data;
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+	int ret = 0;
+	ppdic_data_t ppdic_data;
+	struct device *pdic_device = get_pdic_device();
+	ppdic_sysfs_property_t ppdic_sysfs_prop;
+#endif
 
 	if (!dev)
 		return -EINVAL;
@@ -704,6 +948,41 @@ int usbpd_init(struct device *dev, void *phy_driver_data)
 		create_singlethread_workqueue(dev_name(dev));
 	if (!pd_data->policy_wqueue)
 		pr_err("%s: Fail to Create Workqueue\n", __func__);
+
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+	dev_set_drvdata(pdic_device, pd_data);
+	ppdic_data = kzalloc(sizeof(pdic_data_t), GFP_KERNEL);
+	ppdic_sysfs_prop = kzalloc(sizeof(pdic_sysfs_property_t), GFP_KERNEL);
+	ppdic_sysfs_prop->get_property = usbpd_sysfs_get_prop;
+	ppdic_sysfs_prop->set_property = usbpd_sysfs_set_prop;
+	ppdic_sysfs_prop->property_is_writeable = usbpd_sysfs_is_writeable;
+	ppdic_sysfs_prop->properties = usbpd_sysfs_properties;
+	ppdic_sysfs_prop->num_properties = ARRAY_SIZE(usbpd_sysfs_properties);
+	ppdic_data->pdic_sysfs_prop = ppdic_sysfs_prop;
+	ppdic_data->drv_data = pd_data;
+	ppdic_data->name = "s2m_pdic";
+	pdic_core_register_chip(ppdic_data);
+	pdic_register_switch_device(1);
+
+	/* Create a work queue for the pdic irq thread */
+	pd_data->pdic_wq
+		= create_singlethread_workqueue("pdic_irq_event");
+	if (!pd_data->pdic_wq) {
+		pr_err("%s failed to create work queue for pdic notifier\n",
+			__func__);
+		return -ENOMEM;
+	}
+	ret = pdic_misc_init(ppdic_data);
+	if (ret) {
+		pr_err("pdic_misc_init is failed, error %d\n", ret);
+	} else {
+		ppdic_data->misc_dev->uvdm_ready = samsung_uvdm_ready;
+		ppdic_data->misc_dev->uvdm_close = samsung_uvdm_close;
+		ppdic_data->misc_dev->uvdm_read = samsung_uvdm_read;
+		ppdic_data->misc_dev->uvdm_write = samsung_uvdm_write;
+		pd_data->ppdic_data = ppdic_data;
+	}
+#endif
 
 	INIT_WORK(&pd_data->worker, usbpd_policy_work);
 

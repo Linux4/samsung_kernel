@@ -3393,7 +3393,8 @@ int slsi_mlme_powermgt_unlocked(struct slsi_dev *sdev, struct net_device *dev, u
 		return 0;
 	}
 
-	SLSI_NET_DBG2(dev, SLSI_MLME, "mlme_powermgt_req(vif:%d, power_management_mode:%d)\n", ndev_vif->ifnum, power_mode);
+	SLSI_NET_INFO(dev, "PS MODE mlme_powermgt_req(vif:%d, power_management_mode:%d)\n", ndev_vif->ifnum,
+		      power_mode);
 	req = fapi_alloc(mlme_powermgt_req, MLME_POWERMGT_REQ, ndev_vif->ifnum, 0);
 	if (!req) {
 		mutex_unlock(&powermgt_lock);

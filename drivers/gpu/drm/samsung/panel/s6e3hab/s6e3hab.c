@@ -13,7 +13,7 @@
 
 #include <linux/of_gpio.h>
 #include <video/mipi_display.h>
-#include <kunit/mock.h>
+#include "../panel_kunit.h"
 #include "../panel.h"
 #include "s6e3hab.h"
 #include "s6e3hab_panel.h"
@@ -3362,7 +3362,7 @@ __visible_for_testing int show_err(struct dumpinfo *info)
 	err_15_8 = err[0];
 	err_7_0 = err[1];
 
-	panel_info("========== SHOW PANEL [EAh:DSIERR] INFO ==========\n");
+	panel_info("========== SHOW PANEL [E9h:DSIERR] INFO ==========\n");
 	panel_info("* Reg Value : 0x%02x%02x, Result : %s\n", err_15_8, err_7_0,
 			(err[0] || err[1] || err[2] || err[3] || err[4]) ? "NG" : "GOOD");
 

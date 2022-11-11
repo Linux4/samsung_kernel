@@ -209,7 +209,7 @@ static int npu_scheduler_save_result(struct npu_session *dummy, struct nw_result
 	npu_sched_ctl_ref->result_code = result.result_code;
 	atomic_set(&npu_sched_ctl_ref->result_available, 1);
 
-	wake_up_all(&npu_sched_ctl_ref->wq);
+	wake_up(&npu_sched_ctl_ref->wq);
 	return 0;
 }
 
@@ -240,12 +240,26 @@ static int npu_scheduler_send_mode_to_hw(struct npu_session *session,
 	struct npu_nw nw;
 	int retry_cnt;
 #ifdef CONFIG_NPU_USE_LLC
+#ifdef CONFIG_NPU_USE_HW_DEVICE
+	struct npu_sessionmgr *sessionmgr;
+	int session_cnt = 0;
 
+	sessionmgr = session->cookie;
+
+	session_cnt = atomic_read(&sessionmgr->npu_hw_cnt) + atomic_read(&sessionmgr->dsp_hw_cnt);
+
+	if (!atomic_read(&info->device->vertex.boot_cnt.refcount) || !session_cnt) {
+		info->wait_hw_boot_flag = 1;
+		npu_info("HW power off state: %d %d\n", info->mode, info->llc_ways);
+		return 0;
+	}
+#else
 	if (!atomic_read(&info->device->vertex.boot_cnt.refcount)) {
 		info->wait_hw_boot_flag = 1;
 		npu_info("HW power off state: %d %d\n", info->mode, info->llc_ways);
 		return 0;
 	}
+#endif
 #endif
 	memset(&nw, 0, sizeof(nw));
 	nw.cmd = NPU_NW_CMD_MODE;
@@ -3575,6 +3589,12 @@ static void npu_scheduler_set_DD_log(u32 val)
 static void npu_scheduler_set_llc(struct npu_session *sess, u32 size)
 {
 	int ways = 0;
+#ifdef CONFIG_NPU_USE_HW_DEVICE
+	struct npu_sessionmgr *sessionmgr;
+	int session_cnt = 0;
+
+	sessionmgr = sess->cookie;
+#endif
 
 	if (size == NPU_SCH_DEFAULT_VALUE)
 		size = 0;
@@ -3590,12 +3610,23 @@ static void npu_scheduler_set_llc(struct npu_session *sess, u32 size)
 #ifdef CONFIG_NPU_USE_LLC
 	g_npu_scheduler_info->llc_ways = ways;
 
+#ifdef CONFIG_NPU_USE_HW_DEVICE
+	session_cnt = atomic_read(&sessionmgr->npu_hw_cnt) + atomic_read(&sessionmgr->dsp_hw_cnt);
+
+	if (!atomic_read(&g_npu_scheduler_info->device->vertex.boot_cnt.refcount) || !session_cnt) {
+		g_npu_scheduler_info->wait_hw_boot_flag = 1;
+		npu_info("set_llc - HW power off state: %d %d\n",
+			g_npu_scheduler_info->mode, g_npu_scheduler_info->llc_ways);
+		return;
+	}
+#else
 	if (!atomic_read(&g_npu_scheduler_info->device->vertex.boot_cnt.refcount)) {
 		g_npu_scheduler_info->wait_hw_boot_flag = 1;
 		npu_info("set_llc - HW power off state: %d %d\n",
 			g_npu_scheduler_info->mode, g_npu_scheduler_info->llc_ways);
 		return;
 	}
+#endif
 	npu_set_llc(g_npu_scheduler_info);
 	npu_log_scheduler_set_data(g_npu_scheduler_info->device);
 	npu_scheduler_send_mode_to_hw(sess, g_npu_scheduler_info);
@@ -3629,6 +3660,9 @@ npu_s_param_ret npu_scheduler_param_handler(struct npu_session *sess, struct vs4
 
 	BUG_ON(!sess);
 	BUG_ON(!param);
+
+	if (!g_npu_scheduler_info)
+		return S_PARAM_NOMB;
 
 	mutex_lock(&g_npu_scheduler_info->fps_lock);
 	list_for_each_entry(l, &g_npu_scheduler_info->fps_load_list, list) {

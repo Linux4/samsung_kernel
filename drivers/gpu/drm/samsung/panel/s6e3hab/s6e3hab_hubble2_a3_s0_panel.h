@@ -40,11 +40,6 @@
 #include "../aod/aod_drv.h"
 #endif
 
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-#include "s6e3hab_profiler_panel.h"
-#include "../display_profiler/display_profiler.h"
-#endif
-
 #include "s6e3hab_hubble2_a3_s0_panel_irc.h"
 #include "s6e3hab_hubble_resol.h"
 #ifdef CONFIG_SUPPORT_POC_SPI
@@ -4086,9 +4081,6 @@ struct common_panel_info s6e3hab_hubble2_a3_s0_preliminary_osc_96_5m_panel_info 
 #ifdef CONFIG_DYNAMIC_FREQ
 	.df_freq_tbl = y2_dynamic_freq_set,
 #endif
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	.profile_tune = &hab_profiler_tune,
-#endif
 #ifdef CONFIG_SUPPORT_MAFPC
 	.mafpc_info = &s6e3hab_hubble_mafpc,
 #endif
@@ -4154,9 +4146,6 @@ struct common_panel_info s6e3hab_hubble2_a3_s0_preliminary_panel_info = {
 #endif
 #ifdef CONFIG_DYNAMIC_FREQ
 	.df_freq_tbl = y2_dynamic_freq_set,
-#endif
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	.profile_tune = &hab_profiler_tune,
 #endif
 #ifdef CONFIG_SUPPORT_MAFPC
 	.mafpc_info = &s6e3hab_hubble_mafpc,
@@ -4224,9 +4213,6 @@ struct common_panel_info s6e3hab_hubble2_a3_s0_default_osc_96_5m_panel_info = {
 #ifdef CONFIG_DYNAMIC_FREQ
 	.df_freq_tbl = y2_dynamic_freq_set,
 #endif
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	.profile_tune = &hab_profiler_tune,
-#endif
 #ifdef CONFIG_SUPPORT_MAFPC
 	.mafpc_info = &s6e3hab_hubble_mafpc,
 #endif
@@ -4292,9 +4278,6 @@ struct common_panel_info s6e3hab_hubble2_a3_s0_default_panel_info = {
 #endif
 #ifdef CONFIG_DYNAMIC_FREQ
 	.df_freq_tbl = y2_dynamic_freq_set,
-#endif
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	.profile_tune = &hab_profiler_tune,
 #endif
 #ifdef CONFIG_SUPPORT_MAFPC
 	.mafpc_info = &s6e3hab_hubble_mafpc,
@@ -4362,9 +4345,6 @@ struct common_panel_info s6e3hab_hubble2_a3_s0_default_osc_96_5m_rev03_panel_inf
 #ifdef CONFIG_DYNAMIC_FREQ
 	.df_freq_tbl = y2_dynamic_freq_set,
 #endif
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	.profile_tune = &hab_profiler_tune,
-#endif
 #ifdef CONFIG_SUPPORT_MAFPC
 	.mafpc_info = &s6e3hab_hubble_mafpc,
 #endif
@@ -4430,9 +4410,6 @@ struct common_panel_info s6e3hab_hubble2_a3_s0_default_rev03_panel_info = {
 #endif
 #ifdef CONFIG_DYNAMIC_FREQ
 	.df_freq_tbl = y2_dynamic_freq_set,
-#endif
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	.profile_tune = &hab_profiler_tune,
 #endif
 #ifdef CONFIG_SUPPORT_MAFPC
 	.mafpc_info = &s6e3hab_hubble_mafpc,

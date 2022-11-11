@@ -412,7 +412,6 @@ static inline int _pd_pre_cc_check_limitation(struct sm_dc_info *sm_dc, int adc_
 		pr_info("%s %s: PPS_LR=%d, RPARA=%d, RSNS=%d, RPCM=%d, calc_reg_v=%dmV, calc_pps_v=%dmV\n",
 			sm_dc->name, __func__, sm_dc->config.pps_lr, sm_dc->config.rpara,
 			sm_dc->config.rsns, sm_dc->config.rpcm,	calc_reg_v, calc_pps_v);
-		sm_dc->ta.c = sm_dc->ta.c;
 		sm_dc->wq.pps_cl = 1;
 	}
 
@@ -486,13 +485,12 @@ static void pd_check_vbat_work(struct work_struct *work)
 				sm_dc->name, __func__, sm_dc->ta.retry_cnt);
 			sm_dc->ta.retry_cnt++;
 			request_state_work(sm_dc, SM_DC_CHECK_VBAT, DELAY_PPS_UPDATE);
-			return;
 		} else {
 			pr_err("%s %s: fail to get APDO(ret=%d)\n", sm_dc->name, __func__, ret);
 			sm_dc->err = SM_DC_ERR_SEND_PD_MSG;
 			request_state_work(sm_dc, SM_DC_ERR, DELAY_NONE);
-			return;
 		}
+		return;
 	}
 
 	val.intval = 0;
@@ -645,11 +643,7 @@ static void pd_pre_cc_work(struct work_struct *work)
 		return;
 	}
 
-	if (_pd_pre_cc_check_limitation(sm_dc, adc_ibus, adc_vbus)) {
-		ret = send_power_source_msg(sm_dc);
-		if (ret < 0)
-			return;
-	}
+	_pd_pre_cc_check_limitation(sm_dc, adc_ibus, adc_vbus);
 
 	if (adc_ibus > sm_dc->wq.ci_gl - (PPS_C_STEP * 80 / 100)) {
 		sm_dc->wq.cc_limit = 0;
@@ -720,7 +714,7 @@ static void pd_cc_work(struct work_struct *work)
 	struct sm_dc_info *sm_dc = container_of(work, struct sm_dc_info, cc_work.work);
 	int ret, adc_ibus, adc_vbus, adc_vbat;
 	u8 loop_status = LOOP_INACTIVE;
-#if defined(CONFIG_DUAL_BATTERY_CELL_SENSING)
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	union power_supply_propval value = {0,};
 #endif
 
@@ -741,7 +735,7 @@ static void pd_cc_work(struct work_struct *work)
 	get_adc_values(sm_dc, "[adc-values]:cc_work", &adc_vbus, &adc_ibus, NULL,
 			&adc_vbat, NULL, NULL, NULL);
 
-#if defined(CONFIG_DUAL_BATTERY_CELL_SENSING)
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	psy_do_property("battery", get,
 		POWER_SUPPLY_EXT_PROP_DIRECT_VBAT_CHECK, value);
 	if (value.intval) {
@@ -811,7 +805,7 @@ static void pd_cv_work(struct work_struct *work)
 	struct sm_dc_info *sm_dc = container_of(work, struct sm_dc_info, cv_work.work);
 	int ret, adc_ibus, adc_vbus, adc_vbat, delay = DELAY_CHG_LOOP;
 	u8 loop_status = LOOP_INACTIVE;
-#if defined(CONFIG_DUAL_BATTERY_CELL_SENSING)
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	union power_supply_propval value = {0,};
 #endif
 
@@ -866,6 +860,16 @@ static void pd_cv_work(struct work_struct *work)
 		break;
 	}
 
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
+	psy_do_property("battery", get,
+		POWER_SUPPLY_EXT_PROP_DIRECT_VBAT_CHECK, value);
+	if (value.intval) {
+		pr_info("%s: CV MODE will be done by vcell\n", __func__);
+		schedule_delayed_work(&sm_dc->done_event_work, msecs_to_jiffies(50));
+		return;
+	}
+#endif
+
 	/* occurred abnormal CV status */
 	if (adc_vbat < sm_dc->target_vbat - 100) {
 		pr_info("%s %s: adnormal cv, [request] cv -> pre_cc\n", sm_dc->name, __func__);
@@ -873,15 +877,6 @@ static void pd_cv_work(struct work_struct *work)
 		request_state_work(sm_dc, SM_DC_PRE_CC, DELAY_ADC_UPDATE);
 		return;
 	}
-
-#if defined(CONFIG_DUAL_BATTERY_CELL_SENSING)
-	psy_do_property("battery", get,
-		POWER_SUPPLY_EXT_PROP_DIRECT_VBAT_CHECK, value);
-	if (value.intval) {
-		pr_info("%s: CV MODE will be done by vcell\n", __func__);
-		schedule_delayed_work(&sm_dc->done_event_work, msecs_to_jiffies(50));
-	}
-#endif
 
 	/* Support to "POWER_SUPPLY_EXT_PROP_DIRECT_DONE" used ADC_IBUS */
 	if (sm_dc->config.topoff_current > 0) {
@@ -1618,7 +1613,9 @@ EXPORT_SYMBOL(sm_dc_destroy_instance);
 int sm_dc_report_error_status(struct sm_dc_info *sm_dc, u32 err)
 {
 	terminate_charging_work(sm_dc);
+	mutex_lock(&sm_dc->st_lock);
 	sm_dc->state = SM_DC_ERR;
+	mutex_unlock(&sm_dc->st_lock);
 	sm_dc->err = err;
 	report_dc_state(sm_dc);
 
@@ -1739,7 +1736,7 @@ int sm_dc_start_manual_charging(struct sm_dc_info *sm_dc)
 	sm_dc->ta.c = pps_c(MIN(sm_dc->ta.c_max, sm_dc->target_ibus));
 	sm_dc->ta.v = pps_v((2 * adc_vbat) + (PPS_V_STEP * 4)); /* VBAT_ADC + 80mV */
 
-	pr_info("%s %s: adc_vbat=%dmV, ta_min_v=%dmV, v_max=%dmA, c_max=%dmA, target_ibus=%dmA, target_vbat=%dmA\n",
+	pr_info("%s %s: adc_vbat=%dmV, ta_min_v=%dmV, v_max=%dmV, c_max=%dmA, target_ibus=%dmA, target_vbat=%dmV\n",
 			sm_dc->name, __func__, adc_vbat, sm_dc->config.ta_min_voltage, sm_dc->ta.v_max,
 			sm_dc->ta.c_max, sm_dc->target_ibus, sm_dc->target_vbat);
 

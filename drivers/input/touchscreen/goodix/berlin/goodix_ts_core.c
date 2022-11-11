@@ -1563,7 +1563,7 @@ void goodix_ts_reinit(void *data)
 		goodix_set_fod_rect(core_data);
 
 	if (core_data->plat_data->power_state == SEC_INPUT_STATE_LPM) {
-//		core_data->plat_data->lpmode(core_data, TO_LOWPOWER_MODE);
+		core_data->plat_data->lpmode(core_data, TO_LOWPOWER_MODE);
 		if (core_data->plat_data->lowpower_mode & SEC_TS_MODE_SPONGE_AOD)
 			goodix_set_aod_rect(core_data);
 	} else {
@@ -1722,7 +1722,7 @@ static int goodix_ts_pm_suspend(struct device *dev)
 	struct goodix_ts_core *core_data =
 		dev_get_drvdata(dev);
 
-	ts_info("enter");
+	//ts_info("enter");
 	reinit_completion(&core_data->resume_done);
 	return 0;
 }
@@ -1735,7 +1735,7 @@ static int goodix_ts_pm_resume(struct device *dev)
 	struct goodix_ts_core *core_data =
 		dev_get_drvdata(dev);
 
-	ts_info("enter");
+	//ts_info("enter");
 	complete_all(&core_data->resume_done);
 	return 0;
 }
@@ -1932,6 +1932,11 @@ int goodix_fw_update(struct goodix_ts_core *cd, int update_type, bool force_upda
 
 	switch (update_type) {
 	case TSP_BUILT_IN:
+		if (cd->plat_data->bringup == 1) {
+			ts_info("skip fw update because bringup 1");
+			ret = 0;
+			goto skip_update;
+		}
 		if (!cd->plat_data->firmware_name) {
 			ts_err("firmware name is null");
 			return -EINVAL;
@@ -2058,7 +2063,8 @@ skip_update:
 	ts_info("done");
 
 out:
-	release_firmware(firmware);
+	if (cd->plat_data->bringup != 1)
+		release_firmware(firmware);
 	return ret;
 }
 
@@ -2179,7 +2185,7 @@ static int goodix_set_pen_mode(struct goodix_ts_core *core_data, bool pen_in)
 	else
 		temp_cmd.data[0] = 0;
 
-	ret = core_data->hw_ops->send_cmd(core_data, &temp_cmd);
+	ret = core_data->hw_ops->send_cmd_delay(core_data, &temp_cmd, 0);
 	if (ret < 0)
 		ts_err("send pen mode cmd failed");
 
@@ -2449,6 +2455,7 @@ static int goodix_ts_probe(struct platform_device *pdev)
 	core_data->plat_data->set_grip_data = goodix_set_grip_data_to_ic;
 	core_data->plat_data->init = goodix_ts_reinit;
 	core_data->plat_data->power = sec_input_power;
+	core_data->plat_data->lpmode = gsx_set_lowpowermode;
 
 	platform_set_drvdata(pdev, core_data);
 

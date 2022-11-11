@@ -56,6 +56,7 @@ struct npu_log npu_log = {
 	.npu_protodrv_array_obj = NULL,
 	.npu_hwdev_array_obj = NULL,
 	.npu_ioctl_array_obj = NULL,
+	.npu_ipc_array_obj = NULL,
 	.npu_array_file_obj = NULL,
 #endif
 };
@@ -216,6 +217,29 @@ size_t npu_ioctl_array_to_string(void *src, size_t src_size,
 	return sizeof(*ptr);
 }
 
+size_t npu_ipc_array_to_string(void *src, size_t src_size,
+			void *buf, size_t count, loff_t *pos)
+{
+	struct npu_log_ipc *ptr;
+	size_t n = 0;
+	unsigned long nsec = 0;
+
+	if (src_size < sizeof(struct npu_log_ipc))
+		return 0;
+
+	ptr = src;
+	nsec = do_div(ptr->timestamp, 1000000000);
+
+	n += scnprintf(buf + n, count - n,
+			"[%5lu.%-6lu] [NPU][ipc] h2f_ctrl : %d, rptr : 0x%x, wptr : 0x%x\n",
+			(unsigned long)ptr->timestamp, nsec / 1000, ptr->h2fctrl, ptr->rptr, ptr->wptr);
+
+	*pos += n;
+
+	return sizeof(*ptr);
+}
+
+
 static size_t npu_log_memlog_data_to_string(void *src, size_t src_size,
 			void *buf, size_t count, loff_t *pos)
 {
@@ -266,7 +290,6 @@ static void npu_log_rmemlog(struct npu_device *npu_dev)
 			sizeof(struct npu_log_dvfs), npu_log.npu_array_file_obj, "dv-arr",
 			"npu_log_dvfs", 0);
 		if (npu_log.npu_dvfs_array_obj) {
-			// npu_log.d = npu_log.npu_dvfs_array_obj->vaddr;
 			memlog_register_data_to_string(npu_log.npu_dvfs_array_obj, npu_dvfs_array_to_string);
 		}	else {
 			probe_err("memlog_alloc_array() failed\n");
@@ -276,7 +299,6 @@ static void npu_log_rmemlog(struct npu_device *npu_dev)
 			sizeof(struct npu_log_scheduler), npu_log.npu_array_file_obj, "sch-arr",
 			"npu_log_scheduler", 0);
 		if (npu_log.npu_scheduler_array_obj) {
-			// npu_log.s = npu_log.npu_scheduler_array_obj->vaddr;
 			memlog_register_data_to_string(npu_log.npu_scheduler_array_obj, npu_scheduler_array_to_string);
 		} else {
 			probe_err("memlog_alloc_array() failed\n");
@@ -286,7 +308,6 @@ static void npu_log_rmemlog(struct npu_device *npu_dev)
 			sizeof(struct npu_log_protodrv), npu_log.npu_array_file_obj, "pro-arr",
 			"npu_log_protodrv", 0);
 		if (npu_log.npu_protodrv_array_obj) {
-			// npu_log.p = npu_log.npu_protodrv_array_obj->vaddr;
 			memlog_register_data_to_string(npu_log.npu_protodrv_array_obj, npu_protodrv_array_to_string);
 		} else {
 			probe_err("memlog_alloc_array() failed\n");
@@ -297,7 +318,6 @@ static void npu_log_rmemlog(struct npu_device *npu_dev)
 			sizeof(struct npu_log_hwdev), npu_log.npu_array_file_obj, "hw-arr",
 			"npu_log_hwdev", 0);
 		if (npu_log.npu_hwdev_array_obj) {
-			// npu_log.h = npu_log.npu_hwdev_array_obj->vaddr;
 			memlog_register_data_to_string(npu_log.npu_hwdev_array_obj, npu_hwdev_array_to_string);
 		} else {
 			probe_err("memlog_alloc_array() failed\n");
@@ -307,8 +327,16 @@ static void npu_log_rmemlog(struct npu_device *npu_dev)
 			sizeof(struct npu_log_ioctl), npu_log.npu_array_file_obj, "io-arr",
 			"npu_log_ioctl", 0);
 		if (npu_log.npu_ioctl_array_obj) {
-			// npu_log.h = npu_log.npu_hwdev_array_obj->vaddr;
 			memlog_register_data_to_string(npu_log.npu_ioctl_array_obj, npu_ioctl_array_to_string);
+		} else {
+			probe_err("memlog_alloc_array() failed\n");
+		}
+
+		npu_log.npu_ipc_array_obj = memlog_alloc_array(npu_log.memlog_desc_array, LOG_UNIT_NUM,
+			sizeof(struct npu_log_ipc), npu_log.npu_array_file_obj, "ip-arr",
+			"npu_log_ipc", 0);
+		if (npu_log.npu_ipc_array_obj) {
+			memlog_register_data_to_string(npu_log.npu_ipc_array_obj, npu_ipc_array_to_string);
 		} else {
 			probe_err("memlog_alloc_array() failed\n");
 		}
@@ -419,6 +447,18 @@ inline void npu_log_ioctl_set_date(int cmd, int dir)
 
 	if (npu_log.npu_ioctl_array_obj)
 		memlog_write_array(npu_log.npu_ioctl_array_obj, MEMLOG_LEVEL_CAUTION, &npu_log_ioctl);
+}
+
+inline void npu_log_ipc_set_date(int h2fctrl, int rptr, int wptr)
+{
+	struct npu_log_ipc npu_log_ipc;
+
+	npu_log_ipc.h2fctrl = h2fctrl;
+	npu_log_ipc.rptr = rptr;
+	npu_log_ipc.wptr = wptr;
+
+	if (npu_log.npu_ipc_array_obj)
+		memlog_write_array(npu_log.npu_ipc_array_obj, MEMLOG_LEVEL_CAUTION, &npu_log_ipc);
 }
 #else
 /* for debug and performance */

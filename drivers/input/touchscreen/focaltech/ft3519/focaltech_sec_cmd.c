@@ -413,26 +413,36 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 		return -EINVAL;
 	}
 
-	if (buff[0] == LCD_ON && buff[1] == LCD_LATE_EVENT) {
+	if (buff[0] == DISPLAY_STATE_ON && buff[1] == DISPLAY_EVENT_LATE) {
 		if (ts->pdata->enabled) {
 			FTS_INFO("device already enabled");
 			goto out;
 		}
 
 		ret = sec_input_enable_device(input_dev);
-	} else if (buff[0] == LCD_OFF && buff[1] == LCD_EARLY_EVENT) {
+	} else if (buff[0] == DISPLAY_STATE_OFF && buff[1] == DISPLAY_EVENT_EARLY) {
 		if (!ts->pdata->enabled) {
 			FTS_INFO("device already disabled");
 			goto out;
 		}
 
 		ret = sec_input_disable_device(input_dev);
-	} else if (buff[0] == FORCE_ON) {
+	} else if (buff[0] == DISPLAY_STATE_FORCE_ON) {
+		if (ts->pdata->enabled) {
+			FTS_INFO("device already enabled");
+			goto out;
+		}
+
 		ret = sec_input_enable_device(input_dev);
-		FTS_INFO("FORCE_ON(%d)", ret);
-	} else if (buff[0] == FORCE_OFF) {
+		FTS_INFO("DISPLAY_STATE_FORCE_ON(%d)", ret);
+	} else if (buff[0] == DISPLAY_STATE_FORCE_OFF) {
+		if (!ts->pdata->enabled) {
+			FTS_INFO("device already disabled");
+			goto out;
+		}
+
 		ret = sec_input_disable_device(input_dev);
-		FTS_INFO("FORCE_OFF(%d)", ret);
+		FTS_INFO("DISPLAY_STATE_FORCE_OFF(%d)", ret);
 	}
 
 	if (ret)
@@ -453,7 +463,7 @@ static ssize_t fod_pos_show(struct device *dev,
 
 	if (!ts_data->pdata->support_fod) {
 		FTS_ERROR("fod is not supported");
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	if (!ts_data->pdata->fod_data.vi_size) {
@@ -485,6 +495,93 @@ static ssize_t fod_info_show(struct device *dev,
 	return sec_input_get_fod_info(ts_data->dev, buf);
 }
 
+static int fts_burst_read(u8 addr, u8 *buf, int len)
+{
+	int ret = 0;
+	int i = 0;
+	int packet_length = 0;
+	int packet_num = 0;
+	int packet_remainder = 0;
+	int offset = 0;
+	int byte_num = len;
+	int byte_per_time = 128;
+
+	packet_num = byte_num / byte_per_time;
+	packet_remainder = byte_num % byte_per_time;
+	if (packet_remainder)
+		packet_num++;
+
+	if (byte_num < byte_per_time) {
+		packet_length = byte_num;
+	} else {
+		packet_length = byte_per_time;
+	}
+	/* FTS_TEST_DBG("packet num:%d, remainder:%d", packet_num, packet_remainder); */
+
+	ret = fts_read(&addr, 1, &buf[offset], packet_length);
+	if (ret < 0) {
+		FTS_ERROR("read buffer fail");
+		return ret;
+	}
+	for (i = 1; i < packet_num; i++) {
+		offset += packet_length;
+		if ((i == (packet_num - 1)) && packet_remainder) {
+			packet_length = packet_remainder;
+		}
+
+		ret = fts_read(NULL, 0, &buf[offset], packet_length);
+		if (ret < 0) {
+			FTS_ERROR("read buffer fail");
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+static ssize_t get_lp_dump_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int i = 0;
+	int ret = 0;
+	int count = 0;
+	int start_index = 0;
+	u8 event_num = 0;
+	u8 data_buf[512] = {0};
+	u8 *frame_data = NULL;
+
+	ret = fts_burst_read(0xD9, data_buf, 502);
+	if (ret < 0) {
+		FTS_ERROR("Failed to read lp dump");
+		count += snprintf(buf + count, PAGE_SIZE, "NG, Failed to read lp dump\n");
+		goto out;
+	}
+
+	event_num = data_buf[0];
+	start_index = data_buf[1];
+	if (start_index > 100) {
+		count += snprintf(buf + count, PAGE_SIZE, "no event\n");
+		goto out;
+	}
+
+	frame_data = data_buf + 2;
+	count += snprintf(buf + count, PAGE_SIZE, "The number of event is %d, start index %d\n", event_num, start_index);
+	for (i = 0; i < 100; i++) {
+		if (start_index < 0)
+			start_index = 99;
+
+		count += snprintf(buf + count, PAGE_SIZE, "%03d : %02X%02X%02X%02X%02X\n", i,
+							frame_data[start_index * 5],
+							frame_data[start_index * 5 + 1],
+							frame_data[start_index * 5 + 2],
+							frame_data[start_index * 5 + 3],
+							frame_data[start_index * 5 + 4]);
+		start_index--;
+	}
+
+out:
+	return count;
+}
+
 static DEVICE_ATTR(scrub_pos, 0444, scrub_position_show, NULL);
 static DEVICE_ATTR(sensitivity_mode, 0644, sensitivity_mode_show, sensitivity_mode_store);
 static DEVICE_ATTR(prox_power_off, 0644, prox_power_off_show, prox_power_off_store);
@@ -493,7 +590,7 @@ static DEVICE_ATTR(support_feature, 0444, read_support_feature, NULL);
 static DEVICE_ATTR(enabled, 0664, enabled_show, enabled_store);
 static DEVICE_ATTR(fod_pos, 0444, fod_pos_show, NULL);
 static DEVICE_ATTR(fod_info, 0444, fod_info_show, NULL);
-
+static DEVICE_ATTR(get_lp_dump, 0444, get_lp_dump_show, NULL);
 
 static struct attribute *cmd_attributes[] = {
 	&dev_attr_scrub_pos.attr,
@@ -504,6 +601,7 @@ static struct attribute *cmd_attributes[] = {
 	&dev_attr_enabled.attr,
 	&dev_attr_fod_pos.attr,
 	&dev_attr_fod_info.attr,
+	&dev_attr_get_lp_dump.attr,
 	NULL,
 };
 
@@ -655,7 +753,7 @@ static void get_chip_name(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		snprintf(buff, sizeof(buff), "NG");
@@ -725,6 +823,9 @@ static void fts_print_frame(struct fts_ts_data *ts, short *min, short *max)
 	unsigned char *pStr = NULL;
 	unsigned char pTmp[16] = { 0 };
 	int lsize = 10 * (ts->tx_num + 1);
+
+	if (ts->rx_num > ts->tx_num)
+		lsize = 10 * (ts->rx_num + 1);
 
 	FTS_FUNC_ENTER();
 
@@ -982,7 +1083,7 @@ static void get_short(void *device_data)
 
 	FTS_FUNC_ENTER();
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		ret = -ENODEV;
 		goto out;
@@ -1090,7 +1191,7 @@ static void get_scap_cb(void *device_data)
 
 	FTS_FUNC_ENTER();
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		ret = -ENODEV;
 		goto out;
@@ -1159,7 +1260,7 @@ static void get_scap_rawdata(void *device_data)
 
 	FTS_FUNC_ENTER();
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		ret = -ENODEV;
 		goto out;
@@ -1226,7 +1327,7 @@ static void get_rawdata(void *device_data)
 
 	FTS_FUNC_ENTER();
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		ret = -ENODEV;
 		goto out;
@@ -1323,7 +1424,7 @@ static void get_panel_differ(void *device_data)
 
 	FTS_FUNC_ENTER();
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		ret = -ENODEV;
 		goto out;
@@ -1447,7 +1548,7 @@ static void get_noise(void *device_data)
 
 	FTS_FUNC_ENTER();
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		ret = -ENODEV;
 		goto out;
@@ -1567,7 +1668,7 @@ static void get_pram_test(void *device_data)
 
 	FTS_FUNC_ENTER();
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		ret = -ENODEV;
 		goto out;
@@ -1789,7 +1890,7 @@ static void run_trx_short_test(void *device_data)
 		snprintf(buff, sizeof(buff), "NA");
 		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 		sec->cmd_state = SEC_CMD_STATUS_NOT_APPLICABLE;
-		break;
+		goto out;
 	}
 
 	if (sec->cmd_param[1])
@@ -1809,6 +1910,8 @@ static void run_trx_short_test(void *device_data)
 
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	FTS_RAW_INFO("%s", buff);
+
+out:
 	enter_work_mode();
 	return;
 }
@@ -1889,7 +1992,7 @@ static void run_allnode_data(void *device_data, int test_type)
 
 	sec_cmd_set_default_result(sec);
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		snprintf(temp, sizeof(temp), "NG");
@@ -2171,7 +2274,7 @@ static void run_snr_non_touched(void *device_data)
 
 	FTS_FUNC_ENTER();
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		ret = -ENODEV;
 		goto out;
@@ -2284,7 +2387,7 @@ static void run_snr_touched(void *device_data)
 
 	FTS_FUNC_ENTER();
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		ret = -ENODEV;
 		goto out;
@@ -2384,6 +2487,50 @@ out:
 
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	FTS_INFO("%s", buff);
+}
+
+static void run_prox_intensity_read_all(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct fts_ts_data *ts_data = container_of(sec, struct fts_ts_data, sec);
+	char buff[27 * 10] = { 0 };
+	u16 THD_X = 0;
+	short SUM_X = 0;
+	u8 cmd = 0;
+	u8 val[4] = {0};
+	int ret = 0;
+
+	sec_cmd_set_default_result(sec);
+
+	FTS_FUNC_ENTER();
+
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
+		FTS_ERROR("ic power is disabled");
+		ret = -ENODEV;
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		snprintf(buff, sizeof(buff), "NG");
+		goto out;
+	}
+
+	cmd = FTS_PROX_TOUCH_SENS;
+	ret = fts_read(&cmd, 1, val, 4);
+	if (ret < 0) {
+		FTS_ERROR("failed to read snr test result1, ret=%d", ret);
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		snprintf(buff, sizeof(buff), "NG");
+		goto out;
+	}
+
+	THD_X = (val[0] << 8) + val[1];
+	SUM_X = (val[2] << 8) + val[3];
+	snprintf(buff, sizeof(buff), "SUM_X:%d THD_X:%d", SUM_X, THD_X);
+
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	FTS_INFO("%s", buff);
+
+out:
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
 }
 
 static void get_crc_check(void *device_data)
@@ -2585,6 +2732,11 @@ static void fod_enable(void *device_data)
 		ts_data->fod_mode = (ts_data->pdata->fod_data.press_prop << 1) | sec->cmd_param[0];
 		FTS_INFO("fod_mode = %x", ts_data->fod_mode);
 		fts_write_reg(FTS_REG_FOD_MODE, ts_data->fod_mode);
+
+		if (!(ts_data->fod_mode & 0x01)) {
+			ts_data->fod_state = 2;
+			sec_input_gesture_report(ts_data->dev, SPONGE_EVENT_TYPE_FOD_RELEASE, 540, 2190);
+		}
 	}
 
 	snprintf(buff, sizeof(buff), "OK");
@@ -2751,6 +2903,8 @@ static void ear_detect_enable(void *device_data)
 		goto fail;
 	}
 
+	ts_data->hover_event = 0xFF;
+
 	FTS_INFO("%s, lp:0x%02X, pm:0x%02X", sec->cmd_param[0] ? "on" : "off", ts_data->pdata->lowpower_mode, ts_data->power_mode);
 
 	snprintf(buff, sizeof(buff), "OK");
@@ -2784,7 +2938,7 @@ static void set_sip_mode(void *device_data)
 		goto out;
 	}
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -2826,7 +2980,7 @@ static void set_game_mode(void *device_data)
 		goto out;
 	}
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -2868,7 +3022,7 @@ static void set_note_mode(void *device_data)
 		goto out;
 	}
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -3081,7 +3235,7 @@ static void glove_mode(void *device_data)
 
 	ts_data->glove_mode = sec->cmd_param[0];
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -3122,7 +3276,7 @@ static void dead_zone_enable(void *device_data)
 		goto out;
 	}
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -3154,7 +3308,7 @@ static void fts_set_grip_data_to_ic(struct fts_ts_data *ts, u8 flag)
 	u8 regAddr[9] = { 0 };
 	u8 data[9] = { 0 };
 
-	if (ts->power_disabled) {
+	if (ts->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_INFO("ic is off now, skip 0x%02X", flag);
 		return;
 	}
@@ -3410,7 +3564,7 @@ static void clear_cover_mode(void *device_data)
 	else
 		ts_data->cover_mode = false;
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -3458,7 +3612,7 @@ static void scan_block(void *device_data)
 		goto out;
 	}
 
-	if (ts_data->power_disabled) {
+	if (ts_data->pdata->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		FTS_ERROR("ic power is disabled");
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -3518,6 +3672,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("run_snr_touched", run_snr_touched),},
 	{SEC_CMD("run_cs_raw_read_all", run_rawdata_all),},
 	{SEC_CMD("run_trx_short_test", run_trx_short_test),},
+	{SEC_CMD("run_prox_intensity_read_all", run_prox_intensity_read_all),},
 	{SEC_CMD("increase_disassemble_count", increase_disassemble_count),},
 	{SEC_CMD("get_disassemble_count", get_disassemble_count),},
 	{SEC_CMD("get_crc_check", get_crc_check),},

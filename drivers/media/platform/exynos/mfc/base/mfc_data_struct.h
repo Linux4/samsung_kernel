@@ -909,6 +909,7 @@ struct mfc_platdata {
 	struct mfc_feature enc_idr_flag;
 	struct mfc_feature min_quality_mode;
 	struct mfc_feature enc_ts_delta;
+	struct mfc_feature wfd_rc_mode;
 
 	/* AV1 Decoder */
 	unsigned int support_av1_dec;

@@ -732,7 +732,7 @@ static int hl7132_set_input_current(struct hl7132_charger *chg, unsigned int iin
 	int ret = 0;
 	unsigned int value = 0;
 
-	iin = iin + HL7132_IIN_OFFSET_CUR; //add 100mA-offset
+	iin = iin + HL7132_IIN_OFFSET_CUR; //add 200mA-offset
 	if (iin >= HL7132_IIN_CFG_MAX)
 		iin = HL7132_IIN_CFG_MAX;
 
@@ -756,7 +756,7 @@ static int hl7132_set_vbat_reg(struct hl7132_charger *chg, unsigned int vbat_reg
 	ret = hl7132_update_reg(chg, REG_VBAT_REG, BITS_VBAT_REG_TH, val);
 	LOG_DBG(chg, "VBAT-REG hex:[0x%x], real:[%d]\n", val, vbat_reg);
 	return ret;
-} 
+}
 
 static int hl7132_set_charging(struct hl7132_charger *chg, bool en)
 {
@@ -822,6 +822,14 @@ static int hl7132_stop_charging(struct hl7132_charger *chg)
 		chg->ab_ta_connected = false;
 		chg->fault_sts_cnt = 0;
 		chg->tp_set = 0;
+#ifdef CONFIG_HALO_PASS_THROUGH
+		chg->pdata->pass_through_mode = false;
+		chg->pass_through_mode = false;
+		/* Set new request flag for pass through mode */
+		mutex_lock(&chg->lock);
+		chg->req_pt_mode = false;
+		mutex_unlock(&chg->lock);
+#endif
 
 		/* when TA disconnected, vin-uvlo occurred, so it will clear the status */
 		ret = hl7132_read_reg(chg, REG_STATUS_A,  &value);
@@ -913,6 +921,13 @@ static int hl7132_device_init(struct hl7132_charger *chg)
 	if (ret < 0)
 		goto I2C_FAIL;
 
+
+	/* Set FSW and Unplug detectoin */
+	/* enable unplug detection and set 1100khz switching frequency */
+	value = FSW_CFG_1100KHZ << MASK2SHIFT(BITS_FSW_SET);
+	value = value | BIT_UNPLUG_DET_EN;
+	ret = hl7132_update_reg(chg, REG_CTRL12_0, (BITS_FSW_SET | BIT_UNPLUG_DET_EN), value);
+
 	chg->pdata->vbat_reg_max = chg->pdata->vbat_reg;
 	pr_info("vbat-reg-max[%d]\n", chg->pdata->vbat_reg_max);
 
@@ -922,6 +937,9 @@ static int hl7132_device_init(struct hl7132_charger *chg)
 	chg->ab_ta_connected = false;
 	chg->fault_sts_cnt = 0;
 	chg->tp_set = 0;
+#ifdef CONFIG_HALO_PASS_THROUGH
+	chg->pass_through_mode = false;
+#endif
 
 	for (i = 8; i < 0x1D; i++){
 		hl7132_read_reg(chg, i, &value);
@@ -1071,7 +1089,7 @@ Err:
 	return ret;
 }
 
-static irqreturn_t hl7132_interrupt_handler (int irg, void *data)
+static irqreturn_t hl7132_interrupt_handler(int irg, void *data)
 {
 	struct hl7132_charger *chg = data;
 	u8 r_buf[ENUM_INT_MAX];
@@ -1126,7 +1144,7 @@ static irqreturn_t hl7132_interrupt_handler (int irg, void *data)
 	return handled ? IRQ_HANDLED : IRQ_NONE;
 }
 
-static int hl7132_irq_init (struct hl7132_charger *chg, struct i2c_client *client)
+static int hl7132_irq_init(struct hl7132_charger *chg, struct i2c_client *client)
 {
 	struct hl7132_platform_data *pdata = chg->pdata;
 	int ret, irq;
@@ -1283,10 +1301,10 @@ static void hl7132_step_charging_cccv_ctrl(struct hl7132_charger *chg)
 		LOG_DBG(chg, "Step1 Charging Start!\n");
 		chg->pdata->vbat_reg = HL7132_STEP1_VBAT_REG;
 		chg->pdata->iin_cfg = HL7132_STEP1_TARGET_IIN;
-		chg->pdata->iin_topoff = HL7132_STEP1_TOPOFF;   
+		chg->pdata->iin_topoff = HL7132_STEP1_TOPOFF;
 	} else if ((vbat >= HL7132_STEP1_VBAT_REG) && (vbat < HL7132_STEP2_VBAT_REG)) {
 		/* Step2 Charging! */
-		chg->current_step = STEP_TWO;   
+		chg->current_step = STEP_TWO;
 		LOG_DBG(chg, "Step2 Charging Start!\n");
 		chg->pdata->vbat_reg = HL7132_STEP2_VBAT_REG;
 		chg->pdata->iin_cfg = HL7132_STEP2_TARGET_IIN;
@@ -1299,6 +1317,116 @@ static void hl7132_step_charging_cccv_ctrl(struct hl7132_charger *chg)
 		chg->pdata->iin_cfg = HL7132_STEP3_TARGET_IIN;
 		chg->pdata->iin_topoff = HL7132_STEP3_TOPOFF;
 	}
+}
+#endif
+
+#ifdef CONFIG_HALO_PASS_THROUGH
+static int hl7132_set_ptmode_ta_current(struct hl7132_charger *chg)
+{
+	int ret = 0;
+	unsigned int val;
+
+	hl7132_set_charging_state(chg, DC_STATE_PT_MODE);
+	LOG_DBG(chg, "new_iin[%d]\n", chg->new_iin);
+
+	chg->pdata->iin_cfg = chg->new_iin;
+	chg->iin_cc = chg->new_iin;
+
+	/* Set IIN_CFG to IIN_CC */
+	ret = hl7132_set_input_current(chg, chg->iin_cc);
+	if (ret < 0)
+		goto Err;
+
+	/* Clear Request flag */
+	mutex_lock(&chg->lock);
+	chg->req_new_iin = false;
+	mutex_unlock(&chg->lock);
+
+	val = chg->iin_cc/PD_MSG_TA_CUR_STEP;
+	chg->iin_cc = val*PD_MSG_TA_CUR_STEP;
+	chg->ta_cur = chg->iin_cc;
+
+	LOG_DBG(chg, "ta_cur[%d], ta_vol[%d]\n", chg->ta_cur, chg->ta_vol);
+	chg->iin_cc = chg->new_iin;
+
+	mutex_lock(&chg->lock);
+	chg->timer_id = TIMER_PDMSG_SEND;
+	chg->timer_period = 0;
+	mutex_unlock(&chg->lock);
+	schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
+
+Err:
+	LOG_DBG(chg, "ret = %d\n", ret);
+	return ret;
+}
+
+static int hl7132_set_ptmode_ta_voltage(struct hl7132_charger *chg)
+{
+	int ret = 0;
+	unsigned int val;
+	int vbat;
+
+	hl7132_set_charging_state(chg, DC_STATE_PT_MODE);
+
+	LOG_DBG(chg, "new vbat-reg[%d]\n", chg->new_vbat_reg);
+
+	ret = hl7132_read_adc(chg);
+	if (ret < 0)
+		goto Err;
+	vbat = chg->adc_vbat;
+
+	chg->pdata->vbat_reg = chg->new_vbat_reg;
+	ret = hl7132_set_vbat_reg(chg, chg->pdata->vbat_reg);
+	if (ret < 0)
+		goto Err;
+
+	/* clear req_new_vbat_reg */
+	mutex_lock(&chg->lock);
+	chg->req_new_vbat_reg = false;
+	mutex_unlock(&chg->lock);
+
+
+	val = (2*vbat);  // + HL7132_PT_VOL_PRE_OFFSET;
+	chg->ta_vol = val;
+
+	LOG_DBG(chg, "ta-vol[%d], ta_cur[%d], vbat[%d]\n", chg->ta_vol, chg->ta_cur, vbat);
+
+	mutex_lock(&chg->lock);
+	chg->timer_id = TIMER_PDMSG_SEND;
+	chg->timer_period = 0;
+	mutex_unlock(&chg->lock);
+	schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
+
+Err:
+	LOG_DBG(chg, "ret=%d\n", ret);
+	return ret;
+}
+
+static int hl7132_set_ptmode_ta_voltage_by_soc(struct hl7132_charger *chg, int delta_soc)
+{
+	int ret = 0;
+	unsigned int prev_ta_vol = chg->ta_vol;
+
+	if (delta_soc > 0) { // decrease soc (ref_soc - soc_now)
+		chg->ta_vol -= PD_MSG_TA_VOL_STEP;
+	} else if (delta_soc < 0) { // increase soc (ref_soc - soc_now)
+		chg->ta_vol += PD_MSG_TA_VOL_STEP;
+	} else {
+		pr_info("%s: abnormal delta_soc=%d\n", __func__, delta_soc);
+		return -1;
+	}
+
+	pr_info("%s: delta_soc=%d, prev_ta_vol=%d, ta_vol=%d, ta_cur=%d\n",
+		__func__, delta_soc, prev_ta_vol, chg->ta_vol, chg->ta_cur);
+
+	/* Send PD Message */
+	mutex_lock(&chg->lock);
+	chg->timer_id = TIMER_PDMSG_SEND;
+	chg->timer_period = 0;
+	mutex_unlock(&chg->lock);
+	schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
+
+	return ret;
 }
 #endif 
 
@@ -1322,64 +1450,72 @@ static int hl7132_set_new_vbat_reg(struct hl7132_charger *chg)
 			mutex_unlock(&chg->lock);
 
 			/* checking charging state */
-			if ((chg->charging_state == DC_STATE_CC_MODE) || (chg->charging_state == DC_STATE_CV_MODE)) {
-				ret = hl7132_read_adc(chg);
-				if (ret < 0)
-					goto Err;
-				vbat = chg->adc_vbat;
-				if (chg->new_vbat_reg > vbat) {
+			if ((chg->charging_state == DC_STATE_CC_MODE) ||
+				(chg->charging_state == DC_STATE_CV_MODE) ||
+				(chg->charging_state == DC_STATE_PT_MODE)) {
+				/* pass through mode */
+				if (chg->pass_through_mode == true) {
 					cancel_delayed_work(&chg->timer_work);
-					chg->pdata->vbat_reg = chg->new_vbat_reg;
-					ret = hl7132_set_vbat_reg(chg, chg->pdata->vbat_reg);
+					ret = hl7132_set_ptmode_ta_voltage(chg);
+				} else {
+					ret = hl7132_read_adc(chg);
 					if (ret < 0)
 						goto Err;
-					/* save the current iin_cc to iin_cfg */
-					chg->pdata->iin_cfg = chg->iin_cc;
-					chg->pdata->iin_cfg = MIN(chg->pdata->iin_cfg, chg->ta_max_cur);
-					ret = hl7132_set_input_current(chg, chg->pdata->iin_cfg);
-					if (ret < 0)
-						goto Err;
+					vbat = chg->adc_vbat;
 
-					chg->iin_cc = chg->pdata->iin_cfg;
+					if (chg->new_vbat_reg > vbat) {
+						cancel_delayed_work(&chg->timer_work);
+						chg->pdata->vbat_reg = chg->new_vbat_reg;
+						ret = hl7132_set_vbat_reg(chg, chg->pdata->vbat_reg);
+						if (ret < 0)
+							goto Err;
+						/* save the current iin_cc to iin_cfg */
+						chg->pdata->iin_cfg = chg->iin_cc;
+						chg->pdata->iin_cfg = MIN(chg->pdata->iin_cfg, chg->ta_max_cur);
+						ret = hl7132_set_input_current(chg, chg->pdata->iin_cfg);
+						if (ret < 0)
+							goto Err;
 
-					/* clear req_new_vbat_reg */
-					mutex_lock(&chg->lock);
-					chg->req_new_vbat_reg = false;
-					mutex_unlock(&chg->lock);
+						chg->iin_cc = chg->pdata->iin_cfg;
 
-					/*Calculate new TA Maxim Voltage */
-					val = chg->iin_cc / PD_MSG_TA_CUR_STEP;
-					chg->iin_cc = val * PD_MSG_TA_CUR_STEP;
-					val = chg->ta_max_pwr/(chg->iin_cc/1000);
-					val = val*1000/PD_MSG_TA_VOL_STEP;
-					val = val*PD_MSG_TA_VOL_STEP;;
-					chg->ta_max_vol = MIN(val, HL7132_TA_MAX_VOL);
+						/* clear req_new_vbat_reg */
+						mutex_lock(&chg->lock);
+						chg->req_new_vbat_reg = false;
+						mutex_unlock(&chg->lock);
 
-					chg->ta_vol = max(HL7132_TA_MIN_VOL_PRESET, ((2 * vbat) + HL7132_TA_VOL_PRE_OFFSET));
-					val = chg->ta_vol / PD_MSG_TA_VOL_STEP;
-					chg->ta_vol = val * PD_MSG_TA_VOL_STEP;
-					chg->ta_vol = MIN(chg->ta_vol, chg->ta_max_vol);
+						/*Calculate new TA Maxim Voltage */
+						val = chg->iin_cc / PD_MSG_TA_CUR_STEP;
+						chg->iin_cc = val * PD_MSG_TA_CUR_STEP;
+						val = chg->ta_max_pwr/(chg->iin_cc/1000);
+						val = val*1000/PD_MSG_TA_VOL_STEP;
+						val = val*PD_MSG_TA_VOL_STEP;
+						chg->ta_max_vol = MIN(val, HL7132_TA_MAX_VOL);
+						chg->ta_vol = max(HL7132_TA_MIN_VOL_PRESET, ((2 * vbat) + HL7132_TA_VOL_PRE_OFFSET));
+						val = chg->ta_vol / PD_MSG_TA_VOL_STEP;
+						chg->ta_vol = val * PD_MSG_TA_VOL_STEP;
+						chg->ta_vol = MIN(chg->ta_vol, chg->ta_max_vol);
 
-					chg->ta_cur = chg->iin_cc;
-					chg->iin_cc = chg->pdata->iin_cfg;
-
-					LOG_DBG(chg, "ta_max_vol=%d, ta_max_cur=%d, ta_max_pwr=%d, iin_cc=%d\n",
+						chg->ta_cur = chg->iin_cc;
+						chg->iin_cc = chg->pdata->iin_cfg;
+						LOG_DBG(chg, "ta_max_vol=%d, ta_max_cur=%d, ta_max_pwr=%d, iin_cc=%d\n",
 							chg->ta_max_vol, chg->ta_max_cur, chg->ta_max_pwr, chg->iin_cc);
 
-					/* Clear the flag for ajdust cc */
-					chg->prev_iin = 0;
-					chg->prev_inc = INC_NONE;
-					chg->prev_dec = false;
+						/* Clear the flag for ajdust cc */
+						chg->prev_iin = 0;
+						chg->prev_inc = INC_NONE;
+						chg->prev_dec = false;
 
-					hl7132_set_charging_state(chg, DC_STATE_ADJUST_CC);
-					mutex_lock(&chg->lock);
-					chg->timer_id = TIMER_PDMSG_SEND;
-					chg->timer_period = 0;
-					mutex_unlock(&chg->lock);
-					schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));  
-				} else {
-					LOG_DBG(chg, "invalid vbat-reg[%d] higher than vbat[%d]!!\n", chg->new_vbat_reg, vbat);
-					ret = -EINVAL;
+						hl7132_set_charging_state(chg, DC_STATE_ADJUST_CC);
+						mutex_lock(&chg->lock);
+						chg->timer_id = TIMER_PDMSG_SEND;
+						chg->timer_period = 0;
+						mutex_unlock(&chg->lock);
+						schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
+					} else {
+						LOG_DBG(chg, "invalid vbat-reg[%d] higher than vbat[%d]!!\n",
+							chg->new_vbat_reg, vbat);
+						ret = -EINVAL;
+					}
 				}
 			} else {
 				LOG_DBG(chg, "Unsupported charging state[%d]\n", chg->charging_state);
@@ -1581,21 +1717,28 @@ static int hl7132_set_new_iin(struct hl7132_charger *chg)
 			chg->req_new_iin = true;
 			mutex_unlock(&chg->lock);
 
-			if ((chg->charging_state == DC_STATE_CC_MODE) || (chg->charging_state == DC_STATE_CV_MODE)) {
-				/* cancel delayed work */
-				cancel_delayed_work(&chg->timer_work);
-				/* set new IIN to IIN_CC */
-				chg->iin_cc = chg->new_iin;
-				/* store current state */
-				chg->ret_state = chg->charging_state;
-
-				if (chg->iin_cc < HL7132_TA_MIN_CUR) {
-					/* Set ta-cur to 1A */
-					chg->ta_cur = HL7132_TA_MIN_CUR;
-					ret = hl7132_adjust_ta_voltage(chg);
+			if ((chg->charging_state == DC_STATE_CC_MODE) ||
+			(chg->charging_state == DC_STATE_CV_MODE) ||
+			(chg->charging_state == DC_STATE_PT_MODE)) {
+				if (chg->pass_through_mode == true) {
+					cancel_delayed_work(&chg->timer_work);
+					ret = hl7132_set_ptmode_ta_current(chg);
 				} else {
-					/* Need to adjust the ta current */
-					ret = hl7132_adjust_ta_current(chg);
+					/* cancel delayed work */
+					cancel_delayed_work(&chg->timer_work);
+					/* set new IIN to IIN_CC */
+					chg->iin_cc = chg->new_iin;
+					/* store current state */
+					chg->ret_state = chg->charging_state;
+
+					if (chg->iin_cc < HL7132_TA_MIN_CUR) {
+						/* Set ta-cur to 1A */
+						chg->ta_cur = HL7132_TA_MIN_CUR;
+						ret = hl7132_adjust_ta_voltage(chg);
+					} else {
+						/* Need to adjust the ta current */
+						ret = hl7132_adjust_ta_current(chg);
+					}
 				}
 			} else {
 				/* unsupported state! */
@@ -1659,10 +1802,286 @@ static int hl7132_bad_ta_detection_trigger(struct hl7132_charger *chg)
 		/* Don't need to do anything when chargingj state isn't in CCMODE */
 		ret = -EINVAL;
 	}
+
 Err:
 	LOG_DBG(chg, "ret=%d\n", ret);
 	return ret;
 }
+
+#ifdef CONFIG_HALO_PASS_THROUGH
+static int hl7132_set_pass_through_mode(struct hl7132_charger *chg)
+{
+	int ret = 0;
+	unsigned int update;
+
+	LOG_DBG(chg, "pass_through_mode change!\n");
+
+	if (chg->charging_state == DC_STATE_NOT_CHARGING) {
+		chg->pdata->pass_through_mode = chg->pass_through_mode;
+	} else {
+		if (chg->req_pt_mode) {
+			pr_err("[%s], previous request is not done yet!\n", __func__);
+			ret = -EBUSY;
+		} else {
+			/* Set new request flag for pass through mode */
+			mutex_lock(&chg->lock);
+			chg->req_pt_mode = true;
+			mutex_unlock(&chg->lock);
+
+			if ((chg->charging_state == DC_STATE_CC_MODE) || (chg->charging_state == DC_STATE_CV_MODE) ||
+			(chg->charging_state == DC_STATE_ADJUST_CC) || (chg->charging_state == DC_STATE_PT_MODE)) {
+				/* cancel delayed work */
+				cancel_delayed_work(&chg->timer_work);
+				if (chg->pass_through_mode == true) {
+					/* Disable Charger */
+					ret = hl7132_set_charging(chg, false);
+
+					/* disable unplug detection and set 800khz switching frequency */
+					update = FSW_CFG_800KHZ << MASK2SHIFT(BITS_FSW_SET);
+					update = update & ~BIT_UNPLUG_DET_EN;
+					ret = hl7132_update_reg(chg, REG_CTRL12_0, (BITS_FSW_SET | BIT_UNPLUG_DET_EN), update);
+					if (ret < 0)
+						goto Err;
+
+					/* Enable hl7132 */
+					ret = hl7132_set_charging(chg, true);
+					if (ret < 0)
+						goto Err;
+
+					/*update the mode */
+					chg->pdata->pass_through_mode = chg->pass_through_mode;
+
+					/* Set new request flag for pass through mode */
+					mutex_lock(&chg->lock);
+					chg->req_pt_mode = false;
+					mutex_unlock(&chg->lock);
+
+					/* Move to Pass through mode */
+					mutex_lock(&chg->lock);
+					chg->timer_id = TIMER_CHECK_PTMODE;
+					chg->timer_period = HL7132_PT_ACTIVE_DELAY_T;
+					mutex_unlock(&chg->lock);
+					schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
+				} else {
+					/*update the mode */
+					chg->pdata->pass_through_mode = chg->pass_through_mode;
+
+					/* Set new request flag for pass through mode */
+					mutex_lock(&chg->lock);
+					chg->req_pt_mode = false;
+					mutex_unlock(&chg->lock);
+
+					/* Restart charging with the flag_pass_through */
+					mutex_lock(&chg->lock);
+					chg->timer_id = TIMER_PRESET_DC;
+					chg->timer_period = 0;
+					mutex_unlock(&chg->lock);
+					schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
+				}
+			} else {
+				/* unsupported state! */
+				LOG_DBG(chg, "unsupported charging state[%d]!\n", chg->charging_state);
+			}
+		}
+	}
+	return ret;
+
+Err:
+	LOG_DBG(chg, "End, ret=%d\n", ret);
+	return ret;
+
+}
+
+static int hl7132_preset_config_pt(struct hl7132_charger *chg)
+{
+	int ret = 0;
+	unsigned int update;
+
+	LOG_DBG(chg, "Start!\n");
+	hl7132_set_charging_state(chg, DC_STATE_PRESET_PT);
+	/* disable unplug detection and set 800khz switching frequency */
+	update = FSW_CFG_800KHZ << MASK2SHIFT(BITS_FSW_SET);
+	update = update & ~BIT_UNPLUG_DET_EN;
+	ret = hl7132_update_reg(chg, REG_CTRL12_0, (BITS_FSW_SET | BIT_UNPLUG_DET_EN), update);
+	if (ret < 0)
+		goto Err;
+
+	/* Set IIN_CFG to IIN_CC */
+	ret = hl7132_set_input_current(chg, chg->iin_cc);
+	if (ret < 0)
+		goto Err;
+
+	/* Set Vbat Regualtion */
+	ret = hl7132_set_vbat_reg(chg, chg->pdata->vbat_reg);
+	if (ret < 0)
+		goto Err;
+
+	/* Enable hl7132 */
+	ret = hl7132_set_charging(chg, true);
+	if (ret < 0)
+		goto Err;
+
+	/* Move to Pass through mode */
+	mutex_lock(&chg->lock);
+	chg->timer_id = TIMER_CHECK_PTMODE;
+	chg->timer_period = HL7132_PT_ACTIVE_DELAY_T;
+	mutex_unlock(&chg->lock);
+	schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
+	return ret;
+
+Err:
+	LOG_DBG(chg, "Err occurred! ret[%d]\n", ret);
+	return ret;
+}
+
+static int hl7132_preset_ptmode(struct hl7132_charger *chg)
+{
+	int ret = 0;
+	int vbat;
+	unsigned int val;
+
+	LOG_DBG(chg, "Start!\n");
+
+	hl7132_set_charging_state(chg, DC_STATE_PRESET_PT);
+
+	ret = hl7132_read_adc(chg);
+	if (ret < 0)
+		goto Err;
+	vbat = chg->adc_vbat;
+	LOG_DBG(chg,  "Vbat is [%d]\n", vbat);
+
+	chg->pdata->iin_cfg     = HL7132_PT_IIN_DFT;
+	chg->pdata->vbat_reg    = HL7132_PT_VBAT_REG;
+
+	chg->ta_max_cur = chg->pdata->iin_cfg;
+	chg->ta_max_vol = HL7132_TA_MAX_VOL;
+	chg->ta_objpos = 0;
+
+	ret = hl7132_get_apdo_max_power(chg);
+	if (ret < 0) {
+		pr_err("%s: TA doesn't support any APDO\n", __func__);
+		goto Err;
+	}
+
+	chg->iin_cc = MIN(chg->pdata->iin_cfg, chg->ta_max_cur);
+
+	chg->pdata->iin_cfg = chg->iin_cc;
+
+	val = chg->iin_cc / PD_MSG_TA_CUR_STEP;
+	chg->iin_cc = val * PD_MSG_TA_CUR_STEP;
+
+	val = chg->ta_max_pwr / (chg->iin_cc/1000); //mV
+	val = (val * 1000) / PD_MSG_TA_VOL_STEP;
+	val = val * PD_MSG_TA_VOL_STEP;
+	chg->ta_max_vol = MIN(val, HL7132_TA_MAX_VOL);
+
+	/* Set TA_CV to MAX[(2*VBAT_ADC + 200mV), 7.5V] */
+	chg->ta_vol = max(HL7132_TA_MIN_VOL_PRESET, ((2 * vbat) + HL7132_PT_VOL_PRE_OFFSET));
+	val = chg->ta_vol / PD_MSG_TA_VOL_STEP;
+	chg->ta_vol = val * PD_MSG_TA_VOL_STEP;
+	chg->ta_vol = MIN(chg->ta_vol, chg->ta_max_vol);
+
+	chg->ta_cur = chg->iin_cc;
+	chg->iin_cc = chg->pdata->iin_cfg;
+
+	LOG_DBG(chg, "ta_max_vol=%d, ta_max_cur=%d, ta_max_pwr=%d, iin_cc=%d, TA-VOL[%d], TA-CUR[%d]\n",
+		chg->ta_max_vol, chg->ta_max_cur,
+		chg->ta_max_pwr, chg->iin_cc, chg->ta_vol, chg->ta_cur);
+
+	mutex_lock(&chg->lock);
+	chg->timer_id = TIMER_PDMSG_SEND;
+	chg->timer_period = 0;
+	mutex_unlock(&chg->lock);
+	schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
+	return ret;
+
+Err:
+	LOG_DBG(chg, "Err occurred! ret[%d]\n", ret);
+	return ret;
+}
+
+
+static int hl7132_pass_through_mode_process(struct hl7132_charger *chg)
+{
+	int ret = 0;
+	int iin, vbat, mode, dev_state;
+
+	hl7132_set_charging_state(chg, DC_STATE_PT_MODE);
+
+	ret = hl7132_check_sts_reg(chg);
+	if (ret < 0)
+		goto Err;
+	mode = chg->reg_state;
+	dev_state = chg->chg_state;
+
+	if (chg->req_pt_mode) {
+		mutex_lock(&chg->lock);
+		chg->req_pt_mode = false;
+		mutex_unlock(&chg->lock);
+		ret = hl7132_set_pass_through_mode(chg);
+	} else if (chg->req_new_vbat_reg) {
+		mutex_lock(&chg->lock);
+		chg->req_new_vbat_reg = false;
+		mutex_unlock(&chg->lock);
+		ret = hl7132_set_new_vbat_reg(chg);
+	} else if (chg->req_new_iin) {
+		mutex_lock(&chg->lock);
+		chg->req_new_iin = false;
+		mutex_unlock(&chg->lock);
+		ret = hl7132_set_new_iin(chg);
+	} else {
+		ret = hl7132_read_adc(chg);
+		if  (ret < 0)
+			goto Err;
+		iin = chg->adc_iin;//hl7132_read_adc(chg, ADCCH_IIN);
+		vbat = chg->adc_vbat;//hl7132_read_adc(chg, ADCCH_VBAT);
+
+		switch (mode) {
+		case INACTIVE_LOOP:
+			LOG_DBG(chg, "Inactive loop\n");
+			break;
+		case VBAT_REG_LOOP:
+			LOG_DBG(chg, "vbat-reg loop in pass through mode\n");
+			break;
+		case IIN_REG_LOOP:
+			LOG_DBG(chg, "iin-reg loop in pass through mode\n");
+			if (chg->ta_cur <= chg->iin_cc - HL7132_PT_TA_CUR_LOW_OFFSET) {
+				/* IIN_LOOP still happens even though TA current is less than IIN_CC - 200mA */
+				chg->ta_vol = chg->ta_vol - PD_MSG_TA_VOL_STEP;
+				LOG_DBG(chg, "[iin-reg]Abnormal behavior! iin[%d], TA-CUR[%d], TA-VOL[%d]\n",
+				iin, chg->ta_cur, chg->ta_vol);
+			} else {
+				chg->ta_cur = chg->ta_cur - PD_MSG_TA_CUR_STEP;
+				LOG_DBG(chg, "[iin-reg] iin[%d], TA-CUR[%d], TA-VOL[%d]\n", iin, chg->ta_cur, chg->ta_vol);
+			}
+			mutex_lock(&chg->lock);
+			chg->timer_id = TIMER_PDMSG_SEND;
+			chg->timer_period = 0;
+			mutex_unlock(&chg->lock);
+			schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
+			return ret;
+		case IBAT_REG_LOOP:
+			LOG_DBG(chg, "ibat-reg loop in pass through mode\n");
+			break;
+		case T_DIE_REG_LOOP:
+			LOG_DBG(chg, "tdie-reg loop in pass through mode\n");
+			break;
+		default:
+			LOG_DBG(chg, "No cases!\n");
+			break;
+		}
+		/* every 10s, Pass through mode function works */
+		mutex_lock(&chg->lock);
+		chg->timer_id = TIMER_CHECK_PTMODE;
+		chg->timer_period = HL7132_PTMODE_DELAY_T;
+		mutex_unlock(&chg->lock);
+		schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
+	}
+
+Err:
+	return ret;
+}
+#endif
 
 static int hl7132_preset_dcmode(struct hl7132_charger *chg)
 {
@@ -1713,7 +2132,6 @@ static int hl7132_preset_dcmode(struct hl7132_charger *chg)
 	chg->ta_vol = max(HL7132_TA_MIN_VOL_PRESET, ((2 * vbat) + HL7132_TA_VOL_PRE_OFFSET));
 	val = chg->ta_vol / PD_MSG_TA_VOL_STEP;
 	chg->ta_vol = val * PD_MSG_TA_VOL_STEP;
-
 	chg->ta_vol = MIN(chg->ta_vol, chg->ta_max_vol);
 	chg->ta_cur = chg->iin_cc;
 	chg->iin_cc = chg->pdata->iin_cfg;
@@ -1736,10 +2154,19 @@ Err:
 
 static int hl7132_preset_config(struct hl7132_charger *chg)
 {
-	int ret;
+ 	int ret = 0;
+	unsigned int update;
+
 	LOG_DBG(chg, "Start!, set iin:[%d], Vbat-REG:[%d]\n", chg->iin_cc, chg->pdata->vbat_reg);
 
 	hl7132_set_charging_state(chg, DC_STATE_PRESET_DC);
+
+	/* enable unplug detection and set 1100khz switching frequency */
+	update = FSW_CFG_1100KHZ << MASK2SHIFT(BITS_FSW_SET);
+	update = update | BIT_UNPLUG_DET_EN;
+	ret = hl7132_update_reg(chg, REG_CTRL12_0, (BITS_FSW_SET | BIT_UNPLUG_DET_EN), update);
+	if (ret < 0)
+		goto error;
 
 	/* Set IIN_CFG to IIN_CC */
 	ret = hl7132_set_input_current(chg, chg->iin_cc);
@@ -1785,7 +2212,6 @@ error:
 	LOG_DBG(chg, "End, ret=%d\n", ret);
 	return ret; 
 }
-
 
 static int hl7132_start_dc_charging(struct hl7132_charger *chg)
 {
@@ -1860,7 +2286,14 @@ static int hl7132_start_dc_charging(struct hl7132_charger *chg)
 
 	__pm_stay_awake(chg->monitor_ws);
 
+#ifdef CONFIG_HALO_PASS_THROUGH
+	if (chg->pdata->pass_through_mode)
+		ret = hl7132_preset_ptmode(chg);
+	else
+		ret = hl7132_preset_dcmode(chg);
+#else
 	ret = hl7132_preset_dcmode(chg);
+#endif
 
 	LOG_DBG(chg, "End, ret=%d\n", ret); 
 	return ret;
@@ -1886,7 +2319,6 @@ static int hl7132_check_starting_vbat_level(struct hl7132_charger *chg)
 #else
 	ret = hl7132_get_swcharger_property(POWER_SUPPLY_PROP_ONLINE, &val);
 #endif
-
 	if (ret < 0) {
 		mutex_lock(&chg->lock);
 		chg->timer_id = TIMER_VBATMIN_CHECK;
@@ -1936,7 +2368,7 @@ static int hl7132_check_active_state(struct hl7132_charger *chg)
 {
 	int ret = 0;
 
-	LOG_DBG(chg, "start!\n");  
+	LOG_DBG(chg, "start!\n");
 
 	hl7132_set_charging_state(chg, DC_STATE_CHECK_ACTIVE);
 
@@ -1970,7 +2402,6 @@ Err:
 	return ret;
 }
 
-
 static int hl7132_adjust_ccmode(struct hl7132_charger *chg)
 {
 	int iin, ccmode;
@@ -1995,7 +2426,6 @@ static int hl7132_adjust_ccmode(struct hl7132_charger *chg)
 	vbat = chg->adc_vbat;
 	LOG_DBG(chg, "iin_target:[%d], ta-vol:[%d], ta-cur:[%d]", chg->iin_cc, chg->ta_vol, chg->ta_cur);
 	LOG_DBG(chg, "IIN: [%d], VBAT: [%d]\n", iin, vbat);
-
 
 	if (vbat >= chg->pdata->vbat_reg) {
 		chg->ta_target_vol = chg->ta_vol;
@@ -2024,15 +2454,15 @@ static int hl7132_adjust_ccmode(struct hl7132_charger *chg)
 		val = val/PD_MSG_TA_VOL_STEP;
 		chg->ta_target_vol = val*PD_MSG_TA_VOL_STEP;
 		if (chg->ta_target_vol > chg->ta_max_vol)
-		chg->ta_target_vol = chg->ta_max_vol; 
+			chg->ta_target_vol = chg->ta_max_vol;
 
 		LOG_DBG(chg, "Ener CC, already increased TA_CV! TA-V-OFS:[%d]\n", chg->ta_v_ofs);
 		chg->prev_inc = INC_NONE;
 		chg->prev_iin = 0;
-		hl7132_set_charging_state(chg, DC_STATE_START_CC);
+		hl7132_set_charging_state(chg, DC_STATE_CC_MODE);
 
 		mutex_lock(&chg->lock);
-		chg->timer_id = TIMER_ENTER_CCMODE;
+		chg->timer_id = TIMER_CHECK_CCMODE;
 		chg->timer_period = 0;
 		mutex_unlock(&chg->lock);
 		schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
@@ -2149,10 +2579,10 @@ ENTER_CC:
 		chg->ta_vol = chg->ta_target_vol; 
 		LOG_DBG(chg, "Adjust ended!!,ta_vol [%d], TA-V-OFS:[%d]", chg->ta_vol, chg->ta_v_ofs);
 		chg->prev_inc = INC_NONE;
-		hl7132_set_charging_state(chg, DC_STATE_START_CC);
+		hl7132_set_charging_state(chg, DC_STATE_CC_MODE);
 
 		mutex_lock(&chg->lock);
-		chg->timer_id = TIMER_ENTER_CCMODE;
+		chg->timer_id = TIMER_CHECK_CCMODE;
 		chg->timer_period = 0;
 		mutex_unlock(&chg->lock);
 EXIT:
@@ -2227,7 +2657,7 @@ static int hl7132_ccmode_regulation_process(struct hl7132_charger *chg)
 {
 	int ret = 0;
 	int iin, vbat, ccmode, dev_state, delta;
-	int ta_v_ofs, new_ta_vol;
+	int ta_v_ofs, new_ta_vol, new_ta_cur;
 
 	//LOG_DBG(chg, "STart!!\n");
 
@@ -2243,7 +2673,12 @@ static int hl7132_ccmode_regulation_process(struct hl7132_charger *chg)
 		goto Err;
 	}
 	/* Check new vbat-reg/new iin request first */
-	if (chg->req_new_vbat_reg) {
+	if (chg->req_pt_mode) {
+		mutex_lock(&chg->lock);
+		chg->req_pt_mode = false;
+		mutex_unlock(&chg->lock);
+		ret = hl7132_set_pass_through_mode(chg);
+	} else if (chg->req_new_vbat_reg) {
 		mutex_lock(&chg->lock);
 		chg->req_new_vbat_reg = false;
 		mutex_unlock(&chg->lock);
@@ -2267,6 +2702,8 @@ static int hl7132_ccmode_regulation_process(struct hl7132_charger *chg)
 
 		switch(ccmode) {
 		case INACTIVE_LOOP:
+			new_ta_vol = chg->ta_vol;
+			new_ta_cur = chg->ta_cur;
 			if ((chg->ab_ta_connected) && (iin > (chg->iin_cc+50000))) {
 				/* Decrease TA VOL, because TA CUR can't be controlled */
 				new_ta_vol = chg->ta_vol - PD_MSG_TA_VOL_STEP;
@@ -2274,6 +2711,9 @@ static int hl7132_ccmode_regulation_process(struct hl7132_charger *chg)
 			} else {
 				if (chg->ab_ta_connected) {
 					delta = chg->iin_cc - iin;
+					if ((delta >= 200000) && (chg->iin_cc > chg->ta_cur))
+						chg->ta_cur = chg->iin_cc;
+
 					if ((delta > 50000) && (delta < 100000)) {
 						new_ta_vol = chg->ta_vol + PD_MSG_TA_VOL_STEP;
 						LOG_DBG(chg, "[AB_TA]:IIN[%d], new_ta_vol[%d], delta[%d], 20mV ++\n",
@@ -2285,27 +2725,62 @@ static int hl7132_ccmode_regulation_process(struct hl7132_charger *chg)
 					} else
 						new_ta_vol = chg->ta_vol;
 				} else {
-					//Calculate TA_V_ofs = TA_CV ??2xVBAT_ADC+100mV
-					//Set TA_CV to 2xVBAT_ADC + TA_V_ofs
-					ta_v_ofs = chg->ta_v_ofs;
-					new_ta_vol = (2*vbat) + ta_v_ofs;
-					LOG_DBG(chg, "TA-VOL:[%d],TA-CUR:[%d], ta_v_offs:[%d]\n",
-						chg->ta_vol, chg->ta_cur, ta_v_ofs);
+					if ((iin > chg->iin_cc) && ((iin - chg->iin_cc) > 50000)) {
+						new_ta_cur = chg->ta_cur - PD_MSG_TA_CUR_STEP;
+						ta_v_ofs = chg->ta_v_ofs;
+						new_ta_vol = (2*vbat) + ta_v_ofs;
+						LOG_DBG(chg, "IIN is too high, decrease 50mA, TA-VOL[%d], TA-CUR[%d]\n", 
+							new_ta_vol, chg->ta_cur);
+ 					} else {
+						//Calculate TA_V_ofs = TA_CV ??2xVBAT_ADC+100mV
+						//Set TA_CV to 2xVBAT_ADC + TA_V_ofs
+						ta_v_ofs = chg->ta_v_ofs;
+						new_ta_vol = (2*vbat) + ta_v_ofs;
+						/* Workaround code for low CC-Current issue */
+						if ((iin <= (chg->iin_cc - PD_MSG_TA_CUR_STEP)) &&
+							(chg->ta_cur <= (chg->iin_cc - PD_MSG_TA_CUR_STEP))) {
+							new_ta_cur = chg->ta_cur + PD_MSG_TA_CUR_STEP;
+							LOG_DBG(chg, "Increase 50mA\n");
+						}
+						LOG_DBG(chg, "TA-VOL:[%d],TA-CUR:[%d], ta_v_offs:[%d]\n",
+							chg->ta_vol, chg->ta_cur, ta_v_ofs);
+					}
 				}
 			}
-			//send pd msg
-			if (new_ta_vol != chg->ta_vol) {
-				chg->ta_vol = new_ta_vol;
-				mutex_lock(&chg->lock);
-				chg->timer_id = TIMER_PDMSG_SEND;
-				chg->timer_period = HL7132_CCMODE_CHECK_T;
-				mutex_unlock(&chg->lock);
+
+			if (chg->ab_ta_connected) {
+				//send pd msg
+				if (new_ta_vol != chg->ta_vol) {
+					chg->ta_vol = new_ta_vol;
+					mutex_lock(&chg->lock);
+					chg->timer_id = TIMER_PDMSG_SEND;
+					chg->timer_period = 0;
+					mutex_unlock(&chg->lock);
+				} else {
+					mutex_lock(&chg->lock);
+					chg->timer_id = TIMER_CHECK_CCMODE;
+					chg->timer_period = HL7132_CCMODE_CHECK_T;
+					mutex_unlock(&chg->lock);
+				}
 			} else {
-				mutex_lock(&chg->lock);
-				chg->timer_id = TIMER_CHECK_CCMODE;
-				chg->timer_period = HL7132_CCMODE_CHECK_T;
-				mutex_unlock(&chg->lock);
+				//send pd msg
+				if ((new_ta_vol >= chg->ta_vol) || (new_ta_cur != chg->ta_cur)) {
+					LOG_DBG(chg, "New-Vol[%d], New-Cur[%d], TA-Vol[%d], TA-Cur[%d]\n",
+						new_ta_vol/1000, new_ta_cur/1000, chg->ta_vol/1000, chg->ta_cur/1000);
+					chg->ta_vol = new_ta_vol;
+					chg->ta_cur = new_ta_cur;
+					mutex_lock(&chg->lock);
+					chg->timer_id = TIMER_PDMSG_SEND;
+					chg->timer_period = 0;
+					mutex_unlock(&chg->lock);
+				} else {
+					mutex_lock(&chg->lock);
+					chg->timer_id = TIMER_CHECK_CCMODE;
+					chg->timer_period = HL7132_CCMODE_CHECK_T;
+					mutex_unlock(&chg->lock);
+				}
 			}
+
 			schedule_delayed_work(&chg->timer_work, msecs_to_jiffies(chg->timer_period));
 			break;
 
@@ -2328,24 +2803,33 @@ static int hl7132_ccmode_regulation_process(struct hl7132_charger *chg)
 					chg->ab_try_cnt = 0;
 					/* Decrease TA VOL, because TA CUR can't be controlled */
 					chg->ta_vol = chg->ta_vol - PD_MSG_TA_VOL_STEP;
-					LOG_DBG(chg, "[AB_TA][IIN-LOOP]:IIN[%d], TA_VOL[%d], 20mV --\n",
-							iin, chg->ta_vol);
+					chg->ta_cur = chg->ta_cur - PD_MSG_TA_CUR_STEP;
+					//chg->ta_cur = chg->iin_cc;
+					LOG_DBG(chg, "[AB_TA][IIN-LOOP]:IIN[%d], TA_VOL[%d],TA_CUR[%d] 20mV --\n",
+						iin, chg->ta_vol, chg->ta_cur);
 				} else {
 					if (abs(iin - chg->ab_prev_cur) < 20000)
 						chg->ab_try_cnt++;
 					else
 						chg->ab_try_cnt = 0;
 
-					chg->ab_prev_cur = iin;
 					chg->ta_cur = chg->ta_cur - PD_MSG_TA_CUR_STEP;
 					LOG_DBG(chg, "[IIN-LOOP]:iin=%d, next_ta_cur=%d, abCNT[%d]\n",
 							iin, chg->ta_cur, chg->ab_try_cnt);
 				}
 			} else {
+				/* Decrease TA CUR, because IIN is still higher than target */
+				if (((chg->ab_prev_cur - iin) < 20000) && (iin > chg->iin_cc))
+					chg->ta_cur = chg->ta_cur - PD_MSG_TA_CUR_STEP;
+                        
 				/* Decrease TA VOL, because TA CUR can't be controlled */
 				chg->ta_vol = chg->ta_vol - PD_MSG_TA_VOL_STEP;
 				LOG_DBG(chg, "[AB_TA][IIN-LOOP]:IIN[%d], TA_VOL[%d], 20mV --\n", iin, chg->ta_vol);
 			}
+
+			/* store iin to compare the change */
+			chg->ab_prev_cur = iin;
+
 			//send pd msg
 			mutex_lock(&chg->lock);
 			chg->timer_id = TIMER_PDMSG_SEND;
@@ -2380,7 +2864,12 @@ static int hl7132_cvmode_process(struct hl7132_charger *chg)
 	dev_state = chg->chg_state;
 
 	/* Check new vbat-reg/new iin request first */
-	if (chg->req_new_vbat_reg) {
+	if (chg->req_pt_mode) {
+		mutex_lock(&chg->lock);
+		chg->req_pt_mode = false;
+		mutex_unlock(&chg->lock);
+		ret = hl7132_set_pass_through_mode(chg);
+	} else if (chg->req_new_vbat_reg) {
 		mutex_lock(&chg->lock);
 		chg->req_new_vbat_reg = false;
 		mutex_unlock(&chg->lock);
@@ -2561,6 +3050,14 @@ static void hl7132_timer_work(struct work_struct *work)
 		case DC_STATE_ADJUST_TACUR:
 			chg->timer_id = TIMER_ADJUST_TACUR;
 			break;
+#ifdef CONFIG_HALO_PASS_THROUGH
+		case DC_STATE_PRESET_PT:
+			chg->timer_id = TIMER_PRESET_CONFIG_PT;
+			break;
+		case DC_STATE_PT_MODE:
+			chg->timer_id = TIMER_CHECK_PTMODE;
+			break;
+#endif
 		default:
 			ret = -EINVAL;
 			break;
@@ -2581,6 +3078,22 @@ static void hl7132_timer_work(struct work_struct *work)
 		if (ret < 0)
 			goto error;
 		break;
+#ifdef CONFIG_HALO_PASS_THROUGH
+	case TIMER_PRESET_PT:
+		ret = hl7132_preset_config_pt(chg);
+		if (ret < 0)
+			goto error;
+		break;
+	case TIMER_PRESET_CONFIG_PT:
+		ret = hl7132_preset_config_pt(chg);
+		if (ret < 0)
+			goto error;
+		break;
+	case TIMER_CHECK_PTMODE:
+		ret = hl7132_pass_through_mode_process(chg);
+		if (ret < 0)
+			goto error;
+#endif
 	default:
 		break;
 	}
@@ -2740,6 +3253,12 @@ static int hl7132_psy_set_property(struct power_supply *psy, enum power_supply_p
 #endif
 				ret = 0;
 			} else {
+				if (delayed_work_pending(&chg->timer_work)) {
+					cancel_delayed_work(&chg->timer_work);
+					cancel_delayed_work(&chg->pps_work);  
+					LOG_DBG(chg, "cancel work queue!!");
+				}
+
 				LOG_DBG(chg, "charger is already disabled!!\n");
 			}
 		}
@@ -2847,6 +3366,23 @@ static int hl7132_psy_set_property(struct power_supply *psy, enum power_supply_p
 				ret = 0;
 			}
 			break;
+#ifdef CONFIG_HALO_PASS_THROUGH
+		case POWER_SUPPLY_EXT_PROP_PASS_THROUGH_MODE:
+			LOG_DBG(chg, "Pass Through mode[%d]\n", val->intval);
+			if (val->intval != chg->pass_through_mode) {
+				chg->pass_through_mode = val->intval;
+				ret = hl7132_set_pass_through_mode(chg);
+			}
+			break;
+		case POWER_SUPPLY_EXT_PROP_PASS_THROUGH_MODE_TA_VOL:
+			if (chg->pass_through_mode == true) {
+				LOG_DBG(chg, "ptmode voltage!\n");
+				hl7132_set_ptmode_ta_voltage_by_soc(chg, val->intval);
+			} else {
+				LOG_DBG(chg, "not in ptmode!\n");
+			}
+			break;
+#endif
 		default:
 			return -EINVAL;
 		}
@@ -2860,7 +3396,6 @@ Err:
 	//LOG_DBG(chg, "End, ret== %d\n", ret);
 	return ret;
 }
-
 
 static int hl7132_psy_get_property(struct power_supply *psy, enum power_supply_property psp,
 				union power_supply_propval *val)
@@ -3081,6 +3616,16 @@ DEFINE_SIMPLE_ATTRIBUTE(vbat_reg_debug_ops, get_vbat_reg, set_vbat_reg, "%02lld\
 DEFINE_SIMPLE_ATTRIBUTE(iin_cfg_debug_ops, get_iin_cfg, set_iin_cfg, "%02lld\n");
 DEFINE_SIMPLE_ATTRIBUTE(tp_set_debug_ops, get_tp_set_cfg, set_tp_set_cfg, "%02lld\n");
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
+/* Adapting to the upstream debugfs_create_x32() change */
+static int hl7132_u32_get(void *data, u64 *val)
+{
+	*val = *(u32 *)data;
+	return 0;
+}
+
+DEFINE_DEBUGFS_ATTRIBUTE(hl7132_fops_x32_ro, hl7132_u32_get, NULL, "0x%08llx\n");
+#endif
 
 static int hl7132_create_debugfs_entries(struct hl7132_charger *chg)
 {
@@ -3092,9 +3637,21 @@ static int hl7132_create_debugfs_entries(struct hl7132_charger *chg)
 		dev_err(chg->dev, "Couldn't create debug dir\n");
 		rc = -ENOENT;
 	} else {
-		debugfs_create_x32("address", S_IFREG | S_IWUSR | S_IRUGO,
+		/* After version 5.5.0 debugfs_create_x32 changed to a void type function */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0)
+		ent = debugfs_create_x32("address", S_IFREG | S_IWUSR | S_IRUGO,
 				chg->debug_root,
 				&(chg->debug_address));
+#else
+		ent = debugfs_create_file_unsafe("address", S_IFREG | S_IWUSR | S_IRUGO,
+				chg->debug_root,
+				&(chg->debug_address),
+				&hl7132_fops_x32_ro);
+#endif
+		if (!ent) {
+			dev_err(chg->dev, "Couldn't create address debug file\n");
+			rc = -ENOENT;
+		}
 
 		ent = debugfs_create_file("data", S_IFREG | S_IWUSR | S_IRUGO,
 				chg->debug_root, chg,
@@ -3159,7 +3716,7 @@ static int hl7132_charger_probe(struct i2c_client *client, const struct i2c_devi
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	pr_info("%s: HL7132 Charger Driver Loading\n", __func__);
 #endif
-	pr_info("[%s]:: STart!\n", __func__);
+	pr_info("[%s]:: Ver[%s]!\n", __func__, HL7132_MODULE_VERSION);
 
 	charger = devm_kzalloc(&client->dev, sizeof(*charger), GFP_KERNEL);
 	if (!charger) {
@@ -3206,6 +3763,7 @@ static int hl7132_charger_probe(struct i2c_client *client, const struct i2c_devi
 	}
 
 	mutex_init(&charger->i2c_lock);
+	mutex_init(&charger->lock);
 	charger->monitor_ws = wakeup_source_register(&client->dev, "hl7132-monitor");
 
 	INIT_DELAYED_WORK(&charger->timer_work, hl7132_timer_work);
@@ -3401,4 +3959,4 @@ module_init(hl7132_charger_init);
 module_exit(hl7132_charger_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_VERSION("1.2.6");
+MODULE_VERSION(HL7132_MODULE_VERSION);

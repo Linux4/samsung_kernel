@@ -42,6 +42,9 @@
 
 #include "cma.h"
 
+extern void lru_cache_disable(void);
+extern void lru_cache_enable(void);
+
 struct cma cma_areas[MAX_CMA_AREAS];
 unsigned cma_area_count;
 
@@ -462,6 +465,7 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align,
 	if (bitmap_count > bitmap_maxno)
 		goto out;
 
+	lru_cache_disable();
 	for (;;) {
 		struct acr_info info = {0};
 
@@ -541,6 +545,7 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align,
 		}
 	}
 
+	lru_cache_enable();
 	trace_cma_alloc_finish(cma->name, pfn, page, count, align);
 	trace_cma_alloc_info(cma->name, page, count, align, &cma_info);
 

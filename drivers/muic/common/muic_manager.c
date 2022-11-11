@@ -508,13 +508,18 @@ static int muic_manager_handle_pdic_attach(struct muic_interface_t *muic_if, voi
 	return 0;
 }
 
-static int muic_manager_handle_pdic_factory_jig(struct muic_interface_t *muic_if, int rid, int vbus)
+static int muic_manager_handle_pdic_factory_jig(struct muic_interface_t *muic_if,
+		int rid, int prev_rid, int vbus)
 {
 	struct pdic_desc_t *pdic = muic_if->pdic;
 	struct muic_platform_data *pdata = muic_if->pdata;
 	int attached_dev = 0;
 
-	pr_info("%s: rid:%d vbus:%d\n", __func__, rid, vbus);
+	pr_info("%s: rid:%d prev_rid:%d vbus:%d\n", __func__, rid, prev_rid, vbus);
+
+	if (prev_rid && rid != prev_rid)
+		if (pdata->jig_uart_cb)
+			pdata->jig_uart_cb(0);
 
 	switch (rid) {
 	case PDIC_RID_255K:
@@ -560,7 +565,7 @@ static int muic_manager_handle_pdic_rid(struct muic_interface_t *muic_if, void *
 {
 	struct pdic_desc_t *pdic = muic_if->pdic;
 	struct muic_platform_data *pdata = muic_if->pdata;
-	int rid, vbus;
+	int rid, vbus, prev_rid;
 #ifdef CONFIG_IFCONN_NOTIFIER
 	struct ifconn_notifier_template *pnoti = (struct ifconn_notifier_template *)data;
 #else
@@ -582,6 +587,7 @@ static int muic_manager_handle_pdic_rid(struct muic_interface_t *muic_if, void *
 		return 0;
 	}
 
+	prev_rid = pdic->pdic_evt_rid;
 	pdic->pdic_evt_rid = rid;
 
 	switch (rid) {
@@ -601,7 +607,7 @@ static int muic_manager_handle_pdic_rid(struct muic_interface_t *muic_if, void *
 		vbus = muic_manager_get_vbus(muic_if);
 		if (muic_if->set_jig_state)
 			muic_if->set_jig_state(muic_if->muic_data, true);
-		muic_manager_handle_pdic_factory_jig(muic_if, rid, vbus);
+		muic_manager_handle_pdic_factory_jig(muic_if, rid, prev_rid, vbus);
 		break;
 	case PDIC_RID_OPEN:
 	case PDIC_RID_UNDEFINED:

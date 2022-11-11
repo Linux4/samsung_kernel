@@ -15,7 +15,9 @@
 #include "mfc_core_reg_api.h"
 
 /* Definition */
+#define VBR_BIT_SAVE			20
 #define CBR_FIX_MAX			10
+#define CBR_I_LIMIT_WFD			6
 #define CBR_I_LIMIT_MAX			5
 #define BPG_EXTENSION_TAG_SIZE		5
 
@@ -421,23 +423,33 @@ static void __mfc_set_enc_params(struct mfc_core *core, struct mfc_ctx *ctx)
 	MFC_CORE_RAW_WRITEL(p->rc_bitrate, MFC_REG_E_RC_BIT_RATE);
 
 	reg = MFC_CORE_RAW_READL(MFC_REG_E_RC_MODE);
-	mfc_clear_bits(reg, 0x3, 0);
+	mfc_clear_bits(reg, 0x7, 0);
 	mfc_clear_bits(reg, 0x3, 4);
 	mfc_clear_bits(reg, 0xFF, 8);
 	if (p->rc_frame) {
 		if (p->rc_reaction_coeff <= CBR_I_LIMIT_MAX) {
-			mfc_set_bits(reg, 0x3, 0, MFC_REG_E_RC_CBR_I_LIMIT);
+			mfc_set_bits(reg, 0x7, 0, MFC_REG_E_RC_CBR_I_LIMIT_VT);
 			/*
 			 * Ratio of intra for max frame size
-			 * is controled when only CBR_I_LIMIT mode.
-			 * And CBR_I_LIMIT mode is valid for H.264, HEVC codec
+			 * is controlled when only CBR_I_LIMIT_VT mode.
+			 * And CBR_I_LIMIT_VT mode is valid for H.264, HEVC codec
 			 */
 			if (p->ratio_intra)
 				mfc_set_bits(reg, 0xFF, 8, p->ratio_intra);
 		} else if (p->rc_reaction_coeff <= CBR_FIX_MAX) {
-			mfc_set_bits(reg, 0x3, 0, MFC_REG_E_RC_CBR_FIX);
+			if (MFC_FEATURE_SUPPORT(dev, dev->pdata->wfd_rc_mode) &&
+					(p->rc_reaction_coeff <= CBR_I_LIMIT_WFD)) {
+				mfc_set_bits(reg, 0x7, 0, MFC_REG_E_RC_CBR_I_LIMIT_WFD);
+			} else {
+				mfc_set_bits(reg, 0x7, 0, MFC_REG_E_RC_CBR_FIX);
+			}
 		} else {
-			mfc_set_bits(reg, 0x3, 0, MFC_REG_E_RC_VBR);
+			if (MFC_FEATURE_SUPPORT(dev, dev->pdata->wfd_rc_mode) &&
+					(p->rc_reaction_coeff <= VBR_BIT_SAVE)) {
+				mfc_set_bits(reg, 0x7, 0, MFC_REG_E_RC_VBR_BS);
+			} else {
+				mfc_set_bits(reg, 0x7, 0, MFC_REG_E_RC_VBR);
+			}
 		}
 
 		if (p->rc_mb)
@@ -449,6 +461,10 @@ static void __mfc_set_enc_params(struct mfc_core *core, struct mfc_ctx *ctx)
 		mfc_debug(2, "MIN quality mode is enabled\n");
 	}
 
+	mfc_debug(3, "RC_MODE) rc_reaction_coeff: %d, wfd_rc_mode: %d, rc_mode: %#x\n",
+			p->rc_reaction_coeff,
+			MFC_FEATURE_SUPPORT(dev, dev->pdata->wfd_rc_mode),
+			reg);
 	MFC_CORE_RAW_WRITEL(reg, MFC_REG_E_RC_MODE);
 
 	/* extended encoder ctrl */

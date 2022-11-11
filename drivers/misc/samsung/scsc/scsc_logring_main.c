@@ -460,15 +460,15 @@ static inline bool memlog_get_obj_pm(void)
 	struct memlog *memlog_desc = NULL;
 	struct memlog_obj *file_obj = NULL;
 
+	if (!preemptible() || in_interrupt())
+		return false;
+
 	memlog_desc = memlog_get_desc("WB_LOG");
 	if (!memlog_desc)
 		return false;
 
 	memlog_pm_obj = memlog_get_obj_by_name(memlog_desc, "ker_mem2");
 	if (!memlog_pm_obj) {
-		if (!preemptible() || in_interrupt())
-			return false;
-
 		file_obj = memlog_alloc_file(memlog_desc, "ker_fil2", SZ_32K, SZ_128K, 1000, 1);
 		if (file_obj)
 			memlog_pm_obj = memlog_alloc_printf(memlog_desc, SZ_16K, file_obj, "ker_mem2", false);
@@ -486,15 +486,15 @@ static inline bool memlog_get_obj(void)
 	struct memlog *memlog_desc = NULL;
 	struct memlog_obj *file_obj = NULL;
 
+	if (!preemptible() || in_interrupt())
+		return false;
+
 	memlog_desc = memlog_get_desc("WB_LOG");
 	if (!memlog_desc)
 		return false;
 
 	memlog_print_obj = memlog_get_obj_by_name(memlog_desc, "ker_mem");
 	if (!memlog_print_obj) {
-		if (!preemptible() || in_interrupt())
-			return false;
-
 		file_obj = memlog_alloc_file(memlog_desc, "ker_fil", SZ_1M, SZ_1M, 1000, 1);
 		if (file_obj)
 			memlog_print_obj = memlog_alloc_printf(memlog_desc, SZ_512K, file_obj, "ker_mem", false);

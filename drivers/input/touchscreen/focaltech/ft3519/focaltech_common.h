@@ -128,23 +128,6 @@ struct ts_ic_info {
 	struct ft_chip_id_t cid;
 };
 
-enum {
-	LCD_EARLY_EVENT = 0,
-	LCD_LATE_EVENT
-};
-
-enum {
-	SERVICE_SHUTDOWN = -1,
-	LCD_NONE = 0,
-	LCD_OFF,
-	LCD_ON,
-	LCD_DOZE1,
-	LCD_DOZE2,
-	LPM_OFF = 20,
-	FORCE_OFF,
-	FORCE_ON,
-};
-
 /*****************************************************************************
 * DEBUG function define here
 *****************************************************************************/

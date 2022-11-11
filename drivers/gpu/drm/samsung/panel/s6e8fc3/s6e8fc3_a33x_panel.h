@@ -262,11 +262,13 @@ static DEFINE_PANEL_KEY(a33x_level3_key_disable, CMD_LEVEL_3, KEY_DISABLE, &PKTI
 
 static DEFINE_PANEL_VSYNC_DELAY(a33x_wait_1_vsync, 1);
 #ifdef CONFIG_SUPPORT_MASK_LAYER
+static DEFINE_PANEL_VSYNC_DELAY(a33x_wait_2_vsync, 2);
 static DEFINE_COND(a33x_cond_is_60hz, s6e8fc3_is_60hz);
 static DEFINE_COND(a33x_cond_is_90hz, s6e8fc3_is_90hz);
 #endif
 static DEFINE_COND(a33x_cond_is_bringup_panel, s6e8fc3_a33_is_bringup_panel);
 static DEFINE_COND(a33x_cond_is_real_panel, s6e8fc3_a33_is_real_panel);
+static DEFINE_COND(a33x_cond_is_real_panel_rev04, s6e8fc3_a33_is_real_panel_rev04);
 
 static u8 A33X_HBM_TRANSITION[] = {
 	0x53, 0x20
@@ -488,11 +490,24 @@ static u8 A33X_SEED_SETTING[] = {
 };
 static DEFINE_STATIC_PACKET(a33x_seed_setting, DSI_PKT_TYPE_WR, A33X_SEED_SETTING, 0);
 
-static u8 A33X_FFC_DEFAULT[] = {
+static u8 A33X_FFC_DEFAULT_REV04[] = {
 	0xDF,
 	0x09, 0x30, 0x95, 0x2F, 0xD6, 0x4B, 0x51
 };
+static DEFINE_STATIC_PACKET(a33x_ffc_default_rev04, DSI_PKT_TYPE_WR, A33X_FFC_DEFAULT_REV04, 0);
+
+static u8 A33X_FFC_DEFAULT[] = {
+	0xDF,
+	0x09, 0x30, 0x95, 0x56, 0xDD, 0x56, 0xDD
+};
 static DEFINE_STATIC_PACKET(a33x_ffc_default, DSI_PKT_TYPE_WR, A33X_FFC_DEFAULT, 0);
+
+#ifdef CONFIG_SUPPORT_CCD_TEST
+static u8 A33X_CCD_ENABLE[] = { 0xEA, 0x5C, 0x51, 0x01 };
+static u8 A33X_CCD_DISABLE[] = { 0xEA, 0x5C, 0x51, 0x00 };
+static DEFINE_STATIC_PACKET(a33x_ccd_test_enable, DSI_PKT_TYPE_WR, A33X_CCD_ENABLE, 0x00);
+static DEFINE_STATIC_PACKET(a33x_ccd_test_disable, DSI_PKT_TYPE_WR, A33X_CCD_DISABLE, 0x00);
+#endif
 
 static DEFINE_SETPROP_VALUE(a33x_set_wait_tx_done_property_off, PANEL_OBJ_PROPERTY_WAIT_TX_DONE, WAIT_TX_DONE_MANUAL_OFF);
 static DEFINE_SETPROP_VALUE(a33x_set_wait_tx_done_property_auto, PANEL_OBJ_PROPERTY_WAIT_TX_DONE, WAIT_TX_DONE_AUTO);
@@ -519,6 +534,10 @@ static void *a33x_init_cmdtbl[] = {
 
 	&PKTINFO(a33x_tsp_vsync_on),
 
+	&CONDINFO_IF(a33x_cond_is_real_panel_rev04),
+		&PKTINFO(a33x_ffc_default_rev04),
+	&CONDINFO_FI(a33x_cond_is_real_panel_rev04),
+
 	&CONDINFO_IF(a33x_cond_is_real_panel),
 		&PKTINFO(a33x_ffc_default),
 	&CONDINFO_FI(a33x_cond_is_real_panel),
@@ -539,7 +558,6 @@ static void *a33x_init_cmdtbl[] = {
 	&PKTINFO(a33x_seed_setting),
 	&PKTINFO(a33x_panel_update),
 
-	&PKTINFO(a33x_hbm_transition), /* 53h should be not included in bl_seq */
 	&SEQINFO(a33x_set_bl_param_seq), /* includes FPS setting also */
 
 	&KEYINFO(a33x_level3_key_disable),
@@ -581,6 +599,7 @@ static void *a33x_set_bl_param_cmdtbl[] = {
 	&PKTINFO(a33x_tset_set),
 	&PKTINFO(a33x_acl_set),
 	&PKTINFO(a33x_acl_control),
+	&PKTINFO(a33x_hbm_transition),
 	&PKTINFO(a33x_wrdisbv),
 	&PKTINFO(a33x_panel_update),
 };
@@ -591,7 +610,6 @@ static void *a33x_set_bl_cmdtbl[] = {
 	&KEYINFO(a33x_level1_key_enable),
 	&KEYINFO(a33x_level2_key_enable),
 	&KEYINFO(a33x_level3_key_enable),
-	&PKTINFO(a33x_hbm_transition),
 	&SEQINFO(a33x_set_bl_param_seq),
 	&KEYINFO(a33x_level3_key_disable),
 	&KEYINFO(a33x_level2_key_disable),
@@ -611,7 +629,6 @@ static void *a33x_display_mode_cmdtbl[] = {
 		&KEYINFO(a33x_level1_key_enable),
 		&KEYINFO(a33x_level2_key_enable),
 		&KEYINFO(a33x_level3_key_enable),
-		&PKTINFO(a33x_hbm_transition),
 		&SEQINFO(a33x_set_bl_param_seq),
 		&KEYINFO(a33x_level3_key_disable),
 		&KEYINFO(a33x_level2_key_disable),
@@ -637,7 +654,7 @@ static void *a33x_display_on_cmdtbl[] = {
 		&PKTINFO(a33x_panel_update),
 		/* FFC setting */
 		&DLYINFO(a33x_wait_30msec),
-		&PKTINFO(a33x_ffc_default),
+		&PKTINFO(a33x_ffc_default_rev04),
 	&CONDINFO_FI(a33x_cond_is_bringup_panel),
 
 	&KEYINFO(a33x_level3_key_disable),
@@ -709,7 +726,15 @@ static void *a33x_check_condition_cmdtbl[] = {
 
 #ifdef CONFIG_SUPPORT_MASK_LAYER
 static void *a33x_mask_layer_workaround_cmdtbl[] = {
-	&DLYINFO(a33x_wait_1_vsync),
+	&KEYINFO(a33x_level1_key_enable),
+	&KEYINFO(a33x_level2_key_enable),
+	&KEYINFO(a33x_level3_key_enable),
+	&PKTINFO(a33x_wrdisbv),
+	&PKTINFO(a33x_hbm_transition),
+	&KEYINFO(a33x_level3_key_disable),
+	&KEYINFO(a33x_level2_key_disable),
+	&KEYINFO(a33x_level1_key_disable),
+	&DLYINFO(a33x_wait_2_vsync),
 };
 
 static void *a33x_mask_layer_before_cmdtbl[] = {
@@ -724,7 +749,6 @@ static void *a33x_mask_layer_enter_br_cmdtbl[] = {
 	&KEYINFO(a33x_level2_key_enable),
 	&KEYINFO(a33x_level3_key_enable),
 	/* BL CMD */
-	&PKTINFO(a33x_hbm_transition),
 	&SEQINFO(a33x_set_bl_param_seq),
 	&KEYINFO(a33x_level3_key_disable),
 	&KEYINFO(a33x_level2_key_disable),
@@ -736,7 +760,6 @@ static void *a33x_mask_layer_exit_br_cmdtbl[] = {
 	&KEYINFO(a33x_level2_key_enable),
 	&KEYINFO(a33x_level3_key_enable),
 	/* BL CMD */
-	&PKTINFO(a33x_hbm_transition),
 	&SEQINFO(a33x_set_bl_param_seq),
 	&KEYINFO(a33x_level3_key_disable),
 	&KEYINFO(a33x_level2_key_disable),
@@ -755,6 +778,17 @@ static void *a33x_mask_layer_after_cmdtbl[] = {
 	&CONDINFO_FI(a33x_cond_is_60hz),
 	/* VSYNC start */
 	/* DECON update for next frame */
+};
+#endif
+
+#ifdef CONFIG_SUPPORT_CCD_TEST
+static void *a33x_ccd_test_cmdtbl[] = {
+	&KEYINFO(a33x_level2_key_enable),
+	&PKTINFO(a33x_ccd_test_enable),
+	&DLYINFO(a33x_wait_1_vsync),
+	&s6e8fc3_restbl[RES_CCD_STATE],
+	&PKTINFO(a33x_ccd_test_disable),
+	&KEYINFO(a33x_level2_key_disable),
 };
 #endif
 
@@ -779,6 +813,9 @@ static struct seqinfo a33x_seqtbl[MAX_PANEL_SEQ] = {
 #endif
 #if defined(CONFIG_MCD_PANEL_FACTORY) && defined(CONFIG_SUPPORT_FAST_DISCHARGE)
 	[PANEL_FD_SEQ] = SEQINFO_INIT("fast-discharge-seq", a33x_fast_discharge_cmdtbl),
+#endif
+#ifdef CONFIG_SUPPORT_CCD_TEST
+	[PANEL_CCD_TEST_SEQ] = SEQINFO_INIT("ccd-test-seq", a33x_ccd_test_cmdtbl),
 #endif
 	[PANEL_DUMP_SEQ] = SEQINFO_INIT("dump-seq", a33x_dump_cmdtbl),
 	[PANEL_CHECK_CONDITION_SEQ] = SEQINFO_INIT("check-condition-seq", a33x_check_condition_cmdtbl),
@@ -825,9 +862,6 @@ struct common_panel_info s6e8fc3_a33x_panel_info = {
 	},
 #ifdef CONFIG_EXTEND_LIVE_CLOCK
 	.aod_tune = &s6e8fc3_a33x_aod,
-#endif
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	.profile_tune = NULL,
 #endif
 };
 #endif /* __S6E8FC3_A33X_PANEL_H__ */

@@ -54,7 +54,6 @@ void dsp_gpt_manager_free(void)
 	dsp_dl_free(gpt_manager);
 }
 
-/*
 void dsp_gpt_manager_print(void)
 {
 	int idx, jdx;
@@ -83,7 +82,6 @@ void dsp_gpt_manager_print(void)
 		DL_PRINT_BUF(INFO);
 	}
 }
-*/
 
 int dsp_gpt_manager_alloc_libs(struct dsp_lib **libs, int libs_size,
 	int *pm_inv)
@@ -157,10 +155,8 @@ void dsp_gpt_free(struct dsp_lib *lib)
 	}
 }
 
-/*
 void dsp_gpt_print(struct dsp_gpt *gpt)
 {
 	DL_INFO("Address: 0x%lx\n", gpt->addr);
 	DL_INFO("Offset: %u\n", gpt->offset);
 }
-*/

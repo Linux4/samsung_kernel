@@ -1027,9 +1027,5 @@ struct common_panel_info s6e3fc3_r8s_panel_info = {
 #ifdef CONFIG_DYNAMIC_FREQ
 	.df_freq_tbl = r8s_s6e3fc3_dynamic_freq_set,
 #endif
-
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	.profile_tune = NULL,
-#endif
 };
 #endif /* __S6E3FC3_R8S_PANEL_H__ */

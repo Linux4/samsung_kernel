@@ -12,7 +12,7 @@
 
 #include <linux/of_gpio.h>
 #include <video/mipi_display.h>
-#include <kunit/mock.h>
+#include "../panel_kunit.h"
 #include <linux/bits.h>
 #include "../panel.h"
 #include "s6e3fac.h"
@@ -1137,7 +1137,7 @@ __visible_for_testing int show_err(struct dumpinfo *info)
 	err_15_8 = err[0];
 	err_7_0 = err[1];
 
-	panel_info("========== SHOW PANEL [EAh:DSIERR] INFO ==========\n");
+	panel_info("========== SHOW PANEL [E9h:DSIERR] INFO ==========\n");
 	panel_info("* Reg Value : 0x%02x%02x, Result : %s\n", err_15_8, err_7_0,
 			(err[0] || err[1] || err[2] || err[3] || err[4]) ? "NG" : "GOOD");
 
@@ -1929,12 +1929,13 @@ __visible_for_testing int gamma_byte_array_sum(u8 *dst, u8 *src,
 	return 0;
 }
 
-__visible_for_testing struct gm2_dimming_lut_v1 *get_dim_lut_info_v1(struct panel_device *panel, int ivrr, int ibr)
+__visible_for_testing struct dimming_color_offset *get_dimming_data(struct panel_device *panel, int idx)
 {
 	struct panel_info *panel_data;
 	struct panel_dimming_info *panel_dim_info;
+	struct dimming_color_offset *dimming_data;
 
-	if (!panel || ivrr < 0 || ibr < 0)
+	if (!panel)
 		return ERR_PTR(-EINVAL);
 
 	panel_data = &panel->panel_data;
@@ -1943,67 +1944,15 @@ __visible_for_testing struct gm2_dimming_lut_v1 *get_dim_lut_info_v1(struct pane
 	if (!panel_dim_info)
 		return ERR_PTR(-EINVAL);
 
-	if (!panel_dim_info->gm2_dim_init_info ||
-			panel_dim_info->nr_gm2_dim_init_info == 0 ||
-			panel_dim_info->nr_gm2_dim_init_info <= ivrr)
-		return ERR_PTR(-EINVAL);
+	if (!panel_dim_info->dimming_data || panel_dim_info->nr_dimming_data < 1)
+		return ERR_PTR(-ENODATA);
 
-	if (!panel_dim_info->gm2_dim_init_info[ivrr].dim_lut_v1 ||
-		panel_dim_info->gm2_dim_init_info[ivrr].nr_dim_lut_v1 == 0 ||
-		panel_dim_info->gm2_dim_init_info[ivrr].nr_dim_lut_v1 <= ibr)
-		return ERR_PTR(-EINVAL);
+	if (idx < 0 || idx >= panel_dim_info->nr_dimming_data)
+		return ERR_PTR(-ERANGE);
 
-	return (struct gm2_dimming_lut_v1 *)&panel_dim_info->gm2_dim_init_info[ivrr].dim_lut_v1[ibr];
+	dimming_data = panel_dim_info->dimming_data;
+	return (dimming_data + idx);
 }
-
-__visible_for_testing u32 get_dim_lut_offset_v1(struct dimming_color_offset *dim_lut)
-{
-	u32 idx;
-
-	if (!dim_lut) {
-		panel_err("got invalid dim_lut\n");
-		return 0;
-	}
-
-	idx = (u32)(size_t)dim_lut->source_gamma;
-	if (idx >= MAX_S6E3FAC_GAMMA_SET) {
-		panel_err("offset out of range %u\n", idx);
-		return 0;
-	}
-
-	return S6E3FAC_GAMMA_SET_REF[idx];
-}
-
-__visible_for_testing void *get_dim_lut_color_offset_v1(struct dimming_color_offset *dim_lut)
-{
-	if (!dim_lut) {
-		panel_err("got invalid dim_lut\n");
-		return NULL;
-	}
-
-	return dim_lut->rgb_color_offset;
-}
-
-__visible_for_testing int copy_original_gamma_mtp_resource(struct panel_device *panel, u8 *dst)
-{
-	struct panel_info *panel_data;
-	int i, ofs = 0, ret;
-
-	if (!panel || !dst)
-		return -EINVAL;
-
-	panel_data = &panel->panel_data;
-
-	//initialize table
-	for (i = 0; i < MAX_S6E3FAC_GAMMA_SET; i++) {
-		ret = resource_copy_by_name(panel_data, dst + ofs, S6E3FAC_GAMMA_SET_INIT_SRC[i]);
-		if (ret < 0)
-			return ret;
-		ofs += get_resource_size_by_name(panel_data, S6E3FAC_GAMMA_SET_INIT_SRC[i]);
-	}
-	return 0;
-}
-
 
 /*
  * glut_ctoi - trasnform GLUT byte array to int array
@@ -2222,6 +2171,51 @@ __visible_for_testing int s6e3fac_ecc_test(struct panel_device *panel, void *dat
 	return ret;
 }
 #endif
+
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+/*
+ * s6e3fac_decoder_test - test ddi's decoder function
+ *
+ * description of state values:
+ * [0](14h 1st): 0x4D (OK) other (NG)
+ * [1](14h 2nd): 0x16 (OK) other (NG)
+ */
+__visible_for_testing int s6e3fac_decoder_test(struct panel_device *panel, void *data, u32 len)
+{
+	struct panel_info *panel_data;
+	int ret = 0;
+	u8 read_buf[S6E3FAC_DECODER_TEST_LEN] = { -1, -1 };
+
+	if (!panel)
+		return -EINVAL;
+
+	panel_data = &panel->panel_data;
+
+	ret = panel_do_seqtbl_by_index_nolock(panel, PANEL_DECODER_TEST_SEQ);
+	if (unlikely(ret < 0)) {
+		panel_err("failed to write decoder-test seq\n");
+		return ret;
+	}
+
+	ret = resource_copy_by_name(panel_data, read_buf, "decoder_test");
+	if (unlikely(ret < 0)) {
+		panel_err("decoder_test copy failed\n");
+		return -ENODATA;
+	}
+
+	if ((read_buf[0] == 0x4D) && (read_buf[1] == 0x16)) {
+		ret = PANEL_DECODER_TEST_PASS;
+		panel_info("Pass [0]: 0x%02x [1]: 0x%02x ret: %d\n", read_buf[0], read_buf[1], ret);
+	} else {
+		ret = PANEL_DECODER_TEST_FAIL;
+		panel_info("Fail [0]: 0x%02x [1]: 0x%02x ret: %d\n", read_buf[0], read_buf[1], ret);
+	}
+
+	snprintf((char *)data, len, "%02x %02x", read_buf[0], read_buf[1]);
+
+	return ret;
+}
+#endif
 __visible_for_testing bool is_panel_state_not_lpm(struct panel_device *panel)
 {
 	if (panel->state.cur_state != PANEL_STATE_ALPM)
@@ -2283,48 +2277,6 @@ __visible_for_testing s64 get_frame_time(struct panel_device *panel)
 		return 0;
 
 	return 1000000UL / panel->panel_data.props.vrr_origin_fps;
-}
-
-__visible_for_testing int get_remained_vdelay_us(ktime_t last_time, s64 vdelay_us)
-{
-	ktime_t now = ktime_get();
-	s64 remained_vdelay_us, elapsed_us;
-
-	elapsed_us = ktime_to_us(ktime_sub(now, last_time));
-	if (elapsed_us < 0) {
-		panel_err("invalid elapsed_us %lld\n", elapsed_us);
-		return -EINVAL;
-	}
-
-	if (vdelay_us <= elapsed_us) {
-		panel_dbg("skip delay (vdelay:%lld.%03lldms <= elapsed:%lld.%03lldms)\n",
-				vdelay_us / 1000UL, vdelay_us % 1000UL,
-				elapsed_us / 1000UL, elapsed_us % 1000UL);
-		return 0;
-	}
-
-	remained_vdelay_us = vdelay_us - elapsed_us;
-	panel_info("remained vdelay %lld.%03lldms (vdelay:%lld.%03lldms - elapsed:%lld.%03lldms)\n",
-			remained_vdelay_us / 1000UL, remained_vdelay_us % 1000UL,
-			vdelay_us / 1000UL, vdelay_us % 1000UL,
-			elapsed_us / 1000UL, elapsed_us % 1000UL);
-
-	return (int)remained_vdelay_us;
-}
-
-__visible_for_testing int get_s6e3fac_wait_1_frame_after_analog_gamma_write_done(
-	struct panel_device *panel, ktime_t s_time, ktime_t last_time)
-{
-	s64 frame_time;
-
-	/* 1-frame time : 1000000 / origin_fps */
-	frame_time = get_frame_time(panel);
-	if (panel->panel_data.props.vrr_origin_idx == S6E3FAC_VRR_60HS) {
-		/* half of 60HS te duration and add 100us margin */
-		frame_time = (frame_time / 2) + 100;
-	}
-
-	return get_remained_vdelay_us(last_time, frame_time);
 }
 
 __visible_for_testing int get_s6e3fac_wait_1_frame_after_changing_refresh_rate(
@@ -2412,111 +2364,48 @@ __visible_for_testing bool is_hs_mode(struct panel_device *panel)
 	return !(get_s6e3fac_vrr_type(panel) == S6E3FAC_VRR_TYPE_OSC_LOW_SYNC_LOW);
 }
 
-u8 ANALOG_GAMMA_BUFFER[S6E3FAC_GAMMA_MTP_LEN * MAX_S6E3FAC_GAMMA_SET] = { 0, };
-int ANALOG_GAMMA_BASE_ADDR = 0x030C;
-int ANALOG_GAMMA_WRITE_OFFSET;
-__visible_for_testing bool is_analog_gamma_updated(struct panel_device *panel)
+__visible_for_testing int init_analog_gamma_offset(struct maptbl *tbl)
 {
-	struct panel_bl_device *panel_bl;
-	struct gm2_dimming_lut_v1 *dim_lut;
-	struct panel_vrr *vrr;
-	int i, vrr_idx, br_idx, ret, ofs;
-	s32(*rgb_color_offset)[MAX_COLOR];
-	u8 buf[S6E3FAC_GAMMA_MTP_LEN * MAX_S6E3FAC_GAMMA_SET] = { 0, };
+	struct panel_device *panel;
+	struct panel_info *panel_data;
+	struct dimming_color_offset *dim_data;
+	u8 gamma_data[S6E3FAC_ANALOG_GAMMA_WRITE_LEN];
+	int i, ret, len, ofs = 0;
 
-	panel_bl = &panel->panel_bl;
-	if (!panel_bl) {
-		panel_err("panel_bl is null\n");
-		goto exit;
+	if (unlikely(!tbl || !tbl->pdata)) {
+		panel_err("invalid maptbl\n");
+		return -EINVAL;
 	}
 
-	vrr = get_panel_vrr(panel);
-	if (vrr == NULL) {
-		panel_err("failed to get vrr\n");
-		goto exit;
-	}
+	panel = tbl->pdata;
+	panel_data = &panel->panel_data;
 
-	vrr_idx = find_s6e3fac_vrr(vrr);
-	if (vrr_idx < 0) {
-		panel_warn("vrr not found\n");
-		goto exit;
-	}
+	for (i = 0; i < S6E3FAC_ANALOG_GAMMA_WRITE_SET_COUNT; i++) {
+		len = get_resource_size_by_name(panel_data, S6E3FAC_ANALOG_GAMMA_OFFSET_INIT_SRC[i]);
+		if (len < 0)
+			return len;
 
-	if (!is_analog_gamma_supported(vrr_idx)) {
-		panel_dbg("skipped vrr %d\n", vrr_idx);
-		goto exit;
-	}
-
-	br_idx = get_brightness_pac_step_by_subdev_id(panel_bl, PANEL_BL_SUBDEV_TYPE_DISP, panel_bl->props.brightness);
-	if (br_idx < 0) {
-		panel_warn("invalid br_idx %d\n", br_idx);
-		goto exit;
-	}
-
-	//dim lut
-	dim_lut = get_dim_lut_info_v1(panel, vrr_idx, br_idx);
-	if (IS_ERR_OR_NULL(dim_lut)) {
-		panel_err("got invalid dim_lut vrr %d br %d ret %d\n", vrr_idx, br_idx, PTR_ERR(dim_lut));
-		goto exit;
-	}
-
-	ret = copy_original_gamma_mtp_resource(panel, buf);
-	if (ret < 0) {
-		panel_warn("original gamma mtp failed %d\n", ret);
-		goto exit;
-	}
-
-	//calculate
-	for (i = 0; i < dim_lut->nr_offset_list; i++) {
-		rgb_color_offset = get_dim_lut_color_offset_v1(&dim_lut->offset_list[i]);
-		if (!rgb_color_offset) {
-			panel_dbg("skip gamma offset with vrr %d br %d offset idx %d\n", vrr_idx, br_idx, i);
-			continue;
+		if (maptbl_get_sizeof_maptbl(tbl) < ofs + len) {
+			//out of range
+			return -EINVAL;
 		}
-		ofs = get_dim_lut_offset_v1(&dim_lut->offset_list[i]);
-		ret = gamma_byte_array_sum(buf + ofs, buf + ofs, rgb_color_offset);
-		if (ret < 0) {
-			panel_err("gamma_byte_array_sum failed\n");
-			goto exit;
+		ret = resource_copy_by_name(panel_data, gamma_data + ofs, S6E3FAC_ANALOG_GAMMA_OFFSET_INIT_SRC[i]);
+		if (ret < 0)
+			return ret;
+
+		panel_dbg("copy resource %s[%d]\n", S6E3FAC_ANALOG_GAMMA_OFFSET_INIT_SRC[i], i);
+
+		dim_data = get_dimming_data(panel, i);
+		if (!IS_ERR_OR_NULL(dim_data) && dim_data->rgb_color_offset) {
+			gamma_byte_array_sum(gamma_data + ofs, gamma_data + ofs, dim_data->rgb_color_offset);
+			panel_info("update gamma %s with offset[%d]\n", S6E3FAC_ANALOG_GAMMA_OFFSET_INIT_SRC[i], i);
 		}
-		panel_dbg("update gamma with vrr %d br %d to offset %d\n", vrr_idx, br_idx, ofs);
+		ofs += len;
 	}
 
-	if (sizeof(ANALOG_GAMMA_BUFFER) < dim_lut->affected_addr + S6E3FAC_GAMMA_DATA_WRITE_LEN) {
-		panel_err("out of range, affedted addr %d(0x%04x)\n", dim_lut->affected_addr);
-		goto exit;
-	}
+	memcpy(tbl->arr, gamma_data, maptbl_get_sizeof_maptbl(tbl));
 
-	if (!memcmp(ANALOG_GAMMA_BUFFER + dim_lut->affected_addr, buf + dim_lut->affected_addr,
-		S6E3FAC_GAMMA_DATA_WRITE_LEN)) {
-		panel_dbg("data is same. vrr %d br %d affected %d(0x%04x)\n", vrr_idx, br_idx,
-			dim_lut->affected_addr, dim_lut->affected_addr);
-		goto exit;
-	}
-	memcpy(ANALOG_GAMMA_BUFFER + dim_lut->affected_addr, buf + dim_lut->affected_addr,
-		S6E3FAC_GAMMA_DATA_WRITE_LEN);
-	ANALOG_GAMMA_WRITE_OFFSET = dim_lut->affected_addr;
-	panel_dbg("copied. vrr %d br %d affected %d(0x%04x)\n", vrr_idx, br_idx,
-		dim_lut->affected_addr, dim_lut->affected_addr);
-	print_data(ANALOG_GAMMA_BUFFER, sizeof(ANALOG_GAMMA_BUFFER));
-
-	return true;
-exit:
-	return false;
-}
-
-__visible_for_testing void copy_gamma_mtp_addr_maptbl(struct maptbl *tbl, u8 *dst)
-{
-	u32 addr;
-
-	addr = ANALOG_GAMMA_BASE_ADDR + ANALOG_GAMMA_WRITE_OFFSET;
-	dst[0] = (addr >> 8) & 0xFF;
-	dst[1] = addr & 0xFF;
-}
-
-__visible_for_testing void copy_gamma_mtp_write_table(struct maptbl *tbl, u8 *dst)
-{
-	memcpy(dst, ANALOG_GAMMA_BUFFER + ANALOG_GAMMA_WRITE_OFFSET, S6E3FAC_GAMMA_DATA_WRITE_LEN);
+	return 0;
 }
 
 __visible_for_testing bool is_first_set_bl(struct panel_device *panel)
@@ -2676,12 +2565,6 @@ __visible_for_testing int s6e3fac_getidx_ffc_table(struct maptbl *tbl)
 
 __visible_for_testing int s6e3fac_ddi_init(struct panel_device *panel, void *data, u32 len)
 {
-	int ret;
-
-	ret = copy_original_gamma_mtp_resource(panel, ANALOG_GAMMA_BUFFER);
-	if (ret < 0)
-		panel_warn("original gamma mtp failed %d\n", ret);
-
 	return 0;
 }
 

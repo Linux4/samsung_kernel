@@ -711,22 +711,20 @@ static int sensor_imx582_cis_group_param_hold_func(struct v4l2_subdev *subdev, u
 p_err:
 	return ret;
 #else
-
 	return 0;
 #endif
 }
 
-/* Input
- *	hold : true - hold, flase - no hold
- * Output
- *      return: 0 - no effect(already hold or no hold)
- *		positive - setted by request
- *		negative - ERROR value
- */
+/*
+  hold control register for updating multiple-parameters within the same frame. 
+  true : hold, flase : no hold/release
+*/
+#if USE_GROUP_PARAM_HOLD
 int sensor_imx582_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 {
 	int ret = 0;
 	struct is_cis *cis = NULL;
+	u32 mode;
 
 	FIMC_BUG(!subdev);
 
@@ -735,15 +733,33 @@ int sensor_imx582_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 	FIMC_BUG(!cis);
 	FIMC_BUG(!cis->cis_data);
 
+	if (cis->cis_data->stream_on == false && hold == true) {
+		ret = 0;
+		dbg_sensor(1, "%s : sensor stream off skip group_param_hold", __func__);
+		goto p_err;
+	}
+
+	mode = cis->cis_data->sens_config_index_cur;
+
+	if (mode == SENSOR_IMX582_2X2BIN_V2H2_2000X1500_120FPS) {
+		ret = 0;
+		dbg_sensor(1, "%s : fast ae skip group_param_hold", __func__);
+		goto p_err;
+	}
+
+
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = sensor_imx582_cis_group_param_hold_func(subdev, hold);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
+
+p_err_unlock:
+	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 	return ret;
 }
+#endif
 
 int sensor_imx582_cis_set_global_setting(struct v4l2_subdev *subdev)
 {
@@ -895,8 +911,6 @@ int sensor_imx582_cis_stream_on(struct v4l2_subdev *subdev)
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
-	sensor_imx582_cis_group_param_hold(subdev, 0x01);
-
 #ifdef SENSOR_IMX582_DEBUG_INFO
 	{
 	u16 pll;
@@ -927,14 +941,12 @@ int sensor_imx582_cis_stream_on(struct v4l2_subdev *subdev)
 
 	info("[%s] start\n", __func__);
 	/* Here Add for Master mode in dual */
-	is_sensor_write8(client, 0x3040, 0x01);
-	is_sensor_write8(client, 0x3F71, 0x01);
+//	is_sensor_write8(client, 0x3040, 0x01);
+//	is_sensor_write8(client, 0x3F71, 0x01);
 
 	/* Sensor stream on */
 	is_sensor_write8(client, 0x0100, 0x01);
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
-
-	sensor_imx582_cis_group_param_hold(subdev, 0x00);
 
 	cis_data->stream_on = true;
 
@@ -952,6 +964,7 @@ int sensor_imx582_cis_stream_off(struct v4l2_subdev *subdev)
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
 	ktime_t st = ktime_get();
+	u8 frame_count = 0;
 
 	FIMC_BUG(!subdev);
 
@@ -971,13 +984,23 @@ int sensor_imx582_cis_stream_off(struct v4l2_subdev *subdev)
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
-	sensor_imx582_cis_group_param_hold(subdev, 0x00);
+	cis_data->stream_on = false; /* for not working group_param_hold after stream off */
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	is_sensor_write8(client, 0x0100, 0x00);
-	I2C_MUTEX_UNLOCK(cis->i2c_lock);
+ 
+	ret = is_sensor_read8(client, 0x0005, &frame_count);
+	info("%s: frame_count(%#x)\n", __func__, frame_count);
 
-	cis_data->stream_on = false;
+  	ret = sensor_imx582_cis_group_param_hold_func(subdev, 0x00);
+	if (ret < 0)
+		err("group_param_hold_func failed at stream off");
+
+ 	/* Sensor stream off */
+	ret = is_sensor_write8(client, 0x0100, 0x00);
+	if (ret < 0)
+		err("stream off fail");
+
+	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
@@ -1065,7 +1088,6 @@ int sensor_imx582_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 int sensor_imx582_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_duration)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1123,25 +1145,19 @@ int sensor_imx582_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 			cis->id, __func__, pix_rate_freq_mhz, frame_duration,
 			line_length_pck, frame_length_lines);
 
-	hold = sensor_imx582_cis_group_param_hold(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
 	if (lte_mode->sen_strm_off_on_enable == false && cis_data->frame_length_lines_shifter > 0) {
 		cis_data->frame_length_lines_shifter = 0;
 		ret = is_sensor_write8(client, SENSOR_IMX582_CIT_LSHIFT_ADDR, 0);
 		if (ret < 0) {
-			goto p_i2c_err;
+			goto p_err_unlock;
 		}
 	}
 
 	ret = is_sensor_write16(client, SENSOR_IMX582_FRAME_LENGTH_LINE_ADDR, frame_length_lines);
 	if (ret < 0) {
-		goto p_i2c_err;
+		goto p_err_unlock;
 	}
 
 	cis_data->cur_frame_us_time = frame_duration;
@@ -1156,16 +1172,10 @@ int sensor_imx582_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx582_cis_group_param_hold(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
@@ -1219,14 +1229,12 @@ int sensor_imx582_cis_set_frame_rate(struct v4l2_subdev *subdev, u32 min_fps)
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 p_err:
-
 	return ret;
 }
 
 int sensor_imx582_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_param *target_exposure)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1345,29 +1353,23 @@ int sensor_imx582_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	cis_data->cur_long_exposure_coarse = coarse_int;
 	cis_data->cur_short_exposure_coarse = coarse_int;
 
-	hold = sensor_imx582_cis_group_param_hold(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	if (lte_mode->sen_strm_off_on_enable == false && cis_data->min_frame_us_time > max_fll_frame_time) {
 		if (cit_lshift_count > 0) {
 			ret = is_sensor_write8(client, SENSOR_IMX582_CIT_LSHIFT_ADDR, cit_lshift_count);
 			if (ret < 0)
-				goto p_i2c_err;
+				goto p_err_unlock;
 		}
 	}
 
 	ret = is_sensor_write16(client, SENSOR_IMX582_COARSE_INTEG_TIME_ADDR, coarse_int);
 		if (ret < 0)
-			goto p_i2c_err;
+			goto p_err_unlock;
 
 	if (lte_mode->sen_strm_off_on_enable == false && cis_data->min_frame_us_time > max_fll_frame_time) {
 		ret = is_sensor_write16(client, SENSOR_IMX582_FRAME_LENGTH_LINE_ADDR, frame_length_lines);
 		if (ret < 0)
-			goto p_i2c_err;
+			goto p_err_unlock;
 	}
 
 	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d): pix_rate_freq_mhz (%d),"
@@ -1379,16 +1381,10 @@ int sensor_imx582_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx582_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
@@ -1525,7 +1521,6 @@ int sensor_imx582_cis_adjust_analog_gain(struct v4l2_subdev *subdev, u32 input_a
 int sensor_imx582_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_param *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1559,12 +1554,6 @@ int sensor_imx582_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_para
 	dbg_sensor(1, "[MOD:D:%d] %s(vsync cnt = %d), input_again = %d us, analog_gain(%#x)\n",
 		cis->id, __func__, cis->cis_data->sen_vsync_count, again->val, analog_gain);
 
-	hold = sensor_imx582_cis_group_param_hold(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	// the address of analog_gain is [9:0] from 0x0204 to 0x0205
 	analog_gain &= 0x03FF;
 
@@ -1572,28 +1561,21 @@ int sensor_imx582_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_para
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_write16(client, SENSOR_IMX582_ANALOG_GAIN_ADDR, analog_gain);
 	if (ret < 0)
-		goto p_i2c_err;
+		goto p_err_unlock;
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx582_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
 int sensor_imx582_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1614,16 +1596,10 @@ int sensor_imx582_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 		goto p_err;
 	}
 
-	hold = sensor_imx582_cis_group_param_hold(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_read16(client, SENSOR_IMX582_ANALOG_GAIN_ADDR, &analog_gain);
 	if (ret < 0)
-		goto p_i2c_err;
+		goto p_err_unlock;
 
 	analog_gain &= 0x03FF;
 	*again = sensor_imx582_cis_calc_again_permile(analog_gain);
@@ -1634,16 +1610,10 @@ int sensor_imx582_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx582_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
@@ -1715,7 +1685,6 @@ int sensor_imx582_cis_get_max_analog_gain(struct v4l2_subdev *subdev, u32 *max_a
 int sensor_imx582_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1753,41 +1722,28 @@ int sensor_imx582_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_par
 	dbg_sensor(1, "[MOD:D:%d] %s(vsync cnt = %d), input_dgain = %d, dgain_code(%#x)\n",
 			cis->id, __func__, cis->cis_data->sen_vsync_count, dgain->val, dgain_code);
 
-	hold = sensor_imx582_cis_group_param_hold(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	dgains[0] = (u8)((dgain_code & 0x0F00) >> 8);
 	dgains[1] = (u8)(dgain_code & 0xFF);
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_write8_array(client, SENSOR_IMX582_DIG_GAIN_ADDR, dgains, 2);
 	if (ret < 0) {
-		goto p_i2c_err;
+		goto p_err_unlock;
 	}
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx582_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
 int sensor_imx582_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1808,16 +1764,10 @@ int sensor_imx582_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 		goto p_err;
 	}
 
-	hold = sensor_imx582_cis_group_param_hold(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_read16(client, SENSOR_IMX582_DIG_GAIN_ADDR, &digital_gain);
 	if (ret < 0)
-		goto p_i2c_err;
+		goto p_err_unlock;
 
 	*dgain = sensor_cis_calc_dgain_permile(digital_gain);
 
@@ -1827,16 +1777,10 @@ int sensor_imx582_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx582_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
@@ -1912,18 +1856,11 @@ int sensor_imx582_cis_long_term_exposure(struct v4l2_subdev *subdev)
 	unsigned char cit_lshift_val = 0;
 	int cit_lshift_count = 0;
 	u32 target_exp = 0;
-	int hold = 0;
 
 	FIMC_BUG(!subdev);
 
 	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
 	lte_mode = &cis->long_term_mode;
-
-	hold = sensor_imx582_cis_group_param_hold(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	/* LTE mode or normal mode set */
@@ -1951,13 +1888,6 @@ int sensor_imx582_cis_long_term_exposure(struct v4l2_subdev *subdev)
 
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_imx582_cis_group_param_hold(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	info("[%s] sen_strm_enable(%d), cit_lshift_count (%d), target_exp(%d)", __func__,
 		lte_mode->sen_strm_off_on_enable, cit_lshift_count, lte_mode->expo[0]);
 
@@ -1969,7 +1899,6 @@ p_err:
 int sensor_imx582_cis_set_wb_gain(struct v4l2_subdev *subdev, struct wb_gains wb_gains)
 {
 	int ret = 0;
-	int hold = 0;
 	int mode = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
@@ -2009,29 +1938,18 @@ int sensor_imx582_cis_set_wb_gain(struct v4l2_subdev *subdev, struct wb_gains wb
 	dbg_sensor(1, "[SEN:%d]%s, abs_gain_gr(0x%4X), abs_gain_r(0x%4X), abs_gain_b(0x%4X), abs_gain_gb(0x%4X)\n",
 		cis->id, __func__, abs_gains[0], abs_gains[1], abs_gains[2], abs_gains[3]);
 
-	hold = sensor_imx582_cis_group_param_hold(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_write16_array(client, SENSOR_IMX582_ABS_GAIN_GR_SET_ADDR, abs_gains, 4);
 	if (ret < 0)
-		goto p_i2c_err;
+		goto p_err_unlock;
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx582_cis_group_param_hold(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
 	return ret;
 }
 
@@ -2067,7 +1985,9 @@ void sensor_imx582_cis_data_calc(struct v4l2_subdev *subdev, u32 mode)
 static struct is_cis_ops cis_ops_imx582 = {
 	.cis_init = sensor_imx582_cis_init,
 	.cis_log_status = sensor_imx582_cis_log_status,
+#if USE_GROUP_PARAM_HOLD
 	.cis_group_param_hold = sensor_imx582_cis_group_param_hold,
+#endif	
 	.cis_set_global_setting = sensor_imx582_cis_set_global_setting,
 	.cis_set_size = sensor_imx582_cis_set_size,
 	.cis_mode_change = sensor_imx582_cis_mode_change,

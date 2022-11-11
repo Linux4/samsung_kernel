@@ -73,7 +73,7 @@ static void timestamp_sync_work_func(struct work_struct *work)
 {
 	int ret;
 
-	ret = shub_send_command(CMD_SETVALUE, TYPE_MCU, RTC_TIME, NULL, 0);
+	ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, RTC_TIME, NULL, 0);
 	if (ret < 0)
 		shub_errf("comm fail %d", ret);
 }
@@ -111,7 +111,7 @@ static int get_shub_system_info_from_hub(void)
 	char *buffer = NULL;
 	unsigned int buffer_length;
 
-	ret = shub_send_command_wait(CMD_GETVALUE, TYPE_MCU, HUB_SYSTEM_INFO, 1000, NULL, 0, &buffer, &buffer_length,
+	ret = shub_send_command_wait(CMD_GETVALUE, TYPE_HUB, HUB_SYSTEM_INFO, 1000, NULL, 0, &buffer, &buffer_length,
 				     true);
 
 	if (ret < 0) {
@@ -139,7 +139,7 @@ static int send_pm_state(u8 pm_state)
 {
 	int ret;
 
-	ret = shub_send_command(CMD_SETVALUE, TYPE_MCU, PM_STATE, &pm_state, 1);
+	ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, PM_STATE, &pm_state, 1);
 	if (ret < 0)
 		shub_errf("command %d failed", pm_state);
 	else
@@ -245,7 +245,7 @@ int shub_send_status(u8 state_sub_cmd)
 {
 	int ret;
 
-	ret = shub_send_command(CMD_SETVALUE, TYPE_MCU, state_sub_cmd, NULL, 0);
+	ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, state_sub_cmd, NULL, 0);
 	if (ret < 0)
 		shub_errf("command %d failed", state_sub_cmd);
 	else
@@ -283,15 +283,6 @@ void reset_mcu(int reason)
 		shub_infof("reset work state : pending or running");
 		return;
 	}
-
-/*
- * Temporary blocking comm fail reset, no event reset for sensor hub bring-up
- * To Do : delete this after Papaya bring-up
- */
-#ifdef CONFIG_SHUB_LSI
-	if (reason == RESET_TYPE_KERNEL_COM_FAIL || reason == RESET_TYPE_KERNEL_NO_EVENT)
-		return;
-#endif
 
 	shub_infof("- reason(%u)", reason);
 	shub_data->reset_type = reason;

@@ -71,14 +71,16 @@ extern int stui_i2c_unlock(struct i2c_adapter *adap);
 static int fts_stui_tsp_enter(void)
 {
 	int ret = 0;
+	struct fts_ts_data *ts = fts_data;
 
-	if (!fts_data)
+	FTS_INFO("[STUI] %s\n", __func__);
+	if (!ts)
 		return -EINVAL;
 
 	fts_irq_disable();
 	fts_release_all_finger();
 
-	ret = stui_i2c_lock(fts_data->client->adapter);
+	ret = stui_i2c_lock(ts->client->adapter);
 	if (ret) {
 		pr_err("[STUI] stui_i2c_lock failed : %d\n", ret);
 		fts_irq_enable();
@@ -91,11 +93,12 @@ static int fts_stui_tsp_enter(void)
 static int fts_stui_tsp_exit(void)
 {
 	int ret = 0;
+	struct fts_ts_data *ts = fts_data;
 
-	if (!fts_data)
+	if (!ts)
 		return -EINVAL;
 
-	ret = stui_i2c_unlock(fts_data->client->adapter);
+	ret = stui_i2c_unlock(ts->client->adapter);
 	if (ret)
 		pr_err("[STUI] stui_i2c_unlock failed : %d\n", ret);
 
@@ -1080,15 +1083,13 @@ static int fts_read_parse_touchdata(struct fts_ts_data *data)
 	data->point_num = buf[FTS_TOUCH_POINT_NUM] & 0x0F;
 	data->touch_point = 0;
 
-	if (data->ic_info.is_incell) {
-		if ((data->point_num == 0x0F) && (buf[2] == 0xFF) && (buf[3] == 0xFF)
-		    && (buf[4] == 0xFF) && (buf[5] == 0xFF) && (buf[6] == 0xFF)) {
-			FTS_DEBUG("touch buff is 0xff, need recovery state");
-			fts_release_all_finger();
-			fts_tp_state_recovery(data);
-			data->point_num = 0;
-			return -EIO;
-		}
+	if ((data->point_num == 0x0F) && (buf[2] == 0xFF) && (buf[3] == 0xFF)
+	    && (buf[4] == 0xFF) && (buf[5] == 0xFF) && (buf[6] == 0xFF)) {
+		FTS_DEBUG("touch buff is 0xff, need recovery state");
+		fts_release_all_finger();
+		fts_tp_state_recovery(data);
+		data->point_num = 0;
+		return -EIO;
 	}
 
 	if (data->point_num > max_touch_num) {
@@ -2497,13 +2498,6 @@ static int fts_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 {
 	int ret = 0;
 	struct fts_ts_data *ts_data = NULL;
-	int lcd_type = 0, lcd_type_load = 0x804004;
-
-	lcd_type = sec_input_get_lcd_id(&client->dev);
-	if (lcd_type != lcd_type_load) {
-		FTS_ERROR("do not load lcdtype 0x%08X\n", lcd_type);
-		return -ENODEV;
-	}
 
 	FTS_INFO("Touch Screen(I2C BUS) driver probe...");
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
@@ -2534,6 +2528,7 @@ static int fts_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	}
 
 #if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+	ptsp = &client->dev;
 	ts_data->pdata->stui_tsp_enter = fts_stui_tsp_enter;
 	ts_data->pdata->stui_tsp_exit = fts_stui_tsp_exit;
 	ts_data->pdata->stui_tsp_type = fts_stui_tsp_type;

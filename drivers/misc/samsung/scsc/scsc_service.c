@@ -65,11 +65,12 @@ struct scsc_service {
 #if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
 enum scsc_subsystem scsc_service_id_subsystem_mapping(enum scsc_service_id id){
         switch (id) {
-                case SCSC_SERVICE_ID_NULL: 	return SCSC_SUBSYSTEM_WLAN;
-                case SCSC_SERVICE_ID_WLAN: 	return SCSC_SUBSYSTEM_WLAN;
-                case SCSC_SERVICE_ID_BT:	return SCSC_SUBSYSTEM_WPAN;
-                case SCSC_SERVICE_ID_ANT:	return SCSC_SUBSYSTEM_WPAN;
+                case SCSC_SERVICE_ID_NULL:      return SCSC_SUBSYSTEM_WLAN;
+                case SCSC_SERVICE_ID_WLAN:      return SCSC_SUBSYSTEM_WLAN;
+                case SCSC_SERVICE_ID_BT:        return SCSC_SUBSYSTEM_WPAN;
+                case SCSC_SERVICE_ID_ANT:       return SCSC_SUBSYSTEM_WPAN;
                 case SCSC_SERVICE_ID_NULL_BT:   return SCSC_SUBSYSTEM_WPAN;
+                case SCSC_SERVICE_ID_FM:        return SCSC_SUBSYSTEM_WPAN;
                 default: return SCSC_SUBSYSTEM_INVALID;
         }
 }

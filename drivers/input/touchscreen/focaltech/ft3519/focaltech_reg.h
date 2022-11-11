@@ -122,6 +122,7 @@
 #define FTS_REG_TEST_MODE				0x97
 #define FTS_REG_CODE_BANK_MODE          0xC3
 #define FTS_REG_SNR_BUFF_COUNTER        0x76
+#define FTS_PROX_TOUCH_SENS             0x98
 
 #define FTS_REG_GRIP_MODE			0x8C
 #define FTS_REG_GRIP_PORTRAIT_MODE		0x61

@@ -167,7 +167,7 @@
 						boost_name = "RPS";
 						target = <0x00>;
 						extra_idx = <0x00>;
-						level = <0x13 0x40>;
+						level = <0x13 0x80>;
 
 						boost0 {
 							enable = <0x01>;
@@ -242,7 +242,7 @@
 						boost_name = "IRQ_DIT";
 						target = <0x06>;
 						extra_idx = <0x00>;
-						level = <0x05 0x07>;
+						level = <0x05 0x06>;
 
 						boost0 {
 							enable = <0x01>;
@@ -2794,6 +2794,14 @@
 				samsung,offset = <0x1480000>;
 				phandle = <0x57>;
 			};
+
+			ext-bin@18 {
+				compatible = "samsung,abox-ext-bin";
+				samsung,name = "sb_music.bin";
+				samsung,area = <0x01>;
+				samsung,offset = <0x2250800>;
+				phandle = <0x58>;
+			};
 		};
 	};
 
@@ -2927,7 +2935,7 @@
 				samsung,pins = "gpa0-3";
 				samsung,pin-function = <0x00>;
 				samsung,pin-pud = <0x01>;
-				phandle = <0x58>;
+				phandle = <0x59>;
 			};
 
 			if-pmic-irq {
@@ -3045,49 +3053,49 @@
 						regulator-name = "VDDD_1.05V_SUB";
 						regulator-min-microvolt = <0x100590>;
 						regulator-max-microvolt = <0x100590>;
-						phandle = <0x59>;
+						phandle = <0x5a>;
 					};
 
 					s2mpb03-ldo2 {
 						regulator-name = "VDDD_1.05V_CAM";
 						regulator-min-microvolt = <0x100590>;
 						regulator-max-microvolt = <0x100590>;
-						phandle = <0x5a>;
+						phandle = <0x5b>;
 					};
 
 					s2mpb03-ldo3 {
 						regulator-name = "VDDIO_1.8V_CAM";
 						regulator-min-microvolt = <0x1b7740>;
 						regulator-max-microvolt = <0x1b7740>;
-						phandle = <0x5b>;
+						phandle = <0x5c>;
 					};
 
 					s2mpb03-ldo4 {
 						regulator-name = "S2MPB03_LD04";
 						regulator-min-microvolt = <0xaae60>;
 						regulator-max-microvolt = <0xfa3e8>;
-						phandle = <0x5c>;
+						phandle = <0x5d>;
 					};
 
 					s2mpb03-ldo5 {
 						regulator-name = "VDDA_2.8V_CAM";
 						regulator-min-microvolt = <0x20ce70>;
 						regulator-max-microvolt = <0x20ce70>;
-						phandle = <0x5d>;
+						phandle = <0x5e>;
 					};
 
 					s2mpb03-ldo6 {
 						regulator-name = "VDDA_2.8V_SUB";
 						regulator-min-microvolt = <0x2ab980>;
 						regulator-max-microvolt = <0x2ab980>;
-						phandle = <0x5e>;
+						phandle = <0x5f>;
 					};
 
 					s2mpb03-ldo7 {
 						regulator-name = "VDD_VM_2.8V_OIS";
 						regulator-min-microvolt = <0x2ab980>;
 						regulator-max-microvolt = <0x2ab980>;
-						phandle = <0x5f>;
+						phandle = <0x60>;
 					};
 				};
 			};
@@ -3105,7 +3113,7 @@
 				compatible = "samsung,s6e3fc3";
 				reset-gpios = <0xffffffff 0x00 0x00>;
 				reg = <0x00>;
-				phandle = <0x60>;
+				phandle = <0x61>;
 			};
 		};
 	};
@@ -3246,6 +3254,7 @@
 		ext_bin_15 = "/fragment@5/__overlay__/ext-bin@15";
 		ext_bin_16 = "/fragment@5/__overlay__/ext-bin@16";
 		ext_bin_17 = "/fragment@5/__overlay__/ext-bin@17";
+		ext_bin_18 = "/fragment@5/__overlay__/ext-bin@18";
 		tfa98xx_left = "/fragment@9/__overlay__/tfa98xx@34";
 		tfa98xx_right = "/fragment@9/__overlay__/tfa98xx@35";
 		attn_irq = "/fragment@15/__overlay__/attn-irq";
