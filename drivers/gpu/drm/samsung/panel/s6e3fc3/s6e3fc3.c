@@ -12,7 +12,7 @@
 
 #include <linux/of_gpio.h>
 #include <video/mipi_display.h>
-#include <kunit/mock.h>
+#include "../panel_kunit.h"
 #include "../panel.h"
 #include "s6e3fc3.h"
 #include "s6e3fc3_panel.h"
@@ -25,6 +25,10 @@
 
 #if IS_ENABLED(CONFIG_SEC_ABC)
 #include <linux/sti/abc_common.h>
+#endif
+
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO)
+#include "../dpui.h"
 #endif
 
 #ifdef PANEL_PR_TAG
@@ -1024,7 +1028,7 @@ __visible_for_testing int show_err(struct dumpinfo *info)
 	err_15_8 = err[0];
 	err_7_0 = err[1];
 
-	panel_info("========== SHOW PANEL [EAh:DSIERR] INFO ==========\n");
+	panel_info("========== SHOW PANEL [E9h:DSIERR] INFO ==========\n");
 	panel_info("* Reg Value : 0x%02x%02x, Result : %s\n", err_15_8, err_7_0,
 			(err[0] || err[1] || err[2] || err[3] || err[4]) ? "NG" : "GOOD");
 
@@ -1208,6 +1212,84 @@ __visible_for_testing int show_self_diag(struct dumpinfo *info)
 	return 0;
 }
 
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+/*
+ * s6e3fc3_decoder_test - test ddi's decoder function
+ *
+ * description of state values:
+ * [0](14h 1st): 0x58 (OK) other (NG)
+ * [1](14h 2nd): 0xAD (OK) other (NG)
+ *
+ * [0](15h 1st): 0x14 (OK) other (NG)
+ * [1](15h 2nd): 0x74 (OK) other (NG)
+ */
+__visible_for_testing int s6e3fc3_decoder_test(struct panel_device *panel, void *data, u32 len)
+{
+	struct panel_info *panel_data;
+	int ret = 0;
+	u8 read_buf1[S6E3FC3_DECODER_TEST1_LEN] = { -1, -1 };
+	u8 read_buf2[S6E3FC3_DECODER_TEST2_LEN] = { -1, -1 };
+	u8 read_buf3[S6E3FC3_DECODER_TEST3_LEN] = { -1, -1 };
+	u8 read_buf4[S6E3FC3_DECODER_TEST4_LEN] = { -1, -1 };
+
+	if (!panel)
+		return -EINVAL;
+
+	panel_data = &panel->panel_data;
+
+	ret = panel_do_seqtbl_by_index_nolock(panel, PANEL_DECODER_TEST_SEQ);
+	if (unlikely(ret < 0)) {
+		panel_err("failed to write decoder-test seq\n");
+		return ret;
+	}
+
+	ret = resource_copy_by_name(panel_data, read_buf1, "decoder_test1"); // 0x14 in normal voltage
+	if (unlikely(ret < 0)) {
+		panel_err("decoder_test1 copy failed\n");
+		return -ENODATA;
+	}
+
+	ret = resource_copy_by_name(panel_data, read_buf2, "decoder_test2"); // 0x15 in normal voltage
+	if (unlikely(ret < 0)) {
+		panel_err("decoder_test2 copy failed\n");
+		return -ENODATA;
+	}
+
+	ret = resource_copy_by_name(panel_data, read_buf3, "decoder_test3"); // 0x14 in low voltage
+	if (unlikely(ret < 0)) {
+		panel_err("decoder_test1 copy failed\n");
+		return -ENODATA;
+	}
+
+	ret = resource_copy_by_name(panel_data, read_buf4, "decoder_test4"); // 0x15 in low voltage
+	if (unlikely(ret < 0)) {
+		panel_err("decoder_test2 copy failed\n");
+		return -ENODATA;
+	}
+
+	if ((read_buf1[0] == 0x58) && (read_buf1[1] == 0xAD) &&
+		(read_buf2[0] == 0x14) && (read_buf2[1] == 0x74) &&
+		(read_buf3[0] == 0x58) && (read_buf3[1] == 0xAD) &&
+		(read_buf4[0] == 0x14) && (read_buf4[1] == 0x74)) {
+		ret = PANEL_DECODER_TEST_PASS;
+		panel_info("Fail [normal]:0x14->0x%02x,0x%02x, 0x15->0x%02x,0x%02x, [low]:0x14->0x%02x,0x%02x, 0x15->0x%02x,0x%02x, ret: %d\n",
+			read_buf1[0], read_buf1[1], read_buf2[0], read_buf2[1],
+			read_buf3[0], read_buf3[1], read_buf4[0], read_buf4[1],	ret);
+	} else {
+		ret = PANEL_DECODER_TEST_FAIL;
+		panel_info("Fail [normal]:0x14->0x%02x,0x%02x, 0x15->0x%02x,0x%02x, [low]:0x14->0x%02x,0x%02x, 0x15->0x%02x,0x%02x, ret: %d\n",
+			read_buf1[0], read_buf1[1], read_buf2[0], read_buf2[1],
+			read_buf3[0], read_buf3[1], read_buf4[0], read_buf4[1],	ret);
+	}
+
+	snprintf((char *)data, len, "%02x %02x %02x %02x %02x %02x %02x %02x",
+		read_buf1[0], read_buf1[1], read_buf2[0], read_buf2[1],
+		read_buf3[0], read_buf3[1], read_buf4[0], read_buf4[1]);
+
+	return ret;
+}
+#endif
+
 #ifdef CONFIG_SUPPORT_DDI_CMDLOG
 __visible_for_testing int show_cmdlog(struct dumpinfo *info)
 {
@@ -1340,7 +1422,7 @@ __visible_for_testing int s6e3fc3_getidx_ffc_table(struct maptbl *tbl)
 	return maptbl_index(tbl, 0, idx, 0);
 }
 
-
+#ifdef CONFIG_SUPPORT_MASK_LAYER
 __visible_for_testing bool s6e3fc3_is_120hz(struct panel_device *panel)
 {
 	return (getidx_s6e3fc3_current_vrr_fps(panel) == S6E3FC3_VRR_FPS_120);
@@ -1350,6 +1432,7 @@ __visible_for_testing bool s6e3fc3_is_60hz(struct panel_device *panel)
 {
 	return (getidx_s6e3fc3_current_vrr_fps(panel) == S6E3FC3_VRR_FPS_60);
 }
+#endif
 
 __visible_for_testing bool is_panel_state_not_lpm(struct panel_device *panel)
 {

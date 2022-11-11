@@ -15,7 +15,7 @@
 #include <linux/backlight.h>
 #include <linux/spi/spi.h>
 #include <linux/sysfs.h>
-#include <kunit/mock.h>
+#include "panel_kunit.h"
 #include "maptbl.h"
 #include "util.h"
 
@@ -87,7 +87,7 @@ enum {
 #define PN_CONCAT(a, b)  _PN_CONCAT(a, b)
 #define _PN_CONCAT(a, b) a ## _ ## b
 
-#if defined(CONFIG_EXYNOS_DECON_LCD_TFT_COMMON)
+#if IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_TFT_COMMON)
 #define PANEL_ID_REG		(0xDA)
 #else
 #define PANEL_ID_REG		(0x04)
@@ -640,6 +640,7 @@ struct propinfo PN_CONCAT(propinfo_, _name_) = {		\
 enum PANEL_SEQ {
 	PANEL_INIT_SEQ,
 	PANEL_EXIT_SEQ,
+	PANEL_BOOT_SEQ,
 	PANEL_RES_INIT_SEQ,
 #ifdef CONFIG_SUPPORT_DIM_FLASH
 	PANEL_DIM_FLASH_RES_INIT_SEQ,
@@ -755,6 +756,7 @@ enum PANEL_SEQ {
 #ifdef CONFIG_SUPPORT_ECC_TEST
 	PANEL_ECC_TEST_SEQ,
 #endif
+	PANEL_DECODER_TEST_SEQ,
 	PANEL_DUMMY_SEQ,
 	MAX_PANEL_SEQ,
 };
@@ -932,6 +934,7 @@ struct ddi_ops {
 #ifdef CONFIG_SUPPORT_ECC_TEST
 	int (*ecc_test)(struct panel_device *panel, void *data, u32 size);
 #endif
+	int (*decoder_test)(struct panel_device *panel, void *data, u32 size);
 };
 
 struct common_panel_info {
@@ -978,9 +981,6 @@ struct common_panel_info {
 #endif
 #ifdef CONFIG_DYNAMIC_MIPI
 	struct dm_total_band_info *dm_total_band;
-#endif
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	struct profiler_tune *profile_tune;
 #endif
 #ifdef CONFIG_SUPPORT_MAFPC
 	struct mafpc_info *mafpc_info;
@@ -1080,6 +1080,12 @@ enum {
 	GRAM_TEST_SKIPPED,
 };
 #endif
+
+enum {
+	DECODER_TEST_OFF,
+	DECODER_TEST_ON,
+	DECODER_TEST_SKIPPED,
+};
 
 #ifdef CONFIG_SUPPORT_ISC_TUNE_TEST
 enum stm_field_num {
@@ -1360,6 +1366,12 @@ enum ecc_test_result {
 	MAX_PANEL_ECC_TEST
 };
 #endif
+
+enum decoder_test_result {
+	PANEL_DECODER_TEST_FAIL = -1,
+	PANEL_DECODER_TEST_PASS = 1,
+	MAX_PANEL_DECODER_TEST
+};
 
 static inline int search_table_u32(u32 *tbl, u32 sz_tbl, u32 value)
 {

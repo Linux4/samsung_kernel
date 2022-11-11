@@ -342,7 +342,7 @@ void emstune_update_request(struct emstune_mode_request *req, s32 new_level)
 		return;
 
 	/* ignore if the value is out of range except boost level */
-	if ((new_level < 0 || new_level > MAX_MODE_LEVEL))
+	if ((new_level < 0 || new_level > emstune.level_count))
 		return;
 
 	__emstune_update_request(req, REQ_UPDATE, new_level);
@@ -1012,7 +1012,7 @@ static ssize_t req_level_store(struct device *dev,
 	if (sscanf(buf, "%d", &level) != 1)
 		return -EINVAL;
 
-	if (level < 0 || level >= MAX_MODE_LEVEL)
+	if (level < 0 || level >= emstune.level_count)
 		return -EINVAL;
 
 	emstune_level_change(level);

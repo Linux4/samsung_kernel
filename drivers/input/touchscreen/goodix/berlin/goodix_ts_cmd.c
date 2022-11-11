@@ -3594,7 +3594,7 @@ static ssize_t goodix_fod_position_show(struct device *dev,
 
 	if (!ts->plat_data->support_fod) {
 		ts_err("fod is not supported");
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	if (!ts->plat_data->fod_data.vi_size) {
@@ -3802,26 +3802,36 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 		return -EINVAL;
 	}
 
-	if (buff[0] == LCD_ON && buff[1] == LCD_LATE_EVENT) {
+	if (buff[0] == DISPLAY_STATE_ON && buff[1] == DISPLAY_EVENT_LATE) {
 		if (ts->plat_data->enabled) {
 			ts_info("device already enabled\n");
 			goto out;
 		}
 
 		ret = sec_input_enable_device(input_dev);
-	} else if (buff[0] == LCD_OFF && buff[1] == LCD_EARLY_EVENT) {
+	} else if (buff[0] == DISPLAY_STATE_OFF && buff[1] == DISPLAY_EVENT_EARLY) {
 		if (!ts->plat_data->enabled) {
 			ts_info("device already disabled\n");
 			goto out;
 		}
 
 		ret = sec_input_disable_device(input_dev);
-	} else if (buff[0] == FORCE_ON) {
+	} else if (buff[0] == DISPLAY_STATE_FORCE_ON) {
+		if (ts->plat_data->enabled) {
+			ts_info("device already enabled\n");
+			goto out;
+		}
+
 		ret = sec_input_enable_device(input_dev);
-		ts_info("FORCE_ON(%d)\n", ret);
-	} else if (buff[0] == FORCE_OFF) {
+		ts_info("DISPLAY_STATE_FORCE_ON(%d)\n", ret);
+	} else if (buff[0] == DISPLAY_STATE_FORCE_OFF) {
+		if (!ts->plat_data->enabled) {
+			ts_info("device already disabled\n");
+			goto out;
+		}
+
 		ret = sec_input_disable_device(input_dev);
-		ts_info("FORCE_OFF(%d)\n", ret);
+		ts_info("DISPLAY_STATE_FORCE_OFF(%d)\n", ret);
 	}
 
 	if (ret)

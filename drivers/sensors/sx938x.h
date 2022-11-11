@@ -8,6 +8,7 @@
 
 
 #define VENDOR_NAME              "SEMTECH"
+#define NOTI_MODULE_NAME         "grip_notifier"
 
 enum ic_num {
 	MAIN_GRIP = 0,
@@ -260,111 +261,221 @@ const char *sx938x_wifi_parse_reg[] = {
 };
 #endif
 
-static struct smtc_reg_data setup_reg[] = {
-//Interrupt and config
+static struct smtc_reg_data setup_reg[][24] = {
 	{
-		.reg = SX938x_IRQ_ENABLE_REG,	//0x02
-		.val = 0x0E,					// Enable Close and Far -> enable compensation interrupt
-	},
-	{
-		.reg = SX938x_IRQCFG_REG, 		//0x03
-		.val = 0x00,
-	},
-	//--------Sensor enable
-	{
-		.reg = SX938x_GNRL_CTRL0_REG,    //0x10
-		.val = 0x03,
-	},
-	//--------General control
-	{
-		.reg = SX938x_GNRL_CTRL1_REG,	//0x11 //SCANPERIOD
-		.val = 0x00,
-	},
-	{
-		.reg = SX938x_GNRL_CTRL2_REG,    //0x12 //SCAN PERIOD
-		.val = 0x32,
-	},
-	//--------AFE Control
-	{
-		.reg = SX938x_AFE_CTRL1_REG,   		//0x21//RESFILTIN
-		.val = 0x01,
-	},
-	{
-		.reg = SX938x_AFE_PARAM0_PHR_REG,   //0x22// AFE resolution for REF
-		.val = 0x0C,
-	},
-	{
-		.reg = SX938x_AFE_PARAM1_PHR_REG,   //0x23 //AFE AGAIN FREQ for REF
-		.val = 0x46,
-	},
-	{
-		.reg = SX938x_AFE_PARAM0_PHM_REG,   //0x24 //AFE resolution for MAIN
-		.val = 0x0C,
-	},
-	{
-		.reg = SX938x_AFE_PARAM1_PHM_REG,   //0x25 //AFE AGAIN FREQ for MAIN
-		.val = 0x46,
-	},
+		//Interrupt and config
+		{
+			.reg = SX938x_IRQ_ENABLE_REG,	//0x02
+			.val = 0x0E,					// Enable Close and Far -> enable compensation interrupt
+		},
+		{
+			.reg = SX938x_IRQCFG_REG, 		//0x03
+			.val = 0x00,
+		},
+		//--------Sensor enable
+		{
+			.reg = SX938x_GNRL_CTRL0_REG,    //0x10
+			.val = 0x03,
+		},
+		//--------General control
+		{
+			.reg = SX938x_GNRL_CTRL1_REG,	//0x11 //SCANPERIOD
+			.val = 0x00,
+		},
+		{
+			.reg = SX938x_GNRL_CTRL2_REG,    //0x12 //SCAN PERIOD
+			.val = 0x32,
+		},
+		//--------AFE Control
+		{
+			.reg = SX938x_AFE_CTRL1_REG,   		//0x21//RESFILTIN
+			.val = 0x01,
+		},
+		{
+			.reg = SX938x_AFE_PARAM0_PHR_REG,   //0x22// AFE resolution for REF
+			.val = 0x0C,
+		},
+		{
+			.reg = SX938x_AFE_PARAM1_PHR_REG,   //0x23 //AFE AGAIN FREQ for REF
+			.val = 0x46,
+		},
+		{
+			.reg = SX938x_AFE_PARAM0_PHM_REG,   //0x24 //AFE resolution for MAIN
+			.val = 0x0C,
+		},
+		{
+			.reg = SX938x_AFE_PARAM1_PHM_REG,   //0x25 //AFE AGAIN FREQ for MAIN
+			.val = 0x46,
+		},
 
-	//--------Advanced control (default)
-	{
-		.reg = SX938x_PROXCTRL0_PHR_REG, //0x40 //GAIN RAWFILT for REF
-		.val = 0x09,
+		//--------Advanced control (default)
+		{
+			.reg = SX938x_PROXCTRL0_PHR_REG, //0x40 //GAIN RAWFILT for REF
+			.val = 0x09,
+		},
+		{
+			.reg = SX938x_PROXCTRL0_PHM_REG,//0x41 //GAIN RAWFILT for MAIN
+			.val = 0x09,
+		},
+		{
+			.reg = SX938x_PROXCTRL1_REG,//0x42 //AVG INIT NEGTHRESHOLD
+			.val = 0x20,
+		},
+		{
+			.reg = SX938x_PROXCTRL2_REG,//0x43 //AVG DEB POSTHRESHOLD
+			.val = 0x60,
+		},
+		{
+			.reg = SX938x_PROXCTRL3_REG,//0x44 //AVG FILTER
+			.val = 0x0C,
+		},
+		{
+			.reg = SX938x_PROXCTRL4_REG,//0x45 //HYST DEB
+			.val = 0x00,
+		},
+		{
+			.reg = SX938x_PROXCTRL5_REG,//0x46 //PROX THRESHOLD
+			.val = 0x10,
+		},
+		//Ref
+		{
+			.reg = SX938x_REFCORR0_REG,//0x60 //REF EN
+			.val = 0x00,
+		},
+		{
+			.reg = SX938x_REFCORR1_REG,//0x61 //REF COEFF
+			.val = 0x00,
+		},
+		//USEFILTER
+		{
+			.reg = SX938x_USEFILTER0_REG,//0x70 //Non-detection threshold
+			.val = 0x00,
+		},
+		{
+			.reg = SX938x_USEFILTER1_REG,//0x71 //pos detection threshold
+			.val = 0x00,
+		},
+		{
+			.reg = SX938x_USEFILTER2_REG,//0x72 //neg detection threshold
+			.val = 0x00,
+		},
+		{
+			.reg = SX938x_USEFILTER3_REG,//0x73 //Non-detection, pos detection correction
+			.val = 0x00,
+		},
+		{
+			.reg = SX938x_USEFILTER4_REG,//0x74 //neg detection correction, factor, EN
+			.val = 0x00,
+		},
 	},
+#if defined(CONFIG_SENSORS_SX9380_SUB)
 	{
-		.reg = SX938x_PROXCTRL0_PHM_REG,//0x41 //GAIN RAWFILT for MAIN
-		.val = 0x09,
+		//Interrupt and config
+		{
+			.reg = SX938x_IRQ_ENABLE_REG,	//0x02
+			.val = 0x0E,					// Enable Close and Far -> enable compensation interrupt
+		},
+		{
+			.reg = SX938x_IRQCFG_REG, 		//0x03
+			.val = 0x00,
+		},
+		//--------Sensor enable
+		{
+			.reg = SX938x_GNRL_CTRL0_REG,    //0x10
+			.val = 0x03,
+		},
+		//--------General control
+		{
+			.reg = SX938x_GNRL_CTRL1_REG,	//0x11 //SCANPERIOD
+			.val = 0x00,
+		},
+		{
+			.reg = SX938x_GNRL_CTRL2_REG,    //0x12 //SCAN PERIOD
+			.val = 0x32,
+		},
+		//--------AFE Control
+		{
+			.reg = SX938x_AFE_CTRL1_REG,   		//0x21//RESFILTIN
+			.val = 0x01,
+		},
+		{
+			.reg = SX938x_AFE_PARAM0_PHR_REG,   //0x22// AFE resolution for REF
+			.val = 0x0C,
+		},
+		{
+			.reg = SX938x_AFE_PARAM1_PHR_REG,   //0x23 //AFE AGAIN FREQ for REF
+			.val = 0x46,
+		},
+		{
+			.reg = SX938x_AFE_PARAM0_PHM_REG,   //0x24 //AFE resolution for MAIN
+			.val = 0x0C,
+		},
+		{
+			.reg = SX938x_AFE_PARAM1_PHM_REG,   //0x25 //AFE AGAIN FREQ for MAIN
+			.val = 0x46,
+		},
+
+		//--------Advanced control (default)
+		{
+			.reg = SX938x_PROXCTRL0_PHR_REG, //0x40 //GAIN RAWFILT for REF
+			.val = 0x09,
+		},
+		{
+			.reg = SX938x_PROXCTRL0_PHM_REG,//0x41 //GAIN RAWFILT for MAIN
+			.val = 0x09,
+		},
+		{
+			.reg = SX938x_PROXCTRL1_REG,//0x42 //AVG INIT NEGTHRESHOLD
+			.val = 0x20,
+		},
+		{
+			.reg = SX938x_PROXCTRL2_REG,//0x43 //AVG DEB POSTHRESHOLD
+			.val = 0x60,
+		},
+		{
+			.reg = SX938x_PROXCTRL3_REG,//0x44 //AVG FILTER
+			.val = 0x0C,
+		},
+		{
+			.reg = SX938x_PROXCTRL4_REG,//0x45 //HYST DEB
+			.val = 0x00,
+		},
+		{
+			.reg = SX938x_PROXCTRL5_REG,//0x46 //PROX THRESHOLD
+			.val = 0x10,
+		},
+		//Ref
+		{
+			.reg = SX938x_REFCORR0_REG,//0x60 //REF EN
+			.val = 0x00,
+		},
+		{
+			.reg = SX938x_REFCORR1_REG,//0x61 //REF COEFF
+			.val = 0x00,
+		},
+		//USEFILTER
+		{
+			.reg = SX938x_USEFILTER0_REG,//0x70 //Non-detection threshold
+			.val = 0x00,
+		},
+		{
+			.reg = SX938x_USEFILTER1_REG,//0x71 //pos detection threshold
+			.val = 0x00,
+		},
+		{
+			.reg = SX938x_USEFILTER2_REG,//0x72 //neg detection threshold
+			.val = 0x00,
+		},
+		{
+			.reg = SX938x_USEFILTER3_REG,//0x73 //Non-detection, pos detection correction
+			.val = 0x00,
+		},
+		{
+			.reg = SX938x_USEFILTER4_REG,//0x74 //neg detection correction, factor, EN
+			.val = 0x00,
+		},
 	},
-	{
-		.reg = SX938x_PROXCTRL1_REG,//0x42 //AVG INIT NEGTHRESHOLD
-		.val = 0x20,
-	},
-	{
-		.reg = SX938x_PROXCTRL2_REG,//0x43 //AVG DEB POSTHRESHOLD
-		.val = 0x60,
-	},
-	{
-		.reg = SX938x_PROXCTRL3_REG,//0x44 //AVG FILTER
-		.val = 0x0C,
-	},
-	{
-		.reg = SX938x_PROXCTRL4_REG,//0x45 //HYST DEB
-		.val = 0x00,
-	},
-	{
-		.reg = SX938x_PROXCTRL5_REG,//0x46 //PROX THRESHOLD
-		.val = 0x10,
-	},
-	//Ref
-	{
-		.reg = SX938x_REFCORR0_REG,//0x60 //REF EN
-		.val = 0x00,
-	},
-	{
-		.reg = SX938x_REFCORR1_REG,//0x61 //REF COEFF
-		.val = 0x00,
-	},
-	//USEFILTER
-	{
-		.reg = SX938x_USEFILTER0_REG,//0x70 //Non-detection threshold
-		.val = 0x00,
-	},
-	{
-		.reg = SX938x_USEFILTER1_REG,//0x71 //pos detection threshold
-		.val = 0x00,
-	},
-	{
-		.reg = SX938x_USEFILTER2_REG,//0x72 //neg detection threshold
-		.val = 0x00,
-	},
-	{
-		.reg = SX938x_USEFILTER3_REG,//0x73 //Non-detection, pos detection correction
-		.val = 0x00,
-	},
-	{
-		.reg = SX938x_USEFILTER4_REG,//0x74 //neg detection correction, factor, EN
-		.val = 0x00,
-	},
+#endif
 };
 
 #define MAX_NUM_STATUS_BITS (8)

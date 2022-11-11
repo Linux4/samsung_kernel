@@ -5233,30 +5233,8 @@ static int cmpnt_probe(struct snd_soc_component *cmpnt)
 
 	snd_soc_dapm_add_routes(dapm, sidetone_routes,
 			ARRAY_SIZE(sidetone_routes));
-	if (cmpnt->name_prefix) {
-		struct snd_soc_dapm_route *routes;
-		int i, num = ARRAY_SIZE(sidetone_routes);
-
-		routes = kmemdup(sidetone_routes, sizeof(sidetone_routes),
-				GFP_KERNEL);
-		for (i = 0; i < num; i++) {
-			routes[i].sink = kasprintf(GFP_KERNEL, "%s %s",
-					cmpnt->name_prefix, routes[i].sink);
-			routes[i].source = kasprintf(GFP_KERNEL, "%s %s",
-					cmpnt->name_prefix, routes[i].source);
-		}
-
-		snd_soc_dapm_weak_routes(dapm, routes, num);
-
-		for (i = 0; i < num; i++) {
-			kfree(routes[i].sink);
-			kfree(routes[i].source);
-		}
-		kfree(routes);
-	} else {
-		snd_soc_dapm_weak_routes(dapm, sidetone_routes,
-				ARRAY_SIZE(sidetone_routes));
-	}
+	snd_soc_dapm_weak_routes(dapm, sidetone_routes,
+			ARRAY_SIZE(sidetone_routes));
 
 	data->cmpnt = cmpnt;
 

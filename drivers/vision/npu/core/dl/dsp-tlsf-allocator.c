@@ -144,7 +144,6 @@ void dsp_tlsf_mem_init(struct dsp_tlsf_mem *mem)
 	dsp_list_node_init(&mem->tlsf_node);
 }
 
-/*
 void dsp_tlsf_mem_print(struct dsp_tlsf_mem *mem)
 {
 	DL_BUF_STR("[0x%lx] %s size(%zu) idx(fl:%u, sl:%u)", mem->start_addr,
@@ -159,7 +158,6 @@ void dsp_tlsf_mem_print(struct dsp_tlsf_mem *mem)
 	DL_BUF_STR("\n");
 	DL_PRINT_BUF(INFO);
 }
-*/
 
 struct dsp_tlsf_mem *dsp_tlsf_mem_empty_merge(struct dsp_tlsf_mem *mem1,
 	struct dsp_tlsf_mem *mem2, struct dsp_list_head *mem_list)
@@ -462,7 +460,6 @@ int dsp_tlsf_free(struct dsp_tlsf_mem *mem, struct dsp_tlsf *tlsf)
 	return 0;
 }
 
-/*
 void dsp_tlsf_print(struct dsp_tlsf *tlsf)
 {
 	int idx, jdx;
@@ -529,7 +526,6 @@ void dsp_tlsf_print(struct dsp_tlsf *tlsf)
 		dsp_tlsf_mem_print(mem);
 	}
 }
-*/
 
 int dsp_tlsf_can_be_loaded(struct dsp_tlsf *tlsf, size_t size)
 {

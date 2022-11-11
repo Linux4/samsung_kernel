@@ -319,39 +319,37 @@ int stm_ts_systemreset(struct stm_ts_data *ts, unsigned int msec)
 int stm_ts_fix_active_mode(struct stm_ts_data *ts, int mode)
 {
 	u8 address[3] = {0xA0, 0x00, 0x00};
-	int ret;
+	int ret = -EINVAL;
 
-	if (mode == STM_TS_ACTIVE_TRUE) {
-		address[1] = 0x03;
-		address[2] = 0x00;
-	} else if (mode == STM_TS_ACTIVE_FALSE) {
+	switch (mode) {
+	case STM_TS_ACTIVE_FALSE:
 		address[1] = 0x00;
 		address[2] = 0x01;
-
 		ts->stm_ts_command(ts, STM_TS_CMD_SENSE_OFF, false);
 		sec_delay(10);
-	} else if (mode == STM_TS_ACTIVE_FALSE_SNR) {
+		break;
+	case STM_TS_ACTIVE_TRUE:
+		address[1] = 0x03;
+		address[2] = 0x00;
+		break;
+	case STM_TS_ACTIVE_FALSE_SNR:
 		address[1] = 0x00;
 		address[2] = 0x01;
-	} else {
-		input_info(true, &ts->client->dev, "%s: err data mode: %d\n", __func__, mode);
+		break;
+	default:
+		input_err(true, &ts->client->dev, "%s: err data mode: %d\n", __func__, mode);
+		return ret;
 	}
-	
+
 	ret = ts->stm_ts_write(ts, &address[0], 3, NULL, 0);
-	if (ret < 0) {
-		input_info(true, &ts->client->dev, "%s: err: %d\n", __func__, ret);
-	} else {
-		if (mode == STM_TS_ACTIVE_TRUE) {
-			input_info(true, &ts->client->dev, "%s: STM_TS_ACTIVE_TRUE% d\n", __func__, mode);
-		} else if (mode == STM_TS_ACTIVE_FALSE) {
-			input_info(true, &ts->client->dev, "%s: STM_TS_ACTIVE_FALSE% d\n", __func__, mode);
-		} else if (mode == STM_TS_ACTIVE_FALSE_SNR) {
-			input_info(true, &ts->client->dev, "%s: STM_TS_ACTIVE_FALSE_SNR% d\n", __func__, mode);
-		}
-	}
+	if (ret < 0)
+		input_err(true, &ts->client->dev, "%s: err: %d, mode: %d\n", __func__, ret, mode);
+	else
+		input_info(true, &ts->client->dev, "%s: %d STM_TS_ACTIVE_%s\n", __func__, mode,
+					(mode == STM_TS_ACTIVE_TRUE) ? "TRUE" :
+					(mode == STM_TS_ACTIVE_FALSE) ? "FALSE" : "FALSE_SNR");
 
 	sec_delay(10);
-
 	return ret;
 }
 
@@ -766,7 +764,7 @@ retry_pmode:
 		goto error;
 	}
 
-	sec_delay(5);
+	sec_delay(ts->lpmode_change_delay);
 
 	address = STM_TS_CMD_SET_GET_OPMODE;
 	ret = ts->stm_ts_read(ts, &address, 1, &para, 1);
@@ -835,74 +833,90 @@ void stm_ts_reset(struct stm_ts_data *ts, unsigned int ms)
 	sec_delay(TOUCH_POWER_ON_DWORK_TIME);
 }
 
-void stm_ts_reset_work(struct work_struct *work)
+int stm_ts_reset_work_from_preparation_to_completion(struct stm_ts_data *ts, bool prepare, bool need_to_reset)
 {
-	struct stm_ts_data *ts = container_of(work, struct stm_ts_data,
-			reset_work.work);
-	int ret;
-	char result[32];
-	char test[32];
-
+	if (prepare) {
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
-	if (atomic_read(&ts->secure_enabled) == SECURE_TOUCH_ENABLE) {
-		input_err(true, &ts->client->dev, "%s: secure touch enabled\n", __func__);
-		return;
-	}
+		if (atomic_read(&ts->secure_enabled) == SECURE_TOUCH_ENABLE) {
+			input_err(true, &ts->client->dev, "%s: secure touch enabled\n", __func__);
+			return -1;
+		}
 #endif
-	if (ts->reset_is_on_going) {
-		input_err(true, &ts->client->dev, "%s: reset is ongoing\n", __func__);
-		return;
-	}
+		if (ts->reset_is_on_going) {
+			input_err(true, &ts->client->dev, "%s: reset is ongoing\n", __func__);
+			return -1;
+		}
 
-	mutex_lock(&ts->modechange);
-	__pm_stay_awake(ts->plat_data->sec_ws);
+		mutex_lock(&ts->modechange);
+		__pm_stay_awake(ts->plat_data->sec_ws);
 
-	ts->reset_is_on_going = true;
-	input_info(true, &ts->client->dev, "%s\n", __func__);
+		ts->reset_is_on_going = true;
+	} else {
+		char result[32];
 
-	ts->plat_data->stop_device(ts);
-
-	sec_delay(TOUCH_POWER_ON_DWORK_TIME);
-
-	ret = ts->plat_data->start_device(ts);
-	if (ret < 0) {
-		/* for ACT i2c recovery fail test */
-		snprintf(test, sizeof(test), "TEST=RECOVERY");
-		snprintf(result, sizeof(result), "RESULT=FAIL");
-		if (ts->probe_done)
-			sec_cmd_send_event_to_user(&ts->sec, test, result);
-
-		input_err(true, &ts->client->dev, "%s: failed to reset, ret:%d\n", __func__, ret);
 		ts->reset_is_on_going = false;
-		cancel_delayed_work(&ts->reset_work);
-		if (!ts->plat_data->shutdown_called)
-			schedule_delayed_work(&ts->reset_work, msecs_to_jiffies(TOUCH_RESET_DWORK_TIME));
-		mutex_unlock(&ts->modechange);
+
+		if (need_to_reset) {
+			cancel_delayed_work(&ts->reset_work);
+			if (!ts->plat_data->shutdown_called)
+				schedule_delayed_work(&ts->reset_work, msecs_to_jiffies(TOUCH_RESET_DWORK_TIME));
+		}
 
 		snprintf(result, sizeof(result), "RESULT=RESET");
 		if (ts->probe_done)
 			sec_cmd_send_event_to_user(&ts->sec, NULL, result);
 
+		mutex_unlock(&ts->modechange);
 		__pm_relax(ts->plat_data->sec_ws);
+	}
 
+	return 0;
+}
+
+void stm_ts_reset_work(struct work_struct *work)
+{
+	struct stm_ts_data *ts = container_of(work, struct stm_ts_data, reset_work.work);
+	int ret;
+	bool prepare = true;
+	bool need_to_reset = false;
+
+	ret = stm_ts_reset_work_from_preparation_to_completion(ts, prepare, need_to_reset);
+	if (ret < 0)
 		return;
+
+	prepare = false;
+	input_info(true, &ts->client->dev, "%s\n", __func__);
+
+	ts->plat_data->stop_device(ts);
+	sec_delay(TOUCH_POWER_ON_DWORK_TIME);
+
+	ret = ts->plat_data->start_device(ts);
+	if (ret < 0) {
+		/* for ACT recovery fail test */
+		char result[32];
+		char test[32];
+		snprintf(test, sizeof(test), "TEST=RECOVERY");
+		snprintf(result, sizeof(result), "RESULT=FAIL");
+		if (ts->probe_done)
+			sec_cmd_send_event_to_user(&ts->sec, test, result);
+
+		input_err(true, &ts->client->dev, "%s: Reset failure, ret:%d\n", __func__, ret);
+		need_to_reset = true;
+		goto reset_work_completion;
 	}
 
 	if (!ts->plat_data->enabled) {
 		input_err(true, &ts->client->dev, "%s: call input_close\n", __func__);
 
-		if (ts->plat_data->lowpower_mode || ts->plat_data->ed_enable || ts->plat_data->pocket_mode || ts->plat_data->fod_lp_mode) {
+		if (ts->plat_data->lowpower_mode || ts->plat_data->ed_enable ||
+			ts->plat_data->pocket_mode || ts->plat_data->fod_lp_mode) {
 			ret = ts->plat_data->lpmode(ts, TO_LOWPOWER_MODE);
 			if (ret < 0) {
-				input_err(true, &ts->client->dev, "%s: failed to reset, ret:%d\n", __func__, ret);
-				ts->reset_is_on_going = false;
-				cancel_delayed_work(&ts->reset_work);
-				if (!ts->plat_data->shutdown_called)
-					schedule_delayed_work(&ts->reset_work, msecs_to_jiffies(TOUCH_RESET_DWORK_TIME));
-				mutex_unlock(&ts->modechange);
-				__pm_relax(ts->plat_data->sec_ws);
-				return;
+				input_err(true, &ts->client->dev, "%s: Reset failure, ret:%d\n", __func__, ret);
+				need_to_reset = true;
+				goto reset_work_completion;
 			}
+
 			if (ts->plat_data->lowpower_mode & SEC_TS_MODE_SPONGE_AOD)
 				stm_ts_set_aod_rect(ts);
 		} else {
@@ -910,18 +924,11 @@ void stm_ts_reset_work(struct work_struct *work)
 		}
 	}
 
-	ts->reset_is_on_going = false;
-	mutex_unlock(&ts->modechange);
+	if ((ts->plat_data->power_state == SEC_INPUT_STATE_POWER_ON) && (ts->fix_active_mode))
+		stm_ts_fix_active_mode(ts, STM_TS_ACTIVE_TRUE);
 
-	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_ON)
-		if (ts->fix_active_mode)
-			stm_ts_fix_active_mode(ts, STM_TS_ACTIVE_TRUE);
-
-	snprintf(result, sizeof(result), "RESULT=RESET");
-	if (ts->probe_done)
-		sec_cmd_send_event_to_user(&ts->sec, NULL, result);
-
-	__pm_relax(ts->plat_data->sec_ws);
+reset_work_completion:
+	stm_ts_reset_work_from_preparation_to_completion(ts, prepare, need_to_reset);
 }
 
 void stm_ts_print_info_work(struct work_struct *work)
@@ -939,6 +946,56 @@ void stm_ts_print_info_work(struct work_struct *work)
 	if (!ts->plat_data->shutdown_called)
 		schedule_delayed_work(&ts->work_print_info, msecs_to_jiffies(TOUCH_PRINT_INFO_DWORK_TIME));
 }
+
+#ifdef ENABLE_RAWDATA_SERVICE
+void stm_ts_read_rawdata_address(struct stm_ts_data *ts)
+{
+	u8 reg[8];
+	u8 header[16];
+	int ret;
+	int retry = 0;
+
+	input_info(true, &ts->client->dev, "%s\n", __func__);
+
+	disable_irq(ts->irq);
+
+	reg[0] = 0xA4;
+	reg[1] = 0x06;
+	reg[2] = 0x01;
+
+	ret = ts->stm_ts_write(ts, reg, 3, NULL, 0);
+	sec_delay(50);
+	do {
+		memset(header, 0x00, 16);
+		reg[0] = 0xA7;
+		reg[1] = 0x00;
+		reg[2] = 0x00;
+		ret = ts->stm_ts_read(ts, reg, 3, header, 16);
+		if (header[0] == 0xA5 && header[1] == 0x1)
+			break;
+		sec_delay(30);
+	} while (retry--);
+
+	reg[0] = 0xA7;
+	reg[1] = 0x00;
+	if (ts->raw_mode == 2)//RAW
+		reg[2] = 0x88;
+	else if (ts->raw_mode == 1)//STRENGTH
+		reg[2] = 0x8C;
+	memset(header, 0x00, 16);
+	ret = ts->stm_ts_read(ts, reg, 3, header, 2);
+
+	ts->raw_addr_h = header[1];
+	ts->raw_addr_l = header[0];
+
+	reg[0] = 0xA7;
+	reg[1] = ts->raw_addr_h;
+	reg[2] = ts->raw_addr_l;
+
+	ret = ts->stm_ts_read(ts, reg, 3, ts->raw_u8, ts->tx_count * ts->rx_count * 2);
+	enable_irq(ts->irq);
+}
+#endif
 
 void stm_ts_read_info_work(struct work_struct *work)
 {

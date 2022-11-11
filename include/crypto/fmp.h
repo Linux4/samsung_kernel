@@ -15,6 +15,8 @@
 #include <linux/bio.h>
 #include <crypto/fmp_fips.h>
 
+#define FMP_DRV_VERSION "4.0.0"
+
 #define FMP_KEY_SIZE_16		16
 #define FMP_KEY_SIZE_32		32
 #define FMP_IV_SIZE_16		16

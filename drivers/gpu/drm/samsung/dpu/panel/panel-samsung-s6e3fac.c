@@ -36,7 +36,7 @@ static int s6e3fac_disable(struct drm_panel *panel)
 
 	ctx = container_of(panel, struct exynos_panel, panel);
 	ctx->enabled = false;
-	dev_info(ctx->dev, "%s +\n", __func__);
+	panel_info(ctx, "+\n");
 	return 0;
 }
 
@@ -46,9 +46,9 @@ static int s6e3fac_unprepare(struct drm_panel *panel)
 
 	ctx = container_of(panel, struct exynos_panel, panel);
 
-	dev_info(ctx->dev, "%s +\n", __func__);
+	panel_info(ctx, "+\n");
 	exynos_panel_set_power(ctx, false);
-	dev_info(ctx->dev, "%s -\n", __func__);
+	panel_info(ctx, "-\n");
 	return 0;
 }
 
@@ -58,9 +58,9 @@ static int s6e3fac_prepare(struct drm_panel *panel)
 
 	ctx = container_of(panel, struct exynos_panel, panel);
 
-	dev_info(ctx->dev, "%s +\n", __func__);
+	panel_info(ctx, "+\n");
 	exynos_panel_set_power(ctx, true);
-	dev_info(ctx->dev, "%s -\n", __func__);
+	panel_info(ctx, "-\n");
 
 	return 0;
 }
@@ -78,7 +78,7 @@ static void s6e3fac_set_vrefresh(struct exynos_panel *ctx,
 {
 	int vrefresh = drm_mode_vrefresh(pmode);
 
-	dev_info(ctx->dev, "%s +\n", __func__);
+	panel_info(ctx, "+\n");
 
 	EXYNOS_DCS_WRITE_SEQ(ctx, 0xF0, 0x5A, 0x5A);
 
@@ -115,7 +115,7 @@ static void s6e3fac_set_vrefresh(struct exynos_panel *ctx,
 	} else if (vrefresh == 30) {
 		// lp mode
 	} else {
-		dev_err(ctx->dev, "not supported fps(%d)\n", vrefresh);
+		panel_err(ctx, "not supported fps(%d)\n", vrefresh);
 		goto end;
 	}
 
@@ -125,13 +125,13 @@ static void s6e3fac_set_vrefresh(struct exynos_panel *ctx,
 end:
 	EXYNOS_DCS_WRITE_SEQ(ctx, 0xF0, 0xA5, 0xA5);
 
-	dev_info(ctx->dev, "%s -\n", __func__);
+	panel_info(ctx, "-\n");
 }
 
 static void s6e3fac_mode_set(struct exynos_panel *ctx,
 		const struct exynos_panel_mode *pmode, unsigned int flags)
 {
-	dev_info(ctx->dev, "%s +\n", __func__);
+	panel_info(ctx, "+\n");
 
 	if (!ctx->enabled)
 		return;
@@ -139,7 +139,7 @@ static void s6e3fac_mode_set(struct exynos_panel *ctx,
 	if (SEAMLESS_MODESET_VREF & flags)
 		s6e3fac_set_vrefresh(ctx, &pmode->mode);
 
-	dev_info(ctx->dev, "%s -\n", __func__);
+	panel_info(ctx, "-\n");
 }
 
 static void s6e3fac_lp_mode_set(struct exynos_panel *ctx,
@@ -148,7 +148,7 @@ static void s6e3fac_lp_mode_set(struct exynos_panel *ctx,
 	if (!ctx->enabled)
 		return;
 
-	dev_info(ctx->dev, "enter %dhz LP mode\n", drm_mode_vrefresh(&pmode->mode));
+	panel_info(ctx, "enter %dhz LP mode\n", drm_mode_vrefresh(&pmode->mode));
 }
 
 static int s6e3fac_enable(struct drm_panel *panel)
@@ -156,9 +156,9 @@ static int s6e3fac_enable(struct drm_panel *panel)
 	struct exynos_panel *ctx = container_of(panel, struct exynos_panel, panel);
 	const struct exynos_panel_mode *pmode = ctx->current_mode;
 
-	dev_info(ctx->dev, "%s +\n", __func__);
+	panel_info(ctx, "+\n");
 	if (!pmode) {
-		dev_err(ctx->dev, "no current mode set\n");
+		panel_err(ctx, "no current mode set\n");
 		return -EINVAL;
 	}
 
@@ -225,7 +225,7 @@ static int s6e3fac_enable(struct drm_panel *panel)
 		s6e3fac_lp_mode_set(ctx, pmode);
 
 
-	dev_info(ctx->dev, "%s -\n", __func__);
+	panel_info(ctx, "-\n");
 
 	return 0;
 }

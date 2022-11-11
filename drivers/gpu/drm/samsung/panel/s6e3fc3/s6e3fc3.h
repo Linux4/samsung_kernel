@@ -90,6 +90,22 @@
 #define S6E3FC3_SELF_MASK_CRC_OFS	6
 #define S6E3FC3_SELF_MASK_CRC_LEN		4
 
+#define S6E3FC3_DECODER_TEST1_REG			0x14
+#define S6E3FC3_DECODER_TEST1_OFS			0
+#define S6E3FC3_DECODER_TEST1_LEN			2
+
+#define S6E3FC3_DECODER_TEST2_REG			0x15
+#define S6E3FC3_DECODER_TEST2_OFS			0
+#define S6E3FC3_DECODER_TEST2_LEN			2
+
+#define S6E3FC3_DECODER_TEST3_REG			0x14
+#define S6E3FC3_DECODER_TEST3_OFS			0
+#define S6E3FC3_DECODER_TEST3_LEN			2
+
+#define S6E3FC3_DECODER_TEST4_REG			0x15
+#define S6E3FC3_DECODER_TEST4_OFS			0
+#define S6E3FC3_DECODER_TEST4_LEN			2
+
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
 #define NR_S6E3FC3_MDNIE_REG	(4)
 
@@ -217,6 +233,12 @@ enum {
 #ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
 	READ_GRAYSPOT_CAL,
 #endif
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+	READ_DECODER_TEST1,
+	READ_DECODER_TEST2,
+	READ_DECODER_TEST3,
+	READ_DECODER_TEST4,
+#endif
 	MAX_READTBL,
 };
 
@@ -266,6 +288,12 @@ enum {
 #endif
 	RES_SELF_MASK_CHECKSUM,
 	RES_SELF_MASK_CRC,
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+	RES_DECODER_TEST1,
+	RES_DECODER_TEST2,
+	RES_DECODER_TEST3,
+	RES_DECODER_TEST4,
+#endif
 	MAX_RESTBL
 };
 
@@ -304,6 +332,12 @@ static u8 S6E3FC3_DSI_ERR[S6E3FC3_DSI_ERR_LEN];
 static u8 S6E3FC3_SELF_DIAG[S6E3FC3_SELF_DIAG_LEN];
 static u8 S6E3FC3_SELF_MASK_CHECKSUM[S6E3FC3_SELF_MASK_CHECKSUM_LEN];
 static u8 S6E3FC3_SELF_MASK_CRC[S6E3FC3_SELF_MASK_CRC_LEN];
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+static u8 S6E3FC3_DECODER_TEST1[S6E3FC3_DECODER_TEST1_LEN];
+static u8 S6E3FC3_DECODER_TEST2[S6E3FC3_DECODER_TEST2_LEN];
+static u8 S6E3FC3_DECODER_TEST3[S6E3FC3_DECODER_TEST3_LEN];
+static u8 S6E3FC3_DECODER_TEST4[S6E3FC3_DECODER_TEST4_LEN];
+#endif
 
 static struct rdinfo s6e3fc3_rditbl[MAX_READTBL] = {
 	[READ_ID] = RDINFO_INIT(id, DSI_PKT_TYPE_RD, S6E3FC3_ID_REG, S6E3FC3_ID_OFS, S6E3FC3_ID_LEN),
@@ -320,6 +354,12 @@ static struct rdinfo s6e3fc3_rditbl[MAX_READTBL] = {
 	[READ_SELF_DIAG] = RDINFO_INIT(self_diag, DSI_PKT_TYPE_RD, S6E3FC3_SELF_DIAG_REG, S6E3FC3_SELF_DIAG_OFS, S6E3FC3_SELF_DIAG_LEN),
 	[READ_SELF_MASK_CHECKSUM] = RDINFO_INIT(self_mask_checksum, DSI_PKT_TYPE_RD, S6E3FC3_SELF_MASK_CHECKSUM_REG, S6E3FC3_SELF_MASK_CHECKSUM_OFS, S6E3FC3_SELF_MASK_CHECKSUM_LEN),
 	[READ_SELF_MASK_CRC] = RDINFO_INIT(self_mask_crc, DSI_PKT_TYPE_RD, S6E3FC3_SELF_MASK_CRC_REG, S6E3FC3_SELF_MASK_CRC_OFS, S6E3FC3_SELF_MASK_CRC_LEN),
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+	[READ_DECODER_TEST1] = RDINFO_INIT(decoder_test1, DSI_PKT_TYPE_RD, S6E3FC3_DECODER_TEST1_REG, S6E3FC3_DECODER_TEST1_OFS, S6E3FC3_DECODER_TEST1_LEN),
+	[READ_DECODER_TEST2] = RDINFO_INIT(decoder_test2, DSI_PKT_TYPE_RD, S6E3FC3_DECODER_TEST2_REG, S6E3FC3_DECODER_TEST2_OFS, S6E3FC3_DECODER_TEST2_LEN),
+	[READ_DECODER_TEST3] = RDINFO_INIT(decoder_test3, DSI_PKT_TYPE_RD, S6E3FC3_DECODER_TEST3_REG, S6E3FC3_DECODER_TEST1_OFS, S6E3FC3_DECODER_TEST3_LEN),
+	[READ_DECODER_TEST4] = RDINFO_INIT(decoder_test4, DSI_PKT_TYPE_RD, S6E3FC3_DECODER_TEST4_REG, S6E3FC3_DECODER_TEST2_OFS, S6E3FC3_DECODER_TEST4_LEN),
+#endif
 };
 
 static DEFINE_RESUI(id, &s6e3fc3_rditbl[READ_ID], 0);
@@ -345,7 +385,12 @@ static DEFINE_RESUI(dsi_err, &s6e3fc3_rditbl[READ_DSI_ERR], 0);
 static DEFINE_RESUI(self_diag, &s6e3fc3_rditbl[READ_SELF_DIAG], 0);
 static DEFINE_RESUI(self_mask_checksum, &s6e3fc3_rditbl[READ_SELF_MASK_CHECKSUM], 0);
 static DEFINE_RESUI(self_mask_crc, &s6e3fc3_rditbl[READ_SELF_MASK_CRC], 0);
-
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+static DEFINE_RESUI(decoder_test1, &s6e3fc3_rditbl[READ_DECODER_TEST1], 0);
+static DEFINE_RESUI(decoder_test2, &s6e3fc3_rditbl[READ_DECODER_TEST2], 0);
+static DEFINE_RESUI(decoder_test3, &s6e3fc3_rditbl[READ_DECODER_TEST3], 0);
+static DEFINE_RESUI(decoder_test4, &s6e3fc3_rditbl[READ_DECODER_TEST4], 0);
+#endif
 static struct resinfo s6e3fc3_restbl[MAX_RESTBL] = {
 	[RES_ID] = RESINFO_INIT(id, S6E3FC3_ID, RESUI(id)),
 	[RES_COORDINATE] = RESINFO_INIT(coordinate, S6E3FC3_COORDINATE, RESUI(coordinate)),
@@ -360,6 +405,12 @@ static struct resinfo s6e3fc3_restbl[MAX_RESTBL] = {
 	[RES_SELF_DIAG] = RESINFO_INIT(self_diag, S6E3FC3_SELF_DIAG, RESUI(self_diag)),
 	[RES_SELF_MASK_CHECKSUM] = RESINFO_INIT(self_mask_checksum, S6E3FC3_SELF_MASK_CHECKSUM, RESUI(self_mask_checksum)),
 	[RES_SELF_MASK_CRC] = RESINFO_INIT(self_mask_crc, S6E3FC3_SELF_MASK_CRC, RESUI(self_mask_crc)),
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+	[RES_DECODER_TEST1] = RESINFO_INIT(decoder_test1, S6E3FC3_DECODER_TEST1, RESUI(decoder_test1)),
+	[RES_DECODER_TEST2] = RESINFO_INIT(decoder_test2, S6E3FC3_DECODER_TEST2, RESUI(decoder_test2)),
+	[RES_DECODER_TEST3] = RESINFO_INIT(decoder_test3, S6E3FC3_DECODER_TEST3, RESUI(decoder_test3)),
+	[RES_DECODER_TEST4] = RESINFO_INIT(decoder_test4, S6E3FC3_DECODER_TEST4, RESUI(decoder_test4)),
+#endif
 };
 
 enum {
@@ -387,6 +438,9 @@ __visible_for_testing int show_self_diag(struct dumpinfo *info);
 __visible_for_testing int show_cmdlog(struct dumpinfo *info);
 #endif
 __visible_for_testing int show_self_mask_crc(struct dumpinfo *info);
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+__visible_for_testing int s6e3fc3_decoder_test(struct panel_device *panel, void *data, u32 len);
+#endif
 
 static struct dumpinfo s6e3fc3_dmptbl[] = {
 	[DUMP_RDDPM] = DUMPINFO_INIT(rddpm, &s6e3fc3_restbl[RES_RDDPM], show_rddpm),
@@ -500,8 +554,11 @@ __visible_for_testing int getidx_vrr_fps_table(struct maptbl *);
 #if defined(__PANEL_NOT_USED_VARIABLE__)
 __visible_for_testing int getidx_vrr_gamma_table(struct maptbl *);
 #endif
+
+#ifdef CONFIG_SUPPORT_MASK_LAYER
 __visible_for_testing bool s6e3fc3_is_120hz(struct panel_device *panel);
 __visible_for_testing bool s6e3fc3_is_60hz(struct panel_device *panel);
+#endif
 __visible_for_testing bool s6e3fc3_is_a52_panel(struct panel_device *panel);
 
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE

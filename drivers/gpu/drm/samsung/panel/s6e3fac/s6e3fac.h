@@ -125,7 +125,6 @@
 
 /* gamma mtp offset */
 #define S6E3FAC_GAMMA_MTP_LEN	(65)
-#define S6E3FAC_GAMMA_DATA_WRITE_LEN	(204)
 
 #define S6E3FAC_FQ_HIGH_0_0_REG	(0xC9)
 #define S6E3FAC_FQ_HIGH_0_0_OFS	(0xDB)
@@ -316,7 +315,7 @@
 #define S6E3FAC_RDDSM_OFS			0
 #define S6E3FAC_RDDSM_LEN			(PANEL_RDDSM_LEN)
 
-#define S6E3FAC_ERR_REG				0xEA
+#define S6E3FAC_ERR_REG				0xE9
 #define S6E3FAC_ERR_OFS				0
 #define S6E3FAC_ERR_LEN				5
 
@@ -404,6 +403,10 @@
 #define S6E3FAC_ECC_TEST_OFS				0x02
 #define S6E3FAC_ECC_TEST_LEN				3
 
+#define S6E3FAC_DECODER_TEST_REG			0x14
+#define S6E3FAC_DECODER_TEST_OFS			0
+#define S6E3FAC_DECODER_TEST_LEN			2
+
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
 #define NR_S6E3FAC_MDNIE_REG	(3)
 
@@ -429,7 +432,7 @@
 #define S6E3FAC_COLOR_LENS_OFS	(S6E3FAC_SCR_CR_OFS)
 #define S6E3FAC_COLOR_LENS_LEN	(24)
 
-#define S6E3FAC_TRANS_MODE_OFS	(16)
+#define S6E3FAC_TRANS_MODE_OFS	(17)
 #define S6E3FAC_TRANS_MODE_LEN	(1)
 #endif /* CONFIG_EXYNOS_DECON_MDNIE_LITE */
 
@@ -534,9 +537,8 @@ enum {
 	DIMMING_FRAME_MAPTBL,
 	DIMMING_TRANSITION_MAPTBL,
 	DIMMING_TRANSITION_2_MAPTBL,
-	DIA_ONOFF_MAPTBL,
-	GAMMA_MTP_ADDR_MAPTBL,
 	GAMMA_MTP_MAPTBL,
+	DIA_ONOFF_MAPTBL,
 	GLUT_CTRL_MAPTBL,
 	GLUT_MAPTBL,
 #if defined(CONFIG_SUPPORT_FAST_DISCHARGE)
@@ -595,6 +597,7 @@ enum {
 	READ_SSR_ONOFF,
 	READ_SSR_STATE,
 	READ_ECC_TEST,
+	READ_DECODER_TEST,
 #ifdef CONFIG_SUPPORT_MAFPC
 	READ_MAFPC,
 	READ_MAFPC_FLASH,
@@ -652,6 +655,7 @@ enum {
 #endif
 	RES_SSR_TEST,
 	RES_ECC_TEST,
+	RES_DECODER_TEST,
 	RES_SELF_MASK_CHECKSUM,
 	RES_SELF_MASK_CRC,
 	RES_SPSRAM_GAMMA_120HS_0,
@@ -727,6 +731,7 @@ static u8 S6E3FAC_CCD_STATE[S6E3FAC_CCD_STATE_LEN];
 #endif
 static u8 S6E3FAC_SSR_TEST[S6E3FAC_SSR_TEST_LEN];
 static u8 S6E3FAC_ECC_TEST[S6E3FAC_ECC_TEST_LEN];
+static u8 S6E3FAC_DECODER_TEST[S6E3FAC_DECODER_TEST_LEN];
 #ifdef CONFIG_SUPPORT_MAFPC
 static u8 S6E3FAC_MAFPC[S6E3FAC_MAFPC_LEN];
 static u8 S6E3FAC_MAFPC_FLASH[S6E3FAC_MAFPC_FLASH_LEN];
@@ -805,6 +810,7 @@ static struct rdinfo s6e3fac_rditbl[] = {
 	[READ_SSR_ONOFF] = RDINFO_INIT(ssr_onoff, DSI_PKT_TYPE_RD, S6E3FAC_SSR_ONOFF_REG, S6E3FAC_SSR_ONOFF_OFS, S6E3FAC_SSR_ONOFF_LEN),
 	[READ_SSR_STATE] = RDINFO_INIT(ssr_state, DSI_PKT_TYPE_RD, S6E3FAC_SSR_STATE_REG, S6E3FAC_SSR_STATE_OFS, S6E3FAC_SSR_STATE_LEN),
 	[READ_ECC_TEST] = RDINFO_INIT(ecc_test, DSI_PKT_TYPE_RD, S6E3FAC_ECC_TEST_REG, S6E3FAC_ECC_TEST_OFS, S6E3FAC_ECC_TEST_LEN),
+	[READ_DECODER_TEST] = RDINFO_INIT(decoder_test, DSI_PKT_TYPE_RD, S6E3FAC_DECODER_TEST_REG, S6E3FAC_DECODER_TEST_OFS, S6E3FAC_DECODER_TEST_LEN),
 #ifdef CONFIG_SUPPORT_MAFPC
 	[READ_MAFPC] = RDINFO_INIT(mafpc, DSI_PKT_TYPE_RD, S6E3FAC_MAFPC_REG, S6E3FAC_MAFPC_OFS, S6E3FAC_MAFPC_LEN),
 	[READ_MAFPC_FLASH] = RDINFO_INIT(mafpc_flash, DSI_PKT_TYPE_RD, S6E3FAC_MAFPC_FLASH_REG, S6E3FAC_MAFPC_FLASH_OFS, S6E3FAC_MAFPC_FLASH_LEN),
@@ -868,6 +874,7 @@ static struct res_update_info RESUI(ssr_test)[] = {
 	},
 };
 static DEFINE_RESUI(ecc_test, &s6e3fac_rditbl[READ_ECC_TEST], 0);
+static DEFINE_RESUI(decoder_test, &s6e3fac_rditbl[READ_DECODER_TEST], 0);
 static DEFINE_RESUI(self_mask_checksum, &s6e3fac_rditbl[READ_SELF_MASK_CHECKSUM], 0);
 static DEFINE_RESUI(self_mask_crc, &s6e3fac_rditbl[READ_SELF_MASK_CRC], 0);
 static DEFINE_RESUI(spsram_gamma_120hs, &s6e3fac_rditbl[READ_SPSRAM_GAMMA_120HS], 0);
@@ -921,6 +928,7 @@ static struct resinfo s6e3fac_restbl[] = {
 #endif
 	[RES_SSR_TEST] = RESINFO_INIT(ssr_test, S6E3FAC_SSR_TEST, RESUI(ssr_test)),
 	[RES_ECC_TEST] = RESINFO_INIT(ecc_test, S6E3FAC_ECC_TEST, RESUI(ecc_test)),
+	[RES_DECODER_TEST] = RESINFO_INIT(decoder_test, S6E3FAC_DECODER_TEST, RESUI(decoder_test)),
 	[RES_SELF_MASK_CHECKSUM] = RESINFO_INIT(self_mask_checksum, S6E3FAC_SELF_MASK_CHECKSUM, RESUI(self_mask_checksum)),
 	[RES_SELF_MASK_CRC] = RESINFO_INIT(self_mask_crc, S6E3FAC_SELF_MASK_CRC, RESUI(self_mask_crc)),
 	[RES_SPSRAM_GAMMA_120HS_0] = RESINFO_INIT(spsram_gamma_120hs_0, S6E3FAC_SPSRAM_GAMMA_120HS_0, RESUI(spsram_gamma_120hs)),
@@ -1177,58 +1185,21 @@ enum {
 	MAX_S6E3FAC_GAMMA_SET
 };
 
-static u32 S6E3FAC_GAMMA_SET_REF[MAX_S6E3FAC_GAMMA_SET] = {
-	[S6E3FAC_GAMMA_SET_120HS_0] = 0x00,
-	[S6E3FAC_GAMMA_SET_120HS_1] = 0x41,
-	[S6E3FAC_GAMMA_SET_120HS_2] = 0x82,
-	[S6E3FAC_GAMMA_SET_120HS_3] = 0xC3,
-	[S6E3FAC_GAMMA_SET_120HS_4] = 0x104,
-	[S6E3FAC_GAMMA_SET_120HS_5] = 0x145,
-	[S6E3FAC_GAMMA_SET_120HS_6] = 0x186,
-	[S6E3FAC_GAMMA_SET_120HS_7] = 0x1C7,
-	[S6E3FAC_GAMMA_SET_120HS_8] = 0x208,
-	[S6E3FAC_GAMMA_SET_120HS_9] = 0x249,
-	[S6E3FAC_GAMMA_SET_120HS_10] = 0x28A,
-	[S6E3FAC_GAMMA_SET_120HS_11] = 0x2CB,
-	[S6E3FAC_GAMMA_SET_60HS_0] = 0x30C,
-	[S6E3FAC_GAMMA_SET_60HS_1] = 0x34D,
-	[S6E3FAC_GAMMA_SET_60HS_2] = 0x38E,
-	[S6E3FAC_GAMMA_SET_60HS_3] = 0x3CF,
-	[S6E3FAC_GAMMA_SET_60HS_4] = 0x410,
-	[S6E3FAC_GAMMA_SET_60HS_5] = 0x451,
-	[S6E3FAC_GAMMA_SET_60HS_6] = 0x492,
-	[S6E3FAC_GAMMA_SET_60HS_7] = 0x4D3,
-	[S6E3FAC_GAMMA_SET_60HS_8] = 0x514,
-	[S6E3FAC_GAMMA_SET_60HS_9] = 0x555,
-	[S6E3FAC_GAMMA_SET_60HS_10] = 0x596,
-	[S6E3FAC_GAMMA_SET_60HS_11] = 0x5D7,
+enum {
+	S6E3FAC_ANALOG_GAMMA_WRITE_SET_0,
+	S6E3FAC_ANALOG_GAMMA_WRITE_SET_1,
+	S6E3FAC_ANALOG_GAMMA_WRITE_SET_2,
+	S6E3FAC_ANALOG_GAMMA_WRITE_SET_3,
+	S6E3FAC_ANALOG_GAMMA_WRITE_SET_COUNT
 };
 
-static char *S6E3FAC_GAMMA_SET_INIT_SRC[MAX_S6E3FAC_GAMMA_SET] = {
-	[S6E3FAC_GAMMA_SET_120HS_0] = "spsram_gamma_120hs_0",
-	[S6E3FAC_GAMMA_SET_120HS_1] = "spsram_gamma_120hs_1",
-	[S6E3FAC_GAMMA_SET_120HS_2] = "spsram_gamma_120hs_2",
-	[S6E3FAC_GAMMA_SET_120HS_3] = "spsram_gamma_120hs_3",
-	[S6E3FAC_GAMMA_SET_120HS_4] = "spsram_gamma_120hs_4",
-	[S6E3FAC_GAMMA_SET_120HS_5] = "spsram_gamma_120hs_5",
-	[S6E3FAC_GAMMA_SET_120HS_6] = "spsram_gamma_120hs_6",
-	[S6E3FAC_GAMMA_SET_120HS_7] = "spsram_gamma_120hs_7",
-	[S6E3FAC_GAMMA_SET_120HS_8] = "spsram_gamma_120hs_8",
-	[S6E3FAC_GAMMA_SET_120HS_9] = "spsram_gamma_120hs_9",
-	[S6E3FAC_GAMMA_SET_120HS_10] = "spsram_gamma_120hs_10",
-	[S6E3FAC_GAMMA_SET_120HS_11] = "spsram_gamma_120hs_11",
-	[S6E3FAC_GAMMA_SET_60HS_0] = "spsram_gamma_60hs_0",
-	[S6E3FAC_GAMMA_SET_60HS_1] = "spsram_gamma_60hs_1",
-	[S6E3FAC_GAMMA_SET_60HS_2] = "spsram_gamma_60hs_2",
-	[S6E3FAC_GAMMA_SET_60HS_3] = "spsram_gamma_60hs_3",
-	[S6E3FAC_GAMMA_SET_60HS_4] = "spsram_gamma_60hs_4",
-	[S6E3FAC_GAMMA_SET_60HS_5] = "spsram_gamma_60hs_5",
-	[S6E3FAC_GAMMA_SET_60HS_6] = "spsram_gamma_60hs_6",
-	[S6E3FAC_GAMMA_SET_60HS_7] = "spsram_gamma_60hs_7",
-	[S6E3FAC_GAMMA_SET_60HS_8] = "spsram_gamma_60hs_8",
-	[S6E3FAC_GAMMA_SET_60HS_9] = "spsram_gamma_60hs_9",
-	[S6E3FAC_GAMMA_SET_60HS_10] = "spsram_gamma_60hs_10",
-	[S6E3FAC_GAMMA_SET_60HS_11] = "spsram_gamma_60hs_11",
+#define S6E3FAC_ANALOG_GAMMA_WRITE_LEN (S6E3FAC_ANALOG_GAMMA_WRITE_SET_COUNT * S6E3FAC_GAMMA_MTP_LEN)
+
+static char *S6E3FAC_ANALOG_GAMMA_OFFSET_INIT_SRC[S6E3FAC_ANALOG_GAMMA_WRITE_SET_COUNT] = {
+	[S6E3FAC_ANALOG_GAMMA_WRITE_SET_0] = "spsram_gamma_60hs_8",
+	[S6E3FAC_ANALOG_GAMMA_WRITE_SET_1] = "spsram_gamma_60hs_9",
+	[S6E3FAC_ANALOG_GAMMA_WRITE_SET_2] = "spsram_gamma_60hs_10",
+	[S6E3FAC_ANALOG_GAMMA_WRITE_SET_3] = "spsram_gamma_60hs_11",
 };
 
 enum {
@@ -1309,14 +1280,14 @@ __visible_for_testing int s6e3fac_do_gamma_flash_checksum(struct panel_device *p
 #ifdef CONFIG_SUPPORT_SSR_TEST
 __visible_for_testing int s6e3fac_ssr_test(struct panel_device *panel, void *data, u32 len);
 #endif
-__visible_for_testing void copy_gamma_mtp_write_table(struct maptbl *tbl, u8 *dst);
-__visible_for_testing void copy_gamma_mtp_addr_maptbl(struct maptbl *tbl, u8 *dst);
 
 #ifdef CONFIG_SUPPORT_ECC_TEST
 __visible_for_testing int s6e3fac_ecc_test(struct panel_device *panel, void *data, u32 len);
 #endif
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+__visible_for_testing int s6e3fac_decoder_test(struct panel_device *panel, void *data, u32 len);
+#endif
 __visible_for_testing int s6e3fac_getidx_ddi_rev_table(struct maptbl *tbl);
-__visible_for_testing int get_s6e3fac_wait_1_frame_after_analog_gamma_write_done(struct panel_device *panel, ktime_t s_time, ktime_t mark_time);
 __visible_for_testing int get_s6e3fac_wait_1_frame_after_changing_refresh_rate(struct panel_device *panel, ktime_t s_time, ktime_t mark_time);
 __visible_for_testing int mark_s6e3fac_wait_1_frame_after_changing_refresh_rate(struct panel_device *panel, ktime_t s_time, ktime_t *mark_time);
 __visible_for_testing bool is_panel_state_not_lpm(struct panel_device *panel);
@@ -1328,7 +1299,6 @@ __visible_for_testing bool is_60ns_based_fps(struct panel_device *panel);
 __visible_for_testing bool is_60hs_based_fps(struct panel_device *panel);
 __visible_for_testing bool is_96hs_60hs_48hs_based_fps(struct panel_device *panel);
 __visible_for_testing bool is_hs_mode(struct panel_device *panel);
-__visible_for_testing bool is_analog_gamma_updated(struct panel_device *panel);
 __visible_for_testing bool is_ddi_evt0(struct panel_device *panel);
 __visible_for_testing bool is_osc_94500khz(struct panel_device *panel);
 __visible_for_testing bool is_osc_96500khz(struct panel_device *panel);
@@ -1336,5 +1306,5 @@ __visible_for_testing void s6e3fac_set_osc1(struct maptbl *tbl, u8 *dst);
 __visible_for_testing void s6e3fac_set_osc2(struct maptbl *tbl, u8 *dst);
 __visible_for_testing int s6e3fac_getidx_ffc_table(struct maptbl *tbl);
 __visible_for_testing int s6e3fac_ddi_init(struct panel_device *panel, void *data, u32 len);
-
+__visible_for_testing int init_analog_gamma_offset(struct maptbl *tbl);
 #endif /* __S6E3FAC_H__ */

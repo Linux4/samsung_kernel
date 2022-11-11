@@ -5030,6 +5030,9 @@ static int slsi_set_power_mode(struct net_device *dev, char *command, int buf_le
 		return -EINVAL;
 	}
 
+	SLSI_NET_INFO(dev, "PS MODE mode:%d, vif_type:%d, vif_index:%d\n", mode, ndev_vif->vif_type,
+		      ndev_vif->ifnum);
+
 	power_mode = (mode == 0) ? FAPI_POWERMANAGEMENTMODE_ACTIVE_MODE : FAPI_POWERMANAGEMENTMODE_POWER_SAVE;
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 	if (!ndev_vif->activated || ndev_vif->vif_type != FAPI_VIFTYPE_STATION ||

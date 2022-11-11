@@ -602,6 +602,13 @@ static const u32 sensor_gc02m1_setfile_otp_init[] = {
 	0xfe, 0x02, I2C_WRITE_FORMAT_ADDR8_DATA8,
 };
 
+/********* HI1336 OTP *********/
+#define IS_READ_MAX_HI1336_OTP_CAL_SIZE	(1264)
+#define HI1336_OTP_START_ADDR_BANK1	(0x0404)
+#define HI1336_OTP_START_ADDR_BANK2	(0x0904)
+#define HI1336_OTP_START_ADDR_BANK3	(0x0E04)
+#define HI1336_OTP_START_ADDR_BANK4	(0x1304)
+
 /********* S5K4HA OTP *********/
 #define S5K4HA_STANDBY_ADDR                         0x0136
 #define S5K4HA_OTP_R_W_MODE_ADDR                    0x0A00
@@ -612,7 +619,7 @@ static const u32 sensor_gc02m1_setfile_otp_init[] = {
 #define S5K4HA_OTP_PAGE_ADDR_H                      0x0A43
 #define S5K4HA_OTP_BANK_SELECT                      0x0A04
 #define S5K4HA_OTP_START_PAGE_BANK1                 0x11
-#define S5K4HA_OTP_START_PAGE_BANK2                 0x23
+#define S5K4HA_OTP_START_PAGE_BANK2                 0x2C
 
 #define S5K4HA_OTP_START_ADDR                       0x0A08
 

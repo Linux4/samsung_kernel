@@ -663,7 +663,7 @@ void abox_dbg_dump_gpr_from_addr(struct device *dev, struct abox_data *data,
 
 	abox_dbg(dev, "%s\n", __func__);
 
-	if (!abox_is_on()) {
+	if (pm_runtime_suspended(data->dev)) {
 		abox_info(dev, "%s is skipped due to no power\n", __func__);
 		return;
 	}
@@ -689,7 +689,7 @@ void abox_dbg_dump_gpr(struct device *dev, struct abox_data *data,
 
 	abox_dbg(dev, "%s\n", __func__);
 
-	if (!abox_is_on()) {
+	if (pm_runtime_suspended(data->dev)) {
 		abox_info(dev, "%s is skipped due to no power\n", __func__);
 		return;
 	}
@@ -732,7 +732,7 @@ static void dump_mem(struct device *dev, struct abox_data *data,
 
 	abox_dbg(dev, "%s\n", __func__);
 
-	if (!abox_is_on()) {
+	if (pm_runtime_suspended(data->dev)) {
 		abox_info(dev, "%s is skipped due to no power\n", __func__);
 		return;
 	}
@@ -799,7 +799,7 @@ void abox_dbg_dump_simple(struct device *dev, struct abox_data *data,
 
 	abox_info(dev, "%s\n", __func__);
 
-	if (!abox_is_on()) {
+	if (pm_runtime_suspended(data->dev)) {
 		abox_info(dev, "%s is skipped due to no power\n", __func__);
 		return;
 	}
@@ -896,7 +896,8 @@ static ssize_t calliope_sram_read(struct file *file, struct kobject *kobj,
 
 	abox_dbg(dev, "%s(%lld, %zu)\n", __func__, off, size);
 
-	if (pm_runtime_get_if_in_use(dev_abox) > 0) {
+	if (!pm_runtime_suspended(dev_abox)) {
+		pm_runtime_get(dev_abox);
 		if (off == 0)
 			abox_core_flush();
 		memcpy_fromio(buf, battr->private + off, size);
@@ -921,7 +922,8 @@ static ssize_t calliope_dram_read(struct file *file, struct kobject *kobj,
 	if (!battr->private)
 		return 0;
 
-	if (pm_runtime_get_if_in_use(dev_abox) > 0) {
+	if (!pm_runtime_suspended(dev_abox)) {
+		pm_runtime_get(dev_abox);
 		if (off == 0)
 			abox_core_flush();
 		pm_runtime_put(dev_abox);
@@ -979,7 +981,9 @@ static struct bin_attribute *calliope_bin_attrs[] = {
 static ssize_t gpr_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	if (!abox_is_on()) {
+	struct device *dev_abox = dev->parent;
+
+	if (pm_runtime_suspended(dev_abox)) {
 		abox_info(dev, "%s is skipped due to no power\n", __func__);
 		return -EFAULT;
 	}

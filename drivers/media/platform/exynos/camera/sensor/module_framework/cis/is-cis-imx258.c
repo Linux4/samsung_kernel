@@ -320,9 +320,9 @@ p_err:
 	return ret;
 }
 
-#if USE_GROUP_PARAM_HOLD
 static int sensor_imx258_cis_group_param_hold_func(struct v4l2_subdev *subdev, unsigned int hold)
 {
+#if USE_GROUP_PARAM_HOLD
 	int ret = 0;
 	struct is_cis *cis = NULL;
 	struct i2c_client *client = NULL;
@@ -354,23 +354,21 @@ static int sensor_imx258_cis_group_param_hold_func(struct v4l2_subdev *subdev, u
 	ret = 1;
 p_err:
 	return ret;
-}
 #else
-static inline int sensor_imx258_cis_group_param_hold_func(struct v4l2_subdev *subdev, unsigned int hold)
-{ return 0; }
+	return 0;
 #endif
+}
 
-/* Input
- *	hold : true - hold, flase - no hold
- * Output
- *      return: 0 - no effect(already hold or no hold)
- *		positive - setted by request
- *		negative - ERROR value
- */
+/*
+  hold control register for updating multiple-parameters within the same frame. 
+  true : hold, flase : no hold/release
+*/
+#if USE_GROUP_PARAM_HOLD
 int sensor_imx258_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 {
 	int ret = 0;
 	struct is_cis *cis = NULL;
+	u32 mode;
 
 	WARN_ON(!subdev);
 
@@ -379,6 +377,20 @@ int sensor_imx258_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 	WARN_ON(!cis);
 	WARN_ON(!cis->cis_data);
 
+	if (cis->cis_data->stream_on == false && hold == true) {
+		ret = 0;
+		dbg_sensor(1,"%s : sensor stream off skip group_param_hold", __func__);
+		goto p_err;
+	}
+
+	mode = cis->cis_data->sens_config_index_cur;
+
+	if (mode == SENSOR_IMX258_1000X750_120FPS) {
+		ret = 0;
+		dbg_sensor(1,"%s : fast ae skip group_param_hold", __func__);
+		goto p_err;
+	}
+
 	ret = sensor_imx258_cis_group_param_hold_func(subdev, hold);
 	if (ret < 0)
 		goto p_err;
@@ -386,6 +398,7 @@ int sensor_imx258_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 p_err:
 	return ret;
 }
+#endif
 
 int sensor_imx258_cis_set_global_setting(struct v4l2_subdev *subdev)
 {
@@ -489,10 +502,6 @@ int sensor_imx258_cis_stream_on(struct v4l2_subdev *subdev)
 
 	is_vendor_set_mipi_clock(device);
 
-	ret = sensor_imx258_cis_group_param_hold_func(subdev, 0x00);
-	if (ret < 0)
-		err("group_param_hold_func failed at stream on");
-
 #ifdef DEBUG_IMX258_PLL
 	{
 	u16 pll;
@@ -578,6 +587,8 @@ int sensor_imx258_cis_stream_off(struct v4l2_subdev *subdev)
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
+	cis_data->stream_on = false;
+
 	ret = sensor_imx258_cis_group_param_hold_func(subdev, 0x00);
 	if (ret < 0)
 		err("group_param_hold_func failed at stream off");
@@ -588,8 +599,6 @@ int sensor_imx258_cis_stream_off(struct v4l2_subdev *subdev)
 	is_sensor_write8(client, 0x0100, 0x00);
 	if (ret < 0)
 		err("i2c transfer fail addr(%x), val(%x), ret = %d\n", 0x0100, 0x00, ret);
-
-	cis_data->stream_on = false;
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);
@@ -603,7 +612,6 @@ p_err:
 int sensor_imx258_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_param *target_exposure)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -677,12 +685,6 @@ int sensor_imx258_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 		short_coarse_int = cis_data->min_coarse_integration_time;
 	}
 
-	hold = sensor_imx258_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	/* Short exposure */
 	ret = is_sensor_write16(client, 0x0202, short_coarse_int);
 	if (ret < 0)
@@ -710,12 +712,6 @@ int sensor_imx258_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 #endif
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx258_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
@@ -889,7 +885,6 @@ int sensor_imx258_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 int sensor_imx258_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_duration)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -933,12 +928,6 @@ int sensor_imx258_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 		KERN_CONT "(line_length_pck%#x), frame_length_lines(%#x)\n",
 		cis->id, __func__, vt_pic_clk_freq_khz, frame_duration, line_length_pck, frame_length_lines);
 
-	hold = sensor_imx258_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	ret = is_sensor_write16(client, 0x0340, frame_length_lines);
 	if (ret < 0)
 		goto p_err;
@@ -953,12 +942,6 @@ int sensor_imx258_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 #endif
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx258_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
@@ -1020,7 +1003,6 @@ int sensor_imx258_cis_set_frame_rate(struct v4l2_subdev *subdev, u32 min_fps)
 #endif
 
 p_err:
-
 	return ret;
 }
 
@@ -1073,7 +1055,6 @@ int sensor_imx258_cis_adjust_analog_gain(struct v4l2_subdev *subdev, u32 input_a
 int sensor_imx258_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_param *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1113,12 +1094,6 @@ int sensor_imx258_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_para
 	dbg_sensor(1, "[MOD:D:%d] %s(vsync cnt = %d), input_again = %d us, analog_gain(%#x)\n",
 		cis->id, __func__, cis->cis_data->sen_vsync_count, again->val, analog_gain);
 
-	hold = sensor_imx258_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	ret = is_sensor_write16(client, 0x0204, analog_gain);
 	if (ret < 0)
 		goto p_err;
@@ -1129,19 +1104,12 @@ int sensor_imx258_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_para
 #endif
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx258_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
 int sensor_imx258_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1166,12 +1134,6 @@ int sensor_imx258_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 		goto p_err;
 	}
 
-	hold = sensor_imx258_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	ret = is_sensor_read16(client, 0x0204, &analog_gain);
 	if (ret < 0)
 		goto p_err;
@@ -1187,12 +1149,6 @@ int sensor_imx258_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 #endif
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx258_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
@@ -1313,7 +1269,6 @@ p_err:
 int sensor_imx258_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1368,12 +1323,6 @@ int sensor_imx258_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_par
 	dbg_sensor(1, "[MOD:D:%d] %s(vsync cnt = %d), input_dgain = %d/%d us, long_gain(%#x), short_gain(%#x)\n",
 			cis->id, __func__, cis->cis_data->sen_vsync_count, dgain->long_val, dgain->short_val, long_gain, short_gain);
 
-	hold = sensor_imx258_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	dgains[0] = dgains[1] = dgains[2] = dgains[3] = long_gain;
 	/* Long digital gain */
 	ret = is_sensor_write16_array(client, 0x020E, dgains, 4);
@@ -1386,19 +1335,12 @@ int sensor_imx258_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_par
 #endif
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx258_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
 int sensor_imx258_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1423,12 +1365,6 @@ int sensor_imx258_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 		goto p_err;
 	}
 
-	hold = sensor_imx258_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	ret = is_sensor_read16(client, 0x020E, &digital_gain);
 	if (ret < 0)
 		goto p_err;
@@ -1444,12 +1380,6 @@ int sensor_imx258_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 #endif
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx258_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
@@ -1531,6 +1461,56 @@ int sensor_imx258_cis_get_max_digital_gain(struct v4l2_subdev *subdev, u32 *max_
 	return ret;
 }
 
+int sensor_imx258_cis_set_totalgain(struct v4l2_subdev *subdev, struct ae_param *target_exposure,
+	struct ae_param *again, struct ae_param *dgain)
+{
+#define GAIN_X1 (1000)
+#define GAIN_X1P125 (1125)
+#define GAIN_X3 (3000)
+
+	int ret = 0;
+	struct ae_param total_again;
+	struct ae_param total_dgain;
+
+	FIMC_BUG(!subdev);
+	FIMC_BUG(!target_exposure);
+	FIMC_BUG(!again);
+	FIMC_BUG(!dgain);
+
+	total_again.val = again->val;
+	total_again.short_val = again->short_val;
+	total_dgain.val = dgain->val;
+	total_dgain.short_val = dgain->short_val;
+
+	ret = sensor_imx258_cis_set_exposure_time(subdev, target_exposure);
+	if (ret < 0) {
+		err("[%s] sensor_imx258_cis_set_exposure_time fail\n", __func__);
+		goto p_err;
+	}
+
+	if (total_again.val >= GAIN_X3) {
+		total_again.val = (u32) ((total_again.val * GAIN_X1) / GAIN_X1P125);
+		total_dgain.val = GAIN_X1P125;
+		dbg_sensor(2, "[%s] Use total_gain (original again:%d, total again:%d, total dgain:%d)",
+			__func__, again->val, total_again.val, total_dgain.val);
+	}
+
+	ret = sensor_imx258_cis_set_analog_gain(subdev, &total_again);
+	if (ret < 0) {
+		err("[%s] sensor_imx258_cis_set_analog_gain fail\n", __func__);
+		goto p_err;
+	}
+
+	ret = sensor_imx258_cis_set_digital_gain(subdev, &total_dgain);
+	if (ret < 0) {
+		err("[%s] sensor_imx258_cis_set_digital_gain fail\n", __func__);
+		goto p_err;
+	}
+
+p_err:
+	return ret;
+}
+
 int sensor_imx258_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev, u32 expo, u32 *again, u32 *dgain)
 {
 	int ret = 0;
@@ -1593,30 +1573,33 @@ p_err:
 static struct is_cis_ops cis_ops = {
 	.cis_init = sensor_imx258_cis_init,
 	.cis_log_status = sensor_imx258_cis_log_status,
+#if USE_GROUP_PARAM_HOLD
 	.cis_group_param_hold = sensor_imx258_cis_group_param_hold,
+#endif	
 	.cis_set_global_setting = sensor_imx258_cis_set_global_setting,
 	.cis_mode_change = sensor_imx258_cis_mode_change,
 	.cis_stream_on = sensor_imx258_cis_stream_on,
 	.cis_stream_off = sensor_imx258_cis_stream_off,
 	.cis_wait_streamoff = sensor_cis_wait_streamoff,
 	.cis_data_calculation = sensor_imx258_cis_data_calc,
-	.cis_set_exposure_time = sensor_imx258_cis_set_exposure_time,
+	.cis_set_exposure_time = NULL,
 	.cis_get_min_exposure_time = sensor_imx258_cis_get_min_exposure_time,
 	.cis_get_max_exposure_time = sensor_imx258_cis_get_max_exposure_time,
 	.cis_adjust_frame_duration = sensor_imx258_cis_adjust_frame_duration,
 	.cis_set_frame_duration = sensor_imx258_cis_set_frame_duration,
 	.cis_set_frame_rate = sensor_imx258_cis_set_frame_rate,
 	.cis_adjust_analog_gain = sensor_imx258_cis_adjust_analog_gain,
-	.cis_set_analog_gain = sensor_imx258_cis_set_analog_gain,
+	.cis_set_analog_gain = NULL,
 	.cis_get_analog_gain = sensor_imx258_cis_get_analog_gain,
 	.cis_get_min_analog_gain = sensor_imx258_cis_get_min_analog_gain,
 	.cis_get_max_analog_gain = sensor_imx258_cis_get_max_analog_gain,
-	.cis_set_digital_gain = sensor_imx258_cis_set_digital_gain,
+	.cis_set_digital_gain = NULL,
 	.cis_get_digital_gain = sensor_imx258_cis_get_digital_gain,
 	.cis_get_min_digital_gain = sensor_imx258_cis_get_min_digital_gain,
 	.cis_get_max_digital_gain = sensor_imx258_cis_get_max_digital_gain,
 	.cis_compensate_gain_for_extremely_br = sensor_imx258_cis_compensate_gain_for_extremely_br,
 	.cis_check_rev_on_init = sensor_imx258_cis_check_rev_on_init,
+	.cis_set_totalgain = sensor_imx258_cis_set_totalgain,
 };
 
 static int cis_imx258_probe(struct i2c_client *client,
@@ -1647,6 +1630,10 @@ static int cis_imx258_probe(struct i2c_client *client,
 #else
 	cis->bayer_order = OTF_INPUT_ORDER_BAYER_RG_GB;
 #endif
+	/* Use total gain instead of using dgain */
+	cis->use_dgain = false;
+	cis->use_vendor_total_gain = true;
+
 	ret = of_property_read_string(dnode, "setfile", &setfile);
 	if (ret) {
 		err("setfile index read fail(%d), take default setfile!!", ret);

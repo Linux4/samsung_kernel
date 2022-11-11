@@ -3678,12 +3678,24 @@ EXPORT_SYMBOL(abox_notify_modem_event);
 static int abox_itmon_notifier(struct notifier_block *nb,
 		unsigned long action, void *nb_data)
 {
+	const char keyword[] = "AUD";
 	struct abox_data *data = container_of(nb, struct abox_data, itmon_nb);
 	struct device *dev = data->dev;
 	struct itmon_notifier *itmon_data = nb_data;
 
-	if (itmon_data && itmon_data->dest && (strncmp("AUD", itmon_data->dest,
-			sizeof("AUD") - 1) == 0)) {
+	if (!itmon_data)
+		return NOTIFY_DONE;
+
+	if (itmon_data->port && strstr(itmon_data->port, keyword)) {
+		abox_info(dev, "%s(%lu)\n", __func__, action);
+		abox_dbg_print_gpr(dev, data);
+		abox_dbg_dump_gpr(dev, data, ABOX_DBG_DUMP_KERNEL, "itmon");
+		abox_dbg_dump_mem(dev, data, ABOX_DBG_DUMP_KERNEL, "itmon");
+		data->enabled = false;
+		return NOTIFY_BAD;
+	}
+
+	if (itmon_data->dest && strstr(itmon_data->dest, keyword)) {
 		abox_info(dev, "%s(%lu)\n", __func__, action);
 		data->enabled = false;
 		return NOTIFY_BAD;

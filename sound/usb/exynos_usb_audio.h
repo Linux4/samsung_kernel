@@ -145,6 +145,7 @@ struct hcd_hw_info {
 	/* feedback ep */
 	int fb_in_ep;
 	int fb_out_ep;
+	int feedback;
 	u64 fb_old_out_deq;
 	u64 fb_old_in_deq;
 	u64 fb_out_deq;

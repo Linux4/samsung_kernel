@@ -213,10 +213,10 @@ static int ss_monitor_set_alt(struct usb_function *f,
 	struct f_ss_monitor	*ss_monitor;
 
 	ss_monitor = func_to_ss_monitor(f);
+	g_ss_monitor->aoa_reset.acc_dev_status = false;
 	if (ss_monitor->usb_function_info & GADGET_ACCESSORY) {
 		pr_info("usb: %s: aoa connect\n", __func__);
 		g_ss_monitor->aoa_reset.acc_online = true;
-		g_ss_monitor->aoa_reset.acc_dev_status = false;
 		g_ss_monitor->aoa_reset.rst_err_cnt = 0;
 	}
 	return 0;
@@ -247,7 +247,7 @@ ret:
 }
 
 /* for BC1.2 spec */
-static int dwc3_set_vbus_current(int state)
+static int set_vbus_current(int state)
 {
 	struct power_supply *psy;
 	union power_supply_propval pval = {0};
@@ -296,7 +296,7 @@ static void set_vbus_current_work(struct work_struct *w)
 	default:
 		break;
 	}
-	dwc3_set_vbus_current(ss_monitor->vbus_current);
+	set_vbus_current(ss_monitor->vbus_current);
 skip:
 	return;
 }
@@ -603,6 +603,10 @@ static int ss_monitor_setup(struct usb_function *f,
 			store_usblog_notify(NOTIFY_USBSTATE,
 				(void *)"USB_STATE=ENUM:SET:CON", NULL);
 #endif
+			if (ss_monitor->usb_function_info & GADGET_ACCESSORY) {
+				g_ss_monitor->aoa_reset.acc_online = true;
+				g_ss_monitor->aoa_reset.rst_err_cnt = 0;
+			}
 			break;
 		}
 	}
@@ -777,28 +781,30 @@ ss_monitor_bind(struct usb_configuration *c, struct usb_function *f)
 
 	opts = container_of(f->fi, struct ss_monitor_instance, func_inst);
 
-	/* copy descriptors, and track endpoint copies */
-	f->fs_descriptors = usb_copy_descriptors(log_fs_function);
-
-	/* support all relevant hardware speeds... we expect that when
-	 * hardware is dual speed, all bulk-capable endpoints work at
-	 * both speeds
-	 */
-	if (gadget_is_dualspeed(c->cdev->gadget)) {
+	if (!strcmp(opts->name, "mtp") || !strcmp(opts->name, "ptp")) {
 		/* copy descriptors, and track endpoint copies */
-		f->hs_descriptors = usb_copy_descriptors(log_hs_function);
-	}
+		f->fs_descriptors = usb_copy_descriptors(log_fs_function);
 
-	if (gadget_is_superspeed(c->cdev->gadget)) {
-		/* copy descriptors, and track endpoint copies */
-		f->ss_descriptors = usb_copy_descriptors(log_ss_function);
-		if (!f->ss_descriptors)
-			goto fail;
+		/* support all relevant hardware speeds... we expect that when
+		 * hardware is dual speed, all bulk-capable endpoints work at
+		 * both speeds
+		 */
+		if (gadget_is_dualspeed(c->cdev->gadget)) {
+			/* copy descriptors, and track endpoint copies */
+			f->hs_descriptors = usb_copy_descriptors(log_hs_function);
+		}
 
-		/* copy descriptors, and track endpoint copies for SSP */
-		f->ssp_descriptors = usb_copy_descriptors(log_ss_function);
-		if (!f->ssp_descriptors)
-			goto fail;
+		if (gadget_is_superspeed(c->cdev->gadget)) {
+			/* copy descriptors, and track endpoint copies */
+			f->ss_descriptors = usb_copy_descriptors(log_ss_function);
+			if (!f->ss_descriptors)
+				goto fail;
+
+			/* copy descriptors, and track endpoint copies for SSP */
+			f->ssp_descriptors = usb_copy_descriptors(log_ss_function);
+			if (!f->ssp_descriptors)
+				goto fail;
+		}
 	}
 
 	/* save usb mode information */
@@ -815,7 +821,11 @@ ss_monitor_bind(struct usb_configuration *c, struct usb_function *f)
 
 	f->setup = ss_monitor_setup;
 	ss_monitor->is_bind = 1;
-	pr_info("usb: [%s] ss_mon.%s bind\n", __func__, opts->name);
+	if (!strcmp(opts->name, "mtp") || !strcmp(opts->name, "ptp"))
+		pr_info("usb: [%s] ss_mon.%s bind\n", __func__, opts->name);
+	else
+		pr_info("usb: [%s] ss_mon.%s bind: skip descriptor\n",
+			__func__, opts->name);
 	return 0;
 
 fail:
@@ -840,7 +850,6 @@ ss_monitor_unbind(struct usb_configuration *c, struct usb_function *f)
 	store_usblog_notify(NOTIFY_USBSTATE,
 		(void *)"USB_STATE=PULLUP:DIS", NULL);
 #endif
-	opts->aoa_reset.acc_dev_status = false;
 	opts->aoa_reset.rst_err_cnt = 0;
 	ss_monitor->usb_function_info = 0;
 	ss_monitor->is_bind = 0;

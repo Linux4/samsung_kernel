@@ -30,35 +30,16 @@
 #include <linux/slab.h>
 
 #define MAG_CALIBRATION_FILE_PATH "/efs/FactoryApp/mag_cal_data"
-#define MAG_EVENT_SIZE_4BYTE_VERSION 2
+
+#define MAG_RECEIVE_EVENT_SIZE(x) (((x) * 3) + 1)
 
 typedef struct magnetometer_chipset_funcs *(get_magnetometer_function_pointer)(char *);
 get_magnetometer_function_pointer *get_mag_funcs_ary[] = {
 	get_magnetic_ak09918c_function_pointer,
 	get_magnetic_yas539_function_pointer,
 	get_magnetic_mmc5633_function_pointer,
+	get_magnetic_mxg4300s_function_pointer,
 };
-
-void set_mag_event_size(int size)
-{
-	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD);
-	struct magnetometer_data *data = sensor->data;
-
-	data->mag_event_size = size;
-
-	shub_infof("mag_event_size : %d", data->mag_event_size);
-}
-
-static void init_magnetometer_variable(struct magnetometer_data *data)
-{
-	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD);
-
-	if (sensor->spec.version >= MAG_EVENT_SIZE_4BYTE_VERSION)
-		set_mag_event_size(sizeof(s32));
-	else
-		set_mag_event_size(sizeof(s16));
-
-}
 
 static void parse_dt_magnetometer(struct device *dev)
 {
@@ -136,10 +117,13 @@ int set_mag_cover_matrix(struct magnetometer_data *data)
 
 int get_mag_sensor_value(char *dataframe, int *index, struct sensor_event *event, int frame_len)
 {
-	struct magnetometer_data *data = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD)->data;
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD);
 	struct mag_event *sensor_value = (struct mag_event *)event->value;
 
-	if (data->mag_event_size == sizeof(s16)) {
+	if (sensor->receive_event_size == sizeof(struct mag_event)) {
+		memcpy(sensor_value, dataframe + *index, sizeof(struct mag_event));
+		*index += sensor->receive_event_size;
+	} else {
 		s16 temp_mag_value[3];
 
 		memcpy(&temp_mag_value, dataframe + *index, sizeof(temp_mag_value));
@@ -149,11 +133,7 @@ int get_mag_sensor_value(char *dataframe, int *index, struct sensor_event *event
 		sensor_value->z = (s32) temp_mag_value[2];
 		memcpy(&sensor_value->accuracy, dataframe + *index, sizeof(sensor_value->accuracy));
 		*index += sizeof(sensor_value->accuracy);
-	} else { // sizeof(s32)
-		memcpy(sensor_value, dataframe + *index, sizeof(struct mag_event));
-		*index += sizeof(struct mag_event);
 	}
-
 	return 0;
 }
 
@@ -264,8 +244,6 @@ int init_magnetometer_chipset(void)
 	}
 
 	parse_dt_magnetometer(get_shub_device());
-	init_magnetometer_variable(data);
-
 	return 0;
 }
 
@@ -317,7 +295,14 @@ int init_magnetometer(bool en)
 	if (en) {
 		strcpy(sensor->name, "geomagnetic_sensor");
 		sensor->report_mode_continuous = true;
-		sensor->receive_event_size = sizeof(struct mag_event);
+
+		if (sensor->spec.version >= MAG_EVENT_SIZE_4BYTE_VERSION)
+			sensor->receive_event_size = MAG_RECEIVE_EVENT_SIZE(sizeof(s32));
+		else
+			sensor->receive_event_size = MAG_RECEIVE_EVENT_SIZE(sizeof(s16));
+
+		shub_infof("receive_event_size : %d", sensor->receive_event_size);
+
 		sensor->report_event_size = sizeof(struct mag_event);
 		sensor->event_buffer.value = kzalloc(sizeof(struct mag_event), GFP_KERNEL);
 		if (!sensor->event_buffer.value)

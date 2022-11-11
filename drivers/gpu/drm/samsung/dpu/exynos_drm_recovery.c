@@ -12,13 +12,12 @@
  *
  */
 
-#define pr_fmt(fmt)  "[RECOVERY] %s: " fmt, __func__
-
 #include <linux/kernel.h>
 #include <linux/printk.h>
 #include <linux/device.h>
 #include <linux/kthread.h>
 #include <linux/export.h>
+#include <linux/string.h>
 #include <drm/drm_drv.h>
 #include <drm/drm_device.h>
 #include <drm/drm_atomic.h>
@@ -30,7 +29,24 @@
 #include "exynos_drm_recovery.h"
 #include "exynos_drm_debug.h"
 
+static int dpu_recovery_log_level = 6;
+module_param(dpu_recovery_log_level, int, 0600);
+MODULE_PARM_DESC(dpu_recovery_log_level, "log level for dpu recovery [default : 6]");
+
+#define RECOVERY_NAME "RECOVERY"
+#define recov_info(fmt, ...)	\
+	dpu_pr_info(RECOVERY_NAME, 0, dpu_recovery_log_level, fmt, ##__VA_ARGS__)
+
+#define recov_warn(fmt, ...)	\
+	dpu_pr_warn(RECOVERY_NAME, 0, dpu_recovery_log_level, fmt, ##__VA_ARGS__)
+
+#define recov_err(fmt, ...)	\
+	dpu_pr_err(RECOVERY_NAME, 0, dpu_recovery_log_level, fmt, ##__VA_ARGS__)
+
+#define recov_debug(fmt, ...)	\
+	dpu_pr_debug(RECOVERY_NAME, 0, dpu_recovery_log_level, fmt, ##__VA_ARGS__)
 #define RECOVERY_RETRY_CNT 5
+//#define ENABLE_RECOVERY_DUMP
 
 struct recovery_mapping {
 	char name[RECOVERY_NAME_LEN];
@@ -49,12 +65,22 @@ __weak bool customer_condition_check(const struct drm_crtc *crtc)
 	return false;
 }
 
+__weak bool skip_condition_check(const struct drm_crtc *crtc)
+{
+	return true;
+}
+
 struct recovery_mapping recovery_map[RECOVERY_MODE_MAX] = {
+	/* order : priority */
 	{"dsim", dsim_condition_check},
 	{"customer", customer_condition_check},
+
+	/* new function sholud be added before force_condition */
+	{"force", skip_condition_check},
+	{"always", skip_condition_check},
 };
 
-const char recovery_state_string[6][RECOVERY_NAME_LEN] = {
+const char recovery_state_string[RECOVERY_STATE_NUM][RECOVERY_NAME_LEN] = {
 	"not_supported", "idle", "trigger",
 	"begin", "restore", "max_error"
 };
@@ -89,6 +115,27 @@ static void __rq_addq(struct recovery_queue *rq, ktime_t data)
 	rq->rear = (rq->rear + 1) % rq->fsz;
 }
 
+static int __set_panel_reset(struct decon_device *decon, bool reset)
+{
+	struct drm_connector *conn;
+	struct exynos_drm_connector_state *exynos_conn_state;
+
+	if (!decon)
+		return -EINVAL;
+
+	conn = crtc_get_conn(decon->crtc->base.state, DRM_MODE_CONNECTOR_DSI);
+	if (!conn)
+		return -EINVAL;
+
+	exynos_conn_state = to_exynos_connector_state(conn->state);
+	if (!exynos_conn_state)
+		return -EINVAL;
+
+	exynos_conn_state->requested_panel_recovery = reset;
+
+	return 0;
+}
+
 static bool __verify_in_time(struct exynos_recovery_cond *cond)
 {
 	struct recovery_queue *rq;
@@ -102,7 +149,7 @@ static bool __verify_in_time(struct exynos_recovery_cond *cond)
 		ktime_t diff = ktime_sub(ctime, __rq_top(rq));
 
 		if (ktime_compare(diff, cond->in_time) <= 0) {
-			pr_info("not matched:%s:%dtimes in %lld ms, cond = %lld ms\n",
+			recov_info("not matched:%s:%dtimes in %lld ms, cond = %lld ms\n",
 					cond->name, cond->limits_num_in_time,
 					ktime_to_ms(diff),
 					ktime_to_ms(cond->in_time));
@@ -129,59 +176,132 @@ static inline bool is_primary_crtc(const struct drm_crtc *crtc)
 	return ((drm_crtc_index(crtc) == 0) ? true : false);
 }
 
+static void exynos_recovery_simple_dump(const struct exynos_recovery *recovery)
+{
+#if defined(ENABLE_RECOVERY_DUMP)
+	const struct exynos_recovery_cond *cond = NULL;
+	bool find = false;
+
+	if (recovery->req_mode_id != RECOVERY_MODE_MAX)
+		find = true;
+
+	cond = &recovery->r_cond[recovery->req_mode_id];
+
+	recov_info("====== RECOVERY_SIMPLE_DUMP =====\n");
+	recov_info(" selected mode : %s\n", (find ? cond->name : "unknown"));
+	if (find) {
+		recov_info(" id [%d], count [%d]\n", cond->id, cond->count);
+		recov_info(" refresh : panel[%s] vblank[%s]\n",
+				(cond->refresh_panel ? "O" : "X"),
+				(cond->reset_vblank ? "O" : "X"));
+	}
+#endif
+}
+
 static bool is_supported_mode(struct exynos_recovery *recovery)
 {
 	bool supported = false;
 
 	mutex_lock(&recovery->r_lock);
-	if (recovery->req_mode_id != RECOVERY_MODE_MAX)
+	if (recovery->req_mode > 0x0 &&
+		recovery->req_mode <= recovery->max_req_mode)
 		supported = true;
 	mutex_unlock(&recovery->r_lock);
 
 	return supported;
 }
 
+static void __find_mode(struct exynos_recovery *recovery, int id)
+{
+	struct decon_device *decon = container_of(recovery,
+			struct decon_device, recovery);
+	struct exynos_recovery_cond *cond;
+	struct drm_device *dev;
+	ktime_t start;
+
+	recovery->req_mode_id = id;
+
+	cond = &recovery->r_cond[recovery->req_mode_id];
+
+	if (!strncmp(&cond->name[0], "dsim", RECOVERY_NAME_LEN)) {
+		dev = decon->drm_dev;
+		start = ktime_get();
+
+		if (dev) {
+			drm_wait_one_vblank(dev, 0);
+			if (ktime_ms_delta(ktime_get(), start) > 100) {
+				recov_info("not detect vblank\n");
+				cond->reset_phy = true;
+			}
+		}
+	}
+
+	if (cond->refresh_panel || cond->reset_phy)
+		__set_panel_reset(decon, true);
+	else
+		__set_panel_reset(decon, false);
+}
+
+static bool exynos_recovery_condition_check_sub(const struct drm_crtc *crtc,
+				struct exynos_recovery_cond *cond)
+{
+
+	if (!cond) {
+		recov_err("cond nullptr err\n");
+		return false;
+	}
+
+	if (cond->func && cond->func(crtc)) {
+		recov_info("%s:matched:cond-function\n", cond->name);
+		return true;
+	}
+
+	return false;
+}
+
 static bool exynos_recovery_condition_check(const struct drm_crtc *crtc,
 				struct exynos_recovery *recovery)
 {
 	struct exynos_recovery_cond *cond;
-	struct exynos_recovery_cond *cond_iter;
-	int i;
+	u32 tmp_mode;
+	int id, req_id;
+	bool matched = false;
 
 	if (!crtc || !recovery) {
-		pr_err("nullptr\n");
+		recov_err("nullptr\n");
 		return false;
 	}
 
-	if (recovery->req_mode_id >= RECOVERY_MODE_MAX) {
-		pr_err("invalid req_mode_id\n");
-		return false;
-	}
-	cond = &recovery->r_cond[recovery->req_mode_id];
+	tmp_mode = recovery->req_mode;
+	id = 0;
 
-	if (!strncmp(cond->name, "force", RECOVERY_NAME_LEN) ||
-		!strncmp(cond->name, "always", RECOVERY_NAME_LEN)) {
-		if (cond->func && !cond->func(crtc)) {
-			pr_info("%s:not matched:cond-function\n", cond->name);
-			return false;
-		}
-	} else {
-		/* iterate all recovery conditions */
-		for (i = 0; i < RECOVERY_MODE_MAX; i++) {
-			cond_iter = &recovery->r_cond[i];
-			if (!strncmp(cond_iter->name, "force", RECOVERY_NAME_LEN) ||
-				!strncmp(cond_iter->name, "always", RECOVERY_NAME_LEN))
-				continue;
-
-			if (cond_iter->func && cond_iter->func(crtc)) {
-				pr_info("set recovery condition to %s(%d)\n", cond_iter->name, i);
-				cond = cond_iter;
-				recovery->req_mode_id = i;
+	while (tmp_mode) {
+		req_id = ((tmp_mode & (1 << id)) ? id : -1);
+		tmp_mode &= ~(1 << id);
+		if (req_id >= 0) {
+			cond = &recovery->r_cond[req_id];
+			if (exynos_recovery_condition_check_sub(crtc, cond)) {
+				matched = true;
 				break;
 			}
 		}
-		if (i == RECOVERY_MODE_MAX)
-			return false;
+		++id;
+	}
+
+	if (matched)
+		__find_mode(recovery, req_id);
+	else
+		return false;
+
+	cond = &recovery->r_cond[recovery->req_mode_id];
+	if (!cond) {
+		pr_err("cond null ptr\n");
+		return false;
+	}
+
+	if (cond->func && !cond->func(crtc)) {
+		pr_info("%s:not matched:cond-function\n", cond->name);
+		return false;
 	}
 
 	if (!__verify_max_count(cond)) {
@@ -350,29 +470,26 @@ static void exynos_recovery_handler(struct work_struct *work)
 	}
 
 	if (!exynos_recovery_condition_check(crtc, recovery)) {
-		if (recovery->always)
+		if (recovery->always) {
+			recovery->req_mode_id = recovery->always_id;
 			pr_info("not matched:but always-recovery enabled\n");
-		else {
+		} else {
 			pr_info("recovery condition not matched\n");
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 #ifdef CONFIG_DISPLAY_USE_INFO
 			log_decon_bigdata(decon);
 #endif
 #endif
-			dpu_dump_with_event(exynos_crtc);
+			dpu_dump(exynos_crtc);
 			dbg_snapshot_expire_watchdog();
 			BUG();
 			return;
 		}
 	}
 
-	DPU_EVENT_LOG(DPU_EVT_RECOVERY_START, exynos_crtc,
-		&recovery->r_cond[recovery->req_mode_id]);
-
-	if (recovery->r_cond[recovery->req_mode_id].refresh_panel)
-		__set_panel_reset(decon, true);
-	else
-		__set_panel_reset(decon, false);
+	DPU_EVENT_LOG("RECOVERY_START", exynos_crtc, 0, "id[%d] count[%d]",
+			recovery->r_cond[recovery->req_mode_id].id,
+			recovery->r_cond[recovery->req_mode_id].count);
 
 	time_s = ktime_to_us(ktime_get());
 	pm_stay_awake(decon->dev);
@@ -432,7 +549,8 @@ retry:
 	}
 	*/
 
-	if (recovery->r_cond[recovery->req_mode_id].reset_vblank)
+	if (recovery->r_cond[recovery->req_mode_id].reset_vblank ||
+		recovery->r_cond[recovery->req_mode_id].reset_phy)
 		drm_crtc_vblank_off(crtc);
 
 	ret = drm_atomic_commit(state);
@@ -441,8 +559,10 @@ retry:
 
 	drm_mode_config_reset(dev);
 	exynos_recovery_set_state(decon, RECOVERY_RESTORE);
-	if (recovery->r_cond[recovery->req_mode_id].reset_vblank)
+	if (recovery->r_cond[recovery->req_mode_id].reset_vblank ||
+		recovery->r_cond[recovery->req_mode_id].reset_phy)
 		drm_crtc_vblank_on(crtc);
+
 	ret = exynos_recovery_atomic_helper_commit_duplicated_state(rcv_state, &ctx);
 	if (ret)
 		goto out;
@@ -451,10 +571,12 @@ retry:
 	recovery->r_cond[recovery->req_mode_id].count++;
 	time_c = (ktime_to_us(ktime_get())-time_s);
 
-	DPU_EVENT_LOG(DPU_EVT_RECOVERY_END, exynos_crtc,
-			&recovery->r_cond[recovery->req_mode_id]);
+	DPU_EVENT_LOG("RECOVERY_END", exynos_crtc, 0, "id[%d] count[%d]",
+			recovery->r_cond[recovery->req_mode_id].id,
+			recovery->r_cond[recovery->req_mode_id].count);
 
-	pr_info("recovery(#%d) is successfully finished (%lld.%03lldms)\n",
+	exynos_recovery_simple_dump(recovery);
+	recov_info("recovery(#%d) is successfully finished (%lld.%03lldms)\n",
 			recovery->count,
 			time_c/USEC_PER_MSEC, time_c%USEC_PER_MSEC);
 
@@ -470,7 +592,7 @@ out:
 				log_decon_bigdata(decon);
 #endif
 #endif
-				dpu_dump_with_event(exynos_crtc);
+				dpu_dump(exynos_crtc);
 				dbg_snapshot_expire_watchdog();
 				BUG();
 			}
@@ -482,6 +604,7 @@ out:
 	drm_atomic_state_put(rcv_state);
 
 out_drop_locks:
+	recovery->r_cond[recovery->req_mode_id].reset_phy = false;
 	exynos_recovery_set_state(decon, RECOVERY_IDLE);
 	pm_relax(decon->dev);
 	drm_modeset_drop_locks(&ctx);
@@ -496,7 +619,7 @@ static void __set_recovery_state(struct exynos_recovery *recovery, enum recovery
 	recovery->r_state = state;
 	mutex_unlock(&recovery->r_lock);
 
-	pr_debug("state changed (%s -> %s)\n", recovery_state_string[from],
+	recov_debug("state changed (%s -> %s)\n", recovery_state_string[from],
 			recovery_state_string[recovery->r_state]);
 }
 
@@ -511,53 +634,40 @@ static enum recovery_state __get_recovery_state(struct exynos_recovery *recovery
 	return state;
 }
 
-static int __set_panel_reset(struct decon_device *decon, bool reset)
+static int __find_id(struct exynos_recovery *recovery, char *mode)
 {
-	struct drm_connector *conn;
-	struct exynos_drm_connector_state *exynos_conn_state;
+	int id = 0;
+	struct exynos_recovery_cond *cond;
 
-	if (!decon)
-		return -EINVAL;
+	for (id = 0; id < recovery->modes; ++id) {
+		cond = &recovery->r_cond[id];
+		if (!strncmp(&cond->name[0], mode, RECOVERY_NAME_LEN))
+			return id;
+	}
 
-	conn = crtc_get_conn(decon->crtc->base.state, DRM_MODE_CONNECTOR_DSI);
-	if (!conn)
-		return -EINVAL;
-
-	exynos_conn_state = to_exynos_connector_state(conn->state);
-	if (!exynos_conn_state)
-		return -EINVAL;
-
-	exynos_conn_state->requested_panel_recovery = reset;
-
-	return 0;
+	return -1;
 }
 
 static void __set_recovery_mode(struct exynos_recovery *recovery, char *mode)
 {
-	int id;
-	bool find = false;
-	struct exynos_recovery_cond *cond;
-	struct decon_device *decon = container_of(recovery, struct decon_device,
-					recovery);
+	char mode_str[RECOVERY_MODE_MAX * RECOVERY_NAME_LEN];
+	char *tok, *pstr;
+	int len = strlen(mode);
 
 	mutex_lock(&recovery->r_lock);
-	for (id = 0; id < recovery->modes; ++id) {
-		cond = &recovery->r_cond[id];
-		if (strncmp(cond->name, mode, RECOVERY_NAME_LEN) == 0) {
-			find = true;
-			break;
-		}
-	}
+	recovery->req_mode = 0x0;
+	strncpy(&mode_str[0], mode, len);
+	mode_str[len] = '\0';
+	pstr = mode_str;
+	tok = strsep(&pstr, "|");
+	while (tok) {
+		int id = __find_id(recovery, tok);
 
-	if (!find)
-		recovery->req_mode_id = RECOVERY_MODE_MAX;
-	else {
-		recovery->req_mode_id = id;
-		if (cond->refresh_panel)
-			__set_panel_reset(decon, true);
-		else
-			__set_panel_reset(decon, false);
+		if (id >= 0)
+			recovery->req_mode |= (1 << id);
+		tok = strsep(&pstr, "|");
 	}
+	recov_info("req_mode = 0x%04x\n", recovery->req_mode);
 	mutex_unlock(&recovery->r_lock);
 }
 
@@ -629,6 +739,7 @@ static int __init_condition_params(struct exynos_recovery *recovery,
 					int id, const char *name)
 {
 	struct exynos_recovery_cond *cond;
+	int i;
 
 	if (!recovery)
 		return -EINVAL;
@@ -642,6 +753,12 @@ static int __init_condition_params(struct exynos_recovery *recovery,
 	cond->in_time = ms_to_ktime(0);
 	cond->refresh_panel = false;
 	cond->reset_vblank = false;
+	cond->reset_phy = false;
+
+	for (i = 0; i < sizeof(recovery_map)/sizeof(struct recovery_mapping) ; ++i) {
+		if (strncmp(cond->name, recovery_map[i].name, RECOVERY_NAME_LEN) == 0)
+			cond->func = recovery_map[i].func;
+	}
 
 	return 0;
 }
@@ -653,6 +770,7 @@ static int exynos_recovery_parse_dt_sub(struct device_node *np,
 	struct exynos_recovery_cond *cond;
 	u32 data[2];
 	int ret, i;
+	bool findout = false;
 
 	if (!recovery)
 		return -EINVAL;
@@ -678,15 +796,22 @@ static int exynos_recovery_parse_dt_sub(struct device_node *np,
 		cond->max_recovery_count = data[0];
 
 	cond->refresh_panel = of_property_read_bool(np, "refresh-panel");
-	pr_info("refresh panel=%d\n", cond->refresh_panel);
+	recov_info("refresh panel=%d\n", cond->refresh_panel);
 
 	cond->reset_vblank = of_property_read_bool(np, "reset-vblank");
-	pr_info("reset vblank=%d\n", cond->reset_vblank);
+	recov_info("reset vblank=%d\n", cond->reset_vblank);
+
+	cond->reset_phy = false;
 
 	for (i = 0; i < sizeof(recovery_map)/sizeof(struct recovery_mapping) ; ++i) {
-		if (strncmp(cond->name, recovery_map[i].name, RECOVERY_NAME_LEN) == 0)
+		if (strncmp(cond->name, recovery_map[i].name, RECOVERY_NAME_LEN) == 0) {
 			cond->func = recovery_map[i].func;
+			findout = true;
+		}
 	}
+
+	if (!findout)
+		cond->func = skip_condition_check;
 
 	return 0;
 }
@@ -701,23 +826,23 @@ static int exynos_recovery_parse_dt(struct device_node *np,
 
 	num_cond = of_property_count_strings(np, "recovery-modes");
 	if (num_cond < 0) {
-		pr_err("failed to get recovery mode count\n");
+		recov_err("failed to get recovery mode count\n");
 		return -EINVAL;
 	}
 
 	num_cond = of_property_read_string_array(np, "recovery-modes",
 				name, num_cond);
 	if (num_cond < 0) {
-		pr_err("failed to get recovery mode name\n");
+		recov_err("failed to get recovery mode name\n");
 		return -EINVAL;
 	}
 	recovery->modes = num_cond;
+	recovery->max_req_mode = 0x0;
 
 	child_np = of_get_child_by_name(np, "recovery-condition");
 	if (!child_np) {
 		for (i = 0; i < num_cond; ++i)
 			__init_condition_params(recovery, i, name[i]);
-		goto exit;
 	} else {
 		for (i = 0; i < num_cond; ++i) {
 			cchild_np = of_get_child_by_name(child_np, name[i]);
@@ -730,10 +855,11 @@ static int exynos_recovery_parse_dt(struct device_node *np,
 		}
 	}
 
-exit:
 	for (i = 0; i < num_cond; ++i) {
+		recovery->max_req_mode |= (1 << i);
 		if (strncmp(name[i], "always", RECOVERY_NAME_LEN) == 0) {
 			recovery->always = true;
+			recovery->always_id = i;
 			break;
 		}
 	}
@@ -754,7 +880,7 @@ void exynos_recovery_register(struct decon_device *decon)
 	ret = of_property_read_u32(np, "recovery-enable", &val);
 	if (ret == -EINVAL || (ret == 0 && val == 0)) {
 		exynos_recovery_set_state(decon, RECOVERY_NOT_SUPPORTED);
-		pr_debug("decon#%d:recovery not supported\n", decon->id);
+		recov_debug("decon#%d:recovery not supported\n", decon->id);
 		return;
 	}
 
@@ -767,6 +893,6 @@ void exynos_recovery_register(struct decon_device *decon)
 	recovery->count = 0;
 	recovery->funcs = &recovery_funcs;
 	exynos_recovery_set_state(decon, RECOVERY_IDLE);
-	pr_info("decon#%d recovery registered\n", decon->id);
+	recov_info("decon#%d recovery registered\n", decon->id);
 }
 EXPORT_SYMBOL(exynos_recovery_register);

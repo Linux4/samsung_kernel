@@ -1082,7 +1082,7 @@
 			status = "okay";
 			pinctrl-names = "default";
 			pinctrl-0 = <0x36>;
-			phy-mode = "rgmii-id";
+			phy-mode = "rgmii-txid";
 			phy-handle = <0x37>;
 			phy-supply = <0x38>;
 			phandle = <0x7e>;

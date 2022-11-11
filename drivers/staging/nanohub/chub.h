@@ -49,6 +49,7 @@
 #endif
 #if IS_ENABLED(CONFIG_EXYNOS_IMGLOADER)
 #include <soc/samsung/imgloader.h>
+#include <linux/firmware.h>
 #endif
 #if IS_ENABLED(CONFIG_EXYNOS_PD_EL3)
 #include <soc/samsung/exynos-el3_mon.h>
@@ -557,6 +558,48 @@ static inline int exynos_request_fw_stage2_ap(const char *str)
 #define SRAM_OFFSET_OS SZ_4K
 
 #if IS_ENABLED(CONFIG_EXYNOS_S2MPU) && IS_ENABLED(CONFIG_EXYNOS_IMGLOADER)
+static void contexthub_imgloader_checker(struct imgloader_desc *desc, phys_addr_t fw_phys_base,
+					 size_t fw_bin_size, size_t fw_mem_size)
+{
+	const struct firmware *entry;
+	int ret = 0;
+
+	nanohub_dev_warn(desc->dev, "=====compare SRAM and F/W binary=====\n");
+	nanohub_dev_warn(desc->dev, "loaded fw name : %s\n", desc->fw_name);
+	nanohub_dev_warn(desc->dev, "loaded fw size : 0x%X\n", fw_bin_size);
+
+	ret = request_firmware(&entry, desc->fw_name, desc->dev);
+
+	if (ret) {
+		nanohub_dev_err(desc->dev, "request_firmware failed for checking after s2mpu verification failed\n");
+		release_firmware(entry);
+	} else {
+		int diff_check = 0, i;
+		void *sram_phy = ioremap(fw_phys_base, fw_mem_size);
+		u8 *sram = kmalloc(fw_bin_size, GFP_KERNEL);
+
+		memcpy_fromio(sram, sram_phy, fw_bin_size);
+
+		for (i = 0; i < fw_bin_size; i++) {
+			if (sram[i] != entry->data[i]) {
+				nanohub_dev_warn(desc->dev, "diff offset : 0x%x\n", i);
+				nanohub_dev_warn(desc->dev, "sram val : 0x%x, bin val : 0x%x\n",
+						 sram[i], entry->data[i]);
+				diff_check++;
+			}
+		}
+
+		if (diff_check == 0)
+			nanohub_dev_warn(desc->dev, "no diff between chub sram and binary\n");
+		else
+			nanohub_dev_warn(desc->dev, "has %d diff between chub sram and binary\n", diff_check);
+
+		iounmap(sram);
+		release_firmware(entry);
+	}
+	nanohub_dev_warn(desc->dev, "===compare SRAM and F/W binary end===\n");
+}
+
 static inline int contexthub_imgloader_verify_fw(struct imgloader_desc *desc,
 						 phys_addr_t fw_phys_base,
 						 size_t fw_bin_size,
@@ -568,6 +611,9 @@ static inline int contexthub_imgloader_verify_fw(struct imgloader_desc *desc,
 	if (ret64) {
 		nanohub_dev_warn(desc->dev,
 				 "Failed F/W verification, ret=%llu\n", ret64);
+
+		contexthub_imgloader_checker(desc, fw_phys_base, fw_bin_size, fw_mem_size);
+
 		return -EIO;
 	}
 	ret64 = exynos_request_fw_stage2_ap(desc->name);
@@ -605,7 +651,6 @@ static inline int contexthub_imgloader_mem_setup(struct imgloader_desc *desc, co
 	memcpy_toio(addr, metadata, size);
 	nanohub_info("%s chub image %s loaded by imgloader\n", __func__,
 		     desc->fw_name);
-
 	contexthub_verify_symtable(chub, (void *)metadata, size);
 
 	return 0;

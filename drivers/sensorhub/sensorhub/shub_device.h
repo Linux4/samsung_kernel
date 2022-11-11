@@ -60,6 +60,8 @@ struct shub_data_t {
 	struct shub_waitevent reset_lock;
 	struct reset_info_t reset_info;
 
+	u64 hub_crash_timestamp;
+
 	u8 pm_status;
 	u8 lcd_status;
 

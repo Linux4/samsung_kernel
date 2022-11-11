@@ -723,7 +723,7 @@ p_err_version:
 	return ret;
 }
 
-long vertex_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long __vertex_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	static s64 buf_time;
 	s64 now;
@@ -961,12 +961,13 @@ long vertex_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		if (vs4l_kvar.vspr.node) {
 			(*vs4l_kvar.vspr.node).duration = fw_time;
-			if ((*vs4l_kvar.vspr.node).child != NULL)
+			if ((*vs4l_kvar.vspr.node).child != NULL) {
 				(*vs4l_kvar.vspr.node).child[0]->duration = npu_hw_time;
 #ifdef CONFIG_DSP_USE_VS4L
-			if ((*vs4l_kvar.vspr.node).child[1] != NULL)
-				(*vs4l_kvar.vspr.node).child[1]->duration = dsp_hw_time;
+				if ((*vs4l_kvar.vspr.node).child[1] != NULL)
+					(*vs4l_kvar.vspr.node).child[1]->duration = dsp_hw_time;
 #endif
+			}
 		}
 
 		ret = put_vs4l_profiler(&vs4l_kvar.vspr,
@@ -1013,4 +1014,12 @@ long vertex_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	}
 	npu_log_ioctl_set_date(cmd, 1);
 	return ret;
+}
+
+long vertex_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	if (unlikely(!file->private_data)) {
+		return -EWOULDBLOCK;
+	}
+	return __vertex_ioctl(file, cmd, arg);
 }

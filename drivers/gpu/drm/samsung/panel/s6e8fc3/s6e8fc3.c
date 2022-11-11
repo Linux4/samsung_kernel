@@ -11,7 +11,7 @@
  */
  #include <linux/of_gpio.h>
 #include <video/mipi_display.h>
-#include <kunit/mock.h>
+#include "../panel_kunit.h"
 #include "../panel.h"
 #include "s6e8fc3.h"
 #include "s6e8fc3_panel.h"
@@ -892,7 +892,7 @@ __visible_for_testing int show_err(struct dumpinfo *info)
 	err_15_8 = err[0];
 	err_7_0 = err[1];
 
-	panel_info("========== SHOW PANEL [EAh:DSIERR] INFO ==========\n");
+	panel_info("========== SHOW PANEL [E6h:DSIERR] INFO ==========\n");
 	panel_info("* Reg Value : 0x%02x%02x, Result : %s\n", err_15_8, err_7_0,
 			(err[0] || err[1] || err[2] || err[3] || err[4]) ? "NG" : "GOOD");
 
@@ -1230,11 +1230,40 @@ __visible_for_testing bool s6e8fc3_a33_is_bringup_panel(struct panel_device *pan
 	}
 
 	panel_data = &panel->panel_data;
+#ifdef CONFIG_MCD_PANEL_FACTORY
+	resource_copy_by_name(panel_data, panel_data->id, "id");
+#endif
+	/* 0x800000 ~ 0x800003	: Bring up panel	*/
+	/* 0x80XXX4			: Real panel 04	*/
+	/* 0x80XXX5 ~			: Real panel	*/
 
-	/* 0x800000 ~ 0x800003	: Bring up panel */
-	/* 0x800004 ~			: Real panel */
+	ret = ((panel_data->id[2] & 0xF) < 0x4) ? true : false;
 
-	ret = (panel_data->id[2] < 0x4) ? true : false;
+	if (ret)
+		panel_info("%02x\n", panel_data->id[2]);
+
+	return ret;
+}
+
+__visible_for_testing bool s6e8fc3_a33_is_real_panel_rev04(struct panel_device *panel)
+{
+	struct panel_info *panel_data;
+	bool ret;
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+
+	panel_data = &panel->panel_data;
+#ifdef CONFIG_MCD_PANEL_FACTORY
+	resource_copy_by_name(panel_data, panel_data->id, "id");
+#endif
+	/* 0x800000 ~ 0x800003	: Bring up panel	*/
+	/* 0x80XXX4			: Real panel 04	*/
+	/* 0x80XXX5 ~			: Real panel	*/
+
+	ret = ((panel_data->id[2] & 0xF) == 0x4) ? true : false;
 
 	if (ret)
 		panel_info("%02x\n", panel_data->id[2]);
@@ -1253,11 +1282,14 @@ __visible_for_testing bool s6e8fc3_a33_is_real_panel(struct panel_device *panel)
 	}
 
 	panel_data = &panel->panel_data;
+#ifdef CONFIG_MCD_PANEL_FACTORY
+	resource_copy_by_name(panel_data, panel_data->id, "id");
+#endif
+	/* 0x800000 ~ 0x800003	: Bring up panel	*/
+	/* 0x80XXX4			: Real panel 04	*/
+	/* 0x80XXX5 ~			: Real panel	*/
 
-	/* 0x800000 ~ 0x800003	: Bring up panel */
-	/* 0x800004 ~			: Real panel */
-
-	ret = (panel_data->id[2] >= 0x4) ? true : false;
+	ret = ((panel_data->id[2] & 0xF) >= 0x5) ? true : false;
 
 	if (ret)
 		panel_info("%02x\n", panel_data->id[2]);

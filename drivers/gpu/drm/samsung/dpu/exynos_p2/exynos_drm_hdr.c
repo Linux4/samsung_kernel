@@ -103,7 +103,7 @@ static int hdr_import_buffer(struct exynos_hdr *hdr,
 	int64_t hdr_fd;
 	int i;
 
-	hdr_debug(hdr, "%s +\n", __func__);
+	hdr_debug(hdr, "+\n");
 
 	hdr_fd = exynos_plane_state->hdr_fd;
 	if (hdr_fd < 3) {
@@ -292,7 +292,7 @@ static int hdr_update_context(struct exynos_hdr *hdr,
 	}
 
 	if (coef_h->type.unpack.log_level >= 10) {
-		hdr_info(hdr, "%s context updated %d (%d+%d)\n", __func__,
+		hdr_info(hdr, "context updated %d (%d+%d)\n",
 			count, coef_h->num.unpack.shall, coef_h->num.unpack.need);
 	}
 
@@ -300,7 +300,7 @@ static int hdr_update_context(struct exynos_hdr *hdr,
 error_dump:
 	hdr_print_hex_dump(hdr, 0, coef_h->total_bytesize, coef_h);
 error:
-	hdr_err(hdr, "%s parsing error\n", __func__);
+	hdr_err(hdr, "parsing error\n");
 	return -1;
 }
 
@@ -391,12 +391,12 @@ err:
 		if (buf == NULL) \
 			return -1;\
 		mutex_lock(&hdr->lock); \
-		hdr_debug(hdr, "%s +\n", __func__); \
+		hdr_debug(hdr, "+\n"); \
 		ret = hdr_ ## name ## _show(hdr, buf); \
 		if (ret < 0) \
-			hdr_err(hdr, "%s err -\n", __func__); \
+			hdr_err(hdr, "err -\n"); \
 		else \
-			hdr_debug(hdr, "%s -\n", __func__); \
+			hdr_debug(hdr, "-\n"); \
 		mutex_unlock(&hdr->lock); \
 		return ret; \
 	} \
@@ -408,12 +408,12 @@ err:
 		if (count <= 0 || buffer == NULL) \
 			return -1;\
 		mutex_lock(&hdr->lock); \
-		hdr_debug(hdr, "%s +\n", __func__); \
+		hdr_debug(hdr, "+\n"); \
 		ret = hdr_ ## name ## _store(hdr, buffer, count); \
 		if (ret < 0) \
-			hdr_err(hdr, "%s err -\n", __func__); \
+			hdr_err(hdr, "err -\n"); \
 		else \
-			hdr_debug(hdr, "%s -\n", __func__); \
+			hdr_debug(hdr, "-\n"); \
 		mutex_unlock(&hdr->lock); \
 		return ret; \
 	} \
@@ -430,12 +430,12 @@ err:
 		if (buf == NULL) \
 			return -1;\
 		mutex_lock(&hdr->lock); \
-		hdr_debug(hdr, "%s +\n", __func__); \
+		hdr_debug(hdr, "+\n"); \
 		ret = hdr_ ## name ## _show(hdr, buf); \
 		if (ret < 0) \
-			hdr_err(hdr, "%s err -\n", __func__); \
+			hdr_err(hdr, "err -\n"); \
 		else \
-			hdr_debug(hdr, "%s -\n", __func__); \
+			hdr_debug(hdr, "-\n"); \
 		mutex_unlock(&hdr->lock); \
 		return ret; \
 	} \
@@ -475,9 +475,9 @@ static void __exynos_hdr_dump(struct exynos_hdr *hdr)
 static void __exynos_hdr_prepare(struct exynos_hdr *hdr,
 			struct exynos_drm_plane_state *exynos_plane_state)
 {
-	hdr_debug(hdr, "%s +\n", __func__);
+	hdr_debug(hdr, "+\n");
 	hdr_prepare_context(hdr, exynos_plane_state);
-	hdr_debug(hdr, "%s -\n", __func__);
+	hdr_debug(hdr, "-\n");
 }
 
 static void __exynos_hdr_update(struct exynos_hdr *hdr,
@@ -485,20 +485,20 @@ static void __exynos_hdr_update(struct exynos_hdr *hdr,
 {
 	int ret;
 
-	hdr_debug(hdr, "%s +\n", __func__);
+	hdr_debug(hdr, "+\n");
 	ret = hdr_update_context(hdr, exynos_plane_state);
 	if (ret == 0) {
 		hdr->state = HDR_STATE_ENABLE;
 		wake_up(&hdr->wait_update);
 	}
-	hdr_debug(hdr, "%s -\n", __func__);
+	hdr_debug(hdr, "-\n");
 }
 
 static void __exynos_hdr_disable(struct exynos_hdr *hdr)
 {
-	hdr_debug(hdr, "%s +\n", __func__);
+	hdr_debug(hdr, "+\n");
 	hdr->state = HDR_STATE_DISABLE;
-	hdr_debug(hdr, "%s -\n", __func__);
+	hdr_debug(hdr, "-\n");
 }
 
 static const struct exynos_hdr_funcs hdr_funcs = {
@@ -573,7 +573,8 @@ struct exynos_hdr *exynos_hdr_register(struct dpp_device *dpp)
 		|| test_bit(DPP_ATTR_C_HDR, &dpp->attr)
 		|| test_bit(DPP_ATTR_C_HDR10_PLUS, &dpp->attr)
 		|| test_bit(DPP_ATTR_WCG, &dpp->attr))) {
-		pr_info("%s no required as dpp attr disabled\n", __func__, dpp->attr);
+		pr_info("%s no required as dpp attr(%#x) disabled\n", __func__,
+				dpp->attr);
 		return NULL;
 	}
 

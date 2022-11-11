@@ -68,48 +68,6 @@ static u32 sensor_gc02m1_fsync_master_size;
 static const u32 *sensor_gc02m1_fsync_slave;
 static u32 sensor_gc02m1_fsync_slave_size;
 
-#if USE_GROUP_PARAM_HOLD
-static int sensor_gc02m1_cis_group_param_hold_func(struct v4l2_subdev *subdev, unsigned int hold)
-{
-	int ret = 0;
-	struct is_cis *cis = NULL;
-	struct i2c_client *client = NULL;
-
-	FIMC_BUG(!subdev);
-
-	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
-
-	FIMC_BUG(!cis);
-	FIMC_BUG(!cis->cis_data);
-
-	client = cis->client;
-	if (unlikely(!client)) {
-		err("client is NULL");
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	if (hold == cis->cis_data->group_param_hold) {
-		pr_debug("already group_param_hold (%d)\n", cis->cis_data->group_param_hold);
-		goto p_err;
-	}
-
-	ret = is_sensor_addr8_write8(client, 0xf4, hold);
-	if (ret < 0)
-		goto p_err;
-
-	cis->cis_data->group_param_hold = hold;
-	ret = 1;
-p_err:
-	return ret;
-}
-#else
-static inline int sensor_gc02m1_cis_group_param_hold_func(struct v4l2_subdev *subdev, unsigned int hold)
-{
-	return 0;
-}
-#endif
-
 static bool sensor_gc02m1_check_master_stream_off(struct is_core *core)
 {
 	if (test_bit(IS_SENSOR_OPEN, &(core->sensor[0].state)) &&	/* Dual mode and master stream off */
@@ -215,8 +173,6 @@ int sensor_gc02m1_cis_check_rev(struct v4l2_subdev *subdev)
 
 	FIMC_BUG(!cis);
 	FIMC_BUG(!cis->cis_data);
-	FIMC_BUG(!cis);
-	FIMC_BUG(!cis->cis_data);
 
 	client = cis->client;
 	if (unlikely(!client)) {
@@ -264,7 +220,8 @@ int sensor_gc02m1_cis_check_rev(struct v4l2_subdev *subdev)
 	}
 
 	cis->cis_data->cis_rev = rev;
-	probe_info("gc02m1 rev:%x", rev);
+	pr_info("%s : [%d] Sensor version. Rev 0x%X\n",
+		__func__, cis->id, cis->cis_data->cis_rev);
 
 p_err:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
@@ -338,7 +295,6 @@ u32 sensor_gc02m1_cis_calc_again_code(u32 permile)
 int sensor_gc02m1_cis_set_exposure_time(struct v4l2_subdev *subdev, u16 multiple_exp)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -362,12 +318,6 @@ int sensor_gc02m1_cis_set_exposure_time(struct v4l2_subdev *subdev, u16 multiple
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	hold = sensor_gc02m1_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	/* Page Selection */
 	ret = is_sensor_addr8_write8(client, 0xfe, 0x00);
 	if (ret < 0)
@@ -387,12 +337,6 @@ int sensor_gc02m1_cis_set_exposure_time(struct v4l2_subdev *subdev, u16 multiple
 #endif
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_gc02m1_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -416,7 +360,6 @@ u32 sensor_gc02m1_cis_calc_dgain_code(u32 input_gain, u32 permile)
 int sensor_gc02m1_cis_set_analog_gain(struct v4l2_subdev *subdev, u32 input_again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -463,12 +406,6 @@ int sensor_gc02m1_cis_set_analog_gain(struct v4l2_subdev *subdev, u32 input_agai
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	hold = sensor_gc02m1_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	ret = is_sensor_addr8_write8(client, 0xfe, 0x00);
 	if (ret < 0)
 		 goto p_err;
@@ -498,12 +435,6 @@ int sensor_gc02m1_cis_set_analog_gain(struct v4l2_subdev *subdev, u32 input_agai
 #endif
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_gc02m1_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -519,7 +450,6 @@ int sensor_gc02m1_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param *
 int sensor_gc02m1_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -572,12 +502,6 @@ int sensor_gc02m1_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param *
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	hold = sensor_gc02m1_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	dgains[0] = dgains[1] = short_gain;
 
 	ret = is_sensor_addr8_write8(client, 0xfe, 0x00);
@@ -598,12 +522,6 @@ int sensor_gc02m1_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param *
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_gc02m1_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -647,10 +565,6 @@ int sensor_gc02m1_cis_init(struct v4l2_subdev *subdev)
 		goto p_err;
 	}
 #endif
-
-	FIMC_BUG(!cis->cis_data);
-	memset(cis->cis_data, 0, sizeof(cis_shared_data));
-	cis->rev_flag = false;
 
 	info("[%s] start\n", __func__);
 
@@ -715,35 +629,6 @@ int sensor_gc02m1_cis_log_status(struct v4l2_subdev *subdev)
 	pr_err("[SEN:DUMP] *******************************\n");
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 p_err:
-	return ret;
-}
-
-/* Input
- *	hold : true - hold, flase - no hold
- * Output
- *      return: 0 - no effect(already hold or no hold)
- *		positive - setted by request
- *		negative - ERROR value
- */
-int sensor_gc02m1_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
-{
-	int ret = 0;
-	struct is_cis *cis = NULL;
-
-	FIMC_BUG(!subdev);
-
-	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
-
-	FIMC_BUG(!cis);
-	FIMC_BUG(!cis->cis_data);
-
-	I2C_MUTEX_LOCK(cis->i2c_lock);
-	ret = sensor_gc02m1_cis_group_param_hold_func(subdev, hold);
-	if (ret < 0)
-		err("sensor_gc02m1_cis_group_param_hold_func fail!!");
-
-	I2C_MUTEX_UNLOCK(cis->i2c_lock);
-
 	return ret;
 }
 
@@ -1035,14 +920,7 @@ int sensor_gc02m1_cis_stream_on(struct v4l2_subdev *subdev)
 	}
 
 	/* Sensor stream on */
-
 	/* 1. page_select */
-	ret = is_sensor_addr8_write8(client, 0xfe, 0x01);
-	if (ret < 0)
-		 goto p_err;
-	ret = is_sensor_addr8_write8(client, 0x8c, 0x10);
-	if (ret < 0)
-		 goto p_err;
 	ret = is_sensor_addr8_write8(client, 0xfe, 0x00);
 	if (ret < 0)
 		 goto p_err;
@@ -1275,7 +1153,6 @@ int sensor_gc02m1_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 int sensor_gc02m1_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_duration)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1337,12 +1214,6 @@ int sensor_gc02m1_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	hold = sensor_gc02m1_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	ret = is_sensor_addr8_write8(client, 0xfe, 0x00);
 	if (ret < 0)
 		goto p_err;
@@ -1361,12 +1232,6 @@ int sensor_gc02m1_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_gc02m1_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -1474,7 +1339,6 @@ int sensor_gc02m1_cis_adjust_analog_gain(struct v4l2_subdev *subdev, u32 input_a
 int sensor_gc02m1_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1497,12 +1361,6 @@ int sensor_gc02m1_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	hold = sensor_gc02m1_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	/*page_select */
 	ret = is_sensor_addr8_write8(client, 0xfe, 0x00);
 	if (ret < 0)
@@ -1521,12 +1379,6 @@ int sensor_gc02m1_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_gc02m1_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -1625,7 +1477,6 @@ p_err:
 int sensor_gc02m1_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1648,12 +1499,6 @@ int sensor_gc02m1_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-
-	hold = sensor_gc02m1_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
 
 	ret = is_sensor_addr8_write8(client, 0xfe, 0x00);
 	if (ret < 0)
@@ -1678,12 +1523,6 @@ int sensor_gc02m1_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_gc02m1_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -2026,7 +1865,6 @@ p_err:
 static struct is_cis_ops cis_ops = {
 	.cis_init = sensor_gc02m1_cis_init,
 	.cis_log_status = sensor_gc02m1_cis_log_status,
-	.cis_group_param_hold = sensor_gc02m1_cis_group_param_hold,
 	.cis_set_global_setting = sensor_gc02m1_cis_set_global_setting,
 	.cis_mode_change = sensor_gc02m1_cis_mode_change,
 	.cis_set_size = sensor_gc02m1_cis_set_size,

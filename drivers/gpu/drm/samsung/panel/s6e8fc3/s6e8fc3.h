@@ -66,7 +66,7 @@
 #define S6E8FC3_RDDSM_OFS			0
 #define S6E8FC3_RDDSM_LEN			(PANEL_RDDSM_LEN)
 
-#define S6E8FC3_ERR_REG				0xEA
+#define S6E8FC3_ERR_REG				0xE6
 #define S6E8FC3_ERR_OFS				0
 #define S6E8FC3_ERR_LEN				5
 
@@ -124,6 +124,12 @@
 #define S6E8FC3_CMDLOG_REG			0x9C
 #define S6E8FC3_CMDLOG_OFS			0
 #define S6E8FC3_CMDLOG_LEN			0x80
+#endif
+
+#ifdef CONFIG_SUPPORT_CCD_TEST
+#define S6E8FC3_CCD_STATE_REG				0xE7
+#define S6E8FC3_CCD_STATE_OFS				0
+#define S6E8FC3_CCD_STATE_LEN				1
 #endif
 
 #ifdef CONFIG_DYNAMIC_FREQ
@@ -366,6 +372,9 @@ static u8 S6E8FC3_DSI_ERR[S6E8FC3_DSI_ERR_LEN];
 static u8 S6E8FC3_SELF_DIAG[S6E8FC3_SELF_DIAG_LEN];
 static u8 S6E8FC3_SELF_MASK_CHECKSUM[S6E8FC3_SELF_MASK_CHECKSUM_LEN];
 static u8 S6E8FC3_SELF_MASK_CRC[S6E8FC3_SELF_MASK_CRC_LEN];
+#ifdef CONFIG_SUPPORT_CCD_TEST
+static u8 S6E8FC3_CCD_STATE[S6E8FC3_CCD_STATE_LEN];
+#endif
 
 static struct rdinfo s6e8fc3_rditbl[MAX_READTBL] = {
 	[READ_ID] = RDINFO_INIT(id, DSI_PKT_TYPE_RD, S6E8FC3_ID_REG, S6E8FC3_ID_OFS, S6E8FC3_ID_LEN),
@@ -380,6 +389,9 @@ static struct rdinfo s6e8fc3_rditbl[MAX_READTBL] = {
 	[READ_ERR_FG] = RDINFO_INIT(err_fg, DSI_PKT_TYPE_RD, S6E8FC3_ERR_FG_REG, S6E8FC3_ERR_FG_OFS, S6E8FC3_ERR_FG_LEN),
 	[READ_DSI_ERR] = RDINFO_INIT(dsi_err, DSI_PKT_TYPE_RD, S6E8FC3_DSI_ERR_REG, S6E8FC3_DSI_ERR_OFS, S6E8FC3_DSI_ERR_LEN),
 	[READ_SELF_DIAG] = RDINFO_INIT(self_diag, DSI_PKT_TYPE_RD, S6E8FC3_SELF_DIAG_REG, S6E8FC3_SELF_DIAG_OFS, S6E8FC3_SELF_DIAG_LEN),
+#ifdef CONFIG_SUPPORT_CCD_TEST
+	[READ_CCD_STATE] = RDINFO_INIT(ccd_state, DSI_PKT_TYPE_RD, S6E8FC3_CCD_STATE_REG, S6E8FC3_CCD_STATE_OFS, S6E8FC3_CCD_STATE_LEN),
+#endif
 	[READ_SELF_MASK_CHECKSUM] = RDINFO_INIT(self_mask_checksum, DSI_PKT_TYPE_RD, S6E8FC3_SELF_MASK_CHECKSUM_REG, S6E8FC3_SELF_MASK_CHECKSUM_OFS, S6E8FC3_SELF_MASK_CHECKSUM_LEN),
 	[READ_SELF_MASK_CRC] = RDINFO_INIT(self_mask_crc, DSI_PKT_TYPE_RD, S6E8FC3_SELF_MASK_CRC_REG, S6E8FC3_SELF_MASK_CRC_OFS, S6E8FC3_SELF_MASK_CRC_LEN),
 };
@@ -405,6 +417,9 @@ static DEFINE_RESUI(err, &s6e8fc3_rditbl[READ_ERR], 0);
 static DEFINE_RESUI(err_fg, &s6e8fc3_rditbl[READ_ERR_FG], 0);
 static DEFINE_RESUI(dsi_err, &s6e8fc3_rditbl[READ_DSI_ERR], 0);
 static DEFINE_RESUI(self_diag, &s6e8fc3_rditbl[READ_SELF_DIAG], 0);
+#ifdef CONFIG_SUPPORT_CCD_TEST
+static DEFINE_RESUI(ccd_state, &s6e8fc3_rditbl[READ_CCD_STATE], 0);
+#endif
 static DEFINE_RESUI(self_mask_checksum, &s6e8fc3_rditbl[READ_SELF_MASK_CHECKSUM], 0);
 static DEFINE_RESUI(self_mask_crc, &s6e8fc3_rditbl[READ_SELF_MASK_CRC], 0);
 
@@ -420,6 +435,9 @@ static struct resinfo s6e8fc3_restbl[MAX_RESTBL] = {
 	[RES_ERR_FG] = RESINFO_INIT(err_fg, S6E8FC3_ERR_FG, RESUI(err_fg)),
 	[RES_DSI_ERR] = RESINFO_INIT(dsi_err, S6E8FC3_DSI_ERR, RESUI(dsi_err)),
 	[RES_SELF_DIAG] = RESINFO_INIT(self_diag, S6E8FC3_SELF_DIAG, RESUI(self_diag)),
+#ifdef CONFIG_SUPPORT_CCD_TEST
+	[RES_CCD_STATE] = RESINFO_INIT(ccd_state, S6E8FC3_CCD_STATE, RESUI(ccd_state)),
+#endif
 	[RES_SELF_MASK_CHECKSUM] = RESINFO_INIT(self_mask_checksum, S6E8FC3_SELF_MASK_CHECKSUM, RESUI(self_mask_checksum)),
 	[RES_SELF_MASK_CRC] = RESINFO_INIT(self_mask_crc, S6E8FC3_SELF_MASK_CRC, RESUI(self_mask_crc)),
 };
@@ -560,5 +578,6 @@ __visible_for_testing int getidx_dyn_ffc_table(struct maptbl *tbl);
 __visible_for_testing bool is_panel_state_not_lpm(struct panel_device *panel);
 __visible_for_testing bool s6e8fc3_a33_is_bringup_panel(struct panel_device *panel);
 __visible_for_testing bool s6e8fc3_a33_is_real_panel(struct panel_device *panel);
+__visible_for_testing bool s6e8fc3_a33_is_real_panel_rev04(struct panel_device *panel);
 
 #endif /* __S6E8FC3_H__ */

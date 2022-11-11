@@ -45,7 +45,6 @@ static void test_helper_reset_test_buf(void)
 	memset(test_buf, 0, sizeof(test_buf));
 }
 
-extern int get_valid_gpu_clock(int clock);
 int test_get_valid_gpu_clock(void)
 {
 	int min_clock;
@@ -56,7 +55,7 @@ int test_get_valid_gpu_clock(void)
 	max_clock = gpex_clock_get_max_clock();
 
 	for (clock = min_clock; clock <= max_clock; clock++) {
-		int obtained_clock = get_valid_gpu_clock(clock);
+		int obtained_clock = gpex_get_valid_gpu_clock(clock, false);
 
 		if (obtained_clock > clock)
 			CLOCK_SYSFS_TEST_FAIL_LOG_AND_RETURN(-1);

@@ -310,7 +310,9 @@ void exynos_ufs_fmp_init(struct ufs_hba *hba)
 {
 	unsigned long ret;
 
+#ifndef CONFIG_EXYNOS_FMP_FIPS
 	dev_info(hba->dev, "Exynos FMP Version: %s\n", FMP_DRV_VERSION);
+#endif
 	dev_info(hba->dev, "KEYS_IN_PRDT\n");
 
 	ret = exynos_smc(SMC_CMD_SMU, SMU_INIT, FMP_EMBEDDED, 0);
@@ -647,7 +649,9 @@ void exynos_ufs_fmp_init(struct ufs_hba *hba)
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 	struct exynos_fmp *fmp;
 
+#ifndef CONFIG_EXYNOS_FMP_FIPS
 	dev_info(hba->dev, "Exynos FMP Version: %s\n", FMP_DRV_VERSION);
+#endif
 	dev_info(hba->dev, "HW_KEYS_IN_CUSTOM_KEYSLOT\n");
 
 	ufs->fmp = devm_kzalloc(ufs->dev, sizeof(struct exynos_fmp), GFP_KERNEL);
@@ -920,7 +924,9 @@ void exynos_ufs_fmp_init(struct ufs_hba *hba)
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 	struct exynos_fmp *fmp;
 
+#ifndef CONFIG_EXYNOS_FMP_FIPS
 	dev_info(hba->dev, "Exynos FMP Version: %s\n", FMP_DRV_VERSION);
+#endif
 	dev_info(hba->dev, "KEYS_IN_CUSTOM_KEYSLOT\n");
 
 	ufs->fmp = devm_kzalloc(ufs->dev, sizeof(struct exynos_fmp), GFP_KERNEL);

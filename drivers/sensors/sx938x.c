@@ -27,8 +27,11 @@
 #include <linux/sensor/sensors_core.h>
 #endif
 
-#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
-#include <linux/vbus_notifier.h>
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+#include <linux/usb/typec/common/pdic_notifier.h>
+#endif
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
 #endif
 
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
@@ -78,9 +81,18 @@
 #define INTERRUPT_HIGH 1
 #define INTERRUPT_LOW 0
 
+#define TYPE_USB   1
+#define TYPE_HALL  2
+#define TYPE_BOOT  3
+#define TYPE_FORCE 4
+
+#define UNKNOWN_ON  1
+#define UNKNOWN_OFF 2
+
 struct sx938x_p {
 	struct i2c_client *client;
 	struct input_dev *input;
+	struct input_dev *noti_input_dev;
 	struct device *factory_device;
 	struct delayed_work init_work;
 	struct delayed_work irq_work;
@@ -88,9 +100,8 @@ struct sx938x_p {
 	struct wakeup_source *grip_ws;
 	struct mutex mode_mutex;
 	struct mutex read_mutex;
-#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
-	struct notifier_block vbus_nb;
-	int pre_attach;
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+	struct notifier_block pdic_nb;
 #endif
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 	struct notifier_block hall_nb;
@@ -105,8 +116,12 @@ struct sx938x_p {
 	int gpio_nirq;
 	int state;
 	int init_done;
+#if defined(CONFIG_SENSORS_COMMON_VDD_SUB)
+	int gpio_nirq_sub;
+#endif
 
 	atomic_t enable;
+	int noti_enable;
 
 	int again_m;
 	int dgain_m;
@@ -126,17 +141,23 @@ struct sx938x_p {
 	int abnormal_mode;
 	s16 max_diff;
 	s16 max_normal_diff;
+	int pre_attach;
 
 	int debug_count;
 	int debug_zero_count;
 
-	u8 fail_status_code;
+	int fail_status_code;
 	u8 ic_num;
+
+	int is_unknown_mode;
+	int motion;
+	bool first_working;
+	u32 unknown_sel;
 };
 
 static int sx938x_get_nirq_state(struct sx938x_p *data)
 {
-	return  gpio_get_value(data->gpio_nirq);
+	return gpio_get_value_cansleep(data->gpio_nirq);
 }
 
 
@@ -202,13 +223,13 @@ static void sx938x_initialize_register(struct sx938x_p *data)
 	u8 val = 0;
 	int idx;
 
-	for (idx = 0; idx < (int)(ARRAY_SIZE(setup_reg)); idx++) {
-		sx938x_i2c_write(data, setup_reg[idx].reg, setup_reg[idx].val);
-		GRIP_INFO("Write Reg: 0x%x Value: 0x%x\n", setup_reg[idx].reg,
-			  setup_reg[idx].val);
+	for (idx = 0; idx < (int)(ARRAY_SIZE(setup_reg[data->ic_num])); idx++) {
+		sx938x_i2c_write(data, setup_reg[data->ic_num][idx].reg, setup_reg[data->ic_num][idx].val);
+		GRIP_INFO("Write Reg: 0x%x Value: 0x%x\n", setup_reg[data->ic_num][idx].reg,
+			  setup_reg[data->ic_num][idx].val);
 
-		sx938x_i2c_read(data, setup_reg[idx].reg, &val);
-		GRIP_INFO("Read Reg: 0x%x Value: 0x%x\n\n", setup_reg[idx].reg, val);
+		sx938x_i2c_read(data, setup_reg[data->ic_num][idx].reg, &val);
+		GRIP_INFO("Read Reg: 0x%x Value: 0x%x\n\n", setup_reg[data->ic_num][idx].reg, val);
 	}
 
 	sx938x_i2c_read(data, SX938x_PROXCTRL5_REG, &val);
@@ -289,6 +310,8 @@ static void sx938x_send_event(struct sx938x_p *data, u8 state)
 	else
 		input_report_rel(data->input, REL_MISC, GRIP_RELEASE);
 
+	if (data->unknown_sel)
+		input_report_rel(data->input, REL_X, data->is_unknown_mode);
 	input_sync(data->input);
 }
 
@@ -312,9 +335,10 @@ static void sx938x_get_gain(struct sx938x_p *data)
 static void sx938x_get_data(struct sx938x_p *data)
 {
 	u8 msb = 0, lsb = 0;
-	u16 useful_ref, offset_ref = 0;
 	u8 convstat = 0;
-	s16 retry = 0;
+	s16 useful_ref, retry = 0;
+	u16 offset_ref = 0;
+	int diff = 0;
 
 	mutex_lock(&data->read_mutex);
 	if (data) {
@@ -333,9 +357,7 @@ static void sx938x_get_data(struct sx938x_p *data)
 		//READ REF Channel data
 		sx938x_i2c_read(data, SX938x_USEMSB_PHR, &msb);
 		sx938x_i2c_read(data, SX938x_USELSB_PHR, &lsb);
-		useful_ref = (s32)((msb << 8) | lsb);
-		if (useful_ref > 32767)
-			useful_ref -= 65536;
+		useful_ref = (s16)((msb << 8) | lsb);
 
 		sx938x_i2c_read(data, SX938x_OFFSETMSB_PHR, &msb);
 		sx938x_i2c_read(data, SX938x_OFFSETLSB_PHR, &lsb);
@@ -344,21 +366,26 @@ static void sx938x_get_data(struct sx938x_p *data)
 		//READ Main channel data
 		sx938x_i2c_read(data, SX938x_USEMSB_PHM, &msb);
 		sx938x_i2c_read(data, SX938x_USELSB_PHM, &lsb);
-		data->useful = (s32)((msb << 8) | lsb);
-		if (data->useful > 32767)
-			data->useful -= 65536;
+		data->useful = (s16)((msb << 8) | lsb);
 
 		sx938x_i2c_read(data, SX938x_AVGMSB_PHM, &msb);
 		sx938x_i2c_read(data, SX938x_AVGLSB_PHM, &lsb);
-		data->avg = (s32)((msb << 8) | lsb);
-		if (data->avg > 32767)
-			data->avg -= 65536;
+		data->avg = (s16)((msb << 8) | lsb);
 
+#if 0
 		sx938x_i2c_read(data, SX938x_DIFFMSB_PHM, &msb);
 		sx938x_i2c_read(data, SX938x_DIFFLSB_PHM, &lsb);
 		data->diff = (s32)((msb << 8) | lsb);
 		if (data->diff > 32767)
 			data->diff -= 65536;
+#endif
+		diff = data->useful - data->avg;
+		if (diff > 32767)
+			data->diff = 32767;
+		else if (diff < -32768)
+			data->diff = -32768;
+		else
+			data->diff = diff;
 
 		sx938x_i2c_read(data, SX938x_OFFSETMSB_PHM, &msb);
 		sx938x_i2c_read(data, SX938x_OFFSETLSB_PHM, &lsb);
@@ -405,6 +432,8 @@ static void sx938x_check_status(struct sx938x_p *data)
 
 	if (data->skip_data == true) {
 		input_report_rel(data->input, REL_MISC, GRIP_RELEASE);
+		if (data->unknown_sel)
+			input_report_rel(data->input, REL_X, UNKNOWN_OFF);
 		input_sync(data->input);
 		return;
 	}
@@ -463,6 +492,26 @@ static void sx938x_set_debug_work(struct sx938x_p *data, u8 enable,
 				      msecs_to_jiffies(time_ms));
 	} else {
 		cancel_delayed_work_sync(&data->debug_work);
+	}
+}
+
+static void sx938x_enter_unknown_mode(struct sx938x_p *data, int type)
+{
+	if (data->noti_enable && !data->skip_data && data->unknown_sel) {
+		data->motion = 0;
+		data->first_working = false;
+		if (data->is_unknown_mode == UNKNOWN_OFF) {
+			data->is_unknown_mode = UNKNOWN_ON;
+			if (!data->skip_data) {
+				input_report_rel(data->input, REL_X, UNKNOWN_ON);
+				input_sync(data->input);
+			}
+			GRIP_INFO("UNKNOWN Re-enter\n");
+		} else {
+			GRIP_INFO("already UNKNOWN\n");
+		}
+		input_report_rel(data->noti_input_dev, REL_X, type);
+		input_sync(data->noti_input_dev);
 	}
 }
 
@@ -894,8 +943,13 @@ static ssize_t sx938x_onoff_store(struct device *dev,
 		if (atomic_read(&data->enable) == ON) {
 			data->state = IDLE;
 			input_report_rel(data->input, REL_MISC, GRIP_RELEASE);
+			if (data->unknown_sel)
+				input_report_rel(data->input, REL_X, UNKNOWN_OFF);
 			input_sync(data->input);
 		}
+		data->motion = 1;
+		data->is_unknown_mode = UNKNOWN_OFF;
+		data->first_working = false;
 	} else {
 		data->skip_data = false;
 	}
@@ -913,9 +967,9 @@ static ssize_t sx938x_register_show(struct device *dev,
 	char *p = buf;
 	struct sx938x_p *data = dev_get_drvdata(dev);
 
-	for (idx = 0; idx < (int)(ARRAY_SIZE(setup_reg)); idx++) {
-		sx938x_i2c_read(data, setup_reg[idx].reg, &val);
-		i += snprintf(p + i, PAGE_SIZE - i, "(0x%02x)=0x%02x\n", setup_reg[idx].reg, val);
+	for (idx = 0; idx < (int)(ARRAY_SIZE(setup_reg[data->ic_num])); idx++) {
+		sx938x_i2c_read(data, setup_reg[data->ic_num][idx].reg, &val);
+		i += snprintf(p + i, PAGE_SIZE - i, "(0x%02x)=0x%02x\n", setup_reg[data->ic_num][idx].reg, val);
 	}
 
 	return i;
@@ -1018,6 +1072,104 @@ static ssize_t sx938x_cal_state_show(struct device *dev,
 	return sprintf(buf, "%d\n", status);
 }
 
+static ssize_t sx938x_motion_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sx938x_p *data = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+		data->motion == 1 ? "motion_detect" : "motion_non_detect");
+}
+
+static ssize_t sx938x_motion_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	u8 val;
+	int ret;
+	struct sx938x_p *data = dev_get_drvdata(dev);
+
+	ret = kstrtou8(buf, 2, &val);
+	if (ret) {
+		GRIP_ERR("Invalid Argument\n");
+		return ret;
+	}
+
+	data->motion = val;
+
+	GRIP_INFO("%u\n", val);
+	return count;
+}
+
+static ssize_t sx938x_unknown_state_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sx938x_p *data = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+		(data->is_unknown_mode == UNKNOWN_ON) ?	"UNKNOWN" : "NORMAL");
+}
+
+static ssize_t sx938x_unknown_state_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	u8 val;
+	int ret;
+	struct sx938x_p *data = dev_get_drvdata(dev);
+
+	ret = kstrtou8(buf, 2, &val);
+	if (ret) {
+		GRIP_ERR("Invalid Argument\n");
+		return ret;
+	}
+
+	if (val == 1)
+		sx938x_enter_unknown_mode(data, TYPE_FORCE);
+	else if (val == 0)
+		data->is_unknown_mode = UNKNOWN_OFF;
+	else
+		GRIP_INFO("Invalid Argument(%u)\n", val);
+
+	GRIP_INFO("%u\n", val);
+
+	return count;
+}
+
+static ssize_t sx938x_noti_enable_store(struct device *dev,
+				     struct device_attribute *attr, const char *buf, size_t size)
+{
+	int ret;
+	u8 enable;
+	struct sx938x_p *data = dev_get_drvdata(dev);
+
+	ret = kstrtou8(buf, 2, &enable);
+	if (ret) {
+		GRIP_INFO("invalid argument\n");
+		return size;
+	}
+
+	GRIP_INFO("new_value=%d\n", (int)enable);
+
+	data->noti_enable = enable;
+
+	if (data->noti_enable)
+		sx938x_enter_unknown_mode(data, TYPE_BOOT);
+	else {
+		data->motion = 1;
+		data->first_working = false;
+		data->is_unknown_mode = UNKNOWN_OFF;
+	}
+
+	return size;
+}
+
+static ssize_t sx938x_noti_enable_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	struct sx938x_p *data = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%d\n", data->noti_enable);
+}
+
 static DEVICE_ATTR(regproxdata, 0444, sx938x_status_regdata_show, NULL);
 static DEVICE_ATTR(proxstatus, 0444, sx938x_status_show, NULL);
 static DEVICE_ATTR(cal_state, 0444, sx938x_cal_state_show, NULL);
@@ -1059,6 +1211,11 @@ static DEVICE_ATTR(useful_filt, S_IRUGO, sx938x_useful_filt_show, NULL);
 static DEVICE_ATTR(resistor_filter_input, S_IRUGO, sx938x_resistor_filter_input_show, NULL);
 static DEVICE_ATTR(closedeb, S_IRUGO, sx938x_closedeb_show, NULL);
 static DEVICE_ATTR(fardeb, S_IRUGO, sx938x_fardeb_show, NULL);
+static DEVICE_ATTR(motion, S_IRUGO | S_IWUSR | S_IWGRP,
+	sx938x_motion_show, sx938x_motion_store);
+static DEVICE_ATTR(unknown_state, S_IRUGO | S_IWUSR | S_IWGRP,
+	sx938x_unknown_state_show, sx938x_unknown_state_store);
+static DEVICE_ATTR(noti_enable, 0664, sx938x_noti_enable_show, sx938x_noti_enable_store);
 
 static struct device_attribute *sensor_attrs[] = {
 	&dev_attr_regproxdata,
@@ -1093,6 +1250,9 @@ static struct device_attribute *sensor_attrs[] = {
 	&dev_attr_resistor_filter_input,
 	&dev_attr_closedeb,
 	&dev_attr_fardeb,
+	&dev_attr_motion,
+	&dev_attr_unknown_state,
+	&dev_attr_noti_enable,
 	NULL,
 };
 
@@ -1152,15 +1312,23 @@ static void sx938x_touch_process(struct sx938x_p *data)
 	}
 
 	if (data->state == IDLE) {
-		if (status & SX938x_PROXSTAT_FLAG)
+		if (status & SX938x_PROXSTAT_FLAG) {
+			if (data->is_unknown_mode == UNKNOWN_ON && data->motion)
+				data->first_working = true;
 			sx938x_send_event(data, ACTIVE);
-		else
+		} else {
 			GRIP_INFO("0x%x already released.\n", status);
+		}
 	} else { /* User released button */
-		if (!(status & SX938x_PROXSTAT_FLAG))
+		if (!(status & SX938x_PROXSTAT_FLAG)) {
+			if (data->is_unknown_mode == UNKNOWN_ON && data->motion) {
+				GRIP_INFO("unknown mode off\n");
+				data->is_unknown_mode = UNKNOWN_OFF;
+			}
 			sx938x_send_event(data, IDLE);
-		else
+		} else {
 			GRIP_INFO("0x%x still touched\n", status);
+		}
 	}
 }
 
@@ -1193,8 +1361,6 @@ static void sx938x_init_work_func(struct work_struct *work)
 
 		sx938x_read_reg_stat(data);
 		sx938x_get_gain(data);
-
-		return;
 	}
 	return;
 }
@@ -1210,6 +1376,21 @@ static void sx938x_irq_work_func(struct work_struct *work)
 		GRIP_ERR("nirq read high %d\n", sx938x_get_nirq_state(data));
 }
 
+static void sx938x_check_first_working(struct sx938x_p *data)
+{
+	if (data->noti_enable && data->motion) {
+		if (data->detect_threshold < data->diff) {
+			data->first_working = true;
+			GRIP_INFO("first working detected %d\n", data->diff);
+		} else {
+			if (data->first_working) {
+				data->is_unknown_mode = UNKNOWN_OFF;
+				GRIP_INFO("Release detected %d, unknown mode off\n", data->diff);
+			}
+		}
+	}
+}
+
 static void sx938x_debug_work_func(struct work_struct *work)
 {
 	struct sx938x_p *data = container_of((struct delayed_work *)work,
@@ -1220,16 +1401,22 @@ static void sx938x_debug_work_func(struct work_struct *work)
 			sx938x_get_data(data);
 			if (data->max_normal_diff < data->diff)
 				data->max_normal_diff = data->diff;
-		} else {
-			if (data->debug_count >= GRIP_LOG_TIME) {
-				if (data->fail_status_code != 0)
-					GRIP_ERR("err code : %d", data->fail_status_code);
-				sx938x_get_data(data);
-				data->debug_count = 0;
-			} else {
-				data->debug_count++;
-			}
 		}
+	}
+
+	if (data->debug_count >= GRIP_LOG_TIME) {
+		if (data->fail_status_code != 0)
+			GRIP_ERR("err code : %d", data->fail_status_code);
+		sx938x_get_data(data);
+		if (data->is_unknown_mode == UNKNOWN_ON && data->motion)
+			sx938x_check_first_working(data);
+		data->debug_count = 0;
+	} else {
+		if (data->is_unknown_mode == UNKNOWN_ON && data->motion) {
+			sx938x_get_data(data);
+			sx938x_check_first_working(data);
+		}
+		data->debug_count++;
 	}
 
 	schedule_delayed_work(&data->debug_work, msecs_to_jiffies(2000));
@@ -1259,6 +1446,7 @@ static int sx938x_input_init(struct sx938x_p *data)
 	dev->id.bustype = BUS_I2C;
 
 	input_set_capability(dev, EV_REL, REL_MISC);
+	input_set_capability(dev, EV_REL, REL_X);
 	input_set_drvdata(dev, data);
 
 	ret = input_register_device(dev);
@@ -1295,6 +1483,38 @@ static int sx938x_input_init(struct sx938x_p *data)
 #endif
 	/* save the input pointer and finish initialization */
 	data->input = dev;
+
+	return 0;
+}
+
+static int sx938x_noti_input_init(struct sx938x_p *data)
+{
+	int ret = 0;
+	struct input_dev *noti_input_dev = NULL;
+
+	if (data->unknown_sel) {
+		/* Create the input device */
+		noti_input_dev = input_allocate_device();
+		if (!noti_input_dev) {
+			GRIP_ERR("input_allocate_device failed\n");
+			return -ENOMEM;
+		}
+
+		noti_input_dev->name = NOTI_MODULE_NAME;
+		noti_input_dev->id.bustype = BUS_I2C;
+
+		input_set_capability(noti_input_dev, EV_REL, REL_X);
+		input_set_drvdata(noti_input_dev, data);
+
+		ret = input_register_device(noti_input_dev);
+		if (ret < 0) {
+			GRIP_ERR("failed to register input dev for noti (%d)\n", ret);
+			input_free_device(noti_input_dev);
+			return ret;
+		}
+
+		data->noti_input_dev = noti_input_dev;
+	}
 
 	return 0;
 }
@@ -1390,6 +1610,11 @@ static void sx938x_initialize_variable(struct sx938x_p *data)
 	data->state = IDLE;
 	data->fail_status_code = 0;
 	data->pre_attach = -1;
+
+	data->is_unknown_mode = UNKNOWN_OFF;
+	data->motion = 1;
+	data->first_working = false;
+
 	atomic_set(&data->enable, OFF);
 }
 
@@ -1401,8 +1626,8 @@ static int sx938x_read_setupreg(struct sx938x_p *data, struct device_node *dnode
 
 	ret = of_property_read_u32(dnode, str, &temp_val);
 	if (!ret) {
-		setup_reg[idx].val = (u8)temp_val;
-		GRIP_INFO("grip sensor reg debug str : %s => add : (0x%2x) , val : (0x%2x)", str, setup_reg[idx].reg, setup_reg[idx].val);
+		setup_reg[data->ic_num][idx].val = (u8)temp_val;
+		GRIP_INFO("grip sensor reg debug str : %s => add : (0x%2x) , val : (0x%2x)", str, setup_reg[data->ic_num][idx].reg, setup_reg[data->ic_num][idx].val);
 	} else if (ret == -22)
 		GRIP_ERR("%s: default (0x%2x, %d)\n", str, temp_val, ret);
 	else {
@@ -1473,21 +1698,42 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 	if (dNode == NULL)
 		return -ENODEV;
 
-	if (data->ic_num == MAIN_GRIP)
+	if (data->ic_num == MAIN_GRIP) {
+#if defined(CONFIG_SENSORS_COMMON_VDD_SUB)
+		data->gpio_nirq_sub = of_get_named_gpio_flags(dNode,
+							  "sx938x,nirq_gpio_sub", 0, &flags);
+		if (data->gpio_nirq_sub < 0)
+			GRIP_ERR("nirq_gpio_sub is null\n");
+		else
+			GRIP_INFO("get nirq_gpio_sub %d\n", data->gpio_nirq_sub);
+#endif
 		data->gpio_nirq = of_get_named_gpio_flags(dNode,
 							  "sx938x,nirq-gpio", 0, &flags);
+		ret = of_property_read_u32(dNode, "sx938x,unknown_sel", &data->unknown_sel);
 #if defined(CONFIG_SENSORS_SX9380_SUB)
-	else if (data->ic_num == SUB_GRIP)
+	} else if (data->ic_num == SUB_GRIP) {
 		data->gpio_nirq = of_get_named_gpio_flags(dNode, "sx938x_sub,nirq-gpio", 0, &flags);
+		ret = of_property_read_u32(dNode, "sx938x_sub,unknown_sel", &data->unknown_sel);
 #endif
 #if defined(CONFIG_SENSORS_SX9380_SUB2)
-	else if (data->ic_num == SUB2_GRIP)
+	} else if (data->ic_num == SUB2_GRIP) {
 		data->gpio_nirq = of_get_named_gpio_flags(dNode, "sx938x_sub2,nirq-gpio", 0, &flags);
+		ret = of_property_read_u32(dNode, "sx938x_sub2,unknown_sel", &data->unknown_sel);
 #endif
 #if defined(CONFIG_SENSORS_SX9380_WIFI)
-	else if (data->ic_num == WIFI_GRIP)
+	} else if (data->ic_num == WIFI_GRIP) {
 		data->gpio_nirq = of_get_named_gpio_flags(dNode, "sx938x_wifi,nirq-gpio", 0, &flags);
+		ret = of_property_read_u32(dNode, "sx938x_wifi,unknown_sel", &data->unknown_sel);
 #endif
+	}
+
+	if (ret < 0) {
+		GRIP_ERR("unknown_sel read failed %d\n", ret);
+		data->unknown_sel = 1;
+		ret = 0;
+	}
+
+	GRIP_INFO("unknown_sel %d\n", data->unknown_sel);
 
 	if (data->gpio_nirq < 0) {
 		GRIP_ERR("get gpio_nirq error\n");
@@ -1512,7 +1758,7 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 #endif
 
 	if (data->ldo_en < 0) {
-		GRIP_ERR("fail to get ldo_en\n");
+		GRIP_ERR("skip ldo_en\n");
 		data->ldo_en = 0;
 	} else {
 		if (data->ic_num == MAIN_GRIP)
@@ -1603,31 +1849,28 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
-static int sx938x_vbus_handle_notification(struct notifier_block *nb,
-					   unsigned long action, void *vbus_data)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+static int sx938x_pdic_handle_notification(struct notifier_block *nb,
+					   unsigned long action, void *pdic_data)
 {
-	vbus_status_t vbus_type = *(vbus_status_t *) vbus_data;
-	struct sx938x_p *data =
-		container_of(nb, struct sx938x_p, vbus_nb);
+	PD_NOTI_ATTACH_TYPEDEF usb_typec_info = *(PD_NOTI_ATTACH_TYPEDEF *)pdic_data;
+	struct sx938x_p *data = container_of(nb, struct sx938x_p, pdic_nb);
 
-	if (data->pre_attach == vbus_type)
+	if (usb_typec_info.id != PDIC_NOTIFY_ID_ATTACH)
 		return 0;
 
+	if (data->pre_attach == usb_typec_info.attach)
+		return 0;
+
+	GRIP_INFO("src %d id %d attach %d rprd %d\n",
+		usb_typec_info.src, usb_typec_info.id, usb_typec_info.attach, usb_typec_info.rprd);
+
 	if (data->init_done == ON) {
-		switch (vbus_type) {
-		case STATUS_VBUS_HIGH:
-		case STATUS_VBUS_LOW:
-			GRIP_INFO("accept attach = %d\n", vbus_type);
+			sx938x_enter_unknown_mode(data, TYPE_USB);
 			sx938x_manual_offset_calibration(data);
-			break;
-		default:
-			GRIP_INFO("skip attach = %d\n", vbus_type);
-			break;
-		}
 	}
 
-	data->pre_attach = vbus_type;
+	data->pre_attach = usb_typec_info.attach;
 
 	return 0;
 }
@@ -1644,8 +1887,10 @@ static int sx938x_hall_notifier(struct notifier_block *nb,
 
 	if (action == HALL_ATTACH) {
 		GRIP_INFO("%s attach\n", hall_notifier->name);
+		sx938x_enter_unknown_mode(data, TYPE_HALL);
 		sx938x_manual_offset_calibration(data);
 	} else {
+		sx938x_enter_unknown_mode(data, TYPE_HALL);
 		return 0;
 	}
 
@@ -1714,10 +1959,29 @@ static int sx938x_probe(struct i2c_client *client, const struct i2c_device_id *i
 		ret = -ENODEV;
 		goto exit_of_node;
 	}
+	ret = sx938x_noti_input_init(data);
+	if (ret < 0)
+		goto exit_noti_input_init;
 
 //If Host NIRQ pin has a protection diode and PULL UP (state HIGH), addr can be 0x29 or 0x2A
 //However, if the state of the pin is LOW, 0x28 is guaranteed.
-
+#if defined(CONFIG_SENSORS_COMMON_VDD_SUB)
+	if (ic_num == SUB_GRIP) {
+		GRIP_INFO("skip irq outmode\n");
+	} else {
+		ret = gpio_direction_output(data->gpio_nirq, 0);
+		if (ret < 0)
+			GRIP_ERR("could not setup outmode\n");
+		if (ic_num == MAIN_GRIP) {
+			ret = gpio_direction_output(data->gpio_nirq_sub, 0);
+			if (ret < 0)
+				GRIP_ERR("could not setup outmode(sub)\n");
+		}
+		usleep_range(1000, 1100);
+		sx938x_power_onoff(data, 1);
+		usleep_range(6000, 6100); // Tpor > 5ms
+	}
+#else
 	ret = gpio_direction_output(data->gpio_nirq, 0);
 	if (ret < 0)
 		GRIP_ERR("could not setup outmode\n");
@@ -1725,6 +1989,7 @@ static int sx938x_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 	sx938x_power_onoff(data, 1);
 	usleep_range(6000, 6100); // Tpor > 5ms
+#endif
 
 	ret = sx938x_setup_pin(data);
 	if (ret) {
@@ -1769,10 +2034,11 @@ static int sx938x_probe(struct i2c_client *client, const struct i2c_device_id *i
 	schedule_delayed_work(&data->init_work, msecs_to_jiffies(300));
 	sx938x_set_debug_work(data, ON, 20000);
 
-#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
-	GRIP_INFO("register vbus notifier\n");
-	vbus_notifier_register(&data->vbus_nb, sx938x_vbus_handle_notification,
-				   VBUS_NOTIFY_DEV_CHARGER);
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	GRIP_INFO("register pdic notifier\n");
+	manager_notifier_register(&data->pdic_nb,
+				  sx938x_pdic_handle_notification,
+				  MANAGER_NOTIFY_PDIC_SENSORHUB);
 #endif
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 		GRIP_INFO("register hall notifier\n");
@@ -1791,6 +2057,9 @@ exit_request_threaded_irq:
 exit_chip_reset:
 	gpio_free(data->gpio_nirq);
 exit_setup_pin:
+	if (data->unknown_sel)
+		input_unregister_device(data->noti_input_dev);
+exit_noti_input_init:
 exit_of_node:
 	mutex_destroy(&data->mode_mutex);
 	mutex_destroy(&data->read_mutex);
@@ -1835,6 +2104,7 @@ static int sx938x_remove(struct i2c_client *client)
 #endif
 	sysfs_remove_group(&data->input->dev.kobj, &sx938x_attribute_group);
 	input_unregister_device(data->input);
+	input_unregister_device(data->noti_input_dev);
 	mutex_destroy(&data->mode_mutex);
 	mutex_destroy(&data->read_mutex);
 

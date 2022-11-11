@@ -446,6 +446,12 @@ int exynos_fmp_setkey(struct exynos_fmp_key_info *fmp_ki, struct fmp_handle *han
 		u32 words[AES_256_XTS_KEY_SIZE / sizeof(u32)];
 	} fmp_key;
 
+	/* Key length check. FMP only support 256b Key for AES-XTS */
+	if (fmp_ki->size != AES_256_XTS_KEY_SIZE) {
+		pr_err("%s: Does not support %d length of AES-XTS key\n", fmp_ki->size, __func__);
+		return -EINVAL;
+	}
+
 	/* In XTS mode, the blk_crypto_key's size is already doubled */
 	memcpy(fmp_key.bytes, fmp_ki->raw, fmp_ki->size);
 
@@ -871,6 +877,7 @@ static void *exynos_fmp_init(struct platform_device *pdev)
 	dev_info(fmp->dev, "Exynos FMP dun swap = %d\n", fmp->dun_swap);
 	fmp->fips_run = 0;
 	dev_info(fmp->dev, "Exynos FMP driver is initialized\n");
+	dev_info(fmp->dev, "Exynos FMP driver Version: %s\n", FMP_DRV_VERSION);
 	return fmp;
 
 err_dev:

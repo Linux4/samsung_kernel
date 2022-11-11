@@ -377,5 +377,5 @@
 
 #define USE_DDK_INTF_CAP_META		1
 #define USE_MERTA_GYRO_INFO		1
-
+#define DISABLE_FAST_LAUNCH		1
 #endif /* #ifndef?? IS_CONFIG_H */

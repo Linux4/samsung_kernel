@@ -177,4 +177,6 @@
 #define VTS_ERR_HARD_FAULT	(0x1)
 #define VTS_ERR_BUS_FAULT	(0x3)
 
+#define VTS_ITMON_NAME "CM4_VTS" /* refer to bootloader/platform/s5e8825/debug/itmon.c */
+
 #endif /* __SND_SOC_VTS_DEP_SOC_V2_1_H */

@@ -8,66 +8,68 @@
 
 /* keys are grouped by size */
 static char key32[][MAX_ITEM_KEY_LEN] = {
-	"ID", "KTIME", "BIN", "FTYPE", "RR",
-	"DPM", "SMP", "PCB", "SMD", "LEV",
-	"WAK", "ASB", "PSITE", "DDRID", "RST",
-	"INFO2", "INFO3", "RBASE", "MAGIC", "RSTCNT",
-	"HLCPU",
+	"ID", "KTIME", "BIN", "RR",
+	"SPCNT", "LEV", "ASB", "PSITE",
+	"DDRID", "RST", "INFO2", "INFO3",
+	"RSTCNT", "HLCPU", "UP", "DOWN",
 };
 
 static char key64[][MAX_ITEM_KEY_LEN] = {
-	"BAT", "FAULT", "PINFO",
-	"EPD", "ASV", "IDS",
-	"HLEHLD", "PWR", "PWROFF", "PINT", "PSTAT",
-	"PWROFFS", "PINTS", "PSTATS",
+	"BAT", "FAULT", "EPD", "HLEHLD",
+	"PWR", "PWROFF", "PINT", "PSTAT",
+	"PWROFFS", "PINTS", "PSTATS", "FPMU",
 };
 
 static char key256[][MAX_ITEM_KEY_LEN] = {
-	"KLG", "BUS", "PANIC", "PC", "LR",
-	"BUG", "ESR", "SMU", "FREQ", "ODR",
-	"AUD", "UNFZ", "UP", "DOWN", "WDGC",
-	"HLTYPE", "MOCP", "SOCP", "DCN",
+	"KLG", "BUS", "DSSBUS", "PANIC",
+	"PC", "LR", "BUG", "ESR", "SMU",
+	"FREQ", "ODR", "AUD", "UNFZ",
+	"WDGC", "HLTYPE", "MOCP", "SOCP",
+	"DCN",
 };
 
 static char key1024[][MAX_ITEM_KEY_LEN] = {
-	"CPU0", "CPU1", "CPU2", "CPU3", "CPU4",
-	"CPU5", "CPU6", "CPU7", "MFC", "STACK",
-	"FPMU", "REGS", "HLDATA", "HLFREQ",
-	"HLCNT",
+	"CPU0", "CPU1", "CPU2", "CPU3",
+	"CPU4", "CPU5", "CPU6", "CPU7",
+	"CPU8", "MFC", "STACK", "REGS",
+	"HLDATA", "HLFREQ", "HLCNT", "FPMUMSG",
 };
 
 /* keys are grouped by sysfs node */
 static char akeys[][MAX_ITEM_KEY_LEN] = {
-	"ID", "KTIME", "ODR", "BIN", "FTYPE", "FAULT",
-	"BUG", "PC", "LR", "STACK", "RR",
-	"RSTCNT", "PINFO", "SMU", "BUS", "DPM",
-	"ESR", "PCB", "SMD", "WDGC", "KLG", "PANIC",
-	"LEV", "WAK", "BAT", "SMP",
-	"HLTYPE", "HLDATA", "HLFREQ", "HLEHLD", "HLCPU",
+	"ID", "RR", "ODR", "KTIME",
+	"BIN", "DDRID", "RST", "ASB",
+	"BAT", "LEV", "RSTCNT", "WDGC",
+	"FAULT", "BUG", "BUS", "DSSBUS",
+	"FPMU", "PC", "LR", "PANIC",
+	"SMU", "EPD", "ESR", "UP",
+	"DOWN", "SPCNT", "FREQ", "STACK",
+	"KLG", "UNFZ", "HLTYPE", "HLDATA",
+	"HLFREQ", "HLEHLD", "HLCPU",
 };
 
 static char bkeys[][MAX_ITEM_KEY_LEN] = {
-	"ID", "RR", "ASB", "PSITE", "DDRID",
-	"MOCP", "SOCP", "RST", "INFO2", "INFO3",
-	"RBASE", "MAGIC", "PWR", "PWROFF", "PINT", "PSTAT",
-	"PWROFFS", "PINTS", "PSTATS",
-	"EPD", "UNFZ", "FREQ",
+	"ID", "RR", "PSITE", "MOCP",
+	"SOCP", "INFO2", "INFO3", "PWR",
+	"PWROFF", "PINT", "PSTAT", "PWROFFS",
+	"PINTS", "PSTATS",
 };
 
 static char ckeys[][MAX_ITEM_KEY_LEN] = {
-	"ID", "RR", "CPU0", "CPU1", "CPU2",
-	"CPU3", "CPU4", "CPU5", "CPU6", "CPU7",
-	"HLCNT",
+	"ID", "RR", "CPU0", "CPU1",
+	"CPU2", "CPU3", "CPU4", "CPU5",
+	"CPU6", "CPU7", "CPU8", "HLCNT",
 };
 
 static char fkeys[][MAX_ITEM_KEY_LEN] = {
-	"ID", "RR", "UP", "DOWN", "FPMU",
+	"ID", "RR", "FPMUMSG",
 };
 
 static char mkeys[][MAX_ITEM_KEY_LEN] = {
-	"ID", "RR", "MFC", "AUD", "DCN",
+	"ID", "RR", "MFC", "AUD",
+	"DCN",
 };
 
 static char tkeys[][MAX_ITEM_KEY_LEN] = {
-	"ID", "RR", "ASV", "IDS", "REGS",
+	"ID", "RR", "REGS"
 };

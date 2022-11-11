@@ -143,6 +143,12 @@ extern struct tsp_dump_callbacks dump_callbacks;
 #define I2C_M_DMA_SAFE		0
 #endif
 
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_STM_SPI)
+#define ENABLE_RAWDATA_SERVICE
+#undef RAWDATA_MMAP
+#define RAWDATA_IOCTL
+#endif
+
 #define input_raw_info_d(mode, dev, fmt, ...) input_raw_info(mode, dev, fmt, ## __VA_ARGS__)
 
 #define USE_OPEN_CLOSE
@@ -180,6 +186,7 @@ enum stm_ts_active_mode_status {
 };
 
 extern struct device *ptsp;
+extern struct stm_ts_data *g_ts;
 
 /**
  * struct stm_ts_finger - Represents fingers.
@@ -435,23 +442,6 @@ enum stm_ts_nvm_data_type {		/* Write Command */
 	STM_TS_NVM_OFFSET_CAL_FAIL_COUNT,
 };
 
-enum {
-	LCD_EARLY_EVENT = 0,
-	LCD_LATE_EVENT
-};
-
-enum {
-	SERVICE_SHUTDOWN = -1,
-	LCD_NONE = 0,
-	LCD_OFF,
-	LCD_ON,
-	LCD_DOZE1,
-	LCD_DOZE2,
-	LPM_OFF = 20,
-	FORCE_OFF,
-	FORCE_ON,
-};
-
 struct stm_ts_nvm_data_map {
 	int type;
 	int offset;
@@ -494,6 +484,7 @@ struct stm_ts_data {
 	struct i2c_client *client;
 #endif
 	int irq;
+	int irq_empty_count;
 	struct sec_ts_plat_data *plat_data;
 	struct mutex lock;
 	bool probe_done;
@@ -583,6 +574,8 @@ struct stm_ts_data {
 	struct mutex modechange;
 	bool info_work_done;
 
+	int lpmode_change_delay;
+
 	u8 factory_position;
 	int proc_cmoffset_size;
 	int proc_cmoffset_all_size;
@@ -617,23 +610,31 @@ struct stm_ts_data {
 	bool fix_active_mode;
 	bool touch_aging_mode;
 	int sensitivity_mode;
-
-	int raw_irq_count;
-	int before_irq_count;
+#ifdef ENABLE_RAWDATA_SERVICE
 	u8 raw_addr_h;
 	u8 raw_addr_l;
 	u8 raw_mode;
 	int raw_len;
 	u8 *raw_u8;//read from IC
 	s16 *raw;//convert x/y
+	struct mutex raw_lock;
+
+#ifdef RAWDATA_MMAP
+	int raw_irq_count;
+	int before_irq_count;
 	u8 *raw_v0;//mmap0 ...
 	u8 *raw_v1;
 	u8 *raw_v2;
 	u8 *raw_v3;
 	u8 *raw_v4;
 	short *mmapdata;
-	struct mutex raw_lock;
-
+#endif
+#ifdef RAWDATA_IOCTL
+	u8 *raw_pool[3];
+	u8 raw_read_index;
+	u8 raw_write_index;
+#endif
+#endif
 	bool rawcap_lock;
 	int rawcap_max;
 	int rawcap_max_tx;
@@ -767,6 +768,12 @@ void stm_ts_checking_miscal(struct stm_ts_data *ts);
 
 #ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
 extern struct tsp_dump_callbacks dump_callbacks;
+#endif
+#ifdef ENABLE_RAWDATA_SERVICE
+void stm_ts_read_rawdata_address(struct stm_ts_data *ts);
+int stm_ts_rawdata_buffer_alloc(struct stm_ts_data *ts);
+int stm_ts_rawdata_init(struct stm_ts_data *ts);
+void  stm_ts_rawdata_buffer_remove(struct stm_ts_data *ts);
 #endif
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)

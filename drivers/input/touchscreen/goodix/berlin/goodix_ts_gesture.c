@@ -310,6 +310,8 @@ static int gsx_gesture_before_suspend(struct goodix_ts_core *cd,
 	ret = gsx_set_lowpowermode(cd, TO_LOWPOWER_MODE);
 	if (ret < 0)
 		ts_err("failed to enter lowpowermode");
+
+	cd->lpm_coord_event_cnt = 0;
 	hw_ops->irq_enable(cd, true);
 	enable_irq_wake(cd->irq);
 
