@@ -68,6 +68,7 @@ static struct sensor_info info_table[] = {
 	SENSOR_INFO_SHAKE_TRACKER,
 	SENSOR_INFO_AUTO_ROTATION,
 	SENSOR_INFO_SAR_BACKOFF_MOTION,
+	SENSOR_INFO_POCKET_POSITION_SENSOR,
 };
 
 #define IIO_ST(si, rb, sb, sh)	\
@@ -603,6 +604,18 @@ void report_sar_backoff_motion_data(struct ssp_data *data, int sensor_type,
 	pr_err("[SSP]: %s: %d ts: %llu", __func__,
 	sar_backoff_motion_data->sar_backoff_motion_event,
 	sar_backoff_motion_data->timestamp);
+}
+
+void report_pocket_position_data(struct ssp_data *data, int sensor_type,
+		struct sensor_value *pocket_position_data)
+{
+	report_iio_data(data, POCKET_POSITION_SENSOR, pocket_position_data);
+	wake_lock_timeout(&data->ssp_wake_lock, 0.3*HZ);
+	pr_err("[SSP]: %s: t_s %d  p_s %d po_c %d p_s %d pe_c %d v %d ts: %llu", __func__,
+	pocket_position_data->total_state, pocket_position_data->position_state,
+	pocket_position_data->position_case, pocket_position_data->pedo_state,
+	pocket_position_data->pedo_case, pocket_position_data->version,
+	pocket_position_data->timestamp);
 }
 
 #define THM_UP		0

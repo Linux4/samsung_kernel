@@ -855,14 +855,18 @@ static int is_3aa_video_s_ext_ctrl(struct file *file, void *priv,
 			head->intent_ctl.vendor_captureCount = info.captureCount;
 			head->intent_ctl.vendor_captureEV = info.captureEV;
 
-			if (info.captureIntent == AA_CAPTURE_INTENT_STILL_CAPTURE_OIS_MULTI) {
+			memcpy(&(head->intent_ctl.vendor_multiFrameEvList), &(info.captureMultiEVList), EV_LIST_SIZE);
+
+			if (info.captureIntent == AA_CAPTURE_INTENT_STILL_CAPTURE_OIS_MULTI
+				|| info.captureIntent == AA_CAPTURE_INTENT_STILL_CAPTURE_GALAXY_RAW_DYNAMIC_SHOT) {
 				head->remainIntentCount = 2 + INTENT_RETRY_CNT;
 			} else {
 				head->remainIntentCount = 0 + INTENT_RETRY_CNT;
 			}
 
-			info("[%d]s_ext_ctrl SET_CAPTURE_INTENT_INFO, intent(%d) count(%d) captureEV(%d) remainIntentCount(%d)\n",
-				head->instance, info.captureIntent, info.captureCount, info.captureEV, head->remainIntentCount);
+			info("[%d]s_ext_ctrl SET_CAPTURE_INTENT_INFO, intent(%d) count(%d) captureEV(%d) remainIntentCount(%d) captureMultiEVList[%d %d %d %d ...]\n",
+				head->instance, info.captureIntent, info.captureCount, info.captureEV, head->remainIntentCount,
+				info.captureMultiEVList[0], info.captureMultiEVList[1], info.captureMultiEVList[2], info.captureMultiEVList[3]);
 			break;
 		}
 		default:

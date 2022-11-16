@@ -43,13 +43,13 @@ int gpex_clock_prepare_runtime_off(void)
 	return 0;
 }
 
-int gpex_clock_set(int clk, int type, const char* process_name, uint32_t process_id)
+int gpex_clock_set(int clk)
 {
 	return 0;
 }
 
 int gpex_clock_lock_clock(gpex_clock_lock_cmd_t lock_command, gpex_clock_lock_type_t lock_type,
-			  int clock, const char* process_name, uint32_t process_id)
+			  int clock)
 {
 	return 0;
 }

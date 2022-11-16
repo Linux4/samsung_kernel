@@ -952,8 +952,15 @@ void sec_bat_check_lrp_temp(
 		ct, battery->lrp_step, battery->lrp);
 }
 
-void sec_bat_set_dchg_current(struct sec_battery_info *battery, int power_type, int pt, int *input_current, int *charging_current)
+#if defined(CONFIG_DIRECT_CHARGING)
+void sec_bat_set_dchg_current(struct sec_battery_info *battery, int power_type, int is_apdo, int pt, int *input_current, int *charging_current)
 {
+	int temp_ic = *input_current, temp_cc = *charging_current;
+
+	/* skip power_type check for non-use lrp_temp_check models */
+	if (battery->pdata->lrp_temp_check_type == SEC_BATTERY_TEMP_CHECK_NONE)
+		power_type = NORMAL_TA;
+
 	if (power_type == SFC_45W) {
 		if (pt & 0x01) {
 			*input_current = battery->pdata->lrp_curr[LRP_45W].st_icl[ST1];
@@ -975,11 +982,23 @@ void sec_bat_set_dchg_current(struct sec_battery_info *battery, int power_type, 
 			*input_current = battery->pdata->default_input_current;
 			*charging_current = battery->pdata->default_charging_current;
 		} else {
-			*input_current = battery->pdata->chg_input_limit_current;
-			*charging_current = battery->pdata->chg_charging_limit_current;
+			if (is_apdo) {
+				*input_current = battery->pdata->dchg_input_limit_current;
+				*charging_current = battery->pdata->dchg_charging_limit_current;
+			} else {
+				*input_current = battery->pdata->chg_input_limit_current;
+				*charging_current = battery->pdata->chg_charging_limit_current;
+			}
 		}
 	}
+	if (temp_ic < *input_current || (power_type >= SFC_25W && temp_cc < *charging_current)) {
+		pr_info("%s: do not set new icl(%d) cc(%d) because of old icl(%d) cc(%d)\n",
+			__func__, *input_current, *charging_current, temp_ic, temp_cc);
+		*input_current = temp_ic;
+		*charging_current = temp_cc;
+	}
 }
+#endif
 
 static bool sec_bat_change_vbus(struct sec_battery_info *battery, int *input_current)
 {
@@ -1088,11 +1107,11 @@ static void sec_bat_check_direct_chg_temp(struct sec_battery_info *battery, int 
 		if (!battery->chg_limit && is_apdo &&
 			((battery->dchg_temp >= battery->pdata->dchg_high_temp[pt]) ||
 			(battery->temperature >= battery->pdata->dchg_high_batt_temp[pt]))) {
-			sec_bat_set_dchg_current(battery, power_type, pt, input_current, charging_current);
+			sec_bat_set_dchg_current(battery, power_type, pt, is_apdo, input_current, charging_current);
 			battery->chg_limit = true;
 		} else if (!battery->chg_limit && (!is_apdo) &&
 			(battery->chg_temp >= battery->pdata->chg_high_temp)) {
-			sec_bat_set_dchg_current(battery, power_type, pt, input_current, charging_current);
+			sec_bat_set_dchg_current(battery, power_type, pt, is_apdo, input_current, charging_current);
 			battery->chg_limit = true;
 		} else if (battery->chg_limit) {
 			if (((battery->dchg_temp <= battery->pdata->dchg_high_temp_recovery[pt]) &&
@@ -1103,7 +1122,7 @@ static void sec_bat_check_direct_chg_temp(struct sec_battery_info *battery, int 
 				*charging_current = battery->pdata->charging_current[battery->cable_type].fast_charging_current;
 				battery->chg_limit = false;
 			} else {
-				sec_bat_set_dchg_current(battery, power_type, pt, input_current, charging_current);
+				sec_bat_set_dchg_current(battery, power_type, pt, is_apdo, input_current, charging_current);
 				battery->chg_limit = true;
 			}
 		}
@@ -1821,7 +1840,7 @@ static void sec_bat_send_cs100(struct sec_battery_info *battery)
 	union power_supply_propval value = {0, };
 	bool send_cs100_cmd = true;
 
-	if (is_wireless_type(battery->cable_type)) {
+	if (is_wireless_fake_type(battery->cable_type)) {
 #ifdef CONFIG_CS100_JPNCONCEPT
 		psy_do_property(battery->pdata->wireless_charger_name, get,
 			POWER_SUPPLY_EXT_PROP_WIRELESS_TX_ID, value);
@@ -5957,6 +5976,8 @@ __visible_for_testing void sec_bat_cable_work(struct work_struct *work)
 			battery->cable_type == SEC_BATTERY_CABLE_POWER_SHARING) {
 			battery->charging_mode = SEC_BATTERY_CHARGING_NONE;
 			battery->status = POWER_SUPPLY_STATUS_DISCHARGING;
+		} else if (battery->misc_event & BATT_MISC_EVENT_FULL_CAPACITY) {
+			battery->status = POWER_SUPPLY_STATUS_NOT_CHARGING;
 		} else if (!battery->is_sysovlo && !battery->is_vbatovlo && !battery->is_abnormal_temp &&
 				(!battery->charging_block || !battery->swelling_mode)) {
 			if (battery->pdata->full_check_type !=
