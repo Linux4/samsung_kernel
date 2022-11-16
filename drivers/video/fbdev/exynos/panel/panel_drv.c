@@ -2371,7 +2371,7 @@ static int panel_doze(struct panel_device *panel, unsigned int cmd)
 		if (ret)
 			panel_err("failed to write alpm\n");
 		panel_set_cur_state(panel, PANEL_STATE_ALPM);
-#ifdef EXYNOS_DECON_MDNIE_LITE
+#ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
 		panel_mdnie_update(panel);
 #endif
 		break;

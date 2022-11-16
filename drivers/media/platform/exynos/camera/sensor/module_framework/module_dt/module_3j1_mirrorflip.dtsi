@@ -248,7 +248,7 @@
 						50 { pname = "on_i2c"; pin = <PIN_I2C 1 10>; };
 						60 { pname = "rst_high"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpp13 0 0x1>; };
 						70 { pname = "pin"; pin = <PIN_FUNCTION 2 0>; };
-						80 { pname = "MCLK"; pin = <PIN_MCLK 1 9000>; };
+						80 { pname = "MCLK"; pin = <PIN_MCLK 1 12000>; };
 					};
 
 					scenario_normal_off {

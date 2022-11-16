@@ -20,15 +20,16 @@
 
 #include <gpex_platform.h>
 #include <gpex_utils.h>
+#include <gpex_debug.h>
 #include <gpex_pm.h>
 #include <gpex_dvfs.h>
 #include <gpex_qos.h>
 #include <gpex_thermal.h>
 #include <gpex_clock.h>
 #include <gpex_ifpo.h>
-#include <gpex_secure.h>
 #include <gpex_tsg.h>
 #include <gpex_clboost.h>
+#include <gpex_cmar_sched.h>
 #include <gpexbe_devicetree.h>
 
 #include <gpexbe_notifier.h>
@@ -40,24 +41,19 @@
 #include <gpexbe_utilization.h>
 #include <gpexbe_llc_coherency.h>
 #include <gpexbe_mem_usage.h>
+#include <gpexbe_smc.h>
 #include <gpex_gts.h>
-#include <gpex_tests.h>
+#include <gpexwa_interactive_boost.h>
 
-static struct exynos_context platform;
+#include <runtime_test_runner.h>
 
-struct exynos_context *gpex_platform_get_context()
+int gpex_platform_init(struct device **dev)
 {
-	return &platform;
-}
-
-struct exynos_context *gpex_platform_init(struct device **dev)
-{
-	memset(&platform, 0, sizeof(struct exynos_context));
-
 	/* TODO: check return value */
 	/* TODO: becareful with order */
 	gpexbe_devicetree_init(*dev);
-	gpex_utils_init(*dev);
+	gpex_utils_init(dev);
+	gpex_debug_init(dev);
 
 	gpexbe_utilization_init(dev);
 	gpex_clboost_init();
@@ -82,27 +78,33 @@ struct exynos_context *gpex_platform_init(struct device **dev)
 
 	gpex_ifpo_init();
 	gpex_dvfs_init(dev);
-	gpex_secure_init();
+	gpexbe_smc_init();
+	gpex_cmar_sched_init();
 	gpex_tsg_init(dev);
 
 	gpexbe_mem_usage_init();
 
-	gpex_tests_init();
+	gpexwa_interactive_boost_init();
+
+	runtime_test_runner_init();
 
 	gpex_utils_sysfs_kobject_files_create();
 	gpex_utils_sysfs_device_files_create();
 
-	return &platform;
+	return 0;
 }
 
 void gpex_platform_term()
 {
-	gpex_tests_term();
+	runtime_test_runner_term();
 
 	gpexbe_mem_usage_term();
 
+	gpexwa_interactive_boost_term();
+
 	gpex_tsg_term();
-	gpex_secure_term();
+	gpex_cmar_sched_term();
+	gpexbe_smc_term();
 	gpex_ifpo_term();
 
 	gpex_pm_term();
@@ -129,6 +131,4 @@ void gpex_platform_term()
 	gpex_clboost_term();
 	gpexbe_utilization_term();
 	gpex_utils_term();
-
-	memset(&platform, 0, sizeof(struct exynos_context));
 }

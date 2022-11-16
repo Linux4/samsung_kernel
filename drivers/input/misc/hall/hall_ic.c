@@ -43,6 +43,9 @@
 #if IS_ENABLED(CONFIG_SAMSUNG_TUI)
 #include <linux/input/stui_inf.h>
 #endif
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+#include <linux/vbus_notifier.h>
+#endif
 
 /*
  * Switch events
@@ -84,7 +87,10 @@ struct hall_ic_pdata {
 	struct hall_ic_data *hall;
 	unsigned int nhalls;
 	unsigned int debounce_interval;
-	bool distinct_state_handler;
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+	struct notifier_block vbus_nb;
+	bool charger_mode;
+#endif
 };
 
 struct hall_ic_drvdata {
@@ -99,6 +105,12 @@ struct hall_ic_drvdata {
 };
 
 static LIST_HEAD(hall_ic_list);
+
+#if IS_ENABLED(CONFIG_HALL_DUMP_KEY_MODE)
+#include <linux/hall/sec_hall_dumpkey.h>
+extern struct hall_dump_callbacks hall_dump_callbacks;
+extern struct device *phall;
+#endif
 
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 struct hall_ic_drvdata *gddata;
@@ -237,6 +249,47 @@ static struct device_attribute *hall_ic_attrs[] = {
 };
 #endif
 
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER) && IS_ENABLED(CONFIG_HALL_DUMP_KEY_MODE)
+int sec_hall_vbus_notification(struct notifier_block *nb, unsigned long cmd, void *data)
+{
+	struct hall_ic_pdata *pdata = container_of(nb, struct hall_ic_pdata, vbus_nb);
+	vbus_status_t vbus_type = *(vbus_status_t *)data;
+
+	switch (vbus_type) {
+	case STATUS_VBUS_HIGH:
+		pdata->charger_mode = true;
+		break;
+	case STATUS_VBUS_LOW:
+		pdata->charger_mode = false;
+		break;
+	default:
+		break;
+	}
+
+	pr_info("%s %d\n", __func__, pdata->charger_mode);
+
+	return 0;
+}
+
+static void dump_hall_event(struct device *dev)
+{
+	struct hall_ic_pdata *pdata = gddata->pdata;
+	struct hall_ic_data *hall;
+
+	if (pdata->charger_mode) {
+		list_for_each_entry(hall, &hall_ic_list, list) {
+			if (hall->event != SW_FOLDER)
+				continue;
+			if (hall->input) {
+				input_report_switch(hall->input, hall->event, 0);
+				input_sync(hall->input);
+				pr_info("[sec_input] %s: %s %d\n", __func__, hall->name, hall->event);
+			}
+		}
+	}
+}
+#endif
+
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 static void hall_ic_work(struct work_struct *work)
 {
@@ -357,11 +410,6 @@ static irqreturn_t hall_ic_detect(int irq, void *dev_id)
 	struct hall_ic_pdata *pdata = gddata->pdata;
 	int state = !!gpio_get_value_cansleep(hall->gpio);
 
-	if (pdata->distinct_state_handler && state == hall->state) {
-		pr_info("%s skip report %s already (%d)\n", __func__, hall->name, state);
-		return IRQ_HANDLED;
-	}
-
 	pr_info("%s %s(%d)\n", __func__,
 		hall->name, state);
 	cancel_delayed_work_sync(&hall->dwork);
@@ -468,7 +516,7 @@ static int hall_ic_setup_halls(struct hall_ic_drvdata *ddata)
 
 	list_for_each_entry(hall, &hall_ic_list, list) {
 		hall->state = gpio_get_value_cansleep(hall->gpio);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 190)	//mt6877 : 4, 19, 191
 		// 4.19 R
 		wakeup_source_init(hall->ws, "hall_ic_wlock");
 		// 4.19 Q
@@ -535,7 +583,6 @@ static struct hall_ic_pdata *hall_ic_parsing_dt(struct device *dev)
 		pdata->debounce_interval = DEFAULT_DEBOUNCE_INTERVAL;
 	}
 	pr_info("%s debounce interval: %d\n", __func__, pdata->debounce_interval);
-	pdata->distinct_state_handler = of_property_read_bool(node, "hall_ic,distinct_state_handler");
 
 	pdata->nhalls = nhalls;
 	for_each_child_of_node(node, pp) {
@@ -627,6 +674,13 @@ static int hall_ic_probe(struct platform_device *pdev)
 		goto fail2;
 	}
 
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER) && IS_ENABLED(CONFIG_HALL_DUMP_KEY_MODE)
+	vbus_notifier_register(&pdata->vbus_nb, sec_hall_vbus_notification,
+						VBUS_NOTIFY_DEV_CHARGER);
+	phall = dev;
+	hall_dump_callbacks.inform_dump = dump_hall_event;
+#endif
+
 	ddata->probe_done = true;
 	pr_info("%s done\n", __func__);
 
@@ -640,8 +694,15 @@ fail1:
 
 static int hall_ic_remove(struct platform_device *pdev)
 {
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER) && IS_ENABLED(CONFIG_HALL_DUMP_KEY_MODE)
+	struct device *dev = &pdev->dev;
+	struct hall_ic_pdata *pdata = dev_get_platdata(dev);
+#endif
 	struct hall_ic_data *hall;
 
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER) && IS_ENABLED(CONFIG_HALL_DUMP_KEY_MODE)
+	vbus_notifier_unregister(&pdata->vbus_nb);
+#endif
 	list_for_each_entry(hall, &hall_ic_list, list) {
 		input_unregister_device(hall->input);
 		wakeup_source_unregister(hall->ws);

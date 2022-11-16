@@ -28,24 +28,10 @@
 
 static struct _clock_info *clk_info;
 
-static int gpex_clock_get_table_idx_clock(int clock)
-{
-	int i, min, max;
-
-	min = gpex_clock_get_table_idx(gpex_clock_get_min_clock());
-	max = gpex_clock_get_table_idx(gpex_clock_get_max_clock());
-
-	for (i = max; i <= min; i++)
-		if (clock - (int)(clk_info->table[i].clock) >= 0)
-			return clk_info->table[i].clock;
-
-	return -1;
-}
-
 /*************************************
  * sysfs node functions
  *************************************/
-static ssize_t show_clock(char *buf)
+GPEX_STATIC ssize_t show_clock(char *buf)
 {
 	ssize_t len = 0;
 	int clock = 0;
@@ -55,14 +41,14 @@ static ssize_t show_clock(char *buf)
 		clock = gpex_clock_get_clock_slow();
 	gpex_pm_unlock();
 
-	len += snprintf(buf + len, PAGE_SIZE - len, "%d\n", clock);
+	len += snprintf(buf + len, PAGE_SIZE - len, "%d", clock);
 
 	return gpex_utils_sysfs_endbuf(buf, len);
 }
 CREATE_SYSFS_DEVICE_READ_FUNCTION(show_clock)
 CREATE_SYSFS_KOBJECT_READ_FUNCTION(show_clock)
 
-static ssize_t set_clock(const char *buf, size_t count)
+GPEX_STATIC ssize_t set_clock(const char *buf, size_t count)
 {
 	unsigned int clk = 0;
 	int ret;
@@ -84,7 +70,7 @@ static ssize_t set_clock(const char *buf, size_t count)
 }
 CREATE_SYSFS_DEVICE_WRITE_FUNCTION(set_clock)
 
-static int gpu_get_asv_table(char *buf, size_t buf_size)
+GPEX_STATIC int gpu_get_asv_table(char *buf, size_t buf_size)
 {
 	int i = 0;
 	int len = 0;
@@ -105,7 +91,7 @@ static int gpu_get_asv_table(char *buf, size_t buf_size)
 	return len;
 }
 
-static ssize_t show_asv_table(char *buf)
+GPEX_STATIC ssize_t show_asv_table(char *buf)
 {
 	ssize_t ret = 0;
 
@@ -123,7 +109,7 @@ static ssize_t show_asv_table(char *buf)
 }
 CREATE_SYSFS_DEVICE_READ_FUNCTION(show_asv_table)
 
-static ssize_t show_time_in_state(char *buf)
+GPEX_STATIC ssize_t show_time_in_state(char *buf)
 {
 	ssize_t ret = 0;
 	int i;
@@ -147,7 +133,7 @@ static ssize_t show_time_in_state(char *buf)
 }
 CREATE_SYSFS_DEVICE_READ_FUNCTION(show_time_in_state)
 
-static ssize_t reset_time_in_state(const char *buf, size_t count)
+GPEX_STATIC ssize_t reset_time_in_state(const char *buf, size_t count)
 {
 	gpex_clock_init_time_in_state();
 
@@ -155,7 +141,7 @@ static ssize_t reset_time_in_state(const char *buf, size_t count)
 }
 CREATE_SYSFS_DEVICE_WRITE_FUNCTION(reset_time_in_state)
 
-static ssize_t set_max_lock_dvfs(const char *buf, size_t count)
+GPEX_STATIC ssize_t set_max_lock_dvfs(const char *buf, size_t count)
 {
 	int ret, clock = 0;
 
@@ -171,7 +157,7 @@ static ssize_t set_max_lock_dvfs(const char *buf, size_t count)
 
 		clk_info->user_max_lock_input = clock;
 
-		clock = gpex_clock_get_table_idx_clock(clock);
+		clock = gpex_get_valid_gpu_clock(clock, false);
 
 		ret = gpex_clock_get_table_idx(clock);
 		if ((ret < gpex_clock_get_table_idx(gpex_clock_get_max_clock())) ||
@@ -192,7 +178,7 @@ static ssize_t set_max_lock_dvfs(const char *buf, size_t count)
 CREATE_SYSFS_DEVICE_WRITE_FUNCTION(set_max_lock_dvfs)
 CREATE_SYSFS_KOBJECT_WRITE_FUNCTION(set_max_lock_dvfs)
 
-static ssize_t show_max_lock_dvfs(char *buf)
+GPEX_STATIC ssize_t show_max_lock_dvfs(char *buf)
 {
 	ssize_t ret = 0;
 	unsigned long flags;
@@ -222,7 +208,7 @@ static ssize_t show_max_lock_dvfs(char *buf)
 }
 CREATE_SYSFS_DEVICE_READ_FUNCTION(show_max_lock_dvfs)
 
-static ssize_t show_max_lock_dvfs_kobj(char *buf)
+GPEX_STATIC ssize_t show_max_lock_dvfs_kobj(char *buf)
 {
 	ssize_t ret = 0;
 	unsigned long flags;
@@ -249,7 +235,7 @@ static ssize_t show_max_lock_dvfs_kobj(char *buf)
 }
 CREATE_SYSFS_KOBJECT_READ_FUNCTION(show_max_lock_dvfs_kobj)
 
-static ssize_t set_min_lock_dvfs(const char *buf, size_t count)
+GPEX_STATIC ssize_t set_min_lock_dvfs(const char *buf, size_t count)
 {
 	int ret, clock = 0;
 
@@ -265,7 +251,7 @@ static ssize_t set_min_lock_dvfs(const char *buf, size_t count)
 
 		clk_info->user_min_lock_input = clock;
 
-		clock = gpex_clock_get_table_idx_clock(clock);
+		clock = gpex_get_valid_gpu_clock(clock, true);
 
 		ret = gpex_clock_get_table_idx(clock);
 		if ((ret < gpex_clock_get_table_idx(gpex_clock_get_max_clock())) ||
@@ -289,7 +275,7 @@ static ssize_t set_min_lock_dvfs(const char *buf, size_t count)
 CREATE_SYSFS_DEVICE_WRITE_FUNCTION(set_min_lock_dvfs)
 CREATE_SYSFS_KOBJECT_WRITE_FUNCTION(set_min_lock_dvfs)
 
-static ssize_t show_min_lock_dvfs(char *buf)
+GPEX_STATIC ssize_t show_min_lock_dvfs(char *buf)
 {
 	ssize_t ret = 0;
 	unsigned long flags;
@@ -319,7 +305,7 @@ static ssize_t show_min_lock_dvfs(char *buf)
 }
 CREATE_SYSFS_DEVICE_READ_FUNCTION(show_min_lock_dvfs)
 
-static ssize_t show_min_lock_dvfs_kobj(char *buf)
+GPEX_STATIC ssize_t show_min_lock_dvfs_kobj(char *buf)
 {
 	ssize_t ret = 0;
 	unsigned long flags;
@@ -346,13 +332,12 @@ static ssize_t show_min_lock_dvfs_kobj(char *buf)
 }
 CREATE_SYSFS_KOBJECT_READ_FUNCTION(show_min_lock_dvfs_kobj)
 
-static ssize_t set_mm_min_lock_dvfs(const char *buf, size_t count)
+GPEX_STATIC ssize_t set_mm_min_lock_dvfs(const char *buf, size_t count)
 {
 	int ret, clock = 0;
 
 	if (sysfs_streq("0", buf)) {
-		clk_info->user_min_lock_input = 0;
-		gpex_clock_lock_clock(GPU_CLOCK_MIN_UNLOCK, SYSFS_LOCK, 0);
+		gpex_clock_lock_clock(GPU_CLOCK_MIN_UNLOCK, MM_LOCK, 0);
 	} else {
 		ret = kstrtoint(buf, 0, &clock);
 		if (ret) {
@@ -360,9 +345,7 @@ static ssize_t set_mm_min_lock_dvfs(const char *buf, size_t count)
 			return -ENOENT;
 		}
 
-		clk_info->user_min_lock_input = clock;
-
-		clock = gpex_clock_get_table_idx_clock(clock);
+		clock = gpex_get_valid_gpu_clock(clock, true);
 
 		ret = gpex_clock_get_table_idx(clock);
 		if ((ret < gpex_clock_get_table_idx(gpex_clock_get_max_clock())) ||
@@ -378,16 +361,16 @@ static ssize_t set_mm_min_lock_dvfs(const char *buf, size_t count)
 		gpex_clboost_set_state(CLBOOST_DISABLE);
 
 		if (clock == gpex_clock_get_min_clock())
-			gpex_clock_lock_clock(GPU_CLOCK_MIN_UNLOCK, SYSFS_LOCK, 0);
+			gpex_clock_lock_clock(GPU_CLOCK_MIN_UNLOCK, MM_LOCK, 0);
 		else
-			gpex_clock_lock_clock(GPU_CLOCK_MIN_LOCK, SYSFS_LOCK, clock);
+			gpex_clock_lock_clock(GPU_CLOCK_MIN_LOCK, MM_LOCK, clock);
 	}
 
 	return count;
 }
 CREATE_SYSFS_KOBJECT_WRITE_FUNCTION(set_mm_min_lock_dvfs)
 
-static ssize_t show_mm_min_lock_dvfs(char *buf)
+GPEX_STATIC ssize_t show_mm_min_lock_dvfs(char *buf)
 {
 	ssize_t ret = 0;
 	unsigned long flags;
@@ -414,7 +397,7 @@ static ssize_t show_mm_min_lock_dvfs(char *buf)
 }
 CREATE_SYSFS_KOBJECT_READ_FUNCTION(show_mm_min_lock_dvfs)
 
-static ssize_t show_max_lock_status(char *buf)
+GPEX_STATIC ssize_t show_max_lock_status(char *buf)
 {
 	ssize_t ret = 0;
 	unsigned long flags;
@@ -441,7 +424,7 @@ static ssize_t show_max_lock_status(char *buf)
 }
 CREATE_SYSFS_DEVICE_READ_FUNCTION(show_max_lock_status)
 
-static ssize_t show_min_lock_status(char *buf)
+GPEX_STATIC ssize_t show_min_lock_status(char *buf)
 {
 	ssize_t ret = 0;
 	unsigned long flags;
@@ -468,7 +451,7 @@ static ssize_t show_min_lock_status(char *buf)
 }
 CREATE_SYSFS_DEVICE_READ_FUNCTION(show_min_lock_status)
 
-static ssize_t show_gpu_freq_table(char *buf)
+GPEX_STATIC ssize_t show_gpu_freq_table(char *buf)
 {
 	ssize_t ret = 0;
 	int i = 0;

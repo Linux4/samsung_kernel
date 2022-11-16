@@ -71,7 +71,9 @@ int exynos_stats_get_gpu_cur_idx(void)
 	idx_min_clk = gpex_clock_get_table_idx(gpex_clock_get_min_clock());
 
 	if ((idx_max_clk < 0) || (idx_min_clk < 0)) {
-		GPU_LOG(MALI_EXYNOS_ERROR, "%s: mismatch clock table index. max_clock_level : %d, min_clock_level : %d\n", __func__, idx_max_clk, idx_min_clk);
+		GPU_LOG(MALI_EXYNOS_ERROR,
+			"%s: mismatch clock table index. max_clock_level : %d, min_clock_level : %d\n",
+			__func__, idx_max_clk, idx_min_clk);
 		return -1;
 	}
 
@@ -114,13 +116,14 @@ uint32_t *exynos_stats_get_gpu_freq_table(void)
 	idx_min_clk = gpex_clock_get_table_idx(gpex_clock_get_min_clock());
 
 	if ((idx_max_clk < 0) || (idx_min_clk < 0)) {
-		GPU_LOG(MALI_EXYNOS_ERROR, "%s: mismatch clock table index. idx_max_clk : %d, idx_min_clk : %d\n", __func__, idx_max_clk, idx_min_clk);
+		GPU_LOG(MALI_EXYNOS_ERROR,
+			"%s: mismatch clock table index. idx_max_clk : %d, idx_min_clk : %d\n",
+			__func__, idx_max_clk, idx_min_clk);
 		return freqs;
 	}
 
-	for (i = idx_max_clk; i <= idx_min_clk; i++) {
+	for (i = idx_max_clk; i <= idx_min_clk; i++)
 		freqs[i - idx_max_clk] = (uint32_t)gpex_clock_get_clock(i);
-	}
 
 	return freqs;
 }
@@ -136,13 +139,14 @@ uint32_t *exynos_stats_get_gpu_volt_table(void)
 	idx_min_clk = gpex_clock_get_table_idx(gpex_clock_get_min_clock());
 
 	if ((idx_max_clk < 0) || (idx_min_clk < 0)) {
-		GPU_LOG(MALI_EXYNOS_ERROR, "%s: mismatch clock table index. idx_max_clk : %d, idx_min_clk : %d\n", __func__, idx_max_clk, idx_min_clk);
+		GPU_LOG(MALI_EXYNOS_ERROR,
+			"%s: mismatch clock table index. idx_max_clk : %d, idx_min_clk : %d\n",
+			__func__, idx_max_clk, idx_min_clk);
 		return volts;
 	}
 
-	for (i = idx_max_clk; i <= idx_min_clk; i++) {
+	for (i = idx_max_clk; i <= idx_min_clk; i++)
 		volts[i - idx_max_clk] = (uint32_t)gpex_clock_get_voltage(gpex_clock_get_clock(i));
-	}
 
 	return volts;
 }
@@ -158,12 +162,15 @@ ktime_t *exynos_stats_get_gpu_time_in_state(void)
 	idx_min_clk = gpex_clock_get_table_idx(gpex_clock_get_min_clock());
 
 	if ((idx_max_clk < 0) || (idx_min_clk < 0)) {
-		GPU_LOG(MALI_EXYNOS_ERROR, "%s: mismatch clock table index. idx_max_clk : %d, idx_min_clk : %d\n", __func__, idx_max_clk, idx_min_clk);
+		GPU_LOG(MALI_EXYNOS_ERROR,
+			"%s: mismatch clock table index. idx_max_clk : %d, idx_min_clk : %d\n",
+			__func__, idx_max_clk, idx_min_clk);
 		return time_in_state;
 	}
 
 	for (i = idx_max_clk; i <= idx_min_clk; i++) {
-		time_in_state[i - idx_max_clk] = ms_to_ktime((u64)(gpex_clock_get_time_busy(i) * 4) / 100);
+		time_in_state[i - idx_max_clk] =
+			ms_to_ktime((u64)(gpex_clock_get_time_busy(i) * 4) / 100);
 	}
 
 	return time_in_state;

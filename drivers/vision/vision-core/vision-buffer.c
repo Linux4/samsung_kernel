@@ -280,10 +280,14 @@ static int __vb_unmap_dmabuf(struct vb_queue *q, struct vb_buffer *buffer)
 		goto p_err;
 	}
 
-	vision_dma_total_used_size -= buffer->dma_buf->size;
-	if (vision_dma_total_used_size < 0)
-		vision_dma_total_used_size = 0;
-	vision_info("dma_used[%u]\n", vision_dma_total_used_size);
+	if (buffer->dma_buf) {
+		if (vision_dma_total_used_size < buffer->dma_buf->size)
+			vision_dma_total_used_size = 0;
+		else
+			vision_dma_total_used_size -= buffer->dma_buf->size;
+
+		vision_info("dma_used[%u]\n", (unsigned int)vision_dma_total_used_size);
+	}
 
 	if (buffer->vaddr)
 		dma_buf_vunmap(buffer->dma_buf, buffer->vaddr);

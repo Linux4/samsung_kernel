@@ -1303,6 +1303,8 @@ static void dsim_underrun_info(struct dsim_device *dsim)
 	int i, decon_cnt;
 	static ktime_t bts_info_print_block_ts;
 	bool bts_info_print_blocked = true;
+	u32 line_cnt;
+	struct dsim_regs regs;
 
 	if (ktime_after(ktime_get(), bts_info_print_block_ts)) {
 		bts_info_print_block_ts = ktime_add_ms(ktime_get(),
@@ -1327,7 +1329,11 @@ static void dsim_underrun_info(struct dsim_device *dsim)
 		if (!IS_DECON_ON_STATE(decon))
 			continue;
 
-		if (decon) {
+		if (decon->dt.out_type == DECON_OUT_DSI) {
+			line_cnt = dsim_reg_get_linecount(dsim->id, dsim->panel->lcd_info.mode);
+			dsim->total_underrun_cnt++;
+			dsim_info("dsim%d underrun irq occurs(%d) at line %d\n", dsim->id,
+					dsim->total_underrun_cnt, line_cnt);
 			dsim_info("\tDECON%d: bw(%u %u), disp(%u %u), p(%u)\n",
 					decon->id,
 					decon->bts.prev_total_bw,
@@ -1344,6 +1350,10 @@ static void dsim_underrun_info(struct dsim_device *dsim)
 				show_exynos_pm_qos_data(PM_QOS_DEVICE_THROUGHPUT);
 #endif
 				dsim_bts_print_info(&decon->bts.bts_info);
+				if (!line_cnt) {
+					dsim_to_regs_param(dsim, &regs);
+					__dsim_dump(dsim->id, &regs);
+				}
 			}
 		}
 	}
@@ -1399,12 +1409,9 @@ static irqreturn_t dsim_irq_handler(int irq, void *dev_id)
 	if (int_src & DSIM_INTSRC_ERR_RX_ECC)
 		dsim_err("RX ECC Multibit error was detected!\n");
 
-	if (int_src & DSIM_INTSRC_UNDER_RUN) {
-		dsim->total_underrun_cnt++;
-		dsim_info("dsim%d underrun irq occurs(%d)\n", dsim->id,
-				dsim->total_underrun_cnt);
+	if (int_src & DSIM_INTSRC_UNDER_RUN)
 		dsim_underrun_info(dsim);
-	}
+
 	if (int_src & DSIM_INTSRC_VT_STATUS) {
 		dsim_dbg("dsim%d vt_status(vsync) irq occurs\n", dsim->id);
 #if IS_ENABLED(CONFIG_EXYNOS_MIGOV)

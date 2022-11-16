@@ -18,13 +18,20 @@
  * http://www.gnu.org/licenses/gpl-2.0.html.
  */
 
+/* Implements */
+#include <gpex_utils.h>
+
+/* Uses */
 #include <linux/device.h>
 #include <linux/sysfs.h>
 
-#include <gpex_utils.h>
+#include <mali_kbase.h>
 
 #define MAX_ATTRS 128
 #define SYSFS_KOBJECT_GROUP_NAME "gpu"
+
+struct kbase_device *pkbdev;
+struct exynos_context mali_exynos_ctx;
 
 struct _utils_info {
 	struct device *dev;
@@ -256,13 +263,25 @@ struct device *gpex_utils_get_device(void)
 	return utils_info.dev;
 }
 
+struct kbase_device *gpex_utils_get_kbase_device(void)
+{
+	return pkbdev;
+}
+
+struct exynos_context *gpex_utils_get_exynos_context(void)
+{
+	return &mali_exynos_ctx;
+}
+
 /************************************************************************
  * INIT and TERM functions
  ************************************************************************/
 
-int gpex_utils_init(struct device *dev)
+int gpex_utils_init(struct device **dev)
 {
-	utils_info.dev = dev;
+	utils_info.dev = *dev;
+	pkbdev = container_of(dev, struct kbase_device, dev);
+
 	utils_info.debug_level = WARNING;
 
 	utils_info.show_gpu_model_cb = NULL;
@@ -275,6 +294,8 @@ int gpex_utils_init(struct device *dev)
 
 	GPEX_UTILS_SYSFS_KOBJECT_FILE_ADD_RO(gpu_model, show_gpu_model);
 
+	mali_exynos_ctx.utils_info = &utils_info;
+
 	return 0;
 }
 
@@ -284,4 +305,6 @@ void gpex_utils_term(void)
 	gpex_utils_sysfs_device_term();
 	utils_info.dev = NULL;
 	utils_info.show_gpu_model_cb = NULL;
+
+	memset(&mali_exynos_ctx, 0, sizeof(struct exynos_context));
 }

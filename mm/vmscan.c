@@ -2454,12 +2454,14 @@ static inline bool is_too_low_file(struct pglist_data *pgdat)
 {
        unsigned long pgdatfile;
        if (!low_threshold) {
-               if (totalram_pages() > GB_TO_PAGES(2))
-                       low_threshold = MB_TO_PAGES(600);
-               else if (totalram_pages() > GB_TO_PAGES(1))
-                       low_threshold = MB_TO_PAGES(300);
-               else
-                       low_threshold = MB_TO_PAGES(200);
+			if (totalram_pages() > GB_TO_PAGES(4))
+				low_threshold = MB_TO_PAGES(500);
+			else if (totalram_pages() > GB_TO_PAGES(3))
+				low_threshold = MB_TO_PAGES(400);
+			else if (totalram_pages() > GB_TO_PAGES(2))
+				low_threshold = MB_TO_PAGES(300);
+			else
+				low_threshold = MB_TO_PAGES(200);
        }
 
        pgdatfile = node_page_state(pgdat, NR_ACTIVE_FILE) +

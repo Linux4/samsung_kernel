@@ -839,7 +839,7 @@ int sec_bat_set_charging_current(struct sec_battery_info *battery)
 #endif
 		}
 #if IS_ENABLED(CONFIG_DIRECT_CHARGING)
-		else if (is_pd_apdo_wire_type(ct))
+		else if (is_pd_apdo_wire_type(ct) && battery->pd_list.now_isApdo)
 			sec_bat_check_direct_chg_temp(battery);
 #endif
 
@@ -3270,10 +3270,9 @@ __visible_for_testing void sec_bat_fw_init_work(struct work_struct *work)
 	struct sec_battery_info *battery = container_of(work,
 				struct sec_battery_info, fw_init_work.work);
 
-	union power_supply_propval value = {0, };
-	int ret = 0;
-
 #if defined(CONFIG_WIRELESS_IC_PARAM)
+	union power_supply_propval value = {0, };
+
 	psy_do_property(battery->pdata->wireless_charger_name, get,
 		POWER_SUPPLY_EXT_PROP_WIRELESS_CHECK_FW_VER, value);
 	if (value.intval) {
@@ -3281,14 +3280,11 @@ __visible_for_testing void sec_bat_fw_init_work(struct work_struct *work)
 		return;
 	}
 #endif
-	if (sec_bat_check_boost_mfc_condition(battery, SEC_WIRELESS_RX_INIT) &&
+
+	/* auto mfc firmware update when only no otg, mst, wpc */
+	if (sec_bat_check_boost_mfc_condition(battery, SEC_WIRELESS_FW_UPDATE_AUTO_MODE) &&
 		battery->capacity > 30 && !sec_bat_get_lpmode()) {
-		battery->mfc_fw_update = true;
-		value.intval = SEC_WIRELESS_RX_INIT;
-		ret = psy_do_property(battery->pdata->wireless_charger_name, set,
-			POWER_SUPPLY_EXT_PROP_CHARGE_POWERED_OTG_CONTROL, value);
-		if (ret < 0)
-			battery->mfc_fw_update = false;
+		sec_bat_fw_update(battery, SEC_WIRELESS_FW_UPDATE_AUTO_MODE);
 	}
 }
 EXPORT_SYMBOL_KUNIT(sec_bat_fw_init_work);
@@ -4139,7 +4135,8 @@ static void cw_nocharge_type(struct sec_battery_info *battery)
 		battery->usb_thm_status = USB_THM_NORMAL;
 #endif
 	for (i = 0; i < VOTER_MAX; i++) {
-		sec_vote(battery->iv_vote, i, false, 0);
+		if (i != VOTER_FW)
+			sec_vote(battery->iv_vote, i, false, 0);
 		if (i == VOTER_SIOP ||
 			i == VOTER_SLATE ||
 			i == VOTER_AGING_STEP ||
@@ -4147,7 +4144,8 @@ static void cw_nocharge_type(struct sec_battery_info *battery)
 			i == VOTER_MUIC_ABNORMAL)
 			continue;
 		sec_vote(battery->topoff_vote, i, false, 0);
-		sec_vote(battery->chgen_vote, i, false, 0);
+		if (i != VOTER_FW)
+			sec_vote(battery->chgen_vote, i, false, 0);
 		sec_vote(battery->input_vote, i, false, 0);
 		sec_vote(battery->fcc_vote, i, false, 0);
 		sec_vote(battery->fv_vote, i, false, 0);
@@ -4852,6 +4850,11 @@ static int sec_bat_set_property(struct power_supply *psy,
 #endif
 		case POWER_SUPPLY_EXT_PROP_MFC_FW_UPDATE:
 			battery->mfc_fw_update = val->intval;
+			if (!battery->mfc_fw_update) {
+				pr_info("%s: fw update done: (5V -> 9V).\n", __func__);
+				sec_vote(battery->chgen_vote, VOTER_FW, false, 0);
+				sec_vote(battery->iv_vote, VOTER_FW, false, 0);
+			}
 			break;
 		case POWER_SUPPLY_EXT_PROP_THERMAL_ZONE:
 		case POWER_SUPPLY_EXT_PROP_SUB_TEMP:

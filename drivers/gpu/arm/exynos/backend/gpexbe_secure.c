@@ -18,37 +18,65 @@
  * http://www.gnu.org/licenses/gpl-2.0.html.
  */
 
-#include <linux/version.h>
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
-#include <linux/smc.h>
-#else
-#include <soc/samsung/exynos-smc.h>
-#endif
-
+/* Implements */
 #include <gpexbe_secure.h>
 
-/* SMC CALL return value for Successfully works */
-#define GPU_SMC_TZPC_OK 0
+/* Uses */
+#include <mali_kbase.h>
+#include <linux/protected_mode_switcher.h>
 
-int gpexbe_secure_protection_enable()
+#include <gpex_utils.h>
+#include <gpexbe_smc.h>
+
+static int exynos_secure_mode_enable(struct protected_mode_device *pdev)
 {
-	int ret;
-	ret = exynos_smc(SMC_PROTECTION_SET, 0, PROT_G3D, SMC_PROTECTION_ENABLE);
+	int ret = 0;
 
-	if (ret == GPU_SMC_TZPC_OK)
-		return 0;
-	else
-		return -1;
+	if (!pdev)
+		return -EINVAL;
+
+	ret = kbase_pm_protected_mode_enable(pdev->data);
+	if (ret != 0)
+		return ret;
+
+	return gpexbe_smc_protection_enable();
 }
 
-int gpexbe_secure_protection_disable()
+static int exynos_secure_mode_disable(struct protected_mode_device *pdev)
 {
-	int ret;
-	ret = exynos_smc(SMC_PROTECTION_SET, 0, PROT_G3D, SMC_PROTECTION_DISABLE);
+	int ret = 0;
 
-	if (ret == GPU_SMC_TZPC_OK)
-		return 0;
-	else
-		return -1;
+	if (!pdev)
+		return -EINVAL;
+
+	ret = kbase_pm_protected_mode_disable(pdev->data);
+	if (ret != 0)
+		return ret;
+
+	return gpexbe_smc_protection_disable();
+}
+
+struct protected_mode_ops *gpexbe_secure_get_protected_mode_ops()
+{
+	static struct protected_mode_ops exynos_protected_ops = {
+		.protected_mode_enable = &exynos_secure_mode_enable,
+		.protected_mode_disable = &exynos_secure_mode_disable
+	};
+
+	return &exynos_protected_ops;
+}
+
+int gpexbe_secure_legacy_jm_enter_protected_mode(struct kbase_device *kbdev)
+{
+	return -ENOSYS;
+}
+
+int gpexbe_secure_legacy_jm_exit_protected_mode(struct kbase_device *kbdev)
+{
+	return -ENOSYS;
+}
+
+int gpexbe_secure_legacy_pm_exit_protected_mode(struct kbase_device *kbdev)
+{
+	return -ENOSYS;
 }

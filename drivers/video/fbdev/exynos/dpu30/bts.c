@@ -20,6 +20,7 @@
 #endif
 #include <dt-bindings/soc/samsung/exynos2100-devfreq.h>
 #include <soc/samsung/exynos-devfreq.h>
+#include "mcd_decon.h"
 
 #define DISP_FACTOR		100UL
 #define LCD_REFRESH_RATE	60U
@@ -677,13 +678,13 @@ void dpu_bts_calc_bw(struct decon_device *decon, struct decon_reg_data *regs)
 
 #if defined(CONFIG_DECON_BTS_VRR_ASYNC)
 	if (decon->dt.out_type == DECON_OUT_DSI) {
-		if ((decon->bts.fps < decon->bts.next_fps) ||
-			(decon->bts.fps > decon->bts.next_fps &&
-			 decon->bts.next_fps_vsync_count <= decon->vsync.count)) {
-			DPU_DEBUG_BTS("\tupdate fps(%d->%d) vsync(%llu %llu)\n",
-					decon->bts.fps, decon->bts.next_fps,
-					decon->vsync.count, decon->bts.next_fps_vsync_count);
-			decon->bts.fps = decon->bts.next_fps;
+		u32 bts_fps =
+			decon_bts_get_bts_fps(&decon->bts, decon->vsync.count);
+
+		if (decon->bts.fps != bts_fps) {
+			DPU_DEBUG_BTS("\tupdate fps(%d->%d) timeline(%llu)\n",
+					decon->bts.fps, bts_fps, decon->vsync.count);
+			decon->bts.fps = bts_fps;
 		}
 	} else {
 		decon->bts.fps = decon->lcd_info->fps;
@@ -933,7 +934,10 @@ void dpu_bts_acquire_bw(struct decon_device *decon)
 
 	decon->bts.fps = decon->lcd_info->fps;
 #if defined(CONFIG_DECON_BTS_VRR_ASYNC)
-	decon->bts.next_fps = decon->lcd_info->fps;
+	if (decon->dt.out_type == DECON_OUT_DSI) {
+		decon_bts_clear_fps_sync(&decon->bts);
+		decon_bts_set_applied_fps(&decon->bts, decon->lcd_info->fps);
+	}
 #endif
 
 #if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
@@ -1189,7 +1193,10 @@ void dpu_bts_init(struct decon_device *decon)
 	} else {
 		decon->bts.fps = decon->lcd_info->fps;
 #if defined(CONFIG_DECON_BTS_VRR_ASYNC)
-		decon->bts.next_fps = decon->lcd_info->fps;
+		if (decon->dt.out_type == DECON_OUT_DSI) {
+			decon_bts_init_fps_sync(&decon->bts);
+			decon_bts_set_applied_fps(&decon->bts, decon->lcd_info->fps);
+		}
 #endif
 		resol_clock = dpu_bts_get_resol_clock(decon->lcd_info->xres,
 				decon->lcd_info->yres, decon->bts.fps);

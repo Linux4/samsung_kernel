@@ -133,9 +133,6 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(wc_ic_chip_id),
 	SEC_BATTERY_ATTR(otp_firmware_ver_bin),
 	SEC_BATTERY_ATTR(otp_firmware_ver),
-	SEC_BATTERY_ATTR(tx_firmware_result),
-	SEC_BATTERY_ATTR(tx_firmware_ver),
-	SEC_BATTERY_ATTR(batt_tx_status),
 #endif
 	SEC_BATTERY_ATTR(wc_vout),
 	SEC_BATTERY_ATTR(wc_vrect),
@@ -1026,26 +1023,6 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		break;
 	case OTP_FIRMWARE_VER:
 		value.intval = SEC_WIRELESS_OTP_FIRM_VER;
-		psy_do_property(battery->pdata->wireless_charger_name, get,
-			POWER_SUPPLY_PROP_MANUFACTURER, value);
-
-		i += scnprintf(buf + i, PAGE_SIZE - i, "%x\n", value.intval);
-		break;
-	case TX_FIRMWARE_RESULT:
-		value.intval = SEC_WIRELESS_TX_FIRM_RESULT;
-		psy_do_property(battery->pdata->wireless_charger_name, get,
-			POWER_SUPPLY_PROP_MANUFACTURER, value);
-		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", value.intval);
-		break;
-	case TX_FIRMWARE_VER:
-		value.intval = SEC_WIRELESS_TX_FIRM_VER;
-		psy_do_property(battery->pdata->wireless_charger_name, get,
-			POWER_SUPPLY_PROP_MANUFACTURER, value);
-
-		i += scnprintf(buf + i, PAGE_SIZE - i, "%x\n", value.intval);
-		break;
-	case BATT_TX_STATUS:
-		value.intval = SEC_TX_FIRMWARE;
 		psy_do_property(battery->pdata->wireless_charger_name, get,
 			POWER_SUPPLY_PROP_MANUFACTURER, value);
 
@@ -2789,24 +2766,18 @@ ssize_t sec_bat_store_attrs(
 	case BATT_WIRELESS_FIRMWARE_UPDATE:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
 			if (sec_bat_check_boost_mfc_condition(battery, x)) {
-				if (x == SEC_WIRELESS_RX_SDCARD_MODE) {
+				if (x == SEC_WIRELESS_FW_UPDATE_SDCARD_MODE) {
 					pr_info("%s fw mode is SDCARD\n", __func__);
-					sec_bat_fw_update_work(battery, SEC_WIRELESS_RX_SDCARD_MODE);
-				} else if (x == SEC_WIRELESS_RX_BUILT_IN_MODE) {
+					sec_bat_fw_update(battery, x);
+				} else if (x == SEC_WIRELESS_FW_UPDATE_BUILTIN_MODE) {
 					pr_info("%s fw mode is BUILD IN\n", __func__);
-					sec_bat_fw_update_work(battery, SEC_WIRELESS_RX_BUILT_IN_MODE);
-				} else if (x == SEC_WIRELESS_TX_ON_MODE) {
-					pr_info("%s tx mode is on\n", __func__);
-					sec_bat_fw_update_work(battery, SEC_WIRELESS_TX_ON_MODE);
-				} else if (x == SEC_WIRELESS_TX_OFF_MODE) {
-					pr_info("%s tx mode is off\n", __func__);
-					sec_bat_fw_update_work(battery, SEC_WIRELESS_TX_OFF_MODE);
-				} else if (x == SEC_WIRELESS_RX_SPU_MODE) {
+					sec_bat_fw_update(battery, x);
+				} else if (x == SEC_WIRELESS_FW_UPDATE_SPU_MODE) {
 					pr_info("%s fw mode is SPU\n", __func__);
-					sec_bat_fw_update_work(battery, SEC_WIRELESS_RX_SPU_MODE);
-				} else if (x == SEC_WIRELESS_RX_SPU_VERIFY_MODE) {
+					sec_bat_fw_update(battery, x);
+				} else if (x == SEC_WIRELESS_FW_UPDATE_SPU_MODE) {
 					pr_info("%s fw mode is SPU VERIFY\n", __func__);
-					sec_bat_fw_update_work(battery, SEC_WIRELESS_RX_SPU_VERIFY_MODE);
+					sec_bat_fw_update(battery, x);
 				} else {
 					dev_info(battery->dev, "%s: wireless firmware unknown command\n", __func__);
 					return -EINVAL;
@@ -2834,23 +2805,6 @@ ssize_t sec_bat_store_attrs(
 	case WC_IC_CHIP_ID:
 	case OTP_FIRMWARE_VER_BIN:
 	case OTP_FIRMWARE_VER:
-	case TX_FIRMWARE_RESULT:
-	case TX_FIRMWARE_VER:
-		break;
-	case BATT_TX_STATUS:
-		if (sscanf(buf, "%10d\n", &x) == 1) {
-			if (x == SEC_TX_OFF) {
-				pr_info("%s TX mode is off\n", __func__);
-				sec_bat_fw_update_work(battery, SEC_WIRELESS_TX_OFF_MODE);
-			} else if (x == SEC_TX_STANDBY) {
-				pr_info("%s TX mode is on\n", __func__);
-				sec_bat_fw_update_work(battery, SEC_WIRELESS_TX_ON_MODE);
-			} else {
-				dev_info(battery->dev, "%s: TX firmware unknown command\n", __func__);
-				return -EINVAL;
-			}
-			ret = count;
-		}
 		break;
 #endif
 	case WC_VOUT:
@@ -2863,7 +2817,6 @@ ssize_t sec_bat_store_attrs(
 	case WC_TX_AVG_CURR:
 	case WC_TX_TOTAL_PWR:
 #endif
-
 		break;
 	case WC_TX_STOP_CAPACITY:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
@@ -4036,6 +3989,11 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case CHARGE_UNO_CONTROL:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
+			if (x && (is_hv_wire_type(battery->cable_type) ||
+				is_hv_pdo_wire_type(battery->cable_type, battery->hv_pdo))) {
+				pr_info("%s: Skip uno control during HV wired charging\n", __func__);
+				break;
+			}
 			value.intval = x;
 			psy_do_property("battery", set,
 				POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);

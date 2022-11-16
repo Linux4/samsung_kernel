@@ -9,7 +9,7 @@ mz_tee_driver-$(CONFIG_MZ_USE_TZDEV) += mz_tee_driver_teegris.o
 
 ccflags-$(CONFIG_MZ_TEE_DRIVER) += -I$(srctree)/drivers/security/samsung/mz
 ccflags-$(CONFIG_MZ_TEE_DRIVER) += -I$(srctree)/drivers/misc
-ccflags-$(CONFIG_MZ_USE_TZDEV) += -I$(srctree)/drivers/misc/tzdev/include
+ccflags-$(CONFIG_MZ_USE_TZDEV) += -I$(srctree)/drivers/misc/tzdev/$(CONFIG_TEEGRIS_VERSION_STRING)/include
 
 subdir-ccflags-y := -Wformat
 
