@@ -33,7 +33,7 @@
 #include "gpu_dvfs_governor.h"
 #include "gpex_dvfs_internal.h"
 
-struct dvfs_info dvfs;
+static struct dvfs_info dvfs;
 
 static int gpu_dvfs_handler_init(void);
 static int gpu_dvfs_handler_deinit(void);
@@ -119,7 +119,7 @@ static int kbase_platform_dvfs_event(u32 utilisation)
 		int clk = 0;
 		gpu_dvfs_calculate_env_data();
 		clk = gpu_dvfs_decide_next_freq(dvfs.env_data.utilization);
-		gpex_clock_set(clk, TYPE_NORMAL, current->comm, current->pid);
+		gpex_clock_set(clk);
 	}
 	mutex_unlock(&dvfs.handler_lock);
 
@@ -203,7 +203,7 @@ static int gpu_dvfs_on_off(bool enable)
 	/* TODO get proper return values from gpu_dvfs_handler_init */
 	if (enable && !dvfs.status) {
 		mutex_lock(&dvfs.handler_lock);
-		gpex_clock_set(gpex_clock_get_cur_clock(), TYPE_SYSFS, current->comm, current->pid);
+		gpex_clock_set(gpex_clock_get_cur_clock());
 		gpu_dvfs_handler_init();
 		mutex_unlock(&dvfs.handler_lock);
 
@@ -213,7 +213,7 @@ static int gpu_dvfs_on_off(bool enable)
 
 		mutex_lock(&dvfs.handler_lock);
 		gpu_dvfs_handler_deinit();
-		gpex_clock_set(dvfs.gpu_dvfs_config_clock, TYPE_SYSFS, current->comm, current->pid);
+		gpex_clock_set(dvfs.gpu_dvfs_config_clock);
 		mutex_unlock(&dvfs.handler_lock);
 	}
 
@@ -235,7 +235,7 @@ static int gpu_dvfs_handler_init()
 	if (!dvfs.status)
 		dvfs.status = true;
 
-	gpex_clock_set(dvfs.table[dvfs.step].clock, TYPE_NORMAL, current->comm, current->pid);
+	gpex_clock_set(dvfs.table[dvfs.step].clock);
 
 	dvfs.timer_active = true;
 
@@ -289,6 +289,8 @@ int gpex_dvfs_init(struct device **dev)
 	gpex_dvfs_sysfs_init(&dvfs);
 
 	gpex_dvfs_external_init(&dvfs);
+
+	gpex_utils_get_exynos_context()->dvfs = &dvfs;
 
 	return 0;
 }
