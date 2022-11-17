@@ -5630,6 +5630,9 @@ static int is_ischain_paf_shot(struct is_device_ischain *device,
 			frame->shot->ctl.aa.vendor_captureCount = group->intent_ctl.vendor_captureCount;
 			frame->shot->ctl.aa.vendor_captureExposureTime = group->intent_ctl.vendor_captureExposureTime;
 			frame->shot->ctl.aa.vendor_captureEV = group->intent_ctl.vendor_captureEV;
+			memcpy(&(frame->shot->ctl.aa.vendor_multiFrameEvList),
+				&(group->intent_ctl.vendor_multiFrameEvList), EV_LIST_SIZE);
+
 			if (group->remainIntentCount > 0) {
 				group->remainIntentCount--;
 			} else {
@@ -5850,6 +5853,9 @@ static int is_ischain_3aa_shot(struct is_device_ischain *device,
 			frame->shot->ctl.aa.vendor_captureCount = group->intent_ctl.vendor_captureCount;
 			frame->shot->ctl.aa.vendor_captureExposureTime = group->intent_ctl.vendor_captureExposureTime;
 			frame->shot->ctl.aa.vendor_captureEV = group->intent_ctl.vendor_captureEV;
+			memcpy(&(frame->shot->ctl.aa.vendor_multiFrameEvList),
+				&(group->intent_ctl.vendor_multiFrameEvList), EV_LIST_SIZE);
+
 			if (group->remainIntentCount > 0) {
 				group->remainIntentCount--;
 			} else {

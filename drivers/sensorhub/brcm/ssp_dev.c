@@ -1202,18 +1202,9 @@ static void ssp_shutdown(struct spi_device *spi)
 
 	disable_debug_timer(data);
 
-	/*
-	 *hoi
-	 *if (SUCCESS != ssp_send_cmd(data, MSG2SSP_AP_STATUS_SHUTDOWN, 0))
-	 *        pr_err("[SSP]: %s MSG2SSP_AP_STATUS_SHUTDOWN failed\n",
-	 *                __func__);
-	 */
-/*
- *#if defined (CONFIG_SENSORS_SSP_VLTE)
- *        // hall_ic unregister
- *        hall_ic_unregister_notify(&data->hall_ic_nb);
- *#endif
- */
+#ifdef CONFIG_PANEL_NOTIFY
+	panel_notifier_unregister(&panel_notif);
+#endif
 	mutex_lock(&data->ssp_enable_mutex);
 	ssp_enable(data, false);
 	clean_pending_list(data);
