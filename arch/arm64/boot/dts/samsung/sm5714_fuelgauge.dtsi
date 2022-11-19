@@ -1,0 +1,129 @@
+/*
+ * sm5714 battery device tree common
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&smd {
+	sm5714_fuelgauge: sm5714-fuelgauge {
+		status = "okay";
+		fuelgauge,fuel_alert_soc = <1>;
+		fuelgauge,capacity_max = <1000>;
+		fuelgauge,capacity_max_margin = <300>;
+		fuelgauge,capacity_min = <0>;
+		fuelgauge,capacity_calculation_type = <0x1F>;
+		fuelgauge,using_temp_compensation;
+		fuelgauge,low_temp_limit = <100>;
+		fuelgauge,using_hw_vempty;
+		fuelgauge,sw_v_empty_voltage = <3200>;
+		fuelgauge,sw_v_empty_voltage_cisd = <3100>;
+		fuelgauge,sw_v_empty_recover_voltage = <3480>;
+		fuelgauge,capacity = <4000>;
+#if 0
+		fuelgauge,bat_id_gpio = <
+				SEC_GPIO_REF(${bat_id_gpio_02}) 0  /* BAT_ID_2 */
+				SEC_GPIO_REF(${bat_id_gpio_01}) 0  /* BAT_ID_1 */
+				>;
+#endif
+
+		battery_params {
+			battery,id = <0>;
+			battery0,battery_type = <4400 0x1D44>; /* batt_v_max, cap */
+			battery0,battery_table0 = <
+				0x1400 0x1B33 0x1BAF 0x1CDD 0x1D5D 0x1D82 0x1D8A 0x1D9D
+				0x1DDF 0x1E2C 0x1E50 0x1E7D 0x1EDE 0x1F30 0x1F74 0x1FC0
+				0x1FE0 0x1FF4 0x201E 0x20B8 0x20D7 0x210B 0x2260 0x2400
+				>;
+			battery0,battery_table1 = <
+				0x0000 0x0098 0x00F5 0x034C 0x04E6 0x0799 0x0A4C 0x0D00
+				0x124C 0x1D19 0x2519 0x2D33 0x354C 0x3A99 0x3D4C 0x42B3
+				0x4566 0x4819 0x4AB3 0x5019 0x52CC 0x5580 0x6400 0x6419
+				>;
+			battery0,battery_table2 = <
+				0x4B 0x44 0x40 0x3E 0x3C 0x3B 0x38 0x37
+				0x35 0x34 0x34 0x33 0x33 0x33 0x33 0x32
+				>;
+			/*spare factor chg_factor dischg_factor manvalue*/
+			battery0,rs_value = <0x00 0x266 0x599 0x599 0x29>;
+			battery0,v_alarm = <3100 0>;
+			battery0,topoff = <400>;
+			battery0,i_cal = <1 0 0 0 1 0 0 0 >;
+			battery0,v_cal = <1 0 0 1 0 0 0>;
+			battery0,temp_std = <25>;
+			battery0,tem_poff = <3400 50 3250 50>;
+			battery0,aux_ctrl = <0x303>;
+			battery0,data_ver = <4>;
+			battery0,v_max_table = <0x2260 0x2220 0x21FD 0x21DB 0x2185>;
+			battery0,q_max_table = <0x1D44 0x1CC4 0x1C44 0x1BC4 0x1A85>;
+		};
+	};
+};
+
+
+&smd {
+	battery {
+		battery,fgsrc_switch_name = "sm5714-fuelgauge";
+	};
+};
+
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/sm5714/sm5714_fuelgauge.a13ve.dtsi */
+/*
+ * A13ve battery device tree common
+ *
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&sm5714_fuelgauge {
+	status = "okay";
+	fuelgauge,fuel_alert_soc = <1>;
+	fuelgauge,capacity_max = <1000>;
+	fuelgauge,capacity_max_margin = <300>;
+	fuelgauge,capacity_min = <0>;
+	fuelgauge,capacity_calculation_type = <0x1F>;
+	fuelgauge,using_temp_compensation;
+	fuelgauge,low_temp_limit = <100>;
+	fuelgauge,using_hw_vempty;
+	fuelgauge,sw_v_empty_voltage = <3200>;
+	fuelgauge,sw_v_empty_voltage_cisd = <3100>;
+	fuelgauge,sw_v_empty_recover_voltage = <3480>;
+	fuelgauge,capacity = <5000>;
+	battery_params {
+		battery,id = <0>;
+		battery0,battery_type = <4350 0x2462>; /* batt_v_max, cap */
+		battery0,battery_table0 = <
+			0x1400 0x1B63 0x1C6C 0x1D31 0x1D69 0x1D79 0x1D8D 0x1DB3
+			0x1DEA 0x1E0F 0x1E3B 0x1E57 0x1E74 0x1E99 0x1EC8 0x1F04
+			0x1F32 0x1F7C 0x1FCF 0x2023 0x20B8 0x215C 0x2263 0x2400
+			>;
+		battery0,battery_table1 = <
+			0x0000 0x00B3 0x024C 0x0466 0x0580 0x0680 0x0C4C 0x0EE6
+			0x1433 0x1966 0x1EB3 0x23E6 0x2933 0x2E66 0x33B3 0x38E6
+			0x3B99 0x3E33 0x4366 0x48B3 0x5099 0x5866 0x6400 0x6480>;
+		battery0,battery_table2 = <
+			0x444B 0x3E40 0x3B3C 0x3738 0x3435 0x3334 0x3333 0x3233
+			0x444B 0x3E40 0x3B3C 0x3738 0x3435 0x3334 0x3333 0x3233
+			>;
+		/*spare min max factor chg_factor dischg_factor manvalue*/
+		battery0,rs_value = <0x48 0x48 0x3800 0x10A 0x599 0x599 0x50>;
+		battery0,v_alarm = <3100 200>;
+		battery0,topoff = <500>;
+		battery0,i_cal = <1 0x0 0x0800 0x0800 0 0x0 0x07E5 0x07E0>;
+		battery0,v_cal = <1 0x0 0x0 1 0x0 0x0 0x0>;
+		battery0,temp_std = <25>;
+		battery0,tem_poff = <3400 50 3250 50>;
+		battery0,aux_ctrl = <0x322 0x5800>;
+		battery0,data_ver = <5>;
+		battery0,v_max_table = <0x2263 0x223C 0x2215 0x21EE 0x218C>;
+		battery0,q_max_table = <0x2462 0x23BB 0x2313 0x226C 0x20CA>;
+	};
+};

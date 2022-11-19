@@ -1,0 +1,279 @@
+&pio {
+	grip_i2c_sda: grip-i2c-sda {
+		GPIO_CONFIG_PUD_DRV(AP,pio,98, FUNC_INPUT, PULL_NONE, DRV_LV2);
+	};
+	grip_i2c_scl: grip-i2c-scl {
+		GPIO_CONFIG_PUD_DRV(AP,pio,6, FUNC_INPUT, PULL_NONE, DRV_LV2);
+	};
+};
+
+&pio {
+	grip_int: grip-int {
+		GPIO_CONFIG_PUD_DRV(AP,pio,75, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV2);
+	};
+};
+
+#if 1
+&pio {
+	grip_ldo_en: grip-ldo-en {
+		GPIO_CONFIG_PUD(AP,pio,151, FUNC_OUTPUT_HIGH, PULL_NONE);
+	};
+};
+#endif
+
+&sw_i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&grip_i2c_sda
+				 &grip_i2c_scl
+#if 1
+				 &grip_ldo_en
+#endif
+				 >;
+	status = "okay";
+	clock-frequency = <100000>;
+
+	isg6320: isg6320@2E {
+		compatible = "isg6320";
+		reg = <0x2E>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_int>;
+
+		interrupt-parent = <SEC_GPIO_TYPE(AP,pio,75)>;
+		interrupts = <SEC_GPIO_NUM(AP,pio,75) 0>;
+
+		isg6320,irq-gpio = <SEC_GPIO_REF(AP,pio,75) 0>;
+
+		isg6320,reg_num = <150>;
+		isg6320,multi_use = <1>;
+		isg6320,hallic_detect = <0>;
+		isg6320,hallic_cert_detect = <0>;
+	};
+};
+
+#if 0
+
+&${gpio_grip_sub_i2c_parent} {
+	grip_sub_i2c_sda: grip-sub-i2c-sda {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub_i2c_sda}, FUNC_INPUT, PULL_NONE, DRV_LV2);
+	};
+	grip_sub_i2c_scl: grip-sub-i2c-scl {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub_i2c_scl}, FUNC_INPUT, PULL_NONE, DRV_LV2);
+	};
+};
+
+&${gpio_grip_sub_irq_parent} {
+	grip_sub_int: grip-sub-int {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub_irq}, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV2);
+	};
+};
+
+#if 0
+&${gpio_grip_sub_en_parent} {
+	grip_sub_ldo_en: grip-sub-ldo-en {
+		GPIO_CONFIG_PUD(${gpio_grip_sub_en}, FUNC_OUTPUT_HIGH, PULL_NONE);
+	};
+};
+#endif
+
+&${i2c_grip_sub} {
+	pinctrl-names = "default";
+	pinctrl-0 = <&grip_sub_i2c_sda
+				 &grip_sub_i2c_scl
+#if 0
+				 &grip_sub_ldo_en
+#endif
+				 >;
+	status = "okay";
+	#clock-frequency = <100000>;
+	isg6320_sub: isg6320-sub@28 {
+		compatible = "isg6320_sub";
+		reg = <0x28>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_sub_int>;
+
+		interrupt-parent = <SEC_GPIO_TYPE(${gpio_grip_sub_irq})>;
+		interrupts = <SEC_GPIO_NUM(${gpio_grip_sub_irq}) 0>;
+
+		isg6320_sub,irq-gpio = <SEC_GPIO_REF(${gpio_grip_sub_irq}) 0>;
+
+		isg6320_sub,reg_num = <150>;
+		isg6320_sub,multi_use = <0>;
+		isg6320_sub,hallic_detect = <0>;
+		isg6320_sub,hallic_cert_detect = <0>;
+	};
+};
+
+#endif/* isg6320_sub */
+
+#if 0
+
+&${gpio_grip_wifi_i2c_parent} {
+	grip_wifi_i2c_sda: grip-wifi-i2c-sda {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_wifi_i2c_sda}, FUNC_INPUT, PULL_NONE, DRV_LV2);
+	};
+	grip_wifi_i2c_scl: grip-wifi-i2c-scl {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_wifi_i2c_scl}, FUNC_INPUT, PULL_NONE, DRV_LV2);
+	};
+};
+
+&${gpio_grip_wifi_irq_parent} {
+	grip_wifi_int: grip-wifi-int {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_wifi_irq}, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV2);
+	};
+};
+
+#if 0
+&${gpio_grip_wifi_en_parent} {
+	grip_wifi_ldo_en: grip-wifi-ldo-en {
+		GPIO_CONFIG_PUD(${gpio_grip_wifi_en}, FUNC_OUTPUT_HIGH, PULL_NONE);
+	};
+};
+#endif
+
+&${i2c_grip_wifi} {
+	pinctrl-names = "default";
+	pinctrl-0 = <&grip_wifi_i2c_sda
+				 &grip_wifi_i2c_scl
+#if 0
+				 &grip_wifi_ldo_en
+#endif
+				 >;
+	status = "okay";
+	#clock-frequency = <100000>;
+
+	isg6320_wifi: isg6320-wifi@28 {
+		compatible = "isg6320_wifi";
+		reg = <0x28>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_wifi_int>;
+
+		interrupt-parent = <SEC_GPIO_TYPE(${gpio_grip_wifi_irq})>;
+		interrupts = <SEC_GPIO_NUM(${gpio_grip_wifi_irq}) 0>;
+
+		isg6320_wifi,irq-gpio = <SEC_GPIO_REF(${gpio_grip_wifi_irq}) 0>;
+
+		isg6320_wifi,reg_num = <150>;
+		isg6320_wifi,multi_use = <0>;
+		isg6320_wifi,hallic_detect = <0>;
+		isg6320_wifi,hallic_cert_detect = <0>;
+	};
+};
+
+#endif/* isg6320_wifi */
+
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensors/isg6320/dts/isg6320.a13ve.dtsi */
+&isg6320 {
+	isg6320,reg_num = <107>;
+	isg6320,set_reg = /bits/ 8 <
+				0x4B 0x45
+				0x31 0x00
+				0x17 0x3B
+				0x18 0x38
+				0x19 0x00
+				0x1A 0x1E
+				0x1B 0x16
+				0x1C 0x1E
+				0x1D 0x34
+				0x1E 0x00
+				0x1F 0x07
+				0x20 0x16
+				0x21 0x16
+				0x22 0x25
+				0x23 0x34
+				0x24 0x07
+				0x25 0x25
+				0x26 0x34
+				0x27 0x07
+				0x28 0x16
+				0x2B 0x29
+				0x2F 0x77
+				0x38 0x31
+				0x60 0x05
+				0x61 0x56
+				0x62 0x49
+				0x91 0x49
+				0x65 0x32
+				0x67 0x58
+				0x68 0x34
+				0x69 0x40
+				0x6A 0x00
+				0x6C 0x80
+				0x6D 0x84
+				0x6E 0x44
+				0x6F 0x08
+				0x70 0x60
+				0x71 0xC0
+				0x72 0x40
+				0x73 0x00
+				0x74 0xED
+				0x75 0x40
+				0x76 0xED
+				0x77 0xFA
+				0x78 0x90
+				0x79 0xF0
+				0x7C 0x60
+				0x7D 0x1E
+				0x89 0x01
+				0x8A 0x69
+				0x8B 0x7D
+				0x8C 0x7D
+				0x94 0x05
+				0x95 0x48
+				0x96 0x49
+				0xC5 0x49
+				0x99 0x32
+				0x9B 0x58
+				0x9C 0x34
+				0x9D 0x40
+				0x9E 0x00
+				0xA0 0x80
+				0xA1 0x82
+				0xA2 0x44
+				0xA3 0x08
+				0xA4 0x60
+				0xA5 0xC0
+				0xA6 0x40
+				0xA7 0x00
+				0xA8 0xED
+				0xA9 0x40
+				0xAA 0xED
+				0xAB 0xF9
+				0xAC 0xA0
+				0xAD 0xF0
+				0xB0 0x60
+				0xB1 0x1A
+				0xBD 0x01
+				0xBE 0x69
+				0xBF 0x7D
+				0xC0 0x7D
+				0x51 0x06
+				0x52 0x10
+				0x55 0x20
+				0x56 0x30
+				0x59 0x20
+				0x5A 0x1D
+				0xD1 0x04
+				0xD2 0x10
+				0xD5 0x20
+				0xD6 0x30
+				0xD9 0x28
+				0xDA 0x0A
+				0x37 0x33
+				0x90 0x13
+				0xC4 0x13
+				0x05 0xB8
+				0x06 0x80
+				0x07 0x0D
+				0x08 0x01
+				0x09 0x80
+				0x11 0x09
+				0x12 0x08
+				0x14 0x33
+				0x15 0x13
+				0x16 0x13
+				0x2C 0x03
+				>;
+};

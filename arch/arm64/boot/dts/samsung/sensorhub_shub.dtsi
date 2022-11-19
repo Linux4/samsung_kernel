@@ -1,0 +1,22 @@
+#if 0
+&${sensor_vdd_1p8} {
+	regulator-name = "VDD_SENSOR_1P8";
+};
+#endif
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+#if 0
+				sensor-vdd-regulator = "VDD_SENSOR_1P8";
+#endif
+
+#if 0
+				mag-check-nfc = <SEC_GPIO_REF(${gpio_nfc_check}) 0>;
+#endif
+			};
+		};
+	};
+};

@@ -1,0 +1,125 @@
+/*
+ * SAMSUNG LCD Panel Device Tree Source
+ *
+ * Copyright (c) Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	fragment@lcd {
+		target-path = "/";
+		__overlay__ {
+			panel {
+				compatible = "samsung,mtk-dsi-panel";
+				smcdsd_panel = <&ea8076>;
+			};
+
+			lcd_fixed_regulator: lcd_fixed_regulator {
+				compatible = "simple-bus";
+
+				__gpio_lcd_rst: __gpio_lcd_rst {
+					compatible = "regulator-fixed";
+					regulator-name = "gpio_lcd_rst";
+					gpio = <&pio 45 0>;					/* LCD_RST */
+					enable-active-high;
+					regulator-boot-on;
+				};
+				__gpio_lcd_1P8_en: __gpio_lcd_1P8_en {
+					compatible = "regulator-fixed";
+					regulator-name = "gpio_lcd_1p8_en";
+					gpio = <&pio 25 0>;					/* LCD_1P8_EN */
+					enable-active-high;
+					regulator-boot-on;
+				};
+				__gpio_lcd_3P0_en: __gpio_lcd_3P0_en {
+					compatible = "regulator-fixed";
+					regulator-name = "gpio_lcd_3p0_en";
+					gpio = <&pio 153 0>;					/* LCD_3P0_EN */
+					enable-active-high;
+					regulator-boot-on;
+				};
+			};
+
+			smcdsd_board_ea8076: smcdsd_board_ea8076 {
+				gpio_con = <&pio 92 0x0>;					/* LCD_CON_DET */
+				gpio_det = <&pio 179 0x1>;					/* LCD_ESD_DET */
+				gpio_pcd = <&pio 54 0x1>;					/* LCD_PCD_DET */
+				gpio_err = <&pio 28 0x1>;					/* LCD_ERR_FG */
+
+				panel_power_enable {
+					type =
+					"regulator,enable",	"gpio_lcd_1p8_en",
+					"delay,usleep",	"2000",
+					"regulator,enable",	"gpio_lcd_3p0_en",
+					"delay,usleep",	"10000";
+				};
+				panel_power_disable {
+					type =
+					"regulator,disable",	"gpio_lcd_3p0_en",
+					"delay,usleep",	"5000",
+					"regulator,disable",	"gpio_lcd_1p8_en",
+					"delay,usleep",	"5000";
+				};
+				panel_reset_enable {
+					type =
+					"delay,usleep",	"1000",
+					"regulator,enable",	"gpio_lcd_rst",
+					"delay,usleep",	"1000",
+					"regulator,disable",	"gpio_lcd_rst",
+					"delay,usleep",	"1000",
+					"regulator,enable",	"gpio_lcd_rst",
+					"delay,usleep",	"11000";
+				};
+				panel_reset_disable {
+					type =
+					"regulator,disable",	"gpio_lcd_rst",
+					"delay,usleep",	"10000";
+				};
+				panel_regulator_init {
+					type =
+					"regulator,enable",	"gpio_lcd_1p8_en",
+					"regulator,enable",	"gpio_lcd_3p0_en",
+					"regulator,enable",	"gpio_lcd_rst";
+				};
+			};
+
+			ea8076: ea8076 {
+				/* id_match: MASK(HEX) EXPECT(HEX) */
+				id_match = <
+					0x000000 0x000000
+				>;
+				lcm_params-types = <2>; /* 0: LCM_TYPE_DBI, 1: LCM_TYPE_DPI, 2: LCM_TYPE_DSI */
+				lcm_params-dsi-mode = <0>;	/* 0: CMD, 1: SYNC_PULSE_VDO, 2: SYNC_EVENT_VDO, 3: BURST_VDO */
+				lcm_params-dsi-lane_num = <4>;
+				lcm_params-dsi-packet_size = <256>;
+				lcm_params-dsi-ps = <2>; /* 2: LCM_PACKED_PS_24BIT_RGB888 */
+
+				lcm_params-resolution = <1080 2400>;
+				lcm_params-physical_width = <64>;		/* 63.612 mm x 141.360 mm */
+				lcm_params-physical_height = <141>;
+
+				lcm_params-dsi-vertical_sync_active = <2>;
+				lcm_params-dsi-vertical_backporch = <12>;
+				lcm_params-dsi-vertical_frontporch = <5>;
+				lcm_params-dsi-horizontal_sync_active = <10>;
+				lcm_params-dsi-horizontal_backporch = <14>;
+				lcm_params-dsi-horizontal_frontporch = <30>;
+
+				lcm_params-dsi-data_rate = <1200>; /* 1660 */
+				lcm_params-dsi-ssc_disable = <1>;
+
+				smcdsd_board = <&smcdsd_board_ea8076>;
+			};
+		};
+	};
+};
+
+/* dts clean section */
+&led6 {
+	compatible;
+};
+

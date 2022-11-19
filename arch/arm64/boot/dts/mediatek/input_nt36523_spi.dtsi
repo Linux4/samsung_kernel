@@ -1,0 +1,254 @@
+/* NEED TO FIX IF YOU WANT USE THIS */
+
+&pio {
+	nt36523_tsp_intr_on: nt36523_tsp_intr_on {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,10), 0)>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	nt36523_tsp_intr_off: nt36523_tsp_intr_off {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,10), 0)>;
+			slew-rate = <0>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+};
+&pio {
+	nt36523_tsp_reset_on: nt36523_tsp_reset_on {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,4), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	nt36523_tsp_reset_off: nt36523_tsp_reset_off {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,4), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+};
+&pio {
+	nt36523_tsp_on_cs: nt36523_tsp_on_cs {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,18), 1)>;
+			bias-disable;
+		};
+	};
+	nt36523_tsp_off_cs: nt36523_tsp_off_cs {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,18), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+};
+&pio {
+	nt36523_tsp_on_clk: nt36523_tsp_on_clk {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,20), 1)>;
+			bias-disable;
+		};
+	};
+	nt36523_tsp_off_clk: nt36523_tsp_off_clk {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,20), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	nt36523_tsp_on_mosi: nt36523_tsp_on_mosi {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,19), 1)>;
+			bias-disable;
+		};
+	};
+	nt36523_tsp_off_mosi: nt36523_tsp_off_mosi {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,19), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	nt36523_tsp_on_miso: nt36523_tsp_on_miso {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,17), 1)>;
+			bias-disable;
+		};
+	};
+
+	nt36523_tsp_off_miso: nt36523_tsp_off_miso {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,17), 0)>;
+			slew-rate = <0>;
+			bias-pull-down;
+			input-enable;
+		};
+	};
+
+	nt36523_default_miso: nt36523_default_miso {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,17), 0)>;
+			slew-rate = <0>;
+			bias-disable;
+			output-low;
+		};
+	};
+};
+
+&spi4 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	num-cs = <1>;
+	tsp_novatek: novatek@0 {
+		status = "okay";
+		compatible = "novatek,NVT-ts-spi";
+		reg = <0>; //Same as CS ID
+		spi-max-frequency = <9600000>;
+
+		pinctrl-names = "default", "on_state", "off_state";
+		pinctrl-0 = <&nt36523_tsp_intr_on &nt36523_tsp_reset_on &nt36523_tsp_on_cs &nt36523_tsp_on_clk &nt36523_tsp_on_mosi &nt36523_tsp_on_miso>;
+		pinctrl-1 = <&nt36523_tsp_intr_on &nt36523_tsp_reset_on &nt36523_tsp_on_cs &nt36523_tsp_on_clk &nt36523_tsp_on_mosi &nt36523_tsp_on_miso>;
+		pinctrl-2 = <&nt36523_tsp_intr_off &nt36523_tsp_reset_off &nt36523_tsp_off_cs &nt36523_tsp_off_clk &nt36523_tsp_off_mosi &nt36523_tsp_off_miso>;
+
+		novatek,reset-gpio = <SEC_GPIO_REF(AP,pio,4) 0x00>;
+		novatek,irq-gpio = <SEC_GPIO_REF(AP,pio,10) 0x2002>;
+
+		novatek,enable_sysinput_enabled;
+	};
+};
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/novatek/nt36523_spi/dts/input-mtk-tsp-nt36523-spi.a13ve.dtsi */
+&nt36523_tsp_on_cs {
+	pins_cmd_dat{
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,18), 2)>;
+		bias-disable;
+	};
+};
+
+&nt36523_tsp_on_clk {
+	pins_cmd_dat{
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,20), 2)>;
+		bias-disable;
+	};
+};
+
+&nt36523_tsp_on_mosi {
+	pins_cmd_dat{
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,19), 2)>;
+		bias-disable;
+	};
+};
+
+&nt36523_tsp_on_miso {
+	pins_cmd_dat{
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,17), 2)>;
+		bias-disable;
+	};
+};
+
+&pio {
+	nt36523_tsp_id1_default: nt36523_tsp_id1_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO165__FUNC_GPIO165>;
+			slew-rate = <0>;
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	nt36523_tsp_id2_default: nt36523_tsp_id2_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO153__FUNC_GPIO153>;
+			slew-rate = <0>;
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	nt36523_tsp_id3_default: nt36523_tsp_id3_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO150__FUNC_GPIO150>;
+			slew-rate = <0>;
+			input-enable;
+			bias-disable;
+		};
+	};
+};
+
+&spi4 {
+	num-cs = <2>;
+};
+
+&tsp_novatek{
+	pinctrl-names = "default", "on_state", "off_state";
+	pinctrl-0 = <&nt36523_tsp_intr_on &nt36523_tsp_reset_on &nt36523_tsp_off_cs &nt36523_tsp_off_clk &nt36523_tsp_off_mosi &nt36523_default_miso &nt36523_tsp_id1_default &nt36523_tsp_id2_default &nt36523_tsp_id3_default>;
+	pinctrl-1 = <&nt36523_tsp_intr_on &nt36523_tsp_reset_on &nt36523_tsp_on_cs &nt36523_tsp_on_clk &nt36523_tsp_on_mosi &nt36523_tsp_on_miso &nt36523_tsp_id1_default &nt36523_tsp_id2_default &nt36523_tsp_id3_default>;
+	pinctrl-2 = <&nt36523_tsp_intr_off &nt36523_tsp_reset_off &nt36523_tsp_off_cs &nt36523_tsp_off_clk &nt36523_tsp_off_mosi &nt36523_tsp_off_miso &nt36523_tsp_id1_default &nt36523_tsp_id2_default &nt36523_tsp_id3_default>;
+
+	novatek,resolution = <1080 2408>;
+	novatek,enable_settings_aot;
+	novatek,support_ear_detect_mode;
+	novatek,prox_lp_scan_enabled;
+
+	novatek,lcdid1-gpio = <&pio 165 0x0>;
+	novatek,lcdid2-gpio = <&pio 153 0x0>;
+	novatek,lcdid3-gpio = <&pio 150 0x0>;
+	novatek,lcdid = <0>;	// CSOT
+	novatek,lcdtype = <0x4bf240>;
+	novatek,fw_name = "tsp_novatek/nt36672_a13ve_csot.bin";
+	novatek,fw_name_mp = "tsp_novatek/nt36672_a13ve_csot_mp.bin";
+
+	novatek,name_lcd_rst = "lcd_rst";
+	novatek,name_lcd_vddi = "lcd_vddi";
+	novatek,name_lcd_bl_en = "lcd_bl_en";
+	novatek,name_lcd_vsp = "lcd_vsp";
+	novatek,name_lcd_vsn = "lcd_vsn";
+
+	/* 672A, 525B, 675, 526, 672C */
+	novatek,swrst-n8-addr = <0x03F0FE>;
+	novatek,spi-rd-fast-addr = <0x03F310>;
+
+	/* MP */
+	novatek,mp-support-dt;
+
+	/* nt36672_a13ve_csot.bin */
+	novatek-mp-criteria-723B@0 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "novatek-mp-criteria-723B";
+
+		/* sec cmd test config */
+		open_test_spec = <(-511) 5120>;
+		short_test_spec = <10000 14008>;
+		diff_test_frame = <50>;
+		fdm_x_num = <2>;
+	};
+
+	/* nt36672_a13ve_tianma.bin */
+	novatek-mp-criteria-7241@0 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "novatek-mp-criteria-7241";
+
+		/* sec cmd test config */
+		open_test_spec = <(-511) 5120>;
+		short_test_spec = <10000 14008>;
+		diff_test_frame = <50>;
+		fdm_x_num = <2>;
+	};
+};
