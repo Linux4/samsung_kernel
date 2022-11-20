@@ -1,0 +1,18 @@
+#
+#
+#
+config DC_MOTOR
+        tristate "DC motor"
+        default n
+        depends on ANDROID_TIMED_OUTPUT
+        help
+          Say Y to enalbe the DC motor.
+
+
+config SEC_VIB
+	tristate "SEC DC Vibrator"
+	default n
+	depends on ANDROID_TIMED_OUTPUT
+	help
+		If you say yes here you will get support for the
+		SEC DC Vibrator.
