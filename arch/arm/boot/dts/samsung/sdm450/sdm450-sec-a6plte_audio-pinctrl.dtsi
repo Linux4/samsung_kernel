@@ -1,0 +1,181 @@
+/*
+ * Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	tlmm: pinctrl@1000000 {
+		compatible = "qcom,msm8953-pinctrl";
+		reg = <0x1000000 0x300000>;
+		interrupts = <0 208 0>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+
+		earjack_det_pin {
+			earjack_det_act: earjack_det_act {
+				mux {
+					pins = "gpio48";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio48";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+
+			earjack_det_sus: earjack_det_sus {
+				mux {
+					pins = "gpio48";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio48";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+
+		earjack_swtich_pin {
+			earjack_switch_act: earjack_switch_act {
+				mux {
+					pins = "gpio141";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio141";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+
+			earjack_switch_sus: earjack_switch_sus {
+				mux {
+					pins = "gpio141";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio141";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+
+		quat_tlmm_lines_init: quat_tlmm_lines_init {
+			quat_tlmm_lines_act: quat_tlmm_lines_act {
+				mux {
+					pins = "gpio135", "gpio138", "gpio137";
+					function = "sec_mi2s";
+				};
+				config {
+					pins = "gpio135", "gpio138", "gpio137";
+					drive-strength = <8>;
+					bias-disable;
+				};
+			};
+			quat_tlmm_lines_sus: quat_tlmm_lines_sus {
+				mux {
+					pins = "gpio135", "gpio138", "gpio137";
+					function = "sec_mi2s";
+				};
+				config {
+					pins = "gpio135", "gpio138", "gpio137";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+
+		quat_tlmm_ws_lines_init: quat_tlmm_ws_lines_init {
+			quat_tlmm_ws_lines_act: quat_tlmm_ws_lines_act {
+				mux {
+					pins = "gpio136";
+					function = "sec_mi2s";
+				};
+				config {
+					pins = "gpio136";
+					drive-strength = <8>;
+					bias-disable;
+				};
+			};
+			quat_tlmm_ws_lines_sus: quat_tlmm_ws_lines_sus {
+				mux {
+					pins = "gpio136";
+					function = "sec_mi2s";
+				};
+				config {
+					pins = "gpio136";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+
+		/delete-node/cdc-pdm-2-lines;
+		cdc-pdm-2-lines {
+			cdc_pdm_lines_2_act: pdm_lines_2_on {
+				mux {
+					pins = "gpio70", "gpio71", "gpio72";
+					function = "cdc_pdm0";
+				};
+
+				config {
+					pins = "gpio70", "gpio71", "gpio72";
+					drive-strength = <4>;
+				};
+			};
+
+			cdc_pdm_lines_2_sus: pdm_lines_2_off {
+				mux {
+					pins = "gpio70", "gpio71", "gpio72";
+					function = "cdc_pdm0";
+				};
+
+				config {
+					pins = "gpio70", "gpio71", "gpio72";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+
+		/delete-node/cdc-pdm-lines;
+		cdc-pdm-lines {
+			cdc_pdm_lines_act: pdm_lines_on {
+				mux {
+					pins = "gpio69", "gpio73", "gpio74";
+					function = "cdc_pdm0";
+				};
+
+				config {
+					pins = "gpio69", "gpio73", "gpio74";
+					drive-strength = <4>;
+				};
+			};
+			cdc_pdm_lines_sus: pdm_lines_off {
+				mux {
+					pins = "gpio69", "gpio73", "gpio74";
+					function = "cdc_pdm0";
+				};
+
+				config {
+					pins = "gpio69", "gpio73", "gpio74";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+	};
+};
