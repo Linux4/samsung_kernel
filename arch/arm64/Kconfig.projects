@@ -1,0 +1,13 @@
+config SEC_Z3Q_PROJECT
+	default n
+	bool "Samsung Z3Q Project"
+	help
+	  Support for Samsung Z3Q Project
+
+config MACH_Z3Q_CAN_SINGLE
+	select MACH_Z3Q_USA_SINGLE
+	default n
+	bool "Samsung Z3Q CAN SQ"
+	help
+	  Support for Samsung Z3Q CAN SQ device.
+
