@@ -1,0 +1,35 @@
+config CHARGER_S2MU005
+	tristate "S2MU005 charger support"
+	depends on (MFD_S2MU005) && I2C
+	help
+	 Say Y here to enable support for the S2MU005 charger
+	 S2MU005 includes pmic, led driver.
+	 S2MU005 charger is dependent on MFD_S2MU005
+	 so it needs to be defined.
+
+config S2MU005_INNER_BATTERY
+	tristate "S2MU005 inner battery type"
+	depends on CHARGER_S2MU005
+	help
+	 Say Y here to enable support for the conditional execution
+	 of code related to in-battery models using S2MU005 IFPMIC.
+	 Some features of S2MU005 might not be necessary to be run for in-battery models.
+	 Dependent on CHARGER_S2MU005
+
+config S2MU005_DISABLE_BUCK_MODE
+	bool "DISABLE buck on mode in S2MU005 charger"
+	default n
+	depends on CHARGER_S2MU005
+	help
+	 Say Y to disable use of buck on mode in S2MU005 IFPMIC.
+	 When BUCK ON only mode is used it can have side-effects such as LCD flicker because of VSYS overshoot.
+	 If model has to be compliant with BC1.2 spec we need to use this feature.
+	 Enable feature based on model requirements.
+
+config LSI_IFPMIC
+	bool "support for lsi ifpmic"
+	 help
+	  Say Y to include support
+	  for lsi ifpmic
+	  This is only enable S.LSI IFPMIC.
+	  to support S.LSI IFPMIC functions.
