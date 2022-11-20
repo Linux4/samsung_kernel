@@ -1,0 +1,19 @@
+config SEC_R8Q_PROJECT
+	default n
+	bool "Samsung R8Q Project"
+	help
+	  Support for Samsung R8Q Project
+
+config MACH_R8Q_CHN_OPEN
+	default n
+	bool "Samsung R8Q CHN OPEN"
+	help
+	  Support for Samsung R8Q CHN OPEN device.
+
+config MACH_R8Q_CHN_HKX
+	select MACH_R8Q_CHN_OPEN
+	default n
+	bool "Samsung R8Q CHN HKX"
+	help
+	  Support for Samsung R8Q CHN HKX device.
+	  
