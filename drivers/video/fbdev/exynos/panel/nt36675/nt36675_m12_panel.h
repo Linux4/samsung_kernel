@@ -1,0 +1,2421 @@
+/*
+ * linux/drivers/video/fbdev/exynos/panel/nt36675/nt36675_m12_panel.h
+ *
+ * Header file for NT36675 Dimming Driver
+ *
+ * Copyright (c) 2016 Samsung Electronics
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#ifndef __NT36675_M12_PANEL_H__
+#define __NT36675_M12_PANEL_H__
+#include "../panel_drv.h"
+#include "nt36675.h"
+
+#include "nt36675_m12_panel_dimming.h"
+#include "nt36675_m12_panel_i2c.h"
+
+#include "nt36675_m12_resol.h"
+
+#undef __pn_name__
+#define __pn_name__	m12
+
+#undef __PN_NAME__
+#define __PN_NAME__	M12
+
+static struct seqinfo m12_seqtbl[MAX_PANEL_SEQ];
+
+
+/* ===================================================================================== */
+/* ============================= [NT36675 READ INFO TABLE] ============================= */
+/* ===================================================================================== */
+/* <READINFO TABLE> IS DEPENDENT ON LDI. IF YOU NEED, DEFINE PANEL's RESOURCE TABLE */
+
+
+/* ===================================================================================== */
+/* ============================= [NT36675 RESOURCE TABLE] ============================== */
+/* ===================================================================================== */
+/* <RESOURCE TABLE> IS DEPENDENT ON LDI. IF YOU NEED, DEFINE PANEL's RESOURCE TABLE */
+
+
+/* ===================================================================================== */
+/* ============================== [NT36675 MAPPING TABLE] ============================== */
+/* ===================================================================================== */
+
+static u8 m12_brt_table[NT36675_TOTAL_NR_LUMINANCE][1] = {
+	{0},
+	{1}, {1}, {2}, {3}, {3}, {4}, {5}, {5}, {6}, {7}, /* 1: 1 */
+	{7}, {8}, {9}, {9}, {10}, {11}, {11}, {12}, {13}, {14},
+	{14}, {15}, {16}, {16}, {17}, {18}, {18}, {19}, {20}, {20},
+	{21}, {22}, {22}, {23}, {24}, {24}, {25}, {26}, {27}, {27},
+	{28}, {29}, {29}, {30}, {31}, {31}, {32}, {33}, {33}, {34},
+	{35}, {35}, {36}, {37}, {37}, {38}, {39}, {40}, {40}, {41},
+	{42}, {42}, {43}, {44}, {44}, {45}, {46}, {46}, {47}, {48},
+	{48}, {49}, {50}, {51}, {51}, {52}, {53}, {53}, {54}, {55},
+	{55}, {56}, {57}, {57}, {58}, {59}, {59}, {60}, {61}, {61},
+	{62}, {63}, {64}, {64}, {65}, {66}, {66}, {67}, {68}, {68},
+	{69}, {70}, {70}, {71}, {72}, {72}, {73}, {74}, {74}, {75},
+	{76}, {77}, {77}, {78}, {79}, {79}, {80}, {81}, {81}, {82},
+	{83}, {83}, {84}, {85}, {85}, {86}, {87}, {88}, {88}, {89}, /* 128: 88 */
+	{90}, {91}, {92}, {93}, {94}, {95}, {96}, {97}, {98}, {99},
+	{100}, {101}, {102}, {103}, {104}, {105}, {106}, {107}, {108}, {109},
+	{110}, {111}, {112}, {113}, {114}, {115}, {116}, {117}, {118}, {118},
+	{119}, {120}, {121}, {122}, {123}, {124}, {125}, {126}, {127}, {128},
+	{129}, {130}, {131}, {132}, {133}, {134}, {135}, {136}, {137}, {138},
+	{139}, {140}, {141}, {142}, {143}, {144}, {145}, {146}, {147}, {148},
+	{149}, {149}, {150}, {151}, {152}, {153}, {154}, {155}, {156}, {157},
+	{158}, {159}, {160}, {161}, {162}, {163}, {164}, {165}, {166}, {167},
+	{168}, {169}, {170}, {171}, {172}, {173}, {174}, {175}, {176}, {177},
+	{178}, {179}, {180}, {180}, {181}, {182}, {183}, {184}, {185}, {186},
+	{187}, {188}, {189}, {190}, {191}, {192}, {193}, {194}, {195}, {196},
+	{197}, {198}, {199}, {200}, {201}, {202}, {203}, {204}, {205}, {206},
+	{207}, {208}, {209}, {210}, {211}, {211}, {211}, {211}, {211}, {211}, /* 255: 211 */
+	{211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211},
+	{211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211},
+	{211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211},
+	{211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211},
+	{211}, {211}, {211}, {211}, {211}, {254},
+};
+
+
+static struct maptbl m12_maptbl[MAX_MAPTBL] = {
+	[BRT_MAPTBL] = DEFINE_2D_MAPTBL(m12_brt_table, init_brightness_table, getidx_brt_table, copy_common_maptbl),
+};
+
+/* ===================================================================================== */
+/* ============================== [NT36675 COMMAND TABLE] ============================== */
+/* ===================================================================================== */
+static u8 M12_SLEEP_OUT[] = { 0x11 };
+static u8 M12_SLEEP_IN[] = { 0x10 };
+static u8 M12_DISPLAY_OFF[] = { 0x28 };
+static u8 M12_DISPLAY_ON[] = { 0x29 };
+
+static u8 M12_BRIGHTNESS[] = {
+	0x51,
+	0x0F, 0xFF
+};
+
+static u8 M12_BRIGHTNESS_MODE[] = {
+	0x53,
+	0x24,
+};
+
+/*  */
+static u8 M12_NT36675_01[] = {
+	0xFF,
+	0x10,
+};
+
+static u8 M12_NT36675_02[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 M12_NT36675_03[] = {
+	0xB0,
+	0x00,
+};
+
+static u8 M12_NT36675_04[] = {
+	0xBA,
+	0x02,
+};
+
+static u8 M12_NT36675_05[] = {
+	0xFF,
+	0x20,
+};
+
+static u8 M12_NT36675_06[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 M12_NT36675_07[] = {
+	0x06,
+	0x64,
+};
+
+static u8 M12_NT36675_08[] = {
+	0x07,
+	0x28,
+};
+
+static u8 M12_NT36675_09[] = {
+	0x69,
+	0x92,
+};
+
+static u8 M12_NT36675_10[] = {
+	0x95,
+	0xD1,
+};
+
+static u8 M12_NT36675_11[] = {
+	0x96,
+	0xD1,
+};
+
+static u8 M12_NT36675_12[] = {
+	0xF2,
+	0x54,
+};
+
+static u8 M12_NT36675_13[] = {
+	0xF4,
+	0x54,
+};
+
+static u8 M12_NT36675_14[] = {
+	0xF6,
+	0x54,
+};
+
+static u8 M12_NT36675_15[] = {
+	0xF8,
+	0x54,
+};
+
+static u8 M12_NT36675_16[] = {
+	0x1F,
+	0x02,
+};
+
+static u8 M12_NT36675_17[] = {
+	0xFF,
+	0x24,
+};
+
+static u8 M12_NT36675_18[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 M12_NT36675_19[] = {
+	0x00,
+	0x13,
+};
+
+static u8 M12_NT36675_20[] = {
+	0x01,
+	0x15,
+};
+
+static u8 M12_NT36675_21[] = {
+	0x02,
+	0x17,
+};
+
+static u8 M12_NT36675_22[] = {
+	0x03,
+	0x26,
+};
+
+static u8 M12_NT36675_23[] = {
+	0x04,
+	0x27,
+};
+
+static u8 M12_NT36675_24[] = {
+	0x05,
+	0x28,
+};
+
+static u8 M12_NT36675_25[] = {
+	0x07,
+	0x24,
+};
+
+static u8 M12_NT36675_26[] = {
+	0x08,
+	0x24,
+};
+
+static u8 M12_NT36675_27[] = {
+	0x0A,
+	0x22,
+};
+
+static u8 M12_NT36675_28[] = {
+	0x0C,
+	0x00,
+};
+
+static u8 M12_NT36675_29[] = {
+	0x0D,
+	0x0F,
+};
+
+static u8 M12_NT36675_30[] = {
+	0x0E,
+	0x01,
+};
+
+static u8 M12_NT36675_31[] = {
+	0x10,
+	0x03,
+};
+
+static u8 M12_NT36675_32[] = {
+	0x11,
+	0x04,
+};
+
+static u8 M12_NT36675_33[] = {
+	0x12,
+	0x05,
+};
+
+static u8 M12_NT36675_34[] = {
+	0x13,
+	0x06,
+};
+
+static u8 M12_NT36675_35[] = {
+	0x15,
+	0x0B,
+};
+
+static u8 M12_NT36675_36[] = {
+	0x17,
+	0x0C,
+};
+
+static u8 M12_NT36675_37[] = {
+	0x18,
+	0x13,
+};
+
+static u8 M12_NT36675_38[] = {
+	0x19,
+	0x15,
+};
+
+static u8 M12_NT36675_39[] = {
+	0x1A,
+	0x17,
+};
+
+static u8 M12_NT36675_40[] = {
+	0x1B,
+	0x26,
+};
+
+static u8 M12_NT36675_41[] = {
+	0x1C,
+	0x27,
+};
+
+static u8 M12_NT36675_42[] = {
+	0x1D,
+	0x28,
+};
+
+static u8 M12_NT36675_43[] = {
+	0x1F,
+	0x24,
+};
+
+static u8 M12_NT36675_44[] = {
+	0x20,
+	0x24,
+};
+
+static u8 M12_NT36675_45[] = {
+	0x22,
+	0x22,
+};
+
+static u8 M12_NT36675_46[] = {
+	0x24,
+	0x00,
+};
+
+static u8 M12_NT36675_47[] = {
+	0x25,
+	0x0F,
+};
+
+static u8 M12_NT36675_48[] = {
+	0x26,
+	0x01,
+};
+
+static u8 M12_NT36675_49[] = {
+	0x28,
+	0x03,
+};
+
+static u8 M12_NT36675_50[] = {
+	0x29,
+	0x04,
+};
+
+static u8 M12_NT36675_51[] = {
+	0x2A,
+	0x05,
+};
+
+static u8 M12_NT36675_52[] = {
+	0x2B,
+	0x06,
+};
+
+static u8 M12_NT36675_53[] = {
+	0x2F,
+	0x0B,
+};
+
+static u8 M12_NT36675_54[] = {
+	0x31,
+	0x0C,
+};
+
+static u8 M12_NT36675_55[] = {
+	0x32,
+	0x09,
+};
+
+static u8 M12_NT36675_56[] = {
+	0x33,
+	0x03,
+};
+
+static u8 M12_NT36675_57[] = {
+	0x34,
+	0x03,
+};
+
+static u8 M12_NT36675_58[] = {
+	0x35,
+	0x01,
+};
+
+static u8 M12_NT36675_59[] = {
+	0x36,
+	0x9D,
+};
+
+static u8 M12_NT36675_60[] = {
+	0x45,
+	0x04,
+};
+
+static u8 M12_NT36675_61[] = {
+	0x47,
+	0x04,
+};
+
+static u8 M12_NT36675_62[] = {
+	0x4B,
+	0x49,
+};
+
+static u8 M12_NT36675_63[] = {
+	0x4E,
+	0x9A,
+};
+
+static u8 M12_NT36675_64[] = {
+	0x4F,
+	0x9A,
+};
+
+static u8 M12_NT36675_65[] = {
+	0x50,
+	0x02,
+};
+
+static u8 M12_NT36675_66[] = {
+	0x53,
+	0x9A,
+};
+
+static u8 M12_NT36675_67[] = {
+	0x79,
+	0x22,
+};
+
+static u8 M12_NT36675_68[] = {
+	0x7A,
+	0x83,
+};
+
+static u8 M12_NT36675_69[] = {
+	0x7B,
+	0x96,
+};
+
+static u8 M12_NT36675_70[] = {
+	0x7D,
+	0x03,
+};
+
+static u8 M12_NT36675_71[] = {
+	0x80,
+	0x03,
+};
+
+static u8 M12_NT36675_72[] = {
+	0x81,
+	0x03,
+};
+
+static u8 M12_NT36675_73[] = {
+	0x82,
+	0x16,
+};
+
+static u8 M12_NT36675_74[] = {
+	0x83,
+	0x25,
+};
+
+static u8 M12_NT36675_75[] = {
+	0x84,
+	0x34,
+};
+
+static u8 M12_NT36675_76[] = {
+	0x85,
+	0x43,
+};
+
+static u8 M12_NT36675_77[] = {
+	0x86,
+	0x52,
+};
+
+static u8 M12_NT36675_78[] = {
+	0x87,
+	0x61,
+};
+
+static u8 M12_NT36675_79[] = {
+	0x90,
+	0x43,
+};
+
+static u8 M12_NT36675_80[] = {
+	0x91,
+	0x52,
+};
+
+static u8 M12_NT36675_81[] = {
+	0x92,
+	0x61,
+};
+
+static u8 M12_NT36675_82[] = {
+	0x93,
+	0x16,
+};
+
+static u8 M12_NT36675_83[] = {
+	0x94,
+	0x25,
+};
+
+static u8 M12_NT36675_84[] = {
+	0x95,
+	0x34,
+};
+
+static u8 M12_NT36675_85[] = {
+	0x9C,
+	0xF4,
+};
+
+static u8 M12_NT36675_86[] = {
+	0x9D,
+	0x01,
+};
+
+static u8 M12_NT36675_87[] = {
+	0xA0,
+	0x16,
+};
+
+static u8 M12_NT36675_88[] = {
+	0xA2,
+	0x16,
+};
+
+static u8 M12_NT36675_89[] = {
+	0xA3,
+	0x03,
+};
+
+static u8 M12_NT36675_90[] = {
+	0xA4,
+	0x03,
+};
+
+static u8 M12_NT36675_91[] = {
+	0xA5,
+	0x03,
+};
+
+static u8 M12_NT36675_92[] = {
+	0xAA,
+	0x05,
+};
+
+static u8 M12_NT36675_93[] = {
+	0xAD,
+	0x02,
+};
+
+static u8 M12_NT36675_94[] = {
+	0xB0,
+	0x0B,
+};
+
+static u8 M12_NT36675_95[] = {
+	0xB3,
+	0x08,
+};
+
+static u8 M12_NT36675_96[] = {
+	0xB6,
+	0x11,
+};
+
+static u8 M12_NT36675_97[] = {
+	0xB9,
+	0x0E,
+};
+
+static u8 M12_NT36675_98[] = {
+	0xBC,
+	0x17,
+};
+
+static u8 M12_NT36675_99[] = {
+	0xBF,
+	0x14,
+};
+
+static u8 M12_NT36675_100[] = {
+	0xC4,
+	0xC0,
+};
+
+static u8 M12_NT36675_101[] = {
+	0xCA,
+	0xC9,
+};
+
+static u8 M12_NT36675_102[] = {
+	0xD9,
+	0x80,
+};
+
+static u8 M12_NT36675_103[] = {
+	0xE5,
+	0x06,
+};
+
+static u8 M12_NT36675_104[] = {
+	0xE6,
+	0x80,
+};
+
+static u8 M12_NT36675_105[] = {
+	0xE9,
+	0x03,
+};
+
+static u8 M12_NT36675_106[] = {
+	0xED,
+	0xC0,
+};
+
+static u8 M12_NT36675_107[] = {
+	0xFF,
+	0x25,
+};
+
+static u8 M12_NT36675_108[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 M12_NT36675_109[] = {
+	0x67,
+	0x21,
+};
+
+static u8 M12_NT36675_110[] = {
+	0x68,
+	0x58,
+};
+
+static u8 M12_NT36675_111[] = {
+	0x69,
+	0x10,
+};
+
+static u8 M12_NT36675_112[] = {
+	0x6B,
+	0x00,
+};
+
+static u8 M12_NT36675_113[] = {
+	0x71,
+	0x6D,
+};
+
+static u8 M12_NT36675_114[] = {
+	0x77,
+	0x72,
+};
+
+static u8 M12_NT36675_115[] = {
+	0x7E,
+	0x2D,
+};
+
+static u8 M12_NT36675_116[] = {
+	0xC3,
+	0x07,
+};
+
+static u8 M12_NT36675_117[] = {
+	0xF0,
+	0x05,
+};
+
+static u8 M12_NT36675_118[] = {
+	0xF1,
+	0x04,
+};
+
+static u8 M12_NT36675_119[] = {
+	0xFF,
+	0x26,
+};
+
+static u8 M12_NT36675_120[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 M12_NT36675_121[] = {
+	0x01,
+	0x26,
+};
+
+static u8 M12_NT36675_122[] = {
+	0x04,
+	0x26,
+};
+
+static u8 M12_NT36675_123[] = {
+	0x05,
+	0x08,
+};
+
+static u8 M12_NT36675_124[] = {
+	0x06,
+	0x29,
+};
+
+static u8 M12_NT36675_125[] = {
+	0x08,
+	0x29,
+};
+
+static u8 M12_NT36675_126[] = {
+	0x74,
+	0xAF,
+};
+
+static u8 M12_NT36675_127[] = {
+	0x81,
+	0x16,
+};
+
+static u8 M12_NT36675_128[] = {
+	0x83,
+	0x03,
+};
+
+static u8 M12_NT36675_129[] = {
+	0x84,
+	0x02,
+};
+
+static u8 M12_NT36675_130[] = {
+	0x85,
+	0x01,
+};
+
+static u8 M12_NT36675_131[] = {
+	0x86,
+	0x02,
+};
+
+static u8 M12_NT36675_132[] = {
+	0x87,
+	0x01,
+};
+
+static u8 M12_NT36675_133[] = {
+	0x88,
+	0x09,
+};
+
+static u8 M12_NT36675_134[] = {
+	0x8A,
+	0x1A,
+};
+
+static u8 M12_NT36675_135[] = {
+	0x8C,
+	0x54,
+};
+
+static u8 M12_NT36675_136[] = {
+	0x8D,
+	0x63,
+};
+
+static u8 M12_NT36675_137[] = {
+	0x8E,
+	0x72,
+};
+
+static u8 M12_NT36675_138[] = {
+	0x8F,
+	0x27,
+};
+
+static u8 M12_NT36675_139[] = {
+	0x90,
+	0x36,
+};
+
+static u8 M12_NT36675_140[] = {
+	0x91,
+	0x45,
+};
+
+static u8 M12_NT36675_141[] = {
+	0x9A,
+	0x80,
+};
+
+static u8 M12_NT36675_142[] = {
+	0x9B,
+	0x04,
+};
+
+static u8 M12_NT36675_143[] = {
+	0x9C,
+	0x00,
+};
+
+static u8 M12_NT36675_144[] = {
+	0x9D,
+	0x00,
+};
+
+static u8 M12_NT36675_145[] = {
+	0x9E,
+	0x00,
+};
+
+static u8 M12_NT36675_146[] = {
+	0xFF,
+	0x27,
+};
+
+static u8 M12_NT36675_147[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 M12_NT36675_148[] = {
+	0x00,
+	0x62,
+};
+
+static u8 M12_NT36675_149[] = {
+	0x01,
+	0x40,
+};
+
+static u8 M12_NT36675_150[] = {
+	0x02,
+	0xD0,
+};
+
+static u8 M12_NT36675_151[] = {
+	0x20,
+	0x80,
+};
+
+static u8 M12_NT36675_152[] = {
+	0x21,
+	0xC3,
+};
+
+static u8 M12_NT36675_153[] = {
+	0x25,
+	0x82,
+};
+
+static u8 M12_NT36675_154[] = {
+	0x26,
+	0x73,
+};
+
+static u8 M12_NT36675_155[] = {
+	0x88,
+	0x03,
+};
+
+static u8 M12_NT36675_156[] = {
+	0x89,
+	0x03,
+};
+
+static u8 M12_NT36675_157[] = {
+	0x8A,
+	0x02,
+};
+
+static u8 M12_NT36675_158[] = {
+	0xF9,
+	0x00,
+};
+
+static u8 M12_NT36675_159[] = {
+	0xFF,
+	0x2A,
+};
+
+static u8 M12_NT36675_160[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 M12_NT36675_161[] = {
+	0x07,
+	0x64,
+};
+
+static u8 M12_NT36675_162[] = {
+	0x0A,
+	0x30,
+};
+
+static u8 M12_NT36675_163[] = {
+	0x11,
+	0xA0,
+};
+
+static u8 M12_NT36675_164[] = {
+	0x15,
+	0x12,
+};
+
+static u8 M12_NT36675_165[] = {
+	0x16,
+	0x6D,
+};
+
+static u8 M12_NT36675_166[] = {
+	0x19,
+	0x12,
+};
+
+static u8 M12_NT36675_167[] = {
+	0x1A,
+	0x41,
+};
+
+static u8 M12_NT36675_168[] = {
+	0x1B,
+	0xFE,
+};
+
+static u8 M12_NT36675_169[] = {
+	0x1D,
+	0x08,
+};
+
+static u8 M12_NT36675_170[] = {
+	0x1E,
+	0xA1,
+};
+
+static u8 M12_NT36675_171[] = {
+	0x1F,
+	0xA1,
+};
+
+static u8 M12_NT36675_172[] = {
+	0x20,
+	0xA1,
+};
+
+static u8 M12_NT36675_173[] = {
+	0x45,
+	0xA0,
+};
+
+static u8 M12_NT36675_174[] = {
+	0x75,
+	0x6A,
+};
+
+static u8 M12_NT36675_175[] = {
+	0xA5,
+	0x50,
+};
+
+static u8 M12_NT36675_176[] = {
+	0xD8,
+	0x40,
+};
+
+static u8 M12_NT36675_177[] = {
+	0xFF,
+	0x2C,
+};
+
+static u8 M12_NT36675_178[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 M12_NT36675_179[] = {
+	0xFF,
+	0xE0,
+};
+
+static u8 M12_NT36675_180[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 M12_NT36675_181[] = {
+	0xFF,
+	0xF0,
+};
+
+static u8 M12_NT36675_182[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 M12_NT36675_183[] = {
+	0xBB,
+	0x40,
+};
+
+static u8 M12_NT36675_184[] = {
+	0xFF,
+	0xD0,
+};
+
+static u8 M12_NT36675_185[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 M12_NT36675_186[] = {
+	0xFF,
+	0x20,
+};
+
+static u8 M12_NT36675_187[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 M12_NT36675_188[] = {
+	0xB0,
+	0x00, 0x00, 0x00, 0x20, 0x00, 0x5F, 0x00, 0x8A, 0x00, 0xAB,
+	0x00, 0xC5, 0x00, 0xDB, 0x00, 0xEF,
+};
+
+static u8 M12_NT36675_189[] = {
+	0xB1,
+	0x01, 0x00, 0x01, 0x36, 0x01, 0x60, 0x01, 0x9D, 0x01, 0xCB,
+	0x02, 0x10, 0x02, 0x47, 0x02, 0x49,
+};
+
+static u8 M12_NT36675_190[] = {
+	0xB2,
+	0x02, 0x7D, 0x02, 0xB9, 0x02, 0xDE, 0x03, 0x0E, 0x03, 0x2D,
+	0x03, 0x55, 0x03, 0x62, 0x03, 0x6E,
+};
+
+static u8 M12_NT36675_191[] = {
+	0xB3,
+	0x03, 0x7F, 0x03, 0x8D, 0x03, 0xA7, 0x03, 0xB8, 0x03, 0xD2,
+	0x03, 0xD8,
+};
+
+static u8 M12_NT36675_192[] = {
+	0xB4,
+	0x00, 0x00, 0x00, 0x20, 0x00, 0x5F, 0x00, 0x8A, 0x00, 0xAB,
+	0x00, 0xC5, 0x00, 0xDB, 0x00, 0xEF,
+};
+
+static u8 M12_NT36675_193[] = {
+	0xB5,
+	0x01, 0x00, 0x01, 0x36, 0x01, 0x60, 0x01, 0x9D, 0x01, 0xCB,
+	0x02, 0x10, 0x02, 0x47, 0x02, 0x49,
+};
+
+static u8 M12_NT36675_194[] = {
+	0xB6,
+	0x02, 0x7D, 0x02, 0xB9, 0x02, 0xDE, 0x03, 0x0E, 0x03, 0x2D,
+	0x03, 0x55, 0x03, 0x62, 0x03, 0x6E,
+};
+
+static u8 M12_NT36675_195[] = {
+	0xB7,
+	0x03, 0x7F, 0x03, 0x8D, 0x03, 0xA7, 0x03, 0xB8, 0x03, 0xD2,
+	0x03, 0xD8,
+};
+
+static u8 M12_NT36675_196[] = {
+	0xB8,
+	0x00, 0x00, 0x00, 0x20, 0x00, 0x5F, 0x00, 0x8A, 0x00, 0xAB,
+	0x00, 0xC5, 0x00, 0xDB, 0x00, 0xEF,
+};
+
+static u8 M12_NT36675_197[] = {
+	0xB9,
+	0x01, 0x00, 0x01, 0x36, 0x01, 0x60, 0x01, 0x9D, 0x01, 0xCB,
+	0x02, 0x10, 0x02, 0x47, 0x02, 0x49,
+};
+
+static u8 M12_NT36675_198[] = {
+	0xBA,
+	0x02, 0x7D, 0x02, 0xB9, 0x02, 0xDE, 0x03, 0x0E, 0x03, 0x2D,
+	0x03, 0x55, 0x03, 0x62, 0x03, 0x6E,
+};
+
+static u8 M12_NT36675_199[] = {
+	0xBB,
+	0x03, 0x7F, 0x03, 0x8D, 0x03, 0xA7, 0x03, 0xB8, 0x03, 0xD2,
+	0x03, 0xD8,
+};
+
+static u8 M12_NT36675_200[] = {
+	0xC6,
+	0x11,
+};
+
+static u8 M12_NT36675_201[] = {
+	0xC7,
+	0x11,
+};
+
+static u8 M12_NT36675_202[] = {
+	0xC8,
+	0x11,
+};
+
+static u8 M12_NT36675_203[] = {
+	0xC9,
+	0x11,
+};
+
+static u8 M12_NT36675_204[] = {
+	0xCA,
+	0x11,
+};
+
+static u8 M12_NT36675_205[] = {
+	0xCB,
+	0x11,
+};
+
+static u8 M12_NT36675_206[] = {
+	0xCC,
+	0x11,
+};
+
+static u8 M12_NT36675_207[] = {
+	0xCD,
+	0x11,
+};
+
+static u8 M12_NT36675_208[] = {
+	0xCE,
+	0x11,
+};
+
+static u8 M12_NT36675_209[] = {
+	0xCF,
+	0x11,
+};
+
+static u8 M12_NT36675_210[] = {
+	0xD0,
+	0x11,
+};
+
+static u8 M12_NT36675_211[] = {
+	0xD1,
+	0x11,
+};
+
+static u8 M12_NT36675_212[] = {
+	0xD2,
+	0x11,
+};
+
+static u8 M12_NT36675_213[] = {
+	0xD3,
+	0x11,
+};
+
+static u8 M12_NT36675_214[] = {
+	0xD4,
+	0x11,
+};
+
+static u8 M12_NT36675_215[] = {
+	0xD5,
+	0x11,
+};
+
+static u8 M12_NT36675_216[] = {
+	0xD6,
+	0x11,
+};
+
+static u8 M12_NT36675_217[] = {
+	0xD7,
+	0x11,
+};
+
+static u8 M12_NT36675_218[] = {
+	0xD8,
+	0x11,
+};
+
+static u8 M12_NT36675_219[] = {
+	0xD9,
+	0x11,
+};
+
+static u8 M12_NT36675_220[] = {
+	0xDA,
+	0x11,
+};
+
+static u8 M12_NT36675_221[] = {
+	0xDB,
+	0x11,
+};
+
+static u8 M12_NT36675_222[] = {
+	0xDC,
+	0x11,
+};
+
+static u8 M12_NT36675_223[] = {
+	0xDD,
+	0x11,
+};
+
+static u8 M12_NT36675_224[] = {
+	0xDE,
+	0x11,
+};
+
+static u8 M12_NT36675_225[] = {
+	0xDF,
+	0x11,
+};
+
+static u8 M12_NT36675_226[] = {
+	0xE0,
+	0x11,
+};
+
+static u8 M12_NT36675_227[] = {
+	0xE1,
+	0x11,
+};
+
+static u8 M12_NT36675_228[] = {
+	0xE2,
+	0x11,
+};
+
+static u8 M12_NT36675_229[] = {
+	0xE3,
+	0x11,
+};
+
+static u8 M12_NT36675_230[] = {
+	0xE4,
+	0x11,
+};
+
+static u8 M12_NT36675_231[] = {
+	0xE5,
+	0x11,
+};
+
+static u8 M12_NT36675_232[] = {
+	0xE6,
+	0x11,
+};
+
+static u8 M12_NT36675_233[] = {
+	0xE7,
+	0x11,
+};
+
+static u8 M12_NT36675_234[] = {
+	0xE8,
+	0x11,
+};
+
+static u8 M12_NT36675_235[] = {
+	0xE9,
+	0x11,
+};
+
+static u8 M12_NT36675_236[] = {
+	0xFF,
+	0x21,
+};
+
+static u8 M12_NT36675_237[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 M12_NT36675_238[] = {
+	0xB0,
+	0x00, 0x00, 0x00, 0x20, 0x00, 0x5F, 0x00, 0x8A, 0x00, 0xAB,
+	0x00, 0xC5, 0x00, 0xDB, 0x00, 0xEF,
+};
+
+static u8 M12_NT36675_239[] = {
+	0xB1,
+	0x01, 0x00, 0x01, 0x36, 0x01, 0x60, 0x01, 0x9D, 0x01, 0xCB,
+	0x02, 0x10, 0x02, 0x47, 0x02, 0x49,
+};
+
+static u8 M12_NT36675_240[] = {
+	0xB2,
+	0x02, 0x7D, 0x02, 0xB9, 0x02, 0xDE, 0x03, 0x0E, 0x03, 0x2D,
+	0x03, 0x55, 0x03, 0x62, 0x03, 0x6E,
+};
+
+static u8 M12_NT36675_241[] = {
+	0xB3,
+	0x03, 0x7F, 0x03, 0x8D, 0x03, 0xA7, 0x03, 0xB8, 0x03, 0xD2,
+	0x03, 0xD8,
+};
+
+static u8 M12_NT36675_242[] = {
+	0xB4,
+	0x00, 0x00, 0x00, 0x20, 0x00, 0x5F, 0x00, 0x8A, 0x00, 0xAB,
+	0x00, 0xC5, 0x00, 0xDB, 0x00, 0xEF,
+};
+
+static u8 M12_NT36675_243[] = {
+	0xB5,
+	0x01, 0x00, 0x01, 0x36, 0x01, 0x60, 0x01, 0x9D, 0x01, 0xCB,
+	0x02, 0x10, 0x02, 0x47, 0x02, 0x49,
+};
+
+static u8 M12_NT36675_244[] = {
+	0xB6,
+	0x02, 0x7D, 0x02, 0xB9, 0x02, 0xDE, 0x03, 0x0E, 0x03, 0x2D,
+	0x03, 0x55, 0x03, 0x62, 0x03, 0x6E,
+};
+
+static u8 M12_NT36675_245[] = {
+	0xB7,
+	0x03, 0x7F, 0x03, 0x8D, 0x03, 0xA7, 0x03, 0xB8, 0x03, 0xD2,
+	0x03, 0xD8,
+};
+
+static u8 M12_NT36675_246[] = {
+	0xB8,
+	0x00, 0x00, 0x00, 0x20, 0x00, 0x5F, 0x00, 0x8A, 0x00, 0xAB,
+	0x00, 0xC5, 0x00, 0xDB, 0x00, 0xEF,
+};
+
+static u8 M12_NT36675_247[] = {
+	0xB9,
+	0x01, 0x00, 0x01, 0x36, 0x01, 0x60, 0x01, 0x9D, 0x01, 0xCB,
+	0x02, 0x10, 0x02, 0x47, 0x02, 0x49,
+};
+
+static u8 M12_NT36675_248[] = {
+	0xBA,
+	0x02, 0x7D, 0x02, 0xB9, 0x02, 0xDE, 0x03, 0x0E, 0x03, 0x2D,
+	0x03, 0x55, 0x03, 0x62, 0x03, 0x6E,
+};
+
+static u8 M12_NT36675_249[] = {
+	0xBB,
+	0x03, 0x7F, 0x03, 0x8D, 0x03, 0xA7, 0x03, 0xB8, 0x03, 0xD2,
+	0x03, 0xD8,
+};
+
+static u8 M12_NT36675_250[] = {
+	0xFF,
+	0x23,
+};
+
+static u8 M12_NT36675_251[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 M12_NT36675_252[] = {
+	0x00,
+	0x00,
+};
+
+static u8 M12_NT36675_253[] = {
+	0x07,
+	0x60,
+};
+
+static u8 M12_NT36675_254[] = {
+	0x08,
+	0x06,
+};
+
+static u8 M12_NT36675_255[] = {
+	0x09,
+	0x1C,
+};
+
+static u8 M12_NT36675_256[] = {
+	0x04,
+	0x00,
+};
+
+static u8 M12_NT36675_257[] = {
+	0x0A,
+	0xD5,
+};
+
+static u8 M12_NT36675_258[] = {
+	0x0B,
+	0xD5,
+};
+
+static u8 M12_NT36675_259[] = {
+	0x0C,
+	0xD5,
+};
+
+static u8 M12_NT36675_260[] = {
+	0x0D,
+	0x00,
+};
+
+static u8 M12_NT36675_261[] = {
+	0x11,
+	0x00,
+};
+
+static u8 M12_NT36675_262[] = {
+	0x12,
+	0xB4,
+};
+
+static u8 M12_NT36675_263[] = {
+	0x15,
+	0x75,
+};
+
+static u8 M12_NT36675_264[] = {
+	0x16,
+	0x0A,
+};
+
+static u8 M12_NT36675_265[] = {
+	0x19,
+	0x04,
+};
+
+static u8 M12_NT36675_266[] = {
+	0x1A,
+	0x04,
+};
+
+static u8 M12_NT36675_267[] = {
+	0x1B,
+	0x06,
+};
+
+static u8 M12_NT36675_268[] = {
+	0x1C,
+	0x08,
+};
+
+static u8 M12_NT36675_269[] = {
+	0x1D,
+	0x0A,
+};
+
+static u8 M12_NT36675_270[] = {
+	0x1E,
+	0x0D,
+};
+
+static u8 M12_NT36675_271[] = {
+	0x1F,
+	0x12,
+};
+
+static u8 M12_NT36675_272[] = {
+	0x20,
+	0x18,
+};
+
+static u8 M12_NT36675_273[] = {
+	0x21,
+	0x1F,
+};
+
+static u8 M12_NT36675_274[] = {
+	0x22,
+	0x26,
+};
+
+static u8 M12_NT36675_275[] = {
+	0x23,
+	0x2C,
+};
+
+static u8 M12_NT36675_276[] = {
+	0x24,
+	0x34,
+};
+
+static u8 M12_NT36675_277[] = {
+	0x25,
+	0x39,
+};
+
+static u8 M12_NT36675_278[] = {
+	0x26,
+	0x3C,
+};
+
+static u8 M12_NT36675_279[] = {
+	0x27,
+	0x3C,
+};
+
+static u8 M12_NT36675_280[] = {
+	0x27,
+	0x00,
+};
+
+static u8 M12_NT36675_281[] = {
+	0x29,
+	0x3F,
+};
+
+static u8 M12_NT36675_282[] = {
+	0x2A,
+	0x3F,
+};
+
+static u8 M12_NT36675_283[] = {
+	0x2B,
+	0x3F,
+};
+
+static u8 M12_NT36675_284[] = {
+	0x30,
+	0xFF,
+};
+
+static u8 M12_NT36675_285[] = {
+	0x31,
+	0xFE,
+};
+
+static u8 M12_NT36675_286[] = {
+	0x32,
+	0xFB,
+};
+
+static u8 M12_NT36675_287[] = {
+	0x33,
+	0xF7,
+};
+
+static u8 M12_NT36675_288[] = {
+	0x34,
+	0xF0,
+};
+
+static u8 M12_NT36675_289[] = {
+	0x35,
+	0xEA,
+};
+
+static u8 M12_NT36675_290[] = {
+	0x36,
+	0xE1,
+};
+
+static u8 M12_NT36675_291[] = {
+	0x37,
+	0xD7,
+};
+
+static u8 M12_NT36675_292[] = {
+	0x38,
+	0xCC,
+};
+
+static u8 M12_NT36675_293[] = {
+	0x39,
+	0xC6,
+};
+
+static u8 M12_NT36675_294[] = {
+	0x3A,
+	0xC1,
+};
+
+static u8 M12_NT36675_295[] = {
+	0x3B,
+	0xBB,
+};
+
+static u8 M12_NT36675_296[] = {
+	0x3D,
+	0xB6,
+};
+
+static u8 M12_NT36675_297[] = {
+	0x3F,
+	0xB0,
+};
+
+static u8 M12_NT36675_298[] = {
+	0x40,
+	0xAB,
+};
+
+static u8 M12_NT36675_299[] = {
+	0x41,
+	0xA6,
+};
+
+static u8 M12_NT36675_300[] = {
+	0xFF,
+	0xD0,
+};
+
+static u8 M12_NT36675_301[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 M12_NT36675_302[] = {
+	0x25,
+	0xA9,
+};
+
+static u8 M12_NT36675_303[] = {
+	0xFF,
+	0x10,
+};
+
+static u8 M12_NT36675_304[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 M12_NT36675_305[] = {
+	0x53,
+	0x2C,
+};
+
+static u8 M12_NT36675_306[] = {
+	0x55,
+	0x01,
+};
+
+static u8 M12_NT36675_307[] = {
+	0x68,
+	0x00, 0x01,
+};
+
+static DEFINE_STATIC_PACKET(m12_sleep_out, DSI_PKT_TYPE_WR, M12_SLEEP_OUT, 0);
+static DEFINE_STATIC_PACKET(m12_sleep_in, DSI_PKT_TYPE_WR, M12_SLEEP_IN, 0);
+static DEFINE_STATIC_PACKET(m12_display_on, DSI_PKT_TYPE_WR, M12_DISPLAY_ON, 0);
+static DEFINE_STATIC_PACKET(m12_display_off, DSI_PKT_TYPE_WR, M12_DISPLAY_OFF, 0);
+static DEFINE_STATIC_PACKET(m12_brightness_mode, DSI_PKT_TYPE_WR, M12_BRIGHTNESS_MODE, 0);
+
+static DEFINE_PKTUI(m12_brightness, &m12_maptbl[BRT_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(m12_brightness, DSI_PKT_TYPE_WR, M12_BRIGHTNESS, 0);
+
+static DEFINE_STATIC_PACKET(m12_nt36675_01, DSI_PKT_TYPE_WR, M12_NT36675_01, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_02, DSI_PKT_TYPE_WR, M12_NT36675_02, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_03, DSI_PKT_TYPE_WR, M12_NT36675_03, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_04, DSI_PKT_TYPE_WR, M12_NT36675_04, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_05, DSI_PKT_TYPE_WR, M12_NT36675_05, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_06, DSI_PKT_TYPE_WR, M12_NT36675_06, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_07, DSI_PKT_TYPE_WR, M12_NT36675_07, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_08, DSI_PKT_TYPE_WR, M12_NT36675_08, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_09, DSI_PKT_TYPE_WR, M12_NT36675_09, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_10, DSI_PKT_TYPE_WR, M12_NT36675_10, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_11, DSI_PKT_TYPE_WR, M12_NT36675_11, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_12, DSI_PKT_TYPE_WR, M12_NT36675_12, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_13, DSI_PKT_TYPE_WR, M12_NT36675_13, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_14, DSI_PKT_TYPE_WR, M12_NT36675_14, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_15, DSI_PKT_TYPE_WR, M12_NT36675_15, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_16, DSI_PKT_TYPE_WR, M12_NT36675_16, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_17, DSI_PKT_TYPE_WR, M12_NT36675_17, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_18, DSI_PKT_TYPE_WR, M12_NT36675_18, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_19, DSI_PKT_TYPE_WR, M12_NT36675_19, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_20, DSI_PKT_TYPE_WR, M12_NT36675_20, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_21, DSI_PKT_TYPE_WR, M12_NT36675_21, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_22, DSI_PKT_TYPE_WR, M12_NT36675_22, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_23, DSI_PKT_TYPE_WR, M12_NT36675_23, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_24, DSI_PKT_TYPE_WR, M12_NT36675_24, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_25, DSI_PKT_TYPE_WR, M12_NT36675_25, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_26, DSI_PKT_TYPE_WR, M12_NT36675_26, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_27, DSI_PKT_TYPE_WR, M12_NT36675_27, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_28, DSI_PKT_TYPE_WR, M12_NT36675_28, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_29, DSI_PKT_TYPE_WR, M12_NT36675_29, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_30, DSI_PKT_TYPE_WR, M12_NT36675_30, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_31, DSI_PKT_TYPE_WR, M12_NT36675_31, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_32, DSI_PKT_TYPE_WR, M12_NT36675_32, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_33, DSI_PKT_TYPE_WR, M12_NT36675_33, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_34, DSI_PKT_TYPE_WR, M12_NT36675_34, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_35, DSI_PKT_TYPE_WR, M12_NT36675_35, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_36, DSI_PKT_TYPE_WR, M12_NT36675_36, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_37, DSI_PKT_TYPE_WR, M12_NT36675_37, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_38, DSI_PKT_TYPE_WR, M12_NT36675_38, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_39, DSI_PKT_TYPE_WR, M12_NT36675_39, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_40, DSI_PKT_TYPE_WR, M12_NT36675_40, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_41, DSI_PKT_TYPE_WR, M12_NT36675_41, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_42, DSI_PKT_TYPE_WR, M12_NT36675_42, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_43, DSI_PKT_TYPE_WR, M12_NT36675_43, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_44, DSI_PKT_TYPE_WR, M12_NT36675_44, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_45, DSI_PKT_TYPE_WR, M12_NT36675_45, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_46, DSI_PKT_TYPE_WR, M12_NT36675_46, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_47, DSI_PKT_TYPE_WR, M12_NT36675_47, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_48, DSI_PKT_TYPE_WR, M12_NT36675_48, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_49, DSI_PKT_TYPE_WR, M12_NT36675_49, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_50, DSI_PKT_TYPE_WR, M12_NT36675_50, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_51, DSI_PKT_TYPE_WR, M12_NT36675_51, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_52, DSI_PKT_TYPE_WR, M12_NT36675_52, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_53, DSI_PKT_TYPE_WR, M12_NT36675_53, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_54, DSI_PKT_TYPE_WR, M12_NT36675_54, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_55, DSI_PKT_TYPE_WR, M12_NT36675_55, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_56, DSI_PKT_TYPE_WR, M12_NT36675_56, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_57, DSI_PKT_TYPE_WR, M12_NT36675_57, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_58, DSI_PKT_TYPE_WR, M12_NT36675_58, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_59, DSI_PKT_TYPE_WR, M12_NT36675_59, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_60, DSI_PKT_TYPE_WR, M12_NT36675_60, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_61, DSI_PKT_TYPE_WR, M12_NT36675_61, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_62, DSI_PKT_TYPE_WR, M12_NT36675_62, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_63, DSI_PKT_TYPE_WR, M12_NT36675_63, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_64, DSI_PKT_TYPE_WR, M12_NT36675_64, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_65, DSI_PKT_TYPE_WR, M12_NT36675_65, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_66, DSI_PKT_TYPE_WR, M12_NT36675_66, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_67, DSI_PKT_TYPE_WR, M12_NT36675_67, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_68, DSI_PKT_TYPE_WR, M12_NT36675_68, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_69, DSI_PKT_TYPE_WR, M12_NT36675_69, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_70, DSI_PKT_TYPE_WR, M12_NT36675_70, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_71, DSI_PKT_TYPE_WR, M12_NT36675_71, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_72, DSI_PKT_TYPE_WR, M12_NT36675_72, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_73, DSI_PKT_TYPE_WR, M12_NT36675_73, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_74, DSI_PKT_TYPE_WR, M12_NT36675_74, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_75, DSI_PKT_TYPE_WR, M12_NT36675_75, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_76, DSI_PKT_TYPE_WR, M12_NT36675_76, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_77, DSI_PKT_TYPE_WR, M12_NT36675_77, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_78, DSI_PKT_TYPE_WR, M12_NT36675_78, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_79, DSI_PKT_TYPE_WR, M12_NT36675_79, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_80, DSI_PKT_TYPE_WR, M12_NT36675_80, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_81, DSI_PKT_TYPE_WR, M12_NT36675_81, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_82, DSI_PKT_TYPE_WR, M12_NT36675_82, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_83, DSI_PKT_TYPE_WR, M12_NT36675_83, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_84, DSI_PKT_TYPE_WR, M12_NT36675_84, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_85, DSI_PKT_TYPE_WR, M12_NT36675_85, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_86, DSI_PKT_TYPE_WR, M12_NT36675_86, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_87, DSI_PKT_TYPE_WR, M12_NT36675_87, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_88, DSI_PKT_TYPE_WR, M12_NT36675_88, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_89, DSI_PKT_TYPE_WR, M12_NT36675_89, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_90, DSI_PKT_TYPE_WR, M12_NT36675_90, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_91, DSI_PKT_TYPE_WR, M12_NT36675_91, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_92, DSI_PKT_TYPE_WR, M12_NT36675_92, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_93, DSI_PKT_TYPE_WR, M12_NT36675_93, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_94, DSI_PKT_TYPE_WR, M12_NT36675_94, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_95, DSI_PKT_TYPE_WR, M12_NT36675_95, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_96, DSI_PKT_TYPE_WR, M12_NT36675_96, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_97, DSI_PKT_TYPE_WR, M12_NT36675_97, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_98, DSI_PKT_TYPE_WR, M12_NT36675_98, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_99, DSI_PKT_TYPE_WR, M12_NT36675_99, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_100, DSI_PKT_TYPE_WR, M12_NT36675_100, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_101, DSI_PKT_TYPE_WR, M12_NT36675_101, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_102, DSI_PKT_TYPE_WR, M12_NT36675_102, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_103, DSI_PKT_TYPE_WR, M12_NT36675_103, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_104, DSI_PKT_TYPE_WR, M12_NT36675_104, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_105, DSI_PKT_TYPE_WR, M12_NT36675_105, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_106, DSI_PKT_TYPE_WR, M12_NT36675_106, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_107, DSI_PKT_TYPE_WR, M12_NT36675_107, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_108, DSI_PKT_TYPE_WR, M12_NT36675_108, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_109, DSI_PKT_TYPE_WR, M12_NT36675_109, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_110, DSI_PKT_TYPE_WR, M12_NT36675_110, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_111, DSI_PKT_TYPE_WR, M12_NT36675_111, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_112, DSI_PKT_TYPE_WR, M12_NT36675_112, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_113, DSI_PKT_TYPE_WR, M12_NT36675_113, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_114, DSI_PKT_TYPE_WR, M12_NT36675_114, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_115, DSI_PKT_TYPE_WR, M12_NT36675_115, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_116, DSI_PKT_TYPE_WR, M12_NT36675_116, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_117, DSI_PKT_TYPE_WR, M12_NT36675_117, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_118, DSI_PKT_TYPE_WR, M12_NT36675_118, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_119, DSI_PKT_TYPE_WR, M12_NT36675_119, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_120, DSI_PKT_TYPE_WR, M12_NT36675_120, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_121, DSI_PKT_TYPE_WR, M12_NT36675_121, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_122, DSI_PKT_TYPE_WR, M12_NT36675_122, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_123, DSI_PKT_TYPE_WR, M12_NT36675_123, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_124, DSI_PKT_TYPE_WR, M12_NT36675_124, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_125, DSI_PKT_TYPE_WR, M12_NT36675_125, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_126, DSI_PKT_TYPE_WR, M12_NT36675_126, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_127, DSI_PKT_TYPE_WR, M12_NT36675_127, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_128, DSI_PKT_TYPE_WR, M12_NT36675_128, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_129, DSI_PKT_TYPE_WR, M12_NT36675_129, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_130, DSI_PKT_TYPE_WR, M12_NT36675_130, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_131, DSI_PKT_TYPE_WR, M12_NT36675_131, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_132, DSI_PKT_TYPE_WR, M12_NT36675_132, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_133, DSI_PKT_TYPE_WR, M12_NT36675_133, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_134, DSI_PKT_TYPE_WR, M12_NT36675_134, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_135, DSI_PKT_TYPE_WR, M12_NT36675_135, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_136, DSI_PKT_TYPE_WR, M12_NT36675_136, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_137, DSI_PKT_TYPE_WR, M12_NT36675_137, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_138, DSI_PKT_TYPE_WR, M12_NT36675_138, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_139, DSI_PKT_TYPE_WR, M12_NT36675_139, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_140, DSI_PKT_TYPE_WR, M12_NT36675_140, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_141, DSI_PKT_TYPE_WR, M12_NT36675_141, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_142, DSI_PKT_TYPE_WR, M12_NT36675_142, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_143, DSI_PKT_TYPE_WR, M12_NT36675_143, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_144, DSI_PKT_TYPE_WR, M12_NT36675_144, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_145, DSI_PKT_TYPE_WR, M12_NT36675_145, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_146, DSI_PKT_TYPE_WR, M12_NT36675_146, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_147, DSI_PKT_TYPE_WR, M12_NT36675_147, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_148, DSI_PKT_TYPE_WR, M12_NT36675_148, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_149, DSI_PKT_TYPE_WR, M12_NT36675_149, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_150, DSI_PKT_TYPE_WR, M12_NT36675_150, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_151, DSI_PKT_TYPE_WR, M12_NT36675_151, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_152, DSI_PKT_TYPE_WR, M12_NT36675_152, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_153, DSI_PKT_TYPE_WR, M12_NT36675_153, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_154, DSI_PKT_TYPE_WR, M12_NT36675_154, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_155, DSI_PKT_TYPE_WR, M12_NT36675_155, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_156, DSI_PKT_TYPE_WR, M12_NT36675_156, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_157, DSI_PKT_TYPE_WR, M12_NT36675_157, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_158, DSI_PKT_TYPE_WR, M12_NT36675_158, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_159, DSI_PKT_TYPE_WR, M12_NT36675_159, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_160, DSI_PKT_TYPE_WR, M12_NT36675_160, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_161, DSI_PKT_TYPE_WR, M12_NT36675_161, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_162, DSI_PKT_TYPE_WR, M12_NT36675_162, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_163, DSI_PKT_TYPE_WR, M12_NT36675_163, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_164, DSI_PKT_TYPE_WR, M12_NT36675_164, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_165, DSI_PKT_TYPE_WR, M12_NT36675_165, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_166, DSI_PKT_TYPE_WR, M12_NT36675_166, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_167, DSI_PKT_TYPE_WR, M12_NT36675_167, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_168, DSI_PKT_TYPE_WR, M12_NT36675_168, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_169, DSI_PKT_TYPE_WR, M12_NT36675_169, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_170, DSI_PKT_TYPE_WR, M12_NT36675_170, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_171, DSI_PKT_TYPE_WR, M12_NT36675_171, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_172, DSI_PKT_TYPE_WR, M12_NT36675_172, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_173, DSI_PKT_TYPE_WR, M12_NT36675_173, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_174, DSI_PKT_TYPE_WR, M12_NT36675_174, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_175, DSI_PKT_TYPE_WR, M12_NT36675_175, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_176, DSI_PKT_TYPE_WR, M12_NT36675_176, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_177, DSI_PKT_TYPE_WR, M12_NT36675_177, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_178, DSI_PKT_TYPE_WR, M12_NT36675_178, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_179, DSI_PKT_TYPE_WR, M12_NT36675_179, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_180, DSI_PKT_TYPE_WR, M12_NT36675_180, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_181, DSI_PKT_TYPE_WR, M12_NT36675_181, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_182, DSI_PKT_TYPE_WR, M12_NT36675_182, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_183, DSI_PKT_TYPE_WR, M12_NT36675_183, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_184, DSI_PKT_TYPE_WR, M12_NT36675_184, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_185, DSI_PKT_TYPE_WR, M12_NT36675_185, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_186, DSI_PKT_TYPE_WR, M12_NT36675_186, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_187, DSI_PKT_TYPE_WR, M12_NT36675_187, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_188, DSI_PKT_TYPE_WR, M12_NT36675_188, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_189, DSI_PKT_TYPE_WR, M12_NT36675_189, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_190, DSI_PKT_TYPE_WR, M12_NT36675_190, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_191, DSI_PKT_TYPE_WR, M12_NT36675_191, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_192, DSI_PKT_TYPE_WR, M12_NT36675_192, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_193, DSI_PKT_TYPE_WR, M12_NT36675_193, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_194, DSI_PKT_TYPE_WR, M12_NT36675_194, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_195, DSI_PKT_TYPE_WR, M12_NT36675_195, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_196, DSI_PKT_TYPE_WR, M12_NT36675_196, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_197, DSI_PKT_TYPE_WR, M12_NT36675_197, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_198, DSI_PKT_TYPE_WR, M12_NT36675_198, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_199, DSI_PKT_TYPE_WR, M12_NT36675_199, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_200, DSI_PKT_TYPE_WR, M12_NT36675_200, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_201, DSI_PKT_TYPE_WR, M12_NT36675_201, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_202, DSI_PKT_TYPE_WR, M12_NT36675_202, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_203, DSI_PKT_TYPE_WR, M12_NT36675_203, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_204, DSI_PKT_TYPE_WR, M12_NT36675_204, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_205, DSI_PKT_TYPE_WR, M12_NT36675_205, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_206, DSI_PKT_TYPE_WR, M12_NT36675_206, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_207, DSI_PKT_TYPE_WR, M12_NT36675_207, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_208, DSI_PKT_TYPE_WR, M12_NT36675_208, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_209, DSI_PKT_TYPE_WR, M12_NT36675_209, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_210, DSI_PKT_TYPE_WR, M12_NT36675_210, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_211, DSI_PKT_TYPE_WR, M12_NT36675_211, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_212, DSI_PKT_TYPE_WR, M12_NT36675_212, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_213, DSI_PKT_TYPE_WR, M12_NT36675_213, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_214, DSI_PKT_TYPE_WR, M12_NT36675_214, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_215, DSI_PKT_TYPE_WR, M12_NT36675_215, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_216, DSI_PKT_TYPE_WR, M12_NT36675_216, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_217, DSI_PKT_TYPE_WR, M12_NT36675_217, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_218, DSI_PKT_TYPE_WR, M12_NT36675_218, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_219, DSI_PKT_TYPE_WR, M12_NT36675_219, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_220, DSI_PKT_TYPE_WR, M12_NT36675_220, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_221, DSI_PKT_TYPE_WR, M12_NT36675_221, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_222, DSI_PKT_TYPE_WR, M12_NT36675_222, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_223, DSI_PKT_TYPE_WR, M12_NT36675_223, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_224, DSI_PKT_TYPE_WR, M12_NT36675_224, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_225, DSI_PKT_TYPE_WR, M12_NT36675_225, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_226, DSI_PKT_TYPE_WR, M12_NT36675_226, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_227, DSI_PKT_TYPE_WR, M12_NT36675_227, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_228, DSI_PKT_TYPE_WR, M12_NT36675_228, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_229, DSI_PKT_TYPE_WR, M12_NT36675_229, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_230, DSI_PKT_TYPE_WR, M12_NT36675_230, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_231, DSI_PKT_TYPE_WR, M12_NT36675_231, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_232, DSI_PKT_TYPE_WR, M12_NT36675_232, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_233, DSI_PKT_TYPE_WR, M12_NT36675_233, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_234, DSI_PKT_TYPE_WR, M12_NT36675_234, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_235, DSI_PKT_TYPE_WR, M12_NT36675_235, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_236, DSI_PKT_TYPE_WR, M12_NT36675_236, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_237, DSI_PKT_TYPE_WR, M12_NT36675_237, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_238, DSI_PKT_TYPE_WR, M12_NT36675_238, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_239, DSI_PKT_TYPE_WR, M12_NT36675_239, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_240, DSI_PKT_TYPE_WR, M12_NT36675_240, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_241, DSI_PKT_TYPE_WR, M12_NT36675_241, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_242, DSI_PKT_TYPE_WR, M12_NT36675_242, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_243, DSI_PKT_TYPE_WR, M12_NT36675_243, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_244, DSI_PKT_TYPE_WR, M12_NT36675_244, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_245, DSI_PKT_TYPE_WR, M12_NT36675_245, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_246, DSI_PKT_TYPE_WR, M12_NT36675_246, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_247, DSI_PKT_TYPE_WR, M12_NT36675_247, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_248, DSI_PKT_TYPE_WR, M12_NT36675_248, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_249, DSI_PKT_TYPE_WR, M12_NT36675_249, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_250, DSI_PKT_TYPE_WR, M12_NT36675_250, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_251, DSI_PKT_TYPE_WR, M12_NT36675_251, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_252, DSI_PKT_TYPE_WR, M12_NT36675_252, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_253, DSI_PKT_TYPE_WR, M12_NT36675_253, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_254, DSI_PKT_TYPE_WR, M12_NT36675_254, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_255, DSI_PKT_TYPE_WR, M12_NT36675_255, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_256, DSI_PKT_TYPE_WR, M12_NT36675_256, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_257, DSI_PKT_TYPE_WR, M12_NT36675_257, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_258, DSI_PKT_TYPE_WR, M12_NT36675_258, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_259, DSI_PKT_TYPE_WR, M12_NT36675_259, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_260, DSI_PKT_TYPE_WR, M12_NT36675_260, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_261, DSI_PKT_TYPE_WR, M12_NT36675_261, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_262, DSI_PKT_TYPE_WR, M12_NT36675_262, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_263, DSI_PKT_TYPE_WR, M12_NT36675_263, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_264, DSI_PKT_TYPE_WR, M12_NT36675_264, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_265, DSI_PKT_TYPE_WR, M12_NT36675_265, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_266, DSI_PKT_TYPE_WR, M12_NT36675_266, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_267, DSI_PKT_TYPE_WR, M12_NT36675_267, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_268, DSI_PKT_TYPE_WR, M12_NT36675_268, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_269, DSI_PKT_TYPE_WR, M12_NT36675_269, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_270, DSI_PKT_TYPE_WR, M12_NT36675_270, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_271, DSI_PKT_TYPE_WR, M12_NT36675_271, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_272, DSI_PKT_TYPE_WR, M12_NT36675_272, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_273, DSI_PKT_TYPE_WR, M12_NT36675_273, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_274, DSI_PKT_TYPE_WR, M12_NT36675_274, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_275, DSI_PKT_TYPE_WR, M12_NT36675_275, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_276, DSI_PKT_TYPE_WR, M12_NT36675_276, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_277, DSI_PKT_TYPE_WR, M12_NT36675_277, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_278, DSI_PKT_TYPE_WR, M12_NT36675_278, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_279, DSI_PKT_TYPE_WR, M12_NT36675_279, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_280, DSI_PKT_TYPE_WR, M12_NT36675_280, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_281, DSI_PKT_TYPE_WR, M12_NT36675_281, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_282, DSI_PKT_TYPE_WR, M12_NT36675_282, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_283, DSI_PKT_TYPE_WR, M12_NT36675_283, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_284, DSI_PKT_TYPE_WR, M12_NT36675_284, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_285, DSI_PKT_TYPE_WR, M12_NT36675_285, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_286, DSI_PKT_TYPE_WR, M12_NT36675_286, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_287, DSI_PKT_TYPE_WR, M12_NT36675_287, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_288, DSI_PKT_TYPE_WR, M12_NT36675_288, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_289, DSI_PKT_TYPE_WR, M12_NT36675_289, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_290, DSI_PKT_TYPE_WR, M12_NT36675_290, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_291, DSI_PKT_TYPE_WR, M12_NT36675_291, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_292, DSI_PKT_TYPE_WR, M12_NT36675_292, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_293, DSI_PKT_TYPE_WR, M12_NT36675_293, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_294, DSI_PKT_TYPE_WR, M12_NT36675_294, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_295, DSI_PKT_TYPE_WR, M12_NT36675_295, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_296, DSI_PKT_TYPE_WR, M12_NT36675_296, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_297, DSI_PKT_TYPE_WR, M12_NT36675_297, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_298, DSI_PKT_TYPE_WR, M12_NT36675_298, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_299, DSI_PKT_TYPE_WR, M12_NT36675_299, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_300, DSI_PKT_TYPE_WR, M12_NT36675_300, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_301, DSI_PKT_TYPE_WR, M12_NT36675_301, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_302, DSI_PKT_TYPE_WR, M12_NT36675_302, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_303, DSI_PKT_TYPE_WR, M12_NT36675_303, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_304, DSI_PKT_TYPE_WR, M12_NT36675_304, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_305, DSI_PKT_TYPE_WR, M12_NT36675_305, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_306, DSI_PKT_TYPE_WR, M12_NT36675_306, 0);
+static DEFINE_STATIC_PACKET(m12_nt36675_307, DSI_PKT_TYPE_WR, M12_NT36675_307, 0);
+
+static DEFINE_PANEL_MDELAY(m12_wait_display_off, 1 * 17); /* 1 frame */
+static DEFINE_PANEL_MDELAY(m12_wait_sleep_in, 4 * 17); /* 4 frame */
+static DEFINE_PANEL_MDELAY(m12_wait_60msec, 60);
+static DEFINE_PANEL_MDELAY(m12_wait_100msec, 100);
+static DEFINE_PANEL_MDELAY(m12_wait_1msec, 1);
+static DEFINE_PANEL_MDELAY(m12_wait_blic_off, 1);
+
+
+static void *m12_init_cmdtbl[] = {
+	&nt36675_restbl[RES_ID],
+	&PKTINFO(m12_nt36675_01),
+	&PKTINFO(m12_nt36675_02),
+	&PKTINFO(m12_nt36675_03),
+	&PKTINFO(m12_nt36675_04),
+	&PKTINFO(m12_nt36675_05),
+	&PKTINFO(m12_nt36675_06),
+	&PKTINFO(m12_nt36675_07),
+	&PKTINFO(m12_nt36675_08),
+	&PKTINFO(m12_nt36675_09),
+	&PKTINFO(m12_nt36675_10),
+	&PKTINFO(m12_nt36675_11),
+	&PKTINFO(m12_nt36675_12),
+	&PKTINFO(m12_nt36675_13),
+	&PKTINFO(m12_nt36675_14),
+	&PKTINFO(m12_nt36675_15),
+	&PKTINFO(m12_nt36675_16),
+	&PKTINFO(m12_nt36675_17),
+	&PKTINFO(m12_nt36675_18),
+	&PKTINFO(m12_nt36675_19),
+	&PKTINFO(m12_nt36675_20),
+	&PKTINFO(m12_nt36675_21),
+	&PKTINFO(m12_nt36675_22),
+	&PKTINFO(m12_nt36675_23),
+	&PKTINFO(m12_nt36675_24),
+	&PKTINFO(m12_nt36675_25),
+	&PKTINFO(m12_nt36675_26),
+	&PKTINFO(m12_nt36675_27),
+	&PKTINFO(m12_nt36675_28),
+	&PKTINFO(m12_nt36675_29),
+	&PKTINFO(m12_nt36675_30),
+	&PKTINFO(m12_nt36675_31),
+	&PKTINFO(m12_nt36675_32),
+	&PKTINFO(m12_nt36675_33),
+	&PKTINFO(m12_nt36675_34),
+	&PKTINFO(m12_nt36675_35),
+	&PKTINFO(m12_nt36675_36),
+	&PKTINFO(m12_nt36675_37),
+	&PKTINFO(m12_nt36675_38),
+	&PKTINFO(m12_nt36675_39),
+	&PKTINFO(m12_nt36675_40),
+	&PKTINFO(m12_nt36675_41),
+	&PKTINFO(m12_nt36675_42),
+	&PKTINFO(m12_nt36675_43),
+	&PKTINFO(m12_nt36675_44),
+	&PKTINFO(m12_nt36675_45),
+	&PKTINFO(m12_nt36675_46),
+	&PKTINFO(m12_nt36675_47),
+	&PKTINFO(m12_nt36675_48),
+	&PKTINFO(m12_nt36675_49),
+	&PKTINFO(m12_nt36675_50),
+	&PKTINFO(m12_nt36675_51),
+	&PKTINFO(m12_nt36675_52),
+	&PKTINFO(m12_nt36675_53),
+	&PKTINFO(m12_nt36675_54),
+	&PKTINFO(m12_nt36675_55),
+	&PKTINFO(m12_nt36675_56),
+	&PKTINFO(m12_nt36675_57),
+	&PKTINFO(m12_nt36675_58),
+	&PKTINFO(m12_nt36675_59),
+	&PKTINFO(m12_nt36675_60),
+	&PKTINFO(m12_nt36675_61),
+	&PKTINFO(m12_nt36675_62),
+	&PKTINFO(m12_nt36675_63),
+	&PKTINFO(m12_nt36675_64),
+	&PKTINFO(m12_nt36675_65),
+	&PKTINFO(m12_nt36675_66),
+	&PKTINFO(m12_nt36675_67),
+	&PKTINFO(m12_nt36675_68),
+	&PKTINFO(m12_nt36675_69),
+	&PKTINFO(m12_nt36675_70),
+	&PKTINFO(m12_nt36675_71),
+	&PKTINFO(m12_nt36675_72),
+	&PKTINFO(m12_nt36675_73),
+	&PKTINFO(m12_nt36675_74),
+	&PKTINFO(m12_nt36675_75),
+	&PKTINFO(m12_nt36675_76),
+	&PKTINFO(m12_nt36675_77),
+	&PKTINFO(m12_nt36675_78),
+	&PKTINFO(m12_nt36675_79),
+	&PKTINFO(m12_nt36675_80),
+	&PKTINFO(m12_nt36675_81),
+	&PKTINFO(m12_nt36675_82),
+	&PKTINFO(m12_nt36675_83),
+	&PKTINFO(m12_nt36675_84),
+	&PKTINFO(m12_nt36675_85),
+	&PKTINFO(m12_nt36675_86),
+	&PKTINFO(m12_nt36675_87),
+	&PKTINFO(m12_nt36675_88),
+	&PKTINFO(m12_nt36675_89),
+	&PKTINFO(m12_nt36675_90),
+	&PKTINFO(m12_nt36675_91),
+	&PKTINFO(m12_nt36675_92),
+	&PKTINFO(m12_nt36675_93),
+	&PKTINFO(m12_nt36675_94),
+	&PKTINFO(m12_nt36675_95),
+	&PKTINFO(m12_nt36675_96),
+	&PKTINFO(m12_nt36675_97),
+	&PKTINFO(m12_nt36675_98),
+	&PKTINFO(m12_nt36675_99),
+	&PKTINFO(m12_nt36675_100),
+	&PKTINFO(m12_nt36675_101),
+	&PKTINFO(m12_nt36675_102),
+	&PKTINFO(m12_nt36675_103),
+	&PKTINFO(m12_nt36675_104),
+	&PKTINFO(m12_nt36675_105),
+	&PKTINFO(m12_nt36675_106),
+	&PKTINFO(m12_nt36675_107),
+	&PKTINFO(m12_nt36675_108),
+	&PKTINFO(m12_nt36675_109),
+	&PKTINFO(m12_nt36675_110),
+	&PKTINFO(m12_nt36675_111),
+	&PKTINFO(m12_nt36675_112),
+	&PKTINFO(m12_nt36675_113),
+	&PKTINFO(m12_nt36675_114),
+	&PKTINFO(m12_nt36675_115),
+	&PKTINFO(m12_nt36675_116),
+	&PKTINFO(m12_nt36675_117),
+	&PKTINFO(m12_nt36675_118),
+	&PKTINFO(m12_nt36675_119),
+	&PKTINFO(m12_nt36675_120),
+	&PKTINFO(m12_nt36675_121),
+	&PKTINFO(m12_nt36675_122),
+	&PKTINFO(m12_nt36675_123),
+	&PKTINFO(m12_nt36675_124),
+	&PKTINFO(m12_nt36675_125),
+	&PKTINFO(m12_nt36675_126),
+	&PKTINFO(m12_nt36675_127),
+	&PKTINFO(m12_nt36675_128),
+	&PKTINFO(m12_nt36675_129),
+	&PKTINFO(m12_nt36675_130),
+	&PKTINFO(m12_nt36675_131),
+	&PKTINFO(m12_nt36675_132),
+	&PKTINFO(m12_nt36675_133),
+	&PKTINFO(m12_nt36675_134),
+	&PKTINFO(m12_nt36675_135),
+	&PKTINFO(m12_nt36675_136),
+	&PKTINFO(m12_nt36675_137),
+	&PKTINFO(m12_nt36675_138),
+	&PKTINFO(m12_nt36675_139),
+	&PKTINFO(m12_nt36675_140),
+	&PKTINFO(m12_nt36675_141),
+	&PKTINFO(m12_nt36675_142),
+	&PKTINFO(m12_nt36675_143),
+	&PKTINFO(m12_nt36675_144),
+	&PKTINFO(m12_nt36675_145),
+	&PKTINFO(m12_nt36675_146),
+	&PKTINFO(m12_nt36675_147),
+	&PKTINFO(m12_nt36675_148),
+	&PKTINFO(m12_nt36675_149),
+	&PKTINFO(m12_nt36675_150),
+	&PKTINFO(m12_nt36675_151),
+	&PKTINFO(m12_nt36675_152),
+	&PKTINFO(m12_nt36675_153),
+	&PKTINFO(m12_nt36675_154),
+	&PKTINFO(m12_nt36675_155),
+	&PKTINFO(m12_nt36675_156),
+	&PKTINFO(m12_nt36675_157),
+	&PKTINFO(m12_nt36675_158),
+	&PKTINFO(m12_nt36675_159),
+	&PKTINFO(m12_nt36675_160),
+	&PKTINFO(m12_nt36675_161),
+	&PKTINFO(m12_nt36675_162),
+	&PKTINFO(m12_nt36675_163),
+	&PKTINFO(m12_nt36675_164),
+	&PKTINFO(m12_nt36675_165),
+	&PKTINFO(m12_nt36675_166),
+	&PKTINFO(m12_nt36675_167),
+	&PKTINFO(m12_nt36675_168),
+	&PKTINFO(m12_nt36675_169),
+	&PKTINFO(m12_nt36675_170),
+	&PKTINFO(m12_nt36675_171),
+	&PKTINFO(m12_nt36675_172),
+	&PKTINFO(m12_nt36675_173),
+	&PKTINFO(m12_nt36675_174),
+	&PKTINFO(m12_nt36675_175),
+	&PKTINFO(m12_nt36675_176),
+	&PKTINFO(m12_nt36675_177),
+	&PKTINFO(m12_nt36675_178),
+	&PKTINFO(m12_nt36675_179),
+	&PKTINFO(m12_nt36675_180),
+	&PKTINFO(m12_nt36675_181),
+	&PKTINFO(m12_nt36675_182),
+	&PKTINFO(m12_nt36675_183),
+	&PKTINFO(m12_nt36675_184),
+	&PKTINFO(m12_nt36675_185),
+	&PKTINFO(m12_nt36675_186),
+	&PKTINFO(m12_nt36675_187),
+	&PKTINFO(m12_nt36675_188),
+	&PKTINFO(m12_nt36675_189),
+	&PKTINFO(m12_nt36675_190),
+	&PKTINFO(m12_nt36675_191),
+	&PKTINFO(m12_nt36675_192),
+	&PKTINFO(m12_nt36675_193),
+	&PKTINFO(m12_nt36675_194),
+	&PKTINFO(m12_nt36675_195),
+	&PKTINFO(m12_nt36675_196),
+	&PKTINFO(m12_nt36675_197),
+	&PKTINFO(m12_nt36675_198),
+	&PKTINFO(m12_nt36675_199),
+	&PKTINFO(m12_nt36675_200),
+	&PKTINFO(m12_nt36675_201),
+	&PKTINFO(m12_nt36675_202),
+	&PKTINFO(m12_nt36675_203),
+	&PKTINFO(m12_nt36675_204),
+	&PKTINFO(m12_nt36675_205),
+	&PKTINFO(m12_nt36675_206),
+	&PKTINFO(m12_nt36675_207),
+	&PKTINFO(m12_nt36675_208),
+	&PKTINFO(m12_nt36675_209),
+	&PKTINFO(m12_nt36675_210),
+	&PKTINFO(m12_nt36675_211),
+	&PKTINFO(m12_nt36675_212),
+	&PKTINFO(m12_nt36675_213),
+	&PKTINFO(m12_nt36675_214),
+	&PKTINFO(m12_nt36675_215),
+	&PKTINFO(m12_nt36675_216),
+	&PKTINFO(m12_nt36675_217),
+	&PKTINFO(m12_nt36675_218),
+	&PKTINFO(m12_nt36675_219),
+	&PKTINFO(m12_nt36675_220),
+	&PKTINFO(m12_nt36675_221),
+	&PKTINFO(m12_nt36675_222),
+	&PKTINFO(m12_nt36675_223),
+	&PKTINFO(m12_nt36675_224),
+	&PKTINFO(m12_nt36675_225),
+	&PKTINFO(m12_nt36675_226),
+	&PKTINFO(m12_nt36675_227),
+	&PKTINFO(m12_nt36675_228),
+	&PKTINFO(m12_nt36675_229),
+	&PKTINFO(m12_nt36675_230),
+	&PKTINFO(m12_nt36675_231),
+	&PKTINFO(m12_nt36675_232),
+	&PKTINFO(m12_nt36675_233),
+	&PKTINFO(m12_nt36675_234),
+	&PKTINFO(m12_nt36675_235),
+	&PKTINFO(m12_nt36675_236),
+	&PKTINFO(m12_nt36675_237),
+	&PKTINFO(m12_nt36675_238),
+	&PKTINFO(m12_nt36675_239),
+	&PKTINFO(m12_nt36675_240),
+	&PKTINFO(m12_nt36675_241),
+	&PKTINFO(m12_nt36675_242),
+	&PKTINFO(m12_nt36675_243),
+	&PKTINFO(m12_nt36675_244),
+	&PKTINFO(m12_nt36675_245),
+	&PKTINFO(m12_nt36675_246),
+	&PKTINFO(m12_nt36675_247),
+	&PKTINFO(m12_nt36675_248),
+	&PKTINFO(m12_nt36675_249),
+	&PKTINFO(m12_nt36675_250),
+	&PKTINFO(m12_nt36675_251),
+	&PKTINFO(m12_nt36675_252),
+	&PKTINFO(m12_nt36675_253),
+	&PKTINFO(m12_nt36675_254),
+	&PKTINFO(m12_nt36675_255),
+	&PKTINFO(m12_nt36675_256),
+	&PKTINFO(m12_nt36675_257),
+	&PKTINFO(m12_nt36675_258),
+	&PKTINFO(m12_nt36675_259),
+	&PKTINFO(m12_nt36675_260),
+	&PKTINFO(m12_nt36675_261),
+	&PKTINFO(m12_nt36675_262),
+	&PKTINFO(m12_nt36675_263),
+	&PKTINFO(m12_nt36675_264),
+	&PKTINFO(m12_nt36675_265),
+	&PKTINFO(m12_nt36675_266),
+	&PKTINFO(m12_nt36675_267),
+	&PKTINFO(m12_nt36675_268),
+	&PKTINFO(m12_nt36675_269),
+	&PKTINFO(m12_nt36675_270),
+	&PKTINFO(m12_nt36675_271),
+	&PKTINFO(m12_nt36675_272),
+	&PKTINFO(m12_nt36675_273),
+	&PKTINFO(m12_nt36675_274),
+	&PKTINFO(m12_nt36675_275),
+	&PKTINFO(m12_nt36675_276),
+	&PKTINFO(m12_nt36675_277),
+	&PKTINFO(m12_nt36675_278),
+	&PKTINFO(m12_nt36675_279),
+	&PKTINFO(m12_nt36675_280),
+	&PKTINFO(m12_nt36675_281),
+	&PKTINFO(m12_nt36675_282),
+	&PKTINFO(m12_nt36675_283),
+	&PKTINFO(m12_nt36675_284),
+	&PKTINFO(m12_nt36675_285),
+	&PKTINFO(m12_nt36675_286),
+	&PKTINFO(m12_nt36675_287),
+	&PKTINFO(m12_nt36675_288),
+	&PKTINFO(m12_nt36675_289),
+	&PKTINFO(m12_nt36675_290),
+	&PKTINFO(m12_nt36675_291),
+	&PKTINFO(m12_nt36675_292),
+	&PKTINFO(m12_nt36675_293),
+	&PKTINFO(m12_nt36675_294),
+	&PKTINFO(m12_nt36675_295),
+	&PKTINFO(m12_nt36675_296),
+	&PKTINFO(m12_nt36675_297),
+	&PKTINFO(m12_nt36675_298),
+	&PKTINFO(m12_nt36675_299),
+	&PKTINFO(m12_nt36675_300),
+	&PKTINFO(m12_nt36675_301),
+	&PKTINFO(m12_nt36675_302),
+	&PKTINFO(m12_nt36675_303),
+	&PKTINFO(m12_nt36675_304),
+	&PKTINFO(m12_nt36675_305),
+	&PKTINFO(m12_nt36675_306),
+	&PKTINFO(m12_nt36675_307),
+	//&PKTINFO(m12_nt36675_01),
+	&PKTINFO(m12_sleep_out),
+	&DLYINFO(m12_wait_100msec),
+	&PKTINFO(m12_display_on),
+	&PKTINFO(m12_brightness_mode),
+};
+
+static void *m12_res_init_cmdtbl[] = {
+	&nt36675_restbl[RES_ID],
+};
+
+static void *m12_set_bl_cmdtbl[] = {
+	&PKTINFO(m12_brightness), //51h
+};
+
+static void *m12_display_off_cmdtbl[] = {
+	&PKTINFO(m12_display_off),
+	&DLYINFO(m12_wait_display_off),
+};
+
+static void *m12_exit_cmdtbl[] = {
+	&PKTINFO(m12_sleep_in),
+};
+
+/* ===================================================================================== */
+/* ================================= [EA8076 I2C TABLE] ===========+++================= */
+/* ===================================================================================== */
+static u8 NT36675_M12_I2C_INIT[] = {
+	0x0C, 0x2C,
+	0x0D, 0x26,
+	0x0E, 0x26,
+	0x09, 0xBE,
+	0x02, 0x6B,
+	0x03, 0x0D,
+	0x11, 0x74,
+	0x04, 0x02,
+	0x05, 0xBB,
+	0x10, 0x67,
+	0x08, 0x13,
+};
+
+static u8 NT36675_M12_I2C_EXIT_VSN[] = {
+	0x09, 0xBC,
+};
+
+static u8 NT36675_M12_I2C_EXIT_VSP[] = {
+	0x09, 0xB8,
+};
+
+static DEFINE_STATIC_PACKET(nt36675_m12_i2c_init, I2C_PKT_TYPE_WR, NT36675_M12_I2C_INIT, 0);
+static DEFINE_STATIC_PACKET(nt36675_m12_i2c_exit_vsn, I2C_PKT_TYPE_WR, NT36675_M12_I2C_EXIT_VSN, 0);
+static DEFINE_STATIC_PACKET(nt36675_m12_i2c_exit_vsp, I2C_PKT_TYPE_WR, NT36675_M12_I2C_EXIT_VSP, 0);
+static DEFINE_STATIC_PACKET(nt36675_m12_i2c_dump, I2C_PKT_TYPE_RD, NT36675_M12_I2C_INIT, 0);
+
+static void *nt36675_m12_init_cmdtbl[] = {
+	&PKTINFO(nt36675_m12_i2c_init),
+};
+
+static void *nt36675_m12_exit_cmdtbl[] = {
+	&PKTINFO(nt36675_m12_i2c_exit_vsn),
+	&DLYINFO(m12_wait_blic_off),
+	&PKTINFO(nt36675_m12_i2c_exit_vsp),
+};
+
+static void *nt36675_m12_dump_cmdtbl[] = {
+	&PKTINFO(nt36675_m12_i2c_dump),
+};
+
+
+static struct seqinfo m12_seqtbl[MAX_PANEL_SEQ] = {
+	[PANEL_INIT_SEQ] = SEQINFO_INIT("init-seq", m12_init_cmdtbl),
+	[PANEL_RES_INIT_SEQ] = SEQINFO_INIT("resource-init-seq", m12_res_init_cmdtbl),
+	[PANEL_SET_BL_SEQ] = SEQINFO_INIT("set-bl-seq", m12_set_bl_cmdtbl),
+	[PANEL_DISPLAY_OFF_SEQ] = SEQINFO_INIT("display-off-seq", m12_display_off_cmdtbl),
+	[PANEL_EXIT_SEQ] = SEQINFO_INIT("exit-seq", m12_exit_cmdtbl),
+#ifdef CONFIG_SUPPORT_I2C
+	[PANEL_I2C_INIT_SEQ] = SEQINFO_INIT("i2c-init-seq", nt36675_m12_init_cmdtbl),
+	[PANEL_I2C_EXIT_SEQ] = SEQINFO_INIT("i2c-exit-seq", nt36675_m12_exit_cmdtbl),
+	[PANEL_I2C_DUMP_SEQ] = SEQINFO_INIT("i2c-dump-seq", nt36675_m12_dump_cmdtbl),
+#endif
+};
+
+struct common_panel_info nt36675_m12_default_panel_info = {
+	.ldi_name = "nt36675",
+	.name = "nt36675_m12_default",
+	.model = "CSOT_6_52_inch",
+	.vendor = "CSO",
+	.id = 0x1AF240,
+	.rev = 0,
+	.ddi_props = {
+		.gpara = 0,
+		.err_fg_recovery = false,
+		.init_seq_by_lpdt = true,
+	},
+	.mres = {
+		.nr_resol = ARRAY_SIZE(nt36675_m12_resol),
+		.resol = nt36675_m12_resol,
+	},
+	.maptbl = m12_maptbl,
+	.nr_maptbl = ARRAY_SIZE(m12_maptbl),
+	.seqtbl = m12_seqtbl,
+	.nr_seqtbl = ARRAY_SIZE(m12_seqtbl),
+	.rditbl = nt36675_rditbl,
+	.nr_rditbl = ARRAY_SIZE(nt36675_rditbl),
+	.restbl = nt36675_restbl,
+	.nr_restbl = ARRAY_SIZE(nt36675_restbl),
+	.dumpinfo = NULL,
+	.nr_dumpinfo = 0,
+	.panel_dim_info = {
+		&nt36675_m12_panel_dimming_info,
+	},
+	.i2c_data = &nt36675_m12_i2c_data,
+};
+
+static int __init nt36675_m12_panel_init(void)
+{
+	register_common_panel(&nt36675_m12_default_panel_info);
+
+	return 0;
+}
+arch_initcall(nt36675_m12_panel_init)
+#endif /* __NT36675_M12_PANEL_H__ */

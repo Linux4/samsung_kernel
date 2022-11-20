@@ -1,0 +1,114 @@
+config CAMERA_EEPROM_SUPPORT_REAR
+        bool "Enable eeprom for rear cam"
+        depends on VENDER_MCD
+        default n
+        help
+          Enable eeprom for rear cam.
+config CAMERA_EEPROM_SUPPORT_FRONT
+        bool "Enable eeprom for front cam"
+        depends on VENDER_MCD
+        default n
+        help
+          Enable eeprom for front cam.
+config COMPANION_DCDC_USE
+        bool "Use companion DCDC regulator"
+        depends on VENDER_MCD
+        default n
+        help
+          Use companion DCDC regulator.
+config SENSOR_RETENTION_USE
+	bool "Use sensor retention"
+	depends on VENDER_MCD
+	default n
+	help
+	  Use sensor retention.
+config OIS_USE
+        bool "Use ois"
+        depends on VENDER_MCD
+        default n
+        help
+          Use ois.
+config OIS_FW_UPDATE_THREAD_USE
+        bool "Enable ois fw update thread"
+        depends on OIS_USE
+        default n
+        help
+          Enable ois fw update thread.
+config AF_HOST_CONTROL
+        bool "Enable host af control"
+        depends on VENDER_MCD
+        default n
+        help
+          Enable host af control.
+config TORCH_CURRENT_CHANGE_SUPPORT
+        bool "Change torch current in recording mode"
+        depends on VENDER_MCD
+        default n
+        help
+          Change torch current in recording mode.
+config FLASH_CURRENT_CHANGE_SUPPORT
+        bool "Change flash current in capturing image"
+        depends on VENDER_MCD
+        default n
+        help
+           Change torch current in capturing image.
+config CAMERA_PST_V01
+        bool "This camera is pst_v01"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is pst_v01.
+config CAMERA_PST_V02
+        bool "This camera is pst_v02"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is pst_v02.
+config CAMERA_PST_V03
+        bool "This camera is pst_v03"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is pst_v03.
+config SECURE_CAMERA_USE
+        bool "Use secure camera"
+        depends on VENDER_MCD
+        default n
+        help
+          Use secure camera.
+config USE_SIGNED_BINARY
+        bool "Enable signed binary processing."
+        depends on VENDER_MCD
+        default n
+        help
+          Enable signed binary processing.
+config USE_CAMERA_LDU
+        bool "Use Camera LDU"
+        depends on VENDER_MCD
+        default n
+        help
+          Use Camera LDU.
+config CAMERA_CIS_TOF_BUCK_USE
+        bool "Use isl91128 for tof"
+        depends on VENDER_MCD
+        default n
+        help
+          Use isl91128.
+config CAMERA_USE_MCU
+	bool "Use Camera mcu"
+	depends on VENDER_MCD
+	default n
+	help
+          Use Camera MCU.
+config SENSORCORE_MCU_CONTROL
+	bool "Use sensor core mcu control"
+	depends on VENDER_MCD
+	default n
+	help
+          Use sensor control mcu.
+config CAMERA_USE_INTERNAL_MCU
+	bool "Use internal MCU for OIS"
+	depends on VENDER_MCD
+	default n
+	help
+	  Use internal MCU for OIS.
