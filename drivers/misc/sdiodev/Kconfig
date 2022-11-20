@@ -1,0 +1,28 @@
+
+menu "SDIODEV modules"
+
+config SDIODEV
+	tristate "SPRD SDIO DEV SUPPORT"	
+	---help---
+	  PLEASE INSMOD THIS MODULE BEFORE OTHER SDIO DEV MODULES
+
+config SDIODEV_TEST
+	bool "SDIO DEV TEST"
+	default n
+	depends on SDIODEV
+	help
+	  FOR RUN SDIODEV TEST CASE,DO NOT OPEN IT IN NORMAL MODE
+
+config MARLIN_CALI_READY_94
+	bool "Marlin cali ready 94"
+	default n
+	help
+	  FOR marlin cali ready 94
+
+config MARLIN_CALI_READY_131
+        bool "Marlin cali ready 131"
+        default n
+        help
+          FOR marlin cali ready 131
+
+endmenu
