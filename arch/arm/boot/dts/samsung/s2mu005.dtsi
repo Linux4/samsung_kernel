@@ -1,0 +1,26 @@
+&pio {
+	if_pmic_irq: if_pmic_irq {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,3), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			input-enable;
+		};
+	};
+};
+
+&i2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	samsung,i2c-max-bus-freq = <400000>;
+	s2mu005@3D {
+		status = "okay";
+		compatible = "samsung,s2mu005mfd";
+		reg = <0x3D>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&if_pmic_irq>;
+		s2mu005,irq-gpio = <SEC_GPIO_REF(AP,pio,3) 1>;
+		s2mu005,wakeup;
+	};
+};

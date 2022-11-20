@@ -1,0 +1,142 @@
+config SPECIFY_IMGSENSOR
+	bool SPECIFY_IMGSENSOR
+	depends on MTK_IMGSENSOR
+	help
+	  Specify name of each sensor to prevent obtaining wrong sensor driver with same sensor ID.
+	  For example, imx258_mipi_raw and imx258_mipi_mono are of same sensor ID. If not specifying
+	  sensor, imx258_mipi_mono may be recognized as imx258_mipi_raw.
+
+config IMGSENSOR_MAIN
+	string "Custom main image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify main sensor.
+
+config IMGSENSOR_MAIN2
+	string "Custom main2 image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify main2 sensor.
+
+config IMGSENSOR_SUB
+	string "Custom sub image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify sub sensor.
+
+config IMGSENSOR_SUB2
+	string "Custom sub2 image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify sub2 sensor.
+
+config IMGSENSOR_MAIN3
+	string "Custom main3 image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify main3 sensor.
+
+config IMGSENSOR_CUSTOM_CAMERA 
+	bool "Use custom camera set"
+	help
+	  Use custom camera set
+
+if IMGSENSOR_CUSTOM_CAMERA
+choice IMGSENSOR_CAMERA_SET_CHOICE
+	prompt "Choose the proper camera set"
+
+config CAMERA_AAT_V31
+	bool CAMERA_AAT_V31
+	help
+	  For AAT V31 camera set
+config CAMERA_AAT_V32X
+	bool CAMERA_AAT_V32X
+	help
+	  For AAT V32X camera set
+config CAMERA_AAU_V32
+	bool CAMERA_AAU_V32
+	help
+	  For AAU V32 camera set
+config CAMERA_AAT_V41
+	bool CAMERA_AAT_V41
+	help
+	  For AAT V41 camera set
+config CAMERA_AAU_V02
+	bool CAMERA_AAU_V02
+	help
+	  For AAU V02 camera set
+config CAMERA_AAU_V22
+	bool CAMERA_AAU_V22
+	help
+	  For AAU V22 camera set
+config CAMERA_MMU_V32
+	bool CAMERA_MMU_V32
+	help
+	  For MMU V32 camera set
+config CAMERA_MMU_V22
+	bool CAMERA_MMU_V22
+	help
+	  For MMU V22 camera set
+endchoice
+config CAMERA_SAMSUNG_MODEL_NAME
+	string CAMERA_SAMSUNG_MODEL_NAME
+	help
+	  Current model name. Set string by IMGSENSOR_CAMERA_SET_CHOICE.
+	  For example, A32-5G's CAMERA_SAMSUNG_MODEL_NAME is aat_v32x.
+config CAMERA_SENSOR0
+	string "Camera Sensor 0"
+	help
+	  Camera image sensor 0
+config CAMERA_SENSOR1
+	string "Camera Sensor 1"
+	help
+	  Camera image sensor 1
+config CAMERA_SENSOR2
+	string "Camera Sensor 2"
+	help
+	  Camera image sensor 2
+config CAMERA_SENSOR3
+	string "Camera Sensor 3"
+	help
+	  Camera image sensor 3
+config CAMERA_SENSOR4
+	string "Camera Sensor 4"
+	help
+	  Camera image sensor 4
+config CAMERA_SENSOR5
+	string "Camera Sensor 5"
+	help
+	  Camera image sensor 5
+config CAMERA_SENSOR0_2
+	string "Camera Sensor 0_2"
+	help
+	  Camera image sensor 0_2
+config CAMERA_SENSOR1_2
+	string "Camera Sensor 1_2"
+	help
+	  Camera image sensor 1_2
+config CAMERA_SENSOR2_2
+	string "Camera Sensor 2_2"
+	help
+	  Camera image sensor 2_2
+config CAMERA_SENSOR3_2
+	string "Camera Sensor 3_2"
+	help
+	  Camera image sensor 3_2
+config CAMERA_SENSOR4_2
+	string "Camera Sensor 4_2"
+	help
+	  Camera image sensor 4_2
+config CAMERA_SENSOR5_2
+	string "Camera Sensor 5_2"
+	help
+	  Camera image sensor 5_2
+endif
+config CAMERA_ADAPTIVE_MIPI
+	bool CAMERA_ADAPTIVE_MIPI
+	depends on MTK_IMGSENSOR
+	help
+	  for using Adaptive MIPI.
+	  use CONFIG_CAMERA_ADAPTIVE_MIPI
+
+source "drivers/misc/mediatek/imgsensor/src/common/sysfs/Kconfig"

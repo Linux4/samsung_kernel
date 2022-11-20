@@ -1,0 +1,77 @@
+if MTK_FB && !DRM_MEDIATEK && SMCDSD_PANEL
+
+config SMCDSD_LCD_DEBUG
+	bool "Support LCD_DEBUG"
+	default n
+
+config SMCDSD_DPUI
+	bool "Support DPUI"
+	default n
+
+config SMCDSD_MDNIE
+	bool "Support MDNIE"
+	default n
+
+config SMCDSD_DOZE
+	bool "Support DOZE"
+	default n
+
+config SMCDSD_USE_HS_ONLY
+	bool "Support use hs only"
+	default n
+
+config SMCDSD_USE_POINT_GPARA
+	bool "Support use point gpara"
+	default n
+
+config SMCDSD_MASK_LAYER
+	bool "Support mask layer"
+	default n
+
+config SMCDSD_DYNAMIC_MIPI
+	bool "Support dynamic mipi"
+	default n
+
+config SMCDSD_PANEL_A32
+	bool "Support SMCDSD_PANEL_A32 driver"
+	default n
+
+config SMCDSD_PANEL_A31
+	bool "Support SMCDSD_PANEL_A31 driver"
+	default n
+
+config SMCDSD_PANEL_A41
+	bool "Support SMCDSD_PANEL_A41 driver"
+	default n
+
+config SMCDSD_PANEL_A41_JPN
+	bool "Support SMCDSD_PANEL_A31 JPN driver"
+	default n
+
+config SMCDSD_PANEL_A01CORE
+	bool "Support SMCDSD_PANEL_A01CORE driver"
+	select SMCDSD_DOZE
+	default n
+
+config SMCDSD_PANEL_M32
+	bool "Support SMCDSD_PANEL_M32 driver"
+	default n
+
+config SMCDSD_PANEL_A22
+	bool "Support SMCDSD_PANEL_A22 driver"
+	default n
+
+config SMCDSD_PANEL_M22
+	bool "Support SMCDSD_PANEL_M22 driver"
+	default n
+
+config SMCDSD_PANEL_A03CORE
+	bool "Support SMCDSD_PANEL_A03CORE driver"
+	default n
+
+config SMCDSD_PANEL_A02
+	bool "Support SMCDSD_PANEL_A02 driver"
+	default n
+
+endif # MTK_FB && !DRM_MEDIATEK && SMCDSD_PANEL
+
