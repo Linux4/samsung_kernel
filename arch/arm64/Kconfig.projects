@@ -1,0 +1,12 @@
+config SEC_Y2Q_PROJECT
+	default n
+	bool "Samsung Y2Q Project"
+	help
+	  Support for Samsung Y2Q Project
+
+config MACH_Y2Q_KOR_SINGLE
+	default n
+	bool "Samsung Y2Q KOR SQ"
+	help
+	  Support for Samsung Y2Q KOR SQ device.
+
