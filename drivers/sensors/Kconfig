@@ -1,0 +1,111 @@
+config SENSORS
+	bool "Sensors Class Support"
+	help
+	  This option enables the sensor sysfs class in /sys/class/sensors.
+	  You'll need this to do anything useful with sensorss. If unsure, say N.
+
+config SENSORS_SSC
+	bool "Enable Sensors Driver Support for SSC"
+	help
+	  Add support for sensors SSC driver.
+	  This driver is used for exercising sensors use case,
+	  time syncing with ADSP clock.
+
+config SENSORS_CORE
+	bool "sensors_core"
+	depends on I2C
+
+config SENSOR_USE_SYMLINK
+	bool "sensors_symlink"
+	depends on I2C
+
+config SENSORS_K2HH
+	depends on I2C
+	tristate "SENSORS_K2HH"
+	default n
+	help
+	  Say Y here if you use SENSORS_K2HH.
+	  This option enables accelerometer sensors using
+	  STMicroelectronic K2HH device driver.
+
+config SENSORS_BMA254
+	tristate "BMA254 acceleration sensor support"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you get support for Bosch Sensortec's
+	  acceleration sensors BMA254.
+
+config SENSORS_GP2A002
+	tristate "GP2A002 proximity sensor support"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you get support for sharp Sensortec's
+	  proximity sensors GP2A002.
+
+config SENSORS_AK09911C
+	tristate "AK09911C compass support"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for Asahi Kasei's
+	  orientation sensor AK09911C.
+
+config SENSORS_HSCDTD008A
+	depends on I2C
+	tristate "hscd alps HSCDTD008A"
+	default n
+	help
+	  This option enables hscd alps HSCDTD008A mag driver
+
+config SENSORS_TMD27723
+	depends on I2C
+	tristate "TMD27723 driver"
+	default n
+	help
+	  This option enables proximity & light sensors using TMD27723 driver.
+
+config SENSORS_TMD3782S
+	depends on I2C
+	tristate "SENSORS_TMD3782S"
+	default n
+	help
+	  Say Y here if you use TAOS_TMD3782S.
+	  This option enables optial sensors using
+	  Sharp TAOS_TMD3782S device driver.
+
+config SENSORS_CM36686
+	depends on I2C
+	tristate "CM36686 driver"
+	default n
+	help
+	  This option enables proximity & light sensors using CM36686 driver.
+
+config SENSORS_CM36686_LEDA_EN_GPIO
+	depends on I2C
+	tristate "CM36686 leda_en controlled by GPIO"
+	default n
+	help
+	  This option enables leda_en controlled by GPIO using CM36686 driver.
+
+config SENSORS_K303C
+	depends on I2C
+	tristate "ST K303C accel,magnetic combo"
+	default n
+	help
+	  This option enables st k303c accel and mag driver
+
+config SENSORS_BMA2X2
+	tristate "BMA255/BMA250E/BMA222E/BMA280 acceleration sensor support"
+	depends on I2C
+	help
+	  If you say yes here you get support for Bosch Sensortec's
+	  acceleration sensors BMA255/BMA250E/BMA222E/BMA280.
+
+config SENSORS_BMM050
+	tristate "BMM050 Magnetic Sensor Driver"
+	depends on I2C
+	help
+	 BMM050 Magnetic Sensor Driver implemented by Bosch-Sensortec.
+
