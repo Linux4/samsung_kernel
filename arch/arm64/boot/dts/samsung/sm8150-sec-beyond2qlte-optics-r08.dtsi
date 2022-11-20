@@ -1,0 +1,186 @@
+/*
+ * Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&tlmm {
+	hrm_int {
+		max_int_active: max_int_active {
+			mux {
+				pins = "gpio108";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio108";
+				drive-strength = <2>;
+				input-enable;
+				bias-disable;
+			};
+		};
+		max_int_suspend: max_int_suspend {
+			mux {
+				pins = "gpio108";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio108";
+				drive-strength = <2>;
+				input-enable;
+				bias-disable;
+			};
+		};
+		os_int_active: os_int_active {
+			mux {
+				pins = "gpio108";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio108";
+				drive-strength = <2>;
+				input-enable;
+				bias-pull-down;
+			};
+		};
+		os_int_suspend: os_int_suspend {
+			mux {
+				pins = "gpio108";
+				function = "gpio";
+			};
+ 			config {
+				pins = "gpio108";
+				drive-strength = <2>;
+				input-enable;
+				bias-pull-down;
+			};
+		};
+	};
+};
+
+&soc {
+	rpmh-regulator-ldoc10 {
+		L10C: pm8150l_l10: regulator-pm8150l-l10 {
+			regulator-name = "HRM_1.8V_AP";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+		};
+	};
+ 
+	qupv3_se15_i2c: i2c@0xc94000 {
+		status = "ok";
+		max86915@57 {
+			compatible = "hrm_max";
+			reg = <0x57>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <108 0>;
+			pinctrl-names = "sleep", "default", "idle";
+			pinctrl-0 = <&max_int_suspend>;
+			pinctrl-1 = <&max_int_suspend>;
+			pinctrl-2 = <&max_int_active>;
+			hrmsensor,hrm_int-gpio = <&tlmm 108 0x00>;
+			hrmsensor,hrm_boost_en-gpio = <&tlmm 84 0>;
+			hrmsensor,vdd_1p8 = "HRM_1.8V_AP";
+			hrmsensor,always;
+			hrmsensor,thd = <100000 100000>;
+			hrmsensor,init_curr = <0x46 0x41 0x28 0x3c>;
+			hrmsensor,eol = <1 100		/* SYSTEM NOISE */
+			 				80000 350000	/* MID */
+			 				95000 350000
+			 				100000 425000
+			 				100000 425000
+			 				130000 425000	/* HIGH */
+			 				130000 425000
+			 				130000 520000
+			 				100000 520000
+			 				0 150000		/* XTALK */
+			 				0 150000
+			 				0 270000
+			 				0 270000
+			 				1 300			/* NOISE */
+			 				1 300
+			 				1 300
+			 				1 300
+			 				384 416>;		/* FREQUENCY */
+			hrmsensor,eol_semi = <1 100		/* SYSTEM NOISE */
+			 				3500 350000	/* MID */
+			 				3500 350000
+			 				4500 524287
+			 				4500 470000
+			 				4000 400000	/* HIGH */
+			 				4000 430000
+			 				5000 524287
+			 				5000 524287
+			 				0 150000		/* XTALK */
+			 				0 150000
+			 				0 270000
+			 				0 270000
+			 				1 300			/* NOISE */
+			 				1 300
+			 				1 300
+			 				1 300
+			 				384 416>;		/* FREQUENCY */
+			hrmsensor,eol_xtalk = <0 40000>;
+		};
+ 
+		sfh7832@5b {
+			compatible = "hrm_os";
+			reg = <0x5b>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <108 0>;
+			pinctrl-names = "sleep", "default", "idle";
+			pinctrl-0 = <&os_int_suspend>;
+			pinctrl-1 = <&os_int_suspend>;
+			pinctrl-2 = <&os_int_active>;
+			hrmsensor,hrm_int-gpio = <&tlmm 108 0x00>;
+			hrmsensor,hrm_boost_en-gpio = <&tlmm 84 0>;
+			hrmsensor,vdd_1p8 = "HRM_1.8V_AP";
+			hrmsensor,always;
+			hrmsensor,thd = <600000 100000>;
+			hrmsensor,init_curr = <0x2A 0x27 0x18 0x24>;
+			hrmsensor,eol = <0 300		/* SYSTEM NOISE */
+							500000 1700000	/* MID */
+							500000 1400000
+							300000 1000000
+							500000 1500000
+							800000 2097152	/* HIGH */
+							800000 2097152
+							300000 1400000
+							800000 2097152
+							500000 1800000	/* XTALK */
+							300000 1300000
+							100000 1000000
+							300000 2097152
+							1 300				/* NOISE */
+							1 300
+							1 300
+							1 300
+			 				384 416>;			/* FREQUENCY */
+			hrmsensor,eol_semi = <0 300		/* SYSTEM NOISE */
+							300000 2500000	/* MID */
+							300000 2500000
+							100000 2500000
+							300000 2500000
+							800000 3000000	/* HIGH */
+							800000 3000000
+							300000 3000000
+							800000 3000000
+							500000 2500000	/* XTALK */
+							500000 2500000
+							100000 2500000
+							500000 2500000
+			 				1 1000				/* NOISE */
+			 				1 1000
+			 				1 1000
+			 				1 1000
+			 				384 416>;			/* FREQUENCY */
+			hrmsensor,eol_xtalk = <0 480000>;
+		};
+	};
+};

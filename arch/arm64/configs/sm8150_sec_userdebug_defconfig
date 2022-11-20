@@ -1,0 +1,29 @@
+# TODO: sm8150_sec_userdebug_defconfig
+
+CONFIG_GATOR=y
+
+# CONFIG_RKP_KDP is not set
+# CONFIG_RKP_NS_PROT is not set
+
+# streamline
+CONFIG_PROFILING=y
+CONFIG_PERF_EVENTS=y
+CONFIG_HIGH_RES_TIMERS=y
+CONFIG_HW_PERF_EVENTS=y
+CONFIG_LOCAL_TIMERS=y
+
+# SDP KeyManagement Test for MDFPP evaluation
+CONFIG_SDP_KEY_DUMP=y
+CONFIG_FIVE_DEBUG=y
+CONFIG_FIVE_SIGN_TA=y
+CONFIG_FIVE_SIGNCLIENT_PATH="/home/dpi/qb5_8814/workspace/P4_1716/buildscript/tools/signclient.jar"
+CONFIG_FIVE_PILSPLITTER_PATH="/home/dpi/qb5_8814/workspace/P4_1716/buildscript/tools/pil_splitter.py"
+
+
+CONFIG_PROCA=y
+
+
+# CONFIG_FIVE_PA_FEATURE is not set
+
+
+CONFIG_GAF_V6=y

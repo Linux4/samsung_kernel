@@ -1,0 +1,340 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+
+&soc {
+	/* S2MPB03 Camera PMIC */
+	i2c2: i2c@2 {
+		cell-index = <2>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 94 0 /* sda */
+			&tlmm 95 0 /* scl */
+		>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&s2mpb03_i2c_sda_default &s2mpb03_i2c_scl_default>;
+
+		/* S2MPB03 Camera PMIC */
+		s2mpb03@56 {
+			compatible = "samsung,s2mpb03pmic";
+			reg = <0x56>;
+			additional_reg_init;
+
+			regulators {
+				s2mpb03_l1: s2mpb03-ldo1 {
+					regulator-name = "s2mpb03-ldo1";
+					regulator-min-microvolt = <1050000>;
+					regulator-max-microvolt = <1050000>;
+				};
+
+				s2mpb03_l2: s2mpb03-ldo2 {
+					regulator-name = "s2mpb03-ldo2";
+					regulator-min-microvolt = <1100000>;
+					regulator-max-microvolt = <1100000>;
+				};
+
+				s2mpb03_l3: s2mpb03-ldo3 {
+					regulator-name = "s2mpb03-ldo3";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <1800000>;
+				};
+
+				s2mpb03_l4: s2mpb03-ldo4 {
+					regulator-name = "s2mpb03-ldo4";
+					regulator-min-microvolt = <1200000>;
+					regulator-max-microvolt = <1200000>;
+				};
+
+				s2mpb03_l5: s2mpb03-ldo5 {
+					regulator-name = "s2mpb03-ldo5";
+					regulator-min-microvolt = <2800000>;
+					regulator-max-microvolt = <2800000>;
+				};
+
+				s2mpb03_l6: s2mpb03-ldo6 {
+					regulator-name = "s2mpb03-ldo6";
+					regulator-min-microvolt = <2900000>;
+					regulator-max-microvolt = <2900000>;
+				};
+
+				s2mpb03_l7: s2mpb03-ldo7 {
+					regulator-name = "s2mpb03-ldo7";
+					regulator-min-microvolt = <2800000>;
+					regulator-max-microvolt = <2800000>;
+				};
+			};
+		};
+	};
+
+	/* AP Thermistor table */
+	sec_thermistor@0 {
+		compatible = "samsung,sec-ap-thermistor";
+		status = "okay";
+		io-channels = <&pm8150_vadc ADC_AMUX_THM1_PU2>;
+		io-channel-names = "ap_therm";
+		adc_array = <116760 140430 166317 195350 232331
+				275216 322968 378244 451230 520815
+				607623 696864 794425 916712 1013181
+				1130839 1247556 1337024
+				1441868
+				1520826 1597707 1657915 1707677>;
+
+		temp_array = <900 850 800 750 700
+				650 600 550 500 450 
+				400 350 300 250	200 
+				150 100 50 
+				0 
+				(-50) (-100) (-150) (-200)>;
+	};
+
+	/* PA Thermistor table */
+	sec_thermistor@1 {
+		compatible = "samsung,sec-pa-thermistor";
+		status = "okay";
+		io-channels = <&pm8150l_vadc ADC_AMUX_THM2_PU2>;
+		io-channel-names = "pa_therm";
+		adc_array = <112500 144958 170372 199729 236710
+				279596 327833 383596 455482 526505
+				612813 703027 800085 911597 1017398
+				1133693 1250410 1342019
+				1446313
+				1525108 1601275 1661288 1710726>;
+
+		temp_array = <900 850 800 750 700
+				650 600 550 500 450 
+				400 350 300 250	200 
+				150 100 50 
+				0 
+				(-50) (-100) (-150) (-200)>;
+	};
+
+	/* WiFi Thermistor table */
+	sec_thermistor@2 {
+		compatible = "samsung,sec-wf-thermistor";
+		status = "okay";
+		io-channels = <&pm8150l_vadc ADC_GPIO2_PU2>;
+		io-channel-names = "wf_therm";
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio6_adc_default>;
+		adc_array = <114113 146788 172123 201384 238527
+				281509 329844 385770 457525 526752
+				614987 705493 802649 913381 1020415
+				1136353 1253070 1344874
+				1448778
+				1527443 1603222 1663040 1711894>;
+
+		temp_array = <900 850 800 750 700
+				650 600 550 500 450 
+				400 350 300 250	200 
+				150 100 50 
+				0 
+				(-50) (-100) (-150) (-200)>;
+	};
+
+	rpmh-regulator-smpa5 {
+		S5A: pm8150_s5: regulator-pm8150-s5 {
+			regulator-min-microvolt = <2000000>;
+			regulator-max-microvolt = <2000000>;
+			qcom,init-voltage = <2000000>;
+		};
+	};
+
+	rpmh-regulator-ldoa14 {
+		L14A: pm8150_l14: regulator-pm8150-l14 {
+			/delete-property/ qcom,proxy-consumer-enable;
+			/delete-property/ qcom,proxy-consumer-current;
+		};
+	};
+
+	/* H/W request */
+	rpmh-regulator-bobc1 {
+		qcom,supported-modes =
+			<RPMH_REGULATOR_MODE_LPM
+			 RPMH_REGULATOR_MODE_HPM>;
+		qcom,mode-threshold-currents = <0 2000000>;
+
+		BOB: pm8150l_bob: regulator-pm8150l-bob {
+			qcom,init-mode = <RPMH_REGULATOR_MODE_LPM>;
+		};
+	};
+};
+
+&pm8150_vadc {
+	/delete-node/ skin_therm;
+	ap_therm {
+		reg = <ADC_AMUX_THM1_PU2>;
+		label = "ap_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+		qcom,decimation = <840>;
+		qcom,avg-samples = <8>;
+	};
+};
+
+&pm8150l_vadc {
+	/delete-node/ skin_msm_therm;
+	pa_therm {
+		reg = <ADC_AMUX_THM2_PU2>;
+		label = "pa_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+		qcom,decimation = <840>;
+		qcom,avg-samples = <8>;
+	};
+
+	wf_therm {
+		reg = <ADC_GPIO2_PU2>;
+		label = "wf_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+		qcom,decimation = <840>;
+		qcom,avg-samples = <8>;
+	};
+};
+
+&pm8150l_gpios {
+	gpio6_adc {
+		gpio6_adc_default: gpio6_adc_default {
+			pins = "gpio6";
+			function = "normal";
+			bias-high-impedance;
+		};
+	};
+
+	certify_hall {
+		certify_hall_default: certify_hall_default {
+			pins = "gpio3";
+			function = "normal";
+			output-disable;
+			input-enable;
+			bias-disable;
+			power-source = <0>;
+		};
+	};
+};
+
+&spmi_bus {
+	qcom,pm8150@0 {
+		qcom,power-on@800 {
+			interrupts = <0x0 0x8 0x0 IRQ_TYPE_NONE>,
+				     <0x0 0x8 0x1 IRQ_TYPE_NONE>,
+					 <0x0 0x8 0x4 IRQ_TYPE_NONE>,
+				     <0x0 0x8 0x5 IRQ_TYPE_NONE>;
+			interrupt-names = "kpdpwr", "resin",
+                    "resin-bark", "kpdpwr-resin-bark";
+
+			qcom,s3-debounce = <128>;
+			qcom,pon_1 {
+				qcom,pon-type = <PON_POWER_ON_TYPE_KPDPWR>;
+				qcom,support-reset = <0>;
+				qcom,pull-up = <1>;
+				linux,code = <KEY_POWER>;
+			};
+
+			qcom,pon_2 {
+				qcom,pon-type = <PON_POWER_ON_TYPE_RESIN>;
+				qcom,support-reset = <0>;
+				qcom,pull-up = <1>;
+				linux,code = <KEY_VOLUMEDOWN>;
+			};
+
+			qcom,pon_3 {
+				qcom,pon-type = <PON_POWER_ON_TYPE_KPDPWR_RESIN>;
+				qcom,support-reset = <1>;
+				qcom,pull-up = <1>;
+				qcom,s1-timer = <6720>;
+				qcom,s2-timer = <1000>;
+				qcom,s2-type = <8>;
+				qcom,use-bark;
+			};
+		};
+	};
+
+	qcom,pm8150l@5 {
+		qcom,leds@d300 {
+			qcom,flash_0 {
+				label = "flash";
+				qcom,led-name = "led:flash_0";
+				qcom,max-current = <1500>;
+				qcom,default-led-trigger = "flash0_trigger";
+				qcom,id = <0>;
+				qcom,current-ma = <750>;
+				qcom,duration-ms = <1280>;
+				qcom,ires-ua = <12500>;
+				qcom,hdrm-voltage-mv = <325>;
+				qcom,hdrm-vol-hi-lo-win-mv = <100>;
+				qcom,record-current-ma = <300>;
+			};
+			qcom,flash_1 {
+				label = "flash";
+				qcom,led-name = "led:flash_1";
+				qcom,max-current = <1500>;
+				qcom,default-led-trigger = "flash1_trigger";
+				qcom,id = <1>;
+				qcom,current-ma = <750>;
+				qcom,duration-ms = <1280>;
+				qcom,ires-ua = <12500>;
+				qcom,hdrm-voltage-mv = <325>;
+				qcom,hdrm-vol-hi-lo-win-mv = <100>;
+				qcom,record-current-ma = <300>;
+			};
+			qcom,torch_0 {
+				label = "torch";
+				qcom,led-name = "led:torch_0";
+				qcom,max-current = <500>;
+				qcom,default-led-trigger = "torch0_trigger";
+				qcom,id = <0>;
+				qcom,current-ma = <350>;
+				qcom,ires-ua = <12500>;
+				qcom,hdrm-voltage-mv = <325>;
+				qcom,hdrm-vol-hi-lo-win-mv = <100>;
+			};
+			qcom,led_switch_0 {
+				label = "switch";
+				qcom,led-name = "led:switch_0";
+				qcom,led-mask = <3>;
+				qcom,default-led-trigger = "switch0_trigger";
+			};
+		};			
+	};
+};
+
+&pm8150l_adc_tm {
+	usb_therm {
+		reg = <ADC_AMUX_THM1_PU2>;
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+	};
+};
+
+&thermal_zones {
+	 usb-therm {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-governor = "user_space";
+		thermal-sensors = <&pm8150l_adc_tm ADC_AMUX_THM1_PU2>;
+		trips {
+			active-config0 {
+				temperature = <85000>;
+				hysteresis = <15000>;
+				type = "passive";
+			};
+		};
+	};
+};
