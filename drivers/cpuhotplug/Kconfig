@@ -1,0 +1,15 @@
+config SPRD_CPU_DYNAMIC_HOTPLUG
+        bool "SPRD CPU hotplug policy"
+        help
+          SPRD CPU dynamical hotplug policy.
+
+config NO_HOTPLUG_POLICY
+        bool "NO automatic CPU hotplug policy"
+        help
+          PM hotplug policy
+          Do not select an automatic hotplug policy
+
+config SS_TOUCH_BOOST_CPU_HOTPLUG
+        bool "SS touch boost CPU hotplug policy"
+        help
+          Samsung touch boost cpu hotplug policy

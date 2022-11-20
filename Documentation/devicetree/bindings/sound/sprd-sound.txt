@@ -1,0 +1,282 @@
+* Spreadtrum Audio Devices
+
+* MUST define a /sprd-audio-devices node
+  and, all sprd audio devices child node should be contain in it.
+
+Required /sprd-audio-devices Specific Properties:
+
+- compatible : "sprd,sound"
+
+* SPRD-CODEC
+
+Required SoC Specific Properties:
+- compatible : "sprd,sprd-codec-v1"
+or,
+- compatible : "sprd,sprd-codec-v3"
+
+Required Board Specific Properties:
+- sprd,audio_power_ver : Which audio power version supported.
+	* <1> : Tiger serial project;
+	* <3> : Shark serial project;
+- sprd,hp_pa_ver : Which internal headphone pa supported. (only sprd-codec-v3 option)
+	* <0> or null: default version of headphone pa;
+	* <1> : version 2 of headphone pa. (Dolphin serial project);
+- sprd,ap_irq : Which IRQ number of codec ap part.
+- sprd,dp_irq : Which IRQ number of codec dp part.
+
+Optional Board Specific Properties:
+- reg: physical base address of the controller and length of memory mapped
+  region.(not check now)
+- sprd,def_da_fs : set default playback sample rate.
+
+* VBC
+
+Required SoC Specific Properties:
+- compatible : "sprd,vbc-r1p0"
+or,
+- compatible : "sprd,vbc-r2p0"
+
+Required Board Specific Properties:
+
+Optional Board Specific Properties:
+- reg: physical base address of the controller and length of memory mapped
+  region.(not check now)
+
+* I2S
+
+Required SoC Specific Properties:
+- compatible : "sprd,i2s"
+
+Required Board Specific Properties:
+- sprd,hw_port : Which i2s hardware port.
+- sprd,base : <physical base address, virtual base address>.
+- sprd,dma_rx_no : Which i2s RX DMA number.
+- sprd,dma_tx_no : Which i2s TX DMA number.
+
+Optional Board Specific Properties:
+- reg: physical base address of the controller and length of memory mapped
+  region.(not check now)
+- sprd,config : phandle of i2s configure.
+	(* if this option is null, will use i2s configure default)
+	+ child node
+	*- sprd,def_pcm_config : empty property; define use default pcm configure;
+		(* if this option is null, will use i2s configure default)
+	*- sprd,slave_timeout : set the slave timeout value;
+	*- sprd,byte_per_chan : set the bytes per channel;
+	*- sprd,slave_mode : set is slave mode;
+	*- sprd,lsb : set is LSB mode;
+	*- sprd,lrck : set is LRCK mode;
+	*- sprd,low_for_left : set is Low for Left mode;
+	*- sprd,clk_inv : set is CLK invert;
+	*- sprd,i2s_compatible : set is compatible standard I2S mode;
+	*- sprd,pcm_short_frame : set is PCM short frame mode;
+	*- sprd,pcm_slot : set support PCM slot;
+	*- sprd,tx_watermark : set the TX watermark;
+	*- sprd,rx_watermark : set the RX watermark;
+(** i2s default configure **)
+/* default i2s config */
+const static struct i2s_config def_i2s_config = {
+	.hw_port = 0,
+	.fs = 32000,
+	.slave_timeout = 0xF11,
+	.bus_type = I2S_BUS,
+	.byte_per_chan = I2S_BPCH_16,
+	.mode = I2S_SLAVE,
+	.lsb = I2S_MSB,
+	.rtx_mode = I2S_RX_MODE,
+	.sync_mode = I2S_LRCK,
+	.lrck_inv = I2S_L_LEFT,
+	.clk_inv = I2S_CLK_N,
+	.i2s_bus_mode = I2S_MSBJUSTFIED,
+	.tx_watermark = 12,
+	.rx_watermark = 20,
+};
+(** pcm default configure **)
+/* default pcm config */
+const static struct i2s_config def_pcm_config = {
+	.hw_port = 0,
+	.fs = 8000,
+	.slave_timeout = 0xF11,
+	.bus_type = PCM_BUS,
+	.byte_per_chan = I2S_BPCH_16,
+	.mode = I2S_MASTER,
+	.lsb = I2S_LSB,
+	.rtx_mode = I2S_RTX_MODE,
+	.sync_mode = I2S_LRCK,
+	.lrck_inv = I2S_L_LEFT,
+	.clk_inv = I2S_CLK_N,
+	.pcm_bus_mode = I2S_SHORT_FRAME,
+	.pcm_slot = 0x1,
+	.pcm_cycle = 1,
+	.tx_watermark = 12,
+	.rx_watermark = 20,
+};
+
+* VBC Sound Card
+
+Required SoC Specific Properties:
+- compatible : "sprd,vbc-r1p0-sprd-codec-v1"
+or,
+- compatible : "sprd,vbc-r2p0-sprd-codec-v3"
+- sprd,model : what's name of this sound card;
+- sprd,pcm : phandle of the platform;
+- sprd,codec : phandle of the codec;
+
+Required Board Specific Properties:
+
+Optional Board Specific Properties:
+
+* I2S Sound Card
+
+Required SoC Specific Properties:
+- compatible : "sprd,i2s-null-codec"
+- sprd,model : what's name of this sound card;
+- sprd,i2s : phandle list of the cpu dai(i2s);
+- sprd,pcm : phandle of the platform;
+- sprd,codec : phandle of the codec;
+
+Required Board Specific Properties:
+
+Optional Board Specific Properties:
+
+
+Example:
+
+- SoC Specific Portion:
+
+/ {
+        sprd-audio-devices {
+                compatible = "sprd,sound";
+                #address-cells = <1>;
+                #size-cells = <1>;
+
+                /* 1. codecs */
+                sprd_codec_v3: sprd-codec-v3 {
+                        compatible = "sprd,sprd-codec-v3";
+                        status = "disable";
+                        sprd,def_da_fs = <44100>;
+                        sprd,ap_irq = <164>;
+                        sprd,dp_irq = <52>;
+                };
+
+                sprd_codec_v1: sprd-codec-v1 {
+                        compatible = "sprd,sprd-codec-v1";
+                        status = "disable";
+                        sprd,def_da_fs = <44100>;
+                        sprd,ap_irq = <103>;
+                        sprd,dp_irq = <63>;
+                };
+
+                null_codec: null-codec {
+                        compatible = "sprd,null-codec";
+                };
+
+                /* 2. cpu-dais */
+                vbc_r2p0: vbc-r2p0 {
+                        compatible = "sprd,vbc-r2p0";
+                        status = "disable";
+                };
+
+                vbc_r1p0: vbc-r1p0 {
+                        compatible = "sprd,vbc-r1p0";
+                        status = "disable";
+                };
+
+                vaudio: vaudio {
+                        compatible = "sprd,vaudio";
+                };
+
+                pcm_def_config: bt-i2s-config {
+                        sprd,def_pcm_config;
+                };
+
+                i2s_def_config: fm-i2s-config {
+                };
+
+                i2s0: i2s@0 {
+                        compatible = "sprd,i2s";
+                        status = "disable";
+                        sprd,hw_port = <0>;
+                        sprd,base = <0x70D00000 0xF537C000>;
+                        sprd,dma_rx_no = <3>;
+                        sprd,dma_tx_no = <4>;
+                };
+
+                i2s1: i2s@1 {
+                        compatible = "sprd,i2s";
+                        status = "disable";
+                        sprd,hw_port = <1>;
+                        sprd,base = <0x70E00000 0xF5380000>;
+                        sprd,dma_rx_no = <5>;
+                        sprd,dma_tx_no = <6>;
+                };
+
+                i2s2: i2s@2 {
+                        compatible = "sprd,i2s";
+                        status = "disable";
+                        sprd,hw_port = <2>;
+                        sprd,base = <0x70F00000 0xF5382000>;
+                        sprd,dma_rx_no = <7>;
+                        sprd,dma_tx_no = <8>;
+                };
+
+                i2s3: i2s@3 {
+                        compatible = "sprd,i2s";
+                        status = "disable";
+                        sprd,hw_port = <3>;
+                        sprd,base = <0x71000000 0xF5384000>;
+                        sprd,dma_rx_no = <9>;
+                        sprd,dma_tx_no = <10>;
+                };
+
+                /* 3. platform */
+                sprd_pcm: sprd-pcm-audio {
+                        compatible = "sprd,sprd-pcm";
+                };
+
+                /* 4. machine */
+                vbc_sound: sound@0 {
+                        compatible = "sprd,vbc-r2p0-sprd-codec-v3";
+                        sprd,model = "sprdphone";
+                        sprd,vaudio = <&vaudio>;
+                        sprd,vbc = <&vbc_r2p0>;
+                        sprd,codec = <&sprd_codec_v3>;
+                        sprd,pcm = <&sprd_pcm>;
+                };
+
+                i2s_sound: sound@1 {
+                        compatible = "sprd,i2s-null-codec";
+                        sprd,model = "all-i2s";
+                        sprd,i2s = <&i2s0>, <&i2s1>, <&i2s2>, <&i2s3>;
+                        sprd,codec = <&null_codec>;
+                        sprd,pcm = <&sprd_pcm>;
+                };
+
+        };
+
+};
+
+Board Specific:
+
+&vbc_r2p0 {
+        status = "okay";
+};
+
+&sprd_codec_v3 {
+        status = "okay";
+        sprd,audio_power_ver = <3>;
+        sprd,hp_pa_ver = <1>;
+        sprd,ap_irq = <166>;
+};
+
+&i2s0 {
+        status = "okay";
+};
+
+&i2s1 {
+        status = "okay";
+};
+
+&i2s_sound {
+        sprd,i2s = <&i2s0>, <&i2s1>;
+};

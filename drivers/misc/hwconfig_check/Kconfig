@@ -1,0 +1,5 @@
+config SPRD_HWCONFIG_CHECK
+    bool "enable hardware configuration check funtion"
+    default n
+    help
+    enable hardware configuration check
