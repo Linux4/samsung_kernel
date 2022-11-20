@@ -1,0 +1,13 @@
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			dc_vibrator {
+				compatible = "samsung,dc_vibrator";
+				status = "okay";
+				dc_vib,motor_type = "COINDC";
+				dc_vib,regulator_name = "VDD_MOTOR_3P3";
+			};
+		};
+	};
+};

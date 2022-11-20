@@ -1,0 +1,69 @@
+/*
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pinctrl_6 {
+	nfc_en: nfc-en {
+		samsung,pins = "gpp6-2";
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+
+	nfc_firm: nfc-firm {
+		samsung,pins = "gpp6-3";
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+
+	nfc_i2c: nfc-i2c {
+		samsung,pins = "gpp5-0", "gpp5-1";
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+};
+
+&hsi2c_20 {
+	status = "okay";
+	clock-frequency = <400000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&nfc_i2c>;
+
+	sec-nfc@27 {
+		compatible = "sec-nfc";
+		reg = <0x27>;
+
+		interrupts = <2 0 0>;
+		interrupt-parent = <&gpa1>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&nfc_en &nfc_firm>;
+
+		sec-nfc,ven-gpio = <&gpp6 2 0>;
+		sec-nfc,irq-gpio = <&gpa1 2 0>;
+		sec-nfc,firm-gpio = <&gpp6 3 0>;
+		sec-nfc,clk_req-gpio = <&gpa2 6 0xf>;
+		sec-nfc,clk_use = <2>;
+		sec-nfc,nfc_pvdd = "nfc_pvdd";
+
+		clocks = <&clock OSC_NFC>;
+		clock-names = "oscclk_nfc";
+		sec-nfc,nfc_ap_clk;
+		sec-nfc,ldo_control;
+		sec-nfc,irq_all_trigger;
+	};
+};

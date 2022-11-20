@@ -1,0 +1,62 @@
+/*
+ * SAMSUNG LCD Panel Device Tree Source
+ *
+ * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	fragment@mipi_freq {
+		target-path = "/";
+		__overlay__ {
+			/* 1150.5 */
+			freq_1150: freq_1150 {
+				hs-clk = <1150>;
+				pmsk = <
+					0x02 0xB1 0x02 0xEC4F
+					0x00 0x00 0x00 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00>;
+				escape-clk = <20>;
+				cmd_underrun_lp_ref = <1401>;
+			};
+
+			freq_1157: freq_1157 {
+				hs-clk = <1157>;
+				pmsk = <
+					0x02 0xB8 0x02 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00>;
+				escape-clk = <20>;
+				cmd_underrun_lp_ref = <1469>;
+			};
+			/* 1176.5 */
+			freq_1176: freq_1176 {
+				hs-clk = <1176>;
+				pmsk = <
+					0x02 0xB5 0x02 0xEC4F
+					0x00 0x00 0x00 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00>;
+				escape-clk = <20>;
+				cmd_underrun_lp_ref = <1653>;
+			};
+			/* 1195.5 */
+			freq_1195: freq_1195 {
+				hs-clk = <1195>;
+				pmsk = <
+					0x02 0xB8 0x02 0xB13B
+					0x00 0x00 0x00 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00>;
+				escape-clk = <20>;
+				cmd_underrun_lp_ref = <1837>;
+			};
+		};
+	};
+};

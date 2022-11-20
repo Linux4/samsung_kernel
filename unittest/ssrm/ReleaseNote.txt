@@ -1,0 +1,13 @@
+[ SsrmVerifier ]
+========================================================================================================
+  Date     Version      Description and Reference
+========================================================================================================
+ 171221    1.0.0        First release of verifier app
+--------------------------------------------------------------------------------------------------------
+ 180110    1.0.1        Update CPU freq_table of STAR project
+--------------------------------------------------------------------------------------------------------
+ 180122    1.0.2        Change PSM_RATIO setting method to modify it in model specific file
+                        Add exception log in summary file, This file is generated during self-test
+                        Check CPU/GPU lock by using frequency table
+--------------------------------------------------------------------------------------------------------
+ 180502    1.0.3        Add Crown project input table

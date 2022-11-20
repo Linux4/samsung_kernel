@@ -1,0 +1,161 @@
+/*
+ * SAMSUNG EXYNOS9825 SoC device tree source
+ *
+ * Copyright (c) 2018 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS9825 SoC device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	compatible = "samsung,exynos9825";
+
+	fragment@common {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			argos {
+				compatible = "samsung,argos";
+				#address-cells = <1>;
+				/*  The device number should be assigned for each device, e.g. "boot_device@1" and "boot_device@2".
+				 * Duplicated number is not allowed. Please refer the below example.
+				 */
+
+				/* Table Format should be
+				 * <Throughput(Mbps) BIG_min BIG_max MID_min MID_max LIT_min Little_max MIF INT Task IRQ HMP_boost>
+				 * BIG_min : Big Core's minimum frequency lock. 0 means not set,
+				 * BIG_max : Big Core's maximum frequency lock. 0 means not set,
+				 * MID_min : Middle Core's minimum frequency lock. 0 means not set,
+				 * MID_max : Middle Core's maximum frequency lock. 0 means not set,
+				 * LIT_min : Little Core's minimum frequency lock. 0 means not set,
+				 * LIT_max : Little Core's maximum frequency lock. 0 means not set,
+				 * MIF : MIF frequency lock. 0 means not set,
+				 * INT : INT frequency lock. 0 means not set,
+				 * Task : 1 - Set task affinity lock.
+				 *	0 - Not set or unlock,
+				 *		Task affinity should be predefined driver's code.
+				 * IRQ : 1 - Set irq affinity lock.
+				 *       0 - Not set or unlock,
+				 *		Task affinity should be predefined driver's code.
+				 * HMP_boots : 1 - Increase hmp boosting count
+				 *             0 - Decrease hmp boosting count
+				 */
+
+				/*
+				 * boot_device@9 {
+				 *	net_boost,label="WIFI RX";
+				 *	net_boost,node="wlan0";
+				 *	net_boost,table_size = <4>;
+				 *	net_boost,table= <
+				 *		5  2340000 0 2002000 0 1690000 0 0 0 0 0 0
+				 *		10 2340000 0 2002000 0 1690000 0 0 0 0 0 0
+				 *		20 2340000 0 2002000 0 1690000 0 845000 400000 1 1 1
+				 *		30 2340000 0 2002000 0 1690000 0 1352000 533000 1 1 1
+				 *		>;
+				 * };
+				 */
+				boot_device@1 {
+					net_boost,label="IPC";
+					net_boost,node="rmnet0 rmnet1 rmnet2 rmnet3 rmnet4 rmnet5 rmnet6 rmnet7 umts_dm0";
+					net_boost,table_size = <4>;
+					net_boost,table= <
+						100 0 0 0 0 1053000 0 845000 0 0 0 0
+						150 0 0 0 0 1300000 0 1014000 0 0 0 0
+						200 0 0 1352000 0 1742000 0 1794000 0 0 0 0
+						250 0 0 1898000 0 1742000 0 2093000 0 0 0 0
+						>;
+				};
+				boot_device@2 {
+					net_boost,label="CLAT";
+					net_boost,node="clat clat4 v4-rmnet0 v4-rmnet1 v4-rmnet2 v4-rmnet3 v4-rmnet4 v4-rmnet5 v4-rmnet6 v4-rmnet7";
+					net_boost,table_size = <3>;
+					net_boost,table= <
+						100 1040000 0 0 0 0 0 1014000 0 0 0 0
+						150 1248000 0 0 0 0 0 1352000 0 0 0 0
+						200 1456000 0 0 0 0 0 2093000 0 0 0 0
+						>;
+				};
+				boot_device@3 {
+					net_boost,label="UFS";
+					net_boost,node="";
+					net_boost,sysnode="/sys/class/scsi_host/host0/transferred_cnt";
+					net_boost,table_size = <2>;
+					net_boost,table= <
+						112 0 0 0 0 1456000 0 1352000 0 0 0 0
+						800 0 0 1066000 0 1456000 0 1539000 0 0 0 1
+						>;
+				};
+				boot_device@4 {
+					net_boost,label="WIFI";
+					net_boost,node="wlan0";
+					net_boost,table_size = <3>;
+					net_boost,table= <
+						150 0 0 0 0 0 0 0 0 0 0 0
+						200 0 0 0 0 0 0 0 0 1 1 1
+						300 0 0 0 0 0 0 0 0 1 1 1
+						>;
+				};
+				boot_device@5 {
+					net_boost,label="WIFI TX";
+					net_boost,node="wlan0";
+					net_boost,table_size = <4>;
+					net_boost,table= <
+						60 0 0 1469000 0 1456000 0 0 0 0 0 0
+						150 0 0 1690000 0 1690000 0 0 0 0 0 0
+						200 0 0 1924000 0 1794000 0 1352000 400000 1 1 1
+						300 0 0 2002000 0 1794000 0 1794000 534000 1 1 1
+						>;
+				};
+				boot_device@6 {
+					net_boost,label="WIFI RX";
+					net_boost,node="wlan0";
+					net_boost,table_size = <4>;
+					net_boost,table= <
+						100 0 0 1170000 0 1053000 0 0 0 0 0 0
+						150 0 0 1469000 0 1248000 0 0 0 0 0 0
+						200 0 0 1690000 0 1248000 0 845000 400000 1 1 1
+						300 0 0 1924000  0 1456000 0 1352000 534000 1 1 1
+						>;
+				};
+				boot_device@7 {
+					net_boost,label="P2P";
+					net_boost,node="p2p-wlan0-0";
+					net_boost,table_size = <3>;
+					net_boost,table= <
+						30 0 0 1144000 0 1170000 0 0 0 0 0 0
+						90 0 0 1872000 0 1586000 0 0 255000 0 0 0
+						300 0 0 2080000 0 1586000 0 546000 255000 1 1 1
+						>;
+				};
+				boot_device@8 {
+					net_boost,label="NAN";
+					net_boost,node="aware_data0";
+					net_boost,table_size = <3>;
+					net_boost,table= <
+						30 0 0 1144000 0 1170000 0 0 0 0 0 0
+						90 0 0 1872000 0 1586000 0 0 255000 0 0 0
+						300 0 0 2080000 0 1586000 0 546000 255000 1 1 1
+						>;
+				};
+				boot_device@9 {
+					net_boost,label="USB";
+					net_boost,node="rndis0";
+					net_boost,table_size = <3>;
+					net_boost,table= <
+						0 0 0 0 0 0 0 0 0 0 1 0
+						200 0 0 0 0 1456000 0 1540000 0 0 1 0
+						300 0 0 0 0 1690000 0 1794000 534000 0 1 0
+						>;
+				};
+			};
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */

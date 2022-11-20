@@ -1,0 +1,57 @@
+&pinctrl_0 {
+	grip_irq: grip-irq {
+		samsung,pins = "gpa3-0";
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <3>;
+	};
+
+	grip_irq_sub: grip-irq-sub {
+		samsung,pins = "gpa3-1";
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <3>;
+	};
+};
+
+&pinctrl_5 {
+	hsi2c14_bus: hsi2c14-bus {
+		samsung,pin-pud-pdn = <0>;
+	};
+};
+
+&hsi2c_14 {
+	clock-frequency = <100000>;
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&hsi2c14_bus>;
+	a96t3x6@20 {
+		compatible = "a96t3x6";
+		reg = <0x20>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_irq>;
+		interrupt-parent = <&gpa3>;
+		interrupts = <0 0 0>;
+		a96t3x6,irq_gpio = <&gpa3 0 0>;
+		a96t3x6,dvdd_vreg_name = "grip_vdd_ldo";
+		a96t3x6,fw_path = "abov/a96t356_f62_main.bin";
+		a96t3x6,firmup_cmd = <0x3b>;
+	};
+
+	a96t3x6@21 {
+		compatible = "a96t3x6_sub";
+		reg = <0x21>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_irq_sub>;
+		interrupt-parent = <&gpa3>;
+		interrupts = <0 0 0>;
+		a96t3x6,irq_gpio = <&gpa3 1 0>;
+		a96t3x6,dvdd_vreg_name = "grip_vdd_ldo";
+		a96t3x6,fw_path = "abov/a96t356_f62_sub.bin";
+		a96t3x6,firmup_cmd = <0x3b>;
+	};
+};
+

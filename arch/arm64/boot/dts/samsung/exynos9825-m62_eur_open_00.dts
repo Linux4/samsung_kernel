@@ -1,0 +1,237 @@
+/*
+ * SAMSUNG EXYNOS9825 board device tree source
+ *
+ * Copyright (c) 2018 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+/plugin/;
+#include "../exynos/modem-s5000ap-sipc-pdata.dtsi"
+#include "../exynos/exynos9825-mali_rev2.dtsi"
+#include "exynos9825-m62_pm_00.dtsi"
+#include "exynos9825-m62_common.dtsi"
+#include "exynos9825-m62_fingerprint_00.dtsi"
+#include "exynos9825-f62_camera_00.dtsi"
+#include "exynos9820-sensorhub.dtsi"
+#include "exynos9825-m62_grip_00.dtsi"
+#include "exynos_gpio_config_macros.dtsi"
+#include "battery_data_f62_common.dtsi"
+#include "exynos9825-nfc_00.dtsi"
+#include "exynos9825-m62_abc.dtsi"
+/ {
+	compatible = "samsung, M62 EUR OPEN REV00", "samsung,exynos9825";
+	dtbo-hw_rev = <0>;
+	dtbo-hw_rev_end = <0>;
+
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			model = "Samsung M62 EUR OPEN REV00 based on EXYNOS9825";
+
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */
+
+&pinctrl_0 {
+	s_pmic_irq1: s-pmic-irq1 {
+		samsung,pins = "gpa2-5";
+		samsung,pin-pud = <3>;
+		samsung,pin-drv = <3>;
+	};
+};
+
+&speedy1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	s2mps20mfd@00 {
+		compatible = "samsung,s2mps20mfd";
+		acpm-ipc-channel = <2>;
+		i2c-speedy-address;
+		s2mps20,wakeup = "enabled";
+		s2mps20,irq-gpio = <&gpa2 5 0>;
+		reg = <0x00>;
+		interrupts = <5 0 0>;
+		interrupt-parent = <&gpa2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&s_pmic_irq1>;
+	};
+};
+
+&speedy {
+	s2mps19mfd@00 {
+		smpl_warn_en = <1>; /* 1 : enable , 0 : disable */
+		smpl_warn_dev2= <1>;
+	};
+};
+
+&dsim_0 {
+	lcd_info = <&s6e3ha9>;
+	/* rev5 : 0, revC01 & s5100 : 1 */
+	board_info = <1>;
+	/* reset, power */
+	gpios = <&gpa3 4 0x1>;
+};
+
+&hsi2c_25 {
+	status = "disabled";
+};
+
+&ufs {
+	/* PM Qos for INT power domain */
+	ufs-pm-qos-int = <534000>;
+};
+&displayport {
+	status = "okay";
+	dp,aux_sw_oe = <&gpg1 6 0>;
+	dp,sbu_sw_sel = <&gpg4 0 0>;
+	dp,usb_con_sel = <&gpg0 4 0>;
+	dp,displayport_not_support;
+
+	pinctrl-names = "default";
+};
+
+&spi_17 {
+	BCM4773@0 {
+		ssp-acc-position = <7>;
+		ssp-mag-position = <4>;
+		ssp-mag-array = /bits/ 8 <197 80 231 170 26 235 1 227 214 54 66 113 52 63 254 87 252 225 167 176 192 250 168 128 10 175 20>;
+	};
+};
+
+&tsp_lsi {
+	sec,project_name = "M62", "M625";
+};
+
+/* ----------------------------------------------------------------------------
+ * Configurations for GPIOs without Device Driver
+ * Note: Do NOT add pins using by device drivers to the configuration below
+ * ----------------------------------------------------------------------------
+ */
+/*
+ * pin banks of exynos9820_R pin-controller 0 (ALIVE) : pinctrl@15850000
+ * GPA0, GPA1, GPA2, GPA3, GPA4
+ * GPQ0
+ */
+/*
+&pinctrl_0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial0>;
+	initial0: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of exynos9820_R pin-controller 1 (AUD) : pinctrl@18C60000
+ * GPB0, GPB1, GPB2
+ */
+/*
+&pinctrl_1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial1>;
+	initial1: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of exynos9820_R pin-controller 3 (CMGP) : pinctrl@15C30000
+ * GPM0, GPM1, GPM2, GPM3, GPM4, GPM5, GPM6, GPM7, GPM8, GPM9
+ * GPM10, GPM11, GPM12, GPM13, GPM14, GPM15, GPM16, GPM17, GPM18, GPM19
+ * GPM20, GPM21, GPM22, GPM23, GPM24, GPM25, GPM26, GPM27, GPM28, GPM29
+ * GPM30, GPM31
+ */
+&pinctrl_2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial2>;
+	initial2: initial-state {
+		PIN_IN(gpm0-0, DOWN);		/* NC */
+		PIN_IN(gpm1-0, DOWN);		/* NC */
+		PIN_IN(gpm2-0, NONE);		/* MEM_SCL_1P8 */
+		PIN_IN(gpm3-0, NONE);		/* MEM_SDA_1P8 */
+		PIN_IN(gpm16-0, NONE);		/* CABLE_DET */
+		PIN_IN(gpm30-0, DOWN);		/* NC */
+		PIN_IN(gpm31-0, DOWN);		/* NC */
+	};
+};
+
+/*
+ * pin banks of exynos9820_R pin-controller 4 (FSYS0) : pinctrl@13030000
+ * GPF0
+ */
+/*
+&pinctrl_3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial3>;
+	initial3: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of exynos9830 pin-controller 5 (FSYS1) : pinctrl@13C40000
+ * GPF1, GPF2, GPF3
+ */
+/*
+&pinctrl_4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial4>;
+	initial4: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of exynos9830 pin-controller 6 (PERIC0) : pinctrl@10430000
+ * GPP0, GPP1, GPP2, GPP3
+ * GPG1, GPG1, GPG2, GPG4
+ */
+&pinctrl_5 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial5>;
+	initial5: initial-state {
+		PIN_IN_SLP(gpg0-0, UP, INPUT, UP);		// IFC_SENSE_INT_AP
+		PIN_IN_SLP(gpg1-3, NONE, INPUT, NONE);          // HW_REV2
+                PIN_IN_SLP(gpg1-4, NONE, INPUT, NONE);          // HW_REV1
+                PIN_IN_SLP(gpg1-5, NONE, INPUT, NONE);          // HW_REV0
+	};
+};
+
+/*
+ * pin banks of exynos9830 pin-controller 7 (PERIC1) : pinctrl@10830000
+ * GPP4, GPP5, GPP6
+ * GPC0, GPC1
+ * GPD0
+ * GPG3
+ * GPH0, GPH1
+ */
+&pinctrl_6 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial6>;
+	initial6: initial-state {
+		PIN_IN_SLP(gpd0-2, NONE, OUT0, NONE);	/* XBOOTLDO0 */
+	};
+};
+
+/*
+ * pin banks of exynos9830 pin-controller 8 (VTSS) : pinctrl@15580000
+ * GPV0
+ */
+/*
+&pinctrl_7 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial7>;
+	initial7: initial-state {
+	};
+};
+*/
+

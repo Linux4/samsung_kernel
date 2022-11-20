@@ -1,0 +1,655 @@
+/*
+ * SAMSUNG EXYNOS9825 board device tree source
+ *
+ * Copyright (c) 2018 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			gpio_keys {
+				status = "okay";
+				compatible = "gpio-keys";
+				pinctrl-names = "default";
+				pinctrl-0 = <&key_voldown &key_volup &key_power>;
+				button@1 {
+					label = "gpio-keys: KEY_VOLUMEDOWN";
+					linux,code = <114>;
+					gpios = <&gpa0 4 0xf>;
+					gpio-key,wakeup;
+					debounce-interval = <10>;
+				};
+				button@2 {
+					label = "gpio-keys: KEY_VOLUMEUP";
+					linux,code = <115>;
+					gpios = <&gpa0 3 0xf>;
+					gpio-key,wakeup;
+					debounce-interval = <10>;
+				};
+				button@3 {
+					label = "gpio-keys: KEY_POWER";
+					linux,code = <116>;
+					gpios = <&gpa2 4 0xf>;
+					gpio-key,wakeup;
+					debounce-interval = <10>;
+				};
+			};
+		};
+	};
+
+	fragment@inputbooster {
+		target-path = "/";
+		__overlay__ {
+			input_booster {
+				status = "okay";
+				compatible = "input_booster";
+				max_resource_count = "7";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				/* < CLUSTER2, CLUSTER1, CLUSTER0, MIF, INT, HMP, UCC> */
+				ib_release_values = "0,0,0,0,0,0,0";
+
+				booster_key@1 {
+					input_booster,label = "key";
+					input_booster,type = <0>;	/* BOOSTER_DEVICE_KEY */
+
+					/* Time table */
+					input_booster,head_time = <500>;
+					input_booster,tail_time = <500>;
+
+					/* resource Table Sequentially identified with index
+					 * CLUSTER2's ID & Index : 0
+					 * CLUSTER1's ID & Index : 1
+					 * CLUSTER0's ID & Index : 2
+					 * MIF's ID & Index      : 3
+					 * INT's ID & Index      : 4
+					 * HMP's ID & Index      : 5
+					 * UCC's ID & Index      : 6
+					*/
+					inputbooster,resource {
+						compatible = "resource";
+						resource@1 {
+							resource,label = "cluster2";
+							resource,value = <0 0>;
+						};
+
+						resource@2 {
+							resource,label = "cluster1";
+							resource,value = <1404000 0>;
+						};
+
+						resource@3 {
+							resource,label = "cluster0";
+							resource,value = <0 0>;
+						};
+
+						resource@4 {
+							resource,label = "mif";
+							resource,value = <0 0>;
+						};
+
+						resource@5 {
+							resource,label = "int";
+							resource,value = <0 0>;
+						};
+
+						resource@6 {
+							resource,label = "hmp";
+							resource,value = <1 0>;
+						};
+
+						resource@7 {
+							resource,label = "ucc";
+							resource,value = <1 0>;
+						};
+					};
+				};
+				booster_key@2 {
+					input_booster,label = "touchkey";
+					input_booster,type = <1>;	/* BOOSTER_DEVICE_TOUCHKEY */
+
+					/* Time table */
+					input_booster,head_time = <0>;
+					input_booster,tail_time = <200>;
+
+					/* resource Table Sequentially identified with index
+					 * CLUSTER2's ID & Index : 0
+					 * CLUSTER1's ID & Index : 1
+					 * CLUSTER0's ID & Index : 2
+					 * MIF's ID & Index      : 3
+					 * INT's ID & Index      : 4
+					 * HMP's ID & Index      : 5
+					 * UCC's ID & Index      : 6
+					*/
+					inputbooster,resource {
+						compatible = "resource";
+						resource@1 {
+							resource,label = "cluster2";
+							resource,value = <0 0>;
+						};
+
+						resource@2 {
+							resource,label = "cluster1";
+							resource,value = <1404000 0>;
+						};
+
+						resource@3 {
+							resource,label = "cluster0";
+							resource,value = <0 0>;
+						};
+
+						resource@4 {
+							resource,label = "mif";
+							resource,value = <0 0>;
+						};
+
+						resource@5 {
+							resource,label = "int";
+							resource,value = <0 0>;
+						};
+
+						resource@6 {
+							resource,label = "hmp";
+							resource,value = <1 0>;
+						};
+
+						resource@7 {
+							resource,label = "ucc";
+							resource,value = <1 0>;
+						};
+					};
+				};
+				booster_key@3 {
+					input_booster,label = "touch";
+					input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+
+					/* Time table */
+					input_booster,head_time = <130>;
+					input_booster,tail_time = <500>;
+
+					/* resource Table Sequentially identified with index
+					 * CLUSTER2's ID & Index : 0
+					 * CLUSTER1's ID & Index : 1
+					 * CLUSTER0's ID & Index : 2
+					 * MIF's ID & Index      : 3
+					 * INT's ID & Index      : 4
+					 * HMP's ID & Index      : 5
+					 * UCC's ID & Index      : 6
+					*/
+					inputbooster,resource {
+						compatible = "resource";
+						resource@1 {
+							resource,label = "cluster2";
+							resource,value = <819000 624000>;
+						};
+
+						resource@2 {
+							resource,label = "cluster1";
+							resource,value = <1222000 962000>;
+						};
+
+						resource@3 {
+							resource,label = "cluster0";
+							resource,value = <806000 806000>;
+						};
+
+						resource@4 {
+							resource,label = "mif";
+							resource,value = <1014000 1014000>;
+						};
+
+						resource@5 {
+							resource,label = "int";
+							resource,value = <0 0>;
+						};
+
+						resource@6 {
+							resource,label = "hmp";
+							resource,value = <1 1>;
+						};
+
+						resource@7 {
+							resource,label = "ucc";
+							resource,value = <1 1>;
+						};
+					};
+				};
+				booster_key@4 {
+					input_booster,label = "multitouch";
+					input_booster,type = <3>;	/* BOOSTER_DEVICE_MULTITOUCH */
+
+					/* Time table */
+					input_booster,head_time = <1000>;
+					input_booster,tail_time = <500>;
+
+					/* resource Table Sequentially identified with index
+					 * CLUSTER2's ID & Index : 0
+					 * CLUSTER1's ID & Index : 1
+					 * CLUSTER0's ID & Index : 2
+					 * MIF's ID & Index      : 3
+					 * INT's ID & Index      : 4
+					 * HMP's ID & Index      : 5
+					 * UCC's ID & Index      : 6
+					*/
+					inputbooster,resource {
+						compatible = "resource";
+						resource@1 {
+							resource,label = "cluster2";
+							resource,value = <819000 624000>;
+						};
+
+						resource@2 {
+							resource,label = "cluster1";
+							resource,value = <1222000 962000>;
+						};
+
+						resource@3 {
+							resource,label = "cluster0";
+							resource,value = <806000 806000>;
+						};
+
+						resource@4 {
+							resource,label = "mif";
+							resource,value = <1014000 1014000>;
+						};
+
+						resource@5 {
+							resource,label = "int";
+							resource,value = <0 0>;
+						};
+
+						resource@6 {
+							resource,label = "hmp";
+							resource,value = <1 1>;
+						};
+
+						resource@7 {
+							resource,label = "ucc";
+							resource,value = <1 1>;
+						};
+					};
+				};
+				booster_key@5 {
+					input_booster,label = "keyboard";
+					input_booster,type = <4>;	/* BOOSTER_DEVICE_KEYBOARD */
+
+					/* Time table */
+					input_booster,head_time = <130>;
+					input_booster,tail_time = <0>;
+
+					/* resource Table Sequentially identified with index
+					 * CLUSTER2's ID & Index : 0
+					 * CLUSTER1's ID & Index : 1
+					 * CLUSTER0's ID & Index : 2
+					 * MIF's ID & Index      : 3
+					 * INT's ID & Index      : 4
+					 * HMP's ID & Index      : 5
+					 * UCC's ID & Index      : 6
+					*/
+					inputbooster,resource {
+						compatible = "resource";
+						resource@1 {
+							resource,label = "cluster2";
+							resource,value = <0 0>;
+						};
+
+						resource@2 {
+							resource,label = "cluster1";
+							resource,value = <1404000 1404000>;
+						};
+
+						resource@3 {
+							resource,label = "cluster0";
+							resource,value = <806000 806000>;
+						};
+
+						resource@4 {
+							resource,label = "mif";
+							resource,value = <0 0>;
+						};
+
+						resource@5 {
+							resource,label = "int";
+							resource,value = <0 0>;
+						};
+
+						resource@6 {
+							resource,label = "hmp";
+							resource,value = <1 1>;
+						};
+
+						resource@7 {
+							resource,label = "ucc";
+							resource,value = <1 1>;
+						};
+					};
+				};
+				booster_key@6 {
+					input_booster,label = "mouse";
+					input_booster,type = <5>;	/* BOOSTER_DEVICE_MOUSE */
+
+					/* Time table */
+					input_booster,head_time = <130>;
+					input_booster,tail_time = <500>;
+
+					/* resource Table Sequentially identified with index
+					 * CLUSTER2's ID & Index : 0
+					 * CLUSTER1's ID & Index : 1
+					 * CLUSTER0's ID & Index : 2
+					 * MIF's ID & Index      : 3
+					 * INT's ID & Index      : 4
+					 * HMP's ID & Index      : 5
+					 * UCC's ID & Index      : 6
+					*/
+					inputbooster,resource {
+						compatible = "resource";
+						resource@1 {
+							resource,label = "cluster2";
+							resource,value = <0 0>;
+						};
+
+						resource@2 {
+							resource,label = "cluster1";
+							resource,value = <1404000 1222000>;
+						};
+
+						resource@3 {
+							resource,label = "cluster0";
+							resource,value = <806000 806000>;
+						};
+
+						resource@4 {
+							resource,label = "mif";
+							resource,value = <0 0>;
+						};
+
+						resource@5 {
+							resource,label = "int";
+							resource,value = <0 0>;
+						};
+
+						resource@6 {
+							resource,label = "hmp";
+							resource,value = <1 1>;
+						};
+
+						resource@7 {
+							resource,label = "ucc";
+							resource,value = <1 1>;
+						};
+					};
+				};
+				booster_key@7 {
+					input_booster,label = "mouse_wheel";
+					input_booster,type = <6>;	/* BOOSTER_DEVICE_MOUSE */
+
+					/* Time table */
+					input_booster,head_time = <130>;
+					input_booster,tail_time = <0>;
+
+					/* resource Table Sequentially identified with index
+					 * CLUSTER2's ID & Index : 0
+					 * CLUSTER1's ID & Index : 1
+					 * CLUSTER0's ID & Index : 2
+					 * MIF's ID & Index      : 3
+					 * INT's ID & Index      : 4
+					 * HMP's ID & Index      : 5
+					 * UCC's ID & Index      : 6
+					*/
+					inputbooster,resource {
+						compatible = "resource";
+						resource@1 {
+							resource,label = "cluster2";
+							resource,value = <0 0>;
+						};
+
+						resource@2 {
+							resource,label = "cluster1";
+							resource,value = <1404000 0>;
+						};
+
+						resource@3 {
+							resource,label = "cluster0";
+							resource,value = <806000 0>;
+						};
+
+						resource@4 {
+							resource,label = "mif";
+							resource,value = <0 0>;
+						};
+
+						resource@5 {
+							resource,label = "int";
+							resource,value = <0 0>;
+						};
+
+						resource@6 {
+							resource,label = "hmp";
+							resource,value = <1 0>;
+						};
+
+						resource@7 {
+							resource,label = "ucc";
+							resource,value = <1 1>;
+						};
+					};
+				};
+				booster_key@8 {
+					input_booster,label = "pen_hover";
+					input_booster,type = <7>;	/* BOOSTER_DEVICE_MOUSE */
+
+					/* Time table */
+					input_booster,head_time = <130>;
+					input_booster,tail_time = <500>;
+
+					/* resource Table Sequentially identified with index
+					 * CLUSTER2's ID & Index : 0
+					 * CLUSTER1's ID & Index : 1
+					 * CLUSTER0's ID & Index : 2
+					 * MIF's ID & Index      : 3
+					 * INT's ID & Index      : 4
+					 * HMP's ID & Index      : 5
+					 * UCC's ID & Index      : 6
+					*/
+					inputbooster,resource {
+						compatible = "resource";
+						resource@1 {
+							resource,label = "cluster2";
+							resource,value = <0 0>;
+						};
+
+						resource@2 {
+							resource,label = "cluster1";
+							resource,value = <1404000 1222000>;
+						};
+
+						resource@3 {
+							resource,label = "cluster0";
+							resource,value = <806000 806000>;
+						};
+
+						resource@4 {
+							resource,label = "mif";
+							resource,value = <0 0>;
+						};
+
+						resource@5 {
+							resource,label = "int";
+							resource,value = <0 0>;
+						};
+
+						resource@6 {
+							resource,label = "hmp";
+							resource,value = <1 1>;
+						};
+
+						resource@7 {
+							resource,label = "ucc";
+							resource,value = <1 1>;
+						};
+					};
+				};
+				booster_key@9 {
+					input_booster,label = "pen";
+					input_booster,type = <8>;	/* BOOSTER_DEVICE_MOUSE */
+
+					/* Time table */
+					input_booster,head_time = <200>;
+					input_booster,tail_time = <600>;
+
+					/* resource Table Sequentially identified with index
+					 * CLUSTER2's ID & Index : 0
+					 * CLUSTER1's ID & Index : 1
+					 * CLUSTER0's ID & Index : 2
+					 * MIF's ID & Index      : 3
+					 * BIMC's ID & Index     : 4
+					 * HMP's ID & Index      : 5
+					 * UCC's ID & Index      : 6
+					*/
+					inputbooster,resource {
+						compatible = "resource";
+						resource@1 {
+							resource,label = "cluster2";
+							resource,value = <0 0>;
+						};
+
+						resource@2 {
+							resource,label = "cluster1";
+							resource,value = <1508000 1222000>;
+						};
+
+						resource@3 {
+							resource,label = "cluster0";
+							resource,value = <806000 806000>;
+						};
+
+						resource@4 {
+							resource,label = "mif";
+							resource,value = <0 0>;
+						};
+
+						resource@5 {
+							resource,label = "bimc";
+							resource,value = <0 0>;
+						};
+
+						resource@6 {
+							resource,label = "hmp";
+							resource,value = <1 1>;
+						};
+
+						resource@7 {
+							resource,label = "ucc";
+							resource,value = <1 1>;
+						};
+					};
+				};
+				/* If you need to add new key type, add it this position */
+			};
+		};
+	};
+};
+
+&pinctrl_0 {
+	key_voldown: key-voldown {
+		samsung,pins = "gpa0-4";
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+
+	key_volup: key-volup {
+		samsung,pins = "gpa0-3";
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+
+	key_power: key-power {
+		samsung,pins = "gpa2-4";
+		samsung,pin-function = <0xf>;
+	};
+
+	attn_irq: attn-irq {
+		samsung,pins = "gpa1-0";
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+
+	attn_input: attn-input {
+		samsung,pins = "gpa1-0";
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <1>;
+	};
+};
+
+&hsi2c_10 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+	samsung,stop-after-trans;	/* LSI IC ONLY */
+	samsung,reset-before-trans;
+	tsp_lsi: touchscreen@48 {
+		status = "ok";
+		compatible = "slsi,slsi_ts";
+		reg = <0x48>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&attn_irq>;
+		pinctrl-1 = <&attn_input>;
+		tsp_io_ldo-supply = "tsp_io_ldo";
+		tsp_avdd_ldo-supply = "tsp_avdd_ldo";
+		sec,irq_gpio = <&gpa1 0 0>;
+		sec,regulator_boot_on;
+		sec,tclm_level = <2>;
+		sec,afe_base = <0x0104>;
+		sec,area-size = <132 266 341>; /* indicator: 24dp navigator:48dp edge:60px dpi=320 */
+		sec,max_coords = <4096 4096>; /* x y */
+
+		enable_settings_aot;
+		support_dex_mode;
+		support_fod;
+		support_mis_calibration_test;
+		support_ear_detect_mode;
+//		sync-reportrate-120;
+		support_open_short_test;
+
+		/* This part is for firmware */
+		sec,project_name = "F62", "E625";
+		sec,firmware_name = "tsp_slsi/y771_f62.bin";
+//		sec,bringup = <3>;
+	};
+};
+
+&speedy {
+	s2mps19mfd@00 {
+		regulators {
+			ldo19_reg: LDO19M {
+				regulator-name = "tsp_io_ldo";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-boot-on;
+				regulator-ramp-delay = <12000>;
+				regulator-initial-mode = <3>;
+			};
+
+			ldo20_reg: LDO20M {
+				regulator-name = "tsp_avdd_ldo";
+				regulator-min-microvolt = <3000000>;
+				regulator-max-microvolt = <3000000>;
+				regulator-boot-on;
+				regulator-ramp-delay = <12000>;
+				regulator-initial-mode = <3>;
+			};		
+		};
+	};
+};
+
