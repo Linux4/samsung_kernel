@@ -1,0 +1,10 @@
+menuconfig EXYNOS_DSP
+	bool "EXYNOS dsp common driver"
+	depends on ARCH_EXYNOS
+	select EXYNOS_DSP_HARDWARE
+
+if EXYNOS_DSP
+
+source "drivers/vision/dsp/hardware/Kconfig"
+
+endif

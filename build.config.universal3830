@@ -1,0 +1,16 @@
+ARCH=arm64
+CROSS_COMPILE=aarch64-linux-android-
+CLANG_TRIPLE=aarch64-linux-gnu-
+DEFCONFIG=universal3830_defconfig
+CLANG_VERSION=clang-r353983c
+TARGET_SOC=exynos3830
+TARGET_DTBO_CFG=exynos3830_dtboimg.cfg
+SEPERATE_KERNEL_OBJ=true
+KERNEL_LTO_ON_4_19=true
+FILES="
+arch/arm64/boot/Image:kernel
+arch/arm64/boot/dts/exynos/exynos3830.dtb:dtb.img
+dtbo.img:dtbo.img
+vmlinux:vmlinux
+System.map:System.map
+"

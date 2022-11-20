@@ -1,0 +1,15 @@
+config TCPC_ET7303
+	tristate "Etek et7303 TypeC port Controller Driver"
+	depends on TCPC_CLASS
+	default n
+	help
+	  Say Y to enable
+	  Etek ET7303
+	  TypeC port Controller
+	  Driver
+
+config RT_REGMAP
+	tristate "Richtek Regmap"
+	default n
+	help
+	  Say Y to enable Richtek Register Map

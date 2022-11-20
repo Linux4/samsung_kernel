@@ -1,0 +1,53 @@
+&pinctrl_5 {
+	chg_en_default: chg_en_default {
+		GPIO_CONFIG_PUD(AP,gpg2,gpg2,3, FUNC_OUTPUT_LOW, PULL_NONE);
+	};
+};
+
+&pinctrl_0 {
+	chg_int_default: chg_int_default {
+		GPIO_CONFIG_PUD(AP,gpa2,gpa2,5, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+
+&i2c_0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	syv660_charger: sy6970@6a {
+		compatible = "silergy,sy6970";
+		reg = <0x6a>;
+
+		status= "okay";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&chg_int_default &chg_en_default>;
+		interrupt-parent = <SEC_GPIO_TYPE(AP,gpa2,gpa2,5)>;
+		interrupts = <SEC_GPIO_NUM(AP,gpa2,gpa2,5) 0 0>;
+
+		silergy,chg_en = <SEC_GPIO_REF(AP,gpg2,gpg2,3) 0>;
+		silergy,battery-regulation-voltage = <4380000>;
+		silergy,charge-current = <448000>;
+		silergy,termination-current = <192000>;
+		silergy,precharge-current = <448000>;
+		silergy,minimum-sys-voltage = <3400000>;
+		silergy,boost-voltage = <5062000>;
+		silergy,boost-max-current = <1200000>;
+
+		silergy,use-ilim-pin;
+		silergy,thermal-regulation-threshold = <120>;
+	};
+};
+
+&smd {
+	battery {
+		battery,otg_name = "syv660-otg";
+	};
+};
+
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/syv660/syv660_charger.a13.dtsi */
+&i2c_0 {
+	samsung,glitch-filter;
+	samsung,fix-doxfer-return;
+};

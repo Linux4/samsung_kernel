@@ -1,0 +1,8 @@
+config VIRTUAL_MUIC
+	tristate "Virtual MUIC support"
+	depends on MUIC_NOTIFIER
+	default n
+	help
+	  If you say yes here you will get support for
+	  virtual MUIC device driver.
+

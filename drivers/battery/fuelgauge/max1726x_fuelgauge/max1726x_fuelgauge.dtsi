@@ -1,0 +1,71 @@
+&pinctrl_0 {
+	fg_alert_default: fg_alert_default {
+		GPIO_CONFIG_PUD(AP,gpa2,gpa2,0, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+
+&i2c_0 {
+	status = "okay";
+
+	max1726x_fuelgauge: max1726x-fuelgauge@36 {
+		compatible = "maxim,MAX1726x";
+		reg = <0x36>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&fg_alert_default>;
+		interrupt-parent = <SEC_GPIO_TYPE(AP,gpa2,gpa2,0)>;
+		interrupts = <SEC_GPIO_NUM(AP,gpa2,gpa2,0) 0 0>;
+
+		fuelgauge,rsense = <5>;     /* miliOhm */
+		//fuelgauge,talrt-min = <0>;          /* DegreeC */
+		//fuelgauge,talrt-max = <50>;         /* DegreeC */
+		fuelgauge,valrt-min = <3100>;       /* mV */
+		//fuelgauge,valrt-max = <4500>;       /* mV */
+		fuelgauge,salrt-min = <1>;          /* Percent */
+		//fuelgauge,salrt-max = <99>;         /* Percent */
+		fuelgauge,ialrt-min = <(-5000)>;    /* mA */
+		fuelgauge,ialrt-max = <5000>;       /* mA */
+
+		/*** INI parameters ***/
+		fuelgauge,designcap = /bits/ 16 <0x221c>; /* 4366 mAh */
+		fuelgauge,vempty = /bits/ 16 <0xa7e2>; /* 3350 mV */
+
+		/*** SEC parameters ***/
+		fuelgauge,capacity_calculation_type = <0x1C>;
+		fuelgauge,capacity_max = <1000>;
+		fuelgauge,capacity_max_margin = <300>;
+		fuelgauge,capacity_min = <0>;
+
+		fuelgauge,using_temp_compensation;
+		fuelgauge,low_temp_limit = <100>;
+		fuelgauge,vempty_recover_time = <180>; /* 3mins */
+		fuelgauge,vempty_sw_mode = /bits/ 16 <0x7D54>; /* 2500 mV */
+		fuelgauge,sw_vempty_valrt = <3200>;
+		fuelgauge,sw_vempty_valrt_cisd = <3100>;
+		fuelgauge,sw_vempty_recover_vol = <3480>;
+
+		fuelgauge,vbat_open_adc = <0>;
+	};
+};
+
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/max1726x/max1726x_fuelgauge.a13.dtsi */
+&i2c_0 {
+	samsung,glitch-filter;
+	samsung,fix-doxfer-return;
+};
+
+&max1726x_fuelgauge {
+	fuelgauge,rsense = <5>;     /* miliOhm */
+
+	/*** INI parameters ***/
+	fuelgauge,designcap = /bits/ 16 <0x11e1>; /* 4577 mAh */
+	fuelgauge,vempty = /bits/ 16 <0xaa64>; /* 3400 mV */
+
+	/*** SEC parameters ***/
+	fuelgauge,vbat_open_adc = <1295>;
+};
+
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/max1726x/max1726x_fuelgauge.a13_eur.dtsi */
+&max1726x_fuelgauge {
+	/*** SEC parameters ***/
+	fuelgauge,vbat_open_adc = <2323>;
+};
