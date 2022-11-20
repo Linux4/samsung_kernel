@@ -1,0 +1,160 @@
+/*
+ * SAMSUNG EXYNOS7870 Galaxy Tab A LTE soundcard device tree source
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	sound {
+		status = "okay";
+		compatible = "samsung,universal7870-rt5665";
+
+		samsung,audio-routing =
+				"RECEIVER", "MONOOUT",
+				"RECEIVER", "MONOOUT",
+				"HEADPHONE", "HPOL",
+				"HEADPHONE", "HPOR",
+				"SPEAKER", "SPKL Playback",
+				"SPEAKER", "SPKR Playback",
+				"IN1P", "HEADSETMIC",
+				"IN1N", "HEADSETMIC",
+				"IN3P", "MAINMIC",
+				"IN3N", "MAINMIC",
+				"IN4P", "SUBMIC",
+				"IN4N", "SUBMIC";
+
+		samsung,audio-cpu = <&i2s0
+					&i2s0
+					&audio_cp_dummy		/* CODEC & AMP for CP */
+					&audio_bt_dummy
+					&i2s0				/* CODEC & AMP for AP */
+					&eax
+					&eax
+					&eax
+					&eax>;
+
+		samsung,audio-codec = <&audio_codec
+					&audio_codec_dummy
+					&audio_codec_dummy		/* CODEC & AMP for CP */
+					&audio_codec_dummy
+					&audio_codec_dummy		/* CODEC & AMP for AP */
+					&audio_codec_dummy
+					&audio_codec_dummy
+					&audio_codec_dummy
+					&audio_codec_dummy>;
+
+		samsung,codec = <&s1402x &audio_codec &sma1303_l &sma1303_r>;
+
+		samsung,syscon-phandle = <&pmu_system_controller>;
+		samsung,auxdev = <&s1402x>;
+		clock-names = "xclkout";
+		//clocks = <&clock OSC_AUD>;
+		clocks = <&clock 470>;
+
+		/delete-property/ io-channels;
+		/delete-property/ io-channel-names;
+		/delete-property/ #io-channel-cells;
+		/delete-property/ io-channel-ranges;
+
+		mixer-paths = "mixer_paths_rev07.xml";
+	};
+};
+
+&hsi2c_6 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	sma1303_l: sma1303@1e {
+		#sound-dai-cells = <0>;
+
+		compatible = "siliconmitus,sma1303";
+		reg = <0x1e>;
+		init-vol = <0x31>;
+		stereo-two-chip;
+		/* EXTERNAL_CLOCK_19_2   : 0x00,
+		 * EXTERNAL_CLOCK_24_576 : 0x01,
+		 * PLL_CLKIN_MCLK        : 0x02,
+		 * PLL_CLKIN_BCLK        : 0x03
+		 */
+		sys-clk-id = <0x03>;
+		status = "okay";
+	};
+
+	sma1303_r: sma1303@7e {
+		#sound-dai-cells = <0>;
+
+		compatible = "siliconmitus,sma1303";
+		reg = <0x7e>;
+		init-vol = <0x31>;
+		stereo-two-chip;
+		/* EXTERNAL_CLOCK_19_2   : 0x00,
+		 * EXTERNAL_CLOCK_24_576 : 0x01,
+		 * PLL_CLKIN_MCLK        : 0x02,
+		 * PLL_CLKIN_BCLK        : 0x03
+		 */
+		sys-clk-id = <0x03>;
+		status = "okay";
+	};
+};
+
+//i2c@13880000 {
+&i2c_1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	audio_codec: rt5665@1b {
+		compatible = "realtek,rt5665";
+		reg = <0x1b>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&codec_irq>;
+		interrupt-parent = <&gpd3>;
+		interrupts = <3 0 0>;
+		#sound-dai-cells = <1>;
+		realtek,in1-differential;
+		realtek,in3-differential;
+		realtek,in4-differential;
+		realtek,jd-src = <2>;
+		/* realtek,mic-check-in-bg; */
+		realtek,dmic2-data-pin =<2>;
+		realtek,sar-hs-type = <700>;
+		realtek,sar-pb-vth0 = <95>;
+		realtek,sar-pb-vth1 = <139>;
+		realtek,sar-pb-vth2 = <246>;
+		realtek,sar-pb-vth3 = <580>;
+		imp_table = <
+			/*min max gain bias*/
+			0x0000 0x000d 3 6 // 8 ohm
+			0x000e 0x0019 1 6 // 16 ohm
+			0x001a 0x0035 0 6 // 32 ohm
+			0x0036 0x0067 0 6 // 64 ohm
+			0x0068 0xffff 0 6 // > 100 ohm
+		>;
+
+		/* not use offset-comp due to AMP on/off noise */
+		realtek,offset-comp = <0x0078 0x0090 0x00b0 0x00c0
+					0x00f0 0x0110 0x0130 0x0180
+					0x01e0 0x0200 0x02a0 0x0300
+					0x03a0 0x0400 0x0500 0x0600>;
+		realtek,offset-comp-r = <0x001a 0x001f 0x0020 0x002a
+					0x0030 0x0040 0x0050 0x0060
+					0x006f 0x007f 0x00a0 0x00b0
+					0x00cf 0x0100 0x0120 0x0160>;
+		realtek,regulator_1v8 = <&ldo25_reg>;
+		realtek,regulator_3v3 = <&ldo32_reg>;
+	};
+};
+
+&pinctrl_6 {
+	codec_irq: codec_irq {
+		samsung,pins ="gpd3-3";
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <0>;
+	};
+};

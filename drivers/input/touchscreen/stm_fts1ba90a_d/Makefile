@@ -1,0 +1,1 @@
+obj-$(CONFIG_TOUCHSCREEN_FTS1BA90A_DUALIZATION)	+= fts_ts.o fts_fwu.o
