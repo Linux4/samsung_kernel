@@ -1,0 +1,17 @@
+if MMP_DISP
+
+config MMP_DISP_CONTROLLER
+	bool "mmp display controller hw support"
+	default y
+	help
+		Marvell MMP display hw controller support
+
+config MMP_DISP_SPI
+	bool "mmp display controller spi port"
+	depends on MMP_DISP_CONTROLLER && SPI_MASTER
+	default y
+	help
+		Marvell MMP display hw controller spi port support
+		will register as a spi master for panel usage
+
+endif
