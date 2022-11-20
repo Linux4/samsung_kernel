@@ -1,0 +1,14 @@
+# When adding new entries keep the list in alphabetical order
+
+if SEC_DEBUG
+config SEC_DEBUG_PWDT
+	bool "Platform Watchdog check"
+	depends on SEC_DEBUG
+	default n
+	help
+	  To check Platform Watchdog thread status
+
+endif
+
+source "drivers/debug/user_reset/Kconfig"
+
