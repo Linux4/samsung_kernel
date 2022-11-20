@@ -1,0 +1,187 @@
+/*
+ * SAMSUNG LCD Panel Device Tree Source
+ *
+ * Copyright (c) Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	fragment@disp_leds {
+		target-path = "/disp_leds/";
+		__overlay__ {
+			compatible;
+		};
+	};
+
+	fragment@pwmleds {
+		target-path = "/pwmleds/";
+		__overlay__ {
+			compatible;
+		};
+	};
+
+	fragment@i2c_leds {
+		target-path = "/i2c_leds/";
+		__overlay__ {
+			compatible;
+		};
+	};
+
+	fragment@lcd {
+		target-path = "/";
+		__overlay__ {
+			panel {
+				compatible = "samsung,mtk-dsi-panel";
+				smcdsd_panel = <&sw83109_boe>;
+			};
+
+			lcd_fixed_regulator: lcd_fixed_regulator {
+				compatible = "simple-bus";
+
+				__gpio_octa_rst_n: __gpio_octa_rst_n {
+					compatible = "regulator-fixed";
+					regulator-name = "gpio_octa_rst_n";
+					gpio = <&pio 40 0>;	/* OCTA_RST_N */
+					enable-active-high;
+					regulator-boot-on;
+				};
+				__gpio_lcd_3p0_en: __gpio_lcd_3p0_en {
+					compatible = "regulator-fixed";
+					regulator-name = "gpio_lcd_3p0_en";
+					gpio = <&pio 119 0>;	/* LCD_3P0_EN */
+					enable-active-high;
+					regulator-boot-on;
+				};
+			};
+
+			smcdsd_board_sw83109: smcdsd_board_sw83109 {
+				gpio_con = <&pio 118 0x0>;	/* UB_CON_DET */
+				gpio_det = <&pio 1 0x1>;	/* EL_ON1_DET */
+				gpio_err = <&pio 8 0x0>;	/* FG_ERR */
+
+				abd_func_refresh =
+					//"gpio_det",	"CHAIN_TYPE_EVENT",
+					"gpio_err",	"CHAIN_TYPE_EVENT";
+
+				panel_power_enable {
+					type =
+					"regulator,enable",	"vcamio",
+					"delay,usleep",	"2000",
+					"regulator,enable",	"gpio_lcd_3p0_en",
+					"delay,usleep",	"11000";	/* Wait 10ms */
+				};
+				panel_reset_enable {
+					type =
+					"delay,usleep",	"2000",	/* ton3 min 1ms */
+					"regulator,enable",	"gpio_octa_rst_n",
+					"delay,usleep",	"1000",
+					"regulator,disable",	"gpio_octa_rst_n",
+					"delay,usleep",	"1000",
+					"regulator,enable",	"gpio_octa_rst_n",
+					"delay,usleep",	"5000";	/* Wait 4ms */
+				};
+				panel_reset_disable {
+					type =
+					"regulator,disable",	"gpio_octa_rst_n",
+					"delay,usleep",	"2000";	/* toff5 min 1ms */
+				};
+				panel_power_disable {
+					type =
+					"regulator,disable",	"gpio_lcd_3p0_en",
+					"delay,usleep",	"1000",
+					"regulator,disable",	"vcamio",
+					"delay,usleep",	"1000";
+				};
+				panel_regulator_init {
+					type =
+					"regulator,enable",	"vcamio",
+					"regulator,enable",	"gpio_lcd_3p0_en",
+					"regulator,enable",	"gpio_octa_rst_n";
+				};
+			};
+
+			__sw83109_boe_120: __sw83109_boe_120 {
+				drm_params-vrefresh = <120>;
+			};
+
+			sw83109_boe: sw83109_boe {
+				/* id_match: MASK(HEX) EXPECT(HEX) */
+				id_match = <
+					0xFFFFF0 0x010005
+				>;
+				lcm_params-dsi-mode = <0>;	/* 0: CMD, 1: SYNC_PULSE_VDO, 2: SYNC_EVENT_VDO, 3: BURST_VDO */
+				lcm_params-dsi-lane_num = <4>;
+
+				lcm_params-resolution = <1080 2400>;
+				lcm_params-physical_width = <70>;	/* 69.552mm x 154.56 mm */
+				lcm_params-physical_height = <155>;
+
+				lcm_params-dsi-horizontal_backporch = <60>;
+				lcm_params-dsi-horizontal_frontporch = <60>;
+				lcm_params-dsi-horizontal_sync_active = <4>;
+				lcm_params-dsi-vertical_backporch = <20>;
+				lcm_params-dsi-vertical_frontporch = <40>;
+				lcm_params-dsi-vertical_sync_active = <4>;
+
+				lcm_params-dsi-data_rate = <806 822 824>;
+				lcm_params-dsi-ssc_disable = <1>;
+
+				drm_params-vrefresh = <60>;
+
+				ext_params-dyn_fps-vact_timing_fps = <120>;
+				vrr_info = <&sw83109_boe &__sw83109_boe_120>;
+
+				dsc_params-enable = <1>;
+				dsc_params-ver = <17>;
+				dsc_params-slice_mode = <1>;
+				dsc_params-rgb_swap = <0>;
+				dsc_params-dsc_cfg = <34>;
+				dsc_params-rct_on = <1>;
+				dsc_params-bit_per_channel = <8>;
+				dsc_params-dsc_line_buf_depth = <9>;
+				dsc_params-bp_enable = <1>;
+				dsc_params-bit_per_pixel = <128>;
+				dsc_params-pic_height = <2400>;
+				dsc_params-pic_width = <1080>;
+				dsc_params-slice_height = <60>;
+				dsc_params-slice_width = <540>;
+				dsc_params-chunk_size = <540>;
+				dsc_params-xmit_delay = <512>;
+				dsc_params-dec_delay = <526>;
+				dsc_params-scale_value = <32>;
+				dsc_params-increment_interval = <1490>;
+				dsc_params-decrement_interval = <7>;
+				dsc_params-line_bpg_offset = <12>;
+				dsc_params-nfl_bpg_offset = <417>;
+				dsc_params-slice_bpg_offset = <434>;
+				dsc_params-initial_offset = <6144>;
+				dsc_params-final_offset = <4336>;
+				dsc_params-flatness_minqp = <3>;
+				dsc_params-flatness_maxqp = <12>;
+				dsc_params-rc_model_size = <8192>;
+				dsc_params-rc_edge_factor = <6>;
+				dsc_params-rc_quant_incr_limit0 = <11>;
+				dsc_params-rc_quant_incr_limit1 = <11>;
+				dsc_params-rc_tgt_offset_hi = <3>;
+				dsc_params-rc_tgt_offset_lo = <3>;
+
+				smcdsd_board = <&smcdsd_board_sw83109>;
+			};
+		};
+	};
+};
+
+&dsi0 {
+	panel@0 {
+		compatible = "smcdsd_panel";
+		pm-enable-gpios;
+		reset-gpios;
+		bias-gpios;
+	};
+};
+
+
