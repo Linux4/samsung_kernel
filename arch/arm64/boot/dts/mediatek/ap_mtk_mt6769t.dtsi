@@ -1,0 +1,8 @@
+#include <dt-bindings/clock/mt6768-clk.h>
+
+#define topckgen_clk topckgen
+#define infracfg_ao_clk infracfg_ao
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6769t/ap_mtk_mt6769t.a22.02.dtsi */
+#include <dt-bindings/clock/mt6768-clk.h>
+#include "../../mediatek/k69v1_64_titan_buffalo.dts"
+#include "../../mediatek/k69v1_64_titan_buffalo/gpio02.dtsi"

@@ -1,0 +1,253 @@
+/*
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pio {
+	nfc_ven: nfc_ven {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,159), 0)>;
+			output-low;
+			bias-disable;
+		};
+	};
+	ven_nc: ven_nc {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,159), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+};
+
+&pio {
+	nfc_firm: nfc_firm {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,158), 0)>;
+			output-low;
+			bias-disable;
+		};
+	};
+	firm_nc: firm_nc {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,158), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+};
+
+&pio {
+	nfc_clk_req: nfc_clk_req {
+		pins_cmd_dat{
+			pinmux =  <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,1), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+	clk_req_nc: clk_req_nc {
+		pins_cmd_dat{
+			pinmux =  <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,1), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+};
+
+&pio {
+	nfc_irq: nfc_irq {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,3), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+
+	irq_nc: irq_nc {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,3), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+};
+
+&pio {
+	nfc_i2c_off: nfc_i2c_off {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,48), 0)>,
+					<MTK_PINMUX(SEC_GPIO_NUM(AP,pio,49), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+	nfc_i2c_on: nfc_i2c_on {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,48), 1)>,
+					<MTK_PINMUX(SEC_GPIO_NUM(AP,pio,49), 1)>;
+			bias-pull-up;
+		};
+	};
+};
+
+#if 1
+&pio {
+	nfc_check: nfc_check {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,52), 0)>;
+			input-enable;
+			bias-disable;
+		};
+	};
+};
+#endif
+
+&i2c5 {
+	status = "ok";
+	clock-frequency = <400000>;
+	mediatek,use-open-drain;
+
+	pn547@2B {
+		compatible = "pn547";
+		reg = <0x2B>;
+
+		interrupt-parent = <&pio>;
+		interrupts = <SEC_GPIO_NUM(AP,pio,3) IRQ_TYPE_EDGE_RISING
+			SEC_GPIO_NUM(AP,pio,3) 0>;
+
+		pn547,irq-gpio = <SEC_GPIO_REF(AP,pio,3) 0>;
+		pn547,ven-gpio = <SEC_GPIO_REF(AP,pio,159) 0>;
+		pn547,firm-gpio = <SEC_GPIO_REF(AP,pio,158) 0>;
+		pn547,clk_req-gpio = <SEC_GPIO_REF(AP,pio,1) 0>;
+#if 1
+		pn547,clk_req_wake;
+#endif
+#if 1
+		nfc_pvdd-supply = <&mt_pmic_vcamio_ldo_reg>;
+#endif
+		pn547,ldo_control;
+#if 1
+		pn547,nfc-det-gpio = <SEC_GPIO_REF(AP,pio,52) 0>;
+#endif
+		pn547,ap_vendor = "mtk";
+		pinctrl-names = "default", "nfc_nc", "i2c_off";
+		pinctrl-0 = <&nfc_ven &nfc_firm &nfc_clk_req &nfc_irq &nfc_i2c_on
+#if 1
+					&nfc_check
+#endif
+					>;
+		pinctrl-1 = <&ven_nc &firm_nc &clk_req_nc &irq_nc>;
+		pinctrl-2 = <&nfc_i2c_off>;
+	};
+};
+
+#if 0
+#if 0 && !defined(CONFIG_SEC_FACTORY)
+&tlmm {
+/*	gpio-reserved-ranges = <SEC_GPIO_NUM(${ese_spi_miso}) 4>; */
+};
+#endif
+
+&${ese_spi_parent} {
+	ese_spi_bus_func: spi_bus_func {
+		pins_cmd_dat {
+			/* spi func is 2, but this can be different by AP */
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_miso}), 2)>,
+				<MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_mosi}), 2)>,
+				<MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_cs}), 2)>,
+				<MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_clk}), 2)>;
+			bias-disable;
+		};
+	};
+
+	ese_spi_cs_sleep: spi_cs_sleep {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_cs}), 0)>;
+			output-high;
+			bias-pull-up;
+		};
+	};
+
+	ese_spi_clk_sleep: spi_clk_sleep {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_clk}), 0)>;
+			output-low;
+			bias-pull-down;
+		};
+	};
+
+	ese_spi_mosi_sleep: spi_mosi_sleep {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_mosi}), 0)>;
+			output-low;
+			bias-pull-down;
+		};
+	};
+
+	ese_spi_miso_sleep: spi_miso_sleep {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_miso}), 0)>;
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	ese_spi_all_out_low: spi_all_out_low {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_miso}), 0)>,
+				<MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_mosi}), 0)>,
+				<MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_cs}), 0)>,
+				<MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_clk}), 0)>;
+			output-low;
+			bias-pull-down;
+		};
+	};
+};
+
+#if 0
+&${ese_check_parent} {
+	ese_check_default: check_default {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${ese_check}), 0)>;
+			input-enable;
+			bias-disable;
+		};
+	};
+};
+#endif
+
+/* #active
+ * - function/no-pull/X
+ * #idle
+ * - mosi,clk: out/pull-down/low
+ * - cs: out/pull-up/high
+ * - miso: input/pull-non/X
+ */
+&${ese_spi} {
+	status = "ok";
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+	pinctrl-names = "ese_on", "ese_off", "lpm";
+	pinctrl-0 = <&ese_spi_bus_func>;
+	pinctrl-1 = <&ese_spi_cs_sleep &ese_spi_clk_sleep &ese_spi_mosi_sleep &ese_spi_miso_sleep>;
+	pinctrl-2 = <&ese_spi_all_out_low>;
+
+	ese_spi@0 {
+		compatible = "p61";
+		reg = <0>;
+		spi-max-frequency = <8000000>;
+		p61,ap_vendor = "mtk";
+#if 0
+		ese-det-gpio = <SEC_GPIO_REF(${ese_check}) 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ese_check_default>;
+#endif
+	};
+};
+#endif

@@ -1,0 +1,334 @@
+#ifndef CONFIG_SEC_FACTORY
+
+#if 0
+&${gpio_sub_connect_conn_parent} {
+	sub_detect_conn_setting: sub-detect-conn-setting {
+		samsung,pins = SEC_GPIO(${gpio_sub_connect_conn});
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+};
+#endif
+
+#if 0
+&${gpio_sub_connect_conn_parent2} {
+	sub_detect_conn_setting2: sub-detect-conn-setting2 {
+		samsung,pins = SEC_GPIO(${gpio_sub_connect_conn2});
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+};
+#endif
+
+#if 0
+&${gpio_cam_connect_conn_parent} {
+	cam_detect_conn_setting: cam-detect-conn-setting {
+		samsung,pins = SEC_GPIO(${gpio_cam_connect_conn});
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+};
+#endif
+
+#if 0
+&${det_gpio_num_parent} {
+	detect_conn_setting: detect_conn_setting {
+		config {
+#if 0
+			pins = SEC_GPIO(${det_gpio_num_0}),
+			       SEC_GPIO(${det_gpio_num_1}),
+			       SEC_GPIO(${det_gpio_num_2}),
+			       SEC_GPIO(${det_gpio_num_3}),
+			       SEC_GPIO(${det_gpio_num_4}),
+#if 0
+			       SEC_GPIO(${det_gpio_num_5}),
+			       SEC_GPIO(${det_gpio_num_6}),
+			       SEC_GPIO(${det_gpio_num_7});
+#elif 0
+			       SEC_GPIO(${det_gpio_num_5}),
+			       SEC_GPIO(${det_gpio_num_6});
+#else
+			       SEC_GPIO(${det_gpio_num_5});
+#endif
+#elif 0
+			pins = SEC_GPIO(${det_gpio_num_0}),
+			       SEC_GPIO(${det_gpio_num_1}),
+			       SEC_GPIO(${det_gpio_num_2}),
+			       SEC_GPIO(${det_gpio_num_3}),
+#if 0
+			       SEC_GPIO(${det_gpio_num_4}),
+			       SEC_GPIO(${det_gpio_num_6}),
+			       SEC_GPIO(${det_gpio_num_7});
+#elif 0
+			       SEC_GPIO(${det_gpio_num_4}),
+			       SEC_GPIO(${det_gpio_num_6});
+#else
+			       SEC_GPIO(${det_gpio_num_4});
+#endif
+#elif 0
+			pins = SEC_GPIO(${det_gpio_num_0}),
+			       SEC_GPIO(${det_gpio_num_1}),
+			       SEC_GPIO(${det_gpio_num_2}),
+#if 0
+			       SEC_GPIO(${det_gpio_num_3}),
+			       SEC_GPIO(${det_gpio_num_6}),
+			       SEC_GPIO(${det_gpio_num_7});
+#elif 0
+			       SEC_GPIO(${det_gpio_num_3}),
+			       SEC_GPIO(${det_gpio_num_6});
+#else
+			       SEC_GPIO(${det_gpio_num_3});
+#endif
+#elif 0
+			pins = SEC_GPIO(${det_gpio_num_0}),
+			       SEC_GPIO(${det_gpio_num_1}),
+#if 0
+			       SEC_GPIO(${det_gpio_num_2}),
+			       SEC_GPIO(${det_gpio_num_6}),
+			       SEC_GPIO(${det_gpio_num_7});
+#elif 0
+			       SEC_GPIO(${det_gpio_num_2}),
+			       SEC_GPIO(${det_gpio_num_6});
+#else
+			       SEC_GPIO(${det_gpio_num_2});
+#endif
+#elif 0
+			pins = SEC_GPIO(${det_gpio_num_0}),
+#if 0
+			       SEC_GPIO(${det_gpio_num_1}),
+			       SEC_GPIO(${det_gpio_num_6}),
+			       SEC_GPIO(${det_gpio_num_7});
+#elif 0
+			       SEC_GPIO(${det_gpio_num_1}),
+			       SEC_GPIO(${det_gpio_num_6});
+#else
+			       SEC_GPIO(${det_gpio_num_1});
+#endif
+#elif 0
+			pins =
+#if 0
+			       SEC_GPIO(${det_gpio_num_0}),
+			       SEC_GPIO(${det_gpio_num_6}),
+			       SEC_GPIO(${det_gpio_num_7});
+#elif 0
+			       SEC_GPIO(${det_gpio_num_0}),
+			       SEC_GPIO(${det_gpio_num_6});
+#else
+			       SEC_GPIO(${det_gpio_num_0});
+#endif
+#elif 0
+			pins = SEC_GPIO(${det_gpio_num_6}),
+			       SEC_GPIO(${det_gpio_num_7});
+#elif 0
+			pins = SEC_GPIO(${det_gpio_num_6});
+#endif
+			drive-strength = <2>;
+			bias-disable; /*NO PULL*/
+			input-enable;
+		};
+	};
+};
+#endif /*use_dynamic_ap_gpio_detect*/
+
+#if 0
+&${det_pm_gpio_num_parent} {
+	detect_conn_pm_setting: detect_conn_pm_setting {
+#if 0 && 0
+		pins = SEC_GPIO(${det_pm_gpio_num_0}),
+		       SEC_GPIO(${det_pm_gpio_num_1});
+#elif 0
+		pins = SEC_GPIO(${det_pm_gpio_num_0});
+#elif 0
+		pins = SEC_GPIO(${det_pm_gpio_num_1});
+#endif
+		function = "normal";
+		power-source = <0>;
+		bias-disable; /*NO PULL*/
+		input-enable;
+	};
+};
+#endif /*use_dynamic_pm_gpio_detect*/
+
+#endif /* not CONFIG_SEC_FACTORY */
+
+&smd {
+	sec_abc {
+		compatible = "samsung,sec_abc";
+		status = "okay";
+
+		gpu {
+			gpu,label="GPU fault";
+#if 0
+			gpu,threshold_count=<4>;
+			gpu,threshold_time=<1200>;
+#else
+			gpu,threshold_count=<20>;
+			gpu,threshold_time=<1200>;
+#endif
+		};
+#if 0
+		gpu_page {
+			gpu_page,label="GPU page fault";
+			gpu_page,threshold_count=<20>;
+			gpu_page,threshold_time=<1200>;
+		};
+#endif
+		aicl {
+			aicl,label="battery aicl";
+			aicl,threshold_count=<5>;
+			aicl,threshold_time=<300>;
+		};
+#if 0
+		motto {
+			motto,label="motto info base";
+			motto,info_bootcheck_base = <0x15860858>;
+			motto,info_device_base = <0x1586085C>;
+		};
+#endif
+	};
+	abc_hub {
+		compatible = "samsung,abc_hub";
+		status = "okay";
+
+#ifndef CONFIG_SEC_FACTORY
+#if 0
+#if 0 && 0
+		pinctrl-names = "det_ap_connect","det_pm_connect";
+		pinctrl-0 = <&detect_conn_setting>;
+		pinctrl-1 = <&detect_conn_pm_setting>;
+#elif 0
+		pinctrl-names = "det_ap_connect";
+		pinctrl-0 = <&detect_conn_setting>;
+#elif 0
+		pinctrl-names = "det_pm_connect";
+		pinctrl-0 = <&detect_conn_pm_setting>;
+#endif
+/*not feature_abc_qcom_dt*/
+#elif 0 && 0 && 0
+		pinctrl-0 = <&sub_detect_conn_setting &sub_detect_conn_setting2 &cam_detect_conn_setting>;
+#elif 0 && 0
+		pinctrl-0 = <&sub_detect_conn_setting &cam_detect_conn_setting>;
+#elif 0 && 0
+		pinctrl-0 = <&sub_detect_conn_setting &sub_detect_conn_setting2>;
+#elif 0
+		pinctrl-0 = <&sub_detect_conn_setting>;
+#elif 0
+		pinctrl-0 = <&cam_detect_conn_setting>;
+#endif
+#endif /* not CONFIG_SEC_FACTORY */
+		bootc {
+			bootc,time_spec_user = <100000>; /* user binary user build */
+			bootc,time_spec_eng = <100000>; /* user binary eng build */
+			bootc,time_spec_fac = <100000>; /* factory binary */
+		};
+
+#ifndef CONFIG_SEC_FACTORY
+#if 0
+#if 0 || 0
+		cond {
+#if 0
+			sec,det_conn_gpios = <
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_0}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_1}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_2}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_3}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_4}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_5}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_6}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_7}) 0
+#endif
+					>;
+#if 0 || 0
+			sec,det_conn_name =
+#endif
+#if 0 && 0
+					"", "", "", "", "", "",
+					"", "";
+#elif 0
+					"", "", "", "", "", "";
+#elif 0
+					"", "";
+#endif
+#endif /*use_dynamic_ap_gpio_detect*/
+
+#if 0
+			sec,det_pm_conn_gpios = <
+#if 0
+					SEC_GPIO_REF(${det_pm_gpio_num_0}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_pm_gpio_num_1}) 0
+#endif
+					>;
+#if 0 || 0
+			sec,det_pm_conn_name =
+#endif
+#if 0 && 0
+					"",
+					"";
+#elif 0
+					"";
+#elif 0
+					"";
+#endif
+#endif /*use_dynamic_pm_gpio_detect */
+		};
+#endif /*use_dynamic_ap_gpio_detect || use_dynamic_pm_gpio_detect*/
+
+/*not feature_abc_qcom_dt, feature_abc_lsi_dt*/
+#elif 0 && 0 && 0
+		cond {
+			sec,det_conn_gpios = <SEC_GPIO_REF(${gpio_sub_connect_conn}) 0
+						SEC_GPIO_REF(${gpio_sub_connect_conn2}) 0
+						SEC_GPIO_REF(${gpio_cam_connect_conn}) 0>;
+			sec,det_conn_name = "sub", "sub2", "cam";
+			sec,det_conn_irq_type = <3>; /* BOTH EDGE */
+		};
+#elif 0 && 0
+		cond {
+			sec,det_conn_gpios = <SEC_GPIO_REF(${gpio_sub_connect_conn}) 0
+						SEC_GPIO_REF(${gpio_cam_connect_conn}) 0>;
+			sec,det_conn_name = "sub", "cam";
+			sec,det_conn_irq_type = <3>; /* BOTH EDGE */
+		};
+#elif 0 && 0
+		cond {
+			sec,det_conn_gpios = <SEC_GPIO_REF(${gpio_sub_connect_conn}) 0
+						SEC_GPIO_REF(${gpio_sub_connect_conn2}) 0>;
+			sec,det_conn_name = "sub", "sub2";
+			sec,det_conn_irq_type = <3>; /* BOTH EDGE */
+		};
+#elif 0
+		cond {
+			sec,det_conn_gpios = <SEC_GPIO_REF(${gpio_sub_connect_conn}) 0>;
+			sec,det_conn_name = "sub";
+			sec,det_conn_irq_type = <3>; /* BOTH EDGE */
+		};
+#elif 0
+		cond {
+			sec,det_conn_gpios = <SEC_GPIO_REF(${gpio_cam_connect_conn}) 0>;
+			sec,det_conn_name = "cam";
+			sec,det_conn_irq_type = <3>; /* BOTH EDGE */
+		};
+#endif
+#endif /* not CONFIG_SEC_FACTORY */
+	};
+};
