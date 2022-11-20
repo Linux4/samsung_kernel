@@ -1,0 +1,7 @@
+#
+# SoC audio configuration
+#
+
+config SND_SOC_DBMD2
+	bool "DSPG Voice Trigger/Enhancement Chip"
+	default n

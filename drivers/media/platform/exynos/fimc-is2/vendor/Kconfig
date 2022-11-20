@@ -1,0 +1,138 @@
+config CAMERA_EEPROM_SUPPORT_REAR
+        bool "Enable eeprom for rear cam"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Enable eeprom for rear cam.
+config CAMERA_EEPROM_SUPPORT_FRONT
+        bool "Enable eeprom for front cam"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Enable eeprom for front cam.
+config CAMERA_EEPROM_SUPPORT_OIS
+        bool "Enable eeprom for ois"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Enable eeprom for ois cam.
+config CAMERA_ACTUATOR_DW9807
+        bool "Use DW9807 camera actuator and eeprom"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Use DW9807 camera actuator and eeprom.
+config CAMERA_ACTUATOR_AK7371
+        bool "Use AK7371 camera actuator and eeprom"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Use AK7371 camera actuator and eeprom.
+config CAMERA_ACTUATOR_ZC533
+        bool "Use ZC533 camera actuator and eeprom"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Use ZC533 camera actuator and eeprom.
+config COMPANION_USE
+        bool "Use companion"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Use companion.
+ config COMPANION_C1_USE
+        bool "Use companion C1"
+        depends on COMPANION_USE
+        default n
+        help
+          Use companion C1.
+ config COMPANION_C2_USE
+        bool "Use companion C2"
+        depends on COMPANION_USE
+        default n
+        help
+          Use companion C2.
+config COMPANION_DCDC_USE
+        bool "Use companion DCDC regulator"
+        depends on COMPANION_USE
+        default n
+        help
+          Use companion DCDC regulator.
+config COMPANION_STANDBY_USE
+        bool "Use companion standby"
+        depends on COMPANION_USE
+        default n
+        help
+          Use companion standby.
+config OIS_USE
+        bool "Use ois"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Use ois.
+config OIS_USE_BU24219
+        bool "Use ois bu24219 of Rohm"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Use ois.
+config OIS_FW_UPDATE_THREAD_USE
+        bool "Enable ois fw update thread"
+        depends on OIS_USE
+        default n
+        help
+          Enable ois fw update thread.
+config AF_HOST_CONTROL
+        bool "Enable host af control"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Enable host af control.
+config CAMERA_S5NEO
+        bool "This camera is s5neo project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is s5neo project.
+config CAMERA_GTA
+        bool "This camera is gta project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is gta project.
+config CAMERA_J7
+        bool "This camera is j7 project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is j7 project.
+config CAMERA_GV
+        bool "This camera is gv project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is gv project.
+config CAMERA_A3X
+        bool "This camera is a3x project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is a3x project.
+config CAMERA_A5X
+        bool "This camera is a5x project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is a5x project.
+config CAMERA_A7X
+        bool "This camera is a7x project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is a7x project.
+config CAMERA_J7X
+        bool "This camera is j7x project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is j7x project.
