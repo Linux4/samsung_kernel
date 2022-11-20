@@ -1,0 +1,462 @@
+/* Copyright (c) 2012, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&mdss_mdp {
+	ss_dsi_panel_HX83102_TV104WUM_WUXGA: ss_dsi_panel_HX83102_TV104WUM_WUXGA {
+		qcom,mdss-dsi-panel-name = "ss_dsi_panel_HX83102_TV104WUM_WUXGA";
+		label = "ss_dsi_panel_HX83102_TV104WUM_WUXGA";
+
+		qcom,mdss-dsi-bpp = <24>;
+
+		/*qcom,cmd-sync-wait-broadcast;*/
+
+		qcom,mdss-dsi-h-left-border = <0>;
+		qcom,mdss-dsi-h-right-border = <0>;
+		qcom,mdss-dsi-v-top-border = <0>;
+		qcom,mdss-dsi-v-bottom-border = <0>;
+
+		qcom,mdss-dsi-panel-framerate = <60>;
+		qcom,mdss-dsi-panel-phy-timings = [00 1F 08 08 24 22 08 08 08 02 04 00];
+
+		qcom,mdss-dsi-underflow-color = <0xFF>;
+		qcom,mdss-dsi-border-color = <0>;
+
+		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+
+		qcom,mdss-dsi-bl-min-level = <1>;
+		qcom,mdss-dsi-bl-max-level = <425>;
+		qcom,mdss-brightness-max-level = <425>;
+		qcom,mdss-brightness-default-level = <255>;
+		qcom,mdss-dsi-interleave-mode = <0>;
+		qcom,mdss-dsi-panel-type = "dsi_video_mode";
+
+		/*qcom,dynamic-mode-switch-enabled;*/
+		/*qcom,dynamic-mode-switch-type = "dynamic-resolution-switch-immediate";*/
+
+		qcom,mdss-dsi-te-dcs-command = <1>;
+		qcom,mdss-dsi-wr-mem-start = <0x2C>;
+		qcom,mdss-dsi-wr-mem-continue = <0x3C>;
+
+		qcom,mdss-dsi-pixel-packing = "loose";
+
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-lane-1-state;
+		qcom,mdss-dsi-lane-2-state;
+		qcom,mdss-dsi-lane-3-state;
+		//qcom,mdss-dsi-lane-map = "lane_map_0123";
+
+		qcom,mdss-dsi-bllp-eof-power-mode;
+		qcom,mdss-dsi-bllp-power-mode;
+
+		qcom,mdss-dsi-force-clock-lane-hs;
+
+		qcom,mdss-dsi-stream = <0>;
+		qcom,mdss-dsi-mdp-trigger = "none";
+		qcom,mdss-dsi-dma-trigger = "trigger_sw";
+
+		qcom,mdss-pan-physical-width-dimension = <135>;  /*135.3*/
+		qcom,mdss-pan-physical-height-dimension = <226>; /*225.6*/
+
+		qcom,mdss-dsi-reset-sequence = <1 2>, <0 1>, <1 55>;
+		qcom,mdss-dsi-lp11-init;
+		/*qcom,mdss-dsi-init-delay-us = <1000>;*/
+
+		qcom,mdss-dsi-rx-eot-ignore;
+		qcom,mdss-dsi-tx-eot-append;
+
+		/* HDR Setting */
+		qcom,mdss-dsi-panel-hdr-enabled;
+		qcom,mdss-dsi-panel-hdr-color-primaries = <15635 16450 34000 16000 13250 34500 7500 3000>;
+		qcom,mdss-dsi-panel-peak-brightness = <4000000>;
+		qcom,mdss-dsi-panel-average-brightness = <1200000>;
+		qcom,mdss-dsi-panel-blackness-level = <5>;
+
+		//qcom,ulps-enabled;
+		/* qcom,suspend-ulps-enabled; */
+		//qcom,esd-check-enabled;
+		/* BELOW 2 LINES ARE DEFINED ON display-r01.dtsi */
+		/*qcom,mdss-dsi-panel-status-check-mode ="irq_check"; EL_ON*/
+		/*qcom,mdss-dsi-panel-status-irq-trigger1 = "falling";*/
+		/*qcom,mdss-dsi-panel-status-read-length;*/
+		/*qcom,mdss-dsi-panel-status-value;*/
+		/*qcom,mdss-dsi-panel-status-irq-trigger1 = "rising"; FG_ERR*/
+
+		/* *************************************************************
+		 * Below  parameters are samsung dependent thigs
+		 * *************************************************************
+		 */
+		samsung,panel-vendor = "BOE";
+		samsung,disp-model = "TV104WUM";
+		samsung,esc-clk-128M;
+		samsung,tft-common-support;
+		//samsung,lp11_sleep_ms_time = <60>;
+		samsung,support_factory_panel_swap;
+		samsung,pll_ssc_disabled;
+		samsung,aot_reset_regulator;
+
+		/* *************************************************************
+		 *  Tx
+		 * *************************************************************
+		 */
+		//samsung,level0_key_enable_tx_cmds_revA	= [29 01 00 00 00 00 03 9F A5 A5]; /* PASSWD0 */
+		//samsung,level0_key_disable_tx_cmds_revA	= [29 01 00 00 00 00 03 9F 5A 5A]; /* PASSWD0 */
+		//samsung,level1_key_enable_tx_cmds_revA	= [29 01 00 00 00 00 03 F0 5A 5A]; /* PASSWD1 */
+		//samsung,level1_key_disable_tx_cmds_revA	= [29 01 00 00 00 00 03 F0 A5 A5]; /* PASSWD1 */
+		//samsung,level2_key_enable_tx_cmds_revA	= [29 01 00 00 00 00 03 FC 5A 5A];
+		//samsung,level2_key_disable_tx_cmds_revA	= [29 01 00 00 00 00 03 FC A5 A5];
+
+		//samsung,mdnie_tx_cmds_revA = [
+		//	39 01 00 00 00 00 00 00 00
+		//];
+
+		samsung,packet_size_tx_cmds_revA = [
+			37 01 00 00 00 00 02 07 00
+		];
+
+		/* use poinging gpara (long write) */
+		samsung,reg_read_pos_tx_cmds_revA = [
+			29 00 00 00 00 00 03 B0 00 00
+		];
+
+		samsung,display_on_tx_cmds_revA = [
+			05 01 00 00 7A 00 01 11 /* 122ms */
+			05 01 00 00 16 00 01 29 /* 22ms */
+
+		];
+
+#if 0
+		samsung,display_off_tx_cmds_revA = [
+			05 01 00 00 02 00 01 28
+			39 00 00 00 00 00 04 B9 83 10 2E
+			39 00 00 00 00 00 02 E9 FF
+			39 00 00 00 00 00 02 BF 02
+			39 00 00 00 00 00 02 E9 00
+			39 01 00 00 00 00 04 B9 00 00 00
+			05 01 00 00 20 00 01 10
+		];
+#endif
+		/* *************************************************************
+		 *  Rx (Module Information READ)
+		 * *************************************************************
+		 */
+		//samsung,mdnie_read_rx_cmds_revA		= [06 01 00 00 00 00 01 A1 04 00]; /* White color position */
+		//samsung,manufacture_date_rx_cmds_revA	= [06 01 00 00 00 00 01 A1 04 04]; /* manufacture data 4 byte*/
+		//samsung,octa_id_rx_cmds_revA		= [06 01 00 00 00 00 01 A1 14 0B]; /* manufacture information */
+		//samsung,cell_id_rx_cmds_revA		= [06 01 00 00 00 00 01 A1 07 04]; /* manufacture data 7 byte*/
+		//samsung,ddi_id_rx_cmds_revA		= [06 01 00 00 00 00 01 d6 05 00]; /* CHIP ID : read D6 1~5th */
+
+		/* Change mipi type from 0x06 to 0x14 for normal mipi read response */
+		samsung,manufacture_id0_rx_cmds_revA	= [14 01 00 00 00 00 02 da 01 00];
+		samsung,manufacture_id1_rx_cmds_revA	= [14 01 00 00 00 00 02 db 01 00];
+		samsung,manufacture_id2_rx_cmds_revA	= [14 01 00 00 00 00 02 dc 01 00];
+
+		//samsung,smart_dimming_mtp_rx_cmds_revA	= [06 01 00 00 00 00 01 c8 20 00];
+
+		//samsung,ldi_debug0_rx_cmds_revA		= [06 01 00 00 00 00 01 0A 01 00]; /* rddpm */
+		//samsung,ldi_debug1_rx_cmds_revA		= [06 01 00 00 00 00 01 0E 01 00]; /* no operation */
+		//samsung,ldi_debug2_rx_cmds_revA		= [06 01 00 00 00 00 01 0E 01 00]; /* errfg */
+		//samsung,ldi_debug3_rx_cmds_revA		= [06 01 00 00 00 00 01 0E 01 00]; /* rddsm*/
+		//samsung,ldi_debug4_rx_cmds_revA		= [06 01 00 00 00 00 01 E9 02 00]; /* dsierr */
+		//samsung,ldi_debug5_rx_cmds_revA		= [06 01 00 00 00 00 01 0F 01 00]; /* self_diag*/
+
+		/* 255 bytes, its ddi max size is 512, and sw limit is ff = 255... */
+		//samsung,ldi_debug_logbuf_rx_cmds_revA	= [06 01 00 00 00 00 01 9C FF 00];
+
+		samsung,mtp_read_sysfs_rx_cmds_revA	= [06 01 00 00 00 00 01 00 00 00];
+
+		samsung,mtp_write_sysfs_tx_cmds_revA	= [
+			29 00 00 00 00 00 3D 00
+						00 00 00 00 00 00 00 00 00 00
+						00 00 00 00 00 00 00 00 00 00
+						00 00 00 00 00 00 00 00 00 00
+						00 00 00 00 00 00 00 00 00 00
+						00 00 00 00 00 00 00 00 00 00
+						00 00 00 00 00 00 00 00 00 00
+		];
+
+		/* *************************************************************
+		 * candela to index mappings
+		 * **************************************************************
+		 */
+
+		samsung,brightness_tx_cmds_revA = [
+			39 01 00 00 00 00 03 51 08 00
+		];
+
+		/*
+		 * ************************************************************************************************************************
+		 * candela to index mappings
+		 * ************************************************************************************************************************
+		 */
+		samsung,candela_map_table_revA = <
+		/* THIS TABLE USED FOR SMART-DIMMING */
+		/*<idx>   <from>  <till> <candella> */
+			0	0	0	2
+			1       1	1       3
+			2       2	2       4
+			3       3	3       5
+			4       4	4       6
+			5       5	5       7
+			6       6	6       8
+			7       7	7       9
+			8       8	8       10
+			9       9	9       11
+			10	10	10      12
+			11	11	11      13
+			12	12	12      14
+			13	13	13      15
+			14	14	14      16
+			15	15	15      17
+			16	16	16      19
+			17	17	17      20
+			18	18	18      21
+			19	19	19      22
+			20	20	20      24
+			21	21	21      25
+			22	22	23      27
+			23	24	25      29
+			24	26	27      30
+			25	28	29      32
+			26	30	31      34
+			27	32	33      37
+			28	34	35      39
+			29	36	37      41
+			30	38	39      44
+			31	40	41      47
+			32	42	43      50
+			33	44	45      53
+			34	46	48      56
+			35	49	51      60
+			36	52	54      64
+			37	55	57      68
+			38	58	60      72
+			39	61	63      77
+			40	64	66      82
+			41	67	69      87
+			42	70	72      93
+			43	73	76      98
+			44	77	80      105
+			45	81	86      111
+			46	87	91      119
+			47	92	97      126
+			48	98	104	134
+			49	105	110	143
+			50	111	118	152
+			51	119	125	162
+			52	126	133	172
+			53	134	142	183
+			54	143	150	195
+			55	151	160	207
+			56	161	170	220
+			57	171	181	234
+			58	182	192	249
+			59	193	203	265
+			60	204	214	282
+			61	215	225	300
+			62	226	235	316
+			63	236	245	333
+			64	246	511	360
+		>;
+
+		/*
+		* ************************************************************************************************************************
+		*  DMS (Dynamic Mode Switch)
+		* ************************************************************************************************************************
+		*/
+
+		qcom,mdss-dsi-display-timings {
+			hd {
+				qcom,display-topology = <1 0 1>;
+				qcom,default-topology-index = <0>;
+				qcom,mdss-dsi-timing-default;
+
+				qcom,mdss-dsi-panel-width = <1200>;
+				qcom,mdss-dsi-panel-height = <2000>;
+
+				qcom,mdss-dsi-h-pulse-width = <10>;
+				qcom,mdss-dsi-h-back-porch = <10>;
+				qcom,mdss-dsi-h-front-porch = <10>;
+				qcom,mdss-dsi-h-sync-skew = <0>;
+				qcom,mdss-dsi-v-pulse-width = <4>;
+				qcom,mdss-dsi-v-back-porch = <18>;
+				qcom,mdss-dsi-v-front-porch = <60>;
+				qcom,mdss-dsi-panel-clockrate = <922000000>; /* 922Mbps*/
+
+				qcom,mdss-dsi-panel-phy-timings = [00 1F 08 08 24 22 08 08 08 02 04 00];
+
+				qcom,mdss-dsi-panel-framerate = <60>;
+				qcom,mdss-mdp-transfer-time-us = <14866>;
+
+				/*qcom,mdss-dsi-timing-switch-command; use samsung,panel_multires_XXX instead*/
+				/*qcom,mdss-dsi-timing-switch-command-state;*/
+
+				qcom,mdss-dsi-on-command = [
+					39 00 00 00 00 00 04 B9 83 10 2E
+
+					39 00 00 00 00 00 02 E9 CD
+					39 00 00 00 00 00 02 FF 01
+					39 00 00 00 00 00 02 E9 00
+
+					39 00 00 00 00 00 02 FF 01
+					/* Display mode */
+					39 00 00 00 00 00 12 BA
+							70 03 A8 83 F2 80 00 0D 10 00
+							00 00 0F 3D 04 77 84
+							/* Added for mipi short read response*/
+
+					/* PWM BRIGHTNESS SETTING */
+					/* 39 00 00 00 00 00 03 51 08 00 */
+					39 00 00 00 00 00 02 53 24
+					39 00 00 00 00 00 04 C9 04 0B 5D
+					39 00 00 00 00 00 04 CE 00 50 F0
+					39 00 00 00 00 00 03 D2 E8 E8
+					39 00 00 00 00 00 04 D9 04 01 02
+
+					39 00 00 00 00 00 2D D5
+							03 02 01 00 07 06 05 04 18 18
+							24 24 19 19 18 18 19 19 21 20
+							23 22 18 18 18 18 18 18 18 18
+							18 18 18 18 18 18 18 18 18 18
+							18 18 18 18
+					39 00 00 00 00 00 2D D6
+							04 05 06 07 00 01 02 03 18 18
+							24 24 19 19 19 19 18 18 22 23
+							20 21 18 18 18 18 18 18 18 18
+							18 18 18 18 18 18 18 18 18 18
+							18 18 18 18
+					39 00 00 00 00 00 11 B4
+							80 60 01 01 80 60 68 50 01 8E
+							01 58 00 FF 00 FF
+					39 00 00 00 00 00 2B D3
+							00 00 00 00 01 04 00 08 08 27
+							27 22 2F 23 23 04 04 32 10 21
+							00 21 32 10 1F 00 02 32 17 FD
+							00 10 00 00 20 30 01 55 21 38
+							01 55
+					39 00 00 00 00 00 05 D1 67 0C FF 05
+
+					39 00 00 00 00 00 12 B1
+							10 FA AF AF 29 2D B2 57 4D 36
+							36 36 36 22 21 15 00
+					39 00 00 00 00 00 09 B2 00 B0 47 D0 00 14 3C 2E
+
+					39 00 00 00 00 00 2F E0
+							00 01 0A 11 19 2B 44 4C 55 53
+							71 76 7D 8C 89 91 9A AD AC 56
+							5E 68 73 00 09 12 19 1F 37 4E
+							54 5B 57 6F 74 79 86 83 89 90
+							A3 A2 50 58 64 73
+					39 00 00 00 00 00 0F C0
+							23 23 22 11 A2 13 00 80 00 00
+							08 00 63 63
+					39 00 00 00 00 00 02 CC 02
+
+					39 00 00 00 00 00 07 C8 00 04 04 00 00 82
+					39 00 00 00 00 00 04 BF FC 85 80
+					39 00 00 00 00 00 04 D0 07 04 05
+
+					39 00 00 00 00 00 02 BD 01
+					39 00 00 00 00 00 0A D3 01 00 FC 00 00 11 10 00 0E
+
+					39 00 00 00 00 00 02 BD 02
+					39 00 00 00 00 00 02 B4 4E
+					39 00 00 00 00 00 02 BF F2
+					39 00 00 00 00 00 0D D8
+							FF FF FF FF FF F0 FF FF FF FF
+							FF F0
+
+					39 00 00 00 00 00 02 BD 00
+					39 00 00 00 00 00 17 E7
+							12 13 02 02 2B 00 0E 0E 00 02
+							27 76 1E 76 01 27 00 00 00 00
+							17 00
+					39 00 00 00 00 00 02 BD 01
+					39 00 00 00 00 00 08 E7 02 30 01 94 0D B8 0E
+					39 00 00 00 00 00 02 BD 02
+					39 00 00 00 00 00 1D E7
+							FF 01 FD 01 00 00 22 00 00 00
+							00 00 00 00 00 00 00 00 00 00
+							00 00 00 00 81 00 02 40
+
+					39 00 00 00 00 00 02 BD 00
+					39 00 00 00 00 00 02 55 01
+					39 00 00 00 00 00 19 E4
+							25 41 2C 33 4C 66 81 99 B2 CC
+							E5 FF FF FF 03 1E 1E 1E 1E 00
+							00 05 01 14
+					39 00 00 00 00 00 02 BD 01
+					39 00 00 00 00 00 28 E4
+							E1 E1 E1 E1 E1 E1 E1 E1 C7 B2
+							A0 90 81 75 69 5F 55 4C 44 3D
+							36 2F 2A 24 1E 19 14 10 0D 0B
+							09 54 55 55 55 55 55 55 55
+
+					39 00 00 00 00 00 02 BD 00
+					39 00 00 00 00 00 02 C1 01
+					39 00 00 00 00 00 02 BD 01
+					39 00 00 00 00 00 3B C1
+							01 04 08 0C 10 14 18 1C 20 24
+							27 2C 30 34 38 3C 40 44 48 4C
+							54 5C 63 6B 73 7B 83 8A 92 9A
+							A2 AA B3 BA C1 CA D1 D9 E1 E9
+							F1 F5 F7 F8 FA FC 00 40 4C 0B
+							E4 5F F7 F5 08 95 03 C0
+					39 00 00 00 00 00 02 BD 02
+					39 00 00 00 00 00 3B C1
+							00 04 08 0C 10 14 18 1C 20 24
+							28 2C 30 34 39 3D 41 45 48 4C
+							55 5C 64 6C 74 7C 84 8B 93 9B
+							A3 AB B4 BB C3 CB D3 DB E3 EB
+							F3 F7 F9 FB FE FF 01 45 92 A1
+							5F 3B F7 FB 13 9B FF 00
+					39 00 00 00 00 00 02 BD 03
+					39 00 00 00 00 00 3B C1
+							00 04 08 0C 10 14 18 1C 20 24
+							28 2D 31 35 3A 3E 42 46 49 4E
+							56 5E 66 6E 76 7E 85 8D 95 9D
+							A4 AC B5 BC C4 CC D4 DB E4 EC
+							F3 F7 F9 FC FE FF 15 9A FC 21
+							5C 40 18 0B 01 30 FC 00
+
+					39 00 00 00 00 00 02 BD 00
+					39 00 00 00 00 00 03 E1 07 00 /* Code version */
+
+					39 00 00 00 00 00 04 B9 83 10 2E  /* CLOSE PASSWORD */
+
+				];
+
+				/* HX needs video packet while display off
+				 * So move some to dsi-pre-off-command
+				 */
+				qcom,mdss-dsi-pre-off-command=[
+					05 01 00 00 14 00 02 28 00
+					//05 00 00 00 78 00 02 10 00
+				];
+				qcom,mdss-dsi-off-command = [
+					//05 01 00 00 02 00 01 28
+					39 00 00 00 00 00 04 B9 83 10 2E
+					39 00 00 00 00 00 02 E9 FF
+					39 00 00 00 00 00 02 BF 02
+					39 00 00 00 00 00 02 E9 00
+					39 01 00 00 00 00 04 B9 00 00 00
+					05 01 00 00 20 00 01 10
+				];
+
+				qcom,mdss-dsi-on-command-state = "dsi_hs_mode";
+				qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
+			};
+		};
+	};
+};
+

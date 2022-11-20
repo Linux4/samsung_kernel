@@ -1,0 +1,145 @@
+config SENSORS
+	bool "Sensors Class Support"
+	help
+	  This option enables the sensor sysfs class in /sys/class/sensors.
+	  You'll need this to do anything useful with sensorss. If unsure, say N.
+
+config SENSORS_SSC
+	bool "Enable Sensors Driver Support for SSC"
+	help
+	  Add support for sensors SSC driver.
+	  This driver is used for exercising sensors use case,
+	  time syncing with ADSP clock.
+
+config SENSORS_FW_VENDOR
+	bool "Locate the Firmware on Vendor"
+	default n
+	help
+	  To use the module automatic system, 
+	  locate the firmware on vendor side.
+
+config SENSORS_SX9360
+	depends on I2C
+	tristate "SX9360 driver"
+	default n
+	help
+	  Say Y here if you use sx9360.
+	  This option enables grip sensors using
+	  SemTech sx9360 device driver.
+	  Say N here if you do not use sx9360.
+	  
+config SENSORS_SX9364
+	depends on I2C
+	tristate "SX9364 driver"
+	default n
+	help
+	  Say Y here if you use sx9364.
+	  This option enables grip sensors using
+	  SemTech sx9364 device driver.
+	  Say N here if you do not use sx9364.
+
+config SUPPORT_CAMERA_FREEFALL
+	depends on I2C
+	tristate "Support camera freefall"
+	default n
+	help
+	  Say Y here if you use support camera freefall.
+	  This option enables support camera freefall
+	  Say N here if you do not use support camera freefall.
+
+config SENSORS_TC3XXK
+	depends on I2C
+	tristate "TC3XXK driver for grip Sensor"
+	default n
+	help
+	  Say Y here if you use TC3XXK IC for grip Sensor.
+	  This option enables grip sensors using
+	  Coreriver TC3XXK device driver for grip Sensor.
+	  
+	  Say N here if you do not use TC3XXK for grip.
+
+config SENSORS_TC3XXK_DUMMY
+	depends on I2C
+	tristate "TC3XXK driver for grip Sensor"
+	default n
+	help
+	  Say Y here if you use TC3XXK IC for grip Sensor.
+	  This option enables grip sensors using
+	  Coreriver TC3XXK device driver for grip Sensor.
+	  
+	  Say N here if you do not use TC3XXK for grip.
+
+config SENSORS_TC3XXK_A60
+	depends on I2C
+	tristate "TC3XXK driver for grip Sensor"
+	default n
+	help
+	  Say Y here if you use TC3XXK IC for grip Sensor.
+	  This option enables grip sensors using
+	  Coreriver TC3XXK device driver for grip Sensor.
+
+	  Say N here if you do not use TC3XXK for grip Sensor.
+
+config SENSORS_A96T3X6
+	depends on I2C
+	tristate "A96T3X6 driver for grip"
+	default n
+	help
+	  Say Y here if you use A96T3X6 for grip.
+	  This option enables grip sensors using
+	  Above A96T3X6 device driver for grip.
+	  Say N here if you do not use A96T3X6 for grip.
+
+config SENSORS_A96T3X6_SUB
+	depends on I2C
+	tristate "A96T3X6_SUB driver for grip"
+	default n
+	help
+	  Say Y here if you use A96T3X6 for grip.
+	  This option enables grip sensors using
+	  Above A96T3X6 device driver for grip.
+	  Say N here if you do not use A96T3X6 for grip.
+	  
+config SENSORS_ISG5320A
+	depends on I2C
+	tristate "ISG5320A grip"
+	default n
+	help
+	  If you say yes here if you use ISG5320A for grip.
+	  This option enables grip sensors using
+	  IMAGIS ISG5320A device driver for grip.
+
+config SENSORS_ISG5320A_SUB
+	depends on I2C
+	tristate "ISG5320A grip sub"
+	default n
+	help
+	  If you say yes here if you use ISG5320A_SUB for grip sub.
+	  This option enables grip sensors using
+	  IMAGIS ISG5320A_SUB device driver for grip sub.
+
+config SENSORS_ISG6320
+	depends on I2C
+	tristate "ISG6320 grip"
+	default n
+	help
+	  If you say yes here if you use ISG6320 for grip.
+	  This option enables grip sensors using
+	  IMAGIS ISG6320 device driver for grip.
+
+config SENSORS_ISG6320_WIFI
+	depends on I2C
+	tristate "ISG6320 grip wifi"
+	default n
+	help
+	  If you say yes here if you use ISG6320_WIFI for grip.
+	  This option enables grip sensors using
+	  IMAGIS ISG6320_WIFI device driver for grip.
+
+config USE_MULTI_CHANNEL
+	tristate "Grip sensor multi chennel"
+	default n
+	help
+	  Enable grip multi channel
+	  This option enables feature that is related multi-Channel for grip Sensor.
+

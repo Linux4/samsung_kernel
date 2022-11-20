@@ -1,0 +1,12 @@
+config SEC_M51_PROJECT
+        default n
+        bool "Samsung M51 Project"
+        help
+          Support for Samsung M51 Project
+
+config SEC_M51_EUR_PROJECT
+        default n
+        bool "Samsung M51 EUR OPEN Project"
+        help
+          Support for Samsung M51 EUR OPEN Project
+

@@ -1,0 +1,83 @@
+config SAMSUNG_DEBUG_DISPLAY
+	bool "Add Samsung Debugging code"
+	default n
+
+config DISPLAY_SAMSUNG_LEGO
+	bool "mdss config for samsung product"
+	default n
+	---help---
+	Mdss config signature for samsung product
+
+#
+#	PANEL UNIQUE FEATURE
+#
+config DUAL_PANEL
+	depends on DISPLAY_SAMSUNG
+	bool "dual paneloperation"
+	default n
+	---help---
+	dual panel operation support
+
+config PARTIAL_UPDATE
+	depends on DISPLAY_SAMSUNG
+	bool "partial update operation"
+	default n
+	---help---
+	partial update operation support
+
+config CABC_FUNCTION
+	depends on DISPLAY_SAMSUNG
+	bool "DDI cabc operation"
+	default n
+	---help---
+	DDI cabc operation support
+
+config SUPPORT_POC_FLASH
+	depends on DISPLAY_SAMSUNG
+	bool "SUPPORT POC FLASH"
+	default n
+	---help---
+	SUPPORT_POC_FLASH FOR DREAM2 ONLY
+
+#
+#	HOW TO MAKE DEF-CONFIG NAME FOR PANEL
+#
+#	PANEL_DDI-model_PANEL-model_RESOLUTION
+#	PANEL_S6E3FA2    _AMS510CV01_FHD
+#	PANEL_S6E3FA2_AMS510CV01_FHD
+#
+config PANEL_S6E3FC3_AMS638YQ01_FHD
+	depends on DISPLAY_SAMSUNG || DISPLAY_SAMSUNG_LEGO
+	bool "SEC S6E3FC3 LDI"
+	default n
+	---help---
+	SEC S6E3FC3 LDI 1080_2400 M42Q_Rev_02
+
+config PANEL_S6E3FC3_AMS646YD04_FHD
+	depends on DISPLAY_SAMSUNG || DISPLAY_SAMSUNG_LEGO
+	bool "SEC S6E3FC3 LDI"
+	default n
+	---help---
+	SEC S6E3FC3 LDI 1080_2400 A52Q
+
+config PANEL_S6E3FC3_AMS667YM01_FHD
+	depends on DISPLAY_SAMSUNG || DISPLAY_SAMSUNG_LEGO
+	bool "SEC S6E3FC3 LDI"
+	default n
+	---help---
+	SEC S6E3FC3 LDI 1080_2400 A72Q
+
+config PANEL_EA8076GA_AMS638VL01_FHD
+	depends on DISPLAY_SAMSUNG || DISPLAY_SAMSUNG_LEGO
+	bool "MAGNA EA8076GA LDI"
+	default n
+	---help---
+	MAGNA EA8076GA LDI 1080_2400 M42Q_Rev_00
+
+config PANEL_HX83102_TV104WUM_WUXGA
+	depends on DISPLAY_SAMSUNG || DISPLAY_SAMSUNG_LEGO
+	bool "HIMAX HX83102 LDI"
+	default n
+	---help---
+	HIMAX HX83102 LDI 1200_2000 GTS6LITE
+
