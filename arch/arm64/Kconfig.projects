@@ -1,0 +1,12 @@
+config SEC_B2Q_PROJECT
+        default n
+        bool "Samsung B2Q Project"
+        help
+          Support for Samsung B2Q Project
+
+config MACH_B2Q_EUR_OPENX
+        default n
+        bool "Samsung B2Q EUR OPENX"
+        help
+          Support for Samsung B2Q EUR OPENX device.
+
