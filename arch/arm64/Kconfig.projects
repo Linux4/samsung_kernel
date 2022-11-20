@@ -1,0 +1,112 @@
+config SEC_A52Q_PROJECT
+	depends on ARCH_ATOLL
+	default n
+	bool "Samsung A52Q Project"
+	help
+	  Support for Samsung A52Q Project
+
+config SEC_A72Q_PROJECT
+	depends on ARCH_ATOLL
+	default n
+	bool "Samsung A72Q Project"
+	help
+	  Support for Samsung A72Q Project
+
+config SEC_M42Q_PROJECT
+	depends on ARCH_ATOLL
+	default n
+	bool "Samsung M42Q Project"
+	help
+	  Support for Samsung M42Q Project
+
+config SEC_GTA4XLVE_PROJECT
+	depends on ARCH_ATOLL
+	default n
+	bool "Samsung GTA4XLVE Project"
+	help
+	  Support for Samsung GTA4XLVE Project
+
+config SEC_A52Q_EUR_OPEN
+	depends on SEC_A52Q_PROJECT 
+	default n
+	bool "Samsung A52Q EUR OPEN"
+	help
+	  Support for Samsung A52Q EUR OPEN device.
+
+config SEC_A52Q_LTN_OPEN
+	depends on SEC_A52Q_PROJECT 
+	default n
+	bool "Samsung A52Q LTN OPEN"
+	help
+	  Support for Samsung A52Q LTN OPEN device.
+
+config SEC_A72Q_EUR_OPEN
+	depends on SEC_A72Q_PROJECT 
+	default n
+	bool "Samsung A72Q EUR OPEN"
+	help
+	  Support for Samsung A72Q EUR OPEN device.
+
+config SEC_A72Q_LTN_OPEN
+	depends on SEC_A72Q_PROJECT
+	default n
+	bool "Samsung A72Q LTN OPEN"
+	help
+		Support for Samsung A72Q LTN OPEN device.
+
+config SEC_M42Q_EUR_OPEN
+	depends on SEC_M42Q_PROJECT 
+	default n
+	bool "Samsung M42Q EUR OPEN"
+	help
+	  Support for Samsung M42Q EUR OPEN device.
+
+config SEC_M42Q_JPN_OPEN
+	depends on SEC_M42Q_PROJECT 
+	default n
+	bool "Samsung M42Q JPN OPEN"
+	help
+	  Support for Samsung M42Q JPN OPEN device.
+
+config SEC_M42Q_USA_OPEN
+	depends on SEC_M42Q_PROJECT 
+	default n
+	bool "Samsung M42Q USA OPEN"
+	help
+	  Support for Samsung M42Q USA OPEN device.
+
+config SEC_GTA4XLVE_EUR_OPEN
+	depends on SEC_GTA4XLVE_PROJECT 
+	default n
+	bool "Samsung GTA4XLVE EUR OPEN"
+	help
+	  Support for Samsung GTA4XLVE EUR OPEN device.
+
+config SEC_GTA4XLVEWIFI_EUR_OPEN
+	depends on SEC_GTA4XLVE_PROJECT 
+	default n
+	bool "Samsung GTA4XLVEWIFI EUR OPEN"
+	help
+	  Support for Samsung GTA4XLVEWIFI EUR OPEN device.
+
+config SEC_GTA4XLVE_KOR_OPEN
+	depends on SEC_GTA4XLVE_PROJECT 
+	default n
+	bool "Samsung GTA4XLVE KOR OPEN"
+	help
+	  Support for Samsung GTA4XLVE KOR OPEN device.
+
+config SEC_GTA4XLVE_CHN_OPEN
+	depends on SEC_GTA4XLVE_PROJECT 
+	default n
+	bool "Samsung GTA4XLVE CHN OPEN"
+	help
+	  Support for Samsung GTA4XLVE CHN OPEN device.
+
+config SEC_GTA4XLVEWIFI_CHN_OPEN
+	depends on SEC_GTA4XLVE_PROJECT 
+	default n
+	bool "Samsung GTA4XLVEWIFI CHN OPEN"
+	help
+	  Support for Samsung GTA4XLVEWIFI CHN OPEN device.
+
