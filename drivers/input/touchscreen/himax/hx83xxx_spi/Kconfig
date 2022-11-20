@@ -1,0 +1,67 @@
+#
+# Himax Touchscreen driver configuration
+#
+config TOUCHSCREEN_HIMAX_HX83XXX_SPI
+	tristate "HIMAX chipset hx83xxx spi touchscreen"
+	help
+		This enables support for hx83xxx_spi based touchscreens.
+
+config TOUCHSCREEN_HIMAX_SPI
+        tristate "HIMAX chipset spi touchscreen"
+		depends on TOUCHSCREEN_HIMAX_HX83XXX_SPI
+		default y
+		help
+		This enables support for HIMAX SPI based touchscreens.
+
+config TOUCHSCREEN_HIMAX_ZERO_FLASH
+        tristate "HIMAX chipset zero flash touchscreen"
+		depends on TOUCHSCREEN_HIMAX_HX83XXX_SPI
+		default y
+		help
+		This enables support for HIMAX zero flash based touchscreens.
+
+# ***************** In-cell Start *****************
+config TOUCHSCREEN_HIMAX_INCELL_CORE
+        tristate "HIMAX chipset in-cell function"
+		depends on TOUCHSCREEN_HIMAX_HX83XXX_SPI
+		default y
+		help
+		This enables support for HIMAX CHIPSET of in-cell function.
+
+config TOUCHSCREEN_HIMAX_IC_HX83102
+        tristate "HIMAX chipset HX83102 function"
+		depends on TOUCHSCREEN_HIMAX_HX83XXX_SPI
+		help
+		This enables support for HIMAX CHIPSET of HX83102.
+
+config TOUCHSCREEN_HIMAX_IC_HX83108
+        tristate "HIMAX chipset HX83108 function"
+		depends on TOUCHSCREEN_HIMAX_HX83XXX_SPI
+		help
+		This enables support for HIMAX CHIPSET of HX83108.
+
+config TOUCHSCREEN_HIMAX_IC_HX83121
+        tristate "HIMAX chipset HX83121 function"
+		depends on TOUCHSCREEN_HIMAX_HX83XXX_SPI
+		help
+		This enables support for HIMAX CHIPSET of HX83121.
+
+config TOUCHSCREEN_HIMAX_IC_HX83112
+        tristate "HIMAX chipset HX83112 function"
+		depends on TOUCHSCREEN_HIMAX_HX83XXX_SPI
+		help
+		This enables support for HIMAX CHIPSET of HX83112.
+
+# ***************** In-cell End *******************
+config TOUCHSCREEN_HIMAX_DEBUG
+        tristate "HIMAX debug function"
+		depends on TOUCHSCREEN_HIMAX_HX83XXX_SPI
+		default y
+		help
+		This enables support for HIMAX debug function.
+config TOUCHSCREEN_HIMAX_INSPECT
+        tristate "HIMAX inspect function"
+		depends on TOUCHSCREEN_HIMAX_HX83XXX_SPI
+		default y
+		help
+		This enables support for HIMAX debug function.
