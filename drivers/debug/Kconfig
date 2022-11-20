@@ -1,0 +1,25 @@
+# When adding new entries keep the list in alphabetical order
+if SEC_DEBUG
+config SEC_DEBUG_PWDT
+	bool "Platform Watchdog check"
+	default n
+	help
+	  To check Platform Watchdog thread status
+endif
+
+choice
+	prompt "Version of GAF structure"
+	depends on SEC_DEBUG
+	default SEC_DEBUG_GAF_V4 if FIVE
+	default SEC_DEBUG_GAF_V3
+
+	config SEC_DEBUG_GAF_V3
+		bool "Use GAF structure version 3"
+		help
+		  Default option for FIVE-disabled kernel
+
+	config SEC_DEBUG_GAF_V4
+		bool "Use GAF structure version 4"
+		help
+		  Default option for FIVE-enabled kernel
+endchoice
