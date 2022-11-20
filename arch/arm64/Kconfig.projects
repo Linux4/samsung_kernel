@@ -1,0 +1,273 @@
+config SEC_A01Q_PROJECT
+	depends on ARCH_ZQL1695
+	default n
+	bool "Samsung A01Q Project"
+	help
+	  Support for Samsung ZQL1695 A01Q Project
+
+config MACH_A01Q_EUR_OPEN
+	depends on SEC_A01Q_PROJECT
+	default n
+	bool "Samsung A01Q EUR OPEN"
+	help
+	  Support for Samsung ZQL1695 A01Q EUR OPEN device.
+
+config MACH_A01Q_USA_OPEN
+	depends on SEC_A01Q_PROJECT
+	default n
+	bool "Samsung A01Q USA OPEN"
+	help
+	  Support for Samsung ZQL1695 A01Q USA OPEN device.
+
+config MACH_A01Q_USA_VZW
+	depends on SEC_A01Q_PROJECT
+	default n
+	bool "Samsung A01Q USA VZW"
+	help
+	  Support for Samsung ZQL1695 A01Q USA VZW device.
+
+config MACH_A01Q_USA_USC
+	depends on SEC_A01Q_PROJECT
+	default n
+	bool "Samsung A01Q USA USC"
+	help
+	  Support for Samsung ZQL1695 A01Q USA USC device.
+
+config MACH_A01Q_USA_CHA
+	depends on SEC_A01Q_PROJECT
+	default n
+	bool "Samsung A01Q USA CHA"
+	help
+	  Support for Samsung ZQL1695 A01Q USA CHA device.
+
+config MACH_A01Q_SWA_INS
+	depends on SEC_A01Q_PROJECT
+	default n
+	bool "Samsung A01Q SWA INS"
+	help
+	  Support for Samsung ZQL1695 A01Q SWA INS device.
+
+config MACH_A01Q_USA_ATT
+	depends on SEC_A01Q_PROJECT
+	default n
+	bool "Samsung A01Q USA ATT"
+	help
+	  Support for Samsung ZQL1695 A01Q USA ATT device.
+
+config MACH_A01Q_USA_SPR
+	depends on SEC_A01Q_PROJECT
+	default n
+	bool "Samsung A01Q USA SPR"
+	help
+	  Support for Samsung ZQL1695 A01Q USA SPR device.
+
+config MACH_A01Q_USA_AIO
+	depends on SEC_A01Q_PROJECT
+	default n
+	bool "Samsung A01Q USA AIO"
+	help
+	  Support for Samsung ZQL1695 A01Q USA AIO device.
+
+config MACH_A01Q_USA_TFN
+	depends on SEC_A01Q_PROJECT
+	default n
+	bool "Samsung A01Q USA TFN"
+	help
+	  Support for Samsung ZQL1695 A01Q USA TFN device.
+
+config MACH_A01Q_USA_MTR
+	depends on SEC_A01Q_PROJECT
+	default n
+	bool "Samsung A01Q USA MTR"
+	help
+	  Support for Samsung ZQL1695 A01Q USA MTR device.
+
+config MACH_A01Q_LTN_OPEN
+	depends on SEC_A01Q_PROJECT
+	default n
+	bool "Samsung A01Q LTN OPEN"
+	help
+	  Support for Samsung ZQL1695 A01Q LTN OPEN device.
+
+config MACH_A01Q_CAN_SINNGLE
+	depends on SEC_A01Q_PROJECT
+	default n
+	bool "Samsung A01Q CAN SINGLE"
+	help
+	  Support for Samsung ZQL1695 A01Q CAN SINGLE device.
+
+config SEC_A11Q_PROJECT
+	depends on ARCH_ZQL1695
+	default n
+	bool "Samsung A11Q Project"
+	help
+	  Support for Samsung ZQL1695 A11Q Project
+
+config MACH_A11Q_EUR_OPEN
+	depends on SEC_A11Q_PROJECT
+	default n
+	bool "Samsung A11Q EUR OPEN"
+	help
+	  Support for Samsung ZQL1695 A11Q EUR OPEN device.
+
+config MACH_A11Q_USA_SINGLE
+	depends on SEC_A11Q_PROJECT
+	default n
+	bool "Samsung A11Q USA SINGLE"
+	help
+	  Support for Samsung ZQL1695 A11Q USA SINGLE device.
+
+config MACH_A11Q_CAN_SINGLE
+	depends on SEC_A11Q_PROJECT
+	default n
+	bool "Samsung A11Q CAN SINGLE"
+	help
+	  Support for Samsung ZQL1695 A11Q CAN SINGLE device.
+
+config MACH_A11Q_LTN_OPEN
+	depends on SEC_A11Q_PROJECT
+	default n
+	bool "Samsung A11Q LTN OPEN"
+	help
+	  Support for Samsung ZQL1695 A11Q LTN OPEN device.
+
+config MACH_A11Q_USA_AIO
+	depends on SEC_A11Q_PROJECT
+	default n
+	bool "Samsung A11Q USA AIO"
+	help
+	  Support for Samsung ZQL1695 A11Q USA AIO device.
+
+config MACH_A11Q_USA_ATT
+	depends on SEC_A11Q_PROJECT
+	default n
+	bool "Samsung A11Q USA ATT"
+	help
+	  Support for Samsung ZQL1695 A11Q USA ATT device.
+
+config MACH_A11Q_USA_OPEN
+	depends on SEC_A11Q_PROJECT
+	default n
+	bool "Samsung A11Q USA OPEN"
+	help
+	  Support for Samsung ZQL1695 A11Q USA OPEN device.
+
+config MACH_A11Q_USA_TFN
+	depends on SEC_A11Q_PROJECT
+	default n
+	bool "Samsung A11Q USA TFN"
+	help
+	  Support for Samsung ZQL1695 A11Q USA TFN device.
+
+config MACH_M11Q_EUR_OPEN
+	depends on SEC_A11Q_PROJECT
+	default n
+	bool "Samsung M11Q EUR OPEN"
+	help
+	  Support for Samsung ZQL1695 M11Q EUR OPEN device.
+
+config MACH_M11Q_LTN_OPEN
+	depends on SEC_A11Q_PROJECT
+	default n
+	bool "Samsung M11Q LTN OPEN"
+	help
+	  Support for Samsung ZQL1695 M11Q LTN OPEN device.
+	  
+config SEC_M01Q_PROJECT
+	depends on ARCH_ZQL1695
+	default n
+	bool "Samsung M01Q Project"
+	help
+	  Support for Samsung ZQL1695 M01Q Project
+
+config MACH_M01Q_SWA_INS
+	depends on SEC_M01Q_PROJECT
+	default n
+	bool "Samsung M01Q SWA INS"
+	help
+	  Support for Samsung ZQL1695 M01Q SWA INS device.
+	  
+config MACH_M01Q_EUR_OPEN
+	depends on SEC_M01Q_PROJECT
+	default n
+	bool "Samsung M01Q EUR OPEN"
+	help
+	  Support for Samsung ZQL1695 M01Q EUR OPEN device.
+
+config SEC_A02Q_PROJECT
+	depends on ARCH_HS50
+	default n
+	bool "Samsung A02Q Project"
+	help
+	  Support for Samsung HS50 A02Q Project
+
+config MACH_A02Q_CIS_OPEN
+	depends on SEC_A02Q_PROJECT
+	default n
+	bool "Samsung A02Q CIS OPEN"
+	help
+	  Support for Samsung HS50 A02Q CIS OPEN device.
+
+config MACH_A02Q_LTN_OPEN
+	depends on SEC_A02Q_PROJECT
+	default n
+	bool "Samsung A02Q LTN OPEN"
+	help
+	  Support for Samsung HS50 A02Q LTN OPEN device.
+
+config MACH_A02Q_LTN_VE
+	depends on SEC_A02Q_PROJECT
+	default n
+	bool "Samsung A02Q LTN VE"
+	help
+	  Support for Samsung HS50 A02Q LTN VE device.
+
+config MACH_A02Q_EUR_OPEN
+	depends on SEC_A02Q_PROJECT
+	default n
+	bool "Samsung A02Q EUR OPEN"
+	help
+	  Support for Samsung HS50 A02Q EUR OPEN device.
+
+config MACH_A02Q_SWA_INS
+	depends on SEC_A02Q_PROJECT
+	default n
+	bool "Samsung A02Q SWA INS"
+	help
+	  Support for Samsung HS50 A02Q SWA INS device.
+
+config MACH_A02Q_USA_SINGLEC
+	depends on SEC_A02Q_PROJECT
+	default n
+	bool "Samsung A02Q USA SINGLEC"
+	help
+	  Support for Samsung HS50 A02Q USA SINGLE CDMA device.
+
+config MACH_A02Q_USA_AIO
+	depends on SEC_A02Q_PROJECT
+	default n
+	bool "Samsung A02Q USA AIO"
+	help
+	  Support for Samsung HS50 A02Q USA AIO device.
+
+config MACH_A02Q_USA_ATT
+	depends on SEC_A02Q_PROJECT
+	default n
+	bool "Samsung A02Q USA ATT"
+	help
+	  Support for Samsung ZQL1695 A02Q USA ATT device.
+
+config MACH_A02Q_USA_TFN
+	depends on SEC_A02Q_PROJECT
+	default n
+	bool "Samsung A02Q USA TFN"
+	help
+	  Support for Samsung HS50 A02Q USA TFM device.
+	  
+config MACH_A02Q_USA_OPEN
+	depends on SEC_A02Q_PROJECT
+	default n
+	bool "Samsung A02Q USA OPEN"
+	help
+	  Support for Samsung HS50 A02Q USA OPEN device.
+	  	  
