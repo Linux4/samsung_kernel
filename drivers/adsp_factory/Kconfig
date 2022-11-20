@@ -1,0 +1,86 @@
+#
+# factory sensor drivers configuration
+#
+config ADSP_SENSORS_CORE
+         bool "sensors_core"
+
+config ADSP_FACTORY
+	tristate "MSM ADSP factory driver"
+	default n
+	help
+	  Provides access to ADSP user space.
+
+config K6DS3_FACTORY
+	tristate "factory test for adsp - k6ds3"
+	default n
+	help
+	  k6ds3 file for factory test in adsp.
+
+config LSM6DSL_FACTORY
+	tristate "factory test for adsp - LSM6DSL"
+	default n
+	help
+	  lsm6dsl file for factory test in adsp.
+
+config AK09916C_FACTORY
+	tristate "factory test for adsp - ak09916c"
+	default n
+	help
+	  ak09916c file for factory test in adsp.
+
+config AK09918_FACTORY
+	tristate "factory test for adsp - ak09918c"
+	default n
+	help
+	  add the feautre of ak09918c in ak09916c factory test file.
+
+config TMD3725_FACTORY
+	tristate "factory test for adsp - tmd3725"
+	default n
+	help
+	  tmd3725 feature for factory test in adsp.
+
+config CM36657_FACTORY
+	tristate "factory test for adsp - cm36657"
+	default n
+	help
+	  cm36657 feature for factory test in adsp.
+
+config LPS22HB_FACTORY
+	tristate "factory test for adsp - lps22hb"
+	default n
+	help
+	  lps22hb feature for factory test in adsp.
+
+config TMD490X_FACTORY
+	tristate "factory test for adsp - tmd490x"
+	default n
+	help
+	  tmd490x file for factory test in adsp.
+
+config SUPPORT_HIDDEN_HOLE
+	tristate "Support Hidden Hole function for proximity sensor"
+	default n
+	depends on ADSP_FACTORY
+	help
+	  Support the Hidden Hole function.
+
+config SUPPORT_TMD4906_FACTORY
+	tristate "factory test for adsp - tmd4906"
+	depends on TMD490X_FACTORY
+	default n
+	help
+	  tmd4904 feature for factory test in adsp.
+
+config SUPPORT_PROX_AUTO_CAL
+	tristate "Support auto cal function for proximity sensor"
+	default n
+	depends on ADSP_FACTORY
+	help
+	  Support the auto cal function.
+
+config SLPI_MOTOR
+	tristate "Sensors support motor"
+	default n
+	help
+	  Support the motor state function

@@ -1,0 +1,11 @@
+# drivers/staging/samsung/Kconfig
+#
+# Copyright (c) 2010-2011 Samsung Electronics Co., Ltd.
+#		http://www.samsung.com/
+#
+# Licensed under GPLv2
+
+comment "Samsung TN Features"
+menuconfig SEC_EXT
+	bool "Samsung TN extension Feature"
+
