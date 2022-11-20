@@ -1,0 +1,133 @@
+&pmi632_vadc {
+
+	chan@2a {
+		label = "bat_therm_PU30";
+		reg = <0x2a>;
+		qcom,decimation = <2>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		/* Huaqin add for HS60-37 Configure battery NTC for charging by gaochao at 2019/07/11 start */
+		qcom,scale-function = <27>;
+		/* Huaqin add for HS60-37 Configure battery NTC for charging by gaochao at 2019/07/11 end */
+		/* Huaqin add for HS60-919 Increase collection duty time by gaochao at 2019/08/23 start */
+		qcom,hw-settle-time = <2>;
+		/* Huaqin add for HS60-919 Increase collection duty time by gaochao at 2019/08/23 end */
+		qcom,fast-avg-setup = <0>;
+		qcom,cal-val = <0>;
+	};
+};
+
+&mtp_batterydata {
+	qcom,batt-id-range-pct = <15>;
+	/* HS70 add for HS70-293 Import formal SCUD battery profile by qianyingdong at 2019/10/21 start */
+	/* HS70 add for HS70-293 Import temporary SCUD battery profile by qianyingdong at 2019/10/02 start */
+	#include "Huaqin_QL1871_SCUD_4000mAH_averaged_MasterSlave_PMI632.dtsi"
+	/* HS70 add for HS70-293 Import temporary SCUD battery profile by qianyingdong at 2019/10/02 end */
+	/* HS70 add for HS70-293 Import formal SCUD battery profile by qianyingdong at 2019/10/21 end */
+	/* HS70 add for HS70-293 Import formal ATL battery profile by qianyingdong at 2019/10/21 start */
+	/* HS70 add for HS70-293 Import temporary ATL battery profile by qianyingdong at 2019/10/02 start */
+	#include "Huaqin_QL1871_ATL_4000mAH_averaged_MasterSlave_PMI632.dtsi"
+	/* HS70 add for HS70-293 Import temporary ATL battery profile by qianyingdong at 2019/10/02 end */
+	/* HS70 add for HS70-293 Import formal ATL battery profile by qianyingdong at 2019/10/21 end */
+	/* HS70 add for HS70-308 Import temporary 5000mAh battery profile by qianyingdong at 2019/10/24 start */
+	#include "Huaqin_QL1871_ATL_5000mAH_averaged_MasterSlave_PMI632.dtsi"
+	#include "Huaqin_QL1871_SCUD_5000mAH_averaged_MasterSlave_PMI632.dtsi"
+	/* HS70 add for HS70-308 Import temporary 5000mAh battery profile by qianyingdong at 2019/10/24 end */
+	/* HS70 add for HS70-4585 Import temporary SDI battery profile by qianyingdong at 2020/03/06 start */
+	#include "Huaqin_QL1871_SDI_4000mAH_averaged_MasterSlave_PMI632.dtsi"
+	/* HS70 add for HS70-4585 Import temporary SDI battery profile by qianyingdong at 2020/03/06 end */
+};
+
+&pmi632_qg {
+	qcom,battery-data = <&mtp_batterydata>;
+	/* Huaqin add for HS60-63 Set cut-off voltage by gaochao at 2019/07/17 start */
+	qcom,qg-iterm-ma = <280>;
+	qcom,vbatt-empty-mv = <3000>;
+	qcom,vbatt-empty-cold-mv = <2800>;
+	qcom,vbatt-cutoff-mv = <3400>;
+	/* Huaqin add for HS60-63 Set cut-off voltage by gaochao at 2019/07/17 end */
+	/*HS60 & HS70 add for HS70-1415 Aging Test Workaround by wangzikang at 2019/11/20 start */
+	qcom,batt_id_ohm_default = <150000>;
+	/*HS60 & HS70 add for HS70-1415 Aging Test Workaround by wangzikang at 2019/11/20 end */
+	/* HS70 add for HS70-3700 Optimize QG sleep and wakeup threshold to reduce system power consumption by gaochao at 2020/01/08 start */
+	qcom,s3-entry-ibat-ua = <18000>;
+	qcom,s3-exit-ibat-ua = <38000>;
+	/* HS70 add for HS70-3700 Optimize QG sleep and wakeup threshold to reduce system power consumption by gaochao at 2020/01/08 end */
+};
+
+&pmi632_charger {
+	qcom,battery-data = <&mtp_batterydata>;
+	/* Huaqin add for HS60-139 Set VREG_L8 as 2.9V by gaochao at 2019/07/18 start */
+	VREG_L8_2P95-supply = <&pm8953_l8>;
+	/* Huaqin add for HS60-139 Set VREG_L8 as 2.9V by gaochao at 2019/07/18 end */
+	/* Huaqin add for HS60-63 Set cut-off voltage by gaochao at 2019/07/17 start */
+	qcom,chg-term-src = <1>;
+	/* Huaqin add for HS70-38 Set cut-off current by qianyingdong at 2019/12/04 start */
+	//qcom,chg-term-current-ma = <(-150)>;
+	qcom,chg-term-current-ma = <(-180)>;
+	/* Huaqin add for HS70-38 Set cut-off current by qianyingdong at 2019/12/04 end */
+	/* HS70 add for HS70-919 set fcc to 3000mA by qianyingdong at 2019/11/28 start */
+	//qcom,fcc-max-ua = <1700000>;
+	qcom,fcc-max-ua = <3000000>;
+	/* HS70 add for HS70-919 set fcc to 3000mA by qianyingdong at 2019/11/28 end */
+	/* HS70 add for HS70-919 set icl to 3000mA by qianyingdong at 2019/11/28 start */
+	//qcom,usb-icl-ua = <1670000>;
+	/* HS70 add for P200417-04435 set icl to 1800mA by wangzikang at 2020/04/28 start */
+	//qcom,usb-icl-ua = <3000000>;
+	qcom,usb-icl-ua = <1800000>;
+	/* HS70 add for P200417-04435 set icl to 1800mA by wangzikang at 2020/04/28 start */
+	/* HS70 add for HS70-919 set icl to 3000mA by qianyingdong at 2019/11/28 end */
+	/* HS60 add for HS60-293 Set maximum FV as 4.4V by gaochao at 2019/07/31 start */
+	qcom,fv-max-uv = <4400000>;
+	/* HS60 add for HS60-293 Set maximum FV as 4.4V by gaochao at 2019/07/31 end */
+	/* HS70 add for HS70-565 Set float charger ICL as 500mA by gaochao at 2019/10/31 start */
+	qcom,float-option = <2>;
+	/* HS70 add for HS70-565 Set float charger ICL as 500mA by gaochao at 2019/10/31 end */
+	qcom,auto-recharge-vbat-mv = <4330>;
+	/* Huaqin add for HS60-63 Set cut-off voltage by gaochao at 2019/07/17 end */
+	/* HS70 add for HS70-135 Distinguish HS60 and HS70 charging by gaochao at 2019/10/08 start */
+	qcom,distinguish-sdm439-sdm450-others = <1>;
+	/* HS70 add for HS70-135 Distinguish HS60 and HS70 charging by gaochao at 2019/10/08 end */
+	/* HS70 add for HS70-135 Distinguish HS60 and HS70 charging by gaochao at 2019/10/10 start */
+	qcom,typec-interface-protection = <0>;
+
+	/* HS70 add for HS70-2564 add board_id for charging by qianyingdong at 2019/12/26 start */
+	qcom,usb-connector-thermal = <0x11 0x12 0x13 0x14 0x15 0x16 0x17 0x18 0x19
+        			0x21 0x22 0x23 0x24 0x25 0x26 0x27 0x28 0x29
+					0x31 0x32 0x33 0x34 0x35 0x36 0x37 0x38 0x39
+					0x41 0x42 0x43 0x44 0x45 0x46 0x47 0x48 0x49
+					0x51 0x52 0x53 0x54 0x55 0x56 0x57 0x58 0x59
+					0x61 0x62 0x63 0x64 0x65 0x66 0x67 0x68 0x69
+					0x71 0x72 0x73 0x74 0x75 0x76 0x77 0x78 0x79
+					0x81 0x82 0x83 0x84 0x85 0x86 0x87 0x88 0x89
+					0x91 0x92 0x93 0x94 0x95 0x96 0x97 0x98 0x99
+					0xA1 0xA2 0xA3 0xA4 0xA5 0xA6 0xA7 0xA8 0xA9
+					0xB1 0xB2 0xB3 0xB4 0xB5 0xB6 0xB7 0xB8 0xB9
+					0xC1 0xC2 0xC3 0xC4 0xC5 0xC6 0xC7 0xC8 0xC9
+					0xD1 0xD2 0xD3 0xD4 0xD5 0xD6 0xD7 0xD8 0xD9
+					0xE1 0xE2 0xE3 0xE4 0xE5 0xE6 0xE7 0xE8 0xE9
+					0xF1 0xF2 0xF3 0xF4 0xF5 0xF6 0xF7 0xF8 0xF9
+					0x101 0x102 0x103 0x104 0x105 0x106 0x107 0x108 0x109
+					0x111 0x112 0x113 0x114 0x115 0x116 0x117 0x118 0x119
+					0x121 0x122 0x123 0x124 0x125 0x126 0x127 0x128 0x129
+					0x131 0x132 0x133 0x134 0x135 0x136 0x137 0x138 0x139
+					0x171 0x172 0x173 0x174 0x175 0x176 0x177 0x178 0x179
+					0x181 0x182 0x183 0x184 0x185 0x186 0x187 0x188 0x189
+					0x191 0x192 0x193 0x194 0x195 0x196 0x197 0x198 0x199
+					0x1A1 0x1A2 0x1A3 0x1A4 0x1A5 0x1A6 0x1A7 0x1A8 0x1A9
+					0x1B1 0x1B2 0x1B3 0x1B4 0x1B5 0x1B6 0x1B7 0x1B8 0x1B9
+	/* HS70 add for HS70-4872 add board_id for ATT_PRE_PAY by qianyingdong at 2020/03/18 start */
+					0x211 0x212 0x213 0x214 0x215 0x216 0x217 0x218 0x219>;
+	/* HS70 add for HS70-4872 add board_id for ATT_PRE_PAY by qianyingdong at 2020/03/18 end */
+	/* HS70 add for HS70-2564 add board_id for charging by qianyingdong at 2019/12/26 end */
+	/* HS70 add for HS70-925 by chengzhi at 2019/11/08 start */
+    qcom,flash-disable-soc = <5>;
+	/* HS70 add for HS70-925 by chengzhi at 2019/11/08 end */
+	/* HS70 add for HS70-135 Distinguish HS60 and HS70 charging by gaochao at 2019/10/10 end */
+	/* HS70 add for HS70-196 update thermal-mitigation by qianyingdong at 2019/11/25 start */
+	/* HS70 add for HS70-196 Set thermal for battery charging by qianyingdong at 2019/10/31 start */
+	qcom,thermal-mitigation
+		= <2700000 2300000 2000000 1500000 1000000 800000 500000>;
+	/* HS70 add for HS70-196 Set thermal for battery charging by qianyingdong at 2019/10/31 end */
+	/* HS70 add for HS70-196 update thermal-mitigation by qianyingdong at 2019/11/25 end */
+};
