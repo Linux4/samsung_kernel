@@ -1,0 +1,119 @@
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	i2c_13: i2c@13 {
+		cell-index = <13>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 33 0 /* sda */
+			&tlmm 32 0	/* scl */
+			>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		sm5705@25 {
+			status = "okay";
+			compatible = "universal-sm5705";
+			reg = <0x25>;
+			interrupt-parent = <&spmi_bus>;
+			interrupts = <0x0 0xc3 0x0 IRQ_TYPE_LEVEL_LOW>;
+			interrupt-names = "sm5705_irq"; 
+			interrupt-controller;
+			sm5720,irq-gpio = <&pm8994_gpios 4 0x01>;
+			muic-universal,irq-gpio = <&pm8994_gpios 4 0x01>;
+			muic,switch_gpio = <&tlmm 1 0x00>;
+			muic,array_gpio = <&tlmm 106 0x00>;
+			sm5705,wakeup;
+
+			muic-universal,chip_name = "sm,sm5705";
+			muic-universal,afc-support = <1>;
+			pinctrl-names = "muic_active", "muic_suspend", "muic_switch";
+			pinctrl-0 = <&muic_i2c_active &muic_irq_active>;
+			pinctrl-1 = <&muic_i2c_suspend &muic_irq_suspend>;
+			pinctrl-2 = <&muic_switch_default>;
+		};
+
+		sm5705-mfd@49{
+			compatible = "sm,sm5705";
+			reg = <0x49>;
+			interrupt-parent = <&tlmm>;
+			sm5705,irq-gpio = <&tlmm 38 0x00>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&charger_int_active>;
+//			sm5705,mrstb-gpio = <&tlmms 101 0x00>;
+/*
+			sm5705_charger {
+				compatible = "siliconmitus,sm5705-charger";
+				chg_autostop = <0>;
+				chg_autoset = <1>;
+				chg_aiclen = <1>;
+				chg_aiclth = <4300>;
+				fg_vol_val = <4350>;
+				fg_soc_val = <95>;
+				fg_curr_avr_val = <150>;
+			};
+*/
+		};
+		sm5705_fled {
+			status = "okay";
+			sm5705_leds1: sm5705-leds1 {
+				ledname = "leds-sm5705-fled0";
+				id = <0>;
+				flash-mode-current-mA = <1200>;
+				torch-mode-current-mA = <180>;
+				used-gpio-control = <1>;
+				flash-en-gpio = <&tlmm 12 0x00>;
+				torch-en-gpio = <&tlmm 11 0x00>;
+				timeout = <0x7>;
+				default-trigger = "flash_trigger";
+			};
+		
+			sm5705_leds2: sm5705-leds2 {
+				ledname = "leds-sm5705-fled1";
+				id = <1>;
+				flash-mode-current-mA = <0>;
+				torch-mode-current-mA = <0>;
+				used-gpio-control = <0>;
+				timeout = <0xF>;
+				default-trigger = "torch_trigger";
+			};
+		};
+	};
+};
+
+/ {
+	muic {
+		status = "okay";
+		muic,support-list = "+OTG:GND",
+					"-MHL:1K",
+					"-VZW Accessory:28.7K",
+					"-VZW Incompatible:34K",
+					"-Smartdock:40.2K",
+					"-HMT:49.9K",
+					"-Audiodock:64.9K",
+					"+USB LANHUB:80.07K",
+					"-Charging Cable:102K",
+					"+Universal Multimedia dock:121K",
+					"+Jig USB Off:255K",
+					"+Jig USB On:301K",
+					"+Deskdock:365K",
+					"+TYPE2 Charger:442K",
+					"+Jig UART Off:523K",
+					"+Jig UART On:619K",
+					"+TA:OPEN",
+					"+USB:OPEN",
+					"+CDP:OPEN",
+					"+Undefined Charging:XXX";
+	};
+};
+

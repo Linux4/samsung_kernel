@@ -1,0 +1,68 @@
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	i2c21: i2c@21 { /* SW I2C */
+		cell-index = <21>;
+		compatible = "i2c-gpio";
+
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		max77838@60 {
+			compatible = "maxim,max77838";
+			reg = <0x60>;
+
+			buck-ramp-up = <0>;		/* 6.25mV/us */
+			buck-fpwm = <0>;		/* Disable */
+
+			uvlo-fall-threshold = <0>;	/* 2.30V */
+
+			regulators {
+				max77838_l1: max77838-ldo1 {
+					regulator-name = "max77838-ldo1";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+					active-discharge-enable = <1>;
+				};
+
+				max77838_l2: max77838-ldo2 {
+					regulator-name = "max77838-ldo2";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+					active-discharge-enable = <1>;
+				};
+
+				max77838_l3: max77838-ldo3 {
+					regulator-name = "max77838-ldo3";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+					active-discharge-enable = <1>;
+				};
+
+				max77838_l4: max77838-ldo4 {
+					regulator-name = "max77838-ldo4";
+					regulator-min-microvolt = <600000>;
+					regulator-max-microvolt = <3775000>;
+					active-discharge-enable = <1>;
+				};
+
+				max77838_buck: max77838-buck {
+					regulator-name = "max77838-buck";
+					regulator-min-microvolt = <500000>;
+					regulator-max-microvolt = <2093750>;
+				};
+			};
+		};
+	};
+};
