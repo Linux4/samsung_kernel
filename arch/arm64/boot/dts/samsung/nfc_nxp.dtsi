@@ -1,0 +1,131 @@
+/*
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#if 1
+#if 1 && !defined(CONFIG_SEC_FACTORY)
+&tlmm {
+/*	gpio-reserved-ranges = <SEC_GPIO_NUM(AP,tlmm,3) 4>; */
+};
+#endif
+
+&tlmm {
+        ese_spi_cs_sleep: ese_spi_cs_sleep {
+                GPIO_CONFIG_PUD_DRV(AP,tlmm,0, FUNC_OUTPUT_LOW, PULL_DOWN, DRV_LV3);
+        };
+
+        ese_spi_clk_sleep: ese_spi_clk_sleep {
+                GPIO_CONFIG_PUD_DRV(AP,tlmm,1, FUNC_OUTPUT_LOW, PULL_DOWN, DRV_LV3);
+        };
+
+        ese_spi_mosi_sleep: ese_spi_mosi_sleep {
+                GPIO_CONFIG_PUD_DRV(AP,tlmm,2, FUNC_OUTPUT_LOW, PULL_DOWN, DRV_LV3);
+        };
+
+        ese_spi_miso_sleep: ese_spi_miso_sleep {
+                GPIO_CONFIG_PUD_DRV(AP,tlmm,3, FUNC_OUTPUT_LOW, PULL_DOWN, DRV_LV3);
+        };
+
+#if 0
+        ese_spi_miso_in: ese_spi_miso_in {
+                GPIO_CONFIG_PUD_DRV(AP,tlmm,3, FUNC_INPUT, PULL_NONE, DRV_LV3);
+        };
+
+        ese_spi_cs_out_high: ese_spi_cs_out_high {
+                GPIO_CONFIG_PUD_DRV(AP,tlmm,0, FUNC_OUTPUT_HIGH, PULL_DOWN, DRV_LV3);
+        };
+#endif
+};
+
+#if 0
+&${ese_check_parent} {
+        ese_check_default: ese_check_default {
+                GPIO_CONFIG_PUD_DRV(${ese_check}, FUNC_INPUT, PULL_NONE, DRV_LV3);
+        };
+};
+#endif
+
+#if 1 && !defined(CONFIG_SEC_FACTORY)
+&soc {
+        ese_secured {
+		compatible = "p61_secure";
+		p61,ap_vendor = "qualcomm";
+#if 0
+		ese-det-gpio = <SEC_GPIO_REF(${ese_check}) 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ese_check_default>;
+#endif
+        };
+};
+#else
+&qupv3_se1_spi {
+        status = "ok";
+#if 0
+#if 0
+	sec,pinctrl_active;
+	sec,pinctrl_skip_sleep;
+	pinctrl-names = "active", "sleep", "lpm";
+#else
+	pinctrl-names = "default", "sleep", "lpm";
+#endif
+        pinctrl-1 = <&ese_spi_cs_out_high &ese_spi_clk_sleep &ese_spi_mosi_sleep &ese_spi_miso_in>;
+        pinctrl-2 = <&ese_spi_cs_sleep &ese_spi_clk_sleep &ese_spi_mosi_sleep &ese_spi_miso_sleep>;
+#else
+        pinctrl-1 = <&ese_spi_cs_sleep &ese_spi_clk_sleep &ese_spi_mosi_sleep &ese_spi_miso_sleep>;
+#endif
+        ese_spi@0 {
+		compatible = "p61";
+		reg = <0>;      
+		spi-max-frequency = <8000000>;
+		p61,ap_vendor = "qualcomm";
+#if 0
+		ese-det-gpio = <SEC_GPIO_REF(${ese_check}) 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ese_check_default>;
+#endif
+	};
+};
+#endif
+#endif
+
+&tlmm {
+	nfc_i2c_sda_sleep: nfc_i2c_sda_sleep {
+		GPIO_CONFIG_PUD_DRV(AP,tlmm,43, FUNC_INPUT, PULL_NONE, DRV_LV1);
+	};
+
+	nfc_i2c_scl_sleep: nfc_i2c_scl_sleep {
+		GPIO_CONFIG_PUD_DRV(AP,tlmm,42, FUNC_INPUT, PULL_NONE, DRV_LV1);
+	};
+};
+
+&qupv3_se0_i2c {
+	status = "ok";
+	pinctrl-1 = <&nfc_i2c_sda_sleep &nfc_i2c_scl_sleep>;
+	nfc: pn547@2B {
+		compatible = "pn547";
+		reg = <0x2B>;
+		/* interrupt-parent = <SEC_GPIO_TYPE(AP,tlmm,34)>; */
+		/* interrupts = <SEC_GPIO_NUM(AP,tlmm,34) 0>; */
+		pn547,irq-gpio = <SEC_GPIO_REF(AP,tlmm,34) 0>;
+		pn547,ven-gpio = <SEC_GPIO_REF(AP,tlmm,12) 0>;
+		pn547,firm-gpio = <SEC_GPIO_REF(AP,tlmm,35) 0>;
+		pn547,clk_req-gpio = <SEC_GPIO_REF(AP,tlmm,45) 0>;
+#if 1 && !0
+		pn547,pwr_req = <SEC_GPIO_REF(AP,tlmm,11) 0>;
+#endif
+#if 1
+		pn547,clk_req_wake;
+#endif
+		pn547,ldo_control;
+#if 1
+		nfc_pvdd-supply = <&pm8150a_l1>;
+#endif
+	};
+};

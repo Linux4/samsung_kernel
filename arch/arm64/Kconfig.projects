@@ -1,0 +1,56 @@
+config SEC_A71XQ_PROJECT
+	depends on ARCH_LITO
+	default n
+	bool "Samsung A71XQ Project"
+	help
+	  Support for Samsung A71XQ Project
+
+config MACH_A71XQ_USA_SINGLE
+	depends on SEC_A71XQ_PROJECT
+	default n
+	bool "Samsung A71XQ USA SINGLE"
+	help
+	  Support for Samsung A71XQ USA SINGLE device.
+
+config MACH_A71XQ_USA_SINGLEW
+	depends on SEC_A71XQ_PROJECT
+	default n
+	bool "Samsung A71XQ USA SINGLEW"
+	help
+	  Support for Samsung A71XQ USA SINGLEW device.
+
+config MACH_A71XQ_USA_OPEN
+        depends on SEC_A71XQ_PROJECT
+        default n
+        bool "Samsung A71XQ USA OPEN"
+        help
+          Support for Samsung A71XQ USA OPEN device.
+
+config SEC_A51XQ_PROJECT
+        depends on ARCH_LITO
+        default n
+        bool "Samsung A51XQ Project"
+        help
+          Support for Samsung A51XQ Project
+
+config MACH_A51XQ_JPN_DCM
+        depends on SEC_A51XQ_PROJECT
+        default n
+        bool "Samsung A51XQ JPN DCM"
+        help
+          Support for Samsung A51XQ JPN DCM device.
+
+config MACH_A51XQ_JPN_KDI
+        depends on SEC_A51XQ_PROJECT
+        default n
+        bool "Samsung A51XQ JPN KDI"
+        help
+          Support for Samsung A51XQ JPN KDI device.
+
+config MACH_A51XQ_USA_SINGLE
+        depends on SEC_A51XQ_PROJECT
+        default n
+        bool "Samsung A51XQ USA SINGLE"
+        help
+          Support for Samsung A51XQ USA SINGLE device.
+
