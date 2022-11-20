@@ -1,0 +1,98 @@
+/* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+/ {
+	aliases {
+		i2c30 = &i2c_30;
+	};
+};
+
+&soc {
+	tlmm: pinctrl@1000000 {
+		/delete-node/ pmx_rd_nfc_int;
+
+		nfc_int_active: nfc_int_active {
+			mux {
+				pins = "gpio46";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio46";
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+		nfc_int_suspend: suspend  {
+			mux {
+				pins = "gpio46";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio46";
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+
+		nfc_detect_active: nfc_detect_active {
+			mux {
+				pins = "gpio97";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio97";
+				drive-strength = <2>;
+				bias-disable;		/* No PULL */
+			};
+		};
+		nfc_detect_suspend: nfc_detect_suspend {
+			mux {
+				pins = "gpio97";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio97";
+				drive-strength = <2>;
+				bias-disable;		/* No PULL */
+			};
+		};
+	};
+
+	i2c_30: i2c@30 { /* SW i2c */
+		cell-index = <30>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 12 0/* sda */
+			&tlmm 13 0/* scl */
+		>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "ok";
+		pn547@2B {
+			compatible = "pn547";
+			reg = <0x2B>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <46 0>;
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&nfc_int_active &nfc_detect_active>;
+			pinctrl-1 = <&nfc_int_suspend &nfc_detect_suspend>;
+			pn547,det-gpio = <&tlmm 97 0>;
+			pn547,ven-gpio = <&tlmm 95 0>;
+			pn547,firm-gpio = <&tlmm 41 0>;
+			pn547,irq-gpio = <&tlmm 46 0>;
+			pn547,pvdd-gpio = <&tlmm 129 0>;
+			pn547,nfc_pm_clk;
+			clock-names = "rf_clk";
+			clocks = <&clock_gcc clk_bb_clk2_pin>;
+			qcom,clk-src="BBCLK2";
+		};
+	};
+};

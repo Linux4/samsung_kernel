@@ -1,0 +1,32 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+&soc {
+	i2c13: i2c@13 {
+		cell-index = <13>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 21 0 /* sda */
+			&tlmm 20 0 /* scl */
+			>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		s2mu004@3D {
+			status = "okay";
+			compatible = "samsung,s2mu004mfd";
+			reg = <0x3D>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&if_pmic_irq>;
+			s2mu004,irq-gpio = <&tlmm 73 0>;
+			s2mu004,wakeup;
+		};
+	};
+};
