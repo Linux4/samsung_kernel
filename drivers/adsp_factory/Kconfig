@@ -1,0 +1,17 @@
+#
+# factory sensor drivers configuration
+#
+config ADSP_SENSORS_CORE
+         bool "sensors_core"
+
+config ADSP_FACTORY
+	tristate "MSM ADSP factory driver"
+	default n
+	help
+	  Provides access to ADSP user space.
+
+config SX93XX_FACTORY
+	tristate "factory test for adsp - sx93xx"
+	default n
+	help
+	  sx93xx file for factory test in adsp.

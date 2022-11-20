@@ -1,0 +1,6 @@
+config MACH_M11Q_EUR_OPEN
+	default n
+	bool "Samsung M11Q EUR OPEN"
+	help
+	  Support for Samsung ZQL1695 M11Q EUR OPEN device.
+
