@@ -1,0 +1,19 @@
+config SEC_Y2Q_PROJECT
+	default n
+	bool "Samsung Y2Q Project"
+	help
+	  Support for Samsung Y2Q Project
+
+config MACH_Y2Q_CHN_OPEN
+	default n
+	bool "Samsung Y2Q CHN OPEN"
+	help
+	  Support for Samsung Y2Q CHN OPEN device.
+
+config MACH_Y2Q_CHN_HKX
+	select MACH_Y2Q_CHN_OPEN
+	default n
+	bool "Samsung Y2Q CHN HKX"
+	help
+	  Support for Samsung Y2Q CHN HKX device.
+
