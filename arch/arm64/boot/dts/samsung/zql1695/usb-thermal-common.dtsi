@@ -1,0 +1,41 @@
+&pmi632_vadc {
+
+	/* HS60 add for HS60-163 Set usb thermal by gaochao at 2019/07/30 start */
+	pinctrl-names = "default";
+	pinctrl-0 = <&quiet_therm_default &smb_therm_default &gpio1_adc_default>;
+	/* HS60 add for HS60-163 Set usb thermal by gaochao at 2019/07/30 end */
+
+	chan@52 {
+		label = "typec_therm";
+		reg = <0x52>;
+		qcom,decimation = <2>;
+		qcom,pre-div-channel-scaling = <0>;
+		/* HS60 add for HS60-163 Set usb thermal by gaochao at 2019/07/30 start */
+		qcom,calibration-type = "absolute";
+		qcom,scale-function = <0>;
+		/* HS60 add for HS60-163 Set usb thermal by gaochao at 2019/07/30 end */
+		qcom,hw-settle-time = <0>;
+		qcom,fast-avg-setup = <0>;
+		qcom,cal-val = <0>;
+	};
+};
+
+&pmi632_charger {
+	/* HS60 add for HS60-163 Set usb thermal by gaochao at 2019/07/30 start */
+	qcom,pm-gpio1-vadc = <&pmi632_vadc>;
+	draw-VBUS-GPIO59 = <&tlmm 59 0>;
+	/* HS60 add for HS60-163 Set usb thermal by gaochao at 2019/07/30 end */
+};
+
+&pmi632_gpios {
+	/* HS60 add for HS60-163 Set usb thermal by gaochao at 2019/07/30 start */
+	gpio1_adc {
+		gpio1_adc_default: gpio1_adc_default {
+			pins = "gpio1";
+			function = "normal";
+			bias-disable;
+			bias-high-impedance;
+		};
+	};
+	/* HS60 add for HS60-163 Set usb thermal by gaochao at 2019/07/30 end */
+};
