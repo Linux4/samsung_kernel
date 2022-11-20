@@ -1,0 +1,19 @@
+config SEC_Z3Q_PROJECT
+	default n
+	bool "Samsung Z3Q Project"
+	help
+	  Support for Samsung Z3Q Project
+
+config MACH_Z3Q_CHN_OPEN
+	default n
+	bool "Samsung Z3Q CHN OPEN"
+	help
+	  Support for Samsung Z3Q CHN OPEN device.
+
+config MACH_Z3Q_CHN_HKX
+	select MACH_Z3Q_CHN_OPEN
+	default n
+	bool "Samsung Z3Q CHN HKX"
+	help
+	  Support for Samsung Z3Q CHN HKX device.
+
