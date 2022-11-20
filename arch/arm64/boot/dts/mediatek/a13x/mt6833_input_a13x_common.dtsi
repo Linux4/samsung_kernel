@@ -1,0 +1,280 @@
+/*
+ * SAMSUNG Input Device Tree Source
+ *
+ * Copyright (c) Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+/* TOUCH start */
+/* touch gpio start */
+&pio {
+	tsp_on_clk: tsp-on-clk {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO27__FUNC_SPI1_CLK>;
+			bias-disable;
+		};
+	};
+
+	tsp_on_cs: tsp-on-cs {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO28__FUNC_SPI1_CSB>;
+			bias-disable;
+		};
+	};
+
+	tsp_on_mosi: tsp-on-mosi {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO29__FUNC_SPI1_MO>;
+			bias-disable;
+		};
+	};
+
+	tsp_on_miso: tsp-on-miso {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO30__FUNC_SPI1_MI>;
+			bias-disable;
+		};
+	};
+
+	tsp_off_clk: tsp-off-clk {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO27__FUNC_GPIO27>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	tsp_off_cs: tsp-off-cs {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO28__FUNC_GPIO28>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	tsp_off_mosi: tsp-off-mosi {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO29__FUNC_GPIO29>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	tsp_off_miso: tsp-off-miso {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO30__FUNC_GPIO30>;
+			slew-rate = <0>;
+			bias-pull-down;
+			input-enable;
+		};
+	};
+
+	intr_on: intr-on {
+               pins_cmd_dat {
+                       pinmux = <PINMUX_GPIO14__FUNC_GPIO14>;
+                       slew-rate = <0>;
+                       bias-disable;
+               };
+	};
+
+	intr_off: intr-off {
+		pins_cmd_dat {
+                       pinmux = <PINMUX_GPIO14__FUNC_GPIO14>;
+                       slew-rate = <0>;
+                       input-enable;
+                       bias-pull-down;
+               };
+	};
+
+	reset_on: reset-on {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO7__FUNC_GPIO7>;
+			slew-rate = <1>;
+			bias-disable;
+			output-high;
+		};
+	};
+	reset_off: reset-off {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO7__FUNC_GPIO7>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	tsp_id1_default: tsp-id1-default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO172__FUNC_GPIO172>;
+			slew-rate = <0>;
+			input-enable;
+			bias-disable;
+		};
+	};
+	tsp_id2_default: tsp-id2-default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO173__FUNC_GPIO173>;
+			slew-rate = <0>;
+			input-enable;
+			bias-disable;
+		};
+	};
+	tsp_id3_default: tsp-id3-default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO174__FUNC_GPIO174>;
+			slew-rate = <0>;
+			input-enable;
+			bias-disable;
+		};
+	};
+};
+/* touch gpio end */
+
+&spi1 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	num-cs = <3>;
+
+	/* Novatek device tree node */
+	novatek@0 {
+		status = "okay";
+		compatible = "novatek,NVT-ts-spi";
+		reg = <0>; //Same as CS ID
+		spi-max-frequency = <9600000>;
+		novatek,reset-gpio = <&pio 7 0x00>;
+		novatek,irq-gpio = <&pio 14 0x2002>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&intr_on &reset_on &tsp_on_miso &tsp_on_cs &tsp_on_mosi &tsp_on_clk &tsp_id1_default &tsp_id2_default &tsp_id3_default>;
+		pinctrl-1 = <&intr_off &reset_off &tsp_off_miso &tsp_off_cs &tsp_off_mosi &tsp_off_clk &tsp_id1_default &tsp_id2_default &tsp_id3_default>;
+		
+		novatek,resolution = <720 1600>;
+		novatek,enable_settings_aot;
+		novatek,support_ear_detect_mode;
+		novatek,prox_lp_scan_enabled;
+		novatek,enable_sysinput_enabled;
+
+		novatek,lcdid1-gpio = <&pio 172 0x0>;
+		novatek,lcdid2-gpio = <&pio 173 0x0>;
+		novatek,lcdid3-gpio = <&pio 174 0x0>;
+		novatek,lcdid = <3 6>;	// 0,0,0,BOE,0,0,bringup
+		novatek,lcdtype = <0 0 0 0x2a6244 0 0 0x2af240>;
+		novatek,fw_name = "","","","tsp_novatek/nt36525c_a13x_boe.bin","","","tsp_novatek/nt36525c_a13x_bringup.bin";
+		novatek,fw_name_mp = "","","","tsp_novatek/nt36525c_a13x_mp_boe.bin","","","tsp_novatek/nt36525c_a13x_mp_bringup.bin";
+
+		novatek,regulator_lcd_vdd = "vcamio";
+		novatek,regulator_lcd_reset = "gpio_lcd_rst";
+		novatek,regulator_lcd_bl = "gpio_lcd_bl_en";
+
+		/* 672A, 525B, 675, 526, 672C */
+		novatek,swrst-n8-addr = <0x03F0FE>;
+		novatek,spi-rd-fast-addr = <0x03F310>;
+
+		/* MP */
+		novatek,mp-support-dt;
+
+		/* nt36525_a12_ltps */
+//		novatek-mp-criteria-722A@3 {
+//			#address-cells = <1>;
+//			#size-cells = <0>;
+//			compatible = "novatek-mp-criteria-722A";
+
+			/* sec cmd test config */
+//			open_test_spec = <(-511) 5120>;
+//			short_test_spec = <10000 14008>;
+//			diff_test_frame = <50>;
+			/* sec cmd fdm test config */
+//			fdm_x_num = <2>;
+//			fdm_diff_test_frame = <50>;
+//		};
+	};
+
+	himax_ts@1 {
+		status = "okay";
+		compatible = "himax,hxcommon";
+		reg = <1>; //Same as CS ID
+		spi-max-frequency = <10000000>;
+
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&intr_on &reset_on &tsp_on_miso &tsp_on_cs &tsp_on_mosi &tsp_on_clk &tsp_id1_default &tsp_id2_default &tsp_id3_default>;
+		pinctrl-1 = <&intr_off &tsp_off_miso &tsp_off_cs &tsp_off_mosi &tsp_off_clk &tsp_id1_default &tsp_id2_default &tsp_id3_default>;
+		//&reset_off need to control at driver, spi low -> need 1frame delay -> tsp_reset low.
+
+		himax,rst-gpio = <&pio 7 0>;
+		himax,irq-gpio = <&pio 14 0>;
+		
+		himax,panel-coords = <720 1600>;
+		himax,display-coords = <720 1600>;
+		himax,notch-setting    = <287 319>;
+		himax,project_name = "A13X", "A136";
+
+		support_aot;
+		himax,enable_sysinput_enabled;
+		himax,support_ear_detect_mode;
+		himax,prox_lp_scan_enabled;
+
+		himax,lcdid1-gpio = <&pio 172 0x0>;
+		himax,lcdid2-gpio = <&pio 173 0x0>;
+		himax,lcdid3-gpio = <&pio 174 0x0>;
+		himax,lcdid = <5>;	// 0,0,0,0,0,BOE_Himax
+		himax,lcdtype = <0 0 0 0 0 0x2a6234>;
+		himax,fw_name = "","","","","","tsp_himax/hx83108a_a13x.bin";
+
+		himax,regulator_lcd_vdd = "vcamio";
+		himax,regulator_lcd_reset = "gpio_lcd_rst";
+		himax,regulator_lcd_bl = "gpio_lcd_bl_en";
+		himax,one_frame_delay = <20>;
+		
+		himax,report_type = <1>;
+	};
+
+	synaptics_tcm@2 {
+		status = "okay";
+		compatible = "synaptics,tcm-spi";
+		reg = <2>;
+		spi-max-frequency = <7000000>;
+		
+		pinctrl-names = "default", "on_state", "off_state";
+		pinctrl-0 = <&intr_on &reset_on &tsp_on_miso &tsp_on_cs &tsp_on_mosi &tsp_on_clk &tsp_id1_default &tsp_id2_default &tsp_id3_default>;
+		pinctrl-1 = <&intr_on &reset_on &tsp_on_miso &tsp_on_cs &tsp_on_mosi &tsp_on_clk &tsp_id1_default &tsp_id2_default &tsp_id3_default>;
+		pinctrl-2 = <&intr_off &reset_off &tsp_off_miso &tsp_off_cs &tsp_off_mosi &tsp_off_clk &tsp_id1_default &tsp_id2_default &tsp_id3_default>;
+
+		synaptics,irq-gpio = <&pio 14 0x2008>; /* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
+		synaptics,irq-on-state = <0>;
+		synaptics,cs-gpio = <&pio 28 0>;
+		synaptics,spi-mode = <3>;
+		synaptics,byte-delay-us = <0>;
+		synaptics,block-delay-us = <0>;
+		synaptics,ubl-max-freq = <7000000>;
+		synaptics,ubl-byte-delay-us = <20>;
+		synaptics,area-size = <48 81 30>;
+		synaptics,regulator_lcd_vdd = "vcamio";
+		synaptics,regulator_lcd_bl = "gpio_lcd_bl_en";
+		synaptics,regulator_lcd_reset = "gpio_lcd_rst";
+		synaptics,lcdid1-gpio = <&pio 172 0x0>;
+		synaptics,lcdid2-gpio = <&pio 173 0x0>;
+		synaptics,lcdid3-gpio = <&pio 174 0x0>;
+		synaptics,enable_settings_aot;
+		synaptics,support_ear_detect_mode;
+		synaptics,prox_lp_scan_enabled;
+		synaptics,enable_sysinput_enabled;
+		synaptics,lcdid = <0>;	// BOE-TD4375, BOE-TD4150, BOE-TD4160
+		synaptics,lcdtype = <0x2A6220>;
+		synaptics,fw_name = "tsp_synaptics/td4160_a13x_boe.bin";
+
+		controller-data {
+//			cs-gpio = <&gpm3 0 0>;
+			samsung,spi-feedback-delay = <0>;
+		};
+	};
+
+	
+
+};
+/* TOUCH end */
