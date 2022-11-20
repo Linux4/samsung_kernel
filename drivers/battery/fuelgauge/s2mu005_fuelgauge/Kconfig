@@ -1,0 +1,18 @@
+config FUELGAUGE_S2MU005
+	tristate "S2MU005 fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for S.LSI S2MU005 fuel gauge driver.
+	 Ths fuel-gauge supports current tracking and
+	 voltage tracking to model the battery SOC.
+
+config S2MU005_VOLT_MODE_TUNING
+	bool "enable s2mu005 volt mode tuning"
+	default n
+	help
+	 Say Y to include support
+	 for S.LSI S2MU005 fuel gauge driver.
+	 Ths fuel-gauge supports
+	 s2mu005 volt mode tuning

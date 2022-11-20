@@ -1,0 +1,10 @@
+
+#include <dt-bindings/clock/mt6739-clk.h>
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6739/ap_mtk_mt6739.a02.01.dtsi */
+
+#include "../../k39tv1_bsp_titan_hamster.dts"
+#include "../../k39tv1_bsp_titan_hamster/gpio01.dtsi"
+
+
