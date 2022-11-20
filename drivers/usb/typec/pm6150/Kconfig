@@ -1,0 +1,28 @@
+#
+# pm6150 driver
+#
+
+comment "PM6150 configs"
+
+config CCIC_PM6150
+	bool "Using PM6150 USB PD"
+	depends on USE_CCIC
+	default n
+	help
+	  If you say yes here you will get support for
+	  the PM6150 USBPD chip.
+
+config PM6150_FACTORY_MODE
+	bool "Using PM6150 USB PD"
+	depends on CCIC_PM6150
+	default n
+	help
+	  If you say yes here you will get support for
+	  the PM6150 FACTORY MODE. 
+
+config PDIC_PD30
+	bool "support PD3.0"
+	depends on CCIC_PM6150
+	default n
+	help
+	  If you say yes here you will get support for PD3.0
