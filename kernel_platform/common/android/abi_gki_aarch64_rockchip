@@ -1,0 +1,1288 @@
+[abi_symbol_list]
+# commonly used symbols
+  add_uevent_var
+  aes_encrypt
+  alloc_chrdev_region
+  __alloc_disk_node
+  __alloc_pages_nodemask
+  alloc_workqueue
+  __arch_copy_from_user
+  __arch_copy_to_user
+  arm64_const_caps_ready
+  arm64_use_ng_mappings
+  atomic_notifier_chain_register
+  bdget_disk
+  bdput
+  blk_cleanup_queue
+  blk_execute_rq_nowait
+  blk_mq_free_request
+  blk_mq_init_queue
+  blk_mq_quiesce_queue
+  blk_mq_tagset_busy_iter
+  blk_mq_tagset_wait_completed_request
+  blk_mq_unquiesce_queue
+  blk_queue_flag_clear
+  blk_queue_flag_set
+  blk_queue_io_min
+  blk_queue_io_opt
+  blk_queue_logical_block_size
+  blk_queue_max_discard_sectors
+  blk_queue_max_write_zeroes_sectors
+  blk_queue_physical_block_size
+  blk_rq_map_user
+  blk_rq_unmap_user
+  cancel_delayed_work_sync
+  cancel_work_sync
+  capable
+  cdev_device_add
+  cdev_device_del
+  cdev_init
+  __cfi_slowpath
+  __check_object_size
+  __class_create
+  class_destroy
+  clk_bulk_disable
+  clk_bulk_enable
+  clk_bulk_prepare
+  clk_bulk_unprepare
+  clk_disable
+  clk_enable
+  clk_get
+  __clk_get_name
+  clk_get_rate
+  clk_prepare
+  clk_put
+  clk_register
+  clk_set_rate
+  clk_unprepare
+  clk_unregister
+  compat_ptr_ioctl
+  complete
+  completion_done
+  __const_udelay
+  __cpufreq_driver_target
+  cpufreq_register_governor
+  cpufreq_unregister_governor
+  cpu_have_feature
+  __cpuhp_remove_state
+  __cpuhp_setup_state
+  cpu_hwcap_keys
+  cpu_hwcaps
+  cpumask_next
+  cpu_number
+  __cpu_online_mask
+  __cpu_possible_mask
+  crypto_destroy_tfm
+  crypto_inc
+  __crypto_memneq
+  crypto_register_aead
+  crypto_register_alg
+  crypto_register_scomp
+  crypto_register_shash
+  crypto_unregister_aead
+  crypto_unregister_alg
+  crypto_unregister_scomp
+  crypto_unregister_shash
+  __crypto_xor
+  debugfs_create_file
+  delayed_work_timer_fn
+  del_gendisk
+  del_timer_sync
+  destroy_workqueue
+  _dev_err
+  dev_err_probe
+  dev_fwnode
+  device_add_disk
+  device_create
+  device_destroy
+  device_get_child_node_count
+  device_get_next_child_node
+  device_initialize
+  device_init_wakeup
+  device_property_present
+  device_property_read_u32_array
+  _dev_info
+  devm_add_action
+  devm_clk_bulk_get
+  devm_clk_bulk_get_all
+  devm_clk_get
+  devm_clk_get_optional
+  devm_clk_hw_register
+  devm_extcon_dev_allocate
+  devm_extcon_dev_register
+  devm_fwnode_gpiod_get_index
+  devm_gpiod_get
+  devm_gpiod_get_index
+  devm_gpiod_get_index_optional
+  devm_gpiod_get_optional
+  devm_input_allocate_device
+  devm_ioremap
+  devm_ioremap_resource
+  devm_kfree
+  devm_kmalloc
+  devm_kmemdup
+  devm_led_classdev_register_ext
+  devm_nvmem_register
+  devm_of_clk_add_hw_provider
+  __devm_of_phy_provider_register
+  devm_phy_create
+  devm_pinctrl_get
+  devm_platform_get_and_ioremap_resource
+  devm_platform_ioremap_resource
+  devm_power_supply_register
+  devm_pwm_get
+  __devm_regmap_init_i2c
+  __devm_regmap_init_mmio_clk
+  devm_regulator_bulk_get
+  devm_regulator_get
+  devm_regulator_get_optional
+  devm_regulator_register
+  devm_request_threaded_irq
+  devm_reset_control_array_get
+  __devm_reset_control_get
+  devm_snd_dmaengine_pcm_register
+  devm_snd_soc_register_component
+  devres_add
+  devres_alloc_node
+  devres_free
+  dev_set_name
+  _dev_warn
+  disable_irq
+  dma_alloc_attrs
+  dma_buf_export
+  dma_free_attrs
+  dma_heap_add
+  dma_heap_get_name
+  dma_map_sg_attrs
+  dma_release_channel
+  dma_request_chan
+  dma_set_coherent_mask
+  dma_set_mask
+  dma_sync_sg_for_cpu
+  dma_sync_sg_for_device
+  dma_unmap_sg_attrs
+  down_read
+  down_write
+  driver_unregister
+  drm_add_edid_modes
+  drm_connector_update_edid_property
+  drm_display_info_set_bus_formats
+  drm_get_edid
+  drm_mode_vrefresh
+  enable_irq
+  extcon_get_edev_by_phandle
+  extcon_get_state
+  extcon_set_state_sync
+  failure_tracking
+  find_next_zero_bit
+  finish_wait
+  flush_delayed_work
+  flush_work
+  fpsimd_context_busy
+  __free_pages
+  free_pages
+  fwnode_handle_put
+  fwnode_property_present
+  fwnode_property_read_string
+  fwnode_property_read_u32_array
+  get_device
+  gic_nonsecure_priorities
+  gpiod_cansleep
+  gpiod_direction_output
+  gpiod_get_optional
+  gpiod_get_value
+  gpiod_get_value_cansleep
+  gpiod_set_consumer_name
+  gpiod_set_value
+  gpiod_set_value_cansleep
+  hid_debug
+  hid_hw_close
+  hid_hw_open
+  hid_hw_start
+  hid_hw_stop
+  hid_open_report
+  __hid_register_driver
+  __hid_request
+  hid_unregister_driver
+  hid_validate_values
+  i2c_adapter_type
+  i2c_add_adapter
+  i2c_del_adapter
+  i2c_del_driver
+  i2c_get_adapter
+  i2c_put_adapter
+  i2c_register_driver
+  __i2c_smbus_xfer
+  i2c_smbus_xfer
+  i2c_transfer
+  i2c_transfer_buffer_flags
+  idr_alloc
+  idr_destroy
+  idr_find
+  idr_preload
+  idr_remove
+  iio_buffer_init
+  iio_buffer_put
+  __init_rwsem
+  __init_swait_queue_head
+  init_timer_key
+  init_wait_entry
+  __init_waitqueue_head
+  input_event
+  input_ff_create_memless
+  input_register_device
+  input_set_abs_params
+  irq_set_irq_wake
+  jiffies
+  kasan_flag_enabled
+  kernel_neon_begin
+  kernel_neon_end
+  kfree
+  kfree_const
+  __kmalloc
+  kmalloc_caches
+  kmem_cache_alloc_trace
+  kstrdup_const
+  kstrtoint
+  kstrtouint
+  kstrtoull
+  ktime_get
+  ktime_get_mono_fast_ns
+  kvfree
+  kvmalloc_node
+  led_classdev_register_ext
+  led_classdev_unregister
+  __list_add_valid
+  __list_del_entry_valid
+  __log_post_read_mmio
+  __log_read_mmio
+  __log_write_mmio
+  lzo1x_decompress_safe
+  media_entity_pads_init
+  memcpy
+  memdup_user
+  memset
+  memstart_addr
+  mmc_of_parse
+  mod_timer
+  module_layout
+  module_put
+  __msecs_to_jiffies
+  msleep
+  msleep_interruptible
+  __mutex_init
+  mutex_lock
+  mutex_unlock
+  no_llseek
+  nr_cpu_ids
+  of_alias_get_id
+  of_clk_add_provider
+  of_clk_del_provider
+  of_clk_get_by_name
+  of_clk_src_simple_get
+  of_count_phandle_with_args
+  of_device_get_match_data
+  of_device_is_available
+  of_device_is_compatible
+  of_find_node_by_name
+  of_find_property
+  of_get_child_by_name
+  of_get_next_available_child
+  of_get_next_child
+  of_get_property
+  of_get_regulator_init_data
+  of_irq_get_byname
+  of_match_device
+  of_match_node
+  of_node_name_eq
+  of_phy_simple_xlate
+  of_property_read_string
+  of_property_read_string_helper
+  of_property_read_u32_index
+  of_property_read_variable_u32_array
+  of_regulator_match
+  __page_pinner_migration_failed
+  panic_notifier_list
+  param_ops_bool
+  param_ops_int
+  param_ops_uint
+  __per_cpu_offset
+  pinctrl_lookup_state
+  pinctrl_select_state
+  __platform_driver_register
+  platform_driver_unregister
+  platform_get_irq
+  platform_get_resource
+  pm_power_off
+  __pm_relax
+  __pm_runtime_disable
+  pm_runtime_enable
+  pm_runtime_force_resume
+  pm_runtime_force_suspend
+  __pm_runtime_idle
+  __pm_runtime_resume
+  pm_runtime_set_autosuspend_delay
+  __pm_runtime_set_status
+  __pm_runtime_suspend
+  __pm_runtime_use_autosuspend
+  __pm_stay_awake
+  power_supply_changed
+  power_supply_get_drvdata
+  preempt_schedule
+  preempt_schedule_notrace
+  prepare_to_wait_event
+  printk
+  put_device
+  put_disk
+  __put_page
+  __put_task_struct
+  pwm_apply_state
+  queue_delayed_work_on
+  queue_work_on
+  ___ratelimit
+  _raw_spin_lock
+  _raw_spin_lock_bh
+  _raw_spin_lock_irqsave
+  _raw_spin_unlock
+  _raw_spin_unlock_bh
+  _raw_spin_unlock_irqrestore
+  rdev_get_drvdata
+  rdev_get_id
+  refcount_warn_saturate
+  regcache_cache_only
+  regcache_mark_dirty
+  regcache_sync
+  __register_chrdev
+  register_chrdev_region
+  register_reboot_notifier
+  regmap_bulk_read
+  regmap_bulk_write
+  regmap_read
+  regmap_update_bits_base
+  regmap_write
+  regulator_bulk_disable
+  regulator_bulk_enable
+  regulator_disable
+  regulator_disable_regmap
+  regulator_enable
+  regulator_enable_regmap
+  regulator_get_voltage
+  regulator_get_voltage_sel_regmap
+  regulator_is_enabled
+  regulator_is_enabled_regmap
+  regulator_list_voltage_linear
+  regulator_list_voltage_linear_range
+  regulator_map_voltage_linear
+  regulator_map_voltage_linear_range
+  regulator_set_voltage_sel_regmap
+  regulator_set_voltage_time_sel
+  remap_pfn_range
+  reset_control_assert
+  reset_control_deassert
+  revalidate_disk_size
+  scatterwalk_map_and_copy
+  schedule
+  schedule_timeout
+  scnprintf
+  scsi_compat_ioctl
+  scsi_device_get
+  scsi_device_put
+  scsi_ioctl
+  scsi_ioctl_block_when_processing_errors
+  sdev_prefix_printk
+  seq_lseek
+  seq_printf
+  seq_read
+  sg_free_table
+  sg_next
+  simple_strtol
+  single_open
+  single_release
+  skcipher_walk_aead_decrypt
+  skcipher_walk_aead_encrypt
+  skcipher_walk_done
+  snd_pcm_format_width
+  snd_soc_component_read
+  snd_soc_component_update_bits
+  snd_soc_component_write
+  snd_soc_dapm_force_enable_pin_unlocked
+  snd_soc_dapm_get_enum_double
+  snd_soc_dapm_get_volsw
+  snd_soc_dapm_put_enum_double
+  snd_soc_dapm_put_volsw
+  snd_soc_get_enum_double
+  snd_soc_get_volsw
+  snd_soc_info_enum_double
+  snd_soc_info_volsw
+  snd_soc_jack_add_gpios
+  snd_soc_jack_report
+  snd_soc_put_enum_double
+  snd_soc_put_volsw
+  snprintf
+  sprintf
+  sscanf
+  __stack_chk_fail
+  __stack_chk_guard
+  strcmp
+  strlcpy
+  strlen
+  strncmp
+  strnlen
+  synchronize_rcu
+  syscon_node_to_regmap
+  syscon_regmap_lookup_by_phandle
+  sysfs_create_file_ns
+  sysfs_create_group
+  sysfs_create_link
+  sysfs_remove_group
+  sysfs_remove_link
+  system_wq
+  __tasklet_schedule
+  __traceiter_rwmmio_post_read
+  __traceiter_rwmmio_read
+  __traceiter_rwmmio_write
+  __tracepoint_rwmmio_post_read
+  __tracepoint_rwmmio_read
+  __tracepoint_rwmmio_write
+  __unregister_chrdev
+  unregister_chrdev_region
+  unregister_reboot_notifier
+  up_read
+  up_write
+  usleep_range
+  uuid_null
+  v4l2_async_register_subdev
+  v4l2_async_unregister_subdev
+  v4l2_ctrl_handler_free
+  v4l2_ctrl_handler_init_class
+  v4l2_ctrl_handler_setup
+  v4l2_ctrl_new_std
+  v4l2_ctrl_new_std_menu_items
+  v4l2_i2c_subdev_init
+  vabits_actual
+  vfree
+  vmap
+  vunmap
+  wait_for_completion
+  __wake_up
+  wakeup_source_add
+  __warn_printk
+
+# required by adc-keys.ko
+  devm_iio_channel_get
+  iio_get_channel_type
+  iio_read_channel_processed
+
+# required by aes-ce-ccm.ko
+  ce_aes_expandkey
+
+# required by ch.ko
+  noop_llseek
+  param_array_ops
+  scsi_device_lookup
+  __scsi_execute
+  scsi_print_sense_hdr
+
+# required by clk-pwm.ko
+  of_clk_add_hw_provider
+  of_clk_hw_simple_get
+
+# required by clk-scmi.ko
+  clk_hw_set_rate_range
+  of_clk_hw_onecell_get
+  scmi_driver_register
+  scmi_driver_unregister
+
+# required by cma_heap.ko
+  cma_alloc
+  cma_get_name
+  cma_release
+  dma_contiguous_default_area
+  dma_heap_get_drvdata
+  sg_alloc_table_from_pages
+
+# required by cpufreq-dt.ko
+  cpufreq_enable_boost_support
+  cpufreq_freq_attr_scaling_available_freqs
+  cpufreq_freq_attr_scaling_boost_freqs
+  cpufreq_generic_frequency_table_verify
+  cpufreq_generic_get
+  cpufreq_generic_suspend
+  cpufreq_register_driver
+  cpufreq_unregister_driver
+  dev_pm_opp_free_cpufreq_table
+  dev_pm_opp_get_max_transition_latency
+  dev_pm_opp_get_opp_count
+  dev_pm_opp_get_sharing_cpus
+  dev_pm_opp_get_suspend_opp_freq
+  dev_pm_opp_init_cpufreq_table
+  dev_pm_opp_of_cpumask_add_table
+  dev_pm_opp_of_cpumask_remove_table
+  dev_pm_opp_of_get_sharing_cpus
+  dev_pm_opp_of_register_em
+  dev_pm_opp_put_regulators
+  dev_pm_opp_set_rate
+  dev_pm_opp_set_regulators
+  dev_pm_opp_set_sharing_cpus
+  get_cpu_device
+  policy_has_boost_freq
+
+# required by cpufreq_ondemand.ko
+  cpufreq_cpu_get_raw
+  cpufreq_table_index_unsorted
+  cpus_read_lock
+  cpus_read_unlock
+  get_cpu_idle_time_us
+
+# required by cw2015_battery.ko
+  device_property_read_u8_array
+  power_supply_get_battery_info
+  power_supply_put_battery_info
+  regmap_raw_read
+  regmap_raw_write
+
+# required by dw_mmc-rockchip.ko
+  mmc_send_tuning
+
+# required by dw_mmc.ko
+  debugfs_create_u32
+  debugfs_create_x64
+  del_timer
+  device_property_read_string_array
+  dmam_alloc_attrs
+  mmc_add_host
+  mmc_alloc_host
+  mmc_can_gpio_cd
+  mmc_detect_change
+  mmc_free_host
+  mmc_gpio_get_cd
+  mmc_gpio_get_ro
+  mmc_regulator_get_supply
+  mmc_regulator_set_ocr
+  mmc_regulator_set_vqmmc
+  mmc_remove_host
+  mmc_request_done
+  sdio_signal_irq
+  sg_miter_next
+  sg_miter_start
+  sg_miter_stop
+  tasklet_init
+
+# required by dw_wdt.ko
+  debugfs_create_dir
+  debugfs_create_regset32
+  debugfs_remove
+  platform_get_irq_optional
+  watchdog_init_timeout
+  watchdog_register_device
+  watchdog_set_restart_priority
+  watchdog_unregister_device
+
+# required by fan53555.ko
+  gpiod_get_raw_value
+  gpiod_set_raw_value
+
+# required by ghash-ce.ko
+  aes_expandkey
+  gf128mul_lle
+
+# required by gpio-regulator.ko
+  devm_kstrdup
+  gpiod_count
+  of_property_count_elems_of_size
+
+# required by grf.ko
+  of_find_matching_node_and_match
+
+# required by hid-alps.ko
+  down
+  input_alloc_absinfo
+  input_allocate_device
+  input_free_device
+  input_mt_init_slots
+  input_mt_report_slot_state
+  input_mt_sync_frame
+  up
+
+# required by hid-holtek-kbd.ko
+  usb_ifnum_to_if
+
+# required by hid-ntrig.ko
+  usb_control_msg
+
+# required by hid-primax.ko
+  hid_report_raw_event
+
+# required by i2c-dev.ko
+  bus_register_notifier
+  bus_unregister_notifier
+  device_for_each_child
+  i2c_bus_type
+  i2c_for_each_dev
+  i2c_verify_client
+
+# required by i2c-gpio.ko
+  desc_to_gpio
+  i2c_bit_add_numbered_bus
+
+# required by i2c-hid.ko
+  dev_printk
+  free_irq
+  hid_add_device
+  hid_allocate_device
+  hid_destroy_device
+  hid_input_report
+  hid_parse_report
+  i2c_smbus_read_byte
+  irq_get_irq_data
+  request_threaded_irq
+
+# required by i2c-mux.ko
+  i2c_add_numbered_adapter
+  __i2c_transfer
+  rt_mutex_lock
+  rt_mutex_trylock
+  rt_mutex_unlock
+
+# required by i2c-rk3x.ko
+  clk_notifier_register
+  clk_notifier_unregister
+  i2c_parse_fw_timings
+
+# required by industrialio-buffer-cb.ko
+  bitmap_free
+  bitmap_zalloc
+  iio_channel_get_all
+
+# required by industrialio-triggered-buffer.ko
+  iio_alloc_pollfunc
+  iio_dealloc_pollfunc
+  iio_device_attach_buffer
+
+# required by io-domain.ko
+  _dev_crit
+  regulator_register_notifier
+  regulator_unregister_notifier
+
+# required by kfifo_buf.ko
+  __kfifo_alloc
+  __kfifo_free
+  __kfifo_in
+  __kfifo_to_user
+  mutex_lock_interruptible
+
+# required by leds-gpio.ko
+  devm_gpio_request_one
+  gpio_to_desc
+
+# required by ledtrig-heartbeat.ko
+  atomic_notifier_chain_unregister
+
+# required by lzo-rle.ko
+  lzorle1x_1_compress
+
+# required by lzo.ko
+  lzo1x_1_compress
+
+# required by nvme-core.ko
+  bd_set_nr_sectors
+  blk_execute_rq
+  blk_freeze_queue_start
+  blk_mq_alloc_request
+  blk_mq_alloc_request_hctx
+  blk_mq_complete_request
+  blk_mq_delay_kick_requeue_list
+  blk_mq_end_request
+  blk_mq_freeze_queue
+  blk_mq_freeze_queue_wait
+  blk_mq_freeze_queue_wait_timeout
+  blk_mq_requeue_request
+  blk_mq_unfreeze_queue
+  blk_mq_unique_tag
+  blk_poll
+  blk_queue_chunk_sectors
+  blk_queue_dma_alignment
+  blk_queue_flag_test_and_set
+  blk_queue_max_discard_segments
+  blk_queue_max_hw_sectors
+  blk_queue_max_segments
+  blk_queue_virt_boundary
+  blk_queue_write_cache
+  blk_rq_map_kern
+  blk_set_queue_dying
+  blk_status_to_errno
+  blk_sync_queue
+  bpf_trace_run1
+  bpf_trace_run2
+  bpf_trace_run3
+  cleanup_srcu_struct
+  device_add
+  device_del
+  device_remove_file_self
+  dev_pm_qos_expose_latency_tolerance
+  dev_pm_qos_hide_latency_tolerance
+  dev_pm_qos_update_user_latency_tolerance
+  event_triggers_call
+  ida_alloc_range
+  ida_destroy
+  ida_free
+  init_srcu_struct
+  kasprintf
+  kobject_uevent_env
+  ktime_get_with_offset
+  list_sort
+  memchr_inv
+  param_ops_byte
+  param_ops_ulong
+  perf_trace_buf_alloc
+  perf_trace_run_bpf_submit
+  set_capacity_revalidate_and_notify
+  set_disk_ro
+  __srcu_read_unlock
+  synchronize_srcu
+  trace_event_buffer_commit
+  trace_event_buffer_reserve
+  trace_event_ignore_this_pid
+  trace_event_raw_init
+  trace_event_reg
+  trace_handle_return
+  trace_print_symbols_seq
+  trace_raw_output_prep
+  trace_seq_printf
+  trace_seq_putc
+  try_module_get
+  xa_destroy
+  xa_erase
+  xa_find
+  xa_find_after
+  xa_load
+  xa_store
+
+# required by nvme.ko
+  async_schedule_node
+  blk_get_queue
+  blk_mq_alloc_tag_set
+  blk_mq_complete_request_remote
+  blk_mq_free_tag_set
+  blk_mq_map_queues
+  blk_mq_pci_map_queues
+  blk_mq_start_request
+  blk_mq_tag_to_rq
+  blk_mq_update_nr_hw_queues
+  blk_put_queue
+  __blk_rq_map_sg
+  device_release_driver
+  dma_map_page_attrs
+  dma_max_mapping_size
+  dma_pool_alloc
+  dma_pool_create
+  dma_pool_destroy
+  dma_pool_free
+  dma_unmap_page_attrs
+  __do_once_done
+  __do_once_start
+  flush_workqueue
+  __ioremap
+  iounmap
+  mempool_alloc
+  mempool_create_node
+  mempool_destroy
+  mempool_free
+  mempool_kfree
+  mempool_kmalloc
+  param_get_uint
+  param_set_uint
+  pci_alloc_irq_vectors_affinity
+  pcibios_resource_to_bus
+  pci_device_is_present
+  pci_disable_device
+  pci_disable_pcie_error_reporting
+  pcie_aspm_enabled
+  pci_enable_device_mem
+  pci_enable_pcie_error_reporting
+  pci_free_irq
+  pci_free_irq_vectors
+  pci_irq_vector
+  pci_load_saved_state
+  pci_read_config_word
+  __pci_register_driver
+  pci_release_selected_regions
+  pci_request_irq
+  pci_request_selected_regions
+  pci_restore_state
+  pci_save_state
+  pci_select_bars
+  pci_set_master
+  pci_unregister_driver
+  pm_suspend_global_flags
+  sg_init_table
+  __sw_hweight64
+  sysfs_remove_file_from_group
+  wait_for_completion_io_timeout
+
+# required by nvmem-rockchip-otp.ko
+  __bitmap_set
+
+# required by optee-rng.ko
+  driver_register
+  hwrng_register
+  hwrng_unregister
+
+# required by optee.ko
+  alloc_pages_exact
+  __arm_smccc_hvc
+  __arm_smccc_smc
+  device_property_read_string
+  device_register
+  find_vma
+  free_pages_exact
+  idr_get_next
+  kimage_voffset
+  ktime_get_real_ts64
+  memremap
+  memunmap
+  pfn_valid
+  wait_for_completion_interruptible
+
+# required by ov2680.ko
+  v4l2_ctrl_auto_cluster
+  v4l2_ctrl_new_std_menu
+  __v4l2_find_nearest_size
+
+# required by ov5695.ko
+  pm_runtime_get_if_active
+  strscpy
+  __v4l2_ctrl_modify_range
+
+# required by panel-simple.ko
+  drm_bus_flags_from_videomode
+  drm_connector_set_panel_orientation
+  drm_display_mode_from_videomode
+  drm_mode_create
+  drm_mode_duplicate
+  drm_mode_probed_add
+  drm_mode_set_name
+  drm_panel_add
+  drm_panel_disable
+  drm_panel_init
+  drm_panel_of_backlight
+  drm_panel_remove
+  drm_panel_unprepare
+  mipi_dsi_attach
+  mipi_dsi_dcs_write_buffer
+  mipi_dsi_detach
+  mipi_dsi_driver_register_full
+  mipi_dsi_driver_unregister
+  mipi_dsi_generic_write
+  of_drm_get_panel_orientation
+  of_find_i2c_adapter_by_node
+  of_get_display_timing
+  of_parse_phandle
+  videomode_from_timing
+
+# required by phy-rockchip-inno-dsidphy.ko
+  devm_platform_ioremap_resource_byname
+  platform_get_resource_byname
+
+# required by phy-rockchip-inno-usb2.ko
+  devm_extcon_register_notifier
+  wakeup_source_remove
+
+# required by phy-rockchip-typec.ko
+  extcon_get_property
+
+# required by phy-rockchip-usb.ko
+  __of_reset_control_get
+
+# required by pinctrl-rk805.ko
+  devm_gpiochip_add_data_with_key
+  devm_pinctrl_register
+  gpiochip_add_pin_range
+  gpiochip_generic_free
+  gpiochip_generic_request
+  gpiochip_get_data
+  pinconf_generic_dt_node_to_map
+  pinctrl_dev_get_drvdata
+  pinctrl_gpio_direction_input
+  pinctrl_gpio_direction_output
+  pinctrl_utils_free_map
+
+# required by pl330.ko
+  amba_driver_register
+  amba_driver_unregister
+  devm_free_irq
+  dma_async_device_register
+  dma_async_device_unregister
+  dma_async_tx_descriptor_init
+  dmaengine_unmap_put
+  dma_get_slave_channel
+  dma_map_resource
+  dma_unmap_resource
+  loops_per_jiffy
+  of_dma_controller_free
+  of_dma_controller_register
+  pm_runtime_irq_safe
+  seq_puts
+  tasklet_kill
+  tasklet_setup
+
+# required by pwm-regulator.ko
+  regulator_map_voltage_iterate
+
+# required by pwm-rockchip.ko
+  of_pwm_xlate_with_flags
+  pwmchip_add
+  pwmchip_remove
+
+# required by pwm_bl.ko
+  backlight_device_register
+  backlight_device_unregister
+  gpiod_get_direction
+  pwm_free
+  pwm_request
+
+# required by reboot-mode.ko
+  devres_release
+  kernel_kobj
+
+# required by rk805-pwrkey.ko
+  devm_request_any_context_irq
+  input_set_capability
+
+# required by rk808-regulator.ko
+  gpiod_is_active_low
+
+# required by rk808.ko
+  devm_mfd_add_devices
+  i2c_smbus_read_byte_data
+  kobject_create_and_add
+  platform_device_add
+  platform_device_alloc
+  platform_device_put
+  regmap_add_irq_chip
+  regmap_del_irq_chip
+  regmap_irq_get_domain
+
+# required by rockchip-rng.ko
+  devm_hwrng_register
+  devm_of_iomap
+
+# required by rockchip.ko
+  __genphy_config_aneg
+  genphy_resume
+  genphy_soft_reset
+  genphy_suspend
+  mdiobus_read
+  mdiobus_write
+  phy_drivers_register
+  phy_drivers_unregister
+
+# required by rockchip_saradc.ko
+  devm_iio_device_alloc
+  __devm_iio_device_register
+  find_next_bit
+  iio_get_time_ns
+  iio_push_to_buffers
+  iio_trigger_notify_done
+  wait_for_completion_timeout
+
+# required by rockchip_thermal.ko
+  devm_thermal_zone_of_sensor_register
+  nvmem_cell_put
+  nvmem_cell_read
+  of_nvmem_cell_get
+  print_hex_dump
+  thermal_zone_device_disable
+  thermal_zone_device_enable
+  thermal_zone_device_update
+
+# required by rtc-rk808.ko
+  devm_rtc_allocate_device
+  __rtc_register_device
+  rtc_time64_to_tm
+  rtc_tm_to_time64
+  rtc_update_irq
+
+# required by sdhci-of-dwcmshc.ko
+  devm_clk_bulk_get_optional
+  dma_get_required_mask
+  sdhci_add_host
+  sdhci_get_property
+  sdhci_pltfm_free
+  sdhci_pltfm_init
+  sdhci_remove_host
+  sdhci_request
+  sdhci_reset
+  sdhci_resume_host
+  sdhci_set_bus_width
+  sdhci_suspend_host
+
+# required by sg.ko
+  blk_get_request
+  blk_put_request
+  blk_rq_map_user_iov
+  blk_verify_command
+  cdev_add
+  cdev_alloc
+  cdev_del
+  class_interface_unregister
+  fasync_helper
+  get_sg_io_hdr
+  import_iovec
+  jiffies_to_msecs
+  kill_fasync
+  __module_get
+  nonseekable_open
+  put_sg_io_hdr
+  _raw_read_lock_irqsave
+  _raw_read_unlock_irqrestore
+  _raw_write_lock_irq
+  _raw_write_lock_irqsave
+  _raw_write_unlock_irq
+  _raw_write_unlock_irqrestore
+  scsi_autopm_get_device
+  scsi_autopm_put_device
+  scsi_block_when_processing_errors
+  scsi_command_size_tbl
+  scsi_normalize_sense
+  __scsi_print_sense
+  scsi_register_interface
+  sg_scsi_ioctl
+  __task_pid_nr_ns
+
+# required by sha1-ce.ko
+  crypto_sha1_finup
+  crypto_sha1_update
+  irq_stat
+
+# required by sii902x.ko
+  drm_atomic_helper_connector_destroy_state
+  drm_atomic_helper_connector_duplicate_state
+  drm_atomic_helper_connector_reset
+  drm_bridge_add
+  drm_bridge_remove
+  drm_connector_attach_encoder
+  drm_connector_cleanup
+  drm_connector_init
+  drm_detect_hdmi_monitor
+  __drm_err
+  drm_hdmi_avi_infoframe_from_display_mode
+  drm_helper_hpd_irq_event
+  drm_helper_probe_single_connector_modes
+  hdmi_audio_infoframe_pack
+  hdmi_avi_infoframe_pack
+  of_graph_parse_endpoint
+  of_property_read_variable_u8_array
+  platform_device_register_full
+
+# required by slip.ko
+  alloc_netdev_mqs
+  consume_skb
+  dev_close
+  free_netdev
+  __netdev_alloc_skb
+  netif_rx_ni
+  netif_tx_wake_queue
+  __rcu_read_lock
+  __rcu_read_unlock
+  register_netdevice
+  rtnl_lock
+  rtnl_unlock
+  skb_put
+  tty_hangup
+  tty_mode_ioctl
+  tty_register_ldisc
+  tty_unregister_ldisc
+  unregister_netdev
+
+# required by snd-soc-cx2072x.ko
+  __devm_regmap_init
+  regmap_multi_reg_write
+  snd_soc_params_to_frame_size
+
+# required by snd-soc-es8316.ko
+  snd_pcm_hw_constraint_list
+  snd_soc_dapm_disable_pin_unlocked
+  snd_soc_dapm_sync_unlocked
+
+# required by snd-soc-hdmi-codec.ko
+  hdmi_audio_infoframe_init
+  snd_ctl_add
+  snd_ctl_new1
+  snd_pcm_add_chmap_ctls
+  snd_pcm_create_iec958_consumer_hw_params
+  snd_pcm_hw_constraint_eld
+  snd_soc_dapm_add_routes
+
+# required by snd-soc-rk3328.ko
+  of_machine_is_compatible
+
+# required by snd-soc-rockchip-pdm.ko
+  clk_round_rate
+  rational_best_approximation
+
+# required by snd-soc-simple-card-utils.ko
+  devm_get_clk_from_child
+  devm_kasprintf
+  devm_kvasprintf
+  of_get_named_gpio_flags
+  snd_soc_card_jack_new
+  snd_soc_dai_set_sysclk
+  snd_soc_dai_set_tdm_slot
+  snd_soc_dapm_get_pin_switch
+  snd_soc_dapm_info_pin_switch
+  snd_soc_dapm_put_pin_switch
+  snd_soc_of_parse_audio_routing
+  snd_soc_of_parse_audio_simple_widgets
+  snd_soc_of_parse_card_name
+  snd_soc_of_parse_daifmt
+  snd_soc_runtime_calc_hw
+
+# required by snd-soc-simple-card.ko
+  devm_snd_soc_register_card
+  of_get_parent
+  of_parse_phandle_with_args
+  snd_soc_dai_link_set_capabilities
+  snd_soc_of_get_dai_name
+  snd_soc_of_parse_aux_devs
+  snd_soc_of_parse_node_prefix
+  snd_soc_of_parse_tdm_slot
+  snd_soc_pm_ops
+
+# required by spi-rockchip.ko
+  devm_spi_register_controller
+  of_property_read_variable_u16_array
+  pinctrl_pm_select_default_state
+  pinctrl_pm_select_sleep_state
+  __spi_alloc_controller
+  spi_controller_resume
+  spi_controller_suspend
+  spi_finalize_current_transfer
+
+# required by spidev.ko
+  _raw_spin_lock_irq
+  _raw_spin_unlock_irq
+  __spi_register_driver
+  spi_setup
+  spi_sync
+  stream_open
+
+# required by system_heap.ko
+  deferred_free
+  dmabuf_page_pool_alloc
+  dmabuf_page_pool_create
+  dmabuf_page_pool_destroy
+  dmabuf_page_pool_free
+  dma_heap_get_dev
+  sg_alloc_table
+  __sg_page_iter_next
+  __sg_page_iter_start
+  vmalloc
+
+# required by tee.ko
+  bus_register
+  bus_unregister
+  class_find_device
+  crypto_alloc_shash
+  crypto_shash_final
+  crypto_shash_update
+  dma_buf_fd
+  dma_buf_put
+  gen_pool_add_owner
+  gen_pool_alloc_algo_owner
+  gen_pool_best_fit
+  gen_pool_create
+  gen_pool_destroy
+  gen_pool_free_owner
+  gen_pool_set_algo
+  gen_pool_virt_to_phys
+  get_kernel_pages
+  in_egroup_p
+  pin_user_pages_fast
+  unpin_user_pages
+
+# required by test_power.ko
+  param_get_int
+  power_supply_register
+  power_supply_unregister
+  strncasecmp
+  strncpy
+
+# required by tps65132-regulator.ko
+  regulator_set_active_discharge_regmap
+
+# required by v4l2-fwnode.ko
+  fwnode_device_is_available
+  fwnode_get_name
+  fwnode_graph_get_next_endpoint
+  fwnode_graph_get_port_parent
+  fwnode_graph_get_remote_endpoint
+  fwnode_graph_get_remote_port_parent
+  fwnode_graph_parse_endpoint
+  fwnode_property_get_reference_args
+  fwnode_property_read_u64_array
+  v4l2_async_notifier_add_fwnode_subdev
+  v4l2_async_notifier_add_subdev
+  v4l2_async_notifier_cleanup
+  v4l2_async_notifier_init
+  v4l2_async_notifier_unregister
+  v4l2_async_subdev_notifier_register
+
+# required by zram.ko
+  __alloc_percpu
+  bio_endio
+  blk_alloc_queue
+  __class_register
+  class_unregister
+  __cpuhp_state_add_instance
+  __cpuhp_state_remove_instance
+  crypto_alloc_base
+  crypto_comp_compress
+  crypto_comp_decompress
+  crypto_has_alg
+  disk_end_io_acct
+  disk_start_io_acct
+  flush_dcache_page
+  free_percpu
+  fsync_bdev
+  __get_free_pages
+  idr_for_each
+  kstrtou16
+  memparse
+  memset64
+  mutex_is_locked
+  __num_online_cpus
+  page_endio
+  register_blkdev
+  strcpy
+  __sysfs_match_string
+  sysfs_streq
+  unregister_blkdev
+  vzalloc
+
+# required by zsmalloc.ko
+  alloc_anon_inode
+  __ClearPageMovable
+  contig_page_data
+  dec_zone_page_state
+  inc_zone_page_state
+  init_pseudo
+  iput
+  kern_mount
+  kern_unmount
+  kill_anon_super
+  kmem_cache_alloc
+  kmem_cache_create
+  kmem_cache_destroy
+  kmem_cache_free
+  kstrdup
+  __lock_page
+  page_mapping
+  _raw_read_lock
+  _raw_read_unlock
+  _raw_write_lock
+  _raw_write_unlock
+  register_shrinker
+  __SetPageMovable
+  unlock_page
+  unregister_shrinker
