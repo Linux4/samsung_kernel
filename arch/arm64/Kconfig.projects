@@ -1,0 +1,12 @@
+config SEC_X1Q_PROJECT
+	default n
+	bool "Samsung X1Q Project"
+	help
+	  Support for Samsung X1Q Project
+
+config MACH_X1Q_KOR_SINGLE
+	default n
+	bool "Samsung X1Q KOR SQ"
+	help
+	  Support for Samsung X1Q KOR SQ device.
+
