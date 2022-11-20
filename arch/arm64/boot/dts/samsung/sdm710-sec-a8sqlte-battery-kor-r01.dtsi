@@ -1,0 +1,20 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "sdm710-sec-a8sqlte-battery-common.dtsi"
+
+/{
+	battery {
+		battery,temp_table_adc = <1145 1345 1551 1868 2385 2551 3009 3527 3871 4049 4227 4405 4583 4761 4939 5115 5264 5426 5588 5750 5912 6072 6196 6320 6444 6568 6692 6816 6941 8212 9235 10206 11145 12027 12844 13555 14158 14672 15407>;
+		battery,temp_table_data = <900 850 800 750 700 650 600 550 500 490 480 470 460 450 440 430 420 410 400 390 380 370 360 350 340 330 320 310 300 250 200 150 100 50 0 (-50) (-100) (-150) (-200)>;
+	};
+};
