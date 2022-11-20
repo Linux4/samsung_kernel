@@ -1,0 +1,39 @@
+config VIDEO_EXYNOS_FIMC_IS
+	bool "Exynos FIMC-IS (Image Subsystem) driver"
+	depends on VIDEO_EXYNOS && !SOC_EXYNOS5410 && !SOC_EXYNOS5420
+	select MEDIA_EXYNOS
+	default n
+	help
+	  This is a v4l2 driver for exynos FIMC-IS device.
+
+config VIDEO_M7MU
+	bool "M7MU External ISP driver"
+	depends on (MACH_M2ALTE || MACH_M2A3G)
+	default n
+	---help---
+	  This driver supports M7MU External ISP
+
+config VIDEO_M7MU_SPI
+	bool "M7MU SPI driver"
+	depends on (MACH_M2ALTE || MACH_M2A3G)
+	default n
+	---help---
+	  This driver supports M7MU SPI
+
+config CAMERA_IMX175
+	bool "IMX175 driver"
+	default n
+	---help---
+	  This driver supports IMX175 sensor
+
+config CAMERA_S5K6B2
+	bool "S5K6B2 driver"
+	default n
+	---help---
+	  This driver supports S5K6B2 sensor
+
+config CAMERA_AK7343_DEFAULT_PID
+	bool "AK7343 DEFAULT PID read"
+	default n
+	---help---
+	  This config reduce AK7343 lens noise.

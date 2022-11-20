@@ -1,0 +1,69 @@
+choice
+	prompt "Support Target Locale"
+	default TARGET_LOCALE_EUR
+
+config TARGET_LOCALE_EUR
+	bool "Locale Europe Open support"
+	help
+	  Enable universal5260 LOCAL EUR.
+	  is used to distinguish LOCALE-related difference.
+
+config TARGET_LOCALE_USA
+	bool "Locale USA support"
+	help
+	  Enable universal5260 LOCALE USA.
+	  is used to distinguish LOCALE-related difference.
+
+config TARGET_LOCALE_CHN
+	bool "Locale China Support"
+	help
+	  Enable universal5260 LOCAL CHN.
+	  is used to distinguish LOCALE-related difference.
+
+config TARGET_LOCALE_KOR
+	bool "Locale Korea Support"
+	help
+	  Enable universal5260 LOCAL KOR.
+	  is used to distinguish LOCALE-related difference.
+	  
+endchoice
+
+
+comment "Target Carrier"
+#choice
+#	prompt "Support Target Carrier"
+#	depends on MACH_UNIVERSAL5260
+
+config MACH_M2ALTE_USA_ATT
+	bool "USA ATT Operator"
+	help
+	  Enable Carrier Operator USA_ATT.
+
+	  
+config MACH_MEGA2ELTE_USA_ATT
+	bool "USA ATT Operator"
+	help
+	  Enable Carrier Operator MEGA2ELTE_USA_ATT.
+
+	  
+config MACH_M2ALTE_CHN_CMCC
+	bool "CHN CMCC Operator"
+	help
+	  Enable Carrier Operator CHN_CMCC.
+
+config MACH_M2ALTE_KOR_SKT
+	bool "KOR_SKT Operator"
+	help
+	  Enable Carrier Operator KOR_SKT.
+
+config MACH_M2ALTE_KOR_KTT
+	bool "KOR_KTT Operator"
+	help
+	  Enable Carrier Operator KOR_KTT.
+
+config MACH_M2ALTE_KOR_LGT
+	bool "KOR_LGT Operator"
+	help
+	  Enable Carrier Operator KOR_LGT.
+
+#endchoice

@@ -1,0 +1,42 @@
+menuconfig THIN_MODEM
+	bool "HSIC I/F for Ericsson, Samsung"
+	default n
+
+if THIN_MODEM
+
+config SEC_MODEM_SHANNON
+	bool "Shannon HSIC feature"
+	default n
+	select LTE_MODEM_SHANNON
+	select LINK_DEVICE_HSIC
+	select LINK_DEVICE_SPI
+	select EHCI_IRQ_DISTRIBUTION
+
+config SEC_MODEM_ERICSSON
+	bool "ERICSSON HSIC feature"
+	default n
+	select LTE_MODEM_M74XX
+	select LINK_DEVICE_HSIC
+
+comment "Select Link Devices"
+config LTE_MODEM_SHANNON
+	bool "modem chip : SEC SHANNON"
+	default n
+
+config LTE_MODEM_M74XX
+	bool "modem chip : ERICSSON M74XX"
+	default n
+
+config LINK_DEVICE_HSIC
+	bool "modem driver link device HSIC"
+	default n
+
+config LINK_DEVICE_SPI
+	bool "modem driver link device SPI"
+	default n
+
+config EHCI_IRQ_DISTRIBUTION
+	bool "Distribute ehci irq"
+	default n
+
+endif
