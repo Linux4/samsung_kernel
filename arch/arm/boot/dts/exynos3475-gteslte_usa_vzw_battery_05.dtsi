@@ -1,0 +1,20 @@
+/*
+ * SAMSUNG UNIVERSAL5430 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+#include "exynos3475-gteslte_battery_05.dtsi"
+/ {
+	battery {
+		battery,cable_check_type = <6>; /* SEC_BATTERY_CABLE_CHECK_PSY */
+	};
+
+	charger {
+		chg_vbuslimit = <1>;
+	};
+};
