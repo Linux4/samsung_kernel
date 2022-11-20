@@ -1,0 +1,2 @@
+obj-$(CONFIG_HDMI_TX_SII9136) += sii9136/
+obj-$(CONFIG_XO2_SPI)	+= XO2/
