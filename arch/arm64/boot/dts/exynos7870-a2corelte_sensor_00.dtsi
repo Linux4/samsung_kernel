@@ -1,0 +1,86 @@
+/*
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+	pinctrl@139F0000 {
+		acc_int: acc_int {
+			samsung,pins = "gpa2-3";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+
+		prox_int: prox_int {
+			samsung,pins = "gpa0-5";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	pinctrl@139B0000 {
+		sensor_i2c: sensor_i2c {
+			samsung,pins = "gpc1-2", "gpc1-3";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+		};
+
+	};
+
+	i2c@13880000 {
+		samsung,i2c-sda-delay = <100>;
+		samsung,i2c-max-bus-freq = <400000>;
+		status = "okay";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sensor_i2c>;
+
+		lis2ds@1D {
+			compatible = "st,lis2ds";
+			reg = <0x1D>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&acc_int>;
+			interrupt-parent = <&gpa2>;
+			interrupts = <3 0 0>;
+			st,orientation = <0 1 1 1 0 1 1 1 0>;
+			st,drdy-int-pin = <1>;
+			st,irq_gpio = <&gpa2 3 0x00>;
+		};
+		
+		stk3013@48 {
+			compatible = "stk,stk3013";
+			reg = <0x48>;
+			interrupt-parent = <&gpa0>;
+			interrupts = <5 0 0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&prox_int>;
+			stk,irq-gpio = <&gpa0 5 0x00>;
+			stk,vdd-supply = <&ldo29_reg>;
+			stk,vled_ldo = <&gpd4 3 0x00>;
+			stk,transmittance = <500>;
+			stk,state-reg = <0x2c>;
+			stk,psctrl-reg = <0x71>;
+			stk,ledctrl-reg = <0xBF>;
+			stk,wait-reg = <0x03>;
+			stk,ps-thd-h = <15>;
+			stk,ps-thd-l = <8>;
+			stk,ps-cancel-thd-h = <10>;
+			stk,ps-cancel-thd-l = <7>;
+			stk,ps-cal-skip-adc = <7>;
+			stk,ps-cal-fail-adc = <23>;
+			stk,ps-default-offset = <3>;
+		};
+	};
+
+};

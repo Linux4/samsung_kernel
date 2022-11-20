@@ -1,0 +1,151 @@
+/*
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+	pinctrl@139F0000 {
+		acc_int: acc_int {
+			samsung,pins = "gpa2-3";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+
+		prox_int: prox_int {
+			samsung,pins = "gpa0-5";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+		grip_int: grip_int {
+			samsung,pins = "gpa2-5";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <0>;
+		};
+
+		grip_input: grip_input {
+			samsung,pins = "gpa2-5";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+		};
+	};
+
+	pinctrl@139B0000 {
+		accel_i2c: accel_i2c {
+			samsung,pins = "gpc1-2", "gpc1-3";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+		};
+
+		proxy_i2c: proxy_i2c {
+			samsung,pins = "gpf4-3", "gpf4-2";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+		};
+		grip_i2c: grip_i2c {
+			samsung,pins = "gpf3-0", "gpf3-1";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <0>;
+		};
+		grip_gpio: grip_gpio {
+			samsung,pins = "gpf3-0", "gpf3-1";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	i2c@13880000 {
+		samsung,i2c-sda-delay = <100>;
+		samsung,i2c-max-bus-freq = <400000>;
+		status = "okay";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&accel_i2c>;
+
+		lis2ds@1D {
+			compatible = "st,lis2ds";
+			reg = <0x1D>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&acc_int>;
+			interrupt-parent = <&gpa2>;
+			interrupts = <3 0 0>;
+			st,orientation = <2 1 1 1 0 1 1 1 2>;
+			st,drdy-int-pin = <1>;
+			st,irq_gpio = <&gpa2 3 0x00>;
+		};
+	};
+
+	i2c@17 {
+		compatible = "i2c-gpio";
+		gpios = <&gpf4 3 0 /* sda */
+				&gpf4 2 0 /* scl */>;
+		i2c-gpio,delay-us = <2>;
+		i2c-gpio,scl-output-only;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&proxy_i2c>;
+
+		gp2a@39 {
+			compatible = "sharp,gp2ap110s";
+			reg = <0x39>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&prox_int>;
+			interrupt-parent = <&gpa0>;
+			interrupts = <5 0 0>;
+			gp2ap110s,led_reg_val_1 = <0x14>;
+			gp2ap110s,ps_high_th_1 = <500>;
+			gp2ap110s,ps_low_th_1 = <350>;
+			gp2ap110s,led_reg_val_2 = <0x24>; /* If proximity close detection test fails */
+			gp2ap110s,ps_high_th_2 = <550>;
+			gp2ap110s,ps_low_th_2 = <380>;
+			gp2ap110s,settings_thd_low = <130>;
+			gp2ap110s,settings_thd_high = <500>;
+			gp2ap110s,gpio_int = <&gpa0 5 0>;
+		};
+	};
+	i2c@18 {
+		compatible = "i2c-gpio";
+		gpios = <&gpf3 1 0 /* sda */
+		&gpf3 0 0 /* scl */>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+		pinctrl-names = "default","on_i2c","off_i2c";
+		pinctrl-0 = <&grip_i2c>;
+		pinctrl-1 = <&grip_i2c>;
+		pinctrl-2 = <&grip_gpio>;
+		tc3xxk@20 {
+			compatible = "coreriver,tc3xx-grip";
+			pinctrl-names = "default","on_irq","off_irq";
+			pinctrl-0 = <&grip_int>;
+			pinctrl-1 = <&grip_int>;
+			pinctrl-2 = <&grip_input>;
+			reg = <0x20>;
+			interrupts = <5 0 0>;
+			interrupt-parent = <&gpa2>;
+			coreriver,scl-gpio = <&gpf3 0 0>;
+			coreriver,sda-gpio = <&gpf3 1 0>;
+			coreriver,irq-gpio = <&gpa2 5 0>;
+			coreriver,i2c-gpio = "true";
+			coreriver,boot-on-ldo = "true";
+			coreriver,regulator_ic = "VDD_GRIP_2P2";
+			coreriver,fw_name = "coreriver/tc305k_m10_grip.fw";
+			coreriver,use_bitmap = <1>;
+		};
+	};
+};
