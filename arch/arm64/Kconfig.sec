@@ -1,0 +1,12 @@
+config SEC_A70Q_PROJECT
+        default n
+        bool "Samsung A70Q Project"
+        help
+          Support for Samsung A70Q Project
+
+config SEC_A70Q_CHN_PROJECT
+        default n
+        bool "Samsung A70Q CHN OPEN Project"
+        help
+          Support for Samsung A70Q CHN OPEN Project
+		  
