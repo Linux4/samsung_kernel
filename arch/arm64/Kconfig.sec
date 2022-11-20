@@ -1,0 +1,24 @@
+config SEC_A70Q_PROJECT
+        default n
+        bool "Samsung A70Q Project"
+        help
+          Support for Samsung A70Q Project
+
+config SEC_A70Q_SEA_OPEN_PROJECT
+        default n
+        bool "Samsung A70Q SEA OPEN Project"
+        help
+          Support for Samsung A70Q SEA OPEN Project
+		  
+config SEC_A70Q_SEA_XTC_PROJECT
+        default n
+        bool "Samsung A70Q SEA XTC Project"
+        help
+          Support for Samsung A70Q SEA XTC Project
+		  
+config SEC_A70Q_SEA_XSA_PROJECT
+        default n
+        bool "Samsung A70Q SEA XSA Project"
+        help
+          Support for Samsung A70Q SEA XSA Project
+		 
