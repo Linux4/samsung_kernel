@@ -1,0 +1,90 @@
+#include <dt-bindings/battery/sec-battery.h>
+
+&tlmm {
+	mfc_irq_default: mfc_int_default {
+			 GPIO_CONFIG_PUD_DRV(AP,tlmm,119, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+		 };
+};
+
+&pm8350c_gpios {
+	wpc_det_default: wpc_det_default {
+			 GPIO_CONFIG_PUD(PM,pm8350c_gpios,1, FUNC_INPUT_WAKEUP, PULL_NONE);
+		 };
+};
+
+&tlmm {
+	wpc_en_default: wpc_en_default {
+			 GPIO_CONFIG_PUD(AP,tlmm,153, FUNC_OUTPUT_LOW, PULL_NONE);
+		 };
+};
+
+&pm8350c_gpios {
+	wpc_pdrc_default: wpc_pdrc_default {
+			 GPIO_CONFIG_PUD(PM,pm8350c_gpios,8, FUNC_INPUT_WAKEUP, PULL_NONE);
+		 };
+};
+
+#define FOD_FLAG_NONE			0
+#define FOD_FLAG_ADD			1
+#define FOD_FLAG_USE_CC			2
+#define FOD_FLAG_USE_DEFAULT	3
+#define SET_FOD_CC(_flag)		(FOD_FLAG_ ##_flag)
+#define SET_FOD_CV(_flag)		(FOD_FLAG_ ##_flag << 4)
+#define SET_FOD_FULL(_flag)		(FOD_FLAG_ ##_flag << 8)
+
+&sw_i2c0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+
+	mfc_s2miw04_charger: mfc-s2miw04-charger@3b {
+		compatible = "lsi,mfc-s2miw04-charger";
+		reg = <0x3b>;
+		status = "okay";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&mfc_irq_default &wpc_det_default &wpc_en_default &wpc_pdrc_default>;
+
+		battery,wpc_int = <SEC_GPIO_REF(AP,tlmm,119) 1>; /* MFC_AP_INT */
+		battery,wpc_det = <SEC_GPIO_REF(PM,pm8350c_gpios,1) 0>; /* WPC_DET */
+#if 0
+		battery,mst_pwr_en = <SEC_GPIO_REF(${mst_pwr_en_gpio}) 0>; /* MST_PWR_EN */
+#endif
+		battery,wpc_en = <SEC_GPIO_REF(AP,tlmm,153) 0>; /* WPC_EN */
+		battery,wpc_pdrc = <SEC_GPIO_REF(PM,pm8350c_gpios,8) 1>; /* VRECT_INT */
+
+		battery,charger_name = "max77705-charger";
+		battery,fuelgauge_name = "max77705-fuelgauge";
+		battery,wireless_charger_name = "mfc-charger";
+		battery,wc_cover_rpp = <0x44>;
+		battery,phone_fod_threshold = <0x3b>;
+		battery,wireless20_vout_list = <9 9 9>; /* WIRELESS_VOUT_11V, 11V, 11V */
+		battery,wireless20_vrect_list = <10 11 11>; /* MFC_AFC_CONF_12V_TX, 12.5V, 12.5V */
+		battery,wireless20_max_power_list = <2 3 3>; /* SEC_WIRELESS_RX_POWER_12W, 15W, 15W */
+		battery,oc_fod1 = <1100>;
+
+		fod_list {
+			count = <1>;
+
+			pad_0x00 { /* DEFAULT */
+				flag = <(SET_FOD_CC(ADD) | SET_FOD_CV(USE_CC) | SET_FOD_FULL(ADD))>;
+				cc = <0x06 0xAA 0x06 0xAA 0x06 0xAA 0x06 0x99 0x06 0x99
+					0x06 0x99 0x0C 0x85 0x0C 0x85 0x08 0x9E 0x08 0x9E>;
+				full = <0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF
+					0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF>;
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/wireless/mfc_s2miw04_charger_gki/mfc_s2miw04_charger.b2q.dtsi */
+&wpc_pdrc_default {
+	power-source = <1>; /* need to set default MV gpio to LV */
+};
+
+&mfc_s2miw04_charger {
+	battery,wireless20_vout_list = <8 8 8>; /* WIRELESS_VOUT_10V, 10V, 10V */
+	battery,wireless20_vrect_list = <10 11 11>; /* MFC_AFC_CONF_12V_TX, 12.5V, 12.5V */
+	battery,wireless20_max_power_list = <2 3 3>; /* SEC_WIRELESS_RX_POWER_12W, 15W, 15W */
+};
