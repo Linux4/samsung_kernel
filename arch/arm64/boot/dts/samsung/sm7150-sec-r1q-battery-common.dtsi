@@ -1,0 +1,242 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&mtp_batterydata {
+	/delete-node/ qcom,alium_860_89032_0000_3600mAh;
+	/delete-node/ qcom,mlp466076_3200mAh;
+	#include "sm7150-sec-qg-batterydata-r1q.dtsi"
+};
+
+&pm6150_qg {
+	qcom,vbatt-cutoff-mv = <3400>;	/* SOC 0% */
+	qcom,qg-iterm-ma = <350>;		/* SOC 100% */
+};
+
+&pm6150_charger {
+	/delete-property/ qcom,sec-charger-config;
+	qcom,sec-charger-config = <1>;
+	qcom,chg-term-src = <1>;	/* 0 : 	ITERM_SRC_UNSPECIFIED, 1 : ITERM_SRC_ADC, 2 : ITERM_SRC_ANALOG */
+	qcom,chg-term-current-ma = <(-200)>;
+	qcom,fcc-max-ua = <3800000>;
+	qcom,usb-icl-ua = <2200000>;
+	qcom,sw-jeita-enable;
+	qcom,float-option = <2>;
+	qcom,otg-cl-ua = <1500000>;
+	qcom,hard-jeita-enable;
+	qcom,wdog-snarl-based-step-chg;
+	qcom,auto-recharge-soc = <(-22)>;
+	qcom,auto-recharge-vbat-mv = <4280>;
+
+	qcom,jeita_cold_trigger = <0x56CF>;		/* 0 degree */
+	qcom,jeita_cold_release = <0x548D>;		/* 2 degree */
+	qcom,jeita_hot_trigger = <0x1BA0>;		/* 50 degree */
+	qcom,jeita_hot_release = <0x1D33>;		/* 48 degree */
+
+	qcom,default_pdp_limit_w = <20>;
+	qcom,final_pdp_limit_w = <20>;
+
+	rid-gnd-gpio = <&pm6150l_gpios 9 GPIO_ACTIVE_LOW>;
+};
+
+&smb1390_charger {
+	qcom,min-ilim-ua = <750000>;
+	qcom,max-soc = <55>;
+};
+
+&soc {
+	battery {
+		status = "okay";
+		compatible = "samsung,sec-battery";
+		battery,store_mode_polling_time = <30>;
+		battery,gpio_vbat_sense = <&pm6150l_gpios 12 GPIO_ACTIVE_LOW>;
+		battery,full_check_current_1st = <350>;
+		battery,use_temp_adc_table;
+
+		/* if adc table is changed, jeita_*_trigger also will be changed  */
+		battery,temp_table_adc = <2114 2451 2853 3305 3896
+						4522 5388 6360 7250 8376
+						9721 11193 12793 14423 16240
+						17893 19736 21066 22512 23710
+						24874 25779 26214>;
+		battery,temp_table_data = <900 840 790 740 690
+						640 590 540 490 440
+						390 340 290 240 190
+						140 90 40 (-10) (-60)
+						(-110) (-160) (-200)>;
+
+		/* mix temp setting value */
+		battery,mix_temp_recovery = <390>;
+		battery,mix_temp_batt_threshold = <420>;
+		battery,mix_temp_die_threshold = <700>;
+
+		/* chg temp setting value */
+		battery,chg_high_temp = <650>;
+		battery,chg_high_temp_recovery = <630>;
+		battery,chg_input_limit_current = <1000>;
+		battery,chg_charging_limit_current = <1250>;
+
+		/* Safety timer parameters */
+		battery,standard_curr = <2550000>;		//equal to last step of step_chg_ranges
+		battery,expired_time = <10920>;
+		battery,recharging_expired_time = <5400>;	//90mins
+		battery,safety_timer_polling_time = <30>;
+
+		battery,battery_full_capacity = <3610>; /* battery capacity */
+		/* disable Vbat ovp dettection */
+		battery,cisd_max_voltage_thr = <5000>; /* batttery ovp dettection voltage */
+		battery,cisd_alg_index = <7>;
+
+		battery,siop_input_limit_current = <1200>;
+		battery,siop_charging_limit_current = <1800>;
+		battery,siop_hv_input_limit_current = <700>;
+		battery,siop_hv_charging_limit_current = <1800>;
+		battery,siop_dc_input_limit_current = <1000>;
+		battery,siop_dc_charging_limit_current = <2000>;
+
+		battery,ttf_hv_charge_current = <2350>;
+		battery,ttf_dc25_charge_current = <3100>;
+
+		battery,ttf_capacity = <2950>;
+		battery,cv_data = <
+				2635 620 3640
+				2620 633 3600
+				2532 643 3540
+				2432 653 3480
+				2418 664 3450
+				2337 675 3420
+				2323 686 3360
+				2270 692 3330
+				2223 703 3300
+				2119 714 3240
+				2110 725 3180
+				2100 736 3150
+				2088 741 3120
+				1986 752 3060
+				1915 763 3000
+				1816 774 2940
+				1708 785 2880
+				1707 796 2820
+				1603 802 2760
+				1649 808 2700
+				1579 816 2640
+				1519 826 2580
+				1462 836 2520
+				1408 844 2460
+				1360 849 2400
+				1312 856 2340
+				1263 862 2280
+				1223 869 2220
+				1176 876 2160
+				1138 883 2100
+				1097 888 2040
+				1057 896 1980
+				1016 903 1920
+				982 908 1860
+				945 913 1800
+				912 918 1740
+				879 922 1680
+				843 927 1620
+				815 931 1560
+				783 934 1500
+				757 937 1440
+				731 940 1380
+				707 944 1320
+				681 948 1260
+				658 951 1200
+				636 955 1140
+				614 959 1080
+				589 962 1020
+				572 965 960
+				553 968 900
+				535 970 840
+				517 973 780
+				501 976 720
+				485 979 660
+				468 981 600
+				452 983 540
+				440 985 480
+				423 987 420
+				410 989 360
+				393 991 300
+				384 993 240
+				370 995 180
+				360 997 120
+				349 999 60
+				338 1000 0
+					>;
+	};
+
+/* sec_battery_cable
+ *   0	UNKNOWN,
+ *   1	BATTERY,
+ *   2	UPS,
+ *   3	MAINS,
+ *   4	USB,
+ *   5	USB_DCP,
+ *   6	USB_CDP,
+ *   7	USB_ACA,
+ *   8	USB_TYPE_C,
+ *   9	USB_PD,
+ *  10	USB_PD_DRP,
+ *  11	APPLE_BRICK_ID,
+ *  12	USB_HVDCP,
+ *  13	USB_HVDCP_3,
+ *  14	WIRELESS,
+ *  15	USB_FLOAT,
+ *  16	BMS,
+ *  17	PARALLEL,
+ *  18	MAIN,
+ *  19	WIPOWER,
+ *  20	UFP,
+ *  21	DFP,
+ *  22	CHARGE_PUMP,
+ *  23	POWER_SHARING,
+ *  24	OTG,
+ *  25	AFC, 
+ *  26	CABLE_MAX,
+*/
+	cable-info {
+		default_input_current = <1800>;
+		default_charging_current = <2100>;
+
+		current_group_1 {
+			cable_number = <12 25>;
+			input_current = <1650>;
+			charging_current = <2550>;
+		};
+		current_group_2 {
+			cable_number = <4 8 15>;
+			input_current = <500>;
+			charging_current = <700>;
+		};
+		current_group_3 {
+			cable_number = <9 13>;
+			input_current = <2200>;
+			charging_current = <3800>;
+		};
+		current_group_4 {
+			cable_number = <6 7>;
+			input_current = <1500>;
+			charging_current = <1500>;
+		};
+		current_group_5 {
+			cable_number = <23 24>;
+			input_current = <500>;
+			charging_current = <500>;
+		};
+		current_group_6 {
+			cable_number = <14>;
+			input_current = <900>;
+			charging_current = <2850>;
+		};
+	};
+};

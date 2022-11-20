@@ -1,0 +1,129 @@
+/*
+ * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {	
+	samsung,vibrator {
+		compatible = "samsung_vib";
+//		samsung,vib_pwm = <&tlmm 136 0>;
+//		samsung,vib_power = <&pm8150_gpios 10 0>;
+//		samsung,gp_clk = <0x00164000>;	// Address of GP1 clock
+		samsung,chip_model = <4>;	// using max77705 driver
+                samsung,vib_type = "COINDC";
+		status = "ok";
+
+		pinctrl-names = "tlmm_pwm_default";
+		pinctrl-0 = <&pwm_out_gpio6_default>;
+		pwms = <&pm6150l_pwm 0 1000000>;
+
+	};
+	
+	hall {
+		status = "okay";
+		compatible = "hall";
+		linux,input-type = <1>;
+		linux,code = <21>;
+		hall,gpio_flip_cover = <&tlmm 91 0x1>;
+		debounce-interval = <15>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hall_default>;
+	};
+
+	certify_hall {
+		status = "okay";
+		compatible = "certify_hall";
+		linux,input-type = <1>;
+		linux,code = <27>;
+		certify_hall,gpio_certify_cover = <&tlmm 93 0x1>;
+		debounce-interval = <15>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&certify_hall_default>;
+	};
+
+	usb_noti: usb-notifier {
+		compatible = "samsung,usb-notifier";
+		qcom,disable_control_en = <1>;
+		qcom,unsupport_host_en = <0>;
+	};
+};
+
+&usb0 {
+	dwc3@a600000 {
+		usb-phy = <&qusb_phy0>, <&usb_nop_phy>;
+		maximum-speed = "high-speed";
+	};
+};
+
+&usb_qmp_dp_phy {
+	status = "disabled";
+};
+
+&pm6150l_gpios {
+	pwm_out_gpio6 {
+		pwm_out_gpio6_default: pwm_out_gpio6_default {
+			pins = "gpio6";
+			function = "func1";
+			bias-disable;
+			power-source = <0>;
+			output-low;
+			qcom,drive-strength = <3>;
+			drive-push-pull;
+		};
+	};
+};
+
+&qusb_phy0 {
+	qcom,qusb-phy-init-seq =
+		/* <value reg_offset> */
+		   <0x23 0x210 /* PWR_CTRL1 */
+		    0x03 0x04  /* PLL_ANALOG_CONTROLS_TWO */
+		    0x7c 0x18c /* PLL_CLOCK_INVERTERS */
+		    0x80 0x2c  /* PLL_CMODE */
+		    0x0a 0x184 /* PLL_LOCK_DELAY */
+		    0x19 0xb4  /* PLL_DIGITAL_TIMERS_TWO */
+		    0x40 0x194 /* PLL_BIAS_CONTROL_1 */
+		    0x1c 0x198 /* PLL_BIAS_CONTROL_2 */
+		    0x21 0x214 /* PWR_CTRL2 */
+		    0x08 0x220 /* IMP_CTRL1 */
+		    0x58 0x224 /* IMP_CTRL2 */
+		    0x72 0x240 /* TUNE1 */
+		    0x2b 0x244 /* TUNE2 */
+		    0xca 0x248 /* TUNE3 */
+		    0x02 0x24c /* TUNE4 */
+		    0x03 0x250 /* TUNE5 */
+		    0x30 0x23c /* CHG_CTRL2 */
+		    0x22 0x210>; /* PWR_CTRL1 */
+
+	qcom,qusb-phy-host-init-seq =
+		/* <value reg_offset> */
+		   <0x23 0x210 /* PWR_CTRL1 */
+		    0x03 0x04  /* PLL_ANALOG_CONTROLS_TWO */
+		    0x7c 0x18c /* PLL_CLOCK_INVERTERS */
+		    0x80 0x2c  /* PLL_CMODE */
+		    0x0a 0x184 /* PLL_LOCK_DELAY */
+		    0x19 0xb4  /* PLL_DIGITAL_TIMERS_TWO */
+		    0x40 0x194 /* PLL_BIAS_CONTROL_1 */
+		    0x1c 0x198 /* PLL_BIAS_CONTROL_2 */
+		    0x21 0x214 /* PWR_CTRL2 */
+		    0x08 0x220 /* IMP_CTRL1 */
+		    0x58 0x224 /* IMP_CTRL2 */
+		    0xf2 0x240 /* TUNE1 */
+		    0x2b 0x244 /* TUNE2 */
+		    0xca 0x248 /* TUNE3 */
+		    0x02 0x24c /* TUNE4 */
+		    0x03 0x250 /* TUNE5 */
+		    0x30 0x23c /* CHG_CTRL2 */
+		    0x22 0x210>; /* PWR_CTRL1 */
+
+	qcom,diff_tune_host = <(2)>; /* efuse(0x3) + 0 = 7 for tune high value */
+	qcom,diff_tune_device = <(4)>;
+};

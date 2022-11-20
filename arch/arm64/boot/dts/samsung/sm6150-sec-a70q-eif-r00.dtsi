@@ -1,0 +1,93 @@
+/*
+ * Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	usb_noti: usb-notifier {
+		compatible = "samsung,usb-notifier";
+		qcom,disable_control_en = <1>;
+		qcom,unsupport_host_en = <0>;
+	};
+
+	samsung,vibrator {
+		compatible = "samsung_vib";
+//		samsung,vib_pwm = <&tlmm 136 0>;
+//		samsung,vib_power = <&pm8150_gpios 10 0>;
+//		samsung,gp_clk = <0x00164000>;	// Address of GP1 clock
+		samsung,chip_model = <4>;	// using max77705 driver
+                samsung,vib_type = "COINDC";
+		status = "ok";
+
+		pinctrl-names = "tlmm_pwm_default";
+		pinctrl-0 = <&pwm_out_gpio6_default>;
+		pwms = <&pm6150l_pwm 0 1000000>;
+
+	};
+
+	samsung,usbpd {
+		compatible = "samsung,usb-pd";
+		qcom,samsung-usbpd-detection = <&pm6150_pdphy>;
+	};
+};
+
+&usb0 {
+	dwc3@a600000 {
+		usb-phy = <&qusb_phy0>, <&usb_nop_phy>;
+		maximum-speed = "high-speed";
+	};
+};
+
+&qusb_phy0 {
+	qcom,qusb-phy-init-seq = <0x40 0x80
+				0x73 0x84
+				0x81 0x88
+				0xc5 0x8c
+				0x30 0x08
+				0x79 0x0c
+				0x21 0x10
+				0x14 0x9c
+				0x9f 0x1c
+				0x00 0x18
+				0x01 0x90>;
+	qcom,qusb-phy-host-init-seq = <0x40 0x80
+				0xb3 0x84
+				0x81 0x88
+				0xc5 0x8c
+				0x30 0x08
+				0x79 0x0c
+				0x21 0x10
+				0x14 0x9c
+				0x9f 0x1c
+				0x00 0x18
+				0x01 0x90>;
+	/* ex) efuse(0xC) + (-5) = 0x7 for tune2 high value */
+	qcom,diff_tune2_device = <(-5)>;
+	qcom,diff_tune2_host = <(0)>;
+};
+
+&usb_qmp_phy {
+	status = "disabled";
+};
+
+&pm6150l_gpios {
+	pwm_out_gpio6 {
+		pwm_out_gpio6_default: pwm_out_gpio6_default {
+			pins = "gpio6";
+			function = "func1";
+			bias-disable;
+			power-source = <0>;
+			output-low;
+			qcom,drive-strength = <3>;
+			drive-push-pull;
+		};
+	};
+};

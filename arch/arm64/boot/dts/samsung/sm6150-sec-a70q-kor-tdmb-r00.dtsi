@@ -1,0 +1,99 @@
+
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+/*
+/ {
+	aliases {
+		spi1 = &qupv3_se6_spi;
+	};
+};
+*/
+
+&tlmm {
+	tdmb_qupv3_se6_spi_sleep: tdmb_qupv3_se6_spi_sleep {
+		mux {
+			pins = "gpio6", "gpio7", "gpio8",
+						"gpio9";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio6", "gpio7", "gpio8",
+						"gpio9";
+			drive-strength = <6>;
+			bias-pull-down; /* pull down */
+			input-enable;
+		};
+	};
+
+
+	tdmb_irq {
+		tdmb_irq_on: tdmb_irq_on {
+			mux {
+				pins = "gpio98";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio98";
+				drive-strength = <2>;
+				bias-pull-up;
+			};
+		};
+       
+		tdmb_irq_off: tdmb_irq_off {
+			mux {
+				pins = "gpio98";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio98";
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+	};
+};
+
+&soc {
+	tdmb_data {
+		compatible = "samsung,tdmb";
+
+		pinctrl-names = "tdmb_on", "tdmb_off";
+		pinctrl-0 = <&tdmb_irq_on>;
+		pinctrl-1 = <&tdmb_irq_off>;
+
+		tdmb_pwr_en = <&tlmm 40 0 0>;
+		tdmb_irq = <&tlmm 98 0 0>;
+		tdmb_lna_en = <&tlmm 119 0 0>;
+		/*tdmb_ldo_en = <&expander_gpios 6 0>;*/
+		tdmb_use_irq;
+		tdmb_xtal_freq = <24000>;
+	};
+};
+
+/* gpio 6~9 are used for tdmb spi */
+&qupv3_se6_spi {
+	status = "okay";
+	spi-max-frequency = <19200000>;
+	pinctrl-1 = <&tdmb_qupv3_se6_spi_sleep>;
+
+/*	/delete-property/ dmas; */
+/*	/delete-property/ dma-names; */
+
+	tdmb-spi@0 {
+		compatible = "tdmb_spi_comp";
+		reg = <0>;
+		spi-max-frequency = <13000000>;
+	};
+};
