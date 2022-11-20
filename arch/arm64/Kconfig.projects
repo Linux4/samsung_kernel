@@ -1,0 +1,13 @@
+config SEC_X1Q_PROJECT
+	default n
+	bool "Samsung X1Q Project"
+	help
+	  Support for Samsung X1Q Project
+
+config MACH_X1Q_CAN_SINGLE
+	select MACH_X1Q_USA_SINGLE
+	default n
+	bool "Samsung X1Q CAN SQ"
+	help
+	  Support for Samsung X1Q CAN SQ device.
+
