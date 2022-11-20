@@ -1,0 +1,41 @@
+/*
+ * SAMSUNG S5E8825 SoC device tree source
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * SAMSUNG S5E8825 SoC device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "s5e8825-erd8825_common.dtsi"
+
+#define BOARD_ID        0x0
+#define BOARD_REV       0x0
+
+/ {
+	compatible = "samsung,s5e8825", "samsung,SMDK8825";
+	board_id = <BOARD_ID>;
+	board_rev = <BOARD_REV>;
+
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+		#size-cells = <1>;
+
+			model = "Samsung SMDK8825 board based on S5E8825";
+
+		};
+
+	};
+
+};

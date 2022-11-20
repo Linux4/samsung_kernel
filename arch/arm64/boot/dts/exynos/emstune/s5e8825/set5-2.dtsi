@@ -1,0 +1,93 @@
+/ {
+	/* camera mode - app boost */
+	set5_2: set@0502 {
+		/* schedudling policy */
+		sched_policy {
+			root			= <SCHED_POLICY_EFF>;
+			foreground 		= <SCHED_POLICY_PERF>;
+			background		= <SCHED_POLICY_EFF>;
+			top-app			= <SCHED_POLICY_PERF>;
+			rt			= <SCHED_POLICY_EFF>;
+			system			= <SCHED_POLICY_EFF>;
+			system-background	= <SCHED_POLICY_EFF>;
+			nnapi-hal		= <SCHED_POLICY_EFF>;
+			camera-daemon		= <SCHED_POLICY_PERF>;
+		};
+
+		/* weight (%) applied to active cpu's efficiency */
+		active_weight {			/* LIT BIG */
+			root			= <400 400>;
+			foreground		= <400 400>;
+			background		= <400 400>;
+			top-app			= <400 400>;
+			rt			= <400 400>;
+			system			= <400 400>;
+			system-background	= <400 400>;
+			nnapi-hal		= <400 400>;
+			camera-daemon		= <400 400>;
+		};
+
+		/* weight (%) applied to idle cpu's efficiency */
+		idle_weight {			/* LIT BIG */
+			root			= <800 800>;
+			foreground		= <800 800>;
+			background		= <800 800>;
+			top-app			= <800 800>;
+			rt			= <800 800>;
+			system			= <800 800>;
+			system-background	= <800 800>;
+			nnapi-hal		= <800 800>;
+			camera-daemon		= <800 800>;
+		};
+
+		/* Boosting margin applied to frequency selection */
+		freqboost {			/* LIT BIG */
+			root			= <5 5>;
+			foreground		= <5 5>;
+			background		= <5 5>;
+			top-app			= <5 5>;
+			rt			= <5 5>;
+			system			= <5 5>;
+			system-background	= <5 5>;
+			nnapi-hal		= <5 5>;
+			camera-daemon		= <5 5>;
+		};
+
+		frt {				/* LIT BIG */
+			active-ratio		= < 25  5>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			foreground 	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-5";
+				lower-boundary = <0>;
+				upper-boundary = <36>;
+			};
+			domain1 {
+				cpus = "6-7";
+				lower-boundary = <6>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs { };
+
+		tex {
+			top-app		= <1>;
+			prio		= <110>;
+
+			pinning-mask	= "6-7";
+			qjump		= <0>;
+		};
+
+		prefer_cpu {};
+
+		cpufreq_gov {			/* LIT BIG */
+			pelt-margin		= < 25  25>;
+		};
+	};
+};

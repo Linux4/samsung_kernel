@@ -1,0 +1,31 @@
+# fs-verity
+CONFIG_FS_VERITY_DEBUG=y
+
+#Sensor Hub
+CONFIG_SHUB_DEBUG=y
+
+# Power Management
+CONFIG_PINCTRL_SEC_GPIO_DVS=m
+
+# ABC driver bootc eng option
+CONFIG_SEC_ABC_HUB_BOOTC_ENG=y
+
+# Pablo Obte support
+CONFIG_PABLO_OBTE_SUPPORT=m
+
+# SDP KeyManagement Test for MDFPP evaluation
+CONFIG_SDP_KEY_DUMP=y
+
+# Micro Hypervisor
+# CONFIG_RKP_FIMC_CHECK is not set
+# CONFIG_KDP is not set
+# CONFIG_KDP_CRED is not set
+# CONFIG_KDP_NS is not set
+# CONFIG_KDP_TEST is not set
+
+CONFIG_LOG_BUF_SHIFT=21
+
+#
+# please don't remove new line on this file
+#
+

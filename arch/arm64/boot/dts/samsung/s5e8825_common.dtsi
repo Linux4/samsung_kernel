@@ -1,0 +1,51 @@
+/*
+ * SAMSUNG S5E8825 SoC device tree source
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * SAMSUNG S5E8825 SoC device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			model = "S5E8825";
+
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */
+
+&ufs {
+	/* CONFIG_SEC_UFS_WB_FEATURE */
+	/* default WB configuration */
+	sec,wb-enable;
+
+	/* up threshold for WB on */
+	sec,wb-up-threshold-block = <3072>;
+	sec,wb-up-threshold-rqs = <30>;
+
+	/* down threshold for WB off */
+	sec,wb-down-threshold-block = <1536>;
+	sec,wb-down-threshold-rqs = <25>;
+
+	sec,wb-disable-threshold-lt = <7>;
+
+	sec,wb-on-delay-ms = <92>;
+	sec,wb-off-delay-ms = <4500>;
+};
+
+&chosen {
+	bootargs_ext = "transparent_hugepage=never";
+};

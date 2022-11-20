@@ -1,0 +1,60 @@
+/ {
+	/* game mode - default */
+	set3: set@0300{
+		frt {	   			/* LIT MED BIG */
+			active-ratio 		= < 50 100 100>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			foreground	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <18>;
+			};
+			domain1 {
+				cpus = "4-7";
+				lower-boundary = <6>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs {
+			domain0 {
+				busy-threshold-ratio = <0>;
+			};
+			domain1 {
+				busy-threshold-ratio = <95>;
+			};
+		};
+
+		/* cpus_binding applied to core selection */
+		cpus_binding {
+			target-sched-class = <0x8>;	/* fair */
+
+			background	= "0-3";
+		};
+
+		stt {
+			boost-step		= <10>;
+			htask-cnt		= <4>;
+			top-app			= <1>;
+		};
+
+		fclamp {
+			monitor-group {
+				top-app         = <1>;
+			};
+		};
+
+		cpufreq_gov {			/* LIT MED BIG */
+			up-rate-limit-ms	= < 16  16  16 >;
+			up-rate-limit-freq	= < 1152000 2304000 2112000 >;
+			pelt-margin		= <  6   6   6 >;
+			pelt-margin-freq	= < 1152000 2304000 2112000 >;
+		};
+	};
+};

@@ -1,0 +1,81 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * SAMSUNG EXYNOS SoC device tree source
+ *
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ */
+
+/ {
+dsim_modes: dsim_modes {
+		    dsim-modes {
+			    1440x3200@60 {
+				    mode-name = "1440x3200";
+				    /*
+				     * p m s k
+				     * mfr mrr sel_pf icp
+				     * afc_enb extafc feed_en fsel
+				     * fout_mask rsel
+				     */
+				    pmsk = <
+					    0x2 0x8A 0x1 0x0 /* p m s k */
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <898>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <3022>; /* for 60 fps */
+			    };
+			    1080x2400@60 {
+				    mode-name = "1080x2400";
+				    pmsk = <
+					    0x2 0x8A 0x1 0x0
+					    0x0 0x0	0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <898>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <5115>;
+			    };
+			    1080x2400@120 {
+				    mode-name = "1080x2400";
+				    pmsk = <
+					    0x2 0x8A 0x1 0x0
+					    0x0 0x0	0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <898>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <660>;
+			    };
+			    720x1600@60 {
+				    mode-name = "720x1600";
+				    pmsk = <
+					    0x2 0x8A 0x1 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <898>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <6922>;
+			    };
+			    720x1600@120 {
+				    mode-name = "720x1600";
+				    pmsk = <
+					    0x2 0x8A 0x1 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <898>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <2467>;
+			    };
+		    };
+	};
+};

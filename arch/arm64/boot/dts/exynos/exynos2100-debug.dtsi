@@ -1,0 +1,559 @@
+/*
+ * SAMSUNG EXYNOS9830 SoC device tree source
+ *
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS9830 SoC device nodes are listed in this file.
+ * EXYNOS9820 based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/interrupt-controller/exynos2100.h>
+/ {
+	dpm: dpm {
+	};
+
+	dss: dss {
+		compatible = "samsung,debug-snapshot";
+		panic_to_wdt = <0>;
+		/* devfreq engineer fill freq_names. */
+		freq_names = "LIT", "MID", "BIG", "INT", "MIF", "CAM",
+				"DISP", "INTCAM", "AUD", "DSP", "DNC", "MFC",
+				"NPU", "TNR", "DSU", "VPC", "CSIS", "ISP",
+				"MFC1", "G3D";
+
+		memory-region = <&header>, <&log_kernel>, <&log_s2d>,
+				<&log_first>, <&log_arrdumpreset>,
+				<&log_arrdumppanic>, <&log_platform>,
+				<&log_kevents>, <&log_last>;
+	};
+
+	hardlockup-debugger {
+		compatible = "samsung,hardlockup-debug";
+		use_multistage_wdt_irq = <974>;
+	};
+
+	hardlockup-watchdog {
+		compatible = "samsung,hardlockup-watchdog";
+	};
+
+	dss-qdump {
+		compatible = "debug-snapshot,qdump";
+	};
+
+	dss-sfrdump {
+		compatible = "debug-snapshot,sfrdump";
+		/* -----------<< Example >>-------------------
+		dump-info {
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			gic-setenable {
+				reg = <0x11f01100 0x100>;
+			};
+			gic-setpend {
+				reg = <0x11f01200 0x100>;
+			};
+			gic-setactive {
+				reg = <0x11f01300 0x100>;
+			};
+		};
+		*/
+	};
+
+	exynos-debug-test {
+		compatible = "samsung,exynos-debug-test";
+		ps_hold_control_offset = <0x030C>;
+		nr_cpu = <0x8>;
+		nr_little_cpu = <0x4>;
+		nr_mid_cpu = <0x3>;
+		nr_big_cpu = <0x1>;
+		little_cpu_start = <0x0>;
+		mid_cpu_start = <0x4>;
+		big_cpu_start = <0x7>;
+	};
+
+	exynos-adv_tracer {
+		compatible = "samsung,exynos-adv-tracer";
+		reg = <0x0 0x158d0000 0x1000>;
+		reg-names = "mailbox";
+		interrupts = <GIC_SPI INTREQ__MAILBOX_DBGCORE2AP IRQ_TYPE_LEVEL_HIGH>;
+		status = "ok";
+	};
+
+	s2d: exynos_adv_tracer_s2d {
+		compatible = "samsung,exynos-adv-tracer-s2d";
+		plugin-len = <3>;
+		plugin-name = "S2D";
+		pmu-burnin-ctrl = <0xa08>;
+		sel-scanmode-bit = <25>;
+		dbgsel-sw-bit = <4>;
+		status = "ok";
+	};
+
+	itmon: exynos-itmon {
+		compatible = "samsung,exynos-itmon";
+		interrupts = <GIC_SPI INTREQ__TREX_D_BUS1_debugInterrupt
+					IRQ_TYPE_LEVEL_HIGH>,	/* BUS_DATA0 */
+			     <GIC_SPI INTREQ__TREX_D_BUS2_debugInterrupt
+					IRQ_TYPE_LEVEL_HIGH>,	/* BUS_DATA1 */
+			     <GIC_SPI INTREQ__TREX_D0_BUS0_debugInterrupt
+					IRQ_TYPE_LEVEL_HIGH>,	/* BUS_DATA2 */
+			     <GIC_SPI INTREQ__TREX_D1_BUS0_debugInterrupt
+					IRQ_TYPE_LEVEL_HIGH>,	/* BUS_DATA3 */
+			     <GIC_SPI INTREQ__TREX_D_CORE_debugInterrupt
+					IRQ_TYPE_LEVEL_HIGH>,	/* BUS_DATA4 */
+			     <GIC_SPI INTREQ__TREX_P0_CORE_debugInterrupt
+					IRQ_TYPE_LEVEL_HIGH>,	/* BUS_PERI0 */
+			     <GIC_SPI INTREQ__TREX_P1_CORE_debugInterrupt
+					IRQ_TYPE_LEVEL_HIGH>,	/* BUS_PERI1 */
+			     <GIC_SPI INTREQ__TREX_P_BUS0_debugInterrupt
+					IRQ_TYPE_LEVEL_HIGH>,	/* BUS_PERI2 */
+			     <GIC_SPI INTREQ__TREX_P_BUS1_debugInterrupt
+					IRQ_TYPE_LEVEL_HIGH>,	/* BUS_PERI3 */
+			     <GIC_SPI INTREQ__TREX_P_BUS2_debugInterrupt
+					IRQ_TYPE_LEVEL_HIGH>;	/* BUS_PERI4 */
+		panic_count = <5>;
+	};
+
+	exynos-ehld {
+		compatible = "samsung,exynos-ehld";
+		reg = <0 0x1D0D0000 0x1000>,
+			<0 0x1D0E0000 0x1000>,
+			<0 0x1D0B0000 0x1000>,
+			<0 0x1D0C0000 0x1000>;
+		cs_base = <0x1e000000>;
+		cpu0 {
+			dbg-offset = <0x810000>;
+		};
+		cpu1 {
+			dbg-offset = <0x910000>;
+		};
+		cpu2 {
+			dbg-offset = <0xa10000>;
+		};
+		cpu3 {
+			dbg-offset = <0xb10000>;
+		};
+		cpu4 {
+			dbg-offset = <0xc10000>;
+		};
+		cpu5 {
+			dbg-offset = <0xd10000>;
+		};
+		cpu6 {
+			dbg-offset = <0xe10000>;
+		};
+		cpu7 {
+			dbg-offset = <0xf10000>;
+		};
+
+		ehld_dbgc: dbgc {
+			/* IPC */
+			plugin-len = <4>;
+			plugin-name = "ELD";
+
+			support = <1>;
+			interval = <100>;
+			warn-count = <5>;
+			use-tick-timer = <0>;
+		};
+	};
+
+	coresight@1e000000 {
+		compatible = "samsung,exynos-coresight";
+		dbg_base = <0x1e810000>, <0x1e910000>, <0x1ea10000>, <0x1eb10000>,
+			   <0x1ec10000>, <0x1ed10000>, <0x1ee10000>, <0x1ef10000>;
+		cti_base = <0x1e820000>, <0x1e920000>, <0x1ea20000>, <0x1eb20000>,
+			   <0x1ec20000>, <0x1ed20000>, <0x1ee20000>, <0x1ef20000>;
+		pmu_base = <0x1e830000>, <0x1e930000>, <0x1ea30000>, <0x1eb30000>,
+			   <0x1ec30000>, <0x1ed30000>, <0x1ee30000>, <0x1ef30000>;
+		gpr_base = <0x1e001000>;
+		dbgack-mask = <0xff00000>;
+		halt = <0>;
+		retention = <0>;
+	};
+
+	exynos-ecc-handler {
+		compatible = "samsung,exynos-ecc-handler";
+		interrupts =	<GIC_SPI INTREQ__CPUCL0_ERRIRQ_0 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI INTREQ__CPUCL0_ERRIRQ_1 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI INTREQ__CPUCL0_ERRIRQ_2 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI INTREQ__CPUCL0_ERRIRQ_3 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI INTREQ__CPUCL0_ERRIRQ_4 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI INTREQ__CPUCL0_ERRIRQ_5 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI INTREQ__CPUCL0_ERRIRQ_6 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI INTREQ__CPUCL0_ERRIRQ_7 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI INTREQ__CPUCL0_ERRIRQ_8 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "Uncorrectable errors Cache(L3) tag RAMs or SCU snoop filter RAMs",
+			"Core0, Uncorrectable errors in the L1 tag or dirty RAMs, or in the L2 tag RAMs",
+			"Core1, Uncorrectable errors in the L1 tag or dirty RAMs, or in the L2 tag RAMs",
+			"Core2, Uncorrectable errors in the L1 tag or dirty RAMs, or in the L2 tag RAMs",
+			"Core3, Uncorrectable errors in the L1 tag or dirty RAMs, or in the L2 tag RAMs",
+			"Core4, Uncorrectable errors in the L1 tag or dirty RAMs, or in the L2 tag RAMs",
+			"Core5, Uncorrectable errors in the L1 tag or dirty RAMs, or in the L2 tag RAMs",
+			"Core6, Uncorrectable errors in the L1 tag or dirty RAMs, or in the L2 tag RAMs",
+			"Core7, Uncorrectable errors in the L1 tag or dirty RAMs, or in the L2 tag RAMs";
+	};
+
+	etm0: etm@1e840000 {
+		compatible = "arm,coresight-etm4x", "arm,primecell";
+		arm,primecell-periphid = <0x0bbd05>;
+		reg = <0 0x1e840000 0x1000>;
+		clocks = <&clock GATE_CLUSTER0_QCH_ATCLK>;
+		clock-names = "apb_pclk";
+		cpu = <&cpu0>;
+		out-ports {
+			port {
+				etm0_out: endpoint {
+					remote-endpoint = <&funnel0_in0>;
+				};
+			};
+		};
+	};
+
+	etm1: etm@1e940000 {
+		compatible = "arm,coresight-etm4x", "arm,primecell";
+		arm,primecell-periphid = <0x0bbd05>;
+		reg = <0 0x1e940000 0x1000>;
+		clocks = <&clock GATE_CLUSTER0_QCH_ATCLK>;
+		clock-names = "apb_pclk";
+		cpu = <&cpu1>;
+		out-ports {
+			port {
+				etm1_out: endpoint {
+					remote-endpoint = <&funnel0_in1>;
+				};
+			};
+		};
+	};
+
+	etm2: etm@1ea40000 {
+		compatible = "arm,coresight-etm4x", "arm,primecell";
+		arm,primecell-periphid = <0x0bbd05>;
+		reg = <0 0x1ea40000 0x1000>;
+		clocks = <&clock GATE_CLUSTER0_QCH_ATCLK>;
+		clock-names = "apb_pclk";
+		cpu = <&cpu2>;
+		out-ports {
+			port {
+				etm2_out: endpoint {
+					remote-endpoint = <&funnel0_in2>;
+				};
+			};
+		};
+	};
+
+	etm3: etm@1eb40000 {
+		compatible = "arm,coresight-etm4x", "arm,primecell";
+		arm,primecell-periphid = <0x0bbd05>;
+		reg = <0 0x1eb40000 0x1000>;
+		clocks = <&clock GATE_CLUSTER0_QCH_ATCLK>;
+		clock-names = "apb_pclk";
+		cpu = <&cpu3>;
+		out-ports {
+			port {
+				etm3_out: endpoint {
+					remote-endpoint = <&funnel0_in3>;
+				};
+			};
+		};
+	};
+
+	etm4: etm@1ec40000 {
+		compatible = "arm,coresight-etm4x", "arm,primecell";
+		arm,primecell-periphid = <0x000bbd41>;
+		reg = <0 0x1ec40000 0x1000>;
+		clocks = <&clock GATE_CLUSTER0_QCH_ATCLK>;
+		clock-names = "apb_pclk";
+		cpu = <&cpu4>;
+		is-etm;
+		out-ports {
+			port {
+				etm4_out: endpoint {
+					remote-endpoint = <&funnel1_in0>;
+				};
+			};
+		};
+	};
+
+	etm5: etm@1ed40000 {
+		compatible = "arm,coresight-etm4x", "arm,primecell";
+		arm,primecell-periphid = <0x000bbd41>;
+		reg = <0 0x1ed40000 0x1000>;
+		clocks = <&clock GATE_CLUSTER0_QCH_ATCLK>;
+		clock-names = "apb_pclk";
+		cpu = <&cpu5>;
+		out-ports {
+			port {
+				etm5_out: endpoint {
+					remote-endpoint = <&funnel1_in1>;
+				};
+			};
+		};
+	};
+
+	etm6: etm@1ee40000 {
+		compatible = "arm,coresight-etm4x", "arm,primecell";
+		arm,primecell-periphid = <0x000bbd41>;
+		reg = <0 0x1ee40000 0x1000>;
+		clocks = <&clock GATE_CLUSTER0_QCH_ATCLK>;
+		clock-names = "apb_pclk";
+		cpu = <&cpu6>;
+		out-ports {
+			port {
+				etm6_out: endpoint {
+					remote-endpoint = <&funnel1_in2>;
+				};
+			};
+		};
+	};
+
+	etm7: etm@1ef40000 {
+		compatible = "arm,coresight-etm4x", "arm,primecell";
+		arm,primecell-periphid = <0x000bbd44>;
+		reg = <0 0x1ef40000 0x1000>;
+		clocks = <&clock GATE_CLUSTER0_QCH_ATCLK>;
+		clock-names = "apb_pclk";
+		cpu = <&cpu7>;
+		out-ports {
+			port {
+				etm7_out: endpoint {
+					remote-endpoint = <&funnel0_in4>;
+				};
+			};
+		};
+	};
+
+	etf0: etf0@1e004000 {
+		compatible = "arm,coresight-tmc", "arm,primecell";
+		arm,primecell-periphid = <0x001bb961>;
+		reg = <0 0x1e004000 0x1000>;
+		clocks = <&clock GATE_CLUSTER0_QCH_ATCLK>;
+		clock-names = "apb_pclk";
+		in-ports {
+			port {
+				etf0_in: endpoint {
+					slave-mode;
+					remote-endpoint = <&funnel0_out0>;
+				};
+			};
+		};
+
+		out-ports {
+			port {
+				etf0_out: endpoint {
+					remote-endpoint = <&funnelm_in0>;
+				};
+			};
+		};
+	};
+
+	etf1: etf1@1e005000 {
+		compatible = "arm,coresight-tmc", "arm,primecell";
+		arm,primecell-periphid = <0x001bb961>;
+		reg = <0 0x1e005000 0x1000>;
+		clocks = <&clock GATE_CLUSTER0_QCH_ATCLK>;
+		clock-names = "apb_pclk";
+		in-ports {
+			port {
+				etf1_in: endpoint {
+					slave-mode;
+					remote-endpoint = <&funnel1_out0>;
+				};
+			};
+		};
+
+		out-ports {
+			port {
+				etf1_out: endpoint {
+					remote-endpoint = <&funnelm_in1>;
+				};
+			};
+		};
+	};
+
+	/* ETR sink */
+	etr: etr@1e00a000 {
+		compatible = "arm,coresight-tmc", "arm,primecell";
+		arm,primecell-periphid = <0x001bb961>;
+		reg = <0 0x1e00a000 0x1000>;
+		clocks = <&clock GATE_CLUSTER0_QCH_ATCLK>;
+		clock-names = "apb_pclk";
+		samsung,cs-sfr = <0x1E00c000 0x100>;
+		samsung,q-offset = <0x2c>;
+		in-ports {
+			port {
+				etr_in: endpoint {
+					slave-mode;
+					remote-endpoint = <&funnelm_out0>;
+				};
+			};
+		};
+	};
+
+	/* STM */
+	stm@1e00b000 {
+		compatible = "arm,coresight-stm", "arm,primecell";
+		arm,primecell-periphid = <0x0bb963>;
+		reg = <0 0x1e00b000 0x1000>, <0 0x1e200000 0x200000>;
+		reg-names = "stm-base", "stm-stimulus-base";
+		clocks = <&clock GATE_CLUSTER0_QCH_ATCLK>;
+		clock-names = "apb_pclk";
+		out-ports {
+			port {
+				stm_out: endpoint {
+					remote-endpoint = <&funnel1_in7>;
+				};
+			};
+		};
+	};
+
+	funnel0: funnel0@1e007000 {
+		compatible = "arm,coresight-funnel", "arm,primecell";
+		arm,primecell-periphid = <0x001bb908>;
+		reg = <0 0x1e007000 0x1000>;
+		clocks = <&clock GATE_CLUSTER0_QCH_ATCLK>;
+		clock-names = "apb_pclk";
+		out-ports {
+			port {
+				funnel0_out0: endpoint {
+					remote-endpoint = <&etf0_in>;
+				};
+			};
+		};
+
+		in-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port@0 {
+				reg = <0>;
+				funnel0_in0: endpoint {
+					slave-mode;
+					remote-endpoint = <&etm0_out>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				funnel0_in1: endpoint {
+					slave-mode;
+					remote-endpoint = <&etm1_out>;
+				};
+			};
+
+			port@2 {
+				reg = <2>;
+				funnel0_in2: endpoint {
+					slave-mode;
+					remote-endpoint = <&etm2_out>;
+				};
+			};
+
+			port@3 {
+				reg = <3>;
+				funnel0_in3: endpoint {
+					slave-mode;
+					remote-endpoint = <&etm3_out>;
+				};
+			};
+
+			port@4 {
+				reg = <4>;
+				funnel0_in4: endpoint {
+					slave-mode;
+					remote-endpoint = <&etm7_out>;
+				};
+			};
+		};
+	};
+
+	funnel1: funnel1@1e008000 {
+		compatible = "arm,coresight-funnel", "arm,primecell";
+		arm,primecell-periphid = <0x001bb908>;
+		reg = <0 0x1e008000 0x1000>;
+		clocks = <&clock GATE_CLUSTER0_QCH_ATCLK>;
+		clock-names = "apb_pclk";
+		out-ports {
+			port {
+				funnel1_out0: endpoint {
+					remote-endpoint = <&etf1_in>;
+				};
+			};
+		};
+
+		in-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port@0 {
+				reg = <0>;
+				funnel1_in0: endpoint {
+					slave-mode;
+					remote-endpoint = <&etm4_out>;
+				};
+			};
+			port@1 {
+				reg = <1>;
+				funnel1_in1: endpoint {
+					slave-mode;
+					remote-endpoint = <&etm5_out>;
+				};
+			};
+			port@2 {
+				reg = <2>;
+				funnel1_in2: endpoint {
+					slave-mode;
+					remote-endpoint = <&etm6_out>;
+				};
+			};
+			port@7 {
+				reg = <7>;
+				funnel1_in7: endpoint {
+					slave-mode;
+					remote-endpoint = <&stm_out>;
+				};
+			};
+
+		};
+	};
+
+	funnelm: funnelm@1e009000 {
+		compatible = "arm,coresight-funnel", "arm,primecell";
+		reg = <0 0x1e009000 0x1000>;
+		clocks = <&clock GATE_CLUSTER0_QCH_ATCLK>;
+		clock-names = "apb_pclk";
+		arm,primecell-periphid = <0x001bb908>;
+		out-ports {
+			port {
+				funnelm_out0: endpoint {
+					remote-endpoint = <&etr_in>;
+				};
+			};
+		};
+
+		in-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port@0 {
+				reg = <0>;
+				funnelm_in0: endpoint {
+					slave-mode;
+					remote-endpoint = <&etf0_out>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				funnelm_in1: endpoint {
+					slave-mode;
+					remote-endpoint = <&etf1_out>;
+				};
+			};
+		};
+	};
+};

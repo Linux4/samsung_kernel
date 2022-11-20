@@ -1,0 +1,186 @@
+/*
+ * SAMSUNG EXYNOS device tree source for reserved-memory
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/soc/samsung/exynos2100-debug.h>
+#include <dt-bindings/soc/samsung/debug-snapshot-def.h>
+#include <dt-bindings/soc/samsung/exynos2100-s2mpu.h>
+#include <dt-bindings/soc/samsung/exynos2100-seclog.h>
+#include <dt-bindings/soc/samsung/exynos2100-s2mpu.h>
+/*
+#include <dt-bindings/camera/exynos_is_dt.h>
+*/
+/ {
+	reserved_memory: reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges;
+
+		ect_binary: ect_binary {
+			compatible = "exynos,ect_rmem";
+			reg = <0x0 0x90000000 0x0003A000>;
+		};
+
+		el3mon_reserve {
+			compatible = "exynos,el3mon";
+			reg = <0x0 0xBFF80000 0x00080000>;
+		};
+
+                dss_rmem: debug_snapshot {
+                        #address-cells = <2>;
+                        #size-cells = <1>;
+                        header: header {
+                                reg = <0 DSS_HEADER_ADDR DSS_HEADER_SIZE>;
+				no-map;
+                        };
+                        log_kernel: log_kernel {
+                                reg = <0 DSS_KERNEL_ADDR DSS_KERNEL_SIZE>;
+                        };
+			log_platform: log_platform {
+				reg = <0 DSS_PLATFORM_ADDR DSS_PLATFORM_SIZE>;
+			};
+                        log_s2d: log_s2d {
+                                reg = <0 DSS_S2D_ADDR DSS_S2D_SIZE>;
+                        };
+                        log_first: log_first {
+				reg = <0 DSS_FIRST_ADDR DSS_FIRST_SIZE>;
+                        };
+			log_arrdumpreset: log_arrdumpreset {
+				reg = <0 DSS_ARRAYRESET_ADDR DSS_ARRAYRESET_SIZE>;
+			};
+			log_arrdumppanic: log_arrdumppanic {
+				reg = <0 DSS_ARRAYPANIC_ADDR DSS_ARRAYPANIC_SIZE>;
+			};
+			log_kevents: log_kevents {
+				reg = <0 DSS_KEVENTS_ADDR DSS_KEVENTS_SIZE>;
+			};
+			log_last: log_last {
+				reg = <0 DSS_LAST_ADDR DSS_LAST_SIZE>;
+			};
+                };
+
+		log_bcm: log_bcm {
+			compatible = "exynos,bcmdbg";
+			reg = <0 0xFF000000 0x400000>;
+		};
+
+		log_llc: log_llc {
+			compatible = "exynos,llc";
+			reg = <0 0xFF400000 0x800000>;
+		};
+
+		log_ppc: log_ppc {
+			compatible = "exynos,ppc";
+			reg = <0 0xFFC00000 0x100000>;
+		};
+
+		seclog_mem: seclog_mem {
+			compatible = "exynos,seclog";
+			reg = <0 SECLOG_LOG_BUF_BASE SECLOG_LOG_BUF_TOTAL_SIZE>;
+		};
+
+		s2mpu_table: s2mpu_table {
+			compatible = "exynos,s2mpu_table";
+			reg = <0 S2MPU_TABLE_BASE S2MPU_TABLE_SIZE>;
+		};
+
+		cp_rmem: cp_rmem {
+			compatible = "exynos,modem_if";
+			reg = <0x8 0x80000000 0x0D800000>;
+			rmem_index = <0>;
+		};
+
+		cp_rmem1: cp_rmem1 {
+			compatible = "exynos,modem_if";
+			reg = <0x8 0x90000000 0x0A000000>;
+			rmem_index = <1>;
+		};
+
+		dummy_heap: dummy_heap {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x9F000000 0x1000000>;
+			alignment = <0x0 0x00400000>;
+			reusable;
+		};
+/*
+		camera_rmem: camera_rmem {
+			compatible = "exynos,camera_rmem";
+			reg = <0 CAMERA_LOG_BUF_BASE CAMERA_LOG_BUF_SIZE>;
+		};
+*/
+		abox_dbg: abox-dbg {
+			compatible = "exynos,abox_dbg";
+			size = <0x2900000>;
+			alloc-ranges = <0x0 0xc0000000 0x20000000>;
+		};
+
+		abox_slog: abox-slog {
+			compatible = "exynos,abox_slog";
+			reg = <0x8 0x9B800000 0x2800000>;
+		};
+
+		abox_rmem: abox-rmem {
+			compatible = "exynos,abox_rmem";
+			/* Size should be same with
+			 * CONFIG_SND_SOC_SAMSUNG_ABOX_DRAM_SIZE.
+			 */
+			reg = <0x8 0x8d800000 0x2800000>;
+		};
+
+		abox_rdma_compr: abox-rdma-compr {
+			compatible = "exynos,abox_rdma_compr_buffer";
+			size = <0x50000>;
+			alloc-ranges = <0x0 0xc0000000 0x20000000>;
+		};
+
+		dp_ado_rmem: dpado-rmem {
+			compatible = "exynos,dp_ado_rmem";
+			size = <0x200000>;
+			alloc-ranges = <0x0 0xC0000000 0x20000000>;
+		};
+
+		memlog_mem: memlog_region {
+			compatible = "shared-dma-pool";
+			no-map;
+			reg = <0x8 0x9A000000 0x1800000>;
+		};
+
+		default_cma {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x9E000000 0x1000000>;
+			alignment = <0x0 0x00400000>;
+			reusable;
+			linux,cma-default;
+		};
+
+		dsp_shmem: dsp-shmem {
+			compatible = "exynos,dsp_shmem";
+			size = <0x1000>;
+			alloc-ranges = <0x0 0xC0000000 0x40000000>;
+		};
+
+		dsp_master_rmem: dsp-master-rmem {
+			compatible = "exynos,dsp_master_rmem";
+			size = <0x110000>;
+			alloc-ranges = <0x0 0xC0000000 0x40000000>;
+		};
+
+		mfc_fw_rmem: mfc_fw_rmem {
+			compatible = "samsung,exynos-mfc";
+			size = <0x400000>;
+			alignment = <0x0 0x00010000>;
+		};
+	};
+
+	memlog_bl_base: memlog_bl_base {
+		samsung,bl-base = <DSS_HEADER_ADDR>;
+		samsung,bl-offset = <DSS_MEMLOG_BL_BASE>;
+	};
+};

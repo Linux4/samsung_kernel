@@ -1,0 +1,781 @@
+/*
+ * SAMSUNG EXYNOS SoC CPU device tree source
+ *
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS SoC CPU device nodes are listed in this file.
+ * EXYNOS based board files should include this file.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ */
+
+#include "exynos2100-ems.dtsi"
+#include <dt-bindings/soc/samsung/cpupm.h>
+
+/ {
+	cpus {
+		#address-cells = <2>;
+		#size-cells = <0>;
+
+		#define CPU_CL0	"0-3"
+		#define CPU_CL1	"4-6"
+		#define CPU_CL2	"7"
+		#define CPU_ALL	"0-7"
+
+		cpu-map {
+			cluster0 {
+				core0 {
+					cpu = <&cpu0>;
+				};
+				core1 {
+					cpu = <&cpu1>;
+				};
+				core2 {
+					cpu = <&cpu2>;
+				};
+				core3 {
+					cpu = <&cpu3>;
+				};
+			};
+			cluster1 {
+				core0 {
+					cpu = <&cpu4>;
+				};
+				core1 {
+					cpu = <&cpu5>;
+				};
+				core2 {
+					cpu = <&cpu6>;
+				};
+			};
+			cluster2 {
+				core0 {
+					cpu = <&cpu7>;
+				};
+			};
+		};
+
+		cpu0: cpu@0000 {
+			device_type = "cpu";
+			compatible = "arm,ananke", "arm,armv8";
+			reg = <0x0 0x0000>;
+			capacity-dmips-mhz = <260>;
+			dynamic-power-coefficient = <89>;
+			static-power-coefficient = <87>;
+			enable-method = "psci";
+			cpu-idle-states =  <&ANANKE_CPU_SLEEP>;
+		};
+		cpu1: cpu@0100 {
+			device_type = "cpu";
+			compatible = "arm,ananke", "arm,armv8";
+			reg = <0x0 0x0100>;
+			capacity-dmips-mhz = <260>;
+			dynamic-power-coefficient = <89>;
+			static-power-coefficient = <87>;
+			enable-method = "psci";
+			cpu-idle-states =  <&ANANKE_CPU_SLEEP>;
+		};
+		cpu2: cpu@0200 {
+			device_type = "cpu";
+			compatible = "arm,ananke", "arm,armv8";
+			reg = <0x0 0x0200>;
+			capacity-dmips-mhz = <260>;
+			dynamic-power-coefficient = <89>;
+			static-power-coefficient = <87>;
+			enable-method = "psci";
+			cpu-idle-states =  <&ANANKE_CPU_SLEEP>;
+		};
+		cpu3: cpu@0300 {
+			device_type = "cpu";
+			compatible = "arm,ananke", "arm,armv8";
+			reg = <0x0 0x0300>;
+			capacity-dmips-mhz = <260>;
+			dynamic-power-coefficient = <89>;
+			static-power-coefficient = <87>;
+			enable-method = "psci";
+			cpu-idle-states =  <&ANANKE_CPU_SLEEP>;
+		};
+		cpu4: cpu@0400 {
+			device_type = "cpu";
+			compatible = "arm,hercules", "arm,armv8";
+			reg = <0x0 0x0400>;
+			capacity-dmips-mhz = <880>;
+			dynamic-power-coefficient = <513>;
+			static-power-coefficient = <253>;
+			enable-method = "psci";
+			cpu-idle-states =  <&HERCULES_CPU_SLEEP>;
+		};
+		cpu5: cpu@0500 {
+			device_type = "cpu";
+			compatible = "arm,hercules", "arm,armv8";
+			reg = <0x0 0x0500>;
+			capacity-dmips-mhz = <880>;
+			dynamic-power-coefficient = <513>;
+			static-power-coefficient = <253>;
+			enable-method = "psci";
+			cpu-idle-states =  <&HERCULES_CPU_SLEEP>;
+		};
+		cpu6: cpu@0600 {
+			device_type = "cpu";
+			compatible = "arm,hercules", "arm,armv8";
+			reg = <0x0 0x0600>;
+			capacity-dmips-mhz = <880>;
+			dynamic-power-coefficient = <513>;
+			static-power-coefficient = <253>;
+			enable-method = "psci";
+			cpu-idle-states =  <&HERCULES_CPU_SLEEP>;
+		};
+		cpu7: cpu@0700 {
+			device_type = "cpu";
+			compatible = "arm,hera", "arm,armv8";
+			reg = <0x0 0x0700>;
+			capacity-dmips-mhz = <997>;
+			dynamic-power-coefficient = <757>;
+			static-power-coefficient = <253>;
+			enable-method = "psci";
+			cpu-idle-states =  <&HERA_CPU_SLEEP>;
+		};
+
+		idle-states {
+			entry-method = "arm,psci";
+
+			ANANKE_CPU_SLEEP: ananke-cpu-sleep {
+				idle-state-name = "c2";
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x0010000>;
+				entry-latency-us = <70>;
+				exit-latency-us = <160>;
+				min-residency-us = <2000>;
+				status = "okay";
+			};
+
+			HERCULES_CPU_SLEEP: hercules-cpu-sleep {
+				idle-state-name = "c2";
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x0010000>;
+				entry-latency-us = <150>;
+				exit-latency-us = <190>;
+				min-residency-us = <2500>;
+				status = "okay";
+			};
+
+			HERA_CPU_SLEEP: hera-cpu-sleep {
+				idle-state-name = "c2";
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x0010000>;
+				entry-latency-us = <235>;
+				exit-latency-us = <220>;
+				min-residency-us = <3500>;
+				status = "okay";
+			};
+		};
+	};
+
+	psci {
+		compatible = "arm,psci-1.0";
+		method = "smc";
+	};
+
+	ems {
+		compatible = "samsung,ems";
+		status = "okay";
+	};
+
+	exynos-cpuhp {
+		compatible = "samsung,exynos-cpuhp";
+		status = "okay";
+	};
+
+	exynos-cpupm {
+		compatible = "samsung,exynos-cpupm";
+		status = "okay";
+
+		cpd_cl0 {
+			device_type = "cpupm";
+			target-residency = <10000>;
+			type = <POWERMODE_TYPE_CLUSTER>;
+			cal-id = <0>;
+			siblings = CPU_CL0;
+		};
+
+		cpd_cl1 {
+			device_type = "cpupm";
+			target-residency = <10000>;
+			type = <POWERMODE_TYPE_CLUSTER>;
+			cal-id = <1>;
+			siblings = CPU_CL1;
+			entry-allowed = CPU_CL1;
+		};
+
+		cpd_cl2 {
+			device_type = "cpupm";
+			target-residency = <10000>;
+			type = <POWERMODE_TYPE_CLUSTER>;
+			cal-id = <2>;
+			siblings = CPU_CL2;
+			entry-allowed = CPU_CL2;
+		};
+
+		dsupd {
+			device_type = "cpupm";
+			target-residency = <10000>;
+			type = <POWERMODE_TYPE_DSU>;
+			siblings = CPU_ALL;
+			entry-allowed = CPU_ALL;
+		};
+
+		sicd {
+			device_type = "cpupm";
+			target-residency = <10000>;
+			type = <POWERMODE_TYPE_SYSTEM>;
+			siblings = CPU_ALL;
+			entry-allowed = CPU_ALL;
+		};
+
+		wakeup-mask {
+			wakeup-masks {
+				wakeup-mask {
+					mask-reg-offset = <0x3b44>;
+					stat-reg-offset = <0x3b50>;
+					mask = <0xff000000>;
+				};
+				wakeup-mask2 {
+					mask-reg-offset = <0x3b64>;
+					stat-reg-offset = <0x3b54>;
+					mask = <0x00>;
+				};
+			};
+
+			eint-wakeup-masks {
+				eint-wakeup-mask {
+					mask-reg-offset = <0x60c>;
+				};
+				eint-wakeup-mask2 {
+					mask-reg-offset = <0x610>;
+				};
+			};
+		};
+	};
+
+	exynos-acme {
+		compatible = "samsung,exynos-acme";
+		status = "okay";
+
+		cpufreq_domain0: domain@0 {
+			sibling-cpus = CPU_CL0;
+			cal-id = <ACPM_DVFS_CPUCL0>;
+			dm-type = <DM_CPU_CL0>;
+
+			max-freq = <2210000>;
+			min-freq = <400000>;
+
+			#cooling-cells = <2>; /* min followed by max */
+			ect-coeff-index = <2>;
+			tz-cooling-name = "LITTLE";
+
+			freq-table = < 177000
+				       266000
+				       400000
+				       533000
+				       650000
+				       754000
+				       858000
+				       962000
+				      1066000
+				      1170000
+				      1274000
+				      1378000
+				      1482000
+				      1586000
+				      1690000
+				      1794000
+				      1898000
+				      2002000
+				      2106000
+				      2210000
+				      2314000
+				      2392000 >;
+
+			dm-constraints {
+				list = <&lit_dsu_perf>,
+					<&lit_mif_perf>;
+			};
+		};
+
+		cpufreq_domain1: domain@1 {
+			sibling-cpus = CPU_CL1;
+			cal-id = <ACPM_DVFS_CPUCL1>;
+			dm-type = <DM_CPU_CL1>;
+
+			max-freq = <2808000>;
+			min-freq = <533000>;
+
+			#cooling-cells = <2>; /* min followed by max */
+			ect-coeff-index = <1>;
+			tz-cooling-name = "MID";
+
+			freq-table = < 177000
+				       266000
+				       400000
+				       533000
+				       624000
+				       728000
+				       832000
+				       936000
+				      1040000
+				      1144000
+				      1248000
+				      1352000
+				      1456000
+				      1560000
+				      1664000
+				      1768000
+				      1872000
+				      1976000
+				      2080000
+				      2184000
+				      2288000
+				      2392000
+				      2496000
+				      2600000
+				      2704000
+				      2808000
+				      2912000
+				      2990000 >;
+
+			dm-constraints {
+				list = <&med_dsu_perf>,
+					<&med_mif_perf>;
+			};
+		};
+
+		cpufreq_domain2: domain@2 {
+			sibling-cpus = CPU_CL2;
+			cal-id = <ACPM_DVFS_CPUCL2>;
+			dm-type = <DM_CPU_CL2>;
+
+			max-freq = <2912000>;
+			min-freq = <533000>;
+
+			#cooling-cells = <2>; /* min followed by max */
+			ect-coeff-index = <0>;
+			tz-cooling-name = "BIG";
+
+			freq-table = < 177000
+				       266000
+				       400000
+				       533000
+				       624000
+				       728000
+				       832000
+				       936000
+				      1040000
+				      1144000
+				      1248000
+				      1352000
+				      1456000
+				      1560000
+				      1664000
+				      1768000
+				      1872000
+				      1976000
+				      2080000
+				      2184000
+				      2288000
+				      2392000
+				      2496000
+				      2600000
+				      2704000
+				      2808000
+				      2912000
+				      2990000 >;
+
+			dm-constraints {
+				list = <&big_dsu_perf>,
+					<&big_mif_perf>;
+			};
+		};
+	};
+
+	dm-tables {
+		lit_dsu_perf: dm-table@0000 {
+			const-type = <CONSTRAINT_MIN>;
+			dm-slave = <DM_DSU>;
+			master-cal-id = <ACPM_DVFS_CPUCL0>;
+			slave-cal-id = <ACPM_DVFS_DSU>;
+
+				/* CPU	  DSU */
+			table = < 177000  177000
+				  266000  177000
+				  400000  266000
+				  533000  266000
+				  650000  400000
+				  754000  533000
+				  858000  533000
+				  962000  650000
+				 1066000  650000
+				 1170000  754000
+				 1274000  858000
+				 1378000  962000
+				 1482000  962000
+				 1586000 1066000
+				 1690000 1170000
+				 1794000 1170000
+				 1898000 1274000
+				 2002000 1378000
+				 2106000 1378000
+				 2210000 1482000
+				 2314000 1586000
+				 2392000 1690000 >;
+		};
+		med_dsu_perf: dm-table@0001 {
+			const-type = <CONSTRAINT_MIN>;
+			dm-slave = <DM_DSU>;
+			master-cal-id = <ACPM_DVFS_CPUCL1>;
+			slave-cal-id = <ACPM_DVFS_DSU>;
+
+				/* CPU	  DSU */
+			table = < 177000  177000
+				  266000  177000
+				  400000  266000
+				  533000  266000
+				  624000  400000
+				  728000  400000
+				  832000  533000
+				  936000  650000
+				 1040000  650000
+				 1144000  754000
+				 1248000  858000
+				 1352000  858000
+				 1456000  962000
+				 1560000 1066000
+				 1664000 1170000
+				 1768000 1170000
+				 1872000 1274000
+				 1976000 1378000
+				 2080000 1378000
+				 2184000 1482000
+				 2288000 1586000
+				 2392000 1586000
+				 2496000 1690000
+				 2600000 1794000
+				 2704000 1794000
+				 2808000 1898000
+				 2912000 2002000
+				 2990000 2002000 >;
+		};
+		big_dsu_perf: dm-table@0002 {
+			const-type = <CONSTRAINT_MIN>;
+			dm-slave = <DM_DSU>;
+			master-cal-id = <ACPM_DVFS_CPUCL2>;
+			slave-cal-id = <ACPM_DVFS_DSU>;
+
+				/* CPU	  DSU */
+			table = < 177000  177000
+				  266000  177000
+				  400000  266000
+				  533000  266000
+				  624000  400000
+				  728000  400000
+				  832000  533000
+				  936000  650000
+				 1040000  650000
+				 1144000  754000
+				 1248000  858000
+				 1352000  858000
+				 1456000  962000
+				 1560000 1066000
+				 1664000 1170000
+				 1768000 1170000
+				 1872000 1274000
+				 1976000 1378000
+				 2080000 1378000
+				 2184000 1482000
+				 2288000 1586000
+				 2392000 1586000
+				 2496000 1690000
+				 2600000 1794000
+				 2704000 1794000
+				 2808000 1898000
+				 2912000 2002000
+				 2990000 2002000 >;
+		};
+		lit_mif_perf: dm-table@0003 {
+			const-type = <CONSTRAINT_MIN>;
+			dm-slave = <DM_MIF>;
+			master-cal-id = <ACPM_DVFS_CPUCL0>;
+			slave-cal-id = <ACPM_DVFS_MIF>;
+			dynamic-disable;
+
+				/* CPU	  MIF */
+			table = < 177000       0
+				  266000       0
+				  400000       0
+				  533000       0
+				  650000       0
+				  754000       0
+				  858000       0
+				  962000       0
+				 1066000       0
+				 1170000       0
+				 1274000       0
+				 1378000       0
+				 1482000       0
+				 1586000       0
+				 1690000       0
+				 1794000       0
+				 1898000       0
+				 2002000       0
+				 2106000       0
+				 2210000       0
+				 2314000       0
+				 2392000       0 >;
+		};
+		med_mif_perf: dm-table@0004 {
+			const-type = <CONSTRAINT_MIN>;
+			dm-slave = <DM_MIF>;
+			master-cal-id = <ACPM_DVFS_CPUCL1>;
+			slave-cal-id = <ACPM_DVFS_MIF>;
+			dynamic-disable;
+
+				/* CPU	  MIF */
+			table = < 177000       0
+				  266000       0
+				  400000       0
+				  533000       0
+				  624000       0
+				  728000       0
+				  832000       0
+				  936000       0
+				 1040000       0
+				 1144000       0
+				 1248000       0
+				 1352000       0
+				 1456000       0
+				 1560000       0
+				 1664000       0
+				 1768000       0
+				 1872000       0
+				 1976000       0
+				 2080000 2288000
+				 2184000 2288000
+				 2288000 2535000
+				 2392000 2535000
+				 2496000 2730000
+				 2600000 2730000
+				 2704000 3172000
+				 2808000 3172000
+				 2912000 3172000
+				 2990000 3172000 >;
+		};
+		big_mif_perf: dm-table@0005 {
+			const-type = <CONSTRAINT_MIN>;
+			dm-slave = <DM_MIF>;
+			master-cal-id = <ACPM_DVFS_CPUCL2>;
+			slave-cal-id = <ACPM_DVFS_MIF>;
+			dynamic-disable;
+
+				/* CPU	  MIF */
+			table = < 177000       0
+				  266000       0
+				  400000       0
+				  533000       0
+				  624000       0
+				  728000       0
+				  832000       0
+				  936000       0
+				 1040000       0
+				 1144000       0
+				 1248000       0
+				 1352000       0
+				 1456000       0
+				 1560000       0
+				 1664000       0
+				 1768000       0
+				 1872000       0
+				 1976000       0
+				 2080000 2288000
+				 2184000 2288000
+				 2288000 2535000
+				 2392000 2535000
+				 2496000 2730000
+				 2600000 2730000
+				 2704000 3172000
+				 2808000 3172000
+				 2912000 3172000
+				 2990000 3172000 >;
+		};
+	};
+
+	exynos-dsufreq {
+		compatible = "samsung,exynos-dsufreq";
+		status = "okay";
+
+		cal-id = <ACPM_DVFS_DSU>;
+		dm-type = <DM_DSU>;
+		dss-type = <ESS_FLAG_DSU>;
+		init-with-dt = <1>;
+
+		request_domain0 {
+			sibling-cpus = CPU_CL0;
+			constraint = <&lit_dsu_perf>;
+		};
+		request_domain1 {
+			sibling-cpus = CPU_CL1;
+			constraint = <&med_dsu_perf>;
+		};
+		request_domain2 {
+			sibling-cpus = CPU_CL2;
+			constraint = <&big_dsu_perf>;
+		};
+	};
+
+	exynos-ufcc {
+		compatible = "samsung,exynos-ufcc";
+		status = "okay";
+
+		ucc {
+			ucc-config0 {
+				index = <0>;
+				cstate = "4-7";
+			};
+			ucc-config1 {
+				index = <1>;
+				cstate = "7";
+			};
+			ucc-config2 {
+				index = <3>;
+			};
+		};
+
+		ufc {
+			/* Ctrl Type */
+			#define MIN_LIMIT		0
+			#define MIN_LIMIT_WO_BOOST	1
+			#define MAX_LIMIT		2
+
+			/* Execution Mode */
+			#define AARCH64_MODE		0
+			#define AARCH32_MODE		1
+
+			table-col = <6>;
+			boot-domain-auto-table;
+
+			domain@0 {
+				device_type = "ufc-domain";
+				shared-cpus = CPU_CL0;
+				table-col-idx = <3>;
+			};
+			domain@1 {
+				device_type = "ufc-domain";
+				shared-cpus = CPU_CL1;
+				table-col-idx = <2>;
+				allow-disable-cpus;
+			};
+			domain@2 {
+				device_type = "ufc-domain";
+				shared-cpus = CPU_CL2;
+				table-col-idx = <1>;
+				allow-disable-cpus;
+			};
+
+			max-limit {
+				device_type = "ufc-table";
+				ctrl-type = <MAX_LIMIT>;
+
+				table = < 2912000 2912000 2912000 2210000 0 0
+					  2808000 2808000 2808000 2210000 0 0
+					  2704000 2704000 2704000 2210000 0 0
+					  2600000 2600000 2600000 2210000 0 0
+					  2496000 2496000 2496000 2210000 0 0
+					  2392000 2392000 2392000 2210000 0 0
+					  2288000 2288000 2288000 2210000 0 0
+					  2184000 2184000 2184000 2210000 0 0
+					  2080000 2080000 2080000 2210000 0 0
+					  1976000 1976000 1976000 2210000 0 0
+					  1872000 1872000 1872000 2210000 0 0
+					  1768000 1768000 1768000 2210000 0 0
+					  1664000 1664000 1664000 2210000 0 0
+					  1560000 1560000 1560000 2106000 0 0
+					  1456000 1456000 1456000 2106000 0 0
+					  1352000 1352000 1352000 2002000 0 0
+					  1248000 1248000 1248000 2002000 0 0
+					  1144000 1144000 1144000 1898000 0 0
+					  1040000 1040000 1040000 1794000 0 0
+					   936000  936000  936000 1690000 0 0
+					   832000  832000  832000 1690000 0 0
+					   728000  728000  728000 1586000 0 0
+					   624000  624000  624000 1482000 0 0
+					   533000  533000  533000 1378000 0 0 >;
+					  /* fill little freq automatically */
+			};
+			min-limit {
+				device_type = "ufc-table";
+				ctrl-type = <MIN_LIMIT>;
+
+				table = < 2912000 2912000 2912000 2210000 2 1
+					  2808000 2808000 2808000 2210000 2 1
+					  2704000 2704000 2704000 2210000 2 1
+					  2600000 2600000 2600000 2210000 2 1
+					  2496000 2496000 2496000 2210000 2 1
+					  2392000 2392000 2392000 2210000 2 1
+					  2288000 2288000 2288000  858000 1 1
+					  2184000 2184000 2184000  858000 1 1
+					  2080000 2080000 2080000  858000 1 1
+					  1976000 1976000 1976000  858000 1 1
+					  1872000 1872000 1872000  858000 1 1
+					  1768000 1768000 1768000  858000 1 1
+					  1664000 1664000 1664000  858000 1 1
+					  1560000 1560000 1560000  858000 1 1
+					  1456000 1456000 1456000  858000 0 1
+					  1352000 1352000 1352000  858000 0 1
+					  1248000 1248000 1248000  858000 0 1
+					  1144000 1144000 1144000  858000 0 1
+					  1040000 1040000 1040000  858000 0 1
+					   936000  936000  936000  858000 0 1
+					   832000  832000  832000  858000 0 1
+					   728000  728000  728000  858000 0 1
+					   624000  624000  624000  858000 0 1
+					   533000  533000  533000  858000 0 1 >;
+					  /* fill little freq automatically */
+			};
+		};
+	};
+
+	exynos-afm {
+		compatible = "samsung,exynos-afm";
+		status = "okay";
+
+		afm_domain1: domain@1 {
+			device_type = "afm-domain";
+			compatible = "samsung,exynos-afm";
+			interrupts = <GIC_SPI INTREQ__OCP_REATOR_CPUCL0_1 IRQ_TYPE_LEVEL_HIGH>;
+			sibling-cpus = "4-6";
+			cluster = <1>;
+			down-step = <1>;
+			max-freq-wo-afm = <2080000>;
+
+			release-duration = <15>;
+		};
+		afm_domain2: domain@2 {
+			device_type = "afm-domain";
+			compatible = "samsung,exynos-afm";
+			interrupts = <GIC_SPI INTREQ__OCP_REATOR_CPUCL0_2 IRQ_TYPE_LEVEL_HIGH>;
+			sibling-cpus = "7";
+			cluster = <2>;
+			down-step = <1>;
+			max-freq-wo-afm = <2080000>;
+
+			release-duration = <15>;
+		};
+	};
+
+	freq-qos-tracer {
+		compatible = "samsung,freq-qos-tracer";
+		status = "okay";
+	};
+};

@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * SAMSUNG EXYNOS SoC DSP device tree source
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS SoC DSP device nodes are listed in this files.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/soc/samsung/exynos-dsp.h>
+
+/ {
+	dsp: dsp@15000000 {
+		compatible = "samsung,exynos-dsp";
+		dma-coherent;
+		reg = <0x0 0x15000000 0x300000>;
+
+		interrupts = <GIC_SPI INTREQ__FROM_VPC_TO_HOST_NS_0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_VPC_TO_HOST_NS_1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_VPC_TO_HOST_NS_2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_VPC_TO_HOST_NS_3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_VPC_TO_HOST_NS_4 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_VPC_TO_HOST_NS_5 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_VPC_TO_HOST_NS_6 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_VPC_TO_HOST_NS_7 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_VPC_TO_HOST_S_0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_VPC_TO_HOST_S_1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_VPC_TO_HOST_S_2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_VPC_TO_HOST_S_3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_VPC_TO_HOST_S_4 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_VPC_TO_HOST_S_5 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_VPC_TO_HOST_S_6 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__FROM_VPC_TO_HOST_S_7 IRQ_TYPE_LEVEL_HIGH>;
+
+		clocks = <&clock UMUX_CLKCMU_VPC_BUS>,
+			 <&clock GATE_ADM_DAP_VPC_QCH>,
+			 <&clock GATE_IP_VPC_QCH>,
+			 <&clock DOUT_DIV_CLK_VPC_BUSP>,
+			 <&clock DOUT_DIV_CLK_VPC_BUS>,
+
+			 <&clock UMUX_CLKCMU_VPD_BUS>,
+			 <&clock GATE_IP_VPD_QCH>,
+			 <&clock DOUT_DIV_CLK_VPD_BUSP>,
+			 <&clock DOUT_DIV_CLK_VPD_BUS>;
+		clock-names = "umux_clkcmu_vpc_bus",
+			      "gate_adm_dap_vpc_qch",
+			      "gate_ip_vpc_qch",
+			      "dout_div_clk_vpc_busp",
+			      "dout_div_clk_vpc_bus",
+
+			      "umux_clkcmu_vpd_bus",
+			      "gate_ip_vpd_qch",
+			      "dout_div_clk_vpd_busp",
+			      "dout_div_clk_vpd_bus";
+		iommus = <&sysmmu_d0_vpc>, <&sysmmu_d1_vpc>, <&sysmmu_d2_vpc>;
+		samsung,iommu-group = <&iommu_group_vpc>;
+		power-domains = <&pd_vpd1>;
+		samsung,dsp_dev_id = <DSP_DEVICE_ID_O1>;
+		memory-region = <&dsp_shmem>, <&dsp_master_rmem>;
+		samsung,imgloader-s2mpu-support;
+		samsung,fw-id = <0>;
+	};
+};

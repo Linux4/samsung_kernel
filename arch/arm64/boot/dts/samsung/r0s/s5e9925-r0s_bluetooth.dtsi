@@ -1,0 +1,42 @@
+/*
+ * SAMSUNG S5E9925 board device tree source
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+/*			pinctrl@10730000 {
+*				bt_btwake: bt-btwake {
+*					samsung,pins = "gpc8-1";
+*					samsung,pin-function = <1>;
+*					samsung,pin-pud = <0>;
+*					samsung,pin-con-pdn = <3>;
+*					samsung,pin-pud-pdn = <0>;
+*				};
+*			};
+*/
+		
+			bluetooth: bt_qca6490 {
+				compatible = "qcom,qca6490";
+				gpios = <&s2mps26_gpio 17 GPIO_ACTIVE_HIGH      /*BT_EN*/
+				&s2mps26_gpio 13 GPIO_ACTIVE_HIGH     /*BT_WAKE*/
+				&gpa0 3 GPIO_ACTIVE_HIGH     /*BT_HOST_WAKE*/ >;
+				qcom,wl-reset-gpio = <&s2mps26_gpio 18 0>; /* WL_EN */
+				//qcom,wl_buck_en-gpio = <&gpm10 1 0x0>; /* WIFI_BUCK_EN (XUSI_CMGP5_TXD_DO_SDA0, BW27) for 0.95V and 1.35V */
+				qcom,bt-vdd-pamir-supply = <&vreg_wlan>; /* WIFI_BUCK_EN (XUSI_CMGP5_TXD_DO_SDA0, BW27) for 0.95V and 1.35V */
+				samsung,bt-wake-lock-workqueue;
+				pinctrl-names = "default";
+				pinctrl-0=<&bt_en &bt_btwake &bt_hostwake>;
+				status = "okay";
+			};/* end of bluetooth */
+		};
+	};
+};

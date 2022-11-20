@@ -1,0 +1,49 @@
+/*
+ * SAMSUNG EXYNOS2100 SoC DVFS Manager device tree source
+ *
+ * Copyright (c) 2014 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS2100 SoC device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "exynos2100-acpm.dtsi"
+#include "exynos2100-dm.dtsi"
+#include "exynos2100-devfreq.dtsi"
+#include "exynos2100-thermal.dtsi"
+
+/ {
+	cal_if {
+		compatible = "samsung,exynos_cal_if";
+		reg = <0x0 0x1A330000 0x8000>,
+			 <0x0 0x18c00000 0x1000>,
+			 <0x0 0x1a030000 0x1000>,
+			 <0x0 0x1d040000 0x1000>,
+			 <0x0 0x1d050000 0x1000>,
+			 <0x0 0x1d060000 0x1000>,
+			 <0x0 0x1d030000 0x1000>,
+			 <0x0 0x10020000 0x1000>;
+		acpm-ipc-channel = <0>;
+	};
+
+	ect {
+		parameter_address = <0x90000000>;
+		parameter_size = <0x52000>;
+	};
+
+	exynos-ect {
+		compatible = "samsung,exynos-ect";
+		memory-region = <&ect_binary>;
+	};
+
+	acpm_dvfs {
+		compatible = "samsung,exynos-acpm-dvfs";
+		acpm-ipc-channel = <5>;
+	};
+};

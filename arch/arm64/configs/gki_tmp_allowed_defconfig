@@ -1,0 +1,13 @@
+# gki_tmp_allowed_defconfig
+#   Configs to temporaly allow to change gki_defconfig
+
+# CONFIG_LTO_CLANG_FULL is not set
+# CONFIG_TRANSPARENT_HUGEPAGE_MADVISE is not set
+
+CONFIG_HWMON=m
+CONFIG_USB_NET_AX8817X=m
+CONFIG_USB_NET_AX88179_178A=m
+CONFIG_USB_NET_NET1080=m
+CONFIG_USB_NET_CDC_SUBSET=m
+CONFIG_USB_NET_ZAURUS=m
+

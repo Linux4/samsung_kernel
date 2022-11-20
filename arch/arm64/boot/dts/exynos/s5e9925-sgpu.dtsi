@@ -1,0 +1,73 @@
+
+/*
+ * SAMSUNG SGPU device tree sourceA
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#define CHIP_VANGOGH_LITE 30
+
+/{
+	/* sgpu */
+	sgpu: sgpu@16E00000 {
+		#address-cells = <0x2>;
+		#size-cells = <0x1>;
+		#cooling-cells = <2>; /* min followed by max */
+		compatible = "samsung-sgpu,samsung-sgpu";
+		reg = <
+			0x0 0x16E00000 0x100000
+			0x0 0x16F00000 0x100000
+			0x0 0x16DC0000 0x40000
+			0x0 0x16CD0000 0x10000
+			0x0 0x16C00000 0x2000
+			>;
+		interrupts = <GIC_SPI INTREQ__GPU_INT IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names =  "SGPU";
+		memory-region = <&sgpu_rmem>;
+		flags = <CHIP_VANGOGH_LITE>;
+		g3d_cmu_cal_id = <ACPM_DVFS_G3D>;
+		min_freq = <303000>;
+		max_freq = <1306000>;
+		samsung,imgloader-s2mpu-support;
+		dma-coherent;
+		power-domains = <&pd_g3dcore>;
+		mif_min_lock = "421000 404000:1352000 500000:1716000 807000:2288000 903000:2535000 999000:2730000 1095000:3172000";
+		mif_cl_boost_min_lock = "421000 404000:1014000 605000:1352000 807000:1539000 903000:1716000 999000:2028000";
+		mo_scenario = "default 404000:g3d_performance";
+		llc_ways = "0 605000:16";
+		gpu_power_coeff = <625>;
+		ect-coeff-index = <3>;
+		gpu_tmu = <&tmuctrl_3>;
+
+		gpu_smntarg {
+			reg = <0x0 0x16E00000 0x100000>;
+			device_type = "gpu_smntarg";
+		};
+
+		gpu_doorbell {
+			reg = <0x0 0x16F00000 0x100000>;
+			device_type = "gpu_doorbell";
+		};
+
+		gpu_debug {
+			reg = <0x0 0x16DC0000 0x40000>;
+			device_type = "gpu_debug";
+		};
+
+		gpu_pm {
+			reg = <0x0 0x16CD0000 0x10000>;
+			device_type = "gpu_pm";
+		};
+
+		gpu_sysreg {
+			reg = <0x0 0x16C00000 0x2000>;
+			device_type = "gpu_sysreg";
+		};
+
+	};
+};

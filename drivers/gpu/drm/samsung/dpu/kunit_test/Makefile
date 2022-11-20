@@ -1,0 +1,17 @@
+obj-$(CONFIG_EXYNOS_DRM_DECON_TEST)		+= exynos_drm_decon_test.o
+obj-$(CONFIG_EXYNOS_DRM_DSIM_TEST)		+= exynos_drm_dsim_test.o
+obj-$(CONFIG_EXYNOS_DRM_BTS_TEST)		+= exynos_drm_bts_test.o
+obj-$(CONFIG_EXYNOS_DRM_CONNECTOR_TEST)		+= exynos_drm_connector_test.o
+obj-$(CONFIG_EXYNOS_DRM_CRTC_TEST)		+= exynos_drm_crtc_test.o
+obj-$(CONFIG_EXYNOS_DRM_DEBUG_TEST)		+= exynos_drm_debug_test.o
+obj-$(CONFIG_EXYNOS_DRM_DPP_TEST)		+= exynos_drm_dpp_test.o
+obj-$(CONFIG_EXYNOS_DRM_DQE_TEST)		+= exynos_drm_dqe_test.o
+obj-$(CONFIG_EXYNOS_DRM_DRV_TEST)		+= exynos_drm_drv_test.o
+obj-$(CONFIG_EXYNOS_DRM_FB_TEST)		+= exynos_drm_fb_test.o
+obj-$(CONFIG_EXYNOS_DRM_FBDEV_TEST)		+= exynos_drm_fbdev_test.o
+obj-$(CONFIG_EXYNOS_DRM_FORMAT_TEST)		+= exynos_drm_format_test.o
+obj-$(CONFIG_EXYNOS_DRM_GEM_TEST)		+= exynos_drm_gem_test.o
+obj-$(CONFIG_EXYNOS_DRM_HIBERNATION_TEST)		+= exynos_drm_hibernation_test.o
+obj-$(CONFIG_EXYNOS_DRM_MIGOV_TEST)		+= exynos_drm_migov_test.o
+obj-$(CONFIG_EXYNOS_DRM_PLANE_TEST)		+= exynos_drm_plane_test.o
+obj-$(CONFIG_EXYNOS_DRM_WRITEBACK_TEST)		+= exynos_drm_writeback_test.o

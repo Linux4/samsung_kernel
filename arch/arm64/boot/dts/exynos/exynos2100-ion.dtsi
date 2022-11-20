@@ -1,0 +1,155 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * EXYNOS ION device tree source for reserved-memory
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ */
+
+/ {
+	ion_crypto_heap {
+		compatible = "exynos,ion,cma_heap";
+		memory-region = <&crypto_heap>;
+		ion,alignment = <0x10000>;
+	};
+
+	ion_video_fw_heap {
+		compatible = "exynos,ion,carveout_heap";
+		memory-region = <&vfw_heap>;
+		ion,secure;
+		ion,protection_id = <2>;
+		ion,alignment = <0x10000>;
+	};
+
+	ion_video_stream_heap {
+		compatible = "exynos,ion,cma_heap";
+		memory-region = <&vstream_heap>;
+		ion,secure;
+		ion,protection_id = <3>;
+		ion,alignment = <0x10000>;
+	};
+
+	ion_video_frame_heap {
+		compatible = "exynos,ion,carveout_heap";
+		memory-region = <&vframe_heap>;
+		ion,secure;
+		ion,protection_id = <5>;
+		ion,alignment = <0x10000>;
+	};
+
+	ion_video_scaler_heap {
+		compatible = "exynos,ion,carveout_heap";
+		memory-region = <&vscaler_heap>;
+		ion,secure;
+		ion,protection_id = <6>;
+		ion,alignment = <0x10000>;
+	};
+
+	ion_gpu_buffer {
+		compatible = "exynos,ion,carveout_heap";
+		memory-region = <&gpu_buffer>;
+		ion,secure;
+		ion,protection_id = <9>;
+		ion,alignment = <0x10000>;
+	};
+
+	ion_video_nfw_heap {
+		compatible = "exynos,ion,cma_heap";
+		memory-region = <&vnfw_heap>;
+		ion,protection_id = <7>;
+		ion,alignment = <0x10000>;
+	};
+
+	ion_tui_heap {
+		compatible = "exynos,ion,cma_heap";
+		memory-region = <&tui_heap>;
+		ion,secure;
+		ion,protection_id = <20>;
+		ion,alignment = <0x10000>;
+	};
+
+	ion_secure_camera {
+		compatible = "exynos,ion,carveout_heap";
+		memory-region = <&secure_camera_heap>;
+		ion,untouchable;
+		ion,secure;
+		ion,protection_id = <11>;
+		ion,alignment = <0x10000>;
+	};
+
+	ion_secure_dsp_heap {
+		compatible = "exynos,ion,cma_heap";
+		memory-region = <&secure_dsp_heap>;
+		ion,alignment = <0x100000>;
+	};
+
+};
+
+&reserved_memory {
+	#address-cells = <2>;
+	#size-cells = <1>;
+
+	vfw_heap: vfw_heap {
+		size = <0x400000>;
+		alignment = <0x0 0x00010000>;
+	};
+
+	crypto_heap: crypto_heap {
+		compatible = "shared-dma-pool";
+		size = <0x1800000>;
+		alloc-ranges =	<0xA 0x00000000 0x10000000>,
+				<0x0 0x40000000 0xB0000000>;
+		alignment = <0x0 0x00400000>;
+		reusable;
+	};
+
+	vstream_heap: vstream_heap {
+		compatible = "shared-dma-pool";
+		size = <0x4800000>;
+		alloc-ranges = <0x0 0x40000000 0xB0000000>;
+		alignment = <0x0 0x00400000>;
+		reusable;
+	};
+
+	vframe_heap: vframe_heap {
+		size = <0x20000000>;
+		alignment = <0x0 0x00010000>;
+	};
+
+	vscaler_heap: vscaler_heap {
+		size = <0x3400000>;
+		alignment = <0x0 0x00010000>;
+	};
+
+	gpu_buffer: gpu_buffer {
+		size = <0x4000000>;
+		alignment = <0x0 0x00010000>;
+	};
+
+	vnfw_heap: vnfw_heap {
+		compatible = "shared-dma-pool";
+		size = <0x400000>;
+		alignment = <0x0 0x00400000>;
+		reusable;
+	};
+
+	tui_heap: tui_heap {
+		compatible = "shared-dma-pool";
+		size = <0x4800000>;
+		alignment = <0x0 0x00400000>;
+		alloc-ranges = <0x0 0x40000000 0xB0000000>;
+		reusable;
+	};
+
+	secure_camera_heap: secure_camera_heap {
+		reg = <0x0 0x96000000 0x47E0000>;
+		alignment = <0x0 0x00010000>;
+	};
+
+	secure_dsp_heap: secure_dsp_heap {
+		compatible = "shared-dma-pool";
+		size = <0x1800000>;
+		alloc-ranges = <0x0 0x40000000 0xB0000000>;
+		alignment = <0x0 0x00400000>;
+		reusable;
+	};
+};

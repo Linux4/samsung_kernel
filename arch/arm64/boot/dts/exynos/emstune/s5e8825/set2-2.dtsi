@@ -1,0 +1,73 @@
+/ {
+	/* performance mode - app boost */
+	set2_2: set@0202 {
+		/* schedudling policy */
+		sched_policy {
+			root			= <SCHED_POLICY_ENERGY>;
+			foreground 		= <SCHED_POLICY_SEMI_PERF>;
+			background		= <SCHED_POLICY_ENERGY>;
+			top-app			= <SCHED_POLICY_SEMI_PERF>;
+			rt			= <SCHED_POLICY_ENERGY>;
+			system			= <SCHED_POLICY_ENERGY>;
+			system-background	= <SCHED_POLICY_ENERGY>;
+			nnapi-hal		= <SCHED_POLICY_ENERGY>;
+			camera-daemon		= <SCHED_POLICY_ENERGY>;
+		};
+
+		/* weight (%) applied to active cpu's efficiency */
+		active_weight {	   		/* LIT BIG */
+			root            	= <100 100>;
+			foreground      	= <100 100>;
+			background      	= <100 100>;
+			top-app         	= <100 100>;
+			rt			= <100 100>;
+			system			= <100 100>;
+			system-background	= <100 100>;
+			nnapi-hal		= <100 100>;
+			camera-daemon		= <100 100>;
+		};
+
+		/* weight (%) applied to idle cpu's efficiency */
+		idle_weight {	   		/* LIT BIG */
+			root            	= <100 100>;
+			foreground      	= <100 100>;
+			background      	= <100 100>;
+			top-app         	= <100 100>;
+			rt			= <100 100>;
+			system			= <100 100>;
+			system-background	= <100 100>;
+			nnapi-hal		= <100 100>;
+			camera-daemon		= <100 100>;
+		};
+
+		frt {	   			/* LIT BIG */
+			active-ratio 		= < 25   5>;
+		};
+
+		ecs { };
+
+		tex {
+			top-app		= <1>;
+			prio		= <110>;
+
+			pinning-mask	= "6-7";
+			qjump		= <1>;
+		};
+
+		ntu {
+			root		= <0>;
+			foreground	= <0>;
+			background	= <0>;
+			top-app		= <0>;
+			rt		= <0>;
+			system		= <0>;
+			system-background = <0>;
+			nnapi-hal	= <0>;
+			camera-daemon	= <0>;
+		};
+
+		sync {
+			apply = <1>;
+		};
+	};
+};

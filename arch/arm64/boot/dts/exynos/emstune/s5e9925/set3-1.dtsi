@@ -1,0 +1,5 @@
+/ {
+	/* game mode - touch boost */
+	set3_1: set@0301{
+	};
+};

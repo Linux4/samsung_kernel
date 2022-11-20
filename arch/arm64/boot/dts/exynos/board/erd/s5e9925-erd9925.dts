@@ -1,0 +1,63 @@
+/*
+ * SAMSUNG S5E9925 board device tree source
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "s5e9925-erd9925_common.dtsi"
+
+#define BOARD_ID	0x0
+#define BOARD_REV	0x0
+
+/ {
+	compatible = "samsung,s5e9925", "samsung,ERD9925";
+	board_id = <BOARD_ID>;
+	board_rev = <BOARD_REV>;
+
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			model = "Samsung ERD9925 board based on S5E9925";
+
+			wlan_host_wake: wlan_host_wake {
+				samsung,pins = "gpa0-2";
+				samsung,pin-function = <0xf>;  /* EXT INT */
+				samsung,pin-pud = <1>;
+			};
+
+			cfg_wlanen: cfg_wlanen {
+				samsung,pins = "gpa3-3";
+				samsung,pin-function = <1>;
+				samsung,pin-pud = <0>;
+				samsung,pin-drv = <3>;
+				samsung,pin-con-pdn = <3>;
+				samsung,pin-pud-pdn = <0>;
+			};
+
+			wlan {
+				compatible = "exynos,brcm-wlan";
+				gpios = <&gpa3 3 0x1 /* WLAN_EN */
+					&gpa0 2 0x1 /* WLAN HOST WAKE GPIO_0 */>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&cfg_wlanen>;
+				status = "okay";
+			};
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */
+
+&serial_0 {
+	status = "okay";
+};
+

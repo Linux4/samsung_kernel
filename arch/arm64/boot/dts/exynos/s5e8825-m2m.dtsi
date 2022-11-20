@@ -1,0 +1,66 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * EXYNOS M2M device tree source for M2M IP(MSCL, SMFC)
+ *
+ * Copyright (c) 2012 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ */
+#include <dt-bindings/clock/s5e8825.h>
+#include <dt-bindings/interrupt-controller/s5e8825.h>
+
+/ {
+	aliases {
+		smfc0 = &smfc_0;
+		scaler0 = &scaler_0;
+	};
+
+	smfc_0: smfc@12C60000 {
+		compatible = "samsung,exynos8890-jpeg";
+	/*	dma-coherent;*/
+		reg = <0x0 0x12C60000 0x1000>;
+		interrupts = <0 INTREQ__JPEG0 IRQ_TYPE_LEVEL_HIGH>;
+		iommus = <&sysmmu_d0_m2m>;
+		samsung,iommu-group=<&iommu_group_mscl_smfc>;
+		smfc,int_qos_minlock = <800000>;
+	};
+
+	scaler_0: scaler@12C80000 {
+		compatible = "samsung,exynos5-scaler";
+		reg = <0x0 0x12C80000 0x3000>;
+		interrupts = <0 INTREQ__MSCL IRQ_TYPE_LEVEL_HIGH>;
+		itmon,master = "MSCL";
+		itmon,dest = "M2M";
+      /*	dma-coherent;*/
+		iommus = <&sysmmu_d0_m2m>;
+		samsung,iommu-group=<&iommu_group_mscl_smfc>;
+		samsung,tzmp;
+
+		#dma-address-cells = <1>;
+		#dma-size-cells = <1>;
+		dma-window = <0x0 0xE0000000>;
+
+		/* MIF (not used) | INT | MSCL_clock */
+                mscl_qos_table = < 0 666000 800000
+				   0 533000 663000
+				   0 400000 533000
+				   0 266000 400000
+				   0 200000 266666
+				   0 100000 200000
+				   0  50000  80000 >;
+		/* bpp means, YUV420(12), YUV422(16), P010(24), RGB(32), SBWC(100) */
+		/* bpp | ppc * 100 | ppc * 100 with rotation */
+		mscl_ppc_table = <  12  463 431
+				    16  357 329
+				    24  261 250
+				    32  187 181
+				   100  481 431	>;
+		mscl_mif_ref = < 546000 >;
+		mscl_bw_ref = < 3037500 >;
+
+		#mscl-votf-address-cells = <1>;
+		#mscl-votf-size-cells = <1>;
+		mscl_votf_reg = < 0x12C90000 0x10000 >;
+		/* <phandle to the vOTF target> <SFR_BASE_ADDR> <SFR_RANGE> <vOTF_SFR_BASE_ADDR> <vOTF_SFR_RANGE> */
+		samsung,mscl-votf_targets = < &drmdecon0 0x14890000 0x10000 0x14880000 0x10000 >;
+	};
+};

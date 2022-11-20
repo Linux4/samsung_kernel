@@ -1,0 +1,56 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Samsung CP interface device tree source
+ *
+ * Copyright (c) 2019-2020 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/soc/samsung/exynos-dit.h>
+
+/ {
+	fragment@dit {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			dit {
+				compatible = "samsung,exynos-dit";
+				status = "okay";
+
+				interrupt-parent = <&gic>;
+				interrupts = <GIC_SPI INTREQ__DIT_RxDst0 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI INTREQ__DIT_RxDst1 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI INTREQ__DIT_RxDst2 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI INTREQ__DIT_Tx IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI INTREQ__DIT_Err IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-names = "DIT-RxDst0", "DIT-RxDst1", "DIT-RxDst2", "DIT-Tx", "DIT-Err";
+
+				reg = <0x0 0x1A570000 0x00010000>, <0x0 0x1A420000 0x00002000>;
+				reg-names = "dit", "sysreg";
+
+				/* DIT_SHARABILITY_CON or DIT_BUS_CON */
+				dit_sharability_offset = <0x00001028>;
+				dit_sharability_value = <0x00000006>;
+
+				/* xx(major).yy(mid).zz(minor).rr(reserved) */
+				dit_hw_version = <0x02010000>;
+				dit_hw_capabilities = <(
+					DIT_CAP_MASK_NONE)>;
+
+				dit_use_tx = <0>;
+				dit_use_rx = <1>;
+				dit_use_clat = <0>;
+				dit_hal_linked = <1>;
+				dit_rx_extra_desc_ring_len = <2048>;
+
+				dit_irq_affinity = <2>;
+			}; /* end of dit */
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */

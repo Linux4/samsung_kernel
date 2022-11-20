@@ -1,0 +1,98 @@
+/ {
+	/* balance mode - default */
+	set4: set@0400 {
+		/* schedudling policy */
+		sched_policy {
+			root			= <SCHED_POLICY_ENERGY>;
+			foreground 		= <SCHED_POLICY_ENERGY>;
+			background		= <SCHED_POLICY_ENERGY>;
+			top-app			= <SCHED_POLICY_ENERGY>;
+			rt			= <SCHED_POLICY_ENERGY>;
+			system			= <SCHED_POLICY_ENERGY>;
+			system-background	= <SCHED_POLICY_ENERGY>;
+			nnapi-hal		= <SCHED_POLICY_ENERGY>;
+			camera-daemon		= <SCHED_POLICY_ENERGY>;
+		};
+
+		/* weight (%) applied to active cpu's efficiency */
+		active_weight {			/* LIT BIG */
+			root			= <100 100>;
+			foreground		= <100 100>;
+			background		= <100 100>;
+			top-app			= <100 100>;
+			rt			= <100 100>;
+			system			= <100 100>;
+			system-background	= <100 100>;
+			nnapi-hal		= <100 100>;
+			camera-daemon		= <100 100>;
+		};
+
+		/* weight (%) applied to idle cpu's efficiency */
+		idle_weight {			/* LIT BIG */
+			root			= <100 100>;
+			foreground		= <100 100>;
+			background		= <100 100>;
+			top-app			= <100 100>;
+			rt			= <100 100>;
+			system			= <100 100>;
+			system-background	= <100 100>;
+			nnapi-hal		= <100 100>;
+			camera-daemon		= <100 100>;
+		};
+
+		/* Boosting margin applied to frequency selection */
+		freqboost {			/* LIT BIG */
+			top-app			= <  5   5>;
+		};
+
+		/* Boosting margin for waking up task */
+		wakeboost {			/* LIT BIG */
+			top-app			= <  0   0>;
+		};
+
+		frt {	   	     		/* LIT BIG */
+			active-ratio		= < 25 100>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			top-app		= <1>;
+			foreground	= <1>;
+
+			domain0 {
+				cpus = "0-5";
+				lower-boundary = <0>;
+				upper-boundary = <58>;
+			};
+			domain1 {
+				cpus = "6-7";
+				lower-boundary = <9>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs { };
+
+		stt {
+			boost-step		= <0>;
+			htask-cnt		= <2>;
+			top-app			= <1>;
+			foreground		= <1>;
+		};
+
+		fclamp {
+			max-freq          = < 1508000 2002000>;
+			max-target-period = <       4       4>;
+			max-target-ratio  = <      80      80>;
+
+			monitor-group {
+				top-app         = <1>;
+				foreground      = <1>;
+			};
+		};
+
+		sync {
+			apply = <0>;
+		};
+	};
+};

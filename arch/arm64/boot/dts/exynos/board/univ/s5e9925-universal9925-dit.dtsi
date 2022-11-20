@@ -1,0 +1,52 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com/
+ *
+ * EXYNOS DIT(Direct IP Translator) device tree
+ *
+ */
+
+#include <dt-bindings/soc/samsung/exynos-dit.h>
+
+/ {
+	fragment@dit {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			dit {
+				compatible = "samsung,exynos-dit";
+				status = "okay";
+
+				interrupt-parent = <&gic>;
+				interrupts = <GIC_SPI INTREQ__DIT_RxDst00 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI INTREQ__DIT_RxDst1 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI INTREQ__DIT_RxDst2 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI INTREQ__DIT_TxDst0 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-names = "DIT-RxDst00", "DIT-RxDst1", "DIT-RxDst2", "DIT-Tx";
+
+				reg = <0x0 0x1A4F0000 0x00010000>, <0x0 0x1A420000 0x00002000>;
+				reg-names = "dit", "sysreg";
+
+				/* DIT_SHARABILITY_CTRL */
+				dit_sharability_offset = <0x00001028>;
+				dit_sharability_value = <0x00000006>;
+
+				dit_hw_capabilities = <(
+					DIT_CAP_MASK_NONE)>;
+
+				dit_use_tx = <0>;
+				dit_use_rx = <0>;
+				dit_use_clat = <0>;
+
+				dit_hal_support = <0>;
+				dit_hal_enqueue_rx = <0>;
+
+				dit_rx_extra_desc_ring_len = <2048>;
+				dit_irq_affinity = <2>;
+			}; /* end of dit */
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */

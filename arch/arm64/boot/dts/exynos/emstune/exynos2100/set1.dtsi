@@ -1,0 +1,74 @@
+/ {
+	/* power-scenario mode - default */
+	set1: set@0100 {
+		/* schedudling policy */
+		sched_policy {
+			root			= <SCHED_POLICY_ENERGY>;
+			foreground 		= <SCHED_POLICY_ENERGY>;
+			background		= <SCHED_POLICY_ENERGY>;
+			top-app			= <SCHED_POLICY_ENERGY>;
+			rt			= <SCHED_POLICY_ENERGY>;
+			system			= <SCHED_POLICY_ENERGY>;
+			system-background	= <SCHED_POLICY_ENERGY>;
+			nnapi-hal		= <SCHED_POLICY_ENERGY>;
+			camera-daemon		= <SCHED_POLICY_ENERGY>;
+		};
+
+		/* weight (%) applied to active cpu's efficiency */
+		active_weight {	   		/*  LIT MED BIG */
+			root            	= <1280 200  25>;
+			foreground      	= <1280 200  25>;
+			background      	= <1280 200  25>;
+			top-app         	= <1280 200  25>;
+			rt			= <1280 200  25>;
+			system			= <1280 200  25>;
+			system-background	= <1280 200  25>;
+			nnapi-hal		= <1280 200  25>;
+			camera-daemon		= <1280 200  25>;
+		};
+
+		/* weight (%) applied to idle cpu's efficiency */
+		idle_weight {	   		/*  LIT MED BIG */
+			root            	= <2560 400  50>;
+			foreground      	= <2560 400  50>;
+			background      	= <2560 400  50>;
+			top-app         	= <2560 400  50>;
+			rt			= <2560 400  50>;
+			system			= <2560 400  50>;
+			system-background	= <2560 400  50>;
+			nnapi-hal		= <2560 400  50>;
+			camera-daemon		= <2560 400  50>;
+		};
+
+		/* gov-data used by ESG */
+		esg {				/* LIT MED BIG */
+			step			= < 10   8  10>;
+			patient-mode		= <  1   1   1>;
+			pelt-margin		= < 25  25  25>;
+
+			up-rate-limit-ms	= <4>;
+			down-rate-limit-ms	= <4>;
+		};
+
+		frt {	   			/* LIT MED BIG */
+			active-ratio		= < 90 100 100>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			foreground 	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <105>;
+			};
+			domain1 {
+				cpus = "4-7";
+				lower-boundary = <106>;
+				upper-boundary = <1024>;
+			};
+		};
+	};
+};

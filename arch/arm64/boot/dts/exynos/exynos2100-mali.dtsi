@@ -1,0 +1,99 @@
+/*
+ * SAMSUNG EXYNOS9810 MALI device tree sourceA
+ *
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/{
+	/* mali */
+	mali: mali@18500000 {
+		compatible = "arm,mali";
+		reg = <0x0 0x18500000 0x5000>;
+		sysreg_g3d = <0x18420000>;
+		interrupts = <GIC_SPI INTREQ__G3D_IRQJOB IRQ_TYPE_LEVEL_HIGH>,
+				   <GIC_SPI INTREQ__G3D_IRQMMU IRQ_TYPE_LEVEL_HIGH>,
+				   <GIC_SPI INTREQ__G3D_IRQGPU IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "JOB", "MMU", "GPU";
+		g3d_cmu_cal_id = <ACPM_DVFS_G3D>;
+		system-coherency = <0>;
+		power-domains = <&pd_embedded_g3d>;
+		g3d_genpd_name = "pd-embedded_g3d";
+		#cooling-cells = <2>; /* min followed by max */
+		ect-coeff-index = <3>;
+		governor = "interactive";
+		interactive_info = <403000 94 0>;
+		gpu_dvfs_table_size = <10 9>; /*<row col>*/
+		gpu_dvfs_table = <
+		/*	freq    down  up  stay   mif    little    middle   big  llc */
+			949000    78  100   5  3172000  858000       0       0   16
+			858000    78  100   5  3172000  858000       0       0   16
+			767000    78   98   5  2730000  858000       0       0   16
+			676000    78   95   3  2535000  858000       0       0   16
+			585000    78   95   1  2288000  858000       0       0   16
+			494000    78   95   1  2028000  858000       0       0   16
+			403000    78   95   1  2028000  858000       0       0    0
+			312000    78   90   1  1539000       0       0       0    0
+			221000    78   85   1  1014000       0       0       0    0
+			130000     0   85   1   676000       0       0       0    0>;
+		/* gpu-cl-pmqos-table-size */
+		gpu_cl_pmqos_table_size = <9 5>; /*<row col>*/
+		/*  g3d-freq  mif-min  mif-max  lit-min lit-max  mid-min  mid-max  big-min  big-max  */
+		gpu_cl_pmqos_table = <
+			858000    2028000  858000       0       0
+			767000    1716000  858000       0       0
+			676000    1539000  858000       0       0
+			585000    1352000  858000       0       0
+			494000    1352000  858000       0       0
+			403000    1014000  858000       0       0
+			312000    1014000       0       0       0
+			221000     676000       0       0       0
+			130000     546000       0       0       0 >;
+		gpu_pmqos_cpu_cluster_num = <3>;
+		gpu_pmu_status_reg_offset = <0x2304>;
+		gpu_pmu_status_local_pwr_mask = <0x1>; /*0x1 << 0*/
+		gpu_max_clock = <949000>;
+		gpu_max_clock_limit = <949000>;
+		gpu_min_clock = <130000>;
+		gpu_dvfs_start_clock = <221000>;
+		gpu_dvfs_bl_config_clock = <221000>;
+		gpu_default_voltage = <850000>;
+		gpu_cold_minimum_vol = <0>;
+		gpu_voltage_offset_margin = <37500>;
+		gpu_tmu_control = <1>;
+		gpu_temp_throttling_level_num = <6>;
+		gpu_temp_throttling = <949000 858000 767000 676000 585000 494000>;
+		gpu_power_coeff = <625>;
+		gpu_dvfs_time_interval = <5>; /*1 tick : 10ms*/
+		gpu_default_wakeup_lock = <1>;
+		gpu_dynamic_abb = <0>;
+		gpu_early_clk_gating = <0>;
+		gpu_dvs = <0>;
+		gpu_inter_frame_pm = <1>;
+		gpu_inter_frame_dynamic_util = <50>;
+		gpu_inter_frame_dynamic_freq = <767000>;
+		gpu_perf_gathering = <0>;
+		gpu_runtime_pm_delay_time = <50>;
+		gpu_dvfs_polling_time = <30>;
+		gpu_weight_table_idx_0 = <5>;
+		gpu_weight_table_idx_1 = <5>;
+		gpu_pmqos_int_disable = <1>;
+		gpu_pmqos_mif_max_clock = <3172000>;
+		gpu_pmqos_mif_max_clock_base = <650000>;
+		gpu_cl_dvfs_start_base = <221000>;
+		gpu_debug_level = <3>; /*DEBUG(1) INFO(2) WARNING(3) ERROR(4)*/
+		gpu_trace_level = <8>; /*TRACE_ALL*/
+		gpu_mo_min_clock = <403000>;
+		gpu_boost_gpu_min_lock = <0>;
+		gpu_boost_egl_min_lock = <0>;
+		gpu_vk_boost_max_lock = <312000>;
+		gpu_vk_boost_mif_min_lock = <1014000>;
+		gpu_neg_boost_clock = <312000>;
+		gpu_sustainable_clock = <494000>;
+		gpu_bts_support = <1>;
+	};
+};

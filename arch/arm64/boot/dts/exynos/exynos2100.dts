@@ -1,0 +1,699 @@
+/*
+ * SAMSUNG EXYNOS2100 SoC device tree source
+ *
+ * Copyright (c) 2014 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS2100 SoC device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+/dts-v1/;
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/exynos2100.h>
+#include <dt-bindings/soc/samsung/exynos-bcm_dbg.h>
+#include <dt-bindings/clock/exynos2100.h>
+#include <dt-bindings/soc/samsung/exynos2100-dm.h>
+#include <dt-bindings/soc/samsung/exynos2100-devfreq.h>
+#include <dt-bindings/soc/samsung/exynos_pm_qos.h>
+#include "exynos2100-rmem.dtsi"
+#include "exynos2100-pinctrl.dtsi"
+#include "exynos2100-usi.dtsi"
+#include "exynos2100-cpu.dtsi"
+#include "exynos2100-sysmmu.dtsi"
+#include "exynos2100-ufs.dtsi"
+#include "exynos2100-dpu.dtsi"
+#include "exynos2100-drm-dpu.dtsi"
+#include "exynos2100-debug.dtsi"
+#include "exynos2100-mali.dtsi"
+#include "exynos2100-dma-heap.dtsi"
+#include "exynos2100-usb.dtsi"
+#include "exynos2100-pcie.dtsi"
+#include "exynos2100-power.dtsi"
+#include "exynos2100-pm-domains.dtsi"
+#include "exynos2100-bts.dtsi"
+#include "exynos2100-security.dtsi"
+#include "exynos2100-mfc.dtsi"
+#include "exynos2100-m2m.dtsi"
+#include "exynos2100-wfd.dtsi"
+#include "exynos2100-audio.dtsi"
+
+/ {
+	compatible = "samsung,armv8", "samsung,exynos2100";
+	interrupt-parent = <&gic>;
+	#address-cells = <2>;
+	#size-cells = <1>;
+
+	aliases {
+		pinctrl0 = &pinctrl_0;
+		pinctrl1 = &pinctrl_1;
+		pinctrl2 = &pinctrl_2;
+		pinctrl3 = &pinctrl_3;
+		pinctrl4 = &pinctrl_4;
+		pinctrl5 = &pinctrl_5;
+		pinctrl6 = &pinctrl_6;
+		pinctrl7 = &pinctrl_7;
+
+//		mshc2 = &dwmmc_2;
+//		smfc0 = &smfc_0;
+//		smfc1 = &smfc_1;
+//		scaler0 = &scaler_0;
+	};
+
+	fixed-rate-clocks {
+		oscclk {
+			compatible = "samsung,exynos2100-oscclk";
+			clock-frequency = <26000000>;
+		};
+	};
+
+	ext_26m: ext_26m {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <26000000>;
+		clock-output-names = "ext-26m";
+	};
+
+	chosen: chosen {
+		bootargs = "console=ram no_console_suspend androidboot.boot_devices=13100000.ufs clocksource=arch_sys_counter androidboot.debug_level=0x4948 firmware_class.path=/vendor/firmware nr_cpus=8 androidboot.dtbo_idx=0 androidboot.hardware=exynos2100 log_buf_len=256K irqaffinity=0 loop.max_part=7 rcupdate.rcu_expedited=1 s3c2410_wdt.tmr_atboot=1 s3c2410_wdt.tmr_margin=80 printk.devkmsg=on swiotlb=noforce";
+		linux,initrd-start = <0x84000000>;
+		linux,initrd-end = <0x841FFFFF>;
+	};
+
+	gic:interrupt-controller@10200000 {
+		compatible = "arm,gic-v3";
+		#interrupt-cells = <3>;
+		interrupt-controller;
+		reg = <0x0 0x10200000 0x10000>,		/* GICD */
+		      <0x0 0x10240000 0x200000>;	/* GICR * 8 */
+		interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
+		class0-cpus = "0-3";
+		class1-cpus = "4-7";
+	};
+
+	clock: clock-controller@0x1A330000 {
+		compatible = "samsung,exynos2100-clock";
+		reg = <0x0 0x1A330000 0x8000>,
+			 <0x0 0x18c00000 0x1000>,
+			 <0x0 0x1a030000 0x1000>,
+			 <0x0 0x1d040000 0x1000>,
+			 <0x0 0x1d050000 0x1000>,
+			 <0x0 0x1d060000 0x1000>,
+			 <0x0 0x1d030000 0x1000>,
+			 <0x0 0x10020000 0x1000>;
+		#clock-cells = <1>;
+		acpm-ipc-channel = <0>;
+	};
+
+	arm-pmu {
+		compatible = "arm,armv8-pmuv3";
+		interrupts = <GIC_PPI 7	(GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)>;
+	};
+
+	chipid@10000000 {
+		compatible = "samsung,exynos2100-chipid";
+		reg = <0x0 0x10000000 0x100>;
+	};
+
+	timer {
+	        compatible = "arm,armv8-timer";
+		interrupts = <GIC_PPI 13
+				(GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 14
+				(GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 11
+				(GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 10
+				(GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)>;
+	        clock-frequency = <26000000>;
+		use-physical-timer;
+	};
+
+	exynos-reboot {
+		compatible = "samsung,exynos-reboot";
+		samsung,syscon-phandle = <&pmu_system_controller>;
+		shutdown-offset = <0x030C>;
+		shutdown-trigger = <0x100>;
+		reboot-offset = <0x3C00>;
+		reboot-trigger = <0x2>;
+		reboot-cmd-offset = <0x0810>;
+		status = "okay";
+	};
+
+	mct@10040000 {
+		compatible = "samsung,exynos4210-mct";
+		reg = <0x0 0x10040000 0x800>;
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		interrupt-parent = <&mct_map>;
+		interrupts =	<0>, <1>, <2>, <3>,
+				<4>, <5>, <6>, <7>,
+				<8>, <9>, <10>, <11>;
+		clocks = <&ext_26m>, <&ext_26m>;
+		clock-names = "fin_pll", "mct";
+
+		mct_map: mct-map {
+			#interrupt-cells = <1>;
+			#address-cells = <0>;
+			#size-cells = <0>;
+			interrupt-map = <0 &gic 0 INTREQ__MCT_G0 IRQ_TYPE_LEVEL_HIGH>,
+					<1 &gic 0 INTREQ__MCT_G1 IRQ_TYPE_LEVEL_HIGH>,
+					<2 &gic 0 INTREQ__MCT_G2 IRQ_TYPE_LEVEL_HIGH>,
+					<3 &gic 0 INTREQ__MCT_G3 IRQ_TYPE_LEVEL_HIGH>,
+					<4 &gic 0 INTREQ__MCT_L0 IRQ_TYPE_LEVEL_HIGH>,
+					<5 &gic 0 INTREQ__MCT_L1 IRQ_TYPE_LEVEL_HIGH>,
+					<6 &gic 0 INTREQ__MCT_L2 IRQ_TYPE_LEVEL_HIGH>,
+					<7 &gic 0 INTREQ__MCT_L3 IRQ_TYPE_LEVEL_HIGH>,
+					<8 &gic 0 INTREQ__MCT_L4 IRQ_TYPE_LEVEL_HIGH>,
+					<9 &gic 0 INTREQ__MCT_L5 IRQ_TYPE_LEVEL_HIGH>,
+					<10 &gic 0 INTREQ__MCT_L6 IRQ_TYPE_LEVEL_HIGH>,
+					<11 &gic 0 INTREQ__MCT_L7 IRQ_TYPE_LEVEL_HIGH>;
+		};
+	};
+
+	/* ALIVE */
+	pinctrl_0: pinctrl@15850000 {
+		compatible = "samsung,exynos2100-pinctrl";
+		reg = <0x0 0x15850000 0x1000>;
+		interrupts = <GIC_SPI INTREQ__GPIO_ALIVE IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	/* CMGP */
+	pinctrl_1: pinctrl@14E30000{
+		compatible = "samsung,exynos2100-pinctrl";
+		reg = <0x0 0x14E30000 0x1000>;
+		interrupts = <GIC_SPI INTREQ__EXT_INTM00 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM01 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM02 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM03 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM04 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM05 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM06 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM07 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM08 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM09 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM10 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM11 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM12 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM13 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM14 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM15 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM16 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM17 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM18 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM19 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM20 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM21 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM22 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM23 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM24 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM25 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM26 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM27 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM28 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM29 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM30 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM31 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM32 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__EXT_INTM33 IRQ_TYPE_LEVEL_HIGH>;
+
+//		samsung,syscon-phandle = <&sysreg_cmgp2pmu_ap>;
+		wakeup-interrupt-controller {
+			compatible = "samsung,exynos-cmgp-wakeup-eint";
+		};
+	};
+
+	/* CMGPEINT */
+	pinctrl_2: pinctrl@14EC0000{
+		compatible = "samsung,exynos2100-pinctrl";
+		reg = <0x0 0x14EC0000 0x1000>;
+		interrupts = <GIC_SPI EXT_INTA0_OUT0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA0_OUT1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA0_OUT2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA0_OUT3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA0_OUT4 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA0_OUT5 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA0_OUT6 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA0_OUT7 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA1_OUT0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA1_OUT1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA1_OUT2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA1_OUT3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA1_OUT4 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA1_OUT5 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA1_OUT6 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA1_OUT7 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA2_OUT0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA2_OUT1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA2_OUT2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA2_OUT3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA2_OUT4 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA2_OUT5 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA2_OUT6 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA2_OUT7 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA3_OUT0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA3_OUT1 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA3_OUT2 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA3_OUT3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA3_OUT4 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA3_OUT5 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA3_OUT6 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA3_OUT7 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA4_OUT0 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI EXT_INTA4_OUT1 IRQ_TYPE_LEVEL_HIGH>;
+		wakeup-interrupt-controller {
+			compatible = "samsung,exynos7-wakeup-eint";
+		};
+	};
+
+	/* HSI1 */
+	pinctrl_3: pinctrl@11040000 {
+		compatible = "samsung,exynos2100-pinctrl";
+		reg = <0x0 0x11040000 0x1000>;
+		interrupts = <GIC_SPI INTREQ__GPIO_HSI1 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	/* PERIC0 */
+	pinctrl_4: pinctrl@10430000 {
+		compatible = "samsung,exynos2100-pinctrl";
+		reg = <0x0 0x10430000 0x1000>;
+		interrupts = <GIC_SPI INTREQ__GPIO_PERIC0 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	/* PERIC1 */
+	pinctrl_5: pinctrl@10730000 {
+		compatible = "samsung,exynos2100-pinctrl";
+		reg = <0x0 0x10730000 0x1000>;
+		interrupts = <GIC_SPI INTREQ__GPIO_PERIC1 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	/* PERIC2 */
+	pinctrl_6: pinctrl@11D30000 {
+		compatible = "samsung,exynos2100-pinctrl";
+		reg = <0x0 0x11D30000 0x1000>;
+		interrupts = <GIC_SPI INTREQ__GPIO_PERIC2 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	/* VTS */
+	pinctrl_7: pinctrl@15580000 {
+		compatible = "samsung,exynos2100-pinctrl";
+		reg = <0x0 0x15580000 0x1000>;
+		/* NO Pinctrl VTS GPIO interrupts */
+	};
+
+	sec_rtc: rtc@15920000 {
+		compatible = "samsung,exynos8-rtc";
+		reg = <0x0 0x15920000 0x100>;
+		interrupts = <GIC_SPI INTREQ__RTC_ALARM_INT IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI INTREQ__RTC_TIC_INT_0 IRQ_TYPE_LEVEL_HIGH>;
+	        status = "disabled";
+	};
+
+	watchdog_cl0@10050000 {
+		compatible = "samsung,exynos2100-v1-wdt";
+		reg = <0x0 0x10050000 0x100>;
+		interrupts = <GIC_SPI INTREQ__WDT0 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clock OSCCLK>, <&clock GATE_WDT0_QCH>;
+		clock-names = "rate_watchdog", "gate_watchdog";
+		timeout-sec = <30>;
+		samsung,syscon-phandle = <&pmu_system_controller>;
+		index = <0>; /* if little cluster then index is 0*/
+		status = "okay";
+	};
+
+	watchdog_cl1@10060000 {
+		compatible = "samsung,exynos2100-v2-wdt";
+		reg = <0x0 0x10060000 0x100>;
+		interrupts = <GIC_SPI INTREQ__WDT1 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clock OSCCLK>, <&clock GATE_WDT1_QCH>;
+		clock-names = "rate_watchdog", "gate_watchdog";
+		timeout-sec = <30>;
+		samsung,syscon-phandle = <&pmu_system_controller>;
+		index = <1>; /* if little cluster then index is 0*/
+		use_multistage_wdt; /* Use FIQ debug watchdog */
+		status = "okay";
+	};
+
+	exynos-pmu {
+		compatible = "samsung,exynos-pmu";
+		samsung,syscon-phandle = <&pmu_system_controller>;
+		reg = <0x0 0x15860000 0x10000>;
+		reg-names = "pmu_alive";
+	};
+
+	pmu_system_controller: system-controller@15860000 {
+		compatible = "samsung,exynos991-pmu", "syscon";
+		reg = <0x0 0x15860000 0x10000>;
+	};
+
+	exynos-pm {
+		compatible = "samsung,exynos-pm";
+		reg = <0x0 0x14EC0000 0x1000>,
+			<0x0 0x10200200 0x100>,
+			<0x0 0x159A0000 0x1000>;
+		reg-names = "gpio_alive_base",
+			"gicd_ispendrn_base",
+			 "sysreg_vgpio2pmu";
+
+		num-eint = <34>;
+		num-gic = <29>;
+		suspend_mode_idx = <8>;         /* SYS_SLEEP */
+		suspend_psci_idx = <1024>;      /* PSCI_SYSTEM_SLEEP */
+
+		/* WAKEUP_STAT,      WAKEUP2_STAT*/
+		wakeup_stat_offset = <0x3b50>,         <0x3b54>;
+		wakeup_int_en_offset = <0x3b44>,         <0x3b64>;
+		wakeup_int_en = <0x52f6f>,         <0x9b>;
+		usbl2_wakeup_int_en = <0x0>, <0x18>;
+		eint_wakeup_mask_offset = <0x60C>,	<0x610>;
+		wakeup-stat-eint = <13>;
+		wakeup-stat-rtc = <0>;
+
+		vgpio_wakeup_inten = <0x19>;
+		vgpio_wakeup_inten_offset = <0x288>;
+
+		wake_lock = <0>;		/* 1: held wake_lock */
+	};
+
+	exynos-powermode {
+		reg = <0x0 0x159A0000 0x1000>;
+		reg-names = "sysreg_vgpio2pmu";
+
+		eint-wakeup-mask = <0x60C>;
+		eint-wakeup-mask2 = <0x610>;
+
+		wakeup-masks {
+			/*
+			 * wakeup_mask configuration
+			 *              SICD            SICD_CPD        AFTR            STOP
+			 *              LPD             LPA             ALPA            DSTOP
+			 *              SLEEP           SLEEP_VTS_ON    SLEEP_AUD_ON    FAPO
+			 *              USB_L2		SYS_SLEEP_HSI2ON
+			 */
+			wakeup-mask {
+				mask = <0x7ff81aff>,    <0x0>,          <0x0>,          <0x0>,
+				       <0x0>,           <0x0>,          <0x0>,          <0x0>,
+				       <0x52f6f>,        <0x52f6f>,       <0x52f6f>,       <0x0>,
+				       <0x0>,		<0x52f6f>;
+				mask-offset = <0x3b44>;
+				stat-offset = <0x3b50>;
+			};
+			wakeup-mask2 {
+				mask = <0x1f>,          <0x0>,          <0x0>,          <0x0>,
+				       <0x0>,           <0x0>,          <0x0>,          <0x0>,
+				       <0xfb>,          <0xfb>,         <0xfb>,         <0x0>,
+				       <0x0>, 		<0xfb>;
+				mask-offset = <0x3b64>;
+				stat-offset = <0x3b54>;
+			};
+		};
+
+		vgpio-wakeup-inten {
+			mask = <0x0>,		<0x0>,		<0x0>,		<0x0>,
+			       <0x0>,		<0x0>,		<0x0>,		<0x0>,
+			       <0x19>,		<0x19>,		<0x19>,		<0x0>,
+			       <0x19>,		<0x19>;
+			inten-offset = <0x0288>;
+		};
+	};
+
+	exynos_flexpmu_dbg {
+		compatible = "samsung,exynos-flexpmu-dbg";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		data-base = <0x2053400>;
+		data-size = <0x400>;
+		mid-dvs-en = <0>;
+		reg = <0x0 0x15920000 0x1000>;
+	};
+
+	iommu_group_dpu: iommu_group_dpu {
+		compatible = "samsung,sysmmu-group";
+	};
+
+	iommu_group_mfc: iommu_group_mfc {
+		compatible = "samsung,sysmmu-group";
+	};
+
+	iommu_group_is: iommu_group_is {
+		compatible = "samsung,sysmmu-group";
+	};
+
+	iommu_group_g2d: iommu_group_g2d {
+		compatible = "samsung,sysmmu-group";
+	};
+
+	iommu_group_mscl_smfc: iommu_group_mscl_smfc {
+		compatible = "samsung,sysmmu-group";
+	};
+
+	iommu_group_aud: iommu_group_aud {
+		compatible = "samsung,sysmmu-group";
+	};
+
+	iommu_group_npu: iommu_group_npu {
+		compatible = "samsung,sysmmu-group";
+	};
+
+	iommu_group_vpc: iommu_group_vpc {
+		compatible = "samsung,sysmmu-group";
+	};
+
+	/* DMA */
+	amba {
+		#address-cells = <2>;
+		#size-cells = <1>;
+		compatible = "arm,amba-bus";
+		interrupt-parent = <&gic>;
+		ranges;
+		pdma0: pdma0@1A510000 {
+			compatible = "arm,pl330", "arm,primecell";
+			reg = <0x0 0x1A510000 0x1000>;
+			interrupts = <GIC_SPI INTREQ__PDMA IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clock GATE_PDMA_QCH>;
+			clock-names = "apb_pclk";
+			#dma-cells = <1>;
+			#dma-channels = <8>;
+			#dma-requests = <32>;
+			#dma-multi-irq = <1>;
+			dma-arwrapper = <0x1A514400>,
+					<0x1A514420>,
+					<0x1A514440>,
+					<0x1A514460>,
+					<0x1A514480>,
+					<0x1A5144A0>,
+					<0x1A5144C0>,
+					<0x1A5144E0>;
+			dma-awwrapper = <0x1A514404>,
+					<0x1A514424>,
+					<0x1A514444>,
+					<0x1A514464>,
+					<0x1A514484>,
+					<0x1A5144A4>,
+					<0x1A5144C4>,
+					<0x1A5144E4>;
+			dma-instwrapper = <0x1A514500>;
+			dma-mask-bit = <36>;
+			coherent-mask-bit = <36>;
+		};
+	};
+
+	exynos-sci_dbg {
+		compatible = "samsung,exynos-sci_dbg";
+		memory-region = <&log_ppc>;
+	};
+
+	exynos-sci {
+		compatible = "samsung,exynos-sci";
+		memory-region = <&log_llc>;
+		interrupts = <GIC_SPI INTREQ__CPUCL0_FAULTIRQ_0 IRQ_TYPE_LEVEL_HIGH>, /* corr */
+			     <GIC_SPI INTREQ__CPUCL0_FAULTIRQ_1 IRQ_TYPE_LEVEL_HIGH>; /* uncorr */
+		nr_irq = <2>;
+		acpm-ipc-channel = <11>;
+		use_init_llc_region = <1>;
+		initial_llc_region = <1>;	/* LLC_REGION_CPU */
+		ret_enable = <0>;
+		llc_enable = <1>;
+		hfreq_rate = <30>; /* percentage */
+		freq_th = <2028000>; /* 2Ghz */
+		on_time_th = <200000000>; /* nsec */
+		off_time_th = <1400000000>; /* nsec */
+		llc_gov_en = <1>;
+		region_name = "LLC_REGION_DISABLE",
+			    "LLC_REGION_CPU", /* default policy */
+			    "LLC_REGION_CALL",
+			    "LLC_REGION_OFFLOAD",
+			    "LLC_REGION_CPD2",
+			    "LLC_REGION_CPCPU",
+			    "LLC_REGION_DPU",
+			    "LLC_REGION_MFC0_INT",
+			    "LLC_REGION_MFC1_INT",
+			    "LLC_REGION_MFC0_DPB",
+			    "LLC_REGION_MFC1_DPB",
+			    "LLC_REGION_GPU",
+			    "LLC_REGION_NPU0",
+			    "LLC_REGION_NPU1",
+			    "LLC_REGION_NPU2",
+			    "LLC_REGION_DSP0",
+			    "LLC_REGION_DSP1",
+			    "LLC_REGION_CAM_MCFP",
+			    "LLC_REGION_CAM_CSIS";
+		region_priority = <0>,
+				<1>, /* default policy */
+				<2>,
+				<3>,
+				<4>,
+				<11>,
+				<5>,
+				<8>,
+				<9>,
+				<6>,
+				<7>,
+				<10>,
+				<12>,
+				<13>,
+				<14>,
+				<15>,
+				<16>,
+				<17>,
+				<18>;
+		cpu_min_region = <0>;
+		devfreq = <&devfreq_0>;
+	};
+
+	exynos-bcmdbg {
+		compatible = "samsung,exynos-bcm_dbg";
+		memory-region = <&log_bcm>;
+
+		pd-name = "pd-trex", "pd-aud", "pd-csis", "pd-dns", "pd-dpuf0", "pd-dpuf1",
+			"pd-g2d", "pd-hsi0", "pd-lme", "pd-m2m", "pd-mcfp0", "pd-mcfp1",
+			"pd-mcsc", "pd-mfc0", "pd-mfc1", "pd-npus", "pd-ssp", "pd-taa",
+			"pd-vpc", "pd-yuvpp";
+
+		max_define_event = <PRE_DEFINE_EVT_MAX>;
+		/* define_event_index ev0 ev1 ev2 ev3 ev4 ev5 ev6 ev7 */
+		define_events = <NO_PRE_DEFINE_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+				<LATENCY_FMT_EVT	0x4  0x2  0x26 0x24 0x5  0x3  0x27 0x25>,
+				<MO_FMT_EVT		0x4  0x0  0x24 0x24 0x5  0x1  0x25 0x25>,
+				<BURST_LENGTH_FMT_EVT	0x4  0x2  0x4  0x26 0x5  0x3  0x5  0x27>,
+				<REQ_BLOCK_FMT_EVT	0x2  0x10 0x10 0x26 0x3  0x11 0x11 0x27>,
+				<DATA_BLOCK_FMT_EVT	0x4  0x12 0x12 0x6  0x5  0x13 0x13 0x14>,
+				<REQ_TYPE_FMT_EVT	0x2  0x15 0x18 0x1B 0x3  0x16 0x19 0x1C>,
+				<BCM_CALC_FMT_EVT	0x4  0x5  0x20 0x23 0x0  0x1  0x24 0x25>;
+		default_define_event = <LATENCY_FMT_EVT>;
+
+		/* sm_id_mask sm_id_value */
+		define_filter_id = <NO_PRE_DEFINE_EVT	0x0  0x0>,
+				<LATENCY_FMT_EVT	0x0  0x0>,
+				<MO_FMT_EVT		0x0  0x0>,
+				<BURST_LENGTH_FMT_EVT	0x0  0x0>,
+				<REQ_BLOCK_FMT_EVT	0x0  0x0>,
+				<DATA_BLOCK_FMT_EVT	0x0  0x0>,
+				<REQ_TYPE_FMT_EVT	0x0  0x0>,
+				<BCM_CALC_FMT_EVT	0x0  0x0>;
+		/* ev0 ev1 ev2 ev3 ev4 ev5 ev6 ev7 */
+		define_filter_id_active = <NO_PRE_DEFINE_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<LATENCY_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<MO_FMT_EVT		0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<BURST_LENGTH_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<REQ_BLOCK_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<DATA_BLOCK_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<REQ_TYPE_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<BCM_CALC_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>;
+		/* sm_other_type0 sm_other_mask0 sm_other_value0 */
+		define_filter_other_0 = <NO_PRE_DEFINE_EVT	0x0  0x0  0x0>,
+					<LATENCY_FMT_EVT	0x0  0x0  0x0>,
+					<MO_FMT_EVT		0x0  0x0  0x0>,
+					<BURST_LENGTH_FMT_EVT	0x0  0x0  0x0>,
+					<REQ_BLOCK_FMT_EVT	0x0  0x0  0x0>,
+					<DATA_BLOCK_FMT_EVT	0x0  0x0  0x0>,
+					<REQ_TYPE_FMT_EVT	0x0  0x0  0x0>,
+					<BCM_CALC_FMT_EVT	0x0  0x0  0x0>;
+		/* sm_other_type1 sm_other_mask1 sm_other_value1 */
+		define_filter_other_1 = <NO_PRE_DEFINE_EVT	0x0  0x0  0x0>,
+					<LATENCY_FMT_EVT	0x0  0x0  0x0>,
+					<MO_FMT_EVT		0x0  0x0  0x0>,
+					<BURST_LENGTH_FMT_EVT	0x0  0x0  0x0>,
+					<REQ_BLOCK_FMT_EVT	0x0  0x0  0x0>,
+					<DATA_BLOCK_FMT_EVT	0x0  0x0  0x0>,
+					<REQ_TYPE_FMT_EVT	0x0  0x0  0x0>,
+					<BCM_CALC_FMT_EVT	0x0  0x0  0x0>;
+		/* ev0 ev1 ev2 ev3 ev4 ev5 ev6 ev7 */
+		define_filter_other_active = <NO_PRE_DEFINE_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<LATENCY_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<MO_FMT_EVT		0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<BURST_LENGTH_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<REQ_BLOCK_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<DATA_BLOCK_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<REQ_TYPE_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<BCM_CALC_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>;
+
+		/* peak_mask peak_id */
+		define_sample_id = <NO_PRE_DEFINE_EVT	0x0  0x0>,
+				<LATENCY_FMT_EVT	0x0  0x0>,
+				<MO_FMT_EVT		0x0  0x0>,
+				<BURST_LENGTH_FMT_EVT	0x0  0x0>,
+				<REQ_BLOCK_FMT_EVT	0x0  0x0>,
+				<DATA_BLOCK_FMT_EVT	0x0  0x0>,
+				<REQ_TYPE_FMT_EVT	0x0  0x0>,
+				<BCM_CALC_FMT_EVT	0x0  0x0>;
+		/* ev0 ev1 ev2 ev3 ev4 ev5 ev6 ev7 */
+		define_sample_id_enable = <NO_PRE_DEFINE_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<LATENCY_FMT_EVT	0x0  0x0  0x1  0x0  0x0  0x0  0x1  0x0>,
+					<MO_FMT_EVT		0x0  0x0  0x1  0x0  0x0  0x0  0x1  0x0>,
+					<BURST_LENGTH_FMT_EVT	0x0  0x0  0x1  0x1  0x0  0x0  0x1  0x1>,
+					<REQ_BLOCK_FMT_EVT	0x0  0x0  0x1  0x1  0x0  0x0  0x1  0x1>,
+					<DATA_BLOCK_FMT_EVT	0x0  0x0  0x1  0x0  0x0  0x0  0x1  0x0>,
+					<REQ_TYPE_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>,
+					<BCM_CALC_FMT_EVT	0x0  0x0  0x0  0x0  0x0  0x0  0x0  0x0>;
+
+		bcm_cnt_nr = <8>;
+		bcm_ip_nr = <71>;
+		bcm_ip_print_nr = <10>;
+		initial_run_bcm_ip = <0>, <1>, <2>, <3>, <4>, <5>, <6>, <7>, <8>, <9>, <10>,
+				<11>, <12>, <13>, <14>, <15>, <16>, <17>, <18>,	<19>, <20>,
+				<21>, <22>, <23>, <24>, <25>, <26>, <27>, <28>, <29>, <30>,
+				<31>, <32>, <33>, <34>, <35>, <36>, <37>, <38>, <39>, <40>,
+				<41>, <42>, <43>, <44>, <45>, <46>, <47>, <48>, <49>, <50>,
+				<51>, <52>, <53>, <54>, <55>, <56>, <57>, <58>, <59>, <60>,
+				<61>, <62>, <63>, <64>, <65>, <66>, <67>, <68>, <69>, <70>;
+		initial_bcm_run = <BCM_STOP>;
+		/* msec (max 500msec) */
+		initial_period = <1>;
+		initial_bcm_mode = <BCM_MODE_INTERVAL>;
+		available_stop_owner = <PANIC_HANDLE CAMERA_DRIVER MODEM_IF ITMON_HANDLE>;
+		buff_size = <0x200000>;
+		glb_auto_en = <1>;
+
+		/* profiler infomation */
+		bcm_calc_num_ip = <4>;
+		bcm_calc_ip_idx = <1>, <3>, <62>, <67>;
+		bcm_calc_ip_name = "CPUCL0_0", "G3D0", "IRPS0", "MIF0";
+		bcm_calc_ip_cnt = <2>, <4>, <4>, <4>;
+		bcm_calc_bus_width = <32>, <16>, <32>, <16>;
+		bcm_calc_sample_time = <50>;
+		perf_define_event = <BCM_CALC_FMT_EVT>;
+
+		ipc_bcm_event {
+			plugin-len = <5>;
+			plugin-name = "BCM";
+		};
+	};
+
+	memlogger: samsung,memlogger {
+		compatible = "samsung,memlogger";
+		memory-region = <&memlog_mem>;
+		samsung,bl-node = <&memlog_bl_base>;
+	};
+
+	memlogger_policy: samsung,memlog_policy {
+		samsung,log-level = <4>;
+		samsung,file-default-status = <1>;
+		samsung,mem-constraint = <0>;
+		samsung,mem-to-file-allow = <1>;
+	};
+};

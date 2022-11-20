@@ -1,0 +1,39 @@
+
+# Power Management
+CONFIG_PINCTRL_SEC_GPIO_DVS=m
+
+# fs-verity
+CONFIG_FS_VERITY_DEBUG=y
+
+# SDP KeyManagement Test for MDFPP evaluation
+CONFIG_SDP_KEY_DUMP=y
+
+# Displayport test
+CONFIG_SEC_DISPLAYPORT_SELFTEST=y
+CONFIG_SEC_DISPLAYPORT_DBG=y
+
+# SDP KeyManagement Test for MDFPP evaluation
+CONFIG_SDP_KEY_DUMP=y
+
+# ABox debug
+CONFIG_SND_SOC_SAMSUNG_ABOX_DEBUG=y
+
+# Pablo Obte support
+CONFIG_PABLO_OBTE_SUPPORT=m
+
+# Micro Hypervisor
+# CONFIG_RKP_FIMC_CHECK is not set
+# CONFIG_KDP_CRED is not set
+# CONFIG_KDP_NS is not set
+
+# USB Host Test
+CONFIG_USB_LINK_LAYER_TEST=m
+CONFIG_USB_EHSET_TEST_FIXTURE=m
+
+# CAMERA
+# CONFIG_USE_SIGNED_BINARY is not set
+
+#
+# please don't remove new line on this file
+#
+

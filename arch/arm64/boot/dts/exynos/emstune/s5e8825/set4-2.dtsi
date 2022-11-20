@@ -1,0 +1,63 @@
+/ {
+	/* balance mode - app boost */
+	set4_2: set@0402{
+		/* schedudling policy */
+		sched_policy {
+			root			= <SCHED_POLICY_ENERGY>;
+			foreground 		= <SCHED_POLICY_SEMI_PERF>;
+			background		= <SCHED_POLICY_ENERGY>;
+			top-app			= <SCHED_POLICY_SEMI_PERF>;
+			rt			= <SCHED_POLICY_ENERGY>;
+			system			= <SCHED_POLICY_ENERGY>;
+			system-background	= <SCHED_POLICY_ENERGY>;
+			nnapi-hal		= <SCHED_POLICY_ENERGY>;
+			camera-daemon		= <SCHED_POLICY_ENERGY>;
+		};
+		frt {	   			/* LIT BIG */
+			active-ratio 		= < 25   5>;
+		};
+		
+		/* Ontime Migration */
+		ontime {
+			top-app		= <1>;
+			foreground	= <1>;
+
+			domain0 {
+				cpus = "0-5";
+				lower-boundary = <0>;
+				upper-boundary = <36>;
+			};
+			domain1 {
+				cpus = "6-7";
+				lower-boundary = <6>;
+				upper-boundary = <100>;
+			};
+		};
+
+		ecs { };
+
+		tex {
+			top-app		= <1>;
+			prio		= <110>;
+
+			pinning-mask	= "6-7";
+			qjump		= <1>;
+		};
+
+		ntu {
+			root		= <0>;
+			foreground	= <0>;
+			background	= <0>;
+			top-app		= <0>;
+			rt		= <0>;
+			system		= <0>;
+			system-background = <0>;
+			nnapi-hal	= <0>;
+			camera-daemon	= <0>;
+		};
+
+		sync {
+			apply = <1>;
+		};
+	};
+};

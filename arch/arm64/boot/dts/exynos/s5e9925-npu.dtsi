@@ -1,0 +1,678 @@
+/*
+ * SAMSUNG EXYNOS9925 NPU device tree source
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS9925 NPU device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+#include <dt-bindings/clock/s5e9925.h>
+#include <dt-bindings/soc/samsung/s5e9925-npu.h>
+
+/ {
+	npu: npu_exynos {
+		compatible = "samsung,exynos-npu";
+		iommus = <&sysmmu_ipdnc>, <&sysmmu_sdma0>, <&sysmmu_sdma1>, <&sysmmu_sdma2>, <&sysmmu_sdma3>;
+		samsung,iommu-group = <&iommu_group_npu>;
+
+		interrupts =
+			<GIC_SPI INTREQ__FROM_DNC_TO_HOST_NS_4 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__FROM_DNC_TO_HOST_NS_5 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__FROM_DNC_TO_HOST_NS_6 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI INTREQ__FROM_DNC_TO_HOST_NS_1 IRQ_TYPE_LEVEL_HIGH>;
+
+		samsung,npusys-corenum = <3>;
+		/* refer to npu-system.h for memory names
+		 * you can add init settings for each memory area
+		 */
+		samsung,npumem-address = /* 0 start      size */
+			<0 0x1A730000 0x10000>,
+			<0 0x16000000 0x100000>,
+			<0 0x16200000 0x400000>,
+			<0 0x16300000 0x100000>,
+			<0 0x16400000 0x100000>,
+
+			<0 0x16500000 0x100000>,
+			<0 0x16800000 0x100000>,
+			<0 0x16B00000 0x100000>,
+			<0 0x17C00000 0x100000>,
+			<0 0x19000000 0x100000>,
+			<0 0x19100000 0x100000>,
+			<0 0x19200000 0x100000>,
+
+			<0 0x19300000 0x100000>,
+			<0 0x19800000 0x100000>,
+			<0 0x19900000 0x100000>,
+			<0 0x19A00000 0x100000>,
+			<0 0x19B00000 0x100000>,
+
+			<0 0x17F10000 0x10000>,
+			<0 0x400D000 0x1000>,
+			<0 0x400B000 0x1000>,
+			<0 0x400C000 0x1000>,
+			<0x50640000 0x10040100 0x1000>,
+
+			<0 0x106F0000 0x1000>,
+			<0 0x16220860 0x100>,
+			<0 0x16220824 0x100>,
+			<0 0x158637E0 0x10>,
+			<0 0x19400000 0x300000>,
+			<0 0x17DD0000 0x10000>,
+
+			<0 0x31000000 0x1000000>,
+			<0 0x32000000 0x500000>,
+			<0 0x33000000 0x1000000>,
+			<2 0x34000000 0x1000000>,
+			<0 0x35800000 0x100000>,
+			<0 0x36000000 0x500000>,
+			<0 0x36500000 0x1000>,
+			<0 0x36501000 0x7000>,
+			<0 0x36508000 0x200000>,
+			<0 0x40000000 0x40000000>;
+		samsung,npumem-names =
+				"sfrcmutop",	"SFR",
+				"sfrdncclk",	"SFR",
+				"sfrdnc",	"SFR",
+				"sfrsdma",	"SFR",
+				"sfrgnpu0",	"SFR",
+
+				"sfrgnpu1",	"SFR",
+				"sfrdsp0",	"SFR",
+				"sfrsdmac",	"SFR",
+				"sfrnpus",	"SFR",	/* non-secure NPUS */
+				"sfrnpuc0",	"SFR",
+				"sfrnpuc1",	"SFR",
+				"sfrnpuc2",	"SFR",
+
+				"sfrnpuc3",	"SFR",
+				"sfrnpu0",	"SFR",
+				"sfrnpu1",	"SFR",
+				"sfrnpu2",	"SFR",
+				"sfrnpu3",	"SFR",
+
+				"sfrsnpus",	"SFR",	/* secure NPUS */
+				"sfrcoresight",	"SFR",
+				"sfrstm",	"SFR",
+				"sfrstm1",	"SFR",
+				"sfrmctg",	"SFR",
+
+				"sfrpwm",	"SFR",
+				"sfrmbox0",	"SFR",
+				"sfrmbox1",	"SFR",
+				"sfrpmu",	"SFR",
+				"idpsram",	"SFR",
+				"htunpus",	"SFR",
+
+				"fwmbox",	"",
+				"fwunittest",	"",
+				"ivp_pm",	"dsp_ivp_pm.bin",
+				"llc",		"",
+				"dl_out",	"",
+				"dsp_mem",	"",
+				"dhcp",		"",
+				"ivp_dm",	"dsp_ivp_dm.bin",
+				"fwlog",	"",
+				"CHUNK_IMB",	"IMB";
+
+		/* examples of memory area init
+		 *	offset,	val,	mask,
+		 * samsung,npumem-baaw =
+		 *	<0x00, 0x017B00, 0xFFFFFF>,
+		 *	<0x00, 0x017B40, 0xFFFFFF>,
+		 *	...;
+		 */
+
+		/* examples of reg cmd
+		 *	sfr : name of memory area
+		 *	data :
+		 *	<rw	offset	val	mask	mdelay>,
+		 */
+
+		samsung,npucmd-hwacgendnc-sfr =
+		/* IP Q-channel always off = hwacg on */
+			"sfrdnc",
+			"sfrsdma",
+			"sfrsdma",
+		/* DRCG enable */
+		/* sfrdncclk */
+			"sfrdncclk",
+			"sfrdncclk",
+			"sfrdncclk",
+			"sfrdncclk",
+			"sfrdncclk",
+			"sfrdncclk",
+		/* another */
+			"sfrsdmac",
+			"sfrsdma";
+		samsung,npucmd-hwacgendnc-data =
+		/* IP Q-channel always off = hwacg on */
+		/* sfrdnc */
+			<1	0x20008	0x0	0x00000001	0>,
+		/* sfrsdma */
+			<1	0x8	0x0	0x00000001	0>,
+			<1	0x80000	0x0	0x00000001	0>,
+		/* DRCG enable */
+		/* sfrdncclk */
+			<1	0x2040C	0xFFFFFFFF	0xFFFFFFFF	0>,
+			<1	0x20410	0xFFFFFFFF	0xFFFFFFFF	0>,
+			<1	0x20414	0xFFFFFFFF	0xFFFFFFFF	0>,
+			<1	0x20418	0xFFFFFFFF	0xFFFFFFFF	0>,
+			<1	0x2041C	0xFFFFFFFF	0xFFFFFFFF	0>,
+			<1	0x20420	0xFFFFFFFF	0xFFFFFFFF	0>,
+		/* sfrsdmac */
+			<1	0x20104	0xFFFFFFFF	0xFFFFFFFF	0>,
+		/* sfrsdma */
+			<1	0x8	0x80000000	0x80000000	0>;
+
+		samsung,npucmd-hwacgennpu-sfr =
+			"sfrgnpu0",
+			"sfrgnpu1",
+			"sfrnpu0",
+			"sfrnpu0",
+			"sfrnpu1",
+			"sfrnpu1";
+		samsung,npucmd-hwacgennpu-data =
+		/* sfrgnpu0 */
+			<1	0xF0608	0x0	0x00000003	0>,
+		/* sfrgnpu1 */
+			<1	0xF0608	0x0	0x00000003	0>,
+		/* sfrnpu0 */
+			<1	0x20400	0xFFFFFFFF	0xFFFFFFFF	0>,
+			<1	0x20404	0xFFFFFFFF	0xFFFFFFFF	0>,
+		/* sfrnpu1 */
+			<1	0x20400	0xFFFFFFFF	0xFFFFFFFF	0>,
+			<1	0x20404	0xFFFFFFFF	0xFFFFFFFF	0>;
+
+		samsung,npucmd-hwacgendsp-sfr =
+			"sfrdsp0",
+			"sfrdsp0";
+		samsung,npucmd-hwacgendsp-data =
+		/* sfrdsp0 */
+			<1	0x20104	0xFFFFFFFF	0xFFFFFFFF	0>,
+			<1	0x20420	0xFFFFFFFF	0xFFFFFFFF	0>;
+
+		samsung,npucmd-hwacgdisdnc-sfr =
+		/* IP Q-channel always on = hwacg off */
+			"sfrdnc",
+			"sfrsdma",
+			"sfrsdma",
+		/* DRCG enable */
+		/* sfrdncclk */
+			"sfrdncclk",
+			"sfrdncclk",
+			"sfrdncclk",
+			"sfrdncclk",
+			"sfrdncclk",
+			"sfrdncclk",
+		/* another */
+			"sfrsdmac",
+			"sfrsdma";
+		samsung,npucmd-hwacgdisdnc-data =
+		/* IP Q-channel always on = hwacg off */
+		/* sfrdnc */
+			<1	0x20008	0x1	0x00000001	0>,
+		/* sfrsdma */
+			<1	0x8	0x1	0x00000001	0>,
+			<1	0x80000	0x1	0x00000001	0>,
+		/* DRCG disable */
+		/* sfrdncclk */
+			<1	0x2040C	0x0	0xFFFFFFFF	0>,
+			<1	0x20410	0x0	0xFFFFFFFF	0>,
+			<1	0x20414	0x0	0xFFFFFFFF	0>,
+			<1	0x20418	0x0	0xFFFFFFFF	0>,
+			<1	0x2041C	0x0	0xFFFFFFFF	0>,
+			<1	0x20420	0x0	0xFFFFFFFF	0>,
+		/* sfrsdmac */
+			<1	0x20104	0x0	0xFFFFFFFF	0>,
+		/* sfrsdma */
+			<1	0x8	0x0	0x80000000	0>;
+
+		samsung,npucmd-hwacgdisnpu-sfr =
+			"sfrgnpu0",
+			"sfrgnpu1",
+			"sfrnpu0",
+			"sfrnpu0",
+			"sfrnpu1",
+			"sfrnpu1";
+		samsung,npucmd-hwacgdisnpu-data =
+		/* sfrgnpu0 */
+			<1	0xF0608	0x3	0x00000003	0>,
+		/* sfrgnpu1 */
+			<1	0xF0608	0x3	0x00000003	0>,
+		/* sfrnpu0 */
+			<1	0x20400	0x0	0xFFFFFFFF	0>,
+			<1	0x20404	0x0	0xFFFFFFFF	0>,
+		/* sfrnpu1 */
+			<1	0x20400	0x0	0xFFFFFFFF	0>,
+			<1	0x20404	0x0	0xFFFFFFFF	0>;
+
+		samsung,npucmd-hwacgdisdsp-sfr =
+			"sfrdsp0",
+			"sfrdsp0";
+		samsung,npucmd-hwacgdisdsp-data =
+		/* sfrdsp0 */
+			<1	0x20104	0x0	0xFFFFFFFF	0>,
+			<1	0x20420	0x0	0xFFFFFFFF	0>;
+
+		samsung,npucmd-cpuon-sfr =
+			/* DNC boot up */
+			"sfrdnc",
+			"sfrdnc",
+			"sfrdnc",
+			"sfrdnc",
+			"sfrdnc",
+			"sfrdnc";
+		/*	cmd	offset	value	mask		delay */
+		samsung,npucmd-cpuon-data =
+		/* to power on, DNC_CPU_ALIVE_CTRL.CPU_ALIVE_CTRL should be 0 */
+			<1	0xE011C	0x00000000	0xFFFFFFFF	0>,
+			<1	0xE0000	0x00000001	0xFFFFFFFF	0>,
+			<3	0xE0004	0x00000001	0xFFFFFFFF	0>,
+			<1	0xE0008	0x30000000	0xFFFFFFFF	0>,
+			<3	0xE000C	0x30000000	0xFFFFFFFF	0>,
+			<3	0xE0040	0x00000003	0xFFFFFFFF	0>;
+
+		samsung,npucmd-cpuoff-sfr =
+			"sfrdnc";
+		samsung,npucmd-cpuoff-data =
+		/* to power off NPU cores, HWACG should be enable */
+			<3	0xE0040	0x00000000	0xFFFFFFFF	0>;
+
+		samsung,npucmd-cpupc-sfr =
+			"sfrdnc",
+			"sfrdnc";
+		samsung,npucmd-cpupc-data =
+			<0	0xE00CC	0x00	0xFFFFFFFF	0>,
+			<0	0xE00D0	0x00	0xFFFFFFFF	0>;
+
+		samsung,npucmd-enablestm-sfr =
+			"sfrdnc",
+			"sfrsdma",
+			"sfrgnpu0",
+			"sfrgnpu1",
+			"sfrcoresight",
+			"sfrcoresight";
+		/*	cmd	offset	value	mask		delay */
+		samsung,npucmd-enablestm-data =
+			<1	0x20018	0x1	0x00000001	0>,
+			<1	0xF800	0x80000000	0x80000000	0>,
+			<1	0xF0514	0x1	0x00000001	0>,
+			<1	0xF0514	0x1	0x00000001	0>,
+			<1	0x0034	0x1	0x00000001	0>,
+			<1	0x002C	0x1	0x00000001	0>;
+
+		samsung,npucmd-disablestm-sfr =
+			"sfrcoresight",
+			"sfrcoresight",
+			"sfrgnpu0",
+			"sfrgnpu1",
+			"sfrsdma",
+			"sfrdnc";
+		/*	cmd	offset	value	mask		delay */
+		samsung,npucmd-disablestm-data =
+			<1	0x002C	0x0	0x00000001	0>,
+			<1	0x0034	0x0	0x00000001	0>,
+			<1	0xF0514	0x0	0x00000001	0>,
+			<1	0xF0514	0x0	0x00000001	0>,
+			<1	0xF800	0x0	0x80000000	0>,
+			<1	0x20018	0x0	0x00000001	0>;
+
+		samsung,npucmd-enstmdsp-sfr =
+		/* DNC enable stm */
+			"sfrdnc",
+			"sfrsdma",
+			"sfrcoresight",
+			"sfrcoresight";
+		/*	cmd	offset	value	mask		delay */
+		samsung,npucmd-enstmdsp-data =
+		/* DNC enable stm */
+			<1	0x20018	0x1	0x00000001	0>,
+			<1	0xF800	0x80000000	0x80000000	0>,
+			<1	0x0034	0x1	0x00000001	0>,
+			<1	0x002C	0x1	0x00000001	0>;
+
+		samsung,npucmd-disstmdnc-sfr =
+		/* DNC disable stm */
+			"sfrcoresight",
+			"sfrcoresight",
+			"sfrsdma",
+			"sfrdnc";
+		/*	cmd	offset	value	mask		delay */
+		samsung,npucmd-disstmdnc-data =
+		/* DNC disable stm */
+			<1	0x002C	0x0	0x00000001	0>,
+			<1	0x0034	0x0	0x00000001	0>,
+			<1	0xF800	0x0	0x80000000	0>,
+			<1	0x20018	0x0	0x00000001	0>;
+
+		samsung,npucmd-enstmnpu-sfr =
+		/* NPU enable stm */
+			"sfrdnc",
+			"sfrsdma",
+			"sfrgnpu0",
+			"sfrgnpu1",
+			"sfrcoresight",
+			"sfrcoresight";
+		/*	cmd	offset	value	mask		delay */
+		samsung,npucmd-enstmnpu-data =
+		/* NPU enable stm */
+			<1	0x20018	0x1	0x00000001	0>,
+			<1	0xF800	0x80000000	0x80000000	0>,
+			<1	0xF0514	0x1	0x00000001	0>,
+			<1	0xF0514	0x1	0x00000001	0>,
+			<1	0x0034	0x1	0x00000001	0>,
+			<1	0x002C	0x1	0x00000001	0>;
+
+		samsung,npucmd-disstmnpu-sfr =
+		/* NPU disble stm */
+			"sfrgnpu0",
+			"sfrgnpu1";
+		/*	cmd	offset	value	mask		delay */
+		samsung,npucmd-disstmnpu-data =
+		/* NPU disble stm */
+			<1	0xF0514	0x0	0x00000001	0>,
+			<1	0xF0514	0x0	0x00000001	0>;
+
+		samsung,npucmd-allow64stm-sfr =
+			"sfrstm",
+			"sfrstm",
+			"sfrstm",
+			"sfrstm",
+			"sfrstm",
+			"sfrstm",
+			"sfrstm";
+
+		/*	cmd	offset	value	mask		delay */
+		samsung,npucmd-allow64stm-data =
+			<1	0x0D64	0x0		0xFFFFFFFF	0>,
+			<1	0x0D60	0x0		0x00000001	0>,
+			<1	0x0D20	0xFFFFFFFF	0xFFFFFFFF	0>,
+			<1	0x0D00	0xFFFFFFFF	0xFFFFFFFF	0>,
+			<1	0x0D60	0x1		0x00000001	0>,
+			<1	0x0D20	0xFFFFFFFF	0xFFFFFFFF	0>,
+			<1	0x0D00	0xFFFFFFFF	0xFFFFFFFF	0>;
+
+		samsung,npucmd-sync-sfr =
+		/* NPU CMDQ INTREG_D_SET*/
+			"sfrgnpu0",
+			"sfrgnpu1";
+		/*	cmd	offset	value	mask		delay */
+		samsung,npucmd-sync-data =
+		/* NPU CMDQ INTREG_D_SET*/
+			<1	0x101B0	0x80000000	0xFFFFFFFF	0>,
+			<1	0x101B0	0x80000000	0xFFFFFFFF	0>;
+
+		samsung,npucmd-fwpwm-sfr =
+			"sfrdnc";
+		/*	cmd	offset	value	mask		delay */
+		samsung,npucmd-fwpwm-data =
+			<0	0x5002c	0x00	0xFFFFFFFF	0>;
+
+		samsung,imgloader-s2mpu-support = "true";
+		samsung,npusched-tpf-others = <1500>;	/* time in device driver, us */
+		samsung,npusched-afmlimit = <800000>;
+		samsung,npusched-min-active-cores = <1>; /* FW needs atleast one core to be active */
+		samsung,npusched-dvfs =
+			/* devfreq      init    delay   up      delay   down    delay
+			* hispeed_idle_delay hispeed_delay hispeed_freq lowspeed_idle_delay    : exynos-interactive
+			* normal       npu     cpu                             : mode minlock freq
+			*/
+			<&devfreq_5     1066000	30      120     75      85      75
+				30      0       100     100
+				1066000	1066000	0	0	1066000	1066000>,
+			<&devfreq_7     935000	30      120     75      85      30
+				30      0       100     100
+				935000	935000	0	0	935000	935000>,
+			<&devfreq_1	0	0	0	0	0	0
+				0	0	0	0
+				0	0	0	0	0	0>,
+			<&devfreq_0	0	0	0	0	0	0
+				0	0	0	0
+				0	0	0	0	0	0>,
+			<&devfreq_12    1066000	30      120     75      85      75
+				30      0       100     100
+				1066000	1066000	0	0	1066000	1066000>
+			;
+		samsung,npusched-names =
+			"NPU",  "exynos-interactive",
+			"DNC",  "exynos-interactive",
+			"INT",	"",
+			"MIF",	"",
+			"DSP",  "exynos-interactive"
+		;
+
+		samsung,npudvfs-normal-dvfs =
+			"DNC",
+			"DNC",
+			"NPU",
+			"NPU",
+			"DSP",
+			"DSP",
+			"INT",
+			"MIF";
+		samsung,npudvfs-normal-clock =
+			<0	0>,
+			<1	935000>,
+			<0	0>,
+			<1	1066000>,
+			<0	0>,
+			<1	1066000>,
+			<0	0>,
+			<0	0>;
+
+		samsung,npudvfs-boost-dvfs =
+			"DNC",
+			"NPU",
+			"NPU",
+			"DSP",
+			"DSP",
+			"INT",
+			"MIF";
+		samsung,npudvfs-boost-clock =
+			<0	935000>,
+			<1	1066000>,
+			<0	1066000>,
+			<1	1066000>,
+			<0	1066000>,
+			<0	800000>,
+			<0	3172000>;
+
+		samsung,npudvfs-boostdlv3-dvfs =
+			"DNC",
+			"NPU",
+			"NPU",
+			"DSP",
+			"DSP";
+		samsung,npudvfs-boostdlv3-clock =
+			<0	935000>,
+			<1	1066000>,
+			<0	1066000>,
+			<1	1066000>,
+			<0	1066000>;
+
+		samsung,npudvfs-boostblocking-dvfs =
+			"DNC",
+			"NPU",
+			"NPU",
+			"DSP",
+			"DSP",
+			"INT",
+			"MIF";
+		samsung,npudvfs-boostblocking-clock =
+			<0	935000>,
+			<1	1066000>,
+			<0	1066000>,
+			<1	1066000>,
+			<0	1066000>,
+			<0	800000>,
+			<0	3172000>;
+
+		samsung,npuinter-isr-cpu-affinity = <5>;
+
+		samsung,npuproto-task-priority = <1>;	/* SCHED_FIFO, 1 */
+		samsung,npuproto-task-cpu-affinity = <5>;
+
+		status = "ok";
+
+		vertex_name = "npu";
+
+		configs =
+			<16>,		/* NPU_MAX_BUFFER */
+			<3>,		/* NPU_MAX_PLANE */
+			<32>,		/* NPU_MAX_GRAPH */
+			<16>,		/* NPU_MAX_FRAME */
+			<10>,		/* NPU_MINOR */
+			<1024>,		/* NW_Q_SIZE */
+			<1024>,		/* FRAME_Q_SIZE */
+			<4194304>,	/* NPU_FW_LOG_KEEP_SIZE */
+			<0>,		/* NPU_MAILBOX_DEFAULT_TID */
+			<20>,		/* TCNTO0_OFF */
+			<4096>,		/* NPU_MAILBOX_HDR_SECTION_LEN */
+			<32768>,	/* NPU_MAILBOX_SIZE */
+			<0x80000>,	/* NPU_MAILBOX_BASE */
+			<300>,		/* POWER_DOWN_DELAY_ON_EMERGENCY */
+			<12000>,	/* STREAMOFF_DELAY_ON_EMERGENCY */
+			<0>,		/* NPU_FW_BASE_ADDR */
+			<0>,		/* NPU_CM7_RELEASE_HACK */
+			<0x50E00000>,	/* NPU_SHARED_MEM_PAYLOAD */
+			<0x17EB0000>,	/* NPU_C2AGENT_0 */
+			<0x17EC0000>,	/* NPU_C2AGENT_1 */
+			<0x15010000>,	/* NPU_VOTF */
+			<0x10000>,	/* NPU_VOTF_SIZE */
+			<0>,		/* PBHA_HINT_00 */
+			<1>,		/* PBHA_HINT_01 */
+			<2>,		/* PBHA_HINT_10 */
+			<3>,		/* PBHA_HINT_11 */
+			<0x80000000>,   /* TRANSACTIONS_PER_CORE */
+			<0x02000000>,   /* CMDQ_COMPLEXITY_PER_CORE */
+			<1000000>,      /* LASTQ_TIME_THRESHOLD */
+			<0>,		/* DSP_WAIT_MODE */
+			<1000>,		/* DSP_WAIT_RESET */
+			<3000>,		/* DSP_WAIT_BOOT */
+			<8>,		/* NPU0 LLC BOOST buffer size in MB */
+			<0>,		/* NPU1 LLC BOOST buffer size in MB */
+			<0>,		/* NPU2 LLC BOOST buffer size in MB */
+			<0x80000>,	/* NPU LLC CHUNK  size in Byte */
+			<0x40000000>	/* NPU IMB THRESHOLD SIZE */
+			;
+
+		samsung,npurmem-address {
+			fwmem {
+				memory-region = <&dnc_fw_mem>;
+				iova = <0x30000000>;
+				size =   <0x500000>;
+			};
+		};
+	};
+
+	hwdevdnc: hwdev_dnc {
+		compatible = "samsung,exynos-npu-hwdev";
+
+		samsung,npuhwdev-name = "DNC";
+		samsung,npuhwdev-id = <NPU_HWDEV_ID_DNC>;
+
+		clocks = <&clock UMUX_CLKCMU_DNC_NOC>;
+		clock-names = "dnc_noc";
+
+		/* iommu already has parent as <&pd_npus> */
+//		power-domains = <&pd_sdma>;
+
+		samsung,npuhwdev-type =
+			<(NPU_HWDEV_TYPE_PWRCTRL | NPU_HWDEV_TYPE_CLKCTRL)>;
+
+		iommus = <&sysmmu_ipdnc>, <&sysmmu_sdma0>, <&sysmmu_sdma1>, <&sysmmu_sdma2>, <&sysmmu_sdma3>;
+		samsung,iommu-group = <&iommu_group_npu>;
+		#dma-address-cells = <1>;
+		#dma-size-cells = <1>;
+		dma-window = <0x80000000 0x80000000>;
+		dma-coherent;
+		status = "ok";
+	};
+
+	hwdevnpu: hwdev_npu {
+		compatible = "samsung,exynos-npu-hwdev";
+
+		samsung,npuhwdev-name = "NPU";
+		samsung,npuhwdev-id = <NPU_HWDEV_ID_NPU>;
+		samsung,npuhwdev-parent = "DNC";
+/*
+		clocks =
+			<&clock UMUX_CLKCMU_NPU0_BUS_USER>;
+		clock-names =
+			"npu00_bus";
+*/
+		power-domains = <&pd_gnpu1>;
+
+		samsung,npuhwdev-type =
+			<(NPU_HWDEV_TYPE_PWRCTRL | NPU_HWDEV_TYPE_CLKCTRL | NPU_HWDEV_TYPE_DVFS)>;
+
+		status = "ok";
+	};
+
+	hwdevdsp: hwdev_dsp {
+		compatible = "samsung,exynos-npu-hwdev";
+
+		samsung,npuhwdev-name = "DSP";
+		samsung,npuhwdev-id = <NPU_HWDEV_ID_DSP>;
+		samsung,npuhwdev-parent = "DNC";
+/*
+		clocks =
+			<&clock UMUX_CLKCMU_VPD_BUS_USER>,
+			<&clock GATE_IP_VPD_QCH>,
+			<&clock DOUT_DIV_CLK_VPD_BUSP>;
+		clock-names =
+			"umux_clkcmu_vpd_bus_user",
+			"gate_ip_vpd_qch",
+			"dout_div_clk_vpd_busp";
+*/
+		power-domains = <&pd_dsp0>;
+
+		samsung,npuhwdev-type =
+			<(NPU_HWDEV_TYPE_PWRCTRL | NPU_HWDEV_TYPE_CLKCTRL | NPU_HWDEV_TYPE_DVFS)>;
+
+		status = "ok";
+	};
+
+	hwdevcl1: hwdev_cl1 {
+		compatible = "samsung,exynos-npu-hwdev";
+
+		samsung,npuhwdev-name = "CL1";
+		samsung,npuhwdev-id = <NPU_HWDEV_ID_CL1>;
+
+		samsung,npuhwdev-type =
+			<NPU_HWDEV_TYPE_DVFS>;
+
+		status = "ok";
+	};
+
+	hwdevmif: hwdev_mif {
+		compatible = "samsung,exynos-npu-hwdev";
+
+		samsung,npuhwdev-name = "MIF";
+		samsung,npuhwdev-id = <NPU_HWDEV_ID_MIF>;
+
+		samsung,npuhwdev-type =
+			<NPU_HWDEV_TYPE_BTS>;
+
+		status = "ok";
+	};
+
+	hwdevint: hwdev_int {
+		compatible = "samsung,exynos-npu-hwdev";
+
+		samsung,npuhwdev-name = "INT";
+		samsung,npuhwdev-id = <NPU_HWDEV_ID_INT>;
+
+		samsung,npuhwdev-type =
+			<NPU_HWDEV_TYPE_BTS>;
+
+		status = "ok";
+	};
+
+};

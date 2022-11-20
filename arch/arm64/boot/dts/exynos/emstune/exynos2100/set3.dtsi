@@ -1,0 +1,86 @@
+/ {
+	/* game mode - default */
+	set3: set@0300{
+		/* schedudling policy */
+		sched_policy {
+			root			= <SCHED_POLICY_ENERGY>;
+			foreground 		= <SCHED_POLICY_ENERGY>;
+			background		= <SCHED_POLICY_ENERGY>;
+			top-app			= <SCHED_POLICY_ENERGY>;
+			rt			= <SCHED_POLICY_ENERGY>;
+			system			= <SCHED_POLICY_ENERGY>;
+			system-background	= <SCHED_POLICY_ENERGY>;
+			nnapi-hal		= <SCHED_POLICY_ENERGY>;
+			camera-daemon		= <SCHED_POLICY_ENERGY>;
+		};
+
+		/* weight (%) applied to active cpu's efficiency */
+		active_weight {	   		/* LIT MED BIG */
+			root            	= <100 100 100>;
+			foreground      	= <100 100 100>;
+			background      	= <100 100 100>;
+			top-app         	= <100 100 100>;
+			rt			= <100 100 100>;
+			system			= <100 100 100>;
+			system-background	= <100 100 100>;
+			nnapi-hal		= <100 100 100>;
+			camera-daemon		= <100 100 100>;
+		};
+
+		/* weight (%) applied to idle cpu's efficiency */
+		idle_weight {	   		/* LIT MED BIG */
+			root            	= <100 100 100>;
+			foreground      	= <100 100 100>;
+			background      	= <100 100 100>;
+			top-app         	= <100 100 100>;
+			rt			= <100 100 100>;
+			system			= <100 100 100>;
+			system-background	= <100 100 100>;
+			nnapi-hal		= <100 100 100>;
+			camera-daemon		= <100 100 100>;
+		};
+
+		/* gov-data used by ESG */
+		esg {				/* LIT MED BIG */
+			step			= <  4   4   4>;
+			patient-mode		= <  1   1   1>;
+
+			up-rate-limit-ms	= <4>;
+			down-rate-limit-ms	= <4>;
+		};
+
+		frt {	   			/* LIT MED BIG */
+			active-ratio 		= < 50 100 100>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			foreground	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <75>;
+			};
+			domain1 {
+				cpus = "4-7";
+				lower-boundary = <50>;
+				upper-boundary = <1024>;
+			};
+		};
+
+		ecs {
+			domain0 {
+				busy-threshold-ratio = <100>;
+			};
+		};
+
+		/* cpus_binding applied to core selection */
+		cpus_binding {
+			target-sched-class = <0x8>;	/* fair */
+
+			background	= "0-3";
+		};
+	};
+};

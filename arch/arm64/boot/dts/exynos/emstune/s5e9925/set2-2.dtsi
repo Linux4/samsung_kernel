@@ -1,0 +1,55 @@
+/ {
+	/* performance mode - app boost */
+	set2_2: set@0202 {
+		/* schedudling policy */
+		sched_policy {
+			root			= <SCHED_POLICY_EFF>;
+			foreground 		= <SCHED_POLICY_PERF>;
+			background		= <SCHED_POLICY_EFF>;
+			top-app			= <SCHED_POLICY_PERF>;
+			rt			= <SCHED_POLICY_EFF>;
+			system			= <SCHED_POLICY_EFF>;
+			system-background	= <SCHED_POLICY_EFF>;
+			nnapi-hal		= <SCHED_POLICY_EFF>;
+			camera-daemon		= <SCHED_POLICY_EFF>;
+		};
+
+		/* weight (%) applied to active cpu's efficiency */
+		active_weight {	   		/* LIT MED BIG */
+			root            	= <100 100 100>;
+			foreground      	= <100 100 100>;
+			background      	= <100 100 100>;
+			top-app         	= <100 150 100>;
+			rt			= <100 100 100>;
+			system			= <100 100 100>;
+			system-background	= <100 100 100>;
+			nnapi-hal		= <100 100 100>;
+			camera-daemon		= <100 100 100>;
+		};
+
+		/* weight (%) applied to idle cpu's efficiency */
+		idle_weight {	   		/* LIT MEDBIG */
+			root            	= <200 200 200>;
+			foreground      	= <200 200 200>;
+			background      	= <200 200 200>;
+			top-app         	= <200 300 200>;
+			rt			= <200 200 200>;
+			system			= <200 200 200>;
+			system-background	= <200 200 200>;
+			nnapi-hal		= <200 200 200>;
+			camera-daemon		= <200 200 200>;
+		};
+
+		frt {	   			/* LIT MED BIG */
+			active-ratio 		= < 25   3   5>;
+		};
+
+		tex {
+			top-app		= <1>;
+			prio		= <110>;
+
+			pinning-mask	= "4-7";
+			qjump		= <0>;
+		};
+	};
+};

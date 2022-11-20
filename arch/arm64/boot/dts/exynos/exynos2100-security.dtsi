@@ -1,0 +1,191 @@
+/*
+ * SAMSUNG EXYNOS2100 SoC security device tree source
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *              http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS2100 SoC security device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/interrupt-controller/exynos2100.h>
+
+/ {
+	s2mpu {
+		compatible = "samsung,exynos-s2mpu";
+		memory_region = <&s2mpu_table>;
+		subsystem-num = <13>;
+		subsystem-names = "DPU",
+				  "CAMERA",
+				  "MFC0",
+				  "MFC1",
+				  "AUD",
+				  "NPUS",
+				  "VPC",
+				  "PCIE_GEN2",
+				  "VTS",
+				  "DIT",
+				  "G3D",
+				  "PCIE_GEN4",
+				  "DEFAULT";
+		instance-num = <42>;
+		instance-names = "dpuf0_d0",
+			"dpuf0_d1",
+			"dpuf1_d0",
+			"dpuf1_d1",
+			"csis_d0",
+			"csis_d1",
+			"csis_d2",
+			"csis_d3",
+			"lme",
+			"taa",
+			"yuvpp",
+			"dns_d0",
+			"dns_d1",
+			"mcsc_d0",
+			"mcsc_d1",
+			"mcsc_d2",
+			"mcfp0_d0",
+			"mcfp0_d1",
+			"mcfp0_d2",
+			"mcfp0_d3",
+			"mcfp1",
+			"mfc0_d0",
+			"mfc0_d1",
+			"mfc1_d0",
+			"mfc1_d1",
+			"m2m",
+			"aud",
+			"npus_d0",
+			"npus_d1",
+			"npus_d2",
+			"vpc_d0",
+			"vpc_d1",
+			"vpc_d2",
+			"hsi0",
+			"hsi1",
+			"acvps",
+			"dit",
+			"sbic",
+			"g3d_d0",
+			"g3d_d1",
+			"g3d_d2",
+			"g3d_d3";
+		channel = <42>;
+		irqcnt = <42>;
+		interrupts = <GIC_SPI INTREQ__SYSMMU_DPUF0D0_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_DPUF0D1_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_DPUF1D0_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_DPUF1D1_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D0_CSIS_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D1_CSIS_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D2_CSIS_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D3_CSIS_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D_LME_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_TAA_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_YUVPP_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D0_DNS_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D1_DNS_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D0_MCSC_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D1_MCSC_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D2_MCSC_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D0_MCFP0_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D1_MCFP0_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D2_MCFP0_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D3_MCFP0_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D_MCFP1_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_MFC0D0_interrupt_s2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_MFC0D1_interrupt_s2 IRQ_TYPE_LEVEL_HIGH>,
+                           <GIC_SPI INTREQ__SYSMMU_MFC1D0_interrupt_s2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_MFC1D1_interrupt_s2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__M2M__SYSMMU_D_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_AUD_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D0_NPUS_INTERRUPT_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D1_NPUS_INTERRUPT_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_D2_NPUS_INTERRUPT_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_VPC0_interrupt_s2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_VPC1_interrupt_s2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_VPC2_interrupt_s2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_USB IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_HSI1_S2MPU IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_S2_ACVPS IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_S2_DIT IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_S2_SBIC IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_G3D0_O_INTERRUPT_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_G3D1_O_INTERRUPT_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_G3D2_O_INTERRUPT_S2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__SYSMMU_G3D3_O_INTERRUPT_S2 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	el2_dynamic_lv3 {
+		compatible = "samsung,exynos-el2-dynamic-lv3";
+		interrupts = <GIC_SPI INTREQ__LV3_TABLE_ALLOC IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	/* tbase */
+	tee {
+		compatible = "samsung,exynos-tee";
+		interrupts = <GIC_SPI INTREQ__TBASE IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	tee-tui {
+		compatible = "samsung,exynos-tui";
+		samsung,tzmp;
+	};
+
+	/* Secure Log */
+	seclog {
+		compatible = "samsung,exynos-seclog";
+		interrupts = <GIC_SPI INTREQ__SECURE_LOG IRQ_TYPE_LEVEL_HIGH>;
+		memory-region = <&seclog_mem>;
+	};
+
+	tzasc {
+		compatible = "samsung,exynos-tzasc";
+		channel = <4>;
+		interleaving_shift = <0>;
+		has_privileged = <0>;
+		irqcnt = <4>;
+		interrupts = <GIC_SPI INTREQ__DMC_TZCINT_MIF0 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DMC_TZCINT_MIF1 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DMC_TZCINT_MIF2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DMC_TZCINT_MIF3 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	ppmpu {
+		compatible = "samsung,exynos-ppmpu";
+		channel = <4>;
+		irqcnt = <4>;
+		interrupts = <GIC_SPI INTREQ__DMC_PPMPINT_MIF0 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DMC_PPMPINT_MIF1 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DMC_PPMPINT_MIF2 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI INTREQ__DMC_PPMPINT_MIF3 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	hdcp {
+		compatible = "samsung,exynos-hdcp";
+		interrupts = <GIC_SPI INTREQ__HDCP IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	secmem {
+		compatible = "samsung,exynos-secmem";
+		power-domains = <&pd_hsi0>;
+		dma-coherent;
+	};
+
+	/* Secure RPMB */
+	ufs-srpmb {
+		compatible = "samsung,ufs-srpmb";
+		interrupts = <GIC_SPI INTREQ__RPMB IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	ssp {
+		compatible = "samsung,exynos-ssp";
+		power-domains = <&pd_embedded_ssp>;
+	};
+};

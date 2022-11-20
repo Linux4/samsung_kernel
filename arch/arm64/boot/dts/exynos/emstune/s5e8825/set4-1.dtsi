@@ -1,0 +1,49 @@
+/ {
+	/* balance mode - touch boost */
+	set4_1: set@0401{
+		/* schedudling policy */
+		sched_policy {
+			root			= <SCHED_POLICY_ENERGY>;
+			foreground 		= <SCHED_POLICY_ENERGY>;
+			background		= <SCHED_POLICY_ENERGY>;
+			top-app			= <SCHED_POLICY_PERF>;
+			rt			= <SCHED_POLICY_ENERGY>;
+			system			= <SCHED_POLICY_ENERGY>;
+			system-background	= <SCHED_POLICY_ENERGY>;
+			nnapi-hal		= <SCHED_POLICY_ENERGY>;
+			camera-daemon		= <SCHED_POLICY_ENERGY>;
+		};
+
+		/* weight (%) applied to active cpu's efficiency */
+		active_weight {	   		/* LIT BIG */
+			root            	= <100 100>;
+			foreground      	= <100 100>;
+			background      	= <100 100>;
+			top-app         	= <100 100>;
+			rt			= <100 100>;
+			system			= <100 100>;
+			system-background	= <100 100>;
+			nnapi-hal		= <100 100>;
+			camera-daemon		= <100 100>;
+		};
+
+		/* weight (%) applied to idle cpu's efficiency */
+		idle_weight {	   		/* LIT BIG */
+			root            	= <100 100>;
+			foreground      	= <100 100>;
+			background      	= <100 100>;
+			top-app         	= <100 100>;
+			rt			= <100 100>;
+			system			= <100 100>;
+			system-background	= <100 100>;
+			nnapi-hal		= <100 100>;
+			camera-daemon		= <100 100>;
+		};
+
+		frt {	   			/* LIT BIG */
+			active-ratio 		= < 25   5>;
+		};
+
+		ecs { };
+	};
+};

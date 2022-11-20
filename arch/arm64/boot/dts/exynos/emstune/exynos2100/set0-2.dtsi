@@ -1,0 +1,80 @@
+/ {
+	/* normal mode - app boost */
+	set0_2: set@0002 {
+		/* schedudling policy */
+		sched_policy {
+			root			= <SCHED_POLICY_EFF>;
+			foreground 		= <SCHED_POLICY_PERF>;
+			background		= <SCHED_POLICY_EFF>;
+			top-app			= <SCHED_POLICY_PERF>;
+			rt			= <SCHED_POLICY_EFF>;
+			system			= <SCHED_POLICY_EFF>;
+			system-background	= <SCHED_POLICY_EFF>;
+			nnapi-hal		= <SCHED_POLICY_EFF>;
+			camera-daemon		= <SCHED_POLICY_EFF>;
+		};
+
+		/* weight (%) applied to active cpu's efficiency */
+		active_weight {			/* LIT MED BIG */
+			root            	= < 65 100 100>;
+			foreground      	= < 65 100 100>;
+			background      	= < 65 100 100>;
+			top-app         	= < 65 100 100>;
+			rt			= < 65 100 100>;
+			system			= < 65 100 100>;
+			system-background	= < 65 100 100>;
+			nnapi-hal		= < 65 100 100>;
+			camera-daemon		= < 65 100 100>;
+		};
+
+		/* weight (%) applied to idle cpu's efficiency */
+		idle_weight {	   		/* LIT  MED  BIG */
+			root            	= <130 200 200>;
+			foreground      	= <130 200 200>;
+			background      	= <130 200 200>;
+			top-app         	= <130 200 200>;
+			rt			= <130 200 200>;
+			system			= <130 200 200>;
+			system-background	= <130 200 200>;
+			nnapi-hal		= <130 200 200>;
+			camera-daemon		= <130 200 200>;
+		};
+
+		frt {	   			/* LIT MED BIG */
+			active-ratio 		= < 25   3   5>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			foreground 	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <90>;
+			};
+			domain1 {
+				cpus = "4-6";
+				lower-boundary = <60>;
+				upper-boundary = <600>;
+			};
+			domain2 {
+				cpus = "7";
+				lower-boundary = <500>;
+				upper-boundary = <1024>;
+			};
+		};
+
+		ecs { };
+
+		prio_pinning {
+			top-app		= <1>;
+
+			mask = "4-7";
+			prio = <110>;
+		};
+
+		prefer_cpu {};
+	};
+};

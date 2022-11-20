@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * EXYNOS DMA HEAP device tree source for reserved-memory
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ */
+
+/ {
+	system_dma_heap {
+		compatible = "samsung,dma_heap,system";
+		dma_heap,name = "system";
+	};
+
+	video_system_dma_heap {
+		compatible = "samsung,dma_heap,system";
+		dma_heap,name = "video_system";
+		dma_heap,video_aligned;
+	};
+
+	crypto_dma_heap {
+		compatible = "samsung,dma_heap,cma";
+		memory-region = <&crypto>;
+		dma_heap,name = "crypto";
+	};
+
+	video_stream_dma_heap {
+		compatible = "samsung,dma_heap,cma";
+		memory-region = <&vstream>;
+		dma_heap,name = "vstream";
+		dma_heap,video_aligned;
+		dma_heap,secure;
+		dma_heap,protection_id = <3>;
+		dma_heap,alignment = <0x10000>;
+	};
+
+	video_frame_dma_heap {
+		compatible = "samsung,dma_heap,cma";
+		memory-region = <&vframe>;
+		dma_heap,name = "vframe";
+		dma_heap,secure;
+		dma_heap,protection_id = <5>;
+		dma_heap,alignment = <0x10000>;
+	};
+
+	video_scaler_dma_heap {
+		compatible = "samsung,dma_heap,cma";
+		memory-region = <&vscaler>;
+		dma_heap,name = "vscaler";
+		dma_heap,secure;
+		dma_heap,protection_id = <6>;
+		dma_heap,alignment = <0x10000>;
+	};
+
+	gpu_buffer_dma_heap {
+		compatible = "samsung,dma_heap,cma";
+		memory-region = <&gpu_buffer>;
+		dma_heap,name = "gpu_buffer";
+		dma_heap,secure;
+		dma_heap,protection_id = <9>;
+		dma_heap,alignment = <0x10000>;
+	};
+};
+
+&reserved_memory {
+	#address-cells = <2>;
+	#size-cells = <1>;
+
+	crypto: crypto {
+		compatible = "shared-dma-pool";
+		size = <0x1800000>;
+		alloc-ranges =	<0xA 0x00000000 0x10000000>,
+				<0x0 0x40000000 0xB0000000>;
+		alignment = <0x0 0x00400000>;
+		reusable;
+	};
+
+	vstream: vstream {
+		compatible = "shared-dma-pool";
+		size = <0x4800000>;
+		alloc-ranges = <0x0 0x40000000 0xB0000000>;
+		alignment = <0x0 0x00400000>;
+		reusable;
+	};
+
+	vframe: vframe {
+		compatible = "shared-dma-pool";
+		size = <0x20000000>;
+		alignment = <0x0 0x00400000>;
+		reusable;
+	};
+
+	vscaler: vscaler {
+		compatible = "shared-dma-pool";
+		size = <0x3400000>;
+		alignment = <0x0 0x00400000>;
+		reusable;
+	};
+
+	gpu_buffer: gpu_buffer {
+		compatible = "shared-dma-pool";
+		size = <0x4000000>;
+		alignment = <0x0 0x00400000>;
+		reusable;
+	};
+};

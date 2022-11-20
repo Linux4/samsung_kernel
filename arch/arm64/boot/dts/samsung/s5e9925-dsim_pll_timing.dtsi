@@ -1,0 +1,56 @@
+/*
+ * SAMSUNG Panel Device Tree Source
+ *
+ * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	fragment@dsim_hs_pll_timing {
+		target-path = "/";
+		__overlay__ {
+			dsim_hs_pll_timing: dsim-hs-pll-timing {
+				hs_clk_1368000 {
+					pmsk = <
+						0x5 0x59 0x0 0x1000
+						0x0 0x0 0x0 0x0
+						0x0 0x0 0x0 0x0
+						0x0 0x0
+						>;
+					hs_clk = <1368000>;
+				};
+				hs_clk_1328000 {
+					pmsk = <
+						0x5 0x56 0x0 0x7555
+						0x0 0x0 0x0 0x0
+						0x0 0x0 0x0 0x0
+						0x0 0x0
+						>;
+					hs_clk = <1328000>;
+				};
+				hs_clk_1362000 {
+					pmsk = <
+						0x5 0x59 0x0 0xAC00
+						0x0 0x0 0x0 0x0
+						0x0 0x0 0x0 0x0
+						0x0 0x0
+						>;
+					hs_clk = <1362000>;
+				};
+				hs_clk_894000 {
+					pmsk = <
+						0x2 0x8A 0x1 0x89D9
+						0x0 0x0 0x0 0x0
+						0x0 0x0 0x0 0x0
+						0x0 0x0
+						>;
+					hs_clk = <894000>;
+				};
+			};
+		};
+	};
+};

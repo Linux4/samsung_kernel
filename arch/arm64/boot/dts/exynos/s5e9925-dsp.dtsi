@@ -1,0 +1,48 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * SAMSUNG EXYNOS SoC DSP device tree source
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS SoC DSP device nodes are listed in this files.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/soc/samsung/exynos-dsp.h>
+
+/ {
+	dsp: dsp@16200000 {
+		compatible = "samsung,exynos-dsp";
+		reg = <0x0 0x16200000 0x200000>;
+
+		interrupts = <GIC_SPI INTREQ__FROM_DNC_TO_HOST_NS_1 IRQ_TYPE_LEVEL_HIGH>;
+
+		clocks = <&clock GATE_IP_DNC_QCH>,
+		       <&clock GATE_IP_DSP_QCH>,
+		       <&clock GATE_IP_SDMA_QCH>;
+		clock-names = "GATE_IP_DNC_QCH",
+			"GATE_IP_SDMA_QCH",
+			"GATE_IP_DSP_QCH";
+
+		iommus = <&sysmmu_sdma0>,
+		       <&sysmmu_sdma1>,
+		       <&sysmmu_sdma2>,
+		       <&sysmmu_sdma3>,
+		       <&sysmmu_ipdnc>;
+		samsung,iommu-group = <&iommu_group_npu>;
+		#dma-address-cells = <1>;
+		#dma-size-cells = <1>;
+		dma-window = <0x70000000 0x70000000>;
+		dma-coherent;
+
+		power-domains = <&pd_dsp1>;
+		samsung,dsp_dev_id = <DSP_DEVICE_ID_P0>;
+		memory-region = <&dsp_master_rmem>;
+		samsung,imgloader-s2mpu-support;
+		samsung,fw-id = <0>;
+	};
+};

@@ -1,0 +1,49 @@
+# Battery driver
+CONFIG_ENG_BATTERY_CONCEPT=y
+
+# Power Management
+CONFIG_PINCTRL_SEC_GPIO_DVS=m
+
+# fs-verity
+CONFIG_FS_VERITY_DEBUG=y
+
+# Memory Debugging
+CONFIG_SLUB_DEBUG_ON=y
+
+# Lock Debugging (spinlocks, mutexes, etc...)
+CONFIG_DEBUG_PREEMPT=y
+CONFIG_DEBUG_RWSEMS=y
+CONFIG_DEBUG_ATOMIC_SLEEP=y
+
+# SDP KeyManagement Test for MDFPP evaluation
+CONFIG_SDP_KEY_DUMP=y
+
+# Displayport test
+CONFIG_SEC_DISPLAYPORT_SELFTEST=y
+CONFIG_SEC_DISPLAYPORT_DBG=y
+
+# SDP KeyManagement Test for MDFPP evaluation
+CONFIG_SDP_KEY_DUMP=y
+
+# Pablo Obte support
+CONFIG_PABLO_OBTE_SUPPORT=m
+
+# ABC driver bootc eng option
+CONFIG_SEC_ABC_HUB_BOOTC_ENG=m
+
+# Micro Hypervisor
+# CONFIG_RKP_FIMC_CHECK is not set
+# CONFIG_KDP_CRED is not set
+# CONFIG_KDP_NS is not set
+
+# USB Host Test
+CONFIG_USB_LINK_LAYER_TEST=m
+CONFIG_USB_EHSET_TEST_FIXTURE=m
+
+# CAMERA
+# CONFIG_USE_SIGNED_BINARY is not set
+
+#
+# please don't remove new line on this file
+#
+

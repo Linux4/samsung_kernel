@@ -1,0 +1,133 @@
+/*
+ * SAMSUNG S5E9925 PCIe device tree source
+ *
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG S5E9925 SoC device nodes are listed in this file.
+ * S5E9925 based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/pci/pci.h>
+/ {
+	/* HSI1 GEN2 */
+	pcie_0: pcie@113B0000 {
+		compatible = "samsung,exynos-pcie-rc";
+		gpios = <&gpf0 1 0x1 /* PERST */>;
+		reg = <0x0 0x113B0000 0x2000    /* elbi base */
+			0x0 0x113C0000 0x5000	/* soc base */
+			0x0 0x113E0000 0x3000   /* phy base */
+			0x0 0x113F0000 0xD000	/* phy udbg base */
+			0x0 0x11220700 0x4	/* sysreg_iocc base */
+			0x0 0x11221050 0x10     /* sysreg base */
+			0x0 0x11800000 0x381000   /* DBI base */
+			0x0 0x113D0000 0x5000    /* phy pcs base */
+			0x0 0x28000000 0x2000   /* configuration space */
+			0x0 0x11390000 0x1000>; /* I/A space */
+		reg-names = "elbi", "soc", "phy", "phyudbg", "sysreg_iocc", "sysreg", "dbi", "pcs", "config", "ia";
+		interrupts = <GIC_SPI INTREQ__PCIE_GEN2 IRQ_TYPE_LEVEL_HIGH>;
+		#interrupt-cells = <1>;
+		interrupt-map-mask = <0 0 0 0>;
+		interrupt-map = <0 0 0 0 &gic 0 INTREQ__PCIE_GEN2 0x4>;
+		samsung,syscon-phandle = <&pmu_system_controller>;
+		//clocks = <&clock GATE_PCIE_GEN2_QCH_MSTR>, <&clock GATE_PCIE_GEN2_QCH_PCS>,
+		//       <&clock GATE_PCIE_GEN2_QCH_PHY>, <&clock GATE_PCIE_GEN2_QCH_DBI>,
+		//       <&clock GATE_PCIE_GEN2_QCH_APB>, <&clock GATE_PCIE_GEN2_QCH_REF>;
+		//clock-names = "bus", "pcie";
+		pinctrl-names = "active", "idle";
+		pinctrl-0 = <&pcie0_clkreq &pcie0_perst>;
+		pinctrl-1 = <&pcie0_clkreq &pcie0_perst>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+		device_type = "pci";
+		/* non-prefetchable memory */
+		ranges = <0x82000000 0 0x20000000 0 0x20000000 0 0x8000000>;
+		/* ranges = <0x82000000 0 0x20000000 0 0x20000000 0 0x20000000>; */
+		ip-ver = <0x992500>;
+		ep-ver = <0x04375>;
+		num-lanes = <1>;
+		ch-num = <0>;
+		//pcie-clk-num = <0>;
+		//phy-clk-num = <0>;
+		pcie-pm-qos-int = <267000>;
+		use-cache-coherency = "false";
+		use-msi = "false";
+		use-sicd = "true";
+		use-sysmmu = "false";
+		use-ia = "false";
+		pmu-offset = <0x71c>;
+		pmu-offset1 = <0xAB0>;
+		pmu-offset2 = <0x3B20>;
+		use-nclkoff-en = "false";
+		max-link-speed = <LINK_SPEED_GEN2>;
+		power-domains = <&pd_hsi1>;
+		status = "disabled";
+	};
+
+	/* HSI1 GEN3 */
+	pcie_1:	pcie@11320000 {
+		compatible = "samsung,exynos-pcie-rc";
+		gpios = <&gpf0 3 0x1 /* PERST */>;
+		reg = <0x0 0x11320000 0x2000    /* elbi base */
+			0x0 0x11330000 0x5000	/* soc base */
+			0x0 0x11350000 0x3000   /* phy base */
+			0x0 0x11360000 0xD000	/* phy udbg base */
+			0x0 0x11220700 0x4	/* sysreg_iocc base */
+			0x0 0x11221060 0x10     /* sysreg base */
+			0x0 0x11400000 0x381000   /* DBI base */
+			0x0 0x11340000 0x5000    /* phy pcs base */
+			0x0 0x40FFE000 0x2000   /* configuration space */
+			0x0 0x11300000 0x1000>; /* I/A space */
+		reg-names = "elbi", "soc", "phy", "phyudbg", "sysreg_iocc", "sysreg", "dbi", "pcs", "config", "ia";
+		interrupts = <GIC_SPI INTREQ__PCIE_GEN3 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "msi";
+		#interrupt-cells = <1>;
+		samsung,syscon-phandle = <&pmu_system_controller>;
+		//clocks = <&clock GATE_PCIE_GEN3_QCH_APB>, <&clock GATE_PCIE_GEN3_QCH_DBI>,
+		//	<&clock GATE_PCIE_GEN3_QCH_AXI>, <&clock GATE_PCIE_GEN3_QCH_PCS_APB>,
+		//	<&clock GATE_PCIE_GEN3_QCH_REF>, <&clock GATE_PCIE_GEN3_QCH_PMA_APB>;
+		pinctrl-names = "active", "idle";
+		pinctrl-0 = <&pcie1_clkreq &pcie1_perst>;
+		pinctrl-1 = <&pcie0_clkreq &pcie0_perst>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+		device_type = "pci";
+		/* non-prefetchable memory */
+		/* S5100 doorbell target address: 0x12D0_02D0  */
+		ranges = <0x82000000 0 0x14E00000 0 0x40000000 0 0xFF0000>;
+		/* ranges = <0x82000000 0 0x14000000 0 0x14000000 0 0xFF0000>; */
+		ip-ver = <0x992500>;
+		num-lanes = <2>;
+		ch-num = <1>;
+		//pcie-clk-num = <0>;
+		//phy-clk-num = <0>;
+		pcie-pm-qos-int = <267000>;
+		use-cache-coherency = "false";
+		use-pcieon-sleep = "true";
+		use-msi = "false";
+		use-sicd = "true";
+		use-sysmmu = "false";
+		use-ia = "false";
+		pmu-offset = <0x720>;
+		pmu-offset1 = <0xAB4>;
+		pmu-offset2 = <0x3B20>;
+		max-link-speed = <LINK_SPEED_GEN3>;
+		power-domains = <&pd_hsi1>;
+		status = "disabled";
+	};
+
+	sysmmu_pcie: sysmmu@11280000 {
+		compatible = "samsung,pcie-sysmmu";
+		reg = <0x0 0x11280000 0x10000>;
+		interrupts = <0 INTREQ__SYSMMU_HSI1_S1_NONSECURE IRQ_TYPE_LEVEL_HIGH>;
+		qos = <15>;
+		port-name = "PCIe";
+		#iommu-cells = <0>;
+		power-domains = <&pd_hsi1>;
+	};
+};

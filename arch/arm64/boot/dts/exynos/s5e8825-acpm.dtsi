@@ -1,0 +1,65 @@
+/*
+ * SAMSUNG EXYNOS8825 SoC DVFS Manager device tree source
+ *
+ * Copyright (c) 2014 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS9925 SoC device nodes are listed in this file.
+ * EXYNOS based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	acpm {
+		compatible = "samsung,exynos-acpm";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		acpm-ipc-channel = <4>;
+		use-plugin-library;
+		fvmap_offset = <0x31000>;
+		reg = <0x0 0x11830000 0x1000>;		/* TIMER_APM */
+		reg-names = "timer_apm";
+		peritimer-cnt = <0xFFFF>;
+	};
+
+	acpm_ipc {
+		compatible = "samsung,exynos-acpm-ipc";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		interrupts = <GIC_SPI INTREQ__MAILBOX_APM2AP IRQ_TYPE_LEVEL_HIGH>;	/* AP2APM MAILBOX SPI NUM*/
+		reg = <0x0 0x11900000 0x1000>,		/* AP2APM MAILBOX */
+			<0x0 0x2039000 0x34800>;	/* APM SRAM */
+		initdata-base = <0x8000>;
+		num-timestamps = <32>;
+		debug-log-level = <0>;
+		logging-period = <500>;
+		dump-base = <0x203d000>;
+		dump-size = <0x30800>;			/* 210KB - 16KB(SACPM) = 194KB */
+		dram-dump-base = <0x90014000>;
+		board-id = <0x10>;			/* unused */
+		board-rev = <0x0>;
+		interrupt-ch = <0>;
+		nfc-log-offset = <0x30500>;
+		nfc-log-len = <16>;
+	};
+
+	acpm_mfd_bus0: acpm_mfd_bus@11a00000 {
+		compatible = "samsung,exynos-acpm-mfd-bus";
+		status = "okay";
+	};
+
+	acpm_mfd_bus1: acpm_mfd_bus@11a01000 {
+		compatible = "samsung,exynos-acpm-mfd-bus";
+		status = "okay";
+	};
+
+	dmc_plugin {
+		compatible = "samsung,exynos-acpm-plg-dbg";
+		acpm-ipc-channel = <9>;
+	};
+
+};

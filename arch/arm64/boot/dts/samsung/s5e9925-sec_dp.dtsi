@@ -1,0 +1,38 @@
+/*
+ * SAMSUNG Displayport device tree source
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+
+&s2mps26_gpio {
+	pinctrl_auxoe: pinctrl-auxoe  {
+		aux_oe: aux-oe {
+			pins = "gpio_s0";
+			pmic-gpio,pull-disable;
+			pmic-gpio,output-high;
+		};
+	};
+	pinctrl_sbusel: pinctrl-subsel  {
+		sbu_sel: sbu-sel {
+			pins = "gpio_s1";
+			pmic-gpio,pull-disable;
+			pmic-gpio,output-low;
+		};
+	};
+}; /* s2mps26_gpio */
+
+&drmdp {
+	status = "okay";
+	dp,aux_sw_oe =  <&s2mps26_gpio 0 0>;
+	dp,sbu_sw_sel = <&s2mps26_gpio 1 0>;
+	dp,usb_con_sel = <&gpc7 1 0>;
+
+	pinctrl-names = "default";
+/*	pinctrl-0 = <&aux_oe &sbu_sel>; */
+};

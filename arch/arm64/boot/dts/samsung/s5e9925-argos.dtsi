@@ -1,0 +1,197 @@
+/*
+ * SAMSUNG S5E9925 Argos Device Tree Source
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	compatible = "samsung,s5e9925";
+
+	fragment@common {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			argos {
+				compatible = "samsung,argos";
+				#address-cells = <1>;
+				/*  The device number should be assigned for each device, e.g. "boot_device@1" and "boot_device@2".
+				 * Duplicated number is not allowed. Please refer the below example.
+				 */
+
+				/* net_bootst,interval : device throughput scan interval
+				 *          0 - 1000 ms(default), 1 - 500 ms, 2 - 250 ms
+				 */
+
+				/* net_bootst,table Format
+				 * threshold : throughput threshold(Mbps)
+				 * big_min : Big Core's minimum frequency lock. 0 means not set,
+				 * big_max : Big Core's maximum frequency lock. 0 means not set,
+				 * mid_min : Middle Core's minimum frequency lock. 0 means not set,
+				 * mid_max : Middle Core's maximum frequency lock. 0 means not set,
+				 * lit_min : Little Core's minimum frequency lock. 0 means not set,
+				 * lit_max : Little Core's maximum frequency lock. 0 means not set,
+				 * mif : MIF frequency lock. 0 means not set,
+				 * int : INT frequency lock. 0 means not set,
+				 * task_affinity : "enable" - Set task affinity lock.
+				 *	           "disable" - Not set or unlock,
+				 *		   Task affinity should be predefined driver's code.
+				 * irq_affinity : "enable" - Set irq affinity lock.
+				 *                "disable" - Not set or unlock,
+				 *		  IRQ affinity should be predefined driver's code.
+				 * hmp_boot : "enable" - Increase hmp boosting count
+				 *            "disable" - Decrease hmp boosting count
+				 */
+
+				boot_device@1 {
+					net_boost,label="WIFI TX";
+					net_boost,node="wlan0";
+					net_boost,slowdown;
+					net_boost,table {
+						level_0 {
+							threshold = <300>;
+							mid_min = <1920000>;
+							mif = <1352000>;
+							int = <533000>;
+							task_affinity = "enable";
+							irq_affinity = "enable";
+							hmp_boost = "enable";
+						};
+					};
+				};
+				boot_device@2 {
+					net_boost,label="WIFI RX";
+					net_boost,node="wlan0";
+					net_boost,slowdown;
+					net_boost,table {
+						level_0 {
+							threshold = <300>;
+							mid_min = <1920000>;
+							mif = <1352000>;
+							int = <533000>;
+							task_affinity = "enable";
+							irq_affinity = "enable";
+							hmp_boost = "enable";
+						};
+					};
+				};
+
+				boot_device@3 {
+					net_boost,label="UFS";
+					net_boost,node="";
+					net_boost,sysnode="/sys/kernel/blk_sec_stats/transferred_bytes";
+					net_boost,interval= <1>;
+					net_boost,table {
+						level_0 {
+							threshold = <400>; /* 50 MB/0.5s */
+							big_min = <2496000>;
+							mid_min = <2496000>;
+							lit_min = <1728000>;
+							int = <800000>;
+							mif = <1352000>;
+						};
+
+					};
+				};
+				boot_device@4 {
+					net_boost,label="P2P";
+					net_boost,node="p2p-wlan0-0";
+					net_boost,slowdown;
+					net_boost,table {
+						level_0 {
+							threshold = <10>;
+							mid_min = <1113600>;
+							lit_min = <1171200>;
+						};
+						level_1 {
+							threshold = <50>;
+							mid_min = <1209600>;
+							lit_min = <1267200>;
+						};
+						level_2 {
+							threshold = <150>;
+							mid_min = <1881600>;
+							lit_min = <1574400>;
+							mif = <1352000>;
+							int = <400000>;
+						};
+						level_3 {
+							threshold = <300>;
+							big_min = <2112000>;
+							mid_min = <2112000>;
+							lit_min = <1785600>;
+							mif = <1716000>;
+							int = <533000>;
+							task_affinity = "enable";
+							irq_affinity = "enable";
+							hmp_boost = "enable";
+						};
+					};
+				};
+				boot_device@5 {
+					net_boost,label="NAN";
+					net_boost,node="aware_data0";
+					net_boost,slowdown;
+					net_boost,table {
+						level_0 {
+							threshold = <50>;
+							mid_min = <1209600>;
+							lit_min = <1267200>;
+						};
+						level_1 {
+							threshold = <150>;
+							mid_min = <1881600>;
+							lit_min = <1574400>;
+							mif = <1352000>;
+							int = <400000>;
+						};
+						level_2 {
+							threshold = <300>;
+							big_min = <2112000>;
+							mid_min = <2112000>;
+							lit_min = <1785600>;
+							mif = <1716000>;
+							int = <533000>;
+							task_affinity = "enable";
+							irq_affinity = "enable";
+							hmp_boost = "enable";
+						};
+						level_3 {
+							threshold = <600>;
+							big_min = <2227200>;
+							mid_min = <2227200>;
+							lit_min = <1785600>;
+							mif = <1716000>;
+							int = <533000>;
+							task_affinity = "enable";
+							irq_affinity = "enable";
+							hmp_boost = "enable";
+						};
+					};
+				};
+				boot_device@6 {
+					net_boost,label="SWLAN";
+					net_boost,node="swlan0";
+					net_boost,slowdown;
+					net_boost,table {
+						level_0 {
+							threshold = <300>;
+							mid_min = <1920000>;
+							mif = <1352000>;
+							int = <533000>;
+							task_affinity = "enable";
+							irq_affinity = "enable";
+							hmp_boost = "enable";
+						};
+					};
+				};
+			};
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */

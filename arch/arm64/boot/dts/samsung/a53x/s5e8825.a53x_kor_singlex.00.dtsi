@@ -1,0 +1,231 @@
+/*
+ * SAMSUNG S5E8825 board device tree source
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+#include "s5e8825-a53x_common.dtsi"
+#include "s5e8825-a53x_pm_00.dtsi"
+#include "camera/s5e8825-a53x-camera_00.dtsi"
+
+/ {
+	compatible = "samsung,A53X KOR SINGLEX BRINGUP", "samsung,S5E8825";
+
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			model = "Samsung A53X KOR SINGLEX BRINGUP based on S5E8825";
+
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */
+
+&serial_0 {
+	status = "okay";
+};
+
+&pinctrl_0 {
+	dmic1_en: dmic1-en {
+		samsung,pins = "gpc2-0";
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-val = <1>;
+	};
+
+	dmic1_en_idle: dmic1-en-idle {
+		samsung,pins = "gpc2-0";
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <0>;
+		samsung,pin-val = <0>;
+	};
+
+	dmic2_en: dmic2-en {
+		samsung,pins = "gpc3-0";
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-val = <1>;
+	};
+
+	dmic2_en_idle: dmic2-en-idle {
+		samsung,pins = "gpc3-0";
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <0>;
+		samsung,pin-val = <0>;
+	};
+};
+
+&vts {
+	pinctrl-names = "dmic0_default",
+		"dmic1_default",
+		"dmic2_default",
+		"amic0_default",
+		"amic1_default",
+		"amic2_default",
+		"dmic0_idle",
+		"dmic1_idle",
+		"dmic2_idle",
+		"default";
+	pinctrl-0 = <&dmic_bus_clk0 &dmic_pdm0_bus &dmic1_en>;
+	pinctrl-1 = <&dmic_bus_clk2 &dmic_pdm2_bus &dmic2_en>;
+	pinctrl-2 = <&dmic_bus_clk2 &dmic_pdm2_bus>;
+	pinctrl-3 = <&dmic_bus_clk0 &amic_pdm0_bus>;
+	pinctrl-4 = <&dmic_bus_clk1 &amic_pdm1_bus>;
+	pinctrl-5 = <&dmic_bus_clk2 &amic_pdm2_bus>;
+	pinctrl-6 = <&dmic_bus_clk0_idle &dmic_pdm0_idle &dmic1_en_idle>;
+	pinctrl-7 = <&dmic_bus_clk2_idle &dmic_pdm2_idle &dmic2_en_idle>;
+	pinctrl-8 = <&dmic_bus_clk2_idle &dmic_pdm2_idle>;
+	pinctrl-9 = <>;
+};
+
+&hsi2c_7 {
+	tfa98xx@34 {
+		pinctrl-names;
+		pinctrl-0 = <>;
+		irq-gpio = <>;
+	};
+
+	tfa98xx@35 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&amp_en>;
+		irq-gpio = <>;
+	};
+};
+
+/* ----------------------------------------------------------------------------
+ * Configurations for GPIOs without Device Driver
+ * Note: Do NOT add pins using by device drivers to the configuration below
+ * ----------------------------------------------------------------------------
+ */
+/*
+ * pin banks of s5e8825 pin-controller 0 (ALIVE) : pinctrl@11850000
+ * GPA0, GPA1
+ * GPQ0, GPQ1
+ * GPC0 ~ GPC7
+ * GPX0
+ * NOTE: These pin's are ALIVE region. DO NOT add SLEEP gpio config.
+ */
+/*
+&pinctrl_0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial0>;
+	initial0: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e8825 pin-controller 1 (CMGP) : pinctrl@11430000
+ * GPM0 ~ GPM20
+ */
+/*
+&pinctrl_1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial1>;
+	initial1: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e8825 pin-controller 2 (CHUB) : pinctrl@111d0000
+ * GPH0, GPH1
+ * NOTE: These pin's are ALIVE region. DO NOT add SLEEP gpio config.
+ */
+/*
+&pinctrl_2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial2>;
+	initial2: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e8825 pin-controller 3 (CHUBINT) : pinctrl@111e0000
+ * GPE0, GPE1
+ * NOTE: These pin's are ALIVE region. DO NOT add SLEEP gpio config.
+ */
+/*
+&pinctrl_3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial3>;
+	initial3: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e8825 pin-controller 4 (HSI) : pinctrl@13450000
+ * GPF0, GPF1
+ */
+/*
+&pinctrl_4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial4>;
+	initial4: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e8825 pin-controller 5 (HSIUFS) : pinctrl@13440000
+ * GPF3
+ */
+/*
+&pinctrl_5 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial5>;
+	initial5: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e8825 pin-controller 6 (PERI) : pinctrl@10040000
+ * GPP0 ~ GPP3
+ * GPG0 ~ GPG2
+ * GPB0, GPB1
+ */
+/*
+&pinctrl_6 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial6>;
+	initial6: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e8825 pin-controller 7 (PERIMMC) : pinctrl@100f0000
+ * GPF2
+ */
+/*
+&pinctrl_7 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial7>;
+	initial5: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e8825 pin-controller 8 (VTS) : pinctrl@11780000
+ * GPV0
+ */
+/*
+&pinctrl_8 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial7>;
+	initial5: initial-state {
+	};
+};
+*/
+

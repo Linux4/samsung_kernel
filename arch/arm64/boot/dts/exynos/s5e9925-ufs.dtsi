@@ -1,0 +1,112 @@
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// Samsung's SoC UFS device tree source
+//
+// Copyright (C) 2020 Samsung Electronics Co., Ltd.
+
+//#include <dt-bindings/ufs/ufs.h>
+
+/ {
+	sysreg_ufs: sysreg_ufs@11020000 {
+			 compatible = "samsung,s5e9925-sysreg-ufs", "syscon";
+			 reg = <0x0 0x11020000 0x1000>;
+	};
+
+	ufs: ufs@0x11100000 {
+		/* ----------------------- */
+		/* 1. SYSTEM CONFIGURATION */
+		/* ----------------------- */
+		compatible ="samsung,exynos-ufs";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges;
+
+		reg =
+			<0x0 0x11100000 0x200>,	/* 0: HCI standard */
+			<0x0 0x11101100 0x2000>,/* 1: Vendor specificed */
+			<0x0 0x11180000 0x8000>,/* 2: UNIPRO */
+			<0x0 0x111A0000 0xA014>,/* 3: UFS protector */
+                        <0x0 0x11104000 0x4000>,	/* phy */
+			<0x0 0x11108000 0x804>;	/* 6: CPORT */
+		interrupts = <GIC_SPI INTREQ__UFS_EMBD IRQ_TYPE_LEVEL_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ufs_rst_n &ufs_refclk_out>;
+		clocks =
+			/* aclk clock */
+			<&clock GATE_UFS_EMBD_QCH>,
+			/* unipro clocks */
+			<&clock DOUT_CLKCMU_UFS_UFS_EMBD>;
+
+		clock-names =
+			/* aclk clocks */
+			"GATE_UFS_EMBD",
+			/* unipro clocks */
+			"UFS_EMBD";
+
+		/* board type for UFS CAL */
+		brd-for-cal = /bits/ 8 <1>;  /* (1:SMDK, 16:UNIV) board */
+
+		/* ----------------------- */
+		/* 2. UFS COMMON           */
+		/* ----------------------- */
+		freq-table-hz = <0 0>, <0 0>;
+
+//		vcc-supply = <&ufs_fixed_vcc>;
+//		vcc-fixed-regulator;
+
+		/* ----------------------- */
+		/* 3. UFS EXYNOS           */
+		/* ----------------------- */
+
+		/* power mode change */
+		ufs,pmd-attr-lane = /bits/ 8 <2>;
+		ufs,pmd-attr-gear = /bits/ 8 <4>;
+
+                /* evt version for UFS CAL */
+		evt-ver = /bits/ 8 <1>;
+
+		/* DMA coherent callback, should be coupled with 'ufs-sys' */
+		dma-coherent;
+		/* UFS PHY isolation and TCXO control */
+		samsung,pmu-phandle = <&pmu_system_controller>;
+		/* UFS IO coherency  */
+		samsung,sysreg-phandle = <&sysreg_ufs>;
+		/* UFS quirk managing flags */
+		fixed-prdt-req_list-ocs;
+
+		/* ----------------------- */
+		/* 4. ADDITIONAL NODES     */
+		/* ----------------------- */
+		phy-tcxo-con {
+			offset = <0x3e10>; /* TCXO_BUF_CTRL */
+			mask = <0x8>;
+			val = <0x8>;
+		};
+
+		ufs-phy-iso {
+			offset = <0x728>;
+			mask = <0x1>; /* (UFS_BIT(0)) */
+			val = <0x1>;
+		};
+
+		ufs-iocc {
+			offset = <0x700>;
+			mask = <0x300000>; /* (UFS_BIT(20) | UFS_BIT(21)) */
+			val = <0x300000>;
+		};
+
+		ufs-pm-qos {
+			freq-int = <332000>;
+			perf-int = <800000>;
+			perf-mif = <3172000>;
+			cpufreq-qos-levels = <6 6 4>; /* (1536000, 1728000, 1344000) */
+		};
+
+		ufs-protector {
+	                /* fmp hw status */
+			valid-check = /bits/ 8 <0>;
+		};
+
+	};
+
+};

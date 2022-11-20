@@ -1,0 +1,51 @@
+/*
+ * Samsung Exynos SoC series Panel driver
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+
+/ {
+	fragment@panel_drv {
+		target-path = "/";
+		__overlay__ {
+			ddi_vdd3_gpio: ddi_vdd3_gpio {
+				compatible = "regulator-fixed";
+				regulator-name = "ddi-vdd3";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				gpio = <&gpp3 4 1>;
+				enable-active-high;
+				regulator-boot-on;
+			};
+
+			ddi_vci_gpio: ddi_vci_gpio {
+				compatible = "regulator-fixed";
+				regulator-name = "ddi-vci";
+				regulator-min-microvolt = <3000000>;
+				regulator-max-microvolt = <3000000>;
+				gpio = <&gpp3 3 1>;
+				enable-active-high;
+				regulator-boot-on;
+			};
+
+			panel_drv_0: panel_drv_0 {
+				regulators {
+					ddi_vci: ddi-vci {
+						regulator = <&ddi_vci_gpio>;
+						type = <REGULATOR_TYPE_PWR>;
+					};
+
+					ddi_vdd3: ddi-vdd3 {
+						regulator = <&ddi_vdd3_gpio>;
+						type = <REGULATOR_TYPE_PWR>;
+					};
+				};
+			};
+		};
+	};
+};

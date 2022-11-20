@@ -1,0 +1,62 @@
+/ {
+	i3c_apm_pmic: syscon@11A00000 {
+		compatible = "i3c_apm_pmic", "syscon";
+		reg = <0x0 0x11A00000 0x1800>;
+	};
+
+	dbus_baaw: syscon@14420000 { /* refer MIF_BAAW_START0*/
+		compatible = "dbus_baaw", "syscon";
+		reg = <0x0 0x14420000 0x4>;
+	};
+
+	pbus_baaw: syscon@14430000 { /* refer APM_BAAW_START0*/
+		compatible = "pbus_baaw", "syscon";
+		reg = <0x0 0x14430000 0x10000>;
+	};
+
+	wlbt_remap_base: syscon@14450000 {
+		compatible = "wlbt_remap", "syscon";
+		reg = <0x0 0x14450000 0x10000>;
+	};
+
+	boot_cfg: syscon@14460000 {
+		compatible = "boot_cfg", "syscon";
+		reg = <0x0 0x14460000 0x20000>;
+	};
+
+	scsc_wifibt: scsc_wifibt@11A70000 {
+		compatible = "samsung,scsc_wifibt";
+		memory-region = <&wifibt_if>;
+		/* Mailbox Registers */
+		reg = <0x0 0x11A70000 0x180>,	/* WLAN MAILBOX */
+			<0x0 0x11A80000 0x180>;	/* WPAN MAILBOX */
+		//SPI[23] 55 BLK_ALIVE INTREQ__ALIVE_WLBT_ACTIVE
+		//SPI[40] 72 BLK_ALIVE INTREQ__MAILBOX_WLBT_WL2AP
+		//SPI[39] 71 BLK_ALIVE INTREQ__MAILBOX_WLBT_BT2AP
+		//SPI[422] 454 BLK_WLBT WB2AP_CFG_REQ
+		//SPI[423] 455 BLK_WLBT WB2AP_WDOG_RESET_REQ_IRQ
+		interrupts = <0 23 4>, <0 40 4>, <0 39 4>, <0 422 4>, <0 423 4>;
+		interrupt-names = "ALIVE", "MBOX_WLAN","MBOX_WPAN","CFG_REQ","WDOG";
+		samsung,syscon-phandle = <&pmu_system_controller>;
+		samsung,dbus_baaw-syscon-phandle = <&dbus_baaw>;
+		samsung,pbus_baaw-syscon-phandle = <&pbus_baaw>;
+		samsung,wlbt_remap-syscon-phandle = <&wlbt_remap_base>;
+		samsung,i3c_apm_pmic-syscon-phandle = <&i3c_apm_pmic>;
+		samsung,boot_cfg-syscon-phandle = <&boot_cfg>;
+		/* MIF / INT / CL0 / CL1 */
+		/* this qos_table should be per-platform. Leave it here until we have multiple platfrom support */
+		qos_table = <
+		 421000 50000 533000 533000 /* SCSC_QOS_MIN */
+		 845000 400000 960000 960000 /* SCSC_QOS_MED */
+		2093000 666000 1344000 1344000 /* SCSC_QOS_MAX */
+		    >;
+		samsung,wlbt_hcf = <&wlbt_hw_ver>;
+	};
+
+	//scsc_bt_qos {
+	//	compatible = "samsung,scsc_bt_qos";
+	//	bluetooth_qos = <1600000  421000 133000  507000
+	//	                      10  666000 400000 1150000
+	//	                      20 1000000 533000 2210000>;
+	//};
+};

@@ -1,0 +1,77 @@
+/*
+ * SAMSUNG Panel Device Tree Source
+ *
+ * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	fragment@dsim_freq {
+		target-path = "/";
+		__overlay__ {
+
+			dsim_freq_1328: dsim_freq_1328 {
+				hs-clk = <1328>;
+				pmsk = <
+					0x02 0x66 0x00 0x2762
+					0x0D 0x04 0x00 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00>;
+				cmd_underrun_lp_ref = <2877 5278 6994>;
+			};
+
+			dsim_freq_1362: dsim_freq_1362 {
+				hs-clk = <1362>;
+				pmsk = <
+					0x02 0x69 0x00 0xC4EC
+					0x0D 0x04 0x00 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00>;
+				cmd_underrun_lp_ref = <2928 5334 7046>;
+			};
+
+			dsim_freq_1368: dsim_freq_1368 {
+				hs-clk = <1368>;
+				pmsk = <
+					0x02 0x69 0x00 0x3B14
+					0x0D 0x04 0x00 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00>;
+				cmd_underrun_lp_ref = <2989 5390 7106>;
+			};
+			dsim_freq_1443: dsim_freq_1443 {
+				hs-clk = <1443>;
+				pmsk = <
+					0x02 0x6F 0x00 0x00
+					0x0D 0x04 0x00 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00>;
+				cmd_underrun_lp_ref = <2877 5278 6994>;
+			};
+
+			dsim_freq_1462: dsim_freq_1462 {
+				hs-clk = <1462>;
+				pmsk = <
+					0x02 0x70 0x00 0x7627
+					0x0D 0x04 0x00 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00>;
+				cmd_underrun_lp_ref = <2928 5334 7046>;
+			};
+
+			dsim_freq_1471: dsim_freq_1471 {
+				hs-clk = <1471>;
+				pmsk = <
+					0x02 0x71 0x00 0x2762
+					0x0D 0x04 0x00 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00>;
+				cmd_underrun_lp_ref = <2989 5390 7106>;
+			};
+		};
+	};
+};

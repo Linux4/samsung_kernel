@@ -1,0 +1,83 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * EXYNOS M2M device tree source for M2M IP(MSCL, SMFC)
+ *
+ * Copyright (c) 2012 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ */
+#include <dt-bindings/clock/exynos2100.h>
+#include <dt-bindings/interrupt-controller/exynos2100.h>
+
+/ {
+	aliases {
+		smfc0 = &smfc_0;
+		smfc1 = &smfc_1;
+
+		scaler0 = &scaler_0;
+	};
+
+	smfc_0: smfc@18940000 {
+		compatible = "samsung,exynos8890-jpeg";
+		dma-coherent;
+		reg = <0x0 0x18940000 0x1000>;
+		interrupts = <0 INTREQ__M2M__JPEG0 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clock GATE_JPEG0_QCH>;
+		clock-names = "gate";
+		iommus = <&sysmmu_d_m2m>;
+		samsung,iommu-group=<&iommu_group_mscl_smfc>;
+		smfc,int_qos_minlock = <800000>;
+	};
+
+	smfc_1: smfc@18950000 {
+		compatible = "samsung,exynos8890-jpeg";
+		dma-coherent;
+		reg = <0x0 0x18950000 0x1000>;
+		interrupts = <0 INTREQ__M2M__JPEG1 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clock GATE_JPEG1_QCH>;
+		clock-names = "gate";
+		iommus = <&sysmmu_d_m2m>;
+		samsung,iommu-group=<&iommu_group_mscl_smfc>;
+		smfc,int_qos_minlock = <800000>;
+	};
+
+	scaler_0: scaler@18960000 {
+		compatible = "samsung,exynos5-scaler";
+		reg = <0x0 0x18960000 0x3000>;
+		interrupts = <0 INTREQ__M2M__M2M IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clock GATE_M2M_QCH>;
+		clock-names = "gate";
+		itmon,master = "MSCL";
+		itmon,dest = "M2M";
+		dma-coherent;
+		iommus = <&sysmmu_d_m2m>;
+		samsung,iommu-group=<&iommu_group_mscl_smfc>;
+		samsung,tzmp;
+
+		#dma-address-cells = <1>;
+		#dma-size-cells = <1>;
+		dma-window = <0x0 0xE0000000>;
+
+		/* MIF (not used) | INT | MSCL_clock */
+		mscl_qos_table = < 0 800000 663000
+				   0 533000 400000
+				   0 400000 331500
+				   0 267000 200000
+				   0  80000  50000 >;
+		/* bpp means, YUV420(12), YUV422(16), P010(24), RGB(32), SBWC(100) */
+		/* bpp | ppc * 100 | ppc * 100 with rotation */
+		mscl_ppc_table = <  12  484 476
+				    16  366 366
+				    24  305 305
+				    32  189 185
+				   100  222 225	>;
+		mscl_mif_ref = < 546000 >;
+		mscl_bw_ref = < 3037500 >;
+
+		#mscl-votf-address-cells = <1>;
+		#mscl-votf-size-cells = <1>;
+		mscl_votf_reg = < 0x189E0000 0x10000 >;
+		/* <phandle to the vOTF target> <SFR_BASE_ADDR> <SFR_RANGE> <vOTF_SFR_BASE_ADDR> <vOTF_SFR_RANGE> */
+		samsung,mscl-votf_targets = < &dsim_0 0x19CB0000 0x10000 0x19CA0000 0x10000
+					      &dsim_0 0x1AEB0000 0x10000 0x1AEA0000 0x10000 >;
+	};
+};

@@ -1,0 +1,205 @@
+/*
+ * SAMSUNG S5E8825 board device tree source
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+#include "s5e8825-m33x_common.dtsi"
+#include "s5e8825-m33x_pm_00.dtsi"
+#include "camera/s5e8825-m33x-camera_00.dtsi"
+
+/ {
+	compatible = "samsung,M33X CHN HK 00", "samsung,S5E8825";
+
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			model = "Samsung M33X CHN HK 00 based on S5E8825";
+
+			abox_synchronized_ipc {
+				status = "disabled";
+			};
+
+			abox_adaptation_0: abox-adaptation@14e5ffff {
+				compatible = "samsung,abox-adaptation";
+				samsung,abox = <&abox>;
+			};
+
+			sound {
+				uaif1 {
+					codec {
+						sound-dai = <&tas2562 0>;
+					};
+				};
+			};
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */
+
+&serial_0 {
+	status = "okay";
+};
+
+&hsi2c_7 {
+	tfa98xx@34 {
+		status = "disabled";
+	};
+
+	tas2562: tas2562@4c {
+		#sound-dai-cells = <1>;
+		compatible = "ti,tas2562";
+		reg = <0x4c>;
+		ti,left-channel = <0x4c>;
+		ti,channels = <1>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&amp_en &spk_amp_int>;
+
+		ti,reset-gpio = <&gpg2 1 0>;
+		ti,irq-gpio = <&gpf1 6 0>;
+
+		ti,port_id = <0x1000>;
+
+		ti,iv-width = <12>; /* IV sense by default is set to 16 bit, in case of power Limiter it should be 8 for stereo or 12 for mono */
+		ti,vbat-mon = <1>; /* By default Vbat should be 0, in case os power limiter it should be 1 */
+	};
+};
+
+/* ----------------------------------------------------------------------------
+ * Configurations for GPIOs without Device Driver
+ * Note: Do NOT add pins using by device drivers to the configuration below
+ * ----------------------------------------------------------------------------
+ */
+/*
+ * pin banks of s5e8825 pin-controller 0 (ALIVE) : pinctrl@11850000
+ * GPA0, GPA1
+ * GPQ0, GPQ1
+ * GPC0 ~ GPC7
+ * GPX0
+ * NOTE: These pin's are ALIVE region. DO NOT add SLEEP gpio config.
+ */
+/*
+&pinctrl_0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial0>;
+	initial0: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e8825 pin-controller 1 (CMGP) : pinctrl@11430000
+ * GPM0 ~ GPM20
+ */
+/*
+&pinctrl_1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial1>;
+	initial1: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e8825 pin-controller 2 (CHUB) : pinctrl@111d0000
+ * GPH0, GPH1
+ * NOTE: These pin's are ALIVE region. DO NOT add SLEEP gpio config.
+ */
+/*
+&pinctrl_2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial2>;
+	initial2: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e8825 pin-controller 3 (CHUBINT) : pinctrl@111e0000
+ * GPE0, GPE1
+ * NOTE: These pin's are ALIVE region. DO NOT add SLEEP gpio config.
+ */
+/*
+&pinctrl_3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial3>;
+	initial3: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e8825 pin-controller 4 (HSI) : pinctrl@13450000
+ * GPF0, GPF1
+ */
+/*
+&pinctrl_4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial4>;
+	initial4: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e8825 pin-controller 5 (HSIUFS) : pinctrl@13440000
+ * GPF3
+ */
+/*
+&pinctrl_5 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial5>;
+	initial5: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e8825 pin-controller 6 (PERI) : pinctrl@10040000
+ * GPP0 ~ GPP3
+ * GPG0 ~ GPG2
+ * GPB0, GPB1
+ */
+/*
+&pinctrl_6 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial6>;
+	initial6: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e8825 pin-controller 7 (PERIMMC) : pinctrl@100f0000
+ * GPF2
+ */
+/*
+&pinctrl_7 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial7>;
+	initial5: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e8825 pin-controller 8 (VTS) : pinctrl@11780000
+ * GPV0
+ */
+/*
+&pinctrl_8 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial7>;
+	initial5: initial-state {
+	};
+};
+*/
+

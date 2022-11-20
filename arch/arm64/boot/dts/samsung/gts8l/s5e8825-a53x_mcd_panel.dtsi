@@ -1,0 +1,139 @@
+/*
+ * Samsung Exynos SoC series Panel driver
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/s5e8825.h>
+#include <dt-bindings/clock/s5e8825.h>
+#include <dt-bindings/display/panel-display.h>
+
+#include "../ddi_s6e3fc3_data.dtsi"
+#include "s5e8825-a53x_mcd_panel_display_modes.dtsi"
+
+&s6e3fc3 {
+	size = <67 150>;
+};
+
+/ {
+	fragment@panel_drv {
+		target-path = "/";
+		__overlay__ {
+			pinctrl@11850000 {
+				disp_rst_default: disp-rst-default {
+					samsung,pins = "gpc7-0";
+					samsung,pin-function = <1>;				// OUT
+					samsung,pin-pud = <0>;					// NP
+				};
+				ub_con_det_default: ub-con-det-default {
+					samsung,pins = "gpa0-2";
+					samsung,pin-function = <0xf>;			// INT
+					samsung,pin-pud = <0>;					// NP
+				};
+			};
+
+			pinctrl@10040000 {
+				disp_det_default: disp-det-default {
+					samsung,pins = "gpp2-6";
+					samsung,pin-function = <0xf>;			// INT
+					samsung,pin-pud = <0>;					// NP
+				};
+
+				disp_te_default: disp_te_default {
+					samsung,pins = "gpg0-1";
+					samsung,pin-funciton = <0xf>;			// INT
+					samsung,pin-pud = <1>;					// PD
+					samsung,pin-con-pdn = <3>;				// PREV in sleep
+					samsung,pin-pud-pdn = <0>;				// NP in sleep
+				};
+			};
+
+			panel_drv_0: panel_drv_0 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				status = "okay";
+				compatible = "samsung,panel-drv";
+				panel,id = <0>;
+
+				pinctrl-names = "default";
+				pinctrl-0 = <&disp_rst_default &disp_det_default &ub_con_det_default &disp_te_default>;
+
+				gpios {
+					disp_reset: disp-reset {
+						gpios = <&gpc7 0 1>;	/* ACTIVE_LOW */
+						dir = <0>;  /* OUT */
+						irq-type = <0x0>;   /* NONE */
+					};
+
+					disp_det: disp-det {
+						gpios = <&gpp2 6 1>;  //0:NOK(active), 1:OK
+						dir = <1>;  // IN
+						irq-type = <0x2>;   // FALLING EDGE
+					};
+
+					conn_det: conn-det {
+						gpios = <&gpa0 2 0>;
+						dir = <1>;
+						irq-type = <0x00002001>;	//RISING EDGE | ONE_SHOT
+					};
+				};
+
+				power_ctrl: power_ctrl {
+					actions {
+						vci_on: vci-on {
+							type = <PCTRL_REGULATOR_ENABLE>;
+							reg = <&ddi_vci>;
+						};
+						vdd3_on: vdd3-on {
+							type = <PCTRL_REGULATOR_ENABLE>;
+							reg = <&ddi_vdd3>;
+						};
+						vci_off: vci-off {
+							type = <PCTRL_REGULATOR_DISABLE>;
+							reg = <&ddi_vci>;
+						};
+						vdd3_off: vdd3-off {
+							type = <PCTRL_REGULATOR_DISABLE>;
+							reg = <&ddi_vdd3>;
+						};
+						delay_1ms: delay-1ms {
+							type = <PCTRL_DELAY_MSLEEP>;
+							value = <1>;
+						};
+						delay_10ms: delay-10ms {
+							type = <PCTRL_DELAY_MSLEEP>;
+							value = <10>;
+						};
+						reset_high: reset-high {
+							type = <PCTRL_GPIO_ENABLE>;
+							gpio = <&disp_reset>;
+						};
+						reset_low: reset-low {
+							type = <PCTRL_GPIO_DISABLE>;
+							gpio = <&disp_reset>;
+						};
+					};
+					sequences {
+						panel_boot_on = <&vci_on &vdd3_on>;
+						panel_power_on = <&vci_on &vdd3_on &delay_10ms &reset_high &delay_10ms>;
+						panel_power_off = <&reset_low &delay_1ms &vci_off &vdd3_off>;
+					};
+				};
+
+				panel-lookup {
+					panel-name = "s6e3fc3_a53x";
+					panel-ddi-info = <&s6e3fc3>;
+					panel-display-modes = <&a53x_panel_display_modes>;
+					panel-lut = <
+						0x000000 0x000000 0x0 0x0  /* default */
+					>;
+				};
+			};
+		};
+	};
+};

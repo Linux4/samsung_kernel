@@ -1,0 +1,38 @@
+/*
+ * SAMSUNG S5E9925 board device tree source
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+/plugin/;
+
+#include "s5e9925-g0s_common.dtsi"
+//#include "battery_data_g0s_00.dtsi"
+
+#define BOARD_ID	0x0
+#define BOARD_REV	0x0
+
+/ {
+	compatible = "samsung,G0S EUR OPENX 00", "samsung,S5E9925";
+	dtbo-hw_rev = <0>;
+	dtbo-hw_rev_end = <255>;
+	board_id = <BOARD_ID>;
+	board_rev = <BOARD_REV>;
+
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			model = "Samsung G0S EUR OPENX 00 based on S5E9925";
+
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */

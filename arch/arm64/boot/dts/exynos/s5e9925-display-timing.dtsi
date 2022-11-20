@@ -1,0 +1,184 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * SAMSUNG EXYNOS SoC device tree source
+ *
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ */
+
+/ {
+dsim_modes: dsim_modes {
+		    dsim-modes {
+			    1440x3200@30 {
+				    mode-name = "1440x3200@30";
+				    /*
+				     * p m s k
+				     * mfr mrr sel_pf icp
+				     * afc_enb extafc feed_en fsel
+				     * fout_mask rsel
+				     */
+				    pmsk = <
+					    0x5 0x59 0x0 0xAC00 /* p m s k */
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <1362>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <8834>; /* for 60 fps */
+			    };
+			    1440x3200@60 {
+				    mode-name = "1440x3200@60";
+				    /*
+				     * p m s k
+				     * mfr mrr sel_pf icp
+				     * afc_enb extafc feed_en fsel
+				     * fout_mask rsel
+				     */
+				    pmsk = <
+					    0x5 0x59 0x0 0xAC00 /* p m s k */
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <1362>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <8834>; /* for 60 fps */
+			    };
+			    1080x2400@30 {
+				    mode-name = "1080x2400@30";
+				    pmsk = <
+					    0x5 0x59 0x0 0xAC00 /* p m s k */
+					    0x0 0x0     0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <1362>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <11361>;
+			    };
+			    1080x2400@60 {
+				    mode-name = "1080x2400@60";
+				    pmsk = <
+					    0x5 0x59 0x0 0xAC00 /* p m s k */
+					    0x0 0x0	0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <1362>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <11361>;
+			    };
+			    1080x2400@120 {
+				    mode-name = "1080x2400@120";
+				    pmsk = <
+					    0x5 0x59 0x0 0xAC00 /* p m s k */
+					    0x0 0x0	0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <1362>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <3822>;
+			    };
+			    1080x2340@60 {
+				    mode-name = "1080x2340@60";
+				    pmsk = <
+					    0x5 0x59 0x0 0xAC00 /* p m s k */
+					    0x0 0x0	0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <1362>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <11361>;
+			    };
+			    1080x2340@120 {
+				    mode-name = "1080x2340@120";
+				    pmsk = <
+					    0x5 0x59 0x0 0xAC00 /* p m s k */
+					    0x0 0x0	0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <1362>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <3822>;
+			    };
+			    1080x2316@60 {
+				    mode-name = "1080x2316@60";
+				    pmsk = <
+					    0x5 0x59 0x0 0xAC00 /* p m s k */
+					    0x0 0x0	0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <1362>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <11361>;
+			    };
+			    1080x2316@120 {
+				    mode-name = "1080x2316@120";
+				    pmsk = <
+					    0x5 0x59 0x0 0xAC00 /* p m s k */
+					    0x0 0x0	0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <1362>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <3822>;
+			    };
+			    720x1600@30 {
+				    mode-name = "720x1600@30";
+				    pmsk = <
+					    0x5 0x59 0x0 0xAC00 /* p m s k */
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <1362>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <13168>;
+			    };
+			    720x1600@60 {
+				    mode-name = "720x1600@60";
+				    pmsk = <
+					    0x5 0x59 0x0 0xAC00 /* p m s k */
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <1362>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <13168>;
+			    };
+			    720x1600@120 {
+				    mode-name = "720x1600@120";
+				    pmsk = <
+					    0x5 0x59 0x0 0xAC00 /* p m s k */
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <1362>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <5629>;
+			    };
+			    /* for zebu emulator */
+			    640x480 {
+				    mode-name = "640x480";
+				    pmsk = <
+					    0x2 0x8A 0x1 0x89D9 /* p m s k */
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0 0x0 0x0
+					    0x0 0x0
+					    >;
+				    hs-clk = <894>;
+				    esc-clk = <20>;
+				    cmd_underrun_cnt = <5195>;
+			    };
+		    };
+	};
+};

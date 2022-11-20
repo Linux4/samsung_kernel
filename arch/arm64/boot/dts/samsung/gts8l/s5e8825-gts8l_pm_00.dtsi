@@ -1,0 +1,129 @@
+/*
+ * SAMSUNG S5E8825 Power Management device tree source
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "../s5e8825-sec_pm_common.dtsi"
+
+&hsi2c_25 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	s2mpb03_pmic@56 {
+		compatible = "samsung,s2mpb03pmic";
+		reg = <0x56>;
+
+		s2mpb03,wakeup;
+
+		regulators {
+			__ldo1_reg: s2mpb03-ldo1 {
+				regulator-name = "VDDD_1.05V_SUB";
+				regulator-min-microvolt = <1050000>;
+				regulator-max-microvolt = <1050000>;
+			};
+
+			__ldo2_reg: s2mpb03-ldo2 {
+				regulator-name = "VDDD_1.1V_CAM";
+				regulator-min-microvolt = <1100000>;
+				regulator-max-microvolt = <1100000>;
+			};
+
+			__ldo3_reg: s2mpb03-ldo3 {
+				regulator-name = "VDDIO_1.8V_CAM";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+			};
+
+			__ldo4_reg: s2mpb03-ldo4 {
+				regulator-name = "S2MPB03_LD04";
+				regulator-min-microvolt = <700000>;
+				regulator-max-microvolt = <1025000>;
+			};
+
+			__ldo5_reg: s2mpb03-ldo5 {
+				regulator-name = "VDDA_2.9V_CAM";
+				regulator-min-microvolt = <2900000>;
+				regulator-max-microvolt = <2900000>;
+			};
+
+			__ldo6_reg: s2mpb03-ldo6 {
+				regulator-name = "VDDA_2.8V_SUB";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+
+			__ldo7_reg: s2mpb03-ldo7 {
+				regulator-name = "VDD_2.8V_AF";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+		};
+	};
+};
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			sec_thermistor_1: sec_thermistor@1 {
+				compatible = "samsung,sec-thermistor";
+				status = "okay";
+				thermistor_name = "sec-ap-thermistor";
+				id = <0>;
+
+				adc_array = <265 315 372 437 519 612 721 846 988 1150
+					1332 1512 1741 1970 2203 2434 2667 2874 3067 3238
+					3385 3504 3610>;
+				temp_array = <900 850 800 750 700 650 600 550 500 450
+					  400 350 300 250 200 150 100 50 0 (-50)
+					  (-100) (-150) (-200)>;
+
+				io-channels = <&s2mpu13_gpadc 1>;
+				io-channel-names = "adc-ap-temp";
+				io-channel-ranges;
+			};
+
+			sec_thermistor_5: sec_thermistor@5 {
+				compatible = "samsung,sec-thermistor";
+				status = "okay";
+				thermistor_name = "sec-lte-thermistor";
+				id = <1>;
+
+				adc_array = <365 475 602 758 940 1143 1362 1600 1842 2082
+					2317 2542 2737 2921 3085 3229 3354 3464 3554 3638
+					3703 3760 3810 >;
+				temp_array = <(-200) (-150) (-100) (-50) 0 50 100 150 200 250
+					300 350 400 450 500 550 600 650 700 750
+					800 850 900>;
+
+				io-channels = <&s2mpu13_gpadc 5>;
+				io-channel-names = "adc-lte-temp";
+				io-channel-ranges;
+			};
+
+			sec_thermistor_6: sec_thermistor@6 {
+				compatible = "samsung,sec-thermistor";
+				status = "okay";
+				thermistor_name = "sec-wf-thermistor";
+				id = <2>;
+
+				adc_array = <270 320 377 443 524 618 726 851 994 1155
+					1337 1527 1747 1974 2206 2438 2668 2878 3068 3238
+					3385 3505 3607>;
+				temp_array = <900 850 800 750 700 650 600 550 500 450
+					  400 350 300 250 200 150 100 50 0 (-50)
+					  (-100) (-150) (-200)>;
+
+				io-channels = <&s2mpu13_gpadc 6>;
+				io-channel-names = "adc-wf-temp";
+				io-channel-ranges;
+			};
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */

@@ -1,0 +1,140 @@
+/*
+ * SAMSUNG S5E9925 board device tree source
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+#include "s5e9925-r0s_common.dtsi"
+#include "s5e9925-r0s_pm_24.dtsi"
+#include "camera/s5e9925-r0s_camera.dtsi"
+#include "s5e9925-r0s_wlan.dtsi"
+#include "s5e9925-r0s_bluetooth_evt1.dtsi"
+
+/* ----------------------------------------------------------------------------
+ * Configurations for GPIOs without Device Driver
+ * Note: Do NOT add pins using by device drivers to the configuration below
+ * ----------------------------------------------------------------------------
+ */
+/*
+ * pin banks of s5e9925 pin-controller 0 (ALIVE) : pinctrl@15850000
+ * GPA0 ~ GPA4
+ * GPQ0 ~ GPQ2
+ * NOTE: GPA and GPQ are in ALIVE region. DO NOT add SLEEP gpio config.
+ */
+
+&pinctrl_0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial0>;
+	initial0: initial-state {
+#if !defined(CONFIG_SEC_FACTORY)
+		PIN_IN(gpa0-5, NONE);		/* SUB_CON_DET */
+#endif
+		PIN_IN(gpq2-0, DOWN);		/* AP_BOOT_CONFIG(2) */
+	};
+};
+
+/*
+ * pin banks of s5e9925 pin-controller 1 (CMGP) : pinctrl@14E30000
+ * GPM0 ~ GPM24
+ * NOTE: GPM is in ALIVE region. DO NOT add SLEEP gpio config.
+ */
+
+&pinctrl_1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial1>;
+	initial1: initial-state {
+		PIN_IN_SLP(gpm9-0, NONE, INPUT, NONE);	/* SUB_CON_DET */
+		PIN_IN_SLP(gpm10-0, NONE, INPUT, NONE);	/* COND_DET_CP_MAIN1 */
+		PIN_FUNC(gpm13-0, 2, UP);	/* TP_UART_DEBUG_RXD */
+		PIN_FUNC(gpm13-1, 2, UP);	/* TP_UART_DEBUG_TXD */
+	};
+};
+
+/*
+ * pin banks of s5e9925 pin-controller 2 (HSI1) : pinctrl@11040000
+ * GPF0 ~ GPF1
+ */
+/*
+&pinctrl_2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial2>;
+	initial2: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e9925 pin-controller 3 (HSI1UFS) : pinctrl@11060000
+ * GPF2
+ */
+/*
+&pinctrl_3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial3>;
+	initial3: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e9925 pin-controller 4 (PERIC0) : pinctrl@10430000
+ * GPP4
+ * GPG1
+ */
+/*
+&pinctrl_4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial4>;
+	initial4: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e9925 pin-controller 5 (PERIC1) : pinctrl@10730000
+ * GPB0 ~ GPB3
+ * GPP7 ~ GPP10
+ * GPC0 ~ GPC2
+ * GPG2
+ */
+/*
+&pinctrl_5 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial5>;
+	initial5: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e9925 pin-controller 6 (PERIC2) : pinctrl@11C30000
+ * GPP0 ~ GPP3, GPP5, GPP6, GPP11
+ * GPC3 ~ GPC9
+ * GPG0
+ */
+/*
+&pinctrl_6 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial6>;
+	initial6: initial-state {
+	};
+};
+*/
+
+/*
+ * pin banks of s5e9925 pin-controller 7 (VTS) : pinctrl@15580000
+ * GPV0
+ */
+/*
+&pinctrl_7 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial7>;
+	initial5: initial-state {
+	};
+};
+*/

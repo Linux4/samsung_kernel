@@ -1,0 +1,227 @@
+/*
+ * SAMSUNG S5E9925 Power Management device tree source
+ *
+ * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "../s5e9925-sec_pm_common.dtsi"
+#include "s5e9925-b0s_pm_thermistor.dtsi"
+
+&s2mps26_gpio {
+	pinctrl_bten: pinctrl-bten  {
+		bt_en: bt-en {
+			pins = "gpio_s17";
+			pmic-gpio,pull-disable;
+			pmic-gpio,output-low;
+		};
+	};
+	pinctrl_wlanen: pinctrl-wlanen  {
+		wlan_en: wlan-en {
+			pins = "gpio_s18";
+			pmic-gpio,pull-disable;
+			pmic-gpio,output-low;
+		};
+	};
+}; /* s2mps26_gpio */
+
+&b_sr2_reg {
+	regulator-name = "vdd_mldo";
+	regulator-min-microvolt = <1962500>;
+	regulator-max-microvolt = <1962500>;
+	regulator-ramp-delay = <6000>;
+	regulator-initial-mode = <3>;
+	regulator-always-on;
+}; /* b_sr2_reg */
+
+&i3c_2 {
+	#address-cells = <3>;
+	#size-cells = <0>;
+	status = "okay";
+	s2mpb02_pmic@59 {
+		compatible = "s2mpb02,s2mpb02mfd";
+		reg = <0x59 0x0 0x10>;
+		s2mpb02,wakeup;
+
+		regulators {
+			_buck1_reg: s2mpb02-buck1 {
+					regulator-name = "VDDD_1.05V_CAM";
+					regulator-min-microvolt = <1050000>;
+					regulator-max-microvolt = <1050000>;
+					regulator-allowed-modes = <1>, <2>;
+					regulator-initial-mode = <1>;
+			};
+
+			_buck2_reg: s2mpb02-buck2 {
+					regulator-name = "S2MPB02_BUCK2";
+					regulator-min-microvolt = <1300000>;
+					regulator-max-microvolt = <1300000>;
+			};
+
+			_buckboost_reg: s2mpb02-bb {
+					regulator-name = "S2MPB02_BB";
+					regulator-min-microvolt = <2600000>;
+					regulator-max-microvolt = <4000000>;
+					regulator-always-on;
+					regulator-boot-on;
+					regulator-allowed-modes = <1>, <2>;
+			};
+
+			_ldo1_reg: s2mpb02-ldo1 {
+					regulator-name = "VDDPHY_1.05V_CAM";
+					regulator-min-microvolt = <1050000>;
+					regulator-max-microvolt = <1050000>;
+			};
+
+			_ldo2_reg: s2mpb02-ldo2 {
+					regulator-name = "S2MPB02_LDO2";
+					regulator-min-microvolt = <1000000>;
+					regulator-max-microvolt = <1000000>;
+			};
+
+			_ldo3_reg: s2mpb02-ldo3 {
+					regulator-name = "VDDD_1.0V_VT";
+					regulator-min-microvolt = <1000000>;
+					regulator-max-microvolt = <1000000>;
+			};
+
+			_ldo4_reg: s2mpb02-ldo4 {
+					regulator-name = "VDDD_1.1V_WIDESUB";
+					regulator-min-microvolt = <1100000>;
+					regulator-max-microvolt = <1100000>;
+			};
+
+			_ldo5_reg: s2mpb02-ldo5 {
+					regulator-name = "S2MPB02_LDO5";
+					regulator-min-microvolt = <1050000>;
+					regulator-max-microvolt = <1050000>;
+			};
+
+			_ldo6_reg: s2mpb02-ldo6 {
+					regulator-name = "VDDIO_1.8V_COMMON";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <1800000>;
+			};
+
+			_ldo7_reg: s2mpb02-ldo7 {
+					regulator-name = "VDDIO_1.8V_CAM";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <1800000>;
+			};
+
+			_ldo8_reg: s2mpb02-ldo8 {
+					regulator-name = "VDDA_1.8V_WIDESUB";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <1800000>;
+			};
+
+			_ldo9_reg: s2mpb02-ldo9 {
+					regulator-name = "VDD_LAF_IO";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <1800000>;
+			};
+
+			_ldo10_reg: s2mpb02-ldo10 {
+					regulator-name = "VDDOIS_1.8V_SUB";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <1800000>;
+			};
+
+			_ldo11_reg: s2mpb02-ldo11 {
+					regulator-name = "VDDAF_3.3V_WIDESUB";
+					regulator-min-microvolt = <3300000>;
+					regulator-max-microvolt = <3300000>;
+			};
+
+			_ldo12_reg: s2mpb02-ldo12 {
+					regulator-name = "VDDA_2.8V_WIDESUB";
+					regulator-min-microvolt = <2800000>;
+					regulator-max-microvolt = <2800000>;
+			};
+
+			_ldo13_reg: s2mpb02-ldo13 {
+					regulator-name = "VDDAF_3.3V_CAM";
+					regulator-min-microvolt = <3300000>;
+					regulator-max-microvolt = <3300000>;
+			};
+
+			_ldo14_reg: s2mpb02-ldo14 {
+					regulator-name = "VDDOIS_3.3V_SUB";
+					regulator-min-microvolt = <3300000>;
+					regulator-max-microvolt = <3300000>;
+			};
+
+			_ldo15_reg: s2mpb02-ldo15 {
+					regulator-name = "VDDAF_2.8V_VT";
+					regulator-min-microvolt = <2800000>;
+					regulator-max-microvolt = <2800000>;
+			};
+
+			_ldo16_reg: s2mpb02-ldo16 {
+					regulator-name = "VDDA_2.8V_SUB";
+					regulator-min-microvolt = <2800000>;
+					regulator-max-microvolt = <2800000>;
+			};
+
+			_ldo17_reg: s2mpb02-ldo17 {
+					regulator-name = "VDD_LAF_VDD";
+					regulator-min-microvolt = <3375000>;
+					regulator-max-microvolt = <3375000>;
+			};
+
+			_ldo18_reg: s2mpb02-ldo18 {
+					regulator-name = "VDDOIS_3.3V_CAM";
+					regulator-min-microvolt = <3300000>;
+					regulator-max-microvolt = <3300000>;
+			};
+		};
+	};
+};
+
+&i3c_5 {
+	#address-cells = <3>;
+	#size-cells = <0>;
+	status = "okay";
+	s2mpb03_pmic@56 {
+		compatible = "samsung,s2mpb03pmic";
+		reg = <0x56 0x0 0x10>;
+
+		s2mpb03,wakeup;
+
+		regulators {
+			__ldo1_reg: s2mpb03-ldo1 {
+				regulator-name = "VDDD_0.82V_SUB";
+				regulator-min-microvolt = <825000>;
+				regulator-max-microvolt = <825000>;
+			};
+
+			__ldo2_reg: s2mpb03-ldo2 {
+				regulator-name = "VDDD_0.82V_SUB2";
+				regulator-min-microvolt = <825000>;
+				regulator-max-microvolt = <825000>;
+			};
+
+			__ldo5_reg: s2mpb03-ldo5 {
+				regulator-name = "VDDA_2.8V_CAM";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+
+			__ldo6_reg: s2mpb03-ldo6 {
+				regulator-name = "VDDA_2.8V_VT";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+
+			__ldo7_reg: s2mpb03-ldo7 {
+				regulator-name = "VDDAF_3.3V_SUB";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+			};
+		};
+	};
+};

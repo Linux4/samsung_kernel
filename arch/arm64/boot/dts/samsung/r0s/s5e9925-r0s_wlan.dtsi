@@ -1,0 +1,99 @@
+/*
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ */
+
+#include <dt-bindings/pci/pci.h>
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			vreg_wlan: vreg_wlan {
+				compatible = "regulator-fixed";
+				regulator-name = "vreg_wlan";
+				startup-delay-us = <4000>;
+				enable-active-high;
+				gpio = <&gpm10 1 0x0>;
+			};
+			
+			wlan: qcom,cnss-qca6490{
+				compatible = "qcom,cnss-qca6490";
+				wlan-en-gpio = <&s2mps26_gpio 18 GPIO_ACTIVE_HIGH>;
+				pinctrl-names = "wlan_en_active", "wlan_en_sleep";
+				pinctrl-0 = <&cnss_wlan_en_active>;
+				pinctrl-1 = <&cnss_wlan_en_sleep>;
+				wlan,regulator_name = "vreg_wlan";
+				memory-region = <&wifi_memory>;
+				wlan-pci-wake-gpio = <&gpa0 2 0x1>;
+				wlan-clk-req-gpio = <&gpa1 7 0x0>;
+				qcom,wlan-cbc-enabled;
+				qcom,same-dt-multi-dev;
+				qcom,wlan;
+				use-pm-domain;
+				status = "okay";
+			};
+		};
+	};
+};
+
+
+&pcie_0 {
+	pinctrl-names = "active", "idle";
+	pinctrl-0 = <&pcie0_clkreq &pcie0_perst &wlan_host_wake &wlan_clk_req_wake>;
+	pinctrl-1 = <&pcie0_clkreq &pcie0_perst &wlan_host_wake &wlan_clk_req_wake>;
+	memory-region = <&wifi_msi_rmem>;
+	pcie,wlan-gpio = <&s2mps26_gpio 18 0x1>;
+	max-link-speed = <LINK_SPEED_GEN1>;
+	status = "okay";
+	chip-ver = <0x1>;
+	use-sysmmu = "true";
+	use-ia = "true";
+	use-msi = "true";
+	ep-device-name = "WIFI";
+	ep-device-type = <EP_QC_WIFI>;
+};
+
+&reserved_memory {
+	wifi_memory: wifi_region {
+		compatible = "shared-dma-pool";
+		alloc-ranges = <0x0 0x80000000 0x80000000>;
+		reusable;
+		alignment = <0 0x400000>;
+		size = <0x2800000>;
+	};
+};
+
+&pinctrl_0 {
+	wlan_host_wake: wlan_host_wake {
+		samsung,pins = "gpa0-2";
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <3>;
+		samsung,pin-pud-pdn = <3>;
+	};
+
+	wlan_clk_req_wake: wlan_clk_req_wake {
+	        samsung,pins = "gpa1-7";
+	        samsung,pin-function = <0xf>;
+	        samsung,pin-pud = <1>;
+	};
+};
+
+&s2mps26_gpio {
+	pinctrl_wlan: pinctrl-wlan {
+		cnss_wlan_en_active: cnss_wlan_en_active {
+			pins = "gpio_s18";
+			pmic-gpio,pull-up;
+			pmic-gpio,output-high;
+		};
+		cnss_wlan_en_sleep: cnss_wlan_en_sleep {
+			pins = "gpio_s18";
+			pmic-gpio,pull-down;
+			pmic-gpio,output-low;
+		};
+	};
+};

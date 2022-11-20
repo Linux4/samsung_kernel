@@ -1,0 +1,19 @@
+/*
+ * Exynos CPU Performance
+ * Device driver handle for testing kernel memcpy bandwidth
+ */
+
+/ {
+	xperf {
+		compatible = "samsung,exynos-perf";
+		status = "ok";
+
+		cal-id-mif = <ACPM_DVFS_MIF>;
+		cal-id-g3d = <ACPM_DVFS_G3D>;
+		cal-id-cpucl0 = <ACPM_DVFS_CPUCL0>;
+		cal-id-cpucl1 = <ACPM_DVFS_CPUCL1>;
+
+			     /*	cl0	cl1 */
+		power-coeff = <	165	723 >;
+	};
+};

@@ -1,0 +1,140 @@
+/*
+ * SAMSUNG EXYNOS9925 SoC PM Domains device tree source
+ *
+ * Copyright (c) 2018 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS9925 SoC PM domains device nodes are listed in this file.
+ * EXYNOS9925 based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	pmucal_dbg {
+		latency_base = <0x20a4090>;
+		latency_size = <0x70>;
+		profile_en_offset = <0x3c0c>;
+		profile_en_bit = <2>;
+		profile_en = <0>;
+		pmucal_dbg_cpu {
+			core0 {
+				device_type = "pmucal_dbg_cpu";
+				name = "core0";
+				id = <0>;
+				emul_offset = <0x100c>;
+				emul_bit = <0>;
+				emul_en = <0>;
+				latency_offset = <0x0>;
+			};
+			core1 {
+				device_type = "pmucal_dbg_cpu";
+				name = "core1";
+				id = <1>;
+				emul_offset = <0x108c>;
+				emul_bit = <0>;
+				emul_en = <0>;
+				latency_offset = <0x8>;
+			};
+			core2 {
+				device_type = "pmucal_dbg_cpu";
+				name = "core2";
+				id = <2>;
+				emul_offset = <0x110c>;
+				emul_bit = <0>;
+				emul_en = <0>;
+				latency_offset = <0x10>;
+			};
+			core3 {
+				device_type = "pmucal_dbg_cpu";
+				name = "core3";
+				id = <3>;
+				emul_offset = <0x118c>;
+				emul_bit = <0>;
+				emul_en = <0>;
+				latency_offset = <0x18>;
+			};
+			core4 {
+				device_type = "pmucal_dbg_cpu";
+				name = "core4";
+				id = <4>;
+				emul_offset = <0x130c>;
+				emul_bit = <0>;
+				emul_en = <0>;
+				latency_offset = <0x20>;
+			};
+			core5 {
+				device_type = "pmucal_dbg_cpu";
+				name = "core5";
+				id = <5>;
+				emul_offset = <0x138c>;
+				emul_bit = <0>;
+				emul_en = <0>;
+				latency_offset = <0x28>;
+			};
+			core6 {
+				device_type = "pmucal_dbg_cpu";
+				name = "core6";
+				id = <6>;
+				emul_offset = <0x150c>;
+				emul_bit = <0>;
+				emul_en = <0>;
+				latency_offset = <0x30>;
+			};
+			core7 {
+				device_type = "pmucal_dbg_cpu";
+				name = "core7";
+				id = <7>;
+				emul_offset = <0x158c>;
+				emul_bit = <0>;
+				emul_en = <0>;
+				latency_offset = <0x38>;
+			};
+		};
+
+		pmucal_dbg_cluster {
+			cluster1 {
+				device_type = "pmucal_dbg_cluster";
+				name = "cluster1";
+				id = <1>;
+				emul_offset = <0x1c8c>;
+				emul_bit = <0>;
+				emul_en = <0>;
+				latency_offset = <0x40>;
+			};
+			cluster2 {
+				device_type = "pmucal_dbg_cluster";
+				name = "cluster2";
+				id = <2>;
+				emul_offset = <0x1d0c>;
+				emul_bit = <0>;
+				emul_en = <0>;
+				latency_offset = <0x48>;
+			};
+		};
+
+		pmucal_dbg_system {
+			sys-sicd {
+				device_type = "pmucal_dbg_system";
+				name = "sys-sicd";
+				id = <0>;
+				emul_offset = <0x3a0c>;
+				emul_bit = <0>;
+				emul_en = <0>;
+				latency_offset = <0x50>;		//apsoc
+			};
+			sys-sleep {
+				device_type = "pmucal_dbg_system";
+				name = "sys-sleep";
+				id = <8>;
+				emul_offset = <0x3a0c>;
+				emul_bit = <1>;
+				emul_en = <0>;
+				latency_offset = <0x60>;	//apsoc
+			};
+		};
+	};
+};

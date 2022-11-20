@@ -1,0 +1,71 @@
+/ {
+	/* power-scenario mode - default */
+	set1: set@0100 {
+		/* weight (%) applied to active cpu's efficiency */
+		active_weight {	   		/*  LIT MED BIG */
+			root            	= <1280 200  25>;
+			foreground      	= <1280 200  25>;
+			background      	= <1280 200  25>;
+			top-app         	= <1280 200  25>;
+			rt			= <1280 200  25>;
+			system			= <1280 200  25>;
+			system-background	= <1280 200  25>;
+			nnapi-hal		= <1280 200  25>;
+			camera-daemon		= <1280 200  25>;
+		};
+
+		/* weight (%) applied to idle cpu's efficiency */
+		idle_weight {	   		/*  LIT MED BIG */
+			root            	= <2560 400  50>;
+			foreground      	= <2560 400  50>;
+			background      	= <2560 400  50>;
+			top-app         	= <2560 400  50>;
+			rt			= <2560 400  50>;
+			system			= <2560 400  50>;
+			system-background	= <2560 400  50>;
+			nnapi-hal		= <2560 400  50>;
+			camera-daemon		= <2560 400  50>;
+		};
+
+		frt {	   			/* LIT MED BIG */
+			active-ratio		= < 90 100 100>;
+		};
+
+		/* Ontime Migration */
+		ontime {
+			foreground 	= <1>;
+			top-app		= <1>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0>;
+				upper-boundary = <25>;
+			};
+			domain1 {
+				cpus = "4-7";
+				lower-boundary = <13>;
+				upper-boundary = <100>;
+			};
+		};
+
+		stt {
+			boost-step		= <0>;
+			htask-cnt		= <4>;
+			top-app			= <1>;
+		};
+
+		fclamp {
+			monitor-group {
+				top-app         = <1>;
+			};
+		};
+
+		cpufreq_gov {			/* LIT MED BIG */
+			up-rate-limit-ms	= < 16  16  16 >;
+			up-rate-limit-freq	= < 1152000 2304000 2112000 >;
+			pelt-margin		= <  6   6   6 >;
+			pelt-margin-freq	= < 1152000 2304000 2112000 >;
+			dis-buck-share		= < 1 1 1 >;
+		};
+	};
+};

@@ -1,0 +1,59 @@
+/*
+ * SAMSUNG EXYNOS2100 board device tree source
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "exynos2100-universal2100_common.dtsi"
+
+#define BOARD_ID	0x1
+#define BOARD_REV	0x2
+
+/ {
+	compatible = "samsung,exynos2100", "samsung,UNIVERSAL2100";
+	board_id = <BOARD_ID>;
+	board_rev = <BOARD_REV>;
+
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			model = "Samsung UNIVERSAL2100 board based on EXYNOS2100";
+
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */
+
+&serial_0 {
+	status = "okay";
+};
+
+&pcie_0 {
+	status = "okay";
+	use-sysmmu = "false";
+	use-cache-coherency = "false";
+	use-msi = "false";
+	ep-device-type = <EP_BCM_WIFI>;
+	pcie,wlan-gpio = <&gpp12 2 0x1>;
+};
+
+&pcie_1 {
+	status = "okay";
+	chip-ver = <0x1>;
+	use-sysmmu = "false";
+	use-cache-coherency = "true";
+	use-msi = "true";
+	use-sicd = "false";
+	phy-power-off = "false";
+	ep-device-type = <EP_SAMSUNG_MODEM>;
+};
