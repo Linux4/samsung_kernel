@@ -1,0 +1,73 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+/dts-v1/;
+
+#include "../qcom/msm8998-v2.1.dtsi"
+#include "../qcom/msm8998-mtp.dtsi"
+#include "msm8998-sec-common.dtsi"
+#include "msm8998-sec-dreamq-common.dtsi"
+#include "msm8998-sec-dreamq-common-pm.dtsi"
+#include "battery-data-dreamq-jpn-r12.dtsi"
+#include "msm8998-sec-dreamq-r12.dtsi"
+#include "msm8998-sec-dreamq-pm-r02.dtsi"
+#include "msm8998-sec-dreamq-pm-jpn-r07.dtsi"
+#include "msm8998-sec-dream2q-jpn-nfc-r07.dtsi"
+#include "msm8998-sec-dream2q-jpn-isdbt-r07.dtsi"
+#include "../../../../drivers/video/fbdev/msm/samsung/S6E3HA6_AMB577MQ01/dsi_panel_S6E3HA6_AMB577MQ01_wqhd_octa_cmd_jpn.dtsi"
+
+/ {
+	model = "Samsung DREAMQ PROJECT JPN Rev12";
+	compatible = "qcom,msm8998-mtp", "qcom,msm8998", "qcom,mtp";
+	qcom,board-id = <8 12>;
+
+};
+
+&soc {
+	sound-tavil {
+		detect-extn-cable;
+		det-zones-list = <&det_zones 0 2>,
+			<&det_zones 690 2>,
+			<&det_zones 1590 1>,
+			<&det_zones 9999 3>;
+	};
+};
+
+&rpm_bus {
+	/delete-node/ rpm-regulator-ldoa22;
+};
+
+&spmi_bus {
+	qcom,pm8998@0 {
+		pm8998_gpios: gpios {
+			/delete-node/ gpio@cc00;
+		};
+	};
+};
+
+&slim_aud {
+	imp_list: imp_list {
+		#list-imp-cells = <3>;
+	};
+
+	tavil_codec {
+		imp-table = <&imp_list 0 0 7>,
+				 <&imp_list 1 13 0>,
+				 <&imp_list 14 42 3>,
+				 <&imp_list 43 100 6>,
+				 <&imp_list 101 200 8>,
+				 <&imp_list 201 450 9>,
+				 <&imp_list 451 1000 9>,
+				 <&imp_list 1001 0x7fffffff 7>;
+	};
+};

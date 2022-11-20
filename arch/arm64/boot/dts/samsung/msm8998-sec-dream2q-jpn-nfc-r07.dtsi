@@ -1,0 +1,31 @@
+/* Copyright (c) 2013, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	i2c_5: i2c@c179000 { /* BLSP1 QUP5 */
+		status = "okay";
+		sec-nfc@27 {
+			compatible = "sec-nfc";
+			reg = <0x27>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <92 0>;
+			interrupt-names = "nfc_irq";
+			sec-nfc,ven-gpio = <&expander_gpios 6 0>;
+			sec-nfc,firm-gpio = <&expander_gpios 7 0>;
+			sec-nfc,irq-gpio = <&tlmm 92 0x01>;
+			sec-nfc,i2c_1p8-supply = <&pm8998_l14>;
+			sec-nfc,ldo_control;
+			sec-nfc,nfc_pvdd = "nfc_vdd";
+		};
+		/delete-node/ pn547@2B;
+	};
+};

@@ -1,0 +1,74 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	sec_thermistor@1 {
+		compatible = "samsung,sec-cf-thermistor";
+		qcom,therm-vadc = <&pm8998_vadc>;
+		status = "okay";
+		adc_channel = <89>;
+		adc_array = <1002 1039 1076 1112 1149 1186 1236 1286 1335 1385
+				  	 1435 1487 1540 1592 1645 1697 1760 1823 1886 1949
+					 2012 2085 2157 2230 2302 2375 2482 2589 2696 2803
+					 2910 3035 3159 3284 3408 3533 3649 3765 3881 3997
+					 4113 4246 4379 4513 4646 4779 4928 5077 5227 5376
+					 5525 5691 5857 6023 6189 6355 6528 6700 6873 7045
+					 7218 7398 7578 7757 7937 8117 8305 8492 8680 8867
+					 9055 9224 9392 9561 9729 9898 10092 10287 10481 10676
+					 10870 11035 11200 11365 11530 11695 11859 12024 12188 12353
+					 12517 12656 12795 12935 13074 13213 13341 13469 13596 13724
+					 13852 13962 14071 14181 14290 14400 14490 14580 14670 14760
+					 14850>;
+
+		temp_array = <900 890 880 870 860 850 840 830 820 810
+				800 790 780 770 760 750 740 730 720 710
+				700 690 680 670 660 650 640 630 620 610
+				600 590 580 570 560 550 540 530 520 510
+				500 490 480 470 460 450 440 430 420 410
+				400 390 380 370 360 350 340 330 320 310
+				300 290 280 270 260 250 240 230 220 210
+				200 190 180 170 160 150 140 130 120 110
+				100 90 80 70 60 50 40 30 20 10
+				0
+				(-10) (-20) (-30) (-40) (-50) (-60) (-70) (-80) (-90) (-100)
+				(-110)(-120)(-130)(-140)(-150)(-160)(-170)(-180)(-190) (-200)>;
+	};
+};
+
+&spmi_bus {
+    qcom,pm8998@0 {
+		pm8998_gpios: gpios {
+			gpio@d600 { /* GPIO 23 */
+				qcom,master-en = <0>;
+				status = "okay";
+			};
+		};
+
+        pm8998_vadc: vadc@3100 {
+            chan@59 {
+                label = "flash_therm";
+                reg = <0x59>;
+                qcom,decimation = <2>;
+                qcom,pre-div-channel-scaling = <0>;
+                qcom,calibration-type = "ratiometric";
+                qcom,scale-function = <2>;
+                qcom,hw-settle-time = <2>;
+                qcom,fast-avg-setup = <0>;
+                qcom,cal-val = <0>;
+            };
+        };
+    };
+};
+
+&rpm_bus {
+		 /delete-node/ rpm-regulator-ldoa18;
+};

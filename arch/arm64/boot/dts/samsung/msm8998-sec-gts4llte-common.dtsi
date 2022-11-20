@@ -1,0 +1,205 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/*
+ * As a general rule, only TabS4 project specific property overrides should be placed
+ * inside this file.
+ */
+
+/*
+ * Implement here Samsung TabS4 project specific dtsi
+ */
+
+#include "msm8998-sec-gts4llte-input-common.dtsi"
+
+/{
+	reserved-memory {
+		/delete-node/ pil_mba_region;
+		pil_mba_mem: pil_mba_region {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0 0x95500000 0 0x200000>;
+		};
+
+		/delete-node/ pil_slpi_region;
+		pil_slpi_mem: pil_slpi_region {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0 0x94900000 0 0xC00000>;
+		};
+
+		/delete-node/ pil_video_region;
+		pil_video_mem: pil_video_region {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0 0x94400000 0 0x500000>;
+		};
+
+		/delete-node/ modem_region@8ac00000;
+		modem_mem: modem_region {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0 0x8CC00000 0 0x7800000>;
+		};
+
+		/delete-node/ pil_adsp_region@91900000;
+		pil_adsp_mem: pil_adsp_region {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0 0x8A500000 0 0x2700000>;
+		};
+
+		secure_camera_region: secure_camera_region {
+			compatible = "shared-dma-pool";
+			no-map;
+			reg = <0 0xFD800000 0 0x2800000>;
+			label = "secure_camera_region";
+		};
+
+		secure_camera_scratch_region: secure_camera_scratch_region {
+			compatible = "shared-dma-pool";
+			no-map;
+			reg = <0 0xFD600000 0 0x200000>;
+			label = "secure_camera_scratch_region";
+		};
+
+		/delete-node/ camera_mem_region@0xC0000000;
+		/* Reserved Mem for Camera */
+		camera_mem: camera_mem_region@0xC0000000 {
+			compatible = "shared-dma-pool";
+			recycleable;
+			reg = <0x0 0xC0000000 0x0 0x11800000>;
+		};
+
+		/delete-node/ qseecom_region;
+		qseecom_mem: qseecom_region {
+			reg = <0 0xFB200000 0 0x2400000>;
+			label = "qseecom_mem";
+		};
+	};
+};
+
+&soc {
+	qcom,ion {
+		qcom,ion-heap@17 { /* SECURE CAMERA HEAP */
+			reg = <17>;
+			memory-region = <&secure_camera_region>;
+			qcom,ion-heap-type = "HYP_CMA";
+		};
+
+		qcom,ion-heap@18 { /* SECURE CAMERA HEAP */
+			reg = <18>;
+			memory-region = <&secure_camera_scratch_region>;
+			qcom,ion-heap-type = "HYP_CMA";
+		};
+
+		qcom,ion-heap@30 { /* CAMERA HEAP  */
+			qcom,ion-heap-type = "RBIN";
+		};
+	};
+};
+
+&mdss_dp_ctrl {
+	/delete-property/ qcom,dp-usbpd-detection;
+};
+
+&soc {
+	sec_abc {
+		compatible = "samsung,sec_abc";
+		status = "okay";
+
+		gpu {
+			gpu,label="GPU fault";
+			gpu,threshold_count=<4>;
+			gpu,threshold_time=<1200>;
+		};
+		gpu_page {
+			gpu_page,label="GPU page fault";
+			gpu_page,threshold_count=<20>;
+			gpu_page,threshold_time=<1200>;
+		};
+		aicl {
+			aicl,label="battery aicl";
+			aicl,threshold_count=<5>;
+			aicl,threshold_time=<300>;
+		};
+	};
+};
+
+&sdhc_2 {
+	qcom,sdr104-wa;
+};
+
+&qusb_phy0 {
+	qcom,qusb-phy-init-seq =
+		/* <value reg_offset> */
+			<0x13 0x04 /* analog_controls_two */
+			0x7c 0x18c /* pll_clock_inverter */
+			0x80 0x2c /* pll_cmode */
+			0x0a 0x184 /* pll_lock_delay */
+			0x00 0x21c /* imp_ctrl1 */
+			0xa5 0x23c /* tune1 */
+			0x0d 0x240 /* tune2 */
+			0x03 0x248 /* tune4 */
+			0x19 0xb4>; /* digital_timers_two */
+	qcom,qusb-phy-host-init-seq =
+		/* <value reg_offset> */
+			<0x13 0x04 /* analog_controls_two */
+			0x7c 0x18c /* pll_clock_inverter */
+			0x80 0x2c /* pll_cmode */
+			0x0a 0x184 /* pll_lock_delay */
+			0x00 0x21c /* imp_ctrl1 */
+			0x05 0x23c /* tune1 */
+			0x0d 0x240 /* tune2 */
+			0x03 0x248 /* tune4 */
+			0x19 0xb4>; /* digital_timers_two */
+};
+
+&msm_cpufreq {
+	/delete-node/ qcom,cpufreq-boot-limit-default;
+
+	qcom,cpufreq-boot-limit-gts4llte {
+		status = "disabled";
+	};
+
+	qcom,cpufreq-boot-limit-gts4lwifi {
+		status = "disabled";
+	};
+};
+
+&firmware {
+	android {
+		fstab {
+			compatible = "android,fstab";
+			odm {
+				compatible = "android,odm";
+				dev = "/dev/block/platform/soc/1da4000.ufshc/by-name/odm";
+				type = "ext4";
+				mnt_flags = "ro,errors=panic";
+				fsmgr_flags = "wait,verify";
+				status = "ok";
+			};
+			system {
+				/delete-property/dev;
+				/delete-property/fsmgr_flags;
+				dev = "/dev/block/platform/soc/1da4000.ufshc/by-name/system";
+				fsmgr_flags = "wait,verify";
+			};
+			vendor {
+				/delete-property/status;
+				status = "ok";
+				fsmgr_flags = "wait,verify";
+			};
+		};
+	};
+};
+

@@ -1,0 +1,45 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+/dts-v1/;
+
+#include "../qcom/msm8998-v2.1.dtsi"
+#include "../qcom/msm8998-mtp.dtsi"
+#include "msm8998-sec-common.dtsi"
+#include "msm8998-sec-gts4llte-common.dtsi"
+#include "msm8998-sec-gts4llte-common-pm.dtsi"
+#include "battery-data-gts4llte-r02.dtsi"
+#include "msm8998-sec-gts4llte-r06.dtsi"
+/ {
+	model = "Samsung GTS4LLTE USA PROJECT Rev06";
+	compatible = "qcom,msm8998-mtp", "qcom,msm8998", "qcom,mtp";
+	qcom,board-id = <8 6>;
+
+};
+
+&slim_aud {
+	imp_list: imp_list {
+		#list-imp-cells = <3>;
+	};
+
+	tavil_codec {
+		imp-table = <&imp_list 0 0 4>,
+				 <&imp_list 1 15 0>,
+				 <&imp_list 16 27 3>,
+				 <&imp_list 28 44 4>,
+				 <&imp_list 45 102 5>,
+				 <&imp_list 103 202 7>,
+				 <&imp_list 203 1000 7>,
+				 <&imp_list 1001 0x7fffffff 4>;
+	};
+};
