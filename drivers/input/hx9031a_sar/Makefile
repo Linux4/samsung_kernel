@@ -1,0 +1,1 @@
+obj-$(CONFIG_AW9610X_SAR)  += hx9031a.o
