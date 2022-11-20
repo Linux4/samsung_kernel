@@ -1,0 +1,5 @@
+
+source "drivers/staging/iio/imu/inv_mpu/Kconfig"
+
+
+

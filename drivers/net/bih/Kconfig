@@ -1,0 +1,9 @@
+config BIH 
+        tristate "Bump-in-the-stack"
+        depends on NET || IPV6 || IPV4
+        help
+        This driver supports BIH based on Copyright 2010, 2011 China 
+          Mobile Communications Corporation, Inc. ("CMCC")
+
+        To compile this driver as a module, choose M here.  The module
+          will be called sfc.
