@@ -1,0 +1,69 @@
+
+&tlmm {
+	afc {
+		afc_data_default: afc_data_default {
+			mux {
+				pins = "gpio44";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio44";
+				drive-strength = <16>;
+				bias-disable;
+			};	
+		};
+
+		afc_data_active: afc_data_active {
+			mux {
+				pins = "gpio44";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio44";
+				drive-strength = <16>;
+				bias-disable;
+			};	
+		};
+
+		afc_data_sleep: afc_data_sleep {
+			mux {
+				pins = "gpio44";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio44";
+				bias-disable;
+				input-enable;
+				drive-strength = <16>;
+			};
+		};
+	};
+};
+
+&pmi632_gpios{
+		afc_switch {
+			afc_switch_default: afc_switch_default {
+				pins = "gpio1";
+				function = "normal";
+				power-source = <0>;
+				output-low;
+				input-disable;
+			};
+		};
+};
+
+&soc{
+	afc{
+		status = "ok";
+		compatible = "gpio_afc";
+		pinctrl-names = "default", "active", "sleep";
+		pinctrl-0 = <&afc_switch_default &afc_data_default>;
+		pinctrl-1 = <&afc_data_active>;
+		pinctrl-2 = <&afc_data_sleep>;
+		afc_switch_gpio = <&pmi632_gpios 1 GPIO_ACTIVE_LOW>;
+		afc_data_gpio = <&tlmm 44 0>;
+	};
+};

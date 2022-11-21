@@ -1,0 +1,27 @@
+&soc {
+
+        rfcable_detect {
+                compatible = "qcom,rfcable_detect";
+                input-device-name = "rfcable_detect";
+                interrupt-parent = <&tlmm>;
+                interrupts = <126 4>;
+                qcom,gpio_irq = <&tlmm 126 4>;
+                pinctrl-names = "swtp_irq_active";
+                pinctrl-0 = <&rfcable_irq_active>;
+        };
+};
+
+	&tlmm {
+                rfcable_irq_active: rfcable_irq_active {
+                       mux {
+                               pins = "gpio126";
+                               function = "gpio";
+                       };
+                       config {
+                               pins = "gpio126";
+                               drive-strength = <2>;
+                               bias-disable = <0>;
+                               input-enable;
+                       };
+                };
+	};

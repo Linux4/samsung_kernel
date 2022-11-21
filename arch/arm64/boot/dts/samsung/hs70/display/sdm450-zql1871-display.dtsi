@@ -1,0 +1,97 @@
+/*HS70 code for HS70-7 by wangdeyan at 2019/09/29 start*/
+#include "dsi-panel-hx83104a-hd-video.dtsi"
+#include "dsi-panel-txd-ili7807g-hd-video.dtsi"
+#include "dsi-panel-qc-ft8165-hd-video.dtsi"
+/*HS70 code for boe bringup by wangyi at 2019/11/12 start*/
+#include "dsi-panel-boe-ft8165-720p-video.dtsi"
+/*HS70 code for boe bringup by wangyi at 2019/11/12 end*/
+/*HS70 code for boe bringup by zhouzichun at 2020/3/20 start*/
+#include "dsi-panel-hltcd-ft8165-720p-video.dtsi"
+/*HS70 code for boe bringup by zhouzichun at 2020/3/20 end*/
+/*HS70 code for txd-cd bringup by gaozhengwei at 2020/03/26 start*/
+#include "dsi-panel-txd-cd-ili7807g-hd-video.dtsi"
+/*HS70 code for txd-cd bringup by gaozhengwei at 2020/03/26 end*/
+/*HS70 code for hlt qm bringup by liufurong at 2020/06/11 start*/
+#include "dsi-panel-hlt-qm-ft8165-720p-video.dtsi"
+/*HS70 code for hlt qm bringup by liufurong at 2020/06/11 end*/
+#include "dsi-panel-hlt07-ft8165-720p-video.dtsi"
+#include "dsi-panel-hlt08-ft8165-720p-video.dtsi"
+#include "dsi-panel-hlt09-ft8165-720p-video.dtsi"
+#include "dsi-panel-txd11-ft8165-720p-video.dtsi"
+#include "dsi-panel-txd12-ili7807g-hd-video.dtsi"
+#include "dsi-panel-txd13-ft8165-720p-video.dtsi"
+#include "dsi-panel-hlt14-ft8165-720p-video.dtsi"
+#include "dsi-panel-txd15-ili7807g-hd-video.dtsi"
+#include "dsi-panel-txd16-hx83104a-hd-video.dtsi"
+#include "dsi-panel-inx17-ft8165-hd-video.dtsi"
+#include "dsi-panel-inx18-ili7807g-hd-video.dtsi"
+#include "dsi-panel-tm-ili7807g-hd-video.dtsi"
+#include "dsi-panel-tm19-ili7806s-hd-video.dtsi"
+#include "dsi-panel-dpt20-ft8165-720p-video.dtsi"
+&soc {
+	dsi_panel_pwr_supply: dsi_panel_pwr_supply {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,panel-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "vdd";
+			qcom,supply-min-voltage = <2850000>;
+			qcom,supply-max-voltage = <2850000>;
+			qcom,supply-enable-load = <100000>;
+			qcom,supply-disable-load = <100>;
+		};
+
+		qcom,panel-supply-entry@1 {
+			reg = <1>;
+			qcom,supply-name = "vddio";
+			qcom,supply-min-voltage = <1800000>;
+			qcom,supply-max-voltage = <1800000>;
+			qcom,supply-enable-load = <100000>;
+			qcom,supply-disable-load = <100>;
+		};
+		qcom,panel-supply-entry@2 {
+			reg = <2>;
+			qcom,supply-name = "lab";
+			qcom,supply-min-voltage = <4600000>;
+			qcom,supply-max-voltage = <6000000>;
+			qcom,supply-enable-load = <100000>;
+			qcom,supply-disable-load = <100>;
+		};
+
+		qcom,panel-supply-entry@3 {
+			reg = <3>;
+			qcom,supply-name = "ibb";
+			qcom,supply-min-voltage = <4600000>;
+			qcom,supply-max-voltage = <6000000>;
+			qcom,supply-enable-load = <100000>;
+			qcom,supply-disable-load = <100>;
+			qcom,supply-post-on-sleep = <10>;
+		};
+	};
+};
+
+&mdss_dsi0 {
+	lab-supply = <&lcdb_ldo_vreg>;
+	ibb-supply = <&lcdb_ncp_vreg>;
+	bklight_en-supply = <&pm8953_l5>;
+	vddio-supply = <&pm8953_l6>;
+
+	/delete-property/ qcom,platform-bklight-en-gpio;
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_dsi_active &mdss_te_active>;
+	pinctrl-1 = <&mdss_dsi_suspend &mdss_te_suspend>;
+	qcom,platform-te-gpio = <&tlmm 24 0>;
+	qcom,platform-reset-gpio = <&tlmm 61 0>;
+};
+/*HS70 code for HS70-7 by wangdeyan at 2019/09/29 end*/
+
+/* HS70 add for HS70-193 by gaozhengwei at 2019/10/25 start */
+&rpm_bus {
+	rpm-regulator-ldoa6 {
+		pm8953_l6: regulator-l6 {
+			regulator-always-on;
+		};
+	};
+};
+/* HS70 add for HS70-193 by gaozhengwei at 2019/10/25 end */

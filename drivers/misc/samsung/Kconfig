@@ -1,0 +1,12 @@
+#
+# SAMSUNG device dedicated drivers
+#
+
+#HS60 code for P191001-06405 by zhanghao at 2019/11/15 start
+config FB_MSM_MDSS_32BIT
+       depends on FB_MSM_MDSS
+       bool "mdss config for 32bit Platform"
+       default n
+       help
+       Mdss config signature for 32bit Platform
+#HS60 code for P191001-06405 by zhanghao at 2019/11/15 end

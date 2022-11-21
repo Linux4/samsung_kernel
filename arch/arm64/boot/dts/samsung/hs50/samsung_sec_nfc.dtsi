@@ -1,0 +1,23 @@
+&i2c_6 { /* BLSP2 QUP1 (NFC) */
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	status = "ok";
+	sec-nfc@27 {
+		compatible = "sec-nfc";
+		reg = <0x27>;
+		sec-nfc,ven-gpio = <&tlmm 33 0x00>;/*gpio_33*/
+		sec-nfc,firm-gpio = <&tlmm 62 0x00>;/*gpio_62*/
+		sec-nfc,irq-gpio = <&tlmm 17 0x00>;/*gpio_17*/
+		sec-nfc,clk_req-gpio = <&tlmm 38 0x00>;/*gpio_38*/
+		interrupt-parent = <&tlmm>;
+		qcom,clk-src = "BBCLK2";
+		interrupts = <17 0>;
+		interrupt-names = "nfc_irq";
+		pinctrl-names = "nfc_active", "nfc_suspend";
+		pinctrl-0 = <&sec_nfc_int_active &sec_nfc_disable_active>;
+		pinctrl-1 = <&sec_nfc_int_suspend &sec_nfc_disable_suspend &nfc_clk_default>;
+		clocks = <&clock_gcc clk_bb_clk2>;
+		clock-names = "OSC_NFC";
+	};
+};
