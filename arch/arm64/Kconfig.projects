@@ -1,0 +1,12 @@
+config SEC_T2Q_PROJECT
+	default n
+	bool "Samsung T2Q Project"
+	help
+	  Support for Samsung T2Q Project
+
+config MACH_T2Q_CAN_SINGLEX
+        default n
+        bool "Samsung T2Q CAN SINGLEX"
+        help
+          Support for Samsung T2Q CAN SINGLEX device.
+
