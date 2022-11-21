@@ -1,0 +1,68 @@
+config SENSORS
+	bool "Sensors Class Support"
+	help
+	  This option enables the sensor sysfs class in /sys/class/sensors.
+	  You'll need this to do anything useful with sensorss. If unsure, say N.
+
+config SENSORS_SSC
+	bool "Enable Sensors Driver Support for SSC"
+	help
+	  Add support for sensors SSC driver.
+	  This driver is used for exercising sensors use case,
+	  time syncing with ADSP clock.
+
+config SENSORS_SYSFS
+	tristate "Sensors sysfs"
+	help
+	  Support sysfs for sensors.
+          If you say yes here you get sysfs support for
+	  sensor factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called sensors_core.
+
+config SENSORS_CM36672P_IRIS
+	depends on I2C
+	tristate "CM36672P IRIS driver"
+	default n
+	help
+	  This option enables proximity sensor for iris using CM36672P driver.
+
+config SENSORS_SX9320
+	depends on I2C
+	tristate "SX9320 driver"
+	default n
+	help
+	  Say Y here if you use sx9320.
+	  This option enables grip sensors using
+	  SemTech sx9320 device driver.
+	  Say N here if you do not use sx9320.
+
+config SENSORS_SX9320_WIFI
+	depends on I2C
+	tristate "SX9320 WIFI driver"
+	default n
+	help
+	  Say Y here if you use sx9320 for wifi.
+	  This option enables grip sensors using
+	  SemTech sx9320 device driver for wifi.
+	  Say N here if you do not use sx9320 for wifi.
+
+config SENSORS_SX9320_WIFI_SUB
+	depends on I2C
+	tristate "SX9320 WIFI SUB driver"
+	default n
+	help
+	  Say Y here if you use sx9320 for wifi sub.
+	  This option enables grip sensors using
+	  SemTech sx9320 device driver for wifi sub.
+	  Say N here if you do not use sx9320 for wifi sub.
+
+config SENSORS_SX9310
+	depends on I2C
+	tristate "SX9310 driver"
+	default n
+	help
+	  Say Y here if you use sx9310.
+	  This option enables grip sensors using
+	  SemTech sx9310 device driver.
+	  Say N here if you do not use sx9310.

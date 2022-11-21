@@ -1,0 +1,9 @@
+# When adding new entries keep the list in alphabetical order
+if SEC_DEBUG
+config SEC_DEBUG_PWDT
+	bool "Platform Watchdog check"
+	default n
+	help
+	  To check Platform Watchdog thread status
+endif
+
