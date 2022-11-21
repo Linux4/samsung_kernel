@@ -1,0 +1,40 @@
+config EXYNOS7870_DECON_DISP_LCD
+	depends on EXYNOS_DECON_7870 && EXYNOS_MIPI_DSI
+	bool "Select LCD panel driver"
+
+config EXYNOS7870_DECON_DISP_LCD_NAME
+	string
+	default "s6d78a" if EXYNOS_DECON_LCD_S6D78A
+	default "s6e8aa0" if EXYNOS_DECON_LCD_S6E8AA0
+	default "s6e3fa0" if EXYNOS_DECON_LCD_S6E3FA0
+	help
+	  This string is compared with lcd name fron Device Tree.
+
+choice
+	prompt "Select Panel"
+	depends on EXYNOS7870_DECON_DISP_LCD
+	default EXYNOS_DECON_LCD_S6E3FA0
+	help
+		select the display panel.
+
+config EXYNOS_DECON_LCD_S6D78A
+	depends on EXYNOS7870_DECON_DISP_LCD
+	depends on EXYNOS7870_DISPLAY_VIDEO_MODE
+	bool "S6D78A AMOLED qHD LCD driver(540 x 960)"
+
+config EXYNOS_DECON_LCD_S6E8AA0
+	depends on EXYNOS7870_DECON_DISP_LCD
+	depends on EXYNOS7870_DISPLAY_VIDEO_MODE
+	bool "S6E8AA0 AMOLED HD LCD driver(800 x 1280)"
+
+config EXYNOS_DECON_LCD_EA8064G
+	depends on EXYNOS7870_DECON_DISP_LCD
+	depends on EXYNOS7870_DISPLAY_COMMAND_MODE
+	bool "EA8064G COMMAND MODE AMOLED FHD LCD driver(1080 x 1920)"
+
+config EXYNOS_DECON_LCD_S6E3FA0
+	depends on EXYNOS7870_DECON_DISP_LCD
+	depends on EXYNOS7870_DISPLAY_COMMAND_MODE || EXYNOS7870_DISPLAY_VIDEO_MODE
+	bool "S6E3FA0 COMMAND/VIDEO MODE AMOLED FHD LCD driver(1080 x 1920)"
+
+endchoice
