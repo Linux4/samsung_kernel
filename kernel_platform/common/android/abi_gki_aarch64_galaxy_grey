@@ -1,0 +1,8 @@
+[abi_symbol_list]
+  filp_open
+  ib_notifier_register
+  ib_notifier_unregister
+  sg_miter_skip
+  sg_nents
+  skb_copy_datagram_from_iter
+  sock_alloc_send_pskb

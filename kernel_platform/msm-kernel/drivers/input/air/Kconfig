@@ -1,0 +1,10 @@
+
+config SEC_AUTO_INPUT
+        tristate "Samsung auto input"
+        default n
+        help
+          Say Y here if you use auto input function.
+	  If unsure, say N.
+          To compile this driver as a module, choose M here: the
+          module will be called autoinput.
+

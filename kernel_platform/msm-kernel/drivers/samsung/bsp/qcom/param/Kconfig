@@ -1,0 +1,5 @@
+config SEC_QC_PARAM
+	tristate "Samsung PARAM driver for RAW Partion & Qualcomm based devices"
+	depends on SEC_PARAM
+	help
+	  TODO: help is not ready.
