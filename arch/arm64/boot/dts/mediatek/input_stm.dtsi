@@ -1,0 +1,54 @@
+&pio {
+	stm_attn_irq: stm_attn_irq {
+		GPIO_CONFIG_PUD(AP,pio,10, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+
+	stm_attn_input: stm_attn_input {
+		GPIO_CONFIG_PUD(AP,pio,10, FUNC_INPUT, PULL_DOWN);
+	};
+};
+
+&i2c6 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "ok";
+	tsp_stm: touchscreen@49 {
+		status = "ok";
+		compatible = "stm,stm_ts";
+		reg = <0x49>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&stm_attn_irq>;
+		pinctrl-1 = <&stm_attn_input>;
+		tsp_io_ldo-supply = <&fixed_regulator0>;
+		tsp_avdd_ldo-supply = <&mt_pmic_vcama2_ldo_reg>;
+		sec,irq_gpio = <SEC_GPIO_REF(AP,pio,10) 0>;
+		
+		/* This part is for firmware */
+		sec,project_name = "a32", "a32";
+		sec,bringup = <0>;
+	};
+};
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/stm/dts/input-mtk-tsp-stm.a32.dtsi */
+&tsp_stm {
+	sec,tclm_level = <2>;
+	sec,afe_base = <0x0011>;
+	sec,area-size = <133 266 341>; /* indicator: 24dp navigator:48dp edge:60px dpi=320 */
+	sec,max_coords = <4096 4096>; /* x y */
+	enable_settings_aot;
+	support_dex_mode;
+	support_fod;
+	support_fod_lp_mode;
+	support_mis_calibration_test;
+	support_ear_detect_mode;
+	//sync-reportrate-120;
+	support_open_short_test;
+	sec,firmware_name = "tsp_stm/fts5cu56a_a32.bin";
+	sec,regulator_boot_on;
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/stm/dts/input-mtk-tsp-stm.a32.02.dtsi */
+&tsp_stm {
+	status = "ok";
+};
