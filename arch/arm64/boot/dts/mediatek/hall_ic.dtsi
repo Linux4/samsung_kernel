@@ -1,0 +1,51 @@
+/*
+ * Hall ic device tree source
+ *
+ * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&smd {
+	hall_ic {
+		status = "okay";
+		compatible = "hall_ic";
+		pinctrl-names = "default";
+		pinctrl-0 = <&hall_irq 
+#if 1
+		&certify_hall_irq
+#endif
+		>;
+		hall {
+			name = "hall";
+			event = <0x15>;
+			gpios = <SEC_GPIO_REF(AP,pio,18) 1>;
+		};
+#if 1
+		certify_hall {
+			name = "certify_hall";
+			event = <0x1b>;
+			gpios = <SEC_GPIO_REF(AP,pio,20) 1>;
+		};
+#endif
+	};
+};
+
+&pio {
+	hall_irq: hall_irq {
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,18), 0)>;
+		bias-disable;
+	};
+};
+
+#if 1
+&pio {
+	certify_hall_irq: certify_hall_irq {
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,20), 0)>;
+		bias-disable;
+	};
+};
+#endif

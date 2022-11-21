@@ -1,0 +1,31 @@
+#define EXPAND(str) #str
+
+&pio {
+	vib_en_gpio: vib_en_gpio {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,150), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+};
+
+&s2mu106 {
+	s2mu106-haptic {
+		compatible = "sec,s2mu106-haptic";
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&vib_en_gpio>;
+		haptic,operation_mode = <1>; /* 0 : ERM_I2C, 1 : ERM_GPIO, 2 : LRA */
+		haptic,motor_en = <SEC_GPIO_REF(AP,pio,150) 0>;
+		haptic,motor_type = "COINDC";
+#if 0
+		haptic,motor_strength = EXPAND(${vib_strength});
+#endif
+		samsung,steps = <6>;
+		samsung,intensities = <0 3000 4000 6000 8000 10000>;
+		samsung,haptic_intensities = <0 2000 4000 6000 8000 10000>;
+	};
+};
+

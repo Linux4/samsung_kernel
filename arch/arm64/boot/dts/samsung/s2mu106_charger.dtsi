@@ -1,0 +1,15 @@
+
+&smd {
+	s2mu106_charger: s2mu106-charger {
+		status = "disable";
+		compatible = "samsung,s2mu106-charger";
+	};
+};
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/charger/s2mu106_charger/s2mu106_charger.a41.dtsi */
+
+&s2mu106_charger {
+		charger,mrstbtmr_factory = <2>;
+		charger,lx_freq_recover;
+};
