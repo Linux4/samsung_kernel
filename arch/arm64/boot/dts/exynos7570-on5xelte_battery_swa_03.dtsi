@@ -1,0 +1,27 @@
+/*
+ * SAMSUNG UNIVERSAL7570 board device tree source
+ *
+ * Copyright (c) 2016 Samsung Electronics Co., Ltd.
+ *              http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+#include "exynos7570-on5xelte_battery.dtsi"
+
+/ {
+	battery {
+		battery,inbat_voltage = <1>;
+		battery,inbat_voltage_table_adc = <2767 2750 2742 2697 2631 2609 2601 2585 2575 2565 2553 2545 2534 2526 2521 2514 2510 2495 2490 2485 2462 2453 2443 2433 2418 2406 2380 2374 2367>;
+		battery,inbat_voltage_table_data = <430 427 425 418 405 401 400 398 395 393 391 390 388 387 386 385 384 381 380 378 375 373 372 368 365 364 360 359 358>;
+	
+		io-channels = <&exynos_adc 1>, <&exynos_adc 5>;
+		io-channel-names = "adc-temp", "adc-in-bat";
+		#io-channel-cells = <2>;
+		io-channel-ranges;
+		};
+
+
+};

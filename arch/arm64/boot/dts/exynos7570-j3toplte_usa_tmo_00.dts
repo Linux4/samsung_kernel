@@ -1,0 +1,164 @@
+/*
+ * SAMSUNG UNIVERSAL7570 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos7570-rmem.dtsi"
+#include "exynos7570-j3toplte_common.dtsi"
+#include "modem-ss305ap-pdata.dtsi"
+#include "exynos7570-j3top_battery_common.dtsi"
+#include "exynos7570-j3toplte_usa_tmo_gpio_00.dtsi"
+
+/ {
+	model = "Samsung J3TOPLTE USA TMO rev00 board based on Exynos7570";
+        model_info-chip = <7570>;
+        model_info-platform = "android";
+        model_info-subtype = "samsung";
+        model_info-hw_rev = <0>;
+	model_info-hw_rev_end = <1>;
+	compatible = "samsung,exynos7570", "samsung,exynos4210";
+
+	pinctrl@139B0000 {
+		sensor_i2c: sensor_i2c {
+			samsung,pins = "gpc4-3", "gpc4-2";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+		};
+	};
+
+	pinctrl@139E0000 {
+		spi0_bus_acc: spi0-bus-acc {
+			samsung,pins = "gpc7-3", "gpc7-2", "gpc7-1", "gpc7-0";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	pinctrl@139C0000 {
+		prox_led_en: prox-led-en {
+			samsung,pins = "gpc2-2";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-val = <1>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	i2c@138D0000 {
+		status = "okay";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&prox_led_en &sensor_i2c>;
+
+		gp2a@39 {
+			compatible = "gp2a-i2c";
+			reg = <0x39>;
+			interrupt-parent = <&gpa1>;
+			interrupts = <0 0 0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&prox_int>;
+			gp2a,vdd-supply = <&ldo22_reg>;
+			gp2a,irq-gpio = <&gpa1 0 0x00>;
+			gp2a,regulator_divided = <0>;
+			gp2a,vdd_always_on = <0>;
+			gp2a,default_high_thd = <110>;
+			gp2a,default_low_thd = <70>;
+			gp2a,reg_intval = <0x03>;
+			gp2a,reg_res_p = <0x20>;
+			gp2a,reg_ledctrl = <0x24>;
+			gp2a,reg_prst = <0x38>;
+			gp2a,default_offset = <20>;
+			gp2a,cancel_high_thd = <50>;
+			gp2a,cancel_low_thd = <40>;
+		};
+
+		yas539@2e {
+			compatible = "yas_magnetometer";
+			reg = <0x2e>;
+			yas,orientation = <5>;
+			yas,softiron = <10252 325 36 359 9462 281 54 111 10821>;
+			yas,softiron_sign = <2 2 2 2 2 0 2 2 2>;
+		};
+	};
+
+	spi_0: spi@100C0000 {
+		status = "okay";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&spi0_bus_acc>;
+
+		lsm6dsl@0 {
+			compatible = "st,lsm6dsl";
+			reg = <0>;
+			spi-max-frequency = <10000000>;
+			spi-cpol;
+			spi-cpha;
+			pinctrl-names = "default";
+			pinctrl-0 = <&acc_int>;
+			interrupt-parent = <&gpa0>;
+			interrupts = <6 0 0>;
+			st,orientation = <1 0 1 0 1 1 1 1 0>;
+			st,drdy-int-pin = <1>;
+			st,irq_gpio = <&gpa0 6 0>;
+
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			controller-data {
+				samsung,spi-feedback-delay = <0>;
+				samsung,spi-chip-select-mode = <0>;
+			};
+		};
+	};
+
+	pinctrl@139E0000 {
+		dwmmc2_tflash_en: dwmmc2_tflash_en {
+			   samsung,pins = "gpc7-4";
+			   samsung,pin-function = <0x1>;
+			   samsung,pin-val = <1>;
+			   samsung,pin-pud = <0>;
+			   samsung,pin-drv = <4>;
+		};
+	};
+
+	dwmmc2@13560000 {
+		pinctrl-names = "default",
+			"fast-slew-rate-1x",
+			"fast-slew-rate-2x",
+			"fast-slew-rate-3x",
+			"fast-slew-rate-4x";
+		pinctrl-0 = <&sd2_clk &sd2_cmd &sd2_bus1 &sd2_bus4
+			     &dwmmc2_cd_ext_irq &dwmmc2_tflash_en>;
+		pinctrl-1 = <&sd2_clk_fast_slew_rate_1x>;
+		pinctrl-2 = <&sd2_clk_fast_slew_rate_2x>;
+		pinctrl-3 = <&sd2_clk_fast_slew_rate_3x>;
+		pinctrl-4 = <&sd2_clk_fast_slew_rate_4x>;
+	};
+
+	sd_fixed_vcc: fixedregulator@1 {
+		      compatible = "regulator-fixed";
+		      regulator-name = "vmmc";
+		      gpio = <&gpc7 4 1>;
+		      regulator-min-microvolt = <2800000>;
+		      regulator-max-microvolt = <2800000>;
+		      regulator-initial-mode = <0>;
+		      enable-active-high;
+		      regulator-boot-on;
+	};
+
+	i2c@20 {
+		touchkey@20 {
+			coreriver,bringup = <1>;
+		};
+	};
+};

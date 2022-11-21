@@ -1,0 +1,197 @@
+config CAMERA_EEPROM_SUPPORT_REAR
+        bool "Enable eeprom for rear cam"
+        depends on VENDER_MCD
+        default n
+        help
+          Enable eeprom for rear cam.
+config CAMERA_OTPROM_SUPPORT_FRONT
+        bool "Enable otprom for front cam"
+        depends on VENDER_MCD
+        default n
+        help
+          Enable otprom for front cam.
+config CAMERA_EEPROM_SUPPORT_FRONT
+        bool "Enable eeprom for front cam"
+        depends on VENDER_MCD
+        default n
+        help
+          Enable eeprom for front cam.
+config COMPANION_USE
+        bool "Use companion"
+        depends on VENDER_MCD
+	select COMPANION_DIRECT_USE
+        default n
+        help
+          Use companion.
+ config COMPANION_C1_USE
+        bool "Use companion C1"
+        depends on VENDER_MCD
+        depends on COMPANION_USE
+        default n
+        help
+          Use companion C1.
+ config COMPANION_C2_USE
+        bool "Use companion C2"
+        depends on VENDER_MCD
+        depends on COMPANION_USE
+	select COMPANION_C2_DIRECT_USE
+        default n
+        help
+          Use companion C2.
+ config COMPANION_C3_USE
+        bool "Use companion C3"
+        depends on VENDER_MCD
+        depends on COMPANION_USE
+	select COMPANION_C3_DIRECT_USE
+        default n
+        help
+          Use companion C3.
+
+if USE_DIRECT_IS_CONTROL
+ config COMPANION_DIRECT_USE
+        bool "Use direct common control for companion"
+        depends on COMPANION_USE
+        default n
+        help
+          Use device companion direct control.
+ config COMPANION_C2_DIRECT_USE
+        bool "Use direct control for companion C2"
+        depends on COMPANION_C2_USE
+        default n
+        help
+          Use device companion C2 direct control.
+ config COMPANION_C3_DIRECT_USE
+        bool "Use direct control for companion C3"
+        depends on COMPANION_C3_USE
+        default n
+        help
+          Use device companion C3 direct control.
+endif
+
+config COMPANION_DCDC_USE
+        bool "Use companion DCDC regulator"
+        depends on VENDER_MCD
+        default n
+        help
+          Use companion DCDC regulator.
+config PREPROCESSOR_STANDBY_USE
+        bool "Use companion standby"
+        depends on VENDER_MCD
+        depends on COMPANION_USE
+        default n
+        help
+          Use companion standby.
+config SENSOR_RETENTION_USE
+	bool "Use sensor retention"
+	depends on VENDER_MCD
+	default n
+	help
+	  Use sensor retention.
+config OIS_USE
+        bool "Use ois"
+        depends on VENDER_MCD
+        default n
+        help
+          Use ois.
+config OIS_FW_UPDATE_THREAD_USE
+        bool "Enable ois fw update thread"
+        depends on OIS_USE
+        default n
+        help
+          Enable ois fw update thread.
+config AF_HOST_CONTROL
+        bool "Enable host af control"
+        depends on VENDER_MCD
+        default n
+        help
+          Enable host af control.
+config TORCH_CURRENT_CHANGE_SUPPORT
+        bool "Change torch current in recording mode"
+        depends on VENDER_MCD
+        default n
+        help
+          Change torch current in recording mode.
+config CAMERA_JAVALTE
+        bool "This camera is javalte project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is javalte project.
+config CAMERA_ON5X
+        bool "This camera is on5x project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is on5x project.
+config CAMERA_ON5XREFLTE
+        bool "This camera is on5xreflte project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is on5xreflte project.
+config CAMERA_J3POP
+        bool "This camera is j3pop project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is j3pop project.
+config CAMERA_J3TOP
+        bool "This camera is j3top project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is j3top project.
+config CAMERA_J2CORE
+        bool "This camera is j2core project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is j2core project.
+config CAMERA_J2CORE_GANGA
+        bool "This macro is to distinguish Ganga branch camera"
+        depends on VENDER_MCD
+        default n
+        help
+          This macro is to distinguish Ganga branch camera.
+config CAMERA_GTESVELTE
+        bool "This camera is gtesvelte project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is gtesvelte project.
+config CAMERA_GTAXSWIFI
+        bool "This camera is gtaxwifi project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is gtaxswifi project.
+config CAMERA_REMOVE_MSK_ERR_ID
+        bool "This feature is to use for IMX241 sensor"
+        depends on VENDER_MCD
+        default n
+        help
+          This feature is to use for IMX241 sensor.
+config CAMERA_XCOVER4
+        bool "This camera is xcover4 project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is j3pop project.
+config CAMERA_J3Y17
+        bool "This camera is j3y17 project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is j3y17 project.
+config OIS_USE_RUMBA_S4
+        bool "Use RUMBA S4 ois driver IC"
+        depends on OIS_USE
+        default n
+        help
+          Use RUMBA S4 ois driver IC.
+config COMPANION_FACTORY_VALIDATION
+        bool "Use factory validation for companion ic"
+        depends on COMPANION_USE
+        default n
+        help
+          Use factory validation for companion ic.

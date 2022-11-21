@@ -1,0 +1,206 @@
+/*
+ * SAMSUNG UNIVERSAL7870 board device tree source
+ *
+ * Copyright (c) 2014 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/ {
+	/* modem_interface_driver: Samsung Electronics Jungfrau */
+	mif_pdata {
+		compatible = "sec_modem,modem_pdata";
+		status = "okay";
+		interrupts = <0 18 0>, <0 479 0>;
+
+		mif,int_ap2cp_msg = <0>;
+		mif,int_ap2cp_status = <2>;
+		mif,int_ap2cp_active = <3>;
+		mif,int_ap2cp_uart_noti = <15>;
+
+		mif,irq_cp2ap_msg = <0>;
+		mif,irq_cp2ap_status = <2>;
+		mif,irq_cp2ap_active = <3>;
+		mif,irq_cp2ap_perf_req_cpu = <5>;
+		mif,irq_cp2ap_perf_req_mif = <6>;
+		mif,irq_cp2ap_perf_req_int = <7>;
+		mif,irq_cp2ap_wakelock = <8>;
+
+		mbx_ap2cp_msg = <0>;
+		mbx_cp2ap_msg = <1>;
+		mbx_ap2cp_status = <2>;
+		mbx_cp2ap_status = <3>;
+		mbx_ap2cp_mif_freq = <4>;
+		mbx_cp2ap_dvfsreq_cpu = <5>;
+		mbx_cp2ap_dvfsreq_mif = <6>;
+		mbx_cp2ap_dvfsreq_int = <7>;
+
+		shmem,dump_offset = <0x1000>;
+
+		mif,name = "ss315ap";
+		mif,modem_net = <0>;		/* UMTS_NETWORK */
+		mif,modem_type = <10>;		/* SEC_SS310AP */
+		mif,use_handover = <0>;		/* not used */
+		mif,ipc_version = <50>;		/* SIPC 5.0 */
+		mif,link_types = <0x80>;	/* LINKDEV_SHMEM */
+		mif,link_name = "shmem";
+		mif,link_attrs = <0x7C8>;	/* XMIT_BTDLR(0x400) | DUMP_ALIGNED (0x200) | BOOT_ALIGNED (0x100) | MEM_DUMP (0x80) | MEM_BOOT (0x40) | DPRAM_MAGIC (0x08) */
+		mif,num_iodevs = <16>;
+		iodevs {
+			io_device_0 {
+				iod,name = "umts_ipc0";
+				iod,id = <245>;
+				iod,format = <0>;
+				iod,io_type = <0>;
+				iod,links = <0x80>;
+				iod,attrs = <0x82>;
+				iod,app = "RIL";
+			};
+			io_device_1 {
+				iod,name = "umts_ipc1";
+				iod,id = <246>;
+				iod,format = <0>;
+				iod,io_type = <0>;
+				iod,links = <0x80>;
+				iod,attrs = <0x82>;
+				iod,app = "RIL";
+			};
+			io_device_2 {
+				iod,name = "umts_rfs0";
+				iod,id = <41>;
+				iod,format = <2>;
+				iod,io_type = <0>;
+				iod,links = <0x80>;
+				iod,attrs = <0x82>;
+				iod,app = "RFS";
+			};
+			io_device_3 {
+				iod,name = "umts_router";
+				iod,id = <21>;
+				iod,format = <1>;
+				iod,io_type = <0>;
+				iod,links = <0x80>;
+				iod,attrs = <0x82>;
+				iod,app = "Data Router";
+			};
+			io_device_4 {
+				iod,name = "umts_dm0";
+				iod,id = <81>;
+				iod,format = <1>;
+				iod,io_type = <0>;
+				iod,links = <0x80>;
+				iod,attrs = <0x82>;
+				iod,app = "DIAG";
+			};
+			io_device_5 {
+				iod,name = "umts_loopback";
+				iod,id = <82>;
+				iod,format = <1>;
+				iod,io_type = <0>;
+				iod,links = <0x80>;
+				iod,attrs = <0x82>;
+				iod,app = "LOOPBACK";
+			};
+			io_device_6 {
+				iod,name = "rmnet0";
+				iod,id = <1>;
+				iod,format = <1>;
+				iod,io_type = <1>;
+				iod,links = <0x80>;
+				iod,attrs = <0x82>;
+				iod,app = "NET";
+			};
+			io_device_7 {
+				iod,name = "rmnet1";
+				iod,id = <2>;
+				iod,format = <1>;
+				iod,io_type = <1>;
+				iod,links = <0x80>;
+				iod,attrs = <0x82>;
+				iod,app = "NET";
+			};
+			io_device_8 {
+				iod,name = "rmnet2";
+				iod,id = <3>;
+				iod,format = <1>;
+				iod,io_type = <1>;
+				iod,links = <0x80>;
+				iod,attrs = <0x82>;
+				iod,app = "NET";
+			};
+			io_device_9 {
+				iod,name = "rmnet3";
+				iod,id = <4>;
+				iod,format = <1>;
+				iod,io_type = <1>;
+				iod,links = <0x80>;
+				iod,attrs = <0x82>;
+				iod,app = "NET";
+			};
+			io_device_10 {
+				iod,name = "rmnet4";
+				iod,id = <5>;
+				iod,format = <1>;
+				iod,io_type = <1>;
+				iod,links = <0x80>;
+				iod,attrs = <0x82>;
+				iod,app = "NET";
+			};
+			io_device_11 {
+				iod,name = "rmnet5";
+				iod,id = <6>;
+				iod,format = <1>;
+				iod,io_type = <1>;
+				iod,links = <0x80>;
+				iod,attrs = <0x82>;
+				iod,app = "NET";
+			};
+			io_device_12 {
+				iod,name = "rmnet6";
+				iod,id = <7>;
+				iod,format = <1>;
+				iod,io_type = <1>;
+				iod,links = <0x80>;
+				iod,attrs = <0x82>;
+				iod,app = "NET";
+			};
+			io_device_13 {
+				iod,name = "rmnet7";
+				iod,id = <8>;
+				iod,format = <1>;
+				iod,io_type = <1>;
+				iod,links = <0x80>;
+				iod,attrs = <0x82>;
+				iod,app = "NET";
+			};
+			io_device_14 {
+				iod,name = "multipdp";
+				iod,id = <0>;
+				iod,format = <3>;
+				iod,io_type = <2>;
+				iod,links = <0x80>;
+				iod,attrs = <0x02>;
+				iod,app = "RIL";
+			};
+			io_device_15 {
+				iod,name = "umts_boot0";
+				iod,id = <241>;
+				iod,format = <4>;
+				iod,io_type = <0>;
+				iod,links = <0x80>;
+				iod,attrs = <0x02>;
+				iod,app = "CBD";
+			};
+		}; /* end of iodevs */
+	}; /* end of mif_pdata */
+
+	shmem: shmem@90000000 {
+		compatible = "samsung,exynos-shm_ipc";
+
+		shmem,ipc_offset = <0x5800000>;
+		shmem,ipc_size = <0x400000>;
+	};
+};

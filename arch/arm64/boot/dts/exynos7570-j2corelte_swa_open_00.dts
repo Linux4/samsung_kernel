@@ -1,0 +1,227 @@
+/*
+ * SAMSUNG UNIVERSAL7570 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+#include "exynos7570-rmem_go.dtsi"
+#include "exynos7570-j2corelte_common.dtsi"
+#include "modem-ss305ap-pdata_go.dtsi"
+#include "exynos7570-j2corelte_battery_common.dtsi"
+#include "exynos7570-j2corelte_swa_open_gpio_00.dtsi"
+
+/ {
+	model = "Samsung J2CORELTE board based on Exynos7570";
+	model_info-chip = <7570>;
+	model_info-platform = "android";
+	model_info-subtype = "samsung";
+	model_info-hw_rev = <0>;
+	model_info-hw_rev_end = <0>;
+	compatible = "samsung,exynos7570", "samsung,exynos4210";
+
+	pinctrl@139E0000 {
+		gpc7: gpc7 {
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+	};
+
+	exynos-pm {
+		compatible = "samsung,exynos-pm";
+		reg = <0x0 0x139F0000 0x1000>,
+		      <0x0 0x104E1200 0x100>;
+		reg-names = "gpio_alive_base",
+			    "gicd_ispendrn_base";
+		num-eint = <24>;
+		num-gic = <16>;
+		suspend_mode_idx = <8>;		/* SYS_SLEEP */
+		suspend_psci_idx = <131>;	/* PSCI_SYSTEM_SLEEP */
+		cp_call_mode_idx = <4>;		/* SYS_LPD */
+		cp_call_psci_idx = <132>;	/* PSCI_SYSTEM_CP_CALL */
+	};
+
+	speedy@10510000 {
+		s2mpu06mfd@00 {
+			regulators {
+				buck1_reg: BUCK1 {
+					regulator-name = "BUCK1";
+					regulator-min-microvolt = <500000>;
+					regulator-max-microvolt = <1300000>;
+					regulator-always-on;
+					regulator-boot-on;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <1>;
+					regulator-expected-consumer = <6>;
+				};
+			
+				ldo16_reg: LDO16 {
+					regulator-name = "VDD_MOTOR_3P3";
+					regulator-min-microvolt = <3300000>;
+					regulator-max-microvolt = <3300000>;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <0>;
+				};
+				
+				ldo23_reg: LDO23 {
+					regulator-name = "VDD_23";
+					regulator-min-microvolt = <1200000>;
+					regulator-max-microvolt = <1200000>;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <0>;
+				};
+			};
+		};
+	};
+
+	sec_vib {
+		compatible = "sec_vib";
+		sec_vib_pdata {
+			status = "okay";
+			sec_vib,max_timeout = <10000>;
+			/* 0: pmic ldo, 1: external ldo */
+			sec_vib,ldo_type = <0>;
+			sec_vib,regulator = "VDD_MOTOR_3P3";
+		};
+	};
+
+	pinctrl@139F0000 {
+		dwmmc2_tflash_en: dwmmc2_tflash_en {
+			   samsung,pins = "gpa0-3";
+			   samsung,pin-function = <0x1>;
+			   samsung,pin-val = <1>;
+			   samsung,pin-pud = <0>;
+			   samsung,pin-drv = <4>;
+		};
+	};
+
+	tsp_avdd {
+		compatible = "regulator-fixed";
+		regulator-name = "tsp_avdd";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpc2 3 0>;
+		regulator-boot-on;
+		enable-active-high;
+	};
+	
+	i2c@13840000 {
+		touchscreen@20 {
+			zinitix,touchkey = "true";
+		};
+	};
+	
+	pinctrl@139F0000 {
+		key_home: key-home {
+			samsung,pins = "gpa0-4";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <0>;
+		};
+	};
+	
+	dwmmc2@13560000 {
+		pinctrl-names = "default",
+			"fast-slew-rate-1x",
+			"fast-slew-rate-2x",
+			"fast-slew-rate-3x",
+			"fast-slew-rate-4x";
+		pinctrl-0 = <&sd2_clk &sd2_cmd &sd2_bus1 &sd2_bus4
+			     &dwmmc2_cd_ext_irq &dwmmc2_tflash_en>;
+		pinctrl-1 = <&sd2_clk_fast_slew_rate_1x>;
+		pinctrl-2 = <&sd2_clk_fast_slew_rate_2x>;
+		pinctrl-3 = <&sd2_clk_fast_slew_rate_3x>;
+		pinctrl-4 = <&sd2_clk_fast_slew_rate_4x>;
+	};
+
+	sd_fixed_vcc: fixedregulator@1 {
+		      compatible = "regulator-fixed";
+		      regulator-name = "vmmc";
+		      gpio = <&gpa0 3 1>;
+		      regulator-min-microvolt = <2800000>;
+		      regulator-max-microvolt = <2800000>;
+		      regulator-initial-mode = <0>;
+		      enable-active-high;
+		      regulator-boot-on;
+	};
+
+	pinctrl@139B0000 {
+		fimc_is_flash_host: fimc-is-flash-host {
+			samsung,pins = "gpf3-3";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+		fimc_is_flash_is: fimc-is-flash-is {
+			samsung,pins = "gpf3-3";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	leds_ktd2692 {
+		compatible = "ktd2692";
+		flash_control = <&gpf3 3 0x1>;
+		status = "okay";
+		pinctrl-names ="default","host","is";
+		pinctrl-0 = <&fimc_is_flash_is>;
+		pinctrl-1 = <&fimc_is_flash_host>;
+		pinctrl-2 = <&fimc_is_flash_is>;
+	};
+
+	/* modem_interface */
+	mif_pdata {
+		reg = <0 0x10000 0x0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&cp_gpio_j2corelte>;
+	};
+
+/*	hsi2c_4: hsi2c@138B0000 {
+		sec-nfc@27 {
+			sec-nfc,check_nfc = <&gpa2 5 0>;
+
+			pinctrl-names = "default";
+			pinctrl-0 = <&nfc_pd &nfc_firm &nfc_int &nfc_clk &nfc_pvdd_en &nfc_clk_req>;
+		};
+	};
+*/  
+
+	i2c@138D0000 {
+		samsung,i2c-sda-delay = <100>;
+		samsung,i2c-max-bus-freq = <400000>;
+		status = "okay";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sensor_i2c>;
+
+		lis2ds@1D {
+			compatible = "st,lis2ds";
+			reg = <0x1D>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&acc_int>;
+			interrupt-parent = <&gpa2>;
+			interrupts = <2 0 0>;
+			st,orientation = <1 0 1 2 1 1 1 1 0>;
+			st,irq_gpio = <&gpa2 2 0>;
+		};
+	};
+
+	speedy@10510000 {
+		s2mpu06mfd@00 {
+			regulators {
+				/delete-node/ LDO20;
+			};
+		};
+	};
+};
