@@ -1,0 +1,17 @@
+config SEC_O1Q_PROJECT
+	default n
+	bool "Samsung O1Q Project"
+	help
+	  Support for Samsung O1Q Project
+
+config MACH_O1Q_USA_SINGLEW
+	default n
+	bool "Samsung O1Q USA SINGLEW"
+	help
+	  Support for Samsung O1Q USA SINGLEW device.
+
+config MACH_O1Q_USA_OPENW
+	default n
+	bool "Samsung O1Q USA OPENW"
+	help
+	  Support for Samsung O1Q USA OPENW device.

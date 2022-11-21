@@ -1,0 +1,5 @@
+config INPUT_HALL_IC
+	tristate "Enable HALL IC"
+	default n
+	help
+	  Enable Hall IC Feature

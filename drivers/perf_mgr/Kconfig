@@ -1,0 +1,13 @@
+config SEC_PERF_MANAGER
+	tristate "performance manager Driver"
+	default n
+	help
+	  Samsung Performance Manager Driver
+	  Say Y here if enable perf_mgr driver to boost system resources by scheduler.
+	  Such as make util of tasks high for proper frequency.
+	  GPIS which is Graphic Pipeline Inhenced Solution adjusts scheduling util & migraion for 120Hz mode.
+	  When frame drops occurs.
+
+	  Say N here if you disable input boosting.
+
+	  If unsure, say N.
