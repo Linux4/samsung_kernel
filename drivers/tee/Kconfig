@@ -1,0 +1,35 @@
+# Generic Trusted Execution Environment Configuration
+config TEE
+	tristate "Trusted Execution Environment support"
+	depends on HAVE_ARM_SMCCC || COMPILE_TEST
+	select DMA_SHARED_BUFFER
+	select GENERIC_ALLOCATOR
+	help
+	  This implements a generic interface towards a Trusted Execution
+	  Environment (TEE).
+
+if TEE
+
+menu "TEE drivers"
+
+source "drivers/tee/optee/Kconfig"
+source "drivers/tee/gud/Kconfig"
+source "drivers/tee/teei/Kconfig"
+source "drivers/tee/tkcore/Kconfig"
+source "drivers/tee/tzdev/Kconfig"
+
+endmenu
+
+#
+# TEEGRIS configuration
+#
+config TEEGRIS_TEE_SUPPORT
+       bool "Enable TEEGRIS TEE Support"
+       default n
+       ---help---
+         Enable TEEGRIS TEE Support,
+         mainly for all kernel drivers
+         that are built for TEEGRIS TEE,
+         such as SVP and TZDEV.
+
+endif

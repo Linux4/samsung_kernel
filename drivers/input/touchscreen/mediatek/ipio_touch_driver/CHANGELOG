@@ -1,0 +1,273 @@
+* V1.0.5.2
+	1.  加入DDI & TP Reset 綁在一起，改用software reset機制，在common.h裡面可定義，須注意只有reset綁再一起時
+		，才可以用SW RESET,否則進不了ice mode
+	2.	縮短I2C firmware燒錄時間
+	3.	修正從IOCTL切換至test mode會crash，並將回傳值修改成切換的結果
+	4.	新增IOCTL : 回傳interface type(I2C or SPI)
+	5.	新增IOCTL : dump flash內容
+	6.	進ICE Mode後將reg_pll_lpen(0x47002)設為0(防止出ICE Mode偶發I2C NACK)
+	7.	HW需求 : 讀取AP Mode 參數的 CMD存入MP Log
+
+* V1.0.5.1
+	1.	進入ICEM mode 增加讀取chip id判斷
+		讀取成功=> 取代目前chip id (為避免開機第一次讀取chip id 失敗)
+		讀取失敗=> retry 3次, 3次都失敗則return fail
+	2.	加入DDI Reg 寫入/讀取的節點
+	3.	讀取chip id時stop MCU
+	4.	修正sort test 讀取ini TDF參數錯誤=>改為讀進來的參數統一乘以100，ini  tdf最多到小數點後第二位
+	5.	Show mp 各測試項driver 下給FW cmd於測試報告csv上
+	6.	MP新增open test_c 測試項
+	7.	修正NoFlash load code retry如果失敗，沒有讀取結果
+	8.	修改fw 更新retry機制，如果retry失敗則清除flash/IRAM(HW reset)
+
+* V1.0.5.0
+  * Remove protocol 3.2 with its report handler.
+  * Remove driver type mark in parser.c
+  * Add stop/start mcu when enabling ice mode.
+  * Add 0x29 command to get panel information.
+  * Update and fix errors in core_config_get_project_id.
+  * Add short test/short test -ili9881 for compatible with old ini version.
+  * Depends on ID from item table when running mp test.
+  * Fix the error of calculation in getting open benchmark.
+  * Add ESD Gesture funciton.
+  * Rewrite firmware.c
+  * Fix some bugs of previous version.
+    * Crash after run mp test.
+    * Crash in touch after open ESD_CHECK macro.
+
+* V1.0.4.1
+  * SPI ready on X20.
+  * SPI speed up combined with ICE mode if use 7807G_AA.
+  * Check 0xA3 read from IC before going to spi ice mode.
+  * Do retry 3 times in spi r/w and 10 times in rx/tx lock status wheh failed.
+  * Do retry 3 times in fw upgrade and gesture code (host download only) when failed.
+  * Use the thread called by request_threaded_irq directly.
+  * Add 0xB0 tag.
+  * Fix the issue when returning the result of mp to apk.
+  * Modify the code style with spi.c
+  * Fix some bugs of the previous version.
+
+* V1.0.4.0
+  * Fix that kthread may cause sleep in some platform.
+  * Fix some characters couldn't be correctly recognised when parsing ini.
+  * Fix the issue of judeging max threshold before mp retry.
+  * Read timing info from ini. (remove calculation from driver)
+  * Read TDF values from ini.
+  * Create two nodes for mp lcm on/on test.
+  * Create MP directory to store csv logs.
+  * Add time stamp in the name of csv file.
+  * Remove control of lcm on/off in mp lcm off test.
+  * Add version of protocol 5.6.0
+  * Remove switching AP mode command from the flow of mp and resume.
+  * Add 0xAF tag in I2C firmware upgrade.
+
+* V1.0.3.10
+  * Fix error when exit to ICE mode in pc counter function.
+  * Fix error when print delta/raw data in AP mode by reading its node.
+  * Add a node to print and store BG/delta/raw data in Debug mode (like APK).
+  * Fix error that got wrong commands in LCM off test item if use new format of ini file.
+  * Remove HW reset (I2C) and reload MP code (SPI) when doing MP retry.
+  * Change every characters to lower case in parsing ini file.
+  * Modifiy some coding styles.
+
+* V1.0.3.9
+  * Fully support 7807G (I2C/PSI).
+  * Add enable_irq_wake & disable_irq to solve deep sleep.
+  * Remove the judge of max threshold in short test.
+  * Support 0xAF tag with Hex file.
+  * Fix the bug when parsing benchmark and notetype.
+  * Add a note to dump PC counter.
+  * Add a note to dump real-time delta and raw data.
+  * Add printk with KERN_CONT.
+  * Update formulation in open test sp.
+  * Fix wrong result that showed up pass when retry didn't enable.
+  * Fix crash when apk called the node to run mp.
+  * Add spi speed up for 7807G.
+
+* V1.0.3.8
+  * expaned block info from 4 to 6 and add new type 0xAF.
+  * Add reading OTP & ANA ID.
+  * Adjust the time of delay in chip reset from 300ms to 100ms.
+  * Able to run MP test for v5.3 below.
+  * Modify the flow of suspend and resume.
+  * Remove device node for oppo.
+  * Change the detection of INT status from low to high in MP test.
+  * Add gesture mode with info and normal.
+  * Support request_firmware in boot upgrade.
+  * Add gesture in i2c interface.
+  * Fix crash when running open test.
+  * Modify the method to check cdc status from INT to POLLING.
+  * Add the method of DMA moving MP code to the driver.
+
+* V1.0.3.7
+  * Usiing devm (resource-managed) to allocate memory for the core structures.
+  * Patch open test.
+  * Fixed FW mode switch to be more readable.
+  * Rewrite HW CRC mechnaism.
+  * Improved the mechnaism of check fw upgrade.
+
+* V1.0.3.6
+  * Remove ILI7807(F & H) from support list.
+  * Add ESD check
+  * In boot upgrade, we compare HW and Hex CRC to see if need to do upgrade process rathan than just check firmware version.
+  * Fixed MP short calculation.
+  * Fixed wrong addrees while polling busy flag in fw upgrade.
+  * Add MP retry mechanism, default is open and do three times.
+  * Fixed some bugs.
+
+* V1.0.3.5
+  * Fixed issue that coludn't read type option from INI file.
+  * Delete redundant buffer memory allocated by kernel in MP.
+  * No need to disable WDT when to exit ICE mode.
+
+* V1.0.3.4
+  * Support MP CDC command under protocol 5.3.0.
+  * Add a switch of watch dog.
+  * Modified MP test item folloing with INI section.
+
+* V1.0.3.3
+  * Fixed some bugs in loading gestue code.
+  * Fixed the format of CSV output.
+  * Added HW CRC read from DMA.
+  * Added features to distinguish the golden in INI file.
+  * Adjusted code style.
+  * Added the node to test LCM ON/OFF (only for OPPO).
+
+* V1.0.3.2
+  * Added gesture function in SPI.
+  * Added loading code in gesture mode.
+  * Fixed host download error when there is no hex to be read.
+
+* V1.0.3.1
+  * Fixed wrong output in open test.
+  * Fixed failure of LCM control.
+  * Fixed the incorrect result of MP test after run.
+  * Added two MP test items: Doze mode with LCM off.
+  * Changed the sequence of MP test.
+
+* V1.0.3.0
+  * Supports SPI interface
+  * Remove the check of detection of chip id in init time.
+  * Add new MP test & flow.
+  * CDC commands read from INI file in protocol v5.4.0.
+  * Recovery mechanism in SPI interface.
+  * In MP test, ther are three ways to check busy when getting raw data: Polling, INT and mdelay.
+
+* V1.0.2.0
+  * Fully support new IC type, ILI9881H.
+  * Fixed the crash due to the free func while removing driver. (Module built)
+  * Fixed the issue of timeout while switching mp mode.
+  * Fixed the calculation of open cap test.
+  * CSV can be overwriteen directly. (No necearry to delete it before test.)
+  * MP Test only runs signle test time at once. If you'd like to run multiple tests, call more !
+  * Fixed some bugs in mp test.
+  * Rmove RK platform.
+  * The setting of resolution gets from FW as default.
+
+
+* V1.0.1.3
+  * Fixed many errors in mp test.
+  * Adjusted code style as unix-like.
+  * Support SPRD platform.
+  * Won't set protect bit in flash register after firmware upgraded.
+
+* V1.0.1.2
+  * Introduce Test Mode and MP Test function.
+  * Add gesture code.
+  * Add a debug node that can be run under user-built image.
+  * Rewrote Function Control.
+  * Fixed several bugs.
+
+* V1.0.1.1
+  * Add i2c segmental read.
+  * Redesign protocol structure. The protocol now became single moudle to have its own c file.
+  * Define macros to enable some common functions.
+  * Enable IRQ before handling the event triggered by fw.
+  * Add block tag at boot upgrade and reserved block for customers.
+  * Support new type of version of protocol (expend to 3 byte).
+  * Able to print report data if image is built for user
+
+* V1.0.1.0 (Offical Release)
+  * Fixed the size of CTPM_FW isn't subtracted by 32 before filling data into buffer.
+  * FW upgrade at boot stage is disable as default.
+
+* V1.0.0.10
+  * Fixed the issue of I2CUart when its length of next buffer is larger than previous one.
+  * Add FW upgrade at boot stage. It will be actiaved when the version of FW that is going to upgrade is different the previous version, otherwise it will deny to upgrade.
+
+* V1.0.0.9
+  * Add a new way to program firmware if the hex file includes block information.
+  * Define the rule to show up detailed debug messages.
+  * Add a node to enable the thread to check battery status.
+  * Fix some bugs.
+
+* V1.0.0.8
+  * Add support of MTK and DMA with I2C.
+  * Add kthread to handle interrupt event.
+  * Add support of gesture wake up in suspend/resume.
+  * Remove power supply notifier at check battery status.
+  * Add the functions such as glove, proximity and phone cover.
+  * Support new calculation with i2cuart mode.
+
+* V1.0.0.7
+  * Fixed issue of showing upgrade status while using APK
+  * Added a flag to enable if resolution is set by default or fw
+  * support the length of i2cuart and send to users with one package
+  * i2c error is no long showing up if doing ic reset
+  * Added a feature to check battery status
+  * fixed the error while programming fw (garbage data left)
+
+* V1.0.0.6
+  * Finger report won't send to user if checksum error occurs
+  * Fixed the error sometimer work queue couldn't be executed while interrupting
+
+* V1.0.0.5
+  * Fix the error of checksum with finger report
+  * Add flash table in order to get flash information dynamatically.
+  * fix the error crc to calculate length instead of address.
+  * Optimise the calculation of fw upgrade
+  * Remove ILI2121 from support list
+  * Remove the old method of fw upgrade
+  * Add the delay of 1ms after sending 0xF6 command
+
+* V1.0.0.4
+  * Add 7807H in the support list
+  * Support 7807 FW upgrade
+  * Set 1920*1080 as fixed resolution
+  * Add 0xF6 cmd for P5.0 befre reading data
+  * Change Netlink's port from 31 to 21
+  * Add Regulator power on
+  * Add I2CUART mode
+  * Add a new way to program flash
+
+* V1.0.0.3
+  * Fixed the issue of create skb buff in netlink
+  * Fixed the issue of doing bitwise with tp info got from ic
+  * Improved the stability with IRAM upgrade.
+  * Improved the stability while getting chip id, particularly 7807F.
+  * Added Notifier FB as main suspend/resume function called.
+  * Added MP Test in Test mode but 7807F not supported it yet.
+  * Optimised code structure.
+
+* V1.0.0.2
+  * Fixed the issue of no resposne while using A protocol.
+  * Now the resolution of input device can correctly be set by TP info.
+  * Added compiler flag -Wall
+  * Added disable/enable irq while chiang firmware mode before and after.
+  * Added dynamic debug outputs.
+  * Added a feature that allows firmware upgrading into IRAM directly.
+
+* V1.0.0.1
+  * Support firmware upgrade for 9881F
+  * Improved the stability while upgrading firmware
+  * Improved the stability while reading chid id from touch ic
+  * Fixed some bugs
+
+* V1.0.0.0
+  * Support ILI7807F, ILI9881F
+  * Support protocol v5.0
+  * Support upgrade firmware for 7807F (9881F not yet)
+  * Support mode switch (demo/debug/test/i2cUart)
+  * Support demo/debug mode with packet ID while reporting figner touch.
+  * Support early suspend
+  * Fixed some bugs
