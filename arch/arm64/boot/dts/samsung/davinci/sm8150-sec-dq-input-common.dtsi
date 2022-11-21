@@ -1,0 +1,188 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
+
+&s2dos05_l2 {	/* tsp_io */
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	regulator-boot-on;
+};
+
+&s2dos05_l3 {	/* tsp_avdd */
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+	regulator-boot-on;
+};
+
+/delete-node/ &gpio_keys;
+&soc {
+	gpio_keys: gpio_keys {
+		status = "ok";
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+		label = "gpio_keys";
+		gpio-key,wakeup_enable;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&key_vol_up_default &key_wink_default>;
+
+		vol_up {
+			label = "volume_up";
+			gpios = <&pm8150l_gpios 12 GPIO_ACTIVE_LOW>;
+			linux,input-type = <1>;
+			linux,code = <KEY_VOLUMEUP>;
+			debounce-interval = <15>;
+			linux,can-disable;
+		};
+
+		button_wink: key_wink {
+			label = "key_wink";
+			gpios = <&pm8150l_gpios 3 GPIO_ACTIVE_LOW>;
+			linux,input-type = <1>;
+			linux,code = <KEY_WINK>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+			linux,can-disable;
+		};
+	};
+
+	ss_touch {
+		compatible = "samsung,ss_touch";
+		ss_touch,numbers = <1>;
+	};
+};
+
+/delete-node/ &key_vol_up_default;
+&pm8150l_gpios {
+	key_vol_up {
+		key_vol_up_default: key_vol_up_default {
+			pins = "gpio12";
+			function = "normal";
+			input-enable;
+			bias-disable;
+			power-source = <0>;
+		};
+	};
+
+	key_wink {
+		key_wink_default: key_wink_default {
+			pins = "gpio3";
+			function = "normal";
+			input-enable;
+			bias-disable;
+			power-source = <0>;
+		};
+	};
+};
+
+&qupv3_se17_i2c {
+	pinctrl-0 = <&qupv3_se17_tsp_i2c_active>;
+	pinctrl-1 = <&qupv3_se17_tsp_i2c_sleep>;
+	status = "ok";
+
+	touchscreen@48 {
+		status = "ok";
+		compatible = "sec,sec_ts";
+		reg = <0x48>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <87 0>;
+		pinctrl-names = "default", "on_state", "off_state";
+		pinctrl-0 = <&attn_irq>;
+		pinctrl-1 = <&attn_irq>;
+		pinctrl-2 = <&attn_irq>;
+		sec,irq_gpio = <&tlmm 87 0x2008>;
+		sec,irq_type = <0x2008>;
+		sec,max_coords = <4096 4096>; /* x y */
+		sec,regulator_dvdd = "s2dos05-ldo2";
+		sec,regulator_avdd = "s2dos05-ldo3";
+		sec,regulator_boot_on;
+//		sec,firmware_name = "tsp_sec/y771_d.bin";
+		sec,project_name = "DAVINCI", "N970";
+		sec,tclm_level = <1>;
+		sec,afe_base = <0x00>;
+		support_dex_mode;
+		sec,i2c-burstmax = <0xffff>;
+		sec,ss_touch_num = <1>;
+		enable_settings_aot;
+		sec,area-size = <132 266 341>;
+		support_ear_detect_mode;
+		sync-reportrate-120 = "Y";
+		support_fod;
+		support_open_short_test;
+		support_mis_calibration_test;
+	};
+	
+	st_fts@49 {
+		status = "disabled";
+	};
+};
+
+&qupv3_se11_i2c {
+	pinctrl-0 = <&qupv3_se11_i2c_active_wacom>;
+	pinctrl-1 = <&qupv3_se11_i2c_sleep_wacom>;
+	status = "ok";
+
+	wacom@56 {
+		compatible = "wacom,w90xx";
+		reg = <0x56>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&epen_int_active &epen_pdct_active>;
+		interrupts = <93 0>;
+		interrupt-parent = <&tlmm>;
+		vdd-supply = <&pm8150_l7>;
+		/* gpios */
+		wacom,irq-gpio = <&tlmm 93 0>;
+		wacom,pdct-gpio = <&tlmm 91 0>;
+		wacom,fwe-gpio = <&tlmm 92 0>;
+		wacom,irq_type = <IRQ_TYPE_LEVEL_LOW>;
+		wacom,pdct_type = <IRQ_TYPE_EDGE_BOTH>;
+		/* features */
+		wacom,boot_addr = <0x09>;
+		wacom,origin = <0 0>; /* x y */
+		//wacom,max_coords = <15504 7344>; /* x y */
+		wacom,max_pressure = <4095>;
+		wacom,max_tilt = <63 63>; /* x y */
+		wacom,max_height = <255>;
+		wacom,invert = <1 0 1>; /* x y switch */
+		wacom,ic_type = <9020>;
+		//wacom,fw_path = "epen/w9020_d.fw";
+		//wacom,fw_fac_path = "epen/w9018_crown_unit.fw";
+		wacom,module_ver = <0x2>; /* this value use to distinguish open/short test (0x1 : only open test, 0x2: open/short test) */
+		wacom,support_aop_mode = "1"; /* S-note want to check to use aop */
+		wacom,use_garage;
+	};
+};
+
+&qupv3_se8_i2c { /* i2c@a80000, gpio88/89 */
+	pinctrl-0 = <&qupv3_se8_i2c_active_keyless>;
+	pinctrl-1 = <&qupv3_se8_i2c_sleep_keyless>;
+	status = "ok";
+
+	fsr@49 {
+		status = "ok";
+		compatible = "stm,fsr_sidekey";
+		reg = <0x49>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&keyless_reset_active &keyless_int_default>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <90 0>;
+		stm,irq_gpio = <&tlmm 90 0>;
+		stm,irq_type = <8200>;
+		stm,rst_gpio = <&tlmm 66 GPIO_ACTIVE_HIGH>;
+		stm,project_name = "DAVINCI", "N970";
+		stm,system_info_addr = <0x0000>;
+	};
+};
+

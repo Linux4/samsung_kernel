@@ -1,0 +1,147 @@
+/* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&tlmm {
+	cs35l41_int_active: cs35l41_int_active {
+		mux {
+			pins = "gpio133";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio133";
+			drive-strength = <2>; /* 2 MA */
+			bias-disable; /* No PULL */
+		};
+	};
+
+	cs35l41_int_sleep: cs35l41_int_sleep {
+		mux {
+			pins = "gpio133";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio133";
+			drive-strength = <2>; /* 2 MA */
+			bias-disable; /* No PULL */
+		};
+	};
+
+	cs35l41_rst_default: cs35l41_rst_default {
+		mux {
+			pins = "gpio148";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio148";
+			drive-strength = <2>; /* 2 MA */
+			bias-disable; /* No PULL */
+		};
+	};
+
+	/delete-node/ sec_tdm_active;
+	sec_tdm_active: sec_tdm_active {
+		mux {
+			pins = "gpio126", "gpio127";
+			function = "sec_mi2s";
+		};
+
+		config {
+			pins = "gpio126", "gpio127";
+			drive-strength = <12>;	/* 12 mA */
+			bias-disable;			/* NO PULL */
+		};
+	};
+
+	/delete-node/ sec_tdm_din_active;
+	sec_tdm_din_active: sec_tdm_din_active {
+		mux {
+			pins = "gpio128";
+			function = "sec_mi2s";
+		};
+
+		config {
+			pins = "gpio128";
+			drive-strength = <12>;	/* 12 mA */
+			bias-disable;			/* NO PULL */
+		};
+	};
+
+	/delete-node/ sec_tdm_dout_active;
+	sec_tdm_dout_active: sec_tdm_dout_active {
+		mux {
+			pins = "gpio129";
+			function = "sec_mi2s";
+		};
+
+		config {
+			pins = "gpio129";
+			drive-strength = <12>;	/* 12 mA */
+			bias-disable;			/* NO PULL */
+		};
+	};
+
+	/delete-node/ qupv3_se1_i2c_pins;
+	qupv3_se1_i2c_pins: qupv3_se1_i2c_pins {
+		qupv3_se1_amp_i2c_active: qupv3_se1_amp_i2c_active {
+			mux {
+				pins = "gpio114", "gpio115";
+				function = "qup1";
+			};
+				config {
+				pins = "gpio114", "gpio115";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+		qupv3_se1_amp_i2c_sleep: qupv3_se1_amp_i2c_sleep {
+			mux {
+				pins = "gpio114", "gpio115";
+				function = "gpio";
+			};
+				config {
+				pins = "gpio114", "gpio115";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+	};
+
+	cs48l33_int_pins: cs48l33_int_pins {
+		cs48l33_int_default: cs48l33_int_default {
+			mux {
+				pins = "gpio12";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio12";
+				drive-strength = <2>;
+				bias-pull-up;
+				input-enable;
+			};
+		};
+	};
+};
+
+&pm8150l_gpios {
+	cs48l33_rst {
+		cs48l33_rst_default: cs48l33_rst_default {
+			pins = "gpio2"; 
+				function = "normal"; 
+				bias-disable; 
+				power-source = <0>; 
+				output-high; 
+				input-disable;
+		};
+	};
+};
+
