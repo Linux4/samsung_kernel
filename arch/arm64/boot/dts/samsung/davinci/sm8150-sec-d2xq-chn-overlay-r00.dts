@@ -1,0 +1,44 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/clock/qcom,gcc-sm8150.h>
+#include <dt-bindings/clock/qcom,camcc-sm8150.h>
+#include <dt-bindings/clock/qcom,rpmh.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
+#include "../qcom/sm8150-mtp.dtsi"
+#include "../qcom/sdx5xm-external-soc.dtsi"
+#include "../qcom/sm8150-sdx50m.dtsi"
+#include "sm8150-sec-common.dtsi"
+#include "sm8150-sec-d2xq-pm-common.dtsi"
+#include "sm8150-sec-d2xq-pm-chn-common.dtsi"
+#include "sm8150-sec-d2xq-r00.dtsi"
+#include "sm8150-sec-d2xq-pinctrl-r00.dtsi"
+#include "sm8150-sec-d2xq-display-r00.dtsi"
+#include "sm8150-sec-d2xq-displayport-r00.dtsi"
+#include "battery-data-d2xq-r00.dtsi"
+#include "sm8150-max77705.dtsi"
+#include "sm8150-max77705-motor.dtsi"
+#include "sm8150-sec-beyond2qlte-sensor-common.dtsi"
+#include "sm8150-sec-d2xq-fingerprint-sensor-r00.dtsi"
+#include "sm8150-camera-sensor-davincixq-r00.dtsi"
+#include "sm8150-sec-d2xq-nfc-r00.dtsi"
+
+/ {
+	model = "Samsung D2XQ CHN PROJECT Rev00";
+	compatible = "qcom,sm8150-mtp", "qcom,sm8150", "qcom,mtp";
+	qcom,board-id = <0x00010008 0x0>;
+	dtbo-version = <0>;
+};

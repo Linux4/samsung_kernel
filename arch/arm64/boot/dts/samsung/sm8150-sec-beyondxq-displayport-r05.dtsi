@@ -1,0 +1,37 @@
+/* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/* SEC displayport setting */
+&tlmm {
+	/delete-node/ sde_dp_aux_active;
+	/delete-node/ sde_dp_aux_suspend;
+	/delete-node/ sde_dp_usbplug_cc_active;
+	/delete-node/ sde_dp_usbplug_cc_suspend;
+};
+
+&sde_dp {
+	vdda-1p2-supply = <&pm8150l_l3>;
+	vdda-0p9-supply = <&pm8150_l18>;
+	aux-pullup-supply = <&pm8150_l2>;
+
+	qcom,ext-disp = <&ext_disp>;
+
+	qcom,usbplug-cc-gpio = <&tlmm 38 0>;
+
+	qcom,phy-supply-entries {
+		qcom,phy-supply-entry@0 {
+			qcom,supply-name = "vdda-0p9";
+			qcom,supply-min-voltage = <912000>;
+			qcom,supply-max-voltage = <912000>;
+		};
+	};
+};

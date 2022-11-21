@@ -1,0 +1,210 @@
+config SENSORS
+	bool "Sensors Class Support"
+	help
+	  This option enables the sensor sysfs class in /sys/class/sensors.
+	  You'll need this to do anything useful with sensorss. If unsure, say N.
+
+config SENSORS_SSC
+	bool "Enable Sensors Driver Support for SSC"
+	help
+	  Add support for sensors SSC driver.
+	  This driver is used for exercising sensors use case,
+	  time syncing with ADSP clock.
+
+config SUPPORT_SSC_SPU
+	bool "Support SSC(SLPI) SPU(System Parameter update)"
+	help
+	  Add support for SSC SPU.
+
+config SENSORS_SX9320
+	depends on I2C
+	tristate "SX9320 driver"
+	default n
+	help
+	  Say Y here if you use sx9330.
+	  This option enables grip sensors using
+	  SemTech sx9330 device driver.
+	  Say N here if you do not use sx9330.
+
+config SENSORS_SX9320_2CH
+	depends on I2C
+	tristate "SX9320 use 2ch"
+	default n
+	help
+	  Say Y here if you use sx9320 2ch.
+	  This option enables grip sensors using
+	  SemTech sx9320 2ch device driver.
+	  Say N here if you do not use sx9320 2ch.
+
+config SENSORS_SX9330
+	depends on I2C
+	tristate "SX9330 driver"
+	default n
+	help
+	  Say Y here if you use sx9330.
+	  This option enables grip sensors using
+	  SemTech sx9330 device driver.
+	  Say N here if you do not use sx9330.
+
+config SENSORS_SX9330_SUB
+	depends on I2C
+	tristate "SX9330 sub driver"
+	default n
+	help
+	  Say Y here if you use sx9330 sub.
+	  This option enables grip sensors using
+	  SemTech sx9330 sub device driver.
+	  Say N here if you do not use sx9330 sub.
+
+config SENSORS_SX9330_SUB2
+	depends on I2C
+	tristate "SX9330 sub2 driver"
+	default n
+	help
+	  Say Y here if you use sx9330 sub.
+	  This option enables grip sensors using
+	  SemTech sx9330 sub device driver.
+	  Say N here if you do not use sx9330 sub.
+
+
+config SENSORS_SX9330_WIFI
+	depends on I2C
+	tristate "SX9330 wifi driver"
+	default n
+	help
+	  Say Y here if you use sx9330 wifi.
+	  This option enables grip sensors using
+	  SemTech sx9330 wifi device driver.
+	  Say N here if you do not use sx9330 wifi.
+
+config SENSORS_SX9330_WIFI_2CH
+	depends on I2C
+	tristate "SX9330 use wifi 2ch"
+	default n
+	help
+	  Say Y here if you use sx9330 wifi 2ch.
+	  This option enables grip sensors using
+	  SemTech sx9330 wifi 2ch device driver.
+	  Say N here if you do not use sx9330 wifi 2ch.
+
+config SENSORS_FW_VENDOR
+	bool "Locate the Firmware on Vendor"
+	default n
+	help
+	  To use the module automatic system, 
+	  locate the firmware on vendor side.
+
+config SENSORS_SX9360
+	depends on I2C
+	tristate "SX9360 driver"
+	default n
+	help
+	  Say Y here if you use sx9360.
+	  This option enables grip sensors using
+	  SemTech sx9360 device driver.
+	  Say N here if you do not use sx9360.
+
+config SENSORS_SX9360_SUB
+	depends on I2C
+	tristate "SX9360 sub driver"
+	default n
+	help
+	  Say Y here if you use sx9360 sub.
+	  This option enables grip sensors using
+	  SemTech sx9360 sub device driver.
+	  Say N here if you do not use sx9360 sub.
+
+config SENSORS_A96T3X6
+	depends on I2C
+	tristate "A96T3X6 driver for grip"
+	default n
+	help
+	  Say Y here if you use A96T3X6 for grip.
+	  This option enables grip sensors using
+	  Above A96T3X6 device driver for grip.
+	  Say N here if you do not use A96T3X6 for grip.
+
+config SENSORS_A96T3X6_2CH
+	depends on I2C
+	tristate "SENSORS_A96T3X6_2CH driver for grip"
+	default n
+	help
+	  Say Y here if you use SENSORS_A96T3X6_2CH for grip.
+	  This option enables grip sensors using
+	  Above SENSORS_A96T3X6_2CH device driver for grip.
+
+config SENSORS_A96T3X6_RESET
+	depends on I2C
+	tristate "SENSORS_A96T3X6_RESET driver for grip"
+	default n
+	help
+	  Say Y here if you use SENSORS_A96T3X6_RESET for grip.
+	  This option enables grip sensors using
+	  Above SENSORS_A96T3X6_RESET device driver for grip.
+
+config SENSORS_A96T3X6_SUB
+	depends on I2C
+	tristate "A96T3X6_SUB driver for grip"
+	default n
+	help
+	  Say Y here if you use A96T3X6_SUB for grip.
+	  This option enables grip sensors using
+	  Above A96T3X6_SUB device driver for grip.
+
+config SENSORS_A96T3X6_WIFI
+	depends on I2C
+	tristate "A96T3X6_WIFI driver for grip"
+	default n
+	help
+	  Say Y here if you use A96T3X6_WIFI for grip.
+	  This option enables grip sensors using
+	  Above A96T3X6_WIFI device driver for grip.
+
+config SENSORS_A96T3X6_WIFI_2CH
+	depends on I2C
+	tristate "SENSORS_A96T3X6_WIFI_2CH driver for grip"
+	default n
+	help
+	  Say Y here if you use SENSORS_A96T3X6_WIFI_2CH for grip.
+	  This option enables grip sensors using
+	  Above SENSORS_A96T3X6_WIFI_2CH device driver for grip.
+
+config SENSORS_FW_VENDOR
+	bool "Locate the Firmware on Vendor"
+	default n
+	help
+	  To use the module automatic system, 
+	  locate the firmware on vendor side.
+
+config SENSORS_A96T3X6_CRC_CHECK
+	bool "check crc check instead of checksum compare"
+	default n
+	help
+	  Say Y here if you use crc check instead of checksum compare
+
+config SENSORS_A96T365IF
+	bool "Choose A96T365IF"
+	default n
+	help
+	  Choose A96T365IF.
+
+config SENSORS_A96T3X6_BLOCK_SAR_ONLY
+	tristate "Prevent entering sar only mode"
+	default n
+	help
+	  Prevent entering sar only mode.
+
+config SENSORS_GRIP_IC_VOLTAGE_SET_FOR_EACH
+	bool "Setting for support both abov(1.6v) and semtech(3.0v) IC voltage"
+	default n
+	help
+	  Prevent entering sar only mode.
+
+config SENSORS_SYSFS
+	tristate "Sensors sysfs"
+	help
+	  Support sysfs for sensors.
+          If you say yes here you get sysfs support for
+	  sensor factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called sensors_core.
