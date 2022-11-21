@@ -1,0 +1,5 @@
+source "drivers/power/avs/Kconfig"
+source "drivers/power/reset/Kconfig"
+source "drivers/power/supply/Kconfig"
+#bug541231,zhaobeilong@wt,20200323,add booster chip tps61280 driver
+source "drivers/power/tps61280a-power/Kconfig"

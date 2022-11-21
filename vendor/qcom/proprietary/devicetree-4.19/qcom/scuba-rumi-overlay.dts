@@ -1,0 +1,175 @@
+/dts-v1/;
+
+/ {
+	model = "Qualcomm Technologies, Inc. Scuba RUMI";
+	compatible = "qcom,scuba-rumi", "qcom,scuba", "qcom,rumi";
+	qcom,msm-id = <0x1b9 0x10000>;
+	qcom,board-id = <0xf 0x0>;
+
+	fragment@0 {
+		target = <0xffffffff>;
+
+		__overlay__ {
+
+			timer {
+				clock-frequency = <0x7a120>;
+			};
+
+			timer@f120000 {
+				clock-frequency = <0x7a120>;
+			};
+
+			qcom,wdt@f017000 {
+				status = "disabled";
+				phandle = <0x2>;
+			};
+
+			usb_emu_phy@4f20000 {
+				compatible = "qcom,usb-emu-phy";
+				reg = <0x4f20000 0x9500 0x4ef8800 0x100>;
+				reg-names = "base", "qscratch_base";
+				qcom,emu-init-seq = <0xffff 0x4 0xfff0 0x4 0x100000 0x20 0x0 0x20 0x101f0 0x20 0x100000 0x3c 0x0 0x3c 0x10060 0x3c 0x0 0x4>;
+				phandle = <0x1>;
+			};
+
+			bi_tcxo {
+				compatible = "fixed-factor-clock";
+				clock-mult = <0x1>;
+				clock-div = <0x2>;
+				clocks = <0xffffffff>;
+				#clock-cells = <0x0>;
+				phandle = <0x3>;
+			};
+
+			bi_tcxo_ao {
+				compatible = "fixed-factor-clock";
+				clock-mult = <0x1>;
+				clock-div = <0x2>;
+				clocks = <0xffffffff>;
+				#clock-cells = <0x0>;
+				phandle = <0x4>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <0xffffffff>;
+
+		__overlay__ {
+
+			dwc3@4e00000 {
+				usb-phy = <0x1 0xffffffff>;
+				maximum-speed = "high-speed";
+				dr_mode = "peripheral";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <0xffffffff>;
+
+		__overlay__ {
+			vdd-supply = <0xffffffff>;
+			qcom,vdd-voltage-level = <0x2d2a80 0x2d2a80>;
+			qcom,vdd-current-level = <0x0 0x8b290>;
+			vdd-io-supply = <0xffffffff>;
+			qcom,vdd-io-always-on;
+			qcom,vdd-io-lpm-sup;
+			qcom,vdd-io-voltage-level = <0x1b7740 0x1b7740>;
+			qcom,vdd-io-current-level = <0x0 0x4f588>;
+			pinctrl-names = "active", "sleep";
+			pinctrl-0 = <0xffffffff 0xffffffff 0xffffffff 0xffffffff>;
+			pinctrl-1 = <0xffffffff 0xffffffff 0xffffffff 0xffffffff>;
+			qcom,clk-rates = <0x61a80 0x1312d00 0x17d7840 0x2faf080>;
+			qcom,bus-speed-mode = "DDR_1p8v";
+			status = "ok";
+		};
+	};
+
+	fragment@3 {
+		target = <0xffffffff>;
+
+		__overlay__ {
+			vdd-supply = <0xffffffff>;
+			qcom,vdd-voltage-level = <0x2d2a80 0x2d2a80>;
+			qcom,vdd-current-level = <0x0 0xc3500>;
+			vdd-io-supply = <0xffffffff>;
+			qcom,vdd-io-voltage-level = <0x1b7740 0x2d2a80>;
+			qcom,vdd-io-current-level = <0x0 0x55f0>;
+			pinctrl-names = "active", "sleep";
+			pinctrl-0 = <0xffffffff 0xffffffff 0xffffffff>;
+			pinctrl-1 = <0xffffffff 0xffffffff 0xffffffff>;
+			qcom,clk-rates = <0x61a80 0x1312d00 0x17d7840 0x2faf080>;
+			qcom,bus-speed-mode = "SDR12", "SDR25", "SDR50";
+			status = "ok";
+		};
+	};
+
+	fragment@4 {
+		target = <0xffffffff>;
+
+		__overlay__ {
+			compatible = "qcom,dummycc";
+			clock-output-names = "rpmcc_clocks";
+			#clock-cells = <0x1>;
+			#reset-cells = <0x1>;
+		};
+	};
+
+	fragment@5 {
+		target = <0xffffffff>;
+
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	__symbols__ {
+		wdog = "/fragment@0/__overlay__/qcom,wdt@f017000";
+		usb_emu_phy = "/fragment@0/__overlay__/usb_emu_phy@4f20000";
+		bi_tcxo = "/fragment@0/__overlay__/bi_tcxo";
+		bi_tcxo_ao = "/fragment@0/__overlay__/bi_tcxo_ao";
+	};
+
+	__fixups__ {
+		soc = "/fragment@0:target:0";
+		xo_board = "/fragment@0/__overlay__/bi_tcxo:clocks:0", "/fragment@0/__overlay__/bi_tcxo_ao:clocks:0";
+		usb0 = "/fragment@1:target:0";
+		usb_nop_phy = "/fragment@1/__overlay__/dwc3@4e00000:usb-phy:4";
+		sdhc_1 = "/fragment@2:target:0";
+		L19A = "/fragment@2/__overlay__:vdd-supply:0";
+		L14A = "/fragment@2/__overlay__:vdd-io-supply:0";
+		sdc1_clk_on = "/fragment@2/__overlay__:pinctrl-0:0";
+		sdc1_cmd_on = "/fragment@2/__overlay__:pinctrl-0:4";
+		sdc1_data_on = "/fragment@2/__overlay__:pinctrl-0:8";
+		sdc1_rclk_on = "/fragment@2/__overlay__:pinctrl-0:12";
+		sdc1_clk_off = "/fragment@2/__overlay__:pinctrl-1:0";
+		sdc1_cmd_off = "/fragment@2/__overlay__:pinctrl-1:4";
+		sdc1_data_off = "/fragment@2/__overlay__:pinctrl-1:8";
+		sdc1_rclk_off = "/fragment@2/__overlay__:pinctrl-1:12";
+		sdhc_2 = "/fragment@3:target:0";
+		L21A = "/fragment@3/__overlay__:vdd-supply:0";
+		L4A = "/fragment@3/__overlay__:vdd-io-supply:0";
+		sdc2_clk_on = "/fragment@3/__overlay__:pinctrl-0:0";
+		sdc2_cmd_on = "/fragment@3/__overlay__:pinctrl-0:4";
+		sdc2_data_on = "/fragment@3/__overlay__:pinctrl-0:8";
+		sdc2_clk_off = "/fragment@3/__overlay__:pinctrl-1:0";
+		sdc2_cmd_off = "/fragment@3/__overlay__:pinctrl-1:4";
+		sdc2_data_off = "/fragment@3/__overlay__:pinctrl-1:8";
+		rpmcc = "/fragment@4:target:0";
+		qupv3_se1_i2c = "/fragment@5:target:0";
+	};
+
+	__local_fixups__ {
+
+		fragment@1 {
+
+			__overlay__ {
+
+				dwc3@4e00000 {
+					usb-phy = <0x0>;
+				};
+			};
+		};
+	};
+};
