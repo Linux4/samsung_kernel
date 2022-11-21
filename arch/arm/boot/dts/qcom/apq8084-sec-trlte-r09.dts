@@ -1,0 +1,86 @@
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+
+/memreserve/ 0xac1c0000 0x00001000;
+/memreserve/ 0x00000000 0x00001000;
+
+#include "apq8084-v1.1.dtsi"
+#include "apq8084-mtp.dtsi"
+
+#include "apq8084-sii8620-mhl3-trlte-r06.dtsi"
+#include "apq8084-sec-trlte-r09.dtsi"
+#include "apq8084-sec-trlte-battery-r09.dtsi"
+/ {
+	model = "APQ 8084 v1.1, SAMSUNG trlte Project Rev09";
+	compatible = "qcom,apq8084-mtp", "qcom,apq8084", "qcom,mtp";
+    qcom,msm-id = <0xB208FF01 9 0x10000>;
+    /* [31:24] chip-id, [23:16] platform-id, [15:8] national code, [7:0] operator revision, reserved */
+};
+
+&mdm1 {
+	interrupt-map = <0 &msmgpio 111 0x3
+			1 &msmgpio 109 0x3
+			2 &msmgpio 113 0x3
+			3 &msmgpio 115 0x3>;
+	qcom,mdm2ap-errfatal-gpio = <&msmgpio 111 0x00>;
+	qcom,ap2mdm-errfatal-gpio = <&msmgpio 112 0x00>;
+	qcom,mdm2ap-status-gpio   = <&msmgpio 109 0x00>;
+	qcom,ap2mdm-status-gpio   = <&msmgpio 110 0x00>;
+	qcom,ap2mdm-soft-reset-gpio = <&msmgpio 128 0x00>;
+	qcom,mdm2ap-pblrdy-gpio = <&msmgpio 113 0x00>;
+	qcom,ap2mdm-vddmin-gpio = <&msmgpio 114 0x00>;
+	qcom,mdm2ap-vddmin-gpio = <&msmgpio 115 0x00>;
+	qcom,mdm-dual-link;
+	status = "ok";
+};
+
+&mdm0 {
+	interrupt-map = <0 &msmgpio 111 0x3
+			1 &msmgpio 109 0x3
+			2 &msmgpio 113 0x3
+			3 &msmgpio 115 0x3>;
+	qcom,mdm2ap-errfatal-gpio = <&msmgpio 111 0x00>;
+	qcom,ap2mdm-errfatal-gpio = <&msmgpio 112 0x00>;
+	qcom,mdm2ap-status-gpio   = <&msmgpio 109 0x00>;
+	qcom,ap2mdm-status-gpio   = <&msmgpio 110 0x00>;
+	qcom,ap2mdm-soft-reset-gpio = <&msmgpio 128 0x00>;
+	qcom,mdm2ap-pblrdy-gpio = <&msmgpio 113 0x00>;
+	qcom,ap2mdm-vddmin-gpio = <&msmgpio 114 0x00>;
+	qcom,mdm2ap-vddmin-gpio = <&msmgpio 115 0x00>;
+	status = "ok";
+};
+
+&mhi {
+	esoc-names = "mdm";
+	esoc-0 = <&mdm1>;
+	mhi-device-wake-gpio =
+		<&msmgpio 108 0>;
+	qcom,msm-bus,name = "mhi";
+	qcom,msm-bus,num-cases = <2>;
+	qcom,msm-bus,num-paths = <1>;
+	qcom,msm-bus,vectors-KBps =
+		<100 512 0 0>,
+		<100 512 625000000 625000000>;
+};
+
+&cnss {
+	esoc-names = "modem_wlan";
+	esoc-0 = <&mdm0>;
+};
+
+&sdhc_2 {
+	qcom,pad-drv-on = <0x7 0x4 0x3>; /* 16mA, 10mA, 8mA */
+	qcom,pad-drv-off = <0x0 0x0 0x0>; /* 2mA, 2mA, 2mA */
+};
+

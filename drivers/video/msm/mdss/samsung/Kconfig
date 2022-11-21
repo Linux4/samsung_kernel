@@ -1,0 +1,119 @@
+config SAMSUNG_DEBUG_DISPLAY
+        bool "Add Samsung Debugging code"
+        default n
+
+config FB_MSM_MDSS_SAMSUNG
+	depends on FB_MSM_MDSS
+	bool "mdss config for samsung product"
+	default n
+	---help---
+	Mdss config signature for samsung product
+
+#
+#	PANEL UNIQUE FEATURE
+#
+config DUAL_PANEL
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "dual paneloperation"
+	default n
+	---help---
+	dual panel operation support
+
+config PARTIAL_UPDATE
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "partial update operation"
+	default n
+	---help---
+	partial update operation support
+
+config ALPM_MODE
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "alpm mode operation"
+	default n
+	---help---
+	alpm mode operation support
+
+config CABC_FUNCTION
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "DDI cabc operation"
+	default n
+	---help---
+	DDI cabc operation support
+
+#
+#	HOW TO MAKE DEF-CONFIG NAME FOR PANEL
+#
+#	PANEL_DDI-model_PANEL-model_RESOLUTION
+#	PANEL_S6E3FA2    _AMS510CV01_FHD
+#	PANEL_S6E3FA2_AMS510CV01_FHD
+#
+
+config PANEL_EA8064G_AMS549EH03_FHD
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "MAG EA8064G LDI"
+	default n
+	---help---
+	MAG EA8064G LDI 1080_1920 U7 & K
+
+config PANEL_S6E3FA2_AMS510CV01_FHD
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "LSI S6E3FA2 LDI"
+	default n
+	---help---
+	LSI S6E3FA2 LDI 1080_1920 K
+
+config PANEL_S6E3HA0_AMS510CW01_WQHD
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "LSI S6E3HA0 LDI"
+	default n
+	---help---
+	LSI S6E3HA0 LDI 1440_2560 LENTIS
+
+config PANEL_S6E3HA2_AMS567DJ01_WQHD
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "LSI S6E3HA2 LDI"
+	default n
+	---help---
+	LSI S6E3HA2 LDI 1440_2560 TR
+
+config PANEL_S6E3HF2_AMS559DE01_WQXGA
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "LSI S6E3HF2 LDI"
+	default n
+	---help---
+	LSI S6E3HF2 LDI 1600_2560 TB
+
+config PANEL_S6E88A0_AMS452EF01_QHD
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "LSI S6E88A0 LDI"
+	default n
+	---help---
+	LSI S6E88A0 LDI 540_960 A3
+
+config PANEL_EA8061V_AMS497EE01_HD
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "MAGNA EA8061V DDI"
+	default n
+	---help---
+	MAGNA EA8061V DDI 720_1280 A5
+
+config PANEL_S6E3FA2_AMS549EH01_FHD
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "LSI S6E3FA2 LDI"
+	default n
+	---help---
+	LSI S6E3FA2 LDI 1080_1920 A7
+
+config PANEL_S6E3HF2_AMB509EG01_WQHD
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "LSI S6E3HF2 LDI"
+	default n
+	---help---
+	LSI S6E3HF2 LDI 1440_2560 ZERO
+
+config PANEL_NT71391_BP080WX7_WXGA
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "NOVATEK NT71391 LDI"
+	default n
+	---help---
+	NOVATEK NT71391 LDI 1280_800 Note8

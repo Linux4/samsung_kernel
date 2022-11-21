@@ -1,0 +1,115 @@
+# When adding new entries keep the list in alphabetical order
+
+if ARCH_MSM
+
+config MSM_BAM_DMUX
+	bool "BAM Data Mux Driver"
+	depends on SPS
+	help
+	  Support Muxed Data Channels over BAM interface.
+	  BAM has a limited number of pipes.  This driver
+	  provides a means to support more logical channels
+	  via muxing than BAM could without muxing.
+
+config MSM_IPC_ROUTER_SMD_XPRT
+	depends on MSM_SMD
+	depends on IPC_ROUTER
+	bool "MSM SMD XPRT Layer"
+	help
+	  SMD Transport Layer that enables IPC Router communication within
+	  a System-on-Chip(SoC). When the SMD channels become available,
+	  this layer registers a transport with IPC Router and enable
+	  message exchange.
+
+config MSM_IPC_ROUTER_HSIC_XPRT
+	depends on USB_QCOM_IPC_BRIDGE
+	depends on IPC_ROUTER
+	bool "MSM HSIC XPRT Layer"
+	help
+	  HSIC Transport Layer that enables off-chip communication of
+	  IPC Router. When the HSIC endpoint becomes available, this layer
+	  registers the transport with IPC Router and enable message
+	  exchange.
+
+config MSM_QMI_INTERFACE
+	depends on IPC_ROUTER
+	depends on QMI_ENCDEC
+	bool "MSM QMI Interface Library"
+	help
+	  Library to send and receive QMI messages over IPC Router.
+	  This library provides interface functions to the kernel drivers
+	  to perform QMI message marshaling and transport them over IPC
+	  Router.
+
+config MSM_SMEM
+	depends on REMOTE_SPINLOCK_MSM
+	bool "MSM Shared Memory (SMEM)"
+	help
+	  Support for the shared memory interface between the various
+	  processors in the System on a Chip (SoC) which allows basic
+	  inter-processor communication.
+
+config MSM_SMEM_LOGGING
+	depends on MSM_SMEM
+	bool "MSM Shared Memory Logger"
+	help
+	  Enable the shared memory logging to log the events between
+	  the various processors in the system. This option exposes
+	  the shared memory logger at /dev/smem_log and a debugfs node
+	  named smem_log.
+
+config MSM_QDSP6_APRV2
+	bool "Audio QDSP6 APRv2 support"
+	depends on MSM_SMD
+	help
+	  Enable APRv2 IPC protocol support between
+	  application processor and QDSP6. APR is
+	  used by audio driver to configure QDSP6's
+	  ASM, ADM and AFE.
+
+config MSM_QDSP6_APRV3
+	bool "Audio QDSP6 APRv3 support"
+	depends on MSM_SMD
+	help
+	  Enable APRv2 IPC protocol support between
+	  application processor and QDSP6. APR is
+	  used by audio driver to configure QDSP6v2's
+	  ASM, ADM and AFE.
+
+config MSM_ADSP_LOADER
+	tristate "ADSP loader support"
+	select SND_SOC_MSM_APRV2_INTF
+	depends on MSM_QDSP6_APRV2 || MSM_QDSP6_APRV3
+	help
+	  Enable ADSP image loader.
+	  The ADSP loader brings ADSP out of reset
+	  for the platforms that use APRv2.
+	  Say M if you want to enable this module.
+
+config MSM_MEMORY_DUMP
+	bool "MSM Memory Dump Support"
+	help
+	  This enables memory dump feature. It allows various client
+	  subsystems to register respective dump regions. At the time
+	  of deadlocks or cpu hangs these dump regions are captured to
+	  give a snapshot of the system at the time of the crash.
+
+config MSM_WATCHDOG_V2
+	bool "MSM Watchdog Support"
+	help
+	  This enables the watchdog module. It causes kernel panic if the
+	  watchdog times out. It allows for detection of cpu hangs and
+	  deadlocks. It does not run during the bootup process, so it will
+	  not catch any early lockups.
+
+config MAXIMUM_CURRENT_THROTTLING
+	tristate "CPU current throttling driver"
+	help
+	  Say Y to enable maximum current throttling.
+	  The maximum current throttling driver enables application to
+	  turn on/off CPU based current throttling by setting the
+	  credit/upper limit in the CPU registers.
+
+source "drivers/soc/qcom/memshare/Kconfig"
+
+endif # ARCH_MSM

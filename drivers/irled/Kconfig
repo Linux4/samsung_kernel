@@ -1,0 +1,13 @@
+#
+# GPIO IRDA
+#
+menu "menu for GPIO_IRDA"
+
+config IRLED_GPIO
+	tristate "Using GPIO IRLED driver"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the GPIO IRLED driver (no chip IR).
+
+endmenu
