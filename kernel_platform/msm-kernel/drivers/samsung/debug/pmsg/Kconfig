@@ -1,0 +1,4 @@
+config SEC_PMSG
+	tristate "PSTORE backend for saving android platform log"
+	help
+	  TODO: help is not ready.

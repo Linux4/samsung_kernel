@@ -1,0 +1,10 @@
+menuconfig SEC_DEBUG
+	tristate "SEC TN Debugging Features"
+	help
+	  TODO: help is not ready.
+
+config SEC_FORCE_ERR
+	bool "SEC Generating force errors"
+	depends on SEC_DEBUG
+	help
+	  TODO: help is not ready.

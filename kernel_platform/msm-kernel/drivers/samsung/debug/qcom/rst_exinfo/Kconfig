@@ -1,0 +1,4 @@
+config SEC_QC_RST_EXINFO
+	tristate "SEC Reset extra info for Qualcomm based devices"
+	help
+	  TODO: help is not ready.

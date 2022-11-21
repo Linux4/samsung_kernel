@@ -1,0 +1,8 @@
+[
+"vendor/qcom/opensource/core-utils/fwk-detect",
+"vendor/qcom/opensource/commonsys-intf/display/services/config/src",
+"vendor/qcom/opensource/commonsys-intf/display/gralloc",
+"vendor/qcom/proprietary/commonsys/mm-osal",
+"vendor/qcom/opensource/commonsys-intf/display/libqdmetadata",
+"vendor/widevine/libwvdrmengine"
+]
