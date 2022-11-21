@@ -1,0 +1,12 @@
+config SEC_C1Q_PROJECT
+	default n
+	bool "Samsung C1Q Project"
+	help
+	  Support for Samsung C1Q Project
+
+config MACH_C1Q_KOR_SINGLE
+	default n
+	bool "Samsung C1Q KOR SQ"
+	help
+	  Support for Samsung C1Q KOR SQ device.
+
