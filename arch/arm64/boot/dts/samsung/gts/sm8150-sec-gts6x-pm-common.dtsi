@@ -1,0 +1,229 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+
+&soc {
+	/* AP Thermistor table */
+	sec_thermistor@0 {
+		compatible = "samsung,sec-ap-thermistor";
+		status = "okay";
+		io-channels = <&pm8150_vadc ADC_AMUX_THM1_PU2>;
+		io-channel-names = "ap_therm";
+		adc_array = <127689 133069 138449 143828 149208 154588 159968 165348 170727 176107
+				  181487 187910 194333 200756 207179 213602 220703 227803 234904 242004
+				  249105 257483 265861 274239 282617 290995 298517 306039 313560 321082
+				  328604 340361 352119 363876 375634 387391 400520 413648 426777 439905
+				  453034 468954 484874 500793 516713 532633 549914 567195 584475 601756
+				  619037 637539 656041 674543 693045 711547 732719 753891 775064 796236
+				  817408 838765 860121 881478 902834 924191 945940 967689 989438 1011187
+				  1032936 1055240 1077544 1099848 1122152 1144456 1165429 1186402 1207375 1228348
+				  1249321 1269807 1290293 1310779 1331265 1351751 1370387 1389023 1407659 1426295
+				  1444931
+				  1461934 1478936 1495939 1512941 1529944 1544754 1559563 1574373 1589182 1603992
+				  1616831 1629670 1642509 1655348 1668187 1678126 1688066 1698005 1707945 1717884>;
+		temp_array = <900 890 880 870 860 850 840 830 820 810
+				800 790 780 770 760 750 740 730 720 710
+				700 690 680 670 660 650 640 630 620 610
+				600 590 580 570 560 550 540 530 520 510
+				500 490 480 470 460 450 440 430 420 410
+				400 390 380 370 360 350 340 330 320 310
+				300 290 280 270 260 250 240 230 220 210
+				200 190 180 170 160 150 140 130 120 110
+				100 90 80 70 60 50 40 30 20 10
+				0
+				(-10) (-20) (-30) (-40) (-50) (-60) (-70) (-80) (-90) (-100)
+				(-110)(-120)(-130)(-140)(-150)(-160)(-170)(-180)(-190) (-200)>;
+	};
+
+	/* PA Thermistor table */
+	sec_thermistor@1 {
+		compatible = "samsung,sec-pa-thermistor";
+		status = "okay";
+		io-channels = <&pm8150l_vadc ADC_AMUX_THM2_PU2>;
+		io-channel-names = "pa_therm";
+		adc_array = <101914 108812 115709 122607 129504 136402 143300 150197 157095 163992 
+				  170890 177049 183208 189368 195527 201686 206708 211729 216751 221772
+				  226794 236266 245739 255211 264684 274156 282223 290289 298356 306422
+				  314489 327478 340467 353455 366444 379433 391531 403628 415726 427823
+				  439921 456755 473589 490423 507257 524091 539645 555198 570752 586305
+				  601859 620133 638407 656682 674956 693230 714311 735393 756474 777556
+				  798637 821717 844796 867876 890955 914035 935648 957261 978875 1000488
+				  1022101 1044277 1066452 1088628 1110803 1132979 1152366 1171753 1191141 1210528
+				  1229915 1250307 1270699 1291092 1311484 1331876 1349117 1366357 1383598 1400838
+				  1418079
+				  1437011 1455942 1474874 1493805 1512737 1528014 1543291 1558567 1573844 1589121
+				  1603528 1617936 1632343 1646751 1661158 1668758 1676357 1683957 1691556 1699156>;
+		temp_array = <900 890 880 870 860 850 840 830 820 810
+				800 790 780 770 760 750 740 730 720 710
+				700 690 680 670 660 650 640 630 620 610
+				600 590 580 570 560 550 540 530 520 510
+				500 490 480 470 460 450 440 430 420 410
+				400 390 380 370 360 350 340 330 320 310
+				300 290 280 270 260 250 240 230 220 210
+				200 190 180 170 160 150 140 130 120 110
+				100 90 80 70 60 50 40 30 20 10
+				0
+				(-10) (-20) (-30) (-40) (-50) (-60) (-70) (-80) (-90) (-100)
+				(-110)(-120)(-130)(-140)(-150)(-160)(-170)(-180)(-190) (-200)>;
+	};
+
+	rpmh-regulator-smpa5 {
+		S5A: pm8150_s5: regulator-pm8150-s5 {
+			regulator-min-microvolt = <2000000>;
+			regulator-max-microvolt = <2000000>;
+			qcom,init-voltage = <2000000>;
+		};
+	};
+
+	/* H/W request */
+	rpmh-regulator-ldoc7 {
+		L7C: pm8150l_l7: regulator-pm8150l-l7 {
+			regulator-name = "pm8150l_l7";
+			regulator-min-microvolt = <3000000>;
+			regulator-max-microvolt = <3312000>;
+			qcom,init-voltage = <3300000>;
+		};
+	};
+	rpmh-regulator-bobc1 {
+		qcom,supported-modes =
+			<RPMH_REGULATOR_MODE_LPM
+			 RPMH_REGULATOR_MODE_HPM>;
+		qcom,mode-threshold-currents = <0 2000000>;
+
+		BOB: pm8150l_bob: regulator-pm8150l-bob {
+			qcom,init-mode = <RPMH_REGULATOR_MODE_LPM>;
+		};
+	};
+};
+
+&pm8150_vadc {
+	/delete-node/ skin_therm;
+	ap_therm {
+		reg = <ADC_AMUX_THM1_PU2>;
+		label = "ap_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+		qcom,decimation = <840>;
+		qcom,avg-samples = <8>;
+	};
+};
+
+&pm8150l_vadc {
+	/delete-node/ skin_msm_therm;
+	pa_therm {
+		reg = <ADC_AMUX_THM2_PU2>;
+		label = "pa_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+		qcom,decimation = <840>;
+		qcom,avg-samples = <8>;
+	};
+};
+
+&spmi_bus {
+	qcom,pm8150@0 {
+		qcom,power-on@800 {
+			interrupts = <0x0 0x8 0x0 IRQ_TYPE_NONE>,
+				     <0x0 0x8 0x1 IRQ_TYPE_NONE>,
+					 <0x0 0x8 0x4 IRQ_TYPE_NONE>,
+				     <0x0 0x8 0x5 IRQ_TYPE_NONE>;
+			interrupt-names = "kpdpwr", "resin",
+                    "resin-bark", "kpdpwr-resin-bark";
+
+			qcom,s3-debounce = <128>;
+			qcom,pon_1 {
+				qcom,pon-type = <PON_POWER_ON_TYPE_KPDPWR>;
+				qcom,support-reset = <0>;
+				qcom,pull-up = <1>;
+				linux,code = <KEY_POWER>;
+			};
+
+			qcom,pon_2 {
+				qcom,pon-type = <PON_POWER_ON_TYPE_RESIN>;
+				qcom,support-reset = <0>;
+				qcom,pull-up = <1>;
+				linux,code = <KEY_VOLUMEDOWN>;
+			};
+
+			qcom,pon_3 {
+				qcom,pon-type = <PON_POWER_ON_TYPE_KPDPWR_RESIN>;
+				qcom,support-reset = <1>;
+				qcom,pull-up = <1>;
+				qcom,s1-timer = <6720>;
+				qcom,s2-timer = <1000>;
+				qcom,s2-type = <8>;
+				qcom,use-bark;
+			};
+		};
+	};
+};
+
+&pm8150_gpios {
+	interrupts = <0x0 0xc0 0 IRQ_TYPE_NONE>,
+			<0x0 0xc2 0 IRQ_TYPE_NONE>,
+			<0x0 0xc3 0 IRQ_TYPE_NONE>,
+			<0x0 0xc5 0 IRQ_TYPE_NONE>,
+			<0x0 0xc7 0 IRQ_TYPE_NONE>,
+			<0x0 0xc8 0 IRQ_TYPE_NONE>,
+			<0x0 0xc9 0 IRQ_TYPE_NONE>;
+	interrupt-names = "pm8150_gpio1", "pm8150_gpio3",
+			"pm8150_gpio4", "pm8150_gpio6", "pm8150_gpio7",
+			"pm8150_gpio9", "pm8150_gpio10";
+	qcom,gpios-disallowed = <2 5 8>;
+};
+
+&pm8150l_adc_tm {
+	usb_therm {
+		reg = <ADC_AMUX_THM1_PU2>;
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+	};
+
+	wpc_therm {
+		reg = <ADC_GPIO1_PU2>;
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+	};
+};
+
+&thermal_zones {
+	 usb-therm {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-governor = "user_space";
+		thermal-sensors = <&pm8150l_adc_tm ADC_AMUX_THM1_PU2>;
+		trips {
+			active-config0 {
+				temperature = <85000>;
+				hysteresis = <15000>;
+				type = "passive";
+			};
+		};
+	};
+
+	wpc-therm {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-governor = "user_space";
+		thermal-sensors = <&pm8150l_adc_tm ADC_GPIO1_PU2>;
+		trips {
+			active-config0 {
+				temperature = <85000>;
+				hysteresis = <15000>;
+				type = "passive";
+			};
+		};
+	};
+};

@@ -1,0 +1,60 @@
+/*
+ * SAMSUNG board device tree source
+ *
+ * Copyright (c) 2018 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/* This dtsi is for hw rev from 04 to 08 */
+#include "battery-data-beyondxq-common.dtsi"
+
+&qupv3_se4_i2c { 
+	pinctrl-0 = <>;
+	pinctrl-1 = <>;
+
+	pca9468@57 {
+		status = "disabled";
+	};
+};
+
+&soc {
+	sec-direct-charger {
+		status = "disabled";
+	};
+
+	battery {
+		/delete-property/ battery,dchg_temp_check_type;
+		/delete-property/ battery,dchg_thermal_source;
+		/delete-property/ battery,dchg_temp_table_adc;
+		/delete-property/ battery,dchg_temp_table_data;
+		/delete-property/ battery,dchg_input_limit_current;
+		/delete-property/ battery,dchg_charging_limit_current;
+		/delete-property/ battery,siop_apdo_input_limit_current;
+		/delete-property/ battery,siop_apdo_charging_limit_current;
+		/delete-property/ battery,dc_step_chg_type;
+		/delete-property/ battery,dc_step_chg_charge_power;
+		/delete-property/ battery,dc_step_chg_step;
+		/delete-property/ battery,dc_step_chg_cond_vol;
+		/delete-property/ battery,dc_step_chg_cond_iin;
+		/delete-property/ battery,dc_step_chg_iin_check_cnt;
+		/delete-property/ battery,dc_step_chg_cond_soc;
+		/delete-property/ battery,dc_step_chg_val_vfloat;
+		/delete-property/ battery,dc_step_chg_val_iout;
+
+		battery,charger_name = "max77705-charger";
+		battery,max_charging_current = <3150>;
+		battery,battery_full_capacity = <3000>;
+		io-channels = <&pm8150l_vadc ADC_AMUX_THM1_PU2>, <&pm8150l_vadc ADC_AMUX_THM3_PU2>, <&pm8150l_vadc ADC_AMUX_THM1_PU2>, <&pm8150l_vadc ADC_AMUX_THM1_PU2>;
+	};
+	max77705-fuelgauge {
+		/* for 3000mAh battery */
+		fuelgauge,qrtable20 = <0x1500>;
+		fuelgauge,qrtable30 = <0x1280>;
+		fuelgauge,capacity = <0x0B68>;
+		fuelgauge,ttf_capacity = <3830>;
+	};
+};
