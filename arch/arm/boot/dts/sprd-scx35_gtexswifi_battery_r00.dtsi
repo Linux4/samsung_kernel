@@ -1,0 +1,174 @@
+/*
+* Copyright (C) 2013 Spreadtrum Communication Incorporated
+*		http://www.spreadtrum.com/
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 as
+* published by the Free Software Foundation.
+*/
+
+
+/ {
+	sec-fuelgauge {
+		compatible = "samsung,sec-fuelgauge";
+		capacity-max = <1000>;
+		capacity-max-margin = <1000>;
+		capacity-min = <10>;
+		fg-irq-attr = <0>;
+		fuel-alert-soc = <1000>;
+		temp_adc_channel = <0>;
+		gpios = <&a_eic_gpio 0 0>;
+		/* chg_bat_safety_vol = <4600>; */
+		soft_vbat_uvlo = <3050>;
+		vmode = <0>; /* 1=Voltage mode, 0=mixed mode */
+		alm_soc = <5>; /* SOC alm level %*/
+		alm_vbat = <3450>; /* Vbat alm level mV*/
+		rint = <250>; /*battery internal impedance*/
+		cnom = <3950>; /* nominal capacity in mAh */
+		rsense_real = <199>; /* sense resistor 0.1mOhm from real environment*/
+		rsense_spec = <200>; /* sense resistor 0.1mOhm from specification*/
+		relax_current = <50>; /* current for relaxation in mA (< C/20) */
+		cal_ajust = <0>; /* ajust calibration data */
+		cnom_temp_tab = <1025 3950	/*value = 1000 + temp*/
+			1010 3850
+			1000 3800>;
+		rint_temp_tab = <1040 150
+		        1025 250
+			1010 430
+			1000 500>;
+		ocv_table = <4287 100
+				4247 95
+				4191 90
+				4137 85
+				4087 80
+				4040 75
+				3995 70
+				3954 65
+				3907 60
+				3869 55
+				3840 50
+				3818 45
+				3800 40
+				3785 35
+				3772 30
+				3758 25
+				3741 20
+				3719 15
+				3689 10
+				3666 5
+				3400 0>;
+
+sprd_fgu: sprd_fgu{
+			  compatible  = "sprd,sprd_fgu";
+			  interrupt-parent = <&adi>;
+			  interrupts = <4 0x0>;
+		  };
+		   };
+
+	sec-battery {
+		compatible = "samsung,sec-battery";
+		battery,vendor = "SDI SDI";
+		battery,charger_name = "sec-charger";
+		battery,fuelgauge_name = "sec-fuelgauge";
+		battery,technology = <2>; /* POWER_SUPPLY_TECHNOLOGY_LION */
+
+		battery,chip_vendor = "SPRD";
+		battery,temp_adc_type = <1>; /* SEC_BATTERY_ADC_TYPE_AP */
+
+		battery,polling_time = <10 30 30 30 3600>;
+
+		battery,adc_check_count = <5>;
+
+		battery,cable_check_type = <5>; /* SEC_BATTERY_CABLE_CHECK_PSY */
+		battery,cable_source_type = <3>; /* SEC_BATTERY_CABLE_SOURCE_EXTERNAL */
+		battery,event_waiting_time = <600>;
+		battery,polling_type = <1>; /* SEC_BATTERY_MONITOR_ALARM */
+		battery,monitor_initial_count = <3>;
+
+		battery,battery_check_type = <5>; /* SEC_BATTERY_CHECK_CHARGER */
+		battery,check_count = <0>;
+		battery,check_adc_max = <1440>;
+		battery,check_adc_min = <0>;
+
+		battery,ovp_uvlo_check_type = <4>; /* SEC_BATTERY_OVP_UVLO_CHGINT */
+
+		battery,thermal_source = <2>; /* SEC_BATTERY_THERMAL_SOURCE_ADC */
+
+		battery,temp_table_adc =<468 483 497 513 528 544 561 578 596 614
+				         633 652 672 692 713 735 757 780 804 828
+					 853 879 905 932 960 989 1018 1048 1079 1100
+					 1142 1175 1209 1244 1279 1315 1352 1389 1427 1466
+					 1506 1519 1529 1539 1549 1559 1569 1585 1628 1671
+					 1801 1846 1891 1936 1982 2028 2098 2168 2239 2311
+					 2382 2453 2501 2548 2595 2642 2688 2734 2780 2825
+					 2870 2914 2958 3001 3044 3085 3126 3166 3206 3245 3282
+					 3319 3355 3390 3424 3458 3490 3521 3552 3581 3610
+					 3637 3664 3689 3714 3738 3761 3783 3804 3824 3844>;
+		battery,temp_table_data = <800 790 780 770 760 750 740 730 720 710
+					  700 690 680 670 660 650 640 630 620 610 
+					  600 590 580 570 560 550 540 530 520 510
+					  500 490 480 470 460 450 440 430 420 410
+					  400 390 380 370 360 350 340 330 320 310 
+					  300 290 280 270 260 250 240 230 220 210
+					  200 190 180 170 160 150 140 130 120 110 
+					  100 90 80 70 60 50 40 30 20 10 0
+					  (-10) (-20) (-30) (-40) (-50) (-60) (-70) (-80) (-90) (-100) 
+					  (-110) (-120) (-130) (-140) (-150) (-160) (-170) (-180) (-190) (-200)>;
+
+		battery,temp_check_type = <2>; /* SEC_BATTERY_TEMP_CHECK_TEMP */
+		battery,temp_check_count = <1>;
+		battery,temp_high_threshold_event = <550>;
+		battery,temp_high_recovery_event = <500>;
+		battery,temp_low_threshold_event = <(-50)>;
+		battery,temp_low_recovery_event = <0>;
+		battery,temp_high_threshold_normal = <550>;
+		battery,temp_high_recovery_normal = <500>;
+		battery,temp_low_threshold_normal = <(-50)>;
+		battery,temp_low_recovery_normal = <0>;
+		battery,temp_high_threshold_lpm = <550>;
+		battery,temp_high_recovery_lpm = <500>;
+		battery,temp_low_threshold_lpm = <(-50)>;
+		battery,temp_low_recovery_lpm = <0>;
+		battery,full_check_type = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
+		battery,full_check_type_2nd = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
+		battery,full_check_count = <1>;
+		battery,chg_gpio_full_check = <0>;
+		battery,chg_polarity_full_check = <1>;
+
+		battery,full_condition_type = <15>;
+		battery,full_condition_soc = <100>;
+		battery,full_condition_vcell = <4250>;
+
+		battery,recharge_check_count = <3>;
+		battery,recharge_condition_type = <4>; /* SEC_BATTERY_RECHARGE_CONDITION_VCELL */
+		battery,recharge_condition_soc = <95>;
+		battery,recharge_condition_vcell = <4290>;
+
+		battery,charging_total_time = <21600>;
+		battery,recharging_total_time = <5400>;
+		battery,charging_reset_time = <0>;
+		battery,chg_irq_attr = <0x3>;
+
+		battery,always_enable;
+
+		battery,swelling_high_temp_block = <450>;
+		battery,swelling_high_temp_recov = <400>;
+		battery,swelling_low_temp_block = <100>;
+		battery,swelling_low_temp_recov = <150>;
+		battery,swelling_high_chg_current = <1000>;
+		battery,swelling_low_chg_current = <1000>;
+		battery,swelling_full_check_current_2nd = <200>;
+		battery,swelling_drop_float_voltage = <4200>;
+		battery,swelling_high_rechg_voltage = <4130>;
+		battery,swelling_low_rechg_voltage = <4050>;
+		battery,swelling_block_time = <600>;
+		battery,chg_float_voltage = <4340>;
+
+		/* Charger */
+		charger,vbus_ctrl_gpio = <&d_gpio_gpio 64 0x00>;
+		battery,input_current_limit = <1000 460 460 1000 460 1000 1000 460 460 1000 1000 1000 1000 460 1000 300 1000 1000 300 1000 1000 460 460>;
+		battery,fast_charging_current = <1550 0 975 1550 500 1550 1550 1550 0 1550 1550 1550 1550 (-1) 1550 1550 1550 1550 1550 1550 1550 0 0>;
+		battery,full_check_current_1st = <400 0 400 400 400 400 400 400 0 400 400 400 400 0 400 400 400 400 400 400 400 0 0>;
+		battery,full_check_current_2nd = <150 0 150 150 150 150 150 150 0 150 150 150 150 0 150 150 150 150 150 150 150 0 0>;
+	};
+};

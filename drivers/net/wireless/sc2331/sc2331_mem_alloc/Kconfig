@@ -1,0 +1,3 @@
+config SC2331_MEM_ALLOC
+	bool "sprdwl mem alloc "
+	default y

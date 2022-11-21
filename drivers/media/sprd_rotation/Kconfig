@@ -1,0 +1,5 @@
+config SPRD_ROT
+	depends on ARCH_SCX35
+	bool "Spreadtrum Rotation Driver"
+	help
+	  Say Y to support spreadtrum rotation device driver

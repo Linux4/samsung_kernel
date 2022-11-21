@@ -1,0 +1,74 @@
+# drivers/staging/sec-libs/Kconfig
+#
+# Copyright (C) 2013-2015 Samsung Electronics Co, Ltd.
+#
+# This software is licensed under the terms of the GNU General Public
+# License version 2, as published by the Free Software Foundation, and
+# may be copied, distributed, and modified under those terms.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+
+comment "SEC Debug Feature"
+config SEC_DEBUG
+	bool "Enable SEC DEBUG"
+	default n
+
+if SEC_DEBUG
+config SEC_BSP
+	bool "Samsung BSP Feature"
+	default n
+	help
+	  Samsung BSP Feature.
+
+config SEC_DEBUG_SCHED_LOG
+	bool "Samsung Scheduler Logging Feature"
+	default n
+	help
+	  Samsung Scheduler Logging Feature for Debug use.
+
+config SEC_DEBUG_SCHED_LOG_NONCACHED
+    bool "Samsung Scheduler log for non cache"
+	default n
+	depends on SEC_DEBUG_SCHED_LOG
+
+config SEC_DEBUG_TIMER_LOG
+	bool "Samsung Timer Logging Feature"
+	default n
+	help
+	  Samsung Timer Logging Feature for Debug use.
+
+config SEC_LOG
+	bool "Samsung log buffer"
+	default n
+
+config SEC_LOG_BUF_NOCACHE
+	bool "samsung log buf for cache type"
+	depends on SEC_LOG
+	default n
+	
+config SEC_LOG_LAST_KMSG
+	bool "Samsung Use Sec Log Last Kmsg"
+	depends on SEC_LOG
+	default n
+	help
+	  This feature creats a node to read contents of sec_log_buf
+	  area just before booting into kernel from bootloader.
+	  This is very helpful to read sec_log_buf area without reset
+	  or entering upload mode.
+
+config SEC_DEBUG_USER
+	bool "Enable user options"
+	default n
+
+config SEC_DEBUG_REG_ACCESS
+	bool "Samsung reg access debugging"
+	default n
+
+config SEC_DEBUG_CORESIGHT
+	bool "Samsung feature to control coresight registers"
+	default n
+endif

@@ -1,0 +1,266 @@
+#
+# SPREADTRUM Platform Specific Drivers
+#
+menu "Spreadtrum Platform Specific Drivers"
+
+menu "Spreadtrum Adie Type"
+config ADIE_SC2713
+	bool "Spredtrum A-die SC2713 Chip Support"
+        default n
+	help
+	  Say Y here to support for Spreadtrum a-die sc2713 chip.
+
+config ADIE_SC2713S
+	bool "Spredtrum A-die SC2713S Chip Support"
+        default n
+	help
+	  Say Y here to support for Spreadtrum a-die sc2713s chip.
+
+config ADIE_SC2711
+	bool "Spredtrum A-die SC2711 Chip Support"
+        default n
+	help
+	  Say Y here to support for Spreadtrum a-die sc2711 chip.
+
+config ADIE_SC2723
+	bool "Spredtrum A-die SC2723 Chip Support"
+        default n
+	help
+	  Say Y here to support for Spreadtrum a-die sc2723 chip.
+
+config ADIE_SC2723S
+	bool "Spredtrum A-die SC2723S Chip Support"
+        default n
+	help
+	  Say Y here to support for Spreadtrum a-die sc2723S chip.
+endmenu
+
+config BUS_MONITOR_DEBUG
+    bool "Spreadtrum BM Support"
+	default y
+	help
+	  Say Y here to support debug busmonitor
+
+config SC_FPGA
+	bool "Spreadtrum FPGA support"
+	default n
+	help
+	  This is used for FPGA verification
+
+config SCX35L64BIT_FPGA
+	bool "Spreadtrum FPGA platform"
+	depends on ARCH_SCX35L64
+	select  SC_FPGA
+	default n
+	help
+	  SCX35L64BIT_FPGA fpga platform
+
+config SC_VIBRATOR
+        bool "vibrator for SC serials"
+        select ANDROID_TIMED_OUTPUT
+        default n
+
+config SPRD_VIBRATOR_2723
+        bool "vibrator for sprd_vibrator_2723"
+        select ANDROID_TIMED_OUTPUT
+        default n
+
+config SC_VIBRATOR_GPIO
+        bool "vibrator for SC serials by gpio"
+        default n
+	depends on SC_VIBRATOR
+
+config SC_VIBRATOR_POWER
+        bool "vibrator for SC serials by power"
+        default n
+	depends on SC_VIBRATOR
+
+config SPRD_ION_MM_SIZE
+        int "size for ion"
+        range 1 64
+        default 1
+	depends on ION
+
+config SPRD_ION_OVERLAY_SIZE
+        int "size for ion overlay"
+        range 1 64
+        default 1
+	depends on ION
+
+config SPRD_VIBRATOR_2723
+        bool "vibrator for sprd_vibrator_2723"
+        select ANDROID_TIMED_OUTPUT
+        default n
+
+config EIRQ_NUM
+        int "number for external irq region desc request"
+        range 0 1024
+	default 0
+
+config PIN_POWER_DOMAIN_SWITCH
+        bool "pin power domain switch for 28nm chip"
+		default n
+
+comment "SC8830 ADIE type"
+
+config SC_INTERNAL_ADI
+	bool "spreadtrum sc internal adi"
+	default y
+	depends on ARCH_SCX35
+
+config SC_INTERNAL_ADC
+	bool "spreadtrum sc internal adc"
+	default y
+	depends on ARCH_SCX35
+
+config SC_INTERNAL_WATCHDOG
+	bool "spreadtrum sc internal watchdog"
+	default y
+	depends on ARCH_SCX35
+
+config FIX_V7TAGRAM_BUG
+        bool "fix arm-v7 scu tag ram bug"
+        default n
+	depends on ARCH_SCX35
+	depends on SMP
+
+config DDR_VALIDITY_TEST
+	bool "test ddr validity before go into ddr"
+	default n
+
+config SPRD_CPU_DYNAMIC_HOTPLUG
+	bool "cpu dynamic hotplug with DVFS"
+	default n
+	depends on HOTPLUG_CPU
+	depends on ARCH_SCX35
+
+config SPRD_MEM_POOL
+	default y
+	bool "Using a memory pool to alloc 8k to 64k"
+	depends on !COMPACTION
+	help
+	  This option enables memmory pool for allocating 8k to 64k.
+
+config SPRD_DCDC_DEBUG
+	tristate "Enable dcdc debug module"
+	default n
+	help
+	  This option select dcdc debug module.
+
+config SPRD_AVS_DEBUG
+	tristate "Enable avs debug module"
+	default n
+	help
+	  This option select avs debug module.
+
+config SPRD_AUX_DEBUG
+       tristate "Enable aux debug moduel"
+       default n
+       help
+         This option select aux debug module.
+
+config SPRD_SIMCTRL
+	bool "Enable simctrl module"
+	default n
+	help
+	  This option select simctrl module.
+config SPRD_MODEM_TD
+	bool "SPRD TD modem"
+	default n
+	help
+	  This option select modem type.
+
+config MODEM_W_MEMCUT
+	bool "SPRD w modem memory cut"
+	default n
+	help
+	  This option select for w modem memory cut.
+
+config SIPC_TD
+	bool "SIPC instance of TD modem"
+	select SIPC
+	default n
+
+config SIPC_WCDMA
+	bool "SIPC instance of WCDMA modem"
+	select SIPC
+	default n
+
+config SIPC_WCN
+	bool "SIPC instance of Wireless Connection"
+	select SIPC
+	default n
+
+config SIPC_PMIC
+	bool "SIPC instance of PMIC arm7 modem"
+	select SIPC
+	default n
+
+
+config SIPC_GGE
+	bool "SIPC instance of GGE modem"
+	select SIPC
+	default n
+
+config SIPC_LTE
+	bool "SIPC instance of LTE modem"
+	select SIPC
+	default n
+
+config VOIP_CPT
+	bool "VOIP process in modem T,it is processed in modem W by default"
+	default n
+	depends on SIPC_TD
+
+config VOIP_LTE
+	bool "VOIP process in modem LTE,it is processed in modem W by default"
+	default n
+	depends on SIPC_LTE
+
+config CP_SWITCH
+	bool "cp switch"
+	default n
+	help
+	  This option select cp switch
+
+config EAR_LOW_LEVEL_DETECT
+        bool "ear detecting trigger is low level"
+        default n
+config SS_FUNCTION
+        bool "only for samsung function"
+        default n
+config TSP_0_1_A
+        bool "For corsica_ve 3131 0.1A board"
+        default n
+
+config SPRD_MAILBOX
+        bool "Spreadtrum Mailbox IPI Arch"
+        default n
+
+config MUIC_CABLE_DETECT
+	bool "usb, jig-box and so on cables are detected by external MUIC chip"
+	default n
+	depends on MFD_SM5504 || MFD_RT8973
+
+config SPRD_SYSDUMP
+        bool "Enable SPRD sysdump handler"
+        depends on ARCH_SC || ARM64
+        help
+          This option enables Spreadtrum sysdump which prepare debug info
+	  for u-boot to write into mmc storage after kernel panics.
+
+config SPRD_DEBUG
+	bool "Enable SPRD DEBUG"
+
+config SPRD_DEBUG_SCHED_LOG
+	bool "SPRD Scheduler Logging Feature"
+	depends on SPRD_DEBUG
+	default n
+	help
+	  SPRD Scheduler Logging Feature for Debug use.
+
+config GPS_LSI_S5N6420
+bool "LSI_GPS_CHIPSET_HARRIER"
+default n
+
+endmenu

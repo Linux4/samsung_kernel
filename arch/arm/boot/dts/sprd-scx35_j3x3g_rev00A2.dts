@@ -1,0 +1,625 @@
+/*
+ * Copyright (C) 2013 Spreadtrum Communication Incorporated
+ *		http://www.spreadtrum.com/
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+/dts-v1/;
+
+/* memory reserved for SMEM */
+/memreserve/ 0x87800000 0x400000; /* 4M */
+
+/* memory reserved for CPW modem */
+/memreserve/ 0x88000000 0x1d00000; /* 28M */
+
+/* memory reserved for carveout mm (zsl)  */
+/memreserve/ 0x9B23B000 0x3939000; /* 8M*1.5*5, 4K alignment*/
+
+/* memory reserved for fb */
+/memreserve/ 0x9EB74000 0xA8C000; /* 720*1280*4*3 */
+
+/* memory reserved for ION */
+/memreserve/ 0x9F600000 0x708000; /* 720*1280*4*2 */
+
+/include/ "sprd-scx35_3.dtsi"
+/include/ "sprd-scx35_sc7730.dtsi"
+/include/ "sprd-scx35_j3x3g_battery.dtsi"
+
+/ {
+	model = "Spreadtrum SP7730G board";
+		sprd,sc-id = <8830 1 0x20000>;
+	chosen {
+		bootargs = "loglevel=7 init=/init root=/dev/ram0 rw";
+		linux,initrd-start = <0x85500000>;
+		linux,initrd-end   = <0x855a3212>;
+	};
+
+	aliases {
+		i2c2 = &i2c2;
+		i2c_gpio6 = &i2c_gpio6;
+		i2c_gpio7 = &i2c_gpio7;
+	 	i2c_gpio8 = &i2c_gpio8;
+	};
+
+	memory {
+		device_type = "memory";
+		reg = <0x80000000 0x60000000>;
+	};
+
+
+	sprd_simdet {
+		compatible = "sprd,sim_detect";
+		sprd,name = "simdet";
+		gpios = <&d_gpio_gpio 162 0>;
+		irq_trigger_level_detect = <1>;
+		delay_time = <100>;
+	};
+
+	rfkill {
+		compatible = "broadcom,rfkill";
+		gpios = <&d_gpio_gpio 47 0>;   /* power */
+	};
+
+	bluesleep {
+		compatible = "broadcom,bluesleep";
+		bt-wake-gpio = <&d_gpio_gpio 45 0>; /*GPIO_AP2BT_WAKE*/
+		host-wake-gpio = <&d_gpio_gpio 46 0>; /*GPIO_BT2AP_WAKE*/
+	};
+
+	sec-debug {
+		crash_key {
+			keys = "vol-down", "power", "power";
+			size-keys = <3>;
+			timeout = <1000>; /* default = 1000msec */
+		};
+	};
+
+i2c2: i2c@70700000 {
+		compatible = "sprd,i2c";
+		interrupts = <0 13 0x0>;
+		reg = <0x70700000 0x1000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cm36672p@60 {
+			compatible = "cm36672p";
+			reg = <0x60>;
+			pinctrl-names = "default";
+			interrupt-parent = <&d_gpio_gpio>;
+			interrupts = <216 0>;
+			cm36672p,vdd-supply = <&vdd28>;
+			cm36672p,leden_gpio = <&d_gpio_gpio 163 0x00>;
+			cm36672p,irq_gpio = <&d_gpio_gpio 216 0x00>;
+			cm36672p,default_hi_thd = <18>;
+			cm36672p,default_low_thd = <12>;
+			cm36672p,cancel_hi_thd = <10>;
+			cm36672p,cancel_low_thd = <7>;
+			cm36672p,ps_duty = <2>;
+			cm36672p,ps_it = <4>;
+			cm36672p,led_current = <3>;
+			cm36672p,default_trim = <3>;
+		};
+
+		bma_acc@18 {
+			compatible = "bma2x2";
+			reg = <0x18>;
+			interrupt-parent = <&d_gpio_gpio>;
+			interrupts = <164 0>;
+			bma2x2,gpio_int1 = <&d_gpio_gpio 164 0x00>;
+			bma2x2,accel_place = <3>;
+		};
+	};
+
+
+i2c_gpio6: i2c_gpio@1 {
+			   compatible = "i2c-gpio";
+			   #address-cells = <1>;
+			   #size-cells = <0>;
+			   gpios = <&d_gpio_gpio 159 0 /* sda */
+				   &d_gpio_gpio 160 0 >; /* scl */
+			   i2c-gpio,delay-us = <10>;    /* ~100 kHz */
+			   i2c-gpio,timeout-ms = <0>;
+			   status = "okay";
+
+		sm5701-i2c@49 {
+			compatible = "sm,sm5701";
+			reg = <0x49>;
+			chargermfd {
+				charger {
+					compatible = "sm,sm5701-charger";
+					chgen-gpio = <&d_gpio_gpio 215 0>;
+					chgirq-gpio = <&d_gpio_gpio 161 0>;
+					chg-float-voltage = <4338>;
+				};
+			};
+                        leds_sm5701 {
+                                        compatible = "sm,leds_sm5701";
+                                        flashen-gpio = <&d_gpio_gpio 232 0>;
+                                        flashtorch-gpio = <&d_gpio_gpio 233 0>;
+                        };
+
+		};
+	};
+
+i2c_gpio7: i2c_gpio@2 {
+			   compatible = "i2c-gpio";
+			   #address-cells = <1>;
+			   #size-cells = <0>;
+			   gpios = <&d_gpio_gpio 150 0 /* sda */
+				   &d_gpio_gpio 151 0 >; /* scl */
+			   i2c-gpio,delay-us = <10>;    /* ~100 kHz */
+			   i2c-gpio,timeout-ms = <0>;
+
+			   sm5504@14 {
+				   compatible = "SiliconMitus,sm5504";
+				   reg = <0x14>;
+				   interrupt-parent = <&d_gpio_gpio>;
+				   sm5504,irq-gpio = <&d_gpio_gpio 149 0>;
+			   };
+		   };
+
+i2c_gpio8: i2c_gpio@3 {
+		   	compatible = "i2c-gpio";
+			#address-cells = <1>;
+			#size-cells = <0>;
+		   	gpios = <&d_gpio_gpio 66 0 /* sda */
+				   &d_gpio_gpio 65 0 >; /* scl */
+		   	i2c-gpio,delay-us = <10>;    /* ~100 kHz */
+		   	i2c-gpio,timeout-ms = <0>;
+
+			touchkey@20 {
+				compatible = "coreriver,coreriver-tkey";
+				reg = <0x20>;
+				interrupt-parent = <&d_gpio_gpio>;
+			   	coreriver,irq-gpio = <&d_gpio_gpio 67 0>;
+			   	coreriver,sda-gpio = <&d_gpio_gpio 66 0>;
+			   	coreriver,scl-gpio = <&d_gpio_gpio 65 0>;
+			   	coreriver,vcc_en-gpio = <&d_gpio_gpio 236 0>;
+			   	coreriver,fw_name = "coreriver/j3x3g.fw";
+			   	coreriver,ext_fw_name = "/sdcard/j3x3g_tk.bin";
+			   	coreriver,firm-up;
+		   	};
+};
+
+
+		   gps {
+			   compatible = "broadcom,bcm47520";
+			   gps-pwr-en = <&d_gpio_gpio 168 0>;	/*GPS_PWON*/
+			   gps-regulator = "vddcamio";
+			   tcxo-regulator = "vddsdio";         /* tcxo power */
+			   tcxo-regulator-volt = <3300000>;    /* 3.3V */
+		   };
+
+		   sec_thermistor {
+			   compatible = "sec,thermistor";
+		   };
+
+	backlight: gen-panel-backlight {
+		compatible = "gen-panel-backlight";
+		backlight-name = "panel";
+                backlight-brt-range = <
+                        0       0       /* OFF */
+                        5       5       /* MIN */
+                        20      20      /* DIM */
+                        134     134     /* DEF */
+                        255     255     /* MAX */
+                        255     255     /* HBM(OUTDOOR) */
+                >;
+		backlight-brt-map = <
+			/*<brt><tune><brt><tune>*/
+			0	0
+			4	4	6	6
+			7	7	8	8
+			9	9	10	10
+			11	11	12	12
+			13	13	14	14
+			15	15	16	16
+			17	17	18	19
+			19	20	20	21
+			21	22	22	24
+			23	25	24	27
+			25	29	26	30
+			27	32	28	34
+			29	37	30	39
+			31	41	33	44
+			35	47	38	50
+			40	53	41	56
+			46	60	49	64
+			52	68	56	72
+			59	77	63	82
+			67	87	71	93
+			76	98	80	105
+			86	111	91	119
+			97	126	104	134
+			110	143	118	152
+			125	162	133	172
+			142	183	150	195
+			160	207	170	220
+			181	234	193	249
+			205	265	218	282
+			230	300	242	316
+			254	333	255	360
+			255	500
+		>;
+                gen-panel-bl-hbm-en;
+                gen-panel-bl-tune-en;
+	};
+
+	panel {
+		compatible = "sprd,sprdfb-dsi-panel";
+		pinctrl-names = "default";
+		gen-panel = <&gen_panel>;
+		gen-panel-backlight = <&backlight>;
+		panel-ext-pin {
+			panel-ext-pin-on-0 = <
+				&panel_rst_n	0	10
+				&panel_vci	1	10
+			>;
+			panel-ext-pin-on = <
+				&panel_rst_n	1	10000
+			>;
+			panel-ext-pin-off = <
+				&panel_rst_n	0	10
+				&panel_vci	0	10
+			>;
+			panel_vci: panel-ext-pin-0 {
+				pin-name = "panel_vci";
+				pin-type = <1>;
+				pin-supply = <&vddkpled>;
+			};
+			panel_rst_n: panel-ext-pin-1 {
+				pin-name = "panel_rst_n";
+				pin-type = <0>; 
+				pin-gpio = <&d_gpio_gpio 103 0>;
+			};
+		};
+		gen_panel: gen-panel{};
+	};
+
+	sprd-marlin {
+		compatible = "sprd,marlin";
+		gpios = <&d_gpio_gpio 148 0 /*marlin gpio0 */
+			&d_gpio_gpio 45 0  /*marlin gpio1 */
+			&d_gpio_gpio 46 0  /*marlin gpio2 */
+			&d_gpio_gpio 84 0  /*no need */
+			&d_gpio_gpio 230 0>;  /*marlin reset*/
+		cp-rfctl-offset = <0xd8>;  /*no need*/
+		vdd-download = "vddcon"; /*vdd 1.6v*/
+		vdd-pa = "vddwifipa"; /*vdd 3.3v*/
+		clk-name = "clk_aux0"; /*clk 32k*/
+		sdhci-name = "sdio_wifi";
+	};
+
+	input_booster {
+		status = "disabled";
+		compatible = "input_booster";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		booster_key@1 {
+			input_booster,label = "KEY";
+			input_booster,type = <0>;	/* BOOSTER_DEVICE_KEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <1200000>;
+			input_booster,core_num_lock = <2>;
+
+			/* Time table */
+			input_booster,head_times = <200>;
+			input_booster,tail_times = <0>;
+
+		};
+		booster_key@2 {
+			input_booster,label = "TOUCHKEY";
+			input_booster,type = <1>;	/* BOOSTER_DEVICE_TOUCHKEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <1000000>;
+			input_booster,core_num_lock = <2>;
+
+			/* Time table */
+			input_booster,head_times = <0>;
+			input_booster,tail_times = <300>;
+		};
+		booster_key@3 {
+			input_booster,label = "TOUCH";
+			input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+
+			input_booster,levels = <1 2 3>;
+
+			/* Frequency table */
+			/* for level	:	1_Head, 2_Head, 2_Tail */
+			input_booster,cpu_freqs = <1200000 1200000 1000000>;
+			input_booster,core_num_lock = <2>;
+
+			/* Time table */
+			input_booster,head_times = <200 200 0>;
+			input_booster,tail_times = <0 0 300>;
+		};
+		booster_key@4 { // Input Booster +
+			input_booster,label = "MULTITOUCH";
+			input_booster,type = <3>;	/* BOOSTER_DEVICE_MULTITOUCH */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1300000 1000000>;
+			input_booster,core_num_lock = <2>;
+
+			/* Time table */
+			input_booster,head_times = <1000 0>;
+			input_booster,tail_times = <0 500>;
+		};
+		booster_key@5 {
+			input_booster,label = "KEYBOARD";
+			input_booster,type = <4>;	/* BOOSTER_DEVICE_KEYBOARD */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1200000 1200000>;
+			input_booster,core_num_lock = <2>;
+
+			/* Time table */
+			input_booster,head_times = <200 200>;
+			input_booster,tail_times = <0 0>;
+		};
+		booster_key@6 {
+			input_booster,label = "MOUSE";
+			input_booster,type = <5>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1200000 1000000>;
+			input_booster,core_num_lock = <2>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+		};
+		booster_key@7 {
+			input_booster,label = "MOUSE WHEEL";
+			input_booster,type = <6>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1200000 0>;
+			input_booster,core_num_lock = <2>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 0>;
+		};
+		booster_key@8 {
+			input_booster,label = "PEN HOVER";
+			input_booster,type = <7>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1200000 1000000>;
+			input_booster,core_num_lock = <2>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+		}; // Input Booster -
+	};
+};
+
+&pinctrl {
+	pwr_domain ="vdd18", /* "vdd18" */ /* VIO_2_0_ms */
+			   "vdd18", /* "vdd28" */ /* VIO_2_1_ms */
+			   "vddsim0",
+			   "vddsim1",
+			   "vdd18", /* "vddsim2" */
+			   "vddsdcore",
+			   "vdd18";
+};
+
+&i2c0 {
+	sensor_main@0x3c {
+		compatible = "sprd,sensor_main";
+		reg = <0x3c>;
+	};
+	sensor_sub@0x21 {
+		compatible = "sprd,sensor_sub";
+		reg = <0x21>;
+	};
+};
+
+&i2c1 { /* TSP */
+	ist30xxc@50 {
+		compatible = "imagis,ist30xxc";
+		reg = <0x50>;
+		imagis,power-src = "vddsim2";
+		gpios = <&d_gpio_gpio 238 0>;
+		interrupt-parent = <&d_gpio_gpio>;
+		interrupts = <238 0x1>;
+		imagis,irq-flag = <0x2002>;
+		imagis,irq-gpio = <&d_gpio_gpio 238 0x00>;
+		imagis,avdd-volt = <3000000>;
+		imagis,max-x = <720>;
+		imagis,max-y = <1280>;
+		imagis,max-w = <15>;
+		imagis,chip-id = <0x038C>;
+		tsp_vdd-supply = <&vddsim2>;
+		imagis,chip-name = "IST3038C";
+		imagis,chip-code = <3>;
+		imagis,max-node = <576>;
+		imagis,tkey = <1>;
+		imagis,octa-hw = <1>;
+
+	};
+};
+
+&usb {
+	tune_value = <0x4407ae33>;
+};
+
+&keypad0 {
+	ngpios = <2>;
+	gpios = <&a_eic_gpio 2 0>,<&a_eic_gpio 10 0>;
+	sprd,keypad-num-rows = <2>;
+	sprd,keypad-num-columns = <3>;
+	interrupts = <0 36 0x0>;
+	sprd,keypad-rows-choose-hw = <0x30000>;
+	sprd,keypad-cols-choose-hw = <0x700>;
+	sprd,debounce_time = <5000>;
+	linux,keypad-no-autorepeat;
+
+	key_volume_up {
+		keypad,row = <0>;
+		keypad,column = <0>;
+		linux,code = <115>;
+	};
+
+	key_volume_up1 {
+		keypad,row = <0>;
+		keypad,column = <1>;
+		linux,code = <115>;
+	};
+
+	key_home {
+		keypad,row = <0>;
+		keypad,column = <2>;
+		linux,code = <172>;
+	};
+};
+
+&l_sprd_sensor {
+	    compatible  = "sprd,sprd_sensor";
+        reg = <0x60c00000 0x100000>;
+        gpios = <&d_gpio_gpio 186 0    /* 0: main reset*/
+        &d_gpio_gpio 0 0    /* 1: main powerdown*/
+        &d_gpio_gpio 187 0    /* 2:sub reset*/
+        &d_gpio_gpio 0 0    /* 3:sub powerdown*/
+        &d_gpio_gpio 162 0     /* 4:main core voltage*/
+        &d_gpio_gpio 162 0     /* 5:sub core voltage*/
+        &d_gpio_gpio 0 0   /* 6:flash mode en */
+        &d_gpio_gpio 0 0   /* 7:torch mode en*/
+        &d_gpio_gpio 0 0   /* 8:3rd camea rst*/
+        &d_gpio_gpio 0 0   /* 9:3rd camea pwdn*/
+        &d_gpio_gpio 0 0   /* 10:3rd camea switch en */
+        &d_gpio_gpio 0 0   /* 11:3rd camea switch mode*/
+        &d_gpio_gpio 0 0   /* 12:main id*/
+        &d_gpio_gpio 0 0   /* 13:main avdd voltage*/
+        &d_gpio_gpio 0 0   /* 14:sub avdd voltage*/
+        &d_gpio_gpio 0 0    /* 15:none used*/
+        &d_gpio_gpio 0 0    /* 16:none used*/
+        &d_gpio_gpio 0 0    /* 17:none used*/
+        &d_gpio_gpio 0 0    /* 18:none used*/
+        &d_gpio_gpio 0 0>;  /* 19:none used*/
+		vdds = "vddcammot",
+			"vddcama",
+			"vddcamd",
+			"vddcamd",               /*iovdd*/
+			"vddcammot",
+			"vddcama",
+			"vddcamd",
+			"vddcamd";             /*iovdd*/
+		clock-names ="clk_mm_i","clk_sensor","clk_ccir","clk_dcam","clk_dcam_mipi";
+		clocks = <&clk_mm>,<&clk_sensor>,<&clk_ccir>,<&clk_dcam>,<&clk_dcam_mipi>;
+};
+
+&l_ion {
+	sprd,ion-heap@1 {
+		sprd,ion-heap-mem = <0x0 0x0>;
+	};
+
+	sprd,ion-heap@2 {
+		sprd,ion-heap-type = <2>;	/* carveout mm */
+		sprd,ion-heap-mem = <0x9B23B000 0x3939000>;
+	};
+
+	sprd,ion-heap@3 {
+		sprd,ion-heap-mem = <0x9F600000 0x708000>;
+	};
+};
+
+&adi {
+	/* Headset driver data KSND */
+	headset_sprd_sc2723 {
+		compatible = "sprd,headset_sprd_sc2723";
+		gpio_switch = <0>;
+		gpio_detect = <312>;
+		gpio_button = <307>;
+		irq_trigger_level_detect = <1>;
+		irq_trigger_level_button = <1>;
+		adc_threshold_gnd_average = <400>;
+		adc_threshold_left_average = <500>;
+		adc_threshold_3pole_detect = <3331>;
+		adc_threshold_4pole_detect = <3332>;
+		irq_threshold_buttont = <1>;
+		voltage_headmicbias = <3000000>;
+		nbuttons = <4>;
+		headset_buttons_media {
+			adc_min = <0>;
+			adc_max = <496>;
+			code = <226>;
+			type = <0>;
+		};
+
+		headset_buttons_voc_assist {
+   			adc_min = <497>;
+   			adc_max = <695>;
+   			code = <0x246>;
+			type = <0>;
+		};
+
+		headset_buttons_up {
+			adc_min = <696>;
+			adc_max = <1199>;
+			code = <115>;
+			type = <0>;
+		};
+
+		headset_buttons_down {
+			adc_min = <1200>;
+			adc_max =<3000>;
+			code = <114>;
+			type = <0>;
+		};
+	};
+
+
+	sprd_eic_keys {
+		compatible = "sprd,sprd-eic-keys";
+		key_volumedown {
+			label = "Volumedown Key";
+			linux,code = <114>;
+			gpios = <&a_eic_gpio 10 0>;
+			debounce-interval = <2>;
+			gpio-key,wakeup;
+		};
+	};
+};
+
+/include/ "sprd-dsi-panel-dsi_s6e8aa5x01.dtsi"
+
+&sdio0 {
+	detect_gpio = <71>;
+	SD_Pwr_Name = "vddsdcore";
+	/*_1_8V_signal_Name = "vddsdio";*/
+};
+
+&fb0 {
+	sprd,fb_mem = <0x9EB74000 0xA8C000>;
+	sprd,fb_display_size = <720 1280>;
+	dpi_clk_div = <5>;
+};
