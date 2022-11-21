@@ -1,0 +1,723 @@
+/*
+ * Copyright (c) 2019 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/********  M32-LTE Board  ***********
+ *    SW          :   HW   : Sensor
+ * camera0(Wide)  : RCAM1  : GW3
+ * camera1(Front) : FCAM   : HI2021Q
+ * camera2(UW)    : RCAM3  : IMX355
+ * camera3(Depth) : RCAM2  : GC02M1B
+ * camera4(Macro) : RCAM4  : GC02M1
+ ***********************************/
+
+/* CAMERA GPIO standardization */
+&pio {
+	/****************  Camera0  ***************/
+	// MCLK
+	camera0_mclk_2mA: camera0_mclk_2mA@gpio99 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO99__FUNC_CMMCLK0>;
+			drive-strength = <0>;
+		};
+	};
+	camera0_mclk_4mA: camera0_mclk_4mA@gpio99 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO99__FUNC_CMMCLK0>;
+			drive-strength = <1>;
+		};
+	};
+	camera0_mclk_6mA: camera0_mclk_6mA@gpio99 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO99__FUNC_CMMCLK0>;
+			drive-strength = <2>;
+		};
+	};
+	camera0_mclk_8mA: camera0_mclk_8mA@gpio99 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO99__FUNC_CMMCLK0>;
+			drive-strength = <3>;
+		};
+	};
+	camera0_mclk_off: camera0_mclk_gpio_mode@gpio99 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO99__FUNC_GPIO99>;
+			drive-strength = <1>;
+		};
+	};
+
+	// Reset
+	camera0_rst_low: camera0_rst_output_low@gpio102 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO102__FUNC_GPIO102>;
+			output-low;
+		};
+	};
+	camera0_rst_high: camera0_rst_output_high@gpio102 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO102__FUNC_GPIO102>;
+			output-high;
+		};
+	};
+
+	// I2C
+	camera_main_i2c_scl_on: camera_main_i2c_scl_on@gpio105 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO105__FUNC_SCL4>;
+			bias-disable;
+		};
+	};
+	camera_main_i2c_sda_on: camera_main_i2c_sda_on@gpio106 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO106__FUNC_SDA4>;
+			bias-disable;
+		};
+	};
+	camera_main_i2c_scl_off: camera_main_i2c_scl_off@gpio105 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO105__FUNC_GPIO105>;
+			bias-disable;
+		};
+	};
+	camera_main_i2c_sda_off: camera_main_i2c_sda_off@gpio106 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO106__FUNC_GPIO106>;
+			bias-disable;
+		};
+	};
+
+	/****************  Camera1  ***************/
+	// MCLK
+	camera1_mclk_2mA: camera1_mclk_2mA@gpio111 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO111__FUNC_CMMCLK3>;
+			drive-strength = <0>;
+		};
+	};
+	camera1_mclk_4mA: camera1_mclk_4mA@gpio111 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO111__FUNC_CMMCLK3>;
+			drive-strength = <1>;
+		};
+	};
+	camera1_mclk_6mA: camera1_mclk_6mA@gpio111 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO111__FUNC_CMMCLK3>;
+			drive-strength = <2>;
+		};
+	};
+	camera1_mclk_8mA: camera1_mclk_8mA@gpio111 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO111__FUNC_CMMCLK3>;
+			drive-strength = <3>;
+		};
+	};
+	camera1_mclk_off: camera1_mclk_gpio_mode@gpio111 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO111__FUNC_GPIO111>;
+			drive-strength = <1>;
+		};
+	};
+
+	// Reset
+	camera1_rst_low: camera1_rst_output_low@gpio20 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO20__FUNC_GPIO20>;
+			output-low;
+		};
+	};
+	camera1_rst_high: camera1_rst_output_high@gpio20 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO20__FUNC_GPIO20>;
+			output-high;
+		};
+	};
+
+	// I2C
+	camera_sub_i2c_scl_on: camera_sub_i2c_scl_on@gpio103 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO103__FUNC_SCL2>;
+			bias-pull-up;
+		};
+	};
+	camera_sub_i2c_sda_on: camera_sub_i2c_sda_on@gpio104 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO104__FUNC_SDA2>;
+			bias-pull-up;
+		};
+	};
+	camera_sub_i2c_scl_off: camera_sub_i2c_scl_off@gpio103 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO103__FUNC_GPIO103>;
+			bias-pull-down;
+		};
+	};
+	camera_sub_i2c_sda_off: camera_sub_i2c_sda_off@gpio104 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO104__FUNC_GPIO104>;
+			bias-pull-down;
+		};
+	};
+
+	/****************  Camera2  ***************/
+	// MCLK
+	camera2_mclk_2mA: camera2_mclk_2mA@gpio108 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_CMMCLK2>;
+			drive-strength = <0>;
+		};
+	};
+	camera2_mclk_4mA: camera2_mclk_4mA@gpio108 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_CMMCLK2>;
+			drive-strength = <1>;
+		};
+	};
+	camera2_mclk_6mA: camera2_mclk_6mA@gpio108 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_CMMCLK2>;
+			drive-strength = <2>;
+		};
+	};
+	camera2_mclk_8mA: camera2_mclk_8mA@gpio108 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_CMMCLK2>;
+			drive-strength = <3>;
+		};
+	};
+	camera2_mclk_off: camera2_mclk_gpio_mode@gpio108 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_GPIO108>;
+			drive-strength = <1>;
+		};
+	};
+
+	// Reset
+	camera2_rst_low: camera2_rst_output_low@gpio27 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO27__FUNC_GPIO27>;
+			output-low;
+		};
+	};
+	camera2_rst_high: camera2_rst_output_high@gpio27 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO27__FUNC_GPIO27>;
+			output-high;
+		};
+	};
+
+	// I2C
+	camera_main_two_i2c_scl_on: camera_main_two_i2c_scl_on@gpio24 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO24__FUNC_SCL8>;
+			bias-pull-up;
+		};
+	};
+	camera_main_two_i2c_sda_on: camera_main_two_i2c_sda_on@gpio22 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO22__FUNC_SDA8>;
+			bias-pull-up;
+		};
+	};
+	camera_main_two_i2c_scl_off: camera_main_two_i2c_scl_off@gpio24 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO24__FUNC_GPIO24>;
+			bias-pull-down;
+		};
+	};
+	camera_main_two_i2c_sda_off: camera_main_two_i2c_sda_off@gpio22 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO22__FUNC_GPIO22>;
+			bias-pull-down;
+		};
+	};
+
+	/****************  Camera3  ***************/
+	// MCLK
+	camera3_mclk_2mA: camera3_mclk_2mA@gpio100 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO100__FUNC_CMMCLK1>;
+			drive-strength = <0>;
+		};
+	};
+	camera3_mclk_4mA: camera3_mclk_4mA@gpio100 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO100__FUNC_CMMCLK1>;
+			drive-strength = <1>;
+		};
+	};
+	camera3_mclk_6mA: camera3_mclk_6mA@gpio100 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO100__FUNC_CMMCLK1>;
+			drive-strength = <2>;
+		};
+	};
+	camera3_mclk_8mA: camera3_mclk_8mA@gpio100 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO100__FUNC_CMMCLK1>;
+			drive-strength = <3>;
+		};
+	};
+	camera3_mclk_off: camera3_mclk_gpio_mode@gpio100 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO100__FUNC_GPIO100>;
+			drive-strength = <1>;
+		};
+	};
+
+	// Reset
+	camera3_rst_low: camera3_rst_output_low@gpio101 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO101__FUNC_GPIO101>;
+			output-low;
+		};
+	};
+	camera3_rst_high: camera3_rst_output_high@gpio101 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO101__FUNC_GPIO101>;
+			output-high;
+		};
+	};
+
+	// I2C
+	camera_main_three_i2c_scl_on: camera_main_three_i2c_scl_on@gpio24 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO24__FUNC_SCL8>;
+			bias-pull-up;
+		};
+	};
+	camera_main_three_i2c_sda_on: camera_main_three_i2c_sda_on@gpio22 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO22__FUNC_SDA8>;
+			bias-pull-up;
+		};
+	};
+	camera_main_three_i2c_scl_off: camera_main_three_i2c_scl_off@gpio24 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO24__FUNC_GPIO24>;
+			bias-pull-down;
+		};
+	};
+	camera_main_three_i2c_sda_off: camera_main_three_i2c_sda_off@gpio22 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO22__FUNC_GPIO22>;
+			bias-pull-down;
+		};
+	};
+
+	/****************  Camera4  ***************/
+	// MCLK
+	camera4_mclk_2mA: camera4_mclk_2mA@gpio108 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_CMMCLK2>;
+			drive-strength = <0>;
+		};
+	};
+	camera4_mclk_4mA: camera4_mclk_4mA@gpio108 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_CMMCLK2>;
+			drive-strength = <1>;
+		};
+	};
+	camera4_mclk_6mA: camera4_mclk_6mA@gpio108 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_CMMCLK2>;
+			drive-strength = <2>;
+		};
+	};
+	camera4_mclk_8mA: camera4_mclk_8mA@gpio108 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_CMMCLK2>;
+			drive-strength = <3>;
+		};
+	};
+	camera4_mclk_off: camera4_mclk_gpio_mode@gpio108 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_GPIO108>;
+			drive-strength = <1>;
+		};
+	};
+
+	// Reset
+	camera4_rst_low: camera4_rst_output_low@gpio109 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
+			output-low;
+		};
+	};
+	camera4_rst_high: camera4_rst_output_high@gpio109 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
+			output-high;
+		};
+	};
+
+	// I2C
+	camera_main_four_i2c_scl_on: camera_main_four_i2c_scl_on@gpio24 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO24__FUNC_SCL8>;
+			bias-pull-up;
+		};
+	};
+	camera_main_four_i2c_sda_on: camera_main_four_i2c_sda_on@gpio22 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO22__FUNC_SDA8>;
+			bias-pull-up;
+		};
+	};
+	camera_main_four_i2c_scl_off: camera_main_four_i2c_scl_off@gpio24 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO24__FUNC_GPIO24>;
+			bias-pull-down;
+		};
+	};
+	camera_main_four_i2c_sda_off: camera_main_four_i2c_sda_off@gpio22 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO22__FUNC_GPIO22>;
+			bias-pull-down;
+		};
+	};
+
+	// MIPI Switch
+	camera_mipi_sw_sel_off: camera_mipi_sw_sel_low@gpio91 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO91__FUNC_GPIO91>;
+			output-low;
+		};
+	};
+	camera_mipi_sw_sel_on: camera_mipi_sw_sel_high@gpio91 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO91__FUNC_GPIO91>;
+			output-high;
+		};
+	};
+
+/****************  default  ***************/
+	camera_pins_default: camdefault {
+	};
+};
+
+&kd_camera_hw1 {
+	pinctrl-names = "default",
+			"cam0_rst0", "cam0_rst1",
+			"cam1_rst0", "cam1_rst1",
+			"cam2_rst0", "cam2_rst1",
+			"cam3_rst0", "cam3_rst1",
+			"cam4_rst0", "cam4_rst1",
+			"cam0_mclk_off",
+			"cam0_mclk_2mA", "cam0_mclk_4mA",
+			"cam0_mclk_6mA", "cam0_mclk_8mA",
+			"cam1_mclk_off",
+			"cam1_mclk_2mA", "cam1_mclk_4mA",
+			"cam1_mclk_6mA", "cam1_mclk_8mA",
+			"cam2_mclk_off",
+			"cam2_mclk_2mA", "cam2_mclk_4mA",
+			"cam2_mclk_6mA", "cam2_mclk_8mA",
+			"cam3_mclk_off",
+			"cam3_mclk_2mA", "cam3_mclk_4mA",
+			"cam3_mclk_6mA", "cam3_mclk_8mA",
+			"cam4_mclk_off",
+			"cam4_mclk_2mA", "cam4_mclk_4mA",
+			"cam4_mclk_6mA", "cam4_mclk_8mA",
+			"cam_mipi_switch_sel_1",
+			"cam_mipi_switch_sel_0";
+
+	pinctrl-0 = <&camera_pins_default>;
+	pinctrl-1 = <&camera0_rst_low>;
+	pinctrl-2 = <&camera0_rst_high>;
+	pinctrl-3 = <&camera1_rst_low>;
+	pinctrl-4 = <&camera1_rst_high>;
+	pinctrl-5 = <&camera2_rst_low>;
+	pinctrl-6 = <&camera2_rst_high>;
+	pinctrl-7 = <&camera3_rst_low>;
+	pinctrl-8 = <&camera3_rst_high>;
+	pinctrl-9 = <&camera4_rst_low>;
+	pinctrl-10 = <&camera4_rst_high>;
+	pinctrl-11 = <&camera0_mclk_off>;
+	pinctrl-12 = <&camera0_mclk_2mA>;
+	pinctrl-13 = <&camera0_mclk_4mA>;
+	pinctrl-14 = <&camera0_mclk_6mA>;
+	pinctrl-15 = <&camera0_mclk_8mA>;
+	pinctrl-16 = <&camera1_mclk_off>;
+	pinctrl-17 = <&camera1_mclk_2mA>;
+	pinctrl-18 = <&camera1_mclk_4mA>;
+	pinctrl-19 = <&camera1_mclk_6mA>;
+	pinctrl-20 = <&camera1_mclk_8mA>;
+	pinctrl-21 = <&camera2_mclk_off>;
+	pinctrl-22 = <&camera2_mclk_2mA>;
+	pinctrl-23 = <&camera2_mclk_4mA>;
+	pinctrl-24 = <&camera2_mclk_6mA>;
+	pinctrl-25 = <&camera2_mclk_8mA>;
+	pinctrl-26 = <&camera3_mclk_off>;
+	pinctrl-27 = <&camera3_mclk_2mA>;
+	pinctrl-28 = <&camera3_mclk_4mA>;
+	pinctrl-29 = <&camera3_mclk_6mA>;
+	pinctrl-30 = <&camera3_mclk_8mA>;
+	pinctrl-31 = <&camera4_mclk_off>;
+	pinctrl-32 = <&camera4_mclk_2mA>;
+	pinctrl-33 = <&camera4_mclk_4mA>;
+	pinctrl-34 = <&camera4_mclk_6mA>;
+	pinctrl-35 = <&camera4_mclk_8mA>;
+	pinctrl-36 = <&camera_mipi_sw_sel_on>;
+	pinctrl-37 = <&camera_mipi_sw_sel_off>;
+
+	/********* Regulator setting **************/
+	// Camera0
+	cam0_vcama-supply = <&s2mpb03_0_l6>; // 5->6
+	cam0_vcamd-supply = <&s2mpb03_0_l1>;
+	cam0_vcamio-supply = <&s2mpb03_0_l3>;
+	cam0_vcamaf-supply = <&mt_pmic_vldo28_ldo_reg>;
+
+	// Camera1
+	cam1_vcama-supply = <&s2mpb03_0_l5>;
+	cam1_vcamd-supply = <&s2mpb03_0_l2>;
+	cam1_vcamio-supply = <&s2mpb03_0_l3>;
+
+	// Camera2
+	cam2_vcama-supply = <&mt_pmic_vcama1_ldo_reg>;
+	cam2_vcamd-supply = <&s2mpb03_0_l4>;
+	cam2_vcamio-supply = <&s2mpb03_0_l3>;
+
+	// Camera3
+	cam3_vcama-supply = <&s2mpb03_0_l7>; //6->7
+	cam3_vcamd-supply = <&mt_pmic_vcamd_ldo_reg>;
+	cam3_vcamio-supply = <&s2mpb03_0_l3>;
+
+	// Camera4
+	cam4_vcama-supply = <&s2mpb03_0_l7>; //6->7
+	cam4_vcamd-supply = <&mt_pmic_vcamd_ldo_reg>;
+	cam4_vcamio-supply = <&s2mpb03_0_l3>;
+
+	status = "okay";
+	vendor {
+		rear_sensor_id = <120>;     /* SENSOR_NAME_GW3 */
+		front_sensor_id = <121>;    /* SENSOR_NAME_HI2021Q */
+		rear2_sensor_id = <210>;    /* SENSOR_NAME_IMX355 */
+		rear3_sensor_id = <211>;    /* SENSOR_NAME_GC02M1B */
+		rear4_sensor_id = <210>;    /* SENSOR_NAME_GC02M1 */
+
+		use_dualcam_set_cal;
+		use_module_check;
+		//skip_cal_loading;
+		check_final_cam_module;
+		max_supported_camera = <5>;
+		supported_cameraId = <0 2 50 52 54>;
+		/* REAR, FRONT, DUAL_REAR_PORTRAIT_WIDE(Bokeh), REAR_2, REAR_3, REAR_4(Macro) */
+
+		max_camera_num = <5>;
+		camera_info0 {             /* 0 : rear - GW3 */
+			isp = <0>;             /* 0 : INT , 1 : EXT , 2 : SOC */
+			cal_memory = <2>;      /* 0 : N , 1 : FROM , 2 : EEPROM , 3 : OTP  */
+			read_version = <0>;    /* 0 : SYSFS , 1 : CAMON */
+			core_voltage = <0>;    /* 0 : N , 1 : Y  */
+			upgrade = <0>;         /* 0 : N , 1 : SYSFS , 2 : CAMON */
+			companion = <0>;       /* 0 : N , 1 : Y  */
+			ois = <0>;             /* 0 : N , 1 : Y  */
+			valid = <1>;           /* 0 : INVALID, 1 : VALID */
+			dual_open = <0>;       /* 0 : SINGLE_OPEN , 1 : DUAL_OPEN */
+			position = <0>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
+			//includes_sub = <4>;    /* include this for common eeprom. <_position_> - position of the sub camera */
+			afcal_type=<20>;       /* output format - 1: Near, Middle..., Far , 20: Near, Far, Middle... */
+			use_adaptive_mipi=<0>;  /* 0 : N, 1 : Y */
+		};
+		camera_info1 {             /* 1 : front1 - HI2021Q */
+			isp = <0>;             /* 0 : INT , 1 : EXT , 2 : SOC */
+			cal_memory = <3>;      /* 0 : N , 1 : FROM , 2 : EEPROM , 3 : OTP  */
+			read_version = <0>;    /* 0 : SYSFS , 1 : CAMON */
+			core_voltage = <0>;    /* 0 : N , 1 : Y  */
+			upgrade = <0>;         /* 0 : N , 1 : SYSFS , 2 : CAMON */
+			companion = <0>;       /* 0 : N , 1 : Y  */
+			ois = <0>;             /* 0 : N , 1 : Y  */
+			valid = <1>;           /* 0 : INVALID, 1 : VALID */
+			dual_open = <0>;       /* 0 : SINGLE_OPEN , 1 : DUAL_OPEN */
+			position = <1>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
+			use_adaptive_mipi=<0>;  /* 0 : N, 1 : Y */
+		};
+		camera_info2 {             /* 2 : rear2 - IMX355 */
+			isp = <0>;             /* 0 : INT , 1 : EXT , 2 : SOC */
+			cal_memory = <2>;      /* 0 : N , 1 : FROM , 2 : EEPROM , 3 : OTP  */
+			read_version = <0>;    /* 0 : SYSFS , 1 : CAMON */
+			core_voltage = <0>;    /* 0 : N , 1 : Y  */
+			upgrade = <0>;         /* 0 : N , 1 : SYSFS , 2 : CAMON */
+			companion = <0>;       /* 0 : N , 1 : Y  */
+			ois = <0>;             /* 0 : N , 1 : Y  */
+			valid = <1>;           /* 0 : INVALID, 1 : VALID */
+			dual_open = <0>;       /* 0 : SINGLE_OPEN , 1 : DUAL_OPEN */
+			position = <2>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
+			use_adaptive_mipi=<1>;  /* 0 : N, 1 : Y */
+		};
+		camera_info3 {             /* 3 : rear3 - GC02M1B */
+			isp = <0>;             /* 0 : INT , 1 : EXT , 2 : SOC */
+			cal_memory = <3>;      /* 0 : N , 1 : FROM , 2 : EEPROM , 3 : OTP  */
+			read_version = <0>;    /* 0 : SYSFS , 1 : CAMON */
+			core_voltage = <0>;    /* 0 : N , 1 : Y  */
+			upgrade = <0>;         /* 0 : N , 1 : SYSFS , 2 : CAMON */
+			companion = <0>;       /* 0 : N , 1 : Y  */
+			ois = <0>;             /* 0 : N , 1 : Y  */
+			valid = <1>;           /* 0 : INVALID, 1 : VALID */
+			dual_open = <1>;       /* 0 : SINGLE_OPEN , 1 : DUAL_OPEN */
+			position = <4>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
+			use_adaptive_mipi=<0>;  /* 0 : N, 1 : Y */
+		};
+		camera_info4 {             /* 4 : rear4 - GC02M1 */
+			isp = <0>;             /* 0 : INT , 1 : EXT , 2 : SOC */
+			cal_memory = <2>;      /* 0 : N , 1 : FROM , 2 : EEPROM , 3 : OTP  */
+			read_version = <0>;    /* 0 : SYSFS , 1 : CAMON */
+			core_voltage = <0>;    /* 0 : N , 1 : Y  */
+			upgrade = <0>;         /* 0 : N , 1 : SYSFS , 2 : CAMON */
+			companion = <0>;       /* 0 : N , 1 : Y  */
+			ois = <0>;             /* 0 : N , 1 : Y  */
+			valid = <1>;           /* 0 : INVALID, 1 : VALID */
+			dual_open = <0>;       /* 0 : SINGLE_OPEN , 1 : DUAL_OPEN */
+			position = <6>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
+			use_adaptive_mipi=<0>;  /* 0 : N, 1 : Y */
+		};
+	};
+};
+/* CAMERA GPIO end */
+
+/* CAMERA AF */
+//&camera_af_hw_node {
+//	vcamaf-supply = <&mt_pmic_vldo28_ldo_reg>;
+//	status = "okay";
+//};
+/* CAMERA AF end */
+
+/* CAM PMIC */
+&s2mpb03_0_l1 {
+	regulator-min-microvolt = <1050000>;
+	regulator-max-microvolt = <1100000>;
+};
+&s2mpb03_0_l2 {
+	regulator-min-microvolt = <1000000>;
+	regulator-max-microvolt = <1100000>;
+};
+&s2mpb03_0_l3 {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+};
+&s2mpb03_0_l4 {
+	regulator-min-microvolt = <1100000>;
+	regulator-max-microvolt = <1200000>;
+};
+&s2mpb03_0_l5 {
+	regulator-min-microvolt = <2800000>;
+	regulator-max-microvolt = <2900000>;
+};
+&s2mpb03_0_l6 {
+	regulator-min-microvolt = <2800000>;
+	regulator-max-microvolt = <2800000>;
+};
+&s2mpb03_0_l7 {
+	regulator-min-microvolt = <2800000>;
+	regulator-max-microvolt = <2900000>;
+};
+
+/*************************
+ *     Cmaera I2C
+ *************************/
+
+&i2c1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <400000>;
+	mediatek,use-open-drain;
+	camera_main_eeprom_mtk:camera_main_eeprom@58 {
+		compatible = "mediatek,camera_main_eeprom";
+		reg = <0x58>;
+		status = "okay";
+	};
+
+	camera_main_two_eeprom_mtk:camera_main_two_eeprom@54 {
+		compatible = "mediatek,camera_main_two_eeprom";
+		reg = <0x54>;
+		status = "okay";
+	};
+
+	camera_main_four_eeprom_mtk:camera_main_four_eeprom@52{
+		compatible = "mediatek,camera_main_four_eeprom";
+		reg = <0x52>;
+		status = "okay";
+	};
+	camera_main_af_mtk:camera_main_af@0c {
+		compatible = "mediatek,camera_main_af";
+		reg = <0x0c>;
+		status = "okay";
+	};
+
+};
+
+&i2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <1000000>;
+	mediatek,use-open-drain;
+	camera_sub_mtk:camera_sub@20 {
+		compatible = "mediatek,camera_sub";
+		reg = <0x20>;
+		pinctrl-names = "i2c_on", "i2c_off";
+		pinctrl-0 = <&camera_sub_i2c_scl_on &camera_sub_i2c_sda_on>;
+		pinctrl-1 = <&camera_sub_i2c_scl_off &camera_sub_i2c_sda_off>;
+		status = "okay";
+	};
+};
+
+&i2c4 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <1000000>;
+	mediatek,use-open-drain;
+	camera_main_mtk:camera_main@2d {
+		compatible = "mediatek,camera_main";
+		reg = <0x2d>;
+		pinctrl-names = "i2c_on", "i2c_off";
+		pinctrl-0 = <&camera_main_i2c_scl_on &camera_main_i2c_sda_on>;
+		pinctrl-1 = <&camera_main_i2c_scl_off &camera_main_i2c_sda_off>;
+		status = "okay";
+	};
+
+};
+
+&i2c8 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <400000>;
+	mediatek,use-open-drain;
+
+	camera_main_two_mtk:camera_main_two@1A {
+		compatible = "mediatek,camera_main_two";
+		reg = <0x1A>;
+		pinctrl-names = "i2c_on", "i2c_off";
+		pinctrl-0 = <&camera_main_two_i2c_scl_on &camera_main_two_i2c_sda_on>;
+		pinctrl-1 = <&camera_main_two_i2c_scl_off &camera_main_two_i2c_sda_off>;
+		status = "okay";
+	};
+
+	camera_main_three_mtk:camera_main_three@37 {
+		compatible = "mediatek,camera_main_three";
+		reg = <0x37>;
+		pinctrl-names = "i2c_on", "i2c_off";
+		pinctrl-0 = <&camera_main_three_i2c_scl_on &camera_main_three_i2c_sda_on>;
+		pinctrl-1 = <&camera_main_three_i2c_scl_off &camera_main_three_i2c_sda_off>;
+		status = "okay";
+	};
+
+	camera_main_four_mtk:camera_main_four@10 {
+		compatible = "mediatek,camera_main_four";
+		reg = <0x10>;
+		pinctrl-names = "i2c_on", "i2c_off";
+		pinctrl-0 = <&camera_main_four_i2c_scl_on &camera_main_four_i2c_sda_on>;
+		pinctrl-1 = <&camera_main_four_i2c_scl_off &camera_main_four_i2c_sda_off>;
+		status = "okay";
+	};
+
+};
