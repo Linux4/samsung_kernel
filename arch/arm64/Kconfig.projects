@@ -1,0 +1,12 @@
+config SEC_BLOOMXQ_PROJECT
+	default n
+	bool "Samsung BLOOMXQ Project"
+	help
+	  Support for Samsung BLOOMXQ Project
+
+config MACH_BLOOMXQ_EUR_OPEN
+	default n
+	bool "Samsung BLOOMXQ EUR OPEN"
+	help
+	  Support for Samsung BLOOMXQ EUR OPEN device.
+
