@@ -1,0 +1,11 @@
+menu "samsung Performace manager"
+
+
+
+config PERF_MGR
+        tristate "performance manager Driver"
+        default y
+        help
+            samsung performance manager driver
+endmenu
+
