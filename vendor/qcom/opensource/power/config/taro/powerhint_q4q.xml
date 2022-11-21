@@ -1,0 +1,616 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<!--
+/*Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above
+ *       copyright notice, this list of conditions and the following
+ *       disclaimer in the documentation and/or other materials provided
+ *       with the distribution.
+ *     * Neither the name of The Linux Foundation nor the names of its
+ *       contributors may be used to endorse or promote products derived
+ *       from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * Tuned for Product Q4Q
+ */
+-->
+<HintConfigs>
+    <Powerhint>
+        <!-- POWER_HINT_ID_OPEN_CAMERA -->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS                : 0x40400000 : 0x1    -->
+        <!-- MPCTLV3_SCHED_BOOST                          : 0x40C00000 : 0x1    -->
+        <!-- MPCTLV3_CPUBW_HWMON_MIN_FREQ                 : 0x41800000 : 0xFF not working -->
+        <!-- MPCTLV3_LLCBW_HWMON_MIN_FREQ                 : 0x43000000 : 0xFF not working -->
+        <!-- MPCTLV3_STORAGE_CLK_SCALING_DISABLE          : 0x42C10000 : 0x1    -->
+        <!-- MPCTLV3_L3_MEMLAT_MIN_FREQ                   : 0x43400000 : 0xFFFF max_freq read fail -->
+        <!-- MPCTLV3_MAX_FREQ_CLUSTER_BIG_CORE_0          : 0x40804000 : 0xFFF  -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0          : 0x40800000 : 0xFFF  -->
+        <!-- MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_0       : 0x40804100 : 0xFFF  -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_0       : 0x40800100 : 0xFFF  -->
+        <!-- MPCTLV3_MAX_FREQ_CLUSTER_PLUS_CORE_0         : 0x40804200 : 0xFFF  -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_PLUS_CORE_0         : 0x40800200 : 0xFFF  -->
+        <Config
+            Id="0x00001330" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1, 0x40C00000, 0x1, 0x42C10000, 0x1,
+            0x40804000, 0xFFF, 0x40800000, 0xFFF, 
+            0x40804100, 0xFFF, 0x40800100, 0xFFF, 
+            0x40804200, 0xFFF, 0x40800200, 0xFFF"/>
+
+        <!-- POWER_HINT_ID_CLOSE_CAMERA -->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS                : 0x40400000 : 0x1    -->
+        <!-- MPCTLV3_SCHED_BOOST                          : 0x40C00000 : 0x1    -->
+        <!-- MPCTLV3_STORAGE_CLK_SCALING_DISABLE          : 0x42C10000 : 0x1    -->
+        <!-- MPCTLV3_MAX_FREQ_CLUSTER_BIG_CORE_0          : 0x40804000 : 0xFFF  -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0          : 0x40800000 : 0xFFF  -->
+        <!-- MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_0       : 0x40804100 : 0xFFF  -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_0       : 0x40800100 : 0xFFF  -->
+        <!-- MPCTLV3_MAX_FREQ_CLUSTER_PLUS_CORE_0         : 0x40804200 : 0xFFF  -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_PLUS_CORE_0         : 0x40800200 : 0xFFF  -->
+        <Config
+            Id="0x00001331" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1, 0x40C00000, 0x1, 0x42C10000, 0x1,
+            0x40804000, 0xFFF, 0x40800000, 0xFFF, 
+            0x40804100, 0xFFF, 0x40800100, 0xFFF, 
+            0x40804200, 0xFFF, 0x40800200, 0xFFF"/>
+
+        <!-- POWER_HINT_ID_COMMON -->
+        <!-- MPCTLV3_CPUBW_HWMON_SAMPLE_MS  : 0x41820000 0x4183C000 : 0x10( 16) -->
+        <!-- MPCTLV3_CPUBW_HWMON_IO_PERCENT : 0x41808000 0x41834000 : 0x64(100) -->
+        <!-- MPCTLV3_CPUBW_HWMON_HYST_OPT   : 0x4180C000 0x41838000 :         0 -->
+        <!-- MPCTLV3_LLCBW_HWMON_SAMPLE_MS  : 0x4300C000 0x43034000 : 0x10( 16) -->
+        <!-- MPCTLV3_LLCBW_HWMON_IO_PERCENT : 0x43004000 0x43020000 : 0x64(100) -->
+        <!-- MPCTLV3_LLCBW_HWMON_HYST_OPT   : 0x43008000 0x43024000 :         0 -->
+        <Config
+            Id="0x00001332" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x10, 0x41834000, 0x64, 0x41838000, 0,
+                       0x43034000, 0x10, 0x43020000, 0x64, 0x43024000, 0"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_30FPS -->
+        <!-- MPCTLV3_LLCC_DDR_LAT_RATIO_CELL_0            : 0x43434000 : 0x1 -->
+        <!-- MPCTLV3_LLCC_DDR_LAT_RATIO_CELL_1            : 0x43438000 : 0x1 -->
+        <!-- MPCTLV3_LLCC_MEMLAT_RATIO_CELL_0             : 0x43420000 : 0x1 -->
+        <!-- MPCTLV3_LLCC_MEMLAT_RATIO_CELL_1             : 0x43424000 : 0x1 -->
+        <!-- MPCTLV3_SCHEDUTIL_PREDICTIVE_LOAD_CLUSTER_LITTLE : 0x41444100 : 0 -->
+        <!-- MPCTLV3_SCHEDUTIL_PREDICTIVE_LOAD_CLUSTER_BIG    : 0x41444000 : 0 -->
+        <!-- MPCTLV3_SCHEDUTIL_HISPEED_LOAD_CLUSTER_BIG	  : 0x41440000 : 99  -->
+        <!-- MPCTLV3_BUS_DCVS_LLCC_DDR_BW_MIN_FREQ        : 0x4303C000 : 0x858B8 -->
+        <!-- MPCTLV3_SCHED_UP_DOWN_MIGRATE(Silver/Gold)   : 0x40CE0000 : 0x0032000A(50/10) -->
+        <Config
+            Id="0x00001333" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_UHD_30FPS -->
+        <Config
+            Id="0x00001334" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_8K_30FPS -->
+        <Config
+            Id="0x00001335" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99,
+            0x40CE0000, 0x0028000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_60FPS -->
+        <!-- MPCTLV3_MIN_ONLINE_CPU_CLUSTER_LITTLE        : 0x41000100 : 0x4  -->
+        <!-- MPCTLV3_MIN_ONLINE_CPU_CLUSTER_BIG           : 0x41000000 : 0x3  -->
+        <!-- MPCTLV3_MIN_ONLINE_CPU_CLUSTER_PRIME         : 0x41000200 : 0x1  -->
+        <Config
+            Id="0x00001336" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x10, 0x43034000, 0x10,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41000100, 4, 0x41000000, 3, 0x41000200, 1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_UHD_60FPS -->
+        <Config
+            Id="0x00001337" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x10, 0x43034000, 0x10,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41008000, 0, 0x41008100, 0, 0x41008200, 0,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x17BA38,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_30FPS_FRONT -->
+        <Config
+            Id="0x00001338" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_UHD_30FPS_FRONT -->
+        <Config
+            Id="0x00001339" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_60FPS_FRONT -->
+        <Config
+            Id="0x0000133A" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x10, 0x43034000, 0x10,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41000100, 4, 0x41000000, 3, 0x41000200, 1,
+            0x41008000, 0, 0x41008100, 0, 0x41008200, 0,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_UHD_60FPS_FRONT -->
+        <Config
+            Id="0x0000133B" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x10, 0x43034000, 0x10,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41008000, 0, 0x41008100, 0, 0x41008200, 0,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x17BA38,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_30FPS_PRO -->
+        <Config
+            Id="0x0000133C" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_UHD_30FPS_PRO -->
+        <Config
+            Id="0x0000133D" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_8K_30FPS_PRO -->
+        <Config
+            Id="0x0000133E" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99,
+            0x40CE0000, 0x0028000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_60FPS_PRO -->
+        <Config
+            Id="0x0000133F" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x10, 0x43034000, 0x10,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41000100, 4, 0x41000000, 3, 0x41000200, 1,
+            0x41008000, 0, 0x41008100, 0, 0x41008200, 0,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_UHD_60FPS_PRO -->
+        <Config
+            Id="0x00001340" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x10, 0x43034000, 0x10,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41008000, 0, 0x41008100, 0, 0x41008200, 0,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x17BA38,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_120FPS_PRO -->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS                : 0x40400000 : 1    -->
+        <!-- MPCTLV3_CPUBW_HWMON_SAMPLE_MS     : 0x41820000 0x4183C000 : 10   -->
+        <!-- MPCTLV3_CPUBW_HWMON_IO_PERCENT    : 0x41808000 0x41834000 : 80   -->
+        <!-- MPCTLV3_CPUBW_HWMON_HYST_OPT      : 0x4180C000 0x41838000 : 0    -->
+        <!-- MPCTLV3_SCHED_UP_DOWN_MIGRATE(Gold/GoldPlus) : 0x40CE0200 : 0x003C0032(60/50) -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0          : 0x40800000 : 1113 -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_PLUS_CORE_0         : 0x40800200 : 1171 -->
+        <Config
+            Id="0x00001341" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1, 0x4183C000, 10, 0x41834000, 80, 0x41838000, 0,
+            0x40CE0000, 0x0032000A, 0x40CE0200, 0x003C0032,
+            0x40800000, 1113, 0x40800200, 1171"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_HFR -->
+        <Config
+            Id="0x00001342" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1, 0x4183C000, 10, 0x41834000, 80, 0x41838000, 0,
+            0x40CE0000, 0x0032000A, 0x40CE0200, 0x003C0032,
+            0x40800000, 1113, 0x40800200, 1171"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_HFR_480FPS -->
+        <Config
+            Id="0x00001343" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1, 0x4183C000, 10, 0x41834000, 80, 0x41838000, 0,
+            0x40CE0000, 0x0032000A, 0x40CE0200, 0x003C0032,
+            0x40800000, 1113, 0x40800200, 1171"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_30FPS_BEAUTY -->
+        <Config
+            Id="0x00001344" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_UHD_30FPS_BEAUTY -->
+        <Config
+            Id="0x00001345" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_60FPS_BEAUTY -->
+        <Config
+            Id="0x00001346" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x10, 0x43034000, 0x10,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41000100, 4, 0x41000000, 3, 0x41000200, 1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x001E0014, 0x40800100, 1267, 0x40800000, 1324"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_30FPS_BEAUTY_FRONT -->
+        <Config
+            Id="0x00001347" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8, 
+            0x40CE0000, 0x0032000A, 0x40800000, 1324"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_60FPS_BEAUTY_FRONT -->
+        <Config
+            Id="0x00001348" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x10, 0x43034000, 0x10,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41000100, 4, 0x41000000, 3, 0x41000200, 1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8, 
+            0x40CE0000, 0x0032000A, 0x40800000, 1324"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_30FPS_HDR10 -->
+        <Config
+            Id="0x00001349" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_UHD_30FPS_HDR10  -->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS, 0x1          -->
+        <Config
+            Id="0x0000134A" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1, 0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_60FPS_HDR10 -->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS, 0x1-->
+        <Config
+            Id="0x0000134B" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1, 0x4183C000, 0x10, 0x43034000, 0x10,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41000100, 4, 0x41000000, 3, 0x41000200, 1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_HYPER_LAPSE -->
+        <Config
+            Id="0x0000134C" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_30FPS_SUPER_STEADY -->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS                : 0x40400000 : 0x1  -->
+        <!-- MPCTLV3_GPU_MIN_POWER_LEVEL                  : 0x42804000 : 0x8(350Mhz) -->
+        <Config
+            Id="0x0000134D" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1, 0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A, 0x42804000, 0x8"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_60FPS_SUPER_STEADY -->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS                : 0x40400000 : 0x1  -->
+        <!-- MPCTLV3_GPU_MIN_POWER_LEVEL                  : 0x42804000 : 0x8(350Mhz) -->
+        <Config
+            Id="0x0000134E" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1, 0x4183C000, 0x10, 0x43034000, 0x10,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41000100, 4, 0x41000000, 3, 0x41000200, 1,
+            0x41008000, 0, 0x41008100, 0, 0x41008200, 0,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A, 0x42804000, 0x8"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_TRACKING_ZOOM -->
+        <Config
+            Id="0x0000134F" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_LIVE_FOCUS_VIDEO -->
+        <Config
+            Id="0x00001350" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_DIRECTORS_VIEW -->
+        <Config
+            Id="0x00001351" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_AR_DOODLE -->
+        <Config
+            Id="0x00001352" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_PREVIEW -->
+        <!-- MPCTLV3_LLCC_DDR_LAT_RATIO_CELL_0            : 0x43434000 : 0x1   -->
+        <!-- MPCTLV3_LLCC_DDR_LAT_RATIO_CELL_1            : 0x43438000 : 0x1   -->
+        <!-- MPCTLV3_LLCC_MEMLAT_RATIO_CELL_0             : 0x43420000 : 0x1   -->
+        <!-- MPCTLV3_LLCC_MEMLAT_RATIO_CELL_1             : 0x43424000 : 0x1   -->
+        <!-- MPCTLV3_SCHEDUTIL_PREDICTIVE_LOAD_CLUSTER_LITTLE : 0x41444100 : 0 -->
+        <!-- MPCTLV3_SCHEDUTIL_PREDICTIVE_LOAD_CLUSTER_BIG    : 0x41444000 : 0 -->
+        <!-- MPCTLV3_SCHEDUTIL_HISPEED_LOAD_CLUSTER_BIG	  : 0x41440000 : 99    -->
+        <!-- MPCTLV3_BUS_DCVS_LLCC_DDR_BW_MIN_FREQ        : 0x4303C000 : 0x858B8 -->
+        <!-- MPCTLV3_SCHED_UP_DOWN_MIGRATE(Silver/Gold)   : 0x40CE0000 : 0x0032000A(50/10) -->
+        <Config
+            Id="0x00001353" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_PREVIEW_FRONT -->
+        <Config
+            Id="0x00001354" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_VT_CALL -->
+        <Config
+            Id="0x00001355" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_STP -->
+        <Config
+            Id="0x00001356" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_LIVE_FOCUS -->
+        <Config
+            Id="0x00001357" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8, 
+            0x40CE0000, 0x0032000A, 0x40800000, 1324, 0x42804000, 10"/>
+
+        <!-- POWER_HINT_ID_LIVE_FOCUS_FRONT -->
+        <Config
+            Id="0x00001358" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4183C000, 0x21, 0x43034000, 0x21,
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
+            0x40CE0000, 0x0032000A"/>
+
+        <!-- POWER_HINT_ID_SSM_RECORDING -->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS                : 0x40400000 : 0x1  -->
+        <!-- MPCTLV3_SCHED_BOOST                          : 0x40C00000 : 0x1  -->
+        <Config
+            Id="0x00001359" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1, 0x40C00000, 0x1,
+            0x41000100, 4, 0x41000000, 3, 0x41000200, 1,
+            0x40CE0000, 0x0032000A, 0x40CE0200, 0x003C0032,
+            0x40800100, 1171, 0x40800000, 1113, 0x40800200, 1171"/>
+
+        <!-- POWER_HINT_ID_SW_SSM_RECORDING -->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS                : 0x40400000 : 0x1    -->
+        <!-- MPCTLV3_SCHED_BOOST                          : 0x40C00000 : 0x1    -->
+        <!-- MPCTLV3_STORAGE_CLK_SCALING_DISABLE          : 0x42C10000 : 0x1    -->
+        <!-- MPCTLV3_SCHED_CPUSET_TOP_APP                 : 0x40C3C000 : 0x0F   -->
+        <!-- MPCTLV3_MIN_ONLINE_CPU_CLUSTER_BIG           : 0x41000000 : 0x3    -->
+        <!-- MPCTLV3_MIN_ONLINE_CPU_CLUSTER_PRIME         : 0x41000200 : 0x1    -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_0       : 0x40800100 : 1171   -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0          : 0x40800000 : 1996   -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_PLUS_CORE_0         : 0x40800200 : 1958   -->
+        <Config
+            Id="0x0000135A" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1, 0x40C00000, 0x1, 0x42C10000, 0x1, 0x40C3C000, 0x0F,
+            0x41000100, 4, 0x41000000, 3, 0x41000200, 1,
+            0x40800100, 1171, 0x40800000, 1996, 0x40800200, 1958"/>
+
+        <!-- POWER_HINT_ID_SNAPSHOT_CAPTURE-->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS                : 0x40400000 : 0x1  -->
+        <!-- MPCTLV3_SCHED_BOOST                          : 0x40C00000 : 0x1  -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_0       : 0x40800100 : 1632 -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0          : 0x40800000 : 1766 -->
+        <!-- MPCTLV3_SCHED_DOWNMIGRATE                    : 0x40C20000 : 20   -->
+        <!-- MPCTLV3_SCHED_UPMIGRATE                      : 0x40C1C000 : 30   -->
+        <Config
+            Id="0x0000135B" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1, 0x40C00000, 0x1, 
+            0x40800100, 1632, 0x40800000, 1766, 0x40C20000, 20, 0x40C1C000, 30"/>
+
+        <!-- POWER_HINT_ID_BOOST_DDR_MIN_CAPTURE -->
+        <Config
+            Id="0x0000135C" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40800100, 710"/>
+
+        <!-- POWER_HINT_ID_BOOST_DDR_MIN_PREVIEW_FRONT -->
+        <Config
+            Id="0x0000135D" Enable="true" Timeout="0" Target="taro"
+            Resources="0x4303C000, 0xBB800"/>
+
+        <!-- POWER_HINT_ID_BOOST_SUPER_NIGHT -->
+        <Config
+            Id="0x0000135E" Enable="true" Timeout="0" Target="taro"
+            Resources="0x42804000, 0x8"/>
+
+        <!-- POWER_HINT_ID_BOOST_SUPER_NIGHT_BEAUTY -->
+        <Config
+            Id="0x0000135F" Enable="true" Timeout="0" Target="taro"
+            Resources="0x42804000, 0x8"/>
+
+        <!-- POWER_HINT_ID_SCHED_BOOST_0 -->
+        <!-- MPCTLV3_SCHED_BOOST                          : 0x40C00000 : 0x0  -->
+        <Config
+            Id="0x00001360" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40C00000, 0"/>
+
+        <!-- POWER_HINT_ID_SCHED_BOOST_1 -->
+        <!-- MPCTLV3_SCHED_BOOST                          : 0x40C00000 : 0x1  -->
+        <Config
+            Id="0x00001361" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40C00000, 1"/>
+
+        <!-- POWER_HINT_ID_BOOST_SILVER_0 -->
+        <!-- MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_0       : 0x40804100 : 1785 -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_0       : 0x40800100 : 1478 -->
+        <Config
+            Id="0x00001362" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40804100, 1785, 0x40800100, 1478"/>
+
+        <!-- POWER_HINT_ID_BOOST_SILVER_1 -->
+        <!-- MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_0       : 0x40804100 : 1785 -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_0       : 0x40800100 : 1785 -->
+        <Config
+            Id="0x00001363" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40804100, 1785, 0x40800100, 1785"/>
+
+        <!-- POWER_HINT_ID_BOOST_ZOOM_LENS_CHANGE -->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS                : 0x40400000 : 0x1  -->
+        <!-- MPCTLV3_SCHED_BOOST                          : 0x40C00000 : 0x1  -->
+        <!-- MPCTLV3_STORAGE_CLK_SCALING_DISABLE          : 0x42C10000 : 0x1  -->
+        <!-- MPCTLV3_SCHED_UP_DOWN_MIGRATE(Gold/GoldPlus) : 0x40CE0200 : 0x003C0032(60/50) -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0          : 0x40800000 : 1766 -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_PLUS_CORE_0         : 0x40800200 : 2196 -->
+        <Config
+            Id="0x00001364" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1, 0x40C00000, 0x1, 0x42C10000, 0x1,
+            0x40CE0200, 0x003C0032,
+            0x40800000, 1766, 0x40800200, 2196"/>
+
+        <!-- POWER_HINT_ID_BOOST_ZOOM_RATIO_CHANGE -->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS                : 0x40400000 : 0x1  -->
+        <!-- MPCTLV3_SCHED_BOOST                          : 0x40C00000 : 0x0  -->
+        <!-- MPCTLV3_SCHED_UP_DOWN_MIGRATE(Gold/GoldPlus) : 0x40CE0200 : 0x003C0032(60/50) -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0          : 0x40800000 : 1555 -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_PLUS_CORE_0         : 0x40800200 : 1612 -->
+        <Config
+            Id="0x00001365" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1, 0x40C00000, 0,
+            0x40CE0200, 0x003C0032,
+            0x40800000, 1555, 0x40800200, 1612"/>
+
+        <!-- POWER_HINT_ID_BOOST_REC_START_0 -->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS                : 0x40400000 : 0x1  -->
+        <!-- MPCTLV3_STORAGE_CLK_SCALING_DISABLE          : 0x42C10000 : 0x1  -->
+        <!-- MPCTLV3_SCHED_UP_DOWN_MIGRATE(Gold/GoldPlus) : 0x40CE0200 : 0x003C0032(60/50) -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_0       : 0x40800100 : 1574 -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0          : 0x40800000 : 1766 -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_PLUS_CORE_0         : 0x40800200 : 2196 -->
+        <Config
+            Id="0x00001366" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1, 0x42C10000, 0x1,
+            0x40CE0200, 0x003C0032,
+            0x40800100, 1574, 0x40800000, 1766, 0x40800200, 2196"/>
+
+        <!-- POWER_HINT_ID_BOOST_REC_START_1 -->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS                : 0x40400000 : 0x1  -->
+        <!-- MPCTLV3_SCHED_UP_DOWN_MIGRATE(Gold/GoldPlus) : 0x40CE0200 : 0x003C0032(60/50) -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0          : 0x40800000 : 1555 -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_PLUS_CORE_0         : 0x40800200 : 1612 -->
+        <Config
+            Id="0x00001367" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1,
+            0x40CE0200, 0x003C0032,
+            0x40800000, 1555, 0x40800200, 1612"/>
+
+        <!-- POWER_HINT_ID_BOOST_REC_START_2 -->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS                : 0x40400000 : 0x1  -->
+        <!-- MPCTLV3_SCHED_UP_DOWN_MIGRATE(Gold/GoldPlus) : 0x40CE0200 : 0x003C0032(60/50) -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0          : 0x40800000 : 1324 -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_PLUS_CORE_0         : 0x40800200 : 1401 -->
+        <Config
+            Id="0x00001368" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1,
+            0x40CE0200, 0x003C0032,
+            0x40800000, 1324, 0x40800200, 1401"/>
+
+        <!-- POWER_HINT_ID_BOOST_RECORDING_0 -->
+        <!-- MPCTLV3_MAX_FREQ_CLUSTER_LITTLE_CORE_0       : 0x40804100 : 1075 -->
+        <Config
+            Id="0x00001369" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40804100, 1075"/>
+
+        <!-- POWER_HINT_ID_BOOST_REC_STOP_0 -->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS                : 0x40400000 : 0x1  -->
+        <!-- MPCTLV3_SCHED_UP_DOWN_MIGRATE(Gold/GoldPlus) : 0x40CE0200 : 0x003C0032(60/50) -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0          : 0x40800000 : 1555 -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_PLUS_CORE_0         : 0x40800200 : 1612 -->
+        <Config
+            Id="0x0000136A" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1,
+            0x40CE0200, 0x003C0032,
+            0x40800000, 1555, 0x40800200, 1612"/>
+
+        <!-- POWER_HINT_ID_BOOST_PREVIEW_0 -->
+        <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS                : 0x40400000 : 0x1  -->
+        <!-- MPCTLV3_STORAGE_CLK_SCALING_DISABLE          : 0x42C10000 : 0x1  -->
+        <!-- MPCTLV3_SCHED_UP_DOWN_MIGRATE(Gold/GoldPlus) : 0x40CE0200 : 0x003C0032(60/50) -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_LITTLE_CORE_0       : 0x40800100 : 1574 -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0          : 0x40800000 : 1766 -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_PLUS_CORE_0         : 0x40800200 : 2196 -->
+        <Config
+            Id="0x0000136B" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40400000, 0x1, 0x42C10000, 0x1,
+            0x40CE0200, 0x003C0032,
+            0x40800100, 1574, 0x40800000, 1766, 0x40800200, 2196"/>
+
+        <!-- POWER_HINT_ID_BOOST_FHD_60FPS_TELE -->
+        <!-- MPCTLV3_SCHED_UP_DOWN_MIGRATE(Gold/GoldPlus) : 0x40CE0200 : 0x003C0032(60/50) -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0          : 0x40800000 : 1324 -->
+        <!-- MPCTLV3_MIN_FREQ_CLUSTER_PLUS_CORE_0         : 0x40800200 : 1286 -->
+        <Config
+            Id="0x0000136C" Enable="true" Timeout="0" Target="taro"
+            Resources="0x40CE0200, 0x003C0032,
+            0x40800000, 1324, 0x40800200, 1286"/>
+
+    </Powerhint>
+</HintConfigs>
