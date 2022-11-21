@@ -1,0 +1,136 @@
+#include <dt-bindings/battery/sec-battery.h>
+
+&tlmm {
+	mfc_irq_default: mfc_int_default {
+		GPIO_CONFIG_PUD_DRV(AP,tlmm,90, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&pm8350c_gpios {
+	wpc_det_default: wpc_det_default {
+		GPIO_CONFIG_PUD(PM,pm8350c_gpios,1, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+
+&tlmm {
+	wpc_en_default: wpc_en_default {
+		GPIO_CONFIG_PUD(AP,tlmm,170, FUNC_OUTPUT_LOW, PULL_NONE);
+	};
+};
+
+&sw_i2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+
+	p9320_charger: p9320-charger@3b {
+		compatible = "idt,p9320-charger";
+		reg = <0x3b>;
+		status = "okay";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&mfc_irq_default &wpc_det_default &wpc_en_default>;
+
+		battery,wpc_int = <SEC_GPIO_REF(AP,tlmm,90) 1>; /* MFC_AP_INT */
+		battery,wpc_det = <SEC_GPIO_REF(PM,pm8350c_gpios,1) 0>; /* WPC_DET */
+#if 0
+		battery,mst_pwr_en = <SEC_GPIO_REF(${mst_pwr_en_gpio}) 0>; /* MST_PWR_EN */
+#endif
+		battery,wpc_en = <SEC_GPIO_REF(AP,tlmm,170) 0>; /* WPC_EN */
+
+		battery,charger_name = "max77705-charger";
+		battery,fuelgauge_name = "max77705-fuelgauge";
+		battery,wireless_charger_name = "p9320-charger";
+		battery,wc_cover_rpp = <0x44>;
+		battery,phone_fod_threshold = <0x3b>;
+		battery,wireless20_vout_list = <WIRELESS_VOUT_11V /* 0xA0 */
+						WIRELESS_VOUT_11V /* 0xA1 */
+						WIRELESS_VOUT_11V /* 0xA2 */
+						WIRELESS_VOUT_11V /* 0xA3 */
+						WIRELESS_VOUT_11V>; /* 0xA4 */
+		battery,wireless20_vrect_list = <MFC_AFC_CONF_12V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX>;
+		battery,wireless20_max_power_list = <SEC_WIRELESS_RX_POWER_12W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W>;
+		battery,oc_fod1 = <1100>;
+		battery,wpc_vout_ctrl_full = <WIRELESS_VOUT_5V_STEP>;
+
+		fod_list {
+			count = <1>;
+
+			pad_0x00 { /* DEFAULT */
+				flag = <(SET_FOD_CC(ADD) | SET_FOD_CV(ADD) | SET_FOD_FULL(ADD))>;
+				cc = <150 64 142 53 150 38 150 34 155 18 156 17>;
+				cv = <150 94 142 83 150 68 150 64 155 48 156 47>;
+				full = <255 127 255 127 255 127 255 127 255 127 255 127>;
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/suwon_2111/wireless/p9320/p9320_charger.r0q.dtsi */
+&sw_i2c2 {
+	/delete-node/ p9320-charger@3b;
+
+	p9320_charger: p9320-charger@4b {
+		compatible = "idt,p9320-charger";
+		reg = <0x4b>;
+		status = "okay";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&mfc_irq_default &wpc_det_default &wpc_en_default>;
+
+		battery,wpc_int = <SEC_GPIO_REF(AP,tlmm,90) 1>; /* MFC_AP_INT */
+		battery,wpc_det = <SEC_GPIO_REF(PM,pm8350c_gpios,1) 0>; /* WPC_DET */
+#if 0
+		battery,mst_pwr_en = <SEC_GPIO_REF(${mst_pwr_en_gpio}) 0>; /* MST_PWR_EN */
+#endif
+		battery,wpc_en = <SEC_GPIO_REF(AP,tlmm,170) 0>; /* WPC_EN */
+
+		battery,charger_name = "max77705-charger";
+		battery,fuelgauge_name = "max77705-fuelgauge";
+		battery,wireless_charger_name = "p9320-charger";
+		battery,wc_cover_rpp = <0x44>;
+		battery,phone_fod_threshold = <0x3b>;
+		battery,wireless20_vout_list = <WIRELESS_VOUT_9V
+					WIRELESS_VOUT_11V
+					WIRELESS_VOUT_11V
+					WIRELESS_VOUT_11V
+					WIRELESS_VOUT_11V>;
+		battery,wireless20_vrect_list = <MFC_AFC_CONF_12V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX>;
+		battery,wireless20_max_power_list = <SEC_WIRELESS_RX_POWER_12W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W>;
+		battery,oc_fod1 = <1100>;
+		battery,wpc_vout_ctrl_full = <WIRELESS_VOUT_5V_STEP>;
+		battery,tx_gear_min_op_freq_delay = <4000>;
+
+		battery,mis_align_guide;
+		battery,mis_align_target_vout = <5000>;
+
+		fod_list {
+			count = <1>;
+
+			pad_0x00 { /* DEFAULT */
+				flag = <(SET_FOD_CC(ADD) | SET_FOD_CV(ADD) | SET_FOD_FULL(ADD))>;
+				cc = <150 62 142 51 150 37 150 29 155 13 156 9>;
+				cv = <150 112 142 101 150 87 150 79 155 63 156 59>;
+				full = <255 127 255 127 255 127 255 127 255 127 255 127>;
+			};
+		};
+	};
+};
+

@@ -1,0 +1,5 @@
+config SEC_QC_RBCMD
+	tristate "SEC Reboot Commands for Qualcomm Based Devices"
+	depends on SEC_REBOOT_CMD
+	help
+	  TODO: help is not ready.

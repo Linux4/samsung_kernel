@@ -1,0 +1,4 @@
+kernel_platform/qcom/proprietary/devicetree/.::kernel_platform/msm-kernel/arch/arm64/boot/dts/vendor
+kernel_platform/msm-kernel/build.config.msm.waipio::kernel_platform/common/build.config.msm.waipio
+kernel_platform/msm-kernel/build.config.msm.waipio.tuivm::kernel_platform/common/build.config.msm.waipio.tuivm
+kernel_platform/msm-kernel/build.config.msm.lahaina::kernel_platform/common/build.config.msm.lahaina
