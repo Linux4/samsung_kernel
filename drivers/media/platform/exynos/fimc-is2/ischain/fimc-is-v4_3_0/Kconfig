@@ -1,0 +1,10 @@
+config FIMC_IS_V4_3_0
+	bool "Use fimc-is v4.3.0"
+	depends on SOC_EXYNOS8890
+	select EXYNOS_DEVICE_MIPI_CSIS_VER2
+	select CSIS_V4_1
+	select EXYNOS_FIMC_BNS
+	select FIMC_BNS_V4_20_0
+	select USE_HW_API_COMMON
+	help
+	  fimc-is version 4.3.0
