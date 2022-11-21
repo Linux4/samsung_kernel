@@ -1,0 +1,83 @@
+/* Copyright (c) 2013, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+	hsi2c@14E70000 {
+		status = "okay";
+		samsung,fs-mode;
+		clock-frequency = <400000>;
+
+		sii8620tmds@39 {
+			compatible = "sii8620,tmds";
+			reg = <0x39>; /* 0x72 >> 1 */
+			sii8620,client_id = <0x00>;
+
+			pinctrl-names = "default";
+			pinctrl-0 = <&mhl_irq>;
+
+			sii8620,gpio_mhl_irq = <&gpf5 5 0>;
+			sii8620,gpio_mhl_reset = <&gpf1 3 0>;
+			sii8620,gpio_mhl_scl = <&gpd1 3 0>;
+			sii8620,gpio_mhl_sda = <&gpd1 2 0>;
+			sii8620,swing_level_v2 = <0xBB>;
+			sii8620,swing_level_v3 = <0xA2>;
+
+			clocks = <&clock 4300>;
+			clock-names = "mhl_clkout";
+		};
+		sii8620hdmi@3D {
+			compatible = "sii8620,usbt";
+			reg = <0x3D>; /* 0x7A >> 1 */
+			sii8620,client_id = <0x01>;
+		};
+		sii8620hdmi@49 {
+			compatible = "sii8620,disc";
+			reg = <0x49>;  /* 0x92 >> 1 */
+			sii8620,client_id = <0x02>;
+		};
+		sii8620disc@4D {
+			compatible = "sii8620,tpi";
+			reg = <0x4D>;   /* 0x9A >> 1 */
+			sii8620,client_id = <0x03>;
+		};
+		sii8620tpi@59 {
+			compatible = "sii8620,tpi";
+			reg = <0x59>;  /* 0xB2 >> 1 */
+			sii8620,client_id = <0x04>;
+		};
+		sii8620cbus@64 {
+			compatible = "sii8620,cbus";
+			reg = <0x64>;  /* 0xC8 >> 1 */
+			sii8620,client_id = <0x05>;
+		};
+		sii8620coc@61 {
+			compatible = "sii8620,coc";
+			reg = <0x61>;  /* 0xC2 >> 1 */
+			sii8620,client_id = <0x06>;
+		};
+		sii8620devcap@5D {
+			compatible = "sii8620,devcap";
+			reg = <0x5D>;  /* 0xBA >> 1 */
+			sii8620,client_id = <0x07>;
+		};
+	};
+
+	pinctrl@14870000 {
+		mhl_irq: mhl-irq {
+			 samsung,pins = "gpf5-5";
+			 samsung,pins-function = <0>;
+			 samsung,pin-pud = <1>;
+			 samsung,pin-drv = <0>;
+		};
+	};
+
+};
