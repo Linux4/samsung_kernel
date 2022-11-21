@@ -1,0 +1,48 @@
+#
+# Jadard Touchscreen driver configuration
+#
+
+config TOUCHSCREEN_JADARD_MODULE
+	tristate "Jadard chipset module fuction"
+	depends on TOUCHSCREEN_JADARD_CHIPSET
+	help
+	  This enables support for Jadard chipset module function.
+
+config TOUCHSCREEN_JADARD_IC_JD9365T
+	tristate "Jadard chipset of JD9365T"
+	depends on TOUCHSCREEN_JADARD_MODULE
+	help
+	  This enables support for Jadard chipset of JD9365T.
+
+config TOUCHSCREEN_JADARD_COMMON
+	tristate "Jadard chipset common fuction"
+	depends on TOUCHSCREEN_JADARD_CHIPSET
+	help
+	  This enables support for Jadard chipset common function.
+
+config TOUCHSCREEN_JADARD_DEBUG
+	tristate "Jadard chipset debug function"
+	depends on TOUCHSCREEN_JADARD_COMMON
+	help
+	  This enables support for Jadard chipset debug function.
+
+config TOUCHSCREEN_JADARD_SORTING
+	tristate "Jadard chipset sorting function"
+	depends on TOUCHSCREEN_JADARD_COMMON
+	help
+	  This enables support for Jadard chipset sorting function.
+
+config JD_DB
+	tristate "Jadard driver test over Dragon Board"
+	depends on TOUCHSCREEN_JADARD_COMMON
+	help
+	  This enables support for Jadard driver test over Dragon Board.
+
+# HS03SD code added for SR-AL5625-01-305 by yuanliding at 20210521 start
+config TOUCHSCREEN_JADARD_SEC
+	tristate "Jadard chipset sec node"
+	depends on TOUCHSCREEN_JADARD_COMMON
+	help
+	  This build sec node.
+# HS03SD code added for SR-AL5625-01-305 by yuanliding at 20210521 end
+

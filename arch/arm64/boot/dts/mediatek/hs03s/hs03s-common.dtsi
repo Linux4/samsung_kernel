@@ -1,0 +1,13 @@
+#include "hs03s-sdcard.dtsi"
+#include "hs03s-battery.dtsi"
+/* HS03S code added for SR-AL5625-01-506 by fengzhigang at 20210604 start */
+#include "hs03s-lcd-bias.dtsi"
+/* HS03S code added for SR-AL5625-01-506 by fengzhigang at 20210604 end */
+/* hs03s code for SR-AL5625-01-168 by xiongxiaoliang at 2021/06/09 start */
+#include "hs03s-sar.dtsi"
+/* hs03s code for SR-AL5625-01-168 by xiongxiaoliang at 2021/06/09 end */
+#include "hs03s-fingerprint.dtsi"
+/*HS03s code for DEVAL5626S-9 by zoujiarong at 2022/02/18 start*/
+#include "hs03s-nfc.dtsi"
+/*HS03s code for DEVAL5626S-9 by zoujiarong at 2022/02/18 end*/
+

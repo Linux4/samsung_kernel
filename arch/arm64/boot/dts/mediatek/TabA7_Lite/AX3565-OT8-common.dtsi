@@ -1,0 +1,16 @@
+ /* Overlay MTK source file. All DTSI files included by this file must not contain any SOC-specific bindings.
+  */
+
+#include "Tablite-sdhc.dtsi"
+/*TabA7 Lite code for SR-AX3565-01-181 config charge parameter by wenyaqi at 20201203 start*/
+#include "ot8-battery.dtsi"
+/*TabA7 Lite code for SR-AX3565-01-181 config charge parameter by wenyaqi at 20201203 end*/
+/*TabA7 Lite code for SR-AX3565-01-88 tp dtsi cutomer by wangdeyan at 20201212 start*/
+#include "ot8-tp.dtsi"
+/*TabA7 Lite code for SR-AX3565-01-88 tp dtsi cutomer by wangdeyan at 20201212 end*/
+/*TabA7 Lite code for SR-AX3565-01-101 by Hujincan at 20210107 start*/
+#include "ot8-sar.dtsi"
+/*TabA7 Lite code for SR-AX3565-01-101 by Hujincan at 20210107 end*/
+// huaqin add for aw87359 bringup by limengxia at 2020/11/20 start
+#include "ot8-audio.dtsi"
+// huaqin add for aw87359 bringup by limengxia at 2020/11/20 end
