@@ -1,0 +1,26 @@
+config SEC_QUEST
+	bool "Samsung QUEST Feature"
+	default n
+	depends on SEC_FACTORY
+	help
+	  Samsung QUEST Feature, to test chipset quality
+
+config SEC_QUEST_UEFI
+	bool "Samsung QUEST UEFI Feature"
+	default n
+	depends on SEC_FACTORY
+	help
+	  Samsung QUEST UEFI Feature, to test chipset quality	  
+
+config SEC_QUEST_UEFI_ENHENCEMENT
+	bool "Samsung QUEST UEFI ENHENCEMENT Feature"
+	default n
+	depends on SEC_FACTORY
+	help
+	  Samsung QUEST UEFI ENHENCEMENT Feature, to test chipset quality
+
+config SEC_SKP
+	bool "Samsung SKP Feature"
+	default n
+	help
+	  Samsung SKP Feature, to test chipset quality	
