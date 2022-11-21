@@ -1,0 +1,97 @@
+# drivers/staging/samsung/Kconfig
+#
+# Copyright (c) 2010-2016 Samsung Electronics Co., Ltd.
+#		http://www.samsung.com/
+#
+# Licensed under GPLv2
+
+menuconfig SEC_DEBUG
+	bool "Enable Samsung debugging feature"
+	depends on SEC_REBOOT
+	default y
+	help
+	  Samsung TN debugging feature.
+
+
+config SEC_DEBUG_EXTRA_INFO
+	bool "Enable Samsung reset reason extra info"
+	depends on SEC_DEBUG
+	default n
+	help
+	  This option enables storing reset reason extra info
+	  This option enables ap reset info bigdata based on reset reason extra info
+
+config SEC_DEBUG_HW_PARAM
+	bool "Enable Samsung HW PARAM bigdata info"
+	depends on SEC_DEBUG && USER_RESET_DEBUG
+	default n
+	help
+	  This option enables storing hw param bigdata info
+	  
+config SEC_DEBUG_LAST_KMSG
+	bool "Enable /proc/last_kmsg support" if EMBEDDED
+	depends on SEC_DEBUG
+	default y
+	help
+	  This option enables /proc/last_kmsg support.
+	  
+config SEC_DEBUG_AUTO_COMMENT
+	bool "Enable Samsung kernel fault auto comment"
+	depends on PRINTK
+	depends on SEC_DEBUG
+	default n
+	help
+	  This option enables kernel fault auto comment feature.
+	  This option also requires bootloader change that enables auto comment
+	  extraction along with ramdump.
+
+config SEC_DEBUG_LIMIT_BACKTRACE
+	bool "Forcely break infinity backtrace"
+	depends on SEC_DEBUG
+	default n
+	help
+	  Forcely break dump_backtrace to avoid infinity backtrace
+
+config SEC_LOG_HOOK_PMSG
+	bool "Enable hooking android platform log for ramdump"
+	depends on SEC_EXT && PSTORE_PMSG
+	default y
+	help
+	  This option enables hooking android platform log.
+	  
+config SEC_DEBUG_WORKQUEUE_LOCKUP_PANIC
+	bool "Bug on workqueue lockup"
+	depends on SEC_DEBUG && WQ_WATCHDOG
+	default y
+	help
+	  This option enables the kernel to panic on workqueue lockup
+
+config SEC_DEBUG_INIT_EXIT_PANIC
+	bool "Trigger panic when exiting init task group"
+	depends on SEC_DEBUG
+	default y
+	help
+	  This option enables early panic when it attempt to kill init tasks.
+	  It may happen before init task stack is destroyed for debugging.
+
+config USER_RESET_DEBUG
+	bool "USER RESET debug feature"
+	depends on SEC_DEBUG
+	default y
+	help
+	  This option enables debugging log for User Reset.
+	  This option provides reset history log in user version.
+	  This option enable proc/reset_reason support
+
+config SEC_INITCALL_DEBUG
+	bool "Enable Samsung initcall debug support"
+	default n
+	depends on SEC_DEBUG && !SAMSUNG_PRODUCT_SHIP
+	help
+	  Enable Samsung initcall debug support.
+
+config SEC_DUMP_SUMMARY
+	default n
+	bool "Enable summary dump support" if EMBEDDED
+	help
+	  Samsung Summary dump Feature for debugging use.

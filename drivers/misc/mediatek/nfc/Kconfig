@@ -1,0 +1,10 @@
+config NFC_CHIP_SUPPORT
+	tristate "NFC driver solution - NFC Controller Driver"
+	default n
+	help
+	  Near Field Communication controller support. If configures to be y,
+	  means devices supports NFC functionality.
+	  If configures to be n, means devices doesn't support NFC
+	  functionality.
+
+

@@ -1,0 +1,44 @@
+config SMCDSD_ENG
+	bool "Support ENG"
+	default n
+
+config SMCDSD_DPUI
+	bool "Support DPUI"
+	default n
+
+config SMCDSD_MDNIE
+	bool "Support MDNIE"
+	default n
+
+config SMCDSD_DOZE
+	bool "Support DOZE"
+	default n
+
+config SMCDSD_PROTOS_PLUS
+	bool "Support PROTOS PLUS"
+	default n
+
+config SMCDSD_MASK_LAYER
+	bool "Support mask layer"
+	default n
+
+config SMCDSD_DYNAMIC_MIPI
+	bool "Support dynamic mipi"
+	default n
+
+config SMCDSD_EA8076_A31
+	bool "EA8076_A31 driver"
+	default n
+
+config SMCDSD_EA8076_A41
+	bool "EA8076_A41 driver"
+	default n
+
+config SMCDSD_TD4150_A01CORE
+	bool "TD4150_A01CORE driver"
+	default n
+
+config SMCDSD_NT36525B_A01CORE
+	bool "NT36525B_A01CORE driver"
+	default n
+

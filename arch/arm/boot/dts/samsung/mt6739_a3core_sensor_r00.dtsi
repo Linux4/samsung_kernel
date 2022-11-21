@@ -1,0 +1,81 @@
+/* Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/* Sensor I2C Configuration */
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			aliases {
+				i2c23 = "/i2c@23";
+			};
+		
+			i2c23: i2c@23 {
+				cell-index = <23>;
+				status = "okay";
+				compatible = "i2c-gpio";
+				gpios = <&pio 30 0 /* sda */
+					&pio 28 0>; /* scl */
+				i2c-gpio,delay-us = <2>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&sensor_ldo_1p8_en &sensor_i2c>;
+
+				lis2ds@1D {
+					compatible = "st,lis2ds";
+					reg = <0x1D>;
+					pinctrl-names = "default";
+					pinctrl-0 = <&acc_int>;
+					interrupt-parent = <&eint>;
+					interrupts = <GIC_SPI 8 IRQ_TYPE_EDGE_RISING>;
+					st,irq_gpio = <&pio 8 0>;
+					st,orientation = <2 1 1 1 2 1 1 1 0>;
+					st,vdd_ldo_pin = <&pio 96 0>;
+				};
+			};
+		};
+	};
+};
+
+&pio {
+	sensor_ldo_1p8_en: sensor_ldo_1p8_en {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO96__FUNC_GPIO96>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	sensor_i2c: sensor_i2c {
+		pins_cmd1_dat {
+			pinmux = <PINMUX_GPIO30__FUNC_GPIO30>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+
+		pins_cmd0_dat {
+			pinmux = <PINMUX_GPIO28__FUNC_GPIO28>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	acc_int: acc_int {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO8__FUNC_GPIO8>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
