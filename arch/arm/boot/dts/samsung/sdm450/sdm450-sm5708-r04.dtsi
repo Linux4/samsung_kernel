@@ -1,0 +1,155 @@
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	i2c_10: i2c@10 {
+		cell-index = <10>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 39 0 /* sda */
+			&tlmm 38 0 /* scl */
+			>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		sm5708-fuelgauge@71 {
+			compatible = "sm5708-fuelgauge,i2c";
+			reg = <0x71>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&fg_i2c_default &fuel_int_default>;
+			pinctrl-1 = <&fg_i2c_active &fuel_int_active>;
+			pinctrl-2 = <&fg_i2c_suspend &fuel_int_suspend>;
+			fuelgauge,fuel_int = <&tlmm 62 0>;
+			fuelgauge,fuel_alert_soc = <1>;
+			fuelgauge,capacity_max = <1000>;
+			fuelgauge,capacity_max_margin = <70>;
+			fuelgauge,capacity_min = <0>;
+			fuelgauge,capacity_calculation_type = <0x1F>;
+			fuelgauge,type_str = "BATTERY";
+			fuelgauge,model_type = <1>;
+			fuelgauge,fg_log_enable = <1>;
+		};
+	};
+
+	i2c_13: i2c@13 {
+		cell-index = <13>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 98 0 /* sda */
+			&tlmm 99 0	/* scl */
+			>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		muic-sm5708@25 {
+			status = "okay";
+			compatible = "muic-universal";
+			reg = <0x25>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <63 0>;
+			muic-universal,irq-gpio = <&tlmm 63 0x00>;
+			sm5708,wakeup;
+			muic-universal,chip_name = "sm,sm5708";
+			pinctrl-names = "muic_i2c_pins_default",
+				"muic_i2c_pins_active",
+				"muic_i2c_pins_suspend";
+			pinctrl-0 = <&sm5708_i2c_default &sm5708_interrupt_default &sm5708_rst_default>;
+			pinctrl-1 = <&sm5708_i2c_active &sm5708_interrupt_default &sm5708_rst_default>;
+			pinctrl-2 = <&sm5708_i2c_suspend &sm5708_interrupt_default &sm5708_rst_default>;
+			muic,sm5705_switch_gpio = <&tlmm 45 0>;
+			muic,max-afc-support-volt = <4>;
+			muic,max-afc-support-cur = <8>;
+		};
+
+		sm5708@49{
+			compatible = "sm,sm5708";
+			reg = <0x49>;
+			interrupt-parent = <&tlmm>;
+			sm5708,irq-gpio = <&tlmm 60 0x00>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&charger_int_active &chg_en_default>;
+		};
+
+		sm5708_fled {
+			compatible = "siliconmitus,sm5708-fled";
+			enable = <1 1>;
+			sm5708_fled@0 {
+				id=<0>;
+				status = "okay";
+				flash-mode-current-mA = <1100>;
+				preflash-mode-current-mA = <150>;
+				torch-mode-current-mA = <75>;
+				used-gpio-control = <1>;
+				flash-en-gpio = <&expander_gpios 3 0>;
+				torch-en-gpio = <&expander_gpios 2 0>;
+			};
+			sm5708_fled@1 {
+				id=<1>;
+				status = "okay";
+				flash-mode-current-mA = <300>;
+				preflash-mode-current-mA = <50>;
+				torch-mode-current-mA = <130>;
+				used-gpio-control = <1>;
+				flash-en-gpio = <&expander_gpios 5 0>;
+				torch-en-gpio = <&expander_gpios 4 0>;
+			};
+//			/*  SAMSUNG: We dont use the below */
+//			sm5708_leds1: sm5708-leds1 {
+//				ledname = "leds-sec1";
+//				/* sm5708_FLASH_LED_1 */
+//				id = <0>;
+//				/* sm5708_FLASH_CURRENT */
+//				brightness = <0xC>;
+//				/* sm5708_FLASH_TIMEOUT */
+//				timeout = <0x3>;
+//				default-trigger = "flash_trigger";
+//			};
+//
+//			sm5708_leds2: sm5708-leds2 {
+//				ledname = "torch-sec1";
+//				/* sm5708_TORCH_LED_1 */
+//				id = <1>;
+//				/* sm5708_TORCH_CURRENT */
+//				brightness = <0xC>;
+//				/* sm5708_TORCH_TIMEOUT */
+//				timeout = <0xF>;
+//				default-trigger = "torch_trigger";
+//			};
+		};
+	};
+};
+
+/ {
+	muic {
+		status = "okay";
+		muic,support-list = "+OTG:GND",
+					"-MHL:1K",
+					"-VZW Accessory:28.7K",
+					"-VZW Incompatible:34K",
+					"+Smartdock:40.2K",
+					"-HMT:49.9K",
+					"-Audiodock:64.9K",
+					"-USB LANHUB:80.07K",
+					"-Charging Cable:102K",
+					"-Universal Multimedia dock:121K",
+					"+Jig USB Off:255K",
+					"+Jig USB On:301K",
+					"+Deskdock:365K",
+					"-TYPE2 Charger:442K",
+					"+Jig UART Off:523K",
+					"+Jig UART On:619K",
+					"+TA:OPEN",
+					"+USB:OPEN",
+					"+CDP:OPEN",
+					"+Undefined Charging:XXX";
+	};
+};
+

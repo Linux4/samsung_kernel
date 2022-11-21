@@ -1,0 +1,160 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../../../../../../drivers/video/msm/mdss/samsung/HX8279_TV101WUM/dsi_panel_HX8279_TV101WUM_WUXGA_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/PBA_BOOTING/dsi_panel_PBA_BOOTING_fhd_video.dtsi"
+
+/*
+ * SOC Setting (TLMM Pin Control & SPI Setting)
+ */
+
+&soc {
+	tlmm: pinctrl@1000000 {
+
+/delete-node/ pmx_mdss;
+	pmx_mdss: pmx_mdss {
+		mdss_dsi_active: mdss_dsi_active {
+			mux {
+				 pins = "gpio50", "gpio35"; /* LCD_RST & LCD_LDO_EN */
+				 function = "gpio";
+				};
+			config {
+				 pins = "gpio50", "gpio35";
+				 drive-strength = <8>; /* 8 mA */
+					bias-disable = <0>; /* no pull */
+					output-high;
+				};
+		};
+		mdss_dsi_suspend: mdss_dsi_suspend {
+			mux {
+				 pins = "gpio50", "gpio35";
+				 function = "gpio";
+				};
+			config {
+				 pins = "gpio50", "gpio35";
+				 drive-strength = <2>; /* 2 mA */
+				 bias-pull-down; /* pull down */
+				};
+			};
+		};
+
+		mdss_blic_active: mdss_blic_active {
+			mux {
+				 pins = "gpio134"; /* BLIC_EN*/
+				 function = "gpio";
+			};
+			config {
+				 pins = "gpio134";
+				 drive-strength = <8>; /* 8 mA */
+				 bias-disable;  /* NO pull */
+			};
+		};
+		mdss_blic_suspend: mdss_blic_suspend {
+			mux {
+				 pins = "gpio134";
+				 function = "gpio";
+			};
+			config {
+				 pins = "gpio134";
+				 drive-strength = <2>; /* 2 mA */
+				 bias-disable;  /* NO pull */
+			};
+		};
+
+		i2c_2 {
+			i2c_2_active: i2c_2_active {
+				/* active state */
+				mux {
+				 pins = "gpio6", "gpio7";
+				 function = "blsp_i2c2";
+				};
+				config {
+				 pins = "gpio6", "gpio7";
+				 drive-strength = <2>;
+				 bias-disable;
+				};
+			};
+			i2c_2_sleep: i2c_2_sleep {
+				/* suspended state */
+				mux {
+					 pins = "gpio6", "gpio7";
+					 function = "blsp_i2c2";
+				};
+				config {
+					 pins = "gpio6", "gpio7";
+					 drive-strength = <2>;
+					 bias-disable;
+				};
+			};
+		};
+	};
+
+	/delete-node/i2c@78b6000;
+	i2c_2: i2c@78b6000 { /* BLSP1 QUP2 */
+		compatible = "qcom,i2c-msm-v2";
+#address-cells = <1>;
+#size-cells = <0>;
+		reg-names = "qup_phys_addr";
+		reg = <0x78b6000 0x600>;
+		interrupt-names = "qup_irq";
+		interrupts = <0 96 0>;
+		qcom,clk-freq-out = <400000>;
+		qcom,clk-freq-in  = <19200000>;
+		clock-names = "iface_clk", "core_clk";
+		clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
+		<&clock_gcc clk_gcc_blsp1_qup2_i2c_apps_clk>;
+		pinctrl-names = "i2c_active", "i2c_sleep";
+		pinctrl-0 = <&i2c_2_active>;
+		pinctrl-1 = <&i2c_2_sleep>;
+		qcom,noise-rjct-scl = <0>;
+		qcom,noise-rjct-sda = <0>;
+		qcom,master-id = <86>;
+		dmas = <&dma_blsp1 6 64 0x20000020 0x20>,
+		<&dma_blsp1 7 32 0x20000020 0x20>;
+		dma-names = "tx", "rx";
+		status = "okay";
+
+		isl98608_panel_power@29 {
+			compatible = "isl98608,panel_power-control";
+			reg = <0x29>;
+			isl98608_en_gpio = <&tlmm 134 0x00>;
+		};
+	};
+};
+
+&ss_dsi_panel_HX8279_TV101WUM_WUXGA {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+
+	samsung,panel-extra-power-gpio1 =<&tlmm 35 0>; /*vddr: 1.5V*/
+
+};
+
+&mdss_dsi {
+	hw-config = "single_dsi";
+};
+&mdss_dsi0 {
+	/delete-property/ lab-supply;
+	/delete-property/ ibb-supply;
+	qcom,dsi-pref-prim-pan = <&ss_dsi_panel_HX8279_TV101WUM_WUXGA>;
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_dsi_active &mdss_blic_active>;
+	pinctrl-1 = <&mdss_dsi_suspend &mdss_blic_suspend>;
+	qcom,platform-reset-gpio = <&tlmm 50 0>;
+};
+&mdss_dsi1 {
+	/delete-property/ lab-supply;
+	/delete-property/ ibb-supply;
+};
+
+&mdss_mdp {
+	qcom,mdss-pref-prim-intf = "dsi";
+};
