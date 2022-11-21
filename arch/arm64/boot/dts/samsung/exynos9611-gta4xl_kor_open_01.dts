@@ -1,0 +1,174 @@
+/*
+ * SAMSUNG EXYNOS9610 board device tree source
+ *
+ * Copyright (c) 2018 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "exynos9611-gta4xl_common.dtsi"
+#include "battery_data_gta4xl_common.dtsi"
+#include "exynos9611-gta4xl_sensorhub_00.dtsi"
+#include "exynos9611-gta4xl_kor_open_gpio_00.dtsi"
+
+/ {
+	compatible = "samsung,GTA4XL KOR OPEN 00", "samsung,EXYNOS9611";
+
+	dtbo-hw_rev = <2>;
+    dtbo-hw_rev_end = <2>;
+
+
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+
+			model = "Samsung GTA4XL KOR OPEN 00 board based on EXYNOS9611";
+
+			sound {
+				mixer-paths = "mixer_paths_rev00.xml";
+				cirrus,ampclk = <0 0 1536000>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				samsung,codec = <&abox &abox_uaif_0 &abox_uaif_1 &abox_uaif_2
+					&abox_uaif_4 &abox_dsif &abox_spdy &cs35l41_left &cs35l41_right>;
+				samsung,prefix = "ABOX", "ABOX", "ABOX", "ABOX",
+					"ABOX", "ABOX", "ABOX", "Left", "Right";
+
+				uaif@2 {
+					format = "i2s";
+					cpu {
+						sound-dai = <&abox_uaif_2>;
+					};
+					codec {
+						sound-dai = <&cs35l41_left 0 &cs35l41_right 0>;
+					};
+				};
+			};
+
+			cirrus_amps {
+				compatible = "cirrus-amp";
+				cirrus,num-amps = <2>;
+				cirrus,amps = <&cs35l41_right &cs35l41_left>;
+			};
+
+			mif_pdata {
+				/* GPIOs for HW REV */
+				/* XGPIO26-AP_REV0, XGPIO27-AP_REV1, XGPIO28-AP_REV2, XGPIO29-AP_REV3 */
+				gpios = <&gpg3 2 0>, <&gpg3 3 0>, <&gpg3 4 0>, <&gpg3 5 0>;
+				pinctrl-names = "default";
+			};
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */
+
+&pinctrl_0 {
+	earant_det: earant-det {
+		samsung,pins ="gpa1-4";
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <0>;
+	};
+
+	amp_int_n: amp-int-n {
+		samsung,pins = "gpa0-1";
+		samsung,pin-function = <0xf>;
+		samsung,pin-pud = <0>;
+		samsung,pin-con-pdn =<3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+};
+
+
+&pinctrl_4 {
+	amp_rst_n: amp-rst-n {
+		samsung,pins ="gpg2-2";
+		samsung,pin-function = <1>;
+		samsung,pin-val = <0>;
+		samsung,pin-pud = <0>;
+		samsung,pin-con-pdn =<3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+};
+
+
+&hsi2c_3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	clock-frequency = <400000>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&hsi2c3_bus &amp_int_n &amp_rst_n>;
+
+	cs35l41_right: cs35l41@42 {
+		status = "okay";
+		#sound-dai-cells = <1>;
+		compatible = "cirrus,cs35l41";
+		reg = <0x42>;
+		interrupt-parent = <&gpa0>;
+		interrupts = <1 0 0>;
+
+		reset-gpio = <&gpg2 2 0>;
+
+		cirrus,mfd-suffix = "_r";
+		cirrus,bd-suffix = "_right";
+
+		cirrus,asp-sdout-hiz = <0x3>;
+		cirrus,boost-peak-milliamp = <4100>;
+		cirrus,right-channel-amp;
+
+		cirrus,gpio-config2 {
+			cirrus,gpio-src-select = <0x4>;
+			cirrus,gpio-output-enable;
+		};
+	};
+
+	cs35l41_left: cs35l41@40 {
+		status = "okay";
+		#sound-dai-cells = <1>;
+		compatible = "cirrus,cs35l41";
+		reg = <0x40>;
+		interrupt-parent = <&gpa0>;
+		interrupts = <1 0 0>;
+		reset-gpio = <&gpg2 2 0>;
+
+		cirrus,mfd-suffix = "";
+		cirrus,bd-suffix = "_left";
+
+		cirrus,asp-sdout-hiz = <0x3>;
+		cirrus,boost-peak-milliamp = <4100>;
+
+		cirrus,gpio-config2 {
+			cirrus,gpio-src-select = <0x4>;
+			cirrus,gpio-output-enable;
+		};
+
+	};
+};
+
+&spi_6 {
+	himax_ts@0 {
+		himax,panel-coords = <0 1200 0 2000>;
+		himax,display-coords = <0 1200 0 2000>;
+		himax,fw-path = "tsp_himax/hx83102e_gta4xl_old.fw";
+	};
+};
+
+&i2c_6 {
+	rt5665@1b {
+		realtek,sar-hs-type = <700>;
+		realtek,sar-pb-vth0 = <95>;
+		realtek,sar-pb-vth1 = <139>;
+		realtek,sar-pb-vth2 = <246>;
+		realtek,sar-pb-vth3 = <580>;
+	};
+};
