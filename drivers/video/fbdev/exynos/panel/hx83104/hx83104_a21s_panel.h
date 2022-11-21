@@ -1,0 +1,1038 @@
+/*
+ * linux/drivers/video/fbdev/exynos/panel/hx83104/hx83104_a21s_panel.h
+ *
+ * Header file for HX83104 Dimming Driver
+ *
+ * Copyright (c) 2016 Samsung Electronics
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#ifndef __HX83104_A21S_PANEL_H__
+#define __HX83104_A21S_PANEL_H__
+#include "../panel_drv.h"
+#include "hx83104.h"
+
+#include "hx83104_a21s_panel_dimming.h"
+#include "hx83104_a21s_panel_i2c.h"
+
+#include "hx83104_a21s_resol.h"
+
+#undef __pn_name__
+#define __pn_name__	a21s
+
+#undef __PN_NAME__
+#define __PN_NAME__	A21S
+
+static struct seqinfo a21s_seqtbl[MAX_PANEL_SEQ];
+
+
+/* ===================================================================================== */
+/* ============================= [HX83104 READ INFO TABLE] ============================= */
+/* ===================================================================================== */
+/* <READINFO TABLE> IS DEPENDENT ON LDI. IF YOU NEED, DEFINE PANEL's RESOURCE TABLE */
+
+
+/* ===================================================================================== */
+/* ============================= [HX83104 RESOURCE TABLE] ============================== */
+/* ===================================================================================== */
+/* <RESOURCE TABLE> IS DEPENDENT ON LDI. IF YOU NEED, DEFINE PANEL's RESOURCE TABLE */
+
+
+/* ===================================================================================== */
+/* ============================== [HX83104 MAPPING TABLE] ============================== */
+/* ===================================================================================== */
+
+static u8 a21s_brt_table[HX83104_TOTAL_NR_LUMINANCE ][2] = {
+	{0x00, 0x00},
+	{0x00, 0x20},
+	{0x00, 0x28},
+	{0x00, 0x31},
+	{0x00, 0x39},
+	{0x00, 0x42},
+	{0x00, 0x4A},
+	{0x00, 0x53},
+	{0x00, 0x5B},
+	{0x00, 0x64},
+	{0x00, 0x6D},
+	{0x00, 0x75},
+	{0x00, 0x7E},
+	{0x00, 0x86},
+	{0x00, 0x8F},
+	{0x00, 0x97},
+	{0x00, 0xA0},
+	{0x00, 0xA9},
+	{0x00, 0xB1},
+	{0x00, 0xBA},
+	{0x00, 0xC2},
+	{0x00, 0xCB},
+	{0x00, 0xD3},
+	{0x00, 0xDC},
+	{0x00, 0xE5},
+	{0x00, 0xED},
+	{0x00, 0xF6},
+	{0x00, 0xFE},
+	{0x01, 0x07},
+	{0x01, 0x0F},
+	{0x01, 0x18},
+	{0x01, 0x21},
+	{0x01, 0x29},
+	{0x01, 0x32},
+	{0x01, 0x3A},
+	{0x01, 0x43},
+	{0x01, 0x4B},
+	{0x01, 0x54},
+	{0x01, 0x5C},
+	{0x01, 0x65},
+	{0x01, 0x6E},
+	{0x01, 0x76},
+	{0x01, 0x7F},
+	{0x01, 0x87},
+	{0x01, 0x90},
+	{0x01, 0x98},
+	{0x01, 0xA1},
+	{0x01, 0xAA},
+	{0x01, 0xB2},
+	{0x01, 0xBB},
+	{0x01, 0xC3},
+	{0x01, 0xCC},
+	{0x01, 0xD4},
+	{0x01, 0xDD},
+	{0x01, 0xE6},
+	{0x01, 0xEE},
+	{0x01, 0xF7},
+	{0x01, 0xFF},
+	{0x02, 0x08},
+	{0x02, 0x10},
+	{0x02, 0x19},
+	{0x02, 0x22},
+	{0x02, 0x2A},
+	{0x02, 0x33},
+	{0x02, 0x3B},
+	{0x02, 0x44},
+	{0x02, 0x4C},
+	{0x02, 0x55},
+	{0x02, 0x5D},
+	{0x02, 0x66},
+	{0x02, 0x6F},
+	{0x02, 0x77},
+	{0x02, 0x80},
+	{0x02, 0x88},
+	{0x02, 0x91},
+	{0x02, 0x99},
+	{0x02, 0xA2},
+	{0x02, 0xAB},
+	{0x02, 0xB3},
+	{0x02, 0xBC},
+	{0x02, 0xC4},
+	{0x02, 0xCD},
+	{0x02, 0xD5},
+	{0x02, 0xDE},
+	{0x02, 0xE7},
+	{0x02, 0xEF},
+	{0x02, 0xF8},
+	{0x03, 0x00},
+	{0x03, 0x09},
+	{0x03, 0x11},
+	{0x03, 0x1A},
+	{0x03, 0x23},
+	{0x03, 0x2B},
+	{0x03, 0x34},
+	{0x03, 0x3C},
+	{0x03, 0x45},
+	{0x03, 0x4D},
+	{0x03, 0x56},
+	{0x03, 0x5E},
+	{0x03, 0x67},
+	{0x03, 0x70},
+	{0x03, 0x78},
+	{0x03, 0x81},
+	{0x03, 0x89},
+	{0x03, 0x92},
+	{0x03, 0x9A},
+	{0x03, 0xA3},
+	{0x03, 0xAC},
+	{0x03, 0xB4},
+	{0x03, 0xBD},
+	{0x03, 0xC5},
+	{0x03, 0xCE},
+	{0x03, 0xD6},
+	{0x03, 0xDF},
+	{0x03, 0xE8},
+	{0x03, 0xF0},
+	{0x03, 0xF9},
+	{0x04, 0x01},
+	{0x04, 0x0A},
+	{0x04, 0x12},
+	{0x04, 0x1B},
+	{0x04, 0x24},
+	{0x04, 0x2C},
+	{0x04, 0x35},
+	{0x04, 0x3D},
+	{0x04, 0x46},
+	{0x04, 0x4E},
+	{0x04, 0x57},
+	{0x04, 0x60},
+	{0x04, 0x72},
+	{0x04, 0x84},
+	{0x04, 0x96},
+	{0x04, 0xA8},
+	{0x04, 0xBA},
+	{0x04, 0xCC},
+	{0x04, 0xDE},
+	{0x04, 0xF1},
+	{0x05, 0x03},
+	{0x05, 0x15},
+	{0x05, 0x27},
+	{0x05, 0x39},
+	{0x05, 0x4B},
+	{0x05, 0x5D},
+	{0x05, 0x70},
+	{0x05, 0x82},
+	{0x05, 0x94},
+	{0x05, 0xA6},
+	{0x05, 0xB8},
+	{0x05, 0xCA},
+	{0x05, 0xDC},
+	{0x05, 0xEF},
+	{0x06, 0x01},
+	{0x06, 0x13},
+	{0x06, 0x25},
+	{0x06, 0x37},
+	{0x06, 0x49},
+	{0x06, 0x5B},
+	{0x06, 0x6E},
+	{0x06, 0x80},
+	{0x06, 0x92},
+	{0x06, 0xA4},
+	{0x06, 0xB6},
+	{0x06, 0xC8},
+	{0x06, 0xDA},
+	{0x06, 0xED},
+	{0x06, 0xFF},
+	{0x07, 0x11},
+	{0x07, 0x23},
+	{0x07, 0x35},
+	{0x07, 0x47},
+	{0x07, 0x59},
+	{0x07, 0x6C},
+	{0x07, 0x7E},
+	{0x07, 0x90},
+	{0x07, 0xA2},
+	{0x07, 0xB4},
+	{0x07, 0xC6},
+	{0x07, 0xD8},
+	{0x07, 0xEB},
+	{0x07, 0xFD},
+	{0x08, 0x0F},
+	{0x08, 0x21},
+	{0x08, 0x33},
+	{0x08, 0x45},
+	{0x08, 0x57},
+	{0x08, 0x6A},
+	{0x08, 0x7C},
+	{0x08, 0x8E},
+	{0x08, 0xA0},
+	{0x08, 0xB2},
+	{0x08, 0xC4},
+	{0x08, 0xD6},
+	{0x08, 0xE9},
+	{0x08, 0xFB},
+	{0x09, 0x0D},
+	{0x09, 0x1F},
+	{0x09, 0x31},
+	{0x09, 0x43},
+	{0x09, 0x55},
+	{0x09, 0x68},
+	{0x09, 0x7A},
+	{0x09, 0x8C},
+	{0x09, 0x9E},
+	{0x09, 0xB0},
+	{0x09, 0xC2},
+	{0x09, 0xD4},
+	{0x09, 0xE7},
+	{0x09, 0xF9},
+	{0x0A, 0x0B},
+	{0x0A, 0x1D},
+	{0x0A, 0x2F},
+	{0x0A, 0x41},
+	{0x0A, 0x53},
+	{0x0A, 0x66},
+	{0x0A, 0x78},
+	{0x0A, 0x8A},
+	{0x0A, 0x9C},
+	{0x0A, 0xAE},
+	{0x0A, 0xC0},
+	{0x0A, 0xD2},
+	{0x0A, 0xE5},
+	{0x0A, 0xF7},
+	{0x0B, 0x09},
+	{0x0B, 0x1B},
+	{0x0B, 0x2D},
+	{0x0B, 0x3F},
+	{0x0B, 0x51},
+	{0x0B, 0x64},
+	{0x0B, 0x76},
+	{0x0B, 0x88},
+	{0x0B, 0x9A},
+	{0x0B, 0xAC},
+	{0x0B, 0xBE},
+	{0x0B, 0xD0},
+	{0x0B, 0xE3},
+	{0x0B, 0xF5},
+	{0x0C, 0x07},
+	{0x0C, 0x19},
+	{0x0C, 0x2B},
+	{0x0C, 0x3D},
+	{0x0C, 0x4F},
+	{0x0C, 0x62},
+	{0x0C, 0x74},
+	{0x0C, 0x86},
+	{0x0C, 0x98},
+	{0x0C, 0xAA},
+	{0x0C, 0xBC},
+	{0x0C, 0xCE},
+	{0x0C, 0xE1},
+	{0x0C, 0xF3},
+	{0x0D, 0x05},
+	{0x0D, 0x17},
+	{0x0D, 0x29},
+	{0x0D, 0x3B},
+	{0x0D, 0x4D},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0D, 0x60},
+	{0x0F, 0xFF},
+};
+
+
+static struct maptbl a21s_maptbl[MAX_MAPTBL] = {
+	[BRT_MAPTBL] = DEFINE_2D_MAPTBL(a21s_brt_table, init_brightness_table, getidx_brt_table, copy_common_maptbl),
+};
+
+/* ===================================================================================== */
+/* ============================== [HX83104 COMMAND TABLE] ============================== */
+/* ===================================================================================== */
+static u8 A21S_SLEEP_OUT[] = { 0x11 };
+static u8 A21S_SLEEP_IN[] = { 0x10 };
+static u8 A21S_DISPLAY_OFF[] = { 0x28 };
+static u8 A21S_DISPLAY_ON[] = { 0x29 };
+
+static u8 A21S_BRIGHTNESS[] = {
+	0x51,
+	0x0F, 0xFF
+};
+
+static u8 A21S_BRIGHTNESS_MODE[] = {
+	0x53,
+	0x24,
+};
+
+static u8 A21S_BRIGHTNESS_CABC_MODE[] = {
+	0x55,
+	0x00,
+};
+
+/* Made by LCD.helper.200122.xlsm */
+
+static u8 A21S_HX83104_01[] = {
+	0xB9,
+	0x83, 0x11, 0x2A,
+};
+
+static u8 A21S_HX83104_02[] = {
+	0xE9,
+	0xC4,
+};
+
+static u8 A21S_HX83104_03[] = {
+	0xCF,
+	0xC0,
+};
+
+static u8 A21S_HX83104_04[] = {
+	0xE9,
+	0x3F,
+};
+
+static u8 A21S_HX83104_05[] = {
+	0xC9,
+	0x04, 0x55, 0x98, 0x01,
+};
+
+#if 0
+static u8 A21S_HX83104_06[] = {
+	0x51,
+	0x0F, 0xFF,
+};
+
+static u8 A21S_HX83104_07[] = {
+	0x53,
+	0x2C,
+};
+
+static u8 A21S_HX83104_08[] = {
+	0x55,
+	0x00,
+};
+
+
+static u8 A21S_HX83104_09[] = {
+	DELAY 10MS,
+};
+#endif
+
+static u8 A21S_HX83104_10[] = {
+	0xBD,
+	0x00,
+};
+
+static u8 A21S_HX83104_11[] = {
+	0xB1,
+	0x08, 0x1F, 0x1F, 0x80, 0x80, 0x54, 0x4A, 0xAA,
+};
+
+static u8 A21S_HX83104_12[] = {
+	0xB2,
+	0x00, 0x02, 0x00, 0x62, 0x40, 0x00, 0x08, 0x19, 0x17, 0x11,
+	0x15, 0x00, 0x15, 0xA3, 0x87,
+};
+
+static u8 A21S_HX83104_13[] = {
+	0xB4,
+	0xFF, 0xF3, 0xFF, 0xF3, 0x00, 0x00, 0x0A, 0xDF, 0x00, 0x00,
+	0x0A, 0xDF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0x00, 0x0A, 0x0B,
+	0x00, 0x38, 0x0E, 0x06, 0x10, 0x00, 0x8D,
+};
+
+static u8 A21S_HX83104_14[] = {
+	0xBD,
+	0x01,
+};
+
+static u8 A21S_HX83104_15[] = {
+	0xB1,
+	0xB6,
+};
+
+static u8 A21S_HX83104_16[] = {
+	0xB2,
+	0x50, 0x10, 0x32, 0x54, 0x76, 0x98, 0xBA, 0xBC, 0xFE, 0xFF,
+	0x80, 0x00, 0xFF, 0x00, 0x40,
+};
+
+static u8 A21S_HX83104_17[] = {
+	0xBD,
+	0x02,
+};
+
+static u8 A21S_HX83104_18[] = {
+	0xB4,
+	0x34, 0x12, 0x12, 0x22, 0x88, 0x12, 0x12, 0x00, 0x73,
+};
+
+static u8 A21S_HX83104_19[] = {
+	0xBD,
+	0x00,
+};
+
+static u8 A21S_HX83104_20[] = {
+	0xBF,
+	0x0F, 0x00, 0x00, 0x83, 0x9F, 0x3E, 0x00, 0x05, 0x00,
+};
+
+static u8 A21S_HX83104_21[] = {
+	0xC0,
+	0x23, 0x23, 0x00, 0x45, 0x00, 0x00, 0x09,
+};
+
+static u8 A21S_HX83104_22[] = {
+	0xBD,
+	0x00,
+};
+
+static u8 A21S_HX83104_23[] = {
+	0xC7,
+	0x70, 0x00, 0x04, 0xE0, 0x33, 0x00,
+};
+
+static u8 A21S_HX83104_24[] = {
+	0xCC,
+	0x08,
+};
+
+static u8 A21S_HX83104_25[] = {
+	0xCF,
+	0x00, 0x14, 0x00, 0xC0,
+};
+
+static u8 A21S_HX83104_26[] = {
+	0xD1,
+	0x07,
+};
+
+static u8 A21S_HX83104_27[] = {
+	0xD2,
+	0x2D, 0x2D,
+};
+
+static u8 A21S_HX83104_28[] = {
+	0xD3,
+	0x50, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x08, 0x08, 0x03,
+	0x03, 0x11, 0x18, 0x07, 0x07, 0x07, 0x07, 0x32, 0x10, 0x06,
+	0x00, 0x06, 0x32, 0x10, 0x06, 0x00, 0x06,
+};
+
+static u8 A21S_HX83104_29[] = {
+	0xD5,
+	0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18,
+	0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x2F, 0x2F,
+	0x30, 0x30, 0x31, 0x31, 0xC0, 0xC0, 0x25, 0x24, 0x00, 0x03,
+	0x02, 0x01, 0x18, 0x18, 0x19, 0x19, 0x03, 0x02, 0x01, 0x00,
+	0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x40, 0x40,
+};
+
+static u8 A21S_HX83104_30[] = {
+	0xD6,
+	0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18,
+	0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x2F, 0x2F,
+	0x30, 0x30, 0x31, 0x31, 0x40, 0x40, 0x24, 0x25, 0x03, 0x00,
+	0x01, 0x02, 0x19, 0x19, 0x18, 0x18, 0x00, 0x01, 0x02, 0x03,
+	0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x40, 0x40,
+};
+
+static u8 A21S_HX83104_31[] = {
+	0xD8,
+	0xAA, 0xAA, 0xBF, 0xAA, 0xAA, 0xAB, 0xAA, 0xAA, 0xBF, 0xAA,
+	0xAA, 0xAB, 0xAA, 0xAA, 0xBF, 0xAF, 0xBF, 0xAA, 0xAA, 0xAA,
+	0xBF, 0xAF, 0xBF, 0xAA,
+};
+
+static u8 A21S_HX83104_32[] = {
+	0xBD,
+	0x01,
+};
+
+static u8 A21S_HX83104_33[] = {
+	0xD8,
+	0xAA, 0xAA, 0x80, 0x00, 0x00, 0x00, 0xAA, 0xAA, 0x80, 0x00,
+	0x00, 0x00, 0xAA, 0xAA, 0x80, 0x00, 0x00, 0x00, 0xAA, 0xAA,
+	0x80, 0x00, 0x00, 0x00,
+};
+
+static u8 A21S_HX83104_34[] = {
+	0xBD,
+	0x02,
+};
+
+static u8 A21S_HX83104_35[] = {
+	0xD8,
+	0xAA, 0xAA, 0xBF, 0xEA, 0xFA, 0xAE, 0xAA, 0xAA, 0xBF, 0xEA,
+	0xFA, 0xAE,
+};
+
+static u8 A21S_HX83104_36[] = {
+	0xBD,
+	0x03,
+};
+
+static u8 A21S_HX83104_37[] = {
+	0xD8,
+	0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAB, 0xAA, 0xAA, 0xAA, 0xAA,
+	0xAA, 0xAB, 0xAA, 0xAA, 0xBF, 0xEA, 0xFA, 0xAE, 0xAA, 0xAA,
+	0xBF, 0xEA, 0xFA, 0xAE,
+};
+
+static u8 A21S_HX83104_38[] = {
+	0xBD,
+	0x00,
+};
+
+static u8 A21S_HX83104_39[] = {
+	0xE7,
+	0x0E, 0x0E, 0x1E, 0x75, 0x1E, 0x75, 0x00, 0x50, 0x05, 0x02,
+	0x00, 0x00, 0x02, 0x02, 0x02, 0x05, 0x14, 0x14, 0x32, 0xB9,
+	0x23, 0xB9, 0x08,
+};
+
+static u8 A21S_HX83104_40[] = {
+	0xBD,
+	0x01,
+};
+
+static u8 A21S_HX83104_41[] = {
+	0xE7,
+	0x02, 0x00, 0x64, 0x01, 0x74, 0x0D, 0x70, 0x0E,
+};
+
+static u8 A21S_HX83104_42[] = {
+	0xBD,
+	0x02,
+};
+
+static u8 A21S_HX83104_43[] = {
+	0xE7,
+	0x00, 0x00, 0x08, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00,
+	0x18,
+};
+
+static u8 A21S_HX83104_44[] = {
+	0xBD,
+	0x00,
+};
+
+static u8 A21S_HX83104_45[] = {
+	0xE9,
+	0xC3,
+};
+
+static u8 A21S_HX83104_46[] = {
+	0xCB,
+	0xD2, 0x2F,
+};
+
+static u8 A21S_HX83104_47[] = {
+	0xE9,
+	0x3F,
+};
+
+static u8 A21S_HX83104_48[] = {
+	0xBD,
+	0x00,
+};
+
+static u8 A21S_HX83104_49[] = {
+	0xE9,
+	0xE8,
+};
+
+static u8 A21S_HX83104_50[] = {
+	0xD3,
+	0x01, 0x06, 0x47,
+};
+
+static u8 A21S_HX83104_51[] = {
+	0xE9,
+	0x3F,
+};
+
+static u8 A21S_HX83104_52[] = {
+	0xBD,
+	0x01,
+};
+
+static u8 A21S_HX83104_53[] = {
+	0xE9,
+	0xC6,
+};
+
+static u8 A21S_HX83104_54[] = {
+	0xD3,
+	0x4A, 0x00, 0x81,
+};
+
+static u8 A21S_HX83104_55[] = {
+	0xE9,
+	0x3F,
+};
+
+static u8 A21S_HX83104_56[] = {
+	0xCB,
+	0x25, 0x11, 0x01,
+};
+
+static u8 A21S_HX83104_57[] = {
+	0xBD,
+	0x00,
+};
+
+static u8 A21S_HX83104_58[] = {
+	0xC1,
+	0x01,
+};
+
+static u8 A21S_HX83104_59[] = {
+	0xBD,
+	0x01,
+};
+
+static u8 A21S_HX83104_60[] = {
+	0xC1,
+	0xFD, 0xFA, 0xF6, 0xF1, 0xEC, 0xE8, 0xE3, 0xD9, 0xD5, 0xD0,
+	0xCA, 0xC5, 0xC0, 0xBB, 0xB5, 0xB0, 0xAB, 0xA5, 0xA0, 0x96,
+	0x8D, 0x84, 0x7B, 0x72, 0x6A, 0x61, 0x5A, 0x52, 0x4A, 0x44,
+	0x3E, 0x37, 0x30, 0x29, 0x23, 0x1D, 0x17, 0x11, 0x0B, 0x06,
+	0x04, 0x02, 0x02, 0x01, 0x00, 0xD0, 0x8B, 0x0D, 0xAD, 0x7D,
+	0x07, 0x20, 0x90, 0x20, 0x6E, 0xB1, 0x00,
+};
+
+static u8 A21S_HX83104_61[] = {
+	0xBD,
+	0x02,
+};
+
+static u8 A21S_HX83104_62[] = {
+	0xC1,
+	0xFD, 0xFA, 0xF6, 0xF1, 0xEC, 0xE8, 0xE3, 0xD9, 0xD5, 0xD0,
+	0xCA, 0xC5, 0xC0, 0xBB, 0xB5, 0xB0, 0xAB, 0xA5, 0xA0, 0x96,
+	0x8D, 0x84, 0x7B, 0x72, 0x6A, 0x61, 0x5A, 0x52, 0x4A, 0x44,
+	0x3E, 0x37, 0x30, 0x29, 0x23, 0x1D, 0x17, 0x11, 0x0B, 0x06,
+	0x04, 0x02, 0x02, 0x01, 0x00, 0xD0, 0x8B, 0x0D, 0xAD, 0x7D,
+	0x07, 0x20, 0x90, 0x20, 0x6E, 0xB1, 0x00,
+};
+
+static u8 A21S_HX83104_63[] = {
+	0xBD,
+	0x03,
+};
+
+static u8 A21S_HX83104_64[] = {
+	0xC1,
+	0xFD, 0xFA, 0xF6, 0xF1, 0xEC, 0xE8, 0xE3, 0xD9, 0xD5, 0xD0,
+	0xCA, 0xC5, 0xC0, 0xBB, 0xB5, 0xB0, 0xAB, 0xA5, 0xA0, 0x96,
+	0x8D, 0x84, 0x7B, 0x72, 0x6A, 0x61, 0x5A, 0x52, 0x4A, 0x44,
+	0x3E, 0x37, 0x30, 0x29, 0x23, 0x1D, 0x17, 0x11, 0x0B, 0x06,
+	0x04, 0x02, 0x02, 0x01, 0x00, 0xD0, 0x8B, 0x0D, 0xAD, 0x7D,
+	0x07, 0x20, 0x90, 0x20, 0x6E, 0xB1, 0x00,
+};
+
+static u8 A21S_HX83104_65[] = {
+	0xBD,
+	0x00,
+};
+
+
+static DEFINE_STATIC_PACKET(a21s_sleep_out, DSI_PKT_TYPE_WR, A21S_SLEEP_OUT, 0);
+static DEFINE_STATIC_PACKET(a21s_sleep_in, DSI_PKT_TYPE_WR, A21S_SLEEP_IN, 0);
+static DEFINE_STATIC_PACKET(a21s_display_on, DSI_PKT_TYPE_WR, A21S_DISPLAY_ON, 0);
+static DEFINE_STATIC_PACKET(a21s_display_off, DSI_PKT_TYPE_WR, A21S_DISPLAY_OFF, 0);
+static DEFINE_STATIC_PACKET(a21s_brightness_mode, DSI_PKT_TYPE_WR, A21S_BRIGHTNESS_MODE, 0);
+static DEFINE_STATIC_PACKET(a21s_brightness_cabc_mode, DSI_PKT_TYPE_WR, A21S_BRIGHTNESS_CABC_MODE, 0);
+
+static DEFINE_PKTUI(a21s_brightness, &a21s_maptbl[BRT_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(a21s_brightness, DSI_PKT_TYPE_WR, A21S_BRIGHTNESS, 0);
+
+
+static DEFINE_STATIC_PACKET(a21s_hx83104_01, DSI_PKT_TYPE_WR, A21S_HX83104_01, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_02, DSI_PKT_TYPE_WR, A21S_HX83104_02, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_03, DSI_PKT_TYPE_WR, A21S_HX83104_03, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_04, DSI_PKT_TYPE_WR, A21S_HX83104_04, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_05, DSI_PKT_TYPE_WR, A21S_HX83104_05, 0);
+#if 0
+static DEFINE_STATIC_PACKET(a21s_hx83104_06, DSI_PKT_TYPE_WR, A21S_HX83104_06, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_07, DSI_PKT_TYPE_WR, A21S_HX83104_07, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_08, DSI_PKT_TYPE_WR, A21S_HX83104_08, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_09, DSI_PKT_TYPE_WR, A21S_HX83104_09, 0);
+#endif
+static DEFINE_STATIC_PACKET(a21s_hx83104_10, DSI_PKT_TYPE_WR, A21S_HX83104_10, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_11, DSI_PKT_TYPE_WR, A21S_HX83104_11, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_12, DSI_PKT_TYPE_WR, A21S_HX83104_12, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_13, DSI_PKT_TYPE_WR, A21S_HX83104_13, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_14, DSI_PKT_TYPE_WR, A21S_HX83104_14, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_15, DSI_PKT_TYPE_WR, A21S_HX83104_15, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_16, DSI_PKT_TYPE_WR, A21S_HX83104_16, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_17, DSI_PKT_TYPE_WR, A21S_HX83104_17, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_18, DSI_PKT_TYPE_WR, A21S_HX83104_18, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_19, DSI_PKT_TYPE_WR, A21S_HX83104_19, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_20, DSI_PKT_TYPE_WR, A21S_HX83104_20, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_21, DSI_PKT_TYPE_WR, A21S_HX83104_21, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_22, DSI_PKT_TYPE_WR, A21S_HX83104_22, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_23, DSI_PKT_TYPE_WR, A21S_HX83104_23, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_24, DSI_PKT_TYPE_WR, A21S_HX83104_24, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_25, DSI_PKT_TYPE_WR, A21S_HX83104_25, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_26, DSI_PKT_TYPE_WR, A21S_HX83104_26, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_27, DSI_PKT_TYPE_WR, A21S_HX83104_27, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_28, DSI_PKT_TYPE_WR, A21S_HX83104_28, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_29, DSI_PKT_TYPE_WR, A21S_HX83104_29, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_30, DSI_PKT_TYPE_WR, A21S_HX83104_30, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_31, DSI_PKT_TYPE_WR, A21S_HX83104_31, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_32, DSI_PKT_TYPE_WR, A21S_HX83104_32, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_33, DSI_PKT_TYPE_WR, A21S_HX83104_33, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_34, DSI_PKT_TYPE_WR, A21S_HX83104_34, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_35, DSI_PKT_TYPE_WR, A21S_HX83104_35, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_36, DSI_PKT_TYPE_WR, A21S_HX83104_36, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_37, DSI_PKT_TYPE_WR, A21S_HX83104_37, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_38, DSI_PKT_TYPE_WR, A21S_HX83104_38, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_39, DSI_PKT_TYPE_WR, A21S_HX83104_39, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_40, DSI_PKT_TYPE_WR, A21S_HX83104_40, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_41, DSI_PKT_TYPE_WR, A21S_HX83104_41, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_42, DSI_PKT_TYPE_WR, A21S_HX83104_42, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_43, DSI_PKT_TYPE_WR, A21S_HX83104_43, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_44, DSI_PKT_TYPE_WR, A21S_HX83104_44, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_45, DSI_PKT_TYPE_WR, A21S_HX83104_45, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_46, DSI_PKT_TYPE_WR, A21S_HX83104_46, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_47, DSI_PKT_TYPE_WR, A21S_HX83104_47, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_48, DSI_PKT_TYPE_WR, A21S_HX83104_48, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_49, DSI_PKT_TYPE_WR, A21S_HX83104_49, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_50, DSI_PKT_TYPE_WR, A21S_HX83104_50, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_51, DSI_PKT_TYPE_WR, A21S_HX83104_51, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_52, DSI_PKT_TYPE_WR, A21S_HX83104_52, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_53, DSI_PKT_TYPE_WR, A21S_HX83104_53, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_54, DSI_PKT_TYPE_WR, A21S_HX83104_54, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_55, DSI_PKT_TYPE_WR, A21S_HX83104_55, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_56, DSI_PKT_TYPE_WR, A21S_HX83104_56, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_57, DSI_PKT_TYPE_WR, A21S_HX83104_57, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_58, DSI_PKT_TYPE_WR, A21S_HX83104_58, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_59, DSI_PKT_TYPE_WR, A21S_HX83104_59, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_60, DSI_PKT_TYPE_WR, A21S_HX83104_60, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_61, DSI_PKT_TYPE_WR, A21S_HX83104_61, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_62, DSI_PKT_TYPE_WR, A21S_HX83104_62, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_63, DSI_PKT_TYPE_WR, A21S_HX83104_63, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_64, DSI_PKT_TYPE_WR, A21S_HX83104_64, 0);
+static DEFINE_STATIC_PACKET(a21s_hx83104_65, DSI_PKT_TYPE_WR, A21S_HX83104_65, 0);
+
+static DEFINE_PANEL_MDELAY(a21s_wait_display_off, 1 * 17); /* 1 frame */
+static DEFINE_PANEL_MDELAY(a21s_wait_sleep_in, 4 * 17); /* 4 frame */
+static DEFINE_PANEL_MDELAY(a21s_wait_100msec, 100);
+static DEFINE_PANEL_MDELAY(a21s_wait_10msec, 10);
+static DEFINE_PANEL_MDELAY(a21s_wait_blic_off, 1);
+
+
+static void *a21s_init_cmdtbl[] = {
+	&hx83104_restbl[RES_ID],
+	&PKTINFO(a21s_hx83104_01),
+	&PKTINFO(a21s_hx83104_02),
+	&PKTINFO(a21s_hx83104_03),
+	&PKTINFO(a21s_hx83104_04),
+	&PKTINFO(a21s_hx83104_05),
+#if 0
+	&PKTINFO(a21s_hx83104_06),
+	&PKTINFO(a21s_hx83104_07),
+	&PKTINFO(a21s_hx83104_08),
+	&PKTINFO(a21s_hx83104_09),
+#endif
+	&DLYINFO(a21s_wait_10msec),
+	&PKTINFO(a21s_hx83104_10),
+	&PKTINFO(a21s_hx83104_11),
+	&PKTINFO(a21s_hx83104_12),
+	&PKTINFO(a21s_hx83104_13),
+	&PKTINFO(a21s_hx83104_14),
+	&PKTINFO(a21s_hx83104_15),
+	&PKTINFO(a21s_hx83104_16),
+	&PKTINFO(a21s_hx83104_17),
+	&PKTINFO(a21s_hx83104_18),
+	&PKTINFO(a21s_hx83104_19),
+	&PKTINFO(a21s_hx83104_20),
+	&PKTINFO(a21s_hx83104_21),
+	&PKTINFO(a21s_hx83104_22),
+	&PKTINFO(a21s_hx83104_23),
+	&PKTINFO(a21s_hx83104_24),
+	&PKTINFO(a21s_hx83104_25),
+	&PKTINFO(a21s_hx83104_26),
+	&PKTINFO(a21s_hx83104_27),
+	&PKTINFO(a21s_hx83104_28),
+	&PKTINFO(a21s_hx83104_29),
+	&PKTINFO(a21s_hx83104_30),
+	&PKTINFO(a21s_hx83104_31),
+	&PKTINFO(a21s_hx83104_32),
+	&PKTINFO(a21s_hx83104_33),
+	&PKTINFO(a21s_hx83104_34),
+	&PKTINFO(a21s_hx83104_35),
+	&PKTINFO(a21s_hx83104_36),
+	&PKTINFO(a21s_hx83104_37),
+	&PKTINFO(a21s_hx83104_38),
+	&PKTINFO(a21s_hx83104_39),
+	&PKTINFO(a21s_hx83104_40),
+	&PKTINFO(a21s_hx83104_41),
+	&PKTINFO(a21s_hx83104_42),
+	&PKTINFO(a21s_hx83104_43),
+	&PKTINFO(a21s_hx83104_44),
+	&PKTINFO(a21s_hx83104_45),
+	&PKTINFO(a21s_hx83104_46),
+	&PKTINFO(a21s_hx83104_47),
+	&PKTINFO(a21s_hx83104_48),
+	&PKTINFO(a21s_hx83104_49),
+	&PKTINFO(a21s_hx83104_50),
+	&PKTINFO(a21s_hx83104_51),
+	&PKTINFO(a21s_hx83104_52),
+	&PKTINFO(a21s_hx83104_53),
+	&PKTINFO(a21s_hx83104_54),
+	&PKTINFO(a21s_hx83104_55),
+	&PKTINFO(a21s_hx83104_56),
+	&PKTINFO(a21s_hx83104_57),
+	&PKTINFO(a21s_hx83104_58),
+	&PKTINFO(a21s_hx83104_59),
+	&PKTINFO(a21s_hx83104_60),
+	&PKTINFO(a21s_hx83104_61),
+	&PKTINFO(a21s_hx83104_62),
+	&PKTINFO(a21s_hx83104_63),
+	&PKTINFO(a21s_hx83104_64),
+	&PKTINFO(a21s_hx83104_65),
+	&PKTINFO(a21s_sleep_out),
+};
+
+static void *a21s_res_init_cmdtbl[] = {
+	&hx83104_restbl[RES_ID],
+};
+
+static void *a21s_set_bl_cmdtbl[] = {
+	&PKTINFO(a21s_brightness), //51h
+};
+
+static void *a21s_display_on_cmdtbl[] = {
+	&DLYINFO(a21s_wait_100msec),
+	&PKTINFO(a21s_display_on),
+	&PKTINFO(a21s_brightness_mode),
+};
+
+static void *a21s_display_off_cmdtbl[] = {
+	&PKTINFO(a21s_display_off),
+	&DLYINFO(a21s_wait_display_off),
+};
+
+static void *a21s_exit_cmdtbl[] = {
+	&PKTINFO(a21s_sleep_in),
+	&DLYINFO(a21s_wait_sleep_in),
+};
+
+/* ===================================================================================== */
+/* ================================= [EA8076 I2C TABLE] ===========+++================= */
+/* ===================================================================================== */
+static u8 HX83104_A21S_I2C_INIT[] = {
+	0x0C, 0x28,
+	0x0D, 0x1E,
+	0x0E, 0x1E,
+	0x09, 0xBE,
+	0x02, 0x69,
+	0x03, 0x0D,
+	0x11, 0x75,
+	0x04, 0x05,
+	0x05, 0xCC,
+	0x10, 0x67,
+	0x08, 0x13,
+};
+
+static u8 HX83104_A21S_I2C_EXIT_VSN[] = {
+	0x09, 0xBC,
+};
+
+static u8 HX83104_A21S_I2C_EXIT_VSP[] = {
+	0x09, 0xB8,
+};
+
+static DEFINE_STATIC_PACKET(hx83104_a21s_i2c_init, I2C_PKT_TYPE_WR, HX83104_A21S_I2C_INIT, 0);
+static DEFINE_STATIC_PACKET(hx83104_a21s_i2c_exit_vsn, I2C_PKT_TYPE_WR, HX83104_A21S_I2C_EXIT_VSN, 0);
+static DEFINE_STATIC_PACKET(hx83104_a21s_i2c_exit_vsp, I2C_PKT_TYPE_WR, HX83104_A21S_I2C_EXIT_VSP, 0);
+static DEFINE_STATIC_PACKET(hx83104_a21s_i2c_dump, I2C_PKT_TYPE_RD, HX83104_A21S_I2C_INIT, 0);
+
+static void *hx83104_a21s_init_cmdtbl[] = {
+	&PKTINFO(hx83104_a21s_i2c_init),
+};
+
+static void *hx83104_a21s_exit_cmdtbl[] = {
+	&PKTINFO(hx83104_a21s_i2c_exit_vsn),
+	&DLYINFO(a21s_wait_blic_off),
+	&PKTINFO(hx83104_a21s_i2c_exit_vsp),
+};
+
+static void *hx83104_a21s_dump_cmdtbl[] = {
+	&PKTINFO(hx83104_a21s_i2c_dump),
+};
+
+
+static struct seqinfo a21s_seqtbl[MAX_PANEL_SEQ] = {
+	[PANEL_INIT_SEQ] = SEQINFO_INIT("init-seq", a21s_init_cmdtbl),
+	[PANEL_RES_INIT_SEQ] = SEQINFO_INIT("resource-init-seq", a21s_res_init_cmdtbl),
+	[PANEL_SET_BL_SEQ] = SEQINFO_INIT("set-bl-seq", a21s_set_bl_cmdtbl),
+	[PANEL_DISPLAY_ON_SEQ] = SEQINFO_INIT("display-on-seq", a21s_display_on_cmdtbl),
+	[PANEL_DISPLAY_OFF_SEQ] = SEQINFO_INIT("display-off-seq", a21s_display_off_cmdtbl),
+	[PANEL_EXIT_SEQ] = SEQINFO_INIT("exit-seq", a21s_exit_cmdtbl),
+#ifdef CONFIG_SUPPORT_I2C
+	[PANEL_I2C_INIT_SEQ] = SEQINFO_INIT("i2c-init-seq", hx83104_a21s_init_cmdtbl),
+	[PANEL_I2C_EXIT_SEQ] = SEQINFO_INIT("i2c-exit-seq", hx83104_a21s_exit_cmdtbl),
+	[PANEL_I2C_DUMP_SEQ] = SEQINFO_INIT("i2c-dump-seq", hx83104_a21s_dump_cmdtbl),
+#endif
+
+};
+
+struct common_panel_info hx83104_a21s_default_panel_info = {
+	.ldi_name = "hx83104",
+	.name = "hx83104_a21s_default",
+	.model = "TIANMA_6_55_inch",
+	.vendor = "TMC",
+	.id = 0x0A7230,
+	.rev = 0,
+	.ddi_props = {
+		.gpara = 0,
+		.err_fg_recovery = false,
+	},
+	.mres = {
+		.nr_resol = ARRAY_SIZE(hx83104_a21s_resol),
+		.resol = hx83104_a21s_resol,
+	},
+	.maptbl = a21s_maptbl,
+	.nr_maptbl = ARRAY_SIZE(a21s_maptbl),
+	.seqtbl = a21s_seqtbl,
+	.nr_seqtbl = ARRAY_SIZE(a21s_seqtbl),
+	.rditbl = hx83104_rditbl,
+	.nr_rditbl = ARRAY_SIZE(hx83104_rditbl),
+	.restbl = hx83104_restbl,
+	.nr_restbl = ARRAY_SIZE(hx83104_restbl),
+	.dumpinfo = NULL,
+	.nr_dumpinfo = 0,
+	.panel_dim_info = {
+		&hx83104_a21s_panel_dimming_info,
+	},
+	.i2c_data = &hx83104_a21s_i2c_data,
+};
+
+static int __init hx83104_a21s_panel_init(void)
+{
+	register_common_panel(&hx83104_a21s_default_panel_info);
+
+	return 0;
+}
+arch_initcall(hx83104_a21s_panel_init)
+#endif /* __HX83104_A21S_PANEL_H__ */
