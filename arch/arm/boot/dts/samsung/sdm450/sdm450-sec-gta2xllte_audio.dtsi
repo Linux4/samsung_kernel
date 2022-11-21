@@ -1,0 +1,446 @@
+/*
+ * Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../qcom/msm-audio.dtsi"
+
+/ {
+	aliases {
+		i2c3 = &i2c_3;
+		i2c6 = &i2c_6;
+		spi4 = &spi_4;
+		/delete-property/ spi3;
+	};
+};
+
+&soc {
+	/delete-node/ spi@78b7000;
+
+	i2c_3: i2c@78b7000 { /* BLSP1 QUP3 */
+		status = "ok";
+		audio_codec: rt5665@1b {
+			compatible = "realtek,rt5665";
+			reg = <0x1b>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&rt5665_irq_active &rt5665_3p3_active>;
+			pinctrl-1 = <&rt5665_irq_suspend &rt5665_3p3_suspend>;
+
+			interrupts = <72 0>;
+			interrupt-parent = <&tlmm>;
+
+			realtek,in1-differential;
+			realtek,in3-differential;
+			realtek,in4-differential;
+			realtek,jd-src = <2>;
+
+			realtek,sar-hs-type = <700>;
+			realtek,sar-pb-vth0 = <93>; /* send end */
+			realtek,sar-pb-vth1 = <138>; /* voice command */
+			realtek,sar-pb-vth2 = <255>; /* volume up */
+			realtek,sar-pb-vth3 = <567>; /* volume down */
+
+			regulator-1v8-supply = <&pm8953_l5>;
+			realtek,regulator_1v8 = "regulator-1v8";
+
+			realtek,gpio_3p3_en = <&tlmm 96 0x00>;
+
+			imp_table = <
+				/* min      max     gain   bias   volume gain */
+ 				0x00       0x1f      3      6        0x57 // 8 ohm
+ 				0x20       0x2d      0      6        0x57 // 16 ohm
+ 				0x2e       0x3d      0      6        0x57 // 32 ohm
+ 				0x3e       0x69      0      1        0x57 // 64 ohm
+ 				0x6a       0xffff    0      1        0x57 // > 100 ohm
+			>;
+		};
+	};
+
+	i2c_6: i2c@7af6000 { /* BLSP2 QUP2 */
+		compatible = "qcom,i2c-msm-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr";
+		reg = <0x7af6000 0x600>;
+		interrupt-names = "qup_irq";
+		interrupts = <0 300 0>;
+		qcom,clk-freq-out = <400000>;
+		qcom,clk-freq-in  = <19200000>;
+		clock-names = "iface_clk", "core_clk";
+		clocks = <&clock_gcc clk_gcc_blsp2_ahb_clk>,
+			<&clock_gcc clk_gcc_blsp2_qup2_i2c_apps_clk>;
+		pinctrl-names = "i2c_active", "i2c_sleep";
+		pinctrl-0 = <&i2c_6_active>;
+		pinctrl-1 = <&i2c_6_sleep>;
+		qcom,noise-rjct-scl = <0>;
+		qcom,noise-rjct-sda = <0>;
+		qcom,master-id = <84>;
+		dmas = <&dma_blsp2 6 64 0x20000020 0x20>,
+			<&dma_blsp2 7 32 0x20000020 0x20>;
+		dma-names = "tx", "rx";
+		status = "ok";
+		tfa98xx_spk1: tfa98xx@34{
+			compatible = "nxp,tfa98xx";
+			reg = <0x34>;
+		};
+		tfa98xx_spk2: tfa98xx@35{
+			compatible = "nxp,tfa98xx";
+			reg = <0x35>;
+		};
+		tfa98xx_spk3: tfa98xx@36{
+			compatible = "nxp,tfa98xx";
+			reg = <0x36>;
+		};
+		tfa98xx_spk4: tfa98xx@37{
+			compatible = "nxp,tfa98xx";
+			reg = <0x37>;
+		};
+	};
+
+	qcom,msm-dai-mi2s {
+		dai_mi2s5: qcom,msm-dai-q6-mi2s-quin {
+			compatible = "qcom,msm-dai-q6-mi2s";
+			qcom,msm-dai-q6-mi2s-dev-id = <5>;
+			qcom,msm-mi2s-rx-lines = <2>;
+			qcom,msm-mi2s-tx-lines = <1>;
+		};
+	};
+
+	qcom,msm-dai-tdm-pri-rx {
+		compatible = "qcom,msm-dai-tdm";
+		qcom,msm-cpudai-tdm-group-id = <37120>;
+		qcom,msm-cpudai-tdm-group-num-ports = <1>;
+		qcom,msm-cpudai-tdm-group-port-id = <36864>;
+		qcom,msm-cpudai-tdm-clk-rate = <3072000>;
+		qcom,msm-cpudai-tdm-clk-attribute = /bits/ 16 <1>;
+		dai_pri_tdm_rx_0: qcom,msm-dai-q6-tdm-pri-rx-0 {
+			compatible = "qcom,msm-dai-q6-tdm";
+			qcom,msm-cpudai-tdm-dev-id = <36864>;
+			qcom,msm-cpudai-tdm-sync-mode = <1>;
+			qcom,msm-cpudai-tdm-sync-src = <1>;
+			qcom,msm-cpudai-tdm-data-out = <0>;
+			qcom,msm-cpudai-tdm-invert-sync = <1>;
+			qcom,msm-cpudai-tdm-data-delay = <1>;
+			qcom,msm-cpudai-tdm-data-align = <0>;
+		};
+	};
+
+	qcom,msm-dai-tdm-pri-tx {
+		compatible = "qcom,msm-dai-tdm";
+		qcom,msm-cpudai-tdm-group-id = <37121>;
+		qcom,msm-cpudai-tdm-group-num-ports = <1>;
+		qcom,msm-cpudai-tdm-group-port-id = <36865>;
+		qcom,msm-cpudai-tdm-clk-rate = <3072000>;
+		qcom,msm-cpudai-tdm-clk-attribute = /bits/ 16 <1>;
+		dai_pri_tdm_tx_0: qcom,msm-dai-q6-tdm-pri-tx-0 {
+			compatible = "qcom,msm-dai-q6-tdm";
+			qcom,msm-cpudai-tdm-dev-id = <36865>;
+			qcom,msm-cpudai-tdm-sync-mode = <1>;
+			qcom,msm-cpudai-tdm-sync-src = <1>;
+			qcom,msm-cpudai-tdm-data-out = <0>;
+			qcom,msm-cpudai-tdm-invert-sync = <1>;
+			qcom,msm-cpudai-tdm-data-delay = <1>;
+			qcom,msm-cpudai-tdm-data-align = <0>;
+		};
+	};
+
+	qcom,msm-dai-tdm-sec-rx {
+		compatible = "qcom,msm-dai-tdm";
+		qcom,msm-cpudai-tdm-group-id = <37136>;
+		qcom,msm-cpudai-tdm-group-num-ports = <1>;
+		qcom,msm-cpudai-tdm-group-port-id = <36880>;
+		qcom,msm-cpudai-tdm-clk-rate = <3072000>;
+		qcom,msm-cpudai-tdm-clk-attribute = /bits/ 16 <1>;
+		dai_sec_tdm_rx_0: qcom,msm-dai-q6-tdm-sec-rx-0 {
+			compatible = "qcom,msm-dai-q6-tdm";
+			qcom,msm-cpudai-tdm-dev-id = <36880>;
+			qcom,msm-cpudai-tdm-sync-mode = <1>;
+			qcom,msm-cpudai-tdm-sync-src = <1>;
+			qcom,msm-cpudai-tdm-data-out = <0>;
+			qcom,msm-cpudai-tdm-invert-sync = <1>;
+			qcom,msm-cpudai-tdm-data-delay = <1>;
+			qcom,msm-cpudai-tdm-data-align = <0>;
+		};
+	};
+
+	qcom,msm-dai-tdm-sec-tx {
+		compatible = "qcom,msm-dai-tdm";
+		qcom,msm-cpudai-tdm-group-id = <37137>;
+		qcom,msm-cpudai-tdm-group-num-ports = <1>;
+		qcom,msm-cpudai-tdm-group-port-id = <36881>;
+		qcom,msm-cpudai-tdm-clk-rate = <3072000>;
+		qcom,msm-cpudai-tdm-clk-attribute = /bits/ 16 <1>;
+		dai_sec_tdm_tx_0: qcom,msm-dai-q6-tdm-sec-tx-0 {
+			compatible = "qcom,msm-dai-q6-tdm";
+			qcom,msm-cpudai-tdm-dev-id = <36881>;
+			qcom,msm-cpudai-tdm-sync-mode = <1>;
+			qcom,msm-cpudai-tdm-sync-src = <1>;
+			qcom,msm-cpudai-tdm-data-out = <0>;
+			qcom,msm-cpudai-tdm-invert-sync = <1>;
+			qcom,msm-cpudai-tdm-data-delay = <1>;
+			qcom,msm-cpudai-tdm-data-align = <0>;
+		};
+	};
+
+	samsung_q6audio_adaptation: samsung,q6audio-adaptation {
+		compatible = "samsung,q6audio-adaptation";
+		adaptation,voice-tracking-tx-port-id = <0x1017>;
+	};
+
+	spi_4: spi@78b8000 { /* BLSP1 QUP4 */
+		status = "ok";
+		compatible = "qcom,spi-qup-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "spi_physical", "spi_bam_physical";
+		reg = <0x78b8000 0x1000>, <0x7884000 0x2b000>;
+		interrupt-names = "spi_irq", "spi_bam_irq";
+		interrupts = <0 98 0>, <0 238 0>;
+
+		spi-max-frequency = <19200000>;
+		qcom,master-id = <86>;
+
+		qcom,ver-reg-exists;
+		qcom,use-pinctrl;
+		qcom,use-bam;
+		qcom,bam-consumer-pipe-index = <10>;
+		qcom,bam-producer-pipe-index = <11>;
+		pinctrl-names = "spi_default", "spi_sleep";
+		pinctrl-0 = <&spi_4_active &spi4_cs0_active>;
+		pinctrl-1 = <&spi_4_sleep &spi4_cs0_sleep>;
+
+		clock-names = "iface_clk", "core_clk";
+
+		clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
+			 <&clock_gcc clk_gcc_blsp1_qup4_spi_apps_clk>;
+
+		dbmd8_spi:dbmd8_interface@0  {
+			compatible = "dspg,dbmd8-spi";
+			spi-max-frequency = <1000000>;
+			read-chunk-size  = <0x2000> ;
+			write-chunk-size = <0x20000> ;
+			reg = <0>;
+			qcom,spiop-read = <0x03 3 0 0 0>;
+			qcom,spiop-readseq = <0x03 3 0 0 0>;
+			qcom,spiop-queryid = <0x90 3 0 0 0>;
+			qcom,spiop-pprog = <0x02 2 0 0 0>;
+			qcom,spiop-wenable = <0x06 0 0 0 0>;
+			qcom,spiop-readst = <0x05 0 0 0 0>;
+			qcom,spiop-erase = <0x20 2 0 10 30>;
+			qcom,spi-busy-mask = <0x01>;
+			qcom,spi-page-size = <0x256>;
+			qcom,spi-erase-size = <0x4096>;
+		};
+	};
+
+	dbmdx_event {
+		status = "okay";
+		compatible = "samsung,dbmdx-event";
+	};
+
+	dbmdx-snd-soc-platform {
+		compatible = "dspg,dbmdx-snd-soc-platform";
+	};
+
+	snd-dbmdx-mach-drv {
+		compatible = "dspg,snd-dbmdx-mach-drv";
+	};
+
+	dbmdx {
+		status = "okay";
+		compatible = "dspg,dbmdx-codec";
+		qcom,use-pinctrl;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&dbmdx_int_active &dbmdx_rst_active &dbmdx_wake_active>;
+		pinctrl-1 = <&dbmdx_int_sleep &dbmdx_rst_sleep &dbmdx_wake_sleep>;
+		sv-gpio = <&tlmm 60 0>; /* VOICE_INT */
+		wakeup-gpio = <&tlmm 97 0>; /* VOICE_WAKE */
+		reset-gpio = <&tlmm 41 0>; /* VOICE_RST */
+		auto_buffering = <1>;
+		cmd-interface = <&dbmd8_spi>;
+		feature-va; /* enable VA */
+		va-interfaces = <0 0 0 0>;
+		va-firmware-name = "dbmd8_va_fw.bin";
+		va-asrp-params-firmware-name = "dbmd8_va_asrp_fw.bin";
+		va-config = <0x80000000
+			     0x80000000
+			     0x80000000
+			     0x80290020
+			     0x80093004
+			     0x802210E1
+			     0x80159494
+			     0x801b0020
+			     0x80230000
+			     0x801A0011
+			     0x8010700F
+			     0x8aab0040
+			     0x800C7530
+			     0x80000000
+			     0x80000000
+			     0x80000000
+			     0x80000000>;
+		va-ns-config = <0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+			     0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+			     0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+			     0x8013FF20 0x8013FFF0 0x8013FFF2 0x8013FFF0 0x8013FFFF
+			     0x801A0011 0x801A0287 0x801A0011 0x801A0011 0x80340000
+			     0x80110E10 0x80340040 0x80110E10 0x80340040 0x80000000
+			     0x80111EEE 0x80000000 0x80111EEE 0x80000000 0x80000000
+			     0x80112EE2 0x80000000 0x80112EE2 0x80000000 0x80000000
+			     0x80113EEE 0x80000000 0x80113EEE 0x80000000 0x80000000
+			     0x80340243 0x80000000 0x80340243 0x80000000 0x80000000
+			     0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+			     0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+			     0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+			     0x80000000 0x80000000 0x80000000 0x80000000 0x80000000>;	
+		va-speeds = <0x0000 0 0 5000000
+			     0x0000 0 0 5000000
+			     0x0000 0 0 5000000 >;
+		va-mic-config = <0x5024 0xa021 0x0008>;
+		va-mic-mode = <2>;
+		master-clk-rate = <32768>;
+		/* constant-clk-rate = <32768>; */
+		firmware_id = <0xdbd8>;
+		use_gpio_for_wakeup = <1>; /* Use wakeup gpio */
+		wakeup_set_value = <0>;  /* Value to write to wakeup gpio */
+		auto_detection = <1>;
+		detection_buffer_channels = <1>;
+		min_samples_chunk_size = <128>;
+		pcm_streaming_mode = <1>;
+		boot_options = <0x220>; /* Verify chip id */
+		send_uevent_on_detection = <1>;
+		send_uevent_after_buffering = <0>;
+		detection_after_buffering = <0>;
+		va_backlog_length = <1802>;
+		va_backlog_length_okg = <1000>;
+		amodel_options = <0x1B>;
+		va_ns_supported = <1>;
+		va_ns-num_of_configs = <5>;
+	};
+
+	sound {
+		status = "ok";
+		compatible = "qcom,msm8952-rt5665-audio-codec";
+		qcom,model = "msm8952-rt5665-snd-card";
+		reg = <0xc051000 0x4>,
+		      <0xc051004 0x4>,
+		      <0xc055000 0x4>,
+		      <0xc052000 0x4>,
+		      <0xc056000 0x4>,
+		      <0xc054000 0x4>,
+		      <0xc053000 0x4>;
+
+		reg-names = "csr_gp_io_mux_mic_ctl",
+			    "csr_gp_io_mux_spkr_ctl",
+			    "csr_gp_io_lpaif_pri_pcm_pri_mode_muxsel",
+			    "csr_gp_io_mux_quin_ctl",
+			    "csr_gp_io_lpaif_qui_pcm_sec_mode_muxsel",
+			    "csr_gp_io_mux_mic_ext_clk_ctl",
+			    "csr_gp_io_mux_sec_tlmm_ctl";
+
+		qcom,codec_irq_n = <&tlmm 72 0x0>;
+		qcom,nxp-amps = <&tfa98xx_spk1>, <&tfa98xx_spk2>, <&tfa98xx_spk3>, <&tfa98xx_spk4>;
+
+		qcom,msm-ext-pa = "quaternary";
+		qcom,msm-mclk-freq = <19200000>;
+		qcom,msm-hs-micbias-type = "External";
+		qcom,tdm-audio-intf;
+		qcom,audio-routing =
+			"HP", "HPOL",
+			"HP", "HPOR",
+			"RCV", "MONOOUT",
+			"IN1P", "Headset Mic",
+			"IN1N", "Headset Mic",
+			"DMIC R2", "Main Mic",
+			"DMIC L2", "Main Mic",
+			"DMIC R1", "Sub Mic",
+			"DMIC L1", "Sub Mic";
+		qcom,msm-gpios =
+			"quat_i2s",
+			"quin_i2s";
+		qcom,pinctrl-names =
+			"all_off",
+			"quat_i2s_act",
+			"quin_i2s_act",
+			"quin_i2s_quat_i2s_act";
+		pinctrl-names =
+			"all_off",
+			"quat_i2s_act",
+			"quin_i2s_act",
+			"quin_i2s_quat_i2s_act";
+		pinctrl-0 = <&quat_tlmm_lines_sus &quat_tlmm_ws_lines_sus
+			&quin_tlmm_lines_sus &quin_tlmm_ws_lines_sus
+			&gp_clk1_suspend>;
+		pinctrl-1 = <&quat_tlmm_lines_act &quat_tlmm_ws_lines_act
+			&quin_tlmm_lines_sus &quin_tlmm_ws_lines_sus
+			&gp_clk1_suspend>;
+		pinctrl-2 = <&quat_tlmm_lines_sus &quat_tlmm_ws_lines_sus
+			&quin_tlmm_lines_act &quin_tlmm_ws_lines_act
+			&gp_clk1_active>;
+		pinctrl-3 = <&quat_tlmm_lines_act &quat_tlmm_ws_lines_act
+			&quin_tlmm_lines_act &quin_tlmm_ws_lines_act
+			&gp_clk1_active>;
+		asoc-platform = <&pcm0>, <&pcm1>, <&pcm2>, <&voip>, <&voice>,
+				<&loopback>, <&compress>, <&hostless>,
+				<&afe>, <&lsm>, <&routing>, <&lpa>,
+				<&samsung_q6audio_adaptation>;
+		asoc-platform-names = "msm-pcm-dsp.0", "msm-pcm-dsp.1",
+				"msm-pcm-dsp.2", "msm-voip-dsp",
+				"msm-pcm-voice", "msm-pcm-loopback",
+				"msm-compress-dsp", "msm-pcm-hostless",
+				"msm-pcm-afe", "msm-lsm-client",
+				"msm-pcm-routing", "msm-pcm-lpa",
+				"q6audio-adaptation";
+		asoc-cpu = <&dai_pri_auxpcm>,
+				<&dai_mi2s0>, <&dai_mi2s1>,
+				<&dai_mi2s2>, <&dai_mi2s3>,
+				<&dai_mi2s5>, <&dai_mi2s6>,
+				<&sb_0_rx>, <&sb_0_tx>, <&sb_1_rx>, <&sb_1_tx>,
+				<&sb_3_rx>, <&sb_3_tx>, <&sb_4_rx>, <&sb_4_tx>,
+				<&bt_sco_rx>, <&bt_sco_tx>,
+				<&int_fm_rx>, <&int_fm_tx>,
+				<&afe_pcm_rx>, <&afe_pcm_tx>,
+				<&afe_proxy_rx>, <&afe_proxy_tx>,
+				<&incall_record_rx>, <&incall_record_tx>,
+				<&incall_music_rx>, <&incall_music_2_rx>,
+				<&dai_pri_tdm_rx_0>, <&dai_pri_tdm_tx_0>,
+				<&dai_sec_tdm_rx_0>, <&dai_sec_tdm_tx_0>;
+		asoc-cpu-names = "msm-dai-q6-auxpcm.1",
+				"msm-dai-q6-mi2s.0", "msm-dai-q6-mi2s.1",
+				"msm-dai-q6-mi2s.2", "msm-dai-q6-mi2s.3",
+				"msm-dai-q6-mi2s.5", "msm-dai-q6-mi2s.6",
+				"msm-dai-q6-dev.16384", "msm-dai-q6-dev.16385",
+				"msm-dai-q6-dev.16386", "msm-dai-q6-dev.16387",
+				"msm-dai-q6-dev.16390", "msm-dai-q6-dev.16391",
+				"msm-dai-q6-dev.16392", "msm-dai-q6-dev.16393",
+				"msm-dai-q6-dev.12288", "msm-dai-q6-dev.12289",
+				"msm-dai-q6-dev.12292", "msm-dai-q6-dev.12293",
+				"msm-dai-q6-dev.224", "msm-dai-q6-dev.225",
+				"msm-dai-q6-dev.241", "msm-dai-q6-dev.240",
+				"msm-dai-q6-dev.32771", "msm-dai-q6-dev.32772",
+				"msm-dai-q6-dev.32773", "msm-dai-q6-dev.32770",
+				"msm-dai-q6-tdm.36864", "msm-dai-q6-tdm.36865",
+				"msm-dai-q6-tdm.36880", "msm-dai-q6-tdm.36881";
+		asoc-codec = <&stub_codec>, <&audio_codec>;
+		asoc-codec-names = "msm-stub-codec.1", "rt5665";
+
+		clock-names = "ext-mclk";
+		clocks = <&clock_gcc clk_gcc_camss_gp0_clk>;
+		realtek,hp_impdeance_sensing_enable;
+
+		/delete-property/qcom,msm-mbhc-hphl-swh;
+		/delete-property/qcom,msm-mbhc-gnd-swh;
+		/delete-property/qcom,hdmi-dba-codec-rx;
+		/delete-property/qcom,msm-micbias1-ext-cap;
+	};
+};

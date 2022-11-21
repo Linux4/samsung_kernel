@@ -1,0 +1,194 @@
+/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+
+#include "sdm450-sec-gta2xllte_common.dtsi"
+#include "sdm450-sec-gta2xllte_mea_open-pinctrl-r02.dtsi"
+#include "sdm450-sec-gta2xllte-display-r00.dtsi"
+#include "sdm450-sec-gta2xllte-sensor-r00.dtsi"
+#include "sdm450-camera-sensor-gta2xllte_mea_open-r02.dtsi"
+#include "sdm450-sec-gta2xl-battery-r04.dtsi"
+
+/ {
+	model = "Samsung Tab A2 XL LTE MEA OPEN Rev02";
+	compatible = "qcom,sdm450-mtp", "qcom,sdm450", "qcom,mtp";
+	qcom,board-id = <8 2>;
+
+	aliases {
+		smd0 = &smdtty_ds;
+		i2c2 = &i2c_2;
+		i2c5 = &i2c_5;
+	};
+};
+
+&soc {
+	sec_pmov {
+		compatible = "sec,pmov";
+
+		/* pinctrl-names = "default";*/
+		/*pinctrl-0 = <&nc_gpio_default>; */
+
+		ldo-num = <0>;
+		/*ldo0-supply = <&pm8953_l17>;*/
+		/* ldo1-supply = <&pm8953_lx>; */
+	};
+
+	qcom,msm-imem@8600000 {
+		upload_cause@66c { /* CONFIG_SEC_DEBUG */
+			compatible = "qcom,msm-imem-upload_cause";
+			reg = <0x66c 4>;
+		};
+	};
+
+	msm_vibrator {
+		compatible = "vibrator";
+		pinctrl-names = "tlmm_motor_active", "tlmm_motor_suspend";
+		pinctrl-0 = <&vibrator_enable_active>;
+		pinctrl-1 = <&vibrator_enable_suspend>;
+		motor-vdd_type = <0>; /* 0: gpio, 1: pmic */
+		motor-en = <&tlmm 128 0>;
+	};
+
+	i2c_20: i2c@20 { /* pcal6416a*/
+		cell-index = <20>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 21 0 /* sda */
+			&tlmm 20 0 /* scl */
+			>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		expander_gpios: pcal6416a@20 {
+			compatible = "pcal6416a,gpio-expander";
+			gpio-controller;
+			#gpio-cells = <2>;
+			reg = <0x20>;
+			pcal6416a,gpio_start = <300>;
+			pcal6416a,ngpio = <16>;
+			pcal6416a,reset-gpio = <&tlmm 33 0>;
+			pcal6416a,vdd-supply = <&pm8953_l5>;
+			pcal6416a,support_initialize = <1>;
+			/* config, 15 ~ 0, 1bit configure[1:input, 0:output]*/
+			pcal6416a,config = <0xF81F>;    /* 1111 1000 0001 1111 */
+			/* data_out, 15 ~ 0, 1bit configure[1:high, 0:low]*/
+			pcal6416a,data_out = <0x0000>;  /* 0000 0000 0000 0000  */
+			/* pull_reg, 31 ~ 0, 2bit configure[00:no_pull, 01:pull_down, 10:pull_up, 11:not used]*/
+			pcal6416a,pull_reg = <0x00100400>; /* 00 00 00 00 / 00 01 00 00 /  00 00 01 00 / 00 00 00 00 */
+		};
+	};
+
+	hall {
+		status = "okay";
+		compatible = "hall";
+		linux,input-type = <1>;
+		linux,code = <21>;
+		pinctrl-names = "hall_pinctrl";
+		pinctrl-0 = <&hall_pinctrl>;
+		hall,gpio_flip_cover = <&tlmm 44 0x1>;
+		debounce-interval = <15>;
+	};
+
+	leds_ktd2692 {
+		compatible = "ktd2692";
+		flash-en-gpio= <&tlmm 36 0x0>;
+		status = "okay";
+		pinctrl-names ="fled_default","fled_sleep";
+		pinctrl-0 = <&flash_active>;
+		pinctrl-1 = <&flash_sleep>;
+	};	
+
+	wcnss_cable {
+		compatible = "samsung,wcnss_cable";
+		wlan_cable_wifi = <&tlmm 70 0>;
+		status = "ok";
+	};
+
+	sound {
+		mixer-paths = "mixer_paths_old.xml";
+		qcom,audio-routing =
+			"HP", "HPOL",
+			"HP", "HPOR",
+			"RCV", "MONOOUT",
+			"IN1P", "Headset Mic",
+			"IN1N", "Headset Mic",
+			"DMIC R2", "Sub Mic",
+			"DMIC L2", "Main Mic";
+	};
+};
+
+&blsp1_uart0 {
+	status = "ok";
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart_console_active>;
+};
+
+&sdhc_1 {
+	/* device core power supply */
+	vdd-supply = <&pm8953_l8>;
+	qcom,vdd-always-on;
+	qcom,vdd-lpm-sup;
+	qcom,vdd-voltage-level = <2900000 2900000>;
+	qcom,vdd-current-level = <200 570000>;
+
+	/* device communication power supply */
+	vdd-io-supply = <&pm8953_l5>;
+	qcom,vdd-io-always-on;
+	qcom,vdd-io-lpm-sup;
+	qcom,vdd-io-voltage-level = <1800000 1800000>;
+	qcom,vdd-io-current-level = <200 325000>;
+
+	pinctrl-names = "active", "sleep";
+	pinctrl-0 = <&sdc1_clk_on &sdc1_cmd_on &sdc1_data_on  &sdc1_rclk_on>;
+	pinctrl-1 = <&sdc1_clk_off &sdc1_cmd_off &sdc1_data_off &sdc1_rclk_off>;
+
+	qcom,clk-rates = <400000 20000000 25000000 50000000 100000000 192000000
+		384000000>;
+	qcom,nonremovable;
+	qcom,bus-speed-mode = "HS400_1p8v", "HS200_1p8v", "DDR_1p8v";
+
+	status = "ok";
+};
+
+&sdhc_2 {
+	/* device core power supply */
+	vdd-supply = <&pm8953_l11>;
+	qcom,vdd-voltage-level = <2950000 2950000>;
+	qcom,vdd-current-level = <15000 800000>;
+
+	/* device communication power supply */
+	vdd-io-supply = <&pm8953_l12>;
+	qcom,vdd-io-voltage-level = <1800000 2950000>;
+	qcom,vdd-io-current-level = <200 22000>;
+
+	pinctrl-names = "active", "sleep";
+	pinctrl-0 = <&sdc2_clk_on &sdc2_cmd_on &sdc2_data_on &sdc2_cd_on>;
+	pinctrl-1 = <&sdc2_clk_off &sdc2_cmd_off &sdc2_data_off &sdc2_cd_off>;
+
+	#address-cells = <0>;
+	interrupt-parent = <&sdhc_2>;
+	interrupts = <0 1 2>;
+	#interrupt-cells = <1>;
+	interrupt-map-mask = <0xffffffff>;
+	interrupt-map = <0 &intc 0 125 0
+		1 &intc 0 221 0
+		2 &tlmm 133 0>;
+	interrupt-names = "hc_irq", "pwr_irq", "status_irq";
+	cd-gpios = <&tlmm 133 0x1>;
+
+	qcom,clk-rates = <400000 20000000 25000000 50000000 100000000
+		192000000>;
+	qcom,bus-speed-mode = "SDR12", "SDR25", "SDR50", "DDR50", "SDR104";
+
+	status = "ok";
+};

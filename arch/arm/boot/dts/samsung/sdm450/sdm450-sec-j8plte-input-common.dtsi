@@ -1,0 +1,71 @@
+/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+#include <dt-bindings/input/input.h>
+/ {
+	tsp_ldo_en {
+		compatible = "regulator-fixed";
+		regulator-name = "tsp_ldo_en";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		gpio = <&tlmm 139 0>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+};
+
+&soc {
+	gpio_keys {
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+		pinctrl-names = "tlmm_gpio_key_active","tlmm_gpio_key_suspend";
+		pinctrl-0 = <&gpio_key_active>;
+		pinctrl-1 = <&gpio_key_suspend>;
+
+		vol_up {
+			label = "volume_up";
+			gpios = <&tlmm 85 0x1>;
+			linux,input-type = <1>;
+			linux,code = <115>;
+			debounce-interval = <15>;
+		};
+
+	};
+
+	i2c_2: i2c@78b6000 {
+		touchscreen@48 {
+			compatible = "sec,sec_ts";
+			reg = <0x48>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <59 0>;
+			pinctrl-names = "on_state", "off_state";
+			pinctrl-0 = <&tsp_int_active>;
+			pinctrl-1 = <&tsp_int_suspend>;
+			sec,irq_gpio = <&tlmm 59 0>;
+			sec,irq_type = <8200>;
+			sec,max_coords = <4096 4096>;   /* x y */
+			sec,num_lines = <30 15>;        /* rx tx */
+			sec,use_ic_resolution;
+			sec,mis_cal_check = <1>;
+			sec,use_gpio_ldo;
+			sec,regulator_avdd = "tsp_ldo_en";
+			sec,regulator_boot_on;
+			sec,grip_area = <512>;
+			sec,bringup = <3>;
+			sec,tclm_level = <1>;
+	/*		sec,afe_base = <0x0121>;*/
+			sec,project_name = "J8plus", "J805F";
+			sec,firmware_name = "tsp_sec/y661_j8plus.fw", "tsp_sec/y661_j8plus.fw";
+			sec,factory_item_version = <1>;
+			status = "disabled";
+		};
+	};
+};

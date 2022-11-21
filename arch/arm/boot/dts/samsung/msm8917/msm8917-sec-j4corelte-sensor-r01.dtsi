@@ -1,0 +1,156 @@
+/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	tlmm: pinctrl@1000000 {
+		i2c_4 {
+			i2c_4_active: i2c_4_active {
+				/* active state */
+				mux {
+					pins = "gpio14", "gpio15";
+					function = "blsp_i2c4";
+				};
+
+				config {
+					pins = "gpio14", "gpio15";
+					bias-disable;
+				};
+			};
+
+			i2c_4_sleep: i2c_4_sleep {
+				/* suspended state */
+				mux {
+					pins = "gpio14", "gpio15";
+					function = "blsp_i2c4";
+				};
+
+				config {
+					pins = "gpio14", "gpio15";
+					bias-disable;
+				};
+			};
+		};
+
+		sensor_ldo_en: sensor_ldo_en {
+			mux {
+				pins = "gpio24";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio24";
+				bias-disable;
+				output-high;
+			};
+		};
+
+		acc_int: acc_int {
+			mux {
+				pins = "gpio42";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio42";
+				bias-disable;
+			};
+		};
+
+		prox_int: prox_int {
+			mux {
+				pins = "gpio43";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio43";
+				bias-disable;
+			};
+		};
+
+		prox_ldo_en: prox_ldo_en {
+			mux {
+				pins = "gpio50";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio50";
+				bias-disable;
+				output-high;
+			};
+		};
+
+	};
+
+	i2c_4: i2c@78b8000 { /* BLSP2 QUP2 */
+
+		compatible = "qcom,i2c-msm-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr";
+		reg = <0x78b8000 0x600>;
+
+		interrupt-names = "qup_irq";
+		interrupts = <0 98 0>;
+
+		qcom,clk-freq-out = <400000>;
+		qcom,clk-freq-in  = <19200000>;
+		clock-names = "iface_clk", "core_clk";
+		clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
+
+			<&clock_gcc clk_gcc_blsp1_qup4_i2c_apps_clk>;
+
+
+		pinctrl-names = "i2c_active", "i2c_sleep";
+		pinctrl-0 = <&i2c_4_active &sensor_ldo_en>;
+
+		pinctrl-1 = <&i2c_4_sleep>;
+
+		qcom,noise-rjct-scl = <0>;
+		qcom,noise-rjct-sda = <0>;
+		qcom,master-id = <86>;
+
+		dmas = <&dma_blsp1 10 64 0x20000020 0x20>,
+
+			<&dma_blsp1 11 32 0x20000020 0x20>;
+
+		dma-names = "tx", "rx";
+		status = "ok";
+
+		lis2ds@1D {
+			compatible = "st,lis2ds";
+			reg = <0x1D>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&acc_int>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <42 0>;
+			st,irq_gpio = <&tlmm 42 0>;
+			st,orientation = <0 1 1 1 0 1 1 1 0>;
+		};
+
+		cm36686@60 {
+			compatible = "cm36686";
+			reg = <0x60>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&prox_int &prox_ldo_en>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <43 0>;
+
+			cm36686,irq_gpio = <&tlmm 43 0>;
+
+			cm36686,default_hi_thd = <15>;
+			cm36686,default_low_thd = <9>;
+			cm36686,cancel_hi_thd = <12>;
+			cm36686,cancel_low_thd = <7>;
+			cm36686,cal_skip_adc = <6>;
+			cm36686,cal_fail_adc = <20>;
+		    cm36686,default_trim = <3>;
+		};
+	};
+};
