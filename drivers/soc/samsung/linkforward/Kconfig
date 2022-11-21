@@ -1,0 +1,11 @@
+#
+# SAMSUNG Link Forward Driver
+#
+menuconfig LINK_FORWARD
+	bool "Lower layer packet forwarding/translation support"
+	depends on !HW_FORWARD
+	default n
+	help
+	  This option enables link layer forwarding using SW translation. This
+	  support IP packet NAT translation. This option can not be used with
+	  DIT(Direct IP Translation) feature (HW_FORWARD).
