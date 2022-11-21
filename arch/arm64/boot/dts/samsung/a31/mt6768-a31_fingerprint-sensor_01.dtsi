@@ -1,0 +1,128 @@
+/*
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pio {
+	btp_sleep: btp_sleep_enable {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO53__FUNC_GPIO53>;
+			bias-pull-down;
+			drive-strength = <1>;
+		};
+	};
+	btp_ldo_en: btp_ldo_enable {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO77__FUNC_GPIO77>;
+			bias-pull-down;
+			drive-strength = <1>;
+		};
+	};
+	spi1_set_miso: set_miso {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO85__FUNC_SPI1_A_MI>;
+			drive-strength = <4>;
+		};
+	};
+	spi1_set_cs: set_cs {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO86__FUNC_SPI1_A_CSB>;
+			drive-strength = <4>;
+		};
+	};
+	spi1_set_mosi: set_mosi {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO87__FUNC_SPI1_A_MO>;
+			drive-strength = <4>;
+		};
+	};
+	spi1_set_clk: set_clk {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO88__FUNC_SPI1_A_CLK>;
+			drive-strength = <4>;
+		};
+	};
+	spi1_clr_miso: clr_miso {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO85__FUNC_GPIO85>;
+			slew-rate = <0>;
+			bias-pull-down;
+			input-enable;
+			drive-strength = <1>;
+		};
+	};
+	spi1_clr_cs: clr_cs {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO86__FUNC_GPIO86>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+	spi1_clr_mosi: clr_mosi {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO87__FUNC_GPIO87>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+	spi1_clr_clk: clr_clk {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO88__FUNC_GPIO88>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+};
+
+&spi1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	etspi-spi@0 {
+		compatible = "etspi,et7xx";
+		reg = <0x00>;
+		spi-max-frequency = <25000000>;
+
+		pinctrl-names = "spi_set_miso", "spi_set_cs", "spi_set_mosi", "spi_set_clk",
+						"spi_clr_miso", "spi_clr_cs", "spi_clr_mosi", "spi_clr_clk",
+						"btp_sleep", "btp_ldo";
+		pinctrl-0 = <&spi1_set_miso>;
+		pinctrl-1 = <&spi1_set_cs>;
+		pinctrl-2 = <&spi1_set_mosi>;
+		pinctrl-3 = <&spi1_set_clk>;
+		pinctrl-4 = <&spi1_clr_miso>;
+		pinctrl-5 = <&spi1_clr_cs>;
+		pinctrl-6 = <&spi1_clr_mosi>;
+		pinctrl-7 = <&spi1_clr_clk>;
+		pinctrl-8 = <&btp_sleep>;
+		pinctrl-9 = <&btp_ldo_en>;
+
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		etspi-sleepPin = <&pio 53 0>;
+		etspi-ldoPin = <&pio 77 0>;
+		etspi-chipid = "ET713";
+		etspi-modelinfo = "A315";
+		etspi-position = "8.97,0.00,9.10,9.10,14.80,14.80,12.00,12.00,5.00";
+		etspi-rb = "525,-1,-1";
+		controller-data {
+			mediatek,tckdly = <1>;
+		};
+	};
+};

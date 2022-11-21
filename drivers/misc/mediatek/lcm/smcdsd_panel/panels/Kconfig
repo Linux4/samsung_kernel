@@ -1,0 +1,36 @@
+if MTK_FB && !DRM_MEDIATEK && SMCDSD_PANEL
+
+config SMCDSD_LCD_DEBUG
+	bool "Support LCD_DEBUG"
+	default n
+
+config SMCDSD_DPUI
+	bool "Support DPUI"
+	default n
+
+config SMCDSD_MDNIE
+	bool "Support MDNIE"
+	default n
+
+config SMCDSD_DOZE
+	bool "Support DOZE"
+	default n
+
+config SMCDSD_DOZE_USE_NEEDLOCK
+	bool "Support DOZE nedd lock"
+	default n
+
+config SMCDSD_MASK_LAYER
+	bool "Support mask layer"
+	default n
+
+config SMCDSD_DYNAMIC_MIPI
+	bool "Support dynamic mipi"
+	default n
+
+config SMCDSD_S6E3FC3_A32
+	bool "Support SMCDSD_PANEL_A32 driver"
+	default n
+
+endif # MTK_FB && !DRM_MEDIATEK && SMCDSD_PANEL
+
