@@ -1,0 +1,19 @@
+#
+# Ccic strange devices
+#
+
+comment "Pdic samsung features"
+config SEC_SVDM
+	boolean "USB CCIC Notifier using QC PMIC"
+	depends on USB_NOTIFY_LAYER
+	default n
+	help
+	  Enable driver for samsung UVDM
+
+config CCIC_ALTERNATE_MODE
+	bool "support CCIC alternate mode"
+	depends on USB_NOTIFY_LAYER
+	default n
+	help
+	  If you say yes here you will get support for
+	  alternate mode
