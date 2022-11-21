@@ -1,0 +1,56 @@
+#
+#
+#
+menuconfig VIBETONZ
+	tristate "Vibetonz"
+	help
+	  Say Y to enable Vibetonz support.
+
+config DRV2603
+	tristate "TI DRV2603 haptic"
+	default n
+	depends on ANDROID_TIMED_OUTPUT
+	help
+		If you say yes here you will get support for the
+		haptic driver of TI DRV2603.
+
+config SEC_VIB
+	tristate "SEC DC Vibrator"
+	default n
+	depends on ANDROID_TIMED_OUTPUT
+	help
+		If you say yes here you will get support for the
+		SEC DC Vibrator.
+
+config IMM_VIB
+	tristate "Immersion TouchSense"
+	default n
+	help
+	  Say Y to enable Immersion TouchSense.
+
+config IMM_DRV_VERSION_3_7
+	tristate "Immersion 3.7 motor driver"
+	default n
+	help
+	  Say Y to enable Immersion 3.7 motor driver.
+
+config BD6478
+        tristate "BD6478 motor"
+        default n
+        depends on ANDROID_TIMED_OUTPUT
+        help
+          Say Y to enalbe the DC motor.
+
+config MOTOR_DRV_DRV2603V
+	tristate "DRV2603V motor"
+	default n
+	help
+	  Say Y to enable the DRV2603V IC.
+
+config ISA1000
+	tristate "IMAGIS ISA1000"
+	default n
+	depends on ANDROID_TIMED_OUTPUT
+	help
+		If you say yes here you will get support for the
+		haptic driver of IMAGIS ISA1000.
