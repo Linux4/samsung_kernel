@@ -1,0 +1,9 @@
+#
+# IR_LED
+#
+config SEC_IRLED
+	bool "SEC IrLED driver"
+	depends on I2C
+	default n
+	help
+		Say Y here to enable the SEC IrLED driver using AVOV MC96 IC.

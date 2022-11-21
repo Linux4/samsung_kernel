@@ -1,0 +1,81 @@
+/*
+ * Copyright (c) [2009-2013] Marvell International Ltd. and its affiliates.
+ * All rights reserved.
+ * This software file (the "File") is owned and distributed by Marvell
+ * International Ltd. and/or its affiliates ("Marvell") under the following
+ * licensing terms.
+ * If you received this File from Marvell, you may opt to use, redistribute
+ * and/or modify this File in accordance with the terms and conditions of
+ * the General Public License Version 2, June 1991 (the "GPL License"), a
+ * copy of which is available along with the File in the license.txt file
+ * or by writing to the Free Software Foundation, Inc., 59 Temple Place,
+ * Suite 330, Boston, MA 02111-1307 or on the worldwide web at
+ * http://www.gnu.org/licenses/gpl.txt. THE FILE IS DISTRIBUTED AS-IS,
+ * WITHOUT WARRANTY OF ANY KIND, AND THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE ARE EXPRESSLY
+ * DISCLAIMED. The GPL License provides additional details about this
+ * warranty disclaimer.
+ * Filename     : osa_list.c
+ * Author       : Dafu Lv
+ * Date Created : 21/03/08
+ * Description  : This is the source code of list-related functions in osa.
+ *
+ */
+
+/*
+ ******************************
+ *          HEADERS
+ ******************************
+ */
+
+#include <osa.h>
+
+void osa_list_init_head(struct osa_list *head)
+{
+	OSA_ASSERT(head);
+
+	head->next = head;
+	head->prev = head;
+}
+OSA_EXPORT_SYMBOL(osa_list_init_head);
+
+void osa_list_add(struct osa_list *entry, struct osa_list *head)
+{
+	OSA_ASSERT(entry);
+	OSA_ASSERT(head);
+
+	entry->next = head->next;
+	entry->prev = head;
+	head->next->prev = entry;
+	head->next = entry;
+}
+OSA_EXPORT_SYMBOL(osa_list_add);
+
+void osa_list_add_tail(struct osa_list *entry, struct osa_list *head)
+{
+	OSA_ASSERT(entry);
+	OSA_ASSERT(head);
+
+	entry->next = head;
+	entry->prev = head->prev;
+	head->prev->next = entry;
+	head->prev = entry;
+}
+OSA_EXPORT_SYMBOL(osa_list_add_tail);
+
+void osa_list_del(struct osa_list *entry)
+{
+	OSA_ASSERT(entry);
+
+	entry->prev->next = entry->next;
+	entry->next->prev = entry->prev;
+}
+OSA_EXPORT_SYMBOL(osa_list_del);
+
+bool osa_list_empty(struct osa_list *head)
+{
+	OSA_ASSERT(head);
+
+	return ((head->next == head) && (head->prev == head));
+}
+OSA_EXPORT_SYMBOL(osa_list_empty);

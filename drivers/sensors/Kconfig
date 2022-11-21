@@ -1,0 +1,37 @@
+
+menuconfig NEW_SENSORS
+	bool "Sensors Support"
+	help
+		Say Y to enable Sensors support. This allows control of supported
+		Sensors.
+
+if NEW_SENSORS
+
+config SENSORS_BMC150
+	tristate "BMC150 combo sensor support"
+	depends on I2C=y
+	help
+	  If you say yes here you get support for Bosch Sensortec's 
+	  acceleration sensors BMA222E/BMM050
+
+config SENSORS_GP2A0X0
+	depends on I2C
+	tristate "GP2AP020A00F driver"
+	default n
+	help
+	  This option enables proximity & light sensors using gp2ap020a00f driver.
+
+config SENSORS_ASP01
+	depends on I2C
+	tristate "ASP01 Grip Sensor Support"
+	default n
+	help
+	  Say Y here if you use ATSN01P.
+	  This option enables Grip sensors using
+	  AD SEMICON ATSN01P device driver.
+	  Say N here if you do not use ASP01.
+
+source "drivers/sensors/core/Kconfig"
+
+endif
+

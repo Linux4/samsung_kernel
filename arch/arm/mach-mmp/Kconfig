@@ -1,0 +1,338 @@
+if ARCH_MMP
+
+menu "Marvell PXA168/910/MMP2 Implmentations"
+
+config MACH_ASPENITE
+	bool "Marvell's PXA168 Aspenite Development Board"
+	select CPU_PXA168
+	help
+	  Say 'Y' here if you want to support the Marvell PXA168-based
+	  Aspenite Development Board.
+
+config MACH_ZYLONITE2
+	bool "Marvell's PXA168 Zylonite2 Development Board"
+	select CPU_PXA168
+	help
+	  Say 'Y' here if you want to support the Marvell PXA168-based
+	  Zylonite2 Development Board.
+
+config MACH_AVENGERS_LITE
+	bool "Marvell's PXA168 Avengers Lite Development Board"
+	select CPU_PXA168
+	help
+	  Say 'Y' here if you want to support the Marvell PXA168-based
+	  Avengers Lite Development Board.
+
+config MACH_TAVOREVB
+	bool "Marvell's PXA910 TavorEVB Development Board"
+	select CPU_PXA910
+	help
+	  Say 'Y' here if you want to support the Marvell PXA910-based
+	  TavorEVB Development Board.
+
+config MACH_TTC_DKB
+	bool "Marvell's PXA910 TavorEVB Development Board"
+	select CPU_PXA910
+	help
+	  Say 'Y' here if you want to support the Marvell PXA910-based
+	  TTC_DKB Development Board.
+
+config MACH_BROWNSTONE
+	bool "Marvell's Brownstone Development Platform"
+	depends on !CPU_MOHAWK
+	select CPU_MMP2
+	help
+	  Say 'Y' here if you want to support the Marvell MMP2-based
+	  Brown Development Platform.
+	  MMP2-based board can't be co-existed with PXA168-based &
+	  PXA910-based development board. Since MMP2 is compatible to
+	  ARMv7 architecture.
+
+config MACH_FLINT
+	bool "Marvell's Flint Development Platform"
+	depends on !CPU_MOHAWK
+	select CPU_MMP2
+	help
+	  Say 'Y' here if you want to support the Marvell MMP2-based
+	  Flint Development Platform.
+	  MMP2-based board can't be co-existed with PXA168-based &
+	  PXA910-based development board. Since MMP2 is compatible to
+	  ARMv7 architecture.
+
+config MACH_MARVELL_JASPER
+	bool "Marvell's Jasper Development Platform"
+	depends on !CPU_MOHAWK
+	select CPU_MMP2
+	help
+	  Say 'Y' here if you want to support the Marvell MMP2-base
+	  Jasper Development Platform.
+	  MMP2-based board can't be co-existed with PXA168-based &
+	  PXA910-based development board. Since MMP2 is compatible to
+	  ARMv7 architecture.
+
+config MACH_TETON_BGA
+	bool "Marvell's PXA168 Teton BGA Development Board"
+	select CPU_PXA168
+	help
+	  Say 'Y' here if you want to support the Marvell PXA168-based
+	  Teton BGA Development Board.
+
+config MACH_GPLUGD
+	bool "Marvell's PXA168 GuruPlug Display (gplugD) Board"
+	select CPU_PXA168
+	help
+	  Say 'Y' here if you want to support the Marvell PXA168-based
+	  GuruPlug Display (gplugD) Board
+
+config MACH_YELLOWSTONE
+	bool "Marvell's MMP3 YellowStone Development Board"
+	select CPU_MMP3
+	select HAVE_PWM
+	help
+	  Say 'Y' here if you want to support the Marvell MMP3-based
+	  YellowStone Development Board
+
+config MACH_MMP_DT
+	bool "Support MMP (ARMv5) platforms from device tree"
+	select CPU_PXA168
+	select CPU_PXA910
+	select USE_OF
+	help
+	  Include support for Marvell MMP2 based platforms using
+	  the device tree. Needn't select any other machine while
+	  MACH_MMP_DT is enabled.
+
+config MACH_MMP2_DT
+	bool "Support MMP2 (ARMv7) platforms from device tree"
+	depends on !CPU_MOHAWK
+	select CPU_MMP2
+	select USE_OF
+	help
+	  Include support for Marvell MMP2 based platforms using
+	  the device tree.
+
+config MACH_EMEIDKB
+	bool "Marvell's PXA988 Emei DKB Development Board"
+	select CPU_PXA988
+	select HAVE_PWM
+	help
+	  Say 'Y' here if you want to support the Marvell PXA988-based
+	  EMEIDKB Development Board.
+	  EMEIDKB board is an evalutation board, not phone like.
+
+config MACH_ARUBA_TD
+	bool "Samsung's ARUBA TD Development Board"
+	select CPU_PXA988
+	select ARCH_NEEDS_CPU_IDLE_COUPLED
+	help
+	  Say 'Y' here if you want to support the Marvell PXA988-based
+	  ARUBA Development Board.
+
+config MACH_HENDRIX
+        bool "Samsung's hendrix Development Board"
+        select CPU_PXA988
+	select ARCH_NEEDS_CPU_IDLE_COUPLED
+        help
+          Say 'Y' here if you want to support the Marvell PXA986-based
+          hendrix Development Board.
+
+config MACH_LT02
+	bool "Samsung's PXA986 LT02 Development Board"
+	select CPU_PXA988
+	select HAVE_PWM
+	select ARCH_NEEDS_CPU_IDLE_COUPLED
+	help
+		Say 'Y' here if you want to support the Marvell PXA986-based
+		LT02 Development Board.
+
+config MACH_COCOA7
+	bool "Samsung's PXA986 COCOA7 Development Board"
+	select CPU_PXA988
+	select HAVE_PWM
+	select ARCH_NEEDS_CPU_IDLE_COUPLED
+	help
+		Say 'Y' here if you want to support the Marvell PXA986-based
+		Cocoa7 Development Board.
+
+config WIFIONLY_BOARD
+	bool "wifi-only Board"
+	default n
+	depends on MACH_LT02 || MACH_COCOA7
+	help
+		Say 'Y' here if you want to support the Marvell PXA986-based
+		LT02 Series Wifi only (Excluded 3G RF) Board.
+
+config MACH_LT02LGT
+	default n
+	bool "Samsung model LT02LGT"
+	select CPU_PXA988
+	help
+	  Support for Samsung LT02LGT device.
+
+config MACH_LT02_BBY
+	default n
+	bool "LT02 Best Buy device"
+	select CPU_PXA988
+	help
+          Support for Best Buy device.
+
+config FAKE_SYSTEMOFF
+        bool "Marvell's MABOS support"
+        depends on SUSPEND
+        help
+	  MABOS: Marvell Android Bootup Optimization Solution
+	  It is used to support phone fast power on feature, this feature
+	  is based on system suspend.
+
+endmenu
+
+menu "Samsung Product Features"
+config SAMSUNG_PRODUCT_SHIP
+        bool "set up for product for shipping"
+config SEC_DEBUG_LEVEL
+	int "set up debug level"
+	default 1
+endmenu
+
+config CPU_PXA168
+	bool
+	select CPU_MOHAWK
+	help
+	  Select code specific to PXA168
+
+config CPU_PXA910
+	bool
+	select CPU_MOHAWK
+	help
+	  Select code specific to PXA910
+
+config CPU_PXA988
+	bool
+	select CPU_CA9MP
+	select SOC_LOCAL_TIMERS
+	select MIGHT_HAVE_CACHE_L2X0
+	select ARCH_PROVIDES_UDELAY
+	select ARM_HAS_SG_CHAIN
+	select EOF_FC_WORKAROUND
+	help
+	  Say 'Y' here if you want to support the Marvell pxa988-base
+	  platforms.
+	  The PXA988 is an SoC with dual-core Cotex-A9 and comunication
+	  processor, code name "Emei".
+
+config CPU_MMP2
+	bool
+	select CPU_PJ4
+	help
+	  Select code specific to MMP2. MMP2 is ARMv7 compatible.
+
+config CPU_MMP3
+	bool
+	select CACHE_TAUROS3
+	select CPU_PJ4B
+	select ARM_GIC
+	select HAVE_SMP
+	select LOCAL_TIMERS if SMP
+	help
+	  Select code specific to MMP3. MMP3 is ARMv7 compatible, and support SMP.
+
+config CPU_CA9MP
+	bool
+	select CPU_V7
+	select ARM_GIC
+	select HAVE_SMP
+	help
+	  Select code specific to Cortex A9
+
+config CPU_CA7MP
+	bool
+	select CPU_V7
+	select ARM_GIC
+	select HAVE_SMP
+	help
+	  Select code specific to Cortex A7
+
+config USB_EHCI_MV_U2O
+        bool "EHCI support for PXA USB OTG controller"
+	depends on USB_EHCI_MV
+	help
+	  Enables support for OTG controller which can be switched to host mode.
+
+config EOF_FC_WORKAROUND
+	bool
+	help
+	  Enables EOF workaround for DDR freq-change.
+
+config CORESIGHT_SUPPORT
+	bool "support save/restore coresight setting when enter/exit LPM"
+	depends on CPU_PM
+	help
+	  Enables support save/restore coresight setting when enter/exit LPM.
+
+choice
+	prompt "Support dynamic CPU Hotplug"
+	depends on HOTPLUG_CPU
+	default NO_HOTPLUG_POLICY
+
+config MMP_ORIGINAL_POLICY
+	bool "MMP dual core Hotplug policy"
+	depends on CPU_PXA988
+	help
+	  PM hotplug policy.
+	  This hotplug policy is first used policy on MMP platform.
+
+config STAND_ALONE_POLICY
+	bool "Stand alone CPU hotplug policy"
+	help
+	  PM hotplug policy.
+	  Enable to use pm hotplug, then it uses stand-hotplug.c file.
+	  Avg-load is calculated with both cpu frequency aspect
+	  and run queue status.
+
+config NO_HOTPLUG_POLICY
+	bool "NO automatic CPU hotplug policy"
+	help
+	  PM hotplug policy
+	  Do not select an automatic hotplug policy
+endchoice
+
+config SPA
+        tristate "Samsung Power&Accessory"
+        help
+         Samsung Power&Accessory
+
+config SPA_LPM_MODE
+	tristate "power off charging mode"
+	depends on SPA
+	help
+	  power off charging mode
+
+config STC3115_FUELGAUGE
+        tristate "STC3105_FUELGAUGE"
+        help
+         STC3105_FUELGAUGE
+
+config FSA9480_MICROUSB
+        tristate "FSA9480_MICROUSB"
+        help
+         FSA9480_MICROUSB
+
+config BQ24157_CHARGER
+	tristate "BQ24157_CHARGER"
+	help
+	 BQ24157_CHARGER
+
+config BT_MGMT
+	bool "Bluetooth Mgmt"
+	default n
+	help
+	  This is for bluetooth mgmt
+
+config SEC_THERMISTOR
+	bool "Use external thermistor with ADC"
+	depends on CPU_PXA988
+	default n
+	help
+	  Use thermistor driver to check system temperature
+
+endif

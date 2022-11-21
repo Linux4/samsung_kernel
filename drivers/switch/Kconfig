@@ -1,0 +1,39 @@
+menuconfig SWITCH
+	tristate "Switch class support"
+	help
+	  Say Y here to enable switch class support. This allows
+	  monitoring switches by userspace via sysfs and uevent.
+
+if SWITCH
+
+config SWITCH_GPIO
+	tristate "GPIO Swith support"
+	depends on GENERIC_GPIO
+	help
+	  Say Y here to enable GPIO based switch support.
+
+config SWITCH_88PM860X_HS
+	tristate "88pm806x Headset Switch support"
+	depends on GENERIC_GPIO && MFD_88PM860X
+	help
+	  Say Y here to enable 88pm860x headset & hook switch support.
+
+config SWITCH_88PM800_HS
+	tristate "88pm800 Headset Switch support"
+	depends on GENERIC_GPIO && MFD_88PM800
+	help
+	  Say Y here to enable headset & hook switch support.
+
+config SWITCH_88PM800_HS_SEC
+	tristate "88pm800 Headset Switch support for SEC"
+	depends on GENERIC_GPIO && MFD_88PM800
+	help
+	  Say Y here to enable headset & hook switch support.
+
+config SAMSUNG_JACK 
+	bool "3.5MM ear jack KSND driver for Samsung devices on Marvell PXA986"
+	depends on GENERIC_GPIO && MFD_88PM800
+	help
+	  Say Y here to enable headset & hook switch support.
+
+endif # SWITCH

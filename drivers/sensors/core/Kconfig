@@ -1,0 +1,11 @@
+#
+# Sensors core device.
+#
+
+config SENSORS_CORE
+	tristate "Sensors core"
+	default n
+	help
+	  Say Y here to enable debugging messages for power supply class
+	  and drivers.
+
