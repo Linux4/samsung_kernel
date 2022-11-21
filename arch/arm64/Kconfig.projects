@@ -1,0 +1,12 @@
+config SEC_M23XQ_PROJECT
+	default n
+	bool "Samsung M23XQ Project"
+	help
+	  Support for Samsung M23XQ Project
+
+config MACH_M23XQ_EUR_OPEN
+	default n
+	bool "Samsung M23XQ EUR OPEN"
+	help
+	  Support for Samsung M23XQ EUR OPEN device.
+
