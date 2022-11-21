@@ -1,0 +1,174 @@
+#
+# Near Field Communication (NFC) devices
+#
+
+menu "Near Field Communication (NFC) devices"
+	depends on NFC
+
+config NFC_PN533
+	tristate "NXP PN533 USB driver"
+	depends on USB
+	help
+	  NXP PN533 USB driver.
+	  This driver provides support for NFC NXP PN533 devices.
+
+	  Say Y here to compile support for PN533 devices into the
+	  kernel or say M to compile it as module (pn533).
+
+config NFC_WILINK
+	tristate "Texas Instruments NFC WiLink driver"
+	depends on TI_ST && NFC_NCI
+	help
+	  This enables the NFC driver for Texas Instrument's BT/FM/GPS/NFC
+	  combo devices. This makes use of shared transport line discipline
+	  core driver to communicate with the NFC core of the combo chip.
+
+	  Say Y here to compile support for Texas Instrument's NFC WiLink driver
+	  into the kernel or say M to compile it as module.
+
+config NFC_MEI_PHY
+	tristate "MEI bus NFC device support"
+	depends on INTEL_MEI && NFC_HCI
+	help
+	  This adds support to use an mei bus nfc device. Select this if you
+	  will use an HCI NFC driver for an NFC chip connected behind an
+	  Intel's Management Engine chip.
+
+	  If unsure, say N.
+
+source "drivers/nfc/pn544/Kconfig"
+source "drivers/nfc/microread/Kconfig"
+
+endmenu
+
+config NFC_QNCI
+	bool "Qualcomm NCI based NFC Controller Driver for qca199x"
+	depends on I2C
+	select CRC_CCITT
+	help
+	  This enables the NFC driver for QCA199x based devices.
+	  This is for i2c connected version. NCI protocol logic
+	  resides in the usermode and it has no other NFC dependencies.
+
+config NFC_PN547
+	bool "NXP PN547 NFC Controller Driver"
+	depends on I2C
+	default n
+	help
+	  NXP PN547 Near Field Communication controller support.
+	  This option enables device driver support for the NFC.
+	  It is used by many services. NFC is fully controlled using I2C
+	  to communication.
+
+config NFC_PN547_8916_USE_BBCLK2
+	  bool "NXP PN547 NFC CLOCK Controller"
+	  depends on NFC_PN547
+	  default n
+	  help
+	  NXP PN547 Near Field Communication controller support.
+	  This option enables device driver support for the NFC.
+	  It is used by many services. NFC is fully controlled using I2C
+	  to communicate the AP chip.
+
+config NFC_PN547_8916_CLK_CTL
+	  bool "NXP PN547 NFC CLOCK Control"
+	  depends on NFC_PN547
+	  default n
+	  help
+	  NXP PN547 Near Field Communication controller support.
+	  This option control the clock in suspend and resume.
+
+config NFC_PN547_USE_EXTERNAL_LDO_VIO
+	bool "NXP PN547 NFC POWER Control"
+	depends on NFC_PN547
+	default n
+	help
+	  NXP PN547 Near Field Communication controller support.
+	  This option enables device driver support for the NFC.
+	  It is used by PN547 device driver uses external LDO as VIO power supply.
+config SEC_NFC_I2C
+        tristate "SEC NFC driver for I2C interface"
+        depends on I2C
+        default n
+        help
+          Say yes if you want System LSI Near Field Communication driver.
+          This is for spi connected version. If unsure, say N here.
+          To compile this driver as a module, choose m here. The module will
+          be called sec-nfc-i2c.
+
+config SEC_NFC
+        bool "Samsung NFC driver"
+        default n
+        help
+          SAMSUNG NFC Driver.
+          This driver provides support for SAMSUNG NFC products.
+          You should select your NFC product and interface.
+
+          Say Y here to compile support for SAMSUNG NFC driver into the
+          kernel.
+
+choice
+        prompt "SEC NFC Products"
+        depends on SEC_NFC
+        default SEC_NFC_PRODUCT_N5
+config SEC_NFC_PRODUCT_N3
+        bool "N3"
+config SEC_NFC_PRODUCT_N5
+        bool "N5"
+endchoice
+
+choice
+        prompt "SEC NFC Interface"
+        depends on SEC_NFC
+        default SEC_NFC_IF_I2C
+config SEC_NFC_IF_UART
+        bool "UART"
+config SEC_NFC_IF_I2C
+        depends on I2C
+        bool "I2C"
+config SEC_NFC_IF_I2C_GPIO
+        bool "I2C-GPIO (S/W-I2C)"
+        select I2C_ALGOBIT
+endchoice
+
+config SEC_NFC_CLK_REQ
+        bool "External clock control (RF clock)"
+        depends on SEC_NFC_PRODUCT_N5
+        default n
+        help
+          Driver controls NFC external clock.
+          This option should be enabled to control NFC external clock.
+          you should select if your NFC device requests exnternal clock.
+
+          Say Y here to compile support for exnternal clock control in the kernel.
+
+config SEC_NFC_USE_8916_RFCLK2
+	bool "Use PM8916 RF_CLK2 clock"
+	depends on SEC_NFC_CLK_REQ
+	default n
+	help
+	  Use PM8916 RF_CLK2 clock to NFC external clock (RF clock).
+	  This option should be enabled if you use PMIC(8916) RF_CLK2 for NFC
+	  external clock.
+
+config SEC_NFC_USE_8916_BBCLK2
+	bool "Use PM8916 BB_CLK2 clock"
+	depends on SEC_NFC
+	default n
+	help
+	  Use PM8916 RF_CLK2 clock to NFC external clock (RF clock).
+	  This option should be enabled if you use PMIC(8916) RF_CLK2 for NFC
+	  external clock.
+
+config SEC_NFC_CLK_ALWAYS_ENABLE
+	bool "Make NFC clock always enabled when NFC is on"
+	depends on SEC_NFC
+	default n
+	help
+	  Make NFC clock always enabled when NFC is on because of
+	  GPS performance issue.
+
+config SEC_NFC_IO_EN
+        bool "SEC NFC IO EN"
+	    depends on I2C
+        default n
