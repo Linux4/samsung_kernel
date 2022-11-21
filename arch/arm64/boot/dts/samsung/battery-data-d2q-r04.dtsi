@@ -1,0 +1,38 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/* This dtsi is for hw rev from 04 to 05 */
+#include "battery-data-d2q-common.dtsi"
+#include "battery-rx-data-d2q-lsi.dtsi"
+
+&qupv3_se4_i2c {
+	pca9468@57 {
+		pca9468,irq-gpio = <&tlmm 96 GPIO_ACTIVE_LOW>; /* DC_IRQ */
+	};
+};
+
+&soc {
+	battery {
+		pinctrl-0 = <&wpc_det_default &wpc_thm_default>;
+	};
+	max77705-fuelgauge {
+		fuelgauge,fg_resistor = <2>;
+		fuelgauge,capacity = <0x0FB3>;
+	};
+	i2c@22 {
+		mfc-s2miw04-charger@3b {
+			pinctrl-0 = <&mfc_irq_default &mfc_pdet_default>;	
+			battery,ping_nen = <&pm8150_gpios 6 GPIO_ACTIVE_LOW>; /* PING_nEN */
+			/delete-property/ battery,vrect_int;
+		};
+	};
+};
