@@ -1,0 +1,23 @@
+/dts-v1/;
+
+/ {
+	dtbo-version = <0x1>;
+
+	fragment@0 {
+		target = <0xffffffff>;
+
+		__overlay__ {
+
+			gpio_keys {
+
+				vol_up {
+					debounce-interval = <0xe>;
+				};
+			};
+		};
+	};
+
+	__fixups__ {
+		soc = "/fragment@0:target:0";
+	};
+};

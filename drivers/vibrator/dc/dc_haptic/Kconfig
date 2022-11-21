@@ -1,0 +1,20 @@
+#
+#
+#
+config DC_HAPTIC_VIBRATOR
+	tristate "SEC DC Haptic Vibrator"
+	default n
+	help
+	  If you say yes here you will get support for the
+	  SEC DC Vibrator. This will also support haptic
+	  feedback with DC motor.
+
+config USE_HAPTIC_DURATIONS
+	tristate "SUPPORT haptic_durations node"
+	default n
+	help
+	  If you say yes here you will use haptic duration interface
+	  instead of haptic intensities interface.
+	  In ONEUI 3.1 models, we will use haptic intensities interface,
+	  and from ONEUI 3.5, we will use haptic duration interface
+
