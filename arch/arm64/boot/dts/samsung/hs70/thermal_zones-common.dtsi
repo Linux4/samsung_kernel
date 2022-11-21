@@ -1,0 +1,152 @@
+//charge-thermal
+&thermal_zones {
+	charge-thermal {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&pm8953_vadc 0x11>;
+		thermal-governor = "user_space";
+
+		trips {
+			active-config0 {
+				temperature = <65000>;
+				hysteresis = <5000>;
+				type = "passive";
+			};
+		};
+	};
+};
+
+&pm8953_vadc {
+
+	pinctrl-0 = <&pa_therm1_default &charge_therm_default>;
+
+	chan@11 {
+		label = "charge-thermal";
+		reg = <0x11>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+		qcom,vadc-thermal-node;
+	};
+};
+
+&pm8953_mpps {
+	charge_therm {
+		charge_therm_default: charge_therm_default {
+			pins = "mpp2";
+			function = "analog";
+			input-enable;
+			qcom,amux-route = <3>;
+		};
+	};
+};
+
+//MSM-thermal
+&thermal_zones {
+	MSM-thermal {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&pm8953_adc_tm 0x13>;
+		thermal-governor = "user_space";
+		wake-capable-sensor;
+
+		trips {
+			active-config0 {
+				temperature = <65000>;
+				hysteresis = <1000>;
+				type = "passive";
+			};
+		};
+	};
+};
+
+&pm8953_vadc {
+
+	pinctrl-0 = <&pa_therm1_default &MSM_therm_default>;
+
+	chan@13 {
+		label = "MSM_therm";
+		reg = <0x13>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+		//qcom,vadc-thermal-node;
+	};
+};
+
+&pm8953_adc_tm {
+	chan@13 {
+		label = "MSM_therm";
+		reg = <0x13>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,decimation = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,btm-channel-number = <0x68>;
+		qcom,fast-avg-setup = <0>;
+		qcom,thermal-node;
+	};
+};
+
+&pm8953_mpps {
+	MSM_therm {
+		MSM_therm_default: MSM_therm_default {
+			pins = "mpp4";
+			function = "analog";
+			input-enable;
+			qcom,amux-route = <3>;
+		};
+	};
+};
+
+//xo-therm-adc
+&thermal_zones {
+	xo-therm-adc {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&pm8953_vadc 0x32>;
+		thermal-governor = "user_space";
+		//wake-capable-sensor;
+
+		trips {
+			active-config0 {
+				temperature = <65000>;
+				hysteresis = <1000>;
+				type = "passive";
+			};
+		};
+	};
+};
+
+&pm8953_vadc {
+	chan@32 {
+		label = "xo_therm";
+		reg = <0x32>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <4>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+		qcom,vadc-thermal-node;
+	};
+};
+
+/* HS70 add for HS70-196 disable quiet-therm-step by qianyingdong at 2019/10/16 start */
+&thermal_zones {
+	quiet-therm-step {
+		status = "disabled";
+	};
+
+	quiet-therm-adc {
+		disable-thermal-zone;	/* This irq is disabled temporarily due to irq stroming */
+	};
+};
+/* HS70 add for HS70-196 disable quiet-therm-step by qianyingdong at 2019/10/16 end */

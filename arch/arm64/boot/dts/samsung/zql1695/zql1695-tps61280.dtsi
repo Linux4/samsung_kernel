@@ -1,0 +1,10 @@
+&i2c_2 { /* BLSP1 QUP1 */
+	status = "okay";
+	tps61280@75 {
+		compatible = "ti,tps61280";
+		reg = <0x75>;
+		tps61280,chip_enable = <&tlmm 104 0x01>;
+		//tps61280,chip_vsel = <&tlmm 111 0x01>;
+		status = "ok";
+	};
+};
