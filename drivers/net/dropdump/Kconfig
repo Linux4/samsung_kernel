@@ -1,0 +1,13 @@
+#
+# net: logging dropped skb
+#
+
+comment "Enable Dropdump to logging dropped network packet"
+
+config SUPPORT_DROPDUMP
+	tristate "Network packet drop logging service for tcpdump"
+	---help---
+	This feature just provide an /proc/sys/net/core/support_dropdump node,
+	whether this kernel supports 'dropdump' which is used at libpcap.
+	If node exist, then it supports.
+	If node doesn't exist, then it doesn't support.
