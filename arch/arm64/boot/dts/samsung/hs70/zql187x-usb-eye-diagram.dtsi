@@ -1,0 +1,17 @@
+&qusb_phy{
+	qcom,qusb-phy-init-seq = <0xf8 0x80
+	/* HS70 modify for HS70-3242 optimize usb eye diagram by qianyingdong at 2019/12/25 start */
+					0x53 0x84
+	/* HS70 modify for HS70-3242 optimize usb eye diagram by qianyingdong at 2019/12/25 end */
+	/* HS70 modify for HQ00001 optimize Device Receiver Sensitivity by qianyingdong at 2020/03/04 start */
+					0x81 0x88
+	/* HS70 modify for HQ00001 optimize Device Receiver Sensitivity by qianyingdong at 2020/03/04 end */
+					0xc7 0x8c
+					0x14 0x9c
+					0x30 0x08
+					0x79 0x0c
+					0x21 0x10
+					0x00 0x90
+					0x9f 0x1c
+					0x00 0x18>;
+};
