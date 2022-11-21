@@ -1,0 +1,42 @@
+* RT5508 SPK AMP controller
+
+Required Specific Properties:
+
+- compatible : "richtek,rt5508"
+
+Optional Specific Properties:
+
+- rt,chan_sel : default channel selection.
+                0 -> left channel
+		1 -> (L+R)/2
+		2 -> right channel
+
+- rt,do_enable : data output enable or not.
+
+- rt,tdm_dac_slot : default tdm dac slot chosen.
+		    0 -> If channel sel is left, then dac will be chosen to TDM slot 0.
+			 otherwise, channel sel is right, dac will be chosen to TDM slot 1.
+		    1 -> If channel sel is left, then dac will be chosen to TDM slot 2.
+			 otherwise, channel sel is right, dac will be chosen to TDM slot 3.
+
+- rt,tdm_adc_slot : default tdm adc slot chosen.
+		    0 -> If channel sel is left, then adc will be chosen to TDM slot 0.
+			 otherwise, channel sel is right, adc will be chosen to TDM slot 1.
+		    1 -> If channel sel is left, then adc will be chosen to TDM slot 2.
+			 otherwise, channel sel is right, adc will be chosen to TDM slot 3.
+
+- rt,tdm_mode : tdm mode enable or not.
+
+- proprietary_param : proprietary param for Richtek RT5508,
+		      something liks as the speaker protection/MBDRC/ALC, etc...
+
+Example:
+
+	i2c@12C70000 {
+		status = "ok";
+		rt5508: rt5508@34 {
+			status = "ok";
+			compatible = "richtek,rt5508";
+			reg = <0x34>;
+		};
+	};
