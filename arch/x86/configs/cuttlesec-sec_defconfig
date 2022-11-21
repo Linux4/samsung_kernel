@@ -1,0 +1,33 @@
+
+#
+# Please leave the first line blank
+#
+
+# SEC CONFIGS
+CONFIG_SEC_REBOOT=m
+CONFIG_SEC_KEY_NOTIFIER=m
+CONFIG_SEC_PARAM=m
+CONFIG_DRV_SAMSUNG=y
+CONFIG_SEC_DEBUG_BASE=m
+
+# USB Feature
+CONFIG_GKI_USB=y
+
+# Experimental Features
+CONFIG_F2FS_FS_COMPRESSION=y
+
+# not support jsqz driver
+CONFIG_VIDEO_EXYNOS_JPEG_SQZ=n
+
+# disable rbin patch in drivers/staging/android/ion/heaps/ion_rbin_heap.c
+CONFIG_ION_RBIN_HEAP=n
+
+# diable dmabuf_trace in drivers/dma-buf/dma-buf-trace.c
+CONFIG_DMABUF_TRACE=n
+
+# disable exy
+CONFIG_VIDEO_EXYNOS_MC_FRC=n
+
+#
+# please don't remove new line on this file
+#
