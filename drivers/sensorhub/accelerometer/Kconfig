@@ -1,0 +1,69 @@
+#
+# sensor drivers configuration
+#
+
+config SENSORS_SSP_ACCELOMETER
+	tristate "Sensors ssp accelometer sensor"
+	default n
+	depends on SPI
+	help
+	  accelerometer sensor file for factory test in ssp driver.
+          If you say yes here you get accelerometer sensor support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SENSORS_SSP_ACCELOMETER_ICM42605M
+	tristate "Sensors ssp accelometer sensor icm42605m"
+	default n
+	depends on SPI
+	help
+	  accelerometer sensor icm42605m file for factory test in ssp driver.
+          If you say yes here you get accelerometer sensor icm42605m support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SENSORS_SSP_ACCELOMETER_ICM42632M
+	tristate "Sensors ssp accelometer sensor icm42632m"
+	default n
+	depends on SPI
+	help
+	  accelerometer sensor icm42632m file for factory test in ssp driver.
+          If you say yes here you get accelerometer sensor icm42632m support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SENSORS_SSP_ACCELOMETER_LSM6DSL
+	tristate "Sensors ssp accelometer sensor lsm6dsl"
+	default n
+	depends on SPI
+	help
+	  accelerometer sensor lsm6dsl file for factory test in ssp driver.
+          If you say yes here you get accelerometer sensor lsm6dsl support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SENSORS_SSP_ACCELOMETER_K6DS3TR
+	tristate "Sensors ssp accelometer sensor k6ds3tr"
+	default n
+	depends on SPI
+	help
+	  accelerometer sensor k6ds3tr file for factory test in ssp driver.
+          If you say yes here you get accelerometer sensor k6ds3tr support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SENSORS_SSP_ACCELOMETER_LIS2DLC12
+	tristate "Sensors ssp accelometer sensor lis2dlc12"
+	default n
+	depends on SPI
+	help
+	  accelerometer sensor lis2dlc12 file for factory test in ssp driver.
+          If you say yes here you get accelerometer sensor lis2dlc12 support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.

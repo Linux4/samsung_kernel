@@ -1,0 +1,1637 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+#ifndef __NT36525B_BOE_PARAM_H__
+#define __NT36525B_BOE_PARAM_H__
+
+#include <linux/types.h>
+#include <linux/kernel.h>
+
+#define EXTEND_BRIGHTNESS	306
+#define UI_MAX_BRIGHTNESS	255
+#define UI_DEFAULT_BRIGHTNESS	128
+
+#define LDI_REG_BRIGHTNESS	0x51
+#define LDI_REG_ID		0xDA
+#define LDI_LEN_BRIGHTNESS	((u16)ARRAY_SIZE(SEQ_NT36525B_BOE_BRIGHTNESS))
+
+/* len is read length */
+#define LDI_LEN_ID		3
+
+#define TYPE_WRITE		I2C_SMBUS_WRITE
+#define TYPE_DELAY		U8_MAX
+
+static u8 LM36274_INIT[] = {
+	TYPE_WRITE, 0x0C, 0x2C,
+	TYPE_WRITE, 0x0D, 0x26,
+	TYPE_WRITE, 0x0E, 0x26,
+	TYPE_WRITE, 0x09, 0xBE,
+	TYPE_WRITE, 0x02, 0x6B,
+	TYPE_WRITE, 0x03, 0x27,
+	TYPE_WRITE, 0x11, 0x74,
+	TYPE_WRITE, 0x04, 0x05,
+	TYPE_WRITE, 0x05, 0xCC,
+	TYPE_WRITE, 0x10, 0x67,
+	TYPE_WRITE, 0x08, 0x13,
+};
+
+static u8 LM36274_EXIT[] = {
+	TYPE_WRITE, 0x09, 0x18,
+	TYPE_DELAY, 1, 0,
+	TYPE_WRITE, 0x08, 0x00,
+};
+
+struct lcd_seq_info {
+	unsigned char	*cmd;
+	unsigned int	len;
+	unsigned int	sleep;
+};
+
+static unsigned char SEQ_NT36525B_BOE_SLEEP_OUT[] = { 0x11 };
+static unsigned char SEQ_NT36525B_BOE_SLEEP_IN[] = { 0x10 };
+static unsigned char SEQ_NT36525B_BOE_DISPLAY_OFF[] = { 0x28 };
+static unsigned char SEQ_NT36525B_BOE_DISPLAY_ON[] = { 0x29 };
+
+static unsigned char SEQ_NT36525B_BOE_BRIGHTNESS[] = {
+	0x51,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_001[] = {
+	0xFF,
+	0x20,
+};
+
+static unsigned char SEQ_NT36525B_BOE_002[] = {
+	0xFB,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525B_BOE_003[] = {
+	0x01,
+	0x55,
+};
+
+static unsigned char SEQ_NT36525B_BOE_004[] = {
+	0x03,
+	0x55,
+};
+
+static unsigned char SEQ_NT36525B_BOE_005[] = {
+	0x05,
+	0x99,
+};
+
+static unsigned char SEQ_NT36525B_BOE_006[] = {
+	0x07,
+	0x5F,
+};
+
+static unsigned char SEQ_NT36525B_BOE_007[] = {
+	0x08,
+	0xDF,
+};
+
+static unsigned char SEQ_NT36525B_BOE_008[] = {
+	0x0E,
+	0x7D,
+};
+
+static unsigned char SEQ_NT36525B_BOE_009[] = {
+	0x0F,
+	0x7D,
+};
+
+static unsigned char SEQ_NT36525B_BOE_010[] = {
+	0x94,
+	0x40,
+};
+
+static unsigned char SEQ_NT36525B_BOE_011[] = {
+	0x95,
+	0xFF,
+};
+
+static unsigned char SEQ_NT36525B_BOE_012[] = {
+	0x96,
+	0x13,
+};
+
+static unsigned char SEQ_NT36525B_BOE_013[] = {
+	0x69,
+	0x91,
+};
+
+static unsigned char SEQ_NT36525B_BOE_014[] = {
+	0x1F,
+	0x02,
+};
+
+static unsigned char SEQ_NT36525B_BOE_015[] = {
+	0x2F,
+	0x82,
+};
+
+static unsigned char SEQ_NT36525B_BOE_016[] = {
+	0xB0,
+	0x00, 0x08, 0x00, 0x09, 0x00, 0x3B, 0x00, 0x54, 0x00, 0x6B,
+	0x00, 0x7F, 0x00, 0x91, 0x00, 0xA2,
+};
+
+static unsigned char SEQ_NT36525B_BOE_017[] = {
+	0xB1,
+	0x00, 0xB2, 0x00, 0xE7, 0x01, 0x0F, 0x01, 0x4F, 0x01, 0x7F,
+	0x01, 0xCC, 0x01, 0xF9, 0x01, 0xFB,
+};
+
+static unsigned char SEQ_NT36525B_BOE_018[] = {
+	0xB2,
+	0x02, 0x46, 0x02, 0x89, 0x02, 0xB6, 0x02, 0xEB, 0x03, 0x12,
+	0x03, 0x3D, 0x03, 0x4E, 0x03, 0x5D,
+};
+
+static unsigned char SEQ_NT36525B_BOE_019[] = {
+	0xB3,
+	0x03, 0x6F, 0x03, 0x86, 0x03, 0xA3, 0x03, 0xC3, 0x03, 0xDB,
+	0x03, 0xDF,
+};
+
+static unsigned char SEQ_NT36525B_BOE_020[] = {
+	0xB4,
+	0x00, 0x08, 0x00, 0x09, 0x00, 0x3B, 0x00, 0x54, 0x00, 0x6B,
+	0x00, 0x7F, 0x00, 0x91, 0x00, 0xA2,
+};
+
+static unsigned char SEQ_NT36525B_BOE_021[] = {
+	0xB5,
+	0x00, 0xB2, 0x00, 0xE7, 0x01, 0x0F, 0x01, 0x4F, 0x01, 0x7F,
+	0x01, 0xCC, 0x01, 0xF9, 0x01, 0xFB,
+};
+
+static unsigned char SEQ_NT36525B_BOE_022[] = {
+	0xB6,
+	0x02, 0x46, 0x02, 0x89, 0x02, 0xB6, 0x02, 0xEB, 0x03, 0x12,
+	0x03, 0x3D, 0x03, 0x4E, 0x03, 0x5D,
+};
+
+static unsigned char SEQ_NT36525B_BOE_023[] = {
+	0xB7,
+	0x03, 0x6F, 0x03, 0x86, 0x03, 0xA3, 0x03, 0xC3, 0x03, 0xDB,
+	0x03, 0xDF,
+};
+
+static unsigned char SEQ_NT36525B_BOE_024[] = {
+	0xB8,
+	0x00, 0x08, 0x00, 0x09, 0x00, 0x3B, 0x00, 0x54, 0x00, 0x6B,
+	0x00, 0x7F, 0x00, 0x91, 0x00, 0xA2,
+};
+
+static unsigned char SEQ_NT36525B_BOE_025[] = {
+	0xB9,
+	0x00, 0xB2, 0x00, 0xE7, 0x01, 0x0F, 0x01, 0x4F, 0x01, 0x7F,
+	0x01, 0xCC, 0x01, 0xF9, 0x01, 0xFB,
+};
+
+static unsigned char SEQ_NT36525B_BOE_026[] = {
+	0xBA,
+	0x02, 0x46, 0x02, 0x89, 0x02, 0xB6, 0x02, 0xEB, 0x03, 0x12,
+	0x03, 0x3D, 0x03, 0x4E, 0x03, 0x5D,
+};
+
+static unsigned char SEQ_NT36525B_BOE_027[] = {
+	0xBB,
+	0x03, 0x6F, 0x03, 0x86, 0x03, 0xA3, 0x03, 0xC3, 0x03, 0xDB,
+	0x03, 0xDF,
+};
+
+static unsigned char SEQ_NT36525B_BOE_028[] = {
+	0xFF,
+	0x21,
+};
+
+static unsigned char SEQ_NT36525B_BOE_029[] = {
+	0xFB,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525B_BOE_030[] = {
+	0xB0,
+	0x00, 0x00, 0x00, 0x01, 0x00, 0x33, 0x00, 0x4C, 0x00, 0x63,
+	0x00, 0x77, 0x00, 0x89, 0x00, 0x9A,
+};
+
+static unsigned char SEQ_NT36525B_BOE_031[] = {
+	0xB1,
+	0x00, 0xAA, 0x00, 0xDF, 0x01, 0x07, 0x01, 0x47, 0x01, 0x77,
+	0x01, 0xC4, 0x02, 0x11, 0x02, 0x13,
+};
+
+static unsigned char SEQ_NT36525B_BOE_032[] = {
+	0xB2,
+	0x02, 0x3E, 0x02, 0x81, 0x02, 0xAE, 0x02, 0xE3, 0x03, 0x0A,
+	0x03, 0x35, 0x03, 0x46, 0x03, 0x55,
+};
+
+static unsigned char SEQ_NT36525B_BOE_033[] = {
+	0xB3,
+	0x03, 0x67, 0x03, 0x7E, 0x03, 0x9B, 0x03, 0xBB, 0x03, 0xD3,
+	0x03, 0xD7,
+};
+
+static unsigned char SEQ_NT36525B_BOE_034[] = {
+	0xB4,
+	0x00, 0x00, 0x00, 0x01, 0x00, 0x33, 0x00, 0x4C, 0x00, 0x63,
+	0x00, 0x77, 0x00, 0x89, 0x00, 0x9A,
+};
+
+static unsigned char SEQ_NT36525B_BOE_035[] = {
+	0xB5,
+	0x00, 0xAA, 0x00, 0xDF, 0x01, 0x07, 0x01, 0x47, 0x01, 0x77,
+	0x01, 0xC4, 0x02, 0x11, 0x02, 0x13,
+};
+
+static unsigned char SEQ_NT36525B_BOE_036[] = {
+	0xB6,
+	0x02, 0x3E, 0x02, 0x81, 0x02, 0xAE, 0x02, 0xE3, 0x03, 0x0A,
+	0x03, 0x35, 0x03, 0x46, 0x03, 0x55,
+};
+
+static unsigned char SEQ_NT36525B_BOE_037[] = {
+	0xB7,
+	0x03, 0x67, 0x03, 0x7E, 0x03, 0x9B, 0x03, 0xBB, 0x03, 0xD3,
+	0x03, 0xD7,
+};
+
+static unsigned char SEQ_NT36525B_BOE_038[] = {
+	0xB8,
+	0x00, 0x00, 0x00, 0x01, 0x00, 0x33, 0x00, 0x4C, 0x00, 0x63,
+	0x00, 0x77, 0x00, 0x89, 0x00, 0x9A,
+};
+
+static unsigned char SEQ_NT36525B_BOE_039[] = {
+	0xB9,
+	0x00, 0xAA, 0x00, 0xDF, 0x01, 0x07, 0x01, 0x47, 0x01, 0x77,
+	0x01, 0xC4, 0x02, 0x11, 0x02, 0x13,
+};
+
+static unsigned char SEQ_NT36525B_BOE_040[] = {
+	0xBA,
+	0x02, 0x3E, 0x02, 0x81, 0x02, 0xAE, 0x02, 0xE3, 0x03, 0x0A,
+	0x03, 0x35, 0x03, 0x46, 0x03, 0x55,
+};
+
+static unsigned char SEQ_NT36525B_BOE_041[] = {
+	0xBB,
+	0x03, 0x67, 0x03, 0x7E, 0x03, 0x9B, 0x03, 0xBB, 0x03, 0xD3,
+	0x03, 0xD7,
+};
+
+static unsigned char SEQ_NT36525B_BOE_042[] = {
+	0xFF,
+	0x23,
+};
+
+static unsigned char SEQ_NT36525B_BOE_043[] = {
+	0xFB,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525B_BOE_044[] = {
+	0x00,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_045[] = {
+	0x04,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_046[] = {
+	0x07,
+	0x20,
+};
+
+static unsigned char SEQ_NT36525B_BOE_047[] = {
+	0x08,
+	0x0F,
+};
+
+static unsigned char SEQ_NT36525B_BOE_048[] = {
+	0x09,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_049[] = {
+	0x12,
+	0xB4,
+};
+
+static unsigned char SEQ_NT36525B_BOE_050[] = {
+	0x15,
+	0xE9,
+};
+
+static unsigned char SEQ_NT36525B_BOE_051[] = {
+	0x16,
+	0x0B,
+};
+
+static unsigned char SEQ_NT36525B_BOE_052[] = {
+	0x19,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_053[] = {
+	0x1A,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_054[] = {
+	0x1B,
+	0x08,
+};
+
+static unsigned char SEQ_NT36525B_BOE_055[] = {
+	0x1C,
+	0x0A,
+};
+
+static unsigned char SEQ_NT36525B_BOE_056[] = {
+	0x1D,
+	0x0C,
+};
+
+static unsigned char SEQ_NT36525B_BOE_057[] = {
+	0x1E,
+	0x12,
+};
+
+static unsigned char SEQ_NT36525B_BOE_058[] = {
+	0x1F,
+	0x16,
+};
+
+static unsigned char SEQ_NT36525B_BOE_059[] = {
+	0x20,
+	0x1A,
+};
+
+static unsigned char SEQ_NT36525B_BOE_060[] = {
+	0x21,
+	0x1C,
+};
+
+static unsigned char SEQ_NT36525B_BOE_061[] = {
+	0x22,
+	0x20,
+};
+
+static unsigned char SEQ_NT36525B_BOE_062[] = {
+	0x23,
+	0x24,
+};
+
+static unsigned char SEQ_NT36525B_BOE_063[] = {
+	0x24,
+	0x28,
+};
+
+static unsigned char SEQ_NT36525B_BOE_064[] = {
+	0x25,
+	0x2C,
+};
+
+static unsigned char SEQ_NT36525B_BOE_065[] = {
+	0x26,
+	0x30,
+};
+
+static unsigned char SEQ_NT36525B_BOE_066[] = {
+	0x27,
+	0x38,
+};
+
+static unsigned char SEQ_NT36525B_BOE_067[] = {
+	0x28,
+	0x3C,
+};
+
+static unsigned char SEQ_NT36525B_BOE_068[] = {
+	0x29,
+	0x10,
+};
+
+static unsigned char SEQ_NT36525B_BOE_069[] = {
+	0x30,
+	0xFF,
+};
+
+static unsigned char SEQ_NT36525B_BOE_070[] = {
+	0x31,
+	0xFF,
+};
+
+static unsigned char SEQ_NT36525B_BOE_071[] = {
+	0x32,
+	0xFE,
+};
+
+static unsigned char SEQ_NT36525B_BOE_072[] = {
+	0x33,
+	0xFD,
+};
+
+static unsigned char SEQ_NT36525B_BOE_073[] = {
+	0x34,
+	0xFD,
+};
+
+static unsigned char SEQ_NT36525B_BOE_074[] = {
+	0x35,
+	0xFC,
+};
+
+static unsigned char SEQ_NT36525B_BOE_075[] = {
+	0x36,
+	0xFB,
+};
+
+static unsigned char SEQ_NT36525B_BOE_076[] = {
+	0x37,
+	0xF9,
+};
+
+static unsigned char SEQ_NT36525B_BOE_077[] = {
+	0x38,
+	0xF7,
+};
+
+static unsigned char SEQ_NT36525B_BOE_078[] = {
+	0x39,
+	0xF3,
+};
+
+static unsigned char SEQ_NT36525B_BOE_079[] = {
+	0x3A,
+	0xEA,
+};
+
+static unsigned char SEQ_NT36525B_BOE_080[] = {
+	0x3B,
+	0xE6,
+};
+
+static unsigned char SEQ_NT36525B_BOE_081[] = {
+	0x3D,
+	0xE0,
+};
+
+static unsigned char SEQ_NT36525B_BOE_082[] = {
+	0x3F,
+	0xDD,
+};
+
+static unsigned char SEQ_NT36525B_BOE_083[] = {
+	0x40,
+	0xDB,
+};
+
+static unsigned char SEQ_NT36525B_BOE_084[] = {
+	0x41,
+	0xD9,
+};
+
+static unsigned char SEQ_NT36525B_BOE_085[] = {
+	0xFF,
+	0x24,
+};
+
+static unsigned char SEQ_NT36525B_BOE_086[] = {
+	0xFB,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525B_BOE_087[] = {
+	0x93,
+	0x12,
+};
+
+static unsigned char SEQ_NT36525B_BOE_088[] = {
+	0x94,
+	0x0E,
+};
+
+static unsigned char SEQ_NT36525B_BOE_089[] = {
+	0x00,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_090[] = {
+	0x01,
+	0x1E,
+};
+
+static unsigned char SEQ_NT36525B_BOE_091[] = {
+	0x02,
+	0x06,
+};
+
+static unsigned char SEQ_NT36525B_BOE_092[] = {
+	0x03,
+	0x21,
+};
+
+static unsigned char SEQ_NT36525B_BOE_093[] = {
+	0x04,
+	0x04,
+};
+
+static unsigned char SEQ_NT36525B_BOE_094[] = {
+	0x05,
+	0x05,
+};
+
+static unsigned char SEQ_NT36525B_BOE_095[] = {
+	0x06,
+	0x1F,
+};
+
+static unsigned char SEQ_NT36525B_BOE_096[] = {
+	0x07,
+	0x20,
+};
+
+static unsigned char SEQ_NT36525B_BOE_097[] = {
+	0x08,
+	0x0C,
+};
+
+static unsigned char SEQ_NT36525B_BOE_098[] = {
+	0x09,
+	0x0D,
+};
+
+static unsigned char SEQ_NT36525B_BOE_099[] = {
+	0x0A,
+	0x0E,
+};
+
+static unsigned char SEQ_NT36525B_BOE_100[] = {
+	0x0B,
+	0x0F,
+};
+
+static unsigned char SEQ_NT36525B_BOE_101[] = {
+	0x0C,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_102[] = {
+	0x0D,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_103[] = {
+	0x0E,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_104[] = {
+	0x0F,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_105[] = {
+	0x10,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_106[] = {
+	0x11,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_107[] = {
+	0x12,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_108[] = {
+	0x13,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_109[] = {
+	0x14,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_110[] = {
+	0x15,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_111[] = {
+	0x16,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_112[] = {
+	0x17,
+	0x1E,
+};
+
+static unsigned char SEQ_NT36525B_BOE_113[] = {
+	0x18,
+	0x07,
+};
+
+static unsigned char SEQ_NT36525B_BOE_114[] = {
+	0x19,
+	0x21,
+};
+
+static unsigned char SEQ_NT36525B_BOE_115[] = {
+	0x1A,
+	0x04,
+};
+
+static unsigned char SEQ_NT36525B_BOE_116[] = {
+	0x1B,
+	0x05,
+};
+
+static unsigned char SEQ_NT36525B_BOE_117[] = {
+	0x1C,
+	0x1F,
+};
+
+static unsigned char SEQ_NT36525B_BOE_118[] = {
+	0x1D,
+	0x20,
+};
+
+static unsigned char SEQ_NT36525B_BOE_119[] = {
+	0x1E,
+	0x0C,
+};
+
+static unsigned char SEQ_NT36525B_BOE_120[] = {
+	0x1F,
+	0x0D,
+};
+
+static unsigned char SEQ_NT36525B_BOE_121[] = {
+	0x20,
+	0x0E,
+};
+
+static unsigned char SEQ_NT36525B_BOE_122[] = {
+	0x21,
+	0x0F,
+};
+
+static unsigned char SEQ_NT36525B_BOE_123[] = {
+	0x22,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_124[] = {
+	0x23,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_125[] = {
+	0x24,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_126[] = {
+	0x25,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_127[] = {
+	0x26,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_128[] = {
+	0x27,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_129[] = {
+	0x28,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_130[] = {
+	0x29,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_131[] = {
+	0x2A,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_132[] = {
+	0x2B,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_133[] = {
+	0x2D,
+	0x0C,
+};
+
+static unsigned char SEQ_NT36525B_BOE_134[] = {
+	0x2F,
+	0x0A,
+};
+
+static unsigned char SEQ_NT36525B_BOE_135[] = {
+	0x30,
+	0x08,
+};
+
+static unsigned char SEQ_NT36525B_BOE_136[] = {
+	0x31,
+	0x0C,
+};
+
+static unsigned char SEQ_NT36525B_BOE_137[] = {
+	0x32,
+	0x0D,
+};
+
+static unsigned char SEQ_NT36525B_BOE_138[] = {
+	0x33,
+	0x08,
+};
+
+static unsigned char SEQ_NT36525B_BOE_139[] = {
+	0x34,
+	0x0A,
+};
+
+static unsigned char SEQ_NT36525B_BOE_140[] = {
+	0x35,
+	0x0D,
+};
+
+static unsigned char SEQ_NT36525B_BOE_141[] = {
+	0x36,
+	0x0C,
+};
+
+static unsigned char SEQ_NT36525B_BOE_142[] = {
+	0x37,
+	0x44,
+};
+
+static unsigned char SEQ_NT36525B_BOE_143[] = {
+	0x38,
+	0x22,
+};
+
+static unsigned char SEQ_NT36525B_BOE_144[] = {
+	0x39,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_145[] = {
+	0x3A,
+	0x22,
+};
+
+static unsigned char SEQ_NT36525B_BOE_146[] = {
+	0x3B,
+	0x8B,
+};
+
+static unsigned char SEQ_NT36525B_BOE_147[] = {
+	0x3D,
+	0x54,
+};
+
+static unsigned char SEQ_NT36525B_BOE_148[] = {
+	0x41,
+	0x45,
+};
+
+static unsigned char SEQ_NT36525B_BOE_149[] = {
+	0x42,
+	0x44,
+};
+
+static unsigned char SEQ_NT36525B_BOE_150[] = {
+	0x45,
+	0x44,
+};
+
+static unsigned char SEQ_NT36525B_BOE_151[] = {
+	0x46,
+	0x45,
+};
+
+static unsigned char SEQ_NT36525B_BOE_152[] = {
+	0x47,
+	0x22,
+};
+
+static unsigned char SEQ_NT36525B_BOE_153[] = {
+	0x48,
+	0x22,
+};
+
+static unsigned char SEQ_NT36525B_BOE_154[] = {
+	0x49,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_155[] = {
+	0x4A,
+	0x22,
+};
+
+static unsigned char SEQ_NT36525B_BOE_156[] = {
+	0x4B,
+	0x8B,
+};
+
+static unsigned char SEQ_NT36525B_BOE_157[] = {
+	0x4C,
+	0x54,
+};
+
+static unsigned char SEQ_NT36525B_BOE_158[] = {
+	0x4D,
+	0x34,
+};
+
+static unsigned char SEQ_NT36525B_BOE_159[] = {
+	0x4E,
+	0x12,
+};
+
+static unsigned char SEQ_NT36525B_BOE_160[] = {
+	0x4F,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_161[] = {
+	0x50,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_162[] = {
+	0x51,
+	0x21,
+};
+
+static unsigned char SEQ_NT36525B_BOE_163[] = {
+	0x52,
+	0x43,
+};
+
+static unsigned char SEQ_NT36525B_BOE_164[] = {
+	0x53,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_165[] = {
+	0x54,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_166[] = {
+	0x55,
+	0x47,
+};
+
+static unsigned char SEQ_NT36525B_BOE_167[] = {
+	0x56,
+	0x44,
+};
+
+static unsigned char SEQ_NT36525B_BOE_168[] = {
+	0x58,
+	0x21,
+};
+
+static unsigned char SEQ_NT36525B_BOE_169[] = {
+	0x59,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_170[] = {
+	0x5A,
+	0x22,
+};
+
+static unsigned char SEQ_NT36525B_BOE_171[] = {
+	0x5B,
+	0x8B,
+};
+
+static unsigned char SEQ_NT36525B_BOE_172[] = {
+	0x5C,
+	0x88,
+};
+
+static unsigned char SEQ_NT36525B_BOE_173[] = {
+	0x5D,
+	0x08,
+};
+
+static unsigned char SEQ_NT36525B_BOE_174[] = {
+	0x5E,
+	0x04,
+};
+
+static unsigned char SEQ_NT36525B_BOE_175[] = {
+	0x5F,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_176[] = {
+	0x88,
+	0x2E,
+};
+
+static unsigned char SEQ_NT36525B_BOE_177[] = {
+	0x89,
+	0x48,
+};
+
+static unsigned char SEQ_NT36525B_BOE_178[] = {
+	0x8A,
+	0x88,
+};
+
+static unsigned char SEQ_NT36525B_BOE_179[] = {
+	0x8D,
+	0x08,
+};
+
+static unsigned char SEQ_NT36525B_BOE_180[] = {
+	0x8E,
+	0x08,
+};
+
+static unsigned char SEQ_NT36525B_BOE_181[] = {
+	0x60,
+	0x80,
+};
+
+static unsigned char SEQ_NT36525B_BOE_182[] = {
+	0x61,
+	0x90,
+};
+
+static unsigned char SEQ_NT36525B_BOE_183[] = {
+	0x64,
+	0x10,
+};
+
+static unsigned char SEQ_NT36525B_BOE_184[] = {
+	0x80,
+	0x0B,
+};
+
+static unsigned char SEQ_NT36525B_BOE_185[] = {
+	0x81,
+	0x05,
+};
+
+static unsigned char SEQ_NT36525B_BOE_186[] = {
+	0x82,
+	0x0B,
+};
+
+static unsigned char SEQ_NT36525B_BOE_187[] = {
+	0x83,
+	0x05,
+};
+
+static unsigned char SEQ_NT36525B_BOE_188[] = {
+	0x84,
+	0x80,
+};
+
+static unsigned char SEQ_NT36525B_BOE_189[] = {
+	0x85,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525B_BOE_190[] = {
+	0x86,
+	0x04,
+};
+
+static unsigned char SEQ_NT36525B_BOE_191[] = {
+	0x91,
+	0x40,
+};
+
+static unsigned char SEQ_NT36525B_BOE_192[] = {
+	0x92,
+	0xAE,
+};
+
+static unsigned char SEQ_NT36525B_BOE_193[] = {
+	0x98,
+	0x80,
+};
+
+static unsigned char SEQ_NT36525B_BOE_194[] = {
+	0xAB,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_195[] = {
+	0xAD,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_196[] = {
+	0xAF,
+	0x04,
+};
+
+static unsigned char SEQ_NT36525B_BOE_197[] = {
+	0xB0,
+	0x05,
+};
+
+static unsigned char SEQ_NT36525B_BOE_198[] = {
+	0xB1,
+	0xAA,
+};
+
+static unsigned char SEQ_NT36525B_BOE_199[] = {
+	0xFF,
+	0x25,
+};
+
+static unsigned char SEQ_NT36525B_BOE_200[] = {
+	0xFB,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525B_BOE_201[] = {
+	0x17,
+	0x82,
+};
+
+static unsigned char SEQ_NT36525B_BOE_202[] = {
+	0x18,
+	0x06,
+};
+
+static unsigned char SEQ_NT36525B_BOE_203[] = {
+	0x19,
+	0x0F,
+};
+
+static unsigned char SEQ_NT36525B_BOE_204[] = {
+	0xC0,
+	0x07,
+};
+
+static unsigned char SEQ_NT36525B_BOE_205[] = {
+	0xC2,
+	0x84,
+};
+
+static unsigned char SEQ_NT36525B_BOE_206[] = {
+	0xC6,
+	0x92,
+};
+
+static unsigned char SEQ_NT36525B_BOE_207[] = {
+	0xCA,
+	0x1C,
+};
+
+static unsigned char SEQ_NT36525B_BOE_208[] = {
+	0xCB,
+	0x1C,
+};
+
+static unsigned char SEQ_NT36525B_BOE_209[] = {
+	0xCC,
+	0x1C,
+};
+
+static unsigned char SEQ_NT36525B_BOE_210[] = {
+	0xCD,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_211[] = {
+	0xCE,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_212[] = {
+	0xD3,
+	0x11,
+};
+
+static unsigned char SEQ_NT36525B_BOE_213[] = {
+	0xD4,
+	0xCC,
+};
+
+static unsigned char SEQ_NT36525B_BOE_214[] = {
+	0xD5,
+	0x11,
+};
+
+static unsigned char SEQ_NT36525B_BOE_215[] = {
+	0xD6,
+	0x1C,
+};
+
+static unsigned char SEQ_NT36525B_BOE_216[] = {
+	0xD7,
+	0x11,
+};
+
+static unsigned char SEQ_NT36525B_BOE_217[] = {
+	0x0A,
+	0x82,
+};
+
+static unsigned char SEQ_NT36525B_BOE_218[] = {
+	0x0B,
+	0x16,
+};
+
+static unsigned char SEQ_NT36525B_BOE_219[] = {
+	0x0C,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525B_BOE_220[] = {
+	0xFF,
+	0x26,
+};
+
+static unsigned char SEQ_NT36525B_BOE_221[] = {
+	0xFB,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525B_BOE_222[] = {
+	0x00,
+	0xA0,
+};
+
+static unsigned char SEQ_NT36525B_BOE_223[] = {
+	0xFF,
+	0x27,
+};
+
+static unsigned char SEQ_NT36525B_BOE_224[] = {
+	0xFB,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525B_BOE_225[] = {
+	0x13,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_226[] = {
+	0x15,
+	0xB4,
+};
+
+static unsigned char SEQ_NT36525B_BOE_227[] = {
+	0x1F,
+	0x55,
+};
+
+static unsigned char SEQ_NT36525B_BOE_228[] = {
+	0x26,
+	0x0F,
+};
+
+static unsigned char SEQ_NT36525B_BOE_229[] = {
+	0xC0,
+	0x18,
+};
+
+static unsigned char SEQ_NT36525B_BOE_230[] = {
+	0xC1,
+	0xF2,
+};
+
+static unsigned char SEQ_NT36525B_BOE_231[] = {
+	0xC7,
+	0x03,
+};
+
+static unsigned char SEQ_NT36525B_BOE_232[] = {
+	0xC2,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_233[] = {
+	0xC3,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_234[] = {
+	0xC4,
+	0xF2,
+};
+
+static unsigned char SEQ_NT36525B_BOE_235[] = {
+	0xC5,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_236[] = {
+	0xC6,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_237[] = {
+	0xFF,
+	0xF0,
+};
+
+static unsigned char SEQ_NT36525B_BOE_238[] = {
+	0xFB,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525B_BOE_239[] = {
+	0x4D,
+	0x15,
+};
+
+static unsigned char SEQ_NT36525B_BOE_240[] = {
+	0x4F,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525B_BOE_241[] = {
+	0x50,
+	0x0B,
+};
+
+static unsigned char SEQ_NT36525B_BOE_242[] = {
+	0xFF,
+	0xE0,
+};
+
+static unsigned char SEQ_NT36525B_BOE_243[] = {
+	0xFB,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525B_BOE_244[] = {
+	0x25,
+	0x11,
+};
+
+static unsigned char SEQ_NT36525B_BOE_245[] = {
+	0x4E,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525B_BOE_246[] = {
+	0xFF,
+	0x10,
+};
+
+static unsigned char SEQ_NT36525B_BOE_247[] = {
+	0xFB,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525B_BOE_248[] = {
+	0xBA,
+	0x02,
+};
+
+static unsigned char SEQ_NT36525B_BOE_249[] = {
+	0x53,
+	0x2C,
+};
+
+static unsigned char SEQ_NT36525B_BOE_250[] = {
+	0x55,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525B_BOE_251[] = {
+	0x68,
+	0x00, 0x01,
+};
+
+static struct lcd_seq_info LCD_SEQ_INIT_1[] = {
+	{SEQ_NT36525B_BOE_001, ARRAY_SIZE(SEQ_NT36525B_BOE_001), 0, },
+	{SEQ_NT36525B_BOE_002, ARRAY_SIZE(SEQ_NT36525B_BOE_002), 0, },
+	{SEQ_NT36525B_BOE_003, ARRAY_SIZE(SEQ_NT36525B_BOE_003), 0, },
+	{SEQ_NT36525B_BOE_004, ARRAY_SIZE(SEQ_NT36525B_BOE_004), 0, },
+	{SEQ_NT36525B_BOE_005, ARRAY_SIZE(SEQ_NT36525B_BOE_005), 0, },
+	{SEQ_NT36525B_BOE_006, ARRAY_SIZE(SEQ_NT36525B_BOE_006), 0, },
+	{SEQ_NT36525B_BOE_007, ARRAY_SIZE(SEQ_NT36525B_BOE_007), 0, },
+	{SEQ_NT36525B_BOE_008, ARRAY_SIZE(SEQ_NT36525B_BOE_008), 0, },
+	{SEQ_NT36525B_BOE_009, ARRAY_SIZE(SEQ_NT36525B_BOE_009), 0, },
+	{SEQ_NT36525B_BOE_010, ARRAY_SIZE(SEQ_NT36525B_BOE_010), 0, },
+	{SEQ_NT36525B_BOE_011, ARRAY_SIZE(SEQ_NT36525B_BOE_011), 0, },
+	{SEQ_NT36525B_BOE_012, ARRAY_SIZE(SEQ_NT36525B_BOE_012), 0, },
+	{SEQ_NT36525B_BOE_013, ARRAY_SIZE(SEQ_NT36525B_BOE_013), 0, },
+	{SEQ_NT36525B_BOE_014, ARRAY_SIZE(SEQ_NT36525B_BOE_014), 0, },
+	{SEQ_NT36525B_BOE_015, ARRAY_SIZE(SEQ_NT36525B_BOE_015), 0, },
+	{SEQ_NT36525B_BOE_016, ARRAY_SIZE(SEQ_NT36525B_BOE_016), 0, },
+	{SEQ_NT36525B_BOE_017, ARRAY_SIZE(SEQ_NT36525B_BOE_017), 0, },
+	{SEQ_NT36525B_BOE_018, ARRAY_SIZE(SEQ_NT36525B_BOE_018), 0, },
+	{SEQ_NT36525B_BOE_019, ARRAY_SIZE(SEQ_NT36525B_BOE_019), 0, },
+	{SEQ_NT36525B_BOE_020, ARRAY_SIZE(SEQ_NT36525B_BOE_020), 0, },
+	{SEQ_NT36525B_BOE_021, ARRAY_SIZE(SEQ_NT36525B_BOE_021), 0, },
+	{SEQ_NT36525B_BOE_022, ARRAY_SIZE(SEQ_NT36525B_BOE_022), 0, },
+	{SEQ_NT36525B_BOE_023, ARRAY_SIZE(SEQ_NT36525B_BOE_023), 0, },
+	{SEQ_NT36525B_BOE_024, ARRAY_SIZE(SEQ_NT36525B_BOE_024), 0, },
+	{SEQ_NT36525B_BOE_025, ARRAY_SIZE(SEQ_NT36525B_BOE_025), 0, },
+	{SEQ_NT36525B_BOE_026, ARRAY_SIZE(SEQ_NT36525B_BOE_026), 0, },
+	{SEQ_NT36525B_BOE_027, ARRAY_SIZE(SEQ_NT36525B_BOE_027), 0, },
+	{SEQ_NT36525B_BOE_028, ARRAY_SIZE(SEQ_NT36525B_BOE_028), 0, },
+	{SEQ_NT36525B_BOE_029, ARRAY_SIZE(SEQ_NT36525B_BOE_029), 0, },
+	{SEQ_NT36525B_BOE_030, ARRAY_SIZE(SEQ_NT36525B_BOE_030), 0, },
+	{SEQ_NT36525B_BOE_031, ARRAY_SIZE(SEQ_NT36525B_BOE_031), 0, },
+	{SEQ_NT36525B_BOE_032, ARRAY_SIZE(SEQ_NT36525B_BOE_032), 0, },
+	{SEQ_NT36525B_BOE_033, ARRAY_SIZE(SEQ_NT36525B_BOE_033), 0, },
+	{SEQ_NT36525B_BOE_034, ARRAY_SIZE(SEQ_NT36525B_BOE_034), 0, },
+	{SEQ_NT36525B_BOE_035, ARRAY_SIZE(SEQ_NT36525B_BOE_035), 0, },
+	{SEQ_NT36525B_BOE_036, ARRAY_SIZE(SEQ_NT36525B_BOE_036), 0, },
+	{SEQ_NT36525B_BOE_037, ARRAY_SIZE(SEQ_NT36525B_BOE_037), 0, },
+	{SEQ_NT36525B_BOE_038, ARRAY_SIZE(SEQ_NT36525B_BOE_038), 0, },
+	{SEQ_NT36525B_BOE_039, ARRAY_SIZE(SEQ_NT36525B_BOE_039), 0, },
+	{SEQ_NT36525B_BOE_040, ARRAY_SIZE(SEQ_NT36525B_BOE_040), 0, },
+	{SEQ_NT36525B_BOE_041, ARRAY_SIZE(SEQ_NT36525B_BOE_041), 0, },
+	{SEQ_NT36525B_BOE_042, ARRAY_SIZE(SEQ_NT36525B_BOE_042), 0, },
+	{SEQ_NT36525B_BOE_043, ARRAY_SIZE(SEQ_NT36525B_BOE_043), 0, },
+	{SEQ_NT36525B_BOE_044, ARRAY_SIZE(SEQ_NT36525B_BOE_044), 0, },
+	{SEQ_NT36525B_BOE_045, ARRAY_SIZE(SEQ_NT36525B_BOE_045), 0, },
+	{SEQ_NT36525B_BOE_046, ARRAY_SIZE(SEQ_NT36525B_BOE_046), 0, },
+	{SEQ_NT36525B_BOE_047, ARRAY_SIZE(SEQ_NT36525B_BOE_047), 0, },
+	{SEQ_NT36525B_BOE_048, ARRAY_SIZE(SEQ_NT36525B_BOE_048), 0, },
+	{SEQ_NT36525B_BOE_049, ARRAY_SIZE(SEQ_NT36525B_BOE_049), 0, },
+	{SEQ_NT36525B_BOE_050, ARRAY_SIZE(SEQ_NT36525B_BOE_050), 0, },
+	{SEQ_NT36525B_BOE_051, ARRAY_SIZE(SEQ_NT36525B_BOE_051), 0, },
+	{SEQ_NT36525B_BOE_052, ARRAY_SIZE(SEQ_NT36525B_BOE_052), 0, },
+	{SEQ_NT36525B_BOE_053, ARRAY_SIZE(SEQ_NT36525B_BOE_053), 0, },
+	{SEQ_NT36525B_BOE_054, ARRAY_SIZE(SEQ_NT36525B_BOE_054), 0, },
+	{SEQ_NT36525B_BOE_055, ARRAY_SIZE(SEQ_NT36525B_BOE_055), 0, },
+	{SEQ_NT36525B_BOE_056, ARRAY_SIZE(SEQ_NT36525B_BOE_056), 0, },
+	{SEQ_NT36525B_BOE_057, ARRAY_SIZE(SEQ_NT36525B_BOE_057), 0, },
+	{SEQ_NT36525B_BOE_058, ARRAY_SIZE(SEQ_NT36525B_BOE_058), 0, },
+	{SEQ_NT36525B_BOE_059, ARRAY_SIZE(SEQ_NT36525B_BOE_059), 0, },
+	{SEQ_NT36525B_BOE_060, ARRAY_SIZE(SEQ_NT36525B_BOE_060), 0, },
+	{SEQ_NT36525B_BOE_061, ARRAY_SIZE(SEQ_NT36525B_BOE_061), 0, },
+	{SEQ_NT36525B_BOE_062, ARRAY_SIZE(SEQ_NT36525B_BOE_062), 0, },
+	{SEQ_NT36525B_BOE_063, ARRAY_SIZE(SEQ_NT36525B_BOE_063), 0, },
+	{SEQ_NT36525B_BOE_064, ARRAY_SIZE(SEQ_NT36525B_BOE_064), 0, },
+	{SEQ_NT36525B_BOE_065, ARRAY_SIZE(SEQ_NT36525B_BOE_065), 0, },
+	{SEQ_NT36525B_BOE_066, ARRAY_SIZE(SEQ_NT36525B_BOE_066), 0, },
+	{SEQ_NT36525B_BOE_067, ARRAY_SIZE(SEQ_NT36525B_BOE_067), 0, },
+	{SEQ_NT36525B_BOE_068, ARRAY_SIZE(SEQ_NT36525B_BOE_068), 0, },
+	{SEQ_NT36525B_BOE_069, ARRAY_SIZE(SEQ_NT36525B_BOE_069), 0, },
+	{SEQ_NT36525B_BOE_070, ARRAY_SIZE(SEQ_NT36525B_BOE_070), 0, },
+	{SEQ_NT36525B_BOE_071, ARRAY_SIZE(SEQ_NT36525B_BOE_071), 0, },
+	{SEQ_NT36525B_BOE_072, ARRAY_SIZE(SEQ_NT36525B_BOE_072), 0, },
+	{SEQ_NT36525B_BOE_073, ARRAY_SIZE(SEQ_NT36525B_BOE_073), 0, },
+	{SEQ_NT36525B_BOE_074, ARRAY_SIZE(SEQ_NT36525B_BOE_074), 0, },
+	{SEQ_NT36525B_BOE_075, ARRAY_SIZE(SEQ_NT36525B_BOE_075), 0, },
+	{SEQ_NT36525B_BOE_076, ARRAY_SIZE(SEQ_NT36525B_BOE_076), 0, },
+	{SEQ_NT36525B_BOE_077, ARRAY_SIZE(SEQ_NT36525B_BOE_077), 0, },
+	{SEQ_NT36525B_BOE_078, ARRAY_SIZE(SEQ_NT36525B_BOE_078), 0, },
+	{SEQ_NT36525B_BOE_079, ARRAY_SIZE(SEQ_NT36525B_BOE_079), 0, },
+	{SEQ_NT36525B_BOE_080, ARRAY_SIZE(SEQ_NT36525B_BOE_080), 0, },
+	{SEQ_NT36525B_BOE_081, ARRAY_SIZE(SEQ_NT36525B_BOE_081), 0, },
+	{SEQ_NT36525B_BOE_082, ARRAY_SIZE(SEQ_NT36525B_BOE_082), 0, },
+	{SEQ_NT36525B_BOE_083, ARRAY_SIZE(SEQ_NT36525B_BOE_083), 0, },
+	{SEQ_NT36525B_BOE_084, ARRAY_SIZE(SEQ_NT36525B_BOE_084), 0, },
+	{SEQ_NT36525B_BOE_085, ARRAY_SIZE(SEQ_NT36525B_BOE_085), 0, },
+	{SEQ_NT36525B_BOE_086, ARRAY_SIZE(SEQ_NT36525B_BOE_086), 0, },
+	{SEQ_NT36525B_BOE_087, ARRAY_SIZE(SEQ_NT36525B_BOE_087), 0, },
+	{SEQ_NT36525B_BOE_088, ARRAY_SIZE(SEQ_NT36525B_BOE_088), 0, },
+	{SEQ_NT36525B_BOE_089, ARRAY_SIZE(SEQ_NT36525B_BOE_089), 0, },
+	{SEQ_NT36525B_BOE_090, ARRAY_SIZE(SEQ_NT36525B_BOE_090), 0, },
+	{SEQ_NT36525B_BOE_091, ARRAY_SIZE(SEQ_NT36525B_BOE_091), 0, },
+	{SEQ_NT36525B_BOE_092, ARRAY_SIZE(SEQ_NT36525B_BOE_092), 0, },
+	{SEQ_NT36525B_BOE_093, ARRAY_SIZE(SEQ_NT36525B_BOE_093), 0, },
+	{SEQ_NT36525B_BOE_094, ARRAY_SIZE(SEQ_NT36525B_BOE_094), 0, },
+	{SEQ_NT36525B_BOE_095, ARRAY_SIZE(SEQ_NT36525B_BOE_095), 0, },
+	{SEQ_NT36525B_BOE_096, ARRAY_SIZE(SEQ_NT36525B_BOE_096), 0, },
+	{SEQ_NT36525B_BOE_097, ARRAY_SIZE(SEQ_NT36525B_BOE_097), 0, },
+	{SEQ_NT36525B_BOE_098, ARRAY_SIZE(SEQ_NT36525B_BOE_098), 0, },
+	{SEQ_NT36525B_BOE_099, ARRAY_SIZE(SEQ_NT36525B_BOE_099), 0, },
+	{SEQ_NT36525B_BOE_100, ARRAY_SIZE(SEQ_NT36525B_BOE_100), 0, },
+	{SEQ_NT36525B_BOE_101, ARRAY_SIZE(SEQ_NT36525B_BOE_101), 0, },
+	{SEQ_NT36525B_BOE_102, ARRAY_SIZE(SEQ_NT36525B_BOE_102), 0, },
+	{SEQ_NT36525B_BOE_103, ARRAY_SIZE(SEQ_NT36525B_BOE_103), 0, },
+	{SEQ_NT36525B_BOE_104, ARRAY_SIZE(SEQ_NT36525B_BOE_104), 0, },
+	{SEQ_NT36525B_BOE_105, ARRAY_SIZE(SEQ_NT36525B_BOE_105), 0, },
+	{SEQ_NT36525B_BOE_106, ARRAY_SIZE(SEQ_NT36525B_BOE_106), 0, },
+	{SEQ_NT36525B_BOE_107, ARRAY_SIZE(SEQ_NT36525B_BOE_107), 0, },
+	{SEQ_NT36525B_BOE_108, ARRAY_SIZE(SEQ_NT36525B_BOE_108), 0, },
+	{SEQ_NT36525B_BOE_109, ARRAY_SIZE(SEQ_NT36525B_BOE_109), 0, },
+	{SEQ_NT36525B_BOE_110, ARRAY_SIZE(SEQ_NT36525B_BOE_110), 0, },
+	{SEQ_NT36525B_BOE_111, ARRAY_SIZE(SEQ_NT36525B_BOE_111), 0, },
+	{SEQ_NT36525B_BOE_112, ARRAY_SIZE(SEQ_NT36525B_BOE_112), 0, },
+	{SEQ_NT36525B_BOE_113, ARRAY_SIZE(SEQ_NT36525B_BOE_113), 0, },
+	{SEQ_NT36525B_BOE_114, ARRAY_SIZE(SEQ_NT36525B_BOE_114), 0, },
+	{SEQ_NT36525B_BOE_115, ARRAY_SIZE(SEQ_NT36525B_BOE_115), 0, },
+	{SEQ_NT36525B_BOE_116, ARRAY_SIZE(SEQ_NT36525B_BOE_116), 0, },
+	{SEQ_NT36525B_BOE_117, ARRAY_SIZE(SEQ_NT36525B_BOE_117), 0, },
+	{SEQ_NT36525B_BOE_118, ARRAY_SIZE(SEQ_NT36525B_BOE_118), 0, },
+	{SEQ_NT36525B_BOE_119, ARRAY_SIZE(SEQ_NT36525B_BOE_119), 0, },
+	{SEQ_NT36525B_BOE_120, ARRAY_SIZE(SEQ_NT36525B_BOE_120), 0, },
+	{SEQ_NT36525B_BOE_121, ARRAY_SIZE(SEQ_NT36525B_BOE_121), 0, },
+	{SEQ_NT36525B_BOE_122, ARRAY_SIZE(SEQ_NT36525B_BOE_122), 0, },
+	{SEQ_NT36525B_BOE_123, ARRAY_SIZE(SEQ_NT36525B_BOE_123), 0, },
+	{SEQ_NT36525B_BOE_124, ARRAY_SIZE(SEQ_NT36525B_BOE_124), 0, },
+	{SEQ_NT36525B_BOE_125, ARRAY_SIZE(SEQ_NT36525B_BOE_125), 0, },
+	{SEQ_NT36525B_BOE_126, ARRAY_SIZE(SEQ_NT36525B_BOE_126), 0, },
+	{SEQ_NT36525B_BOE_127, ARRAY_SIZE(SEQ_NT36525B_BOE_127), 0, },
+	{SEQ_NT36525B_BOE_128, ARRAY_SIZE(SEQ_NT36525B_BOE_128), 0, },
+	{SEQ_NT36525B_BOE_129, ARRAY_SIZE(SEQ_NT36525B_BOE_129), 0, },
+	{SEQ_NT36525B_BOE_130, ARRAY_SIZE(SEQ_NT36525B_BOE_130), 0, },
+	{SEQ_NT36525B_BOE_131, ARRAY_SIZE(SEQ_NT36525B_BOE_131), 0, },
+	{SEQ_NT36525B_BOE_132, ARRAY_SIZE(SEQ_NT36525B_BOE_132), 0, },
+	{SEQ_NT36525B_BOE_133, ARRAY_SIZE(SEQ_NT36525B_BOE_133), 0, },
+	{SEQ_NT36525B_BOE_134, ARRAY_SIZE(SEQ_NT36525B_BOE_134), 0, },
+	{SEQ_NT36525B_BOE_135, ARRAY_SIZE(SEQ_NT36525B_BOE_135), 0, },
+	{SEQ_NT36525B_BOE_136, ARRAY_SIZE(SEQ_NT36525B_BOE_136), 0, },
+	{SEQ_NT36525B_BOE_137, ARRAY_SIZE(SEQ_NT36525B_BOE_137), 0, },
+	{SEQ_NT36525B_BOE_138, ARRAY_SIZE(SEQ_NT36525B_BOE_138), 0, },
+	{SEQ_NT36525B_BOE_139, ARRAY_SIZE(SEQ_NT36525B_BOE_139), 0, },
+	{SEQ_NT36525B_BOE_140, ARRAY_SIZE(SEQ_NT36525B_BOE_140), 0, },
+	{SEQ_NT36525B_BOE_141, ARRAY_SIZE(SEQ_NT36525B_BOE_141), 0, },
+	{SEQ_NT36525B_BOE_142, ARRAY_SIZE(SEQ_NT36525B_BOE_142), 0, },
+	{SEQ_NT36525B_BOE_143, ARRAY_SIZE(SEQ_NT36525B_BOE_143), 0, },
+	{SEQ_NT36525B_BOE_144, ARRAY_SIZE(SEQ_NT36525B_BOE_144), 0, },
+	{SEQ_NT36525B_BOE_145, ARRAY_SIZE(SEQ_NT36525B_BOE_145), 0, },
+	{SEQ_NT36525B_BOE_146, ARRAY_SIZE(SEQ_NT36525B_BOE_146), 0, },
+	{SEQ_NT36525B_BOE_147, ARRAY_SIZE(SEQ_NT36525B_BOE_147), 0, },
+	{SEQ_NT36525B_BOE_148, ARRAY_SIZE(SEQ_NT36525B_BOE_148), 0, },
+	{SEQ_NT36525B_BOE_149, ARRAY_SIZE(SEQ_NT36525B_BOE_149), 0, },
+	{SEQ_NT36525B_BOE_150, ARRAY_SIZE(SEQ_NT36525B_BOE_150), 0, },
+	{SEQ_NT36525B_BOE_151, ARRAY_SIZE(SEQ_NT36525B_BOE_151), 0, },
+	{SEQ_NT36525B_BOE_152, ARRAY_SIZE(SEQ_NT36525B_BOE_152), 0, },
+	{SEQ_NT36525B_BOE_153, ARRAY_SIZE(SEQ_NT36525B_BOE_153), 0, },
+	{SEQ_NT36525B_BOE_154, ARRAY_SIZE(SEQ_NT36525B_BOE_154), 0, },
+	{SEQ_NT36525B_BOE_155, ARRAY_SIZE(SEQ_NT36525B_BOE_155), 0, },
+	{SEQ_NT36525B_BOE_156, ARRAY_SIZE(SEQ_NT36525B_BOE_156), 0, },
+	{SEQ_NT36525B_BOE_157, ARRAY_SIZE(SEQ_NT36525B_BOE_157), 0, },
+	{SEQ_NT36525B_BOE_158, ARRAY_SIZE(SEQ_NT36525B_BOE_158), 0, },
+	{SEQ_NT36525B_BOE_159, ARRAY_SIZE(SEQ_NT36525B_BOE_159), 0, },
+	{SEQ_NT36525B_BOE_160, ARRAY_SIZE(SEQ_NT36525B_BOE_160), 0, },
+	{SEQ_NT36525B_BOE_161, ARRAY_SIZE(SEQ_NT36525B_BOE_161), 0, },
+	{SEQ_NT36525B_BOE_162, ARRAY_SIZE(SEQ_NT36525B_BOE_162), 0, },
+	{SEQ_NT36525B_BOE_163, ARRAY_SIZE(SEQ_NT36525B_BOE_163), 0, },
+	{SEQ_NT36525B_BOE_164, ARRAY_SIZE(SEQ_NT36525B_BOE_164), 0, },
+	{SEQ_NT36525B_BOE_165, ARRAY_SIZE(SEQ_NT36525B_BOE_165), 0, },
+	{SEQ_NT36525B_BOE_166, ARRAY_SIZE(SEQ_NT36525B_BOE_166), 0, },
+	{SEQ_NT36525B_BOE_167, ARRAY_SIZE(SEQ_NT36525B_BOE_167), 0, },
+	{SEQ_NT36525B_BOE_168, ARRAY_SIZE(SEQ_NT36525B_BOE_168), 0, },
+	{SEQ_NT36525B_BOE_169, ARRAY_SIZE(SEQ_NT36525B_BOE_169), 0, },
+	{SEQ_NT36525B_BOE_170, ARRAY_SIZE(SEQ_NT36525B_BOE_170), 0, },
+	{SEQ_NT36525B_BOE_171, ARRAY_SIZE(SEQ_NT36525B_BOE_171), 0, },
+	{SEQ_NT36525B_BOE_172, ARRAY_SIZE(SEQ_NT36525B_BOE_172), 0, },
+	{SEQ_NT36525B_BOE_173, ARRAY_SIZE(SEQ_NT36525B_BOE_173), 0, },
+	{SEQ_NT36525B_BOE_174, ARRAY_SIZE(SEQ_NT36525B_BOE_174), 0, },
+	{SEQ_NT36525B_BOE_175, ARRAY_SIZE(SEQ_NT36525B_BOE_175), 0, },
+	{SEQ_NT36525B_BOE_176, ARRAY_SIZE(SEQ_NT36525B_BOE_176), 0, },
+	{SEQ_NT36525B_BOE_177, ARRAY_SIZE(SEQ_NT36525B_BOE_177), 0, },
+	{SEQ_NT36525B_BOE_178, ARRAY_SIZE(SEQ_NT36525B_BOE_178), 0, },
+	{SEQ_NT36525B_BOE_179, ARRAY_SIZE(SEQ_NT36525B_BOE_179), 0, },
+	{SEQ_NT36525B_BOE_180, ARRAY_SIZE(SEQ_NT36525B_BOE_180), 0, },
+	{SEQ_NT36525B_BOE_181, ARRAY_SIZE(SEQ_NT36525B_BOE_181), 0, },
+	{SEQ_NT36525B_BOE_182, ARRAY_SIZE(SEQ_NT36525B_BOE_182), 0, },
+	{SEQ_NT36525B_BOE_183, ARRAY_SIZE(SEQ_NT36525B_BOE_183), 0, },
+	{SEQ_NT36525B_BOE_184, ARRAY_SIZE(SEQ_NT36525B_BOE_184), 0, },
+	{SEQ_NT36525B_BOE_185, ARRAY_SIZE(SEQ_NT36525B_BOE_185), 0, },
+	{SEQ_NT36525B_BOE_186, ARRAY_SIZE(SEQ_NT36525B_BOE_186), 0, },
+	{SEQ_NT36525B_BOE_187, ARRAY_SIZE(SEQ_NT36525B_BOE_187), 0, },
+	{SEQ_NT36525B_BOE_188, ARRAY_SIZE(SEQ_NT36525B_BOE_188), 0, },
+	{SEQ_NT36525B_BOE_189, ARRAY_SIZE(SEQ_NT36525B_BOE_189), 0, },
+	{SEQ_NT36525B_BOE_190, ARRAY_SIZE(SEQ_NT36525B_BOE_190), 0, },
+	{SEQ_NT36525B_BOE_191, ARRAY_SIZE(SEQ_NT36525B_BOE_191), 0, },
+	{SEQ_NT36525B_BOE_192, ARRAY_SIZE(SEQ_NT36525B_BOE_192), 0, },
+	{SEQ_NT36525B_BOE_193, ARRAY_SIZE(SEQ_NT36525B_BOE_193), 0, },
+	{SEQ_NT36525B_BOE_194, ARRAY_SIZE(SEQ_NT36525B_BOE_194), 0, },
+	{SEQ_NT36525B_BOE_195, ARRAY_SIZE(SEQ_NT36525B_BOE_195), 0, },
+	{SEQ_NT36525B_BOE_196, ARRAY_SIZE(SEQ_NT36525B_BOE_196), 0, },
+	{SEQ_NT36525B_BOE_197, ARRAY_SIZE(SEQ_NT36525B_BOE_197), 0, },
+	{SEQ_NT36525B_BOE_198, ARRAY_SIZE(SEQ_NT36525B_BOE_198), 0, },
+	{SEQ_NT36525B_BOE_199, ARRAY_SIZE(SEQ_NT36525B_BOE_199), 0, },
+	{SEQ_NT36525B_BOE_200, ARRAY_SIZE(SEQ_NT36525B_BOE_200), 0, },
+	{SEQ_NT36525B_BOE_201, ARRAY_SIZE(SEQ_NT36525B_BOE_201), 0, },
+	{SEQ_NT36525B_BOE_202, ARRAY_SIZE(SEQ_NT36525B_BOE_202), 0, },
+	{SEQ_NT36525B_BOE_203, ARRAY_SIZE(SEQ_NT36525B_BOE_203), 0, },
+	{SEQ_NT36525B_BOE_204, ARRAY_SIZE(SEQ_NT36525B_BOE_204), 0, },
+	{SEQ_NT36525B_BOE_205, ARRAY_SIZE(SEQ_NT36525B_BOE_205), 0, },
+	{SEQ_NT36525B_BOE_206, ARRAY_SIZE(SEQ_NT36525B_BOE_206), 0, },
+	{SEQ_NT36525B_BOE_207, ARRAY_SIZE(SEQ_NT36525B_BOE_207), 0, },
+	{SEQ_NT36525B_BOE_208, ARRAY_SIZE(SEQ_NT36525B_BOE_208), 0, },
+	{SEQ_NT36525B_BOE_209, ARRAY_SIZE(SEQ_NT36525B_BOE_209), 0, },
+	{SEQ_NT36525B_BOE_210, ARRAY_SIZE(SEQ_NT36525B_BOE_210), 0, },
+	{SEQ_NT36525B_BOE_211, ARRAY_SIZE(SEQ_NT36525B_BOE_211), 0, },
+	{SEQ_NT36525B_BOE_212, ARRAY_SIZE(SEQ_NT36525B_BOE_212), 0, },
+	{SEQ_NT36525B_BOE_213, ARRAY_SIZE(SEQ_NT36525B_BOE_213), 0, },
+	{SEQ_NT36525B_BOE_214, ARRAY_SIZE(SEQ_NT36525B_BOE_214), 0, },
+	{SEQ_NT36525B_BOE_215, ARRAY_SIZE(SEQ_NT36525B_BOE_215), 0, },
+	{SEQ_NT36525B_BOE_216, ARRAY_SIZE(SEQ_NT36525B_BOE_216), 0, },
+	{SEQ_NT36525B_BOE_217, ARRAY_SIZE(SEQ_NT36525B_BOE_217), 0, },
+	{SEQ_NT36525B_BOE_218, ARRAY_SIZE(SEQ_NT36525B_BOE_218), 0, },
+	{SEQ_NT36525B_BOE_219, ARRAY_SIZE(SEQ_NT36525B_BOE_219), 0, },
+	{SEQ_NT36525B_BOE_220, ARRAY_SIZE(SEQ_NT36525B_BOE_220), 0, },
+	{SEQ_NT36525B_BOE_221, ARRAY_SIZE(SEQ_NT36525B_BOE_221), 0, },
+	{SEQ_NT36525B_BOE_222, ARRAY_SIZE(SEQ_NT36525B_BOE_222), 0, },
+	{SEQ_NT36525B_BOE_223, ARRAY_SIZE(SEQ_NT36525B_BOE_223), 0, },
+	{SEQ_NT36525B_BOE_224, ARRAY_SIZE(SEQ_NT36525B_BOE_224), 0, },
+	{SEQ_NT36525B_BOE_225, ARRAY_SIZE(SEQ_NT36525B_BOE_225), 0, },
+	{SEQ_NT36525B_BOE_226, ARRAY_SIZE(SEQ_NT36525B_BOE_226), 0, },
+	{SEQ_NT36525B_BOE_227, ARRAY_SIZE(SEQ_NT36525B_BOE_227), 0, },
+	{SEQ_NT36525B_BOE_228, ARRAY_SIZE(SEQ_NT36525B_BOE_228), 0, },
+	{SEQ_NT36525B_BOE_229, ARRAY_SIZE(SEQ_NT36525B_BOE_229), 0, },
+	{SEQ_NT36525B_BOE_230, ARRAY_SIZE(SEQ_NT36525B_BOE_230), 0, },
+	{SEQ_NT36525B_BOE_231, ARRAY_SIZE(SEQ_NT36525B_BOE_231), 0, },
+	{SEQ_NT36525B_BOE_232, ARRAY_SIZE(SEQ_NT36525B_BOE_232), 0, },
+	{SEQ_NT36525B_BOE_233, ARRAY_SIZE(SEQ_NT36525B_BOE_233), 0, },
+	{SEQ_NT36525B_BOE_234, ARRAY_SIZE(SEQ_NT36525B_BOE_234), 0, },
+	{SEQ_NT36525B_BOE_235, ARRAY_SIZE(SEQ_NT36525B_BOE_235), 0, },
+	{SEQ_NT36525B_BOE_236, ARRAY_SIZE(SEQ_NT36525B_BOE_236), 0, },
+	{SEQ_NT36525B_BOE_237, ARRAY_SIZE(SEQ_NT36525B_BOE_237), 0, },
+	{SEQ_NT36525B_BOE_238, ARRAY_SIZE(SEQ_NT36525B_BOE_238), 0, },
+	{SEQ_NT36525B_BOE_239, ARRAY_SIZE(SEQ_NT36525B_BOE_239), 0, },
+	{SEQ_NT36525B_BOE_240, ARRAY_SIZE(SEQ_NT36525B_BOE_240), 0, },
+	{SEQ_NT36525B_BOE_241, ARRAY_SIZE(SEQ_NT36525B_BOE_241), 0, },
+	{SEQ_NT36525B_BOE_242, ARRAY_SIZE(SEQ_NT36525B_BOE_242), 0, },
+	{SEQ_NT36525B_BOE_243, ARRAY_SIZE(SEQ_NT36525B_BOE_243), 0, },
+	{SEQ_NT36525B_BOE_244, ARRAY_SIZE(SEQ_NT36525B_BOE_244), 0, },
+	{SEQ_NT36525B_BOE_245, ARRAY_SIZE(SEQ_NT36525B_BOE_245), 0, },
+	{SEQ_NT36525B_BOE_246, ARRAY_SIZE(SEQ_NT36525B_BOE_246), 0, },
+	{SEQ_NT36525B_BOE_247, ARRAY_SIZE(SEQ_NT36525B_BOE_247), 0, },
+	{SEQ_NT36525B_BOE_248, ARRAY_SIZE(SEQ_NT36525B_BOE_248), 0, },
+	{SEQ_NT36525B_BOE_249, ARRAY_SIZE(SEQ_NT36525B_BOE_249), 0, },
+	{SEQ_NT36525B_BOE_250, ARRAY_SIZE(SEQ_NT36525B_BOE_250), 0, },
+	{SEQ_NT36525B_BOE_251, ARRAY_SIZE(SEQ_NT36525B_BOE_251), 0, },
+};
+
+/* DO NOT REMOVE: back to page 1 for setting DCS commands */
+static unsigned char SEQ_NT36525B_BOE_BACK_TO_PAGE_1_A[] = {
+	0xFF,
+	0x10,
+};
+
+static unsigned char SEQ_NT36525B_BOE_BACK_TO_PAGE_1_B[] = {
+	0xFB,
+	0x01,
+};
+
+static unsigned int brightness_table[EXTEND_BRIGHTNESS + 1] = {
+	0,
+	1, 1, 2, 3, 3, 4, 5, 5, 6, 7, /* 1: 1 */
+	7, 8, 9, 9, 10, 11, 11, 12, 13, 14,
+	14, 15, 16, 16, 17, 18, 18, 19, 20, 20,
+	21, 22, 22, 23, 24, 24, 25, 26, 27, 27,
+	28, 29, 29, 30, 31, 31, 32, 33, 33, 34,
+	35, 35, 36, 37, 37, 38, 39, 40, 40, 41,
+	42, 42, 43, 44, 44, 45, 46, 46, 47, 48,
+	48, 49, 50, 51, 51, 52, 53, 53, 54, 55,
+	55, 56, 57, 57, 58, 59, 59, 60, 61, 61,
+	62, 63, 64, 64, 65, 66, 66, 67, 68, 68,
+	69, 70, 70, 71, 72, 72, 73, 74, 74, 75,
+	76, 77, 77, 78, 79, 79, 80, 81, 81, 82,
+	83, 83, 84, 85, 85, 86, 87, 88, 88, 89, /* 128: 88 */
+	90, 91, 92, 93, 94, 95, 96, 97, 98, 99,
+	100, 101, 102, 103, 104, 105, 106, 107, 108, 109,
+	110, 111, 112, 113, 114, 115, 116, 117, 118, 118,
+	119, 120, 121, 122, 123, 124, 125, 126, 127, 128,
+	129, 130, 131, 132, 133, 134, 135, 136, 137, 138,
+	139, 140, 141, 142, 143, 144, 145, 146, 147, 148,
+	149, 149, 150, 151, 152, 153, 154, 155, 156, 157,
+	158, 159, 160, 161, 162, 163, 164, 165, 166, 167,
+	168, 169, 170, 171, 172, 173, 174, 175, 176, 177,
+	178, 179, 180, 180, 181, 182, 183, 184, 185, 186,
+	187, 188, 189, 190, 191, 192, 193, 194, 195, 196,
+	197, 198, 199, 200, 201, 202, 203, 204, 205, 206,
+	207, 208, 209, 210, 211, 211, 211, 211, 211, 211, /* 255: 211 */
+	211, 211, 211, 211, 211, 211, 211, 211, 211, 211,
+	211, 211, 211, 211, 211, 211, 211, 211, 211, 211,
+	211, 211, 211, 211, 211, 211, 211, 211, 211, 211,
+	211, 211, 211, 211, 211, 211, 211, 211, 211, 211,
+	211, 211, 211, 211, 211, 254,
+};
+
+#endif /* __NT36525B_BOE_PARAM_H__ */
