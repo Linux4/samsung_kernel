@@ -1,0 +1,2 @@
+obj-$(CONFIG_SILEAD_FP_PLATFORM) += silead/
+obj-$(CONFIG_FINGGERPRINT_GF_3258) += gf_3258/

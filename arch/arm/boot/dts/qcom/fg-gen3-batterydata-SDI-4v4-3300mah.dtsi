@@ -1,0 +1,72 @@
+
+qcom,s88661_samsung_4V4_3450mah_jul3rd2018 {
+	qcom, = <24>;
+	/* #3505193_Wingtech_PhoenixSTD_3300mAh_averaged_MasterSlave_Jul3rd2018*/
+	qcom,max-voltage-uv = <4400000>;
+	qcom,nom-batt-capacity-mah = <3300>;
+	qcom,batt-id-kohm = <10>;
+	qcom,fastchg-current-ma = <2000>;
+	qcom,battery-beta = <3380>;
+	qcom,fg-cc-cv-threshold-mv = <4390>;
+	qcom,battery-type = "s88661_samsung_4V4_3300mah";
+	qcom,checksum = <0x6EBC>;
+	qcom,gui-version = "PM660GUI - 0.0.0.45";
+	qcom,fg-profile-data = [
+		 14 1E 25 ED
+		 5F 01 38 00
+		 DD 1C 1A 02
+		 61 0D 15 0B
+		 D9 17 13 2A
+		 DA 4D 0D 5B
+		 5F 00 00 00
+		 0F 00 00 00
+		 00 00 CD C4
+		 DD CD 65 CA
+		 28 00 08 00
+		 16 00 2E E4
+		 F4 05 1A 01
+		 A3 05 15 12
+		 1B E4 92 2A
+		 27 06 09 20
+		 27 00 14 00
+		 1F 1F 01 FD
+		 34 03 49 07
+		 C7 1C 07 03
+		 E4 15 52 12
+		 68 18 48 2A
+		 12 4D 98 62
+		 63 00 00 00
+		 0C 00 00 00
+		 00 00 96 CC
+		 58 CA 0D A2
+		 1E 00 00 00
+		 23 EB 2E E4
+		 8B FD D2 EB
+		 FB FD A5 01
+		 69 FB BC 1B
+		 B1 33 CC FF
+		 07 10 00 00
+		 37 0D 66 46
+		 1E 00 40 00
+		 76 01 0A FA
+		 FF 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+		 00 00 00 00
+	];
+};

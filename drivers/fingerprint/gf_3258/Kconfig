@@ -1,0 +1,5 @@
+config FINGGERPRINT_GF_3258
+	tristate "generic goodix fingerprint driver"
+	default n
+	help
+	add support for goodix fingerprint driver.

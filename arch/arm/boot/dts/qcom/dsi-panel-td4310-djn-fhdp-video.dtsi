@@ -1,0 +1,200 @@
+/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+&soc {
+	dsi_panel_pwr_supply_td4310_djn: dsi_panel_pwr_supply_td4310_djn {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,panel-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "panel_iovcc_parent";
+			qcom,supply-min-voltage = <1805000>;
+			qcom,supply-max-voltage = <2040000>;
+			qcom,supply-enable-load = <32000>;
+			qcom,supply-disable-load = <80>;
+		};
+
+		qcom,panel-supply-entry@1 {
+			reg = <1>;
+			qcom,supply-name = "panel_iovcc";
+			qcom,supply-min-voltage = <1800000>;
+			qcom,supply-max-voltage = <1800000>;
+			qcom,supply-enable-load = <32000>;
+			qcom,supply-disable-load = <80>;
+		};
+
+		qcom,panel-supply-entry@2 {
+			reg = <2>;
+			qcom,supply-name = "wqhd-vddio";
+			qcom,supply-min-voltage = <1800000>;
+			qcom,supply-max-voltage = <1950000>;
+			qcom,supply-enable-load = <32000>;
+			qcom,supply-disable-load = <80>;
+			qcom,supply-post-on-sleep = <11>;
+			qcom,supply-pre-off-sleep = <11>;
+		};
+	};
+
+	dsi_panel_post_pwr_supply_td4310_djn: dsi_panel_post_pwr_supply_td4310_djn {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,panel-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "lab";
+			qcom,supply-min-voltage = <4600000>;
+			qcom,supply-max-voltage = <6000000>;
+			qcom,supply-enable-load = <100000>;
+			qcom,supply-disable-load = <100>;
+			qcom,supply-post-off-sleep = <11>;
+		};
+
+		qcom,panel-supply-entry@1 {
+			reg = <1>;
+			qcom,supply-name = "ibb";
+			qcom,supply-min-voltage = <4600000>;
+			qcom,supply-max-voltage = <6000000>;
+			qcom,supply-enable-load = <100000>;
+			qcom,supply-disable-load = <100>;
+			qcom,supply-pre-off-sleep = <11>;
+		};
+	};
+};
+
+&mdss_mdp {
+	dsi_td4310_djn_fhdp_video: qcom,mdss_dsi_td4310_djn_fhdp_video {
+		qcom,mdss-dsi-panel-name = "td4310 djn fhdp video mode dsi panel";
+		qcom,mdss-dsi-panel-type = "dsi_video_mode";
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-stream = <0>;
+		qcom,mdss-dsi-h-sync-skew = <0>;
+		qcom,mdss-dsi-h-sync-pulse = <0>;
+		qcom,mdss-dsi-panel-framerate = <60>;
+//965MHz
+		qcom,mdss-dsi-panel-width = <1080>;
+		qcom,mdss-dsi-panel-height = <2160>;
+		qcom,mdss-dsi-h-front-porch = <104>;
+		qcom,mdss-dsi-h-back-porch = <44>;
+		qcom,mdss-dsi-h-pulse-width = <4>;
+		qcom,mdss-dsi-v-front-porch = <8>;
+		qcom,mdss-dsi-v-back-porch = <6>;
+		qcom,mdss-dsi-v-pulse-width = <2>;
+		qcom,mdss-dsi-panel-timings = [e6 38 26 00 68 6e 2a
+				3c 44 03 04 00];
+		qcom,mdss-dsi-panel-timings-phy-v2 = [
+			25 1F 09 0A 06 03 04 a0
+			25 1F 09 0A 06 03 04 a0
+			25 1F 09 0A 06 03 04 a0
+			25 1F 09 0A 06 03 04 a0
+			25 1D 08 0A 06 03 04 a0];
+		qcom,mdss-dsi-t-clk-post = <0x0E>;
+		qcom,mdss-dsi-t-clk-pre = <0x33>;
+
+		qcom,mdss-dsi-h-left-border = <0>;
+		qcom,mdss-dsi-h-right-border = <0>;
+		qcom,mdss-dsi-v-top-border = <0>;
+		qcom,mdss-dsi-v-bottom-border = <0>;
+		qcom,mdss-dsi-bpp = <24>;
+		qcom,mdss-dsi-underflow-color = <0xff>;
+		qcom,mdss-dsi-border-color = <0>;
+
+		qcom,mdss-dsi-traffic-mode = "burst_mode";
+		qcom,mdss-dsi-bllp-eof-power-mode;
+		qcom,mdss-dsi-bllp-power-mode;
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-lane-1-state;
+		qcom,mdss-dsi-lane-2-state;
+		qcom,mdss-dsi-lane-3-state;
+
+		qcom,mdss-dsi-dma-trigger = "trigger_sw";
+		qcom,mdss-dsi-mdp-trigger = "none";
+		qcom,mdss-dsi-on-command = [
+			05 01 00 00 46 00 02 11 00
+			15 01 00 00 00 00 02 B0 04
+			39 01 00 00 00 00 04 B3 B5 20 06
+			15 01 00 00 00 00 02 B4 00
+			39 01 00 00 00 00 06 B6 33 5B 01 12 00
+			39 01 00 00 00 00 08 B8 57 3D 19 1E 0A 50 50
+			39 01 00 00 00 00 08 B9 6F 3D 28 3C 14 C8 C8
+			39 01 00 00 00 00 08 BA B5 33 41 64 23 A0 A0
+			39 01 00 00 00 00 03 BB 14 14
+			39 01 00 00 00 00 03 BC 37 32
+			39 01 00 00 00 00 03 BD 64 72
+			15 01 00 00 00 00 02 BE 04
+			15 01 00 00 00 00 02 C0 00
+			39 01 00 00 00 00 31 C1 84 40 10 00 00 60 0C 09 62 14 A0 16 4B E8 1C 94 D8 52 A0 0C 11 00 00 00 00 00 10 10 10 10 10 10 10 10 40 02 62 09 06 03 01 00 01 00 01 00 00 00
+			39 01 00 00 00 00 19 C2 01 F8 70 04 64 04 00 10 00 08 70 00 00 00 00 00 00 00 00 13 00 00 00 00
+			39 01 00 00 00 00 3F C3 86 18 61 86 10 00 00 00 00 00 40 44 04 00 00 44 A4 4A 00 00 02 01 03 28 03 28 00 01 00 00 13 00 13 00 00 00 13 00 13 00 00 00 00 00 00 00 00 00 24 00 24 00 00 00 24 00 24 00 00 00 38 38
+			39 01 00 00 00 00 15 C4 70 00 00 00 00 00 00 00 00 02 01 11 01 00 00 00 02 01 01 01
+			39 01 00 00 00 00 09 C5 08 00 00 00 00 70 00 00
+			39 01 00 00 00 00 40 C6 45 0A 0A 16 2A 00 00 00 00 00 00 3C 05 00 00 00 00 02 12 02 45 00 46 53 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+			39 01 00 00 00 00 27 C7 00 22 31 46 55 61 78 88 95 A0 51 5C 69 7B 83 8F 9C A8 B7 00 22 31 46 55 61 78 88 95 A0 51 5C 69 7B 83 8F 9C A8 B7
+			39 01 00 00 00 00 38 C8 01 00 FB 0D 0A FC 00 00 F6 03 01 F0 00 00 FE 01 FD FC 00 00 00 00 00 FC 00 00 00 00 00 FC 00 00 00 00 00 FC 00 00 00 00 00 FC 00 00 00 00 00 FC 00 00 00 00 00 FC 00
+			39 01 00 00 00 00 14 C9 00 00 00 00 00 FC 00 00 00 00 00 FC 00 00 00 00 00 FC 00
+			39 01 00 00 00 00 2C CA 1C FC FC FC 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+			39 01 00 00 00 00 1C CB F0 F7 FF 3E 00 00 00 00 00 00 00 80 1F 00 00 0F 5E 00 00 00 00 00 00 00 00 00 00
+			39 01 00 00 00 00 03 CC 0D 00
+			39 01 00 00 00 00 27 CD 0D 00 21 00 21 00 5C 02 BE BE DC DC B4 B4 DC DC 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 A2
+			39 01 00 00 00 00 1A CE 5D 40 49 53 59 5E 63 68 6E 74 7E 8A 98 A8 BB D0 FF 04 00 04 04 42 00 69 5A
+			39 01 00 00 00 00 03 CF 48 10
+			39 01 00 00 00 00 14 D0 11 55 D3 31 01 10 10 10 19 19 00 00 00 00 00 00 00 6D 65
+			15 01 00 00 00 00 02 D1 00
+			39 01 00 00 00 00 16 D3 1B 3B BB 77 77 77 BB B3 33 00 00 6D 6C D7 D7 33 BB F2 FD C6 0B
+			39 01 00 00 00 00 0B D5 03 00 00 02 28 02 28 01 00 00
+			15 01 00 00 00 00 02 D6 01
+			39 01 00 00 00 00 22 D7 F6 FF 03 05 41 24 80 1F C7 1F 1B 00 0C 07 20 00 00 00 00 00 0C F0 1F 00 0C 00 00 AA 67 7E 5D 06 00
+			39 01 00 00 00 00 08 D9 00 02 14 3F 0F 77 02
+			39 01 00 00 00 00 05 DD 30 06 23 65
+			39 01 00 00 00 00 05 DE 00 3F FF 50
+			15 01 00 00 00 00 02 EA 00
+			39 01 00 00 00 00 04 EE 41 51 00
+			39 01 00 00 00 00 04 F1 00 00 00
+			//cabc 21KHz
+			29 01 00 00 00 00 02 B0 00
+			29 01 00 00 00 00 02 D6 01
+			29 01 00 00 00 00 1A CE 5D 40 49 53 59 5E 63 68 6E 74 7E 8A 98 A8 BB D0 FF 03 00 04 04 42 00 69 5A
+			39 01 00 00 00 00 02 51 ff
+			39 01 00 00 00 00 02 53 24
+			39 01 00 00 00 00 02 55 02
+			05 01 00 00 14 00 02 29 00
+			];
+		qcom,mdss-dsi-off-command = [05 01 00 00 14 00 02 28 00
+				 05 01 00 00 78 00 02 10 00];
+		qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+		qcom,mdss-dsi-off-command-state = "dsi_lp_mode";
+
+		qcom,esd-check-enabled;
+		qcom,mdss-dsi-panel-status-check-mode = "reg_read";
+		qcom,mdss-dsi-panel-status-command = [06 01 00 01 00 00 01 0a];
+		qcom,mdss-dsi-panel-status-command-state = "dsi_hs_mode";
+		qcom,mdss-dsi-panel-status-value = <0x1C>;
+		qcom,mdss-dsi-panel-on-check-value = <0x1C>;
+		qcom,mdss-dsi-panel-status-read-length = <1>;
+		qcom,mdss-dsi-panel-max-error-count = <3>;
+
+		qcom,mdss-dsi-lp11-init;
+		qcom,mdss-dsi-lp11-deinit;
+		qcom,mdss-dsi-init-delay-us = <10000>;
+		qcom,suspend-ulps-enabled;
+		qcom,mdss-dsi-reset-sequence = <1 2>, <0 13>, <1 55>;
+		qcom,mdss-dsi-tx-eot-append;
+		qcom,mdss-dsi-post-init-delay = <1>;
+		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+		qcom,mdss-dsi-bl-min-level = <45>;
+		qcom,mdss-dsi-bl-default-level = <850>;
+		qcom,mdss-dsi-bl-max-level = <4095>;
+		qcom,mdss-pan-physical-width-dimension = <68>;
+		qcom,mdss-pan-physical-height-dimension = <136>;
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply_td4310_djn>;
+		qcom,panel-post-supply-entries = <&dsi_panel_post_pwr_supply_td4310_djn>;
+	};
+};

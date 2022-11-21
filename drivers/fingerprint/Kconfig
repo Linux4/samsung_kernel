@@ -1,0 +1,6 @@
+config FINGERPRINT
+	default y
+tristate "samsung Fingerprint driver support"
+
+source "drivers/fingerprint/silead/Kconfig"
+source "drivers/fingerprint/gf_3258/Kconfig"
