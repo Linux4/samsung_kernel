@@ -1,0 +1,65 @@
+#
+#Fingerprint
+#
+menu "Fingerprint support"
+	depends on INPUT
+
+
+config MTK_FINGERPRINT_SUPPORT
+	bool "Mediatek Fingerprint"
+	default n
+	help
+	  Fingerprint mtk driver enable/disable in the kernel.
+	  Say Y here if you want to use mediatek fingerprint driver,
+	  fingerprint driver will support fingerprint function
+
+
+if MTK_FINGERPRINT_SUPPORT
+config MTK_FINGERPRINT_SELECT
+	string "sensor type"
+	default "GF318M"
+
+config EGIS_FINGERPRINT
+	bool "egis Fingerprint"
+	default n
+
+config CHIPONE_FINGERPRINT
+	bool "chipone Fingerprint"
+	default n
+	help
+	  chipone fingerprint 7332 device.
+
+config FPC_FINGERPRINT
+	bool "FPC Fingerprint"
+	default n
+	help
+	  FPC fingerprint FPC's 102x/104x device.
+
+#+bug 518657,gjx.wt,20191129,fingerprint bringup
+config CHIPONE_FINGERPRINT_N6
+	bool "chipone Fingerprint"
+	default n
+	help
+	  chipone fingerprint 7332 device.
+
+config FPC_FINGERPRINT_N6
+	bool "FPC Fingerprint"
+	default n
+	help
+	  FPC fingerprint FPC's 102x/104x device.
+
+config SUNWAVE_FINGERPRINT_N6
+	bool "sunwave Fingerprint"
+	default n
+	help
+	  sunwave fingerprint FPC's 102x/104x device.
+
+config EGIS_FINGERPRINT_N6
+	bool "egis Fingerprint"
+	default n
+	help
+	  egis fingerprint et520 device.
+#-bug 518657,gjx.wt,20191129,fingerprint bringup
+
+endif
+endmenu

@@ -1,0 +1,10 @@
+# Power Related
+config MTK_PMIC
+	bool "MediaTek PMIC driver"
+	---help---
+	  MediaTek PMIC driver
+
+config MTK_BQ24157_SUPPORT
+	bool "Charger Driver for BQ BQ24157 Charger IC"
+	help
+	  BQ BQ24157 driver.

@@ -1,0 +1,9 @@
+config INPUT_HALL
+	bool "INPUT_MHALL for MediaTek package"
+	default n
+	help
+	  It support different mall sensor.
+          If this option is set,
+	  it will support
+          INPUT_MHALL HALL_SENSOR.
+

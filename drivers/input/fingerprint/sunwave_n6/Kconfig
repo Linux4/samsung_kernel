@@ -1,0 +1,5 @@
+config SUNWAVE_FINGERPRINT_N6
+       tristate "Sunwave Fingerprint"
+       default n
+       help
+          SUNWAVECORP Fingerprint
