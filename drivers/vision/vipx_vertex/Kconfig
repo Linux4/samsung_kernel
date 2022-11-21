@@ -1,0 +1,11 @@
+menuconfig EXYNOS_VIPX_VERTEX
+	bool "Exynos VIPx driver"
+	select EXYNOS_VIPX_VERTEX_PLATFORM
+	help
+	  This is a vision image processing unit
+
+if EXYNOS_VIPX_VERTEX
+
+source "drivers/vision/vipx_vertex/platform/Kconfig"
+
+endif
