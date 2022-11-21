@@ -1,0 +1,150 @@
+#
+# sensor drivers configuration
+#
+config SENSORS_SYSFS
+	tristate "Sensors sysfs"
+	help
+	  Support sysfs for sensors.
+          If you say yes here you get sysfs support for
+	  sensor factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called sensors_core.
+
+config SENSORS_SSP
+	tristate "Sensors ssp"
+	default n
+	depends on SPI
+	help
+	  ssp driver for sensor hub.
+          If you say yes here you get ssp support for
+	  sensor hub.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SENSORS_SSP_SENSORHUB
+	tristate "Sensors ssp sensorhub"
+	default n
+	depends on SPI
+	help
+	  ssp sensor hub driver for sensor hub.
+          If you say yes here you get ssp support for
+	  sensor hub.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SENSORS_SSP_FACTORY
+	tristate "ssp factory"
+	depends on SENSORS_SSP
+	default n
+	help
+	  ssp sensor hub driver for factory test.
+          If you say yes here you can enable fatory drvier for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SENSORS_MAX86900
+	tristate "MAXIM MAX86900 HRM Sensor"
+	default n
+	depends on I2C && SYSFS
+	help
+	  If you say yes here you get support for the MAX86900
+	  HRM sensor.
+	  This driver can also be built as a module.  If so, the module
+	  will be called max86900.
+
+config SENSORS_MAX86902
+	tristate "MAXIM MAX86902 UV HRM Sensor"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for the MAX86902
+	  HRM sensor & uv sensor.
+	  This driver can also be built as a module.  If so, the module
+	  will be called MAX86902.
+
+config SENSORS_ADPD142
+	depends on I2C
+	tristate "ADI hrm sensor driver"
+	default n
+	help
+	  This option enables hrm sensors using adpd142 driver.
+
+config SWI2C_MAX86902
+	depends on I2C
+	tristate "using Software I2C"
+	default n
+	help
+	  This option enables the max86902 using software I2C.
+	  
+config SENSOR_SSP_PROXIMTY_FOR_WINDOW_TYPE
+	tristate "PROXIMITY THRESHOLD FOR WINDOW_TYPE"
+	default n
+	depends on SPI
+	help
+	  If you say yes here you get support for the proximity threshold
+	  This threshold is changed by window type.
+
+config SENSORS_SSP_DIRECTION_EXCEPTION
+	tristate "ssp direction exception"
+	default n
+	depends on SPI
+	help
+	  ssp sensor hub check direction exception.
+	  If you say yes here you enable this routine.
+
+config SENSORS_SSP_ENG
+	tristate "ssp eng binary"
+	default n
+	depends on SPI
+	help
+	  ssp sensor hub check binary mode
+	  If you say yes here you enable this routine.
+
+config SENSORS_SX9306
+	depends on I2C
+	tristate "SX9306 driver"
+	default n
+	help
+	  Say Y here if you use sx9306.
+	  This option enables grip sensors using
+	  SemTech sx9306 device driver.
+
+	  Say N here if you do not use sx9306.
+
+config SENSORS_SX9306_INIT_TOUCH_THRESHOLD
+	int "SX9306 Grip sensor threshold for init touch"
+	depends on SENSORS_SX9306
+	default "3000"
+	help
+	  This value is the standard of init touch using
+	  SemTech sx9306 device driver.
+
+config SENSORS_SX9306_NORMAL_TOUCH_THRESHOLD
+	int "SX9306 Grip sensor threshold for normal touch"
+	depends on SENSORS_SX9306
+	default "17"
+	help
+	  This value is the standard of normal touch using
+	  SemTech sx9306 device driver.
+
+config SENSORS_SX9306_TEMPERATURE_COMPENSATION
+	depends on SENSORS_SX9306
+	tristate "SX9306 Grip sensor temperature compensation"
+	default n
+	help
+	  Say Y here if you use temperature compensation code.
+	  This option enables grip sensors using
+	  temperature compensation code.
+
+config SENSORS_GRIP_SIMDET
+	depends on SENSORS_SX9306
+	tristate "SX9306 Grip sensor Simcard detect code"
+	default n
+	help
+	  Say Y here if you use sim card detect code for grip sensor.
+	  This option enables grip sensors using
+	  sim card detect code for grip sensor
+
+source "drivers/sensorhub/atmel/factory/Kconfig"
+source "drivers/sensorhub/atmel/max_notchfilter/Kconfig"

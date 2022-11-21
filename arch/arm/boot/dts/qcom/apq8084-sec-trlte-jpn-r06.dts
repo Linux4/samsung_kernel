@@ -1,0 +1,256 @@
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+
+#include "apq8084-v1.1.dtsi"
+#include "apq8084-mtp.dtsi"
+
+#include "apq8084-sii8620-mhl3-trlte-r06.dtsi"
+#include "apq8084-sec-trlte-r06.dtsi"
+#include "apq8084-sec-trlte-battery-r04.dtsi"
+/ {
+	model = "APQ 8084 v1.1, SAMSUNG trlte JPN Project Rev06";
+	compatible = "qcom,apq8084-mtp", "qcom,apq8084", "qcom,mtp";
+    qcom,msm-id = <0xB208FF01 6 0x10000>;
+    /* [31:24] chip-id, [23:16] platform-id, [15:8] national code, [7:0] operator revision, reserved */
+};
+
+&mdm1 {
+	interrupt-map = <0 &msmgpio 111 0x3
+			1 &msmgpio 109 0x3
+			2 &msmgpio 113 0x3
+			3 &msmgpio 115 0x3>;
+	qcom,mdm2ap-errfatal-gpio = <&msmgpio 111 0x00>;
+	qcom,ap2mdm-errfatal-gpio = <&msmgpio 112 0x00>;
+	qcom,mdm2ap-status-gpio   = <&msmgpio 109 0x00>;
+	qcom,ap2mdm-status-gpio   = <&msmgpio 110 0x00>;
+	qcom,ap2mdm-soft-reset-gpio = <&msmgpio 128 0x00>;
+	qcom,mdm2ap-pblrdy-gpio = <&msmgpio 113 0x00>;
+	qcom,ap2mdm-vddmin-gpio = <&msmgpio 114 0x00>;
+	qcom,mdm2ap-vddmin-gpio = <&msmgpio 115 0x00>;
+	qcom,mdm-dual-link;
+	status = "ok";
+};
+
+&mdm0 {
+	interrupt-map = <0 &msmgpio 111 0x3
+			1 &msmgpio 109 0x3
+			2 &msmgpio 113 0x3
+			3 &msmgpio 115 0x3>;
+	qcom,mdm2ap-errfatal-gpio = <&msmgpio 111 0x00>;
+	qcom,ap2mdm-errfatal-gpio = <&msmgpio 112 0x00>;
+	qcom,mdm2ap-status-gpio   = <&msmgpio 109 0x00>;
+	qcom,ap2mdm-status-gpio   = <&msmgpio 110 0x00>;
+	qcom,ap2mdm-soft-reset-gpio = <&msmgpio 128 0x00>;
+	qcom,mdm2ap-pblrdy-gpio = <&msmgpio 113 0x00>;
+	qcom,ap2mdm-vddmin-gpio = <&msmgpio 114 0x00>;
+	qcom,mdm2ap-vddmin-gpio = <&msmgpio 115 0x00>;
+	status = "ok";
+};
+
+&mhi {
+	esoc-names = "mdm";
+	esoc-0 = <&mdm1>;
+	mhi-device-wake-gpio =
+		<&msmgpio 108 0>;
+	qcom,msm-bus,name = "mhi";
+	qcom,msm-bus,num-cases = <2>;
+	qcom,msm-bus,num-paths = <1>;
+	qcom,msm-bus,vectors-KBps =
+		<100 512 0 0>,
+		<100 512 625000000 625000000>;
+};
+
+&cnss {
+	esoc-names = "modem_wlan";
+	esoc-0 = <&mdm0>;
+};
+
+/***************************************************************/
+/* <<< JPN System: JPN model specific overriding configuration */
+&soc {
+	/delete-node/ i2c@f9926000;
+
+	/* <<< JPN System: FullSEG/TMM/OneSEG */
+	tspp: msm_tspp@f99d8000 {
+		status = "okay";
+	};
+
+	i2c@27
+	{
+		cell-index = <27>;
+		compatible = "i2c-gpio";
+		gpios = <&msmgpio 77 0 /* sda */
+				&msmgpio 75 0 /* scl */
+		>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		isdb_fc8300@58 {
+			compatible = "isdb,isdb_fc8300";
+			reg = <0x58>;
+		};
+	};
+
+	isdbt_fc8300_data {
+		compatible = "isdb_fc8300_pdata";
+		qcom,isdb-gpio-pwr-en = <305>;
+		qcom,isdb-gpio-rst = <306>;
+		qcom,isdb-gpio-irq = <&pma8084_gpios 11 0>;
+		qcom,isdb-gpio-i2c_sda = <&msmgpio 77 0>;
+		qcom,isdb-gpio-i2c_scl = <&msmgpio 75 0>;
+		qcom,isdb-bbm-xtal-freq = <19200>;
+	};
+	/* JPN System: FullSEG/TMM/OneSEG >>>*/
+
+	/* <<< JPN System: Felica/NFC */
+	sec_nfc
+	{
+		compatible = "sec-nfc";
+		sec-nfc,pon-gpio = 	<&msmgpio 117 0x00>;
+		sec-nfc,rfs-gpio = 	<&pma8084_gpios 16 0x00>;
+	};
+
+	sec_nfc_fn
+	{
+		compatible = "sec-nfc-fn";
+		sec-nfc-fn,int-gpio = 	<&pma8084_gpios 10 0x00>;
+	};
+
+	/* NEED TO CHANGE THE FOLLOWING DEVICE ENTRY */
+	felica_uart: serial@f9920000 
+	{
+		compatible = "qcom,msm-lsuart-v14";
+		interrupts = <0 110 0>;
+		reg = <0xf9920000 0x1000>;
+		status = "ok";
+		
+		qcom,config-gpio = <4>;
+		qcom,tx-gpio = <&msmgpio 27 0x00>;
+		qcom,rx-gpio = <&msmgpio 28 0x00>;
+		qcom,cts-gpio = <&msmgpio 29 0x00>;
+		qcom,rfr-gpio = <&msmgpio 30 0x00>;
+		qcom,msm-bus,name = "serial_uart2";
+		qcom,msm-bus,num-cases = <2>;
+		qcom,msm-bus,num-paths = <1>;
+		qcom,msm-bus,vectors-KBps =
+		<86 512 0 0>,
+		<86 512 500 800>;
+	};
+
+	aliases {
+		serial2 = &felica_uart;
+	};
+	/* JPN System: Felica/NFC >>> */
+
+	i2c@22 {
+		/* <<< JPN System: HRM */
+		max86900@51 {
+			compatible = "max86900";
+			reg = <0x51>;
+			interrupt-parent = <&msmgpio>;
+			interrupts = <78 0>;
+			hrm_vreg-supply = <&pma8084_l16>;
+			max86900,hrm_int-gpio = <&msmgpio 78 0x00>;
+			max86900,vdd_1p8 = "max77826_ldo4";
+			max86900,led_3p3 = "8084_l16";
+			max86900,hrm_en-expander-gpio = <303>;
+			max86900,dual-hrm = <1>;
+		};
+
+		adpd142@64 {
+			compatible = "adpd142";
+			reg = <0x64>;
+			interrupt-parent = <&msmgpio>;
+			interrupts = <78 0>;
+			adpd142,irq_gpio = <&msmgpio 78 0x00>;
+			adpd142,led_en = <303>;
+			adpd142,vdd_1p8 = "max77826_ldo4";
+		};
+		/* JPN System: HRM >>> */
+
+		fan53555@60 {
+			compatible = "fan53555,fan53555-dcdc";
+			reg = <0x60>;
+		};
+
+		/* <<< JPN System: Felica/NFC */
+		felica_eeprom@2b {
+			compatible = "felica,felica-i2c";
+			reg = <0x2b>;
+			felica,sda-gpio = <&msmgpio 13 0>;
+			felica,scl-gpio = <&msmgpio 14 0>;
+		};
+		/* JPN System: Felica/NFC >>> */
+	};
+
+	spi@f9927000 {
+		/* <<< JPN System: Sensor */
+		ATSAMG53@0 {
+			ssp,acc-position = <0>;
+		};
+		/* JPN System: Sensor >>> */
+	};
+
+	earjack {
+		/delete-property/ qcom,earjack-fsa_en-expander-gpio;
+	};
+
+	sound {
+		/* <<< JPN System: Sound, MBHC */
+		qcom,earjack-fsa_en_gpio = <310>;
+		/* JPN System: Sound, MBHC >>> */
+	};
+
+};
+
+&pma8084_gpios {
+	/* <<< JPN System: Felica/NFC */
+	gpio@c900 { /* GPIO 10 */
+		/* FeliCa INT */
+		qcom,mode = <0>;		/* Digital Input */
+		qcom,output-type = <0>;	/* CMOS logic */		
+		qcom,pull = <1>;
+		qcom,src-sel = <0>;		/* GPIO */
+		qcom,master-en = <1>;	/* Enable GPIO */
+	};
+
+	gpio@cf00 { /* GPIO 16 */
+		/* FeliCa INTU */
+		qcom,mode = <0>;		/* Digital input*/
+		qcom,output-type = <0>;	/* CMOS logic */	
+		qcom,pull = <1>;		
+		qcom,src-sel = <0>;		/* GPIO */
+		qcom,master-en = <1>;		/* Enable GPIO */
+	};
+	/* JPN System: Felica/NFC >>> */
+};	
+
+&pma8084_vadc {
+	/* <<< JPN System: Camera Flash Thermistor */
+	chan@78 {
+		label = "flash_thm";
+		reg = <0x78>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+	};
+	/* JPN System: Camera Flash Thermistor >>> */
+};
+/* JPN System: JPN model specific overriding configuration >>> */
+
+

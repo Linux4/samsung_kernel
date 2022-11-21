@@ -1,0 +1,12 @@
+# Overriding the rooting prevention feature as disable on ENG build
+# CONFIG_SEC_RESTRICT_ROOTING is not set
+# CONFIG_SEC_RESTRICT_SETUID is not set
+# CONFIG_SEC_RESTRICT_FORK is not set
+# CONFIG_SEC_RESTRICT_ROOTING_LOG is not set
+
+# Disable TIMA Cred for userdebug build
+# CONFIG_TIMA_RKP_KDATA_PROT is not set
+# CONFIG_TIMA_RKP_RO_CRED is not set
+
+CONFIG_IKCONFIG=y
+CONFIG_IKCONFIG_PROC=y

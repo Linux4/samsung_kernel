@@ -1,0 +1,58 @@
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	tspp: msm_tspp@f99d8000 {
+		status = "okay";
+	};
+
+	i2c_7: i2c@f9963000 {
+		cell-index = <7>;
+		compatible = "qcom,i2c-qup";
+		reg = <0xf9963000 0x1000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr";
+		interrupts = <0 101 0>;
+		interrupt-names = "qup_err_intr";
+		qcom,i2c-bus-freq = <100000>;
+		qcom,i2c-src-freq = <50000000>;
+		qcom,sda-gpio = <&msmgpio 132 0>;
+		qcom,scl-gpio = <&msmgpio 133 0>;
+		qcom,master-id = <84>;
+
+		status = "okay";
+
+		tdmb_i2c@37 {
+			compatible = "samsung,tdmb_i2c";
+			reg = <0x37>;
+		};
+	};
+
+	tdmb_data {
+		compatible = "samsung,tdmb";
+		tdmb_pwr_en = <&pma8084_gpios 8 0>;
+	};
+
+};
+
+&pma8084_gpios {
+	gpio@c700 { /* GPIO 8 */
+		qcom,mode = <1>;		/* Digital output */
+		qcom,output-type = <0>;		/* CMOS logic */
+		qcom,invert = <0>;		/* Do not invert the output */
+		qcom,vin-sel = <2>;		/* PMA8084 S4 = 1.8 V */
+		qcom,src-sel = <0>;		/* GPIO */
+		qcom,out-strength = <3>;	/* High drive strength */
+		qcom,master-en = <1>;		/* Enable GPIO */
+	};
+};
