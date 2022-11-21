@@ -1,0 +1,27 @@
+&qupv3_se5_i2c {
+	status = "okay";
+
+	pca9481_charger: pca9481@57 {
+		compatible = "nxp,pca9481";
+		reg = <0x57>;
+
+		pca9481,input-current-limit = <3000000>; /* 3.0A */
+		pca9481,charging-current = <10000000>; /* 10A */
+		pca9481,input-itopoff = <500000>; /* 500mA */
+		pca9481,sense-resistance = <2>; /* 5mOhm */
+		pca9481,sense-config = <0>;	/* Bottom side */
+		pca9481,switching-frequency = <1000>; /* 1000kHz */
+		pca9481,ntc0-threshold = <1110000>; /* 1.11V */
+		pca9481,ntc1-threshold = <495000>;	/* 0.495V */
+		pca9481,ntc-en = <0>; /* Disable NTC protection function */
+		pca9481,chg-mode = <1>; /* 2:1 direct charging mode */
+		pca9481,cv-polling = <2000>; /* 2000ms */
+		pca9481,step1-cv=<4200000>; /* 4200mV */
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/suwon_2111/charger/pca9481/pca9481_charger.r0[qs].dtsi */
+
+&pca9481_charger {
+		pca9481,input-itopoff = <400000>; /* 400mA */
+};

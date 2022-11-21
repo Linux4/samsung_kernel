@@ -1,0 +1,18 @@
+cc_binary {
+    name: "vendor.qti.hardware.lights.service",
+    relative_install_path: "hw",
+    init_rc: ["vendor.qti.hardware.lights.service.rc"],
+    vintf_fragments: ["vendor.qti.hardware.lights.service.xml"],
+    vendor: true,
+    shared_libs: [
+        "libbase",
+        "liblog",
+        "libhardware",
+        "libbinder_ndk",
+        "android.hardware.light-V1-ndk_platform",
+    ],
+    srcs: [
+        "Lights.cpp",
+        "main.cpp",
+    ],
+}

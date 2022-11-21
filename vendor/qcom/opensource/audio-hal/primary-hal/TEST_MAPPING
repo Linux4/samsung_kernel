@@ -1,0 +1,7 @@
+{
+  "presubmit": [
+    {
+       "name": "test_sec_audio_system"
+    }
+  ]
+}
