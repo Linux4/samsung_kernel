@@ -1,0 +1,78 @@
+#
+# (C) COPYRIGHT 2012-2013 ARM Limited. All rights reserved.
+#
+# This program is free software and is provided to you under the terms of the
+# GNU General Public License version 2 as published by the Free Software
+# Foundation, and any use by you of this program is subject to the terms
+# of such GNU licence.
+#
+# A copy of the licence is included with the program, and can also be obtained
+# from Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+# Boston, MA  02110-1301, USA.
+#
+#
+
+menuconfig MALI_T72X
+	tristate "Mali-T72X support"
+	default n
+	help
+	  Enable this option to build support for the ARM Mali-T72x GPU.
+
+	  To compile this driver as a module, choose M here:
+	  this will generate a single module, called mali_kbase.
+
+config DDK_VERSION_OS
+	string "version"
+	default ANDROID_MAJOR_VERSION
+
+choice
+	prompt "version Configuration"
+	depends on MALI_T72X
+
+	default MALI_R7P0_T72X if DDK_VERSION_OS = "m"
+	default MALI_R15P0 if DDK_VERSION_OS = "n"
+	default MALI_R22P0 if DDK_VERSION_OS = "o"
+	default MALI_R28P0 if DDK_VERSION_OS = "p"
+	help
+	  Select the gpu support version.
+
+config MALI_R7P0_T72X
+	depends on MALI_T72X
+	bool "r7p0 driver"
+
+config MALI_R15P0
+	depends on MALI_T72X
+	bool "r15p0 driver"
+
+config MALI_R21P0
+	depends on MALI_T72X
+	bool "r21p0 driver"
+
+config MALI_R22P0
+	depends on MALI_T72X
+	bool "r22p0 driver"
+
+config MALI_R28P0
+	depends on MALI_T72X
+	bool "r28p0 driver"
+endchoice
+
+if MALI_R7P0_T72X
+source "drivers/gpu/arm/t72x/r7p0/Kconfig"
+endif
+
+if MALI_R15P0
+source "drivers/gpu/arm/t72x/r15p0/Kconfig"
+endif
+
+if MALI_R21P0
+source "drivers/gpu/arm/t72x/r21p0/Kconfig"
+endif
+
+if MALI_R22P0
+source "drivers/gpu/arm/t72x/r22p0/Kconfig"
+endif
+
+if MALI_R28P0
+source "drivers/gpu/arm/t72x/r28p0/Kconfig"
+endif

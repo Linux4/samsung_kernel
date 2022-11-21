@@ -1,0 +1,78 @@
+/*
+ * SAMSUNG EXYNOS7570 SoC PM Domains device tree source
+ *
+ * Copyright (c) 2015 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS7570 SoC PM domains device nodes are listed in this file.
+ * EXYNOS7570 based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+/ {
+	pd_dispaud: pd-dispaud@11C84020 {
+		compatible = "samsung,exynos-pd";
+		reg = <0x0 0x11C84020 0x20>;
+		cal_id = <0xB138000D>;
+		status = "okay";
+		check-cp-status = "true";
+
+		spd_aud: spd-aud@11C84020 {
+			compatible = "samsung,exynos-spd";
+		};
+
+		spd_disp: spd-disp@11C84020 {
+			compatible = "samsung,exynos-spd";
+		};
+
+		spd_fm: spd-fm@11C84020 {
+			compatible = "samsung,exynos-spd";
+		};
+	};
+
+	pd_isp: pd-isp@11C84040 {
+		compatible = "samsung,exynos-pd";
+		reg = <0x0 0x11C84040 0x20>;
+		parent = <&pd_mfcmscl>;
+		cal_id = <0xB1380003>;
+		devfreq-sync-voltage = <3>;
+		status = "okay";
+	};
+
+	pd_mfcmscl: pd-mfcmscl@11C84060 {
+		compatible = "samsung,exynos-pd";
+		reg = <0x0 0x11C84060 0x20>;
+		cal_id = <0xB1380008>;
+		status = "okay";
+	};
+
+	pd_g3d: pd-g3d@11C84000 {
+		compatible = "samsung,exynos-pd";
+		reg = <0x0 0x11C84000 0x20>;
+		cal_id = <0xB1380000>;
+		status = "okay";
+	};
+
+	dbgdev-pd-dispaud {
+		compatible = "samsung,exynos-pd-dbg";
+		samsung,power-domain = <&pd_dispaud>;
+	};
+
+	dbgdev-pd-isp {
+		compatible = "samsung,exynos-pd-dbg";
+		samsung,power-domain = <&pd_isp>;
+	};
+
+	dbgdev-pd-mfcmscl {
+		compatible = "samsung,exynos-pd-dbg";
+		samsung,power-domain = <&pd_mfcmscl>;
+	};
+
+	dbgdev-pd-g3d {
+		compatible = "samsung,exynos-pd-dbg";
+		samsung,power-domain = <&pd_g3d>;
+	};
+};
