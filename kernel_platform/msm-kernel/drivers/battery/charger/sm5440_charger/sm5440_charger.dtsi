@@ -1,0 +1,8 @@
+&qupv3_se1_i2c {
+	status = "okay";
+
+	sm5440_charger: sm5440@63 {
+		compatible = "siliconmitus,sm5440";
+		reg = <0x63>;
+	};
+};

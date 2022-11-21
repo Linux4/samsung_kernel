@@ -1,0 +1,4 @@
+config SENSORS_FLICKER_SELF_TEST
+	tristate "Flicker EOL test use flash"
+	help
+		make Test environment using led flash.

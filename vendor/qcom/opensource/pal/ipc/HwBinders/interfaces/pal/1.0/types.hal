@@ -1,0 +1,370 @@
+/*
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above
+ *       copyright notice, this list of conditions and the following
+ *       disclaimer in the documentation and/or other materials provided
+ *       with the distribution.
+ *     * Neither the name of The Linux Foundation nor the names of its
+ *       contributors may be used to endorse or promote products derived
+ *       from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+package vendor.qti.hardware.pal@1.0;
+
+/** Audio stream handle */
+typedef uint64_t PalStreamHandle;
+
+/** Audio stream types */
+enum PalStreamType : uint32_t {
+    PAL_STREAM_LOW_LATENCY = 1,           /**< :low latency, higher power*/
+    PAL_STREAM_DEEP_BUFFER = 2,           /**< :low power, higher latency*/
+    PAL_STREAM_COMPRESSED = 3,            /**< :compresssed audio*/
+    PAL_STREAM_VOIP = 4,                  /**< :pcm voip audio*/
+    PAL_STREAM_VOIP_RX = 5,               /**< :pcm voip audio downlink*/
+    PAL_STREAM_VOIP_TX = 6,               /**< :pcm voip audio uplink*/
+    PAL_STREAM_VOICE_CALL_MUSIC = 7,      /**< :incall music */
+    PAL_STREAM_GENERIC = 8,               /**< :generic playback audio*/
+    PAL_STREAM_RAW = 9,                   /**< pcm no post processing*/
+    PAL_STREAM_VOICE_ACTIVATION = 10,     /**< voice activation*/
+    PAL_STREAM_VOICE_CALL_RECORD = 11,    /**< incall record */
+    PAL_STREAM_VOICE_CALL_TX = 12,        /**< incall record, uplink */
+    PAL_STREAM_VOICE_CALL_RX_TX = 13,     /**< incall record, uplink & Downlink */
+    PAL_STREAM_VOICE_CALL = 14,           /**< voice call */
+    PAL_STREAM_LOOPBACK = 15,             /**< loopback */
+    PAL_STREAM_TRANSCODE = 16,            /**< audio transcode */
+    PAL_STREAM_VOICE_UI = 17,             /**< voice ui */
+    PAL_STREAM_PCM_OFFLOAD = 18,          /**< pcm offload audio */
+    PAL_STREAM_ULTRA_LOW_LATENCY = 19,    /**< pcm ULL audio */
+    PAL_STREAM_PROXY = 20,                /**< pcm proxy audio */
+    PAL_STREAM_NON_TUNNEL = 21,           /**< NT Mode session */
+    PAL_STREAM_HAPTICS = 22,              /**< Haptics Stream */
+    PAL_STREAM_ACD = 23,                  /**< ACD Stream */
+    PAL_STREAM_CONTEXT_PROXY = 24,        /**< Context Proxy Stream */
+    PAL_STREAM_SENSOR_PCM_DATA = 25,      /**< Sensor PCM Data Stream */
+    PAL_STREAM_ULTRASOUND = 26,           /**< Ultrasound Proximity detection */
+};
+
+struct PalStreamInfo {
+    int64_t version;                    // version of structure
+    int64_t size;                       // size of structure
+    int64_t duration_us;                // duration in microseconds, -1 if unknown
+    bool has_video;                     // optional, true if stream is tied to a video stream
+    bool is_streaming;                  // true if streaming, false if local playback
+};
+
+
+/**  Available stream flags of an audio session*/
+enum PalStreamFlag : uint32_t {
+    PAL_STREAM_FLAG_TIMESTAMP    = 0x1, // Enable time stamps associated to audio buffers
+    PAL_STREAM_FLAG_NON_BLOCKING = 0x2, // Stream IO operations are non blocking
+    PAL_STREAM_FLAG_MMAP         = 0x4, // Stream Mode should be in MMAP
+    PAL_STREAM_FLAG_MMAP_NO_IRQ  = 0x8, // Stream Mode should be No IRQ
+    PAL_STREAM_FLAG_EXTERN_MEM   = 0x10,// Shared memory buffers allocated by client*/
+    PAL_STREAM_FLAG_SRCM_INBAND  = 0x20,// MediaFormat change event inband with data buffers
+    PAL_STREAM_FLAG_INVALID,
+};
+
+enum PalAudioEffect: uint32_t {
+    PAL_AUDIO_EFFECT_NONE      = 0x0, /**< No audio effect ie., EC_OFF_NS_OFF*/
+    PAL_AUDIO_EFFECT_EC        = 0x1, /**< Echo Cancellation*/
+    PAL_AUDIO_EFFECT_NS        = 0x2, /**< Noise Suppression*/
+    PAL_AUDIO_EFFECT_ECNS      = 0x3, /**< EC + NS*/
+};
+
+
+/** Audio stream direction enumeration */
+enum PalStreamDirection : uint32_t {
+    PAL_AUDIO_OUTPUT        = 0x1, // playback usecases
+    PAL_AUDIO_INPUT         = 0x2, // capture/voice activation usecases
+    PAL_AUDIO_INPUT_OUTPUT  = 0x3, // transcode usecases
+    PAL_AUDIO_INVALID       = 0x4,
+};
+
+
+/** Audio channel info data structure */
+struct PalChannelInfo {
+    uint16_t channels;      // number of channels
+    uint8_t[64] ch_map;    // ch_map value per channel.
+};
+
+/** PAL Audio format enumeration */
+enum PalAudioFmt : uint32_t {
+    PAL_AUDIO_FMT_DEFAULT_PCM = 0x1,        // PCM
+    PAL_AUDIO_FMT_PCM_S16_LE = PAL_AUDIO_FMT_DEFAULT_PCM,   //16 bit little endian PCM
+    PAL_AUDIO_FMT_DEFAULT_COMPRESSED = 0x2,
+    PAL_AUDIO_FMT_MP3 = PAL_AUDIO_FMT_DEFAULT_COMPRESSED,
+    PAL_AUDIO_FMT_AAC = 0x3,
+    PAL_AUDIO_FMT_AAC_ADTS = 0x4,
+    PAL_AUDIO_FMT_AAC_ADIF = 0x5,
+    PAL_AUDIO_FMT_AAC_LATM = 0x6,
+    PAL_AUDIO_FMT_WMA_STD = 0x7,
+    PAL_AUDIO_FMT_ALAC = 0x8,
+    PAL_AUDIO_FMT_APE = 0x9,
+    PAL_AUDIO_FMT_WMA_PRO = 0xA,
+    PAL_AUDIO_FMT_FLAC = 0xB,
+    PAL_AUDIO_FMT_FLAC_OGG = 0xC,
+    PAL_AUDIO_FMT_VORBIS = 0xD,
+    PAL_AUDIO_FMT_AMR_NB = 0xE,
+    PAL_AUDIO_FMT_AMR_WB = 0xF,
+    PAL_AUDIO_FMT_AMR_WB_PLUS = 0x10,
+    PAL_AUDIO_FMT_EVRC = 0x11,
+    PAL_AUDIO_FMT_G711 = 0x12,
+    PAL_AUDIO_FMT_QCELP = 0x13,
+    PAL_AUDIO_FMT_PCM_S8 = 0x14,              // 8 Bit PCM
+    PAL_AUDIO_FMT_PCM_S24_3LE = 0x15,         // 24 bit packed little endian PCM
+    PAL_AUDIO_FMT_PCM_S24_LE = 0x16,          // 24bit in 32bit word (LSB aligned) little endian PCM
+    PAL_AUDIO_FMT_PCM_S32_LE = 0x17,          // 32bit little endian PCM
+    PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN = 0xF0000000,
+    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN = 0xF0000F00,
+    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END = 0xF0000FFF,
+    PAL_AUDIO_FMT_COMPRESSED_RANGE_END = PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END,
+};
+
+/** Media configuraiton */
+struct PalMediaConfig {
+    uint32_t sample_rate;               // sample rate
+    uint32_t bit_width;                 // bit width
+    PalChannelInfo ch_info;        // channel info
+    PalAudioFmt aud_fmt_id;             // audio format id
+};
+
+/** PAL Audio format enumeration */
+enum PalParamId : uint32_t {
+    PAL_PARAM_ID_LOAD_SOUND_MODEL = 0,
+    PAL_PARAM_ID_RECOGNITION_CONFIG = 1,
+    PAL_PARAM_ID_ECNS_ON_OFF = 2,
+    PAL_PARAM_ID_DIRECTION_OF_ARRIVAL = 3,
+    PAL_PARAM_ID_UIEFFECT = 4,
+    PAL_PARAM_ID_STOP_BUFFERING = 5,
+    PAL_PARAM_ID_CODEC_CONFIGURATION = 6,
+    /* Non-Stream Specific Parameters*/
+    PAL_PARAM_ID_DEVICE_CONNECTION = 7,
+    PAL_PARAM_ID_SCREEN_STATE = 8,
+    PAL_PARAM_ID_CHARGING_STATE = 9,
+    PAL_PARAM_ID_DEVICE_ROTATION = 10,
+    PAL_PARAM_ID_BT_SCO = 11,
+    PAL_PARAM_ID_BT_SCO_WB = 12,
+    PAL_PARAM_ID_BT_SCO_SWB = 13,
+    PAL_PARAM_ID_BT_A2DP_RECONFIG = 14,
+    PAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED = 15,
+    PAL_PARAM_ID_BT_A2DP_SUSPENDED = 16,
+    PAL_PARAM_ID_BT_A2DP_TWS_CONFIG = 17,
+    PAL_PARAM_ID_BT_A2DP_ENCODER_LATENCY = 18,
+    PAL_PARAM_ID_DEVICE_CAPABILITY = 19,
+    PAL_PARAM_ID_GET_SOUND_TRIGGER_PROPERTIES = 20,
+    PAL_PARAM_ID_TTY_MODE = 21,
+    PAL_PARAM_ID_VOLUME_BOOST = 22,
+    PAL_PARAM_ID_SLOW_TALK = 23,
+    PAL_PARAM_ID_SPEAKER_RAS = 24,
+    PAL_PARAM_ID_SP_MODE = 25,
+    PAL_PARAM_ID_GAIN_LVL_MAP = 26,
+    PAL_PARAM_ID_GAIN_LVL_CAL = 27,
+    PAL_PARAM_ID_GAPLESS_MDATA = 28,
+    PAL_PARAM_ID_HD_VOICE = 29,
+    PAL_PARAM_ID_WAKEUP_ENGINE_CONFIG = 30,
+    PAL_PARAM_ID_WAKEUP_BUFFERING_CONFIG = 31,
+    PAL_PARAM_ID_WAKEUP_ENGINE_RESET = 32,
+    PAL_PARAM_ID_WAKEUP_MODULE_VERSION = 33,
+    PAL_PARAM_ID_WAKEUP_CUSTOM_CONFIG = 34,
+    PAL_PARAM_ID_UNLOAD_SOUND_MODEL = 35,
+    PAL_PARAM_ID_MODULE_CONFIG = 36, /*Clients directly configure DSP modules*/
+    PAL_PARAM_ID_BT_A2DP_LC3_CONFIG = 37,
+    PAL_PARAM_ID_PROXY_CHANNEL_CONFIG = 38,
+    PAL_PARAM_ID_CONTEXT_LIST = 39,
+    PAL_PARAM_ID_HAPTICS_INTENSITY = 40,
+    PAL_PARAM_ID_HAPTICS_VOLUME = 41,
+    PAL_PARAM_ID_BT_A2DP_DECODER_LATENCY = 42,
+    PAL_PARAM_ID_CUSTOM_CONFIGURATION = 43,
+    PAL_PARAM_ID_KW_TRANSFER_LATENCY = 44,
+    PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH = 45,
+    PAL_PARAM_ID_BT_SCO_LC3 = 46,
+    PAL_PARAM_ID_DEVICE_MUTE = 47,
+    PAL_PARAM_ID_UPD_REGISTER_FOR_EVENTS = 48,
+    PAL_PARAM_ID_SP_GET_CAL = 49,
+    PAL_PARAM_ID_BT_A2DP_CAPTURE_SUSPENDED = 50,
+    PAL_PARAM_ID_SNDCARD_STATE = 51,
+    PAL_PARAM_ID_HIFI_PCM_FILTER = 52,
+    PAL_PARAM_ID_CHARGER_STATE = 53,
+    PAL_PARAM_ID_BT_SCO_NREC = 54,
+};
+
+/**< PAL stream attributes to be specified, used in pal_stream_open cmd */
+struct PalStreamAttributes {
+    PalStreamType type;                 //  stream type
+    PalStreamInfo info;
+    PalStreamFlag flags;                //  stream flags
+    PalStreamDirection direction;       // direction of the streams
+    PalMediaConfig in_media_config;     // media config of the input audio samples
+    PalMediaConfig out_media_config;    // media config of the output audio samples
+};
+
+/**< Key value pair to identify the topology of a usecase from default  */
+struct ModifierKV  {
+    uint32_t key;
+    uint32_t value;
+};
+
+/** Metadata flags */
+enum PalMetadataFlags : uint32_t{
+    PAL_META_DATA_FLAGS_NONE = 0,
+    PAL_META_DATA_VALID_TS,
+    PAL_META_DATA_FLAGS_MAX,
+};
+
+enum PalDrainType : uint32_t{
+    /** request notification when all accumlated data has be
+     *  drained.*/
+    PAL_DRAIN,
+    /** request notification when drain completes shortly before all
+     *  accumlated data of the current track has been played out */
+    PAL_DRAIN_PARTIAL,
+};
+
+enum PalDeviceId : uint32_t {
+    PAL_DEVICE_NONE = 1, /**< for transcode usecases*/
+    PAL_DEVICE_OUT_EARPIECE,
+    PAL_DEVICE_MAX
+};
+
+struct PalDevice {
+     PalDeviceId id;
+     PalMediaConfig config;
+};
+
+/** A substitute for POSIX timespec. */
+struct TimeSpec {
+    uint64_t tvSec;   // seconds
+    uint64_t tvNSec;  // nanoseconds
+};
+
+struct PalExternAllocBuffInfo{
+    memory   alloc_handle; //unique handle identifying extern mem allocation
+    uint32_t alloc_size;  //size of external allocation
+    uint32_t offset;
+};
+
+/** PAL buffer structure used for reading/writing buffers from/to the stream */
+struct PalBuffer {
+    vec<uint8_t> buffer;                //  buffer pointer
+    uint32_t size;                      // number of bytes
+    uint32_t offset;                    // offset in buffer from where valid byte starts
+    TimeSpec timeStamp;                 // timestmap
+    uint32_t flags;             // meta data flags
+    uint32_t metadataSz;
+    vec<uint8_t> metadata;
+    PalExternAllocBuffInfo alloc_info; /**< holds info for extern buff */
+};
+
+struct PalChannelVolKv {
+    uint32_t chMask;       /**< channel mask */
+    float vol;                   /**< gain of the channel mask */
+};
+
+/** Volume data strucutre defintion used as argument for volume command */
+struct PalVolumeData {
+    uint32_t noOfVolPairs;                    /**< no of volume pairs*/
+    vec<PalChannelVolKv> volPair;     /**< channel mask and volume pair */
+};
+
+struct PalTimeus {
+    uint32_t valLsw;   /** Lower 32 bits of 64 bit time value in microseconds */
+    uint32_t valMsw;   /** Upper 32 bits of 64 bit time value in microseconds */
+};
+
+/** Timestamp strucutre defintion used as argument for
+ *  gettimestamp api */
+struct PalSessionTime {
+    PalTimeus session_time;   /** Value of the current session time in microseconds */
+    PalTimeus absolute_time;  /** Value of the absolute time in microseconds */
+    PalTimeus timestamp;      /** Value of the last processed time stamp in microseconds */
+};
+
+struct PalParamPayload
+{
+    uint32_t size;
+    vec<uint8_t> payload;
+};
+
+/** pal_mmap_buffer flags */
+enum PalMmapBufferFlags : uint32_t{
+    PAL_MMMAP_BUFF_FLAGS_NONE = 0,
+    /**
+    * Only set this flag if applications can access the audio buffer memory
+    * shared with the backend (usually DSP) _without_ security issue.
+    *
+    * Setting this flag also implies that Binder will allow passing the shared memory FD
+    * to applications.
+    *
+    * That usually implies that the kernel will prevent any access to the
+    * memory surrounding the audio buffer as it could lead to a security breach.
+    *
+    * For example, a "/dev/snd/" file descriptor generally is not shareable,
+    * but an "anon_inode:dmabuffer" file descriptor is shareable.
+    * See also Linux kernel's dma_buf.
+    *
+    */
+    PAL_MMMAP_BUFF_FLAGS_APP_SHAREABLE = 1,
+};
+
+/** PAL buffer structure used for reading/writing buffers from/to the stream */
+struct PalMmapBuffer {
+    uint64_t buffer;            /**< base address of mmap memory buffer,
+                                         for use by local proces only */
+    int32_t  fd;                    /**< fd for mmap memory buffer */
+    uint32_t buffer_size_frames;    /**< total buffer size in frames */
+    uint32_t burst_size_frames;     /**< transfer size granularity in frames */
+    PalMmapBufferFlags flags;  /**< Attributes describing the buffer. */
+};
+
+struct PalBufferConfig {
+    uint32_t buf_count; /**< number of buffers*/
+    uint32_t buf_size; /**< This would be the size of each buffer*/
+    uint32_t max_metadata_size; /** < max metadata size associated with each buffer*/
+};
+
+/**
+ * Event payload passed to client with PAL_STREAM_CBK_EVENT_READ_DONE and
+ * PAL_STREAM_CBK_EVENT_WRITE_READY events
+ */
+struct PalEventReadWriteDonePayload {
+    uint32_t tag; /**< tag that was used to read/write this buffer */
+    uint32_t status; /**< data buffer status as defined in ar_osal_error.h */
+    uint32_t md_status; /**< meta-data status as defined in ar_osal_error.h */
+    PalBuffer buff;
+};
+
+/** Payload For ID: PAL_PARAM_ID_CHARGER_STATE
+ *  Description   : Charger State
+ */
+struct pal_param_charger_state {
+    bool is_charger_online; /**< status of charger */
+    bool is_concurrent_boost_enable; /**< status of concurrent boost status */
+};
+
+/**
+ * Mmap buffer read/write position returned by GetMmapPosition.
+ * note\ Used by streams opened in mmap mode.
+ */
+struct PalMmapPosition {
+    int64_t  time_nanoseconds; /**< timestamp in ns, CLOCK_MONOTONIC */
+    int32_t  position_frames;  /**< increasing 32 bit frame count reset when stop()
+                                    is called */
+};
