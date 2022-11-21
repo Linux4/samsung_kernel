@@ -1,0 +1,16 @@
+
+&smd {
+	sec-direct-charger {
+		status = "okay";
+		compatible = "samsung,sec-direct-charger";
+
+		charger,battery_name = "battery";
+		charger,main_charger = "sm5714-charger";
+		charger,direct_charger = "pca9468-charger";
+
+		charger,dchg_min_current = <2000>;
+		charger,dchg_temp_low_threshold = <180>;
+		charger,dchg_temp_high_threshold = <420>;
+	};
+};
+

@@ -1,0 +1,132 @@
+/*
+ * SAMSUNG board device tree source
+ *
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/* MAIN GRIP */
+&i2c5 {
+	status = "okay";
+	clock-frequency = <400000>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&grip_ldo_en>;
+	mediatek,use-open-drain;
+
+	sx9360-i2c@28 {
+		compatible = "sx9360";
+		reg = <0x28>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_int>;
+		interrupt-parent = <&pio>;
+		interrupts = <19 0>;
+		sx9360,nirq-gpio = <&pio 19 0>;
+
+		#sx9360,vdd_en = <&pio 43 0>;
+		sx9360,reggnrlctrl2_reg = <0x19>; /* scanperiod: 51ms */
+		sx9360,refresolution_reg = <0x0F>; /* same as resolution_reg */
+		sx9360,refagainfreq_reg = <0x36>; /* same as againfreq_reg */
+		sx9360,resolution_reg = <0x0F>; /* resolution : 1024 */
+		sx9360,againfreq_reg = <0x11>; /* 0x25 - freq : 200 kHz, again : +/-2.25 pF */
+		sx9360,refgainrawfilt_reg = <0x22>; /* reference phase gain: x8, rawfilt : 1-1/4 */
+		sx9360,gainrawfilt_reg = <0x0A>; /* rawfilter : 1-1/4, gain : x1 */
+		sx9360,regproxctrl3_reg = <0x0A>; /* 0x44 - avgposfilt: 1/64, avgnegfilt: 1/2 */
+		sx9360,hyst_reg = <0x15>; /* hysteresis : +/-6 %, debouncer : 2 samples */
+		sx9360,proxthresh_reg = <0x14>; /* 0x46 - threshhold : 200 */
+		sx9360,hallic_detect = <0>;
+		sx9360,hallic_cert_detect = <0>;
+	};
+};
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			aliases {
+				i2c23 = "/i2c@23";
+			};
+
+			i2c23: i2c@23 { /* SUB GRIP */	
+				cell-index = <23>;
+				status = "okay";
+				compatible = "i2c-gpio";
+				gpios = <&pio 152 0 /* sda */
+					&pio 165 0>; /* scl */
+				i2c-gpio,delay-us = <2>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&grip_sub_i2c>;
+
+				sx9360_sub-i2c@28 {
+					compatible = "sx9360_sub";
+					reg = <0x28>;
+					status = "okay";
+
+					pinctrl-names = "default";
+					pinctrl-0 = <&grip_sub_int>;
+					interrupt-parent = <&pio>;
+					interrupts = <17 0>;
+					sx9360_sub,nirq-gpio = <&pio 17 0>;
+
+					sx9360,refresolution_reg = <0x0F>; /* same as resolution_reg */
+					sx9360,refagainfreq_reg = <0x36>; /* same as againfreq_reg */
+					sx9360,resolution_reg = <0x0F>; /* resolution : 1024 */
+					sx9360,againfreq_reg = <0x15>; /* 0x25 - freq : 125 kHz, again : +/-2.25 pF */
+					sx9360,refgainrawfilt_reg = <0x22>; /* same as gainrawfilt_reg */
+					sx9360,gainrawfilt_reg = <0x12>; /* 0x41 - rawfilter : 1-1/4, gain : x1 */
+					sx9360,hyst_reg = <0x15>; /* hysteresis : +/-6 %, debouncer : 2 samples */
+					sx9360,proxthresh_reg = <0x1F>; /* 0X46 - threshhold : 612 */
+					sx9360_sub,hallic_detect = <0>;
+					sx9360_sub,hallic_cert_detect = <0>;
+				};
+			};
+		};
+	};
+};
+
+&pio {
+	grip_ldo_en: grip-ldo-en {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO43__FUNC_GPIO43>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	grip_int: grip-int {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO19__FUNC_GPIO19>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+	
+	grip_sub_int: grip-sub-int {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO17__FUNC_GPIO17>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	grip_sub_i2c: grip-sub-i2c {
+		pins_cmd0_dat {
+			pinmux = <PINMUX_GPIO152__FUNC_GPIO152>; /*grip sensor sda pin*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+		pins_cmd1_dat {
+			pinmux = <PINMUX_GPIO165__FUNC_GPIO165>; /*grip sensor scl pin*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};	
+};

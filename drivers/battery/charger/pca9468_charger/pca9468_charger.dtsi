@@ -1,0 +1,69 @@
+
+#if 0
+&${dc_irq_parent} {
+	dc_irq_default: dc_irq_default {
+		GPIO_CONFIG_PUD(${dc_irq_gpio}, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+#endif
+
+
+#if 0
+&${dc_en_parent} {
+	dc_en_default: dc_en_default {
+		GPIO_CONFIG_PUD(${dc_en_gpio}, FUNC_OUTPUT_LOW, PULL_NONE);
+	};
+};
+#endif
+
+&i2c3 {
+	status = "okay";
+
+	pca9468_charger: pca9468@57 {
+		compatible = "nxp,pca9468";
+		reg = <0x57>;
+
+#if 0 && 0
+		pinctrl-names = "default";
+		pinctrl-0     = <&dc_irq_default &dc_en_default>;
+
+		pca9468,irq-gpio = <SEC_GPIO_REF(${dc_irq_gpio}) 0>;
+		pca9468,chg_gpio_en = <SEC_GPIO_REF(${dc_en_gpio}) 0>;
+#elif 0
+		pinctrl-names = "default";
+		pinctrl-0     = <&dc_irq_default>;
+
+		pca9468,irq-gpio = <SEC_GPIO_REF(${dc_irq_gpio}) 0>;
+#elif  0
+		pinctrl-names = "default";
+		pinctrl-0     = <&dc_en_default>;
+
+		pca9468,chg_gpio_en = <SEC_GPIO_REF(${dc_en_gpio}) 0>;
+#endif
+		pca9468,input-current-limit = <2550000>; /* 2.55A */
+		pca9468,charging-current = <6000000>; /* 6A */
+		pca9468,ta-max-vol = <10000000>; /* 10.0V */
+		pca9468,input-itopoff = <500000>; /* 500mA */
+		pca9468,sense-resistance = <0>; /* 5mOhm */
+		pca9468,switching-frequency = <3>; /* 980KHz */
+		pca9468,ntc-threshold = <0>; /* disable */
+		pca9468,ta-mode = <1>; /* 2:1 charging mode */
+		pca9468,cv-polling = <2000>; /* 2s */
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/charger/pca9468_charger/pca9468_charger.m32.dtsi */
+
+&pca9468_charger {
+		pca9468,ta-max-vol = <10000000>; /* 10.0V */
+		pca9468,input-itopoff = <800000>; /* 800mA */
+};
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/charger/pca9468_charger/pca9468_charger.m32_swa_open.dtsi */
+
+&pca9468_charger {
+		pca9468,ta-max-vol = <10000000>; /* 10.0V */
+		pca9468,input-itopoff = <800000>; /* 800mA */
+};
+

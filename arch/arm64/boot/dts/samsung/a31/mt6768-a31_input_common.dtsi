@@ -1,0 +1,82 @@
+/*
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pio {
+	tsp_irq_active: tsp_irq_active {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO10__FUNC_GPIO10>;
+			bias-disable;
+			input-enable;
+			slew-rate = <0>;
+		};
+	};
+};
+
+&mt_pmic_vcama2_ldo_reg {
+	regulator-min-microvolt = <3000000>;
+};
+
+&i2c6 {
+	status = "okay";
+
+	mms_ts@48 {
+		status = "disabled";
+		compatible = "melfas,mms_ts";
+		reg = <0x48>;
+		pinctrl-names = "on_state", "off_state",
+			"tsp_ldo_en", "tsp_ldo_dis_en";
+		pinctrl-0 = <&attn_irq>;
+		pinctrl-1 = <&attn_input>;
+		pinctrl-2 = <&attn_tsp_ldo_en>;
+		pinctrl-3 = <&attn_tsp_ldo_dis_en>;
+		melfas,irq-gpio = <&pio 10 0>;
+		melfas,scl-gpio = <&pio 89 0>;
+		melfas,sda-gpio = <&pio 90 0>;
+		melfas,area-size = <133 266 341>;
+		melfas,max_x_y = <4095 4095>;
+		melfas,node_info = <15 32 0>;
+		melfas,event_info = <8 12>;
+		melfas,fod_info = <15 14 27>;
+		melfas,support_lpm = "true";
+		melfas,fw_name = "tsp_melfas/mss100_a50.fw";
+		melfas,fw_name_old = "tsp_melfas/mss100_a50_p01.fw";
+		melfas,project_name = "A505";
+		support_ear_detect_mode;
+		enable_settings_aot;
+		support_fod;
+	};
+
+	touchscreen@50 {
+		status = "ok";
+		compatible = "imagis,ist40xx-ts";
+		reg = <0x50>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&tsp_irq_active>;
+		imagis,irq-gpio = <&pio 10 0>;
+		imagis,regulator_avdd = "vcama2";
+		imagis,x_resolution = <1080>;
+		imagis,y_resolution = <2400>;
+//		imagis,gpio-tsp_fw_det = <&pio 42 0>;
+		imagis,ic-version = "ist40xx";
+		imagis,project-name = "a31";
+		imagis,tclm_level = <2>;
+//		imagis,fw-bin = <1>;
+//		imagis,octa-hw = <1>;
+		imagis,afe_base = <0x0113>;
+//		imagis,factory_item_version = <1>;
+		imagis,cm_spec = <300 2200 43>;	/* min, max, gap */
+		enable_settings_aot;
+		support_fod;
+		support_open_short_test;
+	};
+};

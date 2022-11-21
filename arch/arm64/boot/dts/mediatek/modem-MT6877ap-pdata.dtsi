@@ -1,0 +1,88 @@
+/*
+ * MEDIATEK MT6877 board device tree source
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/ {
+	/* modem_interface_driver: MT6877 */
+	mif_pdata {
+		compatible = "sec_modem,modem_pdata";
+		status = "okay";
+
+		/* common pdata */
+		mif,name = "MT6877ap";
+		mif,modem_net = <0>;		/* UMTS_NETWORK */
+		mif,modem_type = <10>;		/* SEC_SS310AP */
+		mif,use_handover = <0>;		/* not used */
+		mif,ipc_version = <50>;		/* SIPC 5.0 */
+		mif,link_types = <0x200>;	/* LINKDEV_SHMEM */
+		mif,link_name = "shmem";
+		mif,link_attrs = <0x7C8>;	/* XMIT_BTDLR(0x400) | DUMP_ALIGNED (0x200) | BOOT_ALIGNED (0x100) | MEM_DUMP (0x80) | MEM_BOOT (0x40) | DPRAM_MAGIC (0x08) */
+		mif,num_iodevs = <5>;
+
+		iodevs {
+			io_device_0 {
+				iod,name = "umts_boot0";
+				iod,id = <236>;
+				iod,minor = <30>;
+				iod,format = <0>;		/* IPC_FMT */
+				iod,io_type = <0>;		/* IODEV_MISC */
+				iod,links = <0x200>;		/* LINKDEV_SHMEM */
+				iod,attrs = <0x2>;		/* ATTR_SIPC5 */
+				iod,app = "RIL";
+			};
+			io_device_1 {
+				iod,name = "umts_ipc0";
+				iod,id = <236>;
+				iod,minor = <28>;
+				iod,format = <0>;		/* IPC_FMT */
+				iod,io_type = <0>;		/* IODEV_MISC */
+				iod,links = <0x200>;		/* LINKDEV_SHMEM */
+				iod,attrs = <0x2>;		/* ATTR_SIPC5 */
+				iod,app = "RIL";
+			};
+			io_device_2 {
+				iod,name = "umts_ipc1";
+				iod,id = <236>;
+				iod,minor = <29>;
+				iod,format = <0>;		/* IPC_FMT */
+				iod,io_type = <0>;		/* IODEV_MISC */
+				iod,links = <0x200>;		/* LINKDEV_SHMEM */
+				iod,attrs = <0x2>;		/* ATTR_SIPC5 */
+				iod,app = "RIL";
+			};
+			io_device_3 {
+				iod,name = "umts_router";
+				iod,id = <236>;
+				iod,minor = <3>;
+				iod,format = <1>;		/* IPC_FMT */
+				iod,io_type = <0>;		/* IODEV_MISC */
+				iod,links = <0x200>;		/* LINKDEV_SHMEM */
+				iod,attrs = <0x2>;		/* ATTR_SIPC5 */
+				iod,app = "smdexe";
+			};
+			io_device_4 {
+				iod,name = "umts_csd";
+				iod,minor = <30>;
+				iod,format = <1>;		/* IPC_FMT */
+				iod,io_type = <0>;		/* IODEV_MISC */
+				iod,links = <0x200>;		/* LINKDEV_SHMEM */
+				iod,attrs = <0x2>;		/* ATTR_SIPC5 */
+				iod,app = "CSVT";
+			};
+		}; /* end of iodevs */
+
+	}; /* end of mif_pdata */
+
+	dev_ril_bridge_pdata {
+		compatible = "samsung,dev_ril_bridge_pdata";
+		status = "okay";
+	};
+
+};

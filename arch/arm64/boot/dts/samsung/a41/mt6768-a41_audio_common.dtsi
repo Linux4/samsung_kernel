@@ -1,0 +1,79 @@
+/* Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&i2c7 {
+	speaker_amp: speaker_amp@34 {
+		status = "disabled";
+	};
+};
+
+&i2c0 {
+	status = "okay";
+	id = <18>;
+	clock-frequency = <400000>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	sma1303_amp: sma1303@1e {
+		#sound-dai-cells = <0>;
+
+		compatible = "siliconmitus,sma1303";
+		reg = <0x1e>;
+		init-vol = <0x31>;
+		sys-clk-id = <0x03>;
+		status = "okay";
+	};
+};
+
+&sound {
+	mtk_spk_i2s_out = <1>;
+	mtk_spk_i2s_in = <2>;
+	mediatek,speaker-codec {
+		sound-dai = <&sma1303_amp>;
+	};
+};
+
+/* I2S gpio configuration */
+&aud_gpio_i2s1_off {
+	pins_cmd_dat {
+		pinmux = <PINMUX_GPIO37__FUNC_GPIO37>,
+			 <PINMUX_GPIO38__FUNC_GPIO38>,
+			 <PINMUX_GPIO36__FUNC_GPIO36>;
+	};
+};
+
+&aud_gpio_i2s1_on {
+	pins_cmd_dat {
+		pinmux = <PINMUX_GPIO37__FUNC_I2S1_LRCK>,
+			 <PINMUX_GPIO38__FUNC_I2S1_DO>,
+			 <PINMUX_GPIO36__FUNC_I2S1_BCK>;
+	};
+};
+
+&aud_gpio_i2s2_off {
+	pins_cmd_dat {
+		pinmux = <PINMUX_GPIO40__FUNC_GPIO40>;
+	};
+};
+
+&aud_gpio_i2s2_on {
+	pins_cmd_dat {
+		pinmux = <PINMUX_GPIO40__FUNC_I2S2_DI>;
+	};
+};
+
+&accdet {
+	/*min_3pole--max_3pole--min_4pole--max_4pole--vol_bias*/
+	headset-vol-threshold = <0 600 601 2000 2600>;
+	/*0--MD_MAX--VOICE_MAX--UP_MAX--DW_MAX*/
+	headset-four-key-threshold = <0 85 124 213 420>;
+};

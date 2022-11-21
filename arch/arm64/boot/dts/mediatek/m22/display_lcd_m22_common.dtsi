@@ -1,0 +1,111 @@
+/*
+ * SAMSUNG LCD Panel Device Tree Source
+ *
+ * Copyright (c) Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	fragment@lcd {
+		target-path = "/";
+		__overlay__ {
+			panel {
+				compatible = "samsung,mtk-dsi-panel";
+				smcdsd_panel = <&s6e3fc3_m22>;
+			};
+
+			smcdsd_board_s6e3fc3_m22: smcdsd_board_s6e3fc3_m22 {
+				gpio_con = <&pio 92 0x0>;					/* LCD_CON_DET */
+				gpio_det = <&pio 179 0x1>;					/* LCD_ESD_DET */
+				gpio_pcd = <&pio 54 0x1>;					/* LCD_PCD_DET */
+
+				gpio_lcd_rst = <&pio 45 0>;
+				gpio_lcd_3p0_en = <&pio 153 0>;
+				gpio_lcd_1p8_en = <&pio 25 0>;
+
+				abd_func_refresh =
+					"gpio_det",	"CHAIN_TYPE_LEVEL_ENTER";
+
+				panel_power_enable {
+					type =
+					"gpio,high",	"gpio_lcd_1p8_en",
+					"delay,usleep",	"2000",
+					"gpio,high",	"gpio_lcd_3p0_en",
+					"delay,usleep",	"5000";
+				};
+				panel_power_disable {
+					type =
+					"delay,usleep",	"3000",
+					"gpio,low",	"gpio_lcd_3p0_en",
+					"delay,usleep",	"5000",
+					"gpio,low",	"gpio_lcd_1p8_en",
+					"delay,usleep",	"5000";
+				};
+				panel_reset_enable {
+					type =
+					"delay,usleep",	"1000",
+					"gpio,high",	"gpio_lcd_rst",
+					"delay,usleep",	"1000",
+					"gpio,low",	"gpio_lcd_rst",
+					"delay,usleep",	"1000",
+					"gpio,high",	"gpio_lcd_rst",
+					"delay,usleep",	"15000";
+				};
+				panel_reset_disable {
+					type =
+					"gpio,low",	"gpio_lcd_rst",
+					"delay,usleep",	"5000";
+				};
+				panel_regulator_init {
+					type =
+					"gpio,high",	"gpio_lcd_1p8_en",
+					"gpio,high",	"gpio_lcd_3p0_en",
+					"gpio,high",	"gpio_lcd_rst";
+				};
+			};
+
+			s6e3fc3_m22: s6e3fc3_m22 {
+				lcm_params-types = <2>; /* 0: LCM_TYPE_DBI, 1: LCM_TYPE_DPI, 2: LCM_TYPE_DSI */
+				lcm_params-dsi-mode = <0>;	/* 0: CMD, 1: SYNC_PULSE_VDO, 2: SYNC_EVENT_VDO, 3: BURST_VDO */
+				lcm_params-dsi-lane_num = <4>;
+				lcm_params-dsi-packet_size = <256>;
+				lcm_params-dsi-ps = <2>; /* 2: LCM_PACKED_PS_24BIT_RGB888 */
+
+				lcm_params-resolution = <720 1600>;
+				lcm_params-physical_width = <67>;		/* 66.6 x 148 */
+				lcm_params-physical_height = <148>;
+
+				lcm_params-dsi-vertical_sync_active = <2>;
+				lcm_params-dsi-vertical_backporch = <12>;
+				lcm_params-dsi-vertical_frontporch = <5>;
+				lcm_params-dsi-horizontal_sync_active = <10>;
+				lcm_params-dsi-horizontal_backporch = <14>;
+				lcm_params-dsi-horizontal_frontporch = <30>;
+
+				lcm_params-dsi-data_rate = <1177 1196 1150 1157>; /* 1177 is defualt */
+				lcm_params-dsi-ssc_disable = <1>;
+
+				lcm_params-dfps_enable = <1>;				/* 0:disable, 1:enable */
+				lcm_params-fps_cnt = <2>;
+				lcm_params-available_fps = <6000 9000>;		/* real fps * 100 */
+				lcm_params-vact_timing_fps = <9000 9000>;		/* real fps * 100 */
+				lcm_params-dfps_level = <0 1>;					/* level0, level1 */
+				lcm_params-dfps_date_rate = <1177 1177>;		/* maybe same hs clk */
+
+				lcd_params-gpara-len = <4>;	/* 4: pointing gpara 16bit offset, 3: pointing gpara 8bit offset */
+
+				smcdsd_board = <&smcdsd_board_s6e3fc3_m22>;
+			};
+		};
+	};
+};
+
+/* dts clean section */
+&led6 {
+	compatible;
+};
+

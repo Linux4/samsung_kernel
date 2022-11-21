@@ -1,0 +1,188 @@
+#
+# grip sensors configuration
+#
+# Sensor  drivers configuration
+#
+menuconfig SENSORS
+	bool "Sensor devices"
+	help
+	  Say Y here, and a list of sensors drivers will be displayed.
+	  Everything that didn't fit into the other categories is here. This option
+	  doesn't affect the kernel.
+
+	  If unsure, say Y.
+
+config SENSORS_CORE
+	bool "Sensors Class Support"
+	help
+	  This option enables the sensor sysfs class in /sys/class/sensors.
+	  You'll need this to do anything useful with sensorss. If unsure, say N.
+
+config SENSORS_LIS2DS
+	tristate "STMicroelectronics LIS2DS/LIS2DS12 sensors"
+	depends on (I2C || SPI) && SYSFS
+	help
+	   This driver support the STMicroelectronics LIS2DS/LIS2DS12 sensors.
+	   It is a accelerometer device.
+	   To compile this driver as a module, choose M here. The module
+	   will be called lis2ds.
+
+config SENSORS_LIS2DS_I2C
+	tristate "STMicroelectronics LIS2DS/LIS2DS12 sensors"
+	depends on (I2C || SPI) && SYSFS
+	help
+	   This driver support the STMicroelectronics LIS2DS/LIS2DS12 sensors.
+	   It is a accelerometer device.
+	   To compile this driver as a module, choose M here. The module
+	   will be called lis2ds.
+
+config SENSORS_LIS2DS_SPI
+	tristate "STMicroelectronics LIS2DS/LIS2DS12 sensors"
+	depends on (I2C || SPI) && SYSFS
+	help
+	   This driver support the STMicroelectronics LIS2DS/LIS2DS12 sensors.
+	   It is a accelerometer device.
+	   To compile this driver as a module, choose M here. The module
+	   will be called lis2ds.
+
+config SENSORS_LIS2DS_A02
+	tristate "STMicroelectronics LIS2DS/LIS2DS12 sensors for a02"
+	depends on (I2C || SPI) && SYSFS
+	help
+	   This driver support the STMicroelectronics LIS2DS/LIS2DS12 sensors for a02.
+	   It is a accelerometer device.
+	   To compile this driver as a module, choose M here. The module
+	   will be called lis2ds.
+
+config SENSORS_LIS2DS_I2C_A02
+	tristate "STMicroelectronics LIS2DS/LIS2DS12 sensors for a02"
+	depends on (I2C || SPI) && SYSFS
+	help
+	   This driver support the STMicroelectronics LIS2DS/LIS2DS12 sensors for a02.
+	   It is a accelerometer device.
+	   To compile this driver as a module, choose M here. The module
+	   will be called lis2ds.
+
+config SENSORS_LIS2DS_SPI_A02
+	tristate "STMicroelectronics LIS2DS/LIS2DS12 sensors for a02"
+	depends on (I2C || SPI) && SYSFS
+	help
+	   This driver support the STMicroelectronics LIS2DS/LIS2DS12 sensors for a02.
+	   It is a accelerometer device.
+	   To compile this driver as a module, choose M here. The module
+	   will be called lis2ds.
+	  
+config SENSORS_A96T3X6
+	depends on I2C
+	tristate "A96T3X6 driver for grip"
+	default n
+	help
+	  If you say yes here if you use A96T3X6 for grip.
+	  This option enables grip sensors using
+	  Above A96T3X6 device driver for grip.
+
+config SENSORS_A96T3X6_SUB
+	depends on I2C
+	tristate "A96T3X6 driver for grip"
+	default n
+	help
+	  Say Y here if you use A96T3X6 for grip.
+	  This option enables grip sensors using
+	  Above A96T3X6 device driver for grip.
+
+config SENSOR_A96T3X6_LDO_SHARE
+	depends on I2C
+	tristate "SENSOR_A96T3X6_LDO_SHARE driver for grip"
+	default n
+	help
+	  Say Y here if you use SENSOR_A96T3X6_LDO_SHARE for grip.
+	  This option enables grip sensors using
+	  Above SENSOR_A96T3X6_LDO_SHARE device driver for grip.
+
+config SENSORS_A96T3X6_CRC_CHECK
+	bool "check crc check instead of checksum compare"
+	default n
+	help
+	  Say Y here if you use crc check instead of checksum compare
+
+config SENSORS_A96T3X6_A32X
+	depends on I2C
+	tristate "SENSORS_A96T3X6_A32X driver for grip firmware"
+	default n
+	help
+	  Say Y here if you use A32 model grip firmware.
+
+config SENSORS_BSP_ISG5320A
+	depends on I2C
+	tristate "ISG5320A grip"
+	default n
+	help
+	  If you say yes here if you use ISG5320A for grip.
+	  This option enables grip sensors using
+	  IMAGIS ISG5320A device driver for grip.
+
+config SENSORS_BSP_ISG5320A_SUB
+	depends on I2C
+	tristate "ISG5320A grip sub"
+	default n
+	help
+	  Say Y here if you use ISG5320A for sub gripsensor.
+
+config SENSORS_ISG5320A_A32_LTE
+	depends on I2C
+	tristate "ISG5320A grip register model featuere"
+	default n
+	help
+	  Say Y here if you use a feature named SENSOR_ISG5320A_A32_LTE in isg5320a_reg.h for grip.
+
+config SENSORS_ISG5320A_A22_LTE
+	depends on I2C
+	tristate "ISG5320A grip register model featuere"
+	default n
+	help
+	  Say Y here if you use a feature named SENSOR_ISG5320A_A22_LTE in isg5320a_reg.h for grip.
+
+config SENSORS_ISG5320A_A02
+	depends on I2C
+	tristate "ISG5320A grip for A02"
+	default n
+	help
+	  If you say yes here if you use ISG5320A for A02 grip.
+	  This option enables grip sensors using
+	  IMAGIS ISG5320A device driver for A02 grip.
+
+config SENSORS_ISG5320A_SUB_A02
+	depends on I2C
+	tristate "ISG5320A grip sub for A02"
+	default n
+	help
+	  If you say yes here if you use ISG5320A for A02 sub grip.
+	  This option enables grip sensors using
+	  IMAGIS ISG5320A device driver for A02 sub grip.
+	  
+config FLIP_COVER_DETECTOR_FACTORY
+	depends on I2C
+	tristate "factory test Flip Cover Detector"
+	default n
+	help
+	  Say Y here if you use a mABCD solution.
+
+config SENSORS_SX9360
+	depends on I2C
+	tristate "SX9360 driver"
+	default n
+	help
+	  Say Y here if you use sx9360.
+	  This option enables grip sensors using
+	  SemTech sx9360 device driver.
+	  Say N here if you do not use sx9360.
+	  
+config SENSORS_SX9360_SUB
+	depends on I2C
+	tristate "SX9360 sub driver"
+	default n
+	help
+	  Say Y here if you use sx9360 sub.
+	  This option enables grip sensors using
+	  SemTech sx9360 sub device driver.
+	  Say N here if you do not use sx9360 sub.

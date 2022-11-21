@@ -1,0 +1,257 @@
+/*
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pio {
+	ts_pin_init: ts_pin_init {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO0__FUNC_GPIO0>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	ts_pin_sleep: ts_pin_sleep {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO0__FUNC_GPIO0>;
+			slew-rate = <0>;
+			bias-pull-down = <MTK_PUPD_SET_R1R0_01>;
+		};
+	};
+
+	ts_rst_init: ts_rst_init {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO11__FUNC_GPIO11>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	ts_rst_sleep: ts_rst_sleep {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO11__FUNC_GPIO11>;
+			slew-rate = <0>;
+			bias-pull-down = <MTK_PUPD_SET_R1R0_01>;
+		};
+	};
+
+	spi_cs_init: spi_cs_init {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO31__FUNC_SPI0_A_CSB>;
+			bias-disable;
+		};
+	};
+
+	spi_cs_sleep: spi_cs_sleep {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO31__FUNC_GPIO31>;
+			slew-rate = <0>;
+			bias-pull-down;
+		};
+	};
+
+	spi_clk_init: spi_clk_init {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO32__FUNC_SPI0_A_CLK>;
+			bias-disable;
+		};
+	};
+
+	spi_clk_sleep: spi_clk_sleep {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO32__FUNC_GPIO32>;
+			slew-rate = <0>;
+			bias-pull-down;
+		};
+	};
+
+	spi_miso_init: spi_miso_init {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO33__FUNC_SPI0_A_MI>;
+			bias-disable;
+		};
+	};
+
+	spi_miso_sleep: spi_miso_sleep {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO33__FUNC_GPIO33>;
+			slew-rate = <0>;
+			bias-pull-down;
+		};
+	};
+
+	spi_mosi_init: spi_mosi_init {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO34__FUNC_SPI0_A_MO>;
+			bias-disable;
+		};
+	};
+
+	spi_mosi_sleep: spi_mosi_sleep {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO34__FUNC_GPIO34>;
+			slew-rate = <0>;
+			bias-pull-down;
+		};
+	};
+};
+
+&spi0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	num-cs = <3>;
+
+	tsp_synaptics: synaptics_tcm@0 {
+		status = "okay";
+		compatible = "synaptics,tcm-spi";
+		reg = <0>;
+		spi-max-frequency = <5000000>;
+		interrupt-parent = <&pio>;
+		interrupts = <0 0x2008>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&ts_pin_init &spi_cs_init &spi_clk_init &spi_miso_init &spi_mosi_init>;
+		pinctrl-1 = <&ts_pin_sleep &spi_cs_sleep &spi_clk_sleep &spi_miso_sleep &spi_mosi_sleep>;
+		synaptics,bus-reg-name = "vdd";
+		synaptics,pwr-reg-name = "avdd";
+		synaptics,irq-gpio = <&pio 0 0x2008>; /* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
+		synaptics,irq-on-state = <0>;
+		/*synaptics,cs-gpio = <&pio 31 0>;*/
+		synaptics,reset-on-state = <0>;
+		synaptics,reset-active-ms = <20>;
+		synaptics,reset-delay-ms = <200>;
+		synaptics,power-delay-ms = <200>;
+		synaptics,spi-mode = <0>;
+		synaptics,byte-delay-us = <0>;
+		synaptics,block-delay-us = <0>;
+		synaptics,ubl-max-freq = <5000000>;
+		synaptics,ubl-byte-delay-us = <20>;
+		synaptics,fw_name = "tsp_synaptics/td4150_a01core.img";
+		support_ear_detect_mode;
+		/* tp-io reset is only used for specific tddi devices */
+		/* synaptics,tpio-reset-gpio = <&msm_gpio 102 0>; */
+	};
+	
+	/* Novatek device tree node */
+	tsp_novatek: novatek@1 {
+		status = "okay";
+		compatible = "novatek,NVT-ts-spi";
+		reg = <1>; //Same as CS ID
+		spi-max-frequency = <9600000>;	//4800000,9600000,15000000,19200000
+		novatek,reset-gpio = <&pio 11 0x00>;
+		novatek,irq-gpio = <&pio 0 0x2001>;
+		/*novatek,cs-gpio = <&pio 32 0>;*/
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&ts_pin_init &spi_cs_init &spi_clk_init &spi_miso_init &spi_mosi_init>;
+		pinctrl-1 = <&ts_pin_sleep &spi_cs_sleep &spi_clk_sleep &spi_miso_sleep &spi_mosi_sleep>;
+
+		novatek,resolution = <720 1600>;
+		novatek,enable_settings_aot;
+		novatek,support_ear_detect_mode;
+		novatek,lcdid1-gpio = <&pio 36 0x0>;
+		novatek,lcdid2-gpio = <&pio 10 0x0>;
+		novatek,lcdid3-gpio = <&pio 86 0x0>;
+		novatek,lcdid = <1 3 5>;	// CSOT a-Si, BOE a-Si CSOT LTPS
+		novatek,resume_lp_delay = <0 15 0 15 0 32>;	// CSOT a-Si, BOE a-Si CSOT LTPS
+		novatek,lcdtype = <0 0x0aa240 0 0x2a6240 0 0x1af240>;
+		novatek,fw_name = "", "tsp_novatek/nt36525_a02_csot.bin", "", "tsp_novatek/nt36525_a02_boe.bin", "", "tsp_novatek/nt36575_a02_ltps.bin";
+		novatek,fw_name_mp = "", "tsp_novatek/nt36525_a02_mp_csot.bin", "", "tsp_novatek/nt36525_a02_mp_boe.bin", "", "tsp_novatek/nt36575_a02_mp_ltps.bin";
+		novatek,regulator_lcd_vdd = "gpio_lcd_en_1p8";
+		novatek,regulator_lcd_reset = "gpio_lcd_rst";
+		novatek,regulator_lcd_bl = "gpio_lcd_bl_en";
+		novatek,enable_sysinput_enabled;
+		novatek,prox_lp_scan_enabled;
+
+		/* 525 */
+		//novatek,swrst-n8-addr = <0x01F01A>;
+
+		/* 672A, 525B, 675, 526, 672C */
+		novatek,swrst-n8-addr = <0x03F0FE>;
+		novatek,spi-rd-fast-addr = <0x03F310>;
+
+		/* MP */
+		novatek,mp-support-dt;
+
+		/* nt36525_a02_csot */
+		novatek-mp-criteria-721C@0 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "novatek-mp-criteria-721C";
+
+			/* sec cmd test config */
+			open_test_spec = <(-511) 5120>;
+			short_test_spec = <10000 14008>;
+			diff_test_frame = <50>;
+			fdm_x_num = <2>;
+		};
+
+		/* nt36525_a02_ltps */
+		novatek-mp-criteria-721B@0 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "novatek-mp-criteria-721B";
+
+			/* sec cmd test config */
+			open_test_spec = <(-511) 5120>;
+			short_test_spec = <10000 14008>;
+			diff_test_frame = <50>;
+			fdm_x_num = <2>;
+		};
+
+		/* nt36525_a02_boe */
+		novatek-mp-criteria-7224@0 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "novatek-mp-criteria-7224";
+
+			/* sec cmd test config */
+			open_test_spec = <(-511) 5120>;
+			short_test_spec = <10000 14008>;
+			diff_test_frame = <50>;
+			fdm_x_num = <2>;
+		};
+	};
+
+	tsp_ilitek: ilitek_ili9882x@2 {
+		status = "okay";
+		compatible = "iliteck,ili9882x-spi";
+		reg = <2>;
+		spi-max-frequency = <5000000>;
+		pinctrl-names = "default", "pins_on_state", "pins_off_state";
+		pinctrl-0 = <&ts_pin_init &ts_rst_init &spi_cs_init &spi_clk_init &spi_miso_init &spi_mosi_init>;
+		pinctrl-1 = <&ts_pin_init &ts_rst_init &spi_cs_init &spi_clk_init &spi_miso_init &spi_mosi_init>;
+		pinctrl-2 = <&ts_pin_sleep &ts_rst_sleep &spi_cs_sleep &spi_clk_sleep &spi_miso_sleep &spi_mosi_sleep>;
+		iliteck,irq-gpio = <&pio 0 0x2008>; /* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
+		iliteck,reset-gpio = <&pio 11 0x0>;
+		/*iliteck,cs-gpio = <&pio 21 0>;*/
+		iliteck,lcdid1-gpio = <&pio 36 0x0>;
+		iliteck,lcdid2-gpio = <&pio 10 0x0>;
+		iliteck,lcdid3-gpio = <&pio 86 0x0>;
+		iliteck,lcdid = <0>;
+		iliteck,lcdtype = <0 0 0x7a6250 0 0xaa7250 0 0 0x2a6250>;
+		iliteck,lcd_rst = "gpio_lcd_rst";
+		iliteck,lcd_bl_en = "gpio_lcd_bl_en";
+		iliteck,lcd_vddi = "gpio_lcd_en_1p8";
+		iliteck,irq-on-state = <0>;
+		iliteck,spi-mode = <0>;
+		iliteck,byte-delay-us = <0>;
+		iliteck,block-delay-us = <0>;
+		iliteck,ubl-max-freq = <5000000>;
+		iliteck,ubl-byte-delay-us = <20>;
+		iliteck,area-size = <48 81 30>;
+		iliteck,enable_settings_aot;
+		iliteck,support_ear_detect_mode;
+		iliteck,enable_sysinput_enabled;
+		iliteck,prox_lp_scan_enabled;
+		iliteck,fw_name = "", "", "tsp_ilitek/ili9882q_a02_boe.hex", "", "tsp_ilitek/ili9881x_a02.hex", "", "", "tsp_ilitek/ili9881x_a02_boe.hex";
+	};
+};

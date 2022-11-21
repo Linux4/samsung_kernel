@@ -1,0 +1,318 @@
+/*
+ * SAMSUNG LCD Panel Device Tree Source
+ *
+ * Copyright (c) Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	fragment@lcd {
+		target-path = "/";
+		__overlay__ {
+			panel {
+				compatible = "samsung,mtk-dsi-panel";
+				smcdsd_panel = <&nt36525b>;
+			};
+
+			lcd_fixed_regulator: lcd_fixed_regulator {
+				compatible = "simple-bus";
+
+				__gpio_lcd_rst: __gpio_lcd_rst {
+					compatible = "regulator-fixed";
+					regulator-name = "gpio_lcd_rst";
+					gpio = <&pio 83 0>;	/* LCD_RST */
+					enable-active-high;
+					regulator-boot-on;
+				};
+				__gpio_lcd_bl_en: __gpio_lcd_bl_en {
+					compatible = "regulator-fixed";
+					regulator-name = "gpio_lcd_bl_en";
+					gpio = <&pio 26 0>;	/* LCD_BL_EN */
+					enable-active-high;
+					regulator-boot-on;
+				};
+				__gpio_lcd_en_1p8: __gpio_lcd_en_1p8 {
+					compatible = "regulator-fixed";
+					regulator-name = "gpio_lcd_en_1p8";
+					gpio = <&pio 2 0>;	/* LCD_EN_1P8 */
+					enable-active-high;
+					regulator-boot-on;
+				};
+			};
+
+			smcdsd_board_nt36525b: smcdsd_board_nt36525b {
+				gpio_con = <&pio 29 0x0>;	/* LCD_CON_DET */
+				//gpio_det = <&pio 1 0x1>;	/* LCD_ESD_DET */
+
+				panel_power_enable {
+					type =
+					"regulator,enable",	"gpio_lcd_en_1p8",
+					"delay,usleep",	"2000",
+					"regulator,enable",	"gpio_lcd_bl_en",
+					"delay,usleep",	"2000";
+				};
+				panel_power_disable {
+					type =
+					"delay,usleep",	"3000",
+					"regulator,disable",	"gpio_lcd_bl_en",
+					"delay,usleep",	"5000",
+					"regulator,disable",	"gpio_lcd_en_1p8",
+					"delay,msleep",	"33";
+				};
+				panel_reset_enable {
+					type =
+					"delay,usleep",	"10000",
+					"regulator,enable",	"gpio_lcd_rst",
+					"delay,usleep",	"5000",
+					"regulator,disable",	"gpio_lcd_rst",
+					"delay,usleep",	"3500",
+					"regulator,enable",	"gpio_lcd_rst",
+					"delay,usleep",	"10000";
+				};
+				panel_reset_disable {
+					type =
+					"delay,msleep",	"60",
+					"regulator,disable",	"gpio_lcd_rst",
+					"delay,usleep",	"5000";
+				};
+				panel_regulator_init {
+					type =
+					"regulator,enable",	"gpio_lcd_en_1p8",
+					"regulator,enable",	"gpio_lcd_rst",
+					"regulator,enable",	"gpio_lcd_bl_en";
+				};
+			};
+
+			nt36525b: nt36525b {
+				/* id_match: MASK(HEX) EXPECT(HEX) */
+				id_match = <
+					0xFFFFFF 0x0AA240	/* A12 LCD */
+					0xFFFFFF 0x1AA240	/* A32X LCD */
+				>;
+				lcm_params-types = <2>; /* 0: LCM_TYPE_DBI, 1: LCM_TYPE_DPI, 2: LCM_TYPE_DSI */
+				lcm_params-dsi-mode = <3>;	/* 0: CMD, 1: SYNC_PULSE_VDO, 2: SYNC_EVENT_VDO, 3: BURST_VDO */
+				lcm_params-dsi-lane_num = <3>;
+				lcm_params-dsi-packet_size = <256>;
+				lcm_params-dsi-ps = <2>; /* 2: LCM_PACKED_PS_24BIT_RGB888 */
+
+				lcm_params-resolution = <720 1600>;
+				lcm_params-physical_width = <68>;		/* 67.932 x 150.96 */
+				lcm_params-physical_height = <151>;
+
+				lcm_params-dsi-vertical_sync_active = <2>;
+				lcm_params-dsi-vertical_backporch = <252>;
+				lcm_params-dsi-vertical_frontporch = <8>;
+				lcm_params-dsi-horizontal_sync_active = <20>;
+				lcm_params-dsi-horizontal_backporch = <78>;
+				lcm_params-dsi-horizontal_frontporch = <60>;
+
+				lcm_params-dsi-data_rate = <830>;
+
+				lcm_params-dsi-ssc_disable = <1>;
+				lcm_params-dsi-cont_clock = <1>;
+
+				smcdsd_board = <&smcdsd_board_nt36525b>;
+			};
+
+			smcdsd_board_ili7806s: smcdsd_board_ili7806s {
+				gpio_con = <&pio 29 0x0>;	/* LCD_CON_DET */
+				//gpio_det = <&pio 1 0x1>;	/* LCD_ESD_DET */
+
+				panel_power_enable {
+					type =
+					"regulator,enable",	"gpio_lcd_en_1p8",
+					"delay,usleep",	"2000",
+					"regulator,enable",	"gpio_lcd_bl_en",
+					"delay,usleep",	"2000";
+				};
+				panel_power_disable {
+					type =
+					"delay,usleep",	"3000",
+					"regulator,disable",	"gpio_lcd_bl_en",
+					"delay,usleep",	"5000",
+					"regulator,disable",	"gpio_lcd_en_1p8",
+					"delay,usleep",	"5000";
+				};
+				panel_reset_enable {
+					type =
+					"delay,usleep",	"4000",
+					"regulator,enable",	"gpio_lcd_rst",
+					"delay,usleep",	"1000",
+					"regulator,disable",	"gpio_lcd_rst",
+					"delay,usleep",	"1000",
+					"regulator,enable",	"gpio_lcd_rst",
+					"delay,msleep",	"25";
+				};
+				panel_reset_disable {
+					type =
+					"delay,msleep",	"90",
+					"regulator,disable",	"gpio_lcd_rst",
+					"delay,usleep",	"5000";
+				};
+				panel_regulator_init {
+					type =
+					"regulator,enable",	"gpio_lcd_en_1p8",
+					"regulator,enable",	"gpio_lcd_rst",
+					"regulator,enable",	"gpio_lcd_bl_en";
+				};
+			};
+
+			ili7806s: ili7806s {
+				/* id_match: MASK(HEX) EXPECT(HEX) */
+				id_match = <
+					0xFFFFFF 0xAA7250
+				>;
+				lcm_params-types = <2>; /* 0: LCM_TYPE_DBI, 1: LCM_TYPE_DPI, 2: LCM_TYPE_DSI */
+				lcm_params-dsi-mode = <3>;	/* 0: CMD, 1: SYNC_PULSE_VDO, 2: SYNC_EVENT_VDO, 3: BURST_VDO */
+				lcm_params-dsi-lane_num = <3>;
+				lcm_params-dsi-packet_size = <256>;
+				lcm_params-dsi-ps = <2>; /* 2: LCM_PACKED_PS_24BIT_RGB888 */
+
+				lcm_params-resolution = <720 1600>;
+				lcm_params-physical_width = <68>;		/* 67.93 x 150.96 */
+				lcm_params-physical_height = <151>;
+
+				lcm_params-dsi-vertical_sync_active = <2>;
+				lcm_params-dsi-vertical_backporch = <6>;
+				lcm_params-dsi-vertical_frontporch = <38>;
+				lcm_params-dsi-horizontal_sync_active = <12>;
+				lcm_params-dsi-horizontal_backporch = <136>;
+				lcm_params-dsi-horizontal_frontporch = <136>;
+
+				lcm_params-dsi-data_rate = <830>;
+				lcm_params-dsi-ssc_disable = <1>;
+				lcm_params-dsi-cont_clock = <1>;
+
+				smcdsd_board = <&smcdsd_board_ili7806s>;
+			};
+
+			nt36675: nt36675 {
+				/* id_match: MASK(HEX) EXPECT(HEX) */
+				id_match = <
+					0xFFFFFF 0x1AF240
+				>;
+				lcm_params-types = <2>; /* 0: LCM_TYPE_DBI, 1: LCM_TYPE_DPI, 2: LCM_TYPE_DSI */
+				lcm_params-dsi-mode = <3>;	/* 0: CMD, 1: SYNC_PULSE_VDO, 2: SYNC_EVENT_VDO, 3: BURST_VDO */
+				lcm_params-dsi-lane_num = <3>;
+				lcm_params-dsi-packet_size = <256>;
+				lcm_params-dsi-ps = <2>; /* 2: LCM_PACKED_PS_24BIT_RGB888 */
+
+				lcm_params-resolution = <720 1600>;
+				lcm_params-physical_width = <68>;		/* 67.93mm x 150.96mm */
+				lcm_params-physical_height = <151>;
+
+				lcm_params-dsi-vertical_sync_active = <2>;
+				lcm_params-dsi-vertical_backporch = <252>;
+				lcm_params-dsi-vertical_frontporch = <18>;
+				lcm_params-dsi-horizontal_sync_active = <22>;
+				lcm_params-dsi-horizontal_backporch = <34>;
+				lcm_params-dsi-horizontal_frontporch = <96>;
+
+				lcm_params-dsi-data_rate = <830>;
+
+				lcm_params-dsi-ssc_disable = <1>;
+				lcm_params-dsi-cont_clock = <1>;
+
+				smcdsd_board = <&smcdsd_board_nt36525b>;
+			};
+
+			nt36525b_boe: nt36525b_boe {
+				/* id_match: MASK(HEX) EXPECT(HEX) */
+				id_match = <
+					0xFFFFFF 0x2A6240	/* A02 A12 LCD */
+				>;
+				lcm_params-types = <2>; /* 0: LCM_TYPE_DBI, 1: LCM_TYPE_DPI, 2: LCM_TYPE_DSI */
+				lcm_params-dsi-mode = <3>;	/* 0: CMD, 1: SYNC_PULSE_VDO, 2: SYNC_EVENT_VDO, 3: BURST_VDO */
+				lcm_params-dsi-lane_num = <3>;
+				lcm_params-dsi-packet_size = <256>;
+				lcm_params-dsi-ps = <2>; /* 2: LCM_PACKED_PS_24BIT_RGB888 */
+
+				lcm_params-resolution = <720 1600>;
+				lcm_params-physical_width = <68>;		/* 67.93mm x 150.96mm */
+				lcm_params-physical_height = <151>;
+
+				lcm_params-dsi-vertical_sync_active = <2>;
+				lcm_params-dsi-vertical_backporch = <254>;
+				lcm_params-dsi-vertical_frontporch = <18>;
+				lcm_params-dsi-horizontal_sync_active = <4>;
+				lcm_params-dsi-horizontal_backporch = <74>;
+				lcm_params-dsi-horizontal_frontporch = <74>;
+
+				lcm_params-dsi-data_rate = <830>;
+
+				lcm_params-dsi-ssc_disable = <1>;
+				lcm_params-dsi-cont_clock = <1>;
+
+				/* use CSOT's smcdsd_board */
+				smcdsd_board = <&smcdsd_board_nt36525b>;
+			};
+
+			ili9882n_boe: ili9882n_boe {
+				/* id_match: MASK(HEX) EXPECT(HEX) */
+				id_match = <
+					0xFFFFFF 0x2A6250
+				>;
+				lcm_params-types = <2>; /* 0: LCM_TYPE_DBI, 1: LCM_TYPE_DPI, 2: LCM_TYPE_DSI */
+				lcm_params-dsi-mode = <3>; /* 0: CMD, 1: SYNC_PULSE_VDO, 2: SYNC_EVENT_VDO, 3: BURST_VDO */
+				lcm_params-dsi-lane_num = <3>;
+				lcm_params-dsi-packet_size = <256>;
+				lcm_params-dsi-ps = <2>; /* 2: LCM_PACKED_PS_24BIT_RGB888 */
+
+				lcm_params-resolution = <720 1600>;
+				lcm_params-physical_width = <68>;		/* 67.93 x 150.96 */
+				lcm_params-physical_height = <151>;
+
+				lcm_params-dsi-vertical_sync_active = <2>;
+				lcm_params-dsi-vertical_backporch = <18>;
+				lcm_params-dsi-vertical_frontporch = <250>;
+				lcm_params-dsi-horizontal_sync_active = <34>;
+				lcm_params-dsi-horizontal_backporch = <60>;
+				lcm_params-dsi-horizontal_frontporch = <60>;
+
+				lcm_params-dsi-data_rate = <830>;
+				lcm_params-dsi-ssc_disable = <1>;
+				lcm_params-dsi-cont_clock = <1>;
+
+				smcdsd_board = <&smcdsd_board_ili7806s>;
+			};
+
+			ili9882q_boe: ili9882q_boe {
+				/* id_match: MASK(HEX) EXPECT(HEX) */
+				id_match = <
+					0xFFFFFF 0x7A6250	/* A02 */
+				>;
+				lcm_params-types = <2>; /* 0: LCM_TYPE_DBI, 1: LCM_TYPE_DPI, 2: LCM_TYPE_DSI */
+				lcm_params-dsi-mode = <3>; /* 0: CMD, 1: SYNC_PULSE_VDO, 2: SYNC_EVENT_VDO, 3: BURST_VDO */
+				lcm_params-dsi-lane_num = <3>;
+				lcm_params-dsi-packet_size = <256>;
+				lcm_params-dsi-ps = <2>; /* 2: LCM_PACKED_PS_24BIT_RGB888 */
+
+				lcm_params-resolution = <720 1600>;
+				lcm_params-physical_width = <68>;		/* 67.93 x 150.96 */
+				lcm_params-physical_height = <151>;
+
+				lcm_params-dsi-vertical_sync_active = <2>;
+				lcm_params-dsi-vertical_backporch = <18>;
+				lcm_params-dsi-vertical_frontporch = <250>;
+				lcm_params-dsi-horizontal_sync_active = <34>;
+				lcm_params-dsi-horizontal_backporch = <60>;
+				lcm_params-dsi-horizontal_frontporch = <60>;
+
+				lcm_params-dsi-data_rate = <830>;
+				lcm_params-dsi-ssc_disable = <1>;
+				lcm_params-dsi-cont_clock = <1>;
+
+				smcdsd_board = <&smcdsd_board_ili7806s>;
+			};
+		};
+	};
+};
+
+&led6 {
+	compatible;
+};
+

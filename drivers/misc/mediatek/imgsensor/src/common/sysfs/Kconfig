@@ -1,0 +1,7 @@
+config IMGSENSOR_SYSFS
+	bool CONFIG_IMGSENSOR_SYSFS
+	default n
+	help
+	  If CONFIG_IMGSENSOR_SYSFS is y, then "imgsensor/src/common/sysfs/" is built.
+	  This is for camera bringup without sysfs implementation.
+	  Set this config to n, while bringup the camera.

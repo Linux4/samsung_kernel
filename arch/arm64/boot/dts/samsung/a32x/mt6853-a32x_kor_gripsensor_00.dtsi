@@ -1,0 +1,72 @@
+/*
+ * SAMSUNG board device tree source
+ *
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&i2c7 {
+	gpios = <&pio 112 0 /* sda */
+			&pio 111 0>; /* scl */
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+	a96t3x6@20 {
+		compatible = "a96t3x6";
+		reg = <0x20>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_int &grip_ldo_setting>;
+		interrupt-parent = <&pio>;
+		interrupts = <45 0 0>;
+
+		a96t3x6,irq_gpio = <&pio 45 0>;
+		a96t3x6,ldo_en = <&pio 48 0>;
+		a96t3x6,fw_path = "abov/a96t356_a32x_kor_main.bin";
+		a96t3x6,firmup_cmd = <0x3b>;
+	};
+
+	a96t3x6@21 {
+		compatible = "a96t3x6_sub";
+		reg = <0x21>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_sub_int>;
+		interrupt-parent = <&pio>;
+		interrupts = <46 0 0>;
+
+		a96t3x6,irq_gpio = <&pio 46 0>;
+		a96t3x6,ldo_en = <&pio 48 0>;
+		a96t3x6,fw_path = "abov/a96t356_a32x_kor_sub.bin";
+		a96t3x6,firmup_cmd = <0x3b>;
+	};
+};
+
+&pio {
+	grip_int: grip-int {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO45__FUNC_GPIO45>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+	grip_sub_int: grip-sub-int {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO46__FUNC_GPIO46>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+	grip_ldo_setting: grip-ldo-setting {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO48__FUNC_GPIO48>;
+			bias-disable;
+			output-high;
+		};
+	};
+};
