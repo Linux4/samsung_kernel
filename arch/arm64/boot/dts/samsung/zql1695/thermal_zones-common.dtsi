@@ -1,0 +1,90 @@
+//charge-thermal
+&thermal_zones {
+	charge-thermal {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&pm8953_vadc 0x13>;
+		thermal-governor = "user_space";
+
+		trips {
+			active-config0 {
+				temperature = <65000>;
+				hysteresis = <5000>;
+				type = "passive";
+			};
+		};
+	};
+};
+
+&pm8953_vadc {
+
+	pinctrl-0 = <&pa_therm1_default &charge_therm_default>;
+
+	chan@13 {
+		label = "charge-thermal";
+		reg = <0x13>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+		qcom,vadc-thermal-node;
+	};
+};
+
+/* HS60 add for HS60-341 charge-thermal external pull-up 100K NTC by gaochao at 2019/08/05 start */
+&pm8953_mpps {
+	charge_therm {
+		charge_therm_default: charge_therm_default {
+			pins = "mpp4";
+			function = "analog";
+			input-enable;
+			qcom,amux-route = <3>;
+		};
+	};
+};
+/* HS60 add for HS60-341 charge-thermal external pull-up 100K NTC by gaochao at 2019/08/05 end */
+
+
+
+//MSM-thermal
+&thermal_zones {
+	MSM-thermal {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&pmi632_adc_tm 0x54>;
+		thermal-governor = "user_space";
+
+		trips {
+			active-config0 {
+				temperature = <65000>;
+				hysteresis = <1000>;
+				type = "passive";
+			};
+		};
+	};
+};
+
+&pmi632_adc_tm {
+	chan@54 {
+		label = "MSM-thermal";
+		reg = <0x54>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		/* HS60 add for HS60-1837 Fine tune thermal via thermal core by gaochao at 2019/09/20 start */
+		qcom,hw-settle-time = <2>;
+		qcom,btm-channel-number = <0x70>;
+		/* HS60 add for HS60-1837 Fine tune thermal via thermal core by gaochao at 2019/09/20 end */
+		qcom,thermal-node;
+	};
+};
+
+/* HS60 add for HS60-493 Disable quiet-therm-step by gaochao at 2019/08/13 start */
+&thermal_zones {
+	quiet-therm-step {
+		status = "disabled";
+	};
+};
+/* HS60 add for HS60-493 Disable quiet-therm-step by gaochao at 2019/08/13 end */
