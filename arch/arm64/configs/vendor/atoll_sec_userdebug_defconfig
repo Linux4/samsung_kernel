@@ -1,0 +1,4 @@
+# TODO: atoll_sec_userdebug_defconfig
+
+# CONFIG_RKP_KDP is not set
+CONFIG_DEBUG_FS=y
