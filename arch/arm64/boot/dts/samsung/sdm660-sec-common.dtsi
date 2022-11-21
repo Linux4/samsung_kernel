@@ -1,0 +1,359 @@
+/*
+ * Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/input/linux-event-codes.h>
+
+/{
+	reserved-memory {
+		/delete-node/ adsp_fw_region@92a00000;
+		adsp_fw_mem: adsp_fw_region {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x92a00000 0x0 0x2700000>;
+		};
+
+		/delete-node/ pil_mba_region@94800000;
+		pil_mba_mem: pil_mba_region {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x95100000 0x0 0x200000>;
+		};
+
+		/delete-node/ cdsp_fw_region@94a00000;
+		cdsp_fw_mem: cdsp_fw_region {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x95300000 0x0 0x600000>;
+		};
+
+		/delete-node/ venus_fw_region;
+		venus_fw_mem: venus_fw_region {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0 0x95900000 0 0x500000>;
+		};
+
+		ss_plog@84B00000 {
+			compatible = "ss_plog";
+			no-map;
+			reg = <0x0 0x84B00000 0x0 0x00200000>;
+		};
+
+		ramoops@84D00000 {
+			compatible = "ramoops";
+			reg = <0 0x84D00000 0 0x100000>;
+			record-size = <0x40000>;
+			console-size = <0x40000>;
+			ftrace-size = <0x40000>;
+			pmsg-size = <0x40000>;
+		};
+
+		/* CONFIG_SEC_DEBUG reserves 8MB */
+		sec_debug_region: sec_debug_region@0 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x84E00000 0x0 0x00800000>;
+		};
+
+		/* sec_debug_low_region reserves 4MB
+		   This region is reserved if only debuglevel low */
+		sec_debug_low_region: sec_debug_low_region@0 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x84E00000 0x0 0x00400000>;
+		};
+		
+		/*to reserve 2MB for TIMA */
+		tima_mem: tima_region@9F800000 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0 0x9F800000 0 0x200000>;
+		};
+		
+		/* kaslr_region reserves 1MB */
+		kaslr_region: kaslr_region@0x9FA00000 {
+			compatible = "removed-dma-pool";
+			reg = <0x0 0x9FA00000 0x0 0x00100000>;
+		};
+
+
+		modem_shared_mem: modem_shared_mem_region@0x96400000 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x96400000 0x0 0x06000000>;
+		};
+
+		/delete-node/ qseecom_region;
+		qseecom_mem: qseecom_region {
+			compatible = "shared-dma-pool";
+			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+			reusable;
+			alignment = <0 0x400000>;
+			size = <0 0x1C00000>;
+		};
+
+		removed_regions: removed_regions@85800000 {
+			reg = <0x0 0x85800000 0x0 0x3D00000>;
+		};
+			/delete-node/ secure_region;
+		secure_display_memory: secure_region {
+			compatible = "shared-dma-pool";
+			alloc-ranges = <0 0x00000000 0 0xffffffff>;
+			reusable;
+			alignment = <0 0x200000>;
+			size = <0 0x8c00000>;
+		};
+	};
+
+	soc {
+		qcom,memshare {
+			compatible = "qcom,memshare";
+			memory-region = <&modem_shared_mem>;
+
+			qcom,client_4 {
+				compatible = "qcom,memshare-peripheral";
+				memory-region = <&modem_shared_mem>;
+				qcom,peripheral-size = <0x06000000>;
+				qcom,client-id = <3>;
+				qcom,allocate-boot-time;
+				label = "modem";
+			};
+		};
+	};
+
+    input_booster {
+        status = "okay";
+        compatible = "input_booster";
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        booster_key@1 {
+            input_booster,label = "KEY";
+            input_booster,type = <0>;   /* BOOSTER_DEVICE_KEY */
+
+            input_booster,levels = <1>;
+
+            /* Frequency table */
+            /* for level    :   1_Head */
+            input_booster,cpu_freqs = <1401600>;
+            input_booster,core_num = <0>;
+            input_booster,hmp_boost = <2>;
+            input_booster,bimc_freqs = <0>;
+            input_booster,lpm_bias = <0>;
+
+            /* Time table */
+            input_booster,head_times = <200>;
+            input_booster,tail_times = <0>;
+        };
+        booster_key@2 {
+            input_booster,label = "TOUCHKEY";
+            input_booster,type = <1>;   /* BOOSTER_DEVICE_TOUCHKEY */
+
+            input_booster,levels = <1>;
+
+            /* Frequency table */
+            /* for level    :   1_Head */
+            input_booster,cpu_freqs = <1401600>;
+            input_booster,core_num = <0>;
+            input_booster,hmp_boost = <2>;
+            input_booster,bimc_freqs = <0>;
+            input_booster,lpm_bias = <0>;
+
+            /* Time table */
+            input_booster,head_times = <0>;
+            input_booster,tail_times = <300>;
+        };
+        booster_key@3 {
+            input_booster,label = "TOUCH";
+            input_booster,type = <2>;   /* BOOSTER_DEVICE_TOUCH */
+
+            input_booster,levels = <1 2 3>;
+
+            /* Frequency table */
+            /* for level    :   1_Head, 2_Head, 2_Tail */
+            input_booster,cpu_freqs = <1401600 1401600 1113600>;
+            input_booster,core_num = <4 4 0>;
+            input_booster,hmp_boost = <2 2 2>;
+            input_booster,bimc_freqs = <0 0 0>;
+            input_booster,lpm_bias = <5 5 5>;
+
+            /* Time table */
+            input_booster,head_times = <200 200 0>;
+            input_booster,tail_times = <0 0 300>;
+        };
+        booster_key@4 { // Input Booster +
+            input_booster,label = "MULTITOUCH";
+            input_booster,type = <3>;   /* BOOSTER_DEVICE_MULTITOUCH */
+
+            input_booster,levels = <1 2>;
+
+            /* Frequency table */
+            /* for level    :   1_Head 2_Tail*/
+            input_booster,cpu_freqs = <1401600 0>;
+            input_booster,core_num = <0 0>;
+            input_booster,hmp_boost = <2 0>;
+            input_booster,bimc_freqs = <0 0>;
+            input_booster,lpm_bias = <0 0>;
+
+            /* Time table */
+            input_booster,head_times = <1000 0>;
+            input_booster,tail_times = <0 500>;
+        };
+        booster_key@5 {
+            input_booster,label = "KEYBOARD";
+            input_booster,type = <4>;   /* BOOSTER_DEVICE_KEYBOARD */
+
+            input_booster,levels = <1 2>;
+
+            /* Frequency table */
+            /* for level    :   1_Head, 2_Tail */
+            input_booster,cpu_freqs = <1401600 1401600>;
+            input_booster,core_num = <0 0>;
+            input_booster,hmp_boost = <2 2>;
+            input_booster,bimc_freqs = <0 0>;
+            input_booster,lpm_bias = <0 0>;
+
+            /* Time table */
+            input_booster,head_times = <130 130>;
+            input_booster,tail_times = <0 0>;
+        };
+        booster_key@6 {
+            input_booster,label = "MOUSE";
+            input_booster,type = <5>;   /* BOOSTER_DEVICE_MOUSE */
+
+            input_booster,levels = <1 2>;
+
+            /* Frequency table */
+            /* for level    :   1_Head 2_Tail*/
+            input_booster,cpu_freqs = <1401600 1113600>;
+            input_booster,core_num = <0 0>;
+            input_booster,hmp_boost = <2 0>;
+            input_booster,bimc_freqs = <0 0>;
+            input_booster,lpm_bias = <0 0>;
+
+            /* Time table */
+            input_booster,head_times = <200 0>;
+            input_booster,tail_times = <0 300>;
+        };
+        booster_key@7 {
+            input_booster,label = "MOUSE WHEEL";
+            input_booster,type = <6>;   /* BOOSTER_DEVICE_MOUSE */
+
+            input_booster,levels = <1 2>;
+
+            /* Frequency table */
+            /* for level    :   1_Head 2_Tail*/
+            input_booster,cpu_freqs = <1401600 0>;
+            input_booster,core_num = <0 0>;
+            input_booster,hmp_boost = <2 0>;
+            input_booster,bimc_freqs = <0 0>;
+            input_booster,lpm_bias = <0 0>;
+
+            /* Time table */
+            input_booster,head_times = <200 0>;
+            input_booster,tail_times = <0 0>;
+        };
+        booster_key@8 {
+            input_booster,label = "PEN HOVER";
+            input_booster,type = <7>;   /* BOOSTER_DEVICE_MOUSE */
+
+            input_booster,levels = <1 2>;
+
+            /* Frequency table */
+            /* for level    :   1_Head 2_Tail*/
+            input_booster,cpu_freqs = <1401600 1113600>;
+            input_booster,core_num = <0 0>;
+            input_booster,hmp_boost = <2 0>;
+            input_booster,bimc_freqs = <0 0>;
+            input_booster,lpm_bias = <0 0>;
+
+            /* Time table */
+            input_booster,head_times = <200 0>;
+            input_booster,tail_times = <0 300>;
+        }; // Input Booster -
+        /* If you need to add new key type, add it this position */
+    };
+};
+
+&spmi_bus {
+	qcom,pm660@0 {
+		qcom,power-on@800 {
+			qcom,store-hard-reset-reason;
+			qcom,s3-debounce = <128>;
+
+			qcom,pon_1 {
+				qcom,pon-type = <0>;
+				qcom,disable-reset = <1>;
+				qcom,pull-up = <1>;
+				linux,code = <116>;
+			};
+
+			qcom,pon_2 {
+				qcom,pon-type = <1>;
+				qcom,disable-reset = <1>;
+				qcom,support-reset = <0>;
+				qcom,pull-up = <1>;
+				linux,code = <114>;
+			};
+
+			qcom,pon_3 {
+				qcom,pon-type = <3>;
+				qcom,support-reset = <1>;
+				qcom,pull-up = <1>;
+				qcom,s1-timer = <6720>;
+				qcom,s2-timer = <1000>;
+				qcom,s2-type = <8>;
+				qcom,use-bark;
+
+				/*
+				 * Configure reset timer & type:
+				 * Debug level MID/HIGH: timer1(10256), WARM Reset
+				 */
+				sec_debug,s1-timer = <10256>;
+				sec_debug,s2-type = <1>;
+			};
+		};
+	};
+};
+
+&soc {
+	mcd {
+		compatible = "qcom,mcd";
+		qcom,ce-hw-instance = <0>;
+		qcom,ce-device = <0>;
+		interrupts = <0 248 0>;
+		interrupt-names = "mcd_irq";
+		clock-names = "core_clk_src", "core_clk",
+				"iface_clk", "bus_clk";
+		clocks = <&clock_rpmcc QSEECOM_CE1_CLK>,
+			 <&clock_rpmcc QSEECOM_CE1_CLK>,
+			 <&clock_rpmcc QSEECOM_CE1_CLK>,
+			 <&clock_rpmcc QSEECOM_CE1_CLK>;
+		qcom,ce-opp-freq = <171430000>;
+	};
+
+	qcom,msm-thermal {
+		qcom,hotplug-temp = <95>;
+		qcom,therm-reset-temp = <105>;
+	};
+};
+
+&pm660_s4 {
+	regulator-min-microvolt = <2040000>;
+};
+
+&pil_modem {
+	/* GPIO output to mss */
+	qcom,gpio-stop-reason-0 = <&smp2pgpio_ssr_smp2p_1_out 4 0>;
+	qcom,gpio-stop-reason-1 = <&smp2pgpio_ssr_smp2p_1_out 5 0>;
+};

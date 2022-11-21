@@ -1,0 +1,150 @@
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/{
+	aliases {
+		spi3 = &spi_3;
+	};
+};
+
+&soc {
+	tlmm: pinctrl@03000000 {
+		vfsspi_drdypin {
+			vfsspi_drdypin_active: vfsspi_drdypin_active {
+				mux {
+					pins = "gpio13";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio13";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+			vfsspi_drdypin_suspend: vfsspi_drdypin_suspend {
+				mux {
+					pins = "gpio13";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio13";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+		};
+
+		spi_3_bus {
+			spi_3_bus_active: spi_3_bus_active {
+				mux {
+					pins = "gpio9", "gpio10", "gpio11";
+					function = "blsp_spi3";
+				};
+
+				config {
+					pins = "gpio9", "gpio10", "gpio11";
+					drive-strength = <6>;
+					bias-pull-up;
+				};
+			};
+
+			spi_3_bus_sleep: spi_3_bus_sleep {
+				mux {
+					pins = "gpio9", "gpio10", "gpio11";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio9", "gpio10", "gpio11";
+					drive-strength = <6>;
+					bias-pull-down;
+					input-enable;
+				};
+			};
+		};
+		spi_3_cs {
+			spi_3_cs_active: spi_3_cs_active {
+				mux {
+					pins = "gpio8";
+					function = "blsp_spi3";
+				};
+
+				config {
+					pins = "gpio8";
+					drive-strength = <6>;
+					bias-disable;
+				};
+			};
+
+			spi_3_cs_sleep: spi_3_cs_sleep {
+				mux {
+					pins = "gpio8";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio8";
+					drive-strength = <6>;
+					bias-pull-down;
+					output-low;
+				};
+			};
+		};
+	};
+
+	spi_3: spi@c177000 { /* BLSP1 QUP3 */
+		status = "ok";
+		compatible = "qcom,spi-qup-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "spi_physical", "spi_bam_physical";
+		reg = <0xc177000 0x600>,
+		      <0xc144000 0x1f000>;
+		interrupt-names = "spi_irq", "spi_bam_irq";
+		interrupts = <0 97 0>, <0 238 0>;
+
+		spi-max-frequency = <50000000>;
+		qcom,use-bam;
+		qcom,ver-reg-exists;
+		qcom,bam-consumer-pipe-index = <8>;
+		qcom,bam-producer-pipe-index = <9>;
+		qcom,master-id = <86>;
+		qcom,use-pinctrl;
+
+		pinctrl-names = "spi_default", "spi_sleep";
+		pinctrl-0 = <&spi_3_bus_active &spi_3_cs_active>;
+		pinctrl-1 = <&spi_3_bus_sleep &spi_3_cs_sleep>;
+
+		clock-names = "iface_clk", "core_clk";
+
+		clocks = <&clock_gcc GCC_BLSP1_AHB_CLK>,
+			 <&clock_gcc GCC_BLSP1_QUP3_SPI_APPS_CLK>;
+
+		vfsspi-spi@0 {
+			compatible = "vfsspi,vfs8xxx";
+			reg = <0>;
+			spi-max-frequency = <16000000>;
+			vfsspi-ldoPin = <&expander_gpios 6 0x00>;
+			vfsspi-drdyPin = <&tlmm 13 0x00>;
+
+			vfsspi-orient = <0>;
+			vfsspi-min_cpufreq_limit = <2016000>;
+			vfsspi-wog = <1>;
+			vfsspi-chipid = "NAMSAN";
+
+			pinctrl-names = "default", "sleep", "idle";
+			pinctrl-0 = <&vfsspi_drdypin_active>;
+			pinctrl-1 = <&vfsspi_drdypin_suspend>;
+			pinctrl-2 = <&vfsspi_drdypin_active>;
+		};
+	};
+};

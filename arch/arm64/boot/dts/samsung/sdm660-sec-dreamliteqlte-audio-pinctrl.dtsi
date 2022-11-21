@@ -1,0 +1,208 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	lpi_tlmm: lpi_pinctrl@15070000 {
+		compatible = "qcom,lpi-pinctrl";
+		reg = <0x15070000 0x0>;
+		qcom,num-gpios = <32>;
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		ter_mi2s_clk_active: ter_mi2s_clk_active {
+			mux {
+				pins = "gpio4";
+				function = "func4";
+			};
+
+			config {
+				pins = "gpio4";
+				drive-strength = <8>;
+			};
+		};
+
+		ter_mi2s_clk_sleep: ter_mi2s_clk_sleep {
+			mux {
+				pins = "gpio4";
+				function = "func4";
+			};
+
+			config {
+				pins = "gpio4";
+				drive-strength = <2>;
+			};
+		};
+
+		ter_mi2s_ws_active: ter_mi2s_ws_active {
+			mux {
+				pins = "gpio5";
+				function = "func4";
+			};
+
+			config {
+				pins = "gpio5";
+				drive-strength = <8>;
+			};
+		};
+
+		ter_mi2s_ws_sleep: ter_mi2s_ws_sleep {
+			mux {
+				pins = "gpio5";
+				function = "func4";
+			};
+
+			config {
+				pins = "gpio5";
+				drive-strength = <2>;
+			};
+		};
+		ter_mi2s_sd0_active: ter_mi2s_sd0_active {
+			mux {
+				pins = "gpio6";
+				function = "func4";
+			};
+
+			config {
+				pins = "gpio6";
+				drive-strength = <8>;
+			};
+		};
+
+		ter_mi2s_sd0_sleep: ter_mi2s_sd0_sleep {
+			mux {
+				pins = "gpio6";
+				function = "func4";
+			};
+
+			config {
+				pins = "gpio6";
+				drive-strength = <2>;
+			};
+		};
+		ter_mi2s_sd1_active: ter_mi2s_sd1_active {
+			mux {
+				pins = "gpio7";
+				function = "func4";
+			};
+
+			config {
+				pins = "gpio7";
+				drive-strength = <8>;
+			};
+		};
+
+		ter_mi2s_sd1_sleep: ter_mi2s_sd1_sleep {
+			mux {
+				pins = "gpio7";
+				function = "func4";
+			};
+
+			config {
+				pins = "gpio7";
+				drive-strength = <2>;
+			};
+		};
+
+		/delete-node/dmic12_gpios_sleep;
+		cdc_dmic12_gpios_sleep: dmic12_gpios_sleep {
+			mux {
+				pins = "gpio26", "gpio28";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio26", "gpio28";
+				drive-strength = <2>;
+				bias-disable;
+				output-low;
+			};
+		};
+		
+		/delete-node/dmic34_gpios_sleep;
+		cdc_dmic34_gpios_sleep: dmic34_gpios_sleep {
+			mux {
+				pins = "gpio27", "gpio29";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio27", "gpio29";
+				drive-strength = <2>;
+				bias-disable;
+				input-enable;
+			};
+		};
+	};
+
+	tlmm: pinctrl@03000000 {
+		compatible = "qcom,sdm660-pinctrl";
+		reg = <0x03000000 0xc00000>;
+		interrupts = <0 208 0>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+
+		/* ear jack */
+		earjack_det_pin {
+			earjack_det_act: earjack_det_act {
+				mux {
+					pins = "gpio43";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio43";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+
+			earjack_det_sus: earjack_det_sus {
+				mux {
+					pins = "gpio43";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio43";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+
+		earjack_swtich_pin {
+			earjack_switch_act: earjack_switch_act {
+				mux {
+					pins = "gpio44";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio44";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+
+			earjack_switch_sus: earjack_switch_sus {
+				mux {
+					pins = "gpio44";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio44";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+	};
+};

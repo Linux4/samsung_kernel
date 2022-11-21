@@ -1,0 +1,50 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+#include "sdm660-sec-dreamliteqlte-battery-common.dtsi"
+&spmi_bus {
+	qcom,pm660@0 {
+		pm660_vadc: vadc@3100 {
+			chan@57 { /* GPIO_9 */
+				label = "wpc_therm1";
+				reg = <0x57>;
+				qcom,decimation = <0>;
+				qcom,pre-div-channel-scaling = <0>;
+				qcom,calibration-type = "ratiometric";
+				qcom,scale-function = <2>;
+				qcom,hw-settle-time = <2>;
+				qcom,fast-avg-setup = <0>;
+			};
+		};
+	};
+};
+
+&soc {
+	i2c25: i2c@25 {
+		gpios = <&tlmm 80 0	/* MFC_SDA_1P8 */
+			 &tlmm 77 0	/* MFC_SCL_1P8 */
+		>;
+
+		mfc-charger@3b {
+			pinctrl-0 = <&mfc_irq_active>;
+			battery,wpc_det = <&expander_gpios 4 0>; /* WPC_DET */
+		};
+	};
+
+	battery {
+		battery,wpc_det = <&expander_gpios 4 0>; /* WPC_DET */
+		battery,temp_adc_channel = <0x57>; /* VADC_AMUX6_GPIO_PU2 */
+	};
+	sm5720-fuelgauge {
+		/delete-property/ fuelgauge,jig_gpio;
+	};
+};
+

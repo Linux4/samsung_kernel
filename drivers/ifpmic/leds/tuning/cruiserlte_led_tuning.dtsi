@@ -1,0 +1,73 @@
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	rgb {
+		device_type = "dream1";
+		rgb-name = "led_b", "led_r", "led_g", "led_w";
+
+		normal_powermode_current = <10>;
+		low_powermode_current = <10>;
+		br_ratio_r = <250>;
+		br_ratio_g = <85>;
+		br_ratio_b = <600>;
+		br_ratio_r_low = <30>;
+		br_ratio_g_low = <12>;
+		br_ratio_b_low = <55>;
+
+		normal_powermode_current_u = <10>;
+		low_powermode_current_u = <10>;
+		br_ratio_r_u = <250>;
+		br_ratio_g_u = <85>;
+		br_ratio_b_u = <600>;
+		br_ratio_r_low_u = <30>;
+		br_ratio_g_low_u = <12>;
+		br_ratio_b_low_u = <55>;
+
+		normal_powermode_current_bk = <10>;
+		low_powermode_current_bk = <10>;
+		br_ratio_r_bk = <250>;
+		br_ratio_g_bk = <85>;
+		br_ratio_b_bk = <600>;
+		br_ratio_r_low_bk = <30>;
+		br_ratio_g_low_bk = <12>;
+		br_ratio_b_low_bk = <55>;
+
+		normal_powermode_current_gd = <10>;
+		low_powermode_current_gd = <10>;
+		br_ratio_r_gd = <250>;
+		br_ratio_g_gd = <85>;
+		br_ratio_b_gd = <600>;
+		br_ratio_r_low_gd = <30>;
+		br_ratio_g_low_gd = <12>;
+		br_ratio_b_low_gd = <55>;
+
+		normal_powermode_current_sv = <10>;
+		low_powermode_current_sv = <10>;
+		br_ratio_r_sv = <250>;
+		br_ratio_g_sv = <85>;
+		br_ratio_b_sv = <600>;
+		br_ratio_r_low_sv = <30>;
+		br_ratio_g_low_sv = <12>;
+		br_ratio_b_low_sv = <55>;
+
+		normal_powermode_current_bl = <10>;
+		low_powermode_current_bl = <10>;
+		br_ratio_r_bl = <250>;
+		br_ratio_g_bl = <85>;
+		br_ratio_b_bl = <600>;
+		br_ratio_r_low_bl = <30>;
+		br_ratio_g_low_bl = <12>;
+		br_ratio_b_low_bl = <55>;
+	};
+};
+

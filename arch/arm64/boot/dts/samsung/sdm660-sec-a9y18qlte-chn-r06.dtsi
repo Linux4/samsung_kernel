@@ -1,0 +1,67 @@
+/*
+ * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+
+
+#include "sdm660-sec-a9y18qlte-common.dtsi"
+#include "sdm660-sec-a9y18qlte-sensor-r01.dtsi"
+
+&soc {
+	/* not use eMMC */
+	/delete-property/ sdhc-msm-crypto;
+
+	i2c_23: i2c@23 {
+		expander_gpios: kts@22 {
+			kts,reset-gpio = <&tlmm 79 0>;
+		};
+	};
+
+        msm_vibrator {
+		compatible = "vibrator";
+		motor-vdd_type = <1>; /* 0: gpio, 1: pmic */
+                vibr_vdd-supply = <&s2dos03_l4>;
+	};
+
+	hall {
+		status = "okay";
+		compatible = "hall";
+		linux,input-type = <1>;
+		linux,code = <21>;
+		hall,gpio_flip_cover = <&pm660_gpios 13 0x1>;
+		debounce-interval = <15>;
+	};	
+};
+
+&spmi_bus {
+	qcom,pm660@1 {
+	        pm660_haptics: qcom,haptic@c000 {
+                        status = "disabled";
+	        };
+	};
+};
+
+&sdhc_1 {
+	status = "disabled";
+};
+
+/* for uMCP VCC & VCCQ2 */
+&pm660l_l4 {
+	regulator-min-microvolt = <2950000>;
+	regulator-max-microvolt = <2950000>;
+};
+
+&pm660_l8 {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+};

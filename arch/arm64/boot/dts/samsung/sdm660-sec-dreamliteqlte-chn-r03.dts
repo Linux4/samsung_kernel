@@ -1,0 +1,111 @@
+/*
+ * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+/dts-v1/;
+
+#define SDM660_DREAMLITEQLTE_REV03
+
+#include "../qcom/sdm660.dtsi"
+#include "../qcom/sdm660-mtp.dtsi"
+#include "../qcom/msm-pm660a.dtsi"
+
+#include "sdm660-sec-common.dtsi"
+#include "sdm660-sec-dreamliteqlte-audio.dtsi"
+#include "sdm660-sec-dreamliteqlte-chn-r03.dtsi"
+#include "sdm660-sec-dreamliteqlte-chn-pinctrl-r03.dtsi"
+#include "sdm660-sec-dreamliteqlte-display-r02.dtsi"
+#include "sdm660-sec-dreamliteqlte-battery-common.dtsi"
+#include "sdm660-sec-dreamliteqlte-muic-common.dtsi"
+#include "sdm660-sec-dreamliteqlte-chn-fingerprint-sensor_00.dtsi"
+#include "sdm660-camera-sensor-dreamliteqlte_chn-r02.dtsi"
+#include "../../../../drivers/ifpmic/leds/tuning/dreamliteqlte_led_tuning.dtsi"
+#include "../../../../drivers/ifpmic/motor/tuning/dreamliteqlte_motor_tuning.dtsi"
+
+/ {
+	model = "Samsung DREAMLITEQLTE CHN PROJECT Rev01A (board-id,03)";
+	compatible = "qcom,sdm660-mtp", "qcom,sdm660", "qcom,mtp";
+	qcom,board-id = <8 3>;
+};
+
+&soc {
+	leds_ktd2692 {
+                compatible = "ktd2692";
+                flash-en-gpio= <&tlmm 41 0x0>;
+                status = "okay";
+                pinctrl-names ="fled_default","fled_sleep";
+                pinctrl-0 = <&flash_active>;
+                pinctrl-1 = <&flash_sleep>;
+        };
+        led_flash0: qcom,camera-flash {
+                cell-index = <0>;
+                compatible = "qcom,camera-flash";
+                qcom,flash-type = <3>;
+                qcom,flash-name = "ktd2692";
+        };
+	i2c_26: i2c@26 {
+		sm5705_fled {
+			compatible = "siliconmitus,sm5705-fled";
+			enable = <1 1>;
+			id= <0>;
+			status = "okay";
+			flash-mode-current-mA = <1000>;
+			torch-mode-current-mA = <150>;
+			preflash-mode-current-mA = <150>;
+			used-gpio-control = <1>;
+			flash-en-gpio = <&tlmm 60 0x00>;
+			torch-en-gpio = <&tlmm 41 0x00>;
+		};
+	};
+
+	earjack {
+		det-zones-list = <&det_zones 0 10000 10 2>,
+				 <&det_zones 820 10000 10 2>,
+				 <&det_zones 821 10000 10 1>,
+				 <&det_zones 9999 10000 10 1>;
+
+		but-zones-list = <&but_zones 226 0 378>, /* KEY_MEDIA:226 */
+				 <&but_zones 582 379 409>, /* KEY_VOICECOMMAND:582 */
+				 <&but_zones 115 410 490>, /* KEY_VOLUMEUP:115 */
+				 <&but_zones 114 491 690>; /* KEY_VOLUMEDOWN:114 */
+		mdet-range = <11 1630>;
+	};
+
+	int_codec: sound {
+		qcom,amux_channel = <0x17>;
+	};
+};
+
+&pm660_vadc {
+	/delete-node/chan@10;
+	chan@17 {
+		label = "ear_adc_35";
+		reg = <0x17>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "absolute";
+		qcom,scale-function = <0>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+	};
+};
+
+&pm660_gpios {
+	gpio@c800 {
+		reg = <0xc800 0x100>;
+		qcom,pin-num = <9>;
+		qcom,pull = <5>;
+		qcom,master-en = <0>;
+		status = "okay";
+	};
+};

@@ -1,0 +1,132 @@
+/*
+ * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+/dts-v1/;
+
+#define SDM660_A_STARQLTE_REV07
+
+#include "../qcom/sdm660.dtsi"
+#include "../qcom/sdm660-mtp.dtsi"
+#include "../qcom/msm-pm660a.dtsi"
+
+#include "sdm660-sec-common.dtsi"
+#include "sdm660-sec-astarqlte-audio.dtsi"
+#include "sdm660-sec-astarqlte-chn-r07.dtsi"
+#include "sdm660-sec-astarqlte-chn-pinctrl-r07.dtsi"
+#include "sdm660-sec-astarqlte-display-r00.dtsi"
+#include "sdm660-sec-astarqlte-battery-common.dtsi"
+#include "sdm660-sec-astarqlte-muic-common.dtsi"
+#include "sdm660-sec-astarqlte-chn-fingerprint-sensor_00.dtsi"
+#include "sdm660-camera-sensor-astarqlte_chn-r05.dtsi"
+#include "../../../../drivers/leds/tuning/astarqlte_led_tuning-r03.dtsi"
+
+/ {
+	model = "Samsung A-STARQLTE CHN PROJECT Rev05 (board-id,07)";
+	compatible = "qcom,sdm660-mtp", "qcom,sdm660", "qcom,mtp";
+	qcom,board-id = <8 7>;
+};
+
+&soc {
+	i2c_6: i2c@c1b6000 { /* BLSP2 QUP2 */
+		status = "okay";
+
+		pn547@2B {
+			compatible = "pn547";
+			reg = <0x2B>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <40 0>;
+			pn547,irq-gpio = <&tlmm 40 0>;
+			pn547,ven-gpio = <&expander_gpios 12 0>;
+			pn547,firm-gpio = <&tlmm 80 0>;
+			pn547,clk_req-gpio = <&pm660_gpios 4 0x00>;
+			pn547,pwr_req =  <&expander_gpios 11 0>;
+			pn547,pvdd-gpio = <&expander_gpios 7 0>;
+			pn547,nfc_pm_clk;
+			qcom,clk-src = "BBCLK3";
+			clocks = <&clock_rpmcc RPM_LN_BB_CLK3_PIN>;
+			clock-names = "rf_clk";
+		};
+	};
+
+	i2c_26: i2c@26 {
+		sm5705_fled {
+			compatible = "siliconmitus,sm5705-fled";
+			enable = <1 1>;
+			id= <0>;
+			status = "okay";
+			flash-mode-current-mA = <1500>;
+			torch-mode-current-mA = <220>;
+			preflash-mode-current-mA = <220>;
+			used-gpio-control = <1>;
+			flash-en-gpio = <&tlmm 60 0x00>;
+			torch-en-gpio = <&tlmm 41 0x00>;
+		};
+	};
+
+	spi_1: spi@c175000 { /* BLSP1 QUP1 */
+		status = "okay";
+		spi-max-frequency = <19200000>;
+
+		ese_spi@0 {
+			compatible = "p61";
+			reg = <0>;
+			spi-max-frequency = <16000000>;
+			p61-ap_vendor = "qualcomm";
+			clock-names = "pclk", "sclk";
+			clocks = <&clock_gcc GCC_BLSP1_AHB_CLK>,
+				<&clock_gcc GCC_BLSP1_QUP1_SPI_APPS_CLK>;
+		};
+	};
+
+	earjack {
+		det-zones-list = <&det_zones 0 10000 10 2>,
+				 <&det_zones 950 10000 10 2>,
+				 <&det_zones 951 10000 10 1>,
+				 <&det_zones 9999 10000 10 1>;
+
+		but-zones-list = <&but_zones 226 0 435>, /* KEY_MEDIA:226 */
+				 <&but_zones 582 436 470>, /* KEY_VOICECOMMAND:582 */
+				 <&but_zones 115 471 560>, /* KEY_VOLUMEUP:115 */
+				 <&but_zones 114 561 800>; /* KEY_VOLUMEDOWN:114 */
+		mdet-range = <177 1200>;
+	};
+
+	int_codec: sound {
+		qcom,amux_channel = <0x17>;
+	};
+};
+
+&pm660_vadc {
+	/delete-node/chan@10;
+	chan@17 {
+		label = "ear_adc_35";
+		reg = <0x17>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "absolute";
+		qcom,scale-function = <0>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+	};
+};
+
+&pm660_gpios {
+	gpio@c800 {
+		reg = <0xc800 0x100>;
+		qcom,pin-num = <9>;
+		qcom,pull = <5>;
+		qcom,master-en = <0>;
+		status = "okay";
+	};
+};

@@ -1,0 +1,40 @@
+/*
+ * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+
+
+#include "sdm660-sec-dreamliteqlte-common.dtsi"
+
+&spmi_bus {
+	qcom,pm660@1 {
+	        pm660_haptics: qcom,haptic@c000 {
+                        status = "disabled";
+	        };
+	};
+};
+
+&soc {
+	samsung,vibrator {
+		compatible = "samsung_vib";
+		pinctrl-names = "tlmm_motor_active","tlmm_motor_suspend";
+		pinctrl-0 = <&motor_pwm_active>;
+		pinctrl-1 = <&motor_pwm_suspend>;
+		samsung,vib_pwm = <&tlmm 57 0>;
+		samsung,vib_power = <&tlmm 60 0>;
+		samsung,chip_model = <2>;        // using sm5720 driver
+		samsung,support_multi_freq = <1>;
+		samsung,gp_clk = <0x00164000>;   // Address of GP1 clock
+		status = "ok";
+	};
+};

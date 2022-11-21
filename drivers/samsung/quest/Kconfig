@@ -1,0 +1,60 @@
+config SEC_QUEST
+	bool "Samsung QUEST Feature"
+	default n
+	depends on SEC_FACTORY
+	help
+	  Samsung QUEST Feature, to test chipset quality
+
+config SEC_QUEST_UEFI
+	bool "Samsung QUEST UEFI Feature"
+	default n
+	depends on SEC_FACTORY
+	help
+	  Samsung QUEST UEFI Feature, to test chipset quality	  
+
+config SEC_QUEST_UEFI_ENHANCEMENT
+	bool "Samsung QUEST UEFI ENHENCEMENT Feature"
+	default n
+	depends on SEC_FACTORY
+	help
+	  Samsung QUEST UEFI ENHENCEMENT Feature, to test chipset quality
+
+config SEC_DDR_SKP
+	bool "Samsung DDR SKP Feature"
+	default n
+	depends on SEC_FACTORY
+	help
+	  Samsung DDR SKP Feature, to test chipset quality
+
+config SEC_QUEST_HLOS_DUMMY_SMD
+	bool "Samsung QUEST SMD CONCEPT Feature (do not quest.sh)"
+	default n
+	depends on SEC_FACTORY
+	help
+	  Samsung QUEST SMD CONCEPT Feature (do not quest.sh)
+
+config SEC_QUEST_HLOS_DUMMY_MAIN_CAL
+	bool "Samsung QUEST MAIN/CAL CONCEPT Feature (do not quest.sh)"
+	default n
+	depends on SEC_FACTORY
+	help
+	  Samsung QUEST MAIN/CAL CONCEPT Feature (do not quest.sh)
+	  
+config SEC_QUEST_AUTO_TRIGGER_KWORKER
+	bool "Samsung QUEST AUTO TRIGGER CONCEPT Feature (using kworker)"
+	default n
+	help
+	 Samsung QUEST AUTO TRIGGER CONCEPT Feature (using kworker)
+	
+config SEC_QUEST_AUTO_TRIGGER_INIT_WRITE
+	bool "Samsung QUEST AUTO TRIGGER CONCEPT Feature (using init.rc write)"
+	default n
+	help
+	 Samsung QUEST AUTO TRIGGER CONCEPT Feature (using init.rc write)
+
+config SEC_QUEST_UEFI_ACT_TRIGGER
+	bool "Samsung QUEST UEFI TRIGGER CONCEPT Feature (using act)"
+	default n
+	help
+	 Samsung QUEST UEFI TRIGGER CONCEPT Feature (using act)
+	  
