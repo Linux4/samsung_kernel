@@ -1,0 +1,1 @@
+obj-$(CONFIG_TOUCHSCREEN_ATMEL_MXT2405)	+= mxtt.o
