@@ -1,0 +1,6 @@
+config  PANEL_A23_ILI7807S_BS066FBM_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "BOE ILI7807S TDDI"
+	default n
+	---help---
+	BOE ILI7807S TDDI 1080_2408 A23
