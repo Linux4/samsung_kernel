@@ -1,0 +1,11 @@
+&i2c21 {
+	a96t3x6@20 {
+		a96t3x6,ldo_en = <&pio 4 0>;
+		a96t3x6,fw_path = "abov/a96t356_a12_usa_main.bin";
+	};
+
+	a96t3x6@21 {
+		a96t3x6,ldo_en = <&pio 4 0>;
+		a96t3x6,fw_path = "abov/a96t356_a12_usa_sub.bin";
+	};
+};

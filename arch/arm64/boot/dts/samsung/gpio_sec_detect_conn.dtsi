@@ -1,0 +1,202 @@
+#ifdef CONFIG_SEC_FACTORY
+#if 1
+&pio {
+	detect_conn_setting: detect_conn_setting {
+		config {
+#if 0
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,76), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_1}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_2}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_3}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_4}), 0)>,
+#if 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_5}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_7}), 0)>;
+#elif 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_5}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>;
+#else
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_5}), 0)>;
+#endif
+#elif 0
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,76), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_1}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_2}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_3}), 0)>,
+#if 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_4}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_7}), 0)>;
+#elif 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_4}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>;
+#else
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_4}), 0)>;
+#endif
+#elif 0
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,76), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_1}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_2}), 0)>,
+#if 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_3}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_7}), 0)>;
+#elif 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_3}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>;
+#else
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_3}), 0)>;
+#endif
+#elif 0
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,76), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_1}), 0)>,
+#if 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_2}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_7}), 0)>;
+#elif 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_2}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>;
+#else
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_2}), 0)>;
+#endif
+#elif 0
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,76), 0)>,
+#if 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_1}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_7}), 0)>;
+#elif 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_1}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>;
+#else
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_1}), 0)>;
+#endif
+#elif 1
+			pinmux =
+#if 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,76), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_7}), 0)>;
+#elif 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,76), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>;
+#else
+			       <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,76), 0)>;
+#endif
+#elif 0
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_7}), 0)>;
+#elif 0
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>;
+#endif
+			drive-strength = <2>;
+			bias-disable; /*NO PULL*/
+			input-enable;
+		};
+	};
+};
+#endif /*use_dynamic_ap_gpio_detect*/
+
+#if 0
+&${det_pm_gpio_num_parent} {
+	detect_conn_pm_setting: detect_conn_pm_setting {
+#if 0 && 0
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${det_pm_gpio_num_0}), 0)>,
+		       <MTK_PINMUX(SEC_GPIO_NUM(${det_pm_gpio_num_1}), 0)>;
+#elif 0
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${det_pm_gpio_num_0}), 0)>;
+#elif 0
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${det_pm_gpio_num_1}), 0)>;
+#endif
+		function = "normal";
+		power-source = <0>;
+		bias-disable; /*NO PULL*/
+		input-enable;
+	};
+};
+#endif /*use_dynamic_pm_gpio_detect*/
+
+&smd {
+	sec_detect_conn {
+		compatible = "samsung,sec_detect_conn";
+		status = "okay";
+
+#if 1
+		sec,det_conn_gpios = <
+#if 1
+					SEC_GPIO_REF(AP,pio,76) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_1}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_2}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_3}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_4}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_5}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_6}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_7}) 0
+#endif
+					>;
+#if 1 || 0
+		sec,det_conn_name =
+#endif
+#if 1 && 0
+					"SUB_CONNECT", "", "", "", "", "",
+					"", "";
+#elif 1
+					"SUB_CONNECT", "", "", "", "", "";
+#elif 0
+					"", "";
+#endif
+#endif /*use_dynamic_ap_gpio_detect*/
+
+#if 0
+		sec,det_pm_conn_gpios = <
+#if 0
+					SEC_GPIO_REF(${det_pm_gpio_num_0}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_pm_gpio_num_1}) 0
+#endif
+					>;
+#if 0 || 0
+		sec,det_pm_conn_name =
+#endif
+#if 0 && 0
+					"",
+					"";
+#elif 0
+					"";
+#elif 0
+					"";
+#endif
+#endif /*use_dynamic_pm_gpio_detect*/
+
+#if 1 && 0
+		pinctrl-names = "det_ap_connect","det_pm_connect";
+		pinctrl-0 = <&detect_conn_setting>;
+		pinctrl-1 = <&detect_conn_pm_setting>;
+#elif 1
+		pinctrl-names = "det_ap_connect";
+		pinctrl-0 = <&detect_conn_setting>;
+#elif 0
+		pinctrl-names = "det_pm_connect";
+		pinctrl-0 = <&detect_conn_pm_setting>;
+#endif
+	};
+};
+#endif /* CONFIG_SEC_FACTORY */
+

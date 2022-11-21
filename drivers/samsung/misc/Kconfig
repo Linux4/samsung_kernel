@@ -1,0 +1,63 @@
+# drivers/staging/samsung/Kconfig
+#
+# Copyright (c) 2010-2016 Samsung Electronics Co., Ltd.
+#		http://www.samsung.com/
+#
+# Licensed under GPLv2
+
+menuconfig SEC_MISC
+	bool "Enable Samsung miscellaneous feature"
+	depends on SEC_EXT
+	default y
+
+config SEC_BOOTSTAT
+	bool "Enable Samsung Bootstat logging"
+	default y
+	depends on SEC_EXT
+	help
+	  Samsung TN Bootstat Feature.
+
+config SEC_DEVICE_BOOTSTAT
+	bool "Enable Samsung Device Bootstat logging"
+	default n
+	depends on SEC_EXT
+	help
+	  Samsung TN Device Bootstat Feature.
+
+config SEC_LOG_HOOK_PMSG
+	bool "Enable hooking android platform log for ramdump"
+	depends on SEC_EXT && PSTORE_PMSG
+	default y
+	help
+	  This option enables hooking android platform log.
+
+config SEC_AVC_LOG
+	default n
+	bool "Enable avc audit log support" if EMBEDDED
+	depends on SEC_EXT
+	help
+	  This option enables additional log buffer for audit log.
+
+config SEC_NAD
+	bool "Samsung TN NAD Feature"
+	default n
+	depends on SEC_FACTORY
+	help
+	  Samsung TN NAD Feature, support AT CMD for NAD 2.0
+
+comment "NOTIFIER configs"
+config VBUS_NOTIFIER
+	bool "VBUS notifier support"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the VBUS status change notification.
+
+config CABLE_TYPE_NOTIFIER
+	bool "CABLE TYPE notifier support"
+	depends on USB_NOTIFIER
+	default n
+	help
+	  If you say yes here you will get support for
+	  the CABLE TYPE status change notification.
+

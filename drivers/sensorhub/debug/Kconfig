@@ -1,0 +1,10 @@
+config SHUB_DEBUG
+	tristate "sensor hub debug mode"
+	default y
+	help
+	  If you want to use debug mode for sensor hub, it should be set.
+#it have to modify before official submit to "n"
+
+config SHUB_DUMP
+	tristate "support ssp dump"
+	default n
