@@ -1,0 +1,19 @@
+config SEC_BLOOMXQ_PROJECT
+	default n
+	bool "Samsung BLOOMXQ Project"
+	help
+	  Support for Samsung BLOOMXQ Project
+
+config MACH_BLOOMXQ_CHN_OPEN
+	default n
+	bool "Samsung BLOOMXQ CHN OPEN"
+	help
+	  Support for Samsung BLOOMXQ CHN OPEN device.
+
+config MACH_BLOOMXQ_CHN_HKX
+	select MACH_BLOOMXQ_CHN_OPEN
+	default n
+	bool "Samsung BLOOMXQ CHN HKX"
+	help
+	  Support for Samsung BLOOMXQ CHN HKX device.
+
