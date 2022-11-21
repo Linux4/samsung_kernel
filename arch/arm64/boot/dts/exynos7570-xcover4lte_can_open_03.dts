@@ -1,0 +1,157 @@
+/*
+ * SAMSUNG UNIVERSAL7570 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+#include "exynos7570-rmem.dtsi"
+#include "exynos7570-xcover4lte_common.dtsi"
+#include "modem-ss305ap-pdata.dtsi"
+#include "exynos7570-xcover4lte_battery.dtsi"
+#include "exynos7570-xcover4lte_can_open_gpio_03.dtsi"
+
+/ {
+	model = "Samsung XCOVER4LTE board based on Exynos7570";
+	model_info-chip = <7570>;
+	model_info-platform = "android";
+	model_info-subtype = "samsung";
+	model_info-hw_rev = <3>;
+	model_info-hw_rev_end = <255>;
+	compatible = "samsung,exynos7570", "samsung,exynos4210";
+
+	pinctrl@139E0000 {
+		fm_lna_en: fm-lna-en {
+			samsung,pins = "gpc7-4";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-val = <0>;
+		};
+	};
+
+	fm_gpio: fm@14840000 {
+		elna_gpio = <&gpc7 4 0x1>; /* FM_LNA_EN */
+		pinctrl-names = "default";
+		pinctrl-0 = <&fm_lna_en>;
+		num-tcon-freq = <6>;
+		val-tcon-freq = <90400 95500 96000 96100 96300 104000>;
+		status = "okay";
+	};
+
+	pinctrl@139E0000 {
+		gpc7: gpc7 {
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		prox_ldo: prox_ldo {
+			samsung,pins = "gpc7-1";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+		};
+	};
+
+	i2c@138D0000 {
+		k2hh-i2c@1D {
+			pinctrl-names = "default";
+			pinctrl-0 = <&acc_int>;
+			interrupt-parent = <&gpa1>;
+			interrupts = <4 0 0>;
+			k2hh,irq_gpio = <&gpa1 4 0>;
+		};
+		cm36686@60 {
+			cm36686,vled_same_vdd = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&prox_ldo>;
+			cm36686,vled_ldo = <&gpc7 1 0x00>;
+		};
+	};
+
+	pinctrl@139F0000 {
+		acc_int: acc_int {
+			samsung,pins = "gpa1-4";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+    };
+	hsi2c_1: hsi2c@13960000 {
+		status = "disabled";
+	};
+
+	speedy@10510000 {
+		s2mpu06mfd@00 {
+			regulators {
+				ldo16_reg: LDO16 {
+					regulator-name = "VDD_MOTOR_3P3";
+					regulator-min-microvolt = <3300000>;
+					regulator-max-microvolt = <3300000>;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <0>;
+				};
+			};
+		};
+	};
+
+	sec_vib {
+		compatible = "sec_vib";
+		sec_vib_pdata {
+			status = "okay";
+			sec_vib,max_timeout = <10000>;
+			/* 0: pmic ldo, 1: external ldo */
+			sec_vib,ldo_type = <0>;
+			sec_vib,regulator = "VDD_MOTOR_3P3";
+		};
+	};
+
+	pinctrl@139F0000 {
+		dwmmc2_tflash_en: dwmmc2_tflash_en {
+			   samsung,pins = "gpa0-3";
+			   samsung,pin-function = <0x1>;
+			   samsung,pin-val = <1>;
+			   samsung,pin-pud = <0>;
+			   samsung,pin-drv = <4>;
+		};
+	};
+	
+	pinctrl@139F0000 {
+		cp_gpio_x4: cp_gpio_x4 {
+			samsung,pins = "gpa1-7", "gpa2-0", "gpa2-1", "gpa2-2", "gpa2-4";
+			samsung,pin-function = <4>;
+			samsung,pin-pud = <0>;
+		};
+	};
+
+	dwmmc2@13560000 {
+		pinctrl-names = "default",
+			"fast-slew-rate-1x",
+			"fast-slew-rate-2x",
+			"fast-slew-rate-3x",
+			"fast-slew-rate-4x";
+		pinctrl-0 = <&sd2_clk &sd2_cmd &sd2_bus1 &sd2_bus4
+			     &dwmmc2_cd_ext_irq &dwmmc2_tflash_en>;
+		pinctrl-1 = <&sd2_clk_fast_slew_rate_1x>;
+		pinctrl-2 = <&sd2_clk_fast_slew_rate_2x>;
+		pinctrl-3 = <&sd2_clk_fast_slew_rate_3x>;
+		pinctrl-4 = <&sd2_clk_fast_slew_rate_4x>;
+	};
+
+	sd_fixed_vcc: fixedregulator@1 {
+		      compatible = "regulator-fixed";
+		      regulator-name = "vmmc";
+		      gpio = <&gpa0 3 1>;
+		      regulator-min-microvolt = <2800000>;
+		      regulator-max-microvolt = <2800000>;
+		      regulator-initial-mode = <0>;
+		      enable-active-high;
+		      regulator-boot-on;
+	};
+};
