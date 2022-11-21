@@ -1,0 +1,18 @@
+#ifndef HIMAX_CONFIG_H
+#define HIMAX_CONFIG_H
+
+/*this is himax kernel config
+#define CONFIG_TOUCHSCREEN_HIMAX_CHIPSET 1
+#define CONFIG_TOUCHSCREEN_HIMAX_INCELL 1
+#define CONFIG_TOUCHSCREEN_HIMAX_IC_HX83112 1
+#define CONFIG_TOUCHSCREEN_HIMAX_COMMON 1
+#define CONFIG_TOUCHSCREEN_HIMAX_DEBUG 1
+#define CONFIG_TOUCHSCREEN_HIMAX_INSPECT 1
+#define CONFIG_TOUCHSCREEN_HIMAX_SPI 1
+*/ 
+#define	__HIMAX_HX83112_MOD__ 1
+
+int __init himax_hx83112_init(void);
+void __exit himax_hx83112_exit(void);
+
+#endif

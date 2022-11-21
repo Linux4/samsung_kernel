@@ -1,0 +1,26 @@
+#
+# AFC devices
+#
+
+comment "AFC configs Test"
+
+config AFC
+	bool "Using AFC device driver"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the AFC device driver.
+
+config AFC_ENUM
+	bool "Using AFC device driver"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the AFC ENUM.
+
+config OF
+	bool "Using AFC device driver"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the AFC device tree.
