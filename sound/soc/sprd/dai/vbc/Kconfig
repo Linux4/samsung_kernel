@@ -1,0 +1,19 @@
+menu "VBC"
+
+source "sound/soc/sprd/dai/vbc/r1p0/Kconfig"
+source "sound/soc/sprd/dai/vbc/r2p0/Kconfig"
+
+config SND_SOC_SPRD_VBC_LR_INVERT
+	bool "VBC Support L/R invert"
+	help
+	 say Y then the VBC will support invert the L/R channel.
+
+config SND_SOC_VBC_SUPPORT_DYNAMIC_EQ
+	bool "VBC SUPPORT DYNAMIC EQ"
+	default n if ARCH_SCX30G
+	help
+	  say Y if it is r3p0 vbc, N in r2p0 & r1p0 vbc.
+	  Now r2p0 and r3p0 use the same vbc driver, so we need
+	  to add it to separate them.
+
+endmenu

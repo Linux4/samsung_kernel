@@ -1,0 +1,81 @@
+menu "Sensor support"
+
+config SENSORS
+	bool "Support for sensors"
+	help
+	  Say Y here to add support for accelerometer sensors
+
+if SENSORS
+config SENSORS_IIO
+	bool "sensors_iio"
+	depends on I2C && IIO
+	default n
+	help
+	  This option enables sensor iio driver
+
+config SENSORS_CM36686
+	depends on I2C
+	tristate "CM36686 driver"
+	default n
+	help
+	  This option enables proximity & light sensors using CM36686 driver.
+
+config SENSORS_CM36672P
+	depends on I2C
+	tristate "CM36672P driver"
+	default n
+	help
+	  This option enables proximity sensor using CM36672P driver.
+
+config SENSORS_GP2A002
+	tristate "GP2A002 proximity sensor support"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you get support for sharp Sensortec's
+	  proximity sensors GP2A002.
+
+config SENSORS_GP2A_HAS_REGULATOR
+	depends on I2C
+	tristate "sensor use connected regulator"
+	default n
+	help
+	  This option enable GP2A002 driver to parse connected regulators.
+
+config SENSORS_LEDA_EN_GPIO
+	depends on I2C
+	tristate "LEDA_EN controlled by GPIO"
+	default n
+	help
+	  This option enables leda_en controlled by GPIO using optical sensor driver.
+
+config SENSORS_K2HH
+	depends on I2C
+	tristate "ST K2HH accelerometer"
+	default n
+	help
+	  This option enables st k2hh accel driver
+
+config SENSORS_K2HH_HAS_REGULATOR
+	depends on I2C
+	tristate "sensor use connected regulator"
+	default n
+	help
+	  This option enable K2HH driver to parse connected regulators.
+
+config SENSORS_YAMAHA
+	depends on I2C
+	bool "Yamaha sensor driver"
+	default n
+	help
+	   This option enable YAMAHA magnetic sensor driver.
+
+config SENSORS_YAS537
+	depends on I2C
+	bool "Yamaha YAS537 sensor"
+	default n
+	help
+	   This option enable YAS537 magnetic sensor driver.
+
+endif
+endmenu

@@ -1,0 +1,166 @@
+if ARCH_SC
+
+menu "Spreadtrum SoC Type"
+
+config  ARCH_SCX35
+	bool "sc8830 series(shark)"
+	select CPU_V7
+	select HAVE_SMP
+	select ARM_GIC
+	select HAVE_SCHED_CLOCK
+	select LOCAL_TIMERS if SMP
+	select VFP
+	select VFPv3
+	select NEON
+	select GENERIC_TIME
+	select CLKSRC_MMIO
+	select ARCH_HAS_CPUFREQ
+	select NEED_MACH_IO_H
+	select ARM_HAS_SG_CHAIN
+
+config ARCH_SCX15
+	bool "scx15 series(dolphin,depend on ARCH_SCX35)"
+	select ARCH_SCX35
+	help
+	  Support for Spreadtrum scx15(dolphin) based systems.
+
+config ARCH_SCX35L
+	bool "shark-l series"
+	select ARCH_SCX35
+	help
+	  Support for Spreadtrum scx35l(shark-l) based systems.
+
+config ARCH_SCX30G
+	bool "scx30g series(t-shark,depend on ARCH_SCX35)"
+	select ARCH_SCX35
+	help
+	  Support for Spreadtrum scx30g(t-shark) based systems.
+
+config ARCH_SCX30G2
+	bool "scx30g2 series(t-shark,depend on ARCH_SCX35)"
+	select ARCH_SCX35
+	select ARCH_SCX30G
+	help
+	  Support for Spreadtrum scx30g2(tshark2) based systems.
+
+config ARCH_SCX35L
+	bool "shark-l series"
+	select ARCH_SCX35
+	help
+	  Support for Spreadtrum scx35l(shark-l) based systems.
+
+config ARCH_SCX20L
+	bool "shark-l series"
+	select ARCH_SCX35
+	help
+	  Support for Spreadtrum scx35l(shark-l) based systems.
+
+config ARCH_SCX20
+	bool "scx20 series(pike,depend on ARCH_SCX30g)"
+	select ARCH_SCX30G
+	select ARCH_SCX35G
+	help
+	  Support for Spreadtrum scx20(pike) based systems.
+
+config MACH_SCX35_DT
+	bool "scx35 series DT verison(tshark,pike)"
+	help
+	  Support for Spreadtrum scx35 device tree based systems.
+
+endmenu
+config SC_FPGA
+       bool
+       default n
+
+menu "Spreadtrum Board Type"
+
+config MACH_COREPRIMELITE
+	bool "coreprimelite Board"
+	depends on ARCH_SC
+	depends on ARCH_SCX35
+	depends on ARCH_SCX35L
+	default n
+	select COMMON_CLK if OF
+	select CLKSRC_OF if OF
+	help
+	SPX35L board based on shark-l serial.
+
+config GPS_BCM47520
+	bool "BROADCOM_GPS_CHIPSET_47520"
+	default n
+
+config MACH_GRANDPRIMEVE3G
+        bool "grandprimeve3g Board"
+        depends on ARCH_SC
+        depends on ARCH_SCX35
+        select MACH_SAMSUNG
+        select MUIC_CABLE_DETECT
+        select FUELGAUGE_SPRD4SAMSUNG27X3
+        select CLKSRC_OF if OF
+        select COMMON_CLK if OF
+        default n
+        help
+        GRANDPRIMEVE3G board based on SC8830g serial.
+
+config MACH_GRANDPRIMEVE3G_LTN_DTV
+        bool "grandprimeve3g LTN DTV Board"
+        depends on MACH_GRANDPRIMEVE3G
+        default n
+        help
+        GRANDPRIMEVE3G LTN DTV board based on SC8830g serial.
+
+config MACH_COREPRIMEVE3G
+        bool "coreprimeve3g Board"
+        depends on ARCH_SC
+        depends on ARCH_SCX35
+        select MACH_SAMSUNG
+        select MUIC_CABLE_DETECT
+        select FUELGAUGE_SPRD4SAMSUNG27X3
+        select CLKSRC_OF if OF
+        select COMMON_CLK if OF
+        default n
+        help
+        COREPRIMEVE3G board based on SC8830g serial.
+
+config MACH_J23G
+        bool "j23g Board"
+        depends on ARCH_SC
+        depends on ARCH_SCX35
+        select MACH_SAMSUNG
+        select MUIC_CABLE_DETECT
+        select FUELGAUGE_SPRD4SAMSUNG27X3
+        select CLKSRC_OF if OF
+        select COMMON_CLK if OF
+        default n
+        help
+        J23G board based on SC8830g serial.
+
+config MACH_GTEL3G
+        bool "gtel3g Board"
+        depends on ARCH_SC
+        depends on ARCH_SCX35
+        select MACH_SAMSUNG
+        select MUIC_CABLE_DETECT
+        select FUELGAUGE_SPRD4SAMSUNG27X3
+        select CLKSRC_OF if OF
+        select COMMON_CLK if OF
+        default n
+        help
+        GTEL3G board based on SC8830g serial.
+
+config MACH_SAMSUNG
+	bool "Samsung Board"
+	default n
+	help
+	  all samsung boards.
+
+endmenu
+config SEC_THERMISTOR
+		bool "Sec thermister for SIOP implementation"
+		default y
+
+config SAMSUNG_PRODUCT_SHIP
+	bool "set up for product shipping"
+	default n
+
+endif

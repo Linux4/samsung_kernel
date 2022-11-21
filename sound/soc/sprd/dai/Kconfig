@@ -1,0 +1,35 @@
+menu "SPRD AUDIO DMA"
+config SND_SOC_SPRD_AUDIO_DMA
+	tristate
+
+config SND_SOC_SPRD_AUDIO_DMA_ENGINE
+	bool "Use DMA driver based on dmaengine"
+	depends on DMA_SPRD
+	default y if DMA_SPRD
+	help
+	  Say Y if you want to use dma driver based on linux dmaengine.
+
+config SND_SOC_SPRD_AUDIO_BUFFER_USE_IRAM
+	bool "Use IRAM when sound playback"
+	help
+	  Say Y if you want use IRAM replacment RAM when playback.
+	   sometimes, use IRAM maybe reduce power consumption.
+           but, it will cause system more busy, becuase the buffer smaller.
+
+config SND_SOC_SPRD_IRAM_BACKUP
+	bool "Backup IRAM when sound playback"
+	depends on SND_SOC_SPRD_AUDIO_BUFFER_USE_IRAM
+	help
+	  Say Y if you want backup IRAM when playback. sometimes,
+	   IRAM maybe shared with other modules,
+	   then you need to open this.
+
+config SND_SOC_SPRD_AUDIO_USE_AON_DMA
+	bool "Use AON DMA when sound playback"
+	depends on SND_SOC_SPRD_AUDIO_BUFFER_USE_IRAM && DMA_SPRD && SND_SOC_SPRD_AUDIO_DMA_ENGINE
+	help
+	  Say Y if you want to use AON DMA when playback, sometimes,
+	   AON DMA maybe reduce power consumption. But AON DMA can only
+	   access IRAM, so we must depend on IRAM switch.
+
+endmenu

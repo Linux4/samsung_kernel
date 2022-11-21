@@ -1,0 +1,1 @@
+obj-y 			+= nandflash_agetest/ nandflash_bitfliptest/ nandflash_ecctest/ nandflash_postest/ nandflash_stdtest/
