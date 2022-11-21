@@ -1,0 +1,9 @@
+config CHARGER_MTK
+	tristate "MTK in-PMIC battery driver"
+	default n
+	help
+	 Say Y to include support
+	 for MTK in-PMIC charger driver.
+	 Ths driver is connecting with MTK
+	 charger_class so we can use the in-PMIC
+	 charger.

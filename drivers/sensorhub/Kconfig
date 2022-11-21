@@ -1,0 +1,52 @@
+config SENSORS_SSP
+	tristate "Sensors ssp"
+	default n
+	help
+	  ssp driver for sensor hub.
+          If you say yes here you get ssp support for
+	  sensor hub.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SSP_ENG_DEBUG
+	tristate "sensor hub eng debug mode"
+	default n
+	help
+	  If you want to use eng debug mode for sensor hub, it should be set.
+
+config SENSORS_SSP_FIRMWARE_DOWNLOAD
+	tristate "Sensor hub firmware download"
+	default y
+	help
+	  ssp driver for sensor hub.
+          If you say yes here you download firmware of
+	  sensor hub.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SSP_PM_WAKEUP_LINUX_VER_5_4
+	tristate "pm wakeup linux version 5.4"
+	default n
+	help
+	  ssp driver for sensor hub.
+          If you say yes here, the code of pm_wakeup is applied over linux version 5.4.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SSP_SUPPORT_SPU_FW
+	tristate "support spu firmware"
+	default n
+	depends on SENSORS_SSP_FIRMWARE_DOWNLOAD
+
+config SENSORS_SSP_DUMP
+	tristate "support ssp dump"
+	default y
+
+config SSP_SENSOR_HUB_MTK
+	tristate "Sensor hub mtk"
+	default n
+	help
+	  Mediatek Project Config.
+	  If you want to use mediatek's sensor hub, it should be set.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
