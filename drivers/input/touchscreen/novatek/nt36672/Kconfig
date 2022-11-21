@@ -1,0 +1,11 @@
+#
+# Novatek NT36xxx touchscreen driver configuration
+#
+config TOUCHSCREEN_NOVATEK_NT36672
+	bool "Novatek NT36672"
+	depends on I2C
+	help
+	  Say Y here if you have a Novatek NT36672 touchscreen connected
+	  to your system.
+
+	  If unsure, say N.
