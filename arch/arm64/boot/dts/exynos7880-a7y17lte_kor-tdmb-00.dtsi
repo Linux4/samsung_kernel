@@ -1,0 +1,100 @@
+ /* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/{
+
+	pinctrl@139F0000 {
+		tdmb_irq_on: tdmb-irq-on {
+			samsung,pins = "gpa3-0";
+			samsung,pin-function = <0xf>; /* EXT_INT31[3] */
+			samsung,pin-pud = <0>;	/* PULL NONE */
+		};
+		tdmb_irq_off: tdmb-irq-off {
+			samsung,pins = "gpa3-0";
+			samsung,pin-function = <0>; /* INPUT */
+			samsung,pin-pud = <1>;	/* PULL DOWN */
+		};
+	};
+
+	pinctrl@139B0000 {
+		tdmb_pwr_on: tdmb-pwr-on {
+			samsung,pins = "gpf4-0";
+			samsung,pin-function = <1>; /* OUTPUT */
+			samsung,pin-pud = <0>;	/* PULL NONE */
+		};
+
+		tdmb_pwr_off: tdmb-pwr-off {
+			samsung,pins = "gpf4-0";
+			samsung,pin-function = <1>; /* OUTPUT */
+			samsung,pin-pud = <0>;	/* PULL NONE */
+		};
+
+		spi3_bus_init: spi3-bus-init {
+			samsung,pins = "gpf3-3", "gpf3-2", "gpf3-0";
+			samsung,pin-function = <2>; /* FUNC */
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+
+		spi3_cs_bus_init: spi3-cs-bus-init {
+			samsung,pins = "gpf3-1";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+                        samsung,pin-val = <0>;
+		};
+
+		spi3_bus_suspend: spi3-bus-suspend {
+			samsung,pins = "gpf3-3", "gpf3-2", "gpf3-0", "gpf3-1";
+			samsung,pin-function = <0>; /* INPUT */
+			samsung,pin-pud = <1>; /* PULL DOWN */
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	hsi2c_2: hsi2c@13960000 {
+		status = "disabled";
+	};
+
+	spi_3: spi@13900000 {
+
+		samsung,spi-fifosize = <64>;
+		dma-mode;
+		dmas = <&pdma0 23
+		       &pdma0 22>;
+		dma-names = "tx", "rx";
+		status = "okay";
+
+		/delete-property/ pinctrl-names;
+		/delete-property/ pinctrl-0;
+		tdmb-spi@0 {
+			compatible = "tdmb_spi_comp";
+			reg = <0>;
+			spi-max-frequency = <9600000>;
+			controller-data {
+				cs-gpio = <&gpf3 1 0>;
+				samsung,spi-feedback-delay = <0>;
+			};
+		};
+	};
+
+	tdmb_data {
+		compatible = "samsung,tdmb";
+		pinctrl-names = "tdmb_on", "tdmb_off";
+		pinctrl-0 = <&tdmb_pwr_on &tdmb_irq_on &spi3_bus_init &spi3_cs_bus_init>;
+		pinctrl-1 = <&tdmb_pwr_off &tdmb_irq_off &spi3_bus_suspend>;
+		tdmb_pwr_en = <&gpf4 0 0>;
+		tdmb_irq = <&gpa3 0 0>;
+		tdmb_use_irq;
+		tdmb_xtal_freq = <24576>;
+	};
+
+};

@@ -1,0 +1,7 @@
+#
+# Mobicore Configuration
+#
+
+if SOC_EXYNOS7880
+source "drivers/gud/gud-exynos7880/Kconfig"
+endif
