@@ -1,0 +1,59 @@
+config EXYNOS_DECON_LCD
+	depends on EXYNOS_DECON_7570
+	bool "Select LCD panel driver"
+
+config EXYNOS_DECON_LCD_SYSFS
+	depends on EXYNOS_DECON_LCD
+	bool "Support LCD SYSFS"
+	default y
+
+config PANEL_AID_DIMMING
+	depends on EXYNOS_DECON_LCD
+	bool "Support AID Dimming"
+	default n
+
+config EXYNOS_DECON_MDNIE_LITE
+	depends on EXYNOS_DECON_LCD
+	bool "Support MDNIE LITE"
+	default n
+
+config DISPLAY_USE_INFO
+	depends on EXYNOS_DECON_LCD
+	tristate "Support display use info logging"
+	default n
+
+config PANEL_S6E8AA5X01
+	depends on EXYNOS_DECON_LCD
+	bool "S6E8AA5X01 AMOLE HD LCD driver(720 x 1280)"
+
+config PANEL_TD4100
+	depends on EXYNOS_DECON_LCD
+	bool "TD4100 TFT INCELL HD LCD driver(720 x 1280)"
+
+config PANEL_S6D7AA0_XCOVER4
+	depends on EXYNOS_DECON_LCD
+	bool "S6d7AA0 TFT HD LCD driver(720 x 1280)"
+
+config PANEL_TD4100_J3POP
+	depends on EXYNOS_DECON_LCD
+	bool "TD4100_J3POP TFT INCELL HD LCD driver(720 x 1280)"
+
+config PANEL_TD4100_J3Y17
+	depends on EXYNOS_DECON_LCD
+	bool "TD4100_J3Y17 TFT INCELL HD LCD driver(720 x 1280)"
+
+config PANEL_S6D7AA0_GTESVE
+	depends on EXYNOS_DECON_LCD
+	bool "S6D7AA0 TFT LCD driver(800 x 1280)"
+
+config PANEL_TD4100_J3TOP
+	depends on EXYNOS_DECON_LCD
+	bool "TD4100 TFT INCELL HD LCD driver(720 x 1280)"
+
+config PANEL_EA8061S_J4LTE
+	depends on EXYNOS_DECON_LCD
+	bool "EA8061S AMOLED HD driver(720 x 1280)"
+
+config PANEL_TD4101_J2CORELTE
+	depends on EXYNOS_DECON_LCD
+	bool "TD4101 TFT INCELL LCD driver(540 x 960)"
