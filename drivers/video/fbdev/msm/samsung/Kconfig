@@ -1,0 +1,110 @@
+config SAMSUNG_DEBUG_DISPLAY
+    bool "Add Samsung Debugging code"
+    default n
+
+config FB_MSM_MDSS_SAMSUNG
+	depends on FB_MSM_MDSS
+	bool "mdss config for samsung product"
+	default n
+	---help---
+	Mdss config signature for samsung product
+
+config DISPLAY_USE_INFO
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "Support display use info logging"
+	default n
+
+#
+#	PANEL UNIQUE FEATURE
+#
+config DUAL_PANEL
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "dual paneloperation"
+	default n
+	---help---
+	dual panel operation support
+
+config PARTIAL_UPDATE
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "partial update operation"
+	default n
+	---help---
+	partial update operation support
+
+config CABC_FUNCTION
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "DDI cabc operation"
+	default n
+	---help---
+	DDI cabc operation support
+
+config SUPPORT_POC_FLASH
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "SUPPORT POC FLASH"
+	default n
+	---help---
+	SUPPORT_POC_FLASH FOR DREAM2 ONLY
+
+config SUPPORT_POC_2_0
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "SUPPORT POC_2_0"
+	default n
+	---help---
+	POC_2_0 SUPPORT
+
+config POC_33_COMPENSATION
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "POC 33 DEVICE COMPENSATION TO 64"
+	default n
+	---help---
+	POC 33 DEVICE COMPENSATION TO 64
+
+#
+#	HOW TO MAKE DEF-CONFIG NAME FOR PANEL
+#
+#	PANEL_DDI-model_PANEL-model_RESOLUTION
+#	PANEL_S6E3FA2    _AMS510CV01_FHD
+#	PANEL_S6E3FA2_AMS510CV01_FHD
+#
+
+config PANEL_S6E3FA3_AMS598NJ01_FHD
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "LSI S6E3FA3 LDI"
+	default n
+	---help---
+	LSI S6E3FA3 LDI 1080_1920 C10P
+
+config PANEL_S6E3FA3_AMS559NK01_FHD
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "LSI S6E3FA3 LDI"
+	default n
+	---help---
+	LSI S6E3FA3 LDI 1080_1920
+
+config PANEL_S6E3FA7_AMS559NK01_FHD
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "LSI S6E3FA7 LDI"
+	default n
+	---help---
+	LSI S6E3FA7 LDI 1080_2220
+
+config PANEL_S6E3FA7_AMS604NL01_FHD
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "LSI S6E3FA7 LDI"
+	default n
+	---help---
+	LSI S6E3FA7 LDI 1080_2220
+
+config PANEL_S6E3FA7_AMS628RF01_FHD
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "LSI S6E3FA7 LDI"
+	default n
+	---help---
+	LSI S6E3FA7 LDI 1080_2220
+
+config PANEL_S6E3HA6_AMB577MQ01_FHD
+	depends on FB_MSM_MDSS_SAMSUNG
+	bool "LSI S6E3HA6 LDI"
+	default n
+	---help---
+	LSI S6E3HA6 LDI 1440_2560 DREAM DSC

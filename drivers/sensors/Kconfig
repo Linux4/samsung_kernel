@@ -1,0 +1,32 @@
+config SENSORS
+	bool "Sensors Class Support"
+	help
+	  This option enables the sensor sysfs class in /sys/class/sensors.
+	  You'll need this to do anything useful with sensorss. If unsure, say N.
+
+config SENSORS_SSC
+	bool "Enable Sensors Driver Support for SSC"
+	help
+	  Add support for sensors SSC driver.
+	  This driver is used for exercising sensors use case,
+	  time syncing with ADSP clock.
+
+config SENSORS_A96T3X6
+	depends on I2C
+	tristate "A96T3X6 driver for grip"
+	default n
+	help
+	  Say Y here if you use A96T3X6 for grip.
+	  This option enables grip sensors using
+	  Above A96T3X6 device driver for grip.
+	  Say N here if you do not use A96T3X6 for grip.
+
+config SENSORS_SX9320
+	depends on I2C
+	tristate "SX9320 driver"
+	default n
+	help
+	  Say Y here if you use sx9320.
+	  This option enables grip sensors using
+	  SemTech sx9320 device driver.
+	  Say N here if you do not use sx9320.
