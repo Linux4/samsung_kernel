@@ -1,0 +1,59 @@
+&pio {
+	synaptics_attn_irq: synaptics_attn_irq {
+		GPIO_CONFIG_PUD(AP,pio,14, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+
+	synaptics_attn_input: synaptics_attn_input {
+		GPIO_CONFIG_PUD(AP,pio,14, FUNC_INPUT, PULL_DOWN);
+	};
+};
+
+&i2c0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "ok";
+	clock-frequency = <400000>;
+	samsung,reset-before-trans;
+	samsung,stop-after-trans;	/* LSI IC ONLY */
+	tsp_synaptics: touchscreen@4b {
+		status = "ok";
+		compatible = "synaptics,synaptics_ts";
+		reg = <0x4b>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&synaptics_attn_irq>;
+		pinctrl-1 = <&synaptics_attn_input>;
+		tsp_io_ldo-supply = <&fixed_regulator0>;
+		tsp_avdd_ldo-supply = <&mt_pmic_vio28_ldo_reg>;
+		sec,irq_gpio = <SEC_GPIO_REF(AP,pio,14) 0>;
+
+		/* This part is for firmware */
+		sec,project_name = "m53x", "m53x";
+		sec,bringup = <0>;
+	};
+};
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/synaptics/dts/input-mtk-tsp-synaptics.m53x.dtsi */
+&tsp_synaptics {
+	tsp_io_ldo-supply = <&mt_pmic_vio28_ldo_reg>; /* avdd */ /* switch 3.3 ->1.8 for power on sequence */
+	tsp_avdd_ldo-supply = <&fixed_regulator0>; /* dvdd */
+	sec,area-size = <133 266 341>; /* indicator: 24dp navigator:48dp edge:60px dpi=320 */
+	sec,max_coords = <4096 4096>; /* x y */
+	enable_settings_aot;
+	support_dex_mode;
+	//support_mis_calibration_test;
+	support_ear_detect_mode;
+	//sync-reportrate-120;
+	support_refresh_rate_mode;
+	support_open_short_test;
+	support_fod;
+	support_fod_lp_mode;
+	support_vrr;
+	sec,lcdid_mask = <0xFF0000>;
+	sec,select_lcdid = <0x800000 0x010000>;
+	sec,firmware_name = "tsp_synaptics/s3908_m52xq_sdc.bin", "tsp_synaptics/s3908_m53x_boe.bin";
+	sec,tclm_level = <0xFF>;
+	sec,afe_base = <0x0000>;
+	sec,i2c-burstmax = <4096>;
+	sec,enable_sysinput_enabled;
+};
