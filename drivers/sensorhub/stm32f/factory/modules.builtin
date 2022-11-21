@@ -1,0 +1,6 @@
+kernel/drivers/sensorhub/stm32/factory/accel_general.ko
+kernel/drivers/sensorhub/stm32/factory/light_tmd37xx.ko
+kernel/drivers/sensorhub/stm32/factory/prox_tmd37xx.ko
+kernel/drivers/sensorhub/stm32/factory/magnetic_lsm303ah.ko
+kernel/drivers/sensorhub/stm32/factory/pressure_bmp280.ko
+kernel/drivers/sensorhub/stm32/factory/mcu_atuc128l5har.ko

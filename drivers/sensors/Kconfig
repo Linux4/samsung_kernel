@@ -1,0 +1,136 @@
+config SENSORS
+	bool "Sensors Class Support"
+	help
+	  This option enables the sensor sysfs class in /sys/class/sensors.
+	  You'll need this to do anything useful with sensorss. If unsure, say N.
+
+config SENSORS_SSC
+	bool "Enable Sensors Driver Support for SSC"
+	help
+	  Add support for sensors SSC driver.
+	  This driver is used for exercising sensors use case,
+	  time syncing with ADSP clock.
+
+config SENSORS_CORE
+        bool "Sensors Class Support"
+        help
+          This option enables the sensor sysfs class in /sys/class/sensors.
+          You'll need this to do anything useful with sensorss. If unsure, say N.
+
+config SENSORS_K2HH
+	depends on I2C
+	tristate "SENSORS_K2HH"
+	default n
+	help
+	  Say Y here if you use SENSORS_K2HH.
+	  This option enables accelerometer sensors using
+	  STMicroelectronic K2HH device driver.
+
+config SENSORS_K2HH_VDD
+	depends on SENSORS_K2HH
+	tristate "SENSORS_K2HH_VDD"
+	default n
+	help
+	  Say Y here if you use SENSORS_K2HH.
+	  This option enables accelerometer sensors using
+	  STMicroelectronic K2HH device driver with VDD control.
+
+config SENSORS_CM36655
+	depends on I2C
+	tristate "CM36655 driver"
+	default n
+	help
+	  This option enables proximity & light sensors using CM36655 driver.
+
+config SENSOR_CM36655_VIO
+	depends on I2C
+	tristate "CM36655 vio controlled"
+	default n
+	help
+	  This option controll vio.
+
+config SENSORS_CM36655_LEDA_EN_GPIO
+	depends on I2C
+	tristate "CM36655 leda_en controlled by GPIO"
+	default n
+	help
+	  This option enables leda_en controlled by GPIO using CM36655 driver.
+
+config SENSORS_CM36686
+	depends on I2C
+	tristate "CM36686 driver"
+	default n
+	help
+	  This option enables proximity & light sensors using CM36686 driver.
+
+config SENSORS_CM36686_LEDA_EN_GPIO
+	depends on I2C
+	tristate "CM36686 leda_en controlled by GPIO"
+	default n
+	help
+	  This option enables leda_en controlled by GPIO using CM36686 driver.
+
+config SENSORS_AK09911C
+	tristate "AK09911C compass support"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for Asahi Kasei's
+	  orientation sensor AK09911C.
+
+config SENSORS_AK09916C
+	tristate "AK09916C compass support"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for Asahi Kasei's
+	  orientation sensor AK09916C.
+
+config SENSORS_SW_RESET
+	tristate "SENSOR SW RESET support"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for SENSOR SW RESET.
+config SENSORS_TMD3700
+	depends on I2C
+	tristate "TMD3700 driver"
+	default n
+	help
+	   This option enables proximity & light sensors using TMD3700 driver.
+
+config SENSORS_TMD3700_RESET_DEFENCE_CODE
+	depends on I2C
+	tristate "TMD3700 defence code for reset"
+	default n
+	help
+	  This option enables defence code for reset of VDD.
+
+config SENSORS_YAS539
+	tristate "YAS539 Sensor Driver"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you get support for YAMAHA
+	  YAS539 Geomagnitor Sensor.
+
+config SENSORS_YAS_RESET_DEFENCE_CODE
+	depends on I2C
+	tristate "YAS defence code by reset"
+	default n
+	help
+	  This option enables defence code by reset using yas driver.
+
+config SENSORS_STK3013
+	depends on I2C
+	tristate "STK3013 driver"
+	default n
+	help
+	  This option enables proximity sensor using STK3013 driver.
+
+config SENSORS_STK3013_SENSOR_EN_GPIO
+	depends on I2C
+	tristate "STK3013 sensor_en controlled by GPIO"
+	default n
+	help
+	  This option enables leda_en controlled by GPIO using STK3013 driver.
