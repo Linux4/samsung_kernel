@@ -1,0 +1,138 @@
+/*
+ * SAMSUNG UNIVERSAL5430 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos5430-a8_common.dtsi"
+#include "exynos5430-a8_battery_03.dtsi"
+#include "exynos5430-a8_gpio_02.dtsi"
+#include "exynos5430-a8_kor-modem-ss300.dtsi"
+#include "exynos5430-a8e_fingerprint-sensor_00.dtsi"
+#include "exynos5430-a8lte_kor-tdmb-02.dtsi"
+#include "exynos5430-a8_codec-realtek.dtsi"
+
+/ {
+	model = "Samsung A8 LTE KOR revision 00 board(EVT1) based on EXYNOS5430 with Shannon modem";
+	model_info-chip = <5430>;
+	model_info-platform = "a8";
+	model_info-subtype = "a8elte_kor_skt";
+	model_info-hw_rev = <3>;
+	model_info-hw_rev_end = <4>; /* If add new dts file for new hw , it is set to <x>. x is suppored max system revision by this dts */
+	compatible = "samsung,A8 LTE KOR,r03", "samsung,exynos5430";
+
+	pinctrl@114B0000 {
+		uart_aud_rts: uart-aud-rts {
+			samsung,pins = "gpz1-3";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <3>;
+			samsung,pin-con-pdn = <1>;
+			samsung,pin-pud-pdn = <3>;
+		};
+
+		uart_aud_cts: uart-aud-cts {
+			samsung,pins = "gpz1-2";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <3>;
+			samsung,pin-con-pdn = <2>;
+			samsung,pin-pud-pdn = <3>;
+		};
+
+		uart_aud_rx: uart-aud-rx {
+			samsung,pins = "gpz1-1";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <3>;
+			samsung,pin-con-pdn = <2>;
+			samsung,pin-pud-pdn = <3>;
+		};
+
+		uart_aud_tx: uart-aud-tx {
+			samsung,pins = "gpz1-0";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <3>;
+			samsung,pin-con-pdn = <1>;
+			samsung,pin-pud-pdn = <3>;
+		};
+	};
+
+	serial@11460000 {
+		pinctrl-0 = <&uart_aud_rts &uart_aud_cts &uart_aud_rx &uart_aud_tx>;
+		pinctrl-1 = <&uart_aud_rx &uart_aud_tx &uart_aud_bus_idle>;
+	};
+
+	pinctrl@14CC0000 {
+		cfg_en: cfg-en {
+			samsung,pins ="gpg1-4";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+		};
+	};
+
+	pinctrl@10580000{
+		cfg_hostwake: cfg-hostwake {
+			samsung,pins = "gpa2-2";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+		};
+
+		cfg_btwake: cfg-btwake {
+			samsung,pins = "gpa3-2";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+		};
+	};
+
+	bluetooth {
+		compatible = "broadcom,bcm43455";
+
+		gpios = <&gpg1 4 1	/*BT_EN*/
+				&gpa3 2 1	/*BT_WAKE*/
+				&gpa2 2 0xF	/*BT_HOST_WAKE*/ >;
+
+		pinctrl-names = "default";
+		pinctrl-0=<&cfg_hostwake &cfg_btwake &cfg_en>;
+		status = "okay";
+	};
+
+	hsi2c@14E70000 {
+		samsung,hs-mode;
+		clock-frequency = <400000>;
+		status = "okay";
+
+		es325@3e {
+			compatible = "audience_es325";
+			reg = <0x3e>;
+			pinctrl-names = "default";
+			interrupt-parent = <&gpa3>;
+			interrupts = <4 0 0>;
+			es325-reset-gpio = <&gpf2 3 1>;
+			es325-wakeup-gpio = <&gpf3 2 1>;
+			es325-pass1 = <1 3>;
+			es325-pass2 = <2 4>;
+			es325-veqparm = <0 0 2 6 2 9 2 12 2 9 2 6 19 3>;
+			es325-passthrough_src = <1>;
+			es325-passthrough_dst =<3>;
+			es325-use_sleep = <1>;
+		};
+	};
+
+	serial@14C20000 {
+		pinctrl-0 = <&uart1_rx>;
+	};
+
+	pinctrl@14CC0000 {
+		uart1_rx: uart1-bus_2 {
+			samsung,pins = "gpd1-0";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <1>;
+		};
+	};
+};

@@ -1,0 +1,381 @@
+/*
+ * SAMSUNG UNIVERSAL5433 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+/dts-v1/;
+#include "exynos5433-a8hplte_common.dtsi"
+#include "exynos5433-a8hplte_jpn_gpio_00.dtsi"
+#include "exynos5433-a8hplte_fingerprint-sensor_00.dtsi"
+#include "exynos5433-a8hplte-modem-ss333-ds.dtsi"
+#include "exynos5433-a8hplte_jpn_battery_00.dtsi"
+#include "exynos5433-a8hplte_jpn-secnfc-tuner-r00.dtsi"
+#include "exynos5433-a8hplte_jpn-isdbt-00.dtsi"
+
+/ {
+	model = "Samsung A8 VE LTE JPN EVT1 revision 01 board based on EXYNOS5433";
+	model_info-chip = <5433>;
+	model_info-platform = "a8hplte";
+	model_info-subtype = "a8hplte_jpn_kdi";
+	model_info-hw_rev = <1>;
+	model_info-hw_rev_end = <255>;
+	compatible = "samsung,A8 VE LTE EVT1 JPN,r01", "samsung,exynos5433";
+
+	det_zones: det_zones {
+		#list-det-cells = <4>;
+	};
+
+	but_zones: but_zones {
+		#list-but-cells = <3>;
+	};
+
+	earjack {
+		compatible = "sec_jack";
+		earjack-detect-gpio = <&gpa3 0 0>;
+		earjack-sendend-gpio = <&gpa1 3 0>;
+		earjack-ant-det-gpio = <&gpa0 0 0>;
+	/*	earjack-micbias-gpio = <&gpv7 3 0>; */
+		earjack-rfeardet-gpio = <&gpf4 5 0>;
+
+		det-zones-list = <&det_zones 0 10 10 0>,
+				 <&det_zones 1584 10 10 0>,
+				 <&det_zones 1585 10 10 1>,
+				 <&det_zones 3662 10 10 1>,
+				 <&det_zones 3663 10 10 2>,
+				 <&det_zones 9999 10 10 2>;
+		fac-det-zones-list = <&det_zones 0 10 10 0>,
+				 <&det_zones 1584 10 10 0>,
+				 <&det_zones 1585 10 10 1>,
+				 <&det_zones 9997 10 10 1>,
+				 <&det_zones 9998 10 10 2>,
+				 <&det_zones 9999 10 10 2>;
+		but-zones-list = <&but_zones 0 0 565>,
+				 <&but_zones 1 566 780>,
+				 <&but_zones 2 781 1500>;
+		pinctrl-names = "earjack_gpio_active","earjack_gpio_suspend";
+		pinctrl-0 = <&earjack_det_act &earjack_switch_act>;
+		pinctrl-1 = <&earjack_det_sus &earjack_switch_sus>;
+
+		io-channels = <&exynos_adc 2>;
+		io-channel-names = "adc-earjack";
+
+		use-codec-micbias;
+	};
+
+	pinctrl@10580000 {
+		/* 3.5 pi Earjack */
+		earjack_det_act: earjack_det_act {
+			samsung,pins = "gpa3-0";
+			samsung,pin-function = <0x0>;		/* IN */
+			samsung,pin-pud = <0>;			/* No PULL */
+			samsung,pin-drv = <0>;
+		};
+		earjack_det_sus: earjack_det_sus {
+			samsung,pins = "gpa3-0";
+			samsung,pin-function = <0>;		/* IN */
+			samsung,pin-pud = <0>;			/* No PULL */
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	pinctrl@10580000 {
+		/* EAR_SEND_END */
+		earjack_switch_act: earjack_switch_act {
+			samsung,pins = "gpa1-3";
+			samsung,pin-function = <0x0>;		/* IN */
+			samsung,pin-pud = <0>;			/* No PULL */
+			samsung,pin-drv = <0>;
+		};
+		earjack_switch_sus: earjack_switch_sus {
+			samsung,pins = "gpa1-3";
+			samsung,pin-function = <0>;		/* IN */
+			samsung,pin-pud = <0>;			/* No PULL */
+			samsung,pin-drv = <0>;
+		};
+	};	
+
+	pinctrl@114B0000 {
+		uart_aud_rts: uart-aud-rts {
+			samsung,pins = "gpz1-3";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+			samsung,pin-con-pdn = <1>;
+			samsung,pin-pud-pdn = <0>;
+		};
+
+		uart_aud_cts: uart-aud-cts {
+			samsung,pins = "gpz1-2";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+			samsung,pin-con-pdn = <2>;
+			samsung,pin-pud-pdn = <0>;
+		};
+
+		uart_aud_rx: uart-aud-rx {
+			samsung,pins = "gpz1-1";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+			samsung,pin-con-pdn = <2>;
+			samsung,pin-pud-pdn = <0>;
+		};
+
+		uart_aud_tx: uart-aud-tx {
+			samsung,pins = "gpz1-0";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+			samsung,pin-con-pdn = <1>;
+			samsung,pin-pud-pdn = <0>;
+		};
+	};
+
+	serial@11460000 {
+		pinctrl-0 = <&uart_aud_rts &uart_aud_cts &uart_aud_rx &uart_aud_tx>;
+		pinctrl-1 = <&uart_aud_rx &uart_aud_tx &uart_aud_bus_idle>;
+	};
+
+	pinctrl@14CC0000 {
+		cfg_en: cfg-en {
+			samsung,pins ="gpg1-4";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <1>;
+		};
+	};
+
+	pinctrl@10580000{
+		cfg_hostwake: cfg-hostwake {
+			samsung,pins = "gpa2-2";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+		};
+
+		cfg_btwake: cfg-btwake {
+			samsung,pins = "gpa3-2";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+		};
+	};
+	bluetooth {
+		compatible = "broadcom,bcm43455";
+
+		gpios = <&gpg1 4 1	/*BT_EN*/
+				&gpa3 2 1	/*BT_WAKE*/
+				&gpa2 2 0xF	/*BT_HOST_WAKE*/ >;
+
+		pinctrl-names = "default";
+		pinctrl-0=<&cfg_hostwake &cfg_btwake &cfg_en>;
+		status = "okay";
+	};
+
+	i2c@25 {
+		status = "disable";
+		muic-universal@25 {
+			status = "disable";
+		};
+	};
+
+	muic {
+		status = "okay";
+		muic,support-list = "MHL","OTG","Charging Cable","Jig USB On","Jig UART Off",
+				    "Jig UART Off + VB","Jig UART On",
+				    "TA","USB","CDP","Undefined Charging",
+				    "Unofficial ID","Unofficial ID + TA","Unofficial ID + ANY TA",
+				    "Unofficial ID + USB","Unofficial ID + CDP",
+				    "Deskdock","Deskdock + VB",
+				    "Fuelgauge test","HMT";
+		muic,afcmode-tx = /bits/ 8 <0x46>;
+		muic,qc-hv = /bits/ 8 <0x9>;
+	};
+
+	/* UART Pin configs */
+	pinctrl@14CC0000 {
+		uart2_bus: uart2-bus {
+			samsung,pins = "gpd1-4", "gpd1-5";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+		};
+	};
+
+	chosen {
+		bootargs = "console=ttySAC2,115200 vmalloc=256M";
+	};
+
+	pinctrl@14CD0000 {
+		sensor2_i2c: sensor2_i2c {
+			samsung,pins = "gpj0-1", "gpj0-0";
+			samsung,pin-function = <4>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	pinctrl@14CC0000 {
+		sensor_i2c: sensor_i2c {
+			samsung,pins = "gpb0-1", "gpb0-0";
+			samsung,pin-function = <4>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	pinctrl@10580000 {
+		prox_irq: prox_irq {
+			samsung,pins = "gpa3-3";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+		acc_int: acc_int {
+			samsung,pins = "gpa3-4";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	hsi2c@14D90000 {
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&sensor_i2c>;
+
+		tmd3782@39 {
+			compatible = "taos,tmd3782";
+			reg = <0x39>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&prox_irq>;
+			interrupts = <3 0 0>;
+			interrupt-parent = <&gpa3>;
+			taos,irq_gpio = <&gpa3 3 0>;
+			reg_vdd-supply = <&ldo35_reg>;
+			taos,prox_rawdata_trim = <170>;
+			taos,prox_thresh_hi = <480>;
+			taos,prox_thresh_low = <340>;
+			taos,als_time = <0xEB>;
+			taos,intr_filter = <0x33>;
+			taos,prox_pulsecnt = <0x06>;
+			taos,als_gain = <0x22>;
+			taos,coef_atime = <50>;
+			taos,ga = <97>;
+			taos,coef_a = <1000>;
+			taos,coef_b = <1880>;
+			taos,coef_c = <642>;
+			taos,coef_d = <1140>;
+		};
+	};
+
+	hsi2c@14EC0000 {
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&sensor2_i2c>;
+
+		bma_acc@10 {
+			compatible = "bma2x2";
+			reg = <0x10>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&acc_int>;
+			interrupts = <4 0 0>;
+			interrupt-parent = <&gpa3>;
+			bma2x2,gpio_int1 = <&gpa3 4 0x00>;
+			bma2x2,vio-supply = <&ldo39_reg>;
+			bma2x2,fs_range = <0x00>;
+			bma2x2,poll_interval = <100>;
+			bma2x2,min_interval = <2>;
+			bma2x2,supply_type = <1>;
+			bma2x2,accel_place = <0>;
+		};
+		bmm_mag@12 {
+			compatible = "bmm050";
+			reg = <0x12>;
+			status = "okay";
+			bmm050,vio-supply = <&ldo39_reg>;
+			bmm050,poll_interval = <100>;
+			bmm050,min_interval = <13>;
+			bmm050,fs_range = <0x60>;
+			bmm050,magnetic_place = <0>;
+		};
+	};
+
+	/* Motor */
+	haptic {
+		status = "okay";
+		compatible = "isa1000a-vibrator";
+		pinctrl-names = "default";
+		pinctrl-0 = <&motor_en &vibetonz_pwm>;
+		haptic,max_timeout = <10000>;
+		haptic,duty = <31900>; /* ratio = 83.7% */
+		haptic,period = <38110>; /* freq = 205 * 128 = 26240hz */
+		haptic,pwm_id = <0>;
+		haptic,en = <&gpd4 0 0>;
+	};
+
+	pinctrl@14CC0000 {
+		vibetonz_pwm: vibetonz-pwm {
+			samsung,pins = "gpd2-4";
+			samsung,pin-function = <2>;
+		      samsung,pin-pud = <0>;
+		      samsung,pin-drv = <0>;
+	      };
+		motor_en: motor_en {
+			samsung,pins = "gpd4-0";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	hsi2c@14E40000 {
+		s2mps13_pmic@66 {
+			regulators {
+				ldo34_reg: LDO34 {
+					regulator-name = "VDD_NFC_1.8V";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <1800000>;
+				};
+
+				ldo38_reg: LDO38 {
+					regulator-name = "VDD_MOTOR_3.0V";
+					regulator-min-microvolt = <3000000>;
+					regulator-max-microvolt = <3000000>;
+				};
+			};
+		};
+	};
+
+	/* Camera Flash */
+	fimc_is_sensor0: fimc_is_sensor@12100000 {
+		flash_id = <5>;
+	};
+
+	leds_ktd2692 {
+		compatible = "ktd2692";
+		flash_control = <&gpc0 1 0x1>;
+		status = "okay";
+		movie_current = <3>; /*level 4 in 16*/
+		pinctrl-names ="default","host","is";
+		pinctrl-0 = <&fimc_is_flash_is>;
+		pinctrl-1 = <&fimc_is_flash_host>;
+		pinctrl-2 = <&fimc_is_flash_is>;
+	};
+
+	pinctrl@14CC0000 {
+		fimc_is_flash_host: fimc-is-flash-host {
+			samsung,pins = "gpc0-1";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+
+		fimc_is_flash_is: fimc-is-flash-is {
+			samsung,pins = "gpc0-1";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+	};
+};

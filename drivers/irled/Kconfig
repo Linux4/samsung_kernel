@@ -1,0 +1,38 @@
+#
+# IRLED
+#
+
+comment "IRLED configs"
+
+config IRLED
+	bool "Using IRLED driver"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the IRLED driver.
+
+config IRLED_ICE5LP
+	tristate "ICE5LP FPGA chip for IRDA control"
+	depends on IRLED
+	default n
+	help
+	  Lattice FPGA can support IRDA controller.
+	  The configuration will enable IRDA feature.
+	  To compile this driver as a module, choose M here.
+	  If unsure, say N.
+
+config IRLED_PEEL
+	bool "Using PEEL IRLED driver"
+	depends on IRLED
+	default n
+	help
+	  If you say yes here you will get support for
+	  the PEEL IRLED driver (no chip IR).
+
+config IRLED_WATCHON
+	bool "Using WatchON IRLED driver"
+	depends on IRLED
+	default n
+	help
+	  If you say yes here you will get support for
+	  the WatchOn IRLED driver (no chip IR).

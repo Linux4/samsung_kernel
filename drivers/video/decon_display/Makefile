@@ -1,0 +1,13 @@
+obj-y                                   += decon_debug.o
+obj-$(CONFIG_DECON_MIC)			+= decon_mic.o
+obj-$(CONFIG_DECON_MIPI_DSI)		+= decon_mipi_dsi.o decon_mipi_dsi_lowlevel.o
+obj-$(CONFIG_SOC_EXYNOS5433)		+= decon_dt_exynos5430.o decon_pm_exynos5430.o decon_fb.o
+obj-$(CONFIG_SOC_EXYNOS5420)		+= fimd_dt_exynos.o fimd_pm_exynos.o fimd_fb.o
+obj-$(CONFIG_SOC_EXYNOS5422)		+= fimd_dt_exynos.o fimd_pm_exynos.o fimd_fb.o
+obj-$(CONFIG_DECON_DISPLAY)		+= decon_display_driver.o
+obj-$(CONFIG_FB_HIBERNATION_DISPLAY)	+= decon_pm_core.o
+obj-$(CONFIG_DECON_MDNIE_LITE)		+= mdnie_lite.o mdnie_tuning.o
+obj-$(CONFIG_DECON_MDNIE_LITE_CHAGALL)	+= mdnie_lite_chagall.o mdnie_tuning.o
+obj-$(CONFIG_DECON_LCD_S6E3FA2)		+= s6e3fa2_mipi_lcd.o dynamic_aid.o
+obj-$(CONFIG_DECON_LCD_S6TNMR7)		+= s6tnmr7_mipi_lcd.o dynamic_aid.o
+obj-$(CONFIG_DECON_LCD_S6E3HA1)		+= s6e3ha1_mipi_lcd.o dynamic_aid.o

@@ -1,0 +1,116 @@
+/*
+ * SAMSUNG UNIVERSAL5430 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/ {
+
+	hsi2c@14EF0000 {
+		samsung,i2c-sda-delay = <100>;
+		samsung,i2c-max-bus-freq = <400000>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&codec_i2c>;
+		gpios = <&gpd2 6 0    /* sda */
+			 &gpd2 7 0   /* scl */ >;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		audio_codec: rt5659@1b {
+			compatible = "realtek,rt5659";
+			reg = <0x1b>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&codec_ldoena &codec_reset>;
+
+			interrupts = <4 0 0>;
+			interrupt-parent = <&gpa0>;
+			realtek,in3-differential = "true";
+			realtek,in4-differential = "true";
+
+			/* realtek,push_button_range_def = <0xa324>; */
+			/* realtek,push_button_range_def_factory = <0xc324>; */
+			vdd-io-supply = <&ldo18_reg>;
+			vdd-micio-supply = <&ldo40_reg>;
+
+			dynamic-micbias-ctrl-voltage = <3>;	/* The value must be one of below values
+								   0 - 2.7V, 1 - 2.4V, 2 - 2.25V, 3 - 1.8V  */
+		};
+	};
+	audio_pdata {
+		compatible = "samsung,audio-pdata";
+		hp_det_gpio = <&gpa0 4 0>;
+		/*sub_mic_bias_gpio = <&gpr3 2 0>;*/
+		status = "okay";
+	};
+	pinctrl@14CC0000 {
+		codec_ldoena: codec-ldoena {
+			samsung,pins ="gpv7-3";
+            samsung,pin-function = <1>;
+            samsung,pin-pud = <0>;
+            samsung,pin-pud-pdn = <0>;
+			samsung,pin-con-pdn = <3>;
+            samsung,pin-val = <1>;
+		};
+		codec_i2c: codec-i2c {
+			samsung,pins = "gpd2-7", "gpd2-6";
+			samsung,pin-function = <4>; //HSI2C_3_SDA( GPD1[2) , HSI2C_3_SCL( GPD1[3])
+			samsung,pin-pud = <3>;      // 0 (pull_none) 1 (pull_down) 3 (pull_up)
+		};
+	};
+	pinctrl@10580000 {
+		codec_reset: codec-reset {
+			samsung,pins ="gpf2-1";
+            samsung,pin-function = <1>;
+            samsung,pin-pud = <0>;
+            samsung,pin-pud-pdn = <0>;
+			samsung,pin-con-pdn = <3>;
+            samsung,pin-val = <1>;
+		};
+	};
+	codec_dummy: dummy-codec {
+		compatible = "samsung,dummy-codec";
+		status = "okay";
+	};
+	sound {
+		compatible = "samsung,pacific-rt5659";
+		samsung,audio-cpu = <&i2s0>;
+		samsung,audio-codec = <&audio_codec
+				       &audio_codec /* NULL */
+				       &audio_codec /* NULL */
+				       &audio_codec
+				       &audio_codec
+				       &audio_codec
+				       &audio_codec
+				       &audio_codec
+				       &audio_codec>;
+		clocks = <&clock 4300>;
+		clock-names = "mclk";
+		status = "okay";
+	};
+	hsi2c@14E40000 {
+		s2mps13_pmic@66 {
+				regulators {
+				ldo18_reg: LDO18 {
+					regulator-name = "vdd_codec_1p8_ap";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <1800000>;
+					regulator-always-on;
+				};
+				ldo40_reg: LDO40 {
+					regulator-name = "vdd_codec_3p3_ap";
+					regulator-min-microvolt = <3300000>;
+					regulator-max-microvolt = <3300000>;
+					regulator-always-on;
+				};
+			};
+		};
+	};
+};
