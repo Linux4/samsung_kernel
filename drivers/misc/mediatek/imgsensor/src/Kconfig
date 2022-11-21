@@ -1,0 +1,127 @@
+config SPECIFY_IMGSENSOR
+	bool SPECIFY_IMGSENSOR
+	depends on MTK_IMGSENSOR
+	help
+	  Specify name of each sensor to
+	  prevent obtaining wrong sensor driver with same sensor ID.
+	  For example, imx258_mipi_raw and imx258_mipi_mono
+	  are of same sensor ID. If not specifying
+	  sensor, imx258_mipi_mono may be recognized as imx258_mipi_raw.
+
+config IMGSENSOR_MAIN
+	string "Custom main image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify main sensor.
+	  This config is mainly mapping to userspace.
+	  Consider the numbers of sensors and usage on the phone.
+	  Compare the custom usage defined in user-custom folder.
+
+config IMGSENSOR_MAIN2
+	string "Custom main2 image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify main2 sensor.
+	  This config is mainly mapping to userspace.
+	  Consider the numbers of sensors and usage on the phone.
+	  Compare the custom usage defined in user-custom folder.
+
+config IMGSENSOR_SUB
+	string "Custom sub image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify sub sensor.
+	  This config is mainly mapping to userspace.
+	  Consider the numbers of sensors and usage on the phone.
+	  Compare the custom usage defined in user-custom folder.
+
+config IMGSENSOR_SUB2
+	string "Custom sub2 image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify sub2 sensor.
+	  This config is mainly mapping to userspace.
+	  Consider the numbers of sensors and usage on the phone.
+	  Compare the custom usage defined in user-custom folder.
+
+config IMGSENSOR_MAIN3
+	string "Custom main3 image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify main3 sensor.
+	  This config is mainly mapping to userspace.
+	  Consider the numbers of sensors and usage on the phone.
+	  Compare the custom usage defined in user-custom folder.
+
+config IMGSENSOR_CUSTOM_CAMERA
+	bool "Use custom camera set"
+	help
+	  Specify custom camera set
+	  This config is mainly mapping to userspace.
+	  Consider the numbers of sensors and usage on the phone.
+	  Compare the custom usage defined in user-custom folder.
+
+if IMGSENSOR_CUSTOM_CAMERA
+choice IMGSENSOR_CAMERA_SET_CHOICE
+	prompt "Choose the proper camera set"
+	help
+	  Select custom camera set
+	  This config is mainly mapping to userspace.
+	  Consider the numbers of sensors and usage on the phone.
+	  Compare the custom usage defined in user-custom folder.
+
+config CAMERA_AAT_V12
+	bool CAMERA_AAT_V12
+	help
+	  For AAT V12 camera set
+
+endchoice
+config CAMERA_SENSOR0
+	string "Camera Sensor 0"
+	help
+	  Camera image sensor 0
+config CAMERA_SENSOR1
+	string "Camera Sensor 1"
+	help
+	  Camera image sensor 1
+config CAMERA_SENSOR2
+	string "Camera Sensor 2"
+	help
+	  Camera image sensor 2
+config CAMERA_SENSOR3
+	string "Camera Sensor 3"
+	help
+	  Camera image sensor 3
+config CAMERA_SENSOR4
+	string "Camera Sensor 4"
+	help
+	  Camera image sensor 4
+config CAMERA_SENSOR5
+	string "Camera Sensor 5"
+	help
+	  Camera image sensor 5
+config CAMERA_SENSOR0_2
+	string "Camera Sensor 0_2"
+	help
+	  Camera image sensor 0_2
+config CAMERA_SENSOR1_2
+	string "Camera Sensor 1_2"
+	help
+	  Camera image sensor 1_2
+config CAMERA_SENSOR2_2
+	string "Camera Sensor 2_2"
+	help
+	  Camera image sensor 2_2
+config CAMERA_SENSOR3_2
+	string "Camera Sensor 3_2"
+	help
+	  Camera image sensor 3_2
+config CAMERA_SENSOR4_2
+	string "Camera Sensor 4_2"
+	help
+	  Camera image sensor 4_2
+config CAMERA_SENSOR5_2
+	string "Camera Sensor 5_2"
+	help
+	  Camera image sensor 5_2
+endif

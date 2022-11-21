@@ -1,0 +1,146 @@
+#define COMMON_GRIP_VDD 1
+
+#if 1
+
+&sw_i2c0 {
+	gpios = <SEC_GPIO_REF(AP,pio,42) 0 /* sda */
+			SEC_GPIO_REF(AP,pio,41) 0>; /* scl */
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+	a96t3x6: a96t3x6@20 {
+		compatible = "a96t3x6";
+		reg = <0x20>;
+		
+		pinctrl-names = "default";
+#if 1
+		pinctrl-0 = <&grip_int &grip_ldo_en>;
+#else
+		pinctrl-0 = <&grip_int>;
+#endif
+		interrupt-parent = <SEC_GPIO_TYPE(AP,pio,79)>;
+		interrupts = <SEC_GPIO_NUM(AP,pio,79) 0>;
+
+		a96t3x6,irq_gpio = <SEC_GPIO_REF(AP,pio,79) 0>;
+		a96t3x6,ldo_en = <SEC_GPIO_REF(AP,pio,151) 0>;
+		a96t3x6,fw_path = "abov/a96t356_a12_main.bin";
+		a96t3x6,firmup_cmd = <0x3b>;
+	};
+};
+
+&pio {
+	grip_int: grip-int {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,79), 0)>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
+
+#if 1
+&pio {
+	grip_ldo_en: grip-ldo-en {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,151), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			output-high;
+		};
+	};
+};
+#endif
+
+#if 0
+&pio {
+	grip_i2c: grip-i2c {
+		pins_cmd0_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,42), 0)>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+		pins_cmd1_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,41), 0)>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
+#endif
+#endif
+
+#if 1
+
+&sw_i2c0 {
+	gpios = <SEC_GPIO_REF(AP,pio,42) 0 /* sda */
+			SEC_GPIO_REF(AP,pio,41) 0>; /* scl */
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+	a96t3x6_sub: a96t3x6@21 {
+		compatible = "a96t3x6_sub";
+		reg = <0x21>;
+		
+		pinctrl-names = "default";
+#if 0
+		pinctrl-0 = <&grip_sub_int &grip_sub_ldo_en>;
+#else
+		pinctrl-0 = <&grip_sub_int>;
+#endif
+		interrupt-parent = <SEC_GPIO_TYPE(AP,pio,80)>;
+		interrupts = <SEC_GPIO_NUM(AP,pio,80) 0>;
+
+		a96t3x6,irq_gpio = <SEC_GPIO_REF(AP,pio,80) 0>;
+#if 0
+		a96t3x6,ldo_en = <SEC_GPIO_REF(${gpio_grip_sub_ldo_en}) 0>;
+#elif COMMON_GRIP_VDD == COMMON_GRIP_VDD
+		a96t3x6,ldo_en = <SEC_GPIO_REF(AP,pio,151) 0>;
+#endif
+		a96t3x6,fw_path = "abov/a96t356_a12_sub.bin";
+		a96t3x6,firmup_cmd = <0x3b>;
+	};
+};
+
+&pio {
+	grip_sub_int: grip-sub-int {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,80), 0)>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
+
+#if 0
+&${gpio_grip_sub_ldo_en_parent} {
+	grip_sub_ldo_en: grip-sub-ldo-en {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${gpio_grip_sub_en}), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			output-high;
+		};
+	};
+};
+#endif
+
+#if 0
+&pio {
+	grip_sub_i2c: grip-sub-i2c {
+		pins_cmd0_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,42), 0)>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+		pins_cmd1_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,41), 0)>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
+#endif
+#endif
+
