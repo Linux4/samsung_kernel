@@ -1,0 +1,19 @@
+config SEC_C1Q_PROJECT
+	default n
+	bool "Samsung C1Q Project"
+	help
+	  Support for Samsung C1Q Project
+
+config MACH_C1Q_CHN_OPEN
+	default n
+	bool "Samsung C1Q CHN OPEN"
+	help
+	  Support for Samsung C1Q CHN OPEN device.
+
+config MACH_C1Q_CHN_HK
+	select MACH_C1Q_CHN_OPEN
+	default n
+	bool "Samsung C1Q CHN HK"
+	help
+	  Support for Samsung C1Q CHN HK device.
+
