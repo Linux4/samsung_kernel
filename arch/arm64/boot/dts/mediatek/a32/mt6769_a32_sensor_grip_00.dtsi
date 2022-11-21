@@ -1,0 +1,112 @@
+/*
+ * SAMSUNG board device tree source
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/* MAIN GRIP */
+&i2c5 {
+	gpios = <&pio 49 0 /* sda */
+			&pio 48 0>; /* scl */
+	status = "okay";
+	clock-frequency = <400000>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&grip_ldo_en>;
+	mediatek,use-open-drain;
+
+	isg5320a@28 {
+		compatible = "isg5320a";
+		status = "okay";
+		reg = <0x28>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_int>;
+		interrupt-parent = <&pio>;
+		interrupts = <19 0>;
+		isg5320a,irq-gpio = <&pio 19 0>;
+		isg5320a,hallic_detect = <1>;
+		isg5320a,hallic_cert_detect = <1>;
+	};
+};
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			aliases {
+				i2c23 = "/i2c@23";
+			};
+
+			i2c23: i2c@23 { /* SUB GRIP */
+				cell-index = <23>;
+				status = "okay";
+				compatible = "i2c-gpio";
+				gpios = <&pio 152 0 /* sda */
+					&pio 165 0>; /* scl */
+				i2c-gpio,delay-us = <2>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&grip_sub_i2c>;
+				isg5320a_sub-i2c@2C {
+					compatible = "isg5320a_sub";
+					status = "okay";
+					reg = <0x2C>;
+					pinctrl-names = "default";
+					pinctrl-0 = <&grip_sub_int>;
+					interrupt-parent = <&pio>;
+					interrupts = <17 0>;
+					isg5320a_sub,irq-gpio = <&pio 17 0>;
+					isg5320a_sub,hallic_detect = <1>;
+					isg5320a_sub,hallic_cert_detect = <1>;
+				};
+			};
+		};
+	};
+};
+
+&pio {
+	grip_ldo_en: grip-ldo-en {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO43__FUNC_GPIO43>;
+			slew-rate = <1>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	grip_int: grip-int {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO19__FUNC_GPIO19>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	grip_sub_int: grip-sub-int {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO17__FUNC_GPIO17>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	grip_sub_i2c: grip-sub-i2c {
+		pins_cmd0_dat {
+			pinmux = <PINMUX_GPIO152__FUNC_GPIO152>; /*grip sensor sda pin*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+		pins_cmd1_dat {
+			pinmux = <PINMUX_GPIO165__FUNC_GPIO165>; /*grip sensor scl pin*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
