@@ -1,0 +1,58 @@
+/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/{
+	aliases {
+		spi7 = &spi_7;
+	};
+};
+
+&soc {
+	spi_7: spi@f9963000 {
+		compatible = "qcom,spi-qup-v2";
+		cell-index = <7>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "spi_physical", "spi_bam_physical";
+		reg = <0xf9963000 0x1000>, <0xf9944000 0xf000>;
+		interrupt-names = "spi_irq", "spi_bam_irq";
+		interrupts = <0 101 0>, <0 239 0>;
+		spi-max-frequency = <19200000>;
+
+		qcom,gpio-mosi = <&msmgpio 130 0>;
+		qcom,gpio-miso = <&msmgpio 131 0>;
+		qcom,gpio-cs0 = <&msmgpio 132 0>;
+		qcom,gpio-clk = <&msmgpio 133 0>;
+
+		qcom,use-bam;
+		qcom,bam-consumer-pipe-index = <12>;
+		qcom,bam-producer-pipe-index = <13>;
+		qcom,infinite-mode = <0>;
+		qcom,ver-reg-exists;
+		qcom,master-id = <84>;
+
+		tdmb-spi@0 {
+			compatible = "tdmb_spi_comp";
+			reg = <0>;
+			spi-max-frequency = <9600000>;
+
+		};
+	};
+
+	tdmb_data {
+		compatible = "samsung,tdmb";
+		tdmb_pwr_en = <&pma8084_gpios 8 0>;
+		tdmb_irq = <&msmgpio 102 0>;
+		tdmb_use_irq;
+	};
+
+};

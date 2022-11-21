@@ -1,0 +1,12 @@
+#
+# Copyright (C) MAXIM Integranted
+#
+
+menu "DS28EL35 ECDSA driver"
+
+config DS28EL35_ECDSA
+	tristate "DS28EL35 driver for ECDSA"
+	help
+	 If you enable this, you will have ECDSA algorithm API for DS28EL35.
+
+endmenu	 

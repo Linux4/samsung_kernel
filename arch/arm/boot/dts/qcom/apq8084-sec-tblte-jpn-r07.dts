@@ -1,0 +1,283 @@
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+
+#include "apq8084-v1.1.dtsi"
+#include "apq8084-mtp.dtsi"
+
+/* CAUTIONS : TBLTE are referring the TRLTE dtsi */
+#include "apq8084-sii8620-mhl3-tblte-r06.dtsi"
+#include "apq8084-sec-trlte-r07.dtsi"
+
+#include "apq8084-sec-tblte-battery-r04.dtsi"
+#include "apq8084-sec-isdb-trlte-r03.dtsi"
+/ {
+	model = "APQ 8084 v1.1, SAMSUNG tblte JPN Project Rev07";
+	compatible = "qcom,apq8084-mtp", "qcom,apq8084", "qcom,mtp";
+    qcom,msm-id = <0xB208FF01 7 0x10000>;
+    /* [31:24] chip-id, [23:16] platform-id, [15:8] national code, [7:0] operator revision, reserved */
+};
+
+
+#include "../../../../drivers/video/msm/mdss/samsung/S6E3HF2_AMS559DE01/dsi_panel_S6E3HF2_AMS559DE01_wqxga_octa_cmd.dtsi"
+
+&mdss_mdp {
+	qcom,mdss-pref-prim-intf = "dsi";
+
+	mdss_fb0: qcom,mdss_fb_primary {
+		qcom,memory-alt-reservation-size = <0x1F00000>;
+		qcom,memblock-reserve = <0x03200000 0x00F00000>;
+		qcom,mdss-fb-split = <800 800>;
+	};
+};
+
+&mdss_dsi0 {
+	qcom,dsi-pref-prim-pan = <&ss_dsi_panel_S6E3HF2_AMS559DE01_WQXGA_0>;
+	qcom,platform-te-gpio = <&msmgpio 12 0>;
+
+	/*qcom,dsi-panel-bias-vreg;*/
+	qcom,platform-enable-gpio = <&pma8084_gpios 6 0>;
+	qcom,platform-reset-gpio = <&pma8084_gpios 21 0>;
+
+	iovdd-supply = <&pma8084_l26>;
+};
+
+&mdss_dsi1 {
+	qcom,dsi-pref-prim-pan = <&ss_dsi_panel_S6E3HF2_AMS559DE01_WQXGA_1>;
+
+/*	pinctrl-names = "mdss_default", "mdss_sleep";*/
+/*	pinctrl-0 = <&mdss_dsi_active &mdss_dsi_te_active>;*/
+/*	pinctrl-1 = <&mdss_dsi_suspend &mdss_dsi_te_suspend>;*/
+
+	/*qcom,dsi-panel-bias-vreg;*/
+	qcom,platform-enable-gpio = <&pma8084_gpios 6 0>;
+	qcom,platform-reset-gpio = <&pma8084_gpios 21 0>;
+
+	iovdd-supply = <&pma8084_l26>;
+};
+
+
+&mdm1 {
+	interrupt-map = <0 &msmgpio 111 0x3
+			1 &msmgpio 109 0x3
+			2 &msmgpio 113 0x3
+			3 &msmgpio 115 0x3>;
+	qcom,mdm2ap-errfatal-gpio = <&msmgpio 111 0x00>;
+	qcom,ap2mdm-errfatal-gpio = <&msmgpio 112 0x00>;
+	qcom,mdm2ap-status-gpio   = <&msmgpio 109 0x00>;
+	qcom,ap2mdm-status-gpio   = <&msmgpio 110 0x00>;
+	qcom,ap2mdm-soft-reset-gpio = <&msmgpio 128 0x00>;
+	qcom,mdm2ap-pblrdy-gpio = <&msmgpio 113 0x00>;
+	qcom,ap2mdm-vddmin-gpio = <&msmgpio 114 0x00>;
+	qcom,mdm2ap-vddmin-gpio = <&msmgpio 115 0x00>;
+	qcom,mdm-dual-link;
+	status = "ok";
+};
+
+&mdm0 {
+	interrupt-map = <0 &msmgpio 111 0x3
+			1 &msmgpio 109 0x3
+			2 &msmgpio 113 0x3
+			3 &msmgpio 115 0x3>;
+	qcom,mdm2ap-errfatal-gpio = <&msmgpio 111 0x00>;
+	qcom,ap2mdm-errfatal-gpio = <&msmgpio 112 0x00>;
+	qcom,mdm2ap-status-gpio   = <&msmgpio 109 0x00>;
+	qcom,ap2mdm-status-gpio   = <&msmgpio 110 0x00>;
+	qcom,ap2mdm-soft-reset-gpio = <&msmgpio 128 0x00>;
+	qcom,mdm2ap-pblrdy-gpio = <&msmgpio 113 0x00>;
+	qcom,ap2mdm-vddmin-gpio = <&msmgpio 114 0x00>;
+	qcom,mdm2ap-vddmin-gpio = <&msmgpio 115 0x00>;
+	status = "ok";
+};
+
+&mhi {
+	esoc-names = "mdm";
+	esoc-0 = <&mdm1>;
+	mhi-device-wake-gpio =
+		<&msmgpio 108 0>;
+	qcom,msm-bus,name = "mhi";
+	qcom,msm-bus,num-cases = <2>;
+	qcom,msm-bus,num-paths = <1>;
+	qcom,msm-bus,vectors-KBps =
+		<100 512 0 0>,
+		<100 512 625000000 625000000>;
+};
+
+&cnss {
+	esoc-names = "modem_wlan";
+	esoc-0 = <&mdm0>;
+	wlan-en-gpio = <&msmgpio 117 0>;
+};
+
+&mdss_fb0 {
+	qcom,mdss-fb-split = <800 800>;
+};
+
+&wlan_vreg {
+	/delete-property/ regulator-always-on;
+};
+
+&pma8084_l27 {
+	/delete-property/ regulator-always-on;
+};
+
+&i2c_1 {
+	fts_i2c@49 {
+		stm,tsp-project = "TB_LTE";
+		stm,tsp-coords = <1599 2559>;
+		vdd_keyled-supply = <&pma8084_l23>;
+	};
+};
+
+&i2c_3  {
+	wacom_g5sp_i2c@56 {
+		wacom,panel-coords = <1 0 0 12032 0 7489 1 0 2047>;
+		wacom,basic_model = "TB_LTE";
+		wacom,firmup_flag = <1>;
+	};
+};
+
+&soc {
+	qcom,cnss@0d400000 {
+		wlan-en-gpio = <308>;
+	};
+
+	bt_qca6174 {
+		/delete-property/ qca,bt-vdd-pa-supply;
+	};
+
+/* Device tree for Japan starts from here  */
+	/delete-node/ i2c@f9926000;
+
+	sec_nfc {
+		compatible = "sec-nfc";
+		sec-nfc,pon-gpio = 	<&msmgpio 121 0x00>;
+		sec-nfc,rfs-gpio = 	<&pma8084_gpios 16 0x00>;
+	};
+
+	sec_nfc_fn {
+		compatible = "sec-nfc-fn";
+		sec-nfc-fn,int-gpio = 	<&pma8084_gpios 10 0x00>;
+	};
+
+	/delete-node/cover_uart;
+
+	/* NEED TO CHANGE THE FOLLOWING DEVICE ENTRY */
+	felica_uart: serial@f9920000 {
+		compatible = "qcom,msm-lsuart-v14";
+		interrupts = <0 110 0>;
+		reg = <0xf9920000 0x1000>;
+		status = "ok";
+
+		qcom,config-gpio = <4>;
+		qcom,tx-gpio = <&msmgpio 27 0x00>;
+		qcom,rx-gpio = <&msmgpio 28 0x00>;
+		qcom,cts-gpio = <&msmgpio 29 0x00>;
+		qcom,rfr-gpio = <&msmgpio 30 0x00>;
+		qcom,msm-bus,name = "serial_uart2";
+		qcom,msm-bus,num-cases = <2>;
+		qcom,msm-bus,num-paths = <1>;
+		qcom,msm-bus,vectors-KBps =
+		<86 512 0 0>,
+		<86 512 500 800>;
+	};
+
+	aliases {
+		serial2 = &felica_uart;
+	};
+
+	i2c@22 {
+		max86900@51 {
+			compatible = "max86900";
+			reg = <0x51>;
+			interrupt-parent = <&msmgpio>;
+			interrupts = <78 0>;
+			hrm_vreg-supply = <&pma8084_l16>;
+			max86900,hrm_int-gpio = <&msmgpio 78 0x00>;
+			max86900,vdd_1p8 = "max77826_ldo4";
+			max86900,led_3p3 = "8084_l16";
+			max86900,hrm_en-expander-gpio = <303>;
+			max86900,dual-hrm = <1>;
+		};
+
+		adpd142@64 {
+			compatible = "adpd142";
+			reg = <0x64>;
+			interrupt-parent = <&msmgpio>;
+			interrupts = <78 0>;
+			adpd142,irq_gpio = <&msmgpio 78 0x00>;
+			adpd142,led_en = <303>;
+			adpd142,vdd_1p8 = "max77826_ldo4";
+		};
+
+		fan53555@60 {
+			compatible = "fan53555,fan53555-dcdc";
+			reg = <0x60>;
+		};
+	};
+
+	spi@f9927000 {
+		ATSAMG53@0 {
+			ssp,acc-position = <0>;
+			ssp,mag-position = <1>;
+			ssp,prox-hi_thresh = <160>;
+			ssp,prox-low_thresh = <130>;
+		};
+	};
+
+	earjack {
+		/delete-property/ qcom,earjack-fsa_en-expander-gpio;
+	};
+
+	sound {
+		qcom,earjack-fsa_en_gpio = <310>;
+	};
+};
+
+&pma8084_gpios {
+	gpio@c900 { /* GPIO 10 */
+		/* FeliCa INT */
+		qcom,mode = <0>;		/* Digital Input */
+		qcom,output-type = <0>;	/* CMOS logic */
+		qcom,pull = <1>;
+		qcom,src-sel = <0>;		/* GPIO */
+		qcom,master-en = <1>;	/* Enable GPIO */
+	};
+
+	gpio@cf00 { /* GPIO 16 */
+		/* FeliCa INTU */
+		qcom,mode = <0>;		/* Digital input*/
+		qcom,output-type = <0>;	/* CMOS logic */
+		qcom,pull = <1>;
+		qcom,src-sel = <0>;		/* GPIO */
+		qcom,master-en = <1>;		/* Enable GPIO */
+	};
+};
+
+&pma8084_vadc {
+	chan@78 {
+		label = "flash_thm";
+		reg = <0x78>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+	};
+};
+
+&sdhc_2 {
+		qcom,pad-drv-on = <0x7 0x4 0x3>; /* 16mA, 10mA, 8mA */
+		qcom,pad-drv-off = <0x0 0x0 0x0>; /* 2mA, 2mA, 2mA */
+};

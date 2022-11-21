@@ -1,0 +1,81 @@
+/*
+ * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	i2c_99: i2c@f9963000 {
+		status = "disabled";
+	};
+
+	pcie1: qcom,pcie@fc528000 {
+		status = "disabled";
+	};
+
+	aliases {
+		spi7 = &spi_7;
+	};
+	spi_7: spi@f9963000 {
+		status = "ok";
+		compatible = "qcom,spi-qup-v2";
+		cell-index = <7>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0xf9963000 0x1000>, <0xf9944000 0x19000>;
+		reg-names = "spi_physical", "spi_bam_physical";
+		interrupts = <0 101 0>, <0 239 0>;
+		interrupt-names = "spi_irq", "spi_bam_irq";
+
+		qcom,gpio-mosi = <&msmgpio 130 0>;
+		qcom,gpio-miso = <&msmgpio 131 0>;
+		qcom,gpio-clk  = <&msmgpio 133 0>;
+		qcom,gpio-cs0  = <&msmgpio 132 0>;
+
+		qcom,use-bam;
+		qcom,bam-consumer-pipe-index = <12>;
+		qcom,bam-producer-pipe-index = <13>;
+
+		qcom,infinite-mode = <0>;
+		qcom,ver-reg-exists;
+		qcom,master-id = <84>;
+
+		spi-max-frequency = <19200000>;
+		if-spi@0 {
+			compatible = "if_spi_comp";
+			reg = <0>;
+			spi-max-frequency = <12000000>;
+			spi-cpha;
+
+			mif_spi,gpio_ipc_mrdy = <&msmgpio 8 0>;
+			mif_spi,gpio_ipc_sub_mrdy = <&msmgpio 141 0>;
+			mif_spi,gpio_ipc_srdy = <&msmgpio 124 0>;
+			mif_spi,gpio_ipc_sub_srdy = <&msmgpio 146 0>;
+			mif_spi,gpio_cp_dump_int = <&msmgpio 123 0>;
+		};
+	};
+
+	sprd6500 {
+		compatible = "if_sprd6500_comp";
+
+		mif_cp2,phone_on-gpio = <315>;
+		mif_cp2,pda_active-gpio = <305>;
+		mif_cp2,phone_active-gpio = <86>;
+		mif_cp2,ap_cp_int1-gpio = <0xFFF>;
+		mif_cp2,ap_cp_int2-gpio = <0xFFF>;
+		mif_cp2,uart_sel-gpio = <&pma8084_gpios 19 0x0>;
+		mif_cp2,sim_sel-gpio = <0>;
+
+		mif_cp2,uart_txd-gpio = <43>;
+		mif_cp2,uart_rxd-gpio = <44>;
+		mif_cp2,uart_cts-gpio = <45>;
+		mif_cp2,uart_rts-gpio = <46>;
+	};
+};

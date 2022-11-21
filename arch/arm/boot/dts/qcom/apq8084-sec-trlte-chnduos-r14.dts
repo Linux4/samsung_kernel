@@ -1,0 +1,204 @@
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+/*
+ * There are situations where removing properties or nodes may be useful.
+ * syntax to do that:
+ *   / {
+ *       /delete-property/ propname;
+ *       /delete-node/ nodename;
+ *   };
+ * or:
+ *   /delete-node/ &noderef;
+ */
+
+/dts-v1/;
+
+/memreserve/ 0xac1c0000 0x00001000;
+/memreserve/ 0x00000000 0x00001000;
+
+#include "apq8084-v1.1.dtsi"
+#include "apq8084-mtp.dtsi"
+
+#include "apq8084-sii8620-mhl3-trlte-r06.dtsi"
+#include "apq8084-sec-trlte-r14.dtsi"
+#include "apq8084-sec-trlte-chn-battery-r09.dtsi"
+#include "apq8084-mif-trlte-chnduos-r07.dtsi"
+/ {
+	model = "APQ 8084 v1.1, SAMSUNG trlte CHNDUOS Project Rev14";
+	compatible = "qcom,apq8084-mtp", "qcom,apq8084", "qcom,mtp";
+    qcom,msm-id = <0xB208FF01 14 0x10000>;
+    /* [31:24] chip-id, [23:16] platform-id, [15:8] national code, [7:0] operator revision, reserved */
+};
+
+/delete-node/ &actuator1;
+/delete-node/ &ois1;
+
+&mdm1 {
+	interrupt-map = <0 &msmgpio 111 0x3
+			1 &msmgpio 109 0x3
+			2 &msmgpio 113 0x3
+			3 &msmgpio 115 0x3>;
+	qcom,mdm2ap-errfatal-gpio = <&msmgpio 111 0x00>;
+	qcom,ap2mdm-errfatal-gpio = <&msmgpio 112 0x00>;
+	qcom,mdm2ap-status-gpio   = <&msmgpio 109 0x00>;
+	qcom,ap2mdm-status-gpio   = <&msmgpio 110 0x00>;
+	qcom,ap2mdm-soft-reset-gpio = <&msmgpio 128 0x00>;
+	qcom,mdm2ap-pblrdy-gpio = <&msmgpio 113 0x00>;
+	qcom,ap2mdm-vddmin-gpio = <&msmgpio 114 0x00>;
+	qcom,mdm2ap-vddmin-gpio = <&msmgpio 115 0x00>;
+	qcom,mdm-dual-link;
+	status = "ok";
+};
+
+&mdm0 {
+	interrupt-map = <0 &msmgpio 111 0x3
+			1 &msmgpio 109 0x3
+			2 &msmgpio 113 0x3
+			3 &msmgpio 115 0x3>;
+	qcom,mdm2ap-errfatal-gpio = <&msmgpio 111 0x00>;
+	qcom,ap2mdm-errfatal-gpio = <&msmgpio 112 0x00>;
+	qcom,mdm2ap-status-gpio   = <&msmgpio 109 0x00>;
+	qcom,ap2mdm-status-gpio   = <&msmgpio 110 0x00>;
+	qcom,ap2mdm-soft-reset-gpio = <&msmgpio 128 0x00>;
+	qcom,mdm2ap-pblrdy-gpio = <&msmgpio 113 0x00>;
+	qcom,ap2mdm-vddmin-gpio = <&msmgpio 114 0x00>;
+	qcom,mdm2ap-vddmin-gpio = <&msmgpio 115 0x00>;
+	status = "ok";
+};
+
+&mhi {
+	esoc-names = "mdm";
+	esoc-0 = <&mdm1>;
+	mhi-device-wake-gpio =
+		<&msmgpio 108 0>;
+	qcom,msm-bus,name = "mhi";
+	qcom,msm-bus,num-cases = <2>;
+	qcom,msm-bus,num-paths = <1>;
+	qcom,msm-bus,vectors-KBps =
+			<100 512 0 0>,
+			<100 512 625000000 625000000>;
+};
+
+&cnss {
+	esoc-names = "modem_wlan";
+	esoc-0 = <&mdm0>;
+};
+
+&soc {
+	slim_msm: slim@fe1af000 {
+		tomtom_codec {
+			qcom,cdc-dmic-sample-rate = <2400000>;
+		};
+	};
+
+	sound {
+		qcom,sec-auxpcm-gpio-din = <&msmgpio 84 0>;
+	};
+
+	earjack {
+		qcom,earjack-fsa_en-expander-gpio = <310>;
+		/delete-property/ qcom,earjack-fsa_en_gpio;
+		but-zones-list = <&but_zones 0 0 236>,
+						 <&but_zones 1 237 327>,
+						 <&but_zones 2 328 640>;
+	};
+
+	i2c@16 {
+		gpios = <&msmgpio 139 0
+			&msmgpio 140 0
+			>;
+	};
+
+	qcom,cnss@0d400000 {
+		wlan-en-gpio = <308>;
+	};
+
+	spi@f9927000 {
+		compatible = "qcom,spi-qup-v2";
+		cell-index = <5>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+		reg = <0xf9927000 0x1000>;
+		interrupt-names = "spi_irq";
+		interrupts = <0 99 0>;
+		spi-max-frequency = <19200000>;
+
+		qcom,gpio-mosi = <&msmgpio 39 0>;
+		qcom,gpio-miso = <&msmgpio 40 0>;
+		qcom,gpio-clk  = <&msmgpio 42 0>;
+		qcom,gpio-cs0  = <&msmgpio 41 0>;
+
+		qcom,master-id = <86>;
+
+		ATSAMG53@0 {
+			ssp,rst-gpio = <&msmgpio 72 0x00>;
+		};
+	};
+
+	i2c_0: i2c@f9925000 { /* BLSP1 QUP3 */
+		cell-index = <0>;
+		compatible = "qcom,i2c-qup";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr";
+		reg = <0xf9925000 0x1000>;
+		interrupt-names = "qup_err_intr";
+		interrupts = <0 97 0>;
+		qcom,noise-rjct-scl = <1>;
+		qcom,noise-rjct-sda = <1>;
+		qcom,i2c-bus-freq = <400000>;
+		qcom,i2c-src-freq = <50000000>;
+		qcom,sda-gpio = <&msmgpio 10 0>;
+		qcom,scl-gpio = <&msmgpio 11 0>;
+		qcom,master-id = <86>;
+		qcom,clk-ctl-xfer;
+
+		actuator1: qcom,actuator@36 {
+			compatible = "qcom,actuator";
+			cell-index = <1>;
+			reg = <0x36>;
+			unuse-gpios;
+			qcom,cam-vreg-name = "cam_vaf", "cam_vio";
+			qcom,cam-sub-vreg-name = "max77826_ldo14", "max77826_ldo8";
+			qcom,cam-vreg-type = <3 3>;
+			qcom,cam-vreg-min-voltage = <2800000 1800000>;
+			qcom,cam-vreg-max-voltage = <2800000 1800000>;
+			qcom,cam-vreg-op-mode = <50000 50000>;
+			qcom,cci-master = <0>;
+		};
+		ois1: qcom,ois@48 {
+			compatible = "qcom,ois";
+			cell-index = <1>;
+			reg = <0x48>;
+			unuse-gpios;
+			qcom,cam-vreg-name = "cam_vm_ois", "cam_vdd_ois", "cam_vio";
+			qcom,cam-sub-vreg-name = "max77826_ldo13", "max77826_ldo15", "max77826_ldo8";
+			qcom,cam-vreg-type = <3 3 3>;
+			qcom,cam-vreg-min-voltage = <2800000 2800000 1800000>;
+			qcom,cam-vreg-max-voltage = <2800000 2800000 1800000>;
+			qcom,cam-vreg-op-mode = <50000 50000 50000>;
+			qcom,cci-master = <0>;
+		};
+	};
+};
+
+&sdhc_2 {
+	qcom,pad-drv-on = <0x7 0x4 0x3>; /* 16mA, 10mA, 8mA */
+	qcom,pad-drv-off = <0x0 0x0 0x0>; /* 2mA, 2mA, 2mA */
+};
+
+&i2c_1 {
+	synaptics_rmi4_i2c@20 {
+		/delete-property/ synaptics,external_ldo;
+		qcom,earjack-tsp_en-expander-gpio = <309>;
+	};
+};

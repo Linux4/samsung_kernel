@@ -1,0 +1,66 @@
+/* Copyright (c) 2012-2013, Samsung Electronics Corporation. All rights
+ * reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	spi@f9924000 {		/* BLSP1 QUP1 */
+		compatible = "qcom,spi-qup-v2";
+		cell-index = <1>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "spi_physical";
+		reg = <0xf9924000 0x1000>;
+		interrupt-names = "spi_irq";
+		interrupts = <0 96 0>;
+		spi-max-frequency = <19200000>;
+
+		qcom,gpio-mosi = <&msmgpio 4 0>;
+		qcom,gpio-miso = <&msmgpio 5 0>;
+		qcom,gpio-cs0  = <&msmgpio 6 0>;
+		qcom,gpio-clk  = <&msmgpio 7 0>;
+
+		/*qcom,infinite-mode = <0>;*/
+		/*qcom,use-bam;*/
+		/*qcom,ver-reg-exists;*/
+		/*qcom,bam-consumer-pipe-index = <14>;*/
+		/*qcom,bam-producer-pipe-index = <15>;*/
+		qcom,master-id = <86>;
+
+		sec_mhl: sii8620_spi@0 {
+			compatible = "sii8620,mhl3-spi";
+			reg = <0>; /* CS ID */
+			spi-max-frequency = <960000>;
+			interrupt-parent = <&msmgpio>;
+			interrupts = <31 0x1>;
+			sii8620,gpio_mhl_reset = <&pma8084_mpps 6 0>;
+			sii8620,gpio_mhl_reset_type = "pma8084_mpps";
+			/* sii8620,gpio_mhl_en = <&expander_gpios 5 0x1>; */
+			/* sii8620,gpio_mhl_en_type = "msmgpio"; */
+			sii8620,gpio_mhl_irq = <&msmgpio 31 0x00>;
+			sii8620,gpio_mhl_wakeup = <0>;
+			sii8620,gpio_mhl_spi_dvld = <&msmgpio 73 0x00>;
+			sii8620,vcc_1p0v_name = "vcc_1p0v";
+			vcc_1p0v-supply  = <&pma8084_l27>;
+			sii8620,vcc_1p8v_name = "max77826_ldo7";
+			/* vcc_1p8v-supply  = <&pma8084_l27>; */
+			sii8620,swing_level_v2 = <0xBB>;
+			sii8620,swing_level_v3 = <0xA2>;
+			mhl,ddcline_connected;
+			qcom,hdmi-tx-map = <&mdss_hdmi_tx>;
+		};
+	};
+	qcom,hdmi_tx@fd922100 {
+		qcom,hdmi-tx-ddc-clk = <&msmgpio 32 0>;
+		qcom,hdmi-tx-ddc-data = <&msmgpio 33 0>;
+		mhl,sec-mhl-map = <&sec_mhl>;
+	};
+};

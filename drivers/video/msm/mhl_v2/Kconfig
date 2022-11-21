@@ -1,0 +1,55 @@
+#
+# Copyright (c) 2013 Samsung Electronics Co., Ltd.
+#	http://www.samsung.com/
+
+config VIDEO_MHL_V2
+	tristate
+	prompt "Silicon Image 8240 HDMI to MHL Tx"
+	select SEC_MHL_SII8240
+	default n
+
+config SEC_MHL_SII8240
+	tristate
+	prompt "Silicon Image 8240 HDMI to MHL Tx"
+	select SEC_MHL_SUPPORT
+	select SEC_MHL_AP_HDCP_PART1
+	select SEC_MHL_EDID
+	default n
+	---help---
+	Support for MHL(SII8240) version2 chipset driver. This is a new
+	version of mhl which has the required functionality to support
+	mhl 2.0 spec required. Say Y here if this support mhl_version2
+
+config MHL_VERSION
+	depends on SEC_MHL_SII8240
+	hex "Number of MHL Version"
+	default 0x20
+	---help---
+	MHL Version
+	For example, those device compliant
+	with MHL Specification version 2.0
+	shell set this MHL_VERSION to 0x20
+
+config SEC_MHL_SUPPORT
+	bool "Enable samsung MHL"
+	default n
+	---help---
+	Say Y here if you want to enable the samsung MHL feature in HDMI driver.
+
+config SEC_MHL_AP_HDCP
+	bool "Enable HDCP in AP side"
+	default n
+	---help---
+	Say Y here if you want to enable HDCP in AP side.
+
+config SEC_MHL_AP_HDCP_PART1
+	bool "Enable only HDCP part1 in Ap side for DRM playback"
+	default n
+	---help---
+	Say Y here if you want to enable DDC workaround code.
+
+config SEC_MHL_EDID
+	bool "Use EDID which read by MHL"
+	default n
+	---help---
+	Say Y here if you want to use the edid which read by MHL driver.
