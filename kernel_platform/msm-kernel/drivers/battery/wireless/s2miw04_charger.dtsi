@@ -1,0 +1,141 @@
+#include <dt-bindings/battery/sec-battery.h>
+
+&tlmm {
+	lsi_irq_default: lsi_int_default {
+		GPIO_CONFIG_PUD_DRV(AP,tlmm,90, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&pm8350c_gpios {
+	lsi_det_default: lsi_det_default {
+		GPIO_CONFIG_PUD(PM,pm8350c_gpios,1, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+
+&tlmm {
+	lsi_en_default: lsi_en_default {
+		GPIO_CONFIG_PUD(AP,tlmm,170, FUNC_OUTPUT_LOW, PULL_NONE);
+	};
+};
+
+&sw_i2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+
+	s2miw04_charger: s2miw04-charger@3b {
+		compatible = "lsi,s2miw04-charger";
+		reg = <0x3b>;
+		status = "okay";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&lsi_irq_default &lsi_det_default &lsi_en_default>;
+
+		battery,wpc_int = <SEC_GPIO_REF(AP,tlmm,90) 1>; /* MFC_AP_INT */
+		battery,wpc_det = <SEC_GPIO_REF(PM,pm8350c_gpios,1) 0>; /* WPC_DET */
+#if 0
+		battery,mst_pwr_en = <SEC_GPIO_REF(${lsi_pwr_en_gpio}) 0>; /* MST_PWR_EN */
+#endif
+		battery,wpc_en = <SEC_GPIO_REF(AP,tlmm,170) 0>; /* WPC_EN */
+
+		battery,charger_name = "max77705-charger";
+		battery,fuelgauge_name = "max77705-fuelgauge";
+		battery,wireless_charger_name = "s2miw04-charger";
+		battery,wc_cover_rpp = <0x44>;
+		battery,phone_fod_threshold = <0x3b>;
+		battery,wireless20_vout_list = <WIRELESS_VOUT_11V /* 0xA0 */
+						WIRELESS_VOUT_11V /* 0xA1 */
+						WIRELESS_VOUT_11V /* 0xA2 */
+						WIRELESS_VOUT_11V /* 0xA3 */
+						WIRELESS_VOUT_11V>; /* 0xA4 */
+		battery,wireless20_vrect_list = <MFC_AFC_CONF_12V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX>;
+		battery,wireless20_max_power_list = <SEC_WIRELESS_RX_POWER_12W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W>;
+		battery,oc_fod1 = <1100>;
+
+		fod_list {
+			count = <1>;
+
+			pad_0x00 { /* DEFAULT */
+				flag = <(SET_FOD_CC(ADD) | SET_FOD_CV(USE_CC) | SET_FOD_FULL(ADD))>;
+				cc = <0x06 0xAA 0x06 0xAA 0x06 0xAA 0x06 0x99 0x06 0x99
+					0x06 0x99 0x0C 0x85 0x0C 0x85 0x08 0x9E 0x08 0x9E>;
+				full = <0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF
+					0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF>;
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/suwon_2111/wireless/s2miw04/s2miw04_charger.r0q.dtsi */
+#include <dt-bindings/battery/sec-battery.h>
+
+&sw_i2c2 {
+	/delete-node/ s2miw04-charger@3b;
+
+	s2miw04_charger: s2miw04-charger@5b {
+		compatible = "lsi,s2miw04-charger";
+		reg = <0x5b>;
+		status = "okay";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&lsi_irq_default &lsi_det_default &lsi_en_default>;
+
+		battery,wpc_int = <SEC_GPIO_REF(AP,tlmm,90) 1>; /* MFC_AP_INT */
+		battery,wpc_det = <SEC_GPIO_REF(PM,pm8350c_gpios,1) 0>; /* WPC_DET */
+#if 0
+		battery,mst_pwr_en = <SEC_GPIO_REF(${lsi_pwr_en_gpio}) 0>; /* MST_PWR_EN */
+#endif
+		battery,wpc_en = <SEC_GPIO_REF(AP,tlmm,170) 0>; /* WPC_EN */
+
+		battery,charger_name = "max77705-charger";
+		battery,fuelgauge_name = "max77705-fuelgauge";
+		battery,wireless_charger_name = "s2miw04-charger";
+		battery,wc_cover_rpp = <0x44>;
+		battery,phone_fod_threshold = <0x3b>;
+		battery,wireless20_vout_list = <WIRELESS_VOUT_9V
+					WIRELESS_VOUT_11V
+					WIRELESS_VOUT_11V
+					WIRELESS_VOUT_11V
+					WIRELESS_VOUT_11V>;
+		battery,wireless20_vrect_list = <MFC_AFC_CONF_12V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX
+						MFC_AFC_CONF_12_5V_TX>;
+		battery,wireless20_max_power_list = <SEC_WIRELESS_RX_POWER_12W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W
+						SEC_WIRELESS_RX_POWER_15W>;
+		battery,oc_fod1 = <1100>;
+		battery,phone_fod_thresh1 = <0x0DAC>; /* 3500mW */
+		battery,wpc_vout_ctrl_full = <WIRELESS_VOUT_5V_STEP>;
+		battery,tx_gear_min_op_freq_delay = <4000>;
+		battery,mis_align_guide;
+		battery,mis_align_target_vout = <5000>;
+		battery,ping_freq = <1480>;
+
+		fod_list {
+			count = <1>;
+
+			pad_0x00 { /* DEFAULT */
+				flag = <(SET_FOD_CC(ADD) | SET_FOD_CV(ADD) | SET_FOD_FULL(ADD))>;
+				cc = <0x32 0xBA 0x19 0x92 0x13 0x92 0x0B 0x8C 0x0A 0x8C
+					0x0A 0x8C 0x09 0x92 0x09 0x96 0x0A 0x96 0x0A 0x99>;
+				cv = <0x32 0xBA 0x19 0xA6 0x13 0xA6 0x0B 0xA0 0x0A 0xA0
+					0x0A 0xA0 0x09 0xA6 0x09 0xAA 0x0A 0xAA 0x0A 0xAD>;
+				full = <0x33 0xFF 0x33 0xFF 0x33 0xFF 0x33 0xFF 0x33 0xFF
+					0x33 0xFF 0x33 0xFF 0x33 0xFF 0x33 0xFF 0x33 0xFF>;
+			};
+		};
+	};
+};
