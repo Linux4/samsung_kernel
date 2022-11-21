@@ -1,0 +1,18 @@
+config SEC_Q2Q_PROJECT
+        default n
+        bool "Samsung Q2Q Project"
+        help
+          Support for Samsung Q2Q Project
+
+config MACH_Q2Q_CHN_OPENX
+        default n
+        bool "Samsung Q2Q CHN OPENX"
+        help
+          Support for Samsung Q2Q CHN OPENX device.
+
+config MACH_Q2Q_CHN_HKX
+        default n
+        bool "Samsung Q2Q CHN HKX"
+        help
+          Support for Samsung Q2Q CHN HKX device.
+
