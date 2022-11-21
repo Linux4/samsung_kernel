@@ -1,0 +1,66 @@
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/{
+	aliases {
+		/delete-property/ i2c4;
+	};
+};
+
+&soc {
+	/delete-node/ i2c@78b8000;
+
+	spi_4: spi@78b8000 { /* BLSP1 QUP4 */
+		status = "ok";
+		compatible = "qcom,spi-qup-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "spi_physical", "spi_bam_physical";
+		reg = <0x78b8000 0x1000>, <0x7884000 0x2b000>;
+		interrupt-names = "spi_irq", "spi_bam_irq";
+		interrupts = <0 98 0>, <0 238 0>;
+
+		spi-max-frequency = <19200000>;
+		qcom,master-id = <86>;
+
+		qcom,ver-reg-exists;
+		qcom,use-pinctrl;
+		qcom,use-bam;
+		qcom,bam-consumer-pipe-index = <10>;
+		qcom,bam-producer-pipe-index = <11>;
+		pinctrl-names = "spi_default", "spi_sleep";
+		pinctrl-0 = <&spi_4_active>;
+		pinctrl-1 = <&spi_4_sleep>;
+
+		clock-names = "iface_clk", "core_clk";
+
+		clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
+			 <&clock_gcc clk_gcc_blsp1_qup4_spi_apps_clk>;
+
+		vfsspi-spi@0 {
+			compatible = "vfsspi,vfs7xxx";
+			reg = <0>;
+			spi-max-frequency = <19200000>;
+			vfsspi-sleepPin = <&msm_gpio 128 0x00>;
+			vfsspi-drdyPin = <&msm_gpio 112 0x01>;
+			vfsspi-ldoPin = <&msm_gpio 122 0x00>;
+			vfsspi-orient = <0>;
+			vfsspi-ldocontrol= <1>;
+			vfsspi-min_cpufeq_limit = <1804800>;
+
+			pinctrl-names = "default", "sleep", "idle";
+			pinctrl-0 = <&vfsspi_drdypin_active &vfsspi_ldopin &vfsspi_sleeppin>;
+			pinctrl-1 = <&vfsspi_drdypin_suspend>;
+			pinctrl-2 = <&vfsspi_drdypin_active>;
+		};
+	};
+};
