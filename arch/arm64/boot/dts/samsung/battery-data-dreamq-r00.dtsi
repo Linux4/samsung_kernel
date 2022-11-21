@@ -1,0 +1,54 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+#include "battery-data-dreamq-common.dtsi"
+
+&spmi_bus {
+	qcom,pm8998@0 {
+		pm8998_gpios: gpios {
+			gpio@cb00 { /* PM8998 GPIO 12 for IFC_SENSE_INT_AP */
+				status = "okay";
+				qcom,pin-num = <12>;
+				qcom,mode = <0>; /* QPNP_PIN_MODE_DIG_IN */
+				qcom,pull = <5>; /* QPNP_PIN_PULL_NO */
+				qcom,vin-sel = <0>; /* QPNP_PIN_VIN0 */
+				qcom,src-sel = <0>; /* QPNP_PIN_SEL_FUNC_CONSTANT */
+				qcom,master-en = <1>; /* Enable GPIO */
+			};
+		};
+	};
+};
+
+&soc {
+
+	i2c14: i2c@14 {	
+		mfc-charger@3b {
+			pinctrl-0 = <&mfc_i2c_active &mfc_irq_active>;
+			pinctrl-1 = <&mfc_i2c_suspend &mfc_irq_suspend>;
+		};
+	};
+
+	battery {
+		battery,temp_check_type = <0>;
+
+		battery,bat2_thermal_source = <0>;
+		battery,bat2_temp_check = <0>;
+		battery,vsys_volt_check = <0>;
+
+		sm5720-fuelgauge {
+			fuelgauge,jig_gpio = <&pm8998_gpios 12 0>; /* IFC_SENSE_INT_AP */
+		};
+	};
+
+	sm5720-fuelgauge {
+		fuelgauge,jig_low_active = <0>;
+	};
+};

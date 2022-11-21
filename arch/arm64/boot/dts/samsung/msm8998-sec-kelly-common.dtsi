@@ -1,0 +1,153 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/*
+ * As a general rule, only Dream project specific property overrides should be placed
+ * inside this file.
+ */
+
+/*
+ * Implement here Samsung Dream project specific dtsi
+ */
+
+#include <dt-bindings/input/input.h>
+
+/{
+	reserved-memory {
+		secure_camera_region: secure_camera_region {
+			compatible = "shared-dma-pool";
+			no-map;
+			reg = <0 0xFE400000 0 0x1400000>;
+			label = "secure_camera_region";
+		};
+
+		secure_camera_scratch_region: secure_camera_scratch_region {
+			compatible = "shared-dma-pool";
+			no-map;
+			reg = <0 0xFE200000 0 0x200000>;
+			label = "secure_camera_scratch_region";
+		};
+	};
+};
+
+&soc {
+	qcom,ion {
+		qcom,ion-heap@17 { /* SECURE CAMERA HEAP */
+			reg = <17>;
+			memory-region = <&secure_camera_region>;
+			qcom,ion-heap-type = "HYP_CMA";
+		};
+
+		qcom,ion-heap@18 { /* SECURE CAMERA HEAP */
+			reg = <18>;
+			memory-region = <&secure_camera_scratch_region>;
+			qcom,ion-heap-type = "HYP_CMA";
+		};
+	};
+};
+
+&sdhc_2 {
+	qcom,sdr104-wa;
+};
+
+&mdss_dp_ctrl {
+	/delete-property/ qcom,dp-usbpd-detection;
+};
+
+&msm_cpufreq {
+	input_booster {
+		booster_key@5 {
+			input_booster,label = "KEYBOARD";
+			input_booster,type = <4>;	/* BOOSTER_DEVICE_KEYBOARD */
+
+			input_booster,levels = <0>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <0>;
+			input_booster,hmp_boost = <0>;
+			input_booster,bimc_freqs = <0>;
+
+			/* Time table */
+			input_booster,head_times = <0>;
+			input_booster,tail_times = <0>;
+		};
+		/* If you need to add new key type, add it this position */
+	};
+
+};
+
+&rpm_bus {
+	rpm-regulator-ldoa6 {
+		regulator-l6 {
+			status = "okay";
+			regulator-name = "tsp_io";
+			regulator-boot-on;
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+		};
+	};
+
+	rpm-regulator-ldoa28 {
+		regulator-l28 {
+			status = "okay";
+			regulator-name = "tsp_avdd";
+			regulator-boot-on;
+			regulator-min-microvolt = <3000000>;
+			regulator-max-microvolt = <3000000>;
+		};
+	};
+};
+
+&i2c_8 {
+	pinctrl-names = "i2c_active", "i2c_sleep", "default";
+	pinctrl-0 = <&i2c_8_active>;
+	pinctrl-1 = <&i2c_8_sleep>;
+	pinctrl-2 = <&i2c_8_active>;
+
+	status = "okay";
+	touchscreen@48 {
+		status = "disabled";
+		compatible = "sec,sec_ts";
+		reg = <0x48>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&attn_irq>;
+		pinctrl-1 = <&attn_irq>;
+		sec,irq_gpio = <&tlmm 121 0x2008>;
+		sec,irq_type = <8200>;
+		sec,tsp_sel = <&tlmm 24 0>;
+		sec,max_coords = <4096 4096>;   /* x y */
+		sec,regulator_dvdd = "s2mpb02-sub-ldo9";
+		sec,regulator_avdd = "s2mpb02-sub-ldo14";
+		sec,regulator_boot_on;
+		sec,mis_cal_check = <1>;
+		sec,pat_function = <1>;
+		sec,afe_base = <0x00>;
+		sec,project_name = "KELLY", "W2018";
+		sec,bringup = <0>;
+		sec,firmware_name = "tsp_sec/y661_kelly.fw";
+	};
+};
+
+&firmware {
+	android {
+		fstab {
+			compatible = "android,fstab";
+			system {
+				/delete-property/dev;
+				/delete-property/fsmgr_flags;
+				dev = "/dev/block/platform/soc/1da4000.ufshc/by-name/system";
+				fsmgr_flags = "wait,verify";
+			};
+		};
+	};
+};

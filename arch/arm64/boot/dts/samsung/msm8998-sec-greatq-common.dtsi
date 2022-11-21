@@ -1,0 +1,342 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/*
+ * As a general rule, only Baikal project specific property overrides should be placed
+ * inside this file.
+ */
+
+/*
+ * Implement here Samsung Baikal project specific dtsi
+ */
+
+#include <dt-bindings/input/input.h>
+
+/{
+	reserved-memory {
+		secure_camera_region: secure_camera_region {
+			compatible = "shared-dma-pool";
+			no-map;
+			reg = <0 0xFE400000 0 0x1400000>;
+			label = "secure_camera_region";
+		};
+
+		secure_camera_scratch_region: secure_camera_scratch_region {
+			compatible = "shared-dma-pool";
+			no-map;
+			reg = <0 0xFE200000 0 0x200000>;
+			label = "secure_camera_scratch_region";
+		};
+
+		/delete-node/ camera_mem_region@0xC0000000;
+		/* Reserved Mem for Camera 410M */
+		camera_mem: camera_mem_region@0xC0000000 {
+			reg = <0x0 0xC0000000 0x0 0x19A00000>;
+		};
+	};
+};
+
+&soc {
+	qcom,ion {
+		qcom,ion-heap@17 { /* SECURE CAMERA HEAP */
+			reg = <17>;
+			memory-region = <&secure_camera_region>;
+			qcom,ion-heap-type = "HYP_CMA";
+		};
+
+		qcom,ion-heap@18 { /* SECURE CAMERA HEAP */
+			reg = <18>;
+			memory-region = <&secure_camera_scratch_region>;
+			qcom,ion-heap-type = "HYP_CMA";
+		};
+	};
+};
+
+&mdss_dp_ctrl {
+	/delete-property/ qcom,dp-usbpd-detection;
+};
+
+&soc {
+	gpio_keys {
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+
+		/delete-node/ cam_snapshot;
+		/delete-node/ cam_focus;
+
+		wink_key {
+			label = "wink_key";
+			gpios = <&pm8998_gpios 19 0x1>;
+			linux,input-type = <1>;
+			linux,code = <KEY_WINK>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+	};
+
+	wacom_ldo_en: wacom_ldo_en {
+		compatible = "regulator-fixed";
+		regulator-name = "wacom_3.3v";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&expander_gpios 2 0>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+
+	sec_abc {
+		compatible = "samsung,sec_abc";
+		status = "okay";
+
+		gpu {
+			gpu,label="GPU fault";
+			gpu,threshold_count=<4>;
+			gpu,threshold_time=<1200>;
+		};
+		gpu_page {
+			gpu_page,label="GPU page fault";
+			gpu_page,threshold_count=<20>;
+			gpu_page,threshold_time=<1200>;
+		};
+		aicl {
+			aicl,label="battery aicl";
+			aicl,threshold_count=<5>;
+			aicl,threshold_time=<300>;
+		};
+	};
+};
+
+&sdhc_2 {
+	qcom,sdr104-wa;
+};
+
+&rpm_bus {
+	rpm-regulator-ldoa6 {
+		regulator-l6 {
+			status = "okay";
+			regulator-name = "tsp_io";
+			regulator-boot-on;
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+		};
+	};
+
+	rpm-regulator-ldoa28 {
+		regulator-l28 {
+			status = "okay";
+			regulator-name = "tsp_avdd";
+			regulator-boot-on;
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+		};
+	};
+};
+
+&i2c_8 {
+	pinctrl-names = "i2c_active", "i2c_sleep", "default";
+	pinctrl-0 = <&i2c_8_active>;
+	pinctrl-1 = <&i2c_8_sleep>;
+	pinctrl-2 = <&i2c_8_active>;
+
+	status = "okay";
+
+	/* lsi */
+	touchscreen@48 {
+		status = "okay";
+		compatible = "sec,sec_ts";
+		reg = <0x48>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&attn_irq>;
+		pinctrl-1 = <&attn_irq>;
+		pressure-sensor = "Y";
+		sec,tsp-id_gpio = <&pm8005_gpios 1 0>;
+		sec,irq_gpio = <&tlmm 121 0x2008>;
+		sec,irq_type = <8200>;
+		sec,max_coords = <4095 4095>;   /* x y */
+		sec,mis_cal_check = <1>;
+		sec,regulator_dvdd = "tsp_io";
+		sec,regulator_avdd = "tsp_avdd";
+		sec,regulator_boot_on;
+//		sec,always_lpmode = <1>;
+		sec,pat_function = <2>;
+		sec,afe_base = <0x0117>;
+		sec,project_name = "GREAT", "N950";
+		sec,firmware_name = "tsp_sec/y661_great.fw", "tsp_sec/y661_great.fw";
+		support_dex_mode;
+	};
+};
+
+&tlmm {
+	epen_int {
+		epen_int_active: epen_int_active {
+			epen_int_active {
+				pins = "gpio123", "gpio125";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+		epen_int_suspend: epen_int_suspend {
+			epen_int_suspend {
+				pins = "gpio123", "gpio125";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+	};
+};
+
+&i2c_9 {
+	status = "okay";
+
+	wacom@56 {
+		compatible = "wacom,w90xx";
+		reg = <0x56>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&epen_int_active>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <125 0x0>;
+		vddo-supply = <&wacom_ldo_en>; /* vdd3.3v - use regulator-fixed */
+		/* gpios */
+		wacom,irq-gpio = <&tlmm 125 0x0>;
+		wacom,pdct-gpio = <&tlmm 123 0x0>;
+		wacom,fwe-gpio = <&tlmm 126 0x0>;
+		wacom,irq_type = <8>; /*IRQF_TRIGGER_LOW*/
+		/* features */
+		wacom,boot_addr = <0x09>;
+		wacom,origin = <0 0>; /* x y */
+		wacom,max_coords = <14430 7020>; /* x y */
+		wacom,max_pressure = <4095>;
+		wacom,max_x_tilt = <63>;
+		wacom,max_y_tilt = <63>;
+		wacom,max_height = <255>;
+		wacom,project_name = "GREAT", "N950";
+		wacom,invert = <1 0 1>; /* x y switch */
+		wacom,fw_path = "epen/w9018_great.fw";
+		wacom,fw_fac_path = "epen/w9018_great_fac.fw";
+		wacom,ic_type = <9018>;
+		wacom,use_virtual_softkey;
+		wacom,support_aop_mode = "1"; /* S-note want to check to use aop */
+		wacom,use_garage;
+		wacom,support_dex_mode;
+		wacom,dex_rate = <10>;
+		wacom,table_swap_for_dex_station;
+	};
+};
+
+&msm_cpufreq {
+	/delete-node/ qcom,cpufreq-boot-limit-default;
+
+	qcom,cpufreq-boot-limit-greatqlte-fac {
+		qcom,cpufreq-boot-limit,num-period = <2>;
+		qcom,cpufreq-boot-limit,table = <1478400 1497600 300>, /* period 0 */
+					<1478400 1497600 450>; /* period 1 */
+		status = "disabled";
+	};
+	
+	qcom,cpufreq-boot-limit-greatqlte {
+		status = "disabled";
+	};
+
+};
+
+
+/* GPU overrides (GPU Max clock 670->710) by:biam.lee*/
+&msm_gpu {
+	/* Updated chip ID */
+	qcom,chipid = <0x05040001>;
+	qcom,initial-pwrlevel = <6>;
+
+	qcom,gpu-pwrlevels {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		compatible = "qcom,gpu-pwrlevels";
+
+		qcom,gpu-pwrlevel@0 {
+			reg = <0>;
+			qcom,gpu-freq = <710000000>;
+			qcom,bus-freq = <12>;
+			qcom,bus-min = <12>;
+			qcom,bus-max = <12>;
+		};
+
+		qcom,gpu-pwrlevel@1 {
+			reg = <1>;
+			qcom,gpu-freq = <670000000>;
+			qcom,bus-freq = <12>;
+			qcom,bus-min = <11>;
+			qcom,bus-max = <12>;
+		};
+
+		qcom,gpu-pwrlevel@2 {
+			reg = <2>;
+			qcom,gpu-freq = <596000000>;
+			qcom,bus-freq = <11>;
+			qcom,bus-min = <9>;
+			qcom,bus-max = <12>;
+		};
+
+ 		qcom,gpu-pwrlevel@3 {
+ 			reg = <3>;
+			qcom,gpu-freq = <515000000>;
+			qcom,bus-freq = <11>;
+			qcom,bus-min = <9>;
+			qcom,bus-max = <12>;
+		};
+
+		qcom,gpu-pwrlevel@4 {
+			reg = <4>;
+ 			qcom,gpu-freq = <414000000>;
+ 			qcom,bus-freq = <9>;
+ 			qcom,bus-min = <8>;
+ 			qcom,bus-max = <11>;
+ 		};
+ 
+		qcom,gpu-pwrlevel@5 {
+			reg = <5>;
+ 			qcom,gpu-freq = <342000000>;
+ 			qcom,bus-freq = <8>;
+ 			qcom,bus-min = <5>;
+ 			qcom,bus-max = <9>;
+ 		};
+ 
+		qcom,gpu-pwrlevel@6 {
+			reg = <6>;
+ 			qcom,gpu-freq = <257000000>;
+ 			qcom,bus-freq = <5>;
+ 			qcom,bus-min = <3>;
+ 			qcom,bus-max = <8>;
+ 		};
+ 
+		qcom,gpu-pwrlevel@7 {
+			reg = <7>;
+ 			qcom,gpu-freq = <27000000>;
+ 			qcom,bus-freq = <0>;
+ 			qcom,bus-min = <0>;
+		};
+	};
+};
+
+&firmware {
+	android {
+		fstab {
+			compatible = "android,fstab";
+			system {
+				/delete-property/dev;
+				/delete-property/fsmgr_flags;
+				dev = "/dev/block/platform/soc/1da4000.ufshc/by-name/system";
+				fsmgr_flags = "wait,verify";
+			};
+		};
+	};
+};
+

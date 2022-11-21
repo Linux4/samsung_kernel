@@ -1,0 +1,79 @@
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&rpm_bus {
+	rpm-regulator-ldoa23 {
+		regulator-l23 {
+			regulator-name = "VDD_BTP_3P3";
+			/delete-property/ regulator-boot-on;
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			qcom,init-ldo-mode = <1>;
+			qcom,system-load = <600000>;
+			status = "okay";
+		};
+	};
+};
+
+&soc {
+	tlmm: pinctrl@03400000 {
+		vfsspi_drdypin {
+			vfsspi_drdypin_active: vfsspi_drdypin_active {
+				mux {
+					pins = "gpio127";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio127";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+
+			vfsspi_drdypin_suspend: vfsspi_drdypin_suspend {
+				mux {
+					pins = "gpio127";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio127";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+		};
+	};
+};
+
+&spi_12 {
+	status = "ok";
+
+	vfsspi-spi@0 {
+		compatible = "vfsspi,vfs8xxx";
+		reg = <0>;
+		spi-max-frequency = <16000000>;
+		vfsspi-sleepPin = <&expander_gpios 20 0>;
+		vfsspi-drdyPin = <&tlmm 127 0x01>;
+		vfsspi-regulator = "VDD_BTP_3P3";
+		vfsspi-orient = <0>;
+		vfsspi-min_cpufreq_limit = <2150400>;
+		vfsspi-wog = <1>;
+
+		vfsspi-chipid = "NAMSAN";
+
+
+		pinctrl-names = "default", "sleep", "idle";
+		pinctrl-0 = <&vfsspi_drdypin_active>;
+		pinctrl-1 = <&vfsspi_drdypin_suspend>;
+		pinctrl-2 = <&vfsspi_drdypin_active>;
+	};
+};

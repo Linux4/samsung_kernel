@@ -1,0 +1,408 @@
+/*
+ * Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/{
+	aliases {
+		spi10 = &spi_10;
+	};
+};
+
+&soc {
+	i2c_11: i2c@c1b9000 {
+		status = "ok";
+		tfa98xx_spk1: tfa98xx@34{
+			compatible = "nxp,tfa98xx";
+			reg = <0x34>;
+		};
+		tfa98xx_spk2: tfa98xx@35{
+			compatible = "nxp,tfa98xx";
+			reg = <0x35>;
+		};
+		tfa98xx_spk3: tfa98xx@36{
+			compatible = "nxp,tfa98xx";
+			reg = <0x36>;
+		};
+		tfa98xx_spk4: tfa98xx@37{
+			compatible = "nxp,tfa98xx";
+			reg = <0x37>;
+		};
+	};
+
+	det_zones: det_zones {
+		#list-det-cells = <2>;
+	};
+
+	/delete-node/sound-9335;
+	/delete-node/msm_cdc_pinctrl@75;
+	/delete-node/audio_ext_clk ;
+	/delete-node/msm_cdc_pinctrl@59;
+	/delete-node/msm_cdc_pinctrl@60;
+	/delete-node/qcom,wcd-dsp-mgr;
+	/delete-node/qocm,wcd-dsp-glink;
+
+	sound-tavil {
+		compatible = "qcom,msm8998-asoc-snd-tavil";
+		qcom,model = "msm8998-tavil-snd-card";
+		qcom,ext-disp-audio-rx;
+		qcom,mi2s-audio-intf;
+		qcom,msm-mi2s-master = <1>, <1>, <1>, <1>;
+
+		reg = <0x1711a000 0x4>,
+		      <0x1711b000 0x4>,
+		      <0x1711c000 0x4>,
+		      <0x1711d000 0x4>;
+		reg-names = "lpaif_pri_mode_muxsel",
+			    "lpaif_sec_mode_muxsel",
+			    "lpaif_tert_mode_muxsel",
+			    "lpaif_quat_mode_muxsel";
+
+		qcom,audio-routing =
+			"RX_BIAS", "MCLK",
+			"AMIC2", "MIC BIAS2",
+			"MIC BIAS2", "Headset Mic",
+			"AMIC3", "MIC BIAS2",
+			"MIC BIAS2", "FMLeft Tx",
+			"AMIC4", "MIC BIAS2",
+			"MIC BIAS2", "FMRight Tx",
+			"DMIC0", "MIC BIAS1",
+			"MIC BIAS1", "Digital Mic0",
+			"DMIC1", "MIC BIAS1",
+			"MIC BIAS1", "Digital Mic1",
+			"DMIC2", "MIC BIAS3",
+			"MIC BIAS3", "Digital Mic2",
+			"DMIC3", "MIC BIAS3",
+			"MIC BIAS3", "Digital Mic3",
+			"DMIC4", "MIC BIAS4",
+			"MIC BIAS4", "Digital Mic4",
+			"DMIC5", "MIC BIAS4",
+			"MIC BIAS4", "Digital Mic5";
+
+		qcom,msm-mbhc-hphl-swh = <1>;
+		qcom,msm-mbhc-gnd-swh = <1>;
+		qcom,amux_channel = <18>;
+		qcom,det_debounce_time_ms = <50>;
+		qcom,button-click-suppressor;
+		qcom,earjack-read-vadc = <&pm8998_vadc>;
+		qcom,tavil-mclk-clk-freq = <9600000>;
+		qcom,nxp-amps = <&tfa98xx_spk1>, <&tfa98xx_spk2>, <&tfa98xx_spk3>, <&tfa98xx_spk4>;
+
+		asoc-platform = <&pcm0>, <&pcm1>, <&pcm2>, <&voip>, <&voice>,
+				<&loopback>, <&compress>, <&hostless>,
+				<&afe>, <&lsm>, <&routing>, <&cpe>, <&compr>,
+				<&pcm_noirq>, <&trans_loopback>,
+				<&samsung_q6audio_adaptation>;
+		asoc-platform-names = "msm-pcm-dsp.0", "msm-pcm-dsp.1",
+				"msm-pcm-dsp.2", "msm-voip-dsp",
+				"msm-pcm-voice", "msm-pcm-loopback",
+				"msm-compress-dsp", "msm-pcm-hostless",
+				"msm-pcm-afe", "msm-lsm-client",
+				"msm-pcm-routing", "msm-cpe-lsm",
+				"msm-compr-dsp", "msm-pcm-dsp-noirq",
+				"msm-transcode-loopback", "q6audio-adaptation";
+		asoc-cpu = <&dai_hdmi>, <&dai_dp>,
+				<&dai_mi2s0>, <&dai_mi2s1>,
+				<&dai_mi2s2>, <&dai_mi2s3>,
+				<&dai_pri_auxpcm>, <&dai_sec_auxpcm>,
+				<&dai_tert_auxpcm>, <&dai_quat_auxpcm>,
+				<&sb_0_rx>, <&sb_0_tx>, <&sb_1_rx>, <&sb_1_tx>,
+				<&sb_2_rx>, <&sb_2_tx>, <&sb_3_rx>, <&sb_3_tx>,
+				<&sb_4_rx>, <&sb_4_tx>, <&sb_5_tx>,
+				<&afe_pcm_rx>, <&afe_pcm_tx>, <&afe_proxy_rx>,
+				<&afe_proxy_tx>, <&incall_record_rx>,
+				<&incall_record_tx>, <&incall_music_rx>,
+				<&incall_music_2_rx>, <&sb_5_rx>, <&sb_6_rx>,
+				<&usb_audio_rx>, <&usb_audio_tx>,
+				<&dai_pri_tdm_rx_0>, <&dai_pri_tdm_tx_0>,
+				<&dai_sec_tdm_rx_0>, <&dai_sec_tdm_tx_0>,
+				<&dai_tert_tdm_rx_0>, <&dai_tert_tdm_tx_0>,
+				<&dai_quat_tdm_rx_0>, <&dai_quat_tdm_tx_0>,
+				<&sb_7_rx>, <&sb_7_tx>, <&sb_8_tx>;
+		asoc-cpu-names = "msm-dai-q6-hdmi.8",  "msm-dai-q6-dp.24608",
+				"msm-dai-q6-mi2s.0", "msm-dai-q6-mi2s.1",
+				"msm-dai-q6-mi2s.2", "msm-dai-q6-mi2s.3",
+				"msm-dai-q6-auxpcm.1", "msm-dai-q6-auxpcm.2",
+				"msm-dai-q6-auxpcm.3", "msm-dai-q6-auxpcm.4",
+				"msm-dai-q6-dev.16384", "msm-dai-q6-dev.16385",
+				"msm-dai-q6-dev.16386", "msm-dai-q6-dev.16387",
+				"msm-dai-q6-dev.16388", "msm-dai-q6-dev.16389",
+				"msm-dai-q6-dev.16390", "msm-dai-q6-dev.16391",
+				"msm-dai-q6-dev.16392", "msm-dai-q6-dev.16393",
+				"msm-dai-q6-dev.16395", "msm-dai-q6-dev.224",
+				"msm-dai-q6-dev.225", "msm-dai-q6-dev.241",
+				"msm-dai-q6-dev.240", "msm-dai-q6-dev.32771",
+				"msm-dai-q6-dev.32772", "msm-dai-q6-dev.32773",
+				"msm-dai-q6-dev.32770", "msm-dai-q6-dev.16394",
+				"msm-dai-q6-dev.16396", "msm-dai-q6-dev.28672",
+				"msm-dai-q6-dev.28673", "msm-dai-q6-tdm.36864",
+				"msm-dai-q6-tdm.36865", "msm-dai-q6-tdm.36880",
+				"msm-dai-q6-tdm.36881", "msm-dai-q6-tdm.36896",
+				"msm-dai-q6-tdm.36897", "msm-dai-q6-tdm.36912",
+				"msm-dai-q6-tdm.36913", "msm-dai-q6-dev.16398",
+				"msm-dai-q6-dev.16399", "msm-dai-q6-dev.16401";
+		asoc-codec = <&stub_codec>, <&ext_disp_audio_codec>;
+		asoc-codec-names = "msm-stub-codec.1",
+				   "msm-ext-disp-audio-codec-rx";
+
+		det-zones-list = <&det_zones 0 2>,
+				 <&det_zones 690 2>,
+				 <&det_zones 691 1>,
+				 <&det_zones 9999 1>;
+
+		mbhc-button-thres = <&det_zones 13 63>,
+				 <&det_zones 88 138>,
+				 <&det_zones 138 138>,
+				 <&det_zones 225 225>,
+				 <&det_zones 450 450>,
+				 <&det_zones 470 470>,
+				 <&det_zones 470 470>,
+				 <&det_zones 650 650>;
+
+		/delete-property/qcom,auxpcm-audio-intf;
+		/delete-property/qcom,us-euro-gpios;
+		/delete-property/qcom,hph-en0-gpio;
+		/delete-property/qcom,hph-en1-gpio;
+		/delete-property/qcom,wsa-max-devs;
+		/delete-property/qcom,wsa-devs;
+		/delete-property/qcom,wsa-aux-dev-prefix;
+		/delete-property/qcom,usbc-analog-en1_gpio;
+		/delete-property/qcom,usbc-analog-en2_n_gpio;
+	};
+
+	qcom,msm-dai-tdm-tert-rx {
+		compatible = "qcom,msm-dai-tdm";
+		qcom,msm-cpudai-tdm-group-id = <37152>;
+		qcom,msm-cpudai-tdm-group-num-ports = <1>;
+		qcom,msm-cpudai-tdm-group-port-id = <36896>;
+		qcom,msm-cpudai-tdm-clk-rate = <3072000>;
+		qcom,msm-cpudai-tdm-clk-internal = <1>;
+		qcom,msm-cpudai-tdm-sync-mode = <1>;
+		qcom,msm-cpudai-tdm-sync-src = <1>;
+		qcom,msm-cpudai-tdm-data-out = <0>;
+		qcom,msm-cpudai-tdm-invert-sync = <1>;
+		qcom,msm-cpudai-tdm-data-delay = <1>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&tert_mi2s_active &tert_mi2s_sd0_active &tert_mi2s_sd1_active>;
+		pinctrl-1 = <&tert_mi2s_sleep &tert_mi2s_sd0_sleep &tert_mi2s_sd1_sleep>;
+		dai_tert_tdm_rx_0: qcom,msm-dai-q6-tdm-tert-rx-0 {
+			compatible = "qcom,msm-dai-q6-tdm";
+			qcom,msm-cpudai-tdm-dev-id = <36896>;
+			qcom,msm-cpudai-tdm-data-align = <0>;
+		};
+	};
+
+	samsung_q6audio_adaptation: samsung,q6audio-adaptation {
+		compatible = "samsung,q6audio-adaptation";
+	};
+
+	/delete-node/i2c_10;
+	spi_10: spi@c1b8000 { /* BLSP2 QUP4 */
+		compatible = "qcom,spi-qup-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "spi_physical", "spi_bam_physical";
+		reg = <0xC1B8000 0x600>,
+		      <0xC184000 0x25000>;
+		interrupt-names = "spi_irq", "spi_bam_irq";
+		interrupts = <0 104 0>, <0 239 0>;
+
+		spi-max-frequency = <19200000>;
+
+		qcom,gpio-mosi = <&tlmm 65 0>;
+		qcom,gpio-miso = <&tlmm 66 0>;
+		qcom,gpio-clk  = <&tlmm 68 0>;
+		qcom,gpio-cs0  = <&tlmm 67 0>;
+
+		qcom,use-bam;
+		qcom,ver-reg-exists;
+		qcom,bam-consumer-pipe-index = <12>;
+		qcom,bam-producer-pipe-index = <13>;
+		qcom,master-id = <84>;
+		qcom,infinite-mode = <0>;
+		qcom,use-pinctrl;
+		pinctrl-names = "spi_default", "spi_sleep";
+		pinctrl-0 = <&spi_10_active &spi_10_cs0_active>;
+		pinctrl-1 = <&spi_10_sleep &spi_10_cs0_sleep>;
+		clock-names = "iface_clk", "core_clk";
+		clocks = <&clock_gcc clk_gcc_blsp2_ahb_clk>,
+			 <&clock_gcc clk_gcc_blsp2_qup4_spi_apps_clk>;
+		status = "okay";
+
+		dbmd8_spi:dbmd8_interface@0  {
+			compatible = "dspg,dbmd8-spi";
+			spi-max-frequency = <1000000>;
+			read-chunk-size  = <0x2000> ;
+			write-chunk-size = <0x20000> ;
+			reg = <0>;
+			qcom,spiop-read = <0x03 3 0 0 0>;
+			qcom,spiop-readseq = <0x03 3 0 0 0>;
+			qcom,spiop-queryid = <0x90 3 0 0 0>;
+			qcom,spiop-pprog = <0x02 2 0 0 0>;
+			qcom,spiop-wenable = <0x06 0 0 0 0>;
+			qcom,spiop-readst = <0x05 0 0 0 0>;
+			qcom,spiop-erase = <0x20 2 0 10 30>;
+			qcom,spi-busy-mask = <0x01>;
+			qcom,spi-page-size = <0x256>;
+			qcom,spi-erase-size = <0x4096>;
+		};
+	};
+
+	dbmdx_event {
+		status = "okay";
+		compatible = "samsung,dbmdx-event";
+	};
+
+	dbmdx-snd-soc-platform {
+		compatible = "dspg,dbmdx-snd-soc-platform";
+	};
+
+	snd-dbmdx-mach-drv {
+		compatible = "dspg,snd-dbmdx-mach-drv";
+	};
+
+	dbmdx {
+		status = "okay";
+		compatible = "dspg,dbmdx-codec";
+		qcom,use-pinctrl;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&dbmdx_int_active &dbmdx_rst_active &dbmdx_wake_active>;
+		pinctrl-1 = <&dbmdx_int_sleep &dbmdx_rst_sleep &dbmdx_wake_sleep>;
+		sv-gpio = <&tlmm 53 0>; /* VOICE_INT */
+		wakeup-gpio = <&tlmm 24 0>; /* VOICE_WAKE */
+		reset-gpio = <&tlmm 25 0>; /* VOICE_RST */
+		auto_buffering = <1>;
+		cmd-interface = <&dbmd8_spi>;
+		feature-va; /* enable VA */
+		va-interfaces = <0 0 0 0>;
+		va-firmware-name = "dbmd8_va_fw.bin";
+		va-asrp-params-firmware-name = "dbmd8_va_asrp_fw.bin";
+		va-config = <0x80000000
+			     0x80000000
+			     0x80000000
+			     0x80290020
+			     0x80093004
+			     0x802210E1
+			     0x80159494
+			     0x801b0020
+			     0x80230000
+			     0x801A0011
+			     0x8010700F
+			     0x8aab0040
+			     0x800C7530
+			     0x80000000
+			     0x80000000
+			     0x80000000
+			     0x80000000>;
+		va-ns-config = <0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+			     0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+			     0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+			     0x8013FF20 0x8013FFF0 0x8013FFF2 0x8013FFF0 0x8013FFFF
+			     0x801A0011 0x801A0287 0x801A0011 0x801A0011 0x80340000
+			     0x80110E10 0x80340040 0x80110E10 0x80340040 0x80000000
+			     0x80111EEE 0x80000000 0x80111EEE 0x80000000 0x80000000
+			     0x80112EE2 0x80000000 0x80112EE2 0x80000000 0x80000000
+			     0x80113EEE 0x80000000 0x80113EEE 0x80000000 0x80000000
+			     0x80340243 0x80000000 0x80340243 0x80000000 0x80000000
+			     0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+			     0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+			     0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+			     0x80000000 0x80000000 0x80000000 0x80000000 0x80000000>;	
+		va-speeds = <0x0000 0 0 5000000
+			     0x0000 0 0 5000000
+			     0x0000 0 0 5000000 >;
+		va-mic-config = <0xa021 0x5024 0x0008>;
+		va-mic-mode = <2>;
+		master-clk-rate = <32768>;
+		/* constant-clk-rate = <32768>; */
+		firmware_id = <0xdbd8>;
+		use_gpio_for_wakeup = <1>; /* Use wakeup gpio */
+		wakeup_set_value = <0>;  /* Value to write to wakeup gpio */
+		auto_detection = <1>;
+		detection_buffer_channels = <1>;
+		min_samples_chunk_size = <128>;
+		pcm_streaming_mode = <1>;
+		boot_options = <0x220>; /* Verify chip id */
+		send_uevent_on_detection = <1>;
+		send_uevent_after_buffering = <0>;
+		detection_after_buffering = <0>;
+		va_backlog_length = <1802>;
+		va_backlog_length_okg = <1000>;
+		amodel_options = <0x1B>;
+		va_ns_supported = <1>;
+		va_ns-num_of_configs = <5>;
+	};
+};
+
+&slim_aud {
+	/delete-node/tasha_codec;
+	/delete-node/msm_dai_slim;
+
+	imp_list: imp_list {
+	#list-imp-cells = <3>;
+	};
+
+	tavil_codec {
+		qcom,cdc-micbias2-mv = <2700>;
+		qcom,cdc-dmic-sample-rate = <2400000>;
+		qcom,cdc-dmic-clk-drv-strength = <2>;
+		qcom,tavil-tx-unmute-delay-ms = <45>;
+		imp-table = <&imp_list 0 0 4>,
+				 <&imp_list 1 15 0>,
+				 <&imp_list 16 27 3>,
+				 <&imp_list 28 44 4>,
+				 <&imp_list 45 102 7>,
+				 <&imp_list 103 202 9>,
+				 <&imp_list 203 1000 10>,
+				 <&imp_list 1001 0x7fffffff 4>;
+
+		wcd: wcd_pinctrl@5 {
+			status = "disabled";
+		};
+		/delete-node/msm_cdc_pinctrll;
+		/delete-node/msm_cdc_pinctrlr;
+		/delete-node/msm_cdc_pinctrl_us_euro_sw;
+		/delete-node/msm_cdc_pinctrl_hph_en0;
+		/delete-node/msm_cdc_pinctrl_hph_en1;
+		/delete-node/swr_master;
+		/delete-node/wcd_spi;
+	};
+};
+
+&pm8998_vadc {
+	chan@12 {
+		label = "ear_adc_35";
+		reg = <0x12>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "absolute";
+		qcom,scale-function = <0>;
+		qcom,hw-settle-time = <0>;
+		qcom,fast-avg-setup = <0>;
+	};
+};
+
+&spmi_bus {
+	qcom,pm8998@0 {
+		pm8998_gpios: gpios {
+			gpio@c700 { /* GPIO 8 EAR_ADC_3.5 */
+				qcom,pin-num = <8>;
+				qcom,master-en = <0>;
+				status = "okay";
+			};
+			gpio@cd00 { /* GPIO 14 VOICE_CLK */
+				qcom,pin-num = <14>;
+				qcom,mode = <1>;
+				status = "okay";
+			};
+		};
+	};
+};

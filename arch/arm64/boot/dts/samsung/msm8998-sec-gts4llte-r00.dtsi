@@ -1,0 +1,519 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "msm8998-pinctrl-sec-gts4llte-r00.dtsi"
+#include "msm8998-s2mu004.dtsi"
+#include "../../../../drivers/motor/tuning/gts4llte_motor_tuning.dtsi"
+#include "../../../../drivers/leds/tuning/gts4llte_led_tuning.dtsi"
+#include "msm8998-sec-gts4llte-audio.dtsi"
+//#include "msm8998-sec-dreamq-mst-r00.dtsi"
+#include "msm8998-sec-gts4llte-displayport-r00.dtsi"
+//#include "msm8998-greatqlte_fingerprint-sensor_00.dtsi"
+#include "msm8998-sec-gts4llte-display-r00.dtsi"
+#include "msm8998-camera-sensor-gts4llte-r00.dtsi"
+
+/{
+	aliases {
+		i2c22 = &i2c_22;
+		i2c7 = &i2c_7;
+		spi2 = &spi_2;
+		spi5 = &spi_5;
+	};
+
+};
+
+&sdhc_2 {
+	sec,tflash-en-gpio = <&expander_gpios 0 0>;     /* GPIO Expander P0_0 */
+	cd-gpios = <&tlmm 95 0x1>;			/* Low Active */
+};
+
+&soc {
+	i2c_22: i2c@22 { /* pcal6524*/
+		cell-index = <22>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 96 0 /* sda */
+			&tlmm 69 0 /* scl */
+			>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		expander_gpios: pcal6524@22 {
+			compatible = "pcal6524,gpio-expander";
+			gpio-controller;
+			#gpio-cells = <2>;
+			reg = <0x22>;
+			pinctrl-names = "expander_reset_setting";
+			pinctrl-0 = <&expander_reset_active>;
+			pcal6524,gpio_start = <300>;
+			pcal6524,ngpio = <24>;
+			pcal6524,reset-gpio = <&tlmm 108 0>;
+			pcal6524,vdd-supply = <&pm8998_s4>;
+			pcal6524,support_initialize = <1>;
+			/* config, 24 ~ 0, 1bit configure[1:input, 0:output]*/
+			pcal6524,config = <0xAFFFFF>;    /* P2[10101111] P1[11111111] P0[11111111] */
+			/* data_out, 24 ~ 0, 1bit configure[1:high, 0:low]*/
+			pcal6524,data_out = <0x000000>;  /* P2[00000000] P1[00000000] P0[00000000] */
+			/* pull_reg, 8 ~ 0, 2bit configure[00:no_pull, 01:pull_down, 10:pull_up, 11:not used] */
+			pcal6524,pull_reg_p0 = <0x0000>; /* 00 00 00 00 / 00 00 00 00 */
+			pcal6524,pull_reg_p1 = <0x0000>; /* 00 00 00 00 / 00 00 00 00 */
+			pcal6524,pull_reg_p2 = <0x0000>; /* 00 00 00 00 / 00 00 00 00 */
+		};
+	};
+
+	samsung,vibrator {
+		compatible = "samsung_vib";
+		pinctrl-names = "tlmm_motor_active","tlmm_motor_suspend";
+		pinctrl-0 = <&motor_pwm_active>;
+		pinctrl-1 = <&motor_pwm_suspend>;
+		samsung,vib_pwm = <&tlmm 57 0>;
+		samsung,vib_power = <&pm8998_gpios 18 0>;
+		samsung,gp_clk = <0x00164000>;   // Address of GP1 clock
+		samsung,chip_model = <6>;         // using s2mu004 driver
+		samsung,support_multi_freq = <1>;
+		status = "ok";
+	};
+
+	sec_smem@0 {
+		compatible = "samsung,sec-smem";
+		status = "okay";
+	};
+
+	blsp1_uart3_hs: uart@c171000 { /* BLSP1 UART3 */
+		compatible = "qcom,msm-hsuart-v14";
+		reg = <0xC171000 0x200>,
+		    <0xC144000 0x25000>;
+		reg-names = "core_mem", "bam_mem";
+		interrupt-names = "core_irq", "bam_irq", "wakeup_irq";
+		#address-cells = <0>;
+		interrupt-parent = <&blsp1_uart3_hs>;
+		interrupts = <0 1 2>;
+		#interrupt-cells = <1>;
+		interrupt-map-mask = <0xffffffff>;
+		interrupt-map = <0 &intc 0 0 109 0
+			    1 &intc 0 0 238 0
+			    2 &tlmm 46 0>;
+
+		qcom,inject-rx-on-wakeup;
+		qcom,rx-char-to-inject = <0xFD>;
+
+		qcom,bam-tx-ep-pipe-index = <4>;
+		qcom,bam-rx-ep-pipe-index = <5>;
+		qcom,master-id = <86>;
+		clock-names = "core_clk", "iface_clk";
+		clocks = <&clock_gcc clk_gcc_blsp1_uart3_apps_clk>,
+		    <&clock_gcc clk_gcc_blsp1_ahb_clk>;
+		pinctrl-names = "sleep", "default";
+		pinctrl-0 = <&blsp1_uart3_tx_sleep>, <&blsp1_uart3_rxcts_sleep>,
+					<&blsp1_uart3_rfr_sleep>;
+		pinctrl-1 = <&blsp1_uart3_tx_active>,
+			<&blsp1_uart3_rxcts_active>, <&blsp1_uart3_rfr_active>;
+
+		qcom,msm-bus,name = "buart3";
+		qcom,msm-bus,num-cases = <2>;
+		qcom,msm-bus,num-paths = <1>;
+		qcom,msm-bus,vectors-KBps =
+			    <86 512 0 0>,
+			    <86 512 500 800>;
+		status = "ok";
+	};
+
+	/* grip */
+	i2c_17: i2c@17 { /* SW I2C */
+		cell-index = <17>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 115 0 /* sda */
+			&tlmm 136 0 /* scl */
+		>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&grip_i2c_active &grip_int_active>;
+		pinctrl-1 = <&grip_i2c_suspend &grip_int_suspend>;
+
+		sx9320-i2c@28 {
+			compatible = "sx9320";
+			reg = <0x28>;
+
+			interrupt-parent = <&tlmm>;
+			interrupts = <127 0>;
+
+			sx9320,nirq-gpio = <&tlmm 127 0>;
+			/* only phase 3 enable */
+			sx9320,phen = <0x03>;
+			sx9320,gain = <0x01>;
+			sx9320,again = <0x08>;
+			sx9320,scan_period = <0x16>;
+			sx9320,range = <0x00>;
+			sx9320,sampling_freq = <0x10>;
+			sx9320,resolution = <0x07>;
+			sx9320,rawfilt = <0x01>;
+			sx9320,hyst = <0x01>;
+			sx9320,avgposfilt = <0x04>;
+			sx9320,avgnegfilt = <0x01>;
+			sx9320,avgthresh = <0x20>;
+			sx9320,debouncer = <0x01>;
+			sx9320,normal_thd = <0x1B>;
+			sx9320,afeph0 = <0x0>;
+			sx9320,afeph1 = <0x0>;
+			sx9320,afeph2 = <0x0>;
+			sx9320,afeph3 = <0x4>;
+		};
+	};
+
+	/* grip */
+	i2c_18: i2c@18 { /* SW I2C */
+		cell-index = <18>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 133 0 /* sda */
+			&tlmm 128 0 /* scl */
+		>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&grip_wifi_i2c_active>;
+		pinctrl-1 = <&grip_wifi_i2c_suspend>;
+
+		sx9320_wifi-i2c@2c {
+			compatible = "sx9320_wifi";
+			reg = <0x2c>;
+
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&grip_wifi_int_active>;
+			pinctrl-1 = <&grip_wifi_int_suspend>;
+
+			interrupt-parent = <&tlmm>;
+			interrupts = <79 0>;
+
+			sx9320_wifi,nirq-gpio = <&tlmm 79 0>;
+			/* only phase 3 enable */
+			sx9320_wifi,phen = <0x03>;
+			sx9320_wifi,gain = <0x01>;
+			sx9320_wifi,again = <0x06>;
+			sx9320_wifi,scan_period = <0x16>;
+			sx9320_wifi,range = <0x00>;
+			sx9320_wifi,sampling_freq = <0x08>;
+			sx9320_wifi,resolution = <0x07>;
+			sx9320_wifi,rawfilt = <0x01>;
+			sx9320_wifi,hyst = <0x01>;
+			sx9320_wifi,avgposfilt = <0x04>;
+			sx9320_wifi,avgnegfilt = <0x01>;
+			sx9320_wifi,avgthresh = <0x20>;
+			sx9320_wifi,debouncer = <0x01>;
+			sx9320_wifi,normal_thd = <0x1B>;
+			sx9320_wifi,afeph0 = <0x0>;
+			sx9320_wifi,afeph1 = <0x0>;
+			sx9320_wifi,afeph2 = <0x0>;
+			sx9320_wifi,afeph3 = <0x4>;
+		};
+
+		sx9320_wifi_sub-i2c@28 {
+			compatible = "sx9320_wifi_sub";
+			reg = <0x28>;
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&grip_wifi_sub_int_active>;
+			pinctrl-1 = <&grip_wifi_sub_int_suspend>;
+
+			interrupt-parent = <&tlmm>;
+			interrupts = <86 0>;
+
+			sx9320_wifi_sub,nirq-gpio = <&tlmm 86 0>;
+			/* only phase 3 enable */
+			sx9320_wifi_sub,phen = <0x03>;
+			sx9320_wifi_sub,gain = <0x01>;
+			sx9320_wifi_sub,again = <0x06>;
+			sx9320_wifi_sub,scan_period = <0x16>;
+			sx9320_wifi_sub,range = <0x00>;
+			sx9320_wifi_sub,sampling_freq = <0x08>;
+			sx9320_wifi_sub,resolution = <0x07>;
+			sx9320_wifi_sub,rawfilt = <0x01>;
+			sx9320_wifi_sub,hyst = <0x01>;
+			sx9320_wifi_sub,avgposfilt = <0x04>;
+			sx9320_wifi_sub,avgnegfilt = <0x01>;
+			sx9320_wifi_sub,avgthresh = <0x20>;
+			sx9320_wifi_sub,debouncer = <0x01>;
+			sx9320_wifi_sub,normal_thd = <0x1B>;
+			sx9320_wifi_sub,afeph0 = <0x0>;
+			sx9320_wifi_sub,afeph1 = <0x0>;
+			sx9320_wifi_sub,afeph2 = <0x0>;
+			sx9320_wifi_sub,afeph3 = <0x4>;
+		};
+	};
+
+	/* sensor ldo control gpio */
+	qcom,ssc@5c00000 {
+		/* GPIO control sensor LDO */
+		qcom,gpio-sensor-ldo = <&tlmm 26 0>;
+		pinctrl-names = "default", "sleep", "idle";
+		pinctrl-0 = <&sensor_ldo_default>;
+		pinctrl-1 = <&sensor_ldo_active>;
+		pinctrl-2 = <&sensor_ldo_active>;
+	};
+
+	qcom,icnss@18800000 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&rome_cable_default>;
+	};
+	rome_cable {
+		compatible = "samsung,rome_cable";
+		wlan_cable_wifi1 = <&tlmm 105 0>;
+		wlan_cable_wifi2 = <&tlmm 106 0>;
+		status = "ok";
+	};
+
+	usb_noti: usb-notifier {
+		compatible = "samsung,usb-notifier";
+		qcom,disable_control_en = <1>;
+	};
+
+	i2c_7: i2c@c1b5000 { /* BLSP2 QUP1 */
+		pinctrl-names = "i2c_active", "i2c_sleep", "hard_reset", "default";
+		pinctrl-0 = <&i2c_7_active &s2mm005_irq_active>;
+		pinctrl-1 = <&i2c_7_sleep &s2mm005_irq_suspend>;
+		pinctrl-2 = <&s2mm005_hard_reset>;
+		pinctrl-3 = <&i2c_7_active &s2mm005_irq_active>;
+
+		usbpd-s2mm005@33 {
+			compatible = "sec-s2mm005,i2c";
+			reg = <0x33>;
+			interrupt-parent = <&tlmm>;
+			usbpd,usbpd_int = <&tlmm 50 0>;
+			usbpd,s2mm005_sda = <&tlmm 55 0>;
+			usbpd,s2mm005_scl = <&tlmm 56 0>;
+			usbpd,s2mm005_fw_product_id = <0x0D>;
+		};
+	};
+
+	hall {
+		status = "okay";
+		compatible = "hall";
+		linux,input-type = <1>;
+		linux,code = <21>;
+		hall,gpio_flip_cover = <&pm8998_gpios 7 0x1>;
+		debounce-interval = <15>;
+	};
+
+	certify_hall {
+		compatible = "certify_hall";
+		linux,input-type = <1>;
+		linux,code = <27>;
+		certify_hall,gpio_certify_cover = <&pm8998_gpios 20 0x1>;
+		debounce-interval = <15>;
+	};
+
+	i2c_16: i2c@16 {
+		cell-index = <16>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 93 0 /* sda */
+			&tlmm 94 0 /* scl */
+			>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&redriver_int_active>;
+		pinctrl-1 = <&redriver_int_suspend>;
+		
+		ptn36502@1a {
+			compatible = "ptn36502_driver";
+			reg = <0x1a>;
+			combo,ptn_en = <&tlmm 9 0>;
+			combo,redriver_en = <&pm8998_gpios 15 0>;
+			combo,con_sel = <&tlmm 38 0>;
+		};
+	};
+};
+
+&ssphy {
+	vdd-supply = <&pm8998_l1>;
+};
+
+&i2c_5 {
+	/delete-node/ synaptics@20;
+};
+
+&i2c_6 {
+	/delete-node/ nq@28;
+};
+
+&i2c_8 {
+	/* synaptics */
+	synaptics_rmi4_i2c@20 {
+		status = "okay";
+	};
+
+	/* stm */
+	touchscreen@49 {
+		status = "disabled";
+	};
+};
+
+&soc {
+	i2c_23:i2c@23 {
+		cell-index = <23>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 81 0 /* sda */
+			&tlmm 84 0 /* scl */
+			>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ice40_iris@6C {
+			compatible = "ice40_iris";
+			reg = <0x6C>;
+			pinctrl-names = "ice40_iris_fw_ready", "ice40_pogo_ldo_en", "ice40_disable_miso";
+			pinctrl-0 = <&ice40_iris_fw_ready>;
+			pinctrl-1 = <&ice40_pogo_ldo_en>;
+			pinctrl-2 = <&ice40_disable_miso>;
+			ice40,fw_ver = <1>;
+			ice40,sda-gpio = <&tlmm 81 0x00>;
+			ice40,spi-miso = <&tlmm 82 0x00>;
+			ice40,scl-gpio = <&tlmm 84 0x00>;
+			ice40,cresetb = <&tlmm 89 0x00>;
+			ice40,cdone = <&tlmm 8 0x00>;
+			ice40,reset_n = <&tlmm 85 0x00>;
+			ice40,pogo_ldo_en = <&tlmm 31 0x00>;
+			clocks = <&clock_gcc clk_ln_bb_clk2>;
+			clock-names = "fpga_clock";
+		};
+	};
+
+	hrmsensor@57 {
+		compatible = "hrmsensor";
+		reg = <0x57>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <122 0>;
+		pinctrl-names = "sleep", "default", "idle";
+		pinctrl-0 = <&hrm_int_suspend>;
+		pinctrl-1 = <&hrm_int_suspend>;
+		pinctrl-2 = <&hrm_int_active>;
+		hrmsensor,hrm_int-gpio = <&tlmm 122 0x00>;
+		hrmsensor_1p8-supply = <&pm8998_lvs1>;
+		hrmsensor_3p3-supply = <&pm8998_l19>;
+	};
+};
+
+&i2c_9 {
+	wacom@56 {
+		wacom,max_coords = <19661 14746>; /* x y */
+		wacom,project_name = "GTS3LLTE", "T825";
+		wacom,invert = <1 0 1>; /* x y switch */
+		wacom,fw_path = "epen/w9019_gts3l.fw";
+	};
+};
+
+&blsp1_uart2_hs {
+	status = "disabled";
+};
+
+&rpm_bus {
+	rpm-regulator-ldoa19 {
+		pm8998_l19: regulator-l19 {
+			/delete-property/ regulator-boot-on;
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2800000>;
+			status = "okay";
+		};
+	};
+
+	rpm-regulator-ldoa14 {
+		pm8998_l14: regulator-l14 {
+			regulator-name = "nfc_vdd";
+			/delete-property/ regulator-boot-on;
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			status = "okay";
+		};
+	};
+
+	rpm-regulator-ldoa22 {
+		pm8998_l22: regulator-l22 {
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2800000>;
+			status = "okay";
+		};
+	};
+
+};
+
+
+&spmi_bus {
+	qcom,pm8998@0 {
+		pm8998_gpios: gpios {
+			gpio@c200{ /* PM8998 GPIO 3 : SW_CTRL*/
+				reg = <0xc200 0x100>;
+				qcom,pin-num = <3>;
+				status = "disabled"; 
+			};
+
+			gpio@c600 { /* PM8998 GPIO 7 */
+				qcom,pin-num = <7>;
+				qcom,mode = <0>;
+				qcom,pull = <0>;
+				qcom,vin-sel = <0>;
+				qcom,src-sel = <0>;
+				qcom,master-en = <1>;
+				status = "okay";
+			};
+
+			gpio@ce00 { /* PM8998 GPIO 15 */
+				status = "okay";
+				qcom,mode = <0x1>;	// DIG_OUT
+				qcom,pull = <0x5>;	// NO_PULL
+				qcom,vin-sel = <0x0>;	// VIN0
+				qcom,src-sel = <0x0>;	// LOW
+				qcom,master-en = <0x1>;	// GPIO_ENABLED
+				qcom,out-strength = <0x1>;	// LOW_STR
+			};			
+
+			gpio@d100 { /* PM8998 GPIO 18 */
+				status = "okay";
+				qcom,mode = <0x1>;	// DIG_OUT
+				qcom,pull = <0x5>;	// NO_PULL
+				qcom,vin-sel = <0x0>;	// VIN0
+				qcom,src-sel = <0x0>;	// LOW
+				qcom,master-en = <0x1>;	// GPIO_ENABLED
+				qcom,out-strength = <0x1>;	// LOW_STR
+			};
+
+			gpio@d300 { /* PM8998 GPIO 20 */
+				qcom,pin-num = <20>;
+				qcom,mode = <0>;
+				qcom,out-strength = <0x1>;
+				qcom,pull = <0>;
+				qcom,vin-sel = <1>;
+				qcom,src-sel = <0>;
+				qcom,master-en = <1>;
+				status = "okay";
+			};
+		};
+	};
+
+	qcom,pm8005@4 {
+		gpios {
+			gpio@c000 {/* PM8005 GPIO 1 */
+				status = "okay";
+				qcom,mode = <0x0>;
+				qcom,pull = <0x0>;
+				qcom,vin-sel = <0x0>;
+				qcom,src-sel = <0x0>;
+				qcom,master-en = <0x1>;
+			};
+		};
+	};
+};

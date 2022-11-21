@@ -1,0 +1,187 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/*
+ * As a general rule, only Dream project specific property overrides should be placed
+ * inside this file.
+ */
+
+/*
+ * Implement here Samsung Dream project specific dtsi
+ */
+
+#include <dt-bindings/input/input.h>
+
+/{
+	reserved-memory {
+		secure_camera_region: secure_camera_region {
+			compatible = "shared-dma-pool";
+			no-map;
+			reg = <0 0xFE400000 0 0x1400000>;
+			label = "secure_camera_region";
+		};
+
+		secure_camera_scratch_region: secure_camera_scratch_region {
+			compatible = "shared-dma-pool";
+			no-map;
+			reg = <0 0xFE200000 0 0x200000>;
+			label = "secure_camera_scratch_region";
+		};
+	};
+};
+
+&soc {
+	qcom,ion {
+		qcom,ion-heap@17 { /* SECURE CAMERA HEAP */
+			reg = <17>;
+			memory-region = <&secure_camera_region>;
+			qcom,ion-heap-type = "HYP_CMA";
+		};
+
+		qcom,ion-heap@18 { /* SECURE CAMERA HEAP */
+			reg = <18>;
+			memory-region = <&secure_camera_scratch_region>;
+			qcom,ion-heap-type = "HYP_CMA";
+		};
+	};
+};
+
+&mdss_dp_ctrl {
+	/delete-property/ qcom,dp-usbpd-detection;
+};
+
+&soc {
+	gpio_keys {
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+
+		/delete-node/ cam_snapshot;
+		/delete-node/ cam_focus;
+
+		wink_key {
+			label = "wink_key";
+			gpios = <&pm8998_gpios 19 0x1>;
+			linux,input-type = <1>;
+			linux,code = <KEY_WINK>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+	};
+
+	sec_abc {
+		compatible = "samsung,sec_abc";
+		status = "okay";
+
+		gpu {
+			gpu,label="GPU fault";
+			gpu,threshold_count=<4>;
+			gpu,threshold_time=<1200>;
+		};
+		aicl {
+			aicl,label="battery aicl";
+			aicl,threshold_count=<5>;
+			aicl,threshold_time=<300>;
+		};
+	};
+};
+
+&rpm_bus {
+	rpm-regulator-ldoa6 {
+		regulator-l6 {
+			status = "okay";
+			regulator-name = "tsp_io";
+			regulator-boot-on;
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+		};
+	};
+
+	rpm-regulator-ldoa28 {
+		regulator-l28 {
+			status = "okay";
+			regulator-name = "tsp_avdd";
+			regulator-boot-on;
+			regulator-min-microvolt = <3000000>;
+			regulator-max-microvolt = <3000000>;
+		};
+	};
+};
+
+&i2c_8 {
+	pinctrl-names = "i2c_active", "i2c_sleep", "default";
+	pinctrl-0 = <&i2c_8_active>;
+	pinctrl-1 = <&i2c_8_sleep>;
+	pinctrl-2 = <&i2c_8_active>;
+
+	status = "okay";
+	touchscreen@49 {
+		status = "disabled";
+		compatible = "stm,fts_touch";
+		reg = <0x49>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&attn_irq>;
+		pinctrl-1 = <&attn_irq>;
+		pressure-sensor = "Y";
+		stm,tsp-icid_gpio = <&expander_gpios 2 0>;
+		stm,icid_match_value = <0>;
+		stm,tsp-id_gpio = <&pm8005_gpios 1 0>;
+		stm,irq_gpio = <&tlmm 121 0x2008>;
+		stm,irq_type = <8200>;
+		stm,max_coords = <1439 2959>;	/* x y */
+		stm,regulator_dvdd = "tsp_io";
+		stm,regulator_avdd = "tsp_avdd";
+		stm,project_name = "Dream1", "G950";
+		stm,firmware_name = "tsp_stm/fts9cd56_dream1.fw", "tsp_stm/fts9cd56_dream1.fw";
+		stm,bringup = <0>;
+		support_dex_mode;
+	};
+
+	touchscreen@48 {
+		status = "disabled";
+		compatible = "sec,sec_ts";
+		reg = <0x48>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&attn_irq>;
+		pinctrl-1 = <&attn_irq>;
+		pressure-sensor = "Y";
+		sec,tsp-icid_gpio = <&expander_gpios 2 0>;
+		sec,icid_match_value = <1>;
+		sec,tsp-id_gpio = <&pm8005_gpios 1 0>;
+		sec,irq_gpio = <&tlmm 121 0x2008>;
+		sec,irq_type = <8200>;
+		sec,max_coords = <4095 4095>;   /* x y */
+		sec,mis_cal_check = <1>;
+		sec,regulator_dvdd = "tsp_io";
+		sec,regulator_avdd = "tsp_avdd";
+		sec,regulator_boot_on;
+		sec,pat_function = <2>;
+		sec,afe_base = <0x0121>;
+		sec,project_name = "Dream1", "G950";
+		sec,firmware_name = "tsp_sec/y761_dream1_nosync.fw", "tsp_sec/y761_dream1_nosync.fw";
+		support_dex_mode;
+	};
+};
+
+&firmware {
+	android {
+		fstab {
+			compatible = "android,fstab";
+			system {
+				/delete-property/dev;
+				/delete-property/fsmgr_flags;
+				dev = "/dev/block/platform/soc/1da4000.ufshc/by-name/system";
+				fsmgr_flags = "wait,verify";
+			};
+		};
+	};
+};
+

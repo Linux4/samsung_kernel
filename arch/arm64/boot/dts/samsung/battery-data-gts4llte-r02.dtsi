@@ -1,0 +1,98 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+#include "battery-data-gts4llte-common.dtsi"
+
+&spmi_bus {
+	qcom,pm8998@0 {
+		pm8998_gpios: gpios {
+			gpio@c800 { /* GPIO 9 */
+				status = "okay";
+				qcom,master-en = <0>;
+			};
+		};
+		pm8998_vadc: vadc@3100 {
+			chan@53 { /* PM8998 GPIO 9 */
+				label = "slave_therm";
+				reg = <0x53>;
+				qcom,decimation = <0>;
+				qcom,pre-div-channel-scaling = <0>;
+				qcom,calibration-type = "ratiometric";
+				qcom,scale-function = <2>;
+				qcom,hw-settle-time = <2>;
+				qcom,fast-avg-setup = <0>;
+			};
+		};
+	};
+};
+
+&soc {
+	i2c12: i2c@12 {
+		cell-index = <12>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 69 0 /* sda */
+			&tlmm 35 0 /* scl */
+			>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		bq25898s-charger@6b {
+			compatible = "ti,bq25898s-charger";
+			reg = <0x6B>;
+			bq25898s-charger,irq-gpio = <&tlmm 58 0>;
+			bq25898s-charger,chg_float_voltage = <43360>;
+			bq25898s-charger,full_check_current = <128>;
+		};
+	};
+
+	battery {
+		battery,charger_name = "sec-multi-charger";
+		battery,fuelgauge_name = "s2mu004-fuelgauge";
+		battery,support_pogo = <1>;
+		battery,slave_chg_temp_check = <0>;
+		battery,slave_thermal_source = <1>;
+
+		battery,slave_chg_temp_table_adc = <1123 1324 1541 1859 2143 2561 3005 3475 4054 4673 5397 6440 7186 8103 8985 9977 10910 11816 12658 13445 13900 14476 14922>;
+		battery,slave_chg_temp_table_data = <900 850 800 750 700 650 600 550 500 450 400 350 300 250 200 150 100 50 0 (-50) (-100) (-150) (-200)>;
+	};
+
+	i2c14: i2c@14 {
+		s2mu004-fuelgauge@3B {
+			pinctrl-names = "default", "irq_active", "irq_suspend";
+			pinctrl-0 = <&jig_irq_active &fg_i2c_active &fg_int_active &bq2s_i2c_active &bq2s_irq_active &if_pmic_wcinokb>;
+			pinctrl-1 = <&jig_irq_suspend &fg_i2c_suspend &fg_int_suspend &bq2s_i2c_suspend &bq2s_irq_suspend &if_pmic_wcinokb>;
+		};
+	};
+
+	s2mu004-charger {
+		status = "disabled";
+		compatible = "samsung,s2mu004-charger";
+
+		charger,wcinokb = <&tlmm 108 0>; /* WCINOKB */
+	};
+
+	sec-multi-charger {
+		status = "okay";
+		compatible = "samsung,sec-multi-charger";
+
+		charger,battery_name = "battery";
+		charger,main_charger = "s2mu004-charger";
+		charger,sub_charger = "bq25898s-charger";
+
+		charger,sub_charger_condition = <0x80>;
+		charger,main_charger_condition = <0x01>; /* OTG OFF */
+
+		charger,max_wcin_input_current = <1200>;
+		charger,max_sub_input_current = <1800>;
+		charger,max_sub_charging_current = <2100>;
+		charger,max_total_charging_current = <3400>;
+	};
+};

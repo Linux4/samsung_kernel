@@ -1,0 +1,366 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/input/input.h>
+
+/ {
+	aliases {
+		i2c2 = &i2c_2;
+	};
+};
+
+&soc {
+	gpio_keys {
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+		gpio-key,wakeup_enable;
+
+		/delete-node/ cam_snapshot;
+		/delete-node/ cam_focus;
+	};
+
+	wacom_ldo_en: wacom_ldo_en {
+		compatible = "regulator-fixed";
+		regulator-name = "wacom_3.3v";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&tlmm 124 0>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+
+	pogo_kbd_ldo_en: pogo_kbd_ldo_en {
+		compatible = "regulator-fixed";
+		regulator-name = "pogo_kbd_ldo_en_3.3v";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&tlmm 1 0>;
+		enable-active-high;
+	};
+
+	/* pogo keyboard */
+	i2c_2: i2c@c176000 {
+		pinctrl-names = "i2c_active", "i2c_sleep", "default";
+		pinctrl-0 = <&i2c_2_active>;
+		pinctrl-1 = <&i2c_2_sleep>;
+		pinctrl-2 = <&i2c_2_active>;
+		status = "okay";
+
+		stm32@54 {
+			status = "okay";
+			compatible = "stm,stm32kbd";
+			reg = <0x2A>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <34>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&keypad_int_active &pogo_kbd_ldo_en_active>;
+			stm32_vddo-supply = <&pogo_kbd_ldo_en>;
+			stm32,irq_gpio = <&tlmm 34 0x00>;
+			stm32,sda_gpio = <&tlmm 33 0x00>;
+			stm32,scl_gpio = <&tlmm 32 0x00>;
+			stm32,model_name = "EJ-FT830";
+
+			keypad,num-rows = <8>;
+			keypad,num-columns = <10>;	//  row   colume   keycode
+			linux,keymap = <0x00000000	//   0       0     KEY_RESERVED		0
+					0x00010000	//   0       1     KEY_RESERVED		0
+					0x0002002C	//   0       2     KEY_Z		44
+					0x00030056	//   0       3     KEY_102ND		86// UK KEY
+					0x0004002F	//   0       4     KEY_V		47
+					0x00050032	//   0       5     KEY_M		50
+					0x0006006C	//   0       6     KEY_DOWN		108
+					0x00070000	//   0       7     KEY_RESERVED		0
+					0x00080039	//   0       8     KEY_SPACE		57
+					0x00090067	//   0       9     KEY_UP		103
+
+					0x010002c2	//   1       0     SIP_ON_OFF		706
+					0x0101007D	//   1       1     KEY_LEFTMETA		125
+					0x0102001E	//   1       2     KEY_A		30
+					0x0103002D	//   1       3     KEY_X		45
+					0x01040030	//   1       4     KEY_B		48
+					0x01050031	//   1       5     KEY_N		49
+					0x01060033	//   1       6     KEY_COMMA		51	
+					0x01070034	//   1       7     KEY_DOT		52
+					0x01080035	//   1       8     KEY_SLASH		53
+					0x0109001B	//   1       9     KEY_RIGHTBRACE	27
+
+					0x02000000	//   2       0     KEY_RESERVED		0
+					0x0201007A	//   2       1     KEY_HANGEUL		122
+					0x02020010	//   2       2     KEY_Q		16
+					0x0203001F	//   2       3     KEY_S		31
+					0x02040021	//   2       4     KEY_F		33
+					0x02050024	//   2       5     KEY_J		36
+					0x02060025	//   2       6     KEY_K		37
+					0x02070026	//   2       7     KEY_L		38
+					0x02080027	//   2       8     KEY_SEMICOLON	39
+					0x0209001C	//   2       9     KEY_ENTER		28
+
+					0x03000000	//   3       0     KEY_RESERVED		0
+					0x03010038	//   3       1     KEY_LEFTALT		56
+					0x0302000F	//   3       2     KEY_TAB		15
+					0x03030011	//   3       3     KEY_W		17
+					0x03040022	//   3       4     KEY_G		34
+					0x03050023	//   3       5     KEY_H		35
+					0x03060017	//   3       6     KEY_I		23
+					0x03070028	//   3       7     KEY_APOSTROPHE	40
+					0x03080019	//   3       8     KEY_P		25
+					0x0309002B	//   3       9     KEY_BACKSLASH	43// UK KEY
+
+					0x0400003A	//   4       0     KEY_CAPSLOCK		58
+					0x04010064	//   4       1     KEY_RIGHTALT		100
+					0x04020002	//   4       2     KEY_1		2
+					0x04030003	//   4       3     KEY_2		3
+					0x04040013	//   4       4     KEY_R		19
+					0x04050016	//   4       5     KEY_U		22
+					0x04060009	//   4       6     KEY_8		9
+					0x04070018	//   4       7     KEY_O		24
+					0x0408000B	//   4       8     KEY_0		11
+					0x0409002B	//   4       9     KEY_BACKSLASH	43
+
+					0x05000000	//   5       0     KEY_RESERVED		0
+					0x0501001D	//   5       1     KEY_CTRL		29
+					0x05020029	//   5       2     KEY_GRAVE		41
+					0x0503006A	//   5       3     KEY_RIGHT		106
+					0x05040014	//   5       4     KEY_T		20
+					0x05050015	//   5       5     KEY_Y		21
+					0x05060000	//   5       6     KEY_RESERVED		0
+					0x0507001A	//   5       7     KEY_LEFTBRACE	26
+					0x0508000E	//   5       8     KEY_BACKSPACE	14
+					0x0509000C	//   5       9     KEY_MINUS		12
+
+					0x06000036	//   6       0     KEY_RIGHTSHIFT	54
+					0x06010069	//   6       1     KEY_LEFT		105
+					0x06020020	//   6       2     KEY_D		32
+					0x0603002E	//   6       3     KEY_C		46
+					0x06040005	//   6       4     KEY_4		5
+					0x06050008	//   6       5     KEY_7		8
+					0x06060000	//   6       6     KEY_RESERVED		0
+					0x0607000A	//   6       7     KEY_9		10
+					0x06080004	//   6       8     KEY_3		4
+					0x06090012	//   6       9     KEY_E		18
+
+					0x0700002A	//   7       0     KEY_LEFTSHIFT	42
+					0x07010000	//   7       1     KEY_RESERVED		0
+					0x07020000	//   7       2     KEY_RESERVED		0
+					0x07030000	//   7       3     KEY_RESERVED		0
+					0x07040006	//   7       4     KEY_5		6
+					0x07050000	//   7       5     KEY_RESERVED		0
+					0x07060007	//   7       6     KEY_6		7
+					0x0707000D	//   7       7     KEY_EQUAL		13
+					0x07080000	//   7       8     KEY_RESERVED		0
+					0x07090000>;	//   7       9     KEY_RESERVED		0
+		};
+	};
+};
+
+&i2c_8 {
+	pinctrl-names = "i2c_active", "i2c_sleep", "default";
+	pinctrl-0 = <&i2c_8_active>;
+	pinctrl-1 = <&i2c_8_sleep>;
+	pinctrl-2 = <&i2c_8_active>;
+
+	status = "okay";
+
+	/* synaptics */
+	synaptics_rmi4_i2c@20 {
+		status = "disabled";
+		compatible = "synaptics,rmi4";
+		reg = <0x20>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <121 0x0>;
+
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&attn_irq>;
+		pinctrl-1 = <&attn_irq>;
+
+		synaptics,irq_gpio = <&tlmm 121 0x0>;
+		synaptics,irq_type = <8200>;
+		synaptics,max_coords = <1536 2048>;	/* x y */
+		synaptics,num_lines = <49 37>;		/* rx tx */
+
+		tsp_io-supply = <&pm8998_l6>;
+		tsp_avdd-supply = <&pm8998_l28>;
+
+		synaptics,project_name = "GTS3","T825";
+		synaptics,firmware_name = "tsp_synaptics/s5807_gts3llte.fw";
+	};
+
+	/* stm */
+	touchscreen@49 {
+		status = "okay";
+		compatible = "stm,fts_touch";
+		reg = <0x49>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <121 0x0>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&attn_irq>;
+		pinctrl-1 = <&attn_irq>;
+		stm,irq_gpio = <&tlmm 121 0x2008>;
+		stm,irq_type = <8200>;
+		stm,max_coords = <1599 2559>;	/* x y */
+		stm,regulator_dvdd = "tsp_io";
+		stm,regulator_avdd = "tsp_avdd";
+		stm,project_name = "GTS4", "T835";
+		stm,firmware_name = "tsp_stm/fts1ba90a_gts4.fw";
+		stm,tclm_level = <2>;
+		stm,afe_base = <0x0215>;
+		stm,support_aot;
+		stm,factory_item_version = <4>;
+		support_dex_mode;
+	};
+};
+
+&i2c_9 {
+	status = "okay";
+
+	wacom@56 {
+		status = "okay";
+		compatible = "wacom,w90xx";
+		reg = <0x56>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&epen_int_active>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <125 0x0>;
+		vddo-supply = <&wacom_ldo_en>; /* vdd3.3v - use regulator-fixed */
+		/* gpios */
+		wacom,irq-gpio = <&tlmm 125 0x0>;
+		wacom,pdct-gpio = <&tlmm 123 0x0>;
+		wacom,fwe-gpio = <&tlmm 126 0x0>;
+		wacom,irq_type = <8>; /*IRQF_TRIGGER_LOW*/
+		/* features */
+		wacom,boot_addr = <0x09>;
+		wacom,origin = <0 0>; /* x y */
+		wacom,max_coords = <22656 14160>; /* x y */
+		wacom,max_pressure = <4095>;
+		wacom,max_x_tilt = <63>;
+		wacom,max_y_tilt = <63>;
+		wacom,max_height = <255>;
+		wacom,project_name = "GTS4LLTE", "T835";
+		wacom,invert = <0 1 1>; /* x y switch */
+		wacom,fw_path = "epen/w9019_gts4l.fw";
+		wacom,ic_type = <9019>;
+		wacom,support_aop_mode = "1"; /* S-note want to check to use aop */
+		wacom,use_virtual_softkey;
+		wacom,support_dex_mode;
+	};
+};
+
+&rpm_bus {
+	rpm-regulator-ldoa6 {
+		regulator-l6 {
+			status = "okay";
+			regulator-name = "tsp_io";
+			regulator-boot-on;
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+		};
+	};
+
+	rpm-regulator-ldoa28 {
+		regulator-l28 {
+			status = "okay";
+			regulator-name = "tsp_avdd";
+			regulator-boot-on;
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+		};
+	};
+};
+
+&spmi_bus {
+	qcom,pm8998@0 {
+		pm8998_gpios: gpios {
+			gpio@d200 { /* PM8998 GPIO 19 */
+				status = "okay";
+				qcom,mode = <0x0>;
+				qcom,pull = <0x0>;
+				qcom,vin-sel = <0x0>;
+				qcom,src-sel = <0x0>;
+				qcom,master-en = <0x1>;
+				qcom,out-strength = <0x1>;
+			};
+		};
+	};
+};
+
+&tlmm {
+	epen_int {
+		epen_int_active: epen_int_active {
+			epen_int_active {
+				pins = "gpio123", "gpio125";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+	};
+
+	/* pogo keyboard int pinctrl */
+	pmx_keypad_int {
+		keypad_int_active: keypad_int_active {
+			mux {
+				pins = "gpio34";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio34";
+				drive-strength = <2>;
+				bias-pull-up;
+			};
+		};
+	};
+
+	pogo_kbd_ldo_en {
+		pogo_kbd_ldo_en_active: pogo_kbd_ldo_en_active {
+			mux {
+				pins = "gpio1";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio1";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+	};
+
+	/* pogo keyboard i2c pinctrl */
+	i2c_2 {
+		i2c_2_active {
+			mux {
+				pins = "gpio32", "gpio33";
+				function = "blsp_i2c2";
+			};
+
+			config {
+				pins = "gpio32", "gpio33";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		i2c_2_sleep {
+			mux {
+				pins = "gpio32", "gpio33";
+				function = "blsp_i2c2";
+			};
+
+			config {
+				pins = "gpio32", "gpio33";
+				drive-strength = <2>;
+				/delete-property/ bias-pull-up;
+				bias-disable;
+			};
+		};
+	};
+};

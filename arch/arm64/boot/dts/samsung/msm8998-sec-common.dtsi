@@ -1,0 +1,503 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/*
+ * As a general rule, only chipset-specific property overrides should be placed
+ * inside this file.
+ */
+
+/*
+ * Implement here Samsung specific dtsi
+ */
+
+/{
+
+	reserved-memory {
+		/* CONFIG_SEC_DEBUG reserves 8MB */
+		sec_debug_region: sec_debug_region@0 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x85000000 0x0 0x00800000>;
+		};
+
+		/* sec_debug_low_region reserves 4MB
+		   This region is reserved if only debuglevel low */
+		sec_debug_low_region: sec_debug_low_region@0 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x85000000 0x0 0x00400000>;
+		};
+
+		/*
+		 * Note: For TZapp, need to change XBL(LoadAppsLA.h) and
+		 *       TZ(oem_config.xml), too.
+		 */
+		/delete-node/ removed_regions@85800000;
+		removed_regions: removed_regions {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0 0x85800000 0 0x4900000>;
+		};
+
+		/delete-node/ pil_slpi_region@93a00000;
+		pil_slpi_mem: pil_slpi_region {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0 0x94500000 0 0xC00000>;
+		};
+
+		/delete-node/ pil_mba_region@93800000;
+		pil_mba_mem: pil_mba_region {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0 0x95100000 0 0x200000>;
+		};
+
+		/delete-node/ pil_video_region@93300000;
+		pil_video_mem: pil_video_region {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0 0x94000000 0 0x500000>;
+		};
+
+		/delete-node/ pil_adsp_region@91900000;
+		pil_adsp_mem: pil_adsp_region {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0 0x91900000 0 0x2700000>;
+		};
+
+		/delete-node/ qseecom_region;
+		qseecom_mem: qseecom_region {
+			reg = <0 0xFBE00000 0 0x2400000>;
+			label = "qseecom_mem";
+		};
+
+		/delete-node/ spss_region@8ab00000;
+		/delete-node/ sp_region;
+
+		ramoops@84F00000 {
+			compatible = "ramoops";
+			reg = <0 0x84F00000 0 0x100000>;
+			record-size = <0x40000>;
+			console-size = <0x40000>;
+			ftrace-size = <0x40000>;
+			pmsg-size = <0x40000>;
+		};
+
+		ss_plog@84B00000 {
+			compatible = "ss_plog";
+			no-map;
+			reg = <0x0 0x84B00000 0x0 0x00400000>;
+		};
+
+		/*to reserve 2MB for TIMA */
+		tima_mem: tima_region@9F800000 {
+		    compatible = "removed-dma-pool";
+		    no-map;
+		    reg = <0 0x9F800000 0 0x200000>;
+		};
+
+		/* rkp_region reserves 13 MB */
+		rkp_region: rkp_region@0x9FA00000 {
+			compatible = "removed-dma-pool";
+			reg = <0x0 0x9FA00000 0x0 0x00D00000>;
+		};
+
+		/* Reserved Mem for Camera 280M */
+		camera_mem: camera_mem_region@0xC0000000 {
+			reg = <0x0 0xC0000000 0x0 0x11800000>;
+		};
+
+		modem_shared_mem: modem_shared_mem_region@96400000 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x96400000 0x0 0x06000000>;
+		};
+
+		/delete-node/ secure_region;
+		secure_display_memory: secure_region {
+			compatible = "shared-dma-pool";
+			alloc-ranges = <0 0x00000000 0 0xffffffff>;
+			reusable;
+			alignment = <0 0x200000>;
+			size = <0 0x8c00000>;
+		};
+	};
+
+	soc {
+		/delete-node/ qcom,spss@1d00000;
+
+		qcom,ion {
+			/delete-node/ qcom,ion-heap@13;
+
+			/delete-node/ qcom,ion-heap@27;
+			qcom,ion-heap@27 { /* QSEECOM HEAP */
+				reg = <27>;
+				memory-region = <&qseecom_mem>;
+				qcom,ion-heap-type = "CARVEOUT";
+			};
+
+			qcom,ion-heap@30 { /* CAMERA HEAP  */
+				reg = <30>;
+				memory-region = <&camera_mem>;
+				qcom,ion-heap-type = "CARVEOUT";
+			};
+
+		};
+
+		qcom,memshare {
+			compatible = "qcom,memshare";
+
+			qcom,client_4 {
+				compatible = "qcom,memshare-peripheral";
+				memory-region = <&modem_shared_mem>;
+				qcom,peripheral-size = <0x06000000>;
+				qcom,client-id = <3>;
+				qcom,allocate-boot-time;
+				label = "modem";
+			};
+		};
+	};
+
+	aliases {
+		uart8 = &blsp2_uart2_hs;
+	};
+};
+
+&msm_cpufreq {
+	qcom,cpufreq-boot-limit-default {
+		qcom,cpufreq-boot-limit,num-period = <2>;
+		qcom,cpufreq-boot-limit,table = <1478400 1497600 300>, /* period 0 */
+					<1478400 1497600 450>; /* period 1 */
+		status = "disabled";
+	};
+	
+	
+	input_booster {
+		status = "okay";
+		compatible = "input_booster";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		booster_key@1 {
+			input_booster,label = "KEY";
+			input_booster,type = <0>;	/* BOOSTER_DEVICE_KEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <1171200>;
+			input_booster,hmp_boost = <2>;
+			input_booster,bimc_freqs = <0>;
+
+			/* Time table */
+			input_booster,head_times = <500>;
+			input_booster,tail_times = <500>;
+		};
+		booster_key@2 {
+			input_booster,label = "TOUCHKEY";
+			input_booster,type = <1>;	/* BOOSTER_DEVICE_TOUCHKEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <1171200>;
+			input_booster,hmp_boost = <0>;
+			input_booster,bimc_freqs = <0>;
+
+			/* Time table */
+			input_booster,head_times = <0>;
+			input_booster,tail_times = <500>;
+		};
+		booster_key@3 {
+			input_booster,label = "TOUCH";
+			input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+
+			input_booster,levels = <1 2 3>;
+
+			/* Frequency table */
+			/* for level	:	1_Head, 2_Head, 2_Tail */
+			input_booster,cpu_freqs = <1171200 1171200 480000>;
+			input_booster,hmp_boost = <2 2 0>;
+			input_booster,bimc_freqs = <0 0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 200 0>;
+			input_booster,tail_times = <0 0 300>;
+		};
+		booster_key@4 { // Input Booster +
+			input_booster,label = "MULTITOUCH";
+			input_booster,type = <3>;	/* BOOSTER_DEVICE_MULTITOUCH */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1958400 1324800>;
+			input_booster,hmp_boost = <2 2>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 800>;
+		};
+		booster_key@5 {
+			input_booster,label = "KEYBOARD";
+			input_booster,type = <4>;	/* BOOSTER_DEVICE_KEYBOARD */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1171200 1171200>;
+			input_booster,hmp_boost = <2 2>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <130 130>;
+			input_booster,tail_times = <0 0>;
+		};
+		booster_key@6 {
+			input_booster,label = "MOUSE";
+			input_booster,type = <5>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1171200 480000>;
+			input_booster,hmp_boost = <2 0>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+		};
+		booster_key@7 {
+			input_booster,label = "MOUSE WHEEL";
+			input_booster,type = <6>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1171200 0>;
+			input_booster,hmp_boost = <2 0>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 0>;
+		};
+		booster_key@8 {
+			input_booster,label = "PEN HOVER";
+			input_booster,type = <7>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1171200 480000>;
+			input_booster,hmp_boost = <2 0>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+		}; // Input Booster -
+		booster_key@9 {
+			input_booster,label = "PEN";
+			input_booster,type = <8>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1574400 979200>;
+			input_booster,hmp_boost = <2 2>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 600>;
+		}; // Input Booster -
+		booster_key@10 {
+			input_booster,label = "KEY_TWO";
+			input_booster,type = <9>;	/* BOOSTER_DEVICE_KEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <1574400>;
+			input_booster,hmp_boost = <2>;
+			input_booster,bimc_freqs = <0>;
+
+			/* Time table */
+			input_booster,head_times = <700>;
+			input_booster,tail_times = <700>;
+		}; // Input Booster -
+		/* If you need to add new key type, add it this position */
+	};
+};
+
+&qusb_phy0 {
+	qcom,qusb-phy-init-seq =
+		/* <value reg_offset> */
+			<0x13 0x04 /* analog_controls_two */
+			0x7c 0x18c /* pll_clock_inverter */
+			0x80 0x2c /* pll_cmode */
+			0x0a 0x184 /* pll_lock_delay */
+			0x02 0x21c /* imp_ctrl1 */
+			0xa5 0x23c /* tune1 */
+			0x0d 0x240 /* tune2 */
+			0x03 0x248 /* tune4 */
+			0x19 0xb4>; /* digital_timers_two */
+			
+	qcom,qusb-phy-host-init-seq =
+		/* <value reg_offset> */
+			<0x13 0x04 /* analog_controls_two */
+			0x7c 0x18c /* pll_clock_inverter */
+			0x80 0x2c /* pll_cmode */
+			0x0a 0x184 /* pll_lock_delay */
+			0x00 0x21c /* imp_ctrl1 */
+			0xa5 0x23c /* tune1 */
+			0x0f 0x240 /* tune2 */
+			0x03 0x248 /* tune4 */
+			0x19 0xb4>; /* digital_timers_two */
+};
+
+&soc {
+	qcom,glink_pkt {
+		compatible = "qcom,glinkpkt";
+
+		qcom,glinkpkt-glinkbridge {
+			qcom,glinkpkt-transport = "smem";
+			qcom,glinkpkt-edge = "mpss";
+			qcom,glinkpkt-ch-name = "glink_bridge";
+			qcom,glinkpkt-dev-name = "smd4";
+		};
+	};
+
+	tlmm: pinctrl@03400000 {
+		blsp2_uart2_active: blsp2_uart2_active {
+			mux {
+				pins = "gpio4", "gpio5";
+				function = "blsp_uart8_a";
+			};
+
+			config {
+				pins = "gpio4", "gpio5";
+				drive-strength = <16>;
+				bias-pull-up;		/* PULL UP */
+			};
+		};
+
+		blsp2_uart2_sleep: blsp2_uart2_sleep {
+			mux {
+				pins = "gpio4", "gpio5";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio4", "gpio5";
+				drive-strength = <2>;
+				bias-pull-up;		/* PULL UP */
+			};
+		};
+	};
+
+	/delete-node/ uart@c1b0000;
+	blsp2_uart2_hs: uart@c1b0000 { /* BLSP2 UART2 */
+		compatible = "qcom,msm-hsuart-v14";
+		reg = <0xC1B0000 0x200>,
+		    <0xC184000 0x25000>;
+		reg-names = "core_mem", "bam_mem";
+		interrupt-names = "core_irq", "bam_irq";
+		#address-cells = <0>;
+		interrupt-parent = <&blsp2_uart2_hs>;
+		interrupts = <0 1 2>;
+		#interrupt-cells = <1>;
+		interrupt-map-mask = <0xffffffff>;
+		interrupt-map = <0 &intc 0 0 114 0
+			    1 &intc 0 0 239 0>;
+
+		qcom,bam-tx-ep-pipe-index = <2>;
+		qcom,bam-rx-ep-pipe-index = <3>;
+		qcom,master-id = <84>;
+		clock-names = "core_clk", "iface_clk";
+		clocks = <&clock_gcc clk_gcc_blsp2_uart2_apps_clk>,
+		    <&clock_gcc clk_gcc_blsp2_ahb_clk>;
+		pinctrl-names = "sleep", "default";
+		pinctrl-0 = <&blsp2_uart2_sleep>;
+		pinctrl-1 = <&blsp2_uart2_active>;
+
+		qcom,msm-bus,name = "buart2";
+		qcom,msm-bus,num-cases = <2>;
+		qcom,msm-bus,num-paths = <1>;
+		qcom,msm-bus,vectors-KBps =
+			    <86 512 0 0>,
+			    <86 512 500 800>;
+		status = "ok";
+	};
+	
+	mcd {
+		compatible = "qcom,mcd";
+		qcom,ce-hw-instance = <0>;
+		qcom,ce-device = <0>;
+		interrupts = <0 472 0>;
+		interrupt-names = "mcd_irq";
+		clock-names = "core_clk_src", "core_clk",
+			"iface_clk", "bus_clk";
+		clocks = <&clock_gcc clk_ce1_clk>,
+			<&clock_gcc clk_qseecom_ce1_clk>,
+			<&clock_gcc clk_gcc_ce1_ahb_m_clk>,
+			<&clock_gcc clk_gcc_ce1_axi_m_clk>;
+			qcom,ce-opp-freq = <171430000>;
+	};
+
+	gpio_keys {
+		vol_up {
+			/delete-property/ gpio-key,wakeup;
+		};
+	};
+};
+
+&pcie0 {
+	/delete-property/ qcom,ep-latency;
+	qcom,phy-sequence-override = <0x010 0x00 0x00 // SSC enable(0x01), disable(0x00)
+				0x500 0x10 0x00	// QSERDES_RX_SIGDET_ENABLES
+				0x9d8 0xaa 0x00>; // PCIE_USB3_PCS_RX_SIGDET_LVL
+};
+
+&pil_modem {
+	/* GPIO output to mss */
+	qcom,gpio-stop-reason-0 = <&smp2pgpio_ssr_smp2p_1_out 4 0>;
+	qcom,gpio-stop-reason-1 = <&smp2pgpio_ssr_smp2p_1_out 5 0>;
+};
+
+&soc {
+	qcom_seecom: qseecom@86600000 {
+		reg = <0x86D00000 0x3400000>;
+	};
+
+	sec_debug {
+		status = "okay";
+		compatible = "samsung,sec_debug";
+		vdd-cx-min-volts = <RPM_SMD_REGULATOR_LEVEL_SVS>;
+		vdd-cx-max-volts = <RPM_SMD_REGULATOR_LEVEL_TURBO>;
+		vdd-cx-supply = <&pm8998_s1_level>;
+	};
+};

@@ -1,0 +1,253 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../../../../drivers/video/fbdev/msm/samsung/S6E3HA6_AMB577MQ01/dsi_panel_S6E3HA6_AMB577MQ01_wqhd_octa_cmd.dtsi"
+#include "../../../../drivers/video/fbdev/msm/samsung/PBA_BOOTING/dsi_panel_PBA_BOOTING_fhd_video.dtsi"
+
+
+/*
+ * SOC Setting (TLMM Pin Control & SPI Setting)
+ */
+
+&soc {
+	tlmm: pinctrl@03400000 {
+		pmx_mdss: pmx_mdss {
+			mdss_dsi_active: mdss_dsi_active {
+				mux {
+					pins = "gpio23";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio23";
+					drive-strength = <8>;
+					bias-disable = <0>;
+				};
+			};
+			mdss_dsi_suspend: mdss_dsi_suspend {
+				mux {
+					pins = "gpio23";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio23";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+		};
+
+		pmx_mdss_te {
+			mdss_te_active: mdss_te_active {
+				mux {
+					pins = "gpio12";
+					function = "mdp_vsync";
+				};
+				config {
+					pins = "gpio12";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+			mdss_te_suspend: mdss_te_suspend {
+				mux {
+					pins = "gpio12";
+					function = "mdp_vsync";
+				};
+				config {
+					pins = "gpio12";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+		};
+
+		spi_10_cs1 { // UB_SPI_SSN
+			spi_10_cs1_active: spi_10_cs1_active {
+				mux {
+					pins = "gpio49";
+					function = "blsp10_spi_b";
+				};
+				config {
+					pins = "gpio49";
+					drive-strength = <6>;
+					bias-disable;
+				};
+			};
+
+			spi_10_cs1_sleep: spi_10_cs1_sleep {
+				mux {
+					pins = "gpio49";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio49";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+		};
+	};
+
+	spi_10: spi@c1b8000 {
+		qcom,gpio-cs1  = <&tlmm 49 0>;	// UB_SPI_SSN
+
+		ddi_spi:ddi_spi@1  {	// LCD_SPI
+			compatible = "ss,ddi-spi";
+			spi-max-frequency = <8000000>;
+			read-chunk-size  = <0x2000> ;
+			write-chunk-size = <0x20000> ;
+			reg = <1>;
+			qcom,spiop-read = <0x03 3 0 0 0>;
+			qcom,spiop-readseq = <0x03 3 0 0 0>;
+			qcom,spiop-queryid = <0x90 3 0 0 0>;
+			qcom,spiop-pprog = <0x02 2 0 0 0>;
+			qcom,spiop-wenable = <0x06 0 0 0 0>;
+			qcom,spiop-readst = <0x05 0 0 0 0>;
+			qcom,spiop-erase = <0x20 2 0 10 30>;
+			qcom,spi-busy-mask = <0x01>;
+			qcom,spi-page-size = <0x256>;
+			qcom,spi-erase-size = <0x4096>;
+		};
+	};
+};
+
+&ss_dsi_panel_S6E3HA6_AMB577MQ01_WQHD {
+	samsung,esd-irq-gpio1 = <&pm8998_gpios 5 0>; // DISP_DET
+
+	samsung,lpm-power-control;
+	samsung,lpm-power-control-supply-name = "vddr";
+	samsung,lpm-power-control-supply-min-voltage = <1500000>;
+	samsung,lpm-power-control-supply-max-voltage = <1500000>;
+
+    qcom,panel-supply-entries {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        qcom,panel-supply-entry@0 {
+            reg = <0>;
+            qcom,supply-name = "vdd3";
+            qcom,supply-min-voltage = <1800000>;
+            qcom,supply-max-voltage = <1800000>;
+            qcom,supply-enable-load = <100000>;
+            qcom,supply-disable-load = <100>;
+            qcom,supply-pre-on-sleep = <0>; /* unit is ms*/
+            qcom,supply-post-on-sleep = <0>;
+        };
+
+        qcom,panel-supply-entry@1 {
+            reg = <1>;
+            qcom,supply-name = "vddr";
+            qcom,supply-min-voltage = <1600000>;
+            qcom,supply-max-voltage = <1600000>;
+            qcom,supply-enable-load = <100000>;
+            qcom,supply-disable-load = <100>;
+            qcom,supply-pre-on-sleep = <0>; /* unit is ms*/
+            qcom,supply-post-on-sleep = <0>;
+        };
+
+        qcom,panel-supply-entry@2 {
+            reg = <2>;
+            qcom,supply-name = "vci";
+            qcom,supply-min-voltage = <3000000>;
+            qcom,supply-max-voltage = <3000000>;
+            qcom,supply-enable-load = <100000>;
+            qcom,supply-disable-load = <100>;
+            qcom,supply-pre-on-sleep = <0>; /* unit is ms*/
+            qcom,supply-post-on-sleep = <0>;
+        };
+    };
+};
+
+&mdss_dsi {
+    hw-config = "split_dsi"; /* DSC */
+};
+
+/*
+ * LDOs for LCD Driver
+ */
+
+&s2dos03_l3 {
+	regulator-boot-on;
+};
+
+&s2dos03_l1 {
+	regulator-boot-on;
+	regulator-always-on;
+};
+
+&s2dos03_buck {
+	regulator-boot-on;
+};
+
+&mdss_dsi0 {
+	qcom,dsi-pref-prim-pan = <&ss_dsi_panel_S6E3HA6_AMB577MQ01_WQHD>;
+	qcom,platform-te-gpio = <&tlmm 12 0>;
+	qcom,platform-reset-gpio = <&tlmm 23 0>;
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_dsi_active &mdss_te_active>;
+	pinctrl-1 = <&mdss_dsi_suspend &mdss_te_suspend>;
+	/*  Panel Power
+	 *   vci -> s2mpb02_l17(needed to define here)
+	 *   vdd3 -> pm8994_lvs2(needed to define here)
+	 *   vddr -> s2mpb02_b1(needed to define here)
+	 */
+	vci-supply = <&s2dos03_l3>; /* 3.0V */
+	vdd3-supply = <&s2dos03_l1>; /* 1.8V */
+	vddr-supply = <&s2dos03_buck>; /* 1.6V */
+
+	// to enable hs strength overriding
+	qcom,platform-lane-config = [00 20 00 00
+				00 20 00 00
+				00 20 00 00
+				00 20 00 00
+				00 20 00 80];
+
+	/delete-property/ qcom,panel-mode-gpio;
+};
+
+&mdss_dsi1 {
+	status = "disabled";
+};
+
+&mdss_mdp {
+    qcom,mdss-pref-prim-intf = "dsi";
+    mdss_fb0: qcom,mdss_fb_primary {
+        qcom,mdss-fb-split = <720 720>;
+    };
+};
+
+/*
+ * PM GPIO for Panel Status
+ */
+
+&spmi_bus {
+	qcom,pm8998@0 {
+		pm8998_gpios: gpios {
+			gpio@c400 { /* PM8998_GPIO 5 for DISP_DET */
+				status = "okay";
+				qcom,mode = <0>;
+				qcom,pull = <4>;
+				qcom,vin-sel = <0>;
+				qcom,src-sel = <0>;
+			};
+
+			gpio@c800 { /* PM8998_GPIO 9 for FG_ERR */
+				status = "okay";
+				qcom,mode = <0>;
+				qcom,pull = <4>;
+				qcom,vin-sel = <0>;
+				qcom,src-sel = <0>;
+			};
+		};
+	};
+};
+
