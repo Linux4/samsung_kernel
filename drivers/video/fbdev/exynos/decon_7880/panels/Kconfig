@@ -1,0 +1,42 @@
+config EXYNOS_DECON7880_LCD
+	depends on EXYNOS_DECON_7880
+	bool "Select LCD panel driver"
+
+config EXYNOS_DECON_LCD_SYSFS
+	depends on EXYNOS_DECON7880_LCD
+	tristate "Support LCD SYSFS"
+	default y
+
+config PANEL_AID_DIMMING
+	depends on EXYNOS_DECON7880_LCD
+	tristate "Support AID Dimming"
+	default n
+
+config EXYNOS_DECON_MDNIE_LITE
+	depends on EXYNOS_DECON7880_LCD
+	tristate "Support MDNIE LITE"
+	default n
+
+config LCD_DOZE_MODE
+	depends on EXYNOS_DECON7880_LCD
+	tristate "Support DOZE MODE"
+	default n
+
+config LCD_HMT
+	depends on EXYNOS_DECON7880_LCD
+	tristate "Support HMT"
+	default n
+
+config DISPLAY_USE_INFO
+	depends on EXYNOS_DECON7880_LCD
+	tristate "Support display use info logging"
+	default n
+
+config PANEL_S6E3FA3_A7Y17
+	depends on EXYNOS_DECON7880_LCD && EXYNOS_MIPI_DSI
+	tristate "S6E3FA3 A7Y17 AMOLED driver"
+
+config PANEL_S6E3FA3_A5Y17
+	depends on EXYNOS_DECON7880_LCD && EXYNOS_MIPI_DSI
+	tristate "S6E3FA3 A5Y17 AMOLED driver"
+

@@ -1,0 +1,328 @@
+/*
+ * SAMSUNG Exynos7880 Universal board device tree source
+ *
+ * Copyright (c) 2015 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos7880-a5y17lte_common.dtsi"
+#include "exynos7880-a5y17lte_eur_open_gpio_03.dtsi"
+#include "exynos7880-a5y17lte-common-battery.dtsi"
+#include "exynos7880-a5y17lte_fingerprint-sensor_00.dtsi"
+#include "exynos7880-a5y17lte_mst_00.dtsi"
+
+/ {
+	model = "Samsung A5Y17 LTE EUR rev03 board based on Exynos 7880";
+	model_info-chip = <7880>;
+	model_info-platform = "android";
+	model_info-subtype = "samsung";
+	model_info-hw_rev = <3>;
+	model_info-hw_rev_end = <4>;
+	compatible = "samsung, A5Y17 LTE EUR OPEN 03", "samsung,exynos7880";
+
+	hsi2c@10610000 {
+		status = "okay";
+		samsung,hs-mode;
+		clock-frequency = <2500000>;
+		samsung,hsi2c-batcher;
+
+		s2mpu05_pmic@66 {
+			regulators {
+				ldo33_reg: LDO33 {
+					regulator-name = "vdd_ldo33";
+					regulator-min-microvolt = <3000000>;
+					regulator-max-microvolt = <3000000>;
+					regulator-always-on;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <3>;
+				};
+				ldo34_reg: LDO34 {
+					regulator-name = "vdd_ldo34";
+					regulator-min-microvolt = <3300000>;
+					regulator-max-microvolt = <3300000>;
+				};
+			};
+		};
+	};
+
+	hsi2c_6: hsi2c@138F0000 {
+		gpios = <&gpf2 1 0 &gpf2 0 0>;
+		status = "okay";
+		clock-frequency = <400000>;
+		sec-nfc@27 {
+			compatible = "sec-nfc";
+			reg = <0x27>;
+			interrupts = <6 0 0>;
+			interrupt-parent = <&gpa2>;
+
+			sec-nfc,firm-gpio = <&gpd4 1 0>;
+			sec-nfc,irq-gpio = <&gpa2 6 0>;
+			sec-nfc,pvdd_1p8-gpio = <&gpd1 6 0>;
+
+			clkctrl-reg = <0x106B600C>;
+			sec-nfc,pd-gpio = <&gpc2 2 0x2>;
+			sec-nfc,clk_req = <&gpc2 3 0x2>;
+
+			pinctrl-names = "default";
+			pinctrl-0 = <&nfc_firm &nfc_pd_fun &nfc_int &nfc_clk_req &nfc_clk &nfc_pvdd>;
+		};
+	};
+
+	wlan {
+		compatible = "qcom,cnss_sdio";
+		wlan-en-gpio = <&gpd3 6 0>; /* WLAN_EN */
+		wlan-host-wake = <&gpa2 2 0>; /* WLAN_HOST_WAKE */
+		vdd-wlan-supply = <&cnss_dcdc_en>; /* DCDC_EN regulator */
+		pinctrl-names = "default";
+		pinctrl-0 = <&cnss_wlanen &cfg_wlanhostwake>;
+		status = "okay";
+	};
+	
+	pinctrl@139B0000 {
+		cnss_wlanen: cnss-wlanen  {       /* WLAN_EN */
+			samsung,pins = "gpd3-6";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <3>;
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+			samsung,pin-val = <0>;
+		};
+	};
+
+	spi_0: spi@13920000 {
+		status = "okay";
+		/delete-property/ pinctrl-names;
+		/delete-property/ pinctrl-0;
+
+		ese_spi@0 {
+			compatible = "ese_p3";
+			reg = <0>;
+			spi-max-frequency = <13000000>;
+
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			p3-ap_vendor = "slsi";
+			p3-vdd_1p8-gpio = <&gpd1 1 0>;
+
+			clocks = <&clock 191>, <&clock 633>;
+			clock-names = "pclk", "sclk";
+
+			pinctrl-names = "ese_active", "ese_suspend", "ese_default";
+			pinctrl-0 = <&spi0_bus &ese_cs_func>;
+			pinctrl-1 = <&spi0_bus_suspend &ese_cs_func_suspend>;
+			pinctrl-2 = <&ese_vdd_1p8>;
+
+			controller-data {
+				cs-gpio = <&gpc7 4 0>;
+				samsung,spi-feedback-delay = <0>;
+				samsung,spi-chip-select-mode = <0>; /* MANUAL_CS_MODE  */
+			};
+		};
+	};
+
+	pinctrl@139B0000 {
+		si47xx_rst_default: si47xx_rst_default {
+			samsung,pins = "gpd1-2";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-val = <0>;
+		};
+		hs_i2c2_bus: hs-i2c2-bus {
+			samsung,pins = "gpf3-2", "gpf3-3";
+			samsung,pin-function = <3>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <0>;
+		};
+	};
+	pinctrl@139F0000 {
+		si47xx_int_default: si47xx_int_default {
+			samsung,pins = "gpa3-2";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-val = <0>;
+		};
+	};
+
+	hsi2c_2: hsi2c@13960000 {
+		status = "okay";
+		gpios = <&gpf3 3 0 &gpf3 2 0>;
+		clock-frequency = <400000>;
+
+		si47xx@11 {
+			compatible = "si47xx,fmradio";
+			reg = <0x11>;
+			si47xx,mode = <1>;
+		    si47xx,reset = <&gpd1 2 0>;
+			si47xx,interrupt = <&gpa3 2 0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&si47xx_rst_default &si47xx_int_default>;
+			si47xx,rx-vol = <0x00 0x10 0x15 0x1A
+							0x1E 0x22 0x25 0x28
+							0x2A 0x2C 0x2E 0x31
+							0x34 0x36 0x38 0x3B>;
+		};
+	};
+
+	dwmmc1@13550000 {
+		status = "okay";
+		num-slots = <1>;
+		channel = <1>;
+		fixed_voltage;
+		clock-gate;
+		enable-cclk-on-suspend;
+		caps-control;
+		supports-highspeed;
+		supports-4bit;
+		sd-uhs-sdr104;
+		keep-power-in-suspend;
+		pm-ignore-notify;
+		card-detect-type-external;
+		use-broken-voltage;
+		use-fine-tuning;
+		ignore-phase = <(1 << 7)>;
+		fifo-depth = <0x40>;
+		card-detect-delay = <200>;
+		samsung,dw-mshc-ciu-div = <3>;
+		samsung,dw-mshc-sdr-timing = <3 0 3 0>;
+		samsung,dw-mshc-ddr-timing = <3 0 2 1>;
+		samsung,dw-mshc-sdr50-timing = <3 0 4 2>;
+		samsung,dw-mshc-sdr104-timing = <3 0 3 0>;
+		clk_pin = "gpr2-0";
+		clk_addr = "13750000.pinctrl";
+		clk_val = <0x2>;
+		clk_str_num = <4>;
+		num-ref-clks = <9>;
+		ciu_clkin = <25 50 50 25 50 100 200 50 50>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&sd1_clk &sd1_cmd &sd1_bus1 &sd1_bus4>;
+		slot@0 {
+			reg = <0>;
+			bus-width = <4>;
+		};
+	};
+
+	i2c@13890000 {
+		touchscreen@20 {
+			compatible = "zinitix,bt532_ts_device";
+			zinitix,regulator_avdd = "vdd_ldo34";
+		};
+	};
+
+	i2c@20{
+		abov@20 {
+			compatible = "abov,mc96ft18xx";
+			abov,bringup = "true";
+		};
+	};
+
+	/* VIBRATOR */
+	sec_vib {
+		compatible = "sec_vib";
+		sec_vib_pdata {
+			status = "okay";
+			sec_vib,max_timeout = <10000>;
+			sec_vib,ldo_type = <1>;
+			sec_vib,ldo_en = <&gpd2 3 1>;
+		};
+	};
+	
+
+    /* SENSORHUB */
+    spi_2: spi@13930000 {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        pinctrl-names = "default";
+        pinctrl-0 = <&spi2_mosi_sck_ssn &spi2_miso>;
+
+        num-cs = <1>;
+        status = "okay";
+
+		STM32F@0 {
+			compatible = "ssp,STM32F";
+			reg = <0>;
+			spi-max-frequency = <8000000>;
+			spi-cpol;
+			spi-cpha;
+			pinctrl-names = "default";
+			pinctrl-0 = <&ssp_rst &ssp_ap_int &ssp_mcu_int1 &ssp_mcu_int2 &ssp_boot0>;
+
+			gpio-controller;
+			#gpio-cells = <2>;
+			ssp,mcu_int1-gpio = <&gpa0 7 0x00>;
+			ssp,mcu_int2-gpio = <&gpa2 5 0x00>;
+			ssp,ap_int-gpio = <&gpd1 5 0x01>;
+			ssp,rst-gpio = <&gpf4 2 0x01>;
+			ssp,boot0-gpio = <&gpd2 0 0x1>;
+			ssp,acc-position = <5>;
+			ssp,mag-position = <7>;
+			ssp-sns-combination = <0>;
+			ssp,prox-hi_thresh = <55>;
+			ssp,prox-low_thresh = <40>;
+			ssp,prox-detect_hi_thresh = <250>;
+			ssp,prox-detect_low_thresh = <130>;
+			ssp-ap-rev = <1>;
+			ssp-mag-array = /bits/ 8 <0 0 0 0 0 0 0 0 0
+                                    0 0 0 0 0 0 0 0 0
+                                    0 0 0 0 0 0 0 0 0>;
+			ssp-mag-type = <1>;
+			ssp-glass-type = <0>;
+			ssp-acc-type = <1>;
+			ssp-pressure-type = <1>;
+
+
+            controller-data {
+                cs-gpio = <&gpc4 3 0>;
+                samsung,spi-feedback-delay = <0>;
+			};
+        };
+	};
+
+    pinctrl@139B0000 {
+        /*mcu_resp rev 0.1*/
+        ssp_mcu_resp: ssp-mcu-resp {
+	        samsung,pins = "gpd1-6";
+	        samsung,pin-function = <0>;
+	        samsung,pin-pud = <3>;
+	        samsung,pin-drv = <3>;
+        };
+    };
+	tmuctrl_2: tmuctrl_G3D@10130000 {
+		/* flags, driver_data(index), frequency */
+		gpu_cooling_table = < 0 0 962000
+				      0 1 845000
+				      0 2 756000
+				      0 3 548000
+				      0 4 343000
+				      0 5 TABLE_END>;
+	};
+
+	cnss_dcdc_en: cnss_dcdc_en {
+		compatible = "regulator-fixed";
+		regulator-name = "cnss_dcdc_en";
+		startup-delay-us = <4000>;
+		enable-active-high;
+		gpio = <&gpd3 3 0>;
+	};
+
+	bluetooth {
+		compatible = "qca,qca6174";
+		gpios = <&gpd4 2 0x1	/*BT_EN*/
+			&gpd5 1 0x1	/*BT_WAKE*/
+			&gpa1 6 0xF	/*BT_HOST_WAKE*/ >;
+		vdd-wlan-supply = <&cnss_dcdc_en>; /* DCDC_EN regulator */
+		pinctrl-names = "default";
+		pinctrl-0=<&bt_hostwake &bt_btwake &bt_en>;
+		status = "okay";
+	};
+
+
+};
