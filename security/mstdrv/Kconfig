@@ -1,0 +1,65 @@
+#@file Kconfig
+#@brief Kconfig for MST drivers
+#Copyright (c) 2015, Samsung Electronics Corporation. All rights reserved.
+#
+#This program is free software; you can redistribute it and/or modify
+#it under the terms of the GNU General Public License version 2 and
+#only version 2 as published by the Free Software Foundation.
+#
+#This program is distributed in the hope that it will be useful,
+#but WITHOUT ANY WARRANTY; without even the implied warranty of
+#MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#GNU General Public License for more details. 
+
+config MST_LDO
+	bool "MST LDO kernel driver"
+	depends on !(SEC_BOLTQ5G_PROJECT) && !(SEC_GTS5L_PROJECT) && !(SEC_GTS5LWIFI_PROJECT) \
+			&& !(SEC_GTS6L_PROJECT) && !(SEC_GTS6LWIFI_PROJECT) && !(SEC_R3Q_PROJECT && !(MACH_R3Q_KOR_SINGLE)) \
+			&& !(SEC_R5Q_PROJECT && !(MACH_R5Q_EUR_OPEN) && !(MACH_R5Q_USA_OPEN)) && !(SEC_GTS6X_PROJECT) && !(SEC_ZODIAC_PROJECT)
+	default n
+	help
+	This enables the MST LDO kernel driver
+
+config MST_REGULATOR
+	bool "MST uses regulator API"
+	default n
+	help
+	This enables regulator API code
+
+config MST_SUPPORT_GPIO
+	bool "MST uses support gpio"
+	default n
+	help
+	This enables support gpio check code
+
+config MFC_CHARGER
+	bool "MFC IC using model"
+	depends on !(SEC_BOLTQ5G_PROJECT) && !(SEC_GTS5L_PROJECT) && !(SEC_GTS5LWIFI_PROJECT) \
+			&& !(SEC_GTS6L_PROJECT) && !(SEC_GTS6LWIFI_PROJECT) && !(SEC_R3Q_PROJECT) && !(SEC_R5Q_PROJECT) \
+			&& !(SEC_R5QSWA_PROJECT) && !(SEC_GTS6X_PROJECT) && !(SEC_ZODIAC_PROJECT) \
+			&& !(SEC_A82XQ_PROJECT)
+	default n
+	help
+	This enables the MFC IC sysfs node
+
+config MFC_LDO_COMMAND
+	bool "i2c patch for LDO on MFC IC IDT chip"
+	default n
+	help
+	This enables the i2c patch for LDO on MFC IC IDT chip
+
+config MST_LPM_DISABLE
+	bool "MST LPM Disable, this works only in eng binary version"
+	depends on !(SEC_BOLTQ5G_PROJECT) && !(SEC_GTS5L_PROJECT) && !(SEC_GTS5LWIFI_PROJECT) \
+			&& !(SEC_GTS6L_PROJECT) && !(SEC_GTS6LWIFI_PROJECT) && !(SEC_R3Q_PROJECT) && !(SEC_R5Q_PROJECT) \
+			&& !(SEC_R5QSWA_PROJECT) && !(SEC_GTS6X_PROJECT) && !(SEC_ZODIAC_PROJECT)
+	default n
+	help
+	This enables the MST LPM disable funtion in eng binary version
+
+config MST_LPM_CONTROL
+	bool "MST control LPM mode for performace"
+	default n
+	help
+	This enables the MST LPM control code
+
