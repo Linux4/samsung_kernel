@@ -1,0 +1,3 @@
+config FINGERPRINT_FPC
+	default n
+       tristate "FPC_BTP fingerprint sensor support"
