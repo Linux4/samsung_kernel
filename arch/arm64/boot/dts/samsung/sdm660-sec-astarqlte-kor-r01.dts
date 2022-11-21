@@ -1,0 +1,89 @@
+/*
+ * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+/dts-v1/;
+
+#define SDM660_A_STARQLTE_REV03
+
+#include "../qcom/sdm660.dtsi"
+#include "../qcom/sdm660-mtp.dtsi"
+#include "../qcom/msm-pm660a.dtsi"
+
+#include "sdm660-sec-common.dtsi"
+#include "sdm660-sec-astarqlte-audio.dtsi"
+#include "sdm660-sec-astarqlte-kor-r01.dtsi"
+#include "sdm660-sec-astarqlte-kor-pinctrl-r01.dtsi"
+#include "sdm660-sec-astarqlte-display-r00.dtsi"
+#include "sdm660-sec-astarqlte-battery-kor-r00.dtsi"
+#include "sdm660-sec-astarqlte-muic-common.dtsi"
+#include "sdm660-sec-astarqlte-chn-fingerprint-sensor_00.dtsi"
+#include "sdm660-camera-sensor-astarqlte_chn-r02.dtsi"
+#include "../../../../drivers/leds/tuning/astarqlte_led_tuning.dtsi"
+
+/ {
+	model = "Samsung A-STARQLTE KOR PROJECT Rev01 (board-id,01)";
+	compatible = "qcom,sdm660-mtp", "qcom,sdm660", "qcom,mtp";
+	qcom,board-id = <8 1>;
+};
+
+&i2c_4 {
+	sec_ts@48 {
+		status = "okay";
+
+		compatible = "sec,sec_ts";
+		reg = <0x48>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <67 0>;
+
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&tsp_int_active>;
+		pinctrl-1 = <&tsp_int_suspend>;
+
+		sec,irq_gpio = <&tlmm 67 0>;
+		sec,max_coords = <2160 3840>;   /* x y */
+		sec,use_ic_resolution;
+		sec,grip_area = <512>;
+		sec,mis_cal_check = <1>;
+		sec,use_gpio_ldo;
+		sec,regulator_avdd = "tsp_ldo_en";
+		sec,regulator_boot_on;
+		sec,project_name = "JACKPOT1", "A530";
+		sec,firmware_name = "tsp_sec/y661_a5y18.fw";
+		sec,bringup = <1>;
+		vdd-io-supply = <&pm660_l13>;
+		sec,regulator_dvdd = "vdd_io";
+		sec,tclm_level = <1>;
+	};
+
+	touchscreen@20 {
+		status = "okay";
+	};
+};
+
+&soc {
+	i2c_26: i2c@26 {
+		sm5705_fled {
+			compatible = "siliconmitus,sm5705-fled";
+			enable = <1 1>;
+			id= <0>;
+			status = "okay";
+			flash-mode-current-mA = <1000>;
+			torch-mode-current-mA = <150>;
+			preflash-mode-current-mA = <150>;
+			used-gpio-control = <1>;
+			flash-en-gpio = <&tlmm 60 0x00>;
+			torch-en-gpio = <&tlmm 41 0x00>;
+		};
+	};
+};

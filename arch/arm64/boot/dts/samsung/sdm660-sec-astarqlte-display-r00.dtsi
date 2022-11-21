@@ -1,0 +1,210 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../../../../drivers/video/fbdev/msm/samsung/S6E3FA7_AMS628RF01/dsi_panel_S6E3FA7_AMS628RF01_fhd_octa_cmd.dtsi"
+#include "../../../../drivers/video/fbdev/msm/samsung/S6E3FA7_AMS604NL01/dsi_panel_S6E3FA7_AMS604NL01_fhd_octa_cmd.dtsi"
+#include "../../../../drivers/video/fbdev/msm/samsung/PBA_BOOTING/dsi_panel_PBA_BOOTING_fhd_video.dtsi"
+
+/*
+ * SOC Setting (TLMM Pin Control & SPI Setting)
+ */
+
+&soc {
+	tlmm: pinctrl@03000000 {
+		mdss_dsi_active: mdss_dsi_active {
+			mux {
+				pins = "gpio53"; /* rst */
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio53";
+				drive-strength = <8>; /* 8 mA */
+				bias-disable = <0>; /* no pull */
+				output-high;
+			};
+		};
+
+		mdss_dsi_suspend: mdss_dsi_suspend {
+			mux {
+				pins = "gpio53"; /* rst */
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio53";
+				drive-strength = <2>; /* 2 mA */
+				bias-pull-down; /* pull down */
+			};
+		};
+
+		mdss_te_active: mdss_te_active {
+			mux {
+				pins = "gpio59";
+				function = "mdp_vsync";
+			};
+			config {
+				pins = "gpio59";
+				drive-strength = <2>; /* 8 mA */
+				bias-pull-down; /* pull down*/
+			};
+		};
+
+		mdss_te_suspend: mdss_te_suspend {
+			mux {
+				pins = "gpio59";
+				function = "mdp_vsync";
+			};
+			config {
+				pins = "gpio59";
+				drive-strength = <2>; /* 2 mA */
+				bias-pull-down; /* pull down */
+			};
+		};
+
+		mdss_disp_det_active: mdss_disp_det_active {
+			mux {
+				pins = "gpio45", "gpio49";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio45", "gpio49";
+				drive-strength = <2>; /* 8 mA */
+				bias-disable = <0>; /* no pull */
+				input-enable;
+			};
+		};
+
+		mdss_disp_det_suspend: mdss_disp_det_suspend {
+			mux {
+				pins = "gpio45", "gpio49";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio45", "gpio49";
+				drive-strength = <2>; /* 2 mA */
+				bias-disable = <0>; /* no pull */
+			};
+		};
+	};
+};
+
+&spmi_bus {
+	qcom,pm660l@2 {
+		pm660l_gpios: gpios {
+
+			gpio@c200 {			/* gpio 3, FG_ERR */
+				qcom,mode = <0>;
+				qcom,pull = <4>;
+				qcom,vin-sel = <0>;
+				qcom,src-sel = <0>;
+				qcom,out-strength = <1>;
+				status = "okay";
+			};
+		};
+	};
+};
+
+
+&soc {
+	dsi_panel_pwr_supply_samsung:
+		dsi_panel_pwr_supply_samsung {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			qcom,panel-supply-entry@0 {
+				reg = <0>;
+				qcom,supply-name = "vddr";
+				qcom,supply-min-voltage = <1800000>;
+				qcom,supply-max-voltage = <1800000>;
+				qcom,supply-enable-load = <32000>;
+				qcom,supply-disable-load = <80>;
+			};
+
+			qcom,panel-supply-entry@1 {
+				reg = <1>;
+				qcom,supply-name = "vci";
+				qcom,supply-min-voltage = <3000000>;
+				qcom,supply-max-voltage = <3000000>;
+				qcom,supply-enable-load = <13200>;
+				qcom,supply-disable-load = <80>;
+				qcom,supply-post-on-sleep = <10>;
+			};
+		};
+};
+
+&ss_dsi_panel_S6E3FA7_AMS628RF01_FHD {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <1>;
+	qcom,mdss-dsi-bl-max-level = <365>;
+
+	samsung,esd-irq-gpio1 = <&pm660l_gpios 3 0>;
+	samsung,esd-irq-gpio2 = <&tlmm 49 0>;
+
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_samsung>;
+
+	qcom,mdss-dsi-panel-timings-phy-v2 = [
+		25 1f 09 0A 06 03 04 a0
+		25 1f 09 0A 06 03 04 a0
+		25 1f 09 0A 06 03 04 a0
+		25 1f 09 0A 06 03 04 a0
+		25 1f 08 0A 06 03 04 a0
+	];
+};
+
+&ss_dsi_panel_S6E3FA7_AMS604NL01_FHD {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <1>;
+	qcom,mdss-dsi-bl-max-level = <365>;
+
+	samsung,esd-irq-gpio1 = <&pm660l_gpios 3 0>;
+	samsung,esd-irq-gpio2 = <&tlmm 49 0>;
+
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_samsung>;
+
+	qcom,mdss-dsi-panel-timings-phy-v2 = [
+		25 1f 09 0A 06 03 04 a0
+		25 1f 09 0A 06 03 04 a0
+		25 1f 09 0A 06 03 04 a0
+		25 1f 09 0A 06 03 04 a0
+		25 1f 08 0A 06 03 04 a0
+	];
+};
+
+&mdss_dsi {
+	hw-config = "single_dsi";
+};
+
+/*
+ * LDOs for LCD Driver
+ */
+
+&mdss_dsi0 {
+	qcom,dsi-pref-prim-pan = <&ss_dsi_panel_S6E3FA7_AMS628RF01_FHD>;
+	vddr-supply = <&pm660_l11>;
+	vci-supply = <&pm660l_l6>;
+
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_dsi_active &mdss_te_active &mdss_disp_det_active>;
+	pinctrl-1 = <&mdss_dsi_suspend &mdss_te_suspend &mdss_disp_det_suspend>;
+
+	qcom,platform-reset-gpio = <&tlmm 53 0>;
+	qcom,platform-te-gpio = <&tlmm 59 0>;
+};
+
+&mdss_dsi1 {
+	status = "disabled";
+};
+
+&mdss_mdp {
+    qcom,mdss-pref-prim-intf = "dsi";
+};

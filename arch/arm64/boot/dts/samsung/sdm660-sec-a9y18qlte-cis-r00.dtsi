@@ -1,0 +1,60 @@
+/*
+ * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+
+
+#include "sdm660-sec-a9y18qlte-common.dtsi"
+#include "sdm660-sec-a9y18qlte-sensor-r00.dtsi"
+
+&i2c_4 {
+	touchscreen@20 {
+		zinitix,regulator_avdd = "tsp_ldo_en";
+		zinitix,bringup = "true";
+	};
+};
+
+&soc {
+	/* not use S2DOS03 */
+	/delete-node/ i2c@22;
+	/* not use ufs */
+	/delete-node/ ufsphy@1da7000;
+	/delete-node/ ufshc@1da4000;
+	/delete-node/ ufsice@1db0000;
+
+	tsp_ldo_en {
+		compatible = "regulator-fixed";
+		regulator-name = "tsp_ldo_en";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		gpio = <&pm660l_gpios 4 0>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+};
+
+&firmware {
+	android {
+		fstab {
+			odm {
+				dev = "/dev/block/platform/soc/c0c4000.sdhci/by-name/odm";
+			};
+			system {
+				dev = "/dev/block/platform/soc/c0c4000.sdhci/by-name/system";
+			};
+			vendor {
+				dev = "/dev/block/platform/soc/c0c4000.sdhci/by-name/vendor";
+			};
+		};
+	};
+};

@@ -1,0 +1,55 @@
+/*
+ * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+/dts-v1/;
+
+#define SDM660_DREAMLITEQLTE_REV01
+
+#include "../qcom/sdm660.dtsi"
+#include "../qcom/sdm660-mtp.dtsi"
+#include "../qcom/msm-pm660a.dtsi"
+
+#include "sdm660-sec-common.dtsi"
+#include "sdm660-sec-dreamliteqlte-audio.dtsi"
+#include "sdm660-sec-dreamliteqlte-chn-r01.dtsi"
+#include "sdm660-sec-dreamliteqlte-chn-pinctrl-r01.dtsi"
+#include "sdm660-sec-dreamliteqlte-display-r01.dtsi"
+#include "sdm660-sec-dreamliteqlte-battery-r01.dtsi"
+#include "sdm660-sec-dreamliteqlte-muic-common.dtsi"
+#include "sdm660-sec-dreamliteqlte-chn-fingerprint-sensor_00.dtsi"
+#include "sdm660-camera-sensor-dreamliteqlte_chn-r01.dtsi"
+#include "../../../../drivers/ifpmic/leds/tuning/dreamliteqlte_led_tuning.dtsi"
+
+/ {
+	model = "Samsung DREAMLITEQLTE CHN PROJECT Rev00A (board-id,01)";
+	compatible = "qcom,sdm660-mtp", "qcom,sdm660", "qcom,mtp";
+	qcom,board-id = <8 1>;
+};
+
+&soc {
+	i2c_26: i2c@26 {
+		sm5705_fled {
+			compatible = "siliconmitus,sm5705-fled";
+			enable = <1 1>;
+			id= <0>;
+			status = "okay";
+			flash-mode-current-mA = <1000>;
+			torch-mode-current-mA = <150>;
+			preflash-mode-current-mA = <150>;
+			used-gpio-control = <1>;
+			flash-en-gpio = <&tlmm 60 0x00>;
+			torch-en-gpio = <&tlmm 41 0x00>;
+		};
+	};
+};

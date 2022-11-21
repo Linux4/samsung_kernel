@@ -1,0 +1,30 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	i2c_26: i2c@26 {
+		muic-sm5705@25 {
+			status = "okay";
+			compatible = "muic-universal";
+			reg = <0x25>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <50 0>;
+			muic-universal,irq-gpio = <&tlmm 50 0x00>;
+			sm5705,wakeup;
+			muic-universal,chip_name = "sm,sm5705";
+			muic-universal,afc-support = <1>;
+			pinctrl-names = "muic_interrupt_pins_default";
+			pinctrl-0 = <&sm5705_interrupt_default>;
+			muic,sm5705_switch_gpio = <&expander_gpios 13 0>;
+		};
+        };
+};

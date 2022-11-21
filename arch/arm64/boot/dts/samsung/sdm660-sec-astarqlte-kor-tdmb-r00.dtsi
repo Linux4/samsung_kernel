@@ -1,0 +1,75 @@
+/* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/{
+	aliases {
+		spi1 = &spi_1;
+	};
+};
+
+&soc {
+	tlmm: pinctrl@03000000 {
+		tdmb_irq {
+			tdmb_irq_on: tdmb_irq_on {
+				mux {
+					pins = "gpio75";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio75";
+					drive-strength = <2>;
+					bias-pull-up;
+				};
+			};
+	
+			tdmb_irq_off: tdmb_irq_off {
+				mux {
+					pins = "gpio75";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio75";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+		};
+
+	};
+
+	spi_1: spi@c175000 {
+		status = "okay";
+		spi-max-frequency = <19200000>;
+		qcom,use-bam;
+
+		tdmb-spi@0 {
+			compatible = "tdmb_spi_comp";
+			reg = <0>;
+			spi-max-frequency = <19200000>;
+		};
+	};
+
+	tdmb_data {
+		compatible = "samsung,tdmb";
+
+		pinctrl-names = "tdmb_on", "tdmb_off";
+		pinctrl-0 = <&tdmb_irq_on>;
+		pinctrl-1 = <&tdmb_irq_off>;
+
+		tdmb_pwr_en = <&expander_gpios 17 0>;
+		tdmb_irq = <&tlmm 75 0 0>;
+		tdmb_lna_en = <&expander_gpios 20 0>;
+		tdmb_use_irq;
+		tdmb_xtal_freq = <24000>;
+
+	};
+};

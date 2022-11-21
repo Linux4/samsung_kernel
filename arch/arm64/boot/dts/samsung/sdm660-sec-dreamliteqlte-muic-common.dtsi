@@ -1,0 +1,66 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+        muic {
+                status = "okay";
+		muic,support-list = "+OTG:GND",
+				"-MHL:1K",
+				"-VZW Accessory:28.7K",
+				"-VZW Incompatible:34K",
+				"+RDU TA:40.2K",
+				"+HMT:49.9K",
+				"-Audiodock:64.9K",
+				"-USB LANHUB:80.07K",
+				"-Charging Cable:102K",
+				"+Game Pad:121K",
+				"+Jig USB Off:255K",
+				"+Jig USB On:301K",
+				"+Deskdock:365K",
+				"-TYPE2 Charger:442K",
+				"+Jig UART Off:523K",
+				"+Jig UART On:619K",
+				"+TA:OPEN",
+				"+USB:OPEN",
+				"+CDP:OPEN",
+				"+Undefined Charging:XXX";
+                muic,afcmode-tx = /bits/ 8 <0x46>;
+		muic,qc-hv = /bits/ 8 <0x9>;
+	};
+
+	i2c26: i2c@26 {
+		sm5720@66 {
+			compatible = "siliconmitus,sm5720";
+			reg = <0x49>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <69 0>;
+			interrupt-names = "sm5720_irq";
+			interrupt-controller;
+			sm5720,irq-gpio = <&tlmm 69 0x00>;
+			sm5720,wakeup;
+			muic-universal,irq-gpio = <&tlmm 69 0x00>;
+			muic-universal,chip_name = "sm,sm5720";
+			muic,undefined_range;
+			pinctrl-names = "muic_active", "muic_suspend", "default";
+			pinctrl-0 = <&muic_i2c_active>;
+			pinctrl-1 = <&muic_i2c_suspend>;
+			pinctrl-2 = <&charger_int_active>;
+			haptic,mode = <1>;
+			haptic,divisor = <128>;
+		};
+	};
+
+ 	rgb {
+		rgb-name = "red", "green", "blue", "white";
+	};
+
+};

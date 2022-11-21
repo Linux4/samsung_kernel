@@ -1,0 +1,78 @@
+/*
+ * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+/dts-v1/;
+
+#include "../qcom/sdm660.dtsi"
+#include "../qcom/sdm660-mtp.dtsi"
+#include "../qcom/msm-pm660a.dtsi"
+
+#include "sdm660-sec-common.dtsi"
+#include "sdm660-sec-a9y18qlte-audio.dtsi"
+#include "sdm660-sec-a9y18qlte-swa-r00.dtsi"
+#include "sdm660-sec-a9y18qlte-swa-pinctrl-r00.dtsi"
+#include "sdm660-sec-a9y18qlte-display-r00.dtsi"
+#include "sdm660-sec-a9y18qlte-battery-common.dtsi"
+#include "sdm660-sec-a9y18qlte-muic-common.dtsi"
+#include "sdm660-sec-a9y18qlte-swa-fingerprint-sensor_00.dtsi"
+#include "sdm660-camera-sensor-a9y18qlte_swa-r00.dtsi"
+#include "../../../../drivers/leds/tuning/a9y18qlte_led_tuning-r00.dtsi"
+
+/ {
+	model = "Samsung A9Y18QLTE SEA PROJECT Rev00 (board-id,00)";
+	compatible = "qcom,sdm660-mtp", "qcom,sdm660", "qcom,mtp";
+	qcom,board-id = <8 0>;
+};
+
+&soc {
+	i2c_6: i2c@c1b6000 { /* BLSP2 QUP2 */
+		status = "okay";
+
+		pn547@2B {
+			compatible = "pn547";
+			reg = <0x2B>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <40 0>;
+			pn547,irq-gpio = <&tlmm 40 0>;
+			pn547,ven-gpio = <&expander_gpios 12 0>;
+			pn547,firm-gpio = <&tlmm 80 0>;
+			pn547,clk_req-gpio = <&pm660_gpios 4 0x00>;
+			pn547,pwr_req =  <&expander_gpios 11 0>;
+			pn547,pvdd-gpio = <&expander_gpios 7 0>;
+			pn547,nfc_pm_clk;
+			qcom,clk-src = "BBCLK3";
+			clocks = <&clock_rpmcc RPM_LN_BB_CLK3_PIN>;
+			clock-names = "rf_clk";
+		};
+	};
+
+	i2c_26: i2c@26 {
+		sm5705_fled {
+			compatible = "siliconmitus,sm5705-fled";
+			enable = <1 1>;
+			id= <0>;
+			status = "okay";
+			flash-mode-current-mA = <1500>;
+			torch-mode-current-mA = <220>;
+			preflash-mode-current-mA = <220>;
+			used-gpio-control = <1>;
+			flash-en-gpio = <&tlmm 60 0x00>;
+			torch-en-gpio = <&tlmm 41 0x00>;
+		};
+	};
+};
+
+&sdhc_2 {
+	cd-gpios = <&tlmm 54 0x1>;
+};
