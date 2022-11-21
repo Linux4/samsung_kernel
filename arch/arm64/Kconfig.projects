@@ -1,0 +1,18 @@
+config SEC_A52XQ_PROJECT
+	default n
+	bool "Samsung A52XQ Project"
+	help
+	  Support for Samsung A52XQ Project
+
+config MACH_A52XQ_CHN_OPEN
+	default n
+	bool "Samsung A52XQ CHN OPEN"
+	help
+	  Support for Samsung A52XQ CHN OPEN device.
+
+config MACH_A52XQ_CHN_HK
+        default n
+        bool "Samsung A52XQ CHN HK"
+        help
+          Support for Samsung A52XQ CHN HK device.
+
