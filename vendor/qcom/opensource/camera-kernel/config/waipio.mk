@@ -1,0 +1,153 @@
+# Settings for compiling waipio camera architecture
+
+# Localized KCONFIG settings
+CONFIG_SPECTRA_ISP := y
+CONFIG_SPECTRA_ICP := y
+CONFIG_SPECTRA_JPEG := y
+CONFIG_SPECTRA_CUSTOM := y
+CONFIG_SPECTRA_SENSOR := y
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),b0q g0q r0q gts8 gts8p gts8u gts8wifi gts8pwifi gts8uwifi))
+CONFIG_SAMSUNG_OIS_MCU_STM32 := y
+CONFIG_CAMERA_SYSFS_V2 := y
+CONFIG_CAMERA_FRAME_CNT_DBG := y
+CONFIG_CAMERA_FRAME_CNT_CHECK := y
+CONFIG_USE_CAMERA_HW_BIG_DATA := y
+CONFIG_SAMSUNG_FRONT_EEPROM := y
+CONFIG_CAMERA_ADAPTIVE_MIPI := y
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),gts8 gts8p gts8u gts8wifi gts8pwifi gts8uwifi))
+CONFIG_SAMSUNG_PMIC_FLASH := y
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),r0q))
+CONFIG_SEC_R0Q_PROJECT := y
+CONFIG_SENSOR_RETENTION := y
+
+ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn))
+CONFIG_FLASH_CURRENT_JAPAN := y
+endif
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),g0q))
+CONFIG_SEC_G0Q_PROJECT := y
+CONFIG_SENSOR_RETENTION := y
+
+ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn))
+CONFIG_FLASH_CURRENT_JAPAN := y
+endif
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),b0q))
+CONFIG_SEC_B0Q_PROJECT := y
+CONFIG_SAMSUNG_REAR_QUADRA := y
+CONFIG_SAMSUNG_ACTUATOR_PREVENT_SHAKING := y
+CONFIG_SENSOR_RETENTION := y
+CONFIG_SAMSUNG_WACOM_NOTIFIER := y
+CONFIG_CAMERA_AEB_OFF_CONTROL := y
+
+ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn))
+CONFIG_FLASH_CURRENT_JAPAN := y
+endif
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),gts8u gts8uwifi))
+CONFIG_SEC_GTS8U_PROJECT := y
+CONFIG_SAMSUNG_FRONT_DUAL := y
+CONFIG_HI847_OTP := y
+CONFIG_SAMSUNG_ACTUATOR_HW_SOFTLANDING := y
+CONFIG_SAMSUNG_FRONT_TOP_EEPROM := y
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),gts8 gts8p gts8wifi gts8pwifi))
+CONFIG_SEC_GTS8P_PROJECT := y
+CONFIG_HI847_OTP := y
+CONFIG_SAMSUNG_ACTUATOR_HW_SOFTLANDING := y
+CONFIG_HI1337_OTP := y
+endif
+
+# Flags to pass into C preprocessor
+ccflags-y += -DCONFIG_SPECTRA_ISP=1
+ccflags-y += -DCONFIG_SPECTRA_ICP=1
+ccflags-y += -DCONFIG_SPECTRA_JPEG=1
+ccflags-y += -DCONFIG_SPECTRA_CUSTOM=1
+ccflags-y += -DCONFIG_SPECTRA_SENSOR=1
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),b0q g0q r0q))
+ccflags-y += -DCONFIG_SAMSUNG_OIS_MCU_STM32=1
+ccflags-y += -DCONFIG_CAMERA_SYSFS_V2=1
+ccflags-y += -DCONFIG_CAMERA_FRAME_CNT_DBG=1
+ccflags-y += -DCONFIG_CAMERA_FRAME_CNT_CHECK=1
+
+ccflags-y += -DCONFIG_SAMSUNG_FRONT_EEPROM=1
+ccflags-y += -DCONFIG_SAMSUNG_REAR_DUAL=1
+ccflags-y += -DCONFIG_SAMSUNG_REAR_TRIPLE=1
+ccflags-y += -DCONFIG_USE_CAMERA_HW_BIG_DATA=1
+ccflags-y += -DCONFIG_CAMERA_ADAPTIVE_MIPI=1
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),gts8 gts8p gts8u gts8wifi gts8pwifi gts8uwifi))
+ccflags-y += -DCONFIG_SAMSUNG_OIS_MCU_STM32=1
+ccflags-y += -DCONFIG_CAMERA_SYSFS_V2=1
+ccflags-y += -DCONFIG_CAMERA_FRAME_CNT_DBG=1
+ccflags-y += -DCONFIG_CAMERA_FRAME_CNT_CHECK=1
+
+ccflags-y += -DCONFIG_SAMSUNG_FRONT_EEPROM=1
+ccflags-y += -DCONFIG_SAMSUNG_REAR_DUAL=1
+ccflags-y += -DCONFIG_USE_CAMERA_HW_BIG_DATA=1
+ccflags-y += -DCONFIG_CAMERA_ADAPTIVE_MIPI=1
+ccflags-y += -DCONFIG_SAMSUNG_PMIC_FLASH=1
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),r0q))
+ccflags-y += -DCONFIG_SEC_R0Q_PROJECT=1
+ccflags-y += -DCONFIG_SENSOR_RETENTION=1
+
+ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn))
+ccflags-y += -DCONFIG_FLASH_CURRENT_JAPAN=1
+endif
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),g0q))
+ccflags-y += -DCONFIG_SEC_G0Q_PROJECT=1
+ccflags-y += -DCONFIG_SENSOR_RETENTION=1
+
+ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn))
+ccflags-y += -DCONFIG_FLASH_CURRENT_JAPAN=1
+endif
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),b0q))
+ccflags-y += -DCONFIG_SEC_B0Q_PROJECT=1
+ccflags-y += -DCONFIG_SAMSUNG_REAR_QUADRA=1
+ccflags-y += -DCONFIG_SAMSUNG_ACTUATOR_PREVENT_SHAKING=1
+ccflags-y += -DCONFIG_SENSOR_RETENTION=1
+ccflags-y += -DCONFIG_SAMSUNG_WACOM_NOTIFIER=1
+ccflags-y += -DCONFIG_CAMERA_AEB_OFF_CONTROL=1
+
+ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn))
+ccflags-y += -DCONFIG_FLASH_CURRENT_JAPAN=1
+endif
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),gts8u gts8uwifi))
+ccflags-y += -DCONFIG_SEC_GTS8U_PROJECT=1
+ccflags-y += -DCONFIG_SAMSUNG_FRONT_DUAL=1
+ccflags-y += -DCONFIG_HI847_OTP=1
+ccflags-y += -DCONFIG_SAMSUNG_ACTUATOR_HW_SOFTLANDING=1
+ccflags-y += -DCONFIG_SAMSUNG_FRONT_TOP_EEPROM=1
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),gts8 gts8p gts8wifi gts8pwifi))
+ccflags-y += -DCONFIG_SEC_GTS8P_PROJECT=1
+ccflags-y += -DCONFIG_HI847_OTP=1
+ccflags-y += -DCONFIG_SAMSUNG_ACTUATOR_HW_SOFTLANDING=1
+ccflags-y += -DCONFIG_HI1337_OTP=1
+endif
+
+# External Dependencies
+KBUILD_CPPFLAGS += -DCONFIG_MSM_MMRM=1
+ifeq ($(CONFIG_QCOM_VA_MINIDUMP), y)
+KBUILD_CPPFLAGS += -DCONFIG_QCOM_VA_MINIDUMP=1
+endif
