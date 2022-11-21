@@ -1,0 +1,18 @@
+config SEC_O1Q_PROJECT
+	default n
+	bool "Samsung O1Q Project"
+	help
+	  Support for Samsung O1Q Project
+
+config MACH_O1Q_CHN_OPENX
+        default n
+        bool "Samsung O1Q CHN OPENX"
+        help
+          Support for Samsung O1Q CHN OPENX device.
+
+config MACH_O1Q_CHN_HKX
+        default n
+        bool "Samsung O1Q CHN HKX"
+        help
+          Support for Samsung O1Q CHN HKX device.
+
