@@ -1,0 +1,36 @@
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				compatible = "shub";
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6765_shub/dts/sensorhub_mt6765_shub.a12.dtsi */
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				acc-lis2dlc12-position = <9>;
+				acc-motor-coef = <7>;
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6765_shub/dts/sensorhub_mt6765_shub.a12.01.dtsi */
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				acc-lis2dlc12-position = <10>;
+				acc-motor-coef = <7>;
+			};
+		};
+	};
+};

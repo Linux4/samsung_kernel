@@ -1,0 +1,156 @@
+/*
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pio {
+	nfc_ven: nfc_ven {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,90), 0)>;
+			output-high;
+			bias-disable;
+		};
+	};
+	ven_nc: ven_nc {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,90), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+};
+
+&pio {
+	nfc_firm: nfc_firm {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,43), 0)>;
+			output-low;
+			bias-disable;
+		};
+	};
+	firm_nc: firm_nc {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,43), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+};
+
+&pio {
+	nfc_clk_req: nfc_clk_req {
+		pins_cmd_dat{
+			pinmux =  <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,1), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+	clk_req_nc: clk_req_nc {
+		pins_cmd_dat{
+			pinmux =  <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,1), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+};
+
+&pio {
+	nfc_irq: nfc_irq {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,3), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+
+	irq_nc: irq_nc {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,3), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+};
+
+#if 1
+&pio {
+	nfc_check: nfc_check {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,52), 0)>;
+			input-enable;
+			bias-disable;
+		};
+	};
+};
+#endif
+
+#if 0
+&${sw_parent} {
+	nfc_sw: nfc_sw {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${sw_gpio}), 0)>;
+			output-low;
+			bias-disable;
+		};
+	};
+	sw_nc: sw_nc {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${sw_gpio}), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+};
+#endif
+
+&i2c4 {
+	status = "ok";
+	clock-frequency = <400000>;
+	mediatek,use-open-drain;
+	sec_nfc: sec-nfc@27 {
+		compatible = "sec-nfc";
+		reg = <0x27>;
+		interrupt-parent = <&pio>;
+		interrupts = <SEC_GPIO_NUM(AP,pio,3) IRQ_TYPE_EDGE_RISING
+			SEC_GPIO_NUM(AP,pio,3) 0>;
+		sec-nfc,irq-gpio = <SEC_GPIO_REF(AP,pio,3) 0>;
+		sec-nfc,ven-gpio = <SEC_GPIO_REF(AP,pio,90) 0>;
+		sec-nfc,firm-gpio = <SEC_GPIO_REF(AP,pio,43) 0>;
+		sec-nfc,clk_req-gpio = <SEC_GPIO_REF(AP,pio,1) 0>;
+#if 1
+		nfc_pvdd-supply = <&mt_pmic_vcama_ldo_reg>;
+#endif
+#if 1
+		sec-nfc,check_nfc = <SEC_GPIO_REF(AP,pio,52) 0>;
+#endif
+		sec-nfc,clk_req_wake;
+		sec-nfc,ldo_control;
+/*		sec-nfc,pvdd-gpio = <&pio 154 0>;*/
+#if 0
+		sec-nfc,sw-gpio = <SEC_GPIO_REF(${sw_gpio}) 0>;
+#endif
+		sec-nfc,bootloader_ver = <6>;
+		/*sec-nfc,irq_all_trigger;*/
+		pinctrl-names = "default", "nfc_nc";
+
+		pinctrl-0 = <&nfc_ven &nfc_firm &nfc_clk_req &nfc_irq
+#if 1
+					&nfc_check 
+#endif
+#if 0
+					&nfc_sw
+#endif
+					>;
+		pinctrl-1 = <&ven_nc &firm_nc &clk_req_nc &irq_nc
+#if 0
+					&sw_nc
+#endif
+					>;
+	};
+};
