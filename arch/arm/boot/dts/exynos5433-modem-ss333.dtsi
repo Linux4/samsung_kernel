@@ -1,0 +1,215 @@
+/*
+ * SAMSUNG universal5422 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+#include "modem-ss333-pdata.dtsi"
+
+/* modem_interface_driver: UMTS modem, 2G/3G/4G, Samsung Electronics Shannon300 (SS300) */
+
+/ {
+	mif_pdata {
+		status = "okay";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&cp_on &cp_reset &pda_active &phone_active &ap2cp_wakeup &ap2cp_status
+&cp2ap_wakeup &cp2ap_status &gpio_ipc_int2cp &ap_dump_int>;
+
+		mif,gpio_cp_on = <&gpr3 1 0x1>;
+
+		mif,gpio_cp_reset = <&gpc0 5 0x1>;
+		mif,gpio_pda_active = <&gpg2 1 0x1>;
+		mif,gpio_phone_active = <&gpa2 3 0xf>;
+
+		mif,gpio_cp_status = <&gpa2 5 0xf>;
+		mif,gpio_ipc_int2cp = <&gpa2 6 0x1>;
+		mif,gpio_ap_dump_int = <&gpr2 0 0x1>;
+
+		link_pm {
+			gpio_cp2ap_wakeup = <&gpa3 1 0xf>;
+			gpio_ap2cp_wakeup = <&gpf5 0 0x1>;
+			gpio_cp2ap_status = <&gpa2 5 0xf>;
+			gpio_ap2cp_status = <&gpf1 2 0x1>;
+		};
+	};
+
+	pinctrl@15690000 {
+		cp_on: cp_on {
+			samsung,pins = "gpr3-1";
+			samsung,pin-function = <1>;
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+		};
+
+		ap_dump_int: ap_dump_int {
+			samsung,pins = "gpr2-0";
+			samsung,pin-function = <1>;
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+		};
+	};
+
+	pinctrl@14CC0000 {
+		pda_active: pda_active {
+			samsung,pins = "gpg2-1";
+			samsung,pin-function = <1>;
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+		};
+
+		cp_reset: cp_reset {
+			samsung,pins = "gpc0-5";
+			samsung,pin-function = <1>;
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+		};
+	};
+
+	pinctrl@10580000 {
+		phone_active: phone_active {
+			samsung,pins = "gpa2-3";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+
+		cp2ap_status: cp2ap_status {
+			samsung,pins = "gpa2-5";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+
+		cp2ap_wakeup: cp2ap_wakeup {
+			samsung,pins = "gpa3-1";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+
+		cp_off: cp_off {
+			samsung,pins = "gpf1-1";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+		};
+
+		ap2cp_status: ap2cp_status {
+			samsung,pins = "gpf1-2";
+			samsung,pin-function = <1>;
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+		};
+
+		ap2cp_wakeup: ap2cp_wakeup {
+			samsung,pins = "gpf5-0";
+			samsung,pin-function = <1>;
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+		};
+
+		gpio_ipc_int2cp: gpio_ipc_int2cp {
+			samsung,pins = "gpa2-6";
+			samsung,pin-function = <1>;
+			samsung,pin-val = <0>;
+			samsung,pin-pud = <0>;
+		};
+	};
+
+	mipi-lli@10F24000 {
+		modem-name = "ss333";
+
+		modems {
+			ss333 {
+				/* shared memory size for IPC */
+				shdmem_size = <8>;
+				/* is the shdmem allocated by ion */
+				is_ion_alloc = <0>;
+				/* disable scrambler */
+				scrambler = <0>;
+				/* do not control automode by AP */
+				automode = <0>;
+			};
+		};
+
+		mphy {
+			modem-name = "ss333";
+			modems {
+				ss333 {
+					/* initial-gear is HS-G2 */
+					init-gear = <2 2 1>;
+					/* use shared reference clock for MPHY */
+					shd-refclk = <1>;
+					e1-patch = <0>;
+				};
+			};
+		};
+	};
+
+	spi_4: spi@14d00000 {/* for modem booting */
+		status = "okay";
+
+		spidev@0 {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "spi_boot_link";
+			reg = <0x0>;
+			spi-max-frequency = <100000>;
+
+			controller-data {
+				samsung,spi-feedback-delay = <0>;
+				samsung,spi-chip-select-mode = <1>;
+			};
+		};
+	};
+	pinctrl@14CC0000 {/* for modem booting */
+		spi4_bus: spi4-bus {
+			samsung,pins = "gpv7-1", "gpv7-2", "gpv7-4";
+		};
+	};
+};
+
+
+/* On EXYNOS BSP, gpio slepp state registers will be
+   overwritten by gpio sleep tables, pinctrl_#.
+   So additional configurations are required,
+   except for ALIVE blocks - GPA0, GPA1, GPA2, GPA3. */
+
+&pinctrl_0 {
+	pinctrl-names = "sleep", "default";
+	pinctrl-1 = <&initial0>;
+	initial0: initial-state {
+		PIN_IN(gpa1-2, DOWN, LV1);	/* TP_INDICATOR ~ not used */
+		PIN_IN(gpf1-1, NONE, LV1);	/* CP_PMIC_PWR_HOLD ~ high-z*/
+	};
+	sleep0: sleep-state {
+		PIN_SLP(gpf1-1, INPUT, NONE);	/* CP_PMIC_PWR_HOLD ~ high-z*/
+
+		PIN_SLP(gpf1-2, PREV, NONE);	/* AP2CP_STATUS */
+		PIN_SLP(gpf5-0, PREV, NONE);	/* AP2CP_WAKEUP */
+	};
+};
+
+&pinctrl_5 {
+	sleep5: sleep-state {
+		PIN_SLP(gpr2-0, PREV, NONE);	/* AP_DUMP_INT */
+
+		PIN_SLP(gpr3-1, PREV, NONE);	/* CP_ON */
+	};
+};
+
+&pinctrl_8 {
+	initial8: initial-state {
+		PIN_IN(gpv7-3, DOWN, LV1);	/* CP_SPI_MISO */
+	};
+	sleep8: sleep-state {
+		PIN_SLP(gpc0-5, PREV, NONE);	/* CP_RESET */
+		PIN_SLP(gpg2-1, PREV, NONE);	/* PDA_ACTIVE */
+		PIN_SLP(gpv7-3, INPUT, DOWN);	/* CP_SPI_MISO */
+	};
+};

@@ -1,0 +1,25 @@
+/*
+ * SAMSUNG universal5422 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *            http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos5422-klimtve_common.dtsi"
+#include "exynos5422-klimtve_battery_00.dtsi"
+#include "exynos5422-klimtve_fingerprint-sensor_00.dtsi"
+
+/ {
+	model = "Samsung Klimt wifi EUR hw revision 07 board based on EXYNOS5422";
+	model_info-chip = <5422>;
+	model_info-platform = "klimtve";
+	model_info-subtype = "klimtve_eur_open";
+	model_info-hw_rev = <0>;
+	model_info-hw_rev_end = <255>; /* If add new dts file for new hw , it is set to <x>. x is suppored max system revision by this dts */
+	compatible = "samsung,KlimtVE WIFI EUR,r00", "samsung,exynos5422";
+};

@@ -1,0 +1,31 @@
+#
+# Mobicore Configuration
+#
+
+config SOC_EXYNOS5433_TBASE302
+        bool "Enable tbase302"
+        default n
+
+config SOC_EXYNOS5430_TBASE302
+        bool "Enable tbase302"
+        default n
+		
+if SOC_EXYNOS5422
+source "drivers/gud/gud-exynos5422/Kconfig"
+endif
+
+if SOC_EXYNOS5430 && SOC_EXYNOS5430_TBASE302
+source "drivers/gud/gud-exynos5430_tbase302/Kconfig"
+endif
+
+if SOC_EXYNOS5430 && !SOC_EXYNOS5430_TBASE302
+source "drivers/gud/gud-exynos5430/Kconfig"
+endif
+
+if SOC_EXYNOS5433 && SOC_EXYNOS5433_TBASE302
+source "drivers/gud/gud-exynos5433_tbase302/Kconfig"
+endif
+
+if SOC_EXYNOS5433 && !SOC_EXYNOS5433_TBASE302
+source "drivers/gud/gud-exynos5433/Kconfig"
+endif

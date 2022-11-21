@@ -1,0 +1,33 @@
+/*
+ * SAMSUNG UNIVERSAL5433 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+/dts-v1/;
+#include "exynos5433-a8hplte_common.dtsi"
+#include "exynos5433-a8hplte_gpio_00.dtsi"
+#include "exynos5433-a8hplte_fingerprint-sensor_00.dtsi"
+#include "exynos5433-a8hplte-modem-ss333-ds.dtsi"
+
+/ {
+	model = "Samsung A8 VE LTE SEA EVT1 revision 00 board based on EXYNOS5433";
+	model_info-chip = <5433>;
+	model_info-platform = "a8hplte";
+	model_info-subtype = "a8hplte_sea_open";
+	model_info-hw_rev = <0>;
+	model_info-hw_rev_end = <255>;
+	compatible = "samsung,A8 VE LTE EVT1 SEA,r00", "samsung,exynos5433";
+
+	i2c@25 {
+		status = "okay";
+		muic-universal@25 {
+			status = "okay";
+			muic-universal,chip_name = "sm,sm5703";
+		};
+	};
+};
