@@ -1,0 +1,55 @@
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	samsung,vibrator {
+		compatible = "samsung_vib";
+		pinctrl-names = "tlmm_motor_active","tlmm_motor_suspend";
+		pinctrl-0 = <&motor_pwm_active>;
+		pinctrl-1 = <&motor_pwm_suspend>;
+		samsung,vib_pwm = <&tlmm 136 0>;
+		samsung,vib_power = <&pm8150_gpios 10 0>;
+		samsung,gp_clk = <0x00164000>;	// Address of GP1 clock
+		samsung,chip_model = <4>;	// using max77705 driver
+		status = "ok";
+	};
+};
+
+&tlmm {
+	/* add pinctrl for motor  */
+	tlmm_motor_pwm {
+		motor_pwm_active: motor_pwm_active {
+			mux {
+				pins = "gpio136";
+				function = "gcc_gp1";
+			};
+			config {
+				pins = "gpio136";
+				drive-strength = <2>;   /* 16 mA */
+				bias-disable;
+				output-high;
+			};
+		};
+		motor_pwm_suspend: motor_pwm_suspend {
+			mux {
+				pins = "gpio136";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio136";
+				drive-strength = <2>;   /* 16 mA */
+				bias-disable;
+				output-low;
+			};
+		};
+	};
+};

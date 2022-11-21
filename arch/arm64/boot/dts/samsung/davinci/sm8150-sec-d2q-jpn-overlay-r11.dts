@@ -1,0 +1,43 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/clock/qcom,gcc-sm8150.h>
+#include <dt-bindings/clock/qcom,camcc-sm8150.h>
+#include <dt-bindings/clock/qcom,rpmh.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
+#include "../qcom/sm8150-mtp.dtsi"
+#include "sm8150-sec-common.dtsi"
+#include "sm8150-sec-d2xq-pm-common.dtsi"
+#include "sm8150-sec-d2qlte-pm-jpn-common.dtsi"
+#include "sm8150-sec-d2xq-pm-r04.dtsi"
+#include "sm8150-sec-d2q-r11.dtsi"
+#include "sm8150-sec-d2q-pinctrl-r11.dtsi"
+#include "sm8150-sec-d2q-display-r00.dtsi"
+#include "sm8150-sec-d2q-displayport-r03.dtsi"
+#include "battery-data-d2q-r08.dtsi"
+#include "sm8150-max77705.dtsi"
+#include "sm8150-cs40l2x-d2q-r09.dtsi"
+#include "sm8150-sec-beyond2qlte-sensor-common.dtsi"
+#include "sm8150-sec-d2xq-fingerprint-sensor-r04.dtsi"
+#include "sm8150-camera-sensor-d2q-r02.dtsi"
+#include "sm8150-sec-d2q-jpn-felica-r03.dtsi"
+
+/ {
+	model = "Samsung D2Q JPN PROJECT Rev11";
+	compatible = "qcom,sm8150-mtp", "qcom,sm8150", "qcom,mtp";
+	qcom,board-id = <8 11>;
+	dtbo-version = <0>;
+};

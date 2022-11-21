@@ -1,0 +1,34 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/* This dtsi is for hw rev from 08 to 09 */
+#include "battery-data-d2xq-common.dtsi"
+#include "battery-rx-data-d2q-idt.dtsi"
+#include "battery-rx-data-d2q-lsi.dtsi"
+
+&soc {
+	i2c@22 {
+		mfc-hal-charger@7f {
+			compatible = "sec,mfc-hal-charger";
+			reg = <0x7f>;
+			status = "okay";
+
+			battery,wpc_det = <&pm8150l_gpios 1 GPIO_ACTIVE_HIGH>; /* WPC_DET */
+
+			battery,charger_name = "max77705-charger";
+		};
+
+		mfc-s2miw04-charger@3b {
+			reg = <0x6f>;
+		};
+	};
+};

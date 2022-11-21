@@ -1,0 +1,634 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pm8150l_gpios {
+	wpc_det { /* WPC_DET */
+		wpc_det_default: wpc_det_default {
+			pins = "gpio1";
+			function = "normal";
+			input-enable;
+			bias-disable;
+			power-source = <0>;
+		};
+	};
+	wpc_thm { /* GPIO_05 */
+		wpc_thm_default: wpc_thm_default {
+			pins = "gpio5";
+			function = "normal";
+			bias-high-impedance;
+		};
+	};
+};
+
+&pm8150l_vadc {
+	usb_thm { /* AMUX_1 */
+		label = "usb_thm";
+		reg = <ADC_AMUX_THM1_PU2>;
+		qcom,pre-scaling = <1 1>;
+		qcom,hw-settle-time = <200>;
+		qcom,ratiometric;
+	};
+	chg_thm { /* AMUX_3 */
+		label = "chg_thm";
+		reg = <ADC_AMUX_THM3_PU2>;
+		qcom,pre-scaling = <1 1>;
+		qcom,hw-settle-time = <200>;
+		qcom,ratiometric;
+	};
+	wpc_thm { /* GPIO_05 */
+		label = "wpc_thm";
+		reg = <ADC_GPIO1_PU2>;
+		qcom,pre-scaling = <1 1>;
+		qcom,hw-settle-time = <200>;
+		qcom,ratiometric;
+	};
+};
+
+&qupv3_se11_i2c {
+	status = "ok";
+
+	pinctrl-0 = <&qupv3_se11_i2c_active_mfc>;
+	pinctrl-1 = <&qupv3_se11_i2c_sleep_mfc>;
+
+	mfc-charger@3b {
+		compatible = "idt,mfc-charger";
+		reg = <0x3b>;
+		status = "okay";
+
+		interrupt-parent = <&spmi_bus>;
+		interrupts = <0x0 0xd0 0 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "default";
+		interrupt-controller;
+		pinctrl-names = "default";
+		pinctrl-0 = <&mfc_irq_default>;
+		battery,wpc_det = <&pm8150l_gpios 1 GPIO_ACTIVE_HIGH>; /* WPC_DET */
+		battery,wpc_int = <&tlmm 50 GPIO_ACTIVE_LOW>; /* MFC_AP_INT */
+		battery,wpc_en = <&expander_gpios 3 0>; /* WPC_EN */
+		battery,mst_en = <&tlmm 11 0>; /* MST_EN */
+		battery,mst_pwr_en = <&expander_gpios 4 0>; /* MST_PWR_EN */
+
+		battery,charger_name = "max77705-charger";
+		battery,fuelgauge_name = "max77705-fuelgauge";
+		battery,wireless_charger_name = "mfc-charger";
+		battery,fod_data = <150 58 142 49 150 31 150 29 155 13 156 13>;
+		battery,fod_data_cv = <150 88 142 79 150 61 150 59 155 43 156 43>;
+		battery,fod_hero_5v_data = <150 (-27) 142 (-37) 150 (-53) 150 (-53) 165 160 156 (-61)>;
+		battery,fod_dream_data = <150 58 142 49 150 (-50) 150 29 155 (-66) 156 13>;
+		battery,fod_dream_cv_data = <150 88 142 79 150 (-20) 150 59 155 (-36) 156 43>;
+		battery,wc_cover_rpp = <0x44>;
+		battery,oc_fod1 = <1100>;
+		battery,tx_gear_min_op_freq_delay = <4000>;
+		battery,phone_fod_threshold = <0x3b>;
+		battery,wireless20_vout_list = <8>; /* WIRELESS_VOUT_10V*/
+		battery,wireless20_vrect_list = <10>; /* MFC_AFC_CONF_12V_TX*/
+		battery,wireless20_max_power_list = <2>; /* SEC_WIRELESS_RX_POWER_12W*/
+	};
+};
+
+&qupv3_se4_i2c {
+	status = "okay";
+
+	pca9468@57 {
+		compatible = "nxp,pca9468";
+		reg = <0x57>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&dc_irq_default>;
+
+		pca9468,irq-gpio = <&tlmm 96 GPIO_ACTIVE_LOW>; /* DC_IRQ */
+		pca9468,input-current-limit = <2570000>; /* 2.57A */
+		pca9468,charging-current = <6000000>; /* 6A */
+		pca9468,input-itopoff = <500000>; /* 500mA */
+		pca9468,sense-resistance = <0>; /* 5mOhm */
+		pca9468,switching-frequency = <3>; /* 980KHz */
+		pca9468,ntc-threshold = <0>; /* disable */
+		pca9468,chg_gpio_en = <&expander_gpios 2 0>; /* DC_CPEN */
+		pca9468,ta-mode = <1>; /* 2:1 charging mode */
+	};
+};
+
+&soc {
+	sec-direct-charger {
+		status = "okay";
+		compatible = "samsung,sec-direct-charger";
+
+		charger,battery_name = "battery";
+		charger,main_charger = "max77705-charger";
+		charger,direct_charger = "pca9468-charger";
+
+		charger,dchg_min_current = <2000>;
+		charger,dchg_temp_low_threshold = <180>;
+		charger,dchg_temp_high_threshold = <410>;
+
+		charger,ta_alert_wa;
+	};
+
+	battery {
+		status = "okay";
+		compatible = "samsung,sec-battery";
+		pinctrl-names = "default";
+		pinctrl-0 = <&wpc_det_default &wpc_thm_default>;
+		battery,vendor = "BATTERY";
+		battery,charger_name = "sec-direct-charger";
+		battery,fuelgauge_name = "max77705-fuelgauge";
+		battery,wireless_charger_name = "mfc-charger";
+		battery,technology = <2>; /* POWER_SUPPLY_TECHNOLOGY_LION */
+		battery,fgsrc_switch_name = "max77705-charger"; /* Fuelgauge voltage source */
+
+		battery,batt_data_version = <2>;
+
+		battery,chip_vendor = "QCOM";
+		battery,temp_adc_type = <1>; /* SEC_BATTERY_ADC_TYPE_AP */
+
+		battery,temp_check_type = <1>; /* SEC_BATTERY_TEMP_CHECK_ADC */
+		battery,usb_temp_check_type = <1>;
+		battery,chg_temp_check_type = <1>;
+		battery,wpc_temp_check_type = <1>;
+		battery,dchg_temp_check_type = <0>; /* SEC_BATTERY_TEMP_CHECK_NONE for test */
+
+		battery,thermal_source = <2>; /* SEC_BATTERY_THERMAL_SOURCE_ADC */
+		battery,usb_thermal_source = <2>; /* SEC_BATTERY_THERMAL_SOURCE_ADC */
+		battery,chg_thermal_source = <2>; /* SEC_BATTERY_THERMAL_SOURCE_ADC */
+		battery,wpc_thermal_source = <2>; /* SEC_BATTERY_THERMAL_SOURCE_ADC */
+		battery,dchg_thermal_source = <3>; /* SEC_BATTERY_THERMAL_SOURCE_CHG_ADC */
+
+		battery,polling_time = <10 30 30 30 3600>;
+
+		battery,temp_table_adc = <129022 155579 182115 213192 249978
+						294052 346625 396929 460683 530860
+						612175 708282 814035 921474 1028914
+						1139553 1246214 1348248 1443900 1528741
+						1602248 1661591 1712499>;
+		battery,temp_table_data = <900 850 800 750 700
+						650 600 550 500 450
+						400 350 300 250 200
+						150 100 50 0 (-50)
+						(-100) (-150) (-200)>;
+
+		battery,usb_temp_table_adc = <128092 155146 181746 212586 249610
+						293641 346668 396929 460315 531033
+						612607 708866 815008 922383 1030341
+						1141067 1248355 1350324 1446150 1530838
+						1604346 1665116 1714272>;
+		battery,usb_temp_table_data = <900 850 800 750 700
+						650 600 550 500 450
+						400 350 300 250 200
+						150 100 50 0 (-50)
+						(-100) (-150) (-200)>;
+
+		battery,chg_temp_table_adc = <117473 147642 174005 204389 240830
+						283931 335574 385121 447966 517279
+						597664 692408 797447 905276 1011526
+						1120955 1226081 1325994 1420912 1510315
+						1583628 1636872 1697036>;
+		battery,chg_temp_table_data = <900 850 800 750 700
+						650 600 550 500 450
+						400 350 300 250 200
+						150 100 50 0 (-50)
+						(-100) (-150) (-200)>;
+
+		battery,wpc_temp_table_adc = <129022 155579 182115 213192 249978
+						294052 346625 396929 460683 530860
+						612175 708282 814035 921474 1028914
+						1139553 1246214 1348248 1443900 1528741
+						1602248 1661591 1712499>;
+		battery,wpc_temp_table_data = <900 850 800 750 700
+						650 600 550 500 450
+						400 350 300 250 200
+						150 100 50 0 (-50)
+						(-100) (-150) (-200)>;
+
+		battery,dchg_temp_table_adc = <110882 138414 166566 194718 234600
+						276828 326094 387090 448086 525504
+						607614 696762 792948 893826 999396
+						1107312 1210536 1304376 1393524 1473288
+						1543668 1602318 1651584>;
+		battery,dchg_temp_table_data = <900 850 800 750 700
+						650 600 550 500 450
+						400 350 300 250 200
+						150 100 50 0 (-50)
+						(-100) (-150) (-200)>;
+
+		battery,wireless_cc_cv = <85>;
+		battery,wpc_det = <&pm8150l_gpios 1 GPIO_ACTIVE_HIGH>; /* WPC_DET */
+		battery,wpc_en = <&expander_gpios 3 0>; /* WPC_EN */
+		battery,mst_pwr_en = <&expander_gpios 4 0>; /* MST_PWR_EN */
+		battery,adc_check_count = <5>;
+
+		battery,cable_check_type = <4>; /* SEC_BATTERY_CABLE_CHECK_PSY */
+		battery,cable_source_type = <1>; /* SEC_BATTERY_CABLE_SOURCE_EXTERNAL */
+		battery,polling_type = <1>; /* SEC_BATTERY_MONITOR_ALARM */
+		battery,monitor_initial_count = <0>;
+
+		battery,battery_check_type = <0>; /* SEC_BATTERY_CHECK_NONE */
+		battery,check_count = <0>;
+		battery,check_adc_max = <1440>;
+		battery,check_adc_min = <0>;
+
+		battery,ovp_uvlo_check_type = <3>; /* SEC_BATTERY_OVP_UVLO_CHGPOLLING */
+
+		battery,temp_check_count = <1>;
+		battery,temp_highlimit_threshold_event = <700>;
+		battery,temp_highlimit_recovery_event = <680>;
+		battery,temp_high_threshold_event = <500>;
+		battery,temp_high_recovery_event = <480>;
+		battery,temp_low_threshold_event = <0>;
+		battery,temp_low_recovery_event = <20>;
+		battery,temp_highlimit_threshold_normal = <700>;
+		battery,temp_highlimit_recovery_normal = <680>;
+		battery,temp_high_threshold_normal = <500>;
+		battery,temp_high_recovery_normal = <480>;
+		battery,temp_low_threshold_normal = <0>;
+		battery,temp_low_recovery_normal = <20>;
+		battery,temp_highlimit_threshold_lpm = <700>;
+		battery,temp_highlimit_recovery_lpm = <680>;
+		battery,temp_high_threshold_lpm = <500>;
+		battery,temp_high_recovery_lpm = <480>;
+		battery,temp_low_threshold_lpm = <0>;
+		battery,temp_low_recovery_lpm = <20>;
+		battery,wpc_high_threshold_normal = <450>;
+		battery,wpc_high_recovery_normal = <430>;
+		battery,wpc_low_threshold_normal = <0>;
+		battery,wpc_low_recovery_normal = <20>;
+		battery,tx_high_threshold = <450>;
+		battery,tx_high_recovery = <400>;
+		battery,tx_low_threshold = <0>;
+		battery,tx_low_recovery = <50>;
+		battery,full_check_type = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
+		battery,full_check_type_2nd = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
+		battery,full_check_count = <1>;
+		battery,chg_gpio_full_check = <0>;
+		battery,chg_polarity_full_check = <1>;
+
+		battery,chg_high_temp = <460>;
+		battery,chg_high_temp_recovery = <440>;
+		battery,chg_input_limit_current = <1000>;
+		battery,chg_charging_limit_current = <1700>;
+		battery,dchg_input_limit_current = <1000>;
+		battery,dchg_charging_limit_current = <2000>;
+
+		battery,wpc_temp_control_source = <1>; /* TEMP_CONTROL_SOURCE_BAT_THM = WPC_THM */
+		battery,wpc_high_temp = <380>;
+		battery,wpc_high_temp_recovery = <360>;
+		battery,wpc_input_limit_current = <600>;
+		battery,wpc_charging_limit_current = <1000>;
+		battery,wpc_temp_lcd_on_control_source = <1>; /* TEMP_CONTROL_SOURCE_BAT_THM = WPC_THM */
+		battery,wpc_lcd_on_high_temp = <380>;
+		battery,wpc_lcd_on_high_temp_rec = <360>;
+		battery,wpc_lcd_on_input_limit_current = <450>;
+
+		battery,wpc_store_high_temp = <360>;
+		battery,wpc_store_high_temp_recovery = <340>;
+		battery,wpc_store_charging_limit_current = <400>;
+		battery,wpc_store_lcd_on_high_temp = <360>;
+		battery,wpc_store_lcd_on_high_temp_rec = <300>;
+		battery,wpc_store_lcd_on_charging_limit_current = <400>;
+
+		battery,ta_alert_wa;
+
+		battery,sleep_mode_limit_current = <800>;
+		battery,wc_full_input_limit_current = <100>;
+
+		battery,mix_high_temp = <420>;
+		battery,mix_high_chg_temp = <500>;
+		battery,mix_high_temp_recovery = <390>;
+
+		/* SEC_BATTERY_FULL_CONDITION_NOTIMEFULL | SEC_BATTERY_FULL_CONDITION_VCELL */
+		battery,full_condition_type = <9>;
+		battery,full_condition_soc = <93>;
+		battery,full_condition_vcell = <4250>;
+
+		battery,recharge_check_count = <1>;
+		battery,recharge_condition_type = <4>; /* SEC_BATTERY_RECHARGE_CONDITION_VCELL */
+		battery,recharge_condition_soc = <98>;
+		battery,recharge_condition_vcell = <4270>;
+
+		battery,charging_total_time = <14400>;
+		battery,hv_charging_total_time = <10800>;
+		battery,normal_charging_total_time = <18000>;
+		battery,usb_charging_total_time = <36000>;
+		battery,recharging_total_time = <5400>;
+		battery,charging_reset_time = <0>;
+
+		battery,chg_float_voltage = <4340>;
+		battery,chg_ocp_current = <6200>;
+		battery,chg_ocp_dtc = <100>;
+
+		battery,pre_afc_work_delay = <2000>;
+		battery,pre_wc_afc_work_delay = <4000>;
+		battery,pre_afc_input_current = <500>;
+		battery,pre_wc_afc_input_current = <500>;
+		battery,prepare_ta_delay = <0>; /* msec */
+
+		battery,swelling_high_temp_block = <410>;
+		battery,swelling_high_temp_recov = <390>;
+		battery,swelling_low_temp_block_1st = <150>;
+		battery,swelling_low_temp_recov_1st = <170>;
+		battery,swelling_low_temp_block_2nd = <50>;
+		battery,swelling_low_temp_recov_2nd = <70>;
+		battery,swelling_low_temp_3rd_ctrl;
+		battery,swelling_low_temp_block_3rd = <180>;
+		battery,swelling_low_temp_recov_3rd = <200>;
+
+		battery,swelling_low_temp_current = <1050>;	/* 0.24C */
+		battery,swelling_low_temp_current_2nd = <450>;	/* 0.1C */
+		battery,swelling_low_temp_current_3rd = <3150>;	/* 0.72C */
+		battery,swelling_low_temp_topoff = <250>;	/* 0.05C */
+		battery,swelling_high_temp_current = <1550>;	/* 0.36C */
+		battery,swelling_high_temp_topoff = <250>;	/* 0.05C */
+		battery,swelling_wc_high_temp_current = <1050>;	/* 0.24C */
+		battery,swelling_wc_low_temp_current = <1050>;	/* 0.24C */
+		battery,swelling_wc_low_temp_current_2nd = <450>;	/* 0.1C */
+		battery,swelling_wc_low_temp_current_3rd = <3150>;	/* 0.72C */
+
+		battery,swelling_drop_float_voltage = <4150>;
+		battery,swelling_high_rechg_voltage = <4000>;
+		battery,swelling_low_rechg_thr = <150>;
+
+		battery,siop_input_limit_current = <1200>;
+		battery,siop_charging_limit_current = <1000>;
+		battery,siop_hv_input_limit_current = <700>;
+		battery,siop_hv_charging_limit_current = <1000>;
+		battery,siop_apdo_input_limit_current = <1200>;
+		battery,siop_apdo_charging_limit_current = <2000>;
+
+		battery,siop_wireless_input_limit_current = <600>;
+		battery,siop_wireless_charging_limit_current = <850>;
+		battery,siop_hv_wireless_input_limit_current = <600>;
+		battery,siop_hv_wireless_charging_limit_current = <850>;
+		battery,siop_store_hv_wireless_input_limit_current = <450>;
+
+		battery,wireless_otg_input_current = <900>;
+
+		battery,ttf_hv_charge_current = <2800>;
+		battery,ttf_hv_12v_wireless_charge_current = <2300>;
+		battery,ttf_hv_wireless_charge_current = <1430>;
+		battery,ttf_wireless_charge_current = <892>;
+		battery,ttf_dc25_charge_current = <3600>;
+
+		battery,rp_current_rp1 = <500>;
+		battery,rp_current_rp2 = <1500>;
+		battery,rp_current_rp3 = <3000>;
+		battery,rp_current_rdu_rp3 = <2100>;
+		battery,rp_current_abnormal_rp3 = <1800>;
+
+		battery,pd_charging_charge_power = <15000>;
+		battery,max_charging_current = <3150>;
+		battery,max_charging_charge_power = <25000>; /* 25W */
+
+		/* cycle, chg_float_voltage, recharge_condition_vcell, full_condition_vcell, full_condition_soc, step charging condition */
+		battery,age_data = <0 4340 4270 4250 93 45
+				300 4330 4260 4230 92 45
+				400 4310 4240 4210 91 45
+				700 4290 4220 4190 90 45
+				1000 4240 4170 4140 89 45>;
+
+		battery,health_condition = <
+				/* CYCLE ASOC */
+				900 75	/* GOOD */
+				1200 65 /* NORMAL */
+				1500 55 /* AGED */
+				>;
+
+		/* step charging option */
+		battery,step_charging_type = <0>;
+		battery,step_charging_charge_power = <12000>;
+		battery,step_charging_condition = <45 100>;
+		battery,step_charging_condition_curr = <3150 3150>;
+		battery,step_charging_current = <3150 3150>;
+		battery,step_charging_float_voltage = <4150 4340>;
+
+		/* direct step charging option */
+		battery,dc_step_chg_type = <0x6B>; /* origin(0x6B), soc option is temporary removed */
+		battery,dc_step_chg_charge_power = <22000>;
+		battery,dc_step_chg_step = <3>;
+		battery,dc_step_chg_cond_vol = <4160 4250 4340>; /* STEP_CHARGING_CONDITION_VOLTAGE */ 
+		battery,dc_step_chg_cond_iin = <1950 1550 0>; /* STEP_CHARGING_CONDITION_INPUT_CURRENT */
+		battery,dc_step_chg_iin_check_cnt = <3>;
+		battery,dc_step_chg_cond_soc = <40 60 100>; /* STEP_CHARGING_CONDITION_SOC */
+		battery,dc_step_chg_val_vfloat = <4160 4250 4340>; /* STEP_CHARGING_CONDITION_FLOAT_VOLTAGE */
+		battery,dc_step_chg_val_iout = <5100 3900 3100>;
+
+		battery,max_input_voltage = <9000>; /* mV */
+		battery,max_input_current = <3000>;  /* mA */
+
+		battery,enable_sysovlo_irq;
+		battery,enable_noise_wa;
+
+		battery,standard_curr = <3150>;
+		battery,expired_time = <10800>;
+		battery,recharging_expired_time = <5400>;
+
+		battery,battery_full_capacity = <4400>;
+		battery,cisd_max_voltage_thr = <4400>; /* batttery ovp dettection voltage */
+		battery,cisd_alg_index = <8>;
+		battery,ignore_cisd_index = <0 0>;
+		battery,ignore_cisd_index_d = <0 120>; /* Do not use AFC_FAIL_PER_DAY to DROP_VALUE_PER_DAY */ 
+
+		battery,tx_stop_capacity = <30>;
+		battery,tx_minduty_default = <20>;
+		battery,tx_minduty_5V = <50>;
+
+		battery,tx_uno_iout = <1500>;
+		battery,tx_mfc_iout_gear = <1500>;
+		battery,tx_mfc_iout_phone = <1100>;
+		battery,tx_mfc_iout_phone_5v = <300>;
+		battery,tx_mfc_iout_lcd_on = <900>;
+
+		io-channels = <&pm8150l_vadc ADC_GPIO1_PU2>, <&pm8150l_vadc ADC_AMUX_THM3_PU2>, <&pm8150l_vadc ADC_GPIO1_PU2>, <&pm8150l_vadc ADC_AMUX_THM1_PU2>;
+		io-channel-names = "adc-temp", "adc-chg-temp", "adc-wpc-temp", "adc-usb-temp";
+	};
+
+	max77705-fuelgauge {
+		/* for 4400mAh battery */
+		status = "okay";
+		fuelgauge,fuel_alert_soc = <1>;
+		fuelgauge,jig_gpio = <&tlmm 120 0>; /* IFC_SENSE_INT_AP */
+		fuelgauge,jig_low_active;
+		fuelgauge,capacity_max = <1000>;
+		fuelgauge,capacity_max_margin = <300>;
+		fuelgauge,capacity_min = <0>;
+		fuelgauge,capacity_calculation_type = <28>;
+		fuelgauge,repeated_fuelalert;
+		fuelgauge,using_temp_compensation;
+		fuelgauge,low_temp_limit = <100>;
+		fuelgauge,using_hw_vempty;
+		fuelgauge,v_empty = <0xAA64>; /* Empty: 3350mV, Recover: 3480mV */
+		fuelgauge,v_empty_origin = <0x7D54>; /* Empty: 2500mV, Recover: 3360mV */
+		fuelgauge,sw_v_empty_voltage = <3200>;
+		fuelgauge,sw_v_empty_voltage_cisd = <3100>;
+		fuelgauge,sw_v_empty_recover_voltage = <3480>;
+		fuelgauge,qrtable20 = <0x1404>;
+		fuelgauge,qrtable30 = <0x1104>;
+		fuelgauge,fg_resistor = <2>;
+		fuelgauge,capacity = <0x1130>; /*capacity = fullcapnom = DesignCap*/
+		fuelgauge,fg_reset_wa_data = <0x1130 0x3200 0x0431 0x0032 0x1725>; /* fullcapnom(=capacity), dPacc, dQacc,  rcomp0, tempco */
+		fuelgauge,discharge_temp_threshold = <600>;
+		fuelgauge,discharge_volt_threshold = <4200>;
+		fuelgauge,ttf_capacity = <3830>;
+		fuelgauge,cv_data = <
+			2952	739	2651
+			2868	750	2600
+			2576	775	2488
+			2360	790	2375
+			2132	810	2242
+			1898	835	2088
+			1443	870	1741
+			1223	900	1393
+			860	920	1096
+			683	940	715
+			547	960	327
+			468	981	163
+			436	1000	0
+			>;
+	};
+
+/* sec_battery_cable
+ *   0	UNKNOWN,
+ *   1	NONE,
+ *   2	PREPARE_TA,
+ *   3	TA,
+ *   4	USB,
+ *   5	USB_CDP,
+ *   6	9V_TA,
+ *   7	9V_ERR,
+ *   8	9V_UNKNOWN,
+ *   9	12V_TA,
+ *  10	WIRELESS,
+ *  11	HV_WIRELESS,
+ *  12	PMA_WIRELESS,
+ *  13	WIRELESS_PACK,
+ *  14	CABLE_WIRELESS_HV_PACK,
+ *  15	WIRELESS_STAND,
+ *  16	WIRELESS_HV_STAND,
+ *  17	QC20,
+ *  18	QC30,
+ *  19	PDIC,
+ *  20	UARTOFF,
+ *  21	OTG,
+ *  22	LAN_HUB,
+ *  23	POWER_SHARING,
+ *  24	HMT_CONNECTED,
+ *  25	HMT_CHARGE,
+ *  26	HV_TA_CHG_LIMIT,
+ *  27	WIRELESS_VEHICLE,
+ *  28	WIRELESS_HV_VEHICLE,
+ *  29	PREPARE_WIRELESS_HV,
+ *  30  TIMEOUT,
+ *  31  SMART_OTG,
+ *  32  SMART_NOTG,
+ *  33  WIRELESS_TX,
+ *  34	HV_WIRELESS_20,
+ *  35	HV_WIRELESS_20_LIMIT,
+ *  36	WIRELESS_FAKE,
+ *  37  PREPARE_WIRELESS_20,
+ *  38	CABLE_PDIC_APDO,
+ *  39	CABLE_MAX,
+ */
+	cable-info {
+		default_input_current = <1800>;
+		default_charging_current = <2100>;
+		full_check_current_1st = <450>;
+		full_check_current_2nd = <250>;
+
+		current_group_1 {
+			cable_number = <2 19 21 22 23 30>;
+			input_current = <500>;
+			charging_current = <500>;
+		};
+		current_group_2 {
+			cable_number = <25 31>;
+			input_current = <1000>;
+			charging_current = <1000>;
+		};
+		current_group_3 {
+			cable_number = <5 32>;
+			input_current = <1500>;
+			charging_current = <1500>;
+		};
+		current_group_4 {
+			cable_number = <6 7 8 17 18>;
+			input_current = <1650>;
+			charging_current = <3150>;
+		};
+		current_group_5 {
+			cable_number = <9>;
+			input_current = <1650>;
+			charging_current = <3150>;
+		};
+		current_group_6 {
+			cable_number = <10 12 15 27 33 36>;
+			input_current = <800>;
+			charging_current = <3150>;
+		};
+		current_group_7 {
+			cable_number = <13>;
+			input_current = <700>;
+			charging_current = <3150>;
+		};
+		current_group_8 {
+			cable_number = <24>;
+			input_current = <1000>;
+			charging_current = <450>;
+		};
+		current_group_9 {
+			cable_number = <26>;
+			input_current = <2000>;
+			charging_current = <1800>;
+		};
+		current_group_10 {
+			cable_number = <11 14 16 28 35>;
+			input_current = <750>;
+			charging_current = <3150>;
+		};
+		current_group_11 {
+			cable_number = <29 37>;
+			input_current = <500>;
+			charging_current = <1400>;
+		};
+		current_group_12 {
+			cable_number = <1 4>;
+			input_current = <475>;
+			charging_current = <550>;
+		};
+		current_group_13 {
+			cable_number = <34>;
+			input_current = <500>;
+			charging_current = <3150>;
+		};
+	};
+	wireless-power-info {
+		current_group_0 {
+			wireless_power_class = <1>;
+			vout = <5500>;
+			input_current_limit = <750>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <3150>;
+			rx_power = <4500>;
+		};
+		current_group_1 {
+			wireless_power_class = <2>;
+			vout = <10000>;
+			input_current_limit = <750>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <3150>;
+			rx_power = <7500>;
+		};
+		current_group_2 {
+			wireless_power_class = <2>;
+			vout = <10000>;
+			input_current_limit = <1200>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <2450>;
+			rx_power = <12000>;
+		};
+	};
+};
