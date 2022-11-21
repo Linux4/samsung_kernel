@@ -1,0 +1,12 @@
+config SEC_BLOOMXQ_PROJECT
+	default n
+	bool "Samsung BLOOMXQ Project"
+	help
+	  Support for Samsung BLOOMXQ Project
+
+config MACH_BLOOMXQ_USA_SINGLE
+	default n
+	bool "Samsung BLOOMXQ USA SQ"
+	help
+	  Support for Samsung BLOOMXQ USA SQ device.
+
