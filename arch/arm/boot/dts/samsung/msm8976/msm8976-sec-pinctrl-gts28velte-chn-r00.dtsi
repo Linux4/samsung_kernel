@@ -1,0 +1,964 @@
+/*
+ * Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/* Pinctrl device tree file for gts28velte our open REV0.4 */
+
+&tlmm_pinmux {
+		/* MUIC - SM5705 */
+		sm5705_i2c_pins {
+			qcom,pins = <&gp 18>, <&gp 19>; /* SDA, SCL */
+			qcom,num-grp-pins = <2>;
+			qcom,pin-func = <0>;
+			label = "sm5705_gpio";
+			sm5705_i2c_default: default {
+				drive-strength = <2>;
+				bias-disable;
+			};
+			sm5705_i2c_active: active {
+				drive-strength = <2>;
+				bias-disable;
+			};
+			sm5705_i2c_suspend: suspend {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		sm5705_intr_pins {
+			qcom,pins = <&gp 140>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "sm5705_gpio_int";
+			sm5705_interrupt_default: default {
+				drive-strength = <2>;
+				bias-disable;
+			};
+			sm5705_interrupt_active: active {
+				drive-strength = <2>;
+				bias-disable;
+			};
+			sm5705_interrupt_suspend: suspend {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		ifc_sense_int_ap_pins {
+			qcom,pins = <&gp 28>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "ifc_sense_int_ap";
+			ifc_sense_int_ap_default: default {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		charger_int_pin {
+			qcom,pins = <&gp 68>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "charger_int_gpio";
+			charger_int_active: charger_int_active {
+				drive-strength = <2>;
+				bias-disable;         /* No PULL */
+			};
+		};
+
+		fuel_int_pin {
+			qcom,pins = <&gp 109>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "fuel_int_gpio";
+			fuel_int_active: fuel_int_active {
+				drive-strength = <2>;
+				bias-disable;         /* No PULL */
+				input-enable;
+			};
+		};
+
+		fg_i2c {
+			/* CLK, DATA */
+			qcom,pins = <&gp 117>, <&gp 118>;
+			qcom,num-grp-pins = <2>;
+			qcom,pin-func = <0>;
+			label = "fg_i2c";
+
+			fg_i2c_active: fg_i2c_active {
+				drive-strength = <2>;	/* 2 MA */
+				bias-disable; /* No PULL */
+			};
+
+			fg_i2c_sleep: fg_i2c_sleep {
+				drive-strength = <2>;	/* 2 MA */
+				bias-disable; /* No PULL */
+			};
+		};
+		
+		rt5659_i2c {
+			/* CLK, DATA */
+			qcom,pins = <&gp 22>, <&gp 23>;
+			qcom,num-grp-pins = <2>;
+			qcom,pin-func = <0>;
+			label = "rt5659_i2c";
+
+			rt5659_i2c_active: rt5659_i2c_active {
+				drive-strength = <2>;	/* 2 MA */
+				bias-disable; /* No PULL */
+			};
+
+			rt5659_i2c_sleep: rt5659_i2c_sleep {
+				drive-strength = <2>;	/* 2 MA */
+				bias-disable; /* No PULL */
+			};
+		};		
+
+		pmx_i2c_5 {
+			/* CLK, DATA */
+			qcom,pins = <&gp 136>, <&gp 137>;
+			qcom,num-grp-pins = <2>;
+			qcom,pin-func = <3>;
+			label = "pmx_i2c_5";
+			/* active state */
+			i2c_5_active: i2c_5_active{
+				drive-strength = <2>;
+				bias-disable;
+			};
+			/* suspend state */
+			i2c_5_suspend: i2c_5_suspend {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		pmx_i2c_7 {
+			/* CLK, DATA */
+			qcom,pins = <&gp 110>, <&gp 111>;
+			qcom,num-grp-pins = <2>;
+			qcom,pin-func = <3>;
+			label = "pmx_i2c_7";
+			/* active state */
+			i2c_7_active: i2c_7_active{
+				drive-strength = <2>;
+				bias-disable;
+			};
+			/* suspend state */
+			i2c_7_suspend: i2c_7_suspend {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		etspi_drdypin {
+			qcom,pins = <&gp 112>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "etspi_drdypin";
+			etspi_drdypin_active: etspi_drdypin_active {
+				drive-strength = <2>;
+				bias-pull-none;
+			};
+			etspi_drdypin_suspend: etspi_drdypin_suspend {
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+
+		vfsspi_drdypin {
+			qcom,pins = <&gp 112>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "vfsspi_drdypin";
+			vfsspi_drdypin_active: vfsspi_drdypin_active {
+				drive-strength = <2>;
+				bias-pull-none;
+			};
+			vfsspi_drdypin_suspend: vfsspi_drdypin_suspend {
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+
+		vfsspi_ldopin {
+			qcom,pins = <&gp 122>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "vfsspi_ldopin";
+			vfsspi_ldopin: vfsspi_ldopin {
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+
+		vfsspi_sleeppin {
+			qcom,pins = <&gp 128>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "vfsspi_sleeppin";
+			vfsspi_sleeppin: vfsspi_sleeppin {
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+
+		tlmm_gpio_key {
+			qcom,pins = <&gp 113>, <&gp 114>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <2>;
+			label = "tlmm_gpio_key";
+			gpio_key_active: gpio_key_active {
+				drive-strength = <2>;
+				bias-pull-up;
+			};
+			gpio_key_suspend: gpio_key_suspend {
+				drive-strength = <2>;
+				bias-pull-up;
+			};
+		};
+
+		grip_sensor_int {
+			qcom,pins = <&gp 9>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "grip_sensor_int";
+			grip_det_active: grip_det_active {
+				drive-strength = <2>;
+				bias-disable; /* No PULL */
+			};
+			grip_det_suspend: grip_det_suspend {
+				drive-strength = <2>;
+				bias-disable; /* No PULL */
+			};
+		};
+
+		grip_sensor_i2c {
+			qcom,pins = <&gp 16>, <&gp 17>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <2>;
+			label = "grip_sensor_i2c";
+			grip_i2c_active: grip_i2c_active {
+				drive-strength = <2>;
+				bias-pull-up;
+			};
+			grip_i2c_suspend: grip_i2c_suspend {
+				drive-strength = <2>;
+				bias-pull-up;
+			};
+		};
+
+		grip_wifi_i2c {
+			qcom,pins = <&gp 54>, <&gp 55>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <2>;
+			label = "grip_wifi_i2c";
+			wifi_i2c_active: wifi_i2c_active {
+				drive-strength = <2>;
+				bias-pull-up;
+			};
+			wifi_i2c_suspend: wifi_i2c_suspend {
+				drive-strength = <2>;
+				bias-pull-up;
+			};
+		};
+		grip_wifi_int {
+			qcom,pins = <&gp 107>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "grip_wifi_int";
+			wifi_touch_active: wifi_touch_active {
+				drive-strength = <2>;
+				bias-disable; /* No PULL */
+			};
+			wifi_touch_suspend: wifi_touch_suspend {
+				drive-strength = <2>;
+				bias-disable; /* No PULL */
+			};
+		};
+
+		prox_sensor_i2c {
+			qcom,pins = <&gp 48>, <&gp 64>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <2>;
+			label = "prox_sensor_i2c";
+			prox_i2c_active: prox_i2c_active {
+				drive-strength = <2>;
+				bias-disable; /* No PULL */
+			};
+			prox_i2c_suspend: prox_i2c_suspend {
+				drive-strength = <2>;
+				bias-disable; /* No PULL */ 
+			};
+		};
+
+		prox_sensor_int {
+			qcom,pins = <&gp 141>;
+			qcom,pin-func = <3>;
+			qcom,num-grp-pins = <1>;
+			label = "prox_sensor_int";
+			prox_int_active: prox_int_active {
+				drive-strength = <2>;
+				bias-disable; 
+			};
+			prox_int_suspend: prox_int_suspend {
+				drive-strength = <2>;
+				bias-disable; 
+			};
+		};
+
+		prox_sensor_enable_active {
+			qcom,pins = <&gp 139>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "prox_sensor_enable_active";
+			prox_enable_active: prox_enable_active {
+				drive-strength = <2>;
+				bias-disable; 
+			};
+			prox_enable_suspend: prox_enable_suspend {
+				drive-strength = <2>;
+				bias-disable; 
+			};
+		};
+
+/*
+		sensor_ldo_en {
+			qcom,pins = <&gp 69>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "sensor_ldo_en";
+			sensor_ldo_en: sensor_ldo_en {
+				drive-strength = <2>;
+				output-high;
+				bias-disable = <0>; 
+			};
+		};
+*/		
+		tsp_vdd_en {
+			qcom,pins = <&gp 69>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "tsp_vdd_en";
+			tsp_vdd_en_active: tsp_vdd_en_active {
+				drive-strength = <2>;
+				output-high;
+				bias-disable; /* NO PULL*/
+			};
+			tsp_vdd_en_suspend: tsp_vdd_en_suspend {
+				drive-strength = <2>;
+				output-low;
+				bias-disable; /* NO PULL*/
+			};
+		};
+
+		tsp_io_en {
+			qcom,pins = <&gp 21>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "tsp_io_en";
+			tsp_io_en_active: tsp_io_en_active {
+				drive-strength = <2>;
+				output-high;
+				bias-disable; /* NO PULL*/
+			};
+			tsp_io_en_suspend: tsp_io_en_suspend {
+				drive-strength = <2>;
+				output-low;
+				bias-disable; /* NO PULL*/
+			};
+		};
+		tsp_int {
+			qcom,pins = <&gp 65>; /* INTERRUPT */
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "tsp_int";
+			tsp_int_active: tsp_int_active {
+				drive-strength = <2>;
+				input-enable;
+				bias-disable;
+			};
+			tsp_int_suspend: tsp_int_suspend {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		touchkey_int {
+			qcom,pins = <&gp 131>; /* INTERRUPT */
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "touchkey_int";
+			touchkey_int_active: touchkey_int_active {
+				drive-strength = <2>;
+				input-enable;
+				bias-disable; // bias-pull-up;
+			};
+			touchkey_int_suspend: touchkey_int_suspend {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		touchkey_i2c {
+			qcom,pins = <&gp 6>, <&gp 7>; /* SDA, SCL */
+			qcom,num-grp-pins = <2>;
+			qcom,pin-func = <0>;
+			label = "touchkey_i2c";
+			touchkey_i2c_active: touchkey_i2c_active {
+				drive-strength = <2>;
+				input-enable;
+				bias-disable;
+			};
+			touchkey_i2c_suspend: touchkey_i2c_suspend {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		touchkey_en {
+			qcom,pins = <&gp 106>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "touchkey_en";
+			touchkey_en: touchkey_en {
+				drive-strength = <2>;
+				output-low;
+				bias-disable = <0>; /* No PULL */
+			};
+		};
+		spi_4_active {
+			qcom,pins = <&gp 12>, <&gp 13>, <&gp 14>, <&gp 15>;
+			qcom,pin-func = <1>;
+			qcom,num-grp-pins = <4>;
+			label = "spi_4";
+			spi_4_active: spi_4_active {
+				drive-strength = <8>;
+				bias-pull-up;
+			};
+		};
+
+		spi_4_sleep {
+			qcom,pins = <&gp 12>, <&gp 13>, <&gp 14>, <&gp 15>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <4>;
+			label = "spi_4";
+			spi_4_sleep: spi_4_sleep {
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+
+		tlmm_motor_en {
+			qcom,pins = <&gp 33>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "tlmm_motor_en";
+			motor_en_active: motor_en_active {
+				drive-strength = <2>;
+				bias-disable = <0>; /* No PULL */
+				output-high;
+			};
+			motor_en_suspend: motor_en_suspend {
+				drive-strength = <2>;
+				bias-disable = <0>; /* No PULL */
+				output-low;
+			};
+		};
+
+		tlmm_motor_pwm_active {
+			qcom,pins = <&gp 31>;
+			qcom,pin-func = <2>;
+			qcom,num-grp-pins = <1>;
+			label = "motor_pwm_active";
+			motor_pwm_active: motor_pwm_active {
+				drive-strength = <2>;
+				bias-disable; /* NO PULL */
+				output-high;
+			};
+		};
+
+		tlmm_motor_pwm_suspend {
+			qcom,pins = <&gp 31>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "motor_pwm_suspend";
+			motor_pwm_suspend: motor_pwm_suspend {
+				drive-strength = <2>;
+				bias-pull-down; /* PULL DOWN */
+				output-low;
+			};
+		};
+
+		pmx_i2c_3 {
+			/* CLK, DATA */
+			qcom,pins = <&gp 10>, <&gp 11>;
+			qcom,num-grp-pins = <2>;
+			qcom,pin-func = <3>;
+			label = "pmx_i2c_3";
+			/* active state */
+			i2c_3_active: i2c_3_active {
+				drive-strength = <2>; /* 2 MA */
+				bias-disable = <0>; /* No PULL */
+			};
+			/* suspend state */
+			i2c_3_sleep: i2c_3_sleep {
+				drive-strength = <2>; /* 2 MA */
+				bias-disable = <0>; /* No PULL */
+			};
+		};
+
+		/delete-node/ pmx_rd_nfc_int;
+		/delete-node/ spi0_suspend;
+
+		spi0_suspend {
+                        /* MOSI, MISO, CLK */
+                        qcom,pins = <&gp 0>, <&gp 1>, <&gp 3>;
+                        qcom,num-grp-pins = <3>;
+                        qcom,pin-func = <0>;
+                        label = "spi0-suspend";
+                        /* suspended state */
+                        spi0_sleep: spi0_sleep {
+                                drive-strength = <2>; /* 2 MA */
+                                bias-pull-down; /* PULL DOWN */
+                        };
+                };
+
+		pmx_rd_nfc_int {
+			qcom,pins = <&gp 21>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "pmx_nfc_int";
+
+			nfc_int_active: nfc_int_active {
+				drive-strength = <6>;
+				bias-pull-down;
+			};
+
+			nfc_int_suspend: nfc_int_suspend {
+				drive-strength = <6>;
+				bias-pull-down;
+			};
+		};
+/*
+		pmx_nfc_pvdd {
+			qcom,pins = <&gp 107>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "pmx_nfc_pvdd";
+
+			nfc_pvdd_active: nfc_pvdd_active {
+				drive-strength = <2>;
+				bias-disable;
+			};
+
+			nfc_pvdd_suspend: nfc_pvdd_suspend {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+*/
+		pmx_nfc_enable {
+			qcom,pins = <&gp 20>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "pmx_nfc_enable";
+
+			nfc_enable_active: nfc_enable_active {
+				drive-strength = <2>;
+				bias-disable;
+			};
+
+			nfc_enable_suspend: nfc_enable_suspend {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		tlmm_nfc_firmware{
+			qcom,pins = <&gp 16>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "tlmm_nfc_firmware";
+
+			nfc_firmware_active: nfc_firmware_active {
+				drive-strength = <2>;
+				bias-pull-down; /* PULL DOWN */
+			};
+
+			nfc_firmware_suspend: nfc_firmware_suspend {
+				drive-strength = <2>;
+				bias-pull-down; /* PULL DOWN */
+			};
+		};
+
+		/delete-node/ cam_sensor_front1_default;
+		/delete-node/ cam_sensor_front1_sleep;
+
+		cam_sensor_front1_default {
+			/* RESET, STANDBY */
+			qcom,pins = /*<&gp 131>,*/ <&gp 38>;
+			qcom,num-grp-pins = <1/*2*/>;
+			label = "cam_sensor_front1_default";
+			/* active state */
+			cam_sensor_front1_default: cam_sensor_front1_default {
+				drive-strength = <2>; /* 2 MA */
+				bias-disable; /* No PULL */
+			};
+		};
+
+		cam_sensor_front1_sleep {
+			/* RESET, STANDBY */
+			qcom,pins = /*<&gp 131>,*/ <&gp 38>;
+			qcom,num-grp-pins = <1/*2*/>;
+			label = "cam_sensor_front1_sleep";
+			/*suspended state */
+			cam_sensor_front1_sleep: cam_sensor_front1_sleep {
+				drive-strength = <2>; /* 2 MA */
+				bias-disable; /* No PULL */
+			};
+		};
+
+		cam_sensor_front_eeprom_default {
+			/* SDA, SCL */
+			qcom,pins = <&gp 103>,<&gp 104>;
+			qcom,num-grp-pins = <2>;
+			label = "cam_sensor_front_eeprom_default";
+			/* active state */
+			cam_sensor_front_eeprom_default: cam_sensor_front_eeprom_default {
+					 drive-strength = <2>; /* 2 MA */
+					 bias-disable; /* No PULL */
+			};
+		};
+
+		cam_sensor_front_eeprom_sleep {
+			/* SDA, SCL */
+			qcom,pins = <&gp 103>, <&gp 104>;
+			qcom,num-grp-pins = <2>;
+			label = "cam_sensor_front_eeprom_sleep";
+			/*suspended state */
+			cam_sensor_front_eeprom_sleep: cam_sensor_front_eeprom_sleep {
+				       drive-strength = <2>; /* 2 MA */
+				       bias-disable; /* No PULL */
+			};
+		};
+		
+		rt5659-reset {
+			qcom,pins = <&gp 144>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "rt5659-reset";
+			rt5659_reset_active: rt5659_reset_active {
+				drive-strength = <2>;
+				bias-disable;
+			};
+			rt5659_reset_suspend: rt5659_reset_suspend {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+	
+		rt5659-irq {
+			qcom,pins = <&gp 120>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "rt5659-irq";
+			rt5659_irq_active: rt5659_irq_active {
+				drive-strength = <2>;
+				bias-disable;
+			};
+			rt5659_irq_suspend: rt5659_irq_suspend {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};		
+
+		quat-tlmm-lines-0 {
+			qcom,pins = <&gp 102>, <&gp 105>;
+			qcom,num-grp-pins = <2>;
+			qcom,pin-func = <1>;
+			label = "quat-lines-0";
+			quat_tlmm_lines0_act: quat_tlmm_lines_on {
+				drive-strength = <8>;
+				bias-disable;
+			};
+			quat_tlmm_lines0_sus: quat_tlmm_lines_off {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+  
+		quat-tlmm-lines-1 {
+			qcom,pins = <&gp 134>, <&gp 135>;
+			qcom,num-grp-pins = <2>;
+			qcom,pin-func = <3>;
+			label = "quat-lines-1";
+			quat_tlmm_lines1_act: quat_tlmm_lines1_on {
+				drive-strength = <8>;
+				bias-disable;
+			};
+			quat_tlmm_lines1_sus: quat_tlmm_lines1_off {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		ext_clkout { 
+			qcom,pins = <&gp 32>; /* GP_CLK_1 */ 
+			qcom,num-grp-pins = <1>; 
+			qcom,pin-func = <2>; 
+			label = "gp_clk1";
+			gp_clk1_active: gp_clk1_active { 
+				drive-strengh = <8>; 
+				bias-disable; 
+			}; 
+			gp_clk1_suspend: gp_clk1_suspend { 
+				drive-strengh = <2>; 
+				bias-disable; 
+			}; 
+		};
+
+		sdhc2_cd_pin {
+			qcom,pins = <&gp 100>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "cd-gpio";
+			sdc2_cd_on: cd_on {
+				drive-strength = <2>;
+				bias-disable;
+			};
+			sdc2_cd_off: cd_off {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		pmx_sdc2_clk {
+			qcom,pins = <&sdc 4>;
+			qcom,num-grp-pins = <1>;
+			label = "sdc2-clk";
+			sdc2_clk_on: clk_on {
+				bias-disable; /* NO pull */
+				drive-strength = <10>; /* 10 MA */
+			};
+			sdc2_clk_off: clk_off {
+				bias-disable; /* NO pull */
+				drive-strength = <2>; /* 2 MA */
+			};
+		};
+
+		pmx_sdc2_cmd {
+			qcom,pins = <&sdc 5>;
+			qcom,num-grp-pins = <1>;
+			label = "sdc2-cmd";
+			sdc2_cmd_on: cmd_on {
+				bias-pull-up; /* pull up */
+				drive-strength = <6>; /* 6 MA */
+			};
+			sdc2_cmd_off: cmd_off {
+				bias-pull-up; /* pull up */
+				drive-strength = <2>; /* 2 MA */
+			};
+		};
+
+		pmx_sdc2_data {
+			qcom,pins = <&sdc 6>;
+			qcom,num-grp-pins = <1>;
+			label = "sdc2-data";
+			sdc2_data_on: data_on {
+				bias-pull-up; /* pull up */
+				drive-strength = <6>; /* 6 MA */
+			};
+			sdc2_data_off: data_off {
+				bias-pull-up; /* pull up */
+				drive-strength = <2>; /* 2 MA */
+			};
+		};
+
+		quin-tlmm-lines {
+			qcom,pins = <&gp 123>, <&gp 124>, <&gp 125>, <&gp 127>;
+			qcom,num-grp-pins = <4>;
+			qcom,pin-func = <1>;
+			label = "quin-tlmm-lines";
+			quin_tlmm_lines_act: quin_tlmm_lines_act {
+				drive-strength = <8>;
+				bias-disable;
+			};
+			quin_tlmm_lines_sus:  quin_tlmm_lines_sus {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		/delete-node/ tpiu_seta_18;
+};
+
+&soc {
+  tlmm_pinmux: pinctrl@1000000 {
+    compatible = "qcom,msm-tlmm-8916";
+    reg = <0x1000000 0x300000>;
+    interrupts = <0 208 0>;
+
+
+    cam_mclk0_active {
+      qcom,pins = <&gp 26>;
+      qcom,num-grp-pins = <1>;
+      qcom,pin-func = <1>;
+      label = "cam_mclk0_active";
+      cam_mclk0_active: cam_mclk0_active{
+        drive-strength = <2>; /* 2 MA */
+        bias-disable; /* No PULL */
+        output-low;
+      };
+    };
+    cam_mclk0_sleep {
+      qcom,pins = <&gp 26>;
+      qcom,num-grp-pins = <1>;
+      label = "cam_mclk0_sleep";
+      cam_mclk0_sleep: cam_mclk0_sleep{
+        drive-strength = <2>; /* 2 MA */
+        bias-pull-down; /* PULL DOWN */
+        output-low;
+      };
+    };
+
+    cam_mclk1_active {
+      qcom,pins = <&gp 27>;
+      qcom,num-grp-pins = <1>;
+      qcom,pin-func = <1>;
+      label = "cam_mclk1_active";
+      cam_mclk1_active: cam_mclk1_active{
+        drive-strength = <6>; /* 6 MA */
+        bias-disable; /* No PULL */
+        output-low;
+      };
+    };
+    cam_mclk1_sleep {
+      qcom,pins = <&gp 27>;
+      qcom,num-grp-pins = <1>;
+      label = "cam_mclk1_sleep";
+      cam_mclk1_sleep: cam_mclk1_sleep{
+        drive-strength = <6>; /* 6 MA */
+        bias-pull-down; /* PULL DOWN */
+        output-low;
+      };
+    };
+
+
+    cam_rear_sensor_ctrl {
+      qcom,pins = <&gp 129>, <&gp 126>;
+      qcom,num-grp-pins = <2>;
+      label = "cam_rear_sensor_ctrl";
+      cam_rear_sensor_active: cam_rear_sensor_active{
+        drive-strength = <2>; /* 2 MA */
+        bias-disable; /* No PULL */
+      };
+      cam_rear_sensor_sleep: cam_rear_sensor_sleep{
+        drive-strength = <2>; /* 2 MA */
+        bias-disable; /* No PULL */
+      };
+    };
+
+    cam_front_sensor_ctrl {
+      qcom,pins = <&gp 130>;
+      qcom,num-grp-pins = <1>;
+      label = "cam_front_sensor_ctrl";
+      cam_front_sensor_active: cam_front_sensor_active{
+        drive-strength = <2>; /* 2 MA */
+        bias-disable; /* No PULL */
+      };
+      cam_front_sensor_sleep: cam_front_sensor_sleep{
+        drive-strength = <2>; /* 2 MA */
+        bias-disable; /* No PULL */
+      };
+    };
+    
+    cam_front_sensor_ctrl_stby {
+      qcom,pins = <&gp 53>;
+      qcom,pin-func = <0>;
+      qcom,num-grp-pins = <1>;
+      label = "cam_front_sensor_ctrl_stby";
+      cam_front_sensor_stby_active: cam_front_sensor_stby_active{
+        drive-strength = <2>; /* 2 MA */
+        bias-pull-down; /* PULL DOWN */
+        input-enable;
+      };
+      cam_front_sensor_stby_sleep: cam_front_sensor_stby_sleep{
+        drive-strength = <2>; /* 2 MA */
+        bias-pull-down; /* PULL DOWN */
+        input-enable;
+      };
+    };
+
+    cam_front_sensor_ctrl_enable {
+      qcom,pins = <&gp 63>;
+      qcom,num-grp-pins = <1>;
+      label = "cam_front_sensor_ctrl_enable";
+      cam_front_sensor_active_enable: cam_front_sensor_active_enable{
+        drive-strength = <2>; /* 2 MA */
+        bias-pull-down; /* PULL DOWN */
+        output-low;
+      };
+      cam_front_sensor_sleep_enable: cam_front_sensor_sleep_enable{
+        drive-strength = <2>; /* 2 MA */
+        bias-pull-down; /* PULL DOWN */
+        output-low;
+      };
+    };
+
+    earjack_det_gpio {
+      qcom,pins = <&gp 119>;
+      qcom,pin-func = <0>;
+      qcom,num-grp-pins = <1>;
+      label = "earjack_det_gpio";
+      earjack_det_act: earjack_det_act {
+            drive-strength = <2>;
+            bias-disable;
+      };
+      earjack_det_sus: earjack_det_sus {
+            drive-strength = <2>;
+            bias-disable;
+      };
+    };
+    earjack_swtich_gpio {
+      qcom,pins = <&gp 35>;
+      qcom,pin-func = <0>;
+      qcom,num-grp-pins = <1>;
+      label = "earjack_swtich_gpio";
+      earjack_switch_act: earjack_switch_act {
+            drive-strength = <2>;
+            bias-disable;
+      };
+      earjack_switch_sus: earjack_switch_sus {
+            drive-strength = <2>;
+            bias-disable;
+      };
+    };
+
+    hrm_int {
+      qcom,pins = <&gp 140>;
+      qcom,pin-func = <0>;
+      qcom,num-grp-pins = <1>;
+      label = "hrm_int";
+
+      hrm_int_active: active {
+	drive-strength = <2>;
+	bias-pull-down;
+      };
+
+      hrm_int_suspend: suspend {
+	drive-strength = <2>;
+	bias-disable;
+      };
+    };
+
+  };
+};

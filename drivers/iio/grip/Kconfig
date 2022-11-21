@@ -1,0 +1,154 @@
+#
+# Grip sensors
+#
+menu "Grip sensors"
+
+config SENSORS_SX9306
+	depends on IIO
+	tristate "SX9306 driver"
+	default n
+	help
+	  Say Y here if you use sx9306.
+	  This option enables grip sensors using
+	  SemTech sx9306 device driver.
+
+	  Say N here if you do not use sx9306.
+
+config SENSORS_SX9306_INIT_TOUCH_THRESHOLD
+	int "SX9306 Grip sensor threshold for init touch"
+	depends on SENSORS_SX9306
+	default "3000"
+	help
+	  This value is the standard of init touch using
+	  SemTech sx9306 device driver.
+
+config SENSORS_SX9306_NORMAL_TOUCH_THRESHOLD
+	int "SX9306 Grip sensor threshold for normal touch"
+	depends on SENSORS_SX9306
+	default "17"
+	help
+	  This value is the standard of normal touch using
+	  SemTech sx9306 device driver.
+
+config SENSORS_SX9306_WIFI
+	depends on IIO
+	tristate "SX9306 driver"
+	default n
+	help
+	  Say Y here if you use sx9306.
+	  This option enables grip sensors using
+	  SemTech sx9306 device driver.
+
+	  Say N here if you do not use sx9306.
+
+config SENSORS_SX9306_WIFI_INIT_TOUCH_THRESHOLD
+	int "SX9306 Grip sensor threshold for init touch"
+	depends on SENSORS_SX9306_WIFI
+	default "3000"
+	help
+	  This value is the standard of init touch using
+	  SemTech sx9306 device driver.
+
+config SENSORS_SX9306_WIFI_NORMAL_TOUCH_THRESHOLD
+	int "SX9306 Grip sensor threshold for normal touch"
+	depends on SENSORS_SX9306_WIFI
+	default "17"
+	help
+	  This value is the standard of normal touch using
+	  SemTech sx9306 device driver.
+
+config SENSORS_SX9310
+	depends on IIO
+	tristate "SX9310 driver"
+	default n
+	help
+	  Say Y here if you use sx9310.
+	  This option enables grip sensors using
+	  SemTech sx9310 device driver.
+
+	  Say N here if you do not use sx9310.
+
+config SENSORS_SX9310_INIT_TOUCH_THRESHOLD
+	int "SX9310 Grip sensor threshold for init touch"
+	depends on SENSORS_SX9310
+	default "3000"
+	help
+	  This value is the standard of init touch using
+	  SemTech sx9310 device driver.
+
+config SENSORS_SX9310_NORMAL_TOUCH_THRESHOLD
+	int "SX9310 Grip sensor threshold for normal touch"
+	depends on SENSORS_SX9310
+	default "17"
+	help
+	  This value is the standard of normal touch using
+	  SemTech sx9310 device driver.
+
+config SENSORS_SX9310_DEFENCE_CODE_FOR_TA_NOISE
+	depends on SENSORS_SX9310
+	tristate "SX9310 Defence code for TA noise"
+	default n
+	help
+	  Say Y here if you use defence code.
+	  This option enables defence code for TA noise using
+	  SemTech sx9310 device driver.
+
+	  Say N here if you do not use defence code.
+
+config SENSORS_SX9310_WIFI
+	depends on IIO
+	tristate "SX9310 driver"
+	default n
+	help
+	  Say Y here if you use sx9310.
+	  This option enables grip sensors using
+	  SemTech sx9310 device driver.
+
+	  Say N here if you do not use sx9310.
+	
+config SENSORS_SX9310_WIFI_INIT_TOUCH_THRESHOLD
+	int "SX93010 Grip sensor threshold for init touch"
+	depends on SENSORS_SX9310_WIFI
+	default "3000"
+	help
+	  This value is the standard of init touch using
+	  SemTech sx9310 device driver.
+
+config SENSORS_SX9310_WIFI_NORMAL_TOUCH_THRESHOLD
+	int "SX9310 Grip sensor threshold for normal touch"
+	depends on SENSORS_SX9310_WIFI
+	default "17"
+	help
+	  This value is the standard of normal touch using
+	  SemTech sx9310 device driver.
+
+config SENSORS_SX9310_WIFI_DEFENCE_CODE_FOR_DAMAGE
+	depends on SENSORS_SX9310_WIFI
+	tristate "SX9310 WIFI Defence code for damage"
+	default n
+	help
+	  Say Y here if you use defence code.
+	  This option enables defence code for damage using
+	  SemTech sx9310 device driver.
+
+	  Say N here if you do not use defence code.
+
+config SENSORS_SX9310_WIFI_DEFENCE_CODE_FOR_TA_NOISE
+	depends on SENSORS_SX9310_WIFI
+	tristate "SX9310 WIFI Defence code for TA noise"
+	default n
+	help
+	  Say Y here if you use defence code.
+	  This option enables defence code for TA noise using
+	  SemTech sx9310 device driver.
+
+	  Say N here if you do not use defence code.
+
+config SENSORS_GTS210_COMMON
+	depends on IIO
+	tristate "sensor feature"
+	default n
+	help
+	  This value is model feature for sensor.
+
+endmenu
