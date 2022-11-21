@@ -1,0 +1,81 @@
+/* Copyright (c) 2012, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&mdss_mdp {
+	ss_dsi_panel_S6E3FC2_AMS670TA01_FHD {
+
+		samsung,hmt_enabled;
+
+		samsung,hmt_candela_map_table_revA = <
+		/*<idx>	  <from>  <till> <candella> */
+			0		0		3		268
+			1		4		8		278
+			2		9		12		288
+			3		13		17		298
+			4		18		21		308
+			5		22		25		318
+			6		26		30		328
+			7		31		34		338
+			8		35		39		348
+			9		40		43		358
+			10		44		47		368
+			11		48		52		378
+			12		53		56		388
+			13		57		61		398
+			14		62		65		408
+			15		66		69		418
+			16		70		74		428
+			17		75		78		438
+			18		79		83		448
+			19		84		87		458
+			20		88		91		468
+			21		92		96		478
+			22		97		100		488
+			23		101		105		498
+			24		106		109		508
+			25		110		113		518
+			26		114		118		528
+			27		119		122		538
+			28		123		127		548
+			29		128		131		558
+			30		132		135		568
+			31		136		140		578
+			32		141		144		588
+			33		145		148		598
+			34		149		153		608
+			35		154		157		618
+			36		158		162		628
+			37		163		166		638
+			38		167		170		648
+			39		171		175		658
+			40		176		179		668
+			41		180		184		678
+			42		185		188		688
+			43		189		192		698
+			44		193		197		708
+			45		198		201		718
+			46		202		206		728
+			47		207		210		738
+			48		211		214		748
+			49		215		219		758
+			50		220		223		768
+			51		224		228		778
+			52		229		232		788
+			53		233		236		798
+			54		237		241		808
+			55		242		245		818
+			56		246		250		828
+			57		251		254		838
+			58		255		255		848
+		>;
+	};
+};

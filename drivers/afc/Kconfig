@@ -1,0 +1,19 @@
+#
+# AFC devices
+#
+
+comment "AFC configs"
+
+config AFC
+	bool "Using AFC device driver"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the AFC device driver.
+
+config PM6150_AFC
+	bool "Using PM6150_AFC device driver"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the PM6150_AFC device driver.

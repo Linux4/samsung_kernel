@@ -1,0 +1,43 @@
+#
+# S2MU107 driver
+#
+
+comment "S2MU107 configs"
+
+config CCIC_S2MU107
+	bool "Using S2MU107 USB PD"
+	depends on USE_CCIC
+	default n
+	help
+	  If you say yes here you will get support for
+	  the S2MU107 USBPD chip.
+
+config CCIC_S2MU106
+	bool "Using S2MU106 USB PD"
+	depends on USE_CCIC	
+	default n
+	help
+	  If you say yes here you will get support for
+	  for the S2MU106 USBPD chip.
+
+config PDIC_PD30
+	bool "support PD3.0"
+	depends on CCIC_S2MU107 || CCIC_S2MU106
+	default n
+	help
+	  If you say yes here you will get support for PD3.0
+	  
+config CCIC_AUTO_PPS
+    bool "support auto pps"
+    depends on I2C
+    default n
+    help
+      If you say yes here you will get support for
+      sending pps message automatically
+
+config CCIC_9V_OTG_SUPPORT 
+    bool "support 9V/1A PDO for OTG(pd source)"
+    depends on USE_CCIC
+    default n
+    help
+      If you say yes here you will get support for 9V/1A PDO for PD source

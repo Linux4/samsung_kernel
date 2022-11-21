@@ -1,0 +1,250 @@
+config SAMSUNG_OIS_MCU_STM32
+        tristate "External ois MCU STM32 support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for external ois module.
+
+config SAMSUNG_APERTURE
+        tristate "External aperture support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for external aperture module.
+
+config SAMSUNG_APERTURE_HALLTEST
+        tristate "aperture hall test support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for aperture hall est
+
+config SAMSUNG_REAR_DUAL
+	tristate "Rear dual camera support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for rear dual camera.
+
+config SAMSUNG_REAR_TRIPLE
+	tristate "Rear triple camera support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for rear triple camera.
+
+config SAMSUNG_FRONT_DUAL
+	tristate "Front dual camera support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for front dual camera.
+
+config SAMSUNG_FRONT_TOF
+	tristate "Front tof camera support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for front tof camera.
+
+config SAMSUNG_REAR_TOF
+	tristate "rear tof camera support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for rear tof camera.
+
+config CAMERA_ADAPTIVE_MIPI
+	tristate "adaptive mipi support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for adaptive mipi.
+
+config SAMSUNG_REAR_QUAD
+	tristate "rear quad support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for rear quad camera.
+
+config CAMERA_SYSFS_V2
+	bool "CAMERA SYS"
+	depends on SPECTRA_CAMERA
+	---help---
+	Enable support CAMERA SYS.
+
+config SAMSUNG_FRONT_EEPROM
+	tristate "Front eeprom support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for front eeprom
+
+config SAMSUNG_SECURE_CAMERA
+	tristate "Secure camera support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for secure camera
+
+config CAMERA_DYNAMIC_MIPI
+	tristate "Multi camera support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for dynamic mipi clock
+
+config CAMERA_FRS_DRAM_TEST
+	tristate "Camera dram support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for DRAM test
+
+config USE_CAMERA_HW_BIG_DATA
+	bool "CAMERA HW SYS"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	CAMERA HW SYS.
+
+config FLASH_CURRENT_JAPAN
+	tristate "flash current for jpn"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for JPN
+
+config CAMERA_SSM_I2C_ENV
+	tristate "Rear camera support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for SSM I2C test
+
+config SAMSUNG_MULTI_CAMERA
+	tristate "Multi camera support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for multi camera.
+
+config GC5035_SENSOR
+	tristate "Sensor gc5035 support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for SENSOR
+
+config S5K3L6_SENSOR
+	tristate "Sensor s5k3l6 support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for SENSOR
+	
+config HI1336_SENSOR
+	tristate "Sensor hi1336 support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for SENSOR
+
+config S5K4HA_SENSOR
+	tristate "Sensor s5k4ha support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for SENSOR
+
+config S5KGW1P_SENSOR
+	tristate "Sensor s5k4ha support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for SENSOR
+
+config SAMSUNG_CAMERA_EEPROM_TELE
+	tristate "Tele sensor EEPROM support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for TELE SENSOR EEPROM
+
+config SAMSUNG_CAMERA_OTP_UW
+	tristate "Ultra-Wide sensor OTP support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for UW SENSOR OTP
+
+config SAMSUNG_CAMERA_OTP_MACRO
+	tristate "Macro sensor OTP support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for MACRO SENSOR OTP
+
+config SAMSUNG_CAMERA_OTP
+	tristate "Sensor OTP support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for SENSOR OTP
+
+config SAMSUNG_OIS_RUMBA_S4
+        tristate "External RUMBA S4 OIS support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for external ois module.
+
+config SAMSUNG_HW_SOFTLANDING
+	tristate "Soft Landing support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for Samsung HW softlanding
+ 
+config SAMSUNG_ACTUATOR_DW9808
+	tristate "Soft Landing support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for actuator DW9808 Soft landing.
+ 
+config SAMSUNG_ACTUATOR_DW9817
+	tristate "Soft Landing support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for actuator DW9817 Soft landing.
+ 
+config SAMSUNG_ACTUATOR_FP5529
+	tristate "Soft Landing support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for actuator FP5529 Soft landing.
+
+config MCLK_I2C_DELAY
+	tristate "Delay in MCLK I2C Sequence for preventing Spec Out"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Adds Delay in MCLK I2C Sequence for preventing Spec Out.
+	
+config MCLK_I2C_DELAY_FOR_CAM_POWERDOWN
+	tristate "Delay in MCLK I2C Sequence for preventing Spec Out during power off signal of cam"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Adds Delay in MCLK I2C power down Sequence for preventing Spec Out.
+
+config GC5035_MACRO_OTP_DD_AUTOLOAD
+	tristate "Macro Camera Sensor GC5035 OTP DD Autoload Support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for Macro Camera Sensor GC5035 OTP DD Autoload.	

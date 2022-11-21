@@ -1,0 +1,20 @@
+
+config FUELGAUGE_DUMMY
+	tristate "dummy fuel gauge driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for dummy fuel gauge driver.
+	 This driver source code implemented
+	 skeleton source code for fuel gauge functions.
+
+config FUELGAUGE_SM5714
+	tristate "Siliconmitus SM5714 Fuel Gauge"
+	default n
+	depends on I2C
+	help
+	  SM5714 is fuel-gauge systems for lithium-ion (Li+) batteries
+	  in handheld and portable equipment. The SM5714 is configured
+	  to operate with a single lithium cell
+

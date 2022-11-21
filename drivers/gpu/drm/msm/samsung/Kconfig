@@ -1,0 +1,258 @@
+config SAMSUNG_DEBUG_DISPLAY
+	bool "Add Samsung Debugging code"
+	default n
+
+config DISPLAY_SAMSUNG
+	depends on DRM_MSM
+	bool "mdss config for samsung product"
+	default n
+	---help---
+	Mdss config signature for samsung product
+
+#
+#	PANEL UNIQUE FEATURE
+#
+config DUAL_PANEL
+	depends on DISPLAY_SAMSUNG
+	bool "dual paneloperation"
+	default n
+	---help---
+	dual panel operation support
+
+config PARTIAL_UPDATE
+	depends on DISPLAY_SAMSUNG
+	bool "partial update operation"
+	default n
+	---help---
+	partial update operation support
+
+config CABC_FUNCTION
+	depends on DISPLAY_SAMSUNG
+	bool "DDI cabc operation"
+	default n
+	---help---
+	DDI cabc operation support
+
+config SUPPORT_POC_FLASH
+	depends on DISPLAY_SAMSUNG
+	bool "SUPPORT POC FLASH"
+	default n
+	---help---
+	SUPPORT_POC_FLASH FOR DREAM2 ONLY
+
+#
+#	HOW TO MAKE DEF-CONFIG NAME FOR PANEL
+#
+#	PANEL_DDI-model_PANEL-model_RESOLUTION
+#	PANEL_S6E3FA2    _AMS510CV01_FHD
+#	PANEL_S6E3FA2_AMS510CV01_FHD
+#
+
+config PANEL_S6E3HA6_AMB632NF01_WQHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3HA6 LDI"
+	default n
+	---help---
+	LSI S6E3HA6 LDI 1440_2560 GREAT DSC
+
+
+config PANEL_S6E3HA6_AMS622MR01_WQHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3HA6 LDI"
+	default n
+	---help---
+	LSI S6E3HA6 LDI 1440_2560 DREAM2 DSC
+
+config PANEL_S6E3HA8_AMB622NP01_WQHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3HA8 LDI"
+	default n
+	---help---
+	LSI S6E3HA8 LDI 1440_2560 STAR2 DSC
+
+config PANEL_S6E3HA8_AMB638RD01_WQHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3HA8 LDI"
+	default n
+	---help---
+	LSI S6E3HA8 LDI 1440_2560 BEYOND DSC
+
+config PANEL_S6E3HA9_AMB611WE01_WQHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3HA9 LDI"
+	default n
+	---help---
+	LSI S6E3HA9 LDI 1440_3040 BEYOND1 L-Cut DSC
+
+config PANEL_S6E3HA9_AMB644WF01_WQHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3HA9 LDI"
+	default n
+	---help---
+	LSI S6E3HA9 LDI 1440_3040 BEYOND2 L-Cut DSC
+
+config PANEL_S6E3HA9_AMB597RT01_WQHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3HA9 LDI"
+	default n
+	---help---
+	LSI S6E3HA9 LDI 1440_2960 CROWN DSC
+
+config PANEL_S6E3XA0_AMB729WA01_QXGA
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3XA0 LDI"
+	default n
+	---help---
+	LSI S6E3XA0 LDI 2152_1536 WINNER main panel
+
+config PANEL_S6E3FA7_AMB458WJ01_HD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3FA7 LDI"
+	default n
+	---help---
+	LSI S6E3FA7 LDI 720_1680 WINNER SUB
+
+config PANEL_S6E3FA7_AMS628RF05_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3FA7 LDI"
+	default n
+	---help---
+	LSI S6E3FA7 LDI 1080_2220 A50
+
+config PANEL_S6E3FA7_AMS628RF01_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3FA7 LDI"
+	default n
+	---help---
+	LSI S6E3FA7 LDI 1080_2220 ASTAR
+
+config PANEL_S6E3FA7_AMS559NK01_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3FA7 LDI"
+	default n
+	---help---
+	LSI S6E3FA7 LDI 1080_2220 JACKPOT
+
+config PANEL_S6E3FA7_AMB575WD01_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3FA7 LDI"
+	default n
+	---help---
+	LSI S6E3FA7 LDI 1080_2280 BEYOND0
+
+config PANEL_TD4300_BS055FHM_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "SYNAPTICS TD4300 LDI"
+	default n
+	---help---
+	SYNAPTICS TD4300 LDI 1080_1920 IN_CELL
+
+config PANEL_NT36672A_BS063YPM_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "novatek NT36672A LDI"
+	default n
+	---help---
+	NOVAKEK NT36672A LDI 1080_2280 IN_CELL
+
+config PANEL_NT36672A_B6P064YQ5LP_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "novatek NT36672A LDI"
+	default n
+	---help---
+	NOVAKEK NT36672A LDI 1080_2340 IN_CELL
+
+config PANEL_S6E3FC2_AMS670TA01_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3FC2 LDI"
+	default n
+	---help---
+	LSI S6E3FC2 LDI 1080_2400 A90
+
+config PANEL_S6E3FA7_AMS604NL07_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3FA7 LDI"
+	default n
+	---help---
+	LSI S6E3FA7 LDI 1080_2220 A90 TEMP
+
+config PANEL_NT36672A_B6TMA60_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "novatek NT36672A LDI"
+	default n
+	---help---
+	NOVAKEK NT36672A LDI 1080_2340 IN_CELL
+
+config PANEL_NT36672A_PM6300JB1_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "novatek NT36672A LDI"
+	default n
+	---help---
+	NOVAKEK NT36672A LDI 1080_2340 IN_CELL
+
+config BLIC_ISL98611
+	depends on DISPLAY_SAMSUNG
+	bool "BLIC ISL98611"
+	default n
+	---help---
+	BLIC ISL98611
+
+config BLIC_LM36274
+	depends on DISPLAY_SAMSUNG
+	bool "BLIC LM36274"
+	default n
+	---help---
+	BLIC LM36274
+
+config PANEL_ANA6705_AMS670TD01_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "ANAPASS ANA6705 LDI"
+	default n
+	---help---
+	LSI ANA6705 LDI 1080_2400 A70s
+	depends on DISPLAY_SAMSUNG
+	bool "ANAPASS ANA6705 LDI AMS646UJ01"
+	default n
+	---help---
+	LSI ANA6705 LDI AMS646UJ01 1080_2400 A70s
+
+config PANEL_ANA6705_AMS667UK01_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "ANAPASS ANA6705 LDI AMS667UK01"
+	default n
+	---help---
+	LSI ANA6705 LDI AMS667UK01 1080_2400 A70s
+
+config PANEL_S6E3FA9_AMS667UK01_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3FA9 LDI"
+	default n
+	---help---
+	LSI S6E3FA9 LDI 1080_2400 R5
+
+config PANEL_S6E3FA9_AMB667UM06_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3FA9 LDI"
+	default n
+	---help---
+	LSI S6E3FA9 LDI 1080_2400 A71
+
+config PANEL_SW83106_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "SEC SW83106 LDI"
+	default n
+	---help---
+	SEC SW83106 LDI 1080_2400 M51 Bring up
+
+config PANEL_SW83106_WM6676Z21_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "SEC SW83106 LDI"
+	default n
+	---help---
+	SEC SW83106 LDI 1080_2400 M51 DV3
+
+config PANEL_S6E3FA9_AMB667UM07_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3FA9 LDI"
+	default n
+	---help---
+	LSI S6E3FA9 LDI 1080_2400 M51

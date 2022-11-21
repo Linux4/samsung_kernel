@@ -1,0 +1,18 @@
+config SEC_R1Q_PROJECT
+        default n
+        bool "Samsung R1Q Project"
+        help
+          Support for Samsung R1Q Project
+
+config SEC_R1Q_EUR_PROJECT
+        default n
+        bool "Samsung R1Q EUR OPEN Project"
+        help
+          Support for Samsung A90Q EUR OPEN Project
+
+config SEC_R1Q_EUR_LDU_PROJECT
+        default n
+        bool "Samsung R1Q EUR LDU Project"
+        help
+          Support for Samsung R1Q EUR LDU Project
+
