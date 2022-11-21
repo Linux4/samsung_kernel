@@ -1,0 +1,119 @@
+/* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+	aliases {
+		i2c6 = &i2c_6;
+	};
+};
+
+&soc {
+	tlmm: pinctrl@1000000 {
+		nfc_int {
+			nfc_int_active: nfc_int_active {
+				mux {
+					pins = "gpio36";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio36";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+
+			nfc_int_suspend: suspend  {
+				mux {
+					pins = "gpio36";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio36";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+		};
+
+		nfc_detect {
+			nfc_detect_active: nfc_detect_active {
+				mux {
+					pins = "gpio140";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio140";
+					drive-strength = <2>;
+					bias-disable;		/* No PULL */
+				};
+			};
+
+			nfc_detect_suspend: nfc_detect_suspend {
+				mux {
+					pins = "gpio140";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio140";
+					drive-strength = <2>;
+					bias-disable;		/* No PULL */
+				};
+			};
+		};
+	};
+
+	i2c_6: i2c@7af6000 { /* BLSP2 QUP2 */
+		compatible = "qcom,i2c-msm-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr";
+		reg = <0x7af6000 0x600>;
+		interrupt-names = "qup_irq";
+		interrupts = <0 300 0>;
+		qcom,clk-freq-out = <400000>;
+		qcom,clk-freq-in  = <19200000>;
+		clock-names = "iface_clk", "core_clk";
+		clocks = <&clock_gcc clk_gcc_blsp2_ahb_clk>,
+			<&clock_gcc clk_gcc_blsp2_qup2_i2c_apps_clk>;
+		pinctrl-names = "i2c_active", "i2c_sleep";
+		pinctrl-0 = <&i2c_6_active>;
+		pinctrl-1 = <&i2c_6_sleep>;
+		qcom,noise-rjct-scl = <0>;
+		qcom,noise-rjct-sda = <0>;
+		qcom,master-id = <84>;
+		dmas = <&dma_blsp2 6 64 0x20000020 0x20>,
+			<&dma_blsp2 7 32 0x20000020 0x20>;
+		dma-names = "tx", "rx";
+		status = "ok";
+		sec-nfc@27 {
+			compatible = "sec-nfc";
+			reg = <0x27>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <36 0>;
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&nfc_int_active &nfc_detect_active>;
+			pinctrl-1 = <&nfc_int_suspend &nfc_detect_suspend>;
+			sec-nfc,det-gpio = <&tlmm 140 0>;
+			sec-nfc,ven-gpio = <&expander_gpios 9 0>;   /* Expander P1_1 */
+			sec-nfc,firm-gpio = <&expander_gpios 10 0>; /* Expander P1_2 */
+			sec-nfc,irq-gpio = <&tlmm 36 0>;
+			sec-nfc,pvdd_en = <&expander_gpios 8 0>;    /* Expander P1_0 */
+			sec-nfc,nfc_pm_clk;
+			clock-names = "rf_clk";
+			clocks = <&clock_gcc clk_bb_clk2_pin>;
+			qcom,clk-src="BBCLK2";
+		};
+	};
+};
