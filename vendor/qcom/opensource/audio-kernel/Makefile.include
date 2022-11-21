@@ -1,0 +1,19 @@
+
+# Swap configs for samsung board
+$(info "Targe project name is $(PROJECT_NAME)")
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),b0q g0q r0q))
+    $(info "change wapio config to waipio_rainbow")
+    $(shell rm -fr $(AUDIO_ROOT)/config/waipioauto.conf)
+    $(shell cp $(AUDIO_ROOT)/config/waipioauto_rainbow.conf $(AUDIO_ROOT)/config/waipioauto.conf)
+    $(shell rm -fr $(AUDIO_ROOT)/config/waipioautoconf.h)
+    $(shell cp $(AUDIO_ROOT)/config/waipioautoconf_rainbow.h $(AUDIO_ROOT)/config/waipioautoconf.h)
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),gts8 gts8p gts8u gts8wifi gts8pwifi gts8uwifi))
+    $(info "change wapio config to waipio_gts8")
+    $(shell rm -fr $(AUDIO_ROOT)/config/waipioauto.conf)
+    $(shell cp $(AUDIO_ROOT)/config/waipioauto_gts8.conf $(AUDIO_ROOT)/config/waipioauto.conf)
+    $(shell rm -fr $(AUDIO_ROOT)/config/waipioautoconf.h)
+    $(shell cp $(AUDIO_ROOT)/config/waipioautoconf_gts8.h $(AUDIO_ROOT)/config/waipioautoconf.h)
+endif
