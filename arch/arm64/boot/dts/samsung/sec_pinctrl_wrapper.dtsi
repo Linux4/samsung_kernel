@@ -1,0 +1,64 @@
+#define PIN_FUNC_INPUT		input-enable
+#define PIN_FUNC_INPUT_WAKEUP	input-enable
+#define PIN_FUNC_OUTPUT		output-enable
+#define PIN_FUNC_OUTPUT_HIGH		output-high
+#define PIN_FUNC_OUTPUT_LOW		output-low
+
+#define PIN_PULL_NONE	bias-disable
+#define PIN_PULL_DOWN	bias-pull-down
+#define PIN_PULL_UP	bias-pull-up
+#define PIN_PULL_OPEN	bias-high-impedance
+
+/*
+ * MTK_DRIVE_2mA  2
+ * MTK_DRIVE_4mA  4
+ * MTK_DRIVE_6mA  6
+ * MTK_DRIVE_8mA  8
+ * MTK_DRIVE_10mA 10
+ * MTK_DRIVE_12mA 12
+ * MTK_DRIVE_14mA 14
+ * MTK_DRIVE_16mA 16
+ */
+
+#define PIN_DRV_LV1	2
+#define PIN_DRV_LV2	4
+#define PIN_DRV_LV3	6
+#define PIN_DRV_LV4	8
+#define PIN_DRV_LV5	10
+#define PIN_DRV_LV6	12
+#define PIN_DRV_LV7	14
+#define PIN_DRV_LV8	16
+
+#define PIN_EXPAND(pin) #pin
+
+#define SEC_GPIO(src, type, num)	PIN_EXPAND(gpio##num)
+#define SEC_GPIO_REF(src, type, num)	&type num
+#define SEC_GPIO_NUM(src, type, num)	num
+#define SEC_GPIO_TYPE(src, type, num)	&type
+
+#define MTK_PINMUX(gpio, func) (MTK_PIN_NO(gpio) | func)
+
+#define GPIO_CONFIG(_src, _type, _num, _func)		\
+	pins_cmd_dat{					\
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(_src, _type, _num), 0)>;	\
+		PIN_ ##_func;		\
+	}
+
+#define GPIO_CONFIG_PUD(_src, _type, _num, _func, _pull)	\
+	pins_cmd_dat{					\
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(_src, _type, _num), 0)>;	\
+		PIN_ ##_pull;				\
+		PIN_ ##_func;		\
+	}
+
+#define GPIO_CONFIG_PUD_DRV(_src, _type, _num, _func, _pull, _drv)	\
+	pins_cmd_dat{					\
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(_src, _type, _num), 0)>;	\
+		PIN_ ##_pull;				\
+		PIN_ ##_func;		\
+		drive-strength = <PIN_ ##_drv>;	\
+	}
+
+#define SEC_ADC(type, num) <&type num>
+#define SEC_ADC_OPT(type, num) ,<&type num>
+#define SEC_ADC_NUM(type, num) <num>

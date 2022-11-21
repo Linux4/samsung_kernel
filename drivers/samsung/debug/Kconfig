@@ -1,0 +1,77 @@
+# drivers/staging/samsung/Kconfig
+#
+# Copyright (c) 2010-2016 Samsung Electronics Co., Ltd.
+#		http://www.samsung.com/
+#
+# Licensed under GPLv2
+
+
+menuconfig SEC_DEBUG
+	bool "Enable Samsung debugging feature"
+	depends on SEC_REBOOT
+	default y
+	help
+	  Samsung TN debugging feature.
+
+config SEC_DEBUG_EXTRA_INFO
+	bool "Enable Samsung reset reason extra info"
+	depends on SEC_DEBUG
+	default y
+	help
+	  This option enables storing reset reason extra info
+	  This option enables ap reset info bigdata based on reset reason extra info
+
+config SEC_DEBUG_HW_PARAM
+	bool "Enable Samsung HW PARAM bigdata info"
+	depends on SEC_DEBUG && SEC_DEBUG_EXTRA_INFO
+	default y
+	help
+	  This option enables storing hw param bigdata info
+
+config SEC_DEBUG_LAST_KMSG
+	bool "Enable /proc/last_kmsg support" if EMBEDDED
+	depends on SEC_DEBUG
+	default y
+	help
+	  This option enables /proc/last_kmsg support.
+
+config SEC_DEBUG_INIT_LOG
+	bool "support hooking of init task log"
+	depends on SEC_DEBUG
+	default y
+	help
+	  This option enables hooking of init task log. 
+	  It can be used for debugging purpose in case of booting failure or something else.
+
+config SEC_DEBUG_AUTO_COMMENT
+	bool "Enable Samsung kernel fault auto comment"
+	depends on PRINTK
+	depends on SEC_DEBUG
+	default y
+	help
+	  This option enables kernel fault auto comment feature.
+	  This option also requires bootloader change that enables auto comment
+	  extraction along with ramdump.
+
+config SEC_DEBUG_LIMIT_BACKTRACE
+	bool "Forcely break infinity backtrace"
+	depends on SEC_DEBUG
+	default n
+	help
+	  Forcely break dump_backtrace to avoid infinity backtrace
+
+config SEC_DEBUG_INIT_EXIT_PANIC
+	bool "Trigger panic when exiting init task group"
+	depends on SEC_DEBUG
+	default y
+	help
+	  This option enables early panic when it attempt to kill init tasks.
+	  It may happen before init task stack is destroyed for debugging.
+
+config SEC_DEBUG_SOFTDOG_PWDT
+	bool "Enable Soft Watchdog for Platform"
+	default n
+	depends on WATCHDOG
+	help
+	  This option enables soft watchdog device and soft_panic.
+
