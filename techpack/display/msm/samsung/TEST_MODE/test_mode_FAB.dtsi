@@ -1,0 +1,219 @@
+/* Copyright (c) 2020, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	test_mode_FAB_dtsi: test_mode_FAB_dtsi {
+		label = "test_mode_FAB_dtsi";
+
+		/* *************************************************************
+		 * TEST MODE
+		 * **************************************************************
+		 */
+
+		/* GCT (DDI Gram Checksum Test) */
+		samsung,support_gct;
+
+		samsung,gct_checksum_rx_cmds_revA = [06 01 00 00 00 00 01 AF 01 00];
+
+		samsung,gct_enter_tx_cmds_revA = [
+			29 00 00 00 00 00 03 9F A5 A5	// TEST KEY Enable
+			05 01 00 00 78 00 01 01		// S/W Reset, Delay 120ms
+
+			29 00 00 00 00 00 03 F0 5A 5A	// TEST KEY Enable
+			29 00 00 00 00 00 03 FC 5A 5A	// TEST KEY Enable
+
+			29 00 00 00 00 00 03 B0 0A FE	// Global Para
+
+			29 00 00 00 00 00 02 FE 14	// Para
+			05 01 00 00 0A 00 01 11		// Sleep out, Delay 10ms
+
+			29 00 00 00 00 00 02 9D 01	// DSC Enable
+			29 00 00 00 00 00 5A 9E		/* PPS */
+				11 00 00 89 30 80 09 60
+				04 38 00 78 02 1C 02 1C
+				02 00 02 0E 00 20 0B AF
+				00 07 00 0C 00 CF 00 D9
+				18 00 10 F0 03 0C 20 00
+				06 0B 0B 33 0E 1C 2A 38
+				46 54 62 69 70 77 79 7B
+				7D 7E 01 02 01 00 09 40
+				09 BE 19 FC 19 FA 19 F8
+				1A 38 1A 78 1A B6 2A F6
+				2B 34 2B 74 3B 74 6B F4
+				00
+
+			29 00 00 00 00 00 03 B0 02 D7	// Global Para
+			29 01 00 00 32 00 02 D7 00		// VDDM LV Setting (0x0: normal, 0x04: LV, 0x08: HV) , dealy 50ms
+
+			29 01 00 00 00 00 02 2C 00		// Checksum start
+
+			29 01 00 00 14 00 02 BE 05		// GDBIST Pattern 2 , delay 20ms
+			29 01 00 00 14 00 02 BE 00		// GDBIST Disable, delay 20ms
+			29 00 00 00 00 00 02 BE 07		// GDBIST Pattern 1 , delay 150ms(panel file)
+
+			/* checksum read */
+		];
+
+		samsung,gct_mid_tx_cmds_revA = [
+			29 01 00 00 14 00 02 BE 00		// GDBIST Disable, delay 20ms
+			29 00 00 00 00 00 02 BE 05		// GDBIST Pattern 2 , delay 150ms(panel file)
+
+			/* checksum read */
+		];
+
+		samsung,gct_exit_tx_cmds_revA = [
+			29 00 00 00 00 00 02 BE 00		// GDBIST Disable
+
+			29 00 00 00 00 00 03 B0 02 D7	// Global Para
+			29 00 00 00 00 00 02 D7 00		// VDDM Normal Setting (0x0: normal)
+
+			29 00 00 00 00 00 03 9F 5A 5A	// TEST Key Disable
+			29 00 00 00 00 00 03 F0 A5 A5	// TEST Key Disable
+			29 00 00 00 00 00 03 FC A5 A5	// TEST Key Disable
+		];
+
+		/* MCD Test : 60hz Normal mode */
+		samsung,mcd_on_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
+			29 01 00 00 00 00 02 F4 2F
+			29 01 00 00 00 00 AA CB
+				00 11 9D 9D 00 00 00 00
+				00 DB DB 9B 8D DE D3 D1
+				C3 CE C4 C1 DB DB 5B DB
+				DB 9B CD 9E D3 D1 C3 CE
+				C4 C1 DB DB DB C0 80 00
+				00 00 00 80 80 80 80 80
+				80 00 0F 00 02 00 00 00
+				00 00 00 00 00 00 55 04
+				00 00 22 6C 22 6C 22 6C
+				22 6C 00 00 00 00 40 00
+				00 00 00 00 00 00 00 00
+				00 6F 00 18 00 00 00 CC
+				C4 A0 18 45 18 45 18 45
+				18 45 00 00 00 00 00 0F
+				00 02 00 00 00 00 00 00
+				00 00 00 04 00 00 22 6C
+				22 6C 22 6C 22 6C 00 00
+				00 00 40 00 00 00 00 00
+				00 00 00 00 00 00 00 18
+				00 00 00 C4 A0 18 45 18
+				45 18 45 18 45 00 00 00
+				00
+			29 01 00 00 00 00 03 B0 10 F6
+			29 01 00 00 00 00 02 F6 00		/* Source off */
+			29 01 00 00 00 00 03 B0 04 CC
+			29 01 00 00 00 00 02 CC 12		/* MCD on */
+			29 01 00 00 64 00 02 F7 0F		/* gamma update, delay 100ms */
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY2 Disable */
+		];
+
+		samsung,mcd_off_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
+			29 01 00 00 00 00 02 F4 2D
+			29 01 00 00 00 00 AA CB
+				00 11 9D 9D 00 00 00 00
+				00 DB DB 9B 8D DE D3 D1
+				C3 CE C4 C1 DB DB 5B DB
+				DB 9B CD 9E D3 D1 C3 CE
+				C4 C1 DB DB DB C0 80 00
+				00 00 00 80 80 80 80 80
+				80 00 0B 00 06 00 00 00
+				00 00 00 00 00 00 55 04
+				00 00 22 6C 22 6C 22 6C
+				22 6C 00 00 00 00 40 00
+				00 00 00 00 00 00 00 00
+				00 00 00 18 00 00 00 CC
+				C4 A0 18 45 18 45 18 45
+				18 45 00 00 00 00 00 0B
+				00 06 00 00 00 00 00 00
+				00 00 00 04 00 00 22 6C
+				22 6C 22 6C 22 6C 00 00
+				00 00 40 00 00 00 00 00
+				00 00 00 00 00 00 00 18
+				00 00 00 C4 A0 18 45 18
+				45 18 45 18 45 00 00 00
+				00
+			29 01 00 00 00 00 03 B0 10 F6
+			29 01 00 00 00 00 02 F6 92		/* Source on */
+			29 01 00 00 00 00 03 B0 04 CC
+			29 01 00 00 00 00 02 CC 00		/* MCD off */
+			29 01 00 00 64 00 02 F7 0F		/* gamma update, delay 100ms */
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY2 Disable */
+		];
+
+		/* Gray Spot Test : 60hz Normal mode */
+		samsung,gray_spot_test_on_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
+			29 01 00 00 00 00 03 B0 10 F6
+			29 01 00 00 00 00 02 F6 00
+			29 01 00 00 00 00 04 F2 B0 00 00
+			29 01 00 00 00 00 03 B0 2D C6
+			29 01 00 00 00 00 02 C6 19		/* TEST */
+			29 01 00 00 00 00 09 C6 01 77 FF 0D C0 16 04 5F	/* MPS,ELVSS setting */
+			29 01 00 00 63 00 02 F7 0F		/* dleay 100ms */
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY2 Disable */
+		];
+
+		samsung,gray_spot_test_off_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
+			29 01 00 00 00 00 03 B0 10 F6
+			29 01 00 00 00 00 02 F6 92
+			29 01 00 00 00 00 04 F2 B0 00 87
+			29 01 00 00 00 00 03 B0 2D C6
+			29 01 00 00 00 00 02 C6 00		/* TEST */
+			29 01 00 00 00 00 09 C6 01 77 FF 0D C0 16 04 00	/* MPS,ELVSS setting */
+			29 01 00 00 63 00 02 F7 0F		/* dleay 100ms */
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY2 Disable */
+		];
+
+		/* Micro Crack Test : 60hz Normal mode */
+		samsung,micro_short_test_on_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
+			29 01 00 00 00 00 03 B0 42 CB
+			29 01 00 00 00 00 08 CB 1D 6C 1D 6C 1D 6C 1D
+			29 01 00 00 00 00 03 B0 0F F6
+			29 01 00 00 00 00 03 F6 FF 82
+			29 01 00 00 00 00 07 BF 33 25 FF 00 00 10
+			29 01 00 00 00 00 02 F7 0F
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY2 Disable */
+		];
+
+		samsung,micro_short_test_off_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
+			29 01 00 00 00 00 03 B0 54 CB
+			29 01 00 00 00 00 08 CB 22 6C 22 6C 22 6C 22
+			29 01 00 00 00 00 03 B0 0F F6
+			29 01 00 00 00 00 03 F6 FF 92
+			29 01 00 00 00 00 07 BF 00 07 FF 00 00 10
+			29 01 00 00 00 00 02 F7 0F
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY2 Disable */
+		];
+
+		samsung,ccd_test_on_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
+			29 01 00 00 01 00 02 CC 01		/* CCD Enable + delay 1ms */
+											/* CCD State Read (CDh) */
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY2 Disable */
+		];
+
+		samsung,ccd_state_rx_cmds_revA = [06 01 00 00 00 00 01 CD 01 00];
+
+		samsung,ccd_pass_val = <0x00>;	/* pass */
+		samsung,ccd_fail_val = <0x01>;	/* chip crack */
+
+		samsung,ccd_test_off_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
+			29 01 00 00 00 00 02 CC 00		/* CCD Disable */
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY2 Disable */
+		];
+	};
+};

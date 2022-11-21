@@ -1,0 +1,18 @@
+config SEC_P3Q_PROJECT
+	default n
+	bool "Samsung P3Q Project"
+	help
+	  Support for Samsung P3Q Project
+
+config MACH_P3Q_CHN_OPENX
+        default n
+        bool "Samsung P3Q CHN OPENX"
+        help
+          Support for Samsung P3Q CHN OPENX device.
+
+config MACH_P3Q_CHN_HKX
+        default n
+        bool "Samsung P3Q CHN HKX"
+        help
+          Support for Samsung P3Q CHN HKX device.
+
