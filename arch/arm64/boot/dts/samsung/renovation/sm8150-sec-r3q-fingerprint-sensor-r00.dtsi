@@ -1,0 +1,118 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/{
+	aliases {
+		spi0 = &qupv3_se0_spi;
+	};
+};
+
+&tlmm {
+	etspi_ldopin {
+		etspi_ldopin: etspi_ldopin {
+			mux {
+				pins = "gpio119";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio119";
+				driver-strength = <2>;
+				bias-pull-down;
+			};
+		};
+	};
+
+	etspi_rstpin {
+		etspi_rstpin: etspi_rstpin {
+			mux {
+				pins = "gpio116";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio116";
+				driver-strength = <2>;
+				bias-pull-down;
+			};
+		};
+	};
+
+	qupv3_se0_spi_pins: qupv3_se0_spi_pins {
+		qupv3_se0_spi_active: qupv3_se0_spi_active {
+			mux {
+				pins = "gpio0", "gpio1", "gpio2",
+							"gpio3";
+				function = "qup0";
+			};
+			config {
+				pins = "gpio0", "gpio1", "gpio2",
+							"gpio3";
+				drive-strength = <6>;
+				bias-disable;
+			};
+		};
+		qupv3_se0_spi_sleep: qupv3_se0_spi_sleep {
+			mux {
+				pins = "gpio0", "gpio1", "gpio2",
+							"gpio3";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio0", "gpio1", "gpio2",
+							"gpio3";
+				drive-strength = <6>;
+				bias-pull-down;
+				input-enable;
+			};
+		};
+	};
+};
+
+&soc {
+	qupv3_se0_spi: spi@880000 {
+		compatible = "qcom,spi-geni";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0x880000 0x4000>;
+		reg-names = "se_phys";
+		clock-names = "se-clk", "m-ahb", "s-ahb";
+		clocks = <&clock_gcc GCC_QUPV3_WRAP0_S0_CLK>,
+			<&clock_gcc GCC_QUPV3_WRAP_0_M_AHB_CLK>,
+			<&clock_gcc GCC_QUPV3_WRAP_0_S_AHB_CLK>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&qupv3_se0_spi_active>;
+		pinctrl-1 = <&qupv3_se0_spi_sleep>;
+		interrupts = <GIC_SPI 601 0>;
+		spi-max-frequency = <50000000>;
+		qcom,wrapper-core = <&qupv3_0>;
+		dmas = <&gpi_dma0 0 0 1 64 0>,
+			<&gpi_dma0 1 0 1 64 0>;
+		dma-names = "tx", "rx";
+		status = "ok";
+
+		etspi-spi@0 {
+			compatible = "etspi,et7xx";
+			reg = <0>;
+			spi-max-frequency = <50000000>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&etspi_ldopin &etspi_rstpin>;
+
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			etspi-sleepPin = <&tlmm 116 0>;
+			etspi-ldoPin = <&tlmm 119 0>;
+			etspi-chipid = "ET715";
+			etspi-modelinfo = "A908";
+			etspi-position = "13.06,0.00,9.10,9.10,14.80,14.80,12.00,12.00,5.00";
+		};
+	};
+};

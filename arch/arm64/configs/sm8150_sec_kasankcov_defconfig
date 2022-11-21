@@ -1,0 +1,53 @@
+#
+# Kernel Coverage support for syzkaller fuzzer
+#
+CONFIG_KCOV=y
+
+#
+# KASAN Kernel Address SANitizer
+#
+CONFIG_KASAN=y
+CONFIG_LOG_BUF_SHIFT=21
+CONFIG_CC_OPTIMIZE_FOR_SIZE=y
+
+CONFIG_SLUB_DEBUG=y
+
+# needed, otherwise you'll get "stack frame size of <x> bytes in ...' [-Werror,-Wframe-larger-than=..."
+CONFIG_FRAME_WARN=0
+
+#
+# Enable multishot mode
+# https://github.sec.samsung.net/SRPOL-SRUK-SEC/syzkaller/issues/23
+#
+CONFIG_CMDLINE="kasan_multi_shot"
+# CONFIG_CMDLINE_FROM_BOOTLOADER is not set
+CONFIG_CMDLINE_EXTEND=y
+
+#
+# Undefined config for Kernel SANitizers
+#
+# CONFIG_SLUB_DEBUG_PANIC_ON is not set
+# CONFIG_UH is not set
+# CONFIG_UH_RKP is not set
+# CONFIG_RKP_TEST is not set
+# CONFIG_RKP_KDP is not set
+# CONFIG_KDP_TEST is not set
+# CONFIG_RKP_NS_PROT is not set
+# CONFIG_RKP_DMAP_PROT is not set
+
+# CONFIG_RKP_CFP_JOPP is not set
+# CONFIG_RKP_CFP_ROPP is not set
+# CONFIG_RKP_CFP_ROPP_SYSREGKEY is not set
+# CONFIG_RANDOMIZE_BASE is not set
+#
+# Undefined to reduce vmlinux size
+#
+# vmlinux reduce by a few MB
+# CONFIG_DYNAMIC_DEBUG is not set
+# early_log is about 1MB
+# CONFIG_DEBUG_KMEMLEAK is not set
+
+#
+# DO NOT REMOVE THE LAST BLANK LINE
+#
+

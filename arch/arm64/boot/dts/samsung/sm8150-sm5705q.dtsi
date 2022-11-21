@@ -1,0 +1,200 @@
+/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&qupv3_se4_i2c {
+	status = "ok";
+
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&qupv3_se4_i2c_active>;
+	pinctrl-1 = <&qupv3_se4_i2c_sleep>;
+
+	muic-sm5705@25 {
+		status = "okay";
+		compatible = "muic-universal";
+		reg = <0x25>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <122 0>;
+		muic-universal,irq-gpio = <&tlmm 122 0x00>;
+		sm5705,wakeup;
+		muic-universal,chip_name = "sm,sm5705";
+		muic-universal,afc-support = <1>;
+		pinctrl-names = "muic_interrupt_pins_default";
+		pinctrl-0 = <&sm5705_interrupt_default>;
+		muic,sm5705_switch_gpio = <&tlmm 135 0>;
+	};
+
+	sm5705@49{
+		compatible = "sm,sm5705";
+		reg = <0x49>;
+		interrupt-parent = <&tlmm>;
+		sm5705,irq-gpio = <&tlmm 41 0x00>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&charger_int_active &if_pmic_rst_active>;
+	};
+};
+
+&tlmm {
+	sm5705_interrupt_default: default {
+		mux {
+			pins = "gpio122";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio122";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+};
+
+/*
+&soc {
+
+	i2c_26: i2c@26 {
+		status = "ok";
+
+		cell-index = <26>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 51 0	
+			 &tlmm 52 0	
+		>;
+		i2c-gpio,delay-us = <1>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2c_26_pinctrl>;
+
+		muic-sm5705@25 {
+			status = "okay";
+			compatible = "muic-universal";
+			reg = <0x25>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <122 0>;
+			muic-universal,irq-gpio = <&tlmm 122 0x00>;
+			sm5705,wakeup;
+			muic-universal,chip_name = "sm,sm5705";
+			muic-universal,afc-support = <1>;
+			pinctrl-names = "muic_interrupt_pins_default";
+			pinctrl-0 = <&sm5705_interrupt_default>;
+			muic,sm5705_switch_gpio = <&tlmm 135 0>;
+		};
+
+		sm5705@49{
+			compatible = "sm,sm5705";
+			reg = <0x49>;
+			interrupt-parent = <&tlmm>;
+			sm5705,irq-gpio = <&tlmm 41 0x00>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&charger_int_active>;
+		};
+
+	};
+};
+
+
+&tlmm {
+	
+	i2c_26_pinctrl: i2c_26_pinctrl {
+		mux {
+			pins = "gpio51",	
+			       "gpio52";	
+			function = "gpio";
+		};
+		config {
+			pins = "gpio51",	
+			       "gpio52";	
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+
+	sm5705_i2c_pins {
+		qcom,num-grp-pins = <2>;
+		qcom,pin-func = <0>;
+		label = "sm5705_gpio";
+		sm5705_i2c_default: default {
+			mux {
+				pins = "gpio51", "gpio52";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio51", "gpio52";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+		sm5705_i2c_active: active {
+			mux {
+				pins = "gpio51", "gpio52";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio51", "gpio52";
+				drive-strength = <2>;
+				bias-disable;
+			};
+
+		};
+		sm5705_i2c_suspend: suspend {
+			mux {
+				pins = "gpio51", "gpio52";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio51", "gpio52";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+	};
+
+	sm5705_intr_pins {
+		qcom,pin-func = <0>;
+		label = "sm5705_gpio_int";
+		sm5705_interrupt_default: default {
+			mux {
+				pins = "gpio122";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio122";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+		sm5705_interrupt_active: active {
+			mux {
+				pins = "gpio122";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio122";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+		sm5705_interrupt_suspend: suspend {
+			mux {
+				pins = "gpio122";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio122";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+	};
+};
+
+*/

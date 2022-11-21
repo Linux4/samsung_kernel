@@ -1,0 +1,301 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+
+&soc {
+	/* S2DOS05 Display PMIC */
+	i2c21: i2c@21 {
+		cell-index = <21>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 153 0 /* sda */
+			&tlmm 154 0 /* scl */
+		>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&s2dos05_i2c_sda_default &s2dos05_i2c_scl_default>;
+
+		s2dos05@60 {
+			compatible = "samsung,s2dos05pmic";
+			reg = <0x60>;
+			adc_mode = <2>; /* 0 : disable, 1 : current meter, 2 : power meter */
+			adc_sync_mode = <2>; /* 1 : sync mode, 2 : async mode */
+
+			pinctrl-names = "default";
+			pinctrl-0 = <&s2dos05_irq_default>;
+			s2dos05,s2dos05_int = <&tlmm 119 0>;
+
+			regulators {
+				s2dos05_l1: s2dos05-ldo1 {
+					regulator-name = "s2dos05-ldo1";
+					regulator-min-microvolt = <1500000>;
+					regulator-max-microvolt = <2000000>;
+					regulator-active-discharge = <1>;
+				};
+
+				s2dos05_l2: s2dos05-ldo2 {
+					regulator-name = "s2dos05-ldo2";
+					regulator-min-microvolt = <1500000>;
+					regulator-max-microvolt = <2000000>;
+					regulator-active-discharge = <1>;
+				};
+
+				s2dos05_l3: s2dos05-ldo3 {
+					regulator-name = "s2dos05-ldo3";
+					regulator-min-microvolt = <2700000>;
+					regulator-max-microvolt = <3775000>;
+					regulator-active-discharge = <1>;
+				};
+
+				s2dos05_l4: s2dos05-ldo4 {
+					regulator-name = "s2dos05-ldo4";
+					regulator-min-microvolt = <2700000>;
+					regulator-max-microvolt = <3775000>;
+					regulator-active-discharge = <1>;
+				};
+
+				s2dos05_buck1: s2dos05-buck1 {
+					regulator-name = "s2dos05-buck1";
+					regulator-min-microvolt = <850000>;
+					regulator-max-microvolt = <2100000>;
+					regulator-active-discharge = <1>;
+				};
+			};
+		};
+	};
+
+	/* AP Thermistor table */
+	sec_thermistor@0 {
+		compatible = "samsung,sec-ap-thermistor";
+		status = "okay";
+		io-channels = <&pm8150_vadc ADC_AMUX_THM1_PU2>;
+		io-channel-names = "ap_therm";
+		adc_array = <113602 118416 123230 128045 132859 137673 143252 148832 154411 159991
+				165570 172811 180051 187292 194532 201773 209104 216435 223767 231098
+				238429 247525 256621 265718 274814 283910 293707 303503 313300 323096
+				332893 345285 357677 370068 382460 394852 408840 422828 436816 450804
+				464792 479675 494558 509442 524325 539208 555142 571076 587011 602945
+				618879 631829 644779 657728 670678 683628 704169 724710 745250 765791
+				786332 805912 825493 845073 864654 884234 906189 928144 950099 972054
+				994009 1017067 1040125 1063183 1086241 1109299 1129917 1150536 1171154 1191773
+				1212391 1233568 1254744 1275921 1297097 1318274 1337751 1357227 1376704 1396180
+				1415657
+				1432668 1449679 1466691 1483702 1500713 1515804 1530895 1545985 1561076 1576167
+				1589130 1602093 1615055 1628018 1640981 1650570 1660159 1669749 1679338 1688927>;
+
+		temp_array = <900 890 880 870 860 850 840 830 820 810
+				800 790 780 770 760 750 740 730 720 710
+				700 690 680 670 660 650 640 630 620 610
+				600 590 580 570 560 550 540 530 520 510
+				500 490 480 470 460 450 440 430 420 410
+				400 390 380 370 360 350 340 330 320 310
+				300 290 280 270 260 250 240 230 220 210
+				200 190 180 170 160 150 140 130 120 110
+				100 90 80 70 60 50 40 30 20 10
+				0
+				(-10) (-20) (-30) (-40) (-50) (-60) (-70) (-80) (-90) (-100)
+				(-110)(-120)(-130)(-140)(-150)(-160)(-170)(-180)(-190) (-200)>;
+	};
+
+	/* PA Thermistor table */
+	sec_thermistor@1 {
+		compatible = "samsung,sec-pa-thermistor";
+		status = "okay";
+		io-channels = <&pm8150l_vadc ADC_AMUX_THM2_PU2>;
+		io-channel-names = "pa_therm";
+		adc_array = <122685 127382 132080 136777 141475 146172 151933 157694 163456 169217
+				174978 182180 189381 196583 203784 210986 218590 226194 233797 241401
+				249005 258464 267923 277383 286842 296301 306604 316907 327209 337512
+				347815 359986 372158 384329 396501 408672 423023 437374 451726 466077
+				480428 496206 511985 527763 543542 559320 577914 596509 615103 633698
+				652292 670925 689558 708192 726825 745458 765908 786358 806807 827257
+				847707 870051 892396 914740 937085 959429 979645 999861 1020078 1040294
+				1060510 1083244 1105977 1128711 1151444 1174178 1194861 1215545 1236228 1256912
+				1277595 1296501 1315406 1334312 1353217 1372123 1386215 1400307 1414398 1428490
+				1442582
+				1459230 1475878 1492525 1509173 1525821 1539887 1553953 1568018 1582084 1596150
+				1608996 1621842 1634688 1647534 1660380 1670151 1679922 1689692 1699463 1709234>;
+
+		temp_array = <900 890 880 870 860 850 840 830 820 810
+				800 790 780 770 760 750 740 730 720 710
+				700 690 680 670 660 650 640 630 620 610
+				600 590 580 570 560 550 540 530 520 510
+				500 490 480 470 460 450 440 430 420 410
+				400 390 380 370 360 350 340 330 320 310
+				300 290 280 270 260 250 240 230 220 210
+				200 190 180 170 160 150 140 130 120 110
+				100 90 80 70 60 50 40 30 20 10
+				0
+				(-10) (-20) (-30) (-40) (-50) (-60) (-70) (-80) (-90) (-100)
+				(-110)(-120)(-130)(-140)(-150)(-160)(-170)(-180)(-190) (-200)>;
+	};
+
+	/* WiFi Thermistor table */
+	sec_thermistor@2 {
+		compatible = "samsung,sec-wf-thermistor";
+		status = "okay";
+		io-channels = <&pm8150l_vadc ADC_GPIO2_PU2>;
+		io-channel-names = "wf_therm";
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio6_adc_default>;
+		adc_array = <121907 126591 131275 135960 140644 145328 150973 156617 162262 167906
+				173551 180791 188032 195272 202513 209753 217175 224597 232020 239442
+				246864 255778 264692 273607 282521 291435 301530 311625 321721 331816
+				341911 354160 366409 378659 390908 403157 417236 431315 445393 459472
+				473551 488356 503161 517967 532772 547577 564433 581288 598144 614999
+				631855 644597 657339 670082 682824 695566 716198 736829 757461 778092
+				798724 818681 838637 858594 878550 898507 920319 942132 963944 985757
+				1007569 1030160 1052751 1075341 1097932 1120523 1141090 1161656 1182223 1202789
+				1223356 1244390 1265424 1286457 1307491 1328525 1348066 1367608 1387149 1406691
+				1426232
+				1442750 1459268 1475787 1492305 1508823 1523589 1538356 1553122 1567889 1582655
+				1595488 1608321 1621154 1633987 1646820 1656228 1665635 1675043 1684450 1693858>;
+
+		temp_array = <900 890 880 870 860 850 840 830 820 810
+				800 790 780 770 760 750 740 730 720 710
+				700 690 680 670 660 650 640 630 620 610
+				600 590 580 570 560 550 540 530 520 510
+				500 490 480 470 460 450 440 430 420 410
+				400 390 380 370 360 350 340 330 320 310
+				300 290 280 270 260 250 240 230 220 210
+				200 190 180 170 160 150 140 130 120 110
+				100 90 80 70 60 50 40 30 20 10
+				0
+				(-10) (-20) (-30) (-40) (-50) (-60) (-70) (-80) (-90) (-100)
+				(-110)(-120)(-130)(-140)(-150)(-160)(-170)(-180)(-190) (-200)>;
+	};
+
+	rpmh-regulator-smpa5 {
+		S5A: pm8150_s5: regulator-pm8150-s5 {
+			regulator-min-microvolt = <2000000>;
+			regulator-max-microvolt = <2000000>;
+			qcom,init-voltage = <2000000>;
+		};
+	};
+
+	/* H/W request */
+	rpmh-regulator-ldoc7 {
+		L7C: pm8150l_l7: regulator-pm8150l-l7 {
+			regulator-name = "pm8150l_l7";
+			regulator-min-microvolt = <2050000>;
+			regulator-max-microvolt = <2050000>;
+			qcom,init-voltage = <2050000>;
+			regulator-always-on;
+		};
+	};
+
+	rpmh-regulator-ldoa14 {
+		L14A: pm8150_l14: regulator-pm8150-l14 {
+			/delete-property/ qcom,proxy-consumer-enable;
+			/delete-property/ qcom,proxy-consumer-current;
+		};
+	};
+
+	/* H/W request */
+	rpmh-regulator-bobc1 {
+		qcom,supported-modes =
+			<RPMH_REGULATOR_MODE_LPM
+			 RPMH_REGULATOR_MODE_HPM>;
+		qcom,mode-threshold-currents = <0 2000000>;
+
+		BOB: pm8150l_bob: regulator-pm8150l-bob {
+			qcom,init-mode = <RPMH_REGULATOR_MODE_LPM>;
+		};
+	};
+};
+
+&pm8150_vadc {
+	/delete-node/ skin_therm;
+	ap_therm {
+		reg = <ADC_AMUX_THM1_PU2>;
+		label = "ap_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+		qcom,decimation = <840>;
+		qcom,avg-samples = <8>;
+	};
+};
+
+&pm8150l_vadc {
+	/delete-node/ skin_msm_therm;
+	pa_therm {
+		reg = <ADC_AMUX_THM2_PU2>;
+		label = "pa_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+		qcom,decimation = <840>;
+		qcom,avg-samples = <8>;
+	};
+
+	wf_therm {
+		reg = <ADC_GPIO2_PU2>;
+		label = "wf_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+		qcom,decimation = <840>;
+		qcom,avg-samples = <8>;
+	};
+};
+
+&pm8150l_gpios {
+	gpio6_adc {
+		gpio6_adc_default: gpio6_adc_default {
+			pins = "gpio6";
+			function = "normal";
+			bias-high-impedance;
+		};
+	};
+};
+
+&spmi_bus {
+	qcom,pm8150@0 {
+		qcom,power-on@800 {
+			interrupts = <0x0 0x8 0x0 IRQ_TYPE_NONE>,
+				     <0x0 0x8 0x1 IRQ_TYPE_NONE>,
+					 <0x0 0x8 0x4 IRQ_TYPE_NONE>,
+				     <0x0 0x8 0x5 IRQ_TYPE_NONE>;
+			interrupt-names = "kpdpwr", "resin",
+                    "resin-bark", "kpdpwr-resin-bark";
+
+			qcom,s3-debounce = <128>;
+			qcom,pon_1 {
+				qcom,pon-type = <PON_POWER_ON_TYPE_KPDPWR>;
+				qcom,support-reset = <0>;
+				qcom,pull-up = <1>;
+				linux,code = <KEY_POWER>;
+			};
+
+			qcom,pon_2 {
+				qcom,pon-type = <PON_POWER_ON_TYPE_RESIN>;
+				qcom,support-reset = <0>;
+				qcom,pull-up = <1>;
+				linux,code = <KEY_VOLUMEDOWN>;
+			};
+
+			qcom,pon_3 {
+				qcom,pon-type = <PON_POWER_ON_TYPE_KPDPWR_RESIN>;
+				qcom,support-reset = <1>;
+				qcom,pull-up = <1>;
+				qcom,s1-timer = <6720>;
+				qcom,s2-timer = <1000>;
+				qcom,s2-type = <8>;
+				qcom,use-bark;
+			};
+		};
+	};
+};

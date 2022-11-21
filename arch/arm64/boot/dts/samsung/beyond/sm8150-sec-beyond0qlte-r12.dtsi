@@ -1,0 +1,40 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "sm8150-sec-beyond0qlte-common.dtsi"
+#include "sm8150-sec-beyond0qlte-optics-r00.dtsi"
+
+
+&soc {
+	rpmh-regulator-ldoa17 {
+		L17A: pm8150_l17: regulator-pm8150-l17 {
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <3000000>;
+			qcom,init-voltage = <3000000>;
+		};
+	};
+
+	i2c_17: i2c@17 { /* SW I2C */
+		status = "disabled";
+	};
+};
+
+
+&usb_qmp_dp_phy {
+	vdd-supply = <&pm8150_l18>;
+	qcom,vdd-voltage-level = <0 912000 912000>;
+};
+
+&i2c_23 {
+	status = "disabled";
+};
+

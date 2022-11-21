@@ -1,0 +1,138 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/{
+	aliases {
+		spi0 = &qupv3_se0_spi;
+	};
+};
+
+&tlmm {
+	btp_ipc_default: btp_ipc_default {
+		mux {
+			pins = "gpio118";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio118";
+			bias-pull-up;
+		};
+	};
+
+	btp_wuhb_default: btp_wuhb_default {
+		mux {
+			pins = "gpio152";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio152";
+			bias-pull-down;
+		};
+	};
+
+	qupv3_se0_spi_pins: qupv3_se0_spi_pins {
+		qupv3_se0_spi_active: qupv3_se0_spi_active {
+			mux {
+				pins = "gpio0", "gpio1", "gpio2",
+							"gpio3";
+				function = "qup0";
+			};
+			config {
+				pins = "gpio0", "gpio1", "gpio2",
+							"gpio3";
+				drive-strength = <6>;
+				bias-disable;
+			};
+		};
+		qupv3_se0_spi_sleep: qupv3_se0_spi_sleep {
+			mux {
+				pins = "gpio0", "gpio1", "gpio2";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio0", "gpio1", "gpio2";
+				drive-strength = <6>;
+				bias-pull-down;
+				input-enable;
+			};
+		};
+		qupv3_se0_spi_cs_sleep: qupv3_se0_spi_cs_sleep {
+			mux {
+				pins = "gpio3";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio3";
+				drive-strength = <6>;
+				bias-pull-up;
+				output-high;
+			};
+		};
+	};
+};
+
+&soc {
+	rpmh-regulator-ldoa14 {
+		L14A_BTP: pm8150_l14_btp: regulator-pm8150-l14-btp {
+			regulator-name = "VDD_BTP_1P8";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1880000>;
+			qcom,proxy-consumer-enable;
+			qcom,proxy-consumer-current = <115000>;
+			qcom,init-voltage = <1800000>;
+			qcom,init-mode = <RPMH_REGULATOR_MODE_LPM>;
+		};
+	};
+	qcom,qbt2000 {
+		compatible = "qcom,qbt2000";
+		clock-names = "core", "iface";
+		clock-frequency = <25000000>;
+		qcom,ipc-gpio = <&tlmm 118 0>;
+		qcom,wuhb-gpio = <&tlmm 152 0>;
+		qcom,position = "13.83,0.00,9.00,4.00,14.80,14.80,13.00,13.00,5.00";
+		qcom,modelinfo = "G97X";
+		qcom,btp-regulator = "VDD_BTP_1P8";
+		qcom,btp-spics = <&tlmm 3 0>;
+
+		qcom,min_cpufreq_limit = <2169600>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&btp_ipc_default &btp_wuhb_default>;
+	};
+
+	qupv3_se0_spi: spi@880000 {
+		compatible = "qcom,spi-geni";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0x880000 0x4000>;
+		reg-names = "se_phys";
+		clock-names = "se-clk", "m-ahb", "s-ahb";
+		clocks = <&clock_gcc GCC_QUPV3_WRAP0_S0_CLK>,
+			<&clock_gcc GCC_QUPV3_WRAP_0_M_AHB_CLK>,
+			<&clock_gcc GCC_QUPV3_WRAP_0_S_AHB_CLK>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&qupv3_se0_spi_active>;
+		pinctrl-1 = <&qupv3_se0_spi_sleep &qupv3_se0_spi_cs_sleep>;
+		interrupts = <GIC_SPI 601 0>;
+		spi-max-frequency = <25000000>;
+		qcom,wrapper-core = <&qupv3_0>;
+		dmas = <&gpi_dma0 0 0 1 64 0>,
+			<&gpi_dma0 1 0 1 64 0>;
+		dma-names = "tx", "rx";
+		status = "ok";
+		qbtspi@0 {
+			compatible = "qbtspi";
+			reg = <0>;
+			spi-max-frequency =  <25000000>;
+		};
+	};
+};
