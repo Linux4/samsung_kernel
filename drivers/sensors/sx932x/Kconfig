@@ -1,0 +1,7 @@
+config SENSORS_SX932X
+    tristate "SX932X_SAR"
+    depends on I2C
+    default n
+    help
+      Say Y to enable the SAR detection application, if N here not to use the
+      this SAR sensor

@@ -1,0 +1,28 @@
+config SENSORS
+	bool "Sensors Class Support"
+	help
+	  This option enables the sensor sysfs class in /sys/class/sensors.
+	  You'll need this to do anything useful with sensorss. If unsure, say N.
+
+config SENSORS_SSC
+    bool "Enable Sensors Driver Support for SSC"
+    help
+      Add support for sensors SSC driver.
+      This driver is used for exercising sensors use case,
+      time syncing with ADSP clock.
+
+#HS60 code for HS60-32/HS60-93 by zhuqiang at 2019/7/15 start
+source "drivers/sensors/sx9311/Kconfig"
+source "drivers/sensors/abov/Kconfig"
+#HS60 code for HS60-32/HS60-93 by zhuqiang at 2019/7/15 end
+#HS60 code for HS60-97 by zhuqiang at 2019/7/25 start
+source "drivers/sensors/sx9325/Kconfig"
+#HS60 code for HS60-97 by zhuqiang at 2019/7/25 end
+
+# HS50 code for HS50-41/SR-QL3095-01-127 by zhuqiang at 2020/08/19 start
+source "drivers/sensors/a96t349/Kconfig"
+# HS50 code for HS50-41/SR-QL3095-01-127 by zhuqiang at 2020/08/19 end
+
+# HS50 code for QN3979-4292 by wurui at 2021/10/20 start
+source "drivers/sensors/sx932x/Kconfig"
+# HS50 code for QN3979-4292 by wurui at 2020/10/20 end

@@ -1,0 +1,2 @@
+
+obj-$(CONFIG_SENSORS_SX932X) += sx932x.o

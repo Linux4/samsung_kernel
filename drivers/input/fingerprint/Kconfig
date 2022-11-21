@@ -1,0 +1,10 @@
+#
+# Silead Fingerprint driver configuration
+#
+
+config SYSFS_ADM
+	tristate "sysfs adm driver support"
+	select sysfs_adm
+	help
+	  This supports sysfs adm drivers.
+
