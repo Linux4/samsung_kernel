@@ -1,0 +1,45 @@
+/*HS60 code for HS60-19 by wangqilin at 2019/07/12 start*/
+#include "dsi-panel-ili9881c-720p-video.dtsi"
+/*HS60 code for HS60-19 by wangqilin at 2019/07/12 end*/
+/*HS60 code for HS60-19 by wangqilin at 2019/07/15 start*/
+#include "dsi-panel-jd9365d-720p-video.dtsi"
+/*HS60 code for HS60-19 by wangqilin at 2019/07/15 end*/
+/*HS60 code for HS60-84 by chenlei at 2019/07/22 start*/
+#include "dsi-panel-st7703-720p-video.dtsi"
+/*HS60 code for HS60-84 by chenlei at 2019/07/22 end*/
+/*HS60 code for HS60-143 by chenlei at 2019/07/19 start*/
+#include "dsi-panel-txd-hx8394f-720p-video.dtsi"
+/*HS60 code for HS60-143 by chenlei at 2019/07/19 end*/
+/*HS60 code for HS60-199 by chenlei at 2019/07/31 start*/
+#include "dsi-panel-hlt-jd9365d-720p-video.dtsi"
+/*HS60 code for HS60-199 by chenlei at 2019/07/31 end*/
+/*HS60 code for HS60-199 by sunguoqing at 2019/07/31 start*/
+#include "dsi-panel-gx-st7703-720p-video.dtsi"
+/*HS60 code for HS60-199 by sunguoqing at 2019/07/31 end*/
+/*HS60 code for HS60-199 by wangqilin at 2019/08/16 start*/
+#include "dsi-panel-ls-ili9881c-720p-video.dtsi"
+/*HS60 code for HS60-199 by wangqilin at 2019/08/16 end*/
+/*HS60 code for gx_hx8394f by wangdeyan at 2019/09/12 start*/
+#include "dsi-panel-gx-hx8394f-720p-video.dtsi"
+/*HS60 code for gx_hx8394f by wangdeyan at 2019/09/12 end*/
+/*HS60 code for HS60-1795 by wangdeyan at 2019/09/20 start*/
+#include "dsi-panel-gx-hsd-st7703-720p-video.dtsi"
+/*HS60 code for HS60-1795 by wangdeyan at 2019/09/20 end*/
+/*HS60 code for HS60-3181 by wangdeyan at 2019/10/21 start*/
+#include "dsi-panel-hlt-cd-jd9365d-720p-video.dtsi"
+/*HS60 code for HS60-3181 by wangdeyan at 2019/10/21 end*/
+/*HS60 code for HS60-3827 gx_cd_hx8394f bringup by wangyi at 2019/11/11 start*/
+#include "dsi-panel-gx-cd-hx8394f-720p-video.dtsi"
+/*HS60 code for HS60-3827 gx_cd_hx8394f bringup by wangyi at 2019/11/11 end*/
+/*HS60 code for HS60-4112 by zhanghao at 2019/11/15 start*/
+#include "dsi-panel-hlt-mdt-ili9881c-720p-video.dtsi"
+/*HS60 code for HS60-4112 by zhanghao at 2019/11/15 end*/
+#include "dsi-panel-ls-cd-ili9881c-720p-video.dtsi"
+/*HS60 code for HS60-5568 by zhangxiude at 2020/05/28 start*/
+#include "dsi-panel-hsd-jd9365da-720p-video.dtsi"
+/*HS60 code for HS60-5568 by zhangxiude at 2020/05/28 end*/
+/*HS60 code  by wangdeyan at 2020/08/15 start*/
+#include "dsi-panel-hlt-hsd-ili9881c-80h-720p-video.dtsi"
+#include "dsi-panel-hlt-hsd-ili9881c-70h-720p-video.dtsi"
+/*HS60 code  by wangdeyan at 2020/08/15 end*/
+#include "dsi-panel-jdd-hsd-ili9881c-70h-720p-video.dtsi"
