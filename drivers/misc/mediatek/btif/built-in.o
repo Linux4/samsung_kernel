@@ -1,0 +1,10 @@
+!<thin>
+//                                              86        `
+common/mtk_btif.o/
+common/mtk_btif_exp.o/
+common/btif_dma_plat.o/
+common/btif_plat.o/
+/0              0           0     0     644     230652    `
+/19             0           0     0     644     141324    `
+/42            /0           0     0     644     152940    `
+/66             0           0     0     644     138104    `

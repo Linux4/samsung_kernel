@@ -1,0 +1,2 @@
+kernel/drivers/misc/mediatek/pwm/mtk_pwm.ko
+kernel/drivers/misc/mediatek/pwm/mt6739/mtk_pwm_hal.ko

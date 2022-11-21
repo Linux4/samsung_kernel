@@ -1,0 +1,7 @@
+kernel/drivers/staging/android/ion/mtk/ion_drv.ko
+kernel/drivers/staging/android/ion/mtk/ion_mm_heap.ko
+kernel/drivers/staging/android/ion/mtk/ion_fb_heap.ko
+kernel/drivers/staging/android/ion/mtk/ion_sec_heap.ko
+kernel/drivers/staging/android/ion/mtk/ion_profile.ko
+kernel/drivers/staging/android/ion/mtk/ion_history.ko
+kernel/drivers/staging/android/ion/mtk/ion_comm.ko

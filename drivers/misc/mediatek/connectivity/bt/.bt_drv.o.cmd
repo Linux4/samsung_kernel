@@ -1,0 +1,1 @@
+cmd_drivers/misc/mediatek/connectivity/bt/bt_drv.o :=  rm -f drivers/misc/mediatek/connectivity/bt/bt_drv.o; /home/oslv_team/PROD_GANGA10/GALAXY_A01_CORE/FLUMEN/Mojito/MT6739/android/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-ar rcSTPD drivers/misc/mediatek/connectivity/bt/bt_drv.o drivers/misc/mediatek/connectivity/bt/stp_chrdev_bt.o 

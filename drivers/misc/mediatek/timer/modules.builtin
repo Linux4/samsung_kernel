@@ -1,0 +1,2 @@
+kernel/drivers/misc/mediatek/timer/timesync/mtk_sys_timer.ko
+kernel/drivers/misc/mediatek/timer/timesync/archcounter_timesync.ko

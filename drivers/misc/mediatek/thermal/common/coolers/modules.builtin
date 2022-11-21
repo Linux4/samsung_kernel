@@ -1,0 +1,6 @@
+kernel/drivers/misc/mediatek/thermal/common/coolers/mtk_ta.ko
+kernel/drivers/misc/mediatek/thermal/common/coolers/mtk_cooler_mutt.ko
+kernel/drivers/misc/mediatek/thermal/common/coolers/mtk_cooler_atm.ko
+kernel/drivers/misc/mediatek/thermal/common/coolers/mtk_cooler_dtm.ko
+kernel/drivers/misc/mediatek/thermal/common/coolers/mtk_cooler_sysrst.ko
+kernel/drivers/misc/mediatek/thermal/common/coolers/mtk_cooler_VR_FPS.ko

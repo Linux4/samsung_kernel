@@ -1,0 +1,1 @@
+cmd_drivers/char/rpmb/rpmb.o :=  rm -f drivers/char/rpmb/rpmb.o; /home/oslv_team/PROD_GANGA10/GALAXY_A01_CORE/FLUMEN/Mojito/MT6739/android/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-ar rcSTPD drivers/char/rpmb/rpmb.o drivers/char/rpmb/core.o 

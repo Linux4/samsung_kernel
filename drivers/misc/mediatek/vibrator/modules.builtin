@@ -1,0 +1,2 @@
+kernel/drivers/misc/mediatek/vibrator/vibrator_drv.ko
+kernel/drivers/misc/mediatek/vibrator/mt6739/vibrator.ko

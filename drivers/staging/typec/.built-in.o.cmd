@@ -1,0 +1,1 @@
+cmd_drivers/staging/typec/built-in.o :=   rm -f drivers/staging/typec/built-in.o; /home/oslv_team/PROD_GANGA10/GALAXY_A01_CORE/FLUMEN/Mojito/MT6739/android/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-ar rcSTPD drivers/staging/typec/built-in.o drivers/staging/typec/fusb302/built-in.o ; scripts/mod/modpost drivers/staging/typec/built-in.o

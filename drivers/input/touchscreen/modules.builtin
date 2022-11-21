@@ -1,0 +1,8 @@
+kernel/drivers/input/touchscreen/of_touchscreen.ko
+kernel/drivers/input/touchscreen/synaptics/td4150/synaptics_tcm_core_module.ko
+kernel/drivers/input/touchscreen/synaptics/td4150/synaptics_tcm_sec_fn.ko
+kernel/drivers/input/touchscreen/synaptics/td4150/synaptics_tcm_sec_fn_test.ko
+kernel/drivers/input/touchscreen/synaptics/td4150/synaptics_tcm_zeroflash.ko
+kernel/drivers/input/touchscreen/synaptics/td4150/synaptics_tcm_reflash.ko
+kernel/drivers/input/touchscreen/synaptics/td4150/synaptics_tcm_recovery.ko
+kernel/drivers/input/touchscreen/synaptics/td4150/synaptics_tcm_diagnostics.ko

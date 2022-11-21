@@ -1,0 +1,2 @@
+kernel/drivers/watchdog/softdog.ko
+kernel/drivers/watchdog/mediatek/wdk/wd_common_drv.ko

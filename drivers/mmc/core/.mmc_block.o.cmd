@@ -1,0 +1,1 @@
+cmd_drivers/mmc/core/mmc_block.o :=  rm -f drivers/mmc/core/mmc_block.o; /home/oslv_team/PROD_GANGA10/GALAXY_A01_CORE/FLUMEN/Mojito/MT6739/android/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-ar rcSTPD drivers/mmc/core/mmc_block.o drivers/mmc/core/block.o drivers/mmc/core/queue.o 

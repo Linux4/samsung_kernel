@@ -1,0 +1,1 @@
+cmd_drivers/iio/industrialio.o :=  rm -f drivers/iio/industrialio.o; /home/oslv_team/PROD_GANGA10/GALAXY_A01_CORE/FLUMEN/Mojito/MT6739/android/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-ar rcSTPD drivers/iio/industrialio.o drivers/iio/industrialio-core.o drivers/iio/industrialio-event.o drivers/iio/inkern.o 

@@ -1,0 +1,51 @@
+/*
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			muic {
+					new_factory;
+					dcd_timeout;
+				};
+		};
+	};
+};
+
+&pio {
+	if_pmic_irq: if_pmic_irq {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO3__FUNC_GPIO3>;
+			bias-disable;
+			input-enable;
+		};
+	};
+};
+
+&i2c2 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <400000>;
+	mediatek,use-open-drain;
+	s2mu005@3D {
+		status = "okay";
+		compatible = "samsung,s2mu005mfd";
+		reg = <0x3D>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&if_pmic_irq>;
+		s2mu005,irq-gpio = <&pio 3 1>;
+		s2mu005,wakeup;
+	};
+};

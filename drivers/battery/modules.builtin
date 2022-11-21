@@ -1,0 +1,7 @@
+kernel/drivers/battery/charger/s2mu005/s2mu005_charger.ko
+kernel/drivers/battery/common/sec_battery.ko
+kernel/drivers/battery/common/sec_battery_vote.ko
+kernel/drivers/battery/common/sec_battery_thermal.ko
+kernel/drivers/battery/common/sec_battery_sysfs.ko
+kernel/drivers/battery/common/sec_battery_dt.ko
+kernel/drivers/battery/fuelgauge/s2mu005/s2mu005_fuelgauge.ko

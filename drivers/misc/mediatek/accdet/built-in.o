@@ -1,0 +1,9 @@
+!<thin>
+//                                              62        `
+accdet_drv.o/
+mt6357/accdet.o/
+mt6357/sec_accdet_sysfs_cb.o/
+
+/0              0           0     0     644     97424     `
+/14             0           0     0     644     229940    `
+/31             0           0     0     644     94108     `

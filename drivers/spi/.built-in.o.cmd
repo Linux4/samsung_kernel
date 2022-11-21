@@ -1,0 +1,1 @@
+cmd_drivers/spi/built-in.o :=   rm -f drivers/spi/built-in.o; /home/oslv_team/PROD_GANGA10/GALAXY_A01_CORE/FLUMEN/Mojito/MT6739/android/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-ar rcSTPD drivers/spi/built-in.o drivers/spi/spi.o drivers/spi/spi-mt65xx.o drivers/spi/spi-mt65xx-dev.o ; scripts/mod/modpost drivers/spi/built-in.o

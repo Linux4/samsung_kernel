@@ -1,0 +1,22 @@
+!<thin>
+//                                              270       `
+fuelgauge/s2mu005/s2mu005_fuelgauge.o/
+charger/s2mu005/s2mu005_charger.o/
+common/sec_battery.o/
+common/sec_battery_vote.o/
+common/sec_battery_thermal.o/
+common/sec_battery_sysfs.o/
+common/sec_battery_dt.o/
+common/sec_adc.o/
+common/sec_cisd.o/
+common/battery_notifier.o/
+/0              0           0     0     644     214320    `
+/39             0           0     0     644     199268    `
+/74             0           0     0     644     341768    `
+/96             0           0     0     644     89652     `
+/123            0           0     0     644     144016    `
+/153            0           0     0     644     215852    `
+/181            0           0     0     644     189384    `
+/206            0           0     0     644     125136    `
+/224            0           0     0     644     167944    `
+/243            0           0     0     644     87428     `

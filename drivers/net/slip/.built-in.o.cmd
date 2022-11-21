@@ -1,0 +1,1 @@
+cmd_drivers/net/slip/built-in.o :=   rm -f drivers/net/slip/built-in.o; /home/oslv_team/PROD_GANGA10/GALAXY_A01_CORE/FLUMEN/Mojito/MT6739/android/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-ar rcSTPD drivers/net/slip/built-in.o drivers/net/slip/slhc.o ; scripts/mod/modpost drivers/net/slip/built-in.o

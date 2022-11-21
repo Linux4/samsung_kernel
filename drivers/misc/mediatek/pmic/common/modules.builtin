@@ -1,0 +1,4 @@
+kernel/drivers/misc/mediatek/pmic/common/upmu.ko
+kernel/drivers/misc/mediatek/pmic/common/upmu_regulator.ko
+kernel/drivers/misc/mediatek/pmic/common/upmu_debugfs.ko
+kernel/drivers/misc/mediatek/pmic/common/upmu_initial_setting.ko

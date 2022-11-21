@@ -1,0 +1,1 @@
+cmd_drivers/scsi/built-in.o :=   rm -f drivers/scsi/built-in.o; /home/oslv_team/PROD_GANGA10/GALAXY_A01_CORE/FLUMEN/Mojito/MT6739/android/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-ar rcSTPD drivers/scsi/built-in.o drivers/scsi/scsi_mod.o drivers/scsi/arm/built-in.o drivers/scsi/sd_mod.o ; scripts/mod/modpost drivers/scsi/built-in.o

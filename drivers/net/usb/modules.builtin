@@ -1,0 +1,2 @@
+kernel/drivers/net/usb/rtl8150.ko
+kernel/drivers/net/usb/r8152.ko

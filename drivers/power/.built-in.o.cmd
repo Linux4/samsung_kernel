@@ -1,0 +1,1 @@
+cmd_drivers/power/built-in.o :=   rm -f drivers/power/built-in.o; /home/oslv_team/PROD_GANGA10/GALAXY_A01_CORE/FLUMEN/Mojito/MT6739/android/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-ar rcSTPD drivers/power/built-in.o drivers/power/supply/built-in.o ; scripts/mod/modpost drivers/power/built-in.o

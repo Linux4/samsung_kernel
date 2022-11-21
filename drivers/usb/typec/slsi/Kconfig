@@ -1,0 +1,3 @@
+source "drivers/usb/typec/slsi/common/Kconfig"
+source "drivers/usb/typec/slsi/s2mu107/Kconfig"
+source "drivers/usb/typec/slsi/s2mu106/Kconfig"

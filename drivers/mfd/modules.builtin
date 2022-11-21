@@ -1,0 +1,2 @@
+kernel/drivers/mfd/mfd-core.ko
+kernel/drivers/mfd/mt6358-core.ko

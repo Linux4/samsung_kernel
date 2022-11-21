@@ -1,0 +1,1 @@
+cmd_drivers/net/usb/built-in.o :=   rm -f drivers/net/usb/built-in.o; /home/oslv_team/PROD_GANGA10/GALAXY_A01_CORE/FLUMEN/Mojito/MT6739/android/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-ar rcSTPD drivers/net/usb/built-in.o drivers/net/usb/rtl8150.o drivers/net/usb/r8152.o ; scripts/mod/modpost drivers/net/usb/built-in.o

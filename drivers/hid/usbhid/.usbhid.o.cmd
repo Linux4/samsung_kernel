@@ -1,0 +1,1 @@
+cmd_drivers/hid/usbhid/usbhid.o :=  rm -f drivers/hid/usbhid/usbhid.o; /home/oslv_team/PROD_GANGA10/GALAXY_A01_CORE/FLUMEN/Mojito/MT6739/android/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-ar rcSTPD drivers/hid/usbhid/usbhid.o drivers/hid/usbhid/hid-core.o drivers/hid/usbhid/hid-quirks.o 

@@ -1,0 +1,17 @@
+!<thin>
+//                                              98        `
+mtk_tpd.o/
+tpd_button.o/
+tpd_calibrate.o/
+tpd_debug.o/
+tpd_default.o/
+tpd_misc.o/
+tpd_setting.o/
+
+/0              0           0     0     644     150212    `
+/11             0           0     0     644     96944     `
+/25            /0           0     0     644     86260     `
+/42             0           0     0     644     165704    `
+/55             0           0     0     644     83616     `
+/70             0           0     0     644     88348     `
+/82             0           0     0     644     92344     `

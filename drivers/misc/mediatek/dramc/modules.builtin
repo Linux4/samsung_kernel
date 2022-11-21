@@ -1,0 +1,5 @@
+kernel/drivers/misc/mediatek/dramc/dramc.ko
+kernel/drivers/misc/mediatek/dramc/mtk_lastdramc.ko
+kernel/drivers/misc/mediatek/dramc/mtk_memtest.ko
+kernel/drivers/misc/mediatek/dramc/mtk_rshmoo.ko
+kernel/drivers/misc/mediatek/dramc/mt6739/mtk_dramc.ko

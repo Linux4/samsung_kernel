@@ -1,0 +1,2 @@
+kernel/drivers/char/rpmb/rpmb-mtk.ko
+kernel/drivers/char/rpmb/rpmb.ko

@@ -1,0 +1,69 @@
+!<thin>
+//                                              1170      `
+input.o/
+input-compat.o/
+input-mt.o/
+ff-core.o/
+sec_cmd.o/
+input-leds.o/
+evdev.o/
+keyboard/atkbd.o/
+keyboard/mediatek/kpd.o/
+keyboard/mediatek/mt6739/hal_kpd.o/
+touchscreen/of_touchscreen.o/
+touchscreen/mediatek/mtk_tpd.o/
+touchscreen/mediatek/tpd_button.o/
+touchscreen/mediatek/tpd_calibrate.o/
+touchscreen/mediatek/tpd_debug.o/
+touchscreen/mediatek/tpd_default.o/
+touchscreen/mediatek/tpd_misc.o/
+touchscreen/mediatek/tpd_setting.o/
+touchscreen/synaptics/td4150/synaptics_tcm_spi.o/
+touchscreen/synaptics/td4150/synaptics_tcm_core.o/
+touchscreen/synaptics/td4150/synaptics_tcm_touch.o/
+touchscreen/synaptics/td4150/synaptics_tcm_sec_fn.o/
+touchscreen/synaptics/td4150/synaptics_tcm_sec_fn_test.o/
+touchscreen/synaptics/td4150/synaptics_tcm_zeroflash.o/
+touchscreen/synaptics/td4150/synaptics_tcm_reflash.o/
+touchscreen/synaptics/td4150/synaptics_tcm_recovery.o/
+touchscreen/synaptics/td4150/synaptics_tcm_diagnostics.o/
+touchscreen/novatek/nt36525/nt36xxx.o/
+touchscreen/novatek/nt36525/nt36xxx_fw_update.o/
+touchscreen/novatek/nt36525/nt36xxx_ext_proc.o/
+touchscreen/novatek/nt36525/nt36xxx_mp_ctrlram.o/
+touchscreen/novatek/nt36525/nt36xxx_sec_fn.o/
+misc/uinput.o/
+
+/0              0           0     0     644     214260    `
+/9              0           0     0     644     74092     `
+/25             0           0     0     644     103220    `
+/37             0           0     0     644     101208    `
+/48             0           0     0     644     127556    `
+/59             0           0     0     644     98644     `
+/73             0           0     0     644     192512    `
+/82             0           0     0     644     152836    `
+/100            0           0     0     644     301528    `
+/125            0           0     0     644     274072    `
+/161            0           0     0     644     94204     `
+/191            0           0     0     644     150212    `
+/223            0           0     0     644     96944     `
+/258           /0           0     0     644     86260     `
+/296            0           0     0     644     165704    `
+/330            0           0     0     644     83616     `
+/366            0           0     0     644     88348     `
+/399            0           0     0     644     92344     `
+/435            0           0     0     644     161040    `
+/485            0           0     0     644     265876    `
+/536            0           0     0     644     159864    `
+/588            0           0     0     644     166516    `
+/641            0           0     0     644     156592    `
+/699            0           0     0     644     171240    `
+/755            0           0     0     644     187544    `
+/809            0           0     0     644     151600    `
+/864            0           0     0     644     135760    `
+/922            0           0     0     644     213932    `
+/961            0           0     0     644     138900    `
+/1010           0           0     0     644     120096    `
+/1058           0           0     0     644     216012    `
+/1108           0           0     0     644     198740    `
+/1154           0           0     0     644     142276    `

@@ -1,0 +1,1 @@
+cmd_drivers/misc/mediatek/ccmni/eccmni.o :=  rm -f drivers/misc/mediatek/ccmni/eccmni.o; /home/oslv_team/PROD_GANGA10/GALAXY_A01_CORE/FLUMEN/Mojito/MT6739/android/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-ar rcSTPD drivers/misc/mediatek/ccmni/eccmni.o drivers/misc/mediatek/ccmni/ccmni.o 

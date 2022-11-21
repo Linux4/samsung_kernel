@@ -1,0 +1,2 @@
+kernel/drivers/misc/mediatek/uart/uart.ko
+kernel/drivers/misc/mediatek/uart/mt6739/platform_uart.ko

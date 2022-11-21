@@ -1,0 +1,15 @@
+kernel/drivers/misc/mediatek/pmic/common/upmu.ko
+kernel/drivers/misc/mediatek/pmic/common/upmu_regulator.ko
+kernel/drivers/misc/mediatek/pmic/common/upmu_debugfs.ko
+kernel/drivers/misc/mediatek/pmic/common/upmu_initial_setting.ko
+kernel/drivers/misc/mediatek/pmic/mt6357/v1/pmic.ko
+kernel/drivers/misc/mediatek/pmic/mt6357/v1/pmic_common.ko
+kernel/drivers/misc/mediatek/pmic/mt6357/v1/pmic_debugfs.ko
+kernel/drivers/misc/mediatek/pmic/mt6357/v1/pmic_irq.ko
+kernel/drivers/misc/mediatek/pmic/mt6357/v1/pmic_initial_setting.ko
+kernel/drivers/misc/mediatek/pmic/mt6357/v1/pmic_api.ko
+kernel/drivers/misc/mediatek/pmic/mt6357/v1/pmic_auxadc.ko
+kernel/drivers/misc/mediatek/pmic/mt6357/v1/pmic_throttling_dlpt.ko
+kernel/drivers/misc/mediatek/pmic/mt6357/v1/regulator_codegen.ko
+kernel/drivers/misc/mediatek/pmic/mt6357/v1/pmic_lp_api.ko
+kernel/drivers/misc/mediatek/pmic/mt6357/v1/pmic_efuse.ko

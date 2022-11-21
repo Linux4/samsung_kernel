@@ -1,0 +1,25 @@
+!<thin>
+//                                              202       `
+debug/sec_debug.o/
+debug/sec_debug_test.o/
+misc/sec_log.o/
+misc/sec_bootstat.o/
+misc/sec_batt.o/
+misc/vbus_notifier.o/
+sec_reboot.o/
+sec_class.o/
+sec_param.o/
+sec_crash_key_user.o/
+sec_key_notifier.o/
+
+/0              0           0     0     644     133792    `
+/19             0           0     0     644     84000     `
+/43             0           0     0     644     113248    `
+/59             0           0     0     644     101496    `
+/80             0           0     0     644     37376     `
+/97            /0           0     0     644     80836     `
+/119            0           0     0     644     307240    `
+/133            0           0     0     644     82392     `
+/146            0           0     0     644     144616    `
+/159            0           0     0     644     70912     `
+/181            0           0     0     644     95892     `

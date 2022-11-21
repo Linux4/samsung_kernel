@@ -1,0 +1,52 @@
+!<thin>
+//                                              414       `
+lib/circ_buf.o/
+lib/circ_buf_packet.o/
+core/cdev.o/
+core/cred.o/
+core/event.o/
+core/iwio.o/
+core/iwservice.o/
+core/iwsock.o/
+core/log.o/
+core/mem.o/
+core/notifier.o/
+core/ree_time.o/
+core/sysdep.o/
+core/tzdev.o/
+core/uiwsock.o/
+core/iwlog.o/
+core/kthread_pool_smpboot.o/
+core/platform.o/
+teec/context.o/
+teec/misc.o/
+teec/session.o/
+teec/shared_memory.o/
+debug/iw_boot_log.o/
+extensions/irs.o/
+extensions/fsdev.o/
+/0              0           0     0     644     45448     `
+/16             0           0     0     644     9372      `
+/39             0           0     0     644     79024     `
+/52             0           0     0     644     114836    `
+/65             0           0     0     644     88136     `
+/79             0           0     0     644     84816     `
+/92             0           0     0     644     69936     `
+/110            0           0     0     644     164176    `
+/125            0           0     0     644     26880     `
+/137            0           0     0     644     125064    `
+/149            0           0     0     644     71952     `
+/166            0           0     0     644     37304     `
+/183            0           0     0     644     103996    `
+/198            0           0     0     644     149904    `
+/212            0           0     0     644     118560    `
+/228            0           0     0     644     84004     `
+/242            0           0     0     644     125684    `
+/271            0           0     0     644     89560     `
+/288            0           0     0     644     24116     `
+/304            0           0     0     644     97408     `
+/317            0           0     0     644     137708    `
+/333           /0           0     0     644     93828     `
+/355            0           0     0     644     88960     `
+/376            0           0     0     644     94920     `
+/394            0           0     0     644     138364    `

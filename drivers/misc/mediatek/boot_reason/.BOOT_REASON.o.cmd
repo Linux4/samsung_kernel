@@ -1,0 +1,1 @@
+cmd_drivers/misc/mediatek/boot_reason/BOOT_REASON.o :=  rm -f drivers/misc/mediatek/boot_reason/BOOT_REASON.o; /home/oslv_team/PROD_GANGA10/GALAXY_A01_CORE/FLUMEN/Mojito/MT6739/android/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-ar rcSTPD drivers/misc/mediatek/boot_reason/BOOT_REASON.o drivers/misc/mediatek/boot_reason/mtk_boot_reason.o 

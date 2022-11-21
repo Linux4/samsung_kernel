@@ -1,0 +1,2 @@
+kernel/drivers/misc/mediatek/flashlight/flashlight.ko
+kernel/drivers/misc/mediatek/flashlight/flashlights-s2mu005.ko

@@ -1,0 +1,47 @@
+!<thin>
+//                                              730       `
+of_touchscreen.o/
+mediatek/mtk_tpd.o/
+mediatek/tpd_button.o/
+mediatek/tpd_calibrate.o/
+mediatek/tpd_debug.o/
+mediatek/tpd_default.o/
+mediatek/tpd_misc.o/
+mediatek/tpd_setting.o/
+synaptics/td4150/synaptics_tcm_spi.o/
+synaptics/td4150/synaptics_tcm_core.o/
+synaptics/td4150/synaptics_tcm_touch.o/
+synaptics/td4150/synaptics_tcm_sec_fn.o/
+synaptics/td4150/synaptics_tcm_sec_fn_test.o/
+synaptics/td4150/synaptics_tcm_zeroflash.o/
+synaptics/td4150/synaptics_tcm_reflash.o/
+synaptics/td4150/synaptics_tcm_recovery.o/
+synaptics/td4150/synaptics_tcm_diagnostics.o/
+novatek/nt36525/nt36xxx.o/
+novatek/nt36525/nt36xxx_fw_update.o/
+novatek/nt36525/nt36xxx_ext_proc.o/
+novatek/nt36525/nt36xxx_mp_ctrlram.o/
+novatek/nt36525/nt36xxx_sec_fn.o/
+
+/0              0           0     0     644     94204     `
+/18             0           0     0     644     150212    `
+/38             0           0     0     644     96944     `
+/61            /0           0     0     644     86260     `
+/87             0           0     0     644     165704    `
+/109            0           0     0     644     83616     `
+/133            0           0     0     644     88348     `
+/154            0           0     0     644     92344     `
+/178            0           0     0     644     161040    `
+/216            0           0     0     644     265876    `
+/255            0           0     0     644     159864    `
+/295            0           0     0     644     166516    `
+/336            0           0     0     644     156592    `
+/382            0           0     0     644     171240    `
+/426            0           0     0     644     187544    `
+/468            0           0     0     644     151600    `
+/511            0           0     0     644     135760    `
+/557            0           0     0     644     213932    `
+/584            0           0     0     644     138900    `
+/621            0           0     0     644     120096    `
+/657            0           0     0     644     216012    `
+/695            0           0     0     644     198740    `

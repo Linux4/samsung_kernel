@@ -1,0 +1,1 @@
+cmd_drivers/extcon/extcon-core.o :=  rm -f drivers/extcon/extcon-core.o; /home/oslv_team/PROD_GANGA10/GALAXY_A01_CORE/FLUMEN/Mojito/MT6739/android/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androidkernel-ar rcSTPD drivers/extcon/extcon-core.o drivers/extcon/extcon.o drivers/extcon/devres.o 
