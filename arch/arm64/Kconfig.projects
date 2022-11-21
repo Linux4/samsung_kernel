@@ -1,0 +1,12 @@
+config SEC_Q2Q_PROJECT
+        default n
+        bool "Samsung Q2Q Project"
+        help
+          Support for Samsung Q2Q Project
+
+config MACH_Q2Q_KOR_SINGLEX
+        default n
+        bool "Samsung Q2Q KOR SINGLEX"
+        help
+          Support for Samsung Q2Q KOR SINGLEX device.
+

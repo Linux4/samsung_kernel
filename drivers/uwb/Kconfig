@@ -1,0 +1,22 @@
+#
+# UWB device configuration
+#
+config SAMSUNG_UWB
+	tristate "Samsung UWB driver"
+	default n
+	help
+	  Say Y here if you want to build support for UWB devices.
+	  To compile this support as a module, choose M here: the module will
+	  be called uwb.
+
+config UWB_SR100
+	bool "Nxp SPI driver for SR100 devices"
+	default n
+	help
+	  NXP SR100 UWB controller support.
+
+config SEC_UWB_LOGGER
+	bool "UWB logger"
+	default n
+	help
+	  Enable UWB logger.
