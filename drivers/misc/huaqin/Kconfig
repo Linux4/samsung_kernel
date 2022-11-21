@@ -1,0 +1,22 @@
+#
+# for huaqin mis info
+#
+
+# huaqin added by tangqingyong for HS60-53 at 20190718 start
+config HQ_SIM_TRAY_CHECK
+	bool "check sim stry status"
+        default y
+	help
+	  this will create a node to show sim tray status.
+
+	  If unsure, say N.
+# huaqin added by tangqingyong for HS60-53 at 20190718 end
+# hs70 add for HS70-1475 by liufurong at 20191123 start
+config HW_INFO
+	bool "show hw info"
+        default n
+	help
+	  this will create a node to show some hw info.
+
+	  If unsure, say N.
+# hs70 add for HS70-1475 by liufurong at 20191123 end
