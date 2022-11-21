@@ -1,0 +1,42 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/clock/qcom,gcc-sm8150.h>
+#include <dt-bindings/clock/qcom,camcc-sm8150.h>
+#include <dt-bindings/clock/qcom,rpmh.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
+#include "../qcom/sm8150-mtp.dtsi"
+#include "sm8150-sec-common.dtsi"
+#include "sm8150-sec-r5q-pm-common.dtsi"
+#include "sm8150-sec-r5q-input-common.dtsi"
+#include "sm8150-sec-r5q-r00.dtsi"
+#include "sm8150-sec-r5q-pinctrl-r00.dtsi"
+#include "sm8150-sec-r5q-display-r00.dtsi"
+#include "battery-data-r5q-s2mu107.dtsi"
+#include "sm8150-sec-beyond2qlte-sensor-common.dtsi"
+#include "sm8150-sec-r5q-fingerprint-sensor-r00.dtsi"
+#include "sm8150-sec-r5q-nfc-r00.dtsi"
+// #include "sm8150-sec-r3q-mst-r00.dtsi"
+#include "sm8150-camera-sensor-r5q-r00.dtsi"
+#include "sm8150-s2mu107.dtsi"
+#include "../../../../../drivers/motor/tuning/r5q_motor_tuning.dtsi"
+
+/ {
+	model = "Samsung R5Q PROJECT Rev00";
+	compatible = "qcom,sm8150-mtp", "qcom,sm8150", "qcom,mtp";
+	qcom,board-id = <8 00>;
+	dtbo-version = <0>;
+};
