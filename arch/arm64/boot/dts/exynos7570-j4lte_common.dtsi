@@ -1,0 +1,1807 @@
+/*
+ * SAMSUNG UNIVERSAL7570 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+#include "exynos7570-rev01.dtsi"
+
+/ {
+	model = "Samsung J3Y17LTE board based on EXYNOS7570";
+	compatible = "samsung,exynos7570", "samsung,exynos4210";
+
+	memory@40000000 {
+		device_type = "memory";
+		reg = <0x0 0x40000000 0x3E800000>;
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x40000000>;
+	};
+
+	chosen {
+		bootargs = "console=ttySAC2,115200 clk_ignore_unused androidboot.hardware=samsungexynos7570 androidboot.selinux=disabled firmware_class.path=/vendor/firmware ess_setup=0x46000000 bcm_setup=0xffffff80f8e00000 androidboot.debug_level=0x4948 reserve-fimc=0";
+		linux,initrd-start = <0x42000000>;
+		linux,initrd-end = <0x421FFFFF>;
+	};
+
+	fixed-rate-clocks {
+		oscclk {
+			compatible = "samsung,exynos7570-oscclk";
+			clock-frequency = <26000000>;
+		};
+	};
+
+	serial_2: uart@13820000 {
+		samsung,uart-logging;
+		status = "okay";
+	};
+
+	firmware {
+		android {
+			compatible = "android,firmware";
+			fstab {
+				compatible = "android,fstab";
+				system {
+					compatible = "android,system";
+					dev = "/dev/block/platform/13540000.dwmmc0/by-name/SYSTEM";
+					type = "ext4";
+					mnt_flags = "ro";
+					fsmgr_flags = "wait,verify";
+				};
+				vendor {
+					compatible = "android,vendor";
+					dev = "/dev/block/platform/13540000.dwmmc0/by-name/VENDOR";
+					type = "ext4";
+					mnt_flags = "ro";
+					fsmgr_flags = "wait,verify";
+				};
+				odm {
+					compatible = "android,odm";
+					dev = "/dev/block/platform/13540000.dwmmc0/by-name/ODM";
+					type = "ext4";
+					mnt_flags = "ro";
+					fsmgr_flags = "wait,verify";
+				};
+			};
+		};
+	};
+
+	dwmmc0@13540000 {
+		status = "okay";
+		num-slots = <1>;
+		broken-card-detect;
+		use-smu;
+		fixed_voltage;
+		supports-highspeed;
+		clock-gate;
+		mmc-ddr-1_8v;
+		mmc-hs200-1_8v;
+		mmc-hs400-1_8v;
+		supports-8bit;
+		supports-cmd23;
+		supports-erase;
+		enable-ulp-mode;
+		supports-hs400-enhanced-strobe;
+		pm-skip-mmc-resume-init;
+		mmc_pwr_shut_down;
+		card-init-hwacg-ctrl;
+		fifo-depth = <0x40>;
+		non-removable;
+		desc-size = <4>;
+		card-detect-delay = <200>;
+		data-timeout = <200>;
+		hto-timeout = <80>;
+		clock-frequency = <700000000>;
+		samsung,dw-mshc-ciu-div = <3>;
+		samsung,dw-mshc-txdt-crc-timer-fastlimit = <0x34>;
+		samsung,dw-mshc-txdt-crc-timer-initval = <0x38>;
+		samsung,dw-mshc-ddr200-delay-line = <0x60>;
+		samsung,dw-mshc-sdr-timing = <3 0 2 0>;
+		samsung,dw-mshc-ddr-timing = <3 0 4 2>;
+		samsung,dw-mshc-hs200-timing = <3 0 3 0>;
+		samsung,dw-mshc-ddr200-timing = <1 0 4 0>;
+		samsung,dw-mshc-ddr200-ulp-timing = <3 0 3 0>;
+
+		num-ref-clks = <12>;
+		ciu_clkin = <25 43 43 25 43 87 175 43 43 175 175 175>;
+
+		/* Swapping clock drive strength */
+		clk-drive-number = <4>;
+		pinctrl-names = "default",
+			"fast-slew-rate-1x",
+			"fast-slew-rate-2x",
+			"fast-slew-rate-3x",
+			"fast-slew-rate-4x";
+		pinctrl-0 = <&sd0_clk &sd0_cmd &sd0_rdqs &sd0_bus1 &sd0_bus4 &sd0_bus8>;
+		pinctrl-1 = <&sd0_clk_fast_slew_rate_1x>;
+		pinctrl-2 = <&sd0_clk_fast_slew_rate_2x>;
+		pinctrl-3 = <&sd0_clk_fast_slew_rate_3x>;
+		pinctrl-4 = <&sd0_clk_fast_slew_rate_4x>;
+		slot@0 {
+			reg = <0>;
+			bus-width = <8>;
+		};
+	};
+
+	dwmmc2@13560000 {
+		status = "okay";
+		num-slots = <1>;
+		clock-gate;
+		supports-highspeed;
+		supports-4bit;
+		supports-cmd23;
+		supports-erase;
+		sd-uhs-sdr50;
+		sd-uhs-sdr104;
+		card-detect-gpio;
+		bypass-smu;
+		only_once_tune;
+		bypass-for-allpass;
+		use-fine-tuning;
+		skip-init-mmc-scan;
+		card-init-hwacg-ctrl;
+		switch_transfer;
+		ignore-phase = <(1 << 7)>;
+		fifo-depth = <0x40>;
+		desc-size = <4>;
+		card-detect-delay = <200>;
+		data-timeout = <200>;
+		hto-timeout = <80>;
+		clock-frequency = <700000000>;
+		samsung,dw-mshc-ciu-div = <3>;
+		samsung,dw-mshc-sdr-timing = <3 0 2 0>;
+		samsung,dw-mshc-ddr-timing = <3 0 2 1>;
+		samsung,dw-mshc-sdr50-timing = <3 0 4 2>;
+		samsung,dw-mshc-sdr104-timing = <3 0 3 0>;
+
+		num-ref-clks = <9>;
+		ciu_clkin = <25 43 43 25 43 87 175 43 43>;
+
+		clk-drive-number = <4>;
+		pinctrl-names = "default",
+			"fast-slew-rate-1x",
+			"fast-slew-rate-2x",
+			"fast-slew-rate-3x",
+			"fast-slew-rate-4x";
+		pinctrl-0 = <&sd2_clk &sd2_cmd &sd2_bus1 &sd2_bus4 &dwmmc2_cd_ext_irq>;
+		pinctrl-1 = <&sd2_clk_fast_slew_rate_1x>;
+		pinctrl-2 = <&sd2_clk_fast_slew_rate_2x>;
+		pinctrl-3 = <&sd2_clk_fast_slew_rate_3x>;
+		pinctrl-4 = <&sd2_clk_fast_slew_rate_4x>;
+
+		card-detect = <&gpa0 1 0xf>;
+		sec-sd-slot-type = <1>; /* Hot Plug SD slot */
+		slot@0 {
+			reg = <0>;
+			bus-width = <4>;
+			disable-wp;
+		};
+	};
+
+	ion {
+		compatible = "samsung,exynos5430-ion";
+	};
+
+	decon_fb@14830000 {
+		psr_mode = <0>; /* 0: video mode, 1: DP command mode, 2: MIPI command mode */
+		/* vclk_mif = 200MHz */
+		mif-vclk = <200000000>;
+		/* vclk =  200MHz */
+		disp-vclk = <200000000>;
+
+		/* Target vclk 121.3Mhz */
+		/* decon_divider_num = 1024 */
+		vclk-num = <1024>;
+		/* decon_divider_denom = 408 */
+		vclk-denom = <418>;
+
+		/* aclk = 208Mhz */
+		disp-dvfs = <208000000>;
+	};
+
+	dsim_0: dsim@14800000 {
+		lcd_info = <&ea8061s>;
+		decon_board = <&decon_board>;
+		status = "okay";
+
+		/* number of data lanes in use */
+		data_lane_cnt = <4>;
+	};
+
+	decon_board: decon_board {
+		gpio_lcd_3p0 = <&gpd1 0 0x1>;
+		gpio_lcd_rst = <&gpd2 0 0x1>;
+
+		dsim_set_panel_power_enable {
+			type =
+			"regulator,enable",	"LCD_1P8",
+			"gpio,high",	"gpio_lcd_3p0",
+			"delay,usleep",	"5000 6000";
+		};
+		dsim_set_panel_power_disable {
+			type =
+			"gpio,low",	"gpio_lcd_rst",
+			"delay,usleep",	"10000 11000",
+			"gpio,low",	"gpio_lcd_3p0",
+			"regulator,disable",	"LCD_1P8",
+			"delay,msleep",	"30";
+		};
+		dsim_reset_panel {
+			type =
+			"delay,usleep",	"1000 1100",
+			"gpio,high",	"gpio_lcd_rst",
+			"delay,usleep",	"10000 11000",
+			"gpio,low",	"gpio_lcd_rst",
+			"delay,usleep",	"10000 11000",
+			"gpio,high",	"gpio_lcd_rst",
+			"delay,usleep",	"10000 11000";
+		};
+	};
+
+	ea8061s: ea8061s_hd {
+		mode = <0>; /* 0: video mode, 1: DP command mode, 2: MIPI command mode */
+		resolution = <720 1280>;
+		size = <68 121>;
+		ddi_type = <0>;
+		timing,refresh = <60>;
+
+		/* dsim H porch : hbp, hfp, hsa */
+		timing,dsim_h-porch = <48 56 4>;
+		/* dsim V porch : VBP, VFP, VSA */
+		timing,dsim_v-porch = <5 9 2>;
+
+		/* decon H porch : hbp, hfp, hsa */
+		timing,decon_h-porch = <48 278 4>;
+		/* decon V porch : VBP, VFP, VSA */
+		timing,decon_v-porch = <5 9 2>;
+
+		timing,dsi-hs-clk = <490>;
+		timing,pms = <3 226 2>;
+		timing,dsi-escape-clk = <16>;
+	};
+
+	usb@13600000 {
+		status = "okay";
+
+		dwc3 {
+			dr_mode = "otg";
+		};
+	};
+
+	usbphy@135c0000 {
+		status = "okay";
+		hs_tune_info = <&usb_hs_tune>;
+		ss_tune_info = <&usb_ss_tune>;
+	};
+
+	usb_hs_tune:hs_tune {
+		status = "okay";
+		/* value = <device host> */
+		tx_vref = <0x3 0x3>;
+		tx_pre_emp = <0x0 0x0>;
+		tx_pre_emp_puls = <0x0 0x0>;
+		tx_res	= <0x2 0x2>;
+		tx_rise = <0x1 0x1>;
+		tx_hsxv = <0x0 0x0>;
+		tx_fsls = <0x3 0x3>;
+		rx_sqrx = <0x5 0x5>;
+		compdis	= <0x3 0x3>;
+		otg= <0x2 0x2>;
+		/* true : 1, false: 0 */
+		/* <enable_user_imp user_imp_value> */
+		enable_user_imp = <0 0>;
+		/* PHY clk : 1 , FREE clk : 0 */
+		is_phyclock = <1>;
+	};
+
+	usb_ss_tune:ss_tune {
+		status = "disabled";
+		/* value = <device host> */
+		tx_boost_level = <0x4 0x4>;
+		tx_swing_level = <0x1 0x1>;
+		tx_swing_full = <0x7F 0x7F>;
+		tx_swing_low = <0x7F 0x7F>;
+		tx_deemphasis_mode = <0x1 0x1>;
+		tx_deemphasis_3p5db = <0x18 0x18>;
+		tx_deemphasis_6db = <0x18 0x18>;
+		enable_ssc = <0x1 0x1>;
+		ssc_range = <0x0 0x1>;
+		los_bias = <0x5 0x5>;
+		los_mask_val = <0x104 0x104>;
+		enable_fixed_rxeq_mode = <0x0 0x0>;
+		fix_rxeq_value = <0x4 0x4>;
+		set_crport_mpll_charge_pump = <0x0 0x0>;
+		set_crport_level_en = <0x0 0x0>;
+	};
+
+	usb_notifier {
+		compatible = "samsung,usb-notifier";
+		udc = <&udc>;
+	};
+
+	tmuctrl_0: tmuctrl_CPUCL0@10130000 {
+		compatible = "samsung,exynos7570-tmu";
+		reg = <0x0 0x10130000 0x200>;
+		interrupts = <0 435 0>;
+		default_ptat_cont = <0x1>;
+	};
+
+	tmuctrl_1: tmuctrl_G3D@10130000 {
+		compatible = "samsung,exynos7570-tmu";
+		reg = <0x0 0x10130000 0x200>;
+		interrupts = <0 435 0>;
+		default_ptat_cont = <0x1>;
+
+		/* gpu cooling related table */
+		gpu_idx_num = <5>;
+		/* flags, driver_data(index), frequency */
+		gpu_cooling_table = < 0 0 830000
+				      0 1 666000
+				      0 2 553000
+				      0 3 415000
+				      0 4 TABLE_END>;
+	};
+
+	pinctrl@139F0000 {
+		key_volup: key-volup {
+			samsung,pins = "gpa0-7";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <0>;
+		};
+
+		key_voldown: key-voldown {
+			samsung,pins = "gpa2-3";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <0>;
+		};
+
+		key_home: key-home {
+			samsung,pins = "gpa0-4";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <0>;
+		};
+
+		if_irq: if-irq {
+			samsung,pins = "gpa0-5";
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <3>;
+		};
+
+		muic_irq: muic-irq {
+			samsung,pins = "gpa1-1";
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+
+		nfc_clkreq_int: nfc-clkreq-int {
+			samsung,pins = "gpa0-6";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+		};
+	};
+
+	usi_1: usi@101D3000 {
+		usi_mode = "hsi2c1";
+		status = "okay";
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&key_voldown &key_volup &key_home>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		button@1 {
+			label = "gpio-keys: KEY_VOLUMEUP";
+			interrupts = <7 0 0>;
+			interrupt-parent = <&gpa0>;
+			linux,code = <115>;
+			gpios = <&gpa0 7 0xf>;
+			debounce-interval = <16>;
+		};
+		button@2 {
+			label = "gpio-keys: KEY_HOME";
+			interrupts = <4 0 0>;
+			interrupt-parent = <&gpa0>;
+			linux,code = <172>;
+			gpios = <&gpa0 4 0xf>;
+			gpio-key,wakeup = <1>;
+		};
+		button@3 {
+			label = "gpio-keys: KEY_VOLUMEDOWN";
+			interrupts = <3 0 0>;
+			interrupt-parent = <&gpa2>;
+			linux,code = <114>;
+			gpios = <&gpa2 3 0xf>;
+			debounce-interval = <16>;
+		};
+	};
+
+	pinctrl@148C0000 {
+		i2s_pmic_bus: i2s-pmic-bus {
+			samsung,pins = "gpz1-0", "gpz1-2", "gpz1-3";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+
+		i2s_pmic_bus_idle: i2s-pmic-bus-idle {
+			samsung,pins = "gpz1-0", "gpz1-2", "gpz1-3";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	pinctrl@139B0000 {
+		cfg_i2c: cfg-i2c {
+			samsung,pins = "gpc4-1", "gpc4-0";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+		cfg_gpio: cfg-gpio {
+			samsung,pins = "gpc4-1", "gpc4-0";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	/* TSP */
+	pinctrl@139D0000 {
+		attn_input: attn-input {
+			samsung,pins = "gpc3-2";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+		attn_irq: attn-irq {
+			samsung,pins = "gpc3-2";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+		i2c3_bus: i2c3-bus {
+			samsung,pins = "gpc3-1", "gpc3-0";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	pinctrl@139F0000 {
+		tkey_irq: tkey-irq {
+			samsung,pins = "gpa0-2";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+		tkey_input: tkey-input {
+			samsung,pins = "gpa0-2";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	pinctrl@139C0000 {
+		tsp_ldo_en: tsp-ldo-en {
+			samsung,pins = "gpc2-3";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	tsp_avdd {
+		compatible = "regulator-fixed";
+		ressgulator-name = "tsp_avdd";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpc2 3 0>;
+		regulator-boot-on;
+		enable-active-high;
+	};
+
+	i2c@13840000 {
+		samsung,i2c-sda-delay = <100>;
+		samsung,i2c-max-bus-freq = <400000>;
+		status = "okay";
+		pinctrl-names = "default";
+		mms_ts@48 {
+			compatible = "melfas,mms_ts";
+			reg = <0x48>;
+			pinctrl-names = "default", "on_state", "off_state";
+			pinctrl-0 = <&tsp_ldo_en>;
+			pinctrl-1 = <&attn_irq>;
+			pinctrl-2 = <&attn_input>;
+/*			melfas,vdd_en = "tsp_avdd"; */
+			melfas,irq-gpio = <&gpc3 2 0xf>;
+			melfas,scl-gpio = <&gpc3 1 0>;
+			melfas,sda-gpio = <&gpc3 0 0>;
+			melfas,tsp_ldo_en = <&gpc2 3 0>;
+			melfas,max_x = <800>;
+			melfas,max_y = <1280>;
+			melfas,fw_name = "tsp_melfas/mms438_j4.fw";
+			melfas,factory_item_version = <1>;
+		};
+	};
+
+	i2c@20 {
+		compatible = "i2c-gpio";
+		gpios = <&gpc4 0 0
+				&gpc4 1 0>;
+		i2c-gpio,delay-us = <5>;
+		pinctrl-names = "default","on_i2c","off_i2c";
+		pinctrl-0 = <&cfg_i2c>;
+		pinctrl-1 = <&cfg_i2c>;
+		pinctrl-2 = <&cfg_gpio>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		touchkey@20 {
+			pinctrl-names = "default","on_irq","off_irq";
+			pinctrl-0 = <&tkey_irq>;
+			pinctrl-1 = <&tkey_irq>;
+			pinctrl-2 = <&tkey_input>;
+			compatible = "coreriver,tc300-keypad";
+			reg = <0x20>;
+			interrupts = <3 0 0>;
+			interrupt-parent = <&gpa0>;
+			coreriver,scl-gpio = <&gpc4 1 0>;
+			coreriver,sda-gpio = <&gpc4 0 0>;
+			coreriver,irq-gpio = <&gpa0 2 0>;
+			coreriver,i2c-gpio = "true";
+			coreriver,boot-on-ldo = "true";
+			coreriver,regulator_ic = "vtouch_2.2v";
+			coreriver,fw_name = "coreriver/tc305k_j4.fw";
+			coreriver,sensing_ch_num = <0x4>;
+			coreriver,tsk_ic_num = <0x1>; /* tc300k : 0x00, tc350k : 0x01 */
+			coreriver,use_bitmap = <1>;
+		};
+	};
+
+	pinctrl@139B0000 {
+		sensor_i2c: sensor_i2c {
+			samsung,pins = "gpc4-3", "gpc4-2";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <2>;
+		};
+	};
+
+	pinctrl@139F0000 {
+		acc_int: acc_int {
+			samsung,pins = "gpa2-2";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+
+		prox_int: prox_int {
+			samsung,pins = "gpa1-0";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	i2c@138D0000 {
+		samsung,i2c-sda-delay = <100>;
+		samsung,i2c-max-bus-freq = <400000>;
+		status = "okay";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sensor_i2c>;
+
+		lis2ds@1D {
+			compatible = "st,lis2ds";
+			reg = <0x1D>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&acc_int>;
+			interrupt-parent = <&gpa2>;
+			interrupts = <2 0 0>;
+			st,orientation = <2 1 1 1 2 1 1 1 0>;
+			st,irq_gpio = <&gpa2 2 0>;
+		};
+
+		gp2a@39 {
+			compatible = "gp2a-i2c";
+			reg = <0x39>;
+			interrupt-parent = <&gpa1>;
+			interrupts = <0 0 0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&prox_int>;
+			gp2a,vdd-supply = <&ldo22_reg>;
+			gp2a,irq-gpio = <&gpa1 0 0x00>;
+			gp2a,default_high_thd = <110>;
+			gp2a,default_low_thd = <60>;
+			gp2a,reg_intval = <0x03>;
+			gp2a,reg_res_p = <0x20>;
+			gp2a,reg_ledctrl = <0x24>;
+			gp2a,reg_prst = <0x38>;
+			gp2a,default_offset = <65>;
+			gp2a,cancel_high_thd = <80>;
+			gp2a,cancel_low_thd = <50>;
+		};
+	};
+
+	i2c@13880000 {
+		status = "okay";
+
+		muic-universal@14 {
+			status = "okay";
+			compatible = "muic-universal";
+			reg = <0x14>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&muic_irq>;
+			muic-universal,chip_name = "sm,sm5504";
+			muic-universal,irq-gpio = <&gpa1 1 0>;
+		};
+	};
+
+	muic {
+		status = "okay";
+		muic,support-list = "+OTG:GND",
+					"-MHL:1K",
+					"-VZW Accessory:28.7K",
+					"-VZW Incompatible:34K",
+					"-Smartdock:40.2K",
+					"-HMT:49.9K",
+					"-Audiodock:64.9K",
+					"-USB LANHUB:80.07K",
+					"-Charging Cable:102K",
+					"-Universal Multimedia dock:121K",
+					"+Jig USB Off:255K",
+					"+Jig USB On:301K",
+					"+Deskdock:365K",
+					"+TYPE2 Charger:442K",
+					"+Jig UART Off:523K",
+					"+Jig UART On:619K",
+					"+TA:OPEN",
+					"+USB:OPEN",
+					"+CDP:OPEN",
+					"+Undefined Charging:XXX";
+		/*muic,otg_en = /bits/ 8 <0x1>;*/
+	};
+
+/*
+	i2c@13830000 {
+		status = "okay";
+		samsung,i2c-max-bus-freq = <400000>;
+
+		pn547@2B {
+			compatible = "pn547";
+			reg = <0x2B>;
+			interrupts = <3 0 0>;
+			interrupt-parent = <&gpa1>;
+
+			pn547,ven-gpio = <&gpc2 2 0x2>;
+			pn547,firm-gpio = <&gpd1 0 0>;
+			pn547,irq-gpio = <&gpa1 3 0>;
+			pn547,pvdd-gpio = <&gpf1 0 0>;
+
+			clkctrl-reg = <0x11C8600C>;
+			pn547,nfc_clkreq = <&gpc2 3 0x2>;
+			pn547,nfc_clkreq_int = <&gpa0 6 0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&nfc_pd &nfc_firm &nfc_int &nfc_clk &nfc_clk_req &nfc_clkreq_int &nfc_pwr_en>;
+		};
+	};
+*/
+	pinctrl@139B0000 {
+		nfc_pvdd_en: nfc_pvdd_en {
+				samsung,pins = "gpc0-1";
+				samsung,pin-function = <1>;
+				samsung,pin-pud = <0>;
+				samsung,pin-val = <0>;
+		};
+		nfc_firm: nfc_firm {
+			samsung,pins = "gpf3-2";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-val = <0>;
+		};
+		hs_i2c4_bus: hs-i2c4-bus {
+			samsung,pins = "gpf1-1", "gpf1-0";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+			samsung,pin-con-pdn = <0>;
+		};
+	};
+	pinctrl@139F0000 {
+		nfc_int: nfc-int {
+			samsung,pins = "gpa2-7";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <1>;
+		};
+
+		nfc_clk: nfc-clk {
+			samsung,pins = "gpq0-0";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <0>;
+		};
+	};
+/*
+	pinctrl@139C0000 {
+		nfc_clk_req: nfc_clk_req {
+			samsung,pins = "gpc2-3";
+			samsung,pin-function = <2>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	hsi2c_4: hsi2c@138B0000 {
+		status = "okay";
+		clock-frequency = <400000>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hs_i2c4_bus>;
+		sec-nfc@27 {
+			compatible = "sec-nfc";
+			reg = <0x27>;
+
+			interrupts = <6 0 0>;
+			interrupt-parent = <&gpa2>;
+
+			sec-nfc,nfc_pd = <&gpc2 2 0x2>;
+			sec-nfc,firm-gpio = <&gpf3 2 1>;
+			sec-nfc,irq-gpio = <&gpa2 7 0>;
+			sec-nfc,nfc_clkreq = <&gpc2 3 0x2>;
+			sec-nfc,pvdd_en = <&gpc0 1 1>;
+			clkctrl-reg = <0x11C8600C>;
+
+			pinctrl-names = "default";
+			pinctrl-0 = <&nfc_pd &nfc_firm &nfc_int &nfc_clk &nfc_pvdd_en>;
+		};
+	};
+*/
+	fimc_is@14400000 {
+		vender {
+			rear_sensor_id = <8>; /* SENSOR_NAME_S5K3L2 */
+			front_sensor_id = <17>; /* SENSOR_NAME_S5K5E3 */
+			use_module_check;
+
+			total_camera_num = <2>;
+			camera_info0 {				// 0 : rear
+				isp = <0>;			/* 0 : INT , 1 : EXT , 2 : SOC */
+				cal_memory = <2>;		/* 0 : N , 1 : FROM , 2 : EEPROM , 3 : OTP  */
+				read_version = <0>;		/* 0 : SYSFS , 1 : CAMON */
+
+				core_voltage = <0>;		/* 0 : N , 1 : Y  */
+				upgrade = <0>;			/* 0 : N , 1 : SYSFS , 2 : CAMON */
+				companion = <0>;		/* 0 : N , 1 : Y  */
+				ois = <0>;			/* 0 : N , 1 : Y  */
+			};
+			camera_info1 {				// 1 : front
+				isp = <0>;			/* 0 : INT , 1 : EXT , 2 : SOC */
+				cal_memory = <3>;		/* 0 : N , 1 : FROM , 2 : EEPROM , 3 : OTP  */
+				read_version = <0>;		/* 0 : SYSFS , 1 : CAMON */
+
+				core_voltage = <0>;		/* 0 : N , 1 : Y  */
+				upgrade = <0>;			/* 0 : N , 1 : SYSFS , 2 : CAMON */
+				companion = <0>;		/* 0 : N , 1 : Y  */
+				ois = <0>;			/* 0 : N , 1 : Y  */
+			};
+		};
+
+		fimc_is_dvfs {
+			#define DVFS_INT_L0 467000
+			#define DVFS_INT_L1 415000
+
+			#define DVFS_CAM_L0 666000
+			#define DVFS_CAM_L1 554000
+			#define DVFS_CAM_L2 444000
+
+			#define DVFS_MIF_L0 830000
+			#define DVFS_MIF_L1 700000
+			#define DVFS_MIF_L2 666000
+			#define DVFS_MIF_L3 415000
+
+			table0 {
+				desc = "HAL1 version";
+
+				default_int = <DVFS_INT_L0>;
+				default_cam = <DVFS_CAM_L1>;
+				default_mif = <DVFS_MIF_L0>;
+				default_i2c = <0>;
+
+				front_preview_int = <DVFS_INT_L0>;
+				front_preview_cam = <DVFS_CAM_L2>;
+				front_preview_mif = <DVFS_MIF_L0>;
+				front_preview_i2c = <0>;
+
+				front_capture_int = <DVFS_INT_L0>;
+				front_capture_cam = <DVFS_CAM_L2>;
+				front_capture_mif = <DVFS_MIF_L0>;
+				front_capture_i2c = <0>;
+
+				front_video_int = <DVFS_INT_L0>;
+				front_video_cam = <DVFS_CAM_L2>;
+				front_video_mif = <DVFS_MIF_L0>;
+				front_video_i2c = <0>;
+
+				front_video_capture_int = <DVFS_INT_L0>;
+				front_video_capture_cam = <DVFS_CAM_L2>;
+				front_video_capture_mif = <DVFS_MIF_L0>;
+				front_video_capture_i2c = <0>;
+
+				front_vt1_int = <DVFS_INT_L0>;
+				front_vt1_cam = <DVFS_CAM_L2>;
+				front_vt1_mif = <DVFS_MIF_L0>;
+				front_vt1_i2c = <0>;
+
+				front_vt2_int = <DVFS_INT_L0>;
+				front_vt2_cam = <DVFS_CAM_L2>;
+				front_vt2_mif = <DVFS_MIF_L0>;
+				front_vt2_i2c = <0>;
+
+				rear_preview_int = <DVFS_INT_L0>;
+				rear_preview_cam = <DVFS_CAM_L1>;
+				rear_preview_mif = <DVFS_MIF_L0>;
+				rear_preview_i2c = <0>;
+
+				rear_capture_int = <DVFS_INT_L0>;
+				rear_capture_cam = <DVFS_CAM_L1>;
+				rear_capture_mif = <DVFS_MIF_L0>;
+				rear_capture_i2c = <0>;
+
+				rear_video_int = <DVFS_INT_L0>;
+				rear_video_cam = <DVFS_CAM_L1>;
+				rear_video_mif = <DVFS_MIF_L0>;
+				rear_video_i2c = <0>;
+
+				rear_video_capture_int = <DVFS_INT_L0>;
+				rear_video_capture_cam = <DVFS_CAM_L1>;
+				rear_video_capture_mif = <DVFS_MIF_L0>;
+				rear_video_capture_i2c = <0>;
+
+				preview_high_speed_fps_int = <DVFS_INT_L0>;
+				preview_high_speed_fps_cam = <DVFS_CAM_L1>;
+				preview_high_speed_fps_mif = <DVFS_MIF_L0>;
+				preview_high_speed_fps_i2c = <0>;
+
+				video_high_speed_60fps_int = <DVFS_INT_L0>;
+				video_high_speed_60fps_cam = <DVFS_CAM_L1>;
+				video_high_speed_60fps_mif = <DVFS_MIF_L0>;
+				video_high_speed_60fps_i2c = <0>;
+
+				video_high_speed_120fps_int = <DVFS_INT_L0>;
+				video_high_speed_120fps_cam = <DVFS_CAM_L1>;
+				video_high_speed_120fps_mif = <DVFS_MIF_L0>;
+				video_high_speed_120fps_i2c = <0>;
+
+				max_int = <DVFS_INT_L0>;
+				max_cam = <DVFS_CAM_L0>;
+				max_mif = <DVFS_MIF_L0>;
+				max_i2c = <0>;
+			};
+
+			table1 {
+				desc = "HAL3 version";
+
+				default_int = <DVFS_INT_L0>;
+				default_cam = <DVFS_CAM_L1>;
+				default_mif = <DVFS_MIF_L0>;
+				default_i2c = <0>;
+
+				front_preview_int = <DVFS_INT_L0>;
+				front_preview_cam = <DVFS_CAM_L2>;
+				front_preview_mif = <DVFS_MIF_L0>;
+				front_preview_i2c = <0>;
+
+				front_capture_int = <DVFS_INT_L0>;
+				front_capture_cam = <DVFS_CAM_L2>;
+				front_capture_mif = <DVFS_MIF_L0>;
+				front_capture_i2c = <0>;
+
+				front_video_int = <DVFS_INT_L0>;
+				front_video_cam = <DVFS_CAM_L2>;
+				front_video_mif = <DVFS_MIF_L0>;
+				front_video_i2c = <0>;
+
+				front_video_capture_int = <DVFS_INT_L0>;
+				front_video_capture_cam = <DVFS_CAM_L2>;
+				front_video_capture_mif = <DVFS_MIF_L0>;
+				front_video_capture_i2c = <0>;
+
+				front_vt1_int = <DVFS_INT_L0>;
+				front_vt1_cam = <DVFS_CAM_L2>;
+				front_vt1_mif = <DVFS_MIF_L0>;
+				front_vt1_i2c = <0>;
+
+				front_vt2_int = <DVFS_INT_L0>;
+				front_vt2_cam = <DVFS_CAM_L2>;
+				front_vt2_mif = <DVFS_MIF_L0>;
+				front_vt2_i2c = <0>;
+
+				rear_preview_int = <DVFS_INT_L0>;
+				rear_preview_cam = <DVFS_CAM_L1>;
+				rear_preview_mif = <DVFS_MIF_L0>;
+				rear_preview_i2c = <0>;
+
+				rear_capture_int = <DVFS_INT_L0>;
+				rear_capture_cam = <DVFS_CAM_L1>;
+				rear_capture_mif = <DVFS_MIF_L0>;
+				rear_capture_i2c = <0>;
+
+				rear_video_int = <DVFS_INT_L0>;
+				rear_video_cam = <DVFS_CAM_L1>;
+				rear_video_mif = <DVFS_MIF_L0>;
+				rear_video_i2c = <0>;
+
+				rear_video_capture_int = <DVFS_INT_L0>;
+				rear_video_capture_cam = <DVFS_CAM_L1>;
+				rear_video_capture_mif = <DVFS_MIF_L0>;
+				rear_video_capture_i2c = <0>;
+
+				preview_high_speed_fps_int = <DVFS_INT_L0>;
+				preview_high_speed_fps_cam = <DVFS_CAM_L1>;
+				preview_high_speed_fps_mif = <DVFS_MIF_L0>;
+				preview_high_speed_fps_i2c = <0>;
+
+				video_high_speed_60fps_int = <DVFS_INT_L0>;
+				video_high_speed_60fps_cam = <DVFS_CAM_L1>;
+				video_high_speed_60fps_mif = <DVFS_MIF_L0>;
+				video_high_speed_60fps_i2c = <0>;
+
+				video_high_speed_120fps_int = <DVFS_INT_L0>;
+				video_high_speed_120fps_cam = <DVFS_CAM_L1>;
+				video_high_speed_120fps_mif = <DVFS_MIF_L0>;
+				video_high_speed_120fps_i2c = <0>;
+
+				max_int = <DVFS_INT_L0>;
+				max_cam = <DVFS_CAM_L0>;
+				max_mif = <DVFS_MIF_L0>;
+				max_i2c = <0>;
+			};
+		};
+	};
+
+	fimc_is_module_3l2: fimc-is_sensor_3l2@2D {
+		compatible = "samsung,sensor-module-3l2";
+
+		pinctrl-names = "pin0", "pin1", "pin2";
+		pinctrl-0 = <>;
+		pinctrl-1 = <&fimc_is_mclk0_in &fimc_is_flash>;
+		pinctrl-2 = <&fimc_is_mclk0_fn &fimc_is_flash>;
+
+		position = <0>; /* Rear:0. Front:1 */
+		id = <0>; /* sensor node id */
+		mclk_ch = <0>;
+		sensor_i2c_ch = <0>; /* I2C 0 */
+		sensor_i2c_addr = <0x2D>;
+
+		gpio_reset = <&gpd1 1 0x1>; /* sensor reset */
+		status = "okay";
+
+		af {
+			product_name = <13>; /* DW9807 */
+			i2c_addr = <0x0C>;
+			i2c_ch = <1>; /* I2C 0 */
+		};
+
+		/* TODO : need to update */
+		flash {
+			product_name = <13>; /* FLASH_I2C */
+			flash_first_gpio = <2>;
+			flash_second_gpio = <1>;
+		};
+	};
+
+	fimc_is_module_5e3: fimc-is_sensor_5e3@10 {
+		compatible = "samsung,sensor-module-5e3";
+
+		pinctrl-names = "pin0", "pin1", "pin2";
+		pinctrl-0 = <>;
+		pinctrl-1 = <&fimc_is_mclk0_in>;
+		pinctrl-2 = <&fimc_is_mclk0_fn>;
+
+		position = <1>; /* Rear:0. Front:1 */
+		id = <1>; /* sensor node id */
+		mclk_ch = <0>;
+		sensor_i2c_ch = <0>;
+		sensor_i2c_addr = <0x10>;
+
+		gpio_reset = <&gpd1 6 0x1>;
+		status = "okay";
+	};
+
+	hsi2c_2: hsi2c@138A0000 {
+		 gpios = <&gpf0 0 0 &gpf0 1 0>;
+		 status = "okay";
+		 clock-frequency = <400000>;
+
+		 pinctrl-names = "default", "on_i2c";
+		 pinctrl-0 = <&hs_i2c2_bus>;
+		 pinctrl-1 = <&hs_i2c2_bus>;
+
+		 fimc-is-3l2@2D {
+			 compatible = "samsung,exynos5-fimc-is-cis-3l2";
+			 reg = <0x2D>; /* 1 bit right shift */
+			 id = <0>; /* matching sensor id */
+			 sensor_f_number = <2>; /* f number 1.9 */
+			 setfile = "default";
+		 };
+
+		 fimc-is-5e3@10 {
+			 compatible = "samsung,exynos5-fimc-is-cis-5e3";
+			 reg = <0x10>; /* 1 bit right shift */
+			 id = <1>; /* matching sensor id */
+			 sensor_f_number = <4>; /* f number 2.2 */
+			 setfile = "default";
+		 };
+	};
+
+	hsi2c_3: hsi2c@138C0000 {
+		gpios = <&gpf0 2 0 &gpf0 3 0>;
+		status = "okay";
+		clock-frequency = <400000>;
+
+		pinctrl-names = "default", "on_i2c";
+		pinctrl-0 = <&hs_i2c3_bus>;
+		pinctrl-1 = <&hs_i2c3_bus>;
+
+		rear_eeprom@58 {
+			compatible = "samsung,rear-eeprom-i2c";
+			reg = <0x58>;
+		};
+
+		fimc-is-actuator@0C {
+			 compatible = "samsung,exynos5-fimc-is-actuator-dw9807";
+			 reg = <0x0C>;
+			 id = <0>; /* matching sensor id */
+		};
+	};
+
+	#define SENSOR_SCENARIO_NORMAL      0
+	#define SENSOR_SCENARIO_VISION      1
+	#define SENSOR_SCENARIO_EXTERNAL    2
+	#define SENSOR_SCENARIO_OIS_FACTORY 3
+	#define SENSOR_SCENARIO_VIRTUAL     9
+	#define FLITE_ID_NOTHING 100
+
+	fimc_is_sensor0: fimc_is_sensor0@14420000 {
+		scenario = <SENSOR_SCENARIO_NORMAL>;    /* Normal, Vision, OIS etc */
+		id = <0>;
+		csi_ch = <0>;
+		flite_ch = <0>;
+		is_bns = <1>;
+		status = "okay";
+	};
+
+	fimc_is_sensor1: fimc_is_sensor1@14420000 {
+		scenario = <SENSOR_SCENARIO_NORMAL>;    /* Normal, Vision, OIS etc */
+		id = <1>;
+		csi_ch = <0>;
+		flite_ch = <0>;
+		is_bns = <1>;
+		status = "okay";
+	};
+
+	exynos_rgt {
+		compatible = "samsung,exynos-rgt";
+	};
+
+	but_zones: but_zones {
+		#list-but-cells = <3>;
+	};
+
+	pinctrl@139B0000 {
+		nfc_pwr_en: nfc-pwr-en {
+			samsung,pins = "gpf1-0";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+		};
+	};
+
+	speedy@10510000 {
+		status = "okay";
+
+		audio_codec_cod9002x: cod9002x@03 {
+			compatible = "codec,cod9002x";
+			reg = <0x03>;
+			i2c-speedy-address;
+			vdd-supply = <&ldo13_reg>;
+			pinctrl-names = "default";
+			/*pinctrl-0 = <&cod9002_irq>;
+			interrupt-parent = <&gpa0>;
+			gpios = <&gpa0 3 0xf>;*/
+			mic-bias1-voltage = <1>;
+			mic-bias2-voltage = <1>;
+			mic-bias-ldo-voltage = <3>;
+			use-btn-adc-mode;
+			use-jack-pullup-mode;
+			io-channels = <&exynos_adc 2>;
+			io-channel-names = "adc-jack";
+			#io-channel-cells = <1>;
+			io-channel-ranges;
+			but-zones-list = <&but_zones 226 0 260>,
+				<&but_zones 582 261 336>,
+				<&but_zones 115 337 532>,
+				<&but_zones 114 533 1105>;
+			mic-adc-range = <1340>;
+			btn-press-delay = <0>;
+		};
+
+		s2mpu06mfd@00 {
+			compatible = "samsung,s2mpu06mfd";
+			reg = <0x00>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&if_irq>;
+			s2mpu06,wakeup = "enabled";
+			s2mpu06,irq-gpio = <&gpa0 5 0>;
+
+			i2c-speedy-address;
+			cache_data = <1>;
+
+			/* RTC: wtsr/smpl */
+			wtsr_en = "enabled"; /* enable */
+			smpl_en = "enabled"; /* enable */
+			wtsr_timer_val = <3>;   /* 1000ms */
+			smpl_timer_val = <0>;   /* 100ms */
+			check_jigon = <0>; /* do not check jigon */
+			/* RTC: If it's first boot, reset rtc to 1/1/2017 12:00:00(Sun) */
+			init_time,sec = <0>;
+			init_time,min = <0>;
+			init_time,hour = <12>;
+			init_time,mday = <1>;
+			init_time,mon = <0>;
+			init_time,year = <117>;
+			init_time,wday = <0>;
+
+			samsung,codec-interrupt = <&audio_codec_cod9002x>;
+			s2mpu06-keys {
+				button@1 {
+					label = "pmic-keys: KEY_POWER";
+					linux,code = <116>;
+					wakeup = <1>;
+				};
+			};
+
+			regulators {
+			/* BUCK1 has different settings at each HW revision */
+				buck2_reg: BUCK2 {
+					regulator-name = "BUCK2";
+					regulator-min-microvolt = <800000>;
+					regulator-max-microvolt = <2800000>;
+					regulator-always-on;
+					regulator-boot-on;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <3>;
+				};
+
+				buck3_reg: BUCK3 {
+					regulator-name = "BUCK3";
+					regulator-min-microvolt = <800000>;
+					regulator-max-microvolt = <2800000>;
+					regulator-always-on;
+					regulator-boot-on;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <3>;
+				};
+
+				ldo1_reg: LDO1 {
+					regulator-name = "vdd_ldo1";
+					regulator-min-microvolt = <500000>;
+					regulator-max-microvolt = <1300000>;
+					regulator-always-on;
+					regulator-boot-on;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <1>;
+				};
+
+				ldo2_reg: LDO2 {
+					regulator-name = "vdd_ldo2";
+					regulator-min-microvolt = <1500000>;
+					regulator-max-microvolt = <2000000>;
+					regulator-boot-on;
+					regulator-always-on;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <3>;
+				};
+
+				ldo3_reg: LDO3 {
+					regulator-name = "vdd_ldo3";
+					regulator-min-microvolt = <800000>;
+					regulator-max-microvolt = <1500000>;
+					regulator-boot-on;
+					regulator-always-on;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <3>;
+				};
+
+				ldo4_reg: LDO4 {
+					regulator-name = "vqmmc";
+					regulator-min-microvolt = <1700000>;
+					regulator-max-microvolt = <3350000>;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <0>;
+				};
+
+				ldo5_reg: LDO5 {
+					regulator-name = "vdd_ldo5";
+					regulator-min-microvolt = <1700000>;
+					regulator-max-microvolt = <3350000>;
+					regulator-boot-on;
+					regulator-always-on;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <3>;
+				};
+
+				ldo6_reg: LDO6 {
+					regulator-name = "vdd_ldo6";
+					regulator-min-microvolt = <500000>;
+					regulator-max-microvolt = <1300000>;
+					regulator-boot-on;
+					regulator-always-on;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <3>;
+				};
+
+				ldo7_reg: LDO7 {
+					regulator-name = "vdd_ldo7";
+					regulator-min-microvolt = <800000>;
+					regulator-max-microvolt = <1300000>;
+					regulator-boot-on;
+					regulator-always-on;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <1>;
+				};
+
+				ldo8_reg: LDO8 {
+					regulator-name = "vdd_ldo8";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <3375000>;
+					regulator-boot-on;
+					regulator-always-on;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <1>;
+				};
+
+				ldo13_reg: LDO13 {
+					regulator-name = "vdd_ldo13";
+					regulator-min-microvolt = <800000>;
+					regulator-max-microvolt = <2000000>;
+					regulator-ramp-delay = <12000>;
+					regulator-always-on;
+					regulator-boot-on;
+					regulator-initial-mode = <3>;
+				};
+
+				ldo14_reg: LDO14 {
+					regulator-name = "vemmc";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <3375000>;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <0>;
+				};
+
+				ldo15_reg: LDO15 {
+					regulator-name = "vqemmc";
+					regulator-min-microvolt = <800000>;
+					regulator-max-microvolt = <2000000>;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <0>;
+				};
+
+				/* ldo16 is different at each revision */
+
+				ldo17_reg: LDO17 {
+					regulator-name = "VDD18_CAM_SENSOR_IO";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <1800000>;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <0>;
+				};
+
+				ldo18_reg: LDO18 {
+					regulator-name = "VDD28_CAM_AF";
+					regulator-min-microvolt = <2800000>;
+					regulator-max-microvolt = <2800000>;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <0>;
+				};
+
+				ldo19_reg: LDO19 {
+					regulator-name = "vtouch_2.2v";
+					regulator-min-microvolt = <2200000>;
+					regulator-max-microvolt = <2200000>;
+					regulator-boot-on;
+				};
+
+				ldo20_reg: LDO20 {
+					regulator-name = "LCD_1P8";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <1800000>;
+					regulator-boot-on;
+					regulator-initial-mode = <3>;
+				};
+
+				ldo21_reg: LDO21 {
+					regulator-name = "vdd_ldo21";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <3375000>;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <0>;
+				};
+
+				ldo22_reg: LDO22 {
+					regulator-name = "vdd_ldo22";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <3375000>;
+					regulator-always-on;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <3>;
+				};
+
+				ldo23_reg: LDO23 {
+					regulator-name = "VDD23_CAM_CORE_1P2";
+					regulator-min-microvolt = <1200000>;
+					regulator-max-microvolt = <1200000>;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <0>;
+				};
+
+				ldo24_reg: LDO24 {
+					regulator-name = "AVDD24_CAM_2P8";
+					regulator-min-microvolt = <2800000>;
+					regulator-max-microvolt = <2800000>;
+					regulator-ramp-delay = <12000>;
+					regulator-initial-mode = <0>;
+				};
+			};
+		};
+
+		fimc_is_flash@06 {
+			compatible = "samsung,sensor-flash-i2c";
+			reg = <0x06>;
+			id = <0>;
+			flash-gpio = <&gpa0 0 0>;
+			flash_current = <600>;
+			preflash_current = <160>;
+			movie_current = <160>;
+			torch_current = <80>;
+			factory_current = <160>;
+			torch_level1 = <0>;	/* S2PMU06 TORCH_ISET Value 0000(0) : 20mA */
+			torch_level2 = <1>;	/* S2PMU06 TORCH_ISET Value 0001(1) : 40mA */
+			torch_level3 = <2>;	/* S2PMU06 TORCH_ISET Value 0010(2) : 60mA */
+			torch_level4 = <3>;	/* S2PMU06 TORCH_ISET Value 0011(3) : 80mA */
+			torch_level5 = <6>;	/* S2PMU06 TORCH_ISET Value 0110(6) : 140mA */
+			i2c-speedy-address;
+		};
+	};
+
+	/* samsung,exynos-pm has different suspend mode at each HW revision */
+	acpm: acpm@11C88000 {
+		compatible = "samsung,exynos-acpm";
+		#address-cells = <2>;
+		#size-cells = <1>;
+		reg = <0x0 0x11C88000 0x1000>;
+
+		log_base = <0x02047700>;
+		time_len = <32>;
+		log_buff_size = <16>;
+		log_buff_len = <380>;
+		debug_logging_level = <0>;
+		logging_period = <500>;
+
+		dump_base = <0x02046000>;
+		dump_size = <0x3800>;
+
+		plugins {
+			framework {
+				attach = <2>;
+				id = <0>;
+				acpm-ipc-channel = <&framework_ch>;
+			};
+		};
+	};
+
+	acpm_ipc: acpm_ipc@11C00000 {
+		compatible = "samsung,exynos-acpm-ipc";
+		#address-cells = <2>;
+		#size-cells = <1>;
+
+		interrupts = <0 22 0>;
+		reg = <0x0 0x11C00000 0x1000>;
+
+		channels {
+			polling = <1>;
+			max_buff_size = <0x300>;
+			framework_ch: framework@0x02047400 {
+				channel_id = <0>;
+				rx_buff = <0x02047400>;
+				tx_buff = <0x02047480>;
+				buff_size = <12>;
+				buff_len = <8>;
+				direction_buff = <412>;
+			};
+		};
+	};
+
+	pinctrl@139C0000 {
+		fm_lna_en: fm-lna-en {
+			samsung,pins = "gpc2-2";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-val = <0>;
+		};
+	};
+
+	fm_gpio: fm@14840000 {
+		elna_gpio = <&gpc2 2 0x1>; /* FM_LNA_EN */
+		pinctrl-names = "default";
+		pinctrl-0 = <&fm_lna_en>;
+		fm_iclk_aux = <0>;
+		fm_tc_on = <0>;
+		agc_hyst = <0xFF23>;
+		status = "okay";
+	};
+
+	s1403x: s1403x@14880000 {
+		pinctrl-names = "default", "idle";
+		pinctrl-0 = <&i2s_pmic_bus
+			&i2s_codec_clk>;
+		pinctrl-1 = <&i2s_pmic_bus_idle>;
+		status = "okay";
+	};
+
+	i2s_dummy: dummy-i2s {
+		compatible = "samsung,dummy-i2s";
+		status = "okay";
+	};
+
+	i2s0: i2s@148A0000 {
+		status = "okay";
+	};
+
+	i2s1: i2s@148B0000 {
+		status = "okay";
+	};
+
+	audio_cp_dummy: cp_dummy {
+		compatible = "samsung,cp_dummy";
+		status = "okay";
+	};
+
+	audio_fm_dummy: fm_dummy {
+		compatible = "samsung,fm_dummy";
+		status = "okay";
+	};
+
+	audio_bt_dummy: bt_dummy {
+		compatible = "samsung,bt_dummy";
+		status = "okay";
+	};
+
+	audio_codec_dummy: dummy-codec {
+		compatible = "samsung,dummy-codec";
+		status = "okay";
+	};
+
+	sound {
+		compatible = "samsung,universal7570-cod9002x";
+		samsung,audio-cpu = <&i2s0 /* primary */
+			&i2s0              /* secondary */
+			&audio_cp_dummy
+			&audio_bt_dummy
+			&audio_fm_dummy
+			&i2s1             /*AMP for AP */
+			&audio_cp_dummy   /*AMP for CP */
+			&eax
+			&eax
+			&eax
+			&eax>;
+		samsung,audio-codec = <&audio_codec_cod9002x
+			&audio_codec_cod9002x
+			&audio_codec_cod9002x
+			&audio_codec_dummy
+			&audio_codec_cod9002x
+			&audio_codec_dummy
+			&audio_codec_dummy
+			&audio_codec_cod9002x
+			&audio_codec_cod9002x
+			&audio_codec_cod9002x
+			&audio_codec_cod9002x>;
+
+		samsung,auxdev = <&s1403x>;
+		mic-bias-mode = <1 0 2 0>;
+		status = "okay";
+	};
+
+	sec_thermistor@0 {
+		compatible = "samsung,sec-ap-thermistor";
+		status = "okay";
+
+		adc_array = <285 296 306 317 327 338 350 361 373 384
+				396 408 420 433 445 457 474 491 508 525
+				541 563 584 605 626 648 668 690 711 732
+				753 776 798 822 844 868 898 928 958 988
+				1018 1051 1084 1117 1150 1183 1217 1251 1286 1320
+				1354 1395 1435 1476 1516 1557 1603 1649 1696 1743
+				1789 1831 1874 1917 1959 2001 2049 2097 2145 2194
+				2242 2291 2340 2389 2437 2485 2531 2576 2622 2667
+				2713 2755 2797 2838 2880 2922 2965 3007 3050 3092
+				3135 3168 3201 3235 3268 3301 3330 3360 3389 3419
+				3448 3470 3492 3514 3536 3558 3582 3607 3631 3656 3680>;
+		temp_array = <900 890 880 870 860 850 840 830 820 810
+					   800 790 780 770 760 750 740 730 720 710
+					   700 690 680 670 660 650 640 630 620 610
+					   600 590 580 570 560 550 540 530 520 510
+					   500 490 480 470 460 450 440 430 420 410
+					   400 390 380 370 360 350 340 330 320 310
+					   300 290 280 270 260 250 240 230 220 210
+					   200 190 180 170 160 150 140 130 120 110
+					   100 90 80 70 60 50 40 30 20 10
+					   0 (-10) (-20) (-30) (-40) (-50) (-60) (-70) (-80) (-90)
+					   (-100) (-110) (-120) (-130) (-140) (-150) (-160) (-170) (-180) (-190) (-200)>;
+		io-channels = <&exynos_adc 0>;
+		io-channel-names = "adc-ap-temp";
+		io-channel-ranges;
+	};
+
+	argos {
+		compatible = "samsung,argos";
+		#address-cells = <1>;
+		/*  The device number should be assigned for each device, e.g. "boot_device@1" and "boot_device@2".
+		    Duplicated number is not allowed. Please refer the below example. */
+
+		/* Table Format should be
+		 * <Throughput(Mbps) CPU_min CPU_max MIF INT Task IRQ>
+		 * CPU_min : CPU minimum frequency lock. 0 means not set,
+		 * CPU_max : CPU maximum frequency lock. 0 means not set,
+		 * MIF : MIF frequency lock. 0 means not set,
+		 * INT : INT frequency lock. 0 means not set,
+		 * Task : 1 - Set task affinity lock.
+		 *        0 - Not set or unlock,
+		 *              Task affinity should be predefined driver's code.
+		 * IRQ : 1 - Set irq affinity lock.
+		 *       0 - Not set or unlock,
+		 *              Task affinity should be predefined driver's code.
+		 */
+
+		boot_device@1 {
+			net_boost,label="IPC";
+			net_boost,node="rmnet0 rmnet1 rmnet2 rmnet3 rmnet4 rmnet5 rmnet6 rmnet7 umts_dm0";
+			net_boost,table_size = <4>;
+			net_boost,table= <  1 0 0 0 0 0 1
+					   20 829000 0 416000 100000 0 1
+					   50 1040000 0 825000 100000 0 1
+					  100 1430000 0 825000 100000 0 1>;
+		};
+
+		boot_device@2 {
+			net_boost,label="USB";
+			net_boost,node="rndis0";
+			net_boost,table_size = <1>;
+			net_boost,table= < 1 0 0 0 0 0 1 >;
+		};
+
+		boot_device@3 {
+			net_boost,label="P2P";
+			net_boost,node="p2p-wlan0-0";
+			net_boost,table_size = <3>;
+			net_boost,table= <
+				30 1274000 0 415000 0 0 0
+				50 1378000 0 415000 0 0 0
+				90 1378000 0 666000 0 1 1
+				>;
+		};
+		boot_device@4 {
+			net_boost,label="WIFI";
+			net_boost,node="wlan0";
+			net_boost,table_size = <3>;
+			net_boost,table= <
+				10 1040000 0 415000 0 0 0
+				60 1378000 0 666000 0 1 1
+				120 1378000 0 666000 0 1 1
+				>;
+		 };
+		/*
+		boot_device@5 {
+			net_boost,label="CLAT";
+			net_boost,node="clat clat4 v4-rmnet0 v4-rmnet1 v4-rmnet2 v4-rmnet3 v4-rmnet4 v4-rmnet5 v4-rmnet6 v4-rmnet7";
+			net_boost,table_size = <3>;
+			net_boost,table= <120 0 0 825000 0 0 0
+				130 0 0 825000 0 0 0
+				150 0 0 825000 0 0 0>;
+		};
+		*/
+	};
+
+	input_booster {
+		status = "okay";
+		compatible = "input_booster";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		booster_key@1 {
+			input_booster,label = "KEY";
+			input_booster,type = <0>;	/* BOOSTER_DEVICE_KEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <1274000>;
+			input_booster,hmp_boost = <0>;
+			input_booster,kfc_freqs = <1274000>;
+			input_booster,mif_freqs = <0>;
+			input_booster,int_freqs = <0>;
+
+			/* Time table */
+			input_booster,head_times = <500>;
+			input_booster,tail_times = <500>;
+			input_booster,phase_times = <0>;
+		};
+		booster_key@2 {
+			input_booster,label = "TOUCHKEY";
+			input_booster,type = <1>;	/* BOOSTER_DEVICE_TOUCHKEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <1274000>;
+			input_booster,hmp_boost = <0>;
+			input_booster,kfc_freqs = <1274000>;
+			input_booster,mif_freqs = <0>;
+			input_booster,int_freqs = <0>;
+
+			/* Time table */
+			input_booster,head_times = <0>;
+			input_booster,tail_times = <300>;
+			input_booster,phase_times = <0>;
+		};
+		booster_key@3 {
+			input_booster,label = "TOUCH";
+			input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+
+			input_booster,levels = <1 2 3>;
+
+			/* Frequency table */
+			/* for level	:	1_Head, 2_Head, 2_Tail */
+			input_booster,cpu_freqs = <1274000 1274000 962000>;
+			input_booster,hmp_boost = <0 0 0>;
+			input_booster,kfc_freqs = <1274000 1274000 962000>;
+			input_booster,mif_freqs = <0 0 0>;
+			input_booster,int_freqs = <0 0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 200 0>;
+			input_booster,tail_times = <0 0 300>;
+			input_booster,phase_times = <0 0 0>;
+		};
+		booster_key@4 { // Input Booster +
+			input_booster,label = "MULTITOUCH";
+			input_booster,type = <3>;	/* BOOSTER_DEVICE_MULTITOUCH */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1378000 1040000>;
+			input_booster,hmp_boost = <0 0>;
+			input_booster,kfc_freqs = <1378000 1040000>;
+			input_booster,mif_freqs = <0 0>;
+			input_booster,int_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <1000 0>;
+			input_booster,tail_times = <0 500>;
+			input_booster,phase_times = <0 0>;
+		};
+		booster_key@5 {
+			input_booster,label = "KEYBOARD";
+			input_booster,type = <4>;	/* BOOSTER_DEVICE_KEYBOARD */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1274000 1274000>;
+			input_booster,hmp_boost = <0 0>;
+			input_booster,kfc_freqs = <1274000 1274000>;
+			input_booster,mif_freqs = <0 0>;
+			input_booster,int_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 200>;
+			input_booster,tail_times = <0 0>;
+			input_booster,phase_times = <0 0>;
+		};
+		booster_key@6 {
+			input_booster,label = "MOUSE";
+			input_booster,type = <5>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1274000 962000>;
+			input_booster,hmp_boost = <0 0>;
+			input_booster,kfc_freqs = <1274000 962000>;
+			input_booster,mif_freqs = <0 0>;
+			input_booster,int_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+			input_booster,phase_times = <0 0>;
+		};
+		booster_key@7 {
+			input_booster,label = "MOUSE WHEEL";
+			input_booster,type = <6>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1274000 0>;
+			input_booster,hmp_boost = <0 0>;
+			input_booster,kfc_freqs = <1274000 0>;
+			input_booster,mif_freqs = <0 0>;
+			input_booster,int_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 0>;
+			input_booster,phase_times = <0 0>;
+		};
+		booster_key@8 {
+			input_booster,label = "PEN & HOVER";
+			input_booster,type = <7>;	/* BOOSTER_DEVICE_PEN & HOVER */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1274000 962000>;
+			input_booster,hmp_boost = <0 0>;
+			input_booster,kfc_freqs = <1274000 962000>;
+			input_booster,mif_freqs = <0 0>;
+			input_booster,int_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+			input_booster,phase_times = <0 0>;
+		};
+		booster_key@9 {
+			input_booster,label = "GAMEPAD";
+			input_booster,type = <8>;	/* BOOSTER_DEVICE_GAMEPAD */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1378000 829000>;
+			input_booster,hmp_boost = <0 0>;
+			input_booster,kfc_freqs = <1378000 829000>;
+			input_booster,mif_freqs = <0 0>;
+			input_booster,int_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+			input_booster,phase_times = <0 0>;
+		}; // Input Booster -
+		/* If you need to add new key type, add it this position */
+	};
+};
+
+
