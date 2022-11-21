@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# TOUCH driver configuration
+#
+
+config TOUCHSCREEN_STM_FST2CA78Y_I2C
+    tristate "STM FST2CA78Y I2C Touchscreen"
+    depends on I2C
+    help
+      Say Y here if you want support for STM I2C touchscreen controllers.
+      If unsure, say N.

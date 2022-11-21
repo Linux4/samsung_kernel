@@ -1,0 +1,4 @@
+config SEC_UPLOAD_CAUSE
+	tristate "SEC Panic Notifier Updating Upload Cause"
+	help
+	  TODO: help is not ready.

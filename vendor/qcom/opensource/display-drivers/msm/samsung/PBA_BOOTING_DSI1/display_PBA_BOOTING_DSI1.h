@@ -1,0 +1,1 @@
+#define CONFIG_PANEL_PBA_FHD_DSI1 1

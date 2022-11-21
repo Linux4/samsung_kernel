@@ -1,0 +1,54 @@
+&tlmm {
+	main_bat_enb_default: main_bat_enb_default {
+		GPIO_CONFIG_PUD(AP,tlmm,14, FUNC_OUTPUT, PULL_NONE);
+	};
+};
+
+&tlmm {
+	main_bat_enb2_default: main_bat_enb2_default {
+		GPIO_CONFIG_PUD(AP,tlmm,203, FUNC_OUTPUT, PULL_NONE);
+	};
+};
+
+&tlmm {
+	sub_bat_enb_default: sub_bat_enb_default {
+		GPIO_CONFIG_PUD(AP,tlmm,43, FUNC_OUTPUT, PULL_NONE);
+	};
+};
+
+&qupv3_se11_i2c {
+	status = "okay";
+
+	s2asl01_limiter_main: s2asl01-limiter-main@38 {
+		compatible = "samsung,s2asl01-limiter";
+		reg = <0x38>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&main_bat_enb_default &main_bat_enb2_default>;
+
+		limiter,limiter_name = "s2asl01-limiter-main";
+		limiter,bat_type = <0x1>; /* LIMITER_MAIN */
+
+		limiter,main_bat_det_gpio = <SEC_GPIO_REF(AP,tlmm,122) 0>;
+		limiter,main_bat_enb_gpio = <SEC_GPIO_REF(AP,tlmm,14) 0>;
+		limiter,main_bat_enb2_gpio = <SEC_GPIO_REF(AP,tlmm,203) 0>;
+	};
+};
+
+&qupv3_se11_i2c {
+	status = "okay";
+
+	s2asl01_limiter_sub: s2asl01-limiter-sub@39 {
+		compatible = "samsung,s2asl01-limiter";
+		reg = <0x39>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&sub_bat_enb_default>;
+
+		limiter,limiter_name = "s2asl01-limiter-sub";
+		limiter,bat_type = <0x2>; /* LIMITER_SUB */
+
+		limiter,sub_bat_det_gpio = <SEC_GPIO_REF(AP,tlmm,121) 0>;
+		limiter,sub_bat_enb_gpio = <SEC_GPIO_REF(AP,tlmm,43) 0>;
+	};
+};
