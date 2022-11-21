@@ -1,0 +1,219 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "sm8150p-sec-d2xq2-common.dtsi"
+#include "sm8150-sec-d2xq-optics-r00.dtsi"
+
+&soc {
+	bt_driver {
+		compatible = "bcm,btdriver";  //bt_en
+		pinctrl-names = "default";
+		bcm,bt-reset-gpio = <&expander_gpios 0 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
+	bt_bluesleep {
+		compatible = "bcm,bluesleep";
+		bcm,bt-wake-gpio = <&tlmm 64 0>;
+		bcm,bt-host-wake-gpio = <&tlmm 54 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&bt_wake_default &bt_hostwake_default>;
+		status = "okay";
+	};
+
+	rgb {
+		device_type = "star1";
+		rgb-name = "led_b", "led_r", "led_g", "led_w";
+		octa-code = "_u", "_bk", "_gd", "_sv", "_bl";
+
+		en-lowpower-mode;
+
+		normal_powermode_current = <10>;
+		low_powermode_current = <10>;
+		br_ratio_r = <750>;
+		br_ratio_g = <750>;
+		br_ratio_b = <130>;
+		br_ratio_r_low = <70>;
+		br_ratio_g_low = <1>;
+		br_ratio_b_low = <19>;
+
+		normal_powermode_current_u = <10>;
+		low_powermode_current_u = <10>;
+		br_ratio_r_u = <750>;
+		br_ratio_g_u = <750>;
+		br_ratio_b_u = <130>;
+		br_ratio_r_low_u = <70>;
+		br_ratio_g_low_u = <1>;
+		br_ratio_b_low_u = <19>;
+
+		normal_powermode_current_bk = <10>;
+		low_powermode_current_bk = <10>;
+		br_ratio_r_bk = <750>;
+		br_ratio_g_bk = <70>;
+		br_ratio_b_bk = <130>;
+		br_ratio_r_low_bk = <70>;
+		br_ratio_g_low_bk = <1>;
+		br_ratio_b_low_bk = <19>;
+
+		normal_powermode_current_gd = <10>;
+		low_powermode_current_gd = <10>;
+		br_ratio_r_gd = <750>;
+		br_ratio_g_gd = <70>;
+		br_ratio_b_gd = <130>;
+		br_ratio_r_low_gd = <70>;
+		br_ratio_g_low_gd = <1>;
+		br_ratio_b_low_gd = <19>;
+
+		normal_powermode_current_sv = <10>;
+		low_powermode_current_sv = <10>;
+		br_ratio_r_sv = <750>;
+		br_ratio_g_sv = <70>;
+		br_ratio_b_sv = <130>;
+		br_ratio_r_low_sv = <70>;
+		br_ratio_g_low_sv = <1>;
+		br_ratio_b_low_sv = <19>;
+
+		normal_powermode_current_bl = <10>;
+		low_powermode_current_bl = <10>;
+		br_ratio_r_bl = <750>;
+		br_ratio_g_bl = <70>;
+		br_ratio_b_bl = <130>;
+		br_ratio_r_low_bl = <70>;
+		br_ratio_g_low_bl = <1>;
+		br_ratio_b_low_bl = <19>;
+	};
+
+	hall {
+                status = "disabled";
+                compatible = "hall";
+                linux,input-type = <1>;
+                linux,code = <21>;
+                hall,gpio_flip_cover = <&pm8150_gpios 9 0x1>;
+                debounce-interval = <15>;
+		pinctrl-names = "default";
+	        pinctrl-0 = <&hall_default>;
+        };
+
+        certify_hall {
+		status = "okay";
+                compatible = "certify_hall";
+                linux,input-type = <1>;
+                linux,code = <27>;
+                certify_hall,gpio_certify_cover = <&pm8150l_gpios 3 0x1>;
+                debounce-interval = <15>;
+		pinctrl-names = "default";
+	        pinctrl-0 = <&certify_hall_default>;
+        };
+
+	sound {
+		mixer-paths = "mixer_paths_tavil_old.xml";
+	};
+
+	i2c_17: i2c@17 { /* SW I2C */
+		status = "ok";
+
+		cell-index = <17>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 79 0 /* sda */
+			 &tlmm 80 0 /* scl */
+		>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_i2c_active>;
+
+		sx9330-i2c@28 {
+			compatible = "sx9330";
+			reg = <0x28>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&grip_int_active>;
+
+			interrupt-parent = <&tlmm>;
+			interrupts = <125 0>;
+
+			sx9330,nirq-gpio = <&tlmm 125 0>;
+
+        		sx9330,scanperiod_reg = <0x00000032>; /* scanperiod : 102ms */
+        		sx9330,gnrlctrl2_reg = <0x00FF0002>;
+        		sx9330,afeparamsph0_reg = <0x0000021F>;
+        		sx9330,afephph0_reg = <0x3FBB8548>;
+        		sx9330,adcfiltph0_reg = <0x0510101D>;
+        		sx9330,afeparamsph1_reg = <0x00001E2F>;  /* again : 9.9pF, sampling freq : 111.11 khz */
+        		sx9330,adcfiltph1_reg = <0x00105815>;    /* threshold : 3872 */
+        		sx9330,avgbfilt_reg = <0x60600C00>;   /* AVGPOSFILT : 1/256, AVGNEGFILT : 1/2 */
+        		sx9330,avgafilt_reg = <0x00000000>;
+        		sx9330,advdig3_reg = <0x00000000>;
+        		sx9330,advdig4_reg = <0x00000000>;
+        		sx9330,refcorra_reg = <0x00000000>;		
+		};
+	};
+};
+
+&cs35l41_r {
+	reset-gpios = <&tlmm 148 0>;
+	pinctrl-0 = <&cs35l41_int_active &cs35l41_rst_default>;
+};
+
+&qupv3_se14_i2c {
+	status = "ok";
+
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&qupv3_se14_i2c_active>;
+	pinctrl-1 = <&qupv3_se14_i2c_sleep>;
+
+	ptn36502@1a {
+		compatible = "ptn36502_driver";
+		reg = <0x1a>;
+		combo,con_sel = <&tlmm 38 0>;
+	};
+};
+
+&sdhc_2 {
+		status = "disabled";
+};
+
+&qupv3_se8_i2c { /* keyless */
+	fsr@49 {
+		stm,rst_gpio = <&tlmm 91 GPIO_ACTIVE_LOW>;
+		stm,rst_invalid;
+		stm,irq_invalid;
+		stm,bringup = <1>;
+	};
+};
+
+&key_vol_up_default {
+	/delete-property/ bias-disable;
+	bias-pull-up;
+};
+
+&key_wink_default {
+	pins = "gpio8";
+	/delete-property/ bias-disable;
+	bias-pull-up;
+	power-source = <1>;
+};
+
+&gpio_keys {
+	key_wink {
+		gpios = <&pm8150l_gpios 8 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&qupv3_se11_i2c {
+	wacom@56 {
+		wacom,flag_for_d; /* VDDL of wacom is made leakage about DISP_TE.
+				   * before modification of schematics about VDDL,
+				   * use this property only D model less than hw rev 04.
+				   */
+	};
+};

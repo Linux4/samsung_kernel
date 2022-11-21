@@ -1,0 +1,33 @@
+config HW_RANDOM_S2Q000
+	tristate "Quantum HW random number generator support"
+	default n
+	help
+	  This driver provides the random number generation
+	  based on Quantum technology.
+	  If you want to use QRNG as HW random number generator
+	  say Y here, otherwise say N
+
+config HW_RANDOM_S2Q000_MISC_DEVICE
+	tristate "Create character device for qrng"
+	default y
+	depends on HW_RANDOM_S2Q000
+	help
+	  This will create /dev/qrandom character device
+	  qrandom will be provides random value via QRNG.
+	  If you want to use /dev/qrandom character device
+	  say Y here, otherwise say N
+
+config HW_RANDOM_S2Q000_QUALITY
+	int "Set s2q000 rng quality"
+	range 0 999
+	default 499
+	depends on HW_RANDOM_S2Q000
+
+config HW_RANDOM_S2Q000_TIMER
+	tristate "Power down after usage of qrng"
+	default y
+	depends on HW_RANDOM_S2Q000
+	help
+	  This will set timer to power down after usage of qrng
+	  If you want to use timer to power down after using qrng
+	  say Y here, otherwise say N

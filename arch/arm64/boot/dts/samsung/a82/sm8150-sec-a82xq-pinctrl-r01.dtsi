@@ -1,0 +1,85 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "sm8150-sec-a82xq-pinctrl-common.dtsi"
+#include "sm8150-sec-a82xq-audio-pinctrl.dtsi"
+
+&soc {
+	/* tlmm: pinctrl@03400000 { }; */
+};
+
+&tlmm {
+
+};
+
+
+&fcam1_sensor_reset_active {
+    /* RESET FRONT */
+    mux {
+        pins = "gpio82";
+    };
+
+    config {
+        pins = "gpio82";
+    };
+};
+
+&fcam1_sensor_reset_suspend {
+    /* RESET FRONT */
+    mux {
+        pins = "gpio82";
+    };
+
+    config {
+        pins = "gpio82";
+    };
+};
+
+&rcam3_sensor_reset_active {
+    /* RESET REAR3 */
+    mux {
+        pins = "gpio6";
+    };
+    config {
+        pins = "gpio6";
+    };
+};
+
+&rcam3_sensor_reset_suspend {
+    /* RESET REAR3 */
+    mux {
+        pins = "gpio6";
+    };
+    config {
+        pins = "gpio6";
+    };
+};
+
+&rcam3_sensor_vana_active {
+    /* Rear3 VANA */
+    mux {
+        pins = "gpio7";
+    };
+    config {
+        pins = "gpio7";
+    };
+};
+
+&rcam3_sensor_vana_suspend {
+    /* Rear3 VANA */
+    mux {
+        pins = "gpio7";
+    };
+    config {
+        pins = "gpio7";
+    };
+};
