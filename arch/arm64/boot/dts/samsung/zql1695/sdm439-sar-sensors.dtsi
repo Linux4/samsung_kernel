@@ -1,0 +1,193 @@
+/*HS60 code for HS60-32/HS60-93 by zhuqiang at 2019/7/15 start*/
+
+&rpm_bus {
+	rpm-regulator-ldoa18 {
+		compatible = "qcom,rpm-smd-regulator-resource";
+		qcom,resource-name = "ldoa";
+		qcom,resource-id = <18>;
+		qcom,regulator-type = <0>;
+		qcom,hpm-min-load = <10000>;
+		status = "okay";
+		pm8953_l18: regulator-l18 {
+			compatible = "qcom,rpm-smd-regulator";
+			regulator-name = "pm8953_l18";
+			qcom,set = <3>;
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2800000>;
+			qcom,init-voltage = <2800000>;
+			status = "okay";
+		};
+	};
+};
+
+&tlmm {
+    /delete-node/ nfc;
+    /delete-node/ fpc_reset_int;
+    sar_irq {
+        sar_active: sar_int_active {
+            mux {
+                pins = "gpio48";
+		function = "gpio";
+            };
+
+            config {
+                pins = "gpio48";
+                drive-strength = <2>;
+                bias-pull-up;
+            };
+        };
+
+        sar_suspend: sars_int_suspend {
+            mux {
+                pins = "gpio48";
+                function = "gpio";
+            };
+
+            config {
+                pins = "gpio48";
+                drive-strength = <2>;
+                bias-pull-up;
+            };
+        };
+    };
+};
+
+&pm8953_gpios {
+    /delete-node/ nfc_clk;
+};
+
+&soc {
+	fpc1020 {
+		status = "disabled";
+	};
+};
+
+&i2c_5 { /* BLSP2 QUP1 (NFC) */
+	nq@28 {
+		status = "disabled";
+	};
+};
+
+&i2c_5 {
+    abov_sar@20 {
+        /*HS60 code for HS60-354/HS60-2078/ZQL1693-269 by zhuqiang at 2020/02/27 start*/
+        label1 = "AbovCapSense93";
+        label2 = "AbovCapSense90";
+        label3 = "AbovCapSense93C";
+        /*HS60 code for HS60-354/HS60-2078/ZQL1693-269 by zhuqiang at 2020/02/27 end*/
+        compatible = "abov,abov_sar";
+        vdd-supply = <&pm8953_l18>;
+        vddio-supply = <&pm8953_l6>;
+        reg = <0x20>;
+        gpio-irq = <48>;
+        gpio-irq-std =<&tlmm 48 0x0>;
+        reg_array_len = <0x03>;
+        reg_array_val = <0x07 0x00 0x08 0x05 0xFB 0x01>;
+        cap,use_channel_bottom = <0x00>;
+        cap,use_channel_top = <0x01>;
+        pinctrl-names = "sar_active", "sar_suspend";
+        pinctrl-0 = <&sar_active>;
+        pinctrl-1 = <&sar_suspend>;
+    };
+    Semtech_sx9311@28 {
+        compatible = "Semtech,sx9311";
+        vdd-supply = <&pm8953_l18>;
+        vddio-supply = <&pm8953_l6>;
+        reg = <0x28>;
+        interrupt-parent = <&tlmm>;
+        interrupts = <48 0>;
+        Semtech,nirq-gpio = <&tlmm 48 0x00>;
+        pinctrl-names = "sar_active", "sar_suspend";
+        pinctrl-0 = <&sar_active>;
+        pinctrl-1 = <&sar_suspend>;
+        Semtech,reg-num	= <25>; /*total register number to initialize*/
+        /*HS60 code for HS60-352 by zhuqiang at 2019/08/06 start*/
+        Semtech,reg-init  = /bits/ 8 < 0x11 0x00
+                                0x12 0x0B
+                                0x13 0x0A
+                                0x14 0x1D
+                                0x15 0xC3
+                                0x16 0x20
+                                0x17 0x4D
+                                0x18 0x79
+                                0x19 0xC2
+                                0x1A 0x10
+                                0x1B 0x00
+                                0x1C 0x00
+                                0x1D 0x00
+                                0x1E 0x00
+                                0x1F 0x00
+                                0x20 0x00
+                                0x21 0x18
+                                0x22 0x00
+                                0x23 0x20
+                                0x2A 0x00
+                                0x2B 0x80
+                                0x2C 0x0C
+                                0x03 0xE0
+                                0x04 0x00
+                                0x10 0x27>;
+    /*HS60 code for HS60-352 by zhuqiang at 2019/08/06 end*/
+    };
+    /*HS60 code for HS60-97 by zhuqiang at 2019/7/25 start*/
+    Semtech_sx9325@2C {
+        compatible = "Semtech,sx9325";
+        vddio-supply = <&pm8953_l6>;
+        reg = <0x2C>;
+        interrupt-parent = <&tlmm>;
+        interrupts = <48 0>;
+        Semtech,nirq-gpio = <&tlmm 48 0x00>;
+        pinctrl-names = "sar_active", "sar_suspend";
+        pinctrl-0 = <&sar_active>;
+        pinctrl-1 = <&sar_suspend>;
+        Semtech,reg-num = <46>; /* total registers number to initialize*/
+        Semtech,reg-init  = /bits/ 8 < 0x10 0x09
+                                0x14 0x00
+                                0x15 0x00
+                                0x20 0x40
+                                0x21 0x10
+                                0x22 0x00
+                                0x23 0x00
+                                0x24 0x87
+                                0x25 0x00
+                                0x26 0x00
+                                0x27 0x87
+                                0x28 0x3D /*PH0 - CS0 input*/
+                                0x29 0x37 /*PH1 - CS1 input*/
+                                0x2A 0x37 /*PH2 - CS2-input,others Gnd*/
+                                0x2B 0x37
+                                0x2C 0x12
+                                0x2D 0x0F
+                                0x30 0x0B
+                                0x31 0x0B
+                                0x32 0x20
+                                0x33 0x60
+                                0x34 0x0C
+                                0x35 0x00
+                                0x36 0x18
+                                0x37 0x15
+                                0x40 0x00
+                                0x41 0x00
+                                0x42 0x18
+                                0x43 0x20
+                                0x44 0x00
+                                0x45 0x05
+                                0x46 0x00
+                                0x47 0x00
+                                0x48 0x00
+                                0x49 0x80
+                                0x4A 0x11 /*Body threshold setting*/
+                                0x4B 0x00
+                                0x4C 0x00
+                                0x50 0x00
+                                0x51 0x00
+                                0x52 0x00
+                                0x05 0x74 /*enable PROG2*/
+                                0x06 0x00
+                                0x07 0x80
+                                0x08 0x00
+                                0x11 0x23>;
+        };
+	/*HS60 code for HS60-97 by zhuqiang at 2019/7/25 end*/
+};
+/*HS60 code for HS60-32/HS60-93 by zhuqiang at 2019/7/15 end*/

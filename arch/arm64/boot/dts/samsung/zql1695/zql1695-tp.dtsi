@@ -1,0 +1,260 @@
+&i2c_3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	status = "ok";
+	focaltech@38{
+		compatible = "focaltech,ft5446";
+		reg = <0x38>;
+		status = "ok";
+		interrupt-parent = <&tlmm>;
+		interrupts = <65 0x2>;
+		vdd-supply = <&pm8953_l10>;
+		//vcc_i2c-supply = <&pm8953_l5>;
+
+		focaltech,reset-gpio = <&tlmm 64 0x0>;
+		focaltech,irq-gpio = <&tlmm 65 0x2008>;
+		focaltech,max-touch-number = <10>;
+		focaltech,display-coords =  <0 0 720 1520>;
+	};
+	goodix@14{
+		compatible = "goodix,gt1x";
+		reg = <0x14>;
+		status = "ok";
+		interrupt-parent = <&tlmm>;
+		interrupts = <65 0x2>;
+		vdd_ana-supply = <&pm8953_l10>;
+		vcc_i2c-supply = <&pm8953_l5>;
+
+		pinctrl-names = "default","int-output-high","int-output-low","int-input","erst_as_default","erst_output_low","erst_output_high";
+		pinctrl-0 = <&ts_int_default>;
+		pinctrl-1 = <&ts_int_output_high>;
+		pinctrl-2 = <&ts_int_output_low>;
+		pinctrl-3 = <&ts_int_input>;
+		pinctrl-4 = <&ts_rst_default>;
+		pinctrl-5 = <&ts_reset_suspend>;
+		pinctrl-6 = <&ts_reset_active>;
+		/* pins used by touchscreen */
+		goodix,reset-gpio = <&tlmm 64 0x00>;
+		goodix,irq-gpio = <&tlmm 65 0x2008>;
+		goodix,default-config0 = [
+			0A D0 02 F0 05 0A 3D 14 B0 84
+			4E 0F 64 46 3F 11 00 14 0F 1E
+			00 01 00 00 00 00 00 3F 43 00
+			A0 08 0A 6E 3C 78 00 00 82 96
+			D2 00 00 00 00 00 C7 E1 15 34
+			50 BE 00 00 8D 20 1B 3B 3D D2
+			07 00 CD 44 24 FD 1E 18 2D DC
+			05 41 32 00 6D 08 0A 00 00 00
+			00 0C 00 00 00 00 00 50 32 FF
+			F0 A9 07 00 00 00 00 00 00 00
+			00 00 00 00 34 5C E0 42 56 28
+			14 02 B9 3A A7 42 95 4E 8D 55
+			86 5C 86 01 0F 14 03 1E 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 04 1B 1D 17 18
+			19 1A 16 15 14 13 12 10 0F 03
+			00 01 05 06 07 08 09 0A 0B 0C
+			0D 0E FF FF FF FF FF 1E 1D 1C
+			1B 1A 19 18 17 15 14 13 12 0C
+			FF FF FF FF FF FF FF FF FF FF
+			FF FF FF FF FF FF FF FF FF 00
+			F8 0A 24 23 2A 7D 45 3C 3C 05
+			42 00 00 04 61 00 6A F4 40 00
+			AA 00 33 33 00 40 E9 9E 01 D3
+			32 78 46 00 00 00 00 10 00 28
+			A5 00 00 0A 50 55 01 65 00 00
+			12 12 6E 19 01 64 03 64 28 50
+			65 0D 01 53 77 02 4F 55 B5 2D
+			00 00 00 00 23 0A 05 DC 00 00
+			00 14 28 46 11 25 26 00 00 A0
+			0F 5D 00 00 23 02 3C 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 61 00 00 00 00 78 00 00
+			00 00 00 00 52 00 00 00 00 00
+			00 14 14 2D 00 28 00 00 00 00
+			88 C0 30 00 00 00 00 00 00 00
+			00 00 00 00 00 86 91
+		];
+		goodix,default-config2 = [
+			0A D0 02 F0 05 0A 3D 14 B0 84
+			4E 0F 64 46 3F 11 00 14 0F 1E
+			00 01 00 00 00 00 00 3F 43 00
+			A0 08 0A 6E 3C 78 00 00 82 96
+			D2 00 00 00 00 00 C7 E1 15 34
+			50 BE 00 00 8D 20 1B 3B 3D D2
+			07 00 CD 44 24 FD 1E 18 2D DC
+			05 41 32 00 6D 08 0A 00 00 00
+			00 0C 00 00 00 00 00 50 32 FF
+			F0 A9 07 00 00 00 00 00 00 00
+			00 00 00 00 34 5C E0 42 56 28
+			14 02 B9 3A A7 42 95 4E 8D 55
+			86 5C 86 01 0F 14 03 1E 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 04 1B 1D 17 18
+			19 1A 16 15 14 13 12 10 0F 03
+			00 01 05 06 07 08 09 0A 0B 0C
+			0D 0E FF FF FF FF FF 1E 1D 1C
+			1B 1A 19 18 17 15 14 13 12 0C
+			FF FF FF FF FF FF FF FF FF FF
+			FF FF FF FF FF FF FF FF FF 00
+			F8 0A 24 23 2A 7D 45 3C 3C 05
+			42 00 00 04 61 00 6A F4 40 00
+			AA 00 33 33 00 40 E9 9E 01 D3
+			32 78 46 00 00 00 00 10 00 28
+			A5 00 00 0A 50 55 01 65 00 00
+			12 12 6E 19 01 64 03 64 28 50
+			65 0D 01 53 77 02 4F 55 B5 2D
+			00 00 00 00 23 0A 05 DC 00 00
+			00 14 28 46 11 25 26 00 00 A0
+			0F 5D 00 00 23 02 3C 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 61 00 00 00 00 78 00 00
+			00 00 00 00 52 00 00 00 00 00
+			00 14 14 2D 00 28 00 00 00 00
+			88 C0 30 00 00 00 00 00 00 00
+			00 00 00 00 00 86 91
+		];
+		goodix,glove-config0 = [
+			03 D0 02 F0 05 0A BD 14 B0 80
+			4A 0F 82 64 33 01 00 08 08 1E
+			02 33 00 00 00 00 00 3F 00 00
+			A0 08 0A 5F 2D 4B 00 00 82 94
+			AA 00 00 00 00 00 1A A1 25 88
+			50 BE 00 00 8D 20 1B 87 89 40
+			04 00 CD 54 24 FD 1E 18 2D DC
+			05 41 32 00 6D 0A 0C 00 00 00
+			00 14 00 00 00 00 00 50 32 FF
+			F0 A9 07 00 00 00 00 00 00 00
+			00 00 00 00 40 96 A0 42 97 2D
+			14 02 B9 3A A7 42 95 4E 8D 55
+			86 5C 86 01 0F 14 03 1E 37 4B
+			00 B8 00 00 00 00 00 28 00 00
+			00 00 00 00 00 04 1B 1D 17 18
+			19 1A 16 15 14 13 12 10 0F 03
+			00 01 05 06 07 08 09 0A 0B 0C
+			0D 0E FF FF FF FF FF 1E 1D 1C
+			1B 1A 19 18 17 15 14 13 12 0C
+			FF FF FF FF FF FF FF FF FF FF
+			FF FF FF FF FF FF FF FF FF 00
+			C4 09 23 23 50 5D 54 50 3C 14
+			32 00 00 04 40 00 8A 02 40 00
+			AA 00 22 22 00 40 11 5B 01 DB
+			32 78 46 00 00 00 00 10 00 28
+			A5 00 00 0A 50 DC 03 6A 00 00
+			12 12 6E 19 01 64 03 64 28 50
+			65 0D 02 53 A0 23 42 55 B8 00
+			00 00 00 00 00 00 00 00 00 00
+			00 14 28 46 11 42 42 00 00 A0
+			0F 5D 00 00 23 02 3C 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 61 00 00 00 00 78 00 00
+			00 00 00 00 52 00 01 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			88 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 F0 BE
+		];
+	};
+
+};
+
+&tlmm {
+	default {
+		ts_int_default: ts_int_default {
+			mux {
+				pins = "gpio65";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio65";
+				drive-strength = <8>;
+				input-enable;
+				bias-disable;
+			};
+		};
+	};
+	int-output-high {
+		ts_int_output_high: ts_int_output_high {
+			mux {
+				pins = "gpio65";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio65";
+				drive-strength = <8>;
+				output-high;
+				bias-pull-up;
+			};
+		};
+	};
+	int-output-low {
+		ts_int_output_low: ts_int_output_low {
+			mux {
+				pins = "gpio65";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio65";
+				drive-strength = <8>;
+				bias-pull-down;
+				output-low;
+			};
+		};
+	};
+	int-input {
+		ts_int_input: ts_int_input {
+			mux {
+				pins = "gpio65";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio65";
+				drive-strength = <8>;
+				input-enable;
+				bias-disable;
+			};
+		};
+	};
+	erst_as_default {
+		ts_rst_default: ts_rst_default {
+			mux {
+				pins = "gpio64";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio64";
+				drive-strength = <16>;
+				input-enable;
+				bias-disable;
+			};
+		};
+	};
+	erst_output_high {
+		ts_reset_active: ts_reset_active {
+			mux {
+				pins = "gpio64";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio64";
+				drive-strength = <8>;
+				bias-pull-up;
+				output-high;
+			};
+		};
+	};
+	erst_output_low {
+		ts_reset_suspend: ts_reset_suspend {
+			mux {
+				pins = "gpio64";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio64";
+				drive-strength = <2>;
+				bias-pull-down;
+				output-low;
+			};
+		};
+	};
+};
