@@ -1,0 +1,46 @@
+&pmi632_charger {
+	qcom,pm-gpio1-vadc = <&pmi632_vadc>;
+	draw-VBUS-GPIO59 = <&tlmm 141 0>;
+};
+
+&pmi632_vadc {
+
+	pinctrl-names = "default";
+	/* pinctrl-0 = <&quiet_therm_default &smb_therm_default &gpio3_adc_default>; */
+	pinctrl-0 = <&gpio3_adc_default>;
+
+	chan@53 {
+		label = "usb_connector_therm";
+		reg = <0x53>;
+		qcom,decimation = <2>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "absolute";
+		qcom,scale-function = <0>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+		qcom,cal-val = <0>;
+	};
+};
+
+&pmi632_gpios {
+	gpio3_adc {
+		gpio3_adc_default: gpio3_adc_default {
+			pins = "gpio3";
+			function = "normal";
+			bias-disable;
+			bias-high-impedance;
+		};
+	};
+};
+
+&i2c_5 { /* BLSP2 QUP1 (NFC) */
+	nq@28 {
+		qcom,nq-esepwr = <&tlmm (-1) 0x00>;
+	};
+};
+
+&thermal_zones {
+	quiet-therm-adc {
+		status = "disabled";
+	};
+};

@@ -1,0 +1,20 @@
+&spmi_bus {
+	qcom,pm8953@0{
+		qcom,power-on@800 {
+			qcom,s3-debounce = <128>;
+			qcom,pon_1 {
+				/* HS70 add for P191127-08608 by gaozhengwei at 2019/11/30 start */
+				qcom,support-reset = <0>;
+				/* HS70 add for P191127-08608 by gaozhengwei at 2019/11/30 end */
+				qcom,s1-timer = <10256>;
+				qcom,s2-timer = <2000>;
+				qcom,s2-type = <7>;
+			};
+		};
+	};
+	qcom,pmi632@2 {
+		pmi632_pon: qcom,power-on@800 {
+			qcom,s3-debounce = <128>;
+		};
+	};
+};

@@ -1,0 +1,9 @@
+#
+# cdfinger fingerprint driver configuration
+#
+	  
+config FOCALTECH_FINGERPRINT
+	tristate "focaltech fingerprint driver support"
+	select focaltech_fp
+	help
+	  This support focaltech fingerprint drivers.

@@ -1,0 +1,42 @@
+&reserved_memory {
+	/* CONFIG_SEC_DEBUG reserves 8MB */
+	sec_debug_region: sec_debug_region@0 {
+		compatible = "removed-dma-pool";
+		no-map;
+		reg = <0x0 0x9F000000 0x0 0x00900000>;
+	};
+
+	ss_plog@9F900000 {
+		compatible = "ss_plog";
+		no-map;
+		reg = <0x0 0x9F900000 0x0 0x00200000>;
+	};
+
+	ramoops@9FB00000 {
+		compatible = "ramoops";
+		reg = <0 0x9FB00000 0 0x100000>;
+		record-size = <0x40000>;
+		console-size = <0x40000>;
+		ftrace-size = <0x40000>;
+		pmsg-size = <0x40000>;
+	};
+
+	/* TODO: should be reverted after Qualcomm/Huaqin BSP is fixed */
+	dump_mem: mem_dump_region {
+		size = <0x0 0x400000>;
+	};
+};
+
+&soc {
+	qcom,msm-imem@8600000 {
+		upload_cause@66c {
+			compatible = "qcom,msm-imem-upload_cause";
+			reg = <0x66c 4>;
+		};
+	};
+
+	sec_smem@0 {
+		compatible = "samsung,sec-smem";
+		status = "okay";
+	};
+};

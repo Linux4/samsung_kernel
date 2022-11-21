@@ -1,0 +1,23 @@
+/*HS70 code for HS70-29 by yangliguo at 2019/10/2 start*/
+
+&rpm_bus {
+	rpm-regulator-ldoa18 {
+		compatible = "qcom,rpm-smd-regulator-resource";
+		qcom,resource-name = "ldoa";
+		qcom,resource-id = <18>;
+		qcom,regulator-type = <0>;
+		qcom,hpm-min-load = <150000>;
+		status = "okay";
+		pm8953_l18: regulator-l18 {
+			compatible = "qcom,rpm-smd-regulator";
+			regulator-name = "pm8953_l18";
+			qcom,set = <3>;
+			regulator-min-microvolt = <2850000>;
+			regulator-max-microvolt = <2850000>;
+			qcom,init-voltage = <2850000>;
+			regulator-always-on;
+			status = "okay";
+		};
+	};
+};
+/*HS70 code for HS70-29 by yangliguo at 2019/10/2 end*/
