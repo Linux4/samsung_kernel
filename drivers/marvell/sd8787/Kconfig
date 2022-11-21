@@ -1,0 +1,17 @@
+menuconfig MRVL_SD87XX
+	tristate "Marvell sd87XX Driver"
+	default n
+
+config MRVL_SD87XX_WIFI
+	tristate "Marvell sd87XX_WIFI Driver"
+	depends on MRVL_SD87XX
+	default n
+	---help---
+	  Marvell sd87XX wifi driver.
+
+config MRVL_SD87XX_BT
+	tristate "Marvell sd87XX_BT Driver"
+	depends on MRVL_SD87XX
+	default n
+	---help---
+	  Marvell sd87XX bt driver.

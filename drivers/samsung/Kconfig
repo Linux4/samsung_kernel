@@ -1,0 +1,15 @@
+#
+#
+#
+
+menu "Samsung Kernel Modules"
+
+config SAMSUNG_PARAM
+	tristate "Samsung Param-Partition Support"
+	default n
+	help
+		Say Y to enable Samsung Param support.
+
+source "drivers/samsung/startup_reason/Kconfig"
+
+endmenu
