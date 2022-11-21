@@ -1,0 +1,7 @@
+subdirs = [
+     "*"
+]
+hidl_package_root {
+     name: "vendor.qti.hardware.pal",
+     path: "vendor/qcom/opensource/pal/ipc/HwBinders/interfaces/pal",
+}

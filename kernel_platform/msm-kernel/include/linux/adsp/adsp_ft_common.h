@@ -1,0 +1,180 @@
+/*
+ *  Copyright (C) 2012, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ */
+#ifndef __ADSP_FT_COMMON_H__
+#define __ADSP_FT_COMMON_H__
+
+#ifdef SS_SLPI_PROJECT// hal build
+#ifndef IS_ENABLED
+#define IS_ENABLED(x) 0
+#endif
+#else// kernel build
+#include <linux/kernel.h>
+#endif
+
+#define PID 20000
+#define NETLINK_ADSP_FAC 23
+#define MAX_REG_NUM 128
+
+/* max size of each sensor's msg_buf */
+#define MSG_TYPE_SIZE_ZERO	0
+#define MSG_ACCEL_MAX	128
+#define MSG_GYRO_MAX	16
+#define MSG_MAG_MAX	15
+#define MSG_LIGHT_MAX	16
+#define MSG_PROX_MAX	16
+#define MSG_GYRO_TEMP_MAX	3
+#define MSG_PRESSURE_TEMP_MAX	1
+#define MSG_PRESSURE_MAX	128
+#define MSG_FLIP_COVER_DETECTOR_MAX	3
+#define MSG_VOPTIC_MAX	2
+#define MSG_REG_SNS_MAX	18 /* 6 * 3 */
+#if IS_ENABLED(CONFIG_SUPPORT_AK09973) || defined(CONFIG_SUPPORT_AK09973)
+#define MSG_DIGITAL_HALL_MAX 15
+#define MSG_DIGITAL_HALL_ANGLE_MAX 58
+#endif
+#if IS_ENABLED(CONFIG_SUPPORT_DUAL_DDI_COPR_FOR_LIGHT_SENSOR) || defined(CONFIG_SUPPORT_DUAL_DDI_COPR_FOR_LIGHT_SENSOR)
+#define MSG_DDI_MAX 12
+#endif
+#if IS_ENABLED(CONFIG_SUPPORT_FLICKER) || defined(CONFIG_SUPPORT_FLICKER)
+#define MSG_FLICKER_MAX 12
+#endif
+
+#define ACCEL_FACTORY_CAL_PATH "/efs/FactoryApp/accel_factory_cal"
+#define SUB_ACCEL_FACTORY_CAL_PATH "/efs/FactoryApp/sub_accel_factory_cal"
+#define SW_OFFSET_FILE_PATH "/efs/FactoryApp/baro_sw_offset"
+
+#if IS_ENABLED(CONFIG_SUPPORT_AK09973) || defined(CONFIG_SUPPORT_AK09973)
+#define AUTO_CAL_DATA_NUM 19
+#define AUTO_CAL_FILE_BUF_LEN 140
+#define DIGITAL_HALL_AUTO_CAL_X_PATH "/efs/FactoryApp/digital_hall_auto_cal_x"
+#define DIGITAL_HALL_AUTO_CAL_Y_PATH "/efs/FactoryApp/digital_hall_auto_cal_y"
+#define DIGITAL_HALL_AUTO_CAL_Z_PATH "/efs/FactoryApp/digital_hall_auto_cal_z"
+#define ENABLE_LF_STREAM 0
+#endif
+
+enum {
+	MSG_ACCEL,
+	MSG_GYRO,
+	MSG_MAG,
+	MSG_PRESSURE,
+	MSG_LIGHT,
+	MSG_PROX,
+#if IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC) || defined(CONFIG_SUPPORT_DUAL_OPTIC)
+	MSG_LIGHT_SUB,
+	MSG_PROX_SUB,
+#endif
+#if IS_ENABLED(CONFIG_FLICKER_FACTORY) || defined(CONFIG_FLICKER_FACTORY)
+	MSG_FLICKER,
+#endif
+#if IS_ENABLED(CONFIG_SUPPORT_DUAL_6AXIS) || defined(CONFIG_SUPPORT_DUAL_6AXIS)
+	MSG_ACCEL_SUB,
+	MSG_GYRO_SUB,
+#endif
+	PHYSICAL_SENSOR_SYSFS,//MSG_TYPE_SIZE_ZERO
+	MSG_GYRO_TEMP,
+#if IS_ENABLED(CONFIG_SUPPORT_DUAL_6AXIS) || defined(CONFIG_SUPPORT_DUAL_6AXIS)
+	MSG_GYRO_SUB_TEMP,
+#endif
+	MSG_PRESSURE_TEMP,
+	MSG_MAG_CAL,//MSG_TYPE_SIZE_ZERO
+#if IS_ENABLED(CONFIG_FLIP_COVER_DETECTOR_FACTORY) || defined(CONFIG_FLIP_COVER_DETECTOR_FACTORY)
+	MSG_FLIP_COVER_DETECTOR,
+#endif
+#if IS_ENABLED(CONFIG_SUPPORT_VIRTUAL_OPTIC) || defined(CONFIG_SUPPORT_VIRTUAL_OPTIC)
+	MSG_VIR_OPTIC,//MSG_TYPE_SIZE_ZERO
+#endif
+	MSG_REG_SNS,//MSG_TYPE_SIZE_ZERO
+#if IS_ENABLED(CONFIG_SUPPORT_AK09973) || defined(CONFIG_SUPPORT_AK09973)
+	MSG_DIGITAL_HALL,
+	MSG_DIGITAL_HALL_ANGLE,
+#if IS_ENABLED(ENABLE_LF_STREAM) || defined(ENABLE_LF_STREAM)
+	MSG_LF_STREAM,
+#endif
+#endif
+#if IS_ENABLED(CONFIG_SUPPORT_DUAL_DDI_COPR_FOR_LIGHT_SENSOR) || defined(CONFIG_SUPPORT_DUAL_DDI_COPR_FOR_LIGHT_SENSOR)
+	MSG_DDI,
+#endif
+#if IS_ENABLED(CONFIG_SUPPORT_LIGHT_MAIN2_SENSOR) || defined(CONFIG_SUPPORT_LIGHT_MAIN2_SENSOR)
+	MSG_LIGHT_MAIN2,
+#endif
+	MSG_FACTORY_INIT_CMD,//MSG_TYPE_SIZE_ZERO
+	MSG_SSC_CORE,//MSG_TYPE_SIZE_ZERO
+	MSG_SENSOR_MAX
+};
+
+/* Netlink ENUMS Message Protocols */
+enum {
+	MSG_TYPE_GET_RAW_DATA,
+	MSG_TYPE_ST_SHOW_DATA,
+	MSG_TYPE_SET_ACCEL_LPF,
+	MSG_TYPE_SET_ACCEL_MOTOR,
+	MSG_TYPE_GET_THRESHOLD,
+	MSG_TYPE_SET_THRESHOLD,
+	MSG_TYPE_SET_TEMPORARY_MSG,
+	MSG_TYPE_GET_REGISTER,
+	MSG_TYPE_SET_REGISTER,
+	MSG_TYPE_GET_DUMP_REGISTER,
+	MSG_TYPE_GET_CAL_DATA,
+	MSG_TYPE_SET_CAL_DATA,
+	MSG_TYPE_GET_DHR_INFO,
+	MSG_TYPE_FACTORY_ENABLE,
+	MSG_TYPE_FACTORY_DISABLE,
+	MSG_TYPE_OPTION_DEFINE,
+	MSG_TYPE_DUMPSTATE,
+	MSG_TYPE_MAX
+};
+
+#if IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC) || defined(CONFIG_SUPPORT_DUAL_OPTIC)
+enum {
+	FSTATE_INACTIVE,
+	FSTATE_ACTIVE,
+	FSTATE_FAC_INACTIVE,
+	FSTATE_FAC_ACTIVE,
+	FSTATE_FAC_INACTIVE_2
+};
+
+enum {
+	VOPTIC_OP_CMD_FAC_FLIP,
+	VOPTIC_OP_CMD_SSC_FLIP,
+	VOPTIC_OP_CMD_SSC_FLIP_UPDATE,
+	VOPTIC_OP_CMD_MAX
+};
+#endif
+
+enum {
+	COMMON_DATA_SET_ABS_OFF,		// 0x00 00 47 C1
+	COMMON_DATA_SET_ABS_ON,			// 0x01 00 47 C1
+#if IS_ENABLED(CONFIG_SUPPORT_VFOLD_FLEX) || defined(CONFIG_SUPPORT_VFOLD_FLEX)
+	COMMON_DATA_SET_MAIN_ON,		// 0x02 00 47 C1
+	COMMON_DATA_SET_SUB_ON,			// 0x03 00 47 C1
+#endif
+	COMMON_DATA_SET_LCD_INTENT_ON = 0xf1,	// 0xf1 00 47 C1
+	COMMON_DATA_SET_LCD_INTENT_OFF,		// 0xf2 00 47 C1
+};
+
+// for ssc_core sensor type
+enum {
+	OPTION_TYPE_SSC_CHARGING_STATE,      // for pocket mode
+	OPTION_TYPE_SSC_ABS_LCD_TYPE,        // for pocket mode
+	OPTION_TYPE_SSC_LCD_TYPE,            // for pocket mode + auto roation
+	OPTION_TYPE_SSC_LCD_INTENT_TYPE,     // for auto rotation
+	OPTION_TYPE_SSC_DUMP_TYPE,           // for pocket mode
+	OPTION_TYPE_SSC_AOD_RECT,            // for AOD
+	OPTION_TYPE_SSC_AOD_LIGHT_CIRCLE,    // for AOD
+	OPTION_TYPE_SSC_LIGHT_SEAMLESS,      // for light seamless
+	OPTION_TYPE_SSC_AUTO_ROTATION_MODE,  // for auto rotation
+	OPTION_TYPE_SSC_MAX
+};
+#endif

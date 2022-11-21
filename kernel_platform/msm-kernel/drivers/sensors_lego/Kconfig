@@ -1,0 +1,81 @@
+#
+# grip sensors configuration
+#
+
+config SENSORS_ISG6320
+	depends on I2C
+	tristate "ISG6320 grip"
+	default n
+	help
+	  If you say yes here if you use ISG6320 for grip.
+	  This option enables grip sensors using
+	  IMAGIS ISG6320 device driver for grip.
+
+config SENSORS_ISG6320_SUB
+	depends on I2C
+	tristate "ISG6320 grip sub"
+	default n
+	help
+	  If you say yes here if you use ISG6320_SUB for grip sub.
+	  This option enables grip sensors using
+	  IMAGIS ISG6320_SUB device driver for grip sub.
+
+config SENSORS_ISG6320_WIFI
+	depends on I2C
+	tristate "ISG6320 grip wifi"
+	default n
+	help
+	  If you say yes here if you use ISG6320_WIFI for grip wifi.
+	  This option enables grip sensors using
+	  IMAGIS ISG6320_WIFI device driver for grip wifi.
+
+config SENSORS_SUPPORT_SLSI
+	tristate "Need to set if the driver is working based on Exynos Chip Set"
+	default n
+	help
+	  If you say yes here, the driver is working based on Exynos Chip Set.
+	  This option enable the feature that is related with Exynos Chip Set.
+	  
+config SENSORS_SUPPORT_QCOM
+	tristate "Need to set if the driver is working based on Snapdragon Chip Set"
+	default n
+	help
+	  If you say yes here, the driver is working based on Snapdragon Chip Set.
+	  This option enable the feature that is related with Snapdragon Chip Set.
+	  
+config SENSORS_SUPPORT_MTK
+	tristate "Need to set if the driver is working based on Mediatek Chip Set"
+	default n
+	help
+	  If you say yes here, the driver is working based on Mediatek Chip Set.
+	  This option enable the feature that is related with Mediatek Chip Set.
+
+config SENSORS_CORE_AP
+	tristate "Need to use Sensors core ap version"
+	default n
+	help
+	  Say Y here if you using sensors_core.c included under drivers/sensors etc.
+
+config TEST_FOR_GRIP
+	tristate "Grip sensor test"
+	default n
+	help
+	  Enable grip test
+	  This option enables logs or functions for grip test.
+
+config USE_MULTI_CHANNEL
+	tristate "Grip sensor multi chennel"
+	default n
+	help
+	  Enable grip multi channel
+	  This option enables feature that is related multi-Channel for grip Sensor.
+
+config SUPPORT_MCC_THRESHOLD_CHANGE
+	depends on I2C
+	tristate "Change grip sensor threshold according to the MCC value"
+	default n
+	help
+	  Say Y here if you need to check mcc(mobile country code).
+	  This option enables when it is necessary to adjust the threshold
+	  according to the mcc value.
+	  Say N here if you do not need to check mcc.

@@ -1,0 +1,7 @@
+config SEC_RELOC_GPIO
+	tristate "Samsung Legacy-Style Relocated GPIO Interface for Factory Mode"
+	default m if SEC_CLASS=m
+	default y if SEC_CLASS=y
+	depends on SEC_FACTORY
+	help
+	  TODO: help is not ready.
