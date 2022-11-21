@@ -1,0 +1,43 @@
+/* Copyright (c) 2019, The Linux Foundation. All rights reserved. 
+
+* 
+
+* This program is free software; you can redistribute it and/or modify 
+
+* it under the terms of the GNU General Public License version 2 and 
+
+* only version 2 as published by the Free Software Foundation. 
+
+* 
+
+* This program is distributed in the hope that it will be useful, 
+
+* but WITHOUT ANY WARRANTY; without even the implied warranty of 
+
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the 
+
+* GNU General Public License for more details. 
+
+*/ 
+
+
+#include "../common/sm7150-sec-m51-common.dtsi"
+#include "../common/sm7150-sec-m51-pm-common.dtsi"
+#include "../common/sm7150-sec-m51-battery-common.dtsi"
+#include "../drivers/sm7150-sec-m51-eif-common.dtsi"
+#include "../drivers/sm7150-sec-m51-fingerprint_00.dtsi"
+#include "../drivers/sm7150-camera-sensor-m51-r01.dtsi"
+
+&soc {
+	sec_thermistor@0 {
+		io-channels = <&pm6150l_vadc ADC_AMUX_THM3_PU2>;
+	};
+};
+
+&pm6150l_vadc {
+	sdm_therm {
+		reg = <ADC_AMUX_THM3_PU2>;
+	};
+};
+
+

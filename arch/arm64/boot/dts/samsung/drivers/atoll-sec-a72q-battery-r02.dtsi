@@ -1,0 +1,58 @@
+/* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "atoll-sec-a72q-battery-common.dtsi"
+
+&pm6150l_gpios {
+	dc_thm { /* GPIO_07 */
+dc_thm_default: dc_thm_default {
+			pins = "gpio7";
+			function = "normal";
+			bias-high-impedance;
+		};
+	};
+};
+
+&pm6150l_vadc {
+	dc_thm { /* GPIO_07 */
+		label = "dc_thm";
+		reg = <ADC_GPIO3_PU2>;
+		qcom,pre-scaling = <1 1>;
+		qcom,hw-settle-time = <200>;
+		qcom,ratiometric;
+	};
+};
+
+&soc {
+	battery {
+		pinctrl-0 = <&dc_thm_default>;
+
+		battery,dchg_temp_check_type = <1>;
+		battery,dchg_thermal_source = <2>; /* SEC_BATTERY_THERMAL_SOURCE_ADC */
+
+		battery,dchg_temp_table_adc =  <2234 2645 3113 3666 4302 5071 5959
+			7013 8170 9433 10885 12446 14145
+			15839 17527 19186 20752 22192 23500 24608 25569 26359 13380>;
+		battery,dchg_temp_table_data = <900 850 800 750 700 650 600 550 500 450
+			400 350 300 250 200 150 100 50 0 (-50) (-100) (-150) (-200)>;
+
+		battery,dchg_high_temp = <650>;
+		battery,dchg_high_temp_recovery = <630>;
+		battery,dchg_high_batt_temp = <400>;
+		battery,dchg_high_batt_temp_recovery = <380>;
+		battery,dchg_input_limit_current = <1000>;
+		battery,dchg_charging_limit_current = <2000>;
+
+		io-channels = <&pm6150_vadc ADC_AMUX_THM3_PU2>, <&pm6150_vadc ADC_AMUX_THM1_PU2>, <&pm6150l_vadc ADC_GPIO3_PU2>;
+		io-channel-names = "adc-temp", "adc-chg-temp", "adc-dchg-temp";
+	};
+};

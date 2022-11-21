@@ -1,0 +1,117 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/input/input.h>
+
+&tlmm {
+	tsp_int: tsp_int {
+		mux {
+			pins = "gpio89";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio89";
+			input-enable;
+			bias-disable;
+		};
+	};
+};
+
+&pm6150_l18 {
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+	regulator-boot-on;
+};
+
+&qupv3_se1_i2c {
+	status = "ok";
+
+	novatek_ts: touchscreen@62 {
+		status = "disabled";
+		compatible = "novatek,nvt-ts";
+		reg = <0x62>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&tsp_int>;
+		novatek,firmware_name = "tsp_novatek/nt36672_m40.bin";
+		novatek,irq-gpio = <&tlmm 89 0x2002>;
+		novatek,resolution = <1080 2340>; /* x y */
+		novatek,max_touch_num = <10>;
+		novatek,area-size = <133 266 341>; /* indicator: 24dp navigator: 48dp edge: 60px dpi=320 */
+		novatek,ss_touch_num = <1>;
+		novatek,factory_item_version = <1>;
+
+		novatek,mp-support-dt;
+
+		novatek-mp-criteria-1135@0 {  /* tima panel */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "novatek-mp-criteria-1135";
+
+			/* MP Criteria */
+			open_test_spec = <0 3650>;
+			short_test_spec = <11380 14000>;
+
+			diff_test_frame = <50>;
+		};
+
+		novatek-mp-criteria-7204@1 { /* csot panel */
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "novatek-mp-criteria-7204";
+
+			/* MP Criteria */
+			open_test_spec = <0 3650>;
+			short_test_spec = <11380 14000>;
+
+			diff_test_frame = <50>;
+		};
+	};
+};
+
+/delete-node/&key_vol_up_default;
+&pm6150l_gpios {
+	key_vol_up {
+		key_vol_up_default: key_vol_up_default {
+			pins = "gpio8";
+			function = "normal";
+			input-enable;
+			bias-pull-up;
+			power-source = <0>;
+		};
+	};
+};
+
+&soc {
+	/delete-node/gpio_keys;
+	gpio_keys {
+		status = "ok";
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&key_vol_up_default>;
+
+		vol_up {
+			label = "volume_up";
+			gpios = <&pm6150l_gpios 8 0x1>;
+			linux,input-type = <1>;
+			linux,code = <KEY_VOLUMEUP>;
+			debounce-interval = <15>;
+		};
+	};
+
+	ss_touch {
+		compatible = "samsung,ss_touch";
+		ss_touch,numbers = <1>;
+	};
+};

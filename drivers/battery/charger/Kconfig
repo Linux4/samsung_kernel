@@ -1,0 +1,25 @@
+config CHARGER_SM5714
+	tristate "SM5714 battery charger support"
+	default n
+	help
+	  Say Y here to enable support for the SM5714 charger
+	  SM5714 is charger systems for lithium-ion (Li+) batteries
+	  in handheld and portable equipment.
+
+config CHARGER_SM5440
+	tristate "SM5440 direct charger support"
+	depends on I2C
+	help
+	  Say Y here to enable support for the SM5440 direct charger.
+	  SM5440 is a direct charging IC.
+	  SM5440 is dependent on I2C
+	  so it needs to be defined.
+
+config CHARGER_PCA9468
+	tristate "PCA9468 charger driver"
+	default n
+	depends on DIRECT_CHARGING
+	help
+	  Say Y here to enable support for the PCA9468 charger
+	  PCA9468 is a direct charging IC.
+	  PCA9468 is dependent on I2C

@@ -1,0 +1,32 @@
+/* Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	sec_detect_conn {
+		compatible = "samsung,sec_detect_conn";
+		sec,det_pm_conn_gpios = <&pm6150_gpios 8 0>; /* SUB_CONNECT */
+		sec,det_pm_conn_name = "SUB_CONNECT";
+		pinctrl-names = "det_pm_connect";
+		pinctrl-0 = <&detect_conn_pm_setting>;
+	};
+};
+
+&pm6150_gpios {
+	detect_conn_pm_setting: detect_conn_pm_setting {
+		pins = "gpio8"; /* SUB_DET */
+		function = "normal";
+		power-source = <1>;
+		bias-disable; /* NO PULL */
+		input-enable;
+	};
+};
+
