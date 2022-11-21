@@ -1,0 +1,17 @@
+# When adding new entries keep the list in alphabetical order
+
+config USER_RESET_DEBUG
+	bool "reset reason debug feature in user version"
+	depends on SEC_DEBUG
+	default n
+	help
+	  This option enables debugging log for B10 project.
+	  This option provides reset history log in user version.
+	  This option enable proc/reset_reason support
+
+config USER_RESET_DEBUG_TEST
+	bool "reset reason debug test feature in eng version"
+	depends on USER_RESET_DEBUG
+	default n
+	help
+	  This option enable for test in eng version(KP, DP, TP, WP)

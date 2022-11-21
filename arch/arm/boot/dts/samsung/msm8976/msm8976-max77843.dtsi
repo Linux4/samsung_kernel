@@ -1,0 +1,49 @@
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	i2c_13: i2c@13 {
+		cell-index = <13>;
+		compatible = "i2c-gpio";
+		gpios = <&msm_gpio 18 0 /* sda */
+			&msm_gpio 19 0 /* scl */
+			>;
+		i2c-gpio,delay-us = <2>;
+		pinctrl-names = "max77843_i2c_pins_default",
+						"max77843_i2c_pins_active",
+						"max77843_i2c_pins_suspend";
+		pinctrl-0 = <&max77843_i2c_default>;
+		pinctrl-1 = <&max77843_i2c_active>;
+		pinctrl-2 = <&max77843_i2c_suspend>;		
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		max77843@66 {
+			compatible = "maxim,max77843";
+			reg = <0x66>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <68 0>;
+			max77843,irq-gpio = <&msm_gpio 68 0x00>;
+			max77843,wakeup;
+			pinctrl-names = "max77843_interrupt_pins_default",
+							"max77843_interrupt_pins_active",
+							"max77843_interrupt_pins_suspend";
+			pinctrl-0 = <&max77843_interrupt_default>;
+			pinctrl-1 = <&max77843_interrupt_active>;
+			pinctrl-2 = <&max77843_interrupt_suspend>;				
+			haptic,mode = <1>;
+			haptic,divisor = <128>;
+		};
+
+	};
+};
+
