@@ -1,0 +1,8 @@
+/* dtsi for MT6739 */
+
+&mrdump_ext_rst {
+	interrupt-parent = <&pio>;
+	force_mode = "SYSRST";
+	mode = "RST";
+	status = "okay";
+};
