@@ -1,0 +1,47 @@
+#
+# sensor drivers configuration
+#
+
+config SENSORS_SSP_BAROMETER
+	tristate "Sensors ssp barometer sensor"
+	default n
+	depends on SPI
+	help
+	  barometer sensor file for factory test in ssp driver.
+          If you say yes here you get barometer sensor support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SENSORS_SSP_BAROMETER_LPS22H
+	tristate "Sensors ssp barometer lps22hb"
+	default n
+	depends on SPI
+	help
+	  barometer lps22hb file for factory test in ssp driver.
+          If you say yes here you get barometer lps22hb support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SENSORS_SSP_BAROMETER_LPS25H
+	tristate "Sensors ssp barometer lps25h"
+	default n
+	depends on SPI
+	help
+	  barometer lps25h file for factory test in ssp driver.
+          If you say yes here you get barometer lps25h support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SENSORS_SSP_BAROMETER_LPS22HH
+	tristate "Sensors ssp barometer lps22hh"
+	default n
+	depends on SPI
+	help
+	  barometer lps22hh file for factory test in ssp driver.
+          If you say yes here you get barometer lps22hh support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
