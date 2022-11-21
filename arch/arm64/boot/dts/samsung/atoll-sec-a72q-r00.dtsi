@@ -1,0 +1,99 @@
+/* Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "atoll-sec-a72q-common.dtsi"
+#include "drivers/atoll-sec-a72q-audio-common.dtsi"
+#include "atoll-sec-a72q-pinctrl-r00.dtsi"
+#include "atoll-sec-a72q-pm-common.dtsi"
+#include "drivers/atoll-sec-a72q-display-r00.dtsi"
+#include "atoll-sec-a72q-input-common.dtsi"
+#include "drivers/atoll-sec-a72q-usb-r00.dtsi"
+#include "drivers/atoll-sec-a52q-nfc_r00.dtsi"
+#include "drivers/atoll-sec-a72q-fingerprint-r00.dtsi"
+#include "drivers/atoll-sec-a72q-camera-sensor-common.dtsi"
+#include "drivers/atoll-sec-a72q-vibrator-r00.dtsi"
+#include "drivers/atoll-sec-a72q-hall-r00.dtsi"
+
+#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+
+&soc {
+	rpmh-regulator-ldoc8 {
+
+		compatible = "qcom,rpmh-vrm-regulator";
+		mboxes = <&apps_rsc 0>;
+		qcom,resource-name = "ldoc8";
+		qcom,regulator-type = "pmic5-ldo";
+		qcom,supported-modes =
+			<RPMH_REGULATOR_MODE_LPM
+			RPMH_REGULATOR_MODE_HPM>;
+		qcom,mode-threshold-currents = <0 1>;
+		L8C:
+		pm6150l_l8: regulator-pm6150l-l8 {
+			regulator-name = "pm6150l_l8";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			qcom,init-voltage = <1800000>;
+			regulator-always-on;
+			qcom,init-mode =
+				<RPMH_REGULATOR_MODE_LPM>;
+		};
+	};
+	
+	//Grip Sensor Vdd
+	rpmh-regulator-ldoa5 {
+		pm6150_l5: regulator-pm6150-l5 {
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			qcom,init-voltage = <3300000>;
+			regulator-always-on;
+		};
+	};
+	
+	i2c_17: i2c@17 { /* SW I2C */
+		status = "ok";
+
+		cell-index = <17>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 51 0 /* sda */
+			 &tlmm 52 0 /* scl */
+		>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_i2c_active>;
+
+		sx9360-i2c@28 {
+			compatible = "sx9360";
+			reg = <0x28>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&grip_int_active>;
+
+			interrupt-parent = <&spmi_bus>;
+			interrupts = <0x4 0xc4 0 IRQ_TYPE_EDGE_FALLING>;
+
+			sx9360,nirq-gpio = <&pm6150l_gpios 5 GPIO_ACTIVE_LOW>;
+			sx9360,reggnrlctrl2_reg = <0x32>;	/* scanperiod: 102ms */
+			sx9360,againfreq_reg = <0x38>;		/* freq : 62.5 kHz, again : +/-5.25 pF */
+			sx9360,refagainfreq_reg = <0x36>;	/* reference phase again : 5.25 pF, sampling freq : 83.33 khz */
+			sx9360,gainrawfilt_reg = <0x1A>;	/* gain: x4, rawfilt : 1-1/4 */
+			sx9360,refgainrawfilt_reg = <0x22>;	/* reference phase gain: x8, rawfilt : 1-1/4 */
+			sx9360,proxthresh_reg = <0x22>;		/* threshold: 614 */
+			sx9360,hyst_reg = <0x15>;		/* hysteresis: small, closedeb: 2 samples, fardeb: 2 samples */
+			sx9360,regproxctrl3_reg = <0x0C>;	/* AVGPOSFILT: 1/256, AVGNEGFILT: 1/2 */
+			sx9360,resolution_reg = <0x0F>;		/* resolution: 1204 */
+			sx9360,refresolution_reg = <0x0F>;	/* reference phase  resolution: 1204 */
+			sx9360,hallic_cert_detect = <1>;
+		};
+	};
+};
