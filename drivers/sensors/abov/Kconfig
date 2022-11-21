@@ -1,0 +1,8 @@
+
+config SENSORS_A96T346
+    tristate "A96T346_SAR"
+    depends on I2C
+    default n
+    help
+      Say Y to enable the SAR detection application, if N here not to use the
+      this SAR sensor
