@@ -1,0 +1,12 @@
+config SEC_A52SXQ_PROJECT
+	default n
+	bool "Samsung A52SXQ Project"
+	help
+	  Support for Samsung A52SXQ Project
+
+config MACH_A52SXQ_KOR_SINGLE
+        default n
+        bool "Samsung A52SXQ KOR SINGLE"
+        help
+          Support for Samsung A52SXQ KOR SINGLE device.
+

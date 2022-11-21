@@ -1,0 +1,209 @@
+#
+# factory sensor drivers configuration
+#
+config ADSP_FACTORY
+	tristate "MSM ADSP factory driver"
+	default n
+	help
+	  This driver communicate with SSC DAEMON.
+	  register each sensor device.
+	  send selftest request using netlink.
+	  receive test result using netlink.
+
+config LSM6DSL_FACTORY
+	tristate "factory test for SSC - LSM6DSL"
+	default n
+	help
+	  lsm6dsl factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config LSM6DSO_FACTORY
+	tristate "factory test for SSC - LSM6DSO"
+	default n
+	help
+	  lsm6dso factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config ICM4X6XX_FACTORY
+	tristate "factory test for SSC - ICM4X6XX"
+	default n
+	help
+	  lsm6dsl factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config STK31610_FACTORY
+	tristate "factory test for SSC - STK31610"
+	default n
+	help
+	  stk31610 factory driver.
+	  provide sysfs for factory test.
+	  request selftest through factory daemon to slpi.
+	  receive test result through factory daemon from slpi.
+
+config AK09918_FACTORY
+	tristate "factory test for SSC - AK09918"
+	default n
+	help
+	  ak09918 factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config MMC5603X_FACTORY
+	tristate "factory test for SSC - MMC5603X"
+	default n
+	help
+	  mmc5603x factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config SPL07_FACTORY
+	tristate "factory test for SSC - SPL07"
+	default n
+	help
+	  spl07 factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config STK3A9X_FACTORY
+	tristate "factory test for SSC - stk3a9x"
+	default n
+	help
+	  stk3a9x factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config SUPPORT_LIGHT_CALIBRATION
+	tristate "light cal for SSC"
+	default n
+	help
+	  light calibration feature.
+	  provide sysfs for light calibration.
+	  request light cal to adsp_factory.
+	  receive cal value from adsp_factory.
+
+config SUPPORT_PROX_AUTO_CAL
+	tristate "Support Auto Calibration for proximity sensor - tmd490x"
+	default n
+	depends on TMD490X_FACTORY
+	help
+	  Support the Auto Calibration function in tmd490x.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config SUPPORT_PROX_CALIBRATION
+	tristate "prox cal for SSC"
+	default n
+	help
+	  prox calibration feature.
+	  provide sysfs for prox calibration.
+	  request prox cal to adsp_factory.
+	  receive cal value from adsp_factory.
+
+config SUPPORT_BRIGHT_SYSFS_COMPENSATION_LUX
+	tristate "Sensors support lux compensation based on brightness"
+	default n
+	help
+	  Support lux compensation based on brightness sysfs.
+	  receive aor and brightness level from hal injection.
+
+config SUPPORT_BHL_COMPENSATION_FOR_LIGHT_SENSOR
+	tristate "Sensors support BHL compensation"
+	default n
+	help
+	  Support BHL compensation for light sensor
+	  provide sysfs for LCD service.
+	  receive aor and brightness level from lcd driver.
+
+config SLPI_MOTOR
+	tristate "Sensors support motor"
+	default n
+	help
+	  Support the motor state function
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config SUPPORT_DUAL_OPTIC
+	tristate "Sensors support dual optic"
+	default n
+	help
+	  Support the dual prox and light function. 
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config SUPPORT_VIRTUAL_OPTIC
+	tristate "Sensors support virtual optic"
+	default n
+	help
+	  Support the virtual prox and light function. 
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config FLIP_COVER_DETECTOR_FACTORY
+	tristate "factory test for SSC - Flip Cover Detector"
+	default n
+	help
+	  flip_cover_detector factory driver.
+	  provide sysfs for cover status by nfc.
+
+config VEML3235_FACTORY
+	tristate "factory test for SSC - veml3235"
+	default n
+	help
+	  veml3328 factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+	  
+config VEML3235_SUB_FACTORY
+	tristate "factory test for SSC - veml3235_sub"
+	default n
+	help
+	  veml3328_sub factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config LPS22HH_FACTORY
+	tristate "factory test for SSC - lps22hh"
+	default n
+	help
+	  lps22hh factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config SUPPORT_LIGHT_LCD_VERSION_DUALIZAION
+	tristate "light lcd version for SSC"
+	default n
+	help
+	  receive lcd type from lcd sysfs.
+	  send lcd rev to light driver.
+
+config SUPPORT_UNDER_PANEL_WITH_LIGHT_SENSOR
+	tristate "support under panel"
+	default n
+	help
+	  receive under panel support.
+
+config TMD3725_FACTORY
+	tristate "factory test for SSC - tmd3725"
+	default n
+	help
+	  tmd3725 factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
