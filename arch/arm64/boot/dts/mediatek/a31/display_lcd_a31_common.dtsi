@@ -1,0 +1,102 @@
+/*
+ * SAMSUNG LCD Panel Device Tree Source
+ *
+ * Copyright (c) Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	fragment@lcd {
+		target-path = "/";
+		__overlay__ {
+			panel {
+				compatible = "samsung,mtk-dsi-panel";
+				smcdsd_panel = <&ea8076>;
+				//pinctrl-names = "default";
+				//pinctrl-0 = <&panel_input &panel_out>;
+			};
+
+			smcdsd_board_ea8076: smcdsd_board_ea8076 {
+				gpio_pcd = <&pio 54 0x1>;	/* PCD_INT */
+				gpio_det = <&pio 179 0x1>;	/* EL_ON1_DET */
+				gpio_err = <&pio 28 0x1>;	/* FG_ERR */
+				gpio_con = <&pio 92 0>;	/* LCD_DET */
+				//gpio_lcd = <&pio 169 0>;	/* CON_DET */
+
+				gpio_lcd_rst = <&pio 45 0>;	/* OLED_RST_N */
+				gpio_lcd_en_3p0 = <&pio 153 0>;	/* LCD_EN_3P0 */
+				gpio_lcd_en_1p8 = <&pio 25 0>;	/* LCD_EN_1P8 */
+
+				panel_power_enable {
+					type =
+					"gpio,high",	"gpio_lcd_en_1p8",
+					"delay,usleep",	"1000",
+					"gpio,high",	"gpio_lcd_en_3p0",
+					"delay,usleep",	"10000";
+				};
+				panel_power_disable {
+					type =
+					"gpio,low",	"gpio_lcd_rst",
+					"delay,usleep",	"10000",
+					"gpio,low",	"gpio_lcd_en_3p0",
+					"delay,usleep",	"5000",
+					"gpio,low",	"gpio_lcd_en_1p8",
+					"delay,usleep",	"5000";
+				};
+				panel_reset {
+					type =
+					"gpio,high",	"gpio_lcd_rst",
+					"delay,usleep",	"1000",
+					"gpio,low",	"gpio_lcd_rst",
+					"delay,usleep",	"1000",
+					"gpio,high",	"gpio_lcd_rst",
+					"delay,usleep",	"10000";
+				};
+			};
+
+			ea8076: ea8076 {
+				lcm_params-dsi-mode = <0>;	/* 0: CMD, 1: SYNC_PULSE_VDO, 2: SYNC_EVENT_VDO, 3: BURST_VDO */
+				lcm_params-resolution = <1080 2400>;
+				lcm_params-physical_width = <67>;		/* 66.528 mm x 147.84 mm */
+				lcm_params-physical_height = <148>;
+				lcm_params-dsi-data_rate = <1200>;
+				//lcm_params-dsi-data_rate = <1177 1196 1150 1157>;
+
+				//lcm_params-dsi-horizontal_backporch = <2>;
+				//lcm_params-dsi-horizontal_frontporch = <2>;
+				//lcm_params-dsi-horizontal_sync_active = <2>;
+				//lcm_params-dsi-vertical_backporch = <15>;
+				//lcm_params-dsi-vertical_frontporch = <3>;
+				//lcm_params-dsi-vertical_sync_active = <1>;
+				//lcm_params-hbm_enable_wait_frame = <2>;
+
+				smcdsd_board = <&smcdsd_board_ea8076>;
+			};
+		};
+	};
+};
+
+/* for MTK release LCM driver */
+/* backlight control path setting */
+&led6 {
+	compatible = "mediatek,lcd-backlight";
+	led_mode = <4>;
+	data = <1>;
+	pwm_config = <0 3 0 0 0>;
+};
+
+&pio {
+	lcm_gpios: lcm_gpios {
+		gpio_1p8 =<&pio 25 0>;
+		gpio_3p0 =<&pio 153 0>;
+		gpio_reset =<&pio 45 0>;
+	};
+};
+
+/delete-node/ &led6;
+/delete-node/ &lcm_gpios;
+

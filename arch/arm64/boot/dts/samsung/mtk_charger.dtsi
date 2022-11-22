@@ -1,0 +1,21 @@
+
+&smd {
+	mtk_charger: mtk-charger {
+		compatible = "samsung,mtk-charger";
+		charger,vbus_min_charger_voltage = <4600000>;
+		charger,vbus_normal_mivr_voltage = <4400000>;
+		charger,gpio_ilim = <&pio 140 0x0>;
+		charger,gpio_chgenb = <&pio 135 0x0>;
+		charger,max_icl = <3250>;
+		charger,ib_fcc = <100>;
+	};
+};
+
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/charger/mtk_charger/mtk_charger.a32x_eur_open.01.dtsi */
+
+&smd {
+	mtk_charger: mtk-charger {
+		charger,chgenb_en = <1>;
+	};
+};
+

@@ -1,0 +1,51 @@
+/ {
+    fragment@model {
+        target-path = "/";
+        __overlay__ {
+            ssp {
+                compatible = "ssp";
+            };
+        };
+    };
+};
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6853/dts/sensorhub_mt6853.a32x.dtsi */
+/ {
+    fragment@model {
+        target-path = "/";
+        __overlay__ {
+            ssp {
+                ssp-acc-position = <0>;
+                ssp-mag-position = <2>;
+                ssp-acc-motor-coef = <5>;
+                ssp-mag-array = /bits/ 16 <9689 (-190) (-385) 114 11577 (-298) 234 (-681) 10972>;
+                ssp-prox-thresh = /bits/ 16 <150 130>;
+                ssp-light-position = /bits/ 32 <46 27 3 21 2 8>;
+                ssp-brightness-array-len = <5>;
+                ssp-brightness-array = /bits/ 32 <15 40 50 77 255>;
+                ssp-light-cam-lux = /bits/ 32 <100 200>;
+                ssp-light-cam-br = /bits/ 32 <60 60>;
+            };
+        };
+    };
+};
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6853/dts/sensorhub_mt6853.a32x.05.dtsi */
+/ {
+    fragment@model {
+        target-path = "/";
+        __overlay__ {
+            ssp {
+                ssp-acc-position = <0>;
+                ssp-mag-position = <2>;
+                ssp-mag-array = /bits/ 8 <7 81 71 111 133 61 0 139 213
+                                          54 186 21 58 179 255 179 253 112
+                                          248 195 191 252 23 21 8 5 16>;
+                ssp-prox-thresh = /bits/ 16 <150 130>;
+                ssp-light-position = /bits/ 32 <46 27 3 21 2 8>;
+                ssp-brightness-array-len = <5>;
+                ssp-brightness-array = /bits/ 32 <15 40 50 77 255>;
+                ssp-light-cam-lux = /bits/ 32 <100 200>;
+                ssp-light-cam-br = /bits/ 32 <60 60>;
+            };
+        };
+    };
+};

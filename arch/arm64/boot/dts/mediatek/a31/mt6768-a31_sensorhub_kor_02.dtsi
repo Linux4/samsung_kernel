@@ -1,0 +1,32 @@
+/*
+ * SAMSUNG board device tree source
+ *
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			ssp {
+				compatible = "ssp";
+
+				ssp-acc-position = <0>;
+				ssp-mag-position = <3>;
+				ssp-prox-thresh-addval = /bits/ 16 <40 20 30>;
+				ssp-mag-array = /bits/ 16 <10388 86 (-132) (-104) 9738 (-145) (-67) (-27) 10740>;
+				ssp-light-position = /bits/ 32 <42 54 8 27 2 8>;
+				ssp-brightness-array-len = <5>;
+				ssp-brightness-array = /bits/ 32 <15 40 50 77 255>;
+				ssp-light-cam-lux = /bits/ 32 <100 200>;
+				ssp-light-cam-br = /bits/ 32 <60 60>;
+			};
+		};
+	};
+};
