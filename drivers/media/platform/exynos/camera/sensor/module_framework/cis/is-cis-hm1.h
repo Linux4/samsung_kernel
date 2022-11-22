@@ -1,0 +1,149 @@
+/*
+ * Samsung Exynos SoC series Sensor driver
+ *
+ *
+ * Copyright (c) 2016 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#ifndef IS_CIS_HM1_H
+#define IS_CIS_HM1_H
+
+#include "is-cis.h"
+
+#define EXT_CLK_Mhz (26)
+
+#define SENSOR_HM1_MAX_WIDTH		(12000 + 0)
+#define SENSOR_HM1_MAX_HEIGHT		(9000 + 0)
+
+#define SENSOR_HM1_FINE_INTEGRATION_TIME_MIN                0x100
+#define SENSOR_HM1_FINE_INTEGRATION_TIME_MAX                0x100
+#define SENSOR_HM1_COARSE_INTEGRATION_TIME_MIN              0x3
+#define SENSOR_HM1_COARSE_INTEGRATION_TIME_MAX_MARGIN       0xC
+
+#define USE_GROUP_PARAM_HOLD	(0)
+
+enum sensor_hm1_mode_enum {
+	SENSOR_HM1_12000X9000_10FPS = 0,
+	SENSOR_HM1_7680X4320_24FPS = 1,
+	SENSOR_HM1_4000X2252_30FPS_CENTER_CROP = 2,
+	SENSOR_HM1_4000X3000_30FPS = 3,
+	SENSOR_HM1_4000X2252_30FPS = 4,
+	SENSOR_HM1_4000X3000_60FPS = 5,
+	SENSOR_HM1_4000X2252_60FPS = 6,
+	SENSOR_HM1_1984X1488_30FPS = 7,
+	SENSOR_HM1_1920X1080_240FPS = 8,
+	SENSOR_HM1_1920X1080_120FPS = 9,
+	SENSOR_HM1_992X744_120FPS = 10,
+	SENSOR_HM1_MODE_MAX,
+};
+
+static bool sensor_hm1_support_wdr[] = {
+	false, //SENSOR_HM1_12000X9000_10FPS = 0,
+	false, //SENSOR_HM1_7680X4320_24FPS = 1,
+	false, //SENSOR_HM1_4000X2252_30FPS_CENTER_CROP = 2,
+	false, //SENSOR_HM1_4000X3000_30FPS = 3,
+	false, //SENSOR_HM1_4000X2252_30FPS = 4,
+	false, //SENSOR_HM1_4000X3000_60FPS = 5,
+	false, //SENSOR_HM1_4000X2252_60FPS = 6,
+	false, //SENSOR_HM1_1984X1488_30FPS = 7,
+	false, //SENSOR_HM1_1920X1080_240FPS = 8,
+	false, //SENSOR_HM1_1920X1080_120FPS = 9,
+	false, //SENSOR_HM1_992X744_120FPS = 10,
+};
+
+/* dual sync - indirect */
+static const u32 sensor_hm1_cis_dual_master_settings[] = {
+	0xFCFC,	0x4000,	0x02,
+	0x6000,	0x0085,	0x02,
+	0x0A70,	0x0001,	0x02,
+	0x0A72,	0x0200,	0x02,
+	0x0A74,	0x0000,	0x02,
+	0x0A76,	0x0000,	0x02,
+	0x0A78,	0x0000,	0x02,
+	0x0A7A,	0x0000,	0x02,
+	0x0A7C,	0x0100,	0x02,
+	0x0A80,	0x0018,	0x02,
+	0x6028,	0x2000,	0x02,
+	0x602A,	0x142C,	0x02,
+	0x6F12,	0x1420,	0x02,
+	0x602A,	0x142E,	0x02,
+	0x6F12,	0x0100,	0x02,
+	0x602A,	0x1434,	0x02,
+	0x6F12,	0x1020,	0x02,
+	0x602A,	0x1446,	0x02,
+	0x6F12,	0x0000,	0x02,
+	0x602A,	0x14BE,	0x02,
+	0x6F12,	0x0300,	0x02,
+	0x602A,	0x14C0,	0x02,
+	0x6F12,	0x0100,	0x02,
+};
+
+static const u32 sensor_hm1_cis_dual_master_settings_size =
+	ARRAY_SIZE(sensor_hm1_cis_dual_master_settings);
+
+static const u32 sensor_hm1_cis_dual_slave_settings[] = { /* wait for master */
+	0xFCFC,	0x4000,	0x02,
+	0x6000,	0x0085,	0x02,
+	0x0A70,	0x0001,	0x02,
+	0x0A72,	0x0001,	0x02,
+	0x0A74,	0x0001,	0x02,
+	0x0A76,	0x0001,	0x02,
+	0x0A78,	0x0000,	0x02,
+	0x0A7A,	0x0000,	0x02,
+	0x0A7C,	0x0100,	0x02,
+	0x0A80,	0x0018,	0x02,
+	0x6028,	0x2000,	0x02,
+	0x602A,	0x142C,	0x02,
+	0x6F12,	0x1420,	0x02,
+	0x602A,	0x142E,	0x02,
+	0x6F12,	0x0100,	0x02,
+	0x602A,	0x1434,	0x02,
+	0x6F12,	0x1020,	0x02,
+	0x602A,	0x1446,	0x02,
+	0x6F12,	0x0000,	0x02,
+	0x602A,	0x14BE,	0x02,
+	0x6F12,	0x0303,	0x02,
+	0x602A,	0x14C0,	0x02,
+	0x6F12,	0x0000,	0x02,
+};
+
+static const u32 sensor_hm1_cis_dual_slave_settings_size =
+	ARRAY_SIZE(sensor_hm1_cis_dual_slave_settings);
+
+static const u32 sensor_hm1_cis_dual_standalone_settings[] = {
+	0xFCFC,	0x4000,	0x02,
+	0x6000,	0x0085,	0x02,
+	0x0A70,	0x0000,	0x02,
+	0x0A72,	0x0000,	0x02,
+	0x0A74,	0x0000,	0x02,
+	0x0A76,	0x0000,	0x02,
+	0x0A78,	0x0000,	0x02,
+	0x0A7A,	0x0000,	0x02,
+	0x0A7C,	0x0100,	0x02,
+	0x0A80,	0x0018,	0x02,
+	0x6028,	0x2000,	0x02,
+	0x602A,	0x142C,	0x02,
+	0x6F12,	0x1420,	0x02,
+	0x602A,	0x142E,	0x02,
+	0x6F12,	0x0100,	0x02,
+	0x602A,	0x1434,	0x02,
+	0x6F12,	0x1020,	0x02,
+	0x602A,	0x1446,	0x02,
+	0x6F12,	0x0000,	0x02,
+	0x602A,	0x14BE,	0x02,
+	0x6F12,	0x0300,	0x02,
+	0x602A,	0x14C0,	0x02,
+	0x6F12,	0x0000,	0x02,
+};
+
+static const u32 sensor_hm1_cis_dual_standalone_settings_size =
+	ARRAY_SIZE(sensor_hm1_cis_dual_standalone_settings);
+
+int sensor_hm1_cis_stream_on(struct v4l2_subdev *subdev);
+int sensor_hm1_cis_stream_off(struct v4l2_subdev *subdev);
+int sensor_hm1_cis_set_lownoise_mode_change(struct v4l2_subdev *subdev);
+#endif

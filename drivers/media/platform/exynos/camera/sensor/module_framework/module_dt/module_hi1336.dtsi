@@ -1,0 +1,161 @@
+/*
+ * SAMSUNG EXYNOSxxxx board camera device tree source
+ *
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/camera/exynos_is_dt.h>
+
+#ifndef USE_VENDOR_PWR_PIN_NAME
+#define HI1336_IOVDD	<>     /* CAM_VDDIO_1P8 : CAM0_VLDO3 is used for all camera commonly */
+#define HI1336_AVDD	<>     /* RCAM1_AVDD1_2P9 */
+#define HI1336_DVDD	<>     /* RCAM1_DVDD_1P1 */
+#endif
+
+/ {
+	fragment@camera {
+		target-path = "/";
+		__overlay__ {
+			is_sensor_hi1336: is_sensor_hi1336@40 {
+				compatible = "samsung,sensor-module";
+
+				/* common */
+				sensor_id = <SENSOR_NAME_HI1336>;
+				active_width = <4000>;
+				active_height = <3000>;
+				margin_left = <0>;
+				margin_right = <0>;
+				margin_top = <0>;
+				margin_bottom = <0>;
+				max_framerate = <120>;
+				bitwidth = <10>;
+				use_retention_mode = <SENSOR_RETENTION_INACTIVE>;
+				sensor_maker = "HYNIX";
+				sensor_name = "HI1336";
+				setfile_name = "setfile_hi1336.bin";
+
+				hi1336_iovdd-supply = HI1336_IOVDD;
+				hi1336_avdd-supply = HI1336_AVDD;
+				hi1336_dvdd-supply = HI1336_DVDD;
+
+				status = "okay";
+
+				/*
+				 * [Mode Information]
+				 *
+				 * Reference File : Hi-1336_setting_v4.0.3_SEC16_20190904.xlsx
+				 *
+				 * -. Global Setting -
+				 *  - Mode setting
+				 *  [ 0 ] 4208 x 3120(13M full) @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1456, Mclk(Mhz): 26
+				 *  [ 1 ] 4000 x 3000(4:3)      @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1456, Mclk(Mhz): 26
+				 *  [ 2 ] 4000 x 2256(16:9)     @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1456, Mclk(Mhz): 26
+
+				 *  - VT CALL (2 binning) setting For HI1336
+				 *  [ 3 ] 2000 x 1500(4:3)      @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1456, Mclk(Mhz): 26
+				 *  [ 4 ] 2000 x 1124(16:9)     @30,  MIPI lane: 4, MIPI data rate(Mbps/lane):  1456, Mclk(Mhz): 26
+				 *
+				 *  - FAST AE (4 binning) setting For HI1336
+				 *  [ 5 ] 992 x 744(4:3)        @120, MIPI lane: 4, MIPI data rate(Mbps/lane):   364, Mclk(Mhz): 26
+				 *
+				 */
+
+				/* sensor modes */
+				modes {
+						/* common = <width, height, fps, settle, mode, lane, speed, interleave, lrte, pd_mode> */
+						/* vcX = <map, hwformat, width, height, hwformat, type, width, height> */
+
+					/* 0 : Full (4208x3120) */
+					mode0 {
+						common = <4208 3120 30 0 0 CSI_DATA_LANES_4 1456 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 4208 3120	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_EMBEDDED_8BIT 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+					};
+					/* 1 : Full Crop(4000x3000) 4:3 */
+					mode1 {
+						common = <4000 3000 30 0 1 CSI_DATA_LANES_4 1456 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 4000 3000	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_EMBEDDED_8BIT 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+					};
+					/* 2 : Full Crop(4000x2256) 16:9 */
+					mode2 {
+						common = <4000 2256 30 0 2 CSI_DATA_LANES_4 1456 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 4000 2256	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_EMBEDDED_8BIT 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+					};
+					/* 3 : 2x2 binning Crop(2000x1500) 4:3 */
+					mode3 {
+						common = <2000 1500 30 0 3 CSI_DATA_LANES_4 747 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 2000 1500	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_EMBEDDED_8BIT 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+					};
+					/* 4 : 2x2 binning Crop(2000x1124) 16:9 */
+					mode4 {
+						common = <2000 1124 30 0 4 CSI_DATA_LANES_4 747 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 2000 1124	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_EMBEDDED_8BIT 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+					};
+
+				        /* 5 : 4-binning FastAE */
+					mode5 {
+						common = <992 744 120 0 5 CSI_DATA_LANES_4 364 CSI_MODE_CH0_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 992 744	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_EMBEDDED_8BIT 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+					};
+				};
+
+				power_seq {
+					use = <1>;
+					scenario_normal_on {
+						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
+					};
+
+					scenario_normal_off {
+						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
+					};
+
+					scenario_read_rom_on {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
+					};
+
+					scenario_read_rom_off {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name"; pin = <act value dealy voltage>; gpio = <gpx# # 0x1>; */
+					};
+				};
+			};
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */
