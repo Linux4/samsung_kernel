@@ -1,0 +1,18 @@
+config SEC_R9Q_PROJECT
+        default n
+        bool "Samsung R9Q Project"
+        help
+          Support for Samsung R9Q Project
+
+config MACH_R9Q_USA_SINGLEW
+        default n
+        bool "Samsung R9Q USA SINGLEW"
+        help
+          Support for Samsung R9Q USA SINGLEW device.
+
+config MACH_R9Q_USA_OPENW
+        default n
+        bool "Samsung R9Q USA OPENW"
+        help
+          Support for Samsung R9Q USA OPENW device.
+
