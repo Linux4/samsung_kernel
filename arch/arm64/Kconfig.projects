@@ -1,0 +1,12 @@
+config SEC_R8Q_PROJECT
+	default n
+	bool "Samsung R8Q Project"
+	help
+	  Support for Samsung R8Q Project
+
+config MACH_R8Q_USA_SINGLE
+	default n
+	bool "Samsung R8Q USA SQ"
+	help
+	  Support for Samsung R8Q USA SQ device.
+
