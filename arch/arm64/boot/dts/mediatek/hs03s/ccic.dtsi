@@ -1,0 +1,63 @@
+&i2c5 {
+	clock-frequency = <400000>;
+	usb_typec_will:wusb3801@60 {
+		compatible = "will,wusb3801";
+		reg = <0x60>;
+		interrupt-parent = <&pio>;
+		interrupts = <107 0>;
+		wusb3801,irq-gpio = <&pio 107 0x0>;
+		interrupt-name = "wusb3801_int_irq";
+		wusb3801,init-mode = <32>;
+		wusb3801,host-current = <0x01>;
+		wusb3801,drp-toggle-time = <0>;
+		status = "okay";
+	};
+
+	tcpc1:sgm7220@47 {
+		compatible = "sgm,sgm7220";
+		reg = <0x47>;
+		interrupt-parent = <&pio>;
+		interrupts = <107 0>;
+		sgm7220,irq_gpio = <&pio 107 0>;
+		interrupt-name = "sgm7220_int_irq";
+		debounce = <107 0>;
+		status = "okay";
+	};
+
+	/*HS03s for SR-AL5625-01-541 by wangzikang at 20210614 start*/	
+	tcpc2:fusb301@21 {
+		compatible = "mediatek,fusb301";
+		reg = <0x21>;
+		interrupt-parent = <&pio>;
+		interrupts = <107 0>;
+		fusb301a,irq-gpio = <&pio 107 0x0>;
+		interrupt-name = "fusb301a_int_irq";
+		fusb301a,init-mode = <32>;
+		fusb301a,host-current = <0x01>;
+		fusb301a,drp-toggle-time = <0>;
+		status = "okay";
+	};
+	/*HS03s for SR-AL5625-01-541 by wangzikang at 20210614 end*/
+
+};
+
+/ {
+	mt6370_typec: type_c_port0 {
+		/* 0: dfp/ufp, 1: dfp, 2: ufp */
+		tcpc-dual,supported_modes = <0>;
+		mt-tcpc,name = "type_c_port0"; /* tcpc_device's name */
+		/* 0: SNK Only, 1: SRC Only, 2: DRP, 3: Try.SRC, 4: Try.SNK */
+		mt-tcpc,role_def = <2>;
+		mt-tcpc,rp_level = <1>; /* 0: Default, 1: 1.5, 2: 3.0 */
+		/* 0: Never, 1: Always, 2: EMarkOnly, 3: StartOnly */
+		mt-tcpc,vconn_supply  = <1>;
+		/* the number of notifier supply */
+#if (CONFIG_MTK_GAUGE_VERSION == 30)
+		mt-tcpc,notifier_supply_num = <3>;
+#else
+		mt-tcpc,notifier_supply_num = <2>;
+#endif
+		mt6370pd,intr_gpio = <&pio 107 0x0>;
+		mt6370pd,intr_gpio_num = <107>;
+	};
+};

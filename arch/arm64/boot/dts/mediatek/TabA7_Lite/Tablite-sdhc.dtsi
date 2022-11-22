@@ -1,0 +1,11 @@
+/* TabA7 Lite code for SR-AX3565-01-19 by SunXunou at 20201120 start */
+/ {
+	model = "MT6765";
+	compatible = "mediatek,MT6765";
+
+	sdcard-det-pin {
+		compatible = "mediatek,sdcard-detect-pin";
+		mediatek,sdcard-detect-pin-no = <&pio 1 0>;
+	};
+};
+/* TabA7 Lite code for SR-AX3565-01-19 by SunXunou at 20201120 end */
