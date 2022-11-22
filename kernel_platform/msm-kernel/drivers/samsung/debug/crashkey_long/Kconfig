@@ -1,0 +1,5 @@
+config SEC_CRASHKEY_LONG
+	tristate "SEC Long key reset driver"
+	depends on SEC_KEY_NOTIFIER
+	help
+	  TODO: help is not ready.
