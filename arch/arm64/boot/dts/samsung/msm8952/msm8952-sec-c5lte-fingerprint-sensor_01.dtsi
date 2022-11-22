@@ -1,0 +1,51 @@
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&spi_0 { /* BLSP1 QUP0 */
+	status = "okay";
+
+	vfsspi-spi@0 {
+	compatible = "vfsspi,vfs7xxx";
+		reg = <0>;
+		spi-max-frequency = <16000000>;
+		vfsspi-sleepPin = <&msm_gpio 87 0x1>;
+		vfsspi-drdyPin = <&msm_gpio 37 0x01>;
+		vfsspi-ldoPin = <&msm_gpio 89 0x1>;
+		vfsspi-vendorPin = <&msm_gpio 66 0x1>;
+		vfsspi-orient = <0>;
+		vfsspi-ldocontrol= <1>;
+		vfsspi-min_cpufeq_limit = <1516800>;
+
+		pinctrl-names = "default", "sleep", "idle";
+		pinctrl-0 = <&vfsspi_drdypin_active>;
+		pinctrl-1 = <&vfsspi_drdypin_suspend>;
+		pinctrl-2 = <&vfsspi_drdypin_active>;
+	};
+
+	etspi-spi@1 {
+		compatible = "etspi,et320";
+		reg = <1>;
+		spi-max-frequency = <19200000>;
+		etspi-sleepPin = <&msm_gpio 87 0x1>;
+		etspi-drdyPin = <&msm_gpio 37 0x01>;
+		etspi-ldoPin = <&msm_gpio 89 0x1>;
+		etspi-vendorPin = <&msm_gpio 66 0x1>;
+		etspi-orient = <0>;
+		etspi-ldocontrol= <1>;
+		etspi-min_cpufeq_limit = <1516800>;
+
+		pinctrl-names = "default", "sleep", "idle";
+		pinctrl-0 = <&etspi_drdypin_active>;
+		pinctrl-1 = <&etspi_drdypin_suspend>;
+		pinctrl-2 = <&etspi_drdypin_active>;
+	};
+};

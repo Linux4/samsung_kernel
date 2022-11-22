@@ -1,0 +1,36 @@
+/* Copyright (c) 2015, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	sec-mst {
+		compatible = "sec-mst";
+		sec-mst,mst-ldo-gpio = <&msm_gpio 109 0>;
+
+		pinctrl-names = "mst_active";
+		pinctrl-0 = <&mst_ldo_en_init>;
+	};
+};
+
+&tlmm_pinmux {
+	mst_ldo_en_init_pin: mst_ldo_en_init_pin {
+		qcom,pins = <&gp 109>;
+		qcom,num-grp-pins = <1>;
+		qcom,pin-func = <0>;
+		label = "mst_ldo_en_init";
+		mst_ldo_en_init: mst_ldo_en_init {
+			drive-strength = <2>;
+			bias-pull-down;
+			output-low;
+		};
+	};
+};
+
