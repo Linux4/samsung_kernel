@@ -1,0 +1,137 @@
+/ {
+	baaw_p_wlbt: syscon@12050000 {
+		compatible = "baaw_p_wlbt", "syscon";
+		reg = <0x0 0x12050000 0xff>;
+	};
+
+	dbus_baaw: syscon@14C20000 {
+		compatible = "dbus_baaw", "syscon";
+		reg = <0x0 0x14C20000 0x300>;
+	};
+
+	pbus_baaw: syscon@14C30000 {
+		compatible = "pbus_baaw", "syscon";
+		reg = <0x0 0x14C30000 0x300>;
+	};
+
+	wlbt_remap_base: syscon@14C50000 {
+		compatible = "wlbt_remap", "syscon";
+		reg = <0x0 0x14C50000 0x300>;
+	};
+
+	boot_cfg: syscon@14C60000 {
+		compatible = "boot_cfg", "syscon";
+		reg = <0x0 0x14C60000 0x1200>;
+	};
+
+	/* MAILBOX_AP2WLBT */
+	scsc_wifibt: scsc_wifibt@119c0000 {
+		compatible = "samsung,scsc_wifibt";
+		/* Mailbox Registers */
+		reg = <0x0 0x119c0000 0x180>;
+		/* 10.3.2 External GIC IRQ table */
+		//SPI[42]  74  BLK_ALIVE  INTREQ__MAILBOX_WLBT2AP
+		//SPI[28]  60  BLK_ALIVE  INTREQ__ALIVE_WLBT_ACTIVE
+		//SPI[72]  104  BLK_WLBT  WB2AP_WDOG_RESET_REQ__ALV
+		//SPI[73]  105  BLK_WLBT  WB2AP_CFG_REQ__ALV
+		interrupts = <0 42 4>, <0 28 4>, <0 72 4>, <0 73 4>;
+		interrupt-names = "MBOX","ALIVE","WDOG","CFG_REQ";
+		/* PMU alive handle */
+		samsung,syscon-phandle = <&pmu_system_controller>;
+		samsung,baaw_p_wlbt-syscon-phandle = <&baaw_p_wlbt>;
+		samsung,dbus_baaw-syscon-phandle = <&dbus_baaw>;
+		samsung,pbus_baaw-syscon-phandle = <&pbus_baaw>;
+		samsung,wlbt_remap-syscon-phandle = <&wlbt_remap_base>;
+		samsung,boot_cfg-syscon-phandle = <&boot_cfg>;
+		/* MIF / INT / CL0 / CL1 */
+		/* this qos_table should be per-platform. Leave it here until we have multiple platfrom support */
+		qos_table = <
+			 419000 100000 403000  936000  /* SCSC_QOS_MIN */
+			1014000 533000 910000  1664000 /* SCSC_QOS_MED */
+			2093000 667000 1742000 2314000 /* SCSC_QOS_MAX */
+			    >;
+		/* SMAPPER */
+		smapper_num_banks = <11>;
+		smapper_reg = <0x14c40000 0x10000>;
+		smapper_bank_table {
+			smapper_bank_0 {
+				bank_num        = <0x0>;
+				fw_window_start = <0x82000000>;
+				fw_window_size  = <0x100000>;
+				num_entries     = <160>;
+				is_large        = <1>;
+			};
+			smapper_bank_1 {
+				bank_num        = <0x1>;
+				fw_window_start = <0x82100000>;
+				fw_window_size  = <0x100000>;
+				num_entries     = <160>;
+				is_large        = <1>;
+			};
+			smapper_bank_2 {
+				bank_num        = <0x2>;
+				fw_window_start = <0x82200000>;
+				fw_window_size  = <0x100000>;
+				num_entries     = <160>;
+				is_large        = <1>;
+			};
+			smapper_bank_3 {
+				bank_num        = <0x3>;
+				fw_window_start = <0x82300000>;
+				fw_window_size  = <0x100000>;
+				num_entries     = <160>;
+				is_large        = <1>;
+			};
+			smapper_bank_4 {
+				bank_num        = <0x4>;
+				fw_window_start = <0x83000000>;
+				fw_window_size  = <0x100000>;
+				num_entries     = <64>;
+				is_large        = <0>;
+			};
+			smapper_bank_5 {
+				bank_num        = <0x5>;
+				fw_window_start = <0x83100000>;
+				fw_window_size  = <0x100000>;
+				num_entries     = <64>;
+				is_large        = <0>;
+			};
+			smapper_bank_6 {
+				bank_num        = <0x6>;
+				fw_window_start = <0x83200000>;
+				fw_window_size  = <0x100000>;
+				num_entries     = <64>;
+				is_large        = <0>;
+			};
+			smapper_bank_7 {
+				bank_num        = <0x7>;
+				fw_window_start = <0x83300000>;
+				fw_window_size  = <0x100000>;
+				num_entries     = <64>;
+				is_large        = <0>;
+			};
+			smapper_bank_8 {
+				bank_num        = <0x8>;
+				fw_window_start = <0x83400000>;
+				fw_window_size  = <0x100000>;
+				num_entries     = <64>;
+				is_large        = <0>;
+			};
+			smapper_bank_9 {
+				bank_num        = <0x9>;
+				fw_window_start = <0x83500000>;
+				fw_window_size  = <0x100000>;
+				num_entries     = <64>;
+				is_large        = <0>;
+			};
+			smapper_bank_10 {
+				bank_num        = <0xa>;
+				fw_window_start = <0x83600000>;
+				fw_window_size  = <0x100000>;
+				num_entries     = <64>;
+				is_large        = <0>;
+			};
+		};
+	};
+};
+
