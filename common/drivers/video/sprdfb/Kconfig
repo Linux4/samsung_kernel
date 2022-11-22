@@ -1,0 +1,265 @@
+if FB
+config FB_SC8825
+	boolean "SC8825 frame buffer support "
+	depends on FB && ARCH_SC8825
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	help
+          Frame buffer driver for sc8825 based boards.
+
+config FB_SCX35
+	boolean "SC8830 frame buffer support "
+	depends on FB && ARCH_SCX35 && (!ARCH_SCX30G)
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	help
+          Frame buffer driver for sc8830 based boards.
+config FB_SCX30G
+	boolean "SC8830G frame buffer support "
+	depends on FB && ARCH_SCX30G
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	help
+          Frame buffer driver for sc8830G based boards.
+
+config FB_SCX15
+	boolean "SC7715 frame buffer support "
+	depends on FB && ARCH_SCX15
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	help
+          Frame buffer driver for sc7715 based boards.
+
+config SPRD_FB_SIZE
+	int "MB size for frame buffer, should larger or equal lcd_w*lcd_h*4*2"
+	range 1 16
+	default 8
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX15 || FB_SCX30G
+
+config FB_LCD_HX8363_MCU
+	boolean "support HX8363 panel mcu"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX15
+	default n
+
+config FB_LCD_HX8363_RGB_SPI
+	boolean "support HX8363 panel rgb spi"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX15
+	default n
+
+config FB_LCD_VIVA_RGB_SPI
+	boolean "support VIVA panel rgb spi"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX15
+	default n
+
+config FB_LCD_HX8369
+	boolean "support HX8369 panel"
+	depends on FB_SC8825 || FB_SCX35
+	default n
+
+config FB_LCD_HX8369B_MIPI
+	boolean "support HX8369B MIPI panel"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX30G
+	default n
+	
+config FB_LCD_S6D77A1A01_MIPI
+	boolean "support S6D77A1A01 MIPI panel"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX30G
+	default n
+
+config FB_LCD_HX8369B_MIPI_GRAND_NEO
+	boolean "support HX8369B MIPI panel for grand neo"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX30G
+	default n
+
+config FB_LCD_S6D0139
+	boolean "support S6D0139 panel"
+	depends on FB_SC8825 || FB_SCX35
+	default n
+
+config FB_LCD_NT35516_MIPI
+	boolean "support NT35516 mipi panel"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX30G
+	default n
+
+config FB_LCD_DUMMY
+	boolean "support DUMMY panel"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX30G
+	default y
+
+config FB_LCD_NT35502_MIPI
+	boolean "support NT35502 mipi panel"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX30G
+	default n
+
+config FB_LCD_VX5B3D_MIPI
+	boolean "support VX5B3D mipi panel"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX30G
+	default n
+
+config FB_LCD_ILI9486S1_MIPI
+	boolean "support ILI9486S1 mipi panel"
+	depends on FB_SCX35 || FB_SCX15 || FB_SCX30G
+	default n
+
+config FB_LCD_NT35516_RGB_I2C
+	boolean "support NT35516 rgb (i2c) panel"
+	depends on FB_SC8825 || FB_SCX35
+	default n
+
+config FB_LCD_NT35516_RGB_SPI
+	boolean "support NT35516 rgb (spi) panel"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX15
+	default n
+
+config FB_LCD_NT35516_MCU
+	boolean "support NT35516 mcu panel"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX15 || FB_SCX30G
+	default n
+
+config FB_LCD_NT35510_MIPI
+	boolean "support NT35510 mipi panel"
+	depends on FB_SC8825 || FB_SCX35
+	default n
+
+config FB_LCD_NT35512_MIPI
+	boolean "support NT35512 mipi panel"
+	depends on FB_SC8825 || FB_SCX35
+	default n
+
+config FB_LCD_OTM8018B_MIPI
+	boolean "support otm 8018b mipi panel"
+	depends on FB_SC8825 || FB_SCX35
+	default n
+
+config FB_LCD_SSD2075_MIPI
+	boolean "support ssd2075 mipi panel"
+	depends on FB_SC8825 || FB_SCX35
+	default n
+
+config FB_LCD_ILI9486
+	boolean "support ILI9486 mcu panel"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX15
+	default n
+
+config FB_LCD_ILI9486_RGB_SPI
+	boolean "support ILI9486 rgb spi panel"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX15
+	default n
+
+config FB_LCD_SC7798_RGB_SPI
+        boolean "support SC7798 rgb spi panel"
+        depends on FB_SC8825 || FB_SCX35 || FB_SCX15
+        default n
+
+config FB_LCD_ILI9341
+	boolean "support ILI9341 mcu panel"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX15
+	default n
+
+config FB_LCD_ST7789V_MCU
+	boolean "support ST7789V mcu panel"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX15
+	default n
+
+config FB_LCD_NT51017_MIPI_LVDS
+        boolean "support nt51017 lvds panel"
+        depends on FB_SC8825 || FB_SCX35
+        default n
+
+config FB_LCD_HX8369B_MIPI
+	boolean "support hx8369b mipi panel"
+	depends on FB_SC8825 || FB_SCX35
+	default n
+
+config FB_LCD_OTM1283A_MIPI
+	boolean "support otm 1283a mipi panel"
+	depends on FB_SC8825 || FB_SCX35
+	default n
+
+config FB_LCD_ILI9806E_MIPI
+	boolean "support ili9806e mipi panel"
+	depends on FB_SC8825 || FB_SCX35
+	default n
+
+config FB_LCD_T8861_MIPI
+	boolean "support t8861 mipi panel"
+	depends on FB_SC8825 || FB_SCX35
+	default n
+
+config FB_LCD_HX8379A_MIPI
+	boolean "support hx8379a mipi panel"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX30G
+	default n
+
+config FB_LCD_HX8389C_MIPI
+	boolean "support hx8389c mipi panel"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX30G
+	default n
+
+config FB_LCD_RESERVE_MEM
+        boolean "support FB reserve mem"
+        depends on FB_SC8825 || FB_SCX35 || FB_SCX15 || FB_SCX30G
+        default n
+
+config FB_LCD_OVERLAY_SUPPORT
+	boolean "support lcd overlay"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX15 || FB_SCX30G
+	default n
+
+config FB_VSYNC_SUPPORT
+	boolean "support wait for vsync io"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX15 || FB_SCX30G
+	default y
+
+config FB_ESD_SUPPORT
+	boolean "support esd check"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX30G
+	default n
+
+config FB_DYNAMIC_CLK_SUPPORT
+	boolean "support close clk dynamically"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX30G
+	default n
+
+config FB_DYNAMIC_FREQ_SCALING
+	boolean "support change mipi clk/fps/dpi clk dynamically"
+	depends on FB_SC8825 || FB_SCX35 || FB_SCX15 || FB_SCX30G
+	default n
+
+config FB_MMAP_CACHED
+	boolean "support fb_mmap with cach"
+	depends on FB_SC8825 || FB_SCX35 ||FB_SCX15
+	default n
+
+config FB_LOW_RES_SIMU
+	boolean "support low resolution simulator"
+	depends on FB_SC8825 || FB_SCX35 ||FB_SCX15 || FB_SCX30G
+	default n
+
+config LCD_ESD_RECOVERY
+	boolean "support esd detection for lcd"
+	default n	
+
+config FB_TRIPLE_FRAMEBUFFER
+	boolean "support triple buffer"
+	depends on FB_SC8825 || FB_SCX35 ||FB_SCX15 || FB_SCX30G
+	default y
+
+config FB_BL_EVENT_CTRL
+	boolean "support esd detection for lcd"
+	default n
+
+config LCD_MIPI_CONTINOUS_CLK
+	boolean "support continous clock"
+	default n
+
+config SPRDFB_GEN_PANEL
+	bool "support gen-panel"
+	default n
+	help
+		support generic panel driver on sprdfb
+endif

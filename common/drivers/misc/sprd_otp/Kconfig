@@ -1,0 +1,32 @@
+menuconfig OTP_SPRD
+
+    bool "Spreadtrum OTP Efuse"
+    depends on ARCH_SCX30G || ARCH_SCX35L
+    default y
+    help
+      Spreadtrum OTP Efuse Support.
+
+if OTP_SPRD
+
+config OTP_SPRD_EFUSE
+    tristate "Spreadtrum D-die AON Efuse driver (since from r3p0)"
+    depends on ARCH_SCX30G || ARCH_SCX35L
+    default y
+    help
+      Say Y here to support spreadtrum ddie efuse for ip r3p0 version.
+
+config OTP_SPRD_ADIE_EFUSE
+    tristate "Spreadtrum A-die eFuse/eMemory driver"
+    depends on ADIE_SC2723 || ADIE_SC2723S
+    default y
+    help
+      Say Y here to support spreadtrum adie efuse.
+
+config OTP_SPRD_LASER_FUSE
+    tristate "Spreadtrum A-die laser fuse driver (no longer recommended)"
+    depends on ADIE_SC2713 || ADIE_SC2713S
+    default y
+    help
+      Say Y here to support spreadtrum adie laser fuse.
+
+endif

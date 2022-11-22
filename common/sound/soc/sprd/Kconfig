@@ -1,0 +1,59 @@
+menu "SoC Audio for the SPREADTRUM"
+config SND_SOC_SPRD
+	bool "sprd audio base"
+
+config SND_SOC_SPRD_VBC_R1P0_SPRD_CODEC_V1
+	tristate "VBC(R1P0)CODEC(V1)"
+	select SND_SOC_SPRD_VBC_R1P0
+	select SND_SOC_SPRD_VAUDIO
+	select SND_SOC_SPRD_AUDIO_DMA
+	select SND_SOC_SPRD_CODEC_V1
+	help
+	  Say Y if you want to built in to kernel, Say M for ko module.
+	  use VBC(R1P0) and  SPRD CODEC(V1) for the audio system.
+
+config SND_SOC_SPRD_VBC_R2P0_SPRD_CODEC_V3
+	tristate "VBC(R2P0)CODEC(V3)"
+	select SND_SOC_SPRD_VBC_R2P0
+	select SND_SOC_SPRD_VAUDIO
+	select SND_SOC_SPRD_AUDIO_DMA
+	select SND_SOC_SPRD_CODEC_V3
+	help
+	  Say Y if you want to built in to kernel, Say M for ko module.
+	  use VBC(R2P0) and  SPRD CODEC(V3) for the audio system.
+
+config SND_SOC_SPRD_VBC_R2P0_SPRD_CODEC_V4
+	tristate "VBC(R2P0)CODEC(V4)"
+	select SND_SOC_SPRD_VBC_R2P0
+	select SND_SOC_SPRD_VAUDIO
+	select SND_SOC_SPRD_AUDIO_DMA
+	select SND_SOC_SPRD_CODEC_V4
+	help
+	  Say Y if you want to built in to kernel, Say M for ko module.
+	  use VBC(R2P0) and  SPRD CODEC(V4) for the audio system.
+
+config SND_SOC_SPRD_I2S_V0_NULL_CODEC
+	tristate "I2S(V0)NC"
+	select SND_SOC_SPRD_I2S
+	select SND_SOC_SPRD_AUDIO_DMA
+	select SND_SOC_NULL_CODEC
+	help
+	  Say Y if you want to built in to kernel, Say M for ko module.
+	   this option will build spreadtrum I2S driver for external codec
+           or like BT/Digital FM etc.
+
+config SND_SOC_SPRD_AUDIO_DEBUG
+	bool "sprd audio debug"
+	help
+          Say Y if defined this will include more
+	    print debug information for detail.
+	    Or, maybe could reduce the code size.
+
+source "sound/soc/sprd/dai/Kconfig"
+source "sound/soc/sprd/dai/vbc/Kconfig"
+source "sound/soc/sprd/dai/vaudio/Kconfig"
+source "sound/soc/sprd/dai/i2s/Kconfig"
+source "sound/soc/sprd/codec/sprd/Kconfig"
+source "sound/soc/sprd/codec/null-codec/Kconfig"
+
+endmenu
