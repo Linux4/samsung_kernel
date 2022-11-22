@@ -1,0 +1,163 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../../../../../../drivers/video/msm/mdss/samsung/S6E8AA5X01_AMS561RA01/dsi_panel_S6E8AA5X01_AMS561RA01_hd_octa_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/S6E8AA5X01_AMS604RM01/dsi_panel_S6E8AA5X01_AMS604RM01_hd_octa_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/PBA_BOOTING/dsi_panel_PBA_BOOTING_fhd_video.dtsi"
+
+/*
+ * SOC Setting (TLMM Pin Control & SPI Setting)
+ */
+
+&soc {
+	tlmm: pinctrl@1000000 {
+
+/delete-node/ pmx_mdss;
+		pmx_mdss: pmx_mdss {
+			mdss_dsi_active: mdss_dsi_active {
+				mux {
+					pins = "gpio50", "gpio93"; /* rst and power */
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio50", "gpio93";
+					drive-strength = <8>; /* 8 mA */
+					bias-disable = <0>; /* no pull */
+					output-high;
+				};
+			};
+
+			mdss_dsi_suspend: mdss_dsi_suspend {
+				mux {
+					pins = "gpio50", "gpio93"; /* rst */
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio50", "gpio93";
+					drive-strength = <2>; /* 2 mA */
+					bias-pull-down; /* pull down */
+				};
+			};
+		};
+
+/delete-node/ pmx_mdss_te;
+		mdss_disp_det_active: mdss_disp_det_active {
+			mux {
+				pins = "gpio45", "gpio97";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio45", "gpio97";
+				drive-strength = <2>; /* 8 mA */
+				bias-disable = <0>; /* no pull */
+				input-enable;
+			};
+		};
+
+		mdss_disp_det_suspend: mdss_disp_det_suspend {
+			mux {
+				pins = "gpio45", "gpio97";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio45", "gpio97";
+				drive-strength = <2>; /* 2 mA */
+				bias-disable = <0>; /* no pull */
+			};
+		};
+
+	};
+	msmgpio_3p0_vreg: msmgpio_3p0_vreg {
+		compatible = "regulator-fixed";
+		status = "okay";
+		regulator-name = "msmgpio_3p0_vreg";
+		gpio = <&tlmm 93 0>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+};
+
+&ss_dsi_panel_S6E8AA5X01_AMS561RA01_HD {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <1>;
+	qcom,mdss-dsi-bl-max-level = <365>;
+
+/*	samsung,panel-extra-power-gpio1 =<&tlmm 93 0>;*/ /*vci & vdd3: 3.0V & 1.8V*/
+
+	/* samsung,esd-irq-gpio1 = <&tlmm 97 0>; */
+	/* samsung,esd-irq-gpio2 = <&tlmm 45 0>; */
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
+};
+
+&ss_dsi_panel_S6E8AA5X01_AMS604RM01_HD {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <1>;
+	qcom,mdss-dsi-bl-max-level = <365>;
+
+/*	samsung,panel-extra-power-gpio1 =<&tlmm 93 0>;*/ /*vci & vdd3: 3.0V & 1.8V*/
+
+	/* samsung,esd-irq-gpio1 = <&tlmm 97 0>; */
+	/* samsung,esd-irq-gpio2 = <&tlmm 45 0>; */
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
+};
+
+&mdss_dsi {
+	hw-config = "single_dsi";
+};
+
+&soc {
+	dsi_panel_pwr_supply: dsi_panel_pwr_supply {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,panel-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "vdd";
+			qcom,supply-min-voltage = <2850000>;
+			qcom,supply-max-voltage = <2850000>;
+			qcom,supply-enable-load = <100000>;
+			qcom,supply-disable-load = <100>;
+		};
+
+		qcom,panel-supply-entry@1 {
+			reg = <1>;
+			qcom,supply-name = "vddio";
+			qcom,supply-min-voltage = <1800000>;
+			qcom,supply-max-voltage = <1800000>;
+			qcom,supply-enable-load = <100000>;
+			qcom,supply-disable-load = <100>;
+		};
+	};
+};
+
+
+&mdss_dsi0 {
+	qcom,dsi-pref-prim-pan = <&ss_dsi_panel_S6E8AA5X01_AMS604RM01_HD>;
+
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_dsi_active &mdss_disp_det_active>;
+	pinctrl-1 = <&mdss_dsi_suspend &mdss_disp_det_suspend>;
+
+	qcom,platform-reset-gpio = <&tlmm 50 0>;
+
+	vdd-supply = <&msmgpio_3p0_vreg>;
+};
+
+&mdss_dsi1 {
+	status = "disabled";
+};
+
+&mdss_mdp {
+    qcom,mdss-pref-prim-intf = "dsi";
+};

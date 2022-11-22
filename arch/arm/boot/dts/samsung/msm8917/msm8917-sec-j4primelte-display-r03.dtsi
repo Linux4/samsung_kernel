@@ -1,0 +1,114 @@
+#define GPIOF_DIR_OUT   (0 << 0)
+#define GPIOF_INIT_HIGH (1 << 1)
+#define GPIOF_OUT_INIT_HIGH     (GPIOF_DIR_OUT | GPIOF_INIT_HIGH)
+
+#include "../../samsung/msm8917/msm8917-mdss-panels.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AT0B01_PM6003XB1/dsi_panel_S6D7AT0B01_PM6003XB1_hdp_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AT0B01_BS060WKM/dsi_panel_S6D7AT0B01_BS060WKM_hdp_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/HX83102D_BS060WKM/dsi_panel_HX83102D_BS060WKM_hdp_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/PBA_BOOTING/dsi_panel_PBA_BOOTING_fhd_video.dtsi"
+
+&cont_splash_mem { 
+	reg = <0x0 0xA8000000 0x0 0x30E000>;
+};
+
+&mdss_mdp {
+	qcom,mdss-pref-prim-intf = "dsi";
+};
+
+&mdss_dsi {
+	hw-config = "single_dsi";
+};
+
+&soc {
+	i2c_22: i2c@22 { /* SW I2C */
+		status = "okay";		
+		cell-index = <22>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 20 0 /* LCD_BL_I2C_SDA */
+			&tlmm 21 0 /* LCD_BL_I2C_SCL */
+			>;
+		i2c-gpio,delay-us = <2>;
+
+		lm3632a_panel_power@11 {
+			compatible = "lm3632a,panel_power-control";
+			reg = <0x11>;
+
+			lm3632a_en_gpio = <&tlmm 94 0x00>;
+			lm3632a_enn_gpio = <&tlmm 90 0x00>;
+			lm3632a_enp_gpio = <&tlmm 89 0x00>;
+			/* SLSI + BOE */
+			blic_conf@1{
+				panel_id = <0x116A00>;
+				blic_init_data = [
+				/* address		data */
+					09			41
+					02			50
+					03			8D
+					04			07
+					05			FF
+					0A			19
+					0D			1C
+					0E			1E
+					0F			1E
+					0C			1F
+					11			0D
+				];
+			};
+			/* SLSI + CSOT */
+			blic_conf@2{
+				panel_id = <0x08EA00 0x11FA00>;
+				blic_init_data = [
+				/* address		data */
+					09			41
+					02			50
+					03			8D
+					04			07
+					05			FF
+					0A			19
+					0D			1C
+					0E			24
+					0F			24
+					0C			1F
+					11			0D
+				];
+			};
+			/* HIMAX + BOE */
+			blic_conf@3{
+				panel_id = <0x83102D>;
+				blic_init_data = [
+				/* address		data */
+					09			41
+					02			50
+					03			8D
+					04			07
+					05			FF
+					0A			19
+					0D			1C
+					0E			1E
+					0F			1E
+					0C			1F
+					11			0D
+				];
+			};
+		};
+	};
+};
+
+&ss_dsi_panel_S6D7AT0B01_PM6003XB1_HDP {
+	samsung,panel-extra-power-gpio1 =<&tlmm 92 0>; /*VDD_LCD_1P8*/
+};
+
+&ss_dsi_panel_S6D7AT0B01_BS060WKM_HDP {
+	samsung,panel-extra-power-gpio1 =<&tlmm 92 0>; /*VDD_LCD_1P8*/
+};
+
+&mdss_dsi0 {
+	qcom,dsi-pref-prim-pan = <&ss_dsi_panel_S6D7AT0B01_PM6003XB1_HDP>;
+
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_lcd_reset_active &mdss_blic_i2c_active &mdss_blic_active>;
+	pinctrl-1 = <&mdss_lcd_reset_suspend &mdss_blic_i2c_suspend &mdss_blic_suspend>;
+
+	qcom,platform-reset-gpio = <&tlmm 60 GPIOF_OUT_INIT_HIGH>;
+};
