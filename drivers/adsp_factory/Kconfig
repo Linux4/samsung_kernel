@@ -1,0 +1,81 @@
+#
+# factory sensor drivers configuration
+#
+config ADSP_FACTORY
+	tristate "MSM ADSP factory driver"
+	default n
+	help
+	  This driver communicate with SSC DAEMON.
+	  register each sensor device.
+	  send selftest request using netlink.
+	  receive test result using netlink.
+
+config LSM6DSM_FACTORY
+	tristate "factory test for SSC - LSM6DSM"
+	default n
+	help
+	  lsm6dsM factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config ICM42605_FACTORY
+	tristate "factory test for SSC - ICM42605"
+	default n
+	help
+	  icm42605 factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config AK09918_FACTORY
+	tristate "factory test for SSC - ak09918"
+	default n
+	help
+	  ak09918 factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config LPS22HH_FACTORY
+	tristate "factory test for SSC - lps22hh"
+	default n
+	help
+	  lps22hh factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+	  
+config VCNL36863_FACTORY
+	tristate "factory test for SSC - vcnl36863"
+	default n
+	help
+	  vcnl36863 factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config VEML3328_FACTORY
+	tristate "factory test for SSC - veml3328"
+	default n
+	help
+	  veml3328 factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config VCNL36658_FACTORY
+	tristate "factory test for SSC - vcnl36658"
+	default n
+	help
+	  vcnl36658 factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config SUPPORT_PROX_AUTO_CAL
+	tristate "Support auto cal function for proximity sensor"
+	default n
+	depends on ADSP_FACTORY
+	help
+	  Support the auto cal function.	  
