@@ -1,0 +1,14 @@
+#
+# MCU_IPC Device Driver
+#
+comment "Samsung MCU_IPC Driver for a Shared-memory Interface"
+config MCU_IPC
+	bool "MCU_IPC Support"
+	depends on (SOC_EXYNOS4270 || SOC_EXYNOS3470)
+	default n
+	help
+	  This enables MCU_IPC driver to control the MCU_IPC Device.
+
+	  MCU_IPC is the Mailbox which has 16 interrupts for TX/RX each
+	  and 256 bytes memory for communicating messages.
+	  AP and CP can share the messages through this device.
