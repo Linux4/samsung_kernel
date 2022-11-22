@@ -1,0 +1,6 @@
+config MACH_GTS7XLWIFI_EUR_OPEN
+	default n
+	bool "Samsung GTS7XLWIFI EUR OPEN"
+	help
+	  Support for Samsung GTS7XLWIFI EUR OPEN device.
+
