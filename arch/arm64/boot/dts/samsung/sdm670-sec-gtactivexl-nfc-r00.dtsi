@@ -1,0 +1,77 @@
+/* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&aliases {
+	spi1 = "/soc/spi@880000";
+};
+
+&tlmm {
+	qupv3_se0_spi_sleep_out: qupv3_se0_spi_sleep_out {
+		mux {
+			pins = "gpio0", "gpio1", "gpio2",
+					"gpio3";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio0", "gpio1", "gpio2",
+					"gpio3";
+			drive-strength = <6>;
+			bias-pull-down; /* pull down */
+			output-low;
+		};
+	};
+};
+
+/* gpio41 and gpio42 are used for nfc i2c */
+&qupv3_se3_i2c { 
+	status = "okay";
+/*	pinctrl-1 = <&nfc_qupv3_se3_i2c_sleep>;*/
+	pn547@2B {
+		compatible = "pn547";
+		reg = <0x2B>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <26 0>;
+		pn547,irq-gpio = <&tlmm 26 0>;
+		pn547,ven-gpio = <&expander_gpios 12 0>;
+		pn547,firm-gpio = <&tlmm 108 0>;
+		pn547,clk_req-gpio = <&tlmm 89 0>;
+		pn547,pwr_req =  <&expander_gpios 11 0>;
+		pn547,pvdd-gpio = <&expander_gpios 7 0>;
+		pinctrl-names = "init";
+		pinctrl-0 = <&nfc_clk_default>;
+/* clock control need to be checked, case# 03612183 */
+/*		pn547,nfc_pm_clk; */
+/*		qcom,clk-src = "BBCLK3"; */
+/*		clocks = <&clock_rpmcc RPM_LN_BB_CLK3_PIN>; */
+/*		clock-names = "rf_clk"; */
+	};
+};
+
+/* gpio 0~3 are used for ese spi */
+&qupv3_se0_spi {
+	status = "okay"; 
+	spi-max-frequency = <19200000>;
+	pinctrl-1 = <&qupv3_se0_spi_sleep_out>;
+
+	ese_spi@0 {
+		compatible = "p61";
+		reg = <0>;
+		spi-max-frequency = <16000000>;
+		p61-ap_vendor = "qualcomm";
+		p61-spi_node = <&qupv3_se0_spi>;
+/*		clock-names = "se-clk", "m-ahb", "s-ahb"; */
+/*		clocks = <&clock_gcc GCC_QUPV3_WRAP0_S0_CLK>, */
+/*			<&clock_gcc GCC_QUPV3_WRAP_0_M_AHB_CLK>, */
+/*			<&clock_gcc GCC_QUPV3_WRAP_0_S_AHB_CLK>; */
+	};
+};

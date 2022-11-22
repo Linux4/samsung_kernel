@@ -1,0 +1,32 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+
+#include "../qcom/sdm710.dtsi"
+#include "../qcom/sdm670-mtp.dtsi"
+#include "sdm710-sec-common.dtsi"
+#include "sdm710-sec-a8sqlte-pm-common.dtsi"
+#include "sdm710-sec-a8sqlte-r00.dtsi"
+#include "sdm710-sec-a8sqlte-pinctrl-r00.dtsi"
+#include "sdm710-sec-a8sqlte-eif-r00.dtsi"
+#include "sdm710-sec-a8sqlte-battery-r00.dtsi"
+#include "sdm710-sec-a8sqlte-display-r00.dtsi"
+#include "sdm710-sec-a8sqlte-fingerprint-sensor_00.dtsi"
+#include "sdm710-camera-sensor-a8sqlte-r00.dtsi"
+#include "sdm710-sec-a8sqlte-nfc-r00.dtsi"
+
+/ {
+	model = "Samsung A8SQLTE CHN PROJECT Rev00";
+	compatible = "qcom,sdm670-mtp", "qcom,sdm670", "qcom,mtp";
+	qcom,board-id = <8 0>;
+};

@@ -1,0 +1,53 @@
+
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+&soc {
+	tlmm: pinctrl@03400000 {
+			nfc_qupv3_se3_i2c_sleep: nfc_qupv3_se3_i2c_sleep {
+				mux {
+					pins = "gpio41", "gpio42";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio41", "gpio42";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+	};
+};
+
+/* gpio41 and gpio42 are used for nfc i2c */
+&qupv3_se3_i2c { 
+	status = "okay";
+	pinctrl-1 = <&nfc_qupv3_se3_i2c_sleep>;
+	pn547@2B {
+		compatible = "pn547";
+		reg = <0x2B>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <26 0>;
+		pn547,irq-gpio = <&tlmm 26 0>;
+		pn547,ven-gpio = <&expander_gpios 12 0>;
+		pn547,firm-gpio = <&tlmm 108 0>;
+		pn547,clk_req-gpio = <&pm660_gpios 4 0x00>;
+		pn547,pwr_req =  <&expander_gpios 11 0>;
+		pn547,pvdd-gpio = <&expander_gpios 7 0>;
+		pinctrl-names = "init";
+		pinctrl-0 = <&nfc_clk_default>;
+/* clock control need to be checked, case# 03612183 */
+/*		pn547,nfc_pm_clk; */
+/*		qcom,clk-src = "BBCLK3"; */
+/*		clocks = <&clock_rpmcc RPM_LN_BB_CLK3_PIN>; */
+/*		clock-names = "rf_clk"; */
+	};
+};

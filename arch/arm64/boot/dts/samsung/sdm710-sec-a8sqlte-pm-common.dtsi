@@ -1,0 +1,241 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+
+	pinctrl@03400000 {
+		s2mpb03_i2c_sda {
+			s2mpb03_i2c_sda_default: s2mpb03_i2c_sda_default {
+				s2mpb03_i2c_sda {
+					pins = "gpio12";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+		s2mpb03_i2c_scl {
+			s2mpb03_i2c_scl_default: s2mpb03_i2c_scl_default {
+				s2mpb03_i2c_scl {
+					pins = "gpio11";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+	};
+
+	sec_thermistor@0 {
+		compatible = "samsung,sec-ap-thermistor";
+		qcom,therm-vadc = <&pm660_vadc>;
+		status = "okay";
+		adc_channel = <0x4d>;
+		unused_mux_sel;
+		adc_array = <1045 1245 1424 1692 1992 2378 
+				2682 2829 2913 3173 3400 3471 3771 3932 4082 4155
+				4330 4441 4556 4732 4847 4985 5183 5335 5543 5659
+				5814 5984 6127 6300 6471 6666 6895 6963 7268 7433
+				7637 7783 7937 8143 8807 8954 9164 9724 10016 10183
+				10359 10546 10933 11820 12679 13374 13974 14540 14937 15290>;
+
+		temp_array = <900 850 800 750 700 650
+				610 600 590 560 550 540 510 500 490 480
+				470 460 450 440 430 420 410 400 390 380
+				370 360 350 340 330 320 310 300 290 280
+				270 260 250 240 210 200 190 160 150 140
+				130 120 100 50 0 (-50) (-100) (-150) (-200) (-250)>;
+	};
+	
+	/* PA Thermistor table */
+	sec_thermistor@2 {
+		compatible = "samsung,sec-pa-thermistor";
+		qcom,therm-vadc = <&pm660_vadc>;
+		status = "okay";
+		adc_channel = <0x4f>;
+		unused_mux_sel;
+		adc_array = <1257 1387 1522 1817 2138 2528
+				2876 2987 3079 3398 3514 3629 3984 4114 4247 4371
+				4509 4642 4796 4945 5087 5236 5403 5560 5723 5892
+				6054 6211 6393 6571 6745 6927 7053 7262 7491 7670
+				7858 8009 8180 8435 9026 9229 9418 9993 10211 10396
+				10572 10779 11149 12028 12844 13555 14146 14673 15070 15398>;
+
+		temp_array = <900 850 800 750 700 650
+				610 600 590 560 550 540 510 500 490 480
+				470 460 450 440 430 420 410 400 390 380
+				370 360 350 340 330 320 310 300 290 280
+				270 260 250 240 210 200 190 160 150 140
+				130 120 100 50 0 (-50) (-100) (-150) (-200) (-250)>;
+	};
+
+	/* WIFI Thermistor table */
+	sec_thermistor@3 {
+		compatible = "samsung,sec-wf-thermistor";
+		qcom,therm-vadc = <&pm660_vadc>;
+		status = "okay";
+		adc_channel = <0x59>;
+		unused_mux_sel;
+		adc_array = <590 790 990 1122 1263 1436
+				1588 1639 1675 1820 1879 1932 2094 2159 2222 2278
+				2347 2409 2483 2558 2624 2696 2776 2859 2948 3022
+				3102 3179 3268 3358 3443 3535 3604 3697 3818 3905
+				3999 4084 4154 4284 4577 4679 4775 5059 5171 5260
+				5345 5447 5630 6061 6459 6802 7087 7341 7514 7666>;
+
+		temp_array = <900 850 800 750 700 650
+				610 600 590 560 550 540 510 500 490 480
+				470 460 450 440 430 420 410 400 390 380
+				370 360 350 340 330 320 310 300 290 280
+				270 260 250 240 210 200 190 160 150 140
+				130 120 100 50 0 (-50) (-100) (-150) (-200) (-250)>;
+	};
+
+	/* S2MPB03 Camera PMIC */
+	i2c2: i2c@2 {
+		cell-index = <2>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 12 0 /* sda */
+			&tlmm 11 0 /* scl */
+		>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&s2mpb03_i2c_sda_default &s2mpb03_i2c_scl_default>;
+
+		/* S2MPB03 Camera PMIC */
+		s2mpb03@56 {
+			compatible = "samsung,s2mpb03pmic";
+			reg = <0x56>;
+			additional_reg_init;
+
+			regulators {
+				s2mpb03_l1: s2mpb03-ldo1 {
+					regulator-name = "s2mpb03-ldo1";
+					regulator-min-microvolt = <1050000>;
+					regulator-max-microvolt = <1150000>;
+				};
+
+				s2mpb03_l2: s2mpb03-ldo2 {
+					regulator-name = "s2mpb03-ldo2";
+					regulator-min-microvolt = <1050000>;
+					regulator-max-microvolt = <1150000>;
+				};
+
+				s2mpb03_l3: s2mpb03-ldo3 {
+					regulator-name = "s2mpb03-ldo3";
+					regulator-min-microvolt = <1700000>;
+					regulator-max-microvolt = <2000000>;
+				};
+
+				s2mpb03_l4: s2mpb03-ldo4 {
+					regulator-name = "s2mpb03-ldo4";
+					regulator-min-microvolt = <1200000>;
+					regulator-max-microvolt = <1300000>;
+				};
+
+				s2mpb03_l5: s2mpb03-ldo5 {
+					regulator-name = "s2mpb03-ldo5";
+					regulator-min-microvolt = <2800000>;
+					regulator-max-microvolt = <2900000>;
+				};
+
+				s2mpb03_l6: s2mpb03-ldo6 {
+					regulator-name = "s2mpb03-ldo6";
+					regulator-min-microvolt = <2800000>;
+					regulator-max-microvolt = <2900000>;
+				};
+
+				s2mpb03_l7: s2mpb03-ldo7 {
+					regulator-name = "s2mpb03-ldo7";
+					regulator-min-microvolt = <2800000>;
+					regulator-max-microvolt = <2900000>;
+				};
+			};
+		};
+	};
+	
+	rpmh-regulator-ldoa18 {
+		compatible = "qcom,rpmh-vrm-regulator";
+		mboxes = <&apps_rsc 0>;
+		qcom,resource-name = "ldoa18";
+		qcom,regulator-type = "pmic4-ldo";
+		qcom,supported-modes =
+			<RPMH_REGULATOR_MODE_LPM
+			RPMH_REGULATOR_MODE_HPM>;
+		qcom,mode-threshold-currents = <0 1>;
+		pm660_l18: regulator-pm660-l18 {
+			regulator-name = "pm660_l18";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2900000>;
+			qcom,init-voltage = <2800000>;
+			qcom,init-mode = <RPMH_REGULATOR_MODE_LPM>;
+		};
+	};
+};
+
+&spmi_bus {
+	qcom,pm660@0 {
+		qcom,power-on@800 {
+			qcom,store-hard-reset-reason;
+			qcom,s3-debounce = <128>;
+
+			qcom,pon_1 {
+				qcom,pon-type = <0>;
+				qcom,support-reset = <0>;
+				qcom,pull-up = <1>;
+				linux,code = <116>;
+			};
+
+			qcom,pon_2 {
+				qcom,pon-type = <1>;
+				qcom,support-reset = <0>;
+				qcom,pull-up = <1>;
+				linux,code = <114>;
+			};
+
+			qcom,pon_3 {
+				qcom,pon-type = <3>;
+				qcom,support-reset = <1>;
+				qcom,pull-up = <1>;
+				qcom,s1-timer = <6720>;
+				qcom,s2-timer = <1000>;
+				qcom,s2-type = <8>;
+				qcom,use-bark;
+			};
+		};
+		pm660_vadc: vadc@3100 {
+			chan@4f {
+				label = "pa_therm0";
+				reg = <0x4f>;
+				qcom,decimation = <2>;
+				qcom,pre-div-channel-scaling = <0>;
+				qcom,calibration-type = "ratiometric";
+				qcom,scale-function = <2>;
+				qcom,hw-settle-time = <2>;
+				qcom,fast-avg-setup = <0>;
+			};
+
+			chan@59 {
+				label = "gpio12_adc";
+				reg = <0x59>;				// Channel for PM660 GPIO 12
+				qcom,decimation = <2>;
+				qcom,pre-div-channel-scaling = <0>;	// 1:1 Scaling
+				qcom,calibration-type = "ratiometric";
+				qcom,scale-function = <2>;
+				qcom,hw-settle-time = <2>;
+				qcom,fast-avg-setup = <0>;
+			};
+		};
+  	};
+};

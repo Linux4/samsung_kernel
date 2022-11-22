@@ -1,0 +1,161 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+#include "../../../../drivers/gpu/drm/msm/samsung/HX8279_TV101WUM/dsi_panel_HX8279_TV101WUM_WUXGA_video.dtsi"
+#include "../../../../drivers/gpu/drm/msm/samsung/PBA_BOOTING/dsi_panel_PBA_BOOTING_fhd_video.dtsi"
+
+#define DEFAULT_FIXED_VAL	0
+
+&soc {
+	pinctrl@03400000 {
+		pmx_sde: pmx_sde {
+			sde_dsi_active: sde_dsi_active {
+				mux {
+					pins = "gpio126", "gpio21";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio126",  "gpio21";
+					drive-strength = <8>;   /* 8 mA */
+					bias-disable = <0>;   /* no pull */
+				};
+			};
+			sde_dsi_suspend: sde_dsi_suspend {
+				mux {
+					pins = "gpio126",  "gpio21";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio126",  "gpio21";
+					drive-strength = <2>;   /* 2 mA */
+					bias-pull-down;         /* PULL DOWN */
+				};
+			};
+		};
+	};
+};
+
+&soc {
+	i2c_22: i2c@22 { /* SW I2C */
+		status = "okay";		
+		cell-index = <22>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 11 0 /* LCD_BUCK_SDA_1P8 */
+			&tlmm 12 0 /* LCD_BUCK_SCL_1P8 */
+			>;
+		i2c-gpio,delay-us = <2>;
+
+		isl98608_panel_power@29 {
+			compatible = "isl98608,panel_power-control";
+			reg = <0x29>;
+			isl98608_en_gpio = <&tlmm 4 0x00>; /* LCD_BUCK_EN */
+		};
+	};
+};
+
+&soc {
+	/* VDD_LCD_1P8 */
+	fixed_reg_tftvdd: fixed_reg_tftvdd {
+		compatible = "regulator-fixed";
+		status = "okay";
+		regulator-name = "tft-vdd";
+		gpio = <&tlmm 21 0>; /* LCD_LDO_EN */
+		enable-active-high;
+		regulator-boot-on;
+	};
+};
+
+&soc {
+	ss_dsi_panel_HX8279_TV101WUM_WUXGA_display: qcom,dsi-display@0 {
+		compatible = "qcom,dsi-display";
+		label = "ss_dsi_panel_HX8279_TV101WUM_WUXGA";
+		qcom,display-type = "primary";
+
+		qcom,dsi-ctrl = <&mdss_dsi0>;
+		qcom,dsi-phy = <&mdss_dsi_phy0>;
+
+		clocks = <&mdss_dsi0_pll BYTECLK_MUX_0_CLK>,
+			<&mdss_dsi0_pll PCLK_MUX_0_CLK>,
+			<&mdss_dsi0_pll BYTECLK_SRC_0_CLK>,
+			<&mdss_dsi0_pll PCLK_SRC_0_CLK>,
+			<&mdss_dsi0_pll SHADOW_BYTECLK_SRC_0_CLK>,
+			<&mdss_dsi0_pll SHADOW_PCLK_SRC_0_CLK>;
+		clock-names = "mux_byte_clk", "mux_pixel_clk",
+				"src_byte_clk", "src_pixel_clk",
+				"shadow_byte_clk", "shadow_pixel_clk";
+
+		pinctrl-names = "panel_active", "panel_suspend";
+		pinctrl-0 = <&sde_dsi_active>;
+		pinctrl-1 = <&sde_dsi_suspend>;
+
+		qcom,dsi-panel = <&ss_dsi_panel_HX8279_TV101WUM_WUXGA>;
+		vddlcd-supply = <&fixed_reg_tftvdd>; /* VDD_LCD_1P8 */
+	};
+
+	/* PBA */
+	ss_dsi_panel_PBA_BOOTING_FHD_display: qcom,dsi-display@1 {
+		compatible = "qcom,dsi-display";
+		label = "ss_dsi_panel_PBA_BOOTING_FHD";
+		qcom,display-type = "primary";
+
+		qcom,dsi-ctrl = <&mdss_dsi0>;
+		qcom,dsi-phy = <&mdss_dsi_phy0>;
+
+		clocks = <&mdss_dsi0_pll BYTECLK_MUX_0_CLK>,
+			<&mdss_dsi0_pll PCLK_MUX_0_CLK>,
+			<&mdss_dsi0_pll BYTECLK_SRC_0_CLK>,
+			<&mdss_dsi0_pll PCLK_SRC_0_CLK>,
+			<&mdss_dsi0_pll SHADOW_BYTECLK_SRC_0_CLK>,
+			<&mdss_dsi0_pll SHADOW_PCLK_SRC_0_CLK>;
+		clock-names = "mux_byte_clk", "mux_pixel_clk",
+				"src_byte_clk", "src_pixel_clk",
+				"shadow_byte_clk", "shadow_pixel_clk";
+
+		pinctrl-names = "panel_active", "panel_suspend";
+		pinctrl-0 = <&sde_dsi_active>;
+		pinctrl-1 = <&sde_dsi_suspend>;
+
+		qcom,dsi-panel = <&ss_dsi_panel_PBA_BOOTING_FHD>;
+	};
+};
+
+&ss_dsi_panel_HX8279_TV101WUM_WUXGA {
+	qcom,display-topology = <1 0 1>;
+	qcom,default-topology-index = <0>;
+
+	qcom,platform-reset-gpio = <&tlmm 126 0>;
+	/delete-property/ qcom,panel-mode-gpio;
+
+	qcom,panel-supply-entries {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* use fixed regulator instead of samsung,panel-extra-power-gpio
+		 * or qcom,platform-enable-gpio. */
+		/* VDD_LCD_1P8 */
+		qcom,panel-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "vddlcd";
+			qcom,supply-min-voltage = <DEFAULT_FIXED_VAL>;
+			qcom,supply-max-voltage = <DEFAULT_FIXED_VAL>;
+			qcom,supply-enable-load = <DEFAULT_FIXED_VAL>;
+			qcom,supply-disable-load = <DEFAULT_FIXED_VAL>;
+			qcom,supply-pre-off-sleep = <2>;
+			qcom,supply-post-on-sleep = <7>;
+		};
+	};
+};
+
+&ss_dsi_panel_PBA_BOOTING_FHD {
+	qcom,platform-reset-gpio = <&tlmm 126 0>;
+};

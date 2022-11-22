@@ -1,0 +1,9 @@
+#
+# SYNAPTICS TOUCH driver configuration
+#
+
+config TOUCHSCREEN_SYNAPTICS_TS_TD4300
+	tristate "Synaptics TD4300 i2c touchscreen base on bootloader Ver7"
+	depends on I2C
+	help
+	  This enables support for Synaptics TD4300 over I2C based touchscreens.

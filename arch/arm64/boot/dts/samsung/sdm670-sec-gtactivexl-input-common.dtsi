@@ -1,0 +1,193 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/input/input.h>
+
+&qupv3_se9_i2c {
+	status = "ok";
+	pinctrl-1 = <&qupv3_se9_tsp_i2c_sleep>;
+
+	/* stm */
+	stm_ts:touchscreen@49 {
+		status = "Okay";
+		compatible = "stm,fts_touch";
+		reg = <0x49>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <123 0x0>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&tsp_int_active>;
+		pinctrl-1 = <&tsp_int_active>;
+		stm,irq_gpio = <&tlmm 123 0x2008>;
+		stm,irq_type = <8200>;
+		stm,max_coords = <1200 1920>;	/* x y */
+		stm,regulator_dvdd = "pm660_l11";
+		stm,regulator_avdd = "pm660l_l6";
+		stm,project_name = "GTACTIVExl", "T545";
+		stm,firmware_name = "tsp_stm/fts1ba90_t545.fw";
+		stm,tclm_level = <2>;
+		stm,afe_base = <0x0A06>;
+		stm,support_aot;
+		/*stm,ss_touch_num = <1>;*/
+		support_dex_mode;
+		stm,factory_item_version = <4>;
+		stm,chip_on_board;
+	};
+};
+
+&qupv3_se1_i2c {
+	status = "okay";
+
+	wacom@56 {
+		status = "okay";
+		compatible = "wacom,w90xx";
+		reg = <0x56>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&epen_int_active>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <79 0x0>;
+		vddo-supply = <&wacom_ldo_en>; /* vdd3.3v - use regulator-fixed */
+		/* gpios */
+		wacom,irq-gpio = <&tlmm 79 0x0>;
+		wacom,pdct-gpio = <&tlmm 122 0x0>;
+		wacom,fwe-gpio = <&tlmm 39 0x0>;
+		wacom,irq_type = <8>; /*IRQF_TRIGGER_LOW*/
+		/* features */
+		wacom,boot_addr = <0x09>;
+		wacom,origin = <0 0>; /* x y */
+		wacom,max_coords = <21658 13536>; /* x y as per IC*/
+		wacom,max_pressure = <4095>;
+		wacom,max_x_tilt = <63>;
+		wacom,max_y_tilt = <63>;
+		wacom,max_height = <255>;
+		wacom,project_name = "GTACTIVEXL", "T545";
+		wacom,invert = <1 0 1>; /* x y switch */
+		wacom,fw_path = "epen/w9019_t545.fw";
+		wacom,ic_type = <9019>;
+		wacom,support_aop_mode = "1"; /* S-note want to check to use aop */
+	};
+};
+
+/delete-node/&gpio_keys;
+&soc {
+	gpio_keys: gpio_keys {
+		status = "ok";
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+		label = "gpio_keys";
+
+		pinctrl-names = "default";
+
+		pinctrl-0 = <&key_vol_up_default &key_home_default &key_func_default &key_back_default &key_recent_default>;
+
+		vol_up {
+			label = "volume_up";
+			gpios = <&pm660l_gpios 7 0x1>;	/* VOL_UP */
+			linux,input-type = <1>;
+			linux,code = <KEY_VOLUMEUP>;	/*KEY_VOLUMEUP 115*/
+			debounce-interval = <15>;
+			linux,can-disable;
+		};
+
+		home_key {
+			label = "home_key";
+			gpios = <&pm660l_gpios 4 0x1>;	/* HOME KEY */
+			linux,input-type = <1>;
+			linux,code = <KEY_HOMEPAGE>;	/*KEY_HOMEPAGE 172*/
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+			linux,can-disable;
+		};
+
+		func_key {
+			label = "func_key";
+			gpios = <&pm660l_gpios 2 0x1>;	/* FUNC KEY */
+			linux,input-type = <1>;
+			linux,code = <KEY_DUMMY_HOME>;	/*KEY_DUMMY_HOME 252*/
+			debounce-interval = <15>;
+			linux,can-disable;
+		};
+
+		/*Back Recent Interchanged*/
+		back_key {
+			label = "back_key";
+			gpios = <&pm660_gpios 3 0x1>;	/* BACK_KEY */
+			linux,input-type = <1>;
+			linux,code = <KEY_RECENT>;		/*KEY_BACK 158*/
+			debounce-interval = <15>;
+			linux,can-disable;
+		};
+
+		recent_key {
+			label = "recent_key";
+			gpios = <&pm660_gpios 13 0x1>;	/* RECENT_KEY */
+			linux,input-type = <1>;
+			linux,code = <KEY_BACK>;		/*KEY_RECENT 254*/
+			debounce-interval = <15>;
+			linux,can-disable;
+		};
+	};
+
+	ss_touch {
+		compatible = "samsung,ss_touch";
+		ss_touch,numbers = <1>;
+	};
+
+	wacom_ldo_en: wacom_ldo_en {
+		compatible = "regulator-fixed";
+		regulator-name = "wacom_3.3v";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&expander_gpios 17 0>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+
+	pinctrl@03400000 {
+		tsp_int_active: tsp_int_active {
+			mux {
+				pins = "gpio123";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio123";
+				input-enable;
+				bias-disable;
+			};
+		};
+
+		epen_int_active: epen_int_active {
+			mux {
+				pins = "gpio79", "gpio122";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio79", "gpio122";
+				input-enable;
+				bias-disable;
+			};
+		};
+
+		qupv3_se9_tsp_i2c_sleep: qupv3_se9_tsp_i2c_sleep {
+			mux {
+				pins = "gpio6", "gpio7";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio6", "gpio7";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+	};
+};

@@ -1,0 +1,397 @@
+/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+&soc {
+	/* MUIC */
+	i2c_26: i2c@26 {
+		status = "ok";
+
+		cell-index = <26>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 43 0	/* IF_PMIC_SDA_1P8 */
+			 &tlmm 44 0	/* IF_PMIC_SCL_1P8 */
+		>;
+		i2c-gpio,delay-us = <1>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2c_26_pinctrl>;
+
+		muic-sm5705@25 {
+			status = "okay";
+			compatible = "muic-universal";
+			reg = <0x25>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <80 0>;
+			muic-universal,irq-gpio = <&tlmm 80 0x00>;
+			sm5705,wakeup;
+			muic-universal,chip_name = "sm,sm5705";
+			muic-universal,afc-support = <1>;
+			pinctrl-names = "muic_interrupt_pins_default";
+			pinctrl-0 = <&sm5705_interrupt_default>;
+			muic,sm5705_switch_gpio = <&tlmm 98 0>;
+		};
+		sm5705@49{
+			compatible = "sm,sm5705";
+			reg = <0x49>;
+			interrupt-parent = <&tlmm>;
+			sm5705,irq-gpio = <&tlmm 22 0x00>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&charger_int_active>;
+/*			sm5705,mrstb-gpio = <&tlmm 87 0x00>;*/
+		};
+	};
+
+	/* CCIC */
+	i2c_28: i2c@28 {
+		status = "okay";
+
+		cell-index = <28>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 55 0	/* CCIC_I2C_SDA_1P8 */
+			 &tlmm 56 0	/* CCIC_I2C_SCL_1P8 */
+		>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pinctrl-names = "default","hard_reset";
+		pinctrl-0 = <&s2mm005_i2c_default>;
+		pinctrl-1 = <&s2mm005_hard_reset>;
+
+		usbpd-s2mm005@33 {
+			compatible = "sec-s2mm005,i2c";
+			reg = <0x33>;
+			interrupt-parent = <&tlmm>;
+			usbpd,usbpd_int = <&tlmm 38 0>;
+			usbpd,s2mm005_sda = <&tlmm 55 0>;
+			usbpd,s2mm005_scl = <&tlmm 56 0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&s2mm005_irq_default>;
+			usbpd,s2mm005_fw_product_id = <0x12>;
+			support_pd_role_swap;
+		};
+	};
+
+	/* USB */
+	usb_noti: usb-notifier {
+		compatible = "samsung,usb-notifier";
+		qcom,disable_control_en = <1>;
+	};
+
+
+        msm_vibrator {
+                compatible = "vibrator";
+                motor-vdd_type = <1>; /* 0: gpio, 1: pmic */
+                vibr_vdd-supply = <&pm660l_l8>;
+		samsung,vib_type = "COINDC";
+        };
+};
+
+&qupv3_se3_i2c {
+    status = "ok";
+		
+    pinctrl-names = "default", "sleep";
+    pinctrl-0 = <&qupv3_se3_i2c_active>, 
+                <&redriver_int_active>;
+    pinctrl-1 = <&qupv3_se3_i2c_sleep>,
+                <&redriver_int_suspend>;
+ 
+    ptn36502@1a {
+        compatible = "ptn36502_driver";
+	reg = <0x1a>;
+	combo,ptn_en = <&tlmm 15 0>;
+	combo,redriver_en = <&tlmm 16 0>;
+	combo,con_sel = <&tlmm 25 0>;
+    };
+};
+
+&qupv3_se8_spi {
+	status = "okay";
+
+	pogo_fpga@1 {
+		compatible = "pogo_fpga";
+		reg = <1>;
+		spi-max-frequency = <50000000>;
+		fpga,gpio_cdone = <&tlmm 107 0x00>;
+		fpga,pogo_ldo_en = <&tlmm 116 0x00>;
+		fpga,gpio_reset = <&tlmm 106 0x00>;
+		fpga,gpio_crst_b = <&tlmm 2 0x00>;
+		fpga,gpio_cs = <&tlmm 105 0x00>;
+
+		pinctrl-names= "fpga_pogo_ldo_en", "fpga_cdone";
+		pinctrl-0 = <&fpga_pogo_ldo_en>;
+		pinctrl-1 = <&fpga_cdone>;
+
+	};
+};
+
+/* USB phy tune */
+&qusb_phy0 {
+	qcom,qusb-phy-host-init-seq =
+	    /* <value reg_offset> */
+	       <0x23 0x210 /* PWR_CTRL1 */
+		0x03 0x04  /* PLL_ANALOG_CONTROLS_TWO */
+		0x7c 0x18c /* PLL_CLOCK_INVERTERS */
+		0x80 0x2c  /* PLL_CMODE */
+		0x0a 0x184 /* PLL_LOCK_DELAY */
+		0x19 0xb4  /* PLL_DIGITAL_TIMERS_TWO */
+		0x40 0x194 /* PLL_BIAS_CONTROL_1 */
+		0x20 0x198 /* PLL_BIAS_CONTROL_2 */
+		0x21 0x214 /* PWR_CTRL2 */
+		0x00 0x220 /* IMP_CTRL1 */
+		0x58 0x224 /* IMP_CTRL2 */
+		0x67 0x240 /* TUNE1 */
+		0x2a 0x244 /* TUNE2 */
+		0xca 0x248 /* TUNE3 */
+		0x01 0x24c /* TUNE4 */
+		0x03 0x250 /* TUNE5 */
+		0x00 0x23c /* CHG_CTRL2 */
+		0x22 0x210>; /* PWR_CTRL1 */
+
+	qcom,qusb-phy-init-seq =
+	/* <value reg_offset> */
+	   <0x23 0x210 /* PWR_CTRL1 */
+		0x03 0x04  /* PLL_ANALOG_CONTROLS_TWO */
+		0x7c 0x18c /* PLL_CLOCK_INVERTERS */
+		0x80 0x2c  /* PLL_CMODE */
+		0x0a 0x184 /* PLL_LOCK_DELAY */
+		0x19 0xb4  /* PLL_DIGITAL_TIMERS_TWO */
+		0x40 0x194 /* PLL_BIAS_CONTROL_1 */
+		0x18 0x198 /* PLL_BIAS_CONTROL_2 - for GTS4LV */
+		0x21 0x214 /* PWR_CTRL2 */
+		0x1E 0x220 /* IMP_CTRL1 */
+		0x58 0x224 /* IMP_CTRL2 */
+		0x67 0x240 /* TUNE1 */
+		0x29 0x244 /* TUNE2 */
+		0xca 0x248 /* TUNE3 */
+		0x00 0x24c /* TUNE4 */
+		0x03 0x250 /* TUNE5 */
+		0x00 0x23c /* CHG_CTRL2 */
+		0x22 0x210>; /* PWR_CTRL1 */
+};
+
+&usb0 {
+	dwc3@a600000 {
+		snps,usb3_lpm_capable = <0>;
+	};
+};
+
+/* pinctrl */
+&tlmm {
+		fpga_pogo_ldo_en: fpga_pogo_ldo_en {
+			    mux {
+				    pins = "gpio116";
+				    function = "gpio";
+			    };
+			    config {
+				    pins = "gpio116";
+				    drive-strength = <2>;   /* 16 mA */
+				    bias-disable;
+				    output-high;
+			    };
+		    };
+
+		fpga_cdone: fpga_cdone {
+			    mux {
+				    pins = "gpio107";
+				    function = "gpio";
+			    };
+			    config {
+				    pins = "gpio107";
+				    drive-strength = <2>;   /* 16 mA */
+				    input-enable;
+				    bias-disable;
+			    };
+		};
+
+	/* MUIC - SM5705 */
+	i2c_26_pinctrl: i2c_26_pinctrl {
+		mux {
+			pins = "gpio43",	/* IF_PMIC_SDA_1P8 */
+			       "gpio44";	/* IF_PMIC_SCL_1P8 */
+			function = "gpio";
+		};
+		config {
+			pins = "gpio43",	/* IF_PMIC_SDA_1P8 */
+			       "gpio44";	/* IF_PMIC_SCL_1P8 */
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+
+	sm5705_i2c_pins {
+		qcom,num-grp-pins = <2>;
+		qcom,pin-func = <0>;
+		label = "sm5705_gpio";
+		sm5705_i2c_default: default {
+			mux {
+				pins = "gpio43", "gpio44";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio43", "gpio44";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+		sm5705_i2c_active: active {
+			mux {
+				pins = "gpio43", "gpio44";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio43", "gpio44";
+				drive-strength = <2>;
+				bias-disable;
+			};
+
+		};
+		sm5705_i2c_suspend: suspend {
+			mux {
+				pins = "gpio43", "gpio44";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio43", "gpio44";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+	};
+
+	sm5705_intr_pins {
+		qcom,pin-func = <0>;
+		label = "sm5705_gpio_int";
+		sm5705_interrupt_default: default {
+			mux {
+				pins = "gpio80";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio80";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+		sm5705_interrupt_active: active {
+			mux {
+				pins = "gpio80";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio80";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+		sm5705_interrupt_suspend: suspend {
+			mux {
+				pins = "gpio80";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio80";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+	};
+	
+	/* CCIC */
+	s2mm005_irq_pins {
+		//qcom,pins = <&gp 58>;
+		qcom,num-grp-pins = <1>;
+		qcom,pin-func = <0>;
+		label = "s2mm005_irq_default";
+		s2mm005_irq_default: ccic_irq_default {
+			mux {
+				pins = "gpio38";
+				function = "gpio";				
+			};
+			config {
+				pins = "gpio38";
+				drive-strength = <2>;
+				bias-disable;         /* No PULL */
+				input-enable;
+			};
+		};			
+	};
+
+	s2mm005_hard_reset: s2mm005_hard_reset {
+		mux {
+			pins = "gpio55", "gpio56";
+			function = "gpio";
+		};
+		config { 
+			pins = "gpio55", "gpio56"; 
+			drive-strength = <6>; 
+			bias-pull-down;
+			output-low;
+		};
+	};
+
+	s2mm005_i2c_default: s2mm005_i2c_default {
+		mux {
+			pins = "gpio55", "gpio56";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio55", "gpio56"; 
+			drive-strength = <6>;
+			bias-disable;
+		};
+	};
+
+        redriver_int_active: redriver_int_active {
+		mux {
+			pins = "gpio15";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio15";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+
+        redriver_int_suspend: redriver_int_suspend {
+		mux {
+			pins = "gpio15";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio15";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+
+	
+};
+&qupv3_se3_i2c_pins {
+		qupv3_se3_i2c_sleep: qupv3_se3_i2c_sleep {
+				mux {
+					pins = "gpio41", "gpio42";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio41", "gpio42";
+					drive-strength = <2>;
+					bias-disable;
+					input-enable;
+				};
+			};
+		};

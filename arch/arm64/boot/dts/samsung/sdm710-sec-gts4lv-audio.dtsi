@@ -1,0 +1,492 @@
+/*
+ * Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+#include "../qcom/sdm670-audio-overlay.dtsi"
+
+&int_codec {
+	compatible = "qcom,sdm670-asoc-snd";
+	qcom,model = "sdm670-snd-card";
+	qcom,wsa-disable;
+	qcom,dmic-ldo-en = <&tlmm 25 0x0>;
+	qcom,amux_channel = <0x17>;
+	qcom,sec-mi2s-gpios = <&sec_mi2s_gpios>;
+	qcom,earjack-read-vadc = <&pm660_vadc>;
+	sbu-oe-gpio = <&tlmm 50 0>; /* SBU_SW_OE for usbc jack*/
+	qcom,us-euro-gpios = <&usbc_analog_en_gpio>; /* SBU_SW_SEL for usbc jack*/
+	ear-sel-gpio = <&tlmm 125 0x0>; /* EAR_SEL/JACK_CONT for usbc jack */
+	gnd-sel-gpio = <&tlmm 11 0x0>; /* GND_SEL for usbc jack */
+	qcom,msm-micbias1-ext-cap;
+	qcom,audio-routing =
+		"RX_BIAS", "INT_MCLK0",
+		"SPK_RX_BIAS", "INT_MCLK0",
+		"INT_LDO_H", "INT_MCLK0",
+		"RX_I2S_CLK", "INT_MCLK0",
+		"TX_I2S_CLK", "INT_MCLK0",
+		"AMIC1", "Handset Mic",
+		"MIC BIAS External2", "Headset Mic",
+		"AMIC2", "MIC BIAS External2",
+		"AMIC3", "Secondary Mic",
+		"PDM_IN_RX1", "PDM_OUT_RX1",
+		"PDM_IN_RX2", "PDM_OUT_RX2",
+		"PDM_IN_RX3", "PDM_OUT_RX3",
+		"MICBIAS_REGULATOR", "VDDA18_L10_REGULATOR",
+		"VDDA18_L10_REGULATOR", "VDD_L1_REGULATOR",
+		"ADC1_IN", "ADC1_OUT",
+		"ADC2_IN", "ADC2_OUT",
+		"ADC3_IN", "ADC3_OUT",
+		"RR SPK", "RR AMP SPK",
+		"RL SPK", "RL AMP SPK",
+		"FR SPK", "FR AMP SPK",
+		"FL SPK", "FL AMP SPK";
+
+	asoc-platform = <&pcm0>, <&pcm1>, <&pcm2>, <&voip>, <&voice>,
+		<&loopback>, <&compress>, <&hostless>,
+		<&afe>, <&lsm>, <&routing>, <&compr>,
+		<&pcm_noirq>, <&samsung_q6audio_adaptation>;
+	asoc-platform-names = "msm-pcm-dsp.0", "msm-pcm-dsp.1",
+		"msm-pcm-dsp.2", "msm-voip-dsp",
+		"msm-pcm-voice", "msm-pcm-loopback",
+		"msm-compress-dsp", "msm-pcm-hostless",
+		"msm-pcm-afe", "msm-lsm-client",
+		"msm-pcm-routing", "msm-compr-dsp",
+		"msm-pcm-dsp-noirq", "q6audio-adaptation";
+	asoc-cpu = <&dai_dp>, <&dai_mi2s0>, <&dai_mi2s1>,
+		<&dai_mi2s2>, <&dai_mi2s3>, <&dai_mi2s4>,
+		<&dai_int_mi2s0>, <&dai_int_mi2s1>,
+		<&dai_int_mi2s2>, <&dai_int_mi2s3>,
+		<&dai_int_mi2s4>, <&dai_int_mi2s5>,
+		<&dai_pri_auxpcm>, <&dai_sec_auxpcm>,
+		<&dai_tert_auxpcm>, <&dai_quat_auxpcm>,
+		<&dai_quin_auxpcm>,
+		<&afe_pcm_rx>, <&afe_pcm_tx>, <&afe_proxy_rx>,
+		<&afe_proxy_tx>, <&incall_record_rx>,
+		<&incall_record_tx>, <&incall_music_rx>,
+		<&incall_music_2_rx>, <&sb_7_rx>, <&sb_7_tx>,
+		<&sb_8_tx>, <&sb_8_rx>,
+		<&usb_audio_rx>, <&usb_audio_tx>,
+		<&dai_pri_tdm_rx_0>, <&dai_pri_tdm_tx_0>,
+		<&dai_sec_tdm_rx_0>, <&dai_sec_tdm_tx_0>,
+		<&dai_tert_tdm_rx_0>, <&dai_tert_tdm_tx_0>,
+		<&dai_quat_tdm_rx_0>, <&dai_quat_tdm_tx_0>,
+		<&dai_quin_tdm_rx_0>, <&dai_quin_tdm_tx_0>,
+		<&proxy_rx>, <&proxy_tx>;
+	asoc-cpu-names = "msm-dai-q6-dp.24608",
+		"msm-dai-q6-mi2s.0","msm-dai-q6-mi2s.1",
+		"msm-dai-q6-mi2s.2", "msm-dai-q6-mi2s.3",
+		"msm-dai-q6-mi2s.4",
+		"msm-dai-q6-mi2s.7", "msm-dai-q6-mi2s.8",
+		"msm-dai-q6-mi2s.9", "msm-dai-q6-mi2s.10",
+		"msm-dai-q6-mi2s.11", "msm-dai-q6-mi2s.12",
+		"msm-dai-q6-auxpcm.1", "msm-dai-q6-auxpcm.2",
+		"msm-dai-q6-auxpcm.3", "msm-dai-q6-auxpcm.4",
+		"msm-dai-q6-auxpcm.5",
+		"msm-dai-q6-dev.224", "msm-dai-q6-dev.225",
+		"msm-dai-q6-dev.241", "msm-dai-q6-dev.240",
+		"msm-dai-q6-dev.32771", "msm-dai-q6-dev.32772",
+		"msm-dai-q6-dev.32773", "msm-dai-q6-dev.32770",
+		"msm-dai-q6-dev.16398", "msm-dai-q6-dev.16399",
+		"msm-dai-q6-dev.16401", "msm-dai-q6-dev.16400",
+		"msm-dai-q6-dev.28672", "msm-dai-q6-dev.28673",
+		"msm-dai-q6-tdm.36864", "msm-dai-q6-tdm.36865",
+		"msm-dai-q6-tdm.36880", "msm-dai-q6-tdm.36881",
+		"msm-dai-q6-tdm.36896", "msm-dai-q6-tdm.36897",
+		"msm-dai-q6-tdm.36912", "msm-dai-q6-tdm.36913",
+		"msm-dai-q6-tdm.36928", "msm-dai-q6-tdm.36929",
+		"msm-dai-q6-dev.8194", "msm-dai-q6-dev.8195";
+
+	qcom,msm-mbhc-hphl-swh = <1>;
+	qcom,msm-mbhc-gnd-swh = <0>;
+	qcom,det_debounce_time_ms = <50>;
+
+	det-zones-list = <&det_zones 0 2>,
+			 <&det_zones 955 2>,
+			 <&det_zones 956 1>,
+			 <&det_zones 9999 1>;
+
+	mbhc-button-thres = <&det_zones 13 63>,
+			 <&det_zones 88 138>,
+			 <&det_zones 138 138>,
+			 <&det_zones 225 225>,
+			 <&det_zones 450 450>,
+			 <&det_zones 500 500>,
+			 <&det_zones 500 500>,
+			 <&det_zones 500 500>;
+
+	asoc-codec = <&stub_codec>, <&msm_digital_codec>,
+		     <&pmic_analog_codec>, <&ext_disp_audio_codec>;
+	asoc-codec-names = "msm-stub-codec.1", "msm-dig-codec",
+			   "analog-codec", "msm-ext-disp-audio-codec-rx";
+
+	qcom,wsa-max-devs = <0>;
+	qcom,wcn-btfm = <1>;
+	qcom,ext-disp-audio-rx = <1>;
+};
+
+&soc {
+	det_zones: det_zones {
+		#list-det-cells = <2>;
+	};
+
+	qcom,msm-dai-tdm-sec-rx {
+		qcom,msm-cpudai-tdm-clk-internal = <1>;
+		qcom,msm-cpudai-tdm-sync-mode = <0>;
+		qcom,msm-cpudai-tdm-sync-src = <1>;
+		qcom,msm-cpudai-tdm-data-out = <0>;
+		qcom,msm-cpudai-tdm-invert-sync = <0>;
+		qcom,msm-cpudai-tdm-data-delay = <1>;
+	};
+
+	qcom,msm-dai-tdm-sec-tx {
+		qcom,msm-cpudai-tdm-clk-internal = <1>;
+		qcom,msm-cpudai-tdm-sync-mode = <0>;
+		qcom,msm-cpudai-tdm-sync-src = <1>;
+		qcom,msm-cpudai-tdm-data-out = <0>;
+		qcom,msm-cpudai-tdm-invert-sync = <0>;
+		qcom,msm-cpudai-tdm-data-delay = <1>;
+	};
+
+	sec_mi2s_gpios: sec_pinctrl {
+		compatible = "qcom,msm-cdc-pinctrl";
+		pinctrl-names = "aud_active", "aud_sleep";
+		pinctrl-0 = <&sec_mi2s_active &sec_mi2s_data1_active
+			&sec_mi2s_data0_active>;
+		pinctrl-1 = <&sec_mi2s_sleep &sec_mi2s_data1_sleep
+			&sec_mi2s_data0_sleep>;
+		qcom,lpi-gpios;
+	};
+
+	samsung_q6audio_adaptation: samsung,q6audio-adaptation {
+		compatible = "samsung,q6audio-adaptation";
+		adaptation,voice-tracking-tx-port-id = <0x1035>;
+		adaptation,amp-rx-port-id = <0x9010>;
+	};
+
+	usbc_analog_en_gpio: msm_cdc_pinctrl_usbc_audio_en {
+		compatible = "qcom,msm-cdc-pinctrl";
+		pinctrl-names = "aud_active", "aud_sleep";
+		pinctrl-0 = <&usbc_analog_en_active &ear_sel_active &cs35l41_int_active>;
+		pinctrl-1 = <&usbc_analog_en_idle &ear_sel_idle &cs35l41_int_sleep>;
+	};
+
+	cirrus_amps {
+	    compatible = "cirrus-amp";
+	    cirrus,num-amps = <4>;
+	    cirrus,amps = <&cs35l41_1 &cs35l41_2 &cs35l41_3 &cs35l41_4>;
+	};
+
+
+	dummy_vreg: dummy_vreg {
+		compatible = "regulator-fixed";
+		status = "ok";
+		regulator-name = "dummy_vreg";
+		regulator-always-on;
+	};
+
+	dbmdx_event {
+		status = "okay";
+		compatible = "samsung,dbmdx-event";
+	};
+
+	dbmdx-snd-soc-platform {
+		compatible = "dspg,dbmdx-snd-soc-platform";
+	};
+
+	snd-dbmdx-mach-drv {
+		compatible = "dspg,snd-dbmdx-mach-drv";
+	};
+
+	dbmdx {
+		status = "okay";
+		compatible = "dspg,dbmdx-codec";
+		qcom,use-pinctrl;
+		pinctrl-names = "dbmdx_default", "dbmdx_sleep";
+		pinctrl-0 = <&dbmdx_active>;
+		pinctrl-1 = <&dbmdx_suspend>;
+		sv-gpio = <&tlmm 49 0>; /* VOICE_INT */
+		wakeup-gpio = <&pm660_gpios 11 0>; /* VOICE_WAKE */
+		reset-gpio = <&tlmm 54 0>; /* VOICE_RST */
+		auto_buffering = <1>;
+		cmd-interface = <&dbmd8_spi >;
+		feature-va; /* enable VA */
+		va-interfaces = <0 0 0 0>;
+		va-firmware-name = "dbmd8_va_fw.bin";
+		va-asrp-params-firmware-name = "dbmd8_va_asrp_fw.bin";		
+		va-config =	<0x80000000
+				0x80000000
+				0x80000000
+				0x80290020
+				0x801b0020
+				0x80093004
+				0x802210E1
+				0x8033006E
+				0x80158989
+				0x80230000
+				0x801A0001
+				0x80107009
+				0x8aab0040
+				0x800C7530
+				0x80000000
+				0x80000000
+				0x80000000
+				0x80000000>;
+				/* 2MIC_NR_DET 1MIC_DET 2MIC_NR_STREAM 2MIC_NONR_STREAM IDLE */
+		va-ns-config = <0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+				0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+				0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+				0x803D0109 0x80000000 0x803D0109 0x80000000 0x80000000
+				0x803E0000 0x80000000 0x803E0000 0x80000000 0x80000000
+				0x80340243 0x80340040 0x80340243 0x80340040 0x8013FFFF
+				0x80110E10 0x8013FFF0 0x80110E10 0x8013FFF0 0x80340000
+				0x80111EEE 0x80040000 0x80111EEE 0x80040000 0x8aab0014
+				0x80112EEE 0x8016FF14 0x80112EE2 0x8016FF14 0x80000000
+				0x80113EEE 0x80000000 0x80113EEE 0x80000000 0x80000000
+				0x80114EEE 0x80000000 0x80114EEE 0x80000000 0x80000000
+				0x80115EE2 0x80000000 0x80115EE2 0x80000000 0x80000000
+				0x80116EEE 0x80000000 0x80116EEE 0x80000000 0x80000000
+				0x80117EEE 0x80000000 0x80117EEE 0x80000000 0x80000000
+				0x8013FF20 0x80000000 0x8013FFF2 0x80000000 0x80000000
+				0x80040000 0x80000000 0x80040000 0x80000000 0x80000000
+				0x8016FF14 0x80000000 0x8016FF14 0x80000000 0x80000000
+				0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+				0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+				0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+				0x80000000 0x80000000 0x80000000 0x80000000 0x80000000
+				0x80000000 0x80000000 0x80000000 0x80000000 0x80000000>;
+
+		va-speeds =	<0x0000 0 0 960000
+				0x0000 0 0 4800000
+				0x0000 0 0 4800000 >;
+		va-mic-config = <0x0167 0x0868 0x0068>;
+		va-mic-mode = <2>;
+		master-clk-rate = <32768>;
+		/* constant-clk-rate = <32768>; */
+		firmware_id = <0xdbd8>;
+		use_gpio_for_wakeup = <1>; /* Use wakeup gpio */
+		wakeup_set_value = <0>;  /* Value to write to wakeup gpio */
+		auto_detection = <1>;
+		detection_buffer_channels = <1>;
+		min_samples_chunk_size = <128>;
+		pcm_streaming_mode = <1>;
+		boot_options = <0x220>; /* Verify chip id */
+		send_uevent_on_detection = <1>;
+		send_uevent_after_buffering = <0>;
+		detection_after_buffering = <0>;
+		va_backlog_length = <1802>;
+		va_backlog_length_okg = <1000>;
+		amodel_options = <0x1B>;
+		va_ns_supported = <1>;
+		va_ns-num_of_configs = <5>;
+		mic_config_source = <0>;
+	};	
+};
+
+&qupv3_se8_spi {
+	status = "okay";
+
+	dbmd8_spi:dbmd8_interface@0  {
+		compatible = "dspg,dbmd8-spi";
+		spi-max-frequency = <1000000>;
+		read-chunk-size  = <0x2000>;
+		write-chunk-size = <0x20000>;
+		reg = <0x0>;
+		qcom,spiop-read = <0x03 3 0 0 0>;
+		qcom,spiop-readseq = <0x03 3 0 0 0>;
+		qcom,spiop-queryid = <0x90 3 0 0 0>;
+		qcom,spiop-pprog = <0x02 2 0 0 0>;
+		qcom,spiop-wenable = <0x06 0 0 0 0>;
+		qcom,spiop-readst = <0x05 0 0 0 0>;
+		qcom,spiop-erase = <0x20 2 0 10 30>;
+		qcom,spi-busy-mask = <0x01>;
+		qcom,spi-page-size = <0x256>;
+		qcom,spi-erase-size = <0x4096>;
+	};
+};
+
+&qupv3_se7_i2c {
+	qcom,clk-freq-out = <400000>;
+	status = "ok";
+	pinctrl-0 = <&qupv3_se7_amp_i2c_active>;
+	pinctrl-1 = <&qupv3_se7_amp_i2c_sleep>;
+
+	cs35l41_1: cs35l41@40 {
+		#sound-dai-cells = <1>;
+		compatible = "cirrus,cs35l41";
+		reg = <0x40>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <78 0>;
+		reset-gpios = <&tlmm 100 0>;
+		VA-supply = <&dummy_vreg>;
+		VP-supply = <&dummy_vreg>;
+		cirrus,asp-sdout-hiz = <0x3>;
+
+		cirrus,mfd-suffix = "_r";
+
+		cirrus,dsp-noise-gate-enable;
+		cirrus,dsp-noise-gate-delay = <0x2>;
+		cirrus,dsp-noise-gate-threshold = <0x6>;
+
+		cirrus,hw-noise-gate-select = <0x3F>;
+		cirrus,hw-noise-gate-delay = <0x2>;
+		cirrus,hw-noise-gate-threshold = <0x6>;
+		cirrus,boost-peak-milliamp = <3100>;
+
+		cirrus,fixed-hw-params	{
+			cirrus,fixed-width = <32>;
+		};
+
+		cirrus,gpio-config2 {
+			cirrus,gpio-src-select = <0x4>;
+			cirrus,gpio-output-enable;
+		};
+	};
+
+	cs35l41_2: cs35l41@41 {
+		#sound-dai-cells = <1>;
+		compatible = "cirrus,cs35l41";
+		reg = <0x41>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <78 0>;
+		reset-gpios = <&tlmm 100 0>;
+		VA-supply = <&dummy_vreg>;
+		VP-supply = <&dummy_vreg>;
+		cirrus,asp-sdout-hiz = <0x3>;
+
+		cirrus,mfd-suffix = "";
+
+		cirrus,dsp-noise-gate-enable;
+		cirrus,dsp-noise-gate-delay = <0x2>;
+		cirrus,dsp-noise-gate-threshold = <0x6>;
+
+		cirrus,hw-noise-gate-select = <0x3F>;
+		cirrus,hw-noise-gate-delay = <0x2>;
+		cirrus,hw-noise-gate-threshold = <0x6>;
+		cirrus,boost-peak-milliamp = <3100>;
+
+		cirrus,fixed-hw-params	{
+			cirrus,fixed-width = <32>;
+		};
+
+		cirrus,gpio-config2 {
+			cirrus,gpio-src-select = <0x4>;
+			cirrus,gpio-output-enable;
+		};
+	};
+	cs35l41_3: cs35l41@42 {
+		#sound-dai-cells = <1>;
+		compatible = "cirrus,cs35l41";
+		reg = <0x42>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <78 0>;
+		reset-gpios = <&tlmm 100 0>;
+		VA-supply = <&dummy_vreg>;
+		VP-supply = <&dummy_vreg>;
+		cirrus,asp-sdout-hiz = <0x3>;
+
+		cirrus,mfd-suffix = "_br";
+
+		cirrus,dsp-noise-gate-enable;
+		cirrus,dsp-noise-gate-delay = <0x2>;
+		cirrus,dsp-noise-gate-threshold = <0x6>;
+
+		cirrus,hw-noise-gate-select = <0x3F>;
+		cirrus,hw-noise-gate-delay = <0x2>;
+		cirrus,hw-noise-gate-threshold = <0x6>;
+		cirrus,boost-peak-milliamp = <3100>;
+
+		cirrus,fixed-hw-params	{
+			cirrus,fixed-width = <32>;
+		};
+
+		cirrus,gpio-config2 {
+			cirrus,gpio-src-select = <0x4>;
+			cirrus,gpio-output-enable;
+		};
+	};
+
+	cs35l41_4: cs35l41@43 {
+		#sound-dai-cells = <1>;
+		compatible = "cirrus,cs35l41";
+		reg = <0x43>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <78 0>;
+		reset-gpios = <&tlmm 100 0>;
+		VA-supply = <&dummy_vreg>;
+		VP-supply = <&dummy_vreg>;
+		cirrus,asp-sdout-hiz = <0x3>;
+
+		cirrus,mfd-suffix = "_b";
+
+		cirrus,dsp-noise-gate-enable;
+		cirrus,dsp-noise-gate-delay = <0x2>;
+		cirrus,dsp-noise-gate-threshold = <0x6>;
+
+		cirrus,hw-noise-gate-select = <0x3F>;
+		cirrus,hw-noise-gate-delay = <0x2>;
+		cirrus,hw-noise-gate-threshold = <0x6>;
+		cirrus,boost-peak-milliamp = <3100>;
+
+		cirrus,fixed-hw-params	{
+			cirrus,fixed-width = <32>;
+		};
+
+		cirrus,gpio-config2 {
+			cirrus,gpio-src-select = <0x4>;
+			cirrus,gpio-output-enable;
+		};
+	};
+};
+
+&pmic_analog_codec {
+	qcom,cdc-micbias-cfilt-mv = <2800000>;
+};
+
+&pm660_vadc {
+	chan@17 {
+		label = "ear_adc_35";
+		reg = <0x17>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "absolute";
+		qcom,scale-function = <0>;
+		qcom,hw-settle-time = <0>;
+		qcom,fast-avg-setup = <0>;
+	};
+};
+
+&tavil_snd {
+	status = "disabled";
+};
+
+&tasha_snd {
+	status = "disabled";
+};
+
+&wsa_spkr_en1 {
+	status = "disabled";
+};
+
+&wsa_spkr_en2 {
+	status = "disabled";
+};
+
+&msm_sdw_codec {
+	status = "disabled";
+};
+
+&cdc_sdw_gpios {
+	status = "disabled";
+};
+
+&wcd_usbc_analog_en1_gpio {
+	status = "disabled";
+};
+

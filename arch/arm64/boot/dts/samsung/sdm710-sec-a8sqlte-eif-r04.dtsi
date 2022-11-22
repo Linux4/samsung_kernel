@@ -1,0 +1,77 @@
+/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "sdm710-sec-a8sqlte-eif-r00.dtsi"
+
+/* Motor change in rev04
+ * control is changed from PM670 haptic driver to LDO
+ */
+
+&soc {
+	msm_vibrator {
+		compatible = "vibrator";
+		pinctrl-names = "tlmm_motor_active", "tlmm_motor_suspend";
+		pinctrl-0 = <&vibrator_enable_active>;
+		pinctrl-1 = <&vibrator_enable_suspend>;
+		samsung,vib_type = "COINDC";
+		motor-vdd_type = <0>; /* 0: gpio, 1: pmic */
+		motor-en = <&tlmm 39 0>;
+	};
+};
+
+/* MOTOR */
+&spmi_bus {
+	qcom,pm660@1 {
+		pm660_haptics: qcom,haptics@c000 {
+			status = "disabled";
+	       };
+	};
+};
+
+&usb0 {
+	dwc3@a600000 {
+		snps,usb3_lpm_capable = <0>;
+	};
+};
+
+/* pinctrl */
+&tlmm {
+	vibrator_enable{
+		vibrator_enable_active: vibrator_enable_active {
+			mux {
+				pins = "gpio39";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio39";
+				drive-strength = <2>;
+				output-high;
+				bias-pull-down;
+			};
+		};
+
+		vibrator_enable_suspend: vibrator_enable_suspend {
+			mux {
+				pins = "gpio39";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio39";
+				drive-strength = <2>;
+				output-low;
+				bias-pull-down;
+			};
+		};
+	};
+};

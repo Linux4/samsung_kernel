@@ -1,0 +1,59 @@
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/{
+	aliases {
+		spi15 = &qupv3_se15_spi;
+	};
+};
+
+&soc {
+	qupv3_se15_spi: spi@a9c000 {
+		compatible = "qcom,spi-geni";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0xa9c000 0x4000>;
+		reg-names = "se_phys";
+		clock-names = "se-clk", "m-ahb", "s-ahb";
+		clocks = <&clock_gcc GCC_QUPV3_WRAP1_S7_CLK>,
+			<&clock_gcc GCC_QUPV3_WRAP_1_M_AHB_CLK>,
+			<&clock_gcc GCC_QUPV3_WRAP_1_S_AHB_CLK>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&gfspi_spi_active>;
+		pinctrl-1 = <&gfspi_spi_sleep>;
+		interrupts = <GIC_SPI 360 0>;
+		spi-max-frequency = <50000000>;
+		qcom,wrapper-core = <&qupv3_1>;
+		dmas = <&gpi_dma1 0 7 1 64 0>,
+			<&gpi_dma1 1 7 1 64 0>;
+		dma-names = "tx", "rx";
+	
+		status = "ok";
+
+		gfspi-spi@0 {
+			compatible = "goodix,fingerprint";
+			reg = <0>;
+			spi-max-frequency = <4800000>;
+			pinctrl-names = "default", "sleep", "idle";
+			pinctrl-0 = <&gfspi_drdypin_suspend>;
+			pinctrl-1 = <&gfspi_drdypin_suspend>;
+			pinctrl-2 = <&gfspi_drdypin_active>;
+
+			goodix,gpio_reset = <&expander_gpios 15 0>;
+			goodix,gpio_irq = <&tlmm 5 0x00>;
+			goodix,gpio_pwr = <&expander_gpios 6 0>;
+			goodix,min_cpufreq_limit = <2016000>;
+			goodix,chip_id = "GW32J1";
+			goodix,orient = <0>;
+		};
+	};
+};

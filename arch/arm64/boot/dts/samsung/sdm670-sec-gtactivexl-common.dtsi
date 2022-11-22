@@ -1,0 +1,117 @@
+/* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+#include "sdm670-sec-gtactivexl-input-common.dtsi"
+#include "sdm710-sec-gtactivexl-audio.dtsi"
+#include "sdm670-sec-gtactivexl-fingerprint-sensor_00.dtsi"
+#include <dt-bindings/spmi/spmi.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/thermal/thermal.h>
+
+#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+
+&soc {
+	sec_detect_conn {
+		compatible = "samsung,sec_detect_conn";
+		/* sec,det_conn_gpios = <&tlmm ? 0>;  UB_CON_DETECT */					
+		/* sec,det_conn_name = "UB_CONNECT";*/
+		/* sec,det_conn_irq_type = <3>; UB_CON_DETECT FALLING, RIGING EDGE*/
+		/* pinctrl-names = "det_ap_connect", "det_pm_connect"; */
+		/* pinctrl-0 = <&detect_conn_setting>; */
+
+		sec,det_pm_conn_gpios = <&pm660l_gpios 8 0>; /* UB_CONNECT */
+		sec,det_pm_conn_name = "UB_CONNECT";
+
+		pinctrl-names = "det_pm_connect";
+		pinctrl-0 = <&detect_conn_pm_setting>;
+	};
+
+	sec_abc {
+				compatible = "samsung,sec_abc";
+				status = "okay";
+
+				gpu {
+					gpu,label="GPU fault";
+					gpu,threshold_count=<4>;
+					gpu,threshold_time=<1200>;
+				};
+				gpu_page {
+					gpu_page,label="GPU page fault";
+					gpu_page,threshold_count=<20>;
+					gpu_page,threshold_time=<1200>;
+				};
+				aicl {
+					aicl,label="battery aicl";
+					aicl,threshold_count=<5>;
+					aicl,threshold_time=<300>;
+				};
+			};
+
+	abc_hub {
+		compatible = "samsung,abc_hub";
+		status = "okay";
+
+		pinctrl-names = "det_pm_connect";
+		pinctrl-0 = <&detect_conn_pm_setting>;
+
+		bootc {
+			bootc,time_spec_user = <100000>; /* user binary user build */
+			bootc,time_spec_eng = <150000>; /* user binary eng build */
+			bootc,time_spec_fac = <100000>; /* factory binary */
+		};
+
+		cond {
+			sec,det_pm_conn_gpios = <&pm660l_gpios 8 0>; /* UB_CONNECT */
+			sec,det_pm_conn_name = "ub";
+		};
+	};
+};
+
+&ufsphy_mem{
+	status = "disabled";
+};
+
+&ufshc_mem {
+	status = "disabled";
+};
+
+&sdhc_2 {
+	cd-gpios = <&tlmm 10 0x1>;
+	qcom,clk-rates = <300000 400000 20000000 25000000
+	   50000000 100000000 179100000>;
+};
+
+&soc {
+	/* Sensor */
+	qcom,lpass@62400000 {
+		qcom,gpio-sensor-ldo = <&expander_gpios 19 0>;
+		pinctrl-names = "default", "sleep", "idle";
+		pinctrl-0 = <&sensor_ldo_default>;
+		pinctrl-1 = <&sensor_ldo_active>;
+		pinctrl-2 = <&sensor_ldo_active>;
+	};
+
+	icnss: qcom,icnss@18800000 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&rome_cable_default>;
+	};
+	rome_cable {
+		compatible = "samsung,rome_cable";
+		wlan_cable_wifi = <&pm660_gpios 6 0>;
+		status = "ok";
+	};
+};
+
+&icnss {
+	vdd-3.3-supply = <&pm660l_l3>;
+};
