@@ -1,0 +1,12 @@
+config EXYNOS_COMMON_PANEL
+	depends on EXYNOS_DPU30
+	select BACKLIGHT_CLASS_DEVICE
+	default n
+	bool "Support Exynos Common Panel Driver"
+
+config EXYNOS_DECON_LCD_CABC
+	bool "Support CABC using DDI command"
+	depends on EXYNOS_COMMON_PANEL
+	default n
+	help
+	  If this menu is enabled, you can control CABC mode of panel.
