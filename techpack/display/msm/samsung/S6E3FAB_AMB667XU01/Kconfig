@@ -1,0 +1,6 @@
+config PANEL_S6E3FAB_AMB667XU01_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3FAB LDI"
+	default n
+	---help---
+	LSI S6E3FAB LDI 1080_2400 Unbound_N2

@@ -1,0 +1,11 @@
+#
+# MZ configuration
+#
+
+config MEMORY_ZEROISATION
+	bool "Support memory zeroisation"
+	default n
+	help
+      Support memory zeroisation feature which does zeroing of free pages.
+      The purpose of this is to zeroise specific memory
+      when target process exit.
