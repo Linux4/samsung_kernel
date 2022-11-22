@@ -1,0 +1,12 @@
+kernel/sound/soundcore.ko
+kernel/sound/arm/snd-pxa2xx-lib.ko
+kernel/sound/core/snd.ko
+kernel/sound/core/snd-timer.ko
+kernel/sound/core/snd-pcm.ko
+kernel/sound/core/snd-page-alloc.ko
+kernel/sound/core/oss/snd-mixer-oss.ko
+kernel/sound/core/oss/snd-pcm-oss.ko
+kernel/sound/soc/snd-soc-core.ko
+kernel/sound/soc/codecs/snd-soc-88pm805.ko
+kernel/sound/soc/pxa/snd-soc-pxa-ssp.ko
+kernel/sound/soc/pxa/snd-soc-pxa2xx-pcm.ko

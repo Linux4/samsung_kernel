@@ -1,0 +1,6 @@
+kernel/drivers/mfd/88pm805.ko
+kernel/drivers/mfd/88pm80x.ko
+kernel/drivers/mfd/88pm822.ko
+kernel/drivers/mfd/88pm822-dbg.ko
+kernel/drivers/mfd/mfd-core.ko
+kernel/drivers/mfd/rt8973.ko

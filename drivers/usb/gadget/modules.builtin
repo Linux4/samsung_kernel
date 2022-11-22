@@ -1,0 +1,2 @@
+kernel/drivers/usb/gadget/udc-core.ko
+kernel/drivers/usb/gadget/mv_udc.ko

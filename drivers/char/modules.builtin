@@ -1,0 +1,3 @@
+kernel/drivers/char/android_vibrator.ko
+kernel/drivers/char/pxa9xx_acipc.ko
+kernel/drivers/char/88pm822_usb.ko

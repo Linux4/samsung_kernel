@@ -1,0 +1,13 @@
+kernel/drivers/md/dm-mod.ko
+kernel/drivers/md/dm-crypt.ko
+kernel/drivers/md/dm-delay.ko
+kernel/drivers/md/dm-multipath.ko
+kernel/drivers/md/dm-round-robin.ko
+kernel/drivers/md/dm-queue-length.ko
+kernel/drivers/md/dm-service-time.ko
+kernel/drivers/md/dm-snapshot.ko
+kernel/drivers/md/dm-mirror.ko
+kernel/drivers/md/dm-log.ko
+kernel/drivers/md/dm-region-hash.ko
+kernel/drivers/md/dm-log-userspace.ko
+kernel/drivers/md/dm-zero.ko

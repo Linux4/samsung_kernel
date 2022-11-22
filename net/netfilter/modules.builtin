@@ -1,0 +1,13 @@
+kernel/net/netfilter/nfnetlink.ko
+kernel/net/netfilter/nfnetlink_queue.ko
+kernel/net/netfilter/nfnetlink_log.ko
+kernel/net/netfilter/nf_conntrack.ko
+kernel/net/netfilter/nf_tproxy_core.ko
+kernel/net/netfilter/x_tables.ko
+kernel/net/netfilter/xt_tcpudp.ko
+kernel/net/netfilter/xt_TCPMSS.ko
+kernel/net/netfilter/xt_quota.ko
+kernel/net/netfilter/xt_quota2.ko
+kernel/net/netfilter/xt_realm.ko
+kernel/net/netfilter/xt_socket.ko
+kernel/net/netfilter/xt_state.ko

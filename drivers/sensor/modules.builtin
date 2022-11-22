@@ -1,0 +1,2 @@
+kernel/drivers/sensor/gp2ap030.ko
+kernel/drivers/sensor/bma255.ko

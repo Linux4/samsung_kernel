@@ -1,0 +1,5 @@
+kernel/drivers/battery/sec_charger.ko
+kernel/drivers/battery/sec_fuelgauge.ko
+kernel/drivers/battery/sec_battery.ko
+kernel/drivers/battery/88pm80x_fuelgauge.ko
+kernel/drivers/battery/rt9455_charger.ko

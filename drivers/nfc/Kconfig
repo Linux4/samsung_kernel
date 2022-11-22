@@ -1,0 +1,26 @@
+#
+# Near Field Communication (NFC) devices
+#
+
+menu "Near Field Communication (NFC) devices"
+	depends on NFC
+
+config NFC_PN544
+        bool "NXP PN544 NFC Controller Driver"
+	default n
+        help
+          NXP PN544 Near Field Communication controller support.
+          This option enables device driver support for the NFC.
+          It is used by many services. NFC is fully controlled using I2C
+          to communicate the AP chip.
+
+config NFC_PN547
+        bool "NXP PN547 NFC Controller Driver"
+	default n
+        help
+          NXP PN547 Near Field Communication controller support.
+          This option enables device driver support for the NFC.
+          It is used by many services. NFC is fully controlled using I2C
+          to communicate the AP chip.
+
+endmenu

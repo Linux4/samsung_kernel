@@ -1,0 +1,2 @@
+kernel/drivers/rtc/rtc-sa1100.ko
+kernel/drivers/rtc/rtc-88pm822.ko

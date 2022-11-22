@@ -1,0 +1,882 @@
+/*
+ * d2199.h  --  D2199 ASoC driver
+ *
+ * Copyright (c) 2013 Dialog Semiconductor
+ *
+ * Author: Adam Thomson <Adam.Thomson@diasemi.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#ifndef _D2199_H
+#define _D2199_H
+
+#include <linux/i2c.h>
+#if 1 // MCLK setting
+#include <linux/clk.h>
+#endif
+#include <sound/soc.h>
+
+/* PMIC related includes */
+#include <linux/d2199/core.h>
+
+/*
+ * D2199 register space
+ */
+ 
+/* Use D2199 HW when CONFIG_SND_SOC_USE_D2153_HW is undefined */
+/* Common1 Registers */
+#define D2199_CIF_CTRL			0x01
+#define D2199_SR			0x02
+#define D2199_PC_COUNT			0x03
+#define D2199_GAIN_RAMP_CTRL		0x04
+#define D2199_UNLOCK			0x05
+
+/* System Registers */
+#define D2199_SYSTEM_STATUS		0x06
+#define D2199_SYSTEM_MODES_CFG1		0x07
+#define D2199_SYSTEM_MODES_CFG2		0x08
+#define D2199_SYSTEM_MODES_CFG3		0x09
+
+/* ADC Filter Registers */
+#define D2199_ADC_FILTERS1		0x0C
+#define D2199_ADC_FILTERS2		0X0D
+#define D2199_ADC_FILTERS3		0X0E
+#define D2199_ADC_FILTERS4		0X0F
+
+/* DAC Filter Registers */
+#define D2199_DAC_FILTERS1		0x10
+#define D2199_DAC_FILTERS2		0x11
+#define D2199_DAC_FILTERS3		0x12
+#define D2199_DAC_FILTERS4		0x13
+#define D2199_DAC_FILTERS5		0x14
+
+/* ALC Registers */
+#define D2199_ALC_CTRL1			0x16
+#define D2199_ALC_CTRL2			0x17
+#define D2199_ALC_CTRL3			0x18
+#define D2199_ALC_NOISE			0x19
+#define D2199_ALC_TARGET_MIN		0x1A
+#define D2199_ALC_TARGET_MAX		0x1B
+#define D2199_ALC_GAIN_LIMITS		0x1C
+#define D2199_ALC_ANA_GAIN_LIMITS	0x1D
+#define D2199_ALC_ANTICLIP_CTRL		0x1E
+#define D2199_ALC_ANTICLIP_LEVEL		0x1F
+#define D2199_ALC_OFFSET_AUTO_M_L	0x20
+#define D2199_ALC_OFFSET_AUTO_U_L	0x21
+#define D2199_ALC_OFFSET_OP2L_L		0x22
+#define D2199_ALC_OFFSET_MAN_M_L	0x23
+#define D2199_ALC_OFFSET_MAN_U_L	0x24
+#define D2199_ALC_OFFSET_AUTO_M_R	0x25
+#define D2199_ALC_OFFSET_AUTO_U_R	0x26
+#define D2199_ALC_OFFSET_OP2L_R		0x27
+#define D2199_ALC_OFFSET_MAN_M_R	0x28
+#define D2199_ALC_OFFSET_MAN_U_R	0x29
+#define D2199_ALC_CIC_OP_LVL_CTRL	0x2A
+#define D2199_ALC_CIC_OP_LVL_DATA	0x2B
+
+/* Router and DMIX Registers */
+#define D2199_DROUTING_DAI_1_L				0x2C
+#define D2199_DMIX_DAI_1_L_ADC_L_GAIN		0x2D
+#define D2199_DMIX_DAI_1_L_ADC_R_GAIN		0x2E
+#define D2199_DMIX_DAI_1_L_DAI_1_L_GAIN	0x2F
+#define D2199_DMIX_DAI_1_L_DAI_1_R_GAIN	0x30
+#define D2199_DMIX_DAI_1_L_DAI_2_L_GAIN	0x31
+#define D2199_DMIX_DAI_1_L_DAI_2_R_GAIN	0x32
+
+#define D2199_DROUTING_DAI_1_R				0x33
+#define D2199_DMIX_DAI_1_R_ADC_L_GAIN		0x34
+#define D2199_DMIX_DAI_1_R_ADC_R_GAIN		0x35
+#define D2199_DMIX_DAI_1_R_DAI_1_L_GAIN	0x36
+#define D2199_DMIX_DAI_1_R_DAI_1_R_GAIN	0x37
+#define D2199_DMIX_DAI_1_R_DAI_2_L_GAIN	0x38
+#define D2199_DMIX_DAI_1_R_DAI_2_R_GAIN	0x39
+
+#define D2199_DROUTING_DAI_2_L				0x3A
+#define D2199_DMIX_DAI_2_L_ADC_L_GAIN		0x3B
+#define D2199_DMIX_DAI_2_L_ADC_R_GAIN		0x3C
+#define D2199_DMIX_DAI_2_L_DAI_1_L_GAIN	0x3D
+#define D2199_DMIX_DAI_2_L_DAI_1_R_GAIN	0x3E
+#define D2199_DMIX_DAI_2_L_DAI_2_L_GAIN	0x3F
+#define D2199_DMIX_DAI_2_L_DAI_2_R_GAIN	0x40
+
+#define D2199_DROUTING_DAI_2_R				0x41
+#define D2199_DMIX_DAI_2_R_ADC_L_GAIN		0x42
+#define D2199_DMIX_DAI_2_R_ADC_R_GAIN		0x43
+#define D2199_DMIX_DAI_2_R_DAI_1_L_GAIN	0x44
+#define D2199_DMIX_DAI_2_R_DAI_1_R_GAIN	0x45
+#define D2199_DMIX_DAI_2_R_DAI_2_L_GAIN	0x46
+#define D2199_DMIX_DAI_2_R_DAI_2_R_GAIN	0x47
+
+#define D2199_DROUTING_DAC_L				0x48
+#define D2199_DMIX_DAC_L_ADC_L_GAIN		0x49
+#define D2199_DMIX_DAC_L_ADC_R_GAIN		0x4A
+#define D2199_DMIX_DAC_L_DAI_1_L_GAIN		0x4B
+#define D2199_DMIX_DAC_L_DAI_1_R_GAIN		0x4C
+#define D2199_DMIX_DAC_L_DAI_2_L_GAIN		0x4D
+#define D2199_DMIX_DAC_L_DAI_2_R_GAIN		0x4E
+
+#define D2199_DROUTING_DAC_R				0x4F
+#define D2199_DMIX_DAC_R_ADC_L_GAIN		0x50
+#define D2199_DMIX_DAC_R_ADC_R_GAIN		0x51
+#define D2199_DMIX_DAC_R_DAI_1_L_GAIN		0x52
+#define D2199_DMIX_DAC_R_DAI_1_R_GAIN		0x53
+#define D2199_DMIX_DAC_R_DAI_2_L_GAIN		0x54
+#define D2199_DMIX_DAC_R_DAI_2_R_GAIN		0x55
+
+/* DAI1/2(AIF) Registers */
+#define D2199_DIG_CTRL			0x56
+#define D2199_DAI_1_CTRL			0x58
+#define D2199_DAI_1_OFFSET 		0x59
+#define D2199_DAI_1_CLK_MODE	0x5A
+#define D2199_DAI_2_CTRL			0x5B
+#define D2199_DAI_2_OFFSET		0x5C
+#define D2199_DAI_2_CLK_MODE	0x5D
+
+/* DAC Noisegate Registers */
+#define D2199_DAC_NG_CTRL		0x5E
+#define D2199_DAC_NG_SETUP_TIME		0x5F
+#define D2199_DAC_NG_OFF_THRESHOLD	0x60
+#define D2199_DAC_NG_ON_THRESHOLD	0x61
+
+/* DMIC Registers */
+#define D2199_MIC_CONFIG			0x64
+
+/* ASRC Registers */
+#define D2199_ASRC_CTRL			0x76
+#define D2199_ASRC_UP_DPHI1		0x78
+#define D2199_ASRC_UP_DPHI2		0x79
+#define D2199_ASRC_DOWN_DPHI1	0x7B
+#define D2199_ASRC_DOWN_DPHI2	0x7C
+
+/* Limiter Registers */
+#define D2199_LIMITER_CTRL1		0x88
+#define D2199_LIMITER_CTRL2		0x89
+#define D2199_LIMITER_PWR_LIM	0x8A
+#define D2199_LIMITER_THD_LIM	0x8B
+#define D2199_NG_CTRL1			0x8C
+#define D2199_NG_CTRL2			0x8D
+
+/* PLL Registers */
+#define D2199_PLL_CTRL1 			0x90
+#define D2199_PLL_CTRL2 			0x91
+#define D2199_PLL_FRAC_TOP_44	0x92
+#define D2199_PLL_FRAC_BOT_44	0x93
+#define D2199_PLL_INTEGER_44		0x94
+#define D2199_PLL_FRAC_TOP_48	0x95
+#define D2199_PLL_FRAC_BOT_48	0x96
+#define D2199_PLL_INTEGER_48		0x97
+#define D2199_PLL_STATUS			0x98
+
+/* Charge Pump Registers */
+#define D2199_CP_CTRL			0x9C
+#define D2199_CP_DELAY			0x9D
+#define D2199_CP_DETECTOR		0x9E
+#define D2199_CP_VOL_THRESHOLD1	0x9F
+
+/* Analogue Registers */
+
+/* AUX */
+#define D2199_AUX_L_CTRL			0xA4
+#define D2199_AUX_L_GAIN			0xA5
+#define D2199_AUX_L_GAIN_STATUS	0xA6
+#define D2199_AUX_R_CTRL		0xA7
+#define D2199_AUX_R_GAIN		0xA8
+#define D2199_AUX_R_GAIN_STATUS	0xA9
+
+/* MIC */
+#define D2199_MIC_2_CTRL			0xAC
+#define D2199_MIC_2_GAIN			0xAD
+#define D2199_MIC_2_GAIN_STATUS	0xAE
+#define D2199_MIC_3_CTRL			0xAF
+#define D2199_MIC_3_GAIN			0xB0
+#define D2199_MIC_3_GAIN_STATUS	0xB1
+#define D2199_MIC_1_CTRL		0xB2
+#define D2199_MIC_1_GAIN		0xB3
+#define D2199_MIC_1_GAIN_STATUS	0xB4
+#define D2199_MICBIAS1_CTRL		0xB5
+#define D2199_MICBIAS2_CTRL		0xB6
+#define D2199_MICBIAS3_CTRL		0xB7
+
+/* MIXIN */
+#define D2199_MIXIN_L_CTRL		0xBC
+#define D2199_MIXIN_L_GAIN		0xBD
+#define D2199_MIXIN_L_GAIN_STATUS	0xBE
+#define D2199_MIXIN_L_SELECT		0xBF
+#define D2199_MIXIN_R_CTRL		0xC0
+#define D2199_MIXIN_R_GAIN		0xC1
+#define D2199_MIXIN_R_GAIN_STATUS	0xC2
+#define D2199_MIXIN_R_SELECT		0xC3
+
+/* ADC */
+#define D2199_ADC_L_CTRL			0xC8
+#define D2199_ADC_L_GAIN			0xC9
+#define D2199_ADC_L_GAIN_STATUS	0xCA
+#define D2199_ADC_R_CTRL		0xCC
+#define D2199_ADC_R_GAIN		0xCD
+#define D2199_ADC_R_GAIN_STATUS	0xCE
+
+/* DAC */
+#define D2199_DAC_L_CTRL			0xD0
+#define D2199_DAC_L_GAIN			0xD1
+#define D2199_DAC_L_GAIN_STATUS	0xD2
+#define D2199_DAC_R_CTRL		0xD3
+#define D2199_DAC_R_GAIN		0xD4
+#define D2199_DAC_R_GAIN_STATUS	0xD5
+
+/* Mixout */
+#define D2199_MIXOUT_L_CTRL		0xD8
+#define D2199_MIXOUT_L_SELECT	0xD9
+#define D2199_MIXOUT_R_CTRL		0xDA
+#define D2199_MIXOUT_R_SELECT	0xDB
+#define D2199_MIXOUT_SP_CTRL	0xDC
+#define D2199_MIXOUT_SP_SELECT	0xDD
+
+/* HP */
+#define D2199_HP_L_CTRL			0xE0
+#define D2199_HP_L_GAIN			0xE1
+#define D2199_HP_L_GAIN_STATUS	0xE2
+#define D2199_HP_R_CTRL			0xE3
+#define D2199_HP_R_GAIN			0xE4
+#define D2199_HP_R_GAIN_STATUS	0xE5
+#define D2199_HP_TEST			0xE6
+
+/* EP */
+#define D2199_EP_CTRL			0xE8
+#define D2199_EP_GAIN			0xE9
+#define D2199_EP_GAIN_STATUS	0xEA
+
+/* SP */
+#define D2199_SP_CTRL			0xEC
+#define D2199_SP_GAIN			0xED
+#define D2199_SP_GAIN_STATUS	0xEE
+#define D2199_SP_CFG1			0xEF
+#define D2199_SP_CFG2			0xF0
+#define D2199_SP_STATUS			0xF2
+
+/* Misc */
+#define D2199_REFERENCES			0xF8
+#define D2199_LDO_CTRL			0xFA
+
+#define D2199_MAX_REG			D2199_LDO_CTRL
+
+/*
+ * Bit fields
+ */
+
+/* D2199_SR = 0x02 */
+#define D2199_SR_8000					(0x1 << 0)
+#define D2199_SR_11025					(0x2 << 0)
+#define D2199_SR_12000					(0x3 << 0)
+#define D2199_SR_16000					(0x5 << 0)
+#define D2199_SR_22050					(0x6 << 0)
+#define D2199_SR_24000					(0x7 << 0)
+#define D2199_SR_32000					(0x9 << 0)
+#define D2199_SR_44100					(0xA << 0)
+#define D2199_SR_48000					(0xB << 0)
+#define D2199_SR_88200					(0xE << 0)
+#define D2199_SR_96000					(0xF << 0)
+
+/* D2199_GAIN_RAMP_CTRL = 0x04 */
+#define D2199_GAIN_RAMP_RATE_SHIFT			0
+#define D2199_GAIN_RAMP_RATE_MAX			0x4
+
+/* D2199_ADC/DAC_FILTERS1 = 0x0C/0x10 */
+#define D2199_VOICE_HPF_CORNER_SHIFT			0
+#define D2199_VOICE_HPF_CORNER_MAX			0x8
+#define D2199_VOICE_EN_SHIFT				3
+#define D2199_VOICE_EN_MAX				0x1
+#define D2199_AUDIO_HPF_CORNER_SHIFT			4
+#define D2199_AUDIO_HPF_CORNER_MAX			0x4
+#define D2199_HPF_EN_SHIFT				7
+#define D2199_HPF_EN_MAX				0x1
+
+/* D2199_ADC/DAC_FILTERS2 = 0xD/0x11  */
+#define D2199_EQ_BAND1_SHIFT				0
+#define D2199_EQ_BAND1_MAX				0xF
+#define D2199_EQ_BAND2_SHIFT				4
+#define D2199_EQ_BAND2_MAX				0xF
+
+/* D2199_ADC/DAC_FILTERS3 = 0xE/0x12 */
+#define D2199_EQ_BAND3_SHIFT				0
+#define D2199_EQ_BAND3_MAX				0xF
+#define D2199_EQ_BAND4_SHIFT				4
+#define D2199_EQ_BAND4_MAX				0xF
+
+/* D2199_ADC/DAC_FILTERS4 = 0xF/0x13 */
+#define D2199_EQ_BAND5_SHIFT				0
+#define D2199_EQ_BAND5_MAX				0xF
+#define D2199_EQ_EN_SHIFT				7
+#define D2199_EQ_EN_MAX					0x1
+
+/* D2199_ADC_FILTERS4 = 0x0F */
+#define D2199_ADC_EQ_GAIN_SHIFT				4
+#define D2199_ADC_EQ_GAIN_MAX				0x3
+
+/* D2199_DAC_FILTERS5 = 0x14 */
+#define D2199_DAC_SOFTMUTE_RATE_SHIFT			4
+#define D2199_DAC_SOFTMUTE_RATE_MAX			7
+#define D2199_DAC_SOFTMUTE_EN				(1 << 7)
+#define D2199_DAC_SOFTMUTE_EN_SHIFT			7
+#define D2199_DAC_SOFTMUTE_EN_MAX			0x1
+
+/* D2199_ALC_CTRL1 = 0x16 */
+#define D2199_ALC_OFFSET_EN				(1 << 0)
+#define D2199_ALC_SYNC_MODE				(1 << 1)
+#define D2199_ALC_CALIB_MODE_MAN			(1 << 2)
+#define D2199_ALC_L_EN_SHIFT				3
+#define D2199_ALC_L_EN					(1 << 3)
+#define D2199_ALC_AUTO_CALIB_EN				(1 << 4)
+#define D2199_ALC_CALIB_OVERFLOW			(1 << 5)
+#define D2199_ALC_EXT_MIC_MODE_SHIFT			6
+#define D2199_ALC_EXT_MIC_MODE_MAX			2
+#define D2199_ALC_R_EN_SHIFT				7
+#define D2199_ALC_R_EN					(1 << 7)
+#define D2199_ALC_EN_MAX				0x1
+
+/* D2199_ALC_CTRL2 = 0x17 */
+#define D2199_ALC_ATTACK_SHIFT				0
+#define D2199_ALC_ATTACK_MAX				0xD
+#define D2199_ALC_RELEASE_SHIFT				4
+#define D2199_ALC_RELEASE_MAX				0xB
+
+/* D2199_ALC_CTRL3 = 0x18 */
+#define D2199_ALC_HOLD_SHIFT				0
+#define D2199_ALC_HOLD_MAX				0x10
+#define D2199_ALC_INTEG_ATTACK_SHIFT			4
+#define D2199_ALC_INTEG_ATTACK_MAX			0x4
+#define D2199_ALC_INTEG_RELEASE_SHIFT			6
+#define D2199_ALC_INTEG_RELEASE_MAX			0x4
+
+/* D2199_ALC_NOISE = 0x19 */
+#define D2199_ALC_NOISE_SHIFT				0
+#define D2199_ALC_NOISE_MAX				0x3F
+
+/* D2199_ALC_TARGET_MIN = 0x1A */
+#define D2199_ALC_THRESHOLD_MIN_SHIFT			0
+#define D2199_ALC_THRESHOLD_MIN_MAX			0x3F
+
+/* D2199_ALC_TARGET_MAX = 0x1B */
+#define D2199_ALC_THRESHOLD_MAX_SHIFT			0
+#define D2199_ALC_THRESHOLD_MAX_MAX			0x3F
+
+/* D2199_ALC_GAIN_LIMITS = 0x1C */
+#define D2199_ALC_ATTEN_MAX_SHIFT			0
+#define D2199_ALC_ATTEN_MAX_MAX				0xf
+#define D2199_ALC_GAIN_MAX_SHIFT			4
+#define D2199_ALC_GAIN_MAX_MAX				0xf
+
+/* D2199_ALC_ANA_GAIN_LIMITS = 0x1D */
+#define D2199_ALC_ANA_GAIN_MIN_SHIFT			0
+#define D2199_ALC_ANA_GAIN_MIN_MAX			0x7
+#define D2199_ALC_ANA_GAIN_MAX_SHIFT			4
+#define D2199_ALC_ANA_GAIN_MAX_MAX			0x7
+
+/* D2199_ALC_ANTICLIP_CTRL = 0x1E */
+#define D2199_ALC_ANTICLIP_EN_SHIFT			7
+#define D2199_ALC_ANTICLIP_EN_MAX			0x1
+
+/* D2199_ALC_ANTICLIP_LEVEL = 0x1F */
+#define D2199_ALC_ANTICLIP_LEVEL_SHIFT			0
+#define D2199_ALC_ANTICLIP_LEVEL_MAX			0x7F
+
+/* D2199_ALC_OFFSET_MAN_M_L/R = 0x23/0x28 */
+#define DA9055_ALC_OFFSET_15_8				0x00FF00
+
+/* D2199_ALC_OFFSET_MAN_U_L/R = 0x24/0x29 */
+#define DA9055_ALC_OFFSET_19_16				0x0F0000
+
+/* D2199_ALC_CIC_OP_LVL_CTRL = 0x2A */
+#define D2199_ALC_CAPTURE_DATA				(0 << 0)
+#define D2199_ALC_DATA_BOT					(1 << 0)
+#define D2199_ALC_DATA_MIDDLE				(2 << 0)
+#define D2199_ALC_DATA_TOP					(3 << 0)
+#define D2199_ALC_CIC_OP_CHANNEL_LEFT		(0 << 7)
+#define D2199_ALC_CIC_OP_CHANNEL_RIGHT		(1 << 7)
+
+//-----------------------------------------------------
+/*	D2199_DROUTING_DAI_1_L	0x2C	*/
+/*	D2199_DROUTING_DAI_1_L	0x33		*/
+/*	D2199_DROUTING_DAI_2_L	0x3A		*/
+/*	D2199_DROUTING_DAI_2_R	0x41		*/
+/*	D2199_DROUTING_DAC_L	0x48 	*/
+/*	D2199_DROUTING_DAC_R	0x4F		*/
+#define D2199_DAI_1_SRC_ADC_L				(0 << 0)
+#define D2199_DAI_1_SRC_ADC_R				(1 << 1)
+#define D2199_DAI_1_INP_L_DATA				(1 << 2)
+#define D2199_DAI_1_INP_R_DATA				(1 << 3)
+#define D2199_DAI_2_INP_L_DATA				(1 << 4)
+#define D2199_DAI_2_INP_R_DATA				(1 << 5)
+#define D2199_DAC_MONO_MAX				0x1
+#define D2199_DAI_SRC_SHIFT				0
+#define D2199_DAI_SRC_MAX				6
+
+/* Below Gains are all same : 0x2D~32,34~39,3B~40,42~47,49~4E,50~55 */
+/* D2199_DMIX_DAI_1_L_ADC_L_GAIN		0x2D */
+/* D2199_DMIX_DAI_1_L_ADC_R_GAIN		0x2E */
+/* D2199_DMIX_DAI_1_L_DAI_1_L_GAIN	0x2F */
+/* D2199_DMIX_DAI_1_L_DAI_1_R_GAIN	0x30 */
+/* D2199_DMIX_DAI_1_L_DAI_2_L_GAIN	0x31 */
+/* D2199_DMIX_DAI_1_L_DAI_2_R_GAIN	0x32 */
+/* D2199_DMIX_DAI_1_R_ADC_L_GAIN		0x34 */
+/* D2199_DMIX_DAI_1_R_ADC_R_GAIN		0x35*/
+/* D2199_DMIX_DAI_1_R_DAI_1_L_GAIN	0x36*/
+/* D2199_DMIX_DAI_1_R_DAI_1_R_GAIN	0x37*/
+/* D2199_DMIX_DAI_1_R_DAI_2_L_GAIN	0x38*/
+/* D2199_DMIX_DAI_1_R_DAI_2_R_GAIN	0x39*/
+/* D2199_DMIX_DAI_2_L_ADC_L_GAIN		0x3B*/
+/* D2199_DMIX_DAI_2_L_ADC_R_GAIN		0x3C*/
+/* D2199_DMIX_DAI_2_L_DAI_1_L_GAIN	0x3D*/
+/* D2199_DMIX_DAI_2_L_DAI_1_R_GAIN	0x3E*/
+/* D2199_DMIX_DAI_2_L_DAI_2_L_GAIN	0x3F*/
+/* D2199_DMIX_DAI_2_L_DAI_2_R_GAIN	0x40*/
+/* D2199_DMIX_DAI_2_R_ADC_L_GAIN		0x42*/
+/* D2199_DMIX_DAI_2_R_ADC_R_GAIN		0x43*/
+/* D2199_DMIX_DAI_2_R_DAI_1_L_GAIN	0x44*/
+/* D2199_DMIX_DAI_2_R_DAI_1_R_GAIN	0x45*/
+/* D2199_DMIX_DAI_2_R_DAI_2_L_GAIN	0x46*/
+/* D2199_DMIX_DAI_2_R_DAI_2_R_GAIN	0x47*/
+/* D2199_DMIX_DAC_L_ADC_L_GAIN		0x49*/
+/* D2199_DMIX_DAC_L_ADC_R_GAIN		0x4A*/
+/* D2199_DMIX_DAC_L_DAI_1_L_GAIN		0x4B*/
+/* D2199_DMIX_DAC_L_DAI_1_R_GAIN		0x4C*/
+/* D2199_DMIX_DAC_L_DAI_2_L_GAIN		0x4D*/
+/* D2199_DMIX_DAC_L_DAI_2_R_GAIN		0x4E*/
+/* D2199_DMIX_DAC_R_ADC_L_GAIN		0x50*/
+/* D2199_DMIX_DAC_R_ADC_R_GAIN		0x51*/
+/* D2199_DMIX_DAC_R_DAI_1_L_GAIN		0x52*/
+/* D2199_DMIX_DAC_R_DAI_1_R_GAIN		0x53*/
+/* D2199_DMIX_DAC_R_DAI_2_L_GAIN		0x54*/
+/* D2199_DMIX_DAC_R_DAI_2_R_GAIN		0x55*/
+#define D2199_DMIX_DAI_GAIN_SHIFT	0
+#define D2199_DMIX_DAI_GAIN_MAX		0x1F 	
+/* 
+	1.5 dB step 
+	----------------
+	00000	-42    dB
+	00001	-40.5 dB
+	...
+	11100	    0    dB		
+	11101	    1.5 dB
+	11110	    3.0 dB
+	11111	    4.5 dB
+*/
+
+/* D2199_DIG_CTRL = 0x56 */
+#define D2199_DAC_L_INV_SHIFT				3
+#define D2199_DAC_R_INV_SHIFT				7
+#define D2199_DAC_INV_MAX				0x1
+
+//==================================================
+// TODO : shouldbecheckedbyRoy - 0x44, 0x45, 0x48, 0x49, 0x4a of Leopard ~
+
+/* D2199_DAI_1_CTRL,D2199_DAI_2_CTRL = 0x58, 0X5B */
+#define D2199_DAI_FORMAT_I2S_MODE		(0 << 0)
+#define D2199_DAI_FORMAT_LEFT_J			(1 << 0)
+#define D2199_DAI_FORMAT_RIGHT_J		(2 << 0)
+#define D2199_DAI_FORMAT_DSP			(3 << 0)
+#define D2199_DAI_FORMAT_MASK			(3 << 0)
+#define D2199_DAI_FORMAT_MONO_MASK	(1 << 4)
+#define D2199_DAI_FORMAT_MONO			(1 << 4)
+#define D2199_DAI_FORMAT_STEREO			(0 << 4)
+#define D2199_DAI_WORD_LENGTH_S16_LE	(0 << 2)
+#define D2199_DAI_WORD_LENGTH_S20_LE	(1 << 2)
+#define D2199_DAI_WORD_LENGTH_S24_LE	(2 << 2)
+#define D2199_DAI_WORD_LENGTH_S32_LE	(3 << 2)
+#define D2199_DAI_WORD_LENGTH_MASK	(3 << 2)
+#define D2199_DAI_OE						(1 << 6)
+#define D2199_DAI_EN_SHIFT				7
+#define D2199_DAI_EN						(1 << 7)
+
+/* D1253_DAI_1_CLK_MODE,D1253_DAI_1_CLK_MODE= 0x5A, 0x5D */
+#define D2199_DAI_BCLKS_PER_WCLK_32		(0 << 0)
+#define D2199_DAI_BCLKS_PER_WCLK_64		(1 << 0)
+#define D2199_DAI_BCLKS_PER_WCLK_128		(2 << 0)
+#define D2199_DAI_BCLKS_PER_WCLK_256		(3 << 0)
+#define D2199_DAI_CLK_POL_INV				(1 << 2)
+#define D2199_DAI_WCLK_POL_INV				(1 << 3)
+#define D2199_DAI_CLK_EN_SLAVE_MODE		(0 << 7)
+#define D2199_DAI_CLK_EN_MASTER_MODE		(1 << 7)
+
+/* D2199_DAC_NG_CTRL = 0x5E */
+#define D2199_DAC_NG_EN_SHIFT				7
+#define D2199_DAC_NG_EN_MAX					0x1
+
+/* D2199_DAC_NG_SETUP_TIME = 0x5F */
+#define D2199_DAC_NG_SETUP_TIME_SHIFT		0
+#define D2199_DAC_NG_SETUP_TIME_MAX		0x4
+#define D2199_DAC_NG_RAMPUP_RATE_SHIFT		2
+#define D2199_DAC_NG_RAMPUP_RATE_MAX		0x2
+#define D2199_DAC_NG_RAMPDN_RATE_SHIFT		3
+#define D2199_DAC_NG_RAMPDN_RATE_MAX		0x2
+
+/* D2199_DAC_NG_OFF/ON_THRESH = 0x60/0x61 */
+#define D2199_DAC_NG_THRESHOLD_SHIFT		0
+#define D2199_DAC_NG_THRESHOLD_MAX			0x7
+
+/* D2199_MIC_CONFIG = 0x64 */
+#define D2199_DMIC_DATA_SEL_RL_FR			(0 << 0)
+#define D2199_DMIC_DATA_SEL_MASK			(1 << 0)
+#define D2199_DMIC_SAMPLEPHASE_ON_CLK_EDGE		(0 << 1)
+#define D2199_DMIC_SAMPLEPHASE_MASK		(1 << 1)
+#define D2199_DMIC_CLK_RATE_3MHZ			(0 << 2)
+#define D2199_DMIC_CLK_RATE_MASK			(1 << 2)
+
+/* D2199_LIMITER_CTRL1/D2199_NG_CTRL2 = 0x88/0x8D */
+#define D2199_SP_ATK_RATE_SHIFT				0
+#define D2199_SP_ATK_RATE_MAX				7
+#define D2199_SP_REL_RATE_SHIFT				3
+#define D2199_SP_REL_RATE_MAX				7
+
+/* D2199_LIMITER_CTRL1 = 0x88 */
+#define D2199_SP_PWR_THD_HOLD_TIME_SHIFT	6
+#define D2199_SP_PWR_THD_HOLD_TIME_MAX	4
+
+/* D2199_LIMITER_CTRL2 = 0x89 */
+#define D2199_SP_PWR_EN_SHIFT				0
+#define D2199_SP_PWR_EN_MAX				0x1
+#define D2199_SP_THD_EN_SHIFT				1
+#define D2199_SP_THD_EN_MAX					0x1
+#define D2199_SP_PWR_HYS_DIS_SHIFT			2
+#define D2199_SP_PWR_HYS_DIS_MAX			0x1
+#define D2199_SP_THD_HYS_DIS_SHIFT			3
+#define D2199_SP_THD_HYS_DIS_MAX			0x1
+
+/* D2199_LIMITER_PWR_LIM = 0x8A */
+#define D2199_SP_PWR_LIM_SHIFT				0
+#define D2199_SP_PWR_LIM_MAX				0x3F
+
+/* D2199_LIMITER_THD_LIM = 0x8B */
+#define D2199_SP_THD_LIM_SHIFT				0
+#define D2199_SP_THD_LIM_MAX				0x3F
+
+/* D2199_NG_CTRL1 = 0x8C */
+#define D2199_SP_NG_ATT_SHIFT				0
+#define D2199_SP_NG_ATT_MAX				0x3
+#define D2199_SP_NG_EN_SHIFT				7
+#define D2199_SP_NG_EN_MAX				0x1
+
+/* D2199_NG_CTRL2 = 0x8D */
+#define D2199_SP_HOLD_TIME_SHIFT			6
+#define D2199_SP_HOLD_TIME_MAX				3
+
+/* D2199_PLL_CTRL1 = 0x90 */
+#define D2199_PLL2_SRM_EN				(1 << 2)
+#define D2199_PLL1_SRM_EN				(1 << 3)
+#define D2199_PLL_EN					(1 << 7)
+
+/* D2199_PLL_CTRL2 = 0x91 */
+#define D2199_PLL_INDIV_5_10_MHZ			(0 << 0)
+#define D2199_PLL_INDIV_10_20_MHZ			(1 << 0)
+#define D2199_PLL_INDIV_20_40_MHZ			(2 << 0)
+#define D2199_PLL_INDIV_40_54_MHZ			(3 << 0)
+#define D2199_PLL_INDIV_MASK				(3 << 0)
+#define D2199_PLL_MCLK_SQR_EN				(1 << 2)
+#define D2199_PLL_32K_MODE					(1 << 3)
+#define D2199_PLL_DIG_CLK6_INVERTED			(1 << 4)
+#define D2199_PLL_DIG_CLK6_NORMAL			(0 << 4)
+#define D2199_PLL_ADC_CLK_FIRST				(1 << 5)
+#define D2199_PLL_DAC_CLK_FIRST				(0 << 5)
+
+/* D2199_CP_CTRL = 0x9C */
+#define D2199_CP_MODE_STANDBY		(0 << 2)
+#define D2199_CP_MODE_CPVDD_2		(2 << 2)
+#define D2199_CP_MODE_CPVDD_1		(3 << 2)
+#define D2199_CP_MODE_MASK			(3 << 2)
+#define D2199_CP_MCHANGE_CP_MODE		(0 << 4)
+#define D2199_CP_MCHANGE_LARGEST_VOL	(1 << 4)
+#define D2199_CP_MCHANGE_DAC_VOL_SIZE	(2 << 4)
+#define D2199_CP_MCHANGE_SM_SIZE		(3 << 4)
+#define D2199_CP_MCHANGE_MASK			(3 << 4)
+#define D2199_CP_SM_SWITCH				(1 << 6)
+#define D2199_CP_SM_SWITCH_SHIFT		6
+#define D2199_CP_EN						(1 << 7)
+#define D2199_CP_EN_SHIFT				7
+
+/* D2199_AUX_L/R_CTRL = 0xA4/0xA7 */
+#define D2199_AUX_AMP_ZC_EN_SHIFT			4
+#define D2199_AUX_AMP_ZC_EN_MAX				0x1
+#define D2199_AUX_AMP_RAMP_EN_SHIFT			5
+#define D2199_AUX_AMP_RAMP_EN_MAX			0x1
+#define D2199_AUX_AMP_RAMP_EN				(1 << 5)
+#define D2199_AUX_AMP_MUTE_EN_SHIFT			6
+#define D2199_AUX_AMP_MUTE_EN_MAX			0x1
+#define D2199_AUX_AMP_EN_SHIFT				7
+
+/* D2199_AUX_L/R_GAIN = 0xA5/0xA8 */
+#define D2199_AUX_AMP_GAIN_SHIFT			0
+#define D2199_AUX_AMP_GAIN_MAX				0x3F
+
+/* D2199_MIC_2/3/1_CTRL = 0xAC/0xAE/0xB2 */
+#define D2199_MIC_AMP_IN_SEL_SHIFT			2
+#define D2199_MIC_AMP_IN_SEL_MAX			0x3
+#define D2199_MIC_AMP_MUTE_EN_SHIFT			6
+#define D2199_MIC_AMP_MUTE_EN_MAX			0x1
+#define D2199_MIC_AMP_MUTE_EN				(1 << 6)
+#define D2199_MIC_AMP_EN					(1 << 7)
+#define D2199_MIC_AMP_EN_SHIFT				7
+
+/* D2199_MIC_L/R_GAIN = 0xAD/0xB0/0xB3 */
+#define D2199_MIC_AMP_GAIN_SHIFT			0
+#define D2199_MIC_AMP_GAIN_MAX				0x7
+
+/* D2199_MICBIAS1/2/3_CTRL = 0xB5/0xB6/0xB7 */
+#define D2199_MICBIAS_LEVEL_2_1V			0
+#define D2199_MICBIAS_LEVEL_2_5V			1
+#define D2199_MICBIAS_LEVEL_2_6V			2
+#define D2199_MICBIAS_LEVEL_3_0V			3
+
+#define D2199_MICBIAS_LEVEL_MASK			(3 << 0)
+#define D2199_MICBIAS_EN					(1 << 7)
+#define D2199_MICBIAS_EN_SHIFT				7
+
+/* D2199_MIXIN_L/R_CTRL = 0xBC/0xC0 */
+#define D2199_MIXIN_MIX_EN				(1 << 3)
+#define D2199_MIXIN_AMP_ZC_EN_SHIFT			4
+#define D2199_MIXIN_AMP_ZC_EN_MAX			0x1
+#define D2199_MIXIN_AMP_RAMP_EN_SHIFT			5
+#define D2199_MIXIN_AMP_RAMP_EN_MAX			0x1
+#define D2199_MIXIN_AMP_RAMP_EN				(1 << 5)
+#define D2199_MIXIN_AMP_MUTE_EN_SHIFT			6
+#define D2199_MIXIN_AMP_MUTE_EN				(1 << 6)
+#define D2199_MIXIN_AMP_MUTE_EN_MAX			0x1
+#define D2199_MIXIN_AMP_EN					(1 << 7)
+#define D2199_MIXIN_AMP_EN_SHIFT			7
+
+/* D2199_MIXIN_L/R_GAIN = 0xBD/0xC1 */
+#define D2199_MIXIN_AMP_GAIN_SHIFT			0
+#define D2199_MIXIN_AMP_GAIN_MAX			0xF
+
+/* D2199_MIXIN_L/R_SELECT = 0xBF/0xC3 */
+#define D2199_DMIC_EN_SHIFT				7
+#define D2199_DMIC_EN_MAX				0x1
+
+/* D2199_MIXIN_L_SELECT = 0xBF */
+#define D2199_MIXIN_L_MIX_SELECT_AUX_L_SHIFT		0
+#define D2199_MIXIN_L_MIX_SELECT_MIC_L_SHIFT		1
+#define D2199_MIXIN_L_MIX_SELECT_MIC_L			(1 << 1)
+#define D2199_MIXIN_L_MIX_SELECT_MIC_R_SHIFT		2
+#define D2199_MIXIN_L_MIX_SELECT_MIC_R			(1 << 2)
+#define D2199_MIXIN_L_MIX_SELECT_MIC_EXT_SHIFT		3
+#define D2199_MIXIN_L_MIX_SELECT_MIC_EXT		(1 << 3)
+#define D2199_MIXIN_L_MIX_SELECT_MAX			0x1
+
+/* D2199_MIXIN_R_SELECT = 0xc3 */
+#define D2199_MIXIN_R_MIX_SELECT_AUX_R_SHIFT		0
+#define D2199_MIXIN_R_MIX_SELECT_MIC_R_SHIFT		1
+#define D2199_MIXIN_R_MIX_SELECT_MIC_R			(1 << 1)
+#define D2199_MIXIN_R_MIX_SELECT_MIC_L_SHIFT		2
+#define D2199_MIXIN_R_MIX_SELECT_MIC_L			(1 << 2)
+#define D2199_MIXIN_R_MIX_SELECT_MIC_EXT_SHIFT		3
+#define D2199_MIXIN_R_MIX_SELECT_MIC_EXT		(1 << 3)
+#define D2199_MIXIN_R_MIX_SELECT_MIXIN_L_SHIFT		4
+#define D2199_MIXIN_R_MIX_SELECT_MAX			0x1
+#define D2199_MIC_BIAS_OUTPUT_SELECT_BIAS2		(1 << 6)
+
+/* D2199_ADC_L/R_CTRL = 0xC8/0xCC */
+#define D2199_ADC_RAMP_EN_SHIFT				5
+#define D2199_ADC_RAMP_EN_MAX				0x1
+#define D2199_ADC_RAMP_EN				(1 << 5)
+#define D2199_ADC_MUTE_EN				(1 << 6)
+#define D2199_ADC_MUTE_EN_SHIFT				6
+#define D2199_ADC_MUTE_EN_MAX				0x1
+#define D2199_ADC_EN_SHIFT				7
+#define D2199_ADC_EN					(1 << 7)
+
+/* D2199_ADC_L/R_GAIN = 0xC9/0xCD */
+#define D2199_ADC_DIGITAL_GAIN_SHIFT			0
+#define D2199_ADC_DIGITAL_GAIN_MAX			0x7F
+
+/* D2199_DAC_L/R_CTRL = 0xD0/0xD3 */
+#define D2199_DAC_RAMP_EN_SHIFT				5
+#define D2199_DAC_RAMP_EN_MAX				0x1
+#define D2199_DAC_RAMP_EN				(1 << 5)
+#define D2199_DAC_MUTE_EN				(1 << 6)
+#define D2199_DAC_EN_SHIFT				7
+
+/* D2199_DAC_L/R_GAIN = 0xD1/0xD4 */
+#define D2199_DAC_DIGITAL_GAIN_SHIFT			0
+#define D2199_DAC_DIGITAL_GAIN_MAX			0x7F
+
+/* D2199_MIXOUT_L/R/SP_CTRL = 0xD8/0xDA/0xDC */
+#define D2199_MIXOUT_MIX_EN				(1 << 3)
+#define D2199_MIXOUT_AMP_EN				(1 << 7)
+#define D2199_MIXOUT_AMP_EN_SHIFT			7
+
+/* D2199_MIXOUT_L_SELECT = 0xD9 */
+#define D2199_MIXOUT_L_MIX_SELECT_AUX_L_SHIFT		0
+#define D2199_MIXOUT_L_MIX_SELECT_MIXIN_L_SHIFT		1
+#define D2199_MIXOUT_L_MIX_SELECT_MIXIN_R_SHIFT		2
+#define D2199_MIXOUT_L_MIX_SELECT_DAC_L				(1 << 3)
+#define D2199_MIXOUT_L_MIX_SELECT_DAC_L_SHIFT		3
+#define D2199_MIXOUT_L_MIX_SELECT_AUX_L_INV_SHIFT	4
+#define D2199_MIXOUT_L_MIX_SELECT_MIXIN_L_INV_SHIFT	5
+#define D2199_MIXOUT_L_MIX_SELECT_MIXIN_R_INV_SHIFT	6
+#define D2199_MIXOUT_L_MIX_SELECT_MAX			0x1
+
+/* D2199_MIXOUT_R_SELECT = 0xDB */
+#define D2199_MIXOUT_R_MIX_SELECT_AUX_R_SHIFT		0
+#define D2199_MIXOUT_R_MIX_SELECT_MIXIN_R_SHIFT		1
+#define D2199_MIXOUT_R_MIX_SELECT_MIXIN_L_SHIFT		2
+#define D2199_MIXOUT_R_MIX_SELECT_DAC_R				(1 << 3)
+#define D2199_MIXOUT_R_MIX_SELECT_DAC_R_SHIFT		3
+#define D2199_MIXOUT_R_MIX_SELECT_AUX_R_INV_SHIFT	4
+#define D2199_MIXOUT_R_MIX_SELECT_MIXIN_R_INV_SHIFT	5
+#define D2199_MIXOUT_R_MIX_SELECT_MIXIN_L_INV		(1 << 6)
+#define D2199_MIXOUT_R_MIX_SELECT_MIXIN_L_INV_SHIFT	6
+#define D2199_MIXOUT_R_MIX_SELECT_MAX			0x1
+
+/* D2199_MIXOUT_SP_CTRL = 0xDC */
+#define D2199_MIXOUT_SP_SELECT_MIX_EN		(1 << 3)
+#define D2199_MIXOUT_SP_SELECT_SOFTMIX_EN	(1 << 4)
+#define D2199_MIXOUT_SP_SELECT_AMP_EN		(1 << 7)
+
+/* D2199_MIXOUT_SP_SELECT = 0xDD */
+#define D2199_MIXOUT_SP_MIX_SELECT_AUX_R_SHIFT		0
+#define D2199_MIXOUT_SP_MIX_SELECT_MIXIN_R_SHIFT	1
+#define D2199_MIXOUT_SP_MIX_SELECT_MIXIN_L_SHIFT	2
+#define D2199_MIXOUT_SP_MIX_SELECT_DAC_R			(1 << 3)
+#define D2199_MIXOUT_SP_MIX_SELECT_DAC_R_SHIFT		3
+#define D2199_MIXOUT_SP_MIX_SELECT_AUX_R_INV_SHIFT	4
+#define D2199_MIXOUT_SP_MIX_SELECT_MIXIN_R_INV_SHIFT	5
+#define D2199_MIXOUT_SP_MIX_SELECT_MIXIN_L_INV_SHIFT	6
+#define D2199_MIXOUT_SP_MIX_SELECT_MIXIN_L_INV			(1 << 6)
+#define D2199_MIXOUT_SP_MIX_SELECT_MAX			0x1
+
+/* D2199_HP_L/R_CTRL = 0xE0/0xE3 */
+#define D2199_HP_AMP_OE					(1 << 3)
+#define D2199_HP_AMP_ZC_EN_SHIFT			4
+#define D2199_HP_AMP_ZC_EN_MAX				0x1
+#define D2199_HP_AMP_RAMP_EN_SHIFT			5
+#define D2199_HP_AMP_RAMP_EN_MAX			0x1
+#define D2199_HP_AMP_RAMP_EN				(1 << 5)
+#define D2199_HP_AMP_MUTE_EN                (1 << 6)
+#define D2199_HP_AMP_MUTE_EN_SHIFT			6
+#define D2199_HP_AMP_MUTE_EN_MAX			0x1
+#define D2199_HP_AMP_EN						(1 << 7)
+#define D2199_HP_AMP_EN_SHIFT				7
+
+/* D2199_HP_L/R_GAIN = 0xE1/0xE4 */
+#define D2199_HP_AMP_GAIN_SHIFT				0
+#define D2199_HP_AMP_GAIN_MAX				0x7F
+
+/* D2199_EP_CTRL = 0xE8 */
+#define D2199_EP_AMP_OE					(1 << 3)
+#define D2199_EP_AMP_ZC_EN_SHIFT			4
+#define D2199_EP_AMP_ZC_EN_MAX				0x1
+#define D2199_EP_AMP_RAMP_EN_SHIFT			5
+#define D2199_EP_AMP_RAMP_EN_MAX			0x1
+#define D2199_EP_AMP_RAMP_EN				(1 << 5)
+#define D2199_EP_AMP_MUTE_EN				(1 << 6)
+#define D2199_EP_AMP_MUTE_EN_SHIFT			6
+#define D2199_EP_AMP_MUTE_EN_MAX			0x1
+#define D2199_EP_AMP_EN						(1 << 7)
+#define D2199_EP_AMP_EN_SHIFT				7
+
+/* D2199_EP_GAIN = 0xE9 */
+#define D2199_EP_AMP_GAIN_SHIFT				0
+#define D2199_EP_AMP_GAIN_MAX				0x7F
+
+/* D2199_SP_CTRL = 0xEC */
+#define D2199_SP_AMP_ZC_EN_SHIFT			4
+#define D2199_SP_AMP_ZC_EN_MAX				0x1
+#define D2199_SP_AMP_RAMP_EN_SHIFT			5
+#define D2199_SP_AMP_RAMP_EN_MAX			0x1
+#define D2199_SP_AMP_RAMP_EN				(1 << 5)
+#define D2199_SP_AMP_MUTE_EN			(1 << 6)
+#define D2199_SP_AMP_MUTE_EN_SHIFT			6
+#define D2199_SP_AMP_MUTE_EN_MAX			0x1
+#define D2199_SP_AMP_EN						(1 << 7)
+#define D2199_SP_AMP_EN_SHIFT				7
+
+/* D2199_SP_GAIN = 0xED */
+#define D2199_SP_AMP_GAIN_SHIFT				0
+#define D2199_SP_AMP_GAIN_MAX				0x3F
+
+/* D2199_REFERENCES = 0xF8 */
+#define D2199_BIAS_EN					(1 << 3)
+#define D2199_VMID_FAST_CHARGE			(1 << 4)
+#define D2199_VMID_FAST_DISCHARGE		(1 << 5)
+#define D2199_VMID_EN					(1 << 7)
+
+/* D2199_IO_CTRL = 0xE5 */
+//#define D2199_IO_VOLTAGE_LEVEL_1_2V_2_8V		(0 << 0)
+//#define D2199_IO_VOLTAGE_LEVEL_MASK			(1 << 0)
+
+/* D2199_LDO_CTRL = 0xFA */
+#define D2199_LDO_LEVEL_SELECT_1_05V			(0 << 4)
+#define D2199_LDO_LEVEL_SELECT_MASK			(3 << 4)
+#define D2199_LDO_EN_DISABLE				(0 << 7)
+#define D2199_LDO_EN_MASK				(1 << 7)
+
+
+/* Register inversion defines */
+#define D2199_NO_INVERT			0
+#define D2199_INVERT			1
+
+/* PLL related defines */
+#define D2199_SYSCLK_MCLK		0
+#define D2199_SYSCLK_PLL		1
+#define D2199_PLL_FREQ_OUT_90316800	90316800
+#define D2199_PLL_FREQ_OUT_98304000	98304000
+#define D2199_PLL_FREQ_OUT_94310400	94310400
+#define D2199_PLL_INDIV_5_10_MHZ_VAL	2
+#define D2199_PLL_INDIV_10_20_MHZ_VAL	4
+#define D2199_PLL_INDIV_20_40_MHZ_VAL	8
+#define D2199_PLL_INDIV_40_54_MHZ_VAL	16
+
+/* Byte related defines */
+#define D2199_BYTE_SHIFT		8
+#define D2199_BYTE_MASK			0xFF
+
+/* ALC related defines */
+#define D2199_ALC_OFFSET_15_8		0x00FF00
+#define D2199_ALC_OFFSET_19_16		0x0F0000
+#define D2199_ALC_AVG_ITERATIONS	5
+
+#define D2199_CHIP_AA 0x00
+#define D2199_CHIP_AB 0x10
+#define D2199_CHIP_AC 0x20
+
+enum clk_src {
+	D2199_CLKSRC_MCLK
+};
+
+/* Codec private data */
+struct d2199_codec_priv {
+	struct i2c_client *i2c_client;
+#ifdef CONFIG_SND_SOC_D2199_AAD
+	struct d2199 *d2199_pmic;
+	struct i2c_client *aad_i2c_client;
+	int codec_init;
+	struct clk   *clk;
+	int mclk_enable;
+
+#endif /* CONFIG_SND_SOC_D2199_AAD */
+	struct snd_soc_codec *codec;
+	unsigned int mclk_rate;
+	bool srm_en;
+	bool alc_calib_auto;
+	bool alc_en;
+	int power_mode;
+	int power_disable_suspend;
+	int power_aud_ldo2;
+	struct mutex power_mutex; 
+	u8 fm_radio;
+	u8 aif1_enable;
+	u8 aif2_enable;
+	u8 voice_call;
+	u8 bt_enable;
+	u8 narrow_band;
+	u8 aif1_master;
+	u8 aif2_master;
+	struct delayed_work	pll_lock_work;
+	u8 adc_r_enable;
+	u8 adc_l_enable;
+	u8 hp_enable;
+	u8 pll_locked;
+};
+
+#endif /* _D2199_H */

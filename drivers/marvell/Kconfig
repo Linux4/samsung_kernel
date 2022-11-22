@@ -1,0 +1,9 @@
+menu "Marvell Device Drivers"
+config SD87XX
+    tristate "Marvell sd87xx wireless card support"
+	default n
+
+config SD8887
+    tristate "Marvell sd8887 wireless card support"
+	default n
+endmenu

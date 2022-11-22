@@ -1,0 +1,27 @@
+#
+# innofidei cmmb driver configuration
+#
+#
+#
+menuconfig CMMB
+	tristate "China Mobile Multimedia Broadcasting"
+	help
+	  CMMB is a mobile television and multimedia standard developed
+	  and specified in China by the State Administration of Radio,
+	  Film, and Television (SARFT).
+
+if CMMB
+menuconfig INNOCMMB
+	tristate "Innofidei cmmb driver"
+	help
+	  Innofidei cmmb driver support spi/sdio mode transfer base on IF2xx.
+
+if INNOCMMB
+config INNOCMMB_DEBUG
+	boolean "Debug support for Innofidei cmmb drivers"
+	help
+	  Say "yes" to enable debug messaging (like dev_dbg and pr_debug),
+	  in innofidei cmmb drivers.
+
+endif
+endif

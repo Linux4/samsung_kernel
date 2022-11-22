@@ -1,0 +1,2 @@
+kernel/drivers/misc/sd8x_rfkill.ko
+kernel/drivers/misc/projector/projector.ko

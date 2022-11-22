@@ -1,0 +1,2 @@
+kernel/drivers/input/misc/88pm822_onkey.ko
+kernel/drivers/input/misc/uinput.ko

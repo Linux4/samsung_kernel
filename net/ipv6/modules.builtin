@@ -1,0 +1,14 @@
+kernel/net/ipv6/ipv6.ko
+kernel/net/ipv6/xfrm6_mode_transport.ko
+kernel/net/ipv6/xfrm6_mode_tunnel.ko
+kernel/net/ipv6/xfrm6_mode_beet.ko
+kernel/net/ipv6/sit.ko
+kernel/net/ipv6/inet6_hashtables.ko
+kernel/net/ipv6/netfilter/ip6_tables.ko
+kernel/net/ipv6/netfilter/ip6table_filter.ko
+kernel/net/ipv6/netfilter/ip6table_mangle.ko
+kernel/net/ipv6/netfilter/ip6table_raw.ko
+kernel/net/ipv6/netfilter/nf_conntrack_ipv6.ko
+kernel/net/ipv6/netfilter/nf_defrag_ipv6.ko
+kernel/net/ipv6/netfilter/nf_defrag_ipv6.ko
+kernel/net/ipv6/netfilter/ip6t_REJECT.ko

@@ -1,0 +1,10 @@
+kernel/drivers/video/fb.ko
+kernel/drivers/video/cfbfillrect.ko
+kernel/drivers/video/cfbcopyarea.ko
+kernel/drivers/video/cfbimgblt.ko
+kernel/drivers/video/pxa168fb.ko
+kernel/drivers/video/pxa168fb_common.ko
+kernel/drivers/video/pxa168fb_ovly.ko
+kernel/drivers/video/pxa688_misc.ko
+kernel/drivers/video/backlight/lcd.ko
+kernel/drivers/video/backlight/backlight.ko

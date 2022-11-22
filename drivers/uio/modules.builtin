@@ -1,0 +1,3 @@
+kernel/drivers/uio/uio.ko
+kernel/drivers/uio/uio_coda7542.ko
+kernel/drivers/uio/uio_mvisp.ko
