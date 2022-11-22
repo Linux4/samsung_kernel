@@ -1,0 +1,29 @@
+config CHARGER_S2MU107
+    tristate "S2MU107 charger support"
+    depends on (MFD_S2MU107) && I2C
+    help
+     Say Y here to enable support for the S2MU107 charger.
+     S2MU107 charger is an AFC compatible charging IC.
+     S2MU107 charger is dependent on MFD_S2MU107
+     so it needs to be defined.
+
+config CHARGER_S2MU107_DIRECT
+	tristate "S2MU107 direct charger support"
+	depends on (MFD_S2MU107) && I2C
+	help
+	 Say Y here to enable support for the S2MU107 direct charger.
+	 S2MU107 direct charger is dependent on MFD_S2MU107
+	 so it needs to be defined.
+
+config PM_S2MU107
+	tristate "S2MU107 power meter support"
+	depends on (MFD_S2MU107) && I2C
+	help
+	 Say Y here to enable support for the S2MU107 power meter.
+	 S2MU107 power meter is dependent on MFD_S2MU107
+	 so it needs to be defined.
+
+config LSI_IFPMIC
+	 bool "support for lsi ifpmic"
+	 help
+	  Say Y to include support for lsi ifpmic

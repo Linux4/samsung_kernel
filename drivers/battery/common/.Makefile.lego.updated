@@ -1,0 +1,6 @@
+obj-$(CONFIG_DIRECT_CHARGING)		+= sec_direct_charger.o
+
+GCOV_PROFILE := $(CONFIG_KUNIT)
+obj-$(CONFIG_KUNIT) += test/
+
+ccflags-y := -Wformat
