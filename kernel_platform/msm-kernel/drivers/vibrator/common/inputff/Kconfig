@@ -1,0 +1,15 @@
+config SEC_VIBRATOR_INPUTFF
+	tristate "sec vibrator inputff"
+	default n
+	help
+	  If you say yes here you will get support for the
+	  sec vibrator inputff driver
+
+config SEC_VIBRATOR_INPUTFF_TEST
+        bool "KUnit test for sec_vibrator_inputff_test"
+        depends on SEC_KUNIT
+        help
+          This driver is for inputff test driver
+		  sec vibrator kunit test
+		  If you want to add some functions,
+		  Please make the test case.
