@@ -1,0 +1,19 @@
+#
+# RID_ADC devices
+#
+
+comment "RID_ADC configs"
+
+config RID_ADC
+	bool "Using RID_ADC device driver"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the RID device driver.
+
+config PM6150L_RID_ADC
+	bool "Using PM6150L_RID_ADC device driver"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the PM6150L_RID_ADC device driver.
