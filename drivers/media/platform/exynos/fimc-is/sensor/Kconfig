@@ -1,0 +1,2 @@
+source "drivers/media/platform/exynos/fimc-is/sensor/module/Kconfig"
+source "drivers/media/platform/exynos/fimc-is/sensor/csi/Kconfig"

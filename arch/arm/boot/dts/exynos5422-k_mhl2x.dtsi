@@ -1,0 +1,64 @@
+/* Copyright (c) 2013, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+	hsi2c@12E20000 {
+		samsung,fs-mode;
+		clock-frequency = <100000>;
+		status = "okay";
+
+		sii8240tmds@39 {
+			compatible = "sii8240,tmds";
+			reg = <0x39>; /* 0x72 >> 1 */
+			sii8240,client_id = <0x00>;
+
+			interrupts = <3 1 1>;
+			interrupt-parent = <&gpg0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&mhl_irq>;
+
+			sii8240,mhl_reset = <&gpj4 3 0>;
+			sii8240,mhl_scl = <&gpb4 1 0>;
+			sii8240,mhl_sda = <&gpb4 0 0>;
+			sii8240,swing_level = <0x2D>;
+		};
+		sii8240hdmi@49 {
+			compatible = "sii8240,hdmi";
+			reg = <0x49>; /* 0x92 >> 1 */
+			sii8240,client_id = <0x01>;
+		};
+		sii8240disc@4D {
+			compatible = "sii8240,disc";
+			reg = <0x4D>;  /* 0x9A >> 1 */
+			sii8240,client_id = <0x02>;
+		};
+		sii8240tpi@59 {
+			compatible = "sii8240,tpi";
+			reg = <0x59>;   /* 0xB2 >> 1 */
+			sii8240,client_id = <0x03>;
+		};
+		sii8240cbus@64 {
+			compatible = "sii8240,cbus";
+			reg = <0x64>;  /* 0xC8 >> 1 */
+			sii8240,client_id = <0x04>;
+		};
+	};
+
+	pinctrl@14000000 {
+		mhl_irq: mhl_irq {
+			samsung,pins = "gpg0-3";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+	};
+};

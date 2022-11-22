@@ -1,0 +1,82 @@
+ /* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/{
+
+	pinctrl@13410000 {
+		srom_data_l: srom-data-l {
+			samsung,pins = "gpy5-0", "gpy5-1", "gpy5-2", "gpy5-3", "gpy5-4", "gpy5-5", "gpy5-6", "gpy5-7";
+			samsung,pin-function = <2>; /* SROMC */
+			samsung,pin-pud = <0>;	/* PULLNONE */
+			samsung,pin-drv = <0>;
+		};
+		srom_ren: srom-ren {
+			samsung,pins = "gpy0-4";
+			samsung,pin-function = <2>; /* SROMC */
+			samsung,pin-pud = <0>;	/* PULLNONE */
+			samsung,pin-drv = <0>;
+		};
+		srom_wen: srom-wen {
+			samsung,pins = "gpy0-5";
+			samsung,pin-function = <2>; /* SROMC */
+			samsung,pin-pud = <0>;	/* PULLNONE */
+			samsung,pin-drv = <0>;
+		};
+		srom_cs0: srom-cs0 {
+			samsung,pins = "gpy0-0";
+			samsung,pin-function = <2>; /* SROMC */
+			samsung,pin-pud = <0>;	/* PULLNONE */
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	pinctrl@14000000 {
+		fimc_is_uart: fimc-is-uart { /* reserved */
+			samsung,pins = "gpe0-6", "gpe0-7", "gpe1-0";
+		};
+
+		tdmb_on: tdmb-int-on {
+			samsung,pins = "gpe1-1";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <0>;	/* 0=PN, 1=PD, 2=Reserved, 3=PU */
+			samsung,pin-drv = <0>;
+		};
+		tdmb_off: tdmb-int-off {
+			samsung,pins = "gpe1-1";
+			samsung,pin-function = <0>; /* INPUT */
+			samsung,pin-pud = <1>;	/* PULLDOWN */
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	tdmb_data {
+		compatible = "samsung,tdmb";
+		pinctrl-names = "tdmb_int_on", "tdmb_int_off";
+		pinctrl-0 = <&tdmb_on>;
+		pinctrl-1 = <&tdmb_off>;
+		tdmb_pwr_en = <&gpe0 7 0>;
+		tdmb_irq = <&gpe1 1 0>;
+
+	};
+
+	sromc@11250000 {
+		compatible = "samsung,sromc";
+		clocks = <&clock 743>;
+		clock-names = "sromc_clk";
+		pinctrl-names = "default";
+		pinctrl-0 = <&srom_data_l &srom_ren &srom_wen &srom_cs0>;
+		status = "ok";
+
+		srom_cs_base = <0x04000000>;
+		srom_mem_size = <0x00020000>;
+	};
+};

@@ -1,0 +1,56 @@
+ /* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+/{
+
+	pinctrl@14CC0000 {
+		tsi_on: tsi-on {
+			samsung,pins = "gpg1-0", "gpg1-1", "gpg1-2", "gpg1-3";
+			samsung,pin-function = <2>; /* TSI==2 */
+			samsung,pin-pud = <0>;	/* PULL NONE */
+			samsung,pin-drv = <2>;
+		};
+		tsi_off: tsi-off {
+			samsung,pins = "gpg1-0", "gpg1-1", "gpg1-2", "gpg1-3";
+			samsung,pin-function = <0>; /* INPUT */
+			samsung,pin-pud = <1>;	/* PULL DOWN */
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	tdmb_data {
+		compatible = "samsung,tdmb";
+		tdmb_pwr_en = <&gpd4 3 0>;
+	};
+
+	hsi2c@14DE0000 {
+		samsung,hs-mode;
+		clock-frequency = <400000>;
+		status = "okay";
+
+		tdmb_i2c@1d {
+			compatible = "samsung,tdmb_i2c";
+			reg = <0x1d>;
+		};
+	};
+
+	tsi@15590000 {
+		compatible = "samsung,tsi";
+		reg = <0x15590000 0x100>;
+		interrupts = <0 232 0>;
+		clocks = <&clock 568>, <&clock 2164>;
+		clock-names = "aclk_tsi", "gate_tsi";
+		pinctrl-names = "tdmb_tsi_on", "tdmb_tsi_off";
+		pinctrl-0 = <&tsi_on>;
+		pinctrl-1 = <&tsi_off>;
+		status = "ok";
+	};
+};
