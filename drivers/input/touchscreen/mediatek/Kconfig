@@ -1,0 +1,54 @@
+config TOUCHSCREEN_MTK
+	bool "MediaTek Touch Panel Driver"
+	help
+	  Say Y here if you have MediaTek touch panel.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config TOUCHSCREEN_HIMAX_CHIPSET
+        bool "Himax touchpanel CHIPSET"
+        help
+          Say Y here if you have a Himax CHIPSET touchscreen.
+          HIMAX controllers are multi touch controllers which can
+          report 10 touches at a time.
+
+          If unsure, say N.
+
+#hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 20220414 start
+config TOUCHSCREEN_GALAXYCORE_CHIPSET
+	bool "galaxycore touch chipset"
+	depends on SPI
+	help
+	  Say Y here if you have a gcore chipset touchscreen.
+
+	  If unsure, say N.
+#hs03s_NM code for SR-AL5625-01-644 by fengzhigang at 20220414 end
+
+source "drivers/input/touchscreen/mediatek/novatek_touch/Kconfig"
+source "drivers/input/touchscreen/mediatek/focaltech_touch_ax3565/Kconfig"
+source "drivers/input/touchscreen/mediatek/ilitek_touch/Kconfig"
+source "drivers/input/touchscreen/mediatek/hxchipset_ot8/Kconfig"
+source "drivers/input/touchscreen/mediatek/hxchipset/Kconfig"
+
+config TOUCHSCREEN_JADARD_CHIPSET
+	bool "Jadard touch chipset"
+	depends on SPI
+	help
+	  Say Y here if you have a Jadard chipset touchscreen.
+
+	  If unsure, say N.
+
+source "drivers/input/touchscreen/mediatek/ilitek_touch/Kconfig"
+source "drivers/input/touchscreen/mediatek/chipone/Kconfig"
+source "drivers/input/touchscreen/mediatek/jdchipset/Kconfig"
+
+config TOUCHSCREEN_HIMAX_OT8
+	bool "HIMAX"
+   	default n
+	help
+       Say Y here if you have a HIMAX touchscreen.
+  
+        If unsure, say N.

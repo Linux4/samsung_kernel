@@ -1,0 +1,7 @@
+# TabA7 Lite code for OT8-5362 by yingboyang at 20220314 start
+config SND_SOC_AW87XXX
+	tristate "SoC Audio for awinic AW87XXX Smart K PA"
+	depends on I2C
+	help
+	  This option enables support for AW87XXX Smart K PA.
+# TabA7 Lite code for OT8-5362 by yingboyang at 20220314 end
