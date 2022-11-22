@@ -1,0 +1,24 @@
+config SEC_GTS4LV_PROJECT
+        default n
+        bool "Samsung GTS4LV Project"
+        help
+          Support for Samsung GTS4LV Project
+
+config SEC_GTS4LV_EUR_PROJECT
+        default n
+        bool "Samsung GTS4LV EUR OPEN Project"
+        help
+          Support for Samsung GTS4LV EUR OPEN Project
+
+config SEC_GTS4LVWIFI_EUR_PROJECT
+        default n
+        bool "Samsung GTS4LVWIFI EUR OPEN Project"
+        help
+          Support for Samsung GTS4LVWIFI EUR OPEN Project
+	  
+config SEC_GTS4LVWIFI_EUR_LDU_PROJECT
+        default n
+        bool "Samsung GTS4LVWIFI EUR LDU Project"
+        help
+          Support for Samsung GTS4LVWIFI EUR LDU Project
+

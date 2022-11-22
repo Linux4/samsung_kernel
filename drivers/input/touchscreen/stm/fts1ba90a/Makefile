@@ -1,0 +1,1 @@
+obj-$(CONFIG_TOUCHSCREEN_STM_FTS1BA90A)	+= fts_ts.o fts_fwu.o
