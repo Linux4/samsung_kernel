@@ -1,0 +1,198 @@
+menuconfig EXYNOS_MODEM_IF
+	bool "Samsung Mobile CP Interface"
+	default n
+	---help---
+	  Samsung Dual Modem Interface Driver
+
+if EXYNOS_MODEM_IF
+
+config SEC_MODEM_S5000AP
+	bool "Exynos ModAP S5xxxAP"
+	select LINK_DEVICE_SHMEM
+	select CP_SECURE_BOOT
+	select MCU_IPC
+	select SHM_IPC
+	select CP_PMUCAL
+	default n
+
+config SEC_MODEM_S5100
+	bool "Exynos S51xx"
+	select BOOT_DEVICE_SPI
+	select LINK_DEVICE_PCIE
+	select MODEM_IF_QOS
+	select CP_PKTPROC_V2
+	select SUSPEND_DURING_VOICE_CALL
+	select MODEM_IF_NET_GRO
+	default n
+
+menu "Configuration Description"
+config MCU_IPC
+	bool "MCU IPC Support"
+	default n
+	help
+	  This enables MCU_IPC driver to control the MCU_IPC Device.
+	  MCU_IPC is the Mailbox which has 16 interrupts for TX/RX each
+	  and 256 bytes memory for communicating messages.
+	  AP and CP can share the messages through this device.
+
+config SHM_IPC
+	bool "Shared Memory for IPC support"
+	default n
+	help
+	  This enables SHM_IPC driver to control the Shared memory
+	  for AP-CP Interface.
+
+config BOOT_DEVICE_SPI
+	bool "boot device: SPI"
+	default n
+
+config LINK_DEVICE_WITH_SBD_ARCH
+	bool "Link device with the SBD architecture from MIPI-LLI"
+	default n
+
+config CP_ZEROCOPY
+	bool "Support zero memory copy"
+	default n
+
+config CP_LINEAR_WA
+	bool "CP linear mode work-around for Exynos9820"
+	default n
+
+config CP_PKTPROC
+	bool "Support packet processor"
+	default n
+	help
+	Packet processor
+
+config CP_PKTPROC_V2
+	bool "Support packet processor V2"
+	default n
+	help
+	Packet processor V2
+
+config LINK_DEVICE_SHMEM
+	bool "Real system-level shared-memory on a system bus"
+	default n
+
+config LINK_DEVICE_PCIE
+	bool "modem driver link device PCIe"
+	default n
+
+config LINK_CONTROL_MSG_IOSM
+	bool "Control Message Type: IPC Over Shared Memory (IOSM)"
+	default n
+
+config CP_SECURE_BOOT
+	bool "Support CP Secure Boot"
+	default n
+
+config GPIO_DS_DETECT
+	bool "Support GPIO DS Detect"
+	default n
+
+config CP_UART_NOTI
+	bool "Support CP UART notification API"
+	default n
+
+config PMU_UART_SWITCH
+	bool "Support AP <-> CP UART switch by PMU"
+	depends on CP_UART_NOTI
+	default n
+
+config CP_BTL
+	bool "Support CP BTL(Back Trace Log) feature"
+	default n
+
+config HW_REV_DETECT
+	bool "Support HW REV Detect"
+	default n
+
+config MODEM_IF_QOS
+	bool "Implement QoS for sbd"
+	default n
+	---help---
+	  This enables QoS for SBD model
+
+config MODEM_IF_LEGACY_QOS
+	bool "Implement QoS for legacy buffer"
+	default n
+	---help---
+	  This enables QoS for legacy buffer model
+
+config MODEM_IF_NET_GRO
+	bool "enable GRO feature"
+	default n
+	---help---
+	 This enables GRO(Generic Receive Offload) feature
+
+config SUSPEND_DURING_VOICE_CALL
+	bool "control wake_lock by voice call start/end notification"
+	depends on LINK_DEVICE_PCIE
+	default n
+	---help---
+	  This enables AP suspend during PCM over PCIE
+
+config CACHED_LEGACY_RAW_RX_BUFFER
+	bool "Set cached RX RAW buffer for high data performance"
+	default n
+
+config CPIF_TP_MONITOR
+	bool "Support CP network throughput monitor"
+	default n
+	---help---
+	  This enables CP network throughput monitor
+
+config LINK_DEVICE_PCIE_S2MPU
+	bool "Use PCIE S2MPU"
+	depends on LINK_DEVICE_PCIE
+	default n
+	---help---
+	  Gate some addresses AP and CP shared
+
+config CPIF_CHECK_SJTAG_STATUS
+	bool "Check secure JTAG status to disable CP memory dump"
+	default n
+	---help---
+	  Check secure JTAG status to disable CP memory dump
+
+config CP_LCD_NOTIFIER
+	bool "Enable LCD notifier for CP"
+	default n
+	---help---
+	  This enables LCD notifier for CP
+
+config CP_PKTPROC_PERF_TEST
+	bool "Enable pktproc performance test"
+	depends on CP_PKTPROC || CP_PKTPROC_V2
+	default n
+	---help---
+	  Test pktproc on AP side
+
+config LINK_DEVICE_PCIE_GPIO_WA
+	bool "Workaround for discarded GPIOs"
+	depends on LINK_DEVICE_PCIE
+	default n
+	---help---
+	  Use a GPIO for the other purpose instead
+
+config CP_GRO_EXCEPTION
+	bool "Disable GRO for clat tethering case"
+	default n
+	---help---
+	  Disable GRO for clat packets when usb tethering is enabled
+
+config CP_JUMBO_4K_WA
+	bool "Enable 4K jumbo frames for pktproc"
+	default n
+	---help---
+	  enable 4K jumbo frames for pktproc
+
+config CP_WRESET_WA
+        bool "CP warm reset WA due to WRSTBI disabled"
+        depends on LINK_DEVICE_PCIE
+        default n
+        ---help---
+          CP warm reset WA
+
+endmenu
+endif

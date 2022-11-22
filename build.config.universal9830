@@ -1,0 +1,15 @@
+ARCH=arm64
+CROSS_COMPILE=aarch64-linux-android-
+CLANG_TRIPLE=aarch64-linux-gnu-
+DEFCONFIG=universal9830_defconfig
+MALI_CONFIG=universal9830_mali.cfg
+CLANG_VERSION=clang-r353983c
+TARGET_SOC=exynos9830
+TARGET_DTBO_CFG=exynos9830_dtboimg.cfg
+KERNEL_LTO_ON_4_19=true
+FILES="
+arch/arm64/boot/Image:kernel
+arch/arm64/boot/dts/exynos/exynos9830.dtb:dtb.img
+dtbo.img:dtbo.img
+vmlinux:vmlinux
+"
