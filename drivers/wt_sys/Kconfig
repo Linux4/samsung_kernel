@@ -1,0 +1,11 @@
+config WT_BOOTLOADER_LOG
+	tristate "CONFIG_WT_BOOTLOADER_LOG"
+	default n
+# CHK, douyingnan.wt, ADD, 20211222, dump display
+config WT_BOOT_REASON
+    tristate "CONFIG_WT_BOOT_REASON"
+    default n
+
+config WT_SYSTEM_MONITOR
+    tristate "CONFIG_WT_SYSTEM_MONITOR"
+    default n

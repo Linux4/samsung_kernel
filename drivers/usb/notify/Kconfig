@@ -1,0 +1,29 @@
+#
+# USB notify configuration
+#
+
+comment "USB Notify features"
+config USB_HOST_NOTIFY
+	bool "USB Host notify Driver"
+	depends on USB
+	help
+	  Android framework needs uevents for usb host operation.
+	  Host notify Driver serves uevent format
+	  that is used by usb host or otg.
+
+config USB_NOTIFIER
+	bool "USB_NOTIFIER"
+	help
+	  Added platform driver to call usb notify.
+	  The usb_notifier.c can be fixed for each models.
+
+config USB_STORAGE_DETECT
+	bool "USB storage detect function"
+	depends on USB && SCSI
+	depends on USB_STORAGE
+	help
+	  This feature enables to detect inserting or removing
+          sd card in sd reader device.
+          This must to be defined in /usb/storage/Kconfig 
+          directory originally. But this feature is defined
+          in this Kconfig to gather samsung feature about usb host.
