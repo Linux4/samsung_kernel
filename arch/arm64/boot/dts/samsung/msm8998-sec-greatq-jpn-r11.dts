@@ -1,0 +1,32 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+/dts-v1/;
+
+#include "../qcom/msm8998-v2.1.dtsi"
+#include "../qcom/msm8998-mtp.dtsi"
+#include "msm8998-sec-common.dtsi"
+#include "msm8998-sec-greatq-common.dtsi"
+#include "msm8998-sec-greatq-common-pm.dtsi"
+#include "battery-data-greatq-jpn.dtsi"
+#include "msm8998-sec-greatq-jpn-r11.dtsi"
+#include "msm8998-sec-greatq-jpn-nfc-r06.dtsi"
+#include "msm8998-sec-greatq-jpn-isdbt-r11.dtsi"
+#include "../../../../drivers/video/fbdev/msm/samsung/S6E3HA6_AMB632NF01/dsi_panel_S6E3HA6_AMB632NF01_wqhd_octa_cmd_jpn.dtsi"
+#include "msm8998-sec-greatq-pm-jpn.dtsi"
+/ {
+	model = "Samsung GREATQ JPN PROJECT Rev11";
+	compatible = "qcom,msm8998-mtp", "qcom,msm8998", "qcom,mtp";
+	qcom,board-id = <8 11>;
+
+};

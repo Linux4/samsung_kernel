@@ -1,0 +1,221 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+#define GPIOF_DIR_OUT   (0 << 0)
+#define GPIOF_DIR_IN	(1 << 0)
+#define GPIOF_INIT_HIGH (1 << 1)
+#define GPIOF_OUT_INIT_HIGH     (GPIOF_DIR_OUT | GPIOF_INIT_HIGH)
+
+#define REGTYPE_PANEL_RESET	0 /* control display reset */
+#define REGTYPE_BL_CONFIG	1 /* BLIC initial configuration via I2c */
+#define REGTYPE_TCON_RDY	2 /* TCON ready pin controlled by display */
+#define REGTYPE_GPIO_REGULATOR	3 /* GPIO regulator */
+
+#define DEFAULT_FIXED_VAL	0
+ 
+ 
+#include "../../../../drivers/video/fbdev/msm/samsung/ANA38401_AMS968HH01/dsi_panel_ANA38401_AMS968HH01_qxga_octa_cmd.dtsi"
+#include "../../../../drivers/video/fbdev/msm/samsung/PBA_BOOTING/dsi_panel_PBA_BOOTING_fhd_video.dtsi"
+
+/*
+ * SOC Setting (TLMM Pin Control & SPI Setting)
+ */
+
+&soc {
+	tlmm: pinctrl@03400000 {
+		pmx_mdss: pmx_mdss {
+			mdss_dsi_active: mdss_dsi_active {
+				mux {
+					pins = "gpio23", "gpio117";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio23",  "gpio117";
+					drive-strength = <8>; /* 8 mA */
+					bias-disable = <0>; /* no pull */
+				};
+			};
+			mdss_dsi_suspend: mdss_dsi_suspend {
+				mux {
+					pins = "gpio23",  "gpio117";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio23",  "gpio117";
+					drive-strength = <2>; /* 2 mA */
+					bias-pull-down; /* pull down */
+				};
+			};
+
+			mdss_dsi_tcon_rdy_active: mdss_dsi_tcon_rdy_active {
+				mux {
+					pins = "gpio122";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio122";
+					drive-strength = <8>; /* 8 mA */
+					input-enable;
+					bias-pull-down;
+				};
+			};
+			mdss_dsi_tcon_rdy_suspend: mdss_dsi_tcon_rdy_suspend {
+				mux {
+					pins = "gpio122";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio122";
+					drive-strength = <2>; /* 2 mA */
+					bias-pull-down; /* pull down */
+				};
+			};
+		};
+
+		pmx_mdss_te {
+			mdss_te_active: mdss_te_active {
+				mux {
+					pins = "gpio12";
+					function = "mdp_vsync";
+				};
+				config {
+					pins = "gpio12";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+			mdss_te_suspend: mdss_te_suspend {
+				mux {
+					pins = "gpio12";
+					function = "mdp_vsync";
+				};
+				config {
+					pins = "gpio12";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+		};
+
+	};
+};
+
+&soc {
+	fixed_reg_octavdd: fixed_reg_octavdd {
+		compatible = "regulator-fixed";
+		status = "okay";
+		regulator-name = "octa-vdd";
+		gpio = <&tlmm 117 0>; /* LCD_LDO_EN */
+		enable-active-high;
+		regulator-boot-on;
+	};
+};
+
+&mdss_dsi {
+	hw-config = "split_dsi";  /* DSC */
+};
+
+&ss_dsi_panel_ANA38401_AMS968HH01_QXGA {
+	samsung,esd-irq-gpio1 = <&pm8998_gpios 5 0>; // DISP_DET
+
+	/* Qcomm display power table
+	 * These regulators will be calledi in order, before LP11.
+	 */
+	qcom,panel-supply-entries {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* use fixed regulator instead of samsung,panel-extra-power-gpio
+		 * or qcom,platform-enable-gpio. */
+		/* VDD 3.3V */
+		qcom,panel-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "vddlcd";
+			qcom,supply-min-voltage = <DEFAULT_FIXED_VAL>;
+			qcom,supply-max-voltage = <DEFAULT_FIXED_VAL>;
+			qcom,supply-enable-load = <DEFAULT_FIXED_VAL>;
+			qcom,supply-disable-load = <DEFAULT_FIXED_VAL>;
+			qcom,supply-pre-off-sleep = <10>;
+			qcom,supply-post-on-sleep = <10>;
+		};
+	};
+};
+
+&mdss_dsi0 {
+	qcom,dsi-pref-prim-pan = <&ss_dsi_panel_ANA38401_AMS968HH01_QXGA>;
+	qcom,platform-te-gpio = <&tlmm 12 0>;
+
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_dsi_active &mdss_te_active &mdss_dsi_tcon_rdy_active>;
+	pinctrl-1 = <&mdss_dsi_suspend &mdss_te_suspend &mdss_dsi_tcon_rdy_suspend>;
+	qcom,platform-lane-config = [00 20 00 00
+				00 20 00 00
+				00 20 00 00
+				00 20 00 00
+				00 20 00 80];
+
+	vddlcd-supply = <&fixed_reg_octavdd>;
+	/delete-property/ qcom,panel-mode-gpio;
+};
+
+&mdss_dsi1 {
+	qcom,dsi-pref-prim-pan = <&ss_dsi_panel_ANA38401_AMS968HH01_QXGA>;
+	qcom,platform-te-gpio = <&tlmm 12 0>;
+
+	qcom,platform-reset-gpio = <&tlmm 23 0>;
+	qcom,platform-tconrdy-gpio = <&tlmm 122 0>;
+	/delete-property/ qcom,panel-mode-gpio;
+};
+
+&mdss_mdp {
+	qcom,mdss-pref-prim-intf = "dsi";
+	mdss_fb0: qcom,mdss_fb_primary {
+		qcom,mdss-fb-split = <1024 1024>;
+	};
+};
+
+&mdss_dsi0_pll {
+	/delete-property/ qcom,dsi-pll-ssc-en;
+};
+
+&mdss_dsi1_pll {
+	/delete-property/qcom,dsi-pll-ssc-en;
+};
+
+/*
+ * PM GPIO for Panel Status
+ */
+
+&spmi_bus {
+	qcom,pm8998@0 {
+		pm8998_gpios: gpios {
+			gpio@c400 { /* PM8998_GPIO 5 for DISP_DET */
+				status = "okay";
+				qcom,mode = <0>;
+				qcom,pull = <4>;
+				qcom,vin-sel = <0>;
+				qcom,src-sel = <0>;
+			};
+
+			gpio@c800 { /* PM8998_GPIO 9 for FG_ERR */
+				status = "okay";
+				qcom,mode = <0>;
+				qcom,pull = <4>;
+				qcom,vin-sel = <0>;
+				qcom,src-sel = <0>;
+			};
+		};
+	};
+};

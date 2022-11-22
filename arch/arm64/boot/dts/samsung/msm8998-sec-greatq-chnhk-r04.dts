@@ -1,0 +1,61 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+/dts-v1/;
+
+#include "../qcom/msm8998-v2.1.dtsi"
+#include "../qcom/msm8998-mtp.dtsi"
+#include "msm8998-sec-common.dtsi"
+#include "msm8998-sec-greatq-common.dtsi"
+#include "msm8998-sec-greatq-common-pm.dtsi"
+#include "battery-data-greatq-r01.dtsi"
+#include "msm8998-sec-greatq-r04.dtsi"
+/ {
+	model = "Samsung GREATQ CHN PROJECT Rev04";
+	compatible = "qcom,msm8998-mtp", "qcom,msm8998", "qcom,mtp";
+	qcom,board-id = <8 4>;
+
+};
+
+&slim_aud {
+	imp_list: imp_list {
+		#list-imp-cells = <3>;
+	};
+
+	tavil_codec {
+		imp-table = <&imp_list 0 0 6>,
+				 <&imp_list 1 13 0>,
+				 <&imp_list 14 42 2>,
+				 <&imp_list 43 100 5>,
+				 <&imp_list 101 200 7>,
+				 <&imp_list 201 450 8>,
+				 <&imp_list 451 1000 8>,
+				 <&imp_list 1001 0x7fffffff 6>;
+	};
+};
+
+&soc {
+	i2c_17: i2c@17 { /* SW I2C */
+		sx9320-i2c@28 {
+			sx9320,normal_thd = <0x1E>;
+		};
+	};
+
+	i2c_20: i2c@20{ /* FM Radio (Richwave) */
+		rtcfmradio@64 {
+			volume_db;
+			radio_vol = <44 43 39 35 31 28 25 22
+				19 16 14 12 9 6 3 0>;
+		};
+	};
+};

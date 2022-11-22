@@ -1,0 +1,154 @@
+ /*
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+
+&soc {
+	tlmm: pinctrl@03400000 {
+		isdbt_gpio {
+			isdbt_gpio_active: isdbt_gpio_active {
+				mux {
+					pins = "gpio99", "gpio100";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio99", "gpio100";
+					drive-strength = <2>;
+					bias-pull-down; /* PULL DOWN */
+					output-low;
+				};
+			};
+			isdbt_gpio_suspend: isdbt_gpio_suspend {
+				mux {
+					pins = "gpio99", "gpio100";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio99", "gpio100";
+					drive-strength = <2>;
+					bias-pull-down; /* PULL DOWN */
+					output-low;
+				};
+			};
+
+		};
+
+		isdbt_int {
+			isdbt_int_active: isdbt_int_active {
+				mux {
+					pins = "gpio129";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio129";
+					drive-strength = <2>;
+					bias-pull-up;
+				};
+			};
+
+			isdbt_int_suspend: isdbt_int_suspend {
+				mux {
+					pins = "gpio129";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio129";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+		};
+
+		spi_1_isdbt {
+			spi_1_active_isdbt: spi_1_active_isdbt {
+				mux {
+					pins = "gpio0", "gpio1",
+							"gpio2", "gpio3";
+					function = "blsp_spi1";
+				};
+
+				config {
+					pins = "gpio0", "gpio1",
+							"gpio2", "gpio3";
+					drive-strength = <6>;
+					bias-disable;
+				};
+			};
+			spi_1_sleep_isdbt: spi_1_sleep_isdbt {
+				mux {
+					pins = "gpio0", "gpio1",
+							"gpio2", "gpio3";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio0", "gpio1",
+							"gpio2", "gpio3";
+					drive-strength = <6>;
+					input-enable;
+					bias-pull-down;
+				};
+			};
+		};
+	};
+
+	spi_1: spi@c175000 { /* BLSP1 QUP1 */
+		qcom,use-bam;
+		pinctrl-names = "spi_default", "spi_sleep";
+		pinctrl-0 = <&spi_1_active_isdbt>;
+		pinctrl-1 = <&spi_1_sleep_isdbt>;
+		status = "okay";
+
+		/delete-node/ ese_spi@0;
+
+		qcom-spi@0 {
+			compatible = "isdbt_spi_comp";
+			reg = <0>;
+			spi-max-frequency = <50000000>;
+		};
+	};
+
+	isdbt_data {
+		compatible = "isdbt_pdata";
+		interrupts = <129 0x0>;
+		interrupt-parent = <&tlmm>;
+
+		isdbt,isdb-gpio-spi_di = <&tlmm 0 0>;
+		isdbt,isdb-gpio-spi_do = <&tlmm 1 0>;
+		isdbt,isdb-gpio-spi_cs = <&tlmm 2 0>;
+		isdbt,isdb-gpio-spi_clk = <&tlmm 3 0>;
+		
+		isdbt,isdb-gpio-pwr-en = <&expander_gpios 1 0>;    /* GPIO Expander P0_1 */
+		isdbt,isdb-gpio-irq = <&tlmm 129 0>;
+		isdbt,isdb-gpio-rst = <&tlmm 100 0>;
+		isdbt,isdb-gpio-lna-en = <&tlmm 99 0>;
+
+		/* isdbt,ldo_vdd_1p8 = "pm8994_l29"; */
+
+		isdbt,isdb-bbm-xtal-freq = <19200>;
+		clocks = <&clock_gcc clk_ln_bb_clk3>;
+		qcom,clk-src = "BBCLK3";
+		clock-names = "isdbt_clkout";
+
+		pinctrl-names = "isdbt_gpio_active", "isdbt_gpio_suspend";
+		pinctrl-0 = <&isdbt_gpio_active &isdbt_int_active>;
+		pinctrl-1 = <&isdbt_gpio_suspend &isdbt_int_suspend>;
+	};
+
+	i2c_20: i2c@20{ /* FM Radio (Richwave) */
+		status = "disabled";
+	};
+};
+
