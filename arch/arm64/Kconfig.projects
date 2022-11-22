@@ -1,0 +1,12 @@
+config SEC_M52XQ_PROJECT
+	default n
+	bool "Samsung M52XQ Project"
+	help
+	  Support for Samsung M52XQ Project
+
+config MACH_M52XQ_SWA_INS
+	default n
+	bool "Samsung M52XQ SWA INS"
+	help
+	  Support for Samsung M52XQ SWA INS device.
+

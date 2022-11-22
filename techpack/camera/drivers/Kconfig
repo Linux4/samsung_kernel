@@ -1,0 +1,144 @@
+config CAMERA_FRAME_CNT_DBG
+	tristate "Camera frame cnt for debug"
+	default n
+	help
+	Enables support for debug.
+
+config CAMERA_FRAME_CNT_CHECK
+	tristate "Check frame count before stream on/off"
+	default n
+	help
+	Enables support for check frame count before stream on/off
+
+config SAMSUNG_OIS_MCU_STM32
+	tristate "External ois MCU STM32 support"
+	default n
+	help
+	Enables support for external ois module.
+
+config SAMSUNG_OIS_Z_AXIS_CAL
+	tristate "OIS Z axis calibraion support"
+	default n
+	help
+	Enables support for Z axis calibration.
+
+config CAMERA_SYSFS_V2
+	bool "CAMERA SYS"
+	help
+	Enable support CAMERA SYS.
+
+config SAMSUNG_REAR_QUADRA
+	tristate "Rear quadra camera support"
+	default n
+	help
+	Enables support for rear quadra camera.
+
+config SAMSUNG_REAR_TRIPLE
+	tristate "Rear triple camera support"
+	default y if SAMSUNG_REAR_QUADRA
+	default n
+	help
+	Enables support for rear triple camera.
+
+config SAMSUNG_REAR_DUAL
+	tristate "Rear triple camera support"
+	default y if SAMSUNG_REAR_TRIPLE || SAMSUNG_REAR_QUADRA
+	default n
+	help
+	Enables support for rear dual camera.
+
+config SAMSUNG_FRONT_EEPROM
+	tristate "Front eeprom support"
+	default n
+	help
+	Enables support for front eeprom
+
+config SAMSUNG_SBI
+	tristate "SBI support"
+	default n
+	help
+	Enables support for SBI
+
+config CAMERA_ADAPTIVE_MIPI
+	tristate "adaptive mipi support"
+	default n
+	help
+	Enables support for adaptive mipi.
+
+config SAMSUNG_ACTUATOR_PREVENT_SHAKING
+	tristate "Prevent actuator shaking"
+	default n
+	help
+	Enables support for actuator softlanding
+
+config SAMSUNG_SUPPORT_MULTI_MODULE
+	tristate "Multiple module support"
+	default n
+	help
+	Enables support for multiple modules
+
+config USE_CAMERA_HW_BIG_DATA
+	bool "CAMERA HW SYS"
+	default n
+	help
+	CAMERA HW SYS
+
+config SENSOR_RETENTION
+	tristate "Sensor Retention"
+	default n
+	help
+	Enables support for sensor retention
+
+config SAMSUNG_WACOM_NOTIFIER
+	tristate "NOTIFIER"
+	default n
+	help
+	Enables support for camera notifier
+
+config CAMERA_SSM_I2C_ENV
+	tristate "SSM GMC feature support"
+	default n
+	help
+	Enables support for SSM I2C test
+
+config FLASH_CURRENT_JAPAN
+	tristate "flash current for jpn"
+	default n
+	help
+	Enables support for JPN
+
+config SAMSUNG_FRONT_TOP
+	tristate "Front top support"
+	default n
+	help
+	Enables support for front top
+
+config SAMSUNG_FRONT_TOP_EEPROM
+	tristate "Front top eeprom support"
+	default n
+	help
+	Enables support for front top eeprom
+
+config SAMSUNG_CAMERA_OTP
+	tristate "Sensor OTP support"
+	default n
+	help
+	Enables support for SENSOR OTP
+
+config GC5035_MACRO_OTP_DD_AUTOLOAD
+	tristate "Macro Camera Sensor GC5035 OTP DD Autoload Support"
+	default n
+	help
+	Enables support for Macro Camera Sensor GC5035 OTP DD Autoload.
+
+config SAMSUNG_HW_SOFTLANDING
+	tristate "Soft Landing support"
+	default n
+	help
+	Enables support for Samsung HW softlanding
+
+config CAMERA_MCLK_DELAY
+	tristate "Camera MCLK delay"
+	default n
+	help
+	Enables support for MCLK delay
