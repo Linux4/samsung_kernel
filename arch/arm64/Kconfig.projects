@@ -1,0 +1,12 @@
+config SEC_A42XQ_PROJECT
+	default n
+	bool "Samsung A42XQ Project"
+	help
+	  Support for Samsung A42XQ Project
+
+config MACH_A42XQ_EUR_OPEN
+	default n
+	bool "Samsung A42XQ EUR OPEN"
+	help
+	  Support for Samsung A42XQ EUR OPEN device.
+
