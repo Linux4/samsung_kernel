@@ -1,0 +1,24 @@
+
+menu "MARLIN DEBUG modules"
+config MDBG_SDIO
+	bool "MDBG SDIO INTERFACE"
+	default y
+	help
+	  FOR MDBG SDIO INTERFACE
+
+config MDBG_RING
+	bool "MDBG RING BUFFER"
+	default y
+	help
+	  FOR MDBG RING BUFFER
+
+config MDBG
+	tristate "MDBG"
+	depends on SDIODEV
+	depends on MDBG_RING
+	help
+	  DEBUG SYSTEM FOR MARLIN.
+	  If unsure, say N.
+
+
+endmenu

@@ -1,0 +1,4 @@
+
+config SPRD_CPROC
+	tristate "SPRD Communication Processor Driver"
+	default n

@@ -1,0 +1,251 @@
+/*
+ * SPREADTRUM Ltd.
+ *
+ * SharkLT8 DTS
+ */
+
+/dts-v1/;
+
+/memreserve/ 0x80000000 0x00010000;
+/memreserve/ 0x8a800000 0x600000;
+
+/* memory reserved for ION(carveout mm)*/
+/memreserve/ 0x98800000 0x7100000;
+
+/* memory reserved for ION(overlay)*/
+/memreserve/ 0x9f900000 0x700000; /* 7MK */
+
+/include/ "sprd-battery.dtsi"
+
+/ {
+	model = "scx35lt8";
+	compatible = "sprd,SharkLT8";
+	sprd,sc-id = <8830 1 0x20000>;
+	interrupt-parent = <&gic>;
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	chosen {
+		bootargs = "earlyprintk=sprd_uart,0x70000000";
+      };
+
+	cpus {
+		#address-cells = <2>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0 0x0>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0x8000fff8>;
+		};
+		cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0 0x1>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0x8000fff8>;
+		};
+		cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0 0x2>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0x8000fff8>;
+		};
+		cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0 0x3>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0x8000fff8>;
+		};
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0 0x80000000 0 0x20000000>;
+	};
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		hwspinlock0 = &hwspinlock0;
+		hwspinlock1 = &hwspinlock1;
+	};
+
+	gic: interrupt-controller@12001000 {
+		compatible = "arm,cortex-a15-gic", "arm,cortex-a9-gic";
+		#interrupt-cells = <3>;
+		#address-cells = <0>;
+		interrupt-controller;
+		reg = <0 0x12001000 0 0x1000>,
+		      <0 0x12002000 0 0x1000>;
+	};
+
+	intc:interrupt-controller@71400000 {
+		compatible = "sprd,intc";
+		#interrupt-cells = <0>;
+		interrupt-controller;
+		reg =	<0 0x71400000 0 0x1000>,
+			<0 0x71500000 0 0x1000>,
+			<0 0x71600000 0 0x1000>,
+			<0 0x71700000 0 0x1000>;
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <1 13 0xff01>,
+			     <1 14 0xff01>,
+			     <1 11 0xff01>,
+			     <1 10 0xff01>;
+		clock-frequency = <26000000>;
+	};
+
+	sprd_timer {
+		compatible  = "sprd,sharkl64-timer";
+		reg =   <0 0x40050000 0 0x20>; /*aon GPTIMER0 */
+		interrupts = <0 28 0x0>;
+		clock-frequency = <32768>;
+	};
+
+	uart0: uart@70000000 {
+		compatible = "sprd,serial";
+		reg = <0 0x70000000 0 0x100>;
+		interrupts = <0 2 0xf04>;
+	};
+
+	uart1: uart@70100000 {
+		compatible = "sprd,serial";
+		reg = <0 0x70100000 0 0x100>;
+		interrupts = <0 3 0xf04>;
+	};
+	hwspinlock0: hwspinlock0@20c00000{
+		compatible  = "sprd,sprd-hwspinlock";
+		reg = <0 0x20c00000 0 0x1000>;
+	};
+	hwspinlock1: hwspinlock1@40060000{
+		compatible  = "sprd,sprd-hwspinlock";
+		reg = <0 0x40060000 0 0x1000>;
+		status = "ok";
+	};
+
+	adi: adi_bus {
+		compatible = "sprd,adi-bus";
+		interrupts = <0 38 0x0>;
+		reg = <0 0x40038000 0 0x1000>;
+		interrupt-controller;
+		sprd,irqnums = <11>;
+		#interrupt-cells = <2>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x100 0 0x40038100 0x80>;
+
+		keyboard_backlight {
+			compatible = "sprd,keyboard-backlight";
+		};
+		a_eic_gpio: gpio@100{
+			compatible = "sprd,a-eic-gpio";
+			reg = <0x100 0x80>; /* adi reg */
+			gpio-controller;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			#gpio-cells = <2>;
+			gpiobase = <304>;
+			ngpios = <16>;
+			interrupt-parent = <&adi>;
+			interrupts = <5 0x0>; /* ext irq 5 */
+		};
+		sprd_eic_keys {
+			compatible = "sprd,sprd-eic-keys";
+			key_power {
+				label = "Power Key";
+				linux,code = <116>;
+				gpios = <&a_eic_gpio 2 0>;
+				debounce-interval = <2>;
+				gpio-key,wakeup;
+			};
+		};
+	};
+	sprd-io-base {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges = <0 0 0 0 1 0>;
+		ahb {
+			compatible = "sprd,ahb";
+			reg = <0 0x20e00000 0 0x40000>;
+		};
+		apbckg {
+			compatible = "sprd,apbckg";
+			reg = <0 0x21500000 0 0x1000>;
+		};
+		hwlock0 {
+			compatible = "sprd,hwlock0";
+			reg = <0 0x20d00000 0 0x1000>;
+		};
+		pub_apb {
+			compatible = "sprd,pub_apb";
+			reg = <0 0x30020000 0 0x10000>;
+		};
+		aon_apb {
+			compatible = "sprd,aon_apb";
+			reg = <0 0x402e0000 0 0x40000>;
+		};
+		pmu_apb {
+			compatible = "sprd,pmu_apb";
+			reg = <0 0x402b0000 0 0x40000>;
+		};
+		mm_ahb {
+			compatible = "sprd,mm_ahb";
+			reg = <0 0x60d00000 0 0x10000>;
+		};
+		mm_clk {
+			compatible = "sprd,mm_clk";
+			reg = <0 0x60e00000 0 0x1000>;
+		};
+		ap_ckg {
+			compatible = "sprd,ap_ckg";
+			reg = <0 0x71200000 0 0x40000>;
+		};
+		ap_apb {
+			compatible = "sprd,ap_apb";
+			reg = <0 0x71300000 0 0x40000>;
+		};
+		gpu_apb {
+			compatible = "sprd,gpu_apb";
+			reg = <0 0x60100000 0 0x1000>;
+		};
+		adi {
+			compatible = "sprd,adi";
+			reg = <0 0x40030000 0 0x10000>;
+		};
+		adi_slave {
+			compatible = "sprd,adi_slave";
+			reg = <0 0x40038000 0 0x1000>;
+		};
+		adc {
+			compatible = "sprd,adc";
+			reg = <0 0x40038300 0 0x1000>;
+		};
+		dma {
+			compatible = "sprd,dma";
+			reg = <0 0x20100000 0 0x4000>;
+			interrupts = <0 50 0x0>;
+		};
+		mailbox {
+			compatible = "sprd,mailbox";
+			reg = <0 0x400a0000 0 0x10000>;
+		};
+		rtc {
+			compatible = "sprd,rtc";
+			reg = <0 0x40038080 0 0x80>;
+			interrupts = <0 2 0x0>;
+		};
+		axibm0 {
+			compatible  = "sprd,axibm0";
+			reg = <0 0x30040000 0 0x20000>;
+			interrupts = <0 86 0x0>;
+		};
+	};
+};
