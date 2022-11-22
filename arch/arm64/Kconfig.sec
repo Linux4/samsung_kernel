@@ -1,0 +1,12 @@
+config SEC_A60Q_PROJECT
+        default n
+        bool "Samsung A60Q Project"
+        help
+          Support for Samsung A60Q Project
+
+config SEC_A60Q_CHN_PROJECT
+        default n
+        bool "Samsung A60Q CHN OPEN Project"
+        help
+          Support for Samsung A60Q CHN OPEN Project
+		  
