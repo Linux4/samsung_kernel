@@ -1,0 +1,3 @@
+config GUARDIANM_SEC
+    tristate "GuardianM support"
+    default n
