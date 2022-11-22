@@ -1,0 +1,87 @@
+#define GPIOF_DIR_OUT   (0 << 0)
+#define GPIOF_INIT_HIGH (1 << 1)
+#define GPIOF_OUT_INIT_HIGH     (GPIOF_DIR_OUT | GPIOF_INIT_HIGH)
+
+#define REGTYPE_PANEL_RESET	0 /* control display reset */
+#define REGTYPE_BL_CONFIG	1 /* BLIC initial configuration via I2c */
+#define REGTYPE_GPIO_REGULATOR	2 /* GPIO regulator */
+
+#include "../../samsung/msm8917/msm8917-mdss-panels.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/EA8061S_AMS498QV01/dsi_panel_EA8061S_AMS498QV01_qHD_octa_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/PBA_BOOTING_HD/dsi_panel_PBA_BOOTING_hd_video.dtsi"
+
+&cont_splash_mem {
+	reg = <0x0 0xA8000000 0x0 0x300000>; /* > 540*960*3 = 1.5M  */
+};
+
+&mdss_mdp {
+	qcom,mdss-pref-prim-intf = "dsi";
+};
+
+&mdss_dsi {
+	hw-config = "single_dsi";
+};
+
+/* Unnecessary values for fixed reuglator,
+ * but required by mdss_dsi_get_dt_vreg_data().
+ */
+#define DEFAULT_FIXED_VAL	0
+
+&soc {
+	msmgpio_3p0_vreg: msmgpio_3p0_vreg {
+		 compatible = "regulator-fixed";
+		 status = "okay";
+		 regulator-name = "lcd_ldo_en_3p0";
+		 gpio = <&tlmm 64 0>;
+		 enable-active-high;
+		 regulator-boot-on;
+	};
+};
+
+&ss_dsi_panel_EA8061S_AMS498QV01_QHD {
+	qcom,panel-supply-entries {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* VDD_LCD_1P8 */
+		qcom,panel-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "vddio";
+			qcom,supply-min-voltage = <1800000>;
+			qcom,supply-max-voltage = <1800000>;
+			qcom,supply-enable-load = <100000>;
+			qcom,supply-disable-load = <100>;
+			qcom,supply-post-on-sleep = <0>;
+		};
+
+		qcom,panel-supply-entry@1 {
+			reg = <1>;
+			qcom,supply-name = "vddlcd";
+			qcom,supply-min-voltage = <DEFAULT_FIXED_VAL>;
+			qcom,supply-max-voltage = <DEFAULT_FIXED_VAL>;
+			qcom,supply-enable-load = <DEFAULT_FIXED_VAL>;
+			qcom,supply-disable-load = <DEFAULT_FIXED_VAL>;
+			qcom,supply-post-on-sleep = <0>;
+		};
+	};
+};
+
+&mdss_dsi0 {
+	qcom,dsi-pref-prim-pan = <&ss_dsi_panel_EA8061S_AMS498QV01_QHD>;
+
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_lcd_active &mdss_lcd_reset_active &mdss_lcd_el_active>;
+	pinctrl-1 = <&mdss_lcd_suspend &mdss_lcd_reset_suspend &mdss_lcd_el_suspend>;
+
+	/* use fixed regulator instead of samsung,panel-extra-power-gpio or
+	 * qcom,platform-enable-gpio.
+	 */
+	vddlcd-supply = <&msmgpio_3p0_vreg>;
+	vddio-supply = <&pm8917_l5>;
+
+	qcom,platform-reset-gpio = <&tlmm 60 0>;
+};
+
+&ss_dsi_panel_PBA_BOOTING_HD {
+	samsung,panel-vendor = "BOE";
+};
