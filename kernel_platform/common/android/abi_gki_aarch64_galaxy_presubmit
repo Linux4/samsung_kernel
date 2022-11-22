@@ -1,0 +1,11 @@
+[abi_symbol_list]
+  gpiochip_irqchip_add_key
+  gpiochip_set_nested_irqchip
+  gs_alloc_req
+  gs_free_req
+  gserial_free_line
+  gserial_resume
+  gserial_suspend
+  __tracepoint_kfree_skb
+  __traceiter_kfree_skb
+
