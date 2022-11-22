@@ -1,0 +1,35 @@
+#
+# ARM64 CPU Idle drivers ARM64_CPUIDLE
+#
+
+choice
+prompt "CPU idle drivers for ARM64"
+default NO_CPUIDLE_DRIVER
+config ARM64_CPUIDLE
+	bool "Generic ARM64 CPU idle Driver"
+	select ARM64_CPU_SUSPEND
+	select DT_IDLE_STATES
+	help
+	  Select this to enable generic cpuidle driver for ARM64.
+	  It provides a generic idle driver whose idle states are configured
+	  at run-time through DT nodes. The CPUidle suspend backend is
+	  initialized by calling the CPU operations init idle hook
+	  provided by architecture code.
+
+config ARM64_CPUIDLE_SPRD
+	bool "Spreadtrum ARM64 CPU idle Driver"
+	select DT_IDLE_STATES
+	help
+	  Select this to enable spreadtrum cpuidle driver for ARM v8.
+	  It provides a spreadtrum idle driver whose idle states are configured
+	  at run-time through DT nodes. The CPUidle suspend backend is
+	  initialized by the device tree parsing code on matching the entry
+	  method to the respective CPU operations.
+
+config NO_CPUIDLE_DRIVER
+	bool "NO CPUIDLE DRIVER"
+	help
+	  If the curren system is arm32, we have to select this config.This config
+	  has not load any arm64 idle drivers.But cpu can also enter WFI.
+
+endchoice
