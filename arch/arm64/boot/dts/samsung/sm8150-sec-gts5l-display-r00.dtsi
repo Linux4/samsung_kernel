@@ -1,0 +1,223 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+#include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
+#include "../../../../../drivers/gpu/drm/msm/samsung/ANA38401_AMSA05RB06/dsi_panel_ANA38401_AMSA05RB06_wqxga_octa_cmd.dtsi"
+#include "../../../../../drivers/gpu/drm/msm/samsung/PBA_BOOTING/dsi_panel_PBA_BOOTING_fhd_video.dtsi"
+
+#define DEFAULT_FIXED_VAL	0
+
+&tlmm {
+	pmx_sde: pmx_sde {
+		sde_dsi_active: sde_dsi_active {
+			mux {
+				pins = "gpio59";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio59";
+				drive-strength = <8>;   /* 8 mA */
+				bias-disable = <0>;   /* no pull */
+			};
+		};
+		sde_dsi_suspend: sde_dsi_suspend {
+			mux {
+				pins = "gpio59";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio59";
+				drive-strength = <2>;   /* 2 mA */
+				bias-pull-down;         /* PULL DOWN */
+			};
+		};
+	};
+	pmx_sde_te {
+		sde_te_active: sde_te_active {
+			mux {
+				pins = "gpio8";
+				function = "mdp_vsync";
+			};
+
+			config {
+				pins = "gpio8";
+				drive-strength = <2>;   /* 2 mA */
+				bias-pull-down;         /* PULL DOWN */
+			};
+		};
+
+		sde_te_suspend: sde_te_suspend {
+			mux {
+				pins = "gpio8";
+				function = "mdp_vsync";
+			};
+
+			config {
+				pins = "gpio8";
+				drive-strength = <2>;   /* 2 mA */
+				bias-pull-down;         /* PULL DOWN */
+			};
+		};
+	};
+
+	pmx_sde_ub_det {
+		sde_ub_det_active: sde_ub_det_active {
+			mux {
+				pins = "gpio42";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio42";
+				drive-strength = <2>;
+				bias-pull-up; /* PULL UP*/
+				input-enable;
+			};
+		};
+
+		sde_ub_det_suspend: sde_ub_det_suspend {
+			mux {
+				pins = "gpio42";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio42";
+				drive-strength = <2>;   /* 2 mA */
+				bias-pull-up; /* PULL UP*/
+			};
+		};
+	};
+};
+
+&soc {
+	fixed_reg_octavdd: fixed_reg_octavdd {
+		compatible = "regulator-fixed";
+		status = "okay";
+		regulator-name = "octa-vdd";
+		gpio = <&tlmm 113 0>; /* LCD_LDO_EN */
+		enable-active-high;
+		regulator-boot-on;
+	};
+};
+
+&pm8150_gpios {
+	pmx_sde_esd { /* PM GPIO_01 */
+		sde_esd_default: sde_esd_default {
+			pins = "gpio1";
+			function = "normal";
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	tcon_rdy { /* PM GPIO_07 */
+		tcon_rdy_default: tcon_rdy_default {
+			pins = "gpio7";
+			function = "normal";
+			output-disable;
+			input-enable;
+			bias-disable;
+			power-source = <1>;
+		};
+	};
+};
+
+&soc {
+	ss_dsi_panel_ANA38401_AMSA05RB06_WQXGA_display: qcom,dsi-display@0 {
+		label = "ss_dsi_panel_ANA38401_AMSA05RB06_WQXGA";
+		qcom,display-type = "primary";
+
+		qcom,dsi-ctrl = <&mdss_dsi0 &mdss_dsi1>;
+		qcom,dsi-phy = <&mdss_dsi_phy0 &mdss_dsi_phy1>;
+	};
+
+	/* PBA */
+	ss_dsi_panel_PBA_BOOTING_FHD_display: qcom,dsi-display@1 {
+		label = "ss_dsi_panel_PBA_BOOTING_FHD";
+		qcom,display-type = "primary";
+
+		qcom,dsi-ctrl = <&mdss_dsi0>;
+		qcom,dsi-phy = <&mdss_dsi_phy0>;
+	};
+};
+
+/* override display-list / supply for samsung panel */
+&sde_dsi {
+
+	vddlcd-supply = <&fixed_reg_octavdd>;
+
+	pinctrl-names = "panel_active", "panel_suspend";
+	pinctrl-0 = <&sde_dsi_active &sde_te_active &tcon_rdy_default &sde_esd_default &sde_ub_det_active>;
+	pinctrl-1 = <&sde_dsi_suspend &sde_te_suspend &tcon_rdy_default &sde_esd_default &sde_ub_det_suspend>;
+
+	qcom,dsi-display-list =
+		<&ss_dsi_panel_ANA38401_AMSA05RB06_WQXGA
+		&ss_dsi_panel_PBA_BOOTING_FHD>;
+};
+
+&ss_dsi_panel_PBA_BOOTING_FHD {
+	qcom,display-type = "primary";
+	qcom,dsi-display-active;
+
+	qcom,dsi-ctrl-num = <0>;
+	qcom,dsi-phy-num = <0>;
+	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+	qcom,dsi-panel = <&ss_dsi_panel_PBA_BOOTING_FHD>;
+
+	qcom,platform-reset-gpio = <&tlmm 59 0>;
+	qcom,platform-te-gpio = <&tlmm 8 0>;
+
+	samsung,ub-con-det = <&tlmm 42 0>;
+};
+
+
+&ss_dsi_panel_ANA38401_AMSA05RB06_WQXGA {
+	qcom,display-type = "primary";
+	qcom,dsi-display-active;
+
+	qcom,dsi-ctrl-num = <0 1>;
+	qcom,dsi-phy-num = <0 1>;
+	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0";
+
+	qcom,dsi-panel = <&ss_dsi_panel_ANA38401_AMSA05RB06_WQXGA>;
+
+	qcom,platform-reset-gpio = <&tlmm 59 0>;
+	qcom,platform-te-gpio = <&tlmm 8 0>;
+
+	/delete-property/ qcom,panel-mode-gpio;
+
+	samsung,esd-irq-gpio1 = <&pm8150_gpios 1 0>; // DISP_DET
+	samsung,tcon-rdy-gpio = <&pm8150_gpios 7 0>; // TCON_RDY
+	samsung,ub-con-det = <&tlmm 42 0>;
+
+	qcom,panel-supply-entries {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* use fixed regulator instead of samsung,panel-extra-power-gpio
+		 * or qcom,platform-enable-gpio. */
+		/* VDD 3.3V */
+		qcom,panel-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "vddlcd";
+			qcom,supply-min-voltage = <DEFAULT_FIXED_VAL>;
+			qcom,supply-max-voltage = <DEFAULT_FIXED_VAL>;
+			qcom,supply-enable-load = <DEFAULT_FIXED_VAL>;
+			qcom,supply-disable-load = <DEFAULT_FIXED_VAL>;
+			qcom,supply-pre-off-sleep = <5>;
+			qcom,supply-post-on-sleep = <10>;
+		};
+	};
+};
