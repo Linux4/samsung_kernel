@@ -1,0 +1,6 @@
+config PANEL_SW83109_BF067XMM_A73_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "SiliconWorks 83109 LDI and BOE PANEL"
+	default n
+	---help---
+	SW 83109 LDI 1080_2400 A73XQ

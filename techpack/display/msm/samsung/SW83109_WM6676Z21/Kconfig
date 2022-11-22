@@ -1,0 +1,6 @@
+config PANEL_SW83109_WM6676Z21_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "SiliconWorks 83109 LDI"
+	default n
+	---help---
+	SW 83109 LDI 1080_2400 A73XQ

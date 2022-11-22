@@ -1,0 +1,6 @@
+config PANEL_A73_S6E3FC3_AMB667BV01_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "LSI S6E3FC3 LDI and SDC Panel"
+	default n
+	---help---
+	LSI S6E3FC3 LDI 1080_2400 A73XQ
