@@ -1,0 +1,29 @@
+#
+# Copyright (c) 2010-2019 Samsung Electronics Co., Ltd.
+#		http://www.samsung.com/
+#
+# Licensed under GPLv2
+
+comment "Samsung Performance Tools"
+menuconfig SEC_PERF
+	bool "Enable Samsung Debugging features"
+	depends on SEC_EXT
+	default y
+
+config SEC_BOOTSTAT
+	bool "Enable TN Bootstat logging"
+	depends on SEC_PERF
+	default y
+
+config DELAY_CHECKER
+	bool "enable delay checker"
+	depends on !SAMSUNG_PRODUCT_SHIP && SEC_PERF
+	default n
+
+config SEC_PERF_LATENCYCHECKER
+	bool "Enable Samsung latenychecker"
+	depends on SEC_PERF
+	default n
+	help
+	  This option enables Samsung Latencychecker.
+	  Select the option if the kernel should check latency point.
