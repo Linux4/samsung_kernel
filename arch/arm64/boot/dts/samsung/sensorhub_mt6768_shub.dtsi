@@ -1,0 +1,73 @@
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				compatible = "shub";
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6768_shub/dts/sensorhub_mt6768_shub.a31.dtsi */
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				acc-lsm6dsl-position = <1>;
+				mag-yas539-position = <6>;
+				mag-check-nfc = <&pio 52 0>;
+				mag-yas539-array = /bits/ 16 <10377 728 (-228) 467 10068 (-165) (-113) 122 11052>;
+				mag-yas539-nfc-array = /bits/ 16 <10313 118 (-132) (-38) 9643 (-181) (-175) (-38) 10599>;
+				light-position = /bits/ 32 <42 54 8 27 2 8>;
+				brightness-array-len = <5>;
+				brightness-array = /bits/ 32 <15 40 50 77 255>;
+				light-cam-lux = /bits/ 32 <100 200>;
+				light-cam-br = /bits/ 32 <60 60>;
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6768_shub/dts/sensorhub_mt6768_shub.a31.03.dtsi */
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				acc-lsm6dsl-position = <0>;
+				mag-yas539-position = <3>;
+				mag-check-nfc = <&pio 52 0>;
+				mag-yas539-array = /bits/ 16 <10377 728 (-228) 467 10068 (-165) (-113) 122 11052>;
+				mag-yas539-nfc-array = /bits/ 16 <10313 118 (-132) (-38) 9643 (-181) (-175) (-38) 10599>;
+				light-position = /bits/ 32 <42 54 8 27 2 8>;
+				brightness-array-len = <5>;
+				brightness-array = /bits/ 32 <15 40 50 77 255>;
+				light-cam-lux = /bits/ 32 <100 200>;
+				light-cam-br = /bits/ 32 <60 60>;
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6768_shub/dts/sensorhub_mt6768_shub.a31_sea_open.00.dtsi */
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				acc-lsm6dsl-position = <0>;
+				mag-yas539-position = <3>;
+				mag-check-nfc = <&pio 52 0>;
+				mag-yas539-array = /bits/ 16 <10377 728 (-228) 467 10068 (-165) (-113) 122 11052>;
+				mag-yas539-nfc-array = /bits/ 16 <10313 118 (-132) (-38) 9643 (-181) (-175) (-38) 10599>;
+				light-position = /bits/ 32 <42 54 8 27 2 8>;
+				brightness-array-len = <5>;
+				brightness-array = /bits/ 32 <15 40 50 77 255>;
+				light-cam-lux = /bits/ 32 <100 200>;
+				light-cam-br = /bits/ 32 <60 60>;
+			};
+		};
+	};
+};

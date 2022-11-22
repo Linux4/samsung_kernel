@@ -1,0 +1,3 @@
+#include <dt-bindings/clock/mt6768-clk.h>
+#include "../../mediatek/k68v1_64_titan.dts"
+

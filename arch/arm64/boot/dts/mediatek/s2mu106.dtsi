@@ -1,0 +1,85 @@
+&pio {
+	if_pmic_irq: if_pmic_irq {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,7), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+		};
+	};
+};
+
+&pio {
+	usbpd_irq: usbpd_irq {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,0), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+		};
+	};
+};
+
+&i2c3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <400000>;
+	mediatek,use-open-drain;
+	s2mu106: s2mu106@3D {
+		status = "okay";
+		compatible = "samsung,s2mu106mfd";
+		reg = <0x3D>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&if_pmic_irq>;
+		s2mu106,irq-gpio = <SEC_GPIO_REF(AP,pio,7) 1>;
+		s2mu106,wakeup;
+	};
+};
+
+&i2c3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <400000>;
+	mediatek,use-open-drain;
+	usbpd-s2mu106@3C {
+		status = "okay";
+		compatible = "s2mu106-usbpd";
+		reg = <0x3C>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usbpd_irq
+#if 0
+						&usbpd_vbus_discharging
+#endif
+#if 0
+						&pogo_dock_int
+#endif
+						>;
+		usbpd,usbpd_int = <SEC_GPIO_REF(AP,pio,0) 0>;
+#if 0
+		usbpd,vbus_discharging = <SEC_GPIO_REF(${usbpd_vbus_discharging_gpio}) 0>;
+#endif
+#if 0
+		pogo_dock_int = <SEC_GPIO_REF(${pogo_gpio}) 0>;
+#endif
+
+		pdic-manager {
+			/* sink */
+			pdic,max_power = <5000>;
+			pdic_op_power = <2500>;
+			pdic_max_voltage = <6000>;
+			pdic_max_current = <2000>;
+			pdic,min_current = <500>;
+
+			pdic,giveback = <0>;
+			pdic,usb_com_capable = <1>;
+			pdic,no_usb_suspend = <1>;
+
+			/* source */
+			source,max_voltage = <5000>;
+			source,min_voltage = <4000>;
+			source,max_power = <2500>;
+
+			/* sink cap */
+			sink,capable_max_voltage = <5000>;
+		};
+	};
+};
+
