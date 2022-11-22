@@ -1,0 +1,6 @@
+config ${caps_test_prefix}
+	tristate "KUnit test for ${test_prefix}"
+	depends on KUNIT
+	help
+	  TODO: Describe config fully.
+	  If you run this test driver on device, SHOULD set this config as 'm' to build test driver modulraly.
