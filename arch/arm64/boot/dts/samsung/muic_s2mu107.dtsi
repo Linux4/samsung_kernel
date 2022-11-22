@@ -1,0 +1,6 @@
+&smd {
+	muic {
+		new_factory;
+		dcd_timeout;
+	};
+};

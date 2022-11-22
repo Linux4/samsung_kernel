@@ -1,0 +1,224 @@
+#define PIN_AP_FUNC_INPUT		"gpio"
+#define PIN_AP_FUNC_OUTPUT		"gpio"
+#define PIN_AP_FUNC_OUTPUT_LOW		"gpio"
+#define PIN_AP_FUNC_OUTPUT_HIGH		"gpio"
+#define PIN_AP_FUNC_INPUT_WAKEUP	"gpio"
+#define PIN_AP_FUNC_GCC_GP1		"gcc_gp1"
+#define PIN_AP_FUNC_GCC_GP2		"gcc_gp2"
+#define PIN_AP_FUNC_SIMPLE_GPIO		"gpio"
+#define PIN_AP_FUNC_MDP_VSYNC		"mdp_vsync"
+
+#define	PIN_AP_FUNC_QUP0	"qup0"
+#define	PIN_AP_FUNC_QUP1	"qup1"
+#define	PIN_AP_FUNC_QUP2	"qup2"
+#define	PIN_AP_FUNC_QUP3	"qup3"
+#define	PIN_AP_FUNC_QUP4	"qup4"
+#define	PIN_AP_FUNC_QUP5	"qup5"
+#define	PIN_AP_FUNC_QUP6	"qup6"
+#define	PIN_AP_FUNC_QUP7	"qup7"
+#define	PIN_AP_FUNC_QUP8	"qup8"
+#define	PIN_AP_FUNC_QUP9	"qup9"
+#define	PIN_AP_FUNC_QUP10	"qup10"
+#define	PIN_AP_FUNC_QUP11	"qup11"
+#define	PIN_AP_FUNC_QUP12	"qup12"
+#define	PIN_AP_FUNC_QUP13	"qup13"
+#define	PIN_AP_FUNC_QUP14	"qup14"
+#define	PIN_AP_FUNC_QUP15	"qup15"
+#define	PIN_AP_FUNC_QUP16	"qup16"
+#define	PIN_AP_FUNC_QUP17	"qup17"
+#define	PIN_AP_FUNC_QUP18	"qup18"
+#define	PIN_AP_FUNC_QUP19	"qup19"
+
+#define	PIN_AP_FUNC_QUP00	"qup00"
+#define	PIN_AP_FUNC_QUP01	"qup01"
+#define	PIN_AP_FUNC_QUP02	"qup02"
+#define	PIN_AP_FUNC_QUP03	"qup03"
+#define	PIN_AP_FUNC_QUP04	"qup04"
+
+/* No support: Build error */
+#define PIN_AP_FUNC_PWM		none
+
+#define PIN_PM_FUNC_INPUT		"normal"
+#define PIN_PM_FUNC_OUTPUT		"normal"
+#define PIN_PM_FUNC_OUTPUT_HIGH		"normal"
+#define PIN_PM_FUNC_OUTPUT_LOW		"normal"
+#define PIN_PM_FUNC_INPUT_WAKEUP	"normal"
+#define PIN_PM_FUNC_PWM			"func1"
+
+#define PIN_DT_FUNC_INPUT		input-enable
+#define PIN_DT_FUNC_INPUT_WAKEUP	input-enable
+#define PIN_DT_FUNC_OUTPUT		output-enable
+#define PIN_DT_FUNC_OUTPUT_HIGH		output-high
+#define PIN_DT_FUNC_OUTPUT_LOW		output-low
+#define PIN_DT_FUNC_GCC_GP1		output-high
+#define PIN_DT_FUNC_SIMPLE_GPIO		/delete-property/ DUMMY
+#define PIN_DT_FUNC_MDP_VSYNC		/delete-property/ DUMMY
+
+#define PIN_DT_FUNC_QUP0	none
+#define PIN_DT_FUNC_QUP1	none
+#define PIN_DT_FUNC_QUP2	none
+#define PIN_DT_FUNC_QUP3	none
+#define PIN_DT_FUNC_QUP4	none
+#define PIN_DT_FUNC_QUP5	none
+#define PIN_DT_FUNC_QUP6	none
+#define PIN_DT_FUNC_QUP7	none
+#define PIN_DT_FUNC_QUP8	none
+#define PIN_DT_FUNC_QUP9	none
+#define PIN_DT_FUNC_QUP10	none
+#define PIN_DT_FUNC_QUP11	none
+#define PIN_DT_FUNC_QUP12	none
+#define PIN_DT_FUNC_QUP13	none
+#define PIN_DT_FUNC_QUP14	none
+#define PIN_DT_FUNC_QUP15	none
+#define PIN_DT_FUNC_QUP16	none
+#define PIN_DT_FUNC_QUP17	none
+#define PIN_DT_FUNC_QUP18	none
+#define PIN_DT_FUNC_QUP19	none
+
+#define PIN_DT_FUNC_QUP00	none
+#define PIN_DT_FUNC_QUP01	none
+#define PIN_DT_FUNC_QUP02	none
+#define PIN_DT_FUNC_QUP03	none
+#define PIN_DT_FUNC_QUP04	none
+
+/* Only for PMIC */
+#define PIN_DT_FUNC_PWM		drive-push-pull
+
+#define PIN_PULL_NONE	bias-disable
+#define PIN_PULL_DOWN	bias-pull-down
+#define PIN_PULL_UP	bias-pull-up
+#define PIN_PULL_OPEN	bias-high-impedance
+
+/*
+ * HDRV value | Typical GPIO
+ *   (dec)    |       (mA)
+ *     0      |       2
+ *     1      |       4
+ *     2      |       6
+ *     3      |       8
+ *     4      |       10
+ *     5      |       12
+ *     6      |       14
+ *     7      |       16
+ */
+
+#define PIN_AP_DRV_LV1	2
+#define PIN_AP_DRV_LV2	4
+#define PIN_AP_DRV_LV3	6
+#define PIN_AP_DRV_LV4	8
+#define PIN_AP_DRV_LV5	10
+#define PIN_AP_DRV_LV6	12
+#define PIN_AP_DRV_LV7	14
+#define PIN_AP_DRV_LV8	16
+
+/*
+ * QCOM PMIC GPIO : Need to check!!
+ * NO	| 0
+ * LOW	| 1	| 0.15mA @ 1.8V
+ * MID	| 2	| 0.6mA @ 1.8V
+ * HIGH	| 3	| 0.9mA @ 1.8V
+ */
+
+#define PIN_PM_DRV_LV1	0
+#define PIN_PM_DRV_LV2	0
+#define PIN_PM_DRV_LV3	1
+#define PIN_PM_DRV_LV4	1
+#define PIN_PM_DRV_LV5	2
+#define PIN_PM_DRV_LV6	2
+#define PIN_PM_DRV_LV7	3
+#define PIN_PM_DRV_LV8	3
+
+#define PIN_EXPAND(pin) #pin
+
+#define GPIO_KEY_WAKEUP		gpio-key,wakeup
+#define GPIO_KEY_NONE		none
+#define GPIO_KEY_CAN_DISABLE	linux,can-disable
+#define GPIO_KEY_CANNOT_DISABLE	linux,cannot-disable
+
+#define SEC_GPIO(src, type, num)	PIN_EXPAND(gpio##num)
+#define SEC_GPIO_REF(src, type, num)	&type num
+#define SEC_GPIO_NUM(src, type, num)	num
+#define SEC_GPIO_TYPE(src, type, num)	&type
+
+#define GPIO_CONFIG(src, type, num, func)		GPIO_##src##_CONFIG(type, num, func)
+#define GPIO_CONFIG_PUD(src, type, num, func, pull)	GPIO_##src##_CONFIG_PUD(type, num, func, pull)
+#define GPIO_CONFIG_PUD_DRV(src, type, num, func, pull, drv)	GPIO_##src##_CONFIG_PUD_DRV(type, num, func, pull, drv)
+
+#define GPIO_AP_CONFIG(_type, _num, _func)		\
+	mux {						\
+		pins = SEC_GPIO(AP, _type, _num);	\
+		function = PIN_AP_ ##_func;		\
+	};						\
+	config {					\
+		pins = SEC_GPIO(AP, _type, _num);	\
+		PIN_DT_ ##_func;			\
+	}
+
+#define GPIO_AP_CONFIG_PUD(_type, _num, _func, _pull)	\
+	mux {						\
+		pins = SEC_GPIO(AP, _type, _num);	\
+		function = PIN_AP_ ##_func;		\
+	};						\
+	config {					\
+		pins = SEC_GPIO(AP, _type, _num);	\
+		PIN_DT_ ##_func;			\
+		PIN_ ##_pull;				\
+	}
+
+#define GPIO_AP_CONFIG_PUD_DRV(_type, _num, _func, _pull, _drv)	\
+	mux {						\
+		pins = SEC_GPIO(AP, _type, _num);	\
+		function = PIN_AP_ ##_func;		\
+	};						\
+	config {					\
+		pins = SEC_GPIO(AP, _type, _num);	\
+		drive-strength = <PIN_AP_ ##_drv>;	\
+		PIN_DT_ ##_func;			\
+		PIN_ ##_pull;				\
+	}
+
+#define GPIO_PM_CONFIG(_type, _num, _func)	\
+	pins = SEC_GPIO(PM, _type, _num);	\
+	function = PIN_PM_ ##_func;	\
+	PIN_DT_ ##_func
+
+#define GPIO_PM_CONFIG_PUD(_type, _num, _func, _pull)	\
+	pins = SEC_GPIO(PM, _type, _num);		\
+	function = PIN_PM_ ##_func;		\
+	PIN_DT_ ##_func;				\
+	PIN_ ##_pull
+
+#define GPIO_PM_CONFIG_PUD_DRV(_type, _num, _func, _pull, _drv)	\
+	pins = SEC_GPIO(PM, _type, _num);		\
+	function = PIN_PM_ ##_func;		\
+	qcom,drive-strength = <PIN_PM_ ##_drv>;	\
+	PIN_DT_ ##_func;				\
+	PIN_ ##_pull
+
+#define GPIO_EX_CONFIG(_type, _num, _func)	\
+	pins = SEC_GPIO(EX, _type, _num);	\
+	PIN_DT_ ##_func
+
+#define GPIO_EX_CONFIG_PUD(_type, _num, _func, _pull)	\
+	pins = SEC_GPIO(EX, _type, _num);		\
+	PIN_DT_ ##_func;				\
+	PIN_ ##_pull
+
+#define GPIO_EX_CONFIG_PUD_DRV(_type, _num, _func, _pull, _drv)	\
+	pins = SEC_GPIO(EX, _type, _num);		\
+	PIN_DT_ ##_func;				\
+	PIN_ ##_pull
+
+#define SEC_ADC(type, num) <&type num>
+#define SEC_ADC_OPT(type, num) ,<&type num>
+#define SEC_ADC_NUM(type, num) <num>
+
+#define GPIO_KEY_CONFIG(_code, _gpio, _wakeup, _interval)	\
+	label = PIN_EXPAND(_code);				\
+	linux,code = <_code>;					\
+	gpios = <_gpio 1>;					\
+	GPIO_KEY_ ##_wakeup;					\
+	debounce-interval = <_interval>
+
+#define SEC_INTERFACE_REF(type, num)	&type num
+

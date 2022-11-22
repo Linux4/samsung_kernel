@@ -1,0 +1,202 @@
+#ifdef CONFIG_SEC_FACTORY
+#if 1
+&tlmm {
+	detect_conn_setting: detect_conn_setting {
+		config {
+#if 0
+			pins = SEC_GPIO(AP,tlmm,83),
+			       SEC_GPIO(${det_gpio_num_1}),
+			       SEC_GPIO(${det_gpio_num_2}),
+			       SEC_GPIO(${det_gpio_num_3}),
+			       SEC_GPIO(${det_gpio_num_4}),
+#if 0
+			       SEC_GPIO(${det_gpio_num_5}),
+			       SEC_GPIO(${det_gpio_num_6}),
+			       SEC_GPIO(${det_gpio_num_7});
+#elif 0
+			       SEC_GPIO(${det_gpio_num_5}),
+			       SEC_GPIO(${det_gpio_num_6});
+#else
+			       SEC_GPIO(${det_gpio_num_5});
+#endif
+#elif 0
+			pins = SEC_GPIO(AP,tlmm,83),
+			       SEC_GPIO(${det_gpio_num_1}),
+			       SEC_GPIO(${det_gpio_num_2}),
+			       SEC_GPIO(${det_gpio_num_3}),
+#if 0
+			       SEC_GPIO(${det_gpio_num_4}),
+			       SEC_GPIO(${det_gpio_num_6}),
+			       SEC_GPIO(${det_gpio_num_7});
+#elif 0
+			       SEC_GPIO(${det_gpio_num_4}),
+			       SEC_GPIO(${det_gpio_num_6});
+#else
+			       SEC_GPIO(${det_gpio_num_4});
+#endif
+#elif 0
+			pins = SEC_GPIO(AP,tlmm,83),
+			       SEC_GPIO(${det_gpio_num_1}),
+			       SEC_GPIO(${det_gpio_num_2}),
+#if 0
+			       SEC_GPIO(${det_gpio_num_3}),
+			       SEC_GPIO(${det_gpio_num_6}),
+			       SEC_GPIO(${det_gpio_num_7});
+#elif 0
+			       SEC_GPIO(${det_gpio_num_3}),
+			       SEC_GPIO(${det_gpio_num_6});
+#else
+			       SEC_GPIO(${det_gpio_num_3});
+#endif
+#elif 0
+			pins = SEC_GPIO(AP,tlmm,83),
+			       SEC_GPIO(${det_gpio_num_1}),
+#if 0
+			       SEC_GPIO(${det_gpio_num_2}),
+			       SEC_GPIO(${det_gpio_num_6}),
+			       SEC_GPIO(${det_gpio_num_7});
+#elif 0
+			       SEC_GPIO(${det_gpio_num_2}),
+			       SEC_GPIO(${det_gpio_num_6});
+#else
+			       SEC_GPIO(${det_gpio_num_2});
+#endif
+#elif 0
+			pins = SEC_GPIO(AP,tlmm,83),
+#if 0
+			       SEC_GPIO(${det_gpio_num_1}),
+			       SEC_GPIO(${det_gpio_num_6}),
+			       SEC_GPIO(${det_gpio_num_7});
+#elif 0
+			       SEC_GPIO(${det_gpio_num_1}),
+			       SEC_GPIO(${det_gpio_num_6});
+#else
+			       SEC_GPIO(${det_gpio_num_1});
+#endif
+#elif 1
+			pins =
+#if 0
+			       SEC_GPIO(AP,tlmm,83),
+			       SEC_GPIO(${det_gpio_num_6}),
+			       SEC_GPIO(${det_gpio_num_7});
+#elif 0
+			       SEC_GPIO(AP,tlmm,83),
+			       SEC_GPIO(${det_gpio_num_6});
+#else
+			       SEC_GPIO(AP,tlmm,83);
+#endif
+#elif 0
+			pins = SEC_GPIO(${det_gpio_num_6}),
+			       SEC_GPIO(${det_gpio_num_7});
+#elif 0
+			pins = SEC_GPIO(${det_gpio_num_6});
+#endif
+			drive-strength = <2>;
+			bias-disable; /*NO PULL*/
+			input-enable;
+		};
+	};
+};
+#endif /*use_dynamic_ap_gpio_detect*/
+
+#if 0
+&${det_pm_gpio_num_parent} {
+	detect_conn_pm_setting: detect_conn_pm_setting {
+#if 0 && 0
+		pins = SEC_GPIO(${det_pm_gpio_num_0}),
+		       SEC_GPIO(${det_pm_gpio_num_1});
+#elif 0
+		pins = SEC_GPIO(${det_pm_gpio_num_0});
+#elif 0
+		pins = SEC_GPIO(${det_pm_gpio_num_1});
+#endif
+		function = "normal";
+		power-source = <0>;
+		bias-disable; /*NO PULL*/
+		input-enable;
+	};
+};
+#endif /*use_dynamic_pm_gpio_detect*/
+
+&smd {
+	sec_detect_conn {
+		compatible = "samsung,sec_detect_conn";
+		status = "okay";
+
+#if 1
+		sec,det_conn_gpios = <
+#if 1
+					SEC_GPIO_REF(AP,tlmm,83) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_1}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_2}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_3}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_4}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_5}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_6}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_7}) 0
+#endif
+					>;
+#if 1 || 0
+		sec,det_conn_name =
+#endif
+#if 1 && 0
+					"SUB_CONNECT", "", "", "", "", "",
+					"", "";
+#elif 1
+					"SUB_CONNECT", "", "", "", "", "";
+#elif 0
+					"", "";
+#endif
+#endif /*use_dynamic_ap_gpio_detect*/
+
+#if 0
+		sec,det_pm_conn_gpios = <
+#if 0
+					SEC_GPIO_REF(${det_pm_gpio_num_0}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_pm_gpio_num_1}) 0
+#endif
+					>;
+#if 0 || 0
+		sec,det_pm_conn_name =
+#endif
+#if 0 && 0
+					"",
+					"";
+#elif 0
+					"";
+#elif 0
+					"";
+#endif
+#endif /*use_dynamic_pm_gpio_detect*/
+
+#if 1 && 0
+		pinctrl-names = "det_ap_connect","det_pm_connect";
+		pinctrl-0 = <&detect_conn_setting>;
+		pinctrl-1 = <&detect_conn_pm_setting>;
+#elif 1
+		pinctrl-names = "det_ap_connect";
+		pinctrl-0 = <&detect_conn_setting>;
+#elif 0
+		pinctrl-names = "det_pm_connect";
+		pinctrl-0 = <&detect_conn_pm_setting>;
+#endif
+	};
+};
+#endif /* CONFIG_SEC_FACTORY */
+

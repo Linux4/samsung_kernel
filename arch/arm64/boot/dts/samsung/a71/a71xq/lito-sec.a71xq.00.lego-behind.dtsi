@@ -1,0 +1,40 @@
+#include "lito-sec-a71xq-pinctrl-r00.dtsi"
+#include "lito-sec-a71xq-display-r00.dtsi"
+
+&soc {
+
+};
+
+&i2c_24 {
+	gpios = <&tlmm 108 0 /* sda */
+		&tlmm 109 0 /* scl */
+		>;
+};
+
+&bluetooth {
+	qca,bt-vdd-pa-supply = <&pm8150a_l11>;
+};
+
+#if !defined(CONFIG_SEC_FACTORY)
+&tlmm {
+	gpio-reserved-ranges = 
+
+				<0 4>, /* CONFIG_ESE_SECURE */
+				<59 4>, /* ENABLE_SENSORS_FPRINT_SECURE */
+				<67 2> /* MST_DATA_A, MST_DATA_B */
+				;
+};
+#else
+&tlmm {
+	gpio-reserved-ranges = 
+				<67 2> /* MST_DATA_A, MST_DATA_B */
+				;
+};
+#endif
+
+/ {
+	model = "Samsung A71XQ PROJECT REV00";
+	qcom,board-id = <8 0>;
+	dtbo-version = <0>;
+};
+

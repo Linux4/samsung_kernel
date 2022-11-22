@@ -1,0 +1,51 @@
+&tlmm {
+	grip_int: grip_int {
+		GPIO_CONFIG_PUD_DRV(AP,tlmm,142, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV2);
+	};
+};
+
+&tlmm {
+	grip_i2c_sda: grip_i2c_sda {
+		GPIO_CONFIG_PUD_DRV(AP,tlmm,51, FUNC_INPUT, PULL_NONE, DRV_LV2);
+	};
+	grip_i2c_scl: grip_i2c_scl {
+		GPIO_CONFIG_PUD_DRV(AP,tlmm,52, FUNC_INPUT, PULL_NONE, DRV_LV2);
+	};
+};
+
+&sw_i2c1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+	samsung,reset-before-trans;
+	pinctrl-names = "default";
+	pinctrl-0 = <&grip_i2c_sda &grip_i2c_scl>;
+
+	sx9360: sx9360-i2c@28 {
+		compatible = "sx9360";
+		reg = <0x28>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_int>;
+
+		interrupt-parent = <SEC_GPIO_TYPE(AP,tlmm,142)>;
+		interrupts = <SEC_GPIO_NUM(AP,tlmm,142) 0 0>;
+
+		sx9360,nirq-gpio = <SEC_GPIO_REF(AP,tlmm,142) 0>;
+	};
+};
+
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensors/sx9360/dts/sx9360_qcom.a71xq.dtsi */
+&sx9360 {
+	sx9360,refresolution_reg = <0x0f>; /* same as resolution_reg */
+	sx9360,refagainfreq_reg = <0x57>; /* same as againfreq_reg */
+	sx9360,resolution_reg = <0x0f>; /* resolution : 1024 */
+	sx9360,againfreq_reg = <0x27>; /* freq : 71.43 kHz, again : +/-3.75 pF */
+	sx9360,refgainrawfilt_reg = <0x22>; /* same as gainrawfilt_reg */
+	sx9360,gainrawfilt_reg = <0x12>; /* rawfilter : 1-1/4, gain : x2 */
+	sx9360,hyst_reg = <0x15>; /* hysteresis : +/-6 %, debouncer : 2 samples */
+	sx9360,proxthresh_reg = <0x23>; /* threshold : 612 */
+	sx9360,hallic_detect = <1>;
+	sx9360,hallic_cert_detect = <1>;
+};

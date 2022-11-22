@@ -1,0 +1,14 @@
+#include "lito-sec.a71xq.04.lego-behind.dtsi"
+#include "lito-sec-a71xq-pinctrl-r06.dtsi"
+
+/* Please remove this code when you use it
+&soc {
+
+};
+*/
+
+/ {
+	model = "Samsung A71XQ PROJECT REV06";
+	qcom,board-id = <8 6>;
+	dtbo-version = <0>;
+};

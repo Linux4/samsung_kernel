@@ -1,0 +1,23 @@
+#include "lito-sec.a71xq.00.lego-behind.dtsi"
+#include "lito-sec-a71xq-pinctrl-r02.dtsi"
+#include "../lito-sec-a71-pm-r02.dtsi"
+
+&soc {
+
+};
+
+&i2c_24 {
+	gpios = <&tlmm 132 0 /* sda */
+		&tlmm 133 0 /* scl */
+	>;
+};
+
+&bluetooth {
+	qca,bt-vdd-pa-supply = <&pm8150a_l10>;
+};
+
+/ {
+	model = "Samsung A71XQ PROJECT REV02";
+	qcom,board-id = <8 2>;
+	dtbo-version = <0>;
+};

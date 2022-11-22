@@ -1,0 +1,13 @@
+config CHARGER_PCA9468
+	tristate "PCA9468 charger driver"
+	default n
+	depends on DIRECT_CHARGING
+	help
+	  Say Y here to enable support for the PCA9468 charger
+
+config SEND_PDMSG_IN_PPS_REQUEST_WORK
+	tristate "PCA9468 send pdmsg in request work"
+	default n
+	depends on CHARGER_PCA9468
+	help
+	  Say Y here to send pdmsg in request work for non mcu pdic

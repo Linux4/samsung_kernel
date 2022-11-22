@@ -1,0 +1,36 @@
+&smd {
+	sec_wf_thermistor: sec_thermistor@2 {
+		compatible = "samsung,sec-thermistor";
+		status = "okay";
+		thermistor_name = "sec-wf-thermistor";
+		id = <2>;
+
+		io-channels = SEC_ADC(pm8150_vadc,78);
+		io-channel-names = "wf_therm";
+		io-channel-ranges;
+	};
+};
+
+&pm8150_vadc {
+	wf_therm {
+		reg = SEC_ADC_NUM(pm8150_vadc,78);
+		label = "wf_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+		qcom,decimation = <840>;
+		qcom,avg-samples = <8>;
+	};
+};
+
+#if 0
+&pm8150_vadc {
+	wf_therm {
+		/delete-property/ qcom,decimation;
+		/delete-property/ qcom,avg-samples;
+
+		/* Set calib type to ADC_SCALE_HW_CALIB_DEFAULT */
+		qcom,scale-fn-type = <5>;
+	};
+};
+#endif

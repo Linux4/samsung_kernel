@@ -1,0 +1,58 @@
+&pm8150l_gpios {
+	if_pmic_irq: if_pmic_irq {
+		GPIO_CONFIG_PUD_DRV(PM,pm8150l_gpios,8, FUNC_INPUT, PULL_NONE, DRV_LV1);
+	};
+};
+
+&tlmm {
+	usbpd_irq: usbpd_irq {
+		GPIO_CONFIG_PUD_DRV(AP,tlmm,5, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&qupv3_se11_i2c {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	samsung,i2c-max-bus-freq = <400000>;
+	s2mu107@3A{
+		status = "okay";
+		compatible = "samsung,s2mu107mfd";
+		reg = <0x3A>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&if_pmic_irq>;
+		s2mu107,irq-gpio = <SEC_GPIO_REF(PM,pm8150l_gpios,8) 1>;
+		s2mu107,wakeup;
+	};
+
+	usbpd-s2mu107@3C {
+		status = "okay";
+		compatible = "s2mu107-usbpd";
+		reg = <0x3C>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usbpd_irq>;
+		usbpd,usbpd_int = <SEC_GPIO_REF(AP,tlmm,5) 0>;
+
+		pdic-manager {
+			/* sink */
+			pdic,max_power = <5000>;
+			pdic_op_power = <2500>;
+			pdic_max_voltage = <6000>;
+			pdic_max_current = <2000>;
+			pdic,min_current = <500>;
+
+			pdic,giveback = <0>;
+			pdic,usb_com_capable = <1>;
+			pdic,no_usb_suspend = <1>;
+
+			/* source */
+			source,max_voltage = <5000>;
+			source,min_voltage = <4000>;
+			source,max_power = <2500>;
+
+			/* sink cap */
+			sink,capable_max_voltage = <5000>;
+		};
+	};
+};
+

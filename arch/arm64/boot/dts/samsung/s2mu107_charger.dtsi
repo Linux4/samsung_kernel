@@ -1,0 +1,13 @@
+
+&smd {
+	s2mu107-charger {
+		status = "disable";
+		compatible = "samsung,s2mu107-charger";
+	};
+
+	s2mu107-direct-charger {
+		status = "enable";
+		dc,direct_charger_name = "s2mu107-direct-charger";
+	};
+};
+

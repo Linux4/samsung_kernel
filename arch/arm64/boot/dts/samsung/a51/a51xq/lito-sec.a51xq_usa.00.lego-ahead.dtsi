@@ -1,0 +1,28 @@
+/* Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include "../../../vendor/qcom/lito-mtp.dtsi"
+
+#include "../../lito-sec-common.dtsi"
+#include "../../lito-sec-pm7250b-common.dtsi"
+#include "../../lito-sec-dcc-common.dtsi"
+
+#include "../lito-sec-a51-common.dtsi"
+#include "../lito-sec-a51-pm-common.dtsi"
+#include "../lito-sec-a51-pinctrl-common.dtsi"
+
+#include "../lito-sec-a51-audio-common.dtsi"
+#include "../lito-sec-a51-audio-pinctrl-common.dtsi"
+#include "../lito-sec-a51-input-common.dtsi"
+#include "../lito-sec-a51-s2mu107-common.dtsi"
+#include "../lito-sec-a51xq-camera-sensor-r00.dtsi"
