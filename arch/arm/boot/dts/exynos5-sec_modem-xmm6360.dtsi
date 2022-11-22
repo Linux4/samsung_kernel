@@ -1,0 +1,132 @@
+/*
+ * SAMSUNG universal5422 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/ {
+	/* modem_interface_driver: 3G */
+	mif_pdata {
+		mif,name = "xmm6360";
+		mif,modem_net = <0>;
+		mif,modem_type = <1>;
+		mif,link_types = <0x20>;
+		mif,use_handover = <0>;
+		mif,ipc_version = <50>;
+		mif,num_iodevs = <12>;
+
+		mif,max_link_channel = <7>;
+		mif,max_acm_channel = <3>;
+		mif,max_tx_qlen = <50>;
+
+		iodevs {
+			io_device_0 {
+				iod,name = "umts_ipc0";
+				iod,id = <235>;
+				iod,format = <0>;
+				iod,io_type = <0>;
+				iod,links = <0x20>;
+				iod,attr = <0x42>;
+			};
+			io_device_1 {
+				iod,name = "umts_rfs0";
+				iod,id = <245>;
+				iod,format = <2>;
+				iod,io_type = <0>;
+				iod,links = <0x20>;
+				iod,attr = <0x62>;
+			};
+			io_device_2 {
+				iod,name = "umts_boot0";
+				iod,id = <0>;
+				iod,format = <4>;
+				iod,io_type = <0>;
+				iod,links = <0x20>;
+				iod,attr = <0>;
+			};
+			io_device_3 {
+				iod,name = "multipdp";
+				iod,id = <0>;
+				iod,format = <5>;
+				iod,io_type = <2>;
+				iod,links = <0x20>;
+				iod,attr = <0x42>;
+			};
+			io_device_4 {
+				iod,name = "umts_router";
+				iod,id = <25>;
+				iod,format = <1>;
+				iod,io_type = <0>;
+				iod,links = <0x20>;
+				iod,attr = <0x42>;
+			};
+			io_device_5 {
+				iod,name = "umts_csd";
+				iod,id = <1>;
+				iod,format = <1>;
+				iod,io_type = <0>;
+				iod,links = <0x20>;
+				iod,attr = <0x42>;
+			};
+			io_device_6 {
+				iod,name = "umts_dm0";
+				iod,id = <28>;
+				iod,format = <1>;
+				iod,io_type = <0>;
+				iod,links = <0x20>;
+				iod,attr = <0>;
+			};
+			io_device_7 {
+				iod,name = "umts_log";
+				iod,id = <27>;
+				iod,format = <4>;
+				iod,io_type = <0>;
+				iod,links = <0x20>;
+				iod,attr = <0>;
+			};
+			io_device_8 {
+				iod,name = "rmnet0";
+				iod,id = <10>;
+				iod,format = <7>;
+				iod,io_type = <1>;
+				iod,links = <0x20>;
+				iod,attr = <0x4>;
+			};
+			io_device_9 {
+				iod,name = "rmnet1";
+				iod,id = <11>;
+				iod,format = <7>;
+				iod,io_type = <1>;
+				iod,links = <0x20>;
+				iod,attr = <0x4>;
+			};
+			io_device_10 {
+				iod,name = "rmnet2";
+				iod,id = <12>;
+				iod,format = <7>;
+				iod,io_type = <1>;
+				iod,links = <0x20>;
+				iod,attr = <0x4>;
+			};
+			io_device_11 {
+				iod,name = "rmnet3";
+				iod,id = <13>;
+				iod,format = <7>;
+				iod,io_type = <1>;
+				iod,links = <0x20>;
+				iod,attr = <0x4>;
+			};
+		}; /* end of iodevs */
+	}; /* end of mif_pdata */
+
+	/* modem_interface_driver: 3G */
+	linkpm_pdata {
+		linkpm,name = "link_pm";
+		linkpm,port = <1>;
+	};
+};

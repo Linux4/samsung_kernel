@@ -1,0 +1,154 @@
+#
+# Near Field Communication (NFC) devices
+#
+
+menu "Near Field Communication (NFC) devices"
+	depends on NFC
+
+config NFC_PN547
+	bool "NXP PN547 NFC Controller Driver"
+	depends on I2C
+	default n
+	help
+	  NXP PN547 Near Field Communication controller support.
+	  This option enables device driver support for the NFC.
+	  It is used by many services. NFC is fully controlled using I2C
+	  to communicate the AP chip.
+
+config NFC_PN547_CLOCK_REQUEST
+	bool "NXP PN547 NFC Controller Driver"
+	depends on I2C
+	default n
+	help
+	  NXP PN547 Near Field Communication controller support.
+	  This option enables internal clock in AP support for the NFC.
+
+config NFC_PN533
+	tristate "NXP PN533 USB driver"
+	depends on USB
+	help
+	  NXP PN533 USB driver.
+	  This driver provides support for NFC NXP PN533 devices.
+
+	  Say Y here to compile support for PN533 devices into the
+	  kernel or say M to compile it as module (pn533).
+
+config NFC_WILINK
+	tristate "Texas Instruments NFC WiLink driver"
+	depends on TI_ST && NFC_NCI
+	help
+	  This enables the NFC driver for Texas Instrument's BT/FM/GPS/NFC
+	  combo devices. This makes use of shared transport line discipline
+	  core driver to communicate with the NFC core of the combo chip.
+
+	  Say Y here to compile support for Texas Instrument's NFC WiLink driver
+	  into the kernel or say M to compile it as module.
+
+config NFC_MEI_PHY
+	tristate "MEI bus NFC device support"
+	depends on INTEL_MEI && NFC_HCI
+	help
+	  This adds support to use an mei bus nfc device. Select this if you
+	  will use an HCI NFC driver for an NFC chip connected behind an
+	  Intel's Management Engine chip.
+
+	  If unsure, say N.
+
+config NFC_PN65N
+	tristate "PN65N NFC driver"
+	depends on I2C
+	select CRC_CCITT
+	default n
+	---help---
+	  Say yes if you want PN65N Near Field Communication driver.
+	  This is for i2c connected version. If unsure, say N here.
+
+	  To compile this driver as a module, choose m here. The module will
+	  be called pn65n.
+
+
+source "drivers/nfc/pn544/Kconfig"
+source "drivers/nfc/microread/Kconfig"
+
+config SEC_NFC_I2C
+	bool "SEC NFC driver"
+	default n
+	help
+	  SAMSUNG NFC Driver.
+	  This driver provides support for SAMSUNG NFC products.
+	  You should select your NFC product and interface.
+
+	  Say Y here to compile support for SAMSUNG NFC driver into the
+	  kernel.
+
+config SEC_NFC
+	bool "Samsung NFC driver"
+	default n
+	help
+	  SAMSUNG NFC Driver.
+	  This driver provides support for SAMSUNG NFC products.
+	  You should select your NFC product and interface.
+
+	  Say Y here to compile support for SAMSUNG NFC driver into the
+	  kernel.
+
+choice
+	prompt "SEC NFC Products"
+	depends on SEC_NFC
+	default SEC_NFC_PRODUCT_N5
+config SEC_NFC_PRODUCT_N3
+	bool "N3"
+config SEC_NFC_PRODUCT_N5
+	bool "N5"
+endchoice
+
+choice
+	prompt "SEC NFC Interface"
+	depends on SEC_NFC
+	default SEC_NFC_IF_I2C
+config SEC_NFC_IF_UART
+	bool "UART"
+config SEC_NFC_IF_I2C
+	bool "I2C"
+config SEC_NFC_IF_I2C_GPIO
+	bool "I2C-GPIO (S/W-I2C)"
+	select I2C_ALGOBIT
+endchoice
+
+config SEC_NFC_CLK_REQ
+	bool "SEC NFC CLK REQ"
+	default n
+	help
+	  SAMSUNG NFC CLR REQ feature.
+	  This feature provides support for SAMSUNG NFC products.
+	  You should select this feature if your NFC product uses AP CLK.
+
+	  Say Y here to compile support for SAMSUNG NFC CLK REQ feature into the
+	  kernel.
+
+config SEC_NFC_MARGINTIME
+	bool "SEC NFC MARGINTIME"
+	default n
+	help
+	  SAMSUNG SEC NFC MARGINTIME feature.
+	  This feature provides support for SAMSUNG NFC products.
+	  You should select this feature if your NFC product uses AVDD Cap 10uF .
+
+	  Say Y here to compile support for SAMSUNG SEC NFC MARGINTIME feature into the
+	  kernel.
+
+config SEC_NFC_LDO_CONTROL
+	bool "SEC NFC LDO CONTROL"
+	depends on SEC_NFC
+	default n
+	help
+	  SAMSUNG SEC NFC LDO CONTROL feature.
+	  This feature provides support for SAMSUNG NFC products.
+	  You should select this feature if your NFC product uses ldo control of i2c.
+
+	  Say Y here to compile support for SEC NFC LDO CONTROL feature into the
+	  kernel.
+
+source "drivers/nfc/secnfc/Kconfig"
+
+endmenu

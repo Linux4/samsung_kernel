@@ -1,0 +1,47 @@
+#
+# (C) COPYRIGHT 2012 ARM Limited. All rights reserved.
+#
+# This program is free software and is provided to you under the terms of the GNU General Public License version 2
+# as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
+#
+# A copy of the licence is included with the program, and can also be obtained from Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+#
+#
+
+#
+# T6XX configs
+# (5430)
+#
+obj-$(CONFIG_MALI_MIDGARD_WK04) += midgard_wk04/
+
+ifeq ($(CONFIG_MALI_T6XX),y)
+	ifeq ($(CONFIG_MALI_T6XX_R7P0),y)
+		obj-y += t6xx/r7p0/
+	endif
+	ifeq ($(CONFIG_MALI_T6XX_R12P0),y)
+		obj-y += t6xx/r12p0/
+	endif
+	ifeq ($(CONFIG_MALI_T6XX_R15P0),y)
+		obj-y += t6xx/r15p0/
+	endif
+endif
+
+#
+# T7XX configs
+# (5433)
+#
+ifeq ($(CONFIG_MALI_T7XX),y)
+	ifeq ($(CONFIG_MALI_R5P0),y)
+		obj-y += t7xx/r5p0/
+	endif
+	ifeq ($(CONFIG_MALI_R7P0),y)
+		obj-y += t7xx/r7p0/
+	endif
+	ifeq ($(CONFIG_MALI_R12P0),y)
+		obj-y += t7xx/r12p0/
+	endif
+	ifeq ($(CONFIG_MALI_R15P0),y)
+		obj-y += t7xx/r15p0/
+	endif
+endif

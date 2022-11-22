@@ -1,0 +1,11 @@
+config 2MIC_AUDIENCE_ES325
+	bool "Audience ES325 driver"
+	default n
+	help
+	  This is Audience voice solution devices.
+	  The chip version is ES325.
+
+config SND_CODEC_CONTROL_MCLK
+	bool "Audience ES325 doesn't control MCLK"
+	default n
+	depends on 2MIC_AUDIENCE_ES325
