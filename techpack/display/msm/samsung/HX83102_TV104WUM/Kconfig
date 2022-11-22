@@ -1,0 +1,6 @@
+config  PANEL_HX83102_TV104WUM_WUXGA
+	depends on DISPLAY_SAMSUNG
+	bool "HIMAX HX83102 TDDI"
+	default n
+	---help---
+	HIMAX HX83102 TDDI 1200_2000 Tabs7+Lite Bringup

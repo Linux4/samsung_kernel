@@ -1,0 +1,12 @@
+config SEC_GTS7XLLITEWIFI_PROJECT
+        default n
+        bool "Samsung GTS7XLLITEWIFI Project"
+        help
+          Support for Samsung GTS7XLLITEWIFI Project
+
+config MACH_GTS7XLLITEWIFI_EUR_OPEN
+        default n
+        bool "Samsung GTS7XLLITEWIFI EUR OPEN"
+        help
+          Support for Samsung GTS7XLLITEWIFI EUR OPEN device.
+
