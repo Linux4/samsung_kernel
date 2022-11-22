@@ -1,0 +1,101 @@
+<?xml version='1.0' encoding='UTF-8'?>
+
+<manifest>
+  <remote name="aosp" fetch="https://android.googlesource.com/" review="https://android.googlesource.com/" />
+
+  <default revision="master" remote="aosp" sync-j="4" />
+
+  <superproject name="kernel/superproject" remote="aosp" />
+
+  <project path="prebuilts/kernel-build-tools" name="kernel/prebuilts/build-tools" clone-depth="1" revision="88571ae2956a14e9eccf60852c76a117abbbfaae" />
+
+  <project path="build/blueprint" name="platform/build/blueprint" revision="1c3530ab58ba03eb210a5eecdee7fe9969eaa0ee" />
+
+  <project path="build/make" name="platform/build" groups="pdk" revision="fb36e1314723a7812dc83c07956cb9550c145856">
+    <linkfile dest="build/tools" src="tools" />
+</project>
+
+  <project path="build/soong" name="platform/build/soong" revision="503e3a10b221506987aa94be75f7699ac680c219">
+    <linkfile dest="Android.bp" src="root.bp" />
+
+    <linkfile dest="bootstrap.bash" src="bootstrap.bash" />
+</project>
+
+  <project path="external/golang-protobuf" name="platform/external/golang-protobuf" revision="36730171d1fa4a234c98eb51b497673badaa3d3d" />
+
+  <project path="prebuilts/clang/host/linux-x86" name="platform/prebuilts/clang/host/linux-x86" groups="linux" clone-depth="1" revision="25167e0ae2e8829c7f766b413a21f557076d2c1f" />
+
+  <project path="prebuilts/build-tools" name="platform/prebuilts/build-tools" clone-depth="1" revision="8d48ac9b21ef0de09625bef682409d972fc25567" />
+
+  <project path="prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8" name="platform/prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8" clone-depth="1" revision="5c50d9486dca1adc26e09981f8a8898cff7c835a" />
+
+  <project path="prebuilts/go/linux-x86" name="platform/prebuilts/go/linux-x86" groups="linux" clone-depth="1" revision="f3afab40c467048622f8dd04251942af8f1b6a8f" />
+
+  <project path="prebuilts/ninja/linux-x86" name="platform/prebuilts/ninja/linux-x86" groups="linux" clone-depth="1" revision="6369b19fc3fbe765636af75d394627e2b92599ed" />
+
+  <project path="bionic" name="platform/bionic" revision="7332139c65ef2361f2e9c90f4cff386cf4735b65" />
+
+  <project path="external/boringssl" name="platform/external/boringssl" revision="0a15b5fe2a844072a06926bf49176f46b0b15c00" />
+
+  <project path="external/dwarves" name="platform/external/dwarves" revision="2d4e4e82dbd70a5c07c507f0b613834dc07f163f" />
+
+  <project path="external/e2fsprogs" name="platform/external/e2fsprogs" revision="573989abdc6bda2eea91609922d66a4fa6482fae" />
+
+  <project path="external/elfutils" name="platform/external/elfutils" revision="192e0da54058ac63f521a62e94ef88a238955b53" />
+
+  <project path="external/expat" name="platform/external/expat" revision="1b8ae6d364976f4421af3f1063fb8ac59cb74abe" />
+
+  <project path="external/fmtlib" name="platform/external/fmtlib" revision="c8cf8c4af6dc537f5debc6f8eb186955a7a2479b" />
+
+  <project path="external/go-cmp" name="platform/external/go-cmp" groups="pdk" revision="3debcec77921606819d271cf6d708c39d0690ccc" />
+
+  <project path="external/icu" name="platform/external/icu" revision="f7c68b42d3b7b7700d1c103cb9552d3cbcf8ea74" />
+
+  <project path="external/libbpf" name="platform/external/libbpf" revision="0c2054ec73d65961fe8d605caefaf7deb66c755c" />
+
+  <project path="external/libabigail" name="platform/external/libabigail" revision="9e28c6258f0e74945cc5d4f2735dbae8cedb3af9" />
+
+  <project path="external/libcxx" name="platform/external/libcxx" revision="e8660a008bc2e2ac61e71dae9e5469bd6aa45780" />
+
+  <project path="external/libcxxabi" name="platform/external/libcxxabi" revision="f73a312a368e719c3a7e7b333c8c69694f1daff6" />
+
+  <project path="external/libxml2" name="platform/external/libxml2" revision="112dac19f144cc4923cc16ca357aadd5488c2a0a" />
+
+  <project path="external/pcre" name="platform/external/pcre" revision="465fb3954c063a938aafdec7ed9a15b3cd196086" />
+
+  <project path="external/python/cpython2" name="platform/external/python/cpython2" revision="7f55bcf5653b501996ac87fcdbd4bc9093f0391c" />
+
+  <project path="external/python/cpython3" name="platform/external/python/cpython3" revision="24cdfe16599af4bed00f790584d696493c45afab" />
+
+  <project path="external/selinux" name="platform/external/selinux" revision="fafcdea284cd3f75f53107fe76ca7c90d2d89421" />
+
+  <project path="external/sqlite" name="platform/external/sqlite" revision="c229fe554ca97de1a1e7166ce0b24376e0efec96" />
+
+  <project path="external/starlark-go" name="platform/external/starlark-go" revision="87b79b8fa614be3418297c530db0a30fc0cbddb8" />
+
+  <project path="external/swig" name="platform/external/swig" revision="0ffab894f917fcbbd031eaab870fbabaefe5daaa" />
+
+  <project path="external/zlib" name="platform/external/zlib" revision="548029fd745120788862bd9b718f53e080ab6d3e" />
+
+  <project path="prebuilts/clang-tools" name="platform/prebuilts/clang-tools" clone-depth="1" revision="2f1893e9344ad2ff541d925351c7c7ea73d9911f" />
+
+  <project path="system/core" name="platform/system/core" revision="2359145f4c64f2eaccf267dc6a72d401392f56cd" />
+
+  <project path="system/logging" name="platform/system/logging" revision="ddfe72cda0a854bebf01c3f7e6c841611a25b557" />
+
+  <project path="system/extras" name="platform/system/extras" revision="0381f85a1d270ba698374cf3ad8c1a9f81eb2960" />
+
+  <project path="system/libbase" name="platform/system/libbase" revision="a211423cd63c054667c9fa830fbd3cefe3ed62b5" />
+
+  <project path="system/tools/aidl" name="platform/system/tools/aidl" revision="91d92491abebb963561b96fc76963624ffbdb517" />
+
+  <project path="external/avb" name="platform/external/avb" revision="b4a181f1ae3e9c146b05db6cfd71770aa4d423cb" />
+
+  <project path="external/dtc" name="platform/external/dtc" revision="678be469e36bd0728e907c5a764b345018b1e211" />
+
+  <project path="external/lz4" name="platform/external/lz4" revision="2fdb46f02616301a2a34da818e58fa44f12696cf" />
+
+  <project path="external/kmod" name="platform/external/kmod" revision="c9f9833121b0a9af436a58a7c9690d029d446d53" />
+
+  <project path="tools/libufdt" name="platform/system/libufdt" revision="01856f80fb3561ac21159189a3cf0618ba16eef8" />
+</manifest>
