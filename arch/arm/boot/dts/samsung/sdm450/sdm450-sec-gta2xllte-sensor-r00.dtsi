@@ -1,0 +1,284 @@
+/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	tlmm: pinctrl@1000000 {
+		acc_int: acc_int {
+			mux {
+				pins = "gpio42";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio42";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		sensor_i2c: sensor_i2c {
+			mux {
+				pins = "gpio18", "gpio19";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio18", "gpio19";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		light_i2c: light_i2c {
+			mux {
+				pins = "gpio68", "gpio69";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio68", "gpio69";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		grip_int: grip_int {
+			mux {
+				pins = "gpio86";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio86";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		grip_sub_int: grip_sub_int {
+			mux {
+				pins = "gpio43";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio43";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		grip_i2c: grip_i2c {
+			mux {
+				pins = "gpio24", "gpio25";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio24", "gpio25";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		grip_wifi_int: grip_wifi_int {
+			mux {
+				pins = "gpio61";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio61";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		grip_wifi_i2c: grip_wifi_i2c {
+			mux {
+				pins = "gpio64", "gpio65";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio64", "gpio65";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};		
+	};
+
+	i2c_24: i2c@24 { /* SW I2C */
+		cell-index = <24>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 18 0 /* sda */
+			&tlmm 19 0 /* scl */
+		>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sensor_i2c>;
+
+		lsm6dsl@6b {
+			compatible = "st,lsm6dsl";
+			reg = <0x6b>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&acc_int>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <42 0>;
+			st,orientation = <1 2 1 2 1 1 1 1 0>;
+			st,drdy-int-pin = <1>;
+			st,irq_gpio = <&tlmm 42 0x00>;
+		};
+
+		yas539@2e {
+			compatible = "yas_magnetometer";
+			reg = <0x2e>;
+			yas,orientation = <5>;
+			yas,softiron = <10200 200 80 200 9780 80 80 80 10020>;
+			yas,softiron_sign = <2 2 0 2 2 0 0 0 2>;
+		};
+	};
+
+	i2c_25: i2c@25 { /* SW I2C */
+		cell-index = <25>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 68 0 /* sda */
+			&tlmm 69 0 /* scl */
+		>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&light_i2c>;
+
+		cm3323@10 {
+			compatible = "cm3323-i2c";
+			reg = <0x10>;
+			cm3323-i2c,vdd-supply = <&pm8953_l10>;
+		};
+	};
+
+	i2c_26: i2c@26 { /* SW I2C */
+		cell-index = <26>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 24 0 /* sda */
+			&tlmm 25 0 /* scl */
+		>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_i2c>;
+
+		/*MAIN1 GRIP SENSOR - CS2 is grounded*/
+		sx9320-i2c@2c {
+			compatible = "sx9320";
+			reg = <0x2c>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&grip_int>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <86 0>;
+
+			sx9320,nirq-gpio = <&tlmm 86 0x00>;
+			/* only phase 3 enable */
+			sx9320,phen = <0x03>;
+			sx9320,gain = <0x01>;
+			sx9320,again = <0x08>;
+			sx9320,scan_period = <0x11>;
+			sx9320,range = <0x00>;
+			sx9320,sampling_freq = <0x01>;
+			sx9320,resolution = <0x07>;
+			sx9320,rawfilt = <0x02>;
+			sx9320,hyst = <0x01>;
+			sx9320,avgposfilt = <0x04>;
+			sx9320,avgnegfilt = <0x01>;
+			sx9320,avgthresh = <0x20>;
+			sx9320,debouncer = <0x01>;
+			sx9320,normal_thd = <0x22>;
+			sx9320,normal_thd_ta = <0x28>;
+			sx9320,afeph0 = <0x00>;
+			sx9320,afeph1 = <0x00>;
+			sx9320,afeph2 = <0x00>;
+			sx9320,afeph3 = <0x04>;
+		};
+
+		/*MAIN2 GRIP SENSOR - CS2 is opened*/
+		sx9320_sub-i2c@28 {
+			compatible = "sx9320_sub";
+			reg = <0x28>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&grip_sub_int>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <43 0>;
+
+			sx9320,nirq-gpio = <&tlmm 43 0x00>;
+			/* only phase 3 enable */
+			sx9320,phen = <0x03>;
+			sx9320,gain = <0x02>;
+			sx9320,again = <0x08>;
+			sx9320,scan_period = <0x11>;
+			sx9320,range = <0x00>;
+			sx9320,sampling_freq = <0x02>;
+			sx9320,resolution = <0x07>;
+			sx9320,rawfilt = <0x02>;
+			sx9320,hyst = <0x01>;
+			sx9320,avgposfilt = <0x04>;
+			sx9320,avgnegfilt = <0x01>;
+			sx9320,avgthresh = <0x20>;
+			sx9320,debouncer = <0x01>;
+			sx9320,normal_thd = <0x14>;
+			sx9320,normal_thd_ta = <0x28>;
+			sx9320,afeph0 = <0x00>;
+			sx9320,afeph1 = <0x00>;
+			sx9320,afeph2 = <0x00>;
+			sx9320,afeph3 = <0x04>;			
+		};
+	};
+
+	i2c_27: i2c@27 { /* SW I2C */
+		cell-index = <27>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 64 0 /* sda */
+			&tlmm 65 0 /* scl */
+		>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_wifi_i2c>;
+
+		sx9320_wifi-i2c@28 {
+			compatible = "sx9320_wifi";
+			reg = <0x28>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&grip_wifi_int>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <61 0>;
+
+			sx9320,nirq-gpio = <&tlmm 61 0x00>;
+			/* only phase 3 enable */
+			sx9320,phen = <0x03>;
+			sx9320,gain = <0x01>;
+			sx9320,again = <0x08>;
+			sx9320,scan_period = <0x16>;
+			sx9320,range = <0x00>;
+			sx9320,sampling_freq = <0x00>;
+			sx9320,resolution = <0x07>;
+			sx9320,rawfilt = <0x01>;
+			sx9320,hyst = <0x01>;
+			sx9320,avgposfilt = <0x04>;
+			sx9320,avgnegfilt = <0x01>;
+			sx9320,avgthresh = <0x20>;
+			sx9320,debouncer = <0x01>;
+			sx9320,normal_thd = <0x1A>;
+			sx9320,normal_thd_ta = <0x28>;
+			sx9320,afeph0 = <0x00>;
+			sx9320,afeph1 = <0x00>;
+			sx9320,afeph2 = <0x00>;
+			sx9320,afeph3 = <0x04>;			
+		};
+	};
+};

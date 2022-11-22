@@ -1,0 +1,183 @@
+/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	tlmm: pinctrl@1000000 {
+		sensor_i2c_active {
+			sensor_i2c_active: sensor_i2c_active {
+				mux {
+					pins = "gpio20",  "gpio21";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio20", "gpio21";
+					bias-disable;
+				};
+			};
+		};
+
+		acc_sensor_int {
+			acc_int_active: acc_int_active {
+				mux {
+					pins = "gpio42";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio42";
+					bias-disable; /* No PULL */
+				};
+			};
+		};
+		
+		grip_i2c_pin {
+			grip_i2c_active: grip_i2c_active {
+				mux {
+					pins = "gpio44",  "gpio45";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio44",  "gpio45";
+					bias-disable;
+				};
+			};
+		};
+
+		grip_int_pin {
+			grip_int_active: grip_int_active {
+				mux {
+					pins = "gpio25";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio25";
+					bias-disable; /* No PULL */
+				};
+			};
+		};
+
+		grip_wifi_int_pin {
+			grip_wifi_int_active: grip_wifi_int_active {
+				mux {
+					pins = "gpio126";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio126";
+					bias-disable; /* No PULL */
+				};
+			};
+		};
+
+		grip_sub_int_pin {
+			grip_sub_int_active: grip_sub__int_active {
+				mux {
+					pins = "gpio97";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio97";
+					bias-disable; /* No PULL */
+				};
+			};
+		};
+	};
+
+	i2c_22: i2c@22 { /* SW I2C */
+		cell-index = <22>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 20 0 /* sda */
+			&tlmm 21 0 /* scl */
+			>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		lis2ds@1D {
+			compatible = "st,lis2ds";
+			reg = <0x1D>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&acc_int_active &sensor_i2c_active>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <42 0>;
+			st,irq_gpio = <&tlmm 42 0>;
+			st,orientation = <2 1 1 1 2 1 1 1 0>;
+		};
+	};
+
+	i2c_23: i2c@23 { /* SW I2C */
+		cell-index = <23>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 44 0 /* sda */
+			&tlmm 45 0 /* scl */
+			>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_i2c_active>;
+
+		a96t3x6@20{
+			compatible = "a96t3x6";
+			reg = <0x20>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&grip_int_active>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <25 0>;
+			a96t3x6,irq_gpio = <&tlmm 25 0x00>;
+			a96t3x6,dvdd_vreg_name = "pm8917_l15";
+			a96t3x6,fw_path = "abov/a96t326_gtesy18lte_hw_rev00.fw";
+			a96t3x6,chipid = "A96T326";
+			a96t3x6,firmup_cmd = <0x32>;
+		};
+
+		a96t3x6_wifi@21{
+			compatible = "a96t3x6_wifi";
+			reg = <0x21>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&grip_wifi_int_active>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <126 0>;
+			a96t3x6,irq_gpio = <&tlmm 126 0x00>;
+			a96t3x6,dvdd_vreg_name = "pm8917_l15";
+			a96t3x6,fw_path = "abov/a96t326_gtesy18wifi_hw_rev00.fw";
+			a96t3x6,chipid = "A96T326_WIFI";
+			a96t3x6,firmup_cmd = <0x32>;
+		};
+
+		a96t3x6_sub@23{
+			compatible = "a96t3x6_sub";
+			reg = <0x23>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&grip_sub_int_active>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <97 0>;
+			a96t3x6,irq_gpio = <&tlmm 97 0x00>;
+			a96t3x6,dvdd_vreg_name = "pm8917_l15";
+			a96t3x6,fw_path = "abov/a96t326_gtesy18sub_hw_rev00.fw";
+			a96t3x6,chipid = "A96T326_SUB";
+			a96t3x6,firmup_cmd = <0x32>;
+		};
+	};
+};
+
+&pm8917_l15 {
+	regulator-min-microvolt = <2850000>;
+	regulator-max-microvolt = <2850000>;
+	qcom,init-voltage = <2850000>;
+	status = "okay";
+};
