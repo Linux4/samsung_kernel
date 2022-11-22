@@ -1,0 +1,82 @@
+&smd {
+	sec_pa_thermistor: sec_thermistor@1 {
+		compatible = "samsung,sec-thermistor";
+		status = "okay";
+		thermistor_name = "sec-pa-thermistor";
+		id = <1>;
+
+		io-channels = SEC_ADC(pm8150_vadc,77);
+		io-channel-names = "pa_therm";
+		io-channel-ranges;
+	};
+};
+
+&pm8150_vadc {
+	pa_therm {
+		reg = SEC_ADC_NUM(pm8150_vadc,77);
+		label = "pa_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+		qcom,decimation = <840>;
+		qcom,avg-samples = <8>;
+	};
+};
+
+#if 0
+&pm8150_vadc {
+	pa_therm {
+		/delete-property/ qcom,decimation;
+		/delete-property/ qcom,avg-samples;
+
+		/* Set calib type to ADC_SCALE_HW_CALIB_DEFAULT */
+		qcom,scale-fn-type = <5>;
+	};
+};
+#endif
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/hwmon/sec_thermistor/sec_thermistor_qc.a71xq.dtsi */
+&pm8150_vadc {
+	/delete-node/ pa_therm1@4d;
+	/delete-node/ bmr_e_therm@4e;
+};
+
+&pm8150l_vadc {
+	/delete-node/ msm_skin_therm@4e;
+};
+
+&sec_ap_thermistor {
+	/* use_iio_processed; */
+	adc_array = <1875 2145 2527 2983 3533 4171 4964 5824 6803 7937 9308
+				 10685 12327 13668 15812 17502 19208 20908
+				 22341
+				 23553 24685 25630 26392>;
+	temp_array = <900 850 800 750 700 650 600 550 500 450 400
+				 350 300 250 200 150 100 50
+				 0
+				 (-50) (-100) (-150) (-200)>;
+};
+
+&sec_pa_thermistor {
+	/* use_iio_processed; */
+	adc_array = <1735 2272 2684 3175 3704 4331 5076 5998 6961 8075 9457
+				 10852 12454 13992 15934 17596 19243 21070
+				 22507
+				 23698 24775 25698 26441>;
+	temp_array = <900 850 800 750 700 650 600 550 500 450 400
+				 350 300 250 200 150 100 50
+				 0
+				 (-50) (-100) (-150) (-200)>;
+};
+
+&sec_wf_thermistor {
+	/* use_iio_processed; */
+	adc_array = <1736 2266 2616 3176 3654 4322 5087 6002 6901 8046 9359
+				 10707 12092 13572 15773 17246 18910 20919
+				 22515
+				 23721 24748 25628 26450>;
+	temp_array = <900 850 800 750 700 650 600 550 500 450 400
+				 350 300 250 200 150 100 50
+				 0
+				 (-50) (-100) (-150) (-200)>;
+};

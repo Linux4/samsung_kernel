@@ -1,0 +1,15 @@
+#include "lito-sec.a51xq_usa.01.lego-behind.dtsi"
+#include "lito-sec-a51xq-pinctrl-r02.dtsi"
+
+/* Please remove this code when you use it
+&soc {
+
+};
+*/
+
+/ {
+	model = "Samsung A51XQ PROJECT REV02";
+	qcom,board-id = <8 2>;
+	dtbo-version = <0>;
+};
+

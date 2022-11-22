@@ -1,0 +1,2 @@
+#include "lito-sec.a71xq.00.lego-ahead.dtsi"
+#include "../lito-sec-a71xq-camera-sensor-r02.dtsi"

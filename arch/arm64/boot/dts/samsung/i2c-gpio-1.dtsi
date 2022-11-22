@@ -1,0 +1,39 @@
+&tlmm {
+       gpio_i2c_1_sda {
+               gpio_i2c_1_sda_default: gpio_i2c_1_sda_default {
+                       GPIO_CONFIG_PUD_DRV(AP,tlmm,51, FUNC_INPUT, PULL_NONE, DRV_LV1);
+               };
+       };
+};
+
+&tlmm {
+       gpio_i2c_1_scl {
+               gpio_i2c_1_scl_default: gpio_i2c_1_scl_default {
+                       GPIO_CONFIG_PUD_DRV(AP,tlmm,52, FUNC_INPUT, PULL_NONE, DRV_LV1);
+               };
+       };
+};
+
+&smd {
+	/* Software I2C */
+	sw_i2c1: i2c@1 {
+		cell-index = <1>;
+		compatible = "i2c-gpio";
+		gpios = <
+			SEC_GPIO_REF(AP,tlmm,51) 0 /* SDA */
+			SEC_GPIO_REF(AP,tlmm,52) 0 /* SCL */
+			>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <
+			&gpio_i2c_1_sda_default
+			&gpio_i2c_1_scl_default
+			>;
+
+		status = "disabled";
+	};
+};
+

@@ -1,0 +1,42 @@
+
+&tlmm {
+	dc_irq_default: dc_irq_default {
+		GPIO_CONFIG_PUD(AP,tlmm,70, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+};
+
+&tlmm {
+	dc_en_default: dc_en_default {
+		GPIO_CONFIG_PUD(AP,tlmm,71, FUNC_OUTPUT_LOW, PULL_NONE);
+	};
+};
+
+&qupv3_se11_i2c {
+	status = "okay";
+
+	pca9468_charger: pca9468@57 {
+		compatible = "nxp,pca9468";
+		reg = <0x57>;
+
+		pinctrl-names = "default";
+		pinctrl-0     = <&dc_irq_default &dc_en_default>;
+
+		pca9468,irq-gpio = <SEC_GPIO_REF(AP,tlmm,70) 0>;
+		pca9468,input-current-limit = <2550000>; /* 2.55A */
+		pca9468,charging-current = <6000000>; /* 6A */
+		pca9468,input-itopoff = <500000>; /* 500mA */
+		pca9468,sense-resistance = <0>; /* 5mOhm */
+		pca9468,switching-frequency = <3>; /* 980KHz */
+		pca9468,ntc-threshold = <0>; /* disable */
+		pca9468,chg_gpio_en = <SEC_GPIO_REF(AP,tlmm,71) 0>;
+		pca9468,ta-mode = <1>; /* 2:1 charging mode */
+	};
+};
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/charger/pca9468_charger/pca9468_charger.a71xq.dtsi */
+
+&pca9468_charger {
+		pca9468,input-itopoff = <750000>; /* 750mA */
+};
+

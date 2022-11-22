@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config SENSORS
+	bool "Sensors Class Support"
+	help
+	  This option enables the sensor sysfs class in /sys/class/sensors.
+	  You'll need this to do anything useful with sensors. If unsure, say N.
+
+config SENSORS_SSC
+	bool "Enable Sensors Driver Support for SSC"
+	help
+	  Add support for sensors SSC driver.
+	  This driver is used for exercising sensors use case,
+	  time syncing with ADSP clock.
+
+config SENSORS_SX9360
+	depends on I2C
+	tristate "SX9360 driver"
+	default n
+	help
+	  Say Y here if you use sx9360.
+	  This option enables grip sensors using
+	  SemTech sx9360 device driver.
+	  Say N here if you do not use sx9360.
+#
+# grip sensors configuration
+#
+
+config SENSORS_SX9360
+	depends on I2C
+	tristate "SX9360 driver"
+	default n
+	help
+	  Say Y here if you use sx9360.
+	  This option enables grip sensors using
+	  SemTech sx9360 device driver.
+	  Say N here if you do not use sx9360.
+
+config SENSORS_SX9360_SUB
+	depends on I2C
+	tristate "SX9360 sub driver"
+	default n
+	help
+	  Say Y here if you use sx9360 sub.
+	  This option enables grip sensors using
+	  SemTech sx9360 sub device driver.
+	  Say N here if you do not use sx9360 sub.
+
+config SENSORS_SX9364
+	depends on I2C
+	tristate "SX9364 driver"
+	default n
+	help
+	  Say Y here if you use sx9364.
+	  This option enables grip sensors using
+	  SemTech sx9360 device driver.
+	  Say N here if you do not use sx9364.
+
+config SENSORS_SX9364_SUB
+	depends on I2C
+	tristate "SX9364_SUB driver"
+	default n
+	help
+	  Say Y here if you use sx9364_sub.
+	  This option enables grip sensors using
+	  SemTech sx9364_sub device driver.
+	  Say N here if you do not use sx9364_sub.

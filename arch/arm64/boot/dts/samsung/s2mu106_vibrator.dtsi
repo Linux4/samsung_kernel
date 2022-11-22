@@ -1,0 +1,57 @@
+#define EXPAND(str) #str
+#if 1
+#define PWM_CONFIG SEC_INTERFACE_REF(pwm_gpclk,0)
+
+#elif 0
+#define PWM_CONFIG SEC_INTERFACE_REF(${vibrator_pmic_pwm})
+
+#endif
+
+#if 0
+&${vib_pwm_parent} {
+	// add pinctrl for motor
+	motor_pwm {
+		haptic_pwm_active: haptic_pwm_active {
+			GPIO_CONFIG(${vib_gpio_pwm}, FUNC_PWM);
+			bias-disable;
+
+
+			power-source = <1>;
+			output-low;
+			qcom,drive-strength = <3>;
+		  };
+	};
+};
+#endif
+
+&s2mu106 {
+	s2mu106_haptic: s2mu106-haptic {
+		compatible = "sec,s2mu106-haptic";
+		status = "okay";
+#if 0
+		pinctrl-names = "default";
+		pinctrl-0 = <&haptic_pwm_active>;
+#endif
+#if defined(PWM_CONFIG)
+		pwms = <PWM_CONFIG 50000 0>;
+#endif
+		haptic,operation_mode = <2>; // 0 : ERM_I2C, 1 : ERM_GPIO, 2 : LRA 
+		haptic,motor_en = <SEC_GPIO_REF(AP,tlmm,65) 0>;
+#if 7
+		// for multi-frequency
+		haptic,multi_frequency = <7>;
+#endif
+		// frequency       alert low  mid  high  0  press release (multi_freq)
+		haptic,frequency = <1648 1200 1500 2000 1800 2000 2000>;
+		haptic,normal_ratio = <91>;
+		haptic,overdrive_ratio = <100>;
+		haptic,motor_type = EXPAND(LINEAR_1040);
+#if 550
+		haptic,temperature = <550>;
+#endif
+
+#if 67
+		haptic,high_temp_ratio = <67>;
+#endif
+	};
+};
