@@ -1,0 +1,99 @@
+/* #include "../nfc_lsi.dtsi" */                     /* From nfc_lsi.py */
+/*
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pio {
+	nfc_ven: nfc_ven {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO90__FUNC_GPIO90>;
+			output-high;
+			bias-disable;
+		};
+	};
+
+	nfc_firm: nfc_firm {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO43__FUNC_GPIO43>;
+			output-low;
+			bias-disable;
+		};
+	};
+
+	nfc_clk_req: nfc_clk_req {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO1__FUNC_GPIO1>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+
+	nfc_irq: nfc_irq {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO3__FUNC_GPIO3>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+
+	nfc_ldo_en: nfc_ldo_en {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO154__FUNC_GPIO154>;
+			output-low;
+			bias-disable;
+		};
+	};
+
+	nfc_check: nfc_check {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO52__FUNC_GPIO52>;
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	nfc_nc: nfc_nc {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO90__FUNC_GPIO90>,
+				<PINMUX_GPIO43__FUNC_GPIO43>,
+				<PINMUX_GPIO1__FUNC_GPIO1>,
+				<PINMUX_GPIO3__FUNC_GPIO3>,
+				<PINMUX_GPIO154__FUNC_GPIO154>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+};
+
+&i2c4 {
+	status = "ok";
+	clock-frequency = <400000>;
+	mediatek,use-open-drain;
+	sec-nfc@27 {
+		compatible = "sec-nfc";
+		reg = <0x27>;
+		interrupt-parent = <&pio>;
+		interrupts = <3 IRQ_TYPE_EDGE_RISING 3 0>;
+		sec-nfc,irq-gpio = <&pio 3 0>;
+		sec-nfc,ven-gpio = <&pio 90 0>;
+		sec-nfc,firm-gpio = <&pio 43 0>;
+		sec-nfc,clk_req-gpio = <&pio 1 0>;
+		sec-nfc,clk_req_wake;
+/*		nfc_pvdd-supply = <&mt_pmic_vfp_ldo_reg>;*/
+/*		sec-nfc,ldo_control;*/
+		sec-nfc,pvdd-gpio = <&pio 154 0>;
+		sec-nfc,bootloader_ver = <6>;
+		sec-nfc,check_nfc = <&pio 52 0>;
+		/*sec-nfc,irq_all_trigger;*/
+		pinctrl-names = "default", "nfc_nc";
+		pinctrl-0 = <&nfc_ven &nfc_firm &nfc_clk_req &nfc_irq &nfc_ldo_en>;
+		pinctrl-1 = <&nfc_nc>;
+	};
+};

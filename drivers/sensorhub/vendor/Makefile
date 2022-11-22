@@ -1,0 +1,1 @@
+obj-$(CONFIG_SHUB_MTK) += shub_mtk.o

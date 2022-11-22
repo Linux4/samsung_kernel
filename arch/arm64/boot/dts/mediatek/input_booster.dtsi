@@ -1,0 +1,222 @@
+/* Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&smd {
+	input_booster {
+		status = "okay";
+		compatible = "input_booster";
+		resValcount = "2";
+		max_resource_count = "3";
+		max_cluster_count = "2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* Each Cpu Cluster Start Cpu */
+		cpu_cluster_policy = "6,0";
+
+		/* < CPU, DDR > */
+		ib_release_values = "-1,16";
+
+		/* Select Allowed Resource Index Group */
+		allowed_resources = "0,1";
+
+		booster_key@1 {
+			input_booster,label = "key";
+			input_booster,type = <0>;	/* BOOSTER_DEVICE_KEY */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <200>;
+
+			/* Resource Table Sequentially identified with index
+			 * CPU's ID & Index : 0
+			 * DDR's ID & Index : 1
+			*/
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1484000 0>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@2 {
+			input_booster,label = "touchkey";
+			input_booster,type = <1>;	/* BOOSTER_DEVICE_TOUCHKEY */
+
+			/* Time table */
+			input_booster,head_time = <1>;
+			input_booster,tail_time = <300>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <0 1085000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@3 {
+			input_booster,label = "touch";
+			input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <300>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1484000 1085000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <3200 3200>;
+				};
+			};
+		};
+
+		booster_key@4 {
+			input_booster,label = "multitouch";
+			input_booster,type = <3>;	/* BOOSTER_DEVICE_MULTITOUCH */
+
+			/* Time table */
+			input_booster,head_time = <1000>;
+			input_booster,tail_time = <500>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1484000 1085000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@5 {
+			input_booster,label = "keyboard";
+			input_booster,type = <4>;	/* BOOSTER_DEVICE_KEYBOARD */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <0>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1085000 1085000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@6 {
+			input_booster,label = "MOUSE";
+			input_booster,type = <5>;	/* BOOSTER_DEVICE_MOUSE */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <300>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1484000 1085000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@7 {
+			input_booster,label = "mouse_wheel";
+			input_booster,type = <6>;	/* BOOSTER_DEVICE_MOUSE */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <0>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1484000 0>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@8 {
+			input_booster,label = "pen_hover";
+			input_booster,type = <7>;	/* BOOSTER_DEVICE_MOUSE */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <300>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1484000 1085000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
+		/* If you need to add new key type, add it this position */
+	};
+};

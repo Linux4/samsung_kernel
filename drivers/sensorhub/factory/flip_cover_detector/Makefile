@@ -1,0 +1,1 @@
+obj-y += flip_cover_detector_factory.o
