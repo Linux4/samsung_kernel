@@ -1,0 +1,181 @@
+/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	tlmm: pinctrl@1000000 {
+		acc_int: acc_int {
+			mux {
+				pins = "gpio42";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio42";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+		
+		sensor_int: sensor_int {
+			mux {
+				pins = "gpio25";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio25";
+				drive-strength = <2>;
+				bias-pull-down; /* Disable */
+			};
+		};
+
+		prox_int: prox_int {
+			mux {
+				pins = "gpio43";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio43";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		grip_int: grip_int {
+			mux {
+				pins = "gpio124";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio124";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		grip_i2c: grip_i2c {
+			mux {
+				pins = "gpio44", "gpio45";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio44", "gpio45";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+	};
+
+	i2c_4: i2c@78b8000 { /* BLSP2 QUP2 */
+
+		compatible = "qcom,i2c-msm-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr";
+		reg = <0x78b8000 0x600>;
+
+		interrupt-names = "qup_irq";
+		interrupts = <0 98 0>;
+
+		qcom,clk-freq-out = <400000>;
+		qcom,clk-freq-in  = <19200000>;
+		clock-names = "iface_clk", "core_clk";
+		clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
+
+			<&clock_gcc clk_gcc_blsp1_qup4_i2c_apps_clk>;
+
+
+		pinctrl-names = "i2c_active", "i2c_sleep";
+		pinctrl-0 = <&i2c_4_active &sensor_ldo_en_default>;
+
+		pinctrl-1 = <&i2c_4_sleep>;
+
+		qcom,noise-rjct-scl = <0>;
+		qcom,noise-rjct-sda = <0>;
+		qcom,master-id = <86>;
+
+		dmas = <&dma_blsp1 10 64 0x20000020 0x20>,
+
+			<&dma_blsp1 11 32 0x20000020 0x20>;
+
+		dma-names = "tx", "rx";
+		status = "ok";
+		
+		lsm6dsl@6b {
+			compatible = "st,lsm6dsl";
+			reg = <0x6b>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&acc_int &sensor_int>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <42 0>, <25 0>;
+			st,orientation = <2 1 1 1 2 1 1 1 2>;
+			st,drdy-int-pin = <1>;
+			st,irq_gpio = <&tlmm 42 0x00>;
+		};
+
+		yas539@2e {
+			compatible = "yas_magnetometer";
+			reg = <0x2e>;
+			yas,orientation = <6>;
+			yas,softiron = <9202 2 250 167 10709 105 123 392 10663>;
+			yas,softiron_sign = <2 0 0 0 2 0 2 0 2>;
+		};
+		
+		cm36686@60 {
+			compatible = "cm36686";
+			reg = <0x60>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&prox_int>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <43 0>;
+
+			cm36686,irq_gpio = <&tlmm 43 0>;
+
+			cm36686,default_hi_thd = <21>;
+			cm36686,default_low_thd = <15>;
+			cm36686,cancel_hi_thd = <15>;
+			cm36686,cancel_low_thd = <10>;
+			cm36686,cal_skip_adc = <9>;
+			cm36686,cal_fail_adc = <25>;
+		    cm36686,default_trim = <3>;
+			
+		    cm36686,reg_vdd-supply = <&pm8917_l17>;
+
+			cm36686,vdd_always_on = <1>;
+			cm36686,vled_same_vdd = <1>;
+		};
+	};
+	
+	i2c_26: i2c@26 { /* SW I2C */
+		cell-index = <26>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 44 0/* sda */
+			&tlmm 45 0/* scl */
+		>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		a96t3x6@20 {
+			compatible = "a96t3x6";
+			pinctrl-names = "default";
+			pinctrl-0 = <&grip_int &grip_i2c>;
+			reg = <0x20>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <124 0>;
+			a96t3x6,irq_gpio = <&tlmm 124 0>;
+			a96t3x6,ldo_en = <&tlmm 66 0>;
+			a96t3x6,fw_path = "abov/a96t346_j8plte.fw";
+			a96t3x6,chipid = "A96T346";
+			a96t3x6,firmup_cmd = <0x38>;
+		};
+	};
+};
