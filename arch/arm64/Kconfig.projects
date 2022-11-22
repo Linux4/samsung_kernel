@@ -1,0 +1,20 @@
+config SEC_F2Q_PROJECT
+	default n
+	bool "Samsung F2Q Project"
+	help
+	  Support for Samsung F2Q Project
+
+config MACH_F2Q_CHN_OPEN
+	select MACH_F2Q_USA_SINGLE
+	default n
+	bool "Samsung F2Q CHN OPEN"
+	help
+	  Support for Samsung F2Q CHN OPEN device.
+
+config MACH_F2Q_CHN_HKX
+	select MACH_F2Q_CHN_OPEN
+	default n
+	bool "Samsung F2Q CHN HKX"
+	help
+	  Support for Samsung F2Q CHN HKX device.
+
