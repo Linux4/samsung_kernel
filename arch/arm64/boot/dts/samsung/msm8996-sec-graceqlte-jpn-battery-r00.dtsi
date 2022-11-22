@@ -1,0 +1,48 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+#include "msm8996-sec-graceqlte-common-battery.dtsi"
+&soc {
+	i2c13: i2c@13 {
+		smb1351-charger@1D {
+			status = "okay";
+			compatible = "smb,smb1351-charger";
+			reg = <0x1D>;
+			smb1351-charger,irq_gpio = <&pm8994_gpios 11 0x1>;
+			smb1351-charger,chg_en = <&pm8994_gpios 16 0x0>;
+		};
+
+		bq25898s-charger@6b {
+			status = "disabled";
+		};
+	};
+
+	battery {
+		battery,charger_name = "sec-multi-charger";
+
+		battery,input_current_limit = <2000 500 500 2000 500 900 1000 500 1000 500 900 1900 1800 500 500 400 700 1300 300 1000 1500 500 1667 1000 1667 80 1800 1667 1400 1000 1000 500 1000 900 700 900 900 1000 2000 1667 2000 1667 2000 2000>;
+		battery,fast_charging_current = <2100 450 450 2100 700 1200 1000 500 1200 450 2100 1600 2100 450 450 400 700 1300 300 1000 1500 450 3000 1000 3000 80 1800 1000 1400 450 1000 500 2100 2100 2100 2100 2100 2100 3500 3000 3000 3500 3500>;
+		battery,full_check_current_1st = <300 0 0 300 300 300 300 300 300 0 300 300 300 0 0 300 300 300 300 300 300 0 300 300 300 0 300 300 300 0 300 0 300 300 300 300 300 300 300 300 300 300 300 300>;
+		battery,full_check_current_2nd = <150 0 0 150 150 150 150 150 150 0 150 150 150 0 0 150 150 150 150 150 150 0 150 150 150 0 150 150 150 0 150 0 150 150 150 150 150 150 150 150 150 150 150 150>;
+		battery,pre_afc_input_current = <1667>;
+		battery,step_charging_type = <0x9>;
+		battery,pre_afc_work_delay = <8000>;
+	};
+
+	sec-multi-charger {
+		charger,sub_charger = "smb1351-charger";
+
+		charger,is_serial = <0>;
+
+		charger,sub_charger_condition = <0x15>;
+		charger,sub_charger_condition_online = <39 41 42 43>;
+	};
+};

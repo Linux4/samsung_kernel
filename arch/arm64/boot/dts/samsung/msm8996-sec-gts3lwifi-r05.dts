@@ -1,0 +1,56 @@
+/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+
+#include "../qcom/apq8096-v3.dtsi"
+#include "../qcom/msm8996-pm8994-pm8004.dtsi"
+#include "../qcom/msm8996-mtp.dtsi"
+#include "msm8996-s2mpb02-hero.dtsi"
+#include "msm8996-sec-common.dtsi"
+#include "msm8996-sec-gts3lwifi-r05.dtsi"
+#include "msm8996-pogo-keyboard-gts3llte-common.dtsi"
+
+&slim_msm {
+	imp_list: imp_list {
+		#list-imp-cells = <3>;
+	};
+
+	tasha_codec {
+		imp-table = <&imp_list 0 18 0>,
+				 <&imp_list 19 47 4>,
+				 <&imp_list 48 105 5>,
+				 <&imp_list 106 205 7>,
+				 <&imp_list 206 455 7>,
+				 <&imp_list 456 1005 7>,
+				 <&imp_list 1006 0x7fffffff 5>;
+	};
+};
+
+/ {
+	model = "Samsung GTS3L WIFI PROJECT Rev05";
+	compatible = "qcom,apq8096-mtp", "qcom,apq8096", "qcom,mtp";
+	qcom,board-id = <8 5>;
+
+	aliases {
+		i2c3 = &i2c_3;
+		i2c1 = &i2c_1;
+		uart1 = &blsp2_uart1;
+		uart0 = &blsp1_uart2;
+		i2c8 = &i2c_8;
+		spi6 = &spi_6;
+		spi10 = &spi_10;
+		i2c2 = &i2c_2;
+		spi11 = &spi_11;
+		i2c9 = &i2c_9;
+	};
+};
