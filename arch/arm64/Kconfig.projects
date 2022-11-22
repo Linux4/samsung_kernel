@@ -1,0 +1,23 @@
+config SEC_A42XUQ_PROJECT
+        default n
+        bool "Samsung A42XUQ Project"
+        help
+          Support for Samsung A42XUQ Project
+
+config MACH_A42XUQ_USA_SINGLE
+        default n
+        bool "Samsung A42XUQ USA SINGLE"
+        help
+          Support for Samsung A42XUQ USA SINGLE device.
+
+config MACH_A42XUQ_USA_TFN
+        default n
+        bool "Samsung A42XUQ USA TFN"
+        help
+          Support for Samsung A42XUQ USA TFN device.
+
+config MACH_A42XUQ_USA_OPEN
+        default n
+        bool "Samsung A42XUQ USA OPEN"
+        help
+          Support for Samsung A42XUQ USA OPEN device.
