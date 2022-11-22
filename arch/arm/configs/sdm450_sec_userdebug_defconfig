@@ -1,0 +1,16 @@
+CONFIG_GATOR=y
+
+
+CONFIG_FIVE_DEBUG=y
+CONFIG_FIVE_SIGN_TA=y
+CONFIG_FIVE_SIGNCLIENT_PATH="/home/dpi/qb5_8814/workspace/P4_1716/buildscript/tools/signclient.jar"
+CONFIG_FIVE_PILSPLITTER_PATH="/home/dpi/qb5_8814/workspace/P4_1716/buildscript/tools/pil_splitter.py"
+
+
+CONFIG_PROCA=y
+
+
+# CONFIG_FIVE_PA_FEATURE is not set
+
+
+CONFIG_GAF_V6=y

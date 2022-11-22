@@ -1,0 +1,43 @@
+#
+# TEE Driver configuration
+#
+
+config FIVE_TEE_DRIVER
+    bool "Integrity TEE Driver"
+    depends on FIVE && QSEECOM
+    default y
+    help
+      Enable Integrity Trusted Execution Environment support
+
+config TEE_DRIVER_DEBUG
+    bool "Integrity TEE Driver Debug mode"
+    depends on FIVE_TEE_DRIVER
+    default n
+    help
+      Enable Debug mode in TEE Driver
+
+config FIVE_EARLY_LOAD_TRUSTED_APP
+    bool "Load trusted application in early boot"
+    depends on FIVE_TEE_DRIVER
+    default y
+    help
+      Enable the load of trusted application on during initialization of driver
+
+config FIVE_SIGN_TA
+    bool "Sign FIVE TA during build"
+    depends on FIVE_TEE_DRIVER
+    default n
+    help
+      FIVE TA will be signed during build. Otherwise pre-signed TA will be used.
+
+config FIVE_SIGNCLIENT_PATH
+    string "Path to signclient.jar"
+    depends on FIVE_SIGN_TA
+    help
+      Path to signclient.jar for signing FIVE TA
+
+config FIVE_PILSPLITTER_PATH
+    string "Path to pil_splitter.py"
+    depends on FIVE_SIGN_TA
+    help
+      Path to pil_splitter.py for preparaing TA to signing
