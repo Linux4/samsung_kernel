@@ -1,0 +1,12 @@
+#
+#  TOUCH driver configuration
+#
+
+config TOUCHSCREEN_CYTTSP5
+	tristate "cypress Touchscreen Interface"
+	depends on I2C
+	default n
+	help
+	  Say Y here if tou want support for cypress touchscreen controllers.
+	  To compile this driver as a module, choose M here: the
+	  module will be called cypress	  
