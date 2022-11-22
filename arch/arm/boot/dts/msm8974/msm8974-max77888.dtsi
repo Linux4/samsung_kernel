@@ -1,0 +1,33 @@
+/* Copyright (c) 2013, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	i2c@f9965000 {
+		sec-fuelgauge@36 {
+			compatible = "sec-fuelgauge,i2c";
+			reg = <0x36>;
+			fuelgauge,jig_gpio = <&msmgpio 76 0>;
+			fuelgauge,fuel_int = <&pm8941_gpios 26 0x1>;
+			fuelgauge,capacity_max = <1000>;
+			fuelgauge,capacity_max_margin = <50>;
+			fuelgauge,capacity_min = <0>;
+			fuelgauge,capacity_calculation_type = <7>;
+			fuelgauge,fuel_alert_soc = <2>;
+
+			fuelgauge,Capacity = <0x2530>;
+			fuelgauge,rcomp0 = <0x7b>;
+			fuelgauge,rcomp_charging = <0x79>;
+			fuelgauge,is_using_model_data;
+			fuelgauge,type_str = "SDI";
+		};
+	};
+};

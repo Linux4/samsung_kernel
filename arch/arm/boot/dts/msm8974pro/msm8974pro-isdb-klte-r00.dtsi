@@ -1,0 +1,44 @@
+/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+
+		 i2c@f9923000 {  /*BLSP 1*/
+		cell-index = <9>; 
+		compatible = "qcom,i2c-qup"; 
+		gpios = <&msmgpio 2 0>, /* sda */
+				<&msmgpio 3 0>; /* scl */
+		reg = <0xf9923000 0x1000>; 
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr"; 
+		interrupts = <0 95 0>;
+		interrupt-names = "qup_err_intr"; 
+		qcom,i2c-bus-freq = <400000>; 
+		qcom,i2c-src-freq = <50000000>; 
+		qcom,master-id = <86>;
+		isdb_fc8300@58 {
+			compatible = "isdb,isdb_fc8300";
+			reg = <0x58>;
+		};
+	};
+
+	isdbt_fc8300_data {
+		compatible = "isdb_fc8300_pdata";
+		qcom,isdb-gpio-pwr-en = <&expander_gpios 5 0>;
+		qcom,isdb-gpio-rst = <&expander_gpios 2 0>;
+		qcom,isdb-gpio-irq = <&msmgpio 11 0>;
+		qcom,isdb-gpio-i2c_sda = <&msmgpio 2 0>;
+		qcom,isdb-gpio-i2c_scl = <&msmgpio 3 0>;
+	};
+
+};
