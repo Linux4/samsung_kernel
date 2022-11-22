@@ -1,0 +1,18 @@
+config VIDEO_EXYNOS_FIMC_IS
+        bool "Exynos FIMC-IS (Image Subsystem) driver"
+        depends on VIDEO_EXYNOS
+        select MEDIA_EXYNOS
+        select USE_VENDER_FEATURE
+        default n
+        help
+          This is a v4l2 driver for exynos FIMC-IS device.
+
+config USE_VENDER_FEATURE
+        bool "Use vendor specific features"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Enable the vender specfic features.
+
+source "drivers/media/platform/exynos/fimc-is/sensor/Kconfig"
+source "drivers/media/platform/exynos/fimc-is/vendor/Kconfig"
