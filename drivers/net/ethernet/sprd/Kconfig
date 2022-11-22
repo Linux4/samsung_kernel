@@ -1,0 +1,10 @@
+#
+# Spreadtrum virtual Ethernet configuration
+#
+
+config SPRD_VETH
+	tristate "SPRD Virtual Ethernet on MUX"
+	default n
+	#depends on MUX
+	---help---
+		It supports Spreadtrum virtual Ethernet device on MUX.

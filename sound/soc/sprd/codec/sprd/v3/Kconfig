@@ -1,0 +1,15 @@
+config SND_SOC_SPRD_CODEC_V3
+	tristate # "Sprd-codec-v3"
+
+config SND_SOC_SPRD_AUDIO_USE_INTER_HP_PA
+	depends on SND_SOC_SPRD_CODEC_V3
+	bool "Use spreadtrum internal HeadPhone PA"
+	help
+	  Say Y if you want use sprdtrume internal headphone pa
+
+config SND_SOC_SPRD_USE_EAR_JACK_TYPE13
+	depends on SND_SOC_SPRD_CODEC_V3
+	bool "Use spreadtrum ear jack type 1 or 3"
+	help
+	  Say Y if you want to use sprdtrume ear jack type 1 or 3
+

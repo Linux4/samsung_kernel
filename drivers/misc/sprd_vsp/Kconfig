@@ -1,0 +1,5 @@
+# to add sprd vsp configs in the future
+config SPRD_VSP
+	tristate "SPRD vsp driver"
+	depends on ARCH_SC8810 || ARCH_SC8825 || ARCH_SCX35
+	default y
