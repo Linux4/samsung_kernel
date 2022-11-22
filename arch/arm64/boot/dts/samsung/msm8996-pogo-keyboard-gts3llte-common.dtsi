@@ -1,0 +1,137 @@
+/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	/* pogo keyboard */
+	i2c24: i2c@24 { /* SW I2C */
+		cell-index = <24>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 2 0 /* sda */
+			&tlmm 3 0 /* scl */
+		>;
+		i2c-gpio,delay-us = <1>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		stmpe@40 {
+			compatible = "stmpe,stmpe1801bjr";
+			reg = <0x40>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <54 0>;
+			pinctrl-names = "active_state", "suspend_state";
+			pinctrl-0 = <&keypad_int_active &keypad_i2c_active>;
+			pinctrl-1 = <&keypad_int_suspend &keypad_i2c_suspend>;
+			vddo-supply = <&pm8994_l6>;
+			stmpe,irq_gpio = <&tlmm 54 0x00>;
+			stmpe,sda_gpio = <&tlmm 2 0x00>;
+			stmpe,scl_gpio = <&tlmm 3 0x00>;
+			stmpe,block_type = <2>;		// STMPE1801_BLOCK_GPIO : 1 / STMPE1801_BLOCK_KEY : 2
+			stmpe,debounce = <0>;		// 30us : 0 / 90us : 2 / 150us : 4 / 210us : 6
+			stmpe,kpc_debounce = <10>;
+			stmpe,freq = <3>;		// 60hz : 0 / 30hz : 1 / 15hz : 2 / 275hz : 3
+			stmpe,scan_cnt = <3>;
+			stmpe,repeat = <0>;
+
+			keypad,num-rows = <8>;
+			keypad,num-columns = <10>;	//  row   colume   keycode
+			linux,keymap = <0x00000000	//   0       0     KEY_RESERVED		0
+					0x00010000	//   0       1     KEY_RESERVED		0
+					0x0002002C	//   0       2     KEY_Z		44
+					0x00030056	//   0       3     KEY_102ND		86// UK KEY
+					0x0004002F	//   0       4     KEY_V		47
+					0x00050032	//   0       5     KEY_M		50
+					0x0006006C	//   0       6     KEY_DOWN		108
+					0x00070000	//   0       7     KEY_RESERVED		0
+					0x00080039	//   0       8     KEY_SPACE		57
+					0x00090067	//   0       9     KEY_UP		103
+
+					0x010002c2	//   1       0     SIP_ON_OFF		706
+					0x0101007D	//   1       1     KEY_LEFTMETA		125
+					0x0102001E	//   1       2     KEY_A		30
+					0x0103002D	//   1       3     KEY_X		45
+					0x01040030	//   1       4     KEY_B		48
+					0x01050031	//   1       5     KEY_N		49
+					0x01060033	//   1       6     KEY_COMMA		51	
+					0x01070034	//   1       7     KEY_DOT		52
+					0x01080035	//   1       8     KEY_SLASH		53
+					0x0109001B	//   1       9     KEY_RIGHTBRACE	27
+
+					0x02000000	//   2       0     KEY_RESERVED		0
+					0x0201007A	//   2       1     KEY_HANGEUL		122
+					0x02020010	//   2       2     KEY_Q		16
+					0x0203001F	//   2       3     KEY_S		31
+					0x02040021	//   2       4     KEY_F		33
+					0x02050024	//   2       5     KEY_J		36
+					0x02060025	//   2       6     KEY_K		37
+					0x02070026	//   2       7     KEY_L		38
+					0x02080027	//   2       8     KEY_SEMICOLON	39
+					0x0209001C	//   2       9     KEY_ENTER		28
+
+					0x03000000	//   3       0     KEY_RESERVED		0
+					0x03010038	//   3       1     KEY_LEFTALT		56
+					0x0302000F	//   3       2     KEY_TAB		15
+					0x03030011	//   3       3     KEY_W		17
+					0x03040022	//   3       4     KEY_G		34
+					0x03050023	//   3       5     KEY_H		35
+					0x03060017	//   3       6     KEY_I		23
+					0x03070028	//   3       7     KEY_APOSTROPHE	40
+					0x03080019	//   3       8     KEY_P		25
+					0x0309002B	//   3       9     KEY_BACKSLASH	43// UK KEY
+
+					0x0400003A	//   4       0     KEY_CAPSLOCK		58
+					0x04010064	//   4       1     KEY_RIGHTALT		100
+					0x04020002	//   4       2     KEY_1		2
+					0x04030003	//   4       3     KEY_2		3
+					0x04040013	//   4       4     KEY_R		19
+					0x04050016	//   4       5     KEY_U		22
+					0x04060009	//   4       6     KEY_8		9
+					0x04070018	//   4       7     KEY_O		24
+					0x0408000B	//   4       8     KEY_0		11
+					0x0409002B	//   4       9     KEY_BACKSLASH	43
+
+					0x05000000	//   5       0     KEY_RESERVED		0
+					0x0501001D	//   5       1     KEY_CTRL		29
+					0x05020029	//   5       2     KEY_GRAVE		41
+					0x0503006A	//   5       3     KEY_RIGHT		106
+					0x05040014	//   5       4     KEY_T		20
+					0x05050015	//   5       5     KEY_Y		21
+					0x05060000	//   5       6     KEY_RESERVED		0
+					0x0507001A	//   5       7     KEY_LEFTBRACE	26
+					0x0508000E	//   5       8     KEY_BACKSPACE	14
+					0x0509000C	//   5       9     KEY_MINUS		12
+
+					0x06000036	//   6       0     KEY_RIGHTSHIFT	54
+					0x06010069	//   6       1     KEY_LEFT		105
+					0x06020020	//   6       2     KEY_D		32
+					0x0603002E	//   6       3     KEY_C		46
+					0x06040005	//   6       4     KEY_4		5
+					0x06050008	//   6       5     KEY_7		8
+					0x06060000	//   6       6     KEY_RESERVED		0
+					0x0607000A	//   6       7     KEY_9		10
+					0x06080004	//   6       8     KEY_3		4
+					0x06090012	//   6       9     KEY_E		18
+
+					0x0700002A	//   7       0     KEY_LEFTSHIFT	42
+					0x07010000	//   7       1     KEY_RESERVED		0
+					0x07020000	//   7       2     KEY_RESERVED		0
+					0x07030000	//   7       3     KEY_RESERVED		0
+					0x07040006	//   7       4     KEY_5		6
+					0x07050000	//   7       5     KEY_RESERVED		0
+					0x07060007	//   7       6     KEY_6		7
+					0x0707000D	//   7       7     KEY_EQUAL		13
+					0x07080000	//   7       8     KEY_RESERVED		0
+					0x07090000>;	//   7       9     KEY_RESERVED		0
+		};
+	};
+
+};
+

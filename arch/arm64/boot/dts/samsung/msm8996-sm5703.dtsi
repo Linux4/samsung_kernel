@@ -1,0 +1,203 @@
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+        muic {
+                status = "okay";
+		muic,support-list = "+OTG:GND",
+				"-MHL:1K",
+				"-VZW Accessory:28.7K",
+				"-VZW Incompatible:34K",
+				"+RDU TA:40.2K",
+				"+HMT:49.9K",
+				"-Audiodock:64.9K",
+				"-USB LANHUB:80.07K",
+				"-Charging Cable:102K",
+				"+Game Pad:121K",
+				"+Jig USB Off:255K",
+				"+Jig USB On:301K",
+				"+Deskdock:365K",
+				"-TYPE2 Charger:442K",
+				"+Jig UART Off:523K",
+				"+Jig UART On:619K",
+				"+TA:OPEN",
+				"+USB:OPEN",
+				"+CDP:OPEN",
+				"+Undefined Charging:XXX";
+                muic,afcmode-tx = /bits/ 8 <0x46>;
+		muic,qc-hv = /bits/ 8 <0x9>;
+	};
+
+	rgb {
+		rgb-name = "red", "green", "blue", "white";
+	};
+
+	i2c13: i2c@13 {
+		cell-index = <13>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 33 0 /* sda */
+			&tlmm 32 0 /* scl */
+			>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		sm5703@25 {
+			compatible = "muic-universal";
+			reg = <0x25>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <132 0x0>;
+			sm5703,irq-gpio = <&tlmm 132 0x00>;
+			muic-universal,irq-gpio = <&tlmm 132 0x00>;
+			muic-universal,chip_name = "sm,sm5703";
+			sm5703,wakeup;
+			muic,undefined_range;
+			pinctrl-names = "muic_active", "muic_suspend";
+			pinctrl-0 = <&muic_i2c_active &muic_irq_active>;
+			pinctrl-1 = <&muic_i2c_suspend &muic_irq_suspend>;
+			haptic,mode = <1>;
+			haptic,divisor = <128>;
+		};
+
+		sm5703-mfd@49{
+			compatible = "siliconmitus,sm5703mfd";
+			reg = <0x49>;
+			interrupt-parent = <&tlmm>;
+			sm5703,irq-gpio = <&tlmm 68 0x00>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&charger_int_active>;
+			sm5703,mrstb-gpio = <&tlmm 101 0x00>;
+
+			sm5703_charger {
+				compatible = "siliconmitus,sm5703-charger";
+				chg_autostop = <1>;
+				chg_autoset = <1>;
+				chg_aiclen = <1>;
+				chg_aiclth = <4300>;
+				fg_vol_val = <4350>;
+				fg_soc_val = <95>;
+				fg_curr_avr_val = <150>;
+			};
+
+			sm5703_usbldo1 {
+				compatible = "siliconmitus,sm5703-usbldo1";
+				regulator-name = "USBLDO1"; /* change name by yourself */
+				regulator-min-microvolt = <4800000>;
+				regulator-max-microvolt = <4800000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on = "yes"; optional, exist = enabled */
+				regulator-always-on = "yes";
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+
+			sm5703_usbldo2 {
+				compatible = "siliconmitus,sm5703-usbldo2";
+				regulator-name = "USBLDO2"; /* change name by yourself */
+				regulator-min-microvolt = <4800000>;
+				regulator-max-microvolt = <4800000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on = "yes"; optional, exist = enabled */
+				/* regulator-always-on = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+
+			sm5703_ldo1 {
+				compatible = "siliconmitus,sm5703-ldo1";
+				regulator-name = "LDOOUT1"; /* change name by yourself */
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on = "yes"; optional, exist = enabled */
+				/* regulator-always-on = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+
+			sm5703_ldo2 {
+				compatible = "siliconmitus,sm5703-ldo2";
+				regulator-name = "LDOOUT2"; /* change name by yourself */
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on = "yes"; optional, exist = enabled */
+				/* regulator-always-on = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+
+			sm5703_ldo3 {
+				compatible = "siliconmitus,sm5703-ldo3";
+				regulator-name = "LDOOUT3"; /* change name by yourself */
+				regulator-min-microvolt = <1500000>;
+				regulator-max-microvolt = <3300000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on = "yes"; optional, exist = enabled */
+				/* regulator-always-on = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+
+			sm5703_buck {
+				compatible = "siliconmitus,sm5703-buck";
+				regulator-name = "BUCKOUT"; /* change name by yourself */
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <1200000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on = "yes"; optional, exist = enabled */
+				/* regulator-always-on = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+
+			};
+		};
+	};
+
+/*
+	rgb {
+		device_type = <0>;
+		rgb-name = "led_w", "led_r", "led_g", "led_b";
+
+		normal_powermode_current = <10>;
+		low_powermode_current = <2>;
+		br_ratio_r = <450>;
+		br_ratio_g = <70>;
+		br_ratio_b = <200>;
+
+		normal_powermode_current_bk = <10>;
+		low_powermode_current_bk = <2>;
+		br_ratio_r_bk = <320>;
+		br_ratio_g_bk = <50>;
+		br_ratio_b_bk = <170>;
+
+		normal_powermode_current_wh = <10>;
+		low_powermode_current_wh = <2>;
+		br_ratio_r_wh = <150>;
+		br_ratio_g_wh = <40>;
+		br_ratio_b_wh = <250>;
+
+		normal_powermode_current_gd = <10>;
+		low_powermode_current_gd = <2>;
+		br_ratio_r_gd = <150>;
+		br_ratio_g_gd = <40>;
+		br_ratio_b_gd = <250>;
+
+		normal_powermode_current_sv = <10>;
+		low_powermode_current_sv = <2>;
+		br_ratio_r_sv = <170>;
+		br_ratio_g_sv = <60>;
+		br_ratio_b_sv = <360>;
+
+		normal_powermode_current_pg = <10>;
+		low_powermode_current_pg = <2>;
+		br_ratio_r_pg = <100>;
+		br_ratio_g_pg = <50>;
+		br_ratio_b_pg = <290>;
+	};
+*/
+};
+

@@ -1,0 +1,48 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "msm8996-sec-heroqlte-common-battery.dtsi"
+&soc {
+	battery {
+		battery,chg_float_voltage = <43500>;
+		battery,fast_charging_current = <1900 450 450 1900 700 1200 1000 500 1200 450 1900 1600 1900 450 450 400 700 1300 300 1000 1500 450 1900 1000 1900 80 1800 1000 1400 450 1000 500 1900 1900 1900 1900 1900>;
+		battery,temp_table_adc = <26220 26474 26713 27026 27405 27856 28413 29048 29722 30362
+					  31387 32358 33375 34475 35605 36728 37326 37793 38374 39225
+					  39950 40639 41187>;
+		battery,temp_table_data = <900 850 800 750 700 650 600 550 500 450
+					   400 350 300 250 200 150 100 50 0 (-50)
+					   (-100) (-150) (-200)>;
+
+		battery,chg_temp_table_adc = <25862 26280 26462 26786 27126 27521 27917 28498 29007 29502
+					  30894 31771 32946 34120 35281 35994 36765 37461 38100 38898
+					  39701 40239 40787>;
+		battery,chg_temp_table_data = <900 850 800 750 700 650 600 550 500 450
+					   400 350 300 250 200 150 100 50 0 (-50)
+					   (-100) (-150) (-200)>;
+
+		battery,wpc_temp_table_adc = <25862 26280 26462 26786 27126 27521 27917 28498 29007 29502
+					  30894 31771 32946 34120 35281 35994 36765 37461 38100 38898
+					  39701 40239 40787>;
+		battery,wpc_temp_table_data = <900 850 800 750 700 650 600 550 500 450
+					   400 350 300 250 200 150 100 50 0 (-50)
+					   (-100) (-150) (-200)>;
+	};
+
+	max77854-fuelgauge {
+		status = "disable";
+		fuelgauge,qrtable20 = <0x2080>;
+		fuelgauge,qrtable30 = <0x1A03>;
+		fuelgauge,rcomp0 = <0x40>;
+		fuelgauge,rcomp_charging = <0x40>;
+		fuelgauge,capacity = <0x0EA8>;
+	};
+};

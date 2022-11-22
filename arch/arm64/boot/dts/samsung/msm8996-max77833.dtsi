@@ -1,0 +1,57 @@
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+        muic {
+                status = "disabled";
+                muic,support-list = "MHL","OTG","Charging Cable","Jig USB On","Jig UART Off",
+                                    "Jig UART Off + VB","Jig UART On","Jig UART Off + WA",
+                                    "TA","USB","CDP","Unofficial","Undefined Charging",
+                                    "Deskdock","Deskdock + VB",
+                                    "Smartdock","Smartdock + VB","Smartdock + TA","Smartdock + USB",
+                                    "TA or AFC","AFC charger Prepare","AFC charger 5V","AFC charger 9V",
+                                    "Fuelgauge test","HMT";
+                muic,afcmode-tx = /bits/ 8 <0x46>;
+		muic,qc-hv = /bits/ 8 <0x9>;
+	};
+
+	rgb {
+		rgb-name = "red", "green", "blue", "white";
+	};
+
+	i2c13: i2c@13 {
+		cell-index = <13>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 33 0 /* sda */
+			&tlmm 32 0 /* scl */
+			>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		max77833@66 {
+			compatible = "maxim,max77833";
+			reg = <0x66>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <38 0x0>;
+			max77833,irq-gpio = <&tlmm 38 0x00>;
+			muic-universal,irq-gpio = <&tlmm 38 0x00>;
+			muic-universal,chip_name = "max,max77854";
+			max77833,wakeup;
+			pinctrl-names = "max77833_active", "max77833_suspend";
+			pinctrl-0 = <&max77833_i2c_active &max77833_irq_active>;
+			pinctrl-1 = <&max77833_i2c_suspend &max77833_irq_suspend>;
+			haptic,mode = <1>;
+			haptic,divisor = <128>;
+		};
+	};
+};
+

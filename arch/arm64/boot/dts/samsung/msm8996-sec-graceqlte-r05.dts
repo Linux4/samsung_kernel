@@ -1,0 +1,89 @@
+/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+
+#include "../qcom/msm8996-v3.dtsi"
+#include "../qcom/msm8996-pm8994-pm8004.dtsi"
+#include "../qcom/msm8996-mtp.dtsi"
+#include "msm8996-max77838.dtsi"
+#include "msm8996-s2mpb02-grace.dtsi"
+#include "msm8996-sec-common.dtsi"
+#include "msm8996-sec-graceqlte-r05.dtsi"
+
+/{
+	reserved-memory {
+		secure_camera_region: secure_camera_region {
+			compatible = "shared-dma-pool";
+			no-map;
+			alloc-ranges = <0 0x00000000 0 0xffffffff>;
+			alignment = <0 0x200000>;
+			size = <0 0x1C00000>;
+			label = "secure_camera_region";
+		};
+
+		secure_camera_scratch_region: secure_camera_scratch_region {
+			compatible = "shared-dma-pool";
+			no-map;
+			alloc-ranges = <0 0x00000000 0 0xffffffff>;
+			alignment = <0 0x200000>;
+			size = <0 0x200000>;
+			label = "secure_camera_scratch_region";
+		};
+	};
+};
+
+&removed_regions {
+	reg = <0 0x85800000 0 0x3000000>;
+};
+
+&qcom_seecom {
+	reg = <0x86600000 0x2200000>;
+};
+
+&soc {
+	qcom,ion {
+		qcom,ion-heap@17 { /* SECURE CAMERA HEAP */
+			reg = <17>;
+			memory-region = <&secure_camera_region>;
+			qcom,ion-heap-type = "HYP_CMA";
+		};
+
+		qcom,ion-heap@18 { /* SECURE CAMERA HEAP */
+			reg = <18>;
+			memory-region = <&secure_camera_scratch_region>;
+			qcom,ion-heap-type = "HYP_CMA";
+		};
+
+	};
+};
+
+/ {
+	model = "Samsung GRACEQ LTE PROJECT Rev05";
+	compatible = "qcom,msm8996-mtp", "qcom,msm8996", "qcom,mtp";
+	qcom,board-id = <8 5>;
+
+	aliases {
+		i2c1 = &i2c_1;
+		uart1 = &blsp1_uart2;
+		uart0 = &blsp2_uart1;
+		i2c8 = &i2c_8;
+		i2c18 = &i2c_18;
+		i2c23 = &i2c_23;
+		spi0 = &spi_0;
+		spi6 = &spi_6;
+		spi10 = &spi_10;
+		i2c2 = &i2c_2;
+		spi11 = &spi_11;
+		i2c9 = &i2c_9;
+	};
+};
