@@ -1,0 +1,10 @@
+#
+# cdfinger fingerprint driver configuration
+#
+
+config CDFINGER_FP
+	tristate "cdfinger fingerprint driver support"
+	select cdfinger_fp
+	help
+	  This supports Silead platform Fingerprint drivers.
+
