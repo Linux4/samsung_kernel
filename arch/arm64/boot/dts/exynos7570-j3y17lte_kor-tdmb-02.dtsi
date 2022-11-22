@@ -1,0 +1,82 @@
+ /* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/{
+	pinctrl@139B0000 {
+		tdmb_pwr_on: tdmb-pwr-on {
+			samsung,pins = "gpe0-2";
+			samsung,pin-function = <1>; /* OUTPUT */
+			samsung,pin-pud = <0>;	/* PULL NONE */
+		};
+		tdmb_pwr_off: tdmb-pwr-off {
+			samsung,pins = "gpe0-2";
+			samsung,pin-function = <1>; /* OUTPUT */
+			samsung,pin-pud = <0>;	/* PULL NONE */
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	pinctrl@139F0000 {
+		tdmb_irq_on: tdmb-irq-on {
+			samsung,pins = "gpa1-3";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <0>;	/* PULL NONE */
+		};
+		tdmb_irq_off: tdmb-irq-off {
+			samsung,pins = "gpa1-3";
+			samsung,pin-function = <0>; /* INPUT */
+			samsung,pin-pud = <1>;	/* PULL DOWN */
+		};
+	};
+
+	pinctrl@139E0000 {
+		spi0_idle: spi0-idle {
+			samsung,pins = "gpc7-3", "gpc7-2", "gpc7-1", "gpc7-0";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+	};
+	spi_0: spi@100C0000 {
+		num-cs = <1>;
+		status = "ok";
+
+		swap-mode;
+		spi-clkoff-time = <100>;
+
+		pinctrl-names = "default","idle";
+		pinctrl-0 = <&spi0_bus &spi0_cs_0>;
+		pinctrl-1 = <&spi0_idle>;
+
+		tdmb-spi@0 {
+			compatible = "tdmb_spi_comp";
+			reg = <0>;
+			spi-max-frequency = <9600000>;
+			controller-data {
+				cs-gpio = <&gpc7 1 0>;
+				samsung,spi-feedback-delay = <0>;
+			};
+		};
+	};
+
+	tdmb_data {
+		compatible = "samsung,tdmb";
+		pinctrl-names = "tdmb_on", "tdmb_off";
+		pinctrl-0 = <&tdmb_pwr_on &tdmb_irq_on>;
+		pinctrl-1 = <&tdmb_pwr_off &tdmb_irq_off>;
+		tdmb_pwr_en = <&gpe0 2 0>;
+		tdmb_irq = <&gpa1 3 0>;
+		tdmb_use_irq;
+		tdmb_xtal_freq = <24000>;
+	};
+
+};

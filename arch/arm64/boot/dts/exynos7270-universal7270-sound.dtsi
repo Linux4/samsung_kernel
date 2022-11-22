@@ -1,0 +1,120 @@
+/*
+ * Samsung's Exynos7270 SoC sound device tree source
+ *
+ * Copyright (c) 2016 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/ {
+	s1403x: s1403x@14880000 {
+		pinctrl-names = "default", "idle";
+		pinctrl-0 = <&i2s_pmic_bus>;
+		pinctrl-1 = <&i2s_pmic_bus_idle> ;
+		status = "okay";
+	};
+
+	i2s0: i2s@148A0000 {
+		status = "okay";
+	};
+
+	vbatt: fixedregulator@0 {
+		compatible = "regulator-fixed";
+		regulator-name = "VBATT";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	pinctrl@139B0000 {
+		codec_rst: codec-rst {
+			samsung,pins = "gpf1-0";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <0>;
+			samsung,pin-con-pdn = <3>;
+		};
+	};
+
+	spi_1: spi@13900000 {
+		status = "okay";
+		cs-gpios = <&gpf3 1 1>;
+
+		audio_codec_wm1831: wm1831@0 {
+			spi-max-frequency = <1400000>;
+
+			compatible = "wlf,wm1831";
+			reg = <0x0>;
+			interrupts = <4 0 0>;
+			interrupt-parent = <&gpa1>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			AVDD-supply = <&ldo3_reg>;
+			DBVDD1-supply = <&ldo3_reg>;
+			CPVDD-supply = <&ldo3_reg>;
+			DCVDD-supply = <&ldo5_reg>;
+			SPKVDD-supply = <&vbatt>;
+			MICVDD-supply = <&ldo3_reg>;
+
+			wlf,reset = <&gpf1 0 0>;
+			wlf,micbias1 = <2800 0 1 1 0>;
+			wlf,micbias2 = <2800 0 1 1 0>;
+			wlf,dmic-ref = <1 1 0 0>;
+			wlf,inmode = <2 2 2 2>;
+
+			controller-data {
+				cs-gpio = <&gpf3 1 1>;
+				samsung,spi-feedback-delay = <1>;
+			};
+		};
+	};
+
+	audio_cp_dummy: cp_dummy {
+			compatible = "samsung,cp_dummy";
+			status = "okay";
+	};
+
+	audio_fm_dummy: fm_dummy {
+			compatible = "samsung,fm_dummy";
+			status = "okay";
+	};
+
+	audio_bt_dummy: bt_dummy {
+			compatible = "samsung,bt_dummy";
+			status = "okay";
+	};
+
+	audio_codec_dummy: dummy-codec {
+			compatible = "samsung,dummy-codec";
+			status = "okay";
+	};
+
+	sound {
+		compatible = "samsung,universal7270-wm1831";
+		samsung,audio-cpu = <&i2s0	/* primary */
+			&i2s0			/* secondary */
+			&audio_cp_dummy
+			&audio_bt_dummy
+			&audio_fm_dummy>;
+		samsung,audio-codec = <&audio_codec_wm1831
+			&audio_codec_wm1831
+			&audio_codec_wm1831
+			&audio_codec_dummy
+			&audio_codec_wm1831>;
+
+		samsung,auxdev = <&s1403x>;
+		status = "okay";
+		clock-names = "codec_26m_ap";
+		clocks = <&clock 43>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&fimc_is_mclk0_fn>;
+	};
+};
+

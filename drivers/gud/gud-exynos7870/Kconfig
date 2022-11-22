@@ -1,0 +1,40 @@
+#
+# MobiCore configuration
+#
+config TRUSTONIC_TEE
+    tristate "Trustonic TEE Driver"
+    depends on ARM || ARM64
+    default y
+    ---help---
+      Enable Trustonic TEE support
+
+config TRUSTONIC_TEE_LPAE
+    bool "Trustonic TEE uses LPAE"
+    depends on TRUSTONIC_TEE
+    default y if ARM64
+    default n if ARM
+    ---help---
+      Enable Trustonic TEE 64-bit physical addresses support
+
+config MOBICORE_DEBUG
+    bool "MobiCore Module debug mode"
+    depends on TRUSTONIC_TEE
+    default n
+    ---help---
+      Enable Debug mode in the MobiCore Driver.
+      It enables printing information about mobicore operations
+
+config TRUSTONIC_TRUSTED_UI
+    tristate "<t-base TUI"
+    depends on TRUSTONIC_TEE
+    ---help---
+      Enable <t-base Trusted User Interface
+
+config TRUSTONIC_TRUSTED_UI_FB_BLANK
+    bool "<t-base TUI with fb_blank"
+    depends on TRUSTONIC_TRUSTED_UI
+    ---help---
+    Blank the framebuffer before starting a TUI session
+
+source "drivers/gud/gud-exynos7870/sec-os-ctrl/Kconfig"
+source "drivers/gud/gud-exynos7870/sec-os-booster/Kconfig"

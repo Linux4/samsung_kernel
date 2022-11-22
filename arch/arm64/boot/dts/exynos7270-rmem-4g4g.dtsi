@@ -1,0 +1,33 @@
+/*
+ * SAMSUNG EXYNOS device tree source for reserved-memory
+ *
+ * Copyright (c) 2015 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/ {
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges;
+
+		video_nfw {
+			compatible = "exynos7570-mfc,vnfw";
+			reg = <0x0 0x58EE0000 0x110000>;
+			fixed_upper_base = <0xffffff80>;
+			fixed_lower_base = <0x40000000>;
+		};
+
+		video_stream {
+			compatible = "exynos8890-ion,vstream";
+			reg = <0x0 0x58FF0000 0x10000>;
+			id = <3>;
+			compat-id = <25 31>;
+		};
+
+	};
+};

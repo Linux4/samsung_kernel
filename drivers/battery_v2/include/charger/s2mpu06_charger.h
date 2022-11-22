@@ -1,0 +1,127 @@
+/*
+ * drivers/power/s2mpu06_charger.h
+ *
+ * Header of S2MPU06 Charger Driver
+ *
+ * Copyright (C) 2015 Samsung Electronics
+ * Develope by Nguyen Tien Dat <tiendat.nt@samsung.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#ifndef S2MPU06_CHARGER_H
+#define S2MPU06_CHARGER_H
+#include <linux/mfd/samsung/s2mpu06.h>
+#include <linux/mfd/samsung/s2mpu06-private.h>
+#include <linux/of_gpio.h>
+
+#define MASK(width, shift)      (((0x1 << (width)) - 1) << shift)
+
+#define S2MPU06_CHG_REG_PMIC_STATUS	0x08
+#define S2MPU06_CHG_REG_STATUS1		0x09
+#define S2MPU06_CHG_REG_STATUS2		0x0A
+#define S2MPU06_CHG_REG_STATUS3		0x0B
+#define S2MPU06_CHG_REG_STATUS4		0x0C
+#define S2MPU06_CHG_REG_CTRL1		0x0D
+#define S2MPU06_CHG_REG_CTRL2		0x0E
+#define S2MPU06_CHG_REG_CTRL3		0x0F
+#define S2MPU06_CHG_REG_CTRL4		0x10
+#define S2MPU06_CHG_REG_CTRL5		0x11
+#define S2MPU06_CHG_REG_CTRL6		0x12
+#define S2MPU06_CHG_REG_CTRL7		0x13
+#define S2MPU06_CHG_REG_CTRL8		0x14
+#define S2MPU06_CHG_REG_CTRL9		0x15
+#define S2MPU06_CHG_REG_CTRL10		0x16
+#define S2MPU06_CHG_REG_CTRL11		0x17
+#define S2MPU06_CHG_REG_CTRL12		0x18
+#define S2MPU06_CHG_REG_CTRL13		0x19
+#define S2MPU06_CHG_REG_CTRL14		0x1A
+#define S2MPU06_CHG_REG_CTRL15		0x1B
+#define S2MPU06_CHG_REG_CTRL16		0x1C
+#define S2MPU06_CHG_REG_CTRL17		0x1D
+#define S2MPU06_CHG_REG_CTRL18		0x1E
+#define S2MPU06_CHG_REG_CTRL19		0x1F
+#define S2MPU06_CHG_REG_CTRL20		0x20
+#define S2MPU06_CHG_REG_CTRL21		0x21
+#define S2MPU06_CHG_REG_CTRL22		0x22
+#define S2MPU06_CHG_REG_CTRL23		0x23
+
+
+/* S2MPU06_CHG_STATUS1 */
+#define CHG_STATUS1_OTG_SS_ENB	0
+#define CHG_STATUS1_CHGVIN_STS	2
+#define CHG_STATUS1_BOOST_STS	3
+#define	CHG_STATUS1_CHG_DONE	4
+#define CHG_STATUS1_CHG_STS	5
+#define CHG_STATUS1_VBAT_LVL	6
+
+/* S2MPU06_CHG_STATUS2 */
+#define DET_BAT_STATUS_SHIFT	3
+#define DET_BAT_STATUS_MASK	BIT(DET_BAT_STATUS_SHIFT)
+#define CHGVINOVP_STS_SHIFT	6
+
+/* S2MPU06_CHG_STATUS4 */
+#define	CHG_STATUS4_OTGILIM_STS	6
+
+/* S2MPU06_CHG_CTRL1 */
+#define EN_CHG_SHIFT		7
+#define EN_CHG_MASK		BIT(EN_CHG_SHIFT)
+
+/* S2MPU06_CHG_CTRL2 */
+#define FAST_CHARGING_CURRENT_SHIFT	0
+#define FAST_CHARGING_CURRENT_WIDTH	7
+#define FAST_CHARGING_CURRENT_MASK	MASK(FAST_CHARGING_CURRENT_WIDTH,\
+					FAST_CHARGING_CURRENT_SHIFT)
+
+/* S2MPU06_CHG_CTRL3 */
+#define CHG_MODE_SHIFT		4
+#define CHG_MODE_WIDTH		2
+#define CHG_MODE_MASK		MASK(CHG_MODE_WIDTH, CHG_MODE_SHIFT)
+#define CHG_MODE_OFF		0
+#define CHG_MODE_EN		1
+#define CHG_MODE_OTG_BOOST	3
+
+/* S2MPU06_CHG_CTRL4 */
+#define FIRST_TOPOFF_CURRENT_SHIFT	0
+#define FIRST_TOPOFF_CURRENT_WIDTH	7
+#define FIRST_TOPOFF_CURRENT_MASK	MASK(FIRST_TOPOFF_CURRENT_WIDTH,\
+					FIRST_TOPOFF_CURRENT_SHIFT)
+#define SET_VIN_DROP_SHIFT	1
+#define SET_VIN_DROP_WIDTH	3
+#define SET_VIN_DROP_MASK	MASK(SET_VIN_DROP_WIDTH, SET_VIN_DROP_SHIFT)
+
+
+/* S2MPU06_CHG_CTRL5 */
+#define SET_VF_VBAT_SHIFT	1
+#define SET_VF_VBAT_WIDTH	3
+#define SET_VF_VBAT_MASK	MASK(SET_VF_VBAT_WIDTH, SET_VF_VBAT_SHIFT)
+
+#define S2MPU06_IVR_4200MV	0xA0
+#define S2MPU06_IVR_4300MV	0xA4
+#define S2MPU06_IVR_4400MV	0xA8
+#define S2MPU06_IVR_4500MV	0xAC
+#define S2MPU06_IVR_4600MV	0xB0
+#define S2MPU06_IVR_4700MV	0xB4
+#define S2MPU06_IVR_4800MV	0xB8
+
+/* S2MPU06_CHG_REG_CTRL8 */
+#define EN_BST_ST_DN_MASK	0x80
+
+/* S2MPU06_CHG_REG_CTRL14 */
+#define OTG_EN_MASK	0x80
+
+#define FAKE_BAT_LEVEL                  50
+
+enum {
+	CHG_REG = 0,
+	CHG_DATA,
+	CHG_REGS,
+};
+
+struct charger_info {
+	int dummy;
+};
+
+#endif /*S2MPU06_CHARGER_H*/

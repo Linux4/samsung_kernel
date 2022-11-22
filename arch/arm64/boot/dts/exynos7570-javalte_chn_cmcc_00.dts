@@ -1,0 +1,40 @@
+/*
+ * SAMSUNG UNIVERSAL7570 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos7570-rmem.dtsi"
+#include "exynos7570.dtsi"
+#include "exynos7570-java_common.dtsi"
+#include "modem-ss305ap-pdata.dtsi"
+#include "exynos7570-javalte_battery_chn_00.dtsi"
+#include "exynos7570-javalte_chn_cmcc_gpio_00.dtsi"
+
+/ {
+	model = "Samsung JAVA LTE CHN rev00 board based on Exynos7570";
+        model_info-chip = <7570>;
+        model_info-platform = "android";
+        model_info-subtype = "samsung";
+        model_info-hw_rev = <0>;
+        model_info-hw_rev_end = <0>;
+	compatible = "samsung,exynos7570", "samsung,exynos4210";
+
+	i2c@13880000 {
+		status = "okay";
+
+		muic-rt8973@14 {
+			compatible = "rt8973,i2c";
+			reg = <0x14>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&muic_irq>;
+			rt8973,irq-gpio = <&gpa1 1 0>;
+		};
+	};
+};

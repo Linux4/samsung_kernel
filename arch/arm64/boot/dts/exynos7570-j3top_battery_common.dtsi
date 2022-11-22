@@ -1,0 +1,379 @@
+/*
+ * SAMSUNG UNIVERSAL7570 board device tree source
+ *
+ * Copyright (c) 2016 Samsung Electronics Co., Ltd.
+ *              http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/ {
+	pinctrl@139F0000 {
+		/* vf_gnd_short_detection */
+		bat_short_det: bat-short-det {
+			samsung,pins = "gpa0-3";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <0>;
+		};
+	};
+
+	s2mpu06-fuelgauge {
+		status = "disable";
+		compatible = "samsung,s2mpu06-fuelgauge";
+		fuelgauge,fuel_alert_soc = <1>;
+		fuelgauge,capacity_max = <1000>;
+		fuelgauge,capacity_max_margin = <200>;
+		fuelgauge,capacity_min = <0>;
+		fuelgauge,capacity_calculation_type = <28>;
+		fuelgauge,type_str = "SDI";
+		fuelgauge,model_type = <1>;
+
+		fuelgauge,cell_character = <
+			/* 4.30V Cell character*/
+			/* Cell character 0, 0x34 ~ 0xD7 */
+			0x7B 0x0A 0x11 0x0A 0xA8 0x09 0x4D 0x09 0xF8 0x08
+			0xA0 0x08 0x43 0x08 0xD0 0x07 0xA2 0x07 0x5F 0x07
+			0xFA 0x06 0xB3 0x06 0x86 0x06 0x65 0x06 0x4B 0x06
+			0x39 0x06 0x2D 0x06 0x09 0x06 0xC4 0x05 0x8C 0x05
+			0x42 0x05 0xFC 0x02 0x67 0x08 0x00 0x08 0x99 0x07
+			0x32 0x07 0xCB 0x06 0x64 0x06 0xFD 0x05 0x96 0x05
+			0x2F 0x05 0xC8 0x04 0x61 0x04 0xFA 0x03 0x93 0x03
+			0x2C 0x03 0xC6 0x02 0x5F 0x02 0xF8 0x01 0x91 0x01
+			0x2A 0x01 0xC3 0x00 0x5C 0x00 0xF5 0x0F 0xFE 0x29
+			0xDC 0x29 0x8A 0x29 0x4D 0x29 0x28 0x1F 0x3A 0x18
+			0x21 0x21 0x14 0x21 0x2F 0xED 0xE6 0xF7 0xFD 0xFC
+			0xCA 0xD4 0xD3 0xD4 0x40 0x80 0x26 0x33 0x26 0x40
+			0x26 0x5C 0x26 0x5C 0x26 0x5C 0xFF 0xFF 0x02 0x05
+			0x14 0x0B 0x03 0x12 0x06 0x1C 0x0C 0x1C 0x10 0x1C
+			0x1F 0x1F 0x33 0x33 0x46 0x46 0x41 0x41 0x40 0x41
+			0x41 0x40 0x46 0x33 0x33 0x33 0x33 0x33 0x33 0x33
+			0x52 0x5A 0x80 0x9A
+			/* Cell character 1, 0x0F ~ 0x13 */
+			0x00 0x28 0x0A 0x00 0xF1
+
+			/* 4.28V Cell character*/
+			/* Cell character 0, 0x34 ~ 0xD7 */
+			0x29 0x0A 0xCB 0x09 0xCB 0x09 0x58 0x09 0xF0 0x08
+			0x9E 0x08 0x17 0x08 0xC9 0x07 0x93 0x07 0x51 0x07
+			0xF3 0x06 0xAA 0x06 0x7F 0x06 0x60 0x06 0x47 0x06
+			0x38 0x06 0x2E 0x06 0x0E 0x06 0xCC 0x05 0x8C 0x05
+			0x81 0x05 0xB1 0x03 0x6D 0x08 0x00 0x08 0x00 0x08
+			0x93 0x07 0x26 0x07 0xBA 0x06 0x4D 0x06 0xE0 0x05
+			0x74 0x05 0x07 0x05 0x9A 0x04 0x2D 0x04 0xC1 0x03
+			0x54 0x03 0xE7 0x02 0x7A 0x02 0x0E 0x02 0xA1 0x01
+			0x34 0x01 0xC7 0x00 0x5A 0x00 0xEE 0x0F 0xFE 0x29
+			0xDC 0x29 0x8A 0x29 0x4D 0x29 0x28 0x1F 0x3A 0x18
+			0x21 0x21 0x14 0x21 0x2F 0xED 0xE6 0xF7 0xFD 0xFC
+			0xCA 0xD4 0xD3 0xD4 0x40 0x80 0x26 0x33 0x26 0x40
+			0x26 0x5C 0x26 0x5C 0x26 0x5C 0xFF 0xFF 0x02 0x05
+			0x14 0x0B 0x03 0x12 0x06 0x1C 0x0C 0x1C 0x10 0x1C
+			0x1F 0x1F 0x33 0x33 0x46 0x46 0x41 0x41 0x40 0x41
+			0x41 0x40 0x46 0x33 0x33 0x33 0x33 0x33 0x33 0x33
+			0x52 0x5A 0x80 0x9A
+			/* Cell character 1, 0x0F ~ 0x13 */
+			0x00 0x28 0x0A 0x00 0xF1
+
+			/* 4.26V Cell character*/
+			/* Cell character 0, 0x34 ~ 0xD7 */
+			0xF4 0x09 0x9F 0x09 0x35 0x09 0xD6 0x08 0x97 0x08
+			0x08 0x08 0xC8 0x07 0x96 0x07 0x59 0x07 0x09 0x07
+			0xBA 0x06 0x8D 0x06 0x6D 0x06 0x54 0x06 0x40 0x06
+			0x37 0x06 0x29 0x06 0x05 0x06 0xC3 0x05 0x8B 0x05
+			0x81 0x05 0x2D 0x04 0x66 0x08 0x00 0x08 0x9A 0x07
+			0x33 0x07 0xCD 0x06 0x66 0x06 0x00 0x06 0x9A 0x05
+			0x33 0x05 0xCD 0x04 0x66 0x04 0x00 0x04 0x99 0x03
+			0x33 0x03 0xCC 0x02 0x66 0x02 0x00 0x02 0x99 0x01
+			0x33 0x01 0xCC 0x00 0x66 0x00 0xFF 0x0F 0xFE 0x29
+			0xDC 0x29 0x8A 0x29 0x4D 0x29 0x28 0x1F 0x3A 0x18
+			0x21 0x21 0x14 0x21 0x2F 0xED 0xE6 0xF7 0xFD 0xFC
+			0xCA 0xD4 0xD3 0xD4 0x40 0x80 0x26 0x33 0x26 0x40
+			0x26 0x5C 0x26 0x5C 0x26 0x5C 0xFF 0xFF 0x02 0x05
+			0x14 0x0B 0x03 0x12 0x06 0x1C 0x0C 0x1C 0x10 0x1C
+			0x1F 0x1F 0x33 0x33 0x46 0x46 0x41 0x41 0x40 0x41
+			0x41 0x40 0x46 0x33 0x33 0x33 0x33 0x33 0x33 0x33
+			0x52 0x5A 0x80 0x9A
+			/* Cell character 1, 0x0F ~ 0x13 */
+			0x00 0x28 0x0A 0x00 0xF1
+			>;
+		fuelgauge,raw_100_vbat = <4259 4224 4203>;
+
+	};
+
+	battery {
+		status = "okay";
+
+		pinctrl-names = "default";
+
+		compatible = "samsung,sec-battery";
+		battery,vendor = "SDI SDI";
+		battery,charger_name = "s2mpu06-charger";
+		battery,fuelgauge_name = "s2mpu06-fuelgauge";
+		battery,technology = <2>; /* POWER_SUPPLY_TECHNOLOGY_LION */
+
+		battery,chip_vendor = "LSI";
+
+		battery,temp_adc_type = <1>; /* SEC_BATTERY_ADC_TYPE_AP */
+
+		battery,polling_time = <10 30 30 30 3600>;
+
+		battery,temp_table_adc = <302 352 402 470 552 642 751 886 913 939 972 996 1025
+					1064 1097 1130 1174 1211 1246 1263 1281 1301 1391
+					1486 1504 1521 1539 1588 1623 1667 1710 1761 1805
+					1850 1887 1929 1975 2024 2074 2123 2163 2209 2258
+					2302 2347 2394 2436 2482 2533 2574 2622 2663 2720
+					2761 2805 2851 2890 2935 2980 3018 3057 3094 3139
+					3167 3211 3245 3275 3298 3447 3562 3670>;
+
+		battery,temp_table_data = <900 850 800 750 700 650 600 550 540 530 520 510 500
+					490 480 470 460 450 440 430 420 410 400
+					390 380 370 360 350 340 330 320 310 300
+					290 280 270 260 250 240 230 220 210 200
+					190 180 170 160 150 140 130 120 110 100
+					90 80 70 60 50 40 30 20 10 0
+					(-10) (-20) (-30) (-40) (-50) (-100) (-150) (-200)>;
+
+		battery,wireless_cc_cv = <86>;
+		battery,inbat_voltage = <1>;
+
+		battery,inbat_voltage_table_adc = <2793 2774 2744 2719 2694 2670 2641 2615 2588 2558
+						2531 2504 2476 2449 2425 2398 2371 2345 2318 2290 2261>;
+		battery,inbat_voltage_table_data = <4380 4350 4300 4250 4200 4150 4100 4050 4000 3950
+						3900 3850 3800 3750 3700 3650 3600 3550 3500 3450 3400>;
+
+		battery,adc_check_count = <5>;
+
+		battery,cable_check_type = <4>; /* SEC_BATTERY_CABLE_CHECK_PSY */
+		battery,cable_source_type = <1>; /* SEC_BATTERY_CABLE_SOURCE_EXTERNAL */
+		battery,polling_type = <1>; /* SEC_BATTERY_MONITOR_ALARM */
+		battery,monitor_initial_count = <0>;
+
+		battery,battery_check_type = <5>; /* SEC_BATTERY_CHECK_CHARGER */
+		battery,check_count = <0>;
+
+		battery,ovp_uvlo_check_type = <3>; /* SEC_BATTERY_OVP_UVLO_CHGPOLLING */
+
+		battery,check_adc_max = <1440>;
+		battery,check_adc_min = <0>;
+
+		battery,thermal_source = <2>; /* SEC_BATTERY_THERMAL_SOURCE_ADC */
+
+		battery,temp_check_type = <2>; /* SEC_BATTERY_TEMP_CHECK_TEMP */
+		battery,temp_check_count = <1>;
+		battery,temp_highlimit_threshold_normal = <800>;
+		battery,temp_highlimit_recovery_normal = <750>;
+		battery,temp_high_threshold_normal = <500>;
+		battery,temp_high_recovery_normal = <450>;
+		battery,temp_low_threshold_normal = <0>;
+		battery,temp_low_recovery_normal = <50>;
+		battery,temp_highlimit_threshold_lpm = <800>;
+		battery,temp_highlimit_recovery_lpm = <750>;
+		battery,temp_high_threshold_lpm = <520>;
+		battery,temp_high_recovery_lpm = <460>;
+		battery,temp_low_threshold_lpm = <(-10)>;
+		battery,temp_low_recovery_lpm = <40>;
+
+		battery,full_check_type = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
+		battery,full_check_type_2nd = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
+		battery,full_check_count = <1>;
+		battery,chg_gpio_full_check = <0>;
+		battery,chg_polarity_full_check = <1>;
+
+		battery,chg_high_temp_1st = <530>;
+		battery,chg_high_temp_2nd = <530>;
+		battery,chg_high_temp_recovery = <525>;
+		battery,chg_charging_limit_current = <1300>;
+		battery,chg_charging_limit_current_2nd = <1300>;
+		battery,chg_skip_check_capacity = <10>;
+		battery,chg_skip_check_time = <600>;
+
+		battery,wpc_high_temp = <420>;
+		battery,wpc_high_temp_recovery = <410>;
+		battery,wpc_charging_limit_current = <450>;
+
+		/* SEC_BATTERY_FULL_CONDITION_SOC |
+		   SEC_BATTERY_FULL_CONDITION_NOTIMEFULL |
+		   SEC_BATTERY_FULL_CONDITION_VCELL */
+		battery,full_condition_type = <15>;
+		battery,full_condition_soc = <93>;
+		battery,full_condition_vcell = <4200>;
+
+		battery,recharge_check_count = <2>;
+		battery,recharge_condition_type = <4>; /* SEC_BATTERY_RECHARGE_CONDITION_VCELL */
+		battery,recharge_condition_soc = <98>;
+		battery,recharge_condition_vcell = <4200>;
+
+		battery,standard_curr = <1600>;
+		battery,recharging_expired_time = <5400>;
+		battery,expired_time = <13800>; /*2nd EOC 150min */
+		
+		battery,chg_float_voltage = <4300>;
+
+		battery,self_discharging_temp_block = <600>;
+		battery,self_discharging_volt_block = <4250>;
+		battery,self_discharging_temp_recov = <550>;
+		battery,self_discharging_temp_pollingtime = <400>;
+
+		battery,swelling_high_temp_block = <410>;
+		battery,swelling_high_temp_recov = <390>;
+		
+		battery,swelling_low_temp_2step_mode = <1>;
+		battery,swelling_low_temp_block_1st = <150>;
+		battery,swelling_low_temp_recov_1st = <200>;
+		battery,swelling_low_temp_block_2nd = <50>;
+		battery,swelling_low_temp_recov_2nd = <100>;
+
+		battery,swelling_high_temp_current = <920>;
+		battery,swelling_low_temp_current = <620>;
+		battery,swelling_low_temp_topoff = <130>;
+		battery,swelling_high_temp_topoff = <130>;
+
+		battery,swelling_drop_float_voltage = <4100>;
+		battery,swelling_high_rechg_voltage = <3950>;
+		battery,swelling_low_rechg_voltage = <3950>;
+		battery,swelling_block_time = <600>;
+
+                battery,charging_by_single;
+                battery,call_event_siop_level = <100>;
+
+                battery,call_event_input = <1000>;
+                battery,call_event_output = <900>;
+
+		io-channels = <&exynos_adc 1>, <&exynos_adc 5>;
+		io-channel-names = "adc-temp", "adc-in-bat";
+		#io-channel-cells = <1>;
+		io-channel-ranges;
+
+		/* cycle, chg_float_voltage, recharge_condition_vcell, full_condition_vcell, full_condition_soc */
+		battery,age_data = <0 4300 4200 4200 92	/*4.30*/
+			28 4280 4180 4180 91	/*4.28*/
+			36 4260 4160 4160 89	/*4.26*/
+			>;
+
+		battery,data_ver = <0x2>;
+	};
+
+	s2mpu06-charger {
+		status = "disable";
+		compatible = "samsung,s2mpu06-charger";
+		battery,is_1MHz_switching = <1>;
+		battery,chg_gpio_en = <0>;
+		battery,chg_polarity_en = <0>;
+		battery,chg_gpio_status = <0>;
+		battery,chg_polarity_status = <0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&bat_short_det>;
+
+		charger,vf_gnd_short_detection;
+		charger,vf_gnd_short_det_gpio = <&gpa0 3 0>;
+	};
+
+/* sec_battery_cable
+ *   0	UNKNOWN,
+ *   1	NONE,
+ *   2	PREPARE_TA,
+ *   3	TA,
+ *   4	USB,
+ *   5	USB_CDP,
+ *   6	9V_TA,
+ *   7	9V_ERR,
+ *   8	9V_UNKNOWN,
+ *   9	12V_TA,
+ *  10	WIRELESS,
+ *  11	HV_WIRELESS,
+ *  12	PMA_WIRELESS,
+ *  13	WIRELESS_PACK,
+ *  14	WIRELESS_PACK_TA,
+ *  15	WIRELESS_STAND,
+ *  16	WIRELESS_HV_STAND,
+ *  17	QC20,
+ *  18	QC30,
+ *  19	PDIC,
+ *  20	UARTOFF,
+ *  21	OTG,
+ *  22	LAN_HUB,
+ *  23	POWER_SHARING,
+ *  24	HMT_CONNECTED,
+ *  25	HMT_CHARGE,
+ *  26	HV_TA_CHG_LIMIT,
+ *  27	WIRELESS_VEHICLE,
+ *  28	WIRELESS_HV_VEHICLE,
+ *  29	PREPARE_WIRELESS_HV,
+ *  30	TIMEOUT,
+ *  31	CABLE_MAX,
+ */
+	cable-info {
+		default_input_current = <1350>;
+		default_charging_current = <1800>;
+		full_check_current_1st = <260>;
+		full_check_current_2nd = <130>;
+
+		current_group_1 {
+			cable_number = <1 4 19 21 22 23 30>;
+			input_current = <500>;
+			charging_current = <500>;
+		};
+
+		current_group_2 {
+			cable_number = <2 25>;
+			input_current = <1000>;
+			charging_current = <1000>;
+		};
+
+		current_group_3 {
+			cable_number = <5>;
+			input_current = <1500>;
+			charging_current = <1500>;
+		};
+
+		current_group_4 {
+			cable_number = <6 7 8>;
+			input_current = <1650>;
+			charging_current = <2150>;
+		};
+
+		current_group_5 {
+			cable_number = <9>;
+			input_current = <1650>;
+			charging_current = <2150>;
+		};
+
+		current_group_6 {
+			cable_number = <10 12 14 15 27>;
+			input_current = <900>;
+			charging_current = <1200>;
+		};
+
+		current_group_7 {
+			cable_number = <13>;
+			input_current = <700>;
+			charging_current = <1200>;
+		};
+
+		current_group_8 {
+			cable_number = <24>;
+			input_current = <1000>;
+			charging_current = <450>;
+		};
+
+		current_group_9 {
+			cable_number = <26>;
+			input_current = <2000>;
+			charging_current = <1800>;
+		};
+
+		current_group_10 {
+			cable_number = <11 16 28>;
+			input_current = <650>;
+			charging_current = <1200>;
+		};
+
+		current_group_11 {
+			cable_number = <29>;
+			input_current = <500>;
+			charging_current = <1200>;
+		};
+	};
+};
