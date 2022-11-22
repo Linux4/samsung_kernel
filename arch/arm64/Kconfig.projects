@@ -1,0 +1,12 @@
+config SEC_C2Q_PROJECT
+	default n
+	bool "Samsung C2Q Project"
+	help
+	  Support for Samsung C2Q Project
+
+config MACH_C2Q_USA_SINGLE
+	default n
+	bool "Samsung C2Q USA SQ"
+	help
+	  Support for Samsung C2Q USA SQ device.
+
