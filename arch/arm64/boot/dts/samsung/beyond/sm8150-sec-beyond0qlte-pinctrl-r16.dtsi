@@ -1,0 +1,79 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "sm8150-sec-beyond0qlte-pinctrl-common.dtsi"
+
+&soc {
+	/* tlmm: pinctrl@03400000 { }; */
+};
+
+&tlmm {
+	cam_sensor_active_sw: cam_sensor_active_sw {
+		/* RESET SW */
+		mux {
+			pins = "gpio21";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio21";
+			bias-disable; /* No PULL */
+			drive-strength = <2>; /* 2 MA */
+		};
+	};
+
+	cam_sensor_suspend_sw: cam_sensor_suspend_sw {
+		/* RESET SW */
+		mux {
+			pins = "gpio21";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio21";
+			bias-pull-down; /* PULL DOWN */
+			drive-strength = <2>; /* 2 MA */
+			output-low;
+		};
+	};
+
+	grip_int_pd {
+		grip_int_active_pd: grip_int_active_pd {
+			grip_int_active_pd {
+				pins = "gpio125";
+				bias-pull-down; /* PULL DOWN */
+			};
+		};
+		grip_int_suspend_pd: grip_int_suspend_pd {
+			grip_int_suspend_pd {
+				pins = "gpio125";
+				bias-pull-down; /* PULL DOWN */
+			};
+		};
+	};
+
+	grip_i2c_pd {
+		grip_i2c_active_pd: grip_i2c_active_pd {
+			grip_i2c_active_pd {
+				pins = "gpio79", "gpio80";
+				bias-pull-down; /* PULL DOWN */
+			};
+		};
+		grip_i2c_suspend_pd: grip_i2c_suspend_pd {
+			grip_i2c_suspend_pd {
+				pins = "gpio79", "gpio80";
+				bias-pull-down; /* PULL DOWN */
+			};
+		};
+	};
+};
+

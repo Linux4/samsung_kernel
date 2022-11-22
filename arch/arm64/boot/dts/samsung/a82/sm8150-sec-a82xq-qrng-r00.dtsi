@@ -1,0 +1,76 @@
+/*
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&tlmm {
+	qrng_qupv3_se11_i2c_active: qrng_qupv3_se11_i2c_active {
+	      mux {
+		      pins = "gpio94", "gpio95";
+		      function = "qup11";
+	      };
+
+	      config {
+		      pins = "gpio94", "gpio95";
+		      drive-strength = <2>;
+		      bias-disable;
+	      };
+	};
+
+	qrng_qupv3_se11_i2c_sleep: qrng_qupv3_se11_i2c_sleep {
+	      mux {
+		      pins = "gpio94", "gpio95";
+		      function = "gpio";
+	      };
+
+	      config {
+		      pins = "gpio94", "gpio95";
+		      drive-strength = <2>;
+		      bias-disable;
+	      };
+	};
+
+	qrng_ldo_gpio: qrng_ldo_gpio {
+		mux {
+			pins = "gpio91", "gpio93";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio91", "gpio93";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+
+
+};
+
+ /* GPIO 94, 95 */
+&qupv3_se11_i2c {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&qrng_qupv3_se11_i2c_active>;
+	pinctrl-1 = <&qrng_qupv3_se11_i2c_sleep>;
+
+	qrng-i2c@37 {
+		compatible = "qrng,qrng-i2c";
+		/* = 0x6E(write), 0x6F(read) >> 1 */
+		reg = <0x37>;
+
+		qrng,gpio_ldo_en = <&tlmm 91 0>;
+		qrng,gpio_pwdn   = <&tlmm 93 0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&qrng_ldo_gpio>;
+	};
+};
