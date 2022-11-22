@@ -1966,7 +1966,6 @@ static int thermal_pm_notify(struct notifier_block *nb,
 	default:
 		break;
 	}
-
 	return 0;
 }
 
@@ -1997,7 +1996,10 @@ static int __init thermal_init(void)
 #ifdef CONFIG_SCHED_MC
 	register_hotcpu_notifier(&thermal_cpu_notifier);
 #endif
-	register_pm_notifier(&thermal_pm_nb);
+	result = register_pm_notifier(&thermal_pm_nb);
+	if (result)
+		pr_warn("Thermal: Can not register suspend notifier, return %d\n",
+			result);
 
 	return 0;
 

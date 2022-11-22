@@ -147,7 +147,7 @@ static int exynos_usbdrd_check_extrefclk(struct exynos_usbdrd_phy *phy_drd)
 		return 0;
 
 	if (!wait_for_completion_timeout(&phy_drd->can_use_extrefclk,
-				msecs_to_jiffies(1000)))
+				msecs_to_jiffies(1500)))
 		return -ETIMEDOUT;
 
 	return 0;

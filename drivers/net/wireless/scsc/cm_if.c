@@ -119,17 +119,24 @@ static void wlan_failure_reset(struct scsc_service_client *client, u16 scsc_pani
 int slsi_check_rf_test_mode(void)
 {
 	struct file *fp = NULL;
-#if defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000
-     char *filepath = "/data/vendor/conn/.psm.info";
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000
+	char *filepath = "/data/vendor/conn/.psm.info";
 #else
-    char *filepath = "/data/misc/conn/.psm.info";
+	char *filepath = "/data/misc/conn/.psm.info";
 #endif
+	char *file_path = "/data/vendor/wifi/rftest.info";
 	char power_val = 0;
 
+	/* reading power value from /data/vendor/conn/.psm.info */
 	fp = filp_open(filepath, O_RDONLY, 0);
 	if (IS_ERR(fp) || (fp == NULL)) {
 		pr_err("%s is not exist.\n", filepath);
-		return -ENOENT; /* -2 */
+		/* reading power value from /data/vendor/wifi/rftest.info */
+		fp = filp_open(file_path, O_RDONLY, 0);
+		if(IS_ERR(fp) || (!fp)) {
+			pr_err("%s is not exist.\n", file_path);
+			return -ENOENT; /* -2 */
+		}
 	}
 
 	kernel_read(fp, fp->f_pos, &power_val, 1);

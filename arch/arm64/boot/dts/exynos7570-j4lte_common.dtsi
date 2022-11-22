@@ -216,32 +216,32 @@
 	};
 
 	decon_board: decon_board {
-		gpio_lcd_3p0 = <&gpd1 0 0x1>;
-		gpio_lcd_rst = <&gpd2 0 0x1>;
+		gpio_lcd_3p0 = <&gpd1 0 0>;
+		gpio_lcd_rst = <&gpd2 0 0>;
 
 		dsim_set_panel_power_enable {
 			type =
 			"regulator,enable",	"LCD_1P8",
 			"gpio,high",	"gpio_lcd_3p0",
-			"delay,usleep",	"5000 6000";
+			"delay,usleep",	"5000";
 		};
 		dsim_set_panel_power_disable {
 			type =
 			"gpio,low",	"gpio_lcd_rst",
-			"delay,usleep",	"10000 11000",
+			"delay,usleep",	"10000",
 			"gpio,low",	"gpio_lcd_3p0",
 			"regulator,disable",	"LCD_1P8",
 			"delay,msleep",	"30";
 		};
 		dsim_reset_panel {
 			type =
-			"delay,usleep",	"1000 1100",
+			"delay,usleep",	"1000",
 			"gpio,high",	"gpio_lcd_rst",
-			"delay,usleep",	"10000 11000",
+			"delay,usleep",	"10000",
 			"gpio,low",	"gpio_lcd_rst",
-			"delay,usleep",	"10000 11000",
+			"delay,usleep",	"10000",
 			"gpio,high",	"gpio_lcd_rst",
-			"delay,usleep",	"10000 11000";
+			"delay,usleep",	"10000";
 		};
 	};
 

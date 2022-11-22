@@ -44,6 +44,9 @@
 #define CREATE_TRACE_POINTS
 #include "trace/lowmemorykiller.h"
 
+#include <linux/notifier.h>
+#include <linux/ratelimit.h>
+
 static uint32_t lowmem_debug_level = 1;
 static short lowmem_adj[6] = {
 	0,
@@ -92,6 +95,51 @@ static int test_task_flag(struct task_struct *p, int flag)
 	return 0;
 }
 
+static void show_memory(void)
+{
+#define K(x) ((x) << (PAGE_SHIFT - 10))
+	printk("Mem-Info:"
+		" totalram_pages:%lukB"
+		" free:%lukB"
+		" active_anon:%lukB"
+		" inactive_anon:%lukB"
+		" active_file:%lukB"
+		" inactive_file:%lukB"
+		" unevictable:%lukB"
+		" isolated(anon):%lukB"
+		" isolated(file):%lukB"
+		" dirty:%lukB"
+		" writeback:%lukB"
+		" mapped:%lukB"
+		" shmem:%lukB"
+		" slab_reclaimable:%lukB"
+		" slab_unreclaimable:%lukB"
+		" kernel_stack:%lukB"
+		" pagetables:%lukB"
+		" free_cma:%lukB"
+		"\n",
+		K(totalram_pages),
+		K(global_page_state(NR_FREE_PAGES)),
+		K(global_page_state(NR_ACTIVE_ANON)),
+		K(global_page_state(NR_INACTIVE_ANON)),
+		K(global_page_state(NR_ACTIVE_FILE)),
+		K(global_page_state(NR_INACTIVE_FILE)),
+		K(global_page_state(NR_UNEVICTABLE)),
+		K(global_page_state(NR_ISOLATED_ANON)),
+		K(global_page_state(NR_ISOLATED_FILE)),
+		K(global_page_state(NR_FILE_DIRTY)),
+		K(global_page_state(NR_WRITEBACK)),
+		K(global_page_state(NR_FILE_MAPPED)),
+		K(global_page_state(NR_SHMEM)),
+		K(global_page_state(NR_SLAB_RECLAIMABLE)),
+		K(global_page_state(NR_SLAB_UNRECLAIMABLE)),
+		global_page_state(NR_KERNEL_STACK) * THREAD_SIZE / 1024,
+		K(global_page_state(NR_PAGETABLE)),
+		K(global_page_state(NR_FREE_CMA_PAGES))
+		);
+#undef K
+}
+
 static unsigned long lowmem_count(struct shrinker *s,
 				  struct shrink_control *sc)
 {
@@ -119,6 +167,7 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 						global_page_state(NR_UNEVICTABLE) -
 						total_swapcache_pages();
 	struct reclaim_state *reclaim_state = current->reclaim_state;
+	static DEFINE_RATELIMIT_STATE(lmk_rs, DEFAULT_RATELIMIT_INTERVAL, 1);
 
 #ifdef CONFIG_CMA
 	other_free -= global_page_state(NR_FREE_CMA_PAGES);
@@ -225,6 +274,12 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 			     cache_size, cache_limit,
 			     min_score_adj,
 			     free);
+
+		show_mem_extra_call_notifiers();
+		show_memory();
+		if ((selected_oom_score_adj <= 100) && (__ratelimit(&lmk_rs)))
+			dump_tasks(NULL, NULL);
+
 		lowmem_deathpending_timeout = jiffies + HZ;
 		set_tsk_thread_flag(selected, TIF_MEMDIE);
 		send_sig(SIGKILL, selected, 0);

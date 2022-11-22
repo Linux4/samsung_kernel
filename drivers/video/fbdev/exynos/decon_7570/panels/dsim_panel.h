@@ -28,17 +28,18 @@ extern struct mipi_dsim_lcd_driver td4100_mipi_lcd_driver;
 extern struct mipi_dsim_lcd_driver s6d7aa0_mipi_lcd_driver;
 #elif defined(CONFIG_PANEL_TD4100_J3TOP)
 extern struct mipi_dsim_lcd_driver td4100_mipi_lcd_driver;
-#elif defined(CONFIG_PANEL_S6D7AA0_GTAXSWIFI)
-extern struct mipi_dsim_lcd_driver s6d7aa0_mipi_lcd_driver;
 #elif defined(CONFIG_PANEL_EA8061S_J4LTE)
 extern struct mipi_dsim_lcd_driver ea8061s_mipi_lcd_driver;
-#elif defined(CONFIG_PANEL_S6D78A0_GPPGO)
-extern struct mipi_dsim_lcd_driver s6d78a0_mipi_lcd_driver;
 #elif defined(CONFIG_PANEL_TD4101_J2CORELTE)
 extern struct mipi_dsim_lcd_driver td4101_mipi_lcd_driver;
 #endif
 
 extern int dsim_panel_ops_init(struct dsim_device *dsim);
-extern int register_lcd_driver(struct mipi_dsim_lcd_driver *drv);
+extern int replace_lcd_driver(struct mipi_dsim_lcd_driver *drv);
+
+#if defined(CONFIG_EXYNOS_DECON_MDNIE_LITE)
+#define CONFIG_EXYNOS_DECON_MDNIE	CONFIG_EXYNOS_DECON_MDNIE_LITE
+#endif
 
 #endif
+

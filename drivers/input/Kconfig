@@ -196,6 +196,18 @@ config HALL
 	help
 	  Enable Hall Feature
 
+config HALL_EVENT_REVERSE
+	tristate "Adjusting the status value of HALL IC"
+	default y
+	depends on HALL
+	depends on ANDROID_MAJOR_VERSION >= "q"
+	help
+	  Adjusting the status value of HALL IC.
+	  This was required from input FW.
+
+	  If unsure, say N.
+
+
 config SEC_AUTO_INPUT
 	tristate "Samsung auto input"
 	depends on !SAMSUNG_PRODUCT_SHIP

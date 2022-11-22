@@ -1346,7 +1346,7 @@ int slsi_nan_get_capabilities(struct wiphy *wiphy, struct wireless_dev *wdev, co
 		goto exit_with_mibrsp;
 	}
 
-	for (i = 0; i < ARRAY_SIZE(get_values); i++) {
+	for (i = 0; i < (int)ARRAY_SIZE(get_values); i++) {
 		if (values[i].type == SLSI_MIB_TYPE_UINT) {
 			*capabilities_mib_val[i] = values[i].u.uintValue;
 			SLSI_DBG2(sdev, SLSI_GSCAN, "MIB value = %ud\n", *capabilities_mib_val[i]);
@@ -1428,7 +1428,7 @@ void slsi_nan_event(struct slsi_dev *sdev, struct net_device *dev, struct sk_buf
 	case SLSI_NL80211_NAN_PUBLISH_TERMINATED_EVENT:
 		res |= nla_put_be16(nl_skb, NAN_EVT_ATTR_PUBLISH_ID, identifier);
 		res |= nla_put_be16(nl_skb, NAN_EVT_ATTR_PUBLISH_ID, evt_reason);
-		ndev_vif->nan.publish_id_map &= ~BIT(identifier);
+		ndev_vif->nan.publish_id_map &= (u32)~BIT(identifier);
 		break;
 	case SLSI_NL80211_NAN_MATCH_EXPIRED_EVENT:
 		res |= nla_put_be16(nl_skb, NAN_EVT_ATTR_MATCH_PUBLISH_SUBSCRIBE_ID, identifier);
@@ -1437,7 +1437,7 @@ void slsi_nan_event(struct slsi_dev *sdev, struct net_device *dev, struct sk_buf
 	case SLSI_NL80211_NAN_SUBSCRIBE_TERMINATED_EVENT:
 		res |= nla_put_be16(nl_skb, NAN_EVT_ATTR_SUBSCRIBE_ID, identifier);
 		res |= nla_put_be16(nl_skb, NAN_EVT_ATTR_SUBSCRIBE_REASON, evt_reason);
-		ndev_vif->nan.subscribe_id_map &= ~BIT(identifier);
+		ndev_vif->nan.subscribe_id_map &= (u32)~BIT(identifier);
 		break;
 	case SLSI_NL80211_NAN_DISCOVERY_ENGINE_EVENT:
 		res |= nla_put_be16(nl_skb, NAN_EVT_ATTR_DISCOVERY_ENGINE_EVT_TYPE, disc_event_type);
@@ -1507,6 +1507,7 @@ void slsi_nan_followup_ind(struct slsi_dev *sdev, struct net_device *dev, struct
 		if (stitched_ie_p[1] + 2 < (ptr - stitched_ie_p) + tag_len) {
 			SLSI_ERR(sdev, "TLV error\n");
 			kfree(hal_evt);
+			kfree(stitched_ie_p);
 			return;
 		}
 		if (tag_id == SLSI_FAPI_NAN_SERVICE_SPECIFIC_INFO) {

@@ -2218,7 +2218,6 @@ static void cod9002x_jack_det_work(struct work_struct *work)
 			waterdet->jack_det_bypass == false &&
 			waterdet->water_det == COD9002X_DET_WATER) {
 		mutex_unlock(&cod9002x->jackdet_lock);
-		wake_unlock(&cod9002x->jack_wake_lock);
 		return;
 	}
 
@@ -2238,7 +2237,6 @@ static void cod9002x_jack_det_work(struct work_struct *work)
 						__func__, cod9002x->jack_det_adc_max);
 				jackdet->jack_det = false;
 				mutex_unlock(&cod9002x->jackdet_lock);
-				wake_unlock(&cod9002x->jack_wake_lock);
 				return;
 			}
 			jackdet->mic_det = true;
@@ -2285,7 +2283,6 @@ static void cod9002x_jack_det_work(struct work_struct *work)
 			jackdet->mic_det ? "inserted" : "removed");
 
 	mutex_unlock(&cod9002x->jackdet_lock);
-	wake_unlock(&cod9002x->jack_wake_lock);
 }
 
 static int get_adc_avg(int *adc_values)
@@ -2335,13 +2332,11 @@ static void cod9002x_buttons_work(struct work_struct *work)
 			cod9002x_process_button_ev(cod9002x->codec, jd->button_code, 0);
 			dev_err(cod9002x->dev, ":key %d released when jack_out\n", jd->button_code);
 		}
-		wake_unlock(&cod9002x->jack_wake_lock);
 		return;
 	}
 
 	if (!jd->mic_det) {
 		dev_err(cod9002x->dev, "Skip button events for 3-pole jack\n");
-		wake_unlock(&cod9002x->jack_wake_lock);
 		return;
 	}
 
@@ -2372,7 +2367,6 @@ static void cod9002x_buttons_work(struct work_struct *work)
 						adc_values[i+3], adc_values[i+4]);
 				i += 5;
 			}
-			wake_unlock(&cod9002x->jack_wake_lock);
 			return;
 		}
 		adc_final_values[j] = avg;
@@ -2392,7 +2386,6 @@ static void cod9002x_buttons_work(struct work_struct *work)
 
 	if (jd->privious_button_state == current_button_state) {
 		dev_err(cod9002x->dev, "Button state did not changed\n");
-		wake_unlock(&cod9002x->jack_wake_lock);
 		return;
 	}
 
@@ -2421,7 +2414,6 @@ static void cod9002x_buttons_work(struct work_struct *work)
 
 				dev_dbg(cod9002x->dev, ":key %d is pressed, adc %d\n",
 						btn_zones[i].code, adc);
-				wake_unlock(&cod9002x->jack_wake_lock);
 				return;
 			}
 
@@ -2442,7 +2434,6 @@ static void cod9002x_buttons_work(struct work_struct *work)
 		cod9002x_process_button_ev(cod9002x->codec, jd->button_code, 0);
 		dev_dbg(cod9002x->dev, ":key %d released\n", jd->button_code);
 	}
-	wake_unlock(&cod9002x->jack_wake_lock);
 }
 
 int cod9002x_jack_mic_register(struct snd_soc_codec *codec)
@@ -3067,6 +3058,7 @@ static int cod9002x_notifier_handler(struct notifier_block *nb,
 
 	dev_dbg(cod9002x->dev, "%s called from mfd\n", __func__);
 	mutex_lock(&cod9002x->key_lock);
+	wake_lock_timeout(&cod9002x->jack_wake_lock, 5 * HZ);
 
 	if (cod9002x->is_suspend)
 		regcache_cache_only(cod9002x->regmap, false);
@@ -3111,12 +3103,10 @@ static int cod9002x_notifier_handler(struct notifier_block *nb,
 
 		/* mic detection delay */
 		if (jd->jack_det) {
-			wake_lock(&cod9002x->jack_wake_lock);
 			/* jack detection workqueue */
 			cancel_work_sync(&cod9002x->jack_det_work);
 			queue_work(cod9002x->jack_det_wq, &cod9002x->jack_det_work);
 		} else {
-			wake_lock(&cod9002x->jack_wake_lock);
 			/* jack detection workqueue */
 			cancel_work_sync(&cod9002x->jack_det_work);
 			queue_work(cod9002x->jack_det_wq, &cod9002x->jack_det_work);
@@ -3127,7 +3117,6 @@ static int cod9002x_notifier_handler(struct notifier_block *nb,
 	}
 
 	if (cod9002x->use_btn_adc_mode) {
-		wake_lock(&cod9002x->jack_wake_lock);
 		/* start button work */
 		queue_delayed_work(cod9002x->buttons_wq,
 				&cod9002x->buttons_work,

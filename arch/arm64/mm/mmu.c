@@ -41,14 +41,11 @@
 
 #include "mm.h"
 
-#include <linux/vmalloc.h>
-
 #ifdef CONFIG_TIMA_RKP
 #include <linux/rkp_entry.h> 
 #endif
 
 u64 idmap_t0sz = TCR_T0SZ(VA_BITS);
-static int iotable_on;
 #ifdef CONFIG_KNOX_KAP
 extern int boot_mode_security;
 #endif
@@ -168,10 +165,7 @@ static void alloc_init_pte(pmd_t *pmd, unsigned long addr,
 
 	pte = pte_offset_kernel(pmd, addr);
 	do {
-		if (iotable_on == 1)
-			set_pte(pte, pfn_pte(pfn, pgprot_iotable_init(PAGE_KERNEL_EXEC)));
-		else
-			set_pte(pte, pfn_pte(pfn, prot));
+		set_pte(pte, pfn_pte(pfn, prot));
 		pfn++;
 	} while (pte++, addr += PAGE_SIZE, addr != end);
 }
@@ -607,7 +601,6 @@ void __init paging_init(void)
 	int rkp_do = 0;
 #endif
 	map_mem();
-
 	fixup_executable();
 
 #ifdef CONFIG_TIMA_RKP

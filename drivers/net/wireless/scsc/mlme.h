@@ -24,6 +24,7 @@ enum slsi_ac_index_wmm_pe {
 
 #define SLSI_WLAN_EID_VENDOR_SPECIFIC 0xdd
 #define SLSI_WLAN_EID_INTERWORKING 107
+#define SLSI_WLAN_EID_EXTENSION 255
 
 #define SLSI_WLAN_OUI_TYPE_WFA_HS20_IND 0x10
 #define SLSI_WLAN_OUI_TYPE_WFA_OSEN 0x12
@@ -154,8 +155,6 @@ int slsi_mlme_set_channel(struct slsi_dev *sdev, struct net_device *dev, struct 
 void slsi_ap_obss_scan_done_ind(struct net_device *dev, struct netdev_vif *ndev_vif);
 
 u16 slsi_compute_chann_info(struct slsi_dev *sdev, u16 width, u16 center_freq0, u16 channel_freq);
-int slsi_mlme_spare_signal_1(struct slsi_dev *sdev, struct net_device *dev);
-
 /**
  * slsi_mlme_add_autonomous_scan() Returns:
  *  0 : Scan installed
@@ -249,8 +248,7 @@ int slsi_mlme_nan_tx_followup(struct slsi_dev *sdev, struct net_device *dev,
 int slsi_mlme_nan_set_config(struct slsi_dev *sdev, struct net_device *dev, struct slsi_hal_nan_config_req *hal_req);
 #endif
 
-int slsi_mlme_set_ext_capab(struct slsi_dev *sdev, struct net_device *dev, struct slsi_mib_value *mib_val);
-int slsi_mlme_set_hs2_ext_cap(struct slsi_dev *sdev, struct net_device *dev, const u8 *ies, int ie_len);
+int slsi_mlme_set_ext_capab(struct slsi_dev *sdev, struct net_device *dev, u8 *data, int datalength);
 int slsi_mlme_reassociate(struct slsi_dev *sdev, struct net_device *dev);
 void slsi_mlme_reassociate_resp(struct slsi_dev *sdev, struct net_device *dev);
 int slsi_modify_ies(struct net_device *dev, u8 eid, u8 *ies, int ies_len, u8 ie_index, u8 ie_value);
@@ -260,7 +258,7 @@ int slsi_mlme_set_host_state(struct slsi_dev *sdev, struct net_device *dev, u8 h
 int slsi_mlme_set_ctwindow(struct slsi_dev *sdev, struct net_device *dev, unsigned int ct_param);
 int slsi_mlme_set_p2p_noa(struct slsi_dev *sdev, struct net_device *dev, unsigned int noa_count,
 			  unsigned int interval, unsigned int duration);
-void slsi_fw_tx_rate_calc(u16 fw_rate, struct rate_info *tx_rate, unsigned long *data_rate_mbps);
+void slsi_decode_fw_rate(u16 fw_rate, struct rate_info *rate, unsigned long *data_rate_mbps);
 
 struct sk_buff *slsi_mlme_req_cfm(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb, u16 cfm_id);
 

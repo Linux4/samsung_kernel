@@ -26,7 +26,8 @@
 #include "pinctrl-imx.h"
 
 enum imx25_pads {
-	MX25_PAD_RESERVE0 = 1,
+	MX25_PAD_RESERVE0 = 0,
+	MX25_PAD_RESERVE1 = 1,
 	MX25_PAD_A10 = 2,
 	MX25_PAD_A13 = 3,
 	MX25_PAD_A14 = 4,

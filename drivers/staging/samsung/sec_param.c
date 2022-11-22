@@ -103,9 +103,14 @@ int sec_set_param(unsigned long offset, char val)
 
 	mutex_lock(&sec_param_mutex);
 
-	if ((offset != CM_OFFSET) && (offset != CM_OFFSET + CM_OFFSET_LIMIT)
-		&& (offset != GSP_OFFSET))
+	switch (offset) {
+	case CM_OFFSET ... CM_OFFSET_LIMIT:
+	case GSP_OFFSET:
+	case FMM_LOCK_OFFSET:
+		break;
+	default:
 		goto unlock_out;
+	}
 
 	switch (val) {
 	case PARAM_OFF:

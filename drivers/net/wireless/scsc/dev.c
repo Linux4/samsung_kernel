@@ -223,9 +223,8 @@ void slsi_regd_init(struct slsi_dev *sdev)
 	int                        i;
 
 	SLSI_DBG1_NODEV(SLSI_INIT_DEINIT, "regulatory init\n");
-
 	SLSI_DBG1(sdev, SLSI_INIT_DEINIT, "chip ver=Maxwell, chan supp=2.4 & 5 GHz");
-	slsi_world_regdom_custom->n_reg_rules = 6;
+	slsi_world_regdom_custom->n_reg_rules = (sizeof(reg_rules))/sizeof(reg_rules[0]);
 	for (i = 0; i < slsi_world_regdom_custom->n_reg_rules; i++)
 		slsi_world_regdom_custom->reg_rules[i] = reg_rules[i];
 
@@ -374,8 +373,8 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 		SLSI_ERR(sdev, "failed to register with p2p netdev\n");
 		goto err_wlan_registered;
 	}
-#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
-#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000)
+#if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
+#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 	if (slsi_netif_register(sdev, sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN]) != 0) {
 		SLSI_ERR(sdev, "failed to register with p2px_wlan1 netdev\n");
 		goto err_p2p_registered;
@@ -386,8 +385,8 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 #if CONFIG_SCSC_WLAN_MAX_INTERFACES >= 4
 	if (slsi_netif_register(sdev, sdev->netdev[SLSI_NET_INDEX_NAN]) != 0) {
 		SLSI_ERR(sdev, "failed to register with NAN netdev\n");
-#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
-#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000)
+#if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
+#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 		goto err_p2px_wlan_registered;
 #else
 		goto err_p2p_registered;
@@ -404,6 +403,11 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 #endif
 
 	slsi_dbg_skb_device_add();
+
+#ifdef CONFIG_SCSC_WLAN_ENHANCED_PKT_FILTER
+	sdev->enhanced_pkt_filter_enabled = true;
+#endif
+
 	sdev->device_state = SLSI_DEVICE_STATE_STOPPED;
 	sdev->current_tspec_id = -1;
 	sdev->tspec_error_code = -1;
@@ -415,8 +419,8 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 #if CONFIG_SCSC_WLAN_MAX_INTERFACES >= 4
 		goto err_nan_registered;
 #else
-#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
-#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000)
+#if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
+#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 		goto err_p2px_wlan_registered;
 #else
 		goto err_p2p_registered;
@@ -433,8 +437,8 @@ err_nan_registered:
 	slsi_netif_remove(sdev, sdev->netdev[SLSI_NET_INDEX_NAN]);
 #endif
 
-#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
-#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000)
+#if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
+#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 err_p2px_wlan_registered:
 	slsi_netif_remove(sdev, sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN]);
 	rcu_assign_pointer(sdev->netdev_ap, NULL);
@@ -571,7 +575,7 @@ int __init slsi_dev_load(void)
 	sap_test_init();
 
 /* Always create devnode if TW Android P on */
-#if defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000
 	slsi_create_sysfs_macaddr();
 #endif
 	SLSI_INFO_NODEV("--- Maxwell Wi-Fi driver loaded successfully ---\n");
@@ -582,7 +586,7 @@ void __exit slsi_dev_unload(void)
 {
 	SLSI_INFO_NODEV("Unloading Maxwell Wi-Fi driver\n");
 
-#if defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000
 	slsi_destroy_sysfs_macaddr();
 #endif
 	/* Unregister SAPs */

@@ -349,6 +349,14 @@ static int sec_vib_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static void sec_vib_shutdown(struct platform_device *pdev)
+{
+	struct sec_vib_drvdata *ddata = platform_get_drvdata(pdev);
+	printk("[VIB] sec_vib_shutdown\n");
+	sec_vib_vdd_en(&ddata->dev, LDO_DIS);
+	timed_output_dev_unregister(&ddata->dev);
+}
+
 #if defined(CONFIG_OF)
 static struct of_device_id sec_vib_dt_ids[] = {
 	{ .compatible = "sec_vib" },
@@ -360,6 +368,7 @@ MODULE_DEVICE_TABLE(of, sec_vib_dt_ids);
 static struct platform_driver sec_vib_driver = {
 	.probe		= sec_vib_probe,
 	.remove		= sec_vib_remove,
+	.shutdown	= sec_vib_shutdown,
 	.driver		= {
 		.name		= SEC_VIB_NAME,
 		.owner		= THIS_MODULE,

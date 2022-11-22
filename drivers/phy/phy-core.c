@@ -229,7 +229,7 @@ EXPORT_SYMBOL_GPL(phy_exit);
 
 int phy_tune(struct phy *phy, int phy_state)
 {
-	int ret;
+	int ret = 0;
 
 	if (!phy || !phy->ops->tune)
 		return 0;
@@ -349,6 +349,10 @@ static struct phy *_of_phy_get(struct device_node *np, int index)
 	ret = of_parse_phandle_with_args(np, "phys", "#phy-cells",
 		index, &args);
 	if (ret)
+		return ERR_PTR(-ENODEV);
+
+	/* This phy type handled by the usb-phy subsystem for now */
+	if (of_device_is_compatible(args.np, "usb-nop-xceiv"))
 		return ERR_PTR(-ENODEV);
 
 	mutex_lock(&phy_provider_mutex);

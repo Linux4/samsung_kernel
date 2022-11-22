@@ -51,6 +51,7 @@ struct s2mpu06_fuelgauge_data {
 	unsigned int capacity_old;      /* only for atomic calculation */
 	unsigned int capacity_max;      /* only for dynamic calculation */
 	unsigned int standard_capacity;
+	unsigned int raw_capacity;
 
 	bool initial_update_of_soc;
 	struct mutex fg_lock;
@@ -87,6 +88,7 @@ static enum power_supply_property s2mpu06_fuelgauge_props[] = {
 	POWER_SUPPLY_PROP_TEMP_AMBIENT,
 	POWER_SUPPLY_PROP_ENERGY_FULL_DESIGN,
 	POWER_SUPPLY_PROP_CHARGE_TYPE,
+	POWER_SUPPLY_PROP_CHARGE_COUNTER,
 };
 
 
@@ -782,6 +784,9 @@ static int s2mpu06_fg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 	case POWER_SUPPLY_PROP_ENERGY_NOW:
 		return -ENODATA;
+	case POWER_SUPPLY_PROP_CHARGE_COUNTER:
+		val->intval = fuelgauge->pdata->capacity_full * fuelgauge->raw_capacity;
+		break;
 		/* Cell voltage (VCELL, mV) */
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		val->intval = s2mpu06_get_vbat(fuelgauge);
@@ -825,6 +830,7 @@ static int s2mpu06_fg_get_property(struct power_supply *psy,
 			if (val->intval < 0)
 				val->intval = 0;
 
+            fuelgauge->raw_capacity = val->intval;
 			/* get only integer part */
 			val->intval /= 10;
 
@@ -1035,6 +1041,11 @@ static int s2mpu06_fuelgauge_parse_dt(struct s2mpu06_fuelgauge_data *fuelgauge)
 		goto err;
 	}
 
+    ret = of_property_read_u32(np, "fuelgauge,capacity_full",
+		    &pdata->capacity_full);
+	if (ret < 0)
+		pr_err("%s error reading capacity_full %d\n", __func__, ret);
+
 	ret = of_property_read_u32(np,
 			"fuelgauge,capacity_calculation_type",
 			&pdata->capacity_calculation_type);
@@ -1074,6 +1085,15 @@ static int s2mpu06_fuelgauge_parse_dt(struct s2mpu06_fuelgauge_data *fuelgauge)
 			__func__, i, fuelgauge->age_data_info[i].cell_character0[0],
 			fuelgauge->age_data_info[i].cell_character1[0], fuelgauge->raw_100_vbat[i]);
 	}
+
+	/* batt data version */
+	ret = of_property_read_u32_array(np, "battery,data_ver", &fuelgauge->info.data_ver, 1);
+	if (ret < 0) {
+		pr_err("Can get prop %s (%d)\n", "battery,data_ver", ret);
+		fuelgauge->info.data_ver = 0;
+		}
+	pr_info("%s = <%d>\n", "battery,data_ver", fuelgauge->info.data_ver);
+
 }
 #endif
 
@@ -1115,14 +1135,6 @@ static int s2mpu06_fuelgauge_parse_dt(struct s2mpu06_fuelgauge_data *fuelgauge)
 			"battery,full_check_current_2nd", i,
 			&pdata->charging_current[i].full_check_current_2nd);
 	}
-
-	/* batt data version */
-	ret = of_property_read_u32_array(np, "battery,data_ver", &fuelgauge->info.data_ver, 1);
-	if (ret < 0) {
-		pr_err("Can get prop %s (%d)\n", "battery,data_ver", ret);
-		fuelgauge->info.data_ver = 0;
-		}
-	pr_info("%s = <%d>\n", "battery,data_ver", fuelgauge->info.data_ver);
 
 	return 0;
 

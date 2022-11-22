@@ -31,9 +31,11 @@
 #define ETH_P_GSMP	0x880C
 #endif
 /* DSCP */
+/* (RFC5865) */
+#define DSCP_VA		0x2C
+/* (RFC3246) */
+#define DSCP_EF		0x2E
 /* (RFC2597) */
-#define DSCP_EF_PHB	0x2E
-#define DSCP_EF		0x2C
 #define DSCP_AF43	0x26
 #define DSCP_AF42	0x24
 #define DSCP_AF41	0x22
@@ -53,8 +55,9 @@
 #define CS4		0x20
 #define CS3		0x18
 #define CS2		0x10
-#define CS1		0x08
 #define CS0		0x00
+/* (RFC3662) */
+#define CS1		0x08
 
 #define SLSI_TX_WAKELOCK_TIME (100)
 
@@ -118,6 +121,7 @@ static int slsi_net_open(struct net_device *dev)
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct slsi_dev   *sdev = ndev_vif->sdev;
 	int               err;
+	unsigned char	  dev_addr_zero_check[ETH_ALEN];
 
 	SLSI_NET_DBG2(dev, SLSI_NETDEV, "iface_num = %d\n", ndev_vif->ifnum);
 	SLSI_INFO(sdev, "%s -- Recovery Status:%d\n",
@@ -144,7 +148,6 @@ static int slsi_net_open(struct net_device *dev)
 
 	if (!sdev->netdev_up_count) {
 		slsi_get_hw_mac_address(sdev, sdev->hw_addr);
-		SLSI_DBG1(sdev, SLSI_INIT_DEINIT, "Configure MAC address to [%pM]\n", sdev->hw_addr);
 
 		/* Assign Addresses */
 		SLSI_ETHER_COPY(sdev->netdev_addresses[SLSI_NET_INDEX_WLAN], sdev->hw_addr);
@@ -163,15 +166,18 @@ static int slsi_net_open(struct net_device *dev)
 		sdev->initial_scan = true;
 	}
 
-#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
-	if (SLSI_IS_VIF_INDEX_MHS(sdev, ndev_vif))
-		SLSI_ETHER_COPY(dev->dev_addr, sdev->netdev_addresses[SLSI_NET_INDEX_P2P]);
-	else
-		SLSI_ETHER_COPY(dev->dev_addr, sdev->netdev_addresses[ndev_vif->ifnum]);
+	memset(dev_addr_zero_check, 0, ETH_ALEN);
+	if (!memcmp(dev->dev_addr, dev_addr_zero_check, ETH_ALEN)) {
+#if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
+		if (SLSI_IS_VIF_INDEX_MHS(sdev, ndev_vif))
+			SLSI_ETHER_COPY(dev->dev_addr, sdev->netdev_addresses[SLSI_NET_INDEX_P2P]);
+		else
+			SLSI_ETHER_COPY(dev->dev_addr, sdev->netdev_addresses[ndev_vif->ifnum]);
 #else
-	SLSI_ETHER_COPY(dev->dev_addr, sdev->netdev_addresses[ndev_vif->ifnum]);
+		SLSI_ETHER_COPY(dev->dev_addr, sdev->netdev_addresses[ndev_vif->ifnum]);
 #endif
-
+	}
+	SLSI_ETHER_COPY(dev->perm_addr, sdev->netdev_addresses[ndev_vif->ifnum]);
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 	ndev_vif->is_available = true;
 	sdev->netdev_up_count++;
@@ -302,10 +308,45 @@ static u16 slsi_get_priority_from_tos_dscp(u8 *frame, u16 proto)
 	default:
 		return FAPI_PRIORITY_QOS_UP0;
 	}
-
+/* DSCP table based in RFC8325 from Android 10 */
+#if (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 100000)
 	switch (dscp) {
-	case DSCP_EF_PHB:
+	case CS7:
+		return FAPI_PRIORITY_QOS_UP7;
+	case CS6:
 	case DSCP_EF:
+	case DSCP_VA:
+		return FAPI_PRIORITY_QOS_UP6;
+	case CS5:
+		return FAPI_PRIORITY_QOS_UP5;
+	case DSCP_AF41:
+	case DSCP_AF42:
+	case DSCP_AF43:
+	case CS4:
+	case DSCP_AF31:
+	case DSCP_AF32:
+	case DSCP_AF33:
+	case CS3:
+		return FAPI_PRIORITY_QOS_UP4;
+	case DSCP_AF21:
+	case DSCP_AF22:
+	case DSCP_AF23:
+		return FAPI_PRIORITY_QOS_UP3;
+	case CS2:
+	case DSCP_AF11:
+	case DSCP_AF12:
+	case DSCP_AF13:
+	case CS0:
+		return FAPI_PRIORITY_QOS_UP0;
+	case CS1:
+		return FAPI_PRIORITY_QOS_UP1;
+	default:
+		return FAPI_PRIORITY_QOS_UP0;
+	}
+#else
+	switch (dscp) {
+	case DSCP_EF:
+	case DSCP_VA:
 		return FAPI_PRIORITY_QOS_UP6;
 	case DSCP_AF43:
 	case DSCP_AF42:
@@ -340,6 +381,7 @@ static u16 slsi_get_priority_from_tos_dscp(u8 *frame, u16 proto)
 	default:
 		return FAPI_PRIORITY_QOS_UP0;
 	}
+#endif
 }
 
 #endif
@@ -987,7 +1029,19 @@ exit:
 
 static int  slsi_set_mac_address(struct net_device *dev, void *addr)
 {
-	SLSI_NET_DBG1(dev, SLSI_NETDEV, "slsi_set_mac_address\n");
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	struct slsi_dev   *sdev = ndev_vif->sdev;
+	struct sockaddr *sa = (struct sockaddr *)addr;
+
+	SLSI_NET_DBG1(dev, SLSI_NETDEV, "slsi_set_mac_address %pM\n", sa->sa_data);
+	SLSI_ETHER_COPY(dev->dev_addr, sa->sa_data);
+
+	/* Interface is pulled down before mac address is changed.
+	 * First scan initiated after interface is brought up again, should be treated as initial scan, for faster reconnection.
+	 */
+	if (SLSI_IS_VIF_INDEX_WLAN(ndev_vif)) {
+		sdev->initial_scan = true;
+	}
 	return 0;
 }
 
@@ -1129,7 +1183,7 @@ int slsi_netif_add_locked(struct slsi_dev *sdev, const char *name, int ifnum)
 	/* We are not ready to send data yet. */
 	netif_carrier_off(dev);
 
-#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
+#if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 	if (strcmp(name, CONFIG_SCSC_AP_INTERFACE_NAME) == 0)
 		SLSI_ETHER_COPY(dev->dev_addr, sdev->netdev_addresses[SLSI_NET_INDEX_P2P]);
 	else
@@ -1152,7 +1206,7 @@ int slsi_netif_add_locked(struct slsi_dev *sdev, const char *name, int ifnum)
 	ndev_vif->delete_probe_req_ies = false;
 	ndev_vif->probe_req_ies = NULL;
 	ndev_vif->probe_req_ie_len = 0;
-	ndev_vif->drv_in_p2p_procedure = false;
+
 	return 0;
 
 exit_with_error:
@@ -1169,7 +1223,7 @@ int slsi_netif_dynamic_iface_add(struct slsi_dev *sdev, const char *name)
 
 	SLSI_MUTEX_LOCK(sdev->netdev_add_remove_mutex);
 
-#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000)
+#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000)
 	if (sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN] == sdev->netdev_ap) {
 		rcu_assign_pointer(sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN], NULL);
 		err = slsi_netif_add_locked(sdev, name, SLSI_NET_INDEX_P2PX_SWLAN);
@@ -1210,8 +1264,8 @@ int slsi_netif_init(struct slsi_dev *sdev)
 		SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
 		return -EINVAL;
 	}
-#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
-#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000)
+#if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
+#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 	if (slsi_netif_add_locked(sdev, CONFIG_SCSC_AP_INTERFACE_NAME, SLSI_NET_INDEX_P2PX_SWLAN) != 0) {
 		rtnl_lock();
 		slsi_netif_remove_locked(sdev, sdev->netdev[SLSI_NET_INDEX_WLAN]);
@@ -1227,8 +1281,8 @@ int slsi_netif_init(struct slsi_dev *sdev)
 		rtnl_lock();
 		slsi_netif_remove_locked(sdev, sdev->netdev[SLSI_NET_INDEX_WLAN]);
 		slsi_netif_remove_locked(sdev, sdev->netdev[SLSI_NET_INDEX_P2P]);
-#ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
-#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000)
+#if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
+#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 		slsi_netif_remove_locked(sdev, sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN]);
 #endif
 #endif
@@ -1516,7 +1570,7 @@ static void slsi_netif_tcp_ack_suppression_timeout(unsigned long data)
 static int slsi_netif_tcp_ack_suppression_option(struct sk_buff *skb, u32 option)
 {
 	unsigned char *options;
-	u32 optlen, len = 0;
+	u32 optlen = 0, len = 0;
 
 	if (tcp_hdr(skb)->doff > 5)
 		optlen = (tcp_hdr(skb)->doff - 5) * 4;

@@ -244,6 +244,8 @@ struct ion_heap {
 	struct task_struct *task;
 
 	int (*debug_show)(struct ion_heap *heap, struct seq_file *, void *);
+	atomic_long_t total_allocated;
+	atomic_long_t total_allocated_peak;
 };
 
 /**
@@ -595,23 +597,24 @@ typedef enum ion_event_type {
 	ION_EVENT_TYPE_CLEAR,
 } ion_event_t;
 
+#define ION_EVENT_HEAPNAME	8
 struct ion_event_alloc {
 	void *id;
-	struct ion_heap *heap;
+	unsigned char heapname[ION_EVENT_HEAPNAME];
 	size_t size;
 	unsigned long flags;
 };
 
 struct ion_event_free {
 	void *id;
-	struct ion_heap *heap;
+	unsigned char heapname[ION_EVENT_HEAPNAME];
 	size_t size;
 	bool shrinker;
 };
 
 struct ion_event_mmap {
 	void *id;
-	struct ion_heap *heap;
+	unsigned char heapname[ION_EVENT_HEAPNAME];
 	size_t size;
 };
 
@@ -621,7 +624,7 @@ struct ion_event_shrink {
 
 struct ion_event_clear {
 	void *id;
-	struct ion_heap *heap;
+	unsigned char heapname[ION_EVENT_HEAPNAME];
 	size_t size;
 	unsigned long flags;
 };
@@ -648,4 +651,7 @@ void ION_EVENT_CLEAR(struct ion_buffer *buffer, ktime_t begin);
 #define ION_EVENT_CLEAR(buffer, begin)	do { } while (0)
 #endif
 
+
+void show_ion_system_heap_size(struct seq_file *s);
+void show_ion_system_heap_pool_size(struct seq_file *s);
 #endif /* _ION_PRIV_H */

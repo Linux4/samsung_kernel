@@ -807,6 +807,7 @@ struct sec_battery_platform_data {
 	bool fake_capacity;
 	bool always_enable;
 	bool chg_eoc_dualpath;
+	unsigned int battery_full_capacity;
 
 	/* ADC setting */
 	unsigned int adc_check_count;
@@ -886,6 +887,7 @@ struct sec_fuelgauge_platform_data {
 	int capacity_min;
 	int rcomp0;
 	int rcomp_charging;
+	int capacity_full;
 
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 	unsigned int full_condition_soc;

@@ -136,7 +136,12 @@ static bool disable_error_handling;
 module_param(disable_error_handling, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(disable_error_handling, "Disable error handling");
 
-int disable_recovery_handling = 1; /* MEMDUMP_FILE_FOR_RECOVERY : for /sys/wifi/memdump */
+#if defined(SCSC_SEP_VERSION) && (SCSC_SEP_VERSION >= 100000)
+int disable_recovery_handling = 2; /* MEMDUMP_FILE_FOR_RECOVERY : for /sys/wifi/memdump */
+#else
+/* AOSP */
+int disable_recovery_handling = 1; /* Recovery disabled, enable in init.rc, not here. */
+#endif
 module_param(disable_recovery_handling, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(disable_recovery_handling, "Disable recovery handling");
 static bool disable_recovery_from_memdump_file = true;
@@ -982,17 +987,27 @@ static int mxman_start(struct mxman *mxman)
 
 static bool is_bug_on_enabled(struct scsc_mx *mx)
 {
-	bool bug_on_enabled = false;
+	bool bug_on_enabled;
+	const struct firmware *firm;
+	int r;
+
+	if (memdump == 3)
+		bug_on_enabled = true;
+	else
+		bug_on_enabled = false;
 #ifdef CONFIG_SCSC_LOG_COLLECTION
 	return bug_on_enabled;
 #else
-#if defined(ANDROID_VERSION) && (ANDROID_VERSION >= 90000)
+	/* non SABLE platforms should also follow /sys/wifi/memdump if enabled */
+	if (disable_recovery_handling == MEMDUMP_FILE_FOR_RECOVERY)
+		return bug_on_enabled;
+
+	/* for legacy platforms (including Andorid P) using .memdump.info */
+#if defined(SCSC_SEP_VERSION) && (SCSC_SEP_VERSION >= 90000)
 	#define MX140_MEMDUMP_INFO_FILE	"/data/vendor/conn/.memdump.info"
 #else
 	#define MX140_MEMDUMP_INFO_FILE	"/data/misc/conn/.memdump.info"
 #endif
-	const struct firmware *firm;
-	int r;
 
 	SCSC_TAG_INFO(MX_FILE, "Loading %s file\n", MX140_MEMDUMP_INFO_FILE);
 	r = mx140_request_file(mx, MX140_MEMDUMP_INFO_FILE, &firm);
@@ -1763,14 +1778,14 @@ void mxman_init(struct mxman *mxman, struct scsc_mx *mx)
 	       sizeof(saved_fw_build_id));
 	mxproc_create_info_proc_dir(&mxman->mxproc, mxman);
 
-#if defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000
 	mxman_create_sysfs_memdump();
 #endif
 }
 
 void mxman_deinit(struct mxman *mxman)
 {
-#if defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000
 	mxman_destroy_sysfs_memdump();
 #endif
 	mxproc_remove_info_proc_dir(&mxman->mxproc);

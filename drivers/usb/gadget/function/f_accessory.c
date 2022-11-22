@@ -962,7 +962,7 @@ EXPORT_SYMBOL_GPL(acc_ctrlrequest);
 
 static int
 __acc_function_bind(struct usb_configuration *c,
-			struct usb_function *f, bool configfs)
+                        struct usb_function *f, bool configfs)
 {
 	struct usb_composite_dev *cdev = c->cdev;
 	struct acc_dev	*dev = func_to_dev(f);
@@ -971,7 +971,7 @@ __acc_function_bind(struct usb_configuration *c,
 
 	DBG(cdev, "acc_function_bind dev: %pK\n", dev);
 
-	if (configfs) {
+	if(configfs) {
 		if (acc_string_defs[INTERFACE_STRING_INDEX].id == 0) {
 			ret = usb_string_id(c->cdev);
 			if (ret < 0)
@@ -981,6 +981,7 @@ __acc_function_bind(struct usb_configuration *c,
 		}
 		dev->cdev = c->cdev;
 	}
+
 	ret = hid_register_driver(&acc_hid_driver);
 	if (ret)
 		return ret;

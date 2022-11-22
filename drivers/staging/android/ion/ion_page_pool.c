@@ -43,7 +43,6 @@ static void ion_page_pool_free_pages(struct ion_page_pool *pool,
 				     struct page *page)
 {
 	ion_page_pool_free_set_cache_policy(pool, page);
-	ion_clear_page_clean(page);
 	__free_pages(page, pool->order);
 }
 

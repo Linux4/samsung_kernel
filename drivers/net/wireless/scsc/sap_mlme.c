@@ -348,6 +348,30 @@ static int sap_mlme_rx_handler(struct slsi_dev *sdev, struct sk_buff *skb)
 		case MLME_EVENT_LOG_IND:
 			return slsi_rx_enqueue_netdev_mlme(sdev, skb, SLSI_NET_INDEX_WLAN);
 #endif
+		case MLME_ROAMED_IND:
+			if (vif == 0) {
+				SLSI_WARN(sdev, "Received MLME_ROAMED_IND on VIF 0, return error\n");
+				goto err;
+			} else {
+				struct net_device *dev;
+				struct netdev_vif *ndev_vif;
+
+				rcu_read_lock();
+				dev = slsi_get_netdev_rcu(sdev, vif);
+				if (WARN_ON(!dev)) {
+					rcu_read_unlock();
+					return -ENODEV;
+				}
+				ndev_vif = netdev_priv(dev);
+				if (atomic_read(&ndev_vif->sta.drop_roamed_ind)) {
+					/* If roam cfm is not received for the req, ignore this roamed indication. */
+					slsi_kfree_skb(skb);
+					rcu_read_unlock();
+					return 0;
+				}
+				rcu_read_unlock();
+				return slsi_rx_enqueue_netdev_mlme(sdev, skb, vif);
+			}
 		default:
 			if (vif == 0) {
 				SLSI_WARN(sdev, "Received signal 0x%04x on VIF 0, return error\n", fapi_get_sigid(skb));

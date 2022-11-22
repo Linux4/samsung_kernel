@@ -96,13 +96,14 @@ static void free_buffer_page(struct ion_system_heap *heap,
 			     struct ion_buffer *buffer, struct page *page)
 {
 	unsigned int order = compound_order(page);
+        bool cached = ion_buffer_cached(buffer);
 
-	if (!(buffer->private_flags & ION_PRIV_FLAG_SHRINKER_FREE)) {
-		int uncached = ion_buffer_cached(buffer) ? 0 : 1;
-		int idx = order_to_index(order) + (num_orders * uncached);
-		struct ion_page_pool *pool = heap->pools[idx];
-
-		ion_page_pool_free(pool, page);
+	if (!cached) {
+		struct ion_page_pool *pool = heap->pools[order_to_index(order)];
+		if (buffer->private_flags & ION_PRIV_FLAG_SHRINKER_FREE)
+			ion_page_pool_free_immediate(pool, page);
+		else
+			ion_page_pool_free(pool, page);
 	} else {
 		ion_clear_page_clean(page);
 		__free_pages(page, order);
@@ -512,6 +513,80 @@ static int ion_system_heap_debug_show(struct ion_heap *heap, struct seq_file *s,
 	return 0;
 }
 
+static struct ion_system_heap *system_heap;
+
+void show_ion_system_heap_pool_size(struct seq_file *s)
+{
+	unsigned long uncached = 0;
+	unsigned long cached = 0;
+	struct ion_page_pool *pool;
+	int i;
+
+	if (!system_heap) {
+		pr_err("system_heap_pool is not ready\n");
+		return;
+	}
+
+	for (i = 0; i < num_orders; i++) {
+		pool = system_heap->pools[i];
+
+		uncached += (1 << pool->order) * pool->high_count;
+		uncached += (1 << pool->order) * pool->low_count;
+	}
+
+	for (i = num_orders; i < (num_orders * 2); i++) {
+		pool = system_heap->pools[i];
+		cached += (1 << pool->order) * pool->high_count;
+		cached += (1 << pool->order) * pool->low_count;
+	}
+
+	if (s)
+		seq_printf(s, "SystemHeapPool: %8lu kB\n",
+			   (uncached + cached) << (PAGE_SHIFT - 10));
+	else
+		pr_cont("SystemHeapPool:%lukB ",
+			(uncached + cached) << (PAGE_SHIFT - 10));
+}
+
+void show_ion_system_heap_size(struct seq_file *s)
+{
+	struct ion_heap *heap;
+	unsigned long system_byte = 0;
+
+	if (!system_heap) {
+		pr_err("system_heap is not ready\n");
+		return;
+	}
+
+	heap = &system_heap->heap;
+	system_byte = (unsigned long)atomic_long_read(&heap->total_allocated);
+	if (s)
+		seq_printf(s, "SystemHeap:     %8lu kB\n", system_byte >> 10);
+	else
+		pr_cont("SystemHeap:%lukB ", system_byte >> 10);
+}
+
+static int ion_system_heap_size_notifier(struct notifier_block *nb,
+					 unsigned long action, void *data)
+{
+	show_ion_system_heap_size((struct seq_file *)data);
+	return 0;
+}
+
+static struct notifier_block ion_system_heap_nb = {
+	.notifier_call = ion_system_heap_size_notifier,
+};
+
+static int ion_system_heap_pool_size_notifier(struct notifier_block *nb,
+					      unsigned long action, void *data)
+{
+	show_ion_system_heap_pool_size((struct seq_file *)data);
+	return 0;
+}
+
+static struct notifier_block ion_system_heap_pool_nb = {
+	.notifier_call = ion_system_heap_pool_size_notifier,
+};
 struct ion_heap *ion_system_heap_create(struct ion_platform_heap *unused)
 {
 	struct ion_system_heap *heap;
@@ -541,6 +616,13 @@ struct ion_heap *ion_system_heap_create(struct ion_platform_heap *unused)
 	}
 
 	heap->heap.debug_show = ion_system_heap_debug_show;
+	if (!system_heap) {
+		system_heap = heap;
+		show_mem_extra_notifier_register(&ion_system_heap_nb);
+		show_mem_extra_notifier_register(&ion_system_heap_pool_nb);
+	}
+	else
+		pr_err("system_heap had been already created\n");
 	return &heap->heap;
 
 destroy_pools:

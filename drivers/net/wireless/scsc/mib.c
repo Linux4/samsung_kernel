@@ -543,7 +543,7 @@ struct slsi_mib_value *slsi_mib_decode_get_list(struct slsi_mib_data *buffer, u1
 	}
 
 	if (len)
-		SLSI_ERR_NODEV("Could not find psid's: %s\n", psids_not_found);
+		SLSI_DBG1_NODEV(SLSI_MLME, "Could not find psid's: %s\n", psids_not_found);
 
 	return results;
 }

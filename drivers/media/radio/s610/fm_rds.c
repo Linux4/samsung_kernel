@@ -806,7 +806,7 @@ void validate_rt_data(struct fm_rds_parser_info *pi)
 		memset(pi->rt_err[pi->rt_idx % 3], 0xFF, MAX_RT / 2);
 		pi->rt_candidate[pi->rt_len] = 0;
 
-		if (strlen(pi->rt_candidate)  >= (pi->rt_len - 2)) {
+		if (strlen(pi->rt_candidate) >= (pi->rt_len - 2)) {
 			pi->rds_event |= RDS_EVENT_RT_MASK;
 			pi->rt_validated = 1;
 			pi->rt_idx++;

@@ -44,8 +44,7 @@ extern "C" {
 
 extern uint slsi_sg_host_align_mask;
 #define SLSI_HIP_FH_SIG_PREAMBLE_LEN 4
-#define SLSI_SKB_GET_ALIGNMENT_OFFSET(skb) (offset_in_page(skb->data + SLSI_NETIF_SKB_HEADROOM - SLSI_HIP_FH_SIG_PREAMBLE_LEN) \
-					    & slsi_sg_host_align_mask)
+#define SLSI_SKB_GET_ALIGNMENT_OFFSET(skb) (0)
 
 /* Get the Compiler to ignore Unused parameters */
 #define SLSI_UNUSED_PARAMETER(x) ((void)(x))
@@ -85,7 +84,7 @@ extern uint slsi_sg_host_align_mask;
 	} while (0)
 
 /*------------------------------------------------------------------*/
-/* Endian conversion */
+/* Endian conversion. */
 /*------------------------------------------------------------------*/
 #define SLSI_BUFF_LE_TO_U16(ptr)        (((u16)((u8 *)(ptr))[0]) | ((u16)((u8 *)(ptr))[1]) << 8)
 #define SLSI_U16_TO_BUFF_LE(uint, ptr) \
@@ -436,17 +435,53 @@ static inline void slsi_eth_broadcast_addr(u8 *addr)
 static inline int slsi_str_to_int(char *str, int *result)
 {
 	int i = 0;
+	int sign = 1;
+	int err = 0;
+	long long int res = 0;
+	int digit = 0;
+
+	if (!str)
+		return 0;
+	if (*str == '-') {
+		sign = -1;
+		++str;
+	} else if (*str == '+') {
+		sign = 1;
+		++str;
+	}
 
 	*result = 0;
-	if ((str[i] == '-') || ((str[i] >= '0') && (str[i] <= '9'))) {
-		if (str[0] == '-')
-			i++;
+	if ((str[i] >= '0') && (str[i] <= '9')) {
 		while (str[i] >= '0' && str[i] <= '9') {
-			*result *= 10;
-			*result += (int)str[i++] - '0';
+			if (res > INT_MAX / 10) {
+				err = 1;
+				break;
+			}
+			res *= 10;
+			digit = str[i] - '0';
+
+			if (res > INT_MAX - digit) {
+				if (sign == -1) {
+					res += digit;
+					if (-(res) >= INT_MIN) {
+						break;
+					} else {
+						err = 1;
+						break;
+					}
+				} else {
+					err = 1;
+					break;
+				}
+			}
+			res += digit;
+			i++;
 		}
 
-		*result = ((str[0] == '-') ? (-(*result)) : *result);
+		if (!err)
+			*result = ((sign == -1) ? -(res) : res);
+		else
+			return 0;
 	}
 	return i;
 }

@@ -195,6 +195,7 @@ static int blktrans_open(struct block_device *bdev, fmode_t mode)
 	if (!dev)
 		return -ERESTARTSYS; /* FIXME: busy loop! -arnd*/
 
+	mutex_lock(&mtd_table_mutex);
 	mutex_lock(&dev->lock);
 	mutex_lock(&mtd_table_mutex);
 
@@ -222,6 +223,7 @@ unlock:
 	dev->open++;
 	mutex_unlock(&mtd_table_mutex);
 	mutex_unlock(&dev->lock);
+	mutex_unlock(&mtd_table_mutex);
 	blktrans_dev_put(dev);
 	return ret;
 
@@ -233,6 +235,7 @@ error_put:
 	kref_put(&dev->ref, blktrans_dev_release);
 	mutex_unlock(&mtd_table_mutex);
 	mutex_unlock(&dev->lock);
+	mutex_unlock(&mtd_table_mutex);
 	blktrans_dev_put(dev);
 	return ret;
 }
@@ -244,6 +247,7 @@ static void blktrans_release(struct gendisk *disk, fmode_t mode)
 	if (!dev)
 		return;
 
+	mutex_lock(&mtd_table_mutex);
 	mutex_lock(&dev->lock);
 	mutex_lock(&mtd_table_mutex);
 
@@ -261,6 +265,7 @@ static void blktrans_release(struct gendisk *disk, fmode_t mode)
 unlock:
 	mutex_unlock(&mtd_table_mutex);
 	mutex_unlock(&dev->lock);
+	mutex_unlock(&mtd_table_mutex);
 	blktrans_dev_put(dev);
 }
 

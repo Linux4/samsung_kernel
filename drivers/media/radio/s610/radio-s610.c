@@ -1467,7 +1467,7 @@ static int s610_radio_fops_open(struct file *file)
 		atomic_set(&radio->is_rds_doing, 0);
 
 		ret = pm_runtime_get_sync(radio->dev);
-		if (ret) {
+		if (ret < 0) {
 			dev_err(radio->v4l2dev.dev,
 				"get_sync failed with err %d\n", ret);
 			goto err_open;
@@ -1476,7 +1476,7 @@ static int s610_radio_fops_open(struct file *file)
 #ifdef USE_AUDIO_PM
 		if(radio->a_dev) {
 			ret = pm_runtime_get_sync(radio->a_dev);
-			if (ret) {
+			if (ret < 0) {
 				dev_err(radio->v4l2dev.dev,
 				"audio get_sync not work: not suspend%d\n", ret);
 			}
@@ -1919,6 +1919,7 @@ static int s610_radio_probe(struct platform_device *pdev)
 
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
+	pm_runtime_get_sync(dev);
 
 	spin_lock_init(&radio->slock);
 	spin_lock_init(&radio->rds_lock);
@@ -2041,23 +2042,23 @@ static int s610_radio_probe(struct platform_device *pdev)
 			1 + ARRAY_SIZE(s610_ctrls));
 	/* Set control */
 	ret = s610_radio_add_new_custom(radio, S610_IDX_CH_SPACING,
-			V4L2_CTRL_FLAG_VOLATILE); /*0x01*/
+			0); /*0x01*/
 	if (ret < 0)
 		goto exit;
 	ret = s610_radio_add_new_custom(radio, S610_IDX_CH_BAND,
-			V4L2_CTRL_FLAG_VOLATILE); /*0x02*/
+			0); /*0x02*/
 	if (ret < 0)
 		goto exit;
 	ret = s610_radio_add_new_custom(radio, S610_IDX_SOFT_STEREO_BLEND,
-			V4L2_CTRL_FLAG_VOLATILE); /*0x03*/
+			0); /*0x03*/
 	if (ret < 0)
 		goto exit;
 	ret = s610_radio_add_new_custom(radio, S610_IDX_SOFT_STEREO_BLEND_COEFF,
-			V4L2_CTRL_FLAG_VOLATILE); /*0x04*/
+			0); /*0x04*/
 	if (ret < 0)
 		goto exit;
 	ret = s610_radio_add_new_custom(radio, S610_IDX_SOFT_MUTE_COEFF,
-			V4L2_CTRL_FLAG_VOLATILE); /*0x05*/
+			0); /*0x05*/
 	if (ret < 0)
 		goto exit;
 	ret = s610_radio_add_new_custom(radio, S610_IDX_RSSI_CURR,
@@ -2073,23 +2074,23 @@ static int s610_radio_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto exit;
 	ret = s610_radio_add_new_custom(radio, S610_IDX_SEEK_MODE,
-			V4L2_CTRL_FLAG_VOLATILE); /*0x09*/
+			0); /*0x09*/
 	if (ret < 0)
 		goto exit;
 	ret = s610_radio_add_new_custom(radio, S610_IDX_RDS_ON,
-			V4L2_CTRL_FLAG_VOLATILE); /*0x0A*/
+			0); /*0x0A*/
 	if (ret < 0)
 		goto exit;
 	ret = s610_radio_add_new_custom(radio, S610_IDX_IF_COUNT1,
-			V4L2_CTRL_FLAG_VOLATILE); /*0x0B*/
+			0); /*0x0B*/
 	if (ret < 0)
 		goto exit;
 	ret = s610_radio_add_new_custom(radio, S610_IDX_IF_COUNT2,
-			V4L2_CTRL_FLAG_VOLATILE); /*0x0C*/
+			0); /*0x0C*/
 	if (ret < 0)
 		goto exit;
 	ret = s610_radio_add_new_custom(radio, S610_IDX_RSSI_TH,
-			V4L2_CTRL_FLAG_VOLATILE); /*0x0D*/
+			0); /*0x0D*/
 	if (ret < 0)
 		goto exit;
 	ret = s610_radio_add_new_custom(radio, S610_IDX_KERNEL_VER,
@@ -2257,6 +2258,7 @@ alloc_err4:
 	v4l2_device_unregister(&radio->v4l2dev);
 
 alloc_err3:
+	pm_runtime_put_sync(dev);
 	pm_runtime_disable(&pdev->dev);
 	pm_runtime_set_suspended(&pdev->dev);
 	clk_disable(radio->clk);
@@ -2347,7 +2349,7 @@ static int fm_radio_runtime_suspend(struct device *dev)
 {
 	struct s610_radio *radio = dev_get_drvdata(dev);
 
-	FUNC_ENTRY(radio);
+	dev_info(dev, "%s FM Radio.", __func__);
 
 	fm_radio_clk_disable(radio);
 
@@ -2359,7 +2361,7 @@ static int fm_radio_runtime_resume(struct device *dev)
 	struct s610_radio *radio = dev_get_drvdata(dev);
 	int ret = 0;
 
-	FUNC_ENTRY(radio);
+	dev_info(dev, "%s FM Radio.", __func__);
 
 	ret = fm_radio_clk_enable(radio);
 	if (ret) {
@@ -2376,7 +2378,7 @@ static int fm_radio_suspend(struct device *dev)
 {
 	struct s610_radio *radio = dev_get_drvdata(dev);
 
-	FUNC_ENTRY(radio);
+	dev_info(dev, "%s FM Radio.", __func__);
 
 	if (pm_runtime_suspended(dev))
 		return 0;
@@ -2391,7 +2393,7 @@ static int fm_radio_resume(struct device *dev)
 	struct s610_radio *radio = dev_get_drvdata(dev);
 	int ret = 0;
 
-	FUNC_ENTRY(radio);
+	dev_info(dev, "%s FM Radio.", __func__);
 
 	/*pm_runtime_put_sync(dev);*/
 

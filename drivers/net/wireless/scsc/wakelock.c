@@ -13,7 +13,6 @@
 
 void slsi_wakelock(struct slsi_wake_lock *lock)
 {
-#ifdef CONFIG_WAKELOCK
 	unsigned long flags;
 
 	if (lock == NULL) {
@@ -26,14 +25,10 @@ void slsi_wakelock(struct slsi_wake_lock *lock)
 
 	lock->counter++;
 	spin_unlock_irqrestore(&lock->wl_spinlock, flags);
-#else
-	SLSI_UNUSED_PARAMETER(lock);
-#endif
 }
 
 void slsi_wakeunlock(struct slsi_wake_lock *lock)
 {
-#ifdef CONFIG_WAKELOCK
 	unsigned long flags;
 
 	if (lock == NULL) {
@@ -50,29 +45,20 @@ void slsi_wakeunlock(struct slsi_wake_lock *lock)
 		SLSI_ERR_NODEV("Wakelock has already released!");
 	}
 	spin_unlock_irqrestore(&lock->wl_spinlock, flags);
-#else
-	SLSI_UNUSED_PARAMETER(lock);
-#endif
 }
 
 void slsi_wakelock_timeout(struct slsi_wake_lock *lock, int timeout)
 {
-#ifdef CONFIG_WAKELOCK
 	if (lock == NULL) {
 		SLSI_ERR_NODEV("Failed to take wakelock timeout, lock is NULL");
 		return;
 	}
 	lock->counter = 1;
 	wake_lock_timeout(&lock->wl, msecs_to_jiffies(timeout));
-#else
-	SLSI_UNUSED_PARAMETER(lock);
-	SLSI_UNUSED_PARAMETER(timeout);
-#endif
 }
 
 int slsi_is_wakelock_active(struct slsi_wake_lock *lock)
 {
-#ifdef CONFIG_WAKELOCK
 	if (lock == NULL) {
 		SLSI_ERR_NODEV("Failed to check wakelock status, lock is NULL");
 		return 0;
@@ -80,29 +66,21 @@ int slsi_is_wakelock_active(struct slsi_wake_lock *lock)
 
 	if (wake_lock_active(&lock->wl))
 		return 1;
-#else
-	SLSI_UNUSED_PARAMETER(lock);
-#endif
 	return 0;
 }
 
 void slsi_wakelock_exit(struct slsi_wake_lock *lock)
 {
-#ifdef CONFIG_WAKELOCK
 	if (lock == NULL) {
 		SLSI_ERR_NODEV("Failed to destroy the wakelock, lock is NULL");
 		return;
 	}
 
 	wake_lock_destroy(&lock->wl);
-#else
-	SLSI_UNUSED_PARAMETER(lock);
-#endif
 }
 
 void slsi_wakelock_init(struct slsi_wake_lock *lock, char *name)
 {
-#ifdef CONFIG_WAKELOCK
 	if (lock == NULL) {
 		SLSI_ERR_NODEV("Failed to init the wakelock, lock is NULL");
 		return;
@@ -110,8 +88,4 @@ void slsi_wakelock_init(struct slsi_wake_lock *lock, char *name)
 	lock->counter = 0;
 	wake_lock_init(&lock->wl, WAKE_LOCK_SUSPEND, name);
 	spin_lock_init(&lock->wl_spinlock);
-#else
-	SLSI_UNUSED_PARAMETER(lock);
-	SLSI_UNUSED_PARAMETER(name);
-#endif
 }

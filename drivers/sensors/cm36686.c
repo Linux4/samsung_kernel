@@ -625,13 +625,13 @@ static ssize_t cm36686_name_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n", CHIP_ID);
 }
 static struct device_attribute dev_attr_prox_sensor_vendor =
-	__ATTR(vendor, S_IRUSR | S_IRGRP, cm36686_vendor_show, NULL);
+	__ATTR(vendor, 0444, cm36686_vendor_show, NULL);
 static struct device_attribute dev_attr_light_sensor_vendor =
-	__ATTR(vendor, S_IRUSR | S_IRGRP, cm36686_vendor_show, NULL);
+	__ATTR(vendor, 0444, cm36686_vendor_show, NULL);
 static struct device_attribute dev_attr_prox_sensor_name =
-	__ATTR(name, S_IRUSR | S_IRGRP, cm36686_name_show, NULL);
+	__ATTR(name, 0444, cm36686_name_show, NULL);
 static struct device_attribute dev_attr_light_sensor_name =
-	__ATTR(name, S_IRUSR | S_IRGRP, cm36686_name_show, NULL);
+	__ATTR(name, 0444, cm36686_name_show, NULL);
 
 /* proximity sensor sysfs */
 static ssize_t proximity_trim_show(struct device *dev,

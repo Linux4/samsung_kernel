@@ -197,6 +197,7 @@ static irqreturn_t pn547_nfc_clk_irq(int irq, void *dev_id)
 {
 	struct pn547_dev *pn547_dev = dev_id;
 
+#if 0
 	if (gpio_get_value(pn547_dev->clk_req_gpio)) {
 		if(!wake_lock_active(&pn547_dev->nfc_clk_wake_lock))
 			wake_lock(&pn547_dev->nfc_clk_wake_lock);
@@ -204,6 +205,10 @@ static irqreturn_t pn547_nfc_clk_irq(int irq, void *dev_id)
 		if (wake_lock_active(&pn547_dev->nfc_clk_wake_lock))
 			wake_unlock(&pn547_dev->nfc_clk_wake_lock);
 	}
+#else
+	wake_lock_timeout(&pn547_dev->nfc_clk_wake_lock, 2*HZ);
+
+#endif
 
 	return IRQ_HANDLED;
 }

@@ -1024,7 +1024,7 @@ consume_ctl_mbulk:
 #else
 		if (m->flag & MBULK_F_WAKEUP) {
 			SLSI_INFO(sdev, "WIFI wakeup by DATA frame:\n");
-			SCSC_BIN_TAG_INFO(BINARY, skb->data, fapi_get_siglen(skb) + ETH_HLEN);
+			SCSC_BIN_TAG_INFO(BINARY, fapi_get_data(skb), fapi_get_datalen(skb) > 54 ? 54 : fapi_get_datalen(skb));
 		}
 #endif
 #ifdef CONFIG_SCSC_WLAN_DEBUG

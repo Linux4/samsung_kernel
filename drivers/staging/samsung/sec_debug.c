@@ -21,6 +21,7 @@
 #include <linux/sec_ext.h>
 #include <linux/sec_debug.h>
 #include <linux/sec_debug_hard_reset_hook.h>
+#include <linux/sec_sysfs.h>
 #include <linux/slab.h>
 #include <linux/io.h>
 #include <linux/file.h>
@@ -244,6 +245,45 @@ out:
 	pr_err("%s: Reserved Mem(0x%llx, 0x%llx) - Failed\n", __FILE__, base, size);
 	return -ENOMEM;
 }
+
+static unsigned long fmm_lock_offset;
+
+static int __init sec_debug_fmm_lock_offset(char *arg)
+{
+	fmm_lock_offset = simple_strtoul(arg, NULL, 10);
+		return 0;
+}
+
+early_param("sec_debug.fmm_lock_offset", sec_debug_fmm_lock_offset);
+
+static ssize_t store_FMM_lock(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	char lock;
+
+	sscanf(buf, "%c", &lock);
+	pr_info("%s: store %c in FMM_lock\n", __func__, lock);
+	sec_set_param(fmm_lock_offset, lock);
+
+	return count;
+}
+
+static DEVICE_ATTR(FMM_lock, 0220, NULL, store_FMM_lock);
+
+static int __init sec_debug_attribute_init(void)
+{
+	struct device *dev;
+
+	dev = sec_device_create(NULL, "sec_debug");
+	WARN_ON(!dev);
+	if (IS_ERR(dev))
+		pr_err("%s:Failed to create devce\n", __func__);
+
+	if (device_create_file(dev, &dev_attr_FMM_lock) < 0)
+		pr_err("%s: Failed to create device file\n", __func__);
+
+	return 0;
+}
+late_initcall(sec_debug_attribute_init);
 
 #ifndef arch_irq_stat_cpu
 #define arch_irq_stat_cpu(cpu) 0

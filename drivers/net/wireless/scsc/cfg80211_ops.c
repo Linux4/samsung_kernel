@@ -20,6 +20,20 @@
 
 #define SLSI_MAX_CHAN_2G_BAND          14
 
+
+/* Ext capab is decided by firmware. But there are certain bits
+ * which are set by supplicant. So we set the capab and mask in
+ * such way so that supplicant sets only the bits our solution supports
+ */
+
+static const u8                    slsi_extended_cap[] = {
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+static const u8                    slsi_extended_cap_mask[] = {
+	0xFF, 0xFF, 0xFF, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+};
+
 static uint keep_alive_period = SLSI_P2PGO_KEEP_ALIVE_PERIOD_SEC;
 module_param(keep_alive_period, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(keep_alive_period, "default is 10 seconds");
@@ -206,6 +220,7 @@ int slsi_add_key(struct wiphy *wiphy, struct net_device *dev,
 		SLSI_NET_DBG3(dev, SLSI_CFG80211, "WEP Key: store key\n");
 		r = slsi_mlme_set_key(sdev, dev, key_index, FAPI_KEYTYPE_WEP, bc_mac_addr, params);
 		if (r == FAPI_RESULTCODE_SUCCESS) {
+			ndev_vif->sta.wep_key_set = true;
 			/* if static ip is set before connection, after setting keys enable powersave. */
 			if (ndev_vif->ipaddress)
 				slsi_mlme_powermgt(sdev, dev, ndev_vif->set_power_mode);
@@ -477,13 +492,12 @@ int slsi_scan(struct wiphy *wiphy, struct net_device *dev,
 		}
 	}
 
+#ifdef CONFIG_SCSC_WLAN_DUAL_STATION
+	if ((SLSI_IS_VIF_INDEX_WLAN(ndev_vif) || (ndev_vif->ifnum == SLSI_NET_INDEX_P2PX_SWLAN)) && (request->ie)) {
+#else
 	if (SLSI_IS_VIF_INDEX_WLAN(ndev_vif) && (request->ie)) {
+#endif
 		const u8 *ie;
-
-		/* check HS2 related bits in extended capabilties (interworking, WNM,QoS Map, BSS transition) and set in MIB*/
-		r = slsi_mlme_set_hs2_ext_cap(sdev, dev, request->ie, request->ie_len);
-		if (r)
-			goto exit;
 
 		/* Supplicant adds wsc and p2p in Station scan at the end of scan request ie.
 		 * for non-wps case remove both wps and p2p IEs
@@ -752,6 +766,7 @@ int slsi_connect(struct wiphy *wiphy, struct net_device *dev,
 	struct slsi_peer    *peer;
 	u16                 prev_vif_type;
 	u32                 action_frame_bmap;
+	u32                 action_frame_suspend_bmap;
 	struct net_device   *p2p_dev;
 	const u8            *bssid;
 	struct ieee80211_channel *channel;
@@ -891,16 +906,18 @@ int slsi_connect(struct wiphy *wiphy, struct net_device *dev,
 	}
 	prev_vif_type = ndev_vif->vif_type;
 
-	prev_vif_type = ndev_vif->vif_type;
 	switch (ndev_vif->iftype) {
 	case NL80211_IFTYPE_UNSPECIFIED:
 	case NL80211_IFTYPE_STATION:
 		ndev_vif->iftype = NL80211_IFTYPE_STATION;
 		dev->ieee80211_ptr->iftype = NL80211_IFTYPE_STATION;
 		action_frame_bmap = SLSI_STA_ACTION_FRAME_BITMAP;
+		action_frame_suspend_bmap = SLSI_STA_ACTION_FRAME_SUSPEND_BITMAP;
 #ifdef CONFIG_SCSC_WLAN_WES_NCHO
-		if (sdev->device_config.wes_mode)
+		if (sdev->device_config.wes_mode) {
 			action_frame_bmap |= SLSI_ACTION_FRAME_VENDOR_SPEC;
+			action_frame_suspend_bmap |= SLSI_ACTION_FRAME_VENDOR_SPEC;
+		}
 #endif
 		break;
 	case NL80211_IFTYPE_P2P_CLIENT:
@@ -909,6 +926,7 @@ int slsi_connect(struct wiphy *wiphy, struct net_device *dev,
 		if (p2p_dev)
 			SLSI_ETHER_COPY(device_address, p2p_dev->dev_addr);
 		action_frame_bmap = SLSI_ACTION_FRAME_PUBLIC;
+		action_frame_suspend_bmap = SLSI_ACTION_FRAME_PUBLIC;
 		break;
 	default:
 		SLSI_NET_ERR(dev, "Invalid Device Type: %d\n", ndev_vif->iftype);
@@ -983,8 +1001,8 @@ int slsi_connect(struct wiphy *wiphy, struct net_device *dev,
 		SLSI_NET_ERR(dev, "slsi_vif_activated failed\n");
 		goto exit_with_vif;
 	}
-	if (slsi_mlme_register_action_frame(sdev, dev, action_frame_bmap, action_frame_bmap) != 0) {
-		SLSI_NET_ERR(dev, "Action frame registration failed for bitmap value %d\n", action_frame_bmap);
+	if (slsi_mlme_register_action_frame(sdev, dev, action_frame_bmap, action_frame_suspend_bmap) != 0) {
+		SLSI_NET_ERR(dev, "Action frame registration failed for bitmap value 0x%x 0x%x\n", action_frame_bmap, action_frame_suspend_bmap);
 		goto exit_with_vif;
 	}
 
@@ -1018,6 +1036,10 @@ int slsi_connect(struct wiphy *wiphy, struct net_device *dev,
 	 */
 	netif_carrier_on(dev);
 	ndev_vif->sta.vif_status = SLSI_VIF_STATUS_CONNECTING;
+	r = slsi_set_ext_cap(sdev, dev, sme->ie, sme->ie_len, slsi_extended_cap_mask);
+	if (r != 0)
+		SLSI_NET_ERR(dev, "Failed to set extended capability MIB: %d\n", r);
+
 	r = slsi_mlme_connect(sdev, dev, sme, channel, bssid);
 
 	if (r != 0) {
@@ -1110,7 +1132,7 @@ int slsi_disconnect(struct wiphy *wiphy, struct net_device *dev,
 		if (r != 0)
 			SLSI_NET_ERR(dev, "Disconnection returned with failure\n");
 		/* Even if we fail to disconnect cleanly, tidy up. */
-		r = slsi_handle_disconnect(sdev, dev, peer->address, 0);
+		r = slsi_handle_disconnect(sdev, dev, peer->address, 0, NULL, 0);
 
 		break;
 	}
@@ -1291,7 +1313,7 @@ int slsi_del_station(struct wiphy *wiphy, struct net_device *dev,
 			if (r != 0)
 				SLSI_NET_ERR(dev, "Disconnection returned with failure\n");
 			/* Even if we fail to disconnect cleanly, tidy up. */
-			r = slsi_handle_disconnect(sdev, dev, peer->address, WLAN_REASON_DEAUTH_LEAVING);
+			r = slsi_handle_disconnect(sdev, dev, peer->address, WLAN_REASON_DEAUTH_LEAVING, NULL, 0);
 		}
 	}
 
@@ -1609,13 +1631,12 @@ int slsi_remain_on_channel(struct wiphy              *wiphy,
 			ndev_vif->unsync.ies_changed = false;
 		}
 		/* Channel Setting - Don't set if already on same channel */
-		if (ndev_vif->driver_channel != chan->hw_value) {
+		if (ndev_vif->chan && (ndev_vif->chan->hw_value != chan->hw_value)) {
 			if (slsi_mlme_set_channel(sdev, dev, chan, SLSI_FW_CHANNEL_DURATION_UNSPECIFIED, 0, 0) != 0) {
 				SLSI_NET_ERR(dev, "Channel setting failed\n");
 				goto exit_with_vif;
 			} else {
 				ndev_vif->chan = chan;
-				ndev_vif->driver_channel = chan->hw_value;
 			}
 		}
 	} else {
@@ -1688,10 +1709,10 @@ int slsi_cancel_remain_on_channel(struct wiphy      *wiphy,
 		goto exit;
 	}
 
-	if (sdev->p2p_state == P2P_ACTION_FRAME_TX_RX && ndev_vif->mgmt_tx_data.exp_frame != SLSI_P2P_PA_INVALID) {
+	if (sdev->p2p_state == P2P_ACTION_FRAME_TX_RX && ndev_vif->mgmt_tx_data.exp_frame != SLSI_PA_INVALID) {
 		/* Reset the expected action frame as procedure got completed */
-		SLSI_INFO(sdev, "Action frame (%s) was not received\n", slsi_p2p_pa_subtype_text(ndev_vif->mgmt_tx_data.exp_frame));
-		ndev_vif->mgmt_tx_data.exp_frame = SLSI_P2P_PA_INVALID;
+		SLSI_INFO(sdev, "Action frame (%s) was not received\n", slsi_pa_subtype_text(ndev_vif->mgmt_tx_data.exp_frame));
+		ndev_vif->mgmt_tx_data.exp_frame = SLSI_PA_INVALID;
 	}
 
 	cancel_delayed_work(&ndev_vif->unsync.roc_expiry_work);
@@ -1707,11 +1728,6 @@ int slsi_cancel_remain_on_channel(struct wiphy      *wiphy,
 	cfg80211_remain_on_channel_expired(ndev_vif->wdev.netdev, ndev_vif->unsync.roc_cookie,
 					   ndev_vif->chan, ndev_vif->channel_type, GFP_KERNEL);
 #endif
-
-	if (!ndev_vif->drv_in_p2p_procedure) {
-		slsi_mlme_spare_signal_1(sdev, dev);
-		ndev_vif->driver_channel = 0;
-	}
 
 	/* Queue work to delete unsync vif */
 	slsi_p2p_queue_unsync_vif_del_work(ndev_vif, SLSI_P2P_UNSYNC_VIF_EXTRA_MSEC);
@@ -1835,13 +1851,13 @@ static int slsi_ap_start_validate(struct net_device *dev, struct slsi_dev *sdev,
 		goto exit_with_error;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 9))
-	if ((ndev_vif->chan->hw_value <= 14) && (!sdev->fw_2g_40mhz_enabled) &&
+	if ((ndev_vif->chan->hw_value <= 14) && (!sdev->fw_SoftAp_2g_40mhz_enabled) &&
 	    (ndev_vif->chandef->width == NL80211_CHAN_WIDTH_40)) {
 		SLSI_NET_ERR(dev, "Configuration error: 40 MHz on 2.4 GHz is not supported. Channel_no: %d Channel_width: %d\n", ndev_vif->chan->hw_value, slsi_get_chann_info(sdev, ndev_vif->chandef));
 		goto exit_with_error;
 	}
 #else
-	if ((ndev_vif->chan->hw_value <= 14) && (!sdev->fw_2g_40mhz_enabled) &&
+	if ((ndev_vif->chan->hw_value <= 14) && (!sdev->fw_SoftAp_2g_40mhz_enabled) &&
 	    (ndev_vif->channel_type > NL80211_CHAN_HT20)) {
 		SLSI_NET_ERR(dev, "Configuration error: 40 MHz on 2.4 GHz is not supported. Channel_no: %d Channel_width: %d\n", ndev_vif->chan->hw_value, slsi_get_chann_info(sdev, ndev_vif->channel_type));
 		goto exit_with_error;
@@ -1925,21 +1941,31 @@ int slsi_start_ap(struct wiphy *wiphy, struct net_device *dev,
 #ifdef CONFIG_SCSC_WLAN_WIFI_SHARING
 	ndev_sta_vif = netdev_priv(wlan_dev);
 	if (SLSI_IS_VIF_INDEX_MHS(sdev, ndev_vif)) {
-		SLSI_MUTEX_LOCK(ndev_sta_vif->vif_mutex);
-		if ((ndev_sta_vif->activated) && (ndev_sta_vif->vif_type == FAPI_VIFTYPE_STATION) &&
-		    (ndev_sta_vif->sta.vif_status == SLSI_VIF_STATUS_CONNECTING ||
-		     ndev_sta_vif->sta.vif_status == SLSI_VIF_STATUS_CONNECTED)) {
-			invalid_channel = slsi_select_wifi_sharing_ap_channel(wiphy, dev, settings, sdev,
-									      &wifi_sharing_channel_switched);
-			skip_indoor_check_for_wifi_sharing = 1;
-			if (invalid_channel) {
-				SLSI_NET_ERR(dev, "Rejecting AP start req at host (invalid channel)\n");
-				SLSI_MUTEX_UNLOCK(ndev_sta_vif->vif_mutex);
-				r = -EINVAL;
-				goto exit_with_vif_mutex;
+		if (ndev_sta_vif) {
+			SLSI_MUTEX_LOCK(ndev_sta_vif->vif_mutex);
+			if ((ndev_sta_vif->activated) && (ndev_sta_vif->vif_type == FAPI_VIFTYPE_STATION) &&
+			    (ndev_sta_vif->sta.vif_status == SLSI_VIF_STATUS_CONNECTING ||
+			     ndev_sta_vif->sta.vif_status == SLSI_VIF_STATUS_CONNECTED)) {
+#ifdef CONFIG_SCSC_WLAN_SINGLE_ANTENNA
+				invalid_channel = slsi_get_mhs_ws_chan_vsdb(wiphy, dev, settings, sdev,
+									    &wifi_sharing_channel_switched);
+#else
+				invalid_channel = slsi_get_mhs_ws_chan_rsdb(wiphy, dev, settings, sdev,
+									    &wifi_sharing_channel_switched);
+#endif
+				skip_indoor_check_for_wifi_sharing = 1;
+				if (invalid_channel) {
+					SLSI_NET_ERR(dev, "Rejecting AP start req at host (invalid channel)\n");
+					SLSI_MUTEX_UNLOCK(ndev_sta_vif->vif_mutex);
+					r = -EINVAL;
+					goto exit_with_vif_mutex;
+				}
+
+				SLSI_DBG1(sdev, SLSI_CFG80211, "Station frequency: %d, SoftAP frequency: %d\n",
+					  ndev_sta_vif->chan->center_freq, settings->chandef.chan->center_freq);
 			}
+			SLSI_MUTEX_UNLOCK(ndev_sta_vif->vif_mutex);
 		}
-		SLSI_MUTEX_UNLOCK(ndev_sta_vif->vif_mutex);
 	}
 #endif
 
@@ -2005,8 +2031,11 @@ int slsi_start_ap(struct wiphy *wiphy, struct net_device *dev,
 		goto exit_with_vif_mutex;
 
 	if (ndev_vif->iftype == NL80211_IFTYPE_P2P_GO) {
+		struct net_device   *p2p_dev;
+
 		slsi_p2p_group_start_remove_unsync_vif(sdev);
-		SLSI_ETHER_COPY(device_address, sdev->netdev_addresses[SLSI_NET_INDEX_P2P]);
+		p2p_dev = slsi_get_netdev(sdev, SLSI_NET_INDEX_P2P);
+		SLSI_ETHER_COPY(device_address, p2p_dev->dev_addr);
 		if (keep_alive_period != SLSI_P2PGO_KEEP_ALIVE_PERIOD_SEC)
 			if (slsi_set_uint_mib(sdev, NULL, SLSI_PSID_UNIFI_MLMEGO_KEEP_ALIVE_TIMEOUT,
 					      keep_alive_period) != 0) {
@@ -2051,9 +2080,7 @@ int slsi_start_ap(struct wiphy *wiphy, struct net_device *dev,
 #endif
 	} else if (sdev->fw_ht_enabled && sdev->allow_switch_40_mhz &&
 			   slsi_get_max_bw_mhz(sdev, ndev_vif->chandef->chan->center_freq) >= 40 &&
-			   ((ndev_vif->chandef->chan->hw_value < 165 && ndev_vif->chandef->chan->hw_value >= 36) ||
-			   (ndev_vif->chandef->chan->hw_value < 12 && sdev->fw_2g_40mhz_enabled &&
-			   ndev_vif->iftype == NL80211_IFTYPE_P2P_GO))) {
+			   ((ndev_vif->chandef->chan->hw_value < 165 && ndev_vif->chandef->chan->hw_value >= 36))) {
 		/* HT40 configuration (5GHz/2GHz and HT) */
 		u16  oper_chan = ndev_vif->chandef->chan->hw_value;
 		u8   bw_40_minus_channels[] = { 40, 48, 153, 161, 5, 6, 7, 8, 9, 10, 11 };
@@ -2383,14 +2410,14 @@ static int slsi_p2p_group_mgmt_tx(const struct ieee80211_mgmt *mgmt, struct wiph
 	struct slsi_dev   *sdev = SDEV_FROM_WIPHY(wiphy);
 	struct netdev_vif *ndev_vif;
 	struct net_device *netdev;
-	int               subtype = slsi_p2p_get_public_action_subtype(mgmt);
+	int               subtype = slsi_get_public_action_subtype(mgmt);
 	int               r = 0;
 	u32               host_tag = slsi_tx_mgmt_host_tag(sdev);
 	u16               freq = 0;
 	u32               dwell_time = SLSI_FORCE_SCHD_ACT_FRAME_MSEC;
 	u16               data_unit_desc = FAPI_DATAUNITDESCRIPTOR_IEEE802_11_FRAME;
 
-	if (sdev->p2p_group_exp_frame != SLSI_P2P_PA_INVALID) {
+	if (sdev->p2p_group_exp_frame != SLSI_PA_INVALID) {
 		SLSI_NET_ERR(dev, "sdev->p2p_group_exp_frame : %d\n", sdev->p2p_group_exp_frame);
 		return -EINVAL;
 	}
@@ -2399,7 +2426,7 @@ static int slsi_p2p_group_mgmt_tx(const struct ieee80211_mgmt *mgmt, struct wiph
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 	SLSI_NET_DBG2(dev, SLSI_CFG80211, "Sending Action frame (%s) on p2p group vif (%d), vif_index = %d,"
 		      "vif_type = %d, chan->hw_value = %d, ndev_vif->chan->hw_value = %d, wait = %d,"
-		      "sdev->p2p_group_exp_frame = %d\n", slsi_p2p_pa_subtype_text(subtype), ndev_vif->activated,
+		      "sdev->p2p_group_exp_frame = %d\n", slsi_pa_subtype_text(subtype), ndev_vif->activated,
 		      ndev_vif->ifnum, ndev_vif->vif_type, chan->hw_value, ndev_vif->chan->hw_value, wait,
 		      ndev_vif->chan->hw_value);
 
@@ -2413,7 +2440,7 @@ static int slsi_p2p_group_mgmt_tx(const struct ieee80211_mgmt *mgmt, struct wiph
 
 	/* Incase of GO dont wait for resp/cfm packets for go-negotiation.*/
 	if (subtype != SLSI_P2P_PA_GO_NEG_RSP)
-		sdev->p2p_group_exp_frame = slsi_p2p_get_exp_peer_frame_subtype(subtype);
+		sdev->p2p_group_exp_frame = slsi_get_exp_peer_frame_subtype(subtype);
 
 	r = slsi_mlme_send_frame_mgmt(sdev, netdev, buf, len, data_unit_desc, FAPI_MESSAGETYPE_IEEE80211_ACTION, host_tag, freq, dwell_time * 1000, 0);
 	if (r)
@@ -2440,13 +2467,13 @@ static int slsi_p2p_mgmt_tx(const struct ieee80211_mgmt *mgmt, struct wiphy *wip
 
 	if (ieee80211_is_action(mgmt->frame_control)) {
 		u16 host_tag = slsi_tx_mgmt_host_tag(sdev);
-		int subtype = slsi_p2p_get_public_action_subtype(mgmt);
+		int subtype = slsi_get_public_action_subtype(mgmt);
 		u8  exp_peer_frame;
 		u32 dwell_time = 0;
 
-		SLSI_NET_DBG2(dev, SLSI_CFG80211, "Action frame (%s), unsync_vif_active (%d)\n", slsi_p2p_pa_subtype_text(subtype), ndev_vif->activated);
+		SLSI_NET_DBG2(dev, SLSI_CFG80211, "Action frame (%s), unsync_vif_active (%d)\n", slsi_pa_subtype_text(subtype), ndev_vif->activated);
 
-		if (subtype == SLSI_P2P_PA_INVALID) {
+		if (subtype == SLSI_PA_INVALID) {
 			SLSI_NET_ERR(dev, "Invalid Action frame subtype\n");
 			goto exit_with_error;
 		}
@@ -2456,39 +2483,35 @@ static int slsi_p2p_mgmt_tx(const struct ieee80211_mgmt *mgmt, struct wiphy *wip
 			if (slsi_p2p_vif_activate(sdev, dev, chan, wait, false) != 0)
 				goto exit_with_error;
 
+		/* Vif might be present but frame tx could be requested on a different channel */
+		if (ndev_vif->chan && (ndev_vif->chan->hw_value != chan->hw_value)) {
 			/* Clear Probe Response IEs if vif was already present with a different channel */
-		if (ndev_vif->driver_channel != chan->hw_value) {
 			if (slsi_mlme_add_info_elements(sdev, dev, FAPI_PURPOSE_PROBE_RESPONSE, NULL, 0) != 0)
 				SLSI_NET_ERR(dev, "Clearing Probe Response IEs failed for unsync vif\n");
 			slsi_unsync_vif_set_probe_rsp_ie(ndev_vif, NULL, 0);
 
 			if (slsi_mlme_set_channel(sdev, dev, chan, SLSI_FW_CHANNEL_DURATION_UNSPECIFIED, 0, 0) != 0)
 				goto exit_with_vif;
-			else {
+			else
 				ndev_vif->chan = chan;
-				ndev_vif->driver_channel = chan->hw_value;
-			}
 		}
 
 		/* Check if peer frame response is expected */
-		exp_peer_frame = slsi_p2p_get_exp_peer_frame_subtype(subtype);
+		exp_peer_frame = slsi_get_exp_peer_frame_subtype(subtype);
 
-		if (exp_peer_frame != SLSI_P2P_PA_INVALID) {
+		if (exp_peer_frame != SLSI_PA_INVALID) {
 			if ((subtype == SLSI_P2P_PA_GO_NEG_RSP) && (slsi_p2p_get_go_neg_rsp_status(dev, mgmt) != SLSI_P2P_STATUS_CODE_SUCCESS)) {
 				SLSI_NET_DBG1(dev, SLSI_CFG80211, "GO_NEG_RSP Tx, peer response not expected\n");
-				exp_peer_frame = SLSI_P2P_PA_INVALID;
+				exp_peer_frame = SLSI_PA_INVALID;
 			} else {
 				SLSI_NET_DBG1(dev, SLSI_CFG80211, "Peer response expected with action frame (%s)\n",
-					      slsi_p2p_pa_subtype_text(exp_peer_frame));
+					      slsi_pa_subtype_text(exp_peer_frame));
 
-				if (ndev_vif->mgmt_tx_data.exp_frame != SLSI_P2P_PA_INVALID)
+				if (ndev_vif->mgmt_tx_data.exp_frame != SLSI_PA_INVALID)
 					(void)slsi_set_mgmt_tx_data(ndev_vif, 0, 0, NULL, 0);
 
 				/* Change Force Schedule Duration as peer response is expected */
-				if (wait)
-					dwell_time = wait;
-				else
-					dwell_time = SLSI_FORCE_SCHD_ACT_FRAME_MSEC;
+				dwell_time = SLSI_FORCE_SCHD_ACT_FRAME_MSEC;
 			}
 		}
 
@@ -2497,10 +2520,7 @@ static int slsi_p2p_mgmt_tx(const struct ieee80211_mgmt *mgmt, struct wiphy *wip
 		/* Send the action frame, transmission status indication would be received later */
 		if (slsi_mlme_send_frame_mgmt(sdev, dev, buf, len, FAPI_DATAUNITDESCRIPTOR_IEEE802_11_FRAME, FAPI_MESSAGETYPE_IEEE80211_ACTION, host_tag, 0, dwell_time * 1000, 0) != 0)
 			goto exit_with_vif;
-		if (subtype == SLSI_P2P_PA_GO_NEG_CFM)
-			ndev_vif->drv_in_p2p_procedure = false;
-		else if ((subtype == SLSI_P2P_PA_GO_NEG_REQ) || (subtype == SLSI_P2P_PA_PROV_DISC_REQ))
-			ndev_vif->drv_in_p2p_procedure = true;
+
 		/* If multiple frames are requested for tx, only the info of first frame would be stored */
 		if (ndev_vif->mgmt_tx_data.host_tag == 0) {
 			unsigned int n_wait = 0;
@@ -2519,7 +2539,7 @@ static int slsi_p2p_mgmt_tx(const struct ieee80211_mgmt *mgmt, struct wiphy *wip
 				 * Some of phones retry GO-Negotiation after 2 seconds
 				 */
 				n_wait = SLSI_P2P_NEG_PROC_UNSYNC_VIF_RETAIN_DURATION;
-			else if (exp_peer_frame != SLSI_P2P_PA_INVALID)
+			else if (exp_peer_frame != SLSI_PA_INVALID)
 				/* If a peer response is expected queue work to retain vif till wait time else the work will be handled in mgmt_tx_cancel_wait */
 				n_wait = wait + SLSI_P2P_MGMT_TX_EXTRA_MSEC;
 			if (n_wait) {
@@ -2583,11 +2603,11 @@ int     slsi_mgmt_tx_cancel_wait(struct wiphy      *wiphy,
 
 	/* If device was in frame tx_rx state, clear mgmt tx data and change state */
 	if ((sdev->p2p_state == P2P_ACTION_FRAME_TX_RX) && (ndev_vif->mgmt_tx_data.cookie == cookie)) {
-		if (ndev_vif->mgmt_tx_data.exp_frame != SLSI_P2P_PA_INVALID)
+		if (ndev_vif->mgmt_tx_data.exp_frame != SLSI_PA_INVALID)
 			(void)slsi_mlme_reset_dwell_time(sdev, dev);
 
 		(void)slsi_set_mgmt_tx_data(ndev_vif, 0, 0, NULL, 0);
-		ndev_vif->mgmt_tx_data.exp_frame = SLSI_P2P_PA_INVALID;
+		ndev_vif->mgmt_tx_data.exp_frame = SLSI_PA_INVALID;
 
 		if (delayed_work_pending(&ndev_vif->unsync.roc_expiry_work)) {
 			SLSI_P2P_STATE_CHANGE(sdev, P2P_LISTENING);
@@ -2595,13 +2615,23 @@ int     slsi_mgmt_tx_cancel_wait(struct wiphy      *wiphy,
 			slsi_p2p_queue_unsync_vif_del_work(ndev_vif, SLSI_P2P_UNSYNC_VIF_EXTRA_MSEC);
 			SLSI_P2P_STATE_CHANGE(ndev_vif->sdev, P2P_IDLE_VIF_ACTIVE);
 		}
-	} else if ((SLSI_IS_P2P_GROUP_STATE(sdev)) && (sdev->p2p_group_exp_frame != SLSI_P2P_PA_INVALID)) {
+	} else if ((SLSI_IS_P2P_GROUP_STATE(sdev)) && (sdev->p2p_group_exp_frame != SLSI_PA_INVALID)) {
 		/* acquire mutex lock if it is not group net dev */
 		slsi_clear_offchannel_data(sdev, (!SLSI_IS_VIF_INDEX_P2P_GROUP(sdev, ndev_vif)) ? true : false);
 	} else if ((sdev->wlan_unsync_vif_state == WLAN_UNSYNC_VIF_TX) && (ndev_vif->mgmt_tx_data.cookie == cookie)) {
 		sdev->wlan_unsync_vif_state = WLAN_UNSYNC_VIF_ACTIVE;
 		cancel_delayed_work(&ndev_vif->unsync.hs2_del_vif_work);
 		queue_delayed_work(sdev->device_wq, &ndev_vif->unsync.hs2_del_vif_work, msecs_to_jiffies(SLSI_HS2_UNSYNC_VIF_EXTRA_MSEC));
+		if (ndev_vif->mgmt_tx_data.exp_frame != SLSI_PA_INVALID) {
+			ndev_vif->mgmt_tx_data.exp_frame = SLSI_PA_INVALID;
+			(void)slsi_mlme_reset_dwell_time(sdev, dev);
+		}
+	} else if (ndev_vif->activated && ndev_vif->vif_type == FAPI_VIFTYPE_STATION
+		   && ndev_vif->sta.vif_status == SLSI_VIF_STATUS_CONNECTED) {
+		if (ndev_vif->mgmt_tx_data.exp_frame != SLSI_PA_INVALID) {
+			ndev_vif->mgmt_tx_data.exp_frame = SLSI_PA_INVALID;
+			(void)slsi_mlme_reset_dwell_time(sdev, dev);
+		}
 	}
 
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
@@ -2642,8 +2672,20 @@ static int slsi_wlan_mgmt_tx(struct slsi_dev *sdev, struct net_device *dev,
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	int                r = 0;
 	struct ieee80211_mgmt *mgmt = (struct ieee80211_mgmt *)buf;
+	u8                 exp_peer_frame = SLSI_PA_INVALID;
 
-	slsi_wlan_dump_public_action_subtype(sdev, mgmt, true);
+	if (!ieee80211_is_auth(mgmt->frame_control))
+		slsi_wlan_dump_public_action_subtype(sdev, mgmt, true);
+
+	if (ieee80211_is_action(mgmt->frame_control)) {
+		int subtype = slsi_get_public_action_subtype(mgmt);
+
+		if (subtype == SLSI_PA_INVALID) {
+			SLSI_NET_DBG1(dev, SLSI_CFG80211, "Not a Public Action Frame subtype\n");
+		} else {
+			exp_peer_frame = slsi_get_exp_peer_frame_subtype(subtype);
+		}
+	}
 
 	if (!ndev_vif->activated) {
 		r = slsi_wlan_unsync_vif_activate(sdev, dev, chan, wait);
@@ -2661,13 +2703,10 @@ static int slsi_wlan_mgmt_tx(struct slsi_dev *sdev, struct net_device *dev,
 		if (ndev_vif->vif_type == FAPI_VIFTYPE_UNSYNCHRONISED) {
 			cancel_delayed_work(&ndev_vif->unsync.hs2_del_vif_work);
 			/*even if we fail to cancel the delayed work, we shall go ahead and send action frames*/
-			if (ndev_vif->driver_channel != chan->hw_value) {
+			if (ndev_vif->chan->hw_value != chan->hw_value) {
 				r = slsi_mlme_set_channel(sdev, dev, chan, SLSI_FW_CHANNEL_DURATION_UNSPECIFIED, 0, 0);
 				if (r)
 					goto exit_with_vif;
-				else {
-					ndev_vif->driver_channel = chan->hw_value;
-				}
 			}
 			SLSI_NET_DBG1(dev, SLSI_CFG80211, "HS2 vif is active ,send GAS (ANQP) request on channel freq = %d\n", chan->center_freq);
 			r = slsi_mlme_send_frame_mgmt(sdev, dev, buf, len, FAPI_DATAUNITDESCRIPTOR_IEEE802_11_FRAME, FAPI_MESSAGETYPE_IEEE80211_ACTION, host_tag, 0, wait * 1000, 0);
@@ -2688,6 +2727,7 @@ static int slsi_wlan_mgmt_tx(struct slsi_dev *sdev, struct net_device *dev,
 		}
 	}
 
+	ndev_vif->mgmt_tx_data.exp_frame = exp_peer_frame;
 	slsi_assign_cookie_id(cookie, &ndev_vif->mgmt_tx_cookie);
 	slsi_set_mgmt_tx_data(ndev_vif, *cookie, host_tag, buf, len);
 	return r;
@@ -2753,9 +2793,13 @@ int slsi_mgmt_tx(struct wiphy *wiphy, struct net_device *dev,
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
-	SLSI_NET_DBG2(dev, SLSI_CFG80211, "Mgmt Frame Tx: iface_num = %d, channel = %d, wait = %d, noAck = %d,"
-		      "offchannel = %d, mgmt->frame_control = %d, vif_type = %d\n", ndev_vif->ifnum, chan->hw_value,
-		      wait, dont_wait_for_ack, offchan, mgmt->frame_control, ndev_vif->vif_type);
+	if (!(ieee80211_is_auth(mgmt->frame_control))) {
+		SLSI_NET_DBG2(dev, SLSI_CFG80211, "Mgmt Frame Tx: iface_num = %d, channel = %d, wait = %d, noAck = %d,"
+			      "offchannel = %d, mgmt->frame_control = %d, vif_type = %d\n", ndev_vif->ifnum, chan->hw_value,
+			      wait, dont_wait_for_ack, offchan, mgmt->frame_control, ndev_vif->vif_type);
+	} else {
+		SLSI_INFO(sdev, "Send Auth Frame\n");
+	}
 
 	if (!(ieee80211_is_mgmt(mgmt->frame_control))) {
 		SLSI_NET_ERR(dev, "Drop Tx frame: Not a Management frame\n");
@@ -2883,8 +2927,72 @@ static int slsi_update_ft_ies(struct wiphy *wiphy, struct net_device *dev, struc
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
-	if (ndev_vif->vif_type == FAPI_VIFTYPE_STATION)
-		r = slsi_mlme_add_info_elements(sdev, dev, FAPI_PURPOSE_ASSOCIATION_REQUEST, ftie->ie, ftie->ie_len);
+	if (ndev_vif->vif_type == FAPI_VIFTYPE_STATION) {
+		const u8 *keo_ie_pos = NULL;
+		u8 *ie_buf = NULL;
+		int ie_len = 0;
+		int ie_buf_len = 0;
+
+		keo_ie_pos = cfg80211_find_vendor_ie(WLAN_OUI_SAMSUNG, WLAN_OUI_TYPE_SAMSUNG_KEO,
+						     ndev_vif->sta.assoc_req_add_info_elem,
+						     ndev_vif->sta.assoc_req_add_info_elem_len);
+		if (keo_ie_pos) {
+			ie_buf_len = ftie->ie_len +
+				     ndev_vif->sta.assoc_req_add_info_elem_len -
+				     (keo_ie_pos - ndev_vif->sta.assoc_req_add_info_elem);
+			ie_buf = kmalloc(ie_buf_len, GFP_KERNEL);
+			if (!ie_buf) {
+				SLSI_NET_ERR(dev, "kmalloc failed\n");
+				SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+				return -ENOMEM;
+			}
+			ie_len = ftie->ie_len;
+			if (ie_buf_len < ie_len) {
+				SLSI_NET_ERR(dev, "ft_ie buffer overflow!!\n");
+				kfree(ie_buf);
+				ie_buf = NULL;
+				SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+				return -EINVAL;
+			}
+			memcpy(ie_buf, ftie->ie, ie_len);
+			if ((ie_buf_len - ie_len) >= ((int)keo_ie_pos[1]+ 2)) {
+				memcpy(&ie_buf[ie_len], keo_ie_pos, ((int)keo_ie_pos[1]+ 2));
+				ie_len += (keo_ie_pos[1] + 2);
+				keo_ie_pos += (keo_ie_pos[1] + 2);
+			} else {
+				SLSI_NET_ERR(dev, "ie_buf buffer overflow!!\n");
+				kfree(ie_buf);
+				ie_buf = NULL;
+				SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+				return -EINVAL;
+			}
+			while ((ndev_vif->sta.assoc_req_add_info_elem_len -
+			       (keo_ie_pos - ndev_vif->sta.assoc_req_add_info_elem)) > 2) {
+				keo_ie_pos = cfg80211_find_vendor_ie(WLAN_OUI_SAMSUNG, WLAN_OUI_TYPE_SAMSUNG_KEO,
+								     keo_ie_pos,
+								     ndev_vif->sta.assoc_req_add_info_elem_len -
+								     (keo_ie_pos - ndev_vif->sta.assoc_req_add_info_elem));
+				if (!keo_ie_pos)
+					break;
+				if ((ie_buf_len - ie_len) >= ((int)keo_ie_pos[1]+ 2)) {
+					memcpy(&ie_buf[ie_len], keo_ie_pos, (keo_ie_pos[1]+ 2));
+					ie_len += (keo_ie_pos[1] + 2);
+					keo_ie_pos += (keo_ie_pos[1] + 2);
+				} else {
+					SLSI_NET_ERR(dev, "ie_buf buffer overflow!\n");
+					kfree(ie_buf);
+					ie_buf = NULL;
+					SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+					return -EINVAL;
+				}
+			}
+			r = slsi_mlme_add_info_elements(sdev, dev, FAPI_PURPOSE_ASSOCIATION_REQUEST, ie_buf, ie_len);
+		} else {
+			r = slsi_mlme_add_info_elements(sdev, dev, FAPI_PURPOSE_ASSOCIATION_REQUEST, ftie->ie, ftie->ie_len);
+		}
+		kfree(ie_buf);
+		ie_buf = NULL;
+	}
 
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	return r;
@@ -3305,6 +3413,10 @@ struct slsi_dev                           *slsi_cfg80211_new(struct device *dev)
 	wiphy->cipher_suites = slsi_cipher_suites;
 	wiphy->n_cipher_suites = ARRAY_SIZE(slsi_cipher_suites);
 
+	wiphy->extended_capabilities = slsi_extended_cap;
+	wiphy->extended_capabilities_mask = slsi_extended_cap_mask;
+	wiphy->extended_capabilities_len = ARRAY_SIZE(slsi_extended_cap);
+
 	wiphy->mgmt_stypes = ieee80211_default_mgmt_stypes;
 
 	/* Driver interface combinations */
@@ -3361,6 +3473,7 @@ struct slsi_dev                           *slsi_cfg80211_new(struct device *dev)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0))
 #ifdef CONFIG_SCSC_WLAN_ENABLE_MAC_RANDOMISATION
 	wiphy->features |= NL80211_FEATURE_SCAN_RANDOM_MAC_ADDR;
+	wiphy->features |= NL80211_FEATURE_SCHED_SCAN_RANDOM_MAC_ADDR;
 #endif
 #endif
 	return sdev;
@@ -3392,13 +3505,20 @@ void slsi_cfg80211_free(struct slsi_dev *sdev)
 
 void slsi_cfg80211_update_wiphy(struct slsi_dev *sdev)
 {
+	/* Band 2G probably be disabled by slsi_band_cfg_update() while factory test or NCHO.
+	 * So, we need to make sure that Band 2.4G enabled when initialized. */
+	sdev->wiphy->bands[NL80211_BAND_2GHZ] = &slsi_band_2ghz;
+	sdev->device_config.band_2G = &slsi_band_2ghz;
+
 	/* update supported Bands */
 	if (sdev->band_5g_supported) {
 		sdev->wiphy->bands[IEEE80211_BAND_5GHZ] = &slsi_band_5ghz;
 		sdev->device_config.band_5G = &slsi_band_5ghz;
+		sdev->device_config.supported_band = SLSI_FREQ_BAND_AUTO;
 	} else {
 		sdev->wiphy->bands[IEEE80211_BAND_5GHZ] = NULL;
 		sdev->device_config.band_5G = NULL;
+		sdev->device_config.supported_band = SLSI_FREQ_BAND_2GHZ;
 	}
 
 	/* update HT features */

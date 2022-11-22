@@ -40,10 +40,6 @@
  *	the implementation assumes non-aliasing VIPT D-cache and (aliasing)
  *	VIPT or ASID-tagged VIVT I-cache.
  *
- *	flush_cache_all()
- *
- *		Unconditionally clean and invalidate the entire cache.
- *
  *	flush_cache_mm(mm)
  *
  *		Clean and invalidate all user space cache entries

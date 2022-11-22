@@ -154,15 +154,6 @@ static int xhci_plat_probe(struct platform_device *pdev)
 			goto disable_clk;
 	}
 
-	if (of_device_is_compatible(pdev->dev.of_node,
-				    "marvell,armada-375-xhci") ||
-	    of_device_is_compatible(pdev->dev.of_node,
-				    "marvell,armada-380-xhci")) {
-		ret = xhci_mvebu_mbus_init_quirk(pdev);
-		if (ret)
-			goto disable_clk;
-	}
-
 	ret = usb_add_hcd(hcd, irq, IRQF_SHARED);
 	if (ret)
 		goto disable_clk;
@@ -240,6 +231,8 @@ static int xhci_plat_remove(struct platform_device *dev)
 		}
 	}
 	xhci_dbg(xhci, "%s: waited %dmsec", __func__, timeout);
+
+	xhci->xhc_state |= XHCI_STATE_REMOVING;
 
 	xhci->xhc_state |= XHCI_STATE_REMOVING;
 

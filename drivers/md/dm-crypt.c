@@ -22,13 +22,13 @@
 #include <linux/backing-dev.h>
 #include <linux/atomic.h>
 #include <linux/scatterlist.h>
-#include <linux/smc.h>
 #include <linux/rbtree.h>
 #include <asm/page.h>
 #include <asm/unaligned.h>
 #include <crypto/hash.h>
 #include <crypto/md5.h>
 #include <crypto/algapi.h>
+#include <linux/smc.h>
 #include <crypto/fmp.h>
 
 #include <linux/device-mapper.h>
@@ -939,10 +939,10 @@ static int crypt_convert(struct crypt_config *cc,
 
 		switch (r) {
 		/* async */
-		case -EINPROGRESS:
 		case -EBUSY:
 			wait_for_completion(&ctx->restart);
 			reinit_completion(&ctx->restart);
+		case -EINPROGRESS:
 			ctx->req = NULL;
 			ctx->cc_sector++;
 			continue;
@@ -1141,6 +1141,7 @@ static void clone_init(struct dm_crypt_io *io, struct bio *clone)
 #endif
 }
 
+/* io_rw for fmp specific */
 static int kcryptd_io_rw(struct dm_crypt_io *io, gfp_t gfp)
 {
 	struct crypt_config *cc = io->cc;
@@ -1169,6 +1170,17 @@ static int kcryptd_io_rw(struct dm_crypt_io *io, gfp_t gfp)
 	return 0;
 }
 
+/* io_rw for fmp specific */
+static void kcryptd_fmp_io(struct work_struct *work)
+{
+	struct dm_crypt_io *io = container_of(work, struct dm_crypt_io, work);
+
+	crypt_inc_pending(io);
+	if (kcryptd_io_rw(io, GFP_NOIO))
+		io->error = -ENOMEM;
+	crypt_dec_pending(io);
+}
+
 static int kcryptd_io_read(struct dm_crypt_io *io, gfp_t gfp)
 {
 	struct crypt_config *cc = io->cc;
@@ -1189,8 +1201,8 @@ static int kcryptd_io_read(struct dm_crypt_io *io, gfp_t gfp)
 	clone_init(io, clone);
 	clone->bi_iter.bi_sector = cc->start + io->sector;
 
-	generic_make_request(clone);
-	return 0;
+        generic_make_request(clone);
+        return 0;
 }
 
 static void kcryptd_io_read_work(struct work_struct *work)
@@ -1389,8 +1401,10 @@ static void kcryptd_async_done(struct crypto_async_request *async_req,
 	struct dm_crypt_io *io = container_of(ctx, struct dm_crypt_io, ctx);
 	struct crypt_config *cc = io->cc;
 
-	if (error == -EINPROGRESS)
-		return;
+	if (error == -EINPROGRESS) {
+		complete(&ctx->restart);
+ 		return;
+	}
 
 	if (!error && cc->iv_gen_ops && cc->iv_gen_ops->post)
 		error = cc->iv_gen_ops->post(cc, iv_of_dmreq(cc, dmreq), dmreq);
@@ -1401,15 +1415,12 @@ static void kcryptd_async_done(struct crypto_async_request *async_req,
 	crypt_free_req(cc, req_of_dmreq(cc, dmreq), io->base_bio);
 
 	if (!atomic_dec_and_test(&ctx->cc_pending))
-		goto done;
+		return;
 
 	if (bio_data_dir(io->base_bio) == READ)
 		kcryptd_crypt_read_done(io);
 	else
 		kcryptd_crypt_write_io_submit(io, 1);
-done:
-	if (!completion_done(&ctx->restart))
-		complete(&ctx->restart);
 }
 
 static void kcryptd_crypt(struct work_struct *work)
@@ -1712,7 +1723,7 @@ static int crypt_ctr_cipher(struct dm_target *ti,
 	if ((strcmp(chainmode, "xts") == 0) &&
 		(strcmp(cipher, "aes") == 0) &&
 		((strcmp(ivmode, "fmp") == 0) || (strcmp(ivmode, "disk") == 0))) {
-		pr_info("%s: H/W FMP disk encryption\n", __func__);
+		pr_info("%s: H/W FMP disk encryption: mode:%s\n", __func__, ivmode);
 		cc->hw_fmp = 1;
 
 		/* Initialize and set key */
@@ -1827,7 +1838,6 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 	struct dm_arg_set as;
 	const char *opt_string;
 	char dummy;
-	char tmp[32];
 
 	static struct dm_arg _args[] = {
 		{0, 1, "Invalid number of feature args"},
@@ -1851,8 +1861,6 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 	ret = crypt_ctr_cipher(ti, argv[0], argv[1]);
 	if (ret < 0)
 		goto bad;
-
-	ret = -ENOMEM;
 
 	if (cc->hw_fmp == 1) {
 		cc->per_bio_data_size = ti->per_bio_data_size =
@@ -1901,11 +1909,11 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		goto bad;
 	}
 
+	mutex_init(&cc->bio_alloc_lock);
+
 	if (cc->hw_fmp == 0) {
 		ret = -EINVAL;
-		memset(tmp, 0, sizeof(tmp));
-		snprintf(tmp, sizeof(tmp) - 1, "%s", argv[2]);
-		if (sscanf(tmp, "%llu%c", &tmpll, &dummy) != 1) {
+		if (sscanf(argv[2], "%llu%c", &tmpll, &dummy) != 1) {
 			ti->error = "Invalid iv_offset sector";
 			goto bad;
 		}
@@ -1917,9 +1925,7 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		goto bad;
 	}
 
-	memset(tmp, 0, sizeof(tmp));
-	snprintf(tmp, sizeof(tmp) - 1, "%s", argv[4]);
-	if (sscanf(tmp, "%llu%c", &tmpll, &dummy) != 1) {
+	if (sscanf(argv[4], "%llu%c", &tmpll, &dummy) != 1) {
 		ti->error = "Invalid device sector";
 		goto bad;
 	}
@@ -1957,31 +1963,36 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 			goto bad;
 		}
 	} else {
-		cc->io_queue = alloc_workqueue("kcryptd_io", WQ_MEM_RECLAIM, 1);
+		cc->io_queue = alloc_workqueue("kcryptd_io",
+					       WQ_HIGHPRI |
+					       WQ_MEM_RECLAIM,
+					       1);
 		if (!cc->io_queue) {
 			ti->error = "Couldn't create kcryptd io queue";
 			goto bad;
 		}
 
 		cc->crypt_queue = alloc_workqueue("kcryptd",
-						  WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM, 1);
+						  WQ_HIGHPRI |
+						  WQ_MEM_RECLAIM |
+						  WQ_UNBOUND, num_online_cpus());
 		if (!cc->crypt_queue) {
 			ti->error = "Couldn't create kcryptd queue";
 			goto bad;
 		}
-	}
 
-	init_waitqueue_head(&cc->write_thread_wait);
-	cc->write_tree = RB_ROOT;
+		init_waitqueue_head(&cc->write_thread_wait);
+		cc->write_tree = RB_ROOT;
 
-	cc->write_thread = kthread_create(dmcrypt_write, cc, "dmcrypt_write");
-	if (IS_ERR(cc->write_thread)) {
-		ret = PTR_ERR(cc->write_thread);
-		cc->write_thread = NULL;
-		ti->error = "Couldn't spawn write thread";
-		goto bad;
+		cc->write_thread = kthread_create(dmcrypt_write, cc, "dmcrypt_write");
+		if (IS_ERR(cc->write_thread)) {
+			ret = PTR_ERR(cc->write_thread);
+			cc->write_thread = NULL;
+			ti->error = "Couldn't spawn write thread";
+			goto bad;
+		}
+		wake_up_process(cc->write_thread);
 	}
-	wake_up_process(cc->write_thread);
 
 	ti->num_flush_bios = 1;
 	ti->discard_zeroes_data_unsupported = true;
@@ -2025,8 +2036,10 @@ static int crypt_map(struct dm_target *ti, struct bio *bio)
 	io->ctx.req = (struct ablkcipher_request *)(io + 1);
 
 	if (cc->hw_fmp == 1) {
-		if (kcryptd_io_rw(io, GFP_NOWAIT))
-			kcryptd_queue_read(io);
+		if (kcryptd_io_rw(io, GFP_NOWAIT)) {
+			INIT_WORK(&io->work, kcryptd_fmp_io);
+			queue_work(cc->io_queue, &io->work);
+		}
 	} else {
 		if (bio_data_dir(io->base_bio) == READ) {
 			if (kcryptd_io_read(io, GFP_NOWAIT))

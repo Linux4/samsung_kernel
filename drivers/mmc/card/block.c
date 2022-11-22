@@ -1307,27 +1307,25 @@ static void mmc_card_error_logging(struct mmc_card *card, struct mmc_blk_request
 	struct mmc_card_error_log *err_log;
 	int index = 0;
 	int error = 0;
-    	
+
+	err_log = card->err_log;
+
+	if(status & RPMB_SWITCH_ERR)
+		err_log[index].rpmb_cnt++;
+
 	if(!brq)
 		return;
 
-	err_log = card->err_log;
-	
-	if(status & RPMB_SWITCH_ERR) {
-		err_log[index].rpmb_cnt++;
-		return;
-	}
-
-	if (status & STATUS_MASK || brq->stop.resp[0] & STATUS_MASK) {
-		if (status & R1_ERROR || brq->stop.resp[0] & R1_ERROR)
+	if (status & STATUS_MASK || brq->stop.resp[0] & STATUS_MASK || brq->cmd.resp[0] & STATUS_MASK) {
+		if (status & R1_ERROR || brq->stop.resp[0] & R1_ERROR || brq->cmd.resp[0] & R1_ERROR)
 			err_log[index].ge_cnt++;
-		if (status & R1_CC_ERROR || brq->stop.resp[0] & R1_CC_ERROR)
+		if (status & R1_CC_ERROR || brq->stop.resp[0] & R1_CC_ERROR || brq->cmd.resp[0] & R1_CC_ERROR)
 			err_log[index].cc_cnt++;
-		if (status & R1_CARD_ECC_FAILED || brq->stop.resp[0] & R1_CARD_ECC_FAILED)
+		if (status & R1_CARD_ECC_FAILED || brq->stop.resp[0] & R1_CARD_ECC_FAILED || brq->cmd.resp[0] & R1_CARD_ECC_FAILED)
 			err_log[index].ecc_cnt++;
-		if (status & R1_WP_VIOLATION || brq->stop.resp[0] & R1_WP_VIOLATION)
+		if (status & R1_WP_VIOLATION || brq->stop.resp[0] & R1_WP_VIOLATION || brq->cmd.resp[0] & R1_WP_VIOLATION)
 			err_log[index].wp_cnt++;
-		if (status & R1_OUT_OF_RANGE || brq->stop.resp[0] & R1_OUT_OF_RANGE)
+		if (status & R1_OUT_OF_RANGE || brq->stop.resp[0] & R1_OUT_OF_RANGE || brq->cmd.resp[0] & R1_OUT_OF_RANGE)
 			err_log[index].oor_cnt++;
 	}
 
@@ -1402,10 +1400,10 @@ static ssize_t error_count_show(struct device *dev,
 	}
 
 	total_len += snprintf(buf + total_len, PAGE_SIZE,
-						   "GE:%d,CC:%d,ECC:%d,WP:%d,OOR:%d,CRC:%lld,TMO:%lld\n",
+						   "GE:%d,CC:%d,ECC:%d,WP:%d,OOR:%d,CRC:%lld,TMO:%lld,HALT:%d,CQEN:%d,RPMB:%d\n",
 						   err_log[0].ge_cnt, err_log[0].cc_cnt, err_log[0].ecc_cnt,
-						   err_log[0].wp_cnt, err_log[0].oor_cnt, total_c_cnt, total_t_cnt);
-
+						   err_log[0].wp_cnt, err_log[0].oor_cnt, total_c_cnt, total_t_cnt,
+						   err_log[0].halt_cnt, err_log[0].cq_cnt, err_log[0].rpmb_cnt);
  out:
 	return total_len;
 }
@@ -2026,6 +2024,7 @@ static int mmc_blk_err_check(struct mmc_card *card,
 	if (brq->cmd.resp[0] & CMD_ERRORS) {
 		pr_err("%s: r/w command failed, status = %#x\n",
 		       req->rq_disk->disk_name, brq->cmd.resp[0]);
+		mmc_card_error_logging(card, brq, brq->cmd.resp[0]);
 		return MMC_BLK_ABORT;
 	}
 

@@ -67,9 +67,6 @@ obj-$(CONFIG_UID_SYS_STATS) += uid_sys_stats.o
 ccflags-$(CONFIG_TZDEV) += -I$(srctree)/drivers/misc/tzdev/include
 obj-$(CONFIG_TZDEV)		+= tzdev/
 
-# Secure OS Mobicore Interface
-obj-y				+= tzic64.o
-
 obj-$(CONFIG_SEC_MODEM_IF) += modem_if/
 obj-$(CONFIG_GNSS_SHMEM_IF)	+= gnss_if/
 obj-y += samsung/

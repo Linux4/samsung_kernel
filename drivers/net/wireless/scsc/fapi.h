@@ -2976,9 +2976,12 @@ struct fapi_signal {
 
 static inline struct sk_buff *fapi_alloc_f(size_t sig_size, size_t data_size, u16 id, u16 vif, const char *file, int line)
 {
-	struct sk_buff                *skb = slsi_alloc_skb_f(sig_size + data_size, GFP_ATOMIC, file, line);
+	struct sk_buff                *skb = NULL;
 	struct fapi_vif_signal_header *header;
 
+	if (WARN_ON(in_interrupt()))
+		return NULL;
+	skb = alloc_skb(sig_size + data_size, GFP_KERNEL);
 	WARN_ON(sig_size < sizeof(struct fapi_signal_header));
 	if (WARN_ON(!skb))
 		return NULL;

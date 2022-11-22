@@ -310,6 +310,16 @@ static int sm5504_attach_ta(struct regmap_desc *pdesc)
 	pr_info("%s\n", __func__);
 
 	do {
+		attr = MANSW2_VBUS;
+		value = 1;
+		ret = regmap_write_value(pdesc, attr, value);
+		if (ret < 0) {
+			pr_err("%s REG_MANSW1 write fail.\n", __func__);
+			break;
+		}
+
+		_REGMAP_TRACE(pdesc, 'w', ret, attr, value);
+
 		attr = REG_MANSW1 | _ATTR_OVERWRITE_M;
 		value = _COM_OPEN;
 		ret = regmap_write_value(pdesc, attr, value);
@@ -435,6 +445,7 @@ static int sm5504_get_vps_data(struct regmap_desc *pdesc, void *pbuf)
 	muic_data_t *pmuic = pdesc->muic;
 	vps_data_t *pvps = (vps_data_t *)pbuf;
 	int attr;
+	int ctrl = 0;
 
 	if (pdesc->trace)
 		pr_info("%s\n", __func__);
@@ -448,16 +459,26 @@ static int sm5504_get_vps_data(struct regmap_desc *pdesc, void *pbuf)
 	pvps->t.attached_dev = ATTACHED_DEV_UNKNOWN_MUIC;
 	pvps->s.vbvolt = !(pmuic->intr.intr2 & INT2_UVLO_MASK);
 
+	ctrl = muic_i2c_read_byte(pmuic->i2c, REG_CTRL);
+
 	switch (pvps->s.val1) {
 	case SM5504_DEVT1_CDP:
 		pvps->t.attached_dev = ATTACHED_DEV_CDP_MUIC;
 		pr_info("%s : USB_CDP DETECTED\n", MUIC_DEV_NAME);
 		break;
 	case SM5504_DEVT1_USB:
-		if (vps_is_supported_dev(ATTACHED_DEV_TIMEOUT_OPEN_MUIC) &&
-				pmuic->intr.intr1 & INT1_DCD_OUT_MASK) {
-			pvps->t.attached_dev = ATTACHED_DEV_TIMEOUT_OPEN_MUIC;
-			pr_info("%s : DCD_OUT_SDP DETECTED\n", MUIC_DEV_NAME);
+		if (vps_is_supported_dev(ATTACHED_DEV_TIMEOUT_OPEN_MUIC)) {
+			if (pmuic->intr.intr1 & INT1_DCD_OUT_MASK) {
+				pvps->t.attached_dev = ATTACHED_DEV_TIMEOUT_OPEN_MUIC;
+				pr_info("%s : DCD_OUT_SDP DETECTED\n", MUIC_DEV_NAME);
+			} else if (pmuic->irq_n == -1) {
+				muic_i2c_write_byte(pmuic->i2c, REG_CTRL, ctrl & 0x9f);
+				muic_i2c_write_byte(pmuic->i2c, REG_CTRL, ctrl);
+				pr_info("%s : USB => check DCD again\n", MUIC_DEV_NAME);
+			} else {
+				pvps->t.attached_dev = ATTACHED_DEV_USB_MUIC;
+				pr_info("%s : USB DETECTED\n", MUIC_DEV_NAME);
+			}
 		} else {
 			pvps->t.attached_dev = ATTACHED_DEV_USB_MUIC;
 			pr_info("%s : USB DETECTED\n", MUIC_DEV_NAME);

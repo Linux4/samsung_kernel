@@ -12,7 +12,5 @@ obj-$(CONFIG_PANEL_TD4100_J3POP)	+= td4100_j3pop_lcd_ctrl.o
 obj-$(CONFIG_PANEL_TD4100_J3Y17)	+= td4100_j3y17_lcd_ctrl.o
 obj-$(CONFIG_PANEL_S6D7AA0_GTESVE)	+= s6d7aa0_gtesve_lcd_ctrl.o
 obj-$(CONFIG_PANEL_TD4100_J3TOP)	+= td4100_j3top_lcd_ctrl.o
-obj-$(CONFIG_PANEL_S6D7AA0_GTAXSWIFI)	+= s6d7aa0_gtaxswifi_lcd_ctrl.o
 obj-$(CONFIG_PANEL_EA8061S_J4LTE)	+= ea8061s_j4lte_lcd_ctrl.o dynamic_aid.o
-obj-$(CONFIG_PANEL_S6D78A0_GPPGO)	+= s6d78a0_qhd_gpp_go_lcd_ctrl.o
 obj-$(CONFIG_PANEL_TD4101_J2CORELTE)	+= td4101_j2corelte_lcd_ctrl.o

@@ -19,7 +19,6 @@
 #include <asm/cpu.h>
 #include <asm/cputype.h>
 #include <asm/cpufeature.h>
-#include <asm/smp_plat.h>
 
 #include <linux/bitops.h>
 #include <linux/bug.h>

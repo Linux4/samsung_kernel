@@ -15,8 +15,8 @@
  *
  */
 
-#include <linux/device.h>
 #include <linux/atomic.h>
+#include <linux/device.h>
 #include <linux/err.h>
 #include <linux/file.h>
 #include <linux/freezer.h>
@@ -205,9 +205,9 @@ static inline void ION_EVENT_ALLOC(struct ion_buffer *buffer, ktime_t begin)
 	log->begin = begin;
 	log->done = ktime_get();
 	data->id = buffer;
-	data->heap = buffer->heap;
 	data->size = buffer->size;
 	data->flags = buffer->flags;
+	strlcpy(data->heapname, buffer->heap->name, sizeof(data->heapname));
 }
 
 static inline void ION_EVENT_FREE(struct ion_buffer *buffer, ktime_t begin)
@@ -221,9 +221,9 @@ static inline void ION_EVENT_FREE(struct ion_buffer *buffer, ktime_t begin)
 	log->begin = begin;
 	log->done = ktime_get();
 	data->id = buffer;
-	data->heap = buffer->heap;
 	data->size = buffer->size;
 	data->shrinker = (buffer->private_flags & ION_PRIV_FLAG_SHRINKER_FREE);
+	strlcpy(data->heapname, buffer->heap->name, sizeof(data->heapname));
 }
 
 static inline void ION_EVENT_MMAP(struct ion_buffer *buffer, ktime_t begin)
@@ -237,8 +237,8 @@ static inline void ION_EVENT_MMAP(struct ion_buffer *buffer, ktime_t begin)
 	log->begin = begin;
 	log->done = ktime_get();
 	data->id = buffer;
-	data->heap = buffer->heap;
 	data->size = buffer->size;
+	strlcpy(data->heapname, buffer->heap->name, sizeof(data->heapname));
 }
 
 void ION_EVENT_SHRINK(struct ion_device *dev, size_t size)
@@ -263,9 +263,9 @@ void ION_EVENT_CLEAR(struct ion_buffer *buffer, ktime_t begin)
 	log->begin = begin;
 	log->done = ktime_get();
 	data->id = buffer;
-	data->heap = buffer->heap;
 	data->size = buffer->size;
 	data->flags = buffer->flags;
+	strlcpy(data->heapname, buffer->heap->name, sizeof(data->heapname));
 }
 
 static struct ion_task *ion_buffer_task_lookup(struct ion_buffer *buffer,
@@ -411,6 +411,7 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 	struct sg_table *table;
 	struct scatterlist *sg;
 	int i, ret;
+	long nr_alloc_cur, nr_alloc_peak;
 
 	buffer = kzalloc(sizeof(struct ion_buffer), GFP_KERNEL);
 	if (!buffer)
@@ -482,6 +483,10 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 	mutex_lock(&dev->buffer_lock);
 	ion_buffer_add(dev, buffer);
 	mutex_unlock(&dev->buffer_lock);
+	nr_alloc_cur = atomic_long_add_return(len, &heap->total_allocated);
+	nr_alloc_peak = atomic_long_read(&heap->total_allocated_peak);
+	if (nr_alloc_cur > nr_alloc_peak)
+		atomic_long_set(&heap->total_allocated_peak, nr_alloc_cur);
 	return buffer;
 
 err:
@@ -511,6 +516,7 @@ void ion_buffer_destroy(struct ion_buffer *buffer)
 		kfree(iovm_map);
 	}
 
+	atomic_long_sub(buffer->size, &buffer->heap->total_allocated);
 	buffer->heap->ops->unmap_dma(buffer->heap, buffer);
 	buffer->heap->ops->free(buffer);
 	if (buffer->pages)
@@ -639,7 +645,8 @@ static void ion_handle_get(struct ion_handle *handle)
 }
 
 /* Must hold the client lock */
-static struct ion_handle* ion_handle_get_check_overflow(struct ion_handle *handle)
+static struct ion_handle *ion_handle_get_check_overflow(
+					struct ion_handle *handle)
 {
 	if (atomic_read(&handle->ref.refcount) + 1 == 0)
 		return ERR_PTR(-EOVERFLOW);
@@ -658,19 +665,12 @@ static int ion_handle_put_nolock(struct ion_handle *handle)
 
 int ion_handle_put(struct ion_handle *handle)
 {
-	bool valid_handle;
+        struct ion_client *client = handle->client;
 	int ret;
 
-	mutex_lock(&handle->client->lock);
-	valid_handle = ion_handle_validate(handle->client, handle);
-
-	if (!valid_handle) {
-		WARN(1, "%s: invalid handle passed to free.\n", __func__);
-		mutex_unlock(&handle->client->lock);
-		return -EINVAL;
-	}
+	mutex_lock(&client->lock);
 	ret = ion_handle_put_nolock(handle);
-	mutex_unlock(&handle->client->lock);
+	mutex_unlock(&client->lock);
 
 	return ret;
 }
@@ -1518,43 +1518,46 @@ static void ion_dma_buf_release(struct dma_buf *dmabuf)
 static void *ion_dma_buf_kmap(struct dma_buf *dmabuf, unsigned long offset)
 {
 	struct ion_buffer *buffer = dmabuf->priv;
+	void *vaddr;
 
-	return buffer->vaddr + offset * PAGE_SIZE;
+	if (!buffer->heap->ops->map_kernel) {
+		pr_err("%s: map kernel is not implemented by this heap.\n",
+		       __func__);
+		return ERR_PTR(-ENOTTY);
+	}
+	mutex_lock(&buffer->lock);
+	vaddr = ion_buffer_kmap_get(buffer);
+	mutex_unlock(&buffer->lock);
+
+	if (IS_ERR(vaddr))
+		return vaddr;
+
+	return vaddr + offset * PAGE_SIZE;
 }
 
 static void ion_dma_buf_kunmap(struct dma_buf *dmabuf, unsigned long offset,
 			       void *ptr)
 {
+	struct ion_buffer *buffer = dmabuf->priv;
+
+	if (buffer->heap->ops->map_kernel) {
+		mutex_lock(&buffer->lock);
+		ion_buffer_kmap_put(buffer);
+		mutex_unlock(&buffer->lock);
+	}
 }
 
 static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf, size_t start,
 					size_t len,
 					enum dma_data_direction direction)
 {
-	struct ion_buffer *buffer = dmabuf->priv;
-	void *vaddr;
-
-	if (!buffer->heap->ops->map_kernel) {
-		pr_err("%s: map kernel is not implemented by this heap.\n",
-		       __func__);
-		return -ENODEV;
-	}
-
-	mutex_lock(&buffer->lock);
-	vaddr = ion_buffer_kmap_get(buffer);
-	mutex_unlock(&buffer->lock);
-	return PTR_ERR_OR_ZERO(vaddr);
+	return 0;
 }
 
 static void ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf, size_t start,
 				       size_t len,
 				       enum dma_data_direction direction)
 {
-	struct ion_buffer *buffer = dmabuf->priv;
-
-	mutex_lock(&buffer->lock);
-	ion_buffer_kmap_put(buffer);
-	mutex_unlock(&buffer->lock);
 }
 
 static struct dma_buf_ops dma_buf_ops = {
@@ -1570,23 +1573,27 @@ static struct dma_buf_ops dma_buf_ops = {
 	.kunmap = ion_dma_buf_kunmap,
 };
 
-struct dma_buf *ion_share_dma_buf(struct ion_client *client,
-						struct ion_handle *handle)
+static struct dma_buf *__ion_share_dma_buf(struct ion_client *client,
+					   struct ion_handle *handle,
+					   bool lock_client)
 {
 	struct ion_buffer *buffer;
 	struct dma_buf *dmabuf;
 	bool valid_handle;
 
-	mutex_lock(&client->lock);
+	if (lock_client)
+		mutex_lock(&client->lock);
 	valid_handle = ion_handle_validate(client, handle);
 	if (!valid_handle) {
 		WARN(1, "%s: invalid handle passed to share.\n", __func__);
-		mutex_unlock(&client->lock);
+		if (lock_client)
+			mutex_unlock(&client->lock);
 		return ERR_PTR(-EINVAL);
 	}
 	buffer = handle->buffer;
 	ion_buffer_get(buffer);
-	mutex_unlock(&client->lock);
+	if (lock_client)
+		mutex_unlock(&client->lock);
 
 	dmabuf = dma_buf_export(buffer, &dma_buf_ops, buffer->size, O_RDWR,
 				NULL);
@@ -1597,14 +1604,21 @@ struct dma_buf *ion_share_dma_buf(struct ion_client *client,
 
 	return dmabuf;
 }
+
+struct dma_buf *ion_share_dma_buf(struct ion_client *client,
+				  struct ion_handle *handle)
+{
+	return __ion_share_dma_buf(client, handle, true);
+}
 EXPORT_SYMBOL(ion_share_dma_buf);
 
-int ion_share_dma_buf_fd(struct ion_client *client, struct ion_handle *handle)
+static int __ion_share_dma_buf_fd(struct ion_client *client,
+				  struct ion_handle *handle, bool lock_client)
 {
 	struct dma_buf *dmabuf;
 	int fd;
 
-	dmabuf = ion_share_dma_buf(client, handle);
+	dmabuf = __ion_share_dma_buf(client, handle, lock_client);
 	if (IS_ERR(dmabuf))
 		return PTR_ERR(dmabuf);
 
@@ -1614,7 +1628,18 @@ int ion_share_dma_buf_fd(struct ion_client *client, struct ion_handle *handle)
 
 	return fd;
 }
+
+int ion_share_dma_buf_fd(struct ion_client *client, struct ion_handle *handle)
+{
+	return __ion_share_dma_buf_fd(client, handle, true);
+}
 EXPORT_SYMBOL(ion_share_dma_buf_fd);
+
+static int ion_share_dma_buf_fd_nolock(struct ion_client *client,
+				       struct ion_handle *handle)
+{
+	return __ion_share_dma_buf_fd(client, handle, false);
+}
 
 struct ion_handle *ion_import_dma_buf(struct ion_client *client, int fd)
 {
@@ -1934,11 +1959,15 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	{
 		struct ion_handle *handle;
 
-		handle = ion_handle_get_by_id(client, data.handle.handle);
-		if (IS_ERR(handle))
+		mutex_lock(&client->lock);
+		handle = ion_handle_get_by_id_nolock(client, data.handle.handle);
+		if (IS_ERR(handle)) {
+			mutex_unlock(&client->lock);
 			return PTR_ERR(handle);
-		data.fd.fd = ion_share_dma_buf_fd(client, handle);
-		ion_handle_put(handle);
+		}
+		data.fd.fd = ion_share_dma_buf_fd_nolock(client, handle);
+		ion_handle_put_nolock(handle);
+		mutex_unlock(&client->lock);
 		if (data.fd.fd < 0)
 			ret = data.fd.fd;
 		break;
@@ -2133,6 +2162,8 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 	seq_printf(s, "%16.s %16zu\n", "total orphaned",
 		   total_orphaned_size);
 	seq_printf(s, "%16.s %16zu\n", "total ", total_size);
+	seq_printf(s, "%16.s %16lu\n", "peak allocated",
+		   atomic_long_read(&heap->total_allocated_peak));
 	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
 		seq_printf(s, "%16.s %16zu\n", "deferred free",
 				heap->free_list_size);
@@ -2578,21 +2609,21 @@ static void ion_debug_event_show_one(struct seq_file *s,
 		{
 		struct ion_event_alloc *data = &log->data.alloc;
 		seq_printf(s, "%8s  %pK  %18s  %11zd  ", "alloc",
-				data->id, data->heap->name, data->size);
+				data->id, data->heapname, data->size);
 		break;
 		}
 	case ION_EVENT_TYPE_FREE:
 		{
 		struct ion_event_free *data = &log->data.free;
 		seq_printf(s, "%8s  %pK  %18s  %11zd  ", "free",
-				data->id, data->heap->name, data->size);
+				data->id, data->heapname, data->size);
 		break;
 		}
 	case ION_EVENT_TYPE_MMAP:
 		{
 		struct ion_event_mmap *data = &log->data.mmap;
 		seq_printf(s, "%8s  %pK  %18s  %11zd  ", "mmap",
-				data->id, data->heap->name, data->size);
+				data->id, data->heapname, data->size);
 		break;
 		}
 	case ION_EVENT_TYPE_SHRINK:
@@ -2607,7 +2638,7 @@ static void ion_debug_event_show_one(struct seq_file *s,
 		{
 		struct ion_event_clear *data = &log->data.clear;
 		seq_printf(s, "%8s  %pK  %18s  %11zd  ", "clear",
-				data->id, data->heap->name, data->size);
+				data->id, data->heapname, data->size);
 		break;
 		}
 	}

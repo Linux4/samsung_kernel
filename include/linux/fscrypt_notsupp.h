@@ -61,18 +61,12 @@ static inline struct page *fscrypt_control_page(struct page *page)
 	WARN_ON_ONCE(1);
 	return ERR_PTR(-EINVAL);
 }
+{
+	WARN_ON_ONCE(1);
+	return ERR_PTR(-EINVAL);
+}
 
 static inline void fscrypt_restore_control_page(struct page *page)
-{
-	return;
-}
-
-static inline void fscrypt_set_d_op(struct dentry *dentry)
-{
-	return;
-}
-
-static inline void fscrypt_set_encrypted_dentry(struct dentry *dentry)
 {
 	return;
 }

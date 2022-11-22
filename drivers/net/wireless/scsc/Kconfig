@@ -223,3 +223,49 @@ config SCSC_WIFI_NAN_ENABLE
         default n
         ---help---
           This option tells whether WiFi NAN is enabled or not.
+
+config SCSC_ENHANCED_PACKET_STATS
+        bool "Enable enhanced packet stats"
+        default n
+        ---help---
+          This option tells whether enhanced packet stats collection
+          is enabled or not.
+
+config SCSC_WLAN_LOW_LATENCY_MODE
+        bool "Support enabling/disabling roaming as per latency mode"
+        default n
+        ---help---
+          This option tells whether support is provided for enabling
+          or disabling roaming as per the latency mode.
+
+config SCSC_WLAN_ENHANCED_PKT_FILTER
+        bool "Enable enhanced packet filtering in suspend"
+        default n
+        ---help---
+          This option tells if UDP packet filtering in suspend is
+          supported or not.
+
+config SCSC_WLAN_SET_PREFERRED_ANTENNA
+        bool "Enable the driver to set preferred antenna"
+        default n
+        ---help---
+          This option enables the driver to set the preferred antenna.
+
+
+config SCSC_WLAN_P2P_GC_EASY_CONNECT
+        bool "Enable P2P GC to connect legacy APs for Easy Connect"
+        default n
+        ---help---
+          This option allows to connect legacy APs from P2P GC interface.
+
+config SCSC_WLAN_MAX_LINK_SPEED
+        bool "Enable max link speed calculation"
+        default n
+        ---help---
+        This option tells if max linkspeed calculation is enabled or not.
+
+config SCSC_WLAN_DUAL_STATION
+        bool "Enable dual station"
+        default n
+        ---help---
+        This option tells if dual station feature is supported or not.

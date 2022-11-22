@@ -322,9 +322,9 @@ int slsi_mlme_nan_publish(struct slsi_dev *sdev, struct net_device *dev, struct 
 	}
 
 	if (hal_req && !r)
-		ndev_vif->nan.publish_id_map |= BIT(publish_id);
+		ndev_vif->nan.publish_id_map |= (u32)BIT(publish_id);
 	else
-		ndev_vif->nan.publish_id_map &= ~BIT(publish_id);
+		ndev_vif->nan.publish_id_map &= (u32)~BIT(publish_id);
 	slsi_kfree_skb(cfm);
 	return r;
 }
@@ -431,9 +431,9 @@ int slsi_mlme_nan_subscribe(struct slsi_dev *sdev, struct net_device *dev, struc
 	}
 
 	if (hal_req && !r)
-		ndev_vif->nan.subscribe_id_map |= BIT(subscribe_id);
+		ndev_vif->nan.subscribe_id_map |= (u32)BIT(subscribe_id);
 	else
-		ndev_vif->nan.subscribe_id_map &= ~BIT(subscribe_id);
+		ndev_vif->nan.subscribe_id_map &= (u32)~BIT(subscribe_id);
 	slsi_kfree_skb(cfm);
 	return r;
 }
