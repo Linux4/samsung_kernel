@@ -1,0 +1,5 @@
+kernel/drivers/mmc/core/mmc_core.ko
+kernel/drivers/mmc/core/pwrseq_simple.ko
+kernel/drivers/mmc/core/pwrseq_emmc.ko
+kernel/drivers/mmc/core/mmc_block.ko
+kernel/drivers/mmc/core/mmc_test.ko

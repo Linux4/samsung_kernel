@@ -1,0 +1,7 @@
+kernel/drivers/phy/phy-xgene.ko
+kernel/drivers/phy/qualcomm/phy-qcom-ufs.ko
+kernel/drivers/phy/qualcomm/phy-qcom-ufs-qrbtc-sdm845.ko
+kernel/drivers/phy/qualcomm/phy-qcom-ufs-qmp-v4.ko
+kernel/drivers/phy/qualcomm/phy-qcom-ufs-qmp-v4-lito.ko
+kernel/drivers/phy/qualcomm/phy-qcom-ufs-qmp-v3-660.ko
+kernel/drivers/phy/qualcomm/phy-qcom-ufs-qmp-v3.ko

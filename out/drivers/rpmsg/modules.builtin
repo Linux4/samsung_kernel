@@ -1,0 +1,5 @@
+kernel/drivers/rpmsg/rpmsg_core.ko
+kernel/drivers/rpmsg/rpmsg_char.ko
+kernel/drivers/rpmsg/qcom_glink_native.ko
+kernel/drivers/rpmsg/qcom_glink_smem.ko
+kernel/drivers/rpmsg/qcom_glink_spss.ko

@@ -1,0 +1,2 @@
+kernel/drivers/sti/abc/abc_common.ko
+kernel/drivers/sti/abc/abc_hub.ko

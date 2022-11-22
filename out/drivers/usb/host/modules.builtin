@@ -1,0 +1,9 @@
+kernel/drivers/usb/host/ehci-hcd.ko
+kernel/drivers/usb/host/ehci-pci.ko
+kernel/drivers/usb/host/ehci-platform.ko
+kernel/drivers/usb/host/ohci-hcd.ko
+kernel/drivers/usb/host/ohci-pci.ko
+kernel/drivers/usb/host/ohci-platform.ko
+kernel/drivers/usb/host/xhci-hcd.ko
+kernel/drivers/usb/host/xhci-pci.ko
+kernel/drivers/usb/host/xhci-plat-hcd.ko

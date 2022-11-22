@@ -1,0 +1,2 @@
+kernel/drivers/usb/notify/usb_notify_layer.ko
+kernel/drivers/usb/notify/usb_notifier_qcom.ko

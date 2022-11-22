@@ -1,0 +1,2 @@
+kernel/drivers/iio/adc/qcom-spmi-adc5.ko
+kernel/drivers/iio/adc/qcom-vadc-common.ko

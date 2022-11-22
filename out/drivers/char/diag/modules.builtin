@@ -1,0 +1,2 @@
+kernel/drivers/char/diag/diagchar.ko
+kernel/drivers/char/diag/diagfwd_mhi.ko

@@ -1,0 +1,4 @@
+kernel/drivers/input/touchscreen/synaptics_tcm/synaptics_tcm_core.ko
+kernel/drivers/input/touchscreen/synaptics_tcm/synaptics_tcm_touch.ko
+kernel/drivers/input/touchscreen/synaptics_tcm/synaptics_tcm_device.ko
+kernel/drivers/input/touchscreen/synaptics_tcm/synaptics_tcm_diagnostics.ko

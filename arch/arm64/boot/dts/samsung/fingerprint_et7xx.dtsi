@@ -1,0 +1,70 @@
+/* Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&tlmm {
+	et7xx_rst: et7xx_rst {
+		GPIO_CONFIG_PUD_DRV(AP,tlmm,112, FUNC_OUTPUT, PULL_DOWN, DRV_LV1);
+	};
+};
+
+#if 1
+&tlmm {
+	et7xx_ldo: et7xx_ldo {
+		GPIO_CONFIG_PUD_DRV(AP,tlmm,110, FUNC_OUTPUT, PULL_DOWN, DRV_LV1);
+	};
+};
+#endif
+
+#if 0
+&${fps_regul_vdd_3p3} {
+	regulator-name = "VDD_BTP_3P3";
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	qcom,init-voltage = <3300000>;
+};
+#endif
+
+#if defined(CONFIG_SEC_FACTORY) || !1
+&qupv3_se6_spi {
+	status = "okay";
+#else
+&soc {
+#endif
+	etspi,et7xx {
+		compatible = "etspi,et7xx";
+		reg = <0>;
+		spi-max-frequency = <12500000>;
+
+		pinctrl-names = "default";
+#if 1
+		pinctrl-0 = <&et7xx_rst &et7xx_ldo>;
+#else
+		pinctrl-0 = <&et7xx_rst>;
+#endif
+
+		gpio-controller;
+		#gpio-cells = <2>;
+
+#if 0
+		etspi-regulator = "VDD_BTP_3P3";
+#endif
+#if 1
+		etspi-ldoPin = <SEC_GPIO_REF(AP,tlmm,110) 0>;
+#endif
+		etspi-sleepPin = <SEC_GPIO_REF(AP,tlmm,112) 0>;
+		etspi-chipid = "ET713";
+		etspi-modelinfo = "A516";
+		etspi-position = "12.67,0.00,9.10,9.10,14.80,14.80,12.00,12.00,5.00";
+		etspi-rb = "525,-1,-1";
+	};
+};
+

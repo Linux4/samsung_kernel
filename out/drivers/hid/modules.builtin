@@ -1,0 +1,13 @@
+kernel/drivers/hid/hid.ko
+kernel/drivers/hid/uhid.ko
+kernel/drivers/hid/hid-generic.ko
+kernel/drivers/hid/hid-apple.ko
+kernel/drivers/hid/hid-elecom.ko
+kernel/drivers/hid/hid-magicmouse.ko
+kernel/drivers/hid/hid-microsoft.ko
+kernel/drivers/hid/hid-multitouch.ko
+kernel/drivers/hid/hid-nintendo.ko
+kernel/drivers/hid/hid-plantronics.ko
+kernel/drivers/hid/hid-samsung.ko
+kernel/drivers/hid/hid-sony.ko
+kernel/drivers/hid/usbhid/usbhid.ko

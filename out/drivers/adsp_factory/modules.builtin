@@ -1,0 +1,7 @@
+kernel/drivers/adsp_factory/adsp_factory.ko
+kernel/drivers/adsp_factory/ssc_core.ko
+kernel/drivers/adsp_factory/icm42605_accel.ko
+kernel/drivers/adsp_factory/icm42605_gyro.ko
+kernel/drivers/adsp_factory/stk33617_prox.ko
+kernel/drivers/adsp_factory/stk33617_light.ko
+kernel/drivers/adsp_factory/mmc5603x_mag.ko

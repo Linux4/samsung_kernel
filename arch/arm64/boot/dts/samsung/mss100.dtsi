@@ -1,0 +1,51 @@
+&fixed_regulator2 {
+	regulator-name = "tsp_ldo_en";
+	regulator-min-microvolt = <3000000>;
+	regulator-max-microvolt = <3000000>;
+	regulator-boot-on;
+};
+
+
+
+&tlmm {
+        attn_irq: attn_irq {
+                GPIO_CONFIG_PUD(AP,tlmm,9, FUNC_INPUT_WAKEUP, PULL_NONE);
+        };
+
+        attn_input: attn_input {
+                GPIO_CONFIG_PUD(AP,tlmm,9, FUNC_INPUT, PULL_NONE);
+        };
+};
+
+&qupv3_se7_i2c {
+	status = "okay";
+	samsung,i2c-sda-delay = <100>;
+	samsung,i2c-max-bus-freq = <400000>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	mms_ts@48 {
+		compatible = "melfas,mms_ts";
+		reg = <0x48>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&attn_irq>;
+		pinctrl-1 = <&attn_input>;
+		melfas,vdd_en = "tsp_ldo_en";
+		/*melfas,io_en = "tsp_io";*/
+		melfas,irq-gpio = <SEC_GPIO_REF(AP,tlmm,9) 0>;
+		melfas,area-size = <133 266 341>; /* indicator: 24dp navigator:48dp edge:60px dpi=320 */
+		melfas,max_x_y = <4095 4095>;	/* x & y */
+		melfas,display_resolution = <1080 2400>;
+		melfas,node_info = <16 34 0>;	/* x & y & key */
+		melfas,event_info = <10 16 1>;		/* event format & event size */
+		melfas,fod_info = <16 12 24>;	/* tx, rx, vi size */
+		melfas,support_lpm = "true";
+		support_ear_detect_mode;
+		enable_settings_aot;
+		support_open_short_test;
+		support_fod;
+		melfas,support_protos;
+
+		/* This is for the firmware */
+		melfas,fw_name = "tsp_melfas/mss100_a51xq.bin";
+	};
+};

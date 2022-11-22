@@ -1,0 +1,3 @@
+kernel/drivers/net/wireless/cnss_genl/cnss_nl.ko
+kernel/drivers/net/wireless/cnss_prealloc/cnss_prealloc.ko
+kernel/drivers/net/wireless/qualcomm/wcn39xx/qcacld-3.0/wlan.ko

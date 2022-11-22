@@ -1,0 +1,4 @@
+kernel/drivers/net/ethernet/cavium/common/cavium_ptp.ko
+kernel/drivers/net/ethernet/qualcomm/rmnet/rmnet.ko
+kernel/drivers/net/ethernet/qualcomm/rmnet/perf/rmnet_perf.ko
+kernel/drivers/net/ethernet/qualcomm/rmnet/shs/rmnet_shs.ko

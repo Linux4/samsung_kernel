@@ -1,0 +1,2 @@
+kernel/drivers/spi/spidev.ko
+kernel/drivers/spi/spi-geni-qcom.ko

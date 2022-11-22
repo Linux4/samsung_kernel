@@ -1,0 +1,30 @@
+#if 0
+#define PWM_ADDR 0x00165000
+#define PWM_FUNC FUNC_GCC_GP2
+#else
+#define PWM_ADDR 0x00164000
+#define PWM_FUNC FUNC_GCC_GP1
+#endif
+
+
+&tlmm {
+	/* add pinctrl for motor  */
+	motor_pwm_active: motor_pwm_active {
+		GPIO_CONFIG_PUD_DRV(AP,tlmm,48, PWM_FUNC, PULL_NONE, DRV_LV1);
+	};
+	motor_pwm_suspend: motor_pwm_suspend {
+		GPIO_CONFIG_PUD_DRV(AP,tlmm,48, FUNC_OUTPUT_LOW, PULL_NONE, DRV_LV1);
+	};
+};
+
+&soc {
+	pwm_gpclk: samsung,pwm_gpclk{
+		#pwm-cells = <2>;
+		compatible = "samsung_pwm_gpclk";
+		pinctrl-names = "tlmm_motor_active","tlmm_motor_suspend";
+		pinctrl-0 = <&motor_pwm_active>;
+		pinctrl-1 = <&motor_pwm_suspend>;
+		samsung,gp_clk = <PWM_ADDR>;	// Address of GP clock
+		status = "ok";
+	};
+};

@@ -1,0 +1,11 @@
+kernel/drivers/clk/qcom/clk-qcom.ko
+kernel/drivers/clk/qcom/clk-aop-qmp.ko
+kernel/drivers/clk/qcom/clk-rpmh.ko
+kernel/drivers/clk/qcom/camcc-lito.ko
+kernel/drivers/clk/qcom/debugcc-lito.ko
+kernel/drivers/clk/qcom/dispcc-lito.ko
+kernel/drivers/clk/qcom/gcc-lito.ko
+kernel/drivers/clk/qcom/gpucc-lito.ko
+kernel/drivers/clk/qcom/npucc-lito.ko
+kernel/drivers/clk/qcom/videocc-lito.ko
+kernel/drivers/clk/qcom/clk-spmi-pmic-div.ko

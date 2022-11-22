@@ -1,0 +1,4 @@
+kernel/drivers/iommu/iova.ko
+kernel/drivers/iommu/arm-smmu.ko
+kernel/drivers/iommu/arm-smmu-debug.ko
+kernel/drivers/iommu/iommu-logger.ko

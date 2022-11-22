@@ -1,0 +1,2 @@
+kernel/drivers/spmi/spmi.ko
+kernel/drivers/spmi/spmi-pmic-arb.ko

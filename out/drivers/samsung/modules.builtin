@@ -1,0 +1,10 @@
+kernel/drivers/samsung/sec_class.ko
+kernel/drivers/samsung/sec_kcompat.ko
+kernel/drivers/samsung/debug/sec_debug.ko
+kernel/drivers/samsung/debug/sec_debug_node.ko
+kernel/drivers/samsung/debug/sec_debug_partition.ko
+kernel/drivers/samsung/debug/sec_hw_param.ko
+kernel/drivers/samsung/debug/sec_key_notifier.ko
+kernel/drivers/samsung/debug/sec_crashkey.ko
+kernel/drivers/samsung/debug/sec_crashkey_long.ko
+kernel/drivers/samsung/misc/vbus_notifier.ko

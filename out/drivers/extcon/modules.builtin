@@ -1,0 +1,2 @@
+kernel/drivers/extcon/extcon-core.ko
+kernel/drivers/extcon/extcon-gpio.ko

@@ -1,0 +1,3 @@
+kernel/sound/soc/snd-soc-core.ko
+kernel/sound/soc/codecs/snd-soc-hdmi-codec.ko
+kernel/sound/soc/samsung/sec_audio_sysfs.ko

@@ -1,0 +1,7 @@
+kernel/drivers/scsi/scsi_mod.ko
+kernel/drivers/scsi/sd_mod.ko
+kernel/drivers/scsi/sg.ko
+kernel/drivers/scsi/ch.ko
+kernel/drivers/scsi/ufs/ufs-qcom.ko
+kernel/drivers/scsi/ufs/ufshcd-core.ko
+kernel/drivers/scsi/ufs/ufshcd-pltfrm.ko

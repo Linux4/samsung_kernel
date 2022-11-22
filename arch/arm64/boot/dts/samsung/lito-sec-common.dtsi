@@ -1,0 +1,351 @@
+/* Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "lito-sec-uart-common.dtsi"
+#include "lito-sec-argos-common.dtsi"
+
+&soc {
+	sec_smem@0 {
+		compatible = "samsung,sec-smem";
+		status = "okay";
+	};
+
+        qcom,memshare {
+                compatible = "qcom,memshare";
+
+                qcom,client_4 {
+                        compatible = "qcom,memshare-peripheral";
+                        memory-region = <&modem_shared_mem>;
+                        qcom,peripheral-size = <0x02000000>;
+			qcom,reserved-size = <0x04000000>;
+                        qcom,client-id = <3>;
+                        qcom,allocate-boot-time;
+                        label = "modem";
+                };
+
+        };
+
+	samsung,sec_misc {
+		qfprom_jtag,reg = <0x00784188>;
+	};
+};
+
+
+&soc {
+	input_booster {
+		status = "okay";
+		compatible = "input_booster";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		booster_key@1 {
+			input_booster,label = "KEY";
+			input_booster,type = <0>;	/* BOOSTER_DEVICE_KEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <1401600>;
+			input_booster,hmp_boost = <2>;
+			input_booster,ddr_freqs = <0>;
+			input_booster,lpm_bias = <0>;
+
+			/* Time table */
+			input_booster,head_times = <500>;
+			input_booster,tail_times = <500>;
+		};
+		booster_key@2 {
+			input_booster,label = "TOUCHKEY";
+			input_booster,type = <1>;	/* BOOSTER_DEVICE_TOUCHKEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <1401600>;
+			input_booster,hmp_boost = <2>;
+			input_booster,ddr_freqs = <0>;
+			input_booster,lpm_bias = <0>;
+
+			/* Time table */
+			input_booster,head_times = <0>;
+			input_booster,tail_times = <500>;
+		};
+		booster_key@3 {
+			input_booster,label = "TOUCH";
+			input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+
+			input_booster,levels = <1 2 3>;
+
+			/* Frequency table */
+			/* for level	:	1_Head, 2_Head, 2_Tail */
+			input_booster,cpu_freqs = <1401600 1401600 1401600>;
+			input_booster,hmp_boost = <2 2 2>;
+			input_booster,ddr_freqs = <1017 1017 0>;
+			input_booster,lpm_bias = <5 5 5>;
+
+			/* Time table */
+			input_booster,head_times = <200 200 0>;
+			input_booster,tail_times = <0 0 300>;
+		};
+		booster_key@4 { // Input Booster +
+			input_booster,label = "MULTITOUCH";
+			input_booster,type = <3>;	/* BOOSTER_DEVICE_MULTITOUCH */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1958400 1401600>;
+			input_booster,hmp_boost = <2 2>;
+			input_booster,ddr_freqs = <0 0>;
+			input_booster,lpm_bias = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 800>;
+		};
+		booster_key@5 {
+			input_booster,label = "KEYBOARD";
+			input_booster,type = <4>;	/* BOOSTER_DEVICE_KEYBOARD */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1401600 1401600>;
+			input_booster,hmp_boost = <2 2>;
+			input_booster,ddr_freqs = <0 0>;
+			input_booster,lpm_bias = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <130 130>;
+			input_booster,tail_times = <0 0>;
+		};
+		booster_key@6 {
+			input_booster,label = "MOUSE";
+			input_booster,type = <5>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1401600 489600>;
+			input_booster,hmp_boost = <2 0>;
+			input_booster,ddr_freqs = <0 0>;
+			input_booster,lpm_bias = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+		};
+		booster_key@7 {
+			input_booster,label = "MOUSE WHEEL";
+			input_booster,type = <6>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1401600 0>;
+			input_booster,hmp_boost = <2 0>;
+			input_booster,ddr_freqs = <0 0>;
+			input_booster,lpm_bias = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 0>;
+		};
+		booster_key@8 {
+			input_booster,label = "PEN HOVER";
+			input_booster,type = <7>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1401600 489600>;
+			input_booster,hmp_boost = <2 0>;
+			input_booster,ddr_freqs = <0 0>;
+			input_booster,lpm_bias = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+		}; // Input Booster -
+		booster_key@9 {
+			input_booster,label = "PEN";
+			input_booster,type = <8>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1766400 1094400>;
+			input_booster,hmp_boost = <2 2>;
+			input_booster,ddr_freqs = <0 0>;
+			input_booster,lpm_bias = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 600>;
+		}; // Input Booster -
+		booster_key@10 {
+			input_booster,label = "KEY_TWO";
+			input_booster,type = <9>;	/* BOOSTER_DEVICE_KEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <1766400>;
+			input_booster,hmp_boost = <2>;
+			input_booster,ddr_freqs = <0>;
+			input_booster,lpm_bias = <0>;
+
+			/* Time table */
+			input_booster,head_times = <700>;
+			input_booster,tail_times = <700>;
+		}; // Input Booster -
+		/* If you need to add new key type, add it this position */
+	};
+
+	qcom,glinkpkt { 
+		compatible = "qcom,glinkpkt"; 
+	
+		qcom,glinkpkt-glinkbridge { 
+			qcom,glinkpkt-edge = "mpss"; 
+			qcom,glinkpkt-ch-name = "glink_bridge"; 
+			qcom,glinkpkt-dev-name = "smd4"; 
+		}; 
+	}; 
+};
+
+&reserved_memory {
+	/* CONFIG_SEC_DEBUG reserves 9MB */
+	sec_debug_region: sec_debug_region@B0000000 {
+		compatible = "removed-dma-pool";
+		no-map;
+		reg = <0x0 0xB0000000 0x0 0x00900000>;
+	};
+
+	sec_debug_rdx_bootdev: sec_debug_rdx_bootdev@0 {
+		no-ship;
+		reg = <0x1 0x00000000 0x0 0x0AD00000>;
+	};
+
+	ss_plog@B0900000 {
+		compatible = "ss_plog";
+		no-map;
+		reg = <0x0 0xB0900000 0x0 0x00200000>;
+	};
+
+	ramoops@B0B00000 {
+		compatible = "ramoops";
+		reg = <0 0xB0B00000 0 0x100000>;
+		record-size = <0x40000>;
+		console-size = <0x40000>;
+		ftrace-size = <0x40000>;
+		pmsg-size = <0x40000>;
+	};
+
+	/*to reserve 1MB for TIMA */
+	tima_mem: tima_region@B0C00000 {
+		compatible = "removed-dma-pool";
+		no-map;
+		reg = <0x0 0xB0C00000 0x0 0x00100000>;
+	};
+
+	/* Kaslr offset reserve */
+	kaslr_region: kaslr_region@B0FFF000 {
+		compatible = "removed-dma-pool";
+		no-map;
+		reg = <0x0 0xB0FFF000 0x0 0x1000>;
+	};	
+
+	/* rkp_region reserves for RKP */
+	/* CAUSION: DO NOT reserve 0xB1000000 ~ 0xB2800000 region for RKP reserved at the runtime */
+	rkp_region: rkp_region@B1000000 {
+		compatible = "removed-dma-pool";
+		reg = <0x0 0xB1000000 0x0 0x200000>;
+	};
+
+	modem_shared_mem: modem_shared_mem_region@c0000000 {
+		compatible = "modem-removed-dma-pool";
+		no-map;
+		reg = <0x0 0xc0000000 0x0 0x06000000>;
+	};
+};
+
+&disp_rdump_memory {
+	status = "disabled";
+};
+
+&qseecom_mem {
+	size = <0x0 0x1C00000>;
+};
+&pil_adsp_mem {
+	reg = <0x0 0x9B800000 0x0 0x3600000>;
+};
+&pil_cvp_mem {
+	reg = <0x0 0x8B500000 0x0 0x500000>;
+};
+&pil_video_mem {
+	reg = <0x0 0x8B000000 0x0 0x500000>;
+};
+&pil_npu_mem {
+	reg = <0x0 0x8AB00000 0x0 0x500000>;
+};
+&pil_camera_mem {
+	reg = <0x0 0x8A600000 0x0 0x500000>;
+};
+&pil_cdsp_mem {
+	reg = <0x0 0x88800000 0x0 0x1e00000>;
+};
+
+/* TZapp region */
+&qtee_apps_mem {
+	reg = <0x0 0x81e00000 0x0 0x4700000>;
+};
+/* only for compatibility, not used for qcom,appsbl-qseecom-support */
+&qcom_seecom {
+	reg = <0x82200000 0x4300000>;
+};
+/* only for compatibility, there is no handling routine for reg in SMCinvoke driver */
+&qcom_smcinvoke {
+	reg = <0x82200000 0x4300000>;
+};
+
+&ufshc_mem {
+	spm-level = <3>;
+};
+
+&qupv3_se9_i2c {
+	status = "disabled";
+};
+
+&msm_imem {
+	upload_cause@66c {
+		compatible = "qcom,msm-imem-upload_cause";
+		reg = <0x66c 4>;
+	};
+};
+
+&shared_meta {
+	status = "okay";
+	parts = "vbmeta,boot,system,vendor,product,odm,prism,optics,vbmeta_samsung,recovery,dtbo,abl,xbl,tz,hyp";
+};
+
+&android_q_fstab {
+	status = "disabled";
+};

@@ -1,0 +1,5 @@
+kernel/drivers/input/touchscreen/melfas_mss100/melfas_mss100.ko
+kernel/drivers/input/touchscreen/melfas_mss100/melfas_mss100_mod.ko
+kernel/drivers/input/touchscreen/melfas_mss100/melfas_mss100_test.ko
+kernel/drivers/input/touchscreen/melfas_mss100/melfas_mss100_cmd.ko
+kernel/drivers/input/touchscreen/melfas_mss100/melfas_mss100_fw_update.ko

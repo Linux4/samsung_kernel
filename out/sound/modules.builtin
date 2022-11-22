@@ -1,0 +1,14 @@
+kernel/sound/soundcore.ko
+kernel/sound/core/snd.ko
+kernel/sound/core/snd-hwdep.ko
+kernel/sound/core/snd-timer.ko
+kernel/sound/core/snd-pcm.ko
+kernel/sound/core/snd-rawmidi.ko
+kernel/sound/core/snd-compress.ko
+kernel/sound/soc/snd-soc-core.ko
+kernel/sound/soc/codecs/snd-soc-hdmi-codec.ko
+kernel/sound/soc/samsung/sec_audio_sysfs.ko
+kernel/sound/usb/snd-usb-audio.ko
+kernel/sound/usb/snd-usbmidi-lib.ko
+kernel/sound/usb/usb_audio_qmi_v01.ko
+kernel/sound/usb/usb_audio_qmi_svc.ko

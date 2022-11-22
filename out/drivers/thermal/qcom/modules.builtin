@@ -1,0 +1,6 @@
+kernel/drivers/thermal/qcom/adc-tm.ko
+kernel/drivers/thermal/qcom/adc-tm-common.ko
+kernel/drivers/thermal/qcom/adc-tm5.ko
+kernel/drivers/thermal/qcom/adc-tm7.ko
+kernel/drivers/thermal/qcom/lmh_cpu_vdd_cdev.ko
+kernel/drivers/thermal/qcom/msm_isense_cdsp.ko

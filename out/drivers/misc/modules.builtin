@@ -1,0 +1,3 @@
+kernel/drivers/misc/hdcp_qseecom.ko
+kernel/drivers/misc/msm_hdcp.ko
+kernel/drivers/misc/qseecom.ko

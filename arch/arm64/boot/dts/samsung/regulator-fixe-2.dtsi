@@ -1,0 +1,26 @@
+/* 
+ * This pinctrl code is only for PULL state change.
+ * IN-OUT setting is set to OUTPUT at fixed-regulator probe.
+ */
+
+&pm8150l_gpios {
+        ldo_gpio2: ldo_gpio2 {
+                GPIO_CONFIG_PUD(PM,pm8150l_gpios,11, FUNC_OUTPUT, PULL_NONE);
+#if 0
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+#endif
+        };
+};
+
+&smd {
+	fixed_regulator2: fixed_regulator@2 {
+		compatible = "regulator-fixed";
+		regulator-name = "fixed_regulator2";
+		gpio = <SEC_GPIO_REF(PM,pm8150l_gpios,11) 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ldo_gpio2>;
+		enable-active-high;
+	};
+};
+

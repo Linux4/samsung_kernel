@@ -1,0 +1,2 @@
+kernel/drivers/usb/typec/manager/usb_typec_manager.ko
+kernel/drivers/usb/typec/manager/if_cb_manager.ko
