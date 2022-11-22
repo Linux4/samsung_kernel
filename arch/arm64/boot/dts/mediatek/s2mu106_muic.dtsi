@@ -1,0 +1,12 @@
+&smd {
+	muic {
+		new_factory;
+		dcd_timeout;
+#if 0
+		uses_sido_vbus_switch;
+#endif
+#if 0
+		disable_afc;
+#endif
+	};
+};

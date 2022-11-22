@@ -1,0 +1,54 @@
+/* Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			/* SEC Thermistor */
+			sec_thermistor@0 {
+				compatible = "samsung,sec-thermistor";
+				status = "okay";
+				thermistor_name = "sec-ap-thermistor";
+				id = <0>;
+				adc_channel = <0>;
+
+				adc_array = <106 123 172 204 240 293 354 426 511 577
+							626 754 842 946 1122 1338 1596 1877 2014 2205
+							2404 2544 2837 3175 3461>;
+
+				temp_array = <850 800 700 650 600 550 500 450 400 370
+							350 300 270 250 200 150 100 50 30 0
+							(-30) (-50) (-100) (-150) (-200)>;
+			};
+			sec_thermistor@1 {
+				compatible = "samsung,sec-thermistor";
+				status = "okay";
+				thermistor_name = "sec-pa-thermistor";
+				id = <1>;
+				adc_channel = <12>;
+
+				adc_array = <126 160 193 221 272 304 386 455 542 611
+							665 785 863 953 1137 1360 1629 1892 2058 2134
+							2459 2512 2678 3187 3339>;
+
+				temp_array = <850 800 700 650 600 550 500 450 400 370
+							350 300 270 250 200 150 100 50 30 0
+							(-30) (-50) (-100) (-150) (-200)>;
+			};
+			tboard_thermistor1: thermal-sensor1 {
+				compatible = "mediatek,mtboard-thermistor1";
+				fixed_thermal;
+			};
+		};
+	};
+};
