@@ -1,0 +1,5 @@
+config ROOT_RECORDER
+        bool "Root Recorder Driver"
+        default n
+        ---help---
+        Enable support for recording root action
