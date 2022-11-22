@@ -1,0 +1,300 @@
+/*
+ * Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+//++bug 601075, huangguoyong.wt, modify,2020/11/17,modify for p81081 bringup camera
+#include "sdm439-camera-sensor-mtp-p81081.dtsi"
+#include <dt-bindings/input/input.h>
+
+&blsp1_uart2 {
+	status = "ok";
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart_console_active>;
+};
+
+&pm8953_gpios {
+	nfc_clk {
+		nfc_clk_default: nfc_clk_default {
+			pins = "gpio2";
+			function = "normal";
+			input-enable;
+			power-source = <1>;
+		};
+	};
+};
+
+&i2c_5 { /* BLSP2 QUP1 (NFC) */
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	status = "ok";
+	nq@28 {
+		compatible = "qcom,nq-nci";
+		reg = <0x28>;
+		qcom,nq-irq = <&tlmm 17 0x00>;
+		qcom,nq-ven = <&tlmm 16 0x00>;
+		qcom,nq-firm = <&tlmm 130 0x00>;
+		qcom,nq-clkreq = <&pm8953_gpios 2 0x00>;
+		qcom,nq-esepwr = <&tlmm 93 0x00>;
+		interrupt-parent = <&tlmm>;
+		qcom,clk-src = "BBCLK2";
+		interrupts = <17 0>;
+		interrupt-names = "nfc_irq";
+		pinctrl-names = "nfc_active", "nfc_suspend";
+		pinctrl-0 = <&nfc_int_active &nfc_disable_active
+						&nfc_clk_default>;
+		pinctrl-1 = <&nfc_int_suspend &nfc_disable_suspend>;
+		clocks = <&clock_gcc clk_bb_clk2_pin>;
+		clock-names = "ref_clk";
+	};
+};
+//+bug601075,sheqihao.wt, modify, 2020.11.13, N8-R Project tp Bringup
+&i2c_3 {
+        status = "okay";
+        focaltech@38 {
+                compatible = "focal,ft3528", "focal,ft3617", "focal,ft8201", "focal,ft3617003","focaltech,fts";
+                reg = <0x38>;
+                interrupt-parent = <&tlmm>;
+                interrupts = <65 0x2002>;
+                vdd-supply = <&pm8953_l10>;
+                vcc_i2c-supply = <&pm8953_l5>;
+                pinctrl-names = "pmx_ts_active","pmx_ts_suspend","pmx_ts_release";
+                pinctrl-0 = <&ts_int_active &ts_reset_active>;
+                pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
+                pinctrl-2 = <&ts_release>;
+                focaltech,reset-gpio = <&tlmm 64 0x00>;
+                focaltech,irq-gpio = <&tlmm 65 0x2002>;
+                focaltech,display-coords = <0 0 800 1280>;
+                focaltech,max-touch-number = <10>;
+                touchpanel,rst-gpio = <&tlmm 64 0x0>;
+                touchpanel,irq-gpio = <&tlmm 65 0x0>;
+                touchpanel,codes = <0 0 0 0 KEY_HOMEPAGE 0 0 0 0 0 0 0 0 0 0>;
+	};
+};
+//-bug601075,sheqihao.wt, modify, 2020.11.13, N8-R Project tp Bringup
+&sdhc_1 {
+	/* device core power supply */
+	vdd-supply = <&pm8953_l8>;
+	qcom,vdd-voltage-level = <2900000 2900000>;
+	qcom,vdd-current-level = <200 570000>;
+
+	/* device communication power supply */
+	vdd-io-supply = <&pm8953_l5>;
+	qcom,vdd-io-always-on;
+	qcom,vdd-io-lpm-sup;
+	qcom,vdd-io-voltage-level = <1800000 1800000>;
+	qcom,vdd-io-current-level = <200 325000>;
+
+	pinctrl-names = "active", "sleep";
+	pinctrl-0 = <&sdc1_clk_on &sdc1_cmd_on &sdc1_data_on &sdc1_rclk_on>;
+	pinctrl-1 = <&sdc1_clk_off &sdc1_cmd_off &sdc1_data_off &sdc1_rclk_off>;
+
+	qcom,clk-rates = <400000 20000000 25000000 50000000 100000000 192000000
+								384000000>;
+	qcom,nonremovable;
+	qcom,bus-speed-mode = "HS400_1p8v", "HS200_1p8v", "DDR_1p8v";
+
+	status = "ok";
+};
+
+&sdhc_2 {
+	/* device core power supply */
+	vdd-supply = <&pm8953_l11>;
+	qcom,vdd-voltage-level = <2950000 2950000>;
+	qcom,vdd-current-level = <15000 800000>;
+
+	/* device communication power supply */
+	vdd-io-supply = <&pm8953_l12>;
+	qcom,vdd-io-voltage-level = <1800000 2950000>;
+	qcom,vdd-io-current-level = <200 22000>;
+
+	pinctrl-names = "active", "sleep";
+	pinctrl-0 = <&sdc2_clk_on &sdc2_cmd_on &sdc2_data_on &sdc2_cd_on>;
+	pinctrl-1 = <&sdc2_clk_off &sdc2_cmd_off &sdc2_data_off>;
+
+	cd-gpios = <&tlmm 67 0x0>;
+
+	qcom,clk-rates = <400000 20000000 25000000 50000000 100000000
+								200000000>;
+	qcom,bus-speed-mode = "SDR12", "SDR25", "SDR50", "DDR50", "SDR104";
+
+	status = "ok";
+};
+
+&soc {
+	gpio_keys {
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio_key_active>;
+
+		/*+bug601075, huangzheng1.wt, modify,2020/11/20,modify for p81081 bringup camera*/
+		/*
+		camera_focus {
+			label = "camera_focus";
+			gpios = <&tlmm 128 0x1>;
+			linux,input-type = <1>;
+			linux,code = <0x210>;
+			debounce-interval = <15>;
+			linux,can-disable;
+			gpio-key,wakeup;
+		};
+		*/
+		/*-bug601075, huangzheng1.wt, modify,2020/11/20,modify for p81081 bringup camera*/
+
+		camera_snapshot {
+			label = "camera_snapshot";
+			gpios = <&tlmm 127 0x1>;
+			linux,input-type = <1>;
+			linux,code = <0x2fe>;
+			debounce-interval = <15>;
+			linux,can-disable;
+			gpio-key,wakeup;
+		};
+
+		vol_up {
+			label = "volume_up";
+			gpios = <&tlmm 91 0x1>;
+			linux,input-type = <1>;
+			linux,code = <115>;
+			debounce-interval = <15>;
+			linux,can-disable;
+			gpio-key,wakeup;
+		};
+	};
+};
+
+#include "msm8937-mdss-panels.dtsi"
+
+&pm8953_gpios {
+	bklt_en {
+		bklt_en_default: bklt_en_default {
+		pins = "gpio4";
+		function = "normal";
+		power-source = <0>;
+		output-high;
+		};
+	};
+};
+
+&pm8953_pwm {
+	status = "ok";
+};
+
+&mdss_mdp {
+	qcom,mdss-pref-prim-intf = "dsi";
+};
+
+&mdss_dsi {
+	hw-config = "single_dsi";
+};
+
+//+bug601075,sheqihao.wt, modify, 2020.11.13, N8-R Project Display Bringup
+&mdss_dsi0 {
+        qcom,dsi-pref-prim-pan = <&dsi_sim_vid>;
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_dsi_active &mdss_te_active &bklt_en_default>;
+	pinctrl-1 = <&mdss_dsi_suspend &mdss_te_suspend>;
+
+        //qcom,platform-bklight-en-gpio = <&pm8953_gpios 4 0>;
+        //qcom,platform-te-gpio = <&tlmm 24 0>;
+	qcom,platform-reset-gpio = <&tlmm 60 0>;
+	lab-supply = <&lcdb_ldo_vreg>;
+	ibb-supply = <&lcdb_ncp_vreg>;
+};
+//-bug601075,sheqihao.wt, modify, 2020.11.13, N8-R Project Display Bringup
+
+&mdss_dsi1 {
+	status = "disabled";
+};
+
+
+&i2c_2 {
+#address-cells = <1>;
+#size-cells = <0>;
+
+#include "smb1355.dtsi"
+};
+
+&pmi632_gpios {
+	smb_en {
+		smb_en_default: smb_en_default {
+			pins = "gpio2";
+			function = "func1";
+			output-enable;
+		};
+	};
+
+	pmi632_sense {
+		/* GPIO 7 and 8 are external-sense pins for PMI632 */
+		pmi632_sense_default: pmi632_sense_default {
+			pins = "gpio7", "gpio8";
+			bias-high-impedance;	/* disable the GPIO */
+			bias-disable;		/* no-pull */
+		};
+	};
+
+	pmi632_ctm {
+		/* Disable GPIO1 for h/w base mitigation */
+		pmi632_ctm_default: pmi632_ctm_default {
+			pins = "gpio1";
+			bias-high-impedance;	/* disable the GPIO */
+			bias-disable;		/* no-pull */
+		};
+	};
+};
+
+&tlmm {
+	smb_int_default: smb_int_default {
+		mux {
+			pins = "gpio61";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio61";
+			drive-strength = <2>;
+			bias-pull-up;
+			input-enable;
+		};
+	};
+};
+
+&smb1355_0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&smb_int_default
+		&smb_en_default &pmi632_sense_default &pmi632_ctm_default>;
+	interrupt-parent = <&tlmm>;
+	interrupts = <61 IRQ_TYPE_LEVEL_LOW>;
+	smb1355_charger_0: qcom,smb1355-charger@1000 {
+		status ="ok";
+		/delete-property/ io-channels;
+		/delete-property/ io-channels-names;
+		qcom,parallel-mode = <1>;
+		qcom,disable-ctm;
+		qcom,hw-die-temp-mitigation;
+	};
+};
+
+&smb1355_1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&smb_int_default
+		&smb_en_default &pmi632_sense_default &pmi632_ctm_default>;
+	interrupt-parent = <&tlmm>;
+	interrupts = <61 IRQ_TYPE_LEVEL_LOW>;
+	smb1355_charger_1: qcom,smb1355-charger@1000 {
+		status ="ok";
+		/delete-property/ io-channels;
+		/delete-property/ io-channels-names;
+		qcom,parallel-mode = <1>;
+		qcom,disable-ctm;
+		qcom,hw-die-temp-mitigation;
+	};
+};

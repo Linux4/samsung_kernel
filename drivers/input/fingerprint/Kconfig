@@ -1,0 +1,18 @@
+#
+# Input device configuration
+config FINGERPRINT_FPC
+	bool "fingerprint fpc"
+	default y
+	help
+	  Say Y here if you have a fpc
+          If unsure, say N.
+source "drivers/input/fingerprint/fpc/Kconfig"
+
+
+config CHIPONE_FINGERPRINT
+	bool "fingerprint chipone"
+	default y
+	help
+	  Say Y here if you have a chipone
+          If unsure, say N.
+source "drivers/input/fingerprint/fpc/Kconfig"

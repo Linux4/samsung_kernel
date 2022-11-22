@@ -1,0 +1,51 @@
+/* Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "dsi-panel-sim-video.dtsi"
+//+bug601075,sheqihao.wt, modify, 2020.11.13, N8-R Project Display Bringup
+#include "dsi-panel-jd9366-txd-wxga-video.dtsi"
+#include "dsi-panel-ili9881c-wxga-video-ld.dtsi"
+#include "dsi-panel-jd9367-wxga-video-txd.dtsi"
+#include "dsi-panel-ft8201-truly-wxga-video.dtsi"
+//-bug601075,sheqihao.wt, modify, 2020.11.13, N8-R Project Display Bringup
+//+Mtr4809, shenwenbin.wt, add, 20201125, bringup lide sitronix and gohi panel
+#include "dsi-panel-sitronix-sc7705-wxga-video.dtsi"
+#include "dsi-panel-gh8555bl-wxga-video.dtsi"
+//-Mtr4809, shenwenbin.wt, add, 20201125, bringup lide sitronix and gohi panel
+#include "dsi-panel-gh8555bl-wxga-video-txd.dtsi" //OA47165, sheqihao.wt, add, 20201204 bringup tongxingda gh8555bl panel
+#include "dsi-panel-ili9881c-wxga-video-jh-ld.dtsi" //Bug601075, shenwenbin.wt, add, 20201230 mv N8_Q code to N8_R
+
+&soc {
+
+	dsi_pm660_panel_pwr_supply: dsi_pm660_panel_pwr_supply {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,panel-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "vdd";
+			qcom,supply-min-voltage = <2800000>;
+			qcom,supply-max-voltage = <2800000>;
+			qcom,supply-enable-load = <100000>;
+			qcom,supply-disable-load = <100>;
+		};
+
+		qcom,panel-supply-entry@1 {
+			reg = <1>;
+			qcom,supply-name = "vddio";
+			qcom,supply-min-voltage = <1800000>;
+			qcom,supply-max-voltage = <1800000>;
+			qcom,supply-enable-load = <100000>;
+			qcom,supply-disable-load = <100>;
+		};
+	};
+};
