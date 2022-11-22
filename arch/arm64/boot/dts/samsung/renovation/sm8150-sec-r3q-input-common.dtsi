@@ -1,0 +1,119 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/input/input.h>
+
+/delete-node/ &gpio_keys;
+&soc {
+	gpio_keys: gpio_keys {
+		status = "ok";
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+		label = "gpio_keys";
+		gpio-key,wakeup_enable;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&key_vol_up_default>;
+
+		vol_up {
+			label = "volume_up";
+			gpios = <&pm8150l_gpios 12 GPIO_ACTIVE_LOW>;
+			linux,input-type = <1>;
+			linux,code = <KEY_VOLUMEUP>;
+			debounce-interval = <15>;
+			linux,can-disable;
+		};
+	};
+
+	ss_touch {
+		compatible = "samsung,ss_touch";
+		ss_touch,numbers = <1>;
+	};
+
+	tsp_ldo_en {
+		compatible = "regulator-fixed";
+		regulator-name = "tsp_ldo_en";
+		regulator-min-microvolt = <3000000>;
+		regulator-max-microvolt = <3000000>;
+		gpio = <&tlmm 115 0>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+};
+
+&pm8150l_gpios {
+	key_vol_up {
+		key_vol_up_default: key_vol_up_default {
+			power-source = <0>;
+		};
+	};
+};
+
+&qupv3_se17_i2c {
+	pinctrl-0 = <&qupv3_se17_tsp_i2c_active>;
+	pinctrl-1 = <&qupv3_se17_tsp_i2c_sleep>;
+	status = "ok";
+
+	touchscreen@50 {
+		compatible = "imagis,ist40xx-ts";
+		reg = <0x50>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <87 0>;
+		pinctrl-names = "default", "on_state", "off_state";
+		pinctrl-0 = <&attn_irq>;
+		pinctrl-1 = <&attn_irq>;
+		pinctrl-2 = <&attn_irq>;
+		imagis,irq-gpio = <&tlmm 87 0x2008>;
+		imagis,power-gpioen = <1>;
+		imagis,power-gpio = <&tlmm 115 0>;
+		imagis,fw-bin = <1>;
+		imagis,octa-hw = <1>;
+		imagis,area-size = <63 126 60>; /* indicator: 24dp~63px navigator:48dp~126px edge:60px | dpi:420*/
+		imagis,ic-version = "ist40xx";
+		imagis,project-name = "a905g";
+		imagis,tclm_level = <1>;
+		imagis,afe_base = <0x0313>;
+		imagis,factory_item_version = <1>;
+		enable_fpcb_noise_test;
+		enable_settings_aot;
+		imagis,bringup = <1>;
+		support_fod;
+		support_dex_mode;
+	};
+
+	mms_ts@48 {
+		compatible = "melfas,mms_ts";
+		reg = <0x48>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&attn_irq>;
+		pinctrl-1 = <&attn_irq>;
+		melfas,vdd_en = "tsp_ldo_en";
+		/*melfas,io_en = "tsp_io";*/
+		melfas,irq-gpio = <&tlmm 87 0x2008>;
+		melfas,area-size = <133 266 341>; /* indicator: 24dp navigator:48dp edge:60px TSP resolution is 4095 x 4095 */
+		melfas,max_x_y = <4095 4095>;	/* x & y */
+		melfas,display_resolution = <1080 2400>;
+		melfas,node_info = <16 34 0>;	/* x & y & key */
+		melfas,fod_info = <16 14 28>;	/* tx, rx, vi size */
+		melfas,event_info = <8 12>;		/* event format & event size */					
+		melfas,support_lpm = "true";
+		melfas,fw_name = "tsp_melfas/mss100_r3.fw";
+		melfas,ss_touch_num = <1>;
+		support_ear_detect_mode;
+		enable_settings_aot;
+		support_dex_mode;
+		support_fod;
+		support_open_short_test;
+		melfas,regulator_boot_on;
+	};
+};
+
