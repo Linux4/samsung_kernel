@@ -1,0 +1,49 @@
+/* Copyright (c) 2015, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	sec-mst {
+		compatible = "sec-mst";
+		sec-mst,mst-pwr-gpio = <&msm_gpio 17 0>;
+
+		pinctrl-names = "mst_active";
+		pinctrl-0 = <&mst_pwr_en_init>;
+	};
+};
+
+&rpm_bus {
+	rpm-regulator-ldoa20 {
+		status = "okay";
+		pm8950_l20: regulator-l20 {
+			regulator-name = "MST_LEVEL_3.0V";
+			regulator-min-microvolt = <3000000>;
+			regulator-max-microvolt = <3000000>;
+			qcom,init-voltage = <3000000>;
+			status = "okay";
+		};
+	};
+};
+
+&tlmm_pinmux {
+	mst_pwr_en_init_pin: mst_pwr_en_init_pin {
+		qcom,pins = <&gp 17>;
+		qcom,num-grp-pins = <1>;
+		qcom,pin-func = <0>;
+		label = "mst_pwr_en_init";
+		mst_pwr_en_init: mst_pwr_en_init {
+			drive-strength = <2>;
+			bias-pull-down;
+			output-low;
+		};
+	};
+};
+

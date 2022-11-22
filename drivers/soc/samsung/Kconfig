@@ -1,0 +1,7 @@
+# When adding new entries keep the list in alphabetical order
+
+config SEC_INCELL
+	bool "Incell data & function for Samsung"
+	default n
+	help
+	  say y to enable incell data & function for Samsung.
