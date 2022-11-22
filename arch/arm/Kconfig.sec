@@ -1,0 +1,118 @@
+config SEC_A6PLTE_PROJECT
+	depends on ARCH_SDM450
+	default n
+	bool "Samsung A6-Plus LTE Project"
+	help
+	  Support for Samsung A6-Plus LTE Project
+
+config MACH_A6PLTE_EUR_OPEN
+	depends on SEC_A6PLTE_PROJECT
+	default n
+	bool "Samsung A6-Plus LTE EUR OPEN"
+	help
+	  Support for Samsung A6-Plus LTE EUR OPEN device.
+	  
+config MACH_A6PLTE_MEA_OPEN
+	depends on SEC_A6PLTE_PROJECT
+	default n
+	bool "Samsung A6-Plus LTE MEA OPEN"
+	help
+	  Support for Samsung A6-Plus LTE MEA OPEN device.
+
+config MACH_A6PLTE_SEA_OPEN
+	depends on SEC_A6PLTE_PROJECT
+	default n
+	bool "Samsung A6-Plus LTE SEA OPEN"
+	help
+	  Support for Samsung A6-Plus LTE SEA OPEN device.
+
+config MACH_A6PLTE_LTN_OPEN
+        depends on SEC_A6PLTE_PROJECT
+        default n
+        bool "Samsung A6-Plus LTE LTN OPEN"
+        help
+          Support for Samsung A6-Plus LTE LTN OPEN device.
+
+config MACH_A6PLTE_CIS_SER
+	depends on SEC_A6PLTE_PROJECT
+	default n
+	bool "Samsung A6-Plus LTE CIS SER"
+	help
+	  Support for Samsung A6-Plus LTE CIS SER device.
+
+config MACH_A6PLTE_CHN_OPEN
+	depends on SEC_A6PLTE_PROJECT
+	default n
+	bool "Samsung A6-Plus LTE CHN OPEN"
+	help
+	  Support for Samsung A6-Plus LTE CHN OPEN device.
+
+config MACH_A6PLTE_CHN_HK
+	depends on SEC_A6PLTE_PROJECT
+	default n
+	bool "Samsung A6-Plus LTE CHN HK"
+	help
+	  Support for Samsung A6-Plus LTE CHN HK device.
+
+config MACH_A6PLTE_KOR_KTT
+	depends on SEC_A6PLTE_PROJECT
+	default n
+	bool "Samsung A6-Plus LTE KOR KTT"
+	help
+	  Support for Samsung A6-Plus LTE KOR KTT device.
+
+config SEC_GTA2XLLTE_PROJECT
+	depends on ARCH_SDM450
+	default n
+	bool "Samsung Tab A2 XL LTE Project"
+	help
+	  Support for Samsung Tab A2 XL LTE Project
+
+config MACH_GTA2XLLTE_EUR_OPEN
+	depends on SEC_GTA2XLLTE_PROJECT
+	default n
+	bool "Samsung Tab A2 XL LTE EUR OPEN"
+	help
+	  Support for Samsung Tab A2 XL LTE EUR OPEN device.
+
+config SEC_GTA2XLWIFI_PROJECT
+        depends on ARCH_SDM450
+        default n
+        bool "Samsung Tab A2 XL WIFI Project"
+        help
+          Support for Samsung Tab A2 XL WIFI Project
+
+config MACH_GTA2XLWIFI_EUR_OPEN
+        depends on SEC_GTA2XLWIFI_PROJECT
+        default n
+        bool "Samsung Tab A2 XL WIFI EUR OPEN"
+        help
+          Support for Samsung Tab A2 XL WIFI EUR OPEN device.
+
+config SEC_J6PLTE_PROJECT
+	depends on ARCH_SDM450
+	default n
+	bool "Samsung A6-Plus LTE Project"
+	help
+	  Support for Samsung A6-Plus LTE Project
+
+config MACH_J6PLTE_CIS_SER
+	depends on SEC_J6PLTE_PROJECT
+	default n
+	bool "Samsung J6-Plus LTE CIS SER"
+	help
+	  Support for Samsung J6-Plus LTE CIS SER device.
+
+config SEC_J2ESSLTE_PROJECT
+		depends on ARCH_MSM8937
+		default n
+		bool "Samsung J2ESSLTE Project"
+		help
+		Support for Samsung J2ESSLTE Project.
+
+config MACH_J2ESSLTE_SWA_INS
+		depends on SEC_J2ESSLTE_PROJECT
+		default n
+		bool "Samsung J2ESSLTE SWA INS"
+		help
+		Support for Samsung J2ESSLTE SWA INS device.
