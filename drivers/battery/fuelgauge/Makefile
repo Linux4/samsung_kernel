@@ -1,0 +1,3 @@
+obj-$(CONFIG_FUELGAUGE_S2MU106)	+= s2mu106/
+
+ccflags-y := -Wformat

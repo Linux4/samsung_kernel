@@ -1,0 +1,28 @@
+#
+# PDIC devices
+#
+
+comment "PDIC configs"
+
+config PDIC_SLSI
+	bool "Using SLSI PDIC driver"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you will get support for
+	  the S.LSI PD(Power Delivery)IC device driver.
+
+config PDIC_SLSI_NON_MCU
+	bool "Using USBPD device driver"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you will get support for
+	  the S.LSI Non MCU USB PD(Power Delivery) device driver.
+
+config PDIC_PD30
+	bool "support PD30"
+	depends on PDIC_SLSI_NON_MCU
+	default n
+	help
+	  If you say yes here you will get support for PD30

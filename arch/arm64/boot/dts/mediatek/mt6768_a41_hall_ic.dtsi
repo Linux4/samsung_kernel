@@ -1,0 +1,60 @@
+/*
+ * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ */
+
+
+/ {
+	fragment@misc {
+		target-path = "/";
+		__overlay__ {
+			hall_ic {
+				status = "okay";
+				compatible = "hall_ic";
+				pinctrl-names = "default";
+				pinctrl-0 = <&hall1 &hall2>;
+
+				interrupt-parent = <&pio>;
+				interrupts = <19 0>;
+
+				hall {
+					name = "hall";
+					event = <0x15>;
+
+					interrupt-parent = <&pio>;
+					interrupts = <18 0>;
+
+					gpios = <&pio 18 1>;
+				};
+				certify_hall {
+					name = "certify_hall";
+					event = <0x1b>;
+
+					interrupt-parent = <&pio>;
+					interrupts = <20 0>;
+
+					gpios = <&pio 20 1>;
+				};
+			};
+		};
+	};
+};
+
+
+&pio {
+	hall1: hall_irq {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO18__FUNC_GPIO18>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	hall2: certify_hall_irq {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO20__FUNC_GPIO20>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};

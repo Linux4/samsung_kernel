@@ -1,0 +1,35 @@
+config SMCDSD_ENG
+	bool "Support ENG"
+	default n
+
+config SMCDSD_DPUI
+	bool "Support DPUI"
+	default n
+
+config SMCDSD_MDNIE
+	bool "Support MDNIE"
+	default n
+
+config SMCDSD_DOZE
+	bool "Support DOZE"
+	default n
+
+config SMCDSD_MASK_LAYER
+	bool "Support mask layer"
+	default n
+
+config SMCDSD_DYNAMIC_MIPI
+	bool "Support dynamic mipi"
+	default n
+
+config SMCDSD_EA8076_A31
+	bool "EA8076_A31 driver"
+	default n
+
+config SMCDSD_EA8076_A41
+	bool "EA8076_A41 driver"
+	default n
+
+config SMCDSD_EA8076_A41_JPN
+	bool "EA8076_A41 JPN driver"
+	default n

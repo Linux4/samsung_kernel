@@ -1,0 +1,87 @@
+/*
+ *Copyright (C) 2019 MediaTek Inc.
+ *
+ *This program is free software: you can redistribute it and/or modify
+ *it under the terms of the GNU General Public License version 2 as
+ *published by the Free Software Foundation.
+ *
+ *This program is distributed in the hope that it will be useful,
+ *but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ *GNU General Public License for more details.
+ *
+ *You should have received a copy of the GNU General Public License
+ *along with this program.
+ *If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/* Overwrite GPIO init. value of cust_k68v1_64_titan-gpio00.dtsi
+   for each samsung project / SKU / H/W Rev. */
+
+/*************************
+ * GPIO DTSI File
+ *************************/
+
+&gpio_usage_mapping {
+	GPIO_FDD_BAND_SUPPORT_DETECT_3RD_PIN = <&pio 39 0>;
+	GPIO_FDD_BAND_SUPPORT_DETECT_2ND_PIN = <&pio 30 0>;
+	GPIO_FDD_BAND_SUPPORT_DETECT_1ST_PIN = <&pio 29 0>;
+};
+
+/*****************************************************
+ * <PIN: (MODE)(DIR)(DOUT)(PULL_EN)(PULL_SEL)(SMT)>  *
+ *****************************************************/
+&gpio{
+	gpio_init_default_samsung =
+		<6 0 0 0 1 0 0>,	/* BTP_IRQ */
+		<21 0 0 0 1 0 0>,	/* NC */
+		<22 3 0 0 0 0 0>,	/* RCAM2_3_SENSOR_I2C_SDA_1P8 */
+		<23 0 0 0 1 0 0>,	/* NC */
+		<24 3 0 0 0 0 0>,	/* RCAM2_3_SENSOR_I2C_SCL_1P8  */
+		<25 0 1 0 0 2 0>,	/* LCD_EN_1P8 */
+		<27 0 1 0 1 0 0>,	/* RCAM3_RST_N */
+		<28 0 0 0 1 0 0>,	/* FG_ERR */
+		<44 1 0 0 1 0 0>,	/* DISP_TE */
+		<45 0 1 0 0 2 0>,	/* OCTA_RST_N */
+		<54 0 0 0 1 0 0>,	/* PCD_INT */
+		<55 0 0 0 1 0 0>,	/* NC */
+		<57 0 0 0 1 0 0>,	/* NC */
+		<70 0 0 0 0 0 0>,	/* CABLE_DET_HB */
+		<71 0 0 0 1 0 0>,	/* NC */
+		<72 0 0 0 1 0 0>,	/* NC */
+		<75 0 0 0 1 0 0>,	/* NC */
+		<91 0 1 0 1 0 0>,	/* FCAM_RST_N */
+		<92 0 0 0 0 2 0>,	/* LCD_DET for FD */
+		<98 0 1 0 1 0 0>,	/* RCAM1_LDO_EN */
+		<101 0 1 0 1 0 0>,	/* RCAM2_RST_N */
+		<102 0 1 0 1 0 0>,	/* RCAM1_RST_N */
+		<109 0 1 0 1 0 0>,	/* MIPI_SEL */
+		<112 0 0 0 1 0 0>,	/* NC */
+		<113 0 1 0 1 0 0>,	/* CONN_TOP_CLK */
+		<114 1 1 0 1 0 1>,	/* CONN_TOP_DATA */
+		<115 0 1 0 1 0 0>,	/* CONN_BT_CLK */
+		<116 1 1 0 1 0 1>,	/* CONN_BT_DATA */
+		<120 0 1 0 1 0 0>,	/* CONN_WB_PTA */
+		<121 0 1 0 1 0 0>,	/* CONN_HRST_B */
+		<153 0 1 0 0 2 0>,	/* LCD_EN_3P0 */
+		<155 0 0 0 1 0 0>,	/* NC */
+		<156 0 0 0 1 0 0>,	/* NC */
+		<157 0 0 0 1 0 0>,	/* NC */
+		<169 0 0 0 0 2 0>,	/* CON_DET */
+		<179 0 0 0 1 0 0>;	/* EL_ON1_DET */
+};
+
+/*************************
+ * MD1_EINT DTSI File
+ *************************/
+
+&md1_sim1_hot_plug_eint {
+	compatible = "mediatek,md1_sim1_hot_plug_eint-eint";
+	interrupts = <0 8>;
+	debounce = <0 10000>;
+	dedicated = <0 0>;
+	src_pin = <0 1>;
+	sockettype = <0 0>;
+	status = "okay";
+};
+

@@ -1,0 +1,42 @@
+/*
+ * A31 MTK 2019 REV00, REV01, REV02 Battery parameters device tree file
+ *
+ * Copyright (C) 2019 Samsung Electronics, Inc.
+ *
+ * This program is free software: you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+#include <dt-bindings/battery/sec_battery_param_define.h>
+
+/ {
+	fragment@battery {
+		target-path = "/";
+		__overlay__ {
+			battery {
+				battery,temp_table_adc = <
+							394 516 636 756 876 1111 1347 1498 1648 1798
+							1948 2098 2297 2496 2695 2800 3104 3315 3525 3735
+							3832 3912 3992 3992 3992
+							>;
+				battery,temp_table_data = <
+							850 800 700 650 600 550 500 450 400 370
+							350 300 270 250 200 150 100 50 30 0
+							(-30) (-50) (-100) (-150) (-200)
+							>;
+
+				battery,dcdc_issue_soc_concept;
+			};
+		};
+	};
+};
