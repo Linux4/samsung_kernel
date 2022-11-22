@@ -1,0 +1,6 @@
+config  PANEL_FT8203_TS124QDM_WQXGA
+	depends on DISPLAY_SAMSUNG
+	bool "Focaltech FT8203 TDDI"
+	default n
+	---help---
+	Focaltech FT8203 TDDI 1600_2560 Tabs7+Lite

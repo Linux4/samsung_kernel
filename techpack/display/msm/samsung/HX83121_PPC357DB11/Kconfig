@@ -1,0 +1,6 @@
+config  PANEL_HX83121_PPC357DB11_WQXGA
+	depends on DISPLAY_SAMSUNG
+	bool "HIMAX HX83121 TDDI"
+	default n
+	---help---
+	HIMAX HX83121 TDDI 1600_2560 Tabs7+Lite

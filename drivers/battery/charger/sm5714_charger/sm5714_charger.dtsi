@@ -1,0 +1,11 @@
+
+&smd {
+    sm5714_charger: sm5714-charger {
+		status = "disable";
+		compatible = "samsung,sm5714-charger";
+	};
+
+	battery {
+		battery,otg_name = "sm5714-otg";
+	};
+};
