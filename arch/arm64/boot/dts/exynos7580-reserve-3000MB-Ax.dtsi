@@ -1,0 +1,74 @@
+/*
+ * SAMSUNG EXYNOS7580 device tree source
+ *
+ * Copyright (c) 2015 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/memreserve/ 0xFE800000 0x1800000;       /* EL3 monitor, secure intepreter */
+/memreserve/ 0xF0000000 0x7800000;	/* CP memory(116MB) + AP-CP shared memory(4MB) */
+
+/ {
+	memory@40000000 {
+		device_type = "memory";
+		reg = <0x0 0x40000000 0x0 0xc0000000>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		fimc_is_fd_reserved: fimc_is_fd {
+			compatible = "fd-lib-shmem";
+			reg = <0x0 0xbf600000 0x0 0x100000>;
+		};
+
+		common {
+			compatible = "exynos5433-ion,common";
+			reg = <0x0 0xbf000000 0x0 0x600000>;
+			id = <0>;
+		};
+
+		video {
+			compatible = "exynos5433-ion,video";
+			secure;
+			reusable;
+			reg = <0x0 0xb9800000 0x0 0x5800000>;
+			id = <11>;
+			compat-id = <4 5 6 7>;
+		};
+
+		video_ext {
+			compatible = "exynos5433-ion,video_ext";
+			secure;
+			reusable;
+			reg = <0x0 0xaec00000 0x0 0x1400000>;
+			id = <1>;
+		};
+
+		mfc_nfw {
+			compatible = "exynos5433-ion,mfc_nfw";
+			reg = <0x0 0xb9600000 0x0 0x110000>;
+			id = <12>;
+		};
+
+		mfc_fw {
+			compatible = "exynos5433-ion,mfc_fw";
+			secure;
+			reg = <0x0 0xb9400000 0x0 0x200000>;
+			id = <8>;
+		};
+
+		secdma {
+			compatible = "exynos5433-ion,secdma";
+			size = <0 0x20000>;
+			alignment = <0 0x10000>;
+			id = <13>;
+		};
+	};
+};

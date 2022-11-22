@@ -1,0 +1,51 @@
+config EXYNOS_DECON_LCD
+	depends on EXYNOS_DECON_EXYNOS7580
+	bool "Select LCD panel driver"
+
+config EXYNOS_DECON_LCD_SYSFS
+	depends on EXYNOS_DECON_LCD
+	tristate "Support LCD SYSFS"
+	default y
+
+config PANEL_AID_DIMMING
+	depends on EXYNOS_DECON_LCD
+	tristate "Support AID Dimming"
+	default n
+
+config EXYNOS_DECON_MDNIE_LITE
+	depends on EXYNOS_DECON_LCD
+	tristate "Support MDNIE LITE"
+	default n
+
+config PANEL_LTM184HL01
+	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
+	tristate "ltm184hl01 FHD LCD driver(1920 x 1080)by Quicklogic lvds converter"
+
+config PANEL_EA8061_DYNAMIC
+	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
+	tristate "EA8061 Amoled HD driver(720 x 1280)"
+
+config PANEL_EA8064G_DYNAMIC
+	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
+	tristate "EA8064G Amoled FHD driver(1080 x 1920)"
+
+config PANEL_S6E3AA2_A3XE
+	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
+	tristate "S6E3AA2 LCD driver"
+
+config PANEL_S6E3FA3_A5XE
+	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
+	tristate "S6E3FA3 A5XE LCD driver"
+
+config PANEL_S6E3FA3_A7XE
+	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
+	tristate "S6E3FA3 A7XE LCD driver"
+	
+config PANEL_S6E3FA3_J7XE
+	depends on EXYNOS_DECON_LCD && EXYNOS_MIPI_DSI
+	tristate "S6E3FA3 J7XE LCD driver"
+
+config LCD_HMT
+	depends on EXYNOS_DECON_LCD
+	tristate "Support HMT display"
+	default n

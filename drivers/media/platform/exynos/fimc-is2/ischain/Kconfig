@@ -1,0 +1,2 @@
+source "drivers/media/platform/exynos/fimc-is2/ischain/fimc-is-v4_0_0/Kconfig"
+source "drivers/media/platform/exynos/fimc-is2/ischain/fimc-is-v3_1_1/Kconfig"
