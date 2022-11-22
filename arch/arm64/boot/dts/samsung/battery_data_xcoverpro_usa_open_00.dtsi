@@ -1,0 +1,25 @@
+/*
+ * Vogue battery device tree common
+ *
+ * Copyright (c) 2018 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "battery_data_xcoverpro_common.dtsi"
+
+/ {
+	fragment@battery {
+		target-path = "/";
+		__overlay__ {
+			sm5713-fuelgauge {
+				battery_params {
+					battery0,curr_cal = <0x847B 0x847B 0x847B 0x8080 0x8080 0x8080>;
+				};
+			};
+		};
+	};
+};
