@@ -1,0 +1,408 @@
+/*
+ * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above
+ *       copyright notice, this list of conditions and the following
+ *       disclaimer in the documentation and/or other materials provided
+ *       with the distribution.
+ *     * Neither the name of The Linux Foundation nor the names of its
+ *       contributors may be used to endorse or promote products derived
+ *       from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+package vendor.qti.hardware.AGMIPC@1.0;
+
+struct AgmKeyValue {
+    uint32_t key;
+    uint32_t value;
+};
+
+/*
+struct PropData {
+    uint32_t prop_id;
+    uint32_t num_values;
+    uint32_t values[0];
+};
+*/
+
+/**
+ * Bit formats
+ */
+enum AgmMediaFormat : uint32_t {
+    AGM_FORMATINVALID,
+    AGM_FORMATPCM_S8,          /**< 8-bit signed */
+    AGM_FORMATPCM_S16_LE,      /**< 16-bit signed */
+    AGM_FORMATPCM_S24_LE,      /**< 24-bits in 4-bytes */
+    AGM_FORMATPCM_S24_3LE,     /**< 24-bits in 3-bytes */
+    AGM_FORMATPCM_S32_LE,      /**< 32-bit signed */
+    AGM_FORMATMP3,             /**< MP3 codec */
+    AGM_FORMATAAC,             /**< AAC codec */
+    AGM_FORMATFLAC,            /**< FLAC codec */
+    AGM_FORMATALAC,            /**< ALAC codec */
+    AGM_FORMATAPE,             /**< APE codec */
+    AGM_FORMATWMASTD,          /**< WMA codec */
+    AGM_FORMATWMAPRO,          /**< WMA pro codec */
+    AGM_FORMATVORBIS,          /**< Vorbis codec */
+    AGM_FORMATMAX,
+};
+
+/**
+ * AGM Data modes
+ */
+enum AgmDataMode : uint32_t {
+    AGM_DATAINVALID,
+    AGM_DATABLOCKING,      /**< Blocking mode */
+    AGM_DATANON_BLOCKING,  /**< Non blocking mode */
+    AGM_DATA_EXTERN_MEM,   /**< Extern mem mode */
+    AGM_DATAMODE_MAX,
+};
+
+/**
+ * AGM session modes
+ */
+enum AgmSessionMode : uint32_t {
+    AGM_SESSION_DEFAULT,    /**< Normal agm tunnel session*/
+    AGM_SESSION_NO_HOST,    /**< Hostless mode */
+    AGM_SESSION_NON_TUNNEL, /**< Non tunnel */
+    AGM_SESSION_NO_CONFIG,
+};
+
+/**
+ * Gapless playback Silence type
+ */
+enum AgmGaplessSilenceType : uint32_t {
+    INITIAL_SILENCE,       /**< Initial silence to be removed*/
+    TRAILING_SILENCE,
+};
+
+/**
+ * AAC decoder parameters
+ */
+struct AgmSessionAacDec {
+    uint16_t aac_fmt_flag;          /**< AAC format flag */
+    uint16_t audio_obj_type;        /**< AAC obj type */
+    uint16_t num_channels;          /**< AAC obj type */
+    uint16_t total_size_of_PCE_bits;/**< PCE bits size */
+    uint32_t sample_rate;
+};
+
+/**
+ * FLAC decoder parameters
+ */
+struct AgmSessionFlacDec {
+    uint16_t num_channels;    /**< Number of channels */
+    uint16_t sample_size;     /**< Sample size */
+    uint16_t min_blk_size;    /**< Minimum block size */
+    uint16_t max_blk_size;    /**< Maximum block size */
+    uint32_t sample_rate;     /**< Sample rate */
+    uint32_t min_frame_size;  /**< Minimum frame size */
+    uint32_t max_frame_size;
+};
+
+/**
+ * ALAC decoder parameters
+ */
+struct AgmSessionAlacDec {
+    uint32_t frame_length;        /**< Frame length */
+    uint8_t compatible_version;   /**< Version */
+    uint8_t bit_depth;            /**< bit depth */
+    uint8_t pb;                   /**< tuning parameters */
+    uint8_t mb;                   /**< tuning parameters */
+    uint8_t kb;                   /**< tuning parameters */
+    uint8_t num_channels;         /**< Number of channels */
+    uint16_t max_run;             /**< Max run */
+    uint32_t max_frame_bytes;     /**< Max Frame bytes */
+    uint32_t avg_bit_rate;        /**< avg bit rate */
+    uint32_t sample_rate;         /**< sample rate */
+    uint32_t channel_layout_tag;
+};
+
+/**
+ * APE decoder parameters
+ */
+struct AgmSessionApeDec {
+    uint16_t compatible_version;   /**< Version */
+    uint16_t compression_level;    /**< Compression Level */
+    uint32_t format_flags;         /**< Format flags */
+    uint32_t blocks_per_frame;     /**< Blocks per frame */
+    uint32_t final_frame_blocks;   /**< Final frame blocks */
+    uint32_t total_frames;         /**< Total frames */
+    uint16_t bit_width;            /**< Bit width */
+    uint16_t num_channels;         /**< Number of channels */
+    uint32_t sample_rate;          /**< Sample rate */
+    uint32_t seek_table_present;
+};
+
+/**
+ * WMA decoder parameters
+ */
+struct AgmSessionWmaDec {
+    uint16_t fmt_tag;            /**< Format Tag */
+    uint16_t num_channels;       /**< Number of channels */
+    uint32_t sample_rate;        /**< Sample rate */
+    uint32_t avg_bytes_per_sec;  /**< Avg bytes per sec */
+    uint16_t blk_align;          /**< Block align */
+    uint16_t bits_per_sample;    /**< Bits per sample */
+    uint32_t channel_mask;       /**< Channel mask */
+    uint16_t enc_options;        /**< Encoder options */
+    uint16_t reserved;
+};
+
+/**
+ * WMA Pro decoder parameters
+ */
+struct AgmSessionWmaproDec {
+    uint16_t fmt_tag;            /**< Format Tag */
+    uint16_t num_channels;       /**< Number of channels */
+    uint32_t sample_rate;        /**< Sample rate */
+    uint32_t avg_bytes_per_sec;  /**< Avg bytes per sec */
+    uint16_t blk_align;          /**< Block align */
+    uint16_t bits_per_sample;    /**< Bits per sample */
+    uint32_t channel_mask;       /**< Channel mask */
+    uint16_t enc_options;        /**< Encoder options */
+    uint16_t advanced_enc_option; /**< Adv encoder options */
+    uint32_t advanced_enc_option2;
+};
+
+
+struct AgmSessionCodec {
+    AgmSessionAacDec aac_dec;        /**< AAC decoder config */
+    AgmSessionFlacDec flac_dec;      /**< Flac decoder config */
+    AgmSessionAlacDec alac_dec;      /**< Alac decoder config */
+    AgmSessionApeDec ape_dec;        /**< APE decoder config */
+    AgmSessionWmaDec wma_dec;        /**< WMA decoder config */
+    AgmSessionWmaproDec wmapro_dec;
+};
+
+/**
+ * Media Config
+ */
+struct AgmMediaConfig {
+    uint32_t rate;
+    uint32_t channels;
+    AgmMediaFormat format;
+    uint32_t data_format;
+};
+
+/**
+ * Group Media Config
+ */
+struct AgmGroupMediaConfig {
+    uint32_t rate;
+    uint32_t channels;
+    AgmMediaFormat format;
+    uint32_t data_format;
+    uint32_t slot_mask;
+};
+
+/**
+ * Session Direction
+ */
+enum Direction : uint32_t{
+    Rx = 1,
+    Tx,
+};
+
+/**
+ * MAX length of the AIF Name
+ */
+//#define AIF_NAME_MAX_LEN 28
+
+/**
+ * AIF Info
+ */
+struct AifInfo {
+    string aif_name;  /**< AIF name  */
+    Direction dir;
+};
+
+/**
+ * Session Config
+ */
+struct AgmSessionConfig {
+    Direction dir;
+    AgmSessionMode session_mode;
+    uint32_t start_threshold;
+    uint32_t stop_threshold;
+    AgmSessionCodec codec;
+    AgmDataMode data_mode;
+    uint32_t sess_flags;
+};
+
+/**
+ * Buffer Config
+ */
+struct AgmBufferConfig {
+    uint32_t count; /**< number of buffers */
+    uint32_t size;
+    uint32_t max_metadata_size;
+};
+
+/**
+ * Maps the modules instance id to module id for a single module
+ */
+struct AgmModuleIdIidMap {
+    uint32_t module_id;  /**< module id */
+    uint32_t module_iid;
+};
+
+/**
+ * Structure which holds tag and corresponding modules tagged with tag id
+ */
+struct AgmTagInfo {
+    uint32_t tag_id;                      /**< tag id */
+    uint32_t num_modules;                 /**< number of modules matching the tag_id */
+    vec<AgmModuleIdIidMap> mid_iid_list;
+};
+
+/**
+ * Structure which holds tag info of a given graph.
+ */
+struct AgmTagModuleInfoList {
+    uint32_t num_tags;          /**< number of tags */
+    vec<uint8_t> tag_info_list;
+};
+
+/**
+ * Structure which holds tag config for setparams
+ */
+struct AgmTagConfig {
+    uint32_t tag;                /**< tag id */
+    uint32_t num_tkvs;           /**< num  of tag key values*/
+    vec<AgmKeyValue> kv;
+};
+
+
+/**
+ * Event types
+ */
+enum EventType : uint32_t {
+    AGMEVENTDATAPATH = 1,
+    AGMEVENTMODULE,
+};
+
+/**
+ * Event registration structure.
+ */
+struct AgmEventRegCfg {
+    /** Valid instance ID of module */
+    uint32_t module_instance_id;
+
+    /** Valid event ID of the module */
+    uint32_t event_id;
+
+    /**
+     * Size of the event config data based upon the    module_instance_id/event_id
+     * combination.    @values > 0 bytes, in multiples of    4 bytes atleast
+     */
+    uint32_t event_config_payload_size;
+
+    /**
+     * 1 - to register the event
+     * 0 - to de-register the event
+     */
+    uint8_t is_register;
+
+    /**
+     * module specifc event registration payload
+     */
+    vec<uint8_t> event_config_payload;
+};
+
+/** Data Events that will be notified to client from AGM */
+enum AgmEventId : uint32_t {
+
+    AGMEVENTEOSRENDERED = 0x0,
+
+    AGMEVENTREADDONE = 0x1,
+
+    AGMEVENTWRITEDONE = 0x2,
+
+    AGMEVENTIDMAX
+};
+
+
+struct AgmEventCbParams {
+     /**< identifies the module which generated event */
+    uint32_t source_module_id;
+
+     /**< identifies the event */
+    uint32_t event_id;
+
+     /**< size of payload below */
+    uint32_t event_payload_size;
+
+     /**< payload associated with the event if any */
+    vec<uint8_t> event_payload;
+};
+
+struct AgmCalConfig {
+    uint32_t num_ckvs;         /**< num  of tag key values*/
+    vec<AgmKeyValue> kv;
+};
+
+/** shared mmap buf info */
+struct MmapBufInfo {
+    memory dataSharedMemory;
+    int32_t data_size;
+    memory posSharedMemory;
+    int32_t pos_size;
+};
+
+/** Externally allocated buffer info*/
+struct AgmExternAllocBuffInfo{
+    memory alloc_handle;/**< unique handle identifying extern mem allocation */
+    uint32_t alloc_size;  /**< size of external allocation */
+    uint32_t offset;
+};
+
+/** AGM buffer */
+struct AgmBuff {
+    uint64_t timestamp;     /**< timestamp in micro-secs */
+    uint32_t flags;         /**< bitmasked flags for e.g. GSL_BUFF_FLAG_EOS */
+    uint32_t size;          /**< size of buffer in bytes */
+    uint32_t offset;        /**< offset at which audio data is present */
+    vec<uint8_t> buffer;    /**< data buffer */
+    uint32_t metadata_size; /**< size of metadata blob */
+    vec<uint8_t> metadata;  /**< Blob for metadata */
+    AgmExternAllocBuffInfo alloc_info;
+};
+
+struct AgmEventReadWriteDonePayload {
+    uint32_t tag; /**< tag that was used to read/write this buffer */
+    uint32_t status; /**< data buffer status as defined in ar_osal_error.h */
+    uint32_t md_status; /**< meta-data status as defined in ar_osal_error.h */
+    AgmBuff buff;
+};
+
+struct AgmReadWriteEventCbParams {
+     /**< identifies the module which generated event */
+    uint32_t source_module_id;
+
+     /**< identifies the event */
+    uint32_t event_id;
+
+     /**< size of payload below */
+    uint32_t event_payload_size;
+
+     /**< payload associated with the event if any */
+    vec<AgmEventReadWriteDonePayload> rw_payload;
+};
+
