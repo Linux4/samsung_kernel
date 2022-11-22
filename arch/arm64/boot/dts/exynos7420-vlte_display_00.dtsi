@@ -1,0 +1,67 @@
+/*
+ * SAMSUNG UNIVERSAL7420 board device tree source
+ *
+ * Copyright (c) 2014 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+
+/ {
+	decon_0: decon_fb {
+		/* EINT for TE */
+		gpios = <&gpg1 2 0xf>, <&gpg1 3 0xf>;
+		dsi_mode = <1>;		/* 0: SINGLE, 1: DUAL, 2: DUAL DISPLAY */
+		out_type = <0 4>;	/* 0: DSIM0, 1: HDMI, 2: WB, 3: TUI, 4: DSIM1 */
+		
+		te_eint {
+			reg = <0x13470A34 0x4>, <0x13470934 0x4>;
+			te_pend_mask = <0x00000001>;
+		};
+	};
+
+
+    decon_1: decon_ext {
+		dsi_mode = <0>;
+		out_type = <2>;
+	};
+
+	dsim_0: dsim@0x13900000 {
+		/* panel reset pin */
+		gpios = <&gpr3 0 0x1>;
+		
+		regulator_list = "VCC_DISPLAY_1.8V","VCC_3.0V_LCD","VDD_1P6_DDR";
+		on_off_delay_usec = <1000 1000 1000 1000 1000 1000>;
+
+		lcd_info = <&s6e3fa3_fhd>;
+	};
+
+
+    dsim_1: dsim@0x13910000 {
+		/* panel reset pin */
+		gpios = <&gpr3 1 0x1>;
+
+        regulator_list = "SUB_VDD_LCD_1.8" ,"SUB_VDD_LCD_3.0", "SUB_VDD_LCD_1P6";
+        on_off_delay_usec = <1000 1000 1000 1000 1000 1000>;
+		
+		lcd_info = <&s6e3fa3_fhd>;
+	};
+
+
+	s6e3fa3_fhd: s6e3fa3_fhd_panel {
+		mode = <2>;
+		resolution = <1080 1920>;
+		size = <63 112>;
+		timing,refresh = <60>;
+		timing,h-porch = <1 1 1>;
+		timing,v-porch = <15 1 1>;
+		timing,dsi-hs-clk = <1026>;
+		timing,dsi-escape-clk = <16>;
+		mic = <0>;
+		mic_ver = <2>;
+		type_of_ddi = <0>;
+	};
+};

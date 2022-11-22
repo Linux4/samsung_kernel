@@ -1,0 +1,104 @@
+digraph mem_tx {
+graph [
+	label="\n<TX Flow of Memory-type Interface>\n\n"
+	labelloc="top"
+	fontname="Helvetica"
+	fontsize=20
+];
+
+node [shape=box fontname="Helvetica"];
+
+edge [fontname="Helvetica"];
+
+node []
+	mem_send [
+		label="mem_send"
+		URL="@ref mem_send"
+	];
+
+	xmit_udl [
+		label="xmit_udl"
+		URL="@ref xmit_udl"
+	];
+
+	xmit_ipc [
+		label="xmit_ipc"
+		URL="@ref xmit_ipc"
+	];
+
+	skb_txq [
+		shape=record
+		label="<f0>| |skb_txq| |<f1>"
+	];
+
+	start_tx_timer [
+		label="start_tx_timer"
+		URL="@ref start_tx_timer"
+	];
+
+	tx_timer_func [
+		label="tx_timer_func"
+		URL="@ref tx_timer_func"
+	];
+
+	tx_frames_to_dev [
+		label="tx_frames_to_dev"
+		URL="@ref tx_frames_to_dev"
+	];
+
+	txq_write [
+		label="txq_write"
+		URL="@ref txq_write"
+	];
+
+edge [color=blue fontcolor=blue];
+	mem_send -> xmit_udl [
+		label="1. UDL frame\n(skb)"
+	];
+
+	xmit_udl -> skb_txq:f1 [
+		label="2. skb_queue_tail\n(UDL frame skb)"
+		arrowhead=vee
+		style=dashed
+	];
+
+	xmit_udl -> start_tx_timer [
+		label="3. Scheduling"
+	];
+
+edge [color=brown fontcolor=brown];
+	mem_send -> xmit_ipc [
+		label="1. IPC frame\n(skb)"
+	];
+
+	xmit_ipc -> skb_txq:f1 [
+		label="2. skb_queue_tail\n(IPC frame skb)"
+		arrowhead=vee
+		style=dashed
+	];
+
+	xmit_ipc -> start_tx_timer [
+		label="3. Scheduling"
+	];
+
+edge [color=black fontcolor=black];
+	start_tx_timer -> tx_timer_func [
+		label="4. HR timer"
+		arrowhead=vee
+		style=dotted
+	];
+
+	tx_timer_func -> tx_frames_to_dev [
+		label="for (every IPC device)"
+	];
+
+	skb_txq:f0 -> tx_frames_to_dev [
+		label="5. UDL/IPC frame\n(skb)"
+		arrowhead=vee
+		style=dashed
+	];
+
+	tx_frames_to_dev -> txq_write [
+		label="6. UDL/IPC frame\n(skb)"
+	];
+}

@@ -1,0 +1,34 @@
+/*
+ * SAMSUNG UNIVERSAL7420 board device tree source
+ *
+ * Copyright (c) 2014 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/ {
+	haptic {
+		haptic,duty = <35822>;
+		haptic,period = <38109>;
+
+		haptic,auto_res_min_low = <0xA9>;	/* 201.5Hz */
+		haptic,auto_res_max_low = <0xA0>;	/* 203.5Hz */
+		haptic,auto_res_init_low = <0xA5>;	/* 202.5Hz */
+		haptic,auto_res_init_low_low_temp = <0x9B>;
+		haptic,auto_res_init_low_high_temp = <0xAA>;
+		haptic,auto_res_min_low_low_temp = <0xA0>;
+                haptic,auto_res_min_low_high_temp = <0xAE>;
+		haptic,auto_res_max_low_low_temp = <0x96>;
+                haptic,auto_res_max_low_high_temp = <0xA5>;
+		haptic,auto_res_min_high = <0x03>;
+		haptic,auto_res_max_high = <0x03>;
+		haptic,auto_res_init_high = <0x03>;
+		haptic,auto_res_lock_window = <0xE4>;
+		haptic,auto_res_update_freq = <0x02>;
+		haptic,auto_res_enable = <0>;		/* disable */
+		haptic,nominal_strength = <0xA0>;
+	};
+};
