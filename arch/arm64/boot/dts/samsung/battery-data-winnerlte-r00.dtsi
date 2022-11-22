@@ -1,0 +1,204 @@
+/*
+ * SAMSUNG board device tree source
+ *
+ * Copyright (c) 2018 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "battery-data-winnerlte-common.dtsi"
+
+&pm8150l_gpios {
+	wpc_det { /* WPC_DET */
+		wpc_det_default: wpc_det_default {
+			pins = "gpio1";
+			function = "normal";
+			input-enable;
+			bias-disable;
+			power-source = <0>;
+		};
+	};
+	sub_bat_thm { /* GPIO_10 */
+		sub_bat_thm_default: sub_bat_thm_default {
+			pins = "gpio10";
+			function = "normal";
+			bias-high-impedance;
+		};
+	};
+};
+
+&pm8150l_vadc {
+	/delete-node/ usb_thm;
+	sub_bat_thm { /* GPIO_10 */
+		label = "sub_bat_thm";
+		reg = <ADC_GPIO4_PU2>;
+		qcom,pre-scaling = <1 1>;
+		qcom,hw-settle-time = <200>;
+		qcom,ratiometric;
+	};
+};
+
+&pm8150_gpios {
+	usb_thm { /* GPIO_06 */
+		usb_thm_default: usb_thm_default {
+			pins = "gpio6";
+			function = "normal";
+			bias-high-impedance;
+		};
+	};
+};
+
+&pm8150_vadc {
+	usb_thm { /* GPIO_06 */
+		label = "usb_thm";
+		reg = <ADC_GPIO4_PU2>;
+		qcom,pre-scaling = <1 1>;
+		qcom,hw-settle-time = <200>;
+		qcom,ratiometric;
+	};
+};
+
+&qupv3_se11_i2c {
+	status = "ok";
+
+	pinctrl-0 = <&qupv3_se11_i2c_active_mfc>;
+	pinctrl-1 = <&qupv3_se11_i2c_sleep_mfc>;
+
+	mfc-charger@3b {
+		compatible = "idt,mfc-charger";
+		reg = <0x3b>;
+		status = "okay";
+
+		interrupt-parent = <&spmi_bus>;
+		interrupts = <0x0 0xd0 0 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "default";
+		interrupt-controller;
+		pinctrl-names = "default";
+		pinctrl-0 = <&mfc_irq_default>;
+		battery,wpc_det = <&pm8150l_gpios 1 GPIO_ACTIVE_HIGH>; /* WPC_DET */
+		battery,wpc_int = <&tlmm 50 GPIO_ACTIVE_LOW>; /* MFC_AP_INT */
+		battery,mst_en = <&tlmm 11 0>; /* MST_EN */
+		battery,mst_pwr_en = <&expander_gpios 4 0>; /* MST_PWR_EN */
+
+		battery,charger_name = "max77705-charger";
+		battery,fuelgauge_name = "max77705-fuelgauge";
+		battery,wireless_charger_name = "mfc-charger";
+		battery,fod_wpc_data = <150 53 142 43 150 27 150 27 165 240 156 19>;
+		battery,fod_pma_data = <150 53 142 43 150 27 150 27 165 240 156 19>;
+		battery,fod_a4wp_data = <150 53 142 43 150 27 150 27 165 240 156 19>;
+		battery,fod_wpc_data_cv = <150 83 142 73 150 57 150 57 165 255 156 49>;
+		battery,fod_pma_data_cv = <150 83 142 73 150 57 150 57 165 255 156 49>;
+		battery,fod_a4wp_data_cv = <150 83 142 73 150 57 150 57 165 255 156 49>;
+		battery,fod_hero_5v_data = <150 (-27) 142 (-37) 150 (-53) 150 (-53) 165 160 156 (-61)>;
+		battery,wpc_cc_cv_vout = <5500>;
+		battery,wpc_cv_call_vout = <5000>;
+		battery,wpc_cc_call_vout = <5000>;
+		battery,hv_vout_wa = <0x41>; /* WC vout 10.0V */
+		battery,wc_cover_rpp = <0x44>;
+	};
+};
+
+&soc {
+	i2c@15 {
+		s2asl01-switching-main@38 {
+			limiter,chg_current_limit = <800>;
+			limiter,eoc = <100>;
+			limiter,float_voltage = <4300>;
+		};
+		s2asl01-switching-sub@39 {
+			limiter,chg_current_limit = <1350>;
+			limiter,float_voltage = <4300>;
+		};
+	};
+
+	sec-dual-battery {
+		battery,main_bat_enb_gpio = <&tlmm 148 0>;	
+		battery,sub_bat_enb_gpio = <&tlmm 102 0>;
+	};
+
+	battery {
+		pinctrl-0 = <&usb_thm_default &wpc_det_default &wpc_thm_default &sub_bat_thm_default>;
+
+		battery,wireless_charger_name = "mfc-charger";
+		battery,full_condition_vcell = <4200>;
+		battery,recharge_condition_vcell = <4230>;
+		battery,chg_float_voltage = <4300>;
+		battery,ttf_hv_charge_current = <2000>;
+		battery,max_charging_current = <2150>;
+
+		battery,wireless_cc_cv = <85>;
+		battery,wpc_cc_cv_vout = <5500>;
+		battery,wpc_cv_call_vout = <5000>;
+		battery,wpc_cc_call_vout = <5000>;
+		battery,wpc_det = <&pm8150l_gpios 1 GPIO_ACTIVE_HIGH>; /* WPC_DET */
+		battery,wpc_en = <&expander_gpios 3 0>; /* WPC_EN */
+		battery,hv_vout_wa = <0x41>; /* WC vout 10.0V */
+		battery,wpc_high_threshold_normal = <450>;
+		battery,wpc_high_recovery_normal = <400>;
+		battery,wpc_low_threshold_normal = <0>;
+		battery,wpc_low_recovery_normal = <50>;
+		battery,wpc_temp_control_source = <1>; /* TEMP_CONTROL_SOURCE_BAT_THM = WPC_THM */
+		battery,wpc_high_temp = <380>;
+		battery,wpc_high_temp_recovery = <360>;
+		battery,wpc_charging_limit_current = <600>;
+		battery,wpc_temp_lcd_on_control_source = <1>; /* TEMP_CONTROL_SOURCE_BAT_THM = WPC_THM */
+		battery,wpc_lcd_on_high_temp = <380>;
+		battery,wpc_lcd_on_high_temp_rec = <360>;
+		battery,wpc_lcd_on_charging_limit_current = <450>;
+
+		battery,wpc_store_high_temp = <360>;
+		battery,wpc_store_high_temp_recovery = <340>;
+		battery,wpc_store_charging_limit_current = <400>;
+		battery,wpc_store_lcd_on_high_temp = <360>;
+		battery,wpc_store_lcd_on_high_temp_rec = <300>;
+		battery,wpc_store_lcd_on_charging_limit_current = <400>;
+
+		battery,sleep_mode_limit_current = <800>;
+		battery,wc_full_input_limit_current = <100>;
+		battery,wc_cv_current = <900>;
+		battery,wc_cv_pack_current = <630>;
+		battery,siop_wireless_input_limit_current = <600>;
+		battery,siop_wireless_charging_limit_current = <700>;
+		battery,siop_hv_wireless_input_limit_current = <600>;
+		battery,siop_hv_wireless_charging_limit_current = <700>;
+
+		battery,ttf_hv_wireless_charge_current = <1175>;
+		battery,ttf_wireless_charge_current = <970>;
+
+		/* cycle, chg_float_voltage, recharge_condition_vcell, full_condition_vcell, full_condition_soc */
+		battery,age_data = <0 4300 4230 4200 93
+				200 4330 4260 4230 92
+				250 4310 4240 4210 91
+				300 4290 4220 4190 90
+				1000 4240 4170 4140 89>;
+
+		battery,step_charging_current = <2150 2150>;												
+
+		battery,standard_curr = <2150>;
+		battery,battery_full_capacity = <3000>;
+		battery,cisd_max_voltage_thr = <4400>; /* batttery ovp dettection voltage */
+
+		io-channels = <&pm8150l_vadc ADC_GPIO1_PU2>, <&pm8150l_vadc ADC_AMUX_THM3_PU2>, <&pm8150_vadc ADC_GPIO4_PU2>, <&pm8150l_vadc ADC_GPIO4_PU2>;
+	};				
+
+	max77705-fuelgauge {
+		fuelgauge,v_empty = <0xA7E2>; /* Empty: 3350mV, Recover: 3920mV */
+		fuelgauge,qrtable20 = <0x0A0C>;
+		fuelgauge,qrtable30 = <0x0889>;
+		fuelgauge,capacity = <0x0B1D>;
+		fuelgauge,ttf_capacity = <3000>;
+	};
+	
+	cable-info {
+		full_check_current_1st = <300>;
+		current_group_4 {
+			charging_current = <2150>;
+		};
+		current_group_5 {
+			charging_current = <2150>;
+		};
+	};				
+};

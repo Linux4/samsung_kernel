@@ -1,0 +1,72 @@
+/*
+ * Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&tlmm {
+	als_rear_int {
+		als_rear_int_active: als_rear_int_active {
+			mux {
+				pins = "gpio108";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio108";
+				drive-strength = <2>;
+				input-enable;
+				bias-disable;
+			};
+		};
+		als_rear_int_suspend: als_rear_int_suspend {
+			mux {
+				pins = "gpio108";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio108";
+				drive-strength = <2>;
+				input-enable;
+				bias-disable;
+			};
+		};
+	};
+};
+
+&soc {
+	rpmh-regulator-ldoc10 {
+		L10C: pm8150l_l10: regulator-pm8150l-l10 {
+			regulator-name = "ALS_1.8V_AP";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+		};
+	};
+ 
+	qupv3_se15_i2c: i2c@0xc94000 {
+		status = "ok";
+		als_rear@29 {
+			compatible = "ams,tcs3407";
+			reg = <0x29>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <108 0>;
+			pinctrl-names = "sleep", "default", "idle";
+			pinctrl-0 = <&als_rear_int_suspend>;
+			pinctrl-1 = <&als_rear_int_suspend>;
+			pinctrl-2 = <&als_rear_int_active>;
+			als_rear,int-gpio = <&tlmm 108 0x00>;
+			als_rear,led_en-gpio = <&tlmm 174 0x00>;
+			als_rear,vdd_1p8 = "ALS_1.8V_AP";
+			als_rear,ir_spec = <20000 75000 0 500000>;
+			als_rear,clear_spec = <0 85000 0 500000>;
+		};
+	};
+};
