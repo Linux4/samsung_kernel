@@ -1,0 +1,253 @@
+BCM4389 DHD 101.24.18 for Android S OS - Rainbow Project
+(Notes: 101.24.x is twigged off from 101.10.583)
+
+DHD 101.24.18 - 2022.05.06
+Kernel Panic
+ - CS00012237206(By Kim Taeyong) Fixed kernel panic caused by wrong remained length
+
+Others
+ - CS00012201832(By Min Hyun-Kee) Supported controlling Broadcast packet transmit interval on SoftAP mode
+ - CS00012234834(By Min Hyun-Kee) Added more options for SET_FCC_CHANNEL command
+ - CS00012235573(By Yoon YeJi) Fixed typo for Advanced logging
+ - CS00012238953(By Choi Hyeonu) Changed the printing log for customer unwanted error log
+
+
+DHD 101.24.17.1 - 2022.04.14
+Others
+ - CS00012239762(By Yun YeJi) Added PNO scan results to DHD internal cache to generate rcc list during connection
+
+
+DHD 101.24.17 - 2022.03.18
+Kernel Panic
+ - CS00012233932(By LEE EONJI) Fixed BRK panic by doing array index validation
+ - CS00012235771(By LEE EONJI) Fixed kernel NULL pointer dereference in hotplug processing during reboot
+
+Others
+ - CS00012209052(By Lee Sunghee) Fixed to get rssi in AUTH/ASSOC for Advanced Logging
+ - CS00012222928(By Lee SoonHo) Increased NAN max discovery cache number
+ - CS00012230866(By Kim TaeYong) Fixed PNO Scan failure due to maximum PNO list count
+ - CS00012232088(By Lee Sunghee) Disabled RuntimePM during monitor mode
+ - Change PNO scan interval to 3600 sec(max) for connected state
+
+
+DHD 101.24.15 - 2022.02.11
+Kernel Panic
+ - CS00012224356(By Suthar Nitesh) Fixed kernel panic caused by out of bounds array access in softap bigdata parsing
+ - CS00012226046(By Kim TaeYong) Fixed kernel panic by validating wiphy variable of scheduled scan request
+ - CS00012229955(By Jeong Min Cheol) Fixed kernel panic caused by deleting the wrong list in wl_bad_ap_mngr_deinit
+
+Others
+ - CS00012222846(By Myung Jung-Young) Fixed host wakeup log message by Rx packet
+ - CS00012223466(By LEE EONJI) Enabled PNO scan for connected state
+ - CS00012224060(By Min Hyun-Kee) Added Android private command to limit bandwidth of softap on 6Ghz band
+ - CS00012224497(By Yoon YeJi) Fixed to print CU score correctly
+ - CS00012227762(By Kim TaeYong) Added the code for not loading/unloading dhd module if CONFIG_SEC_FACTORY_INTERPOSER defined
+ - CS00012229221(By Lee sanguk) Added private cmd to set MIMO/SISO for SoftAP
+ - Don't trigger Runtime PM faster if wl_ctrlwake activated
+ - Increased blob buffer size to 64kbytes
+
+
+DHD 101.24.12 - 2021.12.17
+New Feature
+ - CS00012218422(By Choi Hyeonu) Optimized Runtime PM threshold
+ - CS00012218741(By Choi Sung-gi) Modified to set short RTS(Return to Sleep) time during system suspend state
+
+Kernel Panic
+ - CS00012221478(By Kim TaeYoung) Fixed kernel panic by cleaning up primary netdev explicitly
+
+Others
+ - CS00012209052(By Lee Sunghee) Fixed not to print DISASSOC TX log in beacon loss case
+ - CS00012211083(By Lee Gibum) Added N40 policy to LTE/5G coex feature
+ - CS00012216580(By Park Jun-young) Added Custom ARP offload operation which control PEER_AUTO_REPLY
+ - CS00012221010(By Min SungBin) Reduced pre-alloc buffer size for special log
+ - CS00012221303(By Lee Sunghee) Fixed Roaming logs to suit requirements
+ - Fixed to handle assoc error state properly to avoid unexpected scan busy status
+
+
+DHD 101.24.8 - 2021.11.26
+Others
+ - CS00012216942(By Kim TaeYoung) Added log to check why dhd_stop is not called during dhd_detach
+ - CS00012219208(By Min Hyun-Kee) Added Android Private command to set wsec_info
+ - Added SoftAP ACS channel validation for STA + AP scenario
+ - Fixed to handle link down event properly during P2P WPS procedure
+
+Kernel Panic
+ - CS00012218890(By Kim TaeYong) Fixed kernel panic due to invalid pre-reserved socket buffer when retrying WIFI on
+ - CS00012216942(By Kim TaeYoung) Fixed kernel panic caused by rpm timer not terminated during dhd_detach
+ - CS00012219670(By Min SungBin) Fixed teh kernel panic caused by duplicate spin lock during txstatus process
+
+
+DHD 101.24.4 - 2021.11.12
+Others
+ - CS00012209052(By Lee Sunghee) Fixed TYPO for Advanced Logging
+ - CS00012213789(By LEE EONJI) Enable async suspend for GS22 MSM platform
+ - CS00012214715(By Lee SoonHo) Fixed to clean up NAN status properly when NAN initialization failed
+ - CS00012217129(By Kim TaeYoung) Fixed kernel panic caused by dhd_open failure
+ - Fixed abnormal MFP configuration reset when connecting non-MFP AP
+ - Handle 5G STA connected scenario for softAP concurrency bringup
+
+
+DHD 101.24.1.1 - 2021.10.29
+
+Kernel Panic
+ - CS00012211220(By Jang WonJun) Fixed kernel panic caused by p2p disc failure
+ - CS00012211901 CS00012212000 (By Kim TaeYong) Fixed kernel panic due to access freed pre-reserved memory
+ - CS00012213511(By Kim TaeYong) Stop PCIE host dev when releasing bus
+ - CS00012214342(By Min SungBin) Fixed kernel panic caused during system suspend
+
+Others
+ - CS00012204758(By Lee SoonHo) Fixed to reject country code change when AP/GO up or NDP established
+ - CS00012209046(By LEE EONJI) Set DHD_SUPPORT_HDM feature flag at built-in and module build of CONFIG_HDM
+ - CS00012209052(By Lee Sunghee) Fixed to print MACADDR fully and DISASSOC once for advanced logging
+ - CS00012211765(By Lee SoonHo) Fixed to distinguish publisher by considering service instance ID
+ - CS00012211936(By Kim TaeYong) Moved PCIe enum function call to dhd_wifi_platform_load_pcie() for HDM
+ - CS00012212127(By Choi Hyeonu) Fixed current issue caused by ASPM or l1ss disabled
+ - CS00012213011(By Park Jun-young) Added DHD up state check in dhd_pm_callback
+ - CS00012213138(By Lee EonJi) Fixed Coverity issues - CID67845, CID68907, CID66303, CID66541
+ - CS00012213829(By Jeong Min Cheol) Added clearing of the bus busy state for recover WiFi up
+ - CS00012214040(By Kang MinHo) Fixed abnormal REASSOC wpa_cli command operation
+ - CS00012214876(By Min SungBin) Check termination of dhd_logtrace_thread in case of dongle_reset
+ - CS00012213829(By Jeong Min Cheol) Fixed bus busy state conflicted by added spin lock for bus busy state value
+ - CS00012212842(By Lee SoonHo) Refactorized to use common CUSTOMER_NMI_IFNAME
+ - Fixed to disallow UNII4 channels for P2P scan
+ - Disallowed softAP bring up in Dual STA connected case
+ - Fixed memory leak when deregister device at monitor mode
+ - Removed chatty logs during RPM suspend
+
+Vendor HAL Library
+ - HAL_REL_12_10_22
+   - CS00012214987(By Min Cheol Jeong) Fixed VTS GetDebugHostWakeReasonStats failure
+
+
+DHD 101.10.576.1 - 2021.10.22
+Kernel Panic
+ - CS00012211901 CS00012212000 (By Kim TaeYong) Fixed kernel panic due to access freed pre-reserved memory
+ - CS00012213511(By Kim TaeYong) Stop PCIE host dev when releasing bus
+
+Others
+ - CS00012212127(By Choi Hyeonu) Fixed current issue caused by ASPM or l1ss disabled
+
+Vendor HAL Library
+ - HAL_REL_12_10_21
+   - CS00012212777(By EONJI LEE) Fixed not to use Google framework recovery logic
+
+
+DHD 101.10.576 - 2021.10.15
+New Feature
+ - CS00012209052(By Lee Sunghee) Samsung MRDv3.6 - Advanced Logging from the upper layer #3
+   (Added part of BTM Request/Response, DISASSOC)
+ - Added Roam Band filter operation (Samsung Wi-Fi NCHO MRD 3.6 Requirement)
+   (This feature needs DHD 101.10.574 / FW 20.25.537 or higher)
+ - Offloaded PFN Scan to host
+   (This feature needs DHD 101.10.574 / FW 20.25.537 or higher)
+ - Supported new QOS functionality for OCE R2
+
+Kernel Panic
+ - CS00012211070(By Kim TaeYong) Fixed kernel panic and pcie link down detection during power off
+
+Others
+ - CS00012201690(By Kim TaeYong) Added isb to block out of order instruction during pcie flr
+ - CS00012205075(By Kim TaeYong) Registered smmu fault handler for GS22 exynos platform
+ - CS00012209052(By Lee Sunghee) Fixed AUTH/ASSOC/CONN logs of advanced logging properly
+ - CS00012210127(By Park Jun-young) Skipped dongle memory dump caused by EXCESS_PM_AWAKE under weak signal(-80 dBm)
+ - CS00012211206(By Choi Sung-gi) Fixed power consumption issue due to Idle ROAM while LCD off
+ - CS00012211892(By LEE EONJI) Fixed to execute uwbcx disable command properly using SET_UWBCX_ENABLE private command
+ - Allowed UNII3 channel for Soft AP for cert cases
+ - Cleared pktwake for non-Rx packets after host wake to reduce chatty logs
+ - Fixed kernel panic during notifying pfn scan completion
+ - Fixed to handle OKC pmk/pmkid update properly in the WI-FI On/Off
+
+Vendor HAL Library
+ - HAL_REL_12_10_17
+   - CS00012211544(By Choi Hyeonu) Changed HAL build condition according to PRODUCT_SHIPPING_API_LEVEL or PRODUCT_MANUFACTURER
+
+
+DHD 101.10.569.3 - 2021.10.13
+Kernel Panic
+ - CS00012212591(By Min SungBin) Fixed kernal panic during power off
+
+
+DHD 101.10.569.2 - 2021.10.01
+New Feature
+ - Added IGMP_OFFLOAD_SUPPORT  in Makefile
+ - Samsung MRDv3.6 - Advanced Logging from the upper layer #2
+       (Added part of Auth/Assoc/Deauth/Connect/Roaming)
+
+Kernel Panic
+ - CS00012209247(By LEE EONJI) Fixed kernel crash due to wrong ieee channel update in cfg80211 roam/connect indication
+ - CS00012210345(By Kim TaeYong) Fixed Kernel Panic by added the busy state for pm callback function
+
+Others
+ - CS00012198776(By Min Hyun-Kee) Fixed to show 6Ghz scan result at first boot
+ - CS00012203918(By Choi Hyeonu) Hiding SSID in PNO log message due to protect personal information
+ - CS00012206498(By MinSoo Kim) Removed unnecessary flags related to region
+ - CS00012206501(By Kim TaeYong) Forced hang when pcie link down is detected in dhd isr
+ - CS00012206768(By Choi Jongmin) Fixed to allow vlp and psc channels only for 6G SoftAP
+ - CS00012207428(By Jeong Min Cheol) Supported multiple nvram file for GS22 board revision
+ - CS00012209052(By Lee Sunghee) Fixed CONNECT/DHCP/EAP/ROAM logs of advanced logging properly
+ - CS00012210003(By Kim TaeYong) Removed pcie shutdown callback during device power off sequence
+ - Added new events to convey partial and complete PFN results to host
+ - Fixed PNO scan failure in case of two APs have same SSID with different security
+ - Fixed to sync roam_off state between DHD and FW properly under DUAL-STA scenario
+ - Supported NL80211_SCAN_FLAG_COLOCATED_6GHZ flag
+ - Supported RTT LCI feature
+ - Supported UNI4 channels for 5Ghz band
+ - Supported dynamic pm2_sleep_ret for power saving at idle state
+ - Supported extended linkstat info for Android Vendor HAL 1.5
+
+Vendor HAL Library
+ - HAL_REL_12_10_14
+  - Added validity check for RING EVENT
+
+
+DHD 101.10.560 - 2021.09.10
+New Feature
+ - CS00012061454(By LEE EONJI) Enabled msi for GS22 4389 project
+ - Samsung MRDv3.6 - Advanced Logging from the upper layer #1
+       (Included DHCP/EAPOL/GTK/EAP and added part of Connect/Roaming)
+
+Others
+ - CS00011788095(By Choi Hyeonu) Sending TWT INFO with TWT suspend during suspend
+ - CS00012195304(By Choi Hyeonu) Enabled features(static/prealloc buffer, dump and PCIe OOB) by default
+ - CS00012198566(By Jeong Min Cheol) Applied new pcie rc driver changes for S OS MSM platform
+ - CS00012199012(By Jeong Min Cheol) Fixed FATAL_NOC_ERROR when triggering sysfs dump and calling dhd_stop() at same time
+ - CS00012199412(By Kim TaeYong) Removed unused codes for KMI break API
+ - CS00012203713(By Kim MinSoo) Fixed to restore WiFi Optimizer related IOVAR values when turning off WiFi
+ - CS00012203857(By Choi Jongmin) Fixed to be turned on SoftAP at 6Ghz band
+ - CS00012205186(By Min Hyun-Kee) Changed sub6 bandinfo related settings
+ - CS00012205300(By maddineni seshu babu) Changed static interface name to support Dual AP
+ - CS00012206101(By Choi Jongmin) Added 6G PSC channel concurrency for SoftAP creation
+ - CS00012206194(By Myung Jung-Young) Changed the excess pm setting to be called in pm suspend/resume
+ - Changed to handle nan ranging enable and disable through framework
+ - Fixed changing to 80Mhz bandwidth of 165 Channel in spite of configured 20MHz bandwidth in softap
+ - Fixed the auto channel selection on the same band for the dual AP
+ - Fixed the NAN CTS failure for the discovering with ranging test
+ - Fixed the race condition for the flowring hash between free and find
+ - Fixed the reconnection failed issue due to a duplicate disconnect event
+ - Fixed the RTT failure issue due to the previous session not complete by an unexpected RTT stop
+ - Remove unnecessary WLBP power requests getting called from every DPC
+ - [Coverity] Fixed for calling risky function
+
+Vendor HAL Library
+ - HAL_REL_12_10_13
+  - CS00012205300(By maddineni seshu babu) Increased virtual interface number to support Dual AP
+
+
+101.10.553 - 2021.08.27
+New Feature
+- Supported Dual STA (STA + STA)
+- Supported Dual AP (AP + AP + STA)
+- Supported UNII band 3 on SoftAP mode
+- Supported TWT session on SoftAP mode
+- Enabled framework API for TWT
+- Enhanced Supported Security (WPA3 R3, WPA3 R2 FT, GCMP 128)
+- Supported NAN 5G/6G Upgrade/Downgrade
+- Enhanced Ranging accuracy
+- SoftAP TWT sessions are prioritized over TWT session in STA interface (MRD 3.6)
+- Updated BTM operation flow (MRD 3.6)
+- Updated SAR operation
+
+Vendor HAL Library
+ - HAL_REL_12_10_12
+
+

@@ -1,0 +1,17 @@
+menu "Goodix TFA9878 amplifier configuration"
+
+if SND_SOC_TFA9878
+config TFA_STEREO_NODE
+        bool "Stereo sysfs node support"
+        help
+          Enable sysfs nodes for stereo support.
+
+config PLATFORM_EXYNOS
+        bool "Exynos platform support"
+        default y
+        help
+          Enable support for Exynos platform.
+
+endif # SND_SOC_TFA9878
+
+endmenu

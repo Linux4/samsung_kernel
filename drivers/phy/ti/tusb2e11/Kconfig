@@ -1,0 +1,6 @@
+config USB_REPEATER_TUSB2E11
+	tristate "TI TUSB2E11 Support"
+	depends on I2C && USB_REPEATER
+	help
+	  Say yes here to support for TI TUSB2E11.
+
