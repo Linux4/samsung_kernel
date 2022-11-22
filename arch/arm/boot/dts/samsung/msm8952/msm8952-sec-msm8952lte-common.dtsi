@@ -1,0 +1,589 @@
+/*
+ * Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+&soc {
+	usb_noti: usb-notifier {
+		compatible = "samsung,usb-notifier";
+	};
+
+	qcom,msm-imem@8600000 {
+		upload_cause@66c {
+			compatible = "qcom,msm-imem-upload_cause";
+			reg = <0x66c 4>;
+		};
+	};
+
+	qcom,mpm2-sleep-counter@4a3000 {
+		compatible = "qcom,mpm2-sleep-counter";
+		reg = <0x4a3000 0x1000>;
+		clock-frequency = <32768>;
+	};
+
+	qcom,mpm@601d0	{
+		/delete-property/ qcom,gic-map;
+		qcom,gic-map = <2 216>, /* tsens_upper_lower_int */
+			<49 172>, /* usb1_hs_async_wakeup_irq */
+			<58 166>, /* usb_hs_irq */
+			<53 104>, /* mdss_irq */
+			<62 222>, /* ee0_krait_hlos_spmi_periph_irq */
+			<0xff 18>,  /* APC_qgicQTmrSecPhysIrptReq */
+			<0xff 19>,  /* APC_qgicQTmrNonSecPhysIrptReq */
+			<0xff 20>,  /* qgicQTmrVirtIrptReq */
+			<0xff 35>,  /* WDT_barkInt */
+			<0xff 39>,  /* arch_mem_timer */
+			<0xff 40>,  /* qtmr_phy_irq[0] */
+			<0xff 47>,  /* rbif_irq[0] */
+			<0xff 56>,  /* q6_wdog_expired_irq */
+			<0xff 57>,  /* mss_to_apps_irq(0) */
+			<0xff 58>,  /* mss_to_apps_irq(1) */
+			<0xff 59>,  /* mss_to_apps_irq(2) */
+			<0xff 60>,  /* mss_to_apps_irq(3) */
+			<0xff 61>,  /* mss_a2_bam_irq */
+			<0xff 65>,  /* o_gc_sys_irq[0] */
+			<0xff 73>,  /* smmu_intr_bus[1] */
+			<0xff 74>,  /* smmu_bus_intr[2] */
+			<0xff 75>,  /* smmu_bus_intr[3] */
+			<0xff 76>,  /* venus_irq */
+			<0xff 78>,  /* smmu_bus_intr[5] */
+			<0xff 79>,  /* smmu_bus_intr[6] */
+			<0xff 85>,  /* smmu_bus_intr[31] */
+			<0xff 86>,  /* smmu_bus_intr[32] */
+			<0xff 90>,  /* smmu_bus_intr[33] */
+			<0xff 92>,  /* smmu_bus_intr[34] */
+			<0xff 93>,  /* smmu_bus_intr[35] */
+			<0xff 97>,  /* smmu_bus_intr[10] */
+			<0xff 102>, /* smmu_bus_intr[14] */
+			<0xff 108>, /* smmu_bus_intr[36] */
+			<0xff 109>, /* smmu_bus_intr[37] */
+			<0xff 112>, /* smmu_bus_intr[38] */
+			<0xff 114>, /* qdsd_intr_out */
+			<0xff 128>, /* blsp1_peripheral_irq[3] */
+			<0xff 129>, /* blsp1_peripheral_irq[4] */
+			<0xff 131>, /* qup_irq */
+			<0xff 137>, /* smmu_intr_bus[44] */
+			<0xff 138>, /* smmu_intr_bus[45] */
+			<0xff 140>, /* uart_dm_intr */
+			<0xff 142>, /* smmu_bus_intr[47] */
+			<0xff 143>, /* smmu_bus_intr[48] */
+			<0xff 144>, /* smmu_bus_intr[49] */
+			<0xff 145>, /* smmu_bus_intr[50] */
+			<0xff 146>, /* smmu_bus_intr[51] */
+			<0xff 147>, /* smmu_bus_intr[52] */
+			<0xff 148>, /* smmu_bus_intr[53] */
+			<0xff 149>, /* smmu_bus_intr[54] */
+			<0xff 150>, /* smmu_bus_intr[55] */
+			<0xff 151>, /* smmu_bus_intr[56] */
+			<0xff 152>, /* smmu_bus_intr[57] */
+			<0xff 153>, /* smmu_bus_intr[58] */
+			<0xff 155>, /* sdc1_irq(0) */
+			<0xff 157>, /* sdc2_irq(0) */
+			<0xff 167>, /* usb1_hs_bam_irq */
+			<0xff 170>, /* sdc1_pwr_cmd_irq */
+			<0xff 173>, /* o_wcss_apss_smd_hi */
+			<0xff 174>, /* o_wcss_apss_smd_med */
+			<0xff 175>, /* o_wcss_apss_smd_low */
+			<0xff 176>, /* o_wcss_apss_smsm_irq */
+			<0xff 177>, /* o_wcss_apss_wlan_data_xfer_done */
+			<0xff 178>, /* o_wcss_apss_wlan_rx_data_avail */
+			<0xff 179>, /* o_wcss_apss_asic_intr */
+			<0xff 181>, /* o_wcss_apss_wdog_bite_and_reset_rdy */
+			<0xff 188>, /* lpass_irq_out_apcs(0) */
+			<0xff 189>, /* lpass_irq_out_apcs(1) */
+			<0xff 190>, /* lpass_irq_out_apcs(2) */
+			<0xff 191>, /* lpass_irq_out_apcs(3) */
+			<0xff 192>, /* lpass_irq_out_apcs(4) */
+			<0xff 193>, /* lpass_irq_out_apcs(5) */
+			<0xff 194>, /* lpass_irq_out_apcs(6) */
+			<0xff 195>, /* lpass_irq_out_apcs(7) */
+			<0xff 196>, /* lpass_irq_out_apcs(8) */
+			<0xff 197>, /* lpass_irq_out_apcs(9) */
+			<0xff 198>, /* coresight-tmc-etr interrupt */
+			<0xff 200>, /* rpm_ipc(4) */
+			<0xff 201>, /* rpm_ipc(5) */
+			<0xff 202>, /* rpm_ipc(6) */
+			<0xff 203>, /* rpm_ipc(7) */
+			<0xff 204>, /* rpm_ipc(24) */
+			<0xff 205>, /* rpm_ipc(25) */
+			<0xff 206>, /* rpm_ipc(26) */
+			<0xff 207>, /* rpm_ipc(27) */
+			<0xff 215>, /* o_bimc_intr[0] */
+			<0xff 224>, /* SPDM interrupt */
+			<0xff 239>, /* crypto_bam_irq[1]*/
+			<0xff 240>, /* summary_irq_kpss */
+			<0xff 253>, /* sdc2_pwr_cmd_irq */
+			<0xff 260>, /* ipa_irq[0] */
+			<0xff 262>, /* ipa_bam_irq[2] */
+			<0xff 269>, /* rpm_wdog_expired_irq */
+			<0xff 270>, /* blsp1_bam_irq[0] */
+			<0xff 271>,
+			<0xff 272>, /* smmu_intr_bus[17] */
+			<0xff 273>, /* smmu_bus_intr[18] */
+			<0xff 274>, /* smmu_bus_intr[19] */
+			<0xff 275>, /* rpm_ipc(30) */
+			<0xff 276>, /* rpm_ipc(31) */
+			<0xff 277>, /* smmu_intr_bus[20] */
+			<0xff 280>, /* mobicore */
+			<0xff 321>, /* q6ss_irq_out(4) */
+			<0xff 322>, /* q6ss_irq_out(5) */
+			<0xff 323>, /* q6ss_irq_out(6) */
+			<0xff 325>, /* q6ss_wdog_exp_irq */
+			<0xff 331>;
+	};
+
+	/delete-node/ qcom,cpubw;
+	cpubw: qcom,cpubw@0 {
+		reg = <0 4>;
+		compatible = "qcom,devbw";
+		governor = "cpufreq";
+		qcom,src-dst-ports = <1 512>;
+		qcom,active-only;
+		qcom,bw-tbl =
+			<  1525 /*  100   MHz */ >,
+			<  2929 /*  192   MHz */ >,	/* SVS 	 */
+			<  3955 /*  259.2 MHz */ >,
+			<  5346 /*  350.4 MHz */ >,	/* SVS+  */
+			<  5712 /*  374.4 MHz */ >,	/* NOM 	 */
+			<  6152 /*  403.2 MHz */ >,	/* NOM+  */
+			<  7031 /*  460.8 MHz */ >;	/* TURBO */
+	};
+
+	/delete-node/ devfreq-cpufreq;
+	devfreq-cpufreq {
+		cpubw-cpufreq {
+		target-dev = <&cpubw>;
+		cpu-to-dev-map-0 =
+			< 499200  3955 >,   /* SVS   */
+			< 1094400  5346 >,	/* SVS+  */
+			< 1344000  5712 >,	/* NOM   */
+			< 1440000  6152 >,	/* NOM+  */
+			< 1651200  7031 >;	/* TURBO */
+		cpu-to-dev-map-4 =
+			<  403200  3955 >,  /* SVS   */
+			<  806400  5346 >,	/* SVS+  */
+			<  998400  5712 >,	/* NOM   */
+			< 1094400  6152 >,	/* NOM+  */
+			< 1209600  7031 >;	/* TURBO */
+		};
+
+		mincpubw-cpufreq {
+			target-dev = <&mincpubw>;
+			cpu-to-dev-map-0 =
+				< 1094400 2929 >,
+				< 1516800 5346 >;
+			cpu-to-dev-map-4 =
+				<  998400 2929 >,
+				< 1209600 5346 >;
+		};
+
+		cci-cpufreq {
+		target-dev = <&cci_cache>;
+		cpu-to-dev-map-0 =
+			<  499200  200000 >,
+			<  806400  307200 >,
+			<  960000  307200 >,
+			< 1344000  403200 >,
+			< 1651200  600000 >;
+		cpu-to-dev-map-4 =
+			<  403200  200000 >,
+			<  806400  307200 >,
+			<  998400  403200 >,
+			< 1209600  600000 >;
+		};
+	};
+
+    msm_cpufreq: qcom,msm-cpufreq {
+		qcom,cpufreq-table-0 =
+			 <  499200 >,
+			 <  806400 >,
+			 <  960000 >,
+			 < 1094400 >,
+			 < 1344000 >,
+			 < 1440000 >,
+			 < 1516800 >,
+			 < 1651200 >;
+		qcom,cpufreq-table-4 =
+			 <  403200 >,
+			 <  806400 >,
+			 <  998400 >,
+			 < 1094400 >,
+			 < 1209600 >;
+	};
+	
+	qcom,smdtty {
+		smdtty_ds: qcom,smdtty-ds {
+ 			qcom,smdtty-remote = "modem";
+			qcom,smdtty-port-name = "DS";
+		};
+	};
+
+	input_booster {
+		status = "okay";
+		compatible = "input_booster";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		booster_key@1 {
+			input_booster,label = "KEY";
+			input_booster,type = <0>;	/* BOOSTER_DEVICE_KEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <595200>;
+			input_booster,hmp_boost = <0>;
+			input_booster,bimc_freqs = <0>;
+
+			/* Time table */
+			input_booster,head_times = <200>;
+			input_booster,tail_times = <0>;
+
+		};
+		booster_key@2 {
+			input_booster,label = "TOUCHKEY";
+			input_booster,type = <1>;	/* BOOSTER_DEVICE_TOUCHKEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <595200>;
+			input_booster,hmp_boost = <0>;
+			input_booster,bimc_freqs = <0>;
+
+			/* Time table */
+			input_booster,head_times = <0>;
+			input_booster,tail_times = <300>;
+		};
+		booster_key@3 {
+			input_booster,label = "TOUCH";
+			input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+
+			input_booster,levels = <1 2 3>;
+
+			/* Frequency table */
+			/* for level	:	1_Head, 2_Head, 2_Tail */
+			input_booster,cpu_freqs = <595200 595200 403200>;
+			input_booster,hmp_boost = <0 0 0>;
+			input_booster,bimc_freqs = <0 0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 200 0>;
+			input_booster,tail_times = <0 0 300>;
+		};
+		booster_key@4 { // Input Booster +
+			input_booster,label = "MULTITOUCH";
+			input_booster,type = <3>;	/* BOOSTER_DEVICE_MULTITOUCH */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <595200 0>;
+			input_booster,hmp_boost = <0 0>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <1000 0>;
+			input_booster,tail_times = <0 500>;
+		};
+		booster_key@5 {
+			input_booster,label = "KEYBOARD";
+			input_booster,type = <4>;	/* BOOSTER_DEVICE_KEYBOARD */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <595200 595200>;
+			input_booster,hmp_boost = <0 0>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 200>;
+			input_booster,tail_times = <0 0>;
+		};
+		booster_key@6 {
+			input_booster,label = "MOUSE";
+			input_booster,type = <5>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <595200 403200>;
+			input_booster,hmp_boost = <0 0>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+		};
+		booster_key@7 {
+			input_booster,label = "MOUSE WHEEL";
+			input_booster,type = <6>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <595200 0>;
+			input_booster,hmp_boost = <0 0>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 0>;
+		};
+		booster_key@8 {
+			input_booster,label = "PEN HOVER";
+			input_booster,type = <7>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <595200 403200>;
+			input_booster,hmp_boost = <0 0>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+		}; // Input Booster -
+		/* If you need to add new key type, add it this position */
+	};
+
+	qcom,csiphy@1b0ac00 {
+		qcom,clock-rates = <0 61540000 200000000 0 0 0 0>;
+	};
+	
+	qcom,csiphy@1b0b000 {
+		qcom,clock-rates = <0 61540000 200000000 0 0 0 0>;
+	};
+
+	qcom,csid@1b08000  {
+		qcom,clock-rates = <0 61540000 0 200000000 0 0 0 0>;
+	};
+
+	qcom,csid@1b08400 {
+		qcom,clock-rates = <0 61540000 0 200000000 0 0 0 0>;
+	};
+
+	qcom,csid@1b08800 {
+		qcom,clock-rates = <0 61540000 0 200000000 0 0 0 0>;
+	};
+
+	qcom,ispif@1b0a000 {
+		qcom,clock-rates = "61540000",
+			"200000000", "0", "0", "0",
+			"200000000", "0", "0", "0",
+			"200000000", "0", "0", "0",
+			"0", "0", "0",
+			"0", "0", "0";
+	};	
+
+	qcom,lpm-levels {
+		qcom,pm-cluster@0 {
+
+			qcom,pm-cluster@0{
+
+				qcom,pm-cluster-level@1{
+					reg = <1>;
+					label = "perf-l2-pc";
+					qcom,psci-mode = <3>;
+					qcom,latency-us = <305>;
+					qcom,ss-power = <405>;
+					qcom,energy-overhead = <564794>;
+					qcom,time-overhead = <879>;
+					qcom,min-child-idx = <1>;
+					qcom,is-reset;
+				};
+
+				/delete-node/ qcom,pm-cluster-level@2;
+			};
+
+			qcom,pm-cluster@1{
+
+				qcom,pm-cluster-level@1{
+					reg = <1>;
+					label = "pwr-l2-pc";
+					qcom,psci-mode = <3>;
+					qcom,latency-us = <415>;
+					qcom,ss-power = <405>;
+					qcom,energy-overhead = <558549>;
+					qcom,time-overhead = <980>;
+					qcom,min-child-idx = <1>;
+					qcom,is-reset;
+				};
+
+				/delete-node/ qcom,pm-cluster-level@2;
+			};
+		};
+	};
+
+	/* Memory accelerator and CPR controlled regulators */
+	apc_vreg_corner: regulator@b018000 {
+
+		/delete-property/ qcom,cpr-scaled-init-voltage-as-ceiling;
+		qcom,cpr-quotient-adjustment =
+			<83  (-49)  (-49)>,
+			<83    83     100>,
+			<83    125    149>,
+			<83    99     157>,
+			<83    99     116>,
+			<83    83      83>;
+	};
+};
+
+&qcom_seecom{
+	reg = <0x84700000 0x1300000>;
+	status = "okay";
+};
+
+&other_ext_mem{
+	reg = <0x0 0x84700000 0x0 0x2100000>;
+};
+
+&modem_mem{
+	reg = <0x0 0x86C00000 0x0 0x05A00000>;
+};
+
+&reloc_mem{
+	reg = <0x0 0x8C600000 0x0 0x1F00000>;
+};
+
+&cont_splash_mem {
+	reg = <0x0 0xA8000000 0x0 0x2800000>;
+};
+
+&venus_mem {
+	linux,reserve-contiguous-region;
+	linux,reserve-region;
+	linux,remove-completely;
+	reg = <0x0 0x8E500000 0x0 0x500000>;
+};
+
+&rpm_bus {
+	rpm-regulator-ldoa20 {
+		compatible = "qcom,rpm-smd-regulator-resource";
+		qcom,resource-name = "ldoa";
+		qcom,resource-id = <20>;
+		qcom,regulator-type = <0>;
+		qcom,hpm-min-load = <10000>;
+		status = "disabled";
+
+		regulator-l20 {
+			compatible = "qcom,rpm-smd-regulator";
+			regulator-name = "pm8950_l20";
+			qcom,set = <3>;
+			status = "disabled";
+		};
+	};
+
+	rpm-regulator-ldoa20 {
+		status = "okay";
+		pm8950_l20: regulator-l20 {
+			regulator-min-microvolt = <3000000>;
+			regulator-max-microvolt = <3000000>;
+			qcom,init-voltage = <3000000>;
+			status = "okay";
+		};
+	};
+};
+
+&spmi_bus {
+	qcom,pm8950@0 {
+		pm8950_pon: qcom,power-on@800	{
+			compatible = "qcom,qpnp-power-on";
+		};
+	};
+};
+
+&cci	{
+	clocks = <&clock_gcc clk_gcc_camss_ispif_ahb_clk>,
+		<&clock_gcc clk_cci_clk_src>,
+		<&clock_gcc clk_gcc_camss_cci_ahb_clk>,
+		<&clock_gcc clk_gcc_camss_cci_clk>,
+		<&clock_gcc clk_gcc_camss_ahb_clk>,
+		<&clock_gcc clk_gcc_camss_top_ahb_clk>;
+	clock-names = "ispif_ahb_clk", "cci_src_clk",
+		"cci_ahb_clk", "camss_cci_clk",
+		"camss_ahb_clk", "camss_top_ahb_clk";
+	qcom,clock-rates = <61540000 19200000 0 0 0 0>,
+			<61540000 37500000 0 0 0 0>;
+};
+
+&mdss_mdp	{
+	/delete-property/ qcom,mdss-has-dst-split;
+};
+
+&mdss_fb0	{
+	/delete-property/ qcom,mdss-fb-splash-logo-enabled;
+};
+
+&tlmm_pinmux	{
+	sdhc2_cd_pin {
+		qcom,pins = <&gp 67>;
+		qcom,num-grp-pins = <1>;
+		qcom,pin-func = <0>;
+		label = "cd-gpio";
+		sdc2_cd_on: cd_on {
+			drive-strength = <2>;
+			bias-disable;
+		};
+		sdc2_cd_off: cd_off {
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+};
+
+/ {
+	chosen {
+		bootargs = "boot_cpus=0,1,2,4,5,6 sched_enable_hmp=1";
+	};
+
+	aliases {
+		smd0 = &smdtty_ds;
+		/delete-property/ i2c2;
+		i2c1 = &i2c_2;
+		i2c7 = &i2c_7;
+	};
+
+	reserved-memory {
+		lk_mem: lk_region@0 {
+			linux,reserve-contiguous-region;
+			linux,reserve-region;
+			linux,remove-completely;
+			reg = <0x0 0x8F600000 0x0 0x00300000>;
+			label = "lk_mem";
+		};
+
+		secdbg_mem: secdbg_region@0 {
+			linux,reserve-contiguous-region;
+			linux,reserve-region;
+			linux,remove-completely;
+			reg = <0x0 0xA0000000 0x0 0x800000>;
+			label = "secdbg_mem";
+		};
+
+		klog_mem: klog_region@0 {
+			linux,reserve-contiguous-region;
+			linux,reserve-region;
+			linux,remove-completely;
+			reg = <0x0 0xA01FF000 0x0 0x201000>;
+			label = "klog_mem";
+		};
+	};
+};
+
