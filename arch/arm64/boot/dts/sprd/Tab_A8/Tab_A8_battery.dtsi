@@ -1,0 +1,455 @@
+/* battery device */
+#include <dt-bindings/usb/pd.h>
+
+/ {
+	fragment {
+		target-path = "/";
+		__overlay__ {
+			/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 start */
+			bat_id_via_adc: bat_id_via_adc {
+				compatible = "bat_id_via_adc";
+				io-channels = <&pmic_adc 3>;
+				io-channel-names = "customer_bat_id";
+			};
+			/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 end */
+
+			/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 start */
+			afc: afc {
+				status = "ok";
+				compatible = "gpio_afc";
+
+				afc_switch_gpio = <&ap_gpio 136 0>;
+				afc_data_gpio = <&ap_gpio 116 0>;
+			};
+			/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 end */
+
+			/* Tab A8 code for SR-AX6300-01-106 by zhangyanlong at 20210903 start */
+			/* Tab A8 code for SR-AX6300-01-107 by zhangyanlong at 20210901 start */
+			/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 start */
+			bat: battery {
+				compatible = "simple-battery";
+				charge-full-design-microamp-hours = <6804000>;
+				charge-term-current-microamp = <64000>;
+				constant_charge_voltage_max_microvolt = <4400000>;
+				factory-internal-resistance-micro-ohms = <120000>;
+				voltage-min-design-microvolt = <3456000>;
+				ocv-capacity-celsius = <20>;
+				ocv-capacity-table-0 = <4354000 100>, <4293000 95>, <4236000 90>,
+							<4180000 85>, <4126000 80>, <4075000 75>,
+							<4027000 70>, <3985000 65>, <3942000 60>,
+							<3887000 55>, <3854000 50>, <3830000 45>,
+							<3811000 40>, <3796000 35>, <3782000 30>,
+							<3765000 25>, <3746000 20>, <3722000 15>,
+							<3693000 10>, <3681000 5>, <3300000 0>;
+				voltage-temp-table = <1092000 800>, <984000 850>, <878000 900>,
+							  <776000 950>, <679000 1000>, <591000 1050>,
+							  <511000 1100>, <441000 1150>, <379000 1200>,
+							  <325000 1250>, <278000 1300>, <238000 1350>,
+							  <204000 1400>, <175000 1450>, <150000 1500>,
+							  <129000 1550>, <112000 1600>, <97000 1650>,
+							  <84000 1700>, <73000 1750>, <63000 1800>,
+							  <55000 1850>;
+				capacity-temp-table = <45 99>, <25 100>, <10 100>, <0 98>, <(-10) 91>, <(-20) 75>;
+				resistance-temp-table = <45 88>, <25 100>, <10 156>, <0 541>, <(-10) 683>, <(-20) 756>;
+                                /* Tab A8 code for P210924-07941 by zhaichao at 20210928 start */
+				charge-sdp-current-microamp = <540000 500000>;
+                                /* Tab A8 code for P210924-07941 by zhaichao at 20210928 end */
+				/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 start */
+				// charge-dcp-current-microamp = <2000000 3000000>;
+				charge-dcp-current-microamp = <2000000 1550000>;
+				/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 end */
+				charge-cdp-current-microamp = <1150000 1150000>;
+				charge-fchg-current-microamp = <2900000 1650000>;
+				charge-unknown-current-microamp = <500000 500000>;
+				/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 start */
+				charge-afc-current-microamp = <2900000 1650000>;
+				/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 end */
+			};
+			/* Tab A8 code for SR-AX6300-01-107 by zhangyanlong at 20210901 end */
+
+			bat1: battery1 {
+				compatible = "simple-battery";
+				charge-full-design-microamp-hours = <6785000>;
+				charge-term-current-microamp = <64000>;
+				constant_charge_voltage_max_microvolt = <4400000>;
+				factory-internal-resistance-micro-ohms = <116000>;
+				voltage-min-design-microvolt = <3456000>;
+				ocv-capacity-celsius = <20>;
+				ocv-capacity-table-0 = <4357000 100>, <4297000 95>, <4239000 90>,
+							<4182000 85>, <4128000 80>, <4076000 75>,
+							<4028000 70>, <3985000 65>, <3944000 60>,
+							<3885000 55>, <3854000 50>, <3830000 45>,
+							<3811000 40>, <3796000 35>, <3783000 30>,
+							<3765000 25>, <3746000 20>, <3722000 15>,
+							<3693000 10>, <3680000 5>, <3300000 0>;
+				voltage-temp-table = <1109000 800>, <998000 850>, <889000 900>,
+							  <784000 950>, <685000 1000>, <595000 1050>,
+							  <514000 1100>, <442000 1150>, <379000 1200>,
+							  <325000 1250>, <270000 1300>, <238000 1350>,
+							  <204000 1400>, <175000 1450>, <151000 1500>,
+							  <130000 1550>, <112000 1600>, <97000 1650>,
+							  <84000 1700>, <73000 1750>, <64000 1800>,
+							  <55000 1850>;
+				capacity-temp-table = <45 99>, <25 100>, <10 100>, <0 98>, <(-10) 90>, <(-20) 73>;
+				resistance-temp-table = <45 67>, <25 100>, <10 371>, <0 609>, <(-10) 718>, <(-20) 794>;
+                                /* Tab A8 code for P210924-07941 by zhaichao at 20210928 start */
+				charge-sdp-current-microamp = <540000 500000>;
+                                /* Tab A8 code for P210924-07941 by zhaichao at 20210928 end */
+				/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 start */
+				// charge-dcp-current-microamp = <2000000 3000000>;
+				charge-dcp-current-microamp = <2000000 1550000>;
+				/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 end */
+				charge-cdp-current-microamp = <1150000 1150000>;
+				charge-fchg-current-microamp = <2900000 1650000>;
+				charge-unknown-current-microamp = <500000 500000>;
+				/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 start */
+				charge-afc-current-microamp = <2900000 1650000>;
+				/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 end */
+			};
+
+			/* Tab A8 code for AX6300DEV-114 by zhangyanlong at 20210901 start */
+			bat2: battery2 {
+				compatible = "simple-battery";
+				charge-full-design-microamp-hours = <6799000>;
+				charge-term-current-microamp = <64000>;
+				constant_charge_voltage_max_microvolt = <4400000>;
+				factory-internal-resistance-micro-ohms = <101000>;
+				voltage-min-design-microvolt = <3456000>;
+				ocv-capacity-celsius = <20>;
+				ocv-capacity-table-0 = <4350000 100>, <4293000 95>, <4236000 90>,
+							<4180000 85>, <4126000 80>, <4075000 75>,
+							<4027000 70>, <3984000 65>, <3941000 60>,
+							<3887000 55>, <3854000 50>, <3830000 45>,
+							<3810000 40>, <3795000 35>, <3781000 30>,
+							<3762000 25>, <3743000 20>, <3719000 15>,
+							<3691000 10>, <3680000 5>, <3300000 0>;
+				voltage-temp-table = <1109000 800>, <998000 850>, <889000 900>,
+							  <784000 950>, <685000 1000>, <595000 1050>,
+							  <514000 1100>, <442000 1150>, <379000 1200>,
+							  <325000 1250>, <270000 1300>, <238000 1350>,
+							  <204000 1400>, <175000 1450>, <151000 1500>,
+							  <130000 1550>, <112000 1600>, <97000 1650>,
+							  <84000 1700>, <73000 1750>, <64000 1800>,
+							  <55000 1850>;
+				capacity-temp-table = <45 99>, <25 100>, <10 100>, <0 99>, <(-10) 92>, <(-20) 80>;
+				resistance-temp-table = <45 87>, <25 100>, <10 249>, <0 857>, <(-10) 1184>, <(-20) 1311>;
+                                /* Tab A8 code for P210924-07941 by zhaichao at 20210928 start */
+				charge-sdp-current-microamp = <540000 500000>;
+                                /* Tab A8 code for P210924-07941 by zhaichao at 20210928 end */
+				/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 start */
+				// charge-dcp-current-microamp = <2000000 3000000>;
+				charge-dcp-current-microamp = <2000000 1550000>;
+				/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 end */
+				charge-cdp-current-microamp = <1150000 1150000>;
+				charge-fchg-current-microamp = <2900000 1650000>;
+				charge-unknown-current-microamp = <500000 500000>;
+				/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 start */
+				charge-afc-current-microamp = <2900000 1650000>;
+				/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 end */
+			};
+			/* Tab A8 code for AX6300DEV-114 by zhangyanlong at 20210901 end */
+			/* Tab A8 code for SR-AX6300-01-106 by zhangyanlong at 20210903 end */
+
+			charger-manager {
+				compatible = "charger-manager";
+				cm-name = "battery";
+				cm-poll-mode = <2>;
+				cm-poll-interval = <15000>;
+				cm-battery-stat = <2>;
+
+				/* Tab A8 code for SR-AX6300-01-4 by zhangyanlong at 20210820 start */
+				draw-vbus-gpio = <&ap_gpio 137 GPIO_ACTIVE_LOW>;
+				io-channels = <&pmic_adc 6>;
+				io-channel-names = "customer_usb_ntc";
+				/* Tab A8 code for SR-AX6300-01-4 by zhangyanlong at 20210820 end */
+        			cm-fast-chargers = "sc2730_fast_charger";
+                		/* Tab A8 code for AX6300DEV-2187 by lina at 20211028 start */
+                		cm-fast-charge-voltage-max = <10500000>;
+                		/* Tab A8 code for AX6300DEV-2187 by lina at 20211028 end */
+        			cm-fast-charge-voltage-drop = <700000>;
+				cm-fullbatt-vchkdrop-ms = <30000>;
+				/* Tab A8 code for SR-AX6300-01-176 by qiaodan at 20210816 start */
+				/* Tab A8 code for AX6300DEV-1426 by zhaichao at 20211014 start */
+				cm-fullbatt-vchkdrop-volt = <55000>;
+				/* Tab A8 code for AX6300DEV-1426 by zhaichao at 20211014 end */
+				/* Tab A8 code for SR-AX6300-01-142 by qiaodan at 20210903 start */
+				cm-fullbatt-voltage = <4375000>;
+				/* Tab A8 code for SR-AX6300-01-142 by qiaodan at 20210903 end */
+				/* Tab A8 code for AX6300DEV-396 by wenyaqi at 20210917 start */
+				cm-first-fullbatt-current = <350000>;
+				cm-fullbatt-current = <250000>;
+				/* Tab A8 code for AX6300DEV-396 by wenyaqi at 20210917 end */
+				/* Tab A8 code for SR-AX6300-01-176 by qiaodan at 20210816 end */
+				cm-fullbatt-capacity = <100>;
+
+				/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 start */
+				cm-num-power-supplys = <3>;    // numbers of Charger IC
+				/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 end */
+				cm-chargers = "fan54015_charger";
+				/* Tab A8 code for SR-AX6300-01-102 by wenyaqi at 20210808 start */
+				cm-power-supplys = "bq25890_charger", "sgm4154x_charger", "sy6970_charger";
+				// cm-power-supplys = "fan54015_charger", "sgm4154x_charger", "sy6970_charger";
+				/* Tab A8 code for SR-AX6300-01-102 by wenyaqi at 20210808 end */
+				cm-fuel-gauge = "sc27xx-fgu";
+
+				/* in deci centigrade */
+				/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 start */
+				// cm-battery-cold = <200>;
+				cm-battery-cold = <0>;
+				cm-battery-cold-in-minus;
+				// cm-battery-hot = <800>;
+				cm-battery-hot = <500>;
+				// cm-battery-temp-diff = <100>;
+				cm-battery-temp-diff = <30>;
+				/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 start */
+
+				/* Allow charging for 6hr */
+				cm-charging-max = <21600000>;
+				/* recovery charging after stop charging 45min */
+				cm-discharging-max = <2700000>;
+
+				/* the interval to feed charger watchdog */
+				cm-wdt-interval = <60>;
+
+				/* drop voltage in microVolts to allow shutdown */
+				cm-shutdown-voltage = <3100000>;
+
+				/* when 99% of the time is exceeded, it will be forced to 100% */
+				cm-tickle-time-out = <1500>;
+
+				/* how much time to allow capacity change */
+				cm-one-cap-time = <30>;
+				/* Tab A8 code for SR-AX6300-01-102 by wenyaqi at 20210808 start */
+				// cm-thermal-zone = "board-thmzone";
+				/* Tab A8 code for SR-AX6300-01-102 by wenyaqi at 20210808 end */
+				/* when the safe charging voltage is exceeded, stop charging */
+				cm-charge-voltage-max = <6500000>;
+				/* drop voltage in microVolts to restart charging */
+				cm-charge-voltage-drop = <700000>;
+				/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 start */
+				/* when the safe charging voltage is exceeded, stop charging */
+				/* Tab A8 code for AX6300DEV-2187 by lina at 20211028 start */
+				cm-afc-charge-voltage-max = <10000000>;
+				/* Tab A8 code for AX6300DEV-2187 by lina at 20211028 end */
+				/* drop voltage in microVolts to restart charging */
+				cm-afc-charge-voltage-drop = <700000>;
+				/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 end */
+				/* Tab A8 code for SR-AX6300-01-176 by qiaodan at 20210816 start */
+				cm-dcp-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-dcp-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-dcp-jeita-temp-table-2 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-sdp-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4200000>;
+				cm-sdp-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4200000>;
+				cm-sdp-jeita-temp-table-2 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4200000>;
+				cm-cdp-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 1500000 4400000>, <1500 1470 1500000 4200000>;
+				cm-cdp-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 1500000 4400000>, <1500 1470 1500000 4200000>;
+				cm-cdp-jeita-temp-table-2= <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 1500000 4400000>, <1500 1470 1500000 4200000>;
+				cm-unknown-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4200000>;
+				cm-unknown-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4200000>;
+				cm-unknown-jeita-temp-table-2 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4200000>;
+				cm-fchg-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2900000 4400000>, <1500 1470 2900000 4200000>;
+				cm-fchg-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2900000 4400000>, <1500 1470 2900000 4200000>;
+				cm-fchg-jeita-temp-table-2 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2900000 4400000>, <1500 1470 2900000 4200000>;
+				cm-flash-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-flash-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-flash-jeita-temp-table-2 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-wl-bpp-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1000000 4400000>, <1450 1420 1000000 4400000>, <1500 1470 1000000 4200000>;
+				cm-wl-bpp-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1000000 4400000>, <1450 1420 1000000 4400000>, <1500 1470 1000000 4200000>;
+				cm-wl-bpp-jeita-temp-table-2 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1000000 4400000>, <1450 1420 1000000 4400000>, <1500 1470 1000000 4200000>;
+				cm-wl-epp-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-wl-epp-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-wl-epp-jeita-temp-table-2 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				/* Tab A8 code for SR-AX6300-01-176 by qiaodan at 20210816 end */
+				/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 start */
+				cm-afc-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2900000 4400000>, <1500 1470 2900000 4200000>;
+				cm-afc-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2900000 4400000>, <1500 1470 2900000 4200000>;
+				cm-afc-jeita-temp-table-2 = <1000 1030 0 4200000>, <1050 1080 540000 4200000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2900000 4400000>, <1500 1470 2900000 4200000>;
+				/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 end */
+
+				/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 start */
+				// monitored-battery = <&bat>;
+				monitored-battery = <&bat &bat1 &bat2>; // bat-ATL bat1-SCUD
+				/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 end */
+				/* Tab A8 code for SR-AX6300-01-142 by qiaodan at 20210901 start */
+				ss-batt-aging-enable;
+				ss-cv-ranges = <0 299 4400000
+						300 399 4368000
+						400 699 4352000
+						700 999 4304000
+						1000 9999 4272000>;
+				/* Tab A8 code for SR-AX6300-01-142 by qiaodan at 20210901 end */
+
+				cm-cap-remap-table = <1 2 3>, <2 3 2>, <98 99 2>, <99 100 3>;
+
+				regulator@0 {
+					cm-regulator-name = "vddgen0";
+					cable@0 {
+						cm-cable-name = "USB";
+						extcon = <&pmic_typec>;
+					};
+				};
+
+				/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 start */
+				vddvbus: cm_otg_vbus {
+					regulator-name = "vddvbus";
+				};
+				/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 end */
+			};
+
+			tboard_thermistor:thermal-sensor {
+				compatible = "generic-adc-thermal";
+				#thermal-sensor-cells = <0>;
+				io-channels = <&pmic_adc 1>;
+				io-channel-names = "sensor-channel";
+				temperature-lookup-table = <    (-39742) 1131
+								(-29777) 1110
+								(-19480) 1074
+								(-4679) 983
+								10110 838
+								24805 654
+								44922 413
+								54903 316
+								64895 238
+								74884 178
+								84883 133
+								94883 100
+								104880 75
+								114889 57
+								124872 43 >;
+			};
+
+			/* Tab A8 code for SR-AX6300-01-109 by zhangyanlong at 20210810 start */
+			pa_thermistor:pa-sensor {
+				compatible = "generic-adc-thermal";
+				#thermal-sensor-cells = <0>;
+				io-channels = <&pmic_adc 2>;
+				io-channel-names = "sensor-channel";
+				temperature-lookup-table = <    (-39742) 1131
+								(-29777) 1110
+								(-19480) 1074
+								(-4679) 983
+								10110 838
+								24805 654
+								44922 413
+								54903 316
+								64895 238
+								74884 178
+								84883 133
+								94883 100
+								104880 75
+								114889 57
+								124872 43 >;
+			};
+
+			chg_thermistor:chg-sensor {
+				compatible = "generic-adc-thermal";
+				#thermal-sensor-cells = <0>;
+				io-channels = <&pmic_adc 4>;
+				io-channel-names = "sensor-channel";
+				temperature-lookup-table = <    (-39742) 1131
+								(-29777) 1110
+								(-19480) 1074
+								(-4679) 983
+								10110 838
+								24805 654
+								44922 413
+								54903 316
+								64895 238
+								74884 178
+								84883 133
+								94883 100
+								104880 75
+								114889 57
+								124872 43 >;
+			};
+
+			usb_thermistor:usb-sensor {
+				compatible = "generic-adc-thermal";
+				#thermal-sensor-cells = <0>;
+				io-channels = <&pmic_adc 6>;
+				io-channel-names = "sensor-channel";
+				temperature-lookup-table = <    (-39742) 1131
+								(-29777) 1110
+								(-19480) 1074
+								(-4679) 983
+								10110 838
+								24805 654
+								44922 413
+								54903 316
+								64895 238
+								74884 178
+								84883 133
+								94883 100
+								104880 75
+								114889 57
+								124872 43 >;
+			};
+			/* Tab A8 code for SR-AX6300-01-109 by zhangyanlong at 20210810 end */
+		};
+	};
+};
+
+/* Tab A8 code for SR-AX6300-01-6 by qiaodan at 20210812 start */
+&pmic_fchg {
+	sprd,input-voltage-microvolt = <5000000>;
+	phys = <&hsphy>;
+	status =  "okay";
+};
+
+&pmic_pd {
+	status = "okay";
+	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
+	vbus-supply = <&vddvbus>;
+	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
+	usb_con: connector {
+		compatible = "usb-c-connector";
+		label = "USB-C";
+		power-role = "dual";
+		try-power-role = "sink";
+		source-pdos = <PDO_FIXED(5000, 400, PDO_FIXED_USB_COMM)>;
+		sink-pdos = <PDO_FIXED(5000, 2000, PDO_FIXED_USB_COMM)>;
+		op-sink-microwatt = <10000000>;
+	};
+};
+/* Tab A8 code for SR-AX6300-01-6 by qiaodan at 20210812 end */
+
+/* Tab A8 code for AX6300DEV-428 by wenyaqi at 20210918 start */
+&hsphy {
+	sprd,tfregres-tune-value = <0x06b49cc0>;
+};
+/* Tab A8 code for AX6300DEV-428 by wenyaqi at 20210918 end */
+
+/* Tab A8 code for AX6300DEV-1413 by wenyaqi at 20211020 start */
+&pmic_fgu {
+	sprd,comp-resistance-mohm = <26>;
+	sprd,comp-resistance-mohm1 = <12>;
+	sprd,comp-resistance-mohm2 = <16>;
+};
+/* Tab A8 code for AX6300DEV-1413 by wenyaqi at 20211020 end */

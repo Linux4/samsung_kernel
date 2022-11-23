@@ -1,0 +1,9 @@
+/* HS03 code for SR-SL6215-01-163 by shibinbin at 2021/08/03 start */
+&vddldo1 {
+    regulator-name = "vddldo1";
+    regulator-min-microvolt = <3300000>;
+    regulator-max-microvolt = <3300000>;
+    regulator-ramp-delay = <25000>;
+    regulator-always-on;
+};
+/* HS03 code for SR-SL6215-01-163 by shibinbin at 2021/08/03 end */

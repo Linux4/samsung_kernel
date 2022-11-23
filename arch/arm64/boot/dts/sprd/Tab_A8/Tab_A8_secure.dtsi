@@ -1,0 +1,20 @@
+/* Tab A8 code for SR-AX6300-01-207 by wangdeyan at 20210812 start */
+&spi0 {
+	status = "okay";
+
+	grdm-spi@0 {
+		compatible = "sec,grdm-spi";
+		reg = <0x0>;
+		status = "okay";
+		spi-max-frequency = <6500000>;
+	};
+};
+
+&soc {
+	grdm-dev {
+		status = "okay";
+		compatible = "sec,guardianm";
+		vddldo1-supply = <&vddldo1>;
+    };
+};
+/* Tab A8 code for SR-AX6300-01-207 by wangdeyan at 20210812 end */

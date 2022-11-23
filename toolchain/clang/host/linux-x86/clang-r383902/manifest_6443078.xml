@@ -1,0 +1,67 @@
+<?xml version='1.0' encoding='UTF-8'?>
+
+<manifest>
+  <remote fetch=".." name="aosp" review="https://android-review.googlesource.com/" />
+
+  <default remote="aosp" revision="master" />
+
+  <project clone-depth="1" name="platform/prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8" path="prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8" revision="4533a4d0efa68949dc3c0dfec00214feaddd6c7b" />
+
+  <project clone-depth="1" name="platform/prebuilts/cmake/linux-x86" path="prebuilts/cmake/linux-x86" revision="e934e8c0628ca79de8a8d45dd8869bf750f597e9" />
+
+  <project clone-depth="1" name="platform/prebuilts/gcc/linux-x86/host/x86_64-w64-mingw32-4.8" path="prebuilts/gcc/linux-x86/host/x86_64-w64-mingw32-4.8" revision="3cbae8d4e0140abbfa0e120567ef1d5b24b3f8d2" />
+
+  <project name="platform/bionic" path="bionic" revision="38d0a7d9dcf4b92d88f06e742b13b1a15cc25b0a" />
+
+  <project clone-depth="1" groups="linux,pdk,tradefed" name="platform/prebuilts/go/linux-x86" path="prebuilts/go/linux-x86" revision="3affa1d2632b48f9589ab4c91ca1b825d7c73a87" />
+
+  <project clone-depth="1" groups="pdk,linux,arm" name="platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9" path="prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9" revision="2db20c200c5fae57489ffbfce40dc501e8fb0722" />
+
+  <project clone-depth="1" groups="pdk,linux,x86" name="platform/prebuilts/gcc/linux-x86/x86/x86_64-linux-android-4.9" path="prebuilts/gcc/linux-x86/x86/x86_64-linux-android-4.9" revision="516fb636454e34e39c2ee7729183b07194bfe7c0" />
+
+  <project clone-depth="1" name="platform/prebuilts/python/windows-x86" path="prebuilts/python/windows-x86" revision="5980f8530411c28ecab7dee37dcf7ed276d8a1c9" />
+
+  <project clone-depth="1" name="platform/prebuilts/clang/host/windows-x86" path="prebuilts/clang/host/windows-x86" revision="9531f57f4a57964f84be7146f42715511e6ddec1" />
+
+  <project name="toolchain/llvm_android" path="toolchain/llvm_android" revision="daa159d065807169e01cfbed345b2677ecb864ee" />
+
+  <project name="platform/external/toolchain-utils" path="external/toolchain-utils" revision="35b8ca1aa65279aa116a33fc3df75bdd04bcdcc0" />
+
+  <project clone-depth="1" name="platform/prebuilts/ninja/linux-x86" path="prebuilts/ninja/linux-x86" revision="6369b19fc3fbe765636af75d394627e2b92599ed" />
+
+  <project clone-depth="1" name="platform/prebuilts/python/linux-x86" path="prebuilts/python/linux-x86" revision="246deb9b30f417b9d5ba458cea1099dd98fcfecc" />
+
+  <project clone-depth="1" name="platform/prebuilts/cmake/darwin-x86" path="prebuilts/cmake/darwin-x86" revision="0a604d875f3b623c786e4a7dc3eb0abc8940b4d7" />
+
+  <project clone-depth="1" name="platform/prebuilts/python/darwin-x86" path="prebuilts/python/darwin-x86" revision="85411448df98283bfb249a0e14b335ca7bc8a236" />
+
+  <project clone-depth="1" name="platform/prebuilts/ninja/darwin-x86" path="prebuilts/ninja/darwin-x86" revision="00f798346dedb4a7a6a6dcc9ad32ff09d66ee0db" />
+
+  <project name="platform/external/swig" path="external/swig" revision="80b4251e302efb18c145a4786249d695397ed42a" />
+
+  <project clone-depth="1" name="platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9" path="prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9" revision="5dda5880238707c790ead9be6dde1d5fe79cce09" />
+
+  <project clone-depth="1" name="platform/prebuilts/clang/host/linux-x86" path="prebuilts/clang/host/linux-x86" revision="27fa4eeb5967e0bae5aef6de643739bef2a58726" />
+
+  <project name="platform/external/libedit" path="external/libedit" revision="892b8b381ae82ac3184900d989a516854d8b1197" />
+
+  <project name="toolchain/binutils" path="toolchain/binutils" revision="c19795e958ed532462948fd14b1bdfd4f6e96e03" />
+
+  <project name="toolchain/llvm-project" path="toolchain/llvm-project" revision="b397f81060ce6d701042b782172ed13bee898b79" />
+
+  <project clone-depth="1" groups="pdk,darwin" name="platform/prebuilts/gcc/darwin-x86/host/i686-apple-darwin-4.2.1" path="prebuilts/gcc/darwin-x86/host/i686-apple-darwin-4.2.1" revision="b616fc20ee024ace07f39b13a1f5a2bbdb67f8f7" />
+
+  <project name="toolchain/prebuilts/ndk/r20" path="toolchain/prebuilts/ndk/r20" revision="090bbcaa361eb158e8bfc5e6950081cb9679e350" />
+
+  <project clone-depth="1" groups="pdk,darwin" name="platform/prebuilts/gcc/darwin-x86/host/headers" path="prebuilts/gcc/darwin-x86/host/headers" revision="4ac4f7cc41cf3c9e36fc3d6cf37fd1cfa9587a68" />
+
+  <project clone-depth="1" groups="pdk,darwin,x86" name="platform/prebuilts/gcc/darwin-x86/x86/x86_64-linux-android-4.9" path="prebuilts/gcc/darwin-x86/x86/x86_64-linux-android-4.9" revision="5f6784551ded13db5cb9894acc9ec2a1090cb65c" />
+
+  <project clone-depth="1" groups="pdk,darwin,arm" name="platform/prebuilts/gcc/darwin-x86/aarch64/aarch64-linux-android-4.9" path="prebuilts/gcc/darwin-x86/aarch64/aarch64-linux-android-4.9" revision="b9c851f0e94537656849e1c839020459250bb274" />
+
+  <project clone-depth="1" name="platform/prebuilts/clang/host/darwin-x86" path="prebuilts/clang/host/darwin-x86" revision="9180130e429b04b8105011e7b7b64676b10abc23" />
+
+  <project clone-depth="1" groups="darwin,pdk,tradefed" name="platform/prebuilts/go/darwin-x86" path="prebuilts/go/darwin-x86" revision="3d0e53b900fd8e721733b7d54a1acef694a47333" />
+
+  <project clone-depth="1" name="platform/prebuilts/gcc/darwin-x86/arm/arm-linux-androideabi-4.9" path="prebuilts/gcc/darwin-x86/arm/arm-linux-androideabi-4.9" revision="24f28106e56e066850673590024592b17468fb32" />
+</manifest>

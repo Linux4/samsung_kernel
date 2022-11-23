@@ -1,0 +1,214 @@
+标题示例如下：
+Bug[空格]#bug_id[空格]attributetag:[空格]subsystemtag1:[空格]subsystemtag2:[空格]summary phrase
+
+    |bug_id为合法的Bug号，系统会根据Bug级别排列Review优先级
+    |summary phase用命令句式
+    |标题不能折行，结尾无句号
+    |每个patch至少有一个tag，最多有两个attribute tag和三个subsystem tag
+    |attribute tag为全大写，subsystem tag为全小写(Documentation除外)
+    |每个tag后面带一个英文的冒号(":")，用一个空格和后面内容分开
+    |tag必须在对应的tag范围内，超过范围的tag不允许使用
+
+    attribute tag范围及描述：
+        ANDROID: 解决android特有问题。必须注明出处，一般可免于Review，直接+2。
+        UPGRADE: 来自其他分支merged的提交。必须注明出处，一般可免于Review，直接+2。
+        SECURITY: 安全patch（特指Kernel漏洞修复）。
+        FROMLIST: 来自社区邮件列表，但还未合入，或被拒绝。必须注明出处，一般可免于Review，直接+2。
+        UPSTREAM: 来自linux mainline分支。必须注明commit id，一般可免于Review，直接+2。
+        BACKPORT: 带UPSTREAM标签需要修改才能合入，需用BACKPORT代替UPSTREAM；带FROMGIT、FROMLIST需要修改才能合入，
+                  就在对应标签前面加上"BACKPORT:"。
+        FROMGIT: 来自非linux mainline的其他仓库。必须注明commit id，如无commit id注明出处，一般可免于Review，直接+2。
+        REVERT: 需要回退的patch。必须填写回退patch的commit id。
+        PRIVATE: 表示经开源委员会审定无需upstream。
+        WORKAROUND: 临时性合入，针对某些极端问题（多是硬件BUG）的特殊解决方法。代码量一般不多。可调低代码审查标准。
+        DIRTY: 一般为对公共代码的修改，且不具备Upstream资质。比如调试性代码、内部功能等。可调低代码审查标准。
+        TEST: 测试case相关代码。
+
+自动检查脚本对属性标签检查执行如下规则：
+    [ANDROID:FROMLIST]:不检查commit id，不检查subsystem tag
+    [UPSTREAM:REVERT]:检查commit id，不检subsystem tag
+    [PRIVATE:TEST]:不检查commit id，检查subsystem tag
+不带属性标签,检查subsystem tag。
+所有标签必须和标签范围内容一致，大小写敏感。
+
+subsystem tag和修改文件的检查规则：
+    |subsystem tag必须至少在一个修改文件的路径上
+    |dts、Documentation作为标签或在修改文件路径上时，subsystem tag必须在每一个修改文件的路径上
+    |不检查subsystem tag的属性标签，不做此检查
+    |只有一级标签能带*，带*的一级标签在只检查一级标签，忽略其他标签的修改文件和标签一致的检查
+
+标签范围：
+[info]
+ANDROID,UPGRADE,SECURITY,FROMLIST,UPSTREAM,BACKPORT,FROMGIT,REVERT,PRIVATE,WORKAROUND,DIRTY,TEST
+
+arm:configs:
+arm:dts:
+arm:topology:
+arm64:configs:
+arm64:dts:
+arm64:kernel:
+arm64:topology:
+arm/arm64:configs:
+arm/arm64:dts:
+arm/arm64:topology:
+asoc:sprd:codec:
+asoc:sprd:dai:
+asoc:sprd:include:
+asoc:sprd:platform:
+asoc:sprd:
+asoc:usb:
+
+binder:
+
+char:hw_random:sprd:
+coresight:
+clocksource:sprd:
+clk:sprd:
+cpufreq:
+cpufreq:sprd:
+cpuhotplug:sprd:
+cpuidle:
+crypto:
+
+devfreq:sprd:
+dmaengine:sprd:
+dma-buf:
+Documentation:*
+drm:sprd:
+drm:sprd:cabc:
+drm:sprd:dphy:
+drm:sprd:dpu:
+drm:sprd:dsi:
+drm:sprd:dummy:
+drm:sprd:gsp:
+drm:sprd:sysfs:
+dt-bindings:*
+
+firmware:psci:
+firmware:sprd:
+fs:
+fs:f2fs:
+fs:proc:
+fs:sdcardfs:
+
+gpio:sprd:
+gpu:sprd:
+
+hwspinlock:sprd:
+hwtracing:stm:
+
+i2c:sprd:
+iio:adc:
+iio:sprd_hub:
+include:*
+include:dt-bindings:
+input:keyboard:
+input:sprd:
+input:touchscreen:
+irqchip:
+
+leds:sc27xx:
+leds:trigger:
+lib:e_show_mem:
+
+mfd:sprd:
+misc:audio:
+misc:lkdtm:
+misc:sprd_apdu:
+misc:sprd_camera:
+misc:sprd_jpg:
+misc:sprd_map:
+misc:sprd_vsp:
+misc:sprd_vpu:
+misc:sprd_uid:
+misc:sprd_wcn_n6pro:
+misc:sprdwcn:
+mm:
+mm:memblock:
+mm:vmscan:
+mmc:core:
+mmc:sprd:
+
+net:
+net:ims_bridge:
+nvmem:sprd:
+nvmem:sc27xx:
+
+pci:dwc:
+pci:dwc:sprd:
+pinctrl:sprd:
+power:
+power:reset:
+power:supply:
+power:supply:bq2560x:
+power:supply:charger-manager:
+power:supply:fan54015:
+power:supply:sc2703:
+power:supply:sc2720:
+power:supply:sc2721:
+power:supply:sc2730:
+power:supply:sc2731:
+power:supply:sc27xx:
+power:suspends:
+printk:
+pwm:sprd:
+
+regulator:sprd:
+rtc:sc27xx:
+
+sched:*
+scripts:dtc:
+scripts:sprd:
+scsi:ufs:sprd:
+security:
+security:selinux:
+serial:sprd:
+soc:sprd:
+soc:sprd:busmonitor:
+soc:sprd:cpu_usage:
+soc:sprd:debug:
+soc:sprd:djtag:
+soc:sprd:dmc_mpu:
+soc:sprd:domain:
+soc:sprd:iommu:
+soc:sprd:irq:
+soc:sprd:last_regs:
+soc:sprd:memdisk:
+soc:sprd:modem:
+soc:sprd:pub:
+soc:sprd:ptm:
+soc:sprd:sysdump:
+spi:sprd:
+sprd-diffconfig:*
+sprd-reserved-memory:
+staging:android:ion:
+staging:sprd:debug_log:
+staging:sprd:mailbox:
+staging:sprd:modem:
+staging:sprd:sfp:
+staging:sprd:sipa:
+
+tee:
+test:kunit:
+time:
+thermal:core:
+thermal:sprd:
+trace:
+trusty:
+tcpm:sc27xx_pd:
+
+usb:dwc3:
+usb:gadget:
+usb:misc:
+usb:musb:
+usb:phy:
+usb:typec:
+usb:tcpm:
+
+video:backlight:
+
+watchdog:sprd:
+
+x86:configs:
+x86:dts:
+x86:topology:

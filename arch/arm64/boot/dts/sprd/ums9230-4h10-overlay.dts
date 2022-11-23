@@ -1,0 +1,1203 @@
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/clock/sprd,ums9230-clk.h>
+#include <dt-bindings/mfd/sprd,sc2730-regs.h>
+#include <dt-bindings/mfd/sprd,sc2730-mask.h>
+#include <dt-bindings/usb/pd.h>
+/* HS03 code for ASL6215DEV-2427 by huangzhongjie at 2021/10/13 start*/
+#include "lcd/HS03/lcd_hs03_default_panel_mipi.dtsi"
+/* HS03 code for ASL6215DEV-2427 by huangzhongjie at 2021/10/13 end*/
+/* HS03 code for SR-SL6215-01-455 by xiayu at 2021/08/03 start */
+#include "camera/ums9230-4h10-camera.dtsi"
+/* HS03 code for SR-SL6215-01-455 by xiayu at 2021/08/03 end */
+
+/ {
+
+	model = "Spreadtrum UMS9230 4H10 Board";
+
+	compatible = "sprd,ums9230-4h10";
+
+	sprd,sc-id = "ums9230 4h10 1000";
+	sprd,board_id = <0x4100>; //XX00:base board,XX00~XXFF:customize board
+
+	fragment {
+		target-path = "/";
+		__overlay__ {
+			fingerprint@0 {
+				compatible = "microarray,afs121";
+				fpint-gpios = <&eic_async 29 0>;
+			};
+
+			gpio-keys {
+				compatible = "gpio-keys";
+				/* HS03 code for SR-SL6215-01-111 by yuanliding at 20210804 start */
+				key-volumedown {
+					label = "Volume Down Key";
+					linux,code = <KEY_VOLUMEDOWN>;
+					gpios = <&pmic_eic 4 GPIO_ACTIVE_HIGH>;
+					debounce-interval = <2>;
+					wakeup-source;
+				};
+
+				key-volumeup {
+					label = "Volume Up Key";
+					linux,code = <KEY_VOLUMEUP>;
+					gpios = <&ap_gpio 125 GPIO_ACTIVE_LOW>;
+					debounce-interval = <2>;
+					wakeup-source;
+				};
+				/* HS03 code for SR-SL6215-01-111 by yuanliding at 20210804 end */
+				key-power {
+					label = "Power Key";
+					linux,code = <KEY_POWER>;
+					gpios = <&pmic_eic 1 GPIO_ACTIVE_LOW>;
+					debounce-interval = <2>;
+					wakeup-source;
+				};
+			};
+
+			/* HS03 code for SR-SL6215-01-181 by gaochao at 20210728 start */
+			bat_id_via_adc: bat_id_via_adc {
+				compatible = "bat_id_via_adc";
+				io-channels = <&pmic_adc 3>;
+				io-channel-names = "customer_bat_id";
+			};
+			/* HS03 code for SR-SL6215-01-181 by gaocaho at 20210728 end */
+
+			/* HS03 code for SR-SL6215-01-185 by gaochao at 20210728 start */
+			bat: battery {
+				compatible = "simple-battery";
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 start */
+				charge-full-design-microamp-hours = <4830000>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 end */
+				/* HS03 code for SR-SL6215-01-606 by gaochao at 20210813 start */
+				// charge-term-current-microamp = <180000>;
+				charge-term-current-microamp = <60000>;
+				/* HS03 code for SR-SL6215-01-606 by gaochao at 20210813 end */
+				/* HS03 code for SL6215DEV-245 by ditong at 20210824 start */
+				constant_charge_voltage_max_microvolt = <4400000>;
+				/* HS03 code for SL6215DEV-245 by ditong at 20210824 end */
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 start */
+				factory-internal-resistance-micro-ohms = <178000>;
+				voltage-min-design-microvolt = <3455000>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 end */
+				fast-charge-threshold-microvolt = <4100000>;
+				ocv-capacity-celsius = <20>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 start */
+				ocv-capacity-table-0 = <4343000 100>, <4288000 95>, <4231000 90>,
+							<4175000 85>, <4122000 80>, <4072000 75>,
+							<4024000 70>, <3982000 65>, <3933000 60>,
+							<3882000 55>, <3853000 50>, <3830000 45>,
+							<3811000 40>, <3795000 35>, <3781000 30>,
+							<3763000 25>, <3745000 20>, <3719000 15>,
+							<3693000 10>, <3674000 5>, <3400000 0>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 end */
+				/* HS03 code for SR-SL6215-01-185 by gaochao at 20210728 start */
+				voltage-temp-table = <1109000 800>, <998000 850>, <889000 900>,
+							  <784000 950>, <685000 1000>, <595000 1050>,
+							  <514000 1100>, <442000 1150>, <379000 1200>,
+							  <325000 1250>, <278000 1300>, <238000 1350>,
+							  <204000 1400>, <175000 1450>, <151000 1500>,
+							  <130000 1550>, <112000 1600>, <97000 1650>,
+							  <84000 1700>,<73000 1750>,<64000 1800>,<55000 1850>;
+				/* HS03 code for SR-SL6215-01-185 by gaochao at 20210728 end */
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 start */
+				capacity-temp-table = <45 100>, <25 100>, <10 100>, <0 97>, <(-10) 89>, <(-20) 66>;
+				resistance-temp-table = <45 69>, <25 100>, <10 198>, <0 678>, <(-10) 691>, <(-20) 805>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 end */
+				/* HS03 code for SR-SL6215-01-63 by gaochao at 20210805 start */
+				// charge-sdp-current-microamp = <500000 500000>;
+				charge-sdp-current-microamp = <540000 500000>;
+				/* HS03 code for SR-SL6215-01-63 by gaochao at 20210805 end */
+				/* HS03 code for SR-SL6215-01-185 by gaochao at 20210728 start */
+				// charge-dcp-current-microamp = <2000000 3000000>;
+				charge-dcp-current-microamp = <2000000 1550000>;
+				/* HS03 code for SR-SL6215-01-185 by gaochao at 20210728 end */
+				charge-cdp-current-microamp = <1500000 1500000>;
+				charge-unknown-current-microamp = <500000 500000>;
+				charge-fchg-current-microamp = <3250000 3000000>;
+				charge-flash-current-microamp = <5000000 2700000>;
+				charge-wl-bpp-current-microamp = <1000000 1000000>;
+				charge-wl-epp-current-microamp = <2000000 1000000>;
+			};
+
+			/* HS03 code for SR-SL6215-01-181 by gaochao at 20210728 start */
+			bat1: battery1 {
+				compatible = "simple-battery";
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 start */
+				charge-full-design-microamp-hours = <4809000>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 end */
+				/* HS03 code for SR-SL6215-01-606 by gaochao at 20210813 start */
+				// charge-term-current-microamp = <180000>;
+				charge-term-current-microamp = <60000>;
+				/* HS03 code for SR-SL6215-01-606 by gaochao at 20210813 end */
+				constant_charge_voltage_max_microvolt = <4400000>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 start */
+				factory-internal-resistance-micro-ohms = <160000>;
+				voltage-min-design-microvolt = <3456000>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 end */
+				charge-pumps-threshold-microvolt = <4100000>;
+				ocv-capacity-celsius = <20>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 start */
+				ocv-capacity-table-0 = <4338000 100>, <4281000 95>, <4225000 90>,
+							<4170000 85>, <4117000 80>, <4067000 75>,
+							<4019000 70>, <3978000 65>, <3935000 60>,
+							<3881000 55>, <3850000 50>, <3827000 45>,
+							<3808000 40>, <3793000 35>, <3780000 30>,
+							<3763000 25>, <3745000 20>, <3720000 15>,
+							<3691000 10>, <3680000 5>, <3400000 0>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 end */
+				/* HS03 code for SR-SL6215-01-185 by gaochao at 20210728 start */
+				/* HS03 code for SL6215DEV-82 by ditong at 20210816 start */
+				voltage-temp-table = <1093000 800>, <984000 850>, <878000 900>,
+							  <776000 950>, <680000 1000>, <591000 1050>,
+							  <511000 1100>, <441000 1150>, <379000 1200>,
+							  <325000 1250>, <278000 1300>, <238000 1350>,
+							  <204000 1400>, <175000 1450>, <150000 1500>,
+							  <129000 1550>, <112000 1600>, <97000 1650>,
+							  <84000 1700>,<73000 1750>,<63000 1800>,<55000 1850>;
+				/* HS03 code for SL6215DEV-82 by ditong at 20210816 end */
+				/* HS03 code for SR-SL6215-01-185 by gaochao at 20210728 end */
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 start */
+				capacity-temp-table = <45 100>, <25 100>, <10 100>, <0 98>, <(-10) 96>, <(-20) 76>;
+				resistance-temp-table = <45 78>, <25 100>, <10 211>, <0 716>, <(-10) 754>, <(-20) 846>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 end */
+				/* HS03 code for SR-SL6215-01-63 by gaochao at 20210805 start */
+				// charge-sdp-current-microamp = <500000 500000>;
+				charge-sdp-current-microamp = <540000 500000>;
+				/* HS03 code for SR-SL6215-01-63 by gaochao at 20210805 end */
+				/* HS03 code for SR-SL6215-01-185 by gaochao at 20210728 start */
+				// charge-dcp-current-microamp = <2000000 3000000>;
+				charge-dcp-current-microamp = <2000000 1550000>;
+				/* HS03 code for SR-SL6215-01-185 by gaochao at 20210728 end */
+				charge-cdp-current-microamp = <1500000 1500000>;
+				charge-unknown-current-microamp = <500000 500000>;
+				charge-fchg-current-microamp = <3250000 3000000>;
+				charge-flash-current-microamp = <5000000 2700000>;
+				charge-wl-bpp-current-microamp = <1000000 1000000>;
+				charge-wl-epp-current-microamp = <2000000 1000000>;
+			};
+
+			bat2: battery2 {
+				compatible = "simple-battery";
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 start */
+				charge-full-design-microamp-hours = <4830000>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 end */
+				/* HS03 code for SR-SL6215-01-606 by gaochao at 20210813 start */
+				// charge-term-current-microamp = <180000>;
+				charge-term-current-microamp = <60000>;
+				/* HS03 code for SR-SL6215-01-606 by gaochao at 20210813 end */
+				constant_charge_voltage_max_microvolt = <4400000>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 start */
+				factory-internal-resistance-micro-ohms = <178000>;
+				voltage-min-design-microvolt = <3455000>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 end */
+				charge-pumps-threshold-microvolt = <4100000>;
+				ocv-capacity-celsius = <20>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 start */
+				ocv-capacity-table-0 = <4343000 100>, <4288000 95>, <4231000 90>,
+							<4175000 85>, <4122000 80>, <4072000 75>,
+							<4024000 70>, <3982000 65>, <3933000 60>,
+							<3882000 55>, <3853000 50>, <3830000 45>,
+							<3811000 40>, <3795000 35>, <3781000 30>,
+							<3763000 25>, <3745000 20>, <3719000 15>,
+							<3693000 10>, <3674000 5>, <3400000 0>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 end */
+				/* HS03 code for SR-SL6215-01-185 by gaochao at 20210728 start */
+				voltage-temp-table = <1109000 800>, <998000 850>, <889000 900>,
+							  <784000 950>, <685000 1000>, <595000 1050>,
+							  <514000 1100>, <442000 1150>, <379000 1200>,
+							  <325000 1250>, <278000 1300>, <238000 1350>,
+							  <204000 1400>, <175000 1450>, <151000 1500>,
+							  <130000 1550>, <112000 1600>, <97000 1650>,
+							  <84000 1700>,<73000 1750>,<64000 1800>,<55000 1850>;
+				/* HS03 code for SR-SL6215-01-185 by gaochao at 20210728 end */
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 start */
+				capacity-temp-table = <45 100>, <25 100>, <10 100>, <0 97>, <(-10) 89>, <(-20) 66>;
+				resistance-temp-table = <45 69>, <25 100>, <10 198>, <0 678>, <(-10) 691>, <(-20) 805>;
+				/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 end */
+				/* HS03 code for SR-SL6215-01-63 by gaochao at 20210805 start */
+				// charge-sdp-current-microamp = <500000 500000>;
+				charge-sdp-current-microamp = <540000 500000>;
+				/* HS03 code for SR-SL6215-01-63 by gaochao at 20210805 end */
+				/* HS03 code for SR-SL6215-01-185 by gaochao at 20210728 start */
+				// charge-dcp-current-microamp = <2000000 3000000>;
+				charge-dcp-current-microamp = <2000000 1550000>;
+				/* HS03 code for SR-SL6215-01-185 by gaochao at 20210728 end */
+				charge-cdp-current-microamp = <1500000 1500000>;
+				charge-unknown-current-microamp = <500000 500000>;
+				charge-fchg-current-microamp = <3250000 3000000>;
+				charge-flash-current-microamp = <5000000 2700000>;
+				charge-wl-bpp-current-microamp = <1000000 1000000>;
+				charge-wl-epp-current-microamp = <2000000 1000000>;
+			};
+			/* HS03 code for SR-SL6215-01-181 by gaochao at 20210728 end */
+			/* HS03 code for SR-SL6215-01-185 by gaochao at 20210728 end */
+
+			charger-manager {
+				compatible = "charger-manager";
+				cm-name = "battery";
+				cm-poll-mode = <2>;
+				cm-poll-interval = <15000>;
+				cm-battery-stat = <2>;
+
+				/* HS03 code for SR-SL6215-01-192 by shixuanxuan at 20210818 start */
+				draw-vbus-gpio = <&ap_gpio 169 GPIO_ACTIVE_LOW>;
+				io-channels = <&pmic_adc 6>;
+				io-channel-names = "customer_usb_ntc";
+				/* HS03 code for SR-SL6215-01-192 by shixuanxuan at 20210818 end */
+				cm-fullbatt-vchkdrop-ms = <30000>;
+				/* HS03 code for SR-SL6215-01-606 by gaochao at 20210813 start */
+				// cm-fullbatt-vchkdrop-volt = <60000>;
+				cm-fullbatt-vchkdrop-volt = <35000>;
+				/* HS03 code for SR-SL6215-01-606 by gaochao at 20210813 end */
+				cm-fullbatt-voltage = <4395000>;
+				cm-first-fullbatt-current = <280000>;
+				cm-fullbatt-current = <180000>;
+				/* HS03 code for SR-SL6215-01-606 by gaochao at 20210813 end */
+				cm-fullbatt-capacity = <100>;
+				/*Charge pump target charge current*/
+				cm-cp-taper-current = <1000000>;
+				/* HS03 code for SR-SL6215-01-540 by qiaodan at 20210829 start */
+				ss-batt-aging-enable;
+				ss-cv-ranges = <0 299 4400000
+						300 399 4368000
+						400 699 4352000
+						700 999 4304000
+						1000 9999 4272000>;
+				/* HS03 code for SR-SL6215-01-540 by qiaodan at 20210829 end*/
+				/* HS03 code for SR-SL6215-01-178 by gaochao at 20210728 start */
+				cm-num-power-supplys = <3>;    // numbers of Charger IC
+				/* HS03 code for SR-SL6215-01-178 by gaochao at 20210728 end */
+				cm-chargers = "bq2560x_charger";
+				/* HS03 code for SR-SL6215-01-711 by gaochao at 20210902 start */
+				// cm-charge-pumps = "bq2597x-standalone";
+				cm-fast-chargers = "sc2730_fast_charger";
+				// cm-wireless-chargers = "nu1619_wireless_charger";
+				// cm-wireless-charge-pump-converters = "hl1506_cp_converter";
+				/* HS03 code for SR-SL6215-01-711 by gaochao at 20210902 end */
+				/* HS03 code for SR-SL6215-01-178 by gaochao at 20210728 start */
+				cm-power-supplys = "bq2560x_charger", "sgm41511_charger", "rt9471_charger";
+				/* HS03 code for SR-SL6215-01-178 by gaochao at 20210728 end */
+				cm-fuel-gauge = "sc27xx-fgu";
+
+				/* in deci centigrade */
+				/* HS03 code for SR-SL6215-01-185 by gaochao at 20210728 start */
+				// cm-battery-cold = <200>;
+				cm-battery-cold = <0>;
+				cm-battery-cold-in-minus;
+				// cm-battery-hot = <800>;
+				cm-battery-hot = <500>;
+				// cm-battery-temp-diff = <100>;
+				cm-battery-temp-diff = <30>;
+				/* HS03 code for SR-SL6215-01-185 by gaochao at 20210728 start */
+
+				/* Allow charging for 6hr */
+				cm-charging-max = <21600000>;
+				/* recovery charging after stop charging 45min */
+				cm-discharging-max = <2700000>;
+
+				/* the interval to feed charger watchdog */
+				cm-wdt-interval = <60>;
+
+				/* drop voltage in microVolts to allow shutdown */
+				cm-shutdown-voltage = <3100000>;
+
+				/* when 99% of the time is exceeded, it will be forced to 100% */
+				cm-tickle-time-out = <1500>;
+
+				/* how much time to allow capacity change */
+				cm-one-cap-time = <30>;
+				/* cm-thermal-zone = "board-thmzone"; */
+				/* when the safe charging voltage is exceeded, stop charging */
+				cm-charge-voltage-max = <6500000>;
+				cm-fast-charge-voltage-max = <10500000>;
+				cm-flash-charge-voltage-max = <12000000>;
+				cm-wireless-charge-voltage-max = <6500000>;
+				cm-wireless-fast-charge-voltage-max = <12000000>;
+				/* drop voltage in microVolts to restart charging */
+				cm-charge-voltage-drop = <700000>;
+				cm-fast-charge-voltage-drop = <700000>;
+				cm-flash-charge-voltage-drop = <1000000>;
+				cm-wireless-charge-voltage-drop = <700000>;
+				cm-wireless-fast-charge-voltage-drop = <1000000>;
+
+				/* HS03 code for SR-SL6215-01-606 by gaochao at 20210813 start */
+				cm-dcp-jeita-temp-table = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-dcp-jeita-temp-table-1 = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-dcp-jeita-temp-table-2 = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				/* HS03 code for SR-SL6215-01-63 by gaochao at 20210805 start */
+				cm-sdp-jeita-temp-table = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4200000>;
+				cm-sdp-jeita-temp-table-1 = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4200000>;
+				cm-sdp-jeita-temp-table-2 = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4200000>;
+				/* HS03 code for SR-SL6215-01-63 by gaochao at 20210805 end */
+				cm-cdp-jeita-temp-table = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1500000 4400000>, <1450 1420 1500000 4400000>, <1500 1470 1500000 4200000>;
+				cm-cdp-jeita-temp-table-1 = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1500000 4400000>, <1450 1420 1500000 4400000>, <1500 1470 1500000 4200000>;
+				cm-cdp-jeita-temp-table-2= <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1500000 4400000>, <1450 1420 1500000 4400000>, <1500 1470 1500000 4200000>;
+				cm-unknown-jeita-temp-table = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4200000>;
+				cm-unknown-jeita-temp-table-1 = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4200000>;
+				cm-unknown-jeita-temp-table-2 = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4200000>;
+				cm-fchg-jeita-temp-table = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-fchg-jeita-temp-table-1 = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-fchg-jeita-temp-table-2 = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-flash-jeita-temp-table = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-flash-jeita-temp-table-1 = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-flash-jeita-temp-table-2 = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-wl-bpp-jeita-temp-table = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1000000 4400000>, <1450 1420 1000000 4400000>, <1500 1470 1000000 4200000>;
+				cm-wl-bpp-jeita-temp-table-1 = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1000000 4400000>, <1450 1420 1000000 4400000>, <1500 1470 1000000 4200000>;
+				cm-wl-bpp-jeita-temp-table-2 = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1000000 4400000>, <1450 1420 1000000 4400000>, <1500 1470 1000000 4200000>;
+				cm-wl-epp-jeita-temp-table = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-wl-epp-jeita-temp-table-1 = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				cm-wl-epp-jeita-temp-table-2 = <1000 1030 0 4400000>, <1050 1080 500000 4400000>,
+					<1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4200000>;
+				/* HS03 code for SR-SL6215-01-606 by gaochao at 20210813 end */
+
+				cm-cap-remap-table = <1 2 3>, <2 3 2>, <98 99 2>, <99 100 3>;
+
+				/* HS03 code for SR-SL6215-01-181 by gaochao at 20210728 start */
+				// monitored-battery = <&bat>;
+				monitored-battery = <&bat &bat1 &bat2>; // bat-SCUD_BYD bat1-ATL_NVT bat2-SCUD_SDI
+				/* HS03 code for SR-SL6215-01-181 by gaochao at 20210728 end */
+
+				cm-ir-cv-offset-microvolt = <100000>;
+				cm-ir-rc = <20>;
+				cm-ir-us-upper-limit-microvolt = <4500000>;
+
+				regulator@0 {
+					cm-regulator-name = "vddgen0";
+					cable@0 {
+						cm-cable-name = "USB";
+						extcon = <&pmic_typec>;
+					};
+				};
+
+				/* HS03 code for SR-SL6215-01-178 by gaochao at 20210728 start */
+				vddvbus: cm_otg_vbus {
+					regulator-name = "vddvbus";
+				};
+				/* HS03 code for SR-SL6215-01-178 by gaochao at 20210728 end */
+			};
+
+			tboard_thermistor: thermal-sensor {
+				compatible = "generic-adc-thermal";
+				#thermal-sensor-cells = <0>;
+				io-channels = <&pmic_adc 1>;
+				io-channel-names = "sensor-channel";
+				temperature-lookup-table = <
+					(-39742) 1131
+					(-29777) 1110
+					(-19480) 1074
+					(-4679) 983
+					10110 838
+					24805 654
+					44922 413
+					54903 316
+					64895 238
+					74884 178
+					84883 133
+					94883 100
+					104880 75
+					114889 57
+					124872 43 >;
+			};
+
+			pa_thermistor: pa-sensor {
+				compatible = "generic-adc-thermal";
+				#thermal-sensor-cells = <0>;
+				io-channels = <&pmic_adc 2>;
+				io-channel-names = "sensor-channel";
+				temperature-lookup-table = <
+					(-39742) 1131
+					(-29777) 1110
+					(-19480) 1074
+					(-4679) 983
+					10110 838
+					24805 654
+					44922 413
+					54903 316
+					64895 238
+					74884 178
+					84883 133
+					94883 100
+					104880 75
+					114889 57
+					124872 43 >;
+			};
+
+			chg_thermistor: chg-sensor {
+				compatible = "generic-adc-thermal";
+				#thermal-sensor-cells = <0>;
+				io-channels = <&pmic_adc 4>;
+				io-channel-names = "sensor-channel";
+				temperature-lookup-table = <
+					(-39742) 1131
+					(-29777) 1110
+					(-19480) 1074
+					(-4679) 983
+					10110 838
+					24805 654
+					44922 413
+					54903 316
+					64895 238
+					74884 178
+					84883 133
+					94883 100
+					104880 75
+					114889 57
+					124872 43 >;
+			};
+
+			audio-voice-trig {
+				status = "disable";
+				compatible = "sprd,voice_trig";
+				irq_gpio = <&ap_gpio 169 GPIO_ACTIVE_HIGH>;
+			};
+
+			sprd_marlin3: sprd-marlin3 {
+				compatible = "sprd,marlin3";
+				m2-wakeup-ap-gpios = <&ap_gpio 53 GPIO_ACTIVE_LOW>;
+				reset-gpios = <&ap_gpio 177 GPIO_ACTIVE_LOW>;
+				enable-gpios = <&ap_gpio 116 GPIO_ACTIVE_LOW>;
+				m2-to-ap-irq-gpios = <&ap_gpio 52 GPIO_ACTIVE_LOW>;
+				/*HS03 code for SR-SL6215-01-695 by mujunsheng at 20210824 start*/
+				xtal-26m-clk-type = "TSX";
+				/*HS03 code for SR-SL6215-01-695 by mujunsheng at 20210824 end*/
+				avdd12-supply = <&vddwcn>;
+				avdd33-supply = <&vddwifipa>;
+				dcxo18-supply = <&vddsim2>;
+
+				clock-names = "clk_32k","source","enable";
+				clocks = <&aon_clk CLK_AUX2>,
+					 <&ext_32k>,
+					 <&aonapb_gate CLK_AUX2_EB>;
+
+				reg = <0 0x87000000 0 0x00100000>,
+					<0 0x87100000 0 0xA0000>;
+				reg-names = "btwf_mem", "gnss_mem";
+
+				sdhci-name = <&sdio1>;
+				sprd,btwf-file-name = "/dev/block/by-name/wcnmodem";
+				sprd,gnss-file-name = "/dev/block/by-name/gnssmodem";
+				adma-tx;
+				adma-rx;
+
+				/*
+				 * bound parameter:
+				 * [0]:addr offset, [1]:mask, [2]:unboundval, [3]:boundval
+				 */
+				avdd12-parent-bound-chip = <REG_ANA_SLP_DCDC_PD_CTRL MASK_ANA_SLP_DCDCGEN1_PD_EN 0x0 MASK_ANA_SLP_DCDCGEN1_PD_EN>;
+				avdd12-bound-wbreq = <REG_ANA_LDO_XTL_EN10 MASK_ANA_LDO_VDDWCN_EXT_XTL3_EN 0x0 MASK_ANA_LDO_VDDWCN_EXT_XTL3_EN>;
+				avdd33-bound-wbreq = <REG_ANA_LDO_XTL_EN11 MASK_ANA_LDO_VDDWIFIPA_EXT_XTL3_EN 0x0 MASK_ANA_LDO_VDDWIFIPA_EXT_XTL3_EN>;
+			};
+
+			sprd-mtty {
+				compatible = "sprd,mtty";
+				sprd,name = "ttyBT";
+			};
+
+			sprd-fm {
+				compatible = "sprd,marlin3-fm";
+				sprd,name = "sprd-fm";
+			};
+
+			gnss_common_ctl {
+				compatible = "sprd,gnss_common_ctl";
+				sprd,name = "gnss_common_ctl";
+			};
+
+			sprd-wlan{
+				compatible = "sprd,sc2355-wifi";
+			};
+		};
+	};
+};
+
+&sdio1 {
+	sprd,sdr104-dly = <0x7f 0x7f 0x7f 0x7f>;
+	sprd,sdr50-dly = <0x7f 0x7f 0x8f 0x8f>;
+	sd-uhs-sdr104;
+	sd-uhs-sdr50;
+	bus-width = <4>;
+	sprd,name = "sdio_wifi";
+	sprd,sdio-adma;
+	no-sd;
+	no-mmc;
+	status = "okay";
+};
+
+&chosen {
+	bootargs_ext = "androidboot.hardware=ums9230_4h10 androidboot.dtbo_idx=0";
+};
+
+&vbmeta {
+	parts = "vbmeta,socko,odmko,boot,recovery,dtbo,l_modem,pm_sys,l_ldsp,l_gdsp,l_agdsp";
+};
+
+&reserved_memory {
+	wcn_reserved: wcn-mem@87000000 {
+		reg = <0x0 0x87000000 0x0 0x001A0000>;
+	};
+
+	logo_reserved: logobuffer@9e000000{
+                /*HS03 code for P210907-02544 by shengzhong at 2021/1001 start*/
+		reg = <0x0 0x9e000000 0x0 0x00ab0000>;
+                /*HS03 code for P210907-02544 by shengzhong at 2021/1001 end*/
+	};
+
+	widevine_reserved: widevine@a3800000 {
+                /*HS03 code for P210907-02544 by shengzhong at 2021/1001 start*/
+		reg = <0x0 0xa3800000 0x0 0x0b400000>;
+                /*HS03 code for P210907-02544 by shengzhong at 2021/1001 end*/
+	};
+
+/* HS03 code for SR-SL6215-01-755 by bianxiaoqiang at 2021/10/26 start */
+/*
+	fd_reserved: faceid-mem@fc3a0000 {
+		reg = <0x0 0xfc3a0000 0x0 0x00500000>;
+	};
+*/
+/* HS03 code for SR-SL6215-01-755 by bianxiaoqiang at 2021/10/26 end */
+
+	wb_reserved: writeback-mem@fc8a0000 {
+		reg = <0x0 0xfc8a0000 0x0 0x00ae0000>;
+	};
+
+	fb_reserved: framebuffer-mem@fd380000 {
+                /*HS03 code for P210907-02544 by shengzhong at 2021/1001 start*/
+		reg = <0x0 0xfd380000 0x0 0x01300000>;
+                /*HS03 code for P210907-02544 by shengzhong at 2021/1001 end*/
+	};
+};
+
+&thm_zone {
+	bd_thmzone: board-thmzone {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&tboard_thermistor>;
+	};
+
+	pa_thmzone: pa-thmzone {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&pa_thermistor>;
+	};
+
+	chg_thmzone: chg-thmzone {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&chg_thermistor>;
+	};
+};
+
+&i2c0 {
+	status = "okay";
+	clock-frequency = <400000>;
+/*
+	sensor_main: sensor-main@20 {
+		compatible = "sprd,sensor-main";
+		reg = <0x20>;
+		clock-names = "clk_src","sensor_eb",
+			"clk_96m","clk_76m8",
+			"clk_48m","clk_26m";
+		clocks = <&mm_clk CLK_SENSOR0>,<&mm_gate CLK_MM_SENSOR0_EB>,
+				<&pll1 CLK_TWPLL_96M>,<&pll1 CLK_TWPLL_76M8>,
+				<&pll1 CLK_TWPLL_48M>,<&ext_26m>;
+		vddio-supply = <&vddcamio>;
+		vddcama-supply = <&vddcama0>;
+		dvdd-gpios = <&ap_gpio 137 0>;
+		vddcammot-supply = <&vddcammot>;
+		reset-gpios = <&ap_gpio 45 0>;
+		power-down-gpios = <&ap_gpio 47 0>;
+		sprd,phyid = <0>;
+		csi = <&csi0>;
+	};
+
+	sensor_sub: sensor-sub@5a {
+		compatible = "sprd,sensor-sub";
+		reg = <0x5a>;
+		clock-names = "clk_src","sensor_eb",
+			"clk_96m","clk_76m8",
+			"clk_48m","clk_26m";
+		clocks = <&mm_clk CLK_SENSOR0>,<&mm_gate CLK_MM_SENSOR0_EB>,
+				<&pll1 CLK_TWPLL_96M>,<&pll1 CLK_TWPLL_76M8>,
+				<&pll1 CLK_TWPLL_48M>,<&ext_26m>;
+		vddio-supply = <&vddcamio>;
+		vddcama-supply = <&vddcama0>;
+		dvdd-gpios = <&ap_gpio 137 0>;
+		vddcammot-supply = <&vddcammot>;
+		reset-gpios = <&ap_gpio 44 0>;
+		power-down-gpios = <&ap_gpio 46 0>;
+	//	mipi-switch-en-gpios = <&ap_gpio 55 0>;
+	//	mipi-switch-mode-gpios = <&ap_gpio 8 0>;
+		sprd,phyid = <2>;
+		csi = <&csi0>;
+	};
+	*/
+};
+
+&i2c1 {
+	status = "okay";
+	clock-frequency = <400000>;
+/*
+	sensor_main2: sensor-main2@20 {
+		compatible = "sprd,sensor-main2";
+		reg = <0x20>;
+		clock-names = "clk_src","sensor_eb",
+			"clk_96m","clk_76m8",
+			"clk_48m","clk_26m";
+		clocks = <&mm_clk CLK_SENSOR1>,<&mm_gate CLK_MM_SENSOR1_EB>,
+				<&pll1 CLK_TWPLL_96M>,<&pll1 CLK_TWPLL_76M8>,
+				<&pll1 CLK_TWPLL_48M>,<&ext_26m>;
+		vddio-supply = <&vddcamio>;
+		vddcama-supply = <&vddcama1>;
+		vddcamd-supply = <&vddcamd0>;
+		vddcammot-supply = <&vddcammot>;
+		mot-gpios = <&ap_gpio 113 0>;
+		reset-gpios = <&ap_gpio 41 0>;
+		power-down-gpios = <&ap_gpio 40 0>;
+	//	mipi-switch-en-gpios = <&ap_gpio 55 0>;
+	//	mipi-switch-mode-gpios = <&ap_gpio 8 0>;
+		sprd,phyid = <4>;
+		csi = <&csi1>;
+	};
+*/
+};
+
+&i2c5 {
+	status = "okay";
+	clock-frequency = <400000>;
+
+	bq2560x_chg: charger@6b {
+		compatible = "ti,bq2560x_chg";
+		reg = <0x6b>;
+		phys = <&hsphy>;
+		/* HS03 code for SR-SL6215-01-181 by gaochao at 20210728 start */
+		// monitored-battery = <&bat>;
+		monitored-battery = <&bat &bat1 &bat2>; // bat-SCUD_BYD bat1-ATL_NVT bat2-SCUD_SDI
+		/* HS03 code for SR-SL6215-01-181 by gaochao at 20210728 end */
+		// extcon = <&extcon_gpio>, <&pmic_pd>;
+		// pd-extcon-enable;
+		extcon = <&extcon_gpio>;
+		irq-gpio = <&ap_gpio 115 GPIO_ACTIVE_LOW>;
+		/* HS03 code for SR-SL6215-01-178 by gaochao at 20210728 start */
+		/*
+		vddvbus:otg-vbus {
+			regulator-name = "vddvbus";
+		};
+		*/
+		bq2560x_otg_vbus: bq2560x_otg_vbus {
+			regulator-name = "bq2560x_otg_vbus";
+		};
+		/* HS03 code for SR-SL6215-01-178 by gaochao at 20210728 end */
+	};
+
+	/* HS03 code for SR-SL6215-01-178 by gaochao at 20210728 start */
+	sgm41511_chg: sgm_charger@67 {
+		compatible = "sgm,sgm41511_chg";
+		reg = <0x67>;
+		phys = <&hsphy>;
+		/* HS03 code for SR-SL6215-01-181 by gaochao at 20210728 start */
+		// monitored-battery = <&bat>;
+		monitored-battery = <&bat &bat1 &bat2>; // bat-SCUD_BYD bat1-ATL_NVT bat2-SCUD_SDI
+		/* HS03 code for SR-SL6215-01-181 by gaochao at 20210728 end */
+		extcon = <&extcon_gpio>;
+		irq-gpio = <&ap_gpio 115 GPIO_ACTIVE_LOW>;
+		sgm41511_otg_vbus: sgm41511_otg_vbus {
+			regulator-name = "sgm41511_otg_vbus";
+		};
+	};
+
+	rt9471_chg: rt_charger@53 {
+		/* HS03 code for SR-SL6215-01-177 by jiahao at 20210810 start */
+		compatible = "richtek,rt9471";
+		/* HS03 code for SR-SL6215-01-177 by jiahao at 20210810 end */
+		reg = <0x53>;
+		phys = <&hsphy>;
+		/* HS03 code for SR-SL6215-01-181 by gaochao at 20210728 start */
+		// monitored-battery = <&bat>;
+		monitored-battery = <&bat &bat1 &bat2>; // bat-SCUD_BYD bat1-ATL_NVT bat2-SCUD_SDI
+		/* HS03 code for SR-SL6215-01-181 by gaochao at 20210728 end */
+		extcon = <&extcon_gpio>;
+		/* HS03 code for SR-SL6215-01-177 by jiahao at 20210810 start */
+		rt,intr_gpio = <&ap_gpio 115 GPIO_ACTIVE_LOW>;
+		/* HS03 code for SR-SL6215-01-177 by jiahao at 20210810 end */
+		rt9471_otg_vbus: rt9471_otg_vbus {
+			regulator-name = "rt9471_otg_vbus";
+		};
+
+		/* HS03 code for SR-SL6215-01-177 by jiahao at 20210810 start */
+		rt9471 {
+			charger_name = "rt9471_charger";
+			interrupt-names = "wdt", "chg_mivr", "vbus_gd",
+					  "bc12_done", "detach", "vac_ov",
+					  "otg_fault", "chg_rdy", "chg_done";
+			ichg = <2000000>;		/* uA */
+			aicr = <500000>;		/* uA */
+			mivr = <4400000>;		/* uV */
+			/* HS03 code for SL6215DEV-3640 by ditong at 20211117 start */
+			cv = <4400000>;			/* uV */
+			/* HS03 code for SL6215DEV-3640 by ditong at 20211117 end */
+			ieoc = <200000>;		/* uA */
+			safe-tmr = <10>;		/* hour */
+			wdt = <40>;			/* sec */
+			/*
+			 * 0: MIVR register
+			 * 1: MIVR = VBAT + 200mV
+			 * 2: MIVR = VBAT + 250mV
+			 * >= 3: MIVR = VBAT + 300mV
+			 */
+			mivr-track = <0>;
+			en-safe-tmr;
+			en-te;
+			/* en-jeita; */
+			/* ceb-invert; */
+			/* dis-i2c-tout; */
+			en-qon-rst;
+			/* auto-aicr; */
+		};
+		/* HS03 code for SR-SL6215-01-177 by jiahao at 20210810 end */
+	};
+	/* HS03 code for SR-SL6215-01-178 by gaochao at 20210728 end */
+
+	bq2597x_chg: charger@65 {
+		compatible = "ti,bq2597x-standalone";
+		reg = <0x65>;
+		irq-gpio = <&ap_gpio 126 GPIO_ACTIVE_LOW>;
+
+		ti,bq2597x,bus-therm-disable = <1>;
+		ti,bq2597x,regulation-disable = <1>;
+
+		ti,bq2597x,bat-ovp-threshold = <4400>;
+		ti,bq2597x,bat-ovp-alarm-threshold = <4340>;
+		ti,bq2597x,bat-ocp-threshold = <5500>;
+		ti,bq2597x,bat-ocp-alarm-threshold = <5000>;
+		ti,bq2597x,bus-ovp-threshold = <11500>;
+		ti,bq2597x,bus-ovp-alarm-threshold = <10500>;
+		ti,bq2597x,bus-ocp-threshold = <3000>;
+		ti,bq2597x,bus-ocp-alarm-threshold = <2700>;
+		ti,bq2597x,bat-ucp-alarm-threshold = <1000>;
+		ti,bq2597x,bat-therm-threshold = <0x15>;
+		ti,bq2597x,bus-therm-threshold = <0x15>;
+		ti,bq2597x,die-therm-threshold = <0xc8>;
+		ti,bq2597x,ac-ovp-threshold = <11>;
+		ti,bq2597x,sense-resistor-mohm = <5>;
+		ti,bq2597x,adc-sample-bits = <13>;
+		ti,bq2597x,ibat-regulation-threshold = <300>;
+		ti,bq2597x,vbat-regulation-threshold = <100>;
+		ti,bq2597x,vdrop-threshold = <400>;
+		ti,bq2597x,vdrop-deglitch = <5000>;
+		ti,bq2597x,ss-timeout = <100000>;
+		ti,bq2597x,watchdog-timer = <30000>;
+	};
+
+	hl1506_cp_converter: charger@1b {
+		compatible = "halo,hl1506_cp_converter";
+		reg = <0x1b>;
+		chg_pump_en_gpio = <&ap_gpio 147 GPIO_ACTIVE_HIGH>;
+	};
+
+	nu1619_rx: charger@61 {
+		compatible = "nuvolta,wl_charger_nu1619";
+		reg = <0x61>;
+		phys = <&hsphy>;
+		rx,irq_gpio = <&ap_gpio 146 GPIO_ACTIVE_LOW>;
+		switch_chg_en_gpio = <&ap_gpio 171 GPIO_ACTIVE_HIGH>;
+		switch_flag_en_gpio = <&ap_gpio 176 GPIO_ACTIVE_HIGH>;
+	};
+/*
+	flash_ic: flash-ic@63 {
+		compatible = "sprd,flash-ocp8137";
+		reg = <0x63>;
+		sprd,flash-ic = <8137>;
+		sprd,torch = <1>;
+		sprd,preflash = <1>;
+		sprd,highlight = <1>;
+		sprd,torch-level = <128>;
+		sprd,preflash-level = <128>;
+		sprd,highlight-level = <128>;
+		sprd,lvfm-enable = <1>;
+		flash-torch-en-gpios = <&ap_gpio 32 0>;
+		flash-chip-en-gpios = <&ap_gpio 138 0>;
+		flash-en-gpios = <&ap_gpio 139 0>;
+		//HS03 code for SR-SL6215-01-253 by zhuxiaoming at 20210803 start
+		//flash-sync-gpios = <&ap_gpio 121 0>; //Conflict with NFC GPIO
+		//HS03 code for SR-SL6215-01-253 by zhuxiaoming at 20210803 end
+	};*/
+};
+
+&i2c6 {
+	status = "okay";
+	clock-frequency = <400000>;
+/*
+	sensor_sub2: sensor-sub2@6e {
+		compatible = "sprd,sensor-sub2";
+		reg = <0x6e>;
+		clock-names = "clk_src","sensor_eb",
+			"clk_96m","clk_76m8",
+			"clk_48m","clk_26m";
+		clocks = <&mm_clk CLK_SENSOR2>,<&mm_gate CLK_MM_SENSOR2_EB>,
+			<&pll1 CLK_TWPLL_96M>,<&pll1 CLK_TWPLL_76M8>,
+			<&pll1 CLK_TWPLL_48M>,<&ext_26m>;
+		vddio-supply = <&vddcamio>;
+		avdd-gpios = <&ap_gpio 130 0>;
+		vddcamd-supply = <&vddcamd1>;
+		vddcammot-supply = <&vddcammot>;
+		mot-gpios = <&ap_gpio 112 0>;
+		reset-gpios = <&ap_gpio 114 0>;
+	//	power-down-gpios = <&ap_gpio 40 0>;
+		sprd,phyid = <3>;
+		csi = <&csi2>;
+	};
+	*/
+};
+
+&aon_i2c0 {
+	status = "okay";
+	clock-frequency = <1000000>;
+};
+
+&dvfs_dcdc_cpu0_supply {
+	pmic-type-num = <0>;
+	slew-rate = <9375>; /* 9375uV/us */
+	top-dvfs-adi-state = <0x70 0 0xf>;
+	voltage-grade-num = <8>;
+	voltage-grade = <0 0xf0 0xf4 0 0x1ff>,
+		<1 0xf0 0xf4 9 0x1ff>,
+		<2 0x100 0xf4 18 0x1ff>,
+		<3 0x110 0xf8 0 0x1ff>,
+		<4 0x120 0xf8 9 0x1ff>,
+		<5 0x130 0xf8 18 0x1ff>,
+		<6 0x140 0xfc 0 0x1ff>,
+		<7 0x140 0xfc 9 0x1ff>;
+	voltage-up-delay = <50 0x58 0 0xffff 0x600>,
+		<100 0x58 16 0xffff 0xa00>,
+		<150 0x54 0 0xffff 0xf00>,
+		<200 0x54 16 0xffff 0x1400>,
+		<250 0x50 0 0xffff 0x1900>,
+		<300 0x50 16 0xffff 0x1e00>,
+		<350 0x110 0 0xffff 0x2300>;
+	voltage-down-delay = <50 0x64 0 0xffff 0x600>,
+		<100 0x64 16 0xffff 0xa00>,
+		<150 0x60 0 0xffff 0xf00>,
+		<200 0x60 16 0xffff 0x1400>,
+		<250 0x5c 0 0xffff 0x1900>,
+		<300 0x5c 16 0xffff 0x1e00>,
+		<350 0x114 0 0xffff 0x2300>;
+	tuning-latency-us = <0>;
+	chnl-in-i2c = <0>;
+};
+
+&dvfs_dcdc_cpu1_supply {
+	chnl-i2c-used;
+	third-pmic-used;
+	pmic-type-num = <2>;
+	slew-rate = <4000>; /* 4000uV/us */
+	supply-type-sel = <0x120 0 1>;
+	top-dvfs-i2c-state = <0x9c 4 0x1f>;
+	voltage-grade-num = <8>;
+	voltage-grade = <0 0x8f 0x12c 0 0xff>,
+		<1 0x94 0x12c 8 0xff>,
+		<2 0x99 0x12c 16 0xff>,
+		<3 0x9e 0x12c 24 0xff>,
+		<4 0xa3 0x130 0 0xff>,
+		<5 0xa8 0x130 8 0xff>,
+		<6 0xa8 0x130 16 0xff>,
+		<7 0xa8 0x130 24 0xff>;
+	voltage-up-delay = <50 0x84 0 0xffff 0x1600>,
+		<100 0x84 16 0xffff 0x1a00>,
+		<150 0x80 0 0xffff 0x1f00>,
+		<200 0x80 16 0xffff 0x2400>,
+		<250 0x7c 0 0xffff 0x2900>,
+		<300 0x7c 16 0xffff 0x2e00>,
+		<350 0x118 0 0xffff 0x3300>;
+	voltage-down-delay = <50 0x90 0 0xffff 0x600>,
+		<100 0x90 16 0xffff 0xa00>,
+		<150 0x8c 0 0xffff 0xf00>,
+		<200 0x8c 16 0xffff 0x1400>,
+		<250 0x88 0 0xffff 0x1900>,
+		<300 0x88 16 0xffff 0x1e00>,
+		<350 0x11c 0 0xffff 0x2300>;
+	tuning-latency-us = <0>;
+	chnl-in-i2c = <1>;
+};
+
+&hsphy {
+	vdd-supply = <&vddusb33>;
+	extcon = <&extcon_gpio>;
+	/* HS03 code for SL6215DEV-36 by shixuanxuan at 20210810 start */
+	// sprd,hsphy-device-eye-pattern = <0x04f3d1c0>;
+	// sprd,hsphy-host-eye-pattern = <0x04f3d1c0>;
+	sprd,hsphy-device-eye-pattern = <0x04b3d1c0>;
+	sprd,hsphy-host-eye-pattern = <0x04b3d1c0>;
+	/* HS03 code for SL6215DEV-36 by shixuanxuan at 20210810 end */
+	status = "okay";
+};
+
+&usb {
+	/* HS03 code for SR-SL6215-01-186 by gaochao at 20210729 start */
+	// extcon = <&extcon_gpio>, <&pmic_typec>;
+	extcon = <&extcon_gpio>;
+	/* HS03 code for SR-SL6215-01-186 by gaochao at 20210729 end */
+	vbus-supply = <&vddvbus>;
+	status = "okay";
+};
+
+&sdio0 {
+	cd-gpios = <&eic_sync 35 GPIO_ACTIVE_HIGH>;
+};
+
+&ion {
+	heap@1 {
+		reg = <1>;
+		label = "carveout_mm";
+		type = <2>;
+		memory-region = <&widevine_reserved>;
+	};
+
+	heap@3 {
+		reg = <3>;
+		label = "carveout_fb";
+		type = <2>;
+		memory-region = <&fb_reserved>;
+	};
+};
+
+&ufs {
+	status = "okay";
+};
+
+&i2c2 {
+	status = "okay";
+	/*HS03 code for SR-SL6215-01-253 by zhuxiaoming at 20210803 start*/
+	/* Conflict with NFC GPIO
+	ucp1301_rcv: ucp1301@58 {
+		compatible = "sprd,ucp1301-rcv";
+		reg = <0x58>;
+		reset-gpios = <&ap_gpio 172 GPIO_ACTIVE_HIGH>;
+		#sound-dai-cells = <1>;
+	};*/
+	/*HS03 code for SR-SL6215-01-253 by zhuxiaoming at 20210803 end*/
+
+	/*HS03 code for SR-SL6215-01-253 by zhuxiaoming at 20210803 start*/
+    sec-nfc@27 {
+        compatible = "sec-nfc";
+        reg = <0x27>;
+        clock-names = "nfc_clk","source","enable";
+        clocks = <&aon_clk CLK_AUX0>, <&ext_26m>, <&aonapb_gate CLK_AUX0_EB>;
+        sec-nfc,ven-gpio = <&ap_gpio 121 0>;    /*gpio_121*/
+        sec-nfc,firm-gpio = <&ap_gpio 172 0>;   /*gpio_172*/
+        sec-nfc,irq-gpio = <&ap_gpio 167 0>;    /*gpio_167*/
+        sec-nfc,clk-req = <&ap_gpio 90 0>;      /*gpio_90*/
+    };
+	/*HS03 code for SR-SL6215-01-253 by zhuxiaoming at 20210803 end*/
+};
+
+&i2c3 {
+	status = "okay";
+};
+
+&i2c4 {
+	status = "okay";
+	/*HS03 code for SR-SL6215-01-253 by zhuxiaoming at 20210803 start*/
+	/* Conflict with NFC GPIO
+	ucp1301_spk: ucp1301@58 {
+		compatible = "sprd,ucp1301-spk";
+		reg = <0x58>;
+		reset-gpios = <&ap_gpio 167 GPIO_ACTIVE_HIGH>;
+		#sound-dai-cells = <1>;
+	};*/
+	/*HS03 code for SR-SL6215-01-253 by zhuxiaoming at 20210803 end*/
+};
+
+/*HS03 code for SR-SL6215-01-200 by yuyongxiang at 20210802 start*/
+&sprd_headset {
+	status = "okay";
+};
+/*HS03 code for SR-SL6215-01-200 by yuyongxiang at 20210802 end*/
+
+&pdm_dmic {
+	status = "okay";
+};
+
+/* HS03 code for SL6215DEV-560 by LiangWenye at 20210826 start */
+&sound_vbc_v4_sprd_codec {
+	status = "okay";
+	/*ext_control_type, hook selection, mode, gpio share*/
+	sprd,spk-ext-pa-info = <0 0 10 2 0>;
+	sprd,spk-ext-pa-gpio = <&ap_gpio 40 0>;
+	sprd,hpr-ext-pa-gpio = <&ap_gpio 93 1>;
+};
+/* HS03 code for SL6215DEV-560 by LiangWenye at 20210826 end */
+
+&vddldo0 {
+	regulator-always-on;
+};
+
+&vddldo1 {
+	regulator-name = "vddldo1";
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+	regulator-ramp-delay = <25000>;
+	regulator-always-on;
+};
+
+&vddldo2 {
+	regulator-always-on;
+};
+
+&pmic_fgu {
+	/* HS03 code for SR-SL6215-01-181 by gaochao at 20210728 start */
+	// monitored-battery = <&bat>;
+	monitored-battery = <&bat &bat1 &bat2>; // bat-SCUD_BYD bat1-ATL_NVT bat2-SCUD_SDI
+	/* HS03 code for SR-SL6215-01-181 by gaochao at 20210728 end */
+	/* HS03 code for SR-SL6215-01-63 by gaochao at 20210805 start */
+	// sprd,calib-resistance-real = <4850>;
+	sprd,calib-resistance-real = <9971>;
+	/* HS03 code for SR-SL6215-01-63 by gaochao at 20210805 end */
+	sprd,calib-resistance-spec = <20000>;
+	/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 start */
+	first-calib-voltage = <3564000>;
+	/* HS03 code for SR-SL6215-01-43 by gaochao at 20210817 end */
+	first-calib-capacity = <50>;
+	fgu-capacity-track;
+	fullbatt-track-end-vol = <4295>;
+	fullbatt-track-end-cur = <130>;
+	phys = <&hsphy>;
+};
+
+&dpu {
+	sprd,logo-memory = <&logo_reserved>;
+	sprd,wb-memory = <&wb_reserved>;
+
+	sprd,dpi-clk-div = <1>;
+};
+
+
+&pmic_fchg {
+	sprd,input-voltage-microvolt = <5000000>;
+	sprd,pd-fixed-max-microwatt = <18000000>;
+	sprd,support-sfcp;
+	sprd,support-pd-pps;
+	phys = <&hsphy>;
+};
+
+&pmic_pd {
+	status = "okay";
+	usb_con: connector {
+		compatible = "usb-c-connector";
+		label = "USB-C";
+		power-role = "dual";
+		try-power-role = "sink";
+		source-pdos = <PDO_FIXED(5000, 400, PDO_FIXED_USB_COMM)>;
+		sink-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_USB_COMM)
+			     PDO_PPS_APDO(3300, 11000, 3000)>;
+		op-sink-microwatt = <10000000>;
+	};
+};
+
+&ddr_dfs {
+	  sprd-scene = "boost", "lcdon", "lcdoff", "camlow",
+			"camhigh", "camveryhigh", "faceid", "inputboost";
+	  sprd-freq = <1333 768 256 1333 1333 0xbacd 1333 1333>;
+};
+
+&pin_controller {
+	pinctrl-names =
+	/* rfctl16 ,rfctl3, rfctl5 */
+	"gpio_8", "gpio_22", "gpio_24",
+	/* rfctl6, rfctl7, keyin0 */
+	"gpio_25", "gpio_26", "gpio_124",
+	/* bt_rfctl2 */
+	"gpio_175";
+	pinctrl-0 = <&gpio_8>;
+	pinctrl-1 = <&gpio_22>;
+	pinctrl-2 = <&gpio_24>;
+	pinctrl-3 = <&gpio_25>;
+	pinctrl-4 = <&gpio_26>;
+	pinctrl-5 = <&gpio_124>;
+	pinctrl-6 = <&gpio_175>;
+
+	gpio_8: rfctl16 {
+		pins = "QOGIRL6_RFCTL16";
+		function = "func4";
+	};
+
+	gpio_22: rfctl3 {
+		pins = "QOGIRL6_RFCTL3";
+		function = "func4";
+	};
+
+	gpio_24: rfctl5 {
+		pins = "QOGIRL6_RFCTL5";
+		function = "func4";
+	};
+
+	gpio_25: rfctl6 {
+		pins = "QOGIRL6_RFCTL6";
+		function = "func4";
+	};
+
+	gpio_26: rfctl7 {
+		pins = "QOGIRL6_RFCTL7";
+		function = "func4";
+	};
+
+	gpio_124: keyin0 {
+		pins = "QOGIRL6_KEYIN0";
+		function = "func4";
+	};
+
+	gpio_175: bt_rfctl2 {
+		pins = "QOGIRL6_BT_RFCTL2";
+		function = "func4";
+	};
+};
+
+/* HS03 code for SR-SL6215-01-755 by bianxiaoqiang at 2021/10/26 start */
+/*
+&ion {
+	heap@4 {
+		reg = <4>;
+		label = "carveout_fd";
+		type = <2>;
+		memory-region = <&fd_reserved>;
+	};
+};
+*/
+/* HS03 code for SR-SL6215-01-755 by bianxiaoqiang at 2021/10/26 end */
+
+&adi_bus {
+	sprd,hw-channels = <2 0x18cc>, <3 0x18cc>, <13 0x1854>, <15 0x1874>,
+			<17 0x1844>,<19 0x1844>, <21 0x1864>, <30 0x1820>,
+			<35 0x19b8>, <39 0x19ac>;
+};
+
+/* HS03 code for SR-SL6215-01-233/SR-SL6215-01-208 by sunxunou at 2021/08/02 start */
+#include "HS03/SL6215-HS03-common.dtsi"
+/* HS03 code for SR-SL6215-01-233/SR-SL6215-01-208 by sunxunou at 2021/08/02 end */
+#include "ums9230-4h10-sec-common.dtsi"

@@ -1,0 +1,96 @@
+/dts-v1/;
+/plugin/;
+
+#include "lcd/lcd_nt35596_boe_mipi_fhd.dtsi"
+#include "lcd/lcd_nt35695_truly_mipi_fhd.dtsi"
+#include "lcd/lcd_dummy_mipi.dtsi"
+
+/ {
+	model = "Spreadtrum UMS9230 Haps Backdoor Board";
+
+	compatible = "sprd,ums9230-haps-backdoor";
+
+	sprd,sc-id = "ums9230-haps backdoor 1000";
+
+	fragment {
+		target-path = "/";
+		__overlay__ {
+			reserved-memory {
+				#address-cells = <2>;
+				#size-cells = <2>;
+				ranges;
+
+				socko_memdisk_reserved: socko_memdisk_reserved@11FF00000{
+					reg = <0x1 0x1FF00000 0x0 0x4ffffff>; /*socko 80M*/
+				};
+
+				odmko_memdisk_reserved: odmko_memdisk_reserved@124F00000{
+					reg = <0x1 0x24F00000 0x0 0x1dfffff>; /*odmko 30M*/
+				};
+
+				super_memdisk_reserved: super-memdisk-reserved@1f1a00000{
+					reg = <0x1 0xf1a00000 0x0 0x80000000>;  /* system 2G */
+				};
+
+				userdata_memdisk_reserved: userdata-memdisk-reserved@151a00000{
+					reg = <0x1 0x51a00000 0x0 0x40000000>; /* userdata 1G */
+				};
+
+				metadata_memdisk_reserved: metadata-memdisk-reserved@279a00000{
+					reg = <0x2 0x79a00000 0x0 0x3200000>; /* metadata 50M */
+				};
+
+				cache_memdisk_reserved: cache-memdisk-reserved@27cc00000{
+					reg = <0x2 0x7cc00000 0x0 0x3200000>; /* cache 50M */
+				};
+
+				persist_memdisk_reserved: persist-memdisk-reserved@27fe00000{
+					reg = <0x2 0x7fe00000 0x0 0x200000>; /* persist 2M */
+				};
+			};
+
+			sprd-memdisk {
+				compatible = "sprd,memdisk";
+
+				socko {
+					memory-region = <&socko_memdisk_reserved>;
+					label = "socko";
+				};
+
+				odmko {
+					memory-region = <&odmko_memdisk_reserved>;
+					label = "odmko";
+				};
+
+				super {
+					memory-region = <&super_memdisk_reserved>;
+					label = "super";
+				};
+
+				userdata {
+					memory-region = <&userdata_memdisk_reserved>;
+					label = "userdata";
+				};
+
+				metadata {
+					memory-region = <&metadata_memdisk_reserved>;
+					label = "metadata";
+				};
+
+				cache {
+					memory-region = <&cache_memdisk_reserved>;
+					label = "cache";
+				};
+
+				persist {
+					memory-region = <&persist_memdisk_reserved>;
+					label = "persist";
+				};
+			};
+		};
+	};
+};
+
+&chosen {
+	bootargs_ext = "androidboot.hardware=ums9230_haps androidboot.dtbo_idx=0 androidboot.boot_devices=memdisk0";
+};

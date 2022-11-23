@@ -1,0 +1,143 @@
+/*
+ * Unisoc UMS9230 wcn board DTSI file
+ * These dt is used for wcn drivers
+ *
+ * Copyright (C) 2020, Unisoc Communications Inc.
+ *
+ * This file is licensed under a dual GPLv2 or X11 license.
+ */
+/ {
+	wcn_btwf: cpwcn-btwf {
+		compatible = "sprd,integrate_marlin";
+		sprd,name = "wcn_btwf";
+		sprd,syscon-ap-apb = <&aon_apb_regs>;
+		sprd,syscon-ap-pmu = <&pmu_apb_regs>;
+		sprd,syscon-wcn-aon-apb = <&wcncp_aon_apb_regs>;
+		sprd,syscon-wcn-aon-ahb = <&wcncp_aon_ahb_regs>;
+		sprd,syscon-ap-pub-apb = <&pub_apb_regs>;
+		sprd,syscon-wcn-btwf-ahb = <&wcncp_btwf_ahb_regs>;
+		/* Boot Up group:
+		 * <Wcn addr remap,PowerOn,
+		 * Disable force sleep,Cmstar remap,ResetRelease>
+		 */
+		sprd,ctrl-probe-num = <1>;
+		sprd,ctrl-reg = <0x9018 0x23a8 0x2818 0x1410 0x004c 0x000c>;
+		sprd,ctrl-mask = <0x00003fff 0x03000000 0x00000080
+					0x03000000 0xffffffff 0x00000001>;
+		sprd,ctrl-value = <0x00000070 0x03000000 0x00000080
+					0x03000000 0x7fdc00 0x00000000>;
+		sprd,ctrl-rw-offset = <0x1000 0x2000 0x2000
+					0x1000 0x0000 0x0000>;
+		sprd,ctrl-us-delay = <10 10 10 10 10 10>;
+		/* pub_apb, aon_apb, aon_apb */
+		/* btwf_ahb, wcn_aon_ahb wcn_aon_ahb */
+		sprd,ctrl-type = <0x2 0x1 0x1 0x7 0x9 0x9>;
+		/* Add shutdown group:WCN rst */
+		sprd,ctrl-shutdown-reg = <0x000c>;
+		sprd,ctrl-shutdown-mask = <0x1>;
+		sprd,ctrl-shutdown-value = <0x1>;
+		sprd,ctrl-shutdown-rw-offset = <0x0>;
+		sprd,ctrl-shutdown-us-delay = <10>;
+		sprd,ctrl-shutdown-type = <0x9>;
+		reg = <0x87000000 0x200000>;
+		sprd,file-name ="/dev/block/platform/soc/soc:ap-apb/201d0000.sdio/by-name/wcnmodem";
+		sprd,file-length = <0x178000>;
+		/* for btwf: cpu addr 0 map to ddr 0m */
+		sprd,apcp-sync-addr = <0x7fdc00>;
+		sprd,wcn-sipc-ver = <1>;
+		vddwcn-supply = <&vddwcn>;
+		dcxo1v8-supply = <&vddsim2>;
+		vddwifipa-supply = <&vddwifipa>;
+		merlion-chip-en-gpios = <&ap_gpio 118 GPIO_ACTIVE_HIGH>;
+		merlion-rst-gpios = <&ap_gpio 117 GPIO_ACTIVE_HIGH>;
+		xtal-26m-type-sel-gpios = <&ap_gpio 173 GPIO_ACTIVE_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+	};
+
+	wcn_gnss: cpwcn-gnss {
+		compatible = "sprd,integrate_gnss";
+		sprd,name = "wcn_gnss";
+		sprd,syscon-ap-apb = <&aon_apb_regs>;
+		sprd,syscon-ap-pmu = <&pmu_apb_regs>;
+		sprd,syscon-wcn-aon-apb = <&wcncp_aon_apb_regs>;
+		sprd,syscon-wcn-aon-ahb = <&wcncp_aon_ahb_regs>;
+		sprd,syscon-ap-pub-apb = <&pub_apb_regs>;
+		sprd,syscon-wcn-gnss-ahb = <&wcncp_gnss_ahb_regs>;
+		sprd,ctrl-probe-num = <1>;
+		sprd,ctrl-reg =
+			<0x9018 0x23a8 0x2818 0x1404 0x0050 0x000c>;
+		sprd,ctrl-mask = <0x00003fff 0x03000000 0x00000080
+					0x01ffffff 0xffffffff 0x00000002>;
+		sprd,ctrl-value = <0x00000070 0x03000000 0x00000080
+					0x01600000 0x1ffc00 0x00000000>;
+		sprd,ctrl-rw-offset =
+			<0x1000 0x2000 0x2000 0x1000 0x0000 0x0000>;
+		sprd,ctrl-us-delay = <10 10 10 10 10 10>;
+		/* pub_apb, aon_apb, aon_apb, gnss_sys_ahb*/
+		/* wcn_aon_ahb, wcn_aon_ahb */
+		sprd,ctrl-type = <0x2 0x1 0x1 0x8 0x9 0x9>;
+		/* Add shutdown group:WCN Rst */
+		sprd,ctrl-shutdown-reg = <0x000c>;
+		sprd,ctrl-shutdown-mask = <0x2>;
+		sprd,ctrl-shutdown-value = <0x2>;
+		sprd,ctrl-shutdown-rw-offset = <0x0000>;
+		sprd,ctrl-shutdown-us-delay = <10>;
+		sprd,ctrl-shutdown-type = <0x9>;
+		reg = <0x87600000 0x180000>;
+		sprd,file-name ="/dev/block/platform/soc/soc:ap-apb/201d0000.sdio/by-name/gnssmodem";
+		sprd,file-name-ext ="/dev/block/platform/soc/soc:ap-apb/201d0000.sdio/by-name/gnssmodem";
+		sprd,file-length = <0x180000>;
+		/* for gnss: cpu addr 0 map to ddr 6m */
+		sprd,apcp-sync-addr = <0x1ffc00>;
+		sprd,wcn-sipc-ver = <1>;
+		vddwcn-supply = <&vddwcn>;
+		dcxo1v8-supply = <&vddsim2>;
+		merlion-chip-en-gpios = <&ap_gpio 118 GPIO_ACTIVE_HIGH>;
+		merlion-rst-gpios = <&ap_gpio 117 GPIO_ACTIVE_HIGH>;
+		xtal-26m-type-sel-gpios = <&ap_gpio 173 GPIO_ACTIVE_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+	};
+
+	sprd-sipc {
+		/* sipc-wcn: 2MB */
+		compatible = "sprd,sipc";
+		sipc2: sipc@87200000 {
+			sprd,name = "sipc-wcn";
+			sprd,dst = <3 8>; /* <dst core-id> */
+			/* <ap-addr dst-maped-addr size> */
+			sprd,smem-info = <0x87200000 0x00200000 0x180000>;
+		};
+	};
+
+	gnss_common_ctl {
+		compatible = "sprd,gnss_common_ctl";
+		sprd,name = "gnss_common_ctl";
+	};
+
+	wcn_bt {
+		compatible = "sprd,wcn_internal_chip";
+		sprd,name = "ttyBT";
+		sprd,dst = <3>;
+		sprd,channel = <4>;
+		sprd,tx_bufid = <11>;
+		sprd,rx_bufid = <10>;
+	};
+
+	wcn_fm {
+		compatible = "sprd,wcn_fm_internal_chip";
+		sprd,name = "fm";
+		sprd,dst = <3>;
+		sprd,tx_channel = <4>;
+		sprd,rx_channel = <4>;
+		sprd,tx_bufid = <14>;
+		sprd,rx_bufid = <13>;
+	};
+
+	sprd-wlan {
+		compatible = "sprd,sc2355-wifi";
+		/*sipc region <maped-addr size>*/
+		reg = <0x87380000 0x00280000>;
+	};
+};

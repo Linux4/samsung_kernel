@@ -1,0 +1,27 @@
+Spreadtrum USBPINMUX
+
+Required properties:
+- compatible: should be one of following:
+	"sprd,qogirl6-usbpinmux".
+- sprd,syscon-config: specify the handle for aon apb syscon.
+- syscons: control function for check usbpinmux mode.
+- syscon-names: names of used syscons function.
+- vdd-supply: phandle for Vdd regulator.
+- sprd,vdd-voltage: the voltage should be set 3.3V.
+- pinctrl-names: The pin control state names.
+- pintcrl-0: The "ap_uart1_9" pinctrl state, it will set uart_in9 as ap_uart1.
+- pintcrl-1: The "auddsp_uart0_1" pinctrl state, it set uart_in1 as auddsp_uart0.
+
+Example:
+        usbpinmux: usbpinmux {
+		compatible = "sprd,qogirl6-usbpinmux";
+		sprd,syscon-config = <&aon_apb_regs>;
+		syscons = <&aon_apb_regs REG_AON_APB_USB_UART_JTAG_MUX (MASK_AON_APB_USB_JTAG_HW_SEL_EN |
+			MASK_AON_APB_DAP_USB_JTAG_SEL | MASK_AON_APB_USB_BYPASS_SEL | MASK_AON_APB_UART_JTAG_SEL)>;
+		syscon-names = "usb_uart_jtag_mux";
+		vdd-supply = <&vddusb33>;
+		sprd,vdd-voltage = <3300000>;
+		pinctrl-names = "ap_uart1_9", "auddsp_uart0_1";
+		pintcrl-0 = <&ap_uart1_9>;
+		pintcrl-1 = <&auddsp_uart0_1>;
+	};

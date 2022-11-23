@@ -1,0 +1,82 @@
+/*
+ * NT35597 BOE HD Scaling-Up LCD config dtsi file for spreadtrum
+ *
+ * Copyright (C) 2018, Spreadtrum Communications Inc.
+ *
+ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+ */
+
+/ {
+	fragment {
+		target-path = "/";
+		__overlay__ {
+			lcds {
+				lcd_nt57860_boe_mipi_qhd: lcd_nt57860_boe_mipi_qhd {
+
+					sprd,dsi-work-mode = <1>; /* video burst mode*/
+					sprd,dsi-lane-number = <4>;
+					sprd,dsi-color-format = "dsc";
+
+					sprd,phy-bit-clock = <1200000>;	/* kbps */
+					sprd,phy-escape-clock = <20000>;/* kHz */
+
+					sprd,width-mm = <68>;
+					sprd,height-mm = <121>;
+
+					sprd,reset-on-sequence = <1 5>, <0 5>, <1 20>;
+					sprd,reset-off-sequence = <1 5>;
+
+					sprd,initial-command = [
+						23 00 00 02 FF D0
+						23 00 00 02 FB 01
+						23 00 00 02 05 88
+						23 00 00 02 ff 25
+						23 00 00 02 fb 01
+						23 00 00 02 c4 10
+						23 00 00 02 65 02
+						23 00 00 02 66 34
+						23 00 00 02 67 7e
+						23 00 00 02 ff 10
+						23 00 00 02 fb 01
+						23 00 00 11 C1 89 28 00 08 01 DB 02 68 00 B1 00 0A 0d b7 09 89
+						23 00 00 03 C2 12 18
+						23 00 00 02 C0 83
+						23 00 00 05 3b 00 0c 00 14 /*3B VBP+VSYNC VFP HBP HFP*/
+						23 00 00 05 be 00 0c 00 14
+						23 00 00 02 BB 03
+						23 00 00 02 36 00
+						13 78 00 01 11
+						13 64 00 01 29
+						];
+
+					sprd,sleep-in-command = [
+						13 0A 00 01 28
+						13 78 00 01 10
+						23 00 00 02 4F 01
+						];
+
+					sprd,sleep-out-command = [
+						13 78 00 01 11
+						13 64 00 01 29
+						];
+
+					display-timings {
+						native-mode = <&nt57860_boe_timing0>;
+
+						nt57860_boe_timing0: timing0 {
+							clock-frequency = <128000000>;
+							hactive = <1440>;
+							vactive = <2560>;
+							hback-porch = <288>;
+							hfront-porch = <288>;
+							vback-porch = <10>;
+							vfront-porch = <20>;
+							hsync-len = <4>;
+							vsync-len = <2>;
+						};
+					};
+				};
+			};
+		};
+	};
+};

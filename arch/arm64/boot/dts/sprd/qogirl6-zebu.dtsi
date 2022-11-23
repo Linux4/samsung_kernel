@@ -1,0 +1,297 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Unisoc Qogirl6 platform DTS file
+ *
+ * Copyright (C) 2020, Unisoc Inc.
+ */
+
+#include <dt-bindings/soc/sprd,qogirl6-regs.h>
+#include <dt-bindings/soc/sprd,qogirl6-mask.h>
+#include <dt-bindings/clock/sprd,ums9230-clk.h>
+
+/ {
+	interrupt-parent = <&gic>;
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	soc: soc {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		ap_apb_regs: syscon@20000000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x20000000 0 0x10000>;
+		};
+
+		ap_ahb_regs: syscon@20400000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x20400000 0 0x10000>;
+		};
+
+		gpu_apb_regs: syscon@23000000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x23000000 0 0x10000>;
+		};
+
+		mm_ahb_regs: syscon@30000000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x30000000 0 0x100000>;
+		};
+
+		audcp_ahb_regs: syscon@56000000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x56000000 0 0x3000>;
+		};
+
+		audcp_apb_regs: syscon@5600d000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x5600d000 0 0x1000>;
+		};
+
+		pub_apb_regs: syscon@60000000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x60000000 0 0x10000>;
+		};
+
+		aon_apb_regs: syscon@64000000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64000000 0 0x10000>;
+		};
+
+		pmu_apb_regs: syscon@64020000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64020000 0 0x10000>;
+		};
+
+		ap_intc0_regs: syscon@64300000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64300000 0 0x10000>;
+		};
+
+		ap_intc1_regs: syscon@64310000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64310000 0 0x10000>;
+		};
+
+		ap_intc2_regs: syscon@64320000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64320000 0 0x10000>;
+		};
+
+		ap_intc3_regs: syscon@64330000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64330000 0 0x10000>;
+		};
+
+		ap_intc4_regs: syscon@64340000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64340000 0 0x10000>;
+		};
+
+		ap_intc5_regs: syscon@64350000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64350000 0 0x10000>;
+		};
+
+		anlg_phy_g0_regs: syscon@64550000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64550000 0 0x10000>;
+		};
+
+		anlg_phy_g1_regs: syscon@64560000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64560000 0 0x10000>;
+		};
+
+		anlg_phy_g2_regs: syscon@64570000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64570000 0 0x10000>;
+		};
+
+		anlg_phy_g3_regs: syscon@64580000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64580000 0 0x10000>;
+		};
+
+		anlg_phy_g4_regs: syscon@64590000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64590000 0 0x10000>;
+		};
+
+		anlg_phy_gc_regs: syscon@645a0000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x645a0000 0 0x10000>;
+		};
+
+		anlg_phy_g10_regs: syscon@645b0000 {
+			compatible = "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x645b0000 0 0x10000>;
+		};
+
+		apb@200a0000 {
+			compatible = "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0 0x0 0x200a0000 0x10000000>;
+
+			uart0: serial@0  {
+				compatible = "sprd,ums9230-uart",
+					"sprd,sc9836-uart";
+				reg = <0x0 0x100>;
+				interrupts = <GIC_SPI 2 IRQ_TYPE_LEVEL_HIGH>;
+				clock-names = "enable", "uart", "source";
+				clocks = <&ext_26m>;
+				sprd,keep-raw-clk;
+				status = "disabled";
+			};
+
+			uart1: serial@10000 {
+				compatible = "sprd,ums9230-uart",
+					"sprd,sc9836-uart";
+				reg = <0x10000 0x100>;
+				interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
+				clock-names = "enable", "uart", "source";
+				clocks = <&ext_26m>;
+				sprd,keep-raw-clk;
+				status = "disabled";
+			};
+
+			sdio3: sdio@71400000 {
+				compatible = "sprd,sdhc-r11p1";
+				reg = <0x71400000  0x1000>;
+				interrupts = <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
+				status = "disabled";
+			};
+
+			sdio0: sdio@201a0000 {
+				compatible = "sprd,sdhc-r11p1";
+				reg = <0x201a0000 0x1000>;
+				interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL_HIGH>;
+				status = "disabled";
+			};
+
+			sdio1: sdio@201b0000 {
+				compatible = "sprd,sdhc-r11p1";
+				reg = <0x201b0000 0x1000>;
+				interrupts = <GIC_SPI 20 IRQ_TYPE_LEVEL_HIGH>;
+				status = "disabled";
+			};
+
+			sdio2: sdio@201c0000 {
+				compatible = "sprd,sdhc-r11p1";
+				reg = <0x201c0000 0x1000>;
+				interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>;
+				status = "disabled";
+			};
+		};
+
+		ap-ahb {
+			compatible = "simple-bus";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges;
+
+			dpu: dpu@31000000 {
+				compatible = "sprd,display-processor";
+				reg = <0x0 0x31000000 0x0 0x1000>;
+				/*syscons = <&ap_ahb_regs REG_AP_AHB_AHB_RST
+					MASK_AP_AHB_DISPC_SOFT_RST>;*/
+				syscon-names = "reset";
+				interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
+				status = "disabled";
+				iommus = <&iommu_dispc>;
+
+				dma-coherent;
+
+				sprd,ip = "dpu-r5p0";
+				sprd,soc = "qogirl6";
+
+				dpu_port: port {
+					dpu_out: endpoint {
+						remote-endpoint = <&dummy_connector_in>;
+					};
+				};
+			};
+
+			gsp_core0: gsp@31000000 {
+				compatible = "sprd,gsp-core";
+				reg = <0 0x31000000 0 0x2000>;
+				core-id = <0>;
+				kcfg-num = <16>;
+				interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
+				iommus = <&iommu_dispc>;
+			};
+
+			iommu_dispc: iommu@31000000 {
+				compatible = "sprd,iommuvaul5p-dispc";
+				reg = <0x0 0x31000000 0x0 0x800>,
+				      <0x0 0x31000800 0x0 0x80>;
+				iova-base = <0x30000000>;
+				iova-size = <0x10000000>;
+				reg_name = "mmu_interrupt_reg","mmu_reg";
+				status = "okay";
+				#iommu-cells = <0>;
+			};
+		};
+
+		apahb_gate: apahb-gate {
+			compatible = "sprd,qogirl6-apahb-gate";
+			sprd,syscon = <&ap_ahb_regs>; /* 0x20100000 */
+			clocks = <&ext_26m>;
+			#clock-cells = <1>;
+		};
+
+		aonapb_gate: aonapb-gate {
+			compatible = "sprd,qogirl6-aon-gate";
+			sprd,syscon = <&aon_apb_regs>; /* 0x327d0000 */
+			clocks = <&ext_26m>;
+			#clock-cells = <1>;
+		};
+
+		apapb_gate: apapb-gate {
+			compatible = "sprd,qogirl6-apapb-gate";
+			sprd,syscon = <&ap_apb_regs>; /* 0x71000000 */
+			clocks = <&ext_26m>;
+			#clock-cells = <1>;
+		};
+	};
+
+	ext_26m: ext-26m {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <26000000>;
+		clock-output-names = "ext-26m";
+	};
+
+	gsp: sprd-gsp {
+		compatible = "sprd,gsp-r8p0-qogirl6";
+		name = "sprd-gsp";
+		core-cnt = <1>;
+		io-cnt = <7>;
+		cores = <&gsp_core0>;
+	};
+};

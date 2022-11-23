@@ -1,0 +1,22 @@
+
+menu "SIPA_V3 modules"
+
+config SPRD_SIPA_V3
+	bool "Sprd IPA"
+	default n
+	help
+	  SIPA is a module designed by Spreadtrum to
+	  accelerate IP packets, which is mainly suitable
+	  for 5g scenarios.
+
+	  This option be opend indicate that the SIPA
+	  module will use the SIPA version 3.
+
+config SPRD_SIPA_WCN
+	bool "Enable sipa for WCN"
+	default n
+	depends on SPRD_SIPA_V3
+	help
+	  This option enables sipa interface for WCN.
+
+endmenu

@@ -1,0 +1,29 @@
+nuvolta PMIC battery wireless charger binding
+
+Required properties:
+ - compatible: Should be "nuvolta,wl_charger_nu1619".
+ - reg: Address offset of charger register.
+ - rx,irq_gpio: intterupt pin to receive interrupt for nu1619
+Optional Properties:
+- switch_chg_en_gpio: switch chip enable pin
+- switch_flag_en_gpio: otg flag enable pin
+Example:
+
+	bat: battery {
+		compatible = "simple-battery";
+		charge-term-current-microamp = <120000>;
+		constant-charge-voltage-max-microvolt = <4350000>;
+		......
+	};
+
+	&i2c4 {
+		status = "okay";
+		clock-frequency = <400000>;
+
+		nu1619_rx: charger@61 {
+				   compatible = "nuvolta,wl_charger_nu1619";
+				   reg = <0x61>;
+				   rx,irq_gpio = <&ap_gpio 146 GPIO_ACTIVE_LOW>;
+				   switch_chg_en_gpio = <&ap_gpio 171 GPIO_ACTIVE_LOW>;
+			   };
+	};

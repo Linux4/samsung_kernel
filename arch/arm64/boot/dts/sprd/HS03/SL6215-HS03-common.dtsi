@@ -1,0 +1,23 @@
+/*
+ * Overlay sprd source file. All DTSI files included by this file must not contain any SOC-specific bindings.
+ */
+
+/* HS03 code for SR-SL6215-01-163 by shibinbin at 2021/08/03 start */
+#include "proximity_sensor.dtsi"
+/* HS03 code for SR-SL6215-01-163 by shibinbin at 2021/08/03 end */
+/* HS03 code for SR-SL6215-01-208 by sunxunou at 2021/08/03 start */
+#include "hs03_sdcard.dtsi"
+/* HS03 code for SR-SL6215-01-208 by sunxunou at 2021/08/03 end */
+/* HS03 code for SR-SL6215-01-165 by shibinbin at 2021/08/09 start */
+#include "hs03_sar.dtsi"
+/* HS03 code for SR-SL6215-01-165 by shibinbin at 2021/08/09 end */
+/* HS03 code for SL6215DEV-657 by ditong at 20210830 start */
+#include "hs03_thermal.dtsi"
+/* HS03 code for SL6215DEV-657 by ditong at 20210830 end */
+/* HS03 code for SL6215DEV-729 by lina at 20210903 start */
+#include "HS03_battery_common.dtsi"
+/* HS03 code for SL6215DEV-729 by lina at 20210903 end */
+/* HS03 code for AX6300DEV-188 by huangzhongjie at 20210911 start */
+#include "HS03_lcd.dtsi"
+#include "HS03_tp.dtsi"
+/* HS03 code for AX6300DEV-188 by huangzhongjie at 20210911 end */
