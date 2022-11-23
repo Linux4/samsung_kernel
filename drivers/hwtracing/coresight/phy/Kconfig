@@ -1,0 +1,22 @@
+#
+# Physical Layer Coresight PHY driver configuration
+#
+menu "Coresight Physical Layer drivers"
+
+config CORESIGHT_PHY
+	select EXTCON
+	def_bool n
+
+config SPRD_ORCA_CORESIGHT_PHY
+	tristate "Spreadtrum ORCA CORESIGHT PHY Driver"
+	select CORESIGHT_PHY
+	help
+	  Enable this to support ORCA CORESIGHT PHY that is part of SOC.
+
+config SPRD_SHARKL6PRO_CORESIGHT_PHY
+	tristate "Spreadtrum SHARKL6PRO CORESIGHT PHY Driver"
+	select CORESIGHT_PHY
+	help
+	  Enable this to support SHARKL6PRO CORESIGHT PHY that is part of SOC.
+
+endmenu

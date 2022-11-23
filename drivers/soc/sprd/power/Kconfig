@@ -1,0 +1,20 @@
+#
+# SPRD Soc power debug drivers
+#
+menuconfig SPRD_POWER_LOG
+	tristate "Spreadtrum debug power log output"
+	depends on SPRD_POWER && SPRD_SIP_FW
+	default n
+	help
+	  Select this to enable debug power log driver for sprd soc.
+
+source "drivers/soc/sprd/power/log/Kconfig"
+
+menuconfig SPRD_POWER_STAT
+	tristate "Spreadtrum debug power stat output"
+	depends on SPRD_POWER
+	default y
+	help
+	Select this to enable debug power stat driver for sprd soc.
+
+source "drivers/soc/sprd/power/stat/Kconfig"

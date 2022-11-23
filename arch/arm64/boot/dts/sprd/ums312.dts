@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Unisoc Sharkl5 platform DTS file
+ *
+ * Copyright (C) 2018, Unisoc Communications Inc.
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/mfd/sprd,sc2730-regs.h>
+#include <dt-bindings/mfd/sprd,sc2730-mask.h>
+
+#include "ums312.dtsi"
+#include "sc2730.dtsi"
+#include "sprd-sound-fe-be.dtsi"
+#include "ums312-mach.dtsi"
+
+/*
+Tips:
+*	1. <SoC>.dts store NOTHING unless properties "model","compatible" and "sprd,sc-id",
+*		which are used for matching board id;
+*	2. Puts nodes belong to chip family in <chip_family>.dtsi, like sharkl3.dtsi;
+*	3. Puts nodes belong to SoC in <SoC>.dtsi, like sc9863a.dtsi;
+*	4. Puts nodes belong to vendor solid configurations in <SoC-mach>.dtsi, like sp9863a-mach.dtsi.
+*/
+
+/ {
+	model = "Unisoc UMS312 SoC";
+
+	compatible = "sprd,ums312";
+
+	sprd,sc-id = "ums312 1000 1000";
+};

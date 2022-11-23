@@ -1,0 +1,21 @@
+Unisoc time-sync bindings
+
+The sprd time sync feature used for APCP / APCH and so on.
+It will create a device and send an event to HAL when the
+time requires synchronization.
+
+Required Properties:
+- compatible: must be "sprd,time-sync".
+- compatible: ch must be "sprd,time-sync-ch".
+
+Example:
+	time_sync {
+		compatible = "sprd,time-sync";
+	};
+
+Used for CH send message:
+The reg is SENSOR_TS_CTRL address.
+	time_sync_ch {
+		compatible = "sprd,time-sync-ch";
+		reg = <0x0 0x62110080 0x0 0x10>;
+	};

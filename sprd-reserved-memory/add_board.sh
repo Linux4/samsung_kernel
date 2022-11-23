@@ -1,0 +1,13 @@
+PROJECT_ARM_ARRAY=(
+sp7731e-1h10
+sp9832e-1h10_go
+sp9863a-1h10_go_32b
+)
+
+PROJECT_ARM64_ARRAY=(
+sp9863a-1c10
+sp9863a-1h10
+sp9863a-3h10
+ums312-1h10
+ums512-1h10
+)

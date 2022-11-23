@@ -1,0 +1,109 @@
+/ {
+	fragment {
+		target-path = "/";
+		__overlay__ {
+				lcds {
+					lcd_ili9882q_truly_mipi_hdp: lcd_ili9882q_truly_mipi_hdp {
+
+						sprd,dsi-work-mode = <1>; /* video burst mode*/
+						sprd,dsi-lane-number = <4>;
+						sprd,dsi-color-format = "rgb888";
+
+						sprd,phy-bit-clock = <660000>;	/* kbps */
+						sprd,phy-escape-clock = <20000>;/* kHz */
+
+						sprd,width-mm = <68>;
+						sprd,height-mm = <151>;
+
+						sprd,esd-check-enable = <1>;    /* 1:enable		0:disable */
+						sprd,esd-check-mode = <1>;      /* 1:te type	0:register type --- default */
+						sprd,esd-check-period = <2000>;
+						sprd,esd-check-register = <0x0A>;
+						sprd,esd-check-value = <0x9C>;
+
+						sprd,reset-on-sequence = <0 10>, <1 5>, <0 5>, <1 30>;
+						sprd,reset-off-sequence = <0 5>;
+
+						sprd,use-dcs-write;
+
+						sprd,initial-command = [
+							39 00 00 04 FF 98 82 03
+							39 00 00 02 B3 F2
+							39 00 00 02 B4 CC
+							39 00 00 04 FF 98 82 00
+							39 00 00 03 68 03 00
+							39 00 00 03 51 00 00
+							15 00 00 02 53 2C
+							15 00 00 02 55 01
+							15 00 00 02 35 00
+							05 64 00 01 11
+							39 78 00 04 FF 98 82 0B
+							39 00 00 02 9A 88
+							39 00 00 02 9B EE
+							39 00 00 02 9C 06
+							39 00 00 02 9D 06
+							39 00 00 02 9E DF
+							39 00 00 02 9F DF
+							39 00 00 02 AA 22
+							39 78 00 04 FF 98 82 02
+							39 00 00 02 06 8D
+							39 00 00 02 0B A0
+							39 00 00 02 0C 00
+							39 00 00 02 0D 22
+							39 00 00 02 0E E8
+							39 00 00 04 FF 98 82 00
+							05 14 00 01 29
+						];
+
+						sprd,sleep-in-command = [
+							39 01 00 04 FF 98 82 00
+							05 14 00 01 28
+							05 64 00 01 10
+						];
+
+						sprd,sleep-out-command = [
+							39 00 00 04 FF 98 82 00
+							05 64 00 01 11
+							05 14 00 01 29
+						];
+
+						sprd,cabc-ui-mode = [
+							15 00 00 02 55 01
+						];
+
+						sprd,cabc-mov-mode = [
+							15 00 00 02 55 02
+						];
+
+						sprd,cabc-off-mode = [
+							15 00 00 02 55 00
+						];
+						oled-backlight {
+							default-brightness-level = <101>;
+							sprd,max-level = <4095>;
+							brightness-levels = [
+								39 00 00 03 51 0F FF
+							];
+						};
+
+						display-timings {
+							native-mode = <&ili9882q_timing0>;
+
+							ili9882q_timing0: timing0 {
+								clock-frequency = <96000000>;
+								hactive = <720>;
+								vactive = <1600>;
+								hback-porch = <60>;
+								hfront-porch = <60>;
+								vback-porch = <30>;
+								vfront-porch = <232>;
+								hsync-len = <20>;
+								vsync-len = <4>;
+							};
+						};
+					};
+				};
+		};
+	};
+};
+

@@ -1,0 +1,152 @@
+/*
+ * nt36525b LCD config dtsi file for spreadtrum
+ *
+ * Copyright (C) 2018, Spreadtrum Communications Inc.
+ *
+ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+ */
+
+/ {
+	fragment {
+		target-path = "/";
+		__overlay__ {
+			 lcds {
+				lcd_nt36525b_txd_mipi_hdp: lcd_nt36525b_txd_mipi_hdp {
+
+					sprd,dsi-work-mode = <1>; /* video burst mode*/
+					sprd,dsi-lane-number = <4>;
+					sprd,dsi-color-format = "rgb888";
+
+					sprd,phy-bit-clock = <660000>;	/* kbps */
+					sprd,phy-escape-clock = <20000>;/* kHz */
+					//sprd,power-gpio-delay = <20>;/* ms */
+
+					sprd,width-mm = <68>;
+					sprd,height-mm = <151>;
+
+					sprd,esd-check-enable = <1>;
+					sprd,esd-check-mode = <1>;
+					sprd,esd-check-period = <2000>;
+					sprd,esd-check-register = <0x0A>;
+					sprd,esd-check-value = <0x9C>;
+
+					sprd,reset-on-sequence = <0 5>, <1 5>, <0 5>, <1 20>;
+					sprd,reset-off-sequence = <0 5>;
+
+					sprd,use-dcs-write;
+					// sprd,dsi-non-continuous-clock;
+
+					sprd,initial-command = [
+						15 00 00 02 FF 23
+						15 00 00 02 FB 01
+						15 00 00 02 00 80
+						15 00 00 02 07 00
+						15 00 00 02 08 02
+						15 00 00 02 09 00
+						/*******************/
+						//APL_WT
+						15 00 00 02 10 80
+						//APL_THD
+						15 00 00 02 11 00
+						15 00 00 02 12 B4
+						//APL_COMP
+						15 00 00 02 15 E9
+						15 00 00 02 16 0B
+						/*****************/
+						//CABC_PWM_UI 55 01
+						15 00 00 02 30 F6
+						15 00 00 02 31 E6
+						15 00 00 02 32 D6
+						15 00 00 02 33 CE
+						15 00 00 02 34 C8
+						15 00 00 02 35 C4
+						15 00 00 02 36 C2
+						15 00 00 02 37 C0
+						15 00 00 02 38 BE
+						15 00 00 02 39 BC
+						15 00 00 02 3A BA
+						15 00 00 02 3B B8
+						15 00 00 02 3C B6
+						15 00 00 02 3D B4
+						15 00 00 02 3F B2
+						15 00 00 02 40 B0
+						15 00 00 02 41 AE
+						//CABC_PWM_MOV 55 02
+						15 00 00 02 45 E8
+						//+++++++++++++++
+						15 00 00 02 46 D8
+						15 00 00 02 47 C4
+						//+++++++++++++++
+						15 00 00 02 48 C0
+						15 00 00 02 49 BE
+						15 00 00 02 4A BC
+						15 00 00 02 4B BA
+						15 00 00 02 4C B8
+						15 00 00 02 4D B6
+						15 00 00 02 4E B4
+						15 00 00 02 4F B2
+						15 00 00 02 50 B0
+						15 00 00 02 51 AE
+						15 00 00 02 52 AC
+						15 00 00 02 53 AA
+						15 00 00 02 54 A8
+						15 00 00 02 FF 10
+						15 00 00 02 FB 01
+						39 00 00 03 68 03 01
+						39 00 00 03 51 00 00
+						15 00 00 02 53 2C
+						15 00 00 02 55 01
+						05 64 00 01 11
+						05 14 00 01 29
+						15 14 00 02 35 00
+					];
+
+					sprd,sleep-in-command =  [
+						05 14 00 01 28
+						05 64 00 01 10
+					];
+
+					sprd,sleep-out-command = [
+						05 64 00 01 11
+						05 14 00 01 29
+					];
+
+					sprd,cabc-ui-mode = [
+						15 00 00 02 55 01
+					];
+
+					sprd,cabc-mov-mode = [
+						15 00 00 02 55 02
+					];
+
+					sprd,cabc-off-mode = [
+						15 00 00 02 55 00
+					];
+					oled-backlight {
+						default-brightness-level = <101>;
+						sprd,max-level = <4095>;
+
+						brightness-levels = [
+							39 00 00 03 51 0F FF
+						];
+					};
+					display-timings {
+						native-mode = <&nt36525b_timing0>;
+
+						nt36525b_timing0: timing0 {
+							clock-frequency = <96000000>;
+							hactive = <720>;
+							vactive = <1600>;
+							hback-porch = <60>;
+							hfront-porch = <67>;
+							vback-porch = <252>;
+							vfront-porch = <12>;
+							hsync-len = <7>;
+							vsync-len = <2>;
+						};
+					};
+				};
+			};
+		};
+	};
+};

@@ -1,0 +1,41 @@
+Binding for aw32257 Charger
+
+Required properties:
+- compatible: Should contain one of the following:
+ * "aw32257"
+ * "ti,bq24157"
+
+- reg:			   integer, i2c address of the device.
+- ti,current-limit:	   integer, initial maximum current charger can pull
+			   from power supply in mA.
+- ti,weak-battery-voltage: integer, weak battery voltage threshold in mV.
+			   The chip will use slow precharge if battery voltage
+			   is below this value.
+- ti,battery-regulation-voltage: integer, maximum charging voltage in mV.
+- ti,charge-current:	   integer, maximum charging current in mA.
+- ti,termination-current:  integer, charge will be terminated when current in
+			   constant-voltage phase drops below this value (in mA).
+- ti,resistor-sense:	   integer, value of sensing resistor in milliohm.
+- charge,chg-pd-gpio:	   Control charging enable.
+- extcon:	   used to detect if vbus is high level.
+Example:
+
+aw32257-charger: charger@6a {
+	compatible = "aw32257";
+	reg = <0x6a>;
+	phys = <&hsphy>;
+	monitored-battery = <&bat>;
+	max_cv = <0x48>;
+	cv_val = <0x2b>;
+	ti,current-limit = <100000>;
+	ti,weak-battery-voltage = <3400>;
+	ti,battery-regulation-voltage = <4400>;
+	ti,charge-current = <650000>;
+	ti,termination-current = <180000>;
+	ti,resistor-sense = <56>;
+	charge,chg-pd-gpio = <&ap_gpio 121 0>;
+	extcon = <&extcon_gpio>;
+	vddvbus:otg-vbus {
+		regulator-name = "vddvbus";
+	};
+};

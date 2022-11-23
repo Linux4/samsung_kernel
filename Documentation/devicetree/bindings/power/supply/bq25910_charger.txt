@@ -1,0 +1,42 @@
+TI BQ25910 PMIC battery charger binding
+
+Required properties:
+ - compatible: Should be "ti,bq25910_chg".
+ - reg: Address offset of charger register.
+ - phys: Contains a phandle to the USB phy.
+
+Optional Properties:
+- monitored-battery: phandle of battery characteristics devicetree node.
+  The charger uses the following battery properties:
+Example:
+
+	bat: battery {
+		compatible = "simple-battery";
+		charge-term-current-microamp = <120000>;
+		constant-charge-voltage-max-microvolt = <4350000>;
+		......
+	};
+
+	&i2c5 {
+		status = "okay";
+		clock-frequency = <400000>;
+
+		bq25890_chg: charger@6a {
+			compatible = "ti,bq25890_chg";
+			reg = <0x6a>;
+			phys = <&hsphy>;
+			monitored-battery = <&bat>;
+			extcon = <&extcon_gpio>, <&pmic_pd>;
+			pd-extcon-enable;
+			vddvbus:otg-vbus {
+				regulator-name = "vddvbus";
+			};
+		};
+
+		bq25910_chg: charger@4b {
+			compatible = "ti,bq25910_chg";
+			reg = <0x4b>;
+			phys = <&hsphy>;
+			monitored-battery = <&bat>;
+		};
+	};

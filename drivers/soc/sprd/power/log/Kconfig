@@ -1,0 +1,27 @@
+#
+# SPRD Soc power log
+#
+
+config SPRD_POWER_LOG_SHARKL6PRO
+	tristate "SharkL6Pro debug power log"
+	depends on SPRD_POWER_LOG
+
+config SPRD_POWER_LOG_SHARKL6
+	tristate "SharkL6 debug power log"
+	depends on SPRD_POWER_LOG
+
+config SPRD_POWER_LOG_SHARKL5PRO
+	tristate "SharkL5Pro debug power log"
+	depends on SPRD_POWER_LOG
+
+config SPRD_POWER_LOG_SHARKL5
+	tristate "SharkL5 debug power log"
+	depends on SPRD_POWER_LOG
+
+config SPRD_POWER_LOG_SHARKL3
+	tristate "SharkL3 debug power log"
+	depends on SPRD_POWER_LOG
+
+config SPRD_POWER_LOG_SHARKLE
+	tristate "SharkLE debug power log"
+	depends on SPRD_POWER_LOG

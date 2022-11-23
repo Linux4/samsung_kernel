@@ -1,0 +1,23 @@
+menuconfig SPRD_APDU_DRIVERS
+	bool "SPRD APDU drivers"
+	help
+	  Say Y to enable Spreadtrum application protocol data unit driver Support.
+	  If unused, say N.
+
+if SPRD_APDU_DRIVERS
+
+config SPRD_APDU
+	tristate "Spreadtrum APDU driver"
+	default n
+	help
+	  Spreadtrum application protocol data unit driver Support.
+	  If unused, say N.
+
+config SPRD_APDU_R3P0
+	tristate "Spreadtrum APDU R3P0 driver"
+	default n
+	help
+	  Spreadtrum application protocol data unit driver R3P0 Support.
+	  If unused, say N.
+
+endif # SPRD_APDU_DRIVERS

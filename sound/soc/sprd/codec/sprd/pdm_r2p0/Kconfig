@@ -1,0 +1,5 @@
+config SND_SOC_SPRD_PDM_R2P0
+	bool "Sprd pdm r2p0"
+	default n
+	help
+	  If using pdm r2p0, set this to Y or M, else N.

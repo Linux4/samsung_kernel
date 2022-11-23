@@ -1,0 +1,26 @@
+Halo Microelectronics charge pump converter binding
+
+Required properties:
+ - compatible: Should be "halo,hl1506_cp_converter".
+ - reg: Address offset of charger register.
+ - chg_pump_en_gpio: chip en pin.
+Optional Properties:
+Example:
+
+	bat: battery {
+		compatible = "simple-battery";
+		charge-term-current-microamp = <120000>;
+		constant-charge-voltage-max-microvolt = <4350000>;
+		......
+	};
+
+	&i2c4 {
+		status = "okay";
+		clock-frequency = <400000>;
+
+		hl1506_cp_converter: charger@1b {
+					     compatible = "halo,hl1506_cp_converter";
+					     reg = <0x1b>;
+					     chg_pump_en_gpio = <&ap_gpio 171 GPIO_ACTIVE_HIGH>;
+				     };
+	};

@@ -1,0 +1,19 @@
+Unisoc debugstat bindings
+
+The node uses to count individual subsystems information, which output log will
+help us to analyze the SoC system power exception.
+
+Required properties:
+- compatible:
+	"sprd,debugstat-sharkl6pro",
+	"sprd,debugstat-sharkl6",
+	"sprd,debugstat-sharkl5pro",
+	"sprd,debugstat-sharkl5",
+	"sprd,debugstat-sharkl3",
+	"sprd,debugstat-sharkle",
+	"sprd,debugstat-pike2
+
+Example:
+	debug_stat: debugstat {
+		compatible = "sprd,debugstat-sharkl5pro";
+	};
