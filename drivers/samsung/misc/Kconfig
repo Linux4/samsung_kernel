@@ -1,0 +1,12 @@
+menuconfig SEC_MISC
+	bool "Enable SEC miscellaneous feature"
+	depends on SEC_EXT
+	default y
+
+comment "NOTIFIER configs"
+config VBUS_NOTIFIER
+	bool "VBUS notifier support"
+	help
+	  If you say yes here you will get support for
+	  the VBUS status change notification.
+

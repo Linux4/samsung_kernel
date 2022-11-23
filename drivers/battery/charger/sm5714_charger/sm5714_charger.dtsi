@@ -1,0 +1,13 @@
+
+&smd {
+    sm5714_charger: sm5714-charger {
+		status = "disable";
+		compatible = "samsung,sm5714-charger";
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/charger/sm5714_charger/sm5714_charger.a12s.dtsi */
+
+&sm5714_charger {
+	sm5714,chg_lxslope = <2>;
+};
