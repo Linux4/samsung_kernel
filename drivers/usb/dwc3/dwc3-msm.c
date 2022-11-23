@@ -2881,6 +2881,15 @@ static int dwc3_msm_resume(struct dwc3_msm *mdwc)
 	return 0;
 }
 
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 start*/
+/************Assign a value to usb_data_enabled**********************/
+/***  echo 1 > /sys/class/usb_notify/usb_control/usb_data_enabled
+	  usb_data_enabled = true **************************************/
+/***  echo 0 > /sys/class/usb_notify/usb_control/usb_data_enabled
+	  usb_data_enabled = false **************************************/
+extern usb_data_enabled;
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 end*/
+
 /**
  * dwc3_ext_event_notify - callback to handle events from external transceiver
  *
@@ -2890,7 +2899,13 @@ static void dwc3_ext_event_notify(struct dwc3_msm *mdwc)
 {
 	/* Flush processing any pending events before handling new ones */
 	flush_delayed_work(&mdwc->sm_work);
-
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 start*/	
+	if(!usb_data_enabled){
+		dev_err(mdwc->dev,"usb_data disabled\n");
+		mdwc->vbus_active = false;
+		mdwc->id_state = DWC3_ID_FLOAT;
+	}
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 end*/
 	if (mdwc->id_state == DWC3_ID_FLOAT) {
 		dev_info(mdwc->dev, "XCVR: ID set\n");
 		set_bit(ID, &mdwc->inputs);
@@ -4579,14 +4594,18 @@ static int dwc3_msm_gadget_vbus_draw(struct dwc3_msm *mdwc, unsigned int mA)
 	pval.intval = 1000 * mA;
 
 set_prop:
-	ret = power_supply_set_property(mdwc->usb_psy,
-				POWER_SUPPLY_PROP_SDP_CURRENT_MAX, &pval);
-	if (ret) {
-		dev_dbg(mdwc->dev, "power supply error when setting property\n");
-		return ret;
-	}
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 start*/
+	if(usb_data_enabled){
+		ret = power_supply_set_property(mdwc->usb_psy,
+					POWER_SUPPLY_PROP_SDP_CURRENT_MAX, &pval);
+		if (ret) {
+			dev_dbg(mdwc->dev, "power supply error when setting property\n");
+			return ret;
+		}
 
-	mdwc->max_power = mA;
+		mdwc->max_power = mA;
+	}
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 end*/
 	return 0;
 }
 

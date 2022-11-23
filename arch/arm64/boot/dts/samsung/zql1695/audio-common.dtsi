@@ -1,0 +1,117 @@
+&int_codec {
+	status = "okay";
+	/delete-property/ qcom,msm-micbias2-ext-cap;
+	/delete-property/ qcom,msm-mbhc-gnd-swh;
+	/delete-property/ qcom,msm-hs-micbias-type;
+	qcom,msm-mbhc-gnd-swh = <1>;
+	qcom,msm-hs-micbias-type = "internal";
+	/* huaqin add HS60-88 bringup awinic  analog pa by xudayi at 2019/07/16 start */
+	qcom,msm-spk-ext-pa = <&tlmm 125 0>;
+	/* huaqin add HS60-88 bringup awinic  analog pa by xudayi at 2019/07/16 end */
+	/* HS60 add HS60-98 bringup awinic pa for HAC by xudayi at 2019/07/25 start */
+	qcom,msm-hac-ext-pa = <&tlmm 50 0>;
+	/* HS60 add HS60-98 bringup awinic pa for HAC by xudayi at 2019/07/25 end */
+
+	/delete-property/ qcom,audio-routing;
+	qcom,audio-routing =
+		"RX_BIAS", "MCLK",
+		"SPK_RX_BIAS", "MCLK",
+		"INT_LDO_H", "MCLK",
+		"RX_I2S_CLK", "MCLK",
+		"TX_I2S_CLK", "MCLK",
+		"MIC BIAS External", "Handset Mic",
+		"MIC BIAS Internal2", "Headset Mic",
+		"MIC BIAS External", "Secondary Mic",
+		"AMIC1", "MIC BIAS External",
+		"AMIC2", "MIC BIAS Internal2",
+		"AMIC3", "MIC BIAS External",
+		"ADC1_IN", "ADC1_OUT",
+		"ADC2_IN", "ADC2_OUT",
+		"ADC3_IN", "ADC3_OUT",
+		"PDM_IN_RX1", "PDM_OUT_RX1",
+		"PDM_IN_RX2", "PDM_OUT_RX2",
+		"PDM_IN_RX3", "PDM_OUT_RX3",
+		"WSA_SPK OUT", "VDD_WSA_SWITCH",
+		"SpkrMono WSA_IN", "WSA_SPK OUT";
+	/* huaqin add bringup nxp & foursemi smartpa by xudayi at 2019/07/15 start */
+	asoc-wsa-codec-names;
+	asoc-wsa-codec-prefixes;
+	msm-vdd-wsa-switch-supply;
+	qcom,msm-vdd-wsa-switch-voltage;
+	qcom,msm-vdd-wsa-switch-current;
+	qcom,quin-mi2s-gpios;
+	/* huaqin add bringup nxp & foursemi smartpa by xudayi at 2019/07/15 end */
+};
+
+/* huaqin add bringup nxp & foursemi smartpa by xudayi at 2019/07/15 start */
+/* HS60 add AR-ZQL1695-01-58 exchange nxp and foursemi i2c address by xudayi at 2019/07/30 start */
+&i2c_2 {
+	fs16xx@36 {
+		status = "okay";
+		compatible = "foursemi,fs16xx";
+		reg = <0x36>;
+		fs,fs-dev = "left";
+	};
+	tfa98xx@34 {
+		status = "okay";
+		compatible = "nxp,tfa98xx";
+		reg = <0x34>;
+		reset-gpio = <&tlmm 125 0>;
+	};
+
+	aw8864_smartpa@35 {
+		status = "okay";
+		compatible = "awinic,aw8864_smartpa";
+		reg = <0x35>;
+		reset-gpio = <&tlmm 125 0>;
+	};
+};
+/* HS60 add AR-ZQL1695-01-58 exchange nxp and foursemi i2c address by xudayi at 2019/07/30 end */
+
+&cdc_quin_mi2s_gpios {
+       status = "okay";
+};
+
+&wsa881x_i2c_f {
+       status = "disabled";
+};
+
+&wsa881x_i2c_45 {
+       status = "disabled";
+};
+
+&dai_mi2s4 {
+	qcom,msm-mi2s-rx-lines = <2>;
+	qcom,msm-mi2s-tx-lines = <1>;
+};
+
+&pri_tlmm_lines_act {
+	mux {
+		pins = "gpio85", "gpio88", "gpio86";
+		function = "pri_mi2s";
+	};
+
+	config {
+		pins = "gpio85", "gpio88", "gpio86";
+		drive-strength = <8>;
+	};
+};
+
+&pri_tlmm_lines_sus {
+	mux {
+		pins = "gpio85", "gpio88", "gpio86";
+		function = "pri_mi2s";
+	};
+
+	config {
+		pins = "gpio85", "gpio88", "gpio86";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+};
+/* huaqin add bringup nxp & foursemi smartpa by xudayi at 2019/07/15 end */
+/* huaqin add ZQL1693-73 change micbias to 2.4v by xudayi at 2019/11/08 start */
+&pmic_analog_codec {
+	qcom,cdc-micbias-cfilt-mv = <2400000>;
+};
+/* huaqin add ZQL1693-73 change micbias to 2.4v by xudayi at 2019/11/08 end */

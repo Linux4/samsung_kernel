@@ -1491,18 +1491,17 @@ int mmc_attach_sd(struct mmc_host *host)
 
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
-// HS60 code added by tangqingyong for HS60-1456 factory debug log at 20190909 start
-#ifdef HQ_FACTORY_BUILD
-	 pr_err("TQY: %s:%s, attach start \n", mmc_hostname(host),__func__);
-#endif
-// HS60 code added by tangqingyong for HS60-1456 factory debug log at 20190909 end
 // HS60 code added by tangqingyong for HS60-401 at 20190830 start
 	mmc_power_off(host);
 	usleep_range(5000, 5500);
 	mmc_power_up(host, host->ocr_avail);
 	usleep_range(5000, 5500);
 // HS60 code added by tangqingyong for HS60-401 at 20190830 end
-
+// HS60 code added by tangqingyong for HS60-1456 factory debug log at 20190909 start
+#ifdef HQ_FACTORY_BUILD
+	 pr_err("TQY: %s:%s, attach start \n", mmc_hostname(host),__func__);
+#endif
+// HS60 code added by tangqingyong for HS60-1456 factory debug log at 20190909 end
 	err = mmc_send_app_op_cond(host, 0, &ocr);
 // HS60 code added by tangqingyong for HS60-1456 factory debug log at 20190909 start
 #ifdef HQ_FACTORY_BUILD

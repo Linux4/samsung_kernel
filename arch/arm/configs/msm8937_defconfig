@@ -781,6 +781,3 @@ CONFIG_F2FS_STAT_FS=y
 CONFIG_F2FS_FS_XATTR=y
 CONFIG_F2FS_FS_SECURITY=y
 # HS60 code added for SR-ZQL1695-01-59 by tangqingyong at 20190729 end
-# HS70 code added by tangqingyong for HS70-11 at 20191009 start
-CONFIG_ARCH_ZQL1695=y
-# HS70 code added by tangqingyong for HS70-11 at 20191009 end

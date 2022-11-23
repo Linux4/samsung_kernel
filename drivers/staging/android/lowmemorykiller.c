@@ -748,29 +748,6 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 		struct task_struct *p;
 		short oom_score_adj;
 
-    /*  Huaqin add for HS60-1449 by lingyuguo at 2019/09/12 start */
-    #if defined(HQ_FACTORY_BUILD)
-        if((strstr(tsk->comm,"huaqin.factory")!=NULL)){
-            lowmem_print(1,"===========lowmemorykiller jump kill huaqin.factory =================== \n");
-            continue;
-        /*Huaqin add for HS60-2805 by liuqiang at 20201117 start*/
-        }else if((strstr(tsk->comm,"om.val.hardware")!=NULL)){
-            lowmem_print(1,"===========lowmemorykiller jump kill om.val.hardware =================== \n");
-            continue;
-        }else if((strstr(tsk->comm,"lcomm.telephony")!=NULL)){
-            lowmem_print(1,"===========lowmemorykiller jump kill lcomm.telephony =================== \n");
-            continue;
-        }else if((strstr(tsk->comm,"com.yha.runtime")!=NULL)){
-            lowmem_print(1,"===========lowmemorykiller jump kill com.yha.runtime =================== \n");
-            continue;
-        }else if((strstr(tsk->comm,"QMESA_64")!=NULL) || (strstr(tsk->comm,"QMESA_32")!=NULL)){
-            lowmem_print(1,"===========lowmemorykiller jump kill QMESA =================== \n");
-            continue;
-        }
-        /*Huaqin add for HS60-2805 by liuqiang at 20201117 end*/
-    #endif
-    /*  Huaqin add for HS60-1449 by lingyuguo at 2019/09/12end */
-
 		if (tsk->flags & PF_KTHREAD)
 			continue;
 

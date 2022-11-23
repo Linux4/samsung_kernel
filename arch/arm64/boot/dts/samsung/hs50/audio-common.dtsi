@@ -1,0 +1,167 @@
+&int_codec {
+	status = "okay";
+	/delete-property/ qcom,msm-micbias2-ext-cap;
+	/delete-property/ qcom,msm-mbhc-gnd-swh;
+	/delete-property/ qcom,msm-mbhc-hphl-swh;
+	/delete-property/ qcom,msm-hs-micbias-type;
+	qcom,msm-mbhc-gnd-swh = <1>;
+	qcom,msm-mbhc-hphl-swh = <1>;
+	qcom,msm-hs-micbias-type = "internal";
+	/* HS50 add SR-QL3095-01-48 bring up spc pa by xuyuqing at 2020/08/07 start */
+	qcom,msm-spk-ext-pa = <&tlmm 95 0>;
+	qcom,msm-spk-ext-pa-id = <&tlmm 136 0>;
+	pinctrl-names = "ext_pa_active", "ext_pa_suspend";
+	pinctrl-0 = <&tlmm_ext_pa_spc_act>;
+	pinctrl-1 = <&tlmm_ext_pa_spc_sus>;
+	/* HS50 add SR-QL3095-01-48 bring up spc pa by xuyuqing at 2020/08/07 end */
+
+	/delete-property/ qcom,audio-routing;
+	qcom,audio-routing =
+		"RX_BIAS", "MCLK",
+		"SPK_RX_BIAS", "MCLK",
+		"INT_LDO_H", "MCLK",
+		"RX_I2S_CLK", "MCLK",
+		"TX_I2S_CLK", "MCLK",
+		"MIC BIAS External", "Handset Mic",
+		"MIC BIAS Internal2", "Headset Mic",
+		"MIC BIAS External", "Secondary Mic",
+		"AMIC1", "MIC BIAS External",
+		"AMIC2", "MIC BIAS Internal2",
+		"AMIC3", "MIC BIAS External",
+		"ADC1_IN", "ADC1_OUT",
+		"ADC2_IN", "ADC2_OUT",
+		"ADC3_IN", "ADC3_OUT",
+		"PDM_IN_RX1", "PDM_OUT_RX1",
+		"PDM_IN_RX2", "PDM_OUT_RX2",
+		"PDM_IN_RX3", "PDM_OUT_RX3",
+		"WSA_SPK OUT", "VDD_WSA_SWITCH",
+		"SpkrMono WSA_IN", "WSA_SPK OUT";
+	asoc-wsa-codec-names;
+	asoc-wsa-codec-prefixes;
+	msm-vdd-wsa-switch-supply;
+	qcom,msm-vdd-wsa-switch-voltage;
+	qcom,msm-vdd-wsa-switch-current;
+	qcom,quin-mi2s-gpios;
+};
+
+&cdc_quin_mi2s_gpios {
+       status = "okay";
+};
+
+&wsa881x_i2c_f {
+       status = "disabled";
+};
+
+&wsa881x_i2c_45 {
+       status = "disabled";
+};
+
+/* HS50 add SR-QL3095-01-48 bring up spc pa by xuyuqing at 2020/08/07 start */
+&tlmm {
+	ext_pa_active {
+		tlmm_ext_pa_spc_act: tlmm_ext_pa_spc_act {
+			mux {
+				pins = "gpio95";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio95";
+				drive-strength = <8>;
+				output-high;
+				bias-disable;
+			};
+		};
+	};
+	ext_pa_suspend {
+		tlmm_ext_pa_spc_sus: tlmm_ext_pa_spc_sus {
+			mux {
+				pins = "gpio95";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio95";
+				drive-strength = <2>;
+				output-low;
+				bias-disable;
+			};
+		};
+	};
+};
+/* HS50 add SR-QL3095-01-48 bring up spc pa by xuyuqing at 2020/08/07 end */
+&pri_tlmm_lines_act {
+	mux {
+		pins = "gpio91", "gpio93", "gpio88";
+		function = "pri_mi2s";
+	};
+
+	config {
+		pins = "gpio91", "gpio93", "gpio88";
+		drive-strength = <8>;
+	};
+};
+
+&pri_tlmm_lines_sus {
+	mux {
+		pins = "gpio91", "gpio93", "gpio88";
+		function = "pri_mi2s";
+	};
+
+	config {
+		pins = "gpio91", "gpio93", "gpio88";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+};
+
+/* huaqin add bring up aw smartpa by xuyuqing at 2019/10/31 start */
+&dai_mi2s4 {
+	qcom,msm-mi2s-rx-lines = <2>;
+	qcom,msm-mi2s-tx-lines = <1>;
+};
+
+&i2c_2 {
+	fs16xx@34 {
+		status = "okay";
+		compatible = "foursemi,fs16xx";
+		reg = <0x34>;
+		fs,fs-dev = "left";
+	};
+	tas2562@4c {
+		compatible = "ti,tas2562";
+		reg = <0x4c>;
+		ti,reset-gpio = <&tlmm 86 0>;
+		ti,irq-gpio = <&tlmm 87 0>;
+		ti,asi-format = <0>; /* 0, i2S; 1, DSP;  */
+		ti,left-slot = <0>; /* <left slot number> */
+		ti,right-slot = <1>; /* <right slot number> */
+		ti,imon-slot-no = <0>; /* <current sense slot number> */
+		ti,vmon-slot-no = <2>; /* <current voltage slot number> */
+		status = "ok";
+	};
+};
+
+/* huaqin add bring up aw87359 pa by limengxia at 2019/11/6 start */
+&i2c_5 {
+	aw87359_pa@58 {
+		compatible = "awinic,aw87359_pa";
+		reg = <0x58>;
+		reset-gpio = <&tlmm 86 0>;
+		irq-gpio = <&tlmm 87 0>;
+		status = "okay";
+	};
+/* huaqin add bring up aw87359 pa by limengxia at 2019/11/6 end */
+};
+
+/* huaqin add bring up aw smartpa by xuyuqing at 2019/10/31 end */
+
+/* huaqin diff speaker dapm route by xuyuqing at 2019/10/22 start */
+&pmic_analog_codec {
+	qcom,distinguish_speaker = "CDC_HPH";
+};
+/* huaqin diff speaker dapm route by xuyuqing at 2019/10/22 end */
+
+/* huaqin add HS70-19 change micbias to 2.4v by xuyuqing at 2019/11/12 start */
+&pmic_analog_codec {
+	qcom,cdc-micbias-cfilt-mv = <2400000>;
+};
+/* huaqin add HS70-19 change micbias to 2.4v by xuyuqing at 2019/11/12 end */

@@ -28,6 +28,7 @@ obj-$(CONFIG_INPUT_MOUSE)	+= mouse/
 obj-$(CONFIG_INPUT_JOYSTICK)	+= joystick/
 obj-$(CONFIG_INPUT_TABLET)	+= tablet/
 obj-$(CONFIG_INPUT_TOUCHSCREEN)	+= touchscreen/
+obj-$(CONFIG_SWTP_INT_INPUT_DEV) += rfcable_detect/
 # HS50 code for HS50-4050 by xiongxiaoliang at 20201031 start
 obj-$(CONFIG_SAR_MODE_DETECT) += sar_mode_detect/
 # HS50 code for HS50-4050 by xiongxiaoliang at 20201031 end

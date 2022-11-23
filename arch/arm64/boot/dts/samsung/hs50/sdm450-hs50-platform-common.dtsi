@@ -1,0 +1,36 @@
+/* Overlay DT source file for QRD board. All DTSI files included by this file must not contain any SOC-specific bindings.
+ */
+ /*HS50 code for SR-QL3095-01-71 by gaozhengwei at 2020/07/23 start*/
+#include "display/sdm450-hs50-display.dtsi"
+/*HS50 code for SR-QL3095-01-71 by gaozhengwei at 2020/07/23 end*/
+#include "hs50-tps61280.dtsi"
+
+#include "battery-common.dtsi"
+#include "audio-common.dtsi"
+#include "sdcard-hs50.dtsi"
+#include "samsung_sec_nfc.dtsi"
+/* HS50 code for SR-QL3095-01-84 by zhuqiang at 2020/07/25 start */
+#include "hs50-sar.dtsi"
+/* HS50 code for SR-QL3095-01-84 by zhuqiang at 2020/07/25 end */
+#include "usb-thermal-common.dtsi"
+#include "thermal_zones-common.dtsi"
+#include "hs50-usb-eye-diagram.dtsi"
+#include "hs50-sdhc1.dtsi"
+#include "hs50-key.dtsi"
+#include "hs50-tp.dtsi"
+
+/* HS50 code for HS50-4050 by xiongxiaoliang at 20201031 start */
+#include "hs50-sardsi.dtsi"
+/* HS50 code for HS50-4050 by xiongxiaoliang at 20201031 end */
+
+/* samsung qc-bsp start */
+#include "sdm450-hs50-sec-bsp.dtsi"
+/* samsung qc-bsp end */
+
+/* samsung qc-pm start */
+#include "sdm450-sec-pm.dtsi"
+/* samsung qc-pm end */
+
+/* samsung afc start */
+#include "sdm450-hs50-afc.dtsi"
+/* samsung afc end */

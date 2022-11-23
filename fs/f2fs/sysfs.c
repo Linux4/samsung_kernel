@@ -241,6 +241,8 @@ static int f2fs_sec_blockops_dbg(struct f2fs_sb_info *sbi, char *buf, int src_le
 }
 #endif
 
+#ifdef CONFIG_F2FS_SEC_DEBUG_NODE
+/* @fs.sec -- b9f9a3e3a1883edc2ea06ae264291970 -- */
 /* Copy from debug.c stat_show */
 static ssize_t f2fs_sec_stats_show(struct f2fs_sb_info *sbi, char *buf)
 {
@@ -424,6 +426,7 @@ static ssize_t f2fs_sec_stats_show(struct f2fs_sb_info *sbi, char *buf)
 #endif
 	return len;
 }
+#endif
 
 static void __sec_bigdata_init_value(struct f2fs_sb_info *sbi,
 		const char *attr_name)
@@ -628,9 +631,24 @@ static ssize_t f2fs_sbi_show(struct f2fs_attr *a,
 		}
 
 		return len;
+#ifdef CONFIG_F2FS_SEC_DEBUG_NODE
 	} else if (!strcmp(a->attr.name, "sec_stats")) {
 		return f2fs_sec_stats_show(sbi, buf);
+#endif
 	}
+#ifdef CONFIG_F2FS_SEC_SYSFS_DISCARD_SLAB_THRESHOLD
+	if (!strcmp(a->attr.name, "discard_cmd_slab_thresh_MB")) {
+		unsigned int size_in_MB = (sizeof(struct discard_cmd) *
+			SM_I(sbi)->dcc_info->discard_cmd_slab_thresh_cnt);
+		return sysfs_emit(buf, "%u\n",
+			round_up(size_in_MB, 1 << 20) >> 20);
+	}
+
+	if (!strcmp(a->attr.name, "undiscard_thresh_MB")) {
+		return sysfs_emit(buf, "%u\n",
+			SM_I(sbi)->dcc_info->undiscard_thresh_blks >> 8);
+	}
+#endif
 
 	ui = (unsigned int *)(ptr + a->offset);
 
@@ -781,6 +799,20 @@ out:
 		return count;
 	}
 
+#ifdef CONFIG_F2FS_SEC_SYSFS_DISCARD_SLAB_THRESHOLD
+	if (!strcmp(a->attr.name, "discard_cmd_slab_thresh_MB")) {
+		SM_I(sbi)->dcc_info->discard_cmd_slab_thresh_cnt =
+			((unsigned int)t << 20) / sizeof(struct discard_cmd);
+		return count;
+	}
+
+	if (!strcmp(a->attr.name, "undiscard_thresh_MB")) {
+		SM_I(sbi)->dcc_info->undiscard_thresh_blks =
+			(unsigned int)t << 8;
+		return count;
+	}
+#endif
+
 	*ui = (unsigned int)t;
 
 	return count;
@@ -913,6 +945,10 @@ F2FS_RW_ATTR(SM_INFO, f2fs_sm_info, min_fsync_blocks, min_fsync_blocks);
 F2FS_RW_ATTR(SM_INFO, f2fs_sm_info, min_seq_blocks, min_seq_blocks);
 F2FS_RW_ATTR(SM_INFO, f2fs_sm_info, min_hot_blocks, min_hot_blocks);
 F2FS_RW_ATTR(SM_INFO, f2fs_sm_info, min_ssr_sections, min_ssr_sections);
+#ifdef CONFIG_F2FS_SEC_SYSFS_DISCARD_SLAB_THRESHOLD
+F2FS_RW_ATTR(DCC_INFO, discard_cmd_control, discard_cmd_slab_thresh_MB, discard_cmd_slab_thresh_cnt);
+F2FS_RW_ATTR(DCC_INFO, discard_cmd_control, undiscard_thresh_MB, undiscard_thresh_blks);
+#endif
 F2FS_RW_ATTR(NM_INFO, f2fs_nm_info, ram_thresh, ram_thresh);
 F2FS_RW_ATTR(NM_INFO, f2fs_nm_info, ra_nid_pages, ra_nid_pages);
 F2FS_RW_ATTR(NM_INFO, f2fs_nm_info, dirty_nats_ratio, dirty_nats_ratio);
@@ -936,7 +972,9 @@ F2FS_RW_ATTR(FAULT_INFO_TYPE, f2fs_fault_info, inject_type, inject_type);
 #endif
 F2FS_RW_ATTR_640(F2FS_SBI, f2fs_sb_info, sec_gc_stat, sec_stat);
 F2FS_RW_ATTR_640(F2FS_SBI, f2fs_sb_info, sec_io_stat, sec_stat);
-F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_stats, stat_info);
+#ifdef CONFIG_F2FS_SEC_DEBUG_NODE
+F2FS_RW_ATTR_640(F2FS_SBI, f2fs_sb_info, sec_stats, stat_info);
+#endif
 F2FS_RW_ATTR_640(F2FS_SBI, f2fs_sb_info, sec_fsck_stat, sec_fsck_stat);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_part_best_extents, s_sec_part_best_extents);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_part_current_extents, s_sec_part_current_extents);
@@ -988,6 +1026,10 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(min_seq_blocks),
 	ATTR_LIST(min_hot_blocks),
 	ATTR_LIST(min_ssr_sections),
+#ifdef CONFIG_F2FS_SEC_SYSFS_DISCARD_SLAB_THRESHOLD
+	ATTR_LIST(discard_cmd_slab_thresh_MB),
+	ATTR_LIST(undiscard_thresh_MB),
+#endif
 	ATTR_LIST(max_victim_search),
 	ATTR_LIST(migration_granularity),
 	ATTR_LIST(dir_level),
@@ -1005,7 +1047,9 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(extension_list),
 	ATTR_LIST(sec_gc_stat),
 	ATTR_LIST(sec_io_stat),
+#ifdef CONFIG_F2FS_SEC_DEBUG_NODE 
 	ATTR_LIST(sec_stats),
+#endif
 	ATTR_LIST(sec_fsck_stat),
 	ATTR_LIST(sec_part_best_extents),
 	ATTR_LIST(sec_part_current_extents),

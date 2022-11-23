@@ -1111,6 +1111,11 @@ int smblib_set_prop_rechg_vbat_thresh(struct smb_charger *chg,
 #endif
 /* HS60 add for SR-ZQL1695-01-357 Import battery aging by gaochao at 2019/08/29 end */
 
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 start*/
+inline void notify_device_mode(struct smb_charger *chg, bool enable);
+inline void notify_usb_host(struct smb_charger *chg, bool enable);
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 end*/
+
 int smblib_init(struct smb_charger *chg);
 int smblib_deinit(struct smb_charger *chg);
 /*HS70 add for HS70-919 enable AFC function by qianyingdong at 2019/11/18 start*/

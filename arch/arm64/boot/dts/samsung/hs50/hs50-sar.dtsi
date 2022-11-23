@@ -1,0 +1,97 @@
+/* HS50 code for HS50-41 by zhuqiang at 2020/07/28 start */
+&rpm_bus {
+    rpm-regulator-ldoa18 {
+        compatible = "qcom,rpm-smd-regulator-resource";
+        qcom,resource-name = "ldoa";
+        qcom,resource-id = <18>;
+        qcom,regulator-type = <0>;
+        qcom,hpm-min-load = <10000>;
+        status = "okay";
+        pm8953_l18: regulator-l18 {
+            compatible = "qcom,rpm-smd-regulator";
+            regulator-name = "pm8953_l18";
+            qcom,set = <3>;
+            regulator-min-microvolt = <2800000>;
+            regulator-max-microvolt = <2800000>;
+            qcom,init-voltage = <2800000>;
+            status = "okay";
+        };
+    };
+};
+
+&i2c_5 {
+    abov_sar@20 {
+        compatible = "abov,abov_sar";
+        vddio-supply = <&pm8953_l6>;
+        vdd-supply = <&pm8953_l18>;
+        reg = <0x20>;
+        gpio-irq = <45>;
+        gpio-irq-std =<&tlmm 45 0x0>;
+        /* HS50 code for HS50NA-47 by xiongxiaoliang at 20201009 start */
+        label1 = "AbovCapSense-EU";
+        label2 = "AbovCapSense-NA";
+        /* HS50 code for HS50NA-47 by xiongxiaoliang at 20201009 end */
+        reg_array_len = <0x03>;
+        reg_array_val = <0x07 0x00 0x08 0x07 0xFB 0x01>;
+        cap,use_channel_bottom = <0x00>;
+        cap,use_channel_top = <0x01>;
+    };
+};
+/* HS50 code for HS50-41 by zhuqiang at 2020/07/28 end */
+
+/* HS50 code for QN3979-4292 by wurui at 2021/10/20 start */
+&i2c_5{
+    Semtech_sx932x@29 {
+        compatible = "Semtech,sx932x";
+        reg = <0x29>;
+        interrupt-parent = <&tlmm>;
+        interrupts = <45 0>;
+
+        Semtech,nirq-gpio = <&tlmm 45 0x00>;
+        status = "ok";    /**/
+        Semtech,reg-num = <40>; /* total registers number to initialize*/
+        Semtech,reg-init  = /bits/ 8 <
+            0x10 0x0F
+            0x11 0x20
+            0x14 0x00
+            0x15 0x00
+            0x20 0x60
+            0x23 0x00
+            0x24 0x87
+            0x26 0x00
+            0x27 0x87
+            0x28 0x3D
+            0x29 0x37
+            0x2A 0x1F
+            0x2B 0x3F
+            0x2C 0x12
+            0x2D 0x0F
+            0x30 0x11
+            0x31 0x11
+            0x32 0x20
+            0x33 0x20
+            0x34 0x0C
+            0x35 0x0F
+            0x36 0x11
+            0x37 0x1A
+            0x40 0x00
+            0x41 0x00
+            0x42 0x11
+            0x43 0x00
+            0x44 0x10
+            0x45 0x05
+            0x46 0x00
+            0x47 0x00
+            0x48 0x00
+            0x49 0x00
+            0x4A 0x00
+            0x4B 0x00
+            0x4C 0x00
+            0x05 0x70
+            0x06 0x00
+            0x07 0x80
+            0x11 0x20
+        >;
+    };
+};
+/* HS50 code for QN3979-4292 by wurui at 2021/10/20 end */

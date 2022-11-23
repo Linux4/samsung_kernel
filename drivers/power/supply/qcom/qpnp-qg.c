@@ -1750,7 +1750,10 @@ static int qg_psy_get_property(struct power_supply *psy,
 		rc = qg_sdam_read(SDAM_OCV_UV, &pval->intval);
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
+		/* Huaqin add for ZQL1695-HQ000001 Fix the battery temperature as 25 degree by gaochao at 2019/07/11 start */
 		rc = qg_get_battery_temp(chip, &pval->intval);
+		//pval->intval = 250;
+		/* Huaqin add for ZQL1695-HQ000001 Fix the battery temperature as 25 degree by gaochao at 2019/07/11 end */
 		break;
 	case POWER_SUPPLY_PROP_RESISTANCE_ID:
 		pval->intval = chip->batt_id_ohm;

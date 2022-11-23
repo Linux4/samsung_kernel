@@ -221,9 +221,13 @@ source "drivers/input/joystick/Kconfig"
 source "drivers/input/tablet/Kconfig"
 
 source "drivers/input/touchscreen/Kconfig"
+
+source "drivers/input/rfcable_detect/Kconfig"
+
 # HS50 code for HS50-4050 by xiongxiaoliang at 20201031 start
 source "drivers/input/sar_mode_detect/Kconfig"
 # HS50 code for HS50-4050 by xiongxiaoliang at 20201031 end
+
 source "drivers/input/misc/Kconfig"
 
 source "drivers/input/sensors/smi130/Kconfig"

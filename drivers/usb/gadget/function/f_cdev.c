@@ -891,11 +891,11 @@ static void cser_free_inst(struct usb_function_instance *fi)
 		mutex_lock(&chardev_ida_lock);
 		ida_simple_remove(&chardev_ida, opts->port->minor);
 		mutex_unlock(&chardev_ida_lock);
+		usb_cser_debugfs_exit();
 		put_device(&opts->port->dev);
 	}
 
 	usb_cser_chardev_deinit();
-	usb_cser_debugfs_exit();
 	kfree(opts->func_name);
 	kfree(opts);
 }

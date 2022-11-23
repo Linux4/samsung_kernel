@@ -432,7 +432,7 @@ static int __zswap_cpu_comp_notifier(struct zswap_pool *pool,
 {
 	struct crypto_comp *tfm;
 
-	switch (action) {
+	switch (action & ~CPU_TASKS_FROZEN) {
 	case CPU_UP_PREPARE:
 		if (WARN_ON(*per_cpu_ptr(pool->tfm, cpu)))
 			break;

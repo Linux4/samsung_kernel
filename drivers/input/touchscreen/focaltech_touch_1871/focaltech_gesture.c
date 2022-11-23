@@ -38,7 +38,9 @@
 * Private constant and macro definitions using #define
 *****************************************************************************/
 /* HS70 add for HS70-193 add tsp cmd feature and add gesture aot_enable by gaozhengwei at 2019/10/24 start */
-#define KEY_GESTURE_U                           KEY_HOMEPAGE
+/* HS70 HS50 add for P210915-03922 all screen issue by zhangkexin at 2021/9/17 start */
+#define KEY_GESTURE_U                           KEY_WAKEUP
+/* HS70 HS50 add for P210915-03922 all screen issue by zhangkexin at 2021/9/17 end */
 /* HS70 add for HS70-193 add tsp cmd feature and add gesture aot_enable by gaozhengwei at 2019/10/24 end */
 #define KEY_GESTURE_UP                          KEY_UP
 #define KEY_GESTURE_DOWN                        KEY_DOWN
