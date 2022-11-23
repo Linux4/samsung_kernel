@@ -1,0 +1,7 @@
+service vendor.qti.vibrator /vendor/bin/hw/vendor.qti.hardware.vibrator.service
+    class hal
+    user system
+    group system input
+
+on late-init
+    write /sys/class/leds/vibrator/trigger "transient"
