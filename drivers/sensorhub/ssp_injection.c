@@ -140,6 +140,16 @@ static int ssp_inject_additional_info(struct ssp_data *data,
 		data->orientation_mode = buf[1];
 		set_device_orientation_mode(data);
 	}
+	else if (type == SENSOR_TYPE_SAR_BACKOFF_MOTION) {
+		int32_t sbm_value;
+		if (count < 5) {
+			ssp_errf("sbm reset value length error %d", count);
+			return -EINVAL;
+		}
+		sbm_value = *((int32_t *)(buf + 1));
+
+		set_sar_backoff_motion_reset_value(data, sbm_value);
+	}
 #endif
 
 	return ret;

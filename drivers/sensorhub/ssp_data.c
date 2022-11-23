@@ -924,6 +924,29 @@ int set_device_orientation_mode(struct ssp_data *data)
 
 	return ret;
 }
+
+#define SBM_RESET_CMD	128
+int set_sar_backoff_motion_reset_value(struct ssp_data *data, int32_t value)
+{
+	int ret = 0;
+
+	if (!(data->sensor_probe_state & (1ULL << SENSOR_TYPE_SAR_BACKOFF_MOTION))) {
+		ssp_infof("Skip this function!!! sbm is not connected(0x%llx)", data->sensor_probe_state);
+		return ret;
+	}
+
+	ret = ssp_send_command(data, CMD_SETVALUE, SENSOR_TYPE_SAR_BACKOFF_MOTION, SBM_RESET_CMD, 0,
+			       (char *)&value, sizeof(value), NULL, NULL);
+
+	if (ret != SUCCESS) {
+		ssp_errf("ssp_send_command Fail %d", ret);
+		return ret;
+	}
+
+	ssp_infof("%d", value);
+
+	return ret;
+}
 #endif
 
 #ifdef CONFIG_SENSORS_SSP_BAROMETER
