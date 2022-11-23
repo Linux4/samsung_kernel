@@ -1,0 +1,77 @@
+#define CAPACITY_MAX			1000
+#define CAPACITY_MAX_MARGIN     30
+#define CAPACITY_MIN			0
+
+#if defined(CONFIG_MACH_A3_CHN_CTC)
+static sec_bat_adc_table_data_t temp_table[] = {
+  {25000, 900},
+  {25112, 850},
+  {25200, 800},
+  {25265, 750},
+  {25391, 700},
+  {25500, 650},
+  {25634, 600},
+  {25780, 550},
+  {25955, 500},
+  {26159, 450},
+  {26388, 400},
+  {26533, 350},
+  {26918, 300},
+  {27160, 250},
+  {27559, 200},
+  {27828, 150},
+  {28274, 100},
+  {28650, 50},
+  {28975, 0},
+  {29308, -50},
+  {29620, -100},
+  {32719, -150},
+  {33032, -200},
+};
+#else
+static sec_bat_adc_table_data_t temp_table[] = {
+  {25252, 900},
+  {25361, 850},
+  {25489, 800},
+  {25640, 750},
+  {25816, 700},
+  {26022, 650},
+  {26262, 600},
+  {26538, 550},
+  {26855, 500},
+  {27214, 450},
+  {27615, 400},
+  {28075, 350},
+  {28535, 300},
+  {29041, 250},
+  {29564, 200},
+  {30090, 150},
+  {30605, 100},
+  {31097, 50},
+  {31552, 0},
+  {31963, -50},
+  {32323, -100},
+  {32632, -150},
+  {32891, -200},
+};
+#endif
+
+#define TEMP_HIGHLIMIT_THRESHOLD_EVENT		800
+#define TEMP_HIGHLIMIT_RECOVERY_EVENT		750
+#define TEMP_HIGHLIMIT_THRESHOLD_NORMAL		800
+#define TEMP_HIGHLIMIT_RECOVERY_NORMAL		750
+#define TEMP_HIGHLIMIT_THRESHOLD_LPM		800
+#define TEMP_HIGHLIMIT_RECOVERY_LPM		750
+
+#define TEMP_HIGH_THRESHOLD_EVENT  600
+#define TEMP_HIGH_RECOVERY_EVENT   460
+#define TEMP_LOW_THRESHOLD_EVENT   (-50)
+#define TEMP_LOW_RECOVERY_EVENT    0
+#define TEMP_HIGH_THRESHOLD_NORMAL 600
+#define TEMP_HIGH_RECOVERY_NORMAL  460
+#define TEMP_LOW_THRESHOLD_NORMAL  (-50)
+#define TEMP_LOW_RECOVERY_NORMAL   0
+#define TEMP_HIGH_THRESHOLD_LPM    600
+#define TEMP_HIGH_RECOVERY_LPM     460
+#define TEMP_LOW_THRESHOLD_LPM     (-50)
+#define TEMP_LOW_RECOVERY_LPM      0

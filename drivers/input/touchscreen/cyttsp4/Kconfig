@@ -1,0 +1,15 @@
+
+# Cypress Touchscreen driver configuration
+#
+
+config TOUCHSCREEN_CYTTSP4
+	tristate "CYPRESS touchscreen driver"
+	default n
+	depends on I2C
+	help
+	  Cypress TrueTouch(tm) Standard Product Generation4
+	  I2C bus interface.
+
+	  Say Y here to enable I2C bus interface to TTSP
+	  touchscreen controller.
+
