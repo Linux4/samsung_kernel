@@ -1,0 +1,13 @@
+/* HS03 code for SL6215DEV-657 by ditong at 20210830 start */
+&soc_thmzone{
+	soc_crit: soc_crit {
+		#ifdef HQ_D85_BUILD
+		temperature = <120000>;
+		#else
+		temperature = <110000>;
+		#endif
+		hysteresis = <2000>;
+		type = "critical";
+		};
+	};
+/* HS03 code for SL6215DEV-657 by ditong at 20210830 end */

@@ -1,0 +1,157 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Unisoc Qogirl6 platform DTS file
+ *
+ * Copyright (C) 2020, Unisoc Inc.
+ */
+
+/dts-v1/;
+
+#include "ums9230-zebu.dtsi"
+#include "ums9230-zebu-mach.dtsi"
+
+/ {
+	model = "Spreadtrum UMS9230 Zebu SoC";
+
+	compatible = "sprd,ums9230-zebu";
+
+	sprd,sc-id = "ums9230-zebu 1000 1000";
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x2 0x00000000>;
+	};
+
+	chosen: chosen {
+		stdout-path = &uart0;
+		bootargs = "earlycon console=ttyS0,26000000n8 loglevel=8 init=/init root=/dev/ram0 rw printk.devkmsg=on androidboot.selinux=permissive";
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		super_memdisk_reserved: super_memdisk_reserved@100000000{
+			reg = <0x1 0x00000000 0x0 0x82000000>;  /* system 2G */
+		};
+
+		userdata_memdisk_reserved: userdata_memdisk_reserved@e0000000{
+			reg = <0x0 0xe0000000 0x0 0x20000000>; /* userdata 512M */
+		};
+
+		metadata_memdisk_reserved: metadata_memdisk_reserved@c0000000{
+			reg = <0x0 0xc0000000 0x0 0x3200000>; /* metadata 50M */
+		};
+
+		socko_memdisk_reserved: socko_memdisk_reserved@c3200000{
+			reg = <0x0 0xc3200000 0x0 0x4B00000>; /* socko 75M */
+		};
+
+		cache_memdisk_reserved: cache_memdisk_reserved@C7D00000{
+			reg = <0x0 0xC7D00000 0x0 0x3200000>; /* cache 50M */
+		};
+
+		persist_memdisk_reserved: persist_memdisk_reserved@caf00000{
+			reg = <0x0 0xcaf00000 0x0 0x200000>; /* persist 2M */
+		};
+
+		mso_memdisk_reserved: mso_memdisk_reserved@cb100000{
+			reg = <0x0 0xcb100000 0x0 0x8000000>; /* mso 128M */
+		};
+
+		fb_reserved: framebuffer@8a800000{
+			reg = <0x0 0x8a800000 0x0 0x2878000>;
+		};
+	};
+
+	sprd-memdisk {
+		compatible = "sprd,memdisk";
+
+		super {
+			memory-region = <&super_memdisk_reserved>;
+			label = "super";
+		};
+
+		userdata {
+			memory-region = <&userdata_memdisk_reserved>;
+			label = "userdata";
+		};
+
+		metadata {
+			memory-region = <&metadata_memdisk_reserved>;
+			label = "metadata";
+		};
+
+		socko {
+			memory-region = <&socko_memdisk_reserved>;
+			label = "socko";
+		};
+
+		cache {
+			memory-region = <&cache_memdisk_reserved>;
+			label = "cache";
+		};
+
+		persist {
+			memory-region = <&persist_memdisk_reserved>;
+			label = "persist";
+		};
+
+		mso {
+			memory-region = <&mso_memdisk_reserved>;
+			label = "mso";
+		};
+	};
+
+	gpu: gpu@23000000 {
+		compatible = "sprd,mali-natt";
+		reg = <0 0x23100000 0 0x4000>;
+		interrupts = <0 60 0x4>,
+			<0 60 0x4>,
+			<0 60 0x4>;
+
+		interrupt-names = "JOB",
+			"MMU",
+			"GPU";
+
+		operating-points = <
+			// kHz    uV
+			850000    0
+			768000    0
+			512000    0
+			>;
+		sprd,dfs-lists = <
+			// kHz idx div
+			512000 2   1
+			768000 3   1
+			850000 4   1
+			>;
+
+		sprd,dfs-default = <2>;
+		prd,dfs-scene-extreme = <2>;
+		sprd,dfs-scene-high = <1>;
+		sprd,dfs-scene-medium = <1>;
+		sprd,dfs-scene-low = <0>;
+		sprd,dfs-range-max = <2>;
+		sprd,dfs-range-min = <0>;
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&dpu {
+	sprd,initial-stop-state;
+	status = "okay";
+};

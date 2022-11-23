@@ -1,0 +1,14 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	model = "Spreadtrum UMS9230 Zebu Board";
+
+	compatible = "sprd,ums9230-zebu";
+
+	sprd,sc-id = "ums9230-zebu backdoor 1000";
+};
+
+&chosen {
+	bootargs_ext = "androidboot.hardware=ums9230_zebu androidboot.dtbo_idx=0androidboot.boot_devices=memdisk0";
+};

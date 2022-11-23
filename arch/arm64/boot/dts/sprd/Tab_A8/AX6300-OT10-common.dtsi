@@ -1,0 +1,22 @@
+/*
+ * Overlay sprd source file. All DTSI files included by this file must not contain any SOC-specific bindings.
+ */
+/* Tab A8 code for SR-SL6215-01-208 by sunxunou at 2021/08/03 start */
+#include "Tab_A8_sdcard.dtsi"
+/* Tab A8 code for SR-SL6215-01-208 by sunxunou at 2021/08/03 end */
+/*Tab A8 code for SR-AX6300-01-78 by xiongxiaoliang at 2021/08/09 start*/
+#include "Tab_A8_sar.dtsi"
+/*Tab A8 code for SR-AX6300-01-78 by xiongxiaoliang at 2021/08/09 end*/
+/*Tab A8 code for SR-AX6300-01-87 by xiongxiaoliang at 2021/08/12 start*/
+#include "Tab_A8_hall.dtsi"
+/*Tab A8 code for SR-AX6300-01-87 by xiongxiaoliang at 2021/08/12 end*/
+/*Tab A8 code for SR-AX6300-01-06 by qiaodan at 2021/08/13 start*/
+#include "Tab_A8_battery.dtsi"
+/*Tab A8 code for SR-AX6300-01-06 by qiaodan at 2021/08/13 end*/
+/* Tab A8 code for SR-AX6300-01-207 by wangdeyan at 20210812 start */
+#include "Tab_A8_secure.dtsi"
+/* Tab A8 code for SR-AX6300-01-207 by wangdeyan at 20210812 end */
+/* Tab A8 code for by AX6300DEV-188 huangzhongjie at 20210911 start */
+#include "Tab_A8_lcd.dtsi"
+#include "Tab_A8_tp.dtsi"
+/* Tab A8 code for by AX6300DEV-188 huangzhongjie at 20210911 end */

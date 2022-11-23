@@ -1,0 +1,88 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	model = "Unisoc UMS9520 Haps Backdoor Board";
+
+	compatible = "sprd,ums9520-haps-backdoor";
+
+	sprd,sc-id = "ums9520-haps backdoor 1000";
+
+	fragment {
+		target-path = "/";
+		__overlay__ {
+			reserved-memory {
+				#address-cells = <2>;
+				#size-cells = <2>;
+				ranges;
+
+				super_memdisk_reserved: super-memdisk-reserved@12af00000{
+					reg = <0x1 0x2af00000 0x0 0x90000000>;  /* super 2.3G */
+				};
+				userdata_memdisk_reserved: userdata-memdisk-reserved@1baf00000{
+					reg = <0x1 0xbaf00000 0x0 0x40000000>;  /* userdata 1G */
+				};
+				metadata_memdisk_reserved: metadata-memdisk-reserved@1faf00000{
+					reg = <0x1 0xfaf00000 0x0 0x3200000>;  /* metadata 50M */
+				};
+				persist_memdisk_reserved: persist-memdisk-reserved@1fe100000{
+					reg = <0x1 0xfe100000 0x0 0x200000>;  /* persist 2M */
+				};
+				socko_memdisk_reserved: socko-memdisk-reserved@1fe300000{
+					reg = <0x1 0xfe300000 0x0 0x4ffffff>;  /* socko 80M */
+				};
+
+				mm_reserved: multimedia-reserved@203300000 {
+					reg = <0x2 0x03300000 0x0 0x20000000>;  /* camera 512M */
+				};
+
+			};
+
+			sprd-memdisk {
+				compatible = "sprd,memdisk";
+
+				super {
+					memory-region = <&super_memdisk_reserved>;
+					label = "super";
+				};
+				userdata {
+					memory-region = <&userdata_memdisk_reserved>;
+					label = "userdata";
+				};
+				metadata {
+					memory-region = <&metadata_memdisk_reserved>;
+					label = "metadata";
+				};
+				persist {
+					memory-region = <&persist_memdisk_reserved>;
+					label = "persist";
+				};
+				socko {
+					memory-region = <&socko_memdisk_reserved>;
+					label = "socko";
+				};
+
+			};
+		};
+	};
+};
+
+&chosen {
+	bootargs_ext = "androidboot.hardware=ums9520_haps androidboot.dtbo_idx=0 androidboot.boot_devices=memdisk0 androidboot.force_normal_boot=1";
+};
+
+&adi_bus {
+	sprd,hw-channels = <2 0x20cc>, <9 0x2074>, <11 0x2054>, <13 0xa180>,
+			<15 0xa054>, <17 0xa1a0>, <19 0xa044>, <21 0xa0e8>,
+			<23 0x244c>, <25 0xa074>, <27 0x2044>, <30 0x2020>,
+			<34 0x21b8>, <35 0x21ac>;
+};
+
+&ion {
+	heap@1 {
+		reg = <1>;
+		label = "carveout_mm";
+		type = <2>;
+		memory-region = <&mm_reserved>;
+	};
+};

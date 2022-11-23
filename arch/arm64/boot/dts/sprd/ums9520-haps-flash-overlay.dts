@@ -1,0 +1,34 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+
+	model = "Spreadtrum UMS9520 Haps Flash Board";
+
+	compatible = "sprd,ums9520-haps-flash";
+
+	sprd,sc-id = "ums9520-haps flash 1000";
+
+};
+
+&chosen {
+	bootargs_ext = "androidboot.hardware=ums9520_haps_flash androidboot.dtbo_idx=0 androidboot.boot_devices=soc/soc:ap-ahb/22200000.sdio";
+};
+
+&reserved_memory {
+
+	smem_reserved: sipc-mem@87800000 {
+		reg = <0x0 0x87800000 0x0 0x00800000>;
+	};
+
+	cp_reserved: cp-modem@88000000 {
+		reg = <0x0 0x88000000 0x0 0x23000000>;
+	};
+};
+
+&adi_bus {
+	sprd,hw-channels = <2 0x20cc>, <9 0x2074>, <11 0x2054>, <13 0xa180>,
+			<15 0xa054>, <17 0xa1a0>, <19 0xa044>, <21 0xa0e8>,
+			<23 0x244c>, <25 0xa074>, <27 0x2044>, <30 0x2020>,
+			<34 0x21b8>, <35 0x21ac>;
+};

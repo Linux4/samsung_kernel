@@ -1,0 +1,6 @@
+config INPUT_HALL
+    tristate "hall_sensor"
+    default y
+    help
+      Say Y to enable the HALL detection application, if N here not to use the
+      this HALL sensor

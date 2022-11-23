@@ -1,0 +1,21 @@
+/* Tab A7 T618 code for SR-AX6189A-01-379 && SR-AX6189A-01-378 by tangyuhang at 2021/12/24 start */
+&spi0 {
+	status = "okay";
+
+	grdm-spi@0{
+		compatible = "sec,grdm-spi";
+		reg = <0x0>;
+		status = "okay";
+		spi-max-frequency = <6500000>;
+	};
+};
+
+&soc {
+	grdm-dev{
+		status = "okay";
+		compatible = "sec,guardianm";
+		vddldo1-supply = <&vddldo1>;
+	};
+};
+
+/* Tab A7 T618 code for SR-AX6189A-01-379 && SR-AX6189A-01-378 by tangyuhang at 2021/12/24 end */

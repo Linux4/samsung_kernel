@@ -1,0 +1,154 @@
+charger-manager bindings
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Required properties :
+ - compatible : "charger-manager"
+ - <>-supply : for regulator consumer
+ - cm-num-chargers : number of chargers
+ - cm-num-fast-chargers : number of fast chargers
+ - cm-chargers : name of chargers
+ - cm-fast-chargers : name of fast chargers
+ - cm-fuel-gauge : name of battery fuel gauge
+ - subnode <regulator> :
+	- cm-regulator-name : name of charger regulator
+	- subnode <cable> :
+		- cm-cable-name : name of charger cable
+		- extcon : phandles to external connector devices
+(optional)	- cm-cable-min : minimum current of cable
+(optional)	- cm-cable-max : maximum current of cable
+
+Optional properties :
+ - cm-name : charger manager's name (default : "battery")
+ - cm-poll-mode : polling mode (enum polling_modes)
+ - cm-poll-interval : polling interval
+ - cm-battery-stat : battery status (enum data_source)
+ - cm-fullbatt-* : data for full battery checking
+ - cm-thermal-zone : name of external thermometer's thermal zone
+ - cm-battery-* : threshold battery temperature for charging
+	-cold : critical cold temperature of battery for charging
+	-cold-in-minus : flag that cold temperature is in minus degrees
+	-hot : critical hot temperature of battery for charging
+	-temp-diff : temperature difference to allow recharging
+ - cm-dis/charging-max = limits of charging duration
+ - cm-charge-voltage-max: maximum charge voltage in microVolts
+ - cm-charge-voltage-drop: drop voltage in microVolts to allow recharging
+ - cm-fast-charge-voltage-max: maximum fast charge voltage in microVolts
+ - cm-fast-charge-voltage-drop: drop voltage in microVolts to allow restart fast charging
+ - cm-flash-charge-voltage-max: maximum fast charge voltage in microVolts
+ - cm-flash-charge-voltage-drop: drop voltage in microVolts to allow restart fast charging
+ - cm-wireless-charge-voltage-max: maximum bpp standard wireless charge voltage in microVolts
+ - cm-wireless-charge-voltage-drop: drop voltage in microVolts to allow restart bpp
+   standard wireless charging
+ - cm-wireless-fast-charge-voltage-max: maximum epp wireless charge voltage in microVolts
+ - cm-wireless-fast-charge-voltage-drop: drop voltage in microVolts to allow restart epp
+   wireless charging
+ - cm-shutdown-voltage: drop voltage in microVolts to allow shutdown
+ - cm-tickle-time-out: when 99% of the time is exceeded, it will be forced to 100%
+ - cm-one-cap-time: how much time to allow capacity change
+ - cm-wdt-interval: the interval to feed charger watchdog
+ - monitored-battery: Phandle of battery characteristics devicetree node.
+ - cm-capacity-track: the capacity track configuration option, if configured, Will
+   automatically adjust the battery capacity.
+ - cm-jeita-dcp-table: An array of dcp charger type table providing the temperature in
+   degree Celsius, the recovery temperature in degree Celsius, the corresponding current
+   and the corresponding terminate voltage, which is used to adjust the charging
+   current according to different battery temperature to improve charging efficiency.
+   The current unit is microamp and terminate voltage unit is microvolt.
+ - cm-jeita-cdp-table: Similar to the above, An array of cdp charger type table.
+ - cm-jeita-sdp-table: Similar to the above, An array of sdp charger type table.
+ - cm-jeita-unknown-table: Similar to the above, An array of unknown table type table.
+ - cm-jeita-fchg-table: Similar to the above, An array of fast charger type table.
+ - cm-num-charge-pumps: number of charge pums chargers.
+ - cm-num-wireless-chargers: number of wireless chargers.
+ - cm-num-wireless-charge-pump-converters: number of wireless charge pump converters;
+ - cm-charge-pumps: name of chager pumps.
+ - cm-wireless-chargers: name of wireless chargers.
+ - cm-wireless-charge-pump-converters: name of wireless charge pump converters;
+ - cm-cp-taper-current: Charge pump target charge current
+ - cm-cap-remap-table: capacity remap table.
+ - cm-ir-cv-offset-microvolt: current and resistor compensation offeset value.
+ - cm-ir-rc:  current and resistor compensation resistor value.
+ - cm-ir-us-upper-limit-microvolt: current and resistor compensation upper limit.
+Example :
+	charger-manager@0 {
+		compatible = "charger-manager";
+		chg-reg-supply = <&charger_regulator>;
+
+		cm-name = "battery";
+		monitored-battery = <&bat>;
+		cm-capacity-track;
+		/* Always polling ON : 30s */
+		cm-poll-mode = <1>;
+		cm-poll-interval = <30000>;
+
+		cm-fullbatt-vchkdrop-ms = <30000>;
+		cm-fullbatt-vchkdrop-volt = <150000>;
+		cm-fullbatt-soc = <100>;
+
+		cm-cp-taper-current = <1000000>;
+
+		cm-battery-stat = <3>;
+
+		cm-num-chargers = <3>;
+		cm-num-fast-chargers = <2>;
+		cm-num-charge-pumps = <2>;
+		cm-num-wireless-chargers = <2>;
+		cm-num-wireless-charge-pump-converters = <2>;
+		cm-chargers = "charger0", "charger1", "charger2";
+		cm-fast-chargers = "fast_charger0", "fast_charger1";
+		cm-charge-pumps = "cp-charger0", "cp-charger1";
+		cm-wireless-chargers = "wl-charger0", "wl-charger1";
+		cm-wireless-charge-pump-converters = "converter0", "converter1";
+
+		cm-fuel-gauge = "fuelgauge0";
+
+		cm-thermal-zone = "thermal_zone.1"
+		/* in deci centigrade */
+		cm-battery-cold = <50>;
+		cm-battery-cold-in-minus;
+		cm-battery-hot = <800>;
+		cm-battery-temp-diff = <100>;
+
+		/* Allow charging for 5hr */
+		cm-charging-max = <18000000>;
+		/* Allow discharging for 2hr */
+		cm-discharging-max = <7200000>;
+		cm-charge-voltage-max = <6500000>;
+		cm-charge-voltage-drop = <700000>;
+		cm-fast-charge-voltage-max = <11000000>;
+		cm-fast-charge-voltage-drop  = <1000000>;
+		cm-flash-charge-voltage-max = <11000000>;
+		cm-flash-charge-voltage-drop  = <1000000>;
+		cm-wireless-charge-voltage-max = <6500000>;
+		cm-wireless-charge-voltage-drop = <700000>;
+		cm-wireless-fast-charge-voltage-max = <12000000>;
+		cm-wireless-fast-charge-voltage-drop = <1000000>;
+		cm-shutdown-voltage = <3100000>;
+		cm-tickle-time-out = <1500>;
+		cm-one-cap-time = <30>;
+		cm-wdt-interval = <60>;
+		cm-ir-cv-offset-microvolt = <100000>;
+		cm-ir-rc = <20>;
+		cm-ir-us-upper-limit-microvolt = <4500000>;
+
+		cm-jeita-temp-table = <900 930 0 4200000>, <1000 1030 100000 4200000>,
+			<1100 1130 500000 4350000>, <1450 1420 0x7fff000 4350000>,
+			<1500 1470 700000 4350000>;
+
+		regulator@0 {
+			cm-regulator-name = "chg-reg";
+			cable@0 {
+				cm-cable-name = "USB";
+				extcon = <&extcon_usb>;
+				cm-cable-min = <475000>;
+				cm-cable-max = <500000>;
+			};
+			cable@1 {
+				cm-cable-name = "TA";
+				extcon = <&extcon_usb>;
+				cm-cable-min = <650000>;
+				cm-cable-max = <675000>;
+			};
+		};
+
+	};

@@ -1,0 +1,36 @@
+Spreadtrum Communications PDM bindings
+
+PDM (pulse density modulation) is audio interface. This
+module is the digital part for processing the input of
+dmic. The audio data out can be transmit by iis interface
+or can be accessed by dma request or interrupt. All external
+dmic devices must be the smae. The pdm data are send to vbc
+and vad. The data in vad is used for voice trigger. The data
+in vbc is used for acoustic echo cancel.
+
+======
+
+Required properties:
+- compatible : Should be one of following "sprd,pdm", "sprd,pdm-ums9620"
+- reg: must be the PHY controller base address.
+- #sound-dai-cells : it used to specify how many cells used when using dai phandle.
+	if equal 0 means using default dai 0, if equal 1,
+	the dai number is determined by the second parameter of sound-dai property.
+- aon-apb-set-offset: offset value for registers setting.
+- aon-apb-clr-offset: offset value for registers clear.
+- sprd,syscon-agcp-ahb: specify the handle for audcp_ahb_regs
+- sprd,syscon-agcp-apb: specify the handle for audcp_aon_apb_regs
+======
+
+Example:
+
+	pdm_dmic: pdm-dmic@56370000 {
+		compatible = "sprd,pdm-ums9620";
+		status = "disabled";
+		reg = <0 0x56370000 0 0x2000>;
+		#sound-dai-cells = <1>;
+		aon-apb-set-offset = <0>;
+		aon-apb-clr-offset = <0>;
+		sprd,syscon-agcp-ahb = <&audcp_ahb_regs>;
+		sprd,syscon-agcp-apb = <&audcp_aon_apb_regs>;
+	};

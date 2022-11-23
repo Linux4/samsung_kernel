@@ -1,0 +1,22 @@
+/*
+ * Overlay sprd source file. All DTSI files included by this file must not contain any SOC-specific bindings.
+ */
+/* Tab A7 Unisoc code for SR-AX6189A-01-194 by sunxunou at 2021/12/19 start */
+#include "Tab_A7_Unisoc_sdcard.dtsi"
+#include "Tab_A7_Unisoc_lcd.dtsi"
+/* Tab A7 Unisoc code for SR-AX6189A-01-194 by sunxunou at 2021/12/19 end */
+/* Tab A7 T618 code for SR-AX6189A-01-101 by shixuanxuan at 20211221 start */
+#include "Tab_A7_Unisoc_battery.dtsi"
+/* Tab A7 T618 code for SR-AX6189A-01-101 by shixuanxuan at 20211221 end */
+/* Tab A7 T618 code for AX6189DEV-17 by liluling at 2021/12/20 start */
+#include "Tab_A7_Unisoc_camera.dtsi"
+/* Tab A7 T618 code for AX6189DEV-17 by liluling at 2021/12/20 start */
+/*Tab A7 T618 code for AX6189DEV-20|AX6189DEV-26 by suyurui at 2021/12/21 start*/
+#include "Tab_A7_Unisoc_tp.dtsi"
+/*Tab A7 T618 code for AX6189DEV-20|AX6189DEV-26 by suyurui at 2021/12/21 end*/
+/* Tab A7 T618 code for SR-AX6189A-01-178 by zhangziyi at 2021/12/19 start */
+#include "Tab_A7_Unisoc_sar.dtsi"
+/* Tab A7 T618 code for SR-AX6189A-01-178 by zhangziyi at 2021/12/19 end */
+/* Tab A7 T618 code for SR-AX6189A-01-379 && SR-AX6189A-01-378 by tangyuhang at 2021/12/24 start */
+#include "Tab_A7_Unisoc_secure.dtsi"
+/* Tab A7 T618 code for SR-AX6189A-01-379 && SR-AX6189A-01-378 by tangyuhang at 2021/12/24 end */

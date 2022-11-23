@@ -1,0 +1,19 @@
+Synaptics TD4310 I2C touchscreen controller
+
+Required properties:
+ - compatible:     "solomon,ssd20xx"
+ - gpios: 	   The reset and interrupt GPIO number
+ - reg: 	   I2C slave address of the chip
+
+Example nodes:
+
+&i2c3 {
+	/* ... */
+	touchscreen@53 {
+		compatible = "solomon,ssd20xx";
+		reg = <0x53>;
+		gpios = <&ap_gpio 145 GPIO_ACTIVE_HIGH
+			&ap_gpio 144 GPIO_ACTIVE_HIGH>;
+	};
+	/* ... */
+};

@@ -1,0 +1,31 @@
+Silergy PMIC battery wireless charger binding
+
+Required properties:
+ - compatible: Should be "Silergy,wl_charger_sy65153".
+ - reg: Address offset of charger register.
+ - intb,irq_gpio: intterupt pin to receive interrupt for sy65153
+ - pg,irq_gpio: intterupt pin to indicate power good status
+Optional Properties:
+- switch_chg_en_gpio: switch chip enable pin
+- switch_flag_en_gpio: otg flag enable pin
+Example:
+
+	bat: battery {
+		compatible = "simple-battery";
+		charge-term-current-microamp = <120000>;
+		constant-charge-voltage-max-microvolt = <4350000>;
+		......
+	};
+
+	&i2c4 {
+		status = "okay";
+		clock-frequency = <400000>;
+
+		sy65153_wl_charger: charger@61 {
+				   compatible = "silergy,wl_charger_sy65153";
+				   reg = <0x61>;
+				   intb,irq_gpio = <&ap_gpio 146 GPIO_ACTIVE_LOW>;
+				   pg,irq_gpio = <&ap_gpio 131 GPIO_ACTIVE_HIGH>;
+				   switch_chg_en_gpio = <&ap_gpio 171 GPIO_ACTIVE_LOW>;
+			   };
+	};

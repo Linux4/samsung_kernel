@@ -1,0 +1,15 @@
+/* HS03 code for SR-SL6215-01-233/SL6215DEV-672 by sunxunou at 2021/10/09 start */
+&soc {
+	sdcard-det-pin {
+                compatible = "sprd,sdcard-detect-pin";
+                sprd,sdcard-detect-pin-no = <&eic_sync 35 GPIO_ACTIVE_HIGH>;
+        };
+};
+
+&sdio0 {
+	sprd,sdr104-dly = <0x7f 0xb3 0xb7 0xb7>;
+	sprd,sdr50-dly = <0x7f 0x7f 0x45 0x45>;
+	sprd,sdhs-dly = <0x7f 0x8d 0xaf 0xaf>;
+};
+/* HS03 code for SR-SL6215-01-233/SL6215DEV-672 by sunxunou at 2021/10/09 end */
+

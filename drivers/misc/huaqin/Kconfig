@@ -1,0 +1,13 @@
+#
+# for huaqin mis info
+#
+
+# HS03 code for SR-SL6215-01-233 by sunxunou at 2021/08/02 start
+config HQ_SIM_TRAY_CHECK
+	bool "check sim stry status"
+        default y
+	help
+	  this will create a node to show sim tray status.
+
+	  If unsure, say N.
+# HS03 code for SR-SL6215-01-233 by sunxunou at 2021/08/02 end

@@ -1,0 +1,7 @@
+config GRDM_POWER
+	bool "regulatore control of grdm"
+	default y
+	help
+	  Say Y here if you have a grdm.
+
+	  If unsure, say N.

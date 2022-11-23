@@ -1,0 +1,13 @@
+&i2c3 {
+    status = "okay";
+    aw9610x_sar@12 {
+        compatible = "awinic,aw9610x_sar_0";
+        reg = <0x12>;
+        interrupt-parent = < &ap_gpio >;
+        //interrupts = <166 0>;
+        irq-gpio = <&ap_gpio 166 0>;
+        aw9610x,using-firmware;
+        sar-num = < 0 >;
+        status = "okay";
+    };
+};

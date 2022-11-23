@@ -1,0 +1,6 @@
+config SND_SOC_SPRD_DP_CODEC
+	tristate "sprd dp codec"
+	default n
+	help
+		Say Y or M here if you want to use dp feature.
+
