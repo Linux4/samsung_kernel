@@ -1,0 +1,8 @@
+config SB_MFC
+	tristate "MFC HAL driver"
+	depends on I2C
+	help
+		Say Y here to enable support for the MFC Hal driver.
+		Dualization of wireless charging ICs.
+		include common I2C function.
+		include common operation in wireless charging concept.

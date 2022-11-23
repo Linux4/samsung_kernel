@@ -1,0 +1,10 @@
+toolchain/binutils.git:          d42268bd795ae78a45e6a225ee77c5617777223a Set -O2 by default for binutils.
+toolchain/build.git:             58be6006bb71abb97d7cdff7be3e73d55bbc22b8 Removing -mx32 from the multilib list fixees most multilib problems.
+toolchain/gcc.git:               f236b449daeff96112b586ed4f06980e88012d39 Bootstrap build with Python 3.
+toolchain/gdb.git:               321dd24967841c5380c6d2f07c37b869538d2f7b Add gdb-8.2.
+toolchain/gold.git:              8d401cf711539af5a2f78d12447341d774892618 Empty initial commit.
+toolchain/gmp.git:               b2acd5dbf47868ac5b5bc844e16d2cadcbd4c810 Remove old versions of gmp.
+toolchain/mpfr.git:              de979fc377db766591e7feaf052f0de59be46e76 Remove old versions of mpfr.
+toolchain/mpc.git:               835d16e92eed875638a8b5d552034c3b1aae045b add mpc-1.0.1.tar.gz
+toolchain/isl.git:               0ccf95726af8ce58ad61ff474addbce3a31ba99c Fix selected issues with non-4.9 gcc builds
+toolchain/cloog.git:             604793eab97d360aef729f064674569ee6dbf3e1 Delete old versions of cloog.

@@ -1,0 +1,8 @@
+config DIRECT_CHARGING
+	tristate "support for direct charging"
+	help
+	 Say Y to include support for direct charging
+	 support for direct charging models.
+	 Direct charging models should enable this charging option.
+	 it include some charging scenario for direct charging models.
+

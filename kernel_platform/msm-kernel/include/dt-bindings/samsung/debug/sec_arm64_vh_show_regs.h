@@ -1,0 +1,7 @@
+#ifndef __DT_BINDINGS__SEC_ARM64_VH_SHOW_REGS_H__
+#define __DT_BINDINGS__SEC_ARM64_VH_SHOW_REGS_H__
+
+/* crc32 <(echo -n "SEC_ARM64_VH_SHOW_REGS_MAGIC") | tr '[a-z]' '[A-Z]' */
+#define SEC_ARM64_VH_SHOW_REGS_MAGIC	0xF58EC48D
+
+#endif /* __DT_BINDINGS__SEC_ARM64_VH_SHOW_REGS_H__ */

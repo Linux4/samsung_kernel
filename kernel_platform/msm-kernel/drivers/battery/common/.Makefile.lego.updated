@@ -1,0 +1,4 @@
+obj-$(CONFIG_DIRECT_CHARGING)		+= sec-direct-charger.o
+sec-direct-charger-$(CONFIG_DIRECT_CHARGING)	+= sb_pass_through.o sec_direct_charger.o
+
+ccflags-y := -Wformat

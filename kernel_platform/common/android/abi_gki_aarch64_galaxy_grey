@@ -1,0 +1,4 @@
+[abi_symbol_list]
+filp_open
+ib_notifier_register
+ib_notifier_unregister

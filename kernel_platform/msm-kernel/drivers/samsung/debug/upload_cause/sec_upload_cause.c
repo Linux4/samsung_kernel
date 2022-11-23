@@ -1,0 +1,553 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * COPYRIGHT(C) 2020 Samsung Electronics Co., Ltd. All Right Reserved.
+ */
+
+#define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
+
+#include <linux/debugfs.h>
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/list.h>
+#include <linux/module.h>
+#include <linux/mutex.h>
+#include <linux/notifier.h>
+#include <linux/of.h>
+#include <linux/of_platform.h>
+#include <linux/platform_device.h>
+#include <linux/slab.h>
+
+#include <linux/samsung/builder_pattern.h>
+#include <linux/samsung/debug/sec_upload_cause.h>
+
+struct upload_cause_notify {
+	struct mutex lock;
+	struct list_head list;
+	struct sec_upload_cause *dflt;
+	struct notifier_block nb;
+};
+
+struct upload_cause_drvdata {
+	struct builder bd;
+	struct upload_cause_notify notify;
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+	struct dentry *dbgfs;
+#endif
+};
+
+static struct upload_cause_drvdata *upload_cause;
+
+static __always_inline bool __upldc_is_probed(void)
+{
+	return !!upload_cause;
+}
+
+static inline int __upldc_add_cause(struct sec_upload_cause *uc)
+{
+	struct upload_cause_notify *notify;
+
+	notify = &upload_cause->notify;
+
+	mutex_lock(&notify->lock);
+	list_add(&uc->list, &notify->list);
+	mutex_unlock(&notify->lock);
+
+	return 0;
+}
+
+int sec_upldc_add_cause(struct sec_upload_cause *uc)
+{
+	if (!__upldc_is_probed())
+		return -ENODEV;
+
+	return __upldc_add_cause(uc);
+}
+EXPORT_SYMBOL(sec_upldc_add_cause);
+
+static inline int __upldc_del_cause(struct sec_upload_cause *uc)
+{
+	struct upload_cause_notify *notify;
+
+	notify = &upload_cause->notify;
+
+	mutex_lock(&notify->lock);
+	list_del(&uc->list);
+	mutex_unlock(&notify->lock);
+
+	return 0;
+}
+
+int sec_upldc_del_cause(struct sec_upload_cause *uc)
+{
+	if (!__upldc_is_probed())
+		return -ENODEV;
+
+	return __upldc_del_cause(uc);
+}
+EXPORT_SYMBOL(sec_upldc_del_cause);
+
+static inline int __upldc_set_default_cause(struct sec_upload_cause *uc)
+{
+	struct upload_cause_notify *notify;
+
+	notify = &upload_cause->notify;
+
+	mutex_lock(&notify->lock);
+	if (notify->dflt) {
+		pr_warn("default handle is already registered. ignored!\n");
+		pr_warn("Caller is %pS\n", __builtin_return_address(0));
+	} else {
+		notify->dflt = uc;
+	}
+	mutex_unlock(&notify->lock);
+
+	return 0;
+}
+
+int sec_upldc_set_default_cause(struct sec_upload_cause *uc)
+{
+	if (!__upldc_is_probed())
+		return -ENODEV;
+
+	return __upldc_set_default_cause(uc);
+}
+EXPORT_SYMBOL(sec_upldc_set_default_cause);
+
+static inline int __upldc_unset_default_cause(struct sec_upload_cause *uc)
+{
+	struct upload_cause_notify *notify;
+
+	notify = &upload_cause->notify;
+
+	mutex_lock(&notify->lock);
+	if (!notify->dflt) {
+		pr_warn("default handle is already unset - ignored.\n");
+	} else if (notify->dflt != uc) {
+		pr_warn("current default handle is different from you requested - ignored.\n");
+	} else {
+		notify->dflt = NULL;
+	}
+	mutex_unlock(&notify->lock);
+
+	return 0;
+}
+
+int sec_upldc_unset_default_cause(struct sec_upload_cause *uc)
+{
+	if (!__upldc_is_probed())
+		return -ENODEV;
+
+	return __upldc_unset_default_cause(uc);
+}
+EXPORT_SYMBOL(sec_upldc_unset_default_cause);
+
+static inline void __upldc_type_to_cause(unsigned int type, char *cause, size_t len)
+{
+	struct upload_cause_notify *notify = &upload_cause->notify;
+	struct sec_upload_cause *uc;
+
+	mutex_lock(&notify->lock);
+	list_for_each_entry(uc, &notify->list, list) {
+		if (type == uc->type) {
+			snprintf(cause, len, "%s", uc->cause);
+			mutex_unlock(&notify->lock);
+			return;
+		}
+	}
+	mutex_unlock(&notify->lock);
+
+	strlcpy(cause, "unknown_reset", len);
+}
+
+void sec_upldc_type_to_cause(unsigned int type, char *cause, size_t len)
+{
+	if (!__upldc_is_probed())
+		return;
+
+	__upldc_type_to_cause(type, cause, len);
+}
+EXPORT_SYMBOL(sec_upldc_type_to_cause);
+
+static int __upldc_handle_each_cause(const struct sec_upload_cause *uc,
+		const char *cause)
+{
+	return uc->func(uc, cause);
+}
+
+static int __upldc_handle_single_cause(
+		struct upload_cause_notify *notify, const char *cause)
+{
+	struct sec_upload_cause *uc;
+	int handled = SEC_UPLOAD_CAUSE_HANDLE_DONE;
+
+	/* NOTE: mutex_lock/_unlock may not be needed when this
+	 * function works.
+	 */
+	list_for_each_entry(uc, &notify->list, list) {
+		handled = __upldc_handle_each_cause(uc, cause);
+		if (handled & SEC_UPLOAD_CAUSE_HANDLE_STOP_MASK)
+			break;
+	}
+
+	return handled;
+}
+
+static int __upldc_handle(struct upload_cause_notify *notify,
+		const char *cause)
+{
+	int handled;
+
+	handled = __upldc_handle_single_cause(notify, cause);
+
+	if ((handled & SEC_UPLOAD_CAUSE_HANDLE_OK) == SEC_UPLOAD_CAUSE_HANDLE_OK)
+		return handled;
+
+	if (notify->dflt) {
+		pr_info("call default handler\n");
+		handled = notify->dflt->func(notify->dflt, cause);
+	}
+
+	return handled;
+}
+
+static int sec_upldc_notifier_call(struct notifier_block *this,
+		unsigned long type, void *data)
+{
+	struct upload_cause_notify *notify =
+			container_of(this, struct upload_cause_notify, nb);
+	const char *cause = data;
+	int err;
+	int ret = NOTIFY_DONE;
+
+	pr_info("cause : %s\n", cause);
+
+	err = __upldc_handle(notify, cause);
+	switch (err) {
+	case SEC_UPLOAD_CAUSE_HANDLE_DONE:
+		pr_warn("any reboot reason did not handle this command - %s",
+				cause);
+		break;
+	case SEC_UPLOAD_CAUSE_HANDLE_OK:
+		ret = NOTIFY_OK;
+		break;
+	default:
+		if (err & SEC_UPLOAD_CAUSE_HANDLE_BAD)
+			pr_err("error occured during iteration\n");
+		else
+			pr_err("unknown return value - %d\n", err);
+		break;
+	}
+
+	return ret;
+}
+
+#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
+int kunit_upldc_mock_notifier_call(unsigned long type, const void *data)
+{
+	struct upload_cause_notify *notify = &upload_cause->notify;
+	char *msg = kstrdup(data, GFP_KERNEL);
+	int ret;
+
+	ret = sec_upldc_notifier_call(&notify->nb, type, msg);
+
+	kfree(msg);
+
+	return ret;
+}
+#endif
+
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+static void __upldc_dbgfs_show_each_cause_locked(struct seq_file *m,
+		struct sec_upload_cause *uc)
+{
+	seq_printf(m, "[<%p>] %s\n", uc, uc->cause);
+	seq_printf(m, "  - func : [<%p>] %ps\n", uc->func, uc->func);
+
+	seq_puts(m, "\n");
+}
+
+static void __upldc_dbgfs_show_default_cause_locked(struct seq_file *m,
+		struct upload_cause_notify *notify)
+{
+	seq_puts(m, "+ Default :\n");
+
+	if (notify->dflt)
+		__upldc_dbgfs_show_each_cause_locked(m, notify->dflt);
+	else
+		seq_puts(m, "[WARN] default cause is not set\n");
+
+	seq_puts(m, "\n");
+}
+
+static int sec_upldc_dbgfs_show_all(struct seq_file *m, void *unsed)
+{
+	struct upload_cause_notify *notify = &upload_cause->notify;
+	struct sec_upload_cause *uc;
+
+	seq_printf(m, "+ Priority : %d\n", notify->nb.priority);
+
+	mutex_lock(&notify->lock);
+
+	__upldc_dbgfs_show_default_cause_locked(m, notify);
+
+	list_for_each_entry(uc, &notify->list, list) {
+		__upldc_dbgfs_show_each_cause_locked(m, uc);
+	}
+
+	mutex_unlock(&notify->lock);
+
+	return 0;
+}
+
+static int sec_upldc_dbgfs_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, sec_upldc_dbgfs_show_all,
+			inode->i_private);
+}
+
+static const struct file_operations sec_upldc_dgbfs_fops = {
+	.open = sec_upldc_dbgfs_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = seq_release,
+};
+
+static int __upldc_debugfs_create(struct builder *bd)
+{
+	struct upload_cause_drvdata *drvdata =
+			container_of(bd, struct upload_cause_drvdata, bd);
+
+	drvdata->dbgfs = debugfs_create_file("sec_upload_cause", 0440,
+			NULL, NULL, &sec_upldc_dgbfs_fops);
+
+	return 0;
+}
+
+static void __upldc_debugfs_remove(struct builder *bd)
+{
+	struct upload_cause_drvdata *drvdata =
+			container_of(bd, struct upload_cause_drvdata, bd);
+
+	debugfs_remove(drvdata->dbgfs);
+}
+#else
+static int __upldc_debugfs_create(struct builder *bd) { return 0; }
+static void __upldc_debugfs_remove(struct builder *bd) {}
+#endif
+
+static int __upldc_parse_dt_panic_notifier_priority(struct builder *bd,
+		struct device_node *np)
+{
+	struct upload_cause_drvdata *drvdata =
+			container_of(bd, struct upload_cause_drvdata, bd);
+	struct upload_cause_notify *notify = &drvdata->notify;
+	s32 priority;
+	int err;
+
+	err = of_property_read_s32(np, "sec,panic_notifier-priority",
+			&priority);
+	if (err)
+		return -EINVAL;
+
+	notify->nb.priority = (int)priority;
+
+	return 0;
+}
+
+static struct dt_builder __upldc_dt_builder[] = {
+	DT_BUILDER(__upldc_parse_dt_panic_notifier_priority),
+};
+
+static int __upldc_parse_dt(struct builder *bd)
+{
+	return sec_director_parse_dt(bd, __upldc_dt_builder,
+			ARRAY_SIZE(__upldc_dt_builder));
+}
+
+static int __upldc_probe_prolog(struct builder *bd)
+{
+	struct upload_cause_drvdata *drvdata =
+			container_of(bd, struct upload_cause_drvdata, bd);
+	struct upload_cause_notify *notify = &drvdata->notify;
+
+	mutex_init(&notify->lock);
+	INIT_LIST_HEAD(&notify->list);
+
+	return 0;
+}
+
+static void __upldc_remove_epilog(struct builder *bd)
+{
+	struct upload_cause_drvdata *drvdata =
+			container_of(bd, struct upload_cause_drvdata, bd);
+	struct upload_cause_notify *notify = &drvdata->notify;
+
+	mutex_destroy(&notify->lock);
+}
+
+static int __upldc_register_panic_notifier(struct builder *bd)
+{
+	struct upload_cause_drvdata *drvdata =
+			container_of(bd, struct upload_cause_drvdata, bd);
+	struct upload_cause_notify *notify = &drvdata->notify;
+
+	notify->nb.notifier_call = sec_upldc_notifier_call;
+
+	return atomic_notifier_chain_register(&panic_notifier_list,
+			&notify->nb);
+}
+
+static void __upldc_unregister_panic_notifier(struct builder *bd)
+{
+	struct upload_cause_drvdata *drvdata =
+			container_of(bd, struct upload_cause_drvdata, bd);
+	struct upload_cause_notify *notify = &drvdata->notify;
+
+	atomic_notifier_chain_unregister(&panic_notifier_list, &notify->nb);
+}
+
+static int __upldc_probe_epilog(struct builder *bd)
+{
+	struct upload_cause_drvdata *drvdata =
+			container_of(bd, struct upload_cause_drvdata, bd);
+	struct device *dev = bd->dev;
+
+	dev_set_drvdata(dev, drvdata);
+	upload_cause = drvdata;	/* set a singleton */
+
+	return 0;
+}
+
+static void __upldc_remove_prolog(struct builder *bd)
+{
+	/* FIXME: This is not a graceful exit. */
+	upload_cause = NULL;
+}
+
+static void __upldc_populate_child(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct device_node *parent;
+	struct device_node *child;
+
+	parent = pdev->dev.of_node;
+
+	for_each_available_child_of_node(parent, child) {
+		struct platform_device *cpdev;
+
+		cpdev = of_platform_device_create(child, NULL, &pdev->dev);
+		if (!cpdev) {
+			dev_warn(dev, "failed to create %s\n!", child->name);
+			of_node_put(child);
+		}
+	}
+}
+
+static int __upldc_probe(struct platform_device *pdev,
+		const struct dev_builder *builder, ssize_t n)
+{
+	struct device *dev = &pdev->dev;
+	struct upload_cause_drvdata *drvdata;
+	int err;
+
+	drvdata = devm_kzalloc(dev, sizeof(*drvdata), GFP_KERNEL);
+	if (!drvdata)
+		return -ENOMEM;
+
+	drvdata->bd.dev = dev;
+
+	err = sec_director_probe_dev(&drvdata->bd, builder, n);
+	if (err)
+		return err;
+
+	__upldc_populate_child(pdev);
+
+	return 0;
+}
+
+static int __upldc_remove(struct platform_device *pdev,
+		const struct dev_builder *builder, ssize_t n)
+{
+	struct upload_cause_drvdata *drvdata = platform_get_drvdata(pdev);
+
+	sec_director_destruct_dev(&drvdata->bd, builder, n, n);
+
+	return 0;
+}
+
+#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
+static struct dev_builder __upldc_mock_dev_builder[] = {
+	DEVICE_BUILDER(__upldc_probe_prolog, NULL),
+	DEVICE_BUILDER(__upldc_probe_epilog, __upldc_remove_prolog),
+};
+
+int kunit_upldc_mock_probe(struct platform_device *pdev)
+{
+	return __upldc_probe(pdev, __upldc_mock_dev_builder,
+			ARRAY_SIZE(__upldc_mock_dev_builder));
+}
+
+int kunit_upldc_mock_remove(struct platform_device *pdev)
+{
+	return __upldc_remove(pdev, __upldc_mock_dev_builder,
+			ARRAY_SIZE(__upldc_mock_dev_builder));
+}
+#endif
+
+static struct dev_builder __upldc_dev_builder[] = {
+	DEVICE_BUILDER(__upldc_parse_dt, NULL),
+	DEVICE_BUILDER(__upldc_probe_prolog, __upldc_remove_epilog),
+	DEVICE_BUILDER(__upldc_register_panic_notifier,
+		       __upldc_unregister_panic_notifier),
+	DEVICE_BUILDER(__upldc_debugfs_create,
+		       __upldc_debugfs_remove),
+	DEVICE_BUILDER(__upldc_probe_epilog,
+		       __upldc_remove_prolog),
+};
+
+static int sec_upldc_probe(struct platform_device *pdev)
+{
+	return __upldc_probe(pdev, __upldc_dev_builder,
+			ARRAY_SIZE(__upldc_dev_builder));
+}
+
+static int sec_upldc_remove(struct platform_device *pdev)
+{
+	return __upldc_remove(pdev, __upldc_dev_builder,
+			ARRAY_SIZE(__upldc_dev_builder));
+}
+
+static const struct of_device_id sec_upldc_match_table[] = {
+	{ .compatible = "samsung,upload_cause" },
+	{},
+};
+MODULE_DEVICE_TABLE(of, sec_upldc_match_table);
+
+static struct platform_driver sec_upldc_driver = {
+	.driver = {
+		.name = "samsung,upload_cause",
+		.of_match_table = of_match_ptr(sec_upldc_match_table),
+	},
+	.probe = sec_upldc_probe,
+	.remove = sec_upldc_remove,
+};
+
+static __init int sec_upldc_init(void)
+{
+	return platform_driver_register(&sec_upldc_driver);
+}
+#if IS_BUILTIN(CONFIG_SEC_UPLOAD_CAUSE)
+pure_initcall(sec_upldc_init);
+#else
+module_init(sec_upldc_init);
+#endif
+
+static __exit void sec_upldc_exit(void)
+{
+	platform_driver_unregister(&sec_upldc_driver);
+}
+module_exit(sec_upldc_exit);
+
+MODULE_AUTHOR("Samsung Electronics");
+MODULE_DESCRIPTION("Panic Notifier Updating Upload Cause");
+MODULE_LICENSE("GPL v2");

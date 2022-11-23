@@ -1,0 +1,11 @@
+config SEC_DISPLAYPORT
+	tristate "SEC DISPLAYPORT feature"
+	default n
+	help
+	   Samsung specific displayport changes.
+
+config SEC_DISPLAYPORT_DBG
+	bool "SEC_DISPLAYPORT_DBG feature"
+	depends on SEC_DISPLAYPORT
+	help
+	   Samsung specific debug code for displayport
