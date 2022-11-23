@@ -1,0 +1,94 @@
+#
+# SPRD Soc drivers
+#
+config SPRD_PIKE2_SLEEP
+        bool "Spreadtrum light sleep driver for pike2 processors"
+	depends on ARM_SPRD_CPUIDLE
+	help
+	  Select this to enable light sleep function for pike2 soc.
+
+config SPRD_HWFEATURE
+	bool "Spreadtrum hwfeature driver"
+	depends on ARCH_SPRD
+	help
+	  Select this to enable hwfeature property function for all platform board
+
+config SPRD_MEMDISK
+	tristate "SPRD memdisk driver"
+	depends on ARCH_SPRD
+	help
+	  This option can support sprd memdisk driver, which can use a block of
+	  DDR memory as a disk. we can load the android image to this disk when
+	  mmc driver is not ready, for example in vdk and FPGA platform.
+
+config SPRD_7SRESET
+        tristate "Spreadtrum PMIC 7s reset driver"
+	depends on ARCH_SPRD || COMPILE_TEST
+        help
+          This driver support for 7Sreset of PMIC(2731,2730,2721)
+
+config SPRD_PMIC_SYSCON
+	tristate "Spreadtrum PMIC global driver"
+	depends on MFD_SC27XX_PMIC || MFD_UMP96XX_PMIC || COMPILE_TEST
+        help
+          Enable this configuration option to enable pmic global driver.
+
+config SPRD_SYSTIMER
+	tristate "Spreadtrum system timer driver (systimer/sysfrt)"
+	depends on ARCH_SPRD
+	help
+	  Support sprd system timer driver.
+
+config SPRD_HRTIMER_DEBUG
+	bool "Spreadtrum hrtimer debug driver"
+	depends on ARCH_SPRD && HIGH_RES_TIMERS && DEBUG_FS
+	default y
+	help
+	  Support sprd hrtimer debug driver.
+
+config SPRD_TIME_SYNC
+	bool "Spreadtrum time sync driver"
+	depends on ARCH_SPRD
+	default y
+	help
+	  Support sprd time sync with other subsystem.
+
+config SPRD_TIME_SYNC_CH
+	tristate "Spreadtrum AP/CH time synchronization"
+	depends on ARCH_SPRD && SPRD_SYSTIMER && SPRD_TIME_SYNC
+	default n
+	help
+	  Support sprd sensor time synchronization between AP
+	  (Application Processor) and CH(Context Hub).
+
+config SPRD_TIME_SYNC_CP
+	bool "Spreadtrum cp time sync driver"
+	depends on ARCH_SPRD && SPRD_TIME_SYNC
+	default y
+	help
+	  Support sprd time sync with cp system.
+
+source drivers/soc/sprd/iommu/Kconfig
+source "drivers/soc/sprd/modem/Kconfig"
+source "drivers/soc/sprd/domain/Kconfig"
+source "drivers/soc/sprd/autotest/Kconfig"
+
+config SPRD_DEBUG
+	tristate "Spreadtrum debug module"
+	depends on ARCH_SPRD
+	help
+	  Say y here to enable Debug support.
+
+source "drivers/soc/sprd/debug/Kconfig"
+source "drivers/soc/sprd/performance/Kconfig"
+source "drivers/soc/sprd/pub/Kconfig"
+
+menuconfig SPRD_POWER
+	tristate "Spreadtrum debug power driver"
+	depends on PM_SLEEP && ARCH_SPRD
+	default n
+	help
+	  Select this to enable debug power driver for sprd soc.
+
+source "drivers/soc/sprd/power/Kconfig"
+source "drivers/soc/sprd/usbpinmux/Kconfig"

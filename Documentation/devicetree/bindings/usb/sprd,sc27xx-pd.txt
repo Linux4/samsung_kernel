@@ -1,0 +1,42 @@
+Spreadtrum Power Delivery controllers
+
+Required properties :
+- compatible		: should be one of the following
+                          "sprd,sc27xx-pd"
+                          "sprd,sc2730-pd"
+                          "sprd,ump9620-pd"
+- reg			: power delivery and typec base address
+- interrupt-parent	: phandle for the Interrupt Controller
+- interrupts		: Interrupt specifier
+- extcon		: phandle for extcon to get typec plug event
+
+- nvmem-cells: A phandle to the calibration data provided by a nvmem device.
+- nvmem-cell-names: Should be "pdrc_calib", "pddelta_calib", "pdref_calib", "cc_calib".
+
+Required sub-node:
+- connector : The "usb-c-connector" attached to the SPRDTRUM SC2730 IC. The bindings
+  of the connector node are specified in:
+
+	Documentation/devicetree/bindings/connector/usb-connector.txt
+
+Example:
+
+pmic_pd: pd@e00 {
+        compatible = "sprd,sc27xx-pd", "sprd,sc2730-pd";
+        reg = <0xe00>, <0x380>;
+        interrupt-parent = <&sc2730_pmic>;
+        interrupts = <9 IRQ_TYPE_LEVEL_HIGH>;
+        extcon = <&pmic_typec>;
+        nvmem-cells = <&pdrc_calib>, <&pddelta_calib>, <&pdref_calib>, <&cc_cal>;
+        nvmem-cell-names = "pdrc_calib", "pddelta_calib", "pdref_calib", "cc_calib";
+
+	usb_con: connector {
+		compatible = "usb-c-connector";
+		label = "USB-C";
+		power-role = "dual";
+		try-power-role = "sink";
+		source-pdos = <PDO_FIXED(5000, 400, PDO_FIXED_USB_COMM)>;
+		sink-pdos = <PDO_FIXED(5000, 500, PDO_FIXED_USB_COMM)
+			     PDO_FIXED(9000, 2000, PDO_FIXED_USB_COMM)>;
+		op-sink-microwatt = <18000000>;
+};

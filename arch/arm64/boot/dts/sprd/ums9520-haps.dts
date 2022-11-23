@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Unisoc Qogirl6pro platform DTS file
+ *
+ * Copyright (C) 2020, Unisoc Inc.
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include "ums9520-haps.dtsi"
+#include "ums9520-haps-mach.dtsi"
+#include "ums9520-haps-modem.dtsi"
+#include "ump9620.dtsi"
+#include "ump9621.dtsi"
+#include "ump9622.dtsi"
+
+
+/ {
+	model = "Spreadtrum UMS9520 SoC";
+
+	compatible = "sprd,ums9520";
+
+	sprd,sc-id = "ums9520-haps 1000 1000";
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x2 0x00000000>;
+	};
+
+	chosen: chosen {
+		stdout-path = "serial1:115200n8";
+		bootargs = "earlycon=sprd_serial,0x20210000,115200n8 console=ttyS1,115200n8 loglevel=8 init=/init root=/dev/ram0 rwandroidboot.selinux=permissive printk.devkmsg=on";
+	};
+
+	ion: ion {
+		compatible = "sprd,ion";
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+};
+
+&uart0 {
+	status = "disabled";
+};
+
+&uart1 {
+	status = "okay";
+};

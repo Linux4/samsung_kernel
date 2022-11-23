@@ -1,0 +1,94 @@
+/*
+ * R61350 Truly LCD config dtsi file for spreadtrum
+ *
+ * Copyright (C) 2018, Spreadtrum Communications Inc.
+ *
+ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+ */
+
+/ {
+	fragment {
+		target-path = "/";
+		__overlay__ {
+			lcds {
+				lcd_icnl9911_hlt_mipi_hdp: lcd_icnl9911_hlt_mipi_hdp {
+
+					sprd,dsi-work-mode = <1>; /* video burst mode*/
+					sprd,dsi-lane-number = <4>;
+					sprd,dsi-color-format = "rgb888";
+
+					sprd,phy-bit-clock = <690000>;	/* kbps */
+					sprd,phy-escape-clock = <20000>;/* kHz */
+
+					sprd,width-mm = <68>;
+					sprd,height-mm = <151>;
+
+					sprd,reset-on-sequence = <1 50>, <0 50>, <1 150>;
+					sprd,reset-off-sequence = <0 5>;
+
+					sprd,use-dcs-write;
+
+					sprd,initial-command = [
+						39 00 00 03 F0 5A 59
+						39 00 00 03 F1 A5 A6
+						39 00 00 1F B0 82 81 05 04 87 86 84 85 66 66 33 33 20 01 01 78 01 01 0F 05 04 03 02 01 02 03 04 00 00 00
+						39 00 00 1E B1 11 51 86 06 01 00 01 7C 01 01 01 04 08 54 00 00 00 44 40 02 01 40 02 01 40 02 01 40 02
+						39 00 00 12 B2 54 D4 82 05 40 02 01 40 02 01 05 05 54 0C 0C 0D 0B
+						39 00 00 20 B3 02 00 00 00 00 26 26 91 A2 33 44 00 26 00 18 01 02 08 20 30 08 09 44 20 40 20 40 08 09 22 33
+						39 00 00 1D B4 0A 02 DC 1D 00 02 02 02 02 12 10 02 02 0E 0C 04 03 03 03 03 03 03 FF FF F3 00 00 00
+						39 00 00 1D B5 0B 02 DC 1D 00 02 02 02 02 13 11 02 02 0F 0D 05 03 03 03 03 03 03 FF FF F3 00 00 00
+						39 00 00 19 B8 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+						39 00 00 0E BB 01 05 09 11 0D 19 1D 15 25 69 00 21 25
+						39 00 00 0F BC 00 00 00 00 02 20 FF 00 03 33 01 73 44 00
+						39 00 00 0B BD 53 12 4F CF 72 A7 08 44 AE 15
+						39 00 00 0B BE 65 65 50 3C 0C 66 43 02 0E 0E
+						39 00 00 09 BF 07 25 07 25 7F 00 11 04
+						39 00 00 0A C0 10 FF FF FF FF FF 00 FF 00
+						39 00 00 14 C1 C0 20 30 7C 0A 50 A2 08 2A 40 36 00 07 CF FF FF C0 00 C0
+						23 00 00 02 C2 00
+						39 00 00 0B C3 06 00 FF 00 FF 00 00 81 01 00
+						23 00 00 02 C5 03
+						23 00 00 02 D2 42
+						//39 00 00 0B C6 87 96 2A 29 29 01 7F 37 08 04
+						39 00 00 17 C7 F7 B7 8E 70 42 21 F1 46 15 EF C9 9D F7 CB AD 85 6B 46 1A 7E C0 00
+						39 00 00 17 C8 F7 B7 8E 70 42 21 F1 46 15 EF C9 9D F7 CB AD 85 6B 46 1A 7E C0 00
+						39 00 00 03 F1 5A 59
+						39 00 00 03 F0 A5 A6
+						23 05 00 02 35 00
+						23 78 00 02 11 00
+						23 23 00 02 29 00
+						23 05 00 02 26 01
+						];
+
+					sprd,sleep-in-command = [
+						23 00 00 02 26 08
+						23 23 00 02 28 00
+						23 78 00 02 10 00
+						];
+
+					sprd,sleep-out-command = [
+						23 78 00 02 11 00
+						23 23 00 02 29 00
+						23 00 00 02 26 01
+						];
+
+					display-timings {
+						native-mode = <&icnl9911_hlt_timing0>;
+
+						icnl9911_hlt_timing0: timing0 {
+							clock-frequency = <96000000>;
+							hactive = <720>;
+							vactive = <1600>;
+							hback-porch = <80>;
+							hfront-porch = <110>;
+							vback-porch = <32>;
+							vfront-porch = <100>;
+							hsync-len = <8>;
+							vsync-len = <10>;
+						};
+					};
+				};
+			};
+		};
+	};
+};

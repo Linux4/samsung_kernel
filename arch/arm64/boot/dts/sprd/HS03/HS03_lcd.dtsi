@@ -1,0 +1,22 @@
+#include "../lcd/HS03/lcd_jd9365t_cpt_mipi_hdp.dtsi"
+/* HS03 code for SR-SL6215-01-129 by hehaoran at 20210816 start */
+#include "../lcd/HS03/lcd_jd9365t_hlt_mipi_hdp.dtsi"
+#include "../lcd/HS03/lcd_jd9365t_hlt_hsd_mipi_hdp.dtsi"
+/* HS03 code for SR-SL6215-01-129 by hehaoran at 20210816 end */
+#include "../lcd/HS03/lcd_nl9911c_truly_mipi_hdp.dtsi"
+#include "../lcd/HS03/lcd_nt36525b_txd_mipi_hdp.dtsi"
+#include "../lcd/HS03/lcd_gc7202h_genrpro_mipi_hdp.dtsi"
+/* HS03 code for SR-SL6215-01-122 by LiChao at 20210819 start */
+#include "../lcd/HS03/lcd_nl9911c_truly_6mask_mipi_hdp.dtsi"
+/* HS03 code for SR-SL6215-01-122 by LiChao at 20210819 end */
+/* HS03 code for SR-SL6215-01-585 by LiChao at 20210922 start */
+#include "../lcd/HS03/lcd_nl9911c_genrpro_mipi_hdp.dtsi"
+/* HS03 code for SR-SL6215-01-585 by LiChao at 20210922 end */
+/* HS03 code for ASL6215DEV-2427 by huangzhongjie at 2021/10/13 start*/
+#include "../lcd/HS03/lcd_hs03_default_panel_mipi.dtsi"
+/* HS03 code for ASL6215DEV-2427 by huangzhongjie at 2021/10/13 end*/
+&panel {
+	avdd-gpio = <&ap_gpio 135 GPIO_ACTIVE_HIGH>;
+	avee-gpio = <&ap_gpio 136 GPIO_ACTIVE_HIGH>;
+	reset-gpio = <&ap_gpio 50 GPIO_ACTIVE_HIGH>;
+};

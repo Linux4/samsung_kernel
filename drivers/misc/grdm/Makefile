@@ -1,0 +1,1 @@
+obj-$(CONFIG_GRDM_POWER) := grdm.o

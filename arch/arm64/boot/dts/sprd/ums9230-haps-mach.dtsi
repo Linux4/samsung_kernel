@@ -1,0 +1,121 @@
+/*
+ * Spreadtrum Qogirl6 board common DTS file
+ *
+ * Copyright (C) 2020, Spreadtrum Communications Inc.
+ *
+ * This file is licensed under a dual GPLv2 or X11 license.
+ */
+
+
+/{
+	display-subsystem {
+		compatible = "sprd,display-subsystem";
+		ports = <&dpu_port>;
+	};
+
+	reserved_memory: reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/* must be 64M aligned */
+		smem_reserved: sipc-mem@87800000{
+			reg = <0x0 0x87800000 0x0 0x00800000>;
+		};
+
+		sensorhub_reserved: sensorhub-mem@88000000 {
+			reg = <0x0 0x88000000 0x0 0x01000000>;
+		};
+
+		cp_reserved: cp-modem@89600000 {
+			reg = <0x0 0x89600000 0x0 0x04900000>;
+		};
+
+		/* Only used for iq, will be removed in normal mode by uboot */
+		iq_reserved: iq-mem@98100000{
+			compatible = "sprd,iq-mem";
+			reg = <0x0 0x90000000 0x0 0x4000000>;
+		};
+
+		sml_reserved: sml-mem@b0000000 {
+			reg = <0x0 0xb0000000 0x0 0x00020000>;
+		};
+
+		tos_reserved: tos-mem@b0020000 {
+			reg = <0x0 0xb0020000 0x0 0x03fe0000>;
+		};
+
+		fb_reserved: framebuffer@fd708000 {
+			reg = <0x0 0xfd708000 0x0 0x2878000>;
+		};
+	};
+
+	ipi: interrupt-controller {
+		compatible = "android,CustomIPI";
+		#interrupt-cells = <1>;
+		interrupt-controller;
+	};
+
+	trusty {
+		compatible = "android,trusty-smc-v1";
+		irq {
+			compatible = "android,trusty-irq-v1";
+			interrupt-templates = <&ipi 0>,
+						<&gic 1 GIC_PPI 0>,
+						<&gic 1 GIC_SPI 0>;
+				interrupt-ranges = < 0  15 0>,
+						<16  31 1>,
+						<32 223 2>;
+		};
+
+		virtio {
+			compatible = "android,trusty-virtio-v1";
+		};
+
+		log {
+			compatible = "android,trusty-log-v1";
+		};
+	};
+};
+
+&sdio3 {
+	bus-width = <8>;
+	non-removable;
+	cap-mmc-hw-reset;
+	sprd,name = "sdio_emmc";
+	no-sdio;
+	no-sd;
+	status = "okay";
+};
+
+&dpu {
+	status = "okay";
+};
+
+&iommu_dispc {
+	status = "okay";
+};
+
+&dsi {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	panel: panel {
+		compatible = "sprd,generic-mipi-panel";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0>;
+
+		port@1 {
+			reg = <1>;
+			panel_in: endpoint {
+				remote-endpoint = <&dphy_out>;
+			};
+		};
+	};
+};
+
+&dphy {
+	status = "okay";
+};

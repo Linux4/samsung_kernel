@@ -1,0 +1,77 @@
+TI BQ2597X PMIC battery charger binding
+
+Required properties:
+ - compatible: Should be "ti,bq2597x-standalone" or "ti,bq2597x-master" or
+   "ti,bq2597x-slave".
+ - reg: Address offset of charger register.
+ - irq-gpio: interrupt pin for bq2597x.
+ - ti,bq2597x,bat-ovp-threshold: battery overvoltage protection threshold.
+ - ti,bq2597x,bat-ovp-alarm-threshold: battery overvoltage protection alarm threshold.
+ - ti,bq2597x,bat-ocp-threshold: battery overcurrent protection threshold.
+ - ti,bq2597x,bat-ocp-alarm-threshold: battery overcurrent protection alarm threshold.
+ - ti,bq2597x,bus-ovp-threshold: bus overvoltage protection threshold.
+ - ti,bq2597x,bus-ovp-alarm-threshold: bus overvoltage protection alarm threshold.
+ - ti,bq2597x,bus-ocp-threshold: bus overcurrent protection threshlold.
+ - ti,bq2597x,bus-ocp-alarm-threshold: bus overcurrent protection alarm threshold.
+ - ti,bq2597x,bat-ucp-alarm-threshold: battery under current protection alarm threshold.
+ - ti,bq2597x,bat-therm-threshold: battery thermal overtemperature threshold.
+ - ti,bq2597x,bus-therm-threshold：bus thermal overtemperature threshold.
+ - ti,bq2597x,die-therm-threshold: die thermal overtemperature threshold.
+ - ti,bq2597x,ac-ovp-threshold: ac overvoltage protection threshold.
+ - ti,bq2597x,sense-resistor-mohm: sense resistor.
+ - ti,bq2597x,adc-sample-bits: adc smaple rate.
+ - ti,bq2597x,ibat-regulation-threshold: ibat regulation threshold.
+ - ti,bq2597x,vbat-regulation-threshold: vbat regulation threshold.
+ - ti,bq2597x,vdrop-threshold: vbus drop threshold.
+ - ti,bq2597x,vdrop-deglitch: vbus drop deglitch.
+ - ti,bq2597x,ss-timeout: timeout for IBUS to rise to IBUS_UCP_RISE_THRESH.
+ - ti,bq2597x,watchdog-timer: watchdog timeout count.
+
+Optional Properties:
+- ti,bq2597x,bus-therm-disable: disable bus thermal monitor.
+- ti,bq2597x,regulation-disable: disable regulation function.
+Example:
+
+	bat: battery {
+		compatible = "simple-battery";
+		charge-term-current-microamp = <120000>;
+		constant-charge-voltage-max-microvolt = <4350000>;
+		......
+	};
+
+	&i2c4 {
+		status = "okay";
+		clock-frequency = <400000>;
+
+		bq2597x_chg: charger@65 {
+				     compatible = "ti,bq2597x-standalone";
+				     reg = <0x65>;
+				     irq-gpio = <&ap_gpio 145 GPIO_ACTIVE_LOW>;
+
+				     ti,bq2597x,bus-therm-disable = <1>;
+				     ti,bq2597x,regulation-disable = <1>;
+
+				     ti,bq2597x,bat-ovp-threshold = <4400>;
+				     ti,bq2597x,bat-ovp-alarm-threshold = <4340>;
+				     ti,bq2597x,bat-ocp-threshold = <5500>;
+				     ti,bq2597x,bat-ocp-alarm-threshold = <5000>;
+				     ti,bq2597x,bus-ovp-threshold = <11500>;
+				     ti,bq2597x,bus-ovp-alarm-threshold = <10500>;
+				     ti,bq2597x,bus-ocp-threshold = <3000>;
+				     ti,bq2597x,bus-ocp-alarm-threshold = <2700>;
+				     ti,bq2597x,bat-ucp-alarm-threshold = <1000>;
+				     ti,bq2597x,bat-therm-threshold = <0x15>;
+				     ti,bq2597x,bus-therm-threshold = <0x15>;
+				     ti,bq2597x,die-therm-threshold = <0xc8>;
+				     ti,bq2597x,ac-ovp-threshold = <11>;
+				     ti,bq2597x,sense-resistor-mohm = <5>;
+				     ti,bq2597x,adc-sample-bits = <13>;
+				     ti,bq2597x,ibat-regulation-threshold = <300>;
+				     ti,bq2597x,vbat-regulation-threshold = <100>;
+				     ti,bq2597x,vdrop-threshold = <400>;
+				     ti,bq2597x,vdrop-deglitch = <5000>;
+				     ti,bq2597x,ss-timeout = <100000>;
+				     ti,bq2597x,watchdog-timer = <30000>;
+			     };
+
+	};

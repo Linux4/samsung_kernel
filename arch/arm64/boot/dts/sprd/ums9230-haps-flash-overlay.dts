@@ -1,0 +1,20 @@
+/dts-v1/;
+/plugin/;
+
+#include "lcd/lcd_nt35596_boe_mipi_fhd.dtsi"
+#include "lcd/lcd_nt35695_truly_mipi_fhd.dtsi"
+#include "lcd/lcd_dummy_mipi.dtsi"
+
+/ {
+
+	model = "Spreadtrum UMS9230 Haps Flash Board";
+
+	compatible = "sprd,ums9230-haps-flash";
+
+	sprd,sc-id = "ums9230-haps flash 1000";
+
+};
+
+&chosen {
+	bootargs_ext = "androidboot.hardware=ums9230_haps_flash androidboot.dtbo_idx=0 androidboot.boot_devices=soc/soc:ap-apb/201d0000.sdio";
+};

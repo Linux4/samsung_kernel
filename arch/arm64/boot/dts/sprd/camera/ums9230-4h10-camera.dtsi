@@ -1,0 +1,195 @@
+/* HS03 code for SL6215DEV-1023 by xujiabo at 2021/09/09 start */
+&i2c0 {
+	status = "okay";
+	clock-frequency = <400000>;
+	//front
+	sensor_sub: sensor-sub@1 {
+		compatible = "sprd,sensor-sub";
+		reg = <0x01>;
+		clock-names = "clk_src","sensor_eb",
+			"clk_96m","clk_76m8",
+			"clk_48m","clk_26m";
+		clocks = <&mm_clk CLK_SENSOR0>,<&mm_gate CLK_MM_SENSOR0_EB>,
+				<&pll1 CLK_TWPLL_96M>,<&pll1 CLK_TWPLL_76M8>,
+				<&pll1 CLK_TWPLL_48M>,<&ext_26m>;
+		vddio-supply = <&vddcamio>;
+		vddcama-supply = <&vddcama1>;
+		vddcamd-supply = <&vddcamd1>;
+		reset-gpios = <&ap_gpio 41 0>;
+		sprd,phyid = <5>;
+		csi = <&csi0>;
+	};
+	//depth
+	sensor_main2: sensor-main2@2 {
+		compatible = "sprd,sensor-main2";
+		reg = <0x02>;
+		clock-names = "clk_src","sensor_eb",
+			"clk_96m","clk_76m8",
+			"clk_48m","clk_26m";
+		clocks = <&mm_clk CLK_SENSOR1>,<&mm_gate CLK_MM_SENSOR1_EB>,
+				<&pll1 CLK_TWPLL_96M>,<&pll1 CLK_TWPLL_76M8>,
+				<&pll1 CLK_TWPLL_48M>,<&ext_26m>;
+		vddio-supply = <&vddcamio>;
+		vddcama-supply = <&vddcama1>;
+		reset-gpios = <&ap_gpio 45 0>;
+		avdd-gpios = <&ap_gpio 113 0>;
+		sprd,phyid = <3>;
+		csi = <&csi1>;
+	};
+};
+
+/* HS03 code for SR-SL6215-01-458 by liluling at 2021/08/16 start */
+&i2c1 {
+	status = "okay";
+	clock-frequency = <400000>;
+	//main
+	sensor_main: sensor-main@20 {
+		compatible = "sprd,sensor-main";
+		reg = <0x20>;
+		clock-names = "clk_src","sensor_eb",
+			"clk_96m","clk_76m8",
+			"clk_48m","clk_26m";
+		clocks = <&mm_clk CLK_SENSOR0>,<&mm_gate CLK_MM_SENSOR0_EB>,
+				<&pll1 CLK_TWPLL_96M>,<&pll1 CLK_TWPLL_76M8>,
+				<&pll1 CLK_TWPLL_48M>,<&ext_26m>;
+		vddio-supply = <&vddcamio>;
+		vddcama-supply = <&vddcama0>;
+		vddcamd-supply = <&vddcamd0>;
+		vddcammot-supply = <&vddcammot>;
+		reset-gpios = <&ap_gpio 44 0>;
+ 		iovdd-gpios = <&ap_gpio 174 0>;
+		power-down-gpios = <&ap_gpio 46 0>;
+		sprd,phyid = <0>;
+		csi = <&csi0>;
+	};
+
+	//macro
+	sensor_sub2: sensor-sub2@7A {
+		compatible = "sprd,sensor-sub2";
+		reg = <0x7A>;
+		clock-names = "clk_src","sensor_eb",
+			"clk_96m","clk_76m8",
+			"clk_48m","clk_26m";
+		clocks = <&mm_clk CLK_SENSOR2>,<&mm_gate CLK_MM_SENSOR2_EB>,
+				<&pll1 CLK_TWPLL_96M>,<&pll1 CLK_TWPLL_76M8>,
+				<&pll1 CLK_TWPLL_48M>,<&ext_26m>;
+		vddio-supply = <&vddcamio>;
+		vddcama-supply = <&vddcama1>;
+		reset-gpios = <&ap_gpio 114 0>;
+		avdd-gpios = <&ap_gpio 113 0>;
+		sprd,phyid = <4>;
+		csi = <&csi2>;
+	};
+};
+/* HS03 code for SR-SL6215-01-458 by liluling at 2021/08/16 end  */
+/* HS03 code for SL6215DEV-1023 by xujiabo at 2021/09/09 end */
+
+/* HS03 code for SL6215DEV-283 by lisizhou at 2021/08/20 start */
+&i2c0{
+	flash_ic_o701_formal: flash-ic@62 {
+        compatible = "sprd,flash-o701_aw36413_formal";
+        reg = <0x62>;
+        sprd,flash-ic = <36413>;
+        sprd,torch = <1>;
+        sprd,preflash = <1>;
+        sprd,highlight = <1>;
+        sprd,torch-level = <128>;
+        sprd,preflash-level = <128>;
+        sprd,highlight-level = <128>;
+        sprd,lvfm-enable = <1>;
+        flash-torch-en-gpios = <&ap_gpio 32 0>;
+        flash-chip-en-gpios = <&ap_gpio 156 0>;
+        flash-en-gpios = <&ap_gpio 139 0>;
+        flash-sync-gpios = <&ap_gpio 165 0>;
+    };
+
+    flash_ic_o702_formal: flash-ic@63 {
+        compatible = "sprd,flash-o702_aw3648_formal";
+        reg = <0x63>;
+        sprd,flash-ic = <3648>;
+        sprd,torch = <1>;
+        sprd,preflash = <1>;
+        sprd,highlight = <1>;
+        sprd,torch-level = <128>;
+        sprd,preflash-level = <128>;
+        sprd,highlight-level = <128>;
+        sprd,lvfm-enable = <1>;
+        flash-torch-en-gpios = <&ap_gpio 32 0>;
+        flash-chip-en-gpios = <&ap_gpio 156 0>;
+        flash-en-gpios = <&ap_gpio 139 0>;
+        flash-sync-gpios = <&ap_gpio 165 0>;
+    };
+
+    flash_ic_o703_formal: flash-ic@64 {
+        compatible = "sprd,flash-o703_aw36518_formal";
+        reg = <0x64>;
+        sprd,flash-ic = <36518>;
+        sprd,torch = <1>;
+        sprd,preflash = <1>;
+        sprd,highlight = <1>;
+        sprd,torch-level = <128>;
+        sprd,preflash-level = <128>;
+        sprd,highlight-level = <128>;
+        sprd,lvfm-enable = <1>;
+        flash-torch-en-gpios = <&ap_gpio 32 0>;
+        flash-chip-en-gpios = <&ap_gpio 156 0>;
+        flash-en-gpios = <&ap_gpio 139 0>;
+        flash-sync-gpios = <&ap_gpio 165 0>;
+    };
+};
+/* HS03 code for SL6215DEV-283 by lisizhou at 2021/08/20 end */
+
+&i2c5{
+	/*hs03 code modify for SR-SL6215-01-471 flash bringup at 2021.08.07 begin*/
+	flash_ic_o701: flash-ic@62 {
+        compatible = "sprd,flash-o701_aw36413";
+        reg = <0x62>;
+        sprd,flash-ic = <36413>;
+        sprd,torch = <1>;
+        sprd,preflash = <1>;
+        sprd,highlight = <1>;
+        sprd,torch-level = <128>;
+        sprd,preflash-level = <128>;
+        sprd,highlight-level = <128>;
+        sprd,lvfm-enable = <1>;
+        flash-torch-en-gpios = <&ap_gpio 32 0>;
+        flash-chip-en-gpios = <&ap_gpio 156 0>;
+        flash-en-gpios = <&ap_gpio 139 0>;
+        flash-sync-gpios = <&ap_gpio 165 0>;
+    };
+
+    flash_ic_o702: flash-ic@63 {
+        compatible = "sprd,flash-o702_aw3648";
+        reg = <0x63>;
+        sprd,flash-ic = <3648>;
+        sprd,torch = <1>;
+        sprd,preflash = <1>;
+        sprd,highlight = <1>;
+        sprd,torch-level = <128>;
+        sprd,preflash-level = <128>;
+        sprd,highlight-level = <128>;
+        sprd,lvfm-enable = <1>;
+        flash-torch-en-gpios = <&ap_gpio 32 0>;
+        flash-chip-en-gpios = <&ap_gpio 156 0>;
+        flash-en-gpios = <&ap_gpio 139 0>;
+        flash-sync-gpios = <&ap_gpio 165 0>;
+    };
+
+    flash_ic_o703: flash-ic@64 {
+        compatible = "sprd,flash-o703_aw36518";
+        reg = <0x64>;
+        sprd,flash-ic = <36518>;
+        sprd,torch = <1>;
+        sprd,preflash = <1>;
+        sprd,highlight = <1>;
+        sprd,torch-level = <128>;
+        sprd,preflash-level = <128>;
+        sprd,highlight-level = <128>;
+        sprd,lvfm-enable = <1>;
+        flash-torch-en-gpios = <&ap_gpio 32 0>;
+        flash-chip-en-gpios = <&ap_gpio 156 0>;
+        flash-en-gpios = <&ap_gpio 139 0>;
+        flash-sync-gpios = <&ap_gpio 165 0>;
+    };
+	/*hs03 code modify for SR-SL6215-01-471 flash bringup at 2021.08.07 end*/
+};

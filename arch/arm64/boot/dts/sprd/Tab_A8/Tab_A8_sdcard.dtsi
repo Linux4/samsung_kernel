@@ -1,0 +1,12 @@
+/* HS03 code for SR-SL6215-01-233/AX6300DEV-143 by sunxunou at 2021/09/13 start */
+&soc {
+	sdcard-det-pin {
+                compatible = "sprd,sdcard-detect-pin";
+                sprd,sdcard-detect-pin-no = <&eic_sync 19 GPIO_ACTIVE_HIGH>;
+        };
+};
+&sdio0 {
+	sprd,sdhs-dly = <0x7f 0x53 0xc4 0xc4>;
+};
+/* HS03 code for SR-SL6215-01-233/AX6300DEV-143 by sunxunou at 2021/09/13 end */
+
