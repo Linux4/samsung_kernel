@@ -1,0 +1,31 @@
+#
+# SPRD Soc power statistics
+#
+
+config SPRD_POWER_STAT_SHARKL6PRO
+	tristate "SharkL6Pro debug power statistics"
+	depends on SPRD_POWER_STAT
+
+config SPRD_POWER_STAT_SHARKL6
+	tristate "SharkL6 debug power statistics"
+	depends on SPRD_POWER_STAT
+
+config SPRD_POWER_STAT_SHARKL5PRO
+	tristate "SharkL5Pro debug power statistics"
+	depends on SPRD_POWER_STAT
+
+config SPRD_POWER_STAT_SHARKL5
+	tristate "SharkL5 debug power statistics"
+	depends on SPRD_POWER_STAT
+
+config SPRD_POWER_STAT_SHARKL3
+	tristate "SharkL3 debug power statistics"
+	depends on SPRD_POWER_STAT
+
+config SPRD_POWER_STAT_SHARKLE
+	tristate "SharkLE debug power statistics"
+	depends on SPRD_POWER_STAT
+
+config SPRD_POWER_STAT_PIKE2
+	tristate "Pike2 debug power statistics"
+	depends on SPRD_POWER_STAT

@@ -1,0 +1,22 @@
+config DRM_SPRD_GSP
+	bool "SPRD DRM GSP driver"
+	depends on ARCH_SPRD
+	depends on (ION_SPRD_STAGING || ION_SPRD)
+	depends on DRM_SPRD
+	---help---
+	  GSP is hardware which not only can compose multiple layers
+	  but also can transform and scale layers.
+
+config DRM_SPRD_GSP_IPC_TRUSTY
+	bool "SPRD DRM GSP widevine driver"
+	depends on DRM_SPRD_GSP
+	depends on TRUSTY_VIRTIO_IPC
+	---help---
+	  This function is to support the widevine function.
+
+config DRM_SPRD_GSP_DVFS
+	bool "SPRD DRM GSP dvfs driver"
+	depends on DRM_SPRD_GSP
+	depends on SPRD_APSYS_DVFS_DEVFREQ
+	---help---
+	  This function is to support the dvfs function.

@@ -1,0 +1,69 @@
+/*
+ * Spreadtrum Qogirl6 board common DTS file
+ *
+ * Copyright (C) 2020, Spreadtrum Communications Inc.
+ *
+ * This file is licensed under a dual GPLv2 or X11 license.
+ */
+
+#include "ump9620.dtsi"
+
+/{
+	reserved_memory: reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/* must be 64M aligned */
+		sml_reserved: sml-mem@b0000000 {
+			reg = <0x0 0xb0000000 0x0 0x00020000>;
+		};
+
+		tos_reserved: tos-mem@b0020000 {
+			reg = <0x0 0xb0020000 0x0 0x03fe0000>;
+		};
+
+		fb_reserved: framebuffer@bd628000 {
+			reg = <0x0 0xbd628000 0x0 0x29d8000>;
+		};
+
+	};
+
+	ipi: interrupt-controller {
+		compatible = "android,CustomIPI";
+		#interrupt-cells = <1>;
+		interrupt-controller;
+	};
+
+	trusty {
+		compatible = "android,trusty-smc-v1";
+		irq {
+			compatible = "android,trusty-irq-v1";
+			interrupt-templates = <&ipi 0>,
+						<&gic 1 GIC_PPI 0>,
+						<&gic 1 GIC_SPI 0>;
+				interrupt-ranges = < 0  15 0>,
+						<16  31 1>,
+						<32 223 2>;
+		};
+
+		virtio {
+			compatible = "android,trusty-virtio-v1";
+		};
+
+		log {
+			compatible = "android,trusty-log-v1";
+		};
+	};
+
+	display-subsystem {
+		compatible = "sprd,display-subsystem";
+		/*ports = <&dpu_port>;*/
+		/*gsp = <&gsp>;*/
+		ports = <&dummy_crtc_port>;
+	};
+};
+
+&ump9620_pmic {
+	interrupts = <GIC_SPI 230 IRQ_TYPE_LEVEL_HIGH>;
+};

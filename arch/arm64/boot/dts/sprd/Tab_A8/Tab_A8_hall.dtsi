@@ -1,0 +1,8 @@
+&soc {
+    hall_detect {
+        compatible = "sprd,hall_detect";
+        interrupt-parent = <&ap_gpio>;
+        //interrupts = <84 0>;
+        hall,nirq-gpio = <&ap_gpio 84 0x00>;
+    };
+};

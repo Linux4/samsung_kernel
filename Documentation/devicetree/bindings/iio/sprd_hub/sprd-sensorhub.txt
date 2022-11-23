@@ -1,0 +1,24 @@
+Unisoc sensor hub bindings
+
+Unisoc's some SoCs integrates sensor hub. This sensor hub driver collect and
+analyze data uploaded from sensors.
+
+Required Properties:
+- compatible: consisted of platform name and common name.
+  - "sprd,sharkl3-sensorhub", "sprd,sensor-hub": for Sharkl3-compatible sensor hub,
+  - "sprd,sharkl5-sensorhub", "sprd,sensor-hub": for Sharkl5-compatible sensor hub,
+  - "sprd,sharkl5Pro-sensorhub", "sprd,sensor-hub": for Sharkl5pro-compatible sensor hub,
+  - "sprd,roc1-sensorhub", "sprd,sensor-hub": for Roc1-compatible sensor hub
+  - "sprd,qogirl6-sensorhub", "sprd,sensor-hub": for qogirl6-compatible sensor hub
+  - "sprd,qogirn6pro-sensorhub", "sprd,sensor-hub": for qogirn6pro-compatible sensor hub
+
+- sipc_sensorhub_id: define sensorhub id value in sipc communication
+ - <6>: SIPC_ID_PM_SYS, sensorhub running on sp sys,
+ - <9>: SIPC_ID_CH, sensorhub running on ch sys,
+ if sipc_sensorhub_id not defined, sensorhub driver code will use 6 as default
+
+Example:
+	sprd-sensorhub {
+		compatible = "sprd,sharkl5-sensorhub", "sprd,sensor-hub";
+		sipc_sensorhub_id = <6>;
+	};

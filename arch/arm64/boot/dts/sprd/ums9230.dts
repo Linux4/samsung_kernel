@@ -1,0 +1,119 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Unisoc Qogirl6 platform DTS file
+ *
+ * Copyright (C) 2020, Unisoc Inc.
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/mfd/sprd,sc2730-regs.h>
+#include <dt-bindings/mfd/sprd,sc2730-mask.h>
+#include "ums9230.dtsi"
+#include "ums9230-t606dvfs.dtsi"
+#include "ums9230-t612dvfs.dtsi"
+#include "ums9230-t616dvfs.dtsi"
+#include "sc2730.dtsi"
+#include "sprd-sound-fe-be.dtsi"
+#if __has_include ("audio/extra_sound_card_component.dtsi")
+#include "audio/extra_sound_card_component.dtsi"
+#endif
+#include "ums9230-mach.dtsi"
+#include "ums9230-modem.dtsi"
+
+/ {
+	model = "Spreadtrum UMS9230 1H10 SoC";
+
+	compatible = "sprd,ums9230";
+
+	sprd,sc-id = "ums9230 1000 1000";
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		serial2 = &uart2;
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x2 0x00000000>;
+	};
+
+	chosen: chosen {
+		stdout-path = "serial1:115200n8";
+		bootargs = "earlycon console=ttyS1,115200n8 loop.max_part=7 loglevel=1 init=/init root=/dev/ram0 rw printk.devkmsg=on swiotlb=1";
+	};
+
+	sprd-iq {
+		compatible = "sprd,iq";
+		sprd,region = <&iq_reserved>;
+		sprd,mapping-offs = <0x0>;
+	};
+
+	ion: ion {
+		compatible = "sprd,ion";
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&uart2 {
+	status = "okay";
+};
+
+&vsp {
+	status = "okay";
+};
+
+&iommu_vsp {
+	status = "okay";
+};
+
+&jpg {
+	status = "okay";
+};
+
+&iommu_jpg {
+	status = "okay";
+};
+
+&dpu {
+	status = "okay";
+};
+
+&iommu_dispc {
+	status = "okay";
+};
+
+&dsi {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	panel: panel {
+		compatible = "sprd,generic-mipi-panel";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0>;
+
+		port@1 {
+			reg = <1>;
+			panel_in: endpoint {
+				remote-endpoint = <&dphy_out>;
+			};
+		};
+	};
+};
+
+&dphy {
+	status = "okay";
+};

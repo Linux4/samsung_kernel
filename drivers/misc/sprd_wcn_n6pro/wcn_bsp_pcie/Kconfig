@@ -1,0 +1,20 @@
+#
+# Spreadtrum WCN PCIE device (NEW )configuration
+#
+menu "Spreadtrum WCN PCIE Device Drivers"
+config WCN_BSP_PCIE
+	tristate "WCN_BSP_PCIE"
+	help
+	  This is support wcn chip for spreadtrum.
+	  if you want to use PCIE series wcn chip of spreadtrum.
+	  please say "m".
+
+config SC2355_P
+	tristate "SC2355 chip Support"
+	default n
+	help
+	  This is support wcn chip for spreadtrum.
+	  If you want to use sc2355 chip of spreadtrum.
+	  Please say "y".
+
+endmenu

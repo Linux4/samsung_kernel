@@ -1,0 +1,6 @@
+config SPRD_CP_DUMP
+	tristate "SPRD CP Dump"
+	default n
+	help
+	  SPRD cp dump driver, used for cp dump.
+

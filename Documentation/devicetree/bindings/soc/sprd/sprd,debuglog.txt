@@ -1,0 +1,36 @@
+Unisoc debuglog bindings
+
+This node is used to define control information and address space node used the
+power debug driver, which output the power and interrupt state will help us to
+analyze the SoC system power exception.
+
+Required properties:
+- compatible:
+	"sprd,debuglog-sharkl6pro",
+	"sprd,debuglog-sharkl6",
+	"sprd,debuglog-sharkl5pro",
+	"sprd,debuglog-sharkl5",
+	"sprd,debuglog-sharkl3",
+	"sprd,debuglog-sharkle",
+
+- sprd,sys-ap-ahb:
+	Specify the ap-ahb address space node in the soc system
+
+- sprd,sys-ap-apb:
+	Specify the ap-apb address space node in the soc system
+
+- sprd,sys-pmu-apb:
+	Specify the pmu-apb address space node in the soc system
+
+- sprd,sys-aon-apb:
+	Specify the aon-apb address space node in the soc system
+
+Example:
+	debug_log: debuglog {
+		compatible = "sprd,debuglog-sharkl5pro";
+
+		sprd,sys-ap-ahb = <&ap_ahb_regs>;
+		sprd,sys-ap-apb = <&ap_apb_regs>;
+		sprd,sys-pmu-apb = <&pmu_apb_regs>;
+		sprd,sys-aon-apb = <&aon_apb_regs>;
+	};

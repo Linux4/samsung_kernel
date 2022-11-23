@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Unisoc Qogirn6pro platform DTS file
+ *
+ * Copyright (C) 2020, Unisoc Inc.
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include "ums9620.dtsi"
+#include "ums9620-mach.dtsi"
+#include "ump9621.dtsi"
+#include "ump9622.dtsi"
+#include "ums9620-modem.dtsi"
+
+/ {
+	model = "Spreadtrum UMS9620 SoC";
+
+	compatible = "sprd,ums9620";
+
+	sprd,sc-id = "ums9620 1000 1000";
+};

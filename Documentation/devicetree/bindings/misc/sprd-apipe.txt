@@ -1,0 +1,12 @@
+* Spreadtrum audio pipe driver
+
+This binding defines a audio pipe which for data transmission for applications
+
+Required properties:
+
+- compatible	: "sprd,apipe"
+
+Example:
+audio-apipe-pcm {
+	compatible = "sprd,apipe";
+};

@@ -1,0 +1,14 @@
+Spreadtrum cp_dump bindings
+
+Required properties:
+- compatible: "sprd,cp_dump".
+- sprd,sys-bus-ctrl-sp: Should contain the base address, offset and bit for sp sysbusctrl.
+- sprd,sys-bus-ctrl-ch: Should contain the base address, offset and bit for ch sysbusctrl.
+
+Example:
+
+	nr_cp_dump: cp_dump {
+		compatible = "sprd,cp_dump";
+		sprd,sys-bus-ctrl-sp = <&aon_apb_regs 0x0128 0x1>;
+		sprd,sys-bus-ctrl-ch = <&aon_apb_regs 0x0124 0x1>;
+	};

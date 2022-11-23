@@ -1,0 +1,11 @@
+config SPRD_HANG_DEBUG
+	bool "Enable SPRD hang debug feature"
+	default n
+	help
+		This option enables SPRD hang debug feature which dump and
+		print debug info when kernel panics.
+
+config SPRD_HANG_DEBUG_UART
+	bool "sprd hang debug using uart for log output"
+	depends on SPRD_HANG_DEBUG && SERIAL_SPRD_CONSOLE
+	default y

@@ -1,0 +1,20 @@
+#
+# Spreadtrum WCN SDIO device (NEW )configuration
+#
+menu "Spreadtrum WCN SDIO Device Drivers"
+config WCN_BSP_SDIO
+	tristate "WCN_BSP_SDIO"
+	help
+	  This is support wcn chip for spreadtrum.
+	  if you want to use SDIO series wcn chip of spreadtrum.
+	  please say "m".
+
+config UMW2652_S
+	tristate "UMW2652_S chip Support"
+	default n
+	help
+	  This is support wcn chip for spreadtrum.
+	  If you want to use umw2652 chip of spreadtrum.
+	  Please say "y".
+
+endmenu

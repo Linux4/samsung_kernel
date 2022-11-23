@@ -1,0 +1,80 @@
+/*
+ * UNISOC UMP9621 PMIC dts file
+ *
+ * Copyright (C) 2020, UNISOC Communications Inc.
+ *
+ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+ */
+
+ &adi_bus {
+	ump9621_pmic: pmic@1 {
+		compatible = "sprd,ump9621";
+		reg = <0x1>;
+		spi-max-frequency = <26000000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		syscon@2000 {
+			compatible = "sprd,ump9621-syscon";
+			reg = <0x2000>;
+		};
+
+		efuse@800 {
+			compatible = "sprd,ump9621-efuse", "sprd,sc27xx-efuse";
+			reg = <0x800>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			hwlocks = <&hwlock 15>;
+			/* Data cells */
+		};
+
+		power-controller@2000 {
+			compatible = "sprd,ump9621-regulator";
+
+			vddsram1: DCDC_SRAM1 {
+				regulator-name = "vddsram1";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1596875>;
+				regulator-ramp-delay = <25000>;
+				regulator-always-on;
+			};
+
+			vddsram2: DCDC_SRAM2 {
+				regulator-name = "vddsram2";
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1596875>;
+				regulator-ramp-delay = <25000>;
+				regulator-always-on;
+			};
+
+			vddai: DCDC_AI {
+				regulator-name = "vddai";
+				regulator-min-microvolt = <200000>;
+				regulator-max-microvolt = <1596875>;
+				regulator-ramp-delay = <25000>;
+			};
+
+			vddmodem: DCDC_MODEM {
+				regulator-name = "vddmodem";
+				regulator-min-microvolt = <200000>;
+				regulator-max-microvolt = <1596875>;
+				regulator-ramp-delay = <25000>;
+			};
+
+			vddcpu0: DCDC_CPU0 {
+				regulator-name = "vddcpu0";
+				regulator-min-microvolt = <200000>;
+				regulator-max-microvolt = <1596875>;
+				regulator-ramp-delay = <25000>;
+				regulator-always-on;
+			};
+
+			vddmm: DCDC_MM {
+				regulator-name = "vddmm";
+				regulator-min-microvolt = <200000>;
+				regulator-max-microvolt = <1596875>;
+				regulator-ramp-delay = <25000>;
+			};
+		};
+	};
+};

@@ -1,0 +1,50 @@
+/**
+*Name：<lcd_tab_a8_default_panel_mipi>
+*Author：<huangzhongjie>
+*Date：<2021/10/15>
+*Purpose：<TAB A8 default screen LCD driver>
+*/
+/ {
+    fragment {
+        target-path = "/";
+        __overlay__ {
+            lcds {
+                lcd_tab_a8_default_panel_mipi_hd: lcd_tab_a8_default_panel_mipi_hd {
+
+                    sprd,dsi-work-mode = <1>; /* video burst mode*/
+                    sprd,dsi-lane-number = <4>;
+                    sprd,dsi-color-format = "rgb888";
+
+                    sprd,initial-command = [
+                        13 78 00 01 11
+                        13 64 00 01 29
+                        ];
+                    sprd,sleep-in-command = [
+                        13 0A 00 01 28
+                        13 78 00 01 10
+                        ];
+                    sprd,sleep-out-command = [
+                        13 78 00 01 11
+                        13 64 00 01 29
+                        ];
+
+                    display-timings {
+                        native-mode = <&dummy_timing0>;
+
+                        dummy_timing0: timing0 {
+                            clock-frequency = <76800000>;
+                            hactive = <1200>;
+                            vactive = <1920>;
+                            hback-porch = <60>;
+                            hfront-porch = <80>;
+                            vback-porch = <12>;
+                            vfront-porch = <38>;
+                            hsync-len = <60>;
+                            vsync-len = <4>;
+                        };
+                    };
+                };
+            };
+        };
+    };
+};
