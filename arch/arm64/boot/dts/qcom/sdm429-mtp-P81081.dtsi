@@ -1,0 +1,144 @@
+/*
+ * Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "sdm439-mtp.dtsi"
+
+/* +Bug601073, qiuyonghui.wt, 20201117, add, audio bring up */
+&soc {
+int_codec: sound {
+        status = "okay";
+        qcom,msm-mbhc-hphl-swh = <1>;
+        qcom,msm-hs-micbias-type = "internal";
+
+        qcom,audio-routing =
+            "RX_BIAS", "MCLK",
+            "SPK_RX_BIAS", "MCLK",
+            "INT_LDO_H", "MCLK",
+            "RX_I2S_CLK", "MCLK",
+    	    "TX_I2S_CLK", "MCLK",
+            "MIC BIAS External", "Handset Mic",
+            "MIC BIAS Internal2", "Headset Mic",
+            "MIC BIAS External", "Secondary Mic",
+            "AMIC1", "MIC BIAS External",
+            "AMIC2", "MIC BIAS Internal2",
+            "AMIC3", "MIC BIAS External",
+            "ADC1_IN", "ADC1_OUT",
+            "ADC2_IN", "ADC2_OUT",
+            "ADC3_IN", "ADC3_OUT",
+            "PDM_IN_RX1", "PDM_OUT_RX1",
+            "PDM_IN_RX2", "PDM_OUT_RX2",
+            "PDM_IN_RX3", "PDM_OUT_RX3";
+
+        qcom,hph-en-gpio = <&tlmm 41 0x01>;
+        qcom,hph-in-gpio = <&tlmm 48 0x01>;
+        qcom,channel-num = <0x21>;//MPP2_1.8V:0x11 MPP2_5V:0x21
+        qcom,hph_mic-vadc = <&pm8953_vadc>;
+        };
+};
+
+&i2c_8 { /* (PA) */
+        status = "okay";
+        aw87319l_i2c@58{//left
+            compatible = "awinic,aw87319l_pa";
+            reg = <0x58>;
+            reset-gpio = <&tlmm 39 0x01>;
+        };
+        aw87319r_i2c@59{//right
+            compatible = "awinic,aw87319r_pa";
+            reg = <0x59>;
+            reset-gpio = <&tlmm 40 0x01>;
+        };
+};
+
+&i2c_5 {
+        status = "ok";
+	abov@20 {
+		label = "AbovCapSense";
+		compatible = "abov,abov_sar";
+		reg = <0x20>;
+		cap_vdd-supply = <&pm8953_l10>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <45 0x2008>;
+		abov,irq-gpio = <&tlmm 45 0x2008>; /* IRQ */
+		pinctrl-names = "abov_int_default";
+		pinctrl-0 = <&abov_int_default>;
+		cap,use_channel = <0x0f>;
+		cap,use_channel_top = <0x01>;
+		cap,use_channel_bottom = <0x00>;
+		cap,scan_period = <0x02>;
+		reg_array_len = <2>;
+		reg_array_val = <0x18 0x5a 0x19 0x93>;
+	};
+};
+
+/* Samsung SEC_DEBUG */
+&reserved_memory {
+	/* CONFIG_SEC_DEBUG reserves 8MB */
+	sec_debug_region: sec_debug_region@0 {
+		compatible = "removed-dma-pool";
+		no-map;
+		reg = <0x0 0x85000000 0x0 0x00800000>;
+	};
+
+	ramoops@92100000 {
+		compatible = "ramoops";
+		reg = <0x0 0x92100000 0x0 0x100000>;
+		record-size = <0x40000>;
+		console-size = <0x40000>;
+		ftrace-size = <0x40000>;
+		pmsg-size = <0x40000>;
+	};
+
+	ss_plog@92200000 {
+		compatible = "ss_plog";
+		no-map;
+		reg = <0x0 0x92200000 0x0 0x00400000>;
+	};
+};
+
+&soc {
+	qcom,msm-imem@8600000 {
+		upload_cause@66c {
+			compatible = "qcom,msm-imem-upload_cause";
+			reg = <0x66c 4>;
+		};
+	};
+	sec_smem@0 {
+		compatible = "samsung,sec-smem";
+		status = "okay";
+	};
+};
+
+&pil_mss {
+	/* GPIO output to mss */
+	qcom,gpio-stop-reason-0 = <&smp2pgpio_ssr_smp2p_1_out 4 0>;
+	qcom,gpio-stop-reason-1 = <&smp2pgpio_ssr_smp2p_1_out 5 0>;
+};
+
+&soc {
+	samsung,vibrator {
+		compatible = "samsung_vib";
+//		samsung,vib_pwm = <&tlmm 136 0>;
+//		samsung,vib_power = <&pm8150_gpios 10 0>;
+//		samsung,gp_clk = <0x00164000>;	// Address of GP1 clock
+//		samsung,chip_model = <4>;	// using max77705 driver
+		samsung,vib_type = "COINDC";
+		status = "ok";
+
+//		pinctrl-names = "tlmm_pwm_default";
+//		pinctrl-0 = <&pwm_out_gpio6_default>;
+//		pwms = <&pm6150l_pwm 0 1000000>;
+
+	};
+};
+
