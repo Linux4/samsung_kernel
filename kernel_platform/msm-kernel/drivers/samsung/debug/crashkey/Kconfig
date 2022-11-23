@@ -1,0 +1,5 @@
+config SEC_CRASHKEY
+	tristate "SEC Force key crash driver"
+	depends on SEC_KEY_NOTIFIER || UML
+	help
+	  TODO: help is not ready.
