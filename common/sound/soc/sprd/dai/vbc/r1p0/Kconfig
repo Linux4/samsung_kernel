@@ -1,0 +1,3 @@
+config SND_SOC_SPRD_VBC_R1P0
+	tristate # "VBC_R1P0"
+	help

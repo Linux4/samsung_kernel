@@ -1,0 +1,26 @@
+config ITTIAM
+	tristate "SPRD Wireless Network Support"
+	depends on CFG80211 && SIPC
+	---help---
+	  Say Y to enable built-in wireless MAC controller in the
+	  Spreadtrum SC88xx based System-on-Chip devices.
+
+if ITTIAM
+choice
+	prompt "SPRD WLAN sleep policy"
+	default ITM_WLAN_PM_IRRELEVANT
+
+config ITM_WLAN_PM_IRRELEVANT
+	depends on ITTIAM && PM
+	bool "Irrelevant sleep policy"
+	help
+	  The WLAN power management is took care by firmware.
+
+config ITM_WLAN_PM_POWERSAVE
+	depends on ITTIAM && PM
+	bool "Traditional sleep policy"
+	help
+	  The WLAN power management is took care by system.
+
+endchoice
+endif

@@ -1,0 +1,37 @@
+Version: v0.9	Modify: dong.xiang
+============================================
+1. Rename KT0812G to Trout.
+
+Version: v0.8	Modify: dong.xiang
+============================================
+1. Ignore trout_fm_open() when the system is suspending. [dong.xiang]
+
+Version: v0.7	Modify: dong.xiang
+============================================
+1. Update fm configuration. [xuede.wang]
+
+Version: v0.6	Modify: dong.xiang
+============================================
+1. Update fm configuration. [xuede.wang]
+1. Remove retry if set tune failed.
+
+Version: v0.5	Modify: dong.xiang
+============================================
+1. Do not set frequency at fm startup.
+2. Add retry if set tune failed.
+
+Version: v0.4	Modify: yeguang.zhu
+============================================
+1. Delete RF Start/Stop function, included by Power On/Off.
+
+Version: v0.3	Modify: yeguang.zhu
+============================================
+1. Update fm configuration refer to minicode.
+
+Version: v0.2	Modify: mengyuan.du
+============================================
+1. set trout wifi goto sleep in some place
+
+Version: v0.1	Modify: dong.xiang
+============================================
+1. Add Changes.log.

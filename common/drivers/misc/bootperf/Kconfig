@@ -1,0 +1,5 @@
+config BOOT_PERF
+    bool "enable boot time reord and read"
+    default n
+    help
+    enable boot time reord and read
