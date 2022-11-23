@@ -3069,6 +3069,8 @@ static int a96t3x6_suspend(struct device *dev)
 	GRIP_INFO("\n");
 	a96t3x6_sar_only_mode(data, 1);
 	a96t3x6_set_debug_work(data, 0, 1000);
+	if (data->current_state)
+		disable_irq(data->irq);
 
 	return 0;
 }
@@ -3080,6 +3082,8 @@ static int a96t3x6_resume(struct device *dev)
 	GRIP_INFO("\n");
 	data->resume_called = true;
 	a96t3x6_set_debug_work(data, 1, 0);
+	if (data->current_state)
+		enable_irq(data->irq);
 
 	return 0;
 }
@@ -3091,8 +3095,8 @@ static void a96t3x6_shutdown(struct i2c_client *client)
 	a96t3x6_set_debug_work(data, 0, 1000);
 
 	if (data->enabled) {
-	disable_irq(data->irq);
-	data->power(data, false);
+		disable_irq(data->irq);
+		data->power(data, false);
 	}
 	data->enabled = false;
 }

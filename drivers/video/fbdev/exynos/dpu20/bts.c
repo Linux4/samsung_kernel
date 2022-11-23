@@ -70,8 +70,8 @@ static inline u32 dpu_bts_afbc_latency(u32 src_w, u32 ppc, u32 lmc)
 static inline u32 dpu_bts_scale_latency(u32 is_s, u32 src_w, u32 dst_w,
 		u32 ppc, u32 lmc)
 {
-	u32 lat_scale = 0;
-	u32 line_w;
+	u64 lat_scale = 0UL;
+	u64 line_w;
 
 	/*
 	 * line_w : reflecting scale-ratio
@@ -83,7 +83,7 @@ static inline u32 dpu_bts_scale_latency(u32 is_s, u32 src_w, u32 dst_w,
 		line_w = src_w * 1000UL;
 	lat_scale = (line_w * lmc) / (ppc * 1000UL);
 
-	return lat_scale;
+	return (u32)lat_scale;
 }
 
 /*
@@ -195,15 +195,15 @@ static u32 dpu_bts_find_latency_meet_aclk(u32 lat_cycle, u32 line_time,
 		u32 criteria_v, u32 aclk_disp,
 		bool is_yuv10, bool is_rotate, u32 rot_factor)
 {
-	u32 aclk_mhz = aclk_disp / 1000UL;
-	u32 aclk_period, lat_time;
-	u32 lat_time_max;
+	u64 aclk_mhz = aclk_disp / 1000UL;
+	u64 aclk_period, lat_time;
+	u64 lat_time_max;
 
 	DPU_DEBUG_BTS("\t(rot_factor = %d) (is_yuv10 = %d)\n",
 			rot_factor, is_yuv10);
 
 	/* lat_time_max: usec x 1000 */
-	lat_time_max = line_time * criteria_v;
+	lat_time_max = (u64)line_time * (u64)criteria_v;
 
 	/* find min-ACLK to able to cover initial latency */
 	while (1) {
@@ -216,7 +216,7 @@ static u32 dpu_bts_find_latency_meet_aclk(u32 lat_cycle, u32 line_time,
 			lat_time = (lat_time * rot_factor) / MULTI_FACTOR;
 
 		DPU_DEBUG_BTS("\tloop: (aclk_period = %d) (lat_time = %d)\n",
-			aclk_period, lat_time);
+			(u32)aclk_period, (u32)lat_time);
 		if (lat_time < lat_time_max)
 			break;
 
@@ -224,9 +224,9 @@ static u32 dpu_bts_find_latency_meet_aclk(u32 lat_cycle, u32 line_time,
 	}
 
 	DPU_DEBUG_BTS("\t(lat_time = %d) (lat_time_max = %d)\n",
-		lat_time, lat_time_max);
+		(u32)lat_time, (u32)lat_time_max);
 
-	return (aclk_mhz * 1000UL);
+	return (u32)(aclk_mhz * 1000UL);
 }
 
 u64 dpu_bts_calc_aclk_disp(struct decon_device *decon,

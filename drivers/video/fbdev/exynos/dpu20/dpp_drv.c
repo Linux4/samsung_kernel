@@ -332,7 +332,7 @@ static int dpp_check_format(struct dpp_device *dpp, struct dpp_params_info *p)
 		return -EINVAL;
 	}
 
-	if ((p->hdr < DPP_HDR_OFF) || (p->hdr > DPP_HDR_HLG)) {
+	if ((p->hdr < DPP_HDR_OFF) || (p->hdr > DPP_TRANSFER_GAMMA2_8)) {
 		dpp_err("Unsupported HDR standard in DPP%d, HDR std(%d)\n",
 				dpp->id, p->hdr);
 		return -EINVAL;
@@ -629,7 +629,7 @@ err:
 static long dpp_subdev_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct dpp_device *dpp = v4l2_get_subdevdata(sd);
-	bool reset = (bool)arg;
+	bool reset = true;
 	int ret = 0;
 	int *afbc_enabled;
 
@@ -642,6 +642,8 @@ static long dpp_subdev_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg
 		break;
 
 	case DPP_STOP:
+		if (&arg != NULL)
+			reset = (bool)arg;
 #ifdef CONFIG_EXYNOS_MCD_HDR
 		ret = dpp_mcd_stop(dpp);
 #endif

@@ -320,17 +320,25 @@ static int dpp_reg_wait_sw_reset_status(u32 id)
 
 static void dpp_reg_set_csc_coef(u32 id, u32 csc_std, u32 csc_rng)
 {
-#if defined(SUPPORT_USER_COEF)
+#if defined(CONFIG_EXYNOS_MCD_HDR)
 	u32 val, mask;
-	u32 csc_id = CSC_CUSTOMIZED_START; /* CSC_BT601/625/525 */
+	u32 csc_id = CSC_BT_601_625;
 	u32 c00, c01, c02;
 	u32 c10, c11, c12;
 	u32 c20, c21, c22;
 
 	if ((csc_std > CSC_DCI_P3) && (csc_std <= CSC_ADOBE_RGB))
-		csc_id = (csc_std - CSC_CUSTOMIZED_START) * 2 + csc_rng;
+		csc_id = (csc_std - CSC_BT_601_625) * 2 + csc_rng;
 	else
 		dpp_err("Undefined CSC Type!!!\n");
+
+	if (csc_rng > CSC_RANGE_FULL) {
+		dpp_err("DPP:ERR:%s:Undefined csc range : %d\n", __func__, csc_rng);
+		csc_rng = CSC_RANGE_FULL;
+	}
+
+	if (csc_std == CSC_BT_2020_CONSTANT_LUMINANCE)
+		dpp_info("DPP:INFO:%s:csc std : BT_2020_CONSTANT_LUMINANCE\n", __func__);
 
 	c00 = csc_3x3_t[csc_id][0][0];
 	c01 = csc_3x3_t[csc_id][0][1];
@@ -378,7 +386,7 @@ static void dpp_reg_set_csc_params(u32 id, u32 csc_eq)
 	u32 val, mask;
 
 	if (type == CSC_STANDARD_UNSPECIFIED) {
-		dpp_dbg("unspecified CSC type! -> BT_601\n");
+		dpp_dbg("unspecified CSC type(%d)! -> BT_601\n", type);
 		type = CSC_BT_601;
 		mode = CSC_COEF_HARDWIRED;
 	}

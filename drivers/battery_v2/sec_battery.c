@@ -4791,7 +4791,12 @@ continue_monitor:
 skip_current_monitor:
 	psy_do_property(battery->pdata->charger_name, get,
 		POWER_SUPPLY_EXT_PROP_MONITOR_WORK, val);
-
+#if IS_ENABLED(CONFIG_DIRECT_CHARGING)
+		if (is_pd_apdo_wire_type(battery->cable_type) && (val.intval == LOW_VBAT_SET)) {
+			value.intval = battery->pdata->charging_current[battery->cable_type].fast_charging_current;
+			psy_do_property(battery->pdata->charger_name, set, POWER_SUPPLY_PROP_CURRENT_NOW, value);
+		}
+#endif
 	if (battery->pdata->wireless_charger_name)
 		psy_do_property(battery->pdata->wireless_charger_name, get,
 			POWER_SUPPLY_EXT_PROP_MONITOR_WORK, val);

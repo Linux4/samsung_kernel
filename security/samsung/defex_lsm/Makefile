@@ -134,14 +134,6 @@ endif
 ifeq ($(CONFIG_KUNIT), y)
     GCOV_PROFILE := y
     DEFEX_DEFINES += -DDEFEX_KUNIT_ENABLED
-    defex-y += catch_engine/kunit_test/
-    defex-y += cert/kunit_test/
-    defex-y += core/kunit_test/
-    defex-y += debug/kunit_test/
-    defex-y += feature_immutable/kunit_test/
-    defex-y += feature_privilege_escalation_detection/kunit_test/
-    defex-y += feature_safeplace/kunit_test/
-    defex-y += feature_trusted_map/kunit_test/
 else
     DEFEX_DEFINES += -D__visible_for_testing=static
 endif

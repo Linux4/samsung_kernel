@@ -22,7 +22,7 @@
 #include "sec_charging_common.h"
 
 #define SEC_DIRECT_CHG_MIN_IOUT			2000
-#define SEC_DIRECT_CHG_MIN_VBAT			3100
+#define SEC_DIRECT_CHG_MIN_VBAT			3500
 #define SEC_DIRECT_CHG_MAX_VBAT			4200
 
 typedef enum _sec_direct_chg_src {
@@ -40,6 +40,12 @@ typedef enum _sec_direct_chg_mode {
 	SEC_DIRECT_CHG_MODE_MAX,
 } sec_direct_chg_mode_t;
 
+enum {
+	LOW_VBAT_SET = 0,
+	LOW_VBAT_NONE,
+	LOW_VBAT_OFF,
+};
+
 #define is_direct_chg_mode_on(direct_chg_mode) ( \
 	direct_chg_mode == SEC_DIRECT_CHG_MODE_DIRECT_PRESET || \
 	direct_chg_mode == SEC_DIRECT_CHG_MODE_DIRECT_ON) || \
@@ -52,6 +58,7 @@ struct sec_direct_charger_platform_data {
 	char *direct_sub_charger_name;
 
 	int dchg_min_current;
+	int dchg_min_vbat;
 	int dchg_temp_low_threshold;
 	int dchg_temp_high_threshold;
 };
@@ -86,6 +93,7 @@ struct sec_direct_charger_info {
 	bool now_isApdo;
 	bool hv_pdo;
 	bool store_mode;
+	int vbat_min_src;
 
 	int bat_temp;
 

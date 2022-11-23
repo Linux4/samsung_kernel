@@ -144,8 +144,9 @@ __visible_for_testing int task_defex_is_secured(struct defex_context *dc)
 {
 	struct file *exe_file = get_dc_process_file(dc);
 	struct task_struct *p = dc->task->group_leader;
+	struct task_struct *task = dc->task;
 	char *proc_name = get_dc_process_name(dc);
-	int is_secured = 1;
+	int is_secured = 0;
 
 	if (!get_dc_process_dpath(dc))
 		return is_secured;
@@ -155,6 +156,10 @@ __visible_for_testing int task_defex_is_secured(struct defex_context *dc)
 	}
 
 	if (!strncmp(p->comm, "ding:background", strlen(p->comm))) {
+		return DEFEX_ALLOW;
+	}
+
+	if (!strncmp(task->comm, "FinalizerDaemon", strlen(task->comm))) {
 		return DEFEX_ALLOW;
 	}
 
