@@ -42,6 +42,7 @@
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/types.h>
+#include <linux/preempt.h>
 
 #include <asm/barrier.h>
 
@@ -220,6 +221,13 @@
 typedef u32 arm_v7s_iopte;
 
 static bool selftest_running;
+#define MTK_IOMMU_CACHE_TRACKING_SUPPORT
+#ifdef MTK_IOMMU_CACHE_TRACKING_SUPPORT
+static dma_addr_t g_sync_target;
+static int g_sync_num;
+static unsigned long g_sync_iova;
+static int g_sync_lvl;
+#endif
 
 struct arm_v7s_io_pgtable {
 	struct io_pgtable	iop;
@@ -323,6 +331,20 @@ static void __arm_v7s_pte_sync(arm_v7s_iopte *ptep, int num_entries,
 
 	dma_sync_single_for_device(cfg->iommu_dev, __arm_v7s_dma_addr(ptep),
 				   num_entries * sizeof(*ptep), DMA_TO_DEVICE);
+#ifdef MTK_IOMMU_CACHE_TRACKING_SUPPORT
+	if (g_sync_target &&
+	    g_sync_target != __arm_v7s_dma_addr(ptep)) {
+		pr_notice("%s[WARNING] tgt:0x%lx+%d,cur:0x%lx+%d,iova:0x%lx,lvl:0x%lx\n",
+			  __func__, g_sync_target, g_sync_num,
+			  __arm_v7s_dma_addr(ptep),
+			  num_entries, g_sync_iova, g_sync_lvl);
+		WARN_ON(1);
+	}
+	g_sync_target = 0;
+	g_sync_num = 0;
+	g_sync_iova = 0;
+	g_sync_lvl = 0;
+#endif
 }
 static void __arm_v7s_set_pte(arm_v7s_iopte *ptep, arm_v7s_iopte pte,
 			      int num_entries, struct io_pgtable_cfg *cfg)
@@ -539,13 +561,33 @@ static int __arm_v7s_map(struct arm_v7s_io_pgtable *data, unsigned long iova,
 {
 	struct io_pgtable_cfg *cfg = &data->iop.cfg;
 	arm_v7s_iopte pte, *cptep;
+	gfp_t gfp;
 	int num_entries = size >> ARM_V7S_LVL_SHIFT(lvl);
-#ifdef CONFIG_MTK_PSEUDO_M4U
+#ifdef CONFIG_MTK_IOMMU_V2
 	phys_addr_t pte_phys;
 #endif
 
 	/* Find our entry at the current level */
 	ptep += ARM_V7S_LVL_IDX(iova, lvl);
+#ifdef MTK_IOMMU_CACHE_TRACKING_SUPPORT
+	if (num_entries) {
+		if (g_sync_target &&
+		    g_sync_target != __arm_v7s_dma_addr(ptep)) {
+			pr_notice(
+				  "%s[WARNING] tgt:0x%lx+%d,iova:0x%lx,lvl:0x%lx\n",
+				  __func__, g_sync_target, g_sync_num,
+				  g_sync_iova, g_sync_lvl);
+			pr_notice(
+				  "%s[WARNING] cur:0x%lx+%d,iova:0x%lx,lvl:0x%lx,size:0x%lx\n",
+				  __func__, __arm_v7s_dma_addr(ptep),
+				 num_entries, iova, lvl, size);
+		}
+		g_sync_target = __arm_v7s_dma_addr(ptep);
+		g_sync_num = num_entries;
+		g_sync_iova = iova;
+		g_sync_lvl = lvl;
+	}
+#endif
 
 	/* If we can install a leaf entry at this level, then do so */
 	if (num_entries)
@@ -559,7 +601,11 @@ static int __arm_v7s_map(struct arm_v7s_io_pgtable *data, unsigned long iova,
 	/* Grab a pointer to the next level */
 	pte = READ_ONCE(*ptep);
 	if (!pte) {
-		cptep = __arm_v7s_alloc_table(lvl + 1, GFP_ATOMIC, data);
+		if (in_atomic())
+			gfp = GFP_ATOMIC;
+		else
+			gfp = GFP_KERNEL;
+		cptep = __arm_v7s_alloc_table(lvl + 1, gfp, data);
 		if (!cptep) {
 #ifdef MTK_PGTABLE_DEBUG_ENABLED
 			pr_notice("%s, %d, error cptep\n", __func__, __LINE__);
@@ -738,7 +784,7 @@ static int arm_v7s_split_blk_unmap(struct arm_v7s_io_pgtable *data,
 		tablep = iopte_deref(pte, 1);
 #ifdef MTK_PGTABLE_DEBUG_ENABLED
 		pr_notice("%s, %d, unmap when install failed, iova=0x%lx, ptep=0x%lx, size=0x%lx, level=2\n",
-			__func__, __LINE__, iova, (unsigned long)tablep, size);
+			__func__, __LINE__, iova, (uintptr_t)tablep, size);
 #endif
 		return __arm_v7s_unmap(data, iova, size, 2, tablep);
 	}
@@ -804,6 +850,25 @@ static int __arm_v7s_unmap(struct arm_v7s_io_pgtable *data,
 		spin_unlock_irqrestore(&data->split_lock, flags);
 	}
 
+#ifdef MTK_IOMMU_CACHE_TRACKING_SUPPORT
+	if (num_entries) {
+		if (g_sync_target &&
+		    g_sync_target != __arm_v7s_dma_addr(ptep)) {
+			pr_notice(
+				  "%s[WARNING] tgt:0x%lx+%d,iova:0x%lx,lvl:0x%lx\n",
+				  __func__, g_sync_target, g_sync_num,
+				  g_sync_iova, g_sync_lvl);
+			pr_notice(
+				  "%s[WARNING] cur:0x%lx+%d,iova:0x%lx,lvl:0x%lx,size:0x%lx\n",
+				  __func__, __arm_v7s_dma_addr(ptep),
+				 num_entries, iova, lvl, size);
+		}
+		g_sync_target = __arm_v7s_dma_addr(ptep);
+		g_sync_num = num_entries;
+		g_sync_iova = iova;
+		g_sync_lvl = lvl;
+	}
+#endif
 	/* If the size matches this level, we're in the right place */
 	if (num_entries) {
 		size_t blk_size = ARM_V7S_BLOCK_SIZE(lvl);
@@ -1148,7 +1213,7 @@ static struct io_pgtable *arm_v7s_alloc_pgtable(struct io_pgtable_cfg *cfg,
 #ifdef MTK_PGTABLE_DEBUG_ENABLED
 	phys_addr = virt_to_phys(data->pgd);
 	pr_notice("%s, %d, pgd=0x%lx, cf.ttbr=0x%x,pgd_pa=0x%lx\n",
-		  __func__, __LINE__, (unsigned long)data->pgd,
+		  __func__, __LINE__, (uintptr_t)data->pgd,
 		cfg->arm_v7s_cfg.ttbr[0], phys_addr);
 #endif
 	return &data->iop;

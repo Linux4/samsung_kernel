@@ -615,7 +615,7 @@ void rdma_set_ultra_l(unsigned int idx, unsigned int bpp, void *handle,
 			frame_rate = 30;
 	}
 
-	DDPMSG("%s, frame_rate=%d\n", __func__, frame_rate);
+	DDPMSG("%s, frame_rate=%u\n", __func__, frame_rate);
 
 	/* get fifo parameters */
 	switch (rdma_golden_setting->mmsys_clk) {
@@ -662,6 +662,7 @@ void rdma_set_ultra_l(unsigned int idx, unsigned int bpp, void *handle,
 		fifo_off_drs_leave = 1;
 		fifo_off_spm = 50; /* 10 times*/
 		fifo_off_dvfs = 2;
+
 		if (is_wrot_sram) {
 			if (rdma_golden_setting->dst_height > 2340)
 				fifo_off_ultra = 40;

@@ -35,14 +35,28 @@
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 #include <linux/hall/hall_ic_notifier.h>
 #endif
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+#if IS_ENABLED(CONFIG_USB_HW_PARAM)
+#include <linux/usb_notify.h>
+#endif
+#endif
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+#include <linux/input/stui_inf.h>
+#endif
 
 /*
  * Switch events
  */
 #define SW_FOLDER		0x00  /* set = folder open, close*/
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+#define SW_FLIP			0x10  /* set = flip cover open, close*/
+#define SW_CERTIFYHALL		0x0b  /* set = certify_hall attach/detach */
+#define SW_WACOM_HALL			0x0c	/* set = tablet wacom hall attach/detach(set wacom cover mode) */
+#else
 #define SW_FLIP			0x15  /* set = flip cover open, close*/
 #define SW_CERTIFYHALL		0x1b  /* set = certify_hall attach/detach */
 #define SW_WACOM_HALL			0x1e	/* set = tablet wacom hall attach/detach(set wacom cover mode) */
+#endif
 
 #define DEFAULT_DEBOUNCE_INTERVAL	50
 
@@ -175,11 +189,23 @@ static ssize_t hall_number_show(struct device *dev,
 
 	return strlen(buf);
 }
+
+static ssize_t debounce_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct hall_ic_drvdata *ddata = dev_get_drvdata(dev);
+
+	sprintf(buf, "%d\n", ddata->pdata->debounce_interval);
+	
+	return strlen(buf);
+}
+
 static DEVICE_ATTR_RO(hall_detect);
 static DEVICE_ATTR_RO(certify_hall_detect);
 static DEVICE_ATTR_RO(hall_wacom_detect);
 static DEVICE_ATTR_RO(flip_status);
 static DEVICE_ATTR_RO(hall_number);
+static DEVICE_ATTR_RO(debounce);
 
 static struct device_attribute *hall_ic_attrs[] = {
 	&dev_attr_hall_detect,
@@ -231,7 +257,10 @@ static void hall_ic_work(struct work_struct *work)
 {
 	struct hall_ic_data *hall = container_of(work,
 		struct hall_ic_data, dwork.work);
+	struct hall_ic_drvdata *ddata = gddata;
 	int state;
+	char hall_uevent[20] = {0,};
+	char *hall_status[2] = {hall_uevent, NULL};
 
 	mutex_lock(&gddata->lock);
 	hall->state = !!gpio_get_value_cansleep(hall->gpio);
@@ -243,10 +272,32 @@ static void hall_ic_work(struct work_struct *work)
 		input_report_switch(hall->input, hall->event, state);
 		input_sync(hall->input);
 	}
+
+	/* send uevent for hall ic */
+	snprintf(hall_uevent, sizeof(hall_uevent), "%s=%s",
+		hall->name, state ? "close" : "open");
+	kobject_uevent_env(&ddata->sec_dev->kobj, KOBJ_CHANGE, hall_status);
+
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 	hall_notifier_notify(hall->name, state);
 #endif
 	mutex_unlock(&gddata->lock);
+
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
+		stui_cancel_session();
+#endif
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+#if IS_ENABLED(CONFIG_USB_HW_PARAM)
+	if (strncmp(hall->name, "flip", 4) == 0) {
+		struct otg_notify *o_notify = get_otg_notify();
+
+		if (state && o_notify)
+			inc_hw_param(o_notify, USB_HALL_FOLDING_COUNT);
+
+	}
+#endif
+#endif
 }
 #endif
 
@@ -340,8 +391,8 @@ static int hall_ic_setup_halls(struct hall_ic_drvdata *ddata)
 #endif
 	sec_hall_ic = ddata->sec_dev;
 
-	ret = sysfs_create_file(&ddata->sec_dev->kobj,
-						&dev_attr_hall_number.attr);
+	sysfs_create_file(&ddata->sec_dev->kobj, &dev_attr_hall_number.attr);
+	sysfs_create_file(&ddata->sec_dev->kobj, &dev_attr_debounce.attr);
 	list_for_each_entry(hall, &hall_ic_list, list) {
 		hall->state = gpio_get_value_cansleep(hall->gpio);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
@@ -427,6 +478,7 @@ static struct hall_ic_pdata *hall_ic_parsing_dt(struct device *dev)
 		}
 
 		hall->active_low = flags & OF_GPIO_ACTIVE_LOW;
+		gpio_direction_input(hall->gpio);
 		hall->irq = gpio_to_irq(hall->gpio);
 		hall->name = of_get_property(pp, "name", NULL);
 
@@ -437,6 +489,20 @@ static struct hall_ic_pdata *hall_ic_parsing_dt(struct device *dev)
 			pr_err("failed to get event: 0x%x\n", hall->event);
 			return ERR_PTR(-EINVAL);
 		}
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+		if (hall->event == 0x15) { /* SW_FLIP */
+			hall->event = 0x10;
+		} else if (hall->event == 0x1b) {	/* SW_CERTIFYHALL */
+			hall->event = 0x0b;
+		} else if (hall->event == 0x1e) {	/* SW_WACOM_HALL */
+			hall->event = 0x0c;
+		} else if (hall->event == 0x00) {	/* SW_FOLDER */
+//			continue;
+		} else {
+			pr_err("failed to get name, not match event\n");
+			return ERR_PTR(-EINVAL);
+		}
+#endif
 		list_add(&hall->list, &hall_ic_list);
 	}
 	return pdata;
@@ -532,7 +598,7 @@ static int hall_ic_resume(struct device *dev)
 
 		state ^= hall->active_low;
 		pr_info("%s %s %s(%d)\n", __func__, hall->name,
-			hall->state ? "open" : "close", hall->state);
+			state ? "close" : "open", hall->state);
 		disable_irq_wake(hall->irq);
 		input_report_switch(hall->input, hall->event, state);
 		input_sync(hall->input);

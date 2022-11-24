@@ -36,7 +36,6 @@
 #include <linux/fsnotify.h>
 #include <linux/lockdep.h>
 #include <linux/user_namespace.h>
-#include <linux/magic.h>
 #include "internal.h"
 
 /* @fs.sec -- 89e449513e5bea6196d9aaf62a6936ae -- */
@@ -863,9 +862,6 @@ int do_remount_sb2(struct vfsmount *mnt, struct super_block *sb, int sb_flags, v
 		if (force) {
 			sb->s_readonly_remount = 1;
 			smp_wmb();
-
-			if (sb->s_magic == F2FS_SUPER_MAGIC)
-				mnt = ERR_PTR(-EROFS);
 		} else {
 			retval = sb_prepare_remount_readonly(sb);
 			if (retval)
@@ -892,6 +888,7 @@ int do_remount_sb2(struct vfsmount *mnt, struct super_block *sb, int sb_flags, v
 			     sb->s_type->name, retval);
 		}
 	}
+
 #ifdef CONFIG_FIVE
 	sb->s_flags = (sb->s_flags & ~MS_RMT_MASK) |
 				(sb_flags & MS_RMT_MASK) | MS_I_VERSION;

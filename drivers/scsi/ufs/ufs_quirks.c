@@ -15,12 +15,14 @@
 #include "ufs_quirks.h"
 
 #define SERIAL_NUM_SIZE 7
-#define TOSHIBA_SERIAL_NUM_SIZE 10
 
-void ufs_set_sec_unique_number(struct ufs_hba *hba, u8 *str_desc_buf, u8 *desc_buf)
+void ufs_set_sec_unique_number(void *data, u8 *str_desc_buf, u8 *desc_buf)
 {
+	struct ufs_hba *hba;
 	u8 manid;
-	u8 snum_buf[UFS_UN_MAX_DIGITS];
+	u8 snum_buf[UFS_UN_20_DIGITS + 1];
+
+	hba = (struct ufs_hba *)data;
 
 	manid = hba->manu_id & 0xFF;
 	memset(hba->unique_number, 0, sizeof(hba->unique_number));

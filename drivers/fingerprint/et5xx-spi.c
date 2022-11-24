@@ -39,16 +39,11 @@ static DEFINE_MUTEX(device_list_lock);
 
 struct debug_logger *g_logger;
 static DECLARE_WAIT_QUEUE_HEAD(interrupt_waitq);
-static unsigned int bufsiz = 1024;
 
 static irqreturn_t et5xx_fingerprint_interrupt(int irq, void *dev_id)
 {
 	struct et5xx_data *etspi = (struct et5xx_data *)dev_id;
 
-	if (gpio_get_value(etspi->drdyPin)) { /* for active low */
-		pr_info("IRQ is not low (%d), IRQ drop\n", gpio_get_value(etspi->drdyPin));
-		return IRQ_HANDLED;
-	}
 	etspi->int_count++;
 	etspi->finger_on = 1;
 	disable_irq_nosync(etspi->gpio_irq);
@@ -269,6 +264,8 @@ static long et5xx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	struct et5xx_data *etspi;
 	u32 tmp;
 	struct egis_ioc_transfer *ioc = NULL;
+	struct egis_ioc_transfer_32 *ioc_32 = NULL;
+	u64 tx_buffer_64, rx_buffer_64;
 	u8 *buf, *address, *result, *fr;
 	/* Check type and command number */
 	if (_IOC_TYPE(cmd) != EGIS_IOC_MAGIC) {
@@ -299,27 +296,58 @@ static long et5xx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		goto out;
 	}
 
-	/*
-	 *	If platform is 32bit and kernel is 64bit
-	 *	We will alloc egis_ioc_transfer for 64bit and 32bit
-	 *	We use ioc_32(32bit) to get data from user mode.
-	 *	Then copy the ioc_32 to ioc(64bit).
-	 */
 	tmp = _IOC_SIZE(cmd);
-	if ((tmp == 0) || (tmp % sizeof(struct egis_ioc_transfer)) != 0) {
+
+	if (tmp == 0) {
 		pr_err("ioc size error\n");
 		retval = -EINVAL;
 		goto out;
-	}
-	/* copy into scratch area */
-	ioc = kmalloc(tmp, GFP_KERNEL);
-	if (!ioc) {
-		retval = -ENOMEM;
-		goto out;
-	}
-	if (__copy_from_user(ioc, (void __user *)arg, tmp)) {
-		pr_err("__copy_from_user error\n");
-		retval = -EFAULT;
+	} else if (tmp == sizeof(struct egis_ioc_transfer)) {
+		/* platform 64bit / kernel 64bit */
+		ioc = kmalloc(tmp, GFP_KERNEL);
+		if (!ioc) {
+			retval = -ENOMEM;
+			goto out;
+		}
+		if (__copy_from_user(ioc, (void __user *)arg, tmp)) {
+			pr_err("%s __copy_from_user error\n", __func__);
+			retval = -EFAULT;
+			goto out;
+		}
+	} else if (tmp == sizeof(struct egis_ioc_transfer_32)) {
+		/* platform 32bit / kernel 64bit */
+		ioc_32 = kmalloc(tmp, GFP_KERNEL);
+		if (ioc_32 == NULL) {
+			retval = -ENOMEM;
+			pr_err("%s ioc_32 kmalloc error\n", __func__);
+			goto out;
+		}
+		if (__copy_from_user(ioc_32, (void __user *)arg, tmp)) {
+			retval = -EFAULT;
+			pr_err("%s ioc_32 copy_from_user error\n", __func__);
+			goto out;
+		}
+		ioc = kmalloc(sizeof(struct egis_ioc_transfer), GFP_KERNEL);
+		if (ioc == NULL) {
+			retval = -ENOMEM;
+			pr_err("%s ioc kmalloc error\n", __func__);
+			goto out;
+		}
+		tx_buffer_64 = (u64)ioc_32->tx_buf;
+		rx_buffer_64 = (u64)ioc_32->rx_buf;
+		ioc->tx_buf = (u8 *)tx_buffer_64;
+		ioc->rx_buf = (u8 *)rx_buffer_64;
+		ioc->len = ioc_32->len;
+		ioc->speed_hz = ioc_32->speed_hz;
+		ioc->delay_usecs = ioc_32->delay_usecs;
+		ioc->bits_per_word = ioc_32->bits_per_word;
+		ioc->cs_change = ioc_32->cs_change;
+		ioc->opcode = ioc_32->opcode;
+		memcpy(ioc->pad, ioc_32->pad, 3);
+		kfree(ioc_32);
+	} else {
+		pr_err("ioc size error %d\n", tmp);
+		retval = -EINVAL;
 		goto out;
 	}
 
@@ -350,15 +378,6 @@ static long et5xx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		retval = et5xx_io_write_register(etspi, buf);
 		if (retval < 0) {
 			pr_err("FP_REGISTER_WRITE error retval = %d\n", retval);
-		}
-		break;
-	case FP_REGISTER_MREAD:
-		address = ioc->tx_buf;
-		result = ioc->rx_buf;
-		pr_debug("FP_REGISTER_MREAD\n");
-		retval = et5xx_io_read_registerex(etspi, address, result, ioc->len);
-		if (retval < 0) {
-			pr_err("FP_REGISTER_MREAD error retval = %d\n", retval);
 		}
 		break;
 	case FP_REGISTER_BREAD:
@@ -407,19 +426,6 @@ static long et5xx_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		retval = et5xx_io_nvm_write(etspi, ioc);
 		if (retval < 0) {
 			pr_err("FP_NVM_WRITE error retval = %d\n", retval);
-		}
-		retval = et5xx_io_nvm_off(etspi, ioc);
-		if (retval < 0) {
-			pr_err("FP_NVM_OFF error retval = %d\n", retval);
-		} else {
-			pr_debug("FP_NVM_OFF\n");
-		}
-		break;
-	case FP_NVM_WRITEEX:
-		pr_debug("FP_NVM_WRITEEX, (%d)\n", etspi->clk_setting->spi_speed);
-		retval = et5xx_io_nvm_writeex(etspi, ioc);
-		if (retval < 0) {
-			pr_err("FP_NVM_WRITEEX error retval = %d\n", retval);
 		}
 		retval = et5xx_io_nvm_off(etspi, ioc);
 		if (retval < 0) {
@@ -691,9 +697,10 @@ int et5xx_platformInit(struct et5xx_data *etspi)
 		}
 	} else {
 		retval = -EFAULT;
+		goto et5xx_platformInit_default_failed;
 	}
 
-#if KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE
+#if KERNEL_VERSION(4, 19, 188) > LINUX_VERSION_CODE
 	/* 4.19 R */
 	wakeup_source_init(etspi->fp_signal_lock, "et5xx_sigwake_lock");
 	/* 4.19 Q */
@@ -727,6 +734,7 @@ et5xx_platformInit_drdy_failed:
 et5xx_platformInit_sleep_failed:
 	gpio_free(etspi->ldo_pin);
 et5xx_platformInit_ldo_failed:
+et5xx_platformInit_default_failed:
 	pr_err("is failed\n");
 	return retval;
 }
@@ -920,6 +928,9 @@ static int et5xx_type_check(struct et5xx_data *etspi)
 	} else if ((buf1 == 0x00) && (buf2 == 0x17) && (buf3 == 0x05)) {
 		etspi->sensortype = SENSOR_EGIS;
 		pr_info("sensor type is EGIS ET523 sensor\n");
+	} else if ((buf2 == 0x1C) && (buf3 == 0x05)) {
+		etspi->sensortype = SENSOR_EGIS;
+		pr_info("sensor type is EGIS ET528 sensor\n");
 	} else {
 		if ((buf4 == 0x00) && (buf5 == 0x66)
 				&& (buf6 == 0x00) && (buf7 == 0x33)) {

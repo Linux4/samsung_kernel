@@ -118,6 +118,7 @@ struct pmic_adc_dbg_st {
 };
 static unsigned int adc_dbg_addr[DBG_REG_SIZE];
 
+#if !defined(CONFIG_BATTERY_SAMSUNG) /* [ALPS05499300] request log reduction */
 static void wk_auxadc_dbg_dump(void)
 {
 	unsigned char reg_log[861] = "", reg_str[21] = "";
@@ -224,6 +225,7 @@ static int wk_bat_temp_dbg(int bat_temp_prev, int bat_temp)
 	}
 	return bat_temp_new;
 }
+#endif
 
 static void wk_auxadc_dbg_init(void)
 {
@@ -518,6 +520,7 @@ static void auxadc_bat_temp_convert(unsigned char convert)
 
 static int auxadc_bat_temp_cali(int bat_temp, int precision_factor)
 {
+#if !defined(CONFIG_BATTERY_SAMSUNG) /* [ALPS05499300] request log reduction */
 	static int bat_temp_prev;
 	static unsigned int dbg_count;
 	static unsigned int aee_count;
@@ -547,6 +550,7 @@ static int auxadc_bat_temp_cali(int bat_temp, int precision_factor)
 	}
 out:
 	bat_temp_prev = bat_temp;
+#endif
 	return bat_temp;
 }
 

@@ -25,6 +25,11 @@
 #include "usb20.h"
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
+#if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
+#include <linux/cable_type_notifier.h>
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+#include <linux/usb/typec/common/pdic_notifier.h>
+#endif
 #ifdef CONFIG_MTK_USB_TYPEC
 #ifdef CONFIG_TCPC_CLASS
 #include "tcpm.h"
@@ -280,6 +285,7 @@ u32 typec_control;
 module_param(typec_control, int, 0644);
 static bool typec_req_host;
 static bool iddig_req_host;
+int host_onoff_delay;
 
 static void do_host_work(struct work_struct *data);
 static void issue_host_work(int ops, int delay, bool on_st)
@@ -311,18 +317,53 @@ static void issue_host_work(int ops, int delay, bool on_st)
 		schedule_delayed_work(&work->dwork,
 					msecs_to_jiffies(delay));
 }
-void mt_usb_host_connect(int delay)
+
+void mtk_usbhost_connect(void)
 {
 	typec_req_host = true;
 	DBG(0, "%s\n", typec_req_host ? "connect" : "disconnect");
-	issue_host_work(CONNECTION_OPS_CONN, delay, true);
+	issue_host_work(CONNECTION_OPS_CONN, host_onoff_delay, true);
 }
-void mt_usb_host_disconnect(int delay)
+EXPORT_SYMBOL_GPL(mtk_usbhost_connect);
+
+void mt_usb_host_connect(int delay)
+{
+#if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
+	host_onoff_delay = delay;
+	cable_type_notifier_set_attached_dev(CABLE_TYPE_OTG);
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	host_onoff_delay = delay;
+	mt_usb_event_work(USB_STATUS_NOTIFY_ATTACH_DFP);
+#else
+	typec_req_host = true;
+	DBG(0, "%s\n", typec_req_host ? "connect" : "disconnect");
+	issue_host_work(CONNECTION_OPS_CONN, delay, true);
+#endif
+}
+
+void mtk_usbhost_disconnect(void)
 {
 	typec_req_host = false;
 	DBG(0, "%s\n", typec_req_host ? "connect" : "disconnect");
-	issue_host_work(CONNECTION_OPS_DISC, delay, true);
+	issue_host_work(CONNECTION_OPS_DISC, host_onoff_delay, true);
 }
+EXPORT_SYMBOL_GPL(mtk_usbhost_disconnect);
+
+void mt_usb_host_disconnect(int delay)
+{
+#if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
+	host_onoff_delay = delay;
+	cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	host_onoff_delay = delay;
+	mt_usb_event_work(USB_STATUS_NOTIFY_DETACH);
+#else
+	typec_req_host = false;
+	DBG(0, "%s\n", typec_req_host ? "connect" : "disconnect");
+	issue_host_work(CONNECTION_OPS_DISC, delay, true);
+#endif
+}
+
 #ifdef CONFIG_MTK_USB_TYPEC
 #ifdef CONFIG_TCPC_CLASS
 static int otg_tcp_notifier_call(struct notifier_block *nb,
@@ -591,7 +632,10 @@ static void do_host_work(struct work_struct *data)
 #endif
 		/* setup fifo for host mode */
 		ep_config_from_table_for_host(mtk_musb);
-		__pm_stay_awake(&mtk_musb->usb_lock);
+
+		if (!mtk_musb->host_suspend)
+			__pm_stay_awake(mtk_musb->usb_lock);
+
 		mt_usb_set_vbus(mtk_musb, 1);
 
 		/* this make PHY operation workable */
@@ -623,13 +667,7 @@ static void do_host_work(struct work_struct *data)
 			queue_delayed_work(mtk_musb->st_wq,
 						&host_plug_test_work, 0);
 		usb_clk_state = OFF_TO_ON;
-#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
-		usbpd_set_host_on(mtk_musb->man, host_on);
-#endif
 	}  else if (!host_on && mtk_musb->is_host) {
-#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
-		usbpd_set_host_on(mtk_musb->man, host_on);
-#endif
 		/* switch from host -> device */
 		/* for device no disconnect interrupt */
 		spin_lock_irqsave(&mtk_musb->lock, flags);
@@ -643,8 +681,8 @@ static void do_host_work(struct work_struct *data)
 		DBG(1, "devctl is %x\n",
 				musb_readb(mtk_musb->mregs, MUSB_DEVCTL));
 		musb_writeb(mtk_musb->mregs, MUSB_DEVCTL, 0);
-		if (mtk_musb->usb_lock.active)
-			__pm_relax(&mtk_musb->usb_lock);
+		if (mtk_musb->usb_lock->active)
+			__pm_relax(mtk_musb->usb_lock);
 		mt_usb_set_vbus(mtk_musb, 0);
 
 		/* for no VBUS sensing IP */
@@ -795,23 +833,10 @@ void mt_usb_otg_init(struct musb *musb)
 	/* EP table */
 	musb->fifo_cfg_host = fifo_cfg_host;
 	musb->fifo_cfg_host_size = ARRAY_SIZE(fifo_cfg_host);
-#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
-	musb->usb_d = kzalloc(sizeof(struct usb_dev), GFP_KERNEL);
-	if (!musb->usb_d) {
-		DBG(0, "Couldn't allocate memory\n");
-		return;
-	}
-	musb->usb_d->ops = NULL;
-	musb->usb_d->data = (void *)musb;
-	musb->man = register_usb(musb->usb_d);
-#endif
 
 }
 void mt_usb_otg_exit(struct musb *musb)
 {
-#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
-	kfree(musb->usb_d);
-#endif
 	DBG(0, "OTG disable vbus\n");
 	mt_usb_set_vbus(mtk_musb, 0);
 }

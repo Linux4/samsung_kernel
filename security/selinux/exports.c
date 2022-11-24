@@ -20,10 +20,10 @@ bool selinux_is_enabled(void)
 {
 // [ SEC_SELINUX_PORTING_COMMON
 #ifdef CONFIG_ALWAYS_ENFORCE
-	return true;
+		return true;
 #else
 	return selinux_enabled;
 #endif
-// ] SEC_SELINUX_PORTING_COMMON
+// ] SEC_SELINUX_PORTING_COMMON						   
 }
 EXPORT_SYMBOL_GPL(selinux_is_enabled);

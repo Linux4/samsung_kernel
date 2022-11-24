@@ -21,10 +21,8 @@
 
 &gpio_afc {
 	compatible = "gpio_afc";
-	pinctrl-names = "default", "output", "input";
-	pinctrl-0 = <&afc_switch &hiccup_switch>;
-	pinctrl-1 = <&afc_output>;
-	pinctrl-2 = <&afc_input>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&afc_switch &afc_output &hiccup_switch>;
 	status = "okay";
 	gpio_afc_switch = <&pio 170 0x0>;
 	gpio_afc_data = <&pio 12 0x0>;

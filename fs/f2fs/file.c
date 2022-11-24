@@ -35,7 +35,6 @@
 #include <linux/fscrypto_sdp_ioctl.h>
 #endif
 
-
 static int f2fs_filemap_fault(struct vm_fault *vmf)
 {
 	struct inode *inode = file_inode(vmf->vma->vm_file);
@@ -72,6 +71,10 @@ static int f2fs_vm_page_mkwrite(struct vm_fault *vmf)
 		err = -ENOSPC;
 		goto err;
 	}
+
+	err = f2fs_convert_inline_inode(inode);
+	if (err)
+		goto err;
 
 #ifdef CONFIG_F2FS_FS_COMPRESSION
 	if (f2fs_compressed_file(inode)) {
@@ -555,18 +558,12 @@ static loff_t f2fs_llseek(struct file *file, loff_t offset, int whence)
 static int f2fs_file_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct inode *inode = file_inode(file);
-	int err;
 
 	if (unlikely(f2fs_cp_error(F2FS_I_SB(inode))))
 		return -EIO;
 
 	if (!f2fs_is_compress_backend_ready(inode))
 		return -EOPNOTSUPP;
-
-	/* we don't need to use inline_data strictly */
-	err = f2fs_convert_inline_inode(inode);
-	if (err)
-		return err;
 
 	file_accessed(file);
 	vma->vm_ops = &f2fs_file_vm_ops;
@@ -1879,6 +1876,8 @@ static int f2fs_setflags_common(struct inode *inode, u32 iflags, u32 mask)
 			return -EINVAL;
 		if (iflags & F2FS_COMPR_FL) {
 			if (!f2fs_may_compress(inode))
+				return -EINVAL;
+			if (S_ISREG(inode->i_mode) && inode->i_size)
 				return -EINVAL;
 
 			set_compress_context(inode);
@@ -3581,9 +3580,19 @@ out:
 	return ret;
 }
 
+static int f2fs_ioc_get_valid_node_count(struct file *filp, unsigned long arg)
+{
+	struct f2fs_sb_info *sbi = F2FS_I_SB(file_inode(filp));
+	u32 node_count = (u32)valid_node_count(sbi);
+
+	return put_user(node_count, (u32 __user *)arg);
+}
+
+
 static int reserve_compress_blocks(struct dnode_of_data *dn, pgoff_t count)
 {
 	struct f2fs_sb_info *sbi = F2FS_I_SB(dn->inode);
+	u32 node_count = (u32)valid_node_count(sbi);
 	unsigned int reserved_blocks = 0;
 	int cluster_size = F2FS_I(dn->inode)->i_cluster_size;
 	block_t blkaddr;
@@ -3738,14 +3747,6 @@ out:
 	}
 
 	return ret;
-}
-
-static int f2fs_ioc_get_valid_node_count(struct file *filp, unsigned long arg)
-{
-	struct f2fs_sb_info *sbi = F2FS_I_SB(file_inode(filp));
-	u32 node_count = (u32)valid_node_count(sbi);
-
-	return put_user(node_count, (u32 __user *)arg);
 }
 
 static int f2fs_ioc_stat_compress_file(struct file *filp, unsigned long arg)

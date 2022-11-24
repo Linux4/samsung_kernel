@@ -376,17 +376,24 @@ static inline unsigned int hmp_select_faster_cpu(struct task_struct *tsk,
 	int lowest_cpu = num_possible_cpus();
 	__always_unused int lowest_ratio =
 		hmp_domain_min_load(hmp_faster_domain(cpu), &lowest_cpu);
+	struct cpumask act_faster_mask;
+	int act_faster_cpu = cpu;
 	/*
 	 * If the lowest-loaded CPU in the domain is allowed by
 	 * the task affinity.
 	 * Select that one, otherwise select one which is allowed
 	 */
 	if (lowest_cpu < nr_cpu_ids &&
-			cpumask_test_cpu(lowest_cpu, &tsk->cpus_allowed))
+			cpumask_test_cpu(lowest_cpu, &tsk->cpus_allowed)
+			&& !cpu_isolated(lowest_cpu))
 		return lowest_cpu;
-	else
-		return cpumask_any_and(&hmp_faster_domain(cpu)->cpus,
+	else {
+		cpumask_andnot(&act_faster_mask,
+				&hmp_faster_domain(cpu)->cpus, cpu_isolated_mask);
+		act_faster_cpu = cpumask_any_and(&act_faster_mask,
 				&tsk->cpus_allowed);
+		return act_faster_cpu;
+	}
 }
 
 static inline void hmp_next_up_delay(struct sched_entity *se, int cpu)
@@ -623,9 +630,9 @@ static int hmp_select_task_rq_fair(int sd_flag, struct task_struct *p,
 	struct cpumask fast_cpu_mask, slow_cpu_mask;
 
 #ifdef CONFIG_PRIO_LIMIT_HMP_BOOST
-	if (idle_cpu(new_cpu) && hmp_cpu_is_fastest(new_cpu) && !task_low_priority(p->prio))
+	if (idle_cpu(new_cpu) && hmp_cpu_is_fastest(new_cpu)  && !cpu_isolated(new_cpu) && !task_low_priority(p->prio))
 #else
-	if (idle_cpu(new_cpu) && hmp_cpu_is_fastest(new_cpu))
+	if (idle_cpu(new_cpu) && hmp_cpu_is_fastest(new_cpu) && !cpu_isolated(new_cpu))
 #endif
 		return new_cpu;
 
@@ -647,8 +654,10 @@ static int hmp_select_task_rq_fair(int sd_flag, struct task_struct *p,
 		struct hmp_domain *domain;
 
 		domain = list_entry(pos, struct hmp_domain, hmp_domains);
-		if (cpumask_empty(&domain->cpus))
+		if (cpumask_empty(&domain->cpus) ||
+			cpumask_subset(&domain->possible_cpus, cpu_isolated_mask))
 			continue;
+
 		if (cpumask_empty(&fast_cpu_mask)) {
 			cpumask_copy(&fast_cpu_mask, &domain->possible_cpus);
 		} else {
@@ -671,11 +680,11 @@ out:
 }
 
 #define hmp_fast_cpu_has_spare_cycles(B, cpu_load) \
-		(cpu_load * capacity_margin < (SCHED_CAPACITY_SCALE * 1024))
+		((cpu_load * capacity_margin) < (SCHED_CAPACITY_SCALE * 1024))
 
 #define hmp_task_fast_cpu_afford(B, se, cpu) \
-		(B->acap > 0 && hmp_fast_cpu_has_spare_cycles(B, \
-		se_load(se) + cfs_load(cpu)))
+		((B->acap > 0) && hmp_fast_cpu_has_spare_cycles(B, \
+		(se_load(se) + cfs_load(cpu))))
 
 #define hmp_fast_cpu_oversubscribed(caller, B, se, cpu) \
 	(hmp_caller_is_gb(caller) ? \
@@ -1332,19 +1341,15 @@ static unsigned int hmp_idle_pull(int this_cpu)
 		clbenv.ltarget = cpu;
 		sched_update_clbstats(&clbenv);
 
-#ifdef CONFIG_PRIO_LIMIT_HMP_BOOST
-		if (curr && entity_is_task(curr) && (!task_low_priority(task_of(curr)->prio)) &&
-				(se_load(curr) > clbenv.bstats.threshold) &&
-				(se_load(curr) > ratio) &&
-				cpumask_test_cpu(this_cpu,
-					&task_of(curr)->cpus_allowed)) {
-#else
 		if (curr && entity_is_task(curr) &&
+#ifdef CONFIG_PRIO_LIMIT_HMP_BOOST
+				(!task_low_priority(task_of(curr)->prio)) &&
+#endif
 				(se_load(curr) > clbenv.bstats.threshold) &&
 				(se_load(curr) > ratio) &&
 				cpumask_test_cpu(this_cpu,
 					&task_of(curr)->cpus_allowed)) {
-#endif
+
 			selected = 1;
 			/* get task and selection inside rq lock  */
 			p = task_of(curr);

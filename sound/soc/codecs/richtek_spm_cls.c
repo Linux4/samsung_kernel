@@ -1,12 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Rcihtek BIGDATA Class Driver
- *
- * Copyright (C) 2019, Richtek Technology Corp.
- * Author: Jeff Chang <jeff_chang@richtek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * Copyright (c) 2021 Mediatek Inc.
  */
 
 #include <linux/init.h>
@@ -22,9 +16,6 @@
 #include <sound/soc.h>
 #include "../mediatek/common/mtk-sp-spk-amp.h"
 #include "richtek_spm_cls.h"
-
-#define MAX_PWR	(5100)
-#define MIN_PWR	(4000)
 
 enum {
 	RICHTEK_SPM_DEV_TMAX,
@@ -94,7 +85,7 @@ static ssize_t richtek_spm_class_attr_show(struct class *cls,
 	case RICHTEK_SPM_CLASS_STATUS:
 	case RICHTEK_SPM_CLASS_VVALIDATION:
 		ret = scnprintf(buf, PAGE_SIZE,
-			"%s\n", cali_status ? "Enabled" : "Disabled");
+			"%s\n", cali_status ? "Enabled" : "Disable");
 		break;
 	}
 	return ret;
@@ -106,7 +97,9 @@ static int rt_spm_trigger_calibration(struct device *dev, void *data)
 	struct richtek_ipi_cmd ric;
 	int ret = 0;
 	u32 tmp = *(u32 *)data;
+#if IS_ENABLED(CONFIG_SND_SOC_MTK_AUDIO_DSP)
 	uint32_t data_size = 0;
+#endif
 	int polling_cnt = 6;
 
 	ric.type = RTK_IPI_TYPE_CALIBRATION;
@@ -116,16 +109,27 @@ static int rt_spm_trigger_calibration(struct device *dev, void *data)
 	switch (tmp) {
 	case 0:
 		ric.cmd = RTK_IPI_CMD_PCBTRACE;
+		if (rdc->ops && rdc->ops->pre_calib)
+			rdc->ops->pre_calib(rdc);
 		break;
 	case 1:
 		ric.cmd = RTK_IPI_CMD_CALIBRATION;
+		if (rdc->ops && rdc->ops->pre_calib)
+			rdc->ops->pre_calib(rdc);
+		break;
+	case 2:
+		ric.cmd = RTK_IPI_CMD_VVALIDATION;
+		if (rdc->ops && rdc->ops->pre_vvalid)
+			rdc->ops->pre_vvalid(rdc);
 		break;
 	default:
 		ric.cmd = tmp;
 		break;
 	}
+#if IS_ENABLED(CONFIG_SND_SOC_MTK_AUDIO_DSP)
 	/* enable calibration mode */
 	ret = mtk_spk_send_ipi_buf_to_dsp(&ric, sizeof(ric));
+#endif
 	if (ret < 0) {
 		pr_err("%s ret = %d\n", __func__, ret);
 		return -EINVAL;
@@ -134,55 +138,72 @@ static int rt_spm_trigger_calibration(struct device *dev, void *data)
 	do {
 		msleep(100);
 		/* get calibration result */
+#if IS_ENABLED(CONFIG_SND_SOC_MTK_AUDIO_DSP)
 		ret = mtk_spk_recv_ipi_buf_from_dsp((int8_t *)&ric,
 				sizeof(ric),
 				&data_size);
+#endif
 		if (ret == 0 && ric.data[0] == 0)
 			break;
 	} while (polling_cnt--);
 
 	if (!polling_cnt || ric.data[0]) {
-		pr_err("%s calibration failed... status = %d, ric.data[1] = %d\n",
-			__func__, ric.data[0], ric.data[1]);
 		switch (ric.cmd) {
 		case RTK_IPI_CMD_CALIBRATION:
+			dev_err(dev, "calibration failed...\n");
 			dev_err(dev, "%s status = %d, calib_dcr = %d\n",
-				 __func__, ric.data[0], ric.data[1]);
+				__func__, ric.data[0], ric.data[1]);
 			if (ric.data[0] != 0)
 				rdc->rspk = 0;
+			if (rdc->ops && rdc->ops->post_calib)
+				rdc->ops->post_calib(rdc);
 			break;
 		case RTK_IPI_CMD_PCBTRACE:
+			dev_err(dev, "pcb trace failed...\n");
+			break;
 		case RTK_IPI_CMD_VVALIDATION:
+			dev_err(dev, "vvalidation failed...\n");
+			if (rdc->ops && rdc->ops->post_vvalid)
+				rdc->ops->post_vvalid(rdc);
+			break;
 		default:
 			break;
 		}
 	} else {
 		switch (ric.cmd) {
 		case RTK_IPI_CMD_CALIBRATION:
-			dev_warn(dev, "%s status = %d, calib_dcr = %d\n",
+			dev_info(dev, "%s status = %d, calib_dcr = %d\n",
 				 __func__, ric.data[0], ric.data[1]);
 			rdc->rspk = ric.data[1];
+			if (rdc->ops && rdc->ops->post_calib)
+				rdc->ops->post_calib(rdc);
 			break;
 		case RTK_IPI_CMD_PCBTRACE:
-			dev_warn(dev, "%s status = %d, pcb trace = %d\n",
+			dev_info(dev, "%s status = %d, pcb trace = %d\n",
 				 __func__, ric.data[0], ric.data[1]);
 			rdc->pcb_trace = ric.data[1];
+			if (rdc->ops && rdc->ops->post_calib)
+				rdc->ops->post_calib(rdc);
 			break;
 		case RTK_IPI_CMD_VVALIDATION:
-			dev_warn(dev, "%s status = %d, pwr = %d, err = %d\n",
+			dev_info(dev, "%s status = %d, pwr = %d, err = %d\n",
 				 __func__, ric.data[0], ric.data[1],
 				 ric.data[2]);
 			if (ric.data[2] == 0)
 				rdc->pwr = ric.data[1];
 			else
 				rdc->pwr = 0;
+			if (rdc->ops && rdc->ops->post_vvalid)
+				rdc->ops->post_vvalid(rdc);
 			break;
 		}
 	}
 
 	/* change to normal mode */
 	ric.type = RTK_IPI_TYPE_NORMAL;
+#if IS_ENABLED(CONFIG_SND_SOC_MTK_AUDIO_DSP)
 	ret = mtk_spk_send_ipi_buf_to_dsp(&ric, sizeof(ric));
+#endif
 	if (ret < 0) {
 		dev_err(dev, "%s ret = %d\n", __func__, ret);
 		rdc->calib_running = 0;
@@ -363,7 +384,7 @@ static ssize_t richtek_spm_dev_attr_show(struct device *dev,
 		break;
 	case RICHTEK_SPM_DEV_VVALIDATION_REAL_POWER:
 		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
-			(rdc->pwr >= MIN_PWR && rdc->pwr <= MAX_PWR) ? 1 : 0);
+			(rdc->pwr >= rdc->min_pwr && rdc->pwr <= rdc->max_pwr) ? 1 : 0);
 		dev_info(dev, "%s pwr = %d.%dW\n", __func__, rdc->pwr/1000,
 			 rdc->pwr%1000);
 		break;
@@ -489,14 +510,18 @@ static int rt_spm_classdev_ampon(struct richtek_spm_classdev *rdc)
 static int rt_spm_classdev_ampoff(struct richtek_spm_classdev *rdc)
 {
 	int ret;
+#if IS_ENABLED(CONFIG_SND_SOC_MTK_AUDIO_DSP)
 	uint32_t data_size = 0;
+#endif
 	struct richtek_ipi_cmd ric;
 
 	if (!rdc)
 		return -EINVAL;
 
+#if IS_ENABLED(CONFIG_SND_SOC_MTK_AUDIO_DSP)
 	ret = mtk_spk_recv_ipi_buf_from_dsp((int8_t *)&ric, sizeof(ric),
 					    &data_size);
+#endif
 	if (ret < 0) {
 		pr_err("%s recv big data ipi failed\n", __func__);
 		return ret;
@@ -587,7 +612,7 @@ module_exit(richtek_spm_exit);
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Richtek BIGDATA Class driver");
 MODULE_AUTHOR("Jeff Chang <jeff_chang@richtek.com>");
-MODULE_VERSION("1.0.5_G");
+MODULE_VERSION("1.0.5_M");
 
 /* 1.0.1_G
  * 1. implement calibration interface like LSI Platform
@@ -598,7 +623,4 @@ MODULE_VERSION("1.0.5_G");
  * 1.0.4_G
  * 1. change pwr node show information
  * 2. update check patch
- * 1.0.5_G
- * 1. add Samsung's Modification for error calibration handling.
- * 2. update V-validation MAX_PWR and MIN_PWR
  */

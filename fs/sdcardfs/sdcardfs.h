@@ -74,6 +74,7 @@
 
 #define AID_PACKAGE_INFO  1027
 
+#define AID_USE_ROOT_RESERVED	KGIDT_INIT(5678)
 
 /*
  * Permissions are handled by our permission function.

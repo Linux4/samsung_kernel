@@ -42,8 +42,8 @@
 #include <linux/ccic/ccic_notifier.h>
 #endif
 #if defined(CONFIG_VBUS_NOTIFIER)
-#include <linux/vbus_notifier.h> 
-#endif 
+#include <linux/vbus_notifier.h>
+#endif
 #if defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 #include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
 #endif
@@ -159,7 +159,7 @@ static int a96t3x6_i2c_read(struct i2c_client *client,
 	struct a96t3x6_data *data = i2c_get_clientdata(client);
 	struct i2c_msg msg;
 	int ret;
-	int retry = 3;
+	int retry = 2;
 
 	mutex_lock(&data->lock);
 	msg.addr = client->addr;
@@ -201,7 +201,7 @@ static int a96t3x6_i2c_read_data(struct i2c_client *client, u8 *val,
 	struct a96t3x6_data *data = i2c_get_clientdata(client);
 	struct i2c_msg msg;
 	int ret;
-	int retry = 3;
+	int retry = 2;
 
 	mutex_lock(&data->lock);
 	msg.addr = client->addr;
@@ -227,7 +227,7 @@ static int a96t3x6_i2c_write(struct i2c_client *client, u8 reg, u8 *val)
 	struct i2c_msg msg[1];
 	unsigned char buf[2];
 	int ret;
-	int retry = 3;
+	int retry = 2;
 
 	mutex_lock(&data->lock);
 	buf[0] = reg;
@@ -253,7 +253,7 @@ static int a96t3x6_i2c_write(struct i2c_client *client, u8 reg, u8 *val)
 /*
  * @enable: turn it on or off.
  * @force: if caller is grip_sensing_change(), it's true. others, it's false.
- * 
+ *
  * This function was designed to prevent noise issue from ic for specific models.
  * If earjack_noise is true, it handled enable control for it.
  */
@@ -269,7 +269,7 @@ static void a96t3x6_set_enable(struct a96t3x6_data *data, int enable, bool force
 			data->current_state, enable);
 		return;
 	}
-	
+
 	GRIP_INFO("old enable = %d, new enable = %d\n",
 				data->current_state, enable);
 	if (enable) {
@@ -280,7 +280,7 @@ static void a96t3x6_set_enable(struct a96t3x6_data *data, int enable, bool force
 			GRIP_ERR("failed to enable grip irq\n");
 
 		a96t3x6_check_first_status(data, enable);
-		
+
 		enable_irq(data->irq);
 		enable_irq_wake(data->irq);
 
@@ -521,7 +521,7 @@ static void a96t3x6_check_first_status(struct a96t3x6_data *data, int enable)
 
 static void a96t3x6_check_diff_and_cap(struct a96t3x6_data *data)
 {
-	u8 r_buf[2] = {0,0};
+	u8 r_buf[2] = {0, 0};
 	u8 cmd = 0x20;
 	int ret;
 	int value = 0;
@@ -636,7 +636,7 @@ static void a96t3x6_debug_work_func(struct work_struct *work)
 	cert_hall_state = a96t3x6_get_hallic_state(HALLIC_CERT_PATH);
 
 	if ((hall_state == HALL_CLOSE_STATE && hall_prev_state != hall_state)
-		||(cert_hall_state == HALL_CLOSE_STATE && cert_hall_prev_state != cert_hall_state)) {
+		|| (cert_hall_state == HALL_CLOSE_STATE && cert_hall_prev_state != cert_hall_state)) {
 		GRIP_INFO("%s - hall is closed %d %d\n", __func__, hall_state, cert_hall_state);
 		a96t3x6_grip_sw_reset(data);
 	}
@@ -677,7 +677,7 @@ static void a96t3x6_set_debug_work(struct a96t3x6_data *data, u8 enable,
 	unsigned int time_ms)
 {
 	GRIP_INFO("enable = %d\n", enable);
-	
+
 	if (enable == 1) {
 		data->debug_count = 0;
 		schedule_delayed_work(&data->debug_work,
@@ -690,8 +690,8 @@ static void a96t3x6_set_debug_work(struct a96t3x6_data *data, u8 enable,
 static void a96t3x6_set_firmware_work(struct a96t3x6_data *data, u8 enable,
 	unsigned int time_ms)
 {
-	GRIP_INFO("%s\n", __func__, enable ? "enabled": "disabled");
-	
+	GRIP_INFO("%s\n", __func__, enable ? "enabled" : "disabled");
+
 	if (enable == 1) {
 		data->firmware_count = 0;
 		schedule_delayed_work(&data->firmware_work,
@@ -705,7 +705,7 @@ static irqreturn_t a96t3x6_interrupt(int irq, void *dev_id)
 {
 	struct a96t3x6_data *data = dev_id;
 	struct i2c_client *client = data->client;
-	int ret, retry;
+	int ret;
 	u8 buf;
 	int grip_data;
 	u8 grip_press = 0;
@@ -718,19 +718,9 @@ static irqreturn_t a96t3x6_interrupt(int irq, void *dev_id)
 
 	ret = a96t3x6_i2c_read(client, REG_BTNSTATUS, &buf, 1);
 	if (ret < 0) {
-		retry = 3;
-		while (retry--) {
-			GRIP_ERR("read fail(%d)\n", retry);
-			ret = a96t3x6_i2c_read(client, REG_BTNSTATUS, &buf, 1);
-			if (ret == 0)
-				break;
-			usleep_range(10000, 11000);
-		}
-		if (retry < 0) {
-			a96t3x6_reset(data);
-			wake_unlock(&data->grip_wake_lock);
-			return IRQ_HANDLED;
-		}
+		a96t3x6_reset(data);
+		wake_unlock(&data->grip_wake_lock);
+		return IRQ_HANDLED;
 	}
 
 	GRIP_INFO("buf = 0x%02x\n", buf);
@@ -771,8 +761,8 @@ static irqreturn_t a96t3x6_interrupt(int irq, void *dev_id)
 	a96t3x6_diff_getdata(data);
 #ifdef CONFIG_SENSORS_A96T3X6_SUB_2CH
 	a96t3x6_2ch_diff_getdata(data);
-#endif	
-	
+#endif
+
 #ifdef CONFIG_SEC_FACTORY
 	if (data->abnormal_mode) {
 		if (data->grip_event) {
@@ -903,7 +893,7 @@ static ssize_t grip_threshold_show(struct device *dev,
 		return snprintf(buf, PAGE_SIZE, "%u\n", 0);
 	}
 	data->grip_p_thd = (r_buf[0] << 8) | r_buf[1];
-	
+
 	ret = a96t3x6_i2c_read(data->client, REG_SAR_RELEASE_THRESHOLD, r_buf, 2);
 	if (ret < 0) {
 		GRIP_ERR("fail(%d)\n", ret);
@@ -1017,6 +1007,7 @@ static ssize_t grip_ref_cap_show(struct device *dev,
 				 struct device_attribute *attr, char *buf)
 {
 	struct a96t3x6_data *data = dev_get_drvdata(dev);
+
 	u8 r_buf[2];
 	int ref_cap;
 	int ret;
@@ -1048,19 +1039,19 @@ static ssize_t grip_gain_show(struct device *dev,
 		GRIP_ERR("fail(%d)\n", ret);
 		return snprintf(buf, PAGE_SIZE, "%d\n", 0);
 	}
-	
+
 	GRIP_ERR("Gain : %d,%d,%d\n", (int)r_buf1[0], (int)r_buf1[1], (int)r_buf1[2]);
-	
+
 	ret = a96t3x6_i2c_read(data->client, REG_REF_GAINDATA, r_buf2, 3);
 	if (ret < 0) {
 		GRIP_ERR("fail(%d)\n", ret);
 		return snprintf(buf, PAGE_SIZE, "%d\n", 0);
 	}
-	
+
 	GRIP_ERR("Ref Gain : %d,%d,%d\n", (int)r_buf2[0], (int)r_buf2[1], (int)r_buf2[2]);
-	
+
 	return sprintf(buf, "%d,%d,%d,%d,%d,%d\n", (int)r_buf1[0], (int)r_buf1[1], (int)r_buf1[2],
-	                                           (int)r_buf2[0], (int)r_buf2[1], (int)r_buf2[2]);
+									(int)r_buf2[0], (int)r_buf2[1], (int)r_buf2[2]);
 }
 
 #ifdef CONFIG_SENSORS_A96T3X6_SUB_2CH
@@ -1088,7 +1079,7 @@ static ssize_t grip_gain_2ch_show(struct device *dev,
 	GRIP_ERR("Ref Gain : %d,%d,%d\n", (int)r_buf2[0], (int)r_buf2[1], (int)r_buf2[2]);
 
 	return sprintf(buf, "%d,%d,%d,%d,%d,%d\n", (int)r_buf1[0], (int)r_buf1[1], (int)r_buf1[2],
-	                                           (int)r_buf2[0], (int)r_buf2[1], (int)r_buf2[2]);
+										(int)r_buf2[0], (int)r_buf2[1], (int)r_buf2[2]);
 }
 #endif
 
@@ -1115,7 +1106,7 @@ static ssize_t grip_2ch_threshold_show(struct device *dev,
 	struct a96t3x6_data *data = dev_get_drvdata(dev);
 	u8 r_buf[4];
 	int ret;
-	
+
 	ret = a96t3x6_i2c_read(data->client, REG_SAR_THRESHOLD_2CH, r_buf, 2);
 	if (ret < 0) {
 		GRIP_ERR("fail(%d)\n", ret);
@@ -1123,7 +1114,7 @@ static ssize_t grip_2ch_threshold_show(struct device *dev,
 		return snprintf(buf, PAGE_SIZE, "%u\n", 0);
 	}
 	data->grip_p_thd_2ch = (r_buf[0] << 8) | r_buf[1];
-	
+
 	ret = a96t3x6_i2c_read(data->client, REG_SAR_RELEASE_THRESHOLD_2CH, r_buf, 2);
 	if (ret < 0) {
 		GRIP_ERR("fail(%d)\n", ret);
@@ -1144,7 +1135,7 @@ static ssize_t grip_2ch_threshold_show(struct device *dev,
 }
 
 static ssize_t grip_2ch_total_cap_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
+				       struct device_attribute *attr, char *buf)
 {
 	struct a96t3x6_data *data = dev_get_drvdata(dev);
 	u8 r_buf[2];
@@ -1257,11 +1248,11 @@ static ssize_t grip_sw_reset_ready_show(struct device *dev,
 		msleep(100);
 	}
 
-	if(r_buf[0] == 0x20) {
+	if (r_buf[0] == 0x20) {
 		GRIP_INFO("reset done");
-	a96t3x6_check_diff_and_cap(data);
+		a96t3x6_check_diff_and_cap(data);
 
-	return snprintf(buf, PAGE_SIZE, "1\n");
+		return snprintf(buf, PAGE_SIZE, "1\n");
 	} else {
 		GRIP_INFO("expect 0x20 read 0x%x\n", r_buf[0]);
 		return snprintf(buf, PAGE_SIZE, "0\n");
@@ -1883,7 +1874,7 @@ static int a96t3x6_crc_check(struct a96t3x6_data *data)
 	unsigned char retry = 2;
 	int ret;
 
-	/* 
+	/*
 	* abov grip fw uses active/deactive mode in each period
 	* To check crc check, make the mode as always active mode.
 	*/
@@ -2017,7 +2008,7 @@ static int a96t3x6_fw_update(struct a96t3x6_data *data, u8 cmd)
 	count = data->firm_size / 32;
 	address = USER_CODE_ADDRESS;
 
-	while(retry > 0) {
+	while (retry > 0) {
 		a96t3x6_reset_for_bootmode(data);
 		usleep_range(BOOT_DELAY, BOOT_DELAY);
 
@@ -2027,11 +2018,11 @@ static int a96t3x6_fw_update(struct a96t3x6_data *data, u8 cmd)
 				((5-retry)+1));
 		else
 			break;
-		
+
 		retry--;
 	}
-	
-	if(ret < 0 && retry == 0) {
+
+	if (ret < 0 && retry == 0) {
 		GRIP_ERR("a96t3x6_fw_mode_enter fail\n");
 		return ret;
 	}
@@ -2291,7 +2282,7 @@ static ssize_t grip_reg_show(struct device *dev,
 	for (i = 0; i < 128; i++) {
 		a96t3x6_i2c_read(data->client, i, &val, 1);
 		GRIP_INFO("reg=%02X val=%02X\n", i, val);
-		
+
 		offset += snprintf(buf + offset, PAGE_SIZE - offset,
 			"reg=0x%x val=0x%x\n", i, val);
 	}
@@ -2377,22 +2368,22 @@ static ssize_t grip_register_recover_store(struct device *dev,
 	u8 reg_value = 0;
 	u8 cmd = 0;
 	u8 check = 0;
-	
+
 	GRIP_INFO("Register recover\n");
 	ret = kstrtou8(buf, 10, &check);
 
-	if(check == 1) {
+	if (check == 1) {
 		//register reset
 		ret = a96t3x6_i2c_read(data->client, REG_SAR_ENABLE, &reg_value, 1);
 		if (ret < 0) {
 			GRIP_ERR("fail(%d)\n", ret);
 			return size;
 		}
-		
+
 		GRIP_INFO("reg=0x24 val=%02X\n", reg_value);
-		
-		if(data->current_state) {
-			if(reg_value == CMD_OFF) {	   
+
+		if (data->current_state) {
+			if (reg_value == CMD_OFF) {
 				GRIP_ERR("REG_SAR_ENABLE register recover after HW reset\n");
 				cmd = CMD_ON;
 				ret = a96t3x6_i2c_write(data->client, REG_SAR_ENABLE, &cmd);
@@ -2401,18 +2392,18 @@ static ssize_t grip_register_recover_store(struct device *dev,
 				a96t3x6_check_first_status(data, 1);
 			}
 		}
-		
+
 		ret = a96t3x6_i2c_read(data->client, REG_SAR_SENSING, &reg_value, 1);
 		if (ret < 0) {
 			GRIP_ERR("fail(%d)\n", ret);
 			return size;
 		}
-		
+
 		GRIP_INFO("reg=0x25 val=%02X\n", reg_value);
-		
+
 		if (data->earjack_noise) {
-			if(!data->current_state && data->earjack) {
-				if(reg_value == CMD_ON) {
+			if (!data->current_state && data->earjack) {
+				if (reg_value == CMD_ON) {
 					GRIP_ERR("REG_SAR_SENSING register recover after HW reset\n");
 					cmd = CMD_OFF;
 					ret = a96t3x6_i2c_write(data->client, REG_SAR_SENSING, &cmd);
@@ -2422,8 +2413,7 @@ static ssize_t grip_register_recover_store(struct device *dev,
 				}
 			}
 		}
-	}
-	else {
+	} else {
 		GRIP_INFO("Unsupported Command\n");
 	}
 
@@ -2463,7 +2453,7 @@ static DEVICE_ATTR(grip_sar_release_threshold_2ch, 0220,
 #ifdef CONFIG_SEC_FACTORY
 static DEVICE_ATTR(grip_irq_count, 0664, a96t3x6_irq_count_show,
 			a96t3x6_irq_count_store);
-#ifdef CONFIG_SENSORS_A96T3X6_SUB_2CH			
+#ifdef CONFIG_SENSORS_A96T3X6_SUB_2CH
 static DEVICE_ATTR(grip_irq_count_2ch, 0664, a96t3x6_irq_count_2ch_show,
 			a96t3x6_irq_count_2ch_store);
 #endif
@@ -2503,7 +2493,7 @@ static struct device_attribute *grip_sensor_attributes[] = {
 	&dev_attr_grip_raw,
 	&dev_attr_grip_ref_cap,
 	&dev_attr_grip_gain,
-#ifdef CONFIG_SENSORS_A96T3X6_SUB_2CH	
+#ifdef CONFIG_SENSORS_A96T3X6_SUB_2CH
 	&dev_attr_grip_gain_2ch,
 #endif
 	&dev_attr_grip_check,
@@ -2630,7 +2620,7 @@ static int a96t3x6_power_onoff(void *pdata, bool on)
 				GRIP_ERR("failed to get dvdd_vreg %s\n", data->dvdd_vreg_name);
 			}
 		}
-	}		
+	}
 
 	if (data->dvdd_vreg) {
 		voltage = regulator_get_voltage(data->dvdd_vreg);
@@ -2761,7 +2751,7 @@ static int a96t3x6_ccic_handle_notification(struct notifier_block *nb,
 		container_of(nb, struct a96t3x6_data, ccic_nb);
 	u8 cmd = CMD_ON;
 
-	if ((usb_status.drp != USB_STATUS_NOTIFY_ATTACH_DFP) && 
+	if ((usb_status.drp != USB_STATUS_NOTIFY_ATTACH_DFP) &&
 		(usb_status.drp != USB_STATUS_NOTIFY_DETACH))
 		return 0;
 
@@ -2842,8 +2832,7 @@ static int a96t3x6_cpuidle_muic_notifier(struct notifier_block *nb,
 		if (action == MUIC_NOTIFY_CMD_ATTACH) {
 			cmd = CMD_OFF;
 			GRIP_INFO("TA/USB is inserted\n");
-		}
-		else if (action == MUIC_NOTIFY_CMD_DETACH) {
+		} else if (action == MUIC_NOTIFY_CMD_DETACH) {
 			cmd = CMD_ON;
 			GRIP_INFO("TA/USB is removed\n");
 		}
@@ -2958,7 +2947,7 @@ static int a96t3x6_probe(struct i2c_client *client,
 	input_set_drvdata(input_dev, data);
 
 	INIT_DELAYED_WORK(&data->debug_work, a96t3x6_debug_work_func);
-#ifdef CONFIG_SENSORS_FW_VENDOR	
+#ifdef CONFIG_SENSORS_FW_VENDOR
 	INIT_DELAYED_WORK(&data->firmware_work, a96t3x6_firmware_work_func);
 #endif
 	ret = input_register_device(input_dev);
@@ -3145,7 +3134,7 @@ static struct i2c_driver a96t3x6_driver = {
 	.id_table = a96t3x6_device_id,
 	.driver = {
 		   .name = MODEL_NAME,
-		   .owner = THIS_MODULE,		   	
+		   .owner = THIS_MODULE,
 		   .of_match_table = a96t3x6_match_table,
 		   .pm = &a96t3x6_pm_ops
 	},

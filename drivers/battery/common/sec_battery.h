@@ -120,6 +120,7 @@ extern int factory_mode;
 #define BATT_MISC_EVENT_TEMP_HICCUP_TYPE	0x00002000
 #define BATT_MISC_EVENT_BATTERY_HEALTH			0x000F0000
 #define BATT_MISC_EVENT_HEALTH_OVERHEATLIMIT		0x00100000
+#define BATT_MISC_EVENT_FULL_CAPACITY		0x01000000
 
 #define BATTERY_HEALTH_SHIFT                16
 enum misc_battery_health {
@@ -189,6 +190,8 @@ enum misc_battery_health {
 	GENERATE(VOTER_HMT)	\
 	GENERATE(VOTER_DC_ERR)	\
 	GENERATE(VOTER_SRCCAP_ERR)	\
+	GENERATE(VOTER_BATTERY)	\
+	GENERATE(VOTER_FULL_CAPACITY)	\
 	GENERATE(VOTER_MAX)
 
 #define GENERATE_ENUM(ENUM) ENUM,
@@ -430,6 +433,7 @@ typedef struct sec_battery_platform_data {
 	unsigned int *step_charging_current;
 	unsigned int *step_charging_float_voltage;
 #if defined(CONFIG_DIRECT_CHARGING)
+	unsigned int dc_step_chg_cond_v_margin;
 	unsigned int *dc_step_chg_cond_vol;
 	unsigned int *dc_step_chg_cond_soc;
 	unsigned int *dc_step_chg_cond_iin;
@@ -583,6 +587,7 @@ typedef struct sec_battery_platform_data {
 	unsigned int wc_full_input_limit_current;
 	unsigned int max_charging_current;
 	unsigned int max_charging_charge_power;
+	unsigned int apdo_max_volt;
 	int mix_high_temp;
 	int mix_high_chg_temp;
 	int mix_high_temp_recovery;
@@ -650,6 +655,8 @@ typedef struct sec_battery_platform_data {
 	bool support_fgsrc_change;
 	bool volt_from_pmic;
 	bool pd_comm_cap;
+	bool dynamic_cv_factor;
+	bool slowcharging_usb_bootcomplete;
 
 	/* wireless charger */
 	char *wireless_charger_name;
@@ -1197,6 +1204,9 @@ struct sec_battery_info {
 #endif
 	unsigned int batt_f_mode;
 #endif
+	int batt_full_capacity;
+	bool usb_slow_chg;
+	bool usb_bootcomplete;
 };
 
 /* event check */
@@ -1314,6 +1324,7 @@ extern bool sec_bat_cisd_check(struct sec_battery_info *battery);
 extern void sec_battery_cisd_init(struct sec_battery_info *battery);
 extern void set_cisd_pad_data(struct sec_battery_info *battery, const char* buf);
 extern void count_cisd_pad_data(struct cisd *cisd, unsigned int pad_id);
+extern void set_cisd_power_data(struct sec_battery_info *battery, const char *buf);
 extern void set_cisd_pd_data(struct sec_battery_info *battery, const char *buf);
 #endif
 

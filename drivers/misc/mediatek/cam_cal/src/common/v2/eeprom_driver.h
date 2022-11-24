@@ -34,6 +34,13 @@ struct EEPROM_DRV {
 	struct mutex eeprom_mutex;
 };
 
+#ifdef CONFIG_COMPAT
+struct COMPAT_EEPROM_DRV_FD_DATA {
+	struct EEPROM_DRV *pdrv;
+	struct COMPAT_CAM_CAL_SENSOR_INFO sensor_info;
+};
+#endif
+
 struct EEPROM_DRV_FD_DATA {
 	struct EEPROM_DRV *pdrv;
 	struct CAM_CAL_SENSOR_INFO sensor_info;

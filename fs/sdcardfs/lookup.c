@@ -362,11 +362,11 @@ found:
 	if (err && err != -ENOENT)
 		goto out;
 
-	/* @fs.sec -- F9900EE95E79043A8353C910A9515324 -- */
-	lower_dentry = lookup_one_len_unlocked(dentry->d_name.name,
-			lower_dir_dentry, dentry->d_name.len);
-	if (unlikely(IS_ERR(lower_dentry))) {
-		err =  PTR_ERR(lower_dentry);
+	/* get a (very likely) new negative dentry */
+	lower_dentry = lookup_one_len_unlocked(name->name,
+					       lower_dir_dentry, name->len);
+	if (IS_ERR(lower_dentry)) {
+		err = PTR_ERR(lower_dentry);
 		goto out;
 	}
 

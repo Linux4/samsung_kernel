@@ -76,50 +76,6 @@ struct dram_info dram_info_dummy_read;
 	aee_kernel_warning(DRAMC_RSV_TAG, "[ERR]"string, ##args);  \
 } while (0)
 
-struct timer_list monitor_timer;
-
-#if 0
-static unsigned int DRAM_MRR(int MRR_num)
-{
-	unsigned int temp, bak_88, ret, temp_flag;
-	unsigned int cnt_timeout = 100;
-
-	bak_88 = ucDram_Register_Read(0x88);
-
-	//temp |= ((rank << 28) | MRR_num);
-	ucDram_Register_Write(MRR_num, 0x088);
-
-	temp = ucDram_Register_Read(0x01e4);
-	temp |= 0x2; //trigger MRREN
-	ucDram_Register_Write(temp, 0x1e4);
-
-	//gpt_busy_wait_us(1000);//Wait > 1000000us
-	do {
-		temp_flag = (ucDram_Register_Read(0x3b8) & 0x2) >> 1;
-		cnt_timeout--;
-	} while ((cnt_timeout != 0x0) && (temp_flag != 0x1));
-
-	if (cnt_timeout == 0)
-		pr_notice("DRAM MRR cnt_timeout\n");
-
-	ret = ucDram_Register_Read(0x03b8) >> 24; //output
-	temp = ucDram_Register_Read(0x01e4);
-	temp &= ~0x2; //restore MRREN
-	ucDram_Register_Write(temp, 0x1e4);
-
-	ucDram_Register_Write(bak_88, 0x088);
-
-	return ret;
-}
-#endif
-
-static void print_refresh_rate(unsigned long data)
-{
-	pr_notice("DRAM refresh rate: %d\n",
-			read_dram_temperature(CHANNEL_A));
-	mod_timer(&monitor_timer, jiffies + msecs_to_jiffies(2000));
-}
-
 /* Return 0 if success, -1 if failure */
 static int __init dram_dummy_read_fixup(void)
 {
@@ -671,13 +627,6 @@ unsigned int ucDram_Register_Read(unsigned int u4reg_addr)
 	return pu4reg_value;
 }
 
-void ucDram_Register_Write(unsigned int value, unsigned int u4reg_addr)
-{
-	Reg_Sync_Writel(DRAMC_AO_CHA_BASE_ADDR + (u4reg_addr), value);
-	Reg_Sync_Writel(DDRPHY_CHA_BASE_ADDR + (u4reg_addr), value);
-	Reg_Sync_Writel(DRAMC_NAO_CHA_BASE_ADDR + (u4reg_addr), value);
-}
-
 unsigned int lpDram_Register_Read(unsigned int Reg_base, unsigned int Offset)
 {
 	if ((Reg_base == DRAMC_NAO_CHA) && (Offset < 0x1000))
@@ -886,9 +835,8 @@ const char *buf, size_t count)
 
 static ssize_t read_dram_data_rate_show(struct device_driver *driver, char *buf)
 {
-	return snprintf(buf, PAGE_SIZE,
-		"DRAM data rate = %d\nrefresh rate = %d\n",
-		get_dram_data_rate(), read_dram_temperature(CHANNEL_A));
+	return snprintf(buf, PAGE_SIZE, "DRAM data rate = %d\n",
+	get_dram_data_rate());
 }
 
 static ssize_t read_dram_data_rate_store(struct device_driver *driver,
@@ -977,12 +925,6 @@ static int dram_probe(struct platform_device *pdev)
 	else
 		pr_info("[DRAMC Driver] dram can not support DFS\n");
 
-	init_timer(&monitor_timer);
-	monitor_timer.expires = jiffies + msecs_to_jiffies(2000);
-	monitor_timer.function = print_refresh_rate;
-	monitor_timer.data = 0;
-
-	add_timer(&monitor_timer);
 	return 0;
 }
 

@@ -160,6 +160,11 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	SENSOR_DRVNAME_IMX258_MIPI_MONO,
 	IMX258_MIPI_MONO_SensorInit},
 #endif
+#if defined(IMX258F_MIPI_RAW)
+	{IMX258F_SENSOR_ID,
+	SENSOR_DRVNAME_IMX258F_MIPI_RAW,
+	IMX258F_MIPI_RAW_SensorInit},
+#endif
 	/*OV (OmniVision)*/
 #if defined(OV16880_MIPI_RAW)
 	{OV16880_SENSOR_ID,
@@ -381,6 +386,9 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	OV20880_MIPI_RAW_SensorInit},
 #endif
 	/*S5K*/
+#if defined(S5KJN1_MIPI_RAW)
+	{S5KJN1_SENSOR_ID, SENSOR_DRVNAME_S5KJN1_MIPI_RAW, S5KJN1_MIPI_RAW_SensorInit},
+#endif
 #if defined(S5K3P8SP_MIPI_RAW)
 	{S5K3P8SP_SENSOR_ID,
 	SENSOR_DRVNAME_S5K3P8SP_MIPI_RAW,
@@ -516,6 +524,11 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	SENSOR_DRVNAME_S5K4HAYX_MIPI_RAW,
 	S5K4HAYX_MIPI_RAW_SensorInit},
 #endif
+#if defined(S5K4HAYXF_MIPI_RAW)
+	{S5K4HAYXF_SENSOR_ID,
+	SENSOR_DRVNAME_S5K4HAYXF_MIPI_RAW,
+	S5K4HAYX_MIPI_RAW_SensorInit},
+#endif
 #if defined(S5K5E9YX_MIPI_RAW)
 	{S5K5E9YX_SENSOR_ID,
 	SENSOR_DRVNAME_S5K5E9YX_MIPI_RAW,
@@ -587,15 +600,15 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	SENSOR_DRVNAME_HI253_YUV,
 	HI253_YUV_SensorInit},
 #endif
-#if defined(HI2021Q_MIPI_RAW)
-	{HI2021Q_SENSOR_ID,
-	SENSOR_DRVNAME_HI2021Q_MIPI_RAW,
-	HI2021Q_MIPI_RAW_SensorInit},
-#endif
 #if defined(HI191_MIPI_RAW)
 	{HI191MIPI_SENSOR_ID,
 	SENSOR_DRVNAME_HI191_MIPI_RAW,
 	HI191MIPI_RAW_SensorInit},
+#endif
+#if defined(HI2021Q_MIPI_RAW)
+	{HI2021Q_SENSOR_ID,
+	SENSOR_DRVNAME_HI2021Q_MIPI_RAW,
+	HI2021Q_MIPI_RAW_SensorInit},
 #endif
 #if defined(SR846D_MIPI_RAW)
 	{SR846D_SENSOR_ID,
@@ -711,6 +724,11 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	SENSOR_DRVNAME_GC5035B_MIPI_RAW,
 	GC5035B_MIPI_RAW_SensorInit},
 #endif
+#if defined(GC5035U_MIPI_RAW)
+	{GC5035U_SENSOR_ID,
+	SENSOR_DRVNAME_GC5035U_MIPI_RAW,
+	GC5035_MIPI_RAW_SensorInit},
+#endif
 #if defined(GC8034_MIPI_RAW)
 	{GC8034_SENSOR_ID,
 	SENSOR_DRVNAME_GC8034_MIPI_RAW,
@@ -724,7 +742,7 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 #if defined(GC02M1B_MIPI_RAW)
 	{GC02M1B_SENSOR_ID,
 	SENSOR_DRVNAME_GC02M1B_MIPI_RAW,
-	GC02M1B_MIPI_RAW_SensorInit},
+	GC02M1_MIPI_RAW_SensorInit},
 #endif
 	/*SP*/
 #if defined(SP2509_MIPI_RAW)
@@ -827,20 +845,24 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 	{GC5025MIPI_SENSOR_ID, SENSOR_DRVNAME_GC5025_MIPI_RAW,
 		GC5025MIPI_RAW_SensorInit},
 #endif
+
 	/*  ADD sensor driver before this line */
 	{0, {0}, NULL}, /* end of list */
 };
 /* e_add new sensor driver here */
 
-extern void set_global_i2c_client(struct i2c_client *client);
+extern struct IMGSENSOR_SENSOR *imgsensor_sensor_get_inst(enum IMGSENSOR_SENSOR_IDX idx);
 unsigned int imgsensor_read_otp_cal(struct i2c_client *client,
 		struct stCAM_CAL_INFO_STRUCT *sensor_info, unsigned int addr, unsigned char *data, unsigned int size)
 {
 	int ret = 0;
+	struct IMGSENSOR_SENSOR *psensor = NULL;
 
-	set_global_i2c_client(client);
+	psensor = imgsensor_sensor_get_inst(IMGSENSOR_SENSOR_IDX_MAP(sensor_info->deviceID));
+	if (psensor != NULL)
+		imgsensor_i2c_set_device(&psensor->inst.i2c_cfg);
 
-	pr_debug("[%s] sensor_id: %#06x - E\n", __func__, sensor_info->sensorID);
+	pr_info("- E, sensor_id: %#06x", sensor_info->sensorID);
 	switch (sensor_info->sensorID) {
 #if defined(GC5035_MIPI_RAW)
 	case GC5035_SENSOR_ID:
@@ -852,19 +874,9 @@ unsigned int imgsensor_read_otp_cal(struct i2c_client *client,
 		ret = gc5035b_read_otp_cal(addr, data, size);
 		break;
 #endif
-#if defined(S5K5E9YX_MIPI_RAW)
-	case S5K5E9YX_SENSOR_ID:
-		ret = s5k5e9yx_read_otp_cal(addr, data, size);
-		break;
-#endif
-#if 0//defined(S5K4HAYX_MIPI_RAW)
-	case S5K4HAYX_SENSOR_ID:
-		ret = s5k4hayx_read_otp_cal(addr, data, size);
-		break;
-#endif
-#if defined(S5K3L6_MIPI_RAW)
-	case S5K3L6_SENSOR_ID:
-		ret = s5k3l6_read_otp_cal(addr, data, size);
+#if defined(GC5035U_MIPI_RAW)
+	case GC5035U_SENSOR_ID:
+		ret = gc5035_read_otp_cal(addr, data, size);
 		break;
 #endif
 #if defined(SR846D_MIPI_RAW)
@@ -874,12 +886,17 @@ unsigned int imgsensor_read_otp_cal(struct i2c_client *client,
 #endif
 #if defined(GC02M1B_MIPI_RAW)
 	case GC02M1B_SENSOR_ID:
-		ret = gc02m1b_read_otp_cal(addr, data, size);
+		ret = gc02m1_read_otp_cal(addr, data, size);
 		break;
 #endif
 #if defined(HI2021Q_MIPI_RAW)
 	case HI2021Q_SENSOR_ID:
 		ret = hi2021q_read_otp_cal(addr, data, size);
+		break;
+#endif
+#if defined(S5K4HAYXF_MIPI_RAW)
+	case S5K4HAYXF_SENSOR_ID:
+		ret = s5k4hayx_read_otp_cal(addr, data, size);
 		break;
 #endif
 	default:
@@ -888,13 +905,14 @@ unsigned int imgsensor_read_otp_cal(struct i2c_client *client,
 		break;
 	}
 
+	if (psensor != NULL)
+		imgsensor_i2c_set_device(NULL);
+
 	if (ret < 0) {
 		pr_err("[%s] fail\n", __func__);
 		return 0;
 	}
 
-	pr_debug("[%s} - X\n", __func__);
+	pr_info("[%s] - X\n", __func__);
 	return ret;
 }
-
-

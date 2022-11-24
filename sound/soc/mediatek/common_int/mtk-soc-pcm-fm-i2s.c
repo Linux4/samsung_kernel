@@ -113,11 +113,11 @@ static int Audio_fm_mute_get(struct snd_kcontrol *kcontrol,
 int Audio_fm_mute_event(unsigned int value)
 {
 	if (value == 1)
-		SetFmI2sConnection(Soc_Aud_InterCon_DisConnect);
+		SetFmOnlyConnection(Soc_Aud_InterCon_DisConnect);
 	else
-		SetFmI2sConnection(Soc_Aud_InterCon_Connection);
+		SetFmOnlyConnection(Soc_Aud_InterCon_Connection);
 
-	pr_debug("%s fm_mute (%d)\n", __func__, value);
+	pr_info("%s fm_mute (%d)\n", __func__, value);
 
 	return 0;
 }

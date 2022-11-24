@@ -141,6 +141,41 @@
 #define V4L2_CID_MPEG_MTK_ENCODE_NONREFP_FREQ \
 	(V4L2_CID_MPEG_MTK_BASE+35)
 
+#define V4L2_CID_MPEG_MTK_ENCODE_RC_MAX_QP \
+	(V4L2_CID_MPEG_MTK_BASE+36)
+#define V4L2_CID_MPEG_MTK_ENCODE_RC_MIN_QP \
+	(V4L2_CID_MPEG_MTK_BASE+37)
+#define V4L2_CID_MPEG_MTK_ENCODE_RC_I_P_QP_DELTA \
+	(V4L2_CID_MPEG_MTK_BASE+38)
+#define V4L2_CID_MPEG_MTK_ENCODE_RC_QP_CONTROL_MODE \
+	(V4L2_CID_MPEG_MTK_BASE+39)
+enum v4l2_mpeg_video_qp_control_mode {
+	V4L2_MPEG_VIDEO_QP_CONTROL_MODE_DEF     = 0,
+	V4L2_MPEG_VIDEO_QP_CONTROL_MODE_FRAME   = 1,
+	V4L2_MPEG_VIDEO_QP_CONTROL_MODE_MB      = 2,
+};
+#define V4L2_CID_MPEG_MTK_ENCODE_RC_FRAME_LEVEL_QP \
+	(V4L2_CID_MPEG_MTK_BASE+40)
+
+
+#define V4L2_CID_MPEG_MTK_ENCODE_MAX_REFP_NUM \
+	(V4L2_CID_MPEG_MTK_BASE+41)
+
+#define V4L2_CID_MPEG_MTK_ENCODE_REFP_DISTANCE \
+	(V4L2_CID_MPEG_MTK_BASE+42)
+
+#define V4L2_CID_MPEG_MTK_ENCODE_REFP_MAX_FRAME_NUM \
+	(V4L2_CID_MPEG_MTK_BASE+43)
+
+#define V4L2_CID_MPEG_MTK_ENCODE_REFP_FRAME_NUM \
+	(V4L2_CID_MPEG_MTK_BASE+44)
+
+#define V4L2_CID_MPEG_MTK_LOG \
+	(V4L2_CID_MPEG_MTK_BASE+46)
+
+#define V4L2_CID_MPEG_MTK_ENCODE_ENABLE_DUMMY_NAL \
+	(V4L2_CID_MPEG_MTK_BASE+47)
+
 /* User-class control IDs */
 
 #define V4L2_CID_BASE			(V4L2_CTRL_CLASS_USER | 0x900)
@@ -266,6 +301,11 @@ enum v4l2_colorfx {
 /* The base for the imx driver controls.
  * We reserve 16 controls for this driver. */
 #define V4L2_CID_USER_IMX_BASE			(V4L2_CID_USER_BASE + 0x1090)
+
+/* The base for the mtk-warp driver controls.
+ * We reserve 16 controls for this driver.
+ */
+#define V4L2_CID_USER_MTK_WARP_BASE		(V4L2_CID_USER_BASE + 0x10b0)
 
 /* MPEG-class control IDs */
 /* The MPEG controls are applicable to all codec controls

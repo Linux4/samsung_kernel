@@ -1994,7 +1994,7 @@ bool clk_is_match(const struct clk *p, const struct clk *q)
 }
 EXPORT_SYMBOL_GPL(clk_is_match);
 
-#if IS_ENABLED(CONFIG_SEC_PM)
+#ifdef CONFIG_SEC_PM
 static struct hlist_head *debug_all_lists[] = {
 	&clk_root_list,
 	&clk_orphan_list,
@@ -2043,7 +2043,7 @@ void sec_clock_debug_print_enabled(void)
 	pr_info("Enabled clock count: %d\n", count);
 }
 EXPORT_SYMBOL(sec_clock_debug_print_enabled);
-#endif
+#endif /* CONFIG_SEC_PM */
 
 /***        debugfs support        ***/
 

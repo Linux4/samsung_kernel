@@ -23,9 +23,9 @@
 #include <linux/blkdev.h>
 #include <linux/quotaops.h>
 #include <crypto/hash.h>
-#include <linux/overflow.h>
 #include <linux/ctype.h>
 #include "../mount.h"
+#include <linux/overflow.h>
 
 #include <linux/fscrypt.h>
 #include <linux/fsverity.h>
@@ -195,6 +195,7 @@ struct f2fs_mount_info {
 #define F2FS_FEATURE_SB_CHKSUM		0x0800
 #define F2FS_FEATURE_CASEFOLD		0x1000
 #define F2FS_FEATURE_COMPRESSION	0x2000
+#define F2FS_FEATURE_RO			0x4000
 
 #define __F2FS_HAS_FEATURE(raw_super, mask)				\
 	((raw_super->feature & cpu_to_le32(mask)) != 0)
@@ -467,10 +468,10 @@ static inline bool __has_cursum_space(struct f2fs_journal *journal,
 					_IOR(F2FS_IOCTL_MAGIC, 18, __u64)
 #define F2FS_IOC_RESERVE_COMPRESS_BLOCKS				\
 					_IOR(F2FS_IOCTL_MAGIC, 19, __u64)
+
 #define F2FS_IOC_GET_VALID_NODE_COUNT	_IOR(F2FS_IOCTL_MAGIC, 32, __u32)
 #define F2FS_IOC_STAT_COMPRESS_FILE	_IOWR(F2FS_IOCTL_MAGIC, 33, \
 						struct f2fs_sec_stat_compfile)
-
 #define F2FS_IOC_SET_ENCRYPTION_POLICY	FS_IOC_SET_ENCRYPTION_POLICY
 #define F2FS_IOC_GET_ENCRYPTION_POLICY	FS_IOC_GET_ENCRYPTION_POLICY
 #define F2FS_IOC_GET_ENCRYPTION_PWSALT	FS_IOC_GET_ENCRYPTION_PWSALT
@@ -1011,7 +1012,7 @@ enum nid_state {
 	PREALLOC_NID,		/* it is preallocated */
 	MAX_NID_STATE,
 };
- 
+
 enum nat_state {
 	TOTAL_NAT,
 	DIRTY_NAT,
@@ -1103,6 +1104,7 @@ static inline void set_new_dnode(struct dnode_of_data *dn, struct inode *inode,
  */
 #define	NR_CURSEG_DATA_TYPE	(3)
 #define NR_CURSEG_NODE_TYPE	(3)
+#define NR_CURSEG_RO_TYPE	(2)
 #define NR_CURSEG_TYPE	(NR_CURSEG_DATA_TYPE + NR_CURSEG_NODE_TYPE)
 
 enum {
@@ -1311,12 +1313,6 @@ struct f2fs_io_info {
 	unsigned char version;		/* version of the node */
 };
 
-/*
- * A flag temporarily used to bypass dm-default-key
- * This flag should be cleared before submit_bio.
- */
-#define F2FS_REQ_DEFKEY_BYPASS REQ_BYPASS
-
 struct bio_entry {
 	struct bio *bio;
 	struct list_head list;
@@ -1450,79 +1446,6 @@ enum fsync_mode {
 #define DUMMY_ENCRYPTION_ENABLED(sbi) (0)
 #endif
 
-/* For compression */
-enum compress_algorithm_type {
-	COMPRESS_LZO,
-	COMPRESS_LZ4,
-	COMPRESS_ZSTD,
-	COMPRESS_MAX,
-};
-
-#define COMPRESS_DATA_RESERVED_SIZE		5
-struct compress_data {
-	__le32 clen;			/* compressed data size */
-	__le32 reserved[COMPRESS_DATA_RESERVED_SIZE];	/* reserved */
-	u8 cdata[];			/* compressed data */
-};
-
-#define COMPRESS_HEADER_SIZE	(sizeof(struct compress_data))
-
-#define F2FS_COMPRESSED_PAGE_MAGIC	0xF5F2C000
-
-/* compress context */
-struct compress_ctx {
-	struct inode *inode;		/* inode the context belong to */
-	pgoff_t cluster_idx;		/* cluster index number */
-	unsigned int cluster_size;	/* page count in cluster */
-	unsigned int log_cluster_size;	/* log of cluster size */
-	struct page **rpages;		/* pages store raw data in cluster */
-	unsigned int nr_rpages;		/* total page number in rpages */
-	struct page **cpages;		/* pages store compressed data in cluster */
-	unsigned int nr_cpages;		/* total page number in cpages */
-	void *rbuf;			/* virtual mapped address on rpages */
-	struct compress_data *cbuf;	/* virtual mapped address on cpages */
-	size_t rlen;			/* valid data length in rbuf */
-	size_t clen;			/* valid data length in cbuf */
-	void *private;			/* payload buffer for specified compression algorithm */
-	void *private2;			/* extra payload buffer */
-};
-
-/* compress context for write IO path */
-struct compress_io_ctx {
-	u32 magic;			/* magic number to indicate page is compressed */
-	struct inode *inode;		/* inode the context belong to */
-	struct page **rpages;		/* pages store raw data in cluster */
-	unsigned int nr_rpages;		/* total page number in rpages */
-	refcount_t ref;			/* referrence count of raw page */
-};
-
-/* decompress io context for read IO path */
-struct decompress_io_ctx {
-	u32 magic;			/* magic number to indicate page is compressed */
-	struct inode *inode;		/* inode the context belong to */
-	pgoff_t cluster_idx;		/* cluster index number */
-	unsigned int cluster_size;	/* page count in cluster */
-	unsigned int log_cluster_size;	/* log of cluster size */
-	struct page **rpages;		/* pages store raw data in cluster */
-	unsigned int nr_rpages;		/* total page number in rpages */
-	struct page **cpages;		/* pages store compressed data in cluster */
-	unsigned int nr_cpages;		/* total page number in cpages */
-	struct page **tpages;		/* temp pages to pad holes in cluster */
-	void *rbuf;			/* virtual mapped address on rpages */
-	struct compress_data *cbuf;	/* virtual mapped address on cpages */
-	size_t rlen;			/* valid data length in rbuf */
-	size_t clen;			/* valid data length in cbuf */
-	refcount_t ref;			/* referrence count of compressed page */
-	bool failed;			/* indicate IO error during decompression */
-	void *private;			/* payload buffer for specified decompression algorithm */
-	void *private2;			/* extra payload buffer */
-};
-
-#define NULL_CLUSTER			((unsigned int)(~0))
-#define MIN_COMPRESS_LOG_SIZE		2
-#define MAX_COMPRESS_LOG_SIZE		8
-#define MAX_COMPRESS_WINDOW_SIZE	((PAGE_SIZE) << MAX_COMPRESS_LOG_SIZE)
-
 enum sec_stat_cp_type {
 	STAT_CP_ALL,
 	STAT_CP_BG,
@@ -1631,6 +1554,79 @@ struct f2fs_ckpt_cmd_control {
 	struct llist_head issue_list;		/* list for command issue */
 	struct llist_node *dispatch_list;	/* list for command dispatch */
 };
+
+/* For compression */
+enum compress_algorithm_type {
+	COMPRESS_LZO,
+	COMPRESS_LZ4,
+	COMPRESS_ZSTD,
+	COMPRESS_MAX,
+};
+
+#define COMPRESS_DATA_RESERVED_SIZE		5
+struct compress_data {
+	__le32 clen;			/* compressed data size */
+	__le32 reserved[COMPRESS_DATA_RESERVED_SIZE];	/* reserved */
+	u8 cdata[];			/* compressed data */
+};
+
+#define COMPRESS_HEADER_SIZE	(sizeof(struct compress_data))
+
+#define F2FS_COMPRESSED_PAGE_MAGIC	0xF5F2C000
+
+/* compress context */
+struct compress_ctx {
+	struct inode *inode;		/* inode the context belong to */
+	pgoff_t cluster_idx;		/* cluster index number */
+	unsigned int cluster_size;	/* page count in cluster */
+	unsigned int log_cluster_size;	/* log of cluster size */
+	struct page **rpages;		/* pages store raw data in cluster */
+	unsigned int nr_rpages;		/* total page number in rpages */
+	struct page **cpages;		/* pages store compressed data in cluster */
+	unsigned int nr_cpages;		/* total page number in cpages */
+	void *rbuf;			/* virtual mapped address on rpages */
+	struct compress_data *cbuf;	/* virtual mapped address on cpages */
+	size_t rlen;			/* valid data length in rbuf */
+	size_t clen;			/* valid data length in cbuf */
+	void *private;			/* payload buffer for specified compression algorithm */
+	void *private2;			/* extra payload buffer */
+};
+
+/* compress context for write IO path */
+struct compress_io_ctx {
+	u32 magic;			/* magic number to indicate page is compressed */
+	struct inode *inode;		/* inode the context belong to */
+	struct page **rpages;		/* pages store raw data in cluster */
+	unsigned int nr_rpages;		/* total page number in rpages */
+	refcount_t ref;			/* referrence count of raw page */
+};
+
+/* decompress io context for read IO path */
+struct decompress_io_ctx {
+	u32 magic;			/* magic number to indicate page is compressed */
+	struct inode *inode;		/* inode the context belong to */
+	pgoff_t cluster_idx;		/* cluster index number */
+	unsigned int cluster_size;	/* page count in cluster */
+	unsigned int log_cluster_size;	/* log of cluster size */
+	struct page **rpages;		/* pages store raw data in cluster */
+	unsigned int nr_rpages;		/* total page number in rpages */
+	struct page **cpages;		/* pages store compressed data in cluster */
+	unsigned int nr_cpages;		/* total page number in cpages */
+	struct page **tpages;		/* temp pages to pad holes in cluster */
+	void *rbuf;			/* virtual mapped address on rpages */
+	struct compress_data *cbuf;	/* virtual mapped address on cpages */
+	size_t rlen;			/* valid data length in rbuf */
+	size_t clen;			/* valid data length in cbuf */
+	refcount_t ref;			/* referrence count of compressed page */
+	bool failed;			/* indicate IO error during decompression */
+	void *private;			/* payload buffer for specified decompression algorithm */
+	void *private2;			/* extra payload buffer */
+};
+
+#define NULL_CLUSTER			((unsigned int)(~0))
+#define MIN_COMPRESS_LOG_SIZE		2
+#define MAX_COMPRESS_LOG_SIZE		8
+#define MAX_COMPRESS_WINDOW_SIZE	((PAGE_SIZE) << MAX_COMPRESS_LOG_SIZE)
 
 struct f2fs_sb_info {
 	struct super_block *sb;			/* pointer to VFS super block */
@@ -1910,9 +1906,8 @@ static inline bool f2fs_is_multi_device(struct f2fs_sb_info *sbi)
  * and the return value is in kbytes. s is of struct f2fs_sb_info.
  */
 #define BD_PART_WRITTEN(s)						 \
-((((u64)part_stat_read((s)->sb->s_bdev->bd_part, sectors[1]) -		 \
-	(u64)part_stat_read((s)->sb->s_bdev->bd_part, discard_sectors))	 \
-	- (s)->sectors_written_start) >> 1)
+(((u64)part_stat_read((s)->sb->s_bdev->bd_part, sectors[1]) -		 \
+		(s)->sectors_written_start) >> 1)
 
 static inline void f2fs_update_time(struct f2fs_sb_info *sbi, int type)
 {
@@ -3696,7 +3691,7 @@ enum rw_hint f2fs_io_type_to_rw_hint(struct f2fs_sb_info *sbi,
 void f2fs_stop_checkpoint(struct f2fs_sb_info *sbi, bool end_io);
 struct page *f2fs_grab_meta_page(struct f2fs_sb_info *sbi, pgoff_t index);
 struct page *f2fs_get_meta_page(struct f2fs_sb_info *sbi, pgoff_t index);
-struct page *f2fs_get_meta_page_nofail(struct f2fs_sb_info *sbi, pgoff_t index);
+struct page *f2fs_get_meta_page_retry(struct f2fs_sb_info *sbi, pgoff_t index);
 struct page *f2fs_get_tmp_page(struct f2fs_sb_info *sbi, pgoff_t index);
 bool f2fs_is_valid_blkaddr(struct f2fs_sb_info *sbi,
 					block_t blkaddr, int type);
@@ -4276,6 +4271,7 @@ F2FS_FEATURE_FUNCS(verity, VERITY);
 F2FS_FEATURE_FUNCS(sb_chksum, SB_CHKSUM);
 F2FS_FEATURE_FUNCS(casefold, CASEFOLD);
 F2FS_FEATURE_FUNCS(compression, COMPRESSION);
+F2FS_FEATURE_FUNCS(readonly, RO);
 
 #ifdef CONFIG_BLK_DEV_ZONED
 static inline bool f2fs_blkz_is_seq(struct f2fs_sb_info *sbi, int devi,

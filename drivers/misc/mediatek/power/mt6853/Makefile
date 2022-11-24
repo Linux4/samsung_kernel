@@ -27,4 +27,4 @@ ifneq ($(CONFIG_FPGA_EARLY_PORTING),y)
 obj-y += mtk_battery_intf.o
 else
 obj-y += misc.o
-endif
+endif #CONFIG_FPGA_EARLY_PORTING

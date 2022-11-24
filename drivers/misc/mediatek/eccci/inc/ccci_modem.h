@@ -15,6 +15,7 @@
 #define __CCCI_MODEM_H__
 
 #include <mt-plat/mtk_ccci_common.h>
+#include "ccci_config.h"
 
 enum MD_FORCE_ASSERT_TYPE {
 	MD_FORCE_ASSERT_RESERVE = 0x000,
@@ -79,6 +80,16 @@ enum {
 	MD_CFG_MDLOG_MODE,
 	MD_CFG_SBP_CODE,
 	MD_CFG_DUMP_FLAG,
+	MD_CFG_SBP_SUB_ID,
+	MD_CFG_RAT_CHK_FLAG,
+	MD_CFG_RAT_STR0,
+	MD_CFG_RAT_STR1,
+	MD_CFG_RAT_STR2,
+	MD_CFG_RAT_STR3,
+	MD_CFG_RAT_STR4,
+	MD_CFG_RAT_STR5,
+	MD_CFG_WM_IDX,
+	MD_CFG_LOG_LEVEL,
 };
 
 enum {
@@ -178,6 +189,9 @@ enum{
 	NVRAM_CACHE_SHARE_MEMORY = 36,
 	SECURITY_SHARE_MEMORY = 37,
 	MD_MEM_AP_VIEW_INF = 38,
+	CCCI_MD_BIGDATA_SHARE_MEMORY = 46,
+	CCCI_MD_IPCA_BIGDATA_SHARE_MEMORY = 47,
+	AP_DEBUG_LEVEL = 48,
 	MD_RUNTIME_FEATURE_ID_MAX,
 }; /* MD_CCCI_RUNTIME_FEATURE_ID; */
 
@@ -369,6 +383,7 @@ enum {
 };/* FLIGHT_STAGE */
 
 extern unsigned int is_cdma2000_enable(int md_id);
+extern int ccci_get_md_sec_smem_size_and_update(void);
 
 struct ccci_mem_layout *ccci_md_get_mem(int md_id);
 struct ccci_smem_region *ccci_md_get_smem_by_user_id(int md_id,

@@ -29,6 +29,8 @@
 #include "ddp_ovl.h"
 #include "ddp_color.h"
 #include "ddp_clkmgr.h"
+#include "ddp_dsi.h"
+#include "ddp_disp_bdg.h"
 
 #include "ddp_log.h"
 
@@ -346,7 +348,7 @@ static int acquire_mutex(enum DDP_SCENARIO_ENUM scenario)
 		++mutex_id;
 	}
 	ASSERT(mutex_id < (DISP_MUTEX_DDP_FIRST + DISP_MUTEX_DDP_COUNT));
-	DDPDBG("scenario %s acquire mutex %d, left mutex 0x%x!\n",
+	DDPMSG("scenario %s acquire mutex %d, left mutex 0x%x!\n",
 		ddp_get_scenario_name(scenario), mutex_id,
 		ctx->mutex_idx);
 	return mutex_id;
@@ -1272,6 +1274,10 @@ int dpmgr_path_trigger(disp_path_handle dp_handle, void *trigger_loop_handle,
 	int module_num, module_name;
 	int i;
 	struct DDP_MODULE_DRIVER *mod_drv;
+	char para[7] = {0x10, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00};
+	char para1[7] = {0x10, 0x02, 0x00, 0x01, 0x00, 0x00, 0x00};
+	char para2[7] = {0x50, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00};
+	char para3[7] = {0x50, 0x02, 0x00, 0x01, 0x00, 0x00, 0x00};
 
 	if (!dp_handle) {
 		ASSERT(0);
@@ -1282,7 +1288,18 @@ int dpmgr_path_trigger(disp_path_handle dp_handle, void *trigger_loop_handle,
 		ddp_get_scenario_name(handle->scenario));
 	modules = ddp_get_scenario_list(handle->scenario);
 	module_num = ddp_get_module_num(handle->scenario);
-
+	if (bdg_is_bdg_connected() == 1) {
+		if (get_mt6382_init() && (get_bdg_tx_mode() == CMD_MODE)) {
+			DSI_send_cmdq_to_bdg(DISP_MODULE_DSI0, trigger_loop_handle,
+					0x00, 7, para, 1);
+			DSI_send_cmdq_to_bdg(DISP_MODULE_DSI0, trigger_loop_handle,
+					0x00, 7, para1, 1);
+			DSI_send_cmdq_to_bdg(DISP_MODULE_DSI0, trigger_loop_handle,
+					0x20, 7, para2, 1);
+			DSI_send_cmdq_to_bdg(DISP_MODULE_DSI0, trigger_loop_handle,
+					0x20, 7, para3, 1);
+		}
+	}
 	ddp_mutex_enable(handle->hwmutexid, handle->scenario, handle->mode,
 		trigger_loop_handle);
 	for (i = 0; i < module_num; i++) {
@@ -1605,7 +1622,7 @@ int dpmgr_path_is_busy(disp_path_handle dp_handle)
 			continue;
 		if (mod_drv->is_busy != 0) {
 			if (mod_drv->is_busy(module_name)) {
-				DISP_LOG_E("%s is busy\n",
+				DISP_LOG_V("%s is busy\n",
 					ddp_get_module_name(module_name));
 				return 1;
 			}
@@ -1717,6 +1734,17 @@ int dpmgr_disable_event(disp_path_handle dp_handle, enum DISP_PATH_EVENT event)
 	wq_handle->init = 0;
 	wq_handle->data = 0;
 	return 0;
+}
+
+int dpmgr_get_power_status(disp_path_handle dp_handle)
+{
+	struct ddp_path_handle *handle;
+	int state;
+
+	handle = (struct ddp_path_handle *)dp_handle;
+	state = handle->power_state;
+
+	return state;
 }
 
 int dpmgr_check_status_by_scenario(enum DDP_SCENARIO_ENUM scenario)
@@ -2001,6 +2029,8 @@ int dpmgr_init(void)
 	ddp_debug_init();
 	disp_init_irq();
 	disp_register_irq_callback(dpmgr_irq_handler);
+	/* init dpmgr context */
+	_get_context();
 	return 0;
 }
 

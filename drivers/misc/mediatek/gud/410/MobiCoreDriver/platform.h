@@ -51,20 +51,4 @@
 /* For retrieving SSIQ from dts */
 #define MC_DEVICE_PROPNAME	"trustonic,mobicore"
 
-/* Enforce/restrict statically CPUs potentially running TEE
- * (Customize to match platform CPY layout... 0xF0 for big cores only for example).
- * If not defined TEE dynamically using all platform CPUs (recommended)
- */
-#define PLAT_DEFAULT_TEE_AFFINITY_MASK (0xFF)
-
-/* Const used for kernel API setting TEE big core switch
- * (Customized to match platform big core layout).
- */
-/* Case for MT6768 */
-#define BIG_CORE_SWITCH_AFFINITY_MASK (0xC0)
-
-/* Case for MT6765
-#define BIG_CORE_SWITCH_AFFINITY_MASK (0xF0)
-*/
-
 #endif /* _MC_DRV_PLATFORM_H_ */

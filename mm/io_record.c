@@ -467,7 +467,6 @@ static int __init io_record_init(void)
 	record_buf = vzalloc(sizeof(struct io_info) * NUM_IO_INFO_IN_BUF);
 	if (!record_buf)
 		goto record_buf_fail;
-
 	result_buf = vzalloc(RESULT_BUF_SIZE_IN_BYTES);
 	if (!result_buf)
 		goto result_buf_fail;

@@ -11,6 +11,9 @@
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
+#if defined CONFIG_MACH_MT6877
+#include "../../../mt6877/include/mach/pseudo_m4u.h"
+#else
 #ifndef __PSEUDO_M4U_H__
 #define __PSEUDO_M4U_H__
 
@@ -29,10 +32,10 @@
 #include <linux/iommu.h>
 
 #if (defined(CONFIG_TRUSTONIC_TEE_SUPPORT) || \
-	defined(CONFIG_MICROTRUST_TEE_SUPPORT) || \
-	defined(CONFIG_TEEGRIS_TEE_SUPPORT)) && \
+	defined(CONFIG_MICROTRUST_TEE_SUPPORT)) && \
 	defined(CONFIG_MTK_TEE_GP_SUPPORT)
-#if defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT)
+#if defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) && \
+	!defined(CONFIG_MTK_SVP_ON_MTEE_SUPPORT)
 #define PSEUDO_M4U_TEE_SERVICE_ENABLE
 #elif defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 #define PSEUDO_M4U_TEE_SERVICE_ENABLE
@@ -51,7 +54,8 @@
 #endif
 #endif
 
-#if defined(CONFIG_MTK_CAM_GENIEZONE_SUPPORT)
+#if defined(CONFIG_MTK_CAM_GENIEZONE_SUPPORT) || \
+	defined(CONFIG_MTK_SVP_ON_MTEE_SUPPORT)
 #define M4U_GZ_SERVICE_ENABLE
 #endif
 
@@ -246,6 +250,7 @@ struct iova *__alloc_iova(struct iova_domain *iovad, size_t size,
 void __free_iova(struct iova_domain *iovad, struct iova *iova);
 void __iommu_dma_unmap(struct iommu_domain *domain, dma_addr_t dma_addr);
 
+int pseudo_m4u_sec_init(int mtk_iommu_sec_id);
 
 /* IOCTL commnad */
 #define MTK_M4U_MAGICNO			'g'
@@ -337,4 +342,5 @@ int pseudo_dump_iova_reserved_region(struct seq_file *s);
 #define F_SMI_DOMN(domain)		F_VAL(domain, 8, 4)
 #define F_SMI_DOMN_VAL(regval)		F_MSK_SHIFT(regval, 8, 4)
 
+#endif
 #endif

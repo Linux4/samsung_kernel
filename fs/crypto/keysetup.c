@@ -1069,7 +1069,7 @@ int fscrypt_get_encryption_kek(
 	case FSCRYPT_POLICY_V1:
 		res = find_and_derive_v1_fskey(crypt_info, kek);
 		break;
-	case FSCRYPT_POLICY_V2:
+	case FSCRYPT_POLICY_V2:	
 		res = __find_and_derive_fskey(crypt_info, kek);
 		break;
 	default:

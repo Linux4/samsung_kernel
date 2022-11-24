@@ -41,7 +41,11 @@
 
 #define RSC_REG_RANGE           (0x1000)
 
-#define RSC_BASE_HW   0x1b003000
+#ifdef CONFIG_MACH_MT6781
+#define RSC_BASE_HW   0x1C003000
+#else
+#define RSC_BASE_HW   0x1B003000
+#endif
 
 /*This macro is for setting irq status represnted
  * by a local variable,RSCInfo.IrqInfo.Status[RSC_IRQ_TYPE_INT_RSC_ST]
@@ -99,23 +103,34 @@ struct RSC_CLEAR_IRQ_STRUCT {
 	unsigned int Status;	/* Input */
 };
 
-
-
-
 struct RSC_Config {
 	unsigned int RSC_CTRL;
 	unsigned int RSC_SIZE;
 	unsigned int RSC_IMGI_C_BASE_ADDR;
+	unsigned int RSC_IMGI_C_FD;
+	unsigned int RSC_IMGI_C_OFFSET;
 	unsigned int RSC_IMGI_C_STRIDE;
 	unsigned int RSC_IMGI_P_BASE_ADDR;
+	unsigned int RSC_IMGI_P_FD;
+	unsigned int RSC_IMGI_P_OFFSET;
 	unsigned int RSC_IMGI_P_STRIDE;
 	unsigned int RSC_MVI_BASE_ADDR;
+	unsigned int RSC_MVI_FD;
+	unsigned int RSC_MVI_OFFSET;
 	unsigned int RSC_MVI_STRIDE;
 	unsigned int RSC_APLI_C_BASE_ADDR;
+	unsigned int RSC_APLI_C_FD;
+	unsigned int RSC_APLI_C_OFFSET;
 	unsigned int RSC_APLI_P_BASE_ADDR;
+	unsigned int RSC_APLI_P_FD;
+	unsigned int RSC_APLI_P_OFFSET;
 	unsigned int RSC_MVO_BASE_ADDR;
+	unsigned int RSC_MVO_FD;
+	unsigned int RSC_MVO_OFFSET;
 	unsigned int RSC_MVO_STRIDE;
 	unsigned int RSC_BVO_BASE_ADDR;
+	unsigned int RSC_BVO_FD;
+	unsigned int RSC_BVO_OFFSET;
 	unsigned int RSC_BVO_STRIDE;
 #define RSC_TUNABLE
 #ifdef RSC_TUNABLE
@@ -155,7 +170,6 @@ enum RSC_CMD_ENUM {
 	RSC_CMD_DEQUE_REQ,	/* RSC Deque Request */
 	RSC_CMD_TOTAL,
 };
-/*  */
 
 struct RSC_Request {
 	unsigned int m_ReqNum;
@@ -219,5 +233,4 @@ struct compat_RSC_Request {
 	_IOWR(RSC_MAGIC, RSC_CMD_DEQUE_REQ, struct compat_RSC_Request)
 #endif
 
-/*  */
 #endif

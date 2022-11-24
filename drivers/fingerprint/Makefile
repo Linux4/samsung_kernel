@@ -15,6 +15,7 @@ fingerprint-$(CONFIG_SENSORS_FINGERPRINT_MTK)	+= fingerprint_common_mtk.o
 
 fingerprint-$(CONFIG_SENSORS_ET5XX)		+= et5xx-spi.o et5xx-spi_data_transfer.o
 fingerprint-$(CONFIG_SENSORS_ET7XX)		+= et7xx-spi.o et7xx-spi_data_transfer.o
+fingerprint-$(CONFIG_SENSORS_EL7XX)		+= el7xx-spi.o el7xx-spi_data_transfer.o
 fingerprint-$(CONFIG_SENSORS_GW3X)		+= gw3x_common.o gw3x_spidev.o
 fingerprint-$(CONFIG_SENSORS_GW9558X)	+= gw9558x_common.o gw9558x_spidev.o
 fingerprint-$(CONFIG_SENSORS_QBT2000)	+= qbt2000_common.o

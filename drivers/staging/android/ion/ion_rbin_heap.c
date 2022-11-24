@@ -223,6 +223,9 @@ got_pg:
 	}
 
 	buffer->sg_table = table;
+#ifdef CONFIG_MTK_IOMMU_V2
+	buffer->sg_table_orig = table;
+#endif
 #if defined(CONFIG_MTK_IOMMU_PGTABLE_EXT) && \
 	(CONFIG_MTK_IOMMU_PGTABLE_EXT > 32)
 	buffer_info->table_orig = table;

@@ -34,7 +34,6 @@
 #include <linux/pm_runtime.h>
 #include <linux/blk-cgroup.h>
 #include <linux/debugfs.h>
-#include <mt-plat/mtk_blocktag.h> /* MTK PATCH */
 #include <linux/psi.h>
 #include <linux/blk-crypto.h>
 
@@ -326,7 +325,8 @@ void blk_queue_io_vol_del(struct request_queue *q, int opf, long long bytes)
 }
 
 /* should be called with queue_lock held */
-void blk_queue_io_vol_merge(struct request_queue *q, int opf, int rqs, long long bytes)
+void blk_queue_io_vol_merge(struct request_queue *q,
+	int opf, int rqs, long long bytes)
 {
 	struct block_io_volume *vol;
 	int op = opf & REQ_OP_MASK;
@@ -394,9 +394,9 @@ int blk_alloc_turbo_write(struct request_queue *q)
 		spin_unlock_irq(q->queue_lock);
 		kfree(new);
 		return -EEXIST;
-	} else {
-		q->tw = new;
 	}
+
+	q->tw = new;
 	spin_unlock_irq(q->queue_lock);
 
 	return 0;
@@ -479,7 +479,8 @@ static void blk_update_tw_stats(struct blk_turbo_write *tw)
 }
 
 /* should be called with queue_lock held */
-void blk_update_tw_state(struct request_queue *q, int write_rqs, long long write_bytes)
+void blk_update_tw_state(struct request_queue *q,
+	int write_rqs, long long write_bytes)
 {
 	struct blk_turbo_write	*tw = q->tw;
 
@@ -490,9 +491,8 @@ void blk_update_tw_state(struct request_queue *q, int write_rqs, long long write
 
 	switch (tw->state) {
 	case TW_OFF:
-		if (tw_may_on(tw, write_bytes, write_rqs)) {
+		if (tw_may_on(tw, write_bytes, write_rqs))
 			set_tw_state(tw, TW_ON_READY);
-		}
 		break;
 
 	case TW_ON_READY:
@@ -512,9 +512,9 @@ void blk_update_tw_state(struct request_queue *q, int write_rqs, long long write
 		break;
 
 	case TW_OFF_READY:
-		if (tw_may_on(tw, write_bytes, write_rqs)) {
+		if (tw_may_on(tw, write_bytes, write_rqs))
 			set_tw_state(tw, TW_ON);
-		} else if (time_after_eq(jiffies, tw->state_ts + tw->off_delay)) {
+		else if (time_after_eq(jiffies, tw->state_ts + tw->off_delay)) {
 			set_tw_state(tw, TW_OFF);
 			if (tw->try_off) {
 				spin_unlock_irq(q->queue_lock);
@@ -526,9 +526,8 @@ void blk_update_tw_state(struct request_queue *q, int write_rqs, long long write
 		break;
 
 	case TW_ON:
-		if (tw_may_off(tw, write_bytes, write_rqs)) {
+		if (tw_may_off(tw, write_bytes, write_rqs))
 			set_tw_state(tw, TW_OFF_READY);
-		}
 		break;
 
 	default:
@@ -547,9 +546,8 @@ void blk_account_tw_io(struct request_queue *q, int opf, int bytes)
 	if (!tw)
 		return;
 
-	if ((tw->state != TW_OFF) && op_is_write(opf)) {
+	if ((tw->state != TW_OFF) && op_is_write(opf))
 		tw->curr_issued_kb += bytes / 1024;
-	}
 }
 #endif
 
@@ -2352,7 +2350,6 @@ static inline int blk_partition_remap(struct bio *bio)
 		trace_block_bio_remap(bio->bi_disk->queue, bio, part_devt(p),
 				bio->bi_iter.bi_sector - p->start_sect);
 	} else {
-		printk("%s: fail for partition %d\n", __func__, bio->bi_partno);
 		ret = -EIO;
 	}
 	rcu_read_unlock();
@@ -2648,9 +2645,6 @@ blk_qc_t submit_bio(struct bio *bio)
 			count_vm_events(PGPGIN, count);
 		}
 
-#ifdef CONFIG_MTK_BLOCK_TAG
-		mtk_btag_pidlog_submit_bio(bio);
-#endif
 		if (unlikely(block_dump)) {
 			char b[BDEVNAME_SIZE];
 			printk(KERN_DEBUG "%s(%d): %s block %Lu on %s (%u sectors)\n",

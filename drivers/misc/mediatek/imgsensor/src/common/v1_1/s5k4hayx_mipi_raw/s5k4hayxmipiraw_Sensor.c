@@ -185,7 +185,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.mipi_lane_num = SENSOR_MIPI_4_LANE,
 #ifndef VENDOR_EDIT
 	/*Caohua.Lin@Camera.Driver  add for 17175  board 20180205 */
-	.i2c_addr_table = {0x5a, 0xff},
+	.i2c_addr_table = {0x5a},
 #else
 	.i2c_addr_table = {0x20, 0x5a, 0xff},
 #endif
@@ -2139,57 +2139,6 @@ static struct SENSOR_FUNCTION_STRUCT sensor_func = {
 	control,
 	close
 };
-
-void s5k4hayx_select_otp_page(unsigned int page)
-{
-	unsigned int complete = 0;
-	int retry = 3;
-
-	write_cmos_sensor_8(0x0A02, page);
-	write_cmos_sensor_8(0x0A00, 0x01);
-
-	do {
-		if (!retry) {
-			pr_err("[%s] Can't read OTP", __func__);
-			break;
-		}
-		usleep_range(1000, 1000);
-		complete = read_cmos_sensor_8(0x0A01) & 0x01;
-		retry--;
-	} while (!complete);
-}
-
-int s5k4hayx_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int size)
-{
-	int i, otp_addr, otp_page, bank;
-	int bank_page[4] = {0, 0x11, 0, 0x19};
-	int const PAGE_START_ADDR = 0x0A04, PAGE_END_ADDR = 0x0A43;
-
-	write_cmos_sensor_8(0x0100, 0x01);
-	msleep(50);
-	s5k4hayx_select_otp_page(0x11);
-	bank = read_cmos_sensor_8(PAGE_START_ADDR);
-	if (bank > 3) {
-		pr_err("[%s] Invalid bank data %d", __func__, bank);
-		return -1;
-	}
-
-	otp_page = bank_page[bank];
-	s5k4hayx_select_otp_page(otp_page);
-	otp_addr = PAGE_START_ADDR + 4;
-
-	for (i = 0; i < size; i++) {
-		if (otp_addr > PAGE_END_ADDR) {
-			s5k4hayx_select_otp_page(++otp_page);
-			otp_addr = PAGE_START_ADDR;
-		}
-		*(data + i) = read_cmos_sensor_8(otp_addr++);
-	}
-	write_cmos_sensor_8(0x0A00, 0x04);
-	write_cmos_sensor_8(0x0A00, 0x00);
-
-	return size;
-}
 
 UINT32 S5K4HAYX_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc)
 {

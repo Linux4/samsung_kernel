@@ -23,16 +23,10 @@
 
 #include "mtk_gadget.h"
 
-
 #ifdef CONFIG_MTK_USB2JTAG_SUPPORT
 #include <mt-plat/mtk_usb2jtag.h>
 #endif
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-#include "function/u_ether.h"
-extern int terminal_ctrl_request(struct usb_composite_dev *cdev,
-	const struct usb_ctrlrequest *ctrl);
-#endif
 #ifdef CONFIG_USB_CONFIGFS_F_ACC
 extern int acc_ctrlrequest(struct usb_composite_dev *cdev,
 				const struct usb_ctrlrequest *ctrl);
@@ -64,15 +58,10 @@ EXPORT_SYMBOL(get_usb_enumeration_state);
 
 struct device *create_function_device(char *name)
 {
-	if (android_device && !IS_ERR(android_device)) {
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-		if (!strcmp(name, "terminal_version"))
-			return android_device;
-		else
-#endif
+	if (android_device && !IS_ERR(android_device))
 		return device_create(android_class, android_device,
 			MKDEV(0, index++), NULL, name);
-	} else
+	else
 		return ERR_PTR(-EINVAL);
 }
 EXPORT_SYMBOL_GPL(create_function_device);
@@ -358,7 +347,10 @@ static ssize_t gadget_dev_desc_UDC_store(struct config_item *item,
 	struct config_usb_cfg *cfg;
 	struct usb_function *f, *tmp;
 	char usb_mode[50] = {0,};
-	int length = 0;
+	int length = 0, f_name_length;
+#endif
+#if defined(CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE) && defined(CONFIG_USB_MTU3)
+	struct usb_composite_dev *cdev = &gi->cdev;
 #endif
 
 	if (strlen(page) < len)
@@ -382,6 +374,12 @@ static ssize_t gadget_dev_desc_UDC_store(struct config_item *item,
 	mutex_lock(&gi->lock);
 
 	if (!strlen(name) || strcmp(name, "none") == 0) {
+#if defined(CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE) && defined(CONFIG_USB_MTU3)
+		/* avoid sending a disconnect switch event
+		 * until after we disconnect.
+		 */
+		cdev->mute_switch = true;
+#endif
 		ret = unregister_gadget(gi);
 		if (ret)
 			goto err;
@@ -396,25 +394,22 @@ static ssize_t gadget_dev_desc_UDC_store(struct config_item *item,
 		list_for_each_entry(c, &gi->cdev.configs, list) {
 			cfg = container_of(c, struct config_usb_cfg, c);
 			list_for_each_entry_safe(f, tmp, &cfg->func_list, list) {
-				if ( length + strlen(f->name) > sizeof(usb_mode)) {
-					printk("usb: overflow usb mode buffer \n",__func__);
+				f_name_length = strlen(f->name);
+				if (f_name_length > 3)
+					f_name_length = 3;
+				if ((length + f_name_length + 1) > sizeof(usb_mode)) {
+					pr_info("usb: overflow usb mode buffer\n", __func__);
 					break;
 				}
-				if (!strcmp(f->name, "conn_gadget")) {
-					length += 3;
-					strcat(usb_mode, "con");
-				} else if (!strcmp(f->name, "rndis")) {
-					length += 3;
-					strcat(usb_mode, "rnd");
-				} else {
-					length += strlen(f->name);
-					strcat(usb_mode, f->name);
-				}
+				if (!strncmp(f->name, "ss_mon", 6))
+					continue;
+				length += f_name_length;
+				strncat(usb_mode, f->name, f_name_length);
 				length += 1;
 				strcat(usb_mode,",");
 			}
 			usb_mode[length-1] = 0;
-			printk("usb: %s : usb_mode = %s\n",__func__, usb_mode);
+			pr_info("usb: %s : usb_mode = %s\n", __func__, usb_mode);
 			store_usblog_notify(NOTIFY_USBMODE_EXTRA, (void *)usb_mode, NULL);
 		}
 #endif
@@ -525,12 +520,6 @@ static int config_usb_cfg_link(
 			struct usb_function_instance, group);
 	struct usb_function_instance *a_fi;
 	struct usb_function *f;
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	static u8	   ethaddr[ETH_ALEN]={0,};
-	int i;
-	char *src;
-	struct gadget_strings *gs;
-#endif
 	int ret;
 
 	pr_info("%s %s<-->%s\n", __func__,
@@ -557,30 +546,6 @@ static int config_usb_cfg_link(
 		}
 	}
 	/* usb tethering */
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	if (fi->set_inst_eth_addr) {
-		list_for_each_entry(gs, &gi->string_list, list) {
-			src = gs->serialnumber;
-		}
-
-		if (src) {
-			for (i = 0; i < ETH_ALEN; i++)
-				ethaddr[i] = 0;
-			/* create a fake MAC address from our serial number.
-			 * first byte is 0x02 to signify locally administered.
-			 */
-			ethaddr[0] = 0x02;
-			for (i = 0; (i < 256) && *src; i++) {
-				/* XOR the USB serial across the remaining bytes */
-				ethaddr[i % (ETH_ALEN - 1) + 1] ^= *src++;
-			}
-
-			fi->set_inst_eth_addr(fi, ethaddr);
-		}
-	}
-#endif
-
-
 	f = usb_get_function(fi);
 	if (IS_ERR(f)) {
 		ret = PTR_ERR(f);
@@ -1776,15 +1741,6 @@ static void configfs_composite_resume(struct usb_gadget *gadget)
 	spin_unlock_irqrestore(&gi->spinlock, flags);
 }
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-static void android_gadget_complete(struct usb_ep *ep, struct usb_request *req)
-{
-	if (req->status || req->actual != req->length)
-			printk(KERN_DEBUG "usb: %s: %d, %d/%d\n", __func__,
-				req->status, req->actual, req->length);
-}
-#endif
-
 #ifdef CONFIG_USB_CONFIGFS_UEVENT
 static int android_setup(struct usb_gadget *gadget,
 			const struct usb_ctrlrequest *c)
@@ -1793,22 +1749,12 @@ static int android_setup(struct usb_gadget *gadget,
 	unsigned long flags;
 	struct gadget_info *gi;
 	int value = -EOPNOTSUPP;
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	struct usb_configuration *configuration;
-	struct usb_function *f;
-	struct usb_request *req;
-#else
 	struct usb_function_instance *fi;
-#endif
 	
 	if (!cdev)
 		return 0;
 	
 	gi = container_of(cdev, struct gadget_info, cdev);
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	req = cdev->req;
-	req->complete = android_gadget_complete;
-#endif
 
 	spin_lock_irqsave(&cdev->lock, flags);
 	if (!gi->connected) {
@@ -1823,17 +1769,6 @@ static int android_setup(struct usb_gadget *gadget,
 		return 0;
 	}
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	list_for_each_entry(configuration, &cdev->configs, list) {
-		list_for_each_entry(f, &configuration->functions, list) {
-			if (f != NULL && f->ctrlrequest != NULL) {
-				value = f->ctrlrequest(f, c);
-				if (value >= 0)
-					break;
-			}
-		}
-	}
-#else
 	list_for_each_entry(fi, &gi->available_func, cfs_list) {
 		if (fi != NULL && fi->f != NULL && fi->f->setup != NULL) {
 			value = fi->f->setup(fi->f, c);
@@ -1841,7 +1776,6 @@ static int android_setup(struct usb_gadget *gadget,
 				break;
 		}
 	}
-#endif
 
 #ifdef CONFIG_USB_CONFIGFS_F_ACC
 	if (value < 0)
@@ -1853,6 +1787,13 @@ static int android_setup(struct usb_gadget *gadget,
 	spin_unlock_irqrestore(&gi->spinlock, flags);
 
 	spin_lock_irqsave(&cdev->lock, flags);
+
+#if defined(CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE) && defined(CONFIG_USB_MTU3)
+	if (c->bRequest == USB_REQ_SET_CONFIGURATION &&
+			cdev->mute_switch == true)
+		cdev->mute_switch = false;
+#endif
+
 	if (c->bRequest == USB_REQ_SET_CONFIGURATION &&
 						cdev->config) {
 		schedule_work(&gi->work);
@@ -1890,10 +1831,38 @@ static void android_disconnect(struct usb_gadget *gadget)
 	acc_disconnect();
 #endif
 	gi->connected = 0;
+
+#if defined(CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE) && defined(CONFIG_USB_MTU3)
+	pr_info("usb: %s con(%d), sw(%d)\n",
+		 __func__, gi->connected, gi->sw_connected);
+	/* avoid sending a disconnect switch event
+	 * until after we disconnect.
+	 */
+	if (cdev->mute_switch) {
+		gi->sw_connected = gi->connected;
+		pr_info("usb: %s mute_switch con(%d) sw(%d)\n",
+			 __func__, gi->connected, gi->sw_connected);
+	} else {
+		if (cdev->force_disconnect) {
+			gi->sw_connected = 1;
+			pr_info("usb: %s force_disconnect\n",
+				 __func__);
+			cdev->force_disconnect = 0;
+		}
+		pr_info("usb: %s schedule_work con(%d) sw(%d)\n",
+			 __func__, gi->connected, gi->sw_connected);
+
+		if (strstr(current->comm, "init") && !in_interrupt())
+			pr_notice("%s, skip work\n", __func__);
+		else
+			schedule_work(&gi->work);
+	}
+#else
 	if (strstr(current->comm, "init") && !in_interrupt())
 		pr_notice("%s, skip work\n", __func__);
 	else
 		schedule_work(&gi->work);
+#endif
 	composite_disconnect(gadget);
 }
 #endif
@@ -2008,23 +1977,9 @@ out:
 
 static DEVICE_ATTR(state, S_IRUGO, state_show, NULL);
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-static ssize_t
-bcdUSB_show(struct device *pdev, struct device_attribute *attr, char *buf)
-{
-	struct gadget_info *dev = dev_get_drvdata(pdev);
-
-	return sprintf(buf, "%04x\n", dev->cdev.desc.bcdUSB);
-
-}
-static DEVICE_ATTR(bcdUSB, S_IRUGO, bcdUSB_show, NULL);
-#endif
 static struct device_attribute *android_usb_attributes[] = {
 	&dev_attr_state,
 	&dev_attr_iSerial,
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	&dev_attr_bcdUSB,
-#endif
 	NULL
 };
 

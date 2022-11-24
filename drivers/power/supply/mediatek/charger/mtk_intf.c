@@ -80,6 +80,12 @@ int charger_enable_powerpath(bool en)
 	return charger_dev_enable_powerpath(pinfo->chg1_dev, en);
 }
 
+int charger_force_disable_powerpath(bool disable)
+{
+	return charger_manager_force_disable_power_path(pinfo->chg1_consumer,
+							MAIN_CHARGER, disable);
+}
+
 int charger_dump_registers(void)
 {
 	return charger_dev_dump_registers(pinfo->chg1_dev);
@@ -204,6 +210,7 @@ int adapter_get_cap(struct pd_cap *cap)
 	return 0;
 }
 
+#if defined(CONFIG_BATTERY_SAMSUNG)
 bool adapter_is_src_usb_suspend_support(void)
 {
 	return adapter_dev_is_src_usb_suspend_support(pinfo->pd_adapter);
@@ -213,6 +220,7 @@ bool adapter_is_src_usb_communication_capable(void)
 {
 	return adapter_dev_is_src_usb_communication_capable(pinfo->pd_adapter);
 }
+#endif
 
 int adapter_is_support_pd(void)
 {

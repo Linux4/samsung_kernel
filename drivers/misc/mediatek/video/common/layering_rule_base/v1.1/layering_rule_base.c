@@ -1736,6 +1736,7 @@ static int _copy_layer_info_by_disp(struct disp_layer_info *disp_info_user,
 	if (debug_mode) {
 		memcpy(disp_info_user->input_config[disp_idx],
 			l_info->input_config[disp_idx], layer_size);
+		kfree(l_info->input_config[disp_idx]);
 	} else {
 		if (copy_to_user(disp_info_user->input_config[disp_idx],
 				l_info->input_config[disp_idx], layer_size)) {
@@ -1934,6 +1935,12 @@ static void debug_set_layer_data(struct disp_layer_info *disp_info,
 
 	if (data_type != HRT_LAYER_DATA_ID && layer_id == -1)
 		return;
+
+	if (unlikely((unsigned int)disp_id >= 2)) {
+		DISPWARN("%s #%d disp_id error:%d\n",
+			 __func__, __LINE__, disp_id);
+		return;
+	}
 
 	layer_info = &disp_info->input_config[disp_id][layer_id];
 	switch (data_type) {

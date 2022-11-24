@@ -48,8 +48,8 @@ void ccci_set_mem_access_protection_second_stage(int md_id);
 #endif
 
 unsigned int ccci_get_md_debug_mode(struct ccci_modem *md);
-void ccci_get_platform_version(char *ver);
 
+int ccci_get_md_sec_smem_size_and_update(void);
 int ccci_plat_common_init(void);
 int ccci_platform_init(struct ccci_modem *md);
 void ccci_reset_ccif_hw(unsigned char md_id,

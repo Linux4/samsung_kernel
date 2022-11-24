@@ -68,6 +68,7 @@ static DEFINE_SPINLOCK(status_lock);
 static struct kobj_attribute sched_boost_attr;
 static struct kobj_attribute sched_cpu_prefer_attr;
 #endif
+
 static int sched_ramup_factor; /*0 means disable (min:1%,max 100%)*/
 
 static int sched_hint_status(int util, int cap)
@@ -278,12 +279,13 @@ static struct kobj_attribute sched_walt_info_attr =
 __ATTR(walt_debug, 0600 /* S_IWUSR | S_IRUSR */,
 			show_walt_info, store_walt_info);
 
+
 static ssize_t store_sched_forked_ramup_factor(struct kobject *kobj,
 		struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	unsigned int val = 0;
 
-	if (sscanf(buf, "%u", &val) != 0) {
+	if (sscanf(buf, "%iu", &val) != 0) {
 		if (val >= 0 && val <= 100)
 			sched_ramup_factor = val;
 	}
@@ -292,18 +294,18 @@ static ssize_t store_sched_forked_ramup_factor(struct kobject *kobj,
 }
 
 static ssize_t show_sched_forked_ramup_factor(struct kobject *kobj,
-struct kobj_attribute *attr, char *buf)
+		struct kobj_attribute *attr, char *buf)
 {
 	unsigned int len = 0;
 	unsigned int max_len = 4096;
 
 	len += snprintf(buf, max_len, "%d\n", sched_ramup_factor);
-
 	return len;
 }
 
 int sched_forked_ramup_factor(void)
 {
+
 	return sched_ramup_factor;
 }
 
@@ -374,9 +376,6 @@ static int __init sched_hint_init(void)
 
 	/* enable sched hint */
 	sched_hint_inited = 1;
-
-	/* Init sched_rampup_factor */
-	sched_ramup_factor = 0;
 
 	/*
 	 * create a sched in cpu_subsys:
@@ -646,14 +645,15 @@ int select_task_prefer_cpu(struct task_struct *p, int new_cpu)
 			break;
 #endif
 
-		if (cpumask_test_cpu(new_cpu, &domain->possible_cpus))
+		if (cpumask_test_cpu(new_cpu, &domain->possible_cpus) && !cpu_isolated(new_cpu))
 			goto out;
 
 		for_each_cpu(iter_cpu, &domain->possible_cpus) {
 
 			/* tsk with prefer idle to find bigger idle cpu */
 			if (!cpu_online(iter_cpu) ||
-				!cpumask_test_cpu(iter_cpu, tsk_cpus_allow))
+				!cpumask_test_cpu(iter_cpu, tsk_cpus_allow) ||
+				cpu_isolated(iter_cpu))
 				continue;
 
 			/* favoring tasks that prefer idle cpus
@@ -720,30 +720,6 @@ void sched_unset_boost_fg(void)
 	unset_user_space_global_cpuset(6);
 }
 
-void sched_set_boost_ta(void)
-{
-	struct cpumask cpus;
-	int nr;
-
-	/* 1: Root
-	 * 2: foreground
-	 * 3: Foregrond/boost
-	 * 4: background
-	 * 5: system-background
-	 * 6: top-app
-	 */
-
-	nr = arch_get_nr_clusters();
-	arch_get_cluster_cpus(&cpus, nr-1);
-
-	set_user_space_global_cpuset(&cpus, 6);
-}
-
-void sched_unset_boost_ta(void)
-{
-	unset_user_space_global_cpuset(6);
-}
-
 /* A mutex for scheduling boost switcher */
 static DEFINE_MUTEX(sched_boost_mutex);
 
@@ -763,8 +739,6 @@ int set_sched_boost(unsigned int val)
 		sched_scheduler_switch(SCHED_HYBRID_LB);
 	else if (sched_boost_type == SCHED_FG_BOOST)
 		sched_unset_boost_fg();
-	else if (sched_boost_type == SCHED_TA_BOOST)
-		sched_unset_boost_ta();
 
 	sched_boost_type = val;
 
@@ -783,8 +757,6 @@ int set_sched_boost(unsigned int val)
 			sched_scheduler_switch(SCHED_HMP_LB);
 		else if (val == SCHED_FG_BOOST)
 			sched_set_boost_fg();
-		else if (val == SCHED_TA_BOOST)
-			sched_set_boost_ta();
 	}
 	printk_deferred("[name:sched_boost&] sched boost: set %d\n",
 			sched_boost_type);
@@ -842,10 +814,6 @@ static ssize_t show_sched_boost(struct kobject *kobj,
 	case SCHED_FG_BOOST:
 		len += snprintf(buf, max_len,
 			"sched boost= foreground boost\n\n");
-		break;
-	case SCHED_TA_BOOST:
-		len += snprintf(buf, max_len,
-				"sched boost= top-app boost\n\n");
 		break;
 	default:
 		len += snprintf(buf, max_len, "sched boost= no boost\n\n");

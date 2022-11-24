@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016-2020 Samsung Electronics Co. Ltd.
+ * Copyright (C) 2016-2021 Samsung Electronics Co. Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -8,7 +8,7 @@
  * (at your option) any later version.
  */
 
-  /* usb notify layer v3.5 */
+  /* usb notify layer v3.6 */
 
 #ifndef __LINUX_USBLOG_PROC_NOTIFY_H__
 #define __LINUX_USBLOG_PROC_NOTIFY_H__
@@ -206,6 +206,7 @@ enum ccic_device {
 	NOTIFY_DEV_USB_DP,
 	NOTIFY_DEV_SUB_BATTERY,
 	NOTIFY_DEV_SECOND_MUIC,
+	NOTIFY_DEV_DEDICATED_MUIC,
 };
 
 enum ccic_id {
@@ -226,6 +227,7 @@ enum ccic_id {
 	NOTIFY_ID_FAC,
 	NOTIFY_ID_CC_PIN_STATUS,
 	NOTIFY_ID_WATER_CABLE,
+	NOTIFY_ID_POFF_WATER,
 };
 
 enum ccic_rid {
@@ -317,6 +319,7 @@ enum extra {
 	NOTIFY_EXTRA_PORT_SUSPEND_FAIL,
 	NOTIFY_EXTRA_PORT_SUSPEND_WAKEUP_FAIL,
 	NOTIFY_EXTRA_PORT_SUSPEND_LTM_FAIL,
+	NOTIFY_EXTRA_VIB_FW_LOAD_SUCCESS,
 };
 
 #define ALTERNATE_MODE_NOT_READY	(1 << 0)

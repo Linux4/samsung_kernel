@@ -49,12 +49,12 @@ static void handle_query_cap_ack_msg(struct venc_vcu_ipi_query_cap_ack *msg)
 	if (data == NULL)
 		return;
 	switch (msg->id) {
-	case GET_PARAM_CAPABILITY_SUPPORTED_FORMATS:
+	case VENC_GET_PARAM_CAPABILITY_SUPPORTED_FORMATS:
 		size = sizeof(struct mtk_video_fmt);
 		memcpy((void *)msg->ap_data_addr, data,
 			size * MTK_MAX_ENC_CODECS_SUPPORT);
 		break;
-	case GET_PARAM_CAPABILITY_FRAME_SIZES:
+	case VENC_GET_PARAM_CAPABILITY_FRAME_SIZES:
 		size = sizeof(struct mtk_codec_framesizes);
 		memcpy((void *)msg->ap_data_addr, data,
 			size * MTK_MAX_ENC_CODECS_SUPPORT);
@@ -474,6 +474,38 @@ int vcu_enc_set_param(struct venc_vcu_inst *vcu,
 		out.data_item = 1;
 		out.data[0] = enc_param->tsvc;
 		break;
+	case VENC_SET_PARAM_ADJUST_MAX_QP:
+		out.data_item = 1;
+		out.data[0] = enc_param->max_qp;
+		break;
+	case VENC_SET_PARAM_ADJUST_MIN_QP:
+		out.data_item = 1;
+		out.data[0] = enc_param->min_qp;
+		break;
+	case VENC_SET_PARAM_ADJUST_I_P_QP_DELTA:
+		out.data_item = 1;
+		out.data[0] = enc_param->i_p_qp_delta;
+		break;
+	case VENC_SET_PARAM_ADJUST_FRAME_LEVEL_QP:
+		out.data_item = 1;
+		out.data[0] = enc_param->frame_level_qp;
+		break;
+	case VENC_SET_PARAM_MAX_REFP_NUM:
+		out.data_item = 1;
+		out.data[0] = enc_param->maxrefpnum;
+		break;
+	case VENC_SET_PARAM_REFP_DISTANCE:
+		out.data_item = 1;
+		out.data[0] = enc_param->refpdistance;
+		break;
+	case VENC_SET_PARAM_REFP_FRMNUM:
+		out.data_item = 1;
+		out.data[0] = enc_param->refpfrmnum;
+		break;
+	case VENC_SET_PARAM_ENABLE_DUMMY_NAL:
+		out.data_item = 1;
+		out.data[0] = enc_param->dummynal;
+		break;
 	default:
 		mtk_vcodec_err(vcu, "id %d not supported", id);
 		return -EINVAL;
@@ -535,7 +567,11 @@ int vcu_enc_encode(struct venc_vcu_inst *vcu, unsigned int bs_mode,
 			vsi->meta_addr = 0;
 		}
 
-		mtk_vcodec_debug(vcu, " num_planes = %d input (dmabuf:%lx fd:%d), meta fd %d size %d %llx",
+		if (frm_buf->qpmap != 0) {
+			out.qpmap = frm_buf->qpmap;
+		}
+
+		mtk_vcodec_debug(vcu, " num_planes = %d input (dmabuf:%lx fd:%x), metafd %x metasize %d %llx",
 			frm_buf->num_planes,
 			(unsigned long)frm_buf->fb_addr[0].dmabuf,
 			out.input_fd[0], vsi->meta_fd, vsi->meta_size,

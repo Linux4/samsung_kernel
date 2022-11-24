@@ -40,6 +40,8 @@
 #include "vpubuf-core.h"
 #include "vpu_utilization.h"
 
+//#define VPU_LOAD_FW_SUPPORT
+
 static int vpu_probe(struct platform_device *dev);
 
 static int vpu_remove(struct platform_device *dev);
@@ -1134,6 +1136,7 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 	{
 		struct vpu_request *req;
 		struct vpu_request *u_req;
+		int plane_count;
 
 		u_req = (struct vpu_request *) arg;
 
@@ -1232,13 +1235,34 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 		else if (req->buffer_count > VPU_MAX_NUM_PORTS) {
 			LOG_ERR("[ENQUE] %s, count=%d\n",
 				"wrong buffer count", req->buffer_count);
+			vpu_free_request(req);
+			ret = -EINVAL;
+			goto out;
 		} else if (copy_from_user(req->buffers, u_req->buffers,
 			    req->buffer_count * sizeof(struct vpu_buffer))) {
 			LOG_ERR("[ENQUE] %s, ret=%d\n",
 				"copy 'struct buffer' failed", ret);
-		} else if (copy_from_user(req->buf_ion_infos,
-				u_req->buf_ion_infos,
-				req->buffer_count * 3 * sizeof(uint64_t))) {
+			vpu_free_request(req);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		/* Check if user plane_count is valid */
+		for (i = 0 ; i < req->buffer_count; i++) {
+			plane_count = req->buffers[i].plane_count;
+			if ((plane_count > VPU_MAX_NUM_PLANE) ||
+			    (plane_count == 0)) {
+				vpu_free_request(req);
+				ret = -EINVAL;
+				LOG_ERR("[ENQUE] Buf#%d plane_cnt:%d fail\n",
+					i, plane_count);
+				goto out;
+			}
+		}
+
+		if (copy_from_user(req->buf_ion_infos, u_req->buf_ion_infos,
+				   req->buffer_count * VPU_MAX_NUM_PLANE *
+				   sizeof(uint64_t))) {
 			LOG_ERR("[ENQUE] %s, ret=%d\n",
 				"copy 'buf_share_fds' failed", ret);
 		} else if (vpu_put_request_to_pool(user, req)) {
@@ -1390,6 +1414,7 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 	}
 	case VPU_IOCTL_CREATE_ALGO:
 	{
+#ifdef VPU_LOAD_FW_SUPPORT
 		struct vpu_create_algo *u_create_algo;
 		struct vpu_create_algo create_algo = {0};
 
@@ -1433,11 +1458,15 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 		ret = vpu_add_algo_to_user(user, &create_algo);
 		if (ret)
 			goto out;
-
+#else
+		ret = -EINVAL;
+		LOG_WRN("[CREATE_ALGO] was not support!\n");
+#endif
 		break;
 	}
 	case VPU_IOCTL_FREE_ALGO:
 	{
+#ifdef VPU_LOAD_FW_SUPPORT
 		struct vpu_create_algo *u_create_algo;
 		struct vpu_create_algo create_algo = {0};
 
@@ -1463,7 +1492,10 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 		create_algo.name[(sizeof(char)*32) - 1] = '\0';
 
 		vpu_free_algo_from_user(user, &create_algo);
-
+#else
+		ret = -EINVAL;
+		LOG_WRN("[FREE_ALGO] was not support!\n");
+#endif
 		break;
 	}
 
@@ -2165,6 +2197,7 @@ static int vpu_probe(struct platform_device *pdev)
 	init_waitqueue_head(&vpu_device->req_wait);
 	INIT_LIST_HEAD(&vpu_device->device_debug_list);
 	mutex_init(&vpu_device->debug_list_mutex);
+	idr_init(&vpu_device->addr_idr);
 
 	ret = vpu_initialize(pdev, vpu_device);
 	if (ret)
@@ -2193,6 +2226,8 @@ static int vpu_remove(struct platform_device *pdev)
 	}
 
 	vpu_deinitialize(vpu_device);
+
+	idr_destroy(&vpu_device->addr_idr);
 
 	ret = vpu_core_detach(pdev, vpu_device);
 	if (ret)

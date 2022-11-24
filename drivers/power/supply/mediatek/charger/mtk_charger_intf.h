@@ -31,12 +31,14 @@
 #include <mt-plat/charger_class.h>
 
 struct charger_manager;
+struct charger_data;
 #include "mtk_pe_intf.h"
 #include "mtk_pe20_intf.h"
 #include "mtk_pe40_intf.h"
 #include "mtk_pe50_intf.h"
 #include "mtk_pdc_intf.h"
 #include "adapter_class.h"
+#include "mtk_smartcharging.h"
 
 #define CHARGING_INTERVAL 10
 #define CHARGING_FULL_INTERVAL 20
@@ -172,6 +174,7 @@ struct charger_custom_data {
 	int charging_host_charger_current;
 	int apple_1_0a_charger_current;
 	int apple_2_1a_charger_current;
+	int usb_unlimited_current;
 	int ta_ac_charger_current;
 	int pd_charger_current;
 
@@ -419,6 +422,18 @@ struct charger_manager {
 
 	/* dynamic mivr */
 	bool enable_dynamic_mivr;
+
+	struct smartcharging sc;
+
+
+	/*daemon related*/
+	struct sock *daemo_nl_sk;
+	u_int g_scd_pid;
+	struct scd_cmd_param_t_1 sc_data;
+
+	bool force_disable_pp[TOTAL_CHARGER];
+	bool enable_pp[TOTAL_CHARGER];
+	struct mutex pp_lock[TOTAL_CHARGER];
 };
 
 /* charger related module interface */
@@ -447,6 +462,7 @@ extern bool pmic_is_battery_exist(void);
 extern void notify_adapter_event(enum adapter_type type, enum adapter_event evt,
 	void *val);
 
+extern bool mt6360_get_is_host(void);
 
 /* FIXME */
 enum usb_state_enum {

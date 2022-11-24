@@ -93,6 +93,7 @@
 /* response mode error mask */
 #define CQRMEM		0x50
 #define CQ_EXCEPTION	(1 << 6)
+
 /* write protection violation */
 #define WP_ERASE_SKIP	(1 << 15)
 #define WP_VIOLATION	(1 << 26)

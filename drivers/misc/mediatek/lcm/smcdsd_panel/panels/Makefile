@@ -14,6 +14,5 @@ obj-$(CONFIG_SMCDSD_PANEL_A31)	+= ea8076_a31.o timenval.o
 obj-$(CONFIG_SMCDSD_PANEL_A41)	+= ea8076_a31.o timenval.o
 obj-$(CONFIG_SMCDSD_PANEL_A41_JPN)	+= ea8076_a31.o timenval.o
 obj-$(CONFIG_SMCDSD_PANEL_A01CORE)	+= a01core_td4150.o a01core_nt36525b.o
-obj-$(CONFIG_SMCDSD_PANEL_A03CORE)	+= a03core_nt36525b_ctc.o a03core_nt36525b_boe.o a03core_nt36525b_sharp.o a03core_ili9882q_mantix.o
-obj-$(CONFIG_SMCDSD_PANEL_A02)	+= a02_nt36525b_ctc.o a02_ili7806s_tianma.o a02_nt36675_csot.o a02_nt36525b_boe.o a02_td4150.o a02_ili9882n_boe.o
-
+obj-$(CONFIG_SMCDSD_PANEL_A02)	+= a02_nt36525b_ctc.o a02_ili7806s_tianma.o a02_nt36675_csot.o a02_nt36525b_boe.o a02_td4150.o a02_ili9882n_boe.o a02_ili9882q_boe.o
+obj-$(CONFIG_SMCDSD_PANEL_A13VE)	+= a13ve_nt36672c_csot.o a13ve_hx83112f_boe.o a13ve_nt36672c_tianma.o a13ve_td4375_boe.o

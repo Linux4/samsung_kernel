@@ -1,8 +1,8 @@
 #include "imgsensor_eeprom_rear2_imx355_v008.h"
 
-#define REAR2_IMX355_MAX_CAL_SIZE               (0x06C9 + 0x1)
+#define REAR2_IMX355_MAX_CAL_SIZE               (0x6C9 + 0x1)
 
-#define REAR2_IMX355_HEADER_CHECKSUM_LEN        (0x004B + 0x1)
+#define REAR2_IMX355_HEADER_CHECKSUM_LEN        (0x004B - 0x0000 + 0x1)
 #define REAR2_IMX355_MODULE_CAL_CHECKSUM_LEN    (0x0485 - 0x0050 + 0x1)
 
 #define REAR2_IMX355_CONVERTED_MAX_CAL_SIZE     (0x0A17 + 0x1)
@@ -11,7 +11,7 @@
 
 const struct rom_converted_cal_addr rear2_imx355_converted_cal_addr = {
 	.rom_awb_cal_data_start_addr            = 0x0068,
-	.rom_awb_checksum_addr                  = 0x0070,
+	.rom_awb_checksum_addr                  = 0x0074,
 	.rom_awb_checksum_len                   = (REAR2_IMX355_CONVERTED_AWB_CHECKSUM_LEN),
 	.rom_shading_cal_data_start_addr        = 0x0078,
 	.rom_shading_checksum_addr              = 0x07D4,
@@ -57,7 +57,7 @@ const struct imgsensor_vendor_rom_addr rear2_imx355_cal_addr = {
 	.rom_header_sub_shading_start_addr      = -1,
 	.rom_header_sub_shading_end_addr        = -1,
 
-	.rom_header_main_mtf_data_addr          = -1,
+	.rom_header_main_mtf_data_addr          = 0x048C,
 	.rom_header_sub_mtf_data_addr           = -1,
 
 	.rom_header_checksum_addr               = 0x004C,
@@ -95,7 +95,6 @@ const struct imgsensor_vendor_rom_addr rear2_imx355_cal_addr = {
 	.rom_pdaf_module_info_start_addr        = -1,
 	.rom_pdaf_checksum_addr                 = -1,
 	.rom_pdaf_checksum_len                  = -1,
-
 	.rom_ois_checksum_addr                  = -1,
 	.rom_ois_checksum_len                   = -1,
 
@@ -129,6 +128,9 @@ const struct imgsensor_vendor_rom_addr rear2_imx355_cal_addr = {
 	.rom_dual_shift_x_addr                  = -1,
 	.rom_dual_shift_y_addr                  = -1,
 
+
+	.crosstalk_cal_addr                     = NULL,
+	.sac_cal_addr                           = NULL,
 	.extend_cal_addr                        = NULL,
 
 	.converted_cal_addr                     = &rear2_imx355_converted_cal_addr,

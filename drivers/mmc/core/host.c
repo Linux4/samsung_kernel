@@ -385,12 +385,6 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 
 	spin_lock_init(&host->lock);
 	init_waitqueue_head(&host->wq);
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	host->wlock_name = kasprintf(GFP_KERNEL,
-		"%s_detect", mmc_hostname(host));
-	host->detect_wake_lock =
-		wakeup_source_register(NULL, host->wlock_name);
-#endif
 	INIT_DELAYED_WORK(&host->detect, mmc_rescan);
 	INIT_DELAYED_WORK(&host->sdio_irq_work, sdio_irq_work);
 	setup_timer(&host->retune_timer, mmc_retune_timer, (unsigned long)host);
@@ -497,9 +491,6 @@ void mmc_free_host(struct mmc_host *host)
 {
 	mmc_crypto_free_host(host);
 	mmc_pwrseq_free(host);
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	wakeup_source_unregister(host->detect_wake_lock);
-#endif
 	put_device(&host->class_dev);
 }
 

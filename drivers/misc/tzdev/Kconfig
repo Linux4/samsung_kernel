@@ -6,6 +6,12 @@ menuconfig TZDEV
 	  Samsung TZ Based Secure OS interface driver.
 
 if TZDEV
+config SAMSUNG_GKI_KERNEL
+	bool "GKI mode definitions enabled"
+	default n
+	help
+	  Opens including for GKI Linux kernel.
+
 config TZDEV_SK_PFNS_64BIT
 	bool "Secure kernel works with 64-bit PFNs"
 	default n
@@ -79,7 +85,7 @@ config TZDEV_SK_MULTICORE
 
 config ION_FD2PHYS
 	bool "ION FD to physical address converter"
-	depends on ION && (ARCH_EXYNOS || ARCH_MSM || ARCH_WHALE || ARCH_MT6755 || ARCH_MT6735 || ARCH_RANCHU || MACH_MT6757 || MACH_MT6853 || MACH_MT6768)
+	depends on ION && (ARCH_EXYNOS || ARCH_MSM || ARCH_WHALE || ARCH_MT6755 || ARCH_MT6735 || ARCH_RANCHU || MACH_MT6757 || MACH_MT6853 || MACH_MT6739 || MACH_MT6768)
 	default y
 	help
 	  Provide a method for userspace to get physical address from ION buffer
@@ -181,6 +187,12 @@ config TZDEV_DEPLOY_TZAR
 config TEEGRIS_VERSION
 	int "TEEGRIS(SecureOS) version"
 	default 2
+	help
+	  TEEGRIS built with specific version of SDK
+
+config TEEGRIS_VERSION_STRING
+	string "TEEGRIS(SecureOS) TZDEV version"
+	default "4.2.0"
 	help
 	  TEEGRIS built with specific version of SDK
 

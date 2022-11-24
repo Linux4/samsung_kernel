@@ -57,12 +57,6 @@
 #include "modem_secure_base.h"
 #endif
 
-#include <linux/arm-smccc.h>
-#include <linux/soc/mediatek/mtk_sip_svc.h>
-
-#define MTK_SIP_CCCI_CONTROL_ARCH32		0x82000505
-#define MTK_SIP_CCCI_CONTROL_ARCH64		0xC2000505
-
 #define TAG "mcd"
 
 void ccif_enable_irq(struct ccci_modem *md)
@@ -115,24 +109,6 @@ static irqreturn_t md_cd_wdt_isr(int irq, void *data)
 	wdt_disable_irq(md);
 
 	ccci_event_log("md%d: MD WDT IRQ\n", md->index);
-#ifndef DISABLE_MD_WDT_PROCESS
-	/* 1. disable MD WDT */
-#ifdef ENABLE_MD_WDT_DBG
-	unsigned int state;
-
-	state = ccci_read32(md->md_rgu_base, WDT_MD_STA);
-	ccci_write32(md->md_rgu_base, WDT_MD_MODE, WDT_MD_MODE_KEY);
-	CCCI_NORMAL_LOG(md->index, TAG,
-		"WDT IRQ disabled for debug, state=%X\n", state);
-#ifdef L1_BASE_ADDR_L1RGU
-	state = ccci_read32(md->l1_rgu_base, REG_L1RSTCTL_WDT_STA);
-	ccci_write32(md->l1_rgu_base,
-		REG_L1RSTCTL_WDT_MODE, L1_WDT_MD_MODE_KEY);
-	CCCI_NORMAL_LOG(md->index, TAG,
-		"WDT IRQ disabled for debug, L1 state=%X\n", state);
-#endif
-#endif
-#endif
 	ccci_fsm_recv_md_interrupt(md->index, MD_IRQ_WDT);
 	return IRQ_HANDLED;
 }
@@ -189,11 +165,11 @@ static void md_cd_exception(struct ccci_modem *md, enum HIF_EX_STAGE stage)
 
 	CCCI_ERROR_LOG(md->index, TAG, "MD exception HIF %d\n", stage);
 	ccci_event_log("md%d:MD exception HIF %d\n", md->index, stage);
-
-	__pm_wakeup_event(&md->trm_wake_lock, jiffies_to_msecs(50 * HZ));
 	/* in exception mode, MD won't sleep, so we do not
 	 * need to request MD resource first
 	 */
+
+	__pm_wakeup_event(&md->trm_wake_lock, jiffies_to_msecs(50 * HZ));
 	switch (stage) {
 	case HIF_EX_INIT:
 #if (MD_GENERATION >= 6293)
@@ -434,26 +410,6 @@ int __weak md_start_platform(struct ccci_modem *md)
 {
 	pr_debug("[ccci/dummy] %s is not supported!\n", __func__);
 	return 0;
-}
-
-
-static int ccci_get_md_sec_smem_size_and_update(void)
-{
-#ifdef ENABLE_MD_SEC_SMEM
-	struct arm_smccc_res res;
-
-#ifdef __aarch64__
-	arm_smccc_smc(MTK_SIP_CCCI_CONTROL_ARCH64,
-				UPDATE_MD_SEC_SMEM, 0, 0, 0, 0, 0, 0, &res);
-#else
-	arm_smccc_smc(MTK_SIP_CCCI_CONTROL_ARCH32,
-				UPDATE_MD_SEC_SMEM, 0, 0, 0, 0, 0, 0, &res);
-#endif
-
-	return (int)res.a0;
-#else
-	return 0;
-#endif
 }
 
 static int md_cd_start(struct ccci_modem *md)
@@ -885,7 +841,6 @@ static void config_ap_runtime_data_v2(struct ccci_modem *md,
 	ap_feature->tail_pattern = AP_FEATURE_QUERY_PATTERN;
 }
 
-
 static void config_ap_runtime_data_v2_1(struct ccci_modem *md,
 	struct ap_query_md_feature_v2_1 *ap_feature)
 {
@@ -893,6 +848,8 @@ static void config_ap_runtime_data_v2_1(struct ccci_modem *md,
 		ccci_md_get_smem_by_user_id(md->index,
 			SMEM_USER_RAW_RUNTIME_DATA);
 	int sec_smem_size = ccci_get_md_sec_smem_size_and_update();
+	CCCI_NORMAL_LOG(md->index, TAG,
+		"%s:sec_smem_size=0x%x\n", __func__, sec_smem_size);
 
 	ap_feature->head_pattern = AP_FEATURE_QUERY_PATTERN;
 	/*AP query MD feature set */
@@ -930,7 +887,7 @@ static void config_ap_runtime_data_v2_1(struct ccci_modem *md,
 static struct sk_buff *md_cd_init_rt_header(struct ccci_modem *md,
 	int packet_size, unsigned int tx_ch, int skb_from_pool)
 {
-	struct ccci_header *ccci_h;
+	struct ccci_header *ccci_h = NULL;
 	struct sk_buff *skb = NULL;
 
 	skb = ccci_alloc_skb(packet_size, skb_from_pool, 1);
@@ -958,8 +915,8 @@ static int md_cd_send_runtime_data_v2(struct ccci_modem *md,
 #if (MD_GENERATION <= 6292)
 	struct sk_buff *skb = NULL;
 #endif
-	struct ap_query_md_feature *ap_rt_data;
-	struct ap_query_md_feature_v2_1 *ap_rt_data_v2_1;
+	struct ap_query_md_feature *ap_rt_data = NULL;
+	struct ap_query_md_feature_v2_1 *ap_rt_data_v2_1 = NULL;
 	int ret;
 
 	if (md->runtime_version < AP_MD_HS_V2) {
@@ -985,7 +942,11 @@ static int md_cd_send_runtime_data_v2(struct ccci_modem *md,
 #endif
 		memset_io(ap_rt_data_v2_1, 0,
 			sizeof(struct ap_query_md_feature_v2_1));
+		CCCI_NORMAL_LOG(-1, TAG,
+			"%s:start config_ap_runtime_data_v2_1\n", __func__);
 		config_ap_runtime_data_v2_1(md, ap_rt_data_v2_1);
+		CCCI_NORMAL_LOG(-1, TAG,
+			"%s:end config_ap_runtime_data_v2_1\n", __func__);
 		dump_runtime_data_v2_1(md, ap_rt_data_v2_1);
 	} else {
 		/* infactly, 6292 should not be this else condition */
@@ -1194,8 +1155,8 @@ static int md_cd_dump_info(struct ccci_modem *md,
 	}
 	if (flag & DUMP_FLAG_SMEM_CCB_DATA) {
 		int i, j;
-		unsigned char *curr_ch_p;
-		unsigned int *curr_p;
+		unsigned char *curr_ch_p = NULL;
+		unsigned int *curr_p = NULL;
 		struct ccci_smem_region *ccb_data =
 			ccci_md_get_smem_by_user_id(md->index,
 				SMEM_USER_CCB_START);
@@ -1252,7 +1213,6 @@ static int md_cd_dump_info(struct ccci_modem *md,
 					*(curr_p + 2), *(curr_p + 3));
 		}
 	}
-
 	if (flag & DUMP_FLAG_LAYOUT) {
 		CCCI_MEM_LOG_TAG(md->index, TAG, "Dump MD layout struct\n");
 		ccci_util_mem_dump(md->index, CCCI_DUMP_MEM_DUMP,
@@ -1269,18 +1229,6 @@ static int md_cd_dump_info(struct ccci_modem *md,
 			low_pwr->size);
 	}
 	if (flag & DUMP_FLAG_MD_WDT) {
-		CCCI_MEM_LOG_TAG(md->index, TAG, "Dump MD RGU registers\n");
-		md_cd_lock_modem_clock_src(1);
-#ifdef BASE_ADDR_MDRSTCTL
-		ccci_util_mem_dump(md->index, CCCI_DUMP_MEM_DUMP,
-			md_info->md_rgu_base, 0x88);
-		ccci_util_mem_dump(md->index, CCCI_DUMP_MEM_DUMP,
-			(md_info->md_rgu_base + 0x200), 0x5c);
-#else
-		ccci_util_mem_dump(md->index, CCCI_DUMP_MEM_DUMP,
-			md_info->md_rgu_base, 0x30);
-#endif
-		md_cd_lock_modem_clock_src(0);
 		CCCI_MEM_LOG_TAG(md->index, TAG, "wdt_enabled=%d\n",
 			atomic_read(&md->wdt_enabled));
 #ifdef CONFIG_MTK_GIC_V3_EXT
@@ -1429,6 +1377,30 @@ static ssize_t md_net_speed_show(struct ccci_modem *md, char *buf)
 		mtk_ccci_toggle_net_speed_log());
 }
 
+extern int ccci_get_md_smem_buf(char **pbuf, unsigned int *size);
+
+static ssize_t md_cd_smem_show(struct ccci_modem *md, char *buf)
+{
+	char *smem_buf = NULL;
+	unsigned int smem_size;
+	int n, ret;
+
+	if (!buf)
+		return 0;
+
+	ret = ccci_get_md_smem_buf(&smem_buf, &smem_size);
+	if (ret < 0)
+		return 0;
+
+	n = snprintf(buf, 4096, "%s", smem_buf);
+	if (n >= 4096)
+		return (4096 - 1);
+	else
+		return n;
+}
+
+CCCI_MD_ATTR(NULL, md_smem, 0440, md_cd_smem_show, NULL);
+
 CCCI_MD_ATTR(NULL, dump, 0660, md_cd_dump_show, md_cd_dump_store);
 CCCI_MD_ATTR(NULL, parameter, 0660, md_cd_parameter_show,
 	md_cd_parameter_store);
@@ -1457,6 +1429,12 @@ static void md_cd_sysfs_init(struct ccci_modem *md)
 		CCCI_ERROR_LOG(md->index, TAG,
 			"fail to add sysfs node %s %d\n",
 			ccci_md_attr_net_speed.attr.name, ret);
+
+	ret = sysfs_create_file(&md->kobj, &ccci_md_attr_md_smem.attr);
+	if (ret)
+		CCCI_ERROR_LOG(md->index, TAG,
+			"fail to add sysfs node %s %d\n",
+			ccci_md_attr_md_smem.attr.name, ret);
 }
 
 static struct syscore_ops ccci_modem_sysops = {
@@ -1468,8 +1446,8 @@ static struct syscore_ops ccci_modem_sysops = {
 static u64 cldma_dmamask = DMA_BIT_MASK(36);
 static int ccci_modem_probe(struct platform_device *plat_dev)
 {
-	struct ccci_modem *md;
-	struct md_sys1_info *md_info;
+	struct ccci_modem *md = NULL;
+	struct md_sys1_info *md_info = NULL;
 	int md_id;
 	struct ccci_dev_cfg dev_cfg;
 	int ret;

@@ -24,14 +24,11 @@
 #include <linux/notifier.h>
 #include <linux/trace_events.h>
 #include "ddp_hal.h"
-#include "ddp_irq.h"
 #if !defined(CONFIG_SMCDSD_PANEL)
+#include "ddp_irq.h"
 #include "primary_display.h"
 #endif
 
-enum {
-	MTK_FPS_CHANGE = 0,
-};
 
 struct mtk_uevent_dev {
 	const char *name;
@@ -40,15 +37,8 @@ struct mtk_uevent_dev {
 	int state;
 };
 
-struct mtk_notifier {
-	struct notifier_block notifier;
-	int fps;
-};
-
 int uevent_dev_register(struct mtk_uevent_dev *sdev);
 int noti_uevent_user(struct mtk_uevent_dev *sdev, int state);
-int mtk_notifier_activate(void);
-int mtk_register_client(struct notifier_block *nb);
 
 extern struct mtk_uevent_dev uevent_data;
 

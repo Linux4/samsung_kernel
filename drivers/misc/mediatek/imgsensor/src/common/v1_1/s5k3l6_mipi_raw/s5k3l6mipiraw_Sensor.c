@@ -1982,8 +1982,7 @@ static kal_uint32 get_default_framerate_by_scenario(
 
 static kal_uint32 set_test_pattern_mode(kal_bool enable)
 {
-	pr_debug("enable: %d\n", enable);
-
+#if 0
 	if (enable) {
 		// 0x5E00[8]: 1 enable,  0 disable
 		write_cmos_sensor(0x3202, 0x0080);
@@ -2017,6 +2016,13 @@ static kal_uint32 set_test_pattern_mode(kal_bool enable)
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.test_pattern = enable;
 	spin_unlock(&imgsensor_drv_lock);
+#else
+	//test pattern is always disable
+	spin_lock(&imgsensor_drv_lock);
+	imgsensor.test_pattern = false;
+	spin_unlock(&imgsensor_drv_lock);
+	pr_debug("enable: %d\n", imgsensor.test_pattern);
+#endif
 	return ERROR_NONE;
 }
 static kal_uint32 get_sensor_temperature(void)
@@ -2149,16 +2155,16 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM
 
 	case SENSOR_FEATURE_SET_IHDR_SHUTTER_GAIN:
 		pr_debug("SENSOR_SET_SENSOR_IHDR LE=%d, SE=%d, Gain=%d\n",
-			 (UINT16) *feature_data,
-			 (UINT16) *(feature_data + 1),
-			 (UINT16) *(feature_data + 2));
+			 (UINT16) * feature_data,
+			 (UINT16) * (feature_data + 1),
+			 (UINT16) * (feature_data + 2));
 		break;
 	case SENSOR_FEATURE_SET_AWB_GAIN:
 		break;
 	case SENSOR_FEATURE_SET_HDR_SHUTTER:
 		pr_debug("SENSOR_FEATURE_SET_HDR_SHUTTER LE=%d, SE=%d\n",
-			 (UINT16) *feature_data,
-			 (UINT16) *(feature_data + 1));
+			 (UINT16) * feature_data,
+			 (UINT16) * (feature_data + 1));
 		break;
 
 	case SENSOR_FEATURE_SET_STREAMING_SUSPEND:
@@ -2552,7 +2558,7 @@ void s5k3l6_select_otp_page(unsigned int page)
 	usleep_range(100, 100);
 }
 
-void s5k3l6_otp_off_setting()
+void s5k3l6_otp_off_setting(void)
 {
 	write_cmos_sensor_8(0x0A00, 0x04);
 	write_cmos_sensor_8(0x0A00, 0x00);

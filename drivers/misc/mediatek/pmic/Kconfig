@@ -196,5 +196,21 @@ config MTK_EXTERNAL_CHARGER_TYPE_DETECT
 	  Set y to enable it.
 	  Set n to disable it.
 
+config MTK_NO_USE_BATON
+	bool "No use BATON detection"
+	default n
+	---help---
+	  No use BATON detection to check battery present.
+	  Say Y to enable it.
+	  Say N to disable it.
+
+config MTK_SEC_VFE28_CONTROL_ENABLE
+	bool "VFE28 Enable/disable"
+	default n
+	help
+	  VFE28 listen to SRCLKEN1
+	  Say Y to enable it.
+	  Say N to disable it.
+
 source "drivers/misc/mediatek/pmic/mt6370/Kconfig"
 source "drivers/misc/mediatek/pmic/mt6360/Kconfig"

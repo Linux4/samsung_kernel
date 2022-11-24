@@ -17,15 +17,15 @@
 #include <linux/proc_fs.h>
 
 #include <platform/mtk_platform_common.h>
-#ifdef ENABLE_COMMON_DVFS
 #include "mtk_gpufreq.h"
-#endif /* ENABLE_COMMON_DVFS */
 #include <mali_kbase_pm_internal.h>
 
 #include <ged_log.h>
 #include <ged_dvfs.h>
 
 #include <linux/workqueue.h>
+
+#include <device/mali_kbase_device.h>
 
 /* on:1, off:0 */
 int g_vgpu_power_on_flag;
@@ -144,30 +144,55 @@ static const struct file_operations kbasep_gpu_help_debugfs_fops = {
 /* 1. For GPU memory usage */
 static int proc_gpu_memoryusage_show(struct seq_file *m, void *v)
 {
-	ssize_t ret = 0;
+	struct list_head *entry;
+	const struct list_head *kbdev_list;
 
 #ifdef ENABLE_MTK_MEMINFO
-	int i = 0;
-	int total_size_in_bytes;
+	ssize_t mtk_kbase_gpu_meminfo_index;
 
-	total_size_in_bytes = mtk_kbase_report_gpu_memory_usage();
-
-	/* output the total memory usage and cap for this device */
-	seq_printf(m, "%10s\t%16s\n", "PID", "GPU Memory by Page");
-	seq_puts(m, "============================\n");
-
-	for (i = 0; (i < MTK_MEMINFO_SIZE) && (g_mtk_gpu_meminfo[i].pid != 0); i++) {
-		seq_printf(m, "%10d\t%16d\n", g_mtk_gpu_meminfo[i].pid,
-		g_mtk_gpu_meminfo[i].used_pages);
-	}
-
-	seq_puts(m, "============================\n");
-	seq_printf(m, "%10s\t%16u(%u bytes)\n", "Total",
-			g_mtk_gpu_total_memory_usage_in_pages_debugfs, total_size_in_bytes);
-	seq_puts(m, "============================\n");
+	mtk_kbase_reset_gpu_meminfo();
 #endif /* ENABLE_MTK_MEMINFO */
 
-	return ret;
+	kbdev_list = kbase_device_get_list();
+	list_for_each(entry, kbdev_list) {
+		struct kbase_device *kbdev = NULL;
+		struct kbase_context *kctx;
+
+		kbdev = list_entry(entry, struct kbase_device, entry);
+		/* output the total memory usage and cap for this device */
+		seq_printf(m, "%-16s  %10u(%u bytes)\n",
+				kbdev->devname,
+				atomic_read(&(kbdev->memdev.used_pages)),
+				atomic_read(&(kbdev->memdev.used_pages)) * 4096);
+
+#ifdef ENABLE_MTK_MEMINFO
+		g_mtk_gpu_total_memory_usage_in_pages_debugfs = atomic_read(&(kbdev->memdev.used_pages));
+#endif /* ENABLE_MTK_MEMINFO */
+
+		mutex_lock(&kbdev->kctx_list_lock);
+#ifdef ENABLE_MTK_MEMINFO
+		mtk_kbase_gpu_meminfo_index = 0;
+#endif /* ENABLE_MTK_MEMINFO */
+
+		list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
+			/* output the memory usage and cap for each kctx
+			* opened on this device */
+			seq_printf(m, "  %s-0x%p %10u %10u\n",
+				"kctx",
+				kctx,
+				atomic_read(&(kctx->used_pages)),
+				kctx->tgid);
+
+#ifdef ENABLE_MTK_MEMINFO
+			mtk_kbase_set_gpu_meminfo(mtk_kbase_gpu_meminfo_index, kctx->tgid,
+					(int)atomic_read(&(kctx->used_pages)));
+			mtk_kbase_gpu_meminfo_index++;
+#endif /* ENABLE_MTK_MEMINFO */
+		}
+		mutex_unlock(&kbdev->kctx_list_lock);
+	}
+	kbase_device_put_list(kbdev_list);
+	return 0;
 }
 
 static int kbasep_gpu_memoryusage_debugfs_open(struct inode *in, struct file *file)
@@ -496,6 +521,36 @@ int mtk_set_mt_gpufreq_target(int freq_id)
 
 	return 0;
 }
+
+#ifdef SHADER_PWR_CTL_WA
+void mtk_set_mt_gpufreq_clock_parking_lock(unsigned long *pFlags)
+{
+	mt_gpufreq_clock_parking_lock(pFlags);
+}
+
+void mtk_set_mt_gpufreq_clock_parking_unlock(unsigned long *pFlags)
+{
+	mt_gpufreq_clock_parking_unlock(pFlags);
+}
+
+int mtk_set_mt_gpufreq_clock_parking(int clksrc)
+{
+	/*
+	 * This function will be called under the Interrupt-Handler,
+	 * so can't implement any mutex-lock behaviors
+	 * (that will result the sleep/schedule operations).
+	 */
+
+	int ret = 0;
+
+	if (mtk_get_vgpu_power_on_flag() == MTK_VGPU_POWER_ON)
+		ret = mt_gpufreq_clock_parking(clksrc);
+	else
+		pr_info("MALI: set clock parking at power off\n");
+
+	return ret;
+}
+#endif
 
 unsigned long mtk_get_ged_dvfs_last_commit_idx(void)
 {

@@ -12,7 +12,6 @@
  *		Add UDP Encapsulation
  *
  */
-
 #include <linux/workqueue.h>
 #include <net/xfrm.h>
 #include <linux/pfkeyv2.h>
@@ -25,29 +24,17 @@
 #include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
-
 #include "xfrm_hash.h"
-
 #define xfrm_state_deref_prot(table, net) \
 	rcu_dereference_protected((table), lockdep_is_held(&(net)->xfrm.xfrm_state_lock))
-
-#undef MTK_XFM_DEBUG
-#ifdef CONFIG_MTK_ENG_BUILD
-#define MTK_XFM_DEBUG
-#endif
-
 static void xfrm_state_gc_task(struct work_struct *work);
-
 /* Each xfrm_state may be linked to two tables:
-
    1. Hash table by (spi,daddr,ah/esp) to find SA by SPI. (input,ctl)
    2. Hash table by (daddr,family,reqid) to find what SAs exist for given
       destination/tunnel endpoint. (output)
  */
-
 static unsigned int xfrm_state_hashmax __read_mostly = 1 * 1024 * 1024;
 static __read_mostly seqcount_t xfrm_state_hash_generation = SEQCNT_ZERO(xfrm_state_hash_generation);
-
 static DECLARE_WORK(xfrm_state_gc_work, xfrm_state_gc_task);
 static HLIST_HEAD(xfrm_state_gc_list);
 
@@ -64,7 +51,6 @@ static inline unsigned int xfrm_dst_hash(struct net *net,
 {
 	return __xfrm_dst_hash(daddr, saddr, reqid, family, net->xfrm.state_hmask);
 }
-
 static inline unsigned int xfrm_src_hash(struct net *net,
 					 const xfrm_address_t *daddr,
 					 const xfrm_address_t *saddr,
@@ -72,14 +58,12 @@ static inline unsigned int xfrm_src_hash(struct net *net,
 {
 	return __xfrm_src_hash(daddr, saddr, family, net->xfrm.state_hmask);
 }
-
 static inline unsigned int
 xfrm_spi_hash(struct net *net, const xfrm_address_t *daddr,
 	      __be32 spi, u8 proto, unsigned short family)
 {
 	return __xfrm_spi_hash(daddr, spi, proto, family, net->xfrm.state_hmask);
 }
-
 static void xfrm_hash_transfer(struct hlist_head *list,
 			       struct hlist_head *ndsttable,
 			       struct hlist_head *nsrctable,
@@ -432,9 +416,6 @@ static void xfrm_put_mode(struct xfrm_mode *mode)
 
 static void xfrm_state_gc_destroy(struct xfrm_state *x)
 {
-#ifdef MTK_XFM_DEBUG
-	pr_info("[mtk_net][xfrm_state] %s  free x %px\n", __func__, x);
-#endif
 	tasklet_hrtimer_cancel(&x->mtimer);
 	del_timer_sync(&x->rtimer);
 	kfree(x->aead);
@@ -574,9 +555,6 @@ struct xfrm_state *xfrm_state_alloc(struct net *net)
 	struct xfrm_state *x;
 
 	x = kzalloc(sizeof(struct xfrm_state), GFP_ATOMIC);
-#ifdef MTK_XFM_DEBUG
-	pr_info("[mtk_net][xfrm_state] %s alloc x: %px\n", __func__, x);
-#endif
 	if (x) {
 		write_pnet(&x->xs_net, net);
 		refcount_set(&x->refcnt, 1);
@@ -626,18 +604,11 @@ int __xfrm_state_delete(struct xfrm_state *x)
 		list_del(&x->km.all);
 		hlist_del_rcu(&x->bydst);
 		hlist_del_rcu(&x->bysrc);
-		if (x->id.spi) {
+		if (x->id.spi)
 			hlist_del_rcu(&x->byspi);
-#ifdef MTK_XFM_DEBUG
-			pr_info("[mtk_net][xfrm_state] %s delete x %px from byspi list\n",
-				__func__, x);
-#endif
-		}
 		net->xfrm.state_num--;
 		spin_unlock(&net->xfrm.xfrm_state_lock);
-
 		xfrm_dev_state_delete(x);
-
 		/* All xfrm_state objects are created by xfrm_state_alloc.
 		 * The xfrm_state_alloc call gives a reference, and that
 		 * is what we are dropping here.
@@ -832,106 +803,6 @@ xfrm_init_tempstate(struct xfrm_state *x, const struct flowi *fl,
 	afinfo->init_temprop(x, tmpl, daddr, saddr);
 }
 
-#ifdef CONFIG_MTK_ENG_BUILD
-static int trace1;
-static int trace2;
-static int trace3;
-static int trace4;
-static int count;
-
-static ktime_t xfrm_state_t1;
-static ktime_t xfrm_state_t2;
-static u32 spi_dump[32];
-
-static void xfrm_state_print_btrace(struct net *net, unsigned int h, struct xfrm_state *x)
-{
-	ktime_t xfrm_state_deltatime;
-	ktime_t  xfrm_state_duration;
-
-	xfrm_state_deltatime = ktime_sub(xfrm_state_t2, xfrm_state_t1);
-	xfrm_state_duration = //micro-second
-	(unsigned long long)ktime_to_ns(xfrm_state_deltatime) >> 10;
-
-	if (xfrm_state_duration > 2000000) { //2 second
-		pr_info("[mtk_net][xfrm_state] trace:[%d][%d][%d][%d]\n",
-			trace1, trace2, trace3, trace4);
-		pr_info("[mtk_net][xfrm_state] dutation [%d]\n",
-			xfrm_state_duration);
-		pr_info("[mtk_net][xfrm_state] hmask %d lookup x_num %d net %px\n",
-			net->xfrm.state_hmask, net->xfrm.state_num, net);
-		pr_info("[mtk_net][xfrm_state] byspi %px h %d x %px\n",
-			net->xfrm.state_byspi, h, x);
-		if (xfrm_state_duration > 3000000)
-			BUG_ON(1);
-	}
-}
-
-/*
-static void xfrm_state_dump_byspi(struct net *net)
-{
-	int i;
-	struct hlist_head *hlist;
-
-	for (i = 0; i < (net->xfrm.state_hmask + 1); i++) {
-		hlist = net->xfrm.state_byspi + i;
-		pr_info("[mtk_net][xfrm_state] byspi dump:byspi[%d]%px = %px",
-			i, hlist, *hlist);
-	}
-}
-*/
-
-static void xfrm_state_clear_btrace(void)
-{
-	trace1 = 0;
-	trace2 = 0;
-	trace3 = 0;
-	trace4 = 0;
-}
-
-static struct xfrm_state *__xfrm_state_lookup(struct net *net, u32 mark,
-					      const xfrm_address_t *daddr,
-					      __be32 spi, u8 proto,
-					      unsigned short family)
-{
-	unsigned int h = xfrm_spi_hash(net, daddr, spi, proto, family);
-	struct xfrm_state *x;
-	bool hold_rcu;
-
-	count++;
-	xfrm_state_t1 = ktime_get();
-	pr_info("[mtk_net][xfrm_state] hmask %d lookup x_num %d net %px byspi %px h %d\n",
-		net->xfrm.state_hmask, net->xfrm.state_num, net, net->xfrm.state_byspi, h);
-	//xfrm_state_dump_byspi(net);
-	hlist_for_each_entry_rcu(x, net->xfrm.state_byspi + h, byspi) {
-		trace1++;
-		xfrm_state_t2 = ktime_get();
-		xfrm_state_print_btrace(net, h, x);
-		if (trace1 < 32)
-			spi_dump[trace1] = x->id.spi;
-		if (x->props.family != family ||
-		    x->id.spi       != spi ||
-		    x->id.proto     != proto ||
-		    !xfrm_addr_equal(&x->id.daddr, daddr, family))
-			continue;
-		trace2++;
-		if ((mark & x->mark.m) != x->mark.v)
-			continue;
-		trace3++;
-		hold_rcu = xfrm_state_hold_rcu(x);
-		if (!hold_rcu) {
-			trace4++;
-			continue;
-		}
-
-		xfrm_state_clear_btrace();
-		return x;
-	}
-	xfrm_state_clear_btrace();
-	return NULL;
-}
-
-#else
-
 static struct xfrm_state *__xfrm_state_lookup(struct net *net, u32 mark,
 					      const xfrm_address_t *daddr,
 					      __be32 spi, u8 proto,
@@ -956,8 +827,6 @@ static struct xfrm_state *__xfrm_state_lookup(struct net *net, u32 mark,
 
 	return NULL;
 }
-
-#endif //#ifdef CONFIG_MTK_ENG_BUILD
 
 static struct xfrm_state *__xfrm_state_lookup_byaddr(struct net *net, u32 mark,
 						     const xfrm_address_t *daddr,
@@ -1150,10 +1019,6 @@ found:
 			if (x->id.spi) {
 				h = xfrm_spi_hash(net, &x->id.daddr, x->id.spi, x->id.proto, encap_family);
 				hlist_add_head_rcu(&x->byspi, net->xfrm.state_byspi + h);
-#ifdef MTK_XFM_DEBUG
-				pr_info("[mtk_net][xfrm_state] add list %s x %px byspi %px  h %d\n",
-					__func__, x, net->xfrm.state_byspi, h);
-#endif
 			}
 			x->lft.hard_add_expires_seconds = net->xfrm.sysctl_acq_expires;
 			tasklet_hrtimer_start(&x->mtimer, ktime_set(net->xfrm.sysctl_acq_expires, 0), HRTIMER_MODE_REL);
@@ -1264,12 +1129,7 @@ static void __xfrm_state_insert(struct xfrm_state *x)
 	if (x->id.spi) {
 		h = xfrm_spi_hash(net, &x->id.daddr, x->id.spi, x->id.proto,
 				  x->props.family);
-
 		hlist_add_head_rcu(&x->byspi, net->xfrm.state_byspi + h);
-#ifdef MTK_XFM_DEBUG
-		pr_info("[mtk_net][xfrm_state] add list  %s x %px byspi %px  h %d\n",
-			__func__, x, net->xfrm.state_byspi, h);
-#endif
 	}
 
 	tasklet_hrtimer_start(&x->mtimer, ktime_set(1, 0), HRTIMER_MODE_REL);
@@ -2489,7 +2349,7 @@ void xfrm_state_fini(struct net *net)
 }
 
 // [ SEC_SELINUX_PORTING_COMMON - remove AUDIT_MAC_IPSEC_EVENT audit log, it conflict with security notification
-#if 0 //#ifdef CONFIG_AUDITSYSCALL
+#if 0 // #ifdef CONFIG_AUDITSYSCALL
 static void xfrm_audit_helper_sainfo(struct xfrm_state *x,
 				     struct audit_buffer *audit_buf)
 {
@@ -2650,4 +2510,4 @@ void xfrm_audit_state_icvfail(struct xfrm_state *x,
 }
 EXPORT_SYMBOL_GPL(xfrm_audit_state_icvfail);
 #endif /* CONFIG_AUDITSYSCALL */
-// ] SEC_SELINUX_PORTING_COMMON - remove AUDIT_MAC_IPSEC_EVENT audit log, it conflict with security notification
+// ] SEC_SELINUX_PORTING_COMMON - remove AUDIT_MAC_IPSEC_EVENT audit log, it conflict with security notification																												

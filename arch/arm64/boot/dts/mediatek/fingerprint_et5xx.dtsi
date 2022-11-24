@@ -16,7 +16,7 @@
 	btp_irq: btp-irq {
 		pins_cmd_dat{
 			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,15), 0)>;
-			bias-pull-down;
+			bias-disable;
 			drive-strength = <1>;
 		};
 	};

@@ -104,15 +104,10 @@
 #endif
 
 #define	INFINITY_LIFE_TIME	0xFFFFFFFF
+#define	RTR_SOLICITS_MAX	3
 
 #define IPV6_MAX_STRLEN \
 	sizeof("ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255")
-
-#ifdef CONFIG_MTK_SRIL_SUPPORT
-#define NET_IF_NAME	"rmnet"
-#else
-#define NET_IF_NAME	"ccmni"
-#endif
 
 static inline u32 cstamp_delta(unsigned long cstamp)
 {
@@ -209,6 +204,7 @@ static struct ipv6_devconf ipv6_devconf __read_mostly = {
 	.forwarding		= 0,
 	.hop_limit		= IPV6_DEFAULT_HOPLIMIT,
 	.mtu6			= IPV6_MIN_MTU,
+	.ra_mtu			= 0,
 	.accept_ra		= 1,
 	.accept_redirects	= 1,
 	.autoconf		= 1,
@@ -264,6 +260,7 @@ static struct ipv6_devconf ipv6_devconf_dflt __read_mostly = {
 	.forwarding		= 0,
 	.hop_limit		= IPV6_DEFAULT_HOPLIMIT,
 	.mtu6			= IPV6_MIN_MTU,
+	.ra_mtu                 = 0,
 	.accept_ra		= 1,
 	.accept_redirects	= 1,
 	.autoconf		= 1,
@@ -3343,7 +3340,7 @@ static void addrconf_dev_config(struct net_device *dev)
 	    (dev->type != ARPHRD_IPGRE) &&
 	    (dev->type != ARPHRD_TUNNEL) &&
 	    (dev->type != ARPHRD_NONE) &&
-	    (dev->type != ARPHRD_PUREIP)) {
+	    (dev->type != ARPHRD_RAWIP)) {
 		/* Alas, we support only Ethernet autoconfiguration. */
 		idev = __in6_dev_get(dev);
 		if (!IS_ERR_OR_NULL(idev) && dev->flags & IFF_UP &&
@@ -3357,7 +3354,7 @@ static void addrconf_dev_config(struct net_device *dev)
 		return;
 
 	/* mobile device doesn't need auto-linklocal addr */
-	if (dev->type == ARPHRD_PUREIP)
+	if (dev->type == ARPHRD_RAWIP)
 		return;
 
 	/* this device type has no EUI support */
@@ -3881,6 +3878,12 @@ static void addrconf_rs_timer(unsigned long data)
 	if (idev->if_flags & IF_RA_RCVD)
 		goto out;
 
+	if (idev->rs_probes == RTR_SOLICITS_MAX && (idev->if_flags & IF_RS_VZW_SENT)) {
+		idev->if_flags &= ~IF_RS_VZW_SENT;
+		inet6_no_ra_notify(RTM_DELADDR, idev);
+		goto out;
+	}
+
 	if (idev->rs_probes++ < idev->cnf.rtr_solicits || idev->cnf.rtr_solicits < 0) {
 		write_unlock(&idev->lock);
 		if (!ipv6_get_lladdr(dev, &lladdr, IFA_F_TENTATIVE))
@@ -3891,7 +3894,7 @@ static void addrconf_rs_timer(unsigned long data)
 
 		write_lock(&idev->lock);
 		if (sysctl_optr == MTK_IPV6_VZW_ALL &&
-		    (strncmp(dev->name,  NET_IF_NAME, 2) == 0))
+		    (strncmp(dev->name, "ccmni", 2) == 0))
 			idev->rs_interval = idev->cnf.rtr_solicit_interval;
 		else
 			idev->rs_interval = rfc3315_s14_backoff_update(
@@ -3903,12 +3906,6 @@ static void addrconf_rs_timer(unsigned long data)
 				      idev->cnf.rtr_solicit_delay :
 				      idev->rs_interval);
 	} else {
-		inet6_no_ra_notify(RTM_DELADDR, idev);
-		if (sysctl_optr == MTK_IPV6_VZW_ALL ||
-		    sysctl_optr == MTK_IPV6_EX_RS_INTERVAL) {
-			if (idev->if_flags & IF_RS_VZW_SENT)
-				idev->if_flags &= ~IF_RS_VZW_SENT;
-		}
 		/*
 		 * Note: we do not support deprecated "all on-link"
 		 * assumption any longer.
@@ -4215,7 +4212,7 @@ static void addrconf_dad_completed(struct inet6_ifaddr *ifp, bool bump_id,
 		write_lock_bh(&ifp->idev->lock);
 		spin_lock(&ifp->lock);
 		if (sysctl_optr == MTK_IPV6_VZW_ALL &&
-		    (strncmp(dev->name,  NET_IF_NAME, 2) == 0)) {
+		    (strncmp(dev->name, "ccmni", 2) == 0)) {
 			ifp->idev->rs_interval =
 				ifp->idev->cnf.rtr_solicit_interval;
 		} else {
@@ -4488,7 +4485,7 @@ static void calc_next_vzw(struct inet6_ifaddr *ifp, struct rt6_info *rt,
 			  unsigned long *next, unsigned long age,
 			  int is_expires, u32 minimum_lft)
 {
-	if (strncmp(ifp->idev->dev->name, NET_IF_NAME, 2) == 0) {
+	if (strncmp(ifp->idev->dev->name, "ccmni", 2) == 0) {
 		if (is_expires || (rt && (rt->rt6i_flags & RTF_EXPIRES))) {
 			if (!(ifp->idev->if_flags & IF_RS_VZW_SENT) &&
 			    age >= (minimum_lft * 3 / 4))
@@ -5265,6 +5262,7 @@ static inline void ipv6_store_devconf(struct ipv6_devconf *cnf,
 	array[DEVCONF_FORWARDING] = cnf->forwarding;
 	array[DEVCONF_HOPLIMIT] = cnf->hop_limit;
 	array[DEVCONF_MTU6] = cnf->mtu6;
+	array[DEVCONF_RA_MTU] = cnf->ra_mtu;
 	array[DEVCONF_ACCEPT_RA] = cnf->accept_ra;
 	array[DEVCONF_ACCEPT_REDIRECTS] = cnf->accept_redirects;
 	array[DEVCONF_AUTOCONF] = cnf->autoconf;
@@ -5521,7 +5519,7 @@ update_lft:
 	if (update_rs) {
 		idev->if_flags |= IF_RS_SENT;
 		if (sysctl_optr == MTK_IPV6_VZW_ALL &&
-		    (strncmp(dev->name,  NET_IF_NAME, 2) == 0))
+		    (strncmp(dev->name, "ccmni", 2) == 0))
 			idev->rs_interval = idev->cnf.rtr_solicit_interval;
 		else
 			idev->rs_interval = rfc3315_s14_backoff_init(
@@ -6294,6 +6292,13 @@ static const struct ctl_table addrconf_sysctl[] = {
 		.maxlen		= sizeof(int),
 		.mode		= 0644,
 		.proc_handler	= addrconf_sysctl_mtu,
+	},
+	{
+		.procname	= "ra_mtu",
+		.data		= &ipv6_devconf.ra_mtu,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
 	},
 	{
 		.procname	= "accept_ra",

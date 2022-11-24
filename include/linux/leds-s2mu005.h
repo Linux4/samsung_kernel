@@ -13,11 +13,6 @@
 
 #define __MANGLE_NAME(_f_) _f_##_s2mu005
 
-#ifdef CONFIG_MUIC_NOTIFIER
-#include <linux/ssdev_in_mtk/muic/muic.h>
-#include <linux/ssdev_in_mtk/muic/muic_notifier.h>
-#endif /* CONFIG_MUIC_NOTIFIER */
-
 #define S2MU005_EN_CHANNEL_SHARE_MASK 0x80
 #define S2MU005_BOOST_VOUT_FLASH_MASK 0x1F
 

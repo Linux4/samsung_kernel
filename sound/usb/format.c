@@ -199,13 +199,15 @@ static int parse_audio_format_rates_v1(struct snd_usb_audio *chip, struct audiof
 			    (chip->usb_id == USB_ID(0x041e, 0x4064) ||
 			     chip->usb_id == USB_ID(0x041e, 0x4068)))
 				rate = 8000;
+			/* AudioBox 22 VSL */
+			if (rate > 48000 &&
+			    chip->usb_id == USB_ID(0x194f, 0x0101))
+				continue;
+
 			/* Huawei headset can't support 96kHz fully */
 			if (rate == 96000 &&
 			    chip->usb_id == USB_ID(0x12d1, 0x3a07) &&
 			    le16_to_cpu(udev->descriptor.bcdDevice) == 0x49)
-				continue;
-
-			if (rate > 48000)
 				continue;
 
 			fp->rate_table[fp->nr_rates] = rate;
@@ -311,12 +313,16 @@ static int parse_uac2_sample_rate_range(struct snd_usb_audio *chip,
 		}
 
 		for (rate = min; rate <= max; rate += res) {
+			/* AudioBox 22 VSL */
+			if (rate > 48000 &&
+			    chip->usb_id == USB_ID(0x194f, 0x0101))
+				break;
+
 			/* Filter out invalid rates on Focusrite devices */
 			if (USB_ID_VENDOR(chip->usb_id) == 0x1235 &&
 			    !focusrite_valid_sample_rate(chip, fp, rate))
 				goto skip_rate;
-			if (rate > 48000)
-				break;
+
 			if (fp->rate_table)
 				fp->rate_table[nr_rates] = rate;
 			if (!fp->rate_min || rate < fp->rate_min)
@@ -581,3 +587,4 @@ int snd_usb_parse_audio_format(struct snd_usb_audio *chip,
 #endif
 	return 0;
 }
+

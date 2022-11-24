@@ -15,11 +15,11 @@
 #define _MTK_BATTERY_PROPERTY_H
 
 /* customize */
-#define DIFFERENCE_FULLOCV_ITH	300	/* mA */
+#define DIFFERENCE_FULLOCV_ITH	200	/* mA */
 #define MTK_CHR_EXIST 1
 #define KEEP_100_PERCENT 1
 #define R_FG_VALUE	5				/* mOhm */
-#define EMBEDDED_SEL 1
+#define EMBEDDED_SEL 0
 #define PMIC_SHUTDOWN_CURRENT 20	/* 0.01 mA */
 #define FG_METER_RESISTANCE	100
 #define CAR_TUNE_VALUE	100 /*1.00 */
@@ -172,8 +172,9 @@
 #define DIFF_IAVG_TH 3000
 
 /* ZCV INTR */
-#define ZCV_SUSPEND_TIME 3
+#define ZCV_SUSPEND_TIME 7
 #define SLEEP_CURRENT_AVG 200 /*0.1mA*/
+#define ZCV_COM_VOL_LIMIT 50 /* 50mv */
 #define ZCV_CAR_GAP_PERCENTAGE 5
 
 /* Additional battery table */
@@ -223,24 +224,38 @@
 
 /* using current to limit uisoc in 100% case*/
 /* UI_FULL_LIMIT_ITH0 3000 means 300ma */
-#define UI_FULL_LIMIT_EN 1
-#define UI_FULL_LIMIT_SOC0 9500
-#define UI_FULL_LIMIT_ITH0 8500
+#define UI_FULL_LIMIT_EN 0
+#define UI_FULL_LIMIT_SOC0 9900
+#define UI_FULL_LIMIT_ITH0 2200
 
-#define UI_FULL_LIMIT_SOC1 9600
-#define UI_FULL_LIMIT_ITH1 7500
+#define UI_FULL_LIMIT_SOC1 9900
+#define UI_FULL_LIMIT_ITH1 2200
 
-#define UI_FULL_LIMIT_SOC2 9700
-#define UI_FULL_LIMIT_ITH2 6600
+#define UI_FULL_LIMIT_SOC2 9900
+#define UI_FULL_LIMIT_ITH2 2200
 
-#define UI_FULL_LIMIT_SOC3 9800
-#define UI_FULL_LIMIT_ITH3 6000
+#define UI_FULL_LIMIT_SOC3 9900
+#define UI_FULL_LIMIT_ITH3 2200
 
 #define UI_FULL_LIMIT_SOC4 9900
-#define UI_FULL_LIMIT_ITH4 5000
+#define UI_FULL_LIMIT_ITH4 2200
 
 #define UI_FULL_LIMIT_TIME 99999
 
+#define UI_FULL_LIMIT_FC_SOC0 9900
+#define UI_FULL_LIMIT_FC_ITH0 3000
+
+#define UI_FULL_LIMIT_FC_SOC1 9900
+#define UI_FULL_LIMIT_FC_ITH1 3100
+
+#define UI_FULL_LIMIT_FC_SOC2 9900
+#define UI_FULL_LIMIT_FC_ITH2 3200
+
+#define UI_FULL_LIMIT_FC_SOC3 9900
+#define UI_FULL_LIMIT_FC_ITH3 3300
+
+#define UI_FULL_LIMIT_FC_SOC4 9900
+#define UI_FULL_LIMIT_FC_ITH4 3400
 
 /* using voltage to limit uisoc in 1% case */
 /* UI_LOW_LIMIT_VTH0=36000 means 3.6v */

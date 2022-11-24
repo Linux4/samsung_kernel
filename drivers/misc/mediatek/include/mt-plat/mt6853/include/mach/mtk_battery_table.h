@@ -31,7 +31,7 @@
 #define Q_MAX_H_CURRENT 10000
 
 /* multiple battery profile compile options */
-/*#define MTK_GET_BATTERY_ID_BY_AUXADC*/
+#define MTK_GET_BATTERY_ID_BY_GPIO
 
 
 /* if ACTIVE_TABLE == 0 && MULTI_BATTERY == 0
@@ -198,7 +198,6 @@ int g_temperature[MAX_TABLE] = {
 
 #define BAT_NTC_10 1
 #define BAT_NTC_47 0
-#define BAT_NTC_100 0
 
 #if (BAT_NTC_10 == 1)
 #define RBAT_PULL_UP_R             24000
@@ -206,10 +205,6 @@ int g_temperature[MAX_TABLE] = {
 
 #if (BAT_NTC_47 == 1)
 #define RBAT_PULL_UP_R             61900
-#endif
-
-#if (BAT_NTC_100 == 1)
-#define RBAT_PULL_UP_R             100000
 #endif
 
 #define RBAT_PULL_UP_VOLT          2800
@@ -268,31 +263,7 @@ struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[21] = {
 };
 #endif
 
-#if (BAT_NTC_100 == 1)
-struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[21] = {
-		{-40, 4397119},
-		{-35, 3088598},
-		{-30, 2197225},
-		{-25, 1581880},
-		{-20, 1151036},
-		{-15, 846578},
-		{-10, 628988},
-		{-5, 471632},
-		{0, 357011},
-		{5, 272499},
-		{10, 209709},
-		{15, 162650},
-		{20, 127080},
-		{25, 100000},
-		{30, 79221},
-		{35, 63167},
-		{40, 50676},
-		{45, 40903},
-		{50, 33194},
-		{55, 27090},
-		{60, 22224}
-};
-#endif
+
 
 /* ============================================================
  * <DOD, Battery_Voltage> Table

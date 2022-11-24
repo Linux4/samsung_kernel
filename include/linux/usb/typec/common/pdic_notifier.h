@@ -55,6 +55,9 @@ typedef enum {
 	PDIC_NOTIFY_ID_CC_PIN_STATUS	= 15,
 	PDIC_NOTIFY_ID_WATER_CABLE		= 16,
 	PDIC_NOTIFY_ID_POFF_WATER		= 17,
+	PDIC_NOTIFY_ID_DEVICE_INFO		= 18,
+	PDIC_NOTIFY_ID_SVID_INFO		= 19,
+	PDIC_NOTIFY_ID_CLEAR_INFO		= 20,
 } pdic_notifier_id_t;
 
 typedef enum {
@@ -197,6 +200,44 @@ typedef struct {
 	void *pd;
 #endif
 } PD_NOTI_POWER_STATUS_TYPEDEF;
+
+/* ID = 18 : Device Info */
+typedef struct {
+	uint64_t src:4;
+	uint64_t dest:4;
+	uint64_t id:8;
+	uint64_t vendor_id:16;
+	uint64_t product_id:16;
+	uint64_t version:8;
+	uint64_t ifpmic_index:8;
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	void *pd;
+#endif
+} PD_NOTI_DEVICE_INFO_TYPEDEF;
+
+/* ID = 19 : Standard Vendor ID Info */
+typedef struct {
+	uint64_t src:4;
+	uint64_t dest:4;
+	uint64_t id:8;
+	uint64_t standard_vendor_id:16;
+	uint64_t reserved:32;
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	void *pd;
+#endif
+} PD_NOTI_SVID_INFO_TYPEDEF;
+
+/* ID = 20 : Clear ID Info */
+typedef struct {
+	uint64_t src:4;
+	uint64_t dest:4;
+	uint64_t id:8;
+	uint64_t clear_id:16;
+	uint64_t reserved:32;
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	void *pd;
+#endif
+} PD_NOTI_CLEAR_INFO_TYPEDEF;
 
 struct pdic_notifier_data {
 	PD_NOTI_TYPEDEF pdic_template;

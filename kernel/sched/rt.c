@@ -11,7 +11,6 @@
 #include "tune.h"
 
 #include <trace/events/sched.h>
-#include <trace/events/power.h>
 
 #include "walt.h"
 
@@ -1750,7 +1749,7 @@ static DEFINE_PER_CPU(cpumask_var_t, local_cpu_mask);
 #ifdef CONFIG_MTK_SCHED_INTEROP
 static int mt_sched_interop_rt(int cpu, struct cpumask *lowest_mask)
 {
-	int lowest_cpu = -1, lowest_prio = 0, refind = 0;
+	int lowest_cpu = -1, lowest_prio = 0;
 
 	trace_sched_interop(cpu, lowest_mask->bits[0]);
 
@@ -1758,9 +1757,6 @@ static int mt_sched_interop_rt(int cpu, struct cpumask *lowest_mask)
 			&& hmp_cpu_is_slowest(cpu) && !cpu_isolated(cpu))
 		return cpu;
 
-#ifdef CONFIG_SEC_PERF_MANAGER
-fallback:
-#endif /* CONFIG_SEC_PERF_MANAGER */
 	for_each_cpu(cpu, lowest_mask) {
 		struct rq *rq;
 		struct task_struct *curr;
@@ -1782,32 +1778,10 @@ fallback:
 
 	if (-1 != lowest_cpu)
 		return lowest_cpu;
-#ifdef CONFIG_SEC_PERF_MANAGER
-	else if (!refind) {
-		refind = 1;
-		lowest_mask = this_cpu_cpumask_var_ptr(local_cpu_mask);
-		goto fallback;
-	}
-#endif /* CONFIG_SEC_PERF_MANAGER */
 
 	return -1;
 }
 #endif
-
-#ifdef CONFIG_SEC_PERF_MANAGER
-static bool is_min_cluster(int cpu)
-{
-	struct root_domain *rd = cpu_rq(smp_processor_id())->rd;
-
-	if (rd->min_cap_orig_cpu < 0)
-		return false;
-
-	if (capacity_orig_of(cpu) == capacity_orig_of(rd->min_cap_orig_cpu))
-		return true;
-
-	return false;
-}
-#endif /* CONFIG_SEC_PERF_MANAGER */
 
 static int find_lowest_rq(struct task_struct *task)
 {
@@ -1819,14 +1793,6 @@ static int find_lowest_rq(struct task_struct *task)
 	int interop_cpu;
 #endif
 
-#ifdef CONFIG_SEC_PERF_MANAGER
-	int min_cpu;
-	struct sched_domain *bsd;
-	struct sched_group *sg;
-	struct cpumask tmp_mask;
-	int i;
-#endif /* CONFIG_SEC_PERF_MANAGER */
-
 	/* Make sure the mask is initialized first */
 	if (unlikely(!lowest_mask))
 		return -1;
@@ -1836,34 +1802,6 @@ static int find_lowest_rq(struct task_struct *task)
 
 	if (!cpupri_find(&task_rq(task)->rd->cpupri, task, lowest_mask))
 		return -1; /* No targets found */
-
-#ifdef CONFIG_SEC_PERF_MANAGER
-	if (!task->drawing_mig_boost)
-		goto orig;
-
-	min_cpu = cpu_rq(smp_processor_id())->rd->min_cap_orig_cpu;
-	if (min_cpu < 0)
-		goto orig;
-
-	bsd = rcu_dereference_check_sched_domain(cpu_rq(min_cpu)->sd);
-	if (!bsd)
-		goto orig;
-
-	sg = bsd->groups;
-	do {
-		int fcpu = group_first_cpu(sg);
-		int capacity_orig = capacity_orig_of(fcpu);
-
-		if (is_min_cluster(fcpu))
-			continue;
-		else {
-			cpumask_or(&tmp_mask, &tmp_mask, sched_group_span(sg));
-			lowest_mask = &tmp_mask;
-		}
-	} while (sg = sg->next, sg != bsd->groups);
-
-orig:
-#endif /* CONFIG_SEC_PERF_MANAGER */
 
 #ifdef CONFIG_MTK_SCHED_INTEROP
 	interop_cpu = mt_sched_interop_rt(cpu, lowest_mask);
@@ -1935,7 +1873,6 @@ static struct rq *find_lock_lowest_rq(struct task_struct *task, struct rq *rq)
 	struct rq *lowest_rq = NULL;
 	int tries;
 	int cpu;
-	bool cpu_allow_check = true;
 
 	for (tries = 0; tries < RT_MAX_TRIES; tries++) {
 		cpu = find_lowest_rq(task);
@@ -1963,12 +1900,8 @@ static struct rq *find_lock_lowest_rq(struct task_struct *task, struct rq *rq)
 			 * migrated already or had its affinity changed.
 			 * Also make sure that it wasn't scheduled on its rq.
 			 */
-#ifdef CONFIG_SEC_PERF_MANAGER
-			if (!task->drawing_mig_boost)
-				cpu_allow_check = cpumask_test_cpu(lowest_rq->cpu, &task->cpus_allowed);
-#endif /* CONFIG_SEC_PERF_MANAGER */
 			if (unlikely(task_rq(task) != rq ||
-				     !cpu_allow_check ||
+				     !cpumask_test_cpu(lowest_rq->cpu, &task->cpus_allowed) ||
 				     task_running(rq, task) ||
 				     !rt_task(task) ||
 				     !task_on_rq_queued(task))) {

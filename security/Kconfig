@@ -285,7 +285,6 @@ config SDP_KEY_DUMP
 	For dumping sensitive keying material for CC Certification test.
 	Enabled only for eng and userdebug builds.
 
-
 source "security/Kconfig.hardening"
 
 source "security/samsung/defex_lsm/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT

@@ -13,7 +13,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- */
+*/
 
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -60,7 +60,6 @@ static ssize_t switch_gpio_print_state(struct switch_dev *sdev, char *buf)
 	struct gpio_switch_data	*switch_data =
 		container_of(sdev, struct gpio_switch_data, sdev);
 	const char *state;
-
 	if (switch_get_state(sdev))
 		state = switch_data->state_on;
 	else

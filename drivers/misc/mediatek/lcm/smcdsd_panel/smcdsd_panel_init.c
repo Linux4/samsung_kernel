@@ -471,7 +471,7 @@ int __smcdsd_panel_get_params_from_dt(struct LCM_PARAMS *lcm_params)
 	*/
 	lcm_params->dsi.dfps_enable = !!islcmconnected;
 	lcm_params->dsi.dfps_default_fps = lcm_params->dsi.dfps_params[0].fps;
-	lcm_params->dsi.dfps_def_vact_tim_fps= lcm_params->dsi.dfps_params[lcm_params->dsi.dfps_num - 1].vact_timing_fps;
+	lcm_params->dsi.dfps_def_vact_tim_fps= lcm_params->dsi.dfps_params[lcm_params->dsi.dfps_num ? lcm_params->dsi.dfps_num - 1 : 0].vact_timing_fps;
 #if 0
 	pr_info("%s %d %d %d\n", __func__,
 		lcm_params->dsi.dfps_enable, lcm_params->dsi.dfps_default_fps, lcm_params->dsi.dfps_def_vact_tim_fps);
@@ -797,7 +797,7 @@ int lcd_driver_init(void)
 	}
 
 	count = __stop___lcd_driver - __start___lcd_driver;
-	if (count <= 1) {
+	if (count == 1) {
 		mipi_lcd_driver = *first;
 		return 0;
 	}

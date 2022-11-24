@@ -492,17 +492,9 @@ void __init arm64_memblock_init(void)
 			"initrd not fully accessible via the linear mapping -- please check your bootloader ...\n")) {
 			initrd_start = 0;
 		} else {
-			u64 start_up, end_dn, size_al;
-
-			start_up = PAGE_ALIGN(initrd_start);
-			end_dn = initrd_end & PAGE_MASK;
-			size_al = end_dn - start_up;
-
 			memblock_remove(base, size); /* clear MEMBLOCK_ flags */
 			memblock_add(base, size);
 			memblock_reserve(base, size);
-			record_memsize_reserved("initrd", start_up, size_al,
-						false, false);
 		}
 	}
 
@@ -535,6 +527,9 @@ void __init arm64_memblock_init(void)
 #ifdef CONFIG_BLK_DEV_INITRD
 	if (initrd_start) {
 		memblock_reserve(initrd_start, initrd_end - initrd_start);
+		record_memsize_reserved("initrd", initrd_start,
+					initrd_end - initrd_start, false,
+					false);
 
 		/* the generic initrd code expects virtual addresses */
 		initrd_start = __phys_to_virt(initrd_start);

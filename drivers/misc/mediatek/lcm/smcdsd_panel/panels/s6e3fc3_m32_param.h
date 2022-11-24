@@ -5,6 +5,8 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 
+#define LCD_TYPE_VENDOR		"SDC"
+
 #define EXTEND_BRIGHTNESS	486
 #define UI_MAX_BRIGHTNESS	255
 #define UI_DEFAULT_BRIGHTNESS	128

@@ -39,6 +39,7 @@ struct pdc_data {
 	int pd_vbus_upper_bound;
 	int ibus_err;
 	int vsys_watt;
+#if defined(CONFIG_BATTERY_SAMSUNG)
 	int pd_list_select;
 	int apdo_num;
 	int fpdo_num;
@@ -46,6 +47,7 @@ struct pdc_data {
 	int prev_available_pdo;
 	int was_hard_rst;
 	int ps_rdy;
+#endif
 };
 
 struct pdc {
@@ -62,7 +64,9 @@ struct pdc {
 	int pd_buck_idx;
 	int vbus_l;
 	int vbus_h;
-
+#if defined(CONFIG_BATTERY_SAMSUNG)
+	struct tcpc_device *tcpc;
+#endif
 	struct mutex access_lock;
 	struct mutex pmic_sync_lock;
 	struct wakeup_source suspend_lock;
@@ -78,19 +82,22 @@ extern int pdc_init(void);
 extern bool pdc_is_enable(void);
 extern bool pdc_is_connect(void);
 extern bool pdc_is_ready(void);
+#if defined(CONFIG_BATTERY_SAMSUNG)
 extern int pdc_clear(void);
 extern int pdc_hard_rst(void);
+extern struct pdic_notifier_struct pd_noti;
+#if defined(CONFIG_BATTERY_NOTIFIER)
+extern void select_pdo(int num);
+extern void (*fp_select_pdo)(int num);
+extern int (*fp_sec_pd_select_pps)(int num, int ppsVol, int ppsCur);
+extern int (*fp_sec_pd_get_apdo_max_power)(unsigned int *pdo_pos,
+		unsigned int *taMaxVol, unsigned int *taMaxCur, unsigned int *taMaxPwr);
+#endif
+int pdc_get_setting(void);
+#endif
 extern int pdc_reset(void);
 extern int pdc_stop(void);
 extern int pdc_run(void);
 extern int pdc_set_data(struct pdc_data data);
 extern struct pdc_data *pdc_get_data(void);
-#if defined(CONFIG_BATTERY_SAMSUNG)
-extern struct pdic_notifier_struct pd_noti;
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
-extern void select_pdo(int num);
-extern void (*fp_select_pdo)(int num);
-#endif
-#endif
-int pdc_get_setting(void);
 #endif /* __MTK_PDC_H */

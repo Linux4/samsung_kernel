@@ -112,7 +112,18 @@
 	/* Multi gauge0 enable*/
 		HWOCV_OLDOCV_DIFF = <(100)>;
 	/* Diff of HWOCV and SWOCV*/
-
+	UI_FULL_LIMIT_EN = <(1)>;
+	UI_FULL_LIMIT_SOC0 = <(9500)>;
+	UI_FULL_LIMIT_ITH0 = <(8500)>;
+	UI_FULL_LIMIT_SOC1 = <(9600)>;
+	UI_FULL_LIMIT_ITH1 = <(7500)>;
+	UI_FULL_LIMIT_SOC2 = <(9700)>;
+	UI_FULL_LIMIT_ITH2 = <(6600)>;
+	UI_FULL_LIMIT_SOC3 = <(9800)>;
+	UI_FULL_LIMIT_ITH3 = <(6000)>;
+	UI_FULL_LIMIT_SOC4 = <(9900)>;
+	UI_FULL_LIMIT_ITH4 = <(5000)>;
+/* Using current to limit uisoc in 100% case*/
 	/* battery_table.dtsi*/
 	battery0_profile_t0_num = <100>;
 	battery0_profile_t0_col = <3>;
@@ -852,6 +863,9 @@
 #define SEC_GPIO_REF(src, type, num)	&type num
 #define SEC_GPIO_NUM(src, type, num)	num
 #define SEC_GPIO_TYPE(src, type, num)	&type
+#define SEC_GPIO_PHANDLE_ACTIVE(src, type, num)	SEC_GPIO_PHANDLE(type, num, active)
+#define SEC_GPIO_PHANDLE_SLEEP(src, type, num)	SEC_GPIO_PHANDLE(type, num, sleep)
+#define SEC_GPIO_PHANDLE(type, num, mode)	type##_##num##_##mode
 
 #define MTK_PINMUX(gpio, func) (MTK_PIN_NO(gpio) | func)
 
@@ -1130,6 +1144,6589 @@
 /* #include "../ap_mtk_mt6853.dtsi" */               /* From ap_mtk_mt6853.py */
 #include <dt-bindings/clock/mt6853-clk.h>
 #include "../../mediatek/k6853v1_64_titan.dts"
+
+
+&pio {
+	/* pio-0 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 0): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 0) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 0), 0)>;
+			PIN_${pio_0_active_func};
+			#if 0
+			PIN_${pio_0_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_0_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 0): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 0) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 0), 0)>;
+			PIN_${pio_0_sleep_func};
+			#if 0
+			PIN_${pio_0_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_0_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-1 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 1): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 1) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 1), 0)>;
+			PIN_${pio_1_active_func};
+			#if 0
+			PIN_${pio_1_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_1_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 1): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 1) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 1), 0)>;
+			PIN_${pio_1_sleep_func};
+			#if 0
+			PIN_${pio_1_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_1_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-2 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 2): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 2) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 2), 0)>;
+			PIN_${pio_2_active_func};
+			#if 0
+			PIN_${pio_2_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_2_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 2): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 2) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 2), 0)>;
+			PIN_${pio_2_sleep_func};
+			#if 0
+			PIN_${pio_2_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_2_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-3 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 3): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 3) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 3), 0)>;
+			PIN_${pio_3_active_func};
+			#if 0
+			PIN_${pio_3_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_3_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 3): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 3) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 3), 0)>;
+			PIN_${pio_3_sleep_func};
+			#if 0
+			PIN_${pio_3_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_3_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-4 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 4): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 4) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 4), 0)>;
+			PIN_${pio_4_active_func};
+			#if 0
+			PIN_${pio_4_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_4_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 4): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 4) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 4), 0)>;
+			PIN_${pio_4_sleep_func};
+			#if 0
+			PIN_${pio_4_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_4_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-5 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 5): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 5) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 5), 0)>;
+			PIN_${pio_5_active_func};
+			#if 0
+			PIN_${pio_5_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_5_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 5): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 5) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 5), 0)>;
+			PIN_${pio_5_sleep_func};
+			#if 0
+			PIN_${pio_5_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_5_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-6 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 6): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 6) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 6), 0)>;
+			PIN_${pio_6_active_func};
+			#if 0
+			PIN_${pio_6_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_6_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 6): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 6) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 6), 0)>;
+			PIN_${pio_6_sleep_func};
+			#if 0
+			PIN_${pio_6_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_6_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-7 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 7): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 7) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 7), 0)>;
+			PIN_${pio_7_active_func};
+			#if 0
+			PIN_${pio_7_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_7_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 7): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 7) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 7), 0)>;
+			PIN_${pio_7_sleep_func};
+			#if 0
+			PIN_${pio_7_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_7_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-8 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 8): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 8) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 8), 0)>;
+			PIN_${pio_8_active_func};
+			#if 0
+			PIN_${pio_8_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_8_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 8): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 8) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 8), 0)>;
+			PIN_${pio_8_sleep_func};
+			#if 0
+			PIN_${pio_8_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_8_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-9 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 9): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 9) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 9), 0)>;
+			PIN_${pio_9_active_func};
+			#if 0
+			PIN_${pio_9_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_9_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 9): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 9) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 9), 0)>;
+			PIN_${pio_9_sleep_func};
+			#if 0
+			PIN_${pio_9_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_9_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-10 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 10): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 10) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 10), 0)>;
+			PIN_${pio_10_active_func};
+			#if 0
+			PIN_${pio_10_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_10_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 10): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 10) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 10), 0)>;
+			PIN_${pio_10_sleep_func};
+			#if 0
+			PIN_${pio_10_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_10_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-11 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 11): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 11) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 11), 0)>;
+			PIN_${pio_11_active_func};
+			#if 0
+			PIN_${pio_11_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_11_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 11): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 11) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 11), 0)>;
+			PIN_${pio_11_sleep_func};
+			#if 0
+			PIN_${pio_11_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_11_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-12 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 12): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 12) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 12), 0)>;
+			PIN_${pio_12_active_func};
+			#if 0
+			PIN_${pio_12_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_12_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 12): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 12) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 12), 0)>;
+			PIN_${pio_12_sleep_func};
+			#if 0
+			PIN_${pio_12_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_12_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-13 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 13): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 13) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 13), 0)>;
+			PIN_${pio_13_active_func};
+			#if 0
+			PIN_${pio_13_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_13_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 13): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 13) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 13), 0)>;
+			PIN_${pio_13_sleep_func};
+			#if 0
+			PIN_${pio_13_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_13_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-14 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 14): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 14) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 14), 0)>;
+			PIN_${pio_14_active_func};
+			#if 0
+			PIN_${pio_14_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_14_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 14): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 14) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 14), 0)>;
+			PIN_${pio_14_sleep_func};
+			#if 0
+			PIN_${pio_14_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_14_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-15 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 15): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 15) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 15), 0)>;
+			PIN_${pio_15_active_func};
+			#if 0
+			PIN_${pio_15_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_15_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 15): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 15) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 15), 0)>;
+			PIN_${pio_15_sleep_func};
+			#if 0
+			PIN_${pio_15_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_15_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-16 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 16): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 16) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 16), 0)>;
+			PIN_${pio_16_active_func};
+			#if 0
+			PIN_${pio_16_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_16_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 16): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 16) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 16), 0)>;
+			PIN_${pio_16_sleep_func};
+			#if 0
+			PIN_${pio_16_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_16_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-17 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 17): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 17) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 17), 0)>;
+			PIN_${pio_17_active_func};
+			#if 0
+			PIN_${pio_17_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_17_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 17): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 17) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 17), 0)>;
+			PIN_${pio_17_sleep_func};
+			#if 0
+			PIN_${pio_17_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_17_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-18 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 18): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 18) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 18), 0)>;
+			PIN_${pio_18_active_func};
+			#if 0
+			PIN_${pio_18_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_18_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 18): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 18) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 18), 0)>;
+			PIN_${pio_18_sleep_func};
+			#if 0
+			PIN_${pio_18_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_18_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-19 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 19): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 19) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 19), 0)>;
+			PIN_${pio_19_active_func};
+			#if 0
+			PIN_${pio_19_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_19_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 19): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 19) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 19), 0)>;
+			PIN_${pio_19_sleep_func};
+			#if 0
+			PIN_${pio_19_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_19_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-20 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 20): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 20) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 20), 0)>;
+			PIN_${pio_20_active_func};
+			#if 0
+			PIN_${pio_20_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_20_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 20): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 20) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 20), 0)>;
+			PIN_${pio_20_sleep_func};
+			#if 0
+			PIN_${pio_20_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_20_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-21 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 21): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 21) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 21), 0)>;
+			PIN_${pio_21_active_func};
+			#if 0
+			PIN_${pio_21_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_21_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 21): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 21) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 21), 0)>;
+			PIN_${pio_21_sleep_func};
+			#if 0
+			PIN_${pio_21_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_21_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-22 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 22): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 22) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 22), 0)>;
+			PIN_${pio_22_active_func};
+			#if 0
+			PIN_${pio_22_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_22_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 22): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 22) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 22), 0)>;
+			PIN_${pio_22_sleep_func};
+			#if 0
+			PIN_${pio_22_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_22_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-23 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 23): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 23) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 23), 0)>;
+			PIN_${pio_23_active_func};
+			#if 0
+			PIN_${pio_23_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_23_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 23): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 23) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 23), 0)>;
+			PIN_${pio_23_sleep_func};
+			#if 0
+			PIN_${pio_23_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_23_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-24 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 24): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 24) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 24), 0)>;
+			PIN_${pio_24_active_func};
+			#if 0
+			PIN_${pio_24_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_24_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 24): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 24) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 24), 0)>;
+			PIN_${pio_24_sleep_func};
+			#if 0
+			PIN_${pio_24_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_24_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-25 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 25): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 25) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 25), 0)>;
+			PIN_${pio_25_active_func};
+			#if 0
+			PIN_${pio_25_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_25_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 25): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 25) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 25), 0)>;
+			PIN_${pio_25_sleep_func};
+			#if 0
+			PIN_${pio_25_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_25_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-26 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 26): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 26) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 26), 0)>;
+			PIN_${pio_26_active_func};
+			#if 0
+			PIN_${pio_26_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_26_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 26): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 26) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 26), 0)>;
+			PIN_${pio_26_sleep_func};
+			#if 0
+			PIN_${pio_26_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_26_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-27 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 27): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 27) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 27), 0)>;
+			PIN_${pio_27_active_func};
+			#if 0
+			PIN_${pio_27_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_27_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 27): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 27) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 27), 0)>;
+			PIN_${pio_27_sleep_func};
+			#if 0
+			PIN_${pio_27_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_27_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-28 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 28): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 28) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 28), 0)>;
+			PIN_${pio_28_active_func};
+			#if 0
+			PIN_${pio_28_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_28_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 28): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 28) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 28), 0)>;
+			PIN_${pio_28_sleep_func};
+			#if 0
+			PIN_${pio_28_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_28_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-29 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 29): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 29) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 29), 0)>;
+			PIN_${pio_29_active_func};
+			#if 0
+			PIN_${pio_29_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_29_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 29): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 29) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 29), 0)>;
+			PIN_${pio_29_sleep_func};
+			#if 0
+			PIN_${pio_29_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_29_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-30 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 30): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 30) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 30), 0)>;
+			PIN_${pio_30_active_func};
+			#if 0
+			PIN_${pio_30_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_30_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 30): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 30) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 30), 0)>;
+			PIN_${pio_30_sleep_func};
+			#if 0
+			PIN_${pio_30_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_30_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-31 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 31): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 31) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 31), 0)>;
+			PIN_${pio_31_active_func};
+			#if 0
+			PIN_${pio_31_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_31_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 31): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 31) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 31), 0)>;
+			PIN_${pio_31_sleep_func};
+			#if 0
+			PIN_${pio_31_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_31_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-32 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 32): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 32) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 32), 0)>;
+			PIN_${pio_32_active_func};
+			#if 0
+			PIN_${pio_32_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_32_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 32): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 32) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 32), 0)>;
+			PIN_${pio_32_sleep_func};
+			#if 0
+			PIN_${pio_32_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_32_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-33 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 33): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 33) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 33), 0)>;
+			PIN_${pio_33_active_func};
+			#if 0
+			PIN_${pio_33_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_33_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 33): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 33) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 33), 0)>;
+			PIN_${pio_33_sleep_func};
+			#if 0
+			PIN_${pio_33_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_33_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-34 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 34): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 34) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 34), 0)>;
+			PIN_${pio_34_active_func};
+			#if 0
+			PIN_${pio_34_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_34_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 34): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 34) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 34), 0)>;
+			PIN_${pio_34_sleep_func};
+			#if 0
+			PIN_${pio_34_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_34_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-35 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 35): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 35) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 35), 0)>;
+			PIN_${pio_35_active_func};
+			#if 0
+			PIN_${pio_35_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_35_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 35): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 35) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 35), 0)>;
+			PIN_${pio_35_sleep_func};
+			#if 0
+			PIN_${pio_35_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_35_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-36 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 36): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 36) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 36), 0)>;
+			PIN_${pio_36_active_func};
+			#if 0
+			PIN_${pio_36_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_36_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 36): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 36) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 36), 0)>;
+			PIN_${pio_36_sleep_func};
+			#if 0
+			PIN_${pio_36_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_36_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-37 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 37): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 37) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 37), 0)>;
+			PIN_${pio_37_active_func};
+			#if 0
+			PIN_${pio_37_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_37_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 37): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 37) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 37), 0)>;
+			PIN_${pio_37_sleep_func};
+			#if 0
+			PIN_${pio_37_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_37_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-38 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 38): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 38) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 38), 0)>;
+			PIN_${pio_38_active_func};
+			#if 0
+			PIN_${pio_38_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_38_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 38): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 38) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 38), 0)>;
+			PIN_${pio_38_sleep_func};
+			#if 0
+			PIN_${pio_38_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_38_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-39 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 39): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 39) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 39), 0)>;
+			PIN_${pio_39_active_func};
+			#if 0
+			PIN_${pio_39_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_39_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 39): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 39) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 39), 0)>;
+			PIN_${pio_39_sleep_func};
+			#if 0
+			PIN_${pio_39_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_39_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-40 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 40): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 40) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 40), 0)>;
+			PIN_${pio_40_active_func};
+			#if 0
+			PIN_${pio_40_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_40_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 40): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 40) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 40), 0)>;
+			PIN_${pio_40_sleep_func};
+			#if 0
+			PIN_${pio_40_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_40_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-41 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 41): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 41) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 41), 0)>;
+			PIN_${pio_41_active_func};
+			#if 0
+			PIN_${pio_41_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_41_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 41): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 41) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 41), 0)>;
+			PIN_${pio_41_sleep_func};
+			#if 0
+			PIN_${pio_41_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_41_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-42 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 42): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 42) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 42), 0)>;
+			PIN_${pio_42_active_func};
+			#if 0
+			PIN_${pio_42_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_42_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 42): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 42) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 42), 0)>;
+			PIN_${pio_42_sleep_func};
+			#if 0
+			PIN_${pio_42_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_42_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-43 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 43): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 43) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 43), 0)>;
+			PIN_${pio_43_active_func};
+			#if 0
+			PIN_${pio_43_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_43_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 43): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 43) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 43), 0)>;
+			PIN_${pio_43_sleep_func};
+			#if 0
+			PIN_${pio_43_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_43_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-44 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 44): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 44) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 44), 0)>;
+			PIN_${pio_44_active_func};
+			#if 0
+			PIN_${pio_44_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_44_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 44): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 44) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 44), 0)>;
+			PIN_${pio_44_sleep_func};
+			#if 0
+			PIN_${pio_44_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_44_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-45 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 45): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 45) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 45), 0)>;
+			PIN_${pio_45_active_func};
+			#if 0
+			PIN_${pio_45_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_45_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 45): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 45) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 45), 0)>;
+			PIN_${pio_45_sleep_func};
+			#if 0
+			PIN_${pio_45_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_45_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-46 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 46): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 46) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 46), 0)>;
+			PIN_${pio_46_active_func};
+			#if 0
+			PIN_${pio_46_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_46_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 46): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 46) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 46), 0)>;
+			PIN_${pio_46_sleep_func};
+			#if 0
+			PIN_${pio_46_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_46_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-47 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 47): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 47) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 47), 0)>;
+			PIN_${pio_47_active_func};
+			#if 0
+			PIN_${pio_47_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_47_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 47): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 47) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 47), 0)>;
+			PIN_${pio_47_sleep_func};
+			#if 0
+			PIN_${pio_47_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_47_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-48 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 48): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 48) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 48), 0)>;
+			PIN_${pio_48_active_func};
+			#if 0
+			PIN_${pio_48_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_48_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 48): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 48) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 48), 0)>;
+			PIN_${pio_48_sleep_func};
+			#if 0
+			PIN_${pio_48_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_48_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-49 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 49): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 49) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 49), 0)>;
+			PIN_${pio_49_active_func};
+			#if 0
+			PIN_${pio_49_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_49_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 49): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 49) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 49), 0)>;
+			PIN_${pio_49_sleep_func};
+			#if 0
+			PIN_${pio_49_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_49_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-50 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 50): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 50) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 50), 0)>;
+			PIN_${pio_50_active_func};
+			#if 0
+			PIN_${pio_50_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_50_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 50): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 50) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 50), 0)>;
+			PIN_${pio_50_sleep_func};
+			#if 0
+			PIN_${pio_50_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_50_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-51 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 51): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 51) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 51), 0)>;
+			PIN_${pio_51_active_func};
+			#if 0
+			PIN_${pio_51_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_51_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 51): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 51) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 51), 0)>;
+			PIN_${pio_51_sleep_func};
+			#if 0
+			PIN_${pio_51_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_51_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-52 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 52): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 52) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 52), 0)>;
+			PIN_${pio_52_active_func};
+			#if 0
+			PIN_${pio_52_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_52_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 52): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 52) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 52), 0)>;
+			PIN_${pio_52_sleep_func};
+			#if 0
+			PIN_${pio_52_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_52_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-53 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 53): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 53) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 53), 0)>;
+			PIN_${pio_53_active_func};
+			#if 0
+			PIN_${pio_53_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_53_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 53): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 53) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 53), 0)>;
+			PIN_${pio_53_sleep_func};
+			#if 0
+			PIN_${pio_53_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_53_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-54 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 54): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 54) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 54), 0)>;
+			PIN_${pio_54_active_func};
+			#if 0
+			PIN_${pio_54_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_54_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 54): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 54) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 54), 0)>;
+			PIN_${pio_54_sleep_func};
+			#if 0
+			PIN_${pio_54_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_54_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-55 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 55): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 55) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 55), 0)>;
+			PIN_${pio_55_active_func};
+			#if 0
+			PIN_${pio_55_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_55_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 55): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 55) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 55), 0)>;
+			PIN_${pio_55_sleep_func};
+			#if 0
+			PIN_${pio_55_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_55_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-56 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 56): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 56) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 56), 0)>;
+			PIN_${pio_56_active_func};
+			#if 0
+			PIN_${pio_56_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_56_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 56): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 56) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 56), 0)>;
+			PIN_${pio_56_sleep_func};
+			#if 0
+			PIN_${pio_56_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_56_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-57 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 57): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 57) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 57), 0)>;
+			PIN_${pio_57_active_func};
+			#if 0
+			PIN_${pio_57_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_57_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 57): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 57) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 57), 0)>;
+			PIN_${pio_57_sleep_func};
+			#if 0
+			PIN_${pio_57_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_57_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-58 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 58): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 58) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 58), 0)>;
+			PIN_${pio_58_active_func};
+			#if 0
+			PIN_${pio_58_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_58_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 58): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 58) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 58), 0)>;
+			PIN_${pio_58_sleep_func};
+			#if 0
+			PIN_${pio_58_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_58_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-59 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 59): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 59) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 59), 0)>;
+			PIN_${pio_59_active_func};
+			#if 0
+			PIN_${pio_59_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_59_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 59): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 59) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 59), 0)>;
+			PIN_${pio_59_sleep_func};
+			#if 0
+			PIN_${pio_59_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_59_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-60 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 60): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 60) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 60), 0)>;
+			PIN_${pio_60_active_func};
+			#if 0
+			PIN_${pio_60_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_60_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 60): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 60) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 60), 0)>;
+			PIN_${pio_60_sleep_func};
+			#if 0
+			PIN_${pio_60_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_60_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-61 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 61): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 61) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 61), 0)>;
+			PIN_${pio_61_active_func};
+			#if 0
+			PIN_${pio_61_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_61_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 61): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 61) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 61), 0)>;
+			PIN_${pio_61_sleep_func};
+			#if 0
+			PIN_${pio_61_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_61_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-62 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 62): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 62) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 62), 0)>;
+			PIN_${pio_62_active_func};
+			#if 0
+			PIN_${pio_62_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_62_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 62): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 62) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 62), 0)>;
+			PIN_${pio_62_sleep_func};
+			#if 0
+			PIN_${pio_62_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_62_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-63 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 63): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 63) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 63), 0)>;
+			PIN_${pio_63_active_func};
+			#if 0
+			PIN_${pio_63_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_63_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 63): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 63) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 63), 0)>;
+			PIN_${pio_63_sleep_func};
+			#if 0
+			PIN_${pio_63_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_63_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-64 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 64): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 64) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 64), 0)>;
+			PIN_${pio_64_active_func};
+			#if 0
+			PIN_${pio_64_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_64_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 64): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 64) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 64), 0)>;
+			PIN_${pio_64_sleep_func};
+			#if 0
+			PIN_${pio_64_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_64_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-65 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 65): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 65) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 65), 0)>;
+			PIN_${pio_65_active_func};
+			#if 0
+			PIN_${pio_65_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_65_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 65): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 65) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 65), 0)>;
+			PIN_${pio_65_sleep_func};
+			#if 0
+			PIN_${pio_65_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_65_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-66 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 66): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 66) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 66), 0)>;
+			PIN_${pio_66_active_func};
+			#if 0
+			PIN_${pio_66_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_66_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 66): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 66) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 66), 0)>;
+			PIN_${pio_66_sleep_func};
+			#if 0
+			PIN_${pio_66_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_66_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-67 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 67): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 67) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 67), 0)>;
+			PIN_${pio_67_active_func};
+			#if 0
+			PIN_${pio_67_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_67_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 67): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 67) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 67), 0)>;
+			PIN_${pio_67_sleep_func};
+			#if 0
+			PIN_${pio_67_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_67_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-68 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 68): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 68) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 68), 0)>;
+			PIN_${pio_68_active_func};
+			#if 0
+			PIN_${pio_68_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_68_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 68): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 68) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 68), 0)>;
+			PIN_${pio_68_sleep_func};
+			#if 0
+			PIN_${pio_68_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_68_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-69 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 69): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 69) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 69), 0)>;
+			PIN_${pio_69_active_func};
+			#if 0
+			PIN_${pio_69_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_69_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 69): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 69) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 69), 0)>;
+			PIN_${pio_69_sleep_func};
+			#if 0
+			PIN_${pio_69_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_69_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-70 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 70): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 70) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 70), 0)>;
+			PIN_${pio_70_active_func};
+			#if 0
+			PIN_${pio_70_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_70_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 70): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 70) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 70), 0)>;
+			PIN_${pio_70_sleep_func};
+			#if 0
+			PIN_${pio_70_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_70_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-71 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 71): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 71) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 71), 0)>;
+			PIN_${pio_71_active_func};
+			#if 0
+			PIN_${pio_71_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_71_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 71): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 71) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 71), 0)>;
+			PIN_${pio_71_sleep_func};
+			#if 0
+			PIN_${pio_71_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_71_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-72 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 72): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 72) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 72), 0)>;
+			PIN_${pio_72_active_func};
+			#if 0
+			PIN_${pio_72_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_72_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 72): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 72) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 72), 0)>;
+			PIN_${pio_72_sleep_func};
+			#if 0
+			PIN_${pio_72_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_72_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-73 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 73): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 73) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 73), 0)>;
+			PIN_${pio_73_active_func};
+			#if 0
+			PIN_${pio_73_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_73_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 73): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 73) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 73), 0)>;
+			PIN_${pio_73_sleep_func};
+			#if 0
+			PIN_${pio_73_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_73_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-74 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 74): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 74) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 74), 0)>;
+			PIN_${pio_74_active_func};
+			#if 0
+			PIN_${pio_74_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_74_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 74): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 74) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 74), 0)>;
+			PIN_${pio_74_sleep_func};
+			#if 0
+			PIN_${pio_74_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_74_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-75 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 75): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 75) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 75), 0)>;
+			PIN_${pio_75_active_func};
+			#if 0
+			PIN_${pio_75_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_75_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 75): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 75) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 75), 0)>;
+			PIN_${pio_75_sleep_func};
+			#if 0
+			PIN_${pio_75_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_75_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-76 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 76): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 76) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 76), 0)>;
+			PIN_${pio_76_active_func};
+			#if 0
+			PIN_${pio_76_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_76_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 76): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 76) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 76), 0)>;
+			PIN_${pio_76_sleep_func};
+			#if 0
+			PIN_${pio_76_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_76_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-77 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 77): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 77) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 77), 0)>;
+			PIN_${pio_77_active_func};
+			#if 0
+			PIN_${pio_77_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_77_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 77): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 77) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 77), 0)>;
+			PIN_${pio_77_sleep_func};
+			#if 0
+			PIN_${pio_77_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_77_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-78 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 78): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 78) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 78), 0)>;
+			PIN_${pio_78_active_func};
+			#if 0
+			PIN_${pio_78_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_78_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 78): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 78) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 78), 0)>;
+			PIN_${pio_78_sleep_func};
+			#if 0
+			PIN_${pio_78_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_78_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-79 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 79): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 79) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 79), 0)>;
+			PIN_${pio_79_active_func};
+			#if 0
+			PIN_${pio_79_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_79_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 79): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 79) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 79), 0)>;
+			PIN_${pio_79_sleep_func};
+			#if 0
+			PIN_${pio_79_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_79_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-80 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 80): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 80) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 80), 0)>;
+			PIN_${pio_80_active_func};
+			#if 0
+			PIN_${pio_80_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_80_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 80): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 80) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 80), 0)>;
+			PIN_${pio_80_sleep_func};
+			#if 0
+			PIN_${pio_80_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_80_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-81 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 81): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 81) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 81), 0)>;
+			PIN_${pio_81_active_func};
+			#if 0
+			PIN_${pio_81_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_81_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 81): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 81) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 81), 0)>;
+			PIN_${pio_81_sleep_func};
+			#if 0
+			PIN_${pio_81_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_81_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-82 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 82): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 82) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 82), 0)>;
+			PIN_${pio_82_active_func};
+			#if 0
+			PIN_${pio_82_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_82_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 82): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 82) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 82), 0)>;
+			PIN_${pio_82_sleep_func};
+			#if 0
+			PIN_${pio_82_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_82_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-83 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 83): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 83) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 83), 0)>;
+			PIN_${pio_83_active_func};
+			#if 0
+			PIN_${pio_83_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_83_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 83): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 83) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 83), 0)>;
+			PIN_${pio_83_sleep_func};
+			#if 0
+			PIN_${pio_83_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_83_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-84 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 84): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 84) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 84), 0)>;
+			PIN_${pio_84_active_func};
+			#if 0
+			PIN_${pio_84_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_84_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 84): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 84) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 84), 0)>;
+			PIN_${pio_84_sleep_func};
+			#if 0
+			PIN_${pio_84_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_84_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-85 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 85): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 85) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 85), 0)>;
+			PIN_${pio_85_active_func};
+			#if 0
+			PIN_${pio_85_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_85_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 85): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 85) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 85), 0)>;
+			PIN_${pio_85_sleep_func};
+			#if 0
+			PIN_${pio_85_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_85_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-86 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 86): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 86) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 86), 0)>;
+			PIN_${pio_86_active_func};
+			#if 0
+			PIN_${pio_86_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_86_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 86): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 86) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 86), 0)>;
+			PIN_${pio_86_sleep_func};
+			#if 0
+			PIN_${pio_86_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_86_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-87 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 87): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 87) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 87), 0)>;
+			PIN_${pio_87_active_func};
+			#if 0
+			PIN_${pio_87_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_87_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 87): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 87) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 87), 0)>;
+			PIN_${pio_87_sleep_func};
+			#if 0
+			PIN_${pio_87_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_87_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-88 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 88): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 88) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 88), 0)>;
+			PIN_${pio_88_active_func};
+			#if 0
+			PIN_${pio_88_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_88_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 88): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 88) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 88), 0)>;
+			PIN_${pio_88_sleep_func};
+			#if 0
+			PIN_${pio_88_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_88_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-89 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 89): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 89) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 89), 0)>;
+			PIN_${pio_89_active_func};
+			#if 0
+			PIN_${pio_89_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_89_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 89): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 89) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 89), 0)>;
+			PIN_${pio_89_sleep_func};
+			#if 0
+			PIN_${pio_89_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_89_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-90 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 90): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 90) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 90), 0)>;
+			PIN_${pio_90_active_func};
+			#if 0
+			PIN_${pio_90_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_90_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 90): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 90) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 90), 0)>;
+			PIN_${pio_90_sleep_func};
+			#if 0
+			PIN_${pio_90_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_90_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-91 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 91): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 91) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 91), 0)>;
+			PIN_${pio_91_active_func};
+			#if 0
+			PIN_${pio_91_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_91_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 91): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 91) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 91), 0)>;
+			PIN_${pio_91_sleep_func};
+			#if 0
+			PIN_${pio_91_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_91_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-92 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 92): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 92) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 92), 0)>;
+			PIN_${pio_92_active_func};
+			#if 0
+			PIN_${pio_92_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_92_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 92): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 92) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 92), 0)>;
+			PIN_${pio_92_sleep_func};
+			#if 0
+			PIN_${pio_92_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_92_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-93 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 93): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 93) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 93), 0)>;
+			PIN_${pio_93_active_func};
+			#if 0
+			PIN_${pio_93_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_93_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 93): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 93) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 93), 0)>;
+			PIN_${pio_93_sleep_func};
+			#if 0
+			PIN_${pio_93_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_93_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-94 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 94): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 94) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 94), 0)>;
+			PIN_${pio_94_active_func};
+			#if 0
+			PIN_${pio_94_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_94_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 94): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 94) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 94), 0)>;
+			PIN_${pio_94_sleep_func};
+			#if 0
+			PIN_${pio_94_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_94_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-95 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 95): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 95) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 95), 0)>;
+			PIN_${pio_95_active_func};
+			#if 0
+			PIN_${pio_95_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_95_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 95): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 95) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 95), 0)>;
+			PIN_${pio_95_sleep_func};
+			#if 0
+			PIN_${pio_95_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_95_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-96 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 96): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 96) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 96), 0)>;
+			PIN_${pio_96_active_func};
+			#if 0
+			PIN_${pio_96_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_96_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 96): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 96) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 96), 0)>;
+			PIN_${pio_96_sleep_func};
+			#if 0
+			PIN_${pio_96_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_96_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-97 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 97): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 97) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 97), 0)>;
+			PIN_${pio_97_active_func};
+			#if 0
+			PIN_${pio_97_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_97_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 97): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 97) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 97), 0)>;
+			PIN_${pio_97_sleep_func};
+			#if 0
+			PIN_${pio_97_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_97_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-98 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 98): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 98) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 98), 0)>;
+			PIN_${pio_98_active_func};
+			#if 0
+			PIN_${pio_98_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_98_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 98): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 98) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 98), 0)>;
+			PIN_${pio_98_sleep_func};
+			#if 0
+			PIN_${pio_98_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_98_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-99 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 99): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 99) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 99), 0)>;
+			PIN_${pio_99_active_func};
+			#if 0
+			PIN_${pio_99_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_99_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 99): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 99) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 99), 0)>;
+			PIN_${pio_99_sleep_func};
+			#if 0
+			PIN_${pio_99_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_99_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-100 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 100): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 100) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 100), 0)>;
+			PIN_${pio_100_active_func};
+			#if 0
+			PIN_${pio_100_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_100_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 100): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 100) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 100), 0)>;
+			PIN_${pio_100_sleep_func};
+			#if 0
+			PIN_${pio_100_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_100_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-101 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 101): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 101) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 101), 0)>;
+			PIN_${pio_101_active_func};
+			#if 0
+			PIN_${pio_101_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_101_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 101): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 101) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 101), 0)>;
+			PIN_${pio_101_sleep_func};
+			#if 0
+			PIN_${pio_101_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_101_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-102 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 102): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 102) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 102), 0)>;
+			PIN_${pio_102_active_func};
+			#if 0
+			PIN_${pio_102_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_102_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 102): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 102) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 102), 0)>;
+			PIN_${pio_102_sleep_func};
+			#if 0
+			PIN_${pio_102_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_102_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-103 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 103): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 103) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 103), 0)>;
+			PIN_${pio_103_active_func};
+			#if 0
+			PIN_${pio_103_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_103_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 103): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 103) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 103), 0)>;
+			PIN_${pio_103_sleep_func};
+			#if 0
+			PIN_${pio_103_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_103_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-104 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 104): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 104) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 104), 0)>;
+			PIN_${pio_104_active_func};
+			#if 0
+			PIN_${pio_104_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_104_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 104): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 104) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 104), 0)>;
+			PIN_${pio_104_sleep_func};
+			#if 0
+			PIN_${pio_104_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_104_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-105 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 105): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 105) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 105), 0)>;
+			PIN_${pio_105_active_func};
+			#if 0
+			PIN_${pio_105_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_105_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 105): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 105) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 105), 0)>;
+			PIN_${pio_105_sleep_func};
+			#if 0
+			PIN_${pio_105_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_105_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-106 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 106): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 106) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 106), 0)>;
+			PIN_${pio_106_active_func};
+			#if 0
+			PIN_${pio_106_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_106_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 106): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 106) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 106), 0)>;
+			PIN_${pio_106_sleep_func};
+			#if 0
+			PIN_${pio_106_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_106_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-107 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 107): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 107) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 107), 0)>;
+			PIN_${pio_107_active_func};
+			#if 0
+			PIN_${pio_107_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_107_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 107): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 107) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 107), 0)>;
+			PIN_${pio_107_sleep_func};
+			#if 0
+			PIN_${pio_107_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_107_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-108 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 108): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 108) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 108), 0)>;
+			PIN_${pio_108_active_func};
+			#if 0
+			PIN_${pio_108_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_108_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 108): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 108) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 108), 0)>;
+			PIN_${pio_108_sleep_func};
+			#if 0
+			PIN_${pio_108_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_108_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-109 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 109): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 109) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 109), 0)>;
+			PIN_${pio_109_active_func};
+			#if 0
+			PIN_${pio_109_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_109_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 109): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 109) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 109), 0)>;
+			PIN_${pio_109_sleep_func};
+			#if 0
+			PIN_${pio_109_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_109_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-110 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 110): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 110) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 110), 0)>;
+			PIN_${pio_110_active_func};
+			#if 0
+			PIN_${pio_110_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_110_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 110): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 110) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 110), 0)>;
+			PIN_${pio_110_sleep_func};
+			#if 0
+			PIN_${pio_110_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_110_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-111 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 111): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 111) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 111), 0)>;
+			PIN_${pio_111_active_func};
+			#if 0
+			PIN_${pio_111_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_111_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 111): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 111) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 111), 0)>;
+			PIN_${pio_111_sleep_func};
+			#if 0
+			PIN_${pio_111_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_111_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-112 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 112): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 112) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 112), 0)>;
+			PIN_${pio_112_active_func};
+			#if 0
+			PIN_${pio_112_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_112_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 112): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 112) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 112), 0)>;
+			PIN_${pio_112_sleep_func};
+			#if 0
+			PIN_${pio_112_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_112_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-113 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 113): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 113) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 113), 0)>;
+			PIN_${pio_113_active_func};
+			#if 0
+			PIN_${pio_113_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_113_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 113): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 113) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 113), 0)>;
+			PIN_${pio_113_sleep_func};
+			#if 0
+			PIN_${pio_113_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_113_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-114 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 114): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 114) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 114), 0)>;
+			PIN_${pio_114_active_func};
+			#if 0
+			PIN_${pio_114_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_114_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 114): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 114) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 114), 0)>;
+			PIN_${pio_114_sleep_func};
+			#if 0
+			PIN_${pio_114_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_114_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-115 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 115): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 115) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 115), 0)>;
+			PIN_${pio_115_active_func};
+			#if 0
+			PIN_${pio_115_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_115_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 115): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 115) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 115), 0)>;
+			PIN_${pio_115_sleep_func};
+			#if 0
+			PIN_${pio_115_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_115_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-116 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 116): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 116) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 116), 0)>;
+			PIN_${pio_116_active_func};
+			#if 0
+			PIN_${pio_116_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_116_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 116): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 116) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 116), 0)>;
+			PIN_${pio_116_sleep_func};
+			#if 0
+			PIN_${pio_116_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_116_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-117 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 117): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 117) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 117), 0)>;
+			PIN_${pio_117_active_func};
+			#if 0
+			PIN_${pio_117_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_117_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 117): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 117) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 117), 0)>;
+			PIN_${pio_117_sleep_func};
+			#if 0
+			PIN_${pio_117_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_117_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-118 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 118): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 118) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 118), 0)>;
+			PIN_${pio_118_active_func};
+			#if 0
+			PIN_${pio_118_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_118_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 118): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 118) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 118), 0)>;
+			PIN_${pio_118_sleep_func};
+			#if 0
+			PIN_${pio_118_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_118_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-119 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 119): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 119) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 119), 0)>;
+			PIN_${pio_119_active_func};
+			#if 0
+			PIN_${pio_119_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_119_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 119): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 119) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 119), 0)>;
+			PIN_${pio_119_sleep_func};
+			#if 0
+			PIN_${pio_119_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_119_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-120 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 120): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 120) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 120), 0)>;
+			PIN_${pio_120_active_func};
+			#if 0
+			PIN_${pio_120_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_120_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 120): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 120) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 120), 0)>;
+			PIN_${pio_120_sleep_func};
+			#if 0
+			PIN_${pio_120_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_120_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-121 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 121): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 121) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 121), 0)>;
+			PIN_${pio_121_active_func};
+			#if 0
+			PIN_${pio_121_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_121_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 121): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 121) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 121), 0)>;
+			PIN_${pio_121_sleep_func};
+			#if 0
+			PIN_${pio_121_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_121_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-122 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 122): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 122) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 122), 0)>;
+			PIN_${pio_122_active_func};
+			#if 0
+			PIN_${pio_122_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_122_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 122): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 122) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 122), 0)>;
+			PIN_${pio_122_sleep_func};
+			#if 0
+			PIN_${pio_122_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_122_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-123 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 123): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 123) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 123), 0)>;
+			PIN_${pio_123_active_func};
+			#if 0
+			PIN_${pio_123_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_123_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 123): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 123) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 123), 0)>;
+			PIN_${pio_123_sleep_func};
+			#if 0
+			PIN_${pio_123_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_123_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-124 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 124): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 124) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 124), 0)>;
+			PIN_${pio_124_active_func};
+			#if 0
+			PIN_${pio_124_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_124_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 124): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 124) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 124), 0)>;
+			PIN_${pio_124_sleep_func};
+			#if 0
+			PIN_${pio_124_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_124_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-125 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 125): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 125) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 125), 0)>;
+			PIN_${pio_125_active_func};
+			#if 0
+			PIN_${pio_125_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_125_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 125): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 125) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 125), 0)>;
+			PIN_${pio_125_sleep_func};
+			#if 0
+			PIN_${pio_125_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_125_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-126 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 126): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 126) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 126), 0)>;
+			PIN_${pio_126_active_func};
+			#if 0
+			PIN_${pio_126_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_126_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 126): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 126) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 126), 0)>;
+			PIN_${pio_126_sleep_func};
+			#if 0
+			PIN_${pio_126_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_126_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-127 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 127): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 127) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 127), 0)>;
+			PIN_${pio_127_active_func};
+			#if 0
+			PIN_${pio_127_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_127_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 127): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 127) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 127), 0)>;
+			PIN_${pio_127_sleep_func};
+			#if 0
+			PIN_${pio_127_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_127_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-128 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 128): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 128) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 128), 0)>;
+			PIN_${pio_128_active_func};
+			#if 0
+			PIN_${pio_128_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_128_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 128): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 128) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 128), 0)>;
+			PIN_${pio_128_sleep_func};
+			#if 0
+			PIN_${pio_128_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_128_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-129 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 129): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 129) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 129), 0)>;
+			PIN_${pio_129_active_func};
+			#if 0
+			PIN_${pio_129_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_129_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 129): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 129) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 129), 0)>;
+			PIN_${pio_129_sleep_func};
+			#if 0
+			PIN_${pio_129_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_129_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-130 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 130): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 130) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 130), 0)>;
+			PIN_${pio_130_active_func};
+			#if 0
+			PIN_${pio_130_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_130_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 130): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 130) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 130), 0)>;
+			PIN_${pio_130_sleep_func};
+			#if 0
+			PIN_${pio_130_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_130_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-131 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 131): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 131) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 131), 0)>;
+			PIN_${pio_131_active_func};
+			#if 0
+			PIN_${pio_131_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_131_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 131): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 131) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 131), 0)>;
+			PIN_${pio_131_sleep_func};
+			#if 0
+			PIN_${pio_131_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_131_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-132 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 132): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 132) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 132), 0)>;
+			PIN_${pio_132_active_func};
+			#if 0
+			PIN_${pio_132_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_132_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 132): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 132) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 132), 0)>;
+			PIN_${pio_132_sleep_func};
+			#if 0
+			PIN_${pio_132_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_132_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-133 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 133): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 133) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 133), 0)>;
+			PIN_${pio_133_active_func};
+			#if 0
+			PIN_${pio_133_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_133_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 133): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 133) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 133), 0)>;
+			PIN_${pio_133_sleep_func};
+			#if 0
+			PIN_${pio_133_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_133_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-134 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 134): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 134) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 134), 0)>;
+			PIN_${pio_134_active_func};
+			#if 0
+			PIN_${pio_134_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_134_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 134): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 134) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 134), 0)>;
+			PIN_${pio_134_sleep_func};
+			#if 0
+			PIN_${pio_134_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_134_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-135 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 135): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 135) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 135), 0)>;
+			PIN_${pio_135_active_func};
+			#if 0
+			PIN_${pio_135_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_135_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 135): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 135) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 135), 0)>;
+			PIN_${pio_135_sleep_func};
+			#if 0
+			PIN_${pio_135_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_135_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-136 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 136): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 136) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 136), 0)>;
+			PIN_${pio_136_active_func};
+			#if 0
+			PIN_${pio_136_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_136_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 136): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 136) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 136), 0)>;
+			PIN_${pio_136_sleep_func};
+			#if 0
+			PIN_${pio_136_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_136_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-137 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 137): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 137) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 137), 0)>;
+			PIN_${pio_137_active_func};
+			#if 0
+			PIN_${pio_137_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_137_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 137): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 137) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 137), 0)>;
+			PIN_${pio_137_sleep_func};
+			#if 0
+			PIN_${pio_137_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_137_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-138 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 138): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 138) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 138), 0)>;
+			PIN_${pio_138_active_func};
+			#if 0
+			PIN_${pio_138_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_138_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 138): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 138) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 138), 0)>;
+			PIN_${pio_138_sleep_func};
+			#if 0
+			PIN_${pio_138_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_138_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-139 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 139): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 139) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 139), 0)>;
+			PIN_${pio_139_active_func};
+			#if 0
+			PIN_${pio_139_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_139_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 139): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 139) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 139), 0)>;
+			PIN_${pio_139_sleep_func};
+			#if 0
+			PIN_${pio_139_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_139_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-140 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 140): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 140) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 140), 0)>;
+			PIN_${pio_140_active_func};
+			#if 0
+			PIN_${pio_140_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_140_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 140): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 140) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 140), 0)>;
+			PIN_${pio_140_sleep_func};
+			#if 0
+			PIN_${pio_140_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_140_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-141 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 141): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 141) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 141), 0)>;
+			PIN_${pio_141_active_func};
+			#if 0
+			PIN_${pio_141_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_141_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 141): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 141) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 141), 0)>;
+			PIN_${pio_141_sleep_func};
+			#if 0
+			PIN_${pio_141_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_141_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-142 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 142): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 142) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 142), 0)>;
+			PIN_${pio_142_active_func};
+			#if 0
+			PIN_${pio_142_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_142_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 142): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 142) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 142), 0)>;
+			PIN_${pio_142_sleep_func};
+			#if 0
+			PIN_${pio_142_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_142_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-143 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 143): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 143) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 143), 0)>;
+			PIN_${pio_143_active_func};
+			#if 0
+			PIN_${pio_143_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_143_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 143): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 143) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 143), 0)>;
+			PIN_${pio_143_sleep_func};
+			#if 0
+			PIN_${pio_143_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_143_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-144 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 144): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 144) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 144), 0)>;
+			PIN_${pio_144_active_func};
+			#if 0
+			PIN_${pio_144_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_144_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 144): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 144) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 144), 0)>;
+			PIN_${pio_144_sleep_func};
+			#if 0
+			PIN_${pio_144_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_144_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-145 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 145): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 145) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 145), 0)>;
+			PIN_${pio_145_active_func};
+			#if 0
+			PIN_${pio_145_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_145_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 145): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 145) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 145), 0)>;
+			PIN_${pio_145_sleep_func};
+			#if 0
+			PIN_${pio_145_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_145_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-146 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 146): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 146) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 146), 0)>;
+			PIN_${pio_146_active_func};
+			#if 0
+			PIN_${pio_146_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_146_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 146): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 146) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 146), 0)>;
+			PIN_${pio_146_sleep_func};
+			#if 0
+			PIN_${pio_146_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_146_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-147 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 147): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 147) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 147), 0)>;
+			PIN_${pio_147_active_func};
+			#if 0
+			PIN_${pio_147_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_147_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 147): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 147) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 147), 0)>;
+			PIN_${pio_147_sleep_func};
+			#if 0
+			PIN_${pio_147_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_147_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-148 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 148): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 148) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 148), 0)>;
+			PIN_${pio_148_active_func};
+			#if 0
+			PIN_${pio_148_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_148_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 148): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 148) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 148), 0)>;
+			PIN_${pio_148_sleep_func};
+			#if 0
+			PIN_${pio_148_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_148_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-149 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 149): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 149) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 149), 0)>;
+			PIN_${pio_149_active_func};
+			#if 0
+			PIN_${pio_149_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_149_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 149): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 149) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 149), 0)>;
+			PIN_${pio_149_sleep_func};
+			#if 0
+			PIN_${pio_149_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_149_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-150 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 150): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 150) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 150), 0)>;
+			PIN_${pio_150_active_func};
+			#if 0
+			PIN_${pio_150_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_150_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 150): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 150) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 150), 0)>;
+			PIN_${pio_150_sleep_func};
+			#if 0
+			PIN_${pio_150_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_150_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-151 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 151): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 151) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 151), 0)>;
+			PIN_${pio_151_active_func};
+			#if 0
+			PIN_${pio_151_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_151_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 151): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 151) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 151), 0)>;
+			PIN_${pio_151_sleep_func};
+			#if 0
+			PIN_${pio_151_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_151_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-152 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 152): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 152) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 152), 0)>;
+			PIN_${pio_152_active_func};
+			#if 0
+			PIN_${pio_152_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_152_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 152): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 152) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 152), 0)>;
+			PIN_${pio_152_sleep_func};
+			#if 0
+			PIN_${pio_152_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_152_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-153 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 153): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 153) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 153), 0)>;
+			PIN_${pio_153_active_func};
+			#if 0
+			PIN_${pio_153_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_153_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 153): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 153) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 153), 0)>;
+			PIN_${pio_153_sleep_func};
+			#if 0
+			PIN_${pio_153_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_153_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-154 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 154): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 154) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 154), 0)>;
+			PIN_${pio_154_active_func};
+			#if 0
+			PIN_${pio_154_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_154_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 154): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 154) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 154), 0)>;
+			PIN_${pio_154_sleep_func};
+			#if 0
+			PIN_${pio_154_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_154_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-155 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 155): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 155) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 155), 0)>;
+			PIN_${pio_155_active_func};
+			#if 0
+			PIN_${pio_155_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_155_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 155): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 155) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 155), 0)>;
+			PIN_${pio_155_sleep_func};
+			#if 0
+			PIN_${pio_155_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_155_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-156 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 156): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 156) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 156), 0)>;
+			PIN_${pio_156_active_func};
+			#if 0
+			PIN_${pio_156_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_156_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 156): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 156) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 156), 0)>;
+			PIN_${pio_156_sleep_func};
+			#if 0
+			PIN_${pio_156_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_156_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-157 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 157): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 157) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 157), 0)>;
+			PIN_${pio_157_active_func};
+			#if 0
+			PIN_${pio_157_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_157_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 157): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 157) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 157), 0)>;
+			PIN_${pio_157_sleep_func};
+			#if 0
+			PIN_${pio_157_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_157_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-158 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 158): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 158) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 158), 0)>;
+			PIN_${pio_158_active_func};
+			#if 0
+			PIN_${pio_158_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_158_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 158): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 158) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 158), 0)>;
+			PIN_${pio_158_sleep_func};
+			#if 0
+			PIN_${pio_158_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_158_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-159 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 159): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 159) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 159), 0)>;
+			PIN_${pio_159_active_func};
+			#if 0
+			PIN_${pio_159_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_159_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 159): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 159) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 159), 0)>;
+			PIN_${pio_159_sleep_func};
+			#if 0
+			PIN_${pio_159_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_159_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-160 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 160): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 160) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 160), 0)>;
+			PIN_${pio_160_active_func};
+			#if 0
+			PIN_${pio_160_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_160_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 160): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 160) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 160), 0)>;
+			PIN_${pio_160_sleep_func};
+			#if 0
+			PIN_${pio_160_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_160_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-161 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 161): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 161) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 161), 0)>;
+			PIN_${pio_161_active_func};
+			#if 0
+			PIN_${pio_161_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_161_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 161): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 161) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 161), 0)>;
+			PIN_${pio_161_sleep_func};
+			#if 0
+			PIN_${pio_161_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_161_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-162 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 162): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 162) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 162), 0)>;
+			PIN_${pio_162_active_func};
+			#if 0
+			PIN_${pio_162_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_162_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 162): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 162) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 162), 0)>;
+			PIN_${pio_162_sleep_func};
+			#if 0
+			PIN_${pio_162_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_162_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-163 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 163): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 163) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 163), 0)>;
+			PIN_${pio_163_active_func};
+			#if 0
+			PIN_${pio_163_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_163_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 163): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 163) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 163), 0)>;
+			PIN_${pio_163_sleep_func};
+			#if 0
+			PIN_${pio_163_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_163_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-164 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 164): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 164) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 164), 0)>;
+			PIN_${pio_164_active_func};
+			#if 0
+			PIN_${pio_164_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_164_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 164): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 164) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 164), 0)>;
+			PIN_${pio_164_sleep_func};
+			#if 0
+			PIN_${pio_164_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_164_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-165 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 165): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 165) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 165), 0)>;
+			PIN_${pio_165_active_func};
+			#if 0
+			PIN_${pio_165_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_165_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 165): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 165) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 165), 0)>;
+			PIN_${pio_165_sleep_func};
+			#if 0
+			PIN_${pio_165_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_165_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-166 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 166): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 166) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 166), 0)>;
+			PIN_${pio_166_active_func};
+			#if 0
+			PIN_${pio_166_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_166_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 166): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 166) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 166), 0)>;
+			PIN_${pio_166_sleep_func};
+			#if 0
+			PIN_${pio_166_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_166_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-167 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 167): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 167) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 167), 0)>;
+			PIN_${pio_167_active_func};
+			#if 0
+			PIN_${pio_167_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_167_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 167): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 167) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 167), 0)>;
+			PIN_${pio_167_sleep_func};
+			#if 0
+			PIN_${pio_167_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_167_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-168 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 168): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 168) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 168), 0)>;
+			PIN_${pio_168_active_func};
+			#if 0
+			PIN_${pio_168_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_168_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 168): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 168) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 168), 0)>;
+			PIN_${pio_168_sleep_func};
+			#if 0
+			PIN_${pio_168_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_168_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-169 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 169): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 169) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 169), 0)>;
+			PIN_${pio_169_active_func};
+			#if 0
+			PIN_${pio_169_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_169_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 169): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 169) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 169), 0)>;
+			PIN_${pio_169_sleep_func};
+			#if 0
+			PIN_${pio_169_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_169_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-170 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 170): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 170) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 170), 0)>;
+			PIN_${pio_170_active_func};
+			#if 0
+			PIN_${pio_170_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_170_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 170): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 170) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 170), 0)>;
+			PIN_${pio_170_sleep_func};
+			#if 0
+			PIN_${pio_170_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_170_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-171 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 171): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 171) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 171), 0)>;
+			PIN_${pio_171_active_func};
+			#if 0
+			PIN_${pio_171_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_171_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 171): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 171) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 171), 0)>;
+			PIN_${pio_171_sleep_func};
+			#if 0
+			PIN_${pio_171_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_171_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-172 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 172): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 172) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 172), 0)>;
+			PIN_${pio_172_active_func};
+			#if 0
+			PIN_${pio_172_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_172_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 172): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 172) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 172), 0)>;
+			PIN_${pio_172_sleep_func};
+			#if 0
+			PIN_${pio_172_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_172_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-173 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 173): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 173) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 173), 0)>;
+			PIN_${pio_173_active_func};
+			#if 0
+			PIN_${pio_173_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_173_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 173): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 173) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 173), 0)>;
+			PIN_${pio_173_sleep_func};
+			#if 0
+			PIN_${pio_173_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_173_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-174 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 174): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 174) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 174), 0)>;
+			PIN_${pio_174_active_func};
+			#if 0
+			PIN_${pio_174_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_174_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 174): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 174) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 174), 0)>;
+			PIN_${pio_174_sleep_func};
+			#if 0
+			PIN_${pio_174_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_174_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-175 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 175): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 175) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 175), 0)>;
+			PIN_${pio_175_active_func};
+			#if 0
+			PIN_${pio_175_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_175_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 175): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 175) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 175), 0)>;
+			PIN_${pio_175_sleep_func};
+			#if 0
+			PIN_${pio_175_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_175_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-176 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 176): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 176) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 176), 0)>;
+			PIN_${pio_176_active_func};
+			#if 0
+			PIN_${pio_176_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_176_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 176): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 176) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 176), 0)>;
+			PIN_${pio_176_sleep_func};
+			#if 0
+			PIN_${pio_176_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_176_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-177 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 177): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 177) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 177), 0)>;
+			PIN_${pio_177_active_func};
+			#if 0
+			PIN_${pio_177_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_177_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 177): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 177) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 177), 0)>;
+			PIN_${pio_177_sleep_func};
+			#if 0
+			PIN_${pio_177_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_177_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-178 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 178): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 178) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 178), 0)>;
+			PIN_${pio_178_active_func};
+			#if 0
+			PIN_${pio_178_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_178_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 178): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 178) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 178), 0)>;
+			PIN_${pio_178_sleep_func};
+			#if 0
+			PIN_${pio_178_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_178_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-179 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 179): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 179) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 179), 0)>;
+			PIN_${pio_179_active_func};
+			#if 0
+			PIN_${pio_179_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_179_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 179): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 179) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 179), 0)>;
+			PIN_${pio_179_sleep_func};
+			#if 0
+			PIN_${pio_179_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_179_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-180 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 180): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 180) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 180), 0)>;
+			PIN_${pio_180_active_func};
+			#if 0
+			PIN_${pio_180_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_180_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 180): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 180) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 180), 0)>;
+			PIN_${pio_180_sleep_func};
+			#if 0
+			PIN_${pio_180_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_180_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-181 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 181): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 181) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 181), 0)>;
+			PIN_${pio_181_active_func};
+			#if 0
+			PIN_${pio_181_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_181_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 181): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 181) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 181), 0)>;
+			PIN_${pio_181_sleep_func};
+			#if 0
+			PIN_${pio_181_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_181_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-182 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 182): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 182) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 182), 0)>;
+			PIN_${pio_182_active_func};
+			#if 0
+			PIN_${pio_182_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_182_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 182): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 182) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 182), 0)>;
+			PIN_${pio_182_sleep_func};
+			#if 0
+			PIN_${pio_182_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_182_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-183 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 183): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 183) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 183), 0)>;
+			PIN_${pio_183_active_func};
+			#if 0
+			PIN_${pio_183_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_183_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 183): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 183) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 183), 0)>;
+			PIN_${pio_183_sleep_func};
+			#if 0
+			PIN_${pio_183_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_183_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-184 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 184): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 184) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 184), 0)>;
+			PIN_${pio_184_active_func};
+			#if 0
+			PIN_${pio_184_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_184_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 184): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 184) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 184), 0)>;
+			PIN_${pio_184_sleep_func};
+			#if 0
+			PIN_${pio_184_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_184_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-185 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 185): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 185) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 185), 0)>;
+			PIN_${pio_185_active_func};
+			#if 0
+			PIN_${pio_185_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_185_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 185): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 185) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 185), 0)>;
+			PIN_${pio_185_sleep_func};
+			#if 0
+			PIN_${pio_185_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_185_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-186 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 186): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 186) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 186), 0)>;
+			PIN_${pio_186_active_func};
+			#if 0
+			PIN_${pio_186_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_186_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 186): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 186) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 186), 0)>;
+			PIN_${pio_186_sleep_func};
+			#if 0
+			PIN_${pio_186_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_186_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-187 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 187): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 187) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 187), 0)>;
+			PIN_${pio_187_active_func};
+			#if 0
+			PIN_${pio_187_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_187_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 187): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 187) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 187), 0)>;
+			PIN_${pio_187_sleep_func};
+			#if 0
+			PIN_${pio_187_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_187_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-188 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 188): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 188) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 188), 0)>;
+			PIN_${pio_188_active_func};
+			#if 0
+			PIN_${pio_188_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_188_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 188): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 188) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 188), 0)>;
+			PIN_${pio_188_sleep_func};
+			#if 0
+			PIN_${pio_188_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_188_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-189 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 189): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 189) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 189), 0)>;
+			PIN_${pio_189_active_func};
+			#if 0
+			PIN_${pio_189_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_189_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 189): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 189) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 189), 0)>;
+			PIN_${pio_189_sleep_func};
+			#if 0
+			PIN_${pio_189_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_189_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-190 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 190): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 190) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 190), 0)>;
+			PIN_${pio_190_active_func};
+			#if 0
+			PIN_${pio_190_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_190_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 190): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 190) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 190), 0)>;
+			PIN_${pio_190_sleep_func};
+			#if 0
+			PIN_${pio_190_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_190_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-191 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 191): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 191) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 191), 0)>;
+			PIN_${pio_191_active_func};
+			#if 0
+			PIN_${pio_191_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_191_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 191): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 191) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 191), 0)>;
+			PIN_${pio_191_sleep_func};
+			#if 0
+			PIN_${pio_191_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_191_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-192 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 192): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 192) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 192), 0)>;
+			PIN_${pio_192_active_func};
+			#if 0
+			PIN_${pio_192_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_192_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 192): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 192) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 192), 0)>;
+			PIN_${pio_192_sleep_func};
+			#if 0
+			PIN_${pio_192_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_192_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-193 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 193): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 193) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 193), 0)>;
+			PIN_${pio_193_active_func};
+			#if 0
+			PIN_${pio_193_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_193_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 193): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 193) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 193), 0)>;
+			PIN_${pio_193_sleep_func};
+			#if 0
+			PIN_${pio_193_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_193_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-194 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 194): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 194) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 194), 0)>;
+			PIN_${pio_194_active_func};
+			#if 0
+			PIN_${pio_194_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_194_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 194): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 194) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 194), 0)>;
+			PIN_${pio_194_sleep_func};
+			#if 0
+			PIN_${pio_194_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_194_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-195 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 195): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 195) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 195), 0)>;
+			PIN_${pio_195_active_func};
+			#if 0
+			PIN_${pio_195_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_195_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 195): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 195) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 195), 0)>;
+			PIN_${pio_195_sleep_func};
+			#if 0
+			PIN_${pio_195_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_195_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-196 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 196): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 196) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 196), 0)>;
+			PIN_${pio_196_active_func};
+			#if 0
+			PIN_${pio_196_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_196_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 196): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 196) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 196), 0)>;
+			PIN_${pio_196_sleep_func};
+			#if 0
+			PIN_${pio_196_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_196_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-197 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 197): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 197) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 197), 0)>;
+			PIN_${pio_197_active_func};
+			#if 0
+			PIN_${pio_197_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_197_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 197): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 197) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 197), 0)>;
+			PIN_${pio_197_sleep_func};
+			#if 0
+			PIN_${pio_197_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_197_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-198 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 198): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 198) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 198), 0)>;
+			PIN_${pio_198_active_func};
+			#if 0
+			PIN_${pio_198_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_198_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 198): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 198) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 198), 0)>;
+			PIN_${pio_198_sleep_func};
+			#if 0
+			PIN_${pio_198_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_198_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-199 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 199): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 199) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 199), 0)>;
+			PIN_${pio_199_active_func};
+			#if 0
+			PIN_${pio_199_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_199_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 199): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 199) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 199), 0)>;
+			PIN_${pio_199_sleep_func};
+			#if 0
+			PIN_${pio_199_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_199_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-200 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 200): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 200) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 200), 0)>;
+			PIN_${pio_200_active_func};
+			#if 0
+			PIN_${pio_200_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_200_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 200): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 200) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 200), 0)>;
+			PIN_${pio_200_sleep_func};
+			#if 0
+			PIN_${pio_200_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_200_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-201 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 201): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 201) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 201), 0)>;
+			PIN_${pio_201_active_func};
+			#if 0
+			PIN_${pio_201_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_201_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 201): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 201) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 201), 0)>;
+			PIN_${pio_201_sleep_func};
+			#if 0
+			PIN_${pio_201_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_201_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-202 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 202): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 202) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 202), 0)>;
+			PIN_${pio_202_active_func};
+			#if 0
+			PIN_${pio_202_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_202_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 202): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 202) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 202), 0)>;
+			PIN_${pio_202_sleep_func};
+			#if 0
+			PIN_${pio_202_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_202_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-203 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 203): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 203) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 203), 0)>;
+			PIN_${pio_203_active_func};
+			#if 0
+			PIN_${pio_203_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_203_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 203): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 203) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 203), 0)>;
+			PIN_${pio_203_sleep_func};
+			#if 0
+			PIN_${pio_203_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_203_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-204 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 204): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 204) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 204), 0)>;
+			PIN_${pio_204_active_func};
+			#if 0
+			PIN_${pio_204_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_204_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 204): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 204) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 204), 0)>;
+			PIN_${pio_204_sleep_func};
+			#if 0
+			PIN_${pio_204_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_204_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-205 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 205): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 205) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 205), 0)>;
+			PIN_${pio_205_active_func};
+			#if 0
+			PIN_${pio_205_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_205_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 205): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 205) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 205), 0)>;
+			PIN_${pio_205_sleep_func};
+			#if 0
+			PIN_${pio_205_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_205_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-206 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 206): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 206) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 206), 0)>;
+			PIN_${pio_206_active_func};
+			#if 0
+			PIN_${pio_206_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_206_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 206): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 206) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 206), 0)>;
+			PIN_${pio_206_sleep_func};
+			#if 0
+			PIN_${pio_206_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_206_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-207 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 207): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 207) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 207), 0)>;
+			PIN_${pio_207_active_func};
+			#if 0
+			PIN_${pio_207_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_207_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 207): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 207) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 207), 0)>;
+			PIN_${pio_207_sleep_func};
+			#if 0
+			PIN_${pio_207_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_207_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-208 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 208): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 208) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 208), 0)>;
+			PIN_${pio_208_active_func};
+			#if 0
+			PIN_${pio_208_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_208_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 208): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 208) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 208), 0)>;
+			PIN_${pio_208_sleep_func};
+			#if 0
+			PIN_${pio_208_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_208_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-209 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 209): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 209) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 209), 0)>;
+			PIN_${pio_209_active_func};
+			#if 0
+			PIN_${pio_209_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_209_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 209): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 209) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 209), 0)>;
+			PIN_${pio_209_sleep_func};
+			#if 0
+			PIN_${pio_209_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_209_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-210 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 210): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 210) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 210), 0)>;
+			PIN_${pio_210_active_func};
+			#if 0
+			PIN_${pio_210_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_210_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 210): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 210) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 210), 0)>;
+			PIN_${pio_210_sleep_func};
+			#if 0
+			PIN_${pio_210_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_210_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+
+	/* pio-211 */
+	#if 0
+	SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 211): SEC_GPIO_PHANDLE_ACTIVE(AP, pio, 211) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 211), 0)>;
+			PIN_${pio_211_active_func};
+			#if 0
+			PIN_${pio_211_active_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_211_active_drv}>;
+			#endif
+		};
+	};
+	#endif
+	#if 0
+	SEC_GPIO_PHANDLE_SLEEP(AP, pio, 211): SEC_GPIO_PHANDLE_SLEEP(AP, pio, 211) {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP, pio, 211), 0)>;
+			PIN_${pio_211_sleep_func};
+			#if 0
+			PIN_${pio_211_sleep_pud};
+			#endif
+			#if 0
+			drive-strength = <PIN_${pio_211_sleep_drv}>;
+			#endif
+		};
+	};
+	#endif
+};
+/* #include "../gpio_sec_detect_conn.dtsi" */        /* From gpio_sec_detect_conn.py */
+#ifdef CONFIG_SEC_FACTORY
+#if 1
+&pio {
+	detect_conn_setting: detect_conn_setting {
+		config {
+#if 0
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,69), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_1}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_2}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_3}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_4}), 0)>,
+#if 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_5}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_7}), 0)>;
+#elif 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_5}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>;
+#else
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_5}), 0)>;
+#endif
+#elif 0
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,69), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_1}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_2}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_3}), 0)>,
+#if 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_4}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_7}), 0)>;
+#elif 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_4}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>;
+#else
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_4}), 0)>;
+#endif
+#elif 0
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,69), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_1}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_2}), 0)>,
+#if 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_3}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_7}), 0)>;
+#elif 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_3}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>;
+#else
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_3}), 0)>;
+#endif
+#elif 0
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,69), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_1}), 0)>,
+#if 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_2}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_7}), 0)>;
+#elif 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_2}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>;
+#else
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_2}), 0)>;
+#endif
+#elif 0
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,69), 0)>,
+#if 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_1}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_7}), 0)>;
+#elif 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_1}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>;
+#else
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_1}), 0)>;
+#endif
+#elif 1
+			pinmux =
+#if 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,69), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_7}), 0)>;
+#elif 0
+			       <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,69), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>;
+#else
+			       <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,69), 0)>;
+#endif
+#elif 0
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>,
+			       <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_7}), 0)>;
+#elif 0
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${det_gpio_num_6}), 0)>;
+#endif
+			drive-strength = <2>;
+			bias-disable; /*NO PULL*/
+			input-enable;
+		};
+	};
+};
+#endif /*use_dynamic_ap_gpio_detect*/
+
+#if 0
+&${det_pm_gpio_num_parent} {
+	detect_conn_pm_setting: detect_conn_pm_setting {
+#if 0 && 0
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${det_pm_gpio_num_0}), 0)>,
+		       <MTK_PINMUX(SEC_GPIO_NUM(${det_pm_gpio_num_1}), 0)>;
+#elif 0
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${det_pm_gpio_num_0}), 0)>;
+#elif 0
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${det_pm_gpio_num_1}), 0)>;
+#endif
+		function = "normal";
+		power-source = <0>;
+		bias-disable; /*NO PULL*/
+		input-enable;
+	};
+};
+#endif /*use_dynamic_pm_gpio_detect*/
+
+&smd {
+	sec_detect_conn {
+		compatible = "samsung,sec_detect_conn";
+		status = "okay";
+
+#if 1
+		sec,det_conn_gpios = <
+#if 1
+					SEC_GPIO_REF(AP,pio,69) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_1}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_2}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_3}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_4}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_5}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_6}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_gpio_num_7}) 0
+#endif
+					>;
+#if 1 || 0
+		sec,det_conn_name =
+#endif
+#if 1
+					"SUB_CONNECT"
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 1 || 0
+;
+#endif
+#endif /*use_dynamic_ap_gpio_detect*/
+
+#if 0
+		sec,det_pm_conn_gpios = <
+#if 0
+					SEC_GPIO_REF(${det_pm_gpio_num_0}) 0
+#endif
+#if 0
+					SEC_GPIO_REF(${det_pm_gpio_num_1}) 0
+#endif
+					>;
+#if 0 || 0
+		sec,det_pm_conn_name =
+#endif
+#if 0 && 0
+					"", "";
+#elif 0
+					"";
+#elif 0
+					"";
+#endif
+#endif /*use_dynamic_pm_gpio_detect*/
+
+#if 1 && 0
+		pinctrl-names = "det_ap_connect","det_pm_connect";
+		pinctrl-0 = <&detect_conn_setting>;
+		pinctrl-1 = <&detect_conn_pm_setting>;
+#elif 1
+		pinctrl-names = "det_ap_connect";
+		pinctrl-0 = <&detect_conn_setting>;
+#elif 0
+		pinctrl-names = "det_pm_connect";
+		pinctrl-0 = <&detect_conn_pm_setting>;
+#endif
+	};
+};
+#endif /* CONFIG_SEC_FACTORY */
 
 
 /* #include "../pmic_MT6359.dtsi" */                 /* From pmic_MT6359.py */
@@ -1639,6 +8236,61 @@
      
 };
 #endif
+/* #include "../sensorhub_mt6853_shub.dtsi" */       /* From sensorhub_mt6853_shub.py */
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+				compatible = "shub";
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6853_shub/dts/sensorhub_mt6853_shub.a32x.dtsi */
+/ {
+    fragment@model {
+        target-path = "/";
+        __overlay__ {
+            shub {
+                acc-icm42605m-position = <0>;
+                acc-icm42632m-position = <0>;
+                acc-lsm6dsl-position = <0>;
+                acc-motor-coef = <5>;
+                mag-ak09918c-position = <2>;
+                mag-ak09918c-array = /bits/ 16 <9689 (-190) (-385) 114 11577 (-298) 234 (-681) 10972>;
+                light-position = /bits/ 32 <46 27 3 21 2 8>;
+                brightness-array-len = <5>;
+                brightness-array = /bits/ 32 <15 40 50 77 255>;
+                light-cam-lux = /bits/ 32 <100 200>;
+                light-cam-br = /bits/ 32 <60 60>;
+            };
+        };
+    };
+};
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6853_shub/dts/sensorhub_mt6853_shub.a32x_usa_single.00.dtsi */
+/ {
+    fragment@model {
+        target-path = "/";
+        __overlay__ {
+            shub {
+                acc-icm42605m-position = <0>;
+                acc-icm42632m-position = <0>;
+                acc-lsm6dsl-position = <0>;
+                mag-ak09918c-position = <0>;
+				mag-ak09918c-array = /bits/ 8 <171 81 190 111 138 27 0 139 213
+										54 186 186 106 179 253 179 1 89
+										197 188 191 252 130 3 8 5 136>;
+                light-position = /bits/ 32 <46 27 3 21 2 8>;
+                brightness-array-len = <5>;
+                brightness-array = /bits/ 32 <15 40 50 77 255>;
+                light-cam-lux = /bits/ 32 <100 200>;
+                light-cam-br = /bits/ 32 <60 60>;
+            };
+        };
+    };
+};
 /* #include "../battery_common.dtsi" */              /* From battery_common.py */
 #include <dt-bindings/battery/sec-battery.h>
 
@@ -1801,8 +8453,8 @@
 
 		battery,cisd_alg_index = <8>;
 		battery,cisd_max_voltage_thr = <4400>; /* batttery ovp dettection voltage */
-		battery,ignore_cisd_index = <0 960>; /* Do not use AFC_FAIL to DROP_VALUE */
-		battery,ignore_cisd_index_d = <0 120>; /* Do not use AFC_FAIL_PER_DAY to DROP_VALUE_PER_DAY */
+		battery,ignore_cisd_index = <0 0>;
+		battery,ignore_cisd_index_d = <0 80>; /* Do not use BUCK_OFF_PER_DAY, DROP_SENSOR_PER_DAY */
 
 		battery,expired_time = <10800>;
 		battery,recharging_expired_time = <5400>;
@@ -2134,6 +8786,30 @@
 	};
 };
 
+/* #include "../sensorhub_shub.dtsi" */              /* From sensorhub_shub.py */
+#if 1
+&mt_pmic_vtp_ldo_reg {
+	regulator-name = "VDD_SENSOR_1P8";
+};
+#endif
+
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+#if 1
+				sensor-vdd-regulator = "VDD_SENSOR_1P8";
+#endif
+
+#if 0
+				mag-check-nfc = <SEC_GPIO_REF(${gpio_nfc_check}) 0>;
+#endif
+			};
+		};
+	};
+};
+
 /* #include "../fingerprint_et5xx.dtsi" */           /* From fingerprint_et5xx.py */
 /*
  * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
@@ -2153,7 +8829,7 @@
 	btp_irq: btp-irq {
 		pins_cmd_dat{
 			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,15), 0)>;
-			bias-pull-down;
+			bias-disable;
 			drive-strength = <1>;
 		};
 	};
@@ -2462,58 +9138,6 @@
 	};
 };
 
-/* #include "../sensorhub_mt6853.dtsi" */            /* From sensorhub_mt6853.py */
-/ {
-    fragment@model {
-        target-path = "/";
-        __overlay__ {
-            ssp {
-                compatible = "ssp";
-            };
-        };
-    };
-};
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6853/dts/sensorhub_mt6853.a32x.dtsi */
-/ {
-    fragment@model {
-        target-path = "/";
-        __overlay__ {
-            ssp {
-                ssp-acc-position = <0>;
-                ssp-mag-position = <2>;
-                ssp-acc-motor-coef = <5>;
-                ssp-mag-array = /bits/ 16 <9689 (-190) (-385) 114 11577 (-298) 234 (-681) 10972>;
-                ssp-prox-thresh = /bits/ 16 <150 130>;
-                ssp-light-position = /bits/ 32 <46 27 3 21 2 8>;
-                ssp-brightness-array-len = <5>;
-                ssp-brightness-array = /bits/ 32 <15 40 50 77 255>;
-                ssp-light-cam-lux = /bits/ 32 <100 200>;
-                ssp-light-cam-br = /bits/ 32 <60 60>;
-            };
-        };
-    };
-};
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6853/dts/sensorhub_mt6853.a32x_usa_single.00.dtsi */
-/ {
-    fragment@model {
-        target-path = "/";
-        __overlay__ {
-            ssp {
-                ssp-acc-position = <0>;
-                ssp-mag-position = <0>;
-				ssp-mag-array = /bits/ 8 <171 81 190 111 138 27 0 139 213
-										54 186 186 106 179 253 179 1 89
-										197 188 191 252 130 3 8 5 136>;
-                ssp-prox-thresh = /bits/ 16 <150 130>;
-                ssp-light-position = /bits/ 32 <46 27 3 21 2 8>;
-                ssp-brightness-array-len = <5>;
-                ssp-brightness-array = /bits/ 32 <15 40 50 77 255>;
-                ssp-light-cam-lux = /bits/ 32 <100 200>;
-                ssp-light-cam-br = /bits/ 32 <60 60>;
-            };
-        };
-    };
-};
 /* revision devicetree for general */
 #include "mt6853.a32x_usa_single.00.dtsi"
 

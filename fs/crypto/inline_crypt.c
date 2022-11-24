@@ -317,7 +317,7 @@ static void fscrypt_generate_iv_spec(union fscrypt_iv *iv, u64 lblk_num,
 
 		iv->lblk_num = cpu_to_le64(lblk_num);
 	} else if (ci->ci_inode->i_sb->s_magic == EXT4_SUPER_MAGIC) {
-		lblk_num = (ci->ci_inode->i_ino << 32)
+		lblk_num = (((u64)ci->ci_inode->i_ino) << 32)
 				| (lblk_num & 0xFFFFFFFF);
 		iv->lblk_num = cpu_to_le64(lblk_num);
 	}

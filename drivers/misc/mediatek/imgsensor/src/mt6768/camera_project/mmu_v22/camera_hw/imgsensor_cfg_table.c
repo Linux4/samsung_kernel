@@ -156,9 +156,9 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 		},
 	},
 #endif
-#if defined(IMX258_MIPI_RAW)
+#if defined(IMX258F_MIPI_RAW)
 	{
-		SENSOR_DRVNAME_IMX258_MIPI_RAW,
+		SENSOR_DRVNAME_IMX258F_MIPI_RAW,
 		{
 			{RST, Vol_Low, 1},
 			{AVDD, Vol_2700, 0},

@@ -1,22 +1,20 @@
 #include "imgsensor_eeprom_rear4_gc02m1_v008.h"
 
-#define REAR4_GC02M1_MAX_CAL_SIZE               (0x07CF + 0x1)
+#define REAR4_GC02M1_MAX_CAL_SIZE               (0x06A5 + 0x1)
 
-#define REAR4_GC02M1_HEADER_CHECKSUM_LEN        (0x00FB + 0x1)
-#define REAR4_GC02M1_OEM_CHECKSUM_LEN           (0x019B - 0x0100 + 0x1)
-#define REAR4_GC02M1_AWB_CHECKSUM_LEN           (0x01AB - 0x01A0 + 0x1)
-#define REAR4_GC02M1_SHADING_CHECKSUM_LEN       (0x05AB - 0x01B0 + 0x1)
+#define REAR4_GC02M1_HEADER_CHECKSUM_LEN        (0x004B + 0x1)
+#define REAR4_GC02M1_MODULE_CAL_CHECKSUM_LEN    (0x047B - 0x0050 + 0x1)
 
-#define REAR4_GC02M1_CONVERTED_MAX_CAL_SIZE     (0x0B2F + 0x1)
-#define REAR4_GC02M1_CONVERTED_AWB_CHECKSUM_LEN (0x01AB - 0x01A0 + 0x1)
-#define REAR4_GC02M1_CONVERTED_LSC_CHECKSUM_LEN (0x090B - 0x01B0 + 0x1)
+#define REAR4_GC02M1_CONVERTED_MAX_CAL_SIZE     (0x09F5 + 0x1)
+#define REAR4_GC02M1_CONVERTED_AWB_CHECKSUM_LEN (0x006B - 0x0060 + 0x1)
+#define REAR4_GC02M1_CONVERTED_LSC_CHECKSUM_LEN (0x07CB - 0x0070 + 0x1)
 
 const struct rom_converted_cal_addr rear4_gc02m1_converted_cal_addr = {
-	.rom_awb_cal_data_start_addr            = 0x01A0,
-	.rom_awb_checksum_addr                  = 0x01AC,
+	.rom_awb_cal_data_start_addr            = 0x0060,
+	.rom_awb_checksum_addr                  = 0x006C,
 	.rom_awb_checksum_len                   = (REAR4_GC02M1_CONVERTED_AWB_CHECKSUM_LEN),
-	.rom_shading_cal_data_start_addr        = 0x01B0,
-	.rom_shading_checksum_addr              = 0x090C,
+	.rom_shading_cal_data_start_addr        = 0x0070,
+	.rom_shading_checksum_addr              = 0x07CC,
 	.rom_shading_checksum_len               = (REAR4_GC02M1_CONVERTED_LSC_CHECKSUM_LEN),
 };
 
@@ -26,23 +24,23 @@ const struct imgsensor_vendor_rom_addr rear4_gc02m1_cal_addr = {
 	.cal_map_es_version                     = '1',
 	.rom_max_cal_size                       = REAR4_GC02M1_MAX_CAL_SIZE,
 	.rom_header_cal_data_start_addr         = 0x00,
-	.rom_header_main_module_info_start_addr = 0x5E,
-	.rom_header_cal_map_ver_start_addr      = 0x90,
-	.rom_header_project_name_start_addr     = 0x98,
-	.rom_header_module_id_addr              = 0xAE,
-	.rom_header_main_sensor_id_addr         = 0xB8,
+	.rom_header_main_module_info_start_addr = 0x0A,
+	.rom_header_cal_map_ver_start_addr      = 0x16,
+	.rom_header_project_name_start_addr     = 0x1E,
+	.rom_header_module_id_addr              = 0x2E,
+	.rom_header_main_sensor_id_addr         = 0x38,
 
 	.rom_header_sub_module_info_start_addr  = -1,
 	.rom_header_sub_sensor_id_addr          = -1,
 
-	.rom_header_main_header_start_addr      = 0x00,
-	.rom_header_main_header_end_addr        = 0x04,
-	.rom_header_main_oem_start_addr         = 0x08,
-	.rom_header_main_oem_end_addr           = 0x0C,
-	.rom_header_main_awb_start_addr         = 0x10,
-	.rom_header_main_awb_end_addr           = 0x14,
-	.rom_header_main_shading_start_addr     = 0x18,
-	.rom_header_main_shading_end_addr       = 0x1C,
+	.rom_header_main_header_start_addr      = -1,
+	.rom_header_main_header_end_addr        = -1,
+	.rom_header_main_oem_start_addr         = -1,
+	.rom_header_main_oem_end_addr           = -1,
+	.rom_header_main_awb_start_addr         = 0x00,
+	.rom_header_main_awb_end_addr           = 0x04,
+	.rom_header_main_shading_start_addr     = -1,
+	.rom_header_main_shading_end_addr       = -1,
 	.rom_header_main_sensor_cal_start_addr  = -1,
 	.rom_header_main_sensor_cal_end_addr    = -1,
 	.rom_header_dual_cal_start_addr         = -1,
@@ -59,32 +57,32 @@ const struct imgsensor_vendor_rom_addr rear4_gc02m1_cal_addr = {
 	.rom_header_sub_shading_start_addr      = -1,
 	.rom_header_sub_shading_end_addr        = -1,
 
-	.rom_header_main_mtf_data_addr          = 0x0134,
+	.rom_header_main_mtf_data_addr          = 0x0482,
 	.rom_header_sub_mtf_data_addr           = -1,
 
-	.rom_header_checksum_addr               = 0x00FC,
+	.rom_header_checksum_addr               = 0x004C,
 	.rom_header_checksum_len                = REAR4_GC02M1_HEADER_CHECKSUM_LEN,
 
 	.rom_oem_af_inf_position_addr           = -1,
 	.rom_oem_af_macro_position_addr         = -1,
 	.rom_oem_module_info_start_addr         = -1,
-	.rom_oem_checksum_addr                  = 0x019C,
-	.rom_oem_checksum_len                   = REAR4_GC02M1_OEM_CHECKSUM_LEN,
+	.rom_oem_checksum_addr                  = -1,
+	.rom_oem_checksum_len                   = -1,
 
-	.rom_module_cal_data_start_addr         = -1,
+	.rom_module_cal_data_start_addr         = 0x0050,
 	.rom_module_module_info_start_addr      = -1,
-	.rom_module_checksum_addr               = -1,
-	.rom_module_checksum_len                = -1,
+	.rom_module_checksum_addr               = 0x047C,
+	.rom_module_checksum_len                = REAR4_GC02M1_MODULE_CAL_CHECKSUM_LEN,
 
-	.rom_awb_cal_data_start_addr            = 0x01A0,
+	.rom_awb_cal_data_start_addr            = 0x0060,
 	.rom_awb_module_info_start_addr         = -1,
-	.rom_awb_checksum_addr                  = 0x01AC,
-	.rom_awb_checksum_len                   = REAR4_GC02M1_AWB_CHECKSUM_LEN,
+	.rom_awb_checksum_addr                  = -1,
+	.rom_awb_checksum_len                   = -1,
 
-	.rom_shading_cal_data_start_addr        = 0x01B0,
+	.rom_shading_cal_data_start_addr        = 0x0070,
 	.rom_shading_module_info_start_addr     = -1,
-	.rom_shading_checksum_addr              = 0x05AC,
-	.rom_shading_checksum_len               = REAR4_GC02M1_SHADING_CHECKSUM_LEN,
+	.rom_shading_checksum_addr              = -1,
+	.rom_shading_checksum_len               = -1,
 
 	.rom_sensor_cal_module_info_start_addr  = -1,
 	.rom_sensor_cal_checksum_addr           = -1,

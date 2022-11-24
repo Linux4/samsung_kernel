@@ -60,7 +60,7 @@ void usb_phy_savecurrent(void)
 {
 }
 
-void usb_phy_recover(bool is_host)
+void usb_phy_recover(struct musb *musb)
 {
 }
 
@@ -99,6 +99,12 @@ void usb_phy_switch_to_usb(void)
 #else
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
+#define OFFSET_RG_USB20_VRT_VREF_SEL 0x4
+#define SHFT_RG_USB20_VRT_VREF_SEL 12
+#define OFFSET_RG_USB20_TERM_VREF_SEL 0x4
+#define SHFT_RG_USB20_TERM_VREF_SEL 8
+#define OFFSET_RG_USB20_PHY_REV6 0x18
+#define SHFT_RG_USB20_PHY_REV6 30
 
 void usb_phy_tuning(bool is_host)
 {
@@ -344,6 +350,7 @@ static void hs_slew_rate_cal(void)
 	USBPHY_CLR32(0xF00 - 0x800, (0x01 << 24));
 	USBPHY_CLR32(0xF10 - 0x800, (0x01 << 8));
 
+#define MSK_RG_USB20_HSTX_SRCTRL 0x7
 	/* all clr first then set */
 	USBPHY_CLR32(0x14, (MSK_RG_USB20_HSTX_SRCTRL << 12));
 	USBPHY_SET32(0x14, ((value & MSK_RG_USB20_HSTX_SRCTRL) << 12));
@@ -639,7 +646,7 @@ void usb_phy_savecurrent(void)
 }
 
 /* M17_USB_PWR Sequence 20160603.xls */
-void usb_phy_recover(bool is_host)
+void usb_phy_recover(struct musb *musb)
 {
 	unsigned int efuse_val = 0;
 
@@ -738,7 +745,7 @@ void usb_phy_recover(bool is_host)
 	USBPHY_CLR32(0x18, (0xf0<<0));
 	USBPHY_SET32(0x18, (0x70<<0));
 
-	usb_phy_tuning(is_host);
+	usb_phy_tuning(musb->is_host);
 
 	DBG(0, "usb recovery success\n");
 }
@@ -804,4 +811,14 @@ void usb_phy_context_restore(void)
 #endif
 }
 
+void usb_dpdm_pullup(bool enable)
+{
+	if (enable) {
+		/* RG_USB20_EN_PU_DP, 1'b1, RG_USB20_PUPD_BIST_EN, 1'b1 */
+		USBPHY_SET32(0x1c, (0x1 << 9) | (0x1 << 12));
+	} else {
+		/* RG_USB20_EN_PU_DP, 1'b0, RG_USB20_PUPD_BIST_EN, 1'b0 */
+		USBPHY_CLR32(0x1c, (0x1 << 9) | (0x1 << 12));
+	}
+}
 #endif

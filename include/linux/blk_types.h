@@ -261,7 +261,6 @@ enum req_flag_bits {
 #ifdef MTK_UFS_HQA
 	__REQ_POWER_LOSS,	/* MTK PATCH for SPOH */
 #endif
-	__REQ_BYPASS,		/* Bypass dm-default-key */
 	__REQ_NR_BITS,		/* stops here */
 };
 
@@ -286,8 +285,6 @@ enum req_flag_bits {
 /* MTK PATCH for SPOH */
 #define REQ_POWER_LOSS		(1ULL << __REQ_POWER_LOSS)
 #endif
-
-#define REQ_BYPASS		(1ULL << __REQ_BYPASS)
 
 #define REQ_FAILFAST_MASK \
 	(REQ_FAILFAST_DEV | REQ_FAILFAST_TRANSPORT | REQ_FAILFAST_DRIVER)

@@ -337,9 +337,9 @@ static int force_set(void *data, u64 val)
 		goto out;
 
 	if (vote->force_set) {
-		vote->cb(vote->data, vote->force_val);
+		vote->res = vote->cb(vote->data, vote->force_val);
 	} else {
-		vote->cb(vote->data, vote->res);
+		vote->res = vote->cb(vote->data, vote->res);
 	}
 out:
 	mutex_unlock(&vote->lock);
@@ -507,8 +507,9 @@ void _sec_vote(struct sec_vote *vote, int event, int en, int value, const char *
 		if (vote->force_set)
 			pr_err("%s skip by force_set\n", __func__);
 		else
-			vote->cb(vote->data, res);
-	}
+			vote->res = vote->cb(vote->data, res);
+	} else if (!en && (vote->id == event))
+		vote->id = id;
 out:
 	mutex_unlock(&vote->lock);
 }
@@ -520,9 +521,14 @@ void sec_vote_refresh(struct sec_vote *vote)
 	if (vote->res == -EINVAL && vote->id == -EINVAL) {
 		pr_info("%s: skip. not used before\n", __func__);
 	} else {
-		pr_info("%s: refresh (%s, %d)\n", vote->name,
-			(vote->id >= 0)?vote->voter_name[vote->id]: none_str, vote->res);
-		vote->cb(vote->data, vote->res);
+		if (vote->force_set) {
+			pr_info("%s: refresh (%s, %d)\n", vote->name, force_str, vote->force_val);
+			vote->res = vote->cb(vote->data, vote->force_val);
+		} else {
+			pr_info("%s: refresh (%s, %d)\n", vote->name,
+					(vote->id >= 0) ? vote->voter_name[vote->id] : none_str, vote->res);
+			vote->res = vote->cb(vote->data, vote->res);
+		}
 	}
 	mutex_unlock(&vote->lock);
 }

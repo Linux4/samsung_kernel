@@ -37,6 +37,7 @@ static const u32 formats[] = {
 	DRM_FORMAT_RGB565,   DRM_FORMAT_YUYV,     DRM_FORMAT_YVYU,
 	DRM_FORMAT_UYVY,     DRM_FORMAT_VYUY,     DRM_FORMAT_ABGR2101010,
 	DRM_FORMAT_ABGR16161616F,
+	DRM_FORMAT_RGB332, // for skip_update
 };
 
 unsigned int to_crtc_plane_index(unsigned int plane_index)
@@ -151,6 +152,8 @@ static struct mtk_drm_property mtk_plane_property[PLANE_PROP_MAX] = {
 	{DRM_MODE_PROP_ATOMIC, "VPITCH", 0, UINT_MAX, 0},
 	{DRM_MODE_PROP_ATOMIC, "COMPRESS", 0, UINT_MAX, 0},
 	{DRM_MODE_PROP_ATOMIC, "DIM_COLOR", 0, UINT_MAX, 0},
+	{DRM_MODE_PROP_ATOMIC, "IS_MML", 0, UINT_MAX, 0},
+	{DRM_MODE_PROP_ATOMIC, "MML_SUBMIT", 0, ULONG_MAX, 0},
 };
 
 static void mtk_plane_reset(struct drm_plane *plane)
@@ -198,6 +201,10 @@ mtk_plane_duplicate_state(struct drm_plane *plane)
 	state->pending = old_state->pending;
 	state->comp_state = old_state->comp_state;
 	state->crtc = old_state->crtc;
+	if ((&state->base)->fb)
+		(&state->base)->crtc = (&old_state->base)->crtc;
+	else
+		(&state->base)->crtc = NULL;
 
 	return &state->base;
 }
@@ -352,6 +359,7 @@ void mtk_plane_get_comp_state(struct drm_plane *plane,
 	unsigned int plane_index = to_crtc_plane_index(plane->index);
 
 	memset(comp_state, 0x0, sizeof(struct mtk_plane_comp_state));
+
 	if (lock)
 		mutex_lock(&mtk_drm->lyeblob_list_mutex);
 	list_for_each_entry_safe(lyeblob_ids, next, &mtk_drm->lyeblob_head,
@@ -362,6 +370,7 @@ void mtk_plane_get_comp_state(struct drm_plane *plane,
 		} else if (lyeblob_ids->lye_idx > crtc_lye_idx)
 			break;
 	}
+
 	if (lock)
 		mutex_unlock(&mtk_drm->lyeblob_list_mutex);
 }
@@ -377,6 +386,7 @@ static void mtk_plane_atomic_update(struct drm_plane *plane,
 	int src_w, src_h, dst_x, dst_y, dst_w, dst_h, i;
 	struct mtk_drm_crtc *mtk_crtc;
 	unsigned int plane_index = to_crtc_plane_index(plane->index);
+	static int cnt;
 	bool skip_update = 0;
 	int crtc_index = 0;
 
@@ -418,10 +428,13 @@ static void mtk_plane_atomic_update(struct drm_plane *plane,
 	state->pending.dst_y = dst_y;
 	state->pending.width = dst_w;
 	state->pending.height = dst_h;
-	if (mtk_drm_fb_is_secure(fb))
+	if (mtk_drm_fb_is_secure(fb)) {
 		state->pending.is_sec = true;
-	else
+		state->pending.sec_id = mtk_fb_get_sec_id(fb);
+	} else {
 		state->pending.is_sec = false;
+		state->pending.sec_id = -1;
+	}
 	for (i = 0; i < PLANE_PROP_MAX; i++)
 		state->pending.prop_val[i] = state->prop_val[i];
 
@@ -458,6 +471,13 @@ static void mtk_plane_atomic_update(struct drm_plane *plane,
 
 	if (state->pending.enable)
 		atomic_set(&mtk_crtc->already_config, 1);
+
+	if (cnt <= 5) {
+		cnt++;
+		if (state->pending.format == DRM_FORMAT_RGB332 &&
+			drm_crtc_index(crtc) == 0)
+			skip_update = 1;
+	}
 
 	/* workaround for skip plane update when hwc set crtc */
 	if (skip_update == 0)

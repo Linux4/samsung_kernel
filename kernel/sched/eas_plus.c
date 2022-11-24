@@ -87,12 +87,6 @@ update_system_overutilized(struct lb_env *env)
 				continue;
 
 			group_util += cpu_util(i);
-			if (cpu_overutilized(i)) {
-				if (capacity_orig_of(i) == min_capacity) {
-					intra_overutil = true;
-					break;
-				}
-			}
 		}
 
 		/*
@@ -446,6 +440,14 @@ static struct sched_entity
 	src_capacity = capacity_orig_of(cpu);
 	cfs_rq = &cpu_rq(cpu)->cfs;
 	se = __pick_first_entity(cfs_rq);
+#ifdef CONFIG_FAIR_GROUP_SCHED
+	if (!se && cfs_rq->h_nr_running > 1) {
+		se = cfs_rq->curr;
+		if (se && group_cfs_rq(se)) {
+			se = __pick_first_entity(group_cfs_rq(se));
+		}
+	}
+#endif	/* CONFIG_FAIR_GROUP_SCHED */
 	while (num_tasks && se) {
 		if (entity_is_task(se) &&
 		    cpumask_intersects(hmp_target_mask,
@@ -1126,11 +1128,11 @@ static int find_energy_efficient_cpu_enhanced(struct task_struct *p,
 	unsigned long prev_energy = 0;
 	unsigned long prev_delta = ULONG_MAX, best_delta = ULONG_MAX;
 	int max_spare_cap_cpu_ls = prev_cpu;
-	unsigned long max_spare_cap_ls = 0, target_cap;
-	unsigned long sys_max_spare_cap = 0;
-	unsigned long cpu_cap, util, wake_util;
+	long max_spare_cap_ls = LONG_MIN;
+	unsigned long target_cap, cpu_cap, util, wake_util;
 	bool boosted, prefer_idle = false;
 	unsigned int min_exit_lat = UINT_MAX;
+	long sys_max_spare_cap = LONG_MIN;
 	int sys_max_spare_cap_cpu = -1;
 	int best_energy_cpu = prev_cpu;
 	struct cpuidle_state *idle;
@@ -1158,8 +1160,8 @@ static int find_energy_efficient_cpu_enhanced(struct task_struct *p,
 	sg = sd->groups;
 	do {
 		unsigned long cur_energy = 0, cur_delta = 0;
-		unsigned long spare_cap, max_spare_cap = 0;
 		unsigned long base_energy_sg;
+		long spare_cap, max_spare_cap = LONG_MIN;
 		int max_spare_cap_cpu = -1, best_idle_cpu = -1;
 		int cpu;
 
@@ -1176,7 +1178,7 @@ static int find_energy_efficient_cpu_enhanced(struct task_struct *p,
 #endif
 
 			/* Skip CPUs that will be overutilized. */
-			wake_util = cpu_util_without(cpu, p);
+			wake_util = (prefer_idle && idle_cpu(cpu)) ? 0 : cpu_util_without(cpu, p);
 			util = wake_util + task_util_est(p);
 			cpu_cap = capacity_of(cpu);
 			spare_cap = cpu_cap - util;
@@ -1197,7 +1199,8 @@ static int find_energy_efficient_cpu_enhanced(struct task_struct *p,
 				continue;
 
 			/* Always use prev_cpu as a candidate. */
-			if (cpu == prev_cpu) {
+			if (cpu == prev_cpu &&
+			    (!prefer_idle || (prefer_idle && idle_cpu(cpu)))) {
 				prev_energy = compute_energy_enhanced(p,
 								prev_cpu, sg);
 				prev_delta = prev_energy - base_energy_sg;
@@ -1219,12 +1222,10 @@ static int find_energy_efficient_cpu_enhanced(struct task_struct *p,
 
 			if (idle_cpu(cpu)) {
 				cpu_cap = capacity_orig_of(cpu);
-				if (boosted && cpu_cap < target_cap)
-					continue;
 				if (!boosted && cpu_cap > target_cap)
 					continue;
 				idle = idle_get_state(cpu_rq(cpu));
-				if (idle && idle->exit_latency > min_exit_lat &&
+				if (idle && idle->exit_latency >= min_exit_lat &&
 						cpu_cap == target_cap)
 					continue;
 

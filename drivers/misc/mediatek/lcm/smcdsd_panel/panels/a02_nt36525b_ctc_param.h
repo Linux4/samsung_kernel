@@ -5,6 +5,8 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 
+#define LCD_TYPE_VENDOR		"CSO"
+
 #define EXTEND_BRIGHTNESS	306
 #define UI_MAX_BRIGHTNESS	255
 #define UI_DEFAULT_BRIGHTNESS	128
@@ -25,7 +27,7 @@ static u8 LM36274_INIT[] = {
 	TYPE_WRITE, 0x0E, 0x26,
 	TYPE_WRITE, 0x09, 0xBE,
 	TYPE_WRITE, 0x02, 0x6B,
-	TYPE_WRITE, 0x03, 0x0D,
+	TYPE_WRITE, 0x03, 0x27,
 	TYPE_WRITE, 0x11, 0x74,
 	TYPE_WRITE, 0x04, 0x05,
 	TYPE_WRITE, 0x05, 0xCC,

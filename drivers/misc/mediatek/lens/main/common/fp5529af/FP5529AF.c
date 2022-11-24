@@ -23,8 +23,8 @@
 #include <linux/uaccess.h>
 
 #include "lens_info.h"
-#include "imgsensor_sysfs.h"
-#include "kd_imgsensor_sysfs_adapter.h"
+//#include "imgsensor_sysfs.h"
+//#include "kd_imgsensor_sysfs_adapter.h"
 
 #define AF_DRVNAME "FP5529AF_DRV"
 #define AF_I2C_SLAVE_ADDR 0x18
@@ -173,11 +173,12 @@ static int initAF(void)
 	usleep_range(5000, 5500);
 	ret |= s4AF_WriteReg(0x02, 0x02);//ring
 
+#if 0
 	if (!IMGSENSOR_GET_SAC_VALUE_BY_SENSOR_IDX(0, &ac_mode, &ac_time)) {
 		ret |= -1;
 		pr_err("[%s] FP5529: failed to get sac value\n", __func__);
 	}
-
+#endif
 	pr_info("[%s] FP5529 SAC setting (read from eeprom) - ac_mode: 0x%x, ac_time: 0x%x\n", __func__, ac_mode, ac_time);
 	s4AF_WriteReg(0x06, ac_mode);
 	// remove delay: usleep_range(4900, 5000);

@@ -276,7 +276,6 @@ struct display_primary_path_context {
 	ktime_t framedone_timestamp;
 	bool need_framedone_notify;
 #endif
-
 	int is_primary_sec;
 	int primary_display_scenario;
 #ifdef CONFIG_MTK_DISPLAY_120HZ_SUPPORT
@@ -294,6 +293,8 @@ struct display_primary_path_context {
 	unsigned int first_cfg;
 	/*DynFPS end*/
 #endif
+	/* change vfp for ap dsi and 6382 at same time */
+	bool vfp_chg_sync_bdg;
 };
 
 static inline char *lcm_power_state_to_string(enum lcm_power_state ps)
@@ -420,8 +421,8 @@ int primary_display_setbacklight_nolock(unsigned int level);
 int primary_display_set_lcm_hbm(bool en);
 int primary_display_hbm_wait(bool en);
 int primary_display_setlcm_func_call(
-	void (*func4)(void *, void *, void *, void *),
-	void *data1, void *data2, void *data3, void *data4);
+void (*func4)(void *, void *, void *, void *),
+void *data1, void *data2, void *data3, void *data4);
 int primary_display_pause(PRIMARY_DISPLAY_CALLBACK callback,
 	unsigned int user_data);
 int primary_display_switch_dst_mode(int mode);
@@ -521,7 +522,9 @@ extern struct completion dump_buf_comp;
 
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 /**************function for DynFPS start************************/
+#if defined(CONFIG_SMCDSD_PANEL)
 bool primary_display_is_chg_fps(int cfg_id);
+#endif
 unsigned int primary_display_is_support_DynFPS(void);
 unsigned int primary_display_get_default_disp_fps(int need_lock);
 unsigned int primary_display_get_def_timing_fps(int need_lock);
@@ -532,6 +535,8 @@ void primary_display_update_cfg_id(int cfg_id);
 void primary_display_init_multi_cfg_info(void);
 int primary_display_get_multi_configs(struct multi_configs *p_cfgs);
 void primary_display_dynfps_chg_fps(int cfg_id);
+void primary_display_dynfps_get_vfp_info(
+	unsigned int *vfp, unsigned int *vfp_for_lp);
 
 #if 0
 bool primary_display_need_update_golden_fps(
@@ -542,6 +547,5 @@ bool primary_display_need_update_hrt_fps(
 
 /**************function for DynFPS end************************/
 #endif
-extern int mtk_notifier_call_chain(unsigned long val, void *v);
 
 #endif

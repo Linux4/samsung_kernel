@@ -189,17 +189,13 @@ void init_region(unsigned long pfn, unsigned long nr_pages,
 	struct rr_handle *handle;
 	unsigned long i;
 
-	//debug
-	pr_info("%s %lu %lu", __func__, pfn, nr_pages);
 	region.zone = page_zone(pfn_to_page(pfn));
 	region.start_pfn = pfn;
 	region.end_pfn = pfn + nr_pages;
-	BUG_ON(region.zone != page_zone(pfn_to_page(region.end_pfn)));
 	region.ops = ops;
 	spin_lock_init(&region.lru_lock);
 	spin_lock_init(&region.region_lock);
-	region.handles = (struct rr_handle *)vzalloc(nr_pages *
-			sizeof(struct rr_handle));
+	region.handles = vzalloc(nr_pages * sizeof(struct rr_handle));
 	INIT_LIST_HEAD(&region.freelist);
 	INIT_LIST_HEAD(&region.usedlist);
 	for (i = 0; i < nr_pages; i++) {
@@ -247,7 +243,7 @@ bool try_get_rbincache(void)
 	unsigned long flags;
 
 	spin_lock_irqsave(&region.region_lock, flags);
-	if (region.timeout < jiffies) {
+	if (time_before(region.timeout, jiffies)) {
 #ifdef CONFIG_ION_RBIN_HEAP
 		if (region.rc_disabled == true)
 			wake_ion_rbin_heap_shrink();
@@ -321,7 +317,7 @@ static void isolate_region(unsigned long start_pfn, unsigned long nr_pages)
 	mod_zone_page_state(region.zone, NR_FREE_RBIN_PAGES, -(nr_pages - nr_cached));
 }
 
-static void putback_region(unsigned start_pfn, unsigned long nr_pages)
+static void putback_region(unsigned long start_pfn, unsigned long nr_pages)
 {
 	struct rr_handle *handle;
 	unsigned long pfn;

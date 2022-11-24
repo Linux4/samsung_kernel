@@ -347,6 +347,9 @@ struct cmdqSecAddrMetadataStruct {
 	uint32_t offset;	/* [IN]_b, buffser offset to secure handle */
 	uint32_t size;		/* buffer size */
 	uint32_t port;		/* hw port id (i.e. M4U port id) */
+	uint32_t sec_id;	/* sec_id 0/1/3: secure camera/SVP/WFD */
+	uint32_t useSecIdinMeta;
+	int32_t ionFd;
 };
 
 struct cmdqMetaBuf {
@@ -394,8 +397,6 @@ struct cmdqSecDataStruct {
 	uint64_t enginesNeedDAPC;
 	uint64_t enginesNeedPortSecurity;
 
-	uint64_t enginesDisableDAPC;
-	uint64_t enginesDisablePortSecurity;
 	/* [Reserved] This is for CMDQ driver usage itself. Not for client.
 	 * task index in thread's tasklist. -1 for not in tasklist.
 	 */
@@ -408,10 +409,6 @@ struct cmdqSecDataStruct {
 
 	/* client extension feature */
 	uint64_t extension;
-	#ifdef MTK_IN_HOUSE_TEE
-	uint32_t secMode;
-	#endif
-	bool mtee;
 };
 
 struct cmdq_v3_replace_struct {

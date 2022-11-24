@@ -435,7 +435,7 @@ struct block_io_volume {
 typedef void (blk_tw_try_on_fn) (struct request_queue *q);
 typedef void (blk_tw_try_off_fn) (struct request_queue *q);
 
-enum blk_tw_state{
+enum blk_tw_state {
 	TW_OFF = 0,
 	TW_ON_READY,
 	TW_OFF_READY,
@@ -452,11 +452,16 @@ struct blk_turbo_write {
 	int			up_threshold_rqs;
 	long long		down_threshold_bytes;
 	int			down_threshold_rqs;
-	int			on_delay;		/* delay for ON in jiffies */
-	int			off_delay;		/* delay for OFF in jiffies */
 
-	unsigned long		prev_on_ready_ts;	/* previous TW_ON_READY state timestamp */
-	int			on_interval;		/* TW_ON_READY interval for ON in jiffies */
+	/* delay for WB ON in jiffies */
+	int			on_delay;
+	/* delay for WB OFF in jiffies */
+	int			off_delay;
+
+	/* previous TW_ON_READY state timestamp */
+	unsigned long		prev_on_ready_ts;
+	/* TW_ON_READY interval for ON in jiffies */
+	int			on_interval;
 
 	blk_tw_try_on_fn	*try_on;
 	blk_tw_try_off_fn	*try_off;
@@ -471,15 +476,19 @@ struct blk_turbo_write {
 
 int blk_alloc_turbo_write(struct request_queue *q);
 void blk_free_turbo_write(struct request_queue *q);
-int blk_register_tw_try_on_fn(struct request_queue *q, blk_tw_try_on_fn *fn);
-int blk_register_tw_try_off_fn(struct request_queue *q, blk_tw_try_off_fn *fn);
+int blk_register_tw_try_on_fn(struct request_queue *q,
+	blk_tw_try_on_fn *fn);
+int blk_register_tw_try_off_fn(struct request_queue *q,
+	blk_tw_try_off_fn *fn);
 int blk_reset_tw_state(struct request_queue *q);
-void blk_update_tw_state(struct request_queue *q, int write_rqs, long long write_bytes);
-void blk_account_tw_io(struct request_queue *q, int opf, int bytes);
+void blk_update_tw_state(struct request_queue *q,
+	int write_rqs, long long write_bytes);
+void blk_account_tw_io(struct request_queue *q,
+	int opf, int bytes);
 #else
 #define blk_alloc_turbo_write(q)			do {} while (0)
 #define blk_free_turbo_write(q)				do {} while (0)
-#define blk_register_tw_enable_fn(q, fn)			do {} while (0)
+#define blk_register_tw_enable_fn(q, fn)		do {} while (0)
 #define blk_register_tw_disable_fn(q, fn)		do {} while (0)
 #define blk_reset_tw_state(q)				do {} while (0)
 #define blk_update_tw_state(q, write_rqs, write_bytes)	do {} while (0)

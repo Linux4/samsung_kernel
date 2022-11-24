@@ -2,7 +2,6 @@
 #
 # Makefile for building the SELinux module as part of the kernel tree.
 #
-
 # [ SEC_SELINUX_PORTING_COMMON
 ccflags-y := -I$(srctree)/security/selinux -I$(srctree)/security/selinux/include
 

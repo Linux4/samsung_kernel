@@ -9,6 +9,7 @@
 #include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/mount.h>
+#include <linux/version.h>
 #include <asm/pgtable.h>
 #include <linux/kernel_stat.h>
 #include "../fs/mount.h"
@@ -19,8 +20,13 @@
 #include "proca_table.h"
 
 #ifdef CONFIG_PROCA_GKI_10
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+#define OFFSETOF_INTEGRITY offsetof(struct task_struct, android_oem_data1[2])
+#define OFFSETOF_F_SIGNATURE offsetof(struct file, android_oem_data1)
+#else
 #define OFFSETOF_INTEGRITY offsetof(struct task_struct, android_vendor_data1[2])
 #define OFFSETOF_F_SIGNATURE offsetof(struct file, android_vendor_data1)
+#endif
 #else
 #define OFFSETOF_INTEGRITY offsetof(struct task_struct, integrity)
 #define OFFSETOF_F_SIGNATURE offsetof(struct file, f_signature)
@@ -112,7 +118,8 @@ static struct GAForensicINFO {
 	.list_head_struct_prev = offsetof(struct list_head, prev),
 #if defined(CONFIG_KDP_NS) || defined(CONFIG_RKP_NS_PROT) || defined(CONFIG_RUSTUH_KDP_NS)
 	.is_kdp_ns_on = true,
-#if defined(CONFIG_SOC_EXYNOS2100) || defined(CONFIG_ARCH_LAHAINA)
+#if defined(CONFIG_SOC_EXYNOS2100) || defined(CONFIG_ARCH_LAHAINA) || defined(CONFIG_SOC_S5E9925) \
+|| defined(CONFIG_SOC_S5E8825)
 	.struct_vfsmount_bp_mount = offsetof(struct kdp_vfsmount, bp_mount),
 #else
 	.struct_vfsmount_bp_mount = offsetof(struct vfsmount, bp_mount),

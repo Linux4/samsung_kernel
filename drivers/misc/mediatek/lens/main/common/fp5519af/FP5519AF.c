@@ -23,6 +23,8 @@
 #include <linux/uaccess.h>
 
 #include "lens_info.h"
+#include "imgsensor_sysfs.h"
+#include "kd_imgsensor_sysfs_adapter.h"
 
 #define AF_DRVNAME "FP5519AF_DRV"
 #define AF_I2C_SLAVE_ADDR 0x18
@@ -34,8 +36,6 @@
 #else
 #define LOG_INF(format, args...)
 #endif
-
-#define mDELAY(ms)       usleep_range(ms*1000, ms*1000)
 
 static struct i2c_client *g_pstAF_I2Cclient;
 static int *g_pAF_Opened;
@@ -154,29 +154,39 @@ static u8 read_data(u8 addr)
 /* initAF include driver initialization and standby mode */
 static int initAF(void)
 {
-
+	int ret = 0;
+#ifdef IMGSENSOR_HW_PARAM
+	struct cam_hw_param *hw_param = NULL;
+#endif
 	u8 data = 0xFF;
+	u8 ac_mode = 0xA2, ac_time = 0x3F;
 
 	LOG_INF("+\n");
 
-	mDELAY(5);
+	usleep_range(5000, 5500);
 
 	data = read_data(0x00);
 	LOG_INF("module id:%d\n", data);
-	s4AF_WriteReg(0x02, 0x01);
-	s4AF_WriteReg(0x02, 0x00);
-	mDELAY(5);
-	s4AF_WriteReg(0x02, 0x02);//ring
-	//s4AF_WriteReg(0x06, 0xA4);//101__100 sac4 with x8
-	s4AF_WriteReg(0x06, 0x61);//0110 0001 SAC3 with x1
-	mDELAY(5);
-	s4AF_WriteReg(0x07, 0x36);// 0011 0110 SACT
-	//s4AF_WriteReg(0x07, 0x00);//00111111 SACT
-	mDELAY(1);
-	s4AF_WriteReg(0x0A, 0x00);
-	s4AF_WriteReg(0x0B, 0x01);
-	s4AF_WriteReg(0x0C, 0xFF);
-	s4AF_WriteReg(0x11, 0x00);
+	ret |= s4AF_WriteReg(0x02, 0x01);
+	ret |= s4AF_WriteReg(0x02, 0x00);
+	usleep_range(5000, 5500);
+	ret |= s4AF_WriteReg(0x02, 0x02);//ring
+
+	if (!IMGSENSOR_GET_SAC_VALUE_BY_SENSOR_IDX(0, &ac_mode, &ac_time)) {
+		ret |= -1;
+		pr_err("[%s] FP5519: failed to get sac value\n", __func__);
+	}
+
+	pr_info("[%s] FP5519 SAC setting (read from eeprom) - ac_mode: 0x%x, ac_time: 0x%x\n", __func__, ac_mode, ac_time);
+	s4AF_WriteReg(0x06, ac_mode);
+	usleep_range(5000, 5100);
+	s4AF_WriteReg(0x07, ac_time);
+
+	usleep_range(1000, 1100);
+	ret |= s4AF_WriteReg(0x0A, 0x00);
+	ret |= s4AF_WriteReg(0x0B, 0x01);
+	ret |= s4AF_WriteReg(0x0C, 0xFF);
+	ret |= s4AF_WriteReg(0x11, 0x00);
 
 	if (*g_pAF_Opened == 1) {
 
@@ -185,7 +195,13 @@ static int initAF(void)
 		spin_unlock(g_pAF_SpinLock);
 
 	}
-
+#ifdef IMGSENSOR_HW_PARAM
+	if (ret != 0) {
+		imgsensor_sec_get_hw_param(&hw_param, SENSOR_POSITION_REAR);
+		if (hw_param)
+			hw_param->i2c_af_err_cnt++;
+	}
+#endif
 	LOG_INF("-\n");
 
 	return 0;
@@ -273,10 +289,10 @@ long FP5519AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
 /* Q1 : Try release multiple times. */
 int FP5519AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 {
-
-	int noTickSoundDAC[] = {300, 280, 260, 245, 230, 220, 210};
-	//faster, only 8 steps*SAC time to leave. Barely able to hear sound.
-	int i = 0;
+	int upperSoundPos = 300;
+	int lowerSoundPos = 200;
+	int afSteps1 = 100;
+	int afSteps2 = 10;
 
 	LOG_INF("Start\n");
 
@@ -289,11 +305,41 @@ int FP5519AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 		LOG_INF("Free\n");
 
 	if (g_u4AF_INF < g_u4CurrPosition) {
-		for (i = 0; i < ARRAY_SIZE(noTickSoundDAC); i++) {
-			LOG_INF("now at dac %d\n", noTickSoundDAC[i]);
-			moveAF(noTickSoundDAC[i]);
-			mDELAY(8);
-			g_u4CurrPosition = noTickSoundDAC[i];
+		int Position = g_u4CurrPosition;
+
+		LOG_INF("g_u4CurrPosition:%lu  g_u4AF_INF:%lu\n",
+		g_u4CurrPosition, g_u4AF_INF);
+
+		while (Position > g_u4AF_INF) {
+			if (Position > upperSoundPos) {
+				moveAF(upperSoundPos);
+				usleep_range(2000, 2100);
+				Position = upperSoundPos;
+				LOG_INF("write to upperSoundPos:%d\n",
+				upperSoundPos);
+			} else if (Position > lowerSoundPos && Position
+				<= upperSoundPos) {
+				Position -= (Position % afSteps2);
+				if (Position == upperSoundPos)
+					Position -= afSteps2;
+
+				moveAF(Position);
+				usleep_range(8000, 8100);
+				LOG_INF("write to Position:%d\n", Position);
+
+				if (Position != lowerSoundPos)
+					Position -= afSteps2;
+
+			} else {
+				Position -= (Position % afSteps1);
+				moveAF(Position);
+				usleep_range(8000, 8100);
+				LOG_INF("write to Position:%d\n", Position);
+				Position -= afSteps1;
+				if (Position < 0)
+					break;
+
+			}
 		}
 	}
 		spin_lock(g_pAF_SpinLock);

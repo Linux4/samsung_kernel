@@ -160,12 +160,6 @@ const struct mtk_chip_config spi_ctrdata = {
 };
 #endif
 
-#ifdef CONFIG_SAMSUNG_TUI
-static int stui_tsp_exit(void);
-static int stui_tsp_enter(void);
-static struct nvt_ts_data *tsp_info;
-#endif
-
 /*******************************************************
 Description:
 	Novatek touchscreen irq enable/disable function.
@@ -192,6 +186,49 @@ static void nvt_irq_enable(bool enable)
 	desc = irq_to_desc(ts->client->irq);
 	input_info(true, &ts->client->dev,"enable=%d, desc->depth=%d\n", enable, desc->depth);
 }
+
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+extern int stui_spi_lock(struct spi_master *spi);
+extern int stui_spi_unlock(struct spi_master *spi);
+
+static int nvt_stui_tsp_enter(void)
+{
+	int ret = 0;
+	input_info(true, &ts->client->dev, ">> %s\n", __func__);
+
+	nvt_irq_enable(false);
+
+	ret = stui_spi_lock(ts->client->master);
+	if (ret < 0) {
+		pr_err("[STUI] stui_spi_lock failed : %d\n", ret);
+		nvt_irq_enable(true);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int nvt_stui_tsp_exit(void)
+{
+	int ret = 0;
+	input_info(true, &ts->client->dev, ">> %s\n", __func__);
+
+	ret = stui_spi_unlock(ts->client->master);
+	if (ret < 0)
+		pr_err("[STUI] stui_spi_unlock failed : %d\n", ret);
+
+	nvt_irq_enable(true);
+
+	return ret;
+}
+
+static int nvt_stui_tsp_type(void)
+{
+	input_info(true, &ts->client->dev, ">> %s\n", __func__);
+
+	return STUI_TSP_TYPE_NOVATEK;
+}
+#endif
 
 /*******************************************************
 Description:
@@ -1132,9 +1169,8 @@ return:
 	n.a.
 *******************************************************/
 #ifdef CONFIG_OF
-static int nvt_parse_dt(struct device *dev)
+static int nvt_parse_dt(struct device *dev, struct nvt_ts_platdata *platdata)
 {
-	struct nvt_ts_platdata *platdata = dev->platform_data;
 	struct device_node *np = dev->of_node;
 	int32_t ret = 0;
 	int tmp[3];
@@ -1385,10 +1421,8 @@ static int nvt_parse_dt(struct device *dev)
 	return 0;
 }
 #else
-static int nvt_parse_dt(struct device *dev)
+static int nvt_parse_dt(struct device *dev, struct nvt_ts_platdata *platdata)
 {
-	struct nvt_ts_platdata *platdata = dev->platform_data;
-
 	input_err(true, &dev, "no platform data specified\n");
 
 #if NVT_TOUCH_SUPPORT_HW_RST
@@ -2127,6 +2161,15 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 #endif
 	struct nvt_ts_platdata *platdata;
 
+	/* only for tui, use later*/
+	struct sec_ts_plat_data *sec_plat_data;
+
+	sec_plat_data = devm_kzalloc(&client->dev, sizeof(struct sec_ts_plat_data), GFP_KERNEL);
+	if (!sec_plat_data) {
+		input_err(true, &client->dev, "failed to allocated memory for sec_ts_plat_data\n");
+		return -ENOMEM;
+	}
+
 	input_info(true, &client->dev, "%s : start\n", __func__);
 
 	ts = kzalloc(sizeof(struct nvt_ts_data), GFP_KERNEL);
@@ -2156,8 +2199,9 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 			goto err_alloc_platdata_failed;
 		}
 
-		client->dev.platform_data = platdata;
-		ret = nvt_parse_dt(&client->dev);
+		// for tui
+		client->dev.platform_data = sec_plat_data;
+		ret = nvt_parse_dt(&client->dev, platdata);
 		if (ret < 0) {
 			input_err(true, &client->dev, "%s: Failed to parse dt(%d)\n", __func__, ret);
 			goto err_parse_dt_failed;
@@ -2213,21 +2257,6 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 #endif
 
 	input_info(true, &client->dev,"mode=%d, max_speed_hz=%d\n", ts->client->mode, ts->client->max_speed_hz);
-/*
-	//---parse dts---
-	ret = nvt_parse_dt(&client->dev);
-	if (ret) {
-		input_err(true, &client->dev,"parse dt error\n");
-		goto err_spi_setup;
-	}
-
-	//---request and config GPIOs---
-	ret = nvt_gpio_config(ts);
-	if (ret) {
-		input_err(true, &client->dev,"gpio config error!\n");
-		goto err_gpio_config_failed;
-	}
-	*/
 
 	mutex_init(&ts->lock);
 	mutex_init(&ts->xbuf_lock);
@@ -2473,9 +2502,14 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	}
 #endif
 
-#ifdef CONFIG_SAMSUNG_TUI
-	tsp_info = ts;
-	return stui_set_info(stui_tsp_enter, stui_tsp_exit, STUI_TSP_TYPE_NOVATEK);
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+	ptsp = &client->dev;
+	ts->plat_data = sec_plat_data;
+
+	ts->plat_data->stui_tsp_enter = nvt_stui_tsp_enter;
+	ts->plat_data->stui_tsp_exit = nvt_stui_tsp_exit;
+	ts->plat_data->stui_tsp_type = nvt_stui_tsp_type;
+	input_err(true, &client->dev, "secure touch support, irq_flags=0x%X\n", ts->platdata->irq_flags);
 #endif
 
 	return 0;
@@ -3021,46 +3055,6 @@ int32_t nvt_ts_resume(struct device *dev)
 
 	return 0;
 }
-
-#ifdef CONFIG_SAMSUNG_TUI
-extern int stui_spi_lock(struct spi_master *spi);
-extern int stui_spi_unlock(struct spi_master *spi);
-
-static int stui_tsp_enter(void)
-{
-	int ret = 0;
-
-	if (!tsp_info)
-		return -EINVAL;
-
-	nvt_irq_enable(false);
-
-	ret = stui_spi_lock(tsp_info->client->master);
-	if (ret) {
-		pr_err("[STUI] stui_spi_lock failed : %d\n", ret);
-		nvt_irq_enable(true);
-		return -1;
-	}
-
-	return 0;
-}
-
-static int stui_tsp_exit(void)
-{
-	int ret = 0;
-
-	if (!tsp_info)
-		return -EINVAL;
-
-	ret = stui_spi_unlock(tsp_info->client->master);
-	if (ret)
-		pr_err("[STUI] stui_spi_unlock failed : %d\n", ret);
-
-	nvt_irq_enable(true);
-
-	return ret;
-}
-#endif
 
 #if defined(CONFIG_FB)
 #ifdef _MSM_DRM_NOTIFY_H_

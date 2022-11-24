@@ -16,6 +16,7 @@
 enum ssmr_feature_type {
 #if defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) || \
 	defined(CONFIG_MTK_TEE_GP_SUPPORT) || \
+	defined(CONFIG_MTK_SVP_ON_MTEE_SUPPORT) || \
 	defined(CONFIG_TEEGRIS_TEE_SUPPORT)
 	SSMR_FEAT_SVP,
 #endif
@@ -24,6 +25,7 @@ enum ssmr_feature_type {
 #endif
 #if defined(CONFIG_TRUSTONIC_TRUSTED_UI) ||\
 	defined(CONFIG_BLOWFISH_TUI_SUPPORT) ||\
+	defined(CONFIG_TEEGRIS_TUI) ||\
 	defined(CONFIG_SAMSUNG_TUI)
 	SSMR_FEAT_TUI,
 #endif

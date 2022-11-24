@@ -381,6 +381,9 @@ static noinline int __freq_to_index(enum FH_PLL_ID pll_id, int setting_idx_patte
 	unsigned int i = PLL_SETTING_IDX__DEF;	/* start from 1 */
 	const unsigned int size = ARRAY_SIZE(g_pll_ssc_setting_tbl[pll_id]);
 
+	if (pll_id < 0)
+		return retVal;
+
 	while (i < size) {
 		if (setting_idx_pattern == g_pll_ssc_setting_tbl[pll_id][i].idx_pattern) {
 			retVal = i;
@@ -406,6 +409,9 @@ static int __freqhopping_ctrl(struct freqhopping_ioctl *fh_ctl, bool enable)
 
 	/* Check the out of range of frequency hopping PLL ID */
 	VALIDATE_PLLID(fh_ctl->pll_id);
+
+	if (fh_ctl->pll_id >= FH_PLL_NUM)
+		return -1;
 
 	pfh_pll = &g_fh_pll[fh_ctl->pll_id];
 
@@ -508,6 +514,9 @@ static int mt_fh_hal_hopping(enum FH_PLL_ID pll_id, unsigned int dds_value)
 
 	VALIDATE_PLLID(pll_id);
 
+	if (pll_id >= FH_PLL_NUM)
+		return -1;
+
 	local_irq_save(flags);
 
 	/* 1. sync ncpo to DDS of FHCTL */
@@ -601,6 +610,9 @@ static int mt_fh_hal_general_pll_dfs(enum FH_PLL_ID pll_id, unsigned int target_
 	unsigned long flags = 0;
 
 	VALIDATE_PLLID(pll_id);
+
+	if (pll_id >= FH_PLL_NUM)
+		return -1;
 
 	switch (pll_id) {
 	case FH_ARM_PLLID:

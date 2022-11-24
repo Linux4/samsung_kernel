@@ -1428,6 +1428,15 @@ config NETFILTER_XT_MATCH_QUOTA2_LOG
 
 	  If unsure, say `N'.
 
+config NETFILTER_XT_MATCH_QUOTA2_LOG_32BIT
+	bool '"quota2" Netfilter LOG support on 32BIT platform'
+	default n
+	help
+	  'ulog_packet_msg' struct has data type 'long' as a member.
+	  When platform using 32BIT arch and Kernel using 64BIT arch,
+	  Thres's a missmatch in data structure.
+	  This option allows `quota2' to log on this situation.
+
 config NETFILTER_XT_MATCH_RATEEST
 	tristate '"rateest" match support'
 	depends on NETFILTER_ADVANCED

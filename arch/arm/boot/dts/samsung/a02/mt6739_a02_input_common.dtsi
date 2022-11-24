@@ -237,7 +237,7 @@
 		iliteck,lcdid2-gpio = <&pio 10 0x0>;
 		iliteck,lcdid3-gpio = <&pio 86 0x0>;
 		iliteck,lcdid = <0>;
-		iliteck,lcdtype = <0 0 0 0 0xaa7250 0 0 0x2a6250>;
+		iliteck,lcdtype = <0 0 0x7a6250 0 0xaa7250 0 0 0x2a6250>;
 		iliteck,lcd_rst = "gpio_lcd_rst";
 		iliteck,lcd_bl_en = "gpio_lcd_bl_en";
 		iliteck,lcd_vddi = "gpio_lcd_en_1p8";
@@ -252,6 +252,6 @@
 		iliteck,support_ear_detect_mode;
 		iliteck,enable_sysinput_enabled;
 		iliteck,prox_lp_scan_enabled;
-		iliteck,fw_name = "", "", "", "", "tsp_ilitek/ili9881x_a02.hex", "", "", "tsp_ilitek/ili9881x_a02_boe.hex";
+		iliteck,fw_name = "", "", "tsp_ilitek/ili9882q_a02_boe.hex", "", "tsp_ilitek/ili9881x_a02.hex", "", "", "tsp_ilitek/ili9881x_a02_boe.hex";
 	};
 };

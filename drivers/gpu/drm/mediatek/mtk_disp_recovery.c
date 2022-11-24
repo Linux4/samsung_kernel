@@ -25,6 +25,9 @@
 #include <uapi/linux/sched/types.h>
 #include <drm/drmP.h>
 #include <linux/soc/mediatek/mtk-cmdq.h>
+#if defined(CONFIG_MACH_MT6877)
+#include <linux/pinctrl/consumer.h>
+#endif
 
 #include "mtk_drm_drv.h"
 #include "mtk_drm_ddp_comp.h"
@@ -339,7 +342,10 @@ static int mtk_drm_request_eint(struct drm_crtc *crtc)
 		return -EINVAL;
 	}
 
-	of_property_read_u32_array(node, "debounce", ints, ARRAY_SIZE(ints));
+	ret = of_property_read_u32_array(node, "debounce", ints, ARRAY_SIZE(ints));
+	if (ret)
+		DDPPR_ERR("debounce not found\n");
+
 	esd_ctx->eint_irq = irq_of_parse_and_map(node, 0);
 
 	ret = request_irq(esd_ctx->eint_irq, _esd_check_ext_te_irq_handler,
@@ -426,6 +432,12 @@ static int mtk_drm_esd_recover(struct drm_crtc *crtc)
 	mtk_drm_crtc_disable(crtc, true);
 	CRTC_MMP_MARK(drm_crtc_index(crtc), esd_recovery, 0, 2);
 
+#ifdef MTK_FB_MMDVFS_SUPPORT
+	if (drm_crtc_index(crtc) == 0)
+		mtk_disp_set_hrt_bw(mtk_crtc,
+				    mtk_crtc->qos_ctx->last_hrt_req);
+#endif
+
 	mtk_drm_crtc_enable(crtc);
 	CRTC_MMP_MARK(drm_crtc_index(crtc), esd_recovery, 0, 3);
 
@@ -463,9 +475,10 @@ static int mtk_drm_esd_check_worker_kthread(void *data)
 {
 	struct sched_param param = {.sched_priority = 87};
 	struct drm_crtc *crtc = (struct drm_crtc *)data;
-	struct mtk_drm_private *private = crtc->dev->dev_private;
-	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
-	struct mtk_drm_esd_ctx *esd_ctx = mtk_crtc->esd_ctx;
+	struct mtk_drm_private *private = NULL;
+	struct mtk_drm_crtc *mtk_crtc = NULL;
+	struct mtk_drm_esd_ctx *esd_ctx = NULL;
+	struct mtk_panel_ext *panel_ext = NULL;
 	int ret = 0;
 	int i = 0;
 	int recovery_flg = 0;
@@ -474,7 +487,15 @@ static int mtk_drm_esd_check_worker_kthread(void *data)
 
 	if (!crtc) {
 		DDPPR_ERR("%s invalid CRTC context, stop thread\n", __func__);
+		return -EINVAL;
+	}
+	private = crtc->dev->dev_private;
+	mtk_crtc = to_mtk_crtc(crtc);
+	esd_ctx = mtk_crtc->esd_ctx;
+	panel_ext = mtk_crtc->panel_ext;
 
+	if (unlikely(!(panel_ext && panel_ext->params))) {
+		DDPPR_ERR("%s invalid  panel_ext handle\n", __func__);
 		return -EINVAL;
 	}
 
@@ -484,7 +505,8 @@ static int mtk_drm_esd_check_worker_kthread(void *data)
 			esd_ctx->check_task_wq,
 			atomic_read(&esd_ctx->check_wakeup) &&
 			(atomic_read(&esd_ctx->target_time) ||
-				esd_ctx->chk_mode == READ_EINT));
+			(panel_ext->params->cust_esd_check == 0) &&
+			 (esd_ctx->chk_mode == READ_EINT)));
 		if (ret < 0) {
 			DDPINFO("[ESD]check thread waked up accidently\n");
 			continue;

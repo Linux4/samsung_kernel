@@ -81,6 +81,7 @@ int adapter_dev_get_status(struct adapter_device *adapter_dev,
 }
 EXPORT_SYMBOL(adapter_dev_get_status);
 
+#if defined(CONFIG_BATTERY_SAMSUNG)
 bool adapter_dev_is_src_usb_communication_capable(struct adapter_device *adapter_dev)
 {
 	if (adapter_dev != NULL && adapter_dev->ops != NULL &&
@@ -100,6 +101,7 @@ bool adapter_dev_is_src_usb_suspend_support(struct adapter_device *adapter_dev)
 	return -ENOTSUPP;
 }
 EXPORT_SYMBOL(adapter_dev_is_src_usb_suspend_support);
+#endif
 
 int adapter_dev_get_output(struct adapter_device *adapter_dev, int *mV, int *mA)
 {

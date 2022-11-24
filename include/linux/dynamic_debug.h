@@ -235,7 +235,7 @@ do {								\
 
 #define dynamic_dev_dbg(dev, fmt, ...)				\
 do {								\
-	DEFINE_DYNAMIC_DEBUG_METADATA(descriptor, fmt);	\
+	DEFINE_DYNAMIC_DEBUG_METADATA(descriptor, fmt);		\
 	if (DYNAMIC_DEBUG_BRANCH(descriptor))			\
 		__dynamic_dev_dbg(&descriptor, dev, fmt,	\
 				  ##__VA_ARGS__);		\

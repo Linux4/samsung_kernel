@@ -49,6 +49,8 @@
 extern unsigned int lpcharge;
 #endif
 
+extern struct device *ptsp;
+
 #define NVT_DEBUG 1
 
 //---GPIO number---
@@ -189,6 +191,7 @@ struct nvt_ts_platdata {
 struct nvt_ts_data {
 	struct spi_device *client;
 	struct nvt_ts_platdata *platdata;
+	struct sec_ts_plat_data *plat_data;	/* only for tui */
 	struct nvt_ts_coord coords[TOUCH_MAX_FINGER_NUM];
 	u8 touch_count;
 	struct input_dev *input_dev;
@@ -352,6 +355,8 @@ enum {
 #define FREQ_HOP_ENABLE		0x65
 #define HANDSHAKING_HOST_READY	0xBB
 
+#define CHARGER_PLUG_OFF		0x51
+#define CHARGER_PLUG_AC			0x53
 #define GLOVE_ENTER				0xB1
 #define GLOVE_LEAVE				0xB2
 #define HOLSTER_ENTER			0xB5
@@ -428,6 +433,7 @@ typedef enum {
 
 typedef enum {
 	GLOVE = 1,
+	CHARGER,
 #ifdef PROXIMITY_FUNCTION
 	PROXIMITY = 3,
 #endif
@@ -445,6 +451,7 @@ typedef enum {
 
 typedef enum {
 	GLOVE_MASK		= 0x0002,	// bit 1
+	CHARGER_MASK		= 0x0004,	// bit 2
 #ifdef PROXIMITY_FUNCTION
 	PROXIMITY_MASK	= 0x0008,	// bit 3
 #endif
@@ -458,9 +465,9 @@ typedef enum {
 	NOISE_MASK			= 0x2000,	// bit 13
 	SENSITIVITY_MASK	= 0x4000,	// bit 14
 #ifdef PROXIMITY_FUNCTION
-	FUNCT_ALL_MASK		= 0x7FDA,
+	FUNCT_ALL_MASK		= 0x7FDE,
 #else
-	FUNCT_ALL_MASK		= 0x7FD2,
+	FUNCT_ALL_MASK		= 0x7FD6,
 #endif
 } FUNCT_MASK;
 

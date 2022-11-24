@@ -29,12 +29,6 @@
 #define EXT_SPK_AMP_W_NAME "Ext_Speaker_Amp"
 
 static const char *const mt6853_spk_type_str[] = {MTK_SPK_NOT_SMARTPA_STR,
-#ifdef CONFIG_SND_SOC_SMA1303
-						  MTK_SPK_SILICON_SM1303_STR,
-#endif
-#ifdef CONFIG_SND_SOC_TAS256X
-						  MTK_SPK_TI_TAS256X_STR,
-#endif
 						  MTK_SPK_RICHTEK_RT5509_STR,
 						  MTK_SPK_MEDIATEK_MT6660_STR,
 						  MTK_SPK_NXP_TFA98XX_STR
@@ -328,7 +322,6 @@ static int mt6853_mt6359_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
-#if !defined(CONFIG_SND_SOC_SMA1303)
 static int mt6853_i2s_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 				      struct snd_pcm_hw_params *params)
 {
@@ -341,7 +334,6 @@ static int mt6853_i2s_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	params_set_format(params, SNDRV_PCM_FORMAT_S32_LE);
 	return 0;
 }
-#endif
 
 #ifdef CONFIG_MTK_VOW_SUPPORT
 static const struct snd_pcm_hardware mt6853_mt6359_vow_hardware = {
@@ -804,9 +796,7 @@ static struct snd_soc_dai_link mt6853_mt6359_dai_links[] = {
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.ignore_suspend = 1,
-#if !defined(CONFIG_SND_SOC_SMA1303)
 		.be_hw_params_fixup = mt6853_i2s_hw_params_fixup,
-#endif
 	},
 	{
 		.name = "I2S0",
@@ -816,9 +806,7 @@ static struct snd_soc_dai_link mt6853_mt6359_dai_links[] = {
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.ignore_suspend = 1,
-#if !defined(CONFIG_SND_SOC_SMA1303)
 		.be_hw_params_fixup = mt6853_i2s_hw_params_fixup,
-#endif
 	},
 	{
 		.name = "I2S1",
@@ -828,9 +816,7 @@ static struct snd_soc_dai_link mt6853_mt6359_dai_links[] = {
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.ignore_suspend = 1,
-#if !defined(CONFIG_SND_SOC_SMA1303)
 		.be_hw_params_fixup = mt6853_i2s_hw_params_fixup,
-#endif
 	},
 	{
 		.name = "I2S2",
@@ -840,9 +826,7 @@ static struct snd_soc_dai_link mt6853_mt6359_dai_links[] = {
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.ignore_suspend = 1,
-#if !defined(CONFIG_SND_SOC_SMA1303)
 		.be_hw_params_fixup = mt6853_i2s_hw_params_fixup,
-#endif
 	},
 	{
 		.name = "I2S5",
@@ -852,9 +836,7 @@ static struct snd_soc_dai_link mt6853_mt6359_dai_links[] = {
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.ignore_suspend = 1,
-#if !defined(CONFIG_SND_SOC_SMA1303)
 		.be_hw_params_fixup = mt6853_i2s_hw_params_fixup,
-#endif
 	},
 	{
 		.name = "HW Gain 1",
@@ -1090,6 +1072,13 @@ static struct snd_soc_dai_link mt6853_mt6359_dai_links[] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 	},
 	{
+		.name = "DSP_Playback_Fm_Adsp",
+		.stream_name = "DSP_Playback_Fm_Adsp",
+		.cpu_dai_name = "audio_task_fm_adsp_dai",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+	},
+	{
 		.name = "DSP_Playback_A2DP",
 		.stream_name = "DSP_Playback_A2DP",
 		.cpu_dai_name = "audio_task_a2dp_dai",
@@ -1113,6 +1102,16 @@ static struct snd_soc_dai_link mt6853_mt6359_dai_links[] = {
 		.stream_name = "SCP_SPK_Playback",
 		.cpu_dai_name = "snd-soc-dummy-dai",
 		.platform_name = "snd_scp_spk",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+	},
+#endif
+#if defined(CONFIG_MTK_ULTRASND_PROXIMITY)
+	{
+		.name = "SCP_ULTRA_Playback",
+		.stream_name = "SCP_ULTRA_Playback",
+		.cpu_dai_name = "snd-soc-dummy-dai",
+		.platform_name = "snd_scp_ultra",
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
 	},

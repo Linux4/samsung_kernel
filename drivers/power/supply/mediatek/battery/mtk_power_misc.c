@@ -191,7 +191,9 @@ int set_shutdown_cond(int shutdown_cond)
 		mutex_unlock(&sdc.lock);
 		bm_err("[%s]OVERHEAT shutdown!\n", __func__);
 		mutex_lock(&pm_mutex);
-		/*kernel_power_off();*/
+#if !defined(CONFIG_BATTERY_SAMSUNG)
+		kernel_power_off();
+#endif
 		mutex_unlock(&pm_mutex);
 		break;
 	case SOC_ZERO_PERCENT:
@@ -311,7 +313,9 @@ static int shutdown_event_handler(struct shutdown_controller *sdd)
 			if (duraction.tv_sec >= SHUTDOWN_TIME) {
 				bm_err("soc zero shutdown\n");
 				mutex_lock(&pm_mutex);
-				/*kernel_power_off();*/
+#if !defined(CONFIG_BATTERY_SAMSUNG)
+				kernel_power_off();
+#endif
 				mutex_unlock(&pm_mutex);
 				return next_waketime(polling);
 
@@ -335,7 +339,9 @@ static int shutdown_event_handler(struct shutdown_controller *sdd)
 			if (duraction.tv_sec >= SHUTDOWN_TIME) {
 				bm_err("uisoc one percent shutdown\n");
 				mutex_lock(&pm_mutex);
-				/*kernel_power_off();*/
+#if !defined(CONFIG_BATTERY_SAMSUNG)
+				kernel_power_off();
+#endif
 				mutex_unlock(&pm_mutex);
 				return next_waketime(polling);
 			}
@@ -357,7 +363,9 @@ static int shutdown_event_handler(struct shutdown_controller *sdd)
 		if (duraction.tv_sec >= SHUTDOWN_TIME) {
 			bm_err("dlpt shutdown\n");
 			mutex_lock(&pm_mutex);
-			/*kernel_power_off();*/
+#if !defined(CONFIG_BATTERY_SAMSUNG)
+			kernel_power_off();
+#endif
 			mutex_unlock(&pm_mutex);
 			return next_waketime(polling);
 		}
@@ -426,7 +434,9 @@ static int shutdown_event_handler(struct shutdown_controller *sdd)
 					bm_err("low bat shutdown, over %d second\n",
 						SHUTDOWN_TIME);
 					mutex_lock(&pm_mutex);
-					/*kernel_power_off();*/
+#if !defined(CONFIG_BATTERY_SAMSUNG)
+					kernel_power_off();
+#endif
 					mutex_unlock(&pm_mutex);
 					return next_waketime(polling);
 				}
@@ -501,9 +511,10 @@ void power_misc_handler(void *arg)
 static int power_misc_routine_thread(void *arg)
 {
 	struct shutdown_controller *sdd = arg;
+	int ret = 0;
 
 	while (1) {
-		wait_event(sdd->wait_que, (sdd->timeout == true)
+		ret = wait_event_interruptible(sdd->wait_que, (sdd->timeout == true)
 			|| (sdd->overheat == true));
 		if (sdd->timeout == true) {
 			sdd->timeout = false;
@@ -514,7 +525,9 @@ static int power_misc_routine_thread(void *arg)
 			bm_err("%s battery overheat~ power off\n",
 				__func__);
 			mutex_lock(&pm_mutex);
-			/*kernel_power_off();*/
+#if !defined(CONFIG_BATTERY_SAMSUNG)
+			kernel_power_off();
+#endif
 			mutex_unlock(&pm_mutex);
 			fix_coverity = 1;
 			return 1;

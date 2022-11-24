@@ -153,3 +153,8 @@ obj-$(CONFIG_GPIO_ZYNQ)		+= gpio-zynq.o
 obj-$(CONFIG_GPIO_ZX)		+= gpio-zx.o
 obj-$(CONFIG_GPIO_LOONGSON1)	+= gpio-loongson1.o
 obj-$(CONFIG_SEC_GPIO_DVS)	+= secgpio_dvs.o sec-pinmux.o
+
+CFLAGS_sec_detect_conn.o	+= -Wformat
+
+# Samsung Connector Check Feature
+obj-$(CONFIG_SEC_DETECT_CONN)	+= sec_detect_conn.o

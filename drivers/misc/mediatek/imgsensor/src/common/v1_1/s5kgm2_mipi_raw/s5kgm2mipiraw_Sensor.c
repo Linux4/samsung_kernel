@@ -5073,8 +5073,7 @@ static kal_uint32 get_default_framerate_by_scenario(
 
 static kal_uint32 set_test_pattern_mode(kal_bool enable)
 {
-	LOG_INF("enable: %d\n", enable);
-
+#if 0
 	if (enable) {
 		write_cmos_sensor(0x3202, 0x0080);
 		write_cmos_sensor(0x3204, 0x0080);
@@ -5105,7 +5104,13 @@ static kal_uint32 set_test_pattern_mode(kal_bool enable)
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.test_pattern = enable;
 	spin_unlock(&imgsensor_drv_lock);
-
+#else
+	//test ·pattern ·is ·always ·disable
+	spin_lock(&imgsensor_drv_lock);
+	imgsensor.test_pattern = false;
+	spin_unlock(&imgsensor_drv_lock);
+	LOG_INF("enable: %d\n", imgsensor.test_pattern);
+#endif
 	return ERROR_NONE;
 }
 static kal_uint32 get_sensor_temperature(void)

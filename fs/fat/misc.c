@@ -34,7 +34,7 @@ void fat_uevent_ro_remount(struct super_block *sb)
 {
 	struct block_device *bdev = sb->s_bdev;
 	dev_t bd_dev = bdev ? bdev->bd_dev : 0;
-	
+
 	char major[16], minor[16];
 	char *envp[] = { major, minor, NULL };
 
@@ -146,7 +146,7 @@ int fat_clusters_flush(struct super_block *sb)
 			fsinfo->free_clusters = cpu_to_le32(sbi->free_clusters);
 		if (sbi->prev_free != -1)
 			fsinfo->next_cluster = cpu_to_le32(sbi->prev_free);
-		mark_buffer_dirty_sync(bh);
+		mark_buffer_dirty(bh);
 	}
 	brelse(bh);
 

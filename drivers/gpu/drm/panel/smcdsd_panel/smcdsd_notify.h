@@ -73,10 +73,12 @@ extern int smcdsd_unregister_notifier(struct notifier_block *nb);
 extern int smcdsd_notifier_call_chain(unsigned long val, void *v);
 extern int smcdsd_simple_notifier_call_chain(unsigned long val, int blank);
 
+#if defined(CONFIG_DRM_MEDIATEK)
 extern int smcdsd_fb_register_client(struct notifier_block *nb);
 extern int smcdsd_fb_unregister_client(struct notifier_block *nb);
 extern int smcdsd_fb_notifier_call_chain(unsigned long val, void *v);
 extern int smcdsd_fb_simple_notifier_call_chain(unsigned long val, int blank);
+#endif
 
 #endif
 

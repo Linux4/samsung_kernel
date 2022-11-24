@@ -85,6 +85,7 @@
 #include "mtk_vcorefs_manager.h"
 #endif
 
+#include "ddp_disp_bdg.h"
 #include "disp_lowpower.h"
 #include "disp_recovery.h"
 /* #include "mt_spm_sodi_cmdq.h" */
@@ -114,6 +115,7 @@ static struct disp_internal_buffer_info
 static struct RDMA_CONFIG_STRUCT decouple_rdma_config;
 static struct WDMA_CONFIG_STRUCT decouple_wdma_config;
 static struct disp_mem_output_config mem_config;
+static unsigned int primary_display_set_sess_mode;
 atomic_t hwc_configing = ATOMIC_INIT(0);
 static unsigned int primary_session_id =
 	MAKE_DISP_SESSION(DISP_SESSION_PRIMARY, 0);
@@ -124,7 +126,6 @@ static unsigned int gPresentFenceIndex;
 unsigned int gTriggerDispMode;
 static unsigned int g_keep;
 static unsigned int g_skip;
-
 #if 0 //def CONFIG_TRUSTONIC_TRUSTED_UI
 static struct switch_dev disp_switch_data;
 #endif
@@ -156,7 +157,6 @@ static struct task_struct *decouple_trigger_thread;
 #if defined(CONFIG_SMCDSD_PANEL)
 static struct task_struct *framedone_thread;
 #endif
-
 static struct task_struct *init_decouple_buffer_thread;
 #ifdef MTK_FB_MMDVFS_SUPPORT
 struct pm_qos_request primary_display_qos_request;
@@ -1110,46 +1110,87 @@ int primary_display_get_debug_state(char *stringbuf, int buf_len)
 	int active_cfg = 0;
 #endif
 
+	if (len > buf_len) {
+		DISPERR("%s, buffer is too small", __func__);
+		return -1;
+	}
 	len += scnprintf(stringbuf + len, buf_len - len,
 		"|--------------------------------------------------------------------------------------|\n");
+
+	if (len > buf_len) {
+		DISPERR("%s, buffer is too small", __func__);
+		return -1;
+	}
 	len += scnprintf(stringbuf + len, buf_len - len,
 		"|********Primary Display Path General Information********\n");
+
 	if (mutex_trylock(&(pgc->lock))) {
 		mutex_unlock(&(pgc->lock));
+		if (len > buf_len) {
+			DISPERR("%s, buffer is too small", __func__);
+			return -1;
+		}
 		len += scnprintf(stringbuf + len, buf_len - len,
 			"|primary path global mutex is free\n");
 	} else {
+		if (len > buf_len) {
+			DISPERR("%s, buffer is too small", __func__);
+			return -1;
+		}
 		len += scnprintf(stringbuf + len, buf_len - len,
 			"|primary path global mutex is hold by [%s]\n",
 			pgc->mutex_locker);
 	}
 
-	if (lcm_param && lcm_drv)
+	if (lcm_param && lcm_drv) {
+		if (len > buf_len) {
+			DISPERR("%s, buffer is too small", __func__);
+			return -1;
+		}
 		len += scnprintf(stringbuf + len, buf_len - len,
-			"|LCM Driver=[%s]\tResolution=%dx%d,Interface:%s, LCM Connected:%s, HBM=%d\n",
+			"|LCM Driver=[%s]\tResolution=%dx%d,Interface:%s, LCM Connected:%s\n",
 			lcm_drv->name, lcm_param->width, lcm_param->height,
 			(lcm_param->type == LCM_TYPE_DSI) ? "DSI" : "Other",
-			islcmconnected ? "Y" : "N",
-			disp_lcm_get_hbm_state(pgc->plcm));
+			islcmconnected ? "Y" : "N");
+	}
+
+	if (len > buf_len) {
+		DISPERR("%s, buffer is too small", __func__);
+		return -1;
+	}
 	len += scnprintf(stringbuf + len, buf_len - len,
 		"|State=%s\tlcm_fps=%d\tmax_layer=%d\tmode:%s\tvsync_drop=%d\n",
 		pgc->state == DISP_ALIVE ? "Alive" : "Sleep", pgc->lcm_fps,
 		pgc->max_layer, session_mode_spy(pgc->session_mode),
 		pgc->vsync_drop);
+	if (len > buf_len) {
+		DISPERR("%s, buffer is too small", __func__);
+		return -1;
+	}
 	len += scnprintf(stringbuf + len, buf_len - len,
 		"|cmdq_handle_config=%p\tcmdq_handle_trigger=%p\tdpmgr_handle=%p\tovl2mem_path_handle=%p\n",
 		pgc->cmdq_handle_config, pgc->cmdq_handle_trigger,
 		pgc->dpmgr_handle, pgc->ovl2mem_path_handle);
+	if (len > buf_len) {
+		DISPERR("%s, buffer is too small", __func__);
+		return -1;
+	}
 	len += scnprintf(stringbuf + len, buf_len - len,
 		"|Current display driver status=%s + %s\n",
 		primary_display_is_video_mode() ? "video mode" : "cmd mode",
 		primary_display_cmdq_enabled() ? "CMDQ On" : "CMDQ Off");
 
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
-		active_cfg = primary_display_get_current_cfg_id();
-		/*DynFPS info*/
-		len += scnprintf(stringbuf + len, buf_len - len,
-			"|DynFPS=%d\n", primary_display_is_support_DynFPS());
+	active_cfg = primary_display_get_current_cfg_id();
+	/*DynFPS info*/
+
+	if (len > buf_len) {
+		DISPERR("%s, buffer is too small", __func__);
+		return -1;
+	}
+	len += scnprintf(stringbuf + len, buf_len - len,
+		"|DynFPS=%d\n", primary_display_is_support_DynFPS());
+
 #endif
 
 	return len;
@@ -1614,9 +1655,13 @@ void disp_spm_enter_power_down_mode(void)
 
 void _cmdq_start_trigger_loop(void)
 {
-	int ret = 0, nCnt = 0;
+	int ret = 0, n_cnt = 0;
 
 	ret = cmdqRecStartLoop(pgc->cmdq_handle_trigger);
+	if (ret < 0) {
+		DISPERR("%s cmdq start loop fail\n", __func__);
+		return;
+	}
 	if (!primary_display_is_video_mode()) {
 		if (need_wait_esd_eof()) {
 			/* Need set esd check eof synctoken to
@@ -1631,18 +1676,17 @@ void _cmdq_start_trigger_loop(void)
 		cmdqCoreSetEvent(CMDQ_SYNC_TOKEN_STREAM_EOF);
 		/*check GCE REG if it's not ready and set it again*/
 		while (!cmdqCoreGetEvent(CMDQ_SYNC_TOKEN_STREAM_EOF)) {
-			nCnt++;
+			n_cnt++;
 
-			if (nCnt > 5) {
-				DISPERR("Retry 5 times, but still set ");
-				DISPERR("CMDQ_SYNC_TOKEN_STREAM_EOF fail\n");
+			if (n_cnt > 5) {
+				DISPERR("Retry 5 times, but set CMDQ_SYNC_TOKEN_STREAM_EOF fail\n");
 				break;
 			}
 
 			DISPCHECK("set CMDQ_SYNC_TOKEN_STREAM_EOF = %d\n",
-				cmdqCoreGetEvent(CMDQ_SYNC_TOKEN_STREAM_EOF));
-			usleep_range(5000, 10000);
+					cmdqCoreGetEvent(CMDQ_SYNC_TOKEN_STREAM_EOF));
 			cmdqCoreSetEvent(CMDQ_SYNC_TOKEN_STREAM_EOF);
+			usleep_range(5000, 10000);
 		}
 
 		cmdqCoreSetEvent(CMDQ_SYNC_TOKEN_CABC_EOF);
@@ -1662,6 +1706,8 @@ void _cmdq_stop_trigger_loop(void)
 	 * trigger loop will never stop
 	 */
 	ret = cmdqRecStopLoop(pgc->cmdq_handle_trigger);
+	if (ret < 0)
+		DISPERR("%s cmdq stop loop fail\n", __func__);
 	DISPINFO("primary display STOP cmdq trigger loop finished\n");
 }
 
@@ -2020,10 +2066,8 @@ static int init_sec_buf(void)
 
 static int deinit_sec_buf(void)
 {
-	int ret  = 0;
-
 	if (sec_mva) {
-		ret  = sec_buf_ion_free();
+		sec_buf_ion_free();
 		sec_mva = 0;
 		/* DISPMSG("deinit_sec_mva 0x%x\n", sec_mva); */
 	}
@@ -3110,6 +3154,11 @@ unsigned int cmdqDdpDumpInfo(uint64_t engineFlag, char *pOutBuf,
 
 	ddp_dump_analysis(DISP_MODULE_WDMA0);
 
+#if !defined(CONFIG_SEC_FACTORY) && defined(CONFIG_SMCDSD_PANEL_A13VE)
+	if (islcmconnected)
+		BUG();
+#endif
+
 	return 0;
 }
 
@@ -3458,7 +3507,6 @@ static int _ovl_fence_release_callback(unsigned long userdata)
 
 	mmprofile_log_ex(ddp_mmp_get_events()->session_release,
 		MMPROFILE_FLAG_END, 1, userdata);
-
 	return ret;
 }
 
@@ -3814,11 +3862,18 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 	struct ddp_io_golden_setting_arg gset_arg;
 	int i = 0;
 
-	DISPCHECK("primary_display_init begin lcm=%s, inited=%d\n",
-		lcm_name, is_lcm_inited);
+	DISPCHECK("%s begin lcm=%s, inited=%d\n",
+		__func__, lcm_name, is_lcm_inited);
 
 	dprec_init();
 	dpmgr_init();
+	if (bdg_is_bdg_connected() == 1) {
+		if (is_lcm_inited) {
+			bdg_first_init();
+			set_mt6382_init(1);
+		} else
+			set_mt6382_init(0);
+	}
 
 	init_cmdq_slots(&(pgc->ovl_config_time), 3, 0);
 	init_cmdq_slots(&(pgc->cur_config_fence),
@@ -3867,6 +3922,10 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 		PM_QOS_DDR_OPP, PM_QOS_DDR_OPP_DEFAULT_VALUE);
 	pm_qos_add_request(&primary_display_mm_freq_request,
 		PM_QOS_DISP_FREQ, PM_QOS_MM_FREQ_DEFAULT_VALUE);
+#endif
+
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
+	disp_fps_chg_cb_init();
 #endif
 
 	_primary_path_lock(__func__);
@@ -4067,7 +4126,6 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 			_cmdq_flush_config_handle(1, NULL, 0);
 			_cmdq_reset_config_handle();
 		}
-
 		ret = disp_lcm_init(pgc->plcm, 1);
 	}
 	if (!ret)
@@ -4120,7 +4178,6 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 				NULL, "decouple_trigger");
 		wake_up_process(decouple_trigger_thread);
 	}
-
 #if defined(CONFIG_SMCDSD_PANEL)
 	if (framedone_thread == NULL) {
 		init_waitqueue_head(&pgc->framedone_wait);
@@ -4203,6 +4260,7 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 
 	pgc->lcm_fps = lcm_fps;
 	pgc->lcm_refresh_rate = 60;
+	pgc->vfp_chg_sync_bdg = false;
 	/* keep lowpower init after setting lcm_fps */
 	primary_display_lowpower_init();
 
@@ -4214,18 +4272,17 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 	ret = switch_dev_register(&disp_switch_data);
 #endif
 
-	uevent_data.name = "lcm_disconnect";
-	uevent_dev_register(&uevent_data);
-	mtk_notifier_activate();
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	/*DynFPS*/
 	primary_display_init_multi_cfg_info();
 #endif
+	uevent_data.name = "lcm_disconnect";
+	uevent_dev_register(&uevent_data);
 
 	DISPCHECK("%s done\n", __func__);
 
 done:
-	DISPDBG("init and hold wakelock...\n");
+	DISPCHECK("init and hold wakelock...\n");
 	wakeup_source_init(&pri_wk_lock, "pri_disp_wakelock");
 	lock_primary_wake_lock(1);
 
@@ -4473,6 +4530,7 @@ int _display_set_lcm_refresh_rate(int fps)
 int primary_display_get_lcm_max_refresh_rate(void)
 {
 	unsigned int max_fps = 60;
+
 	if (disp_lcm_is_support_adjust_fps(pgc->plcm) != 0)
 		return 120;
 
@@ -4580,13 +4638,14 @@ int primary_display_wait_for_vsync(void *config)
 		has_vsync = 0; /* fpga has no TE signal */
 #endif
 
-	if (!islcmconnected || !has_vsync) {
-		DISPCHECK("use fake vsync: lcm_connect=%d, has_vsync=%d\n",
-			  islcmconnected, has_vsync);
+	if (!has_vsync) {
+//		DISPCHECK("use fake vsync: lcm_connect=%d, has_vsync=%d\n",
+//			  islcmconnected, has_vsync);
 		msleep(20);
 		return 0;
 	}
-
+	mmprofile_log_ex(ddp_mmp_get_events()->event_wait,
+		MMPROFILE_FLAG_START, DISP_PATH_EVENT_IF_VSYNC, 0);
 	if (pgc->force_fps_keep_count && pgc->force_fps_skip_count) {
 		g_keep++;
 		DISPMSG("vsync|keep %d\n", g_keep);
@@ -4629,7 +4688,8 @@ int primary_display_wait_for_vsync(void *config)
 		ret = dpmgr_wait_event_ts(pgc->dpmgr_handle,
 			DISP_PATH_EVENT_IF_VSYNC, &ts);
 	}
-
+	mmprofile_log_ex(ddp_mmp_get_events()->event_wait,
+		MMPROFILE_FLAG_END, DISP_PATH_EVENT_IF_VSYNC, 1);
 out:
 	c->vsync_ts = ts;
 	c->vsync_cnt++;
@@ -4654,9 +4714,6 @@ int primary_suspend_release_fence(void)
 			session, i);
 		mtkfb_release_layer_fence(session, i);
 	}
-	/* release present fence */
-	mtkfb_release_present_fence(session, gPresentFenceIndex);
-
 	return 0;
 }
 
@@ -4751,6 +4808,12 @@ int primary_display_suspend(void)
 		DISPWARN("primary display path is already sleep, skip\n");
 		goto done;
 	}
+
+	if (dpmgr_get_power_status(pgc->dpmgr_handle) == 0) {
+		DISPWARN("primary display power state is already off, skip\n");
+		goto done;
+	}
+
 	primary_display_idlemgr_kick(__func__, 0);
 
 	if (pgc->session_mode == DISP_SESSION_RDMA_MODE) {
@@ -4821,7 +4884,6 @@ int primary_display_suspend(void)
 	/* From now, MIPI TX command will be written on register directly */
 	disp_lcm_cmdq(pgc->plcm, 0);
 #endif
-
 	if (disp_helper_get_option(DISP_OPT_USE_CMDQ)) {
 		DISPCHECK("[POWER]display cmdq trigger loop stop\n");
 		_cmdq_stop_trigger_loop();
@@ -4829,7 +4891,10 @@ int primary_display_suspend(void)
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_suspend,
 		MMPROFILE_FLAG_PULSE, 0, 3);
 
-	DISPDBG("[POWER]primary display path stop[begin]\n");
+	if (!primary_display_is_video_mode())
+		primary_display_wakeup_pf_thread();
+
+	DISPCHECK("[POWER]primary display path stop[begin]\n");
 	dpmgr_path_stop(pgc->dpmgr_handle, CMDQ_DISABLE);
 	DISPCHECK("[POWER]primary display path stop[end]\n");
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_suspend,
@@ -4908,6 +4973,8 @@ int primary_display_suspend(void)
 		disp_lcm_power_enable(pgc->plcm, 0);
 #endif
 	/* pgc->state = DISP_SLEPT; */
+	if (bdg_is_bdg_connected() == 1)
+		bdg_common_deinit(DISP_BDG_DSI0, NULL);
 
 done:
 	primary_set_state(DISP_SLEPT);
@@ -4966,6 +5033,10 @@ static int check_switch_lcm_mode_for_debug(void)
 		return 0;
 
 	lcm_param_cv = disp_lcm_get_params(pgc->plcm);
+	if (lcm_param_cv == NULL) {
+		DISPERR("(%s)lcm_param_cv == NULL\n", __func__);
+		return 0;
+	}
 	DISPCHECK("lcm_mode_status=%d, lcm_param_cv->dsi.mode %d\n",
 		  lcm_mode_status, lcm_param_cv->dsi.mode);
 	if (lcm_param_cv->dsi.mode != CMD_MODE)
@@ -4996,6 +5067,9 @@ int primary_display_lcm_power_on_state(int alive)
 {
 	int skip_update = 0;
 
+	DISPMSG("%s, power_mode=%d, lcm_power_state=%d\n", __func__,
+		primary_display_get_power_mode_nolock(),
+		primary_display_get_lcm_power_state_nolock());
 	if (primary_display_get_power_mode_nolock() == DOZE) {
 		if (primary_display_get_lcm_power_state_nolock() !=
 			LCM_ON_LOW_POWER) {
@@ -5011,7 +5085,7 @@ int primary_display_lcm_power_on_state(int alive)
 			skip_update = 1;
 	} else if (primary_display_get_power_mode_nolock() == FB_RESUME) {
 		if (primary_display_get_lcm_power_state_nolock() != LCM_ON) {
-			DISPDBG("[POWER]lcm resume[begin]\n");
+			DISPMSG("[POWER]lcm resume[begin]\n");
 
 			if (primary_display_get_lcm_power_state_nolock() !=
 				LCM_ON_LOW_POWER) {
@@ -5020,7 +5094,7 @@ int primary_display_lcm_power_on_state(int alive)
 				disp_lcm_aod(pgc->plcm, 0);
 				skip_update = 1;
 			}
-			DISPCHECK("[POWER]lcm resume[end]\n");
+			DISPMSG("[POWER]lcm resume[end]\n");
 			primary_display_set_lcm_power_state_nolock(LCM_ON);
 		}
 	}
@@ -5033,16 +5107,15 @@ int primary_display_resume(void)
 	enum DISP_STATUS ret = DISP_STATUS_OK;
 	struct ddp_io_golden_setting_arg gset_arg;
 	int i, skip_update = 0;
+	struct disp_ddp_path_config *data_config;
 #ifdef MTK_FB_MMDVFS_SUPPORT
 	unsigned long long bandwidth;
 	unsigned int in_fps = 60;
 	unsigned int out_fps = 60;
 #endif
-
-	DISPCHECK("primary_display_resume begin\n");
+	DISPCHECK("%s begin\n", __func__);
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_resume,
 		MMPROFILE_FLAG_START, 0, 0);
-
 #if defined(CONFIG_SMCDSD_PANEL)
 /*
  *	@ disp_lcm_path_lock
@@ -5051,21 +5124,21 @@ int primary_display_resume(void)
 	disp_lcm_path_lock(1, pgc->plcm);
 #endif
 	_primary_path_lock(__func__);
-
 	if (pgc->state == DISP_ALIVE) {
 		primary_display_lcm_power_on_state(1);
+		_cmdq_insert_wait_frame_done_token_mira(
+						pgc->cmdq_handle_config);
 		DISPCHECK("primary display path is already resume, skip\n");
 		goto done;
 	}
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_resume,
 		MMPROFILE_FLAG_PULSE, 0, 1);
 
-
 #ifdef MTK_FB_MMDVFS_SUPPORT
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
-		/* for suspend/doze_suspend->doze/resume 90hz*/
-		primary_display_request_dvfs_perf(
-			0, HRT_LEVEL_LEVEL0);
+	/* for suspend/doze_suspend->doze/resume 90hz*/
+	primary_display_request_dvfs_perf(
+					0, HRT_LEVEL_LEVEL0);
 #endif
 #endif
 
@@ -5093,12 +5166,17 @@ int primary_display_resume(void)
 		if (dsi_force_config)
 			DSI_ForceConfig(1);
 	}
+	if (bdg_is_bdg_connected() == 1) {
+		data_config = dpmgr_path_get_last_config(pgc->dpmgr_handle);
+		bdg_common_init(DISP_BDG_DSI0, data_config, NULL);
+		mipi_dsi_rx_mac_init(DISP_BDG_DSI0, data_config, NULL);
+	}
+
 #if defined(CONFIG_SMCDSD_PANEL)
 	if ((primary_display_get_power_mode_nolock() == FB_RESUME) ||
 		(primary_display_get_power_mode_nolock() == DOZE))
 		disp_lcm_power_enable(pgc->plcm, 1);
 #endif
-
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	/*DynFPS*/
 	/* whether need init cfg*/
@@ -5106,7 +5184,7 @@ int primary_display_resume(void)
 	in_fps = out_fps = primary_display_get_default_disp_fps(0);
 	pgc->first_cfg = 1;
 
-	DISPMSG("%s,g_force_cfg=%d,g_force_cfg_id=%d\n",
+	DISPMSG("%s,g_force_cfg=%d,g_force_cfg_id=%u\n",
 		__func__, g_force_cfg, g_force_cfg_id);
 
 #endif
@@ -5263,6 +5341,10 @@ int primary_display_resume(void)
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_resume,
 		MMPROFILE_FLAG_PULSE, 0, 5);
 
+	if (bdg_is_bdg_connected() == 1 && get_mt6382_init()) {
+		bdg_tx_set_mode(DISP_BDG_DSI0, NULL, get_bdg_tx_mode());
+		bdg_tx_start(DISP_BDG_DSI0, NULL);
+	}
 /* SW workaround.
  * Enable polling RDMA output line isn't 0 && RDMA status is run,
  * before path resume.
@@ -5342,7 +5424,6 @@ int primary_display_resume(void)
 	/* From now, MIPI TX command will be written via CMDQ engine */
 	disp_lcm_cmdq(pgc->plcm, 1);
 #endif
-
 	/* primary_display_diagnose(); */
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_resume,
 		MMPROFILE_FLAG_PULSE, 0, 10);
@@ -5418,6 +5499,17 @@ int primary_display_resume(void)
 		}
 	}
 
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
+	/*DynFPS*/
+	/*check whether need change fps according cfg*/
+	if (primary_display_is_support_DynFPS()) {
+		int last_cfg = primary_display_get_current_cfg_id();
+
+		/* easy way to force change fps */
+		primary_display_update_cfg_id(!last_cfg);
+		primary_display_dynfps_chg_fps(last_cfg);
+	}
+#endif
 done:
 	primary_set_state(DISP_ALIVE);
 #if 0 //def CONFIG_TRUSTONIC_TRUSTED_UI
@@ -5632,7 +5724,7 @@ skip_resume:
 }
 int primary_display_ipoh_restore(void)
 {
-	DISPMSG("primary_display_ipoh_restore In\n");
+	DISPMSG("%s In\n", __func__);
 	DISPDBG("ESD check stop[begin]\n");
 	enable_idlemgr(0);
 	primary_display_esd_check_enable(0);
@@ -5652,7 +5744,7 @@ int primary_display_ipoh_restore(void)
 				NULL, 0);
 		}
 	}
-	DISPMSG("primary_display_ipoh_restore Out\n");
+	DISPMSG("%s Out\n", __func__);
 	return 0;
 }
 
@@ -5901,7 +5993,6 @@ static int framedone_worker_thread(void *data)
 	return 0;
 }
 #endif
-
 static int config_wdma_output(disp_path_handle disp_handle,
 	struct cmdqRecStruct *cmdq_handle,
 	struct disp_output_config *output)
@@ -7038,9 +7129,13 @@ static int _config_ovl_input(struct disp_frame_cfg_t *cfg,
 	/* check last ovl status: should be idle when config */
 	if (primary_display_is_video_mode() &&
 		!primary_display_is_decouple_mode()) {
-		/* last OVL is DISP_MODULE_OVL0 */
+#ifdef CONFIG_MTK_DX_HDCP_DDP_SUPPORT
+		/* last OVL is DISP_MODULE_OVL0_2L */
 		unsigned long ovl_base = ovl_base_addr(DISP_MODULE_OVL0);
-
+#else
+		/* last OVL is DISP_MODULE_OVL0_2L */
+		unsigned long ovl_base = ovl_base_addr(DISP_MODULE_OVL0_2L);
+#endif
 		cmdqRecBackupRegisterToSlot(cmdq_handle, pgc->ovl_status_info,
 			0, disp_addr_convert(DISP_REG_OVL_STA + ovl_base));
 	}
@@ -7116,9 +7211,20 @@ static int primary_frame_cfg_input(struct disp_frame_cfg_t *cfg)
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	pconfig =
 		dpmgr_path_get_last_config(pgc->dpmgr_handle);
-	if (primary_display_is_decouple_mode())
+	if (!pconfig) {
+		DISPERR("%s, get last config is NULL", __func__);
+		return -1;
+	}
+
+	if (primary_display_is_decouple_mode()) {
 		ovl2mem_pconfig =
 		dpmgr_path_get_last_config(pgc->ovl2mem_path_handle);
+		if (!ovl2mem_pconfig) {
+			DISPERR("%s, get last config is NULL", __func__);
+			return -1;
+		}
+	}
+
 
 	last_cfg_id = primary_display_get_current_cfg_id();
 	if (last_cfg_id != cfg->active_config) {
@@ -7274,14 +7380,16 @@ int primary_display_frame_cfg(struct disp_frame_cfg_t *cfg)
 {
 	int ret = 0;
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
-	unsigned int default_fps = 60;
+	unsigned int default_fps = 6000;
 #endif
 	struct disp_session_sync_info *session_info =
 		disp_get_session_sync_info_for_debug(cfg->session_id);
 	struct dprec_logger_event *input_event, *output_event, *trigger_event;
+#if defined(CONFIG_SMCDSD_PANEL)
 	bool hbm_change = 0;
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	bool fps_change = 0;
+#endif
 #endif
 
 	if (session_info) {
@@ -7291,6 +7399,7 @@ int primary_display_frame_cfg(struct disp_frame_cfg_t *cfg)
 	} else {
 		input_event = output_event = trigger_event = NULL;
 	}
+#if defined(CONFIG_SMCDSD_PANEL)
 	hbm_change = primary_display_is_hbm_change(cfg->hbm_en);
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	if (primary_display_is_support_DynFPS())
@@ -7300,6 +7409,7 @@ int primary_display_frame_cfg(struct disp_frame_cfg_t *cfg)
 #else
 	if (hbm_change)
 		disp_lcm_path_lock(1, pgc->plcm);
+#endif
 #endif
 
 	_primary_path_lock(__func__);
@@ -7314,11 +7424,12 @@ int primary_display_frame_cfg(struct disp_frame_cfg_t *cfg)
 	 * inform fpsgo default fps first
 	 */
 	if (pgc->first_cfg) {
-		default_fps = disp_lcm_dynfps_get_def_fps(pgc->plcm);
-		default_fps = default_fps ? default_fps : 6000;
+		default_fps = primary_display_get_default_disp_fps(0);
 		DISPMSG("%s,first cfg, fps=%d\n", __func__, default_fps);
+		disp_invoke_fps_chg_callbacks(default_fps / 100);
 		pgc->first_cfg = 0;
 	}
+
 	/*DynFPS debug*/
 	if (g_force_cfg)
 		cfg->active_config = g_force_cfg_id;
@@ -7372,12 +7483,14 @@ int primary_display_frame_cfg(struct disp_frame_cfg_t *cfg)
 	dprec_done(trigger_event, 0, 0);
 
 	_primary_path_unlock(__func__);
+#if defined(CONFIG_SMCDSD_PANEL)
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	if (hbm_change || fps_change)
 		disp_lcm_path_lock(0, pgc->plcm);
 #else
 	if (hbm_change)
 		disp_lcm_path_lock(0, pgc->plcm);
+#endif
 #endif
 	return ret;
 }
@@ -7587,6 +7700,13 @@ err:
 int primary_display_switch_mode(int sess_mode, unsigned int session, int force)
 {
 	int ret = 0;
+
+	if (!force && sess_mode == primary_display_set_sess_mode
+		&& primary_display_is_mirror_mode() == 0) {
+		DISPDBG("%s+\n", __func__);
+		return ret;
+	}
+	primary_display_set_sess_mode = sess_mode;
 
 	_primary_path_lock(__func__);
 	primary_display_idlemgr_kick(__func__, 0);
@@ -8129,7 +8249,9 @@ unsigned int primary_display_force_get_vsync_fps(void/*int need_lock*/)
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	_vsync_fps = primary_display_get_default_disp_fps(0);
 #endif
-	DISPMSG("%s=%d, not support ARR\n", __func__, _vsync_fps);
+
+	DISPMSG("%s=%u, not support ARR\n", __func__, _vsync_fps);
+
 	return _vsync_fps;
 }
 
@@ -8357,6 +8479,7 @@ int _set_backlight_by_cpu(unsigned int level)
 	return ret;
 }
 
+#if defined(CONFIG_SMCDSD_PANEL)
 static int _primary_display_set_lcm_hbm(bool en)
 {
 	int ret = 0;
@@ -8382,6 +8505,7 @@ static int _primary_display_set_lcm_hbm(bool en)
 
 	return ret;
 }
+
 bool primary_display_is_hbm_change(bool en)
 {
 	int state = 0;
@@ -8427,6 +8551,7 @@ int primary_display_set_lcm_hbm(bool en)
 #endif
 	}
 
+
 	return 0;
 }
 
@@ -8462,6 +8587,94 @@ int primary_display_hbm_wait(bool en)
 	disp_lcm_set_hbm_wait(false, pgc->plcm);
 	return 0;
 }
+#else
+static int _primary_display_set_lcm_hbm(bool en)
+{
+	int ret = 0;
+	struct cmdqRecStruct *qhandle_hbm = NULL;
+
+	ret = cmdqRecCreate(CMDQ_SCENARIO_DISP_ESD_CHECK, &qhandle_hbm);
+	if (ret) {
+		DISPMSG("%s:failed to create cmdq handle\n", __func__);
+		return -1;
+	}
+
+	if (!primary_display_is_video_mode()) {
+		cmdqRecReset(qhandle_hbm);
+		cmdqRecWait(qhandle_hbm, CMDQ_SYNC_TOKEN_CABC_EOF);
+		_cmdq_handle_clear_dirty(qhandle_hbm);
+
+		_cmdq_insert_wait_frame_done_token_mira(qhandle_hbm);
+		disp_lcm_set_hbm(en, pgc->plcm, qhandle_hbm);
+
+		cmdqRecSetEventToken(qhandle_hbm, CMDQ_SYNC_TOKEN_CABC_EOF);
+		_cmdq_flush_config_handle_mira(qhandle_hbm, 1);
+	}
+
+	cmdqRecDestroy(qhandle_hbm);
+	qhandle_hbm = NULL;
+
+	return ret;
+}
+
+int primary_display_set_lcm_hbm(bool en)
+{
+	int state = 0;
+
+	state = disp_lcm_get_hbm_state(pgc->plcm);
+	if (state == -1)
+		return -EINVAL;
+	else if (state == en)
+		return 0;
+
+	if (disp_helper_get_stage() != DISP_HELPER_STAGE_NORMAL) {
+		DISPMSG("%s: skip, stage:%s\n", __func__,
+			disp_helper_stage_spy());
+		return 0;
+	}
+	if (pgc->state == DISP_SLEPT) {
+		DISPMSG("%s: skip, slept\n", __func__);
+		return 0;
+	}
+
+	primary_display_idlemgr_kick(__func__, 0);
+	if (primary_display_cmdq_enabled()) {
+		DISPMSG("set LCM hbm en:%d\n", en);
+		_primary_display_set_lcm_hbm(en);
+	}
+
+	return 0;
+}
+
+int primary_display_hbm_wait(bool en)
+{
+	int wait = 0;
+	unsigned int wait_count = 0;
+
+	wait = disp_lcm_get_hbm_wait(pgc->plcm);
+	if (wait == -1)
+		return -EINVAL;
+	else if (wait != 1)
+		return 0;
+
+	wait_count = disp_lcm_get_hbm_time(en, pgc->plcm);
+	if (wait_count == -1)
+		return -EINVAL;
+
+	DISPMSG("LCM hbm %s wait %u-TE\n", en ? "enable" : "disable",
+		wait_count);
+
+	while (wait_count) {
+		primary_display_idlemgr_kick(__func__, 0);
+		wait_count--;
+		dpmgr_wait_event_timeout(pgc->dpmgr_handle,
+			DISP_PATH_EVENT_IF_VSYNC, HZ);
+	}
+
+	disp_lcm_set_hbm_wait(false, pgc->plcm);
+	return 0;
+}
+#endif
 
 int primary_display_setbacklight_nolock(unsigned int level)
 {
@@ -8547,7 +8760,7 @@ int _set_lcm_cmd_by_cmdq(unsigned int *lcm_cmd, unsigned int *lcm_count,
 		disp_lcm_set_lcm_cmd(pgc->plcm, cmdq_handle_lcm_cmd, lcm_cmd,
 			lcm_count, lcm_value);
 		_cmdq_flush_config_handle_mira(cmdq_handle_lcm_cmd, 1);
-		DISPCHECK("[CMD]_set_lcm_cmd_by_cmdq ret=%d\n", ret);
+		DISPCHECK("[CMD]%s ret=%d\n", __func__, ret);
 	} else {
 		mmprofile_log_ex(ddp_mmp_get_events()->primary_set_bl,
 			MMPROFILE_FLAG_PULSE, 1, 3);
@@ -8564,7 +8777,7 @@ int _set_lcm_cmd_by_cmdq(unsigned int *lcm_cmd, unsigned int *lcm_count,
 		_cmdq_flush_config_handle_mira(cmdq_handle_lcm_cmd, 1);
 		mmprofile_log_ex(ddp_mmp_get_events()->primary_set_cmd,
 			MMPROFILE_FLAG_PULSE, 1, 6);
-		DISPCHECK("[CMD]_set_lcm_cmd_by_cmdq ret=%d\n", ret);
+		DISPCHECK("[CMD]%s ret=%d\n", __func__, ret);
 	}
 	cmdqRecDestroy(cmdq_handle_lcm_cmd);
 	cmdq_handle_lcm_cmd = NULL;
@@ -9855,7 +10068,7 @@ static struct DDP_MODULE_DRIVER *ddp_module_backup;
 int display_vsync_switch_to_dsi(unsigned int flg)
 {
 	if (!primary_display_is_video_mode()) {
-	/* Handling for CMD mode */
+		/* Handling for CMD mode */
 		if (flg)
 			is_tui_started = true;
 		else
@@ -9950,7 +10163,7 @@ err0:
 
 int display_exit_tui(void)
 {
-	pr_info("[TUI-HAL] display_exit_tui() start\n");
+	pr_info("[TUI-HAL] %s() start\n", __func__);
 	mmprofile_log_ex(ddp_mmp_get_events()->tui,
 		MMPROFILE_FLAG_PULSE, 1, 1);
 
@@ -10078,7 +10291,8 @@ unsigned int primary_display_get_idle_interval(unsigned int fps)
 	unsigned int idle_interval = idle_check_interval;
 	/*calculate the timeout to enter idle in ms*/
 
-	idle_interval = (3 * 1000) / fps + 1;
+	if (fps > 0)
+		idle_interval = (3 * 1000) / fps + 1;
 
 	DISPMSG("[fps]:%s,[fps->idle interval][%d fps->%d ms]\n",
 		__func__, fps, idle_interval);
@@ -10089,6 +10303,7 @@ unsigned int primary_display_get_idle_interval(unsigned int fps)
 
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 /*-----------------DynFPS start-------------------------------*/
+#if defined(CONFIG_SMCDSD_PANEL)
 bool primary_display_is_chg_fps(int cfg_id)
 {
 	int last_cfg_id;
@@ -10123,7 +10338,7 @@ bool primary_display_is_chg_fps(int cfg_id)
 
 	return need_send_cmd;
 }
-
+#endif
 unsigned int primary_display_is_support_DynFPS(void)
 {
 
@@ -10163,8 +10378,8 @@ void primary_display_init_multi_cfg_info(void)
 	unsigned int i = 0;
 
 	/*get default  fps info*/
-	def_vsync_fps = disp_lcm_dynfps_get_def_fps(pgc->plcm);
-	def_vsync_fps = def_vsync_fps ? def_vsync_fps : 6000;
+
+	def_vsync_fps = primary_display_get_default_disp_fps(0);
 
 	/*get default width height*/
 	def_width = primary_display_get_width();
@@ -10212,7 +10427,7 @@ void primary_display_init_multi_cfg_info(void)
 
 unsigned int primary_display_get_default_disp_fps(int need_lock)
 {
-	unsigned int _default_disp_fps = 6000;
+	unsigned int _default_disp_fps = 0;
 
 	if (need_lock)
 		_primary_path_lock(__func__);
@@ -10261,7 +10476,8 @@ int primary_display_get_cfg_fps(
 		p_cfgs = &(pgc->multi_cfg_table);
 
 		if (p_cfgs->config_num > 0 &&
-			config_id < p_cfgs->config_num) {
+			config_id < p_cfgs->config_num &&
+			config_id >= 0) {
 			dyn_cfgs = p_cfgs->dyn_cfgs;
 
 			_vsyncFPS = dyn_cfgs[config_id].vsyncFPS;
@@ -10300,119 +10516,217 @@ extern int read_lcm(unsigned char cmd, unsigned char *buf,
 			unsigned char buf_size, bool sendhs, bool need_lock,
 			unsigned char offset);
 
-
 void primary_display_dynfps_chg_fps(int cfg_id)
 {
 	int last_cfg_id;
 	unsigned int new_dynfps;
 	unsigned int last_dynfps;
+	unsigned int fps_change_index;
 	bool need_send_cmd = false;
 	enum LCM_Send_Cmd_Mode sendmode;
 	struct cmdqRecStruct *qhandle = NULL;
 	int ret = 0;
 	unsigned int _idle_timeout = 50;/*ms*/
 	struct LCM_PARAMS *params;
-//	char para[15] = {0};
-//	unsigned int i;
-
-	DISPFUNC();
-
-	mmprofile_log_ex(ddp_mmp_get_events()->primary_switch_fps,
-		MMPROFILE_FLAG_START, 0, 0);
 
 	/*1,check whether fps changed*/
 	/*last_cfg_id = pgc->active_cfg;*/
 	last_cfg_id = primary_display_get_current_cfg_id();
 
-	DISPINFO("%s,g_force_cfg=%d,g_force_cfg_id=%d\n",
+	DISPDBG("%s,g_force_cfg=%d,g_force_cfg_id=%d\n",
 		__func__, g_force_cfg, g_force_cfg_id);
 	if (cfg_id == last_cfg_id) {
 		DISPDBG("%s,cfg_id no change:%d\n",
 			__func__, last_cfg_id);
-		mmprofile_log_ex(ddp_mmp_get_events()->primary_switch_fps,
-			MMPROFILE_FLAG_END, 0, 0);
 		return;
 	}
 
 	primary_display_get_cfg_fps(last_cfg_id, &last_dynfps, NULL);
 	primary_display_get_cfg_fps(cfg_id, &new_dynfps, NULL);
 
-	if (new_dynfps == last_dynfps) {
-		mmprofile_log_ex(ddp_mmp_get_events()->primary_switch_fps,
-			MMPROFILE_FLAG_END, 0, 1);
+	if (new_dynfps == last_dynfps)
 		return;
-	}
 
 	DISPMSG("%s,cfg_id:%d -> %d\n", __func__, last_cfg_id, cfg_id);
 	DISPMSG("%s,fps:%d -> %d\n", __func__, last_dynfps, new_dynfps);
 	/*2, do fps change*/
-	/* Only support CMD mode fps switch without mipi clock switching */
+	fps_change_index = ddp_dsi_fps_change_index(
+						last_dynfps, new_dynfps);
 
 	if (pgc->plcm == NULL) {
 		DISPMSG("lcm handle is null\n");
 		ASSERT(0);
 	}
-
-	mmprofile_log_ex(ddp_mmp_get_events()->primary_switch_fps,
-		MMPROFILE_FLAG_PULSE, 0, 0);
-
 	params = pgc->plcm->params;
 	need_send_cmd = disp_lcm_need_send_cmd(
 				pgc->plcm, last_dynfps, new_dynfps);
 	sendmode = params->sendmode;
-	DISPMSG("%s,need_send_cmd:%d in %d\n",
-		__func__, (unsigned int)need_send_cmd, sendmode);
+	DISPMSG("%s,need_send_cmd:%d in %d\n", __func__, need_send_cmd, sendmode);
 
-	/* choose esd check GCE thread and
-	 * keep mipi hopping also use esd check GCE thread
-	 * can avoid competition between esd check,mipi hopping
-	 * and dynfps
-	 */
-	ret = cmdqRecCreate(
+	if (fps_change_index & DYNFPS_DSI_MIPI_CLK ||
+		fps_change_index & DYNFPS_DSI_HFP) {
+
+		DISPMSG("%s,1H timing may changed\n", __func__);
+
+		/* choose esd check GCE thread and
+		 * keep mipi hopping also use esd check GCE thread
+		 * can avoid competition between esd check,mipi hopping
+		 * and dynfps
+		 */
+		ret = cmdqRecCreate(
+			CMDQ_SCENARIO_DISP_ESD_CHECK, &qhandle);
+		if (ret) {
+			DISPCHECK("%s,cmdq create fail!\n", __func__);
+			return;
+		}
+
+		cmdqRecReset(qhandle);
+		/*wait and clear EOF
+		 * avoid other display related task break fps change task
+		 * because fps change need stop & re-start vdo mode
+		 */
+		cmdqRecWait(qhandle, CMDQ_EVENT_MUTEX0_STREAM_EOF);
+
+		if (need_send_cmd ||
+			(fps_change_index & DYNFPS_DSI_MIPI_CLK)) {
+			DISPMSG("%s,stop vdo mode\n", __func__);
+			dpmgr_path_build_cmdq(pgc->dpmgr_handle, qhandle,
+					CMDQ_STOP_VDO_MODE, 0);
+		}
+		if (need_send_cmd) {
+			DISPMSG("%s,send cmd to lcm\n", __func__);
+			disp_lcm_dynfps_send_cmd(pgc->plcm, qhandle,
+				last_dynfps, new_dynfps);
+		}
+
+		ddp_dsi_dynfps_chg_fps(DISP_MODULE_DSI0, qhandle,
+			last_dynfps, new_dynfps, fps_change_index);
+
+		if (need_send_cmd ||
+			(fps_change_index & DYNFPS_DSI_MIPI_CLK)) {
+			DISPMSG("%s,start vdo mode\n", __func__);
+			dpmgr_path_build_cmdq(pgc->dpmgr_handle, qhandle,
+		    CMDQ_START_VDO_MODE, 0);
+			/*clear EOF
+			 *avoid config continue after we trigger vdo mode
+			 */
+			cmdqRecClearEventToken(qhandle,
+				CMDQ_EVENT_MUTEX0_STREAM_EOF);
+
+			/* trigger path */
+			DISPMSG("%s,trigger path\n", __func__);
+			dpmgr_path_trigger(primary_get_dpmgr_handle(),
+				qhandle, CMDQ_ENABLE);
+		}
+
+		cmdqRecFlushAsync(qhandle);
+		/*cmdqRecFlush(qhandle);*/
+		cmdqRecDestroy(qhandle);
+
+	} else if (fps_change_index & DYNFPS_DSI_VFP) {
+
+		ret = cmdqRecCreate(
 		CMDQ_SCENARIO_DISP_ESD_CHECK, &qhandle);
-	if (ret) {
-		DISPCHECK("%s,cmdq create fail!\n", __func__);
-		mmprofile_log_ex(ddp_mmp_get_events()->primary_switch_fps,
-			MMPROFILE_FLAG_END, 0, 2);
-		return;
+		if (ret) {
+			DISPCHECK("%s,cmdq create fail!\n", __func__);
+			return;
+		}
+		cmdqRecReset(qhandle);
+
+		if (!pgc->vfp_chg_sync_bdg) {
+			if (need_send_cmd) {
+				cmdqRecWait(qhandle, CMDQ_EVENT_MUTEX0_STREAM_EOF);
+				DISPMSG("%s,send cmd to lcm in VFP solution\n", __func__);
+				disp_lcm_dynfps_send_cmd(pgc->plcm, qhandle,
+				last_dynfps, new_dynfps);
+			}
+
+			/*now only primary display support*/
+			ddp_dsi_dynfps_chg_fps(DISP_MODULE_DSI0, qhandle,
+					last_dynfps, new_dynfps, fps_change_index);
+
+			cmdqRecFlushAsync(qhandle);
+		} else {
+			if (bdg_is_bdg_connected() == 1) {
+				cmdqRecWait(qhandle, CMDQ_EVENT_MUTEX0_STREAM_EOF);
+
+				/* stop dsi vdo mode */
+				dpmgr_path_build_cmdq(primary_get_dpmgr_handle(),
+					qhandle, CMDQ_STOP_VDO_MODE, 0);
+
+				ddp_dsi_dynfps_chg_fps(DISP_MODULE_DSI0, qhandle,
+					last_dynfps, new_dynfps, fps_change_index);
+
+				dpmgr_path_build_cmdq(primary_get_dpmgr_handle(), qhandle,
+					CMDQ_START_VDO_MODE, 0);
+				dpmgr_path_trigger(primary_get_dpmgr_handle(),
+					qhandle, CMDQ_ENABLE);
+
+				ddp_mutex_set_sof_wait(dpmgr_path_get_mutex(
+					primary_get_dpmgr_handle()), qhandle, 0);
+
+				cmdqRecFlush(qhandle);
+			}
+		}
+		cmdqRecDestroy(qhandle);
+	} else {
+		ret = cmdqRecCreate(
+			CMDQ_SCENARIO_DISP_ESD_CHECK, &qhandle);
+		if (ret) {
+			DISPCHECK("%s,cmdq create fail!\n", __func__);
+			mmprofile_log_ex(ddp_mmp_get_events()->primary_switch_fps,
+				MMPROFILE_FLAG_END, 0, 2);
+			return;
+		}
+
+		cmdqRecReset(qhandle);
+		/* wait and clear EOF */
+		cmdqRecWait(qhandle, CMDQ_SYNC_TOKEN_STREAM_EOF);
+
+		if (need_send_cmd) {
+			DISPMSG("%s,send cmd to lcm\n", __func__);
+			disp_lcm_dynfps_send_cmd(pgc->plcm, qhandle,
+				last_dynfps, new_dynfps);
+		}
+		cmdqRecSetEventToken(qhandle, CMDQ_SYNC_TOKEN_STREAM_EOF);
+		cmdqRecFlushAsync(qhandle);
+		cmdqRecDestroy(qhandle);
 	}
+	/*3, inform fps go directly*/
+	disp_invoke_fps_chg_callbacks(new_dynfps / 100);
 
-	cmdqRecReset(qhandle);
-	/*wait and clear EOF
-	 */
-	cmdqRecWait(qhandle, CMDQ_SYNC_TOKEN_STREAM_EOF);
-
-	if (need_send_cmd) {
-		DISPMSG("%s,send cmd to lcm\n", __func__);
-		disp_lcm_dynfps_send_cmd(pgc->plcm, qhandle,
-			last_dynfps, new_dynfps);
-	}
-
-	cmdqRecSetEventToken(qhandle, CMDQ_SYNC_TOKEN_STREAM_EOF);
-
-	cmdqRecFlushAsync(qhandle);
-//	cmdqRecFlush(qhandle);
-
-	cmdqRecDestroy(qhandle);
-
-	mmprofile_log_ex(ddp_mmp_get_events()->primary_switch_fps,
-		MMPROFILE_FLAG_PULSE, 0, 1);
-
-	/*3, update idle timeout*/
+	/*4, update idle timeout*/
 	_idle_timeout =	primary_display_get_idle_interval(new_dynfps / 100);
 	disp_lp_set_idle_check_interval(_idle_timeout);
 
-	/*4, update active_cfg*/
+	/*5, update active_cfg*/
 	primary_display_update_cfg_id(cfg_id);
 	pgc->lcm_refresh_rate = new_dynfps / 100;
 	pgc->lcm_fps = new_dynfps;
 
 	DISPMSG("%s,done\n", __func__);
-	mtk_notifier_call_chain(MTK_FPS_CHANGE, (void *)&pgc->lcm_refresh_rate);
-	mmprofile_log_ex(ddp_mmp_get_events()->primary_switch_fps,
-		MMPROFILE_FLAG_END, 0, 3);
+
 }
 
+void primary_display_dynfps_get_vfp_info(
+	unsigned int *vfp, unsigned int *vfp_for_lp)
+{
+	unsigned int cfg_id;
+	unsigned int fps;
+
+	cfg_id = primary_display_get_current_cfg_id();
+	primary_display_get_cfg_fps(cfg_id, &fps, NULL);
+
+	ddp_dsi_dynfps_get_vfp_info(fps, vfp, vfp_for_lp);
+}
+
+#if 0
+void _primary_display_fps_change_callback(void)
+{
+	/*inform to fpsgo*/
+
+	/*update pgc related parameters*/
+}
+#endif
 /*-----------------DynFPS end-------------------------------*/
 #endif
-

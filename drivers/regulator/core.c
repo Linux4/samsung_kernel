@@ -1960,15 +1960,19 @@ static int regulator_ena_gpio_request(struct regulator_dev *rdev,
 
 #ifdef CONFIG_SEC_PM
 	if (!config->skip_gpio_request) {
-#endif
+		ret = gpio_request_one(config->ena_gpio,
+					GPIOF_DIR_OUT | config->ena_gpio_flags,
+					rdev_get_name(rdev));
+		if (ret)
+			return ret;
+	}
+#else	
 	ret = gpio_request_one(config->ena_gpio,
 				GPIOF_DIR_OUT | config->ena_gpio_flags,
 				rdev_get_name(rdev));
 	if (ret)
 		return ret;
-#ifdef CONFIG_SEC_PM
-	}
-#endif
+#endif /* CONFIG_SEC_PM */
 
 	pin = kzalloc(sizeof(struct regulator_enable_gpio), GFP_KERNEL);
 	if (pin == NULL) {
@@ -1983,7 +1987,7 @@ static int regulator_ena_gpio_request(struct regulator_dev *rdev,
 		list_add(&pin->list, &regulator_ena_gpio_list);
 #else
 	list_add(&pin->list, &regulator_ena_gpio_list);
-#endif
+#endif /* CONFIG_SEC_PM */	
 
 update_ena_gpio_to_rdev:
 	pin->request_count++;
@@ -2472,9 +2476,9 @@ static int _regulator_is_enabled(struct regulator_dev *rdev)
 	if (rdev->ena_pin)
 #ifdef CONFIG_SEC_PM
 		return rdev->ena_gpio_state | gpiod_get_value_cansleep(rdev->ena_pin->gpiod);
-#else
+#else	
 		return rdev->ena_gpio_state;
-#endif
+#endif /* CONFIG_SEC_PM */		
 
 	/* If we don't know then assume that the regulator is always on */
 	if (!rdev->desc->ops->is_enabled)
@@ -4582,7 +4586,7 @@ void regulator_debug_print_enabled(void)
 		pr_info("---No regulators enabled---\n");
 }
 EXPORT_SYMBOL(regulator_debug_print_enabled);
-#endif
+#endif /* CONFIG_SEC_PM */
 
 static int __init regulator_init(void)
 {
@@ -4632,7 +4636,7 @@ static int __init regulator_late_cleanup(struct device *dev, void *data)
 #ifdef CONFIG_SEC_PM
 	else if (rdev->ena_pin)
 		enabled = !gpiod_get_value_cansleep(rdev->ena_pin->gpiod);
-#endif
+#endif /* CONFIG_SEC_PM */		
 	else
 		enabled = 1;
 

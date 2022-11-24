@@ -14,6 +14,11 @@
 #ifndef __CCCI_UTIL_LOG_H__
 #define __CCCI_UTIL_LOG_H__
 
+#include "../eccci/mt6853/ccci_config.h"
+
+extern void mrdump_mini_add_misc(unsigned long addr, unsigned long size,
+	unsigned long start, char *name);
+
 /* #define BRING_UP_LOG_MODE */
 #ifndef BRING_UP_LOG_MODE
 /* ------------------------------------------------------------------------- */
@@ -97,3 +102,7 @@ do {\
 
 #endif /* end of #ifndef BRING_UP_LOG_MODE */
 #endif /*__CCCI_UTIL_LOG_H__ */
+
+/* for direct dump reserved memory */
+extern void mrdump_mini_add_misc_pa(unsigned long va, unsigned long pa,
+		unsigned long size, unsigned long start, char *name);

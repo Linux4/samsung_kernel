@@ -24,7 +24,10 @@ static struct mt6315_misc mt6315_misc[] = {
 	MT6315_DECL_CHIP(SPMI_MASTER_0, MT6315_SLAVE_ID_6),
 	MT6315_DECL_CHIP(SPMI_MASTER_0, MT6315_SLAVE_ID_7),
 	MT6315_DECL_CHIP(SPMI_MASTER_0, MT6315_SLAVE_ID_3),
-#elif defined(CONFIG_MACH_MT6853)
+#elif defined(CONFIG_MACH_MT6833) || defined(CONFIG_MACH_MT6853)
+	MT6315_DECL_CHIP(SPMI_MASTER_0, MT6315_SLAVE_ID_3),
+#elif defined(CONFIG_MACH_MT6877)
+	MT6315_DECL_CHIP(SPMI_MASTER_0, MT6315_SLAVE_ID_6),
 	MT6315_DECL_CHIP(SPMI_MASTER_0, MT6315_SLAVE_ID_3),
 #endif
 };
@@ -70,7 +73,8 @@ static void mt6315_S3_default_vosel(void)
 			     g_vnr_vosel);
 		regmap_write(regmap, MT6315_PMIC_RG_BUCK_VBUCK4_VOSEL_ADDR,
 			     g_vsram_md_vosel);
-#elif defined(CONFIG_MACH_MT6853)
+#elif defined(CONFIG_MACH_MT6833) || defined(CONFIG_MACH_MT6853) \
+|| defined(CONFIG_MACH_MT6877)
 		regmap_write(regmap, MT6315_PMIC_RG_BUCK_VBUCK4_VOSEL_ADDR,
 			     g_vsram_md_vosel);
 		regmap_write(regmap, MT6315_PMIC_RG_BUCK_VBUCK1_VOSEL_ADDR,
@@ -88,7 +92,8 @@ static void mt6315_S3_default_vosel(void)
 			    &g_vnr_vosel);
 		regmap_read(regmap, MT6315_PMIC_DA_VBUCK4_VOSEL_ADDR,
 			    &g_vsram_md_vosel);
-#elif defined(CONFIG_MACH_MT6853)
+#elif defined(CONFIG_MACH_MT6833) || defined(CONFIG_MACH_MT6853) \
+|| defined(CONFIG_MACH_MT6877)
 		regmap_read(regmap, MT6315_PMIC_DA_VBUCK1_VOSEL_ADDR,
 			    &g_vmodem_vosel);
 		g_vnr_vosel = g_vmodem_vosel;
@@ -161,9 +166,14 @@ int is_mt6315_exist(void)
 	if (is_mt6315_S3_exist() && is_mt6315_S6_exist() &&
 	    is_mt6315_S7_exist())
 		return 1;
-#elif defined(CONFIG_MACH_MT6853)
+#elif defined(CONFIG_MACH_MT6833) || defined(CONFIG_MACH_MT6853)
 	pr_info("%s S3:%d\n", __func__, is_mt6315_S3_exist());
 	return is_mt6315_S3_exist();
+#elif defined(CONFIG_MACH_MT6877)
+	pr_info("%s S3:%d S6:%d\n", __func__, is_mt6315_S3_exist()
+	       , is_mt6315_S6_exist());
+	if (is_mt6315_S3_exist() && is_mt6315_S6_exist())
+		return 1;
 #endif
 	return 0;
 }
@@ -328,12 +338,18 @@ static void mt6315_S3_lp_initial_setting(void)
 	mt6315_lp_set(MT6315_SLAVE_ID_3, 1, MT6315_SRCLKEN0, 1, 1, HW_LP);
 	mt6315_lp_set(MT6315_SLAVE_ID_3, 3, MT6315_SRCLKEN0, 1, 1, HW_LP);
 	mt6315_lp_set(MT6315_SLAVE_ID_3, 4, MT6315_SRCLKEN0, 1, 1, HW_LP);
-#elif defined(CONFIG_MACH_MT6853)
+#elif defined(CONFIG_MACH_MT6833) || defined(CONFIG_MACH_MT6853)
 	mt6315_vdig18_hw_op_set(MT6315_SLAVE_ID_3, 1);
 	/* vmodem/vpu/vsram_md */
 	mt6315_lp_set(MT6315_SLAVE_ID_3, 1, MT6315_SRCLKEN0, 1, 1, HW_LP);
 	mt6315_lp_set(MT6315_SLAVE_ID_3, 3, MT6315_SRCLKEN0, 1, 1, HW_LP);
 	mt6315_lp_set(MT6315_SLAVE_ID_3, 4, MT6315_SRCLKEN0, 1, 1, HW_LP);
+#elif defined(CONFIG_MACH_MT6877)
+	mt6315_vdig18_hw_op_set(MT6315_SLAVE_ID_3, 1);
+	/* vmodem/vsram_md */
+	mt6315_lp_set(MT6315_SLAVE_ID_3, 1, MT6315_SRCLKEN0, 1, 1, HW_LP);
+	mt6315_lp_set(MT6315_SLAVE_ID_3, 4, MT6315_SRCLKEN0, 1, 1, HW_LP);
+
 #endif
 #endif
 }
@@ -344,6 +360,9 @@ static void mt6315_S6_lp_initial_setting(void)
 #if defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6873) \
 || defined(CONFIG_MACH_MT6893)
 	mt6315_vdig18_hw_op_set(MT6315_SLAVE_ID_6, 1);
+#elif defined(CONFIG_MACH_MT6877)
+	mt6315_vdig18_hw_op_set(MT6315_SLAVE_ID_6, 1);
+	mt6315_lp_set(MT6315_SLAVE_ID_6, 4, MT6315_SRCLKEN0, 1, 1, HW_OFF);
 #endif
 #endif
 }
@@ -351,7 +370,11 @@ static void mt6315_S6_lp_initial_setting(void)
 static void mt6315_S7_lp_initial_setting(void)
 {
 #if LP_INIT_SETTING_VERIFIED
-#if defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6893)
+#if defined(CONFIG_MACH_MT6893)
+	mt6315_vdig18_hw_op_set(MT6315_SLAVE_ID_7, 1);
+	/* vsram_core */
+	mt6315_lp_set(MT6315_SLAVE_ID_7, 4, MT6315_SRCLKEN0, 1, 1, HW_LP);
+#elif defined(CONFIG_MACH_MT6885)
 	mt6315_vdig18_hw_op_set(MT6315_SLAVE_ID_7, 1);
 	/* vsram_core */
 	mt6315_lp_set(MT6315_SLAVE_ID_7, 3, MT6315_SRCLKEN0, 1, 1, HW_LP);

@@ -388,7 +388,7 @@ int mtk_iommu_set_sec_larb(int larb, int port,
 
 	if (larb >= SMI_LARB_NR ||
 	    port >= ONE_SMI_PORT_NR) {
-		pr_notice("%s, %d, invalid larb:%d, port:%d\n",
+		pr_notice("%s, invalid larb:%d, port:%d\n",
 			  __func__, larb, port);
 		return -1;
 	}
@@ -421,11 +421,6 @@ int mtk_iommu_dump_sec_larb(int larb, int port)
 				atf_cmd, MTK_M4U_ID(larb, port), 0, 0,
 				0, 0, 0);
 
-#ifdef IOMMU_DESIGN_OF_BANK
-	if (!ret)
-		pr_notice("%s, fail!! larb:%d, port:%d\n",
-			  __func__,  larb, port);
-#endif
 	return ret;
 }
 #endif
@@ -2036,7 +2031,8 @@ static int mtk_iommu_create_mapping(struct device *dev)
 		if (start >> 32 != end >> 32 ||
 		    start >> 32 != mtk_domain_array[dom->id].boundary) {
 			pr_notice("%s, %d, err start:0x%lx, end:0x%lx, boundary:%d\n",
-				  __func__, __LINE__, start, end, boundary);
+				  __func__, __LINE__, start, end,
+				  mtk_domain_array[dom->id].boundary);
 			return -EINVAL;
 		}
 #endif
@@ -2142,7 +2138,8 @@ static int mtk_iommu_attach_device(struct iommu_domain *domain,
 				   struct device *dev)
 {
 	struct mtk_iommu_data *data = dev->iommu_fwspec->iommu_priv;
-#ifndef CONFIG_ARM64
+#if 0
+	ifndef CONFIG_ARM64 case but not required for now.
 	struct mtk_iommu_domain *dom = to_mtk_domain(domain);
 #endif
 
@@ -2150,7 +2147,8 @@ static int mtk_iommu_attach_device(struct iommu_domain *domain,
 		return -ENODEV;
 
 	mtk_iommu_config(data, dev, true);
-#ifndef CONFIG_ARM64
+#if 0
+	ifndef CONFIG_ARM64 case but not require for now.
 	/* reserve IOVA region after pgTable ready */
 	mtk_iova_reserve_iommu_regions(dom, dev);
 #endif
@@ -2345,10 +2343,9 @@ static struct iommu_group *mtk_iommu_create_iova_space(
 #endif
 	return group;
 
-#ifdef CONFIG_ARM64
 free_group:
 	kfree(group);
-#endif
+
 free_dom:
 	kfree(dom);
 	return NULL;
@@ -4001,6 +3998,12 @@ static void mtk_iommu_pg_after_on(enum subsys_id sys)
 		}
 
 		spin_lock_irqsave(&data->reg_lock, flags);
+		if (data->poweron) {
+			pr_notice("%s, iommu%u already power on, skip restore\n",
+				  __func__, data->m4uid);
+			spin_unlock_irqrestore(&data->reg_lock, flags);
+			continue;
+		}
 		data->poweron = true;
 
 		ret = mtk_iommu_reg_restore(data);
@@ -4037,6 +4040,12 @@ static void mtk_iommu_pg_before_off(enum subsys_id sys)
 		}
 
 		spin_lock_irqsave(&data->reg_lock, flags);
+		if (!data->poweron) {
+			pr_notice("%s, iommu%u already power off, skip backup\n",
+				  __func__, data->m4uid);
+			spin_unlock_irqrestore(&data->reg_lock, flags);
+			continue;
+		}
 		if (data->isr_ref) {
 			spin_unlock_irqrestore(&data->reg_lock, flags);
 			start = sched_clock();
@@ -4212,7 +4221,7 @@ static int mtk_iommu_hw_init(struct mtk_iommu_data *data)
 		mtk_irq_bank[m4u_id][i] = irq_of_parse_and_map(node, 0);
 
 		pr_notice("%s, bank:%d, of_iomap: 0x%lx, irq_num: %d, m4u_id:%d\n",
-				__func__, i + 1, data->base_bank[i],
+				__func__, i + 1, (uintptr_t)data->base_bank[i],
 				mtk_irq_bank[m4u_id][i], m4u_id);
 
 		if (request_irq(mtk_irq_bank[m4u_id][i], mtk_iommu_isr,
@@ -4488,6 +4497,10 @@ static int mtk_iommu_probe(struct platform_device *pdev)
 	spin_lock_init(&data->reg_lock);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		pr_info("%s, get resource is NULL\n", __func__);
+		return -EINVAL;
+	}
 	data->base = devm_ioremap_resource(dev, res);
 	if (IS_ERR(data->base)) {
 		pr_notice("mtk_iommu base is null\n");
@@ -4586,7 +4599,7 @@ static int mtk_iommu_probe(struct platform_device *pdev)
 
 	pr_notice("%s-, %d,total=%d,m4u%d,base=0x%lx,protect=0x%pa\n",
 		  __func__, __LINE__, total_iommu_cnt, data->m4uid,
-		  (unsigned long)data->base, &data->protect_base);
+		  (uintptr_t)data->base, &data->protect_base);
 	return ret;
 }
 

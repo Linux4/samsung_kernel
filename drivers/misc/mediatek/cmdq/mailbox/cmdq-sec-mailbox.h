@@ -30,10 +30,6 @@
 #define CMDQ_ERR_SEC_CTX_SETUP (6001)
 #define CMDQ_ERR_SEC_CTX_TEARDOWN (6002)
 
-#ifdef CMDQ_GP_SUPPORT
-#include "cmdq-sec-gp.h"
-#endif
-
 #ifdef CMDQ_SECURE_MTEE_SUPPORT
 #include "cmdq_sec_mtee.h"
 #endif

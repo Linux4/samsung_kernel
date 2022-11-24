@@ -262,7 +262,7 @@ static int smcdsd_dsi_tx_data(struct lcd_info *lcd, u8 *cmd, u32 len)
 	 * We assume that all the TX function will be called in lcd->lock
 	 * If not, Stop here for debug.
 	 */
-	if (!mutex_is_locked(&lcd->lock)) {
+	if (IS_ENABLED(CONFIG_MTK_FB) && !mutex_is_locked(&lcd->lock)) {
 		dev_info(&lcd->ld->dev, "%s: fail. lcd->lock should be locked.\n", __func__);
 		BUG();
 	}
@@ -1525,7 +1525,7 @@ static ssize_t lcd_type_show(struct device *dev,
 {
 	struct lcd_info *lcd = dev_get_drvdata(dev);
 
-	sprintf(buf, "SDC_%02X%02X%02X\n", lcd->id_info.id[0], lcd->id_info.id[1], lcd->id_info.id[2]);
+	sprintf(buf, "%s_%02X%02X%02X\n", LCD_TYPE_VENDOR, lcd->id_info.id[0], lcd->id_info.id[1], lcd->id_info.id[2]);
 
 	return strlen(buf);
 }

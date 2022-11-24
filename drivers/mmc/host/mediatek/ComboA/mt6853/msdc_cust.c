@@ -311,11 +311,11 @@ void msdc_sd_power(struct msdc_host *host, u32 on)
 		}
 
 		/* VMCH VOLSEL */
-		msdc_ldo_power(card_on, host->mmc->supply.vmmc, VOL_2950,
+		msdc_ldo_power(card_on, host->mmc->supply.vmmc, VOL_3000,
 			&host->power_flash);
 
 		/* VMC VOLSEL */
-		msdc_ldo_power(on, host->mmc->supply.vqmmc, VOL_2950,
+		msdc_ldo_power(on, host->mmc->supply.vqmmc, VOL_3000,
 			&host->power_io);
 
 		pr_info("msdc%d power %s\n", host->id, (on ? "on" : "off"));
@@ -1415,11 +1415,11 @@ void msdc_pin_config_by_id(u32 id, u32 mode)
 			/* Switch MSDC1_* to 50K ohm PD */
 #ifndef SD_GPIO_PAD_A_EN
 			MSDC_SET_FIELD(MSDC1_GPIO_PUPD0,
-				MSDC1_PUPD_ALL_MASK, 0x3E);
+				MSDC1_PUPD_ALL_MASK, 0x3F);
 			MSDC_SET_FIELD(MSDC1_GPIO_R0,
 				MSDC1_R0_ALL_MASK, 0x0);
 			MSDC_SET_FIELD(MSDC1_GPIO_R1,
-				MSDC1_R1_ALL_MASK, 0x3E);
+				MSDC1_R1_ALL_MASK, 0x3F);
 #else
 			MSDC_SET_FIELD(MSDC1_GPIO_PUPD0_A,
 				MSDC1_PUPD_ALL_MASK_A, 0x3F);
@@ -1434,11 +1434,11 @@ void msdc_pin_config_by_id(u32 id, u32 mode)
 			 */
 #ifndef SD_GPIO_PAD_A_EN
 			MSDC_SET_FIELD(MSDC1_GPIO_PUPD0,
-				MSDC1_PUPD_ALL_MASK, 0x0);
+				MSDC1_PUPD_ALL_MASK, 0x1);
 			MSDC_SET_FIELD(MSDC1_GPIO_R0,
 				MSDC1_R0_ALL_MASK, 0x0);
 			MSDC_SET_FIELD(MSDC1_GPIO_R1,
-				MSDC1_R1_ALL_MASK, 0x3E);
+				MSDC1_R1_ALL_MASK, 0x3F);
 #else
 			MSDC_SET_FIELD(MSDC1_GPIO_PUPD0_A,
 				MSDC1_PUPD_ALL_MASK_A, 0x1);
@@ -1584,6 +1584,20 @@ int msdc_of_parse(struct platform_device *pdev, struct mmc_host *mmc)
 	host->mmc = mmc;
 	host->hw = kzalloc(sizeof(struct msdc_hw), GFP_KERNEL);
 
+	if (of_property_read_s32(np, "req_vcore", &host->vcore_opp)) {
+		pr_notice("%s: failed to get req_vcore", __func__);
+		host->vcore_opp = -1;
+	} else {
+		pr_notice("msdc%d:get req_vcore:%d", host->id, host->vcore_opp);
+		/* init VCORE QOS */
+		host->req_vcore = devm_kzalloc(&pdev->dev,
+			sizeof(*host->req_vcore), GFP_KERNEL);
+		if (!host->req_vcore)
+			return -ENOMEM;
+
+		pm_qos_add_request(host->req_vcore, PM_QOS_VCORE_OPP,
+			PM_QOS_VCORE_OPP_DEFAULT_VALUE);
+	}
 	/* iomap register */
 	host->base = of_iomap(np, 0);
 	if (!host->base) {

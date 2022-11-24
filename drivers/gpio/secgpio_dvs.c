@@ -20,7 +20,6 @@
 #include <linux/types.h>
 #include <linux/platform_device.h>
 #include <linux/timer.h>
-#include <linux/wakelock.h>
 #include <linux/power_supply.h>
 #include <linux/sched.h>
 #include <linux/init.h>
@@ -60,6 +59,8 @@ static ssize_t secgpio_read_request_gpio(
 static ssize_t secgpio_write_request_gpio(
         struct device *dev, struct device_attribute *attr,
         const char *buf, size_t size);
+static ssize_t checked_secgpio_init_call(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t len);
 
 static DEVICE_ATTR(gpioinit_check, 0664,
 	checked_secgpio_file_read, NULL);
@@ -74,6 +75,8 @@ static DEVICE_ATTR(checked_sleepGPIO, 0664,
 	secgpio_checked_sleepgpio_read, NULL);
 static DEVICE_ATTR(check_requested_gpio, 0664,
         secgpio_read_request_gpio, secgpio_write_request_gpio);
+static DEVICE_ATTR(gpioinit_call, 0664,
+	NULL, checked_secgpio_init_call);
 
 static struct attribute *secgpio_dvs_attributes[] = {
 		&dev_attr_gpioinit_check.attr,
@@ -83,6 +86,7 @@ static struct attribute *secgpio_dvs_attributes[] = {
 		&dev_attr_secgpio_ctrl.attr,
 		&dev_attr_checked_sleepGPIO.attr,
 		&dev_attr_check_requested_gpio.attr,
+		&dev_attr_gpioinit_call.attr,
 		NULL,
 };
 
@@ -293,6 +297,15 @@ static ssize_t secgpio_checked_sleepgpio_read(
 		return snprintf(buf, PAGE_SIZE, "1");
 	else
 		return snprintf(buf, PAGE_SIZE, "0");
+}
+
+static ssize_t checked_secgpio_init_call(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t len)
+{
+	/* Check init gpio status */
+	gpio_dvs_check_initgpio();
+
+	return len;
 }
 
 static int requested_gpio=0;

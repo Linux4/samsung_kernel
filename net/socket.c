@@ -1207,6 +1207,7 @@ int __sock_create(struct net *net, int family, int type, int protocol,
 	int err;
 	struct socket *sock;
 	const struct net_proto_family *pf;
+	int max_try = 10;
 
 	/*
 	 *      Check protocol is in range
@@ -1227,7 +1228,19 @@ int __sock_create(struct net *net, int family, int type, int protocol,
 		family = PF_PACKET;
 	}
 
+repeat:
 	err = security_socket_create(family, type, protocol, kern);
+	if (err == -ENOMEM && max_try-- > 0) {
+		struct page *dummy_page = NULL;
+
+		dummy_page = alloc_page(GFP_KERNEL);
+		if (dummy_page) {
+			__free_page(dummy_page);
+			pr_err("%s: security_socket_create failed, rem_retry %d\n",
+			       __func__, max_try);
+			goto repeat;
+		}
+	}
 	if (err)
 		return err;
 

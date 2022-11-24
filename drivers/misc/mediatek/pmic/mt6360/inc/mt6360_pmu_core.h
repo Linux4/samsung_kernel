@@ -43,6 +43,9 @@ struct mt6360_core_platform_data {
 	u32 fon_osc;
 	u32 fod_hw_en;
 	u32 fod_isense;
+#if IS_ENABLED(CONFIG_USB_FACTORY_MODE) && IS_ENABLED(CONFIG_BATTERY_GKI)
+	u32 f_mode;
+#endif
 };
 
 #endif /* __MT6360_PMU_CORE_H */

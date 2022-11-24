@@ -1391,7 +1391,7 @@ retry_journal:
 		return ret;
 	}
 	*pagep = page;
-	mtk_btag_pidlog_set_pid(*pagep);
+	mtk_btag_pidlog_set_pid(page, PIDLOG_MODE_FS_WRITE_BEGIN, true);
 	return ret;
 }
 
@@ -4983,10 +4983,8 @@ struct inode *__ext4_iget(struct super_block *sb, unsigned long ino,
 					    EXT4_GOOD_OLD_INODE_SIZE;
 		} else {
 			ret = ext4_iget_extra_inode(inode, raw_inode, ei);
-			if (ret) {
-				print_iloc_info(sb, iloc);
+			if (ret)
 				goto bad_inode;
-			}
 		}
 	}
 

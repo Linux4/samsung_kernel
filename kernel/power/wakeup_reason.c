@@ -32,7 +32,7 @@
 #define SPM_LOG_BUF_SIZE 64
 static int spm_irq;
 static char spm_reason[SPM_LOG_BUF_SIZE];
-#endif
+#endif /* CONFIG_SEC_PM */
 
 /*
  * struct wakeup_irq_node - stores data and relationships for IRQs logged as
@@ -185,7 +185,7 @@ void log_wakeup_reason_spm(int irq, char *wakesrc_str,
 
 	spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 }
-#endif
+#endif /* CONFIG_SEC_PM */
 
 void log_irq_wakeup_reason(int irq)
 {
@@ -333,7 +333,7 @@ static void print_wakeup_sources(void)
 		pr_info("Resume caused by IRQ %d, SPM%s", spm_irq, spm_reason);
 #else
 		pr_info("Resume cause unknown\n");
-#endif
+#endif /* CONFIG_SEC_PM */
 
 	spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 }
@@ -367,8 +367,7 @@ static ssize_t last_resume_reason_show(struct kobject *kobj,
 		buf_offset += scnprintf(buf + buf_offset,
 				PAGE_SIZE - buf_offset,
 				"%d SPM%s\n", spm_irq, spm_reason);
-#endif
-
+#endif /* CONFIG_SEC_PM */
 	spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 
 	return buf_offset;
@@ -429,7 +428,7 @@ static int wakeup_reason_pm_event(struct notifier_block *notifier,
 		last_stime = ktime_get_boottime();
 #ifdef CONFIG_SEC_PM
 		spm_reason[0] = '\0';
-#endif
+#endif /* CONFIG_SEC_PM */		
 		clear_wakeup_reasons();
 		break;
 	case PM_POST_SUSPEND:

@@ -202,7 +202,7 @@ ssize_t sysfs_event_store_attrs(
 	const ptrdiff_t offset = attr - sysfs_event_attrs;
 	int ret = -EINVAL;
 	int x = 0;
-#if defined(CONFIG_DIRECT_CHARGING)
+#if defined(CONFIG_DIRECT_CHARGING) && !defined(CONFIG_SEC_FACTORY)
 	char direct_charging_source_status[2] = {0, };
 	union power_supply_propval value = {0, };
 #elif defined(CONFIG_ISDB_CHARGING_CONTROL)
@@ -275,23 +275,12 @@ ssize_t sysfs_event_store_attrs(
 					"%s: skip same siop level: %d\n", __func__, x);
 				return count;
 			} else if (x >= 0 && x <= 100 && battery->pdata->temp_check_type) {
-#if defined(CONFIG_SEC_COMMON)
-				if (seccmn_recv_is_boot_recovery() && battery->capacity <= 5) {
-#else
-				if (battery->capacity <= 5) {
-#endif
-					dev_info(battery->dev,
-						"%s: It is recovery mode, set the siop level as 100 to charge properly\n",
-						__func__);
-					battery->siop_level = 100;
-				} else {
-					battery->siop_level = x;
-					if (battery->siop_level == 0)
-						sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SIOP_LIMIT,
-							SEC_BAT_CURRENT_EVENT_SIOP_LIMIT);
-					else
-						sec_bat_set_current_event(battery, 0, SEC_BAT_CURRENT_EVENT_SIOP_LIMIT);
-				}
+				battery->siop_level = x;
+				if (battery->siop_level == 0)
+					sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SIOP_LIMIT,
+						SEC_BAT_CURRENT_EVENT_SIOP_LIMIT);
+				else
+					sec_bat_set_current_event(battery, 0, SEC_BAT_CURRENT_EVENT_SIOP_LIMIT);
 			} else {
 				battery->siop_level = 100;
 			}

@@ -2181,7 +2181,7 @@ void mtk_uart_restore(void)
 	unsigned long base;
 	unsigned long flags;
 	struct mtk_uart *uart;
-
+	
 	if (console_port == NULL)
 		return;
 
@@ -2225,7 +2225,7 @@ void switch_uart_gpio(int uartport, int gpioopid)
 	struct pinctrl_state *pins_uart = NULL;
 	static DEFINE_RATELIMIT_STATE(ratelimit, 5 * HZ,  5);
 
-	if ((uartport >= UART_NR) || (uartport > 3)) {
+	if ((uartport >= UART_NR) || (uartport > 3) || (uartport < 0)) {
 		pr_notice("[UART%d][PinC]%s: port error!!\n", uartport, __func__);
 		return;
 	}

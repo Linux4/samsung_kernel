@@ -30,6 +30,10 @@
 /* such as DPI0, DSI0/1 */
 /* static struct disp_lcm_handle _disp_lcm_driver[MAX_LCM_NUMBER]; */
 
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
+/* support dfps num 2 60/90 */
+#define DFPS_LEVEL 2
+#endif
 int _lcm_count(void)
 {
 	return lcm_count;
@@ -1085,7 +1089,8 @@ struct disp_lcm_handle *disp_lcm_probe(char *plcm_name,
 #if defined(CONFIG_SMCDSD_PANEL)
 			/* temporary code */
 			if (strcmp(lcm_drv->name, plcm_name)) {
-				DISPCHECK("LCM Driver defined in kernel(%s) is different with LK(%s)\n", lcm_drv->name, plcm_name);
+				DISPCHECK("LCM Driver defined in kernel(%s) is different with LK(%s)\n",
+					lcm_drv->name, plcm_name);
 				lcm_drv->name = kstrdup(plcm_name, GFP_KERNEL);
 			}
 #endif
@@ -1105,7 +1110,6 @@ struct disp_lcm_handle *disp_lcm_probe(char *plcm_name,
 			isLCMInited = false;
 			DISPCHECK("LCM not init\n");
 		}
-
 		lcmindex = 0;
 	} else {
 		if (plcm_name == NULL) {
@@ -1433,6 +1437,7 @@ int disp_lcm_suspend(struct disp_lcm_handle *plcm)
 		return 0;
 	}
 	DISPERR("lcm_drv is null\n");
+
 	return -1;
 }
 
@@ -1481,11 +1486,10 @@ int disp_lcm_cmdq(struct disp_lcm_handle *plcm, unsigned int enable)
 	DISPMSG("%s, enable:%d\n", __func__, enable);
 	if (_is_lcm_inited(plcm)) {
 		lcm_drv = plcm->drv;
-		if (lcm_drv->cmdq) {
+		if (lcm_drv->cmdq)
 			lcm_drv->cmdq(enable);
-		} else {
+		else
 			return -1;
-		}
 		return 0;
 	}
 
@@ -1528,6 +1532,7 @@ int disp_lcm_resume(struct disp_lcm_handle *plcm)
 		return 0;
 	}
 	DISPERR("lcm_drv is null\n");
+
 	return -1;
 }
 
@@ -1602,7 +1607,7 @@ int disp_lcm_set_backlight(struct disp_lcm_handle *plcm,
 
 	return 0;
 }
-
+#if defined(CONFIG_SMCDSD_PANEL)
 int disp_lcm_set_hbm_wait(bool wait, struct disp_lcm_handle *plcm)
 {
 	if (!_is_lcm_inited(plcm)) {
@@ -1695,7 +1700,79 @@ int disp_lcm_framedone_notify(struct disp_lcm_handle *plcm)
 
 	return 0;
 }
+#else
+int disp_lcm_get_hbm_state(struct disp_lcm_handle *plcm)
+{
+	if (!_is_lcm_inited(plcm)) {
+		DISPERR("lcm_drv is null\n");
+		return -1;
+	}
 
+	if (!plcm->drv->get_hbm_state)
+		return -1;
+
+	return plcm->drv->get_hbm_state();
+}
+
+int disp_lcm_get_hbm_wait(struct disp_lcm_handle *plcm)
+{
+	if (!_is_lcm_inited(plcm)) {
+		DISPERR("lcm_drv is null\n");
+		return -1;
+	}
+
+	if (!plcm->drv->get_hbm_wait)
+		return -1;
+
+	return plcm->drv->get_hbm_wait();
+}
+
+int disp_lcm_set_hbm_wait(bool wait, struct disp_lcm_handle *plcm)
+{
+	if (!_is_lcm_inited(plcm)) {
+		DISPERR("lcm_drv is null\n");
+		return -1;
+	}
+
+	if (!plcm->drv->set_hbm_wait)
+		return -1;
+
+	plcm->drv->set_hbm_wait(wait);
+	return 0;
+}
+
+int disp_lcm_set_hbm(bool en, struct disp_lcm_handle *plcm, void *qhandle)
+{
+	if (!_is_lcm_inited(plcm)) {
+		DISPERR("lcm_drv is null\n");
+		return -1;
+	}
+
+	if (!plcm->drv->set_hbm_cmdq)
+		return -1;
+
+	plcm->drv->set_hbm_cmdq(en, qhandle);
+
+	return 0;
+}
+
+unsigned int disp_lcm_get_hbm_time(bool en, struct disp_lcm_handle *plcm)
+{
+	unsigned int time = 0;
+
+	if (!_is_lcm_inited(plcm)) {
+		DISPERR("lcm_drv is null\n");
+		return -1;
+	}
+
+	if (en)
+		time = plcm->params->hbm_en_time;
+	else
+		time = plcm->params->hbm_dis_time;
+
+	return time;
+}
+#endif
 int disp_lcm_ioctl(struct disp_lcm_handle *plcm, enum LCM_IOCTL ioctl,
 	unsigned int arg)
 {
@@ -1875,7 +1952,7 @@ int disp_lcm_is_dynfps_support(struct disp_lcm_handle *plcm)
 	dfps_enable = lcm_param->dsi.dfps_enable;
 	dfps_num = lcm_param->dsi.dfps_num;
 	if (dfps_enable == 0 ||
-		dfps_num < 2) {
+		dfps_num < DFPS_LEVEL) {
 		return 0;
 	}
 	/*DynFPS:ToDo*/
@@ -1960,7 +2037,8 @@ bool disp_lcm_need_send_cmd(
 	}
 	dfps_params = dsi_params->dfps_params;
 
-	for (j = 0; j < dsi_params->dfps_num; j++) {
+	for (j = 0; j < dsi_params->dfps_num &&
+		dsi_params->dfps_num <= DFPS_LEVEL; j++) {
 		if ((dfps_params[j]).fps == last_dynfps)
 			from_level = (dfps_params[j]).level;
 		if ((dfps_params[j]).fps == new_dynfps)
@@ -2009,7 +2087,8 @@ void disp_lcm_dynfps_send_cmd(
 
 	dfps_params = dsi_params->dfps_params;
 
-	for (j = 0; j < dsi_params->dfps_num; j++) {
+	for (j = 0; j < dsi_params->dfps_num &&
+		dsi_params->dfps_num <= DFPS_LEVEL; j++) {
 		if ((dfps_params[j]).fps == from_fps)
 			from_level = (dfps_params[j]).level;
 		if ((dfps_params[j]).fps == to_fps)

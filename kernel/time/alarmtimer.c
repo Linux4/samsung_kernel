@@ -259,9 +259,9 @@ static int alarmtimer_suspend(struct device *dev)
 	struct rtc_device *rtc;
 	unsigned long flags;
 	struct rtc_time tm, time;
-#if IS_ENABLED(CONFIG_SEC_PM)
+#ifdef CONFIG_SEC_PM
 	struct alarm *min_alarm;
-#endif
+#endif /* CONFIG_SEC_PM */
 
 	spin_lock_irqsave(&freezer_delta_lock, flags);
 	min = freezer_delta;
@@ -291,18 +291,19 @@ static int alarmtimer_suspend(struct device *dev)
 			expires = next->expires;
 			min = delta;
 			type = i;
-#if IS_ENABLED(CONFIG_SEC_PM)
+#ifdef CONFIG_SEC_PM
 			min_alarm = container_of(next, struct alarm, node);
-#endif
+#endif /* CONFIG_SEC_PM */
 		}
 	}
 	if (min == 0)
 		return 0;
 
 	if (ktime_to_ns(min) < 2 * NSEC_PER_SEC) {
-#if IS_ENABLED(CONFIG_SEC_PM)
-		pr_info("alarmtimer suspending blocked by %ps\n", min_alarm->function);
-#endif
+#ifdef CONFIG_SEC_PM
+		if (min_alarm)
+			pr_info("alarmtimer suspending blocked by %ps\n", min_alarm->function);
+#endif /* CONFIG_SEC_PM */
 		__pm_wakeup_event(ws, 2 * MSEC_PER_SEC);
 		return -EBUSY;
 	}

@@ -393,17 +393,18 @@ enum mt6360_id_rupsel {
  */
 #define MT6360_DIS_RPDET			BIT(7)
 #define MT6360_RPDET_ONESHOT			BIT(6)
+
 /*
  * MT6360_REG_CC_CTRL5				(0xED)
  */
 #define MT6360_MASK_LPWR_RPRD_CC2_CC1		(0xF0)
 
 #if ENABLE_MT6360_DBG
-#define MT6360_INFO(fmt, args...) do { pr_info(fmt, ##args); } while(0)
+#define MT6360_INFO(format, args...) \
+	pd_dbg_info("%s() line-%d: " format,\
+	__func__, __LINE__, ##args)
 #else
 #define MT6360_INFO(foramt, args...)
 #endif /* ENABLE_MT6360_DBG */
-
-extern int mt6360_usbid_check(void);
 
 #endif /* #ifndef __LINUX_MT6360_H */

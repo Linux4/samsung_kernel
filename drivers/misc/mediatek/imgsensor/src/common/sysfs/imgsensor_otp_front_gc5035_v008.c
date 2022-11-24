@@ -128,9 +128,9 @@ const struct imgsensor_vendor_rom_addr front_gc5035_cal_addr = {
 	.rom_converted_max_cal_size = FRONT_CONVERTED_MAX_CAL_SIZE,
 
 	.sensor_maker = "GALAXYCORE",
-	.sensor_name = "GC5035B",
+	.sensor_name = "GC5035",
 	.sub_sensor_maker = "",
 	.sub_sensor_name = "",
 
-	.bayerformat = SENSOR_OUTPUT_FORMAT_RAW_Gr,
+	.bayerformat = -1,
 };

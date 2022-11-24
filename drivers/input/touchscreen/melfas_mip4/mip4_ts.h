@@ -13,7 +13,7 @@
 #define _LINUX_MIP4_TS_H
 
 /* Debug mode : Disable for production build */
-#if 0 /* 0 = Disable, 1 = Enable */
+#if 1 /* 0 = Disable, 1 = Enable */
 #define DEBUG
 #endif
 
@@ -138,7 +138,7 @@
 #define USE_SPONGE         1 /* 0 or 1 (default) */
 
 #if (USE_WAKEUP_GESTURE || USE_LPM || USE_AOD)
-#define USE_WAKELOCK       1 /* 0 or 1 (default) */
+#define USE_WAKELOCK       0 /* 0 or 1 (default) */
 #else
 #define USE_WAKELOCK       0 /* 0 (default) or 1 */
 #endif

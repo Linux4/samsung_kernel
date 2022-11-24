@@ -802,7 +802,6 @@ int mtk_smem_init(struct platform_device *pdev, struct mtk_mbox_device *mbdev,
 
 	ret = request_irq(minfo->irq_num, mtk_mbox_isr,	IRQF_TRIGGER_NONE,
 		"MBOX_ISR", (void *) minfo);
-
 	if (ret) {
 		pr_err("MBOX %d request irq Failed\n", mbox);
 		goto smem_fail;
@@ -891,8 +890,7 @@ int mtk_mbox_probe(struct platform_device *pdev, struct mtk_mbox_device *mbdev,
 		spin_lock_init(&minfo->mbox_lock);
 
 		ret = request_irq(minfo->irq_num, mtk_mbox_isr,
-			IRQF_TRIGGER_NONE, "MBOX_ISR", (void *) minfo);
-
+				IRQF_TRIGGER_NONE, "MBOX_ISR", (void *) minfo);
 		if (ret) {
 			pr_err("MBOX %d request irq Failed\n", mbox);
 			goto mtk_mbox_probe_fail;

@@ -1,8 +1,8 @@
 #ifndef IMGESENSOR_VENDOR_ROM_CONFIG_AAU_V02_H
 #define IMGESENSOR_VENDOR_ROM_CONFIG_AAU_V02_H
 
-#include "imgsensor_eeprom_rear_imx258_v008.h"
-#include "imgsensor_otp_front_gc5035_v008.h"
+#include "imgsensor_eeprom_rear_imx258_v008_2.h"
+#include "imgsensor_otp_front_gc5035_v008_2.h"
 #include "imgsensor_eeprom_rear2_gc02m1_v008.h"
 #include "imgsensor_vendor_specific.h"
 #include "kd_imgsensor.h"

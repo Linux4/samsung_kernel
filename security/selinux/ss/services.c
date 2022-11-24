@@ -761,6 +761,7 @@ out:
 	kfree(n);
 	kfree(t);
 
+// [ SEC_SELINUX_PORTING_COMMON
 #ifdef CONFIG_ALWAYS_ENFORCE
 #if (defined CONFIG_KDP_CRED && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
 	enforcing_set(NULL, 1);
@@ -770,7 +771,7 @@ out:
 #endif
 	if (!selinux_enforcing) // SEC_SELINUX_PORTING_COMMON Change to use RKP 
 		return 0;
-// ] SEC_SELINUX_PORTING_COMMON
+// ] SEC_SELINUX_PORTING_COMMON					   
 	return -EPERM;
 }
 
@@ -1192,7 +1193,7 @@ void security_compute_av_user(struct selinux_state *state,
 
 	read_lock(&state->ss->policy_rwlock);
 	avd_init(state, avd);
-	if (!ss_initialized) // SEC_SELINUX_PORTING_COMMON Change to use RKP 
+	if (!ss_initialized) // SEC_SELINUX_PORTING_COMMON Change to use RKP
 		goto allow;
 
 	policydb = &state->ss->policydb;
@@ -1246,7 +1247,7 @@ static int context_struct_to_string(struct policydb *p,
 	char *scontextp;
 // [ SEC_SELINUX_PORTING_COMMON 
 	gfp_t kmalloc_flag = GFP_ATOMIC;
-// ] SEC_SELINUX_PORTING_COMMON 
+// ] SEC_SELINUX_PORTING_COMMON 					
 
 	if (scontext)
 		*scontext = NULL;
@@ -1255,7 +1256,7 @@ static int context_struct_to_string(struct policydb *p,
 	if (context->len) {
 		*scontext_len = context->len;
 		if (scontext) {
-			*scontext = kstrdup(context->str, GFP_ATOMIC);			
+			*scontext = kstrdup(context->str, GFP_ATOMIC);
 			if (!(*scontext))
 				return -ENOMEM;
 		}
@@ -1276,7 +1277,7 @@ static int context_struct_to_string(struct policydb *p,
 	if (!in_interrupt() && !in_atomic())
 		kmalloc_flag = GFP_KERNEL;
 	scontextp = kmalloc(*scontext_len, kmalloc_flag);
-// ] SEC_SELINUX_PORTING_COMMON 	
+// ] SEC_SELINUX_PORTING_COMMON 			 
 	if (!scontextp)
 		return -ENOMEM;
 	*scontext = scontextp;
@@ -1673,7 +1674,7 @@ out:
 #endif
 	if (!selinux_enforcing) // SEC_SELINUX_PORTING_COMMON Change to use RKP 
 		return 0;
-// ] SEC_SELINUX_PORTING_COMMON
+// ] SEC_SELINUX_PORTING_COMMON				   
 	return -EACCES;
 }
 
@@ -1980,7 +1981,7 @@ static inline int convert_context_handle_invalid_context(
 #endif
 	if (!selinux_enforcing) // SEC_SELINUX_PORTING_COMMON Change to use RKP
 		return -EINVAL;
-// ] SEC_SELINUX_PORTING_COMMON
+// ] SEC_SELINUX_PORTING_COMMON					   
 
 	if (!context_struct_to_string(policydb, context, &s, &len)) {
 		pr_warn("SELinux:  Context %s would be invalid if enforcing\n",
@@ -3226,12 +3227,12 @@ int security_get_classes(struct selinux_state *state,
 	struct policydb *policydb = &state->ss->policydb;
 	int rc;
 
+
 	if (!ss_initialized) {// SEC_SELINUX_PORTING_COMMON Change to use RKP 
 		*nclasses = 0;
 		*classes = NULL;
 		return 0;
 	}
-
 	read_lock(&state->ss->policy_rwlock);
 
 	rc = -ENOMEM;
@@ -3375,7 +3376,7 @@ int selinux_audit_rule_init(u32 field, u32 op, char *rulestr, void **vrule)
 
 	*rule = NULL;
 
-	if (!ss_initialized) // SEC_SELINUX_PORTING_COMMON Change to use RKP 
+	if (!ss_initialized) // SEC_SELINUX_PORTING_COMMON Change to use RKP
 		return -EOPNOTSUPP;
 
 	switch (field) {
@@ -3675,7 +3676,7 @@ int security_netlbl_secattr_to_sid(struct selinux_state *state,
 	struct context *ctx;
 	struct context ctx_new;
 
-	if (!ss_initialized) {// SEC_SELINUX_PORTING_COMMON Change to use RKP 
+	if (!ss_initialized) {// SEC_SELINUX_PORTING_COMMON Change to use RKP
 		*sid = SECSID_NULL;
 		return 0;
 	}

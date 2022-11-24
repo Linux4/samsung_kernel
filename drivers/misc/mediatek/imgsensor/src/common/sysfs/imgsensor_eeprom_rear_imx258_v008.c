@@ -22,6 +22,11 @@ const struct rom_converted_cal_addr rear_imx258_converted_cal_addr = {
 	.rom_shading_checksum_len = (REAR_CONVERTED_LSC_CHECKSUM_LEN),
 };
 
+const struct rom_sac_cal_addr rear_imx258_sac_addr = {
+	.rom_mode_addr = 0x0134,
+	.rom_time_addr = 0x0135,
+};
+
 const struct imgsensor_vendor_rom_addr rear_imx258_cal_addr = {
 	/* Set '-1' if not used */
 	.camera_module_es_version               = 'A',
@@ -123,12 +128,14 @@ const struct imgsensor_vendor_rom_addr rear_imx258_cal_addr = {
 	.rom_dual_shift_x_addr                  = -1,
 	.rom_dual_shift_y_addr                  = -1,
 
+
+	.sac_cal_addr                           = &rear_imx258_sac_addr,
 	.extend_cal_addr                        = NULL,
 
 	.converted_cal_addr                     = &rear_imx258_converted_cal_addr,
 	.rom_converted_max_cal_size             = REAR_CONVERTED_MAX_CAL_SIZE,
 
-	.sensor_maker                           = "SKHYNIX",
+	.sensor_maker                           = "SONY",
 	.sensor_name                            = "IMX258",
 	.sub_sensor_maker                       = NULL,
 	.sub_sensor_name                        = NULL,

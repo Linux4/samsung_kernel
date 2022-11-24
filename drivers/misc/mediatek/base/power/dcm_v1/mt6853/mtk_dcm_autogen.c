@@ -20,11 +20,14 @@
 #include <mtk_dcm.h>
 /*=====================auto gen code 20200220_133551=====================*/
 #define INFRACFG_AO_AXIMEM_BUS_DCM_REG0_MASK ((0x1f << 12) | \
-			(0x1 << 17))
+			(0x1 << 17) | \
+			(0x1 << 18))
 #define INFRACFG_AO_AXIMEM_BUS_DCM_REG0_ON ((0x10 << 12) | \
-			(0x1 << 17))
+			(0x1 << 17) | \
+			(0x0 << 18))
 #define INFRACFG_AO_AXIMEM_BUS_DCM_REG0_OFF ((0x10 << 12) | \
-			(0x0 << 17))
+			(0x0 << 17) | \
+			(0x1 << 18))
 
 bool dcm_infracfg_ao_aximem_bus_dcm_is_on(void)
 {

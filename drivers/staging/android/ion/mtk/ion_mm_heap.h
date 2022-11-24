@@ -52,7 +52,7 @@ struct ion_mm_buffer_info {
 #define ION_DUMP(seq_files, fmt, args...) \
 	do {\
 		struct seq_file *file = (struct seq_file *)seq_files;\
-	    char *fmat = fmt;\
+		char *fmat = fmt;\
 		if (file)\
 			seq_printf(file, fmat, ##args);\
 		else\

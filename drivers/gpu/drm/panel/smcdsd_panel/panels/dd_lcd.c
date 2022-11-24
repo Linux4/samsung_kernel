@@ -19,8 +19,12 @@
 
 #include <video/mipi_display.h>
 
-#include "../smcdsd_notify.h"
 #include "../smcdsd_panel.h"
+#if defined(CONFIG_MTK_FB)
+#include "smcdsd_notify.h"
+#else
+#include "../smcdsd_notify.h"
+#endif
 
 #include "dd.h"
 
@@ -32,8 +36,8 @@ static struct list_head		*param_list[10];
 struct rw_info {
 	u8 type;
 	u8 cmd;
-	u8 len;
-	u8 pos;
+	u32 len;
+	u32 pos;
 	u8 *buf;
 };
 
@@ -128,10 +132,7 @@ void dsi_write_data_dump(u32 id, unsigned long d0, u32 d1)
 	if (likely(tx_dump == 2 && dsi_data_type_is_tx_long(id) && dsi_data_cmd_is_partial(*(u8 *)d0)))
 		return;
 
-	if (dsi_data_type_is_tx_long(id))
-		dbg_info("%02x: %*ph\n", id, d1, (u8 *)d0);
-	else
-		dbg_info("%02x: %02lx %2x\n", id, d0, d1);
+	dbg_info("%02x: %*ph\n", id, d1, (u8 *)d0);
 }
 
 static int mipi_tx(u32 id, unsigned long d0, u32 d1)
@@ -156,10 +157,7 @@ static int tx(struct rw_info *rw, u8 *cmds)
 {
 	int ret = 0;
 
-	if (dsi_data_type_is_tx_long(rw->type))
-		ret = mipi_tx(rw->type, (unsigned long)cmds, rw->len);
-	else
-		ret = mipi_tx(rw->type, cmds[0], (rw->len == 2) ? cmds[1] : 0);
+	ret = mipi_tx(rw->type, (unsigned long)cmds, rw->len);
 
 	if (ret < 0)
 		dbg_info("fail. ret: %d, type: %02x, cmd: %02x, len: %d, pos: %d\n", ret, rw->type, rw->cmd, rw->len, rw->pos);
@@ -170,31 +168,28 @@ static int tx(struct rw_info *rw, u8 *cmds)
 static int rx(struct rw_info *rw, u8 *buf)
 {
 	int ret = 0, type;
+	int remain, limit, offset, slice;
 
-	if (rw->pos) {
-		u8 posbuf[2] = {0xB0, };
-
-		struct rw_info pos = {
-			.type = MIPI_DSI_DCS_SHORT_WRITE_PARAM,
-			.cmd = 0xB0,
-			.len = 2,
-			.buf = posbuf,
-		};
-
-		posbuf[1] = rw->pos;
-		ret = tx(&pos, pos.buf);
-		if (ret < 0)
-			return ret;
-	}
+	limit = 10;
+	remain = rw->len;
+	offset = 0;
 
 	type = (dsi_data_type_is_tx_short(rw->type) || dsi_data_type_is_tx_long(rw->type)) ? MIPI_DSI_DCS_READ : rw->type;
 
-	ret = mipi_rx(type, rw->cmd, rw->len, buf, rw->pos);
-	dbg_info("%02x, %d, %d\n", rw->cmd, rw->len, ret);
-	if (ret != rw->len) {
+again:
+	slice = (remain > limit) ? limit : remain;
+	ret = mipi_rx(type, rw->cmd, slice, &buf[offset], rw->pos + offset);
+	dbg_info("%02x, %d, %d\n", rw->cmd, slice, ret);
+	if (ret != slice) {
 		dbg_info("fail. ret: %d, type: %02x, cmd: %02x, len: %d, pos: %d\n", ret, rw->type, rw->cmd, rw->len, rw->pos);
 		ret = -EINVAL;
 	}
+
+	remain -= limit;
+	offset += limit;
+
+	if (remain > 0)
+		goto again;
 
 	return ret;
 }
@@ -271,7 +266,7 @@ static int cmdlist_show(struct seq_file *m, void *unused)
 		pos = rw->pos;
 		buf = rw->buf;
 
-		if (!cmd || !len || cmd > U8_MAX || len > U8_MAX || pos > U8_MAX || !buf) {
+		if (!cmd || !len || cmd > U8_MAX || len > U8_MAX || pos > U16_MAX || !buf) {
 			ret = -EINVAL;
 			goto exit;
 		}
@@ -349,7 +344,7 @@ static int make_tx(struct rw_info *rw, unsigned char *ibuf)
 
 	dbg_info("type: %02x cmd: %02x len: %u pos: %u\n", type, cmd, len, pos);
 
-	if (!cmd || !len || cmd > U8_MAX || len > U8_MAX || pos > U8_MAX) {
+	if (!cmd || !len || cmd > U8_MAX || len > U8_MAX || pos > U16_MAX) {
 		ret = -EINVAL;
 		goto exit;
 	}
@@ -397,7 +392,7 @@ static ssize_t cmdlist_store(struct file *f, const char __user *user_buf,
 {
 	struct list_head *lh = ((struct seq_file *)f->private_data)->private;
 	struct cmdlist_info *cmdlist = NULL;
-	unsigned char ibuf[MAX_INPUT] = {0, };
+	char ibuf[MAX_INPUT] = {0, };
 	int ret = 0;
 
 	ret = dd_simple_write_to_buffer(ibuf, sizeof(ibuf), ppos, user_buf, count);
@@ -406,7 +401,7 @@ static ssize_t cmdlist_store(struct file *f, const char __user *user_buf,
 		goto exit;
 	}
 
-	if (!strncmp(ibuf, "0", count - 1)) {
+	if (sysfs_streq(ibuf, "0")) {
 		dbg_info("input is 0(zero). reset unlock parameter to default(nothing)\n");
 		clean_cmdlist(lh);
 		goto exit;
@@ -449,7 +444,7 @@ static int tx_show(struct seq_file *m, void *unused)
 		goto exit;
 	}
 
-	if (!cmd || !len || cmd > U8_MAX || len > U8_MAX || pos > U8_MAX) {
+	if (!cmd || !len || cmd > U8_MAX || len > U8_MAX || pos > U16_MAX) {
 		ret = -EINVAL;
 		goto exit;
 	}
@@ -461,13 +456,13 @@ static int tx_show(struct seq_file *m, void *unused)
 	seq_printf(m, "type: %02x, cmd: %02x, len: %02x, pos: %02x\n", type, cmd, len, pos);
 	seq_printf(m, "+ [%02x]\n", cmd);
 	for (i = 0; i < len; i++)
-		seq_printf(m, "%2d(%2x): %02x\n", i + pos + 1, i + pos + 1, rbuf[i]);
+		seq_printf(m, "%3d(%3d): %02x\n", i + 1, i + pos + 1, rbuf[i]);
 	seq_printf(m, "- [%02x]\n", cmd);
 
 	dbg_info("type: %02x, cmd: %02x, len: %02x, pos: %02x\n", type, cmd, len, pos);
 	dbg_info("+ [%02x]\n", cmd);
 	for (i = 0; i < len; i++)
-		dbg_info("%2d(%2x): %02x\n", i + pos + 1, i + pos + 1, rbuf[i]);
+		dbg_info("%3d(%3d): %02x\n", i + 1, i + pos + 1, rbuf[i]);
 	dbg_info("- [%02x]\n", cmd);
 
 exit:
@@ -484,7 +479,7 @@ static ssize_t tx_store(struct file *f, const char __user *user_buf,
 {
 	struct d_info *d = ((struct seq_file *)f->private_data)->private;
 	struct rw_info *rw = &d->tx;
-	unsigned char ibuf[MAX_INPUT] = {0, };
+	char ibuf[MAX_INPUT] = {0, };
 	int ret = 0;
 
 	if (!d->enable) {
@@ -543,7 +538,7 @@ static int rx_show(struct seq_file *m, void *unused)
 	len = rw->len;
 	pos = rw->pos;
 
-	if (!cmd || !len || cmd > U8_MAX || len > U8_MAX || pos > U8_MAX) {
+	if (!cmd || !len || cmd > U8_MAX || len > U8_MAX || pos > U16_MAX) {
 		ret = -EINVAL;
 		goto exit;
 	}
@@ -555,12 +550,12 @@ static int rx_show(struct seq_file *m, void *unused)
 
 	seq_printf(m, "+ [%02x]\n", cmd);
 	for (i = 0; i < len; i++)
-		seq_printf(m, "%2d(%2x): %02x\n", i + pos + 1, i + pos + 1, rbuf[i]);
+		seq_printf(m, "%3d(%3d): %02x\n", i + 1, i + pos + 1, rbuf[i]);
 	seq_printf(m, "- [%02x]\n", cmd);
 
 	dbg_info("+ [%02x]\n", cmd);
 	for (i = 0; i < len; i++)
-		dbg_info("%2d(%2x): %02x\n", i + pos + 1, i + pos + 1, rbuf[i]);
+		dbg_info("%3d(%3d): %02x\n", i + 1, i + pos + 1, rbuf[i]);
 	dbg_info("- [%02x]\n", cmd);
 
 exit:
@@ -578,8 +573,8 @@ static ssize_t rx_store(struct file *f, const char __user *user_buf,
 	struct d_info *d = ((struct seq_file *)f->private_data)->private;
 	struct rw_info *rw = &d->rx;
 
-	unsigned char ibuf[MAX_INPUT] = {0, };
-	unsigned char rbuf[U8_MAX] = {0, };
+	char ibuf[MAX_INPUT] = {0, };
+	char rbuf[U8_MAX] = {0, };
 	char *pbuf;
 
 	int ret = 0, i;
@@ -606,9 +601,9 @@ static ssize_t rx_store(struct file *f, const char __user *user_buf,
 		is_datatype = 1;
 	}
 
-	if (is_datatype)
+	if (is_datatype) {
 		ret = sscanf(pbuf, "%8x: %8x %8d %8d", &type, &cmd, &len, &pos);
-	else {
+	} else {
 		ret = sscanf(pbuf, "%8x %8d %8d", &cmd, &len, &pos);
 		type = MIPI_DSI_DCS_READ;
 	}
@@ -619,10 +614,14 @@ static ssize_t rx_store(struct file *f, const char __user *user_buf,
 	}
 
 	type = dsi_data_type_is_rx(type) ? type : MIPI_DSI_DCS_READ;
+	if (len == 0) {
+		dbg_info("%s: len(%d) is invalid so make it as 1 by force\n", __func__, len);
+		len = 1;
+	}
 
 	dbg_info("ret: %d, type: %02x, cmd: %02x, len: %u, pos: %u\n", ret, type, cmd, len, pos);
 
-	if (!cmd || !len || cmd > U8_MAX || len > U8_MAX || pos > U8_MAX) {
+	if (!cmd || !len || cmd > U8_MAX || len > U8_MAX || pos > U16_MAX) {
 		ret = -EINVAL;
 		goto exit;
 	}
@@ -639,7 +638,7 @@ static ssize_t rx_store(struct file *f, const char __user *user_buf,
 
 	dbg_info("+ [%02x]\n", cmd);
 	for (i = 0; i < len; i++)
-		dbg_info("%2d(%2x): %02x\n", i + pos + 1, i + pos + 1, rbuf[i]);
+		dbg_info("%3d(%3d): %02x\n", i + 1, i + pos + 1, rbuf[i]);
 	dbg_info("- [%02x]\n", cmd);
 
 exit:
@@ -735,7 +734,7 @@ static int help_show(struct seq_file *m, void *unused)
 		pos = rw->pos;
 		buf = rw->buf;
 
-		if (!cmd || !len || cmd > U8_MAX || len > U8_MAX || pos > U8_MAX || !buf) {
+		if (!cmd || !len || cmd > U8_MAX || len > U8_MAX || pos > U16_MAX || !buf) {
 			ret = -EINVAL;
 			goto exit;
 		}
@@ -789,7 +788,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 
 	switch (event) {
 	case FB_EVENT_BLANK:
-	case FB_EARLY_EVENT_BLANK:
+	case SMCDSD_EARLY_EVENT_BLANK:
 		break;
 	default:
 		return NOTIFY_DONE;
@@ -802,10 +801,10 @@ static int fb_notifier_callback(struct notifier_block *self,
 	if (evdata->info->node)
 		return NOTIFY_DONE;
 
-	if (event == FB_EVENT_BLANK && fb_blank == FB_BLANK_UNBLANK)
-		d->enable = 1;
-	else if (fb_blank == FB_BLANK_POWERDOWN)
+	if (event == SMCDSD_EARLY_EVENT_BLANK)
 		d->enable = 0;
+	else if (event == FB_EVENT_BLANK && fb_blank == FB_BLANK_UNBLANK)
+		d->enable = 1;
 
 	return NOTIFY_DONE;
 }
@@ -830,7 +829,7 @@ static ssize_t read_show(struct kobject *kobj,
 	len = d->dump_info[1];
 	data_type = d->data_type;
 
-	if (!reg || !len || reg > U8_MAX || len > 255 || param > U8_MAX)
+	if (!reg || !len || reg > U8_MAX || len > U8_MAX || param > U8_MAX)
 		goto exit;
 
 	dump = kcalloc(len, sizeof(u8), GFP_KERNEL);
@@ -843,7 +842,7 @@ static ssize_t read_show(struct kobject *kobj,
 
 	dbg_info("+ [%02x]\n", reg);
 	for (i = 0; i < len; i++)
-		dbg_info("%2d(%2x): %02x\n", i + 1, i + 1, dump[i]);
+		dbg_info("%3d(%3d): %02x\n", i + 1, i + 1, dump[i]);
 	dbg_info("- [%02x]\n", reg);
 
 	kfree(dump);
@@ -865,7 +864,7 @@ static ssize_t read_store(struct kobject *kobj,
 
 	dbg_info("%x %x %x %x %x", data_type, reg, param, return_packet_type, len);
 
-	if (!reg || !len || reg > U8_MAX || len > 255 || param > U8_MAX)
+	if (!reg || !len || reg > U8_MAX || len > U8_MAX || param > U8_MAX)
 		return -EINVAL;
 
 	d->data_type = data_type;
@@ -1006,6 +1005,7 @@ static int init_debugfs_lcd(void)
 	init_add_unlock(d, "f0 5a 5a");
 	init_add_unlock(d, "f1 5a 5a");
 	init_add_unlock(d, "fc 5a 5a");
+	init_add_unlock(d, "9f 5a 5a");
 
 	lcd_init_dsi_access(d);
 

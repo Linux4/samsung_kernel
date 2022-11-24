@@ -26,7 +26,6 @@
 #include "scp_helper.h"
 #include "scp_excep.h"
 #include "scp_l1c.h"
-
 #ifdef CONFIG_SHUB
 #include "../../../../sensorhub/vendor/shub_mtk_helper.h"
 #endif
@@ -448,6 +447,30 @@ static unsigned int scp_crash_dump(struct MemoryDump *pMemoryDump,
 
 	return scp_dump_size;
 }
+
+#ifdef CONFIG_SHUB
+int get_scp_dump_size(void)
+{
+	unsigned int scp_dump_size;
+	uint32_t dram_size = 0;
+
+#if SCP_RECOVERY_SUPPORT
+	/* L1C support? */
+	if ((int)(scp_region_info_copy.ap_dram_size) <= 0) {
+		scp_dump_size = sizeof(struct MemoryDump);
+	} else {
+		dram_size = scp_region_info_copy.ap_dram_size;
+		scp_dump_size = sizeof(struct MemoryDump) +
+			roundup(dram_size, 4);
+	}
+#else
+	scp_dump_size = 0;
+#endif
+
+	return scp_dump_size;
+}
+#endif
+
 /*
  * generate aee argument without dump scp register
  * @param aed_str:  exception description

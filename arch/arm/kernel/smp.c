@@ -604,7 +604,7 @@ static DEFINE_RAW_SPINLOCK(stop_lock);
 /*
  * ipi_cpu_stop - handle IPI from smp_send_stop()
  */
-#ifdef CONFIG_SEC_DEBUG
+ #ifdef CONFIG_SEC_DEBUG
 static void ipi_cpu_stop(unsigned int cpu, struct pt_regs *regs)
 #else
 static void ipi_cpu_stop(unsigned int cpu)
@@ -621,7 +621,7 @@ static void ipi_cpu_stop(unsigned int cpu)
 
 	local_fiq_disable();
 	local_irq_disable();
-	
+
 #ifdef CONFIG_SEC_DEBUG
 	sec_save_context(_THIS_CPU, regs);
 #endif

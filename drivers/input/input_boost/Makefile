@@ -13,3 +13,6 @@ endif
 ifdef CONFIG_MACH_MT6768
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/sched/
 endif
+ifdef CONFIG_MACH_MT6877
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/sched/
+endif

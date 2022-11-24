@@ -24,7 +24,7 @@
 #ifdef CONFIG_SEC_PM
 void log_wakeup_reason_spm(int irq, char *wakesrc_str,
 			unsigned int assert_pc);
-#endif
+#endif /* CONFIG_SEC_PM */
 void log_irq_wakeup_reason(int irq);
 void log_threaded_irq_wakeup_reason(int irq, int parent_irq);
 void log_suspend_abort_reason(const char *fmt, ...);

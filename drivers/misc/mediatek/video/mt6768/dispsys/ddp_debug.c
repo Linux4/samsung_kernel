@@ -687,8 +687,6 @@ static void process_dbg_opt(const char *opt)
 		int sendhs;
 		unsigned char offset = 0;
 
-		DDPMSG("read_customer_cmd\n");
-
 		ret = sscanf(opt, "read_customer_cmd:0x%x, %d, %d %hhx\n",
 						&cmd, &size, &sendhs, &offset);
 
@@ -696,7 +694,7 @@ static void process_dbg_opt(const char *opt)
 			snprintf(buf, 50, "error to parse cmd %s\n", opt);
 			return;
 		}
-		DDPMSG(" read_lcm: 0x%x, size= %d %d\n", cmd, size, sendhs);
+		pr_info(" read_lcm: 0x%x, size= %d %d\n", cmd, size, sendhs);
 		read_lcm(cmd, para, size, sendhs, true, offset);
 
 		for (i = 0; i < size; i++)
@@ -706,7 +704,9 @@ static void process_dbg_opt(const char *opt)
 			noti_uevent_user(&uevent_data, 1);
 		else if (strncmp(opt + 4, "off", 3) == 0)
 			noti_uevent_user(&uevent_data, 0);
-	} else {
+	}
+
+	else {
 		dbg_buf[0] = '\0';
 		goto Error;
 	}

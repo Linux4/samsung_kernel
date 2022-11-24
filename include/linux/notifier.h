@@ -220,5 +220,6 @@ extern void show_mem_extra_call_notifiers(void);
 
 extern int am_app_launch_notifier_register(struct notifier_block *nb);
 extern int am_app_launch_notifier_unregister(struct notifier_block *nb);
+
 #endif /* __KERNEL__ */
 #endif /* _LINUX_NOTIFIER_H */

@@ -5,7 +5,7 @@
 #include "imgsensor_otp_front_hi2021q_v008_001.h"
 #include "imgsensor_eeprom_rear2_imx355_v008.h"
 #include "imgsensor_otp_rear3_gc02m1b_v008.h"
-#include "imgsensor_eeprom_rear4_gc02m1_v008.h"
+#include "imgsensor_eeprom_rear4_gc02m1_v008_2.h"
 #include "imgsensor_vendor_specific.h"
 #include "kd_imgsensor.h"
 

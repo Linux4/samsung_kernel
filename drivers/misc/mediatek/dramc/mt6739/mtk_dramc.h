@@ -96,7 +96,6 @@ int get_ddr_type(void);
 int get_emi_ch_num(void);
 int dram_can_support_fh(void);
 unsigned int ucDram_Register_Read(unsigned int u4reg_addr);
-void ucDram_Register_Write(unsigned int u4reg_addr, unsigned int value);
 unsigned int lpDram_Register_Read(unsigned int Reg_base, unsigned int Offset);
 int enter_pasr_dpd_config(unsigned char segment_rank0,
 unsigned char segment_rank1);
