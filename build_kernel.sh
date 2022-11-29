@@ -1,5 +1,5 @@
-export PLATFORM_VERSION=12
+export PLATFORM_VERSION=13
 export ARCH=arm64
 
-make ARCH=arm64 f62_swa_ins_defconfig
+make ARCH=arm64 exynos9820-f62ins_defconfig
 make ARCH=arm64 -j64
