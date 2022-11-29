@@ -29,6 +29,9 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
+#if IS_ENABLED(CONFIG_REGULATOR_DEBUG_CONTROL)
+#include <linux/regulator/debug-regulator.h>
+#endif
 #include <linux/mfd/samsung/s2mpb02.h>
 #include <linux/mfd/samsung/s2mpb02-regulator.h>
 #include <linux/regulator/of_regulator.h>
@@ -640,6 +643,112 @@ remove_pmic_device:
 	return -1;
 }
 #endif
+
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+/* 0x32:LDO_DSCH3, Bit[7~2]:unused */
+#define VALID_REG	S2MPB02_REG_LDO_DSCH3	/* register address for validation */
+#define VALID_MASK	0xFC		/* NA(unused) bit */
+
+static int s2mpb02_verify_i2c_bus(struct s2mpb02_data* s2mpb02)
+{
+	u8 old_val, val;
+	bool result = false;
+	int ret;
+
+	/* Checking S2MPB02 validation */
+	/* 1. Write 1 to 0x32's bit[7~2] */
+	ret = s2mpb02_read_reg(s2mpb02->iodev->i2c, VALID_REG, &val);
+	if (ret < 0) {
+		pr_info("%s: fail to read i2c address\n", __func__);
+		return -ENXIO;
+	}
+	pr_info("%s: %s: init state: reg(0x%02x) data(0x%02x)\n",
+				MFD_DEV_NAME, __func__, VALID_REG, val);
+	old_val = val;
+
+	ret = s2mpb02_write_reg(s2mpb02->iodev->i2c, VALID_REG, (old_val | VALID_MASK));
+	if (ret < 0) {
+		pr_info("%s: fail to write i2c address\n", __func__);
+		return -ENXIO;
+	}
+
+	ret = s2mpb02_read_reg(s2mpb02->iodev->i2c, VALID_REG, &val);
+	if (ret < 0) {
+		pr_info("%s: fail to read i2c address\n", __func__);
+		return -ENXIO;
+	}
+	pr_info("%s: %s: updated state: reg(0x%02x) data(0x%02x)\n",
+				MFD_DEV_NAME, __func__, VALID_REG, val);
+
+	if ((val & VALID_MASK) == VALID_MASK)
+		result = true;
+
+	if (!result) {
+		pr_info("%s: %s: ERROR: state is not updated!: reg(0x%02x) data(0x%02x)\n",
+			MFD_DEV_NAME, __func__, VALID_REG, val);
+		return -ENODEV;
+	}
+
+	/* 2. Write 0 to 0x32's bit[7~2] */
+	ret = s2mpb02_read_reg(s2mpb02->iodev->i2c, VALID_REG, &val);
+	if (ret < 0) {
+		pr_info("%s: fail to read i2c address\n", __func__);
+		return -ENXIO;
+	}
+	pr_info("%s: %s: init state: reg(0x%02x) data(0x%02x)\n",
+				MFD_DEV_NAME, __func__, VALID_REG, val);
+
+	ret = s2mpb02_write_reg(s2mpb02->iodev->i2c, VALID_REG, (val & 0x03));
+	if (ret < 0) {
+		pr_info("%s: fail to write i2c address\n", __func__);
+		return -ENXIO;
+	}
+
+	ret = s2mpb02_read_reg(s2mpb02->iodev->i2c, VALID_REG, &val);
+	if (ret < 0) {
+		pr_info("%s: fail to read i2c address\n", __func__);
+		return -ENXIO;
+	}
+	pr_info("%s: %s: updated state: reg(0x%02x) data(0x%02x)\n",
+				MFD_DEV_NAME, __func__, VALID_REG, val);
+
+	if ((val & VALID_MASK) == 0x0)
+		result = true;
+
+	if (!result) {
+		pr_info("%s: %s: ERROR: state is not updated!: reg(0x%02x) data(0x%02x)\n",
+			MFD_DEV_NAME, __func__, VALID_REG, val);
+		return -ENODEV;
+	}
+
+	/* 3. Restore old_val to 0x32's bit[7~2] */
+	ret = s2mpb02_write_reg(s2mpb02->iodev->i2c, VALID_REG, old_val);
+	if (ret < 0) {
+		pr_info("%s: fail to write i2c address\n", __func__);
+		return -ENXIO;
+	}
+
+	ret = s2mpb02_read_reg(s2mpb02->iodev->i2c, VALID_REG, &val);
+	if (ret < 0) {
+		pr_info("%s: fail to read i2c address\n", __func__);
+		return -ENXIO;
+	}
+
+	if (old_val != val) {
+		pr_info("%s: ERROR: old_val(0x%02x), val(0x%02x) are different!\n", __func__, old_val, val);
+		return -EIO;
+	}
+
+	pr_info("%s: %s: restored value: reg(0x%02x) data(0x%02x)\n",
+				MFD_DEV_NAME, __func__, VALID_REG, val);
+
+	pr_err("%s: %s: i2c operation is %s\n", MFD_DEV_NAME, __func__,
+						result ? "ok" : "not ok");
+
+	return 0;
+}
+#endif
+
 static int s2mpb02_pmic_probe(struct platform_device *pdev)
 {
 	struct s2mpb02_dev *iodev = dev_get_drvdata(pdev->dev.parent);
@@ -676,6 +785,14 @@ static int s2mpb02_pmic_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, s2mpb02);
 	i2c = s2mpb02->iodev->i2c;
 
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+	ret = s2mpb02_verify_i2c_bus(s2mpb02);
+	if (ret < 0) {
+		pr_err("%s: check_s2mpb02_validation fail\n", __func__);
+		return -ENODEV;
+	}
+#endif
+
 	for (i = 0; i < pdata->num_rdata; i++) {
 		int id = pdata->regulators[i].id;
 		config.dev = &pdev->dev;
@@ -690,6 +807,12 @@ static int s2mpb02_pmic_probe(struct platform_device *pdev)
 			s2mpb02->rdev[i] = NULL;
 			goto err_s2mpb02_data;
 		}
+#if IS_ENABLED(CONFIG_REGULATOR_DEBUG_CONTROL)
+		ret = devm_regulator_debug_register(&pdev->dev, s2mpb02->rdev[i]);
+		if (ret)
+			dev_err(&pdev->dev, "failed to register debug regulator for %d, rc=%d\n",
+					i, ret);
+#endif
 	}
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG_PMIC)
 	ret = s2mpb02_create_sysfs(s2mpb02);

@@ -317,7 +317,7 @@ flush:
 		}
 		mutex_unlock(&device->mutex);
 	}
- 
+
 	kgsl_iommu_flush_tlb(pt->base.mmu);
 	return 0;
 }

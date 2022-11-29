@@ -1563,7 +1563,7 @@ static int _sde_encoder_update_rsc_client(
 	u32 qsync_mode = 0;
 	struct drm_encoder *enc;
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	struct samsung_display_driver_data *vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
+	struct samsung_display_driver_data *vdd;
 #endif
 
 	if (!drm_enc || !drm_enc->dev) {
@@ -1623,13 +1623,23 @@ static int _sde_encoder_update_rsc_client(
 	}
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	if (!sde_enc->crtc) {
+		SDE_DEBUG("invalid crtc\n");
+		return 0;
+	}
+
+	SDE_DEBUG("sde_enc->crtc->index %d \n", sde_enc->crtc->index);
+	vdd = ss_get_vdd(sde_enc->crtc->index);
+	if (!vdd)
+		vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
+
 	if (vdd->rsc_4_frame_idle && rsc_state == SDE_RSC_CMD_STATE)
 		rsc_state = SDE_RSC_CLK_STATE;
 
 	if (vdd->vrr.support_vrr_based_bl) {
 		if ((vdd->vrr.running_vrr_mdp || vdd->vrr.running_vrr) &&
 				(mode_info->frame_rate < 120)) {
-			LCD_INFO(vdd, "During VRR (%d|%d): set max frame_rate: %d --> 120\n",
+			LCD_DEBUG(vdd, "During VRR (%d|%d): set max frame_rate: %d --> 120\n",
 					vdd->vrr.running_vrr_mdp,
 					vdd->vrr.running_vrr,
 					mode_info->frame_rate);
@@ -1638,7 +1648,7 @@ static int _sde_encoder_update_rsc_client(
 			vdd->vrr.keep_max_rsc_fps = true;
 		} else if (!vdd->vrr.keep_max_rsc_fps &&
 				mode_info->frame_rate != mode_info->frame_rate_org) {
-			LCD_INFO(vdd, "VRR fin(%d|%d): restore mode frame_rate: %d -> %d\n",
+			LCD_DEBUG(vdd, "VRR fin(%d|%d): restore mode frame_rate: %d -> %d\n",
 					vdd->vrr.running_vrr_mdp,
 					vdd->vrr.running_vrr,
 					mode_info->frame_rate,
@@ -1884,6 +1894,9 @@ static void sde_encoder_input_event_handler(struct input_handle *handle,
 	}
 	SDE_DEBUG("sde_enc->crtc->index %d\n", sde_enc->crtc->index);
 	vdd = ss_get_vdd(sde_enc->crtc->index);
+	if (!vdd)
+		vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
+
 	if (ss_is_panel_off(vdd)) {
 		SDE_DEBUG("invalid call during power off, idx %d\n", sde_enc->crtc->index);
 		return;
@@ -2002,15 +2015,24 @@ static int _sde_encoder_rc_kickoff(struct drm_encoder *drm_enc,
 	/* return if the resource control is already in ON state */
 	if (sde_enc->rc_state == SDE_ENC_RC_STATE_ON) {
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-		struct samsung_display_driver_data *vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
+		struct samsung_display_driver_data *vdd;
 
-		if (vdd->vrr.support_vrr_based_bl) {
-			if (vdd->vrr.keep_max_rsc_fps &&
-					!vdd->vrr.running_vrr_mdp &&
-					!vdd->vrr.running_vrr) {
-				LCD_INFO(vdd, "VRR done, trigger rsc update to restore original rsc fps\n");
-				vdd->vrr.keep_max_rsc_fps = false;
-				_sde_encoder_update_rsc_client(drm_enc, true);
+		if (!sde_enc->crtc) {
+			SDE_DEBUG("invalid crtc\n");
+		} else {
+			SDE_DEBUG("sde_enc->crtc->index %d \n", sde_enc->crtc->index);
+			vdd = ss_get_vdd(sde_enc->crtc->index);
+			if (!vdd)
+				vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
+
+			if (vdd->vrr.support_vrr_based_bl) {
+				if (vdd->vrr.keep_max_rsc_fps &&
+						!vdd->vrr.running_vrr_mdp &&
+						!vdd->vrr.running_vrr) {
+					LCD_DEBUG(vdd, "VRR done, trigger rsc update to restore original rsc fps\n");
+					vdd->vrr.keep_max_rsc_fps = false;
+					_sde_encoder_update_rsc_client(drm_enc, true);
+				}
 			}
 		}
 #endif
@@ -2224,10 +2246,17 @@ static int _sde_encoder_rc_idle(struct drm_encoder *drm_enc,
 	struct msm_drm_private *priv;
 	struct sde_kms *sde_kms;
 	struct drm_crtc *crtc = drm_enc->crtc;
-	struct sde_crtc *sde_crtc = to_sde_crtc(crtc);
+	struct sde_crtc *sde_crtc;
 	struct sde_connector *sde_conn;
 
 	priv = drm_enc->dev->dev_private;
+
+	if (!crtc || !sde_enc->cur_master || !priv->kms) {
+		SDE_ERROR("invalid args crtc:%d master:%d\n", !crtc, !sde_enc->cur_master);
+		return -EINVAL;
+	}
+
+	sde_crtc = to_sde_crtc(crtc);
 	sde_kms = to_sde_kms(priv->kms);
 	sde_conn = to_sde_connector(sde_enc->cur_master->connector);
 
@@ -2279,7 +2308,7 @@ static int _sde_encoder_rc_early_wakeup(struct drm_encoder *drm_enc,
 {
 	bool autorefresh_enabled = false;
 	struct msm_drm_thread *disp_thread;
-	int ret = 0;
+	int ret = 0, idle_pc_duration = 0;
 
 	if (!sde_enc->crtc ||
 		sde_enc->crtc->index >= ARRAY_SIZE(priv->disp_thread)) {
@@ -2307,11 +2336,14 @@ static int _sde_encoder_rc_early_wakeup(struct drm_encoder *drm_enc,
 			goto end;
 		}
 
-		if (!sde_crtc_frame_pending(sde_enc->crtc))
+		if (!sde_crtc_frame_pending(sde_enc->crtc)) {
 			kthread_mod_delayed_work(&disp_thread->worker,
 					&sde_enc->delayed_off_work,
 					msecs_to_jiffies(
 					IDLE_POWERCOLLAPSE_DURATION));
+			idle_pc_duration = IDLE_POWERCOLLAPSE_DURATION;
+		}
+
 	} else if (sde_enc->rc_state == SDE_ENC_RC_STATE_IDLE) {
 		/* enable all the clks and resources */
 		ret = _sde_encoder_resource_control_helper(drm_enc,
@@ -2339,12 +2371,13 @@ static int _sde_encoder_rc_early_wakeup(struct drm_encoder *drm_enc,
 				&sde_enc->delayed_off_work,
 				msecs_to_jiffies(
 				IDLE_POWERCOLLAPSE_IN_EARLY_WAKEUP));
+		idle_pc_duration = IDLE_POWERCOLLAPSE_IN_EARLY_WAKEUP;
 
 		sde_enc->rc_state = SDE_ENC_RC_STATE_ON;
 	}
 
-	SDE_EVT32(DRMID(drm_enc), sw_event, sde_enc->rc_state,
-			SDE_ENC_RC_STATE_ON, SDE_EVTLOG_FUNC_CASE8);
+	SDE_EVT32(DRMID(drm_enc), sw_event, sde_enc->rc_state, SDE_ENC_RC_STATE_ON,
+			idle_pc_duration, SDE_EVTLOG_FUNC_CASE8);
 
 end:
 	mutex_unlock(&sde_enc->rc_lock);
@@ -3042,6 +3075,10 @@ void sde_encoder_virt_restore(struct drm_encoder *drm_enc)
 		sde_enc->cur_master->ops.restore(sde_enc->cur_master);
 
 	_sde_encoder_virt_enable_helper(drm_enc);
+
+	if (sde_enc->cur_master->ops.reset_tearcheck_rd_ptr)
+		sde_enc->cur_master->ops.reset_tearcheck_rd_ptr(sde_enc->cur_master);
+
 	sde_encoder_control_te(drm_enc, true);
 }
 
@@ -4336,8 +4373,13 @@ static void sde_encoder_input_event_work_handler(struct kthread_work *work)
 	struct sde_encoder_virt *sde_enc = container_of(work,
 				struct sde_encoder_virt, input_event_work);
 
-	if (!sde_enc) {
-		SDE_ERROR("invalid sde encoder\n");
+	if (!sde_enc || !sde_enc->input_handler) {
+		SDE_ERROR("invalid args sde encoder\n");
+		return;
+	}
+
+	if (!sde_enc->input_handler->private) {
+		SDE_DEBUG_ENC(sde_enc, "input handler is unregistered\n");
 		return;
 	}
 

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -29,6 +30,13 @@
 #include "wlan_tdls_ucfg_api.h"
 #include "wlan_tdls_api.h"
 #include <wlan_cm_api.h>
+#include <wlan_mlo_mgr_public_structs.h>
+#include <wlan_mlo_mgr_cmn.h>
+#include <wlan_cm_roam_api.h>
+#include "wlan_nan_api.h"
+#ifdef WLAN_FEATURE_11BE_MLO
+#include <wlan_mlo_mgr_sta.h>
+#endif
 
 QDF_STATUS if_mgr_connect_start(struct wlan_objmgr_vdev *vdev,
 				struct if_mgr_event_data *event_data)
@@ -61,9 +69,18 @@ QDF_STATUS if_mgr_connect_start(struct wlan_objmgr_vdev *vdev,
 							 PM_SAP_MODE);
 	op_mode = wlan_vdev_mlme_get_opmode(vdev);
 	if (op_mode == QDF_P2P_CLIENT_MODE || sap_cnt || sta_cnt) {
-		for (i = 0; i < sta_cnt + sap_cnt; i++)
+		for (i = 0; i < sta_cnt + sap_cnt; i++) {
 			if (vdev_id_list[i] == wlan_vdev_get_id(vdev))
 				disable_nan = false;
+			/* 1. Don't disable nan if firmware supports
+			 *    ML STA + NAN + NDP.
+			 * 2. Disable nan if legacy sta + nan +
+			 *    ML STA(primary link) comes up.
+			 */
+			if (wlan_vdev_mlme_is_mlo_link_vdev(vdev) &&
+			    wlan_is_mlo_sta_nan_ndi_allowed(psoc))
+				disable_nan = false;
+		}
 		if (disable_nan)
 			ucfg_nan_disable_concurrency(psoc);
 	}
@@ -84,7 +101,6 @@ QDF_STATUS if_mgr_connect_start(struct wlan_objmgr_vdev *vdev,
 		 * this scenario.
 		 */
 		if_mgr_disable_roaming(pdev, vdev, RSO_CONNECT_START);
-		wlan_tdls_teardown_links_sync(psoc);
 	}
 
 	return QDF_STATUS_SUCCESS;
@@ -117,9 +133,10 @@ QDF_STATUS if_mgr_connect_complete(struct wlan_objmgr_vdev *vdev,
 		    wlan_vdev_mlme_get_opmode(vdev) == QDF_P2P_CLIENT_MODE) {
 			ifmgr_debug("p2p client active, keep roam disabled");
 		} else {
+			ifmgr_debug("set pcl when connection on vdev id:%d",
+				     vdev->vdev_objmgr.vdev_id);
 			policy_mgr_set_pcl_for_connected_vdev(psoc,
-							      vdev->vdev_objmgr.
-							      vdev_id, false);
+					      vdev->vdev_objmgr.vdev_id, false);
 			/*
 			 * Enable roaming on other STA iface except this one.
 			 * Firmware doesn't support connection on one STA iface
@@ -127,6 +144,9 @@ QDF_STATUS if_mgr_connect_complete(struct wlan_objmgr_vdev *vdev,
 			 */
 			if_mgr_enable_roaming(pdev, vdev, RSO_CONNECT_START);
 		}
+		if (wlan_vdev_mlme_get_opmode(vdev) == QDF_STA_MODE)
+			policy_mgr_handle_ml_sta_link_concurrency(psoc, vdev,
+								  true);
 	} else {
 		/* notify connect failure on final failure */
 		ucfg_tdls_notify_connect_failure(psoc);
@@ -195,6 +215,9 @@ QDF_STATUS if_mgr_disconnect_complete(struct wlan_objmgr_vdev *vdev,
 		ifmgr_err("Failed to enable roaming on connected sta");
 		return status;
 	}
+
+	if (wlan_vdev_mlme_get_opmode(vdev) == QDF_STA_MODE)
+		policy_mgr_handle_ml_sta_link_concurrency(psoc, vdev, false);
 
 	return QDF_STATUS_SUCCESS;
 }

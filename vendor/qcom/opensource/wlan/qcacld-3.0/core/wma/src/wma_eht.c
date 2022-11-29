@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -24,7 +25,9 @@
 #include "wmi_unified.h"
 #include "service_ready_param.h"
 #include "target_if.h"
+#include "wma_internal.h"
 
+#if defined(WLAN_FEATURE_11BE)
 /**
  * wma_convert_eht_cap() - convert EHT capabilities into dot11f structure
  * @eht_cap: pointer to dot11f structure
@@ -385,10 +388,11 @@ void wma_populate_peer_eht_cap(struct peer_assoc_params *peer,
 	uint32_t *phy_cap = peer->peer_eht_cap_phyinfo;
 	uint32_t *mac_cap = peer->peer_eht_cap_macinfo;
 
-	if (params->eht_capable)
-		peer->eht_flag = 1;
-	else
+	if (!params->eht_capable)
 		return;
+
+	peer->eht_flag = 1;
+	peer->qos_flag = 1;
 
 	/* EHT MAC Capabilities */
 	WMI_EHTCAP_MAC_NSEPPRIACCESS_SET(mac_cap, eht_cap->nsep_pri_access);
@@ -494,3 +498,44 @@ void wma_set_peer_assoc_params_bw_320(struct peer_assoc_params *params,
 	if (ch_width == CH_WIDTH_320MHZ)
 		params->bw_320 = 1;
 }
+
+void wma_set_eht_txbf_cfg(struct mac_context *mac, uint8_t vdev_id)
+{
+	wma_set_eht_txbf_params(
+		vdev_id, mac->mlme_cfg->eht_caps.dot11_eht_cap.su_beamformer,
+		mac->mlme_cfg->eht_caps.dot11_eht_cap.su_beamformee,
+		mac->mlme_cfg->eht_caps.dot11_eht_cap.mu_bformer_le_80mhz ||
+		mac->mlme_cfg->eht_caps.dot11_eht_cap.mu_bformer_160mhz ||
+		mac->mlme_cfg->eht_caps.dot11_eht_cap.mu_bformer_320mhz);
+}
+
+void wma_set_eht_txbf_params(uint8_t vdev_id, bool su_bfer,
+			     bool su_bfee, bool mu_bfer)
+{
+	uint32_t ehtmu_mode = 0;
+	QDF_STATUS status;
+	tp_wma_handle wma = cds_get_context(QDF_MODULE_ID_WMA);
+
+	if (!wma)
+		return;
+
+	if (su_bfer)
+		WMI_VDEV_EHT_SUBFER_ENABLE(ehtmu_mode);
+	if (su_bfee) {
+		WMI_VDEV_EHT_SUBFEE_ENABLE(ehtmu_mode);
+		WMI_VDEV_EHT_MUBFEE_ENABLE(ehtmu_mode);
+	}
+	if (mu_bfer)
+		WMI_VDEV_EHT_MUBFER_ENABLE(ehtmu_mode);
+
+	WMI_VDEV_EHT_DLOFDMA_ENABLE(ehtmu_mode);
+	WMI_VDEV_EHT_ULOFDMA_ENABLE(ehtmu_mode);
+
+	status = wma_vdev_set_param(wma->wmi_handle, vdev_id,
+				    WMI_VDEV_PARAM_SET_EHT_MU_MODE, ehtmu_mode);
+	wma_debug("set EHTMU_MODE (ehtmu_mode = 0x%x)", ehtmu_mode);
+
+	if (QDF_IS_STATUS_ERROR(status))
+		wma_err("failed to set EHTMU_MODE(status = %d)", status);
+}
+#endif

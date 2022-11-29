@@ -884,7 +884,21 @@ int page_referenced(struct page *page,
 		rwc.invalid_vma = invalid_page_referenced_vma;
 	}
 
-	rmap_walk(page, &rwc);
+	if (need_memory_boosting() && !PageAnon(page)) {
+		struct address_space *mapping = page_mapping(page);
+
+		if (mapping != NULL) {
+			if (i_mmap_trylock_read(mapping)) {
+				rmap_walk_locked(page, &rwc);
+				i_mmap_unlock_read(mapping);
+			} else {
+				pra.referenced = 1;
+			}
+		}
+	} else {
+		rmap_walk(page, &rwc);
+	}
+
 	*vm_flags = pra.vm_flags;
 
 	if (we_locked)
@@ -1763,6 +1777,8 @@ bool try_to_unmap(struct page *page, enum ttu_flags flags)
 
 	if (flags & TTU_RMAP_LOCKED)
 		rmap_walk_locked(page, &rwc);
+	else if (flags & TTU_RMAP_TRY_LOCK)
+		rmap_walk_trylock(page, &rwc);
 	else
 		rmap_walk(page, &rwc);
 
@@ -1899,7 +1915,7 @@ static void rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc,
  * LOCKED.
  */
 static void rmap_walk_file(struct page *page, struct rmap_walk_control *rwc,
-		bool locked)
+		bool locked, bool trylock)
 {
 	struct address_space *mapping = page_mapping(page);
 	pgoff_t pgoff_start, pgoff_end;
@@ -1918,8 +1934,15 @@ static void rmap_walk_file(struct page *page, struct rmap_walk_control *rwc,
 
 	pgoff_start = page_to_pgoff(page);
 	pgoff_end = pgoff_start + thp_nr_pages(page) - 1;
-	if (!locked)
-		i_mmap_lock_read(mapping);
+
+	if (!locked) {
+		if (trylock) {
+			if (!i_mmap_trylock_read(mapping))
+				return;
+		} else {
+			i_mmap_lock_read(mapping);
+		}
+	}
 	vma_interval_tree_foreach(vma, &mapping->i_mmap,
 			pgoff_start, pgoff_end) {
 		unsigned long address = vma_address(page, vma);
@@ -1948,7 +1971,17 @@ void rmap_walk(struct page *page, struct rmap_walk_control *rwc)
 	else if (PageAnon(page))
 		rmap_walk_anon(page, rwc, false);
 	else
-		rmap_walk_file(page, rwc, false);
+		rmap_walk_file(page, rwc, false, false);
+}
+
+void rmap_walk_trylock(struct page *page, struct rmap_walk_control *rwc)
+{
+	if (unlikely(PageKsm(page)))
+		rmap_walk_ksm(page, rwc);
+	else if (PageAnon(page))
+		rmap_walk_anon(page, rwc, false);
+	else
+		rmap_walk_file(page, rwc, false, true);
 }
 
 /* Like rmap_walk, but caller holds relevant rmap lock */
@@ -1959,7 +1992,7 @@ void rmap_walk_locked(struct page *page, struct rmap_walk_control *rwc)
 	if (PageAnon(page))
 		rmap_walk_anon(page, rwc, true);
 	else
-		rmap_walk_file(page, rwc, true);
+		rmap_walk_file(page, rwc, true, false);
 }
 
 #ifdef CONFIG_HUGETLB_PAGE

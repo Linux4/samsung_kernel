@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -50,6 +51,7 @@
  * @low_band_oce_boost: Flag to assign higher alpha weightage low band oce
  * @wlm_indication_weightage: WLM indication weightage
  * @emlsr_weightage: eMLSR weightage
+ * @security_weightage: Security weightage
  */
 struct weight_cfg {
 	uint8_t rssi_weightage;
@@ -79,6 +81,7 @@ struct weight_cfg {
 	uint8_t wlm_indication_weightage;
 	uint8_t emlsr_weightage;
 #endif
+	uint8_t security_weightage;
 };
 
 /**
@@ -139,7 +142,7 @@ struct per_slot_score {
 	uint32_t score_pcnt15_to_12;
 };
 
-#ifndef WLAN_FEATURE_11BE_MLO
+#ifndef WLAN_FEATURE_11BE
 #define CM_20MHZ_BW_INDEX                  0
 #define CM_40MHZ_BW_INDEX                  1
 #define CM_80MHZ_BW_INDEX                  2
@@ -153,21 +156,44 @@ struct per_slot_score {
 #define CM_MAX_NSS_INDEX                   4
 #else
 enum cm_bw_idx {
-	CM_20MHZ_BW_INDEX,
-	CM_40MHZ_BW_INDEX,
-	CM_80MHZ_BW_INDEX,
-	CM_160MHZ_BW_INDEX,
-	CM_MLO_20_PLUS_20MHZ_BW_INDEX,
-	CM_MLO_20_PLUS_40MHZ_BW_INDEX,
-	CM_MLO_40_PLUS_40MHZ_BW_INDEX,
-	CM_MLO_20_PLUS_80MHZ_BW_INDEX,
-	CM_MLO_40_PLUS_80MHZ_BW_INDEX,
-	CM_MLO_80_PLUS_80MHZ_BW_INDEX,
-	CM_MLO_20_PLUS_160HZ_BW_INDEX,
-	CM_MLO_40_PLUS_160HZ_BW_INDEX,
-	CM_MLO_80_PLUS_160HZ_BW_INDEX,
-	CM_MLO_160_PLUS_160HZ_BW_INDEX,
-	CM_320MHZ_BW_INDEX,
+	CM_20MHZ_BW_INDEX = 0,
+	CM_40MHZ_BW_INDEX = 1,
+	CM_80MHZ_BW_INDEX = 2,
+	CM_160MHZ_BW_INDEX = 3,
+	CM_320MHZ_BW_INDEX = 4,
+	CM_80MHZ_BW_20MHZ_PUNCTURE_INDEX = 5,
+	CM_160MHZ_BW_40MHZ_PUNCTURE_INDEX = 6,
+	CM_160MHZ_BW_20MHZ_PUNCTURE_INDEX = 7,
+	CM_320MHZ_BW_40MHZ_80MHZ_PUNCTURE_INDEX = 8,
+	CM_320MHZ_BW_80MHZ_PUNCTURE_INDEX = 9,
+	CM_320MHZ_BW_40MHZ_PUNCTURE_INDEX = 10,
+#ifdef WLAN_FEATURE_11BE_MLO
+	CM_MLO_20_PLUS_20MHZ_BW_INDEX = 11,
+	CM_MLO_20_PLUS_40MHZ_BW_INDEX = 12,
+	CM_MLO_40_PLUS_40MHZ_BW_INDEX = 13,
+	CM_MLO_20_PLUS_80MHZ_BW_20MHZ_PUNCTURE_INDEX = 14,
+	CM_MLO_20_PLUS_80MHZ_BW_INDEX = 15,
+	CM_MLO_40_PLUS_80MHZ_BW_20MHZ_PUNCTURE_INDEX = 16,
+	CM_MLO_40_PLUS_80MHZ_BW_INDEX = 17,
+	CM_MLO_80_PLUS_80MHZ_BW_40MHZ_PUNCTURE_INDEX = 18,
+	CM_MLO_80_PLUS_80MHZ_BW_20MHZ_PUNCTURE_INDEX = 19,
+	CM_MLO_80_PLUS_80MHZ_BW_INDEX = 20,
+	CM_MLO_20_PLUS_160HZ_BW_40MHZ_PUNCTURE_INDEX = 21,
+	CM_MLO_20_PLUS_160HZ_BW_20MHZ_PUNCTURE_INDEX = 22,
+	CM_MLO_20_PLUS_160HZ_BW_INDEX = 23,
+	CM_MLO_40_PLUS_160HZ_BW_40MHZ_PUNCTURE_INDEX = 24,
+	CM_MLO_40_PLUS_160HZ_BW_20MHZ_PUNCTURE_INDEX = 25,
+	CM_MLO_40_PLUS_160HZ_BW_INDEX = 26,
+	CM_MLO_80_PLUS_160HZ_BW_60MHZ_PUNCTURE_INDEX = 27,
+	CM_MLO_80_PLUS_160HZ_BW_40MHZ_PUNCTURE_INDEX = 28,
+	CM_MLO_80_PLUS_160HZ_BW_20MHZ_PUNCTURE_INDEX = 29,
+	CM_MLO_80_PLUS_160HZ_BW_INDEX = 30,
+	CM_MLO_160_PLUS_160HZ_BW_80MHZ_PUNCTURE_INDEX = 31,
+	CM_MLO_160_PLUS_160HZ_BW_60MHZ_PUNCTURE_INDEX = 32,
+	CM_MLO_160_PLUS_160HZ_BW_40MHZ_PUNCTURE_INDEX = 33,
+	CM_MLO_160_PLUS_160HZ_BW_20MHZ_PUNCTURE_INDEX = 34,
+	CM_MLO_160_PLUS_160HZ_BW_INDEX = 35,
+#endif
 	CM_MAX_BW_INDEX
 };
 
@@ -176,11 +202,21 @@ enum cm_nss_idx {
 	CM_NSS_2x2_INDEX,
 	CM_NSS_3x3_INDEX,
 	CM_NSS_4x4_INDEX,
+#ifdef WLAN_FEATURE_11BE_MLO
 	CM_NSS_2x2_PLUS_2x2_INDEX,
 	CM_NSS_4x4_PLUS_4x4_INDEX,
+#endif
 	CM_MAX_NSS_INDEX
 };
 #endif
+
+enum cm_security_idx {
+	CM_SECURITY_WPA_INDEX,
+	CM_SECURITY_WPA2_INDEX,
+	CM_SECURITY_WPA3_INDEX,
+	CM_SECURITY_WPA_OPEN_WEP_INDEX,
+	CM_MAX_SECURITY_INDEX
+};
 
 /**
  * struct scoring_cfg - Scoring related configuration
@@ -197,6 +233,8 @@ enum cm_nss_idx {
  * @check_6ghz_security: check security for 6Ghz candidate
  * @key_mgmt_mask_6ghz: user configurable mask for 6ghz AKM
  * @mlsr_link_selection: MLSR link selection config
+ * @roam_tgt_score_cap: Roam score capability
+ * @security_weight_per_index: security weight per index
  */
 struct scoring_cfg {
 	struct weight_cfg weight_config;
@@ -214,6 +252,8 @@ struct scoring_cfg {
 #ifdef WLAN_FEATURE_11BE_MLO
 	uint8_t mlsr_link_selection;
 #endif
+	uint32_t roam_tgt_score_cap;
+	uint32_t security_weight_per_index;
 };
 
 /**

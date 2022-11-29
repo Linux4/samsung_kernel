@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -27,6 +27,10 @@
 #define REGDB_FILE_NAME			"regdb.bin"
 #define HDS_FILE_NAME			"hds.bin"
 #define CHIP_ID_GF_MASK			0x10
+
+#define CONN_ROAM_FILE_NAME		"wlan-connection-roaming"
+#define INI_EXT			".ini"
+#define INI_FILE_NAME_LEN		100
 
 #define QDSS_TRACE_CONFIG_FILE		"qdss_trace_config"
 #ifdef CONFIG_CNSS2_DEBUG
@@ -185,7 +189,7 @@ qmi_registered:
 static void cnss_wlfw_host_cap_parse_mlo(struct cnss_plat_data *plat_priv,
 					 struct wlfw_host_cap_req_msg_v01 *req)
 {
-	if (plat_priv->device_id == WCN7850_DEVICE_ID) {
+	if (plat_priv->device_id == KIWI_DEVICE_ID) {
 		req->mlo_capable_valid = 1;
 		req->mlo_capable = 1;
 		req->mlo_chip_id_valid = 1;
@@ -528,15 +532,19 @@ int cnss_wlfw_tgt_cap_send_sync(struct cnss_plat_data *plat_priv)
 	else
 		plat_priv->hang_data_addr_offset = 0;
 
+	if (resp->hwid_bitmap_valid)
+		plat_priv->hwid_bitmap = resp->hwid_bitmap;
+
 	cnss_pr_dbg("Target capability: chip_id: 0x%x, chip_family: 0x%x, board_id: 0x%x, soc_id: 0x%x, otp_version: 0x%x\n",
 		    plat_priv->chip_info.chip_id,
 		    plat_priv->chip_info.chip_family,
 		    plat_priv->board_info.board_id, plat_priv->soc_info.soc_id,
 		    plat_priv->otp_version);
-	cnss_pr_dbg("fw_version: 0x%x, fw_build_timestamp: %s, fw_build_id: %s\n",
+	cnss_pr_dbg("fw_version: 0x%x, fw_build_timestamp: %s, fw_build_id: %s, hwid_bitmap:0x%x\n",
 		    plat_priv->fw_version_info.fw_version,
 		    plat_priv->fw_version_info.fw_build_timestamp,
-		    plat_priv->fw_build_id);
+		    plat_priv->fw_build_id,
+		    plat_priv->hwid_bitmap);
 	cnss_pr_dbg("Hang event params, Length: 0x%x, Offset Address: 0x%x\n",
 		    plat_priv->hang_event_data_len,
 		    plat_priv->hang_data_addr_offset);
@@ -582,9 +590,6 @@ static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 	char filename_tmp[MAX_FIRMWARE_NAME_LEN];
 	int ret = 0;
 
-#ifdef CONFIG_SEC_SS_CNSS_FEATURE_SYSFS
-	cnss_pr_err("ant_from_macloader %d\n",ant_from_macloader);
-#endif /* CONFIG_SEC_SS_CNSS_FEATURE_SYSFS */
 	switch (bdf_type) {
 	case CNSS_BDF_ELF:
 		/* Board ID will be equal or less than 0xFF in GF mask case */
@@ -615,7 +620,7 @@ static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 			else
 				snprintf(filename_tmp, filename_len,
 					 ELF_BDF_FILE_NAME);
-#endif /* CONFIG_SEC_SS_CNSS_FEATURE_SYSFS */
+#endif /* !CONFIG_SEC_SS_CNSS_FEATURE_SYSFS */
 		} else if (plat_priv->board_info.board_id < 0xFF) {
 #ifdef CONFIG_SEC_SS_CNSS_FEATURE_SYSFS
 			if (ant_from_macloader == 1 || ant_from_macloader == 2 || ant_from_macloader == 10) { // 10: for GTX disabled bdf
@@ -639,7 +644,7 @@ static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 				snprintf(filename_tmp, filename_len,
 					 ELF_BDF_FILE_NAME_PREFIX "%02x",
 					 plat_priv->board_info.board_id);
-#endif /* CONFIG_SEC_SS_CNSS_FEATURE_SYSFS */
+#endif /* !CONFIG_SEC_SS_CNSS_FEATURE_SYSFS */
 		} else {
 			snprintf(filename_tmp, filename_len,
 				 BDF_FILE_NAME_PREFIX "%02x.e%02x",
@@ -686,6 +691,146 @@ static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 
 	if (!ret)
 		cnss_bus_add_fw_prefix_name(plat_priv, filename, filename_tmp);
+
+	return ret;
+}
+
+int cnss_wlfw_ini_file_send_sync(struct cnss_plat_data *plat_priv,
+				 enum wlfw_ini_file_type_v01 file_type)
+{
+	struct wlfw_ini_file_download_req_msg_v01 *req;
+	struct wlfw_ini_file_download_resp_msg_v01 *resp;
+	struct qmi_txn txn;
+	int ret = 0;
+	const struct firmware *fw;
+	char filename[INI_FILE_NAME_LEN] = {0};
+	char tmp_filename[INI_FILE_NAME_LEN] = {0};
+	const u8 *temp;
+	unsigned int remaining;
+	bool backup_supported = false;
+
+	cnss_pr_info("INI File %u download\n", file_type);
+
+	req = kzalloc(sizeof(*req), GFP_KERNEL);
+	if (!req)
+		return -ENOMEM;
+
+	resp = kzalloc(sizeof(*resp), GFP_KERNEL);
+	if (!resp) {
+		kfree(req);
+		return -ENOMEM;
+	}
+
+	switch (file_type) {
+	case WLFW_CONN_ROAM_INI_V01:
+		snprintf(tmp_filename, sizeof(tmp_filename),
+			 CONN_ROAM_FILE_NAME);
+		backup_supported = true;
+		break;
+	default:
+		cnss_pr_err("Invalid file type: %u\n", file_type);
+		ret = -EINVAL;
+		goto err_req_fw;
+	}
+
+	snprintf(filename, sizeof(filename), "%s%s", tmp_filename, INI_EXT);
+	/* Fetch the file */
+	ret = firmware_request_nowarn(&fw, filename, &plat_priv->plat_dev->dev);
+	if (ret) {
+		cnss_pr_err("Failed to get INI file %s (%d), Backup file: %s",
+			    filename, ret,
+			    backup_supported ? "Supported" : "Not Supported");
+
+		if (!backup_supported)
+			goto err_req_fw;
+
+		snprintf(filename, sizeof(filename),
+			 "%s-%s%s", tmp_filename, "backup", INI_EXT);
+
+		ret = firmware_request_nowarn(&fw, filename,
+					      &plat_priv->plat_dev->dev);
+		if (ret) {
+			cnss_pr_err("Failed to get INI file %s (%d)", filename,
+				    ret);
+			goto err_req_fw;
+		}
+	}
+
+	temp = fw->data;
+	remaining = fw->size;
+
+	cnss_pr_dbg("Downloading INI file: %s, size: %u\n", filename,
+		    remaining);
+
+	while (remaining) {
+		req->file_type_valid = 1;
+		req->file_type = file_type;
+		req->total_size_valid = 1;
+		req->total_size = remaining;
+		req->seg_id_valid = 1;
+		req->data_valid = 1;
+		req->end_valid = 1;
+
+		if (remaining > QMI_WLFW_MAX_DATA_SIZE_V01) {
+			req->data_len = QMI_WLFW_MAX_DATA_SIZE_V01;
+		} else {
+			req->data_len = remaining;
+			req->end = 1;
+		}
+
+		memcpy(req->data, temp, req->data_len);
+
+		ret = qmi_txn_init(&plat_priv->qmi_wlfw, &txn,
+				   wlfw_ini_file_download_resp_msg_v01_ei,
+				   resp);
+		if (ret < 0) {
+			cnss_pr_err("Failed to initialize txn for INI file download request, err: %d\n",
+				    ret);
+			goto err;
+		}
+
+		ret = qmi_send_request
+			(&plat_priv->qmi_wlfw, NULL, &txn,
+			 QMI_WLFW_INI_FILE_DOWNLOAD_REQ_V01,
+			 WLFW_INI_FILE_DOWNLOAD_REQ_MSG_V01_MAX_MSG_LEN,
+			 wlfw_ini_file_download_req_msg_v01_ei, req);
+		if (ret < 0) {
+			qmi_txn_cancel(&txn);
+			cnss_pr_err("Failed to send INI File download request, err: %d\n",
+				    ret);
+			goto err;
+		}
+
+		ret = qmi_txn_wait(&txn, QMI_WLFW_TIMEOUT_JF);
+		if (ret < 0) {
+			cnss_pr_err("Failed to wait for response of INI File download request, err: %d\n",
+				    ret);
+			goto err;
+		}
+
+		if (resp->resp.result != QMI_RESULT_SUCCESS_V01) {
+			cnss_pr_err("INI file download request failed, result: %d, err: %d\n",
+				    resp->resp.result, resp->resp.error);
+			ret = -resp->resp.result;
+			goto err;
+		}
+
+		remaining -= req->data_len;
+		temp += req->data_len;
+		req->seg_id++;
+	}
+
+	release_firmware(fw);
+
+	kfree(req);
+	kfree(resp);
+	return 0;
+
+err:
+	release_firmware(fw);
+err_req_fw:
+	kfree(req);
+	kfree(resp);
 
 	return ret;
 }
@@ -1009,7 +1154,7 @@ int cnss_wlfw_qdss_data_send_sync(struct cnss_plat_data *plat_priv, char *file_n
 			goto fail;
 		}
 
-		ret = qmi_txn_wait(&txn, plat_priv->ctrl_params.qmi_timeout);
+		ret = qmi_txn_wait(&txn, QMI_WLFW_TIMEOUT_JF);
 
 		if (ret < 0) {
 			cnss_pr_err("QDSS trace resp wait failed with rc %d\n",
@@ -1086,7 +1231,7 @@ void cnss_get_qdss_cfg_filename(struct cnss_plat_data *plat_priv,
 	char filename_tmp[MAX_FIRMWARE_NAME_LEN];
 	char *debug_str = QDSS_DEBUG_FILE_STR;
 
-	if (plat_priv->device_id == WCN7850_DEVICE_ID)
+	if (plat_priv->device_id == KIWI_DEVICE_ID)
 		debug_str = "";
 
 	if (plat_priv->device_version.major_version == FW_V2_NUMBER)
@@ -1176,7 +1321,7 @@ int cnss_wlfw_qdss_dnld_send_sync(struct cnss_plat_data *plat_priv)
 			goto err_send;
 		}
 
-		ret = qmi_txn_wait(&txn, plat_priv->ctrl_params.qmi_timeout);
+		ret = qmi_txn_wait(&txn, QMI_WLFW_TIMEOUT_JF);
 		if (ret < 0) {
 			cnss_pr_err("Failed to wait for response of QDSS download request, err: %d\n",
 				    ret);
@@ -1266,7 +1411,7 @@ static int wlfw_send_qdss_trace_mode_req
 		goto out;
 	}
 
-	rc = qmi_txn_wait(&txn, plat_priv->ctrl_params.qmi_timeout);
+	rc = qmi_txn_wait(&txn, QMI_WLFW_TIMEOUT_JF);
 	if (rc < 0) {
 		cnss_pr_err("QDSS Mode resp wait failed with rc %d\n",
 			    rc);

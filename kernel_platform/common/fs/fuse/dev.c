@@ -1237,7 +1237,7 @@ static ssize_t fuse_dev_do_read(struct fuse_dev *fud, struct file *file,
 		return -EINVAL;
 
 	if ((current->flags & PF_NOFREEZE) == 0) {
-		current->flags |= PF_NOFREEZE;
+		current->flags |= PF_NOFREEZE | PF_MEMALLOC_NOFS;
 		printk_ratelimited(KERN_WARNING "%s(%d): This thread should not be frozen\n",
 				current->comm, task_pid_nr(current));
 	}

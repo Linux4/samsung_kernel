@@ -395,6 +395,9 @@ static long get_pool_size_bytes(struct dma_heap *heap)
 	int i;
 	struct qcom_system_heap *sys_heap = dma_heap_get_drvdata(heap);
 
+	if (!strncmp(dma_heap_get_name(heap), "system", 6))
+		return 0;
+
 	for (i = 0; i < NUM_ORDERS; i++)
 		total_size += dynamic_page_pool_total(sys_heap->pool_list[i], true);
 

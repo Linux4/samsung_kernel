@@ -44,6 +44,7 @@
 #include <audio_extn/AudioExtn.h>
 #include <mutex>
 #include <map>
+#include <unordered_set>
 
 #ifdef SEC_AUDIO_COMMON
 #include "SecAudioStream.h"
@@ -101,7 +102,7 @@
 #define MMAP_PERIOD_COUNT_MAX 512
 #define MMAP_PERIOD_COUNT_DEFAULT (MMAP_PERIOD_COUNT_MAX)
 #define CODEC_BACKEND_DEFAULT_BIT_WIDTH 16
-#if 0//def SEC_AUDIO_DSM_AMP
+#ifdef SEC_AUDIO_DSM_AMP
 #define CODEC_BACKEND_FEEDBACK_BIT_WIDTH 16
 #endif
 #ifdef SEC_AUDIO_OFFLOAD
@@ -487,13 +488,14 @@ public:
 #ifdef SEC_AUDIO_CALL_VOIP
     pal_stream_attributes getStreamAttributes() { return streamAttributes_; }
 #endif
-#ifdef SEC_AUDIO_KARAOKE
+#ifdef SEC_AUDIO_COMMON
     bool HasPalStreamHandle() { return (pal_stream_handle_ != NULL) ? true : false; }
 #endif
 protected:
     struct pal_stream_attributes streamAttributes_;
 #ifdef SEC_AUDIO_DSM_AMP
     struct pal_stream_attributes mStreamFeedback;
+    bool   use_feedback_stream;
 #endif
     pal_stream_handle_t*      pal_stream_handle_;
     audio_io_handle_t         handle_;
@@ -506,6 +508,7 @@ protected:
     struct pal_volume_data *volume_; /* used to cache volume */
     std::map <audio_devices_t, pal_device_id_t> mAndroidDeviceMap;
     int mmap_shared_memory_fd;
+    pal_param_device_capability_t *device_cap_query_;
 };
 
 #ifdef SEC_AUDIO_COMMON
@@ -584,6 +587,7 @@ public:
 #endif
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
     int UpdateListenback(bool on);
+    void CheckAndSwitchListenbackMode(bool on);
 #endif
 #ifdef SEC_AUDIO_COMMON
     void lock_output_stream() { stream_mutex_.lock(); }
@@ -707,6 +711,7 @@ protected:
     friend class SecAudioStreamIn;
 #endif
     uint64_t mBytesRead = 0; /* total bytes read, not cleared when entering standby */
+    std::unordered_set<effect_handle_t> isECEnabledSet;
     bool isECEnabled = false;
     bool isNSEnabled = false;
     bool effects_applied_ = true;

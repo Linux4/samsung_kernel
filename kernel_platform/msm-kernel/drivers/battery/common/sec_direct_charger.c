@@ -239,8 +239,7 @@ static int sec_direct_chg_check_charging_source(struct sec_direct_charger_info *
 end_chg_src:
 	if (charger->charging_source != ret) {
 		store_battery_log("CHG_SRC:SOC(%d),BATT_ST(%d),VOLT_AVG(%d),BAT_TEMP(%d),SUB_BAT_TEMP(%d),MIX_LIM(%d),",
-				charger->capacity, charger->batt_status, voltage_avg,
-				batt_temp, sub_batt_temp, mix_limit, has_apdo);
+				charger->capacity, charger->batt_status, voltage_avg, batt_temp, sub_batt_temp, mix_limit);
 		store_battery_log("CHG_SRC:SRC(%s),CT(%d,%d),CURR_EV(0x%x),DC_ERR(%d),TX(%d),HAS_APDO(%d),DC_DONE(%d)",
 				ret ? "DIRECT" : "SWITCHING", cable_type, charger->cable_type, current_event, charger->dc_err,
 				charger->wc_tx_enable, has_apdo, charger->direct_chg_done);

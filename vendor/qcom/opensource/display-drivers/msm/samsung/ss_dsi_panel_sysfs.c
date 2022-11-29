@@ -256,7 +256,7 @@ static ssize_t tuning_show(struct device *dev,
 {
 	int ret = 0;
 
-	ret = snprintf(buf, MAX_FILE_NAME, "Tunned File Name : %s\n", tuning_file);
+	ret = scnprintf(buf, MAX_FILE_NAME, "Tunned File Name : %s\n", tuning_file);
 	return ret;
 }
 
@@ -480,7 +480,7 @@ static ssize_t ss_disp_acl_show(struct device *dev,
 		return rc;
 	}
 
-	rc = snprintf((char *)buf, sizeof(vdd->br_info.acl_status), "%d\n", vdd->br_info.acl_status);
+	rc = scnprintf((char *)buf, sizeof(vdd->br_info.acl_status), "%d\n", vdd->br_info.acl_status);
 
 	LCD_INFO(vdd, "acl status: %d\n", *buf);
 
@@ -536,7 +536,7 @@ static ssize_t ss_disp_siop_show(struct device *dev,
 		return rc;
 	}
 
-	rc = snprintf((char *)buf, sizeof(vdd->siop_status), "%d\n", vdd->siop_status);
+	rc = scnprintf((char *)buf, sizeof(vdd->siop_status), "%d\n", vdd->siop_status);
 
 	LCD_INFO(vdd,"siop status: %d\n", *buf);
 
@@ -751,13 +751,13 @@ static ssize_t ss_aid_log_store(struct device *dev,
 		return size;
 	line[count++] = line_buf;
 
-	len = snprintf(line_buf, LINE_SIZE, "NO,");
-	len += snprintf(line_buf + len, LINE_SIZE - len, "FROM,");
-	len += snprintf(line_buf + len, LINE_SIZE - len, "TO,");
+	len = scnprintf(line_buf, LINE_SIZE, "NO,");
+	len += scnprintf(line_buf + len, LINE_SIZE - len, "FROM,");
+	len += scnprintf(line_buf + len, LINE_SIZE - len, "TO,");
 
 	for (i = 0; i < print_size; i++) {
 		for (j = 1; j <= print_table[i].read_size; j++)
-			len += snprintf(line_buf + len, LINE_SIZE - len, "%s_%d,", print_table[i].name, j);
+			len += scnprintf(line_buf + len, LINE_SIZE - len, "%s_%d,", print_table[i].name, j);
 	}
 
 	if (vdd->br_info.common_br.pac)
@@ -781,9 +781,9 @@ static ssize_t ss_aid_log_store(struct device *dev,
 			return size;
 		line[count++] = line_buf;
 
-		len = snprintf(line_buf, LINE_SIZE, "%4d,", idx++);
-		len += snprintf(line_buf + len, LINE_SIZE - len, "%5d,", normal_table->from[i]);
-		len += snprintf(line_buf + len, LINE_SIZE - len, "%5d,", normal_table->end[i]);
+		len = scnprintf(line_buf, LINE_SIZE, "%4d,", idx++);
+		len += scnprintf(line_buf + len, LINE_SIZE - len, "%5d,", normal_table->from[i]);
+		len += scnprintf(line_buf + len, LINE_SIZE - len, "%5d,", normal_table->end[i]);
 
 		/* Write Brightness */
 		ss_brightness_dcs(vdd, normal_table->end[i], BACKLIGHT_NORMAL);
@@ -792,7 +792,7 @@ static ssize_t ss_aid_log_store(struct device *dev,
 		for (j = 0; j < print_size; j++) {
 			ss_read_mtp(vdd, print_table[j].read_addr, print_table[j].read_size, print_table[j].read_pos, read_buf);
 			for (k = 0; k < print_table[j].read_size; k++)
-				len += snprintf(line_buf + len, LINE_SIZE - len, "0x%02x,", read_buf[k]);
+				len += scnprintf(line_buf + len, LINE_SIZE - len, "0x%02x,", read_buf[k]);
 		}
 	}
 
@@ -819,9 +819,9 @@ static ssize_t ss_aid_log_store(struct device *dev,
 			return size;
 		line[count++] = line_buf;
 
-		len = snprintf(line_buf, LINE_SIZE, "%4d,", idx++);
-		len += snprintf(line_buf + len, LINE_SIZE - len, "%5d,", hbm_table->from[i]);
-		len += snprintf(line_buf + len, LINE_SIZE - len, "%5d,", hbm_table->end[i]);
+		len = scnprintf(line_buf, LINE_SIZE, "%4d,", idx++);
+		len += scnprintf(line_buf + len, LINE_SIZE - len, "%5d,", hbm_table->from[i]);
+		len += scnprintf(line_buf + len, LINE_SIZE - len, "%5d,", hbm_table->end[i]);
 
 		/* Write Brightness */
 		ss_brightness_dcs(vdd, hbm_table->from[i], BACKLIGHT_NORMAL);
@@ -831,7 +831,7 @@ static ssize_t ss_aid_log_store(struct device *dev,
 			ss_read_mtp(vdd, print_table_hbm[j].read_addr, print_table_hbm[j].read_size,
 					print_table_hbm[j].read_pos, read_buf);
 			for (k = 0; k < print_table_hbm[j].read_size; k++)
-				len += snprintf(line_buf + len, LINE_SIZE - len, "0x%02x,", read_buf[k]);
+				len += scnprintf(line_buf + len, LINE_SIZE - len, "0x%02x,", read_buf[k]);
 		}
 	}
 
@@ -845,9 +845,9 @@ static ssize_t ss_aid_log_store(struct device *dev,
 			return size;
 		line[count++] = line_buf;
 
-		len = snprintf(line_buf, LINE_SIZE, "%4d,", idx++);
-		len += snprintf(line_buf + len, LINE_SIZE - len, "%5d,", hmd_table->from[i]);
-		len += snprintf(line_buf + len, LINE_SIZE - len, "%5d,", hmd_table->end[i]);
+		len = scnprintf(line_buf, LINE_SIZE, "%4d,", idx++);
+		len += scnprintf(line_buf + len, LINE_SIZE - len, "%5d,", hmd_table->from[i]);
+		len += scnprintf(line_buf + len, LINE_SIZE - len, "%5d,", hmd_table->end[i]);
 
 		/* Write Brightness */
 		ss_brightness_dcs_hmt(vdd, hmd_table->from[i]);
@@ -856,7 +856,7 @@ static ssize_t ss_aid_log_store(struct device *dev,
 		for (j = 0; j < print_size; j++) {
 			ss_read_mtp(vdd, print_table[j].read_addr, print_table[j].read_size, print_table[j].read_pos, read_buf);
 			for (k = 0; k < print_table[j].read_size; k++)
-				len += snprintf(line_buf + len, LINE_SIZE - len, "0x%02x,", read_buf[k]);
+				len += scnprintf(line_buf + len, LINE_SIZE - len, "0x%02x,", read_buf[k]);
 		}
 	}
 
@@ -864,7 +864,7 @@ static ssize_t ss_aid_log_store(struct device *dev,
 	if (output) {
 		len = 0;
 		for (i = 0; i < count; i++)
-			len += snprintf(output + len,
+			len += scnprintf(output + len,
 					LINE_SIZE * count - len, "%s\n", line[i]);
 		buffer_backup(output, len, (char *)path[0]);
 		kfree(output);
@@ -892,7 +892,7 @@ static ssize_t ss_disp_brightness_step(struct device *dev,
 		return rc;
 	}
 
-	rc = snprintf((char *)buf, 20, "%d\n", vdd->br_info.candela_map_table[NORMAL][vdd->panel_revision].tab_size);
+	rc = scnprintf((char *)buf, 20, "%d\n", vdd->br_info.candela_map_table[NORMAL][vdd->panel_revision].tab_size);
 
 	LCD_INFO(vdd,"brightness_step : %d", vdd->br_info.candela_map_table[NORMAL][vdd->panel_revision].tab_size);
 
@@ -959,14 +959,14 @@ static ssize_t ss_read_mtp_show(struct device *dev,
 	}
 
 	if (readlen && (readlen < read_buf_max)) {
-		len += snprintf(buf + len, 50, "addr[%X] post[%x] len[%d] : ", readaddr, readpos, readlen);
+		len += scnprintf(buf + len, 50, "addr[%X] post[%x] len[%d] : ", readaddr, readpos, readlen);
 		for (i = 0; i < readlen; i++)
-			len += snprintf(buf + len, 10, "%02x%s", readbuf[i], (i == readlen - 1) ? "\n" : " ");
+			len += scnprintf(buf + len, 10, "%02x%s", readbuf[i], (i == readlen - 1) ? "\n" : " ");
 	} else {
-		len += snprintf(buf + len, 100, "No read data.. \n");
-		len += snprintf(buf + len, 100, "Please write (addr gpara len) to read_mtp store to read mtp\n");
-		len += snprintf(buf + len, 100, "ex) echo CA 1 20 > read_mtp \n");
-		len += snprintf(buf + len, 100, "- read 20bytes of CAh register from 2nd para. \n");
+		len += scnprintf(buf + len, 100, "No read data.. \n");
+		len += scnprintf(buf + len, 100, "Please write (addr gpara len) to read_mtp store to read mtp\n");
+		len += scnprintf(buf + len, 100, "ex) echo CA 1 20 > read_mtp \n");
+		len += scnprintf(buf + len, 100, "- read 20bytes of CAh register from 2nd para. \n");
 	}
 
 	return strlen(buf);
@@ -1079,11 +1079,11 @@ static ssize_t ss_temperature_show(struct device *dev,
 	}
 
 	if (vdd->br_info.common_br.elvss_interpolation_temperature == -15)
-		rc = snprintf((char *)buf, 40, "-15, -14, 0, 1, 30, 40\n");
+		rc = scnprintf((char *)buf, 40, "-15, -14, 0, 1, 30, 40\n");
 	else if (vdd->br_info.common_br.elvss_interpolation_temperature == -16)
-		rc = snprintf((char *)buf, 40, "-16, -15, 0, 1, 30, 40\n");
+		rc = scnprintf((char *)buf, 40, "-16, -15, 0, 1, 30, 40\n");
 	else
-		rc = snprintf((char *)buf, 40, "-20, -19, 0, 1, 30, 40\n");
+		rc = scnprintf((char *)buf, 40, "-20, -19, 0, 1, 30, 40\n");
 
 	LCD_INFO(vdd,"temperature : %d elvss_interpolation_temperature : %d\n", vdd->br_info.temperature, vdd->br_info.common_br.elvss_interpolation_temperature);
 
@@ -1154,7 +1154,7 @@ static ssize_t ss_lux_show(struct device *dev,
 		return rc;
 	}
 
-	rc = snprintf((char *)buf, 40, "%d\n", vdd->br_info.lux);
+	rc = scnprintf((char *)buf, 40, "%d\n", vdd->br_info.lux);
 
 	LCD_INFO(vdd,"lux : %d\n", vdd->br_info.lux);
 
@@ -1213,14 +1213,14 @@ static ssize_t ss_read_copr_show(struct device *dev,
 	if (vdd->copr.copr_on) {
 		mutex_lock(&vdd->copr.copr_lock);
 		if (ss_copr_read(vdd)) {
-			ret = snprintf((char *)buf, 20, "-1\n");
+			ret = scnprintf((char *)buf, 20, "-1\n");
 		} else {
 			LCD_INFO(vdd,"%d\n", vdd->copr.current_copr);
-			ret = snprintf((char *)buf, 20, "%d\n", vdd->copr.current_copr);
+			ret = scnprintf((char *)buf, 20, "%d\n", vdd->copr.current_copr);
 		}
 		mutex_unlock(&vdd->copr.copr_lock);
 	} else {
-		ret = snprintf((char *)buf, 20, "-1 -1\n");
+		ret = scnprintf((char *)buf, 20, "-1 -1\n");
 	}
 
 	return ret;
@@ -1249,15 +1249,15 @@ static ssize_t ss_copr_show(struct device *dev,
 
 	cmd = vdd->copr.cur_cmd;
 
-	len += snprintf(buf + len, 128, "copr_mask=%d copr_cnt_re=%d copr_ilc=%d copr_gamma=%d copr_en=%d ",
+	len += scnprintf(buf + len, 128, "copr_mask=%d copr_cnt_re=%d copr_ilc=%d copr_gamma=%d copr_en=%d ",
 							cmd.COPR_MASK, cmd.CNT_RE, cmd.COPR_ILC, cmd.COPR_GAMMA, cmd.COPR_EN);
-	len += snprintf(buf + len, 128, "copr_er=%d copr_eg=%d copr_eb=%d copr_erc=%d copr_egc=%d copr_ebc=%d ",
+	len += scnprintf(buf + len, 128, "copr_er=%d copr_eg=%d copr_eb=%d copr_erc=%d copr_egc=%d copr_ebc=%d ",
 							cmd.COPR_ER, cmd.COPR_EG, cmd.COPR_EB, cmd.COPR_ERC, cmd.COPR_EGC, cmd.COPR_EBC);
-	len += snprintf(buf + len, 128, "copr_max_cnt=%d copr_roi_on=%d copr_roi_ctrl=%d ",
+	len += scnprintf(buf + len, 128, "copr_max_cnt=%d copr_roi_on=%d copr_roi_ctrl=%d ",
 							cmd.MAX_CNT, cmd.ROI_ON, cmd.COPR_ROI_CTRL);
 
 	for (i = 0; i < MAX_COPR_ROI_CNT; i++)
-		len += snprintf(buf + len, 128, "copr_roi%d_x_s=%d copr_roi%d_y_s=%d copr_roi%d_x_e=%d copr_roi%d_y_e=%d%s",
+		len += scnprintf(buf + len, 128, "copr_roi%d_x_s=%d copr_roi%d_y_s=%d copr_roi%d_x_e=%d copr_roi%d_y_e=%d%s",
 			i+1, cmd.roi[i].ROI_X_S, i+1, cmd.roi[i].ROI_Y_S, i+1, cmd.roi[i].ROI_X_E, i+1, cmd.roi[i].ROI_Y_E,
 			(i == MAX_COPR_ROI_CNT - 1) ? "\n" : " ");
 
@@ -1360,10 +1360,10 @@ static ssize_t ss_copr_roi_show(struct device *dev,
 		ret = ss_copr_get_roi_opr(vdd);
 		if (ret) {
 			LCD_INFO(vdd, "fail to get roi opr..\n");
-			ret = snprintf((char *)buf, 20, "-1\n");
+			ret = scnprintf((char *)buf, 20, "-1\n");
 		} else {
 			for (i = 0; i < vdd->copr.afc_roi_cnt; i++) {
-				len += snprintf(buf + len, 20, "%d %d %d%s",
+				len += scnprintf(buf + len, 20, "%d %d %d%s",
 							vdd->copr.roi_opr[i].R_OPR,
 							vdd->copr.roi_opr[i].G_OPR,
 							vdd->copr.roi_opr[i].B_OPR,
@@ -1372,7 +1372,7 @@ static ssize_t ss_copr_roi_show(struct device *dev,
 		}
 	} else {
 		LCD_INFO(vdd,"No ROI table..\n");
-		ret = snprintf((char *)buf, 20, "-1\n");
+		ret = scnprintf((char *)buf, 20, "-1\n");
 	}
 
 	LCD_INFO(vdd,"-- \n");
@@ -1487,11 +1487,11 @@ static ssize_t ss_brt_avg_show(struct device *dev,
 		vdd->copr.copr_cd[idx].cd_sum = 0;
 		vdd->copr.copr_cd[idx].total_t = 0;
 
-		ret = snprintf((char *)buf, 10, "%d\n", vdd->copr.copr_cd[idx].cd_avr);
+		ret = scnprintf((char *)buf, 10, "%d\n", vdd->copr.copr_cd[idx].cd_avr);
 
 		mutex_unlock(&vdd->copr.copr_lock);
 	} else {
-		ret = snprintf((char *)buf, 10, "-1\n");
+		ret = scnprintf((char *)buf, 10, "-1\n");
 	}
 
 	LCD_DEBUG(vdd, "-- \n");
@@ -1522,7 +1522,6 @@ static ssize_t ss_self_mask_store(struct device *dev,
 		return -ENODEV;
 	}
 
-
 	if (sscanf(buf, "%d", &enable) != 1)
 		return size;
 
@@ -1531,6 +1530,43 @@ static ssize_t ss_self_mask_store(struct device *dev,
 		vdd->self_disp.self_mask_on(vdd, enable);
 	else
 		LCD_INFO(vdd, "Self Mask Function is NULL\n");
+
+	return size;
+}
+
+static ssize_t ss_self_mask_udc_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	int enable = 0;
+	struct samsung_display_driver_data *vdd =
+		(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_INFO(vdd, "no vdd");
+		return size;
+	}
+
+	if (!vdd->self_disp.is_support) {
+		LCD_INFO(vdd, "self display is not supported..(%d) \n",
+								vdd->self_disp.is_support);
+		return -ENODEV;
+	}
+
+	if (sscanf(buf, "%d", &enable) != 1)
+		return size;
+
+	vdd->self_disp.udc_mask_enable = enable;
+
+	if (!ss_is_ready_to_send_cmd(vdd)) {
+		LCD_INFO(vdd, "Panel is not ready. Panel State(%d) enable(%d)\n",
+			vdd->panel_state, enable);
+		return size;
+	}
+
+	if (vdd->self_disp.self_mask_udc_on)
+		vdd->self_disp.self_mask_udc_on(vdd, vdd->self_disp.udc_mask_enable);
+	else
+		LCD_INFO(vdd, "Self Mask UDC Function is NULL\n");
 
 	return size;
 }
@@ -1615,19 +1651,19 @@ static ssize_t ss_mafpc_check_show(struct device *dev,
 		LCD_INFO(vdd, "Do not support mafpc CRC check..\n");
 	}
 	if(!res) {
-		len += snprintf(buf + len, 60, "1 ");
+		len += scnprintf(buf + len, 60, "1 ");
 	} else {
-		len += snprintf(buf + len, 60, "%d ", res);
+		len += scnprintf(buf + len, 60, "%d ", res);
 	}
 
 	if (vdd->mafpc.crc_size) {
 		for (i = 0; i < vdd->mafpc.crc_size; i++) {
-			len += snprintf(buf + len, 60, "%02x ", vdd->mafpc.crc_read_data[i]);
+			len += scnprintf(buf + len, 60, "%02x ", vdd->mafpc.crc_read_data[i]);
 			vdd->mafpc.crc_read_data[i] = 0x00;
 		}
 	}
 
-	len += snprintf(buf + len, 60, "\n");
+	len += scnprintf(buf + len, 60, "\n");
 
 	return strlen(buf);
 }
@@ -1801,16 +1837,16 @@ static ssize_t ss_self_mask_check_show(struct device *dev,
 		LCD_INFO(vdd, "Do not support self mask check..\n");
 
 end:
-	len += snprintf(buf + len, 60, "%d ", res);
+	len += scnprintf(buf + len, 60, "%d ", res);
 
 	if (vdd->self_disp.mask_crc_size) {
 		for (i = 0; i < vdd->self_disp.mask_crc_size; i++) {
-			len += snprintf(buf + len, 60, "%02x ", vdd->self_disp.mask_crc_read_data[i]);
+			len += scnprintf(buf + len, 60, "%02x ", vdd->self_disp.mask_crc_read_data[i]);
 			vdd->self_disp.mask_crc_read_data[i] = 0x00;
 		}
 	}
 
-	len += snprintf(buf + len, 60, "\n");
+	len += scnprintf(buf + len, 60, "\n");
 
 	return strlen(buf);
 }
@@ -1837,7 +1873,7 @@ static ssize_t ss_panel_lpm_mode_show(struct device *dev,
 	if (vdd->panel_lpm.is_support)
 		current_status = vdd->panel_lpm.mode;
 
-	rc = snprintf((char *)buf, 30, "%d\n", current_status);
+	rc = scnprintf((char *)buf, 30, "%d\n", current_status);
 	LCD_INFO(vdd,"[Panel LPM] Current status : %d\n", (int)current_status);
 
 	return rc;
@@ -1986,7 +2022,7 @@ static ssize_t mipi_samsung_hmt_bright_show(struct device *dev,
 		return -ENODEV;
 	}
 
-	rc = snprintf((char *)buf, 30, "%d\n", vdd->hmt.bl_level);
+	rc = scnprintf((char *)buf, 30, "%d\n", vdd->hmt.bl_level);
 	LCD_INFO(vdd,"[HMT] hmt bright : %d\n", *buf);
 
 	return rc;
@@ -2064,7 +2100,7 @@ static ssize_t mipi_samsung_hmt_on_show(struct device *dev,
 		return -ENODEV;
 	}
 
-	rc = snprintf((char *)buf, 30, "%d\n", vdd->hmt.hmt_on);
+	rc = scnprintf((char *)buf, 30, "%d\n", vdd->hmt.hmt_on);
 	LCD_INFO(vdd,"[HMT] hmt on input : %d\n", *buf);
 
 	return rc;
@@ -2601,9 +2637,9 @@ static ssize_t mipi_samsung_poc_mca_show(struct device *dev, struct device_attri
 
 	if (vdd->poc_driver.mca_data) {
 		for (i = 0; i < vdd->poc_driver.mca_size; i++)
-			len += snprintf(buf + len, 60, "%02x ", vdd->poc_driver.mca_data[i]);
+			len += scnprintf(buf + len, 60, "%02x ", vdd->poc_driver.mca_data[i]);
 
-		len += snprintf(buf + len, 60, "\n");
+		len += scnprintf(buf + len, 60, "\n");
 	}
 
 	return strlen(buf);
@@ -2703,6 +2739,8 @@ static ssize_t ecc_show(struct device *dev,
 
 	if (vdd->panel_func.ecc_read) {
 		res = vdd->panel_func.ecc_read(vdd);
+		if (!res)
+			LCD_ERR(vdd, "test fail..\n");
 	} else {
 		LCD_ERR(vdd, "No ecc_read function..\n");
 	}
@@ -2732,6 +2770,8 @@ static ssize_t ssr_show(struct device *dev,
 
 	if (vdd->panel_func.ssr_read) {
 		res = vdd->panel_func.ssr_read(vdd);
+		if (!res)
+			LCD_ERR(vdd, "test fail..\n");
 	} else {
 		LCD_ERR(vdd, "No ssr_read function..\n");
 	}
@@ -2749,16 +2789,16 @@ static int ss_gct_show(struct samsung_display_driver_data *vdd)
 	if (!vdd->gct.on)
 		return GCT_RES_CHECKSUM_OFF;
 
-	LCD_INFO(vdd, "checksum: panel= %02X %02X %02X %02X , valid= %02X %02X %02X %02X\n",
-		vdd->gct.checksum[0], vdd->gct.checksum[1],
-		vdd->gct.checksum[2], vdd->gct.checksum[3],
-		vdd->gct.valid_checksum[0], vdd->gct.valid_checksum[1],
-		vdd->gct.valid_checksum[2], vdd->gct.valid_checksum[3]);
-
 	if (!memcmp(vdd->gct.checksum, vdd->gct.valid_checksum, 4))
 		res = GCT_RES_CHECKSUM_PASS;
 	else
 		res = GCT_RES_CHECKSUM_NG;
+
+	LCD_INFO(vdd, "res=%d panel= %02X %02X %02X %02X , valid= %02X %02X %02X %02X\n", res,
+		vdd->gct.checksum[0], vdd->gct.checksum[1],
+		vdd->gct.checksum[2], vdd->gct.checksum[3],
+		vdd->gct.valid_checksum[0], vdd->gct.valid_checksum[1],
+		vdd->gct.valid_checksum[2], vdd->gct.valid_checksum[3]);
 
 	return res;
 }
@@ -2812,9 +2852,7 @@ static int ss_gct_store(struct samsung_display_driver_data *vdd)
 
 	LCD_INFO(vdd, "lego-opcode gct +++\n");
 
-	ss_set_test_mode_state(vdd, PANEL_TEST_GCT);
-
-	vdd->gct.is_running = true;
+	vdd->gct.is_running = true;
 
 	/* prevent sw reset to trigger esd recovery */
 	LCD_INFO(vdd, "disable esd interrupt\n");
@@ -2834,6 +2872,11 @@ static int ss_gct_store(struct samsung_display_driver_data *vdd)
 			vdd->gct.checksum[2], vdd->gct.checksum[3]);
 
 	vdd->gct.on = 1;
+
+	if (vdd->display_enabled == false) {
+		LCD_ERR(vdd, "dsi_display is not enabled.. it may be turning off.\n");
+		goto end;
+	}
 
 	/* reset panel  */
 	LCD_INFO(vdd, "reset panel +++\n");
@@ -2861,9 +2904,8 @@ static int ss_gct_store(struct samsung_display_driver_data *vdd)
 	if (vdd->esd_recovery.esd_irq_enable)
 		vdd->esd_recovery.esd_irq_enable(true, true, (void *)vdd, ESD_MASK_GCT_TEST);
 
+end:
 	LCD_INFO(vdd, "lego-opcode gct ---\n");
-
-	ss_set_test_mode_state(vdd, PANEL_TEST_NONE);
 
 	return 0;
 }
@@ -2891,10 +2933,14 @@ static ssize_t gct_store(struct device *dev,
 		return -EPERM;
 	}
 
+	ss_set_test_mode_state(vdd, PANEL_TEST_GCT);
+
 	if (vdd->panel_func.samsung_gct_write)
 		ret = vdd->panel_func.samsung_gct_write(vdd);
 	else if (is_ss_style_cmd(vdd, TX_GCT_LV) && is_ss_style_cmd(vdd, TX_GCT_HV))
 		ret = ss_gct_store(vdd);
+
+	ss_set_test_mode_state(vdd, PANEL_TEST_NONE);
 
 	LCD_INFO(vdd,"-: ret: %d\n", ret);
 
@@ -2913,7 +2959,7 @@ static ssize_t ss_irc_mode_show(struct device *dev,
 		return rc;
 	}
 
-	rc = snprintf((char *)buf, 50, "%d\n", vdd->br_info.common_br.irc_mode);
+	rc = scnprintf((char *)buf, 50, "%d\n", vdd->br_info.common_br.irc_mode);
 	LCD_INFO(vdd,"irc_mode : %d\n", vdd->br_info.common_br.irc_mode);
 
 	return rc;
@@ -3260,7 +3306,7 @@ static ssize_t ss_rf_info_show(struct device *dev,
 		return -ENODEV;
 	}
 
-	snprintf(buf, 50, "RF INFO: RAT(%d), BAND(%d), ARFCN(%d)\n",
+	scnprintf(buf, 50, "RF INFO: RAT(%d), BAND(%d), ARFCN(%d)\n",
 			vdd->dyn_mipi_clk.rf_info.rat,
 			vdd->dyn_mipi_clk.rf_info.band,
 			vdd->dyn_mipi_clk.rf_info.arfcn);
@@ -3328,11 +3374,11 @@ static ssize_t ss_dynamic_freq_show(struct device *dev,
 
 	timing_table = vdd->dyn_mipi_clk.clk_timing_table;
 
-	len += snprintf(buf + len, 100, "idx clk_rate\n");
+	len += scnprintf(buf + len, 100, "idx clk_rate\n");
 	for (i = 1; i < timing_table.tab_size; i++)
-		len += snprintf(buf + len, 100, "[%d] %d\n", i, timing_table.clk_rate[i]);
-	len += snprintf(buf + len, 100, "Write [idx] to dynamic_freq node to set clk_rate.\n");
-	len += snprintf(buf + len, 100, "To revert it (use rf info), Write 0 to dynamic_freq node.\n");
+		len += scnprintf(buf + len, 100, "[%d] %d\n", i, timing_table.clk_rate[i]);
+	len += scnprintf(buf + len, 100, "Write [idx] to dynamic_freq node to set clk_rate.\n");
+	len += scnprintf(buf + len, 100, "To revert it (use rf info), Write 0 to dynamic_freq node.\n");
 
 	return strlen(buf);
 }
@@ -3407,73 +3453,74 @@ static int dpui_notifier_callback(struct notifier_block *self,
 		return 0;
 	}
 
-	LCD_ERR(vdd, "++\n");
+	LCD_INFO(vdd, "++\n");
+	if (vdd->ndx == PRIMARY_DISPLAY_NDX) {
+		if (vdd->cell_id_dsi) {
+			/* manufacture date and time */
+			cell_id = vdd->cell_id_dsi;
+			year = ((cell_id[0] >> 4) & 0xF) + 2011;
+			mon = cell_id[0] & 0xF;
+			day = cell_id[1] & 0x1F;
+			hour = cell_id[2] & 0x1F;
+			min = cell_id[3] & 0x3F;
+			sec = cell_id[4] & 0x3F;
+		} else {
+			LCD_ERR(vdd, "cell_id_dsi is null\n");
+			year = mon = day = hour = min = sec = 0;
+		}
 
-	if (vdd->cell_id_dsi) {
-		/* manufacture date and time */
-		cell_id = vdd->cell_id_dsi;
-		year = ((cell_id[0] >> 4) & 0xF) + 2011;
-		mon = cell_id[0] & 0xF;
-		day = cell_id[1] & 0x1F;
-		hour = cell_id[2] & 0x1F;
-		min = cell_id[3] & 0x3F;
-		sec = cell_id[4] & 0x3F;
-	} else {
-		LCD_ERR(vdd, "cell_id_dsi is null\n");
-		year = mon = day = hour = min = sec = 0;
+		size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%04d%02d%02d %02d%02d%02d", year, mon, day, hour, min, sec);
+		set_dpui_field(DPUI_KEY_MAID_DATE, tbuf, size);
+
+		/* lcd id */
+		lcd_id = vdd->manufacture_id_dsi;
+
+		size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", ((lcd_id  & 0xFF0000) >> 16));
+		set_dpui_field(DPUI_KEY_LCDID1, tbuf, size);
+		size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", ((lcd_id  & 0xFF00) >> 8));
+		set_dpui_field(DPUI_KEY_LCDID2, tbuf, size);
+		size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", (lcd_id  & 0xFF));
+		set_dpui_field(DPUI_KEY_LCDID3, tbuf, size);
+
+		/* cell id */
+		if (vdd->cell_id_dsi) {
+			size = strlcpy(tbuf, vdd->cell_id_dsi, vdd->cell_id_len);
+		} else {
+			LCD_ERR(vdd, "cell_id_dsi is null\n");
+			size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "0");
+		}
+
+		set_dpui_field(DPUI_KEY_CELLID, tbuf, size);
+
+		/* OCTA ID */
+		if (vdd->octa_id_dsi) {
+			octa_id = vdd->octa_id_dsi;
+			size = strlcpy(tbuf, vdd->octa_id_dsi, vdd->octa_id_len);
+		} else {
+			LCD_ERR(vdd, "octa_id_dsi is null\n");
+			size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "0");
+		}
+
+		set_dpui_field(DPUI_KEY_OCTAID, tbuf, size);
+
+		/* Panel Gamma Flash Loading Result */
+
+		for (i = 0; i < vdd->br_info.br_tbl_count; i++) {
+			br_tbl = &vdd->br_info.br_tbl[i];
+			if (br_tbl)
+				flash_gamma_status = flash_gamma_mode_check(vdd, br_tbl);
+		}
+
+		size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", flash_gamma_status);
+		set_dpui_field(DPUI_KEY_PNGFLS, tbuf, size);
 	}
-
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%04d%02d%02d %02d%02d%02d", year, mon, day, hour, min, sec);
-	set_dpui_field(DPUI_KEY_MAID_DATE, tbuf, size);
-
-	/* lcd id */
-	lcd_id = vdd->manufacture_id_dsi;
-
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", ((lcd_id  & 0xFF0000) >> 16));
-	set_dpui_field(DPUI_KEY_LCDID1, tbuf, size);
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", ((lcd_id  & 0xFF00) >> 8));
-	set_dpui_field(DPUI_KEY_LCDID2, tbuf, size);
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", (lcd_id  & 0xFF));
-	set_dpui_field(DPUI_KEY_LCDID3, tbuf, size);
-
-	/* cell id */
-	if (vdd->cell_id_dsi) {
-		size = strlcpy(tbuf, vdd->cell_id_dsi, vdd->cell_id_len);
-	} else {
-		LCD_ERR(vdd, "cell_id_dsi is null\n");
-		size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "0\n");
-	}
-
-	set_dpui_field(DPUI_KEY_CELLID, tbuf, size);
-
-	/* OCTA ID */
-	if (vdd->octa_id_dsi) {
-		octa_id = vdd->octa_id_dsi;
-		size = strlcpy(tbuf, vdd->octa_id_dsi, vdd->octa_id_len);
-	} else {
-		LCD_ERR(vdd, "octa_id_dsi is null\n");
-		size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "0\n");
-	}
-
-	set_dpui_field(DPUI_KEY_OCTAID, tbuf, size);
-
-	/* Panel Gamma Flash Loading Result */
-
-	for (i = 0; i < vdd->br_info.br_tbl_count; i++) {
-		br_tbl = &vdd->br_info.br_tbl[i];
-		if (br_tbl)
-			flash_gamma_status = flash_gamma_mode_check(vdd, br_tbl);
-	}
-
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", flash_gamma_status);
-	set_dpui_field(DPUI_KEY_PNGFLS, tbuf, size);
-
 	/* ub_con cnt */
 	if (vdd->ndx == PRIMARY_DISPLAY_NDX)
 		inc_dpui_u32_field(DPUI_KEY_UB_CON, vdd->ub_con_det.ub_con_cnt);
 	else
 		inc_dpui_u32_field(DPUI_KEY_SUB_UB_CON, vdd->ub_con_det.ub_con_cnt);
 	vdd->ub_con_det.ub_con_cnt = 0;
+	LCD_INFO(vdd, "--\n");
 
 	return 0;
 }
@@ -3613,7 +3660,7 @@ static ssize_t csc_read_cfg(struct device *dev,
 {
 	ssize_t ret = 0;
 
-	ret = snprintf(buf, PAGE_SIZE, "%d\n", csc_update);
+	ret = scnprintf(buf, PAGE_SIZE, "%d\n", csc_update);
 	return ret;
 }
 
@@ -3702,7 +3749,7 @@ static int ss_test_ddi_flash_gm1_read(struct samsung_display_driver_data *vdd, c
 			break;
 	}
 
-	len += snprintf(buf + len, MAX_FLASH_GAMMA_LEN, "%d\n", vdd->br_info.br_tbl_flash_cnt);
+	len += scnprintf(buf + len, MAX_FLASH_GAMMA_LEN, "%d\n", vdd->br_info.br_tbl_flash_cnt);
 
 	for (i = 0; i < vdd->br_info.br_tbl_count; i++) {
 		br_tbl = &vdd->br_info.br_tbl[i];
@@ -3715,7 +3762,7 @@ static int ss_test_ddi_flash_gm1_read(struct samsung_display_driver_data *vdd, c
 
 		res = flash_gamma_mode_check(vdd, br_tbl);
 
-		len += snprintf(buf + len, MAX_FLASH_GAMMA_LEN, "%d %08x %08x %08x %08x %08x\n",
+		len += scnprintf(buf + len, MAX_FLASH_GAMMA_LEN, "%d %08x %08x %08x %08x %08x\n",
 			res,
 			br_tbl->gamma_tbl->check_sum_cal_data,
 			br_tbl->gamma_tbl->check_sum_flash_data,
@@ -3979,14 +4026,14 @@ static ssize_t ss_read_flash_show(struct device *dev,
 
 	if (flash_readlen && (flash_readlen < SZ_256)) {
 		for (i = 0; i < flash_readlen; i++)
-			len += snprintf(buf + len, 10, "%02x%s", flash_readbuf[i],
+			len += scnprintf(buf + len, 10, "%02x%s", flash_readbuf[i],
 					((i + 1) % 16) == 0 || (i == flash_readlen - 1) ? "\n" : " ");
 	} else {
-		len += snprintf(buf + len, 100, "No read data.. \n");
-		len += snprintf(buf + len, 100, "Please write (addr len) to read_flash store to read flash data\n");
-		len += snprintf(buf + len, 100, "MAX read size is 256byte at once\n");
-		len += snprintf(buf + len, 100, "ex) echo 0x0A0000 256 > read_flash \n");
-		len += snprintf(buf + len, 100, "- read 0x100(256) bytes from 0x0A000 flash address\n");
+		len += scnprintf(buf + len, 100, "No read data.. \n");
+		len += scnprintf(buf + len, 100, "Please write (addr len) to read_flash store to read flash data\n");
+		len += scnprintf(buf + len, 100, "MAX read size is 256byte at once\n");
+		len += scnprintf(buf + len, 100, "ex) echo 0x0A0000 256 > read_flash \n");
+		len += scnprintf(buf + len, 100, "- read 0x100(256) bytes from 0x0A000 flash address\n");
 	}
 
 	return strlen(buf);
@@ -4169,13 +4216,13 @@ static ssize_t ss_ccd_state_show(struct device *dev,
 		LCD_INFO(vdd, "CCD return (0x%02x)\n", ccd[0]);
 
 		if (ccd[0] == vdd->ccd_pass_val)
-			ret = snprintf((char *)buf, 6, "1\n");
+			ret = scnprintf((char *)buf, 6, "1\n");
 		else if (ccd[0] == vdd->ccd_fail_val)
-			ret = snprintf((char *)buf, 6, "0\n");
+			ret = scnprintf((char *)buf, 6, "0\n");
 		else
-			ret = snprintf((char *)buf, 6, "-1\n");
+			ret = scnprintf((char *)buf, 6, "-1\n");
 	} else {
-		ret = snprintf((char *)buf, 6, "-1\n");
+		ret = scnprintf((char *)buf, 6, "-1\n");
 	}
 
 	ss_send_cmd(vdd, TX_CCD_OFF);
@@ -4203,6 +4250,8 @@ static ssize_t ss_dsc_crc_show(struct device *dev,
 		return ret;
 	}
 
+	ss_set_test_mode_state(vdd, PANEL_TEST_GCT);
+
 	if (is_ss_style_cmd(vdd, TX_DSC_CRC)) {
 		/* prevent sw reset to trigger esd recovery */
 		LCD_INFO(vdd, "disable esd interrupt\n");
@@ -4219,13 +4268,13 @@ static ssize_t ss_dsc_crc_show(struct device *dev,
 			if ((dsc_crc[0] == vdd->dsc_crc_pass_val[0]) &&
 				(dsc_crc[1] == vdd->dsc_crc_pass_val[1])) {
 				LCD_INFO(vdd, "PASS [%02X] [%02X]\n", dsc_crc[0], dsc_crc[1]);
-				ret = snprintf((char *)buf, 20, "1 %02x %02x\n", dsc_crc[0], dsc_crc[1]);
+				ret = scnprintf((char *)buf, 20, "1 %02x %02x\n", dsc_crc[0], dsc_crc[1]);
 			} else {
 				LCD_INFO(vdd, "FAIL [%02X] [%02X]\n", dsc_crc[0], dsc_crc[1]);
-				ret = snprintf((char *)buf, 20, "-1 %02x %02x\n", dsc_crc[0], dsc_crc[1]);
+				ret = scnprintf((char *)buf, 20, "-1 %02x %02x\n", dsc_crc[0], dsc_crc[1]);
 			}
 		} else {
-			ret = snprintf((char *)buf, 6, "-1\n");
+			ret = scnprintf((char *)buf, 6, "-1\n");
 		}
 
 		/* reset panel */
@@ -4270,13 +4319,13 @@ static ssize_t ss_dsc_crc_show(struct device *dev,
 			if ((dsc_crc[0] == vdd->dsc_crc_pass_val[0]) &&
 				(dsc_crc[1] == vdd->dsc_crc_pass_val[1])) {
 				LCD_INFO(vdd, "PASS [%02X] [%02X]\n", dsc_crc[0], dsc_crc[1]);
-				ret = snprintf((char *)buf, 20, "1 %02x %02x\n", dsc_crc[0], dsc_crc[1]);
+				ret = scnprintf((char *)buf, 20, "1 %02x %02x\n", dsc_crc[0], dsc_crc[1]);
 			} else {
 				LCD_INFO(vdd, "FAIL [%02X] [%02X]\n", dsc_crc[0], dsc_crc[1]);
-				ret = snprintf((char *)buf, 20, "-1 %02x %02x\n", dsc_crc[0], dsc_crc[1]);
+				ret = scnprintf((char *)buf, 20, "-1 %02x %02x\n", dsc_crc[0], dsc_crc[1]);
 			}
 		} else {
-			ret = snprintf((char *)buf, 6, "-1\n");
+			ret = scnprintf((char *)buf, 6, "-1\n");
 		}
 		ss_send_cmd(vdd, TX_DSC_CRC_EXIT);
 		/* reset panel */
@@ -4304,6 +4353,8 @@ static ssize_t ss_dsc_crc_show(struct device *dev,
 			vdd->esd_recovery.esd_irq_enable(true, true, (void *)vdd, ESD_MASK_GCT_TEST);
 
 	}
+
+	ss_set_test_mode_state(vdd, PANEL_TEST_NONE);
 
 	return ret;
 }
@@ -4518,9 +4569,9 @@ static ssize_t ss_ub_con_det_show(struct device *dev,
 
 	if (!ss_gpio_is_valid(vdd->ub_con_det.gpio)) {
 		LCD_INFO(vdd, "No ub_con_det gpio..\n");
-		ret = snprintf(buf, 20, "-1\n");
+		ret = scnprintf(buf, 20, "-1\n");
 	} else
-		ret = snprintf(buf, 20, ss_gpio_get_value(vdd, vdd->ub_con_det.gpio) ? "disconnected\n" : "connected\n");
+		ret = scnprintf(buf, 20, ss_gpio_get_value(vdd, vdd->ub_con_det.gpio) ? "disconnected\n" : "connected\n");
 
 	return ret;
 }
@@ -5258,7 +5309,7 @@ static ssize_t ss_window_color_show(struct device *dev,
 
 	LCD_INFO(vdd,"window_color : vdd[%s], sec_param[%s]\n", vdd->window_color, color);
 
-	ret = snprintf(buf, 20, "%s %s\n", vdd->window_color, color);
+	ret = scnprintf(buf, 20, "%s %s\n", vdd->window_color, color);
 
 	return ret;
 }
@@ -5337,7 +5388,7 @@ static ssize_t ss_te_check_show(struct device *dev,
 			udelay(10);
 		}
 	}
-	rc = snprintf((char *)buf, 6, "%d\n", check_success);
+	rc = scnprintf((char *)buf, 6, "%d\n", check_success);
 
 	return rc;
 }
@@ -5435,6 +5486,74 @@ static ssize_t ss_udc_factory_show(struct device *dev,
 end:
 	return len;
 }
+
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+static ssize_t ss_udc_gamma_restore_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct samsung_display_driver_data *vdd =
+			(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+	int ret = 0;
+
+	LCD_INFO(vdd, "++\n");
+
+	if (vdd->panel_func.restore_udc_orig_gamma)
+		ret = vdd->panel_func.restore_udc_orig_gamma(vdd);
+	else
+		LCD_ERR(vdd, "No restore_udc_orig_gamma func..\n");
+
+	snprintf(buf, 10, "%d", vdd->udc.udc_restore_done);
+
+	LCD_INFO(vdd, "-- %d\n", vdd->udc.udc_restore_done);
+
+	return strlen(buf);
+}
+
+static ssize_t ss_udc_gamma_offset_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct samsung_display_driver_data *vdd =
+			(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+
+	snprintf(buf, 10, "%d", vdd->udc.udc_comp_done);
+	LCD_INFO(vdd, "udc_comp_done:  %d\n", vdd->udc.udc_comp_done);
+
+	return strlen(buf);
+}
+
+static ssize_t ss_udc_gamma_offset_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct samsung_display_driver_data *vdd =
+		(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+	int input;
+	int ret = 0;
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_INFO(vdd, "no vdd");
+		goto end;
+	}
+
+	if (sscanf(buf, "%d", &input) != 1)
+		goto end;
+
+	vdd->udc.JNCD_idx = input;
+	LCD_INFO(vdd, "select JNCD [%d]\n", vdd->udc.JNCD_idx);
+
+	if (!ss_is_ready_to_send_cmd(vdd)) {
+		LCD_INFO(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		return -EBUSY;
+	}
+
+	if (vdd->panel_func.udc_gamma_comp) {
+		ret = vdd->panel_func.udc_gamma_comp(vdd);
+	}
+
+end:
+	return size;
+}
+#endif
+
 static ssize_t ss_set_elvss_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
@@ -5591,12 +5710,12 @@ static ssize_t ss_test_show(struct device *dev,
 	int len = 0;
 	int i;
 
-	len += snprintf(buf + len, 100, "[idx] [test]\n");
+	len += scnprintf(buf + len, 100, "[idx] [test]\n");
 	for (i = 1; i < 5; i++)
-		len += snprintf(buf + len, 100, "%s\n", test_list[i]);
-	len += snprintf(buf + len, 100, "Write [idx] [enable] to control\n");
-	len += snprintf(buf + len, 100, "ex) To disable(0) SELF_DISP(3) write below\n");
-	len += snprintf(buf + len, 100, "ex) echo 3 0 > test\n");
+		len += scnprintf(buf + len, 100, "%s\n", test_list[i]);
+	len += scnprintf(buf + len, 100, "Write [idx] [enable] to control\n");
+	len += scnprintf(buf + len, 100, "ex) To disable(0) SELF_DISP(3) write below\n");
+	len += scnprintf(buf + len, 100, "ex) echo 3 0 > test\n");
 
 	return len;
 }
@@ -5615,6 +5734,11 @@ static ssize_t ss_test_store(struct device *dev,
 
 	if (sscanf(buf, "%d %d", &input[0], &input[1]) != 2)
 		return size;
+
+	if ((input[0] < 0) || (input[0] >= 5)) {
+		LCD_ERR(vdd, "invalid input..\n");
+		return size;
+	}
 
 	switch(input[0]) {
 	case 1 : /* BRIGHTNESS*/
@@ -5667,6 +5791,7 @@ static DEVICE_ATTR(copr, S_IRUGO | S_IWUSR | S_IWGRP, ss_copr_show, ss_copr_stor
 static DEVICE_ATTR(copr_roi, S_IRUGO | S_IWUSR | S_IWGRP, ss_copr_roi_show, ss_copr_roi_store);
 static DEVICE_ATTR(brt_avg, S_IRUGO | S_IWUSR | S_IWGRP, ss_brt_avg_show, NULL);
 static DEVICE_ATTR(self_mask, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_self_mask_store);
+static DEVICE_ATTR(self_mask_udc, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_self_mask_udc_store);
 static DEVICE_ATTR(mafpc_test, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_mafpc_test_store);
 static DEVICE_ATTR(mafpc_check, S_IRUGO | S_IWUSR | S_IWGRP, ss_mafpc_check_show, NULL);
 static DEVICE_ATTR(dynamic_hlpm, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_dynamic_hlpm_store);
@@ -5742,6 +5867,10 @@ static DEVICE_ATTR(window_color, S_IRUGO | S_IWUSR | S_IWGRP, ss_window_color_sh
 static DEVICE_ATTR(te_check, S_IRUGO | S_IWUSR | S_IWGRP, ss_te_check_show, NULL);
 static DEVICE_ATTR(udc_data, S_IRUGO | S_IWUSR | S_IWGRP, ss_udc_data_show, ss_udc_data_store);
 static DEVICE_ATTR(udc_fac, S_IRUGO | S_IWUSR | S_IWGRP, ss_udc_factory_show, NULL);
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+static DEVICE_ATTR(udc_gamma_offset, S_IRUGO | S_IWUSR | S_IWGRP, ss_udc_gamma_offset_show, ss_udc_gamma_offset_store);
+static DEVICE_ATTR(udc_gamma_restore, S_IRUGO | S_IWUSR | S_IWGRP, ss_udc_gamma_restore_show, NULL);
+#endif
 static DEVICE_ATTR(set_elvss, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_set_elvss_store);
 static DEVICE_ATTR(seq_on_delay, 0644, ss_seq_on_delay_show, ss_seq_on_delay_store);
 static DEVICE_ATTR(seq_off_delay, 0644, ss_seq_off_delay_show, ss_seq_off_delay_store);
@@ -5766,6 +5895,7 @@ static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_copr_roi.attr,
 	&dev_attr_brt_avg.attr,
 	&dev_attr_self_mask.attr,
+	&dev_attr_self_mask_udc.attr,
 	&dev_attr_dynamic_hlpm.attr,
 	&dev_attr_self_display.attr,
 	&dev_attr_self_move.attr,
@@ -5828,6 +5958,10 @@ static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_window_color.attr,
 	&dev_attr_te_check.attr,
 	&dev_attr_udc_data.attr,
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+	&dev_attr_udc_gamma_offset.attr,
+	&dev_attr_udc_gamma_restore.attr,
+#endif
 	&dev_attr_udc_fac.attr,
 	&dev_attr_set_elvss.attr,
 	&dev_attr_seq_on_delay.attr,

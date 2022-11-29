@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2022 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2020-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -30,8 +30,6 @@ static void __iomem *qcom_upload_cause;
 
 DEFINE_PER_CPU(unsigned long, sec_debug_upload_cause);
 
-static unsigned long kunit_upload_cause;
-
 static __always_inline bool __qc_upldc_is_probed(void)
 {
 	return !!qc_upldc;
@@ -39,18 +37,12 @@ static __always_inline bool __qc_upldc_is_probed(void)
 
 static void __qc_upldc_write_cause(unsigned int type)
 {
-	if (IS_ENABLED(CONFIG_UML))
-		kunit_upload_cause = type;
-	else
-		__raw_writel(type, qcom_upload_cause);
+	__raw_writel(type, qcom_upload_cause);
 }
 
 static unsigned int __qc_upldc_read_cause(void)
 {
-	if (IS_ENABLED(CONFIG_UML))
-		return kunit_upload_cause;
-	else
-		return readl(qcom_upload_cause);
+	return readl(qcom_upload_cause);
 }
 
 void sec_qc_upldc_write_cause(unsigned int type)
@@ -111,7 +103,7 @@ EXPORT_SYMBOL(sec_qc_upldc_type_to_cause);
 #define SEC_QC_UPLC_STRNCASECMP(__cause, __type) \
 	SEC_QC_UPLC(__cause, __type, sec_qc_upldc_strncasecmp)
 
-static int sec_qc_upldc_strncmp(const struct sec_upload_cause *uc,
+static int __used sec_qc_upldc_strncmp(const struct sec_upload_cause *uc,
 		const char *cause)
 {
 	if (strncmp(cause, uc->cause, strlen(uc->cause)))
@@ -122,7 +114,7 @@ static int sec_qc_upldc_strncmp(const struct sec_upload_cause *uc,
 	return SEC_UPLOAD_CAUSE_HANDLE_OK;
 }
 
-static int sec_qc_upldc_strnstr(const struct sec_upload_cause *uc,
+static int __used sec_qc_upldc_strnstr(const struct sec_upload_cause *uc,
 		const char *cause)
 {
 	if (!strnstr(cause, uc->cause, strlen(cause)))
@@ -133,7 +125,7 @@ static int sec_qc_upldc_strnstr(const struct sec_upload_cause *uc,
 	return SEC_UPLOAD_CAUSE_HANDLE_OK;
 }
 
-static int sec_qc_upldc_strncasecmp(const struct sec_upload_cause *uc,
+static int __used sec_qc_upldc_strncasecmp(const struct sec_upload_cause *uc,
 		const char *cause)
 {
 	if (strncasecmp(cause, uc->cause, strlen(uc->cause)))
@@ -202,11 +194,6 @@ static struct sec_upload_cause __qc_upldc_strnstr[] = {
 			    UPLOAD_CAUSE_PF_WD_BITE),
 };
 
-static struct sec_upload_cause __qc_upldc_strncasecmp[] = {
-	SEC_QC_UPLC_STRNCASECMP("subsys",
-				UPLOAD_CAUSE_PERIPHERAL_ERR),
-};
-
 struct sec_upload_cause_suite {
 	struct sec_upload_cause *uc;
 	size_t nr_cause;
@@ -220,10 +207,6 @@ static struct sec_upload_cause_suite qc_upldc_suite[] = {
 	{
 		.uc = __qc_upldc_strnstr,
 		.nr_cause = ARRAY_SIZE(__qc_upldc_strnstr),
-	},
-	{
-		.uc = __qc_upldc_strncasecmp,
-		.nr_cause = ARRAY_SIZE(__qc_upldc_strncasecmp),
 	},
 };
 
@@ -385,9 +368,6 @@ static int __qc_upldc_ioremap_qcom_upload_cause(struct builder *bd)
 	struct device_node *mem_np;
 	struct device *dev;
 
-	if (IS_ENABLED(CONFIG_UML))
-		return 0;
-
 	dev = bd->dev;
 
 	mem_np = of_find_compatible_node(NULL, NULL,
@@ -414,9 +394,6 @@ static int __qc_upldc_ioremap_qcom_upload_cause(struct builder *bd)
 
 static void __qc_upldc_iounmap_qcom_upload_cause(struct builder *bd)
 {
-	if (IS_ENABLED(CONFIG_UML))
-		return;
-
 	iounmap(qcom_upload_cause);
 }
 
@@ -501,39 +478,6 @@ static int __qc_upldc_remove_threaded(struct platform_device *pdev,
 
 	return 0;
 }
-
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-static int __qc_upldc_ioremap_mock_qcom_upload_cause(struct builder *bd)
-{
-	qcom_upload_cause = &kunit_upload_cause;
-
-	return 0;
-}
-
-static void __qc_upldc_iounmap_mock_qcom_upload_cause(struct builder *bd)
-{
-	qcom_upload_cause = NULL;
-}
-
-static const struct dev_builder __qc_upldc_mock_dev_builder[] = {
-	DEVICE_BUILDER(__qc_upldc_ioremap_mock_qcom_upload_cause,
-		       __qc_upldc_iounmap_mock_qcom_upload_cause),
-	DEVICE_BUILDER(__qc_upldc_add_upload_cause_suite,
-		       __qc_upldc_del_upload_cause_suite),
-};
-
-int kunit_qc_upldc_mock_probe(struct platform_device *pdev)
-{
-	return __qc_upldc_probe(pdev, __qc_upldc_mock_dev_builder,
-			ARRAY_SIZE(__qc_upldc_mock_dev_builder));
-}
-
-int kunit_qc_upldc_mock_remove(struct platform_device *pdev)
-{
-	return __qc_upldc_remove(pdev, __qc_upldc_mock_dev_builder,
-			ARRAY_SIZE(__qc_upldc_mock_dev_builder));
-}
-#endif
 
 static const struct dev_builder __qc_upldc_dev_builder[] = {
 	DEVICE_BUILDER(__qc_upldc_ioremap_qcom_upload_cause,

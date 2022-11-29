@@ -341,6 +341,7 @@ EXPORT_SYMBOL(cam_mem_get_io_buf);
 int cam_mem_get_cpu_buf(int32_t buf_handle, uintptr_t *vaddr_ptr, size_t *len)
 {
 	int idx;
+	int ret = 0;
 
 	if (!atomic_read(&cam_mem_mgr_state)) {
 		CAM_ERR(CAM_MEM, "failed. mem_mgr not initialized");
@@ -354,17 +355,24 @@ int cam_mem_get_cpu_buf(int32_t buf_handle, uintptr_t *vaddr_ptr, size_t *len)
 	if (idx >= CAM_MEM_BUFQ_MAX || idx <= 0)
 		return -EINVAL;
 
+	mutex_lock(&tbl.bufq[idx].q_lock);
+
 	if (!tbl.bufq[idx].active) {
 		CAM_ERR(CAM_MEM, "Buffer at idx=%d is already unmapped,",
 			idx);
-		return -EPERM;
+		ret = -EPERM;
+		goto end;
 	}
 
-	if (buf_handle != tbl.bufq[idx].buf_handle)
-		return -EINVAL;
+	if (buf_handle != tbl.bufq[idx].buf_handle) {
+		ret = -EINVAL;
+		goto end;
+	}
 
-	if (!(tbl.bufq[idx].flags & CAM_MEM_FLAG_KMD_ACCESS))
-		return -EINVAL;
+	if (!(tbl.bufq[idx].flags & CAM_MEM_FLAG_KMD_ACCESS)) {
+		ret = -EINVAL;
+		goto end;
+	}
 
 	if (tbl.bufq[idx].kmdvaddr) {
 		*vaddr_ptr = tbl.bufq[idx].kmdvaddr;
@@ -372,10 +380,13 @@ int cam_mem_get_cpu_buf(int32_t buf_handle, uintptr_t *vaddr_ptr, size_t *len)
 	} else {
 		CAM_ERR(CAM_MEM, "No KMD access was requested for 0x%x handle",
 			buf_handle);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto end;
 	}
 
-	return 0;
+end:
+	mutex_unlock(&tbl.bufq[idx].q_lock);
+	return ret;
 }
 EXPORT_SYMBOL(cam_mem_get_cpu_buf);
 

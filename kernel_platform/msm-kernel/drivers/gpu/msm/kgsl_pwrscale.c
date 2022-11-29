@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2010-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/devfreq_cooling.h>
@@ -234,14 +235,26 @@ int kgsl_devfreq_target(struct device *dev, unsigned long *freq, u32 flags)
 	int level;
 	unsigned int i;
 	unsigned long cur_freq, rec_freq;
+	struct kgsl_pwrscale *pwrscale = &device->pwrscale;
 
 	if (device == NULL)
 		return -ENODEV;
 	if (freq == NULL)
 		return -EINVAL;
-	if (!device->pwrscale.devfreq_enabled)
-		return -EPROTO;
 
+	if (!pwrscale->devfreq_enabled) {
+		/*
+		 * When we try to use performance governor, this function
+		 * will called by devfreq driver, while adding governor using
+		 * devfreq_add_device.
+		 * To add and start performance governor successfully during
+		 * probe, return 0 when we reach here. pwrscale->enabled will
+		 * be set to true after successfully starting the governor.
+		 */
+		if (!pwrscale->enabled)
+			return 0;
+		return -EPROTO;
+	}
 	pwr = &device->pwrctrl;
 
 	if (_check_maxfreq(flags)) {
@@ -362,13 +375,26 @@ int kgsl_devfreq_get_dev_status(struct device *dev,
 int kgsl_devfreq_get_cur_freq(struct device *dev, unsigned long *freq)
 {
 	struct kgsl_device *device = dev_get_drvdata(dev);
+	struct kgsl_pwrscale *pwrscale = &device->pwrscale;
 
 	if (device == NULL)
 		return -ENODEV;
 	if (freq == NULL)
 		return -EINVAL;
-	if (!device->pwrscale.devfreq_enabled)
+
+	if (!pwrscale->devfreq_enabled) {
+		/*
+		 * When we try to use performance governor, this function
+		 * will called by devfreq driver, while adding governor using
+		 * devfreq_add_device.
+		 * To add and start performance governor successfully during
+		 * probe, return 0 when we reach here. pwrscale->enabled will
+		 * be set to true after successfully starting the governor.
+		 */
+		if (!pwrscale->enabled)
+			return 0;
 		return -EPROTO;
+	}
 
 	mutex_lock(&device->mutex);
 	*freq = kgsl_pwrctrl_active_freq(&device->pwrctrl);
@@ -498,6 +524,7 @@ int kgsl_busmon_target(struct device *dev, unsigned long *freq, u32 flags)
 	/* Update bus vote if AB or IB is modified */
 	if ((pwr->bus_mod != b) || (pwr->bus_ab_mbytes != ab_mbytes)) {
 		pwr->bus_percent_ab = device->pwrscale.bus_profile.percent_ab;
+		pwr->ddr_stall_percent = device->pwrscale.bus_profile.wait_active_percent;
 		/*
 		 * When gpu is thermally throttled to its lowest power level,
 		 * drop GPU's AB vote as a last resort to lower CX voltage and
@@ -681,8 +708,6 @@ int kgsl_pwrscale_init(struct kgsl_device *device, struct platform_device *pdev,
 	struct msm_adreno_extended_profile *gpu_profile;
 	int i, ret;
 
-	pwrscale->enabled = true;
-
 	gpu_profile = &pwrscale->gpu_profile;
 	gpu_profile->private_data = &adreno_tz_data;
 
@@ -772,6 +797,7 @@ int kgsl_pwrscale_init(struct kgsl_device *device, struct platform_device *pdev,
 		return IS_ERR(devfreq) ? PTR_ERR(devfreq) : -EINVAL;
 	}
 
+	pwrscale->enabled = true;
 	pwrscale->devfreqptr = devfreq;
 	pwrscale->cooling_dev = of_devfreq_cooling_register(pdev->dev.of_node,
 		devfreq);

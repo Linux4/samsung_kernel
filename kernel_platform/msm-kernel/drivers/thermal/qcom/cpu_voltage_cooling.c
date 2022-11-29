@@ -15,6 +15,7 @@
 #include <linux/pm_qos.h>
 
 #if IS_ENABLED(CONFIG_CPU_FREQ_LIMIT)
+#include <soc/qcom/socinfo.h>
 #include <linux/cpufreq_limit.h>
 
 struct freq_voltage_base cflm_vbf;
@@ -141,6 +142,10 @@ static int build_unified_table(struct cc_limits_data *cc_cdev,
 {
 	struct limits_freq_map *freq_map = NULL;
 	int idx = 0, idy = 0, idz = 0, min_idx = 0, max_v = 0, max_idx = 0;
+#if IS_ENABLED(CONFIG_CPU_FREQ_LIMIT)
+	int prime = 0;	/* cpu7 */
+	int gold = 1;	/* cpu4 */
+#endif
 
 	for (idx = 0; idx < cpu_ct; idx++) {
 		int table_v = table[idx][table_ct[idx] - 1].volt;
@@ -161,6 +166,16 @@ static int build_unified_table(struct cc_limits_data *cc_cdev,
 	if (!freq_map)
 		return -ENOMEM;
 	pr_info("CPU1:%d CPU2:%d\n", cc_cdev->cpu_map[0], cc_cdev->cpu_map[1]);
+
+#if IS_ENABLED(CONFIG_CPU_FREQ_LIMIT)
+	/* swap condition */
+	if (cc_cdev->cpu_map[0] == 4) {
+		prime = 1;
+		gold = 0;
+	}
+
+	cflm_vbf.count = 0;
+#endif
 	for (idx = table_ct[max_idx] - 1, idy = table_ct[min_idx] - 1, idz = 0;
 			idx >= 0 && idz < table_ct[max_idx]; idx--, idz++) {
 		int volt = table[max_idx][idx].volt;
@@ -175,6 +190,15 @@ static int build_unified_table(struct cc_limits_data *cc_cdev,
 		freq_map[idz].frequency[1] = table[min_idx][idy].frequency;
 		pr_info("freq1:%u freq2:%u\n", freq_map[idz].frequency[0],
 				freq_map[idz].frequency[1]);
+
+#if IS_ENABLED(CONFIG_CPU_FREQ_LIMIT)
+		cflm_vbf.table[prime][cflm_vbf.count] = freq_map[idz].frequency[0];
+		cflm_vbf.table[gold][cflm_vbf.count] = freq_map[idz].frequency[1];
+		pr_info("vbf: prime:%u gold:%u\n",
+			cflm_vbf.table[PRIME_CPU][cflm_vbf.count],
+			cflm_vbf.table[GOLD_CPU][cflm_vbf.count]);
+		cflm_vbf.count++;
+#endif
 	}
 
 	cc_cdev->map_freq = freq_map;
@@ -186,6 +210,7 @@ static void map_prime_and_gold(struct limits_freq_table **table, int *table_ct, 
 {
 	int prime, gold;
 	int i, j;
+	unsigned int tmp_table[NUM_THM_CPUS][NUM_MAX_FREQS];
 	int map[] = {
 		0, 1, 2, 3, 4, 5, 5, 6, 7, 8,
 		9, 10, 11, 12, 13, 13, 14, 15, 16, 17,
@@ -200,11 +225,17 @@ static void map_prime_and_gold(struct limits_freq_table **table, int *table_ct, 
 	}
 	for (i = 0; i < table_ct[prime]; i++) {
 		j = (map[i] >= table_ct[gold]) ? table_ct[gold]-1 : map[i];
-		cflm_vbf.table[PRIME_CPU][i] = table[prime][i].frequency;
-		cflm_vbf.table[GOLD_CPU][i] = table[gold][j].frequency;
-		pr_info("[%2d] %7u -- %7u\n", i, cflm_vbf.table[PRIME_CPU][i], cflm_vbf.table[GOLD_CPU][i]);
+		tmp_table[PRIME_CPU][i] = table[prime][i].frequency;
+		tmp_table[GOLD_CPU][i] = table[gold][j].frequency;
+		pr_info("[%2d] %7u -- %7u\n", i, tmp_table[PRIME_CPU][i], tmp_table[GOLD_CPU][i]);
 	}
 	cflm_vbf.count = i;
+
+	for (i = 0; i < cflm_vbf.count; i++) {
+		cflm_vbf.table[PRIME_CPU][i] = tmp_table[PRIME_CPU][cflm_vbf.count - (i + 1)];
+		cflm_vbf.table[GOLD_CPU][i] = tmp_table[GOLD_CPU][cflm_vbf.count - (i + 1)];
+		pr_info("[%2d] %7u -- %7u\n", i, cflm_vbf.table[PRIME_CPU][i], cflm_vbf.table[GOLD_CPU][i]);
+	}
 }
 #endif
 
@@ -245,13 +276,16 @@ static struct cc_limits_data *opp_init(int *cpus)
 		goto opp_err_exit;
 	cpu_freq_table[0] = cpu1_freq_table;
 	cpu_freq_table[1] = cpu2_freq_table;
-#if IS_ENABLED(CONFIG_CPU_FREQ_LIMIT)
-	map_prime_and_gold(cpu_freq_table, table_ct, cpus);
-#endif
 	ret = build_unified_table(cc_cdev, cpu_freq_table, table_ct, cpus,
 					CPU_MAP_CT);
 	if (ret < 0)
 		goto opp_err_exit;
+
+#if IS_ENABLED(CONFIG_CPU_FREQ_LIMIT)
+	/* 457: WAIPIO, 482: WAIPIOP, 552: WAIPIO-LTE */
+	if ((socinfo_get_id() == 457) || (socinfo_get_id() == 482) || (socinfo_get_id() == 552))
+		map_prime_and_gold(cpu_freq_table, table_ct, cpus);
+#endif
 
 	kfree(cpu1_freq_table);
 	kfree(cpu2_freq_table);

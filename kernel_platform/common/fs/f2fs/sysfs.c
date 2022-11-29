@@ -748,13 +748,13 @@ static ssize_t f2fs_sbi_show(struct f2fs_attr *a,
 
 		for (i = 0; i < NR_F2FS_SEC_FUA_MODE; i++) {
 			if (i == sbi->s_sec_cond_fua_mode)
-				len += snprintf(buf, PAGE_SIZE, "[%s] ",
+				len += snprintf(buf + len, PAGE_SIZE - len, "[%s] ",
 						sec_fua_mode_names[i]);
 			else
-				len += snprintf(buf, PAGE_SIZE, "%s ",
+				len += snprintf(buf + len, PAGE_SIZE - len, "%s ",
 						sec_fua_mode_names[i]);
 		}
-
+		len += snprintf(buf + len, PAGE_SIZE - len, "\n");
 		return len;
 #ifdef CONFIG_F2FS_SEC_DEBUG_NODE
 	} else if (!strcmp(a->attr.name, "sec_stats")) {

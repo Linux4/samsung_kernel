@@ -52,12 +52,12 @@ DEFINE_FUNCTION_MOCK(
 #define LV_XATTR_SIZE 12
 #define XATTR_VALUE	22
 
-static void five_pa_process_file_no_file_test(struct test *test)
+static void five_pa_process_file_no_file_test(struct kunit *test)
 {
 	pa_process_file(NULL, NULL);
 }
 
-static void five_pa_process_file_no_imode_test(struct test *test)
+static void five_pa_process_file_no_imode_test(struct kunit *test)
 {
 	DECLARE_NEW(test, struct file, p_file);
 
@@ -67,7 +67,7 @@ static void five_pa_process_file_no_imode_test(struct test *test)
 	pa_process_file(NULL, p_file);
 }
 
-static void five_pa_process_file_has_sign_test(struct test *test)
+static void five_pa_process_file_has_sign_test(struct kunit *test)
 {
 	DECLARE_NEW(test, struct file, p_file);
 
@@ -96,7 +96,7 @@ static void  *five_read_xattr_action(
 	return &ret;
 }
 
-static void five_pa_process_file_no_sign_test(struct test *test)
+static void five_pa_process_file_no_sign_test(struct kunit *test)
 {
 	DECLARE_NEW(test, struct file, p_file);
 
@@ -107,16 +107,16 @@ static void five_pa_process_file_no_sign_test(struct test *test)
 
 	F_SIGNATURE_ASSIGN(p_file, NULL);
 
-	ActionOnMatch(EXPECT_CALL(call_five_read_xattr(
+	ActionOnMatch(KUNIT_EXPECT_CALL(call_five_read_xattr(
 		ptr_eq(test, p_file->f_path.dentry), any(test))),
 		new_mock_action(test, five_read_xattr_action));
 
 	pa_process_file(NULL, p_file);
 
-	EXPECT_EQ(test, F_SIGNATURE(p_file), (u64)xattr_val);
+	KUNIT_EXPECT_EQ(test, F_SIGNATURE(p_file), (u64)xattr_val);
 }
 
-static void five_pafsignature_free_test(struct test *test)
+static void five_pafsignature_free_test(struct kunit *test)
 {
 	// This memory should be released in tested function. Pointer type doesn't matter here
 	struct file *p_fake_sign = kzalloc(sizeof(struct file), GFP_KERNEL);
@@ -127,30 +127,30 @@ static void five_pafsignature_free_test(struct test *test)
 
 	fivepa_fsignature_free(p_file);
 
-	EXPECT_EQ(test, F_SIGNATURE(p_file), (u64)NULL);
+	KUNIT_EXPECT_EQ(test, F_SIGNATURE(p_file), (u64)NULL);
 }
 
-static void five_pa_proca_fcntl_setxattr_no_file_test(struct test *test)
+static void five_pa_proca_fcntl_setxattr_no_file_test(struct kunit *test)
 {
 	struct lv lv_hdr = {0};
 
-	EXPECT_EQ(test, proca_fcntl_setxattr(NULL, &lv_hdr), -EINVAL);
+	KUNIT_EXPECT_EQ(test, proca_fcntl_setxattr(NULL, &lv_hdr), -EINVAL);
 }
 
-static void five_pa_proca_fcntl_setxattr_no_lv_xattr_test(struct test *test)
+static void five_pa_proca_fcntl_setxattr_no_lv_xattr_test(struct kunit *test)
 {
 	DECLARE_NEW(test, struct file, p_file);
 
-	EXPECT_EQ(test, proca_fcntl_setxattr(p_file, NULL), -EINVAL);
+	KUNIT_EXPECT_EQ(test, proca_fcntl_setxattr(p_file, NULL), -EINVAL);
 }
 
-static void five_pa_proca_fcntl_setxattr_overlength_test(struct test *test)
+static void five_pa_proca_fcntl_setxattr_overlength_test(struct kunit *test)
 {
 	DECLARE_NEW(test, struct file, p_file);
 	struct lv lv_hdr = {OVERLENGTH};
 
 	p_file->f_inode = NEW(test, struct inode);
-	EXPECT_EQ(test, proca_fcntl_setxattr(p_file, &lv_hdr), -EINVAL);
+	KUNIT_EXPECT_EQ(test, proca_fcntl_setxattr(p_file, &lv_hdr), -EINVAL);
 }
 
 static int fake_flush_ret_1(struct file *p_file, fl_owner_t id)
@@ -159,7 +159,7 @@ static int fake_flush_ret_1(struct file *p_file, fl_owner_t id)
 }
 
 static void five_pa_proca_fcntl_setxattr_flush_returns_error_test(
-		struct test *test)
+		struct kunit *test)
 {
 	struct {
 		uint16_t length;
@@ -174,7 +174,8 @@ static void five_pa_proca_fcntl_setxattr_flush_returns_error_test(
 	p_file_operations->flush = fake_flush_ret_1;
 	p_file->f_op = p_file_operations;
 
-	EXPECT_EQ(test, proca_fcntl_setxattr(p_file, &header_lv), -EOPNOTSUPP);
+	KUNIT_EXPECT_EQ(test,
+		proca_fcntl_setxattr(p_file, &header_lv), -EOPNOTSUPP);
 }
 
 static int fake_flush_ret_0(struct file *p_file, fl_owner_t id)
@@ -183,7 +184,7 @@ static int fake_flush_ret_0(struct file *p_file, fl_owner_t id)
 }
 
 static void five_pa_proca_fcntl_setxattr_allow_sign_test(
-		struct test *test)
+		struct kunit *test)
 {
 	int i;
 	struct {
@@ -204,22 +205,23 @@ static void five_pa_proca_fcntl_setxattr_allow_sign_test(
 	p_file->f_op = p_file_operations;
 	p_file->f_path.dentry->d_flags = 0;
 
-	Returns(EXPECT_CALL(call_task_integrity_allow_sign(
+	KunitReturns(KUNIT_EXPECT_CALL(call_task_integrity_allow_sign(
 		ptr_eq(test, TASK_INTEGRITY(current)))),
 		bool_return(test, 1));
 
-	Returns(EXPECT_CALL(call_vfs_setxattr_noperm(
+	KunitReturns(KUNIT_EXPECT_CALL(call_vfs_setxattr_noperm(
 		ptr_eq(test, d_real_comp(p_file->f_path.dentry)),
 		streq(test, XATTR_NAME_PA),
 		memeq(test, header_lv.value, header_lv.length),
 		int_eq(test, LV_XATTR_SIZE), int_eq(test, 0))),
 		int_return(test, XATTR_VALUE));
 
-	EXPECT_EQ(test, proca_fcntl_setxattr(p_file, &header_lv), XATTR_VALUE);
+	KUNIT_EXPECT_EQ(test,
+		proca_fcntl_setxattr(p_file, &header_lv), XATTR_VALUE);
 }
 
 static void five_pa_proca_fcntl_setxattr_not_allow_sign_test(
-		struct test *test)
+		struct kunit *test)
 {
 	struct {
 		uint16_t length;
@@ -233,43 +235,45 @@ static void five_pa_proca_fcntl_setxattr_not_allow_sign_test(
 	p_file->f_path.dentry = NEW(test, struct dentry);
 	p_file->f_path.dentry->d_flags = 0;
 
-	Returns(EXPECT_CALL(call_task_integrity_allow_sign(
+	KunitReturns(KUNIT_EXPECT_CALL(call_task_integrity_allow_sign(
 		ptr_eq(test, TASK_INTEGRITY(current)))),
 		bool_return(test, 0));
 
-	EXPECT_EQ(test, proca_fcntl_setxattr(p_file, &header_lv), -EPERM);
+	KUNIT_EXPECT_EQ(test, proca_fcntl_setxattr(p_file, &header_lv), -EPERM);
 }
 
-static struct test_case five_pa_test_cases[] = {
-	TEST_CASE(five_pa_process_file_no_file_test),
-	TEST_CASE(five_pa_process_file_no_imode_test),
-	TEST_CASE(five_pa_process_file_no_sign_test),
-	TEST_CASE(five_pa_process_file_has_sign_test),
-	TEST_CASE(five_pafsignature_free_test),
-	TEST_CASE(five_pa_proca_fcntl_setxattr_no_file_test),
-	TEST_CASE(five_pa_proca_fcntl_setxattr_no_lv_xattr_test),
-	TEST_CASE(five_pa_proca_fcntl_setxattr_overlength_test),
-	TEST_CASE(five_pa_proca_fcntl_setxattr_flush_returns_error_test),
-	TEST_CASE(five_pa_proca_fcntl_setxattr_allow_sign_test),
-	TEST_CASE(five_pa_proca_fcntl_setxattr_not_allow_sign_test),
+static struct kunit_case five_pa_test_cases[] = {
+	KUNIT_CASE(five_pa_process_file_no_file_test),
+	KUNIT_CASE(five_pa_process_file_no_imode_test),
+	KUNIT_CASE(five_pa_process_file_no_sign_test),
+	KUNIT_CASE(five_pa_process_file_has_sign_test),
+	KUNIT_CASE(five_pafsignature_free_test),
+	KUNIT_CASE(five_pa_proca_fcntl_setxattr_no_file_test),
+	KUNIT_CASE(five_pa_proca_fcntl_setxattr_no_lv_xattr_test),
+	KUNIT_CASE(five_pa_proca_fcntl_setxattr_overlength_test),
+	KUNIT_CASE(five_pa_proca_fcntl_setxattr_flush_returns_error_test),
+	KUNIT_CASE(five_pa_proca_fcntl_setxattr_allow_sign_test),
+	KUNIT_CASE(five_pa_proca_fcntl_setxattr_not_allow_sign_test),
 	{},
 };
 
-static int five_pa_test_init(struct test *test)
+static int five_pa_test_init(struct kunit *test)
 {
 	return 0;
 }
 
-static void five_pa_test_exit(struct test *test)
+static void five_pa_test_exit(struct kunit *test)
 {
 	return;
 }
 
-static struct test_module five_pa_test_module = {
+static struct kunit_suite five_pa_test_module = {
 	.name = "five_pa_test",
 	.init = five_pa_test_init,
 	.exit = five_pa_test_exit,
 	.test_cases = five_pa_test_cases,
 };
 
-module_test(five_pa_test_module);
+kunit_test_suites(&five_pa_test_module);
+
+MODULE_LICENSE("GPL v2");

@@ -1,6 +1,4 @@
-&chosen {
-	bootargs = "nokaslr kpti=0 log_buf_len=256K swiotlb=0 loop.max_part=7";
-};
+#include <dt-bindings/clock/qcom,gcc-anorak.h>
 
 &arch_timer {
 	clock-frequency = <500000>;
@@ -28,6 +26,58 @@
 			0x0 0x3c
 			0x0 0x4>;
 	};
+
+	bi_tcxo: bi_tcxo {
+		compatible = "fixed-factor-clock";
+		clock-mult = <1>;
+		clock-div = <4>;
+		clocks = <&xo_board>;
+		#clock-cells = <0>;
+	};
+
+	bi_tcxo_ao: bi_tcxo_ao {
+		compatible = "fixed-factor-clock";
+		clock-mult = <1>;
+		clock-div = <4>;
+		clocks = <&xo_board>;
+		#clock-cells = <0>;
+	};
+};
+
+&ufsphy_mem {
+	compatible = "qcom,ufs-phy-qrbtc-sdm845";
+
+	vdda-phy-supply = <&L2E>;
+	vdda-pll-supply = <&L1E>;
+	vdda-phy-max-microamp = <138000>;
+	vdda-pll-max-microamp = <18300>;
+
+	status = "ok";
+};
+
+&ufshc_mem {
+	limit-tx-hs-gear = <1>;
+	limit-rx-hs-gear = <1>;
+	limit-rate = <1>; /* HS Rate-B */
+
+	vdd-hba-supply = <&gcc_ufs_phy_gdsc>;
+	vdd-hba-fixed-regulator;
+
+	vcc-supply = <&L13B>;
+	vcc-max-microamp = <1300000>;
+
+	vccq-supply = <&L3E>;
+	vccq-max-microamp = <1200000>;
+
+	qcom,vddp-ref-clk-supply = <&L3E>;
+	qcom,vddp-ref-clk-max-microamp = <100>;
+
+	qcom,disable-lpm;
+	rpm-level = <0>;
+	spm-level = <0>;
+
+	qcom,iommu-dma = "bypass";
+	status = "ok";
 };
 
 &usb0 {
@@ -37,4 +87,32 @@
 		maximum-speed = "high-speed";
 	};
 
+};
+
+&qupv3_se6_2uart {
+	qcom,rumi_platform;
+};
+
+&gcc {
+	clocks = <&bi_tcxo>, <&sleep_clk>,
+		<&pcie_0_pipe_clk>, <&pcie_1_pipe_clk>,
+		<&pcie_2_phy_aux_clk>, <&pcie_2_pipe_clk>,
+		<&ufs_phy_rx_symbol_0_clk>, <&ufs_phy_rx_symbol_1_clk>,
+		<&ufs_phy_tx_symbol_0_clk>, <&usb3_phy_wrapper_gcc_usb30_pipe_clk>;
+};
+
+&videocc {
+	clocks = <&bi_tcxo>, <&sleep_clk>,
+		<&gcc GCC_VIDEO_AHB_CLK>;
+};
+
+&camcc {
+	clocks = <&bi_tcxo>, <&sleep_clk>,
+		<&gcc GCC_CAMERA_AHB_CLK>;
+};
+
+&gpucc {
+	clocks = <&bi_tcxo>,
+		<&gcc GCC_GPU_GPLL0_CLK_SRC>,
+		<&gcc GCC_GPU_GPLL0_DIV_CLK_SRC>;
 };

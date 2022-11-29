@@ -343,9 +343,9 @@ enum {
 };
 
 enum epen_elec_spec_mode {
-	EPEN_ELEC_DATA_MAIN	= 0,
-	EPEN_ELEC_DATA_UNIT	= 1,	// pretest
-//	EPEN_ELEC_DATA_ASSY	= 2,	// reserved
+	EPEN_ELEC_DATA_MAIN		= 0,	// main
+	EPEN_ELEC_DATA_ASSY		= 1,	// sub - assy
+	EPEN_ELEC_DATA_UNIT		= 2,	// sub - unit
 };
 
 struct wacom_elec_data {

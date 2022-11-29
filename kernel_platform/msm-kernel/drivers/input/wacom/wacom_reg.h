@@ -116,3 +116,4 @@ enum epen_ble_charge_state {
 
 /* wacom ic model */
 #define WEZ02_B0			0x01
+#define WEZ02_DM3			0x02

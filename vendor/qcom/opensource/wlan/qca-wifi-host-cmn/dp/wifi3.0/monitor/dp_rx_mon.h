@@ -581,28 +581,6 @@ dp_cfr_rcc_mode_status(struct dp_pdev *pdev)
 }
 #endif /* WLAN_CFR_ENABLE && WLAN_ENH_CFR_ENABLE */
 
-
-#ifdef DP_MON_RSSI_IN_DBM
-/*
- * dp_rx_mon_rssi_convert(): convert rssi_comb from unit dBm to dB
- * to match with radiotap further conversion requirement
- * @rx_status: monitor mode rx status pointer
- *
- * Return: none
- */
-static inline
-void dp_rx_mon_rssi_convert(struct mon_rx_status *rx_status)
-{
-	rx_status->rssi_comb = rx_status->rssi_comb -
-			rx_status->chan_noise_floor;
-}
-#else
-static inline
-void dp_rx_mon_rssi_convert(struct mon_rx_status *rx_status)
-{
-}
-#endif
-
 /*
  * dp_rx_mon_deliver(): function to deliver packets to stack
  * @soc: DP soc
@@ -724,4 +702,18 @@ struct rx_desc_pool *dp_rx_get_mon_desc_pool(struct dp_soc *soc,
 	return &soc->rx_desc_buf[pdev_id];
 }
 
+/**
+ * dp_rx_process_peer_based_pktlog() - Process Rx pktlog if peer based
+ *                                     filtering enabled
+ * @soc: core txrx main context
+ * @ppdu_info: Structure for rx ppdu info
+ * @status_nbuf: Qdf nbuf abstraction for linux skb
+ * @pdev_id: mac_id/pdev_id correspondinggly for MCL and WIN
+ *
+ * Return: none
+ */
+void
+dp_rx_process_peer_based_pktlog(struct dp_soc *soc,
+				struct hal_rx_ppdu_info *ppdu_info,
+				qdf_nbuf_t status_nbuf, uint32_t pdev_id);
 #endif /* _DP_RX_MON_H_ */

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -163,6 +164,8 @@
 #define WLAN_VDEV_FEXT2_MLO                 0x00000001
 	/* STA VDEV is link type */
 #define WLAN_VDEV_FEXT2_MLO_STA_LINK        0x00000002
+	/* VDEV is MLO mcast primary*/
+#define WLAN_VDEV_FEXT2_MLO_MCAST           0x00000004
 
 /* VDEV OP flags  */
   /* if the vap destroyed by user */
@@ -1392,6 +1395,27 @@ bool wlan_vdev_mlme_is_mlo_vdev(struct wlan_objmgr_vdev *vdev)
 	return wlan_vdev_mlme_feat_ext2_cap_get(vdev, WLAN_VDEV_FEXT2_MLO);
 }
 
+#ifdef WLAN_MCAST_MLO
+/**
+ * wlan_vdev_mlme_is_mlo_mcast_vdev() - whether it is mlo mcast vdev or not
+ * @vdev: VDEV object
+ *
+ * Return: True if it is mlo mcast vdev, otherwise false.
+ */
+static inline
+bool wlan_vdev_mlme_is_mlo_mcast_vdev(struct wlan_objmgr_vdev *vdev)
+{
+	return wlan_vdev_mlme_feat_ext2_cap_get(vdev,
+						WLAN_VDEV_FEXT2_MLO_MCAST);
+}
+#else
+static inline
+bool wlan_vdev_mlme_is_mlo_mcast_vdev(struct wlan_objmgr_vdev *vdev)
+{
+	return false;
+}
+#endif
+
 /**
  * wlan_vdev_mlme_is_mlo_vdev() - whether it is mlo sta link vdev or not
  * @vdev: VDEV object
@@ -1770,5 +1794,21 @@ wlan_objmgr_vdev_trace_del_ref_list(struct wlan_objmgr_vdev *vdev)
  */
 QDF_STATUS wlan_vdev_get_bss_peer_mac(struct wlan_objmgr_vdev *vdev,
 				      struct qdf_mac_addr *bss_peer_mac);
+
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * wlan_vdev_get_bss_peer_mld_mac() - to get bss peer mld mac address
+ * @vdev: pointer to vdev
+ * @mld_mac: pointer to mld mac address
+ *
+ * This API is used to get mld mac address of peer.
+ *
+ * Context: Any context.
+ *
+ * Return: QDF_STATUS based on overall success
+ */
+QDF_STATUS wlan_vdev_get_bss_peer_mld_mac(struct wlan_objmgr_vdev *vdev,
+					  struct qdf_mac_addr *mld_mac);
+#endif
 
 #endif /* _WLAN_OBJMGR_VDEV_OBJ_H_*/

@@ -28,6 +28,7 @@
 enum helioscom_spi_state {
 	HELIOSCOM_SPI_FREE = 0,
 	HELIOSCOM_SPI_BUSY,
+	HELIOSCOM_SPI_PAUSE,
 };
 
 /* Enums to identify Blackghost events */
@@ -88,22 +89,54 @@ struct helioscom_open_config_type {
 			union helioscom_event_data_type *event_data);
 };
 
+/* Client specific data */
+struct helioscom_reset_config_type {
+	/** Private data pointer for client to maintain context.
+	 * This data is passed back to client in the notification callbacks.
+	 */
+	void		*priv;
+
+	/* Notification callbacks to notify the HELIOS events */
+	void (*helioscom_reset_notification_cb)(void *handle, void *priv);
+};
+
 /**
- * helioscom_open() - opens a channel to interact with Blackghost
+ * helioscom_reset_register() - Register to get reset notification
+ * @open_config: pointer to the open configuration structure helioscom_reset_config_type
+ *
+ * Open a new connection to Helioscom
+ *
+ * Return a handle on success or NULL on error
+ */
+void *helioscom_pil_reset_register(struct helioscom_reset_config_type *open_config);
+
+/**
+ * helioscom_pil_reset_unregister() - Unregister for reset notfication
+ * @handle: pointer to the handle, provided by helioscom at
+ *	helioscom_open
+ *
+ * Unregister for helioscom pil notification.
+ *
+ * Return 0 on success or error on invalid handle
+ */
+int helioscom_pil_reset_unregister(void **handle);
+
+/**
+ * helioscom_open() - opens a channel to interact with Helioscom
  * @open_config: pointer to the open configuration structure
  *
- * Open a new connection to blackghost
+ * Open a new connection to Helioscom
  *
  * Return a handle on success or NULL on error
  */
 void *helioscom_open(struct helioscom_open_config_type *open_config);
 
 /**
- * helioscom_close() - close the exsting with Blackghost
+ * helioscom_close() - close the exsting channel with Helioscom
  * @handle: pointer to the handle, provided by helioscom at
  *	helioscom_open
  *
- * Open a new connection to blackghost
+ * close existing connection to Helioscom
  *
  * Return 0 on success or error on invalid handle
  */
@@ -181,6 +214,16 @@ int helioscom_fifo_write(void *handle, uint32_t num_words,
 int helioscom_ahb_read(void *handle, uint32_t ahb_start_addr,
 		uint32_t num_words, void *read_buf);
 
+/**
+ * helioscom_ahb_write_bytes() - Write byte data to the AHB memory.
+ * @handle: HELIOSCOM handle associated with the channel
+ * @ahb_start_addr : Memory start address from where to start write
+ * @num_bytes : number of bytes to read from AHB
+ * @write_buf : Buffer to write in AHB.
+ * Return 0 on success or -Ve on error
+ */
+int helioscom_ahb_write_bytes(void *handle, uint32_t ahb_start_addr,
+		uint32_t num_bytes, void *write_buf);
 /**
  * helioscom_ahb_write() - Write data to the AHB memory.
  * @handle: HELIOSCOM handle associated with the channel

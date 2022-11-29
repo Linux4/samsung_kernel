@@ -111,7 +111,8 @@ static struct autocal_data_force_update *auto_cal_data;
 #ifdef CONFIG_SEC_FACTORY
 void autocal_debug_work_func(struct work_struct *work)
 {
-	adsp_unicast(NULL, 0, MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_SET_CAL_DATA);
+	pr_info("[FACTORY] %s: skip adsp_unicast\n", __func__);
+	//adsp_unicast(NULL, 0, MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_SET_CAL_DATA);
 }
 #endif
 
@@ -245,6 +246,7 @@ static ssize_t digital_hall_ref_angle_show(struct device *dev,
 	max = curr_angle + 10;
 	result = PASS;
 
+	pr_info("[FACTORY] %s: IN!!!\n", __func__);
 	mutex_lock(&data->digital_hall_mutex);
 	adsp_unicast(NULL, 0, MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_GET_RAW_DATA);
 
@@ -400,12 +402,16 @@ static ssize_t reset_auto_cal_show(struct device *dev,
 	struct adsp_data *data = dev_get_drvdata(dev);
 	int reset_data[58] = { 0, };
 	uint8_t cnt = 0;
-
+	uint8_t retry_cnt = 0;
+	data->msg_buf[MSG_DIGITAL_HALL_ANGLE][0] = -1;
+retry:
 	mutex_lock(&data->digital_hall_mutex);
+	pr_info("[FACTORY] %s: reset\n", __func__);
 	/* reset */
 	adsp_unicast(reset_data, sizeof(reset_data),
 		MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_SET_REGISTER);
 
+	pr_info("[FACTORY] %s: read\n", __func__);
 	/* read */
 	adsp_unicast(NULL, 0, MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_GET_CAL_DATA);
 
@@ -421,6 +427,14 @@ static ssize_t reset_auto_cal_show(struct device *dev,
 		return snprintf(buf, PAGE_SIZE, "-1\n");
 	}
 
+	if (data->msg_buf[MSG_DIGITAL_HALL_ANGLE][0] != 0 && retry_cnt < 2) {
+		pr_info("[FACTORY] %s: flg_update=%d\n", __func__, data->msg_buf[MSG_DIGITAL_HALL_ANGLE][0]);
+		pr_info("[FACTORY] %s: reset fail retry!!!\n", __func__);
+		retry_cnt++;
+		cnt = 0;
+		usleep_range(10000, 11000);
+		goto retry;
+	}
 	pr_info("[FACTORY] %s: flg_update=%d\n", __func__, data->msg_buf[MSG_DIGITAL_HALL_ANGLE][0]);
 
 	return snprintf(buf, PAGE_SIZE, "%d\n",
@@ -447,7 +461,7 @@ static ssize_t check_auto_cal_show(struct device *dev,
 	mutex_unlock(&data->digital_hall_mutex);
 
 	if (cnt >= 10) {
-		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
+		pr_err("[FACTORY] %s: Get Cal Data Timeout!!!\n", __func__);
 		return snprintf(buf, PAGE_SIZE, "-1\n");
 	}
 
@@ -464,7 +478,19 @@ static ssize_t check_auto_cal_show(struct device *dev,
 
 #ifdef CONFIG_SEC_FACTORY
 	/* Print mx, my, mz buffer in SSC_DAEMON log */
+	cnt = 0;
+	mutex_lock(&data->digital_hall_mutex);
 	adsp_unicast(NULL, 0, MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_SET_CAL_DATA);
+	while (!(data->ready_flag[MSG_TYPE_SET_CAL_DATA] & 1 << MSG_DIGITAL_HALL_ANGLE) &&
+		cnt++ < 10)
+		msleep(30);
+
+	data->ready_flag[MSG_TYPE_SET_CAL_DATA] &= ~(1 << MSG_DIGITAL_HALL_ANGLE);
+	mutex_unlock(&data->digital_hall_mutex);
+	if (cnt >= 10)
+		pr_err("[FACTORY] %s: Print mx, my, mz buffer Timeout!!!\n", __func__);
+	else
+		pr_info("[FACTORY] %s: Print mx, my, mz buffer Succeed\n", __func__);
 #endif
 	return snprintf(buf, PAGE_SIZE, "%d\n", auto_cal_data->flg_update);
 }

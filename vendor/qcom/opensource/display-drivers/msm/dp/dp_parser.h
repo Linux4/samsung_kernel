@@ -269,11 +269,13 @@ struct dp_parser {
 	unsigned long qos_cpu_latency;
 
 #if defined(CONFIG_SECDP)
+	struct regulator *aux_pullup_vreg;
 	bool cc_dir_inv;  /* CC_DIR is inversed, e.g, T865 */
 	bool aux_sel_inv; /* inverse control of AUX_SEL e.g, D2Xq hwid 01,02 */
 	int  use_redrv;   /* ptn36502 needs NOT AUX switch SEL control */
 	int  dex_dft_res; /* DeX default resolution, e.g, HG950 */
 	bool prefer_support;  /* true if prefer resolution has high priority */
+	bool mrr_fps_nolimit; /* true if mirroring refresh rate has no limit */
 
 	u8 vm_pre_emphasis[MAX_VOLTAGE_LEVELS][MAX_PRE_EMP_LEVELS];
 	u8 vm_voltage_swing[MAX_VOLTAGE_LEVELS][MAX_PRE_EMP_LEVELS];

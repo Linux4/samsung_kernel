@@ -134,11 +134,16 @@ int vl53l5_ioctl_get_hap_version(struct vl53l5_k_module_t *p_module,
 				 void __user *p);
 #endif
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
+int vl53l5_ioctl_read_open_cal_p2p_calibration(struct vl53l5_k_module_t *p_module);
+int vl53l5_ioctl_read_open_cal_shape_calibration(struct vl53l5_k_module_t *p_module);
+
 int vl53l5_ioctl_get_cal_data(struct vl53l5_k_module_t *p_module, void __user *p);
 
 int vl53l5_ioctl_set_cal_data(struct vl53l5_k_module_t *p_module, void __user *p);
 
 int vl53l5_ioctl_set_pass_fail(struct vl53l5_k_module_t *p_module, void __user *p);
+
+int vl53l5_ioctl_set_file_list(struct vl53l5_k_module_t *p_module, void __user *p);
 
 int vl53l5_input_report(struct vl53l5_k_module_t *p_module, int type, int cmd);
 int vl53l5_k_power_onoff(struct vl53l5_k_module_t *data, int io, bool on);

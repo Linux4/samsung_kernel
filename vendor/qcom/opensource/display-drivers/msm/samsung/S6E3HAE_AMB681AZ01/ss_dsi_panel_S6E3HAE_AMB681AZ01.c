@@ -248,10 +248,11 @@ done:
 	lfd_base->max_div_def = max_div_def;
 	lfd_base->min_div_def = min_div_def;
 	lfd_base->min_div_lowest = min_div_lowest;
+	lfd_base->fix_div_def = 1; // LFD MAX/MIN 120hz fix
 
 	vrr->lfd.base_rr = base_rr;
 
-	LCD_INFO(vdd, "LFD(%s): base_rr: %uhz, def: %uhz(%u)~%uhz(%u), lowest: %uhz(%u)\n",
+	LCD_DEBUG(vdd, "LFD(%s): base_rr: %uhz, def: %uhz(%u)~%uhz(%u), lowest: %uhz(%u)\n",
 			lfd_scope_name[scope],
 			base_rr,
 			DIV_ROUND_UP(base_rr, min_div_def), min_div_def,
@@ -339,7 +340,7 @@ static int ss_get_frame_insert_cmd(struct samsung_display_driver_data *vdd,
 
 	memcpy(out_cmd, FRAME_INSERT_CMD[case_n], sizeof(FRAME_INSERT_CMD[0]) / sizeof(u8));
 
-	LCD_INFO(vdd, "frame insert[case %d]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X(LFD %uhz~%uhz, %s)\n",
+	LCD_DEBUG(vdd, "frame insert[case %d]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X(LFD %uhz~%uhz, %s)\n",
 			case_n + 1,
 			out_cmd[0], out_cmd[1], out_cmd[2], out_cmd[3], out_cmd[4],
 			out_cmd[5], out_cmd[6], out_cmd[7], out_cmd[8], out_cmd[9],
@@ -2357,7 +2358,7 @@ static struct dsi_panel_cmd_set *ss_brightness_gm2_gamma_comp(struct samsung_dis
 	else
 		return NULL;
 
-	LCD_INFO(vdd, "cur_rr [%d], level [%d] \n",	cur_rr, level);
+	LCD_DEBUG(vdd, "cur_rr [%d], level [%d] \n",	cur_rr, level);
 	return pcmds;
 }
 #endif

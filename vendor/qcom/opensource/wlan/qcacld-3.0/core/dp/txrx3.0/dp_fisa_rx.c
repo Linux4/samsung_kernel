@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -743,10 +744,10 @@ dp_fisa_rx_delete_flow(struct dp_rx_fst *fisa_hdl,
 	sw_ft_entry->is_flow_tcp = elem->is_tcp_flow;
 	sw_ft_entry->is_flow_udp = elem->is_udp_flow;
 
-	dp_rx_fisa_release_ft_lock(fisa_hdl, reo_id);
-
 	fisa_hdl->add_flow_count++;
 	fisa_hdl->del_flow_count++;
+
+	dp_rx_fisa_release_ft_lock(fisa_hdl, reo_id);
 }
 
 /**
@@ -1080,6 +1081,47 @@ dp_fisa_rx_get_sw_ft_entry(struct dp_rx_fst *fisa_hdl, qdf_nbuf_t nbuf,
 	return sw_ft_entry;
 }
 
+#ifdef DP_OFFLOAD_FRAME_WITH_SW_EXCEPTION
+/*
+ * dp_rx_reo_dest_honor_check() - check if packet reo destination is changed
+				  by FW offload
+ *@nbuf: RX packet nbuf
+ *@tlv_reo_dest_ind: reo_dest_ind fetched from rx_packet_tlv
+ *
+ * Return: QDF_STATUS_SUCCESS - reo destination not change, others - yes.
+ */
+static inline QDF_STATUS
+dp_rx_reo_dest_honor_check(qdf_nbuf_t nbuf, uint32_t tlv_reo_dest_ind)
+{
+	uint8_t sw_exception =
+			qdf_nbuf_get_rx_reo_dest_ind_or_sw_excpt(nbuf);
+	/*
+	 * If sw_exception bit is marked, then this data packet is
+	 * re-injected by FW offload, reo destination will not honor
+	 * the original FSE/hash selection, skip FISA.
+	 */
+	return sw_exception ? QDF_STATUS_E_FAILURE : QDF_STATUS_SUCCESS;
+}
+#else
+static inline QDF_STATUS
+dp_rx_reo_dest_honor_check(qdf_nbuf_t nbuf, uint32_t tlv_reo_dest_ind)
+{
+	uint8_t  ring_reo_dest_ind =
+			qdf_nbuf_get_rx_reo_dest_ind_or_sw_excpt(nbuf);
+	/*
+	 * Compare reo_destination_indication between reo ring descriptor
+	 * and rx_pkt_tlvs, if they are different, then likely these kind
+	 * of frames re-injected by FW or touched by other module already,
+	 * skip FISA to avoid REO2SW ring mismatch issue for same flow.
+	 */
+	if (tlv_reo_dest_ind != ring_reo_dest_ind ||
+	    REO_DEST_IND_IPA_REROUTE == ring_reo_dest_ind)
+		return QDF_STATUS_E_FAILURE;
+
+	return QDF_STATUS_SUCCESS;
+}
+#endif
+
 /**
  * dp_rx_get_fisa_flow() - Get FT entry corresponding to incoming nbuf
  * @fisa_hdl: handle to FISA context
@@ -1095,10 +1137,10 @@ dp_rx_get_fisa_flow(struct dp_rx_fst *fisa_hdl, struct dp_vdev *vdev,
 	uint8_t *rx_tlv_hdr;
 	uint32_t flow_idx_hash;
 	uint32_t tlv_reo_dest_ind;
-	uint8_t  ring_reo_dest_ind;
 	bool flow_invalid, flow_timeout, flow_idx_valid;
 	struct dp_fisa_rx_sw_ft *sw_ft_entry = NULL;
 	hal_soc_handle_t hal_soc_hdl = fisa_hdl->soc_hdl->hal_soc;
+	QDF_STATUS status;
 
 	if (QDF_NBUF_CB_RX_TCP_PROTO(nbuf))
 		return sw_ft_entry;
@@ -1106,15 +1148,8 @@ dp_rx_get_fisa_flow(struct dp_rx_fst *fisa_hdl, struct dp_vdev *vdev,
 	rx_tlv_hdr = qdf_nbuf_data(nbuf);
 	hal_rx_msdu_get_reo_destination_indication(hal_soc_hdl, rx_tlv_hdr,
 						   &tlv_reo_dest_ind);
-	ring_reo_dest_ind = qdf_nbuf_get_rx_reo_dest_ind(nbuf);
-	/*
-	 * Compare reo_destination_indication between reo ring descriptor
-	 * and rx_pkt_tlvs, if they are different, then likely these kind
-	 * of frames re-injected by FW or touched by other module already,
-	 * skip FISA to avoid REO2SW ring mismatch issue for same flow.
-	 */
-	if (tlv_reo_dest_ind != ring_reo_dest_ind ||
-	    REO_DEST_IND_IPA_REROUTE == ring_reo_dest_ind)
+	status = dp_rx_reo_dest_honor_check(nbuf, tlv_reo_dest_ind);
+	if (QDF_IS_STATUS_ERROR(status))
 		return sw_ft_entry;
 
 	hal_rx_msdu_get_flow_params(hal_soc_hdl, rx_tlv_hdr, &flow_invalid,
@@ -1658,28 +1693,33 @@ static int dp_add_nbuf_to_fisa_flow(struct dp_rx_fst *fisa_hdl,
 	hal_soc_handle_t hal_soc_hdl = fisa_hdl->soc_hdl->hal_soc;
 	uint32_t hal_aggr_count;
 	uint8_t napi_id = QDF_NBUF_CB_RX_CTX_ID(nbuf);
-	uint8_t reo_id = fisa_flow->napi_id;
 	uint32_t fse_metadata;
+	bool cce_match;
 
 	dump_tlvs(hal_soc_hdl, rx_tlv_hdr, QDF_TRACE_LEVEL_INFO_HIGH);
 	dp_fisa_debug("nbuf: %pK nbuf->next:%pK nbuf->data:%pK len %d data_len %d",
 		      nbuf, qdf_nbuf_next(nbuf), qdf_nbuf_data(nbuf), nbuf->len,
 		      nbuf->data_len);
 
+	dp_rx_fisa_acquire_ft_lock(fisa_hdl, napi_id);
 	/* Packets of the flow are arriving on a different REO than
 	 * the one configured.
 	 */
 	if (qdf_unlikely(fisa_flow->napi_id != napi_id)) {
 		fse_metadata =
 			hal_rx_msdu_fse_metadata_get(hal_soc_hdl, rx_tlv_hdr);
-		if (fisa_hdl->del_flow_count &&
-		    fse_metadata != fisa_flow->metadata)
+		cce_match = hal_rx_msdu_cce_match_get(hal_soc_hdl, rx_tlv_hdr);
+		if (cce_match || (fisa_hdl->del_flow_count &&
+		    fse_metadata != fisa_flow->metadata)) {
+			dp_rx_fisa_release_ft_lock(fisa_hdl, napi_id);
 			return FISA_AGGR_NOT_ELIGIBLE;
+		}
 
 		dp_err("REO id mismatch flow: %pK napi_id: %u nbuf: %pK reo_id: %u",
 		       fisa_flow, fisa_flow->napi_id, nbuf, napi_id);
 		DP_STATS_INC(fisa_hdl, reo_mismatch, 1);
 		QDF_BUG(0);
+		dp_rx_fisa_release_ft_lock(fisa_hdl, napi_id);
 		return FISA_AGGR_NOT_ELIGIBLE;
 	}
 
@@ -1690,8 +1730,6 @@ static int dp_add_nbuf_to_fisa_flow(struct dp_rx_fst *fisa_hdl,
 							       rx_tlv_hdr);
 	hal_aggr_count = hal_rx_get_fisa_flow_agg_count(hal_soc_hdl,
 							rx_tlv_hdr);
-
-	dp_rx_fisa_acquire_ft_lock(fisa_hdl, reo_id);
 
 	if (!flow_aggr_cont) {
 		/* Start of new aggregation for the flow
@@ -1798,14 +1836,14 @@ static int dp_add_nbuf_to_fisa_flow(struct dp_rx_fst *fisa_hdl,
 		dp_rx_fisa_aggr_tcp(fisa_hdl, fisa_flow, nbuf);
 	}
 
-	dp_rx_fisa_release_ft_lock(fisa_hdl, reo_id);
+	dp_rx_fisa_release_ft_lock(fisa_hdl, napi_id);
 	fisa_flow->last_accessed_ts = qdf_get_log_timestamp();
 
 	return FISA_AGGR_DONE;
 
 invalid_fisa_assist:
 	/* Not eligible aggregation deliver frame without FISA */
-	dp_rx_fisa_release_ft_lock(fisa_hdl, reo_id);
+	dp_rx_fisa_release_ft_lock(fisa_hdl, napi_id);
 	return FISA_AGGR_NOT_ELIGIBLE;
 }
 

@@ -435,7 +435,7 @@ int btfm_slim_hw_init(struct btfmslim *btfmslim)
 		chipset_ver == QCA_HSP_SOC_ID_1201 ||
 		chipset_ver == QCA_HSP_SOC_ID_1211)) {
 		BTFMSLIM_INFO("SB reset needed before getting LA, sleeping");
-		msleep(DELAY_FOR_PORT_OPEN_MS);
+		//msleep(DELAY_FOR_PORT_OPEN_MS);
 	}
 
 

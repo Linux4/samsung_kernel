@@ -217,6 +217,7 @@ struct vl53l5_k_module_t {
 	int32_t min;
 	int32_t avg;
 	int32_t max;
+	int32_t max_peak_signal;
 
 	u8 asz_position[32];
 
@@ -225,6 +226,7 @@ struct vl53l5_k_module_t {
 	int8_t failed_count;
 	int8_t update_flag;
 	int8_t pass_fail_flag;
+	int8_t file_list;
 
 	bool load_calibration;
 	bool read_p2p_cal_data;
@@ -239,6 +241,11 @@ struct vl53l5_k_module_t {
 #define CMD_WRITE_CAL_FILE		1 // 0x2
 #define CMD_WRITE_P2P_FILE		2 // 0x4
 #define CMD_WRITE_SHAPE_FILE	3 // 0x8
+#define CMD_READ_P2P_CAL_FILE		4 // 0x10
+#define CMD_READ_SHAPE_CAL_FILE		5 // 0x20
+#define CMD_CHECK_CAL_FILE_TYPE		6 // 0x40
+#define CMD_DELTE_OPENCAL_FILE		7 // 0x80
+
 
 #define TIMEOUT_CNT 40
 #endif

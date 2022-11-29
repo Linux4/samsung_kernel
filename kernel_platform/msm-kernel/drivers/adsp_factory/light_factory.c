@@ -64,6 +64,8 @@ enum {
 	OPTION_TYPE_SAVE_LIGHT_CAL,
 	OPTION_TYPE_LOAD_LIGHT_CAL,
 	OPTION_TYPE_GET_LIGHT_DEVICE_ID,
+	OPTION_TYPE_GET_TRIM_CHECK,
+	OPTION_TYPE_GET_SUB_ALS_LUX,
 	OPTION_TYPE_MAX
 };
 
@@ -596,7 +598,7 @@ static ssize_t light_lcd_onoff_store(struct device *dev,
 	struct adsp_data *data = dev_get_drvdata(dev);
 	uint16_t light_idx = get_light_sidx(data);
 	int32_t msg_buf[3];
-	int new_value, cnt = 0;
+	int new_value = 0;
 
 	if (sysfs_streq(buf, "0"))
 		new_value = 0;
@@ -639,14 +641,6 @@ static ssize_t light_lcd_onoff_store(struct device *dev,
 	mutex_lock(&data->light_factory_mutex);
 	adsp_unicast(msg_buf, sizeof(msg_buf),
 		light_idx, 0, MSG_TYPE_OPTION_DEFINE);
-	while (!(data->ready_flag[MSG_TYPE_OPTION_DEFINE] & 1 << light_idx) &&
-		cnt++ < TIMEOUT_CNT)
-		usleep_range(500, 550);
-	data->ready_flag[MSG_TYPE_OPTION_DEFINE] &= ~(1 << light_idx);
-	if (cnt >= TIMEOUT_CNT)
-		pr_err("[SSC_FAC] %s: Timeout!!!\n", __func__);
-	adsp_unicast(msg_buf, sizeof(msg_buf),
-		MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
 	mutex_unlock(&data->light_factory_mutex);
 
 	return size;
@@ -1373,6 +1367,70 @@ static ssize_t light_cal_store(struct device *dev,
 }
 #endif
 
+static ssize_t light_trim_check_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+	uint16_t light_idx = get_light_sidx(data);
+	int cnt = 0;
+	int32_t msg = OPTION_TYPE_GET_TRIM_CHECK;
+
+	mutex_lock(&data->light_factory_mutex);
+	adsp_unicast(&msg, sizeof(int32_t), light_idx, 0, MSG_TYPE_GET_CAL_DATA);
+
+	while (!(data->ready_flag[MSG_TYPE_GET_CAL_DATA] & 1 << light_idx) &&
+		cnt++ < TIMEOUT_CNT)
+		usleep_range(500, 550);
+
+	data->ready_flag[MSG_TYPE_GET_CAL_DATA] &= ~(1 << light_idx);
+	mutex_unlock(&data->light_factory_mutex);
+
+	if (cnt >= TIMEOUT_CNT) {
+		pr_err("[SSC_FAC] %s: Timeout!!!\n", __func__);
+		return snprintf(buf, PAGE_SIZE, "NG\n");
+	}
+
+	pr_info("[SSC_FAC] %s: [%s]: 0x%x, 0x%x\n",
+		__func__, (data->msg_buf[light_idx][0] > 0) ? "TRIM" : "UNTRIM",
+		(uint16_t)data->msg_buf[light_idx][1],
+		(uint16_t)data->msg_buf[light_idx][2]);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+		(data->msg_buf[light_idx][0] > 0) ? "TRIM" : "UNTRIM");
+}
+
+#if IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC) && !IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+static ssize_t light_sub_als_lux_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+	uint16_t light_idx = get_light_sidx(data);
+	int cnt = 0;
+	int32_t msg = OPTION_TYPE_GET_SUB_ALS_LUX;
+
+	if (light_idx == MSG_LIGHT) {
+		mutex_lock(&data->light_factory_mutex);
+		adsp_unicast(&msg, sizeof(int32_t), light_idx, 0, MSG_TYPE_GET_CAL_DATA);
+
+		while (!(data->ready_flag[MSG_TYPE_GET_CAL_DATA] & 1 << light_idx) &&
+			cnt++ < TIMEOUT_CNT)
+			usleep_range(500, 550);
+
+		data->ready_flag[MSG_TYPE_GET_CAL_DATA] &= ~(1 << light_idx);
+		mutex_unlock(&data->light_factory_mutex);
+
+		if (cnt >= TIMEOUT_CNT) {
+			pr_err("[SSC_FAC] %s: Timeout!!!\n", __func__);
+			return snprintf(buf, PAGE_SIZE, "NG\n");
+		}
+
+		return snprintf(buf, PAGE_SIZE, "%d\n", data->msg_buf[light_idx][0]);
+	} else {
+		return snprintf(buf, PAGE_SIZE, "-1\n");
+	}
+}
+#endif
+
 #if IS_ENABLED(CONFIG_SUPPORT_LIGHT_CALIBRATION) || IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
 static DEVICE_ATTR(light_cal, 0664, light_cal_show, light_cal_store);
 #endif
@@ -1404,6 +1462,10 @@ static DEVICE_ATTR(brightness, 0664, light_brightness_show, light_brightness_sto
 #if IS_ENABLED(CONFIG_SUPPORT_SSC_AOD_RECT)
 static DEVICE_ATTR(set_aod_rect, 0220, NULL, light_set_aod_rect_store);
 #endif
+static DEVICE_ATTR(trim_check, 0444, light_trim_check_show, NULL);
+#if IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC) && !IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+static DEVICE_ATTR(sub_als_lux, 0444, light_sub_als_lux_show, NULL);
+#endif
 
 static struct device_attribute *light_attrs[] = {
 	&dev_attr_vendor,
@@ -1434,6 +1496,10 @@ static struct device_attribute *light_attrs[] = {
 	&dev_attr_brightness,
 #if IS_ENABLED(CONFIG_SUPPORT_SSC_AOD_RECT)
 	&dev_attr_set_aod_rect,
+#endif
+	&dev_attr_trim_check,
+#if IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC) && !IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+	&dev_attr_sub_als_lux,
 #endif
 	NULL,
 };

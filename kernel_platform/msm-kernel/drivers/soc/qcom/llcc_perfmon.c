@@ -418,7 +418,7 @@ static ssize_t perfmon_filter_config_store(struct device *dev,
 		if (token == NULL)
 			break;
 
-		if (kstrtoul(token, 0, &port))
+		if (kstrtoul(token, 0, &port) || port >= MAX_NUMBER_OF_PORTS)
 			break;
 
 		llcc_priv->filtered_ports |= 1 << port;
@@ -487,7 +487,7 @@ static ssize_t perfmon_filter_remove_store(struct device *dev,
 		if (token == NULL)
 			break;
 
-		if (kstrtoul(token, 0, &port))
+		if (kstrtoul(token, 0, &port) || port >= MAX_NUMBER_OF_PORTS)
 			break;
 
 		llcc_priv->filtered_ports &= ~(1 << port);

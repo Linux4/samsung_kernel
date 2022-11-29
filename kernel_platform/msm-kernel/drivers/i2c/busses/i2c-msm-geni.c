@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -163,7 +164,7 @@ struct geni_i2c_dev {
 	bool first_resume;
 	bool gpi_reset;
 	bool prev_cancel_pending; //Halt cancel till IOS in good state
-    bool is_i2c_rtl_based; /* doing pending cancel only for rtl based SE's */
+	bool is_i2c_rtl_based; /* doing pending cancel only for rtl based SE's */
 };
 
 static struct geni_i2c_dev *gi2c_dev_dbg[MAX_SE];
@@ -369,7 +370,8 @@ static irqreturn_t geni_i2c_irq(int irq, void *dev)
 	if ((m_stat & M_CMD_FAILURE_EN) ||
 		    (dm_rx_st & (DM_I2C_CB_ERR)) ||
 		    (m_stat & M_CMD_CANCEL_EN) ||
-		    (m_stat & M_CMD_ABORT_EN)) {
+		    (m_stat & M_CMD_ABORT_EN) ||
+		    (m_stat & M_GP_IRQ_1_EN)) {
 
 		if (m_stat & M_GP_IRQ_1_EN)
 			geni_i2c_err(gi2c, I2C_NACK);
@@ -1279,11 +1281,14 @@ geni_i2c_txn_ret:
 		pm_runtime_mark_last_busy(gi2c->dev);
 		pm_runtime_put_autosuspend(gi2c->dev);
 	}
+
 	gi2c->cur = NULL;
-	gi2c->err = 0;
 	I2C_LOG_DBG(gi2c->ipcl, false, gi2c->dev,
-			"i2c txn ret:%d\n", ret);
-	return ret;
+		"i2c txn ret:%d, num:%d, err:%d\n", ret, num, gi2c->err);
+	if (gi2c->err)
+		return gi2c->err;
+	else
+		return ret;
 }
 
 static u32 geni_i2c_func(struct i2c_adapter *adap)

@@ -147,11 +147,16 @@ EXPORT_SYMBOL_GPL(cirrus_amp_add);
 int cirrus_amp_read_ctl(struct cirrus_amp *amp, const char *name,
 			int type, unsigned int id, unsigned int *value)
 {
-	struct wm_adsp *dsp = snd_soc_component_get_drvdata(amp->component);
+	struct wm_adsp *dsp;
 	unsigned int tmp;
 	int ret = 0;
 
-	if (amp->component) {
+	if (amp && amp->component)
+		dsp = snd_soc_component_get_drvdata(amp->component);
+	else
+		return -EINVAL;
+
+	if (dsp) {
 		ret = wm_adsp_read_ctl(dsp, name, type, id, (void *)&tmp, 4);
 		*value = (tmp & 0xff0000) >> 8 |
 			(tmp & 0xff00) << 8 |
@@ -165,15 +170,20 @@ EXPORT_SYMBOL_GPL(cirrus_amp_read_ctl);
 int cirrus_amp_write_ctl(struct cirrus_amp *amp, const char *name,
 			 int type, unsigned int id, unsigned int value)
 {
-	struct wm_adsp *dsp = snd_soc_component_get_drvdata(amp->component);
+	struct wm_adsp *dsp;
 	unsigned int tmp;
+
+	if (amp && amp->component)
+		dsp = snd_soc_component_get_drvdata(amp->component);
+	else
+		return -EINVAL;
 
 	tmp = (value & 0xff0000) >> 8 |
 			(value & 0xff00) << 8 |
 			(value & 0xff000000) >> 24 |
 			(value & 0xff) << 24;
 
-	if (amp->component)
+	if (dsp)
 		return wm_adsp_write_ctl(dsp, name, type, id, (void *)&tmp, 4);
 
 	return 0;
