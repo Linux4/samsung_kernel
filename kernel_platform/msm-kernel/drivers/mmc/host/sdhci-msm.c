@@ -77,6 +77,7 @@
 
 #define CORE_DDR_CAL_EN		BIT(0)
 #define CORE_FLL_CYCLE_CNT	BIT(18)
+#define CORE_LOW_FREQ_MODE	BIT(19)
 #define CORE_DLL_CLOCK_DISABLE	BIT(21)
 
 #define DLL_USR_CTL_POR_VAL	0x10800
@@ -524,6 +525,7 @@ struct sdhci_msm_host {
 	bool vqmmc_enabled;
 	void *sdhci_msm_ipc_log_ctx;
 	bool dbg_en;
+	bool err_occurred;
 };
 
 static struct sdhci_msm_host *sdhci_slot[2];
@@ -866,6 +868,7 @@ static int msm_init_cm_dll(struct sdhci_host *host,
 	struct mmc_host *mmc = host->mmc;
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_msm_host *msm_host = sdhci_pltfm_priv(pltfm_host);
+	struct mmc_ios curr_ios = mmc->ios;
 	int wait_cnt = 50;
 	int rc = 0;
 	unsigned long flags, dll_clock = 0;
@@ -977,6 +980,15 @@ static int msm_init_cm_dll(struct sdhci_host *host,
 				msm_offset->core_dll_config_2)
 				& ~(0xFF << 10)) | (mclk_freq << 10)),
 				host->ioaddr + msm_offset->core_dll_config_2);
+		}
+
+
+		if (curr_ios.timing == MMC_TIMING_UHS_SDR104 &&
+			msm_host->uses_level_shifter) {
+			writel_relaxed((readl_relaxed(host->ioaddr +
+				msm_offset->core_dll_config_2)
+				| CORE_LOW_FREQ_MODE), host->ioaddr +
+				msm_offset->core_dll_config_2);
 		}
 		/* wait for 5us before enabling DLL clock */
 		udelay(5);
@@ -3061,17 +3073,34 @@ static void sdhci_msm_set_timeout(struct sdhci_host *host, struct mmc_command *c
 {
 	u32 count, start = 15;
 
+	/*
+	 * Qcom SoC hardware data timeout value was calculated
+	 * using 4 * MCLK * 2^(count + 13). where MCLK = 1 / host->clock.
+	 */
+
+	host->timeout_clk = host->mmc->actual_clock ?
+				host->mmc->actual_clock / 1000 :
+				host->clock / 1000;
+	host->timeout_clk /= 4;
+
 	__sdhci_set_timeout(host, cmd);
 	count = sdhci_readb(host, SDHCI_TIMEOUT_CONTROL);
+
 	/*
 	 * Update software timeout value if its value is less than hardware data
-	 * timeout value. Qcom SoC hardware data timeout value was calculated
-	 * using 4 * MCLK * 2^(count + 13). where MCLK = 1 / host->clock.
+	 * timeout value.
 	 */
 	if (cmd && cmd->data && host->clock > 400000 &&
 	    host->clock <= 50000000 &&
 	    ((1 << (count + start)) > (10 * host->clock)))
 		host->data_timeout = 22LL * NSEC_PER_SEC;
+}
+
+void sdhci_msm_cqe_sdhci_dumpregs(struct mmc_host *mmc)
+{
+	struct sdhci_host *host = mmc_priv(mmc);
+
+	sdhci_dumpregs(host);
 }
 
 static const struct cqhci_host_ops sdhci_msm_cqhci_ops = {
@@ -3080,6 +3109,7 @@ static const struct cqhci_host_ops sdhci_msm_cqhci_ops = {
 #ifdef CONFIG_MMC_CRYPTO
 	.program_key	= sdhci_msm_program_key,
 #endif
+	.dumpregs		= sdhci_msm_cqe_sdhci_dumpregs,
 };
 
 static int sdhci_msm_cqe_add_host(struct sdhci_host *host,
@@ -3842,6 +3872,8 @@ static void sdhci_msm_dump_vendor_regs(struct sdhci_host *host)
 	u32 test_bus_val = 0;
 	u32 debug_reg[MAX_TEST_BUS] = {0};
 
+	msm_host->err_occurred = true;
+
 	SDHCI_MSM_DUMP("----------- VENDOR REGISTER DUMP -----------\n");
 
 	if (msm_host->cq_host)
@@ -3983,6 +4015,7 @@ static void sdhci_msm_hw_reset(struct sdhci_host *host)
 	if (ret)
 		dev_err(&pdev->dev, "%s: core_reset deassert failed, err = %d\n",
 				__func__, ret);
+	usleep_range(200, 210);
 
 	sdhci_msm_registers_restore(host);
 	msm_host->reg_store = false;
@@ -4478,7 +4511,7 @@ out_vote_err:
 	msm_host->sdhci_qos = NULL;
 }
 
-static ssize_t sdhci_msm_dbg_state_store(struct device *dev,
+static ssize_t dbg_state_store(struct device *dev,
 			struct device_attribute *attr,
 			const char *buf, size_t count)
 {
@@ -4498,7 +4531,7 @@ static ssize_t sdhci_msm_dbg_state_store(struct device *dev,
 	return count;
 }
 
-static ssize_t sdhci_msm_dbg_state_show(struct device *dev,
+static ssize_t dbg_state_show(struct device *dev,
 			struct device_attribute *attr, char *buf)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
@@ -4512,10 +4545,26 @@ static ssize_t sdhci_msm_dbg_state_show(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "%d\n", msm_host->dbg_en);
 }
 
-static DEVICE_ATTR_RW(sdhci_msm_dbg_state);
+static DEVICE_ATTR_RW(dbg_state);
+
+static ssize_t err_state_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct sdhci_host *host = dev_get_drvdata(dev);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_msm_host *msm_host = sdhci_pltfm_priv(pltfm_host);
+
+	if (!host || !host->mmc)
+		return -EINVAL;
+
+	return scnprintf(buf, PAGE_SIZE, "%d\n", !!msm_host->err_occurred);
+}
+
+static DEVICE_ATTR_RO(err_state);
 
 static struct attribute *sdhci_msm_sysfs_attrs[] = {
-	&dev_attr_sdhci_msm_dbg_state.attr,
+	&dev_attr_dbg_state.attr,
+	&dev_attr_err_state.attr,
 	NULL
 };
 
@@ -4981,8 +5030,6 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	}
 
 	sdhci_msm_set_caps(msm_host);
-
-	msm_host->pltfm_init_done = true;
 
 	sdhci_msm_setup_pm(pdev, msm_host);
 

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -52,6 +53,7 @@
 #include <cdp_txrx_peer_ops.h>
 #include "dot11f.h"
 #include "wlan_p2p_cfg_api.h"
+#include "son_api.h"
 
 #define SA_QUERY_REQ_MIN_LEN \
 (DOT11F_FF_CATEGORY_LEN + DOT11F_FF_ACTION_LEN + DOT11F_FF_TRANSACTIONID_LEN)
@@ -283,13 +285,18 @@ static void __lim_process_operating_mode_action_frame(struct mac_context *mac_ct
 		goto end;
 	}
 
-
 	lim_update_nss(mac_ctx, sta_ptr,
 		       operating_mode_frm->OperatingMode.rxNSS,
 		       session);
-	lim_update_channel_width(mac_ctx, sta_ptr, session,
-			operating_mode_frm->OperatingMode.chanWidth,
-			&ch_bw);
+
+	if (lim_update_channel_width(mac_ctx, sta_ptr, session,
+				 operating_mode_frm->OperatingMode.chanWidth,
+				 &ch_bw))
+		wlan_son_deliver_opmode(session->vdev,
+					ch_bw,
+					sta_ptr->vhtSupportedRxNss,
+					mac_hdr->sa);
+
 end:
 	qdf_mem_free(operating_mode_frm);
 	return;
@@ -1050,6 +1057,9 @@ __lim_process_sm_power_save_update(struct mac_context *mac, uint8_t *pRxPacketIn
 	pSta->htMIMOPSState = state;
 	lim_post_sm_state_update(mac, pSta->htMIMOPSState,
 				 pSta->staAddr, pe_session->smeSessionId);
+	wlan_son_deliver_smps(pe_session->vdev,
+			      (eSIR_HT_MIMO_PS_STATIC == state) ? 1 : 0,
+			      pSta->staAddr);
 }
 
 
@@ -1147,8 +1157,12 @@ __lim_process_link_measurement_req(struct mac_context *mac, uint8_t *pRxPacketIn
 		pe_debug("There were warnings while unpacking a Link Measure request (0x%08x, %d bytes):",
 			nStatus, frameLen);
 	}
-	/* Call rrm function to handle the request. */
 
+	if (pe_session->sta_follows_sap_power) {
+		pe_debug("STA power has changed, reject the link measurement request");
+		return QDF_STATUS_E_FAILURE;
+	}
+	/* Call rrm function to handle the request. */
 	return rrm_process_link_measurement_request(mac, pRxPacketInfo, &frm,
 					     pe_session);
 
@@ -1531,7 +1545,7 @@ static void lim_process_delba_req(struct mac_context *mac_ctx, uint8_t *rx_pkt_i
 	body_ptr = WMA_GET_RX_MPDU_DATA(rx_pkt_info);
 	frame_len = WMA_GET_RX_PAYLOAD_LEN(rx_pkt_info);
 
-	QDF_TRACE_HEX_DUMP(QDF_MODULE_ID_PE, QDF_TRACE_LEVEL_INFO,
+	QDF_TRACE_HEX_DUMP(QDF_MODULE_ID_PE, QDF_TRACE_LEVEL_DEBUG,
 			   body_ptr, frame_len);
 
 	delba_req = qdf_mem_malloc(sizeof(*delba_req));
@@ -1555,7 +1569,7 @@ static void lim_process_delba_req(struct mac_context *mac_ctx, uint8_t *rx_pkt_i
 			delba_req->delba_param_set.tid, delba_req->Reason.code);
 
 	if (QDF_STATUS_SUCCESS != qdf_status)
-		pe_err("Failed to process delba request");
+		pe_err_rl("Failed to process delba request");
 
 error:
 	qdf_mem_free(delba_req);
@@ -1746,6 +1760,17 @@ void lim_process_action_frame(struct mac_context *mac_ctx,
 		break;
 
 	case ACTION_CATEGORY_RRM:
+
+		if (mac_ctx->rrm.rrmPEContext.rrmEnable &&
+		    LIM_IS_AP_ROLE(session) &&
+		    action_hdr->actionID == RRM_RADIO_MEASURE_RPT) {
+			mac_hdr = WMA_GET_RX_MAC_HEADER(rx_pkt_info);
+			wlan_son_deliver_rrm_rpt(session->vdev,
+				 mac_hdr->sa,
+				 body_ptr + sizeof(tSirMacActionFrameHdr),
+				 frame_len - sizeof(tSirMacActionFrameHdr));
+		}
+
 		/* Ignore RRM measurement request until DHCP is set */
 		if (mac_ctx->rrm.rrmPEContext.rrmEnable &&
 		    mac_ctx->roam.roamSession[session->smeSessionId].dhcp_done) {

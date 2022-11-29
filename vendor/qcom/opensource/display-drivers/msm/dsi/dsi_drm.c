@@ -558,7 +558,7 @@ static bool dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 				if ((drm_mode_vrefresh(cur_mode) != drm_mode_vrefresh(adjusted_mode)) ||
 						(cur_sot_hs != adjusted_sot_hs) ||
 						(cur_phs != adjusted_phs)) {
-					LCD_INFO(vdd, "DMS: VRR flag: %d -> 1\n", vrr->is_vrr_changing);
+					LCD_DEBUG(vdd, "DMS: VRR flag: %d -> 1\n", vrr->is_vrr_changing);
 					vrr->is_vrr_changing = true;
 					vrr->keep_max_clk = true;
 					vdd->vrr.running_vrr_mdp = true;

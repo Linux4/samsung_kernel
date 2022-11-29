@@ -917,11 +917,18 @@ config KSWAPD_CPU
 
 config MMAP_READAROUND_LIMIT
 	int "Limit mmap readaround upperbound"
-	default 0
+	default 16
 	help
 	  Inappropriate mmap readaround size can hurt device performance
 	  during the sluggish situation. Add the hard upper-limit for
 	  mmap readaround.
+
+config FAULT_AROUND_BYTES
+	int "Fault around bytes"
+	default 32768
+	range 4096 65536
+	help
+	  The number of bytes to be mapped around the fault.
 
 config DIRECT_RECLAIM_FILE_PAGES_ONLY
 	bool "Reclaim file pages only on direct reclaim path"
@@ -976,6 +983,12 @@ config HUGEPAGE_POOL_ALLOW_ALL
 	depends on HUGEPAGE_POOL
 	help
 	  allow 2MB page for all to debug hugepage pool
+
+config TASK_HAS_ALLOC_FREE_STAT
+    bool "let struct task have alloc/free stat"
+	default n
+	help
+	  let struct task have alloc/free stat
 
 endmenu
 

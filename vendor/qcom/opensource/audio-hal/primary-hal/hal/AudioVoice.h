@@ -106,6 +106,9 @@ public:
     void VoiceGetParameters(struct str_parms *query, struct str_parms *reply);
     int RouteStream(const std::set<audio_devices_t>&);
     bool is_valid_call_state(int call_state);
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    bool get_voice_call_state(audio_mode_t *mode);
+#endif
     bool is_valid_vsid(uint32_t vsid);
     int max_voice_sessions_;
     std::mutex voice_mutex_;
@@ -122,6 +125,9 @@ public:
                              std::set<audio_devices_t>& tx_devs);
     bool IsCallActive(voice_session_t *pSession);
     bool IsAnyCallActive();
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    void updateVoiceMetadataForBT(bool call_active);
+#endif
     int StopCall();
     AudioVoice();
     ~AudioVoice();

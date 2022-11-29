@@ -59,6 +59,7 @@ enum {
 	HW_PLATFORM_HDK = 31,
 	HW_PLATFORM_ATP = 33,
 	HW_PLATFORM_IDP = 34,
+	HW_PLATFORM_QXR = 38,
 	HW_PLATFORM_INVALID
 };
 
@@ -82,6 +83,7 @@ static const char * const hw_platform[] = {
 	[HW_PLATFORM_HDK] = "HDK",
 	[HW_PLATFORM_ATP] = "ATP",
 	[HW_PLATFORM_IDP] = "IDP",
+	[HW_PLATFORM_QXR] = "QXR",
 };
 
 enum {
@@ -782,9 +784,10 @@ static const struct soc_id soc_id[] = {
 	{ 530, "CAPE" },
 	{ 531, "CAPEP" },
 	{ 540, "CAPE-V2" },
-	{ 525, "NEO" },
+	{ 525, "NEO-LE" },
 	{ 552, "WAIPIO-LTE" },
 	{ 554, "NEO-LA" },
+	{ 568, "RAVELIN" },
 };
 
 static struct qcom_socinfo *qsocinfo;

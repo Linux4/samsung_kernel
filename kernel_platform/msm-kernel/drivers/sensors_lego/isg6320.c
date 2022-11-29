@@ -2838,10 +2838,11 @@ static int isg6320_sensor_attr_offset(void)
 				(sizeof(multi_sensor_attrs) / sizeof(ssize_t *));
 
 	for (i = 0; i < offset_max; i++) {
+		if (i == sizeof(sensor_attrs) / sizeof(ssize_t *))
+			break;
 		if (sensor_attrs[i] == NULL)
 			return i;
 	}
-
 	return -1;
 }
 #endif
@@ -2891,7 +2892,7 @@ static int isg6320_probe(struct i2c_client *client,
 		goto err_parse_dt;
 	}
 
-	pr_info("[GRIP %d] multi_channel : %d", data->ic_num, data->multi_use);
+	pr_info("[GRIP_%d] multi_channel : %d", data->ic_num, data->multi_use);
 #ifdef CONFIG_USE_MULTI_CHANNEL
 	if (data->multi_use) {
 		data->mul_ch = kzalloc(sizeof(struct multi_channel), GFP_KERNEL);

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -32,6 +33,7 @@
 #include <wlan_cp_stats_utils_api.h>
 #include "../../core/src/wlan_cp_stats_defs.h"
 #include "../../core/src/wlan_cp_stats_obj_mgr_handler.h"
+#include "son_api.h"
 
 static bool tgt_mc_cp_stats_is_last_event(struct stats_event *ev,
 					  enum stats_req_type stats_type)
@@ -165,6 +167,10 @@ static void tgt_mc_cp_stats_extract_tx_power(struct wlan_objmgr_psoc *psoc,
 
 	wlan_cp_stats_pdev_obj_lock(pdev_cp_stats_priv);
 	pdev_mc_stats = pdev_cp_stats_priv->pdev_stats;
+	if (!is_station_stats &&
+	    pdev_mc_stats->max_pwr != ev->pdev_stats[pdev_id].max_pwr)
+		wlan_son_deliver_tx_power(vdev,
+					  ev->pdev_stats[pdev_id].max_pwr);
 	max_pwr = pdev_mc_stats->max_pwr = ev->pdev_stats[pdev_id].max_pwr;
 	wlan_cp_stats_pdev_obj_unlock(pdev_cp_stats_priv);
 	if (is_station_stats)
@@ -1194,7 +1200,7 @@ QDF_STATUS tgt_mc_cp_stats_inc_wake_lock_stats(struct wlan_objmgr_psoc *psoc,
 	struct wlan_lmac_if_cp_stats_tx_ops *tx_ops;
 
 	tx_ops = target_if_cp_stats_get_tx_ops(psoc);
-	if (!tx_ops)
+	if (!tx_ops || !tx_ops->inc_wake_lock_stats)
 		return QDF_STATUS_E_NULL_VALUE;
 
 	tx_ops->inc_wake_lock_stats(reason, stats, unspecified_wake_count);

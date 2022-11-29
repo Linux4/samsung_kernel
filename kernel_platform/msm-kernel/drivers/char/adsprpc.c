@@ -57,6 +57,8 @@
 #include <linux/soc/qcom/pdr.h>
 #include <linux/soc/qcom/qmi.h>
 #include <linux/mem-buf.h>
+#include <linux/dma-iommu.h>
+#include <asm/arch_timer.h>
 
 #include <linux/sec_debug.h>
 
@@ -214,7 +216,9 @@
 /* Length of glink transaction history to store */
 #define GLINK_MSG_HISTORY_LEN (512)
 
-#define PERF_CAPABILITY   (1 << 1)
+#define PERF_CAPABILITY_SUPPORT	(1 << 1)
+#define KERNEL_ERROR_CODE_V1_SUPPORT	1
+#define USERSPACE_ALLOCATION_SUPPORT	1
 
 #define MD_GMSG_BUFFER (1000)
 
@@ -222,6 +226,29 @@
 
 /* Max number of region supported */
 #define MAX_UNIQUE_ID 5
+
+#define SS_MEM_PROFILE
+
+#if defined(SS_MEM_PROFILE)
+#include <linux/samsung/debug/sec_debug.h>
+
+struct mem_profile_private {
+	struct hlist_node list_node;
+
+	int cid;
+	int tgid_open;
+	int tgid;
+	char comm[TASK_COMM_LEN];
+
+	unsigned int profile_len_peak_usage;
+	unsigned int profile_page_peak_usage;
+};
+
+#define MAX_MEM_PROFILE_ENTRY ((PAGE_SIZE/sizeof(struct mem_profile_private)) - 1)
+
+static int mem_profile_entry;
+struct hlist_head mem_profile_root = HLIST_HEAD_INIT;
+#endif
 
 /* Unique index flag used for mini dump */
 static int md_unique_index_flag[MAX_UNIQUE_ID] = { 0, 0, 0, 0, 0 };
@@ -373,11 +400,13 @@ struct fastrpc_tx_msg {
 	struct smq_msg msg; /* Msg sent to remote subsystem */
 	int rpmsg_send_err; /* rpmsg error */
 	int64_t ns;         /* Timestamp (in ns) of msg */
+	uint64_t xo_time_in_us;
 };
 
 struct fastrpc_rx_msg {
 	struct smq_invoke_rspv2 rsp;  /* Response from remote subsystem */
 	int64_t ns;   /* Timestamp (in ns) of response */
+	uint64_t xo_time_in_us;
 };
 
 struct fastrpc_rpmsg_log {
@@ -709,6 +738,17 @@ struct fastrpc_file {
 	bool is_unsigned_pd;
 	/* Flag to indicate dynamic process creation status*/
 	enum fastrpc_process_create_state dsp_process_state;
+
+#if defined(SS_MEM_PROFILE)
+	unsigned int len_curr_usage;
+	unsigned int len_peak_usage;
+
+	unsigned int page_curr_usage;
+	unsigned int page_peak_usage;
+
+	struct mem_profile_private *mem_profile;
+#endif
+
 };
 
 static struct fastrpc_apps gfa;
@@ -777,10 +817,12 @@ static int hlosvmperm[1] = {PERM_READ | PERM_WRITE | PERM_EXEC};
 
 static uint32_t kernel_capabilities[FASTRPC_MAX_ATTRIBUTES -
 					FASTRPC_MAX_DSP_ATTRIBUTES] = {
-	PERF_CAPABILITY,
+	PERF_CAPABILITY_SUPPORT,
 	/* PERF_LOGGING_V2_SUPPORT feature is supported, unsupported = 0 */
-	1
+	KERNEL_ERROR_CODE_V1_SUPPORT,
 	/* Fastrpc Driver error code changes present */
+	USERSPACE_ALLOCATION_SUPPORT
+	/* Userspace allocation allowed for DSP memory request*/
 };
 
 static inline void fastrpc_pm_awake(struct fastrpc_file *fl, int channel_type);
@@ -789,7 +831,7 @@ static int fastrpc_mem_map_to_dsp(struct fastrpc_file *fl, int fd, int offset,
 				size_t size, uintptr_t *raddr);
 static inline void fastrpc_update_rxmsg_buf(struct fastrpc_channel_ctx *chan,
 	uint64_t ctx, int retval, uint32_t rsp_flags,
-	uint32_t early_wake_time, uint32_t ver, int64_t ns);
+	uint32_t early_wake_time, uint32_t ver, int64_t ns, uint64_t xo_time_in_us);
 
 /**
  * fastrpc_device_create - Create device for the fastrpc process file
@@ -858,7 +900,8 @@ static inline int poll_for_remote_response(struct smq_invoke_ctx *ctx, uint32_t 
 			/* Update DSP response history */
 			fastrpc_update_rxmsg_buf(&gfa.channel[ctx->fl->cid],
 				ctx->msg.invoke.header.ctx, 0, POLL_MODE, 0,
-				FASTRPC_RSP_VERSION2, get_timestamp_in_ns());
+				FASTRPC_RSP_VERSION2, get_timestamp_in_ns(),
+				__arch_counter_get_cntvct() * 10ull / 192ull);
 			break;
 		}
 		if (jj == FASTRPC_POLL_TIME_MEM_UPDATE) {
@@ -877,11 +920,12 @@ static inline int poll_for_remote_response(struct smq_invoke_ctx *ctx, uint32_t 
  * @msg            : Pointer to RPC message to remote subsystem
  * @rpmsg_send_err : Error from rpmsg
  * @ns             : Timestamp (in ns) of sent message
+ * @xo_time_in_us  : XO Timestamp (in us) of sent message
  *
  * Returns none
  */
 static inline void fastrpc_update_txmsg_buf(struct fastrpc_channel_ctx *chan,
-	struct smq_msg *msg, int rpmsg_send_err, int64_t ns)
+	struct smq_msg *msg, int rpmsg_send_err, int64_t ns, uint64_t xo_time_in_us)
 {
 	unsigned long flags = 0;
 	unsigned int tx_index = 0;
@@ -895,6 +939,7 @@ static inline void fastrpc_update_txmsg_buf(struct fastrpc_channel_ctx *chan,
 	memcpy(&tx_msg->msg, msg, sizeof(struct smq_msg));
 	tx_msg->rpmsg_send_err = rpmsg_send_err;
 	tx_msg->ns = ns;
+	tx_msg->xo_time_in_us = xo_time_in_us;
 
 	tx_index++;
 	chan->gmsg_log.tx_index =
@@ -912,12 +957,13 @@ static inline void fastrpc_update_txmsg_buf(struct fastrpc_channel_ctx *chan,
  * @early_wake_time : Poll time for early wakeup
  * @ver             : Version of response
  * @ns              : Timestamp (in ns) of response
+ * @xo_time_in_us   : XO Timestamp (in us) of response
  *
  * Returns none
  */
 static inline void fastrpc_update_rxmsg_buf(struct fastrpc_channel_ctx *chan,
 	uint64_t ctx, int retval, uint32_t rsp_flags,
-	uint32_t early_wake_time, uint32_t ver, int64_t ns)
+	uint32_t early_wake_time, uint32_t ver, int64_t ns, uint64_t xo_time_in_us)
 {
 	unsigned long flags = 0;
 	unsigned int rx_index = 0;
@@ -936,34 +982,13 @@ static inline void fastrpc_update_rxmsg_buf(struct fastrpc_channel_ctx *chan,
 	rsp->early_wake_time = early_wake_time;
 	rsp->version = ver;
 	rx_msg->ns = ns;
+	rx_msg->xo_time_in_us = xo_time_in_us;
 
 	rx_index++;
 	chan->gmsg_log.rx_index =
 		(rx_index > (GLINK_MSG_HISTORY_LEN - 1)) ? 0 : rx_index;
 
 	spin_unlock_irqrestore(&chan->gmsg_log.lock, flags);
-}
-
-/**
- * fastrpc_ramdump - Dump given ram dump entry
- * @dev       : Device handle
- * @ramdump_segment   : Dump region entry
- * @type              : ram dump type like elf or binary
- * Returns int
- */
-static int fastrpc_ramdump(struct device *dev, struct qcom_dump_segment *ramdump_seg, bool type)
-{
-	int err = 0;
-	struct list_head head;
-
-	INIT_LIST_HEAD(&head);
-	list_add(&ramdump_seg->node, &head);
-	if (type)
-		err = qcom_elf_dump(&head, dev, ELF_CLASS);
-	else
-		err = qcom_dump(&head, dev);
-
-	return err;
 }
 
 static inline int get_unique_index(void)
@@ -1429,6 +1454,14 @@ static void fastrpc_mmap_free(struct fastrpc_mmap *map, uint32_t flags)
 		if (!IS_ERR_OR_NULL(map->buf))
 			dma_buf_put(map->buf);
 	}
+
+#if defined(SS_MEM_PROFILE)
+	if (!IS_ERR_OR_NULL(fl) && !IS_ERR_OR_NULL(map)) {
+		fl->len_curr_usage -= map->len;
+		fl->page_curr_usage -= map->size;
+	}
+#endif
+
 	kfree(map);
 }
 
@@ -1465,7 +1498,7 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 {
 	struct fastrpc_apps *me = &gfa;
 	struct fastrpc_session_ctx *sess;
-	struct fastrpc_apps *apps = fl->apps;
+	struct fastrpc_apps *apps = NULL;
 	int cid = -1;
 	struct fastrpc_channel_ctx *chan = NULL;
 	struct fastrpc_mmap *map = NULL;
@@ -1476,6 +1509,7 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 		err = -EBADF;
 		goto bail;
 	}
+	apps = fl->apps;
 	cid = fl->cid;
 	VERIFY(err, VALID_FASTRPC_CID(cid));
 	if (err) {
@@ -1529,8 +1563,8 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 				dma_buf_attach(map->buf, me->dev)));
 		if (err) {
 			ADSPRPC_ERR(
-				"dma_buf_attach for fd %d failed to map buffer on SMMU device %s ret %ld\n",
-				fd, dev_name(me->dev), PTR_ERR(map->attach));
+			"dma_buf_attach for fd %d for len 0x%zx failed to map buffer on SMMU device %s ret %ld\n",
+				fd, len, dev_name(me->dev), PTR_ERR(map->attach));
 			err = -EFAULT;
 			goto bail;
 		}
@@ -1541,8 +1575,8 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 				DMA_BIDIRECTIONAL)));
 		if (err) {
 			ADSPRPC_ERR(
-				"dma_buf_map_attachment for fd %d failed on device %s ret %ld\n",
-				fd, dev_name(me->dev), PTR_ERR(map->table));
+			"dma_buf_map_attachment for fd %d for len 0x%zx failed on device %s ret %ld\n",
+				fd, len, dev_name(me->dev), PTR_ERR(map->table));
 			err = -EFAULT;
 			goto bail;
 		}
@@ -1616,8 +1650,8 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 				dma_buf_attach(map->buf, sess->smmu.dev)));
 		if (err) {
 			ADSPRPC_ERR(
-				"dma_buf_attach for fd %d failed to map buffer on SMMU device %s ret %ld\n",
-				fd, dev_name(sess->smmu.dev),
+			"dma_buf_attach for fd %d failed for len 0x%zx to map buffer on SMMU device %s ret %ld\n",
+				fd, len, dev_name(sess->smmu.dev),
 				PTR_ERR(map->attach));
 			err = -EFAULT;
 			goto bail;
@@ -1637,8 +1671,8 @@ static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd, struct dma_buf *
 				DMA_BIDIRECTIONAL)));
 		if (err) {
 			ADSPRPC_ERR(
-				"dma_buf_map_attachment for fd %d failed on device %s ret %ld\n",
-				fd, dev_name(sess->smmu.dev),
+			"dma_buf_map_attachment for fd %d failed for len 0x%zx on device %s ret %ld\n",
+				fd, len, dev_name(sess->smmu.dev),
 				PTR_ERR(map->table));
 			err = -EFAULT;
 			goto bail;
@@ -1704,6 +1738,71 @@ bail:
 		ktime_get_real_ts64(&map->map_end_time);
 	if (err && map)
 		fastrpc_mmap_free(map, 0);
+
+#if defined(SS_MEM_PROFILE)
+	if (!err && map) {
+		fl->len_curr_usage += map->len;
+		fl->page_curr_usage += map->size;
+
+		if (fl->len_curr_usage > fl->len_peak_usage) {
+			fl->len_peak_usage = fl->len_curr_usage;
+				if (sec_debug_level() < SEC_DEBUG_LEVEL_LOW) {
+					pr_err("[AISYS] [LEN] CID : %d tgid_open : %d tgid : %d len_peak_usage : %d page_peak_usage : %d\n",
+						fl->cid,
+						fl->tgid_open,
+						fl->tgid,
+						fl->len_peak_usage,
+						fl->page_peak_usage);
+				}
+		}
+
+		if (fl->page_curr_usage > fl->page_peak_usage) {
+			fl->page_peak_usage = fl->page_curr_usage;
+			if (sec_debug_level() < SEC_DEBUG_LEVEL_LOW) {
+				pr_err("[AISYS] [PAGE] CID : %d tgid_open : %d tgid : %d len_peak_usage : %d page_peak_usage : %d\n",
+					fl->cid,
+					fl->tgid_open,
+					fl->tgid,
+					fl->len_peak_usage,
+					fl->page_peak_usage);
+			}
+		}
+
+		if (IS_ERR_OR_NULL(fl->mem_profile)) {
+			if (sec_debug_level() < SEC_DEBUG_LEVEL_LOW)
+				pr_err("[AISYS] mem_profile is NULL\n");
+		} else {
+			fl->mem_profile->cid = fl->cid;
+			fl->mem_profile->tgid = fl->tgid;
+
+			if (fl->len_peak_usage > fl->mem_profile->profile_len_peak_usage) {
+				fl->mem_profile->profile_len_peak_usage = fl->len_peak_usage;
+				if (sec_debug_level() < SEC_DEBUG_LEVEL_LOW) {
+					pr_err("[AISYS] [UPDATE_LEN_PEAK_USAGE] CID : %d tgid_open : %d tgid : %d len_peak_usage : %d page_peak_usage : %d\n",
+						fl->cid,
+						fl->tgid_open,
+						fl->tgid,
+						fl->len_peak_usage,
+						fl->page_peak_usage);
+				}
+			}
+
+			if (fl->page_peak_usage > fl->mem_profile->profile_page_peak_usage) {
+				fl->mem_profile->profile_page_peak_usage = fl->page_peak_usage;
+				if (sec_debug_level() < SEC_DEBUG_LEVEL_LOW) {
+					pr_err("[AISYS] [UPDATE_PAGE_PEAK_USAGE] CID : %d tgid_open : %d tgid : %d len_peak_usage : %d page_peak_usage : %d\n",
+						fl->cid,
+						fl->tgid_open,
+						fl->tgid,
+						fl->len_peak_usage,
+						fl->page_peak_usage);
+				}
+			}
+		}
+	}
+#endif
+
+
 	return err;
 }
 
@@ -1826,11 +1925,6 @@ static int fastrpc_buf_alloc(struct fastrpc_file *fl, size_t size,
 	buf->type = buf_type;
 	ktime_get_real_ts64(&buf->buf_start_time);
 
-	VERIFY(err, fl && fl->sctx != NULL);
-	if (err) {
-		err = -EBADR;
-		goto bail;
-	}
 	buf->virt = dma_alloc_attrs(fl->sctx->smmu.dev, buf->size,
 						(dma_addr_t *)&buf->phys,
 						GFP_KERNEL, buf->dma_attr);
@@ -2066,7 +2160,7 @@ static int context_alloc(struct fastrpc_file *fl, uint32_t kernel,
 		sizeof(*ctx->overs) * (bufs) +
 		sizeof(*ctx->overps) * (bufs);
 
-	VERIFY(err, NULL != (ctx = kzalloc(sizeof(*ctx) + size, GFP_KERNEL)));
+	VERIFY(err, NULL != (ctx = kvzalloc(sizeof(*ctx) + size, GFP_KERNEL)));
 	if (err) {
 		err = -ENOMEM;
 		goto bail;
@@ -2262,7 +2356,7 @@ static void context_free(struct smq_invoke_ctx *ctx)
 
 	trace_fastrpc_context_free((uint64_t)ctx,
 		ctx->msg.invoke.header.ctx, ctx->handle, ctx->sc);
-	kfree(ctx);
+	kvfree(ctx);
 }
 
 static void fastrpc_queue_completed_async_job(struct smq_invoke_ctx *ctx)
@@ -2442,6 +2536,7 @@ static void fastrpc_ramdump_collection(int cid)
 	struct fastrpc_buf *buf = NULL;
 	int ret = 0;
 	unsigned long irq_flags = 0;
+	struct list_head head;
 
 	spin_lock_irqsave(&me->hlock, irq_flags);
 	hlist_for_each_entry_safe(fl, n, &me->drivers, hn) {
@@ -2462,12 +2557,14 @@ static void fastrpc_ramdump_collection(int cid)
 		ramdump_entry.da = buf->phys;
 		ramdump_entry.va = (void *)buf->virt;
 		ramdump_entry.size = buf->size;
+		INIT_LIST_HEAD(&head);
+		list_add(&ramdump_entry.node, &head);
 
 		if (fl && fl->sctx && fl->sctx->smmu.dev)
-			ret = fastrpc_ramdump(fl->sctx->smmu.dev, &ramdump_entry, true);
+			ret = qcom_elf_dump(&head, fl->sctx->smmu.dev, ELF_CLASS);
 		else {
 			if (me->dev != NULL)
-				ret = fastrpc_ramdump(me->dev, &ramdump_entry, true);
+				ret = qcom_elf_dump(&head, me->dev, ELF_CLASS);
 		}
 		if (ret < 0)
 			ADSPRPC_ERR("adsprpc: %s: unable to dump PD memory (err %d)\n",
@@ -2633,6 +2730,12 @@ static int get_args(uint32_t kernel, struct smq_invoke_ctx *ctx)
 
 		if (ctx->attrs && (ctx->attrs[i] & FASTRPC_ATTR_NOMAP))
 			dmaflags = FASTRPC_MAP_FD_NOMAP;
+		VERIFY(err, VALID_FASTRPC_CID(ctx->fl->cid));
+		if (err) {
+			err = -ECHRNG;
+			mutex_unlock(&ctx->fl->map_mutex);
+			goto bail;
+		}
 		dsp_cap_ptr = &gcinfo[ctx->fl->cid].dsp_cap_kernel;
 		// Skip cpu mapping if DMA_HANDLE_REVERSE_RPC_CAP is true.
 		if (!dsp_cap_ptr->dsp_attributes[DMA_HANDLE_REVERSE_RPC_CAP] &&
@@ -2944,7 +3047,7 @@ static int put_args(uint32_t kernel, struct smq_invoke_ctx *ctx,
 
 	remote_arg64_t *rpra = ctx->lrpra;
 	int i, inbufs, outbufs, handles;
-	int err = 0;
+	int err = 0, perfErr = 0;
 
 	inbufs = REMOTE_SCALARS_INBUFS(sc);
 	outbufs = REMOTE_SCALARS_OUTBUFS(sc);
@@ -2988,9 +3091,12 @@ static int put_args(uint32_t kernel, struct smq_invoke_ctx *ctx,
 	if (ctx->crc && crclist && rpra)
 		K_COPY_TO_USER(err, kernel, ctx->crc,
 			crclist, M_CRCLIST*sizeof(uint32_t));
-	if (ctx->perf_dsp && perf_dsp_list)
-		K_COPY_TO_USER_WITHOUT_ERR(kernel, ctx->perf_dsp,
+	if (ctx->perf_dsp && perf_dsp_list) {
+		K_COPY_TO_USER(perfErr, kernel, ctx->perf_dsp,
 			perf_dsp_list, M_DSP_PERF_LIST*sizeof(uint64_t));
+		if (perfErr)
+			ADSPRPC_WARN("failed to copy perf data err %d\n", perfErr);
+	}
 
  bail:
 	return err;
@@ -3093,6 +3199,7 @@ static int fastrpc_invoke_send(struct smq_invoke_ctx *ctx,
 	int err = 0, cid = -1;
 	uint32_t sc = ctx->sc;
 	int64_t ns = 0;
+	uint64_t xo_time_in_us = 0;
 
 	if (!fl) {
 		err = -EBADF;
@@ -3133,12 +3240,13 @@ static int fastrpc_invoke_send(struct smq_invoke_ctx *ctx,
 		mutex_unlock(&channel_ctx->rpmsg_mutex);
 		goto bail;
 	}
+	xo_time_in_us = __arch_counter_get_cntvct() * 10ull / 192ull;
 	err = rpmsg_send(channel_ctx->rpdev->ept, (void *)msg, sizeof(*msg));
 	mutex_unlock(&channel_ctx->rpmsg_mutex);
 	trace_fastrpc_rpmsg_send(cid, (uint64_t)ctx, msg->invoke.header.ctx,
 		handle, sc, msg->invoke.page.addr, msg->invoke.page.size);
 	ns = get_timestamp_in_ns();
-	fastrpc_update_txmsg_buf(channel_ctx, msg, err, ns);
+	fastrpc_update_txmsg_buf(channel_ctx, msg, err, ns, xo_time_in_us);
  bail:
 	return err;
 }
@@ -3362,7 +3470,7 @@ static int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
 {
 	struct smq_invoke_ctx *ctx = NULL;
 	struct fastrpc_ioctl_invoke *invoke = &inv->inv;
-	int err = 0, interrupted = 0, cid = -1;
+	int err = 0, interrupted = 0, cid = -1, perfErr = 0;
 	struct timespec64 invoket = {0};
 	uint64_t *perf_counter = NULL;
 	bool isasyncinvoke = false, isworkdone = false;
@@ -3510,9 +3618,12 @@ static int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
 			ctx->perf->copy, ctx->perf->link, ctx->perf->getargs,
 			ctx->perf->putargs, ctx->perf->invargs,
 			ctx->perf->invoke, ctx->perf->tid);
-			if (ctx->perf_kernel)
-				K_COPY_TO_USER_WITHOUT_ERR(kernel, ctx->perf_kernel,
+			if (ctx->perf_kernel) {
+				K_COPY_TO_USER(perfErr, kernel, ctx->perf_kernel,
 				ctx->perf, M_KERNEL_PERF_LIST*sizeof(uint64_t));
+				if (perfErr)
+					ADSPRPC_WARN("failed to copy perf data err %d\n", perfErr);
+			}
 		}
 		context_free(ctx);
 		trace_fastrpc_msg("context_free: end");
@@ -3542,7 +3653,7 @@ static int fastrpc_wait_on_async_queue(
 			struct fastrpc_ioctl_async_response *async_res,
 			struct fastrpc_file *fl)
 {
-	int err = 0, ierr = 0, interrupted = 0;
+	int err = 0, ierr = 0, interrupted = 0, perfErr = 0;
 	struct smq_invoke_ctx *ctx = NULL, *ictx = NULL, *n = NULL;
 	unsigned long flags;
 	uint64_t *perf_counter = NULL;
@@ -3610,9 +3721,12 @@ bail:
 			ctx->perf->copy, ctx->perf->link, ctx->perf->getargs,
 			ctx->perf->putargs, ctx->perf->invargs,
 			ctx->perf->invoke, ctx->perf->tid);
-			if (ctx->perf_kernel)
-				K_COPY_TO_USER_WITHOUT_ERR(0, ctx->perf_kernel,
+			if (ctx->perf_kernel) {
+				K_COPY_TO_USER(perfErr, 0, ctx->perf_kernel,
 				ctx->perf, M_KERNEL_PERF_LIST*sizeof(uint64_t));
+				if (perfErr)
+					ADSPRPC_WARN("failed to copy perf data err %d\n", perfErr);
+			}
 		}
 		context_free(ctx);
 	}
@@ -3901,6 +4015,12 @@ static int fastrpc_init_attach_process(struct fastrpc_file *fl,
 	remote_arg_t ra[1];
 	struct fastrpc_ioctl_invoke_async ioctl;
 
+	if (fl->dev_minor == MINOR_NUM_DEV) {
+		err = -ECONNREFUSED;
+		ADSPRPC_ERR(
+			"untrusted app trying to attach to privileged DSP PD\n");
+		return err;
+	}
 	/*
 	 * Prepare remote arguments for creating thread group
 	 * in guestOS/staticPD on the remote subsystem.
@@ -4110,7 +4230,7 @@ static int fastrpc_init_create_dynamic_process(struct fastrpc_file *fl,
 	 */
 	ioctl.inv.sc = REMOTE_SCALARS_MAKE(6, 4, 0);
 	if (uproc->attrs)
-		ioctl.inv.sc = REMOTE_SCALARS_MAKE(7, 6, 0);
+		ioctl.inv.sc = REMOTE_SCALARS_MAKE(7, 4, 0);
 	ioctl.inv.pra = ra;
 	ioctl.fds = fds;
 	ioctl.attrs = NULL;
@@ -4179,6 +4299,13 @@ static int fastrpc_init_create_static_process(struct fastrpc_file *fl,
 		unsigned int pageslen;
 	} inbuf;
 
+	if (fl->dev_minor == MINOR_NUM_DEV) {
+		err = -ECONNREFUSED;
+		ADSPRPC_ERR(
+			"untrusted app trying to attach to audio PD\n");
+		return err;
+	}
+
 	if (!init->filelen)
 		goto bail;
 
@@ -4209,6 +4336,11 @@ static int fastrpc_init_create_static_process(struct fastrpc_file *fl,
 		err = fastrpc_mmap_remove_pdr(fl);
 		if (err)
 			goto bail;
+	} else {
+		ADSPRPC_ERR(
+			"Create static process is failed for proc_name %s",
+			proc_name);
+		goto bail;
 	}
 
 	if (!me->staticpd_flags && !me->legacy_remote_heap) {
@@ -4227,7 +4359,7 @@ static int fastrpc_init_create_static_process(struct fastrpc_file *fl,
 		 * If remote-heap VMIDs are defined in DTSI, then do
 		 * hyp_assign from HLOS to those VMs (LPASS, ADSP).
 		 */
-		if (rhvm->vmid) {
+		if (rhvm->vmid && mem->refs == 1 && size) {
 			err = hyp_assign_phys(phys, (uint64_t)size,
 				hlosvm, 1,
 				rhvm->vmid, rhvm->vmperm, rhvm->vmcount);
@@ -4582,7 +4714,7 @@ static int fastrpc_release_current_dsp_process(struct fastrpc_file *fl)
 			"releasing DSP process failed with %d (0x%x) for %s\n",
 			err, err, current->comm);
 bail:
-	if (err) {
+	if (err && fl && fl->apps) {
 		spin_lock_irqsave(&fl->apps->hlock, irq_flags);
 		fl->file_close = FASTRPC_PROCESS_DSP_EXIT_ERROR;
 		spin_unlock_irqrestore(&fl->apps->hlock, irq_flags);
@@ -4726,7 +4858,7 @@ bail:
 
 static int fastrpc_mmap_on_dsp(struct fastrpc_file *fl, uint32_t flags,
 					uintptr_t va, uint64_t phys,
-					size_t size, uintptr_t *raddr)
+					size_t size, int refs, uintptr_t *raddr)
 {
 	struct fastrpc_ioctl_invoke_async ioctl;
 	struct fastrpc_apps *me = &gfa;
@@ -4792,7 +4924,7 @@ static int fastrpc_mmap_on_dsp(struct fastrpc_file *fl, uint32_t flags,
 		}
 	}
 	if (flags == ADSP_MMAP_REMOTE_HEAP_ADDR
-				&& me->channel[cid].rhvm.vmid) {
+				&& me->channel[cid].rhvm.vmid && refs == 1) {
 		err = hyp_assign_phys(phys, (uint64_t)size,
 				hlosvm, 1, me->channel[cid].rhvm.vmid,
 				me->channel[cid].rhvm.vmperm,
@@ -4952,8 +5084,10 @@ static int fastrpc_mmap_remove_ssr(struct fastrpc_file *fl, int locked)
 			ramdump_segments_rh.da = match->phys;
 			ramdump_segments_rh.va = (void *)page_address((struct page *)match->va);
 			ramdump_segments_rh.size = match->size;
-			if (me->dev && dump_enabled()) {
-				ret = fastrpc_ramdump(me->dev, &ramdump_segments_rh, true);
+			INIT_LIST_HEAD(&head);
+			list_add(&ramdump_segments_rh.node, &head);
+			if (me->dev && dump_enabled() && me->enable_ramdump) {
+				ret = qcom_elf_dump(&head, me->dev, ELF_CLASS);
 				if (ret < 0)
 					pr_err("adsprpc: %s: unable to dump heap (err %d)\n",
 								__func__, ret);
@@ -5290,12 +5424,18 @@ static int fastrpc_internal_mmap(struct fastrpc_file *fl,
 		if (err)
 			goto bail;
 		err = fastrpc_mmap_on_dsp(fl, ud->flags, 0,
-				rbuf->phys, rbuf->size, &raddr);
+				rbuf->phys, rbuf->size, 0, &raddr);
 		if (err)
 			goto bail;
 		rbuf->raddr = raddr;
 	} else {
 		uintptr_t va_to_dsp;
+		if (fl->is_unsigned_pd && ud->flags == ADSP_MMAP_REMOTE_HEAP_ADDR) {
+			err = -EINVAL;
+			ADSPRPC_ERR(
+				"Secure memory allocation is not supported in unsigned PD");
+			goto bail;
+		}
 
 		mutex_lock(&fl->map_mutex);
 		VERIFY(err, !(err = fastrpc_mmap_create(fl, ud->fd, NULL, 0,
@@ -5311,7 +5451,7 @@ static int fastrpc_internal_mmap(struct fastrpc_file *fl,
 		else
 			va_to_dsp = (uintptr_t)map->va;
 		VERIFY(err, 0 == (err = fastrpc_mmap_on_dsp(fl, ud->flags,
-			va_to_dsp, map->phys, map->size, &raddr)));
+			va_to_dsp, map->phys, map->size, map->refs, &raddr)));
 		if (err)
 			goto bail;
 		map->raddr = raddr;
@@ -5463,7 +5603,9 @@ static int fastrpc_rpmsg_callback(struct rpmsg_device *rpdev, void *data,
 	struct fastrpc_channel_ctx *chan = NULL;
 	unsigned long irq_flags = 0;
 	int64_t ns = 0;
+	uint64_t xo_time_in_us = 0;
 
+	xo_time_in_us =  __arch_counter_get_cntvct() * 10ull / 192ull;
 	trace_fastrpc_msg("rpmsg_callback: begin");
 	cid = get_cid_from_rpdev(rpdev);
 	VERIFY(err, VALID_FASTRPC_CID(cid));
@@ -5500,7 +5642,7 @@ static int fastrpc_rpmsg_callback(struct rpmsg_device *rpdev, void *data,
 		rsp->retval, rsp_flags, early_wake_time);
 	ns = get_timestamp_in_ns();
 	fastrpc_update_rxmsg_buf(chan, rsp->ctx, rsp->retval,
-		rsp_flags, early_wake_time, ver, ns);
+		rsp_flags, early_wake_time, ver, ns, xo_time_in_us);
 
 	index = (uint32_t)GET_TABLE_IDX_FROM_CTXID(rsp->ctx);
 	VERIFY(err, index < FASTRPC_CTX_MAX);
@@ -5530,6 +5672,11 @@ static int fastrpc_rpmsg_callback(struct rpmsg_device *rpdev, void *data,
 		VERIFY(err, rspv2->version == FASTRPC_RSP_VERSION2);
 		if (err)
 			goto bail_unlock;
+	}
+	VERIFY(err, VALID_FASTRPC_CID(ctx->fl->cid));
+	if (err) {
+		err = -ECHRNG;
+		goto bail_unlock;
 	}
 	context_notify_user(ctx, rsp->retval, rsp_flags, early_wake_time);
 bail_unlock:
@@ -5932,9 +6079,33 @@ bail:
 	return ret;
 }
 
+#if defined(SS_MEM_PROFILE)
+static ssize_t ss_fastrpc_debugfs_read(struct file *file,
+const char __user *user_buf, size_t count, loff_t *ppos)
+{
+	struct mem_profile_private *mem_profile;
+	struct hlist_node *n;
+
+	hlist_for_each_entry_safe(mem_profile, n, &mem_profile_root, list_node) {
+		pr_err("[AISYS] [DEBUG_FS] CID : %d tgid_open : %d(%s) tgid : %d len_peak_usage : %d page_peak_usage : %d\n",
+			mem_profile->cid,
+			mem_profile->tgid_open,
+			mem_profile->comm,
+			mem_profile->tgid,
+			mem_profile->profile_len_peak_usage,
+			mem_profile->profile_page_peak_usage);
+	}
+
+	return count;
+}
+#endif
+
 static const struct file_operations debugfs_fops = {
 	.open = simple_open,
 	.read = fastrpc_debugfs_read,
+#if defined(SS_MEM_PROFILE)
+	.write = ss_fastrpc_debugfs_read,
+#endif
 };
 
 static int fastrpc_channel_open(struct fastrpc_file *fl)
@@ -6065,6 +6236,39 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 	fl->dev_pm_qos_req = kcalloc(me->silvercores.corecount,
 				sizeof(struct dev_pm_qos_request),
 				GFP_KERNEL);
+
+#if defined(SS_MEM_PROFILE)
+	{
+		struct mem_profile_private *mem_profile;
+		struct hlist_node *n;
+
+		fl->mem_profile = NULL;
+
+		if (!hlist_empty(&mem_profile_root)) {
+			hlist_for_each_entry_safe(mem_profile, n, &mem_profile_root, list_node) {
+				if (!strncmp(current->comm, mem_profile->comm, TASK_COMM_LEN)) {
+					fl->mem_profile = mem_profile;
+					break;
+				}
+			}
+		}
+
+		if (IS_ERR_OR_NULL(fl->mem_profile)) {
+			if (mem_profile_entry < MAX_MEM_PROFILE_ENTRY) {
+				fl->mem_profile = kzalloc(sizeof(struct mem_profile_private), GFP_KERNEL);
+				INIT_HLIST_NODE(&fl->mem_profile->list_node);
+
+				fl->mem_profile->tgid_open = fl->tgid_open;
+				strncpy(fl->mem_profile->comm, current->comm, TASK_COMM_LEN);
+				fl->mem_profile->profile_len_peak_usage = 0;
+				fl->mem_profile->profile_page_peak_usage = 0;
+
+				hlist_add_head(&fl->mem_profile->list_node, &mem_profile_root);
+				mem_profile_entry++;
+			}
+		}
+	}
+#endif
 
 	return 0;
 }
@@ -6205,7 +6409,6 @@ static int fastrpc_get_info(struct fastrpc_file *fl, uint32_t *info)
 		fl->cid = cid;
 		goto bail;
 	}
-
 	if (fl->cid == -1) {
 		struct fastrpc_channel_ctx *chan = NULL;
 		VERIFY(err, cid < NUM_CHANNELS);
@@ -6369,6 +6572,11 @@ static int fastrpc_internal_control(struct fastrpc_file *fl,
 			fl->ws_timeout = MAX_PM_TIMEOUT_MS;
 		else
 			fl->ws_timeout = cp->pm.timeout;
+		VERIFY(err, VALID_FASTRPC_CID(fl->cid));
+		if (err) {
+			err = -ECHRNG;
+			goto bail;
+		}
 		fastrpc_pm_awake(fl, gcinfo[fl->cid].secure);
 		break;
 	case FASTRPC_CONTROL_DSPPROCESS_CLEAN:
@@ -6647,6 +6855,10 @@ static long fastrpc_device_ioctl(struct file *file, unsigned int ioctl_num,
 			AUDIO_PDR_SERVICE_LOCATION_CLIENT_NAME);
 	if (err)
 		goto bail;
+	err = fastrpc_check_pd_status(fl,
+			SENSORS_PDR_ADSP_SERVICE_LOCATION_CLIENT_NAME);
+	if (err)
+		goto bail;
 
 	spin_lock(&fl->hlock);
 	if (fl->file_close >= FASTRPC_PROCESS_EXIT_START) {
@@ -6828,7 +7040,7 @@ static void fastrpc_print_fastrpcbuf(struct fastrpc_buf *buf, void *buffer)
  */
 static void  fastrpc_print_debug_data(int cid)
 {
-	unsigned int i = 0, count = 0, gmsg_log_iter = 3, err = 0;
+	unsigned int i = 0, count = 0, gmsg_log_iter = 3, err = 0, len = 0;
 	unsigned int tx_index = 0, rx_index = 0;
 	unsigned long flags = 0;
 	char *gmsg_log_tx = NULL;
@@ -6973,21 +7185,21 @@ static void  fastrpc_print_debug_data(int cid)
 	spin_unlock_irqrestore(&me->hlock, irq_flags);
 	spin_lock_irqsave(&chan->gmsg_log.lock, flags);
 	if (rx_index) {
-		for (i = rx_index, count = 0; i > 0 &&
+		for (i = rx_index, count = 0, len = 0 ; i > 0 &&
 				count <= gmsg_log_iter; i--, count++) {
 			rsp = &chan->gmsg_log.rx_msgs[i].rsp;
-			scnprintf(gmsg_log_rx + strlen(gmsg_log_rx), MD_GMSG_BUFFER,
-					"ctx: 0x%x , retval: %d, flags: %d, early_wake_time: %d, version: %d\n",
+			len += scnprintf(gmsg_log_rx + len, MD_GMSG_BUFFER - len,
+					"ctx: 0x%x, retval: %d, flags: %d, early_wake_time: %d, version: %d\n",
 					rsp->ctx, rsp->retval, rsp->flags,
 					rsp->early_wake_time, rsp->version);
 		}
 	}
 	if (tx_index) {
-		for (i = tx_index, count = 0;
+		for (i = tx_index, count = 0, len = 0;
 				i > 0 && count <= gmsg_log_iter;
 				i--, count++) {
 			tx_msg = &chan->gmsg_log.tx_msgs[i];
-			scnprintf(gmsg_log_tx + strlen(gmsg_log_tx), MD_GMSG_BUFFER,
+			len += scnprintf(gmsg_log_tx + len, MD_GMSG_BUFFER - len,
 					"pid: %d, tid: %d, ctx: 0x%x, handle: 0x%x, sc: 0x%x, addr: 0x%x, size:%d\n",
 					tx_msg->msg.pid,
 					tx_msg->msg.tid,
@@ -7167,6 +7379,9 @@ static int fastrpc_cb_probe(struct device *dev)
 					__func__, dev_name(dev), err);
 		goto bail;
 	}
+	/* Enabling best fit to utilize IOVA space effectively */
+	iommu_dma_enable_best_fit_algo(dev);
+
 	sess = &chan->session[chan->sesscount];
 	sess->used = 0;
 	sess->smmu.coherent = of_property_read_bool(dev->of_node,
@@ -7592,7 +7807,7 @@ long fastrpc_driver_invoke(struct fastrpc_device *dev, unsigned int invoke_num,
 		}
 		/* Map DMA buffer on DSP*/
 		VERIFY(err, 0 == (err = fastrpc_mmap_on_dsp(fl,
-			map->flags, 0, map->phys, map->size, &raddr)));
+			map->flags, 0, map->phys, map->size, map->refs, &raddr)));
 		if (err) {
 			mutex_unlock(&fl->internal_map_mutex);
 			break;

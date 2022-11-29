@@ -54,6 +54,20 @@ int get_current_immutable_features(void)
 	return immutable_features;
 }
 
+int get_current_integrity_features(void)
+{
+	int integrity_features = 0;
+#if defined(DEFEX_INTEGRITY_ENABLE) && defined(DEFEX_PERMISSIVE_INT)
+	if (global_integrity_status != 0)
+		integrity_features |= FEATURE_INTEGRITY;
+	if (global_integrity_status == 2)
+		integrity_features |= FEATURE_INTEGRITY_SOFT;
+#elif defined(DEFEX_INTEGRITY_ENABLE)
+	integrity_features |= GLOBAL_INTEGRITY_STATUS;
+#endif
+	return integrity_features;
+}
+
 static void defex_get_mode_test(struct kunit *test)
 {
 	int expected_features;
@@ -66,11 +80,15 @@ static void defex_get_mode_test(struct kunit *test)
 #if defined DEFEX_IMMUTABLE_ENABLE && defined DEFEX_PERMISSIVE_IM
 	unsigned int immutable_status_backup;
 #endif
+#if defined(DEFEX_INTEGRITY_ENABLE) && defined(DEFEX_PERMISSIVE_INT)
+	unsigned int integrity_status_backup;
+#endif
 
 #ifdef DEFEX_PED_ENABLE
 	expected_features = 0;
 	expected_features |= get_current_safeplace_features();
 	expected_features |= get_current_immutable_features();
+	expected_features |= get_current_integrity_features();
 
 #ifdef DEFEX_PERMISSIVE_PED
 	ped_status_backup = global_privesc_status;
@@ -96,6 +114,7 @@ static void defex_get_mode_test(struct kunit *test)
 	expected_features = 0;
 	expected_features |= get_current_ped_features();
 	expected_features |= get_current_immutable_features();
+	expected_features |= get_current_integrity_features();
 
 #ifdef DEFEX_PERMISSIVE_SP
 	safeplace_status_backup = global_safeplace_status;
@@ -119,6 +138,7 @@ static void defex_get_mode_test(struct kunit *test)
 	expected_features = 0;
 	expected_features |= get_current_ped_features();
 	expected_features |= get_current_safeplace_features();
+	expected_features |= get_current_integrity_features();
 
 #ifdef DEFEX_PERMISSIVE_IM
 	immutable_status_backup = global_immutable_status;
@@ -137,6 +157,30 @@ static void defex_get_mode_test(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, defex_get_features(), expected_features);
 #endif /* DEFEX_PERMISSIVE_IM */
 #endif /* DEFEX_IMMUTABLE_ENABLE */
+/*-------------------------------------------------------------------*/
+#ifdef DEFEX_INTEGRITY_ENABLE
+	expected_features = 0;
+	expected_features |= get_current_ped_features();
+	expected_features |= get_current_safeplace_features();
+	expected_features |= get_current_immutable_features();
+
+#ifdef DEFEX_PERMISSIVE_INT
+	integrity_status_backup = global_integrity_status;
+
+	global_integrity_status = 1;
+	expected_features |= FEATURE_INTEGRITY;
+	KUNIT_EXPECT_EQ(test, defex_get_features(), expected_features);
+
+	global_integrity_status = 2;
+	expected_features |= FEATURE_INTEGRITY_SOFT;
+	KUNIT_EXPECT_EQ(test, defex_get_features(), expected_features);
+
+	global_integrity_status = integrity_status_backup;
+#else
+	expected_features |= GLOBAL_INTEGRITY_STATUS;
+	KUNIT_EXPECT_EQ(test, defex_get_features(), expected_features);
+#endif /* DEFEX_PERMISSIVE_INT */
+#endif /* DEFEX_INTEGRITY_ENABLE */
 	KUNIT_SUCCEED(test);
 }
 

@@ -432,12 +432,11 @@ int sec_bat_check_power_type(
 	if (is_pd_wire_type(ct) && is_apdo) {
 		if (get_chg_power_type(ct, ws, pd_max_chg_pwr, max_chg_pwr) == SFC_45W)
 			return SFC_45W;
-		else if (get_chg_power_type(ct, ws, pd_max_chg_pwr, max_chg_pwr) == SFC_25W)
-			return SFC_25W;
 		else
-			return NORMAL_TA;
-	} else
+			return SFC_25W;
+	} else {
 		return NORMAL_TA;
+	}
 }
 EXPORT_SYMBOL_KUNIT(sec_bat_check_power_type);
 

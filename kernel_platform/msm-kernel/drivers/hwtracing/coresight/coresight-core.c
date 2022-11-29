@@ -1495,10 +1495,9 @@ static ssize_t sink_name_store(struct device *dev,
 		return size;
 	}
 
-	sink_name = kstrdup(buf, GFP_KERNEL);
+	sink_name = kstrndup(buf, size, GFP_KERNEL);
 	if (!sink_name)
 		return -ENOMEM;
-	sink_name[size-1] = 0;
 
 	hash = hashlen_hash(hashlen_string(NULL, sink_name));
 	new_sink = coresight_get_sink_by_id(hash);
@@ -1909,6 +1908,7 @@ struct coresight_device *coresight_register(struct coresight_desc *desc)
 			goto out_unlock;
 		}
 	}
+	/* Device is now registered */
 
 	/* Device is not registered */
 	registered = true;

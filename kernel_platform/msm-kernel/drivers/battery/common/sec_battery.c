@@ -1455,12 +1455,20 @@ void sec_bat_set_health(struct sec_battery_info *battery, int health)
 		else
 			sec_bat_set_misc_event(battery, 0, BATT_MISC_EVENT_HEALTH_OVERHEATLIMIT);
 
+#if IS_ENABLED(CONFIG_WIRELESS_CHARGING) && !defined(CONFIG_SEC_FACTORY)
 		if (is_wireless_fake_type(battery->cable_type)) {
 			union power_supply_propval val = {0, };
 
-			val.intval = health;
-			psy_do_property(battery->pdata->wireless_charger_name, set, POWER_SUPPLY_PROP_HEALTH, val);
+			if (!battery->wc_ept_timeout) {
+				battery->wc_ept_timeout = true;
+				__pm_stay_awake(battery->wc_ept_timeout_ws);
+				/* 10 secs time out */
+				queue_delayed_work(battery->monitor_wqueue, &battery->wc_ept_timeout_work, msecs_to_jiffies(10000));
+				val.intval = health;
+				psy_do_property(battery->pdata->wireless_charger_name, set, POWER_SUPPLY_PROP_HEALTH, val);
+			}
 		}
+#endif
 	}
 
 	battery->health = health;
@@ -2995,7 +3003,7 @@ void sec_bat_get_battery_info(struct sec_battery_info *battery)
 		battery->sub_bat_temp
 	);
 #endif
-	sprintf(str + strlen(str), "Tbat(%d),Tusb(%d),Tchg(%d),Twpc(%d),Tblkt(%d),lrp(%d),",
+	sprintf(str + strlen(str), "Tbat(%d),Tusb(%d),Tchg(%d),Twpc(%d),Tblkt(%d),Tlrp(%d),",
 		battery->temperature, battery->usb_temp,
 		battery->chg_temp, battery->wpc_temp,
 		battery->blkt_temp, battery->lrp
@@ -4167,6 +4175,15 @@ static void sec_bat_wc20_current_work(struct work_struct *work)
 	sec_bat_predict_wc20_time_to_full_current(battery, battery->wc20_info_idx);
 	__pm_relax(battery->wc20_current_ws);
 }
+
+static void sec_bat_wc_ept_timeout_work(struct work_struct *work)
+{
+	struct sec_battery_info *battery = container_of(work,
+				struct sec_battery_info, wc_ept_timeout_work.work);
+
+	battery->wc_ept_timeout = false;
+	__pm_relax(battery->wc_ept_timeout_ws);
+}
 #endif
 
 static void cw_check_pd_wire_type(struct sec_battery_info *battery)
@@ -4321,6 +4338,11 @@ static void cw_set_psp_online2drivers(struct sec_battery_info *battery)
 		val.intval = battery->cable_type;
 		psy_do_property(battery->pdata->fuelgauge_name, set, POWER_SUPPLY_PROP_ONLINE, val);
 
+		if (battery->wc_tx_enable) {
+			val.intval = is_wired_type(battery->wire_status) ? 1 : 0;
+			psy_do_property(battery->pdata->wireless_charger_name, set,
+				POWER_SUPPLY_EXT_PROP_WIRELESS_WR_CONNECTED, val);
+		}
 		sec_vote_refresh(battery->chgen_vote);
 	}
 }
@@ -4365,6 +4387,7 @@ static void cw_nocharge_type(struct sec_battery_info *battery)
 	battery->charge_power = 0;
 	battery->max_charge_power = 0;
 	battery->pd_max_charge_power = 0;
+	battery->pd_rated_power = 0;
 	sec_bat_set_charging_status(battery, POWER_SUPPLY_STATUS_DISCHARGING);
 	battery->thermal_zone = BAT_THERMAL_NORMAL;
 	battery->chg_limit = false;
@@ -6736,9 +6759,9 @@ static int usb_typec_handle_id_power_status(struct sec_battery_info *battery,
 			battery->max_charge_power = (fpdo_max_power / 1000) > pdata_fpdo_max_power ?
 					pdata_fpdo_max_power : (fpdo_max_power / 1000);
 		battery->pd_max_charge_power = battery->max_charge_power;
-		pr_info("%s: pd_max_charge_power(%d,%d) = %d\n",
-			__func__, apdo_max_power, fpdo_max_power, battery->pd_max_charge_power * 1000);
-
+		pr_info("%s: pd_max_charge_power(%d,%d,%d) = %d\n",
+			__func__, max_power, apdo_max_power, fpdo_max_power, battery->pd_max_charge_power * 1000);
+		battery->pd_rated_power = max_power / 1000 / 1000; /* save as W */
 #if defined(CONFIG_BATTERY_CISD)
 		count_cisd_power_data(&battery->cisd, max_power);
 		if (battery->cable_type == SEC_BATTERY_CABLE_NONE) {
@@ -6782,13 +6805,14 @@ static int usb_typec_handle_id_power_status(struct sec_battery_info *battery,
 		return -1; /* skip usb_typec_handle_after_id() */
 	}
 
-	store_battery_log("CURR_PDO:PDO(%d/%d),Max_V(%d),Min_V(%d),Max_C(%d),PD_MCP(%d),",
+	store_battery_log("CURR_PDO:PDO(%d/%d),Max_V(%d),Min_V(%d),Max_C(%d),PD_MCP(%d),PD_RP(%d),",
 				battery->sink_status.current_pdo_num,
 				battery->sink_status.available_pdo_num,
 				battery->sink_status.power_list[current_pdo].max_voltage,
 				battery->sink_status.power_list[current_pdo].min_voltage,
 				battery->sink_status.power_list[current_pdo].max_current,
-				battery->pd_max_charge_power);
+				battery->pd_max_charge_power,
+				battery->pd_rated_power);
 
 	return 0;
 }
@@ -7649,6 +7673,7 @@ static int sec_battery_probe(struct platform_device *pdev)
 	battery->wpc_tx_en_ws = wakeup_source_register(&pdev->dev, "sec-battery-wpc_tx_en");
 	battery->tx_event_ws = wakeup_source_register(&pdev->dev, "sec-battery-tx-event");
 	battery->wc20_current_ws = wakeup_source_register(&pdev->dev, "sec-battery-wc20-current");
+	battery->wc_ept_timeout_ws = wakeup_source_register(&pdev->dev, "sec-battery-ept-timeout");
 #endif
 #if defined(CONFIG_UPDATE_BATTERY_DATA)
 	battery->batt_data_ws = wakeup_source_register(&pdev->dev, "sec-battery-update-data");
@@ -7681,6 +7706,7 @@ static int sec_battery_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&battery->ext_event_work, sec_bat_ext_event_work);
 	INIT_DELAYED_WORK(&battery->otg_work, sec_bat_otg_work);
 	INIT_DELAYED_WORK(&battery->wc20_current_work, sec_bat_wc20_current_work);
+	INIT_DELAYED_WORK(&battery->wc_ept_timeout_work, sec_bat_wc_ept_timeout_work);
 #endif
 #if defined(CONFIG_UPDATE_BATTERY_DATA)
 	INIT_DELAYED_WORK(&battery->batt_data_work, sec_bat_update_data_work);
@@ -7830,6 +7856,7 @@ static int sec_battery_probe(struct platform_device *pdev)
 	battery->lcd_status = false;
 	battery->wc_auth_retried = false;
 #if IS_ENABLED(CONFIG_WIRELESS_CHARGING)
+	battery->wc_ept_timeout = false;
 	battery->wc20_power_class = 0;
 	battery->wc20_vout = 0;
 	battery->wc20_rx_power = 0;
@@ -8000,6 +8027,7 @@ err_irq:
 	wakeup_source_unregister(battery->wpc_tx_en_ws);
 	wakeup_source_unregister(battery->tx_event_ws);
 	wakeup_source_unregister(battery->wc20_current_ws);
+	wakeup_source_unregister(battery->wc_ept_timeout_ws);
 #endif
 #if defined(CONFIG_UPDATE_BATTERY_DATA)
 	wakeup_source_unregister(battery->batt_data_ws);
@@ -8055,6 +8083,7 @@ static int sec_battery_remove(struct platform_device *pdev)
 	wakeup_source_unregister(battery->wpc_tx_en_ws);
 	wakeup_source_unregister(battery->tx_event_ws);
 	wakeup_source_unregister(battery->wc20_current_ws);
+	wakeup_source_unregister(battery->wc_ept_timeout_ws);
 #endif
 #if defined(CONFIG_UPDATE_BATTERY_DATA)
 	wakeup_source_unregister(battery->batt_data_ws);
@@ -8191,6 +8220,7 @@ static void sec_battery_shutdown(struct platform_device *pdev)
 	cancel_delayed_work(&battery->ext_event_work);
 	cancel_delayed_work(&battery->otg_work);
 	cancel_delayed_work(&battery->wc20_current_work);
+	cancel_delayed_work(&battery->wc_ept_timeout_work);
 #endif
 #if defined(CONFIG_UPDATE_BATTERY_DATA)
 	cancel_delayed_work(&battery->batt_data_work);

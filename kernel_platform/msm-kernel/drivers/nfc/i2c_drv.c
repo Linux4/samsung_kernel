@@ -723,7 +723,7 @@ int nfc_i2c_dev_suspend(struct device *device)
 		}
 #endif
 	}
-	NFC_LOG_DBG("%s: irq_wake_up = %d", __func__, i2c_dev->irq_wake_up);
+	NFC_LOG_DBG("%s: irq_wake_up = %d\n", __func__, i2c_dev->irq_wake_up);
 	return 0;
 }
 
@@ -751,7 +751,7 @@ int nfc_i2c_dev_resume(struct device *device)
 			disable_irq_wake(nfc_gpio->clk_req_irq);
 #endif
 	}
-	NFC_LOG_DBG("%s: irq_wake_up = %d", __func__, i2c_dev->irq_wake_up);
+	NFC_LOG_DBG("%s: irq_wake_up = %d\n", __func__, i2c_dev->irq_wake_up);
 	return 0;
 }
 

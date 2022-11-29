@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CNSS_MAIN_H
@@ -532,7 +532,7 @@ struct cnss_plat_data {
 	const char **pdc_init_table, **vreg_pdc_map;
 	int pdc_init_table_len, vreg_pdc_map_len;
 	bool adsp_pc_enabled;
-    u64 feature_list;
+	u64 feature_list;
 	u8 charger_mode;
 	/* WLAN driver provided bandwidth vote */
 	int current_bw_vote;

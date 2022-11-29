@@ -40,7 +40,7 @@ int abc_alloc_memory_to_buffer_type1(struct spec_data_type1 *spec_type1, int siz
 					sizeof(spec_type1->buffer.abc_element[0]) * buffer_max, GFP_KERNEL);
 	}
 
-	if (!temp_abc_elements) {
+	if (unlikely(ZERO_OR_NULL_PTR(temp_abc_elements))) {
 		ABC_PRINT("Failed to allocate memory to buffer");
 		spec_type1->buffer.abc_element = NULL;
 		spec_type1->buffer.buffer_max = 0;

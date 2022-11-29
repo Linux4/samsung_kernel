@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -70,6 +71,10 @@ static batt_prop_is_charging_t batt_prop_is_charging;
 static bool battery_listener_enabled;
 static void *batt_listener_lib_handle;
 static bool audio_extn_kpi_optimize_feature_enabled = false;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+//TODO make this mutex part of class
+std::mutex reconfig_wait_mutex_;
+#endif
 
 int AudioExtn::audio_extn_parse_compress_metadata(struct audio_config *config_, pal_snd_dec_t *pal_snd_dec,
                                str_parms *parms, uint32_t *sr, uint16_t *ch, bool *isCompressMetadataAvail) {
@@ -520,6 +525,52 @@ int AudioExtn::audio_extn_hfp_set_mic_mute(bool state)
         hfp_set_mic_mute(state) : -1);
 }
 
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+static int reconfig_cb (tSESSION_TYPE session_type, int state)
+{
+    int ret = 0;
+    pal_param_bta2dp_t param_bt_a2dp;
+    AHAL_DBG("reconfig_cb enter");
+    if (session_type == LE_AUDIO_HARDWARE_OFFLOAD_ENCODING_DATAPATH) {
+
+        /* If reconfiguration is in progress state, we do a2dp suspend.
+         * If reconfiguration is in complete state, we do a2dp resume.
+         */
+        if (state == 0) {
+            std::unique_lock<std::mutex> guard(reconfig_wait_mutex_);
+            param_bt_a2dp.a2dp_suspended = true;
+            param_bt_a2dp.dev_id = PAL_DEVICE_OUT_BLUETOOTH_BLE;
+
+            ret = pal_set_param(PAL_PARAM_ID_BT_A2DP_SUSPENDED, (void *)&param_bt_a2dp,
+                                sizeof(pal_param_bta2dp_t));
+        } else if (state == 1) {
+            param_bt_a2dp.a2dp_suspended = false;
+            param_bt_a2dp.dev_id = PAL_DEVICE_OUT_BLUETOOTH_BLE;
+            ret = pal_set_param(PAL_PARAM_ID_BT_A2DP_SUSPENDED, (void *)&param_bt_a2dp,
+                                sizeof(pal_param_bta2dp_t));
+        }
+    } else if (session_type == LE_AUDIO_HARDWARE_OFFLOAD_DECODING_DATAPATH) {
+        if (state == 0) {
+            std::unique_lock<std::mutex> guard(reconfig_wait_mutex_);
+            param_bt_a2dp.a2dp_capture_suspended = true;
+            param_bt_a2dp.dev_id = PAL_DEVICE_IN_BLUETOOTH_BLE;
+
+            ret = pal_set_param(PAL_PARAM_ID_BT_A2DP_CAPTURE_SUSPENDED, (void *)&param_bt_a2dp,
+                                sizeof(pal_param_bta2dp_t));
+        } else if (state == 1) {
+            param_bt_a2dp.a2dp_capture_suspended = false;
+            param_bt_a2dp.dev_id = PAL_DEVICE_IN_BLUETOOTH_BLE;
+
+            ret = pal_set_param(PAL_PARAM_ID_BT_A2DP_CAPTURE_SUSPENDED, (void *)&param_bt_a2dp,
+                                sizeof(pal_param_bta2dp_t));
+        }
+    }
+
+    AHAL_ERR("reconfig_cb exit");
+    return ret;
+}
+#endif
+
 void AudioExtn::audio_extn_hfp_set_parameters(std::shared_ptr<AudioDevice> adev,
     struct str_parms *parms)
 {
@@ -540,14 +591,15 @@ int AudioExtn::audio_extn_hfp_set_mic_mute2(std::shared_ptr<AudioDevice> adev, b
 typedef void (*a2dp_bt_audio_pre_init_t)(void);
 static void *a2dp_bt_lib_source_handle = NULL;
 static a2dp_bt_audio_pre_init_t a2dp_bt_audio_pre_init = nullptr;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+typedef void (*register_reconfig_cb_t)(int (*reconfig_cb)(tSESSION_TYPE, int));
+static register_reconfig_cb_t register_reconfig_cb = nullptr;
+#endif
 
 int AudioExtn::a2dp_source_feature_init(bool is_feature_enabled)
 {
     AHAL_DBG("Called with feature %s",
         is_feature_enabled ? "Enabled" : "NOT Enabled");
-#ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
-	return 0;
-#endif
     if (is_feature_enabled &&
         (access(BT_IPC_SOURCE_LIB_NAME, R_OK) == 0)) {
         // dlopen lib
@@ -569,6 +621,21 @@ int AudioExtn::a2dp_source_feature_init(bool is_feature_enabled)
             // fwk related check's will be done in the BT layer
             a2dp_bt_audio_pre_init();
         }
+
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+        if (!(register_reconfig_cb = (register_reconfig_cb_t)dlsym(
+            a2dp_bt_lib_source_handle, "register_reconfig_cb")) ) {
+            AHAL_ERR("dlsym failed");
+            goto feature_disabled;
+        }
+
+        if (a2dp_bt_lib_source_handle && register_reconfig_cb) {
+            AHAL_DBG("calling BT module register reconfig");
+            int (*reconfig_cb_ptr)(tSESSION_TYPE, int) = &reconfig_cb;
+            register_reconfig_cb(reconfig_cb_ptr);
+        }
+#endif
+
         AHAL_DBG("---- Feature A2DP offload is Enabled ----");
         return 0;
     }
@@ -703,9 +770,9 @@ int AudioExtn::karaoke_open(pal_device_id_t device_out, pal_stream_callback pal_
                                  &payload_size, nullptr);
             pal_devs[i].address.card_id = adevice->usb_card_id_;
             pal_devs[i].address.device_num = adevice->usb_dev_num_;
-            pal_devs[i].config.sample_rate = dynamic_media_config.sample_rate;
+            pal_devs[i].config.sample_rate = dynamic_media_config.sample_rate[0];
             pal_devs[i].config.ch_info = ch_info;
-            pal_devs[i].config.aud_fmt_id = (pal_audio_fmt_t)dynamic_media_config.format;
+            pal_devs[i].config.aud_fmt_id = (pal_audio_fmt_t)dynamic_media_config.format[0];
             free(device_cap_query);
         } else {
             pal_devs[i].config.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
@@ -722,9 +789,9 @@ int AudioExtn::karaoke_open(pal_device_id_t device_out, pal_stream_callback pal_
     AHAL_INFO("Setting custom key for rx pal_devs : %s",
         pal_devs[0].custom_config.custom_key);
 
-    std::shared_ptr<StreamInPrimary> astream_in = adevice->GetActiveInStream();
-    if (astream_in && (astream_in->GetInputSource() == AUDIO_SOURCE_VOICE_RECOGNITION)) {
-        strcpy(pal_devs[1].custom_config.custom_key, ck_table[CUSTOM_KEY_VR]);    
+    std::shared_ptr<StreamInPrimary> astream_in = adevice->GetActiveInStreamByInputSource(AUDIO_SOURCE_VOICE_RECOGNITION);
+    if (astream_in) {
+        strcpy(pal_devs[1].custom_config.custom_key, ck_table[CUSTOM_KEY_VR]);
         AHAL_INFO("Setting custom key for tx pal_devs : %s",
             pal_devs[1].custom_config.custom_key);
     }

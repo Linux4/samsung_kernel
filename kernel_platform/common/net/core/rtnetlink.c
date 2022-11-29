@@ -2060,8 +2060,6 @@ struct net *rtnl_get_net_ns_capable(struct sock *sk, int netnsid)
 	 */
 	if (!sk_ns_capable(sk, net->user_ns, CAP_NET_ADMIN)) {
 		put_net(net);
-		pr_err("lsy %s %d\n", __func__, __LINE__);
-		dump_stack();
 		return ERR_PTR(-EACCES);
 	}
 	return net;
@@ -5538,7 +5536,6 @@ static int rtnetlink_rcv_msg(struct sk_buff *skb, struct nlmsghdr *nlh,
 	int kind;
 	int family;
 	int type;
-	struct nlmsgerr *err2;
 
 	type = nlh->nlmsg_type;
 	if (type > RTM_MAX)
@@ -5574,8 +5571,6 @@ static int rtnetlink_rcv_msg(struct sk_buff *skb, struct nlmsghdr *nlh,
 
 		if (type == RTM_GETLINK - RTM_BASE)
 			min_dump_alloc = rtnl_calcit(skb, nlh);
-		err2 = nlmsg_data(nlh);
-		pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
 
 		err = 0;
 		/* need to do this before rcu_read_unlock() */
@@ -5592,15 +5587,11 @@ static int rtnetlink_rcv_msg(struct sk_buff *skb, struct nlmsghdr *nlh,
 				.module		= owner,
 			};
 			err = netlink_dump_start(rtnl, skb, nlh, &c);
-			err2 = nlmsg_data(nlh);
-			pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
 			/* netlink_dump_start() will keep a reference on
 			 * module if dump is still in progress.
 			 */
 			module_put(owner);
 		}
-		err2 = nlmsg_data(nlh);
-		pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
 		return err;
 	}
 
@@ -5622,11 +5613,8 @@ static int rtnetlink_rcv_msg(struct sk_buff *skb, struct nlmsghdr *nlh,
 	if (flags & RTNL_FLAG_DOIT_UNLOCKED) {
 		doit = link->doit;
 		rcu_read_unlock();
-		if (doit) {
+		if (doit)
 			err = doit(skb, nlh, extack);
-			err2 = nlmsg_data(nlh);
-			pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
-		}
 		module_put(owner);
 		return err;
 	}
@@ -5634,17 +5622,12 @@ static int rtnetlink_rcv_msg(struct sk_buff *skb, struct nlmsghdr *nlh,
 
 	rtnl_lock();
 	link = rtnl_get_link(family, type);
-	if (link && link->doit) {
+	if (link && link->doit)
 		err = link->doit(skb, nlh, extack);
-		err2 = nlmsg_data(nlh);
-		pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
-	}
 	rtnl_unlock();
 
 	module_put(owner);
 
-	err2 = nlmsg_data(nlh);
-	pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
 	return err;
 
 out_unlock:

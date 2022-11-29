@@ -32,8 +32,6 @@
 #include <trace/events/f2fs.h>
 #include <uapi/linux/f2fs.h>
 
-/* @fs.sec -- 80d73a766b8cf3cd0e32fdfe7adebe4b -- */
-
 #ifdef CONFIG_FSCRYPT_SDP
 #include <linux/fscrypto_sdp_ioctl.h>
 #endif

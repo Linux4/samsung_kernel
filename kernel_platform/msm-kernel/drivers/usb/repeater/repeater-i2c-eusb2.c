@@ -7,14 +7,12 @@
 #include <linux/err.h>
 #include <linux/i2c.h>
 #include <linux/gpio/consumer.h>
-#include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/platform_device.h>
 #include <linux/power_supply.h>
 #include <linux/of.h>
-#include <linux/of_irq.h>
 #include <linux/regmap.h>
 #include <linux/qti-regmap-debugfs.h>
 #include <linux/regulator/consumer.h>
@@ -33,7 +31,7 @@
 #define EUSB2_1P8_VOL_MAX			1800000 /* uV */
 #define EUSB2_1P8_HPM_LOAD			32000	/* uA */
 
-/* NXP PTN3222 eUSB2 repeater registers */
+/* NXP eUSB2 repeater registers */
 #define RESET_CONTROL			0x01
 #define LINK_CONTROL1			0x02
 #define LINK_CONTROL2			0x03
@@ -45,6 +43,7 @@
 #define USB2_HS_TERMINATION		0x09
 #define USB2_HS_DISCONNECT_THRESHOLD	0x0A
 #define RAP_SIGNATURE			0x0D
+#define VDX_CONTROL			0x0E
 #define DEVICE_STATUS			0x0F
 #define LINK_STATUS			0x10
 #define REVISION_ID			0x13
@@ -57,6 +56,13 @@
 #define GPIO1_CONFIG			0x40
 #define UART_PORT1			0x50
 #define EXTRA_PORT1			0x51
+#define U_TX_ADJUST_PORT1		0x70
+#define U_HS_TX_PRE_EMPHASIS_P1		0x71
+#define U_RX_ADJUST_PORT1		0x72
+#define U_DISCONNECT_SQUELCH_PORT1	0x73
+#define E_HS_TX_PRE_EMPHASIS_P1		0x77
+#define E_TX_ADJUST_PORT1		0x78
+#define E_RX_ADJUST_PORT1		0x79
 #define REV_ID				0xB0
 #define GLOBAL_CONFIG			0xB2
 #define INT_ENABLE_1			0xB3
@@ -72,7 +78,7 @@
 #define TUNE_BUF_COUNT 20
 #define TUNE_BUF_SIZE 25
 #define TUNE_MAX_NXP 17
-#define TUNE_MAX_TI 12
+#define TUNE_MAX_TI 19
 
 static u8 tune_map_nxp[TUNE_MAX_NXP] = {
 	RESET_CONTROL,
@@ -95,6 +101,13 @@ static u8 tune_map_nxp[TUNE_MAX_NXP] = {
 };
 
 static u8 tune_map_ti[TUNE_MAX_TI] = {
+	U_TX_ADJUST_PORT1,
+	U_HS_TX_PRE_EMPHASIS_P1,
+	U_RX_ADJUST_PORT1,
+	U_DISCONNECT_SQUELCH_PORT1,
+	E_HS_TX_PRE_EMPHASIS_P1,
+	E_TX_ADJUST_PORT1,
+	E_RX_ADJUST_PORT1,
 	GPIO0_CONFIG,
 	GPIO1_CONFIG,
 	UART_PORT1,
@@ -130,11 +143,10 @@ struct eusb2_repeater {
 	bool				power_enabled;
 
 	struct gpio_desc		*reset_gpiod;
-	int				reset_gpio_irq;
-	u8				*param_override_seq;
+	u32				*param_override_seq;
 	u8				param_override_seq_cnt;
 #if IS_ENABLED(CONFIG_USB_NOTIFIER)
-	u8				*param_host_override_seq;
+	u32				*param_host_override_seq;
 	u8				param_host_override_seq_cnt;
 #endif
 #if IS_ENABLED(CONFIG_USB_PHY_TUNING_QCOM)
@@ -158,34 +170,22 @@ static const struct regmap_config eusb2_i2c_regmap = {
 #undef dev_dbg
 #define dev_dbg dev_err
 
-#if IS_ENABLED(CONFIG_USB_NOTIFIER)
-static void eusb2_repeater_update_seq(struct eusb2_repeater *er, u8 *seq, u8 cnt)
-{
-	int i, j, ret;
-
-	dev_dbg(er->ur.dev, "%s %s mode param override seq count:%d\n",
-		er->chip->repeater_type ? "NXP":"TI", er->ur.is_host ? "HOST":"CLIENT", cnt);
-	cnt /= 4;
-	for (i = 0; i < cnt; i = i+2) {
-		for (j = 0; j < 3; j++) {
-			ret = regmap_write(er->regmap, seq[i * 4 + 7], seq[i * 4 + 3]);
-			if (ret < 0)
-				dev_err(er->dev, "failed to write 0x%02x to reg: 0x%02x ret=%d\n",
-					seq[i * 4 + 3], seq[i * 4 + 7], ret);
-			else {
-				dev_dbg(er->ur.dev, "write 0x%02x to 0x%02x\n", seq[i * 4 + 3], seq[i * 4 + 7]);
-				break;
-			}
-		}
-	}
-}
-#else
 static int eusb2_i2c_read_reg(struct eusb2_repeater *er, u8 reg, u8 *val)
 {
 	int ret;
 	unsigned int reg_val;
+#if IS_ENABLED(CONFIG_USB_NOTIFIER)
+	int i;
+#endif
 
 	ret = regmap_read(er->regmap, reg, &reg_val);
+#if IS_ENABLED(CONFIG_USB_NOTIFIER)
+	for (i = 0; i < 3 && ret < 0; i++) {
+		dev_err(er->dev, "Failed to read reg:0x%02x ret=%d\n", reg, ret);
+		usleep_range(400, 450);
+		ret = regmap_read(er->regmap, reg, &reg_val);		
+	}
+#endif
 	if (ret < 0) {
 		dev_err(er->dev, "Failed to read reg:0x%02x ret=%d\n", reg, ret);
 		return ret;
@@ -197,17 +197,21 @@ static int eusb2_i2c_read_reg(struct eusb2_repeater *er, u8 reg, u8 *val)
 	return 0;
 }
 
-static int eusb2_i2c_write_reg(struct eusb2_repeater *er, u8 reg, u8 mask, u8 val)
+static int eusb2_i2c_write_reg(struct eusb2_repeater *er, u8 reg, u8 val)
 {
 	int ret;
-	u8 reg_val;
+#if IS_ENABLED(CONFIG_USB_NOTIFIER)
+	int i;
+#endif
 
-	ret = eusb2_i2c_read_reg(er, reg, &reg_val);
-	if (ret)
-		return ret;
-
-	val |= (reg_val & mask);
 	ret = regmap_write(er->regmap, reg, val);
+#if IS_ENABLED(CONFIG_USB_NOTIFIER)
+	for (i = 0; i < 3 && ret < 0; i++) {
+		dev_err(er->dev, "failed to write 0x%02x to reg: 0x%02x ret=%d\n", val, reg, ret);
+		usleep_range(400, 450);
+		ret = regmap_write(er->regmap, reg, val);
+	}
+#endif
 	if (ret < 0) {
 		dev_err(er->dev, "failed to write 0x%02x to reg: 0x%02x ret=%d\n", val, reg, ret);
 		return ret;
@@ -218,19 +222,16 @@ static int eusb2_i2c_write_reg(struct eusb2_repeater *er, u8 reg, u8 mask, u8 va
 	return 0;
 }
 
-static void eusb2_repeater_update_seq(struct eusb2_repeater *er, u8 *seq, u8 cnt)
+static void eusb2_repeater_update_seq(struct eusb2_repeater *er, u32 *seq, u8 cnt)
 {
 	int i;
-	u8 mask = 0xFF;
 
 	dev_dbg(er->ur.dev, "param override seq count:%d\n", cnt);
 	for (i = 0; i < cnt; i = i+2) {
 		dev_dbg(er->ur.dev, "write 0x%02x to 0x%02x\n", seq[i], seq[i+1]);
-		eusb2_i2c_write_reg(er, seq[i+1], mask, seq[i]);
+		eusb2_i2c_write_reg(er, seq[i+1], seq[i]);
 	}
 }
-#endif
-
 #if IS_ENABLED(CONFIG_USB_PHY_TUNING_QCOM)
 static void eusb2_repeater_tune_buf_init(void)
 {
@@ -242,32 +243,19 @@ static void eusb2_repeater_tune_buf_init(void)
 
 static void eusb2_repeater_tune_set(void)
 {
-	int i, j, ret;
-	unsigned int reg_val;
+	int i;
+	u8 reg_val;
 
 	mutex_lock(&ter->er_tune_lock);
 	for (i = 0; i < ter->tune_buf_cnt; i++) {
-		for (j = 0; j < 3; j++) {
-			if (!ter->ur.is_host && ter->chip->repeater_type == NXP_REPEATER &&
-				ter->tune_buf[i][0] == 0x2 && ter->tune_buf[i][1] == 0x03) {
-				pr_info("%s(): skip host test mode setting in USB client mode\n");
-				break;
-			}
-			ret = regmap_write(ter->regmap, ter->tune_buf[i][0], ter->tune_buf[i][1]);
-			if (ret < 0)
-				dev_err(ter->dev, "failed to write 0x%02x to reg: 0x%02x ret=%d\n",
-					ter->tune_buf[i][1], ter->tune_buf[i][0], ret);
-			else
-				break;
-		}
+		if (!ter->ur.is_host && ter->chip->repeater_type == NXP_REPEATER &&
+			ter->tune_buf[i][0] == 0x2 && ter->tune_buf[i][1] == 0x03)
+			pr_info("%s(): skip host test mode setting in NXP USB client mode\n");
+		else
+			eusb2_i2c_write_reg(ter, ter->tune_buf[i][0], ter->tune_buf[i][1]);
+
 		usleep_range(1, 10);
-		for (j = 0; j < 3; j++) {
-			ret = regmap_read(ter->regmap, ter->tune_buf[i][0], &reg_val);
-			if (ret < 0)
-				dev_err(ter->dev, "Failed to read reg:0x%02x ret=%d\n", ter->tune_buf[i][0], ret);
-			else
-				break;
-		}
+		eusb2_i2c_read_reg(ter, ter->tune_buf[i][0], &reg_val);
 		pr_info("%s(): [%d] 0x%x 0x%x (%d/%d)\n", __func__, i, ter->tune_buf[i][0],
 			reg_val, ter->tune_buf_cnt, TUNE_BUF_COUNT);
 		usleep_range(1, 2);
@@ -279,8 +267,9 @@ static ssize_t eusb2_repeater_tune_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	char str[(TUNE_BUF_SIZE * TUNE_BUF_COUNT) + 35] = {0, };
+	char str2[(TUNE_BUF_SIZE * TUNE_BUF_COUNT) + 35] = {0, };
 	int i, ret;
-	unsigned int reg_val;
+	u8 reg_val;
 
 	if (!ter) {
 		pr_err("eusb2 repeater is NULL\n");
@@ -290,23 +279,25 @@ static ssize_t eusb2_repeater_tune_show(struct device *dev,
 	sprintf(str, "\n Address Value - %s\n", ter->chip->repeater_type ? "NXP":"TI");
 	if (ter->chip->repeater_type == NXP_REPEATER) {
 		for (i = 0; i < TUNE_MAX_NXP; i++) {
-			ret = regmap_read(ter->regmap, tune_map_nxp[i], &reg_val);
+			strcpy(str2, str);
+			ret = eusb2_i2c_read_reg(ter, tune_map_nxp[i], &reg_val);
 			if (ret < 0) {
 				dev_err(ter->dev, "Failed to read reg:0x%02x ret=%d\n", tune_map_nxp[i], ret);
 				mutex_unlock(&ter->er_tune_lock);
 				return sprintf(buf, "Failed to read reg\n");
 			}
-			sprintf(str, "%s  0x%2x   0x%2x\n", str, tune_map_nxp[i], reg_val);
+			sprintf(str, "%s  0x%2x   0x%2x\n", str2, tune_map_nxp[i], reg_val);
 		}
 	} else {
 		for (i = 0; i < TUNE_MAX_TI; i++) {
-			ret = regmap_read(ter->regmap, tune_map_ti[i], &reg_val);
+			strcpy(str2, str);
+			ret = eusb2_i2c_read_reg(ter, tune_map_ti[i], &reg_val);
 			if (ret < 0) {
 				dev_err(ter->dev, "Failed to read reg:0x%02x ret=%d\n", tune_map_ti[i], ret);
 				mutex_unlock(&ter->er_tune_lock);
 				return sprintf(buf, "Failed to read reg\n");
 			}
-			sprintf(str, "%s  0x%2x   0x%2x\n", str, tune_map_ti[i], reg_val);
+			sprintf(str, "%s  0x%2x   0x%2x\n", str2, tune_map_ti[i], reg_val);
 		}
 	}
 	mutex_unlock(&ter->er_tune_lock);
@@ -317,9 +308,8 @@ static ssize_t eusb2_repeater_tune_show(struct device *dev,
 static ssize_t eusb2_repeater_tune_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
-	u8 reg, val;
+	u8 reg, val, reg_val;
 	int i, ret;
-	unsigned int reg_val;
 
 	pr_info("%s buf=%s\n", __func__, buf);
 	if (!ter) {
@@ -331,7 +321,7 @@ static ssize_t eusb2_repeater_tune_store(struct device *dev,
 
 	for (i = 0; i < ter->tune_buf_cnt; i++) {
 		if (ter->tune_buf[i][0] == reg) {
-			ret = regmap_write(ter->regmap, reg, val);
+			ret = eusb2_i2c_write_reg(ter, reg, val);
 			if (ret < 0) {
 				dev_err(ter->dev, "failed to write 0x%02x to reg: 0x%02x ret=%d\n", val, reg, ret);
 				mutex_unlock(&ter->er_tune_lock);
@@ -339,7 +329,7 @@ static ssize_t eusb2_repeater_tune_store(struct device *dev,
 			}
 			ter->tune_buf[i][1] = val;
 			usleep_range(1, 2);
-			ret = regmap_read(ter->regmap, reg, &reg_val);
+			ret = eusb2_i2c_read_reg(ter, reg, &reg_val);
 			if (ret < 0) {
 				dev_err(ter->dev, "Failed to read reg:0x%02x ret=%d\n", reg, ret);
 				mutex_unlock(&ter->er_tune_lock);
@@ -352,7 +342,7 @@ static ssize_t eusb2_repeater_tune_store(struct device *dev,
 		}
 	}
 	if (ter->tune_buf_cnt < TUNE_BUF_COUNT) {
-		ret = regmap_write(ter->regmap, reg, val);
+		ret = eusb2_i2c_write_reg(ter, reg, val);
 		if (ret < 0) {
 			dev_err(ter->dev, "failed to write 0x%02x to reg: 0x%02x ret=%d\n", val, reg, ret);
 			mutex_unlock(&ter->er_tune_lock);
@@ -361,7 +351,7 @@ static ssize_t eusb2_repeater_tune_store(struct device *dev,
 		ter->tune_buf[i][0] = reg;
 		ter->tune_buf[i][1] = val;
 		usleep_range(1, 2);
-		ret = regmap_read(ter->regmap, reg, &reg_val);
+		ret = eusb2_i2c_read_reg(ter, reg, &reg_val);
 		if (ret < 0) {
 			dev_err(ter->dev, "Failed to read reg:0x%02x ret=%d\n", reg, ret);
 			mutex_unlock(&ter->er_tune_lock);
@@ -495,9 +485,29 @@ static int eusb2_repeater_init(struct usb_repeater *ur)
 {
 	struct eusb2_repeater *er =
 			container_of(ur, struct eusb2_repeater, ur);
+	const struct i2c_repeater_chip *chip = er->chip;
+	u8 reg_val;
+
+	switch (chip->repeater_type) {
+	case TI_REPEATER:
+		eusb2_i2c_read_reg(er, REV_ID, &reg_val);
+		/* If the repeater revision is B1 disable auto-resume WA */
+		if (reg_val == 0x03)
+			ur->flags |= UR_AUTO_RESUME_SUPPORTED;
+		break;
+	case NXP_REPEATER:
+		eusb2_i2c_read_reg(er, REVISION_ID, &reg_val);
+		break;
+	default:
+		dev_err(er->ur.dev, "Invalid repeater\n");
+	}
+
+	dev_info(er->ur.dev, "eUSB2 repeater version = 0x%x ur->flags:0x%x\n", reg_val, ur->flags);
 
 	/* override init sequence using devicetree based values */
 #if IS_ENABLED(CONFIG_USB_NOTIFIER)
+	dev_info(er->ur.dev, "%s %s mode\n",
+		er->chip->repeater_type ? "NXP":"TI", er->ur.is_host ? "HOST":"CLIENT");
 	if (er->param_host_override_seq_cnt && er->ur.is_host)
 		eusb2_repeater_update_seq(er, er->param_host_override_seq,
 					er->param_host_override_seq_cnt);
@@ -510,6 +520,7 @@ static int eusb2_repeater_init(struct usb_repeater *ur)
 	if (er->tune_buf_cnt && er->er_tune_init_done)
 		eusb2_repeater_tune_set();
 #endif
+
 	dev_info(er->ur.dev, "eUSB2 repeater init\n");
 
 	return 0;
@@ -540,18 +551,6 @@ static int eusb2_repeater_powerdown(struct usb_repeater *ur)
 			container_of(ur, struct eusb2_repeater, ur);
 
 	return eusb2_repeater_power(er, false);
-}
-
-static irqreturn_t eusb2_reset_gpio_irq_handler(int irq, void *dev_id)
-{
-	/*
-	 * This IRQ handler is just returning IRQ_HANDLED to notify
-	 * interrupt framework to clear the interrupt.
-	 */
-	struct eusb2_repeater *er = dev_id;
-
-	dev_dbg(er->ur.dev, "reset gpio interrupt handled\n");
-	return IRQ_HANDLED;
 }
 
 static struct i2c_repeater_chip repeater_chip[] = {
@@ -627,24 +626,9 @@ static int eusb2_repeater_i2c_probe(struct i2c_client *client)
 		goto err_probe;
 	}
 
-	er->reset_gpiod = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_LOW);
+	er->reset_gpiod = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_HIGH);
 	if (IS_ERR(er->reset_gpiod)) {
 		ret = PTR_ERR(er->reset_gpiod);
-		goto err_probe;
-	}
-
-	er->reset_gpio_irq = of_irq_get_byname(dev->of_node, "eusb2_rptr_reset_gpio_irq");
-	if (er->reset_gpio_irq < 0) {
-		dev_err(dev, "failed to get reset gpio IRQ\n");
-		ret = er->reset_gpio_irq;
-		goto err_probe;
-	}
-
-	ret = devm_request_irq(dev, er->reset_gpio_irq,
-			eusb2_reset_gpio_irq_handler, IRQF_TRIGGER_RISING,
-			client->name, er);
-	if (ret < 0) {
-		dev_err(dev, "failed to request reset gpio irq\n");
 		goto err_probe;
 	}
 
@@ -666,7 +650,7 @@ static int eusb2_repeater_i2c_probe(struct i2c_client *client)
 			goto err_probe;
 		}
 
-		ret = of_property_read_u8_array(dev->of_node,
+		ret = of_property_read_u32_array(dev->of_node,
 				"qcom,param-override-seq",
 				er->param_override_seq,
 				er->param_override_seq_cnt);
@@ -696,7 +680,7 @@ static int eusb2_repeater_i2c_probe(struct i2c_client *client)
 			goto err_probe;
 		}
 
-		ret = of_property_read_u8_array(dev->of_node,
+		ret = of_property_read_u32_array(dev->of_node,
 				"qcom,param-host-override-seq",
 				er->param_host_override_seq,
 				er->param_host_override_seq_cnt);
@@ -748,6 +732,7 @@ static int eusb2_repeater_i2c_remove(struct i2c_client *client)
 
 	if (!er)
 		return 0;
+
 #if IS_ENABLED(CONFIG_USB_PHY_TUNING_QCOM)
 	mutex_destroy(&er->er_tune_lock);
 #endif

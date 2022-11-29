@@ -42,23 +42,8 @@ int __last_kmsg_pull_last_log(struct builder *bd)
 			container_of(bd, struct log_buf_drvdata, bd);
 	struct last_kmsg_data *last_kmsg = &drvdata->last_kmsg;
 	char *buf = last_kmsg->buf;
-	const struct sec_log_buf_head *log_buf_head = __log_buf_get_header();
-	const size_t log_buf_size = ___log_buf_get_buf_size();
-	const size_t max_size = ___log_buf_get_buf_size();
-	size_t head;
 
-	if (log_buf_head->idx > max_size) {
-		head = (size_t)log_buf_head->idx % log_buf_size;
-		memcpy_fromio(buf, &log_buf_head->buf[head],
-				log_buf_size - head);
-		if (head != 0)
-			memcpy_fromio(&buf[log_buf_size - head],
-					log_buf_head->buf, head);
-		last_kmsg->size = max_size;
-	} else {
-		memcpy_fromio(buf, log_buf_head->buf, log_buf_head->idx);
-		last_kmsg->size = log_buf_head->idx;
-	}
+	last_kmsg->size = __log_buf_copy_to_buffer(buf);
 
 	return 0;
 }

@@ -285,7 +285,7 @@ extern int cnss_get_mem_segment_info(enum cnss_remote_mem_type type,
 extern int cnss_get_pci_slot(struct device *dev);
 extern int cnss_pci_get_reg_dump(struct device *dev, uint8_t *buffer,
 				 uint32_t len);
-
 extern int cnss_sysfs_get_pm_info(void);
 extern void cnss_sysfs_update_driver_status(int32_t new_status, void *version, void *softap);
+extern void cnss_disable_ssr(void);
 #endif /* _NET_CNSS2_H */

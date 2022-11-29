@@ -11901,6 +11901,10 @@ void LocApiV02 :: setSecGnssConfiguration (const char* sec_ext_config, int32_t l
         setXtraThrottleEnable(true);
       }
     }
+    if(sec_gps_conf.CARRIER_STATE_CHANGED >= 0 && sim_slotId == sec_gps_conf.CARRIER_STATE_CHANGED) {
+        requestSetSecGnssParams();
+        sec_gps_conf.CARRIER_STATE_CHANGED = -1;
+    }	
   }
 }
 

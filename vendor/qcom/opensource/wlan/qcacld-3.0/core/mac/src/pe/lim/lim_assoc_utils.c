@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -699,11 +700,14 @@ lim_reject_association(struct mac_context *mac_ctx, tSirMacAddr peer_addr,
 		}
 	}
 
+	sta_ds = dph_get_hash_entry(mac_ctx, sta_id,
+				    &session_entry->dph.dphHashTable);
+
 	if (delete_sta == false) {
 		lim_send_assoc_rsp_mgmt_frame(
 				mac_ctx,
 				STATUS_AP_UNABLE_TO_HANDLE_NEW_STA,
-				1, peer_addr, sub_type, 0, session_entry,
+				1, peer_addr, sub_type, sta_ds, session_entry,
 				false);
 		pe_warn("received Re/Assoc req when max associated STAs reached from");
 		lim_print_mac_addr(mac_ctx, peer_addr, LOGW);
@@ -711,9 +715,6 @@ lim_reject_association(struct mac_context *mac_ctx, tSirMacAddr peer_addr,
 					session_entry->smeSessionId);
 		return;
 	}
-
-	sta_ds = dph_get_hash_entry(mac_ctx, sta_id,
-		   &session_entry->dph.dphHashTable);
 
 	if (!sta_ds) {
 		pe_err("No STA context, yet rejecting Association");
@@ -734,7 +735,7 @@ lim_reject_association(struct mac_context *mac_ctx, tSirMacAddr peer_addr,
 	 * status code to requesting STA.
 	 */
 	lim_send_assoc_rsp_mgmt_frame(mac_ctx, result_code, 0, peer_addr,
-				      sub_type, 0, session_entry, false);
+				      sub_type, sta_ds, session_entry, false);
 
 	if (session_entry->parsedAssocReq[sta_ds->assocId]) {
 		lim_free_assoc_req_frm_buf(
@@ -2348,7 +2349,7 @@ lim_add_sta(struct mac_context *mac_ctx,
 
 	lim_update_sta_eht_capable(mac_ctx, add_sta_params, sta_ds,
 				   session_entry);
-	lim_update_sta_mlo_info(add_sta_params, sta_ds);
+	lim_update_sta_mlo_info(session_entry, add_sta_params, sta_ds);
 
 	add_sta_params->maxAmpduDensity = sta_ds->htAMpduDensity;
 	add_sta_params->maxAmpduSize = sta_ds->htMaxRxAMpduFactor;
@@ -2598,9 +2599,11 @@ lim_add_sta(struct mac_context *mac_ctx,
 			assoc_req =
 			(tpSirAssocReq) session_entry->parsedAssocReq[aid];
 
-			add_sta_params->wpa_rsn = assoc_req->rsnPresent;
-			add_sta_params->wpa_rsn |=
-				(assoc_req->wpaPresent << 1);
+			if (assoc_req) {
+				add_sta_params->wpa_rsn = assoc_req->rsnPresent;
+				add_sta_params->wpa_rsn |=
+					(assoc_req->wpaPresent << 1);
+			}
 		}
 	}
 
@@ -4340,7 +4343,6 @@ lim_prepare_and_send_del_sta_cnf(struct mac_context *mac, tpDphHashNode sta,
 	struct qdf_mac_addr sta_dsaddr;
 	struct lim_sta_context mlmStaContext;
 	bool mlo_conn = false;
-	bool mlo_recv_assoc_frm = false;
 
 	if (!sta) {
 		pe_err("sta is NULL");
@@ -4352,10 +4354,9 @@ lim_prepare_and_send_del_sta_cnf(struct mac_context *mac, tpDphHashNode sta,
 		     sta->staAddr, QDF_MAC_ADDR_SIZE);
 
 	mlmStaContext = sta->mlmStaContext;
-	mlo_conn = lim_is_mlo_conn(pe_session, sta);
-	mlo_recv_assoc_frm = lim_is_mlo_recv_assoc(sta);
 
 	if (LIM_IS_AP_ROLE(pe_session)) {
+		mlo_conn = lim_is_mlo_conn(pe_session, sta);
 		if (mlo_conn)
 			lim_release_mlo_conn_idx(mac, sta->assocId,
 						 pe_session, false);
@@ -4372,8 +4373,6 @@ lim_prepare_and_send_del_sta_cnf(struct mac_context *mac, tpDphHashNode sta,
 				 pe_session->peSessionId,
 				 pe_session->limMlmState));
 	}
-	if (mlo_conn && !mlo_recv_assoc_frm && LIM_IS_AP_ROLE(pe_session))
-		return;
 
 	lim_send_del_sta_cnf(mac, sta_dsaddr, staDsAssocId, mlmStaContext,
 			     status_code, pe_session);

@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2011-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -49,8 +50,9 @@ static ssize_t hdd_pm_cinfo_show(struct hdd_context *hdd_ctx)
 		conn_info++;
 	}
 
-	pr_info("|\t|current state dbs - %-10d|\n",
-		policy_mgr_is_current_hwmode_dbs(hdd_ctx->psoc));
+	pr_info("|\t|current state dbs - %-10d, sbs - %-10d|\n",
+		policy_mgr_is_current_hwmode_dbs(hdd_ctx->psoc),
+		policy_mgr_is_current_hwmode_sbs(hdd_ctx->psoc));
 
 	hdd_exit();
 	return 0;
@@ -201,7 +203,8 @@ __hdd_sysfs_pm_dbs_store(struct hdd_context *hdd_ctx,
 	switch (value) {
 	case 0:
 	case 1:
-		wma_set_dbs_capability_ut(value);
+		policy_mgr_set_dbs_cap_ut(hdd_ctx->psoc, value);
+		wma_enable_dbs_service_ut();
 		break;
 	default:
 		hdd_err_rl("invalid value %d", value);

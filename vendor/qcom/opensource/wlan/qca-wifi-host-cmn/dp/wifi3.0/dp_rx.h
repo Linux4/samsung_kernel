@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -22,6 +23,7 @@
 #include "hal_rx.h"
 #include "dp_peer.h"
 #include "dp_internal.h"
+#include <qdf_tracepoint.h>
 
 #ifdef RXDMA_OPTIMIZATION
 #ifndef RX_DATA_BUFFER_ALIGNMENT
@@ -35,13 +37,16 @@
 #define RX_MONITOR_BUFFER_ALIGNMENT     4
 #endif /* RXDMA_OPTIMIZATION */
 
-#ifdef QCA_HOST2FW_RXBUF_RING
+#if defined(WLAN_MAX_PDEVS) && (WLAN_MAX_PDEVS == 1)
 #define DP_WBM2SW_RBM(sw0_bm_id)	HAL_RX_BUF_RBM_SW1_BM(sw0_bm_id)
 /* RBM value used for re-injecting defragmented packets into REO */
 #define DP_DEFRAG_RBM(sw0_bm_id)	HAL_RX_BUF_RBM_SW3_BM(sw0_bm_id)
-#endif /* QCA_HOST2FW_RXBUF_RING */
+#endif
 
 #define RX_BUFFER_RESERVATION   0
+#ifdef QCA_WIFI_QCN9224
+#define RX_MON_MIN_HEAD_ROOM   64
+#endif
 
 #define DP_DEFAULT_NOISEFLOOR	(-96)
 
@@ -1079,24 +1084,6 @@ void *dp_rx_cookie_2_link_desc_va(struct dp_soc *soc,
 }
 
 #ifndef QCA_HOST_MODE_WIFI_DISABLED
-/*
- * dp_rx_intrabss_fwd() - API for intrabss fwd. For EAPOL
- *  pkt with DA not equal to vdev mac addr, fwd is not allowed.
- * @soc: core txrx main context
- * @ta_peer: source peer entry
- * @rx_tlv_hdr: start address of rx tlvs
- * @nbuf: nbuf that has to be intrabss forwarded
- * @msdu_metadata: msdu metadata
- *
- * Return: true if it is forwarded else false
- */
-
-bool dp_rx_intrabss_fwd(struct dp_soc *soc,
-			struct dp_peer *ta_peer,
-			uint8_t *rx_tlv_hdr,
-			qdf_nbuf_t nbuf,
-			struct hal_rx_msdu_metadata msdu_metadata);
-
 #ifdef DISABLE_EAPOL_INTRABSS_FWD
 #ifdef WLAN_FEATURE_11BE_MLO
 static inline bool dp_nbuf_dst_addr_is_mld_addr(struct dp_vdev *vdev,
@@ -1159,6 +1146,16 @@ bool dp_rx_intrabss_eapol_drop_check(struct dp_soc *soc,
 	return false;
 }
 #endif /* DISABLE_EAPOL_INTRABSS_FWD */
+
+bool dp_rx_intrabss_mcbc_fwd(struct dp_soc *soc, struct dp_peer *ta_peer,
+			     uint8_t *rx_tlv_hdr, qdf_nbuf_t nbuf,
+			     struct cdp_tid_rx_stats *tid_stats);
+
+bool dp_rx_intrabss_ucast_fwd(struct dp_soc *soc, struct dp_peer *ta_peer,
+			      uint8_t tx_vdev_id,
+			      uint8_t *rx_tlv_hdr, qdf_nbuf_t nbuf,
+			      struct cdp_tid_rx_stats *tid_stats);
+
 /**
  * dp_rx_defrag_concat() - Concatenate the fragments
  *
@@ -2027,7 +2024,28 @@ dp_rx_is_list_ready(qdf_nbuf_t nbuf_head,
 }
 #endif
 
-#ifdef QCA_HOST2FW_RXBUF_RING
+#ifdef WLAN_FEATURE_MARK_FIRST_WAKEUP_PACKET
+/**
+ * dp_rx_mark_first_packet_after_wow_wakeup - get first packet after wow wakeup
+ * @pdev: pointer to dp_pdev structure
+ * @rx_tlv: pointer to rx_pkt_tlvs structure
+ * @nbuf: pointer to skb buffer
+ *
+ * Return: None
+ */
+void dp_rx_mark_first_packet_after_wow_wakeup(struct dp_pdev *pdev,
+					      uint8_t *rx_tlv,
+					      qdf_nbuf_t nbuf);
+#else
+static inline void
+dp_rx_mark_first_packet_after_wow_wakeup(struct dp_pdev *pdev,
+					 uint8_t *rx_tlv,
+					 qdf_nbuf_t nbuf)
+{
+}
+#endif
+
+#if defined(WLAN_MAX_PDEVS) && (WLAN_MAX_PDEVS == 1)
 static inline uint8_t
 dp_rx_get_defrag_bm_id(struct dp_soc *soc)
 {
@@ -2082,4 +2100,16 @@ void dp_rx_desc_pool_deinit_generic(struct dp_soc *soc,
 				  struct rx_desc_pool *rx_desc_pool,
 				  uint32_t pool_id);
 
+/**
+ * dp_rx_pkt_tracepoints_enabled() - Get the state of rx pkt tracepoint
+ *
+ * Return: True if any rx pkt tracepoint is enabled else false
+ */
+static inline
+bool dp_rx_pkt_tracepoints_enabled(void)
+{
+	return (qdf_trace_dp_rx_tcp_pkt_enabled() ||
+		qdf_trace_dp_rx_udp_pkt_enabled() ||
+		qdf_trace_dp_rx_pkt_enabled());
+}
 #endif /* _DP_RX_H */

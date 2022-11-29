@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -440,41 +440,6 @@ void hdd_get_tx_resource(struct hdd_adapter *adapter,
 		}
 	}
 }
-
-#else
-/**
- * hdd_skb_orphan() - skb_unshare a cloned packed else skb_orphan
- * @adapter: pointer to HDD adapter
- * @skb: pointer to skb data packet
- *
- * Return: pointer to skb structure
- */
-static inline struct sk_buff *hdd_skb_orphan(struct hdd_adapter *adapter,
-		struct sk_buff *skb) {
-
-	struct sk_buff *nskb;
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 19, 0))
-	struct hdd_context *hdd_ctx = WLAN_HDD_GET_CTX(adapter);
-#endif
-	int cpu;
-
-	hdd_skb_fill_gso_size(adapter->dev, skb);
-
-	nskb = skb_unshare(skb, GFP_ATOMIC);
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 19, 0))
-	if (unlikely(hdd_ctx->config->tx_orphan_enable) && (nskb == skb)) {
-		/*
-		 * For UDP packets we want to orphan the packet to allow the app
-		 * to send more packets. The flow would ultimately be controlled
-		 * by the limited number of tx descriptors for the vdev.
-		 */
-		cpu = qdf_get_smp_processor_id();
-		++adapter->hdd_stats.tx_rx_stats.per_cpu[cpu].tx_orphaned;
-		skb_orphan(skb);
-	}
-#endif
-	return nskb;
-}
 #endif /* QCA_LL_LEGACY_TX_FLOW_CONTROL */
 
 uint32_t hdd_txrx_get_tx_ack_count(struct hdd_adapter *adapter)
@@ -632,8 +597,8 @@ void hdd_reset_all_adapters_connectivity_stats(struct hdd_context *hdd_ctx)
 
 /**
  * hdd_is_tx_allowed() - check if Tx is allowed based on current peer state
+ * @adapter: pointer to adapter structure
  * @skb: pointer to OS packet (sk_buff)
- * @vdev_id: virtual interface id
  * @peer_mac: Peer mac address
  *
  * This function gets the peer state from DP and check if it is either
@@ -643,7 +608,8 @@ void hdd_reset_all_adapters_connectivity_stats(struct hdd_context *hdd_ctx)
  *
  * Return: true if Tx is allowed and false otherwise.
  */
-static inline bool hdd_is_tx_allowed(struct sk_buff *skb, uint8_t vdev_id,
+static inline bool hdd_is_tx_allowed(struct hdd_adapter *adapter,
+				     struct sk_buff *skb,
 				     uint8_t *peer_mac)
 {
 	enum ol_txrx_peer_state peer_state;
@@ -651,7 +617,16 @@ static inline bool hdd_is_tx_allowed(struct sk_buff *skb, uint8_t vdev_id,
 
 	QDF_BUG(soc);
 
-	peer_state = cdp_peer_state_get(soc, vdev_id, peer_mac);
+	/**
+	 * If is_authenticated is true, then peer state is
+	 * OL_TXRX_PEER_STATE_AUTH already, skip cdp peer
+	 * API which is not efficient for T-put.
+	 */
+	if (adapter->device_mode != QDF_NDI_MODE &&
+	    hdd_is_sta_authenticated(adapter))
+		return true;
+
+	peer_state = cdp_peer_state_get(soc, adapter->vdev_id, peer_mac);
 	if (likely(OL_TXRX_PEER_STATE_AUTH == peer_state))
 		return true;
 	if (OL_TXRX_PEER_STATE_CONN == peer_state &&
@@ -976,7 +951,9 @@ void hdd_get_transmit_mac_addr(struct hdd_adapter *adapter, struct sk_buff *skb,
 			qdf_copy_macaddr(mac_addr_tx_allowed,
 					 (struct qdf_mac_addr *)skb->data);
 	} else {
-		if (hdd_cm_is_vdev_associated(adapter))
+		/* If is_authenticated is true, vdev must be associated */
+		if (qdf_likely(hdd_is_sta_authenticated(adapter)) ||
+		    hdd_cm_is_vdev_associated(adapter))
 			qdf_copy_macaddr(mac_addr_tx_allowed,
 					 &sta_ctx->conn_info.bssid);
 	}
@@ -1041,7 +1018,8 @@ static void hdd_mark_icmp_req_to_fw(struct hdd_context *hdd_ctx,
 	if (!hdd_ctx->config->icmp_req_to_fw_mark_interval)
 		return;
 
-	if (qdf_nbuf_get_icmp_subtype(skb) != QDF_PROTO_ICMP_REQ)
+	if ((qdf_nbuf_get_icmp_subtype(skb) != QDF_PROTO_ICMP_REQ) &&
+	    (qdf_nbuf_get_icmpv6_subtype(skb) != QDF_PROTO_ICMPV6_REQ))
 		return;
 
 	/* Mark all ICMP request to be sent to FW */
@@ -1060,6 +1038,20 @@ static void hdd_mark_icmp_req_to_fw(struct hdd_context *hdd_ctx,
 static void hdd_mark_icmp_req_to_fw(struct hdd_context *hdd_ctx,
 				    struct sk_buff *skb)
 {
+}
+#endif
+
+#ifdef CONFIG_DP_PKT_ADD_TIMESTAMP
+void hdd_pkt_add_timestamp(struct hdd_adapter *adapter,
+			   enum qdf_pkt_timestamp_index index, uint64_t time,
+			   struct sk_buff *skb)
+{
+	if (unlikely(qdf_is_dp_pkt_timestamp_enabled())) {
+		uint64_t tsf_time;
+
+		hdd_get_tsf_time(adapter, time, &tsf_time);
+		qdf_add_dp_pkt_timestamp(skb, index, tsf_time);
+	}
 }
 #endif
 
@@ -1084,12 +1076,9 @@ static void __hdd_hard_start_xmit(struct sk_buff *skb,
 	enum sme_qos_wmmuptype up;
 	struct hdd_adapter *adapter = WLAN_HDD_GET_PRIV_PTR(dev);
 	bool granted;
-	struct hdd_station_ctx *sta_ctx = &adapter->session.station;
-	struct qdf_mac_addr mac_addr;
 	struct qdf_mac_addr mac_addr_tx_allowed = QDF_MAC_ADDR_ZERO_INIT;
 	uint8_t pkt_type = 0;
 	bool is_arp = false;
-	struct wlan_objmgr_vdev *vdev;
 	struct hdd_context *hdd_ctx;
 	void *soc = cds_get_context(QDF_MODULE_ID_SOC);
 	enum qdf_proto_subtype subtype = QDF_PROTO_INVALID;
@@ -1107,7 +1096,6 @@ static void __hdd_hard_start_xmit(struct sk_buff *skb,
 
 	++stats->per_cpu[cpu].tx_called;
 	stats->cont_txtimeout_cnt = 0;
-	qdf_mem_copy(mac_addr.bytes, skb->data, sizeof(mac_addr.bytes));
 
 	if (cds_is_driver_transitioning()) {
 		QDF_TRACE_DEBUG_RL(QDF_MODULE_ID_HDD_DATA,
@@ -1123,11 +1111,13 @@ static void __hdd_hard_start_xmit(struct sk_buff *skb,
 	}
 
 	wlan_hdd_classify_pkt(skb);
+
+	QDF_NBUF_CB_TX_EXTRA_FRAG_FLAGS_NOTIFY_COMP(skb) = 1;
+
 	if (QDF_NBUF_CB_GET_PACKET_TYPE(skb) == QDF_NBUF_CB_PACKET_TYPE_ARP) {
 		if (qdf_nbuf_data_is_arp_req(skb) &&
 		    (adapter->track_arp_ip == qdf_nbuf_get_arp_tgt_ip(skb))) {
 			is_arp = true;
-			QDF_NBUF_CB_TX_EXTRA_FRAG_FLAGS_NOTIFY_COMP(skb) = 1;
 			++adapter->hdd_stats.hdd_arp_stats.tx_arp_req_count;
 			QDF_TRACE(QDF_MODULE_ID_HDD_DATA,
 				  QDF_TRACE_LEVEL_INFO_HIGH,
@@ -1138,11 +1128,9 @@ static void __hdd_hard_start_xmit(struct sk_buff *skb,
 		subtype = qdf_nbuf_get_eapol_subtype(skb);
 		if (subtype == QDF_PROTO_EAPOL_M2) {
 			++adapter->hdd_stats.hdd_eapol_stats.eapol_m2_count;
-			QDF_NBUF_CB_TX_EXTRA_FRAG_FLAGS_NOTIFY_COMP(skb) = 1;
 			is_eapol = true;
 		} else if (subtype == QDF_PROTO_EAPOL_M4) {
 			++adapter->hdd_stats.hdd_eapol_stats.eapol_m4_count;
-			QDF_NBUF_CB_TX_EXTRA_FRAG_FLAGS_NOTIFY_COMP(skb) = 1;
 			is_eapol = true;
 		}
 	} else if (QDF_NBUF_CB_GET_PACKET_TYPE(skb) ==
@@ -1150,17 +1138,20 @@ static void __hdd_hard_start_xmit(struct sk_buff *skb,
 		subtype = qdf_nbuf_get_dhcp_subtype(skb);
 		if (subtype == QDF_PROTO_DHCP_DISCOVER) {
 			++adapter->hdd_stats.hdd_dhcp_stats.dhcp_dis_count;
-			QDF_NBUF_CB_TX_EXTRA_FRAG_FLAGS_NOTIFY_COMP(skb) = 1;
 			is_dhcp = true;
 		} else if (subtype == QDF_PROTO_DHCP_REQUEST) {
 			++adapter->hdd_stats.hdd_dhcp_stats.dhcp_req_count;
-			QDF_NBUF_CB_TX_EXTRA_FRAG_FLAGS_NOTIFY_COMP(skb) = 1;
 			is_dhcp = true;
 		}
-	} else if (QDF_NBUF_CB_GET_PACKET_TYPE(skb) ==
-		   QDF_NBUF_CB_PACKET_TYPE_ICMP) {
+	} else if ((QDF_NBUF_CB_GET_PACKET_TYPE(skb) ==
+		   QDF_NBUF_CB_PACKET_TYPE_ICMP) ||
+		   (QDF_NBUF_CB_GET_PACKET_TYPE(skb) ==
+		   QDF_NBUF_CB_PACKET_TYPE_ICMPv6)) {
 		hdd_mark_icmp_req_to_fw(hdd_ctx, skb);
 	}
+
+	hdd_pkt_add_timestamp(adapter, QDF_PKT_TX_DRIVER_ENTRY,
+			      qdf_get_log_timestamp(), skb);
 
 	/* track connectivity stats */
 	if (adapter->pkt_type_bitmap)
@@ -1221,7 +1212,7 @@ static void __hdd_hard_start_xmit(struct sk_buff *skb,
 	if (((adapter->psb_changed & (1 << ac)) &&
 		likely(adapter->hdd_wmm_status.ac_status[ac].
 			is_access_allowed)) ||
-		((sta_ctx->conn_info.is_authenticated == false) &&
+		(!hdd_is_sta_authenticated(adapter) &&
 		 (QDF_NBUF_CB_PACKET_TYPE_EAPOL ==
 			QDF_NBUF_CB_GET_PACKET_TYPE(skb) ||
 		  QDF_NBUF_CB_PACKET_TYPE_WAPI ==
@@ -1270,12 +1261,6 @@ static void __hdd_hard_start_xmit(struct sk_buff *skb,
 
 	adapter->stats.tx_bytes += skb->len;
 
-	vdev = hdd_objmgr_get_vdev_by_user(adapter, WLAN_OSIF_TDLS_ID);
-	if (vdev) {
-		ucfg_tdls_update_tx_pkt_cnt(vdev, &mac_addr);
-		hdd_objmgr_put_vdev_by_user(vdev, WLAN_OSIF_TDLS_ID);
-	}
-
 	if (qdf_nbuf_is_tso(skb)) {
 		adapter->stats.tx_packets += qdf_nbuf_get_tso_num_seg(skb);
 	} else {
@@ -1294,7 +1279,7 @@ static void __hdd_hard_start_xmit(struct sk_buff *skb,
 			sizeof(qdf_nbuf_data(skb)),
 			QDF_TX));
 
-	if (!hdd_is_tx_allowed(skb, adapter->vdev_id,
+	if (!hdd_is_tx_allowed(adapter, skb,
 			       mac_addr_tx_allowed.bytes)) {
 		QDF_TRACE(QDF_MODULE_ID_HDD_DATA,
 			  QDF_TRACE_LEVEL_INFO_HIGH,
@@ -1329,10 +1314,8 @@ static void __hdd_hard_start_xmit(struct sk_buff *skb,
 	wlan_hdd_fix_broadcast_eapol(adapter, skb);
 
 	if (adapter->tx_fn(soc, adapter->vdev_id, (qdf_nbuf_t)skb)) {
-		QDF_TRACE(QDF_MODULE_ID_HDD_DATA, QDF_TRACE_LEVEL_INFO_HIGH,
-			  "%s: Failed to send packet to txrx for sta_id: "
-			  QDF_MAC_ADDR_FMT,
-			  __func__, QDF_MAC_ADDR_REF(mac_addr.bytes));
+		hdd_dp_debug_rl("Failed to send packet from adapter %u",
+				adapter->vdev_id);
 		++stats->per_cpu[cpu].tx_dropped_ac[ac];
 		goto drop_pkt_and_release_skb;
 	}
@@ -1730,12 +1713,19 @@ static void hdd_resolve_rx_ol_mode(struct hdd_context *hdd_ctx)
  * check gro_result returned from napi_gro_receive to determine
  * is extra GRO flush still necessary.
  */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0))
+#define HDD_IS_EXTRA_GRO_FLUSH_NECESSARY(_gro_ret) true
+#define GRO_DROP_UPDATE_STATUS(gro_ret, status)
+#else
+#define GRO_DROP_UPDATE_STATUS(gro_ret, status) \
+	if ((gro_ret) == GRO_DROP) ((status) = QDF_STATUS_E_GRO_DROP)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 #define HDD_IS_EXTRA_GRO_FLUSH_NECESSARY(_gro_ret) \
 	((_gro_ret) != GRO_DROP)
 #else
 #define HDD_IS_EXTRA_GRO_FLUSH_NECESSARY(_gro_ret) \
 	((_gro_ret) != GRO_DROP && (_gro_ret) != GRO_NORMAL)
+#endif
 #endif
 
 #ifdef WLAN_FEATURE_DYNAMIC_RX_AGGREGATION
@@ -1784,8 +1774,7 @@ static QDF_STATUS hdd_gro_rx_bh_disable(struct hdd_adapter *adapter,
 	}
 	local_bh_enable();
 
-	if (gro_ret == GRO_DROP)
-		status = QDF_STATUS_E_GRO_DROP;
+	GRO_DROP_UPDATE_STATUS(gro_ret, status);
 
 	return status;
 }
@@ -1827,8 +1816,7 @@ static QDF_STATUS hdd_gro_rx_bh_disable(struct hdd_adapter *adapter,
 	}
 	local_bh_enable();
 
-	if (gro_ret == GRO_DROP)
-		status = QDF_STATUS_E_GRO_DROP;
+	GRO_DROP_UPDATE_STATUS(gro_ret, status);
 
 	return status;
 }
@@ -2079,14 +2067,30 @@ int hdd_rx_ol_init(struct hdd_context *hdd_ctx)
 	return 0;
 }
 
-void hdd_disable_rx_ol_in_concurrency(bool disable)
+void hdd_rx_handle_concurrency(bool is_concurrency)
 {
 	struct hdd_context *hdd_ctx = cds_get_context(QDF_MODULE_ID_HDD);
 
 	if (!hdd_ctx)
 		return;
 
-	if (disable) {
+	if (hdd_ctx->is_wifi3_0_target) {
+		/*
+		 * Donot disable rx offload on concurrency for lithium and
+		 * beryllium based targets
+		 */
+		if (is_concurrency)
+			qdf_atomic_set(&hdd_ctx->rx_skip_qdisc_chk_conc, 1);
+		else
+			qdf_atomic_set(&hdd_ctx->rx_skip_qdisc_chk_conc, 0);
+
+		return;
+	}
+
+	if (!hdd_ctx->ol_enable)
+		return;
+
+	if (is_concurrency) {
 		if (HDD_MSM_CFG(hdd_ctx->config->enable_tcp_delack)) {
 			struct wlan_rx_tp_data rx_tp_data;
 
@@ -2122,7 +2126,7 @@ int hdd_rx_ol_init(struct hdd_context *hdd_ctx)
 	return -EPERM;
 }
 
-void hdd_disable_rx_ol_in_concurrency(bool disable)
+void hdd_rx_handle_concurrency(bool is_concurrency)
 {
 }
 
@@ -2192,6 +2196,13 @@ QDF_STATUS hdd_rx_pkt_thread_enqueue_cbk(void *adapter,
 		return hdd_adapter->rx_stack(adapter, nbuf_list);
 
 	vdev_id = hdd_adapter->vdev_id;
+
+	if (vdev_id >= WLAN_UMAC_VDEV_ID_MAX) {
+		hdd_info_rl("Vdev invalid. Dropping packets");
+		qdf_nbuf_list_free(nbuf_list);
+		return QDF_STATUS_E_NETDOWN;
+	}
+
 	head_ptr = nbuf_list;
 	while (head_ptr) {
 		qdf_nbuf_cb_update_vdev_id(head_ptr, vdev_id);
@@ -2295,6 +2306,15 @@ hdd_rx_check_qdisc_for_adapter(struct hdd_adapter *adapter, uint8_t rx_ctx_id)
 	if (qdf_unlikely(!soc))
 		return;
 
+	/*
+	 * Restrict the qdisc based dynamic GRO enable/disable to
+	 * standalone STA mode only. Reset the configuration for
+	 * any other device mode or concurrency.
+	 */
+	if (adapter->device_mode != QDF_STA_MODE ||
+	    (qdf_atomic_read(&adapter->hdd_ctx->rx_skip_qdisc_chk_conc)))
+		goto reset_wl;
+
 	if (!adapter->dev->ingress_queue)
 		goto reset_wl;
 
@@ -2346,8 +2366,9 @@ QDF_STATUS hdd_rx_deliver_to_stack(struct hdd_adapter *adapter,
 	bool skb_receive_offload_ok = false;
 	uint8_t rx_ctx_id = QDF_NBUF_CB_RX_CTX_ID(skb);
 
-	/* rx_ctx_id is already verified for out-of-range */
-	hdd_rx_check_qdisc_for_adapter(adapter, rx_ctx_id);
+	if (!hdd_ctx->dp_agg_param.force_gro_enable)
+		/* rx_ctx_id is already verified for out-of-range */
+		hdd_rx_check_qdisc_for_adapter(adapter, rx_ctx_id);
 
 	if (QDF_NBUF_CB_RX_TCP_PROTO(skb) &&
 	    !QDF_NBUF_CB_RX_PEER_CACHED_FRM(skb))
@@ -2624,6 +2645,10 @@ QDF_STATUS hdd_rx_packet_cbk(void *adapter_context,
 				is_dhcp = true;
 			}
 		}
+
+		hdd_pkt_add_timestamp(adapter, QDF_PKT_RX_DRIVER_EXIT,
+				      qdf_get_log_timestamp(), skb);
+
 		/* track connectivity stats */
 		if (adapter->pkt_type_bitmap)
 			hdd_tx_rx_collect_connectivity_stats_info(skb, adapter,
@@ -2665,6 +2690,9 @@ QDF_STATUS hdd_rx_packet_cbk(void *adapter_context,
 			hdd_objmgr_put_vdev_by_user(vdev,
 						    WLAN_OSIF_TDLS_ID);
 		}
+
+		if (hdd_rx_pkt_tracepoints_enabled())
+			qdf_trace_dp_packet(skb, QDF_RX, NULL, 0);
 
 		skb->dev = adapter->dev;
 		skb->protocol = eth_type_trans(skb, skb->dev);
@@ -2813,6 +2841,7 @@ const char *hdd_action_type_to_string(enum netif_action_type action)
 	CASE_RETURN_STRING(WLAN_NETIF_VO_QUEUE_OFF);
 	CASE_RETURN_STRING(WLAN_NETIF_VI_QUEUE_ON);
 	CASE_RETURN_STRING(WLAN_NETIF_VI_QUEUE_OFF);
+	CASE_RETURN_STRING(WLAN_NETIF_BE_BK_QUEUE_ON);
 	CASE_RETURN_STRING(WLAN_NETIF_BE_BK_QUEUE_OFF);
 	CASE_RETURN_STRING(WLAN_WAKE_NON_PRIORITY_QUEUE);
 	CASE_RETURN_STRING(WLAN_STOP_NON_PRIORITY_QUEUE);
@@ -2843,6 +2872,7 @@ static void wlan_hdd_update_queue_oper_stats(struct hdd_adapter *adapter,
 	case WLAN_START_ALL_NETIF_QUEUE:
 	case WLAN_WAKE_ALL_NETIF_QUEUE:
 	case WLAN_START_ALL_NETIF_QUEUE_N_CARRIER:
+	case WLAN_NETIF_BE_BK_QUEUE_ON:
 	case WLAN_NETIF_VI_QUEUE_ON:
 	case WLAN_NETIF_VO_QUEUE_ON:
 	case WLAN_NETIF_PRIORITY_QUEUE_ON:
@@ -3111,67 +3141,101 @@ void wlan_hdd_netif_queue_control(struct hdd_adapter *adapter,
 
 	case WLAN_NETIF_PRIORITY_QUEUE_ON:
 		spin_lock_bh(&adapter->pause_map_lock);
-		temp_map = adapter->pause_map;
-		adapter->pause_map &= ~(1 << reason);
-		netif_wake_subqueue(adapter->dev,
-				    HDD_LINUX_AC_HI_PRIO * TX_QUEUES_PER_AC);
-		wlan_hdd_update_pause_time(adapter, temp_map);
+		if (reason == WLAN_DATA_FLOW_CTRL_PRI) {
+			temp_map = adapter->subqueue_pause_map;
+			adapter->subqueue_pause_map &= ~(1 << reason);
+		} else {
+			temp_map = adapter->pause_map;
+			adapter->pause_map &= ~(1 << reason);
+		}
+		if (!adapter->pause_map) {
+			netif_wake_subqueue(adapter->dev,
+				HDD_LINUX_AC_HI_PRIO * TX_QUEUES_PER_AC);
+			wlan_hdd_update_pause_time(adapter, temp_map);
+		}
 		spin_unlock_bh(&adapter->pause_map_lock);
 		break;
 
 	case WLAN_NETIF_PRIORITY_QUEUE_OFF:
 		spin_lock_bh(&adapter->pause_map_lock);
-		netif_stop_subqueue(adapter->dev,
+		if (!adapter->pause_map) {
+			netif_stop_subqueue(adapter->dev,
 				    HDD_LINUX_AC_HI_PRIO * TX_QUEUES_PER_AC);
-		wlan_hdd_update_txq_timestamp(adapter->dev);
-		wlan_hdd_update_unpause_time(adapter);
-		adapter->pause_map |= (1 << reason);
+			wlan_hdd_update_txq_timestamp(adapter->dev);
+			wlan_hdd_update_unpause_time(adapter);
+		}
+		if (reason == WLAN_DATA_FLOW_CTRL_PRI)
+			adapter->subqueue_pause_map |= (1 << reason);
+		else
+			adapter->pause_map |= (1 << reason);
 		spin_unlock_bh(&adapter->pause_map_lock);
 		break;
 
 	case WLAN_NETIF_BE_BK_QUEUE_OFF:
 		spin_lock_bh(&adapter->pause_map_lock);
-		hdd_stop_queues_for_ac(adapter->dev, HDD_LINUX_AC_BK);
-		hdd_stop_queues_for_ac(adapter->dev, HDD_LINUX_AC_BE);
-		wlan_hdd_update_txq_timestamp(adapter->dev);
-		wlan_hdd_update_unpause_time(adapter);
-		adapter->pause_map |= (1 << reason);
+		if (!adapter->pause_map) {
+			hdd_stop_queues_for_ac(adapter->dev, HDD_LINUX_AC_BK);
+			hdd_stop_queues_for_ac(adapter->dev, HDD_LINUX_AC_BE);
+			wlan_hdd_update_txq_timestamp(adapter->dev);
+			wlan_hdd_update_unpause_time(adapter);
+		}
+		adapter->subqueue_pause_map |= (1 << reason);
+		spin_unlock_bh(&adapter->pause_map_lock);
+		break;
+
+	case WLAN_NETIF_BE_BK_QUEUE_ON:
+		spin_lock_bh(&adapter->pause_map_lock);
+		temp_map = adapter->subqueue_pause_map;
+		adapter->subqueue_pause_map &= ~(1 << reason);
+		if (!adapter->pause_map) {
+			hdd_wake_queues_for_ac(adapter->dev, HDD_LINUX_AC_BK);
+			hdd_wake_queues_for_ac(adapter->dev, HDD_LINUX_AC_BE);
+			wlan_hdd_update_pause_time(adapter, temp_map);
+		}
 		spin_unlock_bh(&adapter->pause_map_lock);
 		break;
 
 	case WLAN_NETIF_VI_QUEUE_OFF:
 		spin_lock_bh(&adapter->pause_map_lock);
-		hdd_stop_queues_for_ac(adapter->dev, HDD_LINUX_AC_VI);
-		wlan_hdd_update_txq_timestamp(adapter->dev);
-		wlan_hdd_update_unpause_time(adapter);
-		adapter->pause_map |= (1 << reason);
+		if (!adapter->pause_map) {
+			hdd_stop_queues_for_ac(adapter->dev, HDD_LINUX_AC_VI);
+			wlan_hdd_update_txq_timestamp(adapter->dev);
+			wlan_hdd_update_unpause_time(adapter);
+		}
+		adapter->subqueue_pause_map |= (1 << reason);
 		spin_unlock_bh(&adapter->pause_map_lock);
 		break;
 
 	case WLAN_NETIF_VI_QUEUE_ON:
 		spin_lock_bh(&adapter->pause_map_lock);
-		temp_map = adapter->pause_map;
-		adapter->pause_map &= ~(1 << reason);
-		hdd_wake_queues_for_ac(adapter->dev, HDD_LINUX_AC_VI);
-		wlan_hdd_update_pause_time(adapter, temp_map);
+		temp_map = adapter->subqueue_pause_map;
+		adapter->subqueue_pause_map &= ~(1 << reason);
+		if (!adapter->pause_map) {
+			hdd_wake_queues_for_ac(adapter->dev, HDD_LINUX_AC_VI);
+			wlan_hdd_update_pause_time(adapter, temp_map);
+		}
 		spin_unlock_bh(&adapter->pause_map_lock);
 		break;
 
 	case WLAN_NETIF_VO_QUEUE_OFF:
 		spin_lock_bh(&adapter->pause_map_lock);
-		hdd_stop_queues_for_ac(adapter->dev, HDD_LINUX_AC_VO);
-		wlan_hdd_update_txq_timestamp(adapter->dev);
-		wlan_hdd_update_unpause_time(adapter);
-		adapter->pause_map |= (1 << reason);
+		if (!adapter->pause_map) {
+			hdd_stop_queues_for_ac(adapter->dev, HDD_LINUX_AC_VO);
+			wlan_hdd_update_txq_timestamp(adapter->dev);
+			wlan_hdd_update_unpause_time(adapter);
+		}
+		adapter->subqueue_pause_map |= (1 << reason);
 		spin_unlock_bh(&adapter->pause_map_lock);
 		break;
 
 	case WLAN_NETIF_VO_QUEUE_ON:
 		spin_lock_bh(&adapter->pause_map_lock);
-		temp_map = adapter->pause_map;
-		adapter->pause_map &= ~(1 << reason);
-		hdd_wake_queues_for_ac(adapter->dev, HDD_LINUX_AC_VO);
-		wlan_hdd_update_pause_time(adapter, temp_map);
+		temp_map = adapter->subqueue_pause_map;
+		adapter->subqueue_pause_map &= ~(1 << reason);
+		if (!adapter->pause_map) {
+			hdd_wake_queues_for_ac(adapter->dev, HDD_LINUX_AC_VO);
+			wlan_hdd_update_pause_time(adapter, temp_map);
+		}
 		spin_unlock_bh(&adapter->pause_map_lock);
 		break;
 
@@ -3253,7 +3317,12 @@ void wlan_hdd_netif_queue_control(struct hdd_adapter *adapter,
 	adapter->queue_oper_history[index].time = qdf_system_ticks();
 	adapter->queue_oper_history[index].netif_action = action;
 	adapter->queue_oper_history[index].netif_reason = reason;
-	adapter->queue_oper_history[index].pause_map = adapter->pause_map;
+	if (reason >= WLAN_DATA_FLOW_CTRL_BE_BK)
+		adapter->queue_oper_history[index].pause_map =
+			adapter->subqueue_pause_map;
+	else
+		adapter->queue_oper_history[index].pause_map =
+			adapter->pause_map;
 
 	txq_hist_ptr = &adapter->queue_oper_history[index];
 
@@ -3878,9 +3947,13 @@ void hdd_sta_notify_tx_comp_cb(qdf_nbuf_t skb, void *ctx, uint16_t flag)
 {
 	struct hdd_adapter *adapter = ctx;
 	enum qdf_proto_subtype subtype;
+	struct wlan_objmgr_vdev *vdev;
+	struct qdf_mac_addr *dest_mac_addr;
 
 	if (hdd_validate_adapter(adapter))
 		return;
+
+	dest_mac_addr = (struct qdf_mac_addr *)skb->data;
 
 	switch (QDF_NBUF_CB_GET_PACKET_TYPE(skb)) {
 	case QDF_NBUF_CB_PACKET_TYPE_ARP:
@@ -3907,5 +3980,11 @@ void hdd_sta_notify_tx_comp_cb(qdf_nbuf_t skb, void *ctx, uint16_t flag)
 		break;
 	default:
 		break;
+	}
+
+	vdev = hdd_objmgr_get_vdev_by_user(adapter, WLAN_OSIF_TDLS_ID);
+	if (vdev) {
+		ucfg_tdls_update_tx_pkt_cnt(vdev, dest_mac_addr);
+		hdd_objmgr_put_vdev_by_user(vdev, WLAN_OSIF_TDLS_ID);
 	}
 }

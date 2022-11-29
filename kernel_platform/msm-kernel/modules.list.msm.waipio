@@ -1,5 +1,6 @@
 sec_boot_stat.ko
 sec_log_buf.ko
+sec_arm64_ap_context.ko
 abc.ko
 gh_virt_wdt.ko
 qcom_wdt_core.ko
@@ -10,11 +11,14 @@ icc-rpmh.ko
 qcom_ipcc.ko
 qcom_ipc_logging.ko
 qcom-pdc.ko
+qcom_tsens.ko
 rpmh-regulator.ko
 bwmon.ko
 qcom-cpufreq-hw.ko
 sched-walt.ko
 sched-walt-debug.ko
+thermal_pause.ko
+cpu_hotplug.ko
 cfg80211.ko
 clk-dummy.ko
 clk-qcom.ko
@@ -99,7 +103,6 @@ qrtr.ko
 qti-regmap-debugfs.ko
 regmap-spmi.ko
 rtc-pm8xxx.ko
-sec_arm64_ap_context.ko
 sec_class.ko
 sec_crashkey.ko
 sec_crashkey_long.ko
@@ -115,7 +118,7 @@ sec_qc_param.ko
 sec_qc_summary.ko
 sec_qc_upload_cause.ko
 sec_upload_cause.ko
-sec_thermal_log.ko
+sec_pm_log.ko
 i2c-gpio.ko
 gpio-pca953x.ko
 pmic_class.ko
@@ -139,5 +142,7 @@ msm_qmp.ko
 qcom_rimps.ko
 c1dcvs_vendor.ko
 c1dcvs_scmi.ko
+bcl_pmic5.ko
 hdm.ko
 pwm-gpclk.ko
+msm_rng.ko

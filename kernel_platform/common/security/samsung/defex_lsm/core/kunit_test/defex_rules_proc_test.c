@@ -261,13 +261,8 @@ static void lookup_tree_test(struct kunit *test)
 		/* T2: file with attribute other than feature_is_file */
 		KUNIT_EXPECT_EQ(test, 1, lookup_tree(first_file, first_file_attr, file_one));
 
-#ifdef DEFEX_INTEGRITY_ENABLE
-		/* T3: file with different contents */
-		KUNIT_EXPECT_EQ(test, DEFEX_INTEGRITY_FAIL, lookup_tree(first_file, first_file_attr, file_two));
-#else
-		/* T3: file with different contents */
+		/* T3: file with different contents and without check integrity flag */
 		KUNIT_EXPECT_EQ(test, 1, lookup_tree(first_file, first_file_attr, file_two));
-#endif
 
 		filp_close(file_one, 0);
 		filp_close(file_two, 0);

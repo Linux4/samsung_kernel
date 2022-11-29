@@ -48,6 +48,9 @@ struct sec_vib_inputff_ops {
 	u32 (*get_f0_measured)(struct input_dev *dev);
 	int (*get_f0_offset)(struct input_dev *dev);
 	u32 (*set_f0_stored)(struct input_dev *dev, u32 val);
+	int (*set_le_stored)(struct input_dev *dev, u32 val);
+	u32 (*get_le_stored)(struct input_dev *dev);
+	int (*get_le_est)(struct input_dev *dev, u32 *le);
 	int (*set_use_sep_index)(struct input_dev *dev, bool use_sep_index);
 };
 
@@ -94,6 +97,7 @@ struct sec_vib_inputff_drvdata {
 	void *private_data;
 	int temperature;
 	int ach_percent;
+	u32 le_stored;
 	u32 f0_stored;
 	int support_fw;
 	int trigger_calibration;

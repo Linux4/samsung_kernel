@@ -291,9 +291,13 @@ int32_t StreamCommon::start()
         rm->unlockGraph();
         PAL_VERBOSE(LOG_TAG, "session start successful");
 
+        mStreamMutex.unlock();
+        rm->lockActiveStream();
+        mStreamMutex.lock();
         for (int i = 0; i < mDevices.size(); i++) {
             rm->registerDevice(mDevices[i], this);
         }
+        rm->unlockActiveStream();
         /*pcm_open and pcm_start done at once here,
          *so directly jump to STREAM_STARTED state.
          */
@@ -356,7 +360,6 @@ session_fail:
         devStatus = mDevices[i]->stop();
         if (devStatus)
             status = devStatus;
-        rm->deregisterDevice(mDevices[i], this);
     }
 exit:
     return status;
@@ -372,9 +375,14 @@ int32_t StreamCommon::stop()
                 session, mStreamAttr->direction, currentState);
 
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
+        mStreamMutex.unlock();
+        rm->lockActiveStream();
+        mStreamMutex.lock();
+        currentState = STREAM_STOPPED;
         for (int i = 0; i < mDevices.size(); i++) {
             rm->deregisterDevice(mDevices[i], this);
         }
+        rm->unlockActiveStream();
         PAL_VERBOSE(LOG_TAG, "In %s, device count - %zu",
                     GET_DIR_STR(mStreamAttr->direction), mDevices.size());
 
@@ -394,7 +402,6 @@ int32_t StreamCommon::stop()
         }
         rm->unlockGraph();
         PAL_VERBOSE(LOG_TAG, "devices stop successful");
-        currentState = STREAM_STOPPED;
     } else if (currentState == STREAM_STOPPED || currentState == STREAM_IDLE) {
         PAL_INFO(LOG_TAG, "Stream is already in Stopped state %d", currentState);
     } else {
@@ -521,7 +528,9 @@ int32_t StreamCommon::ssrDownHandler()
      case STREAM_STARTED:
      case STREAM_PAUSED:
         mStreamMutex.unlock();
+        rm->unlockActiveStream();
         status = stop();
+        rm->lockActiveStream();
         if (0 != status)
             PAL_ERR(LOG_TAG, "Error:stream stop failed. status %d",  status);
         status = close();
@@ -568,7 +577,9 @@ int32_t StreamCommon::ssrUpHandler()
              PAL_ERR(LOG_TAG, "Error:stream open failed. status %d", status);
              goto exit;
          }
+         rm->unlockActiveStream();
          status = start();
+         rm->lockActiveStream();
          if (0 != status) {
              PAL_ERR(LOG_TAG, "Error:stream start failed. status %d", status);
              goto exit;

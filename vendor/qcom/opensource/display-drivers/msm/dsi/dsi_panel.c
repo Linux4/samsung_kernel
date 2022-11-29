@@ -77,6 +77,7 @@ static int dsi_vdc_create_pps_buf_cmd(struct msm_display_vdc_info *vdc,
 }
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+static int vreg_fail_cnt;
 static int ss_dsi_panel_vreg_check(struct dsi_panel *panel)
 {
 	int rc = 0;
@@ -106,6 +107,14 @@ error_put:
 		regulator_put(panel->power_info.vregs[i].vreg);
 		panel->power_info.vregs[i].vreg = NULL;
 	}
+
+	DSI_ERR("vreg_fail_cnt (%d) \n", vreg_fail_cnt);
+
+	if (++vreg_fail_cnt > 30) {
+		DSI_ERR("need to check vreg_fail (%d), msm_drm module init fail..\n", vreg_fail_cnt);
+		return 0;
+	}
+
 	return -EPROBE_DEFER;
 }
 #endif
@@ -525,13 +534,14 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 
 	/* Make not to turn on the panel power when ub_con_det.gpio is high (ub is not connected) */
 	if (unlikely(vdd->is_factory_mode)) {
-		if (gpio_is_valid(vdd->ub_con_det.gpio))
+		if (gpio_is_valid(vdd->ub_con_det.gpio)) {
 			LCD_INFO(vdd, "ub_con_det.gpio = %d\n", ss_gpio_get_value(vdd, vdd->ub_con_det.gpio));
 
-		vdd->ub_con_det.current_wakeup_context_gpio_status = ss_gpio_get_value(vdd, vdd->ub_con_det.gpio);
-		if (vdd->ub_con_det.current_wakeup_context_gpio_status) {
-			LCD_ERR(vdd, "Do not panel power on..\n");
-			return 0;
+			vdd->ub_con_det.current_wakeup_context_gpio_status = ss_gpio_get_value(vdd, vdd->ub_con_det.gpio);
+			if (vdd->ub_con_det.current_wakeup_context_gpio_status) {
+				LCD_ERR(vdd, "Do not panel power on..\n");
+				return 0;
+			}
 		}
 	}
 
@@ -2818,12 +2828,17 @@ static int dsi_panel_parse_jitter_config(
 	return 0;
 }
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+bool pba_regulator_control_ss;
+bool pba_regulator_control_ss_sub;
+#endif
 static int dsi_panel_parse_power_cfg(struct dsi_panel *panel)
 {
 	int rc = 0;
 	char *supply_name;
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd;
+	struct dsi_parser_utils *utils = &panel->utils;
 #endif
 
 	if (panel->host_config.ext_bridge_mode)
@@ -2832,12 +2847,28 @@ static int dsi_panel_parse_power_cfg(struct dsi_panel *panel)
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	vdd = panel->panel_private;
 
+	/* ss_pba_regulator_control:
+	 * To turn off regulator while PBA boot
+	 * Caution!, both panels should have PBA regulators if with DSI1
+	 */
+
+	if (!strcmp(panel->type, "primary")) {
+		pba_regulator_control_ss = utils->read_bool(utils->data,
+				"qcom,mdss-dsi-pba-regulator_ss");
+	} else {
+		pba_regulator_control_ss_sub = utils->read_bool(utils->data,
+				"qcom,mdss-dsi-pba-regulator_ss");
+	}
+
+	LCD_INFO(vdd, "parse qcom,mdss-dsi-pba-regulator_ss: main [%d] sub [%d]\n",
+			pba_regulator_control_ss, pba_regulator_control_ss_sub);
+
 	/* In this point, vdd->panel_attach_status has invalid data.
 	 * So, use panel name to verify PBA booting,
 	 * intead of ss_panel_attach_get().
 	 */
-	if (!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
-			!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1")) {
+	if ((!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") && !pba_regulator_control_ss) ||
+		(!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1") && !pba_regulator_control_ss_sub)) {
 		LCD_ERR(vdd, "PBA booting, skip to parse vreg\n");
 		goto error;
 	}

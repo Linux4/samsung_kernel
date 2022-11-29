@@ -89,7 +89,7 @@ EXPORT_SYMBOL_GPL(sec_vib_inputff_setbit);
 
 int sec_vib_inputff_register(struct sec_vib_inputff_drvdata *ddata)
 {
-	int i, ret = 0, ff = 0;
+	int i, ret = 0, ff = 0, ff_cnt = 0;
 	struct device *dev = NULL;
 
 	if (!ddata) {
@@ -114,11 +114,13 @@ int sec_vib_inputff_register(struct sec_vib_inputff_drvdata *ddata)
 
 	input_set_drvdata(ddata->input, ddata->private_data);
 	for (ff = FF_EFFECT_MIN; ff <= FF_MAX_EFFECTS; ff++) {
-		if (sec_vib_inputff_getbit(ddata, ff))
+		if (sec_vib_inputff_getbit(ddata, ff)) {
 			input_set_capability(ddata->input, EV_FF, ff);
+			ff_cnt++;
+		}
 	}
 
-	ret = input_ff_create(ddata->input, FF_MAX_EFFECTS);
+	ret = input_ff_create(ddata->input, ff_cnt);
 	if (ret) {
 		pr_err("Failed to create FF device: %d\n", ret);
 		goto err_input_ff;
@@ -280,7 +282,7 @@ static int sec_vib_inputff_parse_dt(struct platform_device *pdev)
 	if (ret) {
 		pr_info("%s: high temperature concept isn't used\n", __func__);
 	} else {
-		sec_vib_inputff_pdata.high_temp_ref = (int)temp * 10;
+		sec_vib_inputff_pdata.high_temp_ref = (int)temp;
 
 		ret = of_property_read_u32(np, "haptic,high_temp_ratio", &temp);
 		if (ret)
@@ -364,3 +366,4 @@ module_platform_driver(sec_vib_inputff_driver);
 MODULE_AUTHOR("Samsung electronics <wookwang.lee@samsung.com>");
 MODULE_DESCRIPTION("sec_vibrator_inputff");
 MODULE_LICENSE("GPL");
+

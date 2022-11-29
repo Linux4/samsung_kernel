@@ -195,7 +195,7 @@ static int send_cmd(uint16_t cmd,
 	iResult = qseecom_set_bandwidth(session, true);
 	if (iResult != 0) {
 		pr_err("MZ %s qseecom_set_bandwidth fail\n", __func__);
-		return -1;
+		goto exit_error;
 	}
 
 	// send command
@@ -208,22 +208,22 @@ static int send_cmd(uint16_t cmd,
 		iResult = qseecom_set_bandwidth(session, false);
 		if (iResult != 0) {
 			pr_err("MZ %s qseecom_set_bandwidth fail 2\n", __func__);
-			return -1;
+			goto exit_error;
 		}
 		pr_err("MZ %s qseecom_send_command fail\n", __func__);
-		return -1;
+		goto exit_error;
 	}
 
 	iResult = qseecom_set_bandwidth(session, false);
 	if (iResult != 0) {
 		pr_err("MZ %s qseecom_set_bandwidth fail 3\n", __func__);
-		return -1;
+		goto exit_error;
 	}
 
 	// Check the Trustlet return code
 	if (rsptci->response.header.returnCode != 0) {
 		pr_err("MZ %s ta return error %d\n", __func__, rsptci->response.header.returnCode);
-		return -1;
+		goto exit_error;
 	}
 
 	// Read result from TCI buffer
@@ -250,6 +250,7 @@ static int send_cmd(uint16_t cmd,
 exit_error:
 	memset(tci, 0x00, sizeof(tciMessage_t));
 	memset(rsptci, 0x00, sizeof(tciMessage_t));
+	kfree(mzbuffer);
 
 	return retVal;
 }

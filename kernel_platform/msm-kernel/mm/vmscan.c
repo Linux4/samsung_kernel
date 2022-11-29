@@ -60,6 +60,10 @@
 
 #include "internal.h"
 
+#ifdef CONFIG_PROC_FSLOG
+#include <linux/fslog.h>
+#endif
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/vmscan.h>
 
@@ -2327,9 +2331,18 @@ enum mem_boost {
 	BOOST_HIGH = 2,
 	BOOST_KILL = 3,
 };
+
+enum kswapd_mode {
+	KSWAPD_DEFAULT,
+	KSWAPD_SUPPRESSED,
+	KSWAPD_AGGRESSIVE,
+	KSWAPD_MODE_END
+};
+
 static int mem_boost_mode = NO_BOOST;
 static unsigned long last_mode_change;
 bool am_app_launch;
+static int mem_boost_mode_kswapd = KSWAPD_DEFAULT;
 
 #define MEM_BOOST_MAX_TIME (5 * HZ) /* 5 sec */
 
@@ -2417,6 +2430,19 @@ static ssize_t mem_boost_mode_store(struct kobject *kobj,
 	return count;
 }
 
+static ssize_t mem_boost_mode_system_show(struct kobject *kobj,
+				    struct kobj_attribute *attr, char *buf)
+{
+	return mem_boost_mode_show(kobj, attr, buf);
+}
+
+static ssize_t mem_boost_mode_system_store(struct kobject *kobj,
+				     struct kobj_attribute *attr,
+				     const char *buf, size_t count)
+{
+	return mem_boost_mode_store(kobj, attr, buf, count);
+}
+
 ATOMIC_NOTIFIER_HEAD(am_app_launch_notifier);
 
 int am_app_launch_notifier_register(struct notifier_block *nb)
@@ -2486,15 +2512,53 @@ static ssize_t am_app_launch_store(struct kobject *kobj,
 	return count;
 }
 
+static ssize_t mem_boost_mode_kswapd_show(struct kobject *kobj,
+				  struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", mem_boost_mode_kswapd);
+}
+
+static ssize_t mem_boost_mode_kswapd_store(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   const char *buf, size_t count)
+{
+	int mode;
+	int err;
+
+	err = kstrtoint(buf, 10, &mode);
+	if (err || mode < KSWAPD_DEFAULT || mode >= KSWAPD_MODE_END)
+		return -EINVAL;
+
+	RECLAIMER_LOG("UMR: switch kswapd_mode: %d -> %d", mem_boost_mode_kswapd, mode);
+	mem_boost_mode_kswapd = mode;
+
+	return count;
+}
+
+bool is_kswapd_suppressed(void)
+{
+	return mem_boost_mode_kswapd == KSWAPD_SUPPRESSED;
+}
+EXPORT_SYMBOL(is_kswapd_suppressed);
+
+bool is_kswapd_aggressive(void)
+{
+	return mem_boost_mode_kswapd == KSWAPD_AGGRESSIVE;
+}
+
 #define VMSCAN_ATTR(_name) \
 	static struct kobj_attribute _name##_attr = \
 		__ATTR(_name, 0644, _name##_show, _name##_store)
 VMSCAN_ATTR(mem_boost_mode);
+VMSCAN_ATTR(mem_boost_mode_system);
 VMSCAN_ATTR(am_app_launch);
+VMSCAN_ATTR(mem_boost_mode_kswapd);
 
 static struct attribute *vmscan_attrs[] = {
 	&mem_boost_mode_attr.attr,
+	&mem_boost_mode_system_attr.attr,
 	&am_app_launch_attr.attr,
+	&mem_boost_mode_kswapd_attr.attr,
 	NULL,
 };
 
@@ -2513,6 +2577,7 @@ static struct attribute_group vmscan_attr_group = {
  * nr[0] = anon inactive pages to scan; nr[1] = anon active pages to scan
  * nr[2] = file inactive pages to scan; nr[3] = file active pages to scan
  */
+#define DYNAMIC_SWAPPINESS_DELTA 30
 static void get_scan_count(struct lruvec *lruvec, struct scan_control *sc,
 			   unsigned long *nr)
 {
@@ -2567,6 +2632,14 @@ static void get_scan_count(struct lruvec *lruvec, struct scan_control *sc,
 	    !is_too_low_file()) {
 		scan_balance = SCAN_FILE;
 		goto out;
+	}
+
+	if (current_is_kswapd() && is_kswapd_suppressed()) {
+		swappiness -= DYNAMIC_SWAPPINESS_DELTA;
+	}
+
+	if (current_is_kswapd() && is_kswapd_aggressive()) {
+		swappiness += DYNAMIC_SWAPPINESS_DELTA;
 	}
 
 	trace_android_rvh_set_balance_anon_file_reclaim(&balance_anon_file_reclaim);
@@ -2830,6 +2903,10 @@ static void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
 
 	if (need_memory_boosting())
 		return;
+
+	if (is_kswapd_suppressed()) {
+		return;
+	}
 
 	/*
 	 * Even if we did not try to evict anon pages at all, we want to
@@ -3572,9 +3649,11 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 
 	set_task_reclaim_state(current, &sc.reclaim_state);
 	trace_mm_vmscan_direct_reclaim_begin(order, sc.gfp_mask);
+	RECLAIMER_LOG("UMR: B|d.reclaim");
 
 	nr_reclaimed = do_try_to_free_pages(zonelist, &sc);
 
+	RECLAIMER_LOG("UMR: E|d.reclaim %lu KB", nr_reclaimed << (PAGE_SHIFT - 10));
 	trace_mm_vmscan_direct_reclaim_end(nr_reclaimed);
 	set_task_reclaim_state(current, NULL);
 
@@ -3864,6 +3943,7 @@ static int balance_pgdat(pg_data_t *pgdat, int order, int highest_zoneidx)
 		.may_unmap = 1,
 	};
 
+	RECLAIMER_LOG("UMR: B|kswapd");
 	set_task_reclaim_state(current, &sc.reclaim_state);
 	psi_memstall_enter(&pflags);
 	__fs_reclaim_acquire();
@@ -4020,6 +4100,8 @@ restart:
 		pgdat->kswapd_failures++;
 
 out:
+	RECLAIMER_LOG("UMR: E|kswapd %lu KB", sc.nr_reclaimed << (PAGE_SHIFT - 10));
+
 	/* If reclaim was boosted, account for the reclaim done in this pass */
 	if (boosted) {
 		unsigned long flags;

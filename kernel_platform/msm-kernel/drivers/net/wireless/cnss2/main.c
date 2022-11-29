@@ -499,7 +499,10 @@ static int cnss_fw_mem_ready_hdlr(struct cnss_plat_data *plat_priv)
 
 	if (plat_priv->hds_enabled)
 		cnss_wlfw_bdf_dnld_send_sync(plat_priv, CNSS_BDF_HDS);
+
 	cnss_wlfw_bdf_dnld_send_sync(plat_priv, CNSS_BDF_REGDB);
+
+	cnss_wlfw_ini_file_send_sync(plat_priv, WLFW_CONN_ROAM_INI_V01);
 
 	ret = cnss_wlfw_bdf_dnld_send_sync(plat_priv,
 					   plat_priv->ctrl_params.bdf_type);
@@ -2526,7 +2529,7 @@ int cnss_do_elf_ramdump(struct cnss_plat_data *plat_priv)
 #ifndef CONFIG_SEC_SS_CNSS_FEATURE_SYSFS
 	if (!dump_enabled()) {
 #else
-	if (!plat_priv->dump_mode) {
+    if (!plat_priv->dump_mode) {
 #endif
 		cnss_pr_err("Dump collection is not enabled\n");
 		return ret;
@@ -3370,6 +3373,22 @@ static void cnss_remove_sysfs_link(struct cnss_plat_data *plat_priv)
 	sysfs_remove_link(kernel_kobj, "cnss");
 }
 
+void cnss_disable_ssr(void)
+{
+	struct cnss_plat_data *plat_priv = cnss_get_plat_priv(NULL);
+
+	if (plat_priv == NULL) {
+		cnss_pr_err("plat_priv is NULL");
+		goto out;
+	}
+
+	plat_priv->recovery_enabled = false;
+	cnss_pr_err("SSR got disabled %d", plat_priv->recovery_enabled);
+out:
+ return;
+}
+EXPORT_SYMBOL(cnss_disable_ssr);
+
 #ifdef CONFIG_SEC_SS_CNSS_FEATURE_SYSFS
 void cnss_sysfs_update_driver_status(int32_t new_status, void *version, void *softap)
 {
@@ -3815,6 +3834,29 @@ cnss_use_nv_mac(struct cnss_plat_data *plat_priv)
 				     "use-nv-mac");
 }
 
+#if defined(CONFIG_SEC_SS_CNSS_FEATURE_SYSFS) && defined(CONFIG_SEC_FACTORY)
+#include <linux/of_gpio.h>
+int cnss_get_subpcb_det_gpio_value(struct cnss_plat_data *plat_priv)
+{
+	int gpio = -1;
+	int level = 0;
+	struct device *dev;
+
+	dev = &plat_priv->plat_dev->dev;
+
+	gpio = of_get_named_gpio(dev->of_node, "subpcb-det-gpio", 0);
+	if (gpio >= 0) {
+		level = gpio_get_value(gpio);
+	} else {
+		pr_err("cnss: Failed to get subpcb-det-upper-gpio ret = %d\n", gpio);
+		return 0;
+	}
+
+	pr_err("cnss: subpcb-det-gpio level %d\n", level);
+	return level;
+}
+#endif
+
 static int cnss_probe(struct platform_device *plat_dev)
 {
 	int ret = 0;
@@ -3856,6 +3898,16 @@ static int cnss_probe(struct platform_device *plat_dev)
 	INIT_LIST_HEAD(&plat_priv->vreg_list);
 	INIT_LIST_HEAD(&plat_priv->clk_list);
 
+#if defined(CONFIG_SEC_SS_CNSS_FEATURE_SYSFS) && defined(CONFIG_SEC_FACTORY)
+/* when subpcb-det-gpio = High, sub-PCB is not connected. else sub-PCB is connected.
+   To avoid CXSD sleep issue, return zero forcibly if sub-PCB is not connected.
+*/
+	if (cnss_get_subpcb_det_gpio_value(plat_priv)) {
+		pr_err("cnss: sub-pcb is not connected. return zero\n");
+		ret = 0;
+		goto reset_ctx;
+	}
+#endif
 	cnss_get_pm_domain_info(plat_priv);
 	cnss_get_wlaon_pwr_ctrl_info(plat_priv);
 	cnss_power_misc_params_init(plat_priv);

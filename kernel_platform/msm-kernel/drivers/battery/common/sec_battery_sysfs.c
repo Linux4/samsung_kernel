@@ -273,6 +273,7 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(batt_full_capacity),
 	SEC_BATTERY_ATTR(lrp),
 	SEC_BATTERY_ATTR(hp_d2d),
+	SEC_BATTERY_ATTR(chg_type),
 };
 
 static struct device_attribute sec_pogo_attrs[] = {
@@ -1878,6 +1879,18 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		break;
 	case HP_D2D:
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", battery->hp_d2d);
+		break;
+	case CHG_TYPE:
+		{
+			char temp_buf[20] = {0,};
+
+			value.strval = sb_get_ct_str(battery->cable_type);
+			strncpy(temp_buf, value.strval, sizeof(temp_buf) - 1);
+			if (is_pd_apdo_wire_type(battery->cable_type))
+				snprintf(temp_buf+strlen(temp_buf), sizeof(temp_buf), "_%d", battery->pd_rated_power);
+			pr_info("%s: CHG_TYPE = %s\n", __func__, temp_buf);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%s\n", temp_buf);
+		}
 		break;
 	default:
 		i = -EINVAL;
@@ -3930,6 +3943,8 @@ ssize_t sec_bat_store_attrs(
 			}
 			ret = count;
 		}
+		break;
+	case CHG_TYPE:
 		break;
 	default:
 		ret = -EINVAL;
