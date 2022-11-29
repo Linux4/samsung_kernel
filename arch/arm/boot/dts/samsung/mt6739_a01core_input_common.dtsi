@@ -1,0 +1,175 @@
+/*
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pio {
+	ts_pin_init: ts_pin_init {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO0__FUNC_GPIO0>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	ts_pin_sleep: ts_pin_sleep {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO0__FUNC_GPIO0>;
+			slew-rate = <0>;
+			bias-pull-down = <MTK_PUPD_SET_R1R0_01>;
+		};
+	};
+
+	spi_cs_init: spi_cs_init {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO31__FUNC_SPI0_A_CSB>;
+			bias-disable;
+		};
+	};
+
+	spi_cs_sleep: spi_cs_sleep {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO31__FUNC_GPIO31>;
+			slew-rate = <0>;
+			bias-pull-down;
+		};
+	};
+
+	spi_clk_init: spi_clk_init {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO32__FUNC_SPI0_A_CLK>;
+			bias-disable;
+		};
+	};
+
+	spi_clk_sleep: spi_clk_sleep {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO32__FUNC_GPIO32>;
+			slew-rate = <0>;
+			bias-pull-down;
+		};
+	};
+
+	spi_miso_init: spi_miso_init {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO33__FUNC_SPI0_A_MI>;
+			bias-disable;
+		};
+	};
+
+	spi_miso_sleep: spi_miso_sleep {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO33__FUNC_GPIO33>;
+			slew-rate = <0>;
+			bias-pull-down;
+		};
+	};
+
+	spi_mosi_init: spi_mosi_init {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO34__FUNC_SPI0_A_MO>;
+			bias-disable;
+		};
+	};
+
+	spi_mosi_sleep: spi_mosi_sleep {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO34__FUNC_GPIO34>;
+			slew-rate = <0>;
+			bias-pull-down;
+		};
+	};
+};
+
+&spi0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	num-cs = <2>;
+
+	synaptics_tcm@0 {
+		status = "okay";
+		compatible = "synaptics,tcm-spi";
+		reg = <0>;
+		spi-max-frequency = <5000000>;
+		interrupt-parent = <&pio>;
+		interrupts = <0 0x2008>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&ts_pin_init &spi_cs_init &spi_clk_init &spi_miso_init &spi_mosi_init>;
+		pinctrl-1 = <&ts_pin_sleep &spi_cs_sleep &spi_clk_sleep &spi_miso_sleep &spi_mosi_sleep>;
+		synaptics,bus-reg-name = "vdd";
+		synaptics,pwr-reg-name = "avdd";
+		synaptics,irq-gpio = <&pio 0 0x2008>; /* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
+		synaptics,irq-on-state = <0>;
+		/*synaptics,cs-gpio = <&pio 31 0>;*/
+		synaptics,reset-on-state = <0>;
+		synaptics,reset-active-ms = <20>;
+		synaptics,reset-delay-ms = <200>;
+		synaptics,power-delay-ms = <200>;
+		synaptics,spi-mode = <0>;
+		synaptics,byte-delay-us = <0>;
+		synaptics,block-delay-us = <0>;
+		synaptics,ubl-max-freq = <5000000>;
+		synaptics,ubl-byte-delay-us = <20>;
+		synaptics,fw_name = "tsp_synaptics/td4150_a01core.img";
+		support_ear_detect_mode;
+		/* tp-io reset is only used for specific tddi devices */
+		/* synaptics,tpio-reset-gpio = <&msm_gpio 102 0>; */
+	};
+	
+	/* Novatek device tree node */
+	novatek@1 {
+		status = "okay";
+		compatible = "novatek,NVT-ts-spi";
+		reg = <1>; //Same as CS ID
+		spi-max-frequency = <9600000>;	//4800000,9600000,15000000,19200000
+		//novatek,reset-gpio = <&msm_gpio 102 0x00>;
+		novatek,irq-gpio = <&pio 0 0x2001>;
+		/*novatek,cs-gpio = <&pio 32 0>;*/
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&ts_pin_init &spi_cs_init &spi_clk_init &spi_miso_init &spi_mosi_init>;
+		pinctrl-1 = <&ts_pin_sleep &spi_cs_sleep &spi_clk_sleep &spi_miso_sleep &spi_mosi_sleep>;
+
+		/* 525 */
+		//novatek,swrst-n8-addr = <0x01F01A>;
+
+		/* 672A, 525B, 675, 526, 672C */
+		novatek,swrst-n8-addr = <0x03F0FE>;
+		novatek,spi-rd-fast-addr = <0x03F310>;
+
+		/* MP */
+		novatek,mp-support-dt;
+
+		support_ear_detect_mode;
+
+		novatek-mp-criteria-720D@0 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "novatek-mp-criteria-720D";
+			
+			/* sec cmd test config */
+			open_test_spec = <(-511) 5120>;
+			short_test_spec = <10000 14008>;
+			diff_test_frame = <50>;
+
+			/* MP Config */
+			IC_X_CFG_SIZE = <18>;
+			IC_Y_CFG_SIZE = <32>;
+			IC_KEY_CFG_SIZE = <4>;
+			X_Channel = <18>;
+			Y_Channel = <32>;
+			AIN_X = <0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17>;
+			AIN_Y = <0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17
+						18 19 20 21 22 23 24 25 26 27 28 29 30 31>;
+			AIN_KEY = <0 1 2 0xFF>;
+		};
+	};
+};

@@ -1,0 +1,142 @@
+/*
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pio {		
+	ts_pin_active: ts_active {
+		pins_cmd0_dat {
+			pinmux = <PINMUX_GPIO0__FUNC_GPIO0>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+		
+	ts_pin_suspend: ts_suspend {
+		pins_cmd0_dat {
+			pinmux = <PINMUX_GPIO0__FUNC_GPIO0>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	
+	spi0_bus_cfg: bus_cfg {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO32__FUNC_GPIO32>,
+					<PINMUX_GPIO33__FUNC_GPIO33>,
+					<PINMUX_GPIO34__FUNC_GPIO34>;
+			slew-rate = <0>;
+			bias-pull-down;
+			drive-strength = <1>;
+		};
+	};
+	
+	spi0_set_miso: set_miso {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO33__FUNC_SPI0_A_MI>;
+			drive-strength = <4>;
+		};
+	};
+	
+	spi0_set_cs: set_cs {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO31__FUNC_SPI0_A_CSB>;
+			drive-strength = <4>;
+		};
+	};
+	
+	spi0_set_mosi: set_mosi {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO34__FUNC_SPI0_A_MO>;
+			drive-strength = <4>;
+		};
+	};
+	
+	spi0_set_clk: set_clk {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO32__FUNC_SPI0_A_CLK>;
+			drive-strength = <4>;
+		};
+	};
+	
+	spi0_clr_miso: clr_miso {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO33__FUNC_GPIO33>;
+			slew-rate = <0>;
+			bias-pull-down;
+			input-enable;
+			drive-strength = <1>;
+		};
+	};
+	
+	spi0_clr_cs: clr_cs {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO31__FUNC_GPIO31>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+	
+	spi0_clr_mosi: clr_mosi {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO34__FUNC_GPIO34>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+	
+	spi0_clr_clk: clr_clk {
+		pins_cmd_dat{
+			pinmux = <PINMUX_GPIO32__FUNC_GPIO32>;
+			slew-rate = <0>;
+			bias-pull-down;
+			output-low;
+			drive-strength = <1>;
+		};
+	};
+};
+
+&spi0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+		
+	synaptics_tcm@0 {
+		compatible = "synaptics,tcm-spi";
+		reg = <0>;
+		spi-max-frequency = <5000000>;
+		interrupt-parent = <&pio>;
+		interrupts = <0 0x2008>;
+		pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
+		pinctrl-0 = <&ts_pin_active>;
+		pinctrl-1 = <&ts_pin_suspend>;
+		synaptics,bus-reg-name = "vdd";
+		synaptics,pwr-reg-name = "avdd";
+		synaptics,irq-gpio = <&pio 0 0x2008>; /* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
+		synaptics,irq-on-state = <0>;
+		synaptics,reset-on-state = <0>;
+		synaptics,reset-active-ms = <20>;
+		synaptics,reset-delay-ms = <200>;
+		synaptics,power-delay-ms = <200>;
+		synaptics,spi-mode = <0>;
+		synaptics,byte-delay-us = <0>;
+		synaptics,block-delay-us = <0>;
+		synaptics,ubl-max-freq = <5000000>;
+		synaptics,ubl-byte-delay-us = <20>;
+		synaptics,fw_name = "tsp_synaptics/td4150_a3core.img";
+		/* tp-io reset is only used for specific tddi devices */
+		/* synaptics,tpio-reset-gpio = <&msm_gpio 102 0>; */
+	};
+};

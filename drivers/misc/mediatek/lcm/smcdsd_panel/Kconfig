@@ -1,0 +1,6 @@
+config SMCDSD_PANEL
+	tristate "Samsung Mobile Communication Division System Display"
+	default y
+
+source "drivers/misc/mediatek/lcm/smcdsd_panel/panels/Kconfig"
+
