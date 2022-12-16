@@ -228,7 +228,7 @@ static int himax_write_read_reg(uint8_t *tmp_addr, uint8_t *tmp_data, uint8_t hb
 		/* I("%s:Now tmp_data[0]=0x%02X,[1]=0x%02X,[2]=0x%02X,[3]=0x%02X\n",
 		 * __func__, tmp_data[0], tmp_data[1], tmp_data[2], tmp_data[3]);
 		 */
-	} while ((tmp_data[1] != hb && tmp_data[0] != lb) && cnt++ < 100);
+	} while ((tmp_data[1] != hb && tmp_data[0] != lb) && cnt++ < 100 && !atomic_read(&private_ts->shutdown));
 
 	if (cnt == 99)
 		return HX_RW_REG_FAIL;
@@ -272,7 +272,7 @@ static void himax_mcu_interface_on(void)
 			break;
 
 		usleep_range(1000, 1100);
-	} while (++cnt < 10);
+	} while (++cnt < 10 && !atomic_read(&private_ts->shutdown));
 
 	if (cnt > 0)
 		I("%s:Polling burst mode: %d times\n", __func__, cnt);
@@ -345,7 +345,7 @@ static void himax_mcu_sense_on(uint8_t FlashMode)
 
 			g_core_fp.fp_register_read(pfw_op->addr_flag_reset_event, DATA_LEN_4, tmp_data, 0);
 			I("%s:Read status from IC = %X,%X\n", __func__, tmp_data[0], tmp_data[1]);
-		} while ((tmp_data[1] != 0x01 || tmp_data[0] != 0x00) && retry++ < 5);
+		} while ((tmp_data[1] != 0x01 || tmp_data[0] != 0x00) && retry++ < 5 && !atomic_read(&private_ts->shutdown));
 
 		if (retry >= 5) {
 			E("%s: Fail:\n", __func__);
@@ -423,7 +423,7 @@ static bool himax_mcu_sense_off(bool check_en)
 			g_core_fp.fp_system_reset();
 #endif
 		}
-	} while (cnt++ < 15);
+	} while (cnt++ < 15 && !atomic_read(&private_ts->shutdown));
 
 	return false;
 TRUE_END:
@@ -688,7 +688,7 @@ static void himax_mcu_system_reset(void)
 
 		g_core_fp.fp_register_read(pfw_op->addr_flag_reset_event, DATA_LEN_4, tmp_data, 0);
 		I("%s:Read status from IC = %X,%X\n", __func__, tmp_data[0], tmp_data[1]);
-	} while ((tmp_data[1] != 0x02 || tmp_data[0] != 0x00) && retry++ < 5);
+	} while ((tmp_data[1] != 0x02 || tmp_data[0] != 0x00) && retry++ < 5 && !atomic_read(&private_ts->shutdown));
 #endif
 }
 
@@ -769,7 +769,7 @@ static uint32_t himax_mcu_check_CRC(uint8_t *start_addr, int reload_length)
 			usleep_range(1000, 1100);
 		}
 
-	} while (cnt++ < 100);
+	} while (cnt++ < 100 && !atomic_read(&private_ts->shutdown));
 	E("%s: timeout, 0x900000E4 = %02X%02X%02X%02X\n", __func__, dbg_data[0], dbg_data[1], dbg_data[2], dbg_data[3]);
 
 END:
@@ -989,7 +989,7 @@ static void himax_mcu_set_SMWP_enable(uint8_t SMWP_enable, bool suspended)
 		g_core_fp.fp_register_read(pfw_op->addr_smwp_enable, DATA_LEN_4, tmp_data, 0);
 		/*I("%s: tmp_data[0]=%d, SMWP_enable=%d, retry_cnt=%d\n", __func__, tmp_data[0],SMWP_enable,retry_cnt);*/
 		retry_cnt++;
-	} while ((tmp_data[3] != back_data[3] || tmp_data[2] != back_data[2] || tmp_data[1] != back_data[1]  || tmp_data[0] != back_data[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES);
+	} while ((tmp_data[3] != back_data[3] || tmp_data[2] != back_data[2] || tmp_data[1] != back_data[1]  || tmp_data[0] != back_data[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES && !atomic_read(&private_ts->shutdown));
 }
 
 static void himax_mcu_set_HSEN_enable(uint8_t HSEN_enable, bool suspended)
@@ -1014,7 +1014,7 @@ static void himax_mcu_set_HSEN_enable(uint8_t HSEN_enable, bool suspended)
 		g_core_fp.fp_register_read(pfw_op->addr_hsen_enable, DATA_LEN_4, tmp_data, 0);
 		/*I("%s: tmp_data[0]=%d, HSEN_enable=%d, retry_cnt=%d\n", __func__, tmp_data[0],HSEN_enable,retry_cnt);*/
 		retry_cnt++;
-	} while ((tmp_data[3] != back_data[3] || tmp_data[2] != back_data[2] || tmp_data[1] != back_data[1]  || tmp_data[0] != back_data[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES);
+	} while ((tmp_data[3] != back_data[3] || tmp_data[2] != back_data[2] || tmp_data[1] != back_data[1]  || tmp_data[0] != back_data[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES && !atomic_read(&private_ts->shutdown));
 }
 
 static void himax_mcu_usb_detect_set(uint8_t *cable_config)
@@ -1039,7 +1039,7 @@ static void himax_mcu_usb_detect_set(uint8_t *cable_config)
 		g_core_fp.fp_register_read(pfw_op->addr_usb_detect, DATA_LEN_4, tmp_data, 0);
 		/*I("%s: tmp_data[0]=%d, USB detect=%d, retry_cnt=%d\n", __func__, tmp_data[0],cable_config[1] ,retry_cnt);*/
 		retry_cnt++;
-	} while ((tmp_data[3] != back_data[3] || tmp_data[2] != back_data[2] || tmp_data[1] != back_data[1]  || tmp_data[0] != back_data[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES);
+	} while ((tmp_data[3] != back_data[3] || tmp_data[2] != back_data[2] || tmp_data[1] != back_data[1]  || tmp_data[0] != back_data[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES && !atomic_read(&private_ts->shutdown));
 }
 
 static void himax_mcu_diag_register_set(uint8_t diag_command, uint8_t storage_type)
@@ -1061,7 +1061,7 @@ static void himax_mcu_diag_register_set(uint8_t diag_command, uint8_t storage_ty
 		I("%s: back_data[3]=0x%02X,back_data[2]=0x%02X,back_data[1]=0x%02X,back_data[0]=0x%02X!\n",
 		  __func__, back_data[3], back_data[2], back_data[1], back_data[0]);
 		cnt--;
-	} while (tmp_data[0] != back_data[0] && cnt > 0);
+	} while (tmp_data[0] != back_data[0] && cnt > 0 && !atomic_read(&private_ts->shutdown));
 }
 
 static int himax_mcu_chip_self_test(void)
@@ -1175,7 +1175,7 @@ static void himax_mcu_idle_mode(int disable)
 		  __func__, tmp_data[0], tmp_data[1], tmp_data[2], tmp_data[3]);
 		retry--;
 		usleep_range(10000, 11000);
-	} while ((tmp_data[0] != switch_cmd) && retry > 0);
+	} while ((tmp_data[0] != switch_cmd) && retry > 0 && !atomic_read(&private_ts->shutdown));
 
 	I("%s: setting OK!\n", __func__);
 }
@@ -1369,7 +1369,7 @@ static void himax_mcu_return_event_stack(void)
 		g_core_fp.fp_register_read(psram_op->addr_rawdata_addr, DATA_LEN_4, tmp_data, 0);
 		retry--;
 		usleep_range(10000, 11000);
-	} while ((tmp_data[1] != psram_op->addr_rawdata_end[1] && tmp_data[0] != psram_op->addr_rawdata_end[0]) && retry > 0);
+	} while ((tmp_data[1] != psram_op->addr_rawdata_end[1] && tmp_data[0] != psram_op->addr_rawdata_end[0]) && retry > 0 && !atomic_read(&private_ts->shutdown));
 
 	I("%s: End of setting!\n", __func__);
 }
@@ -1502,7 +1502,7 @@ static int himax_mcu_switch_mode(int mode)
 
 	g_core_fp.fp_sense_on(0x01);
 
-	while (retry != 0) {
+	while (retry != 0 && !atomic_read(&private_ts->shutdown)) {
 		I("[%d] %s Read\n", retry, __func__);
 		g_core_fp.fp_check_sorting_mode(tmp_data);
 		msleep(100);
@@ -1620,7 +1620,7 @@ int hx_mcu_set_edge_border(int set_val)
 				tmp_data[2], tmp_data[3]);
 		I("%s Now_val=%d, retry times=%d\n", HIMAX_LOG_TAG,
 				tmp_data[0], retry);
-	} while (tmp_data[0] != set_val && retry-- > 0);
+	} while (tmp_data[0] != set_val && retry-- > 0 && !atomic_read(&private_ts->shutdown));
 	if (retry <= 0 && tmp_data[0] != set_val) {
 		I("%s %s:Fail to set value=%d!\n", HIMAX_LOG_TAG,
 				__func__, tmp_data[0]);
@@ -3204,7 +3204,7 @@ int himax_zf_part_info(u8 *data)
 					g_core_fp.fp_register_write(tmp_addr, DATA_LEN_4, send_data, 0);
 					g_core_fp.fp_register_read(tmp_addr, DATA_LEN_4, recv_data, 0);
 					retry++;
-				} while ((send_data[3] != recv_data[3] || send_data[2] != recv_data[2] || send_data[1] != recv_data[1]  || send_data[0] != recv_data[0]) && retry < HIMAX_REG_RETRY_TIMES);
+				} while ((send_data[3] != recv_data[3] || send_data[2] != recv_data[2] || send_data[1] != recv_data[1]  || send_data[0] != recv_data[0]) && retry < HIMAX_REG_RETRY_TIMES && !atomic_read(&private_ts->shutdown));
 			}
 #endif
 		} else {

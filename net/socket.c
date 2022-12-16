@@ -1301,7 +1301,21 @@ repeat:
 	 * module can have its refcnt decremented
 	 */
 	module_put(pf->owner);
+
+	max_try = 10;
+repeat2:
 	err = security_socket_post_create(sock, family, type, protocol, kern);
+	if (err == -ENOMEM && max_try-- > 0) {
+		struct page *dummy_page = NULL;
+
+		dummy_page = alloc_page(GFP_KERNEL);
+		if (dummy_page) {
+			__free_page(dummy_page);
+			pr_err("%s: security_socket_post_create failed, rem_retry %d\n",
+			       __func__, max_try);
+			goto repeat2;
+		}
+	}
 	if (err)
 		goto out_sock_release;
 	*res = sock;

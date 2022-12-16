@@ -393,6 +393,11 @@ static ssize_t himax_spi_sync(struct himax_ts_data *ts, struct spi_message *mess
 {
 	int status;
 
+	if (atomic_read(&ts->shutdown)) {
+		E("%s: now IC status is shutdown\n", __func__);
+		return -EIO;
+	}
+
 	if (atomic_read(&ts->suspend_mode) == HIMAX_STATE_POWER_OFF) {
 		E("%s: now IC status is OFF\n", __func__);
 		return -EIO;
@@ -422,6 +427,11 @@ static int himax_spi_read(uint8_t *command, uint8_t command_len, uint8_t *data, 
 	uint8_t *rbuff, *cbuff;
 	int retry;
 	int error;
+
+	if (atomic_read(&ts->shutdown)) {
+		E("%s: now IC status is shutdown\n", __func__);
+		return -EIO;
+	}
 
 	if (atomic_read(&ts->suspend_mode) == HIMAX_STATE_POWER_OFF) {
 		E("%s: now IC status is OFF\n", __func__);
@@ -494,6 +504,11 @@ static int himax_spi_write(uint8_t *buf, uint32_t length)
 
 	spi_message_init(&m);
 	spi_message_add_tail(&t, &m);
+
+	if (atomic_read(&ts->shutdown)) {
+		E("%s: now IC status is shutdown\n", __func__);
+		return -EIO;
+	}
 
 	if (atomic_read(&ts->suspend_mode) == HIMAX_STATE_POWER_OFF) {
 		E("%s: now IC status is OFF\n", __func__);

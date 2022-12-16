@@ -880,7 +880,7 @@ static int himax_change_mode(uint8_t str_pw, uint8_t end_pw)
 
 		I("Now retry %d times!\n", count++);
 		msleep(50);
-	} while (count < 50);
+	} while (count < 50 && !atomic_read(&private_ts->shutdown));
 
 	return ERR_WORK_OUT;
 }

@@ -173,7 +173,7 @@ static bool hx83102_sense_off(bool check_en)
 		tmp_addr[3] = 0x90; tmp_addr[2] = 0x00; tmp_addr[1] = 0x00; tmp_addr[0] = 0x5C;
 		hx83102_register_read(tmp_addr, DATA_LEN_4, tmp_data);
 		KI("%s: cnt = %d, data[0] = 0x%02X!\n", __func__, cnt, tmp_data[0]);
-	} while (tmp_data[0] != 0x87 && (++cnt < 50) && check_en == true);
+	} while ((tmp_data[0] != 0x87 && (++cnt < 50) && check_en == true) && !atomic_read(&private_ts->shutdown));
 
 	cnt = 0;
 
@@ -245,7 +245,7 @@ static bool hx83102_sense_off(bool check_en)
 		hx83102_pin_reset();
 #endif
 
-	} while (cnt++ < 15);
+	} while ((cnt++ < 15) && !atomic_read(&private_ts->shutdown));
 
 	return false;
 }
@@ -327,7 +327,7 @@ static bool hx83102ab_sense_off(bool check_en)
 		msleep(50);
 #endif
 
-	} while (cnt++ < 5);
+	} while (cnt++ < 5 && !atomic_read(&private_ts->shutdown));
 
 	return false;
 }
@@ -354,7 +354,7 @@ static void hx83102ab_set_SMWP_enable(uint8_t SMWP_enable, bool suspended)
 		g_core_fp.fp_register_read(pfw_op->addr_smwp_enable, DATA_LEN_4, tmp_data, false);
 		/*KI("%s: tmp_data[0]=%d, SMWP_enable=%d, retry_cnt=%d\n", __func__, tmp_data[0],SMWP_enable,retry_cnt);*/
 		retry_cnt++;
-	} while ((tmp_data[3] != back_data[3] || tmp_data[2] != back_data[2] || tmp_data[1] != back_data[1]  || tmp_data[0] != back_data[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES);
+	} while ((tmp_data[3] != back_data[3] || tmp_data[2] != back_data[2] || tmp_data[1] != back_data[1]  || tmp_data[0] != back_data[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES && !atomic_read(&private_ts->shutdown));
 
 	g_core_fp.fp_sense_on(0x00);
 }
@@ -563,7 +563,7 @@ static bool hx83102d_sense_off(bool check_en)
 
 		g_core_fp.fp_register_read(pfw_op->addr_ctrl_fw_isr, 4, tmp_data, false);
 		KI("%s: cnt = %d, data[0] = 0x%02X!\n", __func__, cnt, tmp_data[0]);
-	} while (tmp_data[0] != 0x87 && (++cnt < 10) && check_en == true);
+	} while ((tmp_data[0] != 0x87 && (++cnt < 10) && check_en == true) && !atomic_read(&private_ts->shutdown));
 
 	cnt = 0;
 
@@ -636,7 +636,7 @@ static bool hx83102d_sense_off(bool check_en)
 		msleep(50);
 #endif
 
-	} while (cnt++ < 5);
+	} while (cnt++ < 5 && !atomic_read(&private_ts->shutdown));
 
 	return false;
 }
@@ -690,7 +690,7 @@ static bool hx83102e_sense_off(bool check_en)
 
 		g_core_fp.fp_register_read(pfw_op->addr_ctrl_fw_isr, 4, tmp_data, false);
 		KI("%s: cnt = %d, data[0] = 0x%02X!\n", __func__, cnt, tmp_data[0]);
-	} while (tmp_data[0] != 0x87 && (++cnt < 10) && check_en == true);
+	} while ((tmp_data[0] != 0x87 && (++cnt < 10) && check_en == true) && !atomic_read(&private_ts->shutdown));
 
 	cnt = 0;
 
@@ -743,7 +743,7 @@ static bool hx83102e_sense_off(bool check_en)
 		msleep(50);
 #endif
 
-	} while (cnt++ < 5);
+	} while (cnt++ < 5 && !atomic_read(&private_ts->shutdown));
 
 	return false;
 }
@@ -815,7 +815,7 @@ static void himax_hx83102d_reload_to_active(void)
 		g_core_fp.fp_register_read(addr, DATA_LEN_4, data, 0);
 		KI("%s: data[1]=%d, data[0]=%d, retry_cnt=%d\n", __func__, data[1], data[0], retry_cnt);
 		retry_cnt++;
-	} while ((data[1] != 0x01 || data[0] != 0xEC) && retry_cnt < HIMAX_REG_RETRY_TIMES);
+	} while ((data[1] != 0x01 || data[0] != 0xEC) && retry_cnt < HIMAX_REG_RETRY_TIMES && !atomic_read(&private_ts->shutdown));
 }
 
 static void himax_hx83102d_resume_ic_action(void)
@@ -859,7 +859,7 @@ static void himax_hx83102d_sense_on(uint8_t FlashMode)
 
 			g_core_fp.fp_register_read(pfw_op->addr_flag_reset_event, DATA_LEN_4, tmp_data, 0);
 			KI("%s:Read status from IC = %X,%X\n", __func__, tmp_data[0], tmp_data[1]);
-		} while ((tmp_data[1] != 0x01 || tmp_data[0] != 0x00) && retry++ < 5);
+		} while ((tmp_data[1] != 0x01 || tmp_data[0] != 0x00) && retry++ < 5 && !atomic_read(&private_ts->shutdown));
 
 		if (retry >= 5) {
 			E("%s: Fail:\n", __func__);
@@ -1132,7 +1132,7 @@ static int hx83102d_0f_overlay(int ovl_type, int mode)
 	count = 0;
 	do {
 		g_core_fp.fp_register_read(handshaking_addr, DATA_LEN_4, recv_data, 0);
-	} while (recv_data[0] != request && count++ < 10);
+	} while ((recv_data[0] != request && count++ < 10) && !atomic_read(&private_ts->shutdown));
 
 	if (count < 10) {
 		/*g_core_fp.fp_write_sram_0f(fwp, sram_addr, offset, size);*/
@@ -1149,7 +1149,7 @@ static int hx83102d_0f_overlay(int ovl_type, int mode)
 			g_core_fp.fp_register_write(handshaking_addr, DATA_LEN_4, send_data, 0);
 			usleep_range(1000, 1100);
 			g_core_fp.fp_register_read(handshaking_addr, DATA_LEN_4, recv_data, 0);
-		} while (recv_data[0] != reply && count2++ < 10);
+		} while ((recv_data[0] != reply && count2++ < 10) && !atomic_read(&private_ts->shutdown));
 
 		if (ovl_type == 3) {
 #ifdef HX_RST_PIN_FUNC

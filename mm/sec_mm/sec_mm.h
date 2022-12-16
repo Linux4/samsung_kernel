@@ -12,4 +12,7 @@ void mm_debug_dump_tasks(void);
 void init_lowfile_detect(void);
 void exit_lowfile_detect(void);
 
+void init_panic_hander(void);
+void exit_panic_hander(void);
+
 #endif /* _SEC_MM_DEBUG_H */

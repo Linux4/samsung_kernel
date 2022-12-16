@@ -895,7 +895,7 @@ static uint32_t himax_wait_sorting_mode(uint8_t checktype)
 			I("Now retry %d times!\n", count);
 		}
 		msleep(50);
-	} while (count++ < 200);
+	} while (count++ < 200 && !atomic_read(&private_ts->shutdown));
 
 	return HX_INSPECT_ESWITCHMODE;
 }
@@ -2387,7 +2387,7 @@ static void himax_osr_ctrl(bool enable)
 			HIMAX_LOG_TAG, __func__, w_byte, back_byte);
 			break;
 		}
-	} while (--retry > 0);
+	} while (--retry > 0 && !atomic_read(&private_ts->shutdown));
 }
 
 static int hx_get_one_raw(int32_t *RAW, uint8_t checktype, uint32_t datalen)
@@ -4362,7 +4362,7 @@ static void run_snr_non_touched(void *dev_data)
 	} while ((send_data[3] != recv_data[3] ||
 		send_data[2] != recv_data[2] ||
 		send_data[1] != recv_data[1] ||
-		send_data[0] != recv_data[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES);
+		send_data[0] != recv_data[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES && !atomic_read(&private_ts->shutdown));
 
 	if (retry_cnt >= HIMAX_REG_RETRY_TIMES) {
 		E("%s: write cmd fail %02X%02X%02X%02X\n", __func__,
@@ -4374,7 +4374,7 @@ static void run_snr_non_touched(void *dev_data)
 	sec->cmd_state = SEC_CMD_STATUS_WAITING;
 
 	retry_cnt = 0;
-	while (retry_cnt++ < 100) {
+	while (retry_cnt++ < 100 && !atomic_read(&private_ts->shutdown)) {
 		usleep_range(100000, 100100);
 		g_core_fp.fp_register_read(tmp_addr, DATA_LEN_4, recv_data, 0);
 		if (recv_data[3] != 0xA5 && recv_data[2] != 0x5A)
@@ -4476,7 +4476,7 @@ static void run_snr_touched(void *dev_data)
 	hx_set_stack_raw(6);
 
 	retry_cnt = 0;
-	while (retry_cnt++ < 100) {
+	while (retry_cnt++ < 100 && !atomic_read(&private_ts->shutdown)) {
 		usleep_range(100000, 100100);
 		memcpy(result, diag_mutual, sizeof(int) * 19);
 		result[0] = result[0] & 0xFFFF;
@@ -4512,7 +4512,7 @@ static void run_snr_touched(void *dev_data)
 	} while ((send_data[3] != recv_data[3] ||
 		send_data[2] != recv_data[2] ||
 		send_data[1] != recv_data[1] ||
-		send_data[0] != recv_data[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES);
+		send_data[0] != recv_data[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES && !atomic_read(&private_ts->shutdown));
 
 	if (retry_cnt >= HIMAX_REG_RETRY_TIMES) {
 		E("%s: write back zero fail %02X%02X%02X%02X\n", __func__,
@@ -5405,7 +5405,7 @@ int himax_set_ap_change_mode(int mode, int enable)
 	} while ((send_data[3] != recv_data[3] ||
 		send_data[2] != recv_data[2] ||
 		send_data[1] != recv_data[1] ||
-		send_data[0] != recv_data[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES);
+		send_data[0] != recv_data[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES && !atomic_read(&private_ts->shutdown));
 
 	if (retry_cnt >= HIMAX_REG_RETRY_TIMES)
 		ret = 1;
@@ -5533,10 +5533,16 @@ void himax_set_cover_mode(struct himax_ts_data *ts, bool closed)
 	u8 sdata[4] = { 0 };
 	int ret;
 
+	if (atomic_read(&ts->shutdown)) {
+		E("%s: %s, but IC is shutdown\n", __func__, closed ? "on" : "off");
+		return;
+	}
+
 	if (atomic_read(&ts->suspend_mode) == HIMAX_STATE_POWER_OFF) {
 		E("%s: %s, but IC is powered off\n", __func__, closed ? "on" : "off");
 		return;
 	}
+
 	if (strcmp(HX_83121A_SERIES_PWON, private_ts->chip_name) == 0) {
 		himax_in_parse_assign_cmd(fw_addr_ctrl_fw, tmp_addr, sizeof(tmp_addr));
 
@@ -5950,7 +5956,7 @@ static ssize_t sensitivity_mode_store(struct device *dev,
 		} while ((send_keep_act[3] != recv_keep_act[3] ||
 					send_keep_act[2] != recv_keep_act[2] ||
 					send_keep_act[1] != recv_keep_act[1] ||
-					send_keep_act[0] != recv_keep_act[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES);
+					send_keep_act[0] != recv_keep_act[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES && !atomic_read(&private_ts->shutdown));
 		if (retry_cnt >= HIMAX_REG_RETRY_TIMES) {
 			E("%s: write cmd fail %02X%02X%02X%02X", __func__,
 					recv_keep_act[3], recv_keep_act[2], recv_keep_act[1], recv_keep_act[0]);
@@ -6106,9 +6112,9 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 	int buff[2];
 	int ret;
 
-	if (ts->shutdown) {
+	if (atomic_read(&ts->shutdown)) {
 		input_err(true, ts->dev, "%s: already called power shutdown.\n", __func__);
-		return -EINVAL;
+		return count;
 	}
 
 	if (!ts->pdata->enable_sysinput_enabled)
@@ -6141,10 +6147,10 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 			ts->pdata->late_suspend(ts->dev);
 		}
 	} else if ((buff[0] == DISPLAY_STATE_SERVICE_SHUTDOWN) || (buff[0] == DISPLAY_STATE_LPM_OFF)) {
-		mutex_lock(&ts->device_lock);
+		atomic_set(&ts->shutdown, 1);
 		ts->late_suspended = true;
 		ts->suspended  = true;
-		ts->shutdown = true;
+		mutex_lock(&ts->device_lock);
 		himax_int_enable(0);/* disable irq */
 		himax_pinctrl_configure(ts, false);
 		msleep(ts->pdata->one_frame_delay);

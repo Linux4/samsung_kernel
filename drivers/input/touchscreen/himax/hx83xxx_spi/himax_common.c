@@ -490,7 +490,7 @@ int himax_set_gesture(int gesture_state)
 		g_core_fp.fp_register_read(addr, DATA_LEN_4, rec_data, 0);
 		I("%s: Now retry=%d, data=0x%02X%02X%02X%02X\n", __func__, retry,
 			rec_data[3], rec_data[2], rec_data[1], rec_data[0]);
-	} while ((retry++ < 10) && (rec_data[3] != data[3] || rec_data[2] != data[2] || rec_data[1] != data[1] || rec_data[0] != data[0]));
+	} while ((retry++ < 10) && (rec_data[3] != data[3] || rec_data[2] != data[2] || rec_data[1] != data[1] || rec_data[0] != data[0]) && !atomic_read(&private_ts->shutdown));
 
 	I("current geature state is %d", gesture_state);
 	return 0;
@@ -2793,6 +2793,11 @@ void himax_ts_work(struct himax_ts_data *ts)
 	int ts_path = 0;
 	int ret = 0;
 
+	if (atomic_read(&ts->shutdown)) {
+		input_err(true, ts->dev, "%s: shutdown & not handled\n", __func__);
+		return;
+	}
+
 	if (atomic_read(&ts->suspend_mode) == HIMAX_STATE_POWER_OFF) {
 		input_err(true, ts->dev, "%s: POWER_OFF & not handled\n", __func__);
 		return;
@@ -2886,6 +2891,11 @@ static void himax_cable_tp_status_handler_func(int connect_status)
 	I("Touch: cable change to %d\n", connect_status);
 
 	ts = private_ts;
+
+	if (atomic_read(&ts->shutdown)) {
+		input_err(true, ts->dev, "%s: shutdown & not handled\n", __func__);
+		return;
+	}
 
 	if (ts->cable_config) {
 		if (!atomic_read(&ts->suspend_mode)) {
@@ -3232,7 +3242,7 @@ int himax_chip_common_init(void)
 #endif
 	ts->suspended                      = false;
 	ts->late_suspended                 = false;
-	ts->shutdown                 = false;
+	atomic_set(&ts->shutdown, 0);
 #if defined(HX_USB_DETECT_CALLBACK) || defined(HX_USB_DETECT_GLOBAL)
 	ts->usb_connected = 0x00;
 	ts->cable_config = pdata->cable_config;
@@ -3716,7 +3726,7 @@ static void hx_ap_nodify_suspend(int notify)
 			write_chk = 1;
 		}
 
-	} while (retry-- > 0 && write_chk == 0);
+	} while (retry-- > 0 && write_chk == 0 && !atomic_read(&private_ts->shutdown));
 
 }
 
@@ -3726,7 +3736,7 @@ int himax_chip_common_early_suspend(struct himax_ts_data *ts)
 	u8 lpwg_dump[5] = {0x3, 0x0, 0x0, 0x0, 0x0};
 #endif
 
-	if (ts->shutdown) {
+	if (atomic_read(&ts->shutdown)) {
 		input_err(true, ts->dev, "%s: already called power shutdown.\n", __func__);
 		return -EINVAL;
 	}
@@ -3840,7 +3850,7 @@ END:
 
 int himax_chip_common_late_suspend(struct himax_ts_data *ts)
 {
-	if (ts->shutdown) {
+	if (atomic_read(&ts->shutdown)) {
 		input_err(true, ts->dev, "%s: already called power shutdown.\n", __func__);
 		return -EINVAL;
 	}
@@ -4039,7 +4049,7 @@ void himax_parse_gesture_history(void)
 
 int himax_chip_common_early_resume(struct himax_ts_data *ts)
 {
-	if (ts->shutdown) {
+	if (atomic_read(&ts->shutdown)) {
 		input_err(true, ts->dev, "%s: already called power shutdown.\n", __func__);
 		return -EINVAL;
 	}
@@ -4076,7 +4086,7 @@ int himax_chip_common_late_resume(struct himax_ts_data *ts)
 	int previous_suspend_mode = 0;
 #endif
 
-	if (ts->shutdown) {
+	if (atomic_read(&ts->shutdown)) {
 		input_err(true, ts->dev, "%s: already called power shutdown.\n", __func__);
 		return -EINVAL;
 	}
