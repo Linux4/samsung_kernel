@@ -2075,9 +2075,10 @@ int wacom_fw_update_on_probe(struct wacom_i2c *wac_i2c)
 
 	if (bforced) {
 		for (i = 0; i < 4; i++) {
-			if (wac_i2c->pdata->img_version_of_ic[i] != wac_i2c->pdata->img_version_of_bin[i])
+			if (wac_i2c->pdata->img_version_of_ic[i] != wac_i2c->pdata->img_version_of_bin[i]) {
 				input_info(true, &client->dev, "force update : not equal, update fw\n");
 				goto fw_update;
+			}
 		}
 		input_info(true, &client->dev, "force update : equal, skip update fw\n");
 		goto out_update_fw;

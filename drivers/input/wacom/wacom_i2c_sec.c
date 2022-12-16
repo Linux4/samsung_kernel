@@ -114,12 +114,10 @@ static ssize_t epen_firm_version_show(struct device *dev,
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 	int i;
 
-	if (wac_i2c->pdata->img_version_of_ic[0] == MPU_W9021) {
-		for (i = 0; i < 4; i++)
-			wac_i2c->pdata->img_version_of_ic[i] = 0;
+	for (i = 0; i < 4; i++)
+		wac_i2c->pdata->img_version_of_ic[i] = 0;
 
-		wacom_i2c_query(wac_i2c);
-	}
+	wacom_i2c_query(wac_i2c);
 #endif
 
 	input_info(true, &client->dev, "%s: %02X%02X%02X%02X|%02X%02X%02X%02X\n", __func__,
@@ -340,6 +338,20 @@ int wacom_open_test(struct wacom_i2c *wac_i2c, int test_mode)
 
 	input_info(true, &client->dev, "%s : start (%d)\n", __func__, test_mode);
 
+	if (test_mode == WACOM_GARAGE_TEST) {
+		wac_i2c->garage_connection_check = false;
+		wac_i2c->garage_fail_channel = 0;
+		wac_i2c->garage_min_adc_val = 0;
+		wac_i2c->garage_error_cal = 0;
+		wac_i2c->garage_min_cal_val = 0;
+	} else if (test_mode == WACOM_DIGITIZER_TEST) {
+		wac_i2c->connection_check = false;
+		wac_i2c->fail_channel = 0;
+		wac_i2c->min_adc_val = 0;
+		wac_i2c->error_cal = 0;
+		wac_i2c->min_cal_val = 0;
+	}
+
 	if(!wac_i2c->pdata->support_garage_open_test && test_mode == WACOM_GARAGE_TEST){
 		input_err(true, &client->dev, "%s: not support garage open test", __func__);
 		retval = EPEN_OPEN_TEST_NOTSUPPORT;
@@ -366,21 +378,8 @@ int wacom_open_test(struct wacom_i2c *wac_i2c, int test_mode)
 	wacom_enable_irq(wac_i2c, false);
 
 	if (test_mode == WACOM_GARAGE_TEST) {
-		wac_i2c->garage_connection_check = false;
-		wac_i2c->garage_fail_channel = 0;
-		wac_i2c->garage_min_adc_val = 0;
-		wac_i2c->garage_error_cal = 0;
-		wac_i2c->garage_min_cal_val = 0;
-
 		cmd = COM_GARAGE_TEST_MODE;
-
 	} else if (test_mode == WACOM_DIGITIZER_TEST) {
-		wac_i2c->connection_check = false;
-		wac_i2c->fail_channel = 0;
-		wac_i2c->min_adc_val = 0;
-		wac_i2c->error_cal = 0;
-		wac_i2c->min_cal_val = 0;
-
 		cmd = COM_DIGITIZER_TEST_MODE;
 	}
 
@@ -1121,13 +1120,13 @@ static void print_spec_data(struct wacom_i2c *wac_i2c)
 {
 	struct wacom_elec_data *edata = wac_i2c->pdata->edata;
 	struct i2c_client *client = wac_i2c->client;
-	u8 tmp_buf[CMD_RESULT_WORD_LEN] = { 0 };
+	u8 tmp_buf[WACOM_CMD_RESULT_WORD_LEN] = { 0 };
 	u8 *buff;
 	int buff_size;
 	int i;
 
 	buff_size = edata->max_x_ch > edata->max_y_ch ? edata->max_x_ch : edata->max_y_ch;
-	buff_size = CMD_RESULT_WORD_LEN * (buff_size + 1);
+	buff_size = WACOM_CMD_RESULT_WORD_LEN * (buff_size + 1);
 
 	buff = kzalloc(buff_size, GFP_KERNEL);
 	if (!buff)
@@ -1136,225 +1135,307 @@ static void print_spec_data(struct wacom_i2c *wac_i2c)
 	input_info(true, &client->dev, "%s: shift_value %d, spec ver %d.%d", __func__,
 			edata->shift_value, edata->spec_ver[0], edata->spec_ver[1]);
 
-	snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "xx_ref: ");
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "xx_ref: ");
 	strlcat(buff, tmp_buf, buff_size);
-	memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 
 	for (i = 0; i < edata->max_x_ch; i++) {
-		snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "%lld ",
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->xx_ref[i] * power(edata->shift_value));
 		strlcat(buff, tmp_buf, buff_size);
-		memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}
 
 	input_info(true, &client->dev, "%s\n", buff);
 	memset(buff, 0x00, buff_size);
 
-	snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "xy_ref: ");
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "xy_ref: ");
 	strlcat(buff, tmp_buf, buff_size);
-	memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 
 	for (i = 0; i < edata->max_x_ch; i++) {
-		snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "%lld ",
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->xy_ref[i] * power(edata->shift_value));
 		strlcat(buff, tmp_buf, buff_size);
-		memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}
 
 	input_info(true, &client->dev, "%s\n", buff);
 	memset(buff, 0x00, buff_size);
 
-	snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "yx_ref: ");
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "yx_ref: ");
 	strlcat(buff, tmp_buf, buff_size);
-	memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 
 	for (i = 0; i < edata->max_y_ch; i++) {
-		snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "%lld ",
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->yx_ref[i] * power(edata->shift_value));
 		strlcat(buff, tmp_buf, buff_size);
-		memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}
 
 	input_info(true, &client->dev, "%s\n", buff);
 	memset(buff, 0x00, buff_size);
 
-	snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "yy_ref: ");
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "yy_ref: ");
 	strlcat(buff, tmp_buf, buff_size);
-	memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 
 	for (i = 0; i < edata->max_y_ch; i++) {
-		snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "%lld ",
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->yy_ref[i] * power(edata->shift_value));
 		strlcat(buff, tmp_buf, buff_size);
-		memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}
 
 	input_info(true, &client->dev, "%s\n", buff);
 	memset(buff, 0x00, buff_size);
 
-	snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "xx_spec: ");
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "xy_edg_ref: ");
 	strlcat(buff, tmp_buf, buff_size);
-	memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 
 	for (i = 0; i < edata->max_x_ch; i++) {
-		snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "%lld ",
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
+				edata->xy_edg_ref[i] * power(edata->shift_value));
+		strlcat(buff, tmp_buf, buff_size);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
+	}
+
+	input_info(true, &client->dev, "%s\n", buff);
+	memset(buff, 0x00, buff_size);
+
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "yx_edg_ref: ");
+	strlcat(buff, tmp_buf, buff_size);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
+
+	for (i = 0; i < edata->max_y_ch; i++) {
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
+				edata->yx_edg_ref[i] * power(edata->shift_value));
+		strlcat(buff, tmp_buf, buff_size);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
+	}
+
+	input_info(true, &client->dev, "%s\n", buff);
+	memset(buff, 0x00, buff_size);
+
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "xx_spec: ");
+	strlcat(buff, tmp_buf, buff_size);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
+
+	for (i = 0; i < edata->max_x_ch; i++) {
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->xx_spec[i] / POWER_OFFSET * power(edata->shift_value));
 		strlcat(buff, tmp_buf, buff_size);
-		memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}
 
 	input_info(true, &client->dev, "%s\n", buff);
 	memset(buff, 0x00, buff_size);
 
-	snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "xy_spec: ");
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "xy_spec: ");
 	strlcat(buff, tmp_buf, buff_size);
-	memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 
 	for (i = 0; i < edata->max_x_ch; i++) {
-		snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "%lld ",
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->xy_spec[i] / POWER_OFFSET * power(edata->shift_value));
 		strlcat(buff, tmp_buf, buff_size);
-		memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}
 
 	input_info(true, &client->dev, "%s\n", buff);
 	memset(buff, 0x00, buff_size);
 
-	snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "yx_spec: ");
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "yx_spec: ");
 	strlcat(buff, tmp_buf, buff_size);
-	memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 
 	for (i = 0; i < edata->max_y_ch; i++) {
-		snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "%lld ",
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->yx_spec[i] / POWER_OFFSET * power(edata->shift_value));
 		strlcat(buff, tmp_buf, buff_size);
-		memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}
 
 	input_info(true, &client->dev, "%s\n", buff);
 	memset(buff, 0x00, buff_size);
 
-	snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "yy_spec: ");
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "yy_spec: ");
 	strlcat(buff, tmp_buf, buff_size);
-	memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 
 	for (i = 0; i < edata->max_y_ch; i++) {
-		snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "%lld ",
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->yy_spec[i] / POWER_OFFSET * power(edata->shift_value));
 		strlcat(buff, tmp_buf, buff_size);
-		memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}
 
 	input_info(true, &client->dev, "%s\n", buff);
 	memset(buff, 0x00, buff_size);
 
-	snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "rxx_ref: ");
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "rxx_ref: ");
 	strlcat(buff, tmp_buf, buff_size);
-	memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 
 	for (i = 0; i < edata->max_x_ch; i++) {
-		snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "%lld ",
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->rxx_ref[i] * power(edata->shift_value) / POWER_OFFSET);
 		strlcat(buff, tmp_buf, buff_size);
-		memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}
 
 	input_info(true, &client->dev, "%s\n", buff);
 	memset(buff, 0x00, buff_size);
 
-	snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "rxy_ref: ");
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "rxy_ref: ");
 	strlcat(buff, tmp_buf, buff_size);
-	memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 
 	for (i = 0; i < edata->max_x_ch; i++) {
-		snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "%lld ",
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->rxy_ref[i] * power(edata->shift_value) / POWER_OFFSET);
 		strlcat(buff, tmp_buf, buff_size);
-		memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}
 
 	input_info(true, &client->dev, "%s\n", buff);
 	memset(buff, 0x00, buff_size);
 
-	snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "ryx_ref: ");
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "ryx_ref: ");
 	strlcat(buff, tmp_buf, buff_size);
-	memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 
 	for (i = 0; i < edata->max_y_ch; i++) {
-		snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "%lld ",
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->ryx_ref[i] * power(edata->shift_value) / POWER_OFFSET);
 		strlcat(buff, tmp_buf, buff_size);
-		memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}
 
 	input_info(true, &client->dev, "%s\n", buff);
 	memset(buff, 0x00, buff_size);
 
-	snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "ryy_ref: ");
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "ryy_ref: ");
 	strlcat(buff, tmp_buf, buff_size);
-	memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 
 	for (i = 0; i < edata->max_y_ch; i++) {
-		snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "%lld ",
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->ryy_ref[i] * power(edata->shift_value) / POWER_OFFSET);
 		strlcat(buff, tmp_buf, buff_size);
-		memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}
 
 	input_info(true, &client->dev, "%s\n", buff);
 	memset(buff, 0x00, buff_size);
 
-	snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "drxx_spec: ");
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "drxx_spec: ");
 	strlcat(buff, tmp_buf, buff_size);
-	memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 
 	for (i = 0; i < edata->max_x_ch; i++) {
-		snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "%lld ",
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->drxx_spec[i] * power(edata->shift_value) / POWER_OFFSET);
 		strlcat(buff, tmp_buf, buff_size);
-		memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}
 
 	input_info(true, &client->dev, "%s\n", buff);
 	memset(buff, 0x00, buff_size);
 
-	snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "drxy_spec: ");
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "drxy_spec: ");
 	strlcat(buff, tmp_buf, buff_size);
-	memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 
 	for (i = 0; i < edata->max_x_ch; i++) {
-		snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "%lld ",
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->drxy_spec[i] * power(edata->shift_value) / POWER_OFFSET);
 		strlcat(buff, tmp_buf, buff_size);
-		memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}
 
 	input_info(true, &client->dev, "%s\n", buff);
 	memset(buff, 0x00, buff_size);
 
-	snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "dryx_spec: ");
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "dryx_spec: ");
 	strlcat(buff, tmp_buf, buff_size);
-	memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 
 	for (i = 0; i < edata->max_y_ch; i++) {
-		snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "%lld ",
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->dryx_spec[i] * power(edata->shift_value) / POWER_OFFSET);
 		strlcat(buff, tmp_buf, buff_size);
-		memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}
 
 	input_info(true, &client->dev, "%s\n", buff);
 	memset(buff, 0x00, buff_size);
 
-	snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "dryy_spec: ");
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "dryy_spec: ");
 	strlcat(buff, tmp_buf, buff_size);
-	memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 
 	for (i = 0; i < edata->max_y_ch; i++) {
-		snprintf(tmp_buf, CMD_RESULT_WORD_LEN, "%lld ",
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->dryy_spec[i] * power(edata->shift_value) / POWER_OFFSET);
 		strlcat(buff, tmp_buf, buff_size);
-		memset(tmp_buf, 0x00, CMD_RESULT_WORD_LEN);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
+	}
+
+	input_info(true, &client->dev, "%s\n", buff);
+	memset(buff, 0x00, buff_size);
+
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "drxy_edg_spec: ");
+	strlcat(buff, tmp_buf, buff_size);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
+
+	for (i = 0; i < edata->max_x_ch; i++) {
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
+				edata->drxy_edg_spec[i] * power(edata->shift_value) / POWER_OFFSET);
+		strlcat(buff, tmp_buf, buff_size);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
+	}
+
+	input_info(true, &client->dev, "%s\n", buff);
+	memset(buff, 0x00, buff_size);
+
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "dryx_edg_spec: ");
+	strlcat(buff, tmp_buf, buff_size);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
+
+	for (i = 0; i < edata->max_y_ch; i++) {
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
+				edata->dryx_edg_spec[i] * power(edata->shift_value) / POWER_OFFSET);
+		strlcat(buff, tmp_buf, buff_size);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
+	}
+
+	input_info(true, &client->dev, "%s\n", buff);
+	memset(buff, 0x00, buff_size);
+
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "xx_self_spec: ");
+	strlcat(buff, tmp_buf, buff_size);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
+
+	for (i = 0; i < edata->max_x_ch; i++) {
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ", edata->xx_self_spec[i]);
+		strlcat(buff, tmp_buf, buff_size);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
+	}
+
+	input_info(true, &client->dev, "%s\n", buff);
+	memset(buff, 0x00, buff_size);
+
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "yy_self_spec: ");
+	strlcat(buff, tmp_buf, buff_size);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
+
+	for (i = 0; i < edata->max_y_ch; i++) {
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ", edata->yy_self_spec[i]);
+		strlcat(buff, tmp_buf, buff_size);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}
 
 	input_info(true, &client->dev, "%s\n", buff);
@@ -1370,7 +1451,7 @@ static void run_elec_test(void *device_data)
 	struct wacom_elec_data *edata = NULL;
 	struct i2c_client *client = wac_i2c->client;
 	u8 *buff = NULL;
-	u8 tmp_buf[CMD_RESULT_WORD_LEN] = { 0 };
+	u8 tmp_buf[WACOM_CMD_RESULT_WORD_LEN] = { 0 };
 	u8 data[COM_ELEC_NUM] = { 0, };
 	u16 tmp, offset;
 	u8 cmd;
@@ -1401,7 +1482,7 @@ static void run_elec_test(void *device_data)
 	}
 
 	max_ch = edata->max_x_ch + edata->max_y_ch;
-	buff_size = max_ch * 2 * CMD_RESULT_WORD_LEN + SEC_CMD_STR_LEN;
+	buff_size = max_ch * 2 *  WACOM_CMD_RESULT_WORD_LEN + SEC_CMD_STR_LEN;
 
 	buff = kzalloc(buff_size, GFP_KERNEL);
 	if (!buff)
@@ -2046,8 +2127,18 @@ static void get_fw_ver_ic(void *device_data)
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
 	struct wacom_i2c *wac_i2c = container_of(sec, struct wacom_i2c, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+	int i;
+#endif
 
 	sec_cmd_set_default_result(sec);
+
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+	for (i = 0; i < 4; i++)
+		wac_i2c->pdata->img_version_of_ic[i] = 0;
+
+	wacom_i2c_query(wac_i2c);
+#endif
 
 	snprintf(buff, sizeof(buff), "%02X%02X%02X%02X",
 			wac_i2c->pdata->img_version_of_ic[0], wac_i2c->pdata->img_version_of_ic[1],

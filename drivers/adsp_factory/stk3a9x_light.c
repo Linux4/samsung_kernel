@@ -348,7 +348,7 @@ static ssize_t light_lcd_onoff_store(struct device *dev,
 
 	return size;
 }
-
+#ifdef CONFIG_SUPPORT_UNDER_PANEL_WITH_LIGHT_SENSOR
 static ssize_t light_circle_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -362,7 +362,7 @@ static ssize_t light_circle_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "0 0 0\n");
 #endif
 }
-
+#endif
 #ifdef CONFIG_SUPPORT_FIFO_DEBUG_FOR_LIGHT_SENSOR
 void light_fifo_debug_work_func(struct work_struct *work)
 {
@@ -978,7 +978,9 @@ static DEVICE_ATTR(light_test, 0444, light_test_show, NULL);
 
 static DEVICE_ATTR(lcd_onoff, 0220, NULL, light_lcd_onoff_store);
 static DEVICE_ATTR(hallic_info, 0220, NULL, light_hallic_info_store);
+#ifdef CONFIG_SUPPORT_UNDER_PANEL_WITH_LIGHT_SENSOR
 static DEVICE_ATTR(light_circle, 0444, light_circle_show, NULL);
+#endif
 static DEVICE_ATTR(register_write, 0220, NULL, light_register_write_store);
 static DEVICE_ATTR(register_read, 0664,
 		light_register_read_show, light_register_read_store);
@@ -1007,7 +1009,9 @@ static struct device_attribute *light_attrs[] = {
 	&dev_attr_register_read,
 	&dev_attr_lcd_onoff,
 	&dev_attr_hallic_info,
+#ifdef CONFIG_SUPPORT_UNDER_PANEL_WITH_LIGHT_SENSOR
 	&dev_attr_light_circle,
+#endif
 #ifdef CONFIG_SUPPORT_LIGHT_CALIBRATION
 	&dev_attr_light_cal,
 	&dev_attr_light_test,

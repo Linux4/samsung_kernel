@@ -1054,7 +1054,7 @@ static long sock_do_ioctl(struct net *net, struct socket *sock,
 		rtnl_unlock();
 		if (!err && copy_to_user(argp, &ifc, sizeof(struct ifconf)))
 			err = -EFAULT;
-	} else {
+	} else if (is_socket_ioctl_cmd(cmd)) {
 		struct ifreq ifr;
 		bool need_copyout;
 		if (copy_from_user(&ifr, argp, sizeof(struct ifreq)))
@@ -1063,6 +1063,8 @@ static long sock_do_ioctl(struct net *net, struct socket *sock,
 		if (!err && need_copyout)
 			if (copy_to_user(argp, &ifr, sizeof(struct ifreq)))
 				return -EFAULT;
+	} else {
+		err = -ENOTTY;
 	}
 	return err;
 }
@@ -1071,19 +1073,6 @@ static long sock_do_ioctl(struct net *net, struct socket *sock,
  *	With an ioctl, arg may well be a user mode pointer, but we don't know
  *	what to do with it - that's up to the protocol still.
  */
-
-/**
- *	get_net_ns - increment the refcount of the network namespace
- *	@ns: common namespace (net)
- *
- *	Returns the net's common namespace.
- */
-
-struct ns_common *get_net_ns(struct ns_common *ns)
-{
-	return &get_net(container_of(ns, struct net, ns))->ns;
-}
-EXPORT_SYMBOL_GPL(get_net_ns);
 
 static long sock_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 {
@@ -1445,7 +1434,21 @@ repeat:
 	 * module can have its refcnt decremented
 	 */
 	module_put(pf->owner);
+
+	max_try = 10;
+repeat2:
 	err = security_socket_post_create(sock, family, type, protocol, kern);
+	if (err == -ENOMEM && max_try-- > 0) {
+		struct page *dummy_page = NULL;
+
+		dummy_page = alloc_page(GFP_KERNEL);
+		if (dummy_page) {
+			__free_page(dummy_page);
+			pr_err("%s: security_socket_post_create failed, rem_retry %d\n",
+			       __func__, max_try);
+			goto repeat2;
+		}
+	}
 	if (err)
 		goto out_sock_release;
 	*res = sock;
@@ -1826,6 +1829,7 @@ int __sys_connect(int fd, struct sockaddr __user *uservaddr, int addrlen)
 	struct socket *sock;
 	struct sockaddr_storage address;
 	int err, fput_needed;
+	int max_try = 10;
 
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
 	if (!sock)
@@ -1834,13 +1838,39 @@ int __sys_connect(int fd, struct sockaddr __user *uservaddr, int addrlen)
 	if (err < 0)
 		goto out_put;
 
+repeat:
 	err =
 	    security_socket_connect(sock, (struct sockaddr *)&address, addrlen);
+	if (err == -ENOMEM && max_try-- > 0) {
+		struct page *dummy_page = NULL;
+
+		dummy_page = alloc_page(GFP_KERNEL);
+		if (dummy_page) {
+			__free_page(dummy_page);
+			pr_err("%s: security_socket_connect failed, rem_retry %d\n",
+			       __func__, max_try);
+			goto repeat;
+		}
+	}
 	if (err)
 		goto out_put;
 
+	max_try = 10;
+repeat2:
 	err = sock->ops->connect(sock, (struct sockaddr *)&address, addrlen,
 				 sock->file->f_flags);
+	if (err == -ENOMEM && max_try-- > 0) {
+		struct page *dummy_page = NULL;
+
+		dummy_page = alloc_page(GFP_KERNEL);
+		if (dummy_page) {
+			__free_page(dummy_page);
+			pr_err("%s: sock->ops->connect failed, rem_retry %d\n",
+			       __func__, max_try);
+			goto repeat2;
+		}
+	}
+
 out_put:
 	fput_light(sock->file, fput_needed);
 out:
@@ -3255,6 +3285,8 @@ static int compat_ifr_data_ioctl(struct net *net, unsigned int cmd,
 	struct ifreq ifreq;
 	u32 data32;
 
+	if (!is_socket_ioctl_cmd(cmd))
+		return -ENOTTY;
 	if (copy_from_user(ifreq.ifr_name, u_ifreq32->ifr_name, IFNAMSIZ))
 		return -EFAULT;
 	if (get_user(data32, &u_ifreq32->ifr_data))

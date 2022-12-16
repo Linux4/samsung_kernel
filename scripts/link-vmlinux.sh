@@ -470,3 +470,9 @@ if [ -n "${CONFIG_QCOM_RTIC}" ]; then
 		# failure does not cause kernel compilation to fail.
 	fi
 fi
+
+if [ -n "${CONFIG_CRYPTO_FIPS}" ]; then
+	echo '  FIPS : Generating hmac of crypto and updating vmlinux... '
+	PYTHONDONTWRITEBYTECODE=0 "${srctree}/scripts/crypto/fips_crypto_integrity.py" \
+		"${objtree}/vmlinux" "${objtree}/crypto" "${objtree}/arch/arm64/crypto"
+fi

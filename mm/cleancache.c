@@ -10,12 +10,18 @@
  * Author: Dan Magenheimer
  */
 
+#include <linux/bitops.h>
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/exportfs.h>
+#include <linux/gfp.h>
 #include <linux/mm.h>
 #include <linux/debugfs.h>
 #include <linux/cleancache.h>
+
+#ifdef CONFIG_SDP
+#define AS_SENSITIVE (__GFP_BITS_SHIFT + 5) /* Group of sensitive pages to be cleaned up */
+#endif
 
 /*
  * cleancache_ops is set by cleancache_register_ops to contain the pointers
@@ -202,6 +208,15 @@ out:
 }
 EXPORT_SYMBOL(__cleancache_get_page);
 
+#ifdef CONFIG_SDP
+static inline int mapping_sensitive(struct address_space *mapping)
+{
+	if (mapping)
+		return test_bit(AS_SENSITIVE, &mapping->flags);
+	return !!mapping;
+}
+#endif
+
 /*
  * "Put" data from a page to cleancache and associate it with the
  * (previously-obtained per-filesystem) poolid and the page's,
@@ -221,6 +236,11 @@ void __cleancache_put_page(struct page *page)
 		cleancache_puts++;
 		return;
 	}
+
+#ifdef CONFIG_SDP
+	if (mapping_sensitive(page->mapping))
+		return;
+#endif
 
 	VM_BUG_ON_PAGE(!PageLocked(page), page);
 	pool_id = page->mapping->host->i_sb->cleancache_poolid;

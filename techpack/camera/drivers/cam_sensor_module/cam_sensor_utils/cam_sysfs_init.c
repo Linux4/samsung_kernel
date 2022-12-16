@@ -46,6 +46,10 @@ extern ssize_t sm5714_store(const char *buf);
 extern ssize_t sm5714_show(char *buf);
 #endif
 
+#if defined(CONFIG_SEC_XCOVERPRO2_PROJECT) || IS_ENABLED(CONFIG_LEDS_QTI_FLASH)
+extern ssize_t qti_flash_store(const char *buf);
+extern ssize_t qti_flash_show(char *buf);
+#endif
 
 #if 0 //EARLY_RETENTION
 extern int32_t cam_sensor_early_retention(void);
@@ -199,6 +203,10 @@ static ssize_t rear_type_show(struct device *dev,
 	char cam_type[] = "SLSI_S5KGW3\n";
 #elif defined(CONFIG_SEC_A73XQ_PROJECT)
 	char cam_type[] = "SLSI_S5KHM6\n";
+#elif defined(CONFIG_SEC_GTACTPRO2_PROJECT) || defined(CONFIG_SEC_GTACT4PRO_PROJECT)
+	char cam_type[] = "SLSI_S5K3L6\n";
+#elif defined(CONFIG_SEC_XCOVERPRO2_PROJECT)
+	char cam_type[] = "SLSI_S5KJN1\n";
 #else
 	char cam_type[] = "SONY_IMX355\n";
 #endif
@@ -235,6 +243,10 @@ static ssize_t front_camera_type_show(struct device *dev,
 	int rc = 0;
 #if defined(CONFIG_SEC_M52XQ_PROJECT) || defined(CONFIG_SEC_A73XQ_PROJECT)
 	char cam_type[] = "SONY_IMX616\n";
+#elif defined(CONFIG_SEC_GTACTPRO2_PROJECT) || defined(CONFIG_SEC_GTACT4PRO_PROJECT)
+	char cam_type[] = "S5K4HA\n";
+#elif defined(CONFIG_SEC_XCOVERPRO2_PROJECT)
+	char cam_type[] = "SONY_IMX258\n";
 #else
 	char cam_type[] = "SLSI_GC5035\n";
 #endif
@@ -591,7 +603,7 @@ static ssize_t rear_afcal_show(struct device *dev,
 {
 	int rc = 0;
 
-#if defined (CONFIG_SEC_GTS7FEWIFI_PROJECT) || defined(CONFIG_SEC_M52XQ_PROJECT)
+#if defined (CONFIG_SEC_GTS7FEWIFI_PROJECT) || defined(CONFIG_SEC_M52XQ_PROJECT) || defined(CONFIG_SEC_XCOVERPRO2_PROJECT) || defined(CONFIG_SEC_GTACTPRO2_PROJECT) || defined(CONFIG_SEC_GTACT4PRO_PROJECT) || defined(CONFIG_SEC_GTACT4PROWIFI_PROJECT)
 	pr_debug("rear_af_cal_str : 1 %s\n", rear_af_cal_str);
 	rc = scnprintf(buf, PAGE_SIZE, "1 %s", rear_af_cal_str);
 #else
@@ -1362,8 +1374,8 @@ char supported_camera_ids[] = {
 	0,  //REAR_0 = Rear Wide
 	1,  // FRONT WIDE 
 	2,  //FRONT WIDE IN TABS7FE ELSE REAR_UW
-#if !defined(CONFIG_SEC_GTS7FEWIFI_PROJECT)
-#if !defined(CONFIG_SEC_M52XQ_PROJECT)	
+#if !defined(CONFIG_SEC_GTS7FEWIFI_PROJECT) && !defined(CONFIG_SEC_XCOVERPRO2_PROJECT) && !defined(CONFIG_SEC_GTACTPRO2_PROJECT) && !defined(CONFIG_SEC_GTACT4PRO_PROJECT) && !defined(CONFIG_SEC_GTACT4PROWIFI_PROJECT)
+#if !defined(CONFIG_SEC_M52XQ_PROJECT)
 	52, //Bokeh
 #endif
 	54,
@@ -2099,6 +2111,8 @@ static ssize_t rear2_type_show(struct device *dev,
 	int rc = 0;
 #if defined(CONFIG_SEC_A52SXQ_PROJECT) 
 	char cam_type[] = "SLSI_S5K3L6\n";
+#elif defined(CONFIG_SEC_XCOVERPRO2_PROJECT)
+	char cam_type[] = "SONY_IMX355\n";
 #elif defined(CONFIG_SEC_M52XQ_PROJECT) || defined(CONFIG_SEC_A73XQ_PROJECT)
 	char cam_type[] = "SONY_IMX258\n";
 #else
@@ -4043,6 +4057,8 @@ ssize_t rear_flash_store(struct device *dev,
 	sm5714_store(buf);
 #elif IS_ENABLED(CONFIG_LEDS_S2MU106_FLASH)
 	s2mu106_store(dev,attr,buf,count);
+#elif IS_ENABLED(CONFIG_LEDS_QTI_FLASH)
+    qti_flash_store(buf);
 #endif
 	return count;
 }
@@ -4058,13 +4074,39 @@ ssize_t rear_flash_show(struct device *dev,
 	return sm5714_show(buf);
 #elif IS_ENABLED(CONFIG_LEDS_S2MU106_FLASH)
 	return s2mu106_show(dev,attr,buf);
+#elif IS_ENABLED(CONFIG_LEDS_QTI_FLASH)
+    return qti_flash_show(buf);
 #else
 	return 0;
 #endif
 }
 
+ssize_t rear_flash2_store(struct device *dev,
+			struct device_attribute *attr, const char *buf,
+			size_t count)
+{
+#if defined(CONFIG_SEC_XCOVERPRO2_PROJECT)
+    qti_flash_store(buf);
+#endif
+    return count;
+}
+
+
+ssize_t rear_flash2_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+#if defined(CONFIG_SEC_XCOVERPRO2_PROJECT)
+    qti_flash_show(buf);
+#endif
+    return 0;
+}
+
+
 static DEVICE_ATTR(rear_flash, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
 	rear_flash_show, rear_flash_store);
+static DEVICE_ATTR(rear_flash2, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
+	rear_flash2_show, rear_flash2_store);
+
 
 #if defined(CONFIG_CAMERA_SSM_I2C_ENV)
 static DEVICE_ATTR(ssm_frame_id, S_IRUGO|S_IWUSR|S_IWGRP,
@@ -4473,7 +4515,8 @@ struct device		*cam_dev_test;
 
 const struct device_attribute *flash_attrs[] = {
     &dev_attr_rear_flash,
-	NULL, // DO NOT REMOVE
+    &dev_attr_rear_flash2,
+    NULL, // DO NOT REMOVE
 };
 
 const struct device_attribute *ssm_attrs[] = {
@@ -4776,7 +4819,14 @@ int svc_cheating_prevent_device_file_create()
 	int err;
 
 	/* To find SVC kobject */
-	struct kobject *top_kobj = &is_dev->kobj.kset->kobj;
+	struct kobject *top_kobj = NULL;
+
+	if(is_dev == NULL) {
+		pr_err("[SVC] Error! cam-cci-driver module does not exist\n");
+		return -ENODEV;
+	}
+
+	top_kobj = &is_dev->kobj.kset->kobj;
 
 	svc_sd = sysfs_get_dirent(top_kobj->sd, "svc");
 	if (IS_ERR_OR_NULL(svc_sd)) {

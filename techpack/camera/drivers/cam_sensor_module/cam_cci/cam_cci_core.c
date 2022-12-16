@@ -7,6 +7,7 @@
 #include "cam_cci_core.h"
 #include "cam_cci_dev.h"
 #include "cam_req_mgr_workq.h"
+#include "cam_common_util.h"
 
 static int32_t cam_cci_convert_type_to_num_bytes(
 	enum camera_sensor_i2c_type type)
@@ -1143,46 +1144,53 @@ static int32_t cam_cci_burst_read(struct v4l2_subdev *sd,
 			goto rel_mutex_q;
 		}
 
-		read_words = cam_io_r_mb(base +
-			CCI_I2C_M0_READ_BUF_LEVEL_ADDR + master * 0x100);
-		if (read_words <= 0) {
-			CAM_DBG(CAM_CCI, "FIFO Buffer lvl is 0");
-			continue;
-		}
-
-		j++;
-		CAM_DBG(CAM_CCI, "Iteration: %u read_words %d", j, read_words);
-
-		total_read_words += read_words;
-		while (read_words > 0) {
-			val = cam_io_r_mb(base +
-				CCI_I2C_M0_READ_DATA_ADDR + master * 0x100);
-			for (i = 0; (i < 4) &&
-				(index < read_cfg->num_byte); i++) {
-				CAM_DBG(CAM_CCI, "i:%d index:%d", i, index);
-				if (!first_byte) {
-					CAM_DBG(CAM_CCI, "sid 0x%x",
-						val & 0xFF);
-					first_byte++;
-				} else {
-					read_cfg->data[index] =
-						(val  >> (i * 8)) & 0xFF;
-					CAM_DBG(CAM_CCI, "data[%d] 0x%x", index,
-						read_cfg->data[index]);
-					index++;
-				}
+		while (true) {
+			read_words = cam_io_r_mb(base +
+				CCI_I2C_M0_READ_BUF_LEVEL_ADDR +
+				master * 0x100);
+			if (read_words <= 0) {
+				CAM_DBG(CAM_CCI, "FIFO Buffer lvl is 0");
+				break;
 			}
-			read_words--;
-		}
 
-		CAM_DBG(CAM_CCI, "Iteraion:%u total_read_words %d",
-			j, total_read_words);
+			j++;
+			CAM_DBG(CAM_CCI, "Iteration: %u read_words %d",
+				j, read_words);
+
+			total_read_words += read_words;
+			while (read_words > 0) {
+				val = cam_io_r_mb(base +
+					CCI_I2C_M0_READ_DATA_ADDR +
+					master * 0x100);
+				for (i = 0; (i < 4) &&
+					(index < read_cfg->num_byte); i++) {
+					CAM_DBG(CAM_CCI, "i:%d index:%d",
+						i, index);
+					if (!first_byte) {
+						CAM_DBG(CAM_CCI, "sid 0x%x",
+							val & 0xFF);
+						first_byte++;
+					} else {
+						read_cfg->data[index] =
+							(val  >> (i * 8)) & 0xFF;
+						CAM_DBG(CAM_CCI, "data[%d] 0x%x",
+							index,
+							read_cfg->data[index]);
+						index++;
+					}
+				}
+				read_words--;
+			}
+
+			CAM_DBG(CAM_CCI,
+				"Iteration:%u total_read_words %d",
+				j, total_read_words);
+		}
 
 		spin_lock_irqsave(&cci_dev->lock_status, flags);
 		if (cci_dev->irqs_disabled) {
 			irq_mask_update =
-				cam_io_r_mb(base + CCI_IRQ_MASK_1_ADDR) |
-				CCI_IRQ_STATUS_1_I2C_M0_RD_THRESHOLD;
+				cam_io_r_mb(base + CCI_IRQ_MASK_1_ADDR);
 			if (master == MASTER_0 && cci_dev->irqs_disabled &
 				CCI_IRQ_STATUS_1_I2C_M0_RD_THRESHOLD)
 				irq_mask_update |=
@@ -1525,8 +1533,10 @@ static void cam_cci_write_async_helper(struct work_struct *work)
 	enum cci_i2c_master_t master;
 	struct cam_cci_master_info *cci_master_info;
 
-	cam_req_mgr_thread_switch_delay_detect(
-		write_async->workq_scheduled_ts);
+	cam_common_util_thread_switch_delay_detect(
+		"CCI workq schedule",
+		write_async->workq_scheduled_ts,
+		CAM_WORKQ_SCHEDULE_TIME_THRESHOLD);
 	cci_dev = write_async->cci_dev;
 	i2c_msg = &write_async->c_ctrl.cfg.cci_i2c_write_cfg;
 	master = write_async->c_ctrl.cci_info->cci_i2c_master;

@@ -1589,12 +1589,13 @@ static int cam_ife_csid_disable_hw(struct cam_ife_csid_hw *csid_hw)
 	cam_io_w_mb(0, soc_info->reg_map[0].mem_base +
 		csid_reg->cmn_reg->csid_top_irq_mask_addr);
 
+	cam_tasklet_stop(csid_hw->tasklet);
+
 	rc = cam_ife_csid_disable_soc_resources(soc_info);
 	if (rc)
 		CAM_ERR(CAM_ISP, "CSID:%d Disable CSID SOC failed",
 			csid_hw->hw_intf->hw_idx);
 
-	cam_tasklet_stop(csid_hw->tasklet);
 	spin_lock_irqsave(&csid_hw->lock_state, flags);
 	csid_hw->device_enabled = 0;
 	spin_unlock_irqrestore(&csid_hw->lock_state, flags);
@@ -2415,10 +2416,9 @@ static int cam_ife_csid_enable_pxl_path(
 
 	if (pxl_reg->overflow_ctrl_en)
 		val |= CSID_PATH_OVERFLOW_RECOVERY;
-		
+
 	/* enable SOF interrupt  */
 	val |= CSID_PATH_INFO_INPUT_SOF;
-
 
 	if (csid_hw->csid_debug & CSID_DEBUG_ENABLE_SOF_IRQ)
 		val |= CSID_PATH_INFO_INPUT_SOF;
@@ -3108,10 +3108,9 @@ static int cam_ife_csid_enable_rdi_path(
 
 	if (csid_reg->rdi_reg[id]->overflow_ctrl_en)
 		val |= CSID_PATH_OVERFLOW_RECOVERY;
-		
+
 	/* Enable RDI sof interrupt for debug purpose */
 	val |= CSID_PATH_INFO_INPUT_SOF;
-
 
 	if (csid_hw->csid_debug & CSID_DEBUG_ENABLE_SOF_IRQ)
 		val |= CSID_PATH_INFO_INPUT_SOF;
@@ -5456,7 +5455,7 @@ handle_fatal_error:
 			complete(&csid_hw->csid_rdin_complete[i]);
 		}
 
-	if (irq_status[i]  & CSID_PATH_INFO_INPUT_SOF) {
+		if (irq_status[i]  & CSID_PATH_INFO_INPUT_SOF) {
 			CAM_INFO(CAM_ISP, "CSID:%d RDI:%d SOF received",
 				csid_hw->hw_intf->hw_idx, i);
 		}

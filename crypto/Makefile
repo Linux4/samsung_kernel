@@ -3,11 +3,19 @@
 # Cryptographic API
 #
 
+# CMVP functional test
+#ccflags-y += -DCONFIG_CRYPTO_FIPS_FUNC_TEST
+
+obj-$(CONFIG_CRYPTO_FIPS) += fips140_out.o
+obj-$(CONFIG_CRYPTO_FIPS) += fips140_integrity.o
+obj-$(CONFIG_CRYPTO_FIPS) += fips140_post.o
+obj-$(CONFIG_CRYPTO_FIPS) += fips140_test.o
+obj-$(CONFIG_CRYPTO_FIPS) += fips140_test_tv.o
+
 obj-$(CONFIG_CRYPTO) += crypto.o
 crypto-y := api.o cipher.o compress.o memneq.o
 
 obj-$(CONFIG_CRYPTO_ENGINE) += crypto_engine.o
-obj-$(CONFIG_CRYPTO_FIPS) += fips.o
 
 crypto_algapi-$(CONFIG_PROC_FS) += proc.o
 crypto_algapi-y := algapi.o scatterwalk.o $(crypto_algapi-y)
@@ -74,6 +82,8 @@ obj-$(CONFIG_CRYPTO_STREEBOG) += streebog_generic.o
 obj-$(CONFIG_CRYPTO_WP512) += wp512.o
 CFLAGS_wp512.o := $(call cc-option,-fno-schedule-insns)  # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=79149
 obj-$(CONFIG_CRYPTO_TGR192) += tgr192.o
+obj-$(CONFIG_CRYPTO_BLAKE2S) += blake2s_generic.o
+obj-$(CONFIG_CRYPTO_BLAKE2B) += blake2b_generic.o
 obj-$(CONFIG_CRYPTO_GF128MUL) += gf128mul.o
 obj-$(CONFIG_CRYPTO_ECB) += ecb.o
 obj-$(CONFIG_CRYPTO_CBC) += cbc.o

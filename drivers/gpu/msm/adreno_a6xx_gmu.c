@@ -734,6 +734,9 @@ int a6xx_gmu_oob_set(struct kgsl_device *device,
 	int ret = 0;
 	int set, check;
 
+	if (req == oob_perfcntr && gmu->num_oob_perfcntr++)
+		return 0;
+
 	if (adreno_is_a630(adreno_dev) || adreno_is_a615_family(adreno_dev)) {
 		set = BIT(req + 16);
 		check = BIT(req + 24);
@@ -757,6 +760,8 @@ int a6xx_gmu_oob_set(struct kgsl_device *device,
 
 	if (timed_poll_check(device, A6XX_GMU_GMU2HOST_INTR_INFO, check,
 		GPU_START_TIMEOUT, check)) {
+		if (req == oob_perfcntr)
+			gmu->num_oob_perfcntr--;
 		gmu_fault_snapshot(device);
 		ret = -ETIMEDOUT;
 		WARN(1, "OOB request %s timed out\n", oob_to_str(req));
@@ -775,6 +780,9 @@ void a6xx_gmu_oob_clear(struct kgsl_device *device,
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	struct a6xx_gmu_device *gmu = to_a6xx_gmu(adreno_dev);
 	int clear;
+
+	if (req == oob_perfcntr && --gmu->num_oob_perfcntr)
+		return;
 
 	if (adreno_is_a630(adreno_dev) || adreno_is_a615_family(adreno_dev)) {
 		clear = BIT(req + 24);
@@ -2661,11 +2669,11 @@ int a6xx_gmu_probe(struct kgsl_device *device,
 		return ret;
 	/*
 	 * Voting for apb_pclk will enable power and clocks required for
-	 * QDSS path to function. However, if CORESIGHT is not enabled,
+	 * QDSS path to function. However, if QCOM_KGSL_QDSS_STM is not enabled,
 	 * QDSS is essentially unusable. Hence, if QDSS cannot be used,
 	 * don't vote for this clock.
 	 */
-	if (!IS_ENABLED(CONFIG_CORESIGHT)) {
+	if (!IS_ENABLED(CONFIG_QCOM_KGSL_QDSS_STM)) {
 		for (i = 0; i < ret; i++) {
 			if (!strcmp(gmu->clks[i].id, "apb_pclk")) {
 				gmu->clks[i].clk = NULL;

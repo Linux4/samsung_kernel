@@ -26,6 +26,7 @@
 #include "camera_main.h"
 #include "cam_trace.h"
 #include "cam_req_mgr_workq.h"
+#include "cam_common_util.h"
 
 #define CAM_CDM_BL_FIFO_WAIT_TIMEOUT 2000
 #define CAM_CDM_DBG_GEN_IRQ_USR_DATA 0xff
@@ -1215,8 +1216,10 @@ static void cam_hw_cdm_work(struct work_struct *work)
 		return;
 	}
 
-	cam_req_mgr_thread_switch_delay_detect(
-		payload->workq_scheduled_ts);
+	cam_common_util_thread_switch_delay_detect(
+		"CDM workq schedule",
+		payload->workq_scheduled_ts,
+		CAM_WORKQ_SCHEDULE_TIME_THRESHOLD);
 
 	CAM_DBG(CAM_CDM, "IRQ status=0x%x", payload->irq_status);
 	if (payload->irq_status &
@@ -1235,6 +1238,7 @@ static void cam_hw_cdm_work(struct work_struct *work)
 			return;
 		}
 
+		mutex_lock(&cdm_hw->hw_mutex);
 		mutex_lock(&core->bl_fifo[fifo_idx].fifo_lock);
 
 		if (atomic_read(&core->bl_fifo[fifo_idx].work_record))
@@ -1248,6 +1252,7 @@ static void cam_hw_cdm_work(struct work_struct *work)
 				core->arbitration);
 			mutex_unlock(&core->bl_fifo[fifo_idx]
 					.fifo_lock);
+			mutex_unlock(&cdm_hw->hw_mutex);
 			return;
 		}
 
@@ -1286,6 +1291,7 @@ static void cam_hw_cdm_work(struct work_struct *work)
 		}
 		mutex_unlock(&core->bl_fifo[payload->fifo_idx]
 			.fifo_lock);
+		mutex_unlock(&cdm_hw->hw_mutex);
 	}
 
 	if (payload->irq_status &
@@ -1402,9 +1408,9 @@ handle_cdm_pf:
 				cdm_hw->soc_info.index);
 		for (i = 0; i < core->offsets->reg_data->num_bl_fifo; i++)
 			mutex_unlock(&core->bl_fifo[i].fifo_lock);
-		mutex_unlock(&cdm_hw->hw_mutex);
 		cam_cdm_notify_clients(cdm_hw, CAM_CDM_CB_STATUS_PAGEFAULT,
 			(void *)pf_info->iova);
+		mutex_unlock(&cdm_hw->hw_mutex);
 		clear_bit(CAM_CDM_ERROR_HW_STATUS, &core->cdm_status);
 	} else {
 		CAM_ERR(CAM_CDM, "Invalid token");

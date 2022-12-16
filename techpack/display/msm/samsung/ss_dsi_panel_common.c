@@ -342,6 +342,8 @@ char ss_cmd_set_prop_map[SS_CMD_PROP_SIZE][SS_CMD_PROP_STR_LEN] = {
 	"TX_TEST_MODE_CMD_START not parsed from DTSI",
 	"samsung,gct_checksum_rx_cmds_revA",
 	"samsung,gct_ecc_rx_cmds_revA",
+	"samsung,ssr_on_rx_cmds_revA",
+	"samsung,ssr_check_rx_cmds_revA",
 	"samsung,gct_enter_tx_cmds_revA",
 	"samsung,gct_mid_tx_cmds_revA",
 	"samsung,gct_exit_tx_cmds_revA",
@@ -3317,6 +3319,34 @@ int ss_panel_off_post(struct samsung_display_driver_data *vdd)
 
 	LCD_INFO(vdd, "- : mdp underrun: %d\n", vdd->cnt_mdp_clk_underflow);
 	SS_XLOG(vdd->cnt_mdp_clk_underflow);
+
+	return ret;
+}
+
+int ss_panel_power_on_pre(struct samsung_display_driver_data *vdd)
+{
+	int ret = 0;
+
+	LCD_INFO(vdd, "+\n");
+
+	if (!IS_ERR_OR_NULL(vdd->panel_func.samsung_panel_power_on_pre))
+		vdd->panel_func.samsung_panel_power_on_pre(vdd);
+
+	LCD_INFO(vdd, "-\n");
+
+	return ret;
+}
+
+int ss_panel_power_off_post(struct samsung_display_driver_data *vdd)
+{
+	int ret = 0;
+
+	LCD_INFO(vdd, "+\n");
+
+	if (!IS_ERR_OR_NULL(vdd->panel_func.samsung_panel_power_off_post))
+		vdd->panel_func.samsung_panel_power_off_post(vdd);
+
+	LCD_INFO(vdd, "-\n");
 
 	return ret;
 }
@@ -8172,6 +8202,15 @@ int samsung_panel_initialize(char *panel_string, unsigned int ndx)
 	else if (!strncmp(panel_string, "XCP2_NT36672C_PM6585JB2", strlen(panel_string)))
 		vdd->panel_func.samsung_panel_init = XCP2_NT36672C_PM6585JB2_FHD_init;
 #endif
+#if IS_ENABLED(CONFIG_PANEL_TAP2_HX8279_TV101WUM_WUXGA)
+	else if (!strncmp(panel_string, "TAP2_HX8279_TV101WUM", strlen(panel_string)))
+		vdd->panel_func.samsung_panel_init = TAP2_HX8279_TV101WUM_WUXGA_init;
+#endif
+#if IS_ENABLED(CONFIG_PANEL_GTACT4PRO_HX8279_TV101WUM_WUXGA)
+	else if (!strncmp(panel_string, "GTACT4PRO_HX8279_TV101WUM", strlen(panel_string)))
+		vdd->panel_func.samsung_panel_init = GTACT4PRO_HX8279_TV101WUM_WUXGA_init;
+#endif
+
 	else {
 		LCD_ERR(vdd, "%s not found\n", panel_string);
 		return -1;

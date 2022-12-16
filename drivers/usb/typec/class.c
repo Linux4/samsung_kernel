@@ -11,6 +11,9 @@
 #include <linux/mutex.h>
 #include <linux/property.h>
 #include <linux/slab.h>
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+#include <linux/usb_notify.h>
+#endif
 
 #include "bus.h"
 
@@ -488,8 +491,10 @@ typec_register_altmode(struct device *parent,
 	int ret;
 
 	alt = kzalloc(sizeof(*alt), GFP_KERNEL);
-	if (!alt)
+	if (!alt) {
+		altmode_id_remove(parent, id);
 		return ERR_PTR(-ENOMEM);
+	}
 
 	alt->adev.svid = desc->svid;
 	alt->adev.mode = desc->mode;
@@ -692,9 +697,16 @@ EXPORT_SYMBOL_GPL(typec_register_partner);
  */
 void typec_unregister_partner(struct typec_partner *partner)
 {
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+	struct otg_notify *o_notify = get_otg_notify();
+#endif
 	if (!IS_ERR_OR_NULL(partner)) {
 		pr_info("%s\n", __func__);
 		device_unregister(&partner->dev);
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+		if (o_notify)
+			send_otg_notify(o_notify, NOTIFY_EVENT_PD_CONTRACT, 0);
+#endif
 	}
 }
 EXPORT_SYMBOL_GPL(typec_unregister_partner);
@@ -1394,6 +1406,16 @@ void typec_set_pwr_opmode(struct typec_port *port,
 			  enum typec_pwr_opmode opmode)
 {
 	struct device *partner_dev;
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+	struct otg_notify *o_notify = get_otg_notify();
+
+	if (o_notify) {
+		if (opmode == TYPEC_PWR_MODE_PD)
+			send_otg_notify(o_notify, NOTIFY_EVENT_PD_CONTRACT, 1);
+		else
+			send_otg_notify(o_notify, NOTIFY_EVENT_PD_CONTRACT, 0);
+	}
+#endif
 
 	pr_info("%s pwr_opmode=%d opmode=%d\n", __func__, port->pwr_opmode, opmode);
 	if ((port->pwr_opmode == opmode) || (opmode < TYPEC_PWR_MODE_USB) ||

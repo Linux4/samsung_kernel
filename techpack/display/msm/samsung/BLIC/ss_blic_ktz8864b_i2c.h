@@ -9,3 +9,6 @@
  *
  */
 #include "../ss_dsi_panel_common.h"
+
+int ss_blic_ktz8864b_configure(u8 data[][2], int size);
+int ss_blic_ktz8864b_init(void);

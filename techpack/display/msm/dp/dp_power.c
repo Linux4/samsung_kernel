@@ -22,7 +22,12 @@
 #include <linux/combo_redriver/ps5169.h>
 #endif
 
-#endif
+#define DP_LINK_BW_RBR		0x06
+#define DP_LINK_BW_HBR		0x0a
+#define DP_LINK_BW_HBR2		0x14    /* 1.2 */
+#define DP_LINK_BW_HBR3		0x1e    /* 1.4 */
+
+#endif/*CONFIG_SEC_DISPLAYPORT*/
 
 #define DP_CLIENT_NAME_SIZE	20
 
@@ -733,9 +738,39 @@ exit:
 
 static void secdp_ps5169_notify_linkinfo(u32 bw_code, u8 v_level, u8 p_level)
 {
-	DP_DEBUG("+++ 0x%x,%d,%d\n", bw_code, v_level, p_level);
+	struct dp_parser *parser = g_secdp_power->parser;
+	u8 eq0, eq1;
 
-//	ps5169_notify_dplink(bw_code, v_level, p_level);
+	if (!parser->ps5169_tune) {
+		DP_DEBUG("ps5169 tune is not available\n");
+		goto exit;
+	}
+
+	switch (bw_code) {
+	case DP_LINK_BW_RBR:
+		eq0 = parser->ps5169_rbr_eq0[v_level][p_level];
+		eq1 = parser->ps5169_rbr_eq1[v_level][p_level];
+		break;
+	case DP_LINK_BW_HBR:
+		eq0 = parser->ps5169_hbr_eq0[v_level][p_level];
+		eq1 = parser->ps5169_hbr_eq1[v_level][p_level];
+		break;
+	case DP_LINK_BW_HBR2:
+		eq0 = parser->ps5169_hbr2_eq0[v_level][p_level];
+		eq1 = parser->ps5169_hbr2_eq1[v_level][p_level];
+		break;
+	case DP_LINK_BW_HBR3:
+	default:
+		eq0 = parser->ps5169_hbr3_eq0[v_level][p_level];
+		eq1 = parser->ps5169_hbr3_eq1[v_level][p_level];
+		break;
+	}
+
+	DP_DEBUG("bw:0x%x, v:%d, p:%d, eq0:0x%x, eq1:0x%x\n",
+				bw_code, v_level, p_level, eq0, eq1);
+	ps5169_notify_dplink(eq0, eq1);
+exit:
+	return;
 }
 #endif
 
@@ -804,7 +839,7 @@ end:
  * |        1        |     CC2     | true  |    1    |
  * ===================================================
  */
-static void secdp_power_set_gpio(bool flip)
+void secdp_power_set_gpio(bool flip)
 {
 	int i;
 	/*int dir = (flip == false) ? 0 : 1;*/
@@ -816,8 +851,8 @@ static void secdp_power_set_gpio(bool flip)
 
 	parser = power->parser;
 
-	DP_DEBUG("flip(%d), aux_sel_inv(%d), use_redrv(%d)\n",
-		flip, parser->aux_sel_inv, parser->use_redrv);
+//	DP_DEBUG("flip:%d, aux_inv:%d, redrv:%d\n",
+//		flip, parser->aux_sel_inv, parser->use_redrv);
 
 	if (parser->aux_sel_inv)
 		sel_val = true;
@@ -826,15 +861,25 @@ static void secdp_power_set_gpio(bool flip)
 	for (i = 0; i < mp->num_gpio; i++) {
 		if (gpio_is_valid(config->gpio)) {
 			if (dp_power_find_gpio(config->gpio_name, "aux-sel")) {
-				if (parser->use_redrv == SECDP_REDRV_PTN36502)
+				if (parser->use_redrv == SECDP_REDRV_PTN36502) {
 					gpio_direction_output(config->gpio, 0);
-				else /* SECDP_REDRV_PS5169 or SECDP_REDRV_NONE */
+				} else {
+					/* SECDP_REDRV_PS5169 or SECDP_REDRV_NONE */
+					bool val = (bool)gpio_get_value(config->gpio);
+
+					if ((!flip && (val == sel_val)) ||
+							(flip && (val == !sel_val))) {
+						//DP_DEBUG("%s: already %d %d, skip\n",
+						//	config->gpio_name, flip, val);
+						break;
+					}
 					gpio_direction_output(config->gpio,
 						(!flip ? sel_val : !sel_val));
-
+				}
 				usleep_range(100, 120);
-				DP_INFO("%s -> set %d\n", config->gpio_name,
-					gpio_get_value(config->gpio));
+				DP_INFO("[aux-sel] set %d (f:%d,i:%d,r:%d)\n",
+					gpio_get_value(config->gpio),
+					flip, parser->aux_sel_inv, parser->use_redrv);
 				break;
 			}
 		}
@@ -846,9 +891,15 @@ static void secdp_power_set_gpio(bool flip)
 	for (i = 0; i < mp->num_gpio; i++) {
 		if (gpio_is_valid(config->gpio)) {
 			if (dp_power_find_gpio(config->gpio_name, "aux-en")) {
+				if (!gpio_get_value(config->gpio)) {
+					//DP_DEBUG("%s: already enabled, skip\n",
+					//	config->gpio_name);
+					break;
+				}
 				gpio_direction_output(config->gpio, 0);
-				DP_INFO("%s -> %d\n", config->gpio_name,
-					gpio_get_value(config->gpio));
+				DP_INFO("[aux-en] set %d (f:%d,i:%d,r:%d)\n",
+					gpio_get_value(config->gpio),
+					flip, parser->aux_sel_inv, parser->use_redrv);
 				break;
 			}
 		}
@@ -857,21 +908,25 @@ static void secdp_power_set_gpio(bool flip)
 }
 
 /* turn off EDP_AUX switch */
-static void secdp_power_unset_gpio(void)
+void secdp_power_unset_gpio(void)
 {
 	int i;
 	struct dp_power_private *power = g_secdp_power;
 	struct dss_module_power *mp = &power->parser->mp[DP_CORE_PM];
 	struct dss_gpio *config;
 
-	DP_DEBUG("+++\n");
-
 	config = mp->gpio_config;
 	for (i = 0; i < mp->num_gpio; i++) {
 		if (gpio_is_valid(config->gpio)) {
 			if (dp_power_find_gpio(config->gpio_name, "aux-en")) {
+				if (gpio_get_value(config->gpio)) {
+					//DP_DEBUG("%s: already disabled, skip\n",
+					//	config->gpio_name);
+					break;
+				}
 				gpio_direction_output(config->gpio, 1);
-				DP_INFO("%s -> 1\n", config->gpio_name);
+				DP_INFO("[aux-en] set %d\n",
+					gpio_get_value(config->gpio));
 				break;
 			}
 		}
@@ -882,8 +937,14 @@ static void secdp_power_unset_gpio(void)
 	for (i = 0; i < mp->num_gpio; i++) {
 		if (gpio_is_valid(config->gpio)) {
 			if (dp_power_find_gpio(config->gpio_name, "aux-sel")) {
+				if (!gpio_get_value(config->gpio)) {
+					//DP_DEBUG("%s: already 0, skip\n",
+					//	config->gpio_name);
+					break;
+				}
 				gpio_direction_output(config->gpio, 0);
-				DP_INFO("%s -> 0\n", config->gpio_name);
+				DP_INFO("[aux-sel] set %d\n",
+					gpio_get_value(config->gpio));
 				break;
 			}
 		}

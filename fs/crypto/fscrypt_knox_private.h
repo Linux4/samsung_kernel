@@ -32,6 +32,10 @@
 #define FSCRYPT_KNOX_FLG_SDP_IS_CHAMBER_DIR         0x20000000
 #define FSCRYPT_KNOX_FLG_SDP_IS_DIRECTORY           0x40000000
 #define FSCRYPT_KNOX_FLG_SDP_IS_PROTECTED           0x80000000
+#ifdef CONFIG_SDP_KEY_DUMP
+#define FSCRYPT_KNOX_FLG_SDP_IS_TRACED              0x00000001
+#define FSCRYPT_KNOX_FLG_SDP_TRACE_MASK             0x000000FF
+#endif
 
 #ifdef CONFIG_DDAR
 static inline int fscrypt_dd_flg_enabled(int flags) {

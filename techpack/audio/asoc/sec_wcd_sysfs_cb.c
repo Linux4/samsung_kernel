@@ -61,12 +61,54 @@ static int get_key_status(void)
 	return value;
 }
 
+static int get_headset_status(void)
+{
+	struct snd_soc_component *component = wcd_component;
+	struct wcd938x_mbhc *wcd938x_mbhc = wcd938x_soc_get_mbhc(component);
+	struct wcd_mbhc *mbhc = &wcd938x_mbhc->wcd_mbhc;
+	int value = 0;
+
+	if (mbhc->hph_status == SND_JACK_HEADSET)
+		value = 1;
+
+	dev_info(component->dev, "%s: %d\n", __func__, value);
+
+	return value;
+}
+
+static int get_l_impedance(void)
+{
+	struct snd_soc_component *component = wcd_component;
+	struct wcd938x_mbhc *wcd938x_mbhc = wcd938x_soc_get_mbhc(component);
+	struct wcd_mbhc *mbhc = &wcd938x_mbhc->wcd_mbhc;
+	int value = mbhc->zl;
+
+	dev_info(component->dev, "%s: %d\n", __func__, value);
+
+	return value;
+}
+
+static int get_r_impedance(void)
+{
+	struct snd_soc_component *component = wcd_component;
+	struct wcd938x_mbhc *wcd938x_mbhc = wcd938x_soc_get_mbhc(component);
+	struct wcd_mbhc *mbhc = &wcd938x_mbhc->wcd_mbhc;
+	int value = mbhc->zr;
+
+	dev_info(component->dev, "%s: %d\n", __func__, value);
+
+	return value;
+}
+
 void register_mbhc_jack_cb(struct snd_soc_component *component)
 {
 	wcd_component = component;
 	audio_register_jack_state_cb(get_jack_status);
 	audio_register_key_state_cb(get_key_status);
 	audio_register_mic_adc_cb(get_key_status);
+	audio_register_headset_state_cb(get_headset_status);
+	audio_register_l_impedance_cb(get_l_impedance);
+	audio_register_r_impedance_cb(get_r_impedance);
 }
 EXPORT_SYMBOL_GPL(register_mbhc_jack_cb);
 

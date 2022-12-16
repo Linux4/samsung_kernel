@@ -1808,11 +1808,14 @@ int mmc_execute_tuning(struct mmc_card *card)
 
 	err = host->ops->execute_tuning(host, opcode);
 
-	if (err)
+	if (err) {
 		pr_err("%s: tuning execution failed: %d\n",
 			mmc_hostname(host), err);
-	else
+	} else {
+		host->retune_now = 0;
+		host->need_retune = 0;
 		mmc_retune_enable(host);
+	}
 
 	return err;
 }
@@ -3064,7 +3067,7 @@ static int mmc_rescan_try_freq(struct mmc_host *host, unsigned freq)
 	return -EIO;
 }
 
-#if IS_ENABLED(CONFIG_SEC_ABC)
+#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC) && IS_ENABLED(CONFIG_SEC_ABC)
 void _mmc_trigger_abc_event(struct mmc_host *host)
 {
 	if (host->ops->get_cd && host->ops->get_cd(host)) {
@@ -3109,9 +3112,8 @@ int _mmc_detect_card_removed(struct mmc_host *host)
 		pr_debug("%s: card remove detected\n", mmc_hostname(host));
 		ST_LOG("<%s> %s: card remove detected\n", __func__,
 				mmc_hostname(host));
-#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
+
 		_mmc_trigger_abc_event(host);
-#endif
 	}
 
 	return ret;

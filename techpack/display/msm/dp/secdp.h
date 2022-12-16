@@ -46,7 +46,6 @@ extern unsigned int lpcharge;
 #define SECDP_USE_WAKELOCK
 #define SECDP_MAX_HBR2
 #define SECDP_OPTIMAL_LINK_RATE	 /* use optimum link_rate, not max link_rate */
-#define SECDP_LIMIT_REFRESH_RATE /* needs to be DISABLED once android has menu for user to change DP resolution */
 
 /*#define SECDP_AUDIO_CTS*/
 /*#define SECDP_HDCP_DISABLE*/
@@ -96,6 +95,7 @@ struct secdp_event_data {
 #ifdef SECDP_SELF_TEST
 #define ST_EDID_SIZE	256
 #define ST_ARG_CNT	20
+#define ST_TEST_EXIT	555
 
 enum {
 	ST_CLEAR_CMD,
@@ -283,6 +283,50 @@ static inline char *secdp_phy_type_to_string(int param)
 	}
 }
 
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+enum secdp_ps5169_eq_t {
+	DP_PS5169_EQ0,
+	DP_PS5169_EQ1,
+	DP_PS5169_EQ_MAX,
+};
+
+static inline char *secdp_ps5169_eq_to_string(int hw)
+{
+	switch (hw) {
+	case DP_PS5169_EQ0:
+		return DP_ENUM_STR(DP_PS5169_EQ0);
+	case DP_PS5169_EQ1:
+		return DP_ENUM_STR(DP_PS5169_EQ1);
+	default:
+		return "unknown";
+	}
+}
+
+enum secdp_ps5169_link_rate_t {
+	DP_PS5169_RATE_RBR,
+	DP_PS5169_RATE_HBR,
+	DP_PS5169_RATE_HBR2,
+	DP_PS5169_RATE_HBR3,
+	DP_PS5169_RATE_MAX,
+};
+
+static inline char *secdp_ps5169_rate_to_string(int hw)
+{
+	switch (hw) {
+	case DP_PS5169_RATE_RBR:
+		return DP_ENUM_STR(DP_PS5169_RATE_RBR);
+	case DP_PS5169_RATE_HBR:
+		return DP_ENUM_STR(DP_PS5169_RATE_HBR);
+	case DP_PS5169_RATE_HBR2:
+		return DP_ENUM_STR(DP_PS5169_RATE_HBR2);
+	case DP_PS5169_RATE_HBR3:
+		return DP_ENUM_STR(DP_PS5169_RATE_HBR3);
+	default:
+		return "unknown";
+	}
+}
+#endif/*CONFIG_COMBO_REDRIVER_PS5169*/
+
 #define EV_USBPD_ATTENTION	BIT(13)
 
 static inline char *secdp_ev_event_to_string(int event)
@@ -445,9 +489,9 @@ struct secdp_misc {
 	struct delayed_work self_test_reconnect_work;
 	struct delayed_work self_test_hdcp_test_work;
 
-	void (*self_test_reconnect_callback)(void);
-	void (*self_test_hdcp_on_callback)(void);
-	void (*self_test_hdcp_off_callback)(void);
+	void (*self_test_reconnect_cb)(void);
+	void (*self_test_hdcp_on_cb)(void);
+	void (*self_test_hdcp_off_cb)(void);
 
 	u8 self_test_edid[ST_EDID_SIZE];
 #endif
@@ -475,6 +519,8 @@ void secdp_redriver_linkinfo(u32 rate, u8 v_level, u8 p_level);
 int  secdp_is_mst_receiver(void);
 
 int  secdp_power_request_gpios(struct dp_power *dp_power);
+void secdp_power_set_gpio(bool flip);
+void secdp_power_unset_gpio(void);
 void secdp_config_gpios_factory(int aux_sel, bool out_en);
 enum dp_hpd_plug_orientation secdp_get_plug_orientation(void);
 bool secdp_get_reboot_status(void);
@@ -526,6 +572,14 @@ int  secdp_parse_vxpx_show(enum secdp_hw_ver_t hw,
 int  secdp_parse_vxpx_store(enum secdp_hw_ver_t hw,
 				enum secdp_phy_param_t vxpx, char *buf);
 int  secdp_show_phy_param(char *buf);
+
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+int secdp_parse_ps5169_show(enum secdp_ps5169_eq_t eq,
+			enum secdp_ps5169_link_rate_t link_rate, char *buf);
+int secdp_parse_ps5169_store(enum secdp_ps5169_eq_t eq,
+			enum secdp_ps5169_link_rate_t link_rate, char *buf);
+int secdp_show_ps5169_param(char *buf);
+#endif
 
 /* AUX configuration */
 int  secdp_aux_cfg_show(char *buf);

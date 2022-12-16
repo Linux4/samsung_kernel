@@ -5443,18 +5443,18 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 
 	input_info(true, ts->dev, "%s: %d %d\n", __func__, buff[0], buff[1]);
 
-	if (buff[0] == LCD_ON || buff[0] == LCD_DOZE || buff[0] == LCD_DOZE_SUSPEND) {
-		if (buff[1] == LCD_EARLY_EVENT) {
+	if (buff[0] == DISPLAY_STATE_ON || buff[0] == DISPLAY_STATE_DOZE || buff[0] == DISPLAY_STATE_DOZE_SUSPEND) {
+		if (buff[1] == DISPLAY_EVENT_EARLY) {
 			if (ts->SMWP_enable) {
 				himax_ctrl_lcd_reset_regulator(ts, false);
 			}
-		} else if (buff[1] == LCD_LATE_EVENT) {
+		} else if (buff[1] == DISPLAY_EVENT_LATE) {
 			ts->pdata->resume(ts->dev);
 		}
-	} else if (buff[0] == LCD_OFF) {
-		if (buff[1] == LCD_EARLY_EVENT) {
+	} else if (buff[0] == DISPLAY_STATE_OFF) {
+		if (buff[1] == DISPLAY_EVENT_EARLY) {
 			ts->pdata->suspend(ts->dev);
-		} else if (buff[1] == LCD_LATE_EVENT) {
+		} else if (buff[1] == DISPLAY_EVENT_LATE) {
 			if (ts->SMWP_enable && ts->cover_closed)
 				himax_set_cover_mode(ts, ts->cover_closed);
 		}

@@ -81,9 +81,9 @@ struct task_struct init_task
 	.cpus_mask	= CPU_MASK_ALL,
 	.nr_cpus_allowed= NR_CPUS,
 #ifdef CONFIG_SCHED_WALT
+	.wts		= {0, },
 	.wts		= {
 		.cpus_requested	= CPU_MASK_ALL,
-		.wake_up_idle	= false,
 	},
 #endif
 	.mm		= NULL,
@@ -183,7 +183,8 @@ struct task_struct init_task
 	.lockdep_recursion = 0,
 #endif
 #ifdef CONFIG_FUNCTION_GRAPH_TRACER
-	.ret_stack	= NULL,
+	.ret_stack		= NULL,
+	.tracing_graph_pause	= ATOMIC_INIT(0),
 #endif
 #if defined(CONFIG_TRACING) && defined(CONFIG_PREEMPTION)
 	.trace_recursion = 0,

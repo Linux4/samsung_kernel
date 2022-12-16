@@ -12,6 +12,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/gpio/consumer.h>
 #include <linux/of_device.h>
+#include <linux/firmware.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -42,6 +43,97 @@ static void cs35l45_hibernate_work(struct work_struct *work);
 static int cs35l45_activate_ctl(struct cs35l45_private *cs35l45,
 				const char *ctl_name, bool active);
 static int cs35l45_buffer_update_avail(struct cs35l45_private *cs35l45);
+
+static const char * const cs35l45_fast_switch_text[] = {
+	"fast_switch1.bin",
+	"fast_switch2.bin",
+	"fast_switch3.bin",
+	"fast_switch4.bin",
+	"fast_switch5.bin",
+};
+
+static int cs35l45_do_fast_switch(struct cs35l45_private *cs35l45,
+				  unsigned int idx)
+{
+	struct wm_adsp *dsp = &cs35l45->dsp;
+	__be32 cmd_ctl, st_ctl;
+	const char *fw_name;
+	int i, ret;
+
+	fw_name	= cs35l45->fast_switch_names[idx];
+
+	dsp->firmwares[dsp->fw].fullname = true;
+	dsp->firmwares[dsp->fw].binfile = fw_name;
+
+	ret = wm_adsp_load_coeff(dsp);
+
+	dsp->firmwares[dsp->fw].fullname = false;
+	dsp->firmwares[dsp->fw].binfile = NULL;
+
+	cmd_ctl	= cpu_to_be32(CSPL_CMD_UPDATE_PARAM);
+	ret = wm_adsp_write_ctl(&cs35l45->dsp, "CSPL_COMMAND", WMFW_ADSP2_XM,
+				CS35L45_ALGID, &cmd_ctl, sizeof(__be32));
+	if (ret < 0)
+		dev_err(cs35l45->dev, "Failed to write CSPL_COMMAND\n");
+
+	/* Verify CSPL COMMAND */
+	for (i = 0; i < 5; i++) {
+		ret = wm_adsp_read_ctl(&cs35l45->dsp, "CSPL_STATE",
+				       WMFW_ADSP2_XM, CS35L45_ALGID,
+				       &st_ctl, sizeof(__be32));
+		if (ret < 0)
+			dev_err(cs35l45->dev, "Failed to read CSPL_STATE\n");
+
+		if (be32_to_cpu(st_ctl) == CSPL_ST_RUNNING) {
+			dev_dbg(cs35l45->dev,
+				"CSPL STATE == RUNNING (%u attempt)\n", i);
+			break;
+		}
+
+		usleep_range(100, 110);
+	}
+
+	return ret;
+}
+
+static int cs35l45_fast_switch_file_put(struct snd_kcontrol *kcontrol,
+					struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct cs35l45_private *cs35l45 =
+		snd_soc_component_get_drvdata(component);
+	struct soc_enum		*soc_enum;
+	unsigned int i = ucontrol->value.enumerated.item[0];
+	int ret = 0;
+
+	soc_enum = (struct soc_enum *)kcontrol->private_value;
+
+	if (i >= soc_enum->items) {
+		dev_err(cs35l45->dev, "Invalid mixer input (%u)\n", i);
+		return -EINVAL;
+	}
+
+	if (i != cs35l45->fast_switch_file_idx)
+		ret = cs35l45_do_fast_switch(cs35l45, i);
+
+	cs35l45->fast_switch_file_idx = i;
+
+	return ret;
+}
+
+static int cs35l45_fast_switch_file_get(struct snd_kcontrol *kcontrol,
+					struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct cs35l45_private *cs35l45 =
+		snd_soc_component_get_drvdata(component);
+
+	ucontrol->value.enumerated.item[0] = cs35l45->fast_switch_file_idx;
+
+	return 0;
+}
 
 struct cs35l45_mixer_cache {
 	unsigned int reg;
@@ -649,6 +741,15 @@ static const char * const hibernate_mode_texts[] = {"Off", "On"};
 static SOC_ENUM_SINGLE_DECL(hibernate_mode_enum, SND_SOC_NOPM, 0,
 			    hibernate_mode_texts);
 
+static const char * const bst_bpe_txt[] = {"Default", "Voltage based BBPE"};
+static const unsigned int bst_bpe_val[] = {CS35L45_BST_BPE_OPMODE_DFLT,
+			CS35L45_BST_BPE_OPMODE_VOLT_BBPE};
+static SOC_VALUE_ENUM_SINGLE_DECL(bst_bpe_op_mode, CS35L45_BST_BPE_MISC_CONFIG,
+			CS35L45_BST_BPE_OUT_OPMODE_SEL_SHIFT,
+			CS35L45_BST_BPE_OUT_OPMODE_SEL_MASK >>
+			CS35L45_BST_BPE_OUT_OPMODE_SEL_SHIFT,
+			bst_bpe_txt, bst_bpe_val);
+
 static const DECLARE_TLV_DB_RANGE(dig_pcm_vol_tlv, 0, 0,
 				  TLV_DB_SCALE_ITEM(TLV_DB_GAIN_MUTE, 0, 1),
 				  1, 913, TLV_DB_SCALE_ITEM(-10200, 25, 0));
@@ -879,6 +980,14 @@ static const struct snd_kcontrol_new cs35l45_aud_controls[] = {
 			 0, 63, 0),
 	SOC_SINGLE_RANGE("ASPRX2 Slot Position", CS35L45_ASP_FRAME_CONTROL5, 8,
 			 0, 63, 0),
+	SOC_SINGLE_RANGE("Boost IL_LIM1 Threshold", CS35L45_BST_BPE_IL_LIM_THLD, 0,
+			 0, 0x3c, 0),
+	SOC_SINGLE_RANGE("Boost IL_LIM Delta 1", CS35L45_BST_BPE_IL_LIM_THLD, 8,
+			 0, 0x3c, 0),
+	SOC_SINGLE_RANGE("Boost IL_LIM Delta 2", CS35L45_BST_BPE_IL_LIM_THLD, 16,
+			 0, 0x3c, 0),
+	SOC_SINGLE_RANGE("Boost IL_LIM Hysteresis", CS35L45_BST_BPE_IL_LIM_THLD, 24,
+			 0, 0x1f, 0),
 
 	SOC_ENUM("DSP_RX1 Source", mux_enums[DSP_RX1]),
 	SOC_ENUM("DSP_RX2 Source", mux_enums[DSP_RX2]),
@@ -892,6 +1001,7 @@ static const struct snd_kcontrol_new cs35l45_aud_controls[] = {
 	SOC_ENUM("NGATE1 Source", mux_enums[NGATE1]),
 	SOC_ENUM("NGATE2 Source", mux_enums[NGATE2]),
 	SOC_ENUM("AMP PCM Gain", gain_enum),
+	SOC_ENUM("Boost BPE Output Mode", bst_bpe_op_mode),
 
 	SOC_ENUM_EXT("Amplifier Mode", amplifier_mode_enum,
 		     cs35l45_amplifier_mode_get, cs35l45_amplifier_mode_put),
@@ -1633,12 +1743,9 @@ static int cs35l45_component_set_sysclk(struct snd_soc_component *component,
 #if IS_ENABLED(CONFIG_SND_SOC_CIRRUS_AMP)
 #define CS35L45_ALG_ID_VIMON	0xf204
 #define CS35L45_ALG_ID_HALO	0x4fa00
-
-#define CS35L45_CAL_VSC_UB	0x00003637
-#define CS35L45_CAL_VSC_LB	0x00FFE953
-#define CS35L45_CAL_ISC_UB	0x000003BC
-#define CS35L45_CAL_ISC_LB	0x00FFFDF4
 #endif
+
+static const char fast_ctl[] = "Fast Use Case Delta File";
 
 static int cs35l45_component_probe(struct snd_soc_component *component)
 {
@@ -1670,7 +1777,7 @@ static int cs35l45_component_probe(struct snd_soc_component *component)
 	};
 
 	struct cs35l45_platform_data *pdata = &cs35l45->pdata;
-	struct cirrus_amp_config amp_cfg;
+	struct cirrus_amp_config amp_cfg = {0};
 	unsigned int val;
 	int ret;
 
@@ -1771,10 +1878,6 @@ static int cs35l45_component_probe(struct snd_soc_component *component)
 	amp_cfg.global_en_mask = CS35L45_MSM_GLOBAL_EN_ASSERT_MASK;
 	amp_cfg.vimon_alg_id = CS35L45_ALG_ID_VIMON;
 	amp_cfg.halo_alg_id = CS35L45_ALG_ID_HALO;
-	amp_cfg.cal_vsc_ub = CS35L45_CAL_VSC_UB;
-	amp_cfg.cal_vsc_lb = CS35L45_CAL_VSC_LB;
-	amp_cfg.cal_isc_ub = CS35L45_CAL_ISC_UB;
-	amp_cfg.cal_isc_lb = CS35L45_CAL_ISC_LB;
 	amp_cfg.bd_max_temp = cs35l45->pdata.bd_max_temp &
 			      (~CS35L45_VALID_PDATA);
 	amp_cfg.target_temp = cs35l45->pdata.pwr_params_cfg.target_temp &
@@ -1807,7 +1910,19 @@ static int cs35l45_component_probe(struct snd_soc_component *component)
 
 	cs35l45->component = component;
 
-	return 0;
+	/* Add run-time mixer control for fast use case switch */
+	cs35l45->fast_ctl.name	= fast_ctl;
+	cs35l45->fast_ctl.iface = SNDRV_CTL_ELEM_IFACE_MIXER;
+	cs35l45->fast_ctl.info	= snd_soc_info_enum_double;
+	cs35l45->fast_ctl.get	= cs35l45_fast_switch_file_get;
+	cs35l45->fast_ctl.put	= cs35l45_fast_switch_file_put;
+	cs35l45->fast_ctl.private_value	=
+		(unsigned long)&cs35l45->fast_switch_enum;
+	ret = snd_soc_add_component_controls(component, &cs35l45->fast_ctl, 1);
+	if (ret < 0)
+		dev_err(cs35l45->dev,
+			"snd_soc_add_component_controls failed (%d)\n", ret);
+	return ret;
 }
 
 static void cs35l45_component_remove(struct snd_soc_component *component)
@@ -2345,9 +2460,48 @@ static int cs35l45_parse_of_data(struct cs35l45_private *cs35l45)
 	char of_name[32];
 	u32 *ptr;
 	int ret, i, j;
+	size_t	num_fast_switch;
 
 	if ((!node) || (!pdata))
 		return 0;
+
+	ret = of_property_count_strings(node, "cirrus,fast-switch");
+	if (ret < 0) {
+		/*
+		 * device tree do not provide file name.
+		 * Use default value
+		 */
+		num_fast_switch		= ARRAY_SIZE(cs35l45_fast_switch_text);
+		cs35l45->fast_switch_enum.items	=
+			ARRAY_SIZE(cs35l45_fast_switch_text);
+		cs35l45->fast_switch_enum.texts	= cs35l45_fast_switch_text;
+		cs35l45->fast_switch_names = cs35l45_fast_switch_text;
+	} else {
+		/* Device tree provides file name */
+		num_fast_switch			= (size_t)ret;
+		dev_info(cs35l45->dev, "num_fast_switch:%zu\n", num_fast_switch);
+		cs35l45->fast_switch_names =
+			devm_kmalloc(cs35l45->dev,
+				     num_fast_switch * sizeof(char *),
+				     GFP_KERNEL);
+		if (!cs35l45->fast_switch_names)
+			return -ENOMEM;
+		of_property_read_string_array(node, "cirrus,fast-switch",
+					      (const char **)cs35l45->fast_switch_names,
+					      num_fast_switch);
+		for (i = 0; i < num_fast_switch; i++) {
+			dev_info(cs35l45->dev, "%d:%s\n", i,
+				 cs35l45->fast_switch_names[i]);
+		}
+		cs35l45->fast_switch_enum.items	= num_fast_switch;
+		cs35l45->fast_switch_enum.texts	= cs35l45->fast_switch_names;
+	}
+
+	cs35l45->fast_switch_enum.reg		= SND_SOC_NOPM;
+	cs35l45->fast_switch_enum.shift_l	= 0;
+	cs35l45->fast_switch_enum.shift_r	= 0;
+	cs35l45->fast_switch_enum.mask		=
+		roundup_pow_of_two(num_fast_switch) - 1;
 
 	ret = of_property_read_u32(node, "cirrus,asp-sdout-hiz-ctrl", &val);
 	if (!ret)
@@ -2930,6 +3084,8 @@ int cs35l45_probe(struct cs35l45_private *cs35l45)
 	mutex_init(&cs35l45->hb_lock);
 
 	init_completion(&cs35l45->virt2_mbox_comp);
+
+	cs35l45->fast_switch_file_idx = -1;
 
 	for (i = 0; i < ARRAY_SIZE(cs35l45_supplies); i++)
 		cs35l45->supplies[i].supply = cs35l45_supplies[i];

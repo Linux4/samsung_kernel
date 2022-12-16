@@ -242,6 +242,8 @@ source "drivers/adsp_factory/Kconfig"
 
 source "drivers/spu_verify/Kconfig"
 
+source "drivers/pogo/Kconfig"
+
 source "drivers/security/samsung/icdrv/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "drivers/misc/drb/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "drivers/battery/charger/sm5714_charger/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT

@@ -3369,7 +3369,16 @@ static ssize_t ss_disp_SVC_OCTA_DDI_CHIPID_show(struct device *dev,
 	}
 
 	ddi_id = vdd->ddi_id_dsi;
-	if (vdd->dtsi_data.ddi_id_length == 6) {
+
+	if (vdd->dtsi_data.ddi_id_length == 10) {
+		snprintf((char *)temp, sizeof(temp), "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
+			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4], ddi_id[5], ddi_id[6], ddi_id[7], ddi_id[8], ddi_id[9]);
+
+		strlcat(buf, temp, string_size);
+
+		LCD_INFO(vdd, "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4], ddi_id[5], ddi_id[6], ddi_id[7], ddi_id[8], ddi_id[9]);
+	} else if (vdd->dtsi_data.ddi_id_length == 6) {
 		snprintf((char *)temp, sizeof(temp), "%02x%02x%02x%02x%02x%02x\n",
 			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4], ddi_id[5]);
 

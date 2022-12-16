@@ -30,6 +30,9 @@ struct sec_audio_sysfs_data {
 	int (*get_key_state)(void);
 	int (*set_jack_state)(int);
 	int (*get_mic_adc)(void);
+	int (*get_headset_state)(void);
+	int (*get_l_impedance)(void);
+	int (*get_r_impedance)(void);
 	int (*get_codec_id_state)(void);
 	int (*set_force_enable_antenna)(int);
 	int (*get_antenna_state)(void);
@@ -50,6 +53,9 @@ int audio_register_jack_select_cb(int (*set_jack) (int));
 int audio_register_jack_state_cb(int (*jack_status) (void));
 int audio_register_key_state_cb(int (*key_state) (void));
 int audio_register_mic_adc_cb(int (*mic_adc) (void));
+int audio_register_headset_state_cb(int (*headset_status) (void));
+int audio_register_l_impedance_cb(int (*l_impedance) (void));
+int audio_register_r_impedance_cb(int (*r_impedance) (void));
 int audio_register_codec_id_state_cb(int (*codec_id_state) (void));
 int audio_register_force_enable_antenna_cb(int (*force_enable_antenna) (int));
 int audio_register_antenna_state_cb(int (*antenna_state) (void));
@@ -79,6 +85,21 @@ inline int audio_register_key_state_cb(int (*key_state) (void))
 }
 
 inline int audio_register_mic_adc_cb(int (*mic_adc) (void))
+{
+	return -EACCES;
+}
+
+inline int audio_register_headset_state_cb(int (*headset_status) (void))
+{
+	return -EACCES;
+}
+
+inline int audio_register_l_impedance_cb(int (*l_impedance) (void))
+{
+	return -EACCES;
+}
+
+inline int audio_register_r_impedance_cb(int (*r_impedance) (void))
 {
 	return -EACCES;
 }

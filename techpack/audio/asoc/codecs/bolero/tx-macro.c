@@ -73,6 +73,8 @@ struct tx_macro_swr_ctrl_data {
 	struct platform_device *tx_swr_pdev;
 };
 
+int hpf_value[8] = {0};
+
 struct tx_macro_swr_ctrl_platform_data {
 	void *handle; /* holds codec private data */
 	int (*read)(void *handle, int reg);
@@ -1162,22 +1164,21 @@ static int tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 				   &tx_priv->tx_mute_dwork[decimator].dwork,
 				   msecs_to_jiffies(unmute_delay));
 		if (tx_priv->tx_hpf_work[decimator].hpf_cut_off_freq !=
-							CF_MIN_3DB_150HZ) {
+							CF_MIN_3DB_150HZ)
 			queue_delayed_work(system_freezable_wq,
 				&tx_priv->tx_hpf_work[decimator].dwork,
 				msecs_to_jiffies(hpf_delay));
+		snd_soc_component_update_bits(component,
+				hpf_gate_reg, 0x03, 0x02);
+		if (!is_smic_enabled(component, decimator))
 			snd_soc_component_update_bits(component,
-					hpf_gate_reg, 0x03, 0x02);
-			if (!is_smic_enabled(component, decimator))
-				snd_soc_component_update_bits(component,
-					hpf_gate_reg, 0x03, 0x00);
-			snd_soc_component_update_bits(component,
-					hpf_gate_reg, 0x03, 0x01);
-			/*
-			 * 6ms delay is required as per HW spec
-			 */
-			usleep_range(6000, 6010);
-		}
+				hpf_gate_reg, 0x03, 0x00);
+		snd_soc_component_update_bits(component,
+				hpf_gate_reg, 0x03, 0x01);
+		/*
+		 * 6ms delay is required as per HW spec
+		 */
+		usleep_range(6000, 6010);
 		/* apply gain after decimator is enabled */
 		snd_soc_component_write(component, tx_gain_ctl_reg,
 			      snd_soc_component_read32(component,
@@ -1323,6 +1324,110 @@ static SOC_ENUM_SINGLE_DECL(cf_dec6_enum, BOLERO_CDC_TX6_TX_PATH_CFG0, 5,
 							cf_text);
 static SOC_ENUM_SINGLE_DECL(cf_dec7_enum, BOLERO_CDC_TX7_TX_PATH_CFG0, 5,
 							cf_text);
+
+static const struct soc_enum tx_hpf_mux_enum =
+							SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(cf_text), cf_text);
+
+static int tx_macro_hpf_mode_put(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+
+	unsigned int tx = 0;
+	int ret = 0;
+	char *wname = NULL;
+	u16 tx_vol_ctl_reg = 0;
+	u16 dec_cfg_reg = 0;
+	u16 hpf_gate_reg = 0;
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct tx_macro_priv *tx_priv = NULL;
+	struct device *tx_dev = NULL;
+	int value = ucontrol->value.integer.value[0];
+
+	if (!tx_macro_get_data(component, &tx_dev, &tx_priv, __func__))
+		return -EINVAL;
+
+	wname = strpbrk(kcontrol->id.name, "01234567");
+	if (!wname) {
+		dev_err(component->dev, "%s: not found\n", __func__);
+		return -EINVAL;
+	}
+
+	ret = kstrtouint(wname, 10, &tx);
+	if (ret < 0) {
+		dev_err(component->dev, "%s: Invalid tx hpf\n", __func__);
+		return -EINVAL;
+	}
+
+	hpf_value[tx] = value;
+	tx_vol_ctl_reg = BOLERO_CDC_TX0_TX_PATH_CTL +
+			TX_MACRO_TX_PATH_OFFSET * tx;
+	hpf_gate_reg = BOLERO_CDC_TX0_TX_PATH_SEC2 +
+			TX_MACRO_TX_PATH_OFFSET * tx;
+	dec_cfg_reg = BOLERO_CDC_TX0_TX_PATH_CFG0 +
+			TX_MACRO_TX_PATH_OFFSET * tx;
+
+	snd_soc_component_update_bits(component, tx_vol_ctl_reg, 0x20, 0x20);
+
+	switch (value) {
+	case CF_MIN_3DB_150HZ:
+		snd_soc_component_update_bits(component, dec_cfg_reg,
+				TX_HPF_CUT_OFF_FREQ_MASK,
+				CF_MIN_3DB_150HZ << 5);
+		break;
+	case CF_MIN_3DB_75HZ:
+		snd_soc_component_update_bits(component, dec_cfg_reg,
+				TX_HPF_CUT_OFF_FREQ_MASK,
+				CF_MIN_3DB_75HZ << 5);
+		break;
+	case CF_MIN_3DB_4HZ:
+		snd_soc_component_update_bits(component, dec_cfg_reg,
+				TX_HPF_CUT_OFF_FREQ_MASK,
+				CF_MIN_3DB_4HZ << 5);
+		break;
+	default:
+		dev_err(component->dev, "%s: Invalid value\n", __func__);
+		return 0;
+	}
+
+	snd_soc_component_update_bits(component, hpf_gate_reg, 0x03, 0x02);
+	usleep_range(3000, 3010);
+	snd_soc_component_update_bits(component, hpf_gate_reg, 0x03, 0x01);
+
+	snd_soc_component_update_bits(component, tx_vol_ctl_reg, 0x20, 0x00);
+
+	return 0;
+}
+
+static int tx_macro_hpf_mode_get(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct tx_macro_priv *tx_priv = NULL;
+	struct device *tx_dev = NULL;
+	unsigned int tx = 0;
+	int ret = 0;
+	char *wname = NULL;
+
+	if (!tx_macro_get_data(component, &tx_dev, &tx_priv, __func__))
+		return -EINVAL;
+
+	wname = strpbrk(kcontrol->id.name, "01234567");
+	if (!wname) {
+		dev_err(component->dev, "%s: not found\n", __func__);
+		return -EINVAL;
+	}
+
+	ret = kstrtouint(wname, 10, &tx);
+	if (ret < 0) {
+		dev_err(component->dev, "%s: Invalid tx hpf\n", __func__);
+		return -EINVAL;
+	}
+	ucontrol->value.integer.value[0] = hpf_value[tx];
+
+	return 0;
+}
 
 static int tx_macro_hw_params(struct snd_pcm_substream *substream,
 			   struct snd_pcm_hw_params *params,
@@ -2537,6 +2642,30 @@ static const struct snd_kcontrol_new tx_macro_snd_controls_common[] = {
 	SOC_ENUM_EXT("DEC3 MODE", dec_mode_mux_enum,
 			tx_macro_dec_mode_get, tx_macro_dec_mode_put),
 
+	SOC_ENUM_EXT("HPF cut off TX0", tx_hpf_mux_enum,
+			tx_macro_hpf_mode_get, tx_macro_hpf_mode_put),
+
+	SOC_ENUM_EXT("HPF cut off TX1", tx_hpf_mux_enum,
+			tx_macro_hpf_mode_get, tx_macro_hpf_mode_put),
+
+	SOC_ENUM_EXT("HPF cut off TX2", tx_hpf_mux_enum,
+			tx_macro_hpf_mode_get, tx_macro_hpf_mode_put),
+
+	SOC_ENUM_EXT("HPF cut off TX3", tx_hpf_mux_enum,
+			tx_macro_hpf_mode_get, tx_macro_hpf_mode_put),
+
+	SOC_ENUM_EXT("HPF cut off TX4", tx_hpf_mux_enum,
+			tx_macro_hpf_mode_get, tx_macro_hpf_mode_put),
+
+	SOC_ENUM_EXT("HPF cut off TX5", tx_hpf_mux_enum,
+			tx_macro_hpf_mode_get, tx_macro_hpf_mode_put),
+
+	SOC_ENUM_EXT("HPF cut off TX6", tx_hpf_mux_enum,
+			tx_macro_hpf_mode_get, tx_macro_hpf_mode_put),
+
+	SOC_ENUM_EXT("HPF cut off TX7", tx_hpf_mux_enum,
+			tx_macro_hpf_mode_get, tx_macro_hpf_mode_put),
+
 	SOC_SINGLE_EXT("DEC0_BCS Switch", SND_SOC_NOPM, 0, 1, 0,
 		       tx_macro_get_bcs, tx_macro_set_bcs),
 
@@ -3359,17 +3488,7 @@ static void tx_macro_add_child_devices(struct work_struct *work)
 					__func__, ctrl_num);
 				goto fail_pdev_add;
 			}
-		}
 
-		ret = platform_device_add(pdev);
-		if (ret) {
-			dev_err(&pdev->dev,
-				"%s: Cannot add platform device\n",
-				__func__);
-			goto fail_pdev_add;
-		}
-
-		if (tx_swr_master_node) {
 			temp = krealloc(swr_ctrl_data,
 					(ctrl_num + 1) * sizeof(
 					struct tx_macro_swr_ctrl_data),
@@ -3382,10 +3501,19 @@ static void tx_macro_add_child_devices(struct work_struct *work)
 			swr_ctrl_data[ctrl_num].tx_swr_pdev = pdev;
 			ctrl_num++;
 			dev_dbg(&pdev->dev,
-				"%s: Added soundwire ctrl device(s)\n",
+				"%s: Adding soundwire ctrl device(s)\n",
 				__func__);
 			tx_priv->swr_ctrl_data = swr_ctrl_data;
 		}
+
+		ret = platform_device_add(pdev);
+		if (ret) {
+			dev_err(&pdev->dev,
+				"%s: Cannot add platform device\n",
+				__func__);
+			goto fail_pdev_add;
+		}
+
 		if (tx_priv->child_count < TX_MACRO_CHILD_DEVICES_MAX)
 			tx_priv->pdev_child_devices[
 					tx_priv->child_count++] = pdev;

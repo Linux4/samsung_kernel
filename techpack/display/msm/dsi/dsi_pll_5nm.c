@@ -495,7 +495,7 @@ static void dsi_pll_config_slave(struct dsi_pll_resource *rsc)
 	 * check why it configures dsi_pll_1... use scl 21888958...
 	 */
 	if (!orsc) {
-		pr_debug("slave PLL unavilable, assuming standalone config\n");
+		pr_debug("slave PLL unavailable, assuming standalone config\n");
 		return;
 	}
 

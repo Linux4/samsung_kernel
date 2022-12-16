@@ -387,11 +387,9 @@ static int dp_parser_get_vreg(struct dp_parser *parser,
 
 	mp->num_vreg = 0;
 	pm_supply_name = dp_parser_supply_node_name(module);
-
 #if defined(CONFIG_SEC_DISPLAYPORT)
 	DP_DEBUG("pm_supply_name: %s\n", pm_supply_name);
 #endif
-
 	supply_root_node = of_get_child_by_name(of_node, pm_supply_name);
 	if (!supply_root_node) {
 		DP_WARN("no supply entry present: %s\n", pm_supply_name);
@@ -870,12 +868,22 @@ static void dp_parser_widebus(struct dp_parser *parser)
 }
 
 #if defined(CONFIG_SEC_DISPLAYPORT)
+static void secdp_parse_phy_param(struct dp_parser *parser);
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+static void secdp_parse_ps5169_param(struct dp_parser *parser);
+#endif
+
 static void secdp_parse_misc(struct dp_parser *parser)
 {
 	struct device *dev = &parser->pdev->dev;
 	struct device_node *of_node = dev->of_node;
 	const char *data;
 	int len = 0;
+
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+	secdp_parse_ps5169_param(parser);
+#endif
+	secdp_parse_phy_param(parser);
 
 	parser->cc_dir_inv = of_property_read_bool(dev->of_node,
 			"secdp,cc-dir-inv");
@@ -908,6 +916,10 @@ static void secdp_parse_misc(struct dp_parser *parser)
 	parser->prefer_support = of_property_read_bool(dev->of_node,
 			"secdp,prefer-res");
 	DP_DEBUG("secdp,prefer-res: %d\n", parser->prefer_support);
+
+	parser->mrr_fps_nolimit = of_property_read_bool(dev->of_node,
+			"secdp,mrr-fps-nolimit");
+	DP_DEBUG("secdp,mrr_fps_nolimit: %d\n", parser->mrr_fps_nolimit);
 }
 
 static const char *secdp_get_phy_pre_emphasis(u32 lvl)
@@ -1363,6 +1375,575 @@ int secdp_show_phy_param(char *buf)
 }
 #endif
 
+#if defined(CONFIG_SEC_DISPLAYPORT) && IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+static const char *secdp_get_ps5169_rbr_eq0(u32 lvl)
+{
+	switch (lvl) {
+	case PHY_PS5169_EMP0:
+		return "secdp,redrv-rbr-eq0-0";
+	case PHY_PS5169_EMP1:
+		return "secdp,redrv-rbr-eq0-1";
+	case PHY_PS5169_EMP2:
+		return "secdp,redrv-rbr-eq0-2";
+	case PHY_PS5169_EMP3:
+		return "secdp,redrv-rbr-eq0-3";
+	default:
+		return "secdp,redrv-rbr-eq0-unknown";
+	}
+}
+
+static const char *secdp_get_ps5169_rbr_eq1(u32 lvl)
+{
+	switch (lvl) {
+	case PHY_PS5169_SWING0:
+		return "secdp,redrv-rbr-eq1-0";
+	case PHY_PS5169_SWING1:
+		return "secdp,redrv-rbr-eq1-1";
+	case PHY_PS5169_SWING2:
+		return "secdp,redrv-rbr-eq1-2";
+	case PHY_PS5169_SWING3:
+		return "secdp,redrv-rbr-eq1-3";
+	default:
+		return "secdp,redrv-rbr-eq1-unknown";
+	}
+}
+
+static int _secdp_parse_ps5169_rbr(struct dp_parser *parser)
+{
+	struct device_node *of_node = parser->pdev->dev.of_node;
+	int len = 0, i = 0, j = 0;
+	const char *data;
+
+	DP_DEBUG("+++\n");
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		const char *property = secdp_get_ps5169_rbr_eq0(i);
+
+		data = of_get_property(of_node, property, &len);
+		if (!data || len != 4) {
+			DP_ERR("Unable to read %s, len:%d\n", property, len);
+			goto error;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++)
+			parser->ps5169_rbr_eq0[i][j] = data[j];
+	}
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		const char *property = secdp_get_ps5169_rbr_eq1(i);
+
+		data = of_get_property(of_node, property, &len);
+		if (!data || len != 4) {
+			DP_ERR("Unable to read %s, len:%d\n", property, len);
+			goto error;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++)
+			parser->ps5169_rbr_eq1[i][j] = data[j];
+	}
+	return 0;
+error:
+	return -EINVAL;
+}
+
+static const char *secdp_get_ps5169_hbr_eq0(u32 lvl)
+{
+	switch (lvl) {
+	case PHY_PS5169_EMP0:
+		return "secdp,redrv-hbr-eq0-0";
+	case PHY_PS5169_EMP1:
+		return "secdp,redrv-hbr-eq0-1";
+	case PHY_PS5169_EMP2:
+		return "secdp,redrv-hbr-eq0-2";
+	case PHY_PS5169_EMP3:
+		return "secdp,redrv-hbr-eq0-3";
+	default:
+		return "secdp,redrv-hbr-eq0-unknown";
+	}
+}
+
+static const char *secdp_get_ps5169_hbr_eq1(u32 lvl)
+{
+	switch (lvl) {
+	case PHY_PS5169_SWING0:
+		return "secdp,redrv-hbr-eq1-0";
+	case PHY_PS5169_SWING1:
+		return "secdp,redrv-hbr-eq1-1";
+	case PHY_PS5169_SWING2:
+		return "secdp,redrv-hbr-eq1-2";
+	case PHY_PS5169_SWING3:
+		return "secdp,redrv-hbr-eq1-3";
+	default:
+		return "secdp,redrv-hbr-eq1-unknown";
+	}
+}
+
+static int _secdp_parse_ps5169_hbr(struct dp_parser *parser)
+{
+	struct device_node *of_node = parser->pdev->dev.of_node;
+	int len = 0, i = 0, j = 0;
+	const char *data;
+
+	DP_DEBUG("+++\n");
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		const char *property = secdp_get_ps5169_hbr_eq0(i);
+
+		data = of_get_property(of_node, property, &len);
+		if (!data || len != 4) {
+			DP_ERR("Unable to read %s, len:%d\n", property, len);
+			goto error;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++)
+			parser->ps5169_hbr_eq0[i][j] = data[j];
+	}
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		const char *property = secdp_get_ps5169_hbr_eq1(i);
+
+		data = of_get_property(of_node, property, &len);
+		if (!data || len != 4) {
+			DP_ERR("Unable to read %s, len:%d\n", property, len);
+			goto error;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++)
+			parser->ps5169_hbr_eq1[i][j] = data[j];
+	}
+	return 0;
+error:
+	return -EINVAL;
+}
+
+static const char *secdp_get_ps5169_hbr2_eq0(u32 lvl)
+{
+	switch (lvl) {
+	case PHY_PS5169_EMP0:
+		return "secdp,redrv-hbr2-eq0-0";
+	case PHY_PS5169_EMP1:
+		return "secdp,redrv-hbr2-eq0-1";
+	case PHY_PS5169_EMP2:
+		return "secdp,redrv-hbr2-eq0-2";
+	case PHY_PS5169_EMP3:
+		return "secdp,redrv-hbr2-eq0-3";
+	default:
+		return "secdp,redrv-hbr2-eq0-unknown";
+	}
+}
+
+static const char *secdp_get_ps5169_hbr2_eq1(u32 lvl)
+{
+	switch (lvl) {
+	case PHY_PS5169_SWING0:
+		return "secdp,redrv-hbr2-eq1-0";
+	case PHY_PS5169_SWING1:
+		return "secdp,redrv-hbr2-eq1-1";
+	case PHY_PS5169_SWING2:
+		return "secdp,redrv-hbr2-eq1-2";
+	case PHY_PS5169_SWING3:
+		return "secdp,redrv-hbr2-eq1-3";
+	default:
+		return "secdp,redrv-hbr2-eq1-unknown";
+	}
+}
+
+static int _secdp_parse_ps5169_hbr2(struct dp_parser *parser)
+{
+	struct device_node *of_node = parser->pdev->dev.of_node;
+	int len = 0, i = 0, j = 0;
+	const char *data;
+
+	DP_DEBUG("+++\n");
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		const char *property = secdp_get_ps5169_hbr2_eq0(i);
+
+		data = of_get_property(of_node, property, &len);
+		if (!data || len != 4) {
+			DP_ERR("Unable to read %s, len:%d\n", property, len);
+			goto error;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++)
+			parser->ps5169_hbr2_eq0[i][j] = data[j];
+	}
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		const char *property = secdp_get_ps5169_hbr2_eq1(i);
+
+		data = of_get_property(of_node, property, &len);
+		if (!data || len != 4) {
+			DP_ERR("Unable to read %s, len:%d\n", property, len);
+			goto error;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++)
+			parser->ps5169_hbr2_eq1[i][j] = data[j];
+	}
+	return 0;
+error:
+	return -EINVAL;
+}
+
+static const char *secdp_get_ps5169_hbr3_eq0(u32 lvl)
+{
+	switch (lvl) {
+	case PHY_PS5169_EMP0:
+		return "secdp,redrv-hbr3-eq0-0";
+	case PHY_PS5169_EMP1:
+		return "secdp,redrv-hbr3-eq0-1";
+	case PHY_PS5169_EMP2:
+		return "secdp,redrv-hbr3-eq0-2";
+	case PHY_PS5169_EMP3:
+		return "secdp,redrv-hbr3-eq0-3";
+	default:
+		return "secdp,redrv-hbr3-eq0-unknown";
+	}
+}
+
+static const char *secdp_get_ps5169_hbr3_eq1(u32 lvl)
+{
+	switch (lvl) {
+	case PHY_PS5169_SWING0:
+		return "secdp,redrv-hbr3-eq1-0";
+	case PHY_PS5169_SWING1:
+		return "secdp,redrv-hbr3-eq1-1";
+	case PHY_PS5169_SWING2:
+		return "secdp,redrv-hbr3-eq1-2";
+	case PHY_PS5169_SWING3:
+		return "secdp,redrv-hbr3-eq1-3";
+	default:
+		return "secdp,redrv-hbr3-eq1-unknown";
+	}
+}
+
+static int _secdp_parse_ps5169_hbr3(struct dp_parser *parser)
+{
+	struct device_node *of_node = parser->pdev->dev.of_node;
+	int len = 0, i = 0, j = 0;
+	const char *data;
+
+	DP_DEBUG("+++\n");
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		const char *property = secdp_get_ps5169_hbr3_eq0(i);
+
+		data = of_get_property(of_node, property, &len);
+		if (!data || len != 4) {
+			DP_ERR("Unable to read %s, len:%d\n", property, len);
+			goto error;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++)
+			parser->ps5169_hbr3_eq0[i][j] = data[j];
+	}
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		const char *property = secdp_get_ps5169_hbr3_eq1(i);
+
+		data = of_get_property(of_node, property, &len);
+		if (!data || len != 4) {
+			DP_ERR("Unable to read %s, len:%d\n", property, len);
+			goto error;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++)
+			parser->ps5169_hbr3_eq1[i][j] = data[j];
+	}
+	return 0;
+error:
+	return -EINVAL;
+}
+
+static void secdp_parse_ps5169_param(struct dp_parser *parser)
+{
+	int rc = 0;
+
+	rc = _secdp_parse_ps5169_rbr(parser);
+	if (rc)
+		goto not_support;
+
+	rc = _secdp_parse_ps5169_hbr(parser);
+	if (rc)
+		goto not_support;
+
+	rc = _secdp_parse_ps5169_hbr2(parser);
+	if (rc)
+		goto not_support;
+
+	rc = _secdp_parse_ps5169_hbr3(parser);
+	if (rc)
+		goto not_support;
+
+	DP_INFO("ps5169 tune support: yes\n");
+	parser->ps5169_tune = true;
+	return;
+
+not_support:
+	DP_INFO("ps5169 tune support: no\n");
+	parser->ps5169_tune = false;
+	return;
+}
+
+/*********************************************
+ ***    default PS5169 DP EQ0/EQ1 params   ***
+ *********************************************/
+#define EQ0 0x20
+#define EQ1 0x06
+
+static u8 const ps5169_rbr_eq0[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS] = {
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0}
+};
+
+/* voltage swing, 0.2v and 1.0v are not support */
+static u8 const ps5169_rbr_eq1[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS] = {
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1}
+};
+
+static u8 const ps5169_hbr_eq0[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS] = {
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0}
+};
+
+static u8 const ps5169_hbr_eq1[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS] = {
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1}
+};
+
+static u8 const ps5169_hbr2_eq0[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS] = {
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0}
+};
+
+static u8 const ps5169_hbr2_eq1[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS] = {
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1}
+};
+
+static u8 const ps5169_hbr3_eq0[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS] = {
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0}
+};
+
+static u8 const ps5169_hbr3_eq1[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS] = {
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1}
+};
+
+static void secdp_set_default_ps5169_param(struct dp_parser *parser,
+			enum secdp_ps5169_eq_t eq, enum secdp_ps5169_link_rate_t link_rate)
+{
+	int i, j;
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++) {
+			if (eq == DP_PS5169_EQ_MAX || eq == DP_PS5169_EQ0) {
+				if (link_rate == DP_PS5169_RATE_MAX ||
+						link_rate == DP_PS5169_RATE_RBR) {
+					parser->ps5169_rbr_eq0[i][j] = ps5169_rbr_eq0[i][j];
+				}
+				if (link_rate == DP_PS5169_RATE_MAX ||
+						link_rate == DP_PS5169_RATE_HBR) {
+					parser->ps5169_hbr_eq0[i][j] = ps5169_hbr_eq0[i][j];
+				}
+				if (link_rate == DP_PS5169_RATE_MAX ||
+						link_rate == DP_PS5169_RATE_HBR2) {
+					parser->ps5169_hbr2_eq0[i][j] = ps5169_hbr2_eq0[i][j];
+				}
+				if (link_rate == DP_PS5169_RATE_MAX ||
+						link_rate == DP_PS5169_RATE_HBR3) {
+					parser->ps5169_hbr3_eq0[i][j] = ps5169_hbr3_eq0[i][j];
+				}
+			}
+			if (eq == DP_PS5169_EQ_MAX || eq == DP_PS5169_EQ1) {
+				if (link_rate == DP_PS5169_RATE_MAX ||
+						link_rate == DP_PS5169_RATE_RBR) {
+					parser->ps5169_rbr_eq1[i][j] = ps5169_rbr_eq1[i][j];
+				}
+				if (link_rate == DP_PS5169_RATE_MAX ||
+						link_rate == DP_PS5169_RATE_HBR) {
+					parser->ps5169_hbr_eq1[i][j] = ps5169_hbr_eq1[i][j];
+				}
+				if (link_rate == DP_PS5169_RATE_MAX ||
+						link_rate == DP_PS5169_RATE_HBR2) {
+					parser->ps5169_hbr2_eq1[i][j] = ps5169_hbr2_eq1[i][j];
+				}
+				if (link_rate == DP_PS5169_RATE_MAX ||
+						link_rate == DP_PS5169_RATE_HBR3) {
+					parser->ps5169_hbr3_eq1[i][j] = ps5169_hbr3_eq1[i][j];
+				}
+			}
+		}
+	}
+}
+
+#if defined(CONFIG_SEC_DISPLAYPORT_ENG)
+static u8 *_secdp_get_ps5169_param(enum secdp_ps5169_eq_t eq,
+			enum secdp_ps5169_link_rate_t link_rate, int idx)
+{
+	struct dp_parser *parser = g_dp_parser;
+	u8 *val = NULL;
+
+	switch (eq) {
+	case DP_PS5169_EQ0:
+		switch (link_rate) {
+		case DP_PS5169_RATE_RBR:
+			val = parser->ps5169_rbr_eq0[idx];
+			break;
+		case DP_PS5169_RATE_HBR:
+			val = parser->ps5169_hbr_eq0[idx];
+			break;
+		case DP_PS5169_RATE_HBR2:
+			val = parser->ps5169_hbr2_eq0[idx];
+			break;
+		case DP_PS5169_RATE_HBR3:
+			val = parser->ps5169_hbr3_eq0[idx];
+			break;
+		default:
+			DP_ERR("unknown rate: %d\n", link_rate);
+			break;
+		}
+		break;
+	case DP_PS5169_EQ1:
+		switch (link_rate) {
+		case DP_PS5169_RATE_RBR:
+			val = parser->ps5169_rbr_eq1[idx];
+			break;
+		case DP_PS5169_RATE_HBR:
+			val = parser->ps5169_hbr_eq1[idx];
+			break;
+		case DP_PS5169_RATE_HBR2:
+			val = parser->ps5169_hbr2_eq1[idx];
+			break;
+		case DP_PS5169_RATE_HBR3:
+			val = parser->ps5169_hbr3_eq1[idx];
+			break;
+		default:
+			DP_ERR("unknown rate: %d\n", link_rate);
+			break;
+		}
+		break;
+	default:
+		DP_ERR("unknown eq:%d\n", eq);
+		break;
+	}
+
+	return val;
+}
+
+int secdp_parse_ps5169_show(enum secdp_ps5169_eq_t eq,
+		enum secdp_ps5169_link_rate_t link_rate, char *buf)
+{
+	u8 *val[MAX_PS5169_SWING_LEVELS];
+	int i, rc = 0;
+
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "\n%s | %s\n=====\n",
+				secdp_ps5169_eq_to_string(eq),
+				secdp_ps5169_rate_to_string(link_rate));
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		val[i] = _secdp_get_ps5169_param(eq, link_rate, i);
+		if (!val[i])
+			break;
+
+		rc += scnprintf(buf + rc, PAGE_SIZE - rc,
+				"%02x,%02x,%02x,%02x",
+				val[i][0], val[i][1], val[i][2], val[i][3]);
+
+		if (i < MAX_PS5169_SWING_LEVELS - 1)
+			rc += scnprintf(buf + rc, PAGE_SIZE - rc, ",\n");
+		else
+			rc += scnprintf(buf + rc, PAGE_SIZE - rc, "\n");
+	}
+
+	return rc;
+}
+
+int secdp_parse_ps5169_store(enum secdp_ps5169_eq_t eq,
+		enum secdp_ps5169_link_rate_t link_rate, char *buf)
+{
+	struct dp_parser *parser = g_dp_parser;
+	u8   *val[MAX_PS5169_SWING_LEVELS];
+	char *tok;
+	u32  value;
+	int  i, j, rc = 0;
+
+	if (!strncmp(buf, "reset_all", strlen("reset_all"))) {
+		DP_DEBUG("[all] reset!\n");
+		secdp_set_default_ps5169_param(parser, DP_PS5169_EQ_MAX, DP_PS5169_RATE_MAX);
+		goto end;
+	}
+
+	if (!strncmp(buf, "reset", strlen("reset"))) {
+		DP_DEBUG("[%s,%s] reset!\n", secdp_ps5169_eq_to_string(eq),
+			secdp_ps5169_rate_to_string(link_rate));
+		secdp_set_default_ps5169_param(parser, eq, link_rate);
+		goto end;
+	}
+
+	DP_DEBUG("[%s,%s] set new params!\n", secdp_ps5169_eq_to_string(eq),
+		secdp_ps5169_rate_to_string(link_rate));
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		val[i] = _secdp_get_ps5169_param(eq, link_rate, i);
+		if (!val[i]) {
+			rc = -EINVAL;
+			break;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++) {
+			tok = strsep(&buf, ",");
+			if (!tok)
+				continue;
+
+			rc = kstrtouint(tok, 16, &value);
+			if (rc) {
+				DP_ERR("error: %s rc:%d\n", tok, rc);
+				goto end;
+			}
+
+			val[i][j] = value;
+		}
+	}
+end:
+	return rc;
+}
+
+int secdp_show_ps5169_param(char *buf)
+{
+	int  eq, rc = 0;
+
+	for (eq = 0; eq < DP_PS5169_EQ_MAX; eq++) {
+		rc += secdp_parse_ps5169_show(eq, DP_PS5169_RATE_RBR, buf + rc);
+		rc += secdp_parse_ps5169_show(eq, DP_PS5169_RATE_HBR, buf + rc);
+		rc += secdp_parse_ps5169_show(eq, DP_PS5169_RATE_HBR2, buf + rc);
+		rc += secdp_parse_ps5169_show(eq, DP_PS5169_RATE_HBR3, buf + rc);
+	}
+
+	return rc;
+}
+#endif/*CONFIG_SEC_DISPLAYPORT_ENG*/
+#endif/*CONFIG_COMBO_REDRIVER_PS5169*/
+
 static int dp_parser_parse(struct dp_parser *parser)
 {
 	int rc = 0;
@@ -1419,7 +2000,6 @@ static int dp_parser_parse(struct dp_parser *parser)
 	dp_parser_fec(parser);
 	dp_parser_widebus(parser);
 #if defined(CONFIG_SEC_DISPLAYPORT)
-	secdp_parse_phy_param(parser);
 	secdp_parse_misc(parser);
 #endif
 
@@ -1511,6 +2091,9 @@ struct dp_parser *dp_parser_get(struct platform_device *pdev)
 
 #if defined(CONFIG_SEC_DISPLAYPORT)
 	secdp_set_default_phy_param(parser, DP_HW_MAX, DP_PARAM_MAX);
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+	secdp_set_default_ps5169_param(parser, DP_PS5169_EQ_MAX, DP_PS5169_RATE_MAX);
+#endif
 	g_dp_parser = parser;
 #endif
 	return parser;

@@ -97,6 +97,9 @@ int msm_camera_pinctrl_init
 
 int32_t cam_sensor_util_get_current_qtimer_ns(uint64_t *qtime_ns);
 
+int32_t cam_sensor_util_regulator_powerup(
+	struct cam_hw_soc_info *soc_info);
+
 int32_t cam_sensor_util_write_qtimer_to_io_buffer(
 	struct cam_buf_io_cfg *io_cfg);
 

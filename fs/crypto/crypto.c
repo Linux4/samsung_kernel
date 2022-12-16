@@ -210,6 +210,13 @@ struct page *fscrypt_encrypt_pagecache_blocks(struct page *page,
 	unsigned int i;
 	int err;
 
+#ifdef CONFIG_DDAR
+	if (fscrypt_dd_encrypted_inode(inode)) {
+		// Invert crypto order. OEM crypto must perform after 3rd party crypto
+		return NULL;
+	}
+#endif
+
 	if (WARN_ON_ONCE(!PageLocked(page)))
 		return ERR_PTR(-EINVAL);
 
@@ -256,6 +263,12 @@ int fscrypt_encrypt_block_inplace(const struct inode *inode, struct page *page,
 				  unsigned int len, unsigned int offs,
 				  u64 lblk_num, gfp_t gfp_flags)
 {
+#ifdef CONFIG_DDAR
+	if (fscrypt_dd_encrypted_inode(inode)) {
+		// Invert crypto order. OEM crypto must perform after 3rd party crypto
+		return 0;
+	}
+#endif
 	return fscrypt_crypt_block(inode, FS_ENCRYPT, lblk_num, page, page,
 				   len, offs, gfp_flags);
 }
@@ -288,6 +301,13 @@ int fscrypt_decrypt_pagecache_blocks(struct page *page, unsigned int len,
 		       (offs >> blockbits);
 	unsigned int i;
 	int err;
+
+#ifdef CONFIG_DDAR
+	if (fscrypt_dd_encrypted_inode(inode)) {
+		// Invert crypto order. OEM crypto must perform after 3rd party crypto
+		return 0;
+	}
+#endif
 
 	if (WARN_ON_ONCE(!PageLocked(page)))
 		return -EINVAL;
@@ -325,6 +345,12 @@ int fscrypt_decrypt_block_inplace(const struct inode *inode, struct page *page,
 				  unsigned int len, unsigned int offs,
 				  u64 lblk_num)
 {
+#ifdef CONFIG_DDAR
+	if (fscrypt_dd_encrypted_inode(inode)) {
+		// Invert crypto order. OEM crypto must perform after 3rd party crypto
+		return 0;
+	}
+#endif
 	return fscrypt_crypt_block(inode, FS_DECRYPT, lblk_num, page, page,
 				   len, offs, GFP_NOFS);
 }

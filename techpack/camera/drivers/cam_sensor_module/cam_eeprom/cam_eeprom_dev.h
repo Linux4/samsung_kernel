@@ -241,7 +241,7 @@ typedef struct _cam_eeprom_af_idx_t {
 	uint32_t     offset;
 } AfIdx_t;
 
-#if defined (CONFIG_SEC_M52XQ_PROJECT) || defined (CONFIG_SEC_GTS7FEWIFI_PROJECT) || defined(CONFIG_SEC_A73XQ_PROJECT)
+#if defined (CONFIG_SEC_M52XQ_PROJECT) || defined (CONFIG_SEC_GTS7FEWIFI_PROJECT) || defined(CONFIG_SEC_A73XQ_PROJECT) || defined(CONFIG_SEC_XCOVERPRO2_PROJECT) || defined(CONFIG_SEC_GTACT4PRO_PROJECT) || defined(CONFIG_SEC_GTACT4PROWIFI_PROJECT)
 #define AF_CAL_NEAR_OFFSET_FROM_AF                  0x000C
 #define AF_CAL_FAR_OFFSET_FROM_AF                   0x0000
 #define AF_CAL_M1_OFFSET_FROM_AF                    0x0004

@@ -48,6 +48,8 @@
 #define WACOM_CMD_RETRY		2
 #define WACOM_INVALID_IRQ_COUNT	2
 
+#define WACOM_CMD_RESULT_WORD_LEN	20
+
 #define WACOM_I2C_MODE_NORMAL		false
 #define WACOM_I2C_MODE_BOOT		true
 
@@ -318,35 +320,52 @@ struct wacom_elec_data {
 	u16 *yx;
 	u16 *yy;
 
+	u16 *xx_self;
+	u16 *yy_self;
+	u16 *xy_edg;
+	u16 *yx_edg;
+
 	long long cal_xx;
 	long long cal_xy;
 	long long cal_yx;
 	long long cal_yy;
+	long long cal_xy_edg;
+	long long cal_yx_edg;
 
 	long long *xx_xx;
 	long long *xy_xy;
 	long long *yx_yx;
 	long long *yy_yy;
+	long long *xy_xy_edg;
+	long long *yx_yx_edg;
 
 	long long *rxx;
 	long long *rxy;
 	long long *ryx;
 	long long *ryy;
+	long long *rxy_edg;
+	long long *ryx_edg;
 
 	long long *drxx;
 	long long *drxy;
 	long long *dryx;
 	long long *dryy;
+	long long *drxy_edg;
+	long long *dryx_edg;
 
 	long long *xx_ref;
 	long long *xy_ref;
 	long long *yx_ref;
 	long long *yy_ref;
+	long long *xy_edg_ref;
+	long long *yx_edg_ref;
 
 	long long *xx_spec;
 	long long *xy_spec;
 	long long *yx_spec;
 	long long *yy_spec;
+	long long *xx_self_spec;
+	long long *yy_self_spec;
 
 	long long *rxx_ref;
 	long long *rxy_ref;
@@ -357,6 +376,8 @@ struct wacom_elec_data {
 	long long *drxy_spec;
 	long long *dryx_spec;
 	long long *dryy_spec;
+	long long *drxy_edg_spec;
+	long long *dryx_edg_spec;
 };
 
 struct wacom_g5_platform_data {

@@ -134,6 +134,7 @@ struct adsp_data {
 #ifdef CONFIG_SUPPORT_PROX_CALIBRATION
 	int32_t prox_cal;
 #endif
+	struct delayed_work pressure_cal_work;
 	int turn_over_crash;
 	int32_t hyst[4];
 };
@@ -189,5 +190,9 @@ void prox_cal_read_work_func(struct work_struct *work);
 #if defined(CONFIG_SUPPORT_BHL_COMPENSATION_FOR_LIGHT_SENSOR) || \
 	defined(CONFIG_SUPPORT_BRIGHT_SYSFS_COMPENSATION_LUX)
 int get_light_sidx(struct adsp_data *data);
+#endif
+#ifdef CONFIG_LPS22HH_FACTORY
+void pressure_factory_init_work(struct adsp_data *data);
+void pressure_cal_work_func(struct work_struct *work);
 #endif
 #endif /* __ADSP_SENSOR_H__ */

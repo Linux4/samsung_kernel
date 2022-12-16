@@ -79,6 +79,7 @@
 /* Maximum number of VSYNC wait attempts for RSC state transition */
 #define MAX_RSC_WAIT	5
 
+int dbg_cnt = 0;
 /**
  * enum sde_enc_rc_events - events for resource control state machine
  * @SDE_ENC_RC_EVENT_KICKOFF:
@@ -145,8 +146,7 @@ void sde_encoder_uidle_enable(struct drm_encoder *drm_enc, bool enable)
 		struct sde_encoder_phys *phys = sde_enc->phys_encs[i];
 
 		if (phys && phys->hw_ctl && phys->hw_ctl->ops.uidle_enable) {
-			if (enable)
-				SDE_EVT32(DRMID(drm_enc), enable);
+			SDE_EVT32(DRMID(drm_enc), enable);
 			phys->hw_ctl->ops.uidle_enable(phys->hw_ctl, enable);
 		}
 	}
@@ -272,13 +272,11 @@ static int _sde_encoder_wait_timeout(int32_t drm_id, int32_t hw_id,
 	return rc;
 }
 
-bool sde_encoder_is_primary_display(struct drm_encoder *drm_enc)
+u32 sde_encoder_get_display_type(struct drm_encoder *drm_enc)
 {
 	struct sde_encoder_virt *sde_enc = to_sde_encoder_virt(drm_enc);
 
-	return sde_enc &&
-		(sde_enc->disp_info.display_type ==
-		SDE_CONNECTOR_PRIMARY);
+	return sde_enc ? sde_enc->disp_info.display_type : 0;
 }
 
 bool sde_encoder_is_dsi_display(struct drm_encoder *drm_enc)
@@ -814,6 +812,8 @@ void sde_encoder_set_clone_mode(struct drm_encoder *drm_enc,
 			SDE_DEBUG("enc:%d phys state:%d\n", DRMID(drm_enc), phys->enable_state);
 		}
 	}
+
+	sde_crtc_state->cwb_enc_mask = 0;
 }
 
 static int _sde_encoder_atomic_check_phys_enc(struct sde_encoder_virt *sde_enc,
@@ -922,6 +922,13 @@ static int _sde_encoder_atomic_check_reserve(struct drm_encoder *drm_enc,
 			return ret;
 		}
 
+		/* Skip RM allocation for Primary during CWB usecase */
+		if ((!crtc_state->mode_changed && !crtc_state->active_changed &&
+			crtc_state->connectors_changed && (conn_state->crtc ==
+			conn_state->connector->state->crtc)) ||
+			(crtc_state->active_changed && !crtc_state->active))
+			goto skip_reserve;
+
 		/* Reserve dynamic resources, indicating atomic_check phase */
 		ret = sde_rm_reserve(&sde_kms->rm, drm_enc, crtc_state,
 			conn_state, true);
@@ -932,6 +939,7 @@ static int _sde_encoder_atomic_check_reserve(struct drm_encoder *drm_enc,
 			return ret;
 		}
 
+skip_reserve:
 		/**
 		 * Update connector state with the topology selected for the
 		 * resource set validated. Reset the topology if we are
@@ -3230,6 +3238,8 @@ static void sde_encoder_underrun_callback(struct drm_encoder *drm_enc,
 
 	SDE_ATRACE_BEGIN("encoder_underrun_callback");
 	atomic_inc(&phy_enc->underrun_cnt);
+	dbg_cnt = 0;
+	SDE_ERROR("do not make force panic : underrun count (%d)\n", atomic_read(&phy_enc->underrun_cnt));
 	SDE_EVT32(DRMID(drm_enc), atomic_read(&phy_enc->underrun_cnt));
 	if (sde_enc->cur_master &&
 			sde_enc->cur_master->ops.get_underrun_line_count)
@@ -3968,6 +3978,46 @@ bool sde_encoder_check_curr_mode(struct drm_encoder *drm_enc, u32 mode)
 	return (disp_info->curr_panel_mode == mode);
 }
 
+void sde_encoder_trigger_rsc_state_change(struct drm_encoder *drm_enc)
+{
+	struct sde_encoder_virt *sde_enc = NULL;
+	int ret = 0;
+
+	sde_enc = to_sde_encoder_virt(drm_enc);
+
+	if (!sde_enc)
+		return;
+
+	mutex_lock(&sde_enc->rc_lock);
+	/*
+	 * In dual display case when secondary comes out of
+	 * idle make sure RSC solver mode is disabled before
+	 * setting CTL_PREPARE.
+	 */
+	if (!sde_enc->cur_master ||
+		!sde_encoder_check_curr_mode(drm_enc, MSM_DISPLAY_CMD_MODE) ||
+		sde_enc->disp_info.display_type == SDE_CONNECTOR_PRIMARY ||
+		sde_enc->rc_state != SDE_ENC_RC_STATE_IDLE)
+		goto end;
+
+	/* enable all the clks and resources */
+	ret = _sde_encoder_resource_control_helper(drm_enc, true);
+	if (ret) {
+		SDE_ERROR_ENC(sde_enc, "rc in state %d\n", sde_enc->rc_state);
+		SDE_EVT32(DRMID(drm_enc), sde_enc->rc_state, SDE_EVTLOG_ERROR);
+		goto end;
+	}
+
+	_sde_encoder_update_rsc_client(drm_enc, true);
+
+	SDE_EVT32(DRMID(drm_enc), sde_enc->rc_state, SDE_ENC_RC_STATE_ON);
+	sde_enc->rc_state = SDE_ENC_RC_STATE_ON;
+
+end:
+	mutex_unlock(&sde_enc->rc_lock);
+}
+
+
 void sde_encoder_trigger_kickoff_pending(struct drm_encoder *drm_enc)
 {
 	struct sde_encoder_virt *sde_enc;
@@ -4509,24 +4559,6 @@ void sde_encoder_helper_get_pp_line_count(struct drm_encoder *drm_enc,
 			}
 		}
 	}
-}
-
-void sde_encoder_helper_get_transfer_time(struct drm_encoder *drm_enc,
-			u32 *transfer_time_us)
-{
-	struct sde_encoder_virt *sde_enc;
-	struct msm_mode_info *info;
-
-	if (!drm_enc || !transfer_time_us) {
-		SDE_ERROR("bad arg: encoder:%d transfer_time:%d\n", !drm_enc,
-				!transfer_time_us);
-		return;
-	}
-
-	sde_enc = to_sde_encoder_virt(drm_enc);
-	info = &sde_enc->mode_info;
-
-	*transfer_time_us = info->mdp_transfer_time_us;
 }
 
 int sde_encoder_helper_reset_mixers(struct sde_encoder_phys *phys_enc,

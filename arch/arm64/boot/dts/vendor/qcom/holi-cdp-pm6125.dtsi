@@ -1,6 +1,7 @@
 #include "holi-audio-overlay.dtsi"
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/linux-event-codes.h>
+#include "holi-pm7250b.dtsi"
 #include "holi-pmic-overlay-pm6125.dtsi"
 #include "holi-thermal-overlay-pm6125.dtsi"
 #include "display/holi-sde-display-cdp-pm6125.dtsi"
@@ -22,7 +23,7 @@
 
 &wcd937x_codec {
 	cdc-vdd-rxtx-supply = <&L9A>;
-	cdc-vddio-supply = <&L9A>;
+	cdc-vddpx-supply = <&L9A>;
 	qcom,cdc-static-supplies = "cdc-vdd-rxtx",
 				   "cdc-vddpx";
 	/*
@@ -147,13 +148,6 @@
 			debounce-interval = <15>;
 			linux,can-disable;
 		};
-	};
-
-	cx_ipeak_lm: cx_ipeak@3ed000 {
-		#size-cells = <1>;
-		compatible = "qcom,cx-ipeak-v2";
-		reg = <0x3ed000 0xe010>;
-		status = "ok";
 	};
 };
 
@@ -326,7 +320,7 @@
 };
 
 &pm7250b_pdphy {
-	vdd-pdphy-supply = <&L3A>;
+	vdd-pdphy-supply = <&L7E>;
 	vbus-supply = <&smb5_vbus>;
 	vconn-supply = <&smb5_vconn>;
 
@@ -367,4 +361,48 @@
 	#io-channel-cells = <1>;
 	io-channels= <&pm7250b_charger PSY_IIO_USB_REAL_TYPE>;
 	io-channel-names = "chg_type";
+};
+
+&qupv3_se10_i2c {
+	awinic@64 {
+		compatible = "awinic,aw2016_led";
+		reg = <0x64>;
+
+		awinic,red {
+			awinic,name = "red";
+			awinic,id = <0>;
+			awinic,imax = <2>;
+			awinic,led-current = <3>;
+			awinic,max-brightness = <255>;
+			awinic,rise-time-ms = <6>;
+			awinic,hold-time-ms = <0>;
+			awinic,fall-time-ms = <6>;
+			awinic,off-time-ms = <4>;
+		};
+
+		awinic,green {
+			awinic,name = "green";
+			awinic,id = <1>;
+			awinic,imax = <2>;
+			awinic,led-current = <3>;
+			awinic,max-brightness = <255>;
+			awinic,rise-time-ms = <6>;
+			awinic,hold-time-ms = <0>;
+			awinic,fall-time-ms = <6>;
+			awinic,off-time-ms = <4>;
+		};
+
+		awinic,blue {
+			awinic,name = "blue";
+			awinic,id = <2>;
+			awinic,imax = <2>;
+			awinic,led-current = <3>;
+			awinic,max-brightness = <255>;
+			awinic,rise-time-ms = <6>;
+			awinic,hold-time-ms = <0>;
+			awinic,fall-time-ms = <6>;
+			awinic,off-time-ms = <4>;
+		};
+
+	};
 };

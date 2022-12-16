@@ -17,7 +17,7 @@
 
 #include "cam_notifier.h"
 
-#if defined(CONFIG_SEC_R9Q_PROJECT) || defined(CONFIG_SEC_A52SXQ_PROJECT) || defined(CONFIG_SEC_M52XQ_PROJECT) || defined(CONFIG_SEC_A73XQ_PROJECT)
+#if defined(CONFIG_SEC_R9Q_PROJECT) || defined(CONFIG_SEC_A52SXQ_PROJECT) || defined(CONFIG_SEC_M52XQ_PROJECT) || defined(CONFIG_SEC_A73XQ_PROJECT) || defined(CONFIG_SEC_XCOVERPRO2_PROJECT)
 #define REAR3_DUAL_CAL_FW_NAME "multical.bin"
 #endif
 
@@ -34,6 +34,10 @@
 
 #ifndef TRUE
 #define TRUE 1
+#endif
+
+#if defined(CONFIG_SEC_GTACT4PRO_PROJECT) || defined(CONFIG_SEC_GTACT4PROWIFI_PROJECT)
+static unsigned int eeprom_revision = 7;     // DV1 EEPROM revision = 7
 #endif
 
 #if defined(CONFIG_SAMSUNG_CAMERA_OTP)
@@ -645,6 +649,20 @@ static int cam_eeprom_module_info_set_load_version(int rev, uint32_t hasSubCalda
 			module_fw_ver[5], module_fw_ver[6], module_fw_ver[7], module_fw_ver[8], module_fw_ver[9],
 			module_fw_ver[10]);
 
+#if defined(CONFIG_SEC_GTACT4PRO_PROJECT) || defined(CONFIG_SEC_GTACT4PROWIFI_PROJECT)
+	if(mInfo->type == SEC_WIDE_SENSOR)
+	{
+		if (module_fw_ver[0] == 'K')	// DVI EEPROM Module Info: G13QLMD00MA  , DV2 EEPROM Module Info: K13ELPER0MA
+		{
+			CAM_DBG(CAM_EEPROM, "DV2 EEPROM Revision");
+			eeprom_revision = 8;	// DV2 EEPROM Revision = 8
+		}
+		else
+		{
+			CAM_DBG(CAM_EEPROM, "DV1 EEPROM Revision");
+		}
+	}
+#endif
 		/* temp phone version */
 		snprintf(phone_fw_ver, FROM_MODULE_FW_INFO_SIZE+1, "%s%s%s%s",
 			mInfo->mVer.phone_hw_info, mInfo->mVer.phone_sw_info,
@@ -1150,7 +1168,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 
 	ModuleInfo_t 	mInfo;
 	ModuleInfo_t 	mInfoSub;
-#if defined(CONFIG_SEC_R9Q_PROJECT) || defined(CONFIG_SEC_A52SXQ_PROJECT) || defined(CONFIG_SEC_M52XQ_PROJECT) || defined(CONFIG_SEC_A73XQ_PROJECT)
+#if defined(CONFIG_SEC_R9Q_PROJECT) || defined(CONFIG_SEC_A52SXQ_PROJECT) || defined(CONFIG_SEC_M52XQ_PROJECT) || defined(CONFIG_SEC_A73XQ_PROJECT) || defined(CONFIG_SEC_XCOVERPRO2_PROJECT)
 	const struct firmware *fw = NULL;
 	struct device         *dev = e_ctrl->soc_info.dev;
 	uint32_t               fw_size;
@@ -1586,7 +1604,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 						SIZE_S_DUAL_CAL, e_ctrl->cal_data.mapdata, "rear3 tele", &mInfo);
 				}
 			}
-#if defined(CONFIG_SEC_R9Q_PROJECT) || defined(CONFIG_SEC_A52SXQ_PROJECT) || defined(CONFIG_SEC_M52XQ_PROJECT) || defined(CONFIG_SEC_A73XQ_PROJECT)
+#if defined(CONFIG_SEC_R9Q_PROJECT) || defined(CONFIG_SEC_A52SXQ_PROJECT) || defined(CONFIG_SEC_M52XQ_PROJECT) || defined(CONFIG_SEC_A73XQ_PROJECT) || defined(CONFIG_SEC_XCOVERPRO2_PROJECT)
 			/* Load FW */
 			rc = request_firmware(&fw, REAR3_DUAL_CAL_FW_NAME, dev);
 			if (rc) {
@@ -1701,6 +1719,31 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 
 			cam_eeprom_module_info_set_afcal(ADDR_M_AF, rear_idx, sizeof(rear_idx)/sizeof(rear_idx[0]),
 				e_ctrl->cal_data.mapdata, rear_af_cal_str, sizeof(rear_af_cal_str));
+		}
+#elif defined(CONFIG_SEC_GTACT4PRO_PROJECT) || defined(CONFIG_SEC_GTACT4PROWIFI_PROJECT)
+		if (eeprom_revision == 7)
+		{
+		/* AF Cal. data read */
+			{
+				AfIdx_t rear_idx[] = {
+					{AF_CAL_NEAR_IDX, AF_CAL_NEAR_OFFSET_FROM_AF},
+					{AF_CAL_FAR_IDX, AF_CAL_FAR_OFFSET_FROM_AF + 0x0010},	// DV1 Offset: 0x0010 , DV2 Offset: 0x0000  (set the 0x0000 Far offset by default in cam_eeprom_dev.h)
+				};
+				cam_eeprom_module_info_set_afcal(ADDR_M_AF, rear_idx, sizeof(rear_idx)/sizeof(rear_idx[0]),
+					e_ctrl->cal_data.mapdata, rear_af_cal_str, sizeof(rear_af_cal_str));
+			}
+		}
+		else
+		{
+		/* AF Cal. data read */
+			{
+				AfIdx_t rear_idx[] = {
+					{AF_CAL_NEAR_IDX, AF_CAL_NEAR_OFFSET_FROM_AF},
+					{AF_CAL_FAR_IDX, AF_CAL_FAR_OFFSET_FROM_AF},
+				};
+				cam_eeprom_module_info_set_afcal(ADDR_M_AF, rear_idx, sizeof(rear_idx)/sizeof(rear_idx[0]),
+					e_ctrl->cal_data.mapdata, rear_af_cal_str, sizeof(rear_af_cal_str));
+			}
 		}
 #endif
 
@@ -4794,6 +4837,7 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 	struct cam_eeprom_soc_private  *soc_private =
 		(struct cam_eeprom_soc_private *)e_ctrl->soc_info.soc_private;
 	struct cam_sensor_power_ctrl_t *power_info = &soc_private->power_info;
+	uint8_t                         crc_check_retry_cnt = 0;
 
 	ioctl_ctrl = (struct cam_control *)arg;
 
@@ -4885,6 +4929,14 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 			goto error;
 		}
 
+eeropm_crc_check:
+		rc = cam_eeprom_power_up(e_ctrl,
+			&soc_private->power_info);
+		if (rc) {
+			CAM_ERR(CAM_EEPROM, "failed rc %d", rc);
+			goto memdata_free;
+		}
+
 		if (e_ctrl->eeprom_device_type == MSM_CAMERA_SPI_DEVICE) {
 			rc = cam_eeprom_match_id(e_ctrl);
 			if (rc) {
@@ -4892,13 +4944,6 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 					"eeprom not matching %d", rc);
 				goto memdata_free;
 			}
-		}
-
-		rc = cam_eeprom_power_up(e_ctrl,
-			&soc_private->power_info);
-		if (rc) {
-			CAM_ERR(CAM_EEPROM, "failed rc %d", rc);
-			goto memdata_free;
 		}
 
 		e_ctrl->cam_eeprom_state = CAM_EEPROM_CONFIG;
@@ -4947,7 +4992,9 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 			}
 
 			if (1 < e_ctrl->cal_data.num_map) {
-				rc = cam_eeprom_get_customInfo(e_ctrl, csl_packet);
+				if (crc_check_retry_cnt == 0) {
+					rc = cam_eeprom_get_customInfo(e_ctrl, csl_packet);
+				}
 
 #if defined(CONFIG_SAMSUNG_CAMERA_OTP)
 				if(e_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR &&
@@ -4968,10 +5015,18 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 				e_ctrl->is_supported |= cam_eeprom_match_crc(&e_ctrl->cal_data,
 					e_ctrl->soc_info.index);
 
-				if (e_ctrl->is_supported != normal_crc_value)
+				if (e_ctrl->is_supported != normal_crc_value) {
 					CAM_ERR(CAM_EEPROM, "Any CRC values at F-ROM are not matched.");
-				else
+					if (crc_check_retry_cnt < 3) {
+						crc_check_retry_cnt++;
+						CAM_ERR(CAM_EEPROM, "Retry to read F-ROM : %d", crc_check_retry_cnt);
+						cam_eeprom_power_down(e_ctrl);
+						goto eeropm_crc_check;
+					}
+				} else {
 					CAM_INFO(CAM_EEPROM, "All CRC values are matched.");
+					crc_check_retry_cnt = 0;
+				}
 
 				rc = cam_eeprom_update_module_info(e_ctrl);
 				if (rc < 0) {

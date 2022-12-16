@@ -193,7 +193,25 @@ enum secdp_phy_voltage_type {
 	PHY_VOLTAGE_SWING3,	/* 1.2 v, optional */
 	MAX_VOLTAGE_LEVELS,
 };
-#endif
+
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+enum secdp_ps5169_pre_emphasis_type {
+	PHY_PS5169_EMP0,	/* 0   db */
+	PHY_PS5169_EMP1,	/* 3.5 db */
+	PHY_PS5169_EMP2,	/* 6.0 db */
+	PHY_PS5169_EMP3,	/* 9.5 db */
+	MAX_PS5169_EMP_LEVELS,
+};
+
+enum secdp_PS5169_voltage_type {
+	PHY_PS5169_SWING0,	/* 0.4 v */
+	PHY_PS5169_SWING1,	/* 0.6 v */
+	PHY_PS5169_SWING2,	/* 0.8 v */
+	PHY_PS5169_SWING3,	/* 1.2 v, optional */
+	MAX_PS5169_SWING_LEVELS,
+};
+#endif/*CONFIG_COMBO_REDRIVER_PS5169*/
+#endif/*CONFIG_SEC_DISPLAYPORT*/
 
 /**
  * struct dp_parser - DP parser's data exposed to clients
@@ -252,6 +270,7 @@ struct dp_parser {
 	int  use_redrv;   /* ptn36502 needs NOT AUX switch SEL control */
 	int  dex_dft_res; /* DeX default resolution, e.g, HG950 */
 	bool prefer_support;  /* true if prefer resolution has high priority */
+	bool mrr_fps_nolimit; /* true if mirroring refresh rate has no limit */
 
 	u8 vm_pre_emphasis[MAX_VOLTAGE_LEVELS][MAX_PRE_EMP_LEVELS];
 	u8 vm_voltage_swing[MAX_VOLTAGE_LEVELS][MAX_PRE_EMP_LEVELS];
@@ -259,7 +278,19 @@ struct dp_parser {
 	u8 dp_swing_hbr2_hbr3[MAX_VOLTAGE_LEVELS][MAX_PRE_EMP_LEVELS];
 	u8 dp_pre_emp_hbr_rbr[MAX_VOLTAGE_LEVELS][MAX_PRE_EMP_LEVELS];
 	u8 dp_swing_hbr_rbr[MAX_VOLTAGE_LEVELS][MAX_PRE_EMP_LEVELS];
-#endif
+
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+	bool ps5169_tune;
+	u8 ps5169_rbr_eq0[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS];
+	u8 ps5169_rbr_eq1[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS];
+	u8 ps5169_hbr_eq0[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS];
+	u8 ps5169_hbr_eq1[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS];
+	u8 ps5169_hbr2_eq0[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS];
+	u8 ps5169_hbr2_eq1[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS];
+	u8 ps5169_hbr3_eq0[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS];
+	u8 ps5169_hbr3_eq1[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS];
+#endif/*CONFIG_COMBO_REDRIVER_PS5169*/
+#endif/*CONFIG_SEC_DISPLAYPORT*/
 
 	int (*parse)(struct dp_parser *parser);
 	struct dp_io_data *(*get_io)(struct dp_parser *parser, char *name);

@@ -61,6 +61,8 @@ static struct fscrypt_mode *
 select_encryption_mode(const union fscrypt_policy *policy,
 		       const struct inode *inode)
 {
+	BUILD_BUG_ON(ARRAY_SIZE(fscrypt_modes) != FSCRYPT_MODE_MAX + 1);
+
 	if (S_ISREG(inode->i_mode))
 		return &fscrypt_modes[fscrypt_policy_contents_mode(policy)];
 
@@ -179,7 +181,7 @@ static int setup_per_mode_enc_key(struct fscrypt_info *ci,
 	unsigned int hkdf_infolen = 0;
 	int err;
 
-	if (WARN_ON(mode_num > __FSCRYPT_MODE_MAX))
+	if (WARN_ON(mode_num > FSCRYPT_MODE_MAX))
 		return -EINVAL;
 
 	prep_key = &keys[mode_num];
@@ -202,7 +204,7 @@ static int setup_per_mode_enc_key(struct fscrypt_info *ci,
 			err = -EINVAL;
 			goto out_unlock;
 		}
-		for (i = 0; i <= __FSCRYPT_MODE_MAX; i++) {
+		for (i = 0; i <= FSCRYPT_MODE_MAX; i++) {
 			if (fscrypt_is_key_prepared(&keys[i], ci)) {
 				fscrypt_warn(ci->ci_inode,
 					     "Each hardware-wrapped key can only be used with one encryption mode");
@@ -493,6 +495,10 @@ static void put_crypt_info(struct fscrypt_info *ci)
 	if (!ci)
 		return;
 
+#ifdef CONFIG_DDAR
+	dd_info_try_free(ci->ci_dd_info);
+#endif
+
 #ifdef CONFIG_FSCRYPT_SDP
 	fscrypt_sdp_put_sdp_info(ci->ci_sdp_info);
 #endif
@@ -533,8 +539,15 @@ int fscrypt_get_encryption_info(struct inode *inode)
 	struct key *master_key = NULL;
 	int res;
 
-	if (fscrypt_has_encryption_key(inode))
+	if (fscrypt_has_encryption_key(inode)) {
+#ifdef CONFIG_DDAR
+		if (fscrypt_dd_encrypted_inode(inode) && fscrypt_dd_is_locked()) {
+			dd_error("Failed to open a DDAR-protected file in lock state (ino:%ld)\n", inode->i_ino);
+			return -ENOKEY;
+		}
+#endif
 		return 0;
+	}
 
 	res = fscrypt_initialize(inode->i_sb->s_cop->flags);
 	if (res)
@@ -559,6 +572,13 @@ int fscrypt_get_encryption_info(struct inode *inode)
 	crypt_info = kmem_cache_zalloc(fscrypt_info_cachep, GFP_NOFS);
 	if (!crypt_info)
 		return -ENOMEM;
+
+#ifdef CONFIG_FSCRYPT_SDP
+	crypt_info->ci_sdp_info = NULL;
+#endif
+#ifdef CONFIG_DDAR
+	crypt_info->ci_dd_info = NULL;
+#endif
 
 	crypt_info->ci_inode = inode;
 
@@ -603,6 +623,20 @@ int fscrypt_get_encryption_info(struct inode *inode)
 	if (res)
 		goto out;
 
+#ifdef CONFIG_DDAR
+	if (fscrypt_ddar_protected(&ctx)) {
+		struct dd_info *di = alloc_dd_info(inode);
+		if (IS_ERR(di)) {
+			dd_error("%s - failed to alloc dd_info(%d)\n", __func__, __LINE__);
+			res = PTR_ERR(di);
+
+			goto out;
+		}
+
+		crypt_info->ci_dd_info = di;
+	}
+#endif
+
 	if (cmpxchg_release(&inode->i_crypt_info, NULL, crypt_info) == NULL) {
 		if (master_key) {
 			struct fscrypt_master_key *mk =
@@ -620,6 +654,13 @@ int fscrypt_get_encryption_info(struct inode *inode)
 #ifdef CONFIG_FSCRYPT_SDP
 	if (crypt_info == NULL) //Call only when i_crypt_info is loaded initially
 		fscrypt_sdp_finalize_tasks(inode);
+#endif
+#ifdef CONFIG_DDAR
+	if (crypt_info == NULL) {
+		if (inode->i_crypt_info && inode->i_crypt_info->ci_dd_info) {
+			fscrypt_dd_inc_count();
+		}
+	}
 #endif
 	res = 0;
 out:
@@ -645,6 +686,12 @@ EXPORT_SYMBOL(fscrypt_get_encryption_info);
  */
 void fscrypt_put_encryption_info(struct inode *inode)
 {
+#ifdef CONFIG_DDAR
+	if (inode->i_crypt_info && inode->i_crypt_info->ci_dd_info) {
+		fscrypt_dd_dec_count();
+	}
+#endif
+
 #ifdef CONFIG_FSCRYPT_SDP
 	fscrypt_sdp_cache_remove_inode_num(inode);
 #endif
@@ -731,7 +778,7 @@ static inline int __find_and_derive_mode_key(
 	unsigned int hkdf_infolen = 0;
 	int err;
 
-	if (WARN_ON(mode_num > __FSCRYPT_MODE_MAX))
+	if (WARN_ON(mode_num > FSCRYPT_MODE_MAX))
 		return -EINVAL;
 
 	mutex_lock(&fscrypt_mode_key_setup_mutex);
@@ -763,11 +810,8 @@ static inline int __find_and_derive_mode_key(
 		memcpy(fskey->raw, mode_key, mode->keysize);
 		fskey->size = mode->keysize;
 		memzero_explicit(mode_key, mode->keysize);
-		if (err)
-			goto out_unlock;
 	}
 
-	err = 0;
 out_unlock:
 	mutex_unlock(&fscrypt_mode_key_setup_mutex);
 	return err;

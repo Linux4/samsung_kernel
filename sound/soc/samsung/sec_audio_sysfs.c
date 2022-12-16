@@ -263,6 +263,96 @@ static ssize_t audio_mic_adc_show(struct device *dev,
 static DEVICE_ATTR(mic_adc, S_IRUGO | S_IWUSR | S_IWGRP,
 			audio_mic_adc_show, NULL);
 
+int audio_register_headset_state_cb(int (*headset_state) (void))
+{
+	if (audio_data->get_headset_state) {
+		dev_err(audio_data->jack_dev,
+				"%s: Already registered\n", __func__);
+		return -EEXIST;
+	}
+
+	audio_data->get_headset_state = headset_state;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(audio_register_headset_state_cb);
+
+static ssize_t audio_headset_state_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int report = 0;
+
+	if (audio_data->get_headset_state)
+		report = audio_data->get_headset_state();
+	else
+		dev_info(dev, "%s: No callback registered\n", __func__);
+
+	return snprintf(buf, 4, "%d\n", report);
+}
+
+static DEVICE_ATTR(headset_state, S_IRUGO | S_IWUSR | S_IWGRP,
+			audio_headset_state_show, NULL);
+
+int audio_register_l_impedance_cb(int (*l_impedance) (void))
+{
+	if (audio_data->get_l_impedance) {
+		dev_err(audio_data->jack_dev,
+				"%s: Already registered\n", __func__);
+		return -EEXIST;
+	}
+
+	audio_data->get_l_impedance = l_impedance;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(audio_register_l_impedance_cb);
+
+static ssize_t audio_l_impedance_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int l_impedance = 0;
+
+	if (audio_data->get_l_impedance)
+		l_impedance = audio_data->get_l_impedance();
+	else
+		dev_info(dev, "%s: No callback registered\n", __func__);
+
+	return snprintf(buf, 16, "%d\n", l_impedance);
+}
+
+static DEVICE_ATTR(l_impedance, S_IRUGO | S_IWUSR | S_IWGRP,
+			audio_l_impedance_show, NULL);
+
+int audio_register_r_impedance_cb(int (*r_impedance) (void))
+{
+	if (audio_data->get_r_impedance) {
+		dev_err(audio_data->jack_dev,
+				"%s: Already registered\n", __func__);
+		return -EEXIST;
+	}
+
+	audio_data->get_r_impedance = r_impedance;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(audio_register_r_impedance_cb);
+
+static ssize_t audio_r_impedance_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int r_impedance = 0;
+
+	if (audio_data->get_r_impedance)
+		r_impedance = audio_data->get_r_impedance();
+	else
+		dev_info(dev, "%s: No callback registered\n", __func__);
+
+	return snprintf(buf, 16, "%d\n", r_impedance);
+}
+
+static DEVICE_ATTR(r_impedance, S_IRUGO | S_IWUSR | S_IWGRP,
+			audio_r_impedance_show, NULL);
+
 int audio_register_force_enable_antenna_cb(int (*force_enable_antenna) (int))
 {
 	if (audio_data->set_force_enable_antenna) {
@@ -333,6 +423,9 @@ static struct attribute *sec_audio_jack_attr[] = {
 	&dev_attr_state.attr,
 	&dev_attr_key_state.attr,
 	&dev_attr_mic_adc.attr,
+	&dev_attr_headset_state.attr,
+	&dev_attr_l_impedance.attr,
+	&dev_attr_r_impedance.attr,
 	&dev_attr_force_enable_antenna.attr,
 	&dev_attr_antenna_state.attr,
 	NULL,

@@ -333,7 +333,7 @@ exit:
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 /* Reset regulater control when aot_reset_regulator enabled
- * regulator name should be "panel_reset"
+ * regulator name should be "panel_reset" or "lcd_rst"
  */
 static int dsi_panel_reset_regulator(struct dsi_panel *panel, bool enable)
 {
@@ -346,7 +346,8 @@ static int dsi_panel_reset_regulator(struct dsi_panel *panel, bool enable)
 
 	/* Find number of "panel-reset" supply-name order among qcom,panel-supply-entries */
 	for (i = 0; i < panel->power_info.count; i++) {
-		if (!strcmp((panel->power_info.vregs + i)->vreg_name, "panel_reset"))
+		if (!strcmp((panel->power_info.vregs + i)->vreg_name, "panel_reset") ||
+				!strcmp((panel->power_info.vregs + i)->vreg_name, "lcd_rst"))
 			break;
 	}
 
@@ -551,6 +552,8 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		vdd->panel_dead = false;
 	}
 
+	ss_panel_power_on_pre(vdd);
+
 	/*
 		AOT disable on factory binary.
 	*/
@@ -641,6 +644,10 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 	}
 #endif
 
+	if (panel->is_twm_en) {
+		DSI_DEBUG("TWM Enabled, skip panel power off\n");
+		return rc;
+	}
 	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
 		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
 
@@ -700,6 +707,8 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 			DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
 					panel->name, rc);
 	}
+
+	ss_panel_power_off_post(panel->panel_private);
 #else
 	rc = dsi_pwr_enable_regulator(&panel->power_info, false);
 	if (rc)
@@ -1379,6 +1388,9 @@ static int dsi_panel_parse_pixel_format(struct dsi_host_common_cfg *host,
 		break;
 	case 18:
 		fmt = DSI_PIXEL_FORMAT_RGB666;
+		break;
+	case 30:
+		fmt = DSI_PIXEL_FORMAT_RGB101010;
 		break;
 	case 24:
 	default:
@@ -2699,12 +2711,16 @@ static int dsi_panel_parse_jitter_config(
 	return 0;
 }
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+bool pba_regulator_control_ss;
+#endif
 static int dsi_panel_parse_power_cfg(struct dsi_panel *panel)
 {
 	int rc = 0;
 	char *supply_name;
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd;
+	struct dsi_parser_utils *utils = &panel->utils;
 #endif
 
 	if (panel->host_config.ext_bridge_mode)
@@ -2713,12 +2729,20 @@ static int dsi_panel_parse_power_cfg(struct dsi_panel *panel)
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	vdd = panel->panel_private;
 
+	/* ss_pba_regulator_control:
+	 * To turn off regulator while PBA boot
+	 * Caution!, both panels should have PBA regulators if with DSI1
+	 */
+	pba_regulator_control_ss = utils->read_bool(utils->data, "qcom,mdss-dsi-pba-regulator_ss");
+	LCD_INFO(vdd, "parse qcom,mdss-dsi-pba-regulator_ss: %d\n", pba_regulator_control_ss);
+
 	/* In this point, vdd->panel_attach_status has invalid data.
 	 * So, use panel name to verify PBA booting,
 	 * intead of ss_panel_attach_get().
 	 */
-	if (!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
-			!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1")) {
+	if ((!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
+		!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1"))
+		&& !pba_regulator_control_ss) {
 		LCD_INFO(vdd, "PBA booting, skip to parse vreg\n");
 		goto error;
 	}
@@ -5030,10 +5054,13 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
+	if (panel->is_twm_en) {
+		DSI_DEBUG("TWM Enabled, skip idle off\n");
+		return rc;
+	}
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, true);
 #endif
-
 	mutex_lock(&panel->panel_lock);
 	if (!panel->panel_initialized)
 		goto exit;
@@ -5743,13 +5770,16 @@ int dsi_panel_disable(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
+	if (panel->is_twm_en) {
+		DSI_DEBUG("TWM Enabled, skip panel disable\n");
+		return rc;
+	}
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	vdd = panel->panel_private;
 
 	LCD_INFO(vdd, "++\n");
 	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, true);
 #endif
-
 	mutex_lock(&panel->panel_lock);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)

@@ -157,6 +157,7 @@
 	{feature_safeplace_path,"/vendor/bin/dsmsca"},
 	{feature_safeplace_path,"/vendor/bin/hw/android.hardware.usb@1.3-service.coral"},
 	{feature_safeplace_path,"/vendor/bin/hw/vendor.qti.hardware.perf-hal-service"},
+	{feature_safeplace_path,"/vendor/bin/iod"},
 	{feature_safeplace_path,"/system/bin/rdxd"},
 	{feature_safeplace_path,"/system/system_ext/bin/dpmd"},
 	{feature_safeplace_path,"/vendor/bin/init.qti.dcvs.sh"},

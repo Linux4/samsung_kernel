@@ -197,6 +197,8 @@ obj-$(CONFIG_SENSORS_SSC)	+= sensors/
 obj-$(CONFIG_ADSP_FACTORY)      += adsp_factory/
 # COMBO REDRIVER
 obj-$(CONFIG_COMBO_REDRIVER_PS5169)	+= redriver/
+# SM5504 POGO
+obj-y	+= pogo/
 
 # SPU signature verify
 obj-$(CONFIG_SPU_VERIFY) += spu_verify/

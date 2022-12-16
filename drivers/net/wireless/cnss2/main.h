@@ -506,6 +506,10 @@ struct cnss_plat_data {
 	struct device_node *dev_node;
 	u64 feature_list;
 	bool adsp_pc_enabled;
+#ifdef CONFIG_SEC_SS_CNSS2_FEATURE_SYSFS
+	struct kobject *wifi_kobj;
+	struct completion macloader_done;
+#endif /* CONFIG_SEC_SS_CNSS_FEATURE_SYSFS */
 };
 
 #ifdef CONFIG_ARCH_QCOM

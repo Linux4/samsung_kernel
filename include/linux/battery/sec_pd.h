@@ -25,6 +25,7 @@
 #define __SEC_PD_H__
 #define MAX_PDO_NUM 8
 #define AVAILABLE_VOLTAGE 9000
+#define DEFAULT_VOLTAGE 5000
 #define UNIT_FOR_VOLTAGE 50
 #define UNIT_FOR_CURRENT 10
 #define UNIT_FOR_APDO_VOLTAGE 100
@@ -108,6 +109,7 @@ int sec_pd_select_pdo(int num);
 int sec_pd_select_pps(int num, int ppsVol, int ppsCur);
 int sec_pd_vpdo_auth(int auth, int d2d_type);
 int sec_pd_get_apdo_max_power(unsigned int *pdo_pos, unsigned int *taMaxVol, unsigned int *taMaxCur, unsigned int *taMaxPwr);
+int sec_pd_get_selected_pdo(unsigned int *pdo);
 void sec_pd_init_data(SEC_PD_SINK_STATUS* psink_status);
 int sec_pd_register_chg_info_cb(void *cb);
 int sec_pd_get_chg_info(void);
@@ -119,6 +121,7 @@ static inline int sec_pd_select_pdo(int num) { return -ENODEV; }
 static inline int sec_pd_select_pps(int num, int ppsVol, int ppsCur) { return -ENODEV; }
 static inline int sec_pd_vpdo_auth(int auth, int d2d_type) { return -ENODEV; }
 static inline int sec_pd_get_apdo_max_power(unsigned int *pdo_pos, unsigned int *taMaxVol, unsigned int *taMaxCur, unsigned int *taMaxPwr) { return -ENODEV; }
+static inline int sec_pd_get_selected_pdo(unsigned int *pdo) { return -ENODEV; }
 static inline void sec_pd_init_data(SEC_PD_SINK_STATUS* psink_status) { }
 static inline int sec_pd_register_chg_info_cb(void *cb) { return 0; }
 static inline void sec_pd_get_vid_pid(unsigned short *vid, unsigned short *pid, unsigned int *xid) { }

@@ -2221,6 +2221,8 @@ static int sde_kms_postinit(struct msm_kms *kms)
 	struct sde_kms *sde_kms = to_sde_kms(kms);
 	struct drm_device *dev;
 	struct drm_crtc *crtc;
+	struct drm_connector *conn;
+	struct drm_connector_list_iter conn_iter;
 	int rc;
 
 	if (!sde_kms || !sde_kms->dev || !sde_kms->dev->dev) {
@@ -2243,6 +2245,10 @@ static int sde_kms_postinit(struct msm_kms *kms)
 	drm_for_each_crtc(crtc, dev)
 		sde_crtc_post_init(dev, crtc);
 
+	drm_connector_list_iter_begin(dev, &conn_iter);
+	drm_for_each_connector_iter(conn, &conn_iter)
+		sde_connector_post_init(dev, conn);
+	drm_connector_list_iter_end(&conn_iter);
 	return rc;
 }
 
@@ -2832,7 +2838,6 @@ static int sde_kms_check_vm_request(struct msm_kms *kms,
 				!vm_ops->vm_acquire)
 		return -EINVAL;
 
-	sde_vm_lock(sde_kms);
 
 	for_each_oldnew_crtc_in_state(state, crtc, old_cstate, new_cstate, i) {
 		struct sde_crtc_state *old_state = NULL, *new_state = NULL;
@@ -2853,6 +2858,9 @@ static int sde_kms_check_vm_request(struct msm_kms *kms,
 		 * VM_REQ_NONE to VM_REQ_NONE
 		 */
 		if (old_vm_req || new_vm_req) {
+			if (!vm_req_active)
+				sde_vm_lock(sde_kms);
+
 			rc = vm_ops->vm_request_valid(sde_kms,
 					old_vm_req, new_vm_req);
 			if (rc) {
@@ -2860,11 +2868,15 @@ static int sde_kms_check_vm_request(struct msm_kms *kms,
 				"VM transition check failed; o_state:%d, n_state:%d, hw_owner:%d, rc:%d\n",
 					old_vm_req, new_vm_req,
 					vm_ops->vm_owns_hw(sde_kms), rc);
+				if (!vm_req_active)
+					sde_vm_unlock(sde_kms);
 				goto end;
 			} else if (old_vm_req == VM_REQ_ACQUIRE &&
 					new_vm_req == VM_REQ_NONE) {
 				SDE_DEBUG(
 				"VM transition valid; ignore further checks\n");
+				if (!vm_req_active)
+					sde_vm_unlock(sde_kms);
 			} else {
 				vm_req_active = true;
 			}
@@ -2962,7 +2974,8 @@ static int sde_kms_check_vm_request(struct msm_kms *kms,
 	}
 
 end:
-	sde_vm_unlock(sde_kms);
+	if (vm_req_active)
+		sde_vm_unlock(sde_kms);
 
 	return rc;
 }
@@ -4870,6 +4883,7 @@ struct msm_kms *sde_kms_init(struct drm_device *dev)
 
 	msm_kms_init(&sde_kms->base, &kms_funcs);
 	sde_kms->dev = dev;
+	sde_kms->irq_num = -1;
 
 	return &sde_kms->base;
 }

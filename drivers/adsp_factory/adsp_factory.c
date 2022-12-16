@@ -295,6 +295,9 @@ static int process_received_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 #ifdef CONFIG_VBUS_NOTIFIER
 		sns_vbus_init_work();
 #endif
+#ifdef CONFIG_LPS22HH_FACTORY
+		pressure_factory_init_work(data);
+#endif
 		return 0;
 	}
 
@@ -370,7 +373,9 @@ static int __init factory_adsp_init(void)
 	INIT_DELAYED_WORK(&data->light_fifo_debug_work,
 		light_fifo_debug_work_func);
 #endif
-
+#ifdef CONFIG_LPS22HH_FACTORY
+	INIT_DELAYED_WORK(&data->pressure_cal_work, pressure_cal_work_func);
+#endif
 	pr_info("[FACTORY] %s: Timer Init\n", __func__);
 	return 0;
 }

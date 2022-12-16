@@ -1350,9 +1350,14 @@ static int spi_geni_prepare_transfer_hardware(struct spi_master *spi)
 		struct se_geni_rsc *rsc;
 		int ret = 0;
 
-		rsc = &mas->spi_rsc;
-		ret = pinctrl_select_state(rsc->geni_pinctrl,
-					rsc->geni_gpio_active);
+		if (!mas->is_la_vm) {
+			/* Do this only for non TVM LA usecase */
+			/* May not be needed here, but maintain parity */
+			rsc = &mas->spi_rsc;
+			ret = pinctrl_select_state(rsc->geni_pinctrl,
+						rsc->geni_gpio_active);
+		}
+
 		if (ret)
 			GENI_SE_ERR(mas->ipc, false, NULL,
 			"%s: Error %d pinctrl_select_state\n", __func__, ret);
@@ -1400,17 +1405,17 @@ static int spi_geni_unprepare_transfer_hardware(struct spi_master *spi)
 	if (mas->shared_ee || mas->is_le_vm)
 		return 0;
 
-	if (mas->is_la_vm)
-		/* Client on LA VM to controls resources, hence return */
-		return 0;
-
 	if (mas->gsi_mode) {
 		struct se_geni_rsc *rsc;
 		int ret = 0;
 
-		rsc = &mas->spi_rsc;
-		ret = pinctrl_select_state(rsc->geni_pinctrl,
+		if (!mas->is_la_vm) {
+			/* Do this only for non TVM LA usecase */
+			rsc = &mas->spi_rsc;
+			ret = pinctrl_select_state(rsc->geni_pinctrl,
 						rsc->geni_gpio_sleep);
+		}
+
 		if (ret)
 			GENI_SE_ERR(mas->ipc, false, NULL,
 			"%s: Error %d pinctrl_select_state\n", __func__, ret);
@@ -1997,6 +2002,7 @@ static int spi_geni_probe(struct platform_device *pdev)
 		dev_info(&pdev->dev, "LA-VM usecase\n");
 	}
 
+	geni_mas->spi_rsc.wrapper_dev = &wrapper_pdev->dev;
 	/*
 	 * For LE, clocks, gpio and icb voting will be provided by
 	 * by LA. The SPI operates in GSI mode only for LE usecase,
@@ -2004,7 +2010,6 @@ static int spi_geni_probe(struct platform_device *pdev)
 	 * in SPI LE dt.
 	 */
 	if (!geni_mas->is_le_vm) {
-		geni_mas->spi_rsc.wrapper_dev = &wrapper_pdev->dev;
 		ret = geni_se_resources_init(rsc, SPI_CORE2X_VOTE,
 					(DEFAULT_SE_CLK * DEFAULT_BUS_WIDTH));
 		if (ret) {
@@ -2022,6 +2027,12 @@ static int spi_geni_probe(struct platform_device *pdev)
 
 		rsc->geni_gpio_active = pinctrl_lookup_state(rsc->geni_pinctrl,
 							PINCTRL_DEFAULT);
+#if defined(CONFIG_NFC_FEATURE_SN100U)
+		if (of_property_read_bool(pdev->dev.of_node, "secnfc,pinctrl_active")) {
+			rsc->geni_gpio_active = pinctrl_lookup_state(rsc->geni_pinctrl,
+					"active");
+		}
+#endif
 		if (IS_ERR_OR_NULL(rsc->geni_gpio_active)) {
 			dev_err(&pdev->dev, "No default config specified!\n");
 			ret = PTR_ERR(rsc->geni_gpio_active);
@@ -2036,12 +2047,18 @@ static int spi_geni_probe(struct platform_device *pdev)
 			goto spi_geni_probe_err;
 		}
 
+#if defined(CONFIG_NFC_FEATURE_SN100U)
+		if (!of_property_read_bool(pdev->dev.of_node, "secnfc,pinctrl_skip_sleep")) {
+#endif
 		ret = pinctrl_select_state(rsc->geni_pinctrl,
 						rsc->geni_gpio_sleep);
 		if (ret) {
 			dev_err(&pdev->dev, "Failed to set sleep configuration\n");
 			goto spi_geni_probe_err;
 		}
+#if defined(CONFIG_NFC_FEATURE_SN100U)
+		}
+#endif
 
 		rsc->se_clk = devm_clk_get(&pdev->dev, "se-clk");
 		if (IS_ERR(rsc->se_clk)) {

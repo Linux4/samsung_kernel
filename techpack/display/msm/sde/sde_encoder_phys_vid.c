@@ -501,7 +501,7 @@ static void sde_encoder_phys_vid_vblank_irq(void *arg, int irq_idx)
 	struct drm_connector *conn = phys_enc ? phys_enc->connector : NULL;
 	struct sde_connector *sde_conn;
 	struct dsi_display *disp;
-	struct samsung_display_driver_data *vdd;
+	struct samsung_display_driver_data *vdd = NULL;
 
 	if (conn) {
 		if (phys_enc->parent->encoder_type == DRM_MODE_ENCODER_DSI) {
@@ -605,7 +605,7 @@ static void sde_encoder_phys_vid_underrun_irq(void *arg, int irq_idx)
 	struct drm_connector *conn = phys_enc ? phys_enc->connector : NULL;
 	struct sde_connector *sde_conn;
 	struct dsi_display *disp;
-	struct samsung_display_driver_data *vdd;
+	struct samsung_display_driver_data *vdd = NULL;
 
 	if (conn) {
 		if (phys_enc->parent->encoder_type == DRM_MODE_ENCODER_DSI) {
@@ -639,9 +639,9 @@ static void sde_encoder_phys_vid_underrun_irq(void *arg, int irq_idx)
 	if (phys_enc->parent->encoder_type == DRM_MODE_ENCODER_DSI) {
 		SDE_DEBUG_VIDENC(to_sde_encoder_phys_vid(phys_enc), "underrun\n");
 #if defined(CONFIG_SEC_DEBUG)
-		if (sec_debug_is_enabled() && ss_panel_attach_get(vdd)) {
+		if (vdd && sec_debug_is_enabled() && ss_panel_attach_get(vdd)) {
 			SDE_EVT32(DRMID(phys_enc->parent), SDE_EVTLOG_FATAL);
-			SDE_DBG_DUMP_WQ("all", "dbg_bus", "vbif_dbg_bus", "panic");
+			//SDE_DBG_DUMP_WQ("all", "dbg_bus", "vbif_dbg_bus", "panic");
 		}
 #endif
 	}
@@ -1132,8 +1132,8 @@ static void sde_encoder_phys_vid_disable(struct sde_encoder_phys *phys_enc)
 	struct drm_connector *conn = phys_enc ? phys_enc->connector : NULL;
 	struct sde_connector *sde_conn;
 	struct dsi_display *disp;
-	struct samsung_display_driver_data *vdd;
-	
+	struct samsung_display_driver_data *vdd = NULL;
+
 	if (conn) {
 		if (phys_enc->parent->encoder_type == DRM_MODE_ENCODER_DSI) {
 			sde_conn = to_sde_connector(conn);
@@ -1220,12 +1220,41 @@ exit:
 	phys_enc->enable_state = SDE_ENC_DISABLED;
 }
 
+static int sde_encoder_phys_vid_poll_for_active_region(struct sde_encoder_phys *phys_enc)
+{
+	struct sde_encoder_phys_vid *vid_enc;
+	struct intf_timing_params *timing;
+	u32 line_cnt, v_inactive, poll_time_us, trial = 0;
+
+	if (!phys_enc || !phys_enc->hw_intf || !phys_enc->hw_intf->ops.get_line_count)
+		return -EINVAL;
+
+	vid_enc = to_sde_encoder_phys_vid(phys_enc);
+	timing = &vid_enc->timing_params;
+
+	/* if programmable fetch is not enabled return early */
+	if (!programmable_fetch_get_num_lines(vid_enc, timing))
+		return 0;
+
+	poll_time_us = DIV_ROUND_UP(1000000, timing->vrefresh) / MAX_POLL_CNT;
+	v_inactive = timing->v_front_porch + timing->v_back_porch + timing->vsync_pulse_width;
+
+	do {
+		usleep_range(poll_time_us, poll_time_us + 5);
+		line_cnt = phys_enc->hw_intf->ops.get_line_count(phys_enc->hw_intf);
+		trial++;
+	} while ((trial < MAX_POLL_CNT) || (line_cnt < v_inactive));
+
+	return (trial >= MAX_POLL_CNT) ? -ETIMEDOUT : 0;
+}
+
 static void sde_encoder_phys_vid_handle_post_kickoff(
 		struct sde_encoder_phys *phys_enc)
 {
 	unsigned long lock_flags;
 	struct sde_encoder_phys_vid *vid_enc;
 	u32 avr_mode;
+	u32 ret;
 
 	if (!phys_enc) {
 		SDE_ERROR("invalid encoder\n");
@@ -1248,6 +1277,10 @@ static void sde_encoder_phys_vid_handle_post_kickoff(
 				1);
 			spin_unlock_irqrestore(phys_enc->enc_spinlock,
 				lock_flags);
+
+			ret = sde_encoder_phys_vid_poll_for_active_region(phys_enc);
+			if (ret)
+				SDE_DEBUG_VIDENC(vid_enc, "poll for active failed ret:%d\n", ret);
 		}
 		phys_enc->enable_state = SDE_ENC_ENABLED;
 	}

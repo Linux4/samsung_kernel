@@ -3,6 +3,7 @@
 config CNSS2
 	tristate "CNSS2 Platform Driver for Wi-Fi Module"
 	depends on !CNSS && PCI_MSM
+	select SEC_SS_CNSS2_FEATURE_SYSFS if ICNSS2 != y && ICNSS2 != m
 	help
 	  This module adds the support for Connectivity Subsystem (CNSS) used
 	  for PCIe based Wi-Fi devices with QCA6174/QCA6290 chipsets.
@@ -104,3 +105,7 @@ config CNSS_REQ_FW_DIRECT
 	  This enables calling request_firmware_direct for firmware or
 	  configuration file to avoid 60s timeout while search file under user
 	  space failure.
+
+config SEC_SS_CNSS2_FEATURE_SYSFS
+	bool "SS Feature sysfs support"
+	depends on CNSS2 && ICNSS2 != y && ICNSS2 != m

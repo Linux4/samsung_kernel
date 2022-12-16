@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2012-2017, 2019 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, 2019, 2021 The Linux Foundation. All rights reserved.
  */
 
 #ifndef __MSM_DAI_Q6_PDATA_H__

@@ -110,6 +110,23 @@ int sec_pd_get_apdo_max_power(unsigned int *pdo_pos, unsigned int *taMaxVol, uns
 }
 EXPORT_SYMBOL(sec_pd_get_apdo_max_power);
 
+int sec_pd_get_selected_pdo(unsigned int *pdo)
+{
+	if (pdo == NULL) {
+		pr_err("%s: invalid argument\n", __func__);
+		return -1;
+	}
+
+	if (!g_psink_status) {
+		pr_err("%s: g_psink_status is NULL\n", __func__);
+		return -1;
+	}
+
+	*pdo = g_psink_status->selected_pdo_num;
+	return 0;
+}
+EXPORT_SYMBOL(sec_pd_get_selected_pdo);
+
 void sec_pd_init_data(SEC_PD_SINK_STATUS* psink_status)
 {
 	g_psink_status = psink_status;

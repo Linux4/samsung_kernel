@@ -706,14 +706,16 @@ static int subsystem_powerup(struct subsys_device *dev, void *data)
 		notify_each_subsys_device(&dev, 1, SUBSYS_POWERUP_FAILURE,
 								NULL);
 		if (system_state == SYSTEM_RESTART
-			|| system_state == SYSTEM_POWER_OFF)
+			|| system_state == SYSTEM_POWER_OFF) {
 			WARN(1, "SSR aborted: %s, system reboot/shutdown is under way\n",
 				name);
-		else if (!dev->desc->ignore_ssr_failure)
+		} else if (!dev->desc->ignore_ssr_failure) {
 			panic("[%s:%d]: Powerup error: %s!",
 				current->comm, current->pid, name);
-		else
-			pr_err("Powerup failure on %s\n", name);
+		} else {
+			pr_err("Powerup failure on %s(rc:%d)\n", name, ret);
+			dump_stack();
+		}
 		return ret;
 	}
 
@@ -1128,14 +1130,26 @@ int subsystem_restart_dev(struct subsys_device *dev)
 	} else
 		pr_info("SSR by only ap debug level!!\n");
 
-	if (strcmp(name, "wpss")) {
-		if (!sec_debug_is_enabled() || (!ssr_disable))
-			dev->restart_level = RESET_SUBSYS_COUPLED;
-		else
-			dev->restart_level = RESET_SOC;
-	}
+	if (!sec_debug_is_enabled() || (!ssr_disable))
+		dev->restart_level = RESET_SUBSYS_COUPLED;
+	else
+		dev->restart_level = RESET_SOC;
 #endif
 
+	if (!strcmp(name, "wlan") || !strcmp(name, "wpss")) {
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+		if (!sec_debug_is_enabled() || enable_ramdumps != 3) {
+#else
+		if (enable_ramdumps != 3) {
+#endif
+			pr_info("wpss : RESET_SUBSYS");
+			dev->restart_level = RESET_SUBSYS_COUPLED;
+		} else {
+			pr_info("wpss : RESET_SOC");
+			dev->restart_level = RESET_SOC;
+		}
+	}
+	
 	/* force modem silent ssr */
 	if (!strncmp(name, "modem", 5)) {
 		if (silent_ssr) {
@@ -1219,7 +1233,7 @@ int subsys_force_stop(struct msm_ipc_subsys_request *req)
 
 	/* set RIL force crash reason if needed */
 	if (!silent_ssr)
-		strncpy(ril_fcr, req->reason, sizeof(ril_fcr));
+		strncpy(ril_fcr, req->reason, sizeof(ril_fcr) - 1);
 
 	subsys->desc->crash_shutdown(subsys->desc);
 	return 0;

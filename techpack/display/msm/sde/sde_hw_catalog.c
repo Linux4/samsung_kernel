@@ -429,6 +429,7 @@ enum {
 	MIXER_BLOCKS,
 	MIXER_DISP,
 	MIXER_CWB,
+	MIXER_CWB_MASK,
 	MIXER_PROP_MAX,
 };
 
@@ -714,6 +715,7 @@ static struct sde_prop_type mixer_prop[] = {
 		PROP_TYPE_STRING_ARRAY},
 	{MIXER_CWB, "qcom,sde-mixer-cwb-pref", false,
 		PROP_TYPE_STRING_ARRAY},
+	{MIXER_CWB_MASK, "qcom,sde-mixer-cwb-mask", false, PROP_TYPE_U32_ARRAY},
 };
 
 static struct sde_prop_type mixer_blocks_prop[] = {
@@ -1923,6 +1925,8 @@ static int sde_ctl_parse_dt(struct device_node *np,
 				ctl_prop[HW_DISP].prop_name, i, &disp_pref);
 		if (disp_pref && !strcmp(disp_pref, "primary"))
 			set_bit(SDE_CTL_PRIMARY_PREF, &ctl->features);
+		if (disp_pref && !strcmp(disp_pref, "secondary"))
+			set_bit(SDE_CTL_SECONDARY_PREF, &ctl->features);
 		if ((i < MAX_SPLIT_DISPLAY_CTL) &&
 			!(IS_SDE_CTL_REV_100(sde_cfg->ctl_rev)))
 			set_bit(SDE_CTL_SPLIT_DISPLAY, &ctl->features);
@@ -1941,10 +1945,47 @@ static int sde_ctl_parse_dt(struct device_node *np,
 	return 0;
 }
 
-void sde_hw_mixer_set_preference(struct sde_mdss_cfg *sde_cfg, u32 num_lm,
+void sde_hw_ctl_set_preference(struct sde_mdss_cfg *sde_cfg,
+			uint32_t disp_type)
+{
+	u32 i;
+
+	if (!IS_SDE_CTL_REV_100(sde_cfg->ctl_rev))
+		return;
+
+	if (disp_type == SDE_CONNECTOR_PRIMARY) {
+		for (i = 0; i < sde_cfg->ctl_count; i++) {
+			/* Exit if already set in dt file*/
+			if (sde_cfg->ctl[i].features & BIT(SDE_CTL_PRIMARY_PREF))
+				return;
+		}
+		for (i = 0; i < sde_cfg->ctl_count; i++) {
+			/* Set preference here*/
+			if (!(sde_cfg->ctl[i].features & BIT(SDE_CTL_SECONDARY_PREF))) {
+				set_bit(SDE_CTL_PRIMARY_PREF, &sde_cfg->ctl[i].features);
+				return;
+			}
+		}
+	} else if (disp_type == SDE_CONNECTOR_SECONDARY) {
+		for (i = 0; i < sde_cfg->ctl_count; i++) {
+			/* Exit if already set in dt file*/
+			if (sde_cfg->ctl[i].features & BIT(SDE_CTL_SECONDARY_PREF))
+				return;
+		}
+		for (i = 0; i < sde_cfg->ctl_count; i++) {
+			/* Set preference here*/
+			if (!(sde_cfg->ctl[i].features & BIT(SDE_CTL_PRIMARY_PREF))) {
+				set_bit(SDE_CTL_SECONDARY_PREF, &sde_cfg->ctl[i].features);
+				return;
+			}
+		}
+	}
+}
+
+u32 sde_hw_mixer_set_preference(struct sde_mdss_cfg *sde_cfg, u32 num_lm,
 		uint32_t disp_type)
 {
-	u32 i, cnt = 0, sec_cnt = 0;
+	u32 i, cnt = 0, sec_cnt = 0, lm_mask = 0;
 
 	if (disp_type == SDE_CONNECTOR_PRIMARY) {
 		for (i = 0; i < sde_cfg->mixer_count; i++) {
@@ -1963,6 +2004,7 @@ void sde_hw_mixer_set_preference(struct sde_mdss_cfg *sde_cfg, u32 num_lm,
 			if (cnt < num_lm) {
 				set_bit(SDE_DISP_PRIMARY_PREF,
 						&sde_cfg->mixer[i].features);
+				lm_mask |=  BIT(sde_cfg->mixer[i].id - 1);
 				cnt++;
 			}
 
@@ -2001,10 +2043,13 @@ void sde_hw_mixer_set_preference(struct sde_mdss_cfg *sde_cfg, u32 num_lm,
 					BIT(SDE_DISP_PRIMARY_PREF))) {
 				set_bit(SDE_DISP_SECONDARY_PREF,
 						&sde_cfg->mixer[i].features);
+				lm_mask |= BIT(sde_cfg->mixer[i].id - 1);
 				cnt++;
 			}
 		}
 	}
+
+	return lm_mask;
 }
 
 static int sde_mixer_parse_dt(struct device_node *np,
@@ -2115,6 +2160,9 @@ static int sde_mixer_parse_dt(struct device_node *np,
 
 		if (BIT(mixer->id - LM_0) & sde_cfg->cwb_virtual_mixers_mask)
 			set_bit(SDE_MIXER_IS_VIRTUAL, &mixer->features);
+
+		mixer->cwb_mask = !props->exists[MIXER_CWB_MASK] ? 0x0 :
+				PROP_VALUE_ACCESS(props->values, MIXER_CWB_MASK, i);
 
 		mixer->pingpong = pp_count > 0 ? pp_idx + PINGPONG_0
 							: PINGPONG_MAX;
@@ -4732,6 +4780,19 @@ static int _sde_hardware_pre_caps(struct sde_mdss_cfg *sde_cfg, uint32_t hw_rev)
 		sde_cfg->has_vig_p010 = true;
 		sde_cfg->vbif_disable_inner_outer_shareable = true;
 	} else if (IS_SCUBA_TARGET(hw_rev)) {
+		sde_cfg->has_cwb_support = false;
+		sde_cfg->has_qsync = true;
+		sde_cfg->perf.min_prefill_lines = 24;
+		sde_cfg->vbif_qos_nlvl = 8;
+		sde_cfg->ts_prefill_rev = 2;
+		sde_cfg->ctl_rev = SDE_CTL_CFG_VERSION_1_0_0;
+		sde_cfg->delay_prg_fetch_start = true;
+		sde_cfg->sui_ns_allowed = true;
+		sde_cfg->sui_misr_supported = true;
+		sde_cfg->sui_block_xin_mask = 0x1;
+		sde_cfg->has_hdr = false;
+		sde_cfg->has_sui_blendstage = true;
+	} else if (IS_MONACO_TARGET(hw_rev)) {
 		sde_cfg->has_cwb_support = false;
 		sde_cfg->has_qsync = true;
 		sde_cfg->perf.min_prefill_lines = 24;

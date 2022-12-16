@@ -317,6 +317,35 @@ static void dp_catalog_ctrl_phy_lane_cfg_v420(struct dp_catalog_ctrl *ctrl,
 	dp_write(DP_PHY_SPARE0_V420, info);
 }
 
+#if defined(CONFIG_SEC_DISPLAYPORT)
+static void secdp_catalog_ctrl_update_vx_px_v420(struct dp_catalog_ctrl *ctrl,
+		u8 v_level, u8 p_level, bool high, u32 version,
+		u8 *value0, u8 *value1)
+{
+	struct dp_catalog_private_v420 *catalog;
+	struct dp_parser *parser;
+
+	catalog = dp_catalog_get_priv_v420(ctrl);
+	parser = catalog->dpc->parser;
+
+	/*
+	 * For DP controller versions >= 1.2.3
+	 */
+	if (version >= 0x10020003) {
+		if (high) {
+			*value0 = parser->dp_swing_hbr2_hbr3[v_level][p_level];
+			*value1 = parser->dp_pre_emp_hbr2_hbr3[v_level][p_level];
+		} else {
+			*value0 = parser->dp_swing_hbr_rbr[v_level][p_level];
+			*value1 = parser->dp_pre_emp_hbr_rbr[v_level][p_level];
+		}
+	} else {
+		*value0 = parser->vm_voltage_swing[v_level][p_level];
+		*value1 = parser->vm_pre_emphasis[v_level][p_level];
+	}
+}
+#endif
+
 static void dp_catalog_ctrl_update_vx_px_v420(struct dp_catalog_ctrl *ctrl,
 		u8 v_level, u8 p_level, bool high)
 {
@@ -324,16 +353,6 @@ static void dp_catalog_ctrl_update_vx_px_v420(struct dp_catalog_ctrl *ctrl,
 	struct dp_io_data *io_data;
 	u8 value0, value1;
 	u32 version;
-#if defined(CONFIG_SEC_DISPLAYPORT)
-	struct dp_parser *parser;
-	u8 *dp_swing_hbr2_hbr3[MAX_VOLTAGE_LEVELS];
-	u8 *dp_pre_emp_hbr2_hbr3[MAX_PRE_EMP_LEVELS];
-	u8 *dp_swing_hbr_rbr[MAX_VOLTAGE_LEVELS];
-	u8 *dp_pre_emp_hbr_rbr[MAX_PRE_EMP_LEVELS];
-	u8 *vm_voltage_swing[MAX_VOLTAGE_LEVELS];
-	u8 *vm_pre_emphasis[MAX_PRE_EMP_LEVELS];
-	int i;
-#endif
 
 	if (!ctrl || !((v_level < MAX_VOLTAGE_LEVELS)
 		&& (p_level < MAX_PRE_EMP_LEVELS))) {
@@ -349,21 +368,7 @@ static void dp_catalog_ctrl_update_vx_px_v420(struct dp_catalog_ctrl *ctrl,
 	version = dp_read(DP_HW_VERSION);
 	DP_DEBUG("version: 0x%x\n", version);
 
-#if defined(CONFIG_SEC_DISPLAYPORT)
-	parser = catalog->dpc->parser;
-
-	for (i = 0; i < MAX_VOLTAGE_LEVELS; i++) {
-		dp_swing_hbr2_hbr3[i]   = parser->dp_swing_hbr2_hbr3[i];
-		dp_swing_hbr_rbr[i]     = parser->dp_swing_hbr_rbr[i];
-		vm_voltage_swing[i]     = parser->vm_voltage_swing[i];
-	}
-
-	for (i = 0; i < MAX_PRE_EMP_LEVELS; i++) {
-		dp_pre_emp_hbr2_hbr3[i] = parser->dp_pre_emp_hbr2_hbr3[i];
-		dp_pre_emp_hbr_rbr[i]   = parser->dp_pre_emp_hbr_rbr[i];
-		vm_pre_emphasis[i]      = parser->vm_pre_emphasis[i];
-	}
-#endif
+#if !defined(CONFIG_SEC_DISPLAYPORT)
 	/*
 	 * For DP controller versions >= 1.2.3
 	 */
@@ -379,22 +384,26 @@ static void dp_catalog_ctrl_update_vx_px_v420(struct dp_catalog_ctrl *ctrl,
 		value0 = vm_voltage_swing[v_level][p_level];
 		value1 = vm_pre_emphasis[v_level][p_level];
 	}
+#else
+	secdp_catalog_ctrl_update_vx_px_v420(ctrl, v_level, p_level, high,
+		version, &value0, &value1);
 
 #ifdef SECDP_SELF_TEST
 	if (secdp_self_test_status(ST_VOLTAGE_TUN) >= 0) {
 		u8 val = secdp_self_test_get_arg(ST_VOLTAGE_TUN)[v_level*4 + p_level];
 
-		DP_INFO("value0 : 0x%02x => 0x%02x\n", value0, val);
+		DP_INFO("[vx] value0: 0x%02x => 0x%02x\n", value0, val);
 		value0 = val;
 	}
 
 	if (secdp_self_test_status(ST_PREEM_TUN) >= 0) {
 		u8 val = secdp_self_test_get_arg(ST_PREEM_TUN)[v_level*4 + p_level];
 
-		DP_INFO("value0 : 0x%02x => 0x%02x\n", value1, val);
+		DP_INFO("[px] value0: 0x%02x => 0x%02x\n", value1, val);
 		value1 = val;
 	}
 #endif
+#endif/*CONFIG_SEC_DISPLAYPORT*/
 
 	/* program default setting first */
 	io_data = catalog->io->dp_ln_tx0;

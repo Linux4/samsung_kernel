@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
 #include "dp_panel.h"
@@ -1962,6 +1962,48 @@ static void dp_panel_read_sink_fec_caps(struct dp_panel *dp_panel)
 	return;
 }
 
+#if defined(CONFIG_SEC_DISPLAYPORT)
+/* DP testbox list */
+static char secdp_tbox[][MON_NAME_LEN] = {
+	"UNIGRAF TE",
+	"UFG DPR-120",
+	"UCD-400 DP",
+	"UCD-400 DP1",
+	"AGILENT ATR",
+	"UFG DP SINK",
+};
+#define SECDP_TBOX_MAX		32
+
+/** check if connected sink is testbox or not
+ * return true		if it's testbox
+ * return false		otherwise (real sink)
+ */
+static bool secdp_check_tbox(struct dp_panel *panel)
+{
+	unsigned long i, size = SECDP_TBOX_MAX;
+	bool ret = false;
+
+	size = min(ARRAY_SIZE(secdp_tbox), size);
+
+	for (i = 0; i < size; i++) {
+		int rc;
+
+		rc = strncmp(panel->monitor_name, secdp_tbox[i],
+				strlen(panel->monitor_name));
+		if (!rc) {
+			DP_INFO("<%s> detected!\n", panel->monitor_name);
+			ret = true;
+			goto end;
+		}
+	}
+
+	DP_INFO("real sink <%s>\n", panel->monitor_name);
+end:
+	panel->tbox = ret;
+	return ret;
+}
+#endif
+
 static int dp_panel_read_sink_caps(struct dp_panel *dp_panel,
 	struct drm_connector *connector, bool multi_func)
 {
@@ -2065,6 +2107,7 @@ skip_edid:
 	DP_INFO("vendor_id: <%s>\n", dp_panel->edid_ctrl->vendor_id);
 	drm_edid_get_monitor_name(dp_panel->edid_ctrl->edid, dp_panel->monitor_name, 14);
 	DP_INFO("monitor_name: <%s>\n", dp_panel->monitor_name);
+	secdp_check_tbox(dp_panel);
 #if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 	secdp_bigdata_save_item(BD_SINK_NAME, dp_panel->monitor_name);
 	secdp_bigdata_save_item(BD_EDID, (char *)(dp_panel->edid_ctrl->edid));

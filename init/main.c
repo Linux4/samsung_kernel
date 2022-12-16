@@ -978,8 +978,10 @@ static int __init_or_module do_one_initcall_sec_debug(initcall_t fn)
 		if (!entry)
 			return -ENOMEM;
 		entry->buf = kasprintf(GFP_KERNEL, "%pf", fn);
-		if (!entry->buf)
+		if (!entry->buf) {
+			kfree(entry);
 			return -ENOMEM;
+		}
 		entry->duration = duration;
 		spin_lock(&device_init_time_list_lock);
 		list_add(&entry->next, &device_init_time_list);
@@ -1305,7 +1307,7 @@ static noinline void __init kernel_init_freeable(void)
 	 */
 	set_mems_allowed(node_states[N_MEMORY]);
 
-	cad_pid = task_pid(current);
+	cad_pid = get_pid(task_pid(current));
 
 	smp_prepare_cpus(setup_max_cpus);
 

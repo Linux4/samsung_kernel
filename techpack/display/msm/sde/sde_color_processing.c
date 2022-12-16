@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -1993,6 +1994,7 @@ static void _sde_clear_ltm_merge_mode(struct sde_crtc *sde_crtc)
 	}
 
 	sde_crtc->ltm_merge_clear_pending = false;
+	SDE_EVT32(DRMID(&sde_crtc->base), num_mixers, sde_crtc->ltm_merge_clear_pending);
 	spin_unlock_irqrestore(&sde_crtc->ltm_lock, irq_flags);
 }
 
@@ -2346,6 +2348,7 @@ void sde_cp_crtc_destroy_properties(struct drm_crtc *crtc)
 	sde_crtc->ltm_buffer_cnt = 0;
 	sde_crtc->ltm_hist_en = false;
 	sde_crtc->ltm_merge_clear_pending = false;
+	SDE_EVT32(DRMID(crtc), sde_crtc->ltm_merge_clear_pending);
 	sde_crtc->hist_irq_idx = -1;
 
 	mutex_destroy(&sde_crtc->crtc_cp_lock);
@@ -2391,7 +2394,6 @@ void sde_cp_crtc_suspend(struct drm_crtc *crtc)
 
 	spin_lock_irqsave(&sde_crtc->ltm_lock, irq_flags);
 	sde_crtc->ltm_hist_en = false;
-	sde_crtc->ltm_merge_clear_pending = false;
 	spin_unlock_irqrestore(&sde_crtc->ltm_lock, irq_flags);
 
 	if (ad_suspend)
@@ -2424,6 +2426,7 @@ void sde_cp_crtc_clear(struct drm_crtc *crtc)
 	list_del_init(&sde_crtc->dirty_list);
 	list_del_init(&sde_crtc->ad_active);
 	list_del_init(&sde_crtc->ad_dirty);
+	sde_crtc->cp_pu_feature_mask = 0;
 	mutex_unlock(&sde_crtc->crtc_cp_lock);
 
 	spin_lock_irqsave(&sde_crtc->spin_lock, flags);
@@ -3833,6 +3836,7 @@ static void _sde_cp_crtc_disable_ltm_hist(struct sde_crtc *sde_crtc,
 	spin_lock_irqsave(&sde_crtc->ltm_lock, irq_flags);
 	sde_crtc->ltm_hist_en = false;
 	sde_crtc->ltm_merge_clear_pending = true;
+	SDE_EVT32(DRMID(&sde_crtc->base), sde_crtc->ltm_merge_clear_pending);
 	INIT_LIST_HEAD(&sde_crtc->ltm_buf_free);
 	INIT_LIST_HEAD(&sde_crtc->ltm_buf_busy);
 	for (i = 0; i < sde_crtc->ltm_buffer_cnt; i++)
@@ -3905,6 +3909,7 @@ static void sde_cp_ltm_hist_interrupt_cb(void *arg, int irq_idx)
 				0);
 		}
 		sde_crtc->ltm_merge_clear_pending = true;
+		SDE_EVT32(DRMID(&sde_crtc->base), sde_crtc->ltm_merge_clear_pending);
 		spin_unlock_irqrestore(&sde_crtc->ltm_lock, irq_flags);
 		DRM_DEBUG_DRIVER("LTM histogram is disabled\n");
 		return;
@@ -4472,7 +4477,7 @@ void sde_cp_crtc_enable(struct drm_crtc *drm_crtc)
 	if (!num_mixers)
 		return;
 	mutex_lock(&crtc->crtc_cp_lock);
-	info = kzalloc(sizeof(struct sde_kms_info), GFP_KERNEL);
+	info = vzalloc(sizeof(struct sde_kms_info));
 	if (info) {
 		for (i = 0; i < ARRAY_SIZE(dspp_cap_update_func); i++)
 			dspp_cap_update_func[i](crtc, info);
@@ -4481,7 +4486,7 @@ void sde_cp_crtc_enable(struct drm_crtc *drm_crtc)
 			info->data, SDE_KMS_INFO_DATALEN(info),
 			CRTC_PROP_DSPP_INFO);
 	}
-	kfree(info);
+	vfree(info);
 	mutex_unlock(&crtc->crtc_cp_lock);
 }
 
@@ -4496,12 +4501,12 @@ void sde_cp_crtc_disable(struct drm_crtc *drm_crtc)
 	}
 	crtc = to_sde_crtc(drm_crtc);
 	mutex_lock(&crtc->crtc_cp_lock);
-	info = kzalloc(sizeof(struct sde_kms_info), GFP_KERNEL);
+	info = vzalloc(sizeof(struct sde_kms_info));
 	if (info)
 		msm_property_set_blob(&crtc->property_info,
 				&crtc->dspp_blob_info,
 			info->data, SDE_KMS_INFO_DATALEN(info),
 			CRTC_PROP_DSPP_INFO);
 	mutex_unlock(&crtc->crtc_cp_lock);
-	kfree(info);
+	vfree(info);
 }

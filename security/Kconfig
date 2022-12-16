@@ -295,6 +295,12 @@ config SDP
 	help
 	Sensitive Data Protection. Enabled for devices with Samsung Knox.
 
+config DDAR
+	bool "Enables dual encryption"
+	default n
+	help
+	Knox Dual-DAR (Data-At-Rest) protection
+
 config SDP_KEY_DUMP
 	bool "SDP KEY DUMP"
 	default n

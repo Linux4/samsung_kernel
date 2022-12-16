@@ -204,6 +204,10 @@ struct flash_current_headroom {
 	u16 headroom_mv;
 };
 
+#if defined(CONFIG_SEC_XCOVERPRO2_PROJECT) || IS_ENABLED(CONFIG_LEDS_QTI_FLASH)
+static struct qti_flash_led *g_qti_flash_led;
+#endif
+
 static const struct flash_current_headroom pm8350c_map[4] = {
 	{750, 200}, {1000, 250}, {1250, 300}, {1500, 400},
 };
@@ -379,7 +383,7 @@ static int qti_flash_led_strobe(struct qti_flash_led *led,
 	} else {
 		for (i = 0; i < led->max_channels; i++)
 			if ((led->chan_en_map & BIT(i)) &&
-			    (mask & BIT(i)) && !(value & BIT(i)))
+				(mask & BIT(i)) && !(value & BIT(i)))
 				led->chan_en_map &= ~(BIT(i));
 
 		rc = qti_flash_led_masked_write(led, FLASH_EN_LED_CTRL,
@@ -1441,6 +1445,13 @@ static int register_switch_device(struct qti_flash_led *led,
 		pr_err("Failed to read led mask rc=%d\n", rc);
 		return rc;
 	}
+
+#if defined(CONFIG_SEC_XCOVERPRO2_PROJECT)
+	snode->led_mask = 1;
+#elif defined(CONFIG_SEC_GTACT4PRO_PROJECT) || defined(CONFIG_SEC_GTACT4PROWIFI_PROJECT)
+	snode->led_mask = 3;
+#endif
+
 	if (!snode->led_mask || snode->led_mask > LED_MASK_ALL(led)) {
 		pr_err("led-mask %#x invalid\n", snode->led_mask);
 		return -EINVAL;
@@ -1821,6 +1832,9 @@ static int qti_flash_led_probe(struct platform_device *pdev)
 
 	dev_set_drvdata(&pdev->dev, led);
 
+#if defined(CONFIG_SEC_XCOVERPRO2_PROJECT) || IS_ENABLED(CONFIG_LEDS_QTI_FLASH)
+	g_qti_flash_led = led;
+#endif
 	return 0;
 }
 
@@ -1843,8 +1857,195 @@ static int qti_flash_led_remove(struct platform_device *pdev)
 	for (i = 0; (i < led->num_fnodes); i++)
 		led_classdev_flash_unregister(&led->fnode[i].fdev);
 
+#if defined(CONFIG_SEC_XCOVERPRO2_PROJECT) || IS_ENABLED(CONFIG_LEDS_QTI_FLASH)
+	g_qti_flash_led = NULL;
+#endif
 	return 0;
 }
+
+#if defined(CONFIG_SEC_XCOVERPRO2_PROJECT) || IS_ENABLED(CONFIG_LEDS_QTI_FLASH)
+ssize_t qti_flash_store(const char *buf)
+{
+	int rc;
+	struct qti_flash_led *led = g_qti_flash_led;
+	u64 store_value;
+	uint32_t curr = 0;
+	int i;
+
+	pr_debug("qti_flash_store E \n");
+	if (led == NULL || led->pdev == NULL) {
+		pr_err("g_qti_flash_led is null \n");
+		return -ENODEV;
+	}
+	
+	rc = kstrtou64(buf, 0, &store_value);
+	pr_debug("store_value=%d\n", store_value);
+	if (rc < 0) {
+		pr_err("rc=%d\n", rc);
+		return -ENXIO;
+	}
+
+#if IS_ENABLED(CONFIG_LEDS_QTI_FLASH)
+	if (store_value != 0 && store_value != 1 && store_value != 100 && store_value != 200 && store_value != 1001 && store_value != 1002 && store_value != 1004 && store_value != 1006 && store_value != 1009) {
+		pr_err("rc=%d\n", rc);
+		return -ENXIO;
+	}
+#else
+	if (store_value != 0 && store_value != 100) {
+		pr_err("rc=%d\n", rc);
+		return -ENXIO;
+	}
+#endif
+
+	for (i = 0; i < led->num_snodes; i++) {
+		if(!strcmp("led:switch_0", led->snode[i].cdev.name)) {
+			qti_flash_led_switch_brightness_set(&led->snode[i].cdev, curr);
+			break;
+		}
+		
+	}
+	
+	if (store_value == 0) { /* 0: Torch or Flash OFF */
+		curr = 0;
+		for (i = 0; i < led->num_fnodes; i++) {
+			if(!strcmp("led:torch_0", led->fnode[i].fdev.led_cdev.name)) {
+				qti_flash_led_brightness_set(&led->fnode[i].fdev.led_cdev, curr);
+				break;
+			}
+			
+		}
+	} else if (store_value == 100 || store_value == 200) { /* 100 : Torch ON ; 200 : Flash ON*/		
+		curr = 300;
+		for (i = 0; i < led->num_fnodes; i++) {
+			if(!strcmp("led:torch_0", led->fnode[i].fdev.led_cdev.name)) {
+				qti_flash_led_brightness_set(&led->fnode[i].fdev.led_cdev, curr);
+				break;
+			}
+			
+		}
+
+		for (i = 0; i < led->num_snodes; i++) {
+			if(!strcmp("led:switch_0", led->snode[i].cdev.name)) {
+				qti_flash_led_switch_brightness_set(&led->snode[i].cdev, curr);
+				break;
+			}
+			
+		}
+	} else if (store_value == 1 || store_value == 1001) { /* 1001 : Torch ON */		
+		curr = 50;
+		for (i = 0; i < led->num_fnodes; i++) {
+			if(!strcmp("led:torch_0", led->fnode[i].fdev.led_cdev.name)) {
+				qti_flash_led_brightness_set(&led->fnode[i].fdev.led_cdev, curr);
+				break;
+			}
+			
+		}
+
+		for (i = 0; i < led->num_snodes; i++) {
+			if(!strcmp("led:switch_0", led->snode[i].cdev.name)) {
+				qti_flash_led_switch_brightness_set(&led->snode[i].cdev, curr);
+				break;
+			}
+			
+		}
+	} else if (store_value == 1002) { /* 1002 : Torch ON */		
+		curr = 75;
+		for (i = 0; i < led->num_fnodes; i++) {
+			if(!strcmp("led:torch_0", led->fnode[i].fdev.led_cdev.name)) {
+				qti_flash_led_brightness_set(&led->fnode[i].fdev.led_cdev, curr);
+				break;
+			}
+			
+		}
+
+		for (i = 0; i < led->num_snodes; i++) {
+			if(!strcmp("led:switch_0", led->snode[i].cdev.name)) {
+				qti_flash_led_switch_brightness_set(&led->snode[i].cdev, curr);
+				break;
+			}
+			
+		}
+	} else if (store_value == 1004) { /* 100 : Torch ON */		
+		curr = 112;
+		for (i = 0; i < led->num_fnodes; i++) {
+			if(!strcmp("led:torch_0", led->fnode[i].fdev.led_cdev.name)) {
+				qti_flash_led_brightness_set(&led->fnode[i].fdev.led_cdev, curr);
+				break;
+			}
+			
+		}
+
+		for (i = 0; i < led->num_snodes; i++) {
+			if(!strcmp("led:switch_0", led->snode[i].cdev.name)) {
+				qti_flash_led_switch_brightness_set(&led->snode[i].cdev, curr);
+				break;
+			}
+			
+		}
+	} else if (store_value == 1006) { /* 100 : Torch ON */		
+		curr = 300;
+		for (i = 0; i < led->num_fnodes; i++) {
+			if(!strcmp("led:torch_0", led->fnode[i].fdev.led_cdev.name)) {
+				qti_flash_led_brightness_set(&led->fnode[i].fdev.led_cdev, curr);
+				break;
+			}
+			
+		}
+
+		for (i = 0; i < led->num_snodes; i++) {
+			if(!strcmp("led:switch_0", led->snode[i].cdev.name)) {
+				qti_flash_led_switch_brightness_set(&led->snode[i].cdev, curr);
+				break;
+			}
+			
+		}
+	} else if (store_value == 1009) { /* 100 : Torch ON */		
+		curr = 380;
+		for (i = 0; i < led->num_fnodes; i++) {
+			if(!strcmp("led:torch_0", led->fnode[i].fdev.led_cdev.name)) {
+				qti_flash_led_brightness_set(&led->fnode[i].fdev.led_cdev, curr);
+				break;
+			}
+			
+		}
+
+		for (i = 0; i < led->num_snodes; i++) {
+			if(!strcmp("led:switch_0", led->snode[i].cdev.name)) {
+				qti_flash_led_switch_brightness_set(&led->snode[i].cdev, curr);
+				break;
+			}
+			
+		}
+	}
+	pr_debug("qti_flash_store X \n");
+
+	return 0;
+}
+EXPORT_SYMBOL(qti_flash_store);
+
+ssize_t qti_flash_show(char *buf)
+{
+	struct qti_flash_led *led = g_qti_flash_led;
+	struct led_classdev *led_cdev;
+
+	pr_debug("qti_flash_show E \n");
+	if (buf == NULL)
+		return 0;
+
+	if (led == NULL || led->pdev == NULL) {
+		pr_err("g_qti_flash_led is null \n");
+		return -ENODEV;
+	}
+
+	led_cdev = dev_get_drvdata(&led->pdev->dev);
+	if (led_cdev == NULL) {
+		pr_err("led_cdev is null \n");
+	}
+	pr_debug("qti_flash_show X \n");
+	return sprintf(buf, "%d\n", led_cdev->brightness);
+}
+EXPORT_SYMBOL(qti_flash_show);
+#endif
 
 const static struct of_device_id qti_flash_led_match_table[] = {
 	{ .compatible = "qcom,pm8350c-flash-led", .data = (void *)4, },

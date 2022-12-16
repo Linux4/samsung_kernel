@@ -1828,14 +1828,14 @@ static void dp_catalog_ctrl_update_vx_px(struct dp_catalog_ctrl *ctrl,
 	if (secdp_self_test_status(ST_VOLTAGE_TUN) >= 0) {
 		u8 val = secdp_self_test_get_arg(ST_VOLTAGE_TUN)[v_level*4 + p_level];
 
-		DP_INFO("value0 : 0x%02x => 0x%02x\n", value0, val);
+		DP_INFO("[vx] value0: %02x => %02x\n", value0, val);
 		value0 = val;
 	}
 
 	if (secdp_self_test_status(ST_PREEM_TUN) >= 0) {
 		u8 val = secdp_self_test_get_arg(ST_PREEM_TUN)[v_level*4 + p_level];
 
-		DP_INFO("value0 : 0x%02x => 0x%02x\n", value1, val);
+		DP_INFO("[px] value0: %02x => %02x\n", value1, val);
 		value1 = val;
 	}
 #endif

@@ -113,6 +113,8 @@
 #define CS35L41_STEREO 0x12
 #define CS35L45_MONO   0x51
 #define CS35L45_STEREO 0x52
+
+static u32 codec_conf;
 #endif
 
 enum {
@@ -625,7 +627,11 @@ static struct tdm_dev_config quin_tdm_dev_config[MAX_PATH][TDM_PORT_MAX] = {
 		{ {0xFFFF} }, /* RX_7 */
 	},
 	{
+#if IS_ENABLED(CONFIG_SND_SOC_CIRRUS_AMP)
+		{ {0,	4, 8, 12, 0xFFFF} }, /* TX_0 */
+#else
 		{ {0,   4, 0xFFFF} }, /* TX_0 */
+#endif
 		{ {8,  12, 0xFFFF} }, /* TX_1 */
 		{ {16, 20, 0xFFFF} }, /* TX_2 */
 		{ {24, 28, 0xFFFF} }, /* TX_3 */
@@ -961,6 +967,16 @@ static struct snd_soc_codec_conf cs35l41_mono_conf[] = {
 };
 
 static struct snd_soc_codec_conf cs35l41_stereo_conf[] = {
+#if defined(CONFIG_SEC_SND_HYBRID_CIRRUS_AMP_QUIN_TDM)
+	{
+		.dev_name = "cs35l41.18-0043",
+		.name_prefix = "CS35L41 Left",
+	},
+	{
+		.dev_name = "cs35l41.18-0041",
+		.name_prefix = "CS35L41 Right",
+	}
+#else
 	{
 		.dev_name = "cs35l41.18-0040",
 		.name_prefix = "Right",
@@ -969,6 +985,7 @@ static struct snd_soc_codec_conf cs35l41_stereo_conf[] = {
 		.dev_name = "cs35l41.18-0041",
 		.name_prefix = "Left",
 	}
+#endif
 };
 
 static struct snd_soc_codec_conf cs35l45_mono_conf[] = {
@@ -3328,7 +3345,8 @@ static int msm_mi2s_set_sclk(struct snd_pcm_substream *substream, bool enable)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	int port_id = 0;
-	int index = (cpu_dai->id) / 2; /* As Rx and Tx DAIs should use same clk index */
+	/* Rx and Tx DAIs should use same clk index */
+	int index = (cpu_dai->id) / 2;
 
 	port_id = msm_get_port_id(rtd->dai_link->id);
 	if (port_id < 0) {
@@ -5604,7 +5622,7 @@ static int msm_snd_cdc_dma_startup(struct snd_pcm_substream *substream)
 static void set_cps_config(struct snd_soc_pcm_runtime *rtd,
 				u32 num_ch, u32 ch_mask)
 {
-	int i = 0;
+	int i = 0, j = 0;
 	int val = 0;
 	u8 dev_num = 0;
 	int ch_configured = 0;
@@ -5613,6 +5631,7 @@ static void set_cps_config(struct snd_soc_pcm_runtime *rtd,
 	struct snd_soc_dai_link *dai_link = rtd->dai_link;
         struct msm_asoc_mach_data *pdata =
 			snd_soc_card_get_drvdata(rtd->card);
+	struct lpass_swr_spkr_dep_cfg_t *spkr_dep_cfg_ptr;
 
 	if (!pdata) {
 		pr_err("%s: pdata is NULL\n", __func__);
@@ -5671,9 +5690,11 @@ static void set_cps_config(struct snd_soc_pcm_runtime *rtd,
 			return;
 		}
 
+		spkr_dep_cfg_ptr = &(pdata->cps_config.spkr_dep_cfg[i]);
+
 		/* Clear stale dev num info */
-		pdata->cps_config.spkr_dep_cfg[i].vbatt_pkd_reg_addr &= 0xFFFF;
-		pdata->cps_config.spkr_dep_cfg[i].temp_pkd_reg_addr &= 0xFFFF;
+		spkr_dep_cfg_ptr->vbatt_pkd_reg_addr &= 0xFFFF;
+		spkr_dep_cfg_ptr->temp_pkd_reg_addr &= 0xFFFF;
 
 		val = 0;
 
@@ -5687,11 +5708,22 @@ static void set_cps_config(struct snd_soc_pcm_runtime *rtd,
 		val |= (i*2) << 16;
 
 		/* Update dev num in packed reg addr */
-		pdata->cps_config.spkr_dep_cfg[i].vbatt_pkd_reg_addr |= val;
+		spkr_dep_cfg_ptr->vbatt_pkd_reg_addr |= val;
 
 		val &= 0xFF0FFFF;
 		val |= ((i*2)+1) << 16;
-		pdata->cps_config.spkr_dep_cfg[i].temp_pkd_reg_addr |= val;
+		spkr_dep_cfg_ptr->temp_pkd_reg_addr |= val;
+
+		/* Retain dev_num from val */
+		val &= 0x00F00000;
+		for (j = 0; j < MAX_CPS_LEVELS; j++)
+		{
+			val &= 0xFFF0FFFF;
+			val |= ((i * 3) + j) << 16;
+			spkr_dep_cfg_ptr->value_normal_thrsd[j] |= val;
+			spkr_dep_cfg_ptr->value_low1_thrsd[j] |= val;
+			spkr_dep_cfg_ptr->value_low2_thrsd[j] |= val;
+		}
 		i++;
 		ch_configured++;
 	}
@@ -5819,7 +5851,8 @@ void mi2s_disable_audio_vote(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	int index = (cpu_dai->id) / 2; /* As Rx and Tx DAIs should use same clk index */
+	/* Rx and Tx DAIs should use same clk index */
+	int index = (cpu_dai->id) / 2;
 	struct snd_soc_card *card = rtd->card;
 	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 	int sample_rate = 0;
@@ -5855,7 +5888,8 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 	int ret = 0;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	int index = (cpu_dai->id) / 2; /* As Rx and Tx DAIs should use same clk index */
+	/* Rx and Tx DAIs should use same clk index */
+	int index = (cpu_dai->id) / 2;
 	unsigned int fmt = SND_SOC_DAIFMT_CBS_CFS;
 	struct snd_soc_card *card = rtd->card;
 	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
@@ -5985,7 +6019,8 @@ static void msm_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 {
 	int ret = 0;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	int index = (rtd->cpu_dai->id) / 2; /* As Rx and Tx DAIs should use same clk index */
+	/* Rx and Tx DAIs should use same clk index */
+	int index = (rtd->cpu_dai->id) / 2;
 	struct snd_soc_card *card = rtd->card;
 	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 
@@ -6296,6 +6331,68 @@ static const struct snd_soc_dapm_widget msm_int_dapm_widgets[] = {
 };
 
 #if IS_ENABLED(CONFIG_SND_SOC_CS35L41) || IS_ENABLED(CONFIG_SND_SOC_CS35L45)
+#if defined(CONFIG_SEC_SND_HYBRID_CIRRUS_AMP_QUIN_TDM)
+#define MAX_NAME_LEN 30
+
+static const char * const cs35l41_amp_ignore_mixer[] = {
+	"AMP Capture", "AMP Playback", "AMP SPK", "VP",
+	"VBST", "ISENSE", "VSENSE", "TEMP",
+};
+
+static const char * const cs35l45_amp_ignore_mixer[] = {
+	"Capture", "Playback", "SPK", "RCV",
+	"AP", "AMP Enable", "Entry", "Exit",
+};
+
+static int lahaina_tdm_cirrus_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_dai **codec_dais = rtd->codec_dais;
+	struct snd_soc_dapm_context *dapm = NULL;
+	int i, j;
+	char buffer[MAX_NAME_LEN];
+	unsigned int num_codecs = rtd->num_codecs;
+
+	pr_info("%s: ++\n", __func__);
+
+	memset(buffer, 0, sizeof(buffer));
+
+	switch (codec_conf) {
+	case CS35L41_MONO:
+	case CS35L41_STEREO:
+		for (i = 0; i < num_codecs; i++) {
+			dapm = snd_soc_component_get_dapm(codec_dais[i]->component);
+
+			for (j = 0; j < ARRAY_SIZE(cs35l41_amp_ignore_mixer); j++) {
+				sprintf(buffer, "%s %s", codec_dais[i]->component->name_prefix,
+					cs35l41_amp_ignore_mixer[j]);
+				snd_soc_dapm_ignore_suspend(dapm, buffer);
+				memset(buffer, 0, sizeof(buffer));
+			}
+			snd_soc_dapm_sync(dapm);
+		}
+		break;
+	case CS35L45_MONO:
+	case CS35L45_STEREO:
+		for (i = 0; i < num_codecs; i++) {
+			dapm = snd_soc_component_get_dapm(codec_dais[i]->component);
+
+			for (j = 0; j < ARRAY_SIZE(cs35l45_amp_ignore_mixer); j++) {
+				sprintf(buffer, "%s %s", codec_dais[i]->component->name_prefix,
+					cs35l45_amp_ignore_mixer[j]);
+				snd_soc_dapm_ignore_suspend(dapm, buffer);
+				memset(buffer, 0, sizeof(buffer));
+			}
+			snd_soc_dapm_sync(dapm);
+		}
+		break;
+	default:
+		pr_info("%s: not cirrus amp\n", __func__);
+	}
+
+	register_cirrus_bigdata_cb(codec_dais[0]->component);
+	return 0;
+}
+#else
 static int lahaina_tdm_cirrus_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_dai **codec_dais = rtd->codec_dais;
@@ -6358,7 +6455,7 @@ static int lahaina_tdm_cirrus_init(struct snd_soc_pcm_runtime *rtd)
 	register_cirrus_bigdata_cb(codec_dais[0]->component);
 	return 0;
 }
-
+#endif
 static int lahaina_mi2s_cirrus_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_dai **codec_dais = rtd->codec_dais;
@@ -7341,9 +7438,11 @@ static struct snd_soc_dai_link msm_tdm_be_dai_links[] = {
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ops = &lahaina_tdm_be_ops,
 #if IS_ENABLED(CONFIG_SND_SOC_CS35L41) || IS_ENABLED(CONFIG_SND_SOC_CS35L45)
+#if !defined(CONFIG_SEC_SND_HYBRID_CIRRUS_AMP_QUIN_TDM)
 		.init = &lahaina_tdm_cirrus_init,
 		.dai_fmt = SND_SOC_DAIFMT_DSP_A | SND_SOC_DAIFMT_CBS_CFS
 			| SND_SOC_DAIFMT_IB_NF,
+#endif
 #endif
 		.ignore_suspend = 1,
 		.ignore_pmdown_time = 1,
@@ -7358,8 +7457,10 @@ static struct snd_soc_dai_link msm_tdm_be_dai_links[] = {
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ops = &lahaina_tdm_be_ops,
 #if IS_ENABLED(CONFIG_SND_SOC_CS35L41) || IS_ENABLED(CONFIG_SND_SOC_CS35L45)
+#if !defined(CONFIG_SEC_SND_HYBRID_CIRRUS_AMP_QUIN_TDM)
 		.dai_fmt = SND_SOC_DAIFMT_DSP_A | SND_SOC_DAIFMT_CBS_CFS
 			| SND_SOC_DAIFMT_IB_NF,
+#endif
 #endif
 		.ignore_suspend = 1,
 		SND_SOC_DAILINK_REG(quat_tdm_tx_0),
@@ -7372,6 +7473,11 @@ static struct snd_soc_dai_link msm_tdm_be_dai_links[] = {
 		.id = MSM_BACKEND_DAI_QUIN_TDM_RX_0,
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ops = &lahaina_tdm_be_ops,
+#if defined(CONFIG_SEC_SND_HYBRID_CIRRUS_AMP_QUIN_TDM)
+		.init = &lahaina_tdm_cirrus_init,
+		.dai_fmt = SND_SOC_DAIFMT_DSP_A | SND_SOC_DAIFMT_CBS_CFS
+			| SND_SOC_DAIFMT_IB_NF,
+#endif
 		.ignore_suspend = 1,
 		.ignore_pmdown_time = 1,
 		SND_SOC_DAILINK_REG(quin_tdm_rx_0),
@@ -7384,6 +7490,10 @@ static struct snd_soc_dai_link msm_tdm_be_dai_links[] = {
 		.id = MSM_BACKEND_DAI_QUIN_TDM_TX_0,
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ops = &lahaina_tdm_be_ops,
+#if defined(CONFIG_SEC_SND_HYBRID_CIRRUS_AMP_QUIN_TDM)
+		.dai_fmt = SND_SOC_DAIFMT_DSP_A | SND_SOC_DAIFMT_CBS_CFS
+			| SND_SOC_DAIFMT_IB_NF,
+#endif
 		.ignore_suspend = 1,
 		SND_SOC_DAILINK_REG(quin_tdm_tx_0),
 	},
@@ -8803,6 +8913,86 @@ static void msm_i2s_auxpcm_deinit(void)
 	}
 }
 
+#if defined(CONFIG_SEC_SND_HYBRID_CIRRUS_AMP_QUIN_TDM)
+static struct snd_soc_dai_link_component cirrus_amp_dai_link_list[] = {
+	{ .name = "snd-soc-dummy", .dai_name = "snd-soc-dummy-dai", },
+	{ .name = "snd-soc-dummy", .dai_name = "snd-soc-dummy-dai", },
+};
+
+static void update_amp_dai_link(struct platform_device *pdev)
+{
+	int i, interface_rx_index, interface_tx_index, ret;
+	int num_amp_link = 0;
+	const char *interface_name = NULL;
+
+	pr_info("%s\n", __func__);
+
+	ret = of_property_read_string(pdev->dev.of_node,
+		"qcom,amp-interface-name", &interface_name);
+	if (ret) {
+		dev_info(&pdev->dev, "%s property is not exist in node %s\n",
+			"qcom,amp-interface-name",
+			pdev->dev.of_node->full_name);
+		return;
+	}
+
+	num_amp_link = of_property_count_strings(pdev->dev.of_node, "cirrus_amp_link");
+	if (num_amp_link < 0 || num_amp_link & 1) {
+		dev_err(&pdev->dev, "cirrus_amp_link does not exist or its length is not even\n");
+		return;
+	}
+
+	num_amp_link /= 2;
+
+	for (i = 0; i < num_amp_link; i++) {
+		ret = of_property_read_string_index(pdev->dev.of_node, "cirrus_amp_link",
+			2 * i, &cirrus_amp_dai_link_list[i].name);
+		if (ret) {
+			dev_err(&pdev->dev,
+				"Property cirrus_amp_link index %d could not be read: %d\n",
+				2 * i, ret);
+			return;
+		}
+		ret = of_property_read_string_index(pdev->dev.of_node, "cirrus_amp_link",
+			(2 * i) + 1, &cirrus_amp_dai_link_list[i].dai_name);
+		if (ret) {
+			dev_err(&pdev->dev,
+				"Property cirrus_amp_link index %d could not be read: %d\n",
+				(2 * i) + 1, ret);
+			return;
+		}
+	}
+
+	for (i = 0; i < ARRAY_SIZE(msm_tdm_be_dai_links); i++) {
+		if (!strcmp((msm_tdm_be_dai_links[i].name), interface_name)) {
+			interface_rx_index = i;
+			interface_tx_index = interface_rx_index+1;
+			break;
+		}
+	}
+
+	pr_info("%s codec_conf 0x%x num_amp_link %d\n", __func__, codec_conf, num_amp_link);
+
+	switch (codec_conf) {
+	case CS35L41_MONO:
+	case CS35L41_STEREO:
+	case CS35L45_MONO:
+	case CS35L45_STEREO:
+		for (i = 0; i < num_amp_link; i++) {
+			memcpy((msm_tdm_be_dai_links[interface_rx_index].codecs)+i,
+				&cirrus_amp_dai_link_list[i], sizeof(cirrus_amp_dai_link_list[i]));
+			memcpy((msm_tdm_be_dai_links[interface_tx_index].codecs)+i,
+				&cirrus_amp_dai_link_list[i], sizeof(cirrus_amp_dai_link_list[i]));
+		}
+		break;
+	default:
+		dev_err(&pdev->dev, "%s: codec conf is not defined\n",
+			__func__);
+		break;
+	}
+}
+#endif
+
 static int lahaina_ssr_enable(struct device *dev, void *data)
 {
 	struct platform_device *pdev = to_platform_device(dev);
@@ -9005,9 +9195,6 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	int ret = 0;
 	uint index = 0;
 	struct clk *lpass_audio_hw_vote = NULL;
-#if IS_ENABLED(CONFIG_SND_SOC_CIRRUS_AMP)
-	u32 codec_conf = 0;
-#endif
 
 	pr_info("%s: Enter\n", __func__);
 
@@ -9028,6 +9215,23 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	of_property_read_u32(pdev->dev.of_node,
 				"qcom,wcd-disabled",
 				&pdata->wcd_disabled);
+
+#if IS_ENABLED(CONFIG_SND_SOC_CIRRUS_AMP)
+	ret = of_property_read_u32(pdev->dev.of_node,
+				"qcom,codec-conf", &codec_conf);
+	if (ret) {
+		dev_dbg(&pdev->dev,
+				"%s: codec_conf property missing in DT %s, ret = %d\n",
+				__func__, pdev->dev.of_node->full_name, ret);
+		codec_conf = 0;
+	}
+	dev_info(&pdev->dev, "%s: codec_conf=0x%x\n",
+			__func__, codec_conf);
+#endif
+
+#if defined(CONFIG_SEC_SND_HYBRID_CIRRUS_AMP_QUIN_TDM)
+	update_amp_dai_link(pdev);
+#endif
 
 	card = populate_snd_card_dailinks(&pdev->dev);
 	if (!card) {
@@ -9071,17 +9275,6 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
         }
 
 #if IS_ENABLED(CONFIG_SND_SOC_CIRRUS_AMP)
-	ret = of_property_read_u32(pdev->dev.of_node,
-				"qcom,codec-conf", &codec_conf);
-	if (ret) {
-		dev_dbg(&pdev->dev,
-				"%s: codec_conf property missing in DT %s, ret = %d\n",
-				__func__, pdev->dev.of_node->full_name, ret);
-		codec_conf = 0;
-	}
-	dev_info(&pdev->dev, "%s: codec_conf=0x%x\n",
-			__func__, codec_conf);
-
 	switch (codec_conf) {
 	case CS35L41_MONO:
 		card->codec_conf = cs35l41_mono_conf;

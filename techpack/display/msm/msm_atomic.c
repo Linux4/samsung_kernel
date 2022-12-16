@@ -58,7 +58,7 @@ static inline bool _msm_seamless_for_crtc(struct drm_device *dev,
 	if (msm_is_mode_seamless_dms(&crtc_state->adjusted_mode) && !enable)
 		return true;
 
-	if (!crtc_state->mode_changed && crtc_state->connectors_changed) {
+	if (!crtc_state->mode_changed && crtc_state->connectors_changed && crtc_state->active) {
 		for_each_old_connector_in_state(state, connector,
 				conn_state, i) {
 			if ((conn_state->crtc == crtc_state->crtc) ||
@@ -302,6 +302,9 @@ msm_crtc_set_mode(struct drm_device *dev, struct drm_atomic_state *old_state)
 		mode = &new_crtc_state->mode;
 		adjusted_mode = &new_crtc_state->adjusted_mode;
 
+		if (!new_crtc_state->active)
+			continue;
+
 		if (!new_crtc_state->mode_changed &&
 				new_crtc_state->connectors_changed) {
 			if (_msm_seamless_for_conn(connector,
@@ -531,6 +534,7 @@ int msm_atomic_prepare_fb(struct drm_plane *plane,
 int ss_get_vdd_ndx_from_state(struct drm_atomic_state *old_state);
 #endif
 
+extern int dbg_cnt;
 /* The (potentially) asynchronous part of the commit.  At this point
  * nothing can fail short of armageddon.
  */
@@ -544,6 +548,10 @@ static void complete_commit(struct msm_commit *c)
 	int ndx;
 	struct samsung_display_driver_data *vdd;
 #endif
+
+	if (dbg_cnt) {
+		SDE_DBG_DUMP("all", "dbg_bus", "vbif_dbg_bus", "panic");
+	}
 
 	drm_atomic_helper_wait_for_fences(dev, state, false);
 

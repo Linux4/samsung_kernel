@@ -169,6 +169,12 @@ static void csiphy_prgm_cmn_data(
 		csiphybase = g_phy_data[csiphy_idx].base_address;
 		is_3phase = g_phy_data[csiphy_idx].is_3phase;
 
+		if (!csiphybase) {
+			CAM_DBG(CAM_CSIPHY, "CSIPHY: %d is not available in platform",
+				csiphy_idx);
+			continue;
+		}
+
 		for (i = 0; i < size; i++) {
 			csiphy_common_reg = &csiphy_dev->ctrl_reg->csiphy_common_reg[i];
 			switch (csiphy_common_reg->csiphy_param_type) {

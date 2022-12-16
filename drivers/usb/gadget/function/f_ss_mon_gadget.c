@@ -196,8 +196,11 @@ static void ss_monitor_disable(struct usb_function *f)
 		snprintf(aoa_check, sizeof(aoa_check), "AOA_ERR_%x", ss_monitor->accessory_string);
 		store_usblog_notify(NOTIFY_USBMODE_EXTRA, (void *)aoa_check, NULL);
 	}
-	ss_monitor->accessory_string = 0;
-	ss_monitor->aoa_start_cmd = 0;
+
+	if (ss_monitor) {
+		ss_monitor->accessory_string = 0;
+		ss_monitor->aoa_start_cmd = 0;
+	}
 	memset(guid_info, 0, sizeof(guid_info));
 }
 

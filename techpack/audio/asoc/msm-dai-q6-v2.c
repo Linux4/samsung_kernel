@@ -430,11 +430,16 @@ static const struct soc_enum mi2s_config_enum[] = {
 
 static const char *const cdc_dma_format[] = {
 	"UNPACKED",
-	"PACKED_16B",
+	"UNPACKED_NON_LINEAR",
+	"PACKED_LINEAR_60958",
+	"PACKED_NON_LINEAR_60958",
+	"NULL",
+	"NULL",
+        "PACKED_16B",
 };
 
 static const struct soc_enum cdc_dma_config_enum[] = {
-	SOC_ENUM_SINGLE_EXT(2, cdc_dma_format),
+	SOC_ENUM_SINGLE_EXT(7, cdc_dma_format),
 };
 
 static const char *const sb_format[] = {
@@ -6163,7 +6168,6 @@ static int msm_dai_q6_dai_mi2s_probe(struct snd_soc_dai *dai)
 	u16 dai_id = 0;
 
 	dai->id = mi2s_pdata->intf_id;
-
 	if (mi2s_dai_data->mi2s_dai.mi2s_dai_data.port_config.i2s.channel_mode) {
 		if (dai->id == MSM_PRIM_MI2S_RX)
 			ctrl = &mi2s_config_controls[0];
@@ -6209,7 +6213,6 @@ static int msm_dai_q6_dai_mi2s_probe(struct snd_soc_dai *dai)
 	if (dai->id == MSM_INT5_MI2S_TX)
 		vi_feed_ctrl = &mi2s_vi_feed_controls[0];
 
-#if 0
 	if (dai->id == MSM_SEC_MI2S_RX) {
 		rc = snd_ctl_add(dai->component->card->snd_card,
 				snd_ctl_new1(&sec_mi2s_afe_enc_config_controls[0],
@@ -6233,7 +6236,6 @@ static int msm_dai_q6_dai_mi2s_probe(struct snd_soc_dai *dai)
 				snd_ctl_new1(&sec_mi2s_afe_enc_config_controls[6],
 				&mi2s_dai_data->mi2s_dai.mi2s_dai_data));
 	}
-#endif
 
 	if (vi_feed_ctrl) {
 		rc = snd_ctl_add(dai->component->card->snd_card,
@@ -7473,10 +7475,9 @@ static int msm_dai_q6_mi2s_platform_data_validation(
 			dai_driver->capture.channels_max = 0;
 		}
 	}
-	dev_err(&pdev->dev, "%s: playback sdline 0x%x capture sdline 0x%x\n",
-		__func__, dai_data->mi2s_dai.pdata_mi2s_lines,
-		dai_data->mi2s_dai.pdata_mi2s_lines);
-	dev_err(&pdev->dev, "%s: playback ch_max %d capture ch_mx %d\n",
+	dev_dbg(&pdev->dev, "%s: sdlines 0x%x\n",
+		__func__, dai_data->mi2s_dai.pdata_mi2s_lines);
+	dev_dbg(&pdev->dev, "%s: playback ch_max %d capture ch_mx %d\n",
 		__func__, dai_driver->playback.channels_max,
 		dai_driver->capture.channels_max);
 rtn:
@@ -7502,6 +7503,9 @@ static int msm_dai_q6_mi2s_dev_probe(struct platform_device *pdev)
 			"%s: missing 0x%x in dt node\n", __func__, mi2s_intf);
 		goto rtn;
 	}
+
+	dev_dbg(&pdev->dev, "dev name %s dev id 0x%x\n",
+		dev_name(&pdev->dev), mi2s_intf);
 
 	if ((mi2s_intf < MSM_MI2S_MIN || mi2s_intf > MSM_MI2S_MAX)
 		|| (mi2s_intf >= ARRAY_SIZE(msm_dai_q6_mi2s_dai))) {

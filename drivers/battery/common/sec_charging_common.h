@@ -252,6 +252,7 @@ enum sec_battery_charge_mode {
 	SEC_BAT_CHG_MODE_UNO_ON,
 	SEC_BAT_CHG_MODE_UNO_OFF,
 	SEC_BAT_CHG_MODE_UNO_ONLY,
+	SEC_BAT_CHG_MODE_NOT_SET,
 	SEC_BAT_CHG_MODE_MAX,
 };
 
@@ -557,4 +558,9 @@ typedef struct {
 
 #define is_pd_fpdo_wire_type(cable_type) ( \
 	cable_type == SEC_BATTERY_CABLE_PDIC)
+
+#define is_hv_pdo_wire_type(cable_type, hv_pdo) ( \
+	(cable_type == SEC_BATTERY_CABLE_PDIC || \
+	cable_type == SEC_BATTERY_CABLE_PDIC_APDO) && \
+	hv_pdo)
 #endif /* __SEC_CHARGING_COMMON_H */

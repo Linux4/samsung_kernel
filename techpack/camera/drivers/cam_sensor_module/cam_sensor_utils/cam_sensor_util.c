@@ -64,6 +64,27 @@ int32_t cam_sensor_util_get_current_qtimer_ns(uint64_t *qtime_ns)
 	return rc;
 }
 
+int32_t cam_sensor_util_regulator_powerup(struct cam_hw_soc_info *soc_info)
+{
+	int32_t i, rc = 0;
+	/* Initialize regulators to default parameters */
+	for (i = 0; i < soc_info->num_rgltr; i++) {
+		soc_info->rgltr[i] = devm_regulator_get(soc_info->dev,
+					soc_info->rgltr_name[i]);
+		if (IS_ERR_OR_NULL(soc_info->rgltr[i])) {
+			rc = PTR_ERR(soc_info->rgltr[i]);
+			rc = rc ? rc : -EINVAL;
+			CAM_ERR(CAM_SENSOR, "get failed for regulator %s %d",
+				 soc_info->rgltr_name[i], rc);
+			return rc;
+		}
+		CAM_DBG(CAM_SENSOR, "get for regulator %s",
+			soc_info->rgltr_name[i]);
+	}
+
+	return rc;
+}
+
 int32_t delete_request(struct i2c_settings_array *i2c_array)
 {
 	struct i2c_settings_list *i2c_list = NULL, *i2c_next = NULL;
@@ -2118,7 +2139,7 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 
 #if defined(CONFIG_SEC_GTS7FEWIFI_PROJECT)
 		/* This change for is done for TabS7+ Lite Factory timing issue*/
-		if (power_setting->seq_type == SENSOR_VIO) 
+		if (power_setting->seq_type == SENSOR_VIO)
 		{
 			usleep_range(20000, 25000);
 		}

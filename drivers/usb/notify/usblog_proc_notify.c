@@ -2,18 +2,20 @@
 /*
  *  drivers/usb/notify/usblog_proc_notify.c
  *
- * Copyright (C) 2016-2020 Samsung, Inc.
+ * Copyright (C) 2016-2021 Samsung, Inc.
  * Author: Dongrak Shin <dongrak.shin@samsung.com>
  *
  */
 
- /* usb notify layer v3.5 */
+ /* usb notify layer v3.6 */
 
  #define pr_fmt(fmt) "usb_notify: " fmt
 
 #include <linux/types.h>
 #include <linux/errno.h>
 #include <linux/time.h>
+#include <linux/ktime.h>
+#include <linux/rtc.h>
 #include <linux/kernel.h>
 #include <linux/vmalloc.h>
 #include <linux/security.h>
@@ -29,11 +31,11 @@
 #define USBLOG_MAX_BUF2_SIZE	(1 << 7) /* 128 */
 #define USBLOG_MAX_BUF3_SIZE	(1 << 8) /* 256 */
 #define USBLOG_MAX_BUF4_SIZE	(1 << 9) /* 512 */
-#define USBLOG_MAX_STRING_SIZE	(1 << 4) /* 16 */
+#define USBLOG_MAX_STRING_SIZE	(1 << 5) /* 32 */
 #define USBLOG_CMP_INDEX	3
 #define USBLOG_MAX_STORE_PORT	(1 << 6) /* 64 */
 
-#define USBLOG_PDIC_BUFFER_SIZE	USBLOG_MAX_BUF4_SIZE
+#define USBLOG_CCIC_BUFFER_SIZE	USBLOG_MAX_BUF4_SIZE
 #define USBLOG_MODE_BUFFER_SIZE	USBLOG_MAX_BUF_SIZE
 #define USBLOG_STATE_BUFFER_SIZE	USBLOG_MAX_BUF3_SIZE
 #define USBLOG_EVENT_BUFFER_SIZE	USBLOG_MAX_BUF_SIZE
@@ -41,7 +43,20 @@
 #define USBLOG_PCM_BUFFER_SIZE		USBLOG_MAX_BUF_SIZE
 #define USBLOG_EXTRA_BUFFER_SIZE	USBLOG_MAX_BUF2_SIZE
 
-struct pdic_buf {
+#define USBLOG_INDEX 0xABCDABCD
+
+#define USBLOG_CC1		0xffffffff00000000
+#define USBLOG_CC2		0x00000000ffffffff
+
+struct usblog_rtc_time {
+	int tm_sec;
+	int tm_min;
+	int tm_hour;
+	int tm_mday;
+	int tm_mon;
+};
+
+struct ccic_buf {
 	unsigned long long ts_nsec;
 	int cc_type;
 	uint64_t noti;
@@ -78,6 +93,7 @@ struct port_count {
 };
 
 struct pcm_buf {
+	struct usblog_rtc_time rt;
 	unsigned long long ts_nsec;
 	int type;
 	int enable;
@@ -89,19 +105,19 @@ struct extra_buf {
 };
 
 struct usblog_buf {
-	unsigned long long pdic_count;
+	unsigned long long ccic_count;
 	unsigned long long mode_count;
 	unsigned long long state_count;
 	unsigned long long event_count;
 	unsigned long long port_count;
 	unsigned long long extra_count;
-	unsigned long pdic_index;
+	unsigned long ccic_index;
 	unsigned long mode_index;
 	unsigned long state_index;
 	unsigned long event_index;
 	unsigned long port_index;
 	unsigned long extra_index;
-	struct pdic_buf pdic_buffer[USBLOG_PDIC_BUFFER_SIZE];
+	struct ccic_buf ccic_buffer[USBLOG_CCIC_BUFFER_SIZE];
 	struct mode_buf mode_buffer[USBLOG_MODE_BUFFER_SIZE];
 	struct state_buf state_buffer[USBLOG_STATE_BUFFER_SIZE];
 	struct event_buf event_buffer[USBLOG_EVENT_BUFFER_SIZE];
@@ -116,22 +132,23 @@ struct usblog_vm_buf {
 	struct pcm_buf pcm_buffer[USBLOG_PCM_BUFFER_SIZE];
 };
 
-struct pdic_version {
+struct ccic_version {
 	unsigned char hw_version[4];
 	unsigned char sw_main[3];
 	unsigned char sw_boot;
 };
 
 struct usblog_root_str {
+	unsigned long usblog_index;
 	struct usblog_buf *usblog_buffer;
 	struct usblog_vm_buf *usblog_vm_buffer;
-	struct pdic_version pdic_ver;
-	struct pdic_version pdic_bin_ver;
+	struct ccic_version ccic_ver;
+	struct ccic_version ccic_bin_ver;
 	spinlock_t usblog_lock;
 	int init;
 };
 
-struct pdic_type {
+struct ccic_type {
 	uint64_t src:4;
 	uint64_t dest:4;
 	uint64_t id:8;
@@ -193,16 +210,6 @@ static const char *usbstate_string(enum usblog_state usbstate)
 		return "HIGH SPEED";
 	case NOTIFY_SUPER:
 		return "SUPER SPEED";
-	case NOTIFY_BATTERY:
-		return "BATTERY";
-	case NOTIFY_BATTERY_UNCONFIGURE:
-		return "BATTERY_UNCONFIGURE";
-	case NOTIFY_BATTERY_HIGHSPEED:
-		return "BATTERY_HIGHSPEED";
-	case NOTIFY_BATTERY_SUPERSPEED:
-		return "BATTERY_SUPERSPEED";
-	case NOTIFY_BATTERY_SUSPEND:
-		return "BATTERY_SUSPEND";
 	case NOTIFY_GET_DES:
 		return "GET_DES";
 	case NOTIFY_SET_CON:
@@ -238,7 +245,7 @@ static const char *usbstatus_string(enum usblog_status usbstatus)
 	}
 }
 
-static const char *pdic_dev_string(enum pdic_device dev)
+static const char *ccic_dev_string(enum ccic_device dev)
 {
 	switch (dev) {
 	case NOTIFY_DEV_INITIAL:
@@ -264,13 +271,15 @@ static const char *pdic_dev_string(enum pdic_device dev)
 	case NOTIFY_DEV_SECOND_MUIC:
 		return "MUIC2";
 	case NOTIFY_DEV_DEDICATED_MUIC:
-		return "DMUIC";
+		return "DEDICATED MUIC";
+	case NOTIFY_DEV_ALL:
+		return "DEV ALL";
 	default:
 		return "UNDEFINED";
 	}
 }
 
-static const char *pdic_id_string(enum pdic_id id)
+static const char *ccic_id_string(enum ccic_id id)
 {
 	switch (id) {
 	case NOTIFY_ID_INITIAL:
@@ -307,12 +316,22 @@ static const char *pdic_id_string(enum pdic_id id)
 		return "ID_PIN_STATUS";
 	case NOTIFY_ID_WATER_CABLE:
 		return "ID_WATER_CABLE";
+	case NOTIFY_ID_POFF_WATER:
+		return "ID_POWEROFF_WATER";
+	case NOTIFY_ID_DEVICE_INFO:
+		return "ID_DEVICE_INFO";
+	case NOTIFY_ID_SVID_INFO:
+		return "ID_SVID_INFO";
+	case NOTIFY_ID_CLEAR_INFO:
+		return "ID_CLEAR_INFO";
+	case NOTIFY_ID_POGO:
+		return "ID_POGO";
 	default:
 		return "UNDEFINED";
 	}
 }
 
-static const char *pdic_rid_string(enum pdic_rid rid)
+static const char *ccic_rid_string(enum ccic_rid rid)
 {
 	switch (rid) {
 	case NOTIFY_RID_UNDEFINED:
@@ -343,7 +362,7 @@ static const char *pdic_rid_string(enum pdic_rid rid)
 	}
 }
 
-static const char *pdic_con_string(enum pdic_con con)
+static const char *ccic_con_string(enum ccic_con con)
 {
 	switch (con) {
 	case NOTIFY_CON_DETACH:
@@ -355,7 +374,7 @@ static const char *pdic_con_string(enum pdic_con con)
 	}
 }
 
-static const char *pdic_rprd_string(enum pdic_rprd rprd)
+static const char *ccic_rprd_string(enum ccic_rprd rprd)
 {
 	switch (rprd) {
 	case NOTIFY_RD:
@@ -367,7 +386,7 @@ static const char *pdic_rprd_string(enum pdic_rprd rprd)
 	}
 }
 
-static const char *pdic_rpstatus_string(enum pdic_rpstatus rprd)
+static const char *ccic_rpstatus_string(enum ccic_rpstatus rprd)
 {
 	switch (rprd) {
 	case NOTIFY_RP_NONE:
@@ -385,7 +404,7 @@ static const char *pdic_rpstatus_string(enum pdic_rpstatus rprd)
 	}
 }
 
-static const char *pdic_hpd_string(enum pdic_hpd hpd)
+static const char *ccic_hpd_string(enum ccic_hpd hpd)
 {
 	switch (hpd) {
 	case NOTIFY_HPD_LOW:
@@ -399,7 +418,7 @@ static const char *pdic_hpd_string(enum pdic_hpd hpd)
 	}
 }
 
-static const char *pdic_pin_string(enum pdic_pin_assignment pin)
+static const char *ccic_pin_string(enum ccic_pin_assignment pin)
 {
 	switch (pin) {
 	case NOTIFY_DP_PIN_UNKNOWN:
@@ -421,7 +440,7 @@ static const char *pdic_pin_string(enum pdic_pin_assignment pin)
 	}
 }
 
-static const char *pdic_alternatemode_string(uint64_t id)
+static const char *ccic_alternatemode_string(uint64_t id)
 {
 	if ((id & ALTERNATE_MODE_READY) && (id & ALTERNATE_MODE_START))
 		return "READY & START";
@@ -439,7 +458,29 @@ static const char *pdic_alternatemode_string(uint64_t id)
 		return "UNDEFINED";
 }
 
-static const char *pdic_pinstatus_string(enum pdic_pin_status pinstatus)
+static const char *ccic_voltage_string(uint8_t cc)
+{
+	switch (cc) {
+	case NOTIFY_CC_VOLT_OPEN:
+		return "open";
+	case NOTIFY_CC_VOLT_RA:
+		return "ra";
+	case NOTIFY_CC_VOLT_RD:
+		return "rd";
+	case NOTIFY_CC_VOLT_SNK_DFT:
+		return "rp 56k";
+	case NOTIFY_CC_VOLT_SNK_1_5:
+		return "rp 22k";
+	case NOTIFY_CC_VOLT_SNK_3_0:
+		return "rp 10k";
+	case NOTIFY_CC_DRP_TOGGLING:
+		return "cc toggle";
+	default:
+		return "undefined";
+	}
+}
+
+static const char *ccic_pinstatus_string(enum ccic_pin_status pinstatus)
 {
 	switch (pinstatus) {
 	case NOTIFY_PIN_NOTERMINATION:
@@ -484,15 +525,44 @@ static const char *extra_string(enum extra event)
 		return "USB ANALOG AUDIO";
 	case NOTIFY_EXTRA_USBHOST_OVERCURRENT:
 		return "USB HOST OVERCURRENT";
+	case NOTIFY_EXTRA_ROOTHUB_SUSPEND_FAIL:
+		return "ROOTHUB SUSPEND FAIL";
+	case NOTIFY_EXTRA_PORT_SUSPEND_FAIL:
+		return "PORT SUSPEND FAIL";
+	case NOTIFY_EXTRA_PORT_SUSPEND_WAKEUP_FAIL:
+		return "PORT REMOTE WAKEUP FAIL";
+	case NOTIFY_EXTRA_PORT_SUSPEND_LTM_FAIL:
+		return "PORT LTM FAIL";
+	case NOTIFY_EXTRA_VIB_FW_LOAD_SUCCESS:
+		return "VIBRATOR FIRMWARE LOAD SUCCESS";
 	default:
 		return "ETC";
 	}
 }
 
-static void print_pdic_event(struct seq_file *m, unsigned long long ts,
+static const char * const tcpm_states[] = {
+	NOTIFY_FOREACH_STATE(NOTIFY_GENERATE_STRING)
+};
+
+static void usblog_get_rt(struct usblog_rtc_time *rt)
+{
+	struct rtc_time tm;
+	struct timespec64 ts64;
+
+	ktime_get_real_ts64(&ts64);
+	rtc_time64_to_tm(ts64.tv_sec - (sys_tz.tz_minuteswest * 60), &tm);
+	rt->tm_mon = tm.tm_mon + 1;
+	rt->tm_mday = tm.tm_mday;
+	rt->tm_hour = tm.tm_hour;
+	rt->tm_min = tm.tm_min;
+	rt->tm_sec = tm.tm_sec;
+}
+
+static void print_ccic_event(struct seq_file *m, unsigned long long ts,
 		unsigned long rem_nsec, int cc_type, uint64_t *noti)
 {
-	struct pdic_type type = *(struct pdic_type *)noti;
+	struct ccic_type type = *(struct ccic_type *)noti;
+	uint8_t cc1 = 0, cc2 = 0;
 	int cable = type.sub3;
 
 	switch (cc_type) {
@@ -500,283 +570,366 @@ static void print_pdic_event(struct seq_file *m, unsigned long long ts,
 		seq_printf(m, "[%5lu.%06lu] function state = %llu\n",
 			(unsigned long)ts, rem_nsec / 1000, *noti);
 		break;
-	case NOTIFY_ALTERNATEMODE:
-		seq_printf(m, "[%5lu.%06lu] pdic alternate mode is %s 0x%04llx\n",
+	case NOTIFY_TCPMSTATE:
+		if (*noti >= ARRAY_SIZE(tcpm_states)) {
+			seq_printf(m, "[%5lu.%06lu] tcpm state = %llu\n",
+				(unsigned long)ts, rem_nsec / 1000, *noti);
+		} else {
+			seq_printf(m, "[%5lu.%06lu] tcpm state = %s(%llu)\n",
+				(unsigned long)ts, rem_nsec / 1000,
+					tcpm_states[*noti], *noti);
+		}
+		break;
+	case NOTIFY_CCSTATE:
+		cc1 = (*noti & USBLOG_CC1) >> 32;
+		cc2 = (*noti & USBLOG_CC2);
+
+		seq_printf(m, "[%5lu.%06lu] cc1=%s cc2=%s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_alternatemode_string(*noti), *noti);
+			ccic_voltage_string(cc1), ccic_voltage_string(cc2));
+		break;
+	case NOTIFY_ALTERNATEMODE:
+		seq_printf(m, "[%5lu.%06lu] ccic alternate mode is %s 0x%04llx\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_alternatemode_string(*noti), *noti);
 		break;
 	case NOTIFY_CCIC_EVENT:
 		if (type.id == NOTIFY_ID_ATTACH) {
 			if (type.src == NOTIFY_DEV_MUIC
-				|| type.src == NOTIFY_DEV_SECOND_MUIC || type.src == NOTIFY_DEV_DEDICATED_MUIC)
+				|| type.src == NOTIFY_DEV_SECOND_MUIC
+					|| type.src == NOTIFY_DEV_DEDICATED_MUIC)
 				seq_printf(m,
-					"[%5lu.%06lu] pdic notify:    id=%s src=%s dest=%s rprd=%s cable=%d %s\n",
+					"[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s rprd=%s cable=%d %s\n",
 				(unsigned long)ts, rem_nsec / 1000,
-				pdic_id_string(type.id),
-				pdic_dev_string(type.src),
-				pdic_dev_string(type.dest),
-				pdic_rprd_string(type.sub2),
-				cable, pdic_con_string(type.sub1));
+				ccic_id_string(type.id),
+				ccic_dev_string(type.src),
+				ccic_dev_string(type.dest),
+				ccic_rprd_string(type.sub2),
+				cable, ccic_con_string(type.sub1));
 			else
 				seq_printf(m,
-					"[%5lu.%06lu] pdic notify:    id=%s src=%s dest=%s rprd=%s rp status=%s %s\n",
+					"[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s rprd=%s rp status=%s %s\n",
 				(unsigned long)ts, rem_nsec / 1000,
-				pdic_id_string(type.id),
-				pdic_dev_string(type.src),
-				pdic_dev_string(type.dest),
-				pdic_rprd_string(type.sub2),
-				pdic_rpstatus_string(type.sub3),
-				pdic_con_string(type.sub1));
+				ccic_id_string(type.id),
+				ccic_dev_string(type.src),
+				ccic_dev_string(type.dest),
+				ccic_rprd_string(type.sub2),
+				ccic_rpstatus_string(type.sub3),
+				ccic_con_string(type.sub1));
 		} else if (type.id  == NOTIFY_ID_RID)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:    id=%s src=%s dest=%s rid=%s\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s rid=%s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
-			pdic_rid_string(type.sub1));
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			ccic_rid_string(type.sub1));
 		else if (type.id  == NOTIFY_ID_USB)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:    id=%s src=%s dest=%s status=%s\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s status=%s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
 			usbstatus_string(type.sub2));
 		else if (type.id  == NOTIFY_ID_POWER_STATUS)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:    id=%s src=%s dest=%s %s\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s %s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
-			pdic_con_string(type.sub1));
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			ccic_con_string(type.sub1));
 		else if (type.id  == NOTIFY_ID_WATER)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:   id=%s src=%s dest=%s    %s detected\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:   id=%s src=%s dest=%s    %s detected\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
 			type.sub1 ? "WATER":"DRY");
 		else if (type.id  == NOTIFY_ID_VCONN)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:    id=%s src=%s dest=%s\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest));
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest));
 		else if (type.id  == NOTIFY_ID_OTG)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:    id=%s src=%s dest=%s %s\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s %s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
 			type.sub2 ? "Enable":"Disable");
 		else if (type.id  == NOTIFY_ID_TA)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:    id=%s src=%s dest=%s %s\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s %s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
-			pdic_con_string(type.sub1));
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			ccic_con_string(type.sub1));
 		else if (type.id  == NOTIFY_ID_DP_CONNECT)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:    id=%s src=%s dest=%s 0x%04x/0x%04x %s\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s 0x%04x/0x%04x %s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
 			type.sub2,
 			type.sub3,
-			pdic_con_string(type.sub1));
+			ccic_con_string(type.sub1));
 		else if (type.id  == NOTIFY_ID_DP_HPD)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:    id=%s src=%s dest=%s hpd=%s irq=%s\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s hpd=%s irq=%s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
-			pdic_hpd_string(type.sub1),
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			ccic_hpd_string(type.sub1),
 			type.sub2 ? "VALID":"NONE");
 		else if (type.id  == NOTIFY_ID_DP_LINK_CONF)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:    id=%s src=%s dest=%s PIN-assign=%s\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s PIN-assign=%s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
-			pdic_pin_string(type.sub1));
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			ccic_pin_string(type.sub1));
 		else if (type.id  == NOTIFY_ID_USB_DP)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:    id=%s src=%s dest=%s CON=%d HS=%d\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s CON=%d HS=%d\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
 			type.sub1,
 			type.sub2);
 		else if (type.id  == NOTIFY_ID_ROLE_SWAP)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:	id=%s src=%s dest=%s sub1=%d sub2=%d\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:	id=%s src=%s dest=%s sub1=%d sub2=%d\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
 			type.sub1,
 			type.sub2);
 		else if (type.id  == NOTIFY_ID_FAC)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:	id=%s src=%s dest=%s ErrState=%d\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:	id=%s src=%s dest=%s ErrState=%d\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
 			type.sub1);
 		else if (type.id == NOTIFY_ID_CC_PIN_STATUS)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:	id=%s src=%s dest=%s pinstatus=%s\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:	id=%s src=%s dest=%s pinstatus=%s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
-			pdic_pinstatus_string(type.sub1));
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			ccic_pinstatus_string(type.sub1));
 		else if (type.id == NOTIFY_ID_WATER_CABLE)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:	id=%s src=%s dest=%s %s\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:	id=%s src=%s dest=%s %s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
-			pdic_con_string(type.sub1));
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			ccic_con_string(type.sub1));
+		else if (type.id  == NOTIFY_ID_POFF_WATER)
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s POWEROFF %s detected\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			type.sub1 ? "WATER":"DRY");
+		else if (type.id  == NOTIFY_ID_DEVICE_INFO)
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s vid=%04x pid=%04x bcd=%04x\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			type.sub1, type.sub2, type.sub3);
+		else if (type.id  == NOTIFY_ID_SVID_INFO)
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s svid=%04x\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			type.sub1);
+		else if (type.id  == NOTIFY_ID_CLEAR_INFO)
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s clear %s\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			(type.sub1 == NOTIFY_ID_DEVICE_INFO) ? "DEVICE INFO" : "SVID INFO");
+		else if (type.id == NOTIFY_ID_POGO)
+			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s cable=%d %s\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			cable, ccic_con_string(type.sub1));
 		else
-			seq_printf(m, "[%5lu.%06lu] pdic notify:    id=%s src=%s dest=%s rprd=%s %s\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s rprd=%s %s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
-			pdic_rprd_string(type.sub2),
-			pdic_con_string(type.sub1));
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			ccic_rprd_string(type.sub2),
+			ccic_con_string(type.sub1));
 		break;
 	case NOTIFY_MANAGER:
 		if (type.id == NOTIFY_ID_ATTACH) {
 			if (type.src == NOTIFY_DEV_MUIC
-				|| type.src == NOTIFY_DEV_SECOND_MUIC || type.src == NOTIFY_DEV_DEDICATED_MUIC)
+				|| type.src == NOTIFY_DEV_SECOND_MUIC
+					|| type.src == NOTIFY_DEV_DEDICATED_MUIC)
 				seq_printf(m,
 					"[%5lu.%06lu] manager notify: id=%s src=%s dest=%s rprd=%s cable=%d %s\n",
 				(unsigned long)ts, rem_nsec / 1000,
-				pdic_id_string(type.id),
-				pdic_dev_string(type.src),
-				pdic_dev_string(type.dest),
-				pdic_rprd_string(type.sub2),
-				cable, pdic_con_string(type.sub1));
+				ccic_id_string(type.id),
+				ccic_dev_string(type.src),
+				ccic_dev_string(type.dest),
+				ccic_rprd_string(type.sub2),
+				cable, ccic_con_string(type.sub1));
 			else
 				seq_printf(m,
 					"[%5lu.%06lu] manager notify: id=%s src=%s dest=%s rprd=%s rp status=%s %s\n",
 				(unsigned long)ts, rem_nsec / 1000,
-				pdic_id_string(type.id),
-				pdic_dev_string(type.src),
-				pdic_dev_string(type.dest),
-				pdic_rprd_string(type.sub2),
-				pdic_rpstatus_string(type.sub3),
-				pdic_con_string(type.sub1));
+				ccic_id_string(type.id),
+				ccic_dev_string(type.src),
+				ccic_dev_string(type.dest),
+				ccic_rprd_string(type.sub2),
+				ccic_rpstatus_string(type.sub3),
+				ccic_con_string(type.sub1));
 		} else if (type.id  == NOTIFY_ID_RID)
 			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s rid=%s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
-			pdic_rid_string(type.sub1));
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			ccic_rid_string(type.sub1));
 		else if (type.id  == NOTIFY_ID_USB)
 			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s status=%s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
 			usbstatus_string(type.sub2));
 		else if (type.id  == NOTIFY_ID_POWER_STATUS)
 			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s %s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
-			pdic_con_string(type.sub1));
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			ccic_con_string(type.sub1));
 		else if (type.id  == NOTIFY_ID_WATER)
 			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s    %s detected\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
 			type.sub1 ? "WATER":"DRY");
 		else if (type.id  == NOTIFY_ID_VCONN)
 			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest));
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest));
 		else if (type.id  == NOTIFY_ID_OTG)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:    id=%s src=%s dest=%s %s\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s %s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
 			type.sub2 ? "Enable":"Disable");
 		else if (type.id  == NOTIFY_ID_TA)
-			seq_printf(m, "[%5lu.%06lu] pdic notify:    id=%s src=%s dest=%s %s\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s %s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
-			pdic_con_string(type.sub1));
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			ccic_con_string(type.sub1));
 		else if (type.id  == NOTIFY_ID_DP_CONNECT)
 			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s 0x%04x/0x%04x %s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
 			type.sub2,
 			type.sub3,
-			pdic_con_string(type.sub1));
+			ccic_con_string(type.sub1));
 		else if (type.id  == NOTIFY_ID_DP_HPD)
 			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s hpd=%s irq=%s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
-			pdic_hpd_string(type.sub1),
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			ccic_hpd_string(type.sub1),
 			type.sub2 ? "VALID":"NONE");
 		else if (type.id  == NOTIFY_ID_DP_LINK_CONF)
 			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s PIN-assign=%s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
-			pdic_pin_string(type.sub1));
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			ccic_pin_string(type.sub1));
 		else if (type.id  == NOTIFY_ID_USB_DP)
 			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s CON=%d HS=%d\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
 			type.sub1,
 			type.sub2);
 		else if (type.id  == NOTIFY_ID_ROLE_SWAP)
 			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s sub1=%d sub2=%d\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
 			type.sub1,
 			type.sub2);
 		else if (type.id  == NOTIFY_ID_FAC)
 			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s ErrState=%d\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
 			type.sub1);
 		else if (type.id == NOTIFY_ID_CC_PIN_STATUS)
 			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s pinstatus=%s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
-			pdic_pinstatus_string(type.sub1));
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			ccic_pinstatus_string(type.sub1));
+		else if (type.id == NOTIFY_ID_WATER_CABLE)
+			seq_printf(m, "[%5lu.%06lu] manager notify:	id=%s src=%s dest=%s %s\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			ccic_con_string(type.sub1));
+		else if (type.id  == NOTIFY_ID_DEVICE_INFO)
+			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s vid=%04x pid=%04x bcd=%04x\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			type.sub1, type.sub2, type.sub3);
+		else if (type.id  == NOTIFY_ID_SVID_INFO)
+			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s svid=%04x\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			type.sub1);
+		else if (type.id  == NOTIFY_ID_CLEAR_INFO)
+			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s clear %s\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			(type.sub1 == NOTIFY_ID_DEVICE_INFO) ? "DEVICE INFO" : "SVID INFO");
 		else
 			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s rprd=%s %s\n",
 			(unsigned long)ts, rem_nsec / 1000,
-			pdic_id_string(type.id),
-			pdic_dev_string(type.src),
-			pdic_dev_string(type.dest),
-			pdic_rprd_string(type.sub2),
-			pdic_con_string(type.sub1));
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			ccic_rprd_string(type.sub2),
+			ccic_con_string(type.sub1));
 		break;
 	default:
 		seq_printf(m, "[%5lu.%06lu] undefined event\n",
@@ -840,22 +993,25 @@ static uint16_t set_port_count(uint16_t vid, uint16_t pid)
 	return ret;
 }
 
-static void print_pcm_string(struct seq_file *m, unsigned long long ts,
-	unsigned long rem_nsec, int type, int enable)
+static void print_pcm_string(struct seq_file *m, struct usblog_rtc_time *rt,
+	unsigned long long ts, unsigned long rem_nsec, int type, int enable)
 {
 	switch (type) {
 	case NOTIFY_PCM_PLAYBACK:
-		seq_printf(m, "[%5lu.%06lu] USB PCM PLAYBACK %s\n",
+		seq_printf(m, "[%02d-%02d %02d:%02d:%02d][%5lu.%06lu] USB PCM PLAYBACK %s\n",
+			rt->tm_mon, rt->tm_mday, rt->tm_hour, rt->tm_min, rt->tm_sec,
 			(unsigned long)ts, rem_nsec / 1000,
 				enable ? "OPEN" : "CLOSE");
 		break;
 	case NOTIFY_PCM_CAPTURE:
-		seq_printf(m, "[%5lu.%06lu] USB PCM CAPTURE %s\n",
+		seq_printf(m, "[%02d-%02d %02d:%02d:%02d][%5lu.%06lu] USB PCM CAPTURE %s\n",
+			rt->tm_mon, rt->tm_mday, rt->tm_hour, rt->tm_min, rt->tm_sec,
 			(unsigned long)ts, rem_nsec / 1000,
 				enable ? "OPEN" : "CLOSE");
 		break;
 	default:
-		seq_printf(m, "[%5lu.%06lu] undefined event\n",
+		seq_printf(m, "[%02d-%02d %02d:%02d:%02d][%5lu.%06lu] undefined event\n",
+			rt->tm_mon, rt->tm_mday, rt->tm_hour, rt->tm_min, rt->tm_sec,
 			(unsigned long)ts, rem_nsec / 1000);
 		break;
 	}
@@ -865,6 +1021,7 @@ static int usblog_proc_show(struct seq_file *m, void *v)
 {
 	struct usblog_buf *temp_usblog_buffer;
 	struct usblog_vm_buf *temp_usblog_vm_buffer;
+	struct usblog_rtc_time rt;
 	unsigned long long ts;
 	unsigned long rem_nsec;
 	unsigned long i;
@@ -875,55 +1032,64 @@ static int usblog_proc_show(struct seq_file *m, void *v)
 	if (!temp_usblog_buffer || !temp_usblog_vm_buffer)
 		goto err;
 
+	usblog_get_rt(&rt);
+	ts = local_clock();
+	rem_nsec = do_div(ts, 1000000000);
+
+	seq_printf(m,
+		"time sync: [%02d-%02d %02d:%02d:%02d][%5lu.%06lu]\n",
+		rt.tm_mon, rt.tm_mday, rt.tm_hour, rt.tm_min, rt.tm_sec,
+		(unsigned long)ts, rem_nsec / 1000);
+
 	seq_printf(m,
 		"usblog CC IC version:\n");
 
 	seq_printf(m,
 		"hw version =%2x %2x %2x %2x\n",
-		usblog_root.pdic_ver.hw_version[3],
-		usblog_root.pdic_ver.hw_version[2],
-		usblog_root.pdic_ver.hw_version[1],
-		usblog_root.pdic_ver.hw_version[0]);
+		usblog_root.ccic_ver.hw_version[3],
+		usblog_root.ccic_ver.hw_version[2],
+		usblog_root.ccic_ver.hw_version[1],
+		usblog_root.ccic_ver.hw_version[0]);
 
 	seq_printf(m,
 		"sw version =%2x %2x %2x %2x\n",
-		usblog_root.pdic_ver.sw_main[2],
-		usblog_root.pdic_ver.sw_main[1],
-		usblog_root.pdic_ver.sw_main[0],
-		usblog_root.pdic_ver.sw_boot);
+		usblog_root.ccic_ver.sw_main[2],
+		usblog_root.ccic_ver.sw_main[1],
+		usblog_root.ccic_ver.sw_main[0],
+		usblog_root.ccic_ver.sw_boot);
 
 	seq_printf(m,
 		"bin version =%2x %2x %2x %2x\n",
-		usblog_root.pdic_bin_ver.sw_main[2],
-		usblog_root.pdic_bin_ver.sw_main[1],
-		usblog_root.pdic_bin_ver.sw_main[0],
-		usblog_root.pdic_bin_ver.sw_boot);
+		usblog_root.ccic_bin_ver.sw_main[2],
+		usblog_root.ccic_bin_ver.sw_main[1],
+		usblog_root.ccic_bin_ver.sw_main[0],
+		usblog_root.ccic_bin_ver.sw_boot);
 
 
 	seq_printf(m,
 		"\n\n");
 	seq_printf(m,
-		"usblog PDIC EVENT: count=%llu maxline=%d\n",
-			temp_usblog_buffer->pdic_count,
-					USBLOG_PDIC_BUFFER_SIZE);
+		"usblog CCIC EVENT: count=%llu maxline=%d\n",
+			temp_usblog_buffer->ccic_count,
+					USBLOG_CCIC_BUFFER_SIZE);
 
-	if (temp_usblog_buffer->pdic_count >= USBLOG_PDIC_BUFFER_SIZE) {
-		for (i = temp_usblog_buffer->pdic_index;
-			i < USBLOG_PDIC_BUFFER_SIZE; i++) {
-			ts = temp_usblog_buffer->pdic_buffer[i].ts_nsec;
+	if (temp_usblog_buffer->ccic_count >= USBLOG_CCIC_BUFFER_SIZE) {
+		for (i = temp_usblog_buffer->ccic_index;
+			i < USBLOG_CCIC_BUFFER_SIZE; i++) {
+			ts = temp_usblog_buffer->ccic_buffer[i].ts_nsec;
 			rem_nsec = do_div(ts, 1000000000);
-			print_pdic_event(m, ts, rem_nsec,
-				temp_usblog_buffer->pdic_buffer[i].cc_type,
-				&temp_usblog_buffer->pdic_buffer[i].noti);
+			print_ccic_event(m, ts, rem_nsec,
+				temp_usblog_buffer->ccic_buffer[i].cc_type,
+				&temp_usblog_buffer->ccic_buffer[i].noti);
 		}
 	}
 
-	for (i = 0; i < temp_usblog_buffer->pdic_index; i++) {
-		ts = temp_usblog_buffer->pdic_buffer[i].ts_nsec;
+	for (i = 0; i < temp_usblog_buffer->ccic_index; i++) {
+		ts = temp_usblog_buffer->ccic_buffer[i].ts_nsec;
 		rem_nsec = do_div(ts, 1000000000);
-		print_pdic_event(m, ts, rem_nsec,
-				temp_usblog_buffer->pdic_buffer[i].cc_type,
-				&temp_usblog_buffer->pdic_buffer[i].noti);
+		print_ccic_event(m, ts, rem_nsec,
+				temp_usblog_buffer->ccic_buffer[i].cc_type,
+				&temp_usblog_buffer->ccic_buffer[i].noti);
 	}
 
 	seq_printf(m,
@@ -1050,7 +1216,8 @@ static int usblog_proc_show(struct seq_file *m, void *v)
 			i < USBLOG_PCM_BUFFER_SIZE; i++) {
 			ts = temp_usblog_vm_buffer->pcm_buffer[i].ts_nsec;
 			rem_nsec = do_div(ts, 1000000000);
-			print_pcm_string(m, ts, rem_nsec,
+			print_pcm_string(m, &temp_usblog_vm_buffer->pcm_buffer[i].rt,
+				ts, rem_nsec,
 				temp_usblog_vm_buffer->pcm_buffer[i].type,
 				temp_usblog_vm_buffer->pcm_buffer[i].enable);
 		}
@@ -1059,7 +1226,8 @@ static int usblog_proc_show(struct seq_file *m, void *v)
 	for (i = 0; i < temp_usblog_vm_buffer->pcm_index; i++) {
 		ts = temp_usblog_vm_buffer->pcm_buffer[i].ts_nsec;
 		rem_nsec = do_div(ts, 1000000000);
-		print_pcm_string(m, ts, rem_nsec,
+		print_pcm_string(m, &temp_usblog_vm_buffer->pcm_buffer[i].rt,
+			ts, rem_nsec,
 			temp_usblog_vm_buffer->pcm_buffer[i].type,
 			temp_usblog_vm_buffer->pcm_buffer[i].enable);
 	}
@@ -1106,24 +1274,24 @@ static const struct file_operations usblog_proc_fops = {
 	.release	= single_release,
 };
 
-void pdic_store_usblog_notify(int type, uint64_t *param1)
+void ccic_store_usblog_notify(int type, uint64_t *param1)
 {
-	struct pdic_buf *pdic_buffer;
+	struct ccic_buf *ccic_buffer;
 	unsigned long long *target_count;
 	unsigned long *target_index;
 
-	target_count = &usblog_root.usblog_buffer->pdic_count;
-	target_index = &usblog_root.usblog_buffer->pdic_index;
-	pdic_buffer = &usblog_root.usblog_buffer->pdic_buffer[*target_index];
-	if (pdic_buffer == NULL) {
+	target_count = &usblog_root.usblog_buffer->ccic_count;
+	target_index = &usblog_root.usblog_buffer->ccic_index;
+	ccic_buffer = &usblog_root.usblog_buffer->ccic_buffer[*target_index];
+	if (ccic_buffer == NULL) {
 		pr_err("%s target_buffer error\n", __func__);
 		goto err;
 	}
-	pdic_buffer->ts_nsec = local_clock();
-	pdic_buffer->cc_type = type;
-	pdic_buffer->noti = *param1;
+	ccic_buffer->ts_nsec = local_clock();
+	ccic_buffer->cc_type = type;
+	ccic_buffer->noti = *param1;
 
-	*target_index = (*target_index+1)%USBLOG_PDIC_BUFFER_SIZE;
+	*target_index = (*target_index+1)%USBLOG_CCIC_BUFFER_SIZE;
 	(*target_count)++;
 err:
 	return;
@@ -1354,30 +1522,6 @@ void state_store_usblog_notify(int type, char *param1)
 			break;
 		}
 		break;
-	case 'T': /* BATTERY UNCONFIGURE/HIGHSPEED/SUPERSPEED/SUSPEND */
-		name = strsep(&b, ":");
-		if (b) {
-			index2 = *(b+USBLOG_CMP_INDEX);
-			switch (index2) {
-			case 'O': /* UNCONFIGURE */
-				usbstate = NOTIFY_BATTERY_UNCONFIGURE;
-				break;
-			case 'H': /* HIGH SPEED */
-				usbstate = NOTIFY_BATTERY_HIGHSPEED;
-				break;
-			case 'E': /* SUPER SPEED */
-				usbstate = NOTIFY_BATTERY_SUPERSPEED;
-				break;
-			case 'P': /* SUSPEND */
-				usbstate = NOTIFY_BATTERY_SUSPEND;
-				break;
-			default:
-				usbstate = NOTIFY_BATTERY;
-				break;
-			}
-		} else
-			usbstate = NOTIFY_BATTERY;
-		break;
 	default:
 		pr_err("%s state param error. state=%s\n", __func__, param1);
 		goto err;
@@ -1461,6 +1605,7 @@ void pcm_store_usblog_notify(int type, int *param1)
 		pr_err("%s target_buffer error\n", __func__);
 		goto err;
 	}
+	usblog_get_rt(&pcm_buffer->rt);
 	pcm_buffer->ts_nsec = local_clock();
 	pcm_buffer->type = type;
 	pcm_buffer->enable = *param1;
@@ -1515,12 +1660,13 @@ void store_usblog_notify(int type, void *param1, void *param2)
 		return;
 	}
 
-	if (type == NOTIFY_FUNCSTATE || type == NOTIFY_ALTERNATEMODE) {
+	if (type == NOTIFY_FUNCSTATE || type == NOTIFY_TCPMSTATE
+			|| type == NOTIFY_ALTERNATEMODE) {
 		temp = *(int *)param1;
-		pdic_store_usblog_notify(type, &temp);
-	} else if (type == NOTIFY_CCIC_EVENT
+		ccic_store_usblog_notify(type, &temp);
+	} else if (type == NOTIFY_CCSTATE || type == NOTIFY_CCIC_EVENT
 		|| type == NOTIFY_MANAGER)
-		pdic_store_usblog_notify(type, (uint64_t *)param1);
+		ccic_store_usblog_notify(type, (uint64_t *)param1);
 	else if (type == NOTIFY_EVENT)
 		event_store_usblog_notify(type,
 			(unsigned long *)param1, (int *)param2);
@@ -1545,7 +1691,7 @@ void store_usblog_notify(int type, void *param1, void *param2)
 }
 EXPORT_SYMBOL(store_usblog_notify);
 
-void store_pdic_version(unsigned char *hw, unsigned char *sw_main,
+void store_ccic_version(unsigned char *hw, unsigned char *sw_main,
 			unsigned char *sw_boot)
 {
 	if (!hw || !sw_main || !sw_boot) {
@@ -1553,13 +1699,13 @@ void store_pdic_version(unsigned char *hw, unsigned char *sw_main,
 		return;
 	}
 
-	memcpy(&usblog_root.pdic_ver.hw_version, hw, 4);
-	memcpy(&usblog_root.pdic_ver.sw_main, sw_main, 3);
-	memcpy(&usblog_root.pdic_ver.sw_boot, sw_boot, 1);
+	memcpy(&usblog_root.ccic_ver.hw_version, hw, 4);
+	memcpy(&usblog_root.ccic_ver.sw_main, sw_main, 3);
+	memcpy(&usblog_root.ccic_ver.sw_boot, sw_boot, 1);
 }
-EXPORT_SYMBOL(store_pdic_version);
+EXPORT_SYMBOL(store_ccic_version);
 
-void store_pdic_bin_version(const unsigned char *sw_main,
+void store_ccic_bin_version(const unsigned char *sw_main,
 				const unsigned char *sw_boot)
 {
 	if (!sw_main || !sw_boot) {
@@ -1567,19 +1713,19 @@ void store_pdic_bin_version(const unsigned char *sw_main,
 		return;
 	}
 
-	memcpy(&usblog_root.pdic_bin_ver.sw_main, sw_main, 3);
-	memcpy(&usblog_root.pdic_bin_ver.sw_boot, sw_boot, 1);
+	memcpy(&usblog_root.ccic_bin_ver.sw_main, sw_main, 3);
+	memcpy(&usblog_root.ccic_bin_ver.sw_boot, sw_boot, 1);
 }
-EXPORT_SYMBOL(store_pdic_bin_version);
+EXPORT_SYMBOL(store_ccic_bin_version);
 
-unsigned long long show_pdic_version(void)
+unsigned long long show_ccic_version(void)
 {
 	unsigned long long ret = 0;
 
-	memcpy(&ret, &usblog_root.pdic_ver, sizeof(unsigned long long));
+	memcpy(&ret, &usblog_root.ccic_ver, sizeof(unsigned long long));
 	return ret;
 }
-EXPORT_SYMBOL(show_pdic_version);
+EXPORT_SYMBOL(show_ccic_version);
 
 int register_usblog_proc(void)
 {
@@ -1594,6 +1740,7 @@ int register_usblog_proc(void)
 
 	spin_lock_init(&usblog_root.usblog_lock);
 
+	usblog_root.usblog_index = USBLOG_INDEX;
 	usblog_root.init = 1;
 
 	proc_create("usblog", 0444, NULL, &usblog_proc_fops);

@@ -36,6 +36,9 @@
 #define FSCRYPT_CONTEXT_V1	1
 #define FSCRYPT_CONTEXT_V2	2
 
+/* Keep this in sync with include/uapi/linux/fscrypt.h */
+#define FSCRYPT_MODE_MAX	FSCRYPT_MODE_ADIANTUM
+
 struct fscrypt_context_v1 {
 	u8 version; /* FSCRYPT_CONTEXT_V1 */
 	u8 contents_encryption_mode;
@@ -274,6 +277,9 @@ struct fscrypt_info {
 	/* Hashed inode number.  Only set for IV_INO_LBLK_32 */
 	u32 ci_hashed_ino;
 
+#ifdef CONFIG_DDAR
+	struct dd_info *ci_dd_info;
+#endif
 #ifdef CONFIG_FSCRYPT_SDP
 	struct sdp_info *ci_sdp_info;
 #endif
@@ -550,9 +556,9 @@ struct fscrypt_master_key {
 	 * Per-mode encryption keys for the various types of encryption policies
 	 * that use them.  Allocated and derived on-demand.
 	 */
-	struct fscrypt_prepared_key mk_direct_keys[__FSCRYPT_MODE_MAX + 1];
-	struct fscrypt_prepared_key mk_iv_ino_lblk_64_keys[__FSCRYPT_MODE_MAX + 1];
-	struct fscrypt_prepared_key mk_iv_ino_lblk_32_keys[__FSCRYPT_MODE_MAX + 1];
+	struct fscrypt_prepared_key mk_direct_keys[FSCRYPT_MODE_MAX + 1];
+	struct fscrypt_prepared_key mk_iv_ino_lblk_64_keys[FSCRYPT_MODE_MAX + 1];
+	struct fscrypt_prepared_key mk_iv_ino_lblk_32_keys[FSCRYPT_MODE_MAX + 1];
 
 	/* Hash key for inode numbers.  Initialized only when needed. */
 	siphash_key_t		mk_ino_hash_key;
@@ -642,7 +648,8 @@ int fscrypt_setup_v1_file_key(struct fscrypt_info *ci,
 int fscrypt_setup_v1_file_key_via_subscribed_keyrings(struct fscrypt_info *ci);
 
 #ifdef CONFIG_FSCRYPT_SDP
-static inline bool fscrypt_sdp_protected(const union fscrypt_context *ctx_u) {
+static inline bool fscrypt_sdp_protected(const union fscrypt_context *ctx_u)
+{
 	switch (ctx_u->version) {
 		case FSCRYPT_CONTEXT_V1: {
 			const struct fscrypt_context_v1 *ctx = &ctx_u->v1;
@@ -654,6 +661,29 @@ static inline bool fscrypt_sdp_protected(const union fscrypt_context *ctx_u) {
 		case FSCRYPT_CONTEXT_V2: {
 			const struct fscrypt_context_v2 *ctx = &ctx_u->v2;
 			if (ctx->knox_flags & FSCRYPT_KNOX_FLG_SDP_MASK) {
+				return true;
+			}
+			break;
+		}
+	}
+	return false;
+}
+#endif
+
+#ifdef CONFIG_DDAR
+static inline bool fscrypt_ddar_protected(const union fscrypt_context *ctx_u)
+{
+	switch (ctx_u->version) {
+		case FSCRYPT_CONTEXT_V1: {
+			const struct fscrypt_context_v1 *ctx = &ctx_u->v1;
+			if (ctx->knox_flags & FSCRYPT_KNOX_FLG_DDAR_ENABLED) {
+				return true;
+			}
+			break;
+		}
+		case FSCRYPT_CONTEXT_V2: {
+			const struct fscrypt_context_v2 *ctx = &ctx_u->v2;
+			if (ctx->knox_flags & FSCRYPT_KNOX_FLG_DDAR_ENABLED) {
 				return true;
 			}
 			break;

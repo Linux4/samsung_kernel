@@ -376,15 +376,15 @@ static CLASS_ATTR_RW(dp_error_info);
 #endif
 
 #ifdef SECDP_SELF_TEST
-struct secdp_sef_test_item g_self_test[] = {
+static struct secdp_sef_test_item g_self_test[] = {
 	{DP_ENUM_STR(ST_CLEAR_CMD), .arg_cnt = 0, .arg_str = "clear all configurations"},
-	{DP_ENUM_STR(ST_LANE_CNT), .arg_cnt = 1, .arg_str = "lane_count: 1 = 1 lane, 2 = 2 lane, 4 = 4 lane, -1 = disable"},
-	{DP_ENUM_STR(ST_LINK_RATE), .arg_cnt = 1, .arg_str = "link_rate: 1 = 1.62G , 2 = 2.7G, 3 = 5.4G, -1 = disable"},
-	{DP_ENUM_STR(ST_CONNECTION_TEST), .arg_cnt = 1, .arg_str = "reconnection time(sec) : range = 5 ~ 50, -1 = disable"},
-	{DP_ENUM_STR(ST_HDCP_TEST), .arg_cnt = 1, .arg_str = "hdcp on/off time(sec): range = 5 ~ 50, -1 = disable"},
-	{DP_ENUM_STR(ST_EDID), .arg_cnt = 0, .arg_str = "need to write edid to \"sys/class/dp_sec/dp_edid\" sysfs node, -1 = disable"},
-	{DP_ENUM_STR(ST_PREEM_TUN), .arg_cnt = 16, .arg_str = "pre-emphasis calibration value, -1 = disable"},
-	{DP_ENUM_STR(ST_VOLTAGE_TUN), .arg_cnt = 16, .arg_str = "voltage-level calibration value, -1 = disable"},
+	{DP_ENUM_STR(ST_LANE_CNT), .arg_cnt = 1, .arg_str = "lane_count: 1 = 1 lane, 2 = 2 lane, 4 = 4 lane, 555 = disable"},
+	{DP_ENUM_STR(ST_LINK_RATE), .arg_cnt = 1, .arg_str = "link_rate: 1 = 1.62G , 2 = 2.7G, 3 = 5.4G, 555 = disable"},
+	{DP_ENUM_STR(ST_CONNECTION_TEST), .arg_cnt = 1, .arg_str = "reconnection time(sec) : range = 5 ~ 50, 555 = disable"},
+	{DP_ENUM_STR(ST_HDCP_TEST), .arg_cnt = 1, .arg_str = "hdcp on/off time(sec): range = 5 ~ 50, 555 = disable"},
+	{DP_ENUM_STR(ST_EDID), .arg_cnt = 0, .arg_str = "need to write edid to \"sys/class/dp_sec/dp_edid\" sysfs node, 555 = disable"},
+	{DP_ENUM_STR(ST_PREEM_TUN), .arg_cnt = 16, .arg_str = "pre-emphasis calibration value, 555 = disable"},
+	{DP_ENUM_STR(ST_VOLTAGE_TUN), .arg_cnt = 16, .arg_str = "voltage-level calibration value, 555 = disable"},
 };
 
 int secdp_self_test_status(int cmd)
@@ -393,7 +393,7 @@ int secdp_self_test_status(int cmd)
 		return -EINVAL;
 
 	if (g_self_test[cmd].enabled) {
-		DP_INFO("%s : %s\n", g_self_test[cmd].cmd_str,
+		DP_INFO("%s: %s\n", g_self_test[cmd].cmd_str,
 			g_self_test[cmd].enabled ? "true" : "false");
 	}
 
@@ -411,7 +411,7 @@ void secdp_self_register_clear_func(int cmd, void (*func)(void))
 		return;
 
 	g_self_test[cmd].clear = func;
-	DP_INFO("%s : clear func was registered.\n", g_self_test[cmd].cmd_str);
+	DP_INFO("%s: clear func was registered.\n", g_self_test[cmd].cmd_str);
 }
 
 u8 *secdp_self_test_get_edid(void)
@@ -433,11 +433,11 @@ static void secdp_self_test_reconnect_work(struct work_struct *work)
 		return;
 	}
 
-	if (sysfs->sec->self_test_reconnect_callback)
-		sysfs->sec->self_test_reconnect_callback();
+	if (sysfs->sec->self_test_reconnect_cb)
+		sysfs->sec->self_test_reconnect_cb();
 
 	test_cnt++;
-	DP_INFO("test_cnt :%lu\n", test_cnt);
+	DP_INFO("test_cnt: %lu\n", test_cnt);
 
 	schedule_delayed_work(&sysfs->sec->self_test_reconnect_work,
 		msecs_to_jiffies(delay * 1000));
@@ -451,9 +451,9 @@ void secdp_self_test_start_reconnect(void (*func)(void))
 	if (delay > 50 || delay < 5)
 		delay = g_self_test[ST_CONNECTION_TEST].arg[0] = 10;
 
-	DP_INFO("start reconnect test : delay %d sec\n", delay);
+	DP_INFO("start reconnect test: delay %d sec\n", delay);
 
-	sysfs->sec->self_test_reconnect_callback = func;
+	sysfs->sec->self_test_reconnect_cb = func;
 	schedule_delayed_work(&sysfs->sec->self_test_reconnect_work,
 		msecs_to_jiffies(delay * 1000));
 }
@@ -470,16 +470,16 @@ static void secdp_self_test_hdcp_test_work(struct work_struct *work)
 		return;
 	}
 
-	if (sysfs->sec->self_test_hdcp_off_callback)
-		sysfs->sec->self_test_hdcp_off_callback();
+	if (sysfs->sec->self_test_hdcp_off_cb)
+		sysfs->sec->self_test_hdcp_off_cb();
 
 	msleep(3000);
 
-	if (sysfs->sec->self_test_hdcp_on_callback)
-		sysfs->sec->self_test_hdcp_on_callback();
+	if (sysfs->sec->self_test_hdcp_on_cb)
+		sysfs->sec->self_test_hdcp_on_cb();
 
 	test_cnt++;
-	DP_INFO("test_cnt :%lu\n", test_cnt);
+	DP_INFO("test_cnt: %lu\n", test_cnt);
 
 	schedule_delayed_work(&sysfs->sec->self_test_hdcp_test_work,
 		msecs_to_jiffies(delay * 1000));
@@ -500,10 +500,10 @@ void secdp_self_test_start_hdcp_test(void (*func_on)(void),
 	if (delay > 50 || delay < 5)
 		delay = g_self_test[ST_HDCP_TEST].arg[0] = 10;
 
-	DP_INFO("start hdcp test : delay %d sec\n", delay);
+	DP_INFO("start hdcp test: delay %d sec\n", delay);
 
-	sysfs->sec->self_test_hdcp_on_callback = func_on;
-	sysfs->sec->self_test_hdcp_off_callback = func_off;
+	sysfs->sec->self_test_hdcp_on_cb = func_on;
+	sysfs->sec->self_test_hdcp_off_cb = func_off;
 
 	schedule_delayed_work(&sysfs->sec->self_test_hdcp_test_work,
 		msecs_to_jiffies(delay * 1000));
@@ -516,12 +516,12 @@ static ssize_t dp_self_test_show(struct class *class,
 
 	for (i = 0; i < ST_MAX; i++) {
 		rc += scnprintf(buf + rc, PAGE_SIZE - rc,
-				"%d. %s : %s\n   ==>", i,
+				"%d. %s: %s\n   ==>", i,
 				g_self_test[i].cmd_str, g_self_test[i].arg_str);
 
 		if (g_self_test[i].enabled) {
 			rc += scnprintf(buf + rc, PAGE_SIZE - rc,
-					"current value : enabled - arg :");
+					"current value: enabled - arg: ");
 
 			for (j = 0; j < g_self_test[i].arg_cnt; j++) {
 				rc += scnprintf(buf + rc, PAGE_SIZE - rc,
@@ -531,7 +531,7 @@ static ssize_t dp_self_test_show(struct class *class,
 			rc += scnprintf(buf + rc, PAGE_SIZE - rc, "\n\n");
 		} else {
 			rc += scnprintf(buf + rc, PAGE_SIZE - rc,
-				"current value : disabled\n\n");
+				"current value: disabled\n\n");
 		}
 	}
 
@@ -573,11 +573,11 @@ static ssize_t dp_self_test_store(struct class *dev,
 		for (i = 1; i < ST_MAX; i++)
 			dp_self_test_clear_func(i);
 
-		DP_INFO("cmd : ST_CLEAR_CMD\n");
+		DP_INFO("cmd: ST_CLEAR_CMD\n");
 		goto end;
 	}
 
-	g_self_test[cmd].enabled = arg < 0 ? false : true;
+	g_self_test[cmd].enabled = (arg == ST_TEST_EXIT) ? false : true;
 	if (g_self_test[cmd].enabled) {
 		if ((val[0] - 1) != g_self_test[cmd].arg_cnt) {
 			DP_INFO("invalid param.\n");
@@ -611,7 +611,7 @@ static ssize_t dp_edid_show(struct class *class,
 
 	for (i = 0; i < ST_EDID_SIZE; i++) {
 		rc += scnprintf(buf + rc, PAGE_SIZE - rc,
-				"0x%02x ", sysfs->sec->self_test_edid[i]);
+				"%02x ", sysfs->sec->self_test_edid[i]);
 		if (!((i+1)%8)) {
 			rc += scnprintf(buf + rc, PAGE_SIZE - rc,
 					"%s", flag ? "\n" : "  ");
@@ -628,45 +628,41 @@ static ssize_t dp_edid_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
 	struct secdp_sysfs_private *sysfs = g_secdp_sysfs;
-	int val[ST_EDID_SIZE + 1] = {0, };
-	char *temp;
-	size_t i, j = 0;
+	char *buf_t;
+	const int char_to_nib = 2;
+	size_t i, edid_buf_index = 0;
+	size_t len = 0, edid_size = 0;
 
-	if (secdp_check_store_args(buf, size)) {
-		DP_ERR("args error!\n");
-		goto error;
-	}
-
-	temp = kzalloc(size, GFP_KERNEL);
-	if (!temp) {
-		DP_ERR("buffer alloc error\n");
-		dp_self_test_clear_func(ST_EDID);
-		goto error;
-	}
-
-	/* remove space */
-	for (i = 0; i < size; i++) {
-		if (buf[i] != ' ')
-			temp[j++] = buf[i];
-	}
-
-	get_options(temp, ARRAY_SIZE(val), val);
-
-	if (val[0] % 128) {
-		DP_ERR("invalid EDID(%d)\n", val[0]);
+	len = min_t(size_t, size, SZ_1K);
+	if ((len - 1/*0xa*/) % EDID_LENGTH) {
+		DP_ERR("invalid edid len: %d\n", len - 1);
 		dp_self_test_clear_func(ST_EDID);
 		goto end;
 	}
 
 	memset(sysfs->sec->self_test_edid, 0, sizeof(ST_EDID_SIZE));
+	edid_size = len / char_to_nib;
+	buf_t = (char*)buf;
 
-	for (i = 0; i < val[0]; i++)
-		sysfs->sec->self_test_edid[i] = (u8)val[i+1];
+	for (i = 0; i < edid_size; i++) {
+		char t[3];
+		int d;
+
+		memcpy(t, buf_t, sizeof(char) * char_to_nib);
+		t[char_to_nib] = '\0';
+
+		if (kstrtoint(t, 16, &d)) {
+			DP_ERR("kstrtoint error\n");
+			dp_self_test_clear_func(ST_EDID);
+			goto end;
+		}
+
+		sysfs->sec->self_test_edid[edid_buf_index++] = d;
+		buf_t += char_to_nib;
+	}
 
 	g_self_test[ST_EDID].enabled = true;
 end:
-	kfree(temp);
-error:
 	return size;
 }
 
@@ -703,6 +699,12 @@ static ssize_t dp_forced_resolution_show(struct class *class,
 	memset(tmp, 0, ARRAY_SIZE(tmp));
 	secdp_show_link_param(tmp);
 	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "\n< link params >\n%s\n", tmp);
+
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+	memset(tmp, 0, ARRAY_SIZE(tmp));
+	secdp_show_ps5169_param(tmp);
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "\n< PS5169 EQ0/EQ1 >\n%s\n", tmp);
+#endif
 
 	return rc;
 }
@@ -839,10 +841,17 @@ static ssize_t dp_preshoot_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
 	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
 
-	memcpy(tmp, buf, min(ARRAY_SIZE(tmp), size));
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
 	secdp_catalog_preshoot_store(tmp);
-
+end:
 	return size;
 }
 
@@ -1116,7 +1125,257 @@ exit:
 }
 
 static CLASS_ATTR_RW(dp_pref_ratio);
-#endif
+
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+static ssize_t dp_ps5169_rbr_eq0_show(struct class *class,
+		struct class_attribute *attr, char *buf)
+{
+	char tmp[SZ_1K] = {0,};
+	int  rc = 0;
+
+	secdp_parse_ps5169_show(DP_PS5169_EQ0, DP_PS5169_RATE_RBR, tmp);
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%s\n", tmp);
+
+	return rc;
+}
+
+static ssize_t dp_ps5169_rbr_eq0_store(struct class *dev,
+		struct class_attribute *attr, const char *buf, size_t size)
+{
+	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
+
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
+	secdp_parse_ps5169_store(DP_PS5169_EQ0, DP_PS5169_RATE_RBR, tmp);
+end:
+	return size;
+}
+static CLASS_ATTR_RW(dp_ps5169_rbr_eq0);
+
+static ssize_t dp_ps5169_rbr_eq1_show(struct class *class,
+		struct class_attribute *attr, char *buf)
+{
+	char tmp[SZ_1K] = {0,};
+	int  rc = 0;
+
+	secdp_parse_ps5169_show(DP_PS5169_EQ1, DP_PS5169_RATE_RBR, tmp);
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%s\n", tmp);
+
+	return rc;
+}
+
+static ssize_t dp_ps5169_rbr_eq1_store(struct class *dev,
+		struct class_attribute *attr, const char *buf, size_t size)
+{
+	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
+
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
+	secdp_parse_ps5169_store(DP_PS5169_EQ1, DP_PS5169_RATE_RBR, tmp);
+end:
+	return size;
+}
+static CLASS_ATTR_RW(dp_ps5169_rbr_eq1);
+
+static ssize_t dp_ps5169_hbr_eq0_show(struct class *class,
+		struct class_attribute *attr, char *buf)
+{
+	char tmp[SZ_1K] = {0,};
+	int  rc = 0;
+
+	secdp_parse_ps5169_show(DP_PS5169_EQ0, DP_PS5169_RATE_HBR, tmp);
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%s\n", tmp);
+
+	return rc;
+}
+
+static ssize_t dp_ps5169_hbr_eq0_store(struct class *dev,
+		struct class_attribute *attr, const char *buf, size_t size)
+{
+	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
+
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
+	secdp_parse_ps5169_store(DP_PS5169_EQ0, DP_PS5169_RATE_HBR, tmp);
+end:
+	return size;
+}
+static CLASS_ATTR_RW(dp_ps5169_hbr_eq0);
+
+static ssize_t dp_ps5169_hbr_eq1_show(struct class *class,
+		struct class_attribute *attr, char *buf)
+{
+	char tmp[SZ_1K] = {0,};
+	int  rc = 0;
+
+	secdp_parse_ps5169_show(DP_PS5169_EQ1, DP_PS5169_RATE_HBR, tmp);
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%s\n", tmp);
+
+	return rc;
+}
+
+static ssize_t dp_ps5169_hbr_eq1_store(struct class *dev,
+		struct class_attribute *attr, const char *buf, size_t size)
+{
+	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
+
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
+	secdp_parse_ps5169_store(DP_PS5169_EQ1, DP_PS5169_RATE_HBR, tmp);
+end:
+	return size;
+}
+static CLASS_ATTR_RW(dp_ps5169_hbr_eq1);
+
+static ssize_t dp_ps5169_hbr2_eq0_show(struct class *class,
+		struct class_attribute *attr, char *buf)
+{
+	char tmp[SZ_1K] = {0,};
+	int  rc = 0;
+
+	secdp_parse_ps5169_show(DP_PS5169_EQ0, DP_PS5169_RATE_HBR2, tmp);
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%s\n", tmp);
+
+	return rc;
+}
+
+static ssize_t dp_ps5169_hbr2_eq0_store(struct class *dev,
+		struct class_attribute *attr, const char *buf, size_t size)
+{
+	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
+
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
+	secdp_parse_ps5169_store(DP_PS5169_EQ0, DP_PS5169_RATE_HBR2, tmp);
+end:
+	return size;
+}
+static CLASS_ATTR_RW(dp_ps5169_hbr2_eq0);
+
+static ssize_t dp_ps5169_hbr2_eq1_show(struct class *class,
+		struct class_attribute *attr, char *buf)
+{
+	char tmp[SZ_1K] = {0,};
+	int  rc = 0;
+
+	secdp_parse_ps5169_show(DP_PS5169_EQ1, DP_PS5169_RATE_HBR2, tmp);
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%s\n", tmp);
+
+	return rc;
+}
+
+static ssize_t dp_ps5169_hbr2_eq1_store(struct class *dev,
+		struct class_attribute *attr, const char *buf, size_t size)
+{
+	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
+
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
+	secdp_parse_ps5169_store(DP_PS5169_EQ1, DP_PS5169_RATE_HBR2, tmp);
+end:
+	return size;
+}
+static CLASS_ATTR_RW(dp_ps5169_hbr2_eq1);
+
+static ssize_t dp_ps5169_hbr3_eq0_show(struct class *class,
+		struct class_attribute *attr, char *buf)
+{
+	char tmp[SZ_1K] = {0,};
+	int  rc = 0;
+
+	secdp_parse_ps5169_show(DP_PS5169_EQ0, DP_PS5169_RATE_HBR3, tmp);
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%s\n", tmp);
+
+	return rc;
+}
+
+static ssize_t dp_ps5169_hbr3_eq0_store(struct class *dev,
+		struct class_attribute *attr, const char *buf, size_t size)
+{
+	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
+
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
+	secdp_parse_ps5169_store(DP_PS5169_EQ0, DP_PS5169_RATE_HBR3, tmp);
+end:
+	return size;
+}
+static CLASS_ATTR_RW(dp_ps5169_hbr3_eq0);
+
+static ssize_t dp_ps5169_hbr3_eq1_show(struct class *class,
+		struct class_attribute *attr, char *buf)
+{
+	char tmp[SZ_1K] = {0,};
+	int  rc = 0;
+
+	secdp_parse_ps5169_show(DP_PS5169_EQ1, DP_PS5169_RATE_HBR3, tmp);
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%s\n", tmp);
+
+	return rc;
+}
+
+static ssize_t dp_ps5169_hbr3_eq1_store(struct class *dev,
+		struct class_attribute *attr, const char *buf, size_t size)
+{
+	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
+
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
+	secdp_parse_ps5169_store(DP_PS5169_EQ1, DP_PS5169_RATE_HBR3, tmp);
+end:
+	return size;
+}
+static CLASS_ATTR_RW(dp_ps5169_hbr3_eq1);
+#endif/*CONFIG_COMBO_REDRIVER_PS5169*/
+#endif/*CONFIG_SEC_DISPLAYPORT_ENG*/
 
 enum {
 	DEX = 0,
@@ -1145,6 +1404,16 @@ enum {
 	DP_PX_LVL_HBR_RBR,
 	DP_PREF_SKIP,
 	DP_PREF_RATIO,
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+	DP_PS5169_RBR_EQ0,
+	DP_PS5169_RBR_EQ1,
+	DP_PS5169_HBR_EQ0,
+	DP_PS5169_HBR_EQ1,
+	DP_PS5169_HBR2_EQ0,
+	DP_PS5169_HBR2_EQ1,
+	DP_PS5169_HBR3_EQ0,
+	DP_PS5169_HBR3_EQ1,
+#endif/*CONFIG_COMBO_REDRIVER_PS5169*/
 #endif
 };
 
@@ -1175,6 +1444,16 @@ static struct attribute *secdp_class_attrs[] = {
 	[DP_PX_LVL_HBR_RBR]	= &class_attr_dp_px_lvl_hbr_rbr.attr,
 	[DP_PREF_SKIP]	= &class_attr_dp_pref_skip.attr,
 	[DP_PREF_RATIO]	= &class_attr_dp_pref_ratio.attr,
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+	[DP_PS5169_RBR_EQ0]  = &class_attr_dp_ps5169_rbr_eq0.attr,
+	[DP_PS5169_RBR_EQ1]  = &class_attr_dp_ps5169_rbr_eq1.attr,
+	[DP_PS5169_HBR_EQ0]  = &class_attr_dp_ps5169_hbr_eq0.attr,
+	[DP_PS5169_HBR_EQ1]  = &class_attr_dp_ps5169_hbr_eq1.attr,
+	[DP_PS5169_HBR2_EQ0] = &class_attr_dp_ps5169_hbr2_eq0.attr,
+	[DP_PS5169_HBR2_EQ1] = &class_attr_dp_ps5169_hbr2_eq1.attr,
+	[DP_PS5169_HBR3_EQ0] = &class_attr_dp_ps5169_hbr3_eq0.attr,
+	[DP_PS5169_HBR3_EQ1] = &class_attr_dp_ps5169_hbr3_eq1.attr,
+#endif/*CONFIG_COMBO_REDRIVER_PS5169*/
 #endif
 	NULL,
 };

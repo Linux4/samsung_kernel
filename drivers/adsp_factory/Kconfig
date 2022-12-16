@@ -192,3 +192,18 @@ config SUPPORT_LIGHT_LCD_VERSION_DUALIZAION
 	help
 	  receive lcd type from lcd sysfs.
 	  send lcd rev to light driver.
+
+config SUPPORT_UNDER_PANEL_WITH_LIGHT_SENSOR
+	tristate "support under panel"
+	default n
+	help
+	  receive under panel support.
+
+config TMD3725_FACTORY
+	tristate "factory test for SSC - tmd3725"
+	default n
+	help
+	  tmd3725 factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.

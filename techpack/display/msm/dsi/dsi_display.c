@@ -1078,6 +1078,7 @@ int dsi_display_cmd_transfer(struct drm_connector *connector,
 		return -EINVAL;
 	}
 
+	SDE_EVT32(dsi_display->tx_cmd_buf_ndx, cmd_buf_len);
 	DSI_DEBUG("[DSI] Display command transfer\n");
 
 	if ((cmd_buf[1]) || (cmd_buf[3] & MIPI_DSI_MSG_LASTCOMMAND))
@@ -1204,6 +1205,8 @@ int dsi_display_cmd_receive(void *display, const char *cmd_buf,
 		return -EINVAL;
 	}
 
+	SDE_EVT32(cmd_buf_len, recv_buf_len);
+
 	rc = dsi_display_cmd_prepare(cmd_buf, cmd_buf_len,
 			&cmd, cmd_payload, MAX_CMD_PAYLOAD_SIZE);
 	if (rc) {
@@ -1311,15 +1314,25 @@ int dsi_display_set_power(struct drm_connector *connector,
 
 	switch (power_mode) {
 	case SDE_MODE_DPMS_LP1:
+		if (display->panel->power_mode == SDE_MODE_DPMS_LP2) {
+			if (dsi_display_set_ulp_load(display, false) < 0)
+				DSI_WARN("failed to set load for lp1 state\n");
+		}
 		rc = dsi_panel_set_lp1(display->panel);
 		break;
 	case SDE_MODE_DPMS_LP2:
 		rc = dsi_panel_set_lp2(display->panel);
+		if (dsi_display_set_ulp_load(display, true) < 0)
+			DSI_WARN("failed to set load for lp2 state\n");
 		break;
 	case SDE_MODE_DPMS_ON:
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	case SDE_MODE_DPMS_OFF:
 #endif
+		if (display->panel->power_mode == SDE_MODE_DPMS_LP2) {
+			if (dsi_display_set_ulp_load(display, false) < 0)
+				DSI_WARN("failed to set load for on state\n");
+		}
 		if ((display->panel->power_mode == SDE_MODE_DPMS_LP1) ||
 			(display->panel->power_mode == SDE_MODE_DPMS_LP2))
 			rc = dsi_panel_set_nolp(display->panel);
@@ -1636,7 +1649,7 @@ static ssize_t debugfs_esd_trigger_check(struct file *file,
 						display->trusted_vm_env);
 		if (rc) {
 			DSI_ERR("Failed to trigger ESD attack\n");
-			goto error;
+			goto unlock;
 		}
 	}
 
@@ -3600,6 +3613,11 @@ static int dsi_display_clocks_init(struct dsi_display *display)
 
 	num_clk = dsi_display_get_clocks_count(display, dsi_clock_name);
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	if (num_clk < 1)
+		DSI_ERR("[SDE] ^^^^^^^ No dsi clock, Check panel_common.MODEL.dtsi File and Build Model Name\n");
+#endif
+
 	DSI_DEBUG("clk count=%d\n", num_clk);
 
 	for (i = 0; i < num_clk; i++) {
@@ -4046,6 +4064,35 @@ int dsi_pre_clkon_cb(void *priv,
 		DSI_DEBUG("%s: Enable DSI core power\n", __func__);
 	}
 
+	return rc;
+}
+
+int dsi_display_set_ulp_load(struct dsi_display *display, bool enable)
+{
+	int i, rc = 0;
+	struct dsi_display_ctrl *display_ctrl;
+	struct dsi_ctrl *ctrl;
+	struct dsi_panel *panel;
+
+	display_for_each_ctrl(i, display) {
+		display_ctrl = &display->ctrl[i];
+		if (!display_ctrl->ctrl)
+			continue;
+		ctrl = display_ctrl->ctrl;
+
+		rc = dsi_pwr_config_vreg_opt_mode(&ctrl->pwr_info.host_pwr, enable);
+		if (rc) {
+			DSI_ERR("failed to set ctrl load\n");
+			return rc;
+		}
+	}
+
+	panel = display->panel;
+	rc = dsi_pwr_config_vreg_opt_mode(&panel->power_info, enable);
+	if (rc) {
+		DSI_ERR("failed to set panel load\n");
+		return rc;
+	}
 	return rc;
 }
 
@@ -5468,6 +5515,9 @@ int dsi_display_cont_splash_res_disable(void *dsi_display)
  * @dsi_display:    Pointer to dsi display
  * Returns:     Zero on success
  */
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+extern bool pba_regulator_control_ss;
+#endif
 int dsi_display_cont_splash_config(void *dsi_display)
 {
 	struct dsi_display *display = dsi_display;
@@ -5520,6 +5570,29 @@ int dsi_display_cont_splash_config(void *dsi_display)
 		       display->name, rc);
 		goto clk_manager_update;
 	}
+
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	/* Splash boot && pba_reuglator_control && PBA panel => PBA regulators off
+	 * Caution!, both panels should have PBA regulators if with DSI1
+	 */
+	if (pba_regulator_control_ss &&
+		(!strcmp(display->panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
+		!strcmp(display->panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1"))) {
+		DSI_INFO("[SDE] splash && pba_regulator && PBA panel => regulator OFF\n");
+
+		/* Reset off : useful? */
+		if (gpio_is_valid(display->panel->reset_config.reset_gpio))
+			gpio_set_value(display->panel->reset_config.reset_gpio, 0);
+		else
+			DSI_INFO("[SDE] reset_gpio is invalid\n");
+
+		/* Regulators off : including reset regulator off */
+		rc = dsi_pwr_enable_regulator(&display->panel->power_info, false);
+		if (rc)
+			DSI_ERR("[SDE] [%s] failed to disable vregs, rc=%d\n",
+				display->panel->name, rc);
+	}
+#endif
 
 	mutex_unlock(&display->display_lock);
 
@@ -6092,7 +6165,7 @@ static int dsi_display_init(struct dsi_display *display)
 	int rc = 0;
 	struct platform_device *pdev = display->pdev;
 
-	DSI_ERR("component add : %s ++\n", display->name);
+	DSI_INFO("component add : %s ++\n", display->name);
 
 	mutex_init(&display->display_lock);
 
@@ -6126,7 +6199,7 @@ static int dsi_display_init(struct dsi_display *display)
 	if (rc)
 		DSI_ERR("component add failed, rc=%d\n", rc);
 
-	DSI_ERR("component add success: %s\n", display->name);
+	DSI_INFO("component add success: %s\n", display->name);
 end:
 	return rc;
 }
@@ -6172,7 +6245,7 @@ int dsi_display_dev_probe(struct platform_device *pdev)
 		goto end;
 	}
 
-	DSI_ERR("dsi_display_dev_probe ++\n");
+	DSI_INFO("dsi_display_dev_probe ++\n");
 
 	display = devm_kzalloc(&pdev->dev, sizeof(*display), GFP_KERNEL);
 	if (!display) {
@@ -6267,7 +6340,7 @@ int dsi_display_dev_probe(struct platform_device *pdev)
 			goto end;
 	}
 
-	DSI_ERR("dsi_display_dev_probe --\n");
+	DSI_INFO("dsi_display_dev_probe --\n");
 
 	return 0;
 end:

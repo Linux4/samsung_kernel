@@ -288,19 +288,19 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 
 	FTS_INFO("%d %d", buff[0], buff[1]);
 
-	if (buff[0] == LCD_ON || buff[0] == LCD_DOZE || buff[0] == LCD_DOZE_SUSPEND) {
-		if (buff[1] == LCD_EARLY_EVENT) {
+	if (buff[0] == DISPLAY_STATE_ON || buff[0] == DISPLAY_STATE_DOZE || buff[0] == DISPLAY_STATE_DOZE_SUSPEND) {
+		if (buff[1] == DISPLAY_EVENT_EARLY) {
 			if (ts_data->gesture_mode) {
 				fts_ctrl_lcd_reset_regulator(ts_data, false);
 			}
-		} else if (buff[1] == LCD_LATE_EVENT) {
+		} else if (buff[1] == DISPLAY_EVENT_LATE) {
 			queue_work(ts_data->ts_workqueue, &ts_data->resume_work);
 		}
-	} else if (buff[0] == LCD_OFF) {
-		if (buff[1] == LCD_EARLY_EVENT) {
+	} else if (buff[0] == DISPLAY_STATE_OFF) {
+		if (buff[1] == DISPLAY_EVENT_EARLY) {
 			cancel_work_sync(&ts_data->resume_work);
 			fts_ts_suspend(ts_data->dev);
-		} else if (buff[1] == LCD_LATE_EVENT) {
+		} else if (buff[1] == DISPLAY_EVENT_LATE) {
 			/* do nothing */
 		}
 	}

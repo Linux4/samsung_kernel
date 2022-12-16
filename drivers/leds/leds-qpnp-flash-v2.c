@@ -2272,6 +2272,12 @@ static int qpnp_flash_led_parse_and_register_switch(struct qpnp_flash_led *led,
 		return rc;
 	}
 
+#if defined(CONFIG_SEC_XCOVERPRO2_PROJECT)
+	snode->led_mask = 1;
+#elif defined(CONFIG_SEC_GTACT4PRO_PROJECT) || defined(CONFIG_SEC_GTACT4PROWIFI_PROJECT)
+	snode->led_mask = 3;
+#endif
+
 	snode->symmetry_en = of_property_read_bool(node, "qcom,symmetry-en");
 
 	if (snode->led_mask < 1 || snode->led_mask > 7) {

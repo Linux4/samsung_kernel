@@ -185,7 +185,7 @@ int cam_sensor_wait_stream_on(
 		if (rc < 0)
 			break;
 
-		if ((frame_cnt & 0x01)  == 0x01){
+		if (frame_cnt == 0xFF){
 			usleep_range(4000, 5000);
 
 			CAM_INFO(CAM_SENSOR, "[CNT_DBG] 0x%x : Last frame_cnt 0x%x",
@@ -423,7 +423,7 @@ int cam_sensor_pre_apply_settings(
 	switch (opcode) {
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMOFF: {
 #if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
-			rc = cam_sensor_wait_stream_on(s_ctrl, 10);
+			rc = cam_sensor_wait_stream_on(s_ctrl, 20);
 #endif
 #if defined(CONFIG_SENSOR_RETENTION)
 			cam_sensor_write_enable_crc(s_ctrl);
@@ -1195,8 +1195,18 @@ void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl)
 	cam_sensor_release_stream_rsc(s_ctrl);
 	cam_sensor_release_per_frame_resource(s_ctrl);
 
-	if (s_ctrl->sensor_state != CAM_SENSOR_INIT)
+	if (s_ctrl->sensor_state != CAM_SENSOR_INIT) {
+// Added for PLM P191224-07745 (suggestion from sLSI PMIC team)
+// Re-Set the PMIC voltage
+#if defined(CONFIG_LEDS_S2MU106_FLASH)
+		if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
+		{
+			pdo_ctrl_by_flash(0);
+			muic_afc_set_voltage(9);
+		}
+#endif
 		cam_sensor_power_down(s_ctrl);
+	}
 
 	if (s_ctrl->bridge_intf.device_hdl != -1) {
 		rc = cam_destroy_device_hdl(s_ctrl->bridge_intf.device_hdl);
@@ -1244,8 +1254,9 @@ int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 	rc = camera_io_dev_read(
 		&(s_ctrl->io_master_info),
 		slave_info->sensor_id_reg_addr,
-		&chipid, CAMERA_SENSOR_I2C_TYPE_WORD,
-		CAMERA_SENSOR_I2C_TYPE_WORD);
+		&chipid,
+		s_ctrl->sensor_probe_addr_type,
+		s_ctrl->sensor_probe_data_type);
 #if defined(CONFIG_SAMSUNG_SUPPORT_MULTI_MODULE)
 	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR, "i2c failed, rc = %d", rc);
@@ -1914,6 +1925,15 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			goto release_mutex;
 		}
 #endif
+// Added for PLM P191224-07745 (suggestion from sLSI PMIC team)
+// Set the PMIC voltage to 5V for Flash operation on Rear Sensor
+#if defined(CONFIG_LEDS_S2MU106_FLASH)
+		if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
+		{
+			pdo_ctrl_by_flash(1);
+			muic_afc_set_voltage(5);
+		}
+#endif
 
 		s_ctrl->sensor_state = CAM_SENSOR_ACQUIRE;
 		s_ctrl->last_flush_req = 0;
@@ -1941,6 +1961,15 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			rc = -EAGAIN;
 			goto release_mutex;
 		}
+// Added for PLM P191224-07745 (suggestion from sLSI PMIC team)
+// Re-Set the PMIC voltage
+#if defined(CONFIG_LEDS_S2MU106_FLASH)
+		if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
+		{
+			pdo_ctrl_by_flash(0);
+			muic_afc_set_voltage(9);
+		}
+#endif
 
 		rc = cam_sensor_power_down(s_ctrl);
 		if (rc < 0) {
@@ -2342,16 +2371,6 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		return -EINVAL;
 	}
 
-// Added for PLM P191224-07745 (suggestion from sLSI PMIC team)
-// Set the PMIC voltage to 5V for Flash operation on Rear Sensor
-#if defined(CONFIG_LEDS_S2MU106_FLASH)
-	if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
-	{
-		pdo_ctrl_by_flash(1);
-		muic_afc_set_voltage(5);
-	}
-#endif
-
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 	if (s_ctrl != NULL) {
 		switch (s_ctrl->id) {
@@ -2514,16 +2533,6 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 		return -EINVAL;
 	}
 
-// Added for PLM P191224-07745 (suggestion from sLSI PMIC team)
-// Re-Set the PMIC voltage
-#if defined(CONFIG_LEDS_S2MU106_FLASH)
-	if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
-	{
-		pdo_ctrl_by_flash(0);
-		muic_afc_set_voltage(9);
-	}
-#endif
-
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 	if (s_ctrl != NULL) {
 		switch (s_ctrl->id) {
@@ -2648,7 +2657,7 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 	}
 	
 // Add 200us delay to meet the power off specification iT3 (End of MIPI transfer to MCLK disable and I2C shutdown)
-#if defined(CONFIG_SEC_M52XQ_PROJECT) || defined(CONFIG_SEC_GTS7FEWIFI_PROJECT) || defined(CONFIG_SEC_A52SXQ_PROJECT) || defined(CONFIG_SEC_A73XQ_PROJECT)
+#if defined(CONFIG_SEC_M52XQ_PROJECT) || defined(CONFIG_SEC_GTS7FEWIFI_PROJECT) || defined(CONFIG_SEC_A52SXQ_PROJECT) || defined(CONFIG_SEC_A73XQ_PROJECT) || defined(CONFIG_SEC_XCOVERPRO2_PROJECT)
     msleep(2);
 #endif
 

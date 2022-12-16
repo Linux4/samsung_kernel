@@ -469,6 +469,57 @@ static void stm32_enable_irq(struct stm32_dev *stm32, int enable)
 	mutex_unlock(&stm32->irq_lock);
 }
 
+static void stm32_enable_conn_irq(struct stm32_dev *stm32, int enable)
+{
+	static int depth;
+
+	if (enable != INT_ENABLE && enable != INT_DISABLE_NOSYNC && enable != INT_DISABLE_SYNC)
+		return;
+
+	mutex_lock(&stm32->irq_lock);
+	if (enable == INT_ENABLE) {
+		if (depth) {
+			--depth;
+			enable_irq(stm32->conn_irq);
+			input_info(true, &stm32->client->dev, "%s: enable conn irq\n", __func__);
+		}
+	} else {
+		if (!depth) {
+			++depth;
+			if (enable == INT_DISABLE_NOSYNC)
+				disable_irq_nosync(stm32->conn_irq);
+			else
+				disable_irq(stm32->conn_irq);
+			input_info(true, &stm32->client->dev, "%s: disable conn irq \n",
+				__func__);
+		}
+	}
+	mutex_unlock(&stm32->irq_lock);
+}
+
+static void stm32_enable_conn_wake_irq(struct stm32_dev *stm32, bool enable)
+{
+	static int depth;
+
+	mutex_lock(&stm32->irq_lock);
+	if (enable) {
+		if (depth) {
+			--depth;
+			enable_irq_wake(stm32->conn_irq);
+			input_info(true, &stm32->client->dev, "%s: enable conn irq\n", __func__);
+		}
+	} else {
+		if (!depth) {
+			++depth;
+			disable_irq_wake(stm32->conn_irq);
+			input_info(true, &stm32->client->dev, "%s: disable conn irq_wake\n",
+				__func__);
+		}
+	}
+	mutex_unlock(&stm32->irq_lock);
+}
+
+
 static int stm32_read_crc(struct stm32_dev *stm32)
 {
 	int ret;
@@ -1276,10 +1327,11 @@ static int stm32_keyboard_notify_call(struct notifier_block *n, unsigned long da
 
 	switch (data) {
 	case NOTIFIER_WACOM_KEYBOARDCOVER_FLIP_OPEN:
+		stm32_enable_irq(stm32, INT_ENABLE);
+		stm32_enable_conn_irq(stm32, INT_ENABLE);
+		stm32_enable_conn_wake_irq(stm32, true);
 		stm32_reset_control(stm32, 1);
 		stm32_delay(350);
-		stm32_enable_irq(stm32, INT_ENABLE);
-		enable_irq(stm32->conn_irq);
 		stm32->connect_state = gpio_get_value(stm32->dtdata->gpio_conn);
 
 		if (!stm32->connect_state) {
@@ -1288,8 +1340,12 @@ static int stm32_keyboard_notify_call(struct notifier_block *n, unsigned long da
 		}
 		break;
 	case NOTIFIER_WACOM_KEYBOARDCOVER_FLIP_CLOSE:
+		cancel_delayed_work_sync(&stm32->check_conn_work);
+		cancel_delayed_work_sync(&stm32->check_init_work);
+		cancel_delayed_work_sync(&stm32->check_ic_work);
 		stm32_enable_irq(stm32, INT_DISABLE_NOSYNC);
-		disable_irq(stm32->conn_irq);
+		stm32_enable_conn_irq(stm32, INT_DISABLE_NOSYNC);
+		stm32_enable_conn_wake_irq(stm32, false);
 		pogo_notifier_notify(stm32, POGO_NOTIFIER_ID_RESET, 0, 0);
 		stm32_reset_control(stm32, 0);
 		stm32_dev_regulator(stm32, 0);
@@ -2200,7 +2256,7 @@ static int stm32_dev_probe(struct i2c_client *client,
 		goto interrupt_err;
 	}
 
-	enable_irq_wake(device_data->conn_irq);
+	stm32_enable_conn_wake_irq(device_data, true);
 	stm32_enable_irq(device_data, INT_DISABLE_NOSYNC);
 
 	device_data->sec_pogo = sec_device_create(device_data, "sec_keypad");
@@ -2372,6 +2428,11 @@ static int stm32_dev_resume(struct device *dev)
 		device_data->irq_wake = false;
 		input_info(false, &device_data->client->dev,
 				"%s disable irq wake\n", __func__);
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+		stm32_enable_irq(device_data, INT_ENABLE);
+		stm32_enable_conn_irq(device_data, INT_ENABLE);
+		stm32_enable_conn_wake_irq(device_data, true);
+#endif
 	}
 	if (device_data->connect_state)
 		schedule_delayed_work(&device_data->print_info_work, STM32_PRINT_INFO_DELAY);

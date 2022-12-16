@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020,2021 The Linux Foundation. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -69,6 +69,13 @@ static int dsi_pwr_parse_supply_node(struct dsi_parser_utils *utils,
 		regs->vregs[i].disable_load = tmp;
 
 		/* Optional values */
+		rc = utils->read_u32(node, "qcom,supply-ulp-load", &tmp);
+		if (rc) {
+			DSI_DEBUG("ulp-load not specified\n");
+		}
+		regs->vregs[i].ulp_load = (!rc ? tmp :
+			regs->vregs[i].enable_load);
+
 		rc = utils->read_u32(node, "qcom,supply-off-min-voltage", &tmp);
 		if (rc) {
 			DSI_DEBUG("off-min-voltage not specified\n");
@@ -122,6 +129,30 @@ error:
 	return rc;
 }
 
+int dsi_pwr_config_vreg_opt_mode(struct dsi_regulator_info *regs,
+				bool enable)
+{
+	int i = 0, rc = 0;
+	struct dsi_vreg *vreg;
+	u32 mode;
+
+	for (i = 0; i < regs->count; i++) {
+		vreg = &regs->vregs[i];
+		mode = enable ? vreg->ulp_load : vreg->enable_load;
+
+		DSI_DEBUG(" Setting optimum mode for %s load = %d\n",
+				vreg->vreg_name, mode);
+
+		rc = regulator_set_load(vreg->vreg, mode);
+		if (rc < 0) {
+			DSI_ERR("Set opt mode failed for %s",
+				vreg->vreg_name);
+			return rc;
+		}
+	}
+	return rc;
+}
+
 /**
  * dsi_pwr_enable_vregs() - enable/disable regulators
  */
@@ -162,11 +193,12 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 			if (panel && vdd && display) {
 				/* aot_reset_regulator means reset is set as regulator
-				 * but panel_reset regulator should not be controlled here
+				 * but panel_reset or lcd_rst regulator should not be controlled here
 				 */
 				if ((vdd->aot_reset_regulator || vdd->aot_reset_regulator_late)
 					&& !display->is_cont_splash_enabled
-					&& !strcmp(vreg->vreg_name, "panel_reset")) {
+					&& (!strcmp(vreg->vreg_name, "panel_reset")
+						|| !strcmp(vreg->vreg_name, "lcd_rst"))) {
 					DSI_INFO("aot_reset_regulator(_late) -> dsi_panel_reset_regulator\n");
 					continue;
 				}
@@ -219,7 +251,8 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 			if (panel && vdd && display) {
 				if ((vdd->aot_reset_regulator || vdd->aot_reset_regulator_late)
 					&& !display->is_cont_splash_enabled
-					&& !strcmp(vreg->vreg_name, "panel_reset")) {
+					&& (!strcmp(vreg->vreg_name, "panel_reset")
+						|| !strcmp(vreg->vreg_name, "lcd_rst"))) {
 					DSI_INFO("aot_reset_regulator skip reset off here\n");
 					continue;
 				}
