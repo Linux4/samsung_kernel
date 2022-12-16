@@ -132,6 +132,7 @@
 			#gpio-cells = <0x02>;
 			interrupt-controller;
 			#interrupt-cells = <0x02>;
+			gpio-reserved-ranges = <0x55 0x04>;
 			phandle = <0x0b>;
 
 			blsp1_uart2_default {

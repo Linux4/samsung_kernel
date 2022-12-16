@@ -59,6 +59,7 @@ u32 dsim_reg_header_fifo_is_empty(u32 id);
 u32 dsim_reg_is_writable_fifo_state(u32 id);
 u32 dsim_reg_payload_fifo_is_empty(u32 id);
 bool dsim_reg_is_writable_ph_fifo_state(u32 id, u32 cmd_cnt);
+u32 dsim_reg_get_ph_num(u32 id);
 u32 dsim_reg_get_rx_fifo(u32 id);
 u32 dsim_reg_rx_fifo_is_empty(u32 id);
 int dsim_reg_rx_err_handler(u32 id, u32 rx_fifo);

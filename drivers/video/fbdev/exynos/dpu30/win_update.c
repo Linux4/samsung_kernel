@@ -18,6 +18,7 @@
 #if defined(CONFIG_EXYNOS_DECON_DQE)
 #include "dqe.h"
 #endif
+#include "mcd_decon.h"
 
 static void win_update_adjust_region(struct decon_device *decon,
 		struct decon_win_config *win_config,
@@ -854,12 +855,8 @@ static int dpu_set_panel_display_mode(struct decon_device *decon, int panel_mode
 	 * To prevent underrun, update fps first
 	 * if target fps is bigger than previous fps.
 	 */
-	if (pdm->panel_refresh_rate > decon->bts.next_fps) {
-		decon->bts.next_fps = pdm->panel_refresh_rate;
-		decon->bts.next_fps_vsync_count = 0;
-		DPU_DEBUG_BTS("\tupdate next_fps(%d) next_fps_vsync_count(%llu)\n",
-				decon->bts.next_fps, decon->bts.next_fps_vsync_count);
-	}
+	decon_bts_set_candidate_fps(&decon->bts, pdm->panel_refresh_rate);
+	DPU_DEBUG_BTS("\tacquire min bts_fps(%d)\n", pdm->panel_refresh_rate);
 #endif
 
 	DPU_INFO_MRES("set panel_display_mode(%d:%dx%d@%d%s_%d%s) +\n",
@@ -876,6 +873,9 @@ static int dpu_set_panel_display_mode(struct decon_device *decon, int panel_mode
 	if (ret < 0) {
 		DPU_ERR_MRES("%s: failed to set display mode(ret:%d)\n",
 				__func__, ret);
+#if defined(CONFIG_DECON_BTS_VRR_ASYNC)
+		decon_bts_clear_candidate_fps(&decon->bts);
+#endif
 		return ret;
 	}
 
@@ -900,12 +900,10 @@ static int dpu_set_panel_display_mode(struct decon_device *decon, int panel_mode
 			REFRESH_MODE_STR(panel_modes->modes[panel_mode_idx]->panel_refresh_mode));
 
 #if defined(CONFIG_DECON_BTS_VRR_ASYNC)
-	if (pdm->panel_refresh_rate < decon->bts.next_fps) {
-		decon->bts.next_fps = pdm->panel_refresh_rate;
-		decon->bts.next_fps_vsync_count = decon->vsync.count + 2;
-		DPU_DEBUG_BTS("\tupdate next_fps(%d) next_fps_vsync_count(%llu)\n",
-				decon->bts.next_fps, decon->bts.next_fps_vsync_count);
-	}
+	decon_bts_accept_candidate_fps(&decon->bts, decon->vsync.count + 2);
+	DPU_DEBUG_BTS("\trelease min bts_fps(%d)\n", pdm->panel_refresh_rate);
+	DPU_DEBUG_BTS("\tadd fps_sync(fps:%d timeline:%llu)\n",
+		pdm->panel_refresh_rate, decon->vsync.count + 2);
 #endif
 
 	return 0;

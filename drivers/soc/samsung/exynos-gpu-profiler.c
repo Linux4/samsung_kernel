@@ -236,10 +236,12 @@ static u32 gpupro_update_profile(int user)
 			ktime_t queued_time_delta = cur_queued_time[idx] - result->queued_time_snap[idx];
 
 			if (queued_updated_delta)
-				result->queued_time_ratio[idx] = (queued_time_delta * RATIO_UNIT) / queued_updated_delta;
+				result->queued_time_ratio[idx] =
+					(queued_time_delta * RATIO_UNIT) / queued_updated_delta;
 			else
 				result->queued_time_ratio[idx] = 0;
-			result->queued_time_ratio[idx] = min(result->queued_time_ratio[idx], (ktime_t) RATIO_UNIT);
+			result->queued_time_ratio[idx] =
+				min_t(ktime_t, result->queued_time_ratio[idx], (ktime_t) RATIO_UNIT);
 			result->queued_time_snap[idx] = cur_queued_time[idx];
 		}
 	}

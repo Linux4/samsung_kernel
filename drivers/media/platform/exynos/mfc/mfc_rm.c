@@ -1620,6 +1620,7 @@ int mfc_rm_instance_setup(struct mfc_dev *dev, struct mfc_ctx *ctx)
 		goto fail_open;
 	}
 
+	mutex_lock(&ctx->op_mode_mutex);
 	/* When DRC case, it needs to rearrange src buffer for mode1,2 */
 	if (ctx->wait_state) {
 		if (ctx->stream_op_mode == MFC_OP_TWO_MODE2) {
@@ -1632,6 +1633,7 @@ int mfc_rm_instance_setup(struct mfc_dev *dev, struct mfc_ctx *ctx)
 			from_queue = &ctx->src_buf_ready_queue;
 		}
 	}
+	mutex_unlock(&ctx->op_mode_mutex);
 
 	/* Move the header buffer to slave core */
 	src_mb = mfc_get_move_buf(ctx, &core_ctx->src_buf_queue, from_queue,
@@ -1808,6 +1810,10 @@ void mfc_rm_request_work(struct mfc_dev *dev, enum mfc_request_work work,
 	}
 
 	mutex_unlock(&ctx->op_mode_mutex);
+
+	if (ctx->wait_state == WAIT_G_FMT &&
+			(mfc_get_queue_count(&ctx->buf_queue_lock, &ctx->dst_buf_queue) > 0))
+		mfc_dec_drc_find_del_buf(core_ctx);
 
 	/* set core context work bit if it is ready */
 	if (mfc_ctx_ready_set_bit(core_ctx, &core->work_bits))

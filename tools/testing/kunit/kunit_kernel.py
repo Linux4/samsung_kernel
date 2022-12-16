@@ -9,6 +9,9 @@ import kunit_parser
 
 KCONFIG_PATH = os.path.join(os.environ.get('KBUILD_OUTPUT', ''), '.config')
 
+DEFAULT_SUBMODULE_KUNITCONFIG_PATH = 'kunitconfigs'
+PREFIX_SUBMODULE_FILE = 'kunitconfig.'
+
 from collections import namedtuple
 
 ConfigResult = namedtuple('ConfigResult', ['status','info'])
@@ -88,51 +91,17 @@ def throw_error_if_not_subset(expected_superset: kunit_config.Kconfig,
 		)
 		raise ConfigError(message)
 
-class ExtKunitconfigGenerator():
-    '''
-    Generate a new kunitconfig what you interested in.
-    kunitconfigs/kunitconfig : original kunitconfig (when there is no external-config opt)
-    kunitconfigs/.kunitconfig : re-generated kunitconfig
-    '''
+def get_submodule_kunitconfig_path(name):
+	return os.path.join(DEFAULT_SUBMODULE_KUNITCONFIG_PATH, PREFIX_SUBMODULE_FILE + '%s' %name)
 
-    def __init__(self, ex_config, path='.'):
-        self.rootdir = os.path.join(path, 'kunitconfigs')
-        self.final_config_file = os.path.join(self.rootdir, '.kunitconfig')
-        orig_config_file = os.path.join(self.rootdir, 'kunitconfig')
-        conf = []
-        merge_configs = self.gen_merge_config(ex_config)
+def get_sub_config(name):
+	submodule_kunitconfig = get_submodule_kunitconfig_path(name)
+	group_submodule_kunitconfig = glob.glob(submodule_kunitconfig + '*')
 
-        conf.append(self.read_config(orig_config_file))
-        for c in merge_configs:
-            conf.append(self.read_config(c))
-        self.write_config(self.final_config_file, conf)
-
-    def read_config(self, fname):
-        assert os.path.exists(fname), 'There is no %s' %fname
-        with open(fname, 'r') as fp:
-            ret = fp.read()
-        return ret
-
-    def write_config(self, fname, li):
-        with open(fname, 'w') as fp:
-            for l in li:
-                fp.write(l)
-
-    def get_sub_config(self, parent_cfg):
-        sub_cfgs = []
-        kunitcfg_path = os.path.join(self.rootdir, 'kunitconfig.%s' %parent_cfg)
-        sub_cfgs.append(kunitcfg_path)
-        sub_cfgs.extend(glob.glob(kunitcfg_path + '.*'))
-        return sub_cfgs
-
-    def gen_merge_config(self, ex_li):
-        ret = []
-        for module in ex_li:
-            sub_conf = self.get_sub_config(module)
-            for c in sub_conf:
-                ret.append(c)
-        return ret
-
+	if not group_submodule_kunitconfig:
+		return [os.path.join('.', name)]
+	else:
+		return group_submodule_kunitconfig
 
 class LinuxSourceTree(object):
 	"""Represents a Linux kernel source tree with KUnit tests."""
@@ -142,13 +111,6 @@ class LinuxSourceTree(object):
 				 linux_build_operations=LinuxSourceTreeOperations()):
 		self._kconfig = kconfig_provider.get_kconfig()
 		self._ops = linux_build_operations
-		self.kconf_provider = kconfig_provider
-
-	def make_external_config(self, ex_config):
-		if not ex_config:
-			return
-		conf = ExtKunitconfigGenerator(ex_config).final_config_file
-		self._kconfig = self.kconf_provider.get_kconfig(conf)
 
 	def clean(self):
 		try:
@@ -157,6 +119,40 @@ class LinuxSourceTree(object):
 			logging.error(e)
 			return False
 		return True
+
+	def add_external_config(self, ex_config):
+		if not ex_config:
+			return ConfigResult(ConfigStatus.FAILURE, "No external config!")
+		additional_config = kunit_config.Kconfig()
+		for module in ex_config:
+			module_configs = get_sub_config(module)
+			for config in module_configs:
+				if not os.path.exists(config):
+					return ConfigResult(ConfigStatus.FAILURE, "File not found!")
+			for config in module_configs:
+				additional_config.read_from_file(config)
+				for entry in additional_config.entries():
+					self._kconfig.add_entry(entry)
+		return ConfigResult(ConfigStatus.SUCCESS, 'Add external config!')
+
+	def update_config(self):
+		self._kconfig.write_to_file(KCONFIG_PATH)
+		try:
+			self._ops.make_olddefconfig()
+		except ConfigError as e:
+			logging.error(e)
+			return ConfigResult(ConfigStatus.FAILURE, str(e))
+		validated_kconfig = kunit_config.Kconfig()
+		validated_kconfig.read_from_file(KCONFIG_PATH)
+		if not self._kconfig.is_subset_of(validated_kconfig):
+			invalid = self._kconfig.entries() - validated_kconfig.entries()
+			message = 'Remove invalid configs: %s' % (
+							', '.join([str(e) for e in invalid])
+						)
+			logging.error(message)
+			for entry in invalid:
+				self._kconfig.remove_entry(entry)
+		return ConfigResult(ConfigStatus.SUCCESS, 'Update config!')
 
 	def build_config(self):
 		self._kconfig.write_to_file(KCONFIG_PATH)

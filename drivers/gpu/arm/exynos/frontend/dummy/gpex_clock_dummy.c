@@ -138,3 +138,7 @@ int gpex_clock_get_clock(int level)
 {
 	return 0;
 }
+int gpex_get_valid_gpu_clock(int clock, bool is_round_up)
+{
+	return 0;
+}

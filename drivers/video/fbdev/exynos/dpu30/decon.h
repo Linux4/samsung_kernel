@@ -1259,6 +1259,31 @@ struct bts_decon_info {
 	u32 lcd_h;
 };
 
+#if defined(CONFIG_DECON_BTS_VRR_ASYNC)
+#define DEFAULT_BTS_FPS (60)
+#define MAX_SYNC_PT_COUNT (100)
+
+struct fps_sync_pt {
+	/* vsync sequence number to be applied */
+	u64 seqno;
+	u32 fps;
+	struct list_head list;
+};
+
+struct fps_sync {
+	/* bts_fps sync point list to be applied */
+	struct list_head head;
+	u32 sync_pt_count;
+	u32 candidate_fps;
+
+	/* latest bts_fps */
+	u32 applied_fps;
+
+	/* lock protecting @head */
+	struct mutex lock;
+};
+#endif
+
 struct decon_bts {
 	bool enabled;
 	u32 resol_clk;
@@ -1271,8 +1296,7 @@ struct decon_bts {
 	u32 prev_max_disp_freq;
 	u32 fps;
 #if defined(CONFIG_DECON_BTS_VRR_ASYNC)
-	u32 next_fps;
-	u64 next_fps_vsync_count;
+	struct fps_sync fps_sync;
 #endif
 	u64 ppc;
 	u32 ppc_rotator;

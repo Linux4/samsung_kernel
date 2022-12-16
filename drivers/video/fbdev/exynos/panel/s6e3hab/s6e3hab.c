@@ -3383,7 +3383,7 @@ static void show_err(struct dumpinfo *info)
 	err_15_8 = err[0];
 	err_7_0 = err[1];
 
-	panel_info("========== SHOW PANEL [EAh:DSIERR] INFO ==========\n");
+	panel_info("========== SHOW PANEL [E9h:DSIERR] INFO ==========\n");
 	panel_info("* Reg Value : 0x%02x%02x, Result : %s\n", err_15_8, err_7_0,
 			(err[0] || err[1] || err[2] || err[3] || err[4]) ? "NG" : "GOOD");
 
@@ -3577,7 +3577,7 @@ static int getidx_mafpc_enable_table(struct maptbl *tbl)
 {
 	struct panel_device *panel = tbl->pdata;
 	struct mafpc_device *mafpc = NULL;
-	int row = 0;	
+	int row = 0;
 
 	if (panel->mafpc_sd == NULL) {
 		panel_err("mafpc_sd is null\n");

@@ -324,9 +324,5 @@ source "fs/nls/Kconfig"
 source "fs/dlm/Kconfig"
 source "fs/unicode/Kconfig"
 
-if SEC_KUNIT
-
-
-endif # SEC_KUNIT
 
 endmenu

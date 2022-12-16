@@ -562,6 +562,7 @@ static int sensor_hm3_cis_group_param_hold_func(struct v4l2_subdev *subdev, unsi
 	int ret = 0;
 	struct is_cis *cis = NULL;
 	struct i2c_client *client = NULL;
+	u32 mode = 0;
 
 	WARN_ON(!subdev);
 
@@ -569,6 +570,20 @@ static int sensor_hm3_cis_group_param_hold_func(struct v4l2_subdev *subdev, unsi
 
 	WARN_ON(!cis);
 	WARN_ON(!cis->cis_data);
+
+	mode = cis->cis_data->sens_config_index_cur;
+
+	if (mode == SENSOR_HM3_992X744_120FPS) {
+		ret = 0;
+		dbg_sensor(1,"%s : fast ae skip group_param_hold", __func__);
+		goto p_err;
+	}
+
+	if (cis->cis_data->stream_on == false) {
+		ret = 0;
+		dbg_sensor(1,"%s : sensor stream off skip group_param_hold", __func__);
+		return ret;
+	}
 
 	client = cis->client;
 	if (unlikely(!client)) {
@@ -2378,6 +2393,8 @@ int sensor_hm3_cis_stream_off(struct v4l2_subdev *subdev)
 	if (ret < 0)
 		err("group_param_hold_func failed at stream off");
 
+	cis_data->stream_on = false; // for not working group_param_hold after stream off
+
 	is_sensor_read8(client, 0x0005, &cur_frame_count);
 	is_sensor_read16(client, 0x0B30, &fast_change_idx);
 	info("%s: frame_count(0x%x), fast_change_idx(0x%x)\n", __func__, cur_frame_count, fast_change_idx);
@@ -2396,8 +2413,6 @@ int sensor_hm3_cis_stream_off(struct v4l2_subdev *subdev)
 	is_sensor_write8(client, 0x0100, 0x00);
 
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
-
-	cis_data->stream_on = false;
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);

@@ -307,7 +307,7 @@
 #define S6E3FAB_RDDSM_OFS			0
 #define S6E3FAB_RDDSM_LEN			(PANEL_RDDSM_LEN)
 
-#define S6E3FAB_ERR_REG				0xEA
+#define S6E3FAB_ERR_REG				0xE9
 #define S6E3FAB_ERR_OFS				0
 #define S6E3FAB_ERR_LEN				5
 
@@ -959,7 +959,7 @@ static struct resinfo s6e3fab_restbl[] = {
 	[RES_CCD_STATE] = RESINFO_INIT(ccd_state, S6E3FAB_CCD_STATE, RESUI(ccd_state)),
 #endif
 	[RES_SELF_MASK_CHECKSUM] = RESINFO_INIT(self_mask_checksum, S6E3FAB_SELF_MASK_CHECKSUM, RESUI(self_mask_checksum)),
-	[RES_SELF_MASK_CRC] = RESINFO_INIT(self_mask_crc, S6E3FAB_SELF_MASK_CRC, RESUI(self_mask_crc)),	
+	[RES_SELF_MASK_CRC] = RESINFO_INIT(self_mask_crc, S6E3FAB_SELF_MASK_CRC, RESUI(self_mask_crc)),
 #ifdef CONFIG_SUPPORT_MAFPC
 	[RES_MAFPC] = RESINFO_INIT(mafpc, S6E3FAB_MAFPC, RESUI(mafpc)),
 	[RES_MAFPC_FLASH] = RESINFO_INIT(mafpc_flash, S6E3FAB_MAFPC_FLASH, RESUI(mafpc_flash)),

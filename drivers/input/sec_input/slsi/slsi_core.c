@@ -15,8 +15,6 @@
 #if IS_ENABLED(CONFIG_SEC_KUNIT)
 __visible_for_testing struct slsi_ts_data *ts_data;
 EXPORT_SYMBOL(ts_data);
-
-kunit_notifier_chain_init(slsi_cmd_test_module);
 #endif
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
@@ -1672,7 +1670,6 @@ int slsi_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 #if IS_ENABLED(CONFIG_SEC_KUNIT)
 	ts_data = ts;
-	kunit_notifier_chain_register(slsi_cmd_test_module);
 #endif
 	return 0;
 }
@@ -1692,9 +1689,6 @@ int slsi_ts_remove(struct i2c_client *client)
 
 	slsi_ts_release(client);
 
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-	kunit_notifier_chain_unregister(slsi_cmd_test_module);
-#endif
 	return 0;
 }
 

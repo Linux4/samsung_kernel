@@ -25,6 +25,9 @@
 #include <linux/regmap.h>
 #include <linux/rtc.h>
 #include <linux/debugfs.h>
+#if defined(CONFIG_UML)
+#include "kunit_test/pca9468_charger_test.h"
+#endif
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 #include <linux/of_gpio.h>
 #include "pca9468_charger.h"
@@ -33,6 +36,12 @@
 #include <linux/battery/sec_pd.h>
 #else
 #include <linux/power/pca9468_charger.h>
+#endif
+
+#if defined(CONFIG_SEC_KUNIT)
+#define __visible_for_testing
+#else
+#define __visible_for_testing static
 #endif
 
 #if defined (CONFIG_OF)
@@ -54,6 +63,12 @@ static int pca9468_send_pd_message(struct pca9468_charger *pca9468, unsigned int
 static int get_system_current(struct pca9468_charger *pca9468);
 #endif
 
+/* adc_gain bit[7:4] of reg 0x31 - 2's complement */
+static int adc_gain[16] = { 0, 1, 2, 3, 4, 5, 6, 7, -8, -7, -6, -5, -4, -3, -2, -1 };
+
+/* IIN offset as the switching frequency in uA*/
+static int iin_fsw_cfg[16] = { 9990, 10540, 11010, 11520, 12000, 12520, 12990, 13470,
+								5460, 6050, 6580, 7150, 7670, 8230, 8720, 9260 };
 /*******************************/
 /* Switching charger control function */
 /*******************************/
@@ -64,7 +79,8 @@ char *charging_state_str[] = {
 	"ADJUST_TAVOL", "ADJUST_TACUR"
 };
 
-static int pca9468_read_reg(struct pca9468_charger *pca9468, unsigned reg, void *val)
+#if !defined(CONFIG_UML)
+static int pca9468_read_reg(struct pca9468_charger *pca9468, int reg, void *val)
 {
 	int ret = 0;
 
@@ -75,6 +91,7 @@ static int pca9468_read_reg(struct pca9468_charger *pca9468, unsigned reg, void 
 		pr_info("%s: reg(0x%x), ret(%d)\n", __func__, reg, ret);
 	return ret;
 }
+#endif
 
 static int pca9468_bulk_read_reg(struct pca9468_charger *pca9468, int reg, void *val, int count)
 {
@@ -87,7 +104,7 @@ static int pca9468_bulk_read_reg(struct pca9468_charger *pca9468, int reg, void 
 		pr_info("%s: reg(0x%x), ret(%d)\n", __func__, reg, ret);
 	return ret;
 }
-
+#if !defined(CONFIG_UML)
 static int pca9468_write_reg(struct pca9468_charger *pca9468, int reg, u8 val)
 {
 	int ret = 0;
@@ -99,6 +116,7 @@ static int pca9468_write_reg(struct pca9468_charger *pca9468, int reg, u8 val)
 		pr_info("%s: reg(0x%x), ret(%d)\n", __func__, reg, ret);
 	return ret;
 }
+
 
 static int pca9468_update_reg(struct pca9468_charger *pca9468, int reg, u8 mask, u8 val)
 {
@@ -122,10 +140,11 @@ static int pca9468_update_reg(struct pca9468_charger *pca9468, int reg, u8 mask,
 		pr_info("%s: reg(0x%x), ret(%d)\n", __func__, reg, ret);
 	return ret;
 }
-
+#endif
 static int pca9468_read_adc(struct pca9468_charger *pca9468, u8 adc_ch);
 
-static int pca9468_set_charging_state(struct pca9468_charger *pca9468, unsigned int charging_state) {
+__visible_for_testing int pca9468_set_charging_state(struct pca9468_charger *pca9468, unsigned int charging_state)
+{
 	union power_supply_propval value = {0,};
 	static int prev_val = DC_STATE_NO_CHARGING;
 
@@ -729,7 +748,7 @@ error:
 }
 
 
-static int pca9468_set_vfloat(struct pca9468_charger *pca9468, unsigned int v_float)
+__visible_for_testing int pca9468_set_vfloat(struct pca9468_charger *pca9468, unsigned int v_float)
 {
 	int ret, val;
 
@@ -745,7 +764,7 @@ static int pca9468_set_vfloat(struct pca9468_charger *pca9468, unsigned int v_fl
 	return ret;
 }
 
-static int pca9468_set_charging_current(struct pca9468_charger *pca9468, unsigned int ichg)
+__visible_for_testing int pca9468_set_charging_current(struct pca9468_charger *pca9468, unsigned int ichg)
 {
 	int ret, val;
 
@@ -761,7 +780,7 @@ static int pca9468_set_charging_current(struct pca9468_charger *pca9468, unsigne
 	return ret;
 }
 
-static int pca9468_set_input_current(struct pca9468_charger *pca9468, unsigned int iin)
+__visible_for_testing int pca9468_set_input_current(struct pca9468_charger *pca9468, unsigned int iin)
 {
 	int ret, val;
 
@@ -904,7 +923,7 @@ error:
 	return ret;
 }
 
-static int pca9468_set_charging(struct pca9468_charger *pca9468, bool enable)
+__visible_for_testing int pca9468_set_charging(struct pca9468_charger *pca9468, bool enable)
 {
 	int ret, val;
 
@@ -4131,7 +4150,7 @@ fail:
  * Returns the input current limit programmed
  * into the charger in uA.
  */
-static int get_input_current_limit(struct pca9468_charger *pca9468)
+__visible_for_testing int get_input_current_limit(struct pca9468_charger *pca9468)
 {
 	int ret, intval;
 	unsigned int val;
@@ -4155,7 +4174,7 @@ static int get_input_current_limit(struct pca9468_charger *pca9468)
  * Returns the constant charge current programmed
  * into the charger in uA.
  */
-static int get_const_charge_current(struct pca9468_charger *pca9468)
+__visible_for_testing int get_const_charge_current(struct pca9468_charger *pca9468)
 {
 	int ret, intval;
 	unsigned int val;
@@ -4176,7 +4195,7 @@ static int get_const_charge_current(struct pca9468_charger *pca9468)
  * Returns the constant charge voltage programmed
  * into the charger in uV.
  */
-static int get_const_charge_voltage(struct pca9468_charger *pca9468)
+__visible_for_testing int get_const_charge_voltage(struct pca9468_charger *pca9468)
 {
 	int ret, intval;
 	unsigned int val;
@@ -4197,7 +4216,7 @@ static int get_const_charge_voltage(struct pca9468_charger *pca9468)
  * Returns the enable or disable value.
  * into 1 or 0.
  */
-static int get_charging_enabled(struct pca9468_charger *pca9468)
+__visible_for_testing int get_charging_enabled(struct pca9468_charger *pca9468)
 {
 	int ret, intval;
 	unsigned int val;
@@ -4479,9 +4498,11 @@ static int pca9468_chg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_HEALTH:
 		if (pca9468->charging_state >= DC_STATE_CHECK_ACTIVE &&
 			pca9468->charging_state <= DC_STATE_CV_MODE)
-			pca9468_check_error(pca9468);
+			ret = pca9468_check_error(pca9468);
 		val->intval = pca9468->health_status;
-		pr_info("%s: HEALTH STATUS : %d\n", __func__, pca9468->health_status);
+		pr_info("%s: HEALTH STATUS : %d, ret = %d\n",
+			__func__, pca9468->health_status, ret);
+		ret = 0;
 		break;
 #endif
 

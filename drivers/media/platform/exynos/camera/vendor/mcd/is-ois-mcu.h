@@ -98,6 +98,7 @@ struct ois_mcu_dev {
 	int			current_rsc_count;
 	bool			dev_ctrl_state;
 	bool			need_reset_mcu;
+	bool			is_mcu_active;
 };
 
 enum is_efs_state {

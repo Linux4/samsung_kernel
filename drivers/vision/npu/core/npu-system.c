@@ -107,6 +107,11 @@ static void npu_memory_dma_buf_dva_unmap(
 	return;
 }
 
+static int npu_iommu_dma_enable_best_fit_algo(struct device *dev)
+{
+	return iommu_dma_enable_best_fit_algo(dev);
+}
+
 /*
 static void *npu_memory_dma_buf_va_map(struct npu_memory_buffer *buffer)
 {
@@ -135,6 +140,11 @@ static dma_addr_t npu_memory_dma_buf_dva_map(struct npu_memory_buffer *buffer)
 static void npu_memory_dma_buf_dva_unmap(struct npu_memory_buffer *buffer)
 {
 	ion_iovmm_unmap(buffer->attachment, buffer->daddr);
+}
+
+static int npu_iommu_dma_enable_best_fit_algo(__attribute__((unused))struct device *dev)
+{
+	return 0;
 }
 
 /*
@@ -1101,6 +1111,12 @@ int npu_system_probe(struct npu_system *system, struct platform_device *pdev)
 		goto p_err;
 	}
 
+	ret = npu_iommu_dma_enable_best_fit_algo(dev);
+	if (ret) {
+		probe_err("fail(%d) npu_iommu_dma_enable_best_fit_algo\n", ret);
+		goto p_err;
+	}
+
 	/* enable runtime pm */
 	pm_runtime_enable(dev);
 #if 0
@@ -1221,6 +1237,9 @@ int npu_system_open(struct npu_system *system)
 		npu_err("fail(%d) in npu_scheduler_open\n", ret);
 		goto p_err;
 	}
+	// to check available max freq for current NPU dvfs governor, need to finish scheduler open
+	// then we can set boost as available
+	npu_scheduler_boost_on(device->sched);
 
 	ret = npu_qos_open(system);
 	if (ret) {

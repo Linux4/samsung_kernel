@@ -11,7 +11,7 @@ ccflags-y += -Wformat
 five-y := five_lv.o five_cert.o five_keyring.o five_init.o  \
 	  five_cert_builtin.o five_cache.o \
 	  five_dmverity.o
-five-$(CONFIG_SECURITY_DSMS) += five_dsms.o
+five-$(CONFIG_FIVE_DSMS) += five_dsms.o
 
 ifdef CONFIG_FIVE_GKI_20
   FILES := five_main.o five_appraise.o five_crypto.o five_audit.o \

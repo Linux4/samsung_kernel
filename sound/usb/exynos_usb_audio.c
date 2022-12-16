@@ -1137,8 +1137,8 @@ static int exynos_usb_audio_connect(struct usb_interface *intf)
 			|| (usb_audio->usb_audio_state == USB_AUDIO_TIMEOUT_PROBE)) {
 			pr_info("USB_AUDIO_IPC : %s - USB Audio set!\n", __func__);
 			exynos_usb_audio_set_device(udev);
-			exynos_usb_audio_conn(udev, 1);
 			exynos_usb_audio_hcd(udev);
+			exynos_usb_audio_conn(udev, 1);
 			exynos_usb_audio_desc(udev);
 			exynos_usb_audio_map_buf(udev);
 			if (udev->do_remote_wakeup)

@@ -2164,7 +2164,7 @@ static void show_err(struct dumpinfo *info)
 	err_15_8 = err[0];
 	err_7_0 = err[1];
 
-	panel_info("========== SHOW PANEL [EAh:DSI-ERR] INFO ==========\n");
+	panel_info("========== SHOW PANEL [E9h:DSI-ERR] INFO ==========\n");
 	panel_info("* Reg Value : 0x%02x%02x, Result : %s\n", err_15_8, err_7_0,
 			(err[0] || err[1] || err[2] || err[3] || err[4]) ? "NG" : "GOOD");
 
@@ -2779,6 +2779,17 @@ static inline bool is_id_gte_e5(struct panel_device *panel)
 static inline bool is_id_gte_e7(struct panel_device *panel)
 {
 	return ((panel->panel_data.id[2] & 0xFF) >= 0xE7) ? true : false;
+}
+
+static bool is_gamma_select_off_brt(struct panel_device *panel)
+{
+	struct panel_bl_device *panel_bl = &panel->panel_bl;
+
+	if (panel_bl->props.brightness >= 256 &&
+		panel_bl->props.brightness <= 260) {
+		return true;
+	}
+	return false;
 }
 
 static bool is_first_set_bl(struct panel_device *panel)

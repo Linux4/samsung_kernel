@@ -526,8 +526,10 @@ static void decon_reg_set_interface_dsi(u32 id)
 	if (dual_dsi) {
 		/* decon0 - (dsim_if0-dsim0) */
 		dsimif_write(DSIMIF_SEL(0), SEL_DSIM(0));
+		dsimif_write(DSIMIF_TE_TIMEOUT_CON(0), 0xffff);
 		/* decon0 - (dsim_if1-dsim1) */
 		dsimif_write(DSIMIF_SEL(1), SEL_DSIM(1));
+		dsimif_write(DSIMIF_TE_TIMEOUT_CON(1), 0xffff);
 	} else { /* single dsi : DSIM0 only */
 		if (dsim_if0) {
 			if (id == 0) {
@@ -537,12 +539,14 @@ static void decon_reg_set_interface_dsi(u32 id)
 				/* DECON1 - DSIMIF0 - DSIM0 */
 				dsimif_write(DSIMIF_SEL(0), SEL_DSIM(2));
 			}
+			dsimif_write(DSIMIF_TE_TIMEOUT_CON(0), 0xffff);
 		}
 		if (dsim_if1) {
 			if (id == 0) {
 				/* DECON0 - DSIMIF1 - DSIM0 */
 				dsimif_write(DSIMIF_SEL(1), SEL_DSIM(0));
 			}
+			dsimif_write(DSIMIF_TE_TIMEOUT_CON(1), 0xffff);
 		}
 	}
 }

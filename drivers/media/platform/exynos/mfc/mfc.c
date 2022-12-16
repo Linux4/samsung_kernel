@@ -941,6 +941,8 @@ static int __mfc_parse_dt(struct device_node *np, struct mfc_dev *mfc)
 			&pdata->qos_weight.weight_num_of_tile);
 	of_property_read_u32(np, "qos_weight_super64_bframe",
 			&pdata->qos_weight.weight_super64_bframe);
+	of_property_read_u32(np, "qos_weight_mbaff",
+			&pdata->qos_weight.weight_mbaff);
 
 	/* Bitrate control for QoS */
 	of_property_read_u32(np, "num_mfc_freq", &pdata->num_mfc_freq);

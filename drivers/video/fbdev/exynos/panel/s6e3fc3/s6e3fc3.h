@@ -67,7 +67,7 @@
 #define S6E3FC3_RDDSM_OFS			0
 #define S6E3FC3_RDDSM_LEN			(PANEL_RDDSM_LEN)
 
-#define S6E3FC3_ERR_REG				0xEA
+#define S6E3FC3_ERR_REG				0xE9
 #define S6E3FC3_ERR_OFS				0
 #define S6E3FC3_ERR_LEN				5
 
@@ -361,6 +361,14 @@ enum {
 	MAX_S6E3FC3_SMOOTH_DIMMING,
 };
 
+/* use according to adaptive_control sysfs */
+enum {
+	S6E3FC3_ACL_OPR_0,
+	S6E3FC3_ACL_OPR_1,
+	S6E3FC3_ACL_OPR_2,
+	MAX_S6E3FC3_ACL_OPR
+};
+
 static u8 S6E3FC3_ID[S6E3FC3_ID_LEN];
 static u8 S6E3FC3_COORDINATE[S6E3FC3_COORDINATE_LEN];
 static u8 S6E3FC3_CODE[S6E3FC3_CODE_LEN];
@@ -460,6 +468,7 @@ static struct resinfo s6e3fc3_restbl[MAX_RESTBL] = {
 
 enum {
 	DUMP_RDDPM = 0,
+	DUMP_RDDPM_SLEEP_IN,
 	DUMP_RDDSM,
 	DUMP_ERR,
 	DUMP_ERR_FG,
@@ -472,9 +481,10 @@ enum {
 };
 
 static void show_rddpm(struct dumpinfo *info);
+static void show_rddpm_before_sleep_in(struct dumpinfo *info);
 static void show_rddsm(struct dumpinfo *info);
-static void show_err(struct dumpinfo *info);
 static void show_err_fg(struct dumpinfo *info);
+static void show_err(struct dumpinfo *info);
 static void show_dsi_err(struct dumpinfo *info);
 static void show_self_diag(struct dumpinfo *info);
 #ifdef CONFIG_SUPPORT_DDI_CMDLOG
@@ -484,9 +494,10 @@ static void show_self_mask_crc(struct dumpinfo *info);
 
 static struct dumpinfo s6e3fc3_dmptbl[] = {
 	[DUMP_RDDPM] = DUMPINFO_INIT(rddpm, &s6e3fc3_restbl[RES_RDDPM], show_rddpm),
+	[DUMP_RDDPM_SLEEP_IN] = DUMPINFO_INIT(rddpm_sleep_in, &s6e3fc3_restbl[RES_RDDPM], show_rddpm_before_sleep_in),
 	[DUMP_RDDSM] = DUMPINFO_INIT(rddsm, &s6e3fc3_restbl[RES_RDDSM], show_rddsm),
-	[DUMP_ERR] = DUMPINFO_INIT(err, &s6e3fc3_restbl[RES_ERR], show_err),
 	[DUMP_ERR_FG] = DUMPINFO_INIT(err_fg, &s6e3fc3_restbl[RES_ERR_FG], show_err_fg),
+	[DUMP_ERR] = DUMPINFO_INIT(err, &s6e3fc3_restbl[RES_ERR], show_err),
 	[DUMP_DSI_ERR] = DUMPINFO_INIT(dsi_err, &s6e3fc3_restbl[RES_DSI_ERR], show_dsi_err),
 	[DUMP_SELF_DIAG] = DUMPINFO_INIT(self_diag, &s6e3fc3_restbl[RES_SELF_DIAG], show_self_diag),
 #ifdef CONFIG_SUPPORT_DDI_CMDLOG

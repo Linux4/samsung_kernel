@@ -259,6 +259,7 @@ static int qbt2000_power_control(struct qbt2000_drvdata *drvdata, int onoff)
 		} else {
 			if (onoff) {
 				rc = regulator_enable(drvdata->regulator_1p8);
+				usleep_range(2000, 2050);
 				if (rc)
 					pr_err("regulator enable failed, rc=%d\n", rc);
 			} else {
@@ -269,6 +270,8 @@ static int qbt2000_power_control(struct qbt2000_drvdata *drvdata, int onoff)
 		}
 	} else if (drvdata->ldogpio >= 0) {
 		gpio_set_value(drvdata->ldogpio, onoff);
+		if (onoff)
+			usleep_range(2000, 2050);
 	}
 
 	if (!rc) {
@@ -556,10 +559,13 @@ static long qbt2000_ioctl(
 			rc = -EFAULT;
 			goto ioctl_failed;
 		}
+		pr_info("CPU_SPEEDUP %d\n", data);
+		/*
 		if (data)
 			rc = cpu_speedup_enable(drvdata->boosting);
 		else
 			rc = cpu_speedup_disable(drvdata->boosting);
+		*/
 		break;
 	case QBT2000_SET_SENSOR_TYPE:
 		if (copy_from_user(&data, (void *)arg, sizeof(int)) != 0) {
@@ -1097,11 +1103,12 @@ static void qbt2000_work_func_debug(struct work_struct *work)
 
 	logger = container_of(work, struct debug_logger, work_debug);
 	drvdata = dev_get_drvdata(logger->dev);
-	pr_info("ldo:%d,ipc:%d,wuhb:%d,tz:%d,type:%s,int:%d,%d\n",
+	pr_info("ldo:%d,ipc:%d,wuhb:%d,tz:%d,type:%s,int:%d,%d,rst:%d\n",
 		drvdata->enabled_ldo, drvdata->enabled_ipc,
 		drvdata->enabled_wuhb, drvdata->tz_mode,
 		sensor_status[drvdata->sensortype + 2],
-		drvdata->cbge_count, drvdata->wuhb_count);
+		drvdata->cbge_count, drvdata->wuhb_count,
+		drvdata->reset_count);
 }
 
 /**

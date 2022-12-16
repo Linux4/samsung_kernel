@@ -103,7 +103,7 @@
 #include <asm/cacheflush.h>
 
 #if defined(CONFIG_SEC_KUNIT) && defined(CONFIG_UML)
-#include <kunit/test.h>
+extern int test_executor_init(void);
 #endif
 
 #ifdef CONFIG_RKP

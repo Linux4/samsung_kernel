@@ -217,25 +217,25 @@ void gpex_tsg_set_amigo_flags(int input)
 	CSTD_UNUSED(input);
 }
 
-void gpex_tsg_set_queued_threshold(int idx, int input)
+void gpex_tsg_set_queued_threshold(int idx, uint32_t input)
 {
 	CSTD_UNUSED(idx);
 	CSTD_UNUSED(input);
 }
 
-void gpex_tsg_set_queued_time_tick(int idx, int input)
+void gpex_tsg_set_queued_time_tick(int idx, ktime_t input)
 {
 	CSTD_UNUSED(idx);
 	CSTD_UNUSED(input);
 }
 
-void gpex_tsg_set_queued_time(int idx, int input)
+void gpex_tsg_set_queued_time(int idx, ktime_t input)
 {
 	CSTD_UNUSED(idx);
 	CSTD_UNUSED(input);
 }
 
-void gpex_tsg_set_queued_last_updated(int input)
+void gpex_tsg_set_queued_last_updated(ktime_t input)
 {
 	CSTD_UNUSED(input);
 }
@@ -389,4 +389,40 @@ void gpex_tsg_input_nr_acc_cnt(void)
 void gpex_tsg_reset_acc_count(void)
 {
 	return;
+}
+
+void gpex_tsg_update_firstjob_time(void)
+{
+}
+
+void gpex_tsg_update_lastjob_time(int slot_nr)
+{
+	CSTD_UNUSED(slot_nr);
+}
+
+void gpex_tsg_update_jobsubmit_time(void)
+{
+}
+
+void gpex_tsg_sum_jobs_time(int slot_nr)
+{
+	CSTD_UNUSED(slot_nr);
+}
+
+int gpex_tsg_amigo_interframe_sw_update(ktime_t start, ktime_t end)
+{
+	CSTD_UNUSED(start);
+	CSTD_UNUSED(end);
+
+	return 0;
+}
+
+int gpex_tsg_amigo_interframe_hw_update_eof(void)
+{
+	return 0;
+}
+
+int gpex_tsg_amigo_interframe_hw_update(void)
+{
+	return 0;
 }

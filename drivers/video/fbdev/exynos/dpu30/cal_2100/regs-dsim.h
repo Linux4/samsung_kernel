@@ -481,17 +481,21 @@
 #define DSIM_PHY_PLL_EN_MASK			(0x1 << 12)
 #define DSIM_PHY_PMS_S(_x)			(((_x) & 0x7) << 8)
 #define DSIM_PHY_PMS_S_MASK			(0x7 << 8)
+#define DSIM_PHY_PMS_S_GET(_x)			(((_x) >> 8) & 0x7)
 #define DSIM_PHY_PMS_P(_x)			(((_x) & 0x3f) << 0)
 #define DSIM_PHY_PMS_P_MASK			(0x3f << 0)
+#define DSIM_PHY_PMS_P_GET(_x)			(((_x) >> 0) & 0x3f)
 
 /* PLL_CON1 */
 #define DSIM_PHY_PMS_K(_x)			(((_x) & 0xffff) << 0)
 #define DSIM_PHY_PMS_K_MASK			(0xffff << 0)
+#define DSIM_PHY_PMS_K_GET(_x)			(((_x) >> 0) & 0xffff)
 
 /* PLL_CON2 */
 #define DSIM_PHY_USE_SDW_MASK			(0x1 << 15)
 #define DSIM_PHY_PMS_M(_x)			(((_x) & 0x3ff) << 0)
 #define DSIM_PHY_PMS_M_MASK			(0x3ff << 0)
+#define DSIM_PHY_PMS_M_GET(_x)			(((_x) >> 0) & 0x3ff)
 
 #if defined(CONFIG_EXYNOS_DSIM_DITHER)
 /* PLL_CON2 */

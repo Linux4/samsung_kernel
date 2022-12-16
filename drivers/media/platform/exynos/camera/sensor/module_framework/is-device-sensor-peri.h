@@ -537,6 +537,9 @@ struct is_device_sensor_peri {
 	/* Variable for checking global setting done */
 	bool				cis_global_complete;
 
+	/* Variable for checking auto framing scenario */
+	bool				check_auto_framing;
+
 	/* first sensor mode setting flag */
         u32                             mode_change_first;
 

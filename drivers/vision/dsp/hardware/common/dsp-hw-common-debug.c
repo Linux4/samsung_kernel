@@ -79,9 +79,9 @@ static ssize_t dsp_hw_debug_dbg_mode_write(struct file *filp,
 
 	org = sys->debug_mode;
 	if (enable)
-		sys->debug_mode |= BIT(mode);
+		sys->debug_mode |= (unsigned int)1 << mode;
 	else
-		sys->debug_mode &= ~BIT(mode);
+		sys->debug_mode &= (unsigned int)1 << mode;
 
 	dsp_info("debug mode is set(%#x -> %#x)\n", org, sys->debug_mode);
 	dsp_leave();

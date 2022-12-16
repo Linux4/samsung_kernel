@@ -354,9 +354,6 @@ static enum gro_result mcps_dev_gro_receive(struct napi_struct *napi, struct sk_
 	NAPI_GRO_CB(skb)->same_flow = 0;
 	NAPI_GRO_CB(skb)->flush = skb_is_gso(skb) || skb_has_frag_list(skb);
 
-	// NOTICE::diagnosis code. After confirming, This code should be removed.
-	BUG_ON(NAPI_GRO_CB(skb)->flush);
-
 	NAPI_GRO_CB(skb)->free = 0;
 	NAPI_GRO_CB(skb)->encap_mark = 0;
 	NAPI_GRO_CB(skb)->recursion_counter = 0;
@@ -907,11 +904,6 @@ mcps_try_gro_internal(struct sk_buff *skb)
 		rcu_read_unlock();
 		goto error;
 	}
-
-	// NOTICE::diagnosis code. After confirming, This code should be removed.
-	BUG_ON((skb_is_gso(skb) &&
-			(skb_shinfo(skb)->gso_type & (SKB_GSO_UDP_L4 | SKB_GSO_FRAGLIST)) &&
-			!skb_shinfo(skb)->frag_list));
 
 	cpu = get_agro_cpu(&mcps->sauron, skb);
 	if (cpu < 0 || cpu >= MCPS_CPU_ERROR) {

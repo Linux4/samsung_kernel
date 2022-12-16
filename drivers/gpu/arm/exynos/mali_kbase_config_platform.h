@@ -43,10 +43,10 @@ extern struct kbase_pm_callback_conf pm_callbacks;
 /**
  * Platform specific callback functions for entering protected mode
  */
-#if IS_ENABLED(CONFIG_MALI_EXYNOS_SECURE_RENDERING_ARM)
-#define PLATFORM_PROTECTED_CALLBACKS (&exynos_protected_ops_arm)
-extern struct protected_mode_ops exynos_protected_ops_arm;
-#endif /* CONFIG_MALI_EXYNOS_SECURE_RENDERING_ARM */
+#if IS_ENABLED(CONFIG_MALI_EXYNOS_SECURE_RENDERING_LEGACY) ||                                      \
+	IS_ENABLED(CONFIG_MALI_EXYNOS_SECURE_RENDERING_ARM)
+#define PLATFORM_PROTECTED_CALLBACKS mali_exynos_get_protected_ops()
+#endif
 
 extern struct kbase_platform_funcs_conf platform_funcs;
 

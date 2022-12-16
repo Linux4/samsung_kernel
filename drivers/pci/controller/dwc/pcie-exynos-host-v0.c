@@ -2623,6 +2623,7 @@ static int exynos_pcie_probe(struct platform_device *pdev)
 	exynos_pcie->work_l1ss_cnt = 0;
 	exynos_pcie->l1ss_ctrl_id_state = 0;
 	exynos_pcie->atu_ok = 0;
+	exynos_pcie->shutdown = 0;
 
 	exynos_pcie->app_req_exit_l1 = PCIE_APP_REQ_EXIT_L1;
 	exynos_pcie->app_req_exit_l1_mode = PCIE_APP_REQ_EXIT_L1_MODE;
@@ -2857,8 +2858,8 @@ static int __exit exynos_pcie_remove(struct platform_device *pdev)
 
 static void exynos_pcie_shutdown(struct platform_device *pdev)
 {
-#ifdef USE_PANIC_NOTIFIER
 	struct exynos_pcie *exynos_pcie = platform_get_drvdata(pdev);
+#ifdef USE_PANIC_NOTIFIER
 	int ret;
 
 	ret = atomic_notifier_chain_unregister(&panic_notifier_list,
@@ -2867,6 +2868,7 @@ static void exynos_pcie_shutdown(struct platform_device *pdev)
 		dev_err(&pdev->dev,
 			"Failed to unregister snapshot panic notifier\n");
 #endif
+	exynos_pcie->shutdown = 1;
 }
 
 static const struct of_device_id exynos_pcie_of_match[] = {
@@ -3129,6 +3131,13 @@ int exynos_pcie_poweron(int ch_num)
 
 	dev_info(pci->dev, "%s, start of poweron, pcie state: %d\n", __func__,
 							 exynos_pcie->state);
+
+	if (exynos_pcie->shutdown == 1) {
+		dev_info(pci->dev, "%s, already shutdown, so skip poweron %d\n", __func__,
+				exynos_pcie->shutdown);
+
+		return -EPIPE;
+	}
 
 	if (exynos_pcie->state == STATE_LINK_DOWN) {
 		spin_lock_irqsave(&exynos_pcie->reg_lock, flags);

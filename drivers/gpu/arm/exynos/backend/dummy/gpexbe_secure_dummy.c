@@ -18,14 +18,29 @@
  * http://www.gnu.org/licenses/gpl-2.0.html.
  */
 
+/* Implements */
 #include <gpexbe_secure.h>
 
-int gpexbe_secure_protection_enable(void)
+/* Uses */
+#include <errno.h>
+#include <linux/types.h>
+
+struct protected_mode_ops *gpexbe_secure_get_protected_mode_ops()
 {
-	return 0;
+	return NULL;
 }
 
-int gpexbe_secure_protection_disable(void)
+int gpexbe_secure_legacy_jm_enter_protected_mode(struct kbase_device *kbdev)
 {
-	return 0;
+	return -ENOSYS;
+}
+
+int gpexbe_secure_legacy_jm_exit_protected_mode(struct kbase_device *kbdev)
+{
+	return -ENOSYS;
+}
+
+int gpexbe_secure_legacy_pm_exit_protected_mode(struct kbase_device *kbdev)
+{
+	return -ENOSYS;
 }

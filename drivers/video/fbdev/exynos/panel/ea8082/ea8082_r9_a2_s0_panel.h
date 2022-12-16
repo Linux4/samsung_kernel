@@ -240,8 +240,8 @@ static u8 r9_a2_s0_hbm_and_transition_table[MAX_PANEL_HBM][SMOOTH_TRANS_MAX][1] 
 static u8 r9_a2_s0_acl_opr_table[MAX_PANEL_HBM][MAX_EA8082_ACL_OPR][1] = {
 	[PANEL_HBM_OFF] = {
 		[EA8082_ACL_OPR_0] = { 0x00 }, /* adaptive_control 0, 0% */
-		[EA8082_ACL_OPR_1] = { 0x03 }, /* adaptive_control 1, 15% */
-		[EA8082_ACL_OPR_2] = { 0x03 }, /* adaptive_control 2, 15% */
+		[EA8082_ACL_OPR_1] = { 0x01 }, /* adaptive_control 1, 8% */
+		[EA8082_ACL_OPR_2] = { 0x01 }, /* adaptive_control 2, 8% */
 	},
 	[PANEL_HBM_ON] = {
 		[EA8082_ACL_OPR_0 ... EA8082_ACL_OPR_2] = { 0x01 }, /* adaptive_control 0, 8% */
@@ -832,6 +832,14 @@ static void *r9_a2_s0_init_cmdtbl[] = {
 	&DLYINFO(r9_a2_s0_wait_90msec),
 };
 
+static void *r9_a2_s0_id_read_cmdtbl[] = {
+	&KEYINFO(r9_a2_s0_level1_key_enable),
+	&KEYINFO(r9_a2_s0_level2_key_enable),
+	&ea8082_restbl[RES_ID],
+	&KEYINFO(r9_a2_s0_level2_key_disable),
+	&KEYINFO(r9_a2_s0_level1_key_disable),
+};
+
 static void *r9_a2_s0_res_init_cmdtbl[] = {
 	&KEYINFO(r9_a2_s0_level1_key_enable),
 	&KEYINFO(r9_a2_s0_level2_key_enable),
@@ -925,8 +933,6 @@ static void *r9_a2_s0_exit_cmdtbl[] = {
 	&ea8082_dmptbl[DUMP_RDDPM_SLEEP_IN],
 #ifdef CONFIG_DISPLAY_USE_INFO
 	&ea8082_dmptbl[DUMP_RDDSM],
-	&ea8082_dmptbl[DUMP_ERR],
-	&ea8082_dmptbl[DUMP_ERR_FG],
 	&ea8082_dmptbl[DUMP_DSI_ERR],
 	&ea8082_dmptbl[DUMP_SELF_DIAG],
 #endif
@@ -1072,8 +1078,6 @@ static void *r9_a2_s0_dump_cmdtbl[] = {
 	&KEYINFO(r9_a2_s0_level2_key_enable),
 	&ea8082_dmptbl[DUMP_RDDPM],
 	&ea8082_dmptbl[DUMP_RDDSM],
-	&ea8082_dmptbl[DUMP_ERR],
-	&ea8082_dmptbl[DUMP_ERR_FG],
 	&ea8082_dmptbl[DUMP_DSI_ERR],
 	&ea8082_dmptbl[DUMP_SELF_DIAG],
 	&KEYINFO(r9_a2_s0_level2_key_disable),
@@ -1119,6 +1123,7 @@ static void *r9_a2_s0_dummy_cmdtbl[] = {
 static struct seqinfo r9_a2_s0_seqtbl[MAX_PANEL_SEQ] = {
 	[PANEL_INIT_SEQ] = SEQINFO_INIT("init-seq", r9_a2_s0_init_cmdtbl),
 	[PANEL_RES_INIT_SEQ] = SEQINFO_INIT("resource-init-seq", r9_a2_s0_res_init_cmdtbl),
+	[PANEL_ID_READ_SEQ] = SEQINFO_INIT("id-read-seq", r9_a2_s0_id_read_cmdtbl),
 	[PANEL_SET_BL_SEQ] = SEQINFO_INIT("set-bl-seq", r9_a2_s0_set_bl_cmdtbl),
 #ifdef CONFIG_SUPPORT_HMD
 	[PANEL_HMD_ON_SEQ] = SEQINFO_INIT("hmd-on-seq", r9_a2_s0_hmd_on_cmdtbl),

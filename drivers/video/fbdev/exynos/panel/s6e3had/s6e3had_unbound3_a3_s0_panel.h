@@ -1073,7 +1073,7 @@ static u8 UNBOUND3_A3_S0_TSP_HSYNC[] = {
 static u8 UNBOUND3_A3_S0_SET_TE_FRAME_SEL[] = {
 	0xB9,
 	0x09,	/* to be updated by TE_FRAME_SEL_MAPTBL */
-	0x0C, 0x81, 0x00, 0x18
+	0x0B, 0xB8, 0x00, 0x18
 };
 
 static u8 UNBOUND3_A3_S0_CLR_TE_FRAME_SEL[] = {
@@ -1218,7 +1218,7 @@ static u8 UNBOUND3_A3_S0_LPM_ELVSS_ON[] = { 0xC2, 0x2F };
 static u8 UNBOUND3_A3_S0_LPM_ELVSS_OFF[] = { 0xC2, 0x16 };
 static u8 UNBOUND3_A3_S0_LPM_LFD_OFF[] = { 0xBD, 0x40 };
 static u8 UNBOUND3_A3_S0_LPM_SWIRE_NO_PULSE[] = { 0xB1, 0x00 };
- 
+
 static u8 UNBOUND3_A3_S0_MCD_ON_01[] = { 0xF6, 0x88 };
 static u8 UNBOUND3_A3_S0_MCD_ON_02[] = { 0xF6, 0x00 };
 static u8 UNBOUND3_A3_S0_MCD_ON_03[] = { 0xF2, 0x34, 0xE1 };
@@ -1926,6 +1926,7 @@ static DEFINE_COND(unbound3_a3_s0_cond_is_first_set_bl, is_first_set_bl);
 static DEFINE_COND(unbound3_a3_s0_cond_is_wait_vsync_needed, is_wait_vsync_needed);
 static DEFINE_COND(unbound3_a3_s0_cond_is_vrr_96hs_mode, is_vrr_96hs_mode);
 static DEFINE_COND(unbound3_a3_s0_cond_is_vrr_96hs_hbm_enter, is_vrr_96hs_hbm_enter);
+static DEFINE_COND(unbound3_a3_s0_cond_is_gamma_select_off_brt, is_gamma_select_off_brt);
 
 #ifdef CONFIG_SUPPORT_MAFPC
 
@@ -2087,7 +2088,7 @@ static u8 UNBOUND3_A3_S0_MAFPC_ENABLE[] = {
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff	
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 };
 static DEFINE_PKTUI(unbound3_a3_s0_mafpc_enable, &unbound3_a3_s0_maptbl[MAFPC_ENA_MAPTBL], 1);
 static DEFINE_VARIABLE_PACKET(unbound3_a3_s0_mafpc_enable, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_MAFPC_ENABLE, 0);
@@ -2272,6 +2273,16 @@ static void *unbound3_a3_s0_res_gamma_init_cmdtbl[] = {
 };
 static DEFINE_SEQINFO(unbound3_a3_s0_res_gamma_init_seq, unbound3_a3_s0_res_gamma_init_cmdtbl);
 
+static void *unbound3_a3_s0_id_read_cmdtbl[] = {
+	&KEYINFO(unbound3_a3_s0_level1_key_enable),
+	&KEYINFO(unbound3_a3_s0_level2_key_enable),
+	&KEYINFO(unbound3_a3_s0_level3_key_enable),
+	&s6e3had_restbl[RES_ID],
+	&KEYINFO(unbound3_a3_s0_level3_key_disable),
+	&KEYINFO(unbound3_a3_s0_level2_key_disable),
+	&KEYINFO(unbound3_a3_s0_level1_key_disable),
+};
+
 static void *unbound3_a3_s0_res_init_cmdtbl[] = {
 	&KEYINFO(unbound3_a3_s0_level1_key_enable),
 	&KEYINFO(unbound3_a3_s0_level2_key_enable),
@@ -2301,7 +2312,6 @@ static void *unbound3_a3_s0_res_init_cmdtbl[] = {
 };
 
 static void *unbound3_a3_s0_wrdisbv_param_cmdtbl[] = {
-	&PKTINFO(unbound3_a3_s0_elvss),
 #ifdef CONFIG_SUPPORT_BRIGHTDOT_TEST
 	&CONDINFO_IF(unbound3_a3_s0_cond_is_brightdot_enabled),
 		&PKTINFO(unbound3_a3_s0_brightdot_aor),
@@ -2309,24 +2319,17 @@ static void *unbound3_a3_s0_wrdisbv_param_cmdtbl[] = {
 		&PKTINFO(unbound3_a3_s0_brightdot_max_brightness),
 	&CONDINFO_EL(unbound3_a3_s0_cond_is_brightdot_enabled),
 		&PKTINFO(unbound3_a3_s0_wrdisbv),
-		&PKTINFO(unbound3_a3_s0_aor_manual_value),
 	&CONDINFO_FI(unbound3_a3_s0_cond_is_brightdot_enabled),
 #else
 	&PKTINFO(unbound3_a3_s0_wrdisbv),
-	&PKTINFO(unbound3_a3_s0_aor_manual_value),
 #endif
+	&PKTINFO(unbound3_a3_s0_elvss),
 };
 static DEFINE_SEQINFO(unbound3_a3_s0_wrdisbv_param_seq, unbound3_a3_s0_wrdisbv_param_cmdtbl);
 
 static void *unbound3_a3_s0_set_bl_param_cmdtbl[] = {
-	&CONDINFO_IF(unbound3_a3_s0_cond_is_vrr_96hs_mode),
-		&CONDINFO_IF(unbound3_a3_s0_cond_is_vrr_96hs_hbm_enter),
-			&PKTINFO(unbound3_a3_s0_gamma_select_off),
-		&CONDINFO_EL(unbound3_a3_s0_cond_is_vrr_96hs_hbm_enter),
-			&PKTINFO(unbound3_a3_s0_gamma_write_0),
-			&PKTINFO(unbound3_a3_s0_gamma_write_1),
-		&CONDINFO_FI(unbound3_a3_s0_cond_is_vrr_96hs_hbm_enter),
-	&CONDINFO_FI(unbound3_a3_s0_cond_is_vrr_96hs_mode),
+	&PKTINFO(unbound3_a3_s0_gamma_select_off),
+	&SEQINFO(unbound3_a3_s0_wrdisbv_param_seq),
 
 	&CONDINFO_IF(unbound3_a3_s0_cond_is_id_gte_e5),
 		&PKTINFO(unbound3_a3_s0_sync_control),
@@ -2336,9 +2339,13 @@ static void *unbound3_a3_s0_set_bl_param_cmdtbl[] = {
 		&PKTINFO(unbound3_a3_s0_hbm_transition_lt_e5),
 	&CONDINFO_FI(unbound3_a3_s0_cond_is_id_gte_e5),
 
-	&SEQINFO(unbound3_a3_s0_wrdisbv_param_seq),
+	&PKTINFO(unbound3_a3_s0_gamma_write_0),
+	&PKTINFO(unbound3_a3_s0_gamma_write_1),
+	&PKTINFO(unbound3_a3_s0_gamma_update_enable),
 
+	&PKTINFO(unbound3_a3_s0_aor_manual_value),
 	&PKTINFO(unbound3_a3_s0_vaint),
+
 	&CONDINFO_IF(unbound3_a3_s0_cond_is_id_gte_e3),
 		&PKTINFO(unbound3_a3_s0_irc_mode),
 	&CONDINFO_EL(unbound3_a3_s0_cond_is_id_gte_e3),
@@ -2352,13 +2359,12 @@ static void *unbound3_a3_s0_set_bl_param_cmdtbl[] = {
 #ifdef CONFIG_SUPPORT_XTALK_MODE
 	&PKTINFO(unbound3_a3_s0_xtalk_vgh),
 #endif
-	&CONDINFO_IF(unbound3_a3_s0_cond_is_vrr_96hs_hbm_enter),
-		&PKTINFO(unbound3_a3_s0_gamma_update_enable),
-		&DLYINFO(unbound3_a3_s0_wait_1_vsync),
-		&PKTINFO(unbound3_a3_s0_gamma_write_0),
-		&PKTINFO(unbound3_a3_s0_gamma_write_1),
+	&CONDINFO_IF(unbound3_a3_s0_cond_is_gamma_select_off_brt),
+		&PKTINFO(unbound3_a3_s0_gamma_select_off),
+	&CONDINFO_EL(unbound3_a3_s0_cond_is_gamma_select_off_brt),
 		&PKTINFO(unbound3_a3_s0_gamma_select),
-	&CONDINFO_FI(unbound3_a3_s0_cond_is_vrr_96hs_hbm_enter),
+	&CONDINFO_FI(unbound3_a3_s0_cond_is_gamma_select_off_brt),
+	&PKTINFO(unbound3_a3_s0_gamma_update_enable),
 };
 static DEFINE_SEQINFO(unbound3_a3_s0_set_bl_param_seq, unbound3_a3_s0_set_bl_param_cmdtbl);
 
@@ -2837,6 +2843,7 @@ static void *unbound3_a3_s0_gm2_flash_res_init_cmdtbl[] = {
 static struct seqinfo unbound3_a3_s0_seqtbl[MAX_PANEL_SEQ] = {
 	[PANEL_INIT_SEQ] = SEQINFO_INIT("init-seq", unbound3_a3_s0_init_cmdtbl),
 	[PANEL_RES_INIT_SEQ] = SEQINFO_INIT("resource-init-seq", unbound3_a3_s0_res_init_cmdtbl),
+	[PANEL_ID_READ_SEQ] = SEQINFO_INIT("id-read-seq", unbound3_a3_s0_id_read_cmdtbl),
 	[PANEL_SET_BL_SEQ] = SEQINFO_INIT("set-bl-seq", unbound3_a3_s0_set_bl_cmdtbl),
 #ifdef CONFIG_SUPPORT_HMD
 	[PANEL_HMD_ON_SEQ] = SEQINFO_INIT("hmd-on-seq", unbound3_a3_s0_hmd_on_cmdtbl),

@@ -316,7 +316,6 @@ static int power_on_cp(struct modem_ctl *mc)
 {
 	mif_info("+++\n");
 
-	mc->receive_first_ipc = 0;
 
 #if !IS_ENABLED(CONFIG_CP_SECURE_BOOT)
 	exynos_cp_init();
@@ -386,7 +385,6 @@ static int power_reset_cp(struct modem_ctl *mc)
 
 	mif_info("+++\n");
 
-	mc->receive_first_ipc = 0;
 
 	/* 2cp dump WA */
 	if (timer_pending(&mld->crash_ack_timer))
@@ -432,7 +430,6 @@ static int power_reset_dump_cp(struct modem_ctl *mc)
 
 	mif_info("+++\n");
 
-	mc->receive_first_ipc = 0;
 
 	/* 2cp dump WA */
 	if (timer_pending(&mld->crash_ack_timer))

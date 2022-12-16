@@ -1545,19 +1545,18 @@ static int get_vtsforce_reset(struct snd_kcontrol *kcontrol,
 static int set_vtsforce_reset(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
-#if defined(CONFIG_SOC_EXYNOS8895)
 	struct snd_soc_component *component =
 		snd_soc_kcontrol_component(kcontrol);
 	struct device *dev = component->dev;
 	struct vts_data *data = p_vts_data;
 
-	vts_dev_dbg(dev, "VTS RESET: %s\n", __func__);
+	vts_dev_info(dev, "%s: VTS RESET\n", __func__);
 
 	while (data->running && pm_runtime_active(dev)) {
-		vts_dev_warn(dev, "%s Clear active models\n", __func__);
+		vts_dev_warn(dev, "%s: clear active models\n", __func__);
 		pm_runtime_put_sync(dev);
 	}
-#endif
+
 	return  0;
 }
 

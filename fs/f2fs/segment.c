@@ -2747,6 +2747,7 @@ void f2fs_allocate_new_segments(struct f2fs_sb_info *sbi, int type)
 	unsigned int old_segno;
 	int i;
 
+	down_read(&SM_I(sbi)->curseg_lock);
 	down_write(&SIT_I(sbi)->sentry_lock);
 
 	for (i = CURSEG_HOT_DATA; i <= CURSEG_COLD_DATA; i++) {
@@ -2764,6 +2765,7 @@ void f2fs_allocate_new_segments(struct f2fs_sb_info *sbi, int type)
 	}
 
 	up_write(&SIT_I(sbi)->sentry_lock);
+	up_read(&SM_I(sbi)->curseg_lock);
 }
 
 static const struct segment_allocation default_salloc_ops = {
@@ -3469,18 +3471,23 @@ void f2fs_replace_block(struct f2fs_sb_info *sbi, struct dnode_of_data *dn,
 void __update_summary_of_block(struct f2fs_sb_info *sbi,
 				struct f2fs_summary *sum, block_t blkaddr)
 {
+	struct sit_info *sit_i = SIT_I(sbi);
 	struct curseg_info *curseg;
 	unsigned int segno, old_cursegno;
-	struct seg_entry *se;
 	int type;
 	unsigned short old_blkoff;
 
 	/* Get segment information of block */
 	segno = GET_SEGNO(sbi, blkaddr);
-	se = get_seg_entry(sbi, segno);
-	type = se->type;
 
 	down_write(&SM_I(sbi)->curseg_lock);
+
+	if (IS_CURSEG(sbi, segno)) {
+		type = __f2fs_get_curseg(sbi, segno);
+		f2fs_bug_on(sbi, type == NO_CHECK_TYPE);
+	} else {
+		type = CURSEG_WARM_DATA;
+	}
 
 	f2fs_bug_on(sbi, !IS_DATASEG(type));
 
@@ -3488,6 +3495,7 @@ void __update_summary_of_block(struct f2fs_sb_info *sbi,
 	curseg = CURSEG_I(sbi, type);
 
 	mutex_lock(&curseg->curseg_mutex);
+	down_write(&sit_i->sentry_lock);
 
 	old_cursegno = curseg->segno;
 	old_blkoff = curseg->next_blkoff;
@@ -3508,6 +3516,7 @@ void __update_summary_of_block(struct f2fs_sb_info *sbi,
 	}
 	curseg->next_blkoff = old_blkoff;
 
+	up_write(&sit_i->sentry_lock);
 	mutex_unlock(&curseg->curseg_mutex);
 	up_write(&SM_I(sbi)->curseg_lock);
 }
@@ -4480,6 +4489,10 @@ static int sanity_check_curseg(struct f2fs_sb_info *sbi)
 		struct curseg_info *curseg = CURSEG_I(sbi, i);
 		struct seg_entry *se = get_seg_entry(sbi, curseg->segno);
 		unsigned int blkofs = curseg->next_blkoff;
+
+		if (f2fs_sb_has_readonly(sbi) &&
+			i != CURSEG_HOT_DATA && i != CURSEG_HOT_NODE)
+			continue;
 
 		if (f2fs_test_bit(blkofs, se->cur_valid_map))
 			goto out;

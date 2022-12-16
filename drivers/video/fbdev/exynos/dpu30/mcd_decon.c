@@ -655,3 +655,203 @@ void mcd_decon_flush_image(struct decon_device *decon)
 	decon_hiber_unblock(decon);
 }
 #endif
+
+#if defined(CONFIG_DECON_BTS_VRR_ASYNC)
+static void fps_sync_init(struct fps_sync *sync)
+{
+	mutex_init(&sync->lock);
+	INIT_LIST_HEAD(&sync->head);
+	sync->candidate_fps = 0;
+	sync->sync_pt_count = 0;
+}
+
+static int fps_sync_update_timeline(struct fps_sync *sync, u64 timeline)
+{
+	struct fps_sync_pt *sync_pt, *tmp;
+	u64 seqno = 0;
+
+	list_for_each_entry_safe(sync_pt, tmp, &sync->head, list) {
+		if (timeline < sync_pt->seqno)
+			continue;
+
+		if (seqno <= sync_pt->seqno) {
+			seqno = sync_pt->seqno;
+			sync->applied_fps = sync_pt->fps;
+		}
+
+		list_del(&sync_pt->list);
+		kfree(sync_pt);
+		sync->sync_pt_count--;
+	}
+
+	return 0;
+}
+
+static u32 fps_sync_get_maximum_fps(struct fps_sync *sync, u64 timeline)
+{
+	u32 maximum_fps = 0;
+	struct fps_sync_pt *sync_pt;
+
+	list_for_each_entry(sync_pt, &sync->head, list)
+		maximum_fps = max(maximum_fps, sync_pt->fps);
+
+	return max(maximum_fps, sync->candidate_fps);
+}
+
+static void fps_sync_add_sync_pt(struct fps_sync *sync, u64 seqno, u32 fps)
+{
+	struct fps_sync_pt *sync_pt;
+
+	sync_pt = kzalloc(sizeof(struct fps_sync_pt), GFP_KERNEL);
+	sync_pt->seqno = seqno;
+	sync_pt->fps = fps;
+	list_add_tail(&sync_pt->list, &sync->head);
+	sync->sync_pt_count++;
+}
+
+static void fps_sync_set_candidate_fps(struct fps_sync *sync, u32 fps)
+{
+	if (sync->candidate_fps != 0)
+		pr_warn("%s overwrite candidate_fps (%d->%d)\n",
+				__func__, sync->candidate_fps, fps);
+
+	sync->candidate_fps = fps;
+}
+
+static void fps_sync_clear_candidate_fps(struct fps_sync *sync)
+{
+	sync->candidate_fps = 0;
+}
+
+static void fps_sync_remove_all(struct fps_sync *sync)
+{
+	struct fps_sync_pt *sync_pt, *tmp;
+
+	list_for_each_entry_safe(sync_pt, tmp, &sync->head, list) {
+		list_del(&sync_pt->list);
+		kfree(sync_pt);
+		sync->sync_pt_count--;
+	}
+
+	fps_sync_clear_candidate_fps(sync);
+
+	sync->applied_fps = 0;
+}
+
+static unsigned int fps_sync_snprintf(struct fps_sync *sync, char *buf, size_t size)
+{
+	struct fps_sync_pt *sync_pt, *tmp;
+	unsigned int len = 0;
+
+	len += snprintf(buf + len, size - len, "====== fps_sync ======\n");
+	list_for_each_entry_safe(sync_pt, tmp, &sync->head, list)
+		len += snprintf(buf + len, size - len,
+				"seqno:%lld fps:%d\n", sync_pt->seqno, sync_pt->fps);
+	len += snprintf(buf + len, sizeof(buf) - len,
+			"applied_fps:%d\n", sync->applied_fps);
+	len += snprintf(buf + len, sizeof(buf) - len,
+			"candidate_fps:%d\n", sync->candidate_fps);
+	len += snprintf(buf + len, size - len, "======================\n");
+
+	return len;
+}
+
+void decon_bts_print_fps_sync(struct decon_bts *bts)
+{
+	char buf[256];
+
+	fps_sync_snprintf(&bts->fps_sync, buf, sizeof(buf));
+
+	pr_info("%s", buf);
+}
+
+void decon_bts_init_fps_sync(struct decon_bts *bts)
+{
+	fps_sync_init(&bts->fps_sync);
+}
+
+void decon_bts_set_applied_fps(struct decon_bts *bts, u32 fps)
+{
+	mutex_lock(&bts->fps_sync.lock);
+	bts->fps_sync.applied_fps = fps;
+	mutex_unlock(&bts->fps_sync.lock);
+}
+
+int decon_bts_get_bts_fps(struct decon_bts *bts, u64 timeline)
+{
+	u32 bts_fps;
+
+	mutex_lock(&bts->fps_sync.lock);
+	fps_sync_update_timeline(&bts->fps_sync, timeline);
+	bts_fps = max(bts->fps_sync.applied_fps,
+			fps_sync_get_maximum_fps(&bts->fps_sync, timeline));
+	mutex_unlock(&bts->fps_sync.lock);
+
+	if (bts_fps == 0) {
+		pr_warn("%s set default bts_fps(%d)\n",
+				__func__, DEFAULT_BTS_FPS);
+		bts_fps = DEFAULT_BTS_FPS;
+	}
+
+	return bts_fps;
+}
+
+int decon_bts_add_fps_sync(struct decon_bts *bts, u64 seqno, u32 fps)
+{
+	mutex_lock(&bts->fps_sync.lock);
+	if (bts->fps_sync.sync_pt_count >= MAX_SYNC_PT_COUNT) {
+		pr_warn("%s exceeded maximum sync_pt_count(%d)\n",
+				__func__, MAX_SYNC_PT_COUNT);
+		fps_sync_remove_all(&bts->fps_sync);
+	}
+
+	fps_sync_add_sync_pt(&bts->fps_sync, seqno, fps);
+	mutex_unlock(&bts->fps_sync.lock);
+
+	return 0;
+}
+
+int decon_bts_clear_fps_sync(struct decon_bts *bts)
+{
+	mutex_lock(&bts->fps_sync.lock);
+	fps_sync_remove_all(&bts->fps_sync);
+	mutex_unlock(&bts->fps_sync.lock);
+
+	return 0;
+}
+
+int decon_bts_set_candidate_fps(struct decon_bts *bts, u32 fps)
+{
+	mutex_lock(&bts->fps_sync.lock);
+	fps_sync_set_candidate_fps(&bts->fps_sync, fps);
+	mutex_unlock(&bts->fps_sync.lock);
+
+	return 0;
+}
+
+int decon_bts_clear_candidate_fps(struct decon_bts *bts)
+{
+	mutex_lock(&bts->fps_sync.lock);
+	fps_sync_clear_candidate_fps(&bts->fps_sync);
+	mutex_unlock(&bts->fps_sync.lock);
+
+	return 0;
+}
+
+int decon_bts_accept_candidate_fps(struct decon_bts *bts, u64 seqno)
+{
+	mutex_lock(&bts->fps_sync.lock);
+	if (bts->fps_sync.candidate_fps == 0) {
+		pr_warn("%s candidate_fps not exist\n", __func__);
+		mutex_unlock(&bts->fps_sync.lock);
+		return -EINVAL;
+	}
+
+	fps_sync_add_sync_pt(&bts->fps_sync,
+			seqno, bts->fps_sync.candidate_fps);
+	fps_sync_clear_candidate_fps(&bts->fps_sync);
+	mutex_unlock(&bts->fps_sync.lock);
+
+	return 0;
+}
+#endif /* CONFIG_DECON_BTS_VRR_ASYNC */

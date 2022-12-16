@@ -223,11 +223,6 @@ static int process_pantry(struct napi_struct *napi, int quota)
 		while ((skb = __skb_dequeue(&pantry->process_queue))) {
 			__this_cpu_inc(mcps_pantries.processed);
 
-			// NOTICE::diagnosis code. After confirming, This code should be removed.
-			BUG_ON((skb_is_gso(skb) &&
-					(skb_shinfo(skb)->gso_type & (SKB_GSO_UDP_L4 | SKB_GSO_FRAGLIST)) &&
-					!skb_shinfo(skb)->frag_list));
-
 			netif_receive_skb(skb); //This function may only be called from softirq context and interrupts should be enabled. Ref.function description
 
 			if (++work >= quota)

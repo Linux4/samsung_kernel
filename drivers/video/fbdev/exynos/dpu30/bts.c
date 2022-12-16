@@ -20,6 +20,7 @@
 #endif
 #include <dt-bindings/soc/samsung/exynos2100-devfreq.h>
 #include <soc/samsung/exynos-devfreq.h>
+#include "mcd_decon.h"
 
 #define DISP_FACTOR		100UL
 #define LCD_REFRESH_RATE	60U
@@ -527,6 +528,7 @@ static void dpu_bts_find_max_disp_freq(struct decon_device *decon,
 	u32 max_disp_ch_bw;
 	u32 disp_op_freq = 0, freq = 0;
 	struct decon_win_config *config = regs->dpp_config;
+	u32 wclk;
 
 	memset(disp_ch_bw, 0, sizeof(disp_ch_bw));
 
@@ -570,6 +572,16 @@ static void dpu_bts_find_max_disp_freq(struct decon_device *decon,
 	if (decon->bts.max_disp_freq < disp_op_freq)
 		decon->bts.max_disp_freq = disp_op_freq;
 
+	/*
+	 * disp-aclk should be at least higher than wclk.
+	 * otherwise, dsim link may mal-function.
+	 */
+	if (decon->dt.out_type == DECON_OUT_DSI) {
+		wclk = DIV_ROUND_UP(decon->lcd_info->hs_clk, 16);
+		if (decon->bts.max_disp_freq < wclk * 1000)
+			decon->bts.max_disp_freq = wclk * 1000;
+	}
+
 #if defined(CONFIG_EXYNOS_DISPLAYPORT)
 	if (decon->dt.out_type == DECON_OUT_DP) {
 		if (decon->bts.max_disp_freq < 200000)
@@ -605,6 +617,8 @@ static void dpu_bts_share_bw_info(int id)
 
 static void dpu_bts_set_bus_qos(struct decon_device *decon)
 {
+	u32 wclk;
+
 	/*
 	 * normally min INT freq in LCD screen on state : 200Mhz
 	 * wqhd(+) high fps case min INT freq in screen on state : 400Mhz
@@ -616,6 +630,16 @@ static void dpu_bts_set_bus_qos(struct decon_device *decon)
 		exynos_pm_qos_update_request(&decon->bts.mif_qos, 546 * 1000);
 	} else
 		exynos_pm_qos_update_request(&decon->bts.int_qos, 200 * 1000);
+
+	/*
+	 * disp-aclk should be at least higher than wclk.
+	 * otherwise, dsim link may mal-function.
+	 */
+	if (decon->dt.out_type == DECON_OUT_DSI) {
+		wclk = DIV_ROUND_UP(decon->lcd_info->hs_clk, 16);
+		exynos_pm_qos_update_request(&decon->bts.disp_qos, wclk * 1000);
+	}
+
 }
 
 void dpu_bts_calc_bw(struct decon_device *decon, struct decon_reg_data *regs)
@@ -654,13 +678,13 @@ void dpu_bts_calc_bw(struct decon_device *decon, struct decon_reg_data *regs)
 
 #if defined(CONFIG_DECON_BTS_VRR_ASYNC)
 	if (decon->dt.out_type == DECON_OUT_DSI) {
-		if ((decon->bts.fps < decon->bts.next_fps) ||
-			(decon->bts.fps > decon->bts.next_fps &&
-			 decon->bts.next_fps_vsync_count <= decon->vsync.count)) {
-			DPU_DEBUG_BTS("\tupdate fps(%d->%d) vsync(%llu %llu)\n",
-					decon->bts.fps, decon->bts.next_fps,
-					decon->vsync.count, decon->bts.next_fps_vsync_count);
-			decon->bts.fps = decon->bts.next_fps;
+		u32 bts_fps =
+			decon_bts_get_bts_fps(&decon->bts, decon->vsync.count);
+
+		if (decon->bts.fps != bts_fps) {
+			DPU_DEBUG_BTS("\tupdate fps(%d->%d) timeline(%llu)\n",
+					decon->bts.fps, bts_fps, decon->vsync.count);
+			decon->bts.fps = bts_fps;
 		}
 	} else {
 		decon->bts.fps = decon->lcd_info->fps;
@@ -910,7 +934,10 @@ void dpu_bts_acquire_bw(struct decon_device *decon)
 
 	decon->bts.fps = decon->lcd_info->fps;
 #if defined(CONFIG_DECON_BTS_VRR_ASYNC)
-	decon->bts.next_fps = decon->lcd_info->fps;
+	if (decon->dt.out_type == DECON_OUT_DSI) {
+		decon_bts_clear_fps_sync(&decon->bts);
+		decon_bts_set_applied_fps(&decon->bts, decon->lcd_info->fps);
+	}
 #endif
 
 #if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
@@ -920,18 +947,28 @@ void dpu_bts_acquire_bw(struct decon_device *decon)
 #endif
 
 	if (decon->dt.out_type == DECON_OUT_DSI) {
+		u32 bts_fps;
+
+		/* 
+		 * command mode panel trigger will be enabled
+		 * until first winconfig. To prevent underrun,
+		 * set bts_fps as maximum refresh-rate.
+		 */
+		bts_fps = IS_EXYNOS_VRR_HS_MODE(decon->lcd_info->vrr_mode) ?
+			120 : decon->bts.fps;
+
 		memset(&config, 0, sizeof(struct decon_win_config));
 		config.src.w = config.dst.w = decon->lcd_info->xres;
 		config.src.h = config.dst.h = decon->lcd_info->yres;
 
 		resol_clock = dpu_bts_get_resol_clock(decon->lcd_info->xres,
-				decon->lcd_info->yres, decon->bts.fps);
+				decon->lcd_info->yres, bts_fps);
 		decon->bts.resol_clk = (u32)resol_clock;
 
 		aclk_freq = dpu_bts_calc_aclk_disp(decon, &config,
 				resol_clock, resol_clock);
 		DPU_DEBUG_BTS("Initial calculated disp freq(%lu) @%d fps\n",
-				aclk_freq, decon->bts.fps);
+				aclk_freq, bts_fps);
 #if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
 		/*
 		 * If current disp freq is higher than calculated freq,
@@ -1080,6 +1117,8 @@ void dpu_bts_acquire_dqe_bw(struct decon_device *decon)
 
 void dpu_bts_release_dqe_bw(struct decon_device *decon)
 {
+	u32 wclk;
+
 	DPU_DEBUG_BTS("%s +\n", __func__);
 
 	if (!decon->bts.enabled)
@@ -1088,7 +1127,12 @@ void dpu_bts_release_dqe_bw(struct decon_device *decon)
 	if (decon->dt.out_type == DECON_OUT_DSI) {
 #if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
 #if defined(CONFIG_EXYNOS_DECON_DQE)
-		exynos_pm_qos_update_request(&decon->bts.disp_qos, 0);
+		/*
+		 * disp-aclk should be at least higher than wclk.
+		 * otherwise, dsim link may mal-function.
+		 */
+		wclk = DIV_ROUND_UP(decon->lcd_info->hs_clk, 16);
+		exynos_pm_qos_update_request(&decon->bts.disp_qos, wclk * 1000);
 #endif
 #endif
 	}
@@ -1149,7 +1193,10 @@ void dpu_bts_init(struct decon_device *decon)
 	} else {
 		decon->bts.fps = decon->lcd_info->fps;
 #if defined(CONFIG_DECON_BTS_VRR_ASYNC)
-		decon->bts.next_fps = decon->lcd_info->fps;
+		if (decon->dt.out_type == DECON_OUT_DSI) {
+			decon_bts_init_fps_sync(&decon->bts);
+			decon_bts_set_applied_fps(&decon->bts, decon->lcd_info->fps);
+		}
 #endif
 		resol_clock = dpu_bts_get_resol_clock(decon->lcd_info->xres,
 				decon->lcd_info->yres, decon->bts.fps);

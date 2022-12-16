@@ -266,22 +266,22 @@ struct binder_node_info_for_ref {
 };
 
 struct binder_freeze_info {
-	__u32 pid;
-	__u32 enable;
-	__u32 timeout_ms;
+	__u32            pid;
+	__u32            enable;
+	__u32            timeout_ms;
 };
 
 struct binder_frozen_status_info {
-	__u32 pid;
+	__u32            pid;
 
 	/* process received sync transactions since last frozen
 	 * bit 0: received sync transaction after being frozen
 	 * bit 1: new pending sync transaction during freezing
 	 */
-	__u32 sync_recv;
+	__u32            sync_recv;
 
 	/* process received async transactions since last frozen */
-	__u32 async_recv;
+	__u32            async_recv;
 };
 
 #define BINDER_WRITE_READ		_IOWR('b', 1, struct binder_write_read)
@@ -294,8 +294,8 @@ struct binder_frozen_status_info {
 #define BINDER_GET_NODE_DEBUG_INFO	_IOWR('b', 11, struct binder_node_debug_info)
 #define BINDER_GET_NODE_INFO_FOR_REF	_IOWR('b', 12, struct binder_node_info_for_ref)
 #define BINDER_SET_CONTEXT_MGR_EXT	_IOW('b', 13, struct flat_binder_object)
-#define BINDER_FREEZE _IOW('b', 14, struct binder_freeze_info)
-#define BINDER_GET_FROZEN_INFO _IOWR('b', 15, struct binder_frozen_status_info)
+#define BINDER_FREEZE			_IOW('b', 14, struct binder_freeze_info)
+#define BINDER_GET_FROZEN_INFO		_IOWR('b', 15, struct binder_frozen_status_info)
 #define BINDER_SET_SYSTEM_SERVER_PID	_IOW('b', 17, __u32)
 
 /*

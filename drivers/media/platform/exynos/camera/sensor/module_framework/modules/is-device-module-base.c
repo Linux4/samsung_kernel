@@ -140,6 +140,7 @@ int sensor_module_power_reset(struct v4l2_subdev *subdev, struct is_device_senso
 
 	sensor_peri->mode_change_first = true;
 	sensor_peri->cis_global_complete = false;
+	sensor_peri->check_auto_framing = false;
 
 	ret = is_sensor_gpio_on(device);
 	if (ret)
@@ -835,6 +836,11 @@ int sensor_module_s_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
 			ctrl->value == module->position ? DUAL_SYNC_MASTER : DUAL_SYNC_SLAVE;
 		info("[MOD:%s] Dual sync mode set to %s", module->sensor_name,
 			sensor_peri->cis.dual_sync_mode == DUAL_SYNC_MASTER ? "Master" : "Slave");
+		break;
+	case V4L2_CID_SENSOR_SET_AUTO_FRAMING:
+		sensor_peri->check_auto_framing = ctrl->value;
+		info("%s Auto framing set. val = %d, sensor id = %d", __func__,
+			sensor_peri->check_auto_framing, sensor_peri->module->sensor_id);
 		break;
 	default:
 		err("err!!! Unknown CID(%#x)", ctrl->id);

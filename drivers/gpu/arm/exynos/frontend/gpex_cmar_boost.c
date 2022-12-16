@@ -23,7 +23,12 @@
 
 /* Uses */
 #include <linux/sched.h>
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 #include <uapi/linux/sched/types.h>
+#endif
+
 #include <mali_exynos_ioctl.h>
 #include <gpex_utils.h>
 

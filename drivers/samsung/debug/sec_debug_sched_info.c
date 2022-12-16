@@ -34,7 +34,7 @@ static void secdbg_scin_show_sched_info(unsigned int cpu, int count)
 	if (!log_item->entry.enabled)
 		return;
 
-	if (cpu < 0U || cpu >= DSS_NR_CPUS) {
+	if (cpu >= DSS_NR_CPUS) {
 		pr_warn("%s: invalid cpu %d\n", __func__, cpu);
 		return;
 	}
@@ -202,7 +202,7 @@ static int secdbg_scin_show_busy_task(unsigned int cpu, unsigned long long durat
 	if (is_busy_info_list)
 		return -1;
 
-	if (cpu < 0U || cpu >= DSS_NR_CPUS) {
+	if (cpu >= DSS_NR_CPUS) {
 		pr_warn("%s: invalid cpu %d\n", __func__, cpu);
 		return -EINVAL;
 	}

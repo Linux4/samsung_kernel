@@ -1,3 +1,29 @@
+if UML
+
+config BATTERY_SAMSUNG
+	tristate "samsung battery driver"
+	help
+	  Say Y to include support for samsung battery driver
+	  This battery driver integrated all battery-related functions
+	  To see battery-related functions,
+	  refer to sec_charging_common.h
+
+config WIRELESS_TX_MODE
+	bool "wireless power sharing support in sec battery driver"
+	default n
+	help
+	  Say Y here to enable
+	  support for wireless tx mode.
+	  It is for wireless power sharing.
+	  wireless tx support models should enable this option.
+
+config DUAL_BATTERY
+	tristate "support for dual battery model"
+	help
+	  Say Y here to enable support for dual battery
+
+endif
+
 config CHARGER_DUMMY
 	bool "dummy charger driver"
 	default n

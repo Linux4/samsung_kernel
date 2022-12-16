@@ -51,7 +51,8 @@ do { \
 
 #define wake_lock_destroy(wakeup_source) \
 do { \
-	wakeup_source_unregister(wakeup_source); \
+    wakeup_source_unregister(wakeup_source); \
+    (wakeup_source) = NULL; \
 } while (0);
 
 #define wake_lock(wakeup_source)			__pm_stay_awake(wakeup_source)

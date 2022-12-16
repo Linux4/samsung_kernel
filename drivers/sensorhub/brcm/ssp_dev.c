@@ -29,8 +29,8 @@ static void ssp_late_resume(struct early_suspend *handler);
 #define NORMAL_SENSOR_STATE_K	0x3FEFF
 
 #if defined(CONFIG_MUIC_NOTIFIER)
-#include <linux/muic/muic.h>
-#include <linux/muic/muic_notifier.h>
+#include <linux/muic/common/muic.h>
+#include <linux/muic/common/muic_notifier.h>
 #endif
 
 #ifdef CONFIG_SEC_VIB_NOTIFIER

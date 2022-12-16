@@ -160,7 +160,6 @@ static int npu_vertex_open(struct file *file)
 	struct npu_scheduler_info *info;
 
 	info = npu_scheduler_get_info();
-	npu_scheduler_boost_on(info);
 
 	/* check npu_device emergency error */
 	ret = check_emergency(device);

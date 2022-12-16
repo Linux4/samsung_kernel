@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -607,8 +607,13 @@ wl_mbo_btm_event_handler(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 #ifdef WL_TWT
 static s32
 wl_notify_twt_event(struct bcm_cfg80211 *cfg,
-		bcm_struct_cfgdev *cfgdev, const wl_event_msg_t *e, void *data);
+	bcm_struct_cfgdev *cfgdev, const wl_event_msg_t *e, void *data);
 #endif /* WL_TWT */
+
+#ifdef BCN_TSFINFO
+static s32 wl_notify_bcn_tsf_handler(struct bcm_cfg80211 *cfg,
+	bcm_struct_cfgdev *cfgdev, const wl_event_msg_t *e, void *data);
+#endif /* BCM_TSFINFO */
 
 #ifdef WL_CLIENT_SAE
 static bool wl_is_pmkid_available(struct net_device *dev, const u8 *bssid);
@@ -7768,6 +7773,11 @@ error:
 		MFREE(cfg->osh, buf, WLC_IOCTL_MEDLEN);
 	}
 
+#ifdef RPM_FAST_TRIGGER
+	WL_INFORM(("Trgger RPM Fast\n"));
+	dhd_trigger_rpm_fast(cfg);
+#endif /* RPM_FAST_TRIGGER */
+
 	return err;
 }
 
@@ -10007,6 +10017,35 @@ s32 wl_mode_to_nl80211_iftype(s32 mode)
 }
 
 static bool
+wl_is_ccode_change_allowed(struct net_device *net)
+{
+	struct wireless_dev *wdev = ndev_to_wdev(net);
+	struct wiphy *wiphy = wdev->wiphy;
+	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
+	struct net_info *iter, *next;
+
+	/* Country code isn't allowed change on AP/GO, NDP established  */
+	GCC_DIAGNOSTIC_PUSH_SUPPRESS_CAST();
+	for_each_ndev(cfg, iter, next) {
+		GCC_DIAGNOSTIC_POP();
+		if (iter->ndev) {
+			if (wl_get_drv_status(cfg, AP_CREATED, iter->ndev)) {
+				WL_ERR(("AP active. skip coutry ccode change"));
+				return false;
+			}
+		}
+	}
+
+#ifdef WL_NAN
+	if (wl_cfgnan_is_enabled(cfg) && wl_cfgnan_is_dp_active(net)) {
+		WL_ERR(("NDP established. skip coutry ccode change"));
+		return false;
+	}
+#endif /* WL_NAN */
+	return true;
+}
+
+static bool
 wl_is_ccode_change_required(struct net_device *net,
 	char *country_code, int revinfo)
 {
@@ -10043,22 +10082,13 @@ wl_cfg80211_cleanup_connection(struct net_device *net, bool user_enforced)
 	struct wiphy *wiphy = wdev->wiphy;
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
 	struct net_info *iter, *next;
-	scb_val_t scbval;
+	BCM_REFERENCE(ret);
 
 	GCC_DIAGNOSTIC_PUSH_SUPPRESS_CAST();
 	for_each_ndev(cfg, iter, next) {
 		GCC_DIAGNOSTIC_POP();
 		if (iter->ndev) {
-			if (wl_get_drv_status(cfg, AP_CREATED, iter->ndev)) {
-				memset(scbval.ea.octet, 0xff, ETHER_ADDR_LEN);
-				scbval.val = DOT11_RC_DEAUTH_LEAVING;
-				if ((ret = wldev_ioctl_set(iter->ndev,
-						WLC_SCB_DEAUTHENTICATE_FOR_REASON,
-						&scbval, sizeof(scb_val_t))) != 0) {
-					WL_ERR(("Failed to disconnect STAs %d\n", ret));
-				}
-
-			} else if (wl_get_drv_status(cfg, CONNECTED, iter->ndev)) {
+			if (wl_get_drv_status(cfg, CONNECTED, iter->ndev)) {
 				if ((iter->ndev == net) && !user_enforced)
 					continue;
 				wl_cfg80211_disassoc(iter->ndev, WLAN_REASON_DEAUTH_LEAVING);
@@ -10075,6 +10105,7 @@ wl_cfg80211_cleanup_connection(struct net_device *net, bool user_enforced)
 #ifdef WL_NAN
 	if (wl_cfgnan_is_enabled(cfg)) {
 		mutex_lock(&cfg->if_sync);
+		cfg->nancfg->notify_user = true;
 		ret = wl_cfgnan_check_nan_disable_pending(cfg, true, true);
 		mutex_unlock(&cfg->if_sync);
 		if (ret != BCME_OK) {
@@ -10105,6 +10136,12 @@ wl_cfg80211_set_country_code(struct net_device *net, char *country_code,
 		goto exit;
 	}
 
+	if (wl_is_ccode_change_allowed(net) == false) {
+		WL_ERR(("country code change isn't allowed during AP role/NAN connected\n"));
+		ret = BCME_EPERM;
+		goto exit;
+	}
+
 	wl_cfg80211_cleanup_connection(net, user_enforced);
 
 	/* Store before applying - so that if event comes earlier that is handled properly */
@@ -10130,7 +10167,7 @@ wl_cfg80211_set_country_code(struct net_device *net, char *country_code,
 	}
 
 exit:
-	return ret;
+	return OSL_ERROR(ret);
 }
 
 #ifdef CONFIG_PM
@@ -12015,13 +12052,18 @@ wl_handle_link_down(struct bcm_cfg80211 *cfg, wl_assoc_status_t *as)
 	/* clear profile before reporting link down */
 	wl_init_prof(cfg, ndev);
 
+	if (wl_get_drv_status(cfg, DISCONNECTING, ndev)) {
+		/* If DISCONNECTING bit is set, mark locally generated */
+		loc_gen = 1;
+	}
+	
 	CFG80211_DISCONNECTED(ndev, reason, ie_ptr, ie_len,
 		loc_gen, GFP_KERNEL);
 	WL_INFORM_MEM(("[%s] Disconnect event sent to upper layer"
-		"event:%d e->reason=%d reason=%d ie_len=%d "
+		"event:%d e->reason=%d reason=%d ie_len=%d loc_gen=%d"
 		"from " MACDBG "\n",
 		ndev->name,	event, ntoh32(as->reason), reason, ie_len,
-		MAC2STRDBG((const u8*)(&as->addr))));
+		loc_gen, MAC2STRDBG((const u8*)(&as->addr))));
 
 	/* clear connected state */
 	wl_clr_drv_status(cfg, CONNECTED, ndev);
@@ -14402,6 +14444,9 @@ static void wl_init_event_handler(struct bcm_cfg80211 *cfg)
 #ifdef WL_CLIENT_SAE
 	cfg->evt_handler[WLC_E_AUTH_START] = wl_notify_start_auth;
 #endif /* WL_CLIENT_SAE */
+#ifdef BCN_TSFINFO
+	cfg->evt_handler[WLC_E_BCN_TSF] = wl_notify_bcn_tsf_handler;
+#endif /* BCN_TSFINFO */
 }
 
 #if defined(STATIC_WL_PRIV_STRUCT)
@@ -15365,7 +15410,6 @@ static s32 wl_cfg80211_attach_post(struct net_device *ndev)
 			}
 		}
 	}
-	wl_set_drv_status(cfg, READY, ndev);
 fail:
 	return err;
 }
@@ -16873,7 +16917,6 @@ static s32 __wl_cfg80211_up(struct bcm_cfg80211 *cfg)
 	cfg->scan_request = NULL;
 
 	INIT_DELAYED_WORK(&cfg->pm_enable_work, wl_cfg80211_work_handler);
-	wl_set_drv_status(cfg, READY, ndev);
 
 #ifdef WL_MBO_HOST
 	cfg->btmreq = NULL;
@@ -17225,6 +17268,11 @@ s32 wl_cfg80211_up(struct net_device *net)
 	bcm_cfg80211_add_ibss_if(cfg->wdev->wiphy, IBSS_IF_NAME);
 #endif /* WLAIBSS_MCHAN */
 	cfg->spmk_info_list->pmkids.count = 0;
+
+	if (err == BCME_OK) {
+		wl_set_drv_status(cfg, READY, net);
+	}
+
 	return err;
 }
 
@@ -21714,6 +21762,67 @@ fail:
 }
 #endif /* WL_TWT */
 
+#ifdef BCN_TSFINFO
+static s32
+wl_notify_bcn_tsf_handler(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
+		const wl_event_msg_t *e, void *data)
+{
+	struct sk_buff *skb = NULL;
+	gfp_t kflags;
+	struct wiphy *wiphy = bcmcfg_to_wiphy(cfg);
+	struct net_device *ndev = cfgdev_to_ndev(cfgdev);
+	int err = BCME_OK;
+	wl_bcn_tsf_t *bcn_tsf = (wl_bcn_tsf_t *)data;
+	struct timeval tv_current;
+
+	kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
+	skb = CFG80211_VENDOR_EVENT_ALLOC(wiphy, ndev_to_wdev(ndev), BRCM_VENDOR_GET_TSFINFO_LEN,
+		BRCM_VENDOR_EVENT_HAPD_TSF, kflags);
+	if (!skb) {
+		WL_ERR(("skb alloc failed"));
+		err = BCME_NOMEM;
+		goto fail;
+	}
+
+	err = nla_put_u32(skb, WIFI_SOFTAP_TSFINFO_HIGH, bcn_tsf->bcn_tsf_h);
+	if (unlikely(err)) {
+		WL_ERR(("nla_put_u32 WIFI_SOFTAP_TSFINFO_HIGH failed\n"));
+		goto fail;
+	}
+	err = nla_put_u32(skb, WIFI_SOFTAP_TSFINFO_LOW, bcn_tsf->bcn_tsf_l);
+		if (unlikely(err)) {
+		WL_ERR(("nla_put_u32 WIFI_SOFTAP_TSFINFO_LOW failed\n"));
+		goto fail;
+	}
+
+	do_gettimeofday(&tv_current);
+	err = nla_put_u32(skb, WIFI_UTCTIME_SEC, tv_current.tv_sec);
+	if (unlikely(err)) {
+		WL_ERR(("nla_put_u32 WIFI_UTCTIME_SEC failed\n"));
+		goto fail;
+	}
+	err = nla_put_u32(skb, WIFI_UTCTIME_USEC, tv_current.tv_usec);
+		if (unlikely(err)) {
+		WL_ERR(("nla_put_u32 WIFI_UTCTIME_USEC failed\n"));
+		goto fail;
+	}
+
+	WL_TRACE(("bcn_rsf: event tsf 0x%x %x, curtime: tv_sec:%lu, usec:%lu \n",
+		bcn_tsf->bcn_tsf_h, bcn_tsf->bcn_tsf_l, tv_current.tv_sec, tv_current.tv_usec));
+
+	if (err) {
+		goto fail;
+	}
+	cfg80211_vendor_event(skb, kflags);
+
+fail:
+	/* Free skb for failure cases */
+	if (err != BCME_OK && skb) {
+		kfree_skb(skb);
+	}
+	return err;
+}
+#endif /* BCN_TSFINFO */
 #define CHECK_AND_INCR_LEN(ret, len, maxlen) \
 	{ \
 		if ((ret < 0) || ((ret + len) > maxlen)) \

@@ -89,9 +89,12 @@ struct scan_control {
 	unsigned int may_swap:1;
 
 	/*
-	 * Cgroups are not reclaimed below their configured memory.low,
-	 * unless we threaten to OOM. If any cgroups are skipped due to
-	 * memory.low and nothing was reclaimed, go back for memory.low.
+	 * Cgroup memory below memory.low is protected as long as we
+	 * don't threaten to OOM. If any cgroup is reclaimed at
+	 * reduced force or passed over entirely due to its memory.low
+	 * setting (memcg_low_skipped), and nothing is reclaimed as a
+	 * result, then go back for one more cycle that reclaims the protected
+	 * memory (memcg_low_reclaim) to avert OOM.
 	 */
 	unsigned int memcg_low_reclaim:1;
 	unsigned int memcg_low_skipped:1;
@@ -2381,19 +2384,24 @@ static bool am_app_launch = false;
 
 #define MEM_BOOST_MAX_TIME (5 * HZ) /* 5 sec */
 
-#ifdef CONFIG_SYSFS
-static ssize_t mem_boost_mode_show(struct kobject *kobj,
-				    struct kobj_attribute *attr, char *buf)
-{
-	if (time_after(jiffies, last_mode_change + MEM_BOOST_MAX_TIME))
-		mem_boost_mode = NO_BOOST;
-	return sprintf(buf, "%d\n", mem_boost_mode);
-}
-
 #if CONFIG_KSWAPD_CPU
 static int set_kswapd_cpu_affinity_as_config(void);
 static int set_kswapd_cpu_affinity_as_boost(void);
 #endif
+
+#ifdef CONFIG_SYSFS
+static ssize_t mem_boost_mode_show(struct kobject *kobj,
+				    struct kobj_attribute *attr, char *buf)
+{
+	if (mem_boost_mode != NO_BOOST &&
+		time_after(jiffies, last_mode_change + MEM_BOOST_MAX_TIME)) {
+		mem_boost_mode = NO_BOOST;
+#ifdef CONFIG_KSWAPD_CPU
+		set_kswapd_cpu_affinity_as_config();
+#endif
+	}
+	return sprintf(buf, "%d\n", mem_boost_mode);
+}
 
 static ssize_t mem_boost_mode_store(struct kobject *kobj,
 				     struct kobj_attribute *attr,
@@ -2446,12 +2454,14 @@ static inline bool is_too_low_file(struct pglist_data *pgdat)
 {
        unsigned long pgdatfile;
        if (!low_threshold) {
-               if (totalram_pages() > GB_TO_PAGES(2))
-                       low_threshold = MB_TO_PAGES(600);
-               else if (totalram_pages() > GB_TO_PAGES(1))
-                       low_threshold = MB_TO_PAGES(300);
-               else
-                       low_threshold = MB_TO_PAGES(200);
+			if (totalram_pages() > GB_TO_PAGES(4))
+				low_threshold = MB_TO_PAGES(500);
+			else if (totalram_pages() > GB_TO_PAGES(3))
+				low_threshold = MB_TO_PAGES(400);
+			else if (totalram_pages() > GB_TO_PAGES(2))
+				low_threshold = MB_TO_PAGES(300);
+			else
+				low_threshold = MB_TO_PAGES(200);
        }
 
        pgdatfile = node_page_state(pgdat, NR_ACTIVE_FILE) +
@@ -2463,18 +2473,14 @@ inline bool need_memory_boosting(struct pglist_data *pgdat)
 {
 	bool ret;
 
-	if (mem_boost_mode == NO_BOOST)
-		goto skip_boost_check;
-	if (time_after(jiffies, last_mode_change + MEM_BOOST_MAX_TIME))
-		mem_boost_mode = NO_BOOST;
-	else if (is_too_low_file(pgdat))
+	if (mem_boost_mode != NO_BOOST && 
+		(time_after(jiffies, last_mode_change + MEM_BOOST_MAX_TIME) ||
+		is_too_low_file(pgdat))) {
 		mem_boost_mode = NO_BOOST;
 #if CONFIG_KSWAPD_CPU
-	if (mem_boost_mode == NO_BOOST)
 		set_kswapd_cpu_affinity_as_config();
 #endif
-
-skip_boost_check:
+	}
 
 	switch (mem_boost_mode) {
 		case BOOST_KILL:
@@ -2747,14 +2753,14 @@ out:
 	for_each_evictable_lru(lru) {
 		int file = is_file_lru(lru);
 		unsigned long lruvec_size;
+		unsigned long low, min;
 		unsigned long scan;
-		unsigned long protection;
 
 		lruvec_size = lruvec_lru_size(lruvec, lru, sc->reclaim_idx);
-		protection = mem_cgroup_protection(memcg,
-						   sc->memcg_low_reclaim);
+		mem_cgroup_protection(sc->target_mem_cgroup, memcg,
+				      &min, &low);
 
-		if (protection) {
+		if (min || low) {
 			/*
 			 * Scale a cgroup's reclaim pressure by proportioning
 			 * its current usage to its memory.low or memory.min
@@ -2785,6 +2791,15 @@ out:
 			 * hard protection.
 			 */
 			unsigned long cgroup_size = mem_cgroup_size(memcg);
+			unsigned long protection;
+
+			/* memory.low scaling, make sure we retry before OOM */
+			if (!sc->memcg_low_reclaim && low > min) {
+				protection = low;
+				sc->memcg_low_skipped = 1;
+			} else {
+				protection = min;
+			}
 
 			/* Avoid TOCTOU with earlier protection check */
 			cgroup_size = max(cgroup_size, protection);

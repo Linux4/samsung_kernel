@@ -16,8 +16,13 @@
  */
 
 #include "../dsim.h"
+#include "../panels/exynos_panel_drv.h"
 #include "regs-decon.h"
 #include <linux/iopoll.h>
+
+#ifndef AP_OSC_KHZ
+#define AP_OSC_KHZ	(26000)
+#endif
 
 /* dsim version */
 #define DSIM_VER_2P5			0x02050000
@@ -399,6 +404,37 @@ static void dsim_reg_set_pll_freq(u32 id, u32 p, u32 m, u32 s, u32 k)
 	mask = DSIM_PHY_PMS_M_MASK;
 	dsim_phy_write_mask(id, DSIM_PHY_PLL_CON2, val, mask);
 }
+
+/* calculate hsclk according to pmsk values */
+static u32 dsim_reg_get_pll_freq(u32 id)
+{
+	u32 val;
+	u32 p, m, s, k;
+	u64 pll_freq;
+
+	/* K value */
+	val = dsim_phy_read(id, DSIM_PHY_PLL_CON1);
+	k = DSIM_PHY_PMS_K_GET(val);
+
+	/* P & S value */
+	val = dsim_phy_read(id, DSIM_PHY_PLL_CON0);
+	p = DSIM_PHY_PMS_P_GET(val) ?: 1;
+	s = DSIM_PHY_PMS_S_GET(val);
+
+	/* M value */
+	val = dsim_phy_read(id, DSIM_PHY_PLL_CON2);
+	m = DSIM_PHY_PMS_M_GET(val);
+
+	if (k & 0x8000)	/* K means negative number */
+		pll_freq = AP_OSC_KHZ * (u64)((m << 16) + k - (1 << 16));
+	else
+		pll_freq = AP_OSC_KHZ * (u64)((m << 16) + k);
+
+	pll_freq = (pll_freq / p / (1 << s)) >> 16;
+
+	return (u32)(pll_freq / 1000);	/* Mhz */
+}
+
 
 static void dsim_reg_set_dphy_timing_values(u32 id,
 			struct dphy_timing_value *t, u32 hsmode)
@@ -1826,6 +1862,7 @@ static int dsim_reg_set_clocks(u32 id, struct dsim_clks *clks,
 
 		/* set PMSK on PHY */
 		dsim_reg_set_pll_freq(id, pll.p, pll.m, pll.s, pll.k);
+		dsim_dbg("calculated hsclk is %u MHz\n", dsim_reg_get_pll_freq(id));
 
 		/*set wclk buf sft cnt */
 		dsim_reg_set_dphy_wclk_buf_sft(id, 3);
@@ -2426,6 +2463,14 @@ bool dsim_reg_is_writable_ph_fifo_state(u32 id, u32 cmd_cnt)
 		return false;
 }
 
+u32 dsim_reg_get_ph_num(u32 id)
+{
+	u32 val = dsim_read(id, DSIM_FIFOCTRL);
+
+	val = DSIM_FIFOCTRL_NUMBER_OF_PH_SFR_GET(val);
+	return val;
+}
+
 u32 dsim_reg_get_rx_fifo(u32 id)
 {
 	return dsim_read(id, DSIM_RXFIFO);
@@ -2620,6 +2665,10 @@ void dsim_reg_set_dphy_freq_hopping(u32 id, u32 p, u32 m, u32 k, u32 en)
 {
 	u32 val, mask;
 	u32 pll_stable_cnt = (PLL_SLEEP_CNT_MULT + PLL_SLEEP_CNT_MARGIN) * p;
+	u32 time_te_protect_on;
+	u32 time_te_tout;
+	u32 pll_freq;
+	struct dsim_device *dsim = get_dsim_drvdata(id);
 
 	if (en) {
 #if defined(CONFIG_EXYNOS_PLL_SLEEP)
@@ -2637,6 +2686,14 @@ void dsim_reg_set_dphy_freq_hopping(u32 id, u32 p, u32 m, u32 k, u32 en)
 		val = DSIM_PHY_PMS_K(k);
 		mask = DSIM_PHY_PMS_K_MASK;
 		dsim_phy_write_mask(id, DSIM_PHY_PLL_CON1, val, mask);
+
+		pll_freq = dsim_reg_get_pll_freq(id);
+		dsim_dbg("calculated hsclk is %u MHz\n", pll_freq);
+		dsim_reg_get_cmd_timer(dsim->panel->lcd_info.fps,
+			&time_te_protect_on,
+			&time_te_tout,
+			pll_freq);
+		dsim_reg_set_cmd_te_ctrl1(id, time_te_protect_on, time_te_tout);
 
 		dsim_reg_set_dphy_shadow_update_req(id, 1);
 	} else {

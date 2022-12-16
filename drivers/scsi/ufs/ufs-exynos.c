@@ -2580,6 +2580,11 @@ static void __ufs_resume_async(struct work_struct *work)
 
 	/* to block incoming commands prior to completion of resuming */
 	hba->ufshcd_state = UFSHCD_STATE_RESET;
+
+	/* adding delay to guarantee vcc discharge for abnormal wakeup case */
+	if (!ufs->deep_suspended)
+		msleep(8);
+
 	ret = ufshcd_system_resume(hba);
 	if (ret)
 		hba->ufshcd_state = UFSHCD_STATE_ERROR;
@@ -2701,6 +2706,8 @@ static int exynos_ufs_suspend(struct device *dev)
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 	int ret = 0;
 
+	ufs->deep_suspended = false;
+
 	/* mainly for early wake-up cases */
 	if (work_busy(&ufs->resume_work) && work_pending(&ufs->resume_work))
 		flush_work(&ufs->resume_work);
@@ -2710,6 +2717,16 @@ static int exynos_ufs_suspend(struct device *dev)
 		hba->ufshcd_state = UFSHCD_STATE_RESET;
 
 	return ret;
+}
+
+static int exynos_ufs_suspend_noirq(struct device *dev)
+{
+	struct ufs_hba *hba = dev_get_drvdata(dev);
+	struct exynos_ufs *ufs = to_exynos_ufs(hba);
+
+	ufs->deep_suspended = true;
+
+	return 0;
 }
 
 static int exynos_ufs_resume(struct device *dev)
@@ -2724,6 +2741,7 @@ static int exynos_ufs_resume(struct device *dev)
 #else
 #define exynos_ufs_suspend	NULL
 #define exynos_ufs_resume	NULL
+#define exynos_ufs_suspend_noirq	NULL
 #endif /* CONFIG_PM_SLEEP */
 
 static void exynos_ufs_shutdown(struct platform_device *pdev)
@@ -2740,6 +2758,7 @@ static void exynos_ufs_shutdown(struct platform_device *pdev)
 static const struct dev_pm_ops exynos_ufs_dev_pm_ops = {
 	.suspend		= exynos_ufs_suspend,
 	.resume			= exynos_ufs_resume,
+	.suspend_noirq		= exynos_ufs_suspend_noirq,
 };
 
 static const struct of_device_id exynos_ufs_match[] = {
