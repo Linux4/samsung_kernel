@@ -29,6 +29,8 @@
 #define IGNORE_N_I_OFFSET 1
 #define ABSOLUTE_ERROR_OCV_MATCH 1 
 //#define SM5705_FG_FULL_DEBUG 1
+#define I2C_RETRY_CNT 3
+
 enum battery_table_type {
 	DISCHARGE_TABLE = 0,
 	Q_TABLE,
@@ -67,15 +69,24 @@ static unsigned int sm5705_get_soc(struct i2c_client *client);
 static inline int sm5705_fg_read_device(struct i2c_client *client,
 						int reg, int bytes, void *dest)
 {
-	int ret;
+	int ret, i;
 
-	if (bytes > 1)
-		ret = i2c_smbus_read_i2c_block_data(client, reg, bytes, dest);
-	else {
-		ret = i2c_smbus_read_byte_data(client, reg);
-		if (ret < 0)
-			return ret;
-		*(unsigned char *)dest = (unsigned char)ret;
+	for (i = 0; i < I2C_RETRY_CNT; ++i) {
+		if (bytes > 1) {
+			ret = i2c_smbus_read_i2c_block_data(client, reg, bytes, dest);
+			if (ret >= 0)
+				break;
+			pr_info("%s: reg(%d), ret(%d), i2c_retry_cnt(%d/%d)\n",
+				__func__, reg, ret, i + 1, I2C_RETRY_CNT);
+		} else {
+			ret = i2c_smbus_read_byte_data(client, reg);
+			if (ret >= 0) {
+				*(unsigned char *)dest = (unsigned char)ret;
+				break;
+			}
+			pr_info("%s: reg(%d), ret(%d), i2c_retry_cnt(%d/%d)\n",
+				__func__, reg, ret, i + 1, I2C_RETRY_CNT);
+		}
 	}
 	
 	return ret;
@@ -98,12 +109,18 @@ static int32_t sm5705_fg_i2c_read_word(struct i2c_client *client, uint8_t reg_ad
 static int32_t sm5705_fg_i2c_write_word(struct i2c_client *client,
 						uint8_t reg_addr,uint16_t data)
 {
-	int ret;
+	int ret, i;
 
 	// not use big endian
 	//data = cpu_to_be16(data);
-	ret = i2c_smbus_write_i2c_block_data(client, reg_addr, 2, (uint8_t *)&data);
-	//pr_info("%s: ret = %d, addr = 0x%x, data = 0x%x\n", __func__, ret, reg_addr, data);
+	for (i = 0; i < I2C_RETRY_CNT; ++i) {
+		ret = i2c_smbus_write_i2c_block_data(client, reg_addr, 2, (uint8_t *)&data);
+		//pr_info("%s: ret = %d, addr = 0x%x, data = 0x%x\n", __func__, ret, reg_addr, data);
+		if (ret >= 0)
+			break;
+		pr_info("%s: reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+			__func__, reg_addr, ret, i + 1, I2C_RETRY_CNT);
+	}
 
 	return ret;
 }
@@ -112,8 +129,9 @@ static int32_t sm5705_fg_i2c_verified_write_word(struct i2c_client *client,
 {
 	int ret;
 
+	// already retry logic
 	// not use big endian
-	//data = cpu_to_be16(data);
+	// data = cpu_to_be16(data);
 	ret = i2c_smbus_write_i2c_block_data(client, reg_addr, 2, (uint8_t *)&data);
 	if(ret<0) {
 		msleep(50);
