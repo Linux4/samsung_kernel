@@ -3545,11 +3545,15 @@ static inline bool zone_watermark_fast(struct zone *z, unsigned int order,
 	 * need to be calculated.
 	 */
 	if (!order) {
-		long fast_free;
+		long usable_free;
+		long reserved;
 
-		fast_free = free_pages;
-		fast_free -= __zone_watermark_unusable_free(z, 0, alloc_flags);
-		if (fast_free > mark + z->lowmem_reserve[classzone_idx])
+		usable_free = free_pages;
+		reserved = __zone_watermark_unusable_free(z, 0, alloc_flags);
+
+		/* reserved may over estimate high-atomic reserves. */
+		usable_free -= min(usable_free, reserved);
+		if (usable_free > mark + z->lowmem_reserve[classzone_idx])
 			return true;
 	}
 
@@ -3804,7 +3808,7 @@ static inline bool should_suppress_show_mem(void)
 static void warn_alloc_show_mem(gfp_t gfp_mask, nodemask_t *nodemask)
 {
 	unsigned int filter = SHOW_MEM_FILTER_NODES;
-	static DEFINE_RATELIMIT_STATE(show_mem_rs, HZ, 1);
+	static DEFINE_RATELIMIT_STATE(show_mem_rs, 5*HZ, 1);
 
 	if (should_suppress_show_mem() || !__ratelimit(&show_mem_rs))
 		return;
@@ -3831,22 +3835,26 @@ void warn_alloc(gfp_t gfp_mask, nodemask_t *nodemask, const char *fmt, ...)
 	va_list args;
 	static DEFINE_RATELIMIT_STATE(nopage_rs, DEFAULT_RATELIMIT_INTERVAL,
 				      DEFAULT_RATELIMIT_BURST);
+	int fatal_signal;
 
 	if ((gfp_mask & __GFP_NOWARN) || !__ratelimit(&nopage_rs))
 		return;
+
+	fatal_signal = fatal_signal_pending(current) ? 1 : 0;
 
 	va_start(args, fmt);
 	vaf.fmt = fmt;
 	vaf.va = &args;
 	pr_warn("%s: %pV, mode:%#x(%pGg), fatal_signal:%d, nodemask=%*pbl\n",
-			current->comm, &vaf, gfp_mask, &gfp_mask,
-			fatal_signal_pending(current) ? 1 : 0,
+			current->comm, &vaf, gfp_mask, &gfp_mask, fatal_signal,
 			nodemask_pr_args(nodemask));
 	va_end(args);
 
-	cpuset_print_current_mems_allowed();
-
-	dump_stack();
+	/* print only if it is not fatal_signal */
+	if (!fatal_signal) {
+		cpuset_print_current_mems_allowed();
+		dump_stack();
+	}
 	warn_alloc_show_mem(gfp_mask, nodemask);
 }
 

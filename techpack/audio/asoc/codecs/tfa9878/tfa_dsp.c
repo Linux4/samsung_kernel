@@ -4427,13 +4427,6 @@ enum tfa98xx_error tfa_run_startup(struct tfa_device *tfa, int profile)
 		strnstr(prof_name, ".cal", strlen(prof_name)) != NULL);
 
 tfa_run_startup_exit:
-#if defined(TFA_MUTE_CONTROL)
-	if (tfa->mute_state) {
-		pr_info("%s: MUTE dev %d (by force)\n",
-			__func__, tfa->dev_idx);
-		tfa_dev_set_state(tfa, TFA_STATE_MUTE, 0);
-	}
-#endif
 
 	err = show_current_state(tfa);
 
@@ -5499,6 +5492,9 @@ enum tfa_error tfa_dev_start(struct tfa_device *tfa,
 	}
 #endif
 
+#if defined(TFA_MUTE_CONTROL)
+	tfa->mute_state = 0;
+#endif
 #if defined(TFA_PAUSE_CONTROL)
 	tfa->pause_state = 0;
 #endif
@@ -5640,6 +5636,9 @@ enum tfa_error tfa_dev_stop(struct tfa_device *tfa)
 		tfa->is_bypass = 0; /* reset at stop */
 	}
 
+#if defined(TFA_MUTE_CONTROL)
+	tfa->mute_state = 1;
+#endif
 #if defined(TFA_PAUSE_CONTROL)
 	tfa->pause_state = 1;
 #endif
@@ -7062,18 +7061,8 @@ enum tfa_error tfa_dev_set_state(struct tfa_device *tfa,
 	if (state & TFA_STATE_MUTE)
 		tfa98xx_set_mute(tfa, TFA98XX_MUTE_AMPLIFIER);
 
-#if defined(TFA_MUTE_CONTROL)
-	if (state & TFA_STATE_UNMUTE) {
-		if (tfa->mute_state)
-			pr_info("%s: skip UNMUTE dev %d (by force)\n",
-				__func__, tfa->dev_idx);
-		else
-			tfa98xx_set_mute(tfa, TFA98XX_MUTE_OFF);
-	}
-#else
 	if (state & TFA_STATE_UNMUTE)
 		tfa98xx_set_mute(tfa, TFA98XX_MUTE_OFF);
-#endif
 
 	/* tfa->state = state; */ /* to correct with real state of device */
 	tfa->state = tfa_dev_get_state(tfa);

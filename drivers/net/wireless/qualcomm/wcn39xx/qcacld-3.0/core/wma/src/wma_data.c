@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -24,6 +24,7 @@
 /* Header files */
 
 #include "wma.h"
+#include "enet.h"
 #include "wma_api.h"
 #include "cds_api.h"
 #include "wmi_unified_api.h"
@@ -65,7 +66,6 @@
 #include <cdp_txrx_cfg.h>
 #include "cdp_txrx_stats.h"
 #include <cdp_txrx_misc.h>
-#include "enet.h"
 #include "wlan_mgmt_txrx_utils_api.h"
 #include "wlan_objmgr_psoc_obj.h"
 #include "wlan_objmgr_pdev_obj.h"
@@ -775,16 +775,7 @@ static QDF_STATUS wma_set_bss_rate_flags_he(enum tx_rate_info *rate_flags,
 	if (!add_bss->he_capable)
 		return QDF_STATUS_E_NOSUPPORT;
 
-	/*extend TX_RATE_HE160 in future*/
-	if (add_bss->ch_width == CH_WIDTH_160MHZ ||
-	    add_bss->ch_width == CH_WIDTH_80P80MHZ)
-		*rate_flags |= TX_RATE_HE160;
-	else if (add_bss->ch_width == CH_WIDTH_80MHZ)
-		*rate_flags |= TX_RATE_HE80;
-	else if (add_bss->ch_width)
-		*rate_flags |= TX_RATE_HE40;
-	else
-		*rate_flags |= TX_RATE_HE20;
+	*rate_flags |= wma_get_he_rate_flags(add_bss->ch_width);
 
 	wma_debug("he_capable %d rate_flags 0x%x", add_bss->he_capable,
 		  *rate_flags);
@@ -808,6 +799,55 @@ static bool wma_get_bss_he_capable(struct bss_params *add_bss)
 }
 #endif
 
+enum tx_rate_info wma_get_vht_rate_flags(enum phy_ch_width ch_width)
+{
+	enum tx_rate_info rate_flags = 0;
+
+	if (ch_width == CH_WIDTH_80P80MHZ)
+		rate_flags |= TX_RATE_VHT160 | TX_RATE_VHT80 | TX_RATE_VHT40 |
+				TX_RATE_VHT20;
+	if (ch_width == CH_WIDTH_160MHZ)
+		rate_flags |= TX_RATE_VHT160 | TX_RATE_VHT80 | TX_RATE_VHT40 |
+				TX_RATE_VHT20;
+	if (ch_width == CH_WIDTH_80MHZ)
+		rate_flags |= TX_RATE_VHT80 | TX_RATE_VHT40 | TX_RATE_VHT20;
+	else if (ch_width)
+		rate_flags |= TX_RATE_VHT40 | TX_RATE_VHT20;
+	else
+		rate_flags |= TX_RATE_VHT20;
+	return rate_flags;
+}
+
+enum tx_rate_info wma_get_ht_rate_flags(enum phy_ch_width ch_width)
+{
+	enum tx_rate_info rate_flags = 0;
+
+	if (ch_width)
+		rate_flags |= TX_RATE_HT40 | TX_RATE_HT20;
+	else
+		rate_flags |= TX_RATE_HT20;
+
+	return rate_flags;
+}
+
+enum tx_rate_info wma_get_he_rate_flags(enum phy_ch_width ch_width)
+{
+	enum tx_rate_info rate_flags = 0;
+
+	if (ch_width == CH_WIDTH_160MHZ ||
+	    ch_width == CH_WIDTH_80P80MHZ)
+		rate_flags |= TX_RATE_HE160 | TX_RATE_HE80 | TX_RATE_HE40 |
+				TX_RATE_HE20;
+	else if (ch_width == CH_WIDTH_80MHZ)
+		rate_flags |= TX_RATE_HE80 | TX_RATE_HE40 | TX_RATE_HE20;
+	else if (ch_width)
+		rate_flags |= TX_RATE_HE40 | TX_RATE_HE20;
+	else
+		rate_flags |= TX_RATE_HE20;
+
+	return rate_flags;
+}
+
 void wma_set_bss_rate_flags(tp_wma_handle wma, uint8_t vdev_id,
 			    struct bss_params *add_bss)
 {
@@ -828,23 +868,11 @@ void wma_set_bss_rate_flags(tp_wma_handle wma, uint8_t vdev_id,
 	if (QDF_STATUS_SUCCESS !=
 		wma_set_bss_rate_flags_he(rate_flags, add_bss)) {
 		if (add_bss->vhtCapable) {
-			if (add_bss->ch_width == CH_WIDTH_80P80MHZ)
-				*rate_flags |= TX_RATE_VHT160;
-			if (add_bss->ch_width == CH_WIDTH_160MHZ)
-				*rate_flags |= TX_RATE_VHT160;
-			if (add_bss->ch_width == CH_WIDTH_80MHZ)
-				*rate_flags |= TX_RATE_VHT80;
-			else if (add_bss->ch_width)
-				*rate_flags |= TX_RATE_VHT40;
-			else
-				*rate_flags |= TX_RATE_VHT20;
+			*rate_flags = wma_get_vht_rate_flags(add_bss->ch_width);
 		}
 		/* avoid to conflict with htCapable flag */
 		else if (add_bss->htCapable) {
-			if (add_bss->ch_width)
-				*rate_flags |= TX_RATE_HT40;
-			else
-				*rate_flags |= TX_RATE_HT20;
+			*rate_flags |= wma_get_ht_rate_flags(add_bss->ch_width);
 		}
 	}
 
@@ -1235,8 +1263,8 @@ QDF_STATUS wma_process_rate_update_indicate(tp_wma_handle wma,
 	/* Get the vdev id */
 	if (wma_find_vdev_id_by_addr(wma, pRateUpdateParams->bssid.bytes,
 				     &vdev_id)) {
-		WMA_LOGE("vdev handle is invalid for %pM",
-			 pRateUpdateParams->bssid.bytes);
+		WMA_LOGE("vdev handle is invalid for "QDF_MAC_ADDR_FMT,
+			 QDF_MAC_ADDR_REF(pRateUpdateParams->bssid.bytes));
 		qdf_mem_free(pRateUpdateParams);
 		return QDF_STATUS_E_INVAL;
 	}
@@ -1274,8 +1302,8 @@ QDF_STATUS wma_process_rate_update_indicate(tp_wma_handle wma,
 	WMA_LOGE("%s: dev_id = %d, dev_type = %d, dev_mode = %d,",
 		 __func__, vdev_id, intr[vdev_id].type,
 		 pRateUpdateParams->dev_mode);
-	WMA_LOGE("%s: mac = %pM, config.shortgi = %d, rate_flags = 0x%x",
-		 __func__, pRateUpdateParams->bssid.bytes,
+	WMA_LOGE("%s: mac = "QDF_MAC_ADDR_FMT", config.shortgi = %d, rate_flags = 0x%x",
+		 __func__, QDF_MAC_ADDR_REF(pRateUpdateParams->bssid.bytes),
 		 intr[vdev_id].config.shortgi, rate_flag);
 	ret = wma_encode_mc_rate(short_gi, intr[vdev_id].config.chwidth,
 				 intr[vdev_id].mhz, mbpsx10_rate,
@@ -2121,8 +2149,8 @@ int wma_ibss_peer_info_event_handler(void *handle, uint8_t *data,
 
 		pSmeRsp->txRate = peer_info->data_rate;
 
-		wma_err("peer " QDF_MAC_ADDR_STR "rssi %d txRate %d",
-			QDF_MAC_ADDR_ARRAY(peer_mac),
+		wma_err("peer " QDF_MAC_ADDR_FMT "rssi %d txRate %d",
+			QDF_MAC_ADDR_REF(peer_mac),
 			pSmeRsp->rssi, pSmeRsp->txRate);
 
 		peer_info++;
@@ -3065,7 +3093,8 @@ void wma_tx_abort(uint8_t vdev_id)
 		return;
 	}
 
-	WMA_LOGD("%s: vdevid %d bssid %pM", __func__, vdev_id, bssid);
+	WMA_LOGD("%s: vdevid %d bssid "QDF_MAC_ADDR_FMT, __func__, vdev_id,
+		 QDF_MAC_ADDR_REF(bssid));
 	wma_vdev_set_pause_bit(vdev_id, PAUSE_TYPE_HOST);
 	cdp_fc_vdev_pause(cds_get_context(QDF_MODULE_ID_SOC), vdev_id,
 			  OL_TXQ_PAUSE_REASON_TX_ABORT, 0);
@@ -3139,7 +3168,8 @@ void wma_delete_invalid_peer_entries(uint8_t vdev_id, uint8_t *peer_mac_addr)
 			}
 		}
 		if (i == INVALID_PEER_MAX_NUM)
-			wma_debug("peer_mac_addr %pM is not found", peer_mac_addr);
+			wma_debug("peer_mac_addr "QDF_MAC_ADDR_FMT" is not found",
+				  QDF_MAC_ADDR_REF(peer_mac_addr));
 	} else {
 		qdf_mem_zero(iface->invalid_peers,
 			     sizeof(iface->invalid_peers));
@@ -3192,18 +3222,18 @@ uint8_t wma_rx_invalid_peer_ind(uint8_t vdev_id, void *wh)
 
 		/* send deauth */
 		WMA_LOGD("%s: vdev_id %d", __func__, vdev_id);
-		wma_debug(" RA: " QDF_MAC_ADDR_STR,
-			  QDF_MAC_ADDR_ARRAY(rx_inv_msg->ra));
-		wma_debug(" TA: " QDF_MAC_ADDR_STR,
-			  QDF_MAC_ADDR_ARRAY(rx_inv_msg->ta));
+		wma_debug(" RA: " QDF_MAC_ADDR_FMT,
+			  QDF_MAC_ADDR_REF(rx_inv_msg->ra));
+		wma_debug(" TA: " QDF_MAC_ADDR_FMT,
+			  QDF_MAC_ADDR_REF(rx_inv_msg->ta));
 
 		wma_send_msg(wma,
 			     SIR_LIM_RX_INVALID_PEER,
 			     (void *)rx_inv_msg, 0);
 	} else {
 		wma_debug_rl("Ignore invalid peer indication as received more than once "
-			QDF_MAC_ADDR_STR,
-			QDF_MAC_ADDR_ARRAY(rx_inv_msg->ta));
+			QDF_MAC_ADDR_FMT,
+			QDF_MAC_ADDR_REF(rx_inv_msg->ta));
 		qdf_mem_free(rx_inv_msg);
 	}
 
@@ -3227,8 +3257,8 @@ int wma_dp_send_delba_ind(uint8_t vdev_id, uint8_t *peer_macaddr,
 	qdf_mem_copy(req->peer_macaddr, peer_macaddr, QDF_MAC_ADDR_SIZE);
 	req->tid = tid;
 	req->reason_code = reason_code;
-	WMA_LOGD("req delba_ind vdev %d %pM tid %d reason %d",
-		 vdev_id, peer_macaddr, tid, reason_code);
+	WMA_LOGD("req delba_ind vdev %d "QDF_MAC_ADDR_FMT" tid %d reason %d",
+		 vdev_id, QDF_MAC_ADDR_REF(peer_macaddr), tid, reason_code);
 	wma_send_msg_high_priority(wma, SIR_HAL_REQ_SEND_DELBA_REQ_IND,
 				   (void *)req, 0);
 

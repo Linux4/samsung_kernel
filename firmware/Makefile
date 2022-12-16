@@ -11,8 +11,10 @@ fwdir := $(subst $(quote),,$(CONFIG_EXTRA_FIRMWARE_DIR))
 fwabs := $(addprefix $(srctree)/,$(filter-out /%,$(fwdir)))$(filter /%,$(fwdir))
 
 fw-external-y := $(subst $(quote),,$(CONFIG_EXTRA_FIRMWARE))
-
-ifdef CONFIG_SEC_A42XQ_PROJECT
+ifdef CONFIG_MACH_A42XQ_KOR_SINGLE
+fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_a42xq_kor.bin
+fw-external-$(CONFIG_SENSORS_A96T3X6_SUB) += abov/a96t356_a42xq_kor_sub.bin
+else ifdef CONFIG_SEC_A42XQ_PROJECT
 fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_a42xq.bin
 fw-external-$(CONFIG_SENSORS_A96T3X6_SUB) += abov/a96t356_a42xq_sub.bin
 else ifdef CONFIG_SEC_A42XUQ_PROJECT
@@ -47,6 +49,11 @@ fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83102) += tsp_himax/hx83102e_gta4xl.
 fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83121) += tsp_himax/hx83121a_gts7xllite.bin
 fw-external-$(CONFIG_TOUCHSCREEN_FTS_FT820X) += tsp_focaltech/ft8203_gts7xllite.bin
 fw-external-$(CONFIG_KEYBOARD_STM32_POGO) += keyboard_stm/stm32_gts7llite.bin
+
+ifdef CONFIG_SEC_M23XQ_PROJECT
+fw-external-$(CONFIG_TOUCHSCREEN_NOVATEK_NT36523_SPI) += tsp_novatek/nt36672_m23xq_csot.bin tsp_novatek/nt36672_m23xq_tianma.bin \
+									tsp_novatek/nt36672_m23xq_csot_mp.bin tsp_novatek/nt36672_m23xq_tianma_mp.bin
+endif
 
 fw-external-$(CONFIG_EPEN_WACOM_WEZ01) += epen/wez01_gts7xllite_00.bin epen/wez01_gts7xllite.bin epen/w9021_gts7xllite.bin
 

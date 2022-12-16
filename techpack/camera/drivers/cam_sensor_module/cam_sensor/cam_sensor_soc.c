@@ -405,10 +405,16 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
 	else if (s_ctrl->id == CAMERA_3)
 		rc = cam_sensor_get_dt_camera_info(of_node, rear3_cam_info);
+#if defined(CONFIG_SEC_M23XQ_PROJECT) 
+	else if (s_ctrl->id == CAMERA_4)
+		rc = cam_sensor_get_dt_camera_info(of_node, rear3_cam_info);
+#endif	
 #endif
-#if defined(CONFIG_SAMSUNG_REAR_QUAD) || defined(CONFIG_SEC_M52XQ_PROJECT)
+#if !defined(CONFIG_SEC_M23XQ_PROJECT) 
+#if defined(CONFIG_SAMSUNG_REAR_QUAD) || defined(CONFIG_SEC_M52XQ_PROJECT) 
 	else if (s_ctrl->id == CAMERA_4)
 		rc = cam_sensor_get_dt_camera_info(of_node, rear4_cam_info);
+#endif
 #endif
 	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR, "failed: cam_sensor_get_dt_camera_info for cell-index %d rc %d", s_ctrl->id, rc);

@@ -182,6 +182,7 @@ enum misc_battery_health {
 	GENERATE(VOTER_WATER)	\
 	GENERATE(VOTER_WC_TX)	\
 	GENERATE(VOTER_SLATE)	\
+	GENERATE(VOTER_SMART_SLATE)	\
 	GENERATE(VOTER_SUSPEND)	\
 	GENERATE(VOTER_SYSOVLO)	\
 	GENERATE(VOTER_VBAT_OVP)	\
@@ -433,6 +434,7 @@ typedef struct sec_battery_platform_data {
 	unsigned int *step_charging_current;
 	unsigned int *step_charging_float_voltage;
 #if defined(CONFIG_DIRECT_CHARGING)
+	unsigned int dc_step_chg_cond_v_margin;
 	unsigned int *dc_step_chg_cond_vol;
 	unsigned int *dc_step_chg_cond_soc;
 	unsigned int *dc_step_chg_cond_iin;
@@ -654,6 +656,8 @@ typedef struct sec_battery_platform_data {
 	bool support_fgsrc_change;
 	bool volt_from_pmic;
 	bool pd_comm_cap;
+	bool dynamic_cv_factor;
+	bool slowcharging_usb_bootcomplete;
 
 	/* wireless charger */
 	char *wireless_charger_name;
@@ -1202,6 +1206,8 @@ struct sec_battery_info {
 	unsigned int batt_f_mode;
 #endif
 	int batt_full_capacity;
+	bool usb_slow_chg;
+	bool usb_bootcomplete;
 };
 
 /* event check */
@@ -1233,10 +1239,6 @@ extern bool mfc_fw_update;
 #if IS_ENABLED(CONFIG_DISCRETE_CHARGER)
 #if defined(CONFIG_AFC_CHARGER)
 extern int afc_set_voltage(int vol);
-#endif
-#else
-#if defined(CONFIG_USE_MUIC)
-extern int muic_afc_set_voltage(int vol);
 #endif
 #endif
 

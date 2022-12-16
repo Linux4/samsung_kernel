@@ -5022,6 +5022,9 @@ static int _dsi_display_dev_deinit(struct dsi_display *display)
 	return rc;
 }
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+extern bool pba_regulator_control_ss;
+#endif
 /**
  * dsi_display_cont_splash_config() - Initialize resources for continuous splash
  * @dsi_display:    Pointer to dsi display
@@ -5087,6 +5090,29 @@ int dsi_display_cont_splash_config(void *dsi_display)
 				display->panel->name, rc);
 		goto clks_disabled;
 	}
+
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	/* Splash boot && pba_reuglator_control && PBA panel => PBA regulators off 
+	 * Caution!, both panels should have PBA regulators if with DSI1
+	 */
+	if (pba_regulator_control_ss &&
+		(!strcmp(display->panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
+		!strcmp(display->panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1"))) {
+		DSI_INFO("splash && pba_regulator && PBA panel => regulator OFF\n");		
+
+		/* Reset off : useful? */
+		if (gpio_is_valid(display->panel->reset_config.reset_gpio))
+			gpio_set_value(display->panel->reset_config.reset_gpio, 0);
+		else
+			DSI_INFO("reset_gpio is invalid\n");
+		
+		/* Regulators off : including reset regulator off */
+		rc = dsi_pwr_enable_regulator(&display->panel->power_info, false);
+		if (rc)
+			DSI_ERR("[%s] failed to disable vregs, rc=%d\n",
+				display->panel->name, rc);
+	}
+#endif
 
 	dsi_config_host_engine_state_for_cont_splash(display);
 	mutex_unlock(&display->display_lock);
@@ -8115,11 +8141,15 @@ int dsi_display_enable(struct dsi_display *display)
 		mode->priv_info->dsc.pic_width *= display->ctrl_count;
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
+		DSI_INFO("%s: update pps lock\n", __func__);
 		ss_set_exclusive_tx_lock_from_qct(display->panel->panel_private, true);
+		DSI_INFO("%s: update pps\n", __func__);
 #endif
 		rc = dsi_panel_update_pps(display->panel);
 #if defined(CONFIG_DISPLAY_SAMSUNG)
+		DSI_INFO("%s: update pps done\n", __func__);
 		ss_set_exclusive_tx_lock_from_qct(display->panel->panel_private, false);
+		DSI_INFO("%s: update pps unlock done\n", __func__);
 #endif
 
 		if (rc) {
@@ -8130,6 +8160,7 @@ int dsi_display_enable(struct dsi_display *display)
 	}
 
 	if (mode->dsi_mode_flags & DSI_MODE_FLAG_DMS) {
+		DSI_INFO("%s: dms, panel switch\n", __func__);
 		rc = dsi_panel_switch(display->panel);
 		if (rc)
 			DSI_ERR("[%s] failed to switch DSI panel mode, rc=%d\n",
@@ -8139,7 +8170,7 @@ int dsi_display_enable(struct dsi_display *display)
 	}
 
 	if (display->config.panel_mode == DSI_OP_VIDEO_MODE) {
-		DSI_DEBUG("%s:enable video timing eng\n", __func__);
+		DSI_INFO("%s:enable video timing eng\n", __func__);
 		rc = dsi_display_vid_engine_enable(display);
 		if (rc) {
 			DSI_ERR("[%s]failed to enable DSI video engine, rc=%d\n",
@@ -8147,7 +8178,7 @@ int dsi_display_enable(struct dsi_display *display)
 			goto error_disable_panel;
 		}
 	} else if (display->config.panel_mode == DSI_OP_CMD_MODE) {
-		DSI_DEBUG("%s:enable command timing eng\n", __func__);
+		DSI_INFO("%s:enable command timing eng\n", __func__);
 		rc = dsi_display_cmd_engine_enable(display);
 		if (rc) {
 			DSI_ERR("[%s]failed to enable DSI cmd engine, rc=%d\n",

@@ -63,6 +63,7 @@ enum pdic_message {
 	MSG_DP_HPD,
 	MSG_SELECT_PDO,
 	MSG_CURRENT_PDO,
+	MSG_PD_POWER_STATUS,
 	MSG_CCOFF,
 	MSG_MAX,
 };

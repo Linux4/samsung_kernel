@@ -1,4 +1,4 @@
-/* Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -14,6 +14,7 @@
 #include <linux/ctype.h>
 #include <linux/crc32.h>
 #include <media/cam_sensor.h>
+#include <linux/firmware.h>
 
 #include "cam_eeprom_core.h"
 #include "cam_eeprom_soc.h"
@@ -29,6 +30,10 @@
 
 #define CAM_EEPROM_DBG  1
 #define CAM_EEPROM_DBG_DUMP  0
+
+#if defined(CONFIG_SEC_M23XQ_PROJECT)
+#define REAR3_DUAL_CAL_FW_NAME "multical.bin"
+#endif
 
 #if defined(CONFIG_SAMSUNG_CAMERA_OTP)
 #ifdef CONFIG_GC5035_SENSOR
@@ -175,7 +180,7 @@ char rear_tof_load_fw_ver[FROM_MODULE_FW_INFO_SIZE + 1] = "\0";
 char rear_tof_cam_cal_check[SYSFS_FW_VER_SIZE] = "NULL";
 #endif
 #if defined(CONFIG_SAMSUNG_REAR_QUAD) || defined(CONFIG_SEC_M52XQ_PROJECT)
-#if defined(CONFIG_SAMSUNG_CAMERA_OTP_MACRO)
+#if defined(CONFIG_SAMSUNG_CAMERA_OTP_MACRO) || defined(CONFIG_SEC_M23XQ_PROJECT)
 char rear4_hw_phone_info[HW_INFO_MAX_SIZE] = HW_INFO_MACRO;
 char rear4_sw_phone_info[SW_INFO_MAX_SIZE] = SW_INFO_MACRO;
 char rear4_vendor_phone_info[VENDOR_INFO_MAX_SIZE] = VENDOR_INFO_MACRO;
@@ -290,6 +295,12 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 	uint8_t sensor_ver[2] = {0,};
 	uint8_t dll_ver[2] = {0,};
 	char ideal_ver[12] = "";
+
+	#if defined(CONFIG_SEC_M23XQ_PROJECT)
+	const struct firmware *fw = NULL;
+	struct device         *dev = e_ctrl->soc_info.dev;
+	uint32_t               fw_size;
+      #endif
 
 	uint32_t normal_is_supported = 0;
 	uint8_t  normal_cri_rev = 0;
@@ -857,6 +868,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 #endif
 
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if !defined(CONFIG_SEC_M23XQ_PROJECT)
 #if !defined(CONFIG_SEC_A42XUQ_PROJECT)
 		/* rear3 tilt */
 			memcpy(&rear3_dual_tilt_x, &e_ctrl->cal_data.mapdata[FROM_REAR3_DUAL_TILT_X], 4);
@@ -887,7 +899,21 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 				snprintf(rear3_project_cal_type, PROJECT_CAL_TYPE_MAX_SIZE, "NONE");
 			else
 				memcpy(rear3_project_cal_type, &e_ctrl->cal_data.mapdata[FROM_REAR3_DUAL_TILT_PROJECT_CAL_TYPE], PROJECT_CAL_TYPE_MAX_SIZE);
-#endif			
+#endif
+#endif
+#endif
+#if defined(CONFIG_SEC_M23XQ_PROJECT)
+            CAM_ERR(CAM_EEPROM, "before read rear3 dual cal check");
+			/* Load FW */
+			rc = request_firmware(&fw, REAR3_DUAL_CAL_FW_NAME, dev);
+			if (rc) {
+				CAM_ERR(CAM_EEPROM, "Failed to locate %s", REAR3_DUAL_CAL_FW_NAME);
+				return rc;
+			}
+
+			fw_size = fw->size;
+			memcpy(rear3_dual_cal,fw->data,fw_size);
+			CAM_ERR(CAM_EEPROM, "after memcpy rear3 dual cal check and size is %d", fw_size);
 #endif
 
 #if defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
@@ -1468,9 +1494,15 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 			memcpy(rear4_module_id, &e_ctrl->cal_data.mapdata[REAR4_MODULE_ID_ADDR], FROM_MODULE_ID_SIZE);
 
 			rear4_module_id[FROM_MODULE_ID_SIZE] = '\0';
-			CAM_INFO(CAM_EEPROM, "rear3_module_id = %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+			CAM_INFO(CAM_EEPROM, "rear4_module_id = %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
 				rear4_module_id[0], rear4_module_id[1], rear4_module_id[2], rear4_module_id[3], rear4_module_id[4],
 				rear4_module_id[5], rear4_module_id[6], rear4_module_id[7], rear4_module_id[8], rear4_module_id[9]);
+
+#ifdef CAM_EEPROM_DBG
+			CAM_INFO(CAM_EEPROM, "rear4_module_id = %c %c %c %c %c %02X %02X %02X %02X %02X",
+				rear4_module_id[0], rear4_module_id[1], rear4_module_id[2], rear4_module_id[3], rear4_module_id[4],
+				rear4_module_id[5], rear4_module_id[6], rear4_module_id[7], rear4_module_id[8], rear4_module_id[9]);
+#endif
 
 			/* rear4 manufacturer info */
 			memcpy(rear4_fw_ver, &e_ctrl->cal_data.mapdata[REAR4_MODULE_FW_VERSION], FROM_MODULE_FW_INFO_SIZE);
@@ -1528,6 +1560,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 				board_rev & 0xFF, map_ver, dll_ver[0] & 0xFF, dll_ver[1] & 0xFF, sensor_ver[0] & 0xFF, sensor_ver[1] & 0xFF,
 				ideal_ver, (normal_is_supported >> 16) & 0xFFFF, normal_is_supported & 0xFFFF, normal_cri_rev);
 
+
 #ifdef CAM_EEPROM_DBG
 			CAM_INFO(CAM_EEPROM, "rear4_info = %s", rear4_module_info);
 #endif
@@ -1536,13 +1569,30 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 			sprintf(cam4_fw_ver, "%s %s\n", rear4_fw_ver, rear4_load_fw_ver);
 			sprintf(cam4_fw_full_ver, "%s N %s\n", rear4_fw_ver, rear4_load_fw_ver);
 
+#if defined(CONFIG_SEC_M23XQ_PROJECT)
+			snprintf(rear3_sensor_id, FROM_SENSOR_ID_SIZE+1, "%s", rear4_sensor_id);
+			memcpy(rear3_module_id, rear4_module_id, FROM_MODULE_ID_SIZE);
+			//snprintf(module3_info, FROM_MODULE_FW_INFO_SIZE+1, "%s", rear4_module_info);
+			snprintf(rear3_phone_fw_ver, FROM_MODULE_FW_INFO_SIZE+1, "%s", rear4_phone_fw_ver);
+			sprintf(rear3_load_fw_ver, "%s", rear4_load_fw_ver);
+			sprintf(cam3_fw_ver, "%s", cam4_fw_ver);
+			sprintf(cam3_fw_full_ver, "%s", cam4_fw_full_ver);
+
 #ifdef CAM_EEPROM_DBG
 			CAM_INFO(CAM_EEPROM, "rear4 manufacturer info = %c %c %c %c %c %c %c %c %c %c %c",
 				cam4_fw_ver[0], cam4_fw_ver[1], cam4_fw_ver[2], cam4_fw_ver[3], cam4_fw_ver[4],
 				cam4_fw_ver[5], cam4_fw_ver[6], cam4_fw_ver[7], cam4_fw_ver[8], cam4_fw_ver[9],
 				cam4_fw_ver[10]);
+#endif			
+			
+			memset(rear4_sensor_id, 0, sizeof(rear4_sensor_id));
+			memset(rear4_module_id, 0, sizeof(rear4_module_id));
+			memset(rear4_phone_fw_ver, 0, sizeof(rear4_phone_fw_ver));
+			memset(rear4_load_fw_ver, 0, sizeof(rear4_load_fw_ver));
+			memset(cam4_fw_ver, 0, sizeof(cam4_fw_ver));
+			memset(cam4_fw_full_ver, 0, sizeof(cam4_fw_full_ver));
+			
 #endif
-
 
 #if  defined(FROM_REAR4_AF_CAL_MACRO_ADDR)
 			memcpy(&rear4_af_cal[0], &e_ctrl->cal_data.mapdata[FROM_REAR4_AF_CAL_MACRO_ADDR], 4);
@@ -4253,7 +4303,16 @@ static int32_t cam_eeprom_init_pkt_parser(struct cam_eeprom_ctrl_t *e_ctrl,
 					rc = -EINVAL;
 					goto rel_cmd_buf;
 				}
+
+				if ((num_map + 1) >=
+					(MSM_EEPROM_MAX_MEM_MAP_CNT *
+					MSM_EEPROM_MEMORY_MAP_MAX_SIZE)) {
+					CAM_ERR(CAM_EEPROM, "OOB error");
+					rc = -EINVAL;
+					goto rel_cmd_buf;
+				}
 				/* Configure the following map slave address */
+
 				map[num_map + 1].saddr = i2c_info->slave_addr;
 				rc = cam_eeprom_update_slaveInfo(e_ctrl,
 					cmd_buf);

@@ -224,6 +224,7 @@ static const char * const pp_msg[] = {
 	[MSG_DP_HPD]	= "DP HPD",
 	[MSG_SELECT_PDO]	= "SELECT_PDO",
 	[MSG_CURRENT_PDO]	= "CURRENT_PDO",
+	[MSG_PD_POWER_STATUS]	= "PD_POWER_STATUS",
 	[MSG_CCOFF]	= "CC OFF",
 	[MSG_MAX]	= "MSG MAX",
 };
@@ -611,6 +612,7 @@ static void process_policy_cc_attach(struct pdic_policy *pp_data, int msg)
 	struct pdic_notifier_struct *pd_noti = NULL;
 
 	int val1 = 0, val2 = 0;
+	int event = 0;
 	
 	pp_data->cc_on = PP_CCON;
 
@@ -653,13 +655,16 @@ static void process_policy_cc_attach(struct pdic_policy *pp_data, int msg)
 #endif
 	} else if (msg == MSG_AUDIO) {
 		pp_data->cc_state = PP_CCAUDIO;
+
+		event = NOTIFY_EXTRA_USB_ANALOGAUDIO;
+		store_usblog_notify(NOTIFY_EXTRA, (void *)&event, NULL);
 	} else if (msg == MSG_DEBUG) {
 		pp_data->cc_state = PP_CCDEBUG;
 	} else
 		;
 }
 
-static void vbus_turn_on_ctrl(bool enable)
+static void vbus_turn_on_ctrl(struct pdic_policy *pp_data, bool enable)
 {
 	struct otg_notify *o_notify = get_otg_notify();
 	struct power_supply *psy_otg;
@@ -668,6 +673,8 @@ static void vbus_turn_on_ctrl(bool enable)
 	int ret = 0;
 	bool must_block_host = 0;
 	bool unsupport_host = 0;
+	static int reserve_booster;
+	int val1 = 0, val2 = 0;
 
 	if (!o_notify) {
 		pr_err("%s o_notify is null\n", __func__);
@@ -687,6 +694,20 @@ static void vbus_turn_on_ctrl(bool enable)
 				__func__);
 		}
 	}
+
+	if (o_notify->booting_delay_sec && on) {
+		pr_info("%s is booting_delay_sec. skip to control booster\n",
+			__func__);
+		reserve_booster = 1;
+		send_otg_notify(o_notify, NOTIFY_EVENT_RESERVE_BOOSTER, 1);
+		goto err;
+	}
+
+	if (reserve_booster && !on) {
+		reserve_booster = 0;
+		send_otg_notify(o_notify, NOTIFY_EVENT_RESERVE_BOOSTER, 0);
+	}
+
 skip_notify:
 
 	pr_info("%s on=%d\n", __func__, on);
@@ -707,6 +728,16 @@ skip_notify:
 	}
 
 	pr_info("otg accessory power = %d\n", on);
+
+	if (pp_data->power_role == PP_SOURCE && !on &&
+			gpio_is_valid(pp_data->ic_data->vbus_dischar_gpio)) {	
+		val1 = gpio_get_value(pp_data->ic_data->vbus_dischar_gpio);
+		gpio_set_value(pp_data->ic_data->vbus_dischar_gpio, 1);
+		val2 = gpio_get_value(pp_data->ic_data->vbus_dischar_gpio);
+		schedule_delayed_work
+			(&pp_data->dischar_work, msecs_to_jiffies(160));
+		pr_info("%s vbus_discharging %d->%d\n", __func__, val1, val2);
+	}
 err:
 	return;
 }
@@ -718,7 +749,7 @@ static void process_policy_vbus(struct pdic_policy *pp_data, int msg)
 	else
 		pp_data->vbus = PP_VBUSOFF;
 
-	vbus_turn_on_ctrl(pp_data->vbus);
+	vbus_turn_on_ctrl(pp_data, pp_data->vbus);
 }
 
 static void process_policy_rpcurrent(struct pdic_policy *pp_data, int msg)
@@ -823,16 +854,16 @@ static void process_policy_cc_active(struct pdic_policy *pp_data, int msg)
 {
 	if (msg == MSG_CC1) {
 		pp_data->cc_direction = PP_CC1;
-		PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_CCIC,
+		PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_PDIC,
 			PDIC_NOTIFY_ID_CC_PIN_STATUS, PDIC_NOTIFY_PIN_STATUS_CC1_ACTIVE,
 			0, 0);
 	} else if (msg == MSG_CC2) {
 		pp_data->cc_direction = PP_CC2;
-		PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_CCIC,
+		PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_PDIC,
 			PDIC_NOTIFY_ID_CC_PIN_STATUS, PDIC_NOTIFY_PIN_STATUS_CC2_ACTIVE,
 			0, 0);
 	} else if (msg == MSG_NOCC_WAKE) {
-		PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_CCIC,
+		PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_PDIC,
 			PDIC_NOTIFY_ID_CC_PIN_STATUS, PDIC_NOTIFY_PIN_STATUS_NOCC_USB_ACTIVE,
 			0, 0);
 	} else
@@ -1153,6 +1184,12 @@ skip:
 	return;
 }
 
+static void pdic_policy_pd_power_status(struct pdic_policy *pp_data, int attach, int event)
+{
+	PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_BATT,
+		PDIC_NOTIFY_ID_POWER_STATUS, attach, event, 0);
+}
+
 static void process_policy_cc_detach(struct pdic_policy *pp_data)
 {
 	struct otg_notify *o_notify = get_otg_notify();
@@ -1163,13 +1200,13 @@ static void process_policy_cc_detach(struct pdic_policy *pp_data)
 		goto skip;
 	}
 	
-	if (gpio_is_valid(pp_data->ic_data->vbus_dischar_gpio)) {	
+	if (gpio_is_valid(pp_data->ic_data->vbus_dischar_gpio)) {
 		val1 = gpio_get_value(pp_data->ic_data->vbus_dischar_gpio);
 		gpio_set_value(pp_data->ic_data->vbus_dischar_gpio, 1);
 		val2 = gpio_get_value(pp_data->ic_data->vbus_dischar_gpio);
 		schedule_delayed_work
 			(&pp_data->dischar_work, msecs_to_jiffies(120));
-		pr_info("%s vbus discharging %d->%d\n", __func__, val1, val2);
+		pr_info("%s vbus_discharging %d->%d\n", __func__, val1, val2);
 	}
 
 	pp_data->cc_on = PP_CCOFF;
@@ -1196,7 +1233,7 @@ static void process_policy_cc_detach(struct pdic_policy *pp_data)
 		0/*attach*/, 0/*rprd*/, 0);
 	PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB,
 		0/*attach*/, USB_STATUS_NOTIFY_DETACH/*drp*/, 0);
-	PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_CCIC,
+	PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_PDIC,
 		PDIC_NOTIFY_ID_CC_PIN_STATUS, PDIC_NOTIFY_PIN_STATUS_NO_DETERMINATION,
 		0, 0);
 	if (pp_data->temp_alt_mode_stop) {
@@ -1357,6 +1394,9 @@ int pdic_policy_send_msg(void *data, int msg, int param1, int param2)
 	case MSG_SELECT_PDO:
 	case MSG_CURRENT_PDO:
 		pdic_policy_update_pdo_num(pp_data, msg, param1);
+		break;
+	case MSG_PD_POWER_STATUS:
+		pdic_policy_pd_power_status(pp_data, param1, param2);
 		break;
 	case MSG_CCOFF:
 		process_policy_cc_detach(pp_data);

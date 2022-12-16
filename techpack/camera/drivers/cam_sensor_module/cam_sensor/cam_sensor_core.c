@@ -2186,9 +2186,13 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 		return -EINVAL;
 	}
 
-// Add 200us delay to meet the power off specification iT3 (End of MIPI transfer to MCLK disable and I2C shutdown)
+// Add 10ms delay to meet the power off specification iT3 (End of MIPI transfer to MCLK disable and I2C shutdown)
 #if defined(CONFIG_MCLK_I2C_DELAY)
-     msleep(2);
+#if defined(CONFIG_SEC_M23XQ_PROJECT)
+     msleep(10);
+#else
+     msleep(2);	
+#endif 
 #endif
 	rc = cam_sensor_util_power_down(power_info, soc_info);
 	if (rc < 0) {

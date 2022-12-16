@@ -397,7 +397,7 @@ static int ss_create_cmd_packets(struct samsung_display_driver_data *vdd,
 	char *data_line;
 	char *data_val;
 	int wait_ms;
-	int cnt_val;
+	int cnt_val = 0;
 	u8 *payload;
 	int i;
 

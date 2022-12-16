@@ -230,6 +230,14 @@ static ssize_t rear_type_show(struct device *dev,
 
 	return scnprintf(buf, PAGE_SIZE, "%s", cam_type_lsi);
 }
+#elif defined(CONFIG_SEC_M23XQ_PROJECT)
+static ssize_t rear_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	char cam_type_lsi[] = "SLSI_S5KJN1\n";
+
+	return scnprintf(buf, PAGE_SIZE, "%s", cam_type_lsi);
+}
 #else
 static ssize_t rear_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -240,7 +248,32 @@ static ssize_t rear_type_show(struct device *dev,
 }
 #endif
 
-#if defined(CONFIG_SAMSUNG_REAR_QUAD) || defined(CONFIG_SEC_M52XQ_PROJECT)
+#if defined(CONFIG_SAMSUNG_REAR_QUAD)
+#if defined(CONFIG_SEC_M52XQ_PROJECT)
+static ssize_t rear4_camera_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+	char cam_type[] = "SLSI_GC5035\n";
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
+	if (rc)
+		return rc;
+	return 0;
+}
+#elif defined(CONFIG_SEC_M23XQ_PROJECT)
+static ssize_t rear4_camera_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+	char cam_type[] = "SLSI_GC02M1\n";
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
+	if (rc)
+		return rc;
+	return 0;
+}
+#else
 static ssize_t rear4_camera_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -253,7 +286,7 @@ static ssize_t rear4_camera_type_show(struct device *dev,
 	return 0;
 }
 #endif
-
+#endif
 
 #if defined(CONFIG_SEC_A42XQ_PROJECT) || defined(CONFIG_SEC_A51XQ_PROJECT) || defined(CONFIG_SEC_A42XUQ_PROJECT)
 static ssize_t front_camera_type_show(struct device *dev,
@@ -289,6 +322,17 @@ static ssize_t front_camera_type_show(struct device *dev,
 {
 	int rc = 0;
 	char cam_type[] = "SLSI_GC5035\n";
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
+	if (rc)
+		return rc;
+	return 0;
+}
+#elif defined(CONFIG_SEC_M23XQ_PROJECT)
+static ssize_t front_camera_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+	char cam_type[] = "SONY_IMX355\n";
 	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
 	if (rc)
 		return rc;
@@ -575,6 +619,73 @@ static ssize_t rear_afcal_show(struct device *dev,
 	char tempbuf[10];
 	char N[] = "N ";
 
+#if defined (CONFIG_SEC_M23XQ_PROJECT)
+	strncat(buf, "20 ", strlen("20 "));
+
+#ifdef	FROM_REAR_AF_CAL_D10_ADDR
+	sprintf(tempbuf, "%d ", rear_af_cal[1]);
+#else
+	sprintf(tempbuf, "%s", N);
+#endif
+	strncat(buf, tempbuf, strlen(tempbuf));
+
+#ifdef	FROM_REAR_AF_CAL_PAN_ADDR
+	sprintf(tempbuf, "%d ", rear_af_cal[9]);
+#else
+	sprintf(tempbuf, "%s", N);
+#endif
+	strncat(buf, tempbuf, strlen(tempbuf));
+
+#ifdef	FROM_REAR_AF_CAL_D20_ADDR
+	sprintf(tempbuf, "%d ", rear_af_cal[2]);
+#else
+	sprintf(tempbuf, "%s", N);
+#endif
+	strncat(buf, tempbuf, strlen(tempbuf));
+
+#ifdef	FROM_REAR_AF_CAL_D30_ADDR
+	sprintf(tempbuf, "%d ", rear_af_cal[3]);
+#else
+	sprintf(tempbuf, "%s", N);
+#endif
+	strncat(buf, tempbuf, strlen(tempbuf));
+
+#ifdef	FROM_REAR_AF_CAL_D40_ADDR
+	sprintf(tempbuf, "%d ", rear_af_cal[4]);
+#else
+	sprintf(tempbuf, "%s", N);
+#endif
+	strncat(buf, tempbuf, strlen(tempbuf));
+
+#ifdef	FROM_REAR_AF_CAL_D50_ADDR
+	sprintf(tempbuf, "%d ", rear_af_cal[5]);
+#else
+	sprintf(tempbuf, "%s", N);
+#endif
+	strncat(buf, tempbuf, strlen(tempbuf));
+
+#ifdef	FROM_REAR_AF_CAL_D60_ADDR
+	sprintf(tempbuf, "%d ", rear_af_cal[6]);
+#else
+	sprintf(tempbuf, "%s", N);
+#endif
+	strncat(buf, tempbuf, strlen(tempbuf));
+
+#ifdef	FROM_REAR_AF_CAL_D70_ADDR
+	sprintf(tempbuf, "%d ", rear_af_cal[7]);
+#else
+	sprintf(tempbuf, "%s", N);
+#endif
+	strncat(buf, tempbuf, strlen(tempbuf));
+
+#ifdef	FROM_REAR_AF_CAL_D80_ADDR
+	sprintf(tempbuf, "%d ", rear_af_cal[8]);
+#else
+	sprintf(tempbuf, "%s", N);
+#endif
+	strncat(buf, tempbuf, strlen(tempbuf));
+
+#else
 	strncat(buf, "10 ", strlen("10 "));
 
 #ifdef	FROM_REAR_AF_CAL_D10_ADDR
@@ -639,6 +750,7 @@ static ssize_t rear_afcal_show(struct device *dev,
 	sprintf(tempbuf, "%s", N);
 #endif
 	strncat(buf, tempbuf, strlen(tempbuf));
+#endif
 
 	return strlen(buf);
 #else
@@ -1767,6 +1879,18 @@ static ssize_t rear2_type_show(struct device *dev,
 		return rc;
 	return 0;
 }
+#elif defined(CONFIG_SEC_M23XQ_PROJECT)
+static ssize_t rear2_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+	char cam_type[] = "SONY_IMX355\n";
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
+	if (rc)
+		return rc;
+	return 0;
+}
 #else
 static ssize_t rear2_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -2657,11 +2781,7 @@ static ssize_t supported_cameraIds_store(struct device *dev,
 
 char supported_camera_ids[] = {
 	0,  //REAR_0 = Rear Wide
-#if defined(CONFIG_SEC_GTS7XLLITE_PROJECT)|| defined(CONFIG_SEC_GTS7XLLITEWIFI_PROJECT)	
 	1,  //FRONT_3 = Front FULL
-#else
-    3,	
-#endif	
 #if defined(CONFIG_SEC_A42XQ_PROJECT) || defined(CONFIG_SEC_A51XQ_PROJECT) || defined(CONFIG_SEC_A52XQ_PROJECT) || defined(CONFIG_SEC_A42XUQ_PROJECT) || defined(CONFIG_SEC_M62XQ_PROJECT)
 	21, //DUAL_REAR_PORTRAIT
 #endif

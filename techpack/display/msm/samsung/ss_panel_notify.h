@@ -34,6 +34,7 @@ enum panel_notifier_event_t {
 	PANEL_EVENT_UB_CON_CHANGED,
 	PANEL_EVENT_TEST_MODE_CHANGED,
 	PANEL_EVENT_SCREEN_MODE_CHANGED,
+	PANEL_EVENT_ESD,
 };
 
 enum panel_notifier_event_ub_con_state {

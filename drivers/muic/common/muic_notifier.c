@@ -23,12 +23,12 @@ struct device *switch_device;
 EXPORT_SYMBOL(switch_device);
 
 static struct muic_notifier_struct muic_notifier;
-#ifdef CONFIG_PDIC_SLSI_NON_MCU
+#if IS_ENABLED(CONFIG_PDIC_SLSI_NON_MCU)
 static struct muic_notifier_struct muic_pdic_notifier;
 #endif
 
 static int muic_uses_new_noti;
-#ifdef CONFIG_PDIC_SLSI_NON_MCU
+#if IS_ENABLED(CONFIG_PDIC_SLSI_NON_MCU)
 static int muic_pdic_uses_new_noti;
 #endif
 
@@ -94,7 +94,7 @@ static void __set_noti_cxt(int attach, int type)
 #endif
 }
 
-#ifdef CONFIG_PDIC_SLSI_NON_MCU
+#if IS_ENABLED(CONFIG_PDIC_SLSI_NON_MCU)
 static void __set_pdic_noti_cxt(int attach, int type)
 {
 	if (type < 0) {
@@ -125,6 +125,25 @@ static void __set_pdic_noti_cxt(int attach, int type)
 }
 #endif
 
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+static void __set_pogo_noti_cxt(int attach, int type)
+{
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+	if (type < 0) {
+		muic_notifier.pogo_cxt.attach = attach;
+		return;
+	}
+	/* New Interface */
+	muic_notifier.pogo_cxt.src = PDIC_NOTIFY_DEV_MUIC;
+	muic_notifier.pogo_cxt.dest = PDIC_NOTIFY_DEV_ALL;
+	muic_notifier.pogo_cxt.id = PDIC_NOTIFY_ID_POGO;
+	muic_notifier.pogo_cxt.attach = attach;
+	muic_notifier.pogo_cxt.cable_type = type;
+	muic_notifier.pogo_cxt.rprd = 0;
+#endif
+}
+#endif /* CONFIG_MUIC_SM5504_POGO */
+
 int muic_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 			muic_notifier_device_t listener)
 {
@@ -149,6 +168,9 @@ int muic_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 
 	/* current muic's attached_device status notify */
 	nb->notifier_call(nb, muic_notifier.cxt.attach, pcxt);
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	nb->notifier_call(nb, muic_notifier.pogo_cxt.attach, &(muic_notifier.pogo_cxt));
+#endif /* CONFIG_MUIC_SM5504_POGO */
 #else
 	nb->notifier_call(nb, muic_notifier.cmd,
 			&(muic_notifier.attached_dev));
@@ -207,6 +229,10 @@ static int muic_notifier_notify(void)
 		send_muic_cable_intent(muic_notifier.attached_dev);
 	else
 		send_muic_cable_intent(0);
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	if (muic_notifier.pogo_cxt.cable_type)
+		send_muic_cable_intent(muic_notifier.pogo_cxt.cable_type);
+#endif /* CONFIG_MUIC_SM5504_POGO */
 #endif	/* CONFIG_MUIC_SUPPORT_PDIC */
 #endif  /* CONFIG_ANDROID_SWITCH || CONFIG_SWITCH */
 #endif	/* CONFIG_SEC_FACTORY */
@@ -228,7 +254,7 @@ static int muic_notifier_notify(void)
 	return ret;
 }
 
-#ifdef CONFIG_PDIC_SLSI_NON_MCU
+#if IS_ENABLED(CONFIG_PDIC_SLSI_NON_MCU)
 int muic_pdic_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 			muic_notifier_device_t listener)
 {
@@ -315,6 +341,81 @@ static int muic_pdic_notifier_notify(void)
 }
 #endif	/* CONFIG_PDIC_SLSI_NON_MCU */
 
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+static int muic_pogo_notifier_notify(void)
+{
+	int ret = 0;
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+	void *pcxt = &(muic_notifier.pogo_cxt);
+
+	pr_info("%s: CMD=%d, DATA=%d\n", __func__, muic_notifier.pogo_cxt.attach,
+			muic_notifier.pogo_cxt.cable_type);
+
+	ret = blocking_notifier_call_chain(&(muic_notifier.notifier_call_chain),
+			muic_notifier.pogo_cxt.attach, pcxt);
+#endif
+
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+#if defined(CONFIG_MUIC_SUPPORT_PDIC) && defined(CONFIG_PDIC_NOTIFIER)
+	if (muic_notifier.pogo_cxt.attach != 0)
+		send_muic_cable_intent(muic_notifier.pogo_cxt.cable_type);
+	else
+		send_muic_cable_intent(0);
+	if (muic_notifier.cxt.cable_type)
+		send_muic_cable_intent(muic_notifier.cxt.cable_type);
+#endif	/* CONFIG_MUIC_SUPPORT_CCIC */
+#endif	/* CONFIG_SEC_FACTORY */
+
+	switch (ret) {
+	case NOTIFY_STOP_MASK:
+	case NOTIFY_BAD:
+		pr_err("%s: notify error occur(0x%x)\n", __func__, ret);
+		break;
+	case NOTIFY_DONE:
+	case NOTIFY_OK:
+		pr_info("%s: notify done(0x%x)\n", __func__, ret);
+		break;
+	default:
+		pr_info("%s: notify status unknown(0x%x)\n", __func__, ret);
+		break;
+	}
+
+	return ret;
+}
+
+void muic_pogo_notifier_attach_attached_dev(muic_attached_dev_t new_dev)
+{
+	pr_info("%s: (%d)\n", __func__, new_dev);
+
+	__set_pogo_noti_cxt(MUIC_NOTIFY_CMD_ATTACH, new_dev);
+
+	/* muic's attached_device attach broadcast */
+	muic_pogo_notifier_notify();
+}
+EXPORT_SYMBOL(muic_pogo_notifier_attach_attached_dev);
+
+void muic_pogo_notifier_detach_attached_dev(muic_attached_dev_t cur_dev)
+{
+	pr_info("%s: (%d)\n", __func__, cur_dev);
+
+	__set_pogo_noti_cxt(MUIC_NOTIFY_CMD_DETACH, -1);
+
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+	if (muic_notifier.pogo_cxt.cable_type != cur_dev)
+		pr_warn("%s: attached_dev of muic_notifier(%d) != muic_data(%d)\n",
+			__func__, muic_notifier.pogo_cxt.cable_type, cur_dev);
+
+	if (muic_notifier.pogo_cxt.cable_type != ATTACHED_DEV_NONE_MUIC) {
+		/* muic's attached_device detach broadcast */
+		muic_pogo_notifier_notify();
+	}
+#endif
+
+	__set_pogo_noti_cxt(0, ATTACHED_DEV_NONE_MUIC);
+}
+EXPORT_SYMBOL(muic_pogo_notifier_detach_attached_dev);
+#endif /* CONFIG_MUIC_SM5504_POGO */
+
 void muic_notifier_attach_attached_dev(muic_attached_dev_t new_dev)
 {
 	pr_info("%s: (%d)\n", __func__, new_dev);
@@ -330,7 +431,7 @@ void muic_pdic_notifier_attach_attached_dev(muic_attached_dev_t new_dev)
 {
 	pr_info("%s: (%d)\n", __func__, new_dev);
 
-#ifdef CONFIG_PDIC_SLSI_NON_MCU
+#if IS_ENABLED(CONFIG_PDIC_SLSI_NON_MCU)
 	__set_pdic_noti_cxt(MUIC_PDIC_NOTIFY_CMD_ATTACH, new_dev);
 
 	/* muic's attached_device attach broadcast */
@@ -348,7 +449,7 @@ void muic_pdic_notifier_detach_attached_dev(muic_attached_dev_t new_dev)
 {
 	pr_info("%s: (%d)\n", __func__, new_dev);
 
-#ifdef CONFIG_PDIC_SLSI_NON_MCU
+#if IS_ENABLED(CONFIG_PDIC_SLSI_NON_MCU)
 	__set_pdic_noti_cxt(MUIC_PDIC_NOTIFY_CMD_DETACH, new_dev);
 
 	/* muic's attached_device attach broadcast */
@@ -480,11 +581,15 @@ static int muic_notifier_init(void)
 #endif
 	BLOCKING_INIT_NOTIFIER_HEAD(&(muic_notifier.notifier_call_chain));
 	__set_noti_cxt(0, ATTACHED_DEV_NONE_MUIC);
-#ifdef CONFIG_PDIC_SLSI_NON_MCU
+#if IS_ENABLED(CONFIG_PDIC_SLSI_NON_MCU)
 	BLOCKING_INIT_NOTIFIER_HEAD(&(muic_pdic_notifier.notifier_call_chain));
 	__set_pdic_noti_cxt(0, ATTACHED_DEV_UNKNOWN_MUIC);
 	muic_pdic_uses_new_noti = 1;
 #endif
+
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	__set_pogo_noti_cxt(0, ATTACHED_DEV_NONE_MUIC);
+#endif /* CONFIG_MUIC_SM5504_POGO */
 
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 #if IS_ENABLED(CONFIG_ANDROID_SWITCH) || IS_ENABLED(CONFIG_SWITCH)

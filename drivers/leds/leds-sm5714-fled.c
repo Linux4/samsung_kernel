@@ -164,7 +164,10 @@ static int sm5714_fled_control(u8 fled_mode)
 			if (fled->flash_on_cnt == 0) {
 				fled_set_disable_push_event(SM5714_CHARGER_OP_EVENT_FLASH);
 				/* flash case, only vbus control, in prepare_flash & close_flash function  */
-
+				if (fled->flash_prepare_cnt == 0) {
+					muic_check_fled_state(0, FLED_MODE_FLASH);
+					sm5714_usbpd_check_fled_state(0, FLED_MODE_FLASH);
+				}
 			}
 			fled->pdata->led.en_fled = false;
 		}

@@ -293,6 +293,15 @@ config SUPPORT_HV_CTRL
     help
 	  Say Y to include support for controlling voltage
 
+config SUPPORT_WAKEUP_REGISTER
+    bool "support for wakeup register api based on kernel version"
+    default n
+    help
+	  Say Y to enable CONFIG_SUPPORT_WAKEUP_REGISTER
+	  This feature is used for kernel wakeup api and
+	  old kernel version do not support wakeup register api.
+	  Please check pm_wakeup header in your kernel before enable this.
+
 config SEC_BATTERY_TEST
 	bool "KUnit test for sec_battery_test"
 	depends on SEC_KUNIT

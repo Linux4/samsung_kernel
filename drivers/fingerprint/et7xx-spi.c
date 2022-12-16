@@ -563,25 +563,24 @@ int et7xx_platformInit(struct et7xx_data *etspi)
 		if (etspi->ldo_pin)
 			pr_info("ldo en value =%d\n", gpio_get_value(etspi->ldo_pin));
 
+#ifdef ENABLE_SENSORS_FPRINT_SECURE
+#if KERNEL_VERSION(4, 19, 188) > LINUX_VERSION_CODE
+		/* 4.19 R */
+		wakeup_source_init(etspi->clk_setting->spi_wake_lock, "et7xx_wake_lock");
+		/* 4.19 Q */
+		if (!(etspi->clk_setting->spi_wake_lock)) {
+			etspi->clk_setting->spi_wake_lock = wakeup_source_create("et7xx_wake_lock");
+			if (etspi->clk_setting->spi_wake_lock)
+				wakeup_source_add(etspi->clk_setting->spi_wake_lock);
+		}
+#else
+		/* 5.4 R */
+		etspi->clk_setting->spi_wake_lock = wakeup_source_register(etspi->dev, "et7xx_wake_lock");
+#endif
+#endif
 	} else {
 		retval = -EFAULT;
 	}
-
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-#if KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE
-	/* 4.19 R */
-	wakeup_source_init(etspi->clk_setting->spi_wake_lock, "et7xx_wake_lock");
-	/* 4.19 Q */
-	if (!(etspi->clk_setting->spi_wake_lock)) {
-		etspi->clk_setting->spi_wake_lock = wakeup_source_create("et7xx_wake_lock");
-		if (etspi->clk_setting->spi_wake_lock)
-			wakeup_source_add(etspi->clk_setting->spi_wake_lock);
-	}
-#else
-	/* 5.4 R */
-	etspi->clk_setting->spi_wake_lock = wakeup_source_register(etspi->dev, "et7xx_wake_lock");
-#endif
-#endif
 
 	pr_info("successful status=%d\n", retval);
 	return retval;

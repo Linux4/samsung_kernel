@@ -2087,16 +2087,18 @@ static void dp_panel_convert_to_dp_mode(struct dp_panel *dp_panel,
  */
 static void secdp_get_max_timing(struct dp_panel *dp_panel)
 {
+	struct dp_link_params *link_params;
+	struct dp_panel_private *panel;
 	struct drm_device *dev;
 	struct drm_connector *conn;
 	struct drm_display_mode *mode, *temp;
 	struct dp_display_mode dp_mode;
-	struct dp_panel_private *panel;
 	struct dp_panel_info *pinfo, *timing;
 	int  rc;
 
 	conn = dp_panel->connector;
 	dev = conn->dev;
+	panel = container_of(dp_panel, struct dp_panel_private, dp_panel);
 
 	mutex_lock(&dev->mode_config.mutex);
 
@@ -2104,17 +2106,9 @@ static void secdp_get_max_timing(struct dp_panel *dp_panel)
 	memset(pinfo, 0, sizeof(*pinfo));
 	memset(&dp_mode, 0, sizeof(dp_mode));
 
-	panel = container_of(dp_panel, struct dp_panel_private, dp_panel);
-	if (!panel || !panel->link) {
-		DP_ERR("panel is not there\n");
-		goto end;
-	}
-
-	/* this is to avoid warnings at drm_dp_bw_code_to_link_rate().
-	 * bw_code is not made yet because it's decided later at dp_ctrl_on().
-	 * Add initial bw_code here. It will be overwritten at dp_ctrl_on().
-	 */
-	panel->link->link_params.bw_code = DP_LINK_BW_1_62;
+	link_params = &panel->link->link_params;
+	link_params->bw_code = drm_dp_link_rate_to_bw_code(dp_panel->link_info.rate);
+	link_params->lane_count = dp_panel->link_info.num_lanes;
 
 	rc = dp_panel_get_modes(dp_panel, conn, &dp_mode);
 	if (!rc) {

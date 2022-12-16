@@ -16,19 +16,7 @@
 #ifndef __ISG6320_REG_H__
 #define __ISG6320_REG_H__
 
-#define CONFIG_USE_IC_TYPE
-
-#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
-#ifdef CONFIG_USE_IC_TYPE
-#define ISG6320_ES_TARGET          20000
-#define ISG6320_CS_TARGET          16000
-enum {
-	ES = 0,
-	CS,
-};
-#endif
 #define ISG6320_MAX_FREQ_STEP      16
-#endif
 
 #if IS_ENABLED(CONFIG_FLIP_COVER_DETECTOR_NOTIFIER)
 #include <linux/notifier.h>
@@ -54,7 +42,7 @@ const char *module_name[GRIP_MAX_CNT] = {
 	"grip_sensor_sub",
 	"grip_sensor_wifi"
 };
-
+#define NOTI_MODULE_NAME        "grip_notifier"
 enum registers {
 	ISG6320_IRQSRC_REG = 0x00,
 	ISG6320_IRQSTS_REG,
@@ -117,15 +105,17 @@ enum registers {
 	ISG6320_B_DIGITAL_ACC_REG = 0xA3,
 	ISG6320_B_CDC_UP_COEF_REG = 0xA5,
 	ISG6320_B_CDC_DN_COEF_REG,
+	ISG6320_RESETCON_REG = 0xC9,
+	ISG6320_PROTECT_REG = 0xCD,
 	ISG6320_IC_TYPE_REG = 0xFB,
 	ISG6320_SOFTRESET_REG = 0xFD,
-	ISG6320_PROTECT_REG = 0xCD,
 };
 
 #define ISG6320_PROX_A_STATE		4
 #define ISG6320_PROX_B_STATE		0
 
 #define ISG6320_IRQ_ENABLE		0x0C
+#define ISG6320_IRQ_ENABLE_A		0x09
 #define ISG6320_IRQ_DISABLE		0x0D
 
 #define ISG6320_DFE_ENABLE		0x80
@@ -147,10 +137,16 @@ enum registers {
 #define ISG6320_BS_WD_OFF		0x1A
 #define ISG6320_BS_WD_ON		0x9A
 
+#define ISG6320_DFE_RESET_ON	0x10
+#define ISG6320_DFE_RESET_OFF	0x00
+
 #define MAX_REGISTRY_CNT		70
 
 #define ISG6320_CAL_RTN_A_MASK		0x02
 #define ISG6320_CAL_RTN_B_MASK		0x01
+
+#define UNKNOWN_ON  1
+#define UNKNOWN_OFF 2
 
 enum {
 	OFF = 0,

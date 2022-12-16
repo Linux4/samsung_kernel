@@ -150,7 +150,7 @@
  * gEnableTDLSSupport - Enable support for TDLS.
  * @Min: 0
  * @Max: 1
- * @Default: 0
+ * @Default: 1
  *
  * This ini is used to enable/disable TDLS support.
  *
@@ -164,7 +164,7 @@
  */
 #define CFG_TDLS_SUPPORT_ENABLE CFG_INI_BOOL( \
 	"gEnableTDLSSupport", \
-	0, \
+	1, \
 	"enable/disable TDLS support")
 
 /*
@@ -172,7 +172,7 @@
  * gEnableTDLSImplicitTrigger - Enable Implicit TDLS.
  * @Min: 0
  * @Max: 1
- * @Default: 0
+ * @Default: 1
  *
  * This ini is used to enable/disable implicit TDLS.
  * CLD driver initiates TDLS Discovery towards a peer whenever TDLS Setup
@@ -189,7 +189,7 @@
  */
 #define CFG_TDLS_IMPLICIT_TRIGGER CFG_INI_BOOL( \
 	"gEnableTDLSImplicitTrigger", \
-	0, \
+	1, \
 	"enable/disable implicit TDLS")
 
 /*
@@ -518,6 +518,32 @@
 
 /*
  * <ini>
+ * gTDLSPuapsdPTIWindow - This ini is used to configure peer traffic indication
+ * window.
+ * @Min: 1
+ * @Max: 5
+ * @Default: 2
+ *
+ * This ini is used to configure buffering time in number of beacon intervals.
+ *
+ * Related: gEnableTDLSSupport.
+ *
+ * Supported Feature: TDLS
+ *
+ * Usage: Internal/External
+ *
+ * </ini>
+ */
+#define CFG_TDLS_PUAPSD_PEER_TRAFFIC_RSP_TIMEOUT CFG_INI_UINT( \
+	"gTDLSPuapsdPTRTimeout", \
+	0, \
+	10000, \
+	5000, \
+	CFG_VALUE_OR_DEFAULT, \
+	"Peer Traffic Response timer duration in ms")
+
+/*
+ * <ini>
  * gTDLSExternalControl - Enable external TDLS control.
  * @Min: 0
  * @Max: 2
@@ -536,32 +562,6 @@
  * as any other peer which supports tdls.
  *
  * Related: gEnableTDLSSupport, gEnableTDLSImplicitTrigger.
- *
- * Supported Feature: TDLS
- *
- * Usage: Internal/External
- *
- * </ini>
- */
-#define CFG_TDLS_PUAPSD_PEER_TRAFFIC_RSP_TIMEOUT CFG_INI_UINT( \
-	"gTDLSPuapsdPTRTimeout", \
-	0, \
-	10000, \
-	5000, \
-	CFG_VALUE_OR_DEFAULT, \
-	"Peer Traffic Response timer duration in ms")
-
-/*
- * <ini>
- * gTDLSPuapsdPTIWindow - This ini is used to configure peer traffic indication
- * window.
- * @Min: 1
- * @Max: 5
- * @Default: 2
- *
- * This ini is used to configure buffering time in number of beacon intervals.
- *
- * Related: gEnableTDLSSupport.
  *
  * Supported Feature: TDLS
  *
@@ -605,7 +605,7 @@
  * gEnableTDLSScan - Allow scan and maintain TDLS link.
  * @Min: 0
  * @Max: 1
- * @Default: 0
+ * @Default: 1
  *
  * This ini is used to enable/disable TDLS scan.
  *  0: If peer is not buffer STA capable and device is not sleep STA
@@ -628,7 +628,7 @@
  */
 #define CFG_TDLS_SCAN_ENABLE CFG_INI_BOOL( \
 	"gEnableTDLSScan", \
-	0, \
+	1, \
 	"Allow scan and maintain TDLS link")
 
 /*

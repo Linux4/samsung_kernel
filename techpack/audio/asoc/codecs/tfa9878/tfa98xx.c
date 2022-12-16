@@ -2472,6 +2472,13 @@ static int tfa98xx_set_device_ctl(struct snd_kcontrol *kcontrol,
 
 		switch (request) {
 		case 0: /* deactivate immediately */
+#if defined(TFA_MUTE_CONTROL)
+			if (tfa->mute_state == 1) {
+				pr_info("%s: [%d] already muted; no need to deactivate\n",
+					__func__, dev);
+				break;
+			}
+#endif
 #if defined(TFA_PAUSE_CONTROL)
 			if (tfa->pause_state == 1) {
 				pr_info("%s: [%d] already paused; no need to deactivate\n",
@@ -2489,6 +2496,13 @@ static int tfa98xx_set_device_ctl(struct snd_kcontrol *kcontrol,
 			_tfa98xx_stop(tfa98xx);
 			break;
 		case 1: /* activate immediately */
+#if defined(TFA_MUTE_CONTROL)
+			if (tfa->mute_state == 0) {
+				pr_info("%s: [%d] already unmuted; no need to activate\n",
+					__func__, dev);
+				break;
+			}
+#endif
 #if defined(TFA_PAUSE_CONTROL)
 			if (tfa->pause_state == 0) {
 				pr_info("%s: [%d] already resumed; no need to activate\n",
@@ -2664,9 +2678,10 @@ static int tfa98xx_set_mute_ctl(struct snd_kcontrol *kcontrol,
 			pr_info("%s: [%d] unmute channel\n",
 				__func__, dev);
 			mutex_lock(&tfa98xx->dsp_lock);
-			tfa->mute_state = 0;
 			tfa_run_unmute(tfa);
 			mutex_unlock(&tfa98xx->dsp_lock);
+
+			tfa->mute_state = 0;
 			break;
 		case 1: /* mute */
 			if (tfa->mute_state == 1) {
@@ -2678,9 +2693,10 @@ static int tfa98xx_set_mute_ctl(struct snd_kcontrol *kcontrol,
 			pr_info("%s: [%d] mute channel\n",
 				__func__, dev);
 			mutex_lock(&tfa98xx->dsp_lock);
-			tfa->mute_state = 1;
 			tfa_run_mute(tfa);
 			mutex_unlock(&tfa98xx->dsp_lock);
+
+			tfa->mute_state = 1;
 			break;
 		default:
 			pr_info("%s: [%d] wrong request\n",

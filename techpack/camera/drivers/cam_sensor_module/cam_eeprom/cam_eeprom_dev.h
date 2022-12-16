@@ -288,8 +288,22 @@
 #define FROM_REAR2_DUAL_TILT_DLL_VERSION        0x1E80
 #define FROM_REAR2_DUAL_CAL_ADDR                0x1E80
 #define FROM_REAR2_DUAL_CAL_SIZE                1024
-#elif defined(CONFIG_SEC_M52XQ_PROJECT) || defined(CONFIG_SEC_M23XQ_PROJECT)
+#elif defined(CONFIG_SEC_M52XQ_PROJECT)
 #define REAR2_MODULE_ID_ADDR                    0xAE
+#define FROM_REAR2_SENSOR_ID_ADDR               0x38
+#define FROM_REAR2_DUAL_TILT_X                  0x0D4A
+#define FROM_REAR2_DUAL_TILT_Y                  0x0D4E
+#define FROM_REAR2_DUAL_TILT_Z                  0x0D52
+#define FROM_REAR2_DUAL_TILT_SX                 0x0DAA
+#define FROM_REAR2_DUAL_TILT_SY                 0x0DAE
+#define FROM_REAR2_DUAL_TILT_RANGE              0x10D6
+#define FROM_REAR2_DUAL_TILT_MAX_ERR            0x10D2
+#define FROM_REAR2_DUAL_TILT_AVG_ERR            0x10CE
+#define FROM_REAR2_DUAL_TILT_DLL_VERSION        0x1E80
+#define FROM_REAR2_DUAL_CAL_ADDR                0x1E80
+#define FROM_REAR2_DUAL_CAL_SIZE                1024
+#elif defined(CONFIG_SEC_M23XQ_PROJECT)
+#define REAR2_MODULE_ID_ADDR                    0x2E
 #define FROM_REAR2_SENSOR_ID_ADDR               0x38
 #define FROM_REAR2_DUAL_TILT_X                  0x0D4A
 #define FROM_REAR2_DUAL_TILT_Y                  0x0D4E
@@ -357,6 +371,20 @@
 #define FROM_REAR3_DUAL_TILT_AVG_ERR            0x1E6C
 #define FROM_REAR3_DUAL_TILT_DLL_VERSION        0x1A80
 #define FROM_REAR3_DUAL_CAL_ADDR                0x1070
+#define FROM_REAR3_DUAL_CAL_SIZE                2060
+#elif defined(CONFIG_SEC_M23XQ_PROJECT)
+#define FROM_REAR3_SENSOR_ID_ADDR               0x1300 //0x00B8
+#define FROM_REAR3_DUAL_TILT_X                  0x1C18
+#define FROM_REAR3_DUAL_TILT_Y                  0x1C1C
+#define FROM_REAR3_DUAL_TILT_Z                  0x1C20
+#define FROM_REAR3_DUAL_TILT_SX                 0x1C24
+#define FROM_REAR3_DUAL_TILT_SY                 0x1C28
+#define FROM_REAR3_DUAL_TILT_PROJECT_CAL_TYPE   0x1C2C
+#define FROM_REAR3_DUAL_TILT_RANGE              0x1E64
+#define FROM_REAR3_DUAL_TILT_MAX_ERR            0x1E68
+#define FROM_REAR3_DUAL_TILT_AVG_ERR            0x1E6C
+#define FROM_REAR3_DUAL_TILT_DLL_VERSION        0x1A80
+#define FROM_REAR3_DUAL_CAL_ADDR                0x2C50
 #define FROM_REAR3_DUAL_CAL_SIZE                2060
 #elif defined(CONFIG_SEC_A51XQ_PROJECT)
 #define FROM_REAR3_SENSOR_ID_ADDR               0xC8
@@ -786,7 +814,7 @@ extern int rear2_tof_dual_tilt_dll_ver;
 #define REAR4_CAM_MAP_VERSION_ADDR        0x0090
 #define REAR4_DLL_VERSION_ADDR            0x0094
 #define REAR4_MODULE_FW_VERSION           0x005E
-#define REAR4_MODULE_ID_ADDR              0x00A8
+#define REAR4_MODULE_ID_ADDR              0x00AE
 #define REAR4_SENSOR_ID_ADDR              0x00B8
 #else
 #define REAR4_CAM_MAP_VERSION_ADDR        0x0090

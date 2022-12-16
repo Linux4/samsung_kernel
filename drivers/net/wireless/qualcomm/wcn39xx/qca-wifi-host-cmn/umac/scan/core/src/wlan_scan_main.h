@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -244,6 +244,7 @@ struct scan_vdev_obj {
  * @pno_wake_lock: pno wake lock
  * @pno_cb: callback to call on PNO completion
  * @mawc_params: Configuration parameters for NLO MAWC.
+ * @user_config_sched_scan_plan: if enabled set user confing sched scan plan
  */
 struct pno_def_config {
 	bool pno_offload_enabled;
@@ -262,6 +263,7 @@ struct pno_def_config {
 	qdf_wake_lock_t pno_wake_lock;
 	struct cb_handler pno_cb;
 	struct nlo_mawc_params mawc_params;
+	bool user_config_sched_scan_plan;
 };
 #endif
 
@@ -496,9 +498,12 @@ struct scan_cb {
  * @miracast_enabled: miracast enabled
  * @disable_timeout: command timeout disabled
  * @drop_bcn_on_chan_mismatch: drop bcn if channel mismatch
+ * @drop_bcn_on_invalid_freq: drop bcn if freq is invalid in IEs (DS/HT/HE)
  * @scan_start_request_buff: buffer used to pass
  *      scan config to event handlers
  * @rnr_channel_db: RNR channel list database
+ * @allow_bss_with_incomplete_ie: Continue scan entry even if any corrupted IES
+ *  are present.
  */
 struct wlan_scan_obj {
 	uint32_t scan_disabled;
@@ -522,10 +527,12 @@ struct wlan_scan_obj {
 	bool miracast_enabled;
 	bool disable_timeout;
 	bool drop_bcn_on_chan_mismatch;
+	bool drop_bcn_on_invalid_freq;
 	struct scan_start_request scan_start_request_buff;
 #ifdef FEATURE_6G_SCAN_CHAN_SORT_ALGO
 	struct channel_list_db rnr_channel_db;
 #endif
+	bool allow_bss_with_incomplete_ie;
 };
 
 /**

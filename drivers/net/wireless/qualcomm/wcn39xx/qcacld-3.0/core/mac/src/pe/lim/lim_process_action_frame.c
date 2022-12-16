@@ -1669,8 +1669,6 @@ static void lim_process_addba_req(struct mac_context *mac_ctx, uint8_t *rx_pkt_i
 				       &session->dph.dphHashTable);
 	if (sta_ds && lim_is_session_he_capable(session))
 		he_cap = lim_is_sta_he_capable(sta_ds);
-	if (sta_ds && sta_ds->staType == STA_ENTRY_NDI_PEER)
-		he_cap = lim_is_session_he_capable(session);
 
 	if (he_cap)
 		buff_size = MAX_BA_BUFF_SIZE;
@@ -2201,8 +2199,9 @@ void lim_process_action_frame(struct mac_context *mac_ctx,
 		}
 		break;
 	case ACTION_CATEGORY_BACK:
-		pe_debug("Rcvd Block Ack for %pM; action: %d",
-			session->self_mac_addr, action_hdr->actionID);
+		pe_debug("Rcvd Block Ack for "QDF_MAC_ADDR_FMT"; action: %d",
+			  QDF_MAC_ADDR_REF(session->self_mac_addr),
+			  action_hdr->actionID);
 		switch (action_hdr->actionID) {
 		case ADDBA_REQUEST:
 			lim_process_addba_req(mac_ctx, rx_pkt_info, session);

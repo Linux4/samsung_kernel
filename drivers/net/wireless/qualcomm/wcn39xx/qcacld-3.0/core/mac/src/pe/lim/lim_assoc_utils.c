@@ -364,9 +364,8 @@ lim_cleanup_rx_path(struct mac_context *mac, tpDphHashNode sta,
 			 * Release our assigned AID back to the free pool
 			 */
 			if (LIM_IS_AP_ROLE(pe_session)) {
-				lim_del_sta(mac, sta, false, pe_session);
-				lim_release_peer_idx(mac, sta->assocId,
-						     pe_session);
+				lim_del_sta(mac, sta, true, pe_session);
+				return retCode;
 			}
 			lim_delete_dph_hash_entry(mac, sta->staAddr,
 						  sta->assocId, pe_session);
@@ -440,10 +439,10 @@ lim_send_del_sta_cnf(struct mac_context *mac, struct qdf_mac_addr sta_dsaddr,
 	tLimMlmDeauthCnf mlmDeauthCnf;
 	tLimMlmPurgeStaInd mlmPurgeStaInd;
 
-	pe_debug("Sessionid: %d staDsAssocId: %d Trigger: %d status_code: %d sta_dsaddr: "QDF_MAC_ADDR_STR,
+	pe_debug("Sessionid: %d staDsAssocId: %d Trigger: %d status_code: %d sta_dsaddr: "QDF_MAC_ADDR_FMT,
 		pe_session->peSessionId, staDsAssocId,
 		mlmStaContext.cleanupTrigger, status_code,
-		QDF_MAC_ADDR_ARRAY(sta_dsaddr.bytes));
+		QDF_MAC_ADDR_REF(sta_dsaddr.bytes));
 
 	if (LIM_IS_STA_ROLE(pe_session)) {
 		/* Set BSSID at CFG to null */
@@ -615,10 +614,10 @@ lim_reject_association(struct mac_context *mac_ctx, tSirMacAddr peer_addr,
 {
 	tpDphHashNode sta_ds;
 
-	pe_debug("Sessionid: %d auth_type: %d sub_type: %d add_pre_auth_context: %d sta_id: %d delete_sta: %d result_code : %d peer_addr: " QDF_MAC_ADDR_STR,
+	pe_debug("Sessionid: %d auth_type: %d sub_type: %d add_pre_auth_context: %d sta_id: %d delete_sta: %d result_code : %d peer_addr: " QDF_MAC_ADDR_FMT,
 		session_entry->peSessionId, auth_type, sub_type,
 		add_pre_auth_context, sta_id, delete_sta, result_code,
-		QDF_MAC_ADDR_ARRAY(peer_addr));
+		QDF_MAC_ADDR_REF(peer_addr));
 
 	if (add_pre_auth_context) {
 		/* Create entry for this STA in pre-auth list */
@@ -714,8 +713,9 @@ lim_decide_ap_protection_on_ht20_delete(struct mac_context *mac_ctx,
 {
 	uint32_t i = 0;
 
-	pe_debug("(%d) A HT 20 STA is disassociated. Addr is %pM",
-		session_entry->gLimHt20Params.numSta, sta_ds->staAddr);
+	pe_debug("(%d) A HT 20 STA is disassociated. Addr is "QDF_MAC_ADDR_FMT,
+		session_entry->gLimHt20Params.numSta,
+		QDF_MAC_ADDR_REF(sta_ds->staAddr));
 
 	if (session_entry->gLimHt20Params.numSta > 0) {
 		for (i = 0; i < LIM_PROT_STA_CACHE_SIZE; i++) {
@@ -782,8 +782,9 @@ lim_decide_ap_protection_on_delete(struct mac_context *mac_ctx,
 		 * HT station leaving ==> this case is commonly handled
 		 * between both the bands below.
 		 */
-		pe_debug("(%d) A 11A STA is disassociated. Addr is %pM",
-			session_entry->gLim11aParams.numSta, sta_ds->staAddr);
+		pe_debug("(%d) A 11A STA is disassociated. Addr is "QDF_MAC_ADDR_FMT,
+			session_entry->gLim11aParams.numSta,
+			QDF_MAC_ADDR_REF(sta_ds->staAddr));
 		for (i = 0; i < LIM_PROT_STA_CACHE_SIZE; i++) {
 			if (session_entry->protStaCache[i].active &&
 				(!qdf_mem_cmp(
@@ -807,8 +808,9 @@ lim_decide_ap_protection_on_delete(struct mac_context *mac_ctx,
 		(phy_mode == WNI_CFG_PHY_MODE_11G ||
 		session_entry->htCapability) &&
 		(erp_enabled == eHAL_CLEAR)) {
-		pe_debug("(%d) A legacy STA is disassociated. Addr is %pM",
-			session_entry->gLim11bParams.numSta, sta_ds->staAddr);
+		pe_debug("(%d) A legacy STA is disassociated. Addr is "QDF_MAC_ADDR_FMT,
+			session_entry->gLim11bParams.numSta,
+			QDF_MAC_ADDR_REF(sta_ds->staAddr));
 		for (i = 0; i < LIM_PROT_STA_CACHE_SIZE; i++) {
 			if (session_entry->protStaCache[i].active &&
 				(!qdf_mem_cmp(
@@ -836,8 +838,9 @@ lim_decide_ap_protection_on_delete(struct mac_context *mac_ctx,
 	if ((REG_BAND_2G == rf_band) &&
 		session_entry->htCapability &&
 		!sta_ds->mlmStaContext.htCapability) {
-		pe_debug("(%d) A 11g STA is disassociated. Addr is %pM",
-			session_entry->gLim11bParams.numSta, sta_ds->staAddr);
+		pe_debug("(%d) A 11g STA is disassociated. Addr is "QDF_MAC_ADDR_FMT,
+			session_entry->gLim11bParams.numSta,
+			QDF_MAC_ADDR_REF(sta_ds->staAddr));
 		for (i = 0; i < LIM_PROT_STA_CACHE_SIZE; i++) {
 			if (session_entry->protStaCache[i].active &&
 				(!qdf_mem_cmp(
@@ -867,8 +870,9 @@ lim_decide_ap_protection_on_delete(struct mac_context *mac_ctx,
 	 * HT non-GF leaving
 	 */
 	if (!sta_ds->htGreenfield) {
-		pe_debug("(%d) A non-GF STA is disassociated. Addr is %pM",
-			session_entry->gLimNonGfParams.numSta, sta_ds->staAddr);
+		pe_debug("(%d) A non-GF STA is disassociated. Addr is "QDF_MAC_ADDR_FMT,
+			session_entry->gLimNonGfParams.numSta,
+			QDF_MAC_ADDR_REF(sta_ds->staAddr));
 		for (i = 0; i < LIM_PROT_STA_CACHE_SIZE; i++) {
 			if (session_entry->protStaCache[i].active &&
 				(!qdf_mem_cmp(
@@ -905,9 +909,9 @@ lim_decide_ap_protection_on_delete(struct mac_context *mac_ctx,
 	if ((false == session_entry->beaconParams.
 				fLsigTXOPProtectionFullSupport) &&
 		(false == sta_ds->htLsigTXOPProtection)) {
-		pe_debug("(%d) A HT LSIG not supporting STA is disassociated. Addr is %pM",
+		pe_debug("(%d) A HT LSIG not supporting STA is disassociated. Addr is "QDF_MAC_ADDR_FMT,
 			session_entry->gLimLsigTxopParams.numSta,
-			sta_ds->staAddr);
+			QDF_MAC_ADDR_REF(sta_ds->staAddr));
 		for (i = 0; i < LIM_PROT_STA_CACHE_SIZE; i++) {
 			if (session_entry->protStaCache[i].active &&
 				(!qdf_mem_cmp(
@@ -947,9 +951,9 @@ static void lim_decide_short_preamble(struct mac_context *mac_ctx,
 	uint32_t i;
 
 	if (sta_ds->shortPreambleEnabled == eHAL_CLEAR) {
-		pe_debug("(%d) A non-short preamble STA is disassociated. Addr is %pM",
-		       session_entry->gLimNoShortParams.numNonShortPreambleSta,
-			 sta_ds->staAddr);
+		pe_debug("(%d) A non-short preamble STA is disassociated. Addr is "QDF_MAC_ADDR_FMT,
+			 session_entry->gLimNoShortParams.numNonShortPreambleSta,
+			 QDF_MAC_ADDR_REF(sta_ds->staAddr));
 		for (i = 0; i < LIM_PROT_STA_CACHE_SIZE; i++) {
 			if (session_entry->gLimNoShortParams.
 				staNoShortCache[i].active &&
@@ -1002,9 +1006,9 @@ lim_decide_short_slot(struct mac_context *mac_ctx, tpDphHashNode sta_ds,
 	if (sta_ds->shortSlotTimeEnabled != eHAL_CLEAR)
 		return;
 
-	pe_debug("(%d) A non-short slottime STA is disassociated. Addr is %pM",
+	pe_debug("(%d) A non-short slottime STA is disassociated. Addr is "QDF_MAC_ADDR_FMT,
 		mac_ctx->lim.gLimNoShortSlotParams.numNonShortSlotSta,
-		sta_ds->staAddr);
+		QDF_MAC_ADDR_REF(sta_ds->staAddr));
 
 	val = mac_ctx->mlme_cfg->feature_flags.enable_short_slot_time_11g;
 
@@ -1534,6 +1538,42 @@ static bool lim_check_valid_mcs_for_nss(struct pe_session *session,
 }
 #endif
 
+/**
+ * lim_remove_membership_selectors() - remove elements from rate set
+ *
+ * @rate_set: pointer to rate set
+ *
+ * Removes the BSS membership selector elements from the rate set, and keep
+ * only the rates
+ *
+ * Return: none
+ */
+static void lim_remove_membership_selectors(tSirMacRateSet *rate_set)
+{
+	int i, selector_count = 0;
+
+	for (i = 0; i < rate_set->numRates; i++) {
+		if ((rate_set->rate[i] == (WLAN_BASIC_RATE_MASK |
+				WLAN_BSS_MEMBERSHIP_SELECTOR_HT_PHY)) ||
+		    (rate_set->rate[i] == (WLAN_BASIC_RATE_MASK |
+				WLAN_BSS_MEMBERSHIP_SELECTOR_VHT_PHY)) ||
+		    (rate_set->rate[i] == (WLAN_BASIC_RATE_MASK |
+				WLAN_BSS_MEMBERSHIP_SELECTOR_GLK)) ||
+		    (rate_set->rate[i] == (WLAN_BASIC_RATE_MASK |
+				WLAN_BSS_MEMBERSHIP_SELECTOR_EPD)) ||
+		    (rate_set->rate[i] == (WLAN_BASIC_RATE_MASK |
+				WLAN_BSS_MEMBERSHIP_SELECTOR_SAE_H2E)) ||
+		    (rate_set->rate[i] == (WLAN_BASIC_RATE_MASK |
+				WLAN_BSS_MEMBERSHIP_SELECTOR_HE_PHY)))
+			selector_count++;
+
+		if (i + selector_count < rate_set->numRates)
+			rate_set->rate[i] = rate_set->rate[i + selector_count];
+	}
+	rate_set->numRates -= selector_count;
+}
+
+
 QDF_STATUS lim_populate_peer_rate_set(struct mac_context *mac,
 				      struct supported_rates *pRates,
 				      uint8_t *pSupportedMCSSet,
@@ -1582,6 +1622,11 @@ QDF_STATUS lim_populate_peer_rate_set(struct mac_context *mac,
 		}
 	} else
 		tempRateSet2.numRates = 0;
+	
+	lim_remove_membership_selectors(&tempRateSet);
+	lim_remove_membership_selectors(&tempRateSet2);
+
+	
 	if ((tempRateSet.numRates + tempRateSet2.numRates) >
 	    WLAN_SUPPORTED_RATES_IE_MAX_LEN) {
 		pe_err("more than 12 rates in CFG");
@@ -1730,8 +1775,8 @@ QDF_STATUS lim_populate_peer_rate_set(struct mac_context *mac,
  * the rate sets received in the Assoc request on AP
  * or Beacon/Probe Response from peer in IBSS.
  *
- * 1. It makes the intersection between our own rate Sat
- *    and extemcded rate set and the ones received in the
+ * 1. It makes the intersection between our own rate set
+ *    and extended rate set and the ones received in the
  *    association request.
  * 2. It creates a combined rate set of 12 rates max which
  *    comprised the basic and extended rates
@@ -1781,13 +1826,16 @@ QDF_STATUS lim_populate_matching_rate_set(struct mac_context *mac_ctx,
 		temp_rate_set2.numRates = 0;
 	}
 
+    lim_remove_membership_selectors(&temp_rate_set);
+	lim_remove_membership_selectors(&temp_rate_set2);
+
 	/*
 	 * absolute sum of both num_rates should be less than 12. following
-	 * 16-bit sum avoids false codition where 8-bit arthematic overflow
+	 * 16-bit sum avoids false condition where 8-bit arithmetic overflow
 	 * might have caused total sum to be less than 12
 	 */
 	if (((uint16_t)temp_rate_set.numRates +
-		(uint16_t)temp_rate_set2.numRates) > 12) {
+	   (uint16_t)temp_rate_set2.numRates) > SIR_MAC_MAX_NUMBER_OF_RATES) {
 		pe_err("more than 12 rates in CFG");
 		return QDF_STATUS_E_FAILURE;
 	}
@@ -2073,8 +2121,8 @@ lim_add_sta(struct mac_context *mac_ctx,
 	else
 		sta_Addr = &sta_mac;
 
-	pe_debug(QDF_MAC_ADDR_STR ": Subtype(Assoc/Reassoc): %d",
-		QDF_MAC_ADDR_ARRAY(*sta_Addr), sta_ds->mlmStaContext.subType);
+	pe_debug(QDF_MAC_ADDR_FMT ": Subtype(Assoc/Reassoc): %d",
+		QDF_MAC_ADDR_REF(*sta_Addr), sta_ds->mlmStaContext.subType);
 
 	qdf_mem_copy((uint8_t *) add_sta_params->staMac,
 		     (uint8_t *) *sta_Addr, sizeof(tSirMacAddr));
@@ -2134,9 +2182,9 @@ lim_add_sta(struct mac_context *mac_ctx,
 	}
 
 	pe_debug("updateSta: %d htcapable: %d vhtCapable: %d sta mac"
-		 QDF_MAC_ADDR_STR, add_sta_params->updateSta,
+		 QDF_MAC_ADDR_FMT, add_sta_params->updateSta,
 		 add_sta_params->htCapable, add_sta_params->vhtCapable,
-		 QDF_MAC_ADDR_ARRAY(add_sta_params->staMac));
+		 QDF_MAC_ADDR_REF(add_sta_params->staMac));
 
 	/*
 	 * If HT client is connected to SAP DUT and self cap is NSS = 2 then
@@ -2438,9 +2486,11 @@ lim_add_sta(struct mac_context *mac_ctx,
 			assoc_req =
 			(tpSirAssocReq) session_entry->parsedAssocReq[aid];
 
-			add_sta_params->wpa_rsn = assoc_req->rsnPresent;
-			add_sta_params->wpa_rsn |=
-				(assoc_req->wpaPresent << 1);
+			if (assoc_req) {
+				add_sta_params->wpa_rsn = assoc_req->rsnPresent;
+				add_sta_params->wpa_rsn |=
+					(assoc_req->wpaPresent << 1);
+			}
 		}
 	}
 
@@ -2574,10 +2624,11 @@ lim_del_sta(struct mac_context *mac,
 	msgQ.bodyval = 0;
 
 	pe_debug("Sessionid %d :Sending SIR_HAL_DELETE_STA_REQ "
-		 "for mac_addr %pM and AssocID: %d MAC : "
-		 QDF_MAC_ADDR_STR, pDelStaParams->sessionId,
-		 pDelStaParams->staMac, pDelStaParams->assocId,
-		 QDF_MAC_ADDR_ARRAY(sta->staAddr));
+		 "for mac_addr "QDF_MAC_ADDR_FMT" and AssocID: %d MAC : "
+		 QDF_MAC_ADDR_FMT, pDelStaParams->sessionId,
+		 QDF_MAC_ADDR_REF(pDelStaParams->staMac),
+		 pDelStaParams->assocId,
+		 QDF_MAC_ADDR_REF(sta->staAddr));
 
 	MTRACE(mac_trace_msg_tx(mac, pe_session->peSessionId, msgQ.type));
 	retCode = wma_post_ctrl_msg(mac, &msgQ);
@@ -2748,8 +2799,8 @@ lim_add_sta_self(struct mac_context *mac, uint8_t updateSta,
 	msgQ.bodyptr = pAddStaParams;
 	msgQ.bodyval = 0;
 
-	pe_debug(QDF_MAC_ADDR_STR ": vdev %d Sending WMA_ADD_STA_REQ.LI %d",
-		 QDF_MAC_ADDR_ARRAY(pAddStaParams->staMac),
+	pe_debug(QDF_MAC_ADDR_FMT ": vdev %d Sending WMA_ADD_STA_REQ.LI %d",
+		 QDF_MAC_ADDR_REF(pAddStaParams->staMac),
 		 pe_session->vdev_id, pAddStaParams->listenInterval);
 	MTRACE(mac_trace_msg_tx(mac, pe_session->peSessionId, msgQ.type));
 
@@ -2860,8 +2911,8 @@ lim_delete_dph_hash_entry(struct mac_context *mac_ctx, tSirMacAddr sta_addr,
 		return;
 	}
 
-	pe_debug("Deleting DPH Hash entry sta mac " QDF_MAC_ADDR_STR,
-		 QDF_MAC_ADDR_ARRAY(sta_addr));
+	pe_debug("Deleting DPH Hash entry sta mac " QDF_MAC_ADDR_FMT,
+		 QDF_MAC_ADDR_REF(sta_addr));
 	/*
 	 * update the station count and perform associated actions
 	 * do this before deleting the dph hash entry
@@ -2911,8 +2962,8 @@ lim_delete_dph_hash_entry(struct mac_context *mac_ctx, tSirMacAddr sta_addr,
 #ifdef WLAN_FEATURE_11W
 		if (sta_ds->rmfEnabled) {
 			pe_debug("delete pmf timer assoc-id:%d sta mac "
-				 QDF_MAC_ADDR_STR, sta_ds->assocId,
-				 QDF_MAC_ADDR_ARRAY(sta_ds->staAddr));
+				 QDF_MAC_ADDR_FMT, sta_ds->assocId,
+				 QDF_MAC_ADDR_REF(sta_ds->staAddr));
 			tx_timer_delete(&sta_ds->pmfSaQueryTimer);
 		}
 #endif
@@ -2984,8 +3035,9 @@ lim_check_and_announce_join_success(struct mac_context *mac_ctx,
 	if (!LIM_IS_STA_ROLE(session_entry))
 		return;
 
-	pe_debug("Received Beacon/PR with BSSID:%pM pe session %d vdev %d",
-		 session_entry->bssId, session_entry->peSessionId,
+	pe_debug("Received Beacon/PR with BSSID:"QDF_MAC_ADDR_FMT" pe session %d vdev %d",
+		 QDF_MAC_ADDR_REF(session_entry->bssId),
+		 session_entry->peSessionId,
 		 session_entry->vdev_id);
 
 	/* Deactivate Join Failure timer */
@@ -3041,9 +3093,9 @@ lim_check_and_announce_join_success(struct mac_context *mac_ctx,
 	 */
 	if (!session_entry->ignore_assoc_disallowed &&
 			beacon_probe_rsp->assoc_disallowed) {
-		pe_err("Connection fails due to assoc disallowed reason(%d):%pM PESessionID %d",
+		pe_err("Connection fails due to assoc disallowed reason(%d):"QDF_MAC_ADDR_FMT" PESessionID %d",
 				beacon_probe_rsp->assoc_disallowed_reason,
-				session_entry->bssId,
+				QDF_MAC_ADDR_REF(session_entry->bssId),
 				session_entry->peSessionId);
 		mlm_join_cnf.resultCode = eSIR_SME_ASSOC_REFUSED;
 		mlm_join_cnf.protStatusCode = eSIR_MAC_UNSPEC_FAILURE_STATUS;
@@ -3213,9 +3265,9 @@ lim_del_bss(struct mac_context *mac, tpDphHashNode sta, uint16_t bss_idx,
 	msgQ.bodyptr = NULL;
 	msgQ.bodyval = pe_session->smeSessionId;
 
-	pe_debug("Sessionid %d : Sending HAL_DELETE_BSS_REQ BSSID:" QDF_MAC_ADDR_STR,
+	pe_debug("Sessionid %d : Sending HAL_DELETE_BSS_REQ BSSID:" QDF_MAC_ADDR_FMT,
 		 pe_session->peSessionId,
-		 QDF_MAC_ADDR_ARRAY(pe_session->bssId));
+		 QDF_MAC_ADDR_REF(pe_session->bssId));
 	MTRACE(mac_trace_msg_tx(mac, pe_session->peSessionId, msgQ.type));
 
 	retCode = wma_post_ctrl_msg(mac, &msgQ);
@@ -3468,8 +3520,8 @@ QDF_STATUS lim_sta_send_add_bss(struct mac_context *mac, tpSirAssocRsp pAssocRsp
 				&pe_session->dph.dphHashTable);
 	if (!sta) {
 		pe_err("Couldn't get assoc id for " "MAC ADDR: "
-			QDF_MAC_ADDR_STR,
-			QDF_MAC_ADDR_ARRAY(
+			QDF_MAC_ADDR_FMT,
+			QDF_MAC_ADDR_REF(
 				pAddBssParams->staContext.staMac));
 			return QDF_STATUS_E_FAILURE;
 	}

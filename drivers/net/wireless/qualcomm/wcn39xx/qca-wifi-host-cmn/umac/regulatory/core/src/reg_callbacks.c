@@ -346,7 +346,6 @@ QDF_STATUS reg_notify_sap_event(struct wlan_objmgr_pdev *pdev,
 		return QDF_STATUS_SUCCESS;
 
 	pdev_priv_obj->sap_state = sap_state;
-//	set_disable_channel_state(pdev_priv_obj);
 
 	reg_compute_pdev_current_chan_list(pdev_priv_obj);
 	status = reg_send_scheduler_msg_sb(psoc, pdev);

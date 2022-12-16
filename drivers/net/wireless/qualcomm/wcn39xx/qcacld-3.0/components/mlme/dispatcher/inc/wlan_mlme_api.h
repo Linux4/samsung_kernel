@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -257,7 +258,7 @@ QDF_STATUS wlan_mlme_set_ht_mpdu_density(struct wlan_objmgr_psoc *psoc,
  * Return: QDF Status
  */
 QDF_STATUS wlan_mlme_get_band_capability(struct wlan_objmgr_psoc *psoc,
-					 uint8_t *band_capability);
+					 uint32_t *band_capability);
 
 /**
  * wlan_mlme_set_band_capability() - Set the Band capability config
@@ -267,7 +268,7 @@ QDF_STATUS wlan_mlme_get_band_capability(struct wlan_objmgr_psoc *psoc,
  * Return: QDF Status
  */
 QDF_STATUS wlan_mlme_set_band_capability(struct wlan_objmgr_psoc *psoc,
-					 uint8_t band_capability);
+					 uint32_t band_capability);
 
 /**
  * wlan_mlme_get_prevent_link_down() - Get the prevent link down config
@@ -523,6 +524,16 @@ QDF_STATUS wlan_mlme_set_sap_listen_interval(struct wlan_objmgr_psoc *psoc,
  */
 QDF_STATUS wlan_mlme_set_assoc_sta_limit(struct wlan_objmgr_psoc *psoc,
 					 int value);
+
+/**
+ * wlan_mlme_get_assoc_sta_limit() - Get the assoc sta limit
+ * @psoc: pointer to psoc object
+ * @value: Pointer to value that needs to be filled by MLME
+ *
+ * Return: QDF Status
+ */
+QDF_STATUS wlan_mlme_get_assoc_sta_limit(struct wlan_objmgr_psoc *psoc,
+					 int *value);
 
 /**
  * wlan_mlme_set_rmc_action_period_freq() - Set the rmc action period frequency
@@ -2567,5 +2578,18 @@ uint32_t wlan_mlme_get_roaming_triggers(struct wlan_objmgr_psoc *psoc)
 	return 0xFFFF;
 }
 #endif
+
+/**
+ * wlan_mlme_get_tx_retry_multiplier() - Get the tx retry multiplier percentage
+ *
+ * @psoc: pointer to psoc object
+ * @tx_retry_multiplier: pointer to hold user config value of
+ * tx_retry_multiplier
+ *
+ * Return: QDF Status
+ */
+QDF_STATUS
+wlan_mlme_get_tx_retry_multiplier(struct wlan_objmgr_psoc *psoc,
+				  uint32_t *tx_retry_multiplier);
 
 #endif /* _WLAN_MLME_API_H_ */

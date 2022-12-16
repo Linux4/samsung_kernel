@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -25,12 +25,14 @@
 
 #include <htt.h>
 #include <htt_stats.h>
+#include <htt_common.h> /* HTT_STATS_MAX_CHAINS */
 
-#define HTT_STATS_MAX_CHAINS 8
 #define HTT_STATS_NUM_SUPPORTED_BW_SMART_ANTENNA 4 /* 20, 40, 80, 160 MHz */
 
 #define HTT_BA_64_BIT_MAP_SIZE_DWORDS 2
 #define HTT_BA_256_BIT_MAP_SIZE_DWORDS 8
+#define HTT_BA_1024_BIT_MAP_SIZE_DWORDS 32
+
 enum htt_ppdu_stats_tlv_tag {
     HTT_PPDU_STATS_COMMON_TLV,                    /* htt_ppdu_stats_common_tlv */
     HTT_PPDU_STATS_USR_COMMON_TLV,                /* htt_ppdu_stats_user_common_tlv */
@@ -38,8 +40,8 @@ enum htt_ppdu_stats_tlv_tag {
     HTT_PPDU_STATS_USR_MPDU_ENQ_BITMAP_64_TLV,    /* htt_ppdu_stats_enq_mpdu_bitmap_64_tlv */
     HTT_PPDU_STATS_USR_MPDU_ENQ_BITMAP_256_TLV,   /* htt_ppdu_stats_enq_mpdu_bitmap_256_tlv */
     HTT_PPDU_STATS_SCH_CMD_STATUS_TLV,            /* htt_ppdu_stats_sch_cmd_tlv_v */
-    HTT_PPDU_STATS_USR_COMPLTN_COMMON_TLV,        /* htt_ppdu_stats_user_cmpltn_common_tlv */
-    HTT_PPDU_STATS_USR_COMPLTN_BA_BITMAP_64_TLV,  /* htt_ppdu_stats_user_cmpltn_ba_bitmap_64_tlv */
+    HTT_PPDU_STATS_USR_COMPLTN_COMMON_TLV,        /* htt_ppdu_stats_user_compltn_common_tlv */
+    HTT_PPDU_STATS_USR_COMPLTN_BA_BITMAP_64_TLV,  /* htt_ppdu_stats_user_compltn_ba_bitmap_64_tlv */
     HTT_PPDU_STATS_USR_COMPLTN_BA_BITMAP_256_TLV, /* htt_ppdu_stats_user_cmpltn_ba_bitmap_256_tlv */
     HTT_PPDU_STATS_USR_COMPLTN_ACK_BA_STATUS_TLV, /* htt_ppdu_stats_user_cmpltn_ack_ba_status_tlv */
     HTT_PPDU_STATS_USR_COMPLTN_FLUSH_TLV,         /* htt_ppdu_stats_flush_tlv */
@@ -47,6 +49,10 @@ enum htt_ppdu_stats_tlv_tag {
     HTT_PPDU_STATS_INFO_TLV,                      /* htt_ppdu_stats_info */
     HTT_PPDU_STATS_TX_MGMTCTRL_PAYLOAD_TLV,       /* htt_ppdu_stats_tx_mgmtctrl_payload_tlv */
     HTT_PPDU_STATS_USERS_INFO_TLV,                /* htt_ppdu_stats_users_info_tlv */
+    HTT_PPDU_STATS_USR_MPDU_ENQ_BITMAP_1024_TLV,  /* htt_ppdu_stats_enq_mpdu_bitmap_1024_tlv */
+    HTT_PPDU_STATS_USR_COMPLTN_BA_BITMAP_1024_TLV,/* htt_ppdu_stats_user_compltn_ba_bitmap_1024_tlv */
+    HTT_PPDU_STATS_RX_MGMTCTRL_PAYLOAD_TLV,       /* htt_ppdu_stats_rx_mgmtctrl_payload_tlv */
+    HTT_PPDU_STATS_FOR_SMU_TLV,                   /* htt_ppdu_stats_for_smu_tlv */
 
     /* New TLV's are added above to this line */
     HTT_PPDU_STATS_MAX_TAG,
@@ -204,10 +210,13 @@ PREPACK struct htt_tx_ppdu_stats_info {
     A_UINT32 tx_ratecode:       8,
              is_ampdu:          1,
              ba_ack_failed:     2,
-             /*  0: 20 MHz
-                 1: 40 MHz
-                 2: 80 MHz
-                 3: 160 MHz or 80+80 MHz */
+             /* bw
+              *  0: 20 MHz
+              *  1: 40 MHz
+              *  2: 80 MHz
+              *  3: 160 MHz or 80+80 MHz
+              *  4: 320 MHz
+              */
              bw:                3,
              sgi:               1,
              skipped_rate_ctrl: 1,
@@ -369,6 +378,13 @@ enum HTT_STATS_FTYPE {
     HTT_STATS_FTYPE_TIDQ_DATA_MU,
     HTT_STATS_FTYPE_SGEN_UL_BSR_RESP,
     HTT_STATS_FTYPE_SGEN_QOS_NULL,
+    HTT_STATS_FTYPE_SGEN_BE_NDPA,
+    HTT_STATS_FTYPE_SGEN_BE_NDP,
+    HTT_STATS_FTYPE_SGEN_BE_MU_TRIG,
+    HTT_STATS_FTYPE_SGEN_BE_MU_BAR,
+    HTT_STATS_FTYPE_SGEN_BE_MU_BRP,
+    HTT_STATS_FTYPE_SGEN_BE_MU_RTS,
+    HTT_STATS_FTYPE_SGEN_BE_MU_BSRP,
     HTT_STATS_FTYPE_MAX,
 };
 typedef enum HTT_STATS_FTYPE HTT_STATS_FTYPE;
@@ -410,6 +426,8 @@ enum HTT_PPDU_STATS_BW {
     HTT_PPDU_STATS_BANDWIDTH_80MHZ  = 4,
     HTT_PPDU_STATS_BANDWIDTH_160MHZ = 5, /* includes 80+80 */
     HTT_PPDU_STATS_BANDWIDTH_DYN    = 6,
+    HTT_PPDU_STATS_BANDWIDTH_DYN_PATTERNS = 7,
+    HTT_PPDU_STATS_BANDWIDTH_320MHZ = 8,
 };
 typedef enum HTT_PPDU_STATS_BW HTT_PPDU_STATS_BW;
 
@@ -427,16 +445,23 @@ typedef enum HTT_PPDU_STATS_BW HTT_PPDU_STATS_BW;
      } while (0)
 
 enum HTT_PPDU_STATS_SEQ_TYPE {
-    HTT_SEQTYPE_UNSPECIFIED     = 0,
-    HTT_SEQTYPE_SU              = 1,
-    HTT_SEQTYPE_AC_MU_MIMO      = 2,
-    HTT_SEQTYPE_AX_MU_MIMO      = 3,
-    HTT_SEQTYPE_MU_OFDMA        = 4,
-    HTT_SEQTYPE_UL_TRIG         = 5,
-    HTT_SEQTYPE_BURST_BCN       = 6,
-    HTT_SEQTYPE_UL_BSR_RESP     = 7,
-    HTT_SEQTYPE_UL_BSR_TRIG     = 8,
-    HTT_SEQTYPE_UL_RESP         = 9,
+    HTT_SEQTYPE_UNSPECIFIED         = 0,
+    HTT_SEQTYPE_SU                  = 1,
+    HTT_SEQTYPE_AC_MU_MIMO          = 2,
+    HTT_SEQTYPE_AX_MU_MIMO          = 3,
+    HTT_SEQTYPE_MU_OFDMA            = 4,
+    HTT_SEQTYPE_UL_MU_OFDMA_TRIG    = 5, /* new name - use this */
+        HTT_SEQTYPE_UL_TRIG         = 5,  /* deprecated old name */
+    HTT_SEQTYPE_BURST_BCN           = 6,
+    HTT_SEQTYPE_UL_BSR_RESP         = 7,
+    HTT_SEQTYPE_UL_BSR_TRIG         = 8,
+    HTT_SEQTYPE_UL_RESP             = 9,
+    HTT_SEQTYPE_UL_MU_MIMO_TRIG     = 10,
+    HTT_SEQTYPE_BE_MU_MIMO          = 11,
+    HTT_SEQTYPE_BE_MU_OFDMA         = 12,
+    HTT_SEQTYPE_BE_UL_MU_OFDMA_TRIG = 13,
+    HTT_SEQTYPE_BE_UL_MU_MIMO_TRIG  = 14,
+    HTT_SEQTYPE_BE_UL_BSR_TRIG      = 15,
 };
 typedef enum HTT_PPDU_STATS_SEQ_TYPE HTT_PPDU_STATS_SEQ_TYPE;
 
@@ -583,6 +608,18 @@ typedef enum HTT_PPDU_STATS_SPATIAL_REUSE HTT_PPDU_STATS_SPATIAL_REUSE;
             HTT_CHECK_SET_VAL(HTT_PPDU_STATS_COMMON_TLV_BSS_COLOR_ID, _val); \
             ((_var) |= ((_val) << HTT_PPDU_STATS_COMMON_TLV_BSS_COLOR_ID_S)); \
     } while (0)
+
+#define HTT_PPDU_STATS_COMMON_TRIG_COOKIE_M    0x0000ffff
+#define HTT_PPDU_STATS_COMMON_TRIG_COOKIE_S    0
+
+#define HTT_PPDU_STATS_COMMON_TRIG_COOKIE_GET(_val) \
+        (((_val) & HTT_PPDU_STATS_COMMON_TRIG_COOKIE_M) >> \
+         HTT_PPDU_STATS_COMMON_TRIG_COOKIE_S)
+
+enum HTT_SEQ_TYPE {
+    WAL_PPDU_SEQ_TYPE = 0,
+    HTT_PPDU_SEQ_TYPE = 1,
+};
 
 typedef struct {
     htt_tlv_hdr_t tlv_hdr;
@@ -735,6 +772,36 @@ typedef struct {
                      reserved2:         15;
         };
     };
+
+    /* Note: This is for tracking a UL OFDMA packet */
+    union {
+        A_UINT32 trig_cookie_info;
+        struct {
+            A_UINT32 trig_cookie: 16,
+                     trig_cookie_rsvd: 15,
+                     trig_cookie_valid: 1;
+        };
+    };
+
+    /*
+     * htt_seq_type field is added for backward compatibility with
+     * pktlog decoder, host driver or any third party tool interpreting
+     * ppdu sequence type. If field 'htt_seq_type'is not present or is
+     * present but set to WAL_PPDU_SEQ_TYPE, decoder should interpret
+     * the seq type as WAL_TXSEND_PPDU_SEQUENCE.
+     * If the new field htt_seq_type is present and is set to
+     * HTT_PPDU_SEQ_TYPE then decoder should interpret the seq type as
+     * HTT_PPDU_STATS_SEQ_TYPE. htt_seq_type field will be set to
+     * HTT_PPDU_SEQ_TYPE in firmware versions where this field is
+     * defined.
+     */
+    union {
+        A_UINT32 reserved__htt_seq_type;
+        struct {
+            A_UINT32 htt_seq_type:  1,
+                     reserved3:     31;
+        };
+    };
 } htt_ppdu_stats_common_tlv;
 
 #define HTT_PPDU_STATS_USER_COMMON_TLV_TID_NUM_M     0x000000ff
@@ -828,6 +895,19 @@ typedef struct {
          ((_var) |= ((_val) << HTT_PPDU_STATS_USER_COMMON_TLV_DELAYED_BA_S)); \
      } while (0)
 
+#define HTT_PPDU_STATS_USER_COMMON_TLV_IS_SQNUM_VALID_IN_BUFFER_M     0x00008000
+#define HTT_PPDU_STATS_USER_COMMON_TLV_IS_SQNUM_VALID_IN_BUFFER_S             15
+
+#define HTT_PPDU_STATS_USER_COMMON_TLV_IS_SQNUM_VALID_IN_BUFFER_GET(_var) \
+    (((_var) & HTT_PPDU_STATS_USER_COMMON_TLV_IS_SQNUM_VALID_IN_BUFFER_M) >> \
+    HTT_PPDU_STATS_USER_COMMON_TLV_IS_SQNUM_VALID_IN_BUFFER_S)
+
+#define HTT_PPDU_STATS_USER_COMMON_TLV_IS_SQNUM_VALID_IN_BUFFER_SET(_var, _val) \
+     do { \
+         HTT_CHECK_SET_VAL(HTT_PPDU_STATS_USER_COMMON_TLV_IS_SQNUM_VALID_IN_BUFFER, _val); \
+         ((_var) |= ((_val) << HTT_PPDU_STATS_USER_COMMON_TLV_IS_SQNUM_VALID_IN_BUFFER_S)); \
+     } while (0)
+
 #define HTT_PPDU_STATS_USER_COMMON_TLV_NUM_FRAMES_M     0xffff0000
 #define HTT_PPDU_STATS_USER_COMMON_TLV_NUM_FRAMES_S             16
 
@@ -867,6 +947,53 @@ typedef struct {
          ((_var) |= ((_val) << HTT_PPDU_STATS_USER_COMMON_TLV_QOS_CTRL_S)); \
      } while (0)
 
+#define HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_MULTIPLIER_M 0x000000ff
+#define HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_MULTIPLIER_S          0
+
+#define HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_MULTIPLIER_GET(_var) \
+    (((_var) & HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_MULTIPLIER_M) >> \
+    HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_MULTIPLIER_S)
+
+#define HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_MULTIPLIER_SET(_var, _val) \
+     do { \
+         HTT_CHECK_SET_VAL(HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_MULTIPLIER, _val); \
+         ((_var) |= ((_val) << HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_MULTIPLIER_S)); \
+     } while (0)
+
+#define HTT_PPDU_STATS_USER_COMMON_TLV_CHAIN_ENABLE_BITS_M 0x0000ff00
+#define HTT_PPDU_STATS_USER_COMMON_TLV_CHAIN_ENABLE_BITS_S          8
+
+#define HTT_PPDU_STATS_USER_COMMON_TLV_CHAIN_ENABLE_BITS_GET(_var) \
+    (((_var) & HTT_PPDU_STATS_USER_COMMON_TLV_CHAIN_ENABLE_BITS_M) >> \
+    HTT_PPDU_STATS_USER_COMMON_TLV_CHAIN_ENABLE_BITS_S)
+
+#define HTT_PPDU_STATS_USER_COMMON_TLV_CHAIN_ENABLE_BITS_SET(_var, _val) \
+     do { \
+         HTT_CHECK_SET_VAL(HTT_PPDU_STATS_USER_COMMON_TLV_CHAIN_ENABLE_BITS, _val); \
+         ((_var) |= ((_val) << HTT_PPDU_STATS_USER_COMMON_TLV_CHAIN_ENABLE_BITS_S)); \
+     } while (0)
+
+#define HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_CHAINS_PER_U32 4
+#define HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_MASK 0x000000ff
+
+#define HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_GET(tlv, chain_idx) \
+    ((A_INT8) ((tlv)->tx_pwr[(chain_idx)/HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_CHAINS_PER_U32] >> \
+        ((chain_idx)%HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_CHAINS_PER_U32)*8) & HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_MASK)
+#define HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_SET(tlv, chain_idx, value) \
+    (tlv)->tx_pwr[chain_idx/HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_CHAINS_PER_U32] = \
+        (tlv)->tx_pwr[chain_idx/HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_CHAINS_PER_U32] & \
+            ~(0xff << (((chain_idx)%HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_CHAINS_PER_U32)*8)) | \
+            (((value)<<((chain_idx)%HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_CHAINS_PER_U32)*8))
+
+#define HTT_PPDU_STATS_USER_COMMON_TLV_ALT_TX_PWR_GET(tlv, chain_idx) \
+    ((A_INT8) ((tlv)->alt_tx_pwr[(chain_idx)/HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_CHAINS_PER_U32] >> \
+        ((chain_idx)%HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_CHAINS_PER_U32)*8) & HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_MASK)
+#define HTT_PPDU_STATS_USER_COMMON_TLV_ALT_TX_PWR_SET(tlv, chain_idx, value) \
+    (tlv)->alt_tx_pwr[chain_idx/HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_CHAINS_PER_U32] = \
+        (tlv)->alt_tx_pwr[chain_idx/HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_CHAINS_PER_U32] & \
+            ~(0xff << (((chain_idx)%HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_CHAINS_PER_U32)*8)) | \
+            (((value)<<((chain_idx)%HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_CHAINS_PER_U32)*8))
+
 typedef struct {
     htt_tlv_hdr_t tlv_hdr;
 
@@ -893,12 +1020,12 @@ typedef struct {
     union {
         A_UINT32 bw__mpdus_tried__mcast;
         struct {
-            A_UINT32 mcast:              1,
-                     mpdus_tried:        9,
-                     bw:                 4,
-                     delayed_ba:         1,
-                     reserved0:          1,
-                     num_frames:        16;
+            A_UINT32 mcast:                    1,
+                     mpdus_tried:              9,
+                     bw:                       4,
+                     delayed_ba:               1,
+                     is_sqno_valid_in_buffer:  1,
+                     num_frames:              16;
         };
     };
 
@@ -937,17 +1064,108 @@ typedef struct {
      * is_buffer_addr_info_valid : This will be set whenever a MSDU is sent as
      * a singleton (single-MSDU PPDU) for FW use-cases or as indicated by host
      * via send_as_standalone in TCL_DATA_CMD.
+     *
+     * The fields is_sw_rts_enabled, is_hw_rts_enabled, is_sfm_war_enabled
+     * indicate whether SW RTS, HW RTS, SFM WAR are enabled for the
+     * current Tx-sequence respectively.
      */
     A_UINT32 host_opaque_cookie:        16,
              is_host_opaque_valid:       1,
              is_standalone:              1,
              is_buffer_addr_info_valid:  1,
-             reserved1:                 13;
+             is_sw_rts_enabled:          1,
+             is_hw_rts_enabled:          1,
+             is_sfm_war_enabled:         1,
+             reserved1:                 10;
 
     /* qdepth bytes : Contains Number of bytes of TIDQ depth */
     A_UINT32 qdepth_bytes;
     A_UINT32 full_aid : 12,
              reserved : 20;
+
+    /* data_frm_ppdu_id:
+     * Note - this is valid in case delayed BA processing specifically for
+     * BAR frames*/
+    A_UINT32 data_frm_ppdu_id;
+
+    /* sw_rts_prot_dur_us:
+     * SW RTS protection duration in micro sec.
+     * Note - this is valid if SW RTS was used instead of HW RTS.
+     */
+    A_UINT32 sw_rts_prot_dur_us;
+
+    /* Data fields related to Transmit power */
+
+    /* tx_pwr_multiplier:
+     * Hawkeye now supports power accuracy in 0.25 dBm steps,
+     * so all powers are x4.
+     * This is needed to resolve compatibility issues with previous
+     * generation chipsets.
+     * API in halphy phyrf_bdf_GetMaxRatePwrMultiplier, used to find out
+     * what the multiplier and use that to correctly report the TPC value
+     * to host.
+     *
+     * chain_enable_bits:
+     * Indicates the valid tx_pwr values in the tx_pwr field.
+     * Default value: 1
+     * tx_pwr[0] value is used for all chains if chain_enable_bits field
+     * is set to 1.
+     */
+    A_UINT32 tx_pwr_multiplier  : 8,
+             chain_enable_bits  : 8,
+             reserved2          : 16;
+
+    /*
+     * Transmit powers (signed values packed into unsigned bitfields)
+     * in units of 0.25 dBm per chain.
+     * To report the tx_pwr value in dBm units, stored value has to be
+     * divided with tx_pwr_multiplier field.
+     * Per chain tx_pwr configuration is not available for all chipsets.
+     * Use tx_pwr[0] value for all chains if chain_enable_bits field
+     * is set to 1.
+     * Each chain uses 1 byte to store the transmit power.
+     * The bytes within a A_UINT32 use little-endian order,
+     * i.e. bits 7:0 of tx_pwr[0] store the tx pwr for chain 0,
+     * bits 15:8 of tx_pwr[0] store the tx pwr for chain 1, etc.
+     * Since HTT_STATS_MAX_CHAINS is a multiple of 4, no rounding is needed
+     * to determine the number of A_UINT32 array elements.
+     * Any bytes that exceed the number of chains with valid
+     * tx_pwr data will be filled with 0x00.
+     * When packing the 1-byte tx_pwr values into the A_UINT32,
+     * masking is needed to keep the sign bits from clobbering
+     * the higher bytes.
+     * When extracting the 1-byte tx_pwr values from the A_UINT32,
+     * sign-extension is needed if the variable holding the extracted
+     * value is larger than A_INT8.
+     */
+    A_UINT32 tx_pwr[HTT_STATS_MAX_CHAINS / HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_CHAINS_PER_U32];
+
+    /*
+     * Transmit powers for the alternate transmit descriptor used for BT COEX
+     * (signed values packed into unsigned bitfields) in units of
+     * 0.25 dBm per chain.
+     * Not used by the host currently.
+     * To report the alt_tx_pwr value in dBm units, stored value has to be
+     * divided with tx_pwr_multiplier field.
+     * Per chain alt_tx_pwr configuration is not available for all chipsets.
+     * Use alt_tx_pwr[0] value for all chains if chain_enable_bits field
+     * is set to 1.
+     * Each chain uses 1 byte to store the alternate transmit power.
+     * The bytes within a A_UINT32 use little-endian order,
+     * i.e. bits 7:0 of alt_tx_pwr[0] store the alt tx pwr for chain 0,
+     * bits 15:8 of alt_tx_pwr[0] store the alt tx pwr for chain 1, etc.
+     * Since HTT_STATS_MAX_CHAINS is a multiple of 4, no rounding is needed
+     * to determine the number of A_UINT32 array elements.
+     * Any bytes that exceed the number of chains with valid
+     * alt_tx_pwr data will be filled with 0x00.
+     * When packing the 1-byte alt_tx_pwr values into the A_UINT32,
+     * masking is needed to keep the sign bits from clobbering
+     * the higher bytes.
+     * When extracting the 1-byte alt_tx_pwr values from the A_UINT32,
+     * sign-extension is needed if the variable holding the extracted
+     * value is larger than A_INT8.
+     */
+    A_UINT32 alt_tx_pwr[HTT_STATS_MAX_CHAINS / HTT_PPDU_STATS_USER_COMMON_TLV_TX_PWR_CHAINS_PER_U32];
 } htt_ppdu_stats_user_common_tlv;
 
 #define HTT_PPDU_STATS_USER_RATE_TLV_TID_NUM_M     0x000000ff
@@ -1353,6 +1571,24 @@ typedef enum HTT_PPDU_STATS_RESP_PPDU_TYPE HTT_PPDU_STATS_RESP_PPDU_TYPE;
          ((_var) |= ((_val) << HTT_PPDU_STATS_USER_RATE_TLV_RESP_PPDU_TYPE_S)); \
      } while (0)
 
+typedef enum HTT_PPDU_STATS_RU_SIZE {
+    HTT_PPDU_STATS_RU_26,
+    HTT_PPDU_STATS_RU_52,
+    HTT_PPDU_STATS_RU_52_26,
+    HTT_PPDU_STATS_RU_106,
+    HTT_PPDU_STATS_RU_106_26,
+    HTT_PPDU_STATS_RU_242,
+    HTT_PPDU_STATS_RU_484,
+    HTT_PPDU_STATS_RU_484_242,
+    HTT_PPDU_STATS_RU_996,
+    HTT_PPDU_STATS_RU_996_484,
+    HTT_PPDU_STATS_RU_996_484_242,
+    HTT_PPDU_STATS_RU_996x2,
+    HTT_PPDU_STATS_RU_996x2_484,
+    HTT_PPDU_STATS_RU_996x3,
+    HTT_PPDU_STATS_RU_996x3_484,
+    HTT_PPDU_STATS_RU_996x4,
+} HTT_PPDU_STATS_RU_SIZE;
 
 typedef struct {
     htt_tlv_hdr_t tlv_hdr;
@@ -1372,36 +1608,68 @@ typedef struct {
 
     /* BIT [ 3 :   0]   :- user_pos
      * BIT [ 11:   4]   :- mu_group_id
-     * BIT [ 31:  12]   :- reserved1
+     * BIT [ 15:  12]   :- ru_format
+     * BIT [ 31:  16]   :- reserved1
      */
     union {
         A_UINT32 mu_group_id__user_pos;
         struct {
             A_UINT32 user_pos:           4,
                      mu_group_id:        8,
-                     reserved1:         20;
+                     ru_format:          4,
+                     reserved1:         16;
         };
     };
 
-    /* BIT [ 15 :   0]   :- ru_end
-     * BIT [ 31 :  16]   :- ru_start
+    /* BIT [ 15 :   0]   :- ru_end or ru_index
+     * BIT [ 31 :  16]   :- ru_start or ru_size
+     *
+     * Discriminant is field ru_format:
+     *     - ru_format = 0: ru_end, ru_start
+     *     - ru_format = 1: ru_index, ru_size
+     *     - ru_format = other: reserved for future expansion
+     *
+     * ru_start and ru_end are RU 26 indices
+     *
+     * ru_size is an HTT_PPDU_STATS_RU_SIZE, ru_index is a size
+     * specific index for the given ru_size.
      */
     union {
         A_UINT32 ru_start__ru_end;
+        A_UINT32 ru_size__ru_index;
         struct {
-            A_UINT32 ru_end:            16,
-                     ru_start:          16;
+            A_UINT32 ru_end:   16,
+                     ru_start: 16;
+        };
+        struct {
+            A_UINT32 ru_index: 16,
+                     ru_size:  16;
         };
     };
 
-    /* BIT [ 15 :   0]   :- ru_end
-     * BIT [ 31 :  16]   :- ru_start
+    /* BIT [ 15 :   0]   :- resp_ru_end or resp_ru_index
+     * BIT [ 31 :  16]   :- resp_ru_start or resp_ru_size
+     *
+     * Discriminant is field ru_format:
+     *     - ru_format = 0: resp_ru_end, resp_ru_start
+     *     - ru_format = 1: resp_ru_index, resp_ru_size
+     *     - ru_format = other: reserved for future expansion
+     *
+     * resp_ru_start and resp_ru_end are RU 26 indices
+     *
+     * resp_ru_size is an HTT_PPDU_STATS_RU_SIZE, resp_ru_index
+     * is a size specific index for the given ru_size.
      */
     union {
         A_UINT32 resp_ru_start__ru_end;
+        A_UINT32 resp_ru_size__ru_index;
         struct {
-            A_UINT32 resp_ru_end:       16,
-                     resp_ru_start:     16;
+            A_UINT32 resp_ru_end:   16,
+                     resp_ru_start: 16;
+        };
+        struct {
+            A_UINT32 resp_ru_index: 16,
+                     resp_ru_size:  16;
         };
     };
 
@@ -1485,26 +1753,15 @@ typedef struct {
         };
     };
 
-    /* Note: This is for tracking a UL OFDMA packet */
-    union {
-        A_UINT32 trig_cookie_info;
-        struct {
-            A_UINT32 trig_cookie: 16,
-                     trig_cookie_rsvd: 15,
-                     trig_cookie_valid: 1;
-        };
-    };
+    /*
+     * This is an unused word that can be safely renamed / used
+     * by any future feature.
+     */
+    A_UINT32 reserved4;
 } htt_ppdu_stats_user_rate_tlv;
-
-#define HTT_PPDU_STATS_USR_RATE_COOKIE_M    0x0000ffff
-#define HTT_PPDU_STATS_USR_RATE_COOKIE_S    0
 
 #define HTT_PPDU_STATS_USR_RATE_VALID_M     0x80000000
 #define HTT_PPDU_STATS_USR_RATE_VALID_S     31
-
-#define HTT_PPDU_STATS_USR_RATE_COOKIE_GET(_val) \
-        (((_val) & HTT_PPDU_STATS_USR_RATE_COOKIE_M) >> \
-         HTT_PPDU_STATS_USR_RATE_COOKIE_S)
 
 #define HTT_PPDU_STATS_USR_RATE_VALID_GET(_val) \
         (((_val) & HTT_PPDU_STATS_USR_RATE_VALID_M) >> \
@@ -1575,6 +1832,24 @@ typedef struct {
     A_UINT32 start_seq;
     A_UINT32 enq_bitmap[HTT_BA_256_BIT_MAP_SIZE_DWORDS];
 } htt_ppdu_stats_enq_mpdu_bitmap_256_tlv;
+
+typedef struct {
+    htt_tlv_hdr_t tlv_hdr;
+    /* BIT [ 7 :   0]   :- tid_num
+     * BIT [ 15:   8]   :- reserved0
+     * BIT [ 31:  16]   :- sw_peer_id
+     */
+    union {
+        A_UINT32 sw_peer_id__tid_num;
+        struct {
+            A_UINT32 tid_num:         8,
+                     reserved0:       8,
+                     sw_peer_id:     16;
+        };
+    };
+    A_UINT32 start_seq;
+    A_UINT32 enq_bitmap[HTT_BA_1024_BIT_MAP_SIZE_DWORDS];
+} htt_ppdu_stats_enq_mpdu_bitmap_1024_tlv;
 
 /* COMPLETION_STATUS defined in HTT_PPDU_STATS_USER_COMPLETION_STATUS */
 #define HTT_PPDU_STATS_USER_CMPLTN_COMMON_TLV_COMPLETION_STATUS_M     0x000000ff
@@ -1745,6 +2020,19 @@ typedef enum HTT_PPDU_STATS_RESP_TYPE HTT_PPDU_STATS_RESP_TYPE;
         ((_var) |= ((_val) << HTT_PPDU_STATS_USER_CMPLTN_COMMON_TLV_RTS_FAILURE_S)); \
     } while (0)
 
+#define HTT_PPDU_STATS_USER_CMPLTN_COMMON_TLV_PREAM_PUNC_TX_M  0x00040000
+#define HTT_PPDU_STATS_USER_CMPLTN_COMMON_TLV_PREAM_PUNC_TX_S          18
+
+#define HTT_PPDU_STATS_USER_CMPLTN_COMMON_TLV_PREAM_PUNC_TX_GET(_var) \
+    (((_var) & HTT_PPDU_STATS_USER_CMPLTN_COMMON_TLV_PREAM_PUNC_TX_M) >> \
+    HTT_PPDU_STATS_USER_CMPLTN_COMMON_TLV_PREAM_PUNC_TX_S)
+
+#define HTT_PPDU_STATS_USER_CMPLTN_COMMON_TLV_PREAM_PUNC_TX_SET (_var , _val) \
+    do { \
+        HTT_CHECK_SET_VAL(HTT_PPDU_STATS_USER_CMPLTN_COMMON_TLV_PREAM_PUNC_TX, _val); \
+        ((_var) |= ((_val) << HTT_PPDU_STATS_USER_CMPLTN_COMMON_TLV_PREAM_PUNC_TX_S)); \
+    } while (0)
+
 #define HTT_PPDU_STATS_USER_CMPLTN_COMMON_TLV_CHAIN_RSSI_M     0xffffffff
 #define HTT_PPDU_STATS_USER_CMPLTN_COMMON_TLV_CHAIN_RSSI_S              0
 
@@ -1866,13 +2154,17 @@ typedef struct {
      * BIT [ 8 :   8]   :- is_ampdu
      * BIT [ 12:   9]   :- resp_type
      * BIT [ 15:  13]   :- medium protection type
-     * BIT [ 16:  16]   :- rts_success
-     * BIT [ 17:  17]   :- rts_failure
-     * BIT [ 31:  18]   :- reserved
+     * BIT [ 16:  16]   :- rts_success (HW RTS)
+     * BIT [ 17:  17]   :- rts_failure (HW RTS)
+     * BIT [ 18:  18]   :- pream_punc_tx
+     * BIT [ 31:  19]   :- reserved
      */
     union {
-        A_UINT32 resp_type_is_ampdu__short_retry__long_retry; /* older name */
-        A_UINT32 resp_type__is_ampdu__short_retry__long_retry__mprot_type__rts_success__rts_failure; /* newer name */
+        /* older names */
+        A_UINT32 resp_type_is_ampdu__short_retry__long_retry;
+        A_UINT32 resp_type__is_ampdu__short_retry__long_retry__mprot_type__rts_success__rts_failure;
+        /* newest name */
+        A_UINT32 resp_type__is_ampdu__short_retry__long_retry__mprot_type__rts_success__rts_failure__pream_punc_tx;
         struct { /* bitfield names */
             A_UINT32 long_retries:               4,
                      short_retries:              4,
@@ -1881,7 +2173,8 @@ typedef struct {
                      mprot_type:                 3,
                      rts_success:                1,
                      rts_failure:                1,
-                     reserved0:                 14;
+                     pream_punc_tx:              1,
+                     reserved0:                 13;
         };
     };
 
@@ -1914,6 +2207,20 @@ typedef struct {
 
     /* PER of the last transmission to the peer-TID (in percent) */
     A_UINT32 current_rate_per;
+
+    /*
+     * For SW RTS
+     * BIT [0]    :- Whether SW RTS successfully sent OTA.
+     * BIT [1]    :- Whether SW RTS successful completion.
+     * BIT [2]    :- Whether SW RTS failed completion.
+     * BIT [3]    :- Whether SW RTS response with different BW.
+     * BIT [31:4] :- reserved2
+     */
+    A_UINT32 sw_rts_tried:      1,
+             sw_rts_success:    1,
+             sw_rts_failure:    1,
+             cts_rcvd_diff_bw:  1,
+             reserved2:        28;
 } htt_ppdu_stats_user_cmpltn_common_tlv;
 
 #define HTT_PPDU_STATS_USER_CMPLTN_BA_BITMAP_TLV_TID_NUM_M     0x000000ff
@@ -1982,6 +2289,24 @@ typedef struct {
     A_UINT32 ba_seq_no;
     A_UINT32 ba_bitmap[HTT_BA_256_BIT_MAP_SIZE_DWORDS];
 } htt_ppdu_stats_user_compltn_ba_bitmap_256_tlv;
+
+typedef struct {
+    htt_tlv_hdr_t tlv_hdr;
+    /* BIT [ 7 :   0]   :- tid_num
+     * BIT [ 15:   8]   :- reserved0
+     * BIT [ 31:  16]   :- sw_peer_id
+     */
+    union {
+        A_UINT32 sw_peer_id__tid_num;
+        struct {
+            A_UINT32 tid_num:        8,
+                     reserved0:      8,
+                     sw_peer_id:    16;
+        };
+    };
+    A_UINT32 ba_seq_no;
+    A_UINT32 ba_bitmap[HTT_BA_1024_BIT_MAP_SIZE_DWORDS];
+} htt_ppdu_stats_user_compltn_ba_bitmap_1024_tlv;
 
 #define HTT_PPDU_STATS_USER_CMPLTN_ACK_BA_STATUS_TLV_SW_PEER_ID_M     0x0000ffff
 #define HTT_PPDU_STATS_USER_CMPLTN_ACK_BA_STATUS_TLV_SW_PEER_ID_S              0
@@ -2271,6 +2596,48 @@ typedef struct {
     A_UINT32 payload[1];
 } htt_ppdu_stats_tx_mgmtctrl_payload_tlv;
 
+#define HTT_PPDU_STATS_RX_MGMTCTRL_TLV_FRAME_LENGTH_M     0x0000ffff
+#define HTT_PPDU_STATS_RX_MGMTCTRL_TLV_FRAME_LENGTH_S              0
+
+#define HTT_PPDU_STATS_RX_MGMTCTRL_TLV_FRAME_LENGTH_GET(_var) \
+    (((_var) & HTT_PPDU_STATS_RX_MGMTCTRL_TLV_FRAME_LENGTH_M) >> \
+    HTT_PPDU_STATS_RX_MGMTCTRL_TLV_FRAME_LENGTH_S)
+
+#define HTT_PPDU_STATS_RX_MGMTCTRL_TLV_FRAME_LENGTH_SET(_var, _val) \
+     do { \
+         HTT_CHECK_SET_VAL(HTT_PPDU_STATS_RX_MGMTCTRL_TLV_FRAME_LENGTH, _val); \
+         ((_var) |= ((_val) << HTT_PPDU_STATS_RX_MGMTCTRL_TLV_FRAME_LENGTH_S)); \
+     } while (0)
+
+typedef struct {
+    htt_tlv_hdr_t tlv_hdr;
+
+    /*
+     * BIT [ 15 :   0]   :- frame_length (in bytes)
+     * BIT [ 31 :  16]   :- reserved1
+     */
+    union {
+        A_UINT32 rsvd__frame_length;
+        struct {
+            A_UINT32 frame_length: 16,
+                     reserved1:    16; /* set to 0x0 */
+        };
+    };
+
+    /* Future purpose */
+    A_UINT32 reserved2; /* set to 0x0 */
+    A_UINT32 reserved3; /* set to 0x0 */
+
+    /* mgmt/ctrl frame payload
+     * The size of the actual mgmt payload (in bytes) can be obtained from
+     * the frame_length field.
+     * The size of entire payload including the padding for alignment
+     * (in bytes) can be derived from the length in tlv parametes,
+     * minus the 12 bytes of the above fields.
+     */
+    A_UINT32 payload[1];
+} htt_ppdu_stats_rx_mgmtctrl_payload_tlv;
+
 #define HTT_PPDU_STATS_USERS_INFO_TLV_MAX_USERS_M   0x000000ff
 #define HTT_PPDU_STATS_USERS_INFO_TLV_MAX_USERS_S            0
 
@@ -2315,5 +2682,27 @@ typedef struct {
     };
 } htt_ppdu_stats_users_info_tlv;
 
+typedef struct {
+    htt_tlv_hdr_t tlv_hdr;
+    A_UINT32 ppdu_id;
+    A_UINT32 tid_num    : 8,
+             reserved1  :24;
+    A_UINT32 start_seq  :16, /* [15: 0] */
+             /* ba_enabled:
+              * To know if block ack established or not.
+              * If block ack is not enabled, start_seq represents
+              * the seq number of the current MPDU/PPDU.
+              */
+             ba_enabled : 1,
+             nss        : 4,
+             /* win_size:
+              * Block ack window size in multiples of 32 bits.
+              * For example: For a 64-bit block ack, win_size will be 2.
+              */
+             win_size   : 8,
+             reserved2  : 3;
+    /* The number of elements in the ba_bitmap array depends on win_size. */
+    A_UINT32 ba_bitmap[1];
+} htt_ppdu_stats_for_smu_tlv;
 
 #endif //__HTT_PPDU_STATS_H__

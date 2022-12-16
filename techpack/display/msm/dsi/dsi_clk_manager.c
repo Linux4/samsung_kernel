@@ -796,6 +796,7 @@ static int dsi_display_link_clk_disable(struct dsi_link_clks *clks,
 	}
 
 	if (l_type & DSI_LINK_LP_CLK) {
+		DSI_INFO("timing_check: stop link clock\n");
 		rc = dsi_link_lp_clk_stop(&m_clks->lp_clks);
 		if (rc)
 			DSI_ERR("failed to turn off master lp link clocks, rc=%d\n",
@@ -803,6 +804,7 @@ static int dsi_display_link_clk_disable(struct dsi_link_clks *clks,
 	}
 
 	if (l_type & DSI_LINK_HS_CLK) {
+		DSI_INFO("timing_check: stop hs clock\n");
 		rc = dsi_link_hs_clk_stop(&m_clks->hs_clks);
 		if (rc)
 			DSI_ERR("failed to turn off master hs link clocks, rc=%d\n",

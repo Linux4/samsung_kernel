@@ -556,6 +556,8 @@ int ss_check_rddpm(struct samsung_display_driver_data *vdd, u8 *rddpm)
 	for (bit = RDDPM_POC_LOAD; bit < MAX_RDDPM_BIT; bit++) {
 		if (bit == RDDPM_PTLON || bit == RDDPM_IDMON) /* don't care partial/idle mode */
 			continue;
+		if (vdd->dtsi_data.ddi_no_flash && bit == RDDPM_POC_LOAD)
+			continue;
 
 		if (!(*rddpm & (1 << bit))) {
 			LCD_ERR(vdd, "%x : rddpm err(bit%d): %s\n", rddpm, bit, rddpm_bit[bit]);
@@ -896,11 +898,11 @@ int ss_read_ddi_debug_reg(struct samsung_display_driver_data *vdd)
 
 	ss_read_pps_data(vdd);
 
-	SS_XLOG(rddpm, rddsm, esderr, dsierr_cnt, protocol_err, ecc, flash_load);
-
-	if (ret)
+	if (ret) {
 		LCD_INFO(vdd, "error: panel dbg: %x %x %x %x %x %x %x\n",
 				rddpm, rddsm, esderr, dsierr_cnt, protocol_err, ecc, flash_load);
+		SS_XLOG(vdd->ndx, rddpm, rddsm, esderr, dsierr_cnt, protocol_err, ecc, flash_load);
+	}
 	else
 		LCD_INFO(vdd, "pass: panel dbg: %x %x %x %x %x %x %x\n",
 				rddpm, rddsm, esderr, dsierr_cnt, protocol_err, ecc, flash_load);

@@ -22,6 +22,8 @@
 #include "dp_types.h"
 
 #define RX_BUFFER_SIZE_PKTLOG_LITE 1024
+/* Alignment for consistent memory for DP rings*/
+#define DP_RING_BASE_ALIGN 8
 
 
 #define DP_RSSI_INVAL 0x80
@@ -1614,6 +1616,11 @@ static inline QDF_STATUS dp_h2t_cfg_stats_msg_send(struct dp_pdev *pdev,
 }
 
 static inline void
+dp_pkt_log_init(struct cdp_soc_t *soc_hdl, uint8_t pdev_id, void *scn)
+{
+}
+
+static inline void
 dp_hif_update_pipe_callback(struct dp_soc *dp_soc, void *cb_context,
 			    QDF_STATUS (*callback)(void *, qdf_nbuf_t, uint8_t),
 			    uint8_t pipe_id)
@@ -2101,4 +2108,210 @@ void dp_set_max_page_size(struct qdf_mem_multi_page_t *pages,
 }
 #endif /* MAX_ALLOC_PAGE_SIZE */
 
+/**
+ * dp_history_get_next_index() - get the next entry to record an entry
+ *				 in the history.
+ * @curr_idx: Current index where the last entry is written.
+ * @max_entries: Max number of entries in the history
+ *
+ * This function assumes that the max number os entries is a power of 2.
+ *
+ * Returns: The index where the next entry is to be written.
+ */
+static inline uint32_t dp_history_get_next_index(qdf_atomic_t *curr_idx,
+						 uint32_t max_entries)
+{
+	uint32_t idx = qdf_atomic_inc_return(curr_idx);
+
+	return idx & (max_entries - 1);
+}
+
+#ifdef DP_MEM_PRE_ALLOC
+/**
+ * dp_context_alloc_mem() - allocate memory for DP context
+ * @soc: datapath soc handle
+ * @ctxt_type: DP context type
+ * @ctxt_size: DP context size
+ *
+ * Return: DP context address
+ */
+void *dp_context_alloc_mem(struct dp_soc *soc, enum dp_ctxt_type ctxt_type,
+			   size_t ctxt_size);
+
+/**
+ * dp_context_free_mem() - Free memory of DP context
+ * @soc: datapath soc handle
+ * @ctxt_type: DP context type
+ * @vaddr: Address of context memory
+ *
+ * Return: None
+ */
+void dp_context_free_mem(struct dp_soc *soc, enum dp_ctxt_type ctxt_type,
+			 void *vaddr);
+
+/**
+ * dp_desc_multi_pages_mem_alloc() - alloc memory over multiple pages
+ * @soc: datapath soc handle
+ * @desc_type: memory request source type
+ * @pages: multi page information storage
+ * @element_size: each element size
+ * @element_num: total number of elements should be allocated
+ * @memctxt: memory context
+ * @cacheable: coherent memory or cacheable memory
+ *
+ * This function is a wrapper for memory allocation over multiple
+ * pages, if dp prealloc method is registered, then will try prealloc
+ * firstly. if prealloc failed, fall back to regular way over
+ * qdf_mem_multi_pages_alloc().
+ *
+ * Return: None
+ */
+void dp_desc_multi_pages_mem_alloc(struct dp_soc *soc,
+				   enum dp_desc_type desc_type,
+				   struct qdf_mem_multi_page_t *pages,
+				   size_t element_size,
+				   uint16_t element_num,
+				   qdf_dma_context_t memctxt,
+				   bool cacheable);
+
+/**
+ * dp_desc_multi_pages_mem_free() - free multiple pages memory
+ * @soc: datapath soc handle
+ * @desc_type: memory request source type
+ * @pages: multi page information storage
+ * @memctxt: memory context
+ * @cacheable: coherent memory or cacheable memory
+ *
+ * This function is a wrapper for multiple pages memory free,
+ * if memory is got from prealloc pool, put it back to pool.
+ * otherwise free by qdf_mem_multi_pages_free().
+ *
+ * Return: None
+ */
+void dp_desc_multi_pages_mem_free(struct dp_soc *soc,
+				  enum dp_desc_type desc_type,
+				  struct qdf_mem_multi_page_t *pages,
+				  qdf_dma_context_t memctxt,
+				  bool cacheable);
+
+#else
+static inline
+void *dp_context_alloc_mem(struct dp_soc *soc, enum dp_ctxt_type ctxt_type,
+			   size_t ctxt_size)
+{
+	return qdf_mem_malloc(ctxt_size);
+}
+
+static inline
+void dp_context_free_mem(struct dp_soc *soc, enum dp_ctxt_type ctxt_type,
+			 void *vaddr)
+{
+	qdf_mem_free(vaddr);
+}
+
+static inline
+void dp_desc_multi_pages_mem_alloc(struct dp_soc *soc,
+				   enum dp_desc_type desc_type,
+				   struct qdf_mem_multi_page_t *pages,
+				   size_t element_size,
+				   uint16_t element_num,
+				   qdf_dma_context_t memctxt,
+				   bool cacheable)
+{
+	qdf_mem_multi_pages_alloc(soc->osdev, pages, element_size,
+				  element_num, memctxt, cacheable);
+}
+
+static inline
+void dp_desc_multi_pages_mem_free(struct dp_soc *soc,
+				  enum dp_desc_type desc_type,
+				  struct qdf_mem_multi_page_t *pages,
+				  qdf_dma_context_t memctxt,
+				  bool cacheable)
+{
+	qdf_mem_multi_pages_free(soc->osdev, pages,
+				 memctxt, cacheable);
+}
+
+#endif
+#ifdef FEATURE_RUNTIME_PM
+/**
+ * dp_runtime_get() - Get dp runtime refcount
+ * @soc: Datapath soc handle
+ *
+ * Get dp runtime refcount by increment of an atomic variable, which can block
+ * dp runtime resume to wait to flush pending tx by runtime suspend.
+ *
+ * Return: Current refcount
+ */
+static inline int32_t dp_runtime_get(struct dp_soc *soc)
+{
+	return qdf_atomic_inc_return(&soc->dp_runtime_refcount);
+}
+
+/**
+ * dp_runtime_put() - Return dp runtime refcount
+ * @soc: Datapath soc handle
+ *
+ * Return dp runtime refcount by decrement of an atomic variable, allow dp
+ * runtime resume finish.
+ *
+ * Return: Current refcount
+ */
+static inline int32_t dp_runtime_put(struct dp_soc *soc)
+{
+	return qdf_atomic_dec_return(&soc->dp_runtime_refcount);
+}
+
+/**
+ * dp_runtime_get_refcount() - Get dp runtime refcount
+ * @soc: Datapath soc handle
+ *
+ * Get dp runtime refcount by returning an atomic variable
+ *
+ * Return: Current refcount
+ */
+static inline int32_t dp_runtime_get_refcount(struct dp_soc *soc)
+{
+	return qdf_atomic_read(&soc->dp_runtime_refcount);
+}
+
+/**
+ * dp_runtime_init() - Init dp runtime refcount when dp soc init
+ * @soc: Datapath soc handle
+ *
+ * Return: QDF_STATUS
+ */
+static inline QDF_STATUS dp_runtime_init(struct dp_soc *soc)
+{
+	return qdf_atomic_init(&soc->dp_runtime_refcount);
+}
+#else
+static inline int32_t dp_runtime_get(struct dp_soc *soc)
+{
+	return 0;
+}
+
+static inline int32_t dp_runtime_put(struct dp_soc *soc)
+{
+	return 0;
+}
+
+static inline QDF_STATUS dp_runtime_init(struct dp_soc *soc)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#endif
+
+/**
+ * dp_peer_flush_frags() - Flush all fragments for a particular
+ *  peer
+ * @soc_hdl - data path soc handle
+ * @vdev_id - vdev id
+ * @peer_addr - peer mac address
+ *
+ * Return: None
+ */
+void dp_peer_flush_frags(struct cdp_soc_t *soc_hdl, uint8_t vdev_id,
+			 uint8_t *peer_mac);
 #endif /* #ifndef _DP_INTERNAL_H_ */

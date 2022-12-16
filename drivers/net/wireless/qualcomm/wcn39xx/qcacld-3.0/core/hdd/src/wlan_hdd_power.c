@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -262,6 +262,7 @@ static void hdd_disable_gtk_offload(struct hdd_adapter *adapter)
 /**
  * __wlan_hdd_ipv6_changed() - IPv6 notifier callback function
  * @net_dev: net_device whose IP address changed
+ * @event: event from kernel, NETDEV_UP or NETDEV_DOWN
  *
  * This is a callback function that is registered with the kernel via
  * register_inet6addr_notifier() which allows the driver to be
@@ -269,7 +270,8 @@ static void hdd_disable_gtk_offload(struct hdd_adapter *adapter)
  *
  * Return: None
  */
-static void __wlan_hdd_ipv6_changed(struct net_device *net_dev)
+static void __wlan_hdd_ipv6_changed(struct net_device *net_dev,
+				    unsigned long event)
 {
 	struct hdd_adapter *adapter = WLAN_HDD_GET_PRIV_PTR(net_dev);
 	struct hdd_context *hdd_ctx;
@@ -286,8 +288,12 @@ static void __wlan_hdd_ipv6_changed(struct net_device *net_dev)
 	if (errno)
 		goto exit;
 
-	if (adapter->device_mode == QDF_STA_MODE ||
-	    adapter->device_mode == QDF_P2P_CLIENT_MODE) {
+	/* Only need to be notified for ipv6_add_addr
+	 * No need for ipv6_del_addr or addrconf_ifdown
+	 */
+	if (event == NETDEV_UP &&
+	    (adapter->device_mode == QDF_STA_MODE ||
+	     adapter->device_mode == QDF_P2P_CLIENT_MODE)) {
 		hdd_debug("invoking sme_dhcp_done_ind");
 		sme_dhcp_done_ind(hdd_ctx->mac_handle, adapter->vdev_id);
 		schedule_work(&adapter->ipv6_notifier_work);
@@ -307,7 +313,7 @@ int wlan_hdd_ipv6_changed(struct notifier_block *nb,
 	if (osif_vdev_sync_op_start(net_dev, &vdev_sync))
 		return NOTIFY_DONE;
 
-	__wlan_hdd_ipv6_changed(net_dev);
+	__wlan_hdd_ipv6_changed(net_dev, data);
 
 	osif_vdev_sync_op_stop(vdev_sync);
 
@@ -532,6 +538,34 @@ out:
 }
 
 /**
+ * hdd_send_ps_config_to_fw() - Check user pwr save config set/reset PS
+ * @adapter: pointer to hdd adapter
+ *
+ * This function checks the power save configuration saved in MAC context
+ * and sends power save config to FW.
+ *
+ * Return: None
+ */
+static void hdd_send_ps_config_to_fw(struct hdd_adapter *adapter)
+{
+	struct mac_context *mac_ctx;
+	struct hdd_context *hdd_ctx;
+
+	if (hdd_validate_adapter(adapter))
+		return;
+
+	hdd_ctx = WLAN_HDD_GET_CTX(adapter);
+	mac_ctx  = MAC_CONTEXT(hdd_ctx->mac_handle);
+
+	if (mac_ctx->usr_cfg_ps_enable)
+		sme_ps_enable_disable(hdd_ctx->mac_handle, adapter->vdev_id,
+				      SME_PS_ENABLE);
+	else
+		sme_ps_enable_disable(hdd_ctx->mac_handle, adapter->vdev_id,
+				      SME_PS_DISABLE);
+}
+
+/**
  * __hdd_ipv6_notifier_work_queue() - IPv6 notification work function
  * @adapter: adapter whose IP address changed
  *
@@ -560,6 +594,7 @@ static void __hdd_ipv6_notifier_work_queue(struct hdd_adapter *adapter)
 
 	hdd_enable_ns_offload(adapter, pmo_ipv6_change_notify);
 
+	hdd_send_ps_config_to_fw(adapter);
 exit:
 	hdd_exit();
 }
@@ -683,7 +718,7 @@ void hdd_disable_host_offloads(struct hdd_adapter *adapter,
 	hdd_disable_ns_offload(adapter, trigger);
 	hdd_disable_mc_addr_filtering(adapter, trigger);
 	if (adapter->device_mode != QDF_NDI_MODE)
-		hdd_disable_hw_filter(adapter);      
+		hdd_disable_hw_filter(adapter);
 	hdd_disable_action_frame_patterns(adapter);
 out:
 	hdd_exit();
@@ -870,6 +905,7 @@ static void __hdd_ipv4_notifier_work_queue(struct hdd_adapter *adapter)
 	if (ifa && hdd_ctx->is_fils_roaming_supported)
 		sme_send_hlp_ie_info(hdd_ctx->mac_handle, adapter->vdev_id,
 				     roam_profile, ifa->ifa_local);
+	hdd_send_ps_config_to_fw(adapter);
 exit:
 	hdd_exit();
 }
@@ -1206,7 +1242,7 @@ hdd_suspend_wlan(void)
 {
 	struct hdd_context *hdd_ctx;
 	QDF_STATUS status;
-	struct hdd_adapter *adapter = NULL;
+	struct hdd_adapter *adapter = NULL, *next_adapter = NULL;
 	uint32_t conn_state_mask = 0;
 
 	hdd_info("WLAN being suspended by OS");
@@ -1223,9 +1259,13 @@ hdd_suspend_wlan(void)
 		return -EINVAL;
 	}
 
-	hdd_for_each_adapter(hdd_ctx, adapter) {
-		if (wlan_hdd_validate_vdev_id(adapter->vdev_id))
+	hdd_for_each_adapter_dev_held_safe(hdd_ctx, adapter, next_adapter,
+					   NET_DEV_HOLD_SUSPEND_WLAN) {
+		if (wlan_hdd_validate_vdev_id(adapter->vdev_id)) {
+			hdd_adapter_dev_put_debug(adapter,
+						  NET_DEV_HOLD_SUSPEND_WLAN);
 			continue;
+		}
 
 		/* stop all TX queues before suspend */
 		hdd_debug("Disabling queues for dev mode %s",
@@ -1240,6 +1280,7 @@ hdd_suspend_wlan(void)
 		/* Configure supported OffLoads */
 		hdd_enable_host_offloads(adapter, pmo_apps_suspend);
 		hdd_update_conn_state_mask(adapter, &conn_state_mask);
+		hdd_adapter_dev_put_debug(adapter, NET_DEV_HOLD_SUSPEND_WLAN);
 	}
 
 	status = ucfg_pmo_psoc_user_space_suspend_req(hdd_ctx->psoc,
@@ -1264,7 +1305,7 @@ hdd_suspend_wlan(void)
 static int hdd_resume_wlan(void)
 {
 	struct hdd_context *hdd_ctx;
-	struct hdd_adapter *adapter;
+	struct hdd_adapter *adapter, *next_adapter = NULL;
 	QDF_STATUS status;
 
 	hdd_info("WLAN being resumed by OS");
@@ -1285,9 +1326,13 @@ static int hdd_resume_wlan(void)
 	hdd_wlan_suspend_resume_event(HDD_WLAN_EARLY_RESUME);
 
 	/*loop through all adapters. Concurrency */
-	hdd_for_each_adapter(hdd_ctx, adapter) {
-		if (wlan_hdd_validate_vdev_id(adapter->vdev_id))
+	hdd_for_each_adapter_dev_held_safe(hdd_ctx, adapter, next_adapter,
+					   NET_DEV_HOLD_RESUME_WLAN) {
+		if (wlan_hdd_validate_vdev_id(adapter->vdev_id)) {
+			hdd_adapter_dev_put_debug(adapter,
+						  NET_DEV_HOLD_RESUME_WLAN);
 			continue;
+		}
 
 		/* Disable supported OffLoads */
 		hdd_disable_host_offloads(adapter, pmo_apps_resume);
@@ -1301,6 +1346,8 @@ static int hdd_resume_wlan(void)
 
 		if (adapter->device_mode == QDF_STA_MODE)
 			status = hdd_disable_default_pkt_filters(adapter);
+
+		hdd_adapter_dev_put_debug(adapter, NET_DEV_HOLD_RESUME_WLAN);
 	}
 
 	ucfg_ipa_resume(hdd_ctx->pdev);
@@ -1333,17 +1380,20 @@ void hdd_svc_fw_shutdown_ind(struct device *dev)
  */
 static void hdd_ssr_restart_sap(struct hdd_context *hdd_ctx)
 {
-	struct hdd_adapter *adapter;
+	struct hdd_adapter *adapter, *next_adapter = NULL;
 
 	hdd_enter();
 
-	hdd_for_each_adapter(hdd_ctx, adapter) {
+	hdd_for_each_adapter_dev_held_safe(hdd_ctx, adapter, next_adapter,
+					   NET_DEV_HOLD_SSR_RESTART_SAP) {
 		if (adapter->device_mode == QDF_SAP_MODE) {
 			if (test_bit(SOFTAP_INIT_DONE, &adapter->event_flags)) {
 				hdd_debug("Restart prev SAP session");
 				wlan_hdd_start_sap(adapter, true);
 			}
 		}
+		hdd_adapter_dev_put_debug(adapter,
+					  NET_DEV_HOLD_SSR_RESTART_SAP);
 	}
 
 	hdd_exit();
@@ -1450,9 +1500,10 @@ static inline void hdd_wlan_ssr_reinit_event(void)
  */
 static void hdd_send_default_scan_ies(struct hdd_context *hdd_ctx)
 {
-	struct hdd_adapter *adapter;
+	struct hdd_adapter *adapter, *next_adapter = NULL;
 
-	hdd_for_each_adapter(hdd_ctx, adapter) {
+	hdd_for_each_adapter_dev_held_safe(hdd_ctx, adapter, next_adapter,
+					   NET_DEV_HOLD_SEND_DEFAULT_SCAN_IES) {
 		if (hdd_is_interface_up(adapter) &&
 		    (adapter->device_mode == QDF_STA_MODE ||
 		    adapter->device_mode == QDF_P2P_DEVICE_MODE) &&
@@ -1462,6 +1513,8 @@ static void hdd_send_default_scan_ies(struct hdd_context *hdd_ctx)
 				      adapter->scan_info.default_scan_ies,
 				      adapter->scan_info.default_scan_ies_len);
 		}
+		hdd_adapter_dev_put_debug(adapter,
+					  NET_DEV_HOLD_SEND_DEFAULT_SCAN_IES);
 	}
 }
 
@@ -1789,6 +1842,8 @@ static int __wlan_hdd_cfg80211_resume_wlan(struct wiphy *wiphy)
 	if (cds_is_pktcapture_enabled())
 		wlan_hdd_mon_thread_resume(hdd_ctx);
 
+	ucfg_pmo_notify_system_resume(hdd_ctx->psoc);
+
 	qdf_mtrace(QDF_MODULE_ID_HDD, QDF_MODULE_ID_HDD,
 		   TRACE_CODE_HDD_CFG80211_RESUME_WLAN,
 		   NO_SESSION, hdd_ctx->is_wiphy_suspended);
@@ -1809,14 +1864,20 @@ static int _wlan_hdd_cfg80211_resume_wlan(struct wiphy *wiphy)
 	struct hdd_context *hdd_ctx = wiphy_priv(wiphy);
 	int errno;
 
-	errno = wlan_hdd_validate_context(hdd_ctx);
-	if (errno)
-		return errno;
+	if(!hdd_ctx) {
+		hdd_err_rl("hdd context is null");
+		return -ENODEV;
+	}
 
+	/* If Wifi is off, return success for system resume */
 	if (hdd_ctx->driver_status != DRIVER_MODULES_ENABLED) {
 		hdd_debug("Driver Modules not Enabled ");
 		return 0;
 	}
+
+	errno = wlan_hdd_validate_context(hdd_ctx);
+	if (errno)
+		return errno;
 
 	hif_ctx = cds_get_context(QDF_MODULE_ID_HIF);
 	errno = __wlan_hdd_cfg80211_resume_wlan(wiphy);
@@ -1867,9 +1928,10 @@ static int __wlan_hdd_cfg80211_suspend_wlan(struct wiphy *wiphy,
 				     struct cfg80211_wowlan *wow)
 {
 	struct hdd_context *hdd_ctx = wiphy_priv(wiphy);
-	struct hdd_adapter *adapter;
+	struct hdd_adapter *adapter, *next_adapter = NULL;
 	mac_handle_t mac_handle;
 	int rc;
+	wlan_net_dev_ref_dbgid dbgid = NET_DEV_HOLD_CFG80211_SUSPEND_WLAN;
 
 	hdd_enter();
 
@@ -1883,6 +1945,9 @@ static int __wlan_hdd_cfg80211_suspend_wlan(struct wiphy *wiphy,
 	rc = wlan_hdd_validate_context(hdd_ctx);
 	if (0 != rc)
 		return rc;
+
+	/* Wait for the stop module if already in progress */
+	hdd_psoc_idle_timer_stop(hdd_ctx);
 
 	if (hdd_ctx->config->is_wow_disabled) {
 		hdd_info_rl("wow is disabled");
@@ -1900,9 +1965,12 @@ static int __wlan_hdd_cfg80211_suspend_wlan(struct wiphy *wiphy,
 	 * "dfs_cac_block_tx" is set to true when RADAR is found and stay true
 	 * until CAC is done for a SoftAP which is in started state.
 	 */
-	hdd_for_each_adapter(hdd_ctx, adapter) {
-		if (wlan_hdd_validate_vdev_id(adapter->vdev_id))
+	hdd_for_each_adapter_dev_held_safe(hdd_ctx, adapter, next_adapter,
+					   dbgid) {
+		if (wlan_hdd_validate_vdev_id(adapter->vdev_id)) {
+			hdd_adapter_dev_put_debug(adapter, dbgid);
 			continue;
+		}
 
 		if (QDF_SAP_MODE == adapter->device_mode) {
 			if (BSS_START ==
@@ -1913,6 +1981,10 @@ static int __wlan_hdd_cfg80211_suspend_wlan(struct wiphy *wiphy,
 				hdd_err("RADAR detection in progress, do not allow suspend");
 				wlan_hdd_inc_suspend_stats(hdd_ctx,
 							   SUSPEND_FAIL_RADAR);
+				hdd_adapter_dev_put_debug(adapter, dbgid);
+				if (next_adapter)
+					hdd_adapter_dev_put_debug(next_adapter,
+								  dbgid);
 				return -EAGAIN;
 			} else if (!ucfg_pmo_get_enable_sap_suspend(
 				   hdd_ctx->psoc)) {
@@ -1920,6 +1992,10 @@ static int __wlan_hdd_cfg80211_suspend_wlan(struct wiphy *wiphy,
 				 * suspend
 				 */
 				hdd_err("SAP does not support suspend!!");
+				hdd_adapter_dev_put_debug(adapter, dbgid);
+				if (next_adapter)
+					hdd_adapter_dev_put_debug(next_adapter,
+								  dbgid);
 				return -EOPNOTSUPP;
 			}
 		} else if (QDF_P2P_GO_MODE == adapter->device_mode) {
@@ -1929,9 +2005,14 @@ static int __wlan_hdd_cfg80211_suspend_wlan(struct wiphy *wiphy,
 				 * suspend
 				 */
 				hdd_err("GO does not support suspend!!");
+				hdd_adapter_dev_put_debug(adapter, dbgid);
+				if (next_adapter)
+					hdd_adapter_dev_put_debug(next_adapter,
+								  dbgid);
 				return -EOPNOTSUPP;
 			}
 		}
+		hdd_adapter_dev_put_debug(adapter, dbgid);
 	}
 	/* p2p cleanup task based on scheduler */
 	ucfg_p2p_cleanup_tx_by_psoc(hdd_ctx->psoc);
@@ -1943,11 +2024,15 @@ static int __wlan_hdd_cfg80211_suspend_wlan(struct wiphy *wiphy,
 	}
 
 	/* flush any pending powersave timers */
-	hdd_for_each_adapter(hdd_ctx, adapter) {
-		if (wlan_hdd_validate_vdev_id(adapter->vdev_id))
+	hdd_for_each_adapter_dev_held_safe(hdd_ctx, adapter, next_adapter,
+					   dbgid) {
+		if (wlan_hdd_validate_vdev_id(adapter->vdev_id)) {
+			hdd_adapter_dev_put_debug(adapter, dbgid);
 			continue;
+		}
 
 		sme_ps_timer_flush_sync(mac_handle, adapter->vdev_id);
+		hdd_adapter_dev_put_debug(adapter, dbgid);
 	}
 
 	/*
@@ -2040,14 +2125,20 @@ static int _wlan_hdd_cfg80211_suspend_wlan(struct wiphy *wiphy,
 	struct hdd_context *hdd_ctx = wiphy_priv(wiphy);
 	int errno;
 
-	errno = wlan_hdd_validate_context(hdd_ctx);
-	if (errno)
-		return errno;
+	if(!hdd_ctx) {
+		hdd_err_rl("hdd context is null");
+		return -ENODEV;
+	}
 
+	/* If Wifi is off, return success for system suspend */
 	if (hdd_ctx->driver_status != DRIVER_MODULES_ENABLED) {
 		hdd_debug("Driver Modules not Enabled ");
 		return 0;
 	}
+
+	errno = wlan_hdd_validate_context(hdd_ctx);
+	if (errno)
+		return errno;
 
 	hif_ctx = cds_get_context(QDF_MODULE_ID_HIF);
 	errno = hif_pm_runtime_get_sync(hif_ctx, RTPM_ID_SUSPEND_RESUME);

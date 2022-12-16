@@ -39,7 +39,7 @@ void make_self_dispaly_img_cmds_SW83109_A73(struct samsung_display_driver_data *
 	u32 paylod_size = 0;
 	u32 cmd_size = 0;
 
-	LCD_INFO(vdd, "[SW83109] ++\n");
+	LCD_INFO(vdd, "[SW83109_BOE_A73] ++\n");
 
 	if (!data) {
 		LCD_ERR(vdd, "data is null..\n");
@@ -129,7 +129,7 @@ void make_self_dispaly_img_cmds_SW83109_A73(struct samsung_display_driver_data *
 	vdd->self_disp.operation[op].img_checksum_cal |= ((check_sum_1 & 0xFF) << 16);
 	vdd->self_disp.operation[op].img_checksum_cal |= ((check_sum_0 & 0xFF) << 24);
 
-	LCD_INFO(vdd, "[SW83109] --\n");
+	LCD_INFO(vdd, "[SW83109_BOE_A73] --\n");
 	return;
 }
 
@@ -239,7 +239,7 @@ void make_mass_self_display_img_cmds_SW83109_A73(struct samsung_display_driver_d
 
 	SDE_ATRACE_END("mass_cmd_generation");
 
-	LCD_INFO(vdd, "[SW83109] Total Cmd Count(%d), Last Cmd Payload Len(%d)\n", c_cnt, tcmds[c_cnt-1].msg.tx_len);
+	LCD_INFO(vdd, "[SW83109_BOE_A73] Total Cmd Count(%d), Last Cmd Payload Len(%d)\n", c_cnt, tcmds[c_cnt-1].msg.tx_len);
 
 	return;
 }
@@ -254,7 +254,7 @@ static void self_mask_img_write(struct samsung_display_driver_data *vdd)
 		return;
 	}
 
-	LCD_INFO(vdd, "[SW83109] ++\n");
+	LCD_INFO(vdd, "[SW83109_BOE_A73] ++\n");
 
 	mutex_lock(&vdd->exclusive_tx.ex_tx_lock);
 	vdd->exclusive_tx.enable = 1;
@@ -266,17 +266,17 @@ static void self_mask_img_write(struct samsung_display_driver_data *vdd)
 	ss_set_exclusive_tx_packet(vdd, TX_SELF_MASK_SET_POST, 1);
 
 	/* TODO: pack below sets to one command set, and remove exclusive feature */
-	LCD_INFO(vdd, "[SW83109] tx self mask ++ (cur_rr:%d)\n", vdd->vrr.cur_refresh_rate);
-	LCD_INFO(vdd, "[SW83109] TX_SELF_MASK_SET_PRE\n");
+	LCD_DEBUG(vdd, "[SW83109_BOE_A73] tx self mask ++ (cur_rr:%d)\n", vdd->vrr.cur_refresh_rate);
+	LCD_DEBUG(vdd, "[SW83109_BOE_A73] TX_SELF_MASK_SET_PRE\n");
 	ss_send_cmd(vdd, TX_SELF_MASK_SET_PRE);
 
 	/* skip one frame delay because self mask is default off at display on sequence.. */
-	LCD_INFO(vdd, "[SW83109] TX_SELF_MASK_IMAGE\n");
+	LCD_DEBUG(vdd, "[SW83109_BOE_A73] TX_SELF_MASK_IMAGE\n");
 	ss_send_cmd(vdd, TX_SELF_MASK_IMAGE);
 	usleep_range(500, 500);
-	LCD_INFO(vdd, "[SW83109] TX_SELF_MASK_SET_POST\n");
+	LCD_DEBUG(vdd, "[SW83109_BOE_A73] TX_SELF_MASK_SET_POST\n");
 	ss_send_cmd(vdd, TX_SELF_MASK_SET_POST);
-	LCD_INFO(vdd, "[SW83109] tx self mask --\n");
+	LCD_DEBUG(vdd, "[SW83109_BOE_A73] tx self mask --\n");
 
 	ss_set_exclusive_tx_packet(vdd, TX_SELF_MASK_SET_PRE, 0);
 	ss_set_exclusive_tx_packet(vdd, TX_SELF_MASK_IMAGE, 0);
@@ -287,7 +287,7 @@ static void self_mask_img_write(struct samsung_display_driver_data *vdd)
 	vdd->exclusive_tx.enable = 0;
 	wake_up_all(&vdd->exclusive_tx.ex_tx_waitq);
 	mutex_unlock(&vdd->exclusive_tx.ex_tx_lock);
-	LCD_INFO(vdd, "[SW83109] --\n");
+	LCD_INFO(vdd, "[SW83109_BOE_A73] --\n");
 }
 
 static int self_mask_on(struct samsung_display_driver_data *vdd, int enable)
@@ -305,7 +305,7 @@ static int self_mask_on(struct samsung_display_driver_data *vdd, int enable)
 		return -EACCES;
 	}
 
-	LCD_INFO(vdd, "[SW83109] ++ (%d)\n", enable);
+	LCD_DEBUG(vdd, "[SW83109_BOE_A73] ++ (%d)\n", enable);
 
 	mutex_lock(&vdd->self_disp.vdd_self_display_lock);
 
@@ -320,7 +320,7 @@ static int self_mask_on(struct samsung_display_driver_data *vdd, int enable)
 
 	mutex_unlock(&vdd->self_disp.vdd_self_display_lock);
 
-	LCD_INFO(vdd, "[SW83109] --\n");
+	LCD_DEBUG(vdd, "[SW83109_BOE_A73] --\n");
 
 	return ret;
 }
@@ -356,7 +356,7 @@ static int self_mask_check(struct samsung_display_driver_data *vdd)
 		}
 	}
 
-	LCD_INFO(vdd, "[SW83109_BOE_A73] ++ \n");
+	LCD_INFO(vdd, "[SW83109_BOE_A73] ++\n");
 
 	mutex_lock(&vdd->self_disp.vdd_self_display_lock);
 
@@ -393,7 +393,7 @@ static int self_mask_check(struct samsung_display_driver_data *vdd)
 
 	mutex_unlock(&vdd->self_disp.vdd_self_display_lock);
 
-	LCD_INFO(vdd, "[SW83109_BOE_A73] -- \n");
+	LCD_INFO(vdd, "[SW83109_BOE_A73] --\n");
 
 	return ret;
 }
@@ -441,13 +441,13 @@ static int self_display_aod_exit(struct samsung_display_driver_data *vdd)
 		return -ENODEV;
 	}
 
-	LCD_DEBUG(vdd, "[SW83109] ++\n");
+	LCD_DEBUG(vdd, "[SW83109_BOE_A73] ++\n");
 
 	self_mask_on(vdd, true);
 
 	vdd->self_disp.on = false;
 
-	LCD_DEBUG(vdd, "[SW83109] --\n");
+	LCD_DEBUG(vdd, "[SW83109_BOE_A73] --\n");
 
 	return ret;
 }
@@ -548,7 +548,7 @@ int self_display_init_SW83109_A73(struct samsung_display_driver_data *vdd)
 		return -ENODEV;
 	}
 
-	LCD_INFO(vdd, "[SW83109] Success to register self_disp device..(%d)\n", ret);
+	LCD_INFO(vdd, "[SW83109_BOE_A73] Success to register self_disp device..(%d)\n", ret);
 
 	return ret;
 }

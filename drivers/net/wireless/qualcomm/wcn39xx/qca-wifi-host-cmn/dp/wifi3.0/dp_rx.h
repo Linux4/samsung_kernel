@@ -622,6 +622,7 @@ dp_rx_wbm_err_process(struct dp_intr *int_ctx, struct dp_soc *soc,
 /**
  * dp_rx_sg_create() - create a frag_list for MSDUs which are spread across
  *		     multiple nbufs.
+ * @soc: core txrx main context
  * @nbuf: pointer to the first msdu of an amsdu.
  *
  * This function implements the creation of RX frag_list for cases
@@ -629,7 +630,7 @@ dp_rx_wbm_err_process(struct dp_intr *int_ctx, struct dp_soc *soc,
  *
  * Return: returns the head nbuf which contains complete frag_list.
  */
-qdf_nbuf_t dp_rx_sg_create(qdf_nbuf_t nbuf);
+qdf_nbuf_t dp_rx_sg_create(struct dp_soc *soc, qdf_nbuf_t nbuf);
 
 /*
  * dp_rx_desc_pool_alloc() - create a pool of software rx_descs
@@ -754,6 +755,13 @@ void dp_rx_desc_update_dbg_info(struct dp_rx_desc *rx_desc,
 	}
 }
 #else
+
+static inline
+bool dp_rx_desc_paddr_sanity_check(struct dp_rx_desc *rx_desc,
+				   uint64_t ring_paddr)
+{
+	return true;
+}
 
 static inline
 void dp_rx_desc_alloc_dbg_info(struct dp_rx_desc *rx_desc)
@@ -1325,4 +1333,17 @@ void dp_rx_deliver_to_stack(struct dp_soc *soc,
 			    qdf_nbuf_t nbuf_head,
 			    qdf_nbuf_t nbuf_tail);
 
+/*
+ * dp_rx_link_desc_refill_duplicate_check() - check if link desc duplicate
+					      to refill
+ * @soc: DP SOC handle
+ * @buf_info: the last link desc buf info
+ * @ring_buf_info: current buf address pointor including link desc
+ *
+ * return: none.
+ */
+void dp_rx_link_desc_refill_duplicate_check(
+				struct dp_soc *soc,
+				struct hal_buf_info *buf_info,
+				hal_buff_addrinfo_t ring_buf_info);
 #endif /* _DP_RX_H */

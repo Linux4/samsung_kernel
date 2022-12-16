@@ -108,12 +108,16 @@ enum {
 
 // for ssc_core sensor type
 enum {
-	OPTION_TYPE_SSC_CHARGING_STATE,    // for pocket mode
-	OPTION_TYPE_SSC_ABS_LCD_TYPE,      // for pocket mode
-	OPTION_TYPE_SSC_LCD_TYPE,          // for pocket mode
-	OPTION_TYPE_SSC_DUMP_TYPE,         // for pocket mode
-	OPTION_TYPE_SSC_AOD_RECT,          // for AOD
-	OPTION_TYPE_SSC_AOD_LIGHT_CIRCLE,  // for AOD
+	OPTION_TYPE_SSC_CHARGING_STATE,      // for pocket mode
+	OPTION_TYPE_SSC_ABS_LCD_TYPE,        // for pocket mode
+	OPTION_TYPE_SSC_LCD_TYPE,            // for pocket mode
+        OPTION_TYPE_SSC_LCD_INTENT_TYPE,     // for auto rotation  
+	OPTION_TYPE_SSC_DUMP_TYPE,           // for pocket mode
+	OPTION_TYPE_SSC_AOD_RECT,            // for AOD
+	OPTION_TYPE_SSC_AOD_LIGHT_CIRCLE,    // for AOD
+	OPTION_TYPE_SSC_LIGHT_SEAMLESS,      // for Light seamless
+	OPTION_TYPE_SSC_AUTO_ROTATION_MODE,  // for auto rotation
+	OPTION_TYPE_SSC_SBM_INIT,            // for sar backoff motion
 	OPTION_TYPE_SSC_MAX
 };
 

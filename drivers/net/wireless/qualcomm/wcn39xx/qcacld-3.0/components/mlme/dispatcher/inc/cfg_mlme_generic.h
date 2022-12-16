@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -140,13 +141,21 @@
 
 /*
  * <ini>
- * BandCapability - Preferred band (0: Both,  1: 2.4G only,  2: 5G only)
+ * BandCapability - Preferred band (0: Both 2.4G and 5G,
+ *				    1: 2.4G only,
+ *				    2: 5G only,
+ *				    3: Both 2.4G and 5G,
+ *				    4: 6G only,
+ *				    5: Both 2.4G and 6G,
+ *				    6: Both 5G and 6G,
+ *				    7: 2.4G, 5G, and 6G)
  * @Min: 0
- * @Max: 2
- * @Default: 0
+ * @Max: 7
+ * @Default: 7
  *
  * This ini is used to set default band capability
- * (0: Both, 1: 2.4G only, 2: 5G only)
+ * (0: Both 2.4G and 5G, 1: 2.4G only, 2: 5G only, 3: Both 2.4G and 5G,
+ *  4: 6G only, 5: Both 2.4G and 6G, 6: Both 5G and 6G, 7: 2.4G, 5G, and 6G)
  *
  * Related: None
  *
@@ -159,8 +168,8 @@
 #define CFG_BAND_CAPABILITY CFG_INI_UINT( \
 	"BandCapability", \
 	0, \
-	2, \
-	0, \
+	7, \
+	7, \
 	CFG_VALUE_OR_DEFAULT, \
 	"Band Capability")
 
@@ -692,12 +701,13 @@
  * sae_connect_retries - Bit mask to retry Auth and full connection on assoc
  * timeout to same AP and auth retries during roaming
  * @Min: 0x0
- * @Max: 0x52
+ * @Max: 0x53
  * @Default: 0x49
  *
  * This ini is used to set max auth retry in auth phase of roaming and initial
- * connection and max connection retry in case of assoc timeout. MAX Auth and
- * connection retries are capped to 2 and roam Auth retry is capped to 1.
+ * connection and max connection retry in case of assoc timeout. MAX Auth
+ * retries are capped to 3, connection retries are capped to 2 and roam Auth
+ * retry is capped to 1.
  * Default is 0x49 i.e. 1 retry each.
  *
  * Bits       Retry Type
@@ -726,8 +736,33 @@
  * </ini>
  */
 #define CFG_SAE_CONNECION_RETRIES CFG_INI_UINT("sae_connect_retries", \
-				0, 0x52, 0x49, CFG_VALUE_OR_DEFAULT, \
+				0, 0x53, 0x49, CFG_VALUE_OR_DEFAULT, \
 				"Bit mask to retry Auth and full connection on assoc timeout to same AP for SAE connection")
+
+/*
+ * <ini>
+ * tx_retry_multiplier - TX retry multiplier
+ * @Min: 0
+ * @Max: 500
+ * @Default: 0
+ *
+ * This ini is used to indicate percentage to max retry limit to fw
+ * which can further be used by fw to multiply counter by
+ * tx_retry_multiplier percent.
+ *
+ * Supported Feature: STA/SAP
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_TX_RETRY_MULTIPLIER CFG_INI_UINT( \
+	"tx_retry_multiplier", \
+	0, \
+	500, \
+	0, \
+	CFG_VALUE_OR_DEFAULT, \
+	"percentage of max retry limit")
 
 #define CFG_GENERIC_ALL \
 	CFG(CFG_ENABLE_DEBUG_PACKET_LOG) \
@@ -759,5 +794,6 @@
 	CFG(CFG_MGMT_RETRY_MAX) \
 	CFG(CFG_BMISS_SKIP_FULL_SCAN) \
 	CFG(CFG_ENABLE_RING_BUFFER) \
-	CFG(CFG_SAE_CONNECION_RETRIES)
+	CFG(CFG_SAE_CONNECION_RETRIES) \
+	CFG(CFG_TX_RETRY_MULTIPLIER)
 #endif /* __CFG_MLME_GENERIC_H */

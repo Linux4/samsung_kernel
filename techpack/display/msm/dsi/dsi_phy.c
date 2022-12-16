@@ -873,6 +873,8 @@ int dsi_phy_enable(struct msm_dsi_phy *phy,
 		return -EINVAL;
 	}
 
+	DSI_PHY_INFO(phy, "timing_check: enable dphy\n");
+
 	mutex_lock(&phy->phy_lock);
 
 	if (!skip_validation)
@@ -961,6 +963,8 @@ int dsi_phy_disable(struct msm_dsi_phy *phy)
 		DSI_PHY_ERR(phy, "Invalid params\n");
 		return -EINVAL;
 	}
+
+	DSI_PHY_INFO(phy, "timing_check: disable dphy\n");
 
 	mutex_lock(&phy->phy_lock);
 	dsi_phy_disable_hw(phy);

@@ -47,3 +47,12 @@ config PDIC_MISC_TEST
 		  pdic_misc kunit test
 		  If you want to add some functions,
 		  Please make the test case.
+
+config PDIC_SYSFS_TEST
+        bool "KUnit test for pdic_sysfs_test"
+        depends on SEC_KUNIT
+        help
+          This driver is for pdic_sysfs test driver
+		  pdic_sysfs kunit test
+		  If you want to add some functions,
+		  Please make the test case.

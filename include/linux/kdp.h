@@ -9,6 +9,7 @@
 #include <linux/binfmts.h>
 #include <linux/uh.h>
 
+#define __kdp_ro_aligned __attribute__((__section__(".kdp_ro"), aligned((sizeof(void *)))))
 #define __kdp_ro __section(.kdp_ro)
 #define __lsm_ro_after_init_kdp __section(.kdp_ro)
 
