@@ -2614,6 +2614,12 @@ static int asrc_update_tick(struct abox_data *data, int stream, int id)
 
 	dev_dbg(dev, "%s(%d, %d, %ulHz)\n", __func__, stream, id, aclk);
 
+	if (idx < 0) {
+		dev_err(dev, "%s(%d, %d): invalid idx: %d\n", __func__,
+				stream, id, idx);
+		return -EINVAL;
+	}
+
 	if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		reg = ABOX_SPUS_ASRC_CTRL(id);
 		itick = spus_asrc_is[idx];
@@ -4192,9 +4198,7 @@ int abox_cmpnt_adjust_sbank(struct snd_soc_component *cmpnt,
 
 	time = hw_param_interval_c(params, SNDRV_PCM_HW_PARAM_PERIOD_TIME)->min;
 	time /= 1000;
-	if (time <= 4)
-		size = SZ_32;
-	else if (time <= 10)
+	if (time <= 10)
 		size = SZ_128;
 	else
 		size = SZ_512;

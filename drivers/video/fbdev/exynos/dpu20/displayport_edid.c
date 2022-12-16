@@ -279,6 +279,12 @@ void edid_parse_hdmi14_vsdb(unsigned char *edid_ext_blk,
 				&& edid_ext_blk[i + IEEE_OUI_0_BYTE_NUM] == HDMI14_IEEE_OUI_0
 				&& edid_ext_blk[i + IEEE_OUI_1_BYTE_NUM] == HDMI14_IEEE_OUI_1
 				&& edid_ext_blk[i + IEEE_OUI_2_BYTE_NUM] == HDMI14_IEEE_OUI_2) {
+			int vsdb_len = edid_ext_blk[i] & 0x1F;
+
+			/* check the length of vsdb */
+			if (vsdb_len < 8)
+				break;
+
 			displayport_dbg("EDID: find VSDB for HDMI 1.4\n");
 
 			if (edid_ext_blk[i + 8] & VSDB_HDMI_VIDEO_PRESETNT_MASK) {
@@ -293,6 +299,10 @@ void edid_parse_hdmi14_vsdb(unsigned char *edid_ext_blk,
 					vsdb_offset_calc = vsdb_offset_calc - 2;
 					displayport_dbg("EDID: Not support I_LATENCY_FILEDS_PRESETNT in VSDB\n");
 				}
+
+				/* check if vsdb length is enough for vic data */
+				if (vsdb_len < vsdb_offset_calc)
+					break;
 
 				hdmi_vic_len = (edid_ext_blk[i + vsdb_offset_calc]
 						& VSDB_VIC_LENGTH_MASK) >> VSDB_VIC_LENGTH_BIT_POSITION;
@@ -1014,22 +1024,15 @@ u32 edid_audio_informs(void)
 	if (audio_channels > 0)
 		ch_info = audio_channels;
 
-	/* if below conditions does not meet pro audio, then reduce sample frequency.
-	 * 1. current video is not support pro audio
-	 * 2. link rate is below HBR2
-	 * 3. dex setting is not set
-	 * 4. channel is over 2 and under 8.
-	 * 5. channel is 8. And smaple freq is under 192KHz
-	 */
-	if ((!supported_videos[displayport->cur_video].pro_audio_support ||
-				link_rate < LINK_RATE_5_4Gbps || displayport->dex_setting)) {
-		if ((ch_info > FB_AUDIO_1N2CH && ch_info < FB_AUDIO_8CH) ||
-				(ch_info >= FB_AUDIO_8CH && audio_sample_rates < FB_AUDIO_192KHZ)) {
-			displayport_info("reduce SF(pro_aud:%d, link_rate:0x%X, ch:0x%X, sf:0x%X, dex_set:%d)\n",
-					supported_videos[displayport->cur_video].pro_audio_support, link_rate,
-					ch_info, audio_sample_rates, displayport->dex_setting);
-			audio_sample_rates &= 0x7; /* reduce to under 48KHz */
-		}
+	/* support 192KHz sample freq only if current timing supports pro audio */
+	if (supported_videos[displayport->cur_video].pro_audio_support &&
+		link_rate >= LINK_RATE_5_4Gbps &&
+		ch_info >= FB_AUDIO_8CH && audio_sample_rates >= FB_AUDIO_192KHZ) {
+		displayport_info("support pro audio\n");
+	} else {
+		displayport_info("reduce sample freq to 48KHz(lr:0x%X, ch:0x%X, sf:0x%X)\n",
+			link_rate, ch_info, audio_sample_rates);
+		audio_sample_rates &= 0x7; /* reduce to 48KHz */
 	}
 
 	value = ((audio_sample_rates << 19) | (audio_bit_rates << 16) |

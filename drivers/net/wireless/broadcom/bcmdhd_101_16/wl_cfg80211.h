@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 2020, Broadcom.
+ * Copyright (C) 2021, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -410,6 +410,12 @@ extern char *dhd_dbg_get_system_timestamp(void);
 #define CFG80211_TRACE_TEXT		"CFG80211-TRACE) "
 #define CFG80211_DEBUG_TEXT		"CFG80211-DEBUG) "
 #endif /* defined(CUSTOMER_DBG_PREFIX_ENABLE) */
+
+#ifdef DBG_PRINT_SSID
+#define SSID_DBG(_ssid_) _ssid_
+#else /* DBG_PNO_SSID */
+#define SSID_DBG(_ssid_) "*****"
+#endif /* DBG_PRINT_SSID */
 
 #ifdef DHD_DEBUG
 #ifdef DHD_LOG_DUMP
@@ -1645,6 +1651,16 @@ typedef struct wl_roamoff_info {
 } wl_roamoff_info_t;
 #endif /* DEBUG_SETROAMMODE */
 
+#ifdef CONFIG_COMPAT
+typedef struct compat_buf_data {
+	u32 ver; /* version of struct */
+	u32 len; /* Total len */
+	/* size of each buffer in case of split buffers (0 - single buffer). */
+	u32 buf_threshold;
+	u32 data_buf; /* array of user space buffer pointers. */
+} compat_buf_data_t;
+#endif /* CONFIG_COMPAT */
+
 /* private data of cfg80211 interface */
 struct bcm_cfg80211 {
 	struct wireless_dev *wdev;	/* representing cfg cfg80211 device */
@@ -1917,6 +1933,14 @@ struct bcm_cfg80211 {
 #ifdef WL_SCHED_SCAN
 	struct delayed_work sched_scan_stop_work;
 #endif /* WL_SCHED_SCAN */
+#ifdef DHD_CLEANUP_KEEP_ALIVE
+	uint8 mkeep_alive_avail;
+#endif /* DHD_CLEANUP_KEEP_ALIVE */
+#ifdef CUSTOM_EVENT_PM_WAKE
+	uint32 dpm_prev_pmdur;          /* pm_dur value at previous dpm event */
+	uint32 dpm_cont_evt_cnt;        /* continuous repeated dpm count */
+	uint32 dpm_total_pkts;          /* total tx/rx packet count */
+#endif /* CUSTOM_EVENT_PM_WAKE */
 };
 
 /* Max auth timeout allowed in case of EAP is 70sec, additional 5 sec for
@@ -2745,6 +2769,7 @@ extern s32 wl_cfg80211_set_p2p_resp_ap_chn(struct net_device *net, s32 enable);
 /* btcoex functions */
 void* wl_cfg80211_btcoex_init(struct net_device *ndev);
 void wl_cfg80211_btcoex_deinit(void);
+void wl_cfg80211_btcoex_kill_handler(void);
 
 extern chanspec_t wl_chspec_from_legacy(chanspec_t legacy_chspec);
 extern chanspec_t wl_chspec_driver_to_host(chanspec_t chanspec);
@@ -2829,9 +2854,7 @@ extern int wl_cfg80211_get_fbt_key(struct net_device *dev, uint8 *key, int total
 extern u8 wl_get_action_category(void *frame, u32 frame_len);
 extern int wl_get_public_action(void *frame, u32 frame_len, u8 *ret_action);
 
-#ifdef WL_CFG80211_VSDB_PRIORITIZE_SCAN_REQUEST
 struct net_device *wl_cfg80211_get_remain_on_channel_ndev(struct bcm_cfg80211 *cfg);
-#endif /* WL_CFG80211_VSDB_PRIORITIZE_SCAN_REQUEST */
 
 #ifdef WL_SUPPORT_ACS
 #define ACS_MSRMNT_DELAY 1000 /* dump_obss delay in ms */
@@ -2996,7 +3019,7 @@ extern int wl_cfg80211_handle_hang_event(struct net_device *ndev,
 bool wl_cfg80211_is_dpp_frame(void *frame, u32 frame_len);
 const char *get_dpp_pa_ftype(enum wl_dpp_ftype ftype);
 bool wl_cfg80211_is_dpp_gas_action(void *frame, u32 frame_len);
-extern bool wl_cfg80211_find_gas_subtype(u8 subtype, u16 adv_id, u8* data, u32 len);
+extern bool wl_cfg80211_find_gas_subtype(u8 subtype, u16 adv_id, u8* data, s32 len);
 #ifdef ESCAN_CHANNEL_CACHE
 extern void update_roam_cache(struct bcm_cfg80211 *cfg, int ioctl_ver);
 #endif /* ESCAN_CHANNEL_CACHE */
@@ -3119,4 +3142,8 @@ extern void wl_android_roamoff_dbg_dump(struct bcm_cfg80211 *cfg);
 #define ROAMOFF_DBG_SAVE(dev, rsn, var)
 #define ROAMOFF_DBG_DUMP(cfg)
 #endif /* DEBUG_SETROAMMODE */
+#ifdef DHD_PERIODIC_CNTRS
+extern void wl_cfgdbg_periodic_cntrs(struct net_device *ndev, struct bcm_cfg80211 *cfg);
+extern uint32 wl_cfgdbg_current_timestamp(void);
+#endif /* DHD_PERIODIC_CNTRS */
 #endif /* _wl_cfg80211_h_ */

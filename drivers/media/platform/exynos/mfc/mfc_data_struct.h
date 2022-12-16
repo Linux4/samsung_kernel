@@ -230,6 +230,18 @@ enum mfc_debug_cause {
 	MFC_LAST_INFO_DRM                       = 31,
 };
 
+enum mfc_real_time {
+	/* real-time */
+	MFC_RT                  = 0,
+	/* low-priority real-time */
+	MFC_RT_LOW              = 1,
+	/* constrained real-time */
+	MFC_RT_CON              = 2,
+	/* non real-time */
+	MFC_NON_RT              = 3,
+	MFC_RT_UNDEFINED        = 4,
+};
+
 struct mfc_debug {
 	u32	fw_version;
 	u32	cause;
@@ -512,6 +524,7 @@ struct mfc_platdata {
 	struct mfc_feature color_aspect_enc;
 	struct mfc_feature static_info_enc;
 	struct mfc_feature hdr10_plus;
+	struct mfc_feature enc_ts_delta;
 
 	/*
 	 * new variables should be added above
@@ -605,7 +618,12 @@ typedef struct __EncoderInputStr {
 	int WeightUpper;
 	int RcMode;
 	int St2094_40sei[30];
-} EncoderInputStr; /* 81*4 = 324 bytes */
+	int SourcePlaneStride[3];
+	int SourcePlane2BitStride[2];
+	int MVHorRange;
+	int MVVerRange;
+	int TimeStampDelta;
+} EncoderInputStr; /* 89*4 = 356 bytes */
 
 typedef struct __DecoderOutputStr {
 	int StartCode; /* 0xAAAAAAAA; Decoder output structure marker */
@@ -1301,6 +1319,7 @@ struct mfc_user_shared_handle {
 	int fd;
 	struct dma_buf *dma_buf;
 	void *vaddr;
+	size_t data_size;
 };
 
 struct mfc_raw_info {
@@ -1434,6 +1453,12 @@ struct mfc_dec {
 	struct mfc_user_shared_handle sh_handle_hdr;
 	struct hdr10_plus_meta *hdr10_plus_info;
 
+	struct dma_buf *assigned_dmabufs[MFC_MAX_DPBS][2][MFC_MAX_PLANES];
+	struct dma_buf_attachment *assigned_attach[MFC_MAX_DPBS][2][MFC_MAX_PLANES];
+	dma_addr_t assigned_addr[MFC_MAX_DPBS][2][MFC_MAX_PLANES];
+	int assigned_refcnt[MFC_MAX_DPBS];
+	struct mutex dpb_mutex;
+
 	int has_multiframe;
 
 	unsigned int err_reuse_flag;
@@ -1521,6 +1546,9 @@ struct mfc_ctx {
 	int int_reason;
 	unsigned int int_err;
 
+	int prio;
+	enum mfc_real_time rt;
+
 	struct mfc_fmt *src_fmt;
 	struct mfc_fmt *dst_fmt;
 
@@ -1583,6 +1611,7 @@ struct mfc_ctx {
 
 	unsigned long framerate;
 	unsigned long last_framerate;
+	unsigned long operating_framerate;
 	unsigned int qos_ratio;
 
 #ifdef CONFIG_MFC_USE_BUS_DEVFREQ

@@ -1,9 +1,8 @@
 #!/bin/bash
 
-
-export PLATFORM_VERSION=11
-export ANDROID_MAJOR_VERSION=r
 export ARCH=arm64
+export PLATFORM_VERSION=12
+export ANDROID_MAJOR_VERSION=s
 
 make ARCH=arm64 exynos9820-beyond1lteks_defconfig
-make ARCH=arm64 -j64
+make ARCH=arm64 -j16

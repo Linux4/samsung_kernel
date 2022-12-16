@@ -43,6 +43,9 @@
 
 #include <linux/regulator/consumer.h>
 #include <linux/workqueue.h>
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PTN36502)
+#include <linux/combo_redriver/ptn36502.h>
+#endif
 
 struct usb_notifier_platform_data {
 #if IS_ENABLED(CONFIG_CCIC_NOTIFIER) || IS_ENABLED(CONFIG_IFCONN_NOTIFIER)
@@ -60,6 +63,9 @@ struct usb_notifier_platform_data {
 
 #if IS_ENABLED(CONFIG_CCIC_NOTIFIER)
 	struct delayed_work usb_ldo_work;
+#define USB_LDOCONTROL_EXYNOS8895	1 /* legacy */
+#define USB_LDOCONTROL_EXYNOS9810	2
+#define USB_LDOCONTROL_EXYNOS9820	3
 	unsigned int usb_ldocontrol;
 	unsigned int usb_ldo_onoff;
 	bool usb_ldo_off_working;
@@ -67,6 +73,8 @@ struct usb_notifier_platform_data {
 	const char *ss_vdd;
 	const char *dp_vdd;
 #endif
+	int  host_wake_lock_enable;
+	int  device_wake_lock_enable;
 };
 
 #ifdef CONFIG_OF
@@ -107,6 +115,14 @@ static void of_get_usb_redriver_dt(struct device_node *np,
 
 	pr_info("%s, usb_ldocontrol %d\n", __func__, pdata->usb_ldocontrol);
 #endif
+	pdata->host_wake_lock_enable =
+		!(of_property_read_bool(np, "disable_host_wakelock"));
+
+	pdata->device_wake_lock_enable =
+		!(of_property_read_bool(np, "disable_device_wakelock"));
+		
+	pr_info("%s, host_wake_lock_enable %d ,device_wake_lock_enable %d\n", __func__, pdata->host_wake_lock_enable, pdata->device_wake_lock_enable);
+
 }
 
 static int of_usb_notifier_dt(struct device *dev,
@@ -263,14 +279,40 @@ static void usb_dp_regulator_onoff(struct usb_notifier_platform_data *pdata,
 	regulator_put(vdd3p3_dp);
 }
 
+static void usb_ldo_manual_control(bool on)
+{
+	struct device_node *np = NULL;
+	struct platform_device *pdev = NULL;
+
+	pr_info("%s ldo = %d\n", __func__, on);
+
+	np = exynos_udc_parse_dt();
+	if (np) {
+		pdev = of_find_device_by_node(np);
+		of_node_put(np);
+		if (pdev) {
+			pr_info("%s: get the %s platform_device\n",
+				__func__, pdev->name);
+			dwc3_exynos_start_ldo(&pdev->dev, on);
+			goto end;
+		}
+	}
+
+	pr_err("%s: failed to get the platform_device\n", __func__);
+end:
+	return;
+}
+
+extern int exynos_usbdrd_ldo_manual_control(bool on);
 static void usb_regulator_onoff(void *data, unsigned int onoff)
 {
 	struct usb_notifier_platform_data *pdata =
 		(struct usb_notifier_platform_data *)(data);
+
 	pr_info("usb: %s - Turn %s (ldocontrol=%d, usb_ldo_off_working=%d)\n", __func__,
 		onoff ? "on":"off", pdata->usb_ldocontrol, pdata->usb_ldo_off_working);
 
-	if (pdata->usb_ldocontrol) {
+	if (pdata->usb_ldocontrol == USB_LDOCONTROL_EXYNOS8895) {
 		if (onoff) {
 			if (!pdata->usb_ldo_onoff) {
 				if (pdata->usb_ldo_off_working) {
@@ -293,9 +335,12 @@ static void usb_regulator_onoff(void *data, unsigned int onoff)
 			}
 		}
 		pdata->usb_ldo_onoff = onoff;
-	} else {
+	} else if (pdata->usb_ldocontrol == USB_LDOCONTROL_EXYNOS9810)
+		usb_ldo_manual_control(onoff);
+	else if (pdata->usb_ldocontrol == USB_LDOCONTROL_EXYNOS9820)
+		exynos_usbdrd_ldo_manual_control(onoff);
+	else 
 		pr_err("%s: can't control\n", __func__);
-	}
 }
 
 static void usb_ldo_off_control(struct work_struct *work)
@@ -826,6 +871,9 @@ static int exynos_set_host(bool enable)
 #endif
 	} else {
 		pr_info("%s USB_HOST_ATTACHED\n", __func__);
+#if defined(CONFIG_COMBO_REDRIVER_PTN36502)
+		ptn36502_config(USB3_ONLY_MODE, DR_DFP);
+#endif
 #ifdef CONFIG_OF
 		check_usb_id_state(0);
 #endif
@@ -834,14 +882,23 @@ static int exynos_set_host(bool enable)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE)
+extern void set_ncm_ready(bool ready);
+#endif
 static int exynos_set_peripheral(bool enable)
 {
 	if (enable) {
 		pr_info("%s usb attached\n", __func__);
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PTN36502)
+		ptn36502_config(USB3_ONLY_MODE, DR_UFP);
+#endif
 		check_usb_vbus_state(1);
 	} else {
 		pr_info("%s usb detached\n", __func__);
 		check_usb_vbus_state(0);
+#if IS_ENABLED(CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE)
+		set_ncm_ready(false);
+#endif
 	}
 	return 0;
 }
@@ -905,7 +962,8 @@ static struct otg_notify dwc_lsi_notify = {
 	.usb_noti_done = 0,
 #endif
 	.vbus_detect_gpio = -1,
-	.is_wakelock = 0,
+	.is_host_wakelock = 1,
+	.is_wakelock = 1,
 	.booting_delay_sec = 10,
 #if !IS_ENABLED(CONFIG_CCIC_NOTIFIER)
 	.auto_drive_vbus = NOTIFY_OP_POST,
@@ -950,6 +1008,8 @@ static int usb_notifier_probe(struct platform_device *pdev)
 
 	dwc_lsi_notify.redriver_en_gpio = pdata->gpio_redriver_en;
 	dwc_lsi_notify.disable_control = pdata->can_disable_usb;
+	dwc_lsi_notify.is_host_wakelock = pdata->host_wake_lock_enable;
+	dwc_lsi_notify.is_wakelock = pdata->device_wake_lock_enable;
 	set_otg_notify(&dwc_lsi_notify);
 	set_notify_data(&dwc_lsi_notify, pdata);
 #if IS_ENABLED(CONFIG_CCIC_NOTIFIER)

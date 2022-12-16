@@ -701,10 +701,21 @@ static int decon_enable(struct decon_device *decon)
 retry_enable:
 	DPU_EVENT_LOG(DPU_EVT_UNBLANK, &decon->sd, ktime_set(0, 0));
 	decon_info("decon-%d %s +\n", decon->id, __func__);
+
+	if (decon->dt.out_type == DECON_OUT_DP) {
 #if defined(CONFIG_SEC_DISPLAYPORT_LOGGER)
-	if (decon->dt.out_type == DECON_OUT_DP)
 		dp_logger_print("decon enable\n");
 #endif
+		if (!IS_DISPLAYPORT_HPD_PLUG_STATE()) {
+#if defined(CONFIG_SEC_DISPLAYPORT_LOGGER)
+			dp_logger_print("DP is not connected\n");
+#endif
+			decon_warn("decon-2: DP is not connected\n");
+			ret = -ENODEV;
+			goto out;
+		}
+	}
+
 	ret = _decon_enable(decon, next_state);
 	if (ret < 0) {
 		decon_err("decon-%d failed to set %s (ret %d)\n",
@@ -1131,7 +1142,7 @@ int decon_update_pwr_state(struct decon_device *decon, u32 mode)
 		}
 	}
 	if (mode == DISP_PWR_OFF && decon->dt.out_type == DECON_OUT_DP
-		&& IS_DISPLAYPORT_HPD_PLUG_STATE()) {
+		&& IS_DISPLAYPORT_SWITCH_STATE()) {
 		decon_info("skip decon-%d disable(hpd plug)\n", decon->id);
 		goto out;
 	}
@@ -1888,11 +1899,11 @@ static int decon_set_dpp_config(struct decon_device *decon,
 			}
 
 			video_meta = (struct exynos_video_meta *)dma_buf_vmap(meta_dma_buf);
+			if (IS_ERR_OR_NULL(video_meta)) {
+				decon_err("%s: failed to map meta data\n", __func__);
+				goto dpp_config;
+			}
 
-#if 0
-			decon_info("DECON:%d:HDR MAX LUMA : %d\n", decon->id,
-				dpp_config.hdr_info.dst_max_luminance);
-#endif
 			dpp_config.hdr_info.type = video_meta->etype;
 
 			if (video_meta->etype & VIDEO_INFO_TYPE_HDR_DYNAMIC)
@@ -2304,6 +2315,10 @@ static int decon_set_hdr_info(struct decon_device *decon,
 #else
 	video_meta = (struct exynos_video_meta *)dma_buf_vmap(
 			regs->dma_buf_data[win_num][meta_plane].dma_buf);
+	if (IS_ERR_OR_NULL(video_meta)) {
+		decon_err("Failed to get virtual address (err %pK)\n", video_meta);
+		return -ENOMEM;
+	}
 #endif
 
 	hdr_cmp = memcmp(&decon->prev_hdr_info,
@@ -2973,7 +2988,6 @@ static int decon_set_win_config(struct decon_device *decon,
 			sizeof(struct decon_rect));
 
 	if (num_of_window) {
-		fd_install(win_data->retire_fence, sync_file->file);
 		decon_create_release_fences(decon, win_data, sync_file);
 #if !defined(CONFIG_SUPPORT_LEGACY_FENCE)
 		regs->retire_fence = dma_fence_get(sync_file->fence);
@@ -3011,6 +3025,18 @@ static int decon_set_win_config(struct decon_device *decon,
 #endif
 
 	kthread_queue_work(&decon->up.worker, &decon->up.work);
+
+	/**
+	 * The code is moved here because the DPU driver may get a wrong fd
+	 * through the released file pointer,
+	 * if the user(HWC) closes the fd and releases the file pointer.
+	 *
+	 * Since the user land can use fd from this point/time,
+	 * it can be guaranteed to use an unreleased file pointer
+	 * when creating a rel_fence in decon_create_release_fences(...)
+	 */
+	if (num_of_window)
+		fd_install(win_data->retire_fence, sync_file->file);
 
 	mutex_unlock(&decon->lock);
 	decon_systrace(decon, 'C', "decon_win_config", 0);
@@ -3852,6 +3878,10 @@ static int decon_fb_alloc_memory(struct decon_device *decon, struct decon_win *w
 	}
 
 	vaddr = dma_buf_vmap(buf);
+	if (IS_ERR_OR_NULL(vaddr)) {
+		dev_err(decon->dev, "dma_buf_vmap() failed\n");
+		goto err_map;
+	}
 #endif
 
 	memset(vaddr, 0x00, size);
@@ -3954,6 +3984,10 @@ static int decon_fb_test_alloc_memory(struct decon_device *decon, u32 size)
 	}
 
 	vaddr = dma_buf_vmap(buf);
+	if (IS_ERR_OR_NULL(vaddr)) {
+		dev_err(decon->dev, "dma_buf_vmap() failed\n");
+		goto err_map;
+	}
 #endif
 
 	memset(vaddr, 0x00, size);

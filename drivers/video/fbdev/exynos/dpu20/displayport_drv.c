@@ -2670,6 +2670,12 @@ static void displayport_aux_sel(struct displayport_device *displayport)
 
 static void displayport_check_adapter_type(struct displayport_device *displayport)
 {
+#ifdef FEATURE_DEX_ADAPTER_TWEAK
+	if (displayport->dex_skip_adapter_check) {
+		displayport->dex_adapter_type = DEX_WQHD_SUPPORT;
+		return;
+	}
+#endif
 	displayport->dex_adapter_type = DEX_FHD_SUPPORT;
 
 	if (displayport->ven_id != 0x04e8)
@@ -2678,16 +2684,6 @@ static void displayport_check_adapter_type(struct displayport_device *displaypor
 	switch(displayport->prod_id) {
 	case 0xa029: /* PAD */
 	case 0xa020: /* Station */
-	case 0xa02a:
-	case 0xa02b:
-	case 0xa02c:
-	case 0xa02d:
-	case 0xa02e:
-	case 0xa02f:
-	case 0xa030:
-	case 0xa031:
-	case 0xa032:
-	case 0xa033:
 		displayport->dex_adapter_type = DEX_WQHD_SUPPORT;
 		break;
 	};
@@ -3782,6 +3778,45 @@ not_tag_exit:
 }
 #endif
 
+#ifdef FEATURE_DEX_ADAPTER_TWEAK
+#define DEX_ADATER_TWEAK_LEN	32
+#define DEX_TAG_ADAPTER_TWEAK "SkipAdapterCheck"
+static int displayport_dex_adapter_tweak(struct displayport_device *displayport, const char *buf, size_t size)
+{
+	char str[DEX_ADATER_TWEAK_LEN] = {0,};
+	char *p, *tok;
+
+	if (size >= DEX_ADATER_TWEAK_LEN)
+		return -EINVAL;
+
+	memcpy(str, buf, size);
+	p = str;
+
+	tok = strsep(&p, ",");
+	if (strncmp(DEX_TAG_ADAPTER_TWEAK, tok, strlen(DEX_TAG_ADAPTER_TWEAK))) {
+		return -EINVAL;
+	}
+
+	tok = strsep(&p, ",");
+	if (tok == NULL || *tok == 0xa/*LF*/) {
+		displayport_info("Dex adapter tweak - Invalid value\n");
+		return 0;
+	}
+
+	switch (*tok) {
+	case '0':
+		displayport->dex_skip_adapter_check = false;
+		break;
+	case '1':
+		displayport->dex_skip_adapter_check = true;
+		break;
+	}
+	displayport_info("%s(%c)\n", __func__, *tok);
+
+	return 0;
+}
+#endif
+
 static ssize_t dex_show(struct class *class,
 		struct class_attribute *attr, char *buf)
 {
@@ -3821,6 +3856,11 @@ static ssize_t dex_store(struct class *dev,
 		return size;
 	else if (ret != -EINVAL) /* try to update HMD list but error*/
 		return ret;
+#endif
+
+#ifdef FEATURE_DEX_ADAPTER_TWEAK
+	if (!displayport_dex_adapter_tweak(displayport, buf, size))
+		return size;
 #endif
 
 	if (kstrtouint(buf, 10, &val)) {
