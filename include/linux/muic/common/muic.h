@@ -25,6 +25,10 @@
 #ifndef __MUIC_H__
 #define __MUIC_H__
 
+#define SIOP (1 << 0)
+#define AFC_REQUEST_CHARGER SIOP
+#define FLED (1 << 1)
+
 #define MUIC_CORE "MUIC_CORE"
 /* Status of IF PMIC chip (suspend and resume) */
 enum {
@@ -315,6 +319,8 @@ struct muic_platform_data {
 #if defined(CONFIG_NOVBUS_MUIC)
 	int usb_en_gpio;
 #endif
+	/* muic request afc cause */
+	int afc_request_cause;
 
 	/* muic switch dev register function for DockObserver */
 	void (*init_switch_dev_cb) (void);
@@ -541,6 +547,9 @@ int muic_set_hiccup_mode(int on_off);
 int muic_hv_charger_init(void);
 
 extern int muic_afc_set_voltage(int voltage);
+extern int muic_afc_request_voltage(int cause, int voltage);
+extern int muic_afc_request_cause_clear(void);
+extern int muic_afc_request_voltage_check(int cause, int vol);
 void muic_set_hmt_status(int status);
 int muic_core_handle_attach(struct muic_platform_data *muic_pdata,
 			muic_attached_dev_t new_dev, int adc, u8 vbvolt);

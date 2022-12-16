@@ -695,8 +695,18 @@ void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl)
 	cam_sensor_release_stream_rsc(s_ctrl);
 	cam_sensor_release_per_frame_resource(s_ctrl);
 
-	if (s_ctrl->sensor_state != CAM_SENSOR_INIT)
+	if (s_ctrl->sensor_state != CAM_SENSOR_INIT) {
+// Added for PLM P191224-07745 (suggestion from sLSI PMIC team)
+// Re-Set the PMIC voltage
+#if defined(CONFIG_LEDS_S2MU106_FLASH) || defined(CONFIG_LEDS_S2MU107_FLASH)
+		if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
+		{
+			pdo_ctrl_by_flash(0);
+			muic_afc_set_voltage(9);
+		}
+#endif
 		cam_sensor_power_down(s_ctrl);
+	}
 
 	rc = cam_destroy_device_hdl(s_ctrl->bridge_intf.device_hdl);
 	if (rc < 0)
@@ -1359,6 +1369,15 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			goto release_mutex;
 		}
 
+// Added for PLM P191224-07745 (suggestion from sLSI PMIC team)
+// Set the PMIC voltage to 5V for Flash operation on Rear Sensor
+#if defined(CONFIG_LEDS_S2MU106_FLASH) || defined(CONFIG_LEDS_S2MU107_FLASH)
+		if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
+		{
+			pdo_ctrl_by_flash(1);
+			muic_afc_set_voltage(5);
+		}
+#endif
 		s_ctrl->sensor_state = CAM_SENSOR_ACQUIRE;
 		s_ctrl->last_flush_req = 0;
 		CAM_INFO(CAM_SENSOR,
@@ -1386,6 +1405,15 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			goto release_mutex;
 		}
 
+// Added for PLM P191224-07745 (suggestion from sLSI PMIC team)
+// Re-Set the PMIC voltage
+#if defined(CONFIG_LEDS_S2MU106_FLASH) || defined(CONFIG_LEDS_S2MU107_FLASH)
+		if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
+		{
+			pdo_ctrl_by_flash(0);
+			muic_afc_set_voltage(9);
+		}
+#endif
 		rc = cam_sensor_power_down(s_ctrl);
 		if (rc < 0) {
 			CAM_ERR(CAM_SENSOR, "Sensor Power Down failed");
@@ -1690,16 +1718,6 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		return -EINVAL;
 	}
 
-// Added for PLM P191224-07745 (suggestion from sLSI PMIC team)
-// Set the PMIC voltage to 5V for Flash operation on Rear Sensor
-#if defined(CONFIG_LEDS_S2MU106_FLASH) || defined(CONFIG_LEDS_S2MU107_FLASH)
-	if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
-	{
-		pdo_ctrl_by_flash(1);
-		muic_afc_set_voltage(5);
-	}
-#endif
-
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 	if (s_ctrl != NULL) {
 		switch (s_ctrl->id) {
@@ -1851,16 +1869,6 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_ERR(CAM_SENSOR, "failed: s_ctrl %pK", s_ctrl);
 		return -EINVAL;
 	}
-
-// Added for PLM P191224-07745 (suggestion from sLSI PMIC team)
-// Re-Set the PMIC voltage
-#if defined(CONFIG_LEDS_S2MU106_FLASH) || defined(CONFIG_LEDS_S2MU107_FLASH)
-	if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
-	{
-		pdo_ctrl_by_flash(0);
-		muic_afc_set_voltage(9);
-	}
-#endif
 
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 	if (s_ctrl != NULL) {

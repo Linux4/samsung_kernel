@@ -205,6 +205,35 @@ static ssize_t show_abc_hub_bootc_offset(struct device *dev,
 	return res;
 }
 static DEVICE_ATTR(bootc_offset, 0644, show_abc_hub_bootc_offset, store_abc_hub_bootc_offset);
+
+static ssize_t store_abc_hub_bootc_time(struct device *dev,
+								struct device_attribute *attr,
+								const char *buf, size_t count)
+{
+	struct abc_hub_info *pinfo = dev_get_drvdata(dev);
+
+	if (kstrtoint(buf, 0, &(pinfo->pdata->bootc_pdata.bootc_time))) {
+		pr_err("%s: failed to get bootc_time\n", __func__);
+		pinfo->pdata->bootc_pdata.bootc_time = -1;
+		return count;
+	}
+
+	pr_info("%s: bootc_time(%d)\n", __func__, pinfo->pdata->bootc_pdata.bootc_time);
+
+	return count;
+}
+
+static ssize_t show_abc_hub_bootc_time(struct device *dev,
+				   struct device_attribute *attr,
+				   char *buf)
+{
+	struct abc_hub_info *pinfo = dev_get_drvdata(dev);
+
+	int res = sprintf(buf, "%d\n", pinfo->pdata->bootc_pdata.bootc_time);
+
+	return res;
+}
+static DEVICE_ATTR(bootc_time, 0644, show_abc_hub_bootc_time, store_abc_hub_bootc_time);
 #endif
 
 int abc_hub_get_enabled(void)
@@ -317,6 +346,13 @@ static int abc_hub_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err_create_abc_hub_bootc_offset_sysfs;
 	}
+
+	ret = device_create_file(pinfo->dev, &dev_attr_bootc_time);
+	if (ret) {
+		pr_err("%s: Failed to create device bootc_time file\n", __func__);
+		ret = -ENODEV;
+		goto err_create_abc_hub_bootc_time_sysfs;
+	}
 #endif
 
 	pinfo->pdata = pdata;
@@ -347,6 +383,8 @@ static int abc_hub_probe(struct platform_device *pdev)
 	return ret;
 
 #ifdef CONFIG_SEC_ABC_HUB_BOOTC
+err_create_abc_hub_bootc_time_sysfs:
+	device_remove_file(pinfo->dev, &dev_attr_bootc_offset);
 err_create_abc_hub_bootc_offset_sysfs:
 	device_remove_file(pinfo->dev, &dev_attr_enable);
 #endif

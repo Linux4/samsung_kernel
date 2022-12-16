@@ -570,10 +570,11 @@ static policy_state sm5714_usbpd_policy_snk_discovery(
 		struct sm5714_policy_data *policy)
 {
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
+	struct sm5714_phydrv_data *pdic_data = pd_data->phy_driver_data;
 	/* ST_PE_SNK_DISCOVERY */
 	sm5714_cc_state_hold_on_off(pd_data, 0); /* CC State Hold Off */
 
-	if (sm5714_check_vbus_state(pd_data)) {
+	if (sm5714_check_vbus_state(pd_data) || pdic_data->pd_support) {
 		sm5714_set_enable_pd_function(pd_data, PD_ENABLE);
 		return PE_SNK_Wait_for_Capabilities;
 	}
@@ -585,6 +586,9 @@ static policy_state sm5714_usbpd_policy_snk_wait_for_capabilities(
 		struct sm5714_policy_data *policy)
 {
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
+#if !defined(CONFIG_SEC_FACTORY)
+	struct sm5714_phydrv_data *pdic_data = pd_data->phy_driver_data;
+#endif
 
 	dev_info(pd_data->dev, "%s\n", __func__);
 
@@ -596,7 +600,7 @@ static policy_state sm5714_usbpd_policy_snk_wait_for_capabilities(
 		return PE_SNK_Wait_for_Capabilities;
 #if !defined(CONFIG_SEC_FACTORY)
 	if (pd_data->counter.hard_reset_counter <= USBPD_nHardResetCount) {
-		if (!sm5714_check_vbus_state(pd_data)) {
+		if (!sm5714_check_vbus_state(pd_data) && !pdic_data->pd_support) {
 			sm5714_set_enable_pd_function(pd_data, PD_DISABLE);
 			return PE_SNK_Discovery;
 		}
@@ -1385,9 +1389,6 @@ static policy_state sm5714_usbpd_policy_prs_src_snk_wait_source_on(
 				complete(&pdic_data->typec_reverse_completion);
 			}
 #endif
-			msleep(tSwapSinkReady);
-			if (!sm5714_check_vbus_state(pd_data))
-				return Error_Recovery;
 			return PE_SNK_Startup;
 		}
 		if (policy->abnormal_state) /* Detach */

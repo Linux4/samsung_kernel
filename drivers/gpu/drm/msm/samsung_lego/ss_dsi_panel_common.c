@@ -4963,6 +4963,19 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 	LCD_INFO("aot_enable : %s\n",
 		vdd->aot_enable ? "aot_enable support" : "aot_enable doesn't support");
 
+	vdd->aot_reset_regulator = of_property_read_bool(np, "samsung,aot_reset_regulator");
+	LCD_INFO("aot_reset_regulator : %s\n",
+		vdd->aot_reset_regulator ? "aot_reset_regulator enabled" : "Not aot_reset_regulator");
+
+	vdd->aot_reset_regulator_late = of_property_read_bool(np, "samsung,aot_reset_regulator_late");
+	LCD_INFO("aot_reset_regulator_late : %s\n",
+		vdd->aot_reset_regulator_late ? "aot_reset_regulator LATE enabled" : "Not aot_reset_regulator LATE");
+
+	/* TDDI, touch notify esd when no esd gpio from ddi */
+	vdd->esd_touch_notify = of_property_read_bool(np, "samsung,esd_touch_notify");
+	LCD_INFO("esd_touch_notify is %s\n",
+			vdd->esd_touch_notify ? "enabled" : "Not supported");
+
 	/* Read module ID at probe timing */
 	vdd->support_early_id_read = of_property_read_bool(np, "samsung,support_early_id_read");
 	LCD_INFO("support_early_id_read : %s\n",
@@ -5017,6 +5030,10 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 	vdd->lp11_sleep_ms_time = (!rc ? tmp[0] : 0);
 	LCD_INFO("lp11_sleep_ms_time : %d\n",
 		vdd->lp11_sleep_ms_time);
+
+	/* skip DSI_CMD_SET_ON durning splash booting */
+	vdd->skip_cmd_set_on_splash_enabled = of_property_read_bool(np, "samsung,skip_cmd_set_on_splash_enabled");
+	LCD_INFO("skip_cmd_set_on_splash_enabled [%s]\n", vdd->skip_cmd_set_on_splash_enabled ? "enabled" : "disabled");
 
 	/* (mafpc) (self_display) (test_mode) have dependent dtsi file */
 	ss_mafpc_parse_dt(vdd);
@@ -7406,6 +7423,10 @@ int samsung_panel_initialize(char *panel_string, unsigned int ndx)
 #if defined(CONFIG_PANEL_EA8076GA_AMS638VL01_FHD)
 	else if (!strncmp(panel_string, "ss_dsi_panel_EA8076GA_AMS638VL01_FHD", strlen(panel_string)))
 		vdd->panel_func.samsung_panel_init = EA8076GA_AMS638VL01_FHD_init;
+#endif
+#if defined(CONFIG_PANEL_HX83102_TV104WUM_WUXGA)
+	else if (!strncmp(panel_string, "ss_dsi_panel_HX83102_TV104WUM_WUXGA", strlen(panel_string)))
+		vdd->panel_func.samsung_panel_init = HX83102_TV104WUM_WUXGA_init;
 #endif
 	else {
 		LCD_ERR("%s not found\n", panel_string);

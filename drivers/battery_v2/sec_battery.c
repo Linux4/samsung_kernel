@@ -1298,6 +1298,8 @@ int sec_bat_set_charging_current(struct sec_battery_info *battery)
 		if (battery->current_event & SEC_BAT_CURRENT_EVENT_HV_DISABLE) {
 			if (battery->charge_power > battery->pdata->nv_charge_power)
 				battery->charge_power = battery->pdata->nv_charge_power;
+			if (battery->max_charge_power > battery->pdata->nv_charge_power)
+				battery->max_charge_power = battery->pdata->nv_charge_power;
 		}
 
 		if (battery->charge_power > battery->max_charge_power)

@@ -693,7 +693,9 @@ struct mmc_host {
 
 	bool sdr104_wa;
 	unsigned int            card_detect_cnt;
-
+#if defined(CONFIG_SEC_ABC)
+	unsigned int            card_removed_cnt;
+#endif
 	/*
 	 * Set to 1 to just stop the SDCLK to the card without
 	 * actually disabling the clock from it's source.

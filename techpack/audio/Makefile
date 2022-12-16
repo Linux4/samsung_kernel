@@ -30,6 +30,8 @@ else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),m42q))
 include $(srctree)/techpack/audio/4.0/config/sm7125_m42.conf
 else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),a72q))
 include $(srctree)/techpack/audio/4.0/config/sm7125_a72.conf
+else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),gta4xlve gta4xlvewifi))
+include $(srctree)/techpack/audio/4.0/config/sm7125_gta4xlve.conf
 else
 include $(srctree)/techpack/audio/4.0/config/atollauto.conf
 endif
@@ -116,6 +118,9 @@ LINUXINCLUDE    += \
 else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),a72q))
 LINUXINCLUDE    += \
                 -include $(srctree)/techpack/audio/4.0/config/sm7125_a72.h
+else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),gta4xlve gta4xlvewifi))
+LINUXINCLUDE    += \
+                -include $(srctree)/techpack/audio/4.0/config/sm7125_gta4xlve.h
 else
 LINUXINCLUDE    += \
                 -include $(srctree)/techpack/audio/4.0/config/atollautoconf.h

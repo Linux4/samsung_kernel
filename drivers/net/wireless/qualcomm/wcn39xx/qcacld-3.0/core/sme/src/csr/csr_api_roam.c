@@ -8593,6 +8593,7 @@ QDF_STATUS csr_roam_copy_profile(struct mac_context *mac,
 		pDstProfile->extended_rates.numRates =
 			pSrcProfile->extended_rates.numRates;
 	}
+	pDstProfile->require_h2e = pSrcProfile->require_h2e;
 	pDstProfile->cac_duration_ms = pSrcProfile->cac_duration_ms;
 	pDstProfile->dfs_regdomain   = pSrcProfile->dfs_regdomain;
 	pDstProfile->chan_switch_hostapd_rate_enabled  =
@@ -14519,6 +14520,7 @@ csr_roam_get_bss_start_parms(struct mac_context *mac,
 	uint32_t opr_ch_freq = 0;
 	tSirNwType nw_type;
 	uint32_t tmp_opr_ch_freq = 0;
+	uint8_t h2e;
 	tSirMacRateSet *opr_rates = &pParam->operationalRateSet;
 	tSirMacRateSet *ext_rates = &pParam->extendedRateSet;
 
@@ -14615,6 +14617,22 @@ csr_roam_get_bss_start_parms(struct mac_context *mac,
 			break;
 		}
 		pParam->operation_chan_freq = opr_ch_freq;
+	}
+
+	if (pProfile->require_h2e) {
+		h2e = WLAN_BASIC_RATE_MASK |
+			WLAN_BSS_MEMBERSHIP_SELECTOR_SAE_H2E;
+		if (ext_rates->numRates < SIR_MAC_MAX_NUMBER_OF_RATES) {
+			ext_rates->rate[ext_rates->numRates] = h2e;
+			ext_rates->numRates++;
+			sme_debug("H2E bss membership add to ext support rate");
+		} else if (opr_rates->numRates < SIR_MAC_MAX_NUMBER_OF_RATES) {
+			opr_rates->rate[opr_rates->numRates] = h2e;
+			opr_rates->numRates++;
+			sme_debug("H2E bss membership add to support rate");
+		} else {
+			sme_err("rates full, can not add H2E bss membership");
+		}
 	}
 
 	pParam->sirNwType = nw_type;
@@ -19826,6 +19844,7 @@ csr_roam_switch_to_deinit(struct mac_context *mac, uint8_t vdev_id,
 			  uint8_t reason)
 {
 	QDF_STATUS status;
+	bool sup_disabled_roam;
 	enum roam_offload_state cur_state = mlme_get_roam_state(mac->psoc,
 								vdev_id);
 	switch (cur_state) {
@@ -19833,6 +19852,28 @@ csr_roam_switch_to_deinit(struct mac_context *mac, uint8_t vdev_id,
 		csr_roam_switch_to_rso_stop(mac, vdev_id, reason);
 		break;
 	case ROAM_RSO_STOPPED:
+		/*
+		 * When Supplicant disabled roaming is set and roam invoke
+		 * command is received from userspace, fw starts to roam.
+		 * But meanwhile if a disassoc/deauth is received from AP or if
+		 * NB disconnect is initiated while supplicant disabled roam,
+		 * RSO stop with ROAM scan mode as 0 is not sent to firmware
+		 * since the previous state was RSO_STOPPED. This could lead
+		 * to firmware not sending peer unmap event for the current
+		 * AP. To avoid this, if previous RSO stop was sent with
+		 * ROAM scan mode as 4, send RSO stop with Roam scan mode as 0
+		 * and then switch to ROAM_DEINIT.
+		 */
+		sup_disabled_roam =
+			mlme_get_supplicant_disabled_roaming(mac->psoc,
+							     vdev_id);
+		if (sup_disabled_roam) {
+			sme_debug("vdev[%d]: supplicant disabled roam. clear roam scan mode",
+				  vdev_id);
+			csr_post_rso_stop(mac, vdev_id, REASON_DISCONNECTED);
+		}
+        break;
+
 	case ROAM_INIT:
 		break;
 

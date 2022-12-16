@@ -318,6 +318,25 @@ SEC_M42Q_USA_DTBO := \
 		atoll-sec-m42q-usa-overlay-r02.dtbo \
 		atoll-sec-m42q-usa-overlay-r04.dtbo \
 		atoll-sec-m42q-usa-overlay-r06.dtbo
+# GTA4XLVE EUR
+SEC_GTA4XLVE_EUR_DTBO := \
+		atoll-sec-gta4xlve-eur-overlay-r00.dtbo
+
+# GTA4XLVEWIFI EUR
+SEC_GTA4XLVEWIFI_EUR_DTBO := \
+		atoll-sec-gta4xlvewifi-eur-overlay-r00.dtbo
+# GTA4XLVE KOR
+SEC_GTA4XLVE_KOR_DTBO := \
+		atoll-sec-gta4xlve-kor-overlay-r00.dtbo
+
+# GTA4XLVE CHN
+SEC_GTA4XLVE_CHN_DTBO := \
+		atoll-sec-gta4xlve-chn-overlay-r00.dtbo
+
+
+# GTA4XLVEWIFI CHN
+SEC_GTA4XLVEWIFI_CHN_DTBO := \
+		atoll-sec-gta4xlvewifi-chn-overlay-r00.dtbo
 
 define __sec_dtbo_build
 dtbo-$(2) += $(1)
@@ -444,6 +463,21 @@ $(eval $(call sec_dtbo_build, \
 
 $(eval $(call sec_dtbo_build, \
 		$(SEC_M42Q_USA_DTBO),$(CONFIG_SEC_M42Q_USA_OPEN),$(SEC_ATOLL_BASE_DTB)))
+
+$(eval $(call sec_dtbo_build, \
+		$(SEC_GTA4XLVE_EUR_DTBO),$(CONFIG_SEC_GTA4XLVE_EUR_OPEN),$(SEC_ATOLL_BASE_DTB)))
+
+$(eval $(call sec_dtbo_build, \
+		$(SEC_GTA4XLVEWIFI_EUR_DTBO),$(CONFIG_SEC_GTA4XLVEWIFI_EUR_OPEN),$(SEC_ATOLL_BASE_DTB)))
+
+$(eval $(call sec_dtbo_build, \
+		$(SEC_GTA4XLVE_KOR_DTBO),$(CONFIG_SEC_GTA4XLVE_KOR_OPEN),$(SEC_ATOLL_BASE_DTB)))
+
+$(eval $(call sec_dtbo_build, \
+		$(SEC_GTA4XLVE_CHN_DTBO),$(CONFIG_SEC_GTA4XLVE_CHN_OPEN),$(SEC_ATOLL_BASE_DTB)))
+
+$(eval $(call sec_dtbo_build, \
+		$(SEC_GTA4XLVEWIFI_CHN_DTBO),$(CONFIG_SEC_GTA4XLVEWIFI_CHN_OPEN),$(SEC_ATOLL_BASE_DTB)))
 endif
 
 ifeq ($(CONFIG_ARM64),y)

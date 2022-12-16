@@ -443,6 +443,40 @@ void sm5714_short_state_check(void *_data)
 #endif
 	}
 }
+#if !defined(CONFIG_SEC_FACTORY) && defined(CONFIG_SM5714_WATER_DETECTION_ENABLE)
+static int sm5714_saline_water_check(void *data)
+{
+	struct sm5714_phydrv_data *pdic_data = data;
+	struct i2c_client *i2c = pdic_data->i2c;
+	u8 cc_status = 0, adc_sbu1 = 0, adc_sbu2 = 0;
+	int ret = 0;
+
+	sm5714_usbpd_read_reg(i2c, SM5714_REG_CC_STATUS, &cc_status);
+
+	if (((cc_status & SM5714_ATTACH_TYPE) == SM5714_ATTACH_SOURCE) ||
+			((cc_status & SM5714_ATTACH_TYPE) == SM5714_ATTACH_UN_ORI_DEBUG_SOURCE) ||
+			((cc_status & SM5714_ATTACH_TYPE) == SM5714_ATTACH_ORI_DEBUG_SOURCE))
+		goto out;
+
+	pr_info("%s, cc_status : 0x%x\n", __func__, cc_status);
+	sm5714_corr_sbu_volt_read(pdic_data, &adc_sbu1, &adc_sbu2,
+			SBU_SOURCING_OFF);
+
+	if ((adc_sbu1 >= 0x4) && (adc_sbu2 >= 0x4)) {
+		sm5714_usbpd_write_reg(i2c, SM5714_REG_CC_CNTL3, 0x00);
+
+		sm5714_usbpd_write_reg(i2c, 0x93, 0x02);
+		sm5714_usbpd_write_reg(i2c, 0x93, 0x00);
+		sm5714_usbpd_write_reg(i2c, 0x93, 0x02);
+		sm5714_usbpd_write_reg(i2c, 0x93, 0x00);
+
+		sm5714_usbpd_write_reg(i2c, SM5714_REG_CC_CNTL3, 0x80);
+		ret = 1;
+	}
+out:
+	return ret;
+}
+#endif
 #endif
 
 static void sm5714_check_cc_state(struct sm5714_phydrv_data *pdic_data)
@@ -3035,6 +3069,11 @@ static irqreturn_t sm5714_pdic_irq_thread(int irq, void *data)
 	}
 
 	if (sm5714_get_status(pd_data, PLUG_ATTACH)) {
+#if !defined(CONFIG_SEC_FACTORY) && defined(CONFIG_SM5714_WATER_DETECTION_ENABLE)
+		if (!lpcharge &&
+				sm5714_saline_water_check(pdic_data))
+			goto out;
+#endif
 		pr_info("%s PLUG_ATTACHED +++\n", __func__);
 		rid_status = sm5714_get_status(pd_data, MSG_RID);
 		ret = sm5714_usbpd_notify_attach(pdic_data);
@@ -3169,9 +3208,14 @@ static void sm5714_power_off_water_check(struct sm5714_phydrv_data *_data)
 		return;
 
 	sm5714_corr_sbu_volt_read(_data, &adc_sbu1, &adc_sbu2, SBU_SOURCING_OFF);
-	if (adc_sbu1 > 0xA && adc_sbu2 > 0xA) {
+	if (adc_sbu1 > 0x24 && adc_sbu2 > 0x24) {
 		_data->is_water_detect = true;
 		sm5714_process_cc_water_det(_data, WATER_MODE_ON);
+		/* Enter water state */
+		sm5714_usbpd_write_reg(i2c, 0x93, 0x02);
+		sm5714_usbpd_write_reg(i2c, 0x93, 0x00);
+		sm5714_usbpd_write_reg(i2c, 0x93, 0x02);
+		sm5714_usbpd_write_reg(i2c, 0x93, 0x00);
 		pr_info("%s, TA with water.\n", __func__);
 		return;
 	} else if (adc_sbu1 > 0x3E || adc_sbu2 > 0x3E) {
@@ -3182,6 +3226,11 @@ static void sm5714_power_off_water_check(struct sm5714_phydrv_data *_data)
 		}
 		_data->is_water_detect = true;
 		sm5714_process_cc_water_det(_data, WATER_MODE_ON);
+		/* Enter water state */
+		sm5714_usbpd_write_reg(i2c, 0x93, 0x02);
+		sm5714_usbpd_write_reg(i2c, 0x93, 0x00);
+		sm5714_usbpd_write_reg(i2c, 0x93, 0x02);
+		sm5714_usbpd_write_reg(i2c, 0x93, 0x00);
 		pr_info("%s, TA with water.\n", __func__);
 		return;
 	}

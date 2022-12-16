@@ -188,7 +188,7 @@ static struct smtc_reg_data setup_reg[] = {
     },
     {
         .reg = SX9360_PROXCTRL3_REG,
-        .val = 0x0C,
+        .val = 0x0D, //Average Positive Filter Strength 1-1/512
     },
     {
         .reg = SX9360_PROXCTRL4_REG,

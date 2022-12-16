@@ -190,7 +190,7 @@ char *sec_bat_rx_type_str[] = {
 	"SS Buds",
 };
 #if defined(CONFIG_USE_MUIC)
-extern int muic_afc_set_voltage(int vol);
+extern int muic_afc_request_voltage(int cause, int voltage);
 #endif
 //extern int muic_hv_charger_disable(bool en);
 
@@ -771,7 +771,7 @@ static bool sec_bat_change_vbus(struct sec_battery_info *battery)
 			battery->chg_limit = false;
 			battery->vbus_chg_by_siop = target_vbus;
 #if defined(CONFIG_USE_MUIC)
-			muic_afc_set_voltage(target_vbus);
+			muic_afc_request_voltage(AFC_REQUEST_CHARGER, target_vbus);
 #endif
 
 			pr_info("%s: vbus set %dV by level(%d), Cable(%s, %s, %d, %d)\n",
@@ -2075,8 +2075,7 @@ bool sec_bat_check_full(struct sec_battery_info *battery, int full_check_type)
 
 	case SEC_BATTERY_FULLCHARGED_FG_CURRENT:
 		if ((battery->current_now > 0 && battery->current_now <
-			((battery->swelling_mode == false) ?
-				battery->pdata->full_check_current_1st : battery->topoff_condition)) &&
+			battery->topoff_condition) &&
 			(battery->current_avg > 0 && battery->current_avg <
 			battery->topoff_condition)) {
 				battery->full_check_cnt++;
@@ -2197,7 +2196,7 @@ bool sec_bat_check_full(struct sec_battery_info *battery, int full_check_type)
 	}
 
 #if defined(CONFIG_BATTERY_CISD)
-	if (ret && battery->swelling_mode) {
+	if (ret && (battery->current_event & SEC_BAT_CURRENT_EVENT_SWELLING_MODE)) {
 		battery->cisd.data[CISD_DATA_SWELLING_FULL_CNT]++;
 		battery->cisd.data[CISD_DATA_SWELLING_FULL_CNT_PER_DAY]++;
 	}
@@ -2271,7 +2270,7 @@ static void sec_bat_do_fullcharged(
 			battery->vbus_chg_by_full = true;
 			battery->vbus_chg_by_siop = SEC_INPUT_VOLTAGE_5V;
 #if defined(CONFIG_USE_MUIC)
-			muic_afc_set_voltage(SEC_INPUT_VOLTAGE_5V);
+			muic_afc_request_voltage(AFC_REQUEST_CHARGER, SEC_INPUT_VOLTAGE_5V);
 #endif
 			pr_info("%s: vbus is set 5V by 2nd full\n", __func__);
 		}
@@ -2701,12 +2700,12 @@ void sec_bat_get_battery_info(struct sec_battery_info *battery)
 		battery->current_avg, battery->current_adc);
 #else
 	pr_info("%s:Vnow(%dmV),Vavg(%dmV),Inow(%dmA),Iavg(%dmA),Isysavg(%dmA),Imax(%dmA),Ichg(%dmA),SOC(%d%%),"
-		"Tbat(%d),Tusb(%d),Tchg(%d),Twpc(%d),Tdchg(%d)\n", __func__,
+		"Tbat(%d),Tusb(%d),Tchg(%d),Twpc(%d),Tdchg(%d),Tblkt(%d)\n", __func__,
 		battery->voltage_now, battery->voltage_avg, battery->current_now,
 		battery->current_avg, battery->current_sys_avg,
 		battery->current_max, battery->charging_current,
 		battery->capacity, battery->temperature,
-		battery->usb_temp, battery->chg_temp, battery->wpc_temp, battery->dchg_temp
+		battery->usb_temp, battery->chg_temp, battery->wpc_temp, battery->dchg_temp, battery->blkt_temp
 	);
 #endif
 
@@ -3245,7 +3244,7 @@ static void sec_bat_check_slowcharging_work(struct work_struct *work)
 		battery->cable_type == SEC_BATTERY_CABLE_USB) {
 		if (!get_usb_enumeration_state() &&
 			(battery->current_event & SEC_BAT_CURRENT_EVENT_USB_100MA)) {
-			sec_bat_set_misc_event(battery, BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE, BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE);
+			battery->usb_slow_chg = true;
 			battery->max_charge_power = battery->input_voltage * battery->current_max;
 		}
 	}
@@ -3996,7 +3995,7 @@ static void sec_bat_wpc_tx_work(struct work_struct *work)
 		if (is_hv_wire_type(battery->wire_status)) {
 			pr_info("@Tx_Mode %s : charging voltage change(9V -> 5V).\n", __func__);
 #if defined(CONFIG_USE_MUIC)
-			muic_afc_set_voltage(SEC_INPUT_VOLTAGE_5V);
+			muic_afc_request_voltage(AFC_REQUEST_CHARGER, SEC_INPUT_VOLTAGE_5V);
 #endif
 			break;
 		}
@@ -4042,7 +4041,7 @@ static void sec_bat_wpc_tx_work(struct work_struct *work)
 		if (is_hv_wire_type(battery->wire_status)) {
 			pr_info("@Tx_Mode %s : charging voltage change(9V -> 5V).\n", __func__);
 #if defined(CONFIG_USE_MUIC)
-			muic_afc_set_voltage(SEC_INPUT_VOLTAGE_5V);
+			muic_afc_request_voltage(AFC_REQUEST_CHARGER, SEC_INPUT_VOLTAGE_5V);
 #endif
 			break;
 #if defined(CONFIG_PDIC_NOTIFIER)
@@ -4070,7 +4069,7 @@ static void sec_bat_wpc_tx_work(struct work_struct *work)
 		 if (battery->wire_status == SEC_BATTERY_CABLE_HV_TA_CHG_LIMIT) {
 			pr_info("@Tx_Mode %s : charging voltage change(5V -> 9V)\n", __func__);
 #if defined(CONFIG_USE_MUIC)
-			muic_afc_set_voltage(SEC_INPUT_VOLTAGE_9V);
+			muic_afc_request_voltage(AFC_REQUEST_CHARGER, SEC_INPUT_VOLTAGE_9V);
 #endif
 			break;
 #if defined(CONFIG_PDIC_NOTIFIER)
@@ -4483,7 +4482,6 @@ static void sec_bat_cable_work(struct work_struct *work)
 		battery->thermal_zone = BAT_THERMAL_NORMAL;
 		battery->chg_limit = false;
 		battery->mix_limit = false;
-		battery->swelling_mode = false;
 		battery->chg_limit_recovery_cable = SEC_BATTERY_CABLE_NONE;
 		battery->wc_heating_start_time = 0;
 		battery->health = POWER_SUPPLY_HEALTH_GOOD;
@@ -4536,6 +4534,7 @@ static void sec_bat_cable_work(struct work_struct *work)
 		/* Discharging has 100mA current unlike non LEGO model */
 		sec_vote(battery->fcc_vote, VOTER_USB_100MA, true, 100);
 		sec_vote(battery->input_vote, VOTER_USB_100MA, true, 100);
+		battery->usb_slow_chg = false;
 	} else if (is_slate_mode(battery)) {
 		int j = 0;
 
@@ -4562,8 +4561,6 @@ static void sec_bat_cable_work(struct work_struct *work)
 			sec_vote(battery->fcc_vote, j, false, 0);
 			sec_vote(battery->fv_vote, j, false, 0);
 		}
-
-		battery->swelling_mode = SWELLING_MODE_NONE;
 		sec_bat_set_charging_status(battery,
 			POWER_SUPPLY_STATUS_DISCHARGING);
 	} else if (battery->current_event & SEC_BAT_CURRENT_EVENT_USB_SUSPENDED) {
@@ -4577,7 +4574,6 @@ static void sec_bat_cable_work(struct work_struct *work)
 		battery->is_sysovlo = false;
 		battery->is_vbatovlo = false;
 		battery->is_abnormal_temp = false;
-		battery->swelling_mode = SWELLING_MODE_NONE;
 		sec_bat_set_charging_status(battery,
 			POWER_SUPPLY_STATUS_DISCHARGING);
 		if (battery->current_event & SEC_BAT_CURRENT_EVENT_USB_SUSPENDED) {
@@ -4601,10 +4597,9 @@ static void sec_bat_cable_work(struct work_struct *work)
 				POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN, val);
 #endif
 		dev_info(battery->dev,
-			"%s: c: %d, ov: %d, at: %d, cb: %d, sm: %d\n", __func__,
+			"%s: c: %d, ov: %d, at: %d, cb: %d, tz: %d\n", __func__,
 			battery->cable_type, battery->is_vbatovlo, battery->is_abnormal_temp,
-			battery->charging_block, battery->swelling_mode);
-
+			battery->charging_block, battery->thermal_zone);
 		if (battery->pdata->full_check_type !=
 				SEC_BATTERY_FULLCHARGED_NONE)
 			battery->charging_mode =
@@ -4988,7 +4983,7 @@ static int sec_bat_set_property(struct power_supply *psy,
 						sec_vote(battery->input_vote, VOTER_USB_100MA, true, 100);
 					}
 				} else if ((val->intval == USB_CURRENT_HIGH_SPEED) || (val->intval == USB_CURRENT_SUPER_SPEED)) {
-					sec_bat_set_misc_event(battery, 0, BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE);
+					battery->usb_slow_chg = false;
 					sec_vote(battery->fcc_vote, VOTER_USB_100MA, false, 0);
 					sec_vote(battery->input_vote, VOTER_USB_100MA, false, 0);
 					if (val->intval == USB_CURRENT_HIGH_SPEED) {
@@ -5024,7 +5019,7 @@ static int sec_bat_set_property(struct power_supply *psy,
 					}
 #endif
 				} else if (val->intval == USB_CURRENT_SUSPENDED) {
-					sec_bat_set_misc_event(battery, 0, BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE);
+					battery->usb_slow_chg = false;
 					sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_USB_SUSPENDED, SEC_BAT_CURRENT_EVENT_USB_STATE);
 					sec_vote(battery->chgen_vote, VOTER_SUSPEND, true, SEC_BAT_CHG_MODE_BUCK_OFF);
 					sec_vote(battery->fcc_vote, VOTER_USB_100MA, false, 0); // need to check
@@ -5208,6 +5203,8 @@ static int sec_bat_get_property(struct power_supply *psy,
 			val->intval = POWER_SUPPLY_CHARGE_TYPE_NONE;
 		} else if (is_hv_wire_type(battery->cable_type) || is_pd_wire_type(battery->cable_type)) {
 			val->intval = POWER_SUPPLY_CHARGE_TYPE_FAST;
+		} else if (battery->usb_slow_chg) {
+			val->intval = POWER_SUPPLY_CHARGE_TYPE_SLOW;
 		} else {
 			psy_do_property(battery->pdata->charger_name, get,
 				POWER_SUPPLY_PROP_CHARGE_TYPE, value);
@@ -5339,7 +5336,7 @@ static int sec_bat_get_property(struct power_supply *psy,
 		val->intval = ttf_display(battery);
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT:
-		if (battery->swelling_mode)
+		if (battery->current_event & SEC_BAT_CURRENT_EVENT_SWELLING_MODE)
 			val->intval = 1;
 		else
 			val->intval = 0;
@@ -5548,7 +5545,7 @@ void sec_wireless_set_tx_enable(struct sec_battery_info *battery, bool wc_tx_ena
 		if (is_hv_wire_type(battery->wire_status)) {
 #endif
 #if defined(CONFIG_USE_MUIC)
-			muic_afc_set_voltage(SEC_INPUT_VOLTAGE_5V);
+			muic_afc_request_voltage(AFC_REQUEST_CHARGER, SEC_INPUT_VOLTAGE_5V);
 #endif
 #if defined(CONFIG_PDIC_NOTIFIER)
 		} else if (is_pd_wire_type(battery->wire_status) && battery->hv_pdo) {
@@ -5602,7 +5599,7 @@ void sec_wireless_set_tx_enable(struct sec_battery_info *battery, bool wc_tx_ena
 
 		if (is_hv_wire_type(battery->cable_type)) {
 #if defined(CONFIG_USE_MUIC)
-			muic_afc_set_voltage(SEC_INPUT_VOLTAGE_9V);
+			muic_afc_request_voltage(AFC_REQUEST_CHARGER, SEC_INPUT_VOLTAGE_9V);
 #endif
 		}
 
@@ -5797,7 +5794,7 @@ static int sec_wireless_set_property(struct power_supply *psy,
 					if (is_hv_wire_type(battery->wire_status)) {
 						pr_info("@Tx_Mode %s : charging voltage change(9V -> 5V).\n", __func__);
 #if defined(CONFIG_USE_MUIC)
-						muic_afc_set_voltage(SEC_INPUT_VOLTAGE_5V);
+						muic_afc_request_voltage(AFC_REQUEST_CHARGER, SEC_INPUT_VOLTAGE_5V);
 #endif
 						break; /* do not set buck off/uno off untill vbus level get real 5V */
 #if defined(CONFIG_PDIC_NOTIFIER)
@@ -7213,7 +7210,6 @@ static int sec_battery_probe(struct platform_device *pdev)
 	battery->dchg_temp = 0;
 	battery->blkt_temp = 0;
 	battery->skip_swelling = false;
-	battery->swelling_mode = false;
 	battery->bat_thm_count = 0;
 	battery->led_cover = 0;
 	battery->hiccup_status = 0;
@@ -7274,6 +7270,7 @@ static int sec_battery_probe(struct platform_device *pdev)
 #endif
 #endif
 	battery->batt_full_capacity = 0;
+	battery->usb_slow_chg = false;
 
 	/* Check High Voltage charging option for wireless charging */
 	/* '1' means disabling High Voltage charging */

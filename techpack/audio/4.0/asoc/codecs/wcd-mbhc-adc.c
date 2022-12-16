@@ -52,7 +52,6 @@ static int wcd_mbhc_get_micbias(struct wcd_mbhc *mbhc)
 		 __func__, vout_ctl, micbias);
 
 	return micbias;
-
 }
 
 static int wcd_get_voltage_from_adc(u8 val, int micbias)
@@ -599,6 +598,10 @@ static void wcd_mbhc_adc_detect_plug_type(struct wcd_mbhc *mbhc)
 	/* disable MIC_CLAMP */
 	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_MIC_CLAMP_CTL, 0);
 
+	/* disable surge protection */
+	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_EN_SURGE_PROTECTION_HPHL, 0);
+	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_EN_SURGE_PROTECTION_HPHR, 0);
+
 	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_DETECTION_DONE, 0);
 
 	if (mbhc->mbhc_cb->mbhc_micbias_control) {
@@ -716,10 +719,10 @@ static int wcd_mbhc_get_plug_from_adc(struct wcd_mbhc *mbhc, int adc_result)
 #ifdef CONFIG_SEC_FACTORY
 			plug_type = MBHC_PLUG_TYPE_HEADSET;
 #else
-		plug_type = MBHC_PLUG_TYPE_HIGH_HPH;
+			plug_type = MBHC_PLUG_TYPE_HIGH_HPH;
 #endif
-	else
-		plug_type = MBHC_PLUG_TYPE_HEADSET;
+		else
+			plug_type = MBHC_PLUG_TYPE_HEADSET;
 	} else
 		plug_type = MBHC_PLUG_TYPE_HEADSET;
 	pr_info("%s: plug type is %d found\n", __func__, plug_type);
@@ -931,7 +934,7 @@ correct_plug_type:
 #ifdef CONFIG_SEC_FACTORY
 				plug_type = MBHC_PLUG_TYPE_HEADSET;
 #else
-			plug_type = MBHC_PLUG_TYPE_HIGH_HPH;
+				plug_type = MBHC_PLUG_TYPE_HIGH_HPH;
 #endif
 			else
 				plug_type = MBHC_PLUG_TYPE_HEADSET;
@@ -1087,6 +1090,9 @@ exit:
 
 	if (mbhc->mbhc_cb->hph_pull_down_ctrl)
 		mbhc->mbhc_cb->hph_pull_down_ctrl(codec, true);
+	/* enable surge protection */
+	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_EN_SURGE_PROTECTION_HPHL, 1);
+	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_EN_SURGE_PROTECTION_HPHR, 1);
 
 	mbhc->mbhc_cb->lock_sleep(mbhc, false);
 	pr_debug("%s: leave\n", __func__);

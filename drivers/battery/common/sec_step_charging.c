@@ -39,7 +39,7 @@ void sec_bat_exit_step_charging(struct sec_battery_info *battery)
 	sec_vote(battery->fcc_vote, VOTER_STEP_CHARGE, true,
 				battery->pdata->step_charging_current[battery->step_charging_step-1]);
 	if ((battery->step_charging_type & STEP_CHARGING_CONDITION_FLOAT_VOLTAGE) &&
-		(battery->swelling_mode == SWELLING_MODE_NONE)) {
+		(battery->thermal_zone == BAT_THERMAL_NORMAL)) {
 		union power_supply_propval val;
 	
 		pr_info("%s : float voltage = %d \n", __func__,
@@ -165,7 +165,7 @@ bool sec_bat_check_step_charging(struct sec_battery_info *battery)
 		battery->step_charging_status = i;
 
 		if ((battery->step_charging_type & STEP_CHARGING_CONDITION_FLOAT_VOLTAGE) &&
-			(battery->swelling_mode == SWELLING_MODE_NONE)) {
+			(battery->thermal_zone == BAT_THERMAL_NORMAL)) {
 			union power_supply_propval val;
 
 			pr_info("%s : float voltage = %d \n", __func__, battery->pdata->step_charging_float_voltage[i]);
@@ -367,7 +367,7 @@ check_dc_step_change:
 				battery->pdata->dc_step_chg_val_iout[step];
 
 		if ((battery->dc_step_chg_type & STEP_CHARGING_CONDITION_FLOAT_VOLTAGE) &&
-			(battery->swelling_mode == SWELLING_MODE_NONE)) {
+			(battery->thermal_zone == BAT_THERMAL_NORMAL)) {
 			if (battery->step_charging_status < 0) {
 				pr_info("%s : step float voltage = %d\n", __func__,
 					battery->pdata->dc_step_chg_val_vfloat[step]);

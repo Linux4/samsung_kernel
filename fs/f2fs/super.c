@@ -1122,6 +1122,7 @@ static struct inode *f2fs_alloc_inode(struct super_block *sb)
 	   it will be reinitialize after a reboot.*/
 	fi->vfs_inode.i_version = 1;
 	atomic_set(&fi->dirty_pages, 0);
+	atomic_set(&fi->i_compr_blocks, 0);
 	init_rwsem(&fi->i_sem);
 	spin_lock_init(&fi->i_size_lock);
 	INIT_LIST_HEAD(&fi->dirty_list);

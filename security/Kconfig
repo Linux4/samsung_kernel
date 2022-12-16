@@ -216,7 +216,7 @@ config STATIC_USERMODEHELPER
 config STATIC_USERMODEHELPER_PATH
 	string "Path to the static usermode helper binary"
 	depends on STATIC_USERMODEHELPER
-	default "/system/bin/umh/usermode-helper-replica"
+	default "/vendor/bin/umh/usermode-helper-replica"
 	help
 	  The binary called by the kernel when any usermode helper
 	  program is wish to be run.  The "real" application's name will
