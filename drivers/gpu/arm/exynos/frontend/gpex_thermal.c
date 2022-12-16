@@ -40,7 +40,7 @@ void gpex_thermal_set_status(bool status)
 int gpex_thermal_gpu_normal()
 {
 	int ret = 0;
-	ret = gpex_clock_lock_clock(GPU_CLOCK_MAX_UNLOCK, TMU_LOCK, 0, current->comm, current->pid);
+	ret = gpex_clock_lock_clock(GPU_CLOCK_MAX_UNLOCK, TMU_LOCK, 0);
 
 	if (ret) {
 		/* TODO: couldn't handle thermal throttling. print error log */
@@ -58,12 +58,12 @@ int gpex_thermal_gpu_throttle(int freq)
 	int ret = 0;
 
 	if (!thermal.tmu_enabled) {
-		ret = gpex_clock_lock_clock(GPU_CLOCK_MAX_UNLOCK, TMU_LOCK, 0, current->comm, current->pid);
+		ret = gpex_clock_lock_clock(GPU_CLOCK_MAX_UNLOCK, TMU_LOCK, 0);
 		/* TODO: print warning that gpu must be throttled, but gpu thermal is disabled */
 		return ret;
 	}
 
-	ret = gpex_clock_lock_clock(GPU_CLOCK_MAX_LOCK, TMU_LOCK, freq, current->comm, current->pid);
+	ret = gpex_clock_lock_clock(GPU_CLOCK_MAX_LOCK, TMU_LOCK, freq);
 
 	if (ret) {
 		/* TODO: couldn't handle thermal throttling. print error log */
@@ -102,7 +102,7 @@ CREATE_SYSFS_DEVICE_READ_FUNCTION(show_tmu);
 static ssize_t set_tmu_control(const char *buf, size_t count)
 {
 	if (sysfs_streq("0", buf)) {
-		gpex_clock_lock_clock(GPU_CLOCK_MAX_UNLOCK, TMU_LOCK, 0, current->comm, current->pid);
+		gpex_clock_lock_clock(GPU_CLOCK_MAX_UNLOCK, TMU_LOCK, 0);
 		thermal.tmu_enabled = false;
 	} else if (sysfs_streq("1", buf))
 		thermal.tmu_enabled = true;
@@ -161,6 +161,8 @@ static void gpex_thermal_create_sysfs_file()
 int gpex_thermal_init()
 {
 	gpex_thermal_create_sysfs_file();
+
+	gpex_utils_get_exynos_context()->thermal = &thermal;
 
 	return 0;
 }

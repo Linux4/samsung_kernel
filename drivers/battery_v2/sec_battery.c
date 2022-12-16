@@ -1840,7 +1840,7 @@ static void sec_bat_send_cs100(struct sec_battery_info *battery)
 	union power_supply_propval value = {0, };
 	bool send_cs100_cmd = true;
 
-	if (is_wireless_type(battery->cable_type)) {
+	if (is_wireless_fake_type(battery->cable_type)) {
 #ifdef CONFIG_CS100_JPNCONCEPT
 		psy_do_property(battery->pdata->wireless_charger_name, get,
 			POWER_SUPPLY_EXT_PROP_WIRELESS_TX_ID, value);
@@ -5976,6 +5976,8 @@ __visible_for_testing void sec_bat_cable_work(struct work_struct *work)
 			battery->cable_type == SEC_BATTERY_CABLE_POWER_SHARING) {
 			battery->charging_mode = SEC_BATTERY_CHARGING_NONE;
 			battery->status = POWER_SUPPLY_STATUS_DISCHARGING;
+		} else if (battery->misc_event & BATT_MISC_EVENT_FULL_CAPACITY) {
+			battery->status = POWER_SUPPLY_STATUS_NOT_CHARGING;
 		} else if (!battery->is_sysovlo && !battery->is_vbatovlo && !battery->is_abnormal_temp &&
 				(!battery->charging_block || !battery->swelling_mode)) {
 			if (battery->pdata->full_check_type !=

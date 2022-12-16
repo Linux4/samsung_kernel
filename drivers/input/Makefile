@@ -36,9 +36,7 @@ obj-$(CONFIG_INPUT_APMPOWER)	+= apm-power.o
 obj-$(CONFIG_TOUCHSCREEN_DUMP_MODE)	+= sec_tsp_dumpkey.o
 
 
-
 obj-$(CONFIG_RMI4_CORE)		+= rmi4/
 obj-$(CONFIG_INPUT_WACOM)	+= wacom/
 
-CFLAGS_sec_auto_input.o = -Wformat
 ccflags-y += -Wformat

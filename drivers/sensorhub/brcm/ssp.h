@@ -644,6 +644,14 @@ struct sensor_value {
 			u32 pocket_high_prox_time;
 			u32 pocket_temp[3];
 		} __attribute__((__packed__)); // pocket_mode use 62bytes
+		struct {
+			u8 total_state;
+			u8 position_state;
+			s32 position_case;
+			u8 pedo_state;
+			s32 pedo_case;
+			s32 version;
+		} __attribute__((__packed__));
 		u8 led_cover_event;
 		u8 tap_tracker_event;
 		u8 shake_tracker_event;
@@ -1253,6 +1261,7 @@ void report_tap_tracker_data(struct ssp_data *data, int sensor_type, struct sens
 void report_shake_tracker_data(struct ssp_data *data, int sensor_type, struct sensor_value *shake_tracker_data);
 void report_auto_rotation_data(struct ssp_data *data, int sensor_type, struct sensor_value *auto_rotation_data);
 void report_sar_backoff_motion_data(struct ssp_data *data, int sensor_type, struct sensor_value *sar_backoff_motion_data);
+void report_pocket_position_data(struct ssp_data *data, int sensor_type, struct sensor_value *pocket_position_data);
 unsigned int get_module_rev(struct ssp_data *data);
 void reset_mcu(struct ssp_data *data);
 int sensors_register(struct device *dev, void *drvdata,

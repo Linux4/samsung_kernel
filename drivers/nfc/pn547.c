@@ -393,6 +393,21 @@ ssize_t pn547_dev_read(struct file *filp, char __user *buf,
 #endif
 			if (gpio_get_value(pn547_dev->irq_gpio))
 				break;
+
+			/*
+			 * NFC service wanted to close the driver so,
+			 * release the calling reader thread asap.
+			 *
+			 * This can happen in case of nfc node close call from
+			 * eSE HAL in that case the NFC HAL reader thread
+			 * will again call read system call
+			 */
+			if (pn547_dev->release_read) {
+				NFC_LOG_ERR("%s: releasing read\n", __func__);
+				mutex_unlock(&pn547_dev->read_mutex);
+				return 0;
+			}
+
 			NFC_LOG_ERR("spurious interrupt detected\n");
 		}
 	}
@@ -525,9 +540,12 @@ static int pn547_dev_open(struct inode *inode, struct file *filp)
 						   struct pn547_dev,
 						   pn547_device);
 
+	mutex_lock(&pn547_dev->dev_ref_mutex);
+
 	if (!atomic_dec_and_test(&s_Device_opened)) {
 		atomic_inc(&s_Device_opened);
 		NFC_LOG_ERR("already opened!\n");
+		mutex_unlock(&pn547_dev->dev_ref_mutex);
 		return -EBUSY;
 	}
 
@@ -546,16 +564,44 @@ static int pn547_dev_open(struct inode *inode, struct file *filp)
 		ret = exynos_smc(0x83000032, 0x1, 0, 0);
 		if (ret == EBUSY) {
 			nfc_ese_secured = ESE_NOT_SECURED;
-			NFC_LOG_ERR("eSE spi secure fail!\n");
+			NFC_LOG_ERR("eSE spi is not Secured\n");
+			mutex_unlock(&pn547_dev->dev_ref_mutex);
 			return -EBUSY;
 		}
 		nfc_ese_secured = ESE_SECURED;
 	} else if (nfc_ese_secured == ESE_NOT_SECURED) {
 		NFC_LOG_ERR("eSE spi is not Secured\n");
+		mutex_unlock(&pn547_dev->dev_ref_mutex);
 		return -EBUSY;
 	}
 #endif
+	mutex_unlock(&pn547_dev->dev_ref_mutex);
 
+	return 0;
+}
+
+static int pn547_dev_flush(struct file *pfile, fl_owner_t id)
+{
+	struct pn547_dev *pn547_dev = pfile->private_data;
+
+	if (!pn547_dev) {
+		NFC_LOG_ERR("%s: pn547 instance is NULL!!\n", __func__);
+		return -ENODEV;
+	}
+	/*
+	 * release blocked user thread waiting for pending read during close
+	 */
+	if (!mutex_trylock(&pn547_dev->read_mutex)) {
+		pn547_dev->release_read = true;
+		pn547_disable_irq(pn547_dev);
+		wake_up(&pn547_dev->read_wq);
+		NFC_LOG_ERR("%s: waiting for release of blocked read\n", __func__);
+		mutex_lock(&pn547_dev->read_mutex);
+		pn547_dev->release_read = false;
+	} else {
+		NFC_LOG_ERR("%s: read thread already released\n", __func__);
+	}
+	mutex_unlock(&pn547_dev->read_mutex);
 	return 0;
 }
 
@@ -566,6 +612,7 @@ static int pn547_dev_release(struct inode *inode, struct file *filp)
 #endif
 
 	NFC_LOG_INFO("release\n");
+	mutex_lock(&pn547_dev->dev_ref_mutex);
 	set_force_reset(false);
 	if (pn547_dev->firm_gpio)
 		gpio_set_value(pn547_dev->firm_gpio, 0);
@@ -581,6 +628,7 @@ static int pn547_dev_release(struct inode *inode, struct file *filp)
 #endif
 	atomic_inc(&s_Device_opened);
 
+	mutex_unlock(&pn547_dev->dev_ref_mutex);
 	return 0;
 }
 
@@ -619,14 +667,14 @@ static int release_dwp_onoff(void)
 static int set_nfc_pid(unsigned long arg)
 {
 	pid_t pid = arg;
-	struct task_struct *task;
+	struct task_struct *task = NULL;
 
 	pn547_dev->nfc_service_pid = arg;
 
 	if (arg == 0)
 		goto done;
 
-	task = pid_task(find_vpid(pid), PIDTYPE_PID);
+	task = get_pid_task(find_vpid(pid), PIDTYPE_PID);
 	if (task) {
 		NFC_LOG_INFO("task->comm: %s\n", task->comm);
 		if (!strncmp(task->comm, "com.android.nfc", 15)) {
@@ -640,6 +688,9 @@ static int set_nfc_pid(unsigned long arg)
 
 	pn547_dev->nfc_service_pid = 0;
 done:
+	if (task)
+		put_task_struct(task);
+
 	NFC_LOG_INFO("The NFC Service PID is %ld\n", pn547_dev->nfc_service_pid);
 
 	return 0;
@@ -687,7 +738,7 @@ static int signal_handler(int state, long nfc_pid)
 {
 	struct siginfo sinfo;
 	pid_t pid;
-	struct task_struct *task;
+	struct task_struct *task = NULL;
 	int sigret = 0;
 	int ret = 0;
 
@@ -703,7 +754,7 @@ static int signal_handler(int state, long nfc_pid)
 	sinfo.si_int = state;
 	pid = nfc_pid;
 
-	task = pid_task(find_vpid(pid), PIDTYPE_PID);
+	task = get_pid_task(find_vpid(pid), PIDTYPE_PID);
 	if (task) {
 		NFC_LOG_INFO("task->comm: %s.\n", task->comm);
 		sigret = send_sig_info(SIG_NFC, &sinfo, task);
@@ -711,6 +762,8 @@ static int signal_handler(int state, long nfc_pid)
 			NFC_LOG_ERR("send_sig_info failed.. %d.\n", sigret);
 			ret = -EPERM;
 		}
+
+		put_task_struct(task);
 	} else {
 		NFC_LOG_ERR("finding task from PID failed\n");
 		ret = -EPERM;
@@ -1529,6 +1582,7 @@ static const struct file_operations pn547_dev_fops = {
 	.read = pn547_dev_read,
 	.write = pn547_dev_write,
 	.open = pn547_dev_open,
+	.flush = pn547_dev_flush,
 	.release = pn547_dev_release,
 	.unlocked_ioctl = pn547_dev_ioctl,
 };
@@ -1944,6 +1998,7 @@ static int pn547_probe(struct i2c_client *client, const struct i2c_device_id *id
 	/* init mutex and queues */
 	init_waitqueue_head(&pn547_dev->read_wq);
 	mutex_init(&pn547_dev->read_mutex);
+	mutex_init(&pn547_dev->dev_ref_mutex);
 #ifdef CONFIG_NFC_PN547_ESE_SUPPORT
 	p61_trans_acc_on = 0;
 	init_completion(&pn547_dev->ese_comp);
@@ -2105,6 +2160,7 @@ err_misc_register:
 #ifdef FEATURE_SN100X
 	ese_reset_resource_destroy();
 #endif
+	mutex_destroy(&pn547_dev->dev_ref_mutex);
 	mutex_destroy(&pn547_dev->read_mutex);
 #ifdef CONFIG_NFC_PN547_ESE_SUPPORT
 	mutex_destroy(&pn547_dev->p61_state_mutex);
@@ -2142,6 +2198,7 @@ static int pn547_remove(struct i2c_client *client)
 	wake_lock_destroy(&pn547_dev->nfc_wake_lock);
 	free_irq(client->irq, pn547_dev);
 	misc_deregister(&pn547_dev->pn547_device);
+	mutex_destroy(&pn547_dev->dev_ref_mutex);
 	mutex_destroy(&pn547_dev->read_mutex);
 	gpio_free(pn547_dev->irq_gpio);
 	gpio_free(pn547_dev->ven_gpio);

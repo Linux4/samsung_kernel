@@ -19,7 +19,7 @@ fw-external-$(CONFIG_TOUCHSCREEN_SEC_TS_Y79A_C) += tsp_sec/y79a_c2_y2ub.bin tsp_
 							tsp_sec/y79a_c1_x1ub.bin tsp_sec/y79a_c1_old.bin tsp_sec/y771_c1_pv1.bin tsp_sec/y771_c1.bin\
 							tsp_sec/y79a_c2_4layer.bin
 
-fw-external-$(CONFIG_TOUCHSCREEN_ZINITIX_ZT7650) += tsp_zinitix/zt7650_r8.bin
+fw-external-$(CONFIG_TOUCHSCREEN_ZINITIX_ZT7650) += tsp_zinitix/zt7650_r8.bin tsp_zinitix/zt7650m_r8.bin
 fw-external-$(CONFIG_TOUCHSCREEN_STM_FTS5CU56A) += tsp_stm/fts5cu56a_r8.bin
 
 fw-external-$(CONFIG_EPEN_WACOM_W9020) += epen/w9020_c2.bin epen/w9020_c2_dv1.bin epen/w9020_c2_dv2.bin \

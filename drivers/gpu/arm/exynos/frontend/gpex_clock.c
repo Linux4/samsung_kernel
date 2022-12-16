@@ -19,7 +19,6 @@
  */
 
 #include <linux/slab.h>
-#include <linux/sec_debug.h>
 
 #include <gpex_clock.h>
 #include <gpex_qos.h>
@@ -27,7 +26,6 @@
 #include <gpex_dvfs.h>
 #include <gpex_ifpo.h>
 #include <gpex_utils.h>
-#include <gpex_clboost.h>
 #include <gpexbe_devicetree.h>
 #include <gpexbe_clock.h>
 #include <gpexbe_utilization.h>
@@ -70,10 +68,6 @@ int gpex_clock_get_min_lock()
 int gpex_clock_get_clock(int level)
 {
 	return clk_info.table[level].clock;
-}
-u64 gpex_clock_get_time(int level)
-{
-	return clk_info.table[level].time;
 }
 u64 gpex_clock_get_time_busy(int level)
 {
@@ -128,14 +122,7 @@ static int gpex_clock_update_config_data_from_dt()
 	return 0;
 }
 
-static const char * str_lock_type[] = {
-	"T",
-	"S",
-	"P",
-	"B",
-};
-
-static int set_clock_using_calapi(int clk, int type, const char* process_name, uint32_t process_id)
+static int set_clock_using_calapi(int clk)
 {
 	int ret = 0;
 
@@ -161,46 +148,6 @@ static int set_clock_using_calapi(int clk, int type, const char* process_name, u
 	gpexbe_debug_dbg_snapshot_freq_in(clk_info.cur_clock, clk);
 
 	gpexbe_clock_set_rate(clk);
-
-	if(clk >= 702000 && type != TYPE_IGNORE) {
-		static char out_output[140] = "";
-		static char out_minlock[64] = "";
-		static char out_process[64] = "";
-		static char buf[16] = "";
-		int out_cl_boost = 0;
-		register int i = 0;
-
-		out_output[0] = '\0';
-		out_minlock[0] = '\0';
-		out_process[0] = '\0';
-		buf[0] = '\0';
-
-		/* 0. check clock setting type */
-		// 0: TYPE_NORMAL, 1: TYPE_TMU, 2: TYPE_SYSFS, 3:TYPE_MAX_LOCK, 4:TYPE_MIN_LOCK 5:TYPE_DVFS_ON 6:TYPE_DVFS_OFF
-
-		/* 1. check cl boost */
-		if (gpex_clboost_check_activation_condition())
-			out_cl_boost = 1;
-
-		/* 2. check min lock type*/
-		for ( i = 0; i < NUMBER_LOCK; i++ ){
-			if(clk_info.user_min_lock[i]!=0){
-				sprintf(buf, "%s,%d,", str_lock_type[i], clk_info.user_min_lock[i]);
-				strcat(out_minlock, buf);
-				buf[0] = '\n';
-			}
-		}
-
-		/* 3. sprintf process name/id */
-		snprintf(out_process, 64, "%s,%i", process_name, process_id);
-
-		/* merge them into output buffer*/
-		snprintf(out_output, 128, "%d,%d,%d,%s%s", clk, type, out_cl_boost, out_minlock, out_process);
-
-		/* put the string in secdbg function  */
-		secdbg_exin_set_gpuinfo(out_output);
-		GPU_LOG(MALI_EXYNOS_DEBUG, "%s: secdbg log: %s", __func__, out_output);
-	}
 
 	gpexbe_debug_dbg_snapshot_freq_out(clk_info.cur_clock, clk);
 
@@ -249,30 +196,35 @@ int gpex_get_valid_gpu_clock(int clock, bool is_round_up)
 int gpex_clock_update_time_in_state(int clock)
 {
 	u64 current_time;
-	static u64 prev_time;
 	int level = gpex_clock_get_table_idx(clock);
 
-	if (prev_time == 0)
-		prev_time = get_jiffies_64();
+	if (clk_info.prev_time_in_state_time == 0)
+		clk_info.prev_time_in_state_time = get_jiffies_64();
 
 	current_time = get_jiffies_64();
 	if ((level >= gpex_clock_get_table_idx(clk_info.gpu_max_clock)) &&
 	    (level <= gpex_clock_get_table_idx(clk_info.gpu_min_clock))) {
-		clk_info.table[level].time += current_time - prev_time;
+		clk_info.table[level].time += current_time - clk_info.prev_time_in_state_time;
 		clk_info.table[level].time_busy +=
-			(u64)((current_time - prev_time) * gpexbe_utilization_get_utilization());
+			(u64)((current_time - clk_info.prev_time_in_state_time)
+					* gpexbe_utilization_get_utilization());
 		GPU_LOG(MALI_EXYNOS_DEBUG,
 			"%s: util = %d cur_clock[%d] = %d time_busy[%d] = %llu(%llu)\n", __func__,
 			gpexbe_utilization_get_utilization(), level, clock, level,
 			clk_info.table[level].time_busy / 100, clk_info.table[level].time);
 	}
 
-	prev_time = current_time;
+	clk_info.prev_time_in_state_time = current_time;
 
 	return 0;
 }
 
-static int gpex_clock_set_helper(int clock, int type, const char* process_name, uint32_t process_id)
+u64 gpex_clock_get_time_in_state_last_update(void)
+{
+	return clk_info.prev_time_in_state_time;
+}
+
+static int gpex_clock_set_helper(int clock)
 {
 	int ret = 0;
 	bool is_up = false;
@@ -301,7 +253,7 @@ static int gpex_clock_set_helper(int clock, int type, const char* process_name, 
 	if (is_up)
 		gpex_qos_set_from_clock(clock);
 
-	set_clock_using_calapi(clock, type, process_name, process_id);
+	set_clock_using_calapi(clock);
 
 	if (!is_up)
 		gpex_qos_set_from_clock(clock);
@@ -373,6 +325,8 @@ int gpex_clock_init(struct device **dev)
 	gpex_clock_init_time_in_state();
 	gpex_clock_sysfs_init(&clk_info);
 
+	gpex_utils_get_exynos_context()->clk_info = &clk_info;
+
 	/* TODO: return proper error when error */
 	return 0;
 }
@@ -403,7 +357,7 @@ int gpex_clock_get_clock_slow()
 	return gpexbe_clock_get_rate();
 }
 
-int gpex_clock_set(int clk, int type, const char* process_name, uint32_t process_id)
+int gpex_clock_set(int clk)
 {
 	int ret = 0, target_clk = 0;
 	int prev_clk = 0;
@@ -439,7 +393,7 @@ int gpex_clock_set(int clk, int type, const char* process_name, uint32_t process
 	gpex_pm_unlock();
 
 	/* QOS is set here */
-	gpex_clock_set_helper(target_clk, type, process_name, process_id);
+	gpex_clock_set_helper(target_clk);
 
 	ret = gpex_dvfs_set_clock_callback();
 
@@ -458,7 +412,7 @@ int gpex_clock_prepare_runtime_off()
 }
 
 int gpex_clock_lock_clock(gpex_clock_lock_cmd_t lock_command, gpex_clock_lock_type_t lock_type,
-			  int clock, const char* process_name, uint32_t process_id)
+			  int clock)
 {
 	int i;
 	bool dirty = false;
@@ -509,7 +463,7 @@ int gpex_clock_lock_clock(gpex_clock_lock_cmd_t lock_command, gpex_clock_lock_ty
 		gpex_dvfs_spin_unlock(&flags);
 
 		if ((clk_info.max_lock > 0) && (gpex_clock_get_cur_clock() >= clk_info.max_lock))
-			gpex_clock_set(clk_info.max_lock, TYPE_IGNORE, process_name, process_id);
+			gpex_clock_set(clk_info.max_lock);
 
 		GPU_LOG_DETAILED(MALI_EXYNOS_DEBUG, LSI_GPU_MAX_LOCK, lock_type, clock,
 				 "lock max clk[%d], user lock[%d], current clk[%d]\n",
@@ -550,7 +504,7 @@ int gpex_clock_lock_clock(gpex_clock_lock_cmd_t lock_command, gpex_clock_lock_ty
 
 		if ((clk_info.min_lock > 0) && (gpex_clock_get_cur_clock() < clk_info.min_lock) &&
 		    (clk_info.min_lock <= max_lock_clk))
-			gpex_clock_set(clk_info.min_lock, TYPE_MIN_LOCK, process_name, process_id);
+			gpex_clock_set(clk_info.min_lock);
 
 		GPU_LOG_DETAILED(MALI_EXYNOS_DEBUG, LSI_GPU_MIN_LOCK, lock_type, clock,
 				 "lock min clk[%d], user lock[%d], current clk[%d]\n",
@@ -624,9 +578,4 @@ int gpex_clock_get_voltage(int clk)
 		/* TODO: print error msg */
 		return -EINVAL;
 	}
-}
-
-void gpex_clock_set_user_min_lock_input(int clock)
-{
-	clk_info.user_min_lock_input = clock;
 }
