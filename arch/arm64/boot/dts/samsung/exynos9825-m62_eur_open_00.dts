@@ -6036,6 +6036,7 @@
 				charger,dchg_min_current = <0x7d0>;
 				charger,dchg_temp_low_threshold = <0x96>;
 				charger,dchg_temp_high_threshold = <0x1a4>;
+				charger,dchg_min_vbat = <0xd48>;
 				charger,ta_alert_wa;
 			};
 

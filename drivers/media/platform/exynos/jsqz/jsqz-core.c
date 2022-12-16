@@ -194,8 +194,8 @@ static int jsqz_compute_buffer_size(struct jsqz_ctx *ctx,
  * Returns 0 on success, otherwise < 0 err num
  */
 static int jsqz_buffer_map(struct jsqz_ctx *ctx,
-				   struct jsqz_buffer_dma *dma_buffer,
-				   enum dma_data_direction dir)
+					struct jsqz_buffer_dma *dma_buffer,
+					enum dma_data_direction dir)
 {
 	int ret = 0;
 
@@ -239,8 +239,8 @@ static int jsqz_buffer_map(struct jsqz_ctx *ctx,
  * jsqz_buffer_map was previously called for.
  */
 static void jsqz_buffer_unmap(struct jsqz_ctx *ctx,
-				   struct jsqz_buffer_dma *dma_buffer,
-				   enum dma_data_direction dir)
+					struct jsqz_buffer_dma *dma_buffer,
+					enum dma_data_direction dir)
 {
 	dev_dbg(ctx->jsqz_dev->dev, "%s: BEGIN\n", __func__);
 	dev_dbg(ctx->jsqz_dev->dev, "%s: about to unmap the DMA address\n"
@@ -719,6 +719,13 @@ static int jsqz_buffer_get_and_attach(struct jsqz_dev *jsqz_device,
 			, __func__, (void *) buffer->userptr, plane->dmabuf);
 	}
 
+	if (!plane->dmabuf) {
+		ret = -EINVAL;
+		dev_err(jsqz_device->dev,
+			"%s: failed to get dmabuf, err %d\n", __func__, ret);
+		goto err;
+	}
+
 	if (IS_ERR(plane->dmabuf)) {
 		ret = PTR_ERR(plane->dmabuf);
 		dev_err(jsqz_device->dev,
@@ -762,7 +769,7 @@ err:
 	dev_dbg(jsqz_device->dev
 		, "%s: ERROR releasing dma resources\n", __func__);
 
-	if (!IS_ERR(plane->dmabuf)) /* release dmabuf */
+	if ((plane->dmabuf != NULL) && !IS_ERR(plane->dmabuf)) /* release dmabuf */
 		dma_buf_put(plane->dmabuf);
 
 	// NOTE: attach was not reached or did not complete,
@@ -1462,8 +1469,7 @@ static long jsqz_compat_ioctl32(struct file *filp,
 
 		task.user_task.num_of_buf = data.num_of_buf;
 		if (task.user_task.num_of_buf > 0 && task.user_task.num_of_buf < MAX_BUF_NUM) {
-			for (i = 0; i < task.user_task.num_of_buf; i++)
-			{
+			for (i = 0; i < task.user_task.num_of_buf; i++) {
 				task.user_task.buf_out[i].len = data.buf_out[i].len;
 				if (data.buf_out[i].type == HWSQZ_BUFFER_DMABUF)
 					task.user_task.buf_out[i].fd = data.buf_out[i].fd;
@@ -1471,8 +1477,7 @@ static long jsqz_compat_ioctl32(struct file *filp,
 					task.user_task.buf_out[i].userptr = data.buf_out[i].userptr;
 				task.user_task.buf_out[i].type = data.buf_out[i].type;
 			}
-		}
-		else {
+		} else {
 			dev_err(jsqz_device->dev,
 				"%s: number of buffer is wrong, num_of_buf is %d\n",
 				__func__, task.user_task.num_of_buf);

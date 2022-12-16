@@ -221,7 +221,7 @@ obj-y				+= sensors/
 obj-$(CONFIG_SENSORS_FINGERPRINT)	+= fingerprint/
 
 #TZIC
-obj-y	+= security/samsung/tzic/
+obj-$(CONFIG_TZIC)	+= security/samsung/tzic/
 
 # FIVE TEE driver
 obj-$(CONFIG_FIVE_TEE_DRIVER)	+= security/samsung/five_tee_driver/
