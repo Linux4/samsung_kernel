@@ -540,6 +540,26 @@ static void __mfc_nal_q_set_slice_mode(struct mfc_ctx *ctx, EncoderInputStr *pIn
 	}
 }
 
+static void __mfc_nal_q_set_enc_ts_delta(struct mfc_ctx *ctx, EncoderInputStr *pInStr)
+{
+	struct mfc_enc *enc = ctx->enc_priv;
+	struct mfc_enc_params *p = &enc->params;
+	int ts_delta;
+
+	ts_delta = mfc_enc_get_ts_delta(ctx);
+
+	pInStr->TimeStampDelta &= ~(0xFFFF);
+	pInStr->TimeStampDelta |= (ts_delta & 0xFFFF);
+
+	if (ctx->ts_last_interval)
+		mfc_debug(3, "[NALQ][DFR] fps %d -> %ld, delta: %d, reg: %#x\n",
+				p->rc_framerate, USEC_PER_SEC / ctx->ts_last_interval,
+				ts_delta, pInStr->TimeStampDelta);
+	else
+		mfc_debug(3, "[NALQ][DFR] fps %d -> 0, delta: %d, reg: %#x\n",
+				p->rc_framerate, ts_delta, pInStr->TimeStampDelta);
+}
+
 static void __mfc_nal_q_get_hdr_plus_info(struct mfc_ctx *ctx, DecoderOutputStr *pOutStr,
 		struct hdr10_plus_meta *sei_meta)
 {
@@ -866,6 +886,7 @@ static int __mfc_nal_q_run_in_buf_enc(struct mfc_ctx *ctx, EncoderInputStr *pInS
 			dst_mb->vb.vb2_buf.index);
 
 	__mfc_nal_q_set_slice_mode(ctx, pInStr);
+	__mfc_nal_q_set_enc_ts_delta(ctx, pInStr);
 
 	mfc_debug_leave();
 
@@ -945,9 +966,6 @@ static int __mfc_nal_q_run_in_buf_dec(struct mfc_ctx *ctx, DecoderInputStr *pInS
 	pInStr->CpbBufferSize = cpb_buf_size;
 	pInStr->CpbBufferOffset = 0;
 	ctx->last_src_addr = buf_addr;
-
-	MFC_TRACE_CTX("Set src[%d] fd: %d, %#llx\n",
-			src_index, src_mb->vb.vb2_buf.planes[0].m.fd, buf_addr);
 
 	/* dst buffer setting */
 	dst_index = dst_mb->vb.vb2_buf.index;

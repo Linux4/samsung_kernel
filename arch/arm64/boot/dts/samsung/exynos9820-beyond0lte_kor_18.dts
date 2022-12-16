@@ -478,8 +478,8 @@
 				mres_dsc_en = <0x0 0x0>;
 				mres_partial_width = <0x168>;
 				mres_partial_height = <0xe4>;
-				hdr_num = <0x2>;
-				hdr_type = <0x2 0x3 0x0 0x0>;
+				hdr_num = <0x3>;
+				hdr_type = <0x2 0x3 0x4 0x0>;
 				hdr_max_luma = <0x3d0900>;
 				hdr_max_avg_luma = <0x124f80>;
 				hdr_min_luma = <0x5>;
@@ -521,8 +521,8 @@
 				mres_dsc_en = <0x0 0x0>;
 				mres_partial_width = <0x168>;
 				mres_partial_height = <0xe4>;
-				hdr_num = <0x2>;
-				hdr_type = <0x2 0x3 0x0 0x0>;
+				hdr_num = <0x3>;
+				hdr_type = <0x2 0x3 0x4 0x0>;
 				hdr_max_luma = <0x3d0900>;
 				hdr_max_avg_luma = <0x124f80>;
 				hdr_min_luma = <0x5>;
@@ -562,8 +562,8 @@
 				mres_dsc_width = <0x2d0 0x21c 0x168>;
 				mres_dsc_height = <0x28 0x1e 0x4a>;
 				mres_dsc_en = <0x1 0x1 0x1>;
-				hdr_num = <0x2>;
-				hdr_type = <0x2 0x3 0x0 0x0>;
+				hdr_num = <0x3>;
+				hdr_type = <0x2 0x3 0x4 0x0>;
 				hdr_max_luma = <0x3d0900>;
 				hdr_max_avg_luma = <0x124f80>;
 				hdr_min_luma = <0x5>;
@@ -600,8 +600,8 @@
 				mres_dsc_width = <0x21c>;
 				mres_dsc_height = <0x28>;
 				mres_dsc_en = <0x1>;
-				hdr_num = <0x2>;
-				hdr_type = <0x2 0x3 0x0 0x0>;
+				hdr_num = <0x3>;
+				hdr_type = <0x2 0x3 0x4 0x0>;
 				hdr_max_luma = <0x3d0900>;
 				hdr_max_avg_luma = <0x124f80>;
 				hdr_min_luma = <0x5>;
@@ -676,8 +676,8 @@
 				mres_dsc_width = <0x2d0 0x21c 0x168>;
 				mres_dsc_height = <0x28 0x28 0x4c>;
 				mres_dsc_en = <0x1 0x1 0x1>;
-				hdr_num = <0x2>;
-				hdr_type = <0x2 0x3 0x0 0x0>;
+				hdr_num = <0x3>;
+				hdr_type = <0x2 0x3 0x4 0x0>;
 				hdr_max_luma = <0x3d0900>;
 				hdr_max_avg_luma = <0x124f80>;
 				hdr_min_luma = <0x5>;
@@ -714,8 +714,8 @@
 				mres_dsc_width = <0x2d0 0x21c 0x168>;
 				mres_dsc_height = <0x28 0x28 0x4c>;
 				mres_dsc_en = <0x1 0x1 0x1>;
-				hdr_num = <0x2>;
-				hdr_type = <0x2 0x3 0x0 0x0>;
+				hdr_num = <0x3>;
+				hdr_type = <0x2 0x3 0x4 0x0>;
 				hdr_max_luma = <0x3d0900>;
 				hdr_max_avg_luma = <0x124f80>;
 				hdr_min_luma = <0x5>;
@@ -752,8 +752,8 @@
 				mres_dsc_width = <0x2d0 0x21c 0x168>;
 				mres_dsc_height = <0x28 0x28 0x4c>;
 				mres_dsc_en = <0x1 0x1 0x1>;
-				hdr_num = <0x2>;
-				hdr_type = <0x2 0x3 0x0 0x0>;
+				hdr_num = <0x3>;
+				hdr_type = <0x2 0x3 0x4 0x0>;
 				hdr_max_luma = <0x3d0900>;
 				hdr_max_avg_luma = <0x124f80>;
 				hdr_min_luma = <0x5>;
@@ -790,8 +790,8 @@
 				mres_dsc_width = <0x2d0 0x21c 0x168>;
 				mres_dsc_height = <0x28 0x28 0x4c>;
 				mres_dsc_en = <0x1 0x1 0x1>;
-				hdr_num = <0x2>;
-				hdr_type = <0x2 0x3 0x0 0x0>;
+				hdr_num = <0x3>;
+				hdr_type = <0x2 0x3 0x4 0x0>;
 				hdr_max_luma = <0x3d0900>;
 				hdr_max_avg_luma = <0x124f80>;
 				hdr_min_luma = <0x5>;
@@ -829,8 +829,8 @@
 				mres_dsc_width = <0x2d0 0x21c 0x168>;
 				mres_dsc_height = <0x28 0x28 0x4c>;
 				mres_dsc_en = <0x1 0x1 0x1>;
-				hdr_num = <0x2>;
-				hdr_type = <0x2 0x3 0x0 0x0>;
+				hdr_num = <0x3>;
+				hdr_type = <0x2 0x3 0x4 0x0>;
 				hdr_max_luma = <0x3d0900>;
 				hdr_max_avg_luma = <0x124f80>;
 				hdr_min_luma = <0x5>;
@@ -865,6 +865,7 @@
 				battery,usb_temp_check_type = <0x2>;
 				battery,chg_temp_check_type = <0x2>;
 				battery,wpc_temp_check_type = <0x2>;
+				battery,lrp_temp_check_type = <0x0>;
 				battery,thermal_source = <0x2>;
 				battery,usb_thermal_source = <0x2>;
 				battery,chg_thermal_source = <0x2>;
@@ -1050,7 +1051,7 @@
 				fuelgauge,capacity_max = <0x3e8>;
 				fuelgauge,capacity_max_margin = <0x12c>;
 				fuelgauge,capacity_min = <0x0>;
-				fuelgauge,capacity_calculation_type = <0x1c>;
+				fuelgauge,capacity_calculation_type = <0x5c>;
 				fuelgauge,repeated_fuelalert;
 				fuelgauge,using_temp_compensation;
 				fuelgauge,low_temp_limit = <0x64>;
@@ -1065,6 +1066,11 @@
 				fuelgauge,fg_reset_wa_data = <0xbb8 0x3200 0x2ee 0x3f 0x1f20>;
 				fuelgauge,discharge_temp_threshold = <0x258>;
 				fuelgauge,discharge_volt_threshold = <0x1068>;
+				fuelgauge,lost_soc_trig_soc = <0x3e8>;
+				fuelgauge,lost_soc_trig_d_soc = <0x14>;
+				fuelgauge,lost_soc_trig_scale = <0x2>;
+				fuelgauge,lost_soc_guarantee_soc = <0x1e>;
+				fuelgauge,lost_soc_min_vol = <0xc80>;
 				fuelgauge,ttf_capacity = <0xa8c>;
 				fuelgauge,cv_data = <0x8ac 0x2d2 0xb44 0x83c 0x2e6 0xae9 0x78f 0x2ff 0xa6d 0x717 0x310 0xa14 0x6a7 0x320 0x9b9 0x62c 0x32f 0x95d 0x5b0 0x342 0x8e3 0x52d 0x359 0x869 0x48c 0x366 0x7d1 0x426 0x374 0x757 0x3ab 0x386 0x6a0 0x32a 0x397 0x5de 0x2e1 0x3a3 0x547 0x298 0x3ad 0x4b2 0x253 0x3b9 0x3ff 0x1f9 0x3c2 0x34a 0x1b8 0x3cc 0x275 0x157 0x3d8 0x146 0x12e 0x3de 0x8f 0x114 0x3e8 0x0>;
 			};
@@ -6396,8 +6402,8 @@
 				sx9330,afephph0_reg = <0x3fbb8548>;
 				sx9330,adcfiltph0_reg = <0x510101d>;
 				sx9330,afeparamsph1_reg = <0x1e0f>;
-				sx9330,adcfiltph1_reg = <0x105715>;
-				sx9330,avgbfilt_reg = "``\f";
+				sx9330,adcfiltph1_reg = <0x104b25>;
+				sx9330,avgbfilt_reg = <0x60600e00>;
 				sx9330,avgafilt_reg = <0x0>;
 				sx9330,advdig3_reg = <0x0>;
 				sx9330,advdig4_reg = <0x0>;
@@ -6650,7 +6656,7 @@
 
 			ext-bin@10 {
 				status = "okay";
-				samsung,name = "APDVTX_AUDIO_SLSI.bin";
+				samsung,name = "APTV_AUDIO_SLSI.bin";
 				samsung,area = <0x1>;
 				samsung,offset = <0x7b6000>;
 				linux,phandle = <0xcc>;
@@ -6664,6 +6670,15 @@
 				samsung,offset = <0x7bc000>;
 				linux,phandle = <0xcd>;
 				phandle = <0xcd>;
+			};
+
+			ext-bin@12 {
+				status = "okay";
+				samsung,name = "txse3.bin";
+				samsung,area = <0x1>;
+				samsung,offset = <0x1800000>;
+				linux,phandle = <0xce>;
+				phandle = <0xce>;
 			};
 		};
 	};
@@ -7414,8 +7429,8 @@
 				samsung,pin-function = <0x0>;
 				samsung,pin-pud = <0x1>;
 				samsung,pin-drv = <0x0>;
-				linux,phandle = <0xce>;
-				phandle = <0xce>;
+				linux,phandle = <0xcf>;
+				phandle = <0xcf>;
 			};
 		};
 	};
@@ -7982,6 +7997,7 @@
 		ext_bin_15 = "/fragment@97/__overlay__/ext-bin@f";
 		ext_bin_16 = "/fragment@97/__overlay__/ext-bin@10";
 		ext_bin_17 = "/fragment@97/__overlay__/ext-bin@11";
+		ext_bin_18 = "/fragment@97/__overlay__/ext-bin@12";
 		btp_irq = "/fragment@99/__overlay__/btp-irq";
 		btp_irq_sleep = "/fragment@99/__overlay__/btp-irq-sleep";
 		btp_ldo = "/fragment@100/__overlay__/btp-ldo";

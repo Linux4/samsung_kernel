@@ -66,8 +66,6 @@ struct sec_fg_info {
 	int pr_cnt;
 	/* full charge comp */
 	struct delayed_work	full_comp_work;
-	u32 previous_fullcap;
-	u32 previous_vffullcap;
 
 	/* battery info */
 	u32 soc;
@@ -169,6 +167,23 @@ struct fg_reset_wa {
 	u32 tempco;
 };
 
+struct lost_soc_data {
+	/* dt data */
+	int trig_soc; /* default 10% */
+	int trig_d_soc; /* delta soc, default 2% */
+	int trig_scale; /* default 2x */
+	int guarantee_soc; /* default 2% */
+	int min_vol; /* default 3200mV */
+
+	/* data */
+	bool ing;
+	int prev_raw_soc;
+	int prev_remcap;
+	int prev_qh;
+	int lost_cap;
+	int weight;
+};
+
 struct max77705_fuelgauge_data {
 	struct device           *dev;
 	struct i2c_client       *i2c;
@@ -231,10 +246,12 @@ struct max77705_fuelgauge_data {
 	u32 fg_resistor;
 
 	struct fg_reset_wa *fg_reset_data;
+	u32 err_cnt;
 
 #if defined(CONFIG_BATTERY_CISD)
 	bool valert_count_flag;
 #endif
+	struct lost_soc_data lost_soc;
 };
 
 #endif /* __MAX77705_FUELGAUGE_H */
