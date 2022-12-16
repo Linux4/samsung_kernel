@@ -34,3 +34,4 @@ obj-$(CONFIG_INPUT_KEYRESET)	+= keyreset.o
 obj-$(CONFIG_INPUT_KEYCOMBO)	+= keycombo.o
 obj-$(CONFIG_TOUCHSCREEN_DUMP_MODE)         += sec_tsp_dumpkey.o
 obj-$(CONFIG_RMI4_CORE)		+= rmi4/
+
