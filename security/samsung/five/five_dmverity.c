@@ -21,7 +21,7 @@
 #include "five.h"
 
 #include "../../../drivers/md/dm.h"
-#include "../../../drivers/block/loop.h"
+#include "./../../drivers/block/loop.h"
 
 #ifdef CONFIG_FIVE_DEBUG
 #include <linux/debugfs.h>
