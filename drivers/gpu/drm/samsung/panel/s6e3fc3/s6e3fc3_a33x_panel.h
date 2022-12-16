@@ -1040,4 +1040,20 @@ struct common_panel_info s6e3fc3_a33x_panel_info = {
 	.df_freq_tbl = a33x_s6e3fc3_dynamic_freq_set,
 #endif
 };
+
+static int __init s6e3fc3_a33x_panel_init(void)
+{
+	register_common_panel(&s6e3fc3_a33x_panel_info);
+
+	return 0;
+}
+
+static void __exit s6e3fc3_a33x_panel_exit(void)
+{
+	deregister_common_panel(&s6e3fc3_a33x_panel_info);
+}
+
+module_init(s6e3fc3_a33x_panel_init)
+module_exit(s6e3fc3_a33x_panel_exit)
+
 #endif /* __S6E3FC3_A33X_PANEL_H__ */

@@ -1857,6 +1857,51 @@ static void factory_cmd_result_all_imagetest(void *device_data)
 out:
 	ts_info("%d%s", sec->item_count, sec->cmd_result_all);
 }
+
+static void fix_active_mode(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct goodix_ts_core *core_data = container_of(sec, struct goodix_ts_core, sec);
+	struct goodix_ts_cmd temp_cmd;
+	int ret;
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+
+	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
+		snprintf(buff, sizeof(buff), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec_cmd_set_cmd_exit(sec);
+		return;
+	}
+
+	ts_info("fix active mode : %s", sec->cmd_param[0] ? "enable" : "disabled");
+
+	if (sec->cmd_param[0]) {	//enable
+		temp_cmd.len = 5;
+		temp_cmd.cmd = 0x9F;
+		temp_cmd.data[0] = 2;
+	} else {					//disabled
+		temp_cmd.len = 5;
+		temp_cmd.cmd = 0x9F;
+		temp_cmd.data[0] = 1;
+	}
+
+	ret = core_data->hw_ops->send_cmd(core_data, &temp_cmd);
+	if (ret < 0) {
+		ts_err("send fix active mode cmd failed");
+		snprintf(buff, sizeof(buff), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	} else {
+		snprintf(buff, sizeof(buff), "OK");
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+	}
+
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+}
+
 #if 0
 static int goodix_ts_set_mode(struct goodix_ts_core *core_data, u8 reg, u8 data, int len)
 {
@@ -3252,7 +3297,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("get_disassemble_count", get_disassemble_count),},
 	{SEC_CMD("factory_cmd_result_all", factory_cmd_result_all),},
 	{SEC_CMD("factory_cmd_result_all_imagetest", factory_cmd_result_all_imagetest),},
-//	{SEC_CMD_H("fix_active_mode", fix_active_mode),},
+	{SEC_CMD_H("fix_active_mode", fix_active_mode),},
 //	{SEC_CMD_H("touch_aging_mode", touch_aging_mode),},
 	{SEC_CMD("run_snr_non_touched", run_snr_non_touched),},
 	{SEC_CMD("run_snr_touched", run_snr_touched),},

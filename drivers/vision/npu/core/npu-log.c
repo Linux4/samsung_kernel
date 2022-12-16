@@ -261,24 +261,33 @@ static void npu_log_rmemlog(struct npu_device *npu_dev)
 	/* Register NPU Device Driver for Unified Logging */
 	ret = memlog_register("NPU_DRV1", npu_dev->dev, &npu_log.memlog_desc_log);
 	if (ret)
-		probe_err("memlog_register() for log failed: ret = %d\n", ret);
+		probe_err("memlog_register NPU_DRV1() for log failed: ret = %d\n", ret);
 
 	ret = memlog_register("NPU_DRV3", npu_dev->dev, &npu_log.memlog_desc_array);
 	if (ret)
-		probe_err("memlog_register() for array failed: ret = %d\n", ret);
+		probe_err("memlog_register NPU_DRV3() for array failed: ret = %d\n", ret);
+
+	ret = memlog_register("NPU_DRV4", npu_dev->dev, &npu_log.memlog_desc_dump);
+	if (ret)
+		probe_err("memlog_register NPU_DRV4() for log failed: ret = %d\n", ret);
 
 	/* Receive allocation of memory for saving data to vendor storage */
 	npu_log.npu_memfile_obj = memlog_alloc_file(npu_log.memlog_desc_log, "npu-fil",
 						SZ_2M*2, SZ_2M*2, 500, 1);
 	if (npu_log.npu_memfile_obj) {
 		memlog_register_data_to_string(npu_log.npu_memfile_obj, npu_log_memlog_data_to_string);
-		npu_log.npu_memlog_obj = memlog_alloc_printf(npu_log.memlog_desc_log, SZ_2M,
+		npu_log.npu_memlog_obj = memlog_alloc_printf(npu_log.memlog_desc_log, SZ_1M,
 						npu_log.npu_memfile_obj, "npu-mem", 0);
 		if (!npu_log.npu_memlog_obj)
 			probe_err("memlog_alloc_printf() failed\n");
 	}	else {
 		probe_err("memlog_alloc_file() failed\n");
 	}
+
+	npu_log.npu_dumplog_obj = memlog_alloc_printf(npu_log.memlog_desc_dump, SZ_512K,
+						NULL, "npu-dum", 0);
+		if (!npu_log.npu_dumplog_obj)
+			probe_err("memlog_alloc_printf() failed\n");
 
 	npu_log.npu_array_file_obj = memlog_alloc_file(npu_log.memlog_desc_array, "hw-fil",
 						sizeof(union npu_log_tag)*LOG_UNIT_NUM,
@@ -483,6 +492,19 @@ void npu_memlog_store(npu_log_level_e loglevel, const char *fmt, ...)
 		memlog_write_printf(npu_log.npu_memlog_obj, loglevel, npu_string);
 	if (npu_log.npu_err_in_dmesg == NPU_ERR_IN_DMESG_ENABLE)
 		pr_err("%s\n", npu_string);
+}
+
+void npu_dumplog_store(npu_log_level_e loglevel, const char *fmt, ...)
+{
+	char npu_string[1024];
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsprintf(npu_string, fmt, ap);
+	va_end(ap);
+
+	if (npu_log.npu_dumplog_obj)
+		memlog_write_printf(npu_log.npu_dumplog_obj, loglevel, npu_string);
 }
 #else
 static void npu_log_rmemlog(__attribute__((unused))struct npu_device *npu_dev) {};
@@ -1558,7 +1580,7 @@ int npu_debug_memdump32_by_memcpy(u32 *start, u32 *end)
 #ifdef DEBUG_LOG_MEMORY
 			pr_debug("%s\n", sentence);
 #else
-			npu_info("%s\n", sentence);
+			npu_dump("%s\n", sentence);
 #endif
 			j = 0; items = 0; k = 0; l = 0;
 			j = sprintf(sentence, "[V] %pK:      ", cur);
@@ -1577,7 +1599,7 @@ int npu_debug_memdump32_by_memcpy(u32 *start, u32 *end)
 #ifdef DEBUG_LOG_MEMORY
 		pr_debug("%s\n", sentence);
 #else
-		npu_info("%s\n", sentence);
+		npu_dump("%s\n", sentence);
 #endif
 	}
 	ret = cur - end;
@@ -1746,13 +1768,13 @@ int fw_will_note(size_t len)
 	}
 
 	pos = 0;
-	npu_err("----------- Start will_note for npu_fw (/sys/kernel/debug/npu/fw-report )-------------\n");
+	npu_dump("----------- Start will_note for npu_fw (/sys/kernel/debug/npu/fw-report )-------------\n");
 	if ((fw_report.last_dump_line_cnt != 0) && (bReqLegacy == TRUE)) {
 		pos = fw_report.st_size - (len - fw_report.wr_pos);
 		for (i = pos; i < fw_report.st_size; i++) {
 			if (fw_report.st_buf[i] == '\n') {
 				fw_report.st_buf[i] = '\0';
-				npu_err("%s\n", &fw_report.st_buf[pos]);
+				npu_dump("%s\n", &fw_report.st_buf[pos]);
 				fw_report.st_buf[i] = '\n';
 				pos = i+1;
 			}
@@ -1764,7 +1786,7 @@ int fw_will_note(size_t len)
 	for (i = pos ; i < fw_report.wr_pos; i++) {
 		if (fw_report.st_buf[i] == '\n') {
 			fw_report.st_buf[i] = '\0';
-			npu_err("%s\n", &fw_report.st_buf[pos]);
+			npu_dump("%s\n", &fw_report.st_buf[pos]);
 			fw_report.st_buf[i] = '\n';
 			pos = i+1;
 		}
@@ -1772,9 +1794,9 @@ int fw_will_note(size_t len)
 
 	fw_report.rp_pos = fw_report.wr_pos;
 
-	npu_err("----------- End of will_note for npu_fw -------------\n");
+	npu_dump("----------- End of will_note for npu_fw -------------\n");
 	spin_unlock_irqrestore(&fw_report_lock, intr_flags);
-	npu_err("----------- Check unposted_mbox ---------------------\n");
+	npu_dump("----------- Check unposted_mbox ---------------------\n");
 	npu_log.log_ops->npu_check_unposted_mbox(ECTRL_LOW);
 #if (CONFIG_NPU_MAILBOX_VERSION >= 8)
 	npu_log.log_ops->npu_check_unposted_mbox(ECTRL_MEDIUM);
@@ -1785,7 +1807,7 @@ int fw_will_note(size_t len)
 	npu_log.log_ops->npu_check_unposted_mbox(ECTRL_NACK);
 #endif
 	npu_log.log_ops->npu_check_unposted_mbox(ECTRL_REPORT);
-	npu_err("----------- Done unposted_mbox ----------------------\n");
+	npu_dump("----------- Done unposted_mbox ----------------------\n");
 
 	npu_log_memlog_sync_to_file();
 #if IS_ENABLED(CONFIG_SEC_ABC)

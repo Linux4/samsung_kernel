@@ -8040,6 +8040,7 @@ static void ufshcd_async_scan(void *data, async_cookie_t cookie)
 	down(&hba->host_sem);
 	/* Initialize hba, detect and initialize UFS device */
 	ret = ufshcd_probe_hba(hba, true);
+
 	/* retry 5 times if ufs init is failed*/
 	while (ret && retries--) {
 		dev_err(hba->dev, "%s: fail to probe_hba %d, retries: %d\n",

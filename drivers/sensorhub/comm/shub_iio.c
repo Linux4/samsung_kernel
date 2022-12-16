@@ -181,7 +181,7 @@ int initialize_indio_dev(struct device *dev)
 
 	for (type = 0 ; type < SENSOR_TYPE_LEGACY_MAX; type++) {
 		sensor = get_sensor(type);
-		if (!sensor || sensor->report_event_size == 0)
+		if (!sensor || !sensor->hal_sensor)
 			continue;
 
 		bytes = (sensor->report_event_size+timestamp_len);

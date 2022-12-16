@@ -514,6 +514,7 @@ static void exynos_atomic_bts_post_update(struct drm_device *dev,
 	}
 }
 
+#define DEFAULT_TIMEOUT_FPS 60
 static void exynos_atomic_wait_for_vblanks(struct drm_device *dev,
 		struct drm_atomic_state *old_state)
 {
@@ -547,17 +548,32 @@ static void exynos_atomic_wait_for_vblanks(struct drm_device *dev,
 		old_state->crtcs[i].last_vblank_count = drm_crtc_vblank_count(crtc);
 	}
 
-	for_each_old_crtc_in_state(old_state, crtc, old_crtc_state, i) {
+	for_each_oldnew_crtc_in_state(old_state, crtc, old_crtc_state, new_crtc_state, i) {
+		static ktime_t timestamp_s;
+		s64 diff_msec;
+		u64 fps;
+		u32 default_vblank_timeout, max_vblank_timeout, interval;
+
 		if (!(crtc_mask & drm_crtc_mask(crtc)))
 			continue;
 
+		fps = drm_mode_vrefresh(&new_crtc_state->mode) ?: DEFAULT_TIMEOUT_FPS;
+		interval = MSEC_PER_SEC / fps;
+		max_vblank_timeout = 12 * interval;
+		default_vblank_timeout = 6 * interval;
+
+		timestamp_s = ktime_get();
 		ret = wait_event_timeout(dev->vblank[i].queue,
 				old_state->crtcs[i].last_vblank_count !=
 				drm_crtc_vblank_count(crtc),
-				msecs_to_jiffies(100));
+				msecs_to_jiffies(max_vblank_timeout));
+		diff_msec = ktime_to_ms(ktime_sub(ktime_get(), timestamp_s));
 
-		WARN(!ret, "[CRTC:%d:%s] vblank wait timed out\n",
-				crtc->base.id, crtc->name);
+		if (diff_msec >= default_vblank_timeout)
+			pr_warn("[CRTC:%d:%s] vblank wait timed out!(%lld ms/%lld ms)\n",
+				crtc->base.id, crtc->name, diff_msec,
+				default_vblank_timeout);
+
 		if (!ret) {
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 			/* Code for bypass commit when panel was not connected */

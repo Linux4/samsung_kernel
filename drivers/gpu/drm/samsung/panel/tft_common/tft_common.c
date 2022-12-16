@@ -22,7 +22,7 @@
 #endif
 
 #if IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_TFT_M33)
-#include "./m33/tft_common_m33_panel_list.h"
+#include "./m33x/tft_common_m33_panel_list.h"
 #endif
 
 #if IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_TFT_GTS8L)

@@ -761,6 +761,40 @@ int sec_bat_parse_dt(struct device *dev,
 		pdata->sc_LRP_25W = of_property_read_bool(np,
 			"battery,sc_LRP_25W");
 	}
+/* mix temp v2 */
+	pdata->enable_mix_v2 = of_property_read_bool(np, "battery,enable_mix_v2");
+
+	ret = of_property_read_u32(np, "battery,mix_v2_lrp_recov", &pdata->mix_v2_lrp_recov);
+	if (ret) {
+		pr_info("%s : mix_v2_lrp_recov is Empty\n", __func__);
+		pdata->mix_v2_lrp_recov = 0;
+	}
+	ret = of_property_read_u32(np, "battery,mix_v2_lrp_cond", &pdata->mix_v2_lrp_cond);
+	if (ret) {
+		pr_info("%s : mix_v2_lrp_cond is Empty\n", __func__);
+		pdata->mix_v2_lrp_cond = 0;
+	}
+	ret = of_property_read_u32(np, "battery,mix_v2_bat_cond", &pdata->mix_v2_bat_cond);
+	if (ret) {
+		pr_info("%s : mix_v2_bat_cond is Empty\n", __func__);
+		pdata->mix_v2_bat_cond = 0;
+	}
+	ret = of_property_read_u32(np, "battery,mix_v2_chg_cond", &pdata->mix_v2_chg_cond);
+	if (ret) {
+		pr_info("%s : mix_v2_chg_cond is Empty\n", __func__);
+		pdata->mix_v2_chg_cond = 0;
+	}
+#if IS_ENABLED(CONFIG_DIRECT_CHARGING)
+	ret = of_property_read_u32(np, "battery,mix_v2_dchg_cond", &pdata->mix_v2_dchg_cond);
+	if (ret) {
+		pr_info("%s : mix_v2_dchg_cond is Empty\n", __func__);
+		pdata->mix_v2_dchg_cond = 0;
+	}
+#else
+	pr_info("%s : mix_v2_dchg_cond is not supported\n", __func__);
+	pdata->mix_v2_dchg_cond = 0;
+#endif
+/* mix temp v2 */
 
 	if (pdata->chg_thm_info.check_type) {
 		ret = of_property_read_u32(np, "battery,chg_12v_high_temp",
@@ -2256,6 +2290,7 @@ void sec_bat_parse_mode_dt(struct sec_battery_info *battery)
 		pr_info("%s : battery,store_mode_buckoff: %d\n", __func__, pdata->store_mode_buckoff);
 	}
 }
+EXPORT_SYMBOL_KUNIT(sec_bat_parse_mode_dt);
 
 void sec_bat_parse_mode_dt_work(struct work_struct *work)
 {

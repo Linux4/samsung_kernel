@@ -17,11 +17,9 @@
 #include <linux/gpio.h>
 #include "el7xx.h"
 
+#ifndef ENABLE_SENSORS_FPRINT_SECURE
 int el7xx_spi_setup_conf(struct el7xx_data *etspi, u32 bits)
 {
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	return 0;
-#else
 	int retval = 0;
 
 	if (bits < 1 || bits > 4) {
@@ -43,7 +41,6 @@ int el7xx_spi_setup_conf(struct el7xx_data *etspi, u32 bits)
 	}
 
 	return retval;
-#endif
 }
 
 int el7xx_spi_sync(struct el7xx_data *etspi, int len)
@@ -69,9 +66,6 @@ int el7xx_spi_sync(struct el7xx_data *etspi, int len)
 
 int el7xx_io_read_register(struct el7xx_data *etspi, u8 *addr, u8 *buf, struct egis_ioc_transfer *ioc)
 {
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	return 0;
-#else
 	int retval = 0;
 	int read_len = 1;
 	int spi_len = ioc->len + 2;
@@ -98,18 +92,14 @@ int el7xx_io_read_register(struct el7xx_data *etspi, u8 *addr, u8 *buf, struct e
 	}
 
 	return retval;
-#endif
 }
 
 int el7xx_io_burst_read_register(struct el7xx_data *etspi, struct egis_ioc_transfer *ioc)
 {
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	return 0;
-#else
 	int retval = 0;
 	int spi_len = ioc->len + 2;
 
-	if (ioc->len <= 0 || spi_len > etspi->bufsiz) {
+	if (ioc->len <= 0 || spi_len > bufsiz) {
 		pr_err("buffer size fail\n");
 		return -ENOMEM;
 	}
@@ -137,18 +127,14 @@ int el7xx_io_burst_read_register(struct el7xx_data *etspi, struct egis_ioc_trans
 	}
 
 	return retval;
-#endif
 }
 
 int el7xx_io_burst_read_register_backward(struct el7xx_data *etspi, struct egis_ioc_transfer *ioc)
 {
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	return 0;
-#else
 	int retval = 0;
 	int spi_len = ioc->len + 2;
 
-	if (ioc->len <= 0 || spi_len > etspi->bufsiz) {
+	if (ioc->len <= 0 || spi_len > bufsiz) {
 		pr_err("buffer size fail\n");
 		return -ENOMEM;
 	}
@@ -176,14 +162,10 @@ int el7xx_io_burst_read_register_backward(struct el7xx_data *etspi, struct egis_
 	}
 
 	return retval;
-#endif
 }
 
 int el7xx_io_write_register(struct el7xx_data *etspi, u8 *buf, struct egis_ioc_transfer *ioc)
 {
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	return 0;
-#else
 	int retval = 0;
 	int write_len = 2;
 	int spi_len = ioc->len + 1;
@@ -208,18 +190,14 @@ int el7xx_io_write_register(struct el7xx_data *etspi, u8 *buf, struct egis_ioc_t
 	}
 
 	return retval;
-#endif
 }
 
 int el7xx_io_burst_write_register(struct el7xx_data *etspi, struct egis_ioc_transfer *ioc)
 {
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	return 0;
-#else
 	int retval = 0;
 	int spi_len = ioc->len + 1;
 
-	if (ioc->len <= 0 || spi_len + 1 > etspi->bufsiz) {
+	if (ioc->len <= 0 || spi_len + 1 > bufsiz) {
 		pr_err("buffer size fail\n");
 		return -ENOMEM;
 	}
@@ -242,18 +220,14 @@ int el7xx_io_burst_write_register(struct el7xx_data *etspi, struct egis_ioc_tran
 	}
 
 	return retval;
-#endif
 }
 
 int el7xx_io_burst_write_register_backward(struct el7xx_data *etspi, struct egis_ioc_transfer *ioc)
 {
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	return 0;
-#else
 	int retval = 0;
 	int spi_len = ioc->len + 1;
 
-	if (ioc->len <= 0 || spi_len + 1 > etspi->bufsiz) {
+	if (ioc->len <= 0 || spi_len + 1 > bufsiz) {
 		pr_err("buffer size fail\n");
 		return -ENOMEM;
 	}
@@ -275,14 +249,10 @@ int el7xx_io_burst_write_register_backward(struct el7xx_data *etspi, struct egis
 	}
 
 	return retval;
-#endif
 }
 
 int el7xx_io_read_efuse(struct el7xx_data *etspi, struct egis_ioc_transfer *ioc)
 {
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	return 0;
-#else
 	int retval;
 	int spi_len = ioc->len + 1;
 
@@ -305,14 +275,10 @@ int el7xx_io_read_efuse(struct el7xx_data *etspi, struct egis_ioc_transfer *ioc)
 	}
 
 	return retval;
-#endif
 }
 
 int el7xx_io_write_efuse(struct el7xx_data *etspi, struct egis_ioc_transfer *ioc)
 {
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	return 0;
-#else
 	int retval;
 	int spi_len = ioc->len + 1;
 
@@ -332,14 +298,10 @@ int el7xx_io_write_efuse(struct el7xx_data *etspi, struct egis_ioc_transfer *ioc
 		pr_err("read data error retval = %d\n", retval);
 
 	return retval;
-#endif
 }
 
 int el7xx_io_get_frame(struct el7xx_data *etspi, u8 *fr, u32 size)
 {
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	return 0;
-#else
 	int retval;
 	int spi_len = size + 1;
 
@@ -361,14 +323,10 @@ int el7xx_io_get_frame(struct el7xx_data *etspi, u8 *fr, u32 size)
 	}
 
 	return retval;
-#endif
 }
 
 int el7xx_io_write_frame(struct el7xx_data *etspi, u8 *fr, u32 size)
 {
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	return 0;
-#else
 	int retval;
 	int spi_len = size + 1;
 
@@ -387,14 +345,10 @@ int el7xx_io_write_frame(struct el7xx_data *etspi, u8 *fr, u32 size)
 		pr_err("write data error retval = %d\n", retval);
 
 	return retval;
-#endif
 }
 
 int el7xx_io_transfer_command(struct el7xx_data *etspi, u8 *tx, u8 *rx, u32 size)
 {
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	return 0;
-#else
 	int retval = 0;
 
 	memset(etspi->buf, 0, size);
@@ -417,24 +371,12 @@ int el7xx_io_transfer_command(struct el7xx_data *etspi, u8 *tx, u8 *rx, u32 size
 	}
 
 	return retval;
-#endif
 }
 
 int el7xx_write_register(struct el7xx_data *etspi, u8 addr, u8 buf)
 {
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	return 0;
-#else
 	int retval;
 	int spi_len = 3;
-
-	mutex_lock(&etspi->buf_lock);
-	if (etspi->buf == NULL)
-		etspi->buf = kmalloc(bufsiz, GFP_KERNEL);
-	if (etspi->buf == NULL) {
-		retval = -ENOMEM;
-		goto end;
-	}
 
 	memset(etspi->buf, 0, spi_len);
 	etspi->buf[0] = OP_REG_W;
@@ -447,27 +389,14 @@ int el7xx_write_register(struct el7xx_data *etspi, u8 addr, u8 buf)
 	} else {
 		pr_err("read data error retval = %d\n", retval);
 	}
-end:
-	mutex_unlock(&etspi->buf_lock);
+
 	return retval;
-#endif
 }
 
 int el7xx_read_register(struct el7xx_data *etspi, u8 addr, u8 *buf)
 {
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	return 0;
-#else
 	int retval;
 	int spi_len = 4;
-
-	mutex_lock(&etspi->buf_lock);
-	if (etspi->buf == NULL)
-		etspi->buf = kmalloc(bufsiz, GFP_KERNEL);
-	if (etspi->buf == NULL) {
-		retval = -ENOMEM;
-		goto end;
-	}
 
 	memset(etspi->buf, 0, spi_len);
 	etspi->buf[0] = OP_REG_R;
@@ -480,9 +409,27 @@ int el7xx_read_register(struct el7xx_data *etspi, u8 addr, u8 *buf)
 	} else {
 		pr_err("read data error retval = %d\n", retval);
 	}
-end:
-	mutex_unlock(&etspi->buf_lock);
+
 	return retval;
-#endif
 }
 
+int el7xx_init_buffer(struct el7xx_data *etspi)
+{
+	int retval = 0;
+
+	etspi->buf = kzalloc(bufsiz, GFP_KERNEL);
+	if (etspi->buf == NULL) {
+		dev_dbg(&etspi->spi->dev, "open/ENOMEM\n");
+		return -ENOMEM;
+	}
+
+	return retval;
+}
+
+int el7xx_free_buffer(struct el7xx_data *etspi)
+{
+	kfree(etspi->buf);
+
+	return 0;
+}
+#endif

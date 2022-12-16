@@ -30,10 +30,14 @@
 #define STK3X6X_NAME   "STK33910"
 #define STK3X6X_VENDOR "Sitronix"
 
-void init_proximity_stk33910_variable(struct proximity_data *data)
+int init_proximity_stk33910(void)
 {
+	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
+
 	data->cal_data_len = sizeof(u16);
 	data->setting_mode = 1;
+
+	return 0;
 }
 
 void parse_dt_proximity_stk33910(struct device *dev)
@@ -65,14 +69,23 @@ void set_proximity_state_stk33910(struct proximity_data *data)
 		set_proximity_calibration();
 }
 
-struct proximity_chipset_funcs prox_stk33910_ops = {
-	.init_proximity_variable = init_proximity_stk33910_variable,
-	.parse_dt = parse_dt_proximity_stk33910,
+struct proximity_chipset_funcs prox_stk33910_funcs = {
 	.open_calibration_file = proximity_open_calibration_stk33910,
 	.sync_proximity_state = set_proximity_state_stk33910,
 };
 
-struct proximity_chipset_funcs *get_proximity_stk33910_function_pointer(char *name)
+void *get_proximity_stk33910_chipset_funcs(void)
+{
+	return &prox_stk33910_funcs;
+}
+
+struct sensor_chipset_init_funcs prox_stk33910_ops = {
+	.init = init_proximity_stk33910,
+	.parse_dt = parse_dt_proximity_stk33910,
+	.get_chipset_funcs = get_proximity_stk33910_chipset_funcs,
+};
+
+struct sensor_chipset_init_funcs *get_proximity_stk33910_function_pointer(char *name)
 {
 	if (strcmp(name, STK3X6X_NAME) != 0)
 		return NULL;

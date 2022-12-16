@@ -450,11 +450,23 @@ int sec_get_pps_voltage(void)
 #endif
 void pdo_ctrl_by_flash(bool mode)
 {
-	struct usbpd_data *pd_data = g_pd_data;
-	struct usbpd_manager_data *manager = &pd_data->manager;
+	struct usbpd_data *pd_data;
+	struct usbpd_manager_data *manager;
 #if IS_ENABLED(CONFIG_PDIC_PD30)
 	int pps_enable = -1;
 #endif
+
+	pd_data = g_pd_data;
+	if (!pd_data) {
+		pr_info("%s, pd_data is NULL\n", __func__);
+		return;
+	}
+
+	manager = &pd_data->manager;
+	if (!manager) {
+		pr_info("%s, manager is NULL\n", __func__);
+		return;
+	}
 
 	pr_info("%s: mode(%d)\n", __func__, mode);
 

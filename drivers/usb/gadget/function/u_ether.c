@@ -633,6 +633,9 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	struct usb_ep		*in;
 	u16			cdc_filter;
 	unsigned long	tx_timeout;
+	bool eth_multi_pkt_xfer = 0;
+	bool eth_supports_multi_frame = 0;
+	bool eth_is_fixed = 0;
 
 	if (dev->en_timer) {
 		hrtimer_cancel(&dev->tx_timer);
@@ -643,6 +646,9 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	if (dev->port_usb) {
 		in = dev->port_usb->in_ep;
 		cdc_filter = dev->port_usb->cdc_filter;
+		eth_multi_pkt_xfer = dev->port_usb->multi_pkt_xfer;
+		eth_supports_multi_frame = dev->port_usb->supports_multi_frame;
+		eth_is_fixed = dev->port_usb->is_fixed;
 	} else {
 		in = NULL;
 		cdc_filter = 0;
@@ -655,7 +661,7 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	}
 
 	/* Allocate memory for tx_reqs to support multi packet transfer */
-	if (dev->port_usb->multi_pkt_xfer && !dev->tx_req_bufsize)
+	if (eth_multi_pkt_xfer && !dev->tx_req_bufsize)
 		alloc_tx_buffer(dev);
 
 	/* apply outgoing CDC or RNDIS filters */
@@ -714,7 +720,7 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 			/* Multi frame CDC protocols may store the frame for
 			 * later which is not a dropped frame.
 			 */
-			if (dev->port_usb->supports_multi_frame)
+			if (eth_supports_multi_frame)
 				goto multiframe;
 			goto drop;
 		}
@@ -724,7 +730,7 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	dev->tx_skb_hold_count++;
 	spin_unlock_irqrestore(&dev->req_lock, flags);
 
-	if (dev->port_usb->multi_pkt_xfer) {
+	if (eth_multi_pkt_xfer && req->buf) {
 		memcpy(req->buf + req->length, skb->data, skb->len);
 		req->length = req->length + skb->len;
 		length = req->length;
@@ -763,7 +769,7 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	}
 
 	if (retval) {
-		if (!dev->port_usb->multi_pkt_xfer)
+		if (!eth_multi_pkt_xfer)
 			dev_kfree_skb_any(skb);
 drop:
 		dev->net->stats.tx_dropped++;

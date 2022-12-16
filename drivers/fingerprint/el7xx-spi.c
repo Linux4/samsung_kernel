@@ -384,19 +384,9 @@ static int el7xx_open(struct inode *inode, struct file *filp)
 		}
 	}
 	if (retval == 0) {
-		if (etspi->buf == NULL) {
-			etspi->buf = kmalloc(bufsiz, GFP_KERNEL);
-			if (etspi->buf == NULL) {
-				dev_dbg(&etspi->spi->dev, "open/ENOMEM\n");
-				retval = -ENOMEM;
-			}
-		}
-		if (retval == 0) {
-			etspi->users++;
-			filp->private_data = etspi;
-			nonseekable_open(inode, filp);
-			etspi->bufsiz = bufsiz;
-		}
+		etspi->users++;
+		filp->private_data = etspi;
+		nonseekable_open(inode, filp);
 	} else
 		pr_debug("nothing for minor %d\n", iminor(inode));
 
@@ -419,8 +409,6 @@ static int el7xx_release(struct inode *inode, struct file *filp)
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
 		int dofree;
 #endif
-		kfree(etspi->buf);
-		etspi->buf = NULL;
 
 		/* ... after we unbound from the underlying device? */
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
@@ -953,6 +941,13 @@ static int el7xx_probe(struct spi_device *spi)
 		goto el7xx_spi_set_setup_failed;
 	}
 
+	/* init transfer buffer */
+	retval = el7xx_init_buffer(etspi);
+	if (retval < 0) {
+		pr_err("Failed to Init transfer buffer.\n");
+		goto el7xx_spi_init_buffer_failed;
+	}
+
 	retval = el7xx_probe_common(&spi->dev, etspi);
 	if (retval)
 		goto el7xx_spi_probe_failed;
@@ -961,6 +956,8 @@ static int el7xx_probe(struct spi_device *spi)
 	return retval;
 
 el7xx_spi_probe_failed:
+	el7xx_free_buffer(etspi);
+el7xx_spi_init_buffer_failed:
 el7xx_spi_set_setup_failed:
 	etspi = NULL;
 el7xx_spi_alloc_failed:
@@ -997,14 +994,21 @@ static int el7xx_remove_common(struct device *dev)
 }
 
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
-static int el7xx_remove(struct spi_device *spi) {
+static int el7xx_remove(struct spi_device *spi)
+{
+	struct el7xx_data *etspi = spi_get_drvdata(spi);
+
+	el7xx_free_buffer(etspi);
 	el7xx_remove_common(&spi->dev);
-#else
-static int el7xx_remove(struct platform_device *pdev) {
-	el7xx_remove_common(&pdev->dev);
-#endif
 	return 0;
 }
+#else
+static int el7xx_remove(struct platform_device *pdev)
+{
+	el7xx_remove_common(&pdev->dev);
+	return 0;
+}
+#endif
 
 static int el7xx_pm_suspend(struct device *dev)
 {

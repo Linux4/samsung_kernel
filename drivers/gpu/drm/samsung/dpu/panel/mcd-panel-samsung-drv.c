@@ -58,6 +58,8 @@ MODULE_PARM_DESC(panel_cmd_log, "log level for panel command [default : 0]");
 
 static int exynos_panel_get_bts_fps(const struct exynos_panel *ctx,
 				     const struct exynos_panel_mode *pmode);
+static int mcd_drm_panel_set_display_mode(struct exynos_panel *ctx,
+		const struct exynos_panel_mode *pmode);
 
 struct edid panel_edid;
 
@@ -664,9 +666,22 @@ static void exynos_panel_enable(struct drm_bridge *bridge)
 		return;
 	}
 
-	if (ctx->enabled)
+	if (ctx->enabled) {
 		panel_info(ctx, "panel is already initialized\n");
-	else if (drm_panel_enable(&ctx->panel))
+		return;
+	}
+
+	if (ctx->desc->lp11_reset) {
+		panel_info(ctx, "%s lp11_reset:%d\n", __func__, ctx->desc->lp11_reset);
+
+		/* 1. RST HIGH in LP11 */
+		call_mcd_panel_func(ctx->mcd_panel_dev, reset_lp11);
+
+		/* 2. LP11 -> HS CLK (dsim) */
+		dsim_atomic_activate(bridge->encoder);
+	}
+
+	if (drm_panel_enable(&ctx->panel))
 		return;
 
 	exynos_conn_state->adjusted_fps = drm_mode_vrefresh(current_mode);
@@ -1058,6 +1073,13 @@ static int mcd_drm_panel_enable(struct drm_panel *panel)
 	if (ret < 0)
 		return ret;
 
+	if (!pmode->exynos_mode.is_lp_mode) {
+		ret = mcd_drm_panel_set_display_mode(ctx, pmode);
+		if (ret < 0)
+			panel_err(ctx, "failed to set display mode(%s)\n",
+					pmode->mode.name);
+	}
+
 	ret = call_mcd_panel_func(ctx->mcd_panel_dev, sleep_out);
 	if (ret < 0) {
 		panel_err(ctx, "failed to sleep out(ret:%d)\n", ret);
@@ -1191,7 +1213,6 @@ static void mcd_drm_panel_mode_set(struct exynos_panel *ctx,
 
 	if (SEAMLESS_MODESET_MRES & flags || SEAMLESS_MODESET_VREF & flags) {
 		ret = mcd_drm_panel_set_display_mode(ctx, pmode);
-
 		if (ret < 0)
 			panel_err(ctx, "failed to set vrefresh\n");
 	}
@@ -2411,6 +2432,30 @@ int mcd_drm_panel_get_size_mm(struct exynos_panel *ctx,
 	return 0;
 }
 
+bool mcd_drm_panel_get_lp11_reset(struct exynos_panel *ctx)
+{
+	struct device_node *np;
+	bool ret = false;
+	u32 reg = 0;
+
+	if (!ctx || !ctx->dev || !ctx->mcd_panel_dev)
+		return -ENODEV;
+
+	np = ctx->mcd_panel_dev->ddi_node;
+	if (!np) {
+		panel_err(ctx, "mcd_panel ddi-node is null\n");
+		return -EINVAL;
+	}
+
+	of_property_read_u32(np, "lp11_reset", &reg);
+
+	ret = reg ? true : false;
+
+	panel_info(ctx, "lp11_reset:(%d)\n", reg);
+
+	return ret;
+}
+
 struct exynos_panel_desc *
 mcd_drm_panel_get_exynos_panel_desc(struct exynos_panel *ctx)
 {
@@ -2433,6 +2478,7 @@ mcd_drm_panel_get_exynos_panel_desc(struct exynos_panel *ctx)
 	desc = exynos_panel_desc_create_from_panel_display_modes(ctx, pdms);
 	desc->panel_func = &mcd_drm_panel_funcs;
 	desc->exynos_panel_func = &mcd_exynos_panel_funcs;
+	desc->lp11_reset = mcd_drm_panel_get_lp11_reset(ctx);
 
 	/* set width_mm, height_mm on exynos_panel_mode */
 	ret = mcd_drm_panel_get_size_mm(ctx, &width_mm, &height_mm);
@@ -2514,6 +2560,22 @@ int mcd_drm_panel_probe(struct exynos_panel *ctx)
 	return 0;
 }
 
+static void notify_lp11_reset(struct exynos_panel *ctx, bool en)
+{
+	struct mipi_dsi_device *dsi;
+	struct dsim_device *dsim;
+
+	dsi = to_mipi_dsi_device(ctx->dev);
+	if (!dsi || !dsi->host) {
+		panel_err(ctx, "dsi not attached yet\n");
+		return;
+	}
+
+	dsim = container_of(dsi->host, struct dsim_device, dsi_host);
+
+	dsim->lp11_reset = en;
+}
+
 int exynos_panel_probe(struct mipi_dsi_device *dsi)
 {
 	struct device *dev = &dsi->dev;
@@ -2544,6 +2606,8 @@ int exynos_panel_probe(struct mipi_dsi_device *dsi)
 
 	dsi->lanes = ctx->desc->data_lane_cnt;
 	dsi->format = MIPI_DSI_FMT_RGB888;
+
+	notify_lp11_reset(ctx, ctx->desc->lp11_reset);
 
 	drm_panel_init(&ctx->panel, dev,
 			&mcd_drm_panel_funcs, DRM_MODE_CONNECTOR_DSI);

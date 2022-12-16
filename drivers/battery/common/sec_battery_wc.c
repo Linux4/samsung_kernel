@@ -541,6 +541,7 @@ bool sec_bat_hv_wc_normal_mode_check(struct sec_battery_info *battery)
 	}
 	return false;
 }
+EXPORT_SYMBOL_KUNIT(sec_bat_hv_wc_normal_mode_check);
 
 void sec_bat_ext_event_work_content(struct sec_battery_info *battery)
 {
@@ -916,6 +917,7 @@ void sec_bat_handle_tx_misalign(struct sec_battery_info *battery, bool trigger_m
 		}
 	}
 }
+EXPORT_SYMBOL_KUNIT(sec_bat_handle_tx_misalign);
 
 void sec_bat_handle_tx_ocp(struct sec_battery_info *battery, bool trigger_ocp)
 {
@@ -1076,6 +1078,7 @@ void sec_bat_wc_cv_mode_check(struct sec_battery_info *battery)
 			POWER_SUPPLY_PROP_STATUS, value);
 	}
 }
+EXPORT_SYMBOL_KUNIT(sec_bat_wc_cv_mode_check);
 
 static int is_5v_charger(struct sec_battery_info *battery, int wr_sts)
 {

@@ -4948,6 +4948,10 @@
 		dun-swap = [00];
 	};
 
+	fmp-simulator {
+		compatible = "samsung,exynos-fmp-simulator";
+	};
+
 	cryptomanager {
 		compatible = "samsung,exynos-cm";
 		sysreg_addr = <0x12821508>;

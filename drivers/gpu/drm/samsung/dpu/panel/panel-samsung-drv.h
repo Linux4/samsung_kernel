@@ -177,6 +177,7 @@ struct exynos_panel_desc {
 	const struct drm_panel_funcs *panel_func;
 	const struct exynos_panel_funcs *exynos_panel_func;
 	const char *xml_suffix;
+	bool lp11_reset;
 };
 
 #define MAX_CMDSET_NUM 32

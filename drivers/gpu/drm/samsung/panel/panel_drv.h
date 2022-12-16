@@ -204,6 +204,7 @@ struct panel_drv_funcs {
 	int (*get_mres)(struct panel_device *, void *);
 	int (*set_display_mode)(struct panel_device *, void *);
 	int (*get_display_mode)(struct panel_device *, void *);
+	int (*reset_lp11)(struct panel_device *);
 
 	/* display controller event operation */
 	int (*vsync)(struct panel_device *, void *);

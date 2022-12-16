@@ -73,7 +73,7 @@ int adc_read_type(struct device *dev, int channel)
 
 	if (batt_adc_list[channel].is_used) {
 		do {
-#if defined(CONFIG_MTK_CHARGER) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+#if defined(CONFIG_ARCH_MTK_PROJECT) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
 			ret = (batt_adc_list[channel].is_used) ?
 				iio_read_channel_raw(batt_adc_list[channel].channel, &adc) : 0;
 #else

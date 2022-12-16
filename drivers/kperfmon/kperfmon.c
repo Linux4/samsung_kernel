@@ -197,7 +197,7 @@ void ReadBufferByPosition(struct tRingBuffer *buffer,
 	if (start < end) {
 		*length = end - start;
 
-		if (*length > PERFLOG_PACKET_SIZE) {
+		if (*length >= PERFLOG_PACKET_SIZE) {
 			*length = 0;
 			return;
 		}
@@ -206,7 +206,7 @@ void ReadBufferByPosition(struct tRingBuffer *buffer,
 	} else if (buffer->length > start) {
 		*length = buffer->length - start;
 
-		if ((*length + end) > PERFLOG_PACKET_SIZE) {
+		if ((*length + end) >= PERFLOG_PACKET_SIZE) {
 			*length = 0;
 			return;
 		}
@@ -507,6 +507,13 @@ ssize_t kperfmon_read(struct file *filp,
 	mutex_unlock(&buffer.mutex);
 	//printk(KERN_INFO "kperfmon_read(length : %d)\n", (int)length);
 	//readlogpacket.stream[length++] = '\n';
+
+	if (length >= PERFLOG_PACKET_SIZE) {
+		length = PERFLOG_PACKET_SIZE - 1;
+	} else if (length == 0) {
+		return 0;
+	}
+
 	readlogpacket.stream[length] = 0;
 
 #if NOT_USED

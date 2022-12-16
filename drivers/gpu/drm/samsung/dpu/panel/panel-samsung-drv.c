@@ -925,9 +925,17 @@ static void exynos_panel_enable(struct drm_bridge *bridge)
 		return;
 	}
 
-	if (ctx->enabled)
+	if (ctx->enabled) {
 		panel_info(ctx, "panel is already initialized\n");
-	else if (drm_panel_enable(&ctx->panel))
+		return;
+	}
+
+	if (ctx->desc->lp11_reset) {
+		exynos_panel_reset(ctx);
+		dsim_atomic_activate(bridge->encoder);
+	}
+
+	if (drm_panel_enable(&ctx->panel))
 		return;
 
 	exynos_conn_state->adjusted_fps = drm_mode_vrefresh(current_mode);
@@ -1337,6 +1345,22 @@ static ssize_t active_off_store(struct device *dev,
 }
 static DEVICE_ATTR_RW(active_off);
 
+static void notify_lp11_reset(struct exynos_panel *ctx, bool en)
+{
+	struct mipi_dsi_device *dsi;
+	struct dsim_device *dsim;
+
+	dsi = to_mipi_dsi_device(ctx->dev);
+	if (!dsi || !dsi->host) {
+		panel_err(ctx, "dsi not attached yet\n");
+		return;
+	}
+
+	dsim = container_of(dsi->host, struct dsim_device, dsi_host);
+
+	dsim->lp11_reset = en;
+}
+
 int exynos_panel_probe(struct mipi_dsi_device *dsi)
 {
 	struct device *dev = &dsi->dev;
@@ -1358,6 +1382,8 @@ int exynos_panel_probe(struct mipi_dsi_device *dsi)
 	dsi->format = MIPI_DSI_FMT_RGB888;
 
 	exynos_panel_parse_dt(ctx);
+
+	notify_lp11_reset(ctx, ctx->desc->lp11_reset);
 
 	snprintf(name, sizeof(name), "panel%d-backlight", dsi->channel);
 	ctx->bl = devm_backlight_device_register(ctx->dev, name, NULL,

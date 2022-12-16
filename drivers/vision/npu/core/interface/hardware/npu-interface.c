@@ -1150,36 +1150,36 @@ int npu_check_unposted_mbox(int nCtrl)
 	switch (nCtrl) {
 	case ECTRL_LOW:
 		ctrl = &(interface.mbox_hdr->h2fctrl[MAILBOX_H2FCTRL_LPRIORITY]);
-		npu_err("[V] H2F_MBOX[LOW] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		npu_dump("[V] H2F_MBOX[LOW] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
 		mbx_ipc_print(NPU_MBOX_BASE((void *)interface.mbox_hdr), ctrl, NPU_LOG_ERR);
 		break;
 #if (CONFIG_NPU_MAILBOX_VERSION >= 8)
 	case ECTRL_MEDIUM:
 		ctrl = &(interface.mbox_hdr->h2fctrl[MAILBOX_H2FCTRL_MPRIORITY]);
-		npu_err("[V] H2F_MBOX[MEDIUM] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		npu_dump("[V] H2F_MBOX[MEDIUM] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
 		mbx_ipc_print(NPU_MBOX_BASE((void *)interface.mbox_hdr), ctrl, NPU_LOG_ERR);
 		break;
 #endif
 	case ECTRL_HIGH:
 		ctrl = &(interface.mbox_hdr->h2fctrl[MAILBOX_H2FCTRL_HPRIORITY]);
-		npu_err("[V] H2F_MBOX[HIGH] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		npu_dump("[V] H2F_MBOX[HIGH] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
 		mbx_ipc_print(NPU_MBOX_BASE((void *)interface.mbox_hdr), ctrl, NPU_LOG_ERR);
 		break;
 	case ECTRL_ACK:
 		ctrl = &(interface.mbox_hdr->f2hctrl[MAILBOX_F2HCTRL_RESPONSE]);
-		npu_err("[V] F2H_MBOX[RESPONSE] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		npu_dump("[V] F2H_MBOX[RESPONSE] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
 		mbx_ipc_print(NPU_MBOX_BASE((void *)interface.mbox_hdr), ctrl, NPU_LOG_ERR);
 		break;
 #if (CONFIG_NPU_MAILBOX_VERSION >= 8)
 	case ECTRL_NACK:
 		ctrl = &(interface.mbox_hdr->f2hctrl[MAILBOX_F2HCTRL_NRESPONSE]);
-		npu_err("[V] F2H_MBOX[NRESPONSE] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		npu_dump("[V] F2H_MBOX[NRESPONSE] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
 		mbx_ipc_print(NPU_MBOX_BASE((void *)interface.mbox_hdr), ctrl, NPU_LOG_ERR);
 		break;
 #endif
 	case ECTRL_REPORT:
 		ctrl = &(interface.mbox_hdr->f2hctrl[MAILBOX_F2HCTRL_REPORT]);
-		npu_err("[V] F2H_MBOX[REPORT] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		npu_dump("[V] F2H_MBOX[REPORT] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
 		break;
 	default:
 		BUG_ON(1);

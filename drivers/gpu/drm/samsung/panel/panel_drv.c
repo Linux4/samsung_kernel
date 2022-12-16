@@ -171,6 +171,7 @@ int panel_log_level = 3;
 int panel_log_level = 6;
 #endif
 EXPORT_SYMBOL(panel_log_level);
+module_param(panel_log_level, int, 0600);
 int panel_cmd_log;
 EXPORT_SYMBOL(panel_cmd_log);
 #ifdef CONFIG_SUPPORT_PANEL_SWAP
@@ -834,7 +835,7 @@ static int __panel_seq_boot(struct panel_device *panel)
 {
 	int ret;
 
-	if (check_seqtbl_exist(&panel->panel_data, PANEL_BOOT_SEQ) < 1)
+	if (!check_seqtbl_exist(&panel->panel_data, PANEL_BOOT_SEQ))
 		return 0;
 
 	ret = panel_do_seqtbl_by_index(panel, PANEL_BOOT_SEQ);
@@ -1104,6 +1105,7 @@ static int __panel_seq_exit_alpm(struct panel_device *panel)
 
 	/* PANEL_ALPM_EXIT_AFTER_SEQ temporary added */
 	if (check_seqtbl_exist(&panel->panel_data, PANEL_ALPM_EXIT_AFTER_SEQ)) {
+		panel_bl_set_brightness(&panel->panel_bl, PANEL_BL_SUBDEV_TYPE_DISP, SKIP_CMD);
 		ret = panel_do_seqtbl_by_index_nolock(panel, PANEL_ALPM_EXIT_AFTER_SEQ);
 		if (ret)
 			panel_err("failed to alpm-exit-after seq\n");
@@ -1383,7 +1385,7 @@ static struct common_panel_info *panel_detect(struct panel_device *panel)
 	panel_data = &panel->panel_data;
 
 	memset(id, 0, sizeof(id));
-#if IS_ENABLED(CONFIG_DRM_SAMSUNG_DPU) && !defined(CONFIG_SUPPORT_PANEL_SWAP)
+#if IS_ENABLED(CONFIG_DRM_SAMSUNG_DPU) && (!defined(CONFIG_SUPPORT_PANEL_SWAP) || IS_ENABLED(CONFIG_UNSUPPORT_INIT_READ))
 	panel_info("use BL panel id : 0x%06x\n", boot_panel_id);
 	id[0] = (boot_panel_id >> 16) & 0xFF;
 	id[1] = (boot_panel_id >> 8) & 0xFF;
@@ -2710,6 +2712,45 @@ do_exit:
 	return ret;
 }
 
+__visible_for_testing int panel_reset_lp11(struct panel_device *panel)
+{
+	int ret = 0;
+	struct panel_state *state;
+	enum panel_active_state prev_state;
+	struct panel_bl_device *panel_bl;
+
+	if (!panel)
+		return -EINVAL;
+
+	panel_bl = &panel->panel_bl;
+
+	if (panel_bypass_is_on(panel)) {
+		panel_print_bypass_reason(panel);
+		ret = -ENODEV;
+		goto do_exit;
+	}
+
+	state = &panel->state;
+	prev_state = state->cur_state;
+
+	if (state->cur_state == PANEL_POWER_ON) {
+		mutex_lock(&panel_bl->lock);
+		mutex_lock(&panel->op_lock);
+
+		ret = panel_power_control_execute(panel, "panel_reset_lp11");
+		if (ret < 0 && ret != -ENODATA)
+			panel_err("failed to panel_reset_lp11\n");
+
+		mutex_unlock(&panel->op_lock);
+		mutex_unlock(&panel_bl->lock);
+	}
+
+	return 0;
+
+do_exit:
+	return ret;
+}
+
 __visible_for_testing int panel_sleep_out(struct panel_device *panel)
 {
 	int ret = 0;
@@ -3390,6 +3431,21 @@ static int panel_set_display_mode(struct panel_device *panel, void *arg)
 		goto out;
 	}
 
+	if (panel->state.cur_state != PANEL_STATE_NORMAL &&
+			panel->state.cur_state != PANEL_STATE_ALPM) {
+		ret = panel_update_display_mode_props(panel, panel_mode);
+		if (ret < 0) {
+			panel_err("failed to update display mode properties\n");
+			goto out;
+		}
+
+		props->vrr_origin_fps = props->vrr_fps;
+		props->vrr_origin_mode = props->vrr_mode;
+		props->vrr_origin_idx = props->vrr_idx;
+
+		goto out;
+	}
+
 #ifdef CONFIG_PANEL_VRR_BRIDGE
 	props->target_panel_mode = panel_mode;
 	if (panel_vrr_bridge_changeable(panel) &&
@@ -3420,7 +3476,7 @@ out:
  * panel_update_display_mode - update display mode
  * @panel: panel device
  *
- * excute DISPLAY_MODE seq with current display mode.
+ * execute DISPLAY_MODE seq with current display mode.
  */
 int panel_update_display_mode(struct panel_device *panel)
 {
@@ -5260,6 +5316,8 @@ struct panel_drv_funcs panel_drv_funcs = {
 	.get_mres = NULL,
 	.set_display_mode = panel_set_display_mode,
 	.get_display_mode = panel_get_display_mode,
+
+	.reset_lp11 = panel_reset_lp11,
 
 	.frame_done = panel_ioctl_event_frame_done,
 	.vsync = panel_ioctl_event_vsync,

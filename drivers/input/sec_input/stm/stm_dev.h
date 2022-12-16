@@ -16,6 +16,7 @@
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/kernel.h>
+#include <linux/limits.h>
 #include <linux/module.h>
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
@@ -136,6 +137,10 @@ struct trusted_touch_vm_info {
 extern struct tsp_dump_callbacks dump_callbacks;
 #endif
 
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+#include <linux/hall/hall_ic_notifier.h>
+#endif
+
 #include "../sec_input.h"
 #include "../sec_tsp_log.h"
 
@@ -224,7 +229,12 @@ enum switch_system_mode {
 	TO_TOUCH_MODE			= 0,
 	TO_LOWPOWER_MODE		= 1,
 };
-
+enum tsp_status_call_pos {
+	STM_TS_STATE_CHK_POS_OPEN = 0,
+	STM_TS_STATE_CHK_POS_CLOSE,
+	STM_TS_STATE_CHK_POS_HALL,
+	STM_TS_STATE_CHK_POS_SYSFS,
+};
 enum stm_ts_cover_id {
 	STM_TS_FLIP_WALLET = 0,
 	STM_TS_VIEW_COVER,
@@ -358,8 +368,11 @@ struct stm_ts_event_coordinate {
 	u8 noise_level;
 	u8 max_strength;
 	u8 hover_id_num:4;
-	u8 reserved_10:4;
-	u8 reserved_11;
+	u8 noise_status:2;
+	u8 eom:1;
+	u8 game_mode:1;
+	u8 freq_id:4;
+	u8 reserved_11:4;
 	u8 reserved_12;
 	u8 reserved_13;
 	u8 reserved_14;
@@ -512,6 +525,7 @@ struct stm_ts_data {
 	u8 touch_opmode;
 	u8 charger_mode;
 	u8 scan_mode;
+	u8 game_mode;
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	atomic_t secure_enabled;
@@ -552,6 +566,19 @@ struct stm_ts_data {
 	int panel_revision;			/* Octa panel revision */
 	u32 chip_id;
 
+	int flip_status_prev;
+	int flip_status;
+	int flip_status_current;
+	int change_flip_status;
+	int tsp_open_status;
+	struct mutex switching_mutex;
+	struct mutex status_mutex;
+	struct delayed_work switching_work;
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+	struct notifier_block hall_ic_nb;
+	struct notifier_block hall_ic_nb_ssh;
+#endif
+
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	struct notifier_block vbus_nb;
 #endif	
@@ -562,7 +589,10 @@ struct stm_ts_data {
 	struct delayed_work work_read_info;
 	struct delayed_work debug_work;
 	struct delayed_work check_rawdata;
-	
+#if IS_ENABLED(CONFIG_GH_RM_DRV)
+	struct delayed_work close_work;
+#endif
+
 	volatile bool reset_is_on_going;
 
 	int debug_flag;
@@ -642,6 +672,8 @@ struct stm_ts_data {
 	int rawcap_min;
 	int rawcap_min_tx;
 	int rawcap_min_rx;
+
+	u8 vvc_mode;
 
 	int (*stop_device)(struct stm_ts_data *ts);
 	int (*start_device)(struct stm_ts_data *ts);
@@ -735,6 +767,7 @@ int _stm_tclm_data_read(struct stm_ts_data *ts, int address);
 int _stm_tclm_data_write(struct stm_ts_data *ts, int address);
 int stm_ts_set_hsync_scanmode(struct stm_ts_data *ts, u8 scan_mode);
 int stm_ts_fod_vi_event(struct stm_ts_data *ts);
+int stm_ts_set_vvc_mode(struct stm_ts_data *ts, bool enable);
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 void stm_ts_interrupt_notify(struct work_struct *work);
 #endif
@@ -765,6 +798,12 @@ int stm_ts_wait_for_echo_event(struct stm_ts_data *ts, u8 *cmd, u8 cmd_cnt, int 
 int stm_ts_fw_wait_for_event(struct stm_ts_data *ts, u8 *result, u8 result_cnt);
 void stm_ts_checking_miscal(struct stm_ts_data *ts);
 
+void stm_switching_work(struct work_struct *work);
+
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+int stm_hall_ic_notify(struct notifier_block *nb, unsigned long flip_cover, void *v);
+extern void hall_ic_request_notitfy(void);
+#endif
 
 #ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
 extern struct tsp_dump_callbacks dump_callbacks;

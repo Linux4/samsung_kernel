@@ -335,23 +335,23 @@ struct seqinfo *find_panel_seqtbl(struct panel_info *panel_data, char *name)
 	return NULL;
 }
 
-int check_seqtbl_exist(struct panel_info *panel_data, u32 index)
+bool check_seqtbl_exist(struct panel_info *panel_data, u32 index)
 {
 	if (unlikely(!panel_data->seqtbl)) {
 		panel_err("seqtbl not exist\n");
-		return -EINVAL;
+		return false;
 	}
 
 	if (unlikely(index >= MAX_PANEL_SEQ)) {
 		panel_err("invalid parameter (index %d)\n", index);
-		return -EINVAL;
+		return false;
 	}
 
 
 	if (panel_data->seqtbl[index].cmdtbl != NULL)
-		return 1;
+		return true;
 
-	return 0;
+	return false;
 }
 
 struct seqinfo *find_index_seqtbl(struct panel_info *panel_data, u32 index)

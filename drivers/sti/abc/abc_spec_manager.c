@@ -79,12 +79,6 @@ int sec_abc_get_event_module(char *dst, char *src)
 }
 EXPORT_SYMBOL_KUNIT(sec_abc_get_event_module);
 
-int sec_abc_get_event_host(char *dst, char *src)
-{
-	return sec_abc_get_normal_token_value(dst, src, "HOST=");
-}
-EXPORT_SYMBOL_KUNIT(sec_abc_get_event_host);
-
 int sec_abc_get_ext_log(char *dst, char *src)
 {
 	return sec_abc_get_normal_token_value(dst, src, "EXT_LOG=");
@@ -177,10 +171,7 @@ int sec_abc_make_key_data(struct abc_key_data *key_data, char *str)
 		return -EINVAL;
 
 	for (i = 2; i < idx; i++) {
-		if (!strncmp(event_strings[i], "HOST=", 5)) {
-			if (sec_abc_get_event_host(key_data->host_name, event_strings[i]))
-				return -EINVAL;
-		} else if (!strncmp(event_strings[i], "EXT_LOG=", 8)) {
+		if (!strncmp(event_strings[i], "EXT_LOG=", 8)) {
 			if (sec_abc_get_ext_log(key_data->ext_log, event_strings[i]))
 				return -EINVAL;
 		} else
@@ -189,11 +180,10 @@ int sec_abc_make_key_data(struct abc_key_data *key_data, char *str)
 
 	key_data->cur_time = sec_abc_get_ktime_ms();
 
-	ABC_PRINT("Module(%s) Level(%s) Event(%s) Host(%s) EXT_LOG(%s) cur_time(%d)",
+	ABC_PRINT("Module(%s) Level(%s) Event(%s) EXT_LOG(%s) cur_time(%d)",
 			  key_data->event_module,
 			  key_data->event_type,
 			  key_data->event_name,
-			  key_data->host_name,
 			  key_data->ext_log,
 			  key_data->cur_time);
 	return 0;

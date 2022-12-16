@@ -65,6 +65,13 @@
 #include "scsc_wlan_mmap.h"
 #endif
 
+#define SLSI_MODE_HE   BIT(2)
+#define SLSI_MODE_VHT  BIT(1)
+#define SLSI_MODE_LEGACY_HT   BIT(0)
+#define SLSI_2_4_BAND_SUPPORT BIT(0)
+#define SLSI_5_BAND_SUPPORT   BIT(1)
+#define SLSI_6_BAND_SUPPORT   BIT(2)
+
 #define CSR_WIFI_SME_MIB2_HOST_PSID_MASK    0x8000
 #define MX_WLAN_FILE_PATH_LEN_MAX (128)
 #define SLSI_MIB_REG_RULES_MAX (50)
@@ -3158,6 +3165,10 @@ static int slsi_get_sta_mode(struct net_device *dev, const u8 *last_peer_mac)
 	struct slsi_dev *sdev = ndev_vif->sdev;
 	struct slsi_peer    *last_peer;
 	const u8             *peer_ie;
+	u8                   ie_len = 0;
+	u8                   start_chan = 0;
+	int                  i = 0, chan_count = 0;
+	const u8             *supported_chan_ie = NULL;
 
 	last_peer = slsi_get_peer_from_mac(sdev, dev, last_peer_mac);
 
@@ -3165,15 +3176,47 @@ static int slsi_get_sta_mode(struct net_device *dev, const u8 *last_peer_mac)
 		SLSI_NET_ERR(dev, "Peer not found\n");
 		return -EINVAL;
 	}
-
 	ndev_vif->ap.last_disconnected_sta.support_mode = 0;
+#if (KERNEL_VERSION(5, 0, 0) <= LINUX_VERSION_CODE)
+	if (cfg80211_find_ext_ie(WLAN_EID_EXT_HE_CAPABILITY, last_peer->assoc_ie->data,
+				      last_peer->assoc_ie->len))
+		ndev_vif->ap.last_disconnected_sta.support_mode = SLSI_MODE_HE;
+	else if (cfg80211_find_ie(WLAN_EID_VHT_CAPABILITY, last_peer->assoc_ie->data,
+				  last_peer->assoc_ie->len))
+		ndev_vif->ap.last_disconnected_sta.support_mode = SLSI_MODE_VHT;
+#else
 	if (cfg80211_find_ie(WLAN_EID_VHT_CAPABILITY, last_peer->assoc_ie->data,
 			     last_peer->assoc_ie->len))
-		ndev_vif->ap.last_disconnected_sta.support_mode = 3;
-	else if (cfg80211_find_ie(WLAN_EID_HT_CAPABILITY, last_peer->assoc_ie->data,
-				  last_peer->assoc_ie->len))
-		ndev_vif->ap.last_disconnected_sta.support_mode = 1;
+		ndev_vif->ap.last_disconnected_sta.support_mode = SLSI_MODE_VHT;
+#endif
+	else
+		ndev_vif->ap.last_disconnected_sta.support_mode = SLSI_MODE_LEGACY_HT;
 
+	ndev_vif->ap.last_disconnected_sta.supported_band = 0;
+	supported_chan_ie = cfg80211_find_ie(WLAN_EID_SUPPORTED_CHANNELS, last_peer->assoc_ie->data,
+					     last_peer->assoc_ie->len);
+	if ((supported_chan_ie) &&
+	    ((last_peer->assoc_ie->len - (supported_chan_ie - last_peer->assoc_ie->data)) > 2)) {
+		ie_len = supported_chan_ie[1];
+		if ((last_peer->assoc_ie->len - (supported_chan_ie - last_peer->assoc_ie->data)) < (2 + ie_len))
+			goto skip_supported_band;
+
+		supported_chan_ie += 2;
+		for (i = 0; i < (ie_len / 2); i++) {
+			start_chan = supported_chan_ie[2 * i];
+			chan_count = supported_chan_ie[2 * i + 1];
+			if ((start_chan <= MAX_24G_CHANNELS) && (chan_count < MAX_24G_CHANNELS))
+				ndev_vif->ap.last_disconnected_sta.supported_band |= SLSI_2_4_BAND_SUPPORT;
+			else if ((start_chan == 36) || (start_chan == 52) || (start_chan == 100) ||
+				 (start_chan == 149) || (start_chan == 169))
+				ndev_vif->ap.last_disconnected_sta.supported_band |= SLSI_5_BAND_SUPPORT;
+			else
+				ndev_vif->ap.last_disconnected_sta.supported_band |= SLSI_6_BAND_SUPPORT;
+		}
+	} else {
+		SLSI_INFO(sdev, "supported_chan_ie is null\n");
+	}
+skip_supported_band:
 	if (ndev_vif->ap.mode == SLSI_80211_MODE_11AC) { /*AP supports VHT*/
 		peer_ie = cfg80211_find_ie(WLAN_EID_VHT_CAPABILITY, last_peer->assoc_ie->data,
 					   last_peer->assoc_ie->len);

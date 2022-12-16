@@ -187,6 +187,15 @@ extern void mst_ctrl_of_mst_hw_onoff(bool on)
 #if !defined(CONFIG_MST_IF_PMIC)
 		gpio_set_value(mst_pwr_en, 0);
 		mst_info("%s: mst_pwr_en LOW\n", __func__);
+#if defined(CONFIG_MST_PCR)
+		value.intval = OFF;
+		psy_do_property("battery", set,
+				POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
+
+		value.intval = 1000;
+		psy_do_property("otg", set,
+				POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+#endif
 #endif
 #endif
 		usleep_range(800, 1000);
@@ -288,6 +297,15 @@ static void of_mst_hw_onoff(bool on)
 		}
 #else
 #if !defined(CONFIG_MST_IF_PMIC)
+#if defined(CONFIG_MST_PCR)
+		value.intval = 1500;
+		psy_do_property("otg", set,
+				POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+
+		value.intval = ON;
+		psy_do_property("battery", set,
+				POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
+#endif
 		gpio_set_value(mst_pwr_en, 1);
 		mst_info("%s: mst_pwr_en HIGH\n", __func__);
 #endif
@@ -340,7 +358,7 @@ static void of_mst_hw_onoff(bool on)
 #if defined(CONFIG_MFC_CHARGER)
 		while (--retry_cnt) {
 			psy_do_property("mfc-charger", get, POWER_SUPPLY_EXT_PROP_MST_MODE, value);
-			if (value.intval == 0x02) {
+			if (value.intval > 0) {
 				mst_info("%s: mst mode set!!! : %d\n", __func__,
 					 value.intval);
 				retry_cnt = 1;
@@ -364,6 +382,15 @@ static void of_mst_hw_onoff(bool on)
 #if !defined(CONFIG_MST_IF_PMIC)
 		gpio_set_value(mst_pwr_en, 0);
 		mst_info("%s: mst_pwr_en LOW\n", __func__);
+#if defined(CONFIG_MST_PCR)
+		value.intval = OFF;
+		psy_do_property("battery", set,
+				POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
+
+		value.intval = 1000;
+		psy_do_property("otg", set,
+				POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+#endif
 #endif
 #endif
 		usleep_range(800, 1000);

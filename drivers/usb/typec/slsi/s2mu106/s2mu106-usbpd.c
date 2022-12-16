@@ -3661,6 +3661,9 @@ static void s2mu106_usbpd_try_snk(struct s2mu106_usbpd_data *pdic_data)
 					pr_info("%s, goto Attached.SRC\n", __func__);
 					fsm |= S2MU106_REG_PLUG_CTRL_FSM_ATTACHED_SRC;
 					s2mu106_usbpd_write_reg(i2c, S2MU106_REG_PLUG_CTRL_PD12, fsm);
+					s2mu106_usbpd_read_reg(i2c, S2MU106_REG_PLUG_CTRL_RpRd, &manual);
+					manual &= ~S2MU106_REG_PLUG_CTRL_FSM_MANUAL_EN;
+					s2mu106_usbpd_write_reg(i2c, S2MU106_REG_PLUG_CTRL_RpRd, manual);
 					/* Snk Detected for tTryCCDebounce */
 					/* Attached.SRC -> Attach */
 					break;

@@ -265,7 +265,6 @@ int iommu_probe_device(struct device *dev)
 	 */
 	mutex_lock(&group->mutex);
 	iommu_alloc_default_domain(group, dev);
-	mutex_unlock(&group->mutex);
 
 	if (group->default_domain) {
 		ret = __iommu_attach_device(group->default_domain, dev);
