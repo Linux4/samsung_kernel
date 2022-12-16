@@ -398,7 +398,7 @@ static ssize_t sysfs_key_onoff_show(struct device *dev,
 	}
 #endif
 
-	pr_info("%s %s: key state:%d\n", SECLOG, __func__, state);
+	pr_info("[sec_input] %s: key state:%d\n", __func__, state);
 
 	return snprintf(buf, 5, "%d\n", state);
 }
@@ -426,7 +426,7 @@ static ssize_t wakeup_enable(struct device *dev,
 
 		if (button->button->type == EV_KEY) {
 			if (button->button->wakeup_default) {
-				pr_err("%s %s default wakeup status %d\n", SECLOG, button->button->desc,
+				pr_err("[sec_input] %s default wakeup status %d\n", button->button->desc,
 						button->button->wakeup);
 				continue;
 			}
@@ -434,7 +434,7 @@ static ssize_t wakeup_enable(struct device *dev,
 				button->button->wakeup = 1;
 			else
 				button->button->wakeup = 0;
-			pr_err("%s %s wakeup status %d\n", SECLOG, button->button->desc,
+			pr_err("[sec_input] %s wakeup status %d\n", button->button->desc,
 					button->button->wakeup);
 		}
 	}
@@ -457,7 +457,7 @@ static ssize_t keycode_pressed_show(struct device *dev,
 
 	buff = kmalloc(len, GFP_KERNEL);
 	if (!buff) {
-		pr_err("%s %s: failed to mem alloc\n", SECLOG, __func__);
+		pr_err("[sec_input] %s: failed to mem alloc\n", __func__);
 		return snprintf(buf, 5, "NG\n");
 	}
 
@@ -487,7 +487,7 @@ static ssize_t keycode_pressed_show(struct device *dev,
 	strncat(buff, tmp, 7);
 #endif
 
-	pr_info("%s %s: %s\n", SECLOG, __func__, buff);
+	pr_info("[sec_input] %s: %s\n", __func__, buff);
 	count = snprintf(buf, strnlen(buff, len - 2) + 2, "%s\n", buff);
 
 	kfree(buff);
@@ -540,7 +540,7 @@ static ssize_t key_pressed_count_show(struct device *dev,
 	strncat(buff, tmp, 20);
 #endif
 
-	pr_info("%s %s: %s\n", SECLOG, __func__, buff);
+	pr_info("[sec_input] %s: %s\n", __func__, buff);
 	count = snprintf(buf, len, "%s\n", buff);
 
 	kfree(buff);
@@ -612,7 +612,7 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 
 	if (state)
 		bdata->key_press_count++;
-	pr_info("%s %s: %d, %d, %d\n", SECLOG, __func__, button->code, button->value, state);
+	pr_info("[sec_input] %s: %d, %d, %d\n", __func__, button->code, button->value, state);
 }
 
 static void gpio_keys_gpio_work_func(struct work_struct *work)

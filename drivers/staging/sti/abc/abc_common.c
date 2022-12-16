@@ -26,7 +26,6 @@ static struct device *sec_abc;
 static int abc_enabled;
 static int abc_init;
 
-#define ABC_PRINT(format, ...) pr_info("[sec_abc] " format, ##__VA_ARGS__)
 
 #ifdef CONFIG_OF
 static int parse_gpu_data(struct device *dev,
@@ -240,23 +239,28 @@ static ssize_t store_abc_enabled(struct device *dev,
 	struct abc_info *pinfo = dev_get_drvdata(sec_abc);
 
 	if (!strncmp(buf, "1", 1)) {
-		ABC_PRINT("ABC driver enabled.\n");
-		abc_enabled = ABC_TYPE1_ENABLED;
-		complete(&pinfo->enable_done);
-	} else if (!strncmp(buf, "2", 1)) {
-		ABC_PRINT("Common driver enabled.\n");
-		abc_enabled = ABC_TYPE2_ENABLED;
+		ABC_PRINT("ERROR report mode enabled.\n");
+		abc_enabled |= ERROR_REPORT_MODE_BIT;
 		complete(&pinfo->enable_done);
 	} else if (!strncmp(buf, "0", 1)) {
-		ABC_PRINT("ABC/Common driver disabled.\n");
-		if (abc_enabled == ABC_TYPE1_ENABLED) {
-			sec_abc_reset_gpu_buffer();
-			sec_abc_reset_gpu_page_buffer();
-			sec_abc_reset_aicl_buffer();
-		}
+		ABC_PRINT("ERROR report mode disabled.\n");
+		abc_enabled &= ~(ERROR_REPORT_MODE_BIT);
+	} else if (!strncmp(buf, "ALL_REPORT=1", 12)) {
+		ABC_PRINT("ALL report mode enabled.\n");
+		abc_enabled |= ALL_REPORT_MODE_BIT;
+		complete(&pinfo->enable_done);
+	} else if (!strncmp(buf, "ALL_REPORT=0", 12)) {
+		ABC_PRINT("ALL report mode disabled.\n");
+		abc_enabled &= ~(ALL_REPORT_MODE_BIT);
+	} else
+		ABC_PRINT("Invalid input.\n");
 
-		abc_enabled = ABC_DISABLED;
+	if (abc_enabled == ABC_DISABLED) {
+		sec_abc_reset_gpu_buffer();
+		sec_abc_reset_gpu_page_buffer();
+		sec_abc_reset_aicl_buffer();
 	}
+
 	return count;
 }
 
@@ -264,7 +268,10 @@ static ssize_t show_abc_enabled(struct device *dev,
 				struct device_attribute *attr,
 				char *buf)
 {
-	return sprintf(buf, "%d\n", abc_enabled);
+	if (abc_enabled)
+		return sprintf(buf, "1\n");
+	else
+		return sprintf(buf, "0\n");
 }
 static DEVICE_ATTR(enabled, 0644, show_abc_enabled, store_abc_enabled);
 
@@ -371,6 +378,25 @@ int sec_abc_get_enabled(void)
 }
 EXPORT_SYMBOL(sec_abc_get_enabled);
 
+static void sec_abc_get_uevent_level_str(char *uevent_level_str, char *event_level, char *event_type)
+{
+	if (abc_enabled & ALL_REPORT_MODE_BIT) {
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+		if (!strncmp(event_type, "gpu_", 4))
+			snprintf(uevent_level_str, ABC_BUFFER_MAX, "WARN=%s", event_type);
+		else
+			snprintf(uevent_level_str, ABC_BUFFER_MAX, "INFO=%s", event_type);
+#else
+		if (!strncmp(event_level, "INFO", 4))
+			snprintf(uevent_level_str, ABC_BUFFER_MAX, "INFO=%s", event_type);
+		else
+			snprintf(uevent_level_str, ABC_BUFFER_MAX, "WARN=%s", event_type);
+#endif
+	} else {
+		snprintf(uevent_level_str, ABC_BUFFER_MAX, "%s=%s", event_level, event_type);
+	}
+}
+
 static void sec_abc_work_func(struct work_struct *work)
 {
 	struct abc_info *pinfo = container_of(work, struct abc_info, work);
@@ -382,9 +408,11 @@ static void sec_abc_work_func(struct work_struct *work)
 	struct rtc_time tm;
 	unsigned long local_time;
 
-	char *c, *p;
+	char *c, *p, *p2;
 	char *uevent_str[ABC_UEVENT_MAX] = {0,};
-	char temp[ABC_BUFFER_MAX], timestamp[ABC_BUFFER_MAX], event_type[ABC_BUFFER_MAX];
+	char temp[ABC_BUFFER_MAX], timestamp[ABC_BUFFER_MAX], temp2[ABC_BUFFER_MAX];
+	char uevent_level_str[ABC_BUFFER_MAX] = {0,};
+	char *event_level, *event_type;
 	int idx = 0;
 	int i = 0;
 	u64 ktime;
@@ -396,8 +424,9 @@ static void sec_abc_work_func(struct work_struct *work)
 
 	/* Caculate current kernel time */
 	ktime = local_clock();
-	ktime_ms = ktime / NSEC_PER_MSEC;
-	ktime_rem = do_div(ktime, NSEC_PER_SEC);
+	ktime_rem = do_div(ktime, NSEC_PER_MSEC);
+	ktime_ms = (unsigned long)ktime;
+	ktime_rem = do_div(ktime, MSEC_PER_SEC);
 
 	/* Caculate current local time */
 	getnstimeofday(&ts);
@@ -412,9 +441,29 @@ static void sec_abc_work_func(struct work_struct *work)
 	sprintf(timestamp, "TIMESTAMP=%lu", ktime_ms);
 	uevent_str[idx++] = &timestamp[0];
 	uevent_str[idx] = NULL;
-	strlcpy(event_type, uevent_str[1] + 6, sizeof(event_type));
 
-	ABC_PRINT("event type : %s\n", event_type);
+	strcpy(temp2, uevent_str[1]);
+	p2 = &temp2[0];
+	event_level = strsep(&p2, "=");
+	event_type = p2;
+	if (event_level == NULL || event_type == NULL) {
+		ABC_PRINT("invalid event\n");
+		return;
+	}
+
+	ABC_PRINT("event_level : %s, event type : %s\n", event_level, event_type);
+
+	sec_abc_get_uevent_level_str(uevent_level_str, event_level, event_type);
+
+	if (abc_enabled & ALL_REPORT_MODE_BIT) {
+		uevent_str[1] = uevent_level_str;
+		kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
+	}
+
+	if (!strncmp(uevent_level_str, "INFO=", 5)) {
+		ABC_PRINT("event_level is INFO. Don't Send uevent\n");
+		return;
+	}
 
 #if defined(DEBUG_ABC)
 	/* print except for TIMESTAMP(uevent_str[idx - 1]) */
@@ -445,14 +494,17 @@ static void sec_abc_work_func(struct work_struct *work)
 
 	mutex_unlock(&pinfo->log_mutex);
 
-	if (abc_enabled == ABC_TYPE1_ENABLED) {
+	if (abc_enabled != ABC_DISABLED) {
+		snprintf(uevent_level_str, ABC_BUFFER_MAX, "ERROR=%s", event_type);
+		uevent_str[1] = uevent_level_str;
+
 		pgpu = pinfo->pdata->gpu_items;
 		pgpu_page = pinfo->pdata->gpu_page_items;
 		paicl = pinfo->pdata->aicl_items;
 
 		/* GPU fault */
 		if (!strncasecmp(event_type, "gpu_fault", 9)) {
-			in.cur_time = (unsigned long)ktime / USEC_PER_SEC;
+			in.cur_time = (unsigned long)ktime;
 			in.cur_cnt = pgpu->fail_cnt++;
 
 			ABC_PRINT("gpu fail count : %d\n", pgpu->fail_cnt);
@@ -478,13 +530,8 @@ static void sec_abc_work_func(struct work_struct *work)
 				ABC_PRINT("cur_time : %lu cur_cnt : %d\n", out.cur_time, out.cur_cnt);
 			}
 
-#ifdef ABC_WARNING_REPORT
-			/* Send GPU fault warning */
-			strcat(uevent_str[1], "_w");
-			kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
-#endif
 		} else if (!strncasecmp(event_type, "gpu_page_fault", 14)) { /* gpu page fault */
-			in.cur_time = (unsigned long)ktime / USEC_PER_SEC;
+			in.cur_time = (unsigned long)ktime;
 			in.cur_cnt = pgpu_page->fail_cnt++;
 
 			ABC_PRINT("gpu_page fail count : %d\n", pgpu_page->fail_cnt);
@@ -510,7 +557,7 @@ static void sec_abc_work_func(struct work_struct *work)
 				ABC_PRINT("cur_time : %lu cur_cnt : %d\n", out.cur_time, out.cur_cnt);
 			}
 		} else if (!strncasecmp(event_type, "aicl", 4)) { /* AICL fault */
-			in.cur_time = (unsigned long)ktime / USEC_PER_SEC;
+			in.cur_time = (unsigned long)ktime;
 			in.cur_cnt = paicl->fail_cnt++;
 
 			ABC_PRINT("aicl fail count : %d\n", paicl->fail_cnt);
@@ -535,9 +582,6 @@ static void sec_abc_work_func(struct work_struct *work)
 			kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
 			ABC_PRINT("Send uevent.\n");
 		}
-	} else { /* ABC_TYPE2_ENABLED */
-		kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
-		ABC_PRINT("Send uevent.\n");
 	}
 }
 

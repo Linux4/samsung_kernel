@@ -15,3 +15,4 @@ obj-$(CONFIG_AK09918_FACTORY) += ak09918_mag.o
 obj-$(CONFIG_MMC5603X_FACTORY) += mmc5603x_mag.o
 obj-$(CONFIG_LPS22HH_FACTORY) += lps22hh_pressure.o
 obj-$(CONFIG_FLIP_COVER_DETECTOR_FACTORY) += flip_cover_detector.o
+obj-$(CONFIG_VEML3328_FACTORY) += veml3328_light.o

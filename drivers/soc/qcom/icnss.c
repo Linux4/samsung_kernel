@@ -3812,18 +3812,24 @@ static ssize_t show_wificableinfo(struct kobject *kobj,
 	np = of_find_compatible_node(NULL, NULL, "samsung,rome_cable");
 
 	if (!np) {
-		printk(KERN_ERR "[WIFI] %s : can not fine the rome_cable\n",__FUNCTION__);
+		icnss_pr_err("can't find the rome_cable\n");
 		return 0;
 	}
 
-	wifi_cable1 = of_get_named_gpio(np, "wlan_cable_wifi1", 0);
-	wifi_cable2 = of_get_named_gpio(np, "wlan_cable_wifi2", 0);
+	wifi_cable1 = of_get_named_gpio(np, "wlan_cable_wifi_1", 0);
+	if (!gpio_is_valid(wifi_cable1))
+	{
+		icnss_pr_err("can't get wlan_cable_wifi1\n");
+		return 0;
+	}
+	wifi_cable2 = of_get_named_gpio(np, "wlan_cable_wifi_2", 0);
+	if (!gpio_is_valid(wifi_cable2))
+	{
+		icnss_pr_err("can't get wlan_cable_wifi2\n");
+		return 0;
+	}
 
-	printk(KERN_INFO "%s : gpio=%d value = %d \n",__FUNCTION__, wifi_cable1, gpio_get_value(wifi_cable1));
-	printk(KERN_INFO "%s : gpio=%d value = %d \n",__FUNCTION__, wifi_cable2, gpio_get_value(wifi_cable2));
-
-	printk(KERN_ERR "%s : gpio=%d value = %d \n",__FUNCTION__, wifi_cable1, gpio_get_value(wifi_cable1));
-	printk(KERN_ERR "%s : gpio=%d value = %d \n",__FUNCTION__, wifi_cable2, gpio_get_value(wifi_cable2));
+	icnss_pr_info("wlan_cable_wifi1 = %d wlan_cable_wifi2 = %d\n", gpio_get_value(wifi_cable1), gpio_get_value(wifi_cable2));
 
 	sprintf(antbuffer, "%c%c\n", (gpio_get_value(wifi_cable1) > 0) ? 'D' : 'E' , (gpio_get_value(wifi_cable2) > 0) ? 'D' : 'E');
 

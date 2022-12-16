@@ -1088,7 +1088,7 @@ int manager_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 		return -1;
 	}
 
-	if (listener == MANAGER_NOTIFY_PDIC_MUIC) {
+	if (listener == MANAGER_NOTIFY_PDIC_MUIC || listener == MANAGER_NOTIFY_PDIC_SENSORHUB) {
 		SET_MANAGER_NOTIFIER_BLOCK(nb, notifier, listener);
 		ret = blocking_notifier_chain_register(&(typec_manager.manager_muic_notifier), nb);
 		if (ret < 0)
@@ -1204,7 +1204,7 @@ int manager_notifier_unregister(struct notifier_block *nb)
 
 	pr_info("%s: listener=%d unregister\n", __func__, nb->priority);
 
-	if (nb->priority == MANAGER_NOTIFY_PDIC_MUIC) {
+	if (nb->priority == MANAGER_NOTIFY_PDIC_MUIC || nb->priority == MANAGER_NOTIFY_PDIC_SENSORHUB) {
 		ret = blocking_notifier_chain_unregister(&(typec_manager.manager_muic_notifier), nb);
 		if (ret < 0)
 			pr_err("%s: muic blocking_notifier_chain_unregister error(%d)\n",

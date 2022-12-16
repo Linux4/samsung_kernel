@@ -18,6 +18,10 @@
 
 #include "dsi_pwr.h"
 #include "dsi_parser.h"
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+#include "dsi_panel.h"
+#include "ss_dsi_panel_common.h"
+#endif
 
 /*
  * dsi_pwr_parse_supply_node() - parse power supply node from root device node
@@ -134,10 +138,49 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 	int rc = 0, i = 0;
 	struct dsi_vreg *vreg;
 	int num_of_v = 0;
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	struct dsi_panel *panel = NULL;
+	struct dsi_display *display = NULL;
+	struct samsung_display_driver_data *vdd = NULL;
+
+	/* qcom supplys has only 1 count for each one */
+	/* only samsung count will be 2~5 */
+	if (regs->count > 1) {
+		panel = container_of(regs, struct dsi_panel, power_info);
+		if (panel) {
+			if (panel->panel_private)
+				vdd = panel->panel_private;
+			else
+				pr_err("No panel private\n");
+
+			display = container_of(panel->host, struct dsi_display, host);
+			if (!display)
+				pr_err("No dsi_display\n");
+		} else
+			pr_err("No panel\n");
+	}
+#endif
 
 	if (enable) {
 		for (i = 0; i < regs->count; i++) {
 			vreg = &regs->vregs[i];
+
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+			if (panel && vdd && display) {
+				/* aot_reset_regulator means reset is set as regulator
+				 * but panel_reset or lcd_rst regulator should not be controlled here
+				 */
+				if ((vdd->aot_reset_regulator || vdd->aot_reset_regulator_late)
+					&& !display->is_cont_splash_enabled
+					&& (!strcmp(vreg->vreg_name, "panel_reset")
+						|| !strcmp(vreg->vreg_name, "lcd_rst"))) {
+					pr_info("aot_reset_regulator(_late) -> dsi_panel_reset_regulator\n");
+					continue;
+				}
+			} else
+				pr_debug("count 1 or no panel...\n");
+#endif
+
 			if (vreg->pre_on_sleep)
 				usleep_range(vreg->pre_on_sleep*1000, vreg->pre_on_sleep*1000);
 
@@ -172,6 +215,24 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 		}
 	} else {
 		for (i = (regs->count - 1); i >= 0; i--) {
+
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+			if (panel && vdd && display) {
+				if ((vdd->aot_reset_regulator || vdd->aot_reset_regulator_late)
+					&& !display->is_cont_splash_enabled
+					&& (!strcmp(regs->vregs[i].vreg_name, "panel_reset")
+						|| !strcmp(regs->vregs[i].vreg_name, "lcd_rst"))) {
+					pr_info("aot_reset_regulator skip reset off here\n");
+					continue;
+				}
+
+				if (vdd->boost_early_off && !strcmp(regs->vregs[i].vreg_name, "panel_boost_en")) {
+					pr_info("boost_early_off skip boost_en off here\n");
+					continue;
+
+				}
+			}
+#endif
 			if (regs->vregs[i].pre_off_sleep)
 				usleep_range(regs->vregs[i].pre_off_sleep*1000, regs->vregs[i].pre_off_sleep*1000);
 

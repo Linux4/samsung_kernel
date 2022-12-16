@@ -1476,6 +1476,7 @@ static void sm5714_muic_handle_detach(struct sm5714_muic_data *muic_data,
 	muic_data->bc12_retry_count = 0;
 #endif
 	muic_data->hv_voltage = 0;
+	muic_afc_request_cause_clear();
 }
 
 static void sm5714_muic_detect_dev(struct sm5714_muic_data *muic_data, int irq)
