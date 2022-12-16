@@ -81,7 +81,8 @@ int sec_pd_get_apdo_max_power(unsigned int *pdo_pos, unsigned int *taMaxVol, uns
 	if (*pdo_pos == 0) {
 		/* Get the proper PDO */
 		for (i = 1; i <= g_psink_status->available_pdo_num; i++) {
-			if (g_psink_status->power_list[i].apdo) {
+			if (g_psink_status->power_list[i].apdo
+				&& g_psink_status->power_list[i].accept) {
 				if (g_psink_status->power_list[i].max_voltage >= *taMaxVol) {
 					*pdo_pos = i;
 					*taMaxVol = g_psink_status->power_list[i].max_voltage;

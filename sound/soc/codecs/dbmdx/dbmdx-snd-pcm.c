@@ -60,6 +60,8 @@
 /* 3 seconds + 4 bytes for position */
 #define REAL_BUFFER_SIZE	(MAX_BUFFER_SIZE + 4)
 
+u32 dma_bit_mask;
+
 struct snd_dbmdx {
 	struct snd_soc_card *card;
 	struct snd_pcm_hardware pcm_hw;
@@ -582,6 +584,7 @@ static int dbmdx_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 	struct snd_pcm_substream *substream = pcm->streams[stream].substream;
 	struct snd_dma_buffer *buf = &substream->dma_buffer;
 	size_t size = MAX_BUFFER_SIZE;
+	int ret;
 
 	pr_debug("%s\n", __func__);
 
@@ -589,6 +592,14 @@ static int dbmdx_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 	buf->dev.type = SNDRV_DMA_TYPE_DEV;
 	buf->dev.dev = pcm->card->dev;
 	buf->private_data = NULL;
+
+	if (dma_bit_mask) {
+		pr_info("%s: Configuring DMA_BIT_MASK as %d\n",
+				__func__, dma_bit_mask);
+		ret = dma_coerce_mask_and_coherent(pcm->card->dev,
+				DMA_BIT_MASK(dma_bit_mask));
+	}
+
 	buf->area = dma_alloc_coherent(pcm->card->dev,
 				       REAL_BUFFER_SIZE,
 				       &buf->addr,
@@ -694,8 +705,21 @@ static const struct snd_soc_component_driver dbmdx_soc_component_drv = {
 static int dbmdx_pcm_platform_probe(struct platform_device *pdev)
 {
 	int err;
+	int ret;
+	struct device_node *np = pdev->dev.of_node;
 
 	pr_debug("%s\n", __func__);
+
+	ret = of_property_read_u32(np, "dma_bit_mask",
+			&dma_bit_mask);
+	if ((ret && ret != -EINVAL)) {
+		dev_info(&pdev->dev, "%s: invalid 'dma_bit_mask' using default as 0\n",
+				__func__);
+		dma_bit_mask = 0;
+	} else {
+		dev_info(&pdev->dev, "%s: 'dma_bit_mask' = %d\n",
+				__func__, dma_bit_mask);
+	}
 
 	err = snd_soc_register_component(&pdev->dev, &dbmdx_soc_component_drv,
 		NULL, 0);
@@ -731,7 +755,7 @@ static struct platform_driver dbmdx_pcm_driver = {
 	.remove = dbmdx_pcm_platform_remove,
 };
 
-#if (IS_ENABLED(CONFIG_SND_SOC_DBMDX) && !IS_MODULE(CONFIG_SND_SOC_DBMDX))
+#if !IS_MODULE(CONFIG_SND_SOC_DBMDX)
 static int __init snd_dbmdx_pcm_init(void)
 {
 	return platform_driver_register(&dbmdx_pcm_driver);

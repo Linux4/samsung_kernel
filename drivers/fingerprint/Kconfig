@@ -76,6 +76,15 @@ config SENSORS_ET5XX
 	  ET5XX is the touch type fingerprint sensor.
 	  ET5XX module can support WOF mode.
 
+config SENSORS_EC6XX
+	tristate "EC6XX fingerprint sensor support"
+	default n
+	help
+	  Fingerprint sensor driver.
+	  If you say yes here you get support for EC6XX sensor.
+	  EC6XX is the touch type fingerprint sensor.
+	  EC6XX module can support WOF mode.
+
 config SENSORS_ET7XX
 	tristate "ET7XX fingerprint sensor support"
 	default n

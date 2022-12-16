@@ -3238,7 +3238,8 @@ static void sde_encoder_underrun_callback(struct drm_encoder *drm_enc,
 
 	SDE_ATRACE_BEGIN("encoder_underrun_callback");
 	atomic_inc(&phy_enc->underrun_cnt);
-	dbg_cnt = 1;
+	dbg_cnt = 0;
+	SDE_ERROR("do not make force panic : underrun count (%d)\n", atomic_read(&phy_enc->underrun_cnt));
 	SDE_EVT32(DRMID(drm_enc), atomic_read(&phy_enc->underrun_cnt));
 	if (sde_enc->cur_master &&
 			sde_enc->cur_master->ops.get_underrun_line_count)

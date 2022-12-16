@@ -43,6 +43,9 @@
 #define TYPE_BOOT  3
 #define TYPE_FORCE 4
 
+#define COUNTRY_KOR 1
+#define COUNTRY_ETC 0
+
 /* registers */
 #ifdef CONFIG_SENSORS_A96T3X6_2CH
 #define REG_LED_CONTROL                 0x00

@@ -188,6 +188,7 @@ enum misc_battery_health {
 	GENERATE(VOTER_WDT_EXPIRE)	\
 	GENERATE(VOTER_BATTERY)	\
 	GENERATE(VOTER_CHANGE_CHGMODE)	\
+	GENERATE(VOTER_FW)	\
 	GENERATE(VOTER_MAX)
 
 #define GENERATE_ENUM(ENUM) ENUM,
@@ -1352,7 +1353,7 @@ extern void sec_bat_check_wc_re_auth(struct sec_battery_info *battery);
 #endif
 
 #if defined(CONFIG_WIRELESS_FIRMWARE_UPDATE)
-extern void sec_bat_fw_update_work(struct sec_battery_info *battery, int mode);
+extern void sec_bat_fw_update(struct sec_battery_info *battery, int mode);
 extern bool sec_bat_check_boost_mfc_condition(struct sec_battery_info *battery, int mode);
 #endif
 

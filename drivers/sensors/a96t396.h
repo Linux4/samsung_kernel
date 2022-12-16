@@ -21,6 +21,10 @@
 //#include <linux/sensor/sensors_core.h>
 #define VENDOR_NAME	"ABOV"
 
+#define UNKNOWN_ON  1
+#define UNKNOWN_OFF 2
+
+#define NOTI_MODULE_NAME        "grip_notifier"
 /* ioctl */
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 struct a96t396_fw_data {
@@ -34,6 +38,9 @@ struct a96t396_fw_data {
 #define A96T396_SET_FW_DATA \
 	_IOWR(A96T396_IOCTL_MAGIC, 0x01, struct a96t396_fw_data)
 #endif
+
+#define HALL_PATH		"/sys/class/sec/hall_ic/hall_detect"
+#define HALL_CLOSE_STATE        1
 
 enum ic_num {
 	MAIN_GRIP = 0,

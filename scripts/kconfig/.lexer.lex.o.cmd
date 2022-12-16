@@ -1,4 +1,4 @@
-cmd_scripts/kconfig/lexer.lex.o := /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/bin/clang -Wp,-MD,scripts/kconfig/.lexer.lex.o.d -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89      -I ./scripts/kconfig -c -o scripts/kconfig/lexer.lex.o scripts/kconfig/lexer.lex.c
+cmd_scripts/kconfig/lexer.lex.o := /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/bin/clang -Wp,-MD,scripts/kconfig/.lexer.lex.o.d -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89      -I ./scripts/kconfig -c -o scripts/kconfig/lexer.lex.o scripts/kconfig/lexer.lex.c
 
 source_scripts/kconfig/lexer.lex.o := scripts/kconfig/lexer.lex.c
 
@@ -12,7 +12,7 @@ deps_scripts/kconfig/lexer.lex.o := \
   /usr/include/x86_64-linux-gnu/bits/long-double.h \
   /usr/include/x86_64-linux-gnu/gnu/stubs.h \
   /usr/include/x86_64-linux-gnu/gnu/stubs-64.h \
-  /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/lib64/clang/11.0.2/include/stddef.h \
+  /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/lib64/clang/11.0.2/include/stddef.h \
   /usr/include/x86_64-linux-gnu/bits/types.h \
   /usr/include/x86_64-linux-gnu/bits/typesizes.h \
   /usr/include/x86_64-linux-gnu/bits/types/__FILE.h \
@@ -20,7 +20,7 @@ deps_scripts/kconfig/lexer.lex.o := \
   /usr/include/x86_64-linux-gnu/bits/libio.h \
   /usr/include/x86_64-linux-gnu/bits/_G_config.h \
   /usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h \
-  /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/lib64/clang/11.0.2/include/stdarg.h \
+  /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/lib64/clang/11.0.2/include/stdarg.h \
   /usr/include/x86_64-linux-gnu/bits/stdio_lim.h \
   /usr/include/x86_64-linux-gnu/bits/sys_errlist.h \
   /usr/include/x86_64-linux-gnu/bits/stdio.h \
@@ -65,7 +65,7 @@ deps_scripts/kconfig/lexer.lex.o := \
   /usr/include/x86_64-linux-gnu/bits/stdlib-bsearch.h \
   /usr/include/x86_64-linux-gnu/bits/stdlib-float.h \
   /usr/include/assert.h \
-  /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/lib64/clang/11.0.2/include/limits.h \
+  /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/lib64/clang/11.0.2/include/limits.h \
   /usr/include/limits.h \
   /usr/include/x86_64-linux-gnu/bits/posix1_lim.h \
   /usr/include/x86_64-linux-gnu/bits/local_lim.h \
@@ -81,7 +81,7 @@ deps_scripts/kconfig/lexer.lex.o := \
     $(wildcard include/config/prefix.h) \
   scripts/kconfig/expr.h \
   scripts/kconfig/list.h \
-  /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/lib64/clang/11.0.2/include/stdbool.h \
+  /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b1/lib64/clang/11.0.2/include/stdbool.h \
   scripts/kconfig/lkc_proto.h \
   scripts/kconfig/parser.tab.h \
 

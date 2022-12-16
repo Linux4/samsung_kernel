@@ -990,7 +990,9 @@ void dump_cpu_stat(void)
 	guest = guest_nice = 0;
 	getboottime64(&boottime);
 
-	for_each_possible_cpu(i) {
+	for_each_present_cpu(i) {
+		BUG_ON(i >= NR_CPUS);
+
 		user += kcpustat_cpu(i).cpustat[CPUTIME_USER];
 		nice += kcpustat_cpu(i).cpustat[CPUTIME_NICE];
 		system += kcpustat_cpu(i).cpustat[CPUTIME_SYSTEM];

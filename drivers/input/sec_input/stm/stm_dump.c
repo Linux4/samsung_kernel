@@ -498,7 +498,11 @@ void stm_ts_init_proc(struct stm_ts_data *ts)
 	if (!ts->cmoffset_main_proc)
 		goto err_alloc_main;
 
-	entry_cmoffset_all = proc_create("tsp_cmoffset_all", S_IFREG | S_IRUGO, NULL, &tsp_cmoffset_all_file_ops);
+	if (ts->plat_data->support_dual_foldable == SUB_TOUCH)
+		entry_cmoffset_all = proc_create("tsp_cmoffset_all_sub", S_IFREG | 0444, NULL, &tsp_cmoffset_all_file_ops);
+	else
+		entry_cmoffset_all = proc_create("tsp_cmoffset_all", S_IFREG | 0444, NULL, &tsp_cmoffset_all_file_ops);
+
 	if (!entry_cmoffset_all) {
 		input_err(true, &ts->client->dev, "%s: failed to create /proc/tsp_cmoffset_all\n", __func__);
 		goto err_cmoffset_proc_create;

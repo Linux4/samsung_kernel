@@ -76,6 +76,9 @@ struct a96t3x6_data {
 	int irq;
 	struct wakeup_source *grip_ws;
 	int noti_enable;
+#if defined(CONFIG_TABLET_MODEL_CONCEPT)
+	int country_code;
+#endif
 	u16 grip_p_thd;
 	u16 grip_r_thd;
 	u16 grip_n_thd;
@@ -721,33 +724,39 @@ static int a96t3x6_pdic_handle_notification(struct notifier_block *nb,
 
 	GRIP_INFO("src %d id %d attach %d\n", usb_typec_info.src, usb_typec_info.id, usb_typec_info.attach);
 
-	if (!(usb_typec_info.id == PDIC_NOTIFY_ID_ATTACH || usb_typec_info.id == PDIC_NOTIFY_ID_OTG))
+	if (usb_typec_info.id != PDIC_NOTIFY_ID_ATTACH)
 		return 0;
 
 	if (grip_data->pre_attach == usb_typec_info.attach)
 		return 0;
 
 	GRIP_INFO("accept attach = %d\n", (int)usb_typec_info.attach);
-
-	if (usb_typec_info.attach == MUIC_NOTIFY_CMD_DETACH) {
-		schedule_work(&grip_data->cmdon_work);
-		a96t3x6_enter_unknown_mode(grip_data, TYPE_USB);
-	} else if (usb_typec_info.attach == MUIC_NOTIFY_CMD_ATTACH) {
-		schedule_work(&grip_data->cmdoff_work);
-		a96t3x6_enter_unknown_mode(grip_data, TYPE_USB);
-	}
-
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
 	if (usb_typec_info.rprd == PDIC_NOTIFY_HOST) {
 		grip_data->pre_otg_attach = usb_typec_info.rprd;
-		GRIP_INFO("otg attach");
+		GRIP_INFO("otg attach - unknown, reset skip");
 	} else if (usb_typec_info.id == PDIC_NOTIFY_ID_OTG) {
 		grip_data->pre_otg_attach = usb_typec_info.attach;
-		GRIP_INFO("otg attach");
+		GRIP_INFO("otg attach - unknown, reset skip");
 	} else if (grip_data->pre_otg_attach) {
 		grip_data->pre_otg_attach = 0;
-		GRIP_INFO("otg detach");
+		GRIP_INFO("otg attach - unknown, reset skip");
+	} else {
+		if (usb_typec_info.attach == MUIC_NOTIFY_CMD_DETACH)
+			schedule_work(&grip_data->cmdon_work);
+		else if (usb_typec_info.attach == MUIC_NOTIFY_CMD_ATTACH)
+			schedule_work(&grip_data->cmdoff_work);
+		if (grip_data->country_code == COUNTRY_ETC) {
+			a96t3x6_enter_unknown_mode(grip_data, TYPE_USB);
+		}
 	}
-
+#else
+	if (usb_typec_info.attach == MUIC_NOTIFY_CMD_DETACH)
+		schedule_work(&grip_data->cmdon_work);
+	else if (usb_typec_info.attach == MUIC_NOTIFY_CMD_ATTACH)
+		schedule_work(&grip_data->cmdoff_work);
+	a96t3x6_enter_unknown_mode(grip_data, TYPE_USB);
+#endif
 	grip_data->pre_attach = usb_typec_info.attach;
 
 	return 0;
@@ -765,6 +774,13 @@ static int a96t3x6_hall_ic_notify(struct notifier_block *nb,
 		return 0;
 	}
 
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+	if (data->country_code != COUNTRY_KOR) {
+		GRIP_INFO("NA/EU/CHN/JPN tablet model, hall ic reset skip\n");
+		return 0;
+	}
+#endif
+
 #ifdef CONFIG_SENSORS_A96T3X6_2CH
 	GRIP_INFO("set flip unknown mode(flip %s,prev %d %d)\n",
 		flip_cover ? "close" : "open", data->is_unknown_mode, data->is_unknown_mode_2ch);
@@ -772,10 +788,16 @@ static int a96t3x6_hall_ic_notify(struct notifier_block *nb,
 	GRIP_INFO("set flip unknown mode(flip %s,prev %d)\n",
 		flip_cover ? "close" : "open", data->is_unknown_mode);
 #endif
-	a96t3x6_enter_unknown_mode(data, TYPE_HALL);
-	if (flip_cover)
-		schedule_delayed_work(&data->reset_work,
-				msecs_to_jiffies(1));
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+	if (data->country_code != COUNTRY_KOR) {
+#endif
+		a96t3x6_enter_unknown_mode(data, TYPE_HALL);
+		if (flip_cover)
+			schedule_delayed_work(&data->reset_work,
+					msecs_to_jiffies(1));
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+	}
+#endif
 	return 0;
 }
 #endif
@@ -3013,6 +3035,38 @@ static ssize_t a96t3x6_noti_enable_show(struct device *dev,
 	return sprintf(buf, "%d\n", data->noti_enable);
 }
 
+#if defined(CONFIG_TABLET_MODEL_CONCEPT)
+static ssize_t a96t3x6_country_code_store(struct device *dev,
+				     struct device_attribute *attr, const char *buf, size_t size)
+{
+	int ret;
+	u8 country_code;
+	struct a96t3x6_data *data = dev_get_drvdata(dev);
+
+	ret = kstrtou8(buf, 2, &country_code);
+	if (ret) {
+		GRIP_ERR("invalid argument\n");
+		return size;
+	}
+
+	GRIP_INFO("country_code = %d\n", (int)country_code);
+
+	data->country_code = country_code;
+
+	return size;
+}
+
+static ssize_t a96t3x6_country_code_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	struct a96t3x6_data *data = dev_get_drvdata(dev);
+
+	GRIP_INFO("country_code = %s\n",
+		data->country_code == 1 ? "KOR" : "ETC(EUR,JPN,CHN)");
+	return sprintf(buf, "%d\n", data->country_code);
+}
+#endif
+
 static DEVICE_ATTR(grip_threshold, 0444, grip_threshold_show, NULL);
 static DEVICE_ATTR(grip_total_cap, 0444, grip_total_cap_show, NULL);
 static DEVICE_ATTR(grip_sar_enable, 0664, grip_sar_enable_show,
@@ -3077,7 +3131,9 @@ static DEVICE_ATTR(motion, 0664, grip_motion_show, grip_motion_store);
 static DEVICE_ATTR(unknown_state, 0664,
 	grip_unknown_state_show, grip_unknown_state_store);
 static DEVICE_ATTR(noti_enable, 0664, a96t3x6_noti_enable_show, a96t3x6_noti_enable_store);
-
+#if defined(CONFIG_TABLET_MODEL_CONCEPT)
+static DEVICE_ATTR(country_code, 0664, a96t3x6_country_code_show, a96t3x6_country_code_store);
+#endif
 static struct device_attribute *grip_sensor_attributes[] = {
 	&dev_attr_grip_threshold,
 	&dev_attr_grip_total_cap,
@@ -3138,6 +3194,9 @@ static struct device_attribute *grip_sensor_attributes[] = {
 	&dev_attr_motion,
 	&dev_attr_unknown_state,
 	&dev_attr_noti_enable,
+#if defined(CONFIG_TABLET_MODEL_CONCEPT)
+	&dev_attr_country_code,
+#endif
 	NULL,
 };
 

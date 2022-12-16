@@ -2417,9 +2417,6 @@ static int cam_ife_csid_enable_pxl_path(
 	if (pxl_reg->overflow_ctrl_en)
 		val |= CSID_PATH_OVERFLOW_RECOVERY;
 
-	/* enable SOF interrupt  */
-	val |= CSID_PATH_INFO_INPUT_SOF;
-
 	if (csid_hw->csid_debug & CSID_DEBUG_ENABLE_SOF_IRQ)
 		val |= CSID_PATH_INFO_INPUT_SOF;
 	if (csid_hw->csid_debug & CSID_DEBUG_ENABLE_EOF_IRQ)
@@ -3108,9 +3105,6 @@ static int cam_ife_csid_enable_rdi_path(
 
 	if (csid_reg->rdi_reg[id]->overflow_ctrl_en)
 		val |= CSID_PATH_OVERFLOW_RECOVERY;
-
-	/* Enable RDI sof interrupt for debug purpose */
-	val |= CSID_PATH_INFO_INPUT_SOF;
 
 	if (csid_hw->csid_debug & CSID_DEBUG_ENABLE_SOF_IRQ)
 		val |= CSID_PATH_INFO_INPUT_SOF;
@@ -5284,16 +5278,11 @@ handle_fatal_error:
 			complete(&csid_hw->csid_ipp_complete);
 		}
 
-		if (irq_status[CAM_IFE_CSID_IRQ_REG_IPP] &
-			CSID_PATH_INFO_INPUT_SOF) {
-			CAM_INFO(CAM_ISP, "CSID:%d IPP SOF received");
-		}
-
 		if ((irq_status[CAM_IFE_CSID_IRQ_REG_IPP] &
 			CSID_PATH_INFO_INPUT_SOF) &&
 			(csid_hw->csid_debug & CSID_DEBUG_ENABLE_SOF_IRQ)) {
 			if (!csid_hw->sof_irq_triggered)
-				CAM_INFO_RATE_LIMIT(CAM_ISP,
+				CAM_INFO(CAM_ISP,
 				"CSID:%d IPP SOF received",
 					csid_hw->hw_intf->hw_idx);
 			else
@@ -5455,15 +5444,10 @@ handle_fatal_error:
 			complete(&csid_hw->csid_rdin_complete[i]);
 		}
 
-		if (irq_status[i]  & CSID_PATH_INFO_INPUT_SOF) {
-			CAM_INFO(CAM_ISP, "CSID:%d RDI:%d SOF received",
-				csid_hw->hw_intf->hw_idx, i);
-		}
-
 		if ((irq_status[i] & CSID_PATH_INFO_INPUT_SOF) &&
 			(csid_hw->csid_debug & CSID_DEBUG_ENABLE_SOF_IRQ)) {
 			if (!csid_hw->sof_irq_triggered)
-				CAM_INFO_RATE_LIMIT(CAM_ISP,
+				CAM_INFO(CAM_ISP,
 				"CSID:%d RDI:%d SOF received",
 					csid_hw->hw_intf->hw_idx, i);
 			else

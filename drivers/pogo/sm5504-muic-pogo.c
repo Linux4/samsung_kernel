@@ -169,6 +169,8 @@ static irqreturn_t sm5504_muic_irq_thread(int irq, void *data)
 
 	int int1 = 0, int2 = 0;
 	int ctrl = 0, adc = 0;
+	int new_adc = 0;
+	int mux_sel_gpio = 0;
 
 	/* Read and Clear Interrupt1/2 */
 	int1 = sm5504_i2c_read_byte(i2c, SM5504_MUIC_REG_INT1);
@@ -183,25 +185,30 @@ static irqreturn_t sm5504_muic_irq_thread(int irq, void *data)
 		return IRQ_HANDLED;
 	}
 
+	new_adc = adc;
+
 	switch (adc) {
 	case ADC_INCOMPATIBLE_VZW:	/* 34K ohm */
-		sm5504_muic_set_usb_mux_sel_gpio(muic_data, 1);
+		mux_sel_gpio = 1;
+		// sm5504_muic_set_usb_mux_sel_gpio(muic_data, 1);
 		new_dev = ATTACHED_DEV_POGO_DOCK_34K_MUIC;
 			break;
 	case ADC_HMT:			/* 49.9K ohm */
-		sm5504_muic_set_usb_mux_sel_gpio(muic_data, 1);
+		mux_sel_gpio = 1;
+		// sm5504_muic_set_usb_mux_sel_gpio(muic_data, 1);
 		new_dev = ATTACHED_DEV_POGO_DOCK_49_9K_MUIC;
 		break;
 	default:
-		adc = ADC_OPEN;
-		sm5504_muic_set_usb_mux_sel_gpio(muic_data, 0);
+		new_adc = ADC_OPEN;
+		// sm5504_muic_set_usb_mux_sel_gpio(muic_data, 0);
 		break;
 	}
 
-	if (adc != muic_data->adc) {
-		muic_data->adc = adc;
-		muic_set_pogo_adc(adc);
+	if (new_adc != muic_data->adc) {
+		muic_data->adc = new_adc;
+		muic_set_pogo_adc(new_adc);
 	}
+	sm5504_muic_set_usb_mux_sel_gpio(muic_data, mux_sel_gpio);
 
 	if (new_dev != ATTACHED_DEV_NONE_MUIC)
 		muic_pogo_notifier_attach_attached_dev(new_dev);
