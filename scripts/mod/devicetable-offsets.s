@@ -8,12 +8,12 @@
 // -I arch/arm64/include/generated/uapi -I ./include/uapi
 // -I include/generated/uapi
 // -I drivers/gud/gud-exynos7870/MobiCoreDriver/mci/
-// -iprefix /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/../lib/gcc/aarch64-linux-android/4.9.x/
+// -iprefix /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/../lib/gcc/aarch64-linux-android/4.9.x/
 // -D __KERNEL__ -D ANDROID_VERSION=90000 -D ANDROID_MAJOR_VERSION=p
 // -D TIMA_LKM_AUTH_ENABLED -D KBUILD_STR(s)=#s
 // -D KBUILD_BASENAME=KBUILD_STR(devicetable_offsets)
 // -D KBUILD_MODNAME=KBUILD_STR(devicetable_offsets)
-// -isystem /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/../lib/gcc/aarch64-linux-android/4.9.x/include
+// -isystem /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/../lib/gcc/aarch64-linux-android/4.9.x/include
 // -include ./include/linux/kconfig.h
 // -MD scripts/mod/.devicetable-offsets.s.d
 // scripts/mod/devicetable-offsets.c -mbionic -mlittle-endian
@@ -980,8 +980,8 @@ main:
 	.string	"long long int"
 .LASF4:
 	.string	"unsigned int"
-.LASF14:
-	.string	"/home/dpi/qb5_8815/workspace/P4_1716/android/kernel/exynos7870"
+.LASF15:
+	.string	"main"
 .LASF12:
 	.ascii	"GNU C 4.9.x 20150123 (prerelease) -mbionic -mlittle-endian -"
 	.ascii	"mgeneral-regs-only -mabi=lp64 -g -Os -std=gnu90 -fno-strict-"
@@ -990,6 +990,8 @@ main:
 	.string	"long unsigned int"
 .LASF6:
 	.string	"long long unsigned int"
+.LASF14:
+	.string	"/home/dpi/qb5_8814/workspace/P4_1716/android/kernel/exynos7870"
 .LASF1:
 	.string	"unsigned char"
 .LASF9:
@@ -1002,8 +1004,6 @@ main:
 	.string	"short unsigned int"
 .LASF0:
 	.string	"signed char"
-.LASF15:
-	.string	"main"
 .LASF13:
 	.string	"scripts/mod/devicetable-offsets.c"
 .LASF2:
