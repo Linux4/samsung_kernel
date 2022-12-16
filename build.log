@@ -1,0 +1,180 @@
+
+==============================================
+START : FUNC_BUILD_KERNEL
+==============================================
+
+build project=kcmcc
+build common config=msm8916_sec_defconfig 
+build variant config=msm8916_sec_vasta_cmcc_defconfig 
+build secure option= 
+build SEANDROID option= 
+rm files in : /home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/obj/KERNEL_OBJ/arch/arm/boot/dts/*.dtb
+make: Entering directory `/home/yanbo.liu/vastahk/android/kernel'
+  GEN     /home/yanbo.liu/vastahk/android/out/target/product/vastalte/obj/KERNEL_OBJ/Makefile
+drivers/misc/Kconfig:406:warning: type of 'TIMA_LOG' redefined from 'boolean' to 'tristate'
+arch/arm/configs/msm8916_sec_defconfig:311:warning: override: reassigning to symbol VIDEOBUF2_MSM_MEM
+arch/arm/configs/msm8916_sec_defconfig:436:warning: override: reassigning to symbol MSM_WATCHDOG_V2
+arch/arm/configs/msm8916_sec_defconfig:476:warning: override: reassigning to symbol INPUT_GPIO
+arch/arm/configs/msm8916_sec_defconfig:512:warning: override: reassigning to symbol CRYPTO_DEV_QCEDEV
+arch/arm/configs/msm8916_sec_defconfig:598:warning: override: reassigning to symbol CRYPTO_SHA256
+arch/arm/configs/msm8916_sec_defconfig:603:warning: override: reassigning to symbol KEYS
+warning: (SND_SOC_QDSP6V2) selects SND_SOC_MSM_QDSP6V2_INTF which has unmet direct dependencies (SOUND && !M68K && !UML && SND && SND_SOC && MSM_QDSP6_APRV2)
+arch/arm/configs/selinux_defconfig:1:warning: override: reassigning to symbol EXT2_FS_XATTR
+arch/arm/configs/selinux_defconfig:4:warning: override: reassigning to symbol EXT4_FS_SECURITY
+arch/arm/configs/selinux_defconfig:5:warning: override: reassigning to symbol AUDIT
+arch/arm/configs/selinux_defconfig:7:warning: override: reassigning to symbol SECURITY
+arch/arm/configs/selinux_defconfig:8:warning: override: reassigning to symbol LSM_MMAP_MIN_ADDR
+arch/arm/configs/selinux_defconfig:9:warning: override: reassigning to symbol SECURITY_NETWORK
+arch/arm/configs/selinux_defconfig:10:warning: override: reassigning to symbol SECURITY_SELINUX
+arch/arm/configs/selinux_defconfig:13:warning: symbol value 'y' invalid for SECURITY_SELINUX_CHECKREQPROT_VALUE
+arch/arm/configs/selinux_defconfig:15:warning: override: reassigning to symbol NF_CONNTRACK_SECMARK
+arch/arm/configs/selinux_defconfig:16:warning: override: reassigning to symbol NETFILTER_XT_TARGET_CONNSECMARK
+arch/arm/configs/selinux_defconfig:18:warning: override: reassigning to symbol IP_NF_SECURITY
+arch/arm/configs/msm8916_sec_vasta_cmcc_defconfig:36:warning: override: reassigning to symbol SENSORS
+arch/arm/configs/msm8916_sec_vasta_cmcc_defconfig:41:warning: override: reassigning to symbol INPUT_GPIO
+arch/arm/configs/msm8916_sec_vasta_cmcc_defconfig:42:warning: override: reassigning to symbol INPUT_POLLDEV
+arch/arm/configs/msm8916_sec_vasta_cmcc_defconfig:59:warning: override: reassigning to symbol WCNSS_CORE
+arch/arm/configs/msm8916_sec_vasta_cmcc_defconfig:60:warning: override: reassigning to symbol WCNSS_CORE_PRONTO
+arch/arm/configs/msm8916_sec_vasta_cmcc_defconfig:61:warning: override: reassigning to symbol WCNSS_MEM_PRE_ALLOC
+arch/arm/configs/msm8916_sec_vasta_cmcc_defconfig:71:warning: override: reassigning to symbol CFG80211
+arch/arm/configs/msm8916_sec_vasta_cmcc_defconfig:78:warning: override: reassigning to symbol MODULES
+arch/arm/configs/msm8916_sec_vasta_cmcc_defconfig:79:warning: override: reassigning to symbol MODULE_UNLOAD
+arch/arm/configs/msm8916_sec_vasta_cmcc_defconfig:80:warning: override: reassigning to symbol MODULE_FORCE_UNLOAD
+arch/arm/configs/msm8916_sec_eng_defconfig:4:warning: override: reassigning to symbol MSM_BUSPM_DEV
+arch/arm/configs/msm8916_sec_eng_defconfig:5:warning: override: reassigning to symbol SEC_DEBUG_DOUBLE_FREE
+arch/arm/configs/msm8916_sec_eng_defconfig:20:warning: override: reassigning to symbol DEBUG_SPINLOCK
+arch/arm/configs/msm8916_sec_eng_defconfig:40:warning: override: reassigning to symbol SEC_RESTRICT_ROOTING
+arch/arm/configs/msm8916_sec_eng_defconfig:41:warning: override: reassigning to symbol SEC_RESTRICT_SETUID
+arch/arm/configs/msm8916_sec_eng_defconfig:42:warning: override: reassigning to symbol SEC_RESTRICT_FORK
+arch/arm/configs/msm8916_sec_eng_defconfig:43:warning: override: reassigning to symbol SEC_RESTRICT_ROOTING_LOG
+warning: (SND_SOC_QDSP6V2) selects SND_SOC_MSM_QDSP6V2_INTF which has unmet direct dependencies (SOUND && !M68K && !UML && SND && SND_SOC && MSM_QDSP6_APRV2)
+KCONFIG_SELINUX(arch/arm/configs/selinux_defconfig)
+KCONFIG_LOG_SELINUX(arch/arm/configs/selinux_log_defconfig)
+KCONFIG_TIMA((null))
+KCONFIG_VARIANT(arch/arm/configs/msm8916_sec_vasta_cmcc_defconfig)
+KCONFIG_DEBUG(arch/arm/configs/msm8916_sec_eng_defconfig)
+#
+# configuration written to .config
+#
+make: Leaving directory `/home/yanbo.liu/vastahk/android/kernel'
+make: Entering directory `/home/yanbo.liu/vastahk/android/kernel'
+  GEN     /home/yanbo.liu/vastahk/android/out/target/product/vastalte/obj/KERNEL_OBJ/Makefile
+scripts/kconfig/conf --silentoldconfig Kconfig
+drivers/misc/Kconfig:406:warning: type of 'TIMA_LOG' redefined from 'boolean' to 'tristate'
+warning: (SND_SOC_QDSP6V2) selects SND_SOC_MSM_QDSP6V2_INTF which has unmet direct dependencies (SOUND && !M68K && !UML && SND && SND_SOC && MSM_QDSP6_APRV2)
+warning: (SND_SOC_QDSP6V2) selects SND_SOC_MSM_QDSP6V2_INTF which has unmet direct dependencies (SOUND && !M68K && !UML && SND && SND_SOC && MSM_QDSP6_APRV2)
+  GEN     /home/yanbo.liu/vastahk/android/out/target/product/vastalte/obj/KERNEL_OBJ/Makefile
+  CHK     include/generated/uapi/linux/version.h
+  Using /home/yanbo.liu/vastahk/android/kernel as source for kernel
+  CHK     include/generated/utsrelease.h
+  CC      scripts/mod/devicetable-offsets.s
+make[2]: `include/generated/mach-types.h' is up to date.
+  CALL    /home/yanbo.liu/vastahk/android/kernel/scripts/checksyscalls.sh
+  GEN     scripts/mod/devicetable-offsets.h
+  HOSTCC  scripts/mod/file2alias.o
+  HOSTLD  scripts/mod/modpost
+  CHK     include/generated/compile.h
+  DTC     arch/arm/boot/dts/samsung/../msm8916-sec-vasta-r00.dtb
+  DTC     arch/arm/boot/dts/samsung/../msm8916-sec-vasta-r02.dtb
+  DTC     arch/arm/boot/dts/samsung/../msm8916-sec-vasta-r04.dtb
+  DTC     arch/arm/boot/dts/samsung/../msm8916-sec-vasta-r05.dtb
+  DTC     arch/arm/boot/dts/samsung/../msm8916-sec-vasta-r06.dtb
+Warning (reg_format): "reg" property in /soc/i2c@22/qcom,actuator@18 has invalid length (8 bytes) (#address-cells == 2, #size-cells == 1)
+Warning (avoid_default_addr_size): Relying on default #address-cells value for /soc/i2c@22/qcom,actuator@18
+Warning (avoid_default_addr_size): Relying on default #size-cells value for /soc/i2c@22/qcom,actuator@18
+Warning (reg_format): "reg" property in /soc/i2c@22/qcom,actuator@18 has invalid length (8 bytes) (#address-cells == 2, #size-cells == 1)
+Warning (avoid_default_addr_size): Relying on default #address-cells value for /soc/i2c@22/qcom,actuator@18
+Warning (avoid_default_addr_size): Relying on default #size-cells value for /soc/i2c@22/qcom,actuator@18
+Warning (reg_format): "reg" property in /soc/i2c@22/qcom,actuator@18 has invalid length (8 bytes) (#address-cells == 2, #size-cells == 1)
+Warning (avoid_default_addr_size): Relying on default #address-cells value for /soc/i2c@22/qcom,actuator@18
+Warning (avoid_default_addr_size): Relying on default #size-cells value for /soc/i2c@22/qcom,actuator@18
+Warning (reg_format): "reg" property in /soc/i2c@22/qcom,actuator@18 has invalid length (8 bytes) (#address-cells == 2, #size-cells == 1)
+Warning (reg_format): "reg" property in /soc/i2c@21/qcom,eeprom@50 has invalid length (8 bytes) (#address-cells == 2, #size-cells == 1)
+Warning (avoid_default_addr_size): Relying on default #address-cells value for /soc/i2c@22/qcom,actuator@18
+Warning (avoid_default_addr_size): Relying on default #size-cells value for /soc/i2c@22/qcom,actuator@18
+Warning (avoid_default_addr_size): Relying on default #address-cells value for /soc/i2c@21/qcom,eeprom@50
+Warning (avoid_default_addr_size): Relying on default #size-cells value for /soc/i2c@21/qcom,eeprom@50
+Warning (reg_format): "reg" property in /soc/i2c@22/qcom,actuator@18 has invalid length (8 bytes) (#address-cells == 2, #size-cells == 1)
+Warning (reg_format): "reg" property in /soc/i2c@21/qcom,eeprom@50 has invalid length (8 bytes) (#address-cells == 2, #size-cells == 1)
+Warning (avoid_default_addr_size): Relying on default #address-cells value for /soc/i2c@22/qcom,actuator@18
+Warning (avoid_default_addr_size): Relying on default #size-cells value for /soc/i2c@22/qcom,actuator@18
+Warning (avoid_default_addr_size): Relying on default #address-cells value for /soc/i2c@21/qcom,eeprom@50
+Warning (avoid_default_addr_size): Relying on default #size-cells value for /soc/i2c@21/qcom,eeprom@50
+  Kernel: arch/arm/boot/Image is ready
+  Building modules, stage 2.
+  MODPOST 13 modules
+  LZ4     arch/arm/boot/compressed/piggy.lz4
+  AS      arch/arm/boot/compressed/piggy.lz4.o
+  LD      arch/arm/boot/compressed/vmlinux
+  OBJCOPY arch/arm/boot/zImage
+  Kernel: arch/arm/boot/zImage is ready
+make: Leaving directory `/home/yanbo.liu/vastahk/android/kernel'
+
+=================================
+START : FUNC_BUILD_DTIMAGE_TARGET
+=================================
+
+DT image target : /home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/dt.img
+/home/yanbo.liu/vastahk/android/kernel/tools/dtbTool -o /home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/dt.img -s 2048 		-p /home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/obj/KERNEL_OBJ/scripts/dtc/ /home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/obj/KERNEL_OBJ/arch/arm/boot/dts/
+DTB combiner:
+  Input directory: '/home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/obj/KERNEL_OBJ/arch/arm/boot/dts/'
+  Output file: '/home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/dt.img'
+Found file: msm8916-sec-vasta-r06.dtb ... chipset: 206, rev: 0, platform: 3456696065, subtype: 6
+   additional chipset: 248, rev: 0, platform: 3456696065, subtype: 6
+   additional chipset: 249, rev: 0, platform: 3456696065, subtype: 6
+   additional chipset: 250, rev: 0, platform: 3456696065, subtype: 6
+Found file: msm8916-sec-vasta-r05.dtb ... chipset: 206, rev: 0, platform: 3456696065, subtype: 5
+   additional chipset: 248, rev: 0, platform: 3456696065, subtype: 5
+   additional chipset: 249, rev: 0, platform: 3456696065, subtype: 5
+   additional chipset: 250, rev: 0, platform: 3456696065, subtype: 5
+Found file: msm8916-sec-vasta-r00.dtb ... chipset: 206, rev: 0, platform: 3456696065, subtype: 0
+   additional chipset: 248, rev: 0, platform: 3456696065, subtype: 0
+   additional chipset: 249, rev: 0, platform: 3456696065, subtype: 0
+   additional chipset: 250, rev: 0, platform: 3456696065, subtype: 0
+Found file: msm8916-sec-vasta-r02.dtb ... chipset: 206, rev: 0, platform: 3456696065, subtype: 2
+   additional chipset: 248, rev: 0, platform: 3456696065, subtype: 2
+   additional chipset: 249, rev: 0, platform: 3456696065, subtype: 2
+   additional chipset: 250, rev: 0, platform: 3456696065, subtype: 2
+Found file: msm8916-sec-vasta-r04.dtb ... chipset: 206, rev: 0, platform: 3456696065, subtype: 4
+   additional chipset: 248, rev: 0, platform: 3456696065, subtype: 4
+   additional chipset: 249, rev: 0, platform: 3456696065, subtype: 4
+   additional chipset: 250, rev: 0, platform: 3456696065, subtype: 4
+=> Found 20 unique DTB(s)
+
+Generating master DTB... 
+ (writing '/home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/obj/KERNEL_OBJ/arch/arm/boot/dts/msm8916-sec-vasta-r00.dtb' - 159744 bytes) 
+ (writing '/home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/obj/KERNEL_OBJ/arch/arm/boot/dts/msm8916-sec-vasta-r02.dtb' - 161792 bytes) 
+ (writing '/home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/obj/KERNEL_OBJ/arch/arm/boot/dts/msm8916-sec-vasta-r04.dtb' - 161792 bytes) 
+ (writing '/home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/obj/KERNEL_OBJ/arch/arm/boot/dts/msm8916-sec-vasta-r05.dtb' - 161792 bytes) 
+ (writing '/home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/obj/KERNEL_OBJ/arch/arm/boot/dts/msm8916-sec-vasta-r06.dtb' - 161792 bytes) Total wrote 808960 bytes
+completed
+
+=================================
+END   : FUNC_BUILD_DTIMAGE_TARGET
+=================================
+
+
+=================================
+END   : FUNC_BUILD_KERNEL
+=================================
+
+
+===================================
+START : FUNC_MKBOOTIMG
+===================================
+
+Making boot.img ...
+	/home/yanbo.liu/vastahk/android/kernel/../../android/kernel/tools/mkbootimg --kernel /home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/obj/KERNEL_OBJ/arch/arm/boot/zImage 			--ramdisk /home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/ramdisk.img 			--output /home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/boot.img 			--cmdline console=ttyHSL0,115200,n8 androidboot.console=ttyHSL0 androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x3F ehci-hcd.park=3 androidboot.bootdevice=7824900.sdhci 			--base 0x80000000 			--pagesize 2048 			--ramdisk_offset 0x02000000 			--tags_offset 0x01E00000 			--dt /home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/dt.img
+error: could not load ramdisk '/home/yanbo.liu/vastahk/android/kernel/../../android/out/target/product/vastalte/ramdisk.img'
+tar: boot.img: Cannot stat: No such file or directory
+tar: Exiting with failure status due to previous errors
+
+=================================================
+-->Note, copy to /../output/ directory
+=================================================
+
+===================================
+END   : FUNC_MKBOOTIMG
+===================================
+
+Total compile time is 11 seconds
