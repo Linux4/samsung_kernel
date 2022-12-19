@@ -1,0 +1,12 @@
+config XO2_SPI
+	bool "CONFIG_XO2_SPI"
+	default n
+	help
+	  Support for FPGA XO2 MIPI2RGB driver.
+	  If unsure, say N.
+
+config HDMI_TX_SII9136 
+	bool "CONFIG_HDMI_TX_SII9136"
+	default n
+	help
+	  Support for SII9136 HDMI driver.

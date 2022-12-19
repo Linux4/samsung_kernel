@@ -1,0 +1,42 @@
+#
+# Kernel Performance Events and Counters
+#
+# CONFIG_SLUB_DEBUG is not set
+# CONFIG_PROFILING is not set
+
+#
+# SAMSUNG EXYNOS SoCs Support
+#
+# CONFIG_EXYNOS_ASV_MARGIN_TEST is not set
+
+#
+# Kernel hacking
+#
+# CONFIG_SLUB_DEBUG_ON is not set
+# CONFIG_DEBUG_KMEMLEAK is not set
+# CONFIG_DEBUG_PREEMPT is not set
+# CONFIG_DEBUG_RT_MUTEXES is not set
+# CONFIG_DEBUG_PI_LIST is not set
+# CONFIG_DEBUG_SPINLOCK is not set
+# CONFIG_DEBUG_MUTEXES is not set
+# CONFIG_DEBUG_LOCK_ALLOC is not set
+# CONFIG_PROVE_LOCKING is not set
+# CONFIG_DEBUG_ATOMIC_SLEEP is not set
+# CONFIG_DEBUG_STACK_USAGE is not set
+# CONFIG_DEBUG_LIST is not set
+# CONFIG_DEBUG_SG is not set
+
+#
+# RCU Debugging
+#
+# CONFIG_DEBUG_PAGEALLOC is not set
+# CONFIG_ATOMIC64_SELFTEST is not set
+
+CONFIG_SYSFS=y
+CONFIG_BLOCK=y
+CONFIG_TRACING_SUPPORT=y
+CONFIG_FTRACE=y
+# mmc_add_trace() is not defined
+# CONFIG_BLK_DEV_IO_TRACE is not set
+CONFIG_FUNCTION=y
+CONFIG_FUNCTION_GRAPH=y

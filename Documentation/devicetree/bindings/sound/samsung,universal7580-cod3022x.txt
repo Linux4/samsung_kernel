@@ -1,0 +1,46 @@
+Samsung Universal7580 sound-card node
+
+Required properties:
+- compatible : "samsung,universal7580-cod3022x"
+- samsung,audio-cpu: The phandle of the Samsung I2S0 controller
+- samsung,audio-codec: The phandle of the Codec node
+- samsung,auxdev: The phandle of auxdev node
+
+Optional properties:
+- clocks/clock_names: The phandle of Codec BCLK, if available.
+- pinctrl-0/pinctrl-names: The pin-controls nodes that need to be configured.
+- mic-bias-mode: Tuplet of 3 number specifying mic-bias mode for microphones
+  connected to MIC1, MIC2 and LINE-IN. The mic-bias mode may be one of the
+  following: MIC1, MIC2 and
+	0 - No configuration required
+	1 - Internal MICBIAS1 is used for mic bias
+	2 - Internal MICBIAS2 is used for mic bias
+	3 - Some LDO is used as mic bias with a gpio control
+- mic-bias-gpios: If the mic-bias is controlled by gpio, we need to provide the
+  gpio array here. GPIO entry provided only if present and the order followed is
+  MIC1, MIC2 and LINE-IN.
+
+Example:
+
+sound {
+	compatible = "samsung,universal7580-cod3022x";
+	samsung,audio-cpu = <&i2s0	/* primary */
+				&i2s0	/* secondary */
+				&audio_cp_dummy
+				&audio_bt_dummy
+				&audio_fm_dummy>;
+	samsung,audio-codec = <&audio_codec_cod3022x
+				&audio_codec_cod3022x
+				&audio_codec_cod3022x
+				&audio_codec_dummy
+				&audio_codec_cod3022x>;
+	samsung,auxdev = <&s2801x>;
+	gpios = <&gpf1 5 0x1>;
+	clocks = <&clock 151>;		 /* sclk_i2s */
+	clock-names = "codec_bclk";
+	mic-bias-mode = <3 1 2>;
+	mic-bias-gpios = <&gpd2 7 0x1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&main_mic_bias_en>;
+	status = "okay";
+};
