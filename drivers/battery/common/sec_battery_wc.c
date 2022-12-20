@@ -19,7 +19,7 @@ bool sec_bat_check_boost_mfc_condition(struct sec_battery_info *battery, int mod
 
 	pr_info("%s\n", __func__);
 
-	if (mode == SEC_WIRELESS_RX_INIT) {
+	if (mode == SEC_WIRELESS_FW_UPDATE_AUTO_MODE) {
 		psy_do_property(battery->pdata->wireless_charger_name, get,
 			POWER_SUPPLY_EXT_PROP_WIRELESS_INITIAL_WC_CHECK, value);
 		wpc_det = value.intval;
@@ -41,7 +41,7 @@ bool sec_bat_check_boost_mfc_condition(struct sec_battery_info *battery, int mod
 	return false;
 }
 
-void sec_bat_fw_update_work(struct sec_battery_info *battery, int mode)
+void sec_bat_fw_update(struct sec_battery_info *battery, int mode)
 {
 	union power_supply_propval value = {0, };
 	int ret = 0;
@@ -51,31 +51,24 @@ void sec_bat_fw_update_work(struct sec_battery_info *battery, int mode)
 	__pm_wakeup_event(battery->vbus_ws, jiffies_to_msecs(HZ * 10));
 
 	switch (mode) {
-	case SEC_WIRELESS_RX_SDCARD_MODE:
-	case SEC_WIRELESS_RX_BUILT_IN_MODE:
-	case SEC_WIRELESS_RX_SPU_MODE:
-	case SEC_WIRELESS_RX_SPU_VERIFY_MODE:
+	case SEC_WIRELESS_FW_UPDATE_SDCARD_MODE:
+	case SEC_WIRELESS_FW_UPDATE_BUILTIN_MODE:
+	case SEC_WIRELESS_FW_UPDATE_AUTO_MODE:
+	case SEC_WIRELESS_FW_UPDATE_SPU_MODE:
+	case SEC_WIRELESS_FW_UPDATE_SPU_VERIFY_MODE:
 		battery->mfc_fw_update = true;
+		sec_vote(battery->chgen_vote, VOTER_FW, true, SEC_BAT_CHG_MODE_BUCK_OFF);
+		msleep(500);
+		sec_vote(battery->iv_vote, VOTER_FW, true, SEC_INPUT_VOLTAGE_5V);
+		msleep(500);
 		value.intval = mode;
 		ret = psy_do_property(battery->pdata->wireless_charger_name, set,
 				POWER_SUPPLY_EXT_PROP_CHARGE_POWERED_OTG_CONTROL, value);
-		if (ret < 0)
+		if (ret < 0) {
 			battery->mfc_fw_update = false;
-		break;
-	case SEC_WIRELESS_TX_ON_MODE:
-		value.intval = true;
-		psy_do_property("otg", set,
-				POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
-
-		value.intval = mode;
-		psy_do_property(battery->pdata->wireless_charger_name, set,
-				POWER_SUPPLY_EXT_PROP_CHARGE_POWERED_OTG_CONTROL, value);
-
-		break;
-	case SEC_WIRELESS_TX_OFF_MODE:
-		value.intval = false;
-		psy_do_property("otg", set,
-				POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
+			sec_vote(battery->chgen_vote, VOTER_FW, false, 0);
+			sec_vote(battery->iv_vote, VOTER_FW, false, 0);
+		}
 		break;
 	default:
 		break;

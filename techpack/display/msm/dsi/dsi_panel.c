@@ -552,6 +552,8 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		vdd->panel_dead = false;
 	}
 
+	ss_panel_power_on_pre(vdd);
+
 	/*
 		AOT disable on factory binary.
 	*/

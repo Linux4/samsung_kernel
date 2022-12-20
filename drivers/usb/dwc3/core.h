@@ -1418,7 +1418,7 @@ struct dwc3 {
 	unsigned int		vbus_active:1;
 	/* Indicate if software connect was issued by the usb_gadget_driver */
 	unsigned int		softconnect:1;
-	bool usb_bootcomplete:1;
+	bool usb_bootcomplete;
 	/*
 	 * If true, PM suspend/freeze allowed irrespective of host runtimePM
 	 * state. In PM suspend/resume case, core will stay powered and

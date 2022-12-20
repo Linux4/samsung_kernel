@@ -1,5 +1,5 @@
 config MUIC_SM5504_POGO
-	bool "Using SM5504 MUIC for pogo"
+	tristate "Using SM5504 MUIC for pogo"
 	depends on USE_MUIC
 	default n
 	help

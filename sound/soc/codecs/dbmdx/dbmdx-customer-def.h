@@ -43,11 +43,10 @@
 
 /* ================ Custom Configuration ===============*/
 
-
-#define DBMDX_DEFER_IF_SND_CARD_ID_0 1
+#define DBMDX_DEFER_SND_CARD_LOADING 1
 #define DMBDX_OKG_AMODEL_SUPPORT 1
 #define DBMDX_VERIFY_OKG_SUPPORT_BY_FW 1
-
+#define DBMDX_USE_ASLA_CONTROLS_WITH_DBMDX_CARD_ONLY 1
 
 /* ==================================================================*/
 

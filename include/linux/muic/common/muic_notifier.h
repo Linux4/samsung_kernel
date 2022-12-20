@@ -63,7 +63,7 @@ struct muic_notifier_struct {
 	muic_notifier_cmd_t cmd;
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 	PD_NOTI_ATTACH_TYPEDEF cxt;
-#if defined(CONFIG_MUIC_SM5504_POGO)
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
 	PD_NOTI_ATTACH_TYPEDEF pogo_cxt;
 #endif /* CONFIG_MUIC_SM5504_POGO */
 #endif
@@ -102,7 +102,7 @@ extern int muic_notifier_unregister(struct notifier_block *nb);
 /* Choose a proper noti. interface for a test */
 extern void muic_notifier_set_new_noti(bool flag);
 
-#if defined(CONFIG_MUIC_SM5504_POGO)
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
 extern void muic_pogo_notifier_attach_attached_dev(muic_attached_dev_t new_dev);
 extern void muic_pogo_notifier_detach_attached_dev(muic_attached_dev_t cur_dev);
 #endif /* CONFIG_MUIC_SM5504_POGO */

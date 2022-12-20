@@ -1143,6 +1143,9 @@ main:
 	if (exit) {
 		input_dbg(true, sec->fac_dev, "%s: set_cmd_exit\n", sec->cmd);
 		sec_cmd_set_cmd_exit(sec);
+	} else if ((main && !main_sec) || (sub && !sub_sec)) {
+		input_err(true, sec->fac_dev, "%s: some device is not registered in virtual tsp.\n", sec->cmd);
+		sec_cmd_set_cmd_exit(sec);
 	}
 
 	return (ret_sub < 0 || ret_main < 0) ? -1 : 0;

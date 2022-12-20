@@ -124,7 +124,7 @@
 #define SM5714_SBU_OFF_THRESHOLD			0x10
 #define SM5714_SBU_ON_THRESHOLD				0x80
 #else
-#define SM5714_SBU_OFF_THRESHOLD			0x0A
+#define SM5714_SBU_OFF_THRESHOLD			0x24
 #define SM5714_SBU_ON_THRESHOLD				0x3E
 #endif
 
@@ -359,7 +359,7 @@ struct sm5714_phydrv_data {
 	int detach_done_wait;
 };
 
-extern struct sm5714_usbpd_data *g_pd_data;
+extern struct sm5714_usbpd_data *sm5714_g_pd_data;
 
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 void sm5714_protocol_layer_reset(void *_data);
