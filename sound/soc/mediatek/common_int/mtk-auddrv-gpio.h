@@ -66,8 +66,16 @@ int AudDrv_GPIO_EXTAMP_Select(int bEnable, int mode);
 int AudDrv_GPIO_EXTAMP2_Select(int bEnable, int mode);
 int AudDrv_GPIO_RCVSPK_Select(int bEnable);
 int AudDrv_GPIO_HPDEPOP_Select(int bEnable);
-
+//Bug715587 daisiqing.wt add audio pa bringup N26 20220308
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+void fs15xx_shutdown(void);   
+int fs15xx_startup(void);
+void fs15xx_gpio_init(void);
+#endif
+//Bug7155587 end
 int audio_drv_gpio_aud_clk_pull(bool high);
-//Bug 621775 xiexiaoping.wt,add,20210806,add hac support
+//Bug717428, qiuyonghui.wt, add, 20220124, audio bringup for hac
+#ifdef CONFIG_SND_SOC_HAC_SUPPORT
 int HAC_Amp_Change(int bEnable);
+#endif
 #endif

@@ -67,6 +67,9 @@
 #define CCU_DEV_NAME            "ccu"
 
 #define CCU_CLK_PWR_NUM 2
+
+static int32_t _user_count;
+
 struct clk *ccu_clk_pwr_ctrl[CCU_CLK_PWR_NUM];
 
 struct ccu_device_s *g_ccu_device;
@@ -409,17 +412,32 @@ static int ccu_open(struct inode *inode, struct file *flip)
 {
 	int ret = 0;
 
-	struct ccu_user_s *user;
+	struct ccu_user_s *user = NULL;
 
-	_clk_count = 0;
+	mutex_lock(&g_ccu_device->dev_mutex);
 
-	ccu_create_user(&user);
+	LOG_INF_MUST("%s pid:%d tid:%d cnt:%d+\n",
+		__func__, current->pid, current->tgid, _user_count);
+
+	ret = ccu_create_user(&user);
 	if (IS_ERR_OR_NULL(user)) {
 		LOG_ERR("fail to create user\n");
+		mutex_unlock(&g_ccu_device->dev_mutex);
 		return -ENOMEM;
 	}
 
 	flip->private_data = user;
+	_user_count++;
+
+	if (_user_count > 1) {
+		LOG_INF_MUST("%s clean legacy data flow-\n", __func__);
+		ccu_force_powerdown();
+	}
+
+	LOG_INF_MUST("%s-\n",
+		__func__);
+
+	mutex_unlock(&g_ccu_device->dev_mutex);
 
 	return ret;
 }
@@ -847,6 +865,61 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 
 			return ccu_read_info_reg(regToRead);
 		}
+
+	case CCU_IOCTL_PRINT_REG:
+	{
+		uint32_t *Reg;
+
+		Reg = kzalloc(sizeof(uint8_t)*
+			(CCU_HW_DUMP_SIZE+CCU_DMEM_SIZE+CCU_PMEM_SIZE),
+			GFP_KERNEL);
+		if (!Reg) {
+			LOG_ERR(
+			"CCU_IOCTL_PRINT_REG alloc failed\n");
+			break;
+		}
+		ccu_print_reg(Reg);
+		ret = copy_to_user((char *)arg,
+			Reg, sizeof(uint8_t)*
+			(CCU_HW_DUMP_SIZE+CCU_DMEM_SIZE+CCU_PMEM_SIZE));
+		if (ret != 0) {
+			LOG_ERR(
+			"CCU_IOCTL_PRINT_REG copy_to_user failed: %d\n", ret);
+		}
+		kfree(Reg);
+		break;
+	}
+
+	case CCU_IOCTL_PRINT_SRAM_LOG:
+	{
+		char *sram_log;
+
+		sram_log = kzalloc(sizeof(char)*
+			(CCU_LOG_SIZE*2+CCU_ISR_LOG_SIZE),
+			GFP_KERNEL);
+		if (!sram_log) {
+			LOG_ERR(
+			"CCU_IOCTL_PRINT_SRAM_LOG alloc failed\n");
+			break;
+		}
+		ccu_print_sram_log(sram_log);
+		ret = copy_to_user((char *)arg,
+			sram_log, sizeof(char)*
+			(CCU_LOG_SIZE*2+CCU_ISR_LOG_SIZE));
+		if (ret != 0) {
+			LOG_ERR(
+			"CCU_IOCTL_PRINT_SRAM_LOG copy_to_user failed: %d\n", ret);
+		}
+		kfree(sram_log);
+		break;
+	}
+
+	case CCU_IOCTL_LOAD_CCU_BIN:
+	{
+		ret = ccu_load_bin(g_ccu_device);
+		break;
+	}
+
 	default:
 		LOG_WARN("ioctl:No such command!\n");
 		ret = -EINVAL;
@@ -867,13 +940,24 @@ static int ccu_release(struct inode *inode, struct file *flip)
 {
 	struct ccu_user_s *user = flip->private_data;
 
-	LOG_INF_MUST("%s +", __func__);
+	mutex_lock(&g_ccu_device->dev_mutex);
 
+	LOG_INF_MUST("%s pid:%d tid:%d cnt:%d+\n",
+		__func__, user->open_pid, user->open_tgid, _user_count);
 	ccu_delete_user(user);
+	_user_count--;
+
+	if (_user_count > 0) {
+		LOG_INF_MUST("%s bypass release flow-", __func__);
+		mutex_unlock(&g_ccu_device->dev_mutex);
+		return 0;
+	}
 
 	ccu_force_powerdown();
 
 	LOG_INF_MUST("%s -", __func__);
+
+	mutex_unlock(&g_ccu_device->dev_mutex);
 
 	return 0;
 }
@@ -1097,6 +1181,16 @@ static int ccu_probe(struct platform_device *pdev)
 			LOG_INF("dmem_base va: 0x%lx\n",
 				g_ccu_device->dmem_base);
 
+			/*remap pmem_base*/
+			phy_addr = CCU_PMEM_BASE;
+			phy_size = CCU_PMEM_SIZE;
+			g_ccu_device->pmem_base =
+				(unsigned long)ioremap_wc(phy_addr, phy_size);
+			LOG_INF("pmem_base pa: 0x%x, size: 0x%x\n",
+				phy_addr, phy_size);
+			LOG_INF("pmem_base va: 0x%lx\n",
+				g_ccu_device->pmem_base);
+
 			/*remap camsys_base*/
 			phy_addr = CCU_CAMSYS_BASE;
 			phy_size = CCU_CAMSYS_SIZE;
@@ -1286,6 +1380,7 @@ static int __init CCU_INIT(void)
 
 	INIT_LIST_HEAD(&g_ccu_device->user_list);
 	mutex_init(&g_ccu_device->user_mutex);
+	mutex_init(&g_ccu_device->dev_mutex);
 	mutex_init(&g_ccu_device->clk_mutex);
 	init_waitqueue_head(&g_ccu_device->cmd_wait);
 

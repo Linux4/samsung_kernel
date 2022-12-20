@@ -10,6 +10,9 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
+/*
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef TPD_CALIBRATE_H
 #define TPD_CALIBRATE_H

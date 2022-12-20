@@ -392,6 +392,7 @@ static struct snd_pcm_ops mtk_usb_echoref_ops = {
 	.prepare = mtk_usb_echoref_prepare,
 	.trigger = mtk_usb_echoref_trigger,
 	.pointer = mtk_usb_echoref_pointer,
+	.copy_user = mtk_afe_pcm_copy,
 };
 
 static int mtk_usb_echoref_component_probe(struct snd_soc_component *component)
@@ -428,7 +429,7 @@ static struct snd_soc_component_driver mtk_soc_usb_echoref_component = {
 
 static int mtk_usb_echoref_probe(struct platform_device *pdev)
 {
-	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(64);
+	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
 
 	if (!pdev->dev.dma_mask)
 		pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;

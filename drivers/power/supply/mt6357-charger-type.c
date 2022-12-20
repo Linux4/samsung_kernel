@@ -14,11 +14,14 @@
 #include <linux/regmap.h>
 #include <linux/power_supply.h>
 #include <mtk_musb.h>
-#include <mt-plat/mtk_boot_common.h>
+#include <linux/reboot.h>
+#include <mt-plat/mtk_boot.h>
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 #include "charger_class.h"
+#include <mt-plat/mtk_boot_common.h>
 #include <tcpm.h>
 #include <tcpci.h>
-
+#endif
 /* ============================================================ */
 /* pmic control start*/
 /* ============================================================ */
@@ -69,23 +72,21 @@
 #define R_CHARGER_1	330
 #define R_CHARGER_2	39
 
-#if defined (CONFIG_CHARGER_BQ2560X) ||  defined (CONFIG_CHARGER_BQ2589X)
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 bool otg_enabled;
-extern int mtk_chg_status;
 extern bool is_bc12_done;
-#define CHR_WORK_DELAY 1000
-#endif
-
-//+Bug 682591,wangmingyuan.wt,ADD,20210816,battery Current event and slate mode
-#if defined (CONFIG_CHARGER_BQ2560X) ||  defined (CONFIG_CHARGER_BQ2589X)
+bool is_nonstd_chg = false;
 static struct delayed_work batt_work;
 static struct power_supply *batt_psy;
 static int count = 0;
 extern int mtk_chg_status;
 #endif
-//-Bug 682591,wangmingyuan.wt,ADD,20210816,battery Current event and slate mode
-bool is_nonstd_chg = false;
-
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+bool otg_enabled;
+static struct delayed_work batt_work;
+static struct power_supply *batt_psy;
+static int count = 0;
+#endif
 struct mtk_charger_type {
 	struct mt6397_chip *chip;
 	struct regmap *regmap;
@@ -103,20 +104,28 @@ struct mtk_charger_type {
 	struct power_supply *usb_psy;
 
 	struct iio_channel *chan_vbus;
-	struct delayed_work chr_work;
-#ifdef CONFIG_CHARGER_BQ2560X
+	struct work_struct chr_work;
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 	struct delayed_work typec_det_work;
 #endif
 	enum power_supply_usb_type type;
 
 	int first_connect;
 	int bc12_active;
-	int polarity_state;//Bug682956,yangyuhang.wt ,20210813, add cc polarity node
+	u32 bootmode;
+	u32 boottype;
+};
 
+struct tag_bootmode {
+	u32 size;
+	u32 tag;
+	u32 bootmode;
+	u32 boottype;
 };
 
 static enum power_supply_property chr_type_properties[] = {
 	POWER_SUPPLY_PROP_ONLINE,
+	POWER_SUPPLY_PROP_TYPE,
 	POWER_SUPPLY_PROP_USB_TYPE,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 };
@@ -129,10 +138,23 @@ static enum power_supply_property mt_usb_properties[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_CURRENT_MAX,
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,
-	POWER_SUPPLY_PROP_TYPEC_POLARITY,//Bug682956,yangyuhang.wt ,20210813, add cc polarity node
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+	POWER_SUPPLY_PROP_TYPEC_CC_ORIENTATION,
+#endif
+#ifdef CONFIG_AFC_CHARGER
+	POWER_SUPPLY_PROP_AFC_FLAG,
+#endif
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	POWER_SUPPLY_PROP_TYPEC_CC_ORIENTATION,
 	POWER_SUPPLY_PROP_REAL_TYPE,
-	POWER_SUPPLY_PROP_AFC_FLAG,//Bug685833,yangyuhang.wt ,20210826, add Charging afc flag node
+#endif
 };
+
+//+bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
+#ifdef CONFIG_AFC_CHARGER
+extern int g_afc_work_status;
+#endif
+//-bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
 
 void bc11_set_register_value(struct regmap *map,
 	unsigned int addr,
@@ -160,8 +182,11 @@ unsigned int bc11_get_register_value(struct regmap *map,
 		>> shift;
 	return value;
 }
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+#include <wingtech_charger.h>
+#endif
 
-#if defined CONFIG_CHARGER_BQ2589X || defined CONFIG_CHARGER_BQ2560X
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 extern int g_bootmode;
 #endif
 
@@ -171,15 +196,13 @@ static void hw_bc11_init(struct mtk_charger_type *info)
 	int timeout = 200;
 #endif
 	msleep(200);
-//+bug 682591,xuejizhou.wt,add,20210426,charge type detecion takes more than 20 sec in lpm mode
-#if defined CONFIG_CHARGER_BQ2589X || defined CONFIG_CHARGER_BQ2560X
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 	if (g_bootmode == KERNEL_POWER_OFF_CHARGING_BOOT ||
 	    g_bootmode == LOW_POWER_OFF_CHARGING_BOOT) {
 		pr_info("Skip usb_ready check in KPOC\n");
 		goto skip;
 	}
 #endif
-//-bug 682591,xuejizhou.wt,add,20210426,charge type detecion takes more than 20 sec in lpm mode
 	if (info->first_connect == true) {
 #if IS_ENABLED(CONFIG_USB_MTK_HDRC)
 		/* add make sure USB Ready */
@@ -188,6 +211,24 @@ static void hw_bc11_init(struct mtk_charger_type *info)
 			while (is_usb_rdy() == false && timeout > 0) {
 				msleep(100);
 				timeout--;
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+				if(info->bootmode == KERNEL_POWER_OFF_CHARGING_BOOT || info->bootmode == LOW_POWER_OFF_CHARGING_BOOT){
+					pr_info("boot mode is %d,skip waiting!\n",info->bootmode);
+					break;
+				}
+				if(1){
+					struct wtchg_info *wt_info = wt_get_wtchg_info();
+					if (!IS_ERR_OR_NULL(wt_info)){
+						if(wt_info->pd_stat == 4 || wt_info->pd_stat == 6 || wt_info->pd_stat == 8){
+							//PD_CONNECT_PE_READY_SNK || PD_CONNECT_PE_READY_SNK_PD30 || PD_CONNECT_PE_READY_SNK_APDO
+							pr_info("pd_stat is %d,skip waiting!\n",wt_info->pd_stat);
+							break;
+						}
+					}else{
+						printk("%s: info is error or null!\n",__func__);
+					}
+				}
+#endif
 			}
 			if (timeout == 0)
 				pr_info("CDP, timeout\n");
@@ -198,7 +239,7 @@ static void hw_bc11_init(struct mtk_charger_type *info)
 #endif
 		info->first_connect = false;
 	}
-#if defined CONFIG_CHARGER_BQ2589X || defined CONFIG_CHARGER_BQ2560X
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 skip:
 #endif
 	/* RG_bc11_BIAS_EN=1 */
@@ -532,8 +573,7 @@ static int get_charger_type(struct mtk_charger_type *info)
 			type = POWER_SUPPLY_USB_TYPE_SDP;
 		}
 	}
-//+bug 682591,xuejizhou.wt,add,20210426,charge type detecion takes more than 20 sec in lpm mode
-#if defined CONFIG_CHARGER_BQ2589X || defined CONFIG_CHARGER_BQ2560X
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 	if (type == POWER_SUPPLY_USB_TYPE_CDP) {
 		if (g_bootmode == KERNEL_POWER_OFF_CHARGING_BOOT ||
 		    g_bootmode == LOW_POWER_OFF_CHARGING_BOOT) {
@@ -555,11 +595,10 @@ static int get_charger_type(struct mtk_charger_type *info)
 #else
 	if (type != POWER_SUPPLY_USB_TYPE_DCP)
 #endif
-//-bug 682591,xuejizhou.wt,add,20210426,charge type detecion takes more than 20 sec in lpm mode
 		hw_bc11_done(info);
 	else
 		pr_info("charger type: skip bc11 release for BC12 DCP SPEC\n");
-#ifdef CONFIG_CHARGER_BQ2560X
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 	is_bc12_done = true;
 #endif
 	dump_charger_name(info->psy_desc.type);
@@ -588,6 +627,15 @@ static int get_vbus_voltage(struct mtk_charger_type *info,
 	return ret;
 }
 
+//+bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+extern int cc_polarity;
+#endif
+//-bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
+
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+extern int polarity_state;
+
 static void typec_detect_work(struct work_struct *data)
 {
 	struct tcpc_device *tcpc_dev;
@@ -613,15 +661,17 @@ static void typec_detect_work(struct work_struct *data)
 			tcpci_set_cc(tcpc_dev, TYPEC_CC_DRP);
 	}
 }
+#endif
 
 void do_charger_detect(struct mtk_charger_type *info, bool en)
 {
-	union power_supply_propval prop, prop2, prop3;
+	union power_supply_propval prop_online, prop_type, prop_usb_type;
 	int ret = 0;
-#if defined (CONFIG_CHARGER_BQ2560X) ||  defined (CONFIG_CHARGER_BQ2589X)
+
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 	struct charger_device *primary_charger;
 	bool is_hz_mode = false;
-	unsigned int chrdet = 0;//Bug 704797,yangyuhang.wt,ADD,20211123,If no charger is connected, "Charger is connected" is displayed
+	unsigned int chrdet = 0;
 
 	primary_charger = get_charger_by_name("primary_chg");
 	if (primary_charger)
@@ -631,37 +681,59 @@ void do_charger_detect(struct mtk_charger_type *info, bool en)
 		return;
 	}
 #endif
-
 #ifndef CONFIG_TCPC_CLASS
 	if (!mt_usb_is_device()) {
 		pr_info("charger type: UNKNOWN, Now is usb host mode. Skip detection\n");
 		return;
 	}
 #endif
-
-#if defined (CONFIG_CHARGER_BQ2560X) ||  defined (CONFIG_CHARGER_BQ2589X)
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+if(1){
+	struct wtchg_info *wt_info = wt_get_wtchg_info();
+	if (!IS_ERR_OR_NULL(wt_info)){
+		if(wt_info->otg_enabled){
+			pr_info("otg mode ! Skip detection\n");
+			info->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
+			info->type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
+			power_supply_changed(info->psy);
+			return;
+		}else
+			pr_info("not otg mode ! continue\n");
+	}else{
+		printk("%s: info is error or null!\n",__func__);
+	}
+}
+#endif
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 	if (otg_enabled == true) {
 		pr_err("%s otg enabled, return\n", __func__);
 		return;
 	}
-
 	if (!en) {
 		charger_dev_is_hz_mode(primary_charger, &is_hz_mode);
 		if (is_hz_mode)
 			charger_dev_hz_mode(primary_charger, 0);
 	}
 #endif
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+	if (otg_enabled == true) {
+		pr_err("%s otg enabled, return\n", __func__);
+		return;
+	} else {
+		pr_info("not otg mode ! continue\n");
+	}
+#endif
 
-	prop.intval = en;
+	prop_online.intval = en;
 	if (en) {
 		ret = power_supply_set_property(info->psy,
-				POWER_SUPPLY_PROP_ONLINE, &prop);
+				POWER_SUPPLY_PROP_ONLINE, &prop_online);
 		ret = power_supply_get_property(info->psy,
-				POWER_SUPPLY_PROP_TYPE, &prop2);
+				POWER_SUPPLY_PROP_TYPE, &prop_type);
 		ret = power_supply_get_property(info->psy,
-				POWER_SUPPLY_PROP_USB_TYPE, &prop3);
-		#if defined (CONFIG_CHARGER_BQ2560X) ||  defined (CONFIG_CHARGER_BQ2589X)
-		//+Bug 704797,yangyuhang.wt,ADD,20211123,If no charger is connected, "Charger is connected" is displayed
+				POWER_SUPPLY_PROP_USB_TYPE, &prop_usb_type);
+		pr_notice("type:%d usb_type:%d\n", prop_type.intval, prop_usb_type.intval);
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 		chrdet = bc11_get_register_value(info->regmap,
 					PMIC_RGS_CHRDET_ADDR,
 					PMIC_RGS_CHRDET_MASK,
@@ -671,27 +743,27 @@ void do_charger_detect(struct mtk_charger_type *info, bool en)
 			do_charger_detect(info, chrdet);
 			return;
 		}
-		//-Bug 704797,yangyuhang.wt,ADD,20211123,If no charger is connected, "Charger is connected" is displayed
-		schedule_delayed_work(&batt_work, msecs_to_jiffies(0));//Bug 682591,wangmingyuan.wt,ADD,20210816,battery Current event and slate mode
-		#endif
+		schedule_delayed_work(&batt_work, msecs_to_jiffies(0));
+#endif
 	} else {
-		cancel_delayed_work(&info->chr_work);//Bug 704797,yangyuhang.wt,ADD,20211123,If no charger is connected, "Charger is connected" is displayed
-		prop2.intval = POWER_SUPPLY_TYPE_UNKNOWN;
-		prop3.intval = POWER_SUPPLY_USB_TYPE_UNKNOWN;
 		info->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
 		info->type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
-		#if defined (CONFIG_CHARGER_BQ2560X) ||  defined (CONFIG_CHARGER_BQ2589X)
-		mtk_chg_status = 0;
+//+bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+		cc_polarity = 0;
+#endif
+//-bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+		polarity_state = 0;
 		count = 0;
 		is_bc12_done = false;
 		mtk_chg_status = 0;
+		is_nonstd_chg = false;
 		pr_info("%s work\n", __func__);
 		schedule_delayed_work(&info->typec_det_work, msecs_to_jiffies(5000));
-		#endif
-		is_nonstd_chg = false;
+#endif
+		pr_notice("%s type:0 usb_type:0\n", __func__);
 	}
-
-	pr_notice("%s type:%d usb_type:%d\n", __func__, prop2.intval, prop3.intval);
 
 	power_supply_changed(info->psy);
 }
@@ -699,14 +771,8 @@ void do_charger_detect(struct mtk_charger_type *info, bool en)
 static void do_charger_detection_work(struct work_struct *data)
 {
 	struct mtk_charger_type *info = (struct mtk_charger_type *)container_of(
-				     data, struct mtk_charger_type, chr_work.work);
+				     data, struct mtk_charger_type, chr_work);
 	unsigned int chrdet = 0;
-
-	if (g_bootmode == 0xab) {
-		pr_err("%s g_bootmode = %d\n", __func__, g_bootmode);
-		schedule_delayed_work(&info->chr_work, msecs_to_jiffies(CHR_WORK_DELAY));
-		return;
-	}
 
 	chrdet = bc11_get_register_value(info->regmap,
 		PMIC_RGS_CHRDET_ADDR,
@@ -716,9 +782,39 @@ static void do_charger_detection_work(struct work_struct *data)
 	pr_notice("%s: chrdet:%d\n", __func__, chrdet);
 	if (chrdet)
 		do_charger_detect(info, chrdet);
+	else {
+		hw_bc11_done(info);
+		/* 8 = KERNEL_POWER_OFF_CHARGING_BOOT */
+		/* 9 = LOW_POWER_OFF_CHARGING_BOOT */
+		if (info->bootmode == 8 || info->bootmode == 9) {
+			pr_info("%s: Unplug Charger/USB\n", __func__);
+
+#ifndef CONFIG_TCPC_CLASS
+			pr_info("%s: system_state=%d\n", __func__,
+				system_state);
+			if (system_state != SYSTEM_POWER_OFF)
+				kernel_power_off();
+#endif
+		}
+	}
 }
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+void chrdet_check_again(struct mtk_charger_type *info)
+{
+	unsigned int chrdet = 0;
 
-
+	chrdet = bc11_get_register_value(info->regmap,
+		PMIC_RGS_CHRDET_ADDR,
+		PMIC_RGS_CHRDET_MASK,
+		PMIC_RGS_CHRDET_SHIFT);
+	
+	if (!chrdet) {
+		hw_bc11_done(info);
+	}
+	pr_notice("%s: chrdet:%d\n", __func__, chrdet);
+	do_charger_detect(info, chrdet);
+}
+#endif
 irqreturn_t chrdet_int_handler(int irq, void *data)
 {
 	struct mtk_charger_type *info = data;
@@ -728,7 +824,21 @@ irqreturn_t chrdet_int_handler(int irq, void *data)
 		PMIC_RGS_CHRDET_ADDR,
 		PMIC_RGS_CHRDET_MASK,
 		PMIC_RGS_CHRDET_SHIFT);
+	if (!chrdet) {
+		hw_bc11_done(info);
+		/* 8 = KERNEL_POWER_OFF_CHARGING_BOOT */
+		/* 9 = LOW_POWER_OFF_CHARGING_BOOT */
+		if (info->bootmode == 8 || info->bootmode == 9) {
+			pr_info("%s: Unplug Charger/USB\n", __func__);
 
+#ifndef CONFIG_TCPC_CLASS
+			pr_info("%s: system_state=%d\n", __func__,
+				system_state);
+			if (system_state != SYSTEM_POWER_OFF)
+				kernel_power_off();
+#endif
+		}
+	}
 	pr_notice("%s: chrdet:%d\n", __func__, chrdet);
 	do_charger_detect(info, chrdet);
 
@@ -747,6 +857,13 @@ static int psy_chr_type_get_property(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+		get_vbus_voltage(info, &vbus);
+		if(info->type != POWER_SUPPLY_USB_TYPE_UNKNOWN && vbus < 3500){
+			printk("## vbus(%dmv) and type(%d) not matching!!,check again !!\n",vbus, info->type);
+			chrdet_check_again(info);
+		}
+#endif
 		if (info->type == POWER_SUPPLY_USB_TYPE_UNKNOWN)
 			val->intval = 0;
 		else
@@ -780,9 +897,20 @@ int psy_chr_type_set_property(struct power_supply *psy,
 	info = (struct mtk_charger_type *)power_supply_get_drvdata(psy);
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
+		info->type = get_charger_type(info);
+//+bug 717431, liyiying.wt, mod, 2021/1/26, n21s charger bring up
+#ifdef CONFIG_MT6370_PMU_CHARGER
+		if(val->intval == 0)
+		{
+			info->type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
+			info->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
+		}
+#endif
+//-bug 717431, liyiying.wt, mod, 2021/1/26, n21s charger bring up
+
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 		if (val->intval == true) {
 			info->type = get_charger_type(info);
-#if defined (CONFIG_CHARGER_BQ2560X) || defined (CONFIG_CHARGER_BQ2589X)
 			if (info->type == POWER_SUPPLY_USB_TYPE_DCP &&
 					info->psy_desc.type == POWER_SUPPLY_TYPE_USB) {
 				pr_err("%s non_std retry bc1.2\n", __func__);
@@ -794,7 +922,6 @@ int psy_chr_type_set_property(struct power_supply *psy,
 					info->psy_desc.type = POWER_SUPPLY_TYPE_USB;
 				}
 			}
-#endif
 		} else {
 			info->type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
 			info->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
@@ -820,6 +947,7 @@ int psy_chr_type_set_property(struct power_supply *psy,
 				break;
 		}
 		pr_err("force charger type to %d\n", val->intval);
+#endif
 		break;
 	default:
 		return -EINVAL;
@@ -851,6 +979,8 @@ static int mt_ac_get_property(struct power_supply *psy,
 
 	return 0;
 }
+
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 //+Bug682956,yangyuhang.wt ,20210813, add cc polarity node
 int tcpc_set_cc_polarity_state(int state)
 {
@@ -864,16 +994,17 @@ int tcpc_set_cc_polarity_state(int state)
 		pr_notice("%s Couldn't get chg_psy\n", __func__);
 	} else {
 		info = (struct mtk_charger_type *)power_supply_get_drvdata(chg_psy);
-		info->polarity_state = state;
+		polarity_state = state;
 	}
 	return 0;
 }
 //-Bug682956,yangyuhang.wt ,20210813, add cc polarity node
+#endif
+
 static int mt_usb_get_property(struct power_supply *psy,
 	enum power_supply_property psp, union power_supply_propval *val)
 {
 	struct mtk_charger_type *info;
-
 	info = (struct mtk_charger_type *)power_supply_get_drvdata(psy);
 
 	switch (psp) {
@@ -890,12 +1021,25 @@ static int mt_usb_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
 		val->intval = 5000000;
 		break;
-//+Bug682956,yangyuhang.wt ,20210813, add cc polarity node
-	case POWER_SUPPLY_PROP_TYPEC_POLARITY:
-		val->intval = info->polarity_state;
+//+bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+	case POWER_SUPPLY_PROP_TYPEC_CC_ORIENTATION:
+		val->intval = cc_polarity;
 		break;
-//-Bug682956,yangyuhang.wt ,20210813, add cc polarity node
-//+Bug686637,yangyuhang.wt ,20210819, add real type node
+#endif
+//-bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
+//+bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
+#ifdef CONFIG_AFC_CHARGER
+	case POWER_SUPPLY_PROP_AFC_FLAG:
+		val->intval = g_afc_work_status;
+		break;
+#endif
+//-bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
+
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	case POWER_SUPPLY_PROP_TYPEC_CC_ORIENTATION:
+		val->intval = polarity_state;
+		break;
 	case POWER_SUPPLY_PROP_REAL_TYPE:
 		if (info->type == POWER_SUPPLY_USB_TYPE_SDP) {
 			val->strval = "USB";
@@ -907,18 +1051,21 @@ static int mt_usb_get_property(struct power_supply *psy,
 			val->strval = "UNKNOWN";
 		}
 		break;
-//-Bug686637,yangyuhang.wt ,20210819, add real type node
-//+Bug685833,yangyuhang.wt ,20210826, add Charging afc flag node
-	case POWER_SUPPLY_PROP_AFC_FLAG:
-		val->intval = 0;
-		break;
-//-Bug685833,yangyuhang.wt ,20210826, add Charging afc flag node
+#endif
 	default:
 		return -EINVAL;
 	}
 
 	return 0;
 }
+
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+int wt_get_afc_work_status(void)
+{
+        return g_afc_work_status;
+
+}
+#endif
 
 static int psy_charger_type_property_is_writeable(struct power_supply *psy,
 					       enum power_supply_property psp)
@@ -943,16 +1090,45 @@ static char *mt6357_charger_supplied_to[] = {
 	"mtk-master-charger"
 };
 
-//+Bug 682591,wangmingyuan.wt,ADD,20210816,battery Current event and slate mode
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 #define low_current_level 100
-#if defined (CONFIG_CHARGER_BQ2560X) ||  defined (CONFIG_CHARGER_BQ2589X)
 static void battery_current_monitoring_work(struct work_struct *data)
 {
 	struct mtk_charger_type *info;
 	union power_supply_propval val;
 	
 	int ret= 0;
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+	struct power_supply *psy, *psy_master;
 
+	psy_master = power_supply_get_by_name("mtk-master-charger");
+	if(psy_master == NULL || IS_ERR(psy_master))
+	{
+		pr_err("mtk-master-charger hasn't register\n");
+		return;
+	}
+	psy = power_supply_get_by_name("mtk_charger_type");
+	if(psy == NULL || IS_ERR(psy))
+	{
+		pr_err("mtk_charger_type hasn't register\n");
+		return;
+	}
+	info = (struct mtk_charger_type *)power_supply_get_drvdata(psy);
+	if(!info){
+		pr_err("mtk_charger_type hasn't init\n");
+		return;
+	}
+	if(!batt_psy){
+		batt_psy = power_supply_get_by_name("battery");
+		if (!batt_psy) {
+			pr_notice("%s: get power supply failed\n", __func__);
+			schedule_delayed_work(&batt_work, msecs_to_jiffies(1000));
+		return;
+		}
+	}
+	pr_err("battery_current_monitoring_work working\n");
+
+#endif
 	if(info->type == POWER_SUPPLY_USB_TYPE_SDP){
 		if(count > 2) {
 			count = 0;
@@ -961,11 +1137,19 @@ static void battery_current_monitoring_work(struct work_struct *data)
 			if (ret < 0)
 				pr_debug("%s: psy set property failed, ret = %d\n", __func__, ret);
 		} else {
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+			ret = power_supply_get_property(psy_master, POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT, &val);
+#else
 			ret = power_supply_get_property(batt_psy, POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT, &val);
+#endif
 			if (ret < 0)
 				pr_debug("%s: psy get property failed, ret = %d\n", __func__, ret);
-
-			if (low_current_level == val.intval) {
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+			if (100000 == val.intval)
+#else
+			if (low_current_level == val.intval)
+#endif
+			{
 				count ++;
 				schedule_delayed_work(&batt_work, msecs_to_jiffies(1000));
 			}
@@ -977,7 +1161,31 @@ static void battery_current_monitoring_work(struct work_struct *data)
 	}
 }
 #endif
-//-Bug 682591,wangmingyuan.wt,ADD,20210816,battery Current event and slate mode
+
+static int check_boot_mode(struct mtk_charger_type *info, struct device *dev)
+{
+	struct device_node *boot_node = NULL;
+	struct tag_bootmode *tag = NULL;
+
+	boot_node = of_parse_phandle(dev->of_node, "bootmode", 0);
+	if (!boot_node)
+		pr_notice("%s: failed to get boot mode phandle\n", __func__);
+	else {
+		tag = (struct tag_bootmode *)of_get_property(boot_node,
+							"atag,boot", NULL);
+		if (!tag)
+			pr_notice("%s: failed to get atag,boot\n", __func__);
+		else {
+			pr_notice("%s: size:0x%x tag:0x%x bootmode:0x%x boottype:0x%x\n",
+				__func__, tag->size, tag->tag,
+				tag->bootmode, tag->boottype);
+			info->bootmode = tag->bootmode;
+			info->boottype = tag->boottype;
+		}
+	}
+	return 0;
+}
+
 static int mt6357_charger_type_probe(struct platform_device *pdev)
 {
 	struct mtk_charger_type *info;
@@ -1008,6 +1216,8 @@ static int mt6357_charger_type_probe(struct platform_device *pdev)
 	dev_set_drvdata(&pdev->dev, info);
 	info->pdev = pdev;
 	mutex_init(&info->ops_lock);
+
+	check_boot_mode(info, &pdev->dev);
 
 	info->psy_desc.name = "mtk_charger_type";
 	info->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
@@ -1080,33 +1290,32 @@ static int mt6357_charger_type_probe(struct platform_device *pdev)
 			return PTR_ERR(info->usb_psy);
 		}
 
-		//+Bug682591,wangmingyuan.wt,ADD,20210816,battery Current event and slate mode
-		#if defined (CONFIG_CHARGER_BQ2560X) ||  defined (CONFIG_CHARGER_BQ2589X)
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 		batt_psy = power_supply_get_by_name("battery");
 		if (!batt_psy) {
 		pr_notice("%s: get power supply failed\n", __func__);
 		return -EINVAL;
 		}
-		#endif
-		//-Bug682591,wangmingyuan.wt,ADD,20210816,battery Current event and slate mode
-
-		INIT_DELAYED_WORK(&info->chr_work, do_charger_detection_work);
-		schedule_delayed_work(&info->chr_work, msecs_to_jiffies(CHR_WORK_DELAY));
-
-		//+Bug 682591,wangmingyuan.wt,ADD,20210816,battery Current event and slate mode
-		#if defined (CONFIG_CHARGER_BQ2560X) ||  defined (CONFIG_CHARGER_BQ2589X)
-		INIT_DELAYED_WORK(&batt_work, battery_current_monitoring_work);
-		INIT_DELAYED_WORK(&info->typec_det_work, typec_detect_work);
-		#endif
-		//-Bug 682591,wangmingyuan.wt,ADD,20210816,battery Current event and slate mode
+#endif
+		INIT_WORK(&info->chr_work, do_charger_detection_work);
+//+bug 717431, liyiying.wt, add, 2021/1/26, n21s charger bring up
+#ifndef CONFIG_MT6370_PMU_CHARGER
+		schedule_work(&info->chr_work);
 
 		ret = devm_request_threaded_irq(&pdev->dev,
 			platform_get_irq_byname(pdev, "chrdet"), NULL,
 			chrdet_int_handler, IRQF_TRIGGER_HIGH, "chrdet", info);
 		if (ret < 0)
 			pr_notice("%s request chrdet irq fail\n", __func__);
+#else
+		ret = 0;
+#endif
+//-bug 717431, liyiying.wt, add, 2021/1/26, n21s charger bring up
 	}
-
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+	INIT_DELAYED_WORK(&batt_work, battery_current_monitoring_work);
+	INIT_DELAYED_WORK(&info->typec_det_work, typec_detect_work);
+#endif
 	info->first_connect = true;
 
 	pr_notice("%s: done\n", __func__);

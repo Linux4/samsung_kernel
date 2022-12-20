@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
-dtb-$(CONFIG_ARCH_MEDIATEK) += auto2712p1v1-ivi-boot.dtb
-dtb-$(CONFIG_ARCH_MEDIATEK) += auto2712p1v1-ivi-nand-boot.dtb
+dtb-y += mt6765.dtb
+dtb-y += mt6765_a03su_usa_single_00.dtb
 
+always            := $(dtb-y)
+clean-files       := *.dtb*

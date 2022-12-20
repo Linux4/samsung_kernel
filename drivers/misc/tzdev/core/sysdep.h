@@ -153,14 +153,6 @@ static inline int check_mem_region(unsigned long start, unsigned long n)
 }
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
-#define VERIFY_READ 0
-#define VERIFY_WRITE 1
-#define sysdep_access_ok(type, addr, size)	access_ok(addr, size)
-#else
-#define sysdep_access_ok(type, addr, size)	access_ok(type, addr, size)
-#endif
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
 #define sysdep_alloc_workqueue_attrs()		alloc_workqueue_attrs()
 #else
@@ -179,7 +171,5 @@ int sysdep_crypto_file_sha1(uint8_t *hash, struct file *file);
 int sysdep_vfs_getattr(struct file *filp, struct kstat *stat);
 void sysdep_shash_desc_init(struct shash_desc *desc, struct crypto_shash *tfm);
 int sysdep_pid_refcount_read(struct pid *pid);
-void sysdep_pinned_vm_add(struct mm_struct *mm, unsigned long nr_pages);
-void sysdep_pinned_vm_sub(struct mm_struct *mm, unsigned long nr_pages);
 
 #endif /* __SYSDEP_H__ */

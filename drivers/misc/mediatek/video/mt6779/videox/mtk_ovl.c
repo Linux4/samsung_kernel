@@ -169,7 +169,8 @@ void *mtk_ovl_get_dpmgr_handle(void)
 }
 
 static int _convert_disp_input_to_ovl(struct OVL_CONFIG_STRUCT *dst,
-				      struct disp_input_config *src)
+				      struct disp_input_config *src,
+				      unsigned int session_id)
 {
 	int ret = 0;
 	int force_disable_alpha = 0;
@@ -224,6 +225,13 @@ static int _convert_disp_input_to_ovl(struct OVL_CONFIG_STRUCT *dst,
 	dst->identity = src->identity;
 	dst->connected_type = src->connected_type;
 	dst->security = src->security;
+
+	/* only updated secure buffer handle for input */
+	if (dst->security != DISP_NORMAL_BUFFER) {
+		dst->hnd = disp_sync_get_ion_handle(session_id, dst->layer, dst->buff_idx);
+		DISPINFO("%s [SVP]ovl2mem sec layer id: %d, buf_idx:0x%x\n", __func__,
+			 dst->layer, dst->buff_idx);
+	}
 	dst->yuv_range = src->yuv_range;
 
 	/* dim layer, constant alpha */
@@ -260,6 +268,13 @@ static int ovl2mem_callback(unsigned int userdata)
 	DISPINFO("%s(%x), current tick=%d, release tick: %d\n", __func__,
 		pgcl->session, get_ovl2mem_ticket(), userdata);
 	for (layid = 0; layid < (MEMORY_SESSION_INPUT_LAYER_COUNT); layid++) {
+		fence_idx = mtkfb_query_idx_by_ticket(pgcl->session, layid, userdata);
+		if (fence_idx >= 0)
+			mtkfb_release_fence(pgcl->session, layid, fence_idx);
+
+		/* for corner case: config1-->config2-->callback1-->callback2
+		 * it will casue buffer free when using.
+
 		cmdqBackupReadSlot(pgcl->ovl2mem_cur_config_fence,
 			layid, &fence_idx);
 		cmdqBackupReadSlot(pgcl->ovl2mem_subtractor_when_free,
@@ -267,6 +282,8 @@ static int ovl2mem_callback(unsigned int userdata)
 
 		mtkfb_release_fence(pgcl->session, layid,
 			fence_idx - subtractor);
+
+		*/
 	}
 
 	layid = disp_sync_get_output_timeline_id();
@@ -511,7 +528,7 @@ int ovl2mem_trigger(int blocking, void *callback, unsigned int userdata)
 		(atomic_read(&g_trigger_ticket)<<16) |
 		atomic_read(&g_release_ticket));
 
-	DISPINFO("%s done %d\n", __func__, get_ovl2mem_ticket());
+	DISPINFO("%s done, next:%d\n", __func__, get_ovl2mem_ticket());
 
 	return ret;
 }
@@ -524,6 +541,7 @@ static int ovl2mem_frame_cfg_input(struct disp_frame_cfg_t *cfg)
 	struct disp_ddp_path_config *data_config;
 	struct ddp_io_golden_setting_arg gset_arg;
 	unsigned int ext_last_fence, ext_cur_fence, ext_sub;
+	unsigned int session_id = cfg->session_id;
 
 	DISPFUNC();
 
@@ -544,9 +562,14 @@ static int ovl2mem_frame_cfg_input(struct disp_frame_cfg_t *cfg)
 			(unsigned long)(cfg->input_cfg[i].src_phy_addr));
 
 		config_layer_id = cfg->input_cfg[i].layer_id;
+
+		if (config_layer_id >= TOTAL_OVL_LAYER_NUM || config_layer_id < 0) {
+			DISP_PR_INFO("%s: err layer id:%d\n", __func__, config_layer_id);
+			continue;
+		}
 		_convert_disp_input_to_ovl(
 			&(data_config->ovl_config[config_layer_id]),
-			&(cfg->input_cfg[i]));
+			&(cfg->input_cfg[i]), cfg->session_id);
 		dprec_mmp_dump_ovl_layer(
 			&(data_config->ovl_config[config_layer_id]),
 			config_layer_id, 3);
@@ -555,6 +578,37 @@ static int ovl2mem_frame_cfg_input(struct disp_frame_cfg_t *cfg)
 		dprec_logger_done(DPREC_LOGGER_PRIMARY_CONFIG,
 			cfg->input_cfg[i].src_offset_x,
 			cfg->input_cfg[i].src_offset_y);
+
+		/* only updated secure buffer handle for input */
+		if (cfg->input_cfg[i].layer_enable &&
+		    cfg->input_cfg[i].security != DISP_NORMAL_BUFFER) {
+			data_config->ovl_config[config_layer_id].hnd =
+					disp_sync_get_ion_handle(cfg->session_id,
+					cfg->input_cfg[i].layer_id,
+					(unsigned int)cfg->input_cfg[i].next_buff_idx);
+			DISPINFO("[SVP]ovl2mem sec layer id: %d, cdmq handle:%p\n",
+				 cfg->input_cfg[i].layer_id, pgcl->cmdq_handle_config);
+		}
+
+		/* Update input buffer trigger ticket */
+		mtkfb_update_buf_ticket(session_id,
+			config_layer_id,
+			cfg->input_cfg[i].next_buff_idx, get_ovl2mem_ticket());
+
+	}
+
+	/* only updated secure buffer handle for output */
+	if (cfg->output_cfg.security != DISP_NORMAL_BUFFER) {
+		data_config->wdma_config.hnd = disp_sync_get_ion_handle(cfg->session_id,
+							disp_sync_get_output_timeline_id(),
+							(unsigned int)cfg->output_cfg.buff_idx);
+		DISPINFO("[SVP]ovl2mem out is sec addr, cdmq handle:%p:\n",
+			 pgcl->cmdq_handle_config);
+		if (!cfg->output_en)
+			DISP_PR_INFO("%s#%d:output is not enabled? session:%d buf_idx:%d\n",
+				     __func__, __LINE__,
+				     cfg->session_id,
+				     cfg->output_cfg.buff_idx);
 	}
 
 	if (dpmgr_path_is_busy(pgcl->dpmgr_handle))
@@ -655,6 +709,17 @@ static int ovl2mem_frame_cfg_output(struct disp_frame_cfg_t *cfg)
 	data_config->wdma_config.useSpecifiedAlpha = 1;
 	data_config->wdma_config.alpha = 0xFF;
 	data_config->wdma_config.security = cfg->output_cfg.security;
+
+	/* only updated secure buffer handle for input */
+	if (data_config->wdma_config.security != DISP_NORMAL_BUFFER) {
+		data_config->wdma_config.hnd = disp_sync_get_ion_handle(cfg->session_id,
+					disp_sync_get_output_timeline_id(),
+					cfg->output_cfg.buff_idx);
+		DISPINFO("%s [SVP]ovl2mem out sec buf_idx:0x%x\n", __func__,
+			 cfg->output_cfg.buff_idx);
+	}
+
+
 	data_config->p_golden_setting_context = get_golden_setting_pgc();
 
 	if (dpmgr_path_is_busy(pgcl->dpmgr_handle))
@@ -793,8 +858,7 @@ int ovl2mem_deinit(void)
 
 	/*[SVP]switch ddp mosule to nonsec when deinit the extension path*/
 	switch_module_to_nonsec(pgcl->dpmgr_handle, NULL, DISP_MODULE_NUM,
-		__func__);
-
+				__func__);
 	dpmgr_path_stop(pgcl->dpmgr_handle, CMDQ_DISABLE);
 	dpmgr_path_reset(pgcl->dpmgr_handle, CMDQ_DISABLE);
 	dpmgr_path_deinit(pgcl->dpmgr_handle, CMDQ_DISABLE);
@@ -802,7 +866,7 @@ int ovl2mem_deinit(void)
 	dpmgr_destroy_path_handle(pgcl->dpmgr_handle);
 	cmdqRecDestroy(pgcl->cmdq_handle_config);
 
-	DISPMSG("ovl2mem_release_all_fence");
+	DISPMSG("ovl2mem_release_all_fence\n");
 	/* release input layer all fence */
 	for (i = 0; i < MEMORY_SESSION_INPUT_LAYER_COUNT; i++)
 		mtkfb_release_layer_fence(pgcl->session, i);

@@ -10,6 +10,10 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM met_touch
@@ -41,6 +45,10 @@ TRACE_EVENT(MET_touch,
 			__entry->_tsec = tsec;
 			__entry->_tusec = tusec;
 			memcpy(__entry->_mode, mode, 16);
+			strlcpy(__entry->_touch_type, touch_type, 16);
+			__entry->_tsec = tsec;
+			__entry->_tusec = tusec;
+			strlcpy(__entry->_mode, mode, 16);
 			__entry->_value = value;
 			),
 

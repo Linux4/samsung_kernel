@@ -845,13 +845,16 @@ static int bq2589x_check_dpdm_done(struct bq2589x *bq, bool *done)
 
 extern void mt_usb_connect(void);
 extern void mt_usb_disconnect(void);
+
+static int  bq2589x_charger_get_online(struct bq2589x *bq,bool *val);
+
 static int bq2589x_get_charger_type(struct bq2589x *bq)
 {
 	int ret;
 
 	u8 reg_val = 0;
 	int vbus_stat = 0;
-	int bc_count = 50;
+	int bc_count = 20;
 	bool done;
 	int retry = 0;
 
@@ -910,6 +913,7 @@ static int bq2589x_get_charger_type(struct bq2589x *bq)
 			bq->psy_usb_type = POWER_SUPPLY_USB_TYPE_DCP;
 			break;
 	}
+	printk("usb type = $d\n",bq->psy_usb_type);
 
 	if (bq->psy_usb_type != POWER_SUPPLY_USB_TYPE_DCP) {
  		Charger_Detect_Release();
@@ -946,10 +950,13 @@ static int bq2589x_inform_charger_type(struct bq2589x *bq)
 
 	propval.intval = bq->psy_usb_type;
  	ret = power_supply_set_property(psy, POWER_SUPPLY_PROP_USB_TYPE, &propval);
+
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 	if (ret < 0) {
-		pr_notice("inform power supply type failed:%d\n", ret);
-		return ret;
+			pr_notice("inform power supply type failed:%d\n", ret);
+			return ret;
 	}
+#endif
 
 	power_supply_changed(psy);
 	power_supply_changed(bq->psy);
@@ -1028,6 +1035,11 @@ static int bq2589x_register_interrupt(struct bq2589x *bq)
 	return 0;
 }
 
+static void determine_initial_status(struct bq2589x *bq)
+{
+	bq2589x_irq_handler(bq->irq, (void *) bq);
+}
+
 static int bq2589x_init_device(struct bq2589x *bq)
 {
 	int ret;
@@ -1058,10 +1070,7 @@ static int bq2589x_init_device(struct bq2589x *bq)
 	return 0;
 }
 
-static void determine_initial_status(struct bq2589x *bq)
-{
-	bq2589x_irq_handler(bq->irq, (void *) bq);
-}
+
 
 static int bq2589x_detect_device(struct bq2589x *bq)
 {
@@ -1171,10 +1180,6 @@ static int bq2589x_charging(struct charger_device *chg_dev, bool enable)
 	       !ret ? "successfully" : "failed");
 
 	ret = bq2589x_read_byte(bq, BQ2589X_REG_03, &val);
-
-	/* still in hz mode, keep discharging */
-	if(enable && bq->hz_mode)
-		ret = bq2589x_hz_mode(chg_dev, true);
 
 	if (!ret)
 		bq->charge_enabled = !!(val & BQ2589X_CHG_CONFIG_MASK);
@@ -1413,10 +1418,6 @@ static int bq2589x_kick_wdt(struct charger_device *chg_dev)
 	return bq2589x_reset_watchdog_timer(bq);
 }
 
-#if defined (CONFIG_CHARGER_BQ2560X) ||  defined (CONFIG_CHARGER_BQ2589X)
-extern bool otg_enabled;
-#endif
-
 static int bq2589x_set_otg(struct charger_device *chg_dev, bool en)
 {
 	int ret;
@@ -1429,10 +1430,6 @@ static int bq2589x_set_otg(struct charger_device *chg_dev, bool en)
 
 	pr_err("%s OTG %s\n", en ? "enable" : "disable",
 	       !ret ? "successfully" : "failed");
-
-#if defined (CONFIG_CHARGER_BQ2560X) ||  defined (CONFIG_CHARGER_BQ2589X)
-	otg_enabled = en;
-#endif
 
 	return ret;
 }
@@ -1533,13 +1530,13 @@ static int bq2589x_enable_chg_type_det(struct charger_device *chg_dev, bool en)
 	pr_err("%s en = %d\n", __func__, en);
 	bq->chg_det_enable = en;
 	if (en) {
-		Charger_Detect_Init();
+		//Charger_Detect_Init();
 		bq2589x_get_charger_type(bq);
 	} else {
 		bq->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
 		bq->psy_usb_type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
 	}
-	bq2589x_inform_charger_type(bq);
+	//bq2589x_inform_charger_type(bq);
 #endif /* CONFIG_TCPC_CLASS */
 	return ret;
 }
@@ -1595,7 +1592,6 @@ static struct charger_ops bq2589x_chg_ops = {
 
 	/* Event */
 	.event =  bq2589x_do_event,
-	.hz_mode = bq2589x_hz_mode,
 };
 
 static struct of_device_id bq2589x_charger_match_table[] = {
@@ -1645,6 +1641,8 @@ static int  bq2589x_charger_get_online(struct bq2589x *bq,
 static int  bq2589x_charger_set_online(struct bq2589x *bq,
 				     const union power_supply_propval *val)
 {
+	printk("jun6:%s\n",__func__);
+	dump_stack();
 	return  bq2589x_enable_chg_type_det(bq->chg_dev, val->intval);
 }
 
@@ -1797,8 +1795,12 @@ static int typec_attach_thread(void *data)
 		attach = bq->attach;
 		mutex_unlock(&bq->attach_lock);
 		val.intval = attach;
+
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 		if (attach)
 			bq2589x_enable_charger(bq);
+#endif
+
 		power_supply_set_property(bq->chg_psy,
 						POWER_SUPPLY_PROP_ONLINE, &val);
 	}
@@ -1814,12 +1816,14 @@ static void handle_typec_attach(struct bq2589x *bq,
 	mutex_unlock(&bq->attach_lock);
 }
 
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 //+Bug682956,yangyuhang.wt ,20210813, add cc polarity node
 extern int tcpc_set_cc_polarity_state(int state);
 #ifdef CONFIG_TCPC_WUSB3801
 extern int wusb3801_typec_cc_orientation(void);
 #endif
 //-Bug682956,yangyuhang.wt ,20210813, add cc polarity node
+#endif
 
 static int pd_tcp_notifier_call(struct notifier_block *nb,
 				unsigned long event, void *data)
@@ -1827,7 +1831,7 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 	struct tcp_notify *noti = data;
 	struct bq2589x *bq =
 		(struct bq2589x *)container_of(nb, struct bq2589x, pd_nb);
-
+	printk("jun: %s event = %d\n",__func__,event);
 	switch (event) {
 	case TCP_NOTIFY_TYPEC_STATE:
 		if (noti->typec_state.old_state == TYPEC_UNATTACHED &&
@@ -1863,24 +1867,14 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 			// bq->ignore_usb = true;
 			handle_typec_attach(bq, false);
 		}
-//+Bug682956,yangyuhang.wt ,20210813, add cc polarity node
+
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 		if(noti->typec_state.new_state != TYPEC_UNATTACHED) {
-#ifdef CONFIG_TCPC_WUSB3801
-			if(wusb3801_typec_cc_orientation() >= 0){
-				tcpc_set_cc_polarity_state(wusb3801_typec_cc_orientation());
-				pr_info("%s wusb3801_typec_polarity = %d\n", __func__,wusb3801_typec_cc_orientation());
-			}else{
-#endif
-				tcpc_set_cc_polarity_state(noti->typec_state.polarity + 1);
-				pr_info("%s sgm7220_typec_polarity = %d\n", __func__,noti->typec_state.polarity);
-#ifdef CONFIG_TCPC_WUSB3801
-			}
-#endif
-		}else{
-				pr_info("%s typec_polarity TYPEC_UNATTACHED\n", __func__);
-				tcpc_set_cc_polarity_state(0);
+			tcpc_set_cc_polarity_state(noti->typec_state.polarity + 1);
+		} else {
+			tcpc_set_cc_polarity_state(0);
 		}
-//-Bug682956,yangyuhang.wt ,20210813, add cc polarity node
+#endif
 		break;
 	default:
 		break;
@@ -2014,7 +2008,7 @@ static int bq2589x_charger_probe(struct i2c_client *client,
 
 	pr_err("bq2589x probe successfully, Part Num:%d, Revision:%d\n!",
 	       bq->part_no, bq->revision);
-	
+
 	return 0;
 
 #ifdef CONFIG_TCPC_CLASS

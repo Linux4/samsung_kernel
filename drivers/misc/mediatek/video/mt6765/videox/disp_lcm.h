@@ -64,7 +64,9 @@ int disp_lcm_validate_roi(struct disp_lcm_handle *plcm,
 int disp_lcm_aod(struct disp_lcm_handle *plcm, int enter);
 int disp_lcm_is_arr_support(struct disp_lcm_handle *plcm);
 int disp_lcm_disable(struct disp_lcm_handle *plcm);
-
+//Bug 717431, chensibo.wt, ADD, 20220118, add CABC function
+int disp_lcm_set_cabc(struct disp_lcm_handle *plcm, void *handle, int enable);
+int disp_lcm_get_cabc(struct disp_lcm_handle *plcm, int *status);
 /*-----------------------DynFPS start-----------------------------------*/
 int disp_lcm_is_dynfps_support(struct disp_lcm_handle *plcm);
 unsigned int disp_lcm_dynfps_get_def_fps(

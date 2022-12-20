@@ -1,28 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0
-subdir-y += actions
-subdir-y += al
-subdir-y += allwinner
-subdir-y += altera
-subdir-y += amd
-subdir-y += amlogic
-subdir-y += apm
-subdir-y += arm
-subdir-y += broadcom
-subdir-y += cavium
-subdir-y += exynos
-subdir-y += freescale
-subdir-y += hisilicon
-subdir-y += lg
-subdir-y += marvell
-subdir-y += mediatek
-subdir-y += nvidia
-subdir-y += qcom
-subdir-y += realtek
-subdir-y += renesas
-subdir-y += rockchip
-subdir-y += socionext
-subdir-y += sprd
-subdir-y += synaptics
-subdir-y += ti
-subdir-y += xilinx
-subdir-y += zte
+dts-dirs += mediatek
+
+subdir-y          := $(dts-dirs)
+
+always            := $(DTB_LIST)
+
+targets += dtbs
+dtbs: $(addprefix $(obj)/, $(DTB_LIST))
+
+clean-files       := mediatek/*.dtb *.dtb*

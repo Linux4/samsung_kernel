@@ -116,20 +116,24 @@
 	mtk_gauge: mtk_gauge {
 		compatible = "mediatek,mt6357-gauge";
 		charger = <&mt6370_chg>;
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 		mediatek,charger = <&charger>;
+#endif
 		bootmode = <&chosen>;
 		io-channels = <&pmic_auxadc AUXADC_BAT_TEMP>,
-				<&pmic_auxadc AUXADC_BATADC>,
+				<&pmic_auxadc AUXADC_ISENSE>,
 				<&pmic_auxadc AUXADC_VBIF>,
 				<&pmic_auxadc AUXADC_IMP>,
-				<&pmic_auxadc AUXADC_ISENSE>,
-				<&auxadc 4>;
+				<&pmic_auxadc AUXADC_IMIX_R>,
+				<&auxadc 3>;
+
 		io-channel-names = "pmic_battery_temp",
 				"pmic_battery_voltage",
 				"pmic_bif_voltage",
 				"pmic_ptim_voltage",
-				"pmic_isense_voltage",
+				"pmic_ptim_r",
 				"battery_id";
+
 		nvmem-cells = <&fg_init>, <&fg_soc>;
 		nvmem-cell-names = "initialization", "state-of-charge";
 		adc_gpio = <&pio 166 0>;
@@ -139,7 +143,7 @@
 		compatible = "mediatek,mt6357-charger-type";
 		io-channels = <&pmic_auxadc AUXADC_VCDT>;
 		io-channel-names = "pmic_vbus";
-		bc12_active = <1>;
+		bc12_active = <1>;  //bug 717431, liyiying.wt, mod, 2021/1/26, n21s charger bring up
 	};
 
 	mt6357_charger: mt6357_charger {
@@ -297,8 +301,12 @@
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <1800000>;
 			regulator-enable-ramp-delay = <264>;
+//+bug727089, liangyiyi.wt, MODIFY, 2022/5/30, modify for solving the 2st dep camera leakage during standby
+#ifndef CONFIG_N26_VCAMIO_NOT_ALWAYS_ON
 			regulator-boot-on;
 			regulator-always-on;
+#endif
+//-bug727089, liangyiyi.wt, MODIFY, 2022/5/30, modify for solving the 2st dep camera leakage during standby
 		};
 		mt_pmic_vldo28_ldo_reg: ldo_vldo28 {
 			regulator-name = "vldo28";

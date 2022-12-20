@@ -79,7 +79,7 @@ config TZDEV_SK_MULTICORE
 
 config ION_FD2PHYS
 	bool "ION FD to physical address converter"
-	depends on ION && (ARCH_EXYNOS || ARCH_MSM || ARCH_WHALE || ARCH_MT6755 || ARCH_MT6735 || ARCH_RANCHU || MACH_MT6757 || MACH_MT6853)
+	depends on ION && (ARCH_EXYNOS || ARCH_MSM || ARCH_WHALE || ARCH_MT6755 || ARCH_MT6735 || ARCH_RANCHU || MACH_MT6757 || MACH_MT6853 || MACH_MT6768)
 	default y
 	help
 	  Provide a method for userspace to get physical address from ION buffer
@@ -165,12 +165,6 @@ config TZDEV_DEBUG
 	default n
 	help
 	  Debug extensions for samsung TZ Based Secure OS interface driver.
-
-config TZ_NWFS
-	bool "Normal world file system interface driver"
-	default n
-	help
-	  Normal world file system interface driver.
 
 config TZ_SCMA
 	bool "Secure contiguous memory allocator"

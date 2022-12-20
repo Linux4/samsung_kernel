@@ -120,18 +120,10 @@ s32 cmdqRecSecureEnableDAPC(struct cmdqRecStruct *handle,
  *	   a. Secure CMDQ support when t-base enabled only
  *	   b. after reset handle, user have to specify protection flag again
  */
-
-int32_t cmdq_task_secure_disable_dapc(struct cmdqRecStruct *handle,	const uint64_t engineFlag);
-int32_t cmdqRecSecureDisableDAPC(struct cmdqRecStruct *handle, const uint64_t engineFlag);
-
 s32 cmdq_task_secure_enable_port_security(struct cmdqRecStruct *handle,
 	const u64 engineFlag);
 s32 cmdqRecSecureEnablePortSecurity(struct cmdqRecStruct *handle,
 	const u64 engineFlag);
-int32_t cmdq_task_secure_disable_port_security(struct cmdqRecStruct *handle,
-	const uint64_t engineFlag);
-int32_t cmdqRecSecureDisablePortSecurity(struct cmdqRecStruct *handle,	 const uint64_t engineFlag);
-
 
 /* Assign secure metadata for client driver */
 s32 cmdq_task_set_secure_meta(struct cmdqRecStruct *handle,
@@ -191,12 +183,18 @@ s32 cmdqRecWrite(struct cmdqRecStruct *handle, u32 addr, u32 value, u32 mask);
  *	support only when secure OS enabled
  */
 void cmdq_task_set_mtee(struct cmdqRecStruct *handle, const bool enable);
+
+void cmdq_task_set_secure_id(struct cmdqRecStruct *handle, s32 sec_id);
 s32 cmdq_op_write_reg_secure(struct cmdqRecStruct *handle, u32 addr,
 	enum CMDQ_SEC_ADDR_METADATA_TYPE type, u64 baseHandle,
-	u32 offset, u32 size, u32 port);
+	u32 offset, u32 size, u32 port, uint32_t sec_id);
 s32 cmdqRecWriteSecure(struct cmdqRecStruct *handle,
 	u32 addr, enum CMDQ_SEC_ADDR_METADATA_TYPE type,
 	u64 baseHandle, u32 offset, u32 size, u32 port);
+
+s32 cmdqRecWriteSecureMetaData(struct cmdqRecStruct *handle,
+	u32 addr, enum CMDQ_SEC_ADDR_METADATA_TYPE type,
+	u64 baseHandle, u32 offset, u32 size, u32 port, uint32_t sec_id);
 
 /* Append poll command to the recorder
  * Parameter:
@@ -921,5 +919,4 @@ s32 cmdq_op_read_reg(struct cmdqRecStruct *handle, u32 addr,
 s32 cmdq_op_read_mem(struct cmdqRecStruct *handle,
 	cmdqBackupSlotHandle h_backup_slot, u32 slot_index,
 	CMDQ_VARIABLE *arg_out);
-
 #endif	/* __CMDQ_RECORD_H__ */

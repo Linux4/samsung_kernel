@@ -539,7 +539,7 @@ static int ovl_layer_config(enum DISP_MODULE_ENUM module, unsigned int layer,
 	/* check dim layer fmt */
 	if (cfg->source == OVL_LAYER_SOURCE_RESERVED) {
 		if (cfg->aen == 0)
-			DDPMSG("dim layer%d ahpha enable should be 1!\n",
+			DDPERR("dim layer%d ahpha enable should be 1!\n",
 				layer);
 		format = UFMT_RGB888;
 	}
@@ -949,7 +949,7 @@ static inline int ovl_switch_to_sec(enum DISP_MODULE_ENUM module, void *handle)
 	/* set engine as sec port, it will to access
 	 * the sec memory EMI_MPU protected
 	 */
-	cmdqRecSecureEnablePortSecurity(handle, (1LL << cmdq_engine));
+	//cmdqRecSecureEnablePortSecurity(handle, (1LL << cmdq_engine));
 
 	/* Enable DAPC to protect the engine register */
 	/* cmdqRecSecureEnableDAPC(handle, (1LL << cmdq_engine)); */
@@ -967,19 +967,13 @@ int ovl_switch_to_nonsec(enum DISP_MODULE_ENUM module, void *handle)
 {
 	unsigned int ovl_idx = ovl_to_index(module);
 	enum CMDQ_ENG_ENUM cmdq_engine;
-	/*enum CMDQ_EVENT_ENUM cmdq_event_nonsec_end;*/
+	enum CMDQ_EVENT_ENUM cmdq_event_nonsec_end;
 
 	cmdq_engine = ovl_to_cmdq_engine(module);
 
 	if (ovl_is_sec[ovl_idx] == 1) {
 		/* ovl is in sec stat, we need to switch it to nonsec */
 		struct cmdqRecStruct *nonsec_switch_handle;
-		if (!handle) {
-			DDPERR("%s handle NULL\n", __func__);
-			return -1;
-		}
-		nonsec_switch_handle = handle;
-/*
 		int ret;
 
 		ret = cmdqRecCreate(
@@ -990,7 +984,7 @@ int ovl_switch_to_nonsec(enum DISP_MODULE_ENUM module, void *handle)
 				__func__, ret);
 
 		cmdqRecReset(nonsec_switch_handle);
-*/
+
 		if (module != DISP_MODULE_OVL1_2L) {
 			/* Primary Mode */
 			if (primary_display_is_decouple_mode())
@@ -1005,21 +999,20 @@ int ovl_switch_to_nonsec(enum DISP_MODULE_ENUM module, void *handle)
 				CMDQ_SYNC_DISP_EXT_STREAM_EOF);
 		}
 		cmdqRecSetSecure(nonsec_switch_handle, 1);
+
 		/*
 		 * we should disable ovl before new (nonsec) setting takes
 		 * effect, or translation fault may happen.
 		 * if we switch ovl to nonsec BUT its setting is still sec
 		 */
-		/*disable_ovl_layers(module, nonsec_switch_handle);*/
-		/* in fact, dapc/port_sec will be disabled by cmdq */
-		cmdqRecSecureDisablePortSecurity(
-			nonsec_switch_handle, (1LL << cmdq_engine));
+		disable_ovl_layers(module, nonsec_switch_handle);
+
 		/* in fact, dapc/port_sec will be disabled by cmdq */
 		//cmdqRecSecureEnablePortSecurity(
 		//	nonsec_switch_handle, (1LL << cmdq_engine));
-/*
+
 		if (handle != NULL) {
-			// Async Flush method
+			/* Async Flush method */
 			cmdq_event_nonsec_end =
 				ovl_to_cmdq_event_nonsec_end(module);
 			cmdqRecSetEventToken(
@@ -1027,12 +1020,11 @@ int ovl_switch_to_nonsec(enum DISP_MODULE_ENUM module, void *handle)
 			cmdqRecFlushAsync(nonsec_switch_handle);
 			cmdqRecWait(handle, cmdq_event_nonsec_end);
 		} else {
-			//Sync Flush method
+			/* Sync Flush method */
 			cmdqRecFlush(nonsec_switch_handle);
 		}
 
 		cmdqRecDestroy(nonsec_switch_handle);
-*/
 		DDPSVPMSG("[SVP] switch ovl%d to nonsec\n", ovl_idx);
 		mmprofile_log_ex(ddp_mmp_get_events()->svp_module[module],
 				 MMPROFILE_FLAG_END, 0, 0);
@@ -1068,7 +1060,7 @@ static int setup_ovl_sec(enum DISP_MODULE_ENUM module,
 	if (has_sec_layer == 1)
 		ret = ovl_switch_to_sec(module, handle);
 	else
-		ret = ovl_switch_to_nonsec(module, handle);
+		ret = ovl_switch_to_nonsec(module, NULL);
 
 	if (ret)
 		DDPAEE("[SVP]fail to setup_ovl_sec: %s ret=%d\n",
@@ -1290,8 +1282,8 @@ static unsigned long long full_trans_bw_calc(struct sbch *data,
 
 	if (data->sbch_en_cnt == SBCH_EN_NUM) {
 		pConfig->read_dum_reg[module] = 1;
-	} else if (data->sbch_en_cnt == SBCH_EN_NUM + 1) {
-
+	} else if ((data->sbch_en_cnt == SBCH_EN_NUM + 1) &&
+		(pgc != NULL)) {
 		if (primary_display_is_video_mode())
 			cmdqBackupReadSlot(pgc->ovl_status_info,
 					0, &status);
@@ -1602,7 +1594,8 @@ static unsigned long long sbch_calc(enum DISP_MODULE_ENUM module,
 	DISP_REG_SET(handle, ovl_base_addr(module) + DISP_REG_OVL_SBCH_EXT,
 		ext_bit[UPDATE] | ext_bit[TRANS_EN] | ext_bit[CNST_EN]);
 	/* clear slot */
-	cmdqBackupWriteSlot(pgc->ovl_dummy_info, module, 0);
+	if (pgc != NULL)
+		cmdqBackupWriteSlot(pgc->ovl_dummy_info, module, 0);
 
 	return full_trans_bw;
 }

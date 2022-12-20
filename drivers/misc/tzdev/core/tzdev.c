@@ -356,6 +356,7 @@ static void dump_kernel_panic_bh(struct work_struct *work)
 {
 	tz_iw_boot_log_read();
 #if defined(CONFIG_TZDEV_SWD_PANIC_IS_CRITICAL)
+	tz_iwlog_fini();
 	panic("tzdev: IWI_PANIC raised\n");
 #else
 	tzdev_run_fini_sequence();

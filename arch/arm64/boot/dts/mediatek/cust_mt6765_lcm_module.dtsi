@@ -1,11 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0+
+
 /*
  * Copyright (c) 2019 MediaTek Inc.
- *
+ * SPDX-License-Identifier: GPL-2.0+
  */
 
 /* display start */
-&i2c3 {
+&i2c6 {
 	lcd_bias@3e {
 		compatible = "mediatek,I2C_LCD_BIAS";
 		reg = <0x3e>;
@@ -16,8 +16,8 @@
 /*LCM start*/
 &lcm {
 	pinctrl-names = "state_enp_output0","state_enp_output1", "state_enn_output0",
-		"state_enn_output1","state_reset_output0", "state_reset_output1",
-        "state_vio_output0","state_vio_output1";
+		"state_enn_output1", "state_reset_output0", "state_reset_output1",
+        "state_vio_output0", "state_vio_output1";
 	pinctrl-0 = <&lcm_pins_enp_output0>;
 	pinctrl-1 = <&lcm_pins_enp_output1>;
 	pinctrl-2 = <&lcm_pins_enn_output0>;

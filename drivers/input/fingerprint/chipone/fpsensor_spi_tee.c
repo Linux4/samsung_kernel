@@ -151,8 +151,29 @@ void fpsensor_gpio_output_dts(int gpio, int level)
 static void spidev_gpio_ldo_en(fpsensor_data_t *fpsensor)
 {
     fpsensor_debug(DEBUG_LOG, "[fpsensor]----%s---\n", __func__);
-    fpsensor_debug(DEBUG_LOG,"[fpsensor]spidev_gpio_as_ldo_en\n");
+	if (fpsensor->pinctrl1 == NULL) {
+        fpsensor_debug(ERR_LOG,"fpsensor Cannot find fp pinctrl1.\n");
+        return;
+    }
+	if (fpsensor->fp_ldo_en == NULL) {
+        fpsensor_debug(ERR_LOG, "fpsensor Cannot find fp pinctrl fp_ldo-en!\n");
+        return;
+    }
     pinctrl_select_state(fpsensor->pinctrl1, fpsensor->fp_ldo_en);
+}
+
+static void spidev_gpio_ldo_disable(fpsensor_data_t *fpsensor)
+{
+    fpsensor_debug(DEBUG_LOG, "[fpsensor]----%s---\n", __func__);
+	if (fpsensor->pinctrl1 == NULL) {
+        fpsensor_debug(ERR_LOG,"fpsensor Cannot find fp pinctrl1.\n");
+        return;
+    }
+	if (fpsensor->fp_ldo_disable == NULL) {
+        fpsensor_debug(ERR_LOG, "fpsensor Cannot find fp pinctrl fp_ldo_disable!\n");
+        return;
+    }
+    pinctrl_select_state(fpsensor->pinctrl1, fpsensor->fp_ldo_disable);
 }
 
 int fpsensor_gpio_wirte(int gpio, int value)
@@ -209,6 +230,13 @@ int fpsensor_spidev_dts_init(fpsensor_data_t *fpsensor)
         if (IS_ERR(fpsensor->fp_ldo_en)) {
             ret = PTR_ERR(fpsensor->fp_ldo_en);
             fpsensor_debug(ERR_LOG, "fpsensor Cannot find fp pinctrl fp_ldo-en!\n");
+            return ret;
+        }
+		
+		fpsensor->fp_ldo_disable = pinctrl_lookup_state(fpsensor->pinctrl1, "ldo-disable");
+        if (IS_ERR(fpsensor->fp_ldo_disable)) {
+            ret = PTR_ERR(fpsensor->fp_ldo_disable);
+            fpsensor_debug(ERR_LOG, "fpsensor Cannot find fp pinctrl fp_ldo_disable!\n");
             return ret;
         }
 /*
@@ -446,17 +474,20 @@ static long fpsensor_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
         break;
     case FPSENSOR_IOC_ENABLE_POWER:
         fpsensor_debug(INFO_LOG, "%s: FPSENSOR_IOC_ENABLE_POWER ======\n", __func__);
+		spidev_gpio_ldo_en(fpsensor_dev);
         break;
     case FPSENSOR_IOC_DISABLE_POWER:
         fpsensor_debug(INFO_LOG, "%s: FPSENSOR_IOC_DISABLE_POWER ======\n", __func__);
-        //retval = regulator_disable(g_fpsensor->fp_regulator);
-        //if (retval) {
-        //    fpsensor_debug(ERR_LOG, "Regulator vdd enable failed status = %d\n", retval);
-        //}
+		spidev_gpio_ldo_disable(fpsensor_dev);
         break;
     case FPSENSOR_IOC_REMOVE:
         fpsensor_gpio_wirte(FPSENSOR_RST_PIN,  0);
         fpsensor_disable_irq(fpsensor_dev);
+		
+		if(fpsensor_dev->pinctrl1) {
+	        devm_pinctrl_put(fpsensor_dev->pinctrl1);
+	    }
+		
         if (fpsensor_dev->irq) {
             free_irq(fpsensor_dev->irq, fpsensor_dev);
             fpsensor_dev->irq_enabled = 0;

@@ -36,6 +36,7 @@ ifneq ($(CCCI_OBJ), n)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/ccci_util
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/memory-amms
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/aee/
 
 ifeq ($(CONFIG_MTK_SECURITY_SW_SUPPORT), y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/masp/asfv2/asf_export_inc
@@ -54,7 +55,10 @@ ccci_util_lib-$(CCCI_OBJ) := ccci_util_lib_fo.o \
 			ccci_util_lib_time.o \
 			ccci_util_lib_main.o \
 			ccci_util_ld_md_errno.o \
-			ccci_util_broadcast.o
+			ccci_util_broadcast.o \
+			ccci_util_pin_broadcast.o \
+			ccci_util_sib.o \
+			ccci_util_md_rat.o
 
 endif
 endif

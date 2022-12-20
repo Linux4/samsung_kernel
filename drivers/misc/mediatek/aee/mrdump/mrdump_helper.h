@@ -15,8 +15,6 @@ extern const char *aee_arch_vma_name(struct vm_area_struct *vma);
 extern unsigned long aee_get_stext(void);
 extern unsigned long aee_get_etext(void);
 extern unsigned long aee_get_text(void);
-extern unsigned long aee_get_sdata(void);
-extern unsigned long aee_get_edata(void);
 #if defined(CONFIG_ARM64)
 extern unsigned long aee_get_kimage_vaddr(void);
 #endif
@@ -31,9 +29,6 @@ extern char *aee_log_buf_addr_get(void);
 extern phys_addr_t aee_memblock_start_of_DRAM(void);
 extern phys_addr_t aee_memblock_end_of_DRAM(void);
 extern unsigned long aee_get_swapper_pg_dir(void);
-#ifdef CONFIG_SYSFS
-extern struct kset *aee_get_module_kset(void);
-#endif
 #ifdef __aarch64__
 extern bool aee_on_irq_stack(unsigned long sp, struct stack_info *info);
 #endif

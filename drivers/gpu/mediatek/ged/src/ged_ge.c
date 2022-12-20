@@ -89,6 +89,11 @@ GED_ERROR ged_ge_init(void)
 	gPoolCache = kmem_cache_create("gralloc_extra",
 		sizeof(struct GEEntry), 0, flags, NULL);
 
+	if (!gPoolCache) {
+		GED_PDEBUG("kmem_cache_create fail\n");
+		err = GED_ERROR_FAIL;
+	}
+
 	return err;
 }
 
@@ -103,6 +108,7 @@ int ged_ge_exit(void)
 int ged_ge_alloc(int region_num, uint32_t *region_sizes)
 {
 	unsigned long flags;
+	int fd;
 	int i;
 	struct GEEntry *entry =
 		(struct GEEntry *)kmem_cache_zalloc(gPoolCache, GFP_KERNEL);
@@ -113,7 +119,7 @@ int ged_ge_alloc(int region_num, uint32_t *region_sizes)
 		goto err_entry;
 	}
 
-	entry->alloc_fd = get_unused_fd_flags(O_CLOEXEC);
+	fd = entry->alloc_fd = get_unused_fd_flags(O_CLOEXEC);
 
 	if (entry->alloc_fd < 0) {
 		GED_PDEBUG("get_unused_fd_flags() return %d\n",
@@ -155,7 +161,7 @@ int ged_ge_alloc(int region_num, uint32_t *region_sizes)
 
 	fd_install(entry->alloc_fd, entry->file);
 
-	return entry->alloc_fd;
+	return fd;
 
 err_kmalloc:
 err_entry_file:

@@ -850,7 +850,10 @@ static void fts_irq_read_report(void)
 static int touch_event_handler(void *unused)
 {
     struct sched_param param = { .sched_priority = RTPM_PRIO_TPD };
-
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+    struct spi_controller *ctlr = fts_data->spi->controller;
+    int i = 0;
+#endif
     sched_setscheduler(current, SCHED_RR, &param);
     do {
         set_current_state(TASK_INTERRUPTIBLE);
@@ -863,7 +866,17 @@ static int touch_event_handler(void *unused)
         if (fts_proximity_readdata(fts_data) == 0)
             continue;
 #endif
+#ifdef CONFIG_WT_PROJECT_S96616AA1
+        if (fts_data->suspended == true && fts_data->gesture_mode == 1 && ctlr->running == 0) {
+            for (i = 0; i < 10; i++) {
+                FTS_ERROR("touch_event_handler ctlr->running == %d\n",ctlr->running);
+                msleep(10);
 
+                if (ctlr->running == 1)
+                    break;
+            }
+        }
+#endif
         fts_irq_read_report();
     } while (!kthread_should_stop());
 
@@ -1601,7 +1614,7 @@ static int tpd_local_init(void)
     return 0;
 }
 
-static void tpd_suspend(struct device *dev)
+void tpd_focal_suspend(struct device *dev)
 {
     int ret = 0;
     struct fts_ts_data *ts_data = fts_data;
@@ -1653,7 +1666,7 @@ static void tpd_suspend(struct device *dev)
     FTS_FUNC_EXIT();
 }
 
-static void tpd_resume(struct device *dev)
+void tpd_focal_resume(struct device *dev)
 {
     struct fts_ts_data *ts_data = fts_data;
 
@@ -1701,8 +1714,8 @@ static void tpd_resume(struct device *dev)
 static struct tpd_driver_t tpd_device_driver = {
     .tpd_device_name = FTS_DRIVER_NAME,
     .tpd_local_init = tpd_local_init,
-    .suspend = tpd_suspend,
-    .resume = tpd_resume,
+    .suspend = tpd_focal_suspend,
+    .resume = tpd_focal_resume,
 };
 
 /*****************************************************************************
@@ -1716,9 +1729,12 @@ static struct tpd_driver_t tpd_device_driver = {
 extern char *saved_command_line;
 static int __init tpd_driver_init(void)
 {
-
-    if (!strstr(saved_command_line,"ft8006s_dsi_vdo_hdp_boe_skyworth"))
+#ifndef CONFIG_WT_PROJECT_S96516SA1
+    if (!strstr(saved_command_line,"ft8006s_dsi_vdo_hdp_skyworth_shenchao")) {
+	FTS_ERROR("MATCH LCD ERROR\n");		
         return  -1;
+    }
+#endif
 
     FTS_FUNC_ENTER();
     FTS_INFO("Driver version: %s", FTS_DRIVER_VERSION);

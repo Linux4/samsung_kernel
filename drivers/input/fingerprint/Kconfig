@@ -16,7 +16,15 @@ config MTK_FINGERPRINT_SUPPORT
 config MTK_FINGERPRINT_SELECT
 	string "sensor type"
 	default "GF318M"
+config EGIS_FINGERPRINT_N21
+	bool "egis Fingerprint"
+	default n
 
+config FPC_FINGERPRINT
+	bool "FPC Fingerprint"
+	default n
+	help
+	  FPC fingerprint FPC's 102x/104x device.
 config CHIPONE_FINGERPRINT
 	bool "chipone Fingerprint"
 	default n

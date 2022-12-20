@@ -208,6 +208,7 @@
  * default: disable
  */
 #define FTS_GESTURE_EN                          1
+#define FTS_GESTURE_DIS                          0
 
 /*
  * ESD check & protection

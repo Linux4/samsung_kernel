@@ -991,6 +991,7 @@ void ili_fw_uart_ctrl(u8 ctrl)
 }
 
 extern char Ctp_name[HARDWARE_MAX_ITEM_LONGTH];
+extern uint32_t lcm_name;
 int ili_ic_get_fw_ver(void)
 {
 	int ret = 0;
@@ -1032,12 +1033,15 @@ int ili_ic_get_fw_ver(void)
 
 out:
 
-	if(g_lcm_name == 1) {
+	if(lcm_name == 9) {
 		sprintf(Ctp_name,"TXD,ILI9882Q,FW:0x0%x",buf[3]);
 		ILI_INFO("ili_ic_get_fw_ver T00Ctp_name is : %s\n",Ctp_name);
-	}else if(g_lcm_name == 3) {
+	}else if(lcm_name == 12) {
 		sprintf(Ctp_name,"TXD,ILI9882Q10,FW:0x0%x",buf[3]);
 		ILI_INFO("ili_ic_get_fw_ver T01Ctp_name is : %s\n",Ctp_name);
+	}else if(lcm_name == 13) {
+		sprintf(Ctp_name,"TRULY,ILI9882Q,FW:0x0%x",buf[3]);
+		ILI_INFO("ili_ic_get_fw_ver Ctp_name is : %s\n",Ctp_name);
 	}else {
 		ILI_INFO("unknow TP version\n");
 	}

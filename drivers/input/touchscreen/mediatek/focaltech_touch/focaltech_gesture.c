@@ -538,7 +538,7 @@ int fts_gesture_init(struct fts_ts_data *ts_data)
     fts_create_gesture_sysfs(ts_data->dev);
 
     memset(&fts_gesture_data, 0, sizeof(struct fts_gesture_st));
-    ts_data->gesture_mode = FTS_GESTURE_EN;
+    ts_data->gesture_mode = FTS_GESTURE_DIS;
 
 #ifdef SEC_TSP_FACTORY_TEST
 	ret = sec_cmd_init(&fts_data->sec, fts_commands, ARRAY_SIZE(fts_commands), SEC_CLASS_DEVT_TSP);

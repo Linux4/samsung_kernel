@@ -1091,7 +1091,6 @@ static ssize_t oom_adj_read(struct file *file, char __user *buf, size_t count,
 
 static int __set_oom_adj(struct file *file, int oom_adj, bool legacy)
 {
-	static DEFINE_MUTEX(oom_adj_mutex);
 	struct mm_struct *mm = NULL;
 	struct task_struct *task;
 	int err = 0;
@@ -1131,7 +1130,7 @@ static int __set_oom_adj(struct file *file, int oom_adj, bool legacy)
 		struct task_struct *p = find_lock_task_mm(task);
 
 		if (p) {
-			if (atomic_read(&p->mm->mm_users) > 1) {
+			if (test_bit(MMF_MULTIPROCESS, &p->mm->flags)) {
 				mm = p->mm;
 				mmgrab(mm);
 			}
@@ -2996,6 +2995,26 @@ static int proc_pid_patch_state(struct seq_file *m, struct pid_namespace *ns,
 }
 #endif /* CONFIG_LIVEPATCH */
 
+#ifdef CONFIG_MTK_TASK_TURBO
+static int proc_turbo_task_show(struct seq_file *m, struct pid_namespace *ns,
+		struct pid *pid, struct task_struct *p)
+{
+	unsigned int is_turbo;
+	unsigned int is_inherit_turbo;
+
+	if (!p)
+		return -ESRCH;
+	task_lock(p);
+	is_turbo = p->turbo;
+	is_inherit_turbo = atomic_read(&p->inherit_types);
+	seq_printf(m, "tid=%d turbo = %d,inherit turbo = %d prio=%d bk_prio=%d\n",
+			p->pid, is_turbo, is_inherit_turbo,
+			p->prio, NICE_TO_PRIO(p->nice_backup));
+	task_unlock(p);
+	return 0;
+}
+#endif
+
 /*
  * Thread groups
  */
@@ -3500,6 +3519,9 @@ static const struct pid_entry tid_base_stuff[] = {
 #endif
 #ifdef CONFIG_CPU_FREQ_TIMES
 	ONE("time_in_state", 0444, proc_time_in_state_show),
+#endif
+#ifdef CONFIG_MTK_TASK_TURBO
+	ONE("turbo", 0444, proc_turbo_task_show),
 #endif
 };
 

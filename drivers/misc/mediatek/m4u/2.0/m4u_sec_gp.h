@@ -17,19 +17,18 @@
 #define CTX_TYPE_TA		0
 #define CTX_TYPE_TDRV	1
 
+struct m4u_sec_gp_context {
 #if defined(CONFIG_MICROTRUST_TEE_SUPPORT) || \
 		defined(CONFIG_TRUSTONIC_TEE_SUPPORT)
-#define TYPE_STRUCT struct
+/* Universally Unique Identifier of secure tl/dr */
+	struct TEEC_UUID uuid;
 #else
-#define TYPE_STRUCT
+/* Universally Unique Identifier of secure tl/dr */
+	TEEC_UUID uuid;
 #endif
-
-struct m4u_sec_gp_context {
-	/* Universally Unique Identifier of secure tl/dr */
-	TYPE_STRUCT TEEC_UUID uuid;
-	TYPE_STRUCT TEEC_Context ctx; /* basic context */
-	TYPE_STRUCT TEEC_Session session; /* session handle */
-	TYPE_STRUCT TEEC_SharedMemory shared_mem; /* shared memory */
+	struct TEEC_Context ctx; /* basic context */
+	struct TEEC_Session session; /* session handle */
+	struct TEEC_SharedMemory shared_mem; /* shared memory */
 	struct mutex ctx_lock;
 	int init;
 	int ctx_type;

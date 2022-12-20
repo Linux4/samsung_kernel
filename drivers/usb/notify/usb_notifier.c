@@ -32,6 +32,10 @@
 #include "../../misc/mediatek/usb20/mt6765/usb20.h"
 #endif
 
+#if defined(CONFIG_EXTCON_MTK_USB)
+#include "../../misc/mediatek/extcon/extcon-mtk-usb.h"
+#endif
+
 struct usb_notifier_platform_data {
 #if defined(CONFIG_CABLE_TYPE_NOTIFIER)
 	struct	notifier_block cable_type_nb;
@@ -135,19 +139,27 @@ static int vbus_handle_notification(struct notifier_block *nb,
 
 static int otg_accessory_power(bool enable)
 {
-#if defined(CONFIG_USB_MTK_HDRC)
+	bool onoff = !!enable;
 	pr_info("%s : enable=%d\n", __func__, enable);
-	if (enable)
-		mt_otg_accessory_power(1);
-	else
-		mt_otg_accessory_power(0);
+#if defined(CONFIG_EXTCON_MTK_USB) && defined(CONFIG_CABLE_TYPE_NOTIFIER)
+	mtk_usb_notify_vbus_drive(onoff);
+#elif defined(CONFIG_USB_MTK_HDRC)
+	mt_otg_accessory_power(onoff);
 #endif
 	return 0;
 }
 
 static int mtk_set_host(bool enable)
 {
-#if defined(CONFIG_USB_MTK_HDRC)
+#if defined(CONFIG_EXTCON_MTK_USB) && defined(CONFIG_CABLE_TYPE_NOTIFIER)
+	if (enable) {
+		pr_info("%s USB_HOST_ATTACHED\n", __func__);
+		mtk_usb_notify_set_mode(DUAL_PROP_DR_HOST);
+	} else {
+		pr_info("%s USB_HOST_DETACHED\n", __func__);
+		mtk_usb_notify_set_mode(DUAL_PROP_DR_NONE);
+	}
+#elif defined(CONFIG_USB_MTK_HDRC)
 	if (enable) {
 		pr_info("%s USB_HOST_ATTACHED\n", __func__);
 		mt_usb_host_connect(0);
@@ -161,7 +173,13 @@ static int mtk_set_host(bool enable)
 
 static int mtk_set_peripheral(bool enable)
 {
-#if defined(CONFIG_USB_MTK_HDRC)
+#if defined(CONFIG_EXTCON_MTK_USB) && defined(CONFIG_CABLE_TYPE_NOTIFIER)
+	if (enable)
+		mtk_usb_notify_set_mode(DUAL_PROP_DR_DEVICE);
+	else
+		mtk_usb_notify_set_mode(DUAL_PROP_DR_NONE);
+#elif defined(CONFIG_USB_MTK_HDRC)
+
 	if (enable) {
 		pr_info("%s usb attached\n", __func__);
 		mt_usb_connect();

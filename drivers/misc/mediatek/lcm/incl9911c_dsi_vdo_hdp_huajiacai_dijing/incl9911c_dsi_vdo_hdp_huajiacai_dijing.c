@@ -294,7 +294,7 @@ static void lcm_get_params(struct LCM_PARAMS *params)
 	params->round_corner_en = 0;
 	params->corner_pattern_width = 720;
 	params->corner_pattern_height = 32;
-#endif 
+#endif
 }
 
 static void lcm_init_power(void)

@@ -17,8 +17,17 @@
 #define CMDQ_SEC_SHARED_RESET_CNT		0x308
 
 /* commanad buffer & metadata */
+//+bug 730902,zhanghao3.wt,mod,20220510,add for widewine L1 support
 #define CMDQ_IWC_MAX_CMD_LENGTH (5 << 12)
+/*#if defined(CONFIG_TEEGRIS_TEE_SUPPORT)
+#define CMDQ_IWC_MAX_CMD_LENGTH (5 << 12)
+#define CMDQ_TZ_CMD_BLOCK_SIZE	(CMDQ_IWC_MAX_CMD_LENGTH << 2)
+#else
+#define CMDQ_TZ_CMD_BLOCK_SIZE	 (79 * 1024)
 
+#define CMDQ_IWC_MAX_CMD_LENGTH (CMDQ_TZ_CMD_BLOCK_SIZE / 4)
+#endif*/
+//-bug 730902,zhanghao3.wt,mod,20220510,add for widewine L1 support
 #define CMDQ_IWC_MAX_ADDR_LIST_LENGTH (30)
 
 #define CMDQ_IWC_CLIENT_NAME (16)
@@ -150,6 +159,9 @@ struct iwcCmdqAddrMetadata_t {
 	uint32_t offset;	/* [IN]_b, buffser offset to secure handle */
 	uint32_t size;		/* buffer size */
 	uint32_t port;		/* hw port id (i.e. M4U port id)*/
+	uint32_t sec_id;
+	uint32_t useSecIdinMeta;
+	int32_t ionFd;
 };
 
 struct iwcCmdqDebugConfig_t {
@@ -172,8 +184,6 @@ struct iwcCmdqMetadata_t {
 
 	uint64_t enginesNeedDAPC;
 	uint64_t enginesNeedPortSecurity;
-	uint64_t enginesDisablePortSecurity;
-	uint64_t enginesDisableDAPC;
 };
 
 struct iwcCmdqPathResource_t {
@@ -272,6 +282,7 @@ struct iwcCmdqCommand_t {
 	uint32_t mdp_extension;
 	struct readback_engine readback_engs[CMDQ_MAX_READBACK_ENG];
 	uint32_t readback_cnt;
+	int32_t sec_id;
 
 };
 

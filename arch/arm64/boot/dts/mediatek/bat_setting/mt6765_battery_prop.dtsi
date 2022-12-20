@@ -19,7 +19,11 @@
 	/* System shutdown current */
 	FG_METER_RESISTANCE = <(75)>;
 	/* The resistance of PCB */
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 	CAR_TUNE_VALUE = <(96)>;
+#else
+	CAR_TUNE_VALUE = <(100)>;
+#endif
 	/* Tune value for current measurement */
 	PMIC_MIN_VOL = <(33500)>;
 	/* vboot voltage for gauge 0%*/
@@ -70,6 +74,37 @@
 	RBAT_PULL_UP_R = <(16900)>;
 	RBAT_PULL_UP_VOLT = <(1800)>;
 
+#ifdef CONFIG_N26_CHARGER_PRIVATE
+	g_Q_MAX = <
+		5000 5000 5000 5000
+		5000 5000 5000 5000
+		4500 4500 4500 4500
+		4000 4000 4000 4000
+		3500 3500 3500 3500
+		3000 3000 3000 3000
+	>;
+	EMBEDDED_SEL = <(1)>;
+	/* Pseudo 100% percentage at T0 */
+	g_FG_PSEUDO100_T1 = <(97)>;
+	/* Pseudo 100% percentage at T1 */
+	g_FG_PSEUDO100_T2 = <(97)>;
+	/* Pseudo 100% percentage at T2 */
+	g_FG_PSEUDO100_T3 = <(97)>;
+	/* Pseudo 100% percentage at T3 */
+	g_FG_PSEUDO100_T4 = <(97)>;
+#include "battery_N26_SCUD_4V4_5000mAh.dtsi"
+#include "battery_N26_BYD_4V4_5000mAh.dtsi"
+#include "battery_N26_ND_4V4_5000mAh.dtsi"
+#endif
+
+#ifdef CONFIG_N23_CHARGER_PRIVATE
 #include "battery_N23_SDI_4V4_5000mAh.dtsi"
 #include "battery_N23_BYD_4V4_5000mAh.dtsi"
+#endif
+
+#ifdef CONFIG_N21_CHARGER_PRIVATE
+#include "battery_N21_NVT_4V4_4000mah.dtsi"
+#include "battery_N21_SCUD_4V4_4000mah.dtsi"
+#include "battery_N21_SCUD_SDI_4V4_4000mah.dtsi"
+#endif
 };

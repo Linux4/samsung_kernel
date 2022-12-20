@@ -85,6 +85,14 @@ static struct stAF_OisPosInfo OisPosInfo;
 static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 	{1, AFDRV_DW9718TAF, DW9718TAF_SetI2Cclient, DW9718TAF_Ioctl,
 	 DW9718TAF_Release, DW9718TAF_GetFileName, NULL},
+	//+bug 621775 liuxiangyin.wt, add, 2021/2/23, n21 1st supply main af TXD_S5K2P6_GT9769AF porting
+	{1, AFDRV_TXD_S5K2P6_GT9769AF, TXD_S5K2P6_GT9769AF_SetI2Cclient, TXD_S5K2P6_GT9769AF_Ioctl,
+	 TXD_S5K2P6_GT9769AF_Release, TXD_S5K2P6_GT9769AF_GetFileName, NULL},
+	//-bug 621775 liuxiangyin.wt, add, 2021/2/23, n21 1st supply main af TXD_S5K2P6_GT9769AF porting
+	//+bug 621775,lintaicheng.wt, add, 20210208, add for n21 AF bring up
+	{1, AFDRV_HLT_OV16B10_ZC535BAF, HLT_OV16B10_ZC535BAF_SetI2Cclient, HLT_OV16B10_ZC535BAF_Ioctl,
+	 HLT_OV16B10_ZC535BAF_Release, HLT_OV16B10_ZC535BAF_GetFileName, NULL},
+	//-bug 621775,lintaicheng.wt, add, 20210208, add for n21 AF bring up
 	{1, AFDRV_AK7371AF, AK7371AF_SetI2Cclient, AK7371AF_Ioctl,
 	 AK7371AF_Release, AK7371AF_GetFileName, NULL},
 	{1, AFDRV_BU6424AF, BU6424AF_SetI2Cclient, BU6424AF_Ioctl,
@@ -122,8 +130,6 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 	 DW9839AF_Release, DW9839AF_GetFileName, NULL},
 	{1, AFDRV_FP5510E2AF, FP5510E2AF_SetI2Cclient, FP5510E2AF_Ioctl,
 	 FP5510E2AF_Release, FP5510E2AF_GetFileName, NULL},
-	{1, AFDRV_FP5519AF, FP5519AF_SetI2Cclient, FP5519AF_Ioctl,
-	 FP5519AF_Release, FP5519AF_GetFileName, NULL},
 	{1, AFDRV_FP5529AF, FP5529AF_SetI2Cclient, FP5529AF_Ioctl,
 	 FP5529AF_Release, FP5529AF_GetFileName, NULL},
 	{1, AFDRV_DW9718AF, DW9718AF_SetI2Cclient, DW9718AF_Ioctl,
@@ -136,6 +142,7 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 	{1, AFDRV_ST_GT9772AF, ST_GT9772AF_SetI2Cclient, ST_GT9772AF_Ioctl,
 	 ST_GT9772AF_Release, ST_GT9772AF_GetFileName, NULL},
 	//-bug682590,zhanghengyuan.wt,ADD,2021/8/27,n23_hi1336_rear af sensor bringup
+#if 0
 	{1, AFDRV_LC898212AF, LC898212AF_SetI2Cclient, LC898212AF_Ioctl,
 	 LC898212AF_Release, LC898212AF_GetFileName, NULL},
 	{1, AFDRV_LC898214AF, LC898214AF_SetI2Cclient, LC898214AF_Ioctl,
@@ -154,6 +161,17 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 	 LC898122AF_Release, LC898122AF_GetFileName, NULL},
 	{1, AFDRV_WV511AAF, WV511AAF_SetI2Cclient, WV511AAF_Ioctl,
 	 WV511AAF_Release, WV511AAF_GetFileName, NULL},
+#endif
+	//+bug720367,qinduilin.wt,ADD,2022/2/9,n26_hi5021q_rear_truly af bringup
+	{1, AFDRV_TRULY_HI5021Q_GT9778AF, TRULY_HI5021Q_GT9778AF_SetI2Cclient, TRULY_HI5021Q_GT9778AF_Ioctl,
+	 TRULY_HI5021Q_GT9778AF_Release, TRULY_HI5021Q_GT9778AF_GetFileName, NULL},
+	{1, AFDRV_ST_HI5021Q_AW8601WAF, ST_HI5021Q_AW8601WAF_SetI2Cclient, ST_HI5021Q_AW8601WAF_Ioctl,
+	 ST_HI5021Q_AW8601WAF_Release, ST_HI5021Q_AW8601WAF_GetFileName, NULL},
+	{1, AFDRV_TXD_S5KJN1_GT9778AF, TXD_S5KJN1_GT9778AF_SetI2Cclient, TXD_S5KJN1_GT9778AF_Ioctl,
+	 TXD_S5KJN1_GT9778AF_Release, TXD_S5KJN1_GT9778AF_GetFileName, NULL},
+	{1, AFDRV_DELTA_HI5021Q_GT9778AF, DELTA_HI5021Q_GT9778AF_SetI2Cclient, DELTA_HI5021Q_GT9778AF_Ioctl,
+	 DELTA_HI5021Q_GT9778AF_Release, DELTA_HI5021Q_GT9778AF_GetFileName, NULL},
+	//-bug720367,qinduilin.wt,ADD,2022/2/9,n26_hi5021q_rear_truly af bringup
 };
 
 static struct stAF_DrvList *g_pstAF_CurDrv;
@@ -186,8 +204,6 @@ static void camaf_power_init(void)
 	/* check if customer camera node defined */
 	node = of_find_compatible_node(
 		NULL, NULL, "mediatek,camera_af_lens");
-
-
 
 	if (node) {
 		kd_node = lens_device->of_node;
@@ -368,9 +384,9 @@ static long AF_ControlParam(unsigned long a_u4Param)
 		LOG_INF("copy to user failed\n");
 
 	switch (CtrlCmd.i8CmdID) {
-#if defined(CONFIG_MACH_MT6779)
 	case CONVERT_CCU_TIMESTAMP:
 		{
+#if defined(CONFIG_MACH_MT6779)
 		long long monotonicTime = 0;
 		long long hwTickCnt     = 0;
 
@@ -383,19 +399,17 @@ static long AF_ControlParam(unsigned long a_u4Param)
 		monotonicTime = archcounter_timesync_to_monotonic(hwTickCnt);
 		/* do_div(monotonicTime, 1000); */ /* ns to us */
 		CtrlCmd.i8Param[1] = monotonicTime;
-		}
-		i4RetValue = 1;
-		break;
-#endif
-	default:
-		i4RetValue = -1;
-		break;
-	}
 
-	if (i4RetValue > 0) {
 		if (copy_to_user(pCtrlCmd, &CtrlCmd,
 			sizeof(struct stAF_CtrlCmd)))
 			LOG_INF("copy to user failed\n");
+#endif
+		}
+		i4RetValue = 1;
+		break;
+	default:
+		i4RetValue = -1;
+		break;
 	}
 
 	return i4RetValue;

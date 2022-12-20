@@ -77,7 +77,7 @@ typedef struct {
     int cancel;
     struct pinctrl *pinctrl1;
     struct pinctrl_state  *eint_as_int, *fp_rst_low, *fp_rst_high, *fp_cs_low, *fp_mo_low,
-            *fp_mi_low,  *fp_ck_low, *fp_ldo_en;
+            *fp_mi_low,  *fp_ck_low, *fp_ldo_en, *fp_ldo_disable;
     struct notifier_block notifier;
     u8 fb_status;
     int enable_report_blankon;

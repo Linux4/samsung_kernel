@@ -39,7 +39,6 @@ static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 	struct mmc_gpio *ctx = host->slot.handler_priv;
 
 	msdc_sd_power_off_quick();
-
 	host->trigger_card_event = true;
 	mmc_detect_change(host, msecs_to_jiffies(ctx->cd_debounce_delay_ms));
 
@@ -146,7 +145,6 @@ void mmc_gpiod_request_cd_irq(struct mmc_host *host)
 	 */
 	if (!(host->caps & MMC_CAP_NEEDS_POLL))
 		irq = gpiod_to_irq(ctx->cd_gpio);
-
 	gpiod_set_debounce(ctx->cd_gpio,32000);
 
 	if (irq >= 0) {

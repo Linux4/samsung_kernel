@@ -61,7 +61,9 @@ struct charger_ops {
 	/* enable/disable charger */
 	int (*enable)(struct charger_device *dev, bool en);
 	int (*is_enabled)(struct charger_device *dev, bool *en);
-
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+	int (*hz_mode)(struct charger_device *dev, bool en);
+#endif
 	/* enable/disable chip */
 	int (*enable_chip)(struct charger_device *dev, bool en);
 	int (*is_chip_enabled)(struct charger_device *dev, bool *en);
@@ -109,11 +111,9 @@ struct charger_ops {
 	/* enable/disable charging safety timer */
 	int (*is_safety_timer_enabled)(struct charger_device *dev, bool *en);
 	int (*enable_safety_timer)(struct charger_device *dev, bool en);
-//+Bug 80512,xuejizhou.wt,ADD,20210801,add show_StartCharging_Test/show_StopCharging_Test
-#if defined CONFIG_CHARGER_BQ2589X || defined CONFIG_CHARGER_BQ2560X
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 	int (*hz_mode)(struct charger_device *chg_dev, bool en);
 #endif
-//-Bug 80512,xuejizhou.wt,ADD,20210801,add show_StartCharging_Test/show_StopCharging_Test
 	/* enable term */
 	int (*enable_termination)(struct charger_device *dev, bool en);
 
@@ -140,7 +140,9 @@ struct charger_ops {
 	int (*safety_check)(struct charger_device *dev, u32 polling_ieoc);
 
 	int (*is_charging_done)(struct charger_device *dev, bool *done);
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 	int (*is_hz_mode)(struct charger_device *dev, bool *done);
+#endif
 	int (*set_pe20_efficiency_table)(struct charger_device *dev);
 	int (*dump_registers)(struct charger_device *dev);
 
@@ -321,11 +323,11 @@ extern int unregister_charger_device_notifier(
 extern int charger_dev_notify(
 	struct charger_device *charger_dev, int event);
 
-//+Bug 80512,xuejizhou.wt,ADD,20210801,add show_StartCharging_Test/show_StopCharging_Test
-#if defined CONFIG_CHARGER_BQ2589X || defined CONFIG_CHARGER_BQ2560X
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 extern int charger_dev_hz_mode(struct charger_device *chg_dev, bool en);
 extern int charger_dev_is_hz_mode(struct charger_device *chg_dev, bool *done);
 #endif
-//-Bug 80512,xuejizhou.wt,ADD,20210801,add show_StartCharging_Test/show_StopCharging_Test
-
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
+extern int charger_dev_hz_mode(struct charger_device *chg_dev, bool en);
+#endif
 #endif /*LINUX_POWER_CHARGER_CLASS_H*/

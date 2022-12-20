@@ -109,8 +109,8 @@ static void lcm_resume(void)
 {
 }
 
-struct LCM_DRIVER virtual_dsi_vdo_default = {
-	.name = "Simulator_dsi_vdo_default_NoPanel",
+struct LCM_DRIVER virtual_dsi_vdo_default_drv = {
+	.name = "virtual_dsi_vdo_default",
 	.set_util_funcs = lcm_set_util_funcs,
 	.get_params = lcm_get_params,
 	.compare_id = lcm_compare_id,
@@ -119,4 +119,3 @@ struct LCM_DRIVER virtual_dsi_vdo_default = {
 	.resume = lcm_resume,
 	.set_backlight = lcm_setbacklight_cmdq,
 };
-

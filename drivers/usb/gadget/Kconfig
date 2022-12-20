@@ -230,6 +230,9 @@ config USB_F_AUDIO_SRC
 config USB_F_CONN_GADGET
 	tristate
 
+config USB_F_SS_MON_GADGET
+	tristate
+
 # this first set of drivers all depend on bulk-capable hardware.
 
 config USB_CONFIGFS
@@ -287,6 +290,7 @@ config USB_CONFIGFS_NCM
 	depends on NET
 	select USB_U_ETHER
 	select USB_F_NCM
+	select CRC32
 	help
 	  NCM is an advanced protocol for Ethernet encapsulation, allows
 	  grouping of several ethernet frames into one USB transfer and
@@ -336,6 +340,7 @@ config USB_CONFIGFS_EEM
 	depends on NET
 	select USB_U_ETHER
 	select USB_F_EEM
+	select CRC32
 	help
 	  CDC EEM is a newer USB standard that is somewhat simpler than CDC ECM
 	  and therefore can be supported by more hardware.  Technically ECM and
@@ -450,7 +455,15 @@ config USB_CONFIGFS_F_CONN_GADGET
         depends on USB_CONFIGFS
         select USB_F_CONN_GADGET
         help
-          SideSync
+          SideSync function support
+
+config USB_CONFIGFS_F_SS_MON_GADGET
+	bool "F_SAMSUNG gadget"
+	depends on USB_CONFIGFS
+	select USB_F_SS_MON_GADGET
+	help
+	 Driver for control to Samsung Usb device layer
+	 For Samsung working scenario and saving debug log, etc
 
 config USB_F_CONN_GADGET_NDOP
         bool "Conn gadget that do not support DexLive"

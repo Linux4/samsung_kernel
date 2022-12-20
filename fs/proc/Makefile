@@ -20,13 +20,8 @@ proc-y	+= devices.o
 proc-y	+= interrupts.o
 proc-y	+= loadavg.o
 proc-y	+= meminfo.o
-#Bug 682954,songhaiyang.wt,add,20210812,add serial_num/cpuid/chipid
+#Bug 720037,liusen.wt,add,20220209,add serial_num/cpuid/chipid
 proc-y  += serial_num.o
-
-#Bug 685841,songhaiyang.wt,add,20210819,add wt_rp
-proc-y  += wt_rp.o
-#Bug 685842,songhaiyang.wt,add,20210819,add wt_em
-proc-y  += wt_em.o
 proc-y	+= stat.o
 proc-y	+= uptime.o
 proc-y	+= util.o
@@ -35,8 +30,18 @@ proc-y	+= softirqs.o
 proc-y	+= namespaces.o
 proc-y	+= self.o
 proc-y	+= thread_self.o
-proc-$(CONFIG_PROC_FSLOG)	+= fslog.o
+#Bug 720936,zjj.wt,add,20220211,add secboot fuse check func
+#Bug 717447,linyaosen.wt,20220222, add, enable secure boot
+ifeq ($(CONFIG_WT_PROJECT_S96717AA2),y)
+proc-y  += secboot_fuse_trustonic.o
+else
 proc-y  += secboot_fuse.o
+endif
+#bug 720926,zjj.wt,add,20220211,add wt_rp
+proc-y  += wt_rp.o
+#bug 720927,zjj.wt,add,20220211,add wt_em
+proc-y  += wt_em.o
+proc-$(CONFIG_PROC_FSLOG)	+= fslog.o
 proc-$(CONFIG_PROC_UID)  += uid.o
 proc-$(CONFIG_PROC_SYSCTL)	+= proc_sysctl.o
 proc-$(CONFIG_NET)		+= proc_net.o
@@ -44,3 +49,4 @@ proc-$(CONFIG_PROC_KCORE)	+= kcore.o
 proc-$(CONFIG_PROC_VMCORE)	+= vmcore.o
 proc-$(CONFIG_PRINTK)	+= kmsg.o
 proc-$(CONFIG_PROC_PAGE_MONITOR)	+= page.o
+proc-$(CONFIG_PROC_AVC) += proc_avc.o

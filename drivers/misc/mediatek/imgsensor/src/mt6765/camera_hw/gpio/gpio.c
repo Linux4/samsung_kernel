@@ -4,7 +4,7 @@
  */
 
 #include "gpio.h"
-
+#ifdef CONFIG_MTK_96516_CAMERA
 struct GPIO_PINCTRL gpio_pinctrl_list_cam[GPIO_CTRL_STATE_MAX_NUM_CAM] = {
 	/* Main */
 	{"pnd1"},
@@ -18,7 +18,47 @@ struct GPIO_PINCTRL gpio_pinctrl_list_cam[GPIO_CTRL_STATE_MAX_NUM_CAM] = {
 	{"vcamio_on"},
 	{"vcamio_off"},
 };
-
+#else
+#ifdef CONFIG_MTK_96717_CAMERA
+struct GPIO_PINCTRL gpio_pinctrl_list_cam[GPIO_CTRL_STATE_MAX_NUM_CAM] = {
+	/* Main */
+	{"pnd1"},
+	{"pnd0"},
+	{"rst1"},
+	{"rst0"},
+	{"vcamd_on"},
+	{"vcamd_off"},
+	//-bug720412,qinduilin.wt,ADD,2022/1/27,n26_hi5021q_rear_truly sensor bringup
+};
+#else
+struct GPIO_PINCTRL gpio_pinctrl_list_cam[GPIO_CTRL_STATE_MAX_NUM_CAM] = {
+	/* Main */
+	{"pnd1"},
+	{"pnd0"},
+	{"rst1"},
+	{"rst0"},
+	{"vcama_on"},
+	{"vcama_off"},
+	{"vcamd_on"},
+	{"vcamd_off"},
+	{"vcamio_on"},
+	{"vcamio_off"},
+	{"vcamaf_on"},
+	{"vcamaf_off"},
+	{"vcamd_1v1_1"},
+	{"vcamd_1v1_0"},
+	{"vcamd_1v2_1"},
+	{"vcamd_1v2_0"},
+	//-bug720412,qinduilin.wt,ADD,2022/1/27,n26_hi5021q_rear_truly sensor bringup
+	//+bug727089liangyiyi.wt,MODIFY,2022/3/29,modify for fix front camera have loss power when open rear camera
+	{"vcamd_en_1"},
+	{"vcamd_en_0"},
+	{"rst_sub1"},
+	{"rst_sub0"},
+	//-bug727089liangyiyi.wt,MODIFY,2022/3/29,modify for fix front camera have loss power when open rear camera
+};
+#endif
+#endif
 #ifdef MIPI_SWITCH
 struct GPIO_PINCTRL gpio_pinctrl_list_switch[GPIO_CTRL_STATE_MAX_NUM_SWITCH] = {
 	{"cam_mipi_switch_en_1"},
@@ -52,14 +92,12 @@ static enum IMGSENSOR_RETURN gpio_release(void *pinstance)
 		i += 2) {
 			lookup_names =
 				gpio_pinctrl_list_cam[i].ppinctrl_lookup_names;
-
 			//+bug 682590, zhanghao2.wt, ADD, 2021/9/9, fix sc201cs leakage problem.
 			if (i == GPIO_CTRL_STATE_PDN_L){
 				pr_info("gpio_release skip PDN_L");
 				continue;
 			}
 			//-bug 682590, zhanghao2.wt, ADD, 2021/9/9, fix sc201cs leakage problem.
-
 			mutex_lock(&pinctrl_mutex);
 			if (lookup_names != NULL &&
 				pgpio->ppinctrl_state_cam[j][i] != NULL &&
@@ -80,7 +118,7 @@ static enum IMGSENSOR_RETURN gpio_release(void *pinstance)
 }
 static enum IMGSENSOR_RETURN gpio_init(void *pinstance)
 {
-	int    i, j;
+	int    i, j, ret1 = 0;
 	struct platform_device *pplatform_dev = gpimgsensor_hw_platform_device;
 	struct GPIO            *pgpio         = (struct GPIO *)pinstance;
 	enum   IMGSENSOR_RETURN ret           = IMGSENSOR_RETURN_SUCCESS;
@@ -100,11 +138,14 @@ static enum IMGSENSOR_RETURN gpio_init(void *pinstance)
 			lookup_names =
 				gpio_pinctrl_list_cam[i].ppinctrl_lookup_names;
 			if (lookup_names) {
-				snprintf(str_pinctrl_name,
+				ret1 = snprintf(str_pinctrl_name,
 					sizeof(str_pinctrl_name),
 					"cam%d_%s",
 					j,
 					lookup_names);
+				if (ret1 < 0) {
+					pr_info("%s : snprintf error\n", __func__);
+				}
 				pgpio->ppinctrl_state_cam[j][i] =
 					pinctrl_lookup_state(
 					    pgpio->ppinctrl,
@@ -160,7 +201,7 @@ static enum IMGSENSOR_RETURN gpio_set(
 #ifdef MIPI_SWITCH
 	   pin > IMGSENSOR_HW_PIN_MIPI_SWITCH_SEL ||
 #else
-	   pin > IMGSENSOR_HW_PIN_AFVDD ||
+	   pin >= IMGSENSOR_HW_PIN_MCLK ||
 #endif
 	   pin_state < IMGSENSOR_HW_PIN_STATE_LEVEL_0 ||
 	   pin_state > IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH)
@@ -205,7 +246,15 @@ static enum IMGSENSOR_RETURN gpio_set(
 
 	return IMGSENSOR_RETURN_SUCCESS;
 }
-
+//bug 717431,liuxiangyin, add, 20220217, Distinguish between 2st depth camera and 3rd depth camera
+#define depthCameraId 178+73 //gpio178+ virtual offset
+int getDepthCameraIdGpioValue(void)
+{
+	int ret = -2;
+	ret = gpio_get_value(depthCameraId);
+	pr_info("[%s]get depth camera id gpio:%d, status:%d. \n", __func__, depthCameraId, ret);
+    return ret;
+}
 static struct IMGSENSOR_HW_DEVICE device = {
 	.pinstance = (void *)&gpio_instance,
 	.init      = gpio_init,

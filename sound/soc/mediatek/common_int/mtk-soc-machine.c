@@ -85,12 +85,16 @@
 #include <sound/soc-dapm.h>
 #include "mtk-soc-speaker-amp.h"
 
+#include "../sia81xx/sia81xx_aux_dev_if.h"
+
 #if defined(CONFIG_SND_SOC_CS43130)
 #include "mtk-cs43130-machine-ops.h"
 #endif
 #if defined(CONFIG_SND_SOC_CS35L35)
 #include "mtk-cs35l35-machine-ops.h"
 #endif
+
+#include "../sia81xx/sia81xx_aux_dev_if.h"
 
 #ifdef CONFIG_DEBUG_FS
 #include <linux/debugfs.h>
@@ -101,7 +105,6 @@ static struct dentry *mt_sco_audio_debugfs;
 
 static int mt_soc_ana_debug_open(struct inode *inode, struct file *file)
 {
-	pr_debug("%s()\n", __func__);
 	return 0;
 }
 
@@ -124,8 +127,6 @@ static ssize_t mt_soc_ana_debug_read(struct file *file, char __user *buf,
 	audckbufEnable(true);
 
 	n = Ana_Debug_Read(buffer, size);
-
-	pr_debug("%s(), len = %d\n", __func__, n);
 
 	audckbufEnable(false);
 	AudDrv_Clk_Off();
@@ -158,7 +159,6 @@ static ssize_t mt_soc_debug_read(struct file *file, char __user *buf,
 	AudDrv_Clk_On();
 
 	n = AudDrv_Reg_Dump(buffer, size);
-	pr_debug("%s(), len = %d\n", __func__, n);
 
 	AudDrv_Clk_Off();
 
@@ -215,7 +215,7 @@ static ssize_t mt_soc_debug_write(struct file *f, const char __user *buf,
 	temp = str_begin;
 
 	pr_debug(
-		"copy_from_user, count = %zu, temp = %s, pointer = %p\n",
+		"copy_from_user count = %zu, temp = %s, pointer = %p\n",
 		count, str_begin, str_begin);
 	token1 = strsep(&temp, delim);
 	token2 = strsep(&temp, delim);
@@ -546,7 +546,7 @@ static struct snd_soc_dai_link mt_soc_dai_common[] = {
 		.codec_name = MT_SOC_CODEC_DUMMY_NAME,
 	},
 #endif
-#ifdef CONFIG_MTK_AUDIO_TUNNELING_SUPPORT
+#ifdef CONFIG_SND_SOC_MTK_AUDIO_DSP
 	{
 		.name = "OFFLOAD",
 		.stream_name = MT_SOC_OFFLOAD_STREAM_NAME,
@@ -672,6 +672,11 @@ static struct snd_soc_dai_link mt_soc_extspk_dai[] = {
 		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_CBS_CFS |
 			   SND_SOC_DAIFMT_NB_NF,
 		.ops = &cs35l35_ops,
+//+Bug717428, qiuyonghui.wt, add, 20220113, add, audio bringup
+#elif defined(CONFIG_SND_SMARTPA_AW881XX)
+        .codec_dai_name = "aw881xx-aif-6-34",
+        .codec_name = "aw881xx_smartpa.6-0034",
+//-Bug717428, qiuyonghui.wt, add, 20220113, add, audio bringup
 #else
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
@@ -765,6 +770,14 @@ static int mt_soc_snd_probe(struct platform_device *pdev)
 
 	card->dev = &pdev->dev;
 	platform_set_drvdata(pdev, card);
+ //Bug daisiqing.wt -Audio bring up code 20220119
+#ifdef CONFIG_SND_SOC_SIA81XX
+	ret = soc_aux_init_only_sia81xx(pdev, card);
+	if (ret)
+		 dev_err(&pdev->dev, "%s soc_aux_init_only_sia81xx fail %d\n",
+			__func__, ret);
+#endif
+ //Bug  daisiqing.wt -Audio bring up code 20220119
 
 #ifdef CONFIG_SND_SOC_MT6357_ACCDET
 	mtk_aux_devs.codec_of_node = of_parse_phandle(pdev->dev.of_node,
@@ -791,8 +804,6 @@ static int mt_soc_snd_probe(struct platform_device *pdev)
 		DEBUG_ANA_FS_NAME, S_IFREG | 0444, NULL,
 		(void *)DEBUG_ANA_FS_NAME, &mtaudio_ana_debug_ops);
 #endif
-
-	dev_info(&pdev->dev, "%s(), done\n", __func__);
 	return ret;
 }
 

@@ -59,7 +59,7 @@ extern struct ion_device *ion_exynos;
 #elif defined(CONFIG_ARCH_WHALE)
 extern struct ion_device *idev;
 #elif defined(CONFIG_ARCH_MT6755) || defined(CONFIG_ARCH_MT6735) || defined(CONFIG_MACH_MT6757) \
- || defined(CONFIG_MACH_MT6853)
+ || defined(CONFIG_MACH_MT6853) || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6768)
 extern struct ion_device *g_ion_device;
 #endif
 
@@ -73,7 +73,7 @@ static long __ionfd2phys_ioctl(int fd, size_t nr_pfns, sk_pfn_t *pfns)
 	int pfn;
 	size_t size = 0;
 
-#if defined(CONFIG_MACH_MT6853)
+#if defined(CONFIG_MACH_MT6853) || defined(CONFIG_MACH_MT6768)
 	handle = ion_import_dma_buf_fd(client, fd);
 #else
 	handle = ion_import_dma_buf(client, fd);
@@ -223,7 +223,7 @@ static struct tz_cdev ionfd2phys_cdev = {
 static ssize_t system_heap_id_show(struct device *dev, struct device_attribute *attr,
 			char *buf)
 {
-#if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_MACH_MT6853)
+#if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_MACH_MT6853) || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6768)
 	return sprintf(buf, "%d\n", ION_HEAP_TYPE_SYSTEM);
 #elif defined(CONFIG_ARCH_WHALE)
 	/* This is dirty hack for Whale platform. This platform uses
@@ -281,13 +281,14 @@ int ionfd2phys_init(void)
 #elif defined(CONFIG_ARCH_WHALE)
 	struct ion_device *ion_dev = idev;
 #elif defined(CONFIG_ARCH_MT6755) || defined(CONFIG_ARCH_MT6735) || defined(CONFIG_MACH_MT6757) \
- || defined(CONFIG_MACH_MT6853)
+ || defined(CONFIG_MACH_MT6853) || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6768)
 	struct ion_device *ion_dev = g_ion_device;
 #endif
 	pr_devel("module init\n");
 
 #if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_ARCH_WHALE) || defined(CONFIG_ARCH_MT6755) \
- || defined(CONFIG_ARCH_MT6735) || defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_MT6853)
+ || defined(CONFIG_ARCH_MT6735) || defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_MT6853) \
+ || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6768)
 	if (!ion_dev) {
 		pr_err("Failed to get ion device\n");
 		return 0;

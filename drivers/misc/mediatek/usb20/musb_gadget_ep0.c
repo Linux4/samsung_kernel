@@ -415,13 +415,14 @@ __acquires(musb->lock)
 						goto stall;
 					}
 
+#ifdef CONFIG_MTK_MUSB_PHY
 					if (musb->usb_rev6_setting &&
 						(musb->test_mode_nr ==
 						MUSB_TEST_K ||
 						musb->test_mode_nr ==
 						MUSB_TEST_J))
 						musb->usb_rev6_setting(0x0);
-
+#endif
 					/* enter test mode after irq */
 #if defined(CONFIG_USBIF_COMPLIANCE)
 					if (handled > 0 &&
@@ -1043,13 +1044,24 @@ musb_g_ep0_queue(struct usb_ep *e, struct usb_request *r, gfp_t gfp_flags)
 	req->tx = ep->is_in;
 
 	spin_lock_irqsave(&musb->lock, lockflags);
-
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 	// if (!musb->is_active) {
 	// 	DBG(0, "ep0 request queued when usb not active\n");
 	// 	status = -EINVAL;
 	// 	goto cleanup;
 	// }
+#else
+//Bug+715587,houdujing.wt,add 2022.5.11,modify for usb connect with iMAC by smart switch
+#ifndef CONFIG_WT_PROJECT_S96616AA1
+	if (!musb->is_active) {
+		DBG(0, "ep0 request queued when usb not active\n");
+		status = -EINVAL;
+		goto cleanup;
+	}
 
+//Bug-715587,houdujing.wt,add 2022.5.11,modify for usb connect with iMAC by smart switch
+#endif
+#endif
 	if (!list_empty(&ep->req_list)) {
 		status = -EBUSY;
 		goto cleanup;

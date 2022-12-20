@@ -154,6 +154,25 @@ config MTK_LENS_DW9714A_SUPPORT
 	  lens driver for the camera sensor module
 	  Set as y if the driver is used in this project
 
+#+bug 621775 liuxiangyin.wt, add, 2021/2/23,  n21 1st supply main af TXD_S5K2P6_GT9769AF porting
+config MTK_LENS_TXD_S5K2P6_GT9769AF_SUPPORT
+        tristate "TXD_S5K2P6_GT9769AF Lens Driver"
+        depends on MTK_LENS
+        help
+          TXD_S5K2P6_GT9769AF Lens Driver
+          This config is used to enable the corresponding
+          lens driver for the camera sensor module
+          Set as y if the driver is used in this project
+
+config MTK_LENS_HLT_OV16B10_ZC535BAF_SUPPORT
+        tristate "HLT_OV16B10_ZC535BAF Lens Driver"
+        depends on MTK_LENS
+        help
+          HLT_OV16B10_ZC535BAF Lens Driver
+          This config is used to enable the corresponding
+          lens driver for the camera sensor module
+          Set as y if the driver is used in this project
+#-bug 621775 liuxiangyin.wt, add, 2021/2/23,  n21 1st supply main af TXD_S5K2P6_GT9769AF porting
 config MTK_LENS_DW9814AF_SUPPORT
 	tristate "DW9814AF Lens Driver"
         depends on MTK_LENS

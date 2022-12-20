@@ -145,15 +145,6 @@ struct tpd_driver_t {
 	struct tpd_attrs attrs;
 };
 
-enum lcm_name{
-	TM_ICNL9911C_MODULE = 0,
-	TXD_ILI9882Q_MODULE = 1,
-	DJN_ICNL9911C_MODULE = 2,
-	TXD_ILI9882Q10_MODULE = 3,
-	SKY_FT8006S_MODULE = 4,
-};
-extern int g_lcm_name;
-extern char *saved_command_line;
 
 #if 1				/* #ifdef TPD_HAVE_BUTTON */
 void tpd_button(unsigned int x, unsigned int y, unsigned int down);

@@ -80,6 +80,14 @@ static unsigned char CTPM_FW_TXD[] = {
 	#include "FW_TDDI_TRUNK_TXD.ili"
 };
 
+#define TRULY_INI_NAME_PATH		"/vendor/firmware/mp_ili9882q_truly.ini"
+#define TRULY_FW_FILP_PATH		"/sdcard/ILITEK_FW_TRULY"
+#define TRULY_INI_REQUEST_PATH		"mp_ili9882q10_truly.ini"
+#define TRULY_FW_REQUEST_PATH		"ILITEK_FW_TRULY"
+static unsigned char CTPM_FW_TRULY[] = {
+	#include "FW_TDDI_TRUNK_TRULY.ili"
+};
+
 #define TM_INI_NAME_PATH		"/sdcard/mp_tm.ini"
 #define TM_FW_FILP_PATH                 "/sdcard/ILITEK_FW_TM"
 #define TM_INI_REQUEST_PATH		"mp_tm.ini"

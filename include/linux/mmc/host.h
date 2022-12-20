@@ -13,10 +13,6 @@
 #include <linux/sched.h>
 #include <linux/device.h>
 #include <linux/fault-inject.h>
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-#include <linux/device.h>
-#include <linux/pm_wakeup.h>
-#endif
 
 #include <linux/mmc/core.h>
 #include <linux/mmc/card.h>
@@ -351,7 +347,8 @@ union swcqhci_crypto_cfg_entry {
 struct mmc_host {
 	struct device		*parent;
 	struct device		class_dev;
-	int			index;
+	int index;
+	int host_function;	/* define host function */
 	const struct mmc_host_ops *ops;
 	struct mmc_pwrseq	*pwrseq;
 	unsigned int		f_min;
@@ -499,22 +496,11 @@ struct mmc_host {
 	struct mmc_ctx		default_ctx;	/* default context */
 
 	struct delayed_work	detect;
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	struct wakeup_source	*detect_wake_lock;
-	const char              *wlock_name;
-#endif
 	int			detect_change;	/* card detect flag */
 	struct mmc_slot		slot;
 
 	const struct mmc_bus_ops *bus_ops;	/* current bus driver */
 	unsigned int		bus_refs;	/* reference counter */
-
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	unsigned int		bus_resume_flags;
-#define MMC_BUSRESUME_MANUAL_RESUME (1 << 0)
-#define MMC_BUSRESUME_NEEDS_RESUME  (1 << 1)
-#define MMC_BUSRESUME_ENTER_IO      (1 << 2)
-#endif
 
 	unsigned int		sdio_irqs;
 	struct task_struct	*sdio_irq_thread;
@@ -626,21 +612,6 @@ static inline void *mmc_priv(struct mmc_host *host)
 #define mmc_dev(x)	((x)->parent)
 #define mmc_classdev(x)	(&(x)->class_dev)
 #define mmc_hostname(x)	(dev_name(&(x)->class_dev))
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-#define mmc_bus_needs_resume(host) ((host)->bus_resume_flags & \
-	MMC_BUSRESUME_NEEDS_RESUME)
-#define mmc_bus_manual_resume(host) ((host)->bus_resume_flags & \
-	MMC_BUSRESUME_MANUAL_RESUME)
-static inline void mmc_set_bus_resume_policy(struct mmc_host *host, int manual)
-{
-	if (manual)
-		host->bus_resume_flags |= MMC_BUSRESUME_MANUAL_RESUME;
-	else
-		host->bus_resume_flags &= ~MMC_BUSRESUME_MANUAL_RESUME;
-}
-
-extern int mmc_resume_bus(struct mmc_host *host);
-#endif
 
 void mmc_detect_change(struct mmc_host *, unsigned long delay);
 void mmc_request_done(struct mmc_host *, struct mmc_request *);

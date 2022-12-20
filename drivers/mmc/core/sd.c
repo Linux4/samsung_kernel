@@ -138,6 +138,9 @@ static int mmc_decode_csd(struct mmc_card *card)
 			csd->erase_size = UNSTUFF_BITS(resp, 39, 7) + 1;
 			csd->erase_size <<= csd->write_blkbits - 9;
 		}
+
+		if (UNSTUFF_BITS(resp, 13, 1))
+			mmc_card_set_readonly(card);
 		break;
 	case 1:
 		/*
@@ -172,6 +175,9 @@ static int mmc_decode_csd(struct mmc_card *card)
 		csd->write_blkbits = 9;
 		csd->write_partial = 0;
 		csd->erase_size = 1;
+
+		if (UNSTUFF_BITS(resp, 13, 1))
+			mmc_card_set_readonly(card);
 		break;
 	default:
 		pr_err("%s: unrecognised CSD structure version %d\n",
@@ -1178,16 +1184,7 @@ static int _mmc_sd_resume(struct mmc_host *host)
 {
 	int err = 0;
 
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	bool claim_host = false;
-
-	if (!(host->bus_resume_flags & MMC_BUSRESUME_ENTER_IO)) {
-		mmc_claim_host(host);
-		claim_host = true;
-	}
-#else
 	mmc_claim_host(host);
-#endif
 
 	if (!mmc_card_suspended(host->card))
 		goto out;
@@ -1197,14 +1194,7 @@ static int _mmc_sd_resume(struct mmc_host *host)
 	mmc_card_clr_suspended(host->card);
 
 out:
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	if (claim_host) {
-		mmc_release_host(host);
-		claim_host = false;
-	}
-#else
 	mmc_release_host(host);
-#endif
 	return err;
 }
 
@@ -1213,16 +1203,8 @@ out:
  */
 static int mmc_sd_resume(struct mmc_host *host)
 {
-	int err = 0;
-
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	err = _mmc_sd_resume(host);
-	pm_runtime_set_active(&host->card->dev);
-	pm_runtime_mark_last_busy(&host->card->dev);
-#endif
 	pm_runtime_enable(&host->card->dev);
-
-	return err;
+	return 0;
 }
 
 /*
@@ -1249,9 +1231,6 @@ static int mmc_sd_runtime_suspend(struct mmc_host *host)
 static int mmc_sd_runtime_resume(struct mmc_host *host)
 {
 	int err;
-
-	if (!(host->caps & MMC_CAP_AGGRESSIVE_PM))
-		return 0;
 
 	err = _mmc_sd_resume(host);
 	if (err && err != -ENOMEDIUM)

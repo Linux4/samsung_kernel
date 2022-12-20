@@ -6,9 +6,23 @@
 
 static enum EEPROM_I2C_DEV_IDX gi2c_dev_sel[IMGSENSOR_SENSOR_IDX_MAX_NUM] = {
 	I2C_DEV_IDX_1, /* main */
+	//+bug 612420,huangguoyong.wt,add,2020/12/25,add for n6 camera bring up
 	I2C_DEV_IDX_2, /* sub */
-	I2C_DEV_IDX_3, /* main2 */
-	I2C_DEV_IDX_3, /* sub2 */
+        //+bug 717431,liuxiangyin, Modify, 20220305, fix n21s wide camera open fail
+        #ifndef CONFIG_MTK_96717_CAMERA
+        #ifdef CONFIG_MTK_96516_CAMERA
+        I2C_DEV_IDX_3, /* main2 */
+        I2C_DEV_IDX_3, /* sub2 */
+        #else
+        I2C_DEV_IDX_2, /* main2 */
+        I2C_DEV_IDX_1, /* sub2 */
+        //-bug 612420,huangguoyong.wt,add,2020/12/25,add for n6 camera bring up
+        #endif
+        #else
+        I2C_DEV_IDX_2, /* main2 */
+        I2C_DEV_IDX_2, /* sub2 */
+        #endif
+        //-bug 717431,liuxiangyin, Modify, 20220305, fix n21s wide camera open fail
 	I2C_DEV_IDX_1, /* main3 */
 };
 

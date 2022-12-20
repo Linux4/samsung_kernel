@@ -22,4 +22,8 @@
 #define CCU_SENSOR_PM_SIZE  (0x1000)
 #define CCU_SENSOR_DM_SIZE  (0x600)
 
+#define CCU_ISR_LOG_BASE	(0x1A00)
+#define CCU_ISR_LOG_SIZE	(0x200)
+
+#define CCU_HEADER_NUM (20)
 #endif

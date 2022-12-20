@@ -1,6 +1,27 @@
 # SPDX-License-Identifier: GPL-2.0
 menu "Device Drivers"
 
+#+bug717431, chensibo.wt, add, 20220118, add project macro
+config WT_PROJECT_S96717AA2
+	bool "Define for S96717AA2"
+ 	help
+ 	  Say Y here for distinguish different projects
+#-bug717431, chensibo.wt, add, 20220118, add project macro
+
+#+bug549930, yangzheng.wt, add, 20220216, add project macro
+config WT_PROJECT_S96516SA1
+	bool "Define for S96516SA1"
+ 	help
+ 	  Say Y here for distinguish different projects
+#-bug549930, yangzheng.wt, add, 20220216, add project macro
+
+#+bug549930, yangzheng.wt, add, 20220216, add project macro
+config WT_PROJECT_S96616AA1
+	bool "Define for S96616AA1"
+ 	help
+ 	  Say Y here for distinguish different projects
+#-bug549930, yangzheng.wt, add, 20220216, add project macro
+
 source "drivers/amba/Kconfig"
 
 source "drivers/base/Kconfig"
@@ -232,8 +253,6 @@ source "drivers/muic/Kconfig"
 source "drivers/switch/Kconfig"
 
 source "drivers/samsung/Kconfig"
-
-source "drivers/battery/Kconfig"
 
 source "drivers/sensors/Kconfig"
 

@@ -23,53 +23,57 @@ ifneq ($(strip $(TARGET_NO_KERNEL)),true)
   mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
   current_dir := $(notdir $(patsubst %/,%,$(dir $(mkfile_path))))
 
+  kernel_build_config_suffix := .mtk
   ifeq ($(KERNEL_TARGET_ARCH),arm64)
+    kernel_build_config_suffix := $(kernel_build_config_suffix).aarch64
     ifeq ($(strip $(TARGET_KERNEL_USE_CLANG)),true)
-      include $(current_dir)/build.config.mtk.aarch64
     else
-      include $(current_dir)/build.config.mtk.aarch64.gcc
+      kernel_build_config_suffix := $(kernel_build_config_suffix).gcc
     endif
   else
+    kernel_build_config_suffix := $(kernel_build_config_suffix).arm
     ifeq ($(strip $(TARGET_KERNEL_USE_CLANG)),true)
-      include $(current_dir)/build.config.mtk.arm
     else
       $(error TARGET_KERNEL_USE_CLANG is not set)
     endif
   endif
+  ifeq ($(PLATFORM_VERSION),Tiramisu)
+    kernel_build_config_suffix := $(kernel_build_config_suffix).tiramisu
+  endif
+  include $(current_dir)/build.config$(kernel_build_config_suffix)
 
   ARGS := CROSS_COMPILE=$(CROSS_COMPILE)
-  ifneq ($(CLANG_TRIPLE),)
-    ARGS += CLANG_TRIPLE=$(CLANG_TRIPLE)
-  endif
-  ifneq ($(LD),)
-    ARGS += LD=$(LD)
-  endif
-  ifneq ($(LD_LIBRARY_PATH),)
-    ARGS += LD_LIBRARY_PATH=$(KERNEL_ROOT_DIR)/$(LD_LIBRARY_PATH)
-  endif
-  ifneq ($(NM),)
-    ARGS += NM=$(NM)
-  endif
-  ifneq ($(OBJCOPY),)
-    ARGS += OBJCOPY=$(OBJCOPY)
-  endif
-  ifeq ("$(CC)", "gcc")
-    CC :=
-  endif
-
-  ifneq ($(filter-out false,$(USE_CCACHE)),)
-    CCACHE_EXEC ?= /usr/bin/ccache
-    CCACHE_EXEC := $(abspath $(wildcard $(CCACHE_EXEC)))
-  else
-    CCACHE_EXEC :=
-  endif
-  ifneq ($(CCACHE_EXEC),)
-    ifneq ($(CC),)
-      ARGS += CCACHE_CPP2=yes CC='$(CCACHE_EXEC) $(CC)'
+  ifneq ($(LLVM),)
+    ARGS += LLVM=1
+    ifneq ($(filter-out false,$(USE_CCACHE)),)
+      CCACHE_EXEC ?= /usr/bin/ccache
+      CCACHE_EXEC := $(abspath $(wildcard $(CCACHE_EXEC)))
+    else
+      CCACHE_EXEC :=
     endif
-  else
-    ifneq ($(CC),)
-      ARGS += CC=$(CC)
+    ifneq ($(CCACHE_EXEC),)
+      ARGS += CCACHE_CPP2=yes CC='$(CCACHE_EXEC) clang'
+    else
+      ARGS += CC=clang
+    endif
+    ifneq ($(LLVM_IAS),)
+      ARGS += LLVM_IAS=$(LLVM_IAS)
+    endif
+    ifeq ($(HOSTCC),)
+      ifneq ($(CC),)
+        ARGS += HOSTCC=$(CC)
+      endif
+    else
+      ARGS += HOSTCC=$(HOSTCC)
+    endif
+    ifneq ($(LD),)
+      ARGS += LD=$(LD) HOSTLD=$(LD)
+      ifneq ($(suffix $(LD)),)
+        ARGS += HOSTLDFLAGS=-fuse-ld=$(subst .,,$(suffix $(LD)))
+      endif
+    endif
+    ifneq ($(LD_LIBRARY_PATH),)
+      ARGS += LD_LIBRARY_PATH=$(KERNEL_ROOT_DIR)/$(LD_LIBRARY_PATH)
     endif
   endif
 
@@ -99,11 +103,11 @@ ifneq ($(strip $(TARGET_NO_KERNEL)),true)
   endif #TARGET_PREBUILT_KERNEL is empty
     KERNEL_MAKE_OPTION += PROJECT_DTB_NAMES='$(PROJECT_DTB_NAMES)'
 
-#+BUG 682938,songhaiyang.wt,ADD,20210811,delay binding
+#+CHK SC113850, zjj.wt,ADD,20220128,ATO enable RPMB delay binding by cmd
 $(warning KERNEL---- WT_COMPILE_FACTORY_VERSION version ====> $(WT_COMPILE_FACTORY_VERSION))
 ifeq ($(strip $(WT_COMPILE_FACTORY_VERSION)),yes)
   KERNEL_MAKE_OPTION += WT_COMPILE_FACTORY_VERSION=yes
 endif
-#-BUG 682938,songhaiyang.wt,ADD,20210811,delay binding
+#-CHK SC113850, zjj.wt,ADD,20220128,ATO enable RPMB delay binding by cmd
 
 endif #TARGET_NO_KERNEL

@@ -31,6 +31,7 @@
 #include <linux/mfd/mt6357/core.h>
 #include "mt6357-accdet.h"
 #include "mt6357.h"
+#include "../../../drivers/misc/mediatek/lcm/inc/panel_notifier.h"
 /* grobal variable definitions */
 #define NO_USE_COMPARATOR	1
 
@@ -100,7 +101,7 @@ struct mt63xx_accdet_data {
 	struct mutex res_lock;
 	dev_t accdet_devno;
 	struct class *accdet_class;
-	struct device *accdet_earjack; //add by wangxin2 20211013
+	struct device *accdet_earjack; //add by pangxin01 20220321
 	int button_status;
 	bool eint_sync_flag;
 	/* accdet FSM State & lock*/
@@ -511,7 +512,7 @@ static ssize_t set_headset_mode_store(struct device_driver *ddri,
 
 	return count;
 }
-
+//add by pangxin01 20220321
 static ssize_t states_show(struct device_driver *ddri, char *buf)
 {
 	char temp_type = (char)accdet->cable_type;
@@ -532,7 +533,7 @@ static DRIVER_ATTR_WO(start_debug);
 static DRIVER_ATTR_WO(set_reg);
 static DRIVER_ATTR_RW(dump_reg);
 static DRIVER_ATTR_WO(set_headset_mode);
-static DRIVER_ATTR_RO(states);
+static DRIVER_ATTR_RO(states);//add by pangxin01 20220321
 
 static struct driver_attribute *accdet_attr_list[] = {
 	&driver_attr_start_debug,
@@ -837,11 +838,14 @@ static void send_status_event(u32 cable_type, u32 status)
 			snd_soc_jack_report(&accdet->jack, report,
 					SND_JACK_HEADPHONE);
 		}
-		if (status)
+		if (status){
 			report = SND_JACK_MICROPHONE;
-		else
+			panel_notifier_call_chain(PANEL_HEADSET_PLUG, NULL);
+		}
+		else {
 			report = 0;
-
+			panel_notifier_call_chain(PANEL_HEADSET_UNPLUG, NULL);
+		}
 		snd_soc_jack_report(&accdet->jack, report,
 				SND_JACK_MICROPHONE);
 		pr_info("accdet MICROPHONE(4-pole) %s\n",
@@ -2103,7 +2107,7 @@ static void delay_init_timerhandler(struct timer_list *t)
 		pr_notice("Error: %s (%d)\n", __func__, ret);
 }
 
-//Begin added by wangxin2.wt on 2020/10/13
+//Added by pangxin01.wt on 20220321
 static ssize_t state_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -2112,7 +2116,7 @@ static ssize_t state_show(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "%d\n", accdet_AB);
 };
 static DEVICE_ATTR_RO(state);
-//End added by wangxin2.wt on 2021/10/13
+//Added by pangxin01.wt on 20220321
 
 static int accdet_probe(struct platform_device *pdev)
 {
@@ -2296,7 +2300,7 @@ static int accdet_probe(struct platform_device *pdev)
 		ret = -1;
 	}
 
-    //Begin added by wangxin2.wt on 2020/10/13
+//Added by pangxin01.wt on 20220321
 	ret = alloc_chrdev_region(&accdet->accdet_devno, 0, 1, ACCDET_AUDIO_DEVNAME);
 	if (ret)
 		goto err_chrdevregion;
@@ -2319,7 +2323,7 @@ static int accdet_probe(struct platform_device *pdev)
 	ret = device_create_file(accdet->accdet_earjack, &dev_attr_state);
 	if (ret < 0)
         goto err_device_create;
-    //End added by wangxin2.wt on 2021/10/13
+//Added by pangxin01.wt on 20220321
 
 	/* setup timer */
 	timer_setup(&micbias_timer, dis_micbias_timerhandler, 0);

@@ -18,6 +18,9 @@ ifeq ($(word 2,$(MTK_GPU_VERSION)),doma)
 else ifeq ($(word 2,$(MTK_GPU_VERSION)),lorne)
 	obj-y += m1.13ED5776728/
 else ifeq ($(word 2,$(MTK_GPU_VERSION)),clark)
-	obj-y += m1.13ED5776728/
+	obj-y += m1.15ED6070602/
+else ifeq ($(word 2,$(MTK_GPU_VERSION)),auckland)
+        obj-y += m1.13ED5776728/
+
 endif
 

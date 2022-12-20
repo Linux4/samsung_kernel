@@ -1516,6 +1516,43 @@ AllocError:
 	return eError;
 }
 
+static void RGXDestroyHWRTData_aux(RGX_KM_HW_RT_DATASET *psKMHWRTDataSet)
+{
+	PVRSRV_RGXDEV_INFO *psDevInfo = psKMHWRTDataSet->psDeviceNode->pvDevice;
+	IMG_UINT32 ui32Loop;
+
+	if (psKMHWRTDataSet->psRTArrayFwMemDesc) {
+		RGXUnsetFirmwareAddress(psKMHWRTDataSet->psRTArrayFwMemDesc);
+		DevmemFwUnmapAndFree(psDevInfo,
+		psKMHWRTDataSet->psRTArrayFwMemDesc);
+	}
+
+if (psKMHWRTDataSet->psRendersAccArrayFwMemDesc) {
+	RGXUnsetFirmwareAddress(psKMHWRTDataSet->psRendersAccArrayFwMemDesc);
+DevmemFwUnmapAndFree(psDevInfo, psKMHWRTDataSet->psRendersAccArrayFwMemDesc);
+	}
+
+	/* Decrease freelist refcount */
+	OSLockAcquire(psDevInfo->hLockFreeList);
+for (ui32Loop = 0; ui32Loop < RGXFW_MAX_FREELISTS; ui32Loop++) {
+	PVR_ASSERT(psKMHWRTDataSet->apsFreeLists[ui32Loop]->ui32RefCount > 0);
+	psKMHWRTDataSet->apsFreeLists[ui32Loop]->ui32RefCount--;
+	}
+#if !defined(SUPPORT_SHADOW_FREELISTS)
+	dllist_remove_node(&psKMHWRTDataSet->sNodeHWRTData);
+#endif
+	OSLockRelease(psDevInfo->hLockFreeList);
+
+/* Freeing the memory has to happen _after_ removing the HWRTData from
+ * the freelist ,otherwise we risk traversing the freelist to find a pointer
+ * from a freed data structure
+ */
+	RGXUnsetFirmwareAddress(psKMHWRTDataSet->psHWRTDataFwMemDesc);
+	DevmemFwUnmapAndFree(psDevInfo, psKMHWRTDataSet->psHWRTDataFwMemDesc);
+
+	OSFreeMem(psKMHWRTDataSet);
+}
+
 /* Create set of HWRTData(s) and bind it with a shared FW HWRTDataCommon */
 PVRSRV_ERROR RGXCreateHWRTDataSet(CONNECTION_DATA      *psConnection,
 		PVRSRV_DEVICE_NODE	*psDeviceNode,
@@ -1699,20 +1736,18 @@ PVRSRV_ERROR RGXCreateHWRTDataSet(CONNECTION_DATA      *psConnection,
 	}
 	psHWRTDataCommonCookie->ui32RefCount += 1;
 
-
 	return PVRSRV_OK;
 
-
 err_HWRTDataAlloc_1:
+	RGXDestroyHWRTData_aux(*ppsKMHWRTDataSet_0);
+	*ppsKMHWRTDataSet_0 = NULL;
 err_HWRTDataAlloc_0:
 err_HWRTDataCommonVA:
 	RGXUnsetFirmwareAddress(psHWRTDataCommonFwMemDesc);
 err_HWRTDataCommonFwAddr:
 	DevmemFwUnmapAndFree(psDevInfo, psHWRTDataCommonFwMemDesc);
-
 err_HWRTDataCommonAlloc:
 	OSFreeMem(psHWRTDataCommonCookie);
-
 err_HWRTDataCommonCookieAlloc:
 
 	return eError;
@@ -1725,53 +1760,31 @@ err_HWRTDataCommonCookieAlloc:
 PVRSRV_ERROR RGXDestroyHWRTDataSet(RGX_KM_HW_RT_DATASET *psKMHWRTDataSet)
 {
 	PVRSRV_RGXDEV_INFO *psDevInfo;
+	PVRSRV_DEVICE_NODE *psDevNode;
 	PVRSRV_ERROR eError;
 	PRGXFWIF_HWRTDATA psHWRTData;
-	IMG_UINT32 ui32Loop;
+	RGX_HWRTDATA_COMMON_COOKIE *psCommonCookie;
 
 	PVR_ASSERT(psKMHWRTDataSet);
 
-	psDevInfo = psKMHWRTDataSet->psDeviceNode->pvDevice;
+	psDevNode = psKMHWRTDataSet->psDeviceNode;
+	psDevInfo = psDevNode->pvDevice;
 
-	eError = RGXSetFirmwareAddress(&psHWRTData, psKMHWRTDataSet->psHWRTDataFwMemDesc, 0, RFW_FWADDR_NOREF_FLAG);
+	eError = RGXSetFirmwareAddress(&psHWRTData,
+				psKMHWRTDataSet->psHWRTDataFwMemDesc, 0,
+				RFW_FWADDR_NOREF_FLAG);
 	PVR_RETURN_IF_ERROR(eError);
 
 	/* Cleanup HWRTData */
-	eError = RGXFWRequestHWRTDataCleanUp(psKMHWRTDataSet->psDeviceNode, psHWRTData);
-
+	eError = RGXFWRequestHWRTDataCleanUp(psDevNode, psHWRTData);
 	if (eError == PVRSRV_ERROR_RETRY)
 	{
 		return eError;
 	}
 
-	if (psKMHWRTDataSet->psRTArrayFwMemDesc)
-	{
-		RGXUnsetFirmwareAddress(psKMHWRTDataSet->psRTArrayFwMemDesc);
-		DevmemFwUnmapAndFree(psDevInfo, psKMHWRTDataSet->psRTArrayFwMemDesc);
-	}
+	psCommonCookie = psKMHWRTDataSet->psHWRTDataCommonCookie;
 
-	if (psKMHWRTDataSet->psRendersAccArrayFwMemDesc)
-	{
-		RGXUnsetFirmwareAddress(psKMHWRTDataSet->psRendersAccArrayFwMemDesc);
-		DevmemFwUnmapAndFree(psDevInfo, psKMHWRTDataSet->psRendersAccArrayFwMemDesc);
-	}
-
-	/* Decrease freelist refcount */
-	OSLockAcquire(psDevInfo->hLockFreeList);
-	for (ui32Loop = 0; ui32Loop < RGXFW_MAX_FREELISTS; ui32Loop++)
-	{
-		PVR_ASSERT(psKMHWRTDataSet->apsFreeLists[ui32Loop]->ui32RefCount > 0);
-		psKMHWRTDataSet->apsFreeLists[ui32Loop]->ui32RefCount--;
-	}
-#if !defined(SUPPORT_SHADOW_FREELISTS)
-	dllist_remove_node(&psKMHWRTDataSet->sNodeHWRTData);
-#endif
-	OSLockRelease(psDevInfo->hLockFreeList);
-
-	/* Freeing the memory has to happen _after_ removing the HWRTData from the freelist
-	 * otherwise we risk traversing the freelist to find a pointer from a freed data structure */
-	RGXUnsetFirmwareAddress(psKMHWRTDataSet->psHWRTDataFwMemDesc);
-	DevmemFwUnmapAndFree(psDevInfo, psKMHWRTDataSet->psHWRTDataFwMemDesc);
+	RGXDestroyHWRTData_aux(psKMHWRTDataSet);
 
 	/* We punched through potential PVRSRV_ERROR_RETRY events, so we are
 	   sure that the HWRTDATA instance will be destroyed during this call.
@@ -1786,26 +1799,25 @@ PVRSRV_ERROR RGXDestroyHWRTDataSet(RGX_KM_HW_RT_DATASET *psKMHWRTDataSet)
 	     objects will be destroyed after destruction of all HWRTDatas
 	     within a single pair.
 	*/
-	psKMHWRTDataSet->psHWRTDataCommonCookie->ui32RefCount--;
+	psCommonCookie->ui32RefCount--;
 
 	/* When ref count for HWRTDataCommonCookie hits ZERO
-	   we have to destroy the HWRTDataCommon [FW object] and the cookie [KM object] afterwards.
-	*/
-	if (psKMHWRTDataSet->psHWRTDataCommonCookie->ui32RefCount == 0)
+	 * we have to destroy the HWRTDataCommon [FW object]
+	 * and the cookie [KM object] afterwards.
+	 */
+if (psCommonCookie->ui32RefCount == 0)
 	{
-		PVRSRV_DEVICE_NODE *psDeviceNode = psKMHWRTDataSet->psDeviceNode;
-
-		RGXUnsetFirmwareAddress(psKMHWRTDataSet->psHWRTDataCommonCookie->psHWRTDataCommonFwMemDesc);
+	RGXUnsetFirmwareAddress(psCommonCookie->psHWRTDataCommonFwMemDesc);
 
 		/* We don't need to flush the SLC before freeing.
-		   FW RequestCleanUp has already done that for HWRTData, so we're fine now.
-		*/
+		 * FW RequestCleanUp has already done that for HWRTData,
+		 * so we're fine now.
+		 */
 
-		DevmemFwUnmapAndFree(psDeviceNode->pvDevice, psKMHWRTDataSet->psHWRTDataCommonCookie->psHWRTDataCommonFwMemDesc);
-		OSFreeMem(psKMHWRTDataSet->psHWRTDataCommonCookie);
+		DevmemFwUnmapAndFree(psDevNode->pvDevice,
+		psCommonCookie->psHWRTDataCommonFwMemDesc);
+		OSFreeMem(psCommonCookie);
 	}
-
-	OSFreeMem(psKMHWRTDataSet);
 
 	return PVRSRV_OK;
 }
@@ -3675,7 +3687,7 @@ PVRSRV_ERROR PVRSRVRGXKickTA3DKM(RGX_SERVER_RENDER_CONTEXT	*psRenderContext,
 		{
 			CHKPT_DBG((PVR_DBG_ERROR, "%s: ...done, returned ERROR (eError=%d)",
 			          __func__, eError));
-			goto fail_resolve_input_fence;
+			goto fail_resolve_input_ta_fence;
 		}
 
 		CHKPT_DBG((PVR_DBG_ERROR, "%s: ...done, fence %d contained %d "
@@ -3712,7 +3724,7 @@ PVRSRV_ERROR PVRSRVRGXKickTA3DKM(RGX_SERVER_RENDER_CONTEXT	*psRenderContext,
 		{
 			CHKPT_DBG((PVR_DBG_ERROR, "%s: ...done, returned ERROR (eError=%d)",
 			          __func__, eError));
-			goto fail_resolve_input_fence;
+			goto fail_resolve_input_3d_fence;
 		}
 
 		CHKPT_DBG((PVR_DBG_ERROR, "%s: ...done, fence %d contained %d "
@@ -4106,8 +4118,8 @@ PVRSRV_ERROR PVRSRVRGXKickTA3DKM(RGX_SERVER_RENDER_CONTEXT	*psRenderContext,
 		PVR_DPF((PVR_DBG_ERROR,
 				 "%s: Buffer sync not supported but got %u buffers",
 				 __func__, ui32SyncPMRCount));
-		OSLockRelease(psRenderContext->hLock);
-		return PVRSRV_ERROR_INVALID_PARAMS;
+		eError = PVRSRV_ERROR_INVALID_PARAMS;
+		goto err_no_buffer_sync_invalid_params;
 #endif /* defined(SUPPORT_BUFFER_SYNC) */
 	}
 
@@ -4165,7 +4177,7 @@ PVRSRV_ERROR PVRSRVRGXKickTA3DKM(RGX_SERVER_RENDER_CONTEXT	*psRenderContext,
 							"%s:   SyncCheckpointCreateFence[TA] failed (%s)",
 							__func__,
 							PVRSRVGetErrorString(eError)));
-					goto fail_create_output_fence;
+					goto fail_create_ta_fence;
 				}
 
 				CHKPT_DBG((PVR_DBG_ERROR,
@@ -4234,7 +4246,7 @@ PVRSRV_ERROR PVRSRVRGXKickTA3DKM(RGX_SERVER_RENDER_CONTEXT	*psRenderContext,
 							"%s:   SyncCheckpointCreateFence[3D] failed (%s)",
 							__func__,
 							PVRSRVGetErrorString(eError)));
-					goto fail_create_output_fence;
+					goto fail_create_3d_fence;
 				}
 
 				CHKPT_DBG((PVR_DBG_ERROR,
@@ -5151,33 +5163,37 @@ fail_taacquirecmd:
 	}
 
 fail_alloc_update_values_mem_3D:
+	if (iUpdate3DFence != PVRSRV_NO_FENCE)
+	{
+		SyncCheckpointRollbackFenceData(iUpdate3DFence, pv3DUpdateFenceFinaliseData);
+	}
+fail_create_3d_fence:
 fail_alloc_update_values_mem_TA:
 	if (iUpdateTAFence != PVRSRV_NO_FENCE)
 	{
 		SyncCheckpointRollbackFenceData(iUpdateTAFence, pvTAUpdateFenceFinaliseData);
 	}
-	if (iUpdate3DFence != PVRSRV_NO_FENCE)
-	{
-		SyncCheckpointRollbackFenceData(iUpdate3DFence, pv3DUpdateFenceFinaliseData);
-	}
-fail_create_output_fence:
-	/* Drop the references taken on the sync checkpoints in the
-	 * resolved input fence.
-	 * NOTE: 3D fence is always submitted, either via 3D or TA(PR).
-	 */
-	if (bKickTA)
-	{
-		SyncAddrListDeRefCheckpoints(ui32FenceTASyncCheckpointCount, apsFenceTASyncCheckpoints);
-	}
-	SyncAddrListDeRefCheckpoints(ui32Fence3DSyncCheckpointCount, apsFence3DSyncCheckpoints);
-
+fail_create_ta_fence:
+#if !defined(SUPPORT_BUFFER_SYNC)
+err_no_buffer_sync_invalid_params:
+#endif /* !defined(SUPPORT_BUFFER_SYNC) */
 err_pr_fence_address:
 err_populate_sync_addr_list_3d_update:
 err_populate_sync_addr_list_3d_fence:
 err_populate_sync_addr_list_ta_update:
 err_populate_sync_addr_list_ta_fence:
 err_not_enough_space:
-fail_resolve_input_fence:
+	/* Drop the references taken on the sync checkpoints in the
+	 * resolved input fence.
+	 * NOTE: 3D fence is always submitted, either via 3D or TA(PR).
+	 */
+	SyncAddrListDeRefCheckpoints(ui32Fence3DSyncCheckpointCount, apsFence3DSyncCheckpoints);
+fail_resolve_input_3d_fence:
+	if (bKickTA)
+	{
+		SyncAddrListDeRefCheckpoints(ui32FenceTASyncCheckpointCount, apsFenceTASyncCheckpoints);
+	}
+fail_resolve_input_ta_fence:
 	/* Free the memory that was allocated for the sync checkpoint list returned by ResolveFence() */
 	if (apsFenceTASyncCheckpoints)
 	{

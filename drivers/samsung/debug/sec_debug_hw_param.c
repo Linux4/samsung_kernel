@@ -113,22 +113,15 @@ static int __init sec_hw_param_get_reset_count(char *arg)
 early_param("sec_debug.reset_rwc", sec_hw_param_get_reset_count);
 
 
-//extern u64 mtk_get_chip_info_version(void);
-
 static ssize_t sec_hw_param_ap_info_show(struct kobject *kobj,
 					 struct kobj_attribute *attr, char *buf)
 {
 	ssize_t info_size = 0;
-	//u64 lot_id;
-
-	//lot_id = mtk_get_chip_info_version();
 
 	info_size += snprintf(buf, DATA_SIZE, "\"HW_REV\":\"%d\",", sec_hw_rev);
-#if 0
 	info_size +=
 	    snprintf((char *)(buf + info_size), DATA_SIZE - info_size,
-		     "\"LOT_ID\":\"%012llX\",", lot_id);
-#endif
+		     "\"LOT_ID\":\"\"");
 	info_size +=
 	    snprintf((char *)(buf + info_size), DATA_SIZE - info_size,
 		     "\"PARAM0\":\"\"");

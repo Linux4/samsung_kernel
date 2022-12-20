@@ -53,6 +53,7 @@ static u32 mbootlog_buf_len = SZ_128K;
 static u32 mbootlog_first_idx;
 static u32 mbootlog_size;
 
+#define CPU_NUMS 8
 /*
  *  This group of API call by sub-driver module to report reboot reasons
  *  aee_rr_* stand for previous reboot reason
@@ -65,13 +66,18 @@ struct last_reboot_reason {
 	uint64_t kaslr_offset;
 	uint64_t oops_in_progress_addr;
 
-	uint32_t last_irq_enter[AEE_MTK_CPU_NUMS];
-	uint64_t jiffies_last_irq_enter[AEE_MTK_CPU_NUMS];
+	uint32_t kick;
+	uint32_t check;
+	uint64_t wdk_ktime;
+	uint64_t wdk_systimer_cnt;
 
-	uint32_t last_irq_exit[AEE_MTK_CPU_NUMS];
-	uint64_t jiffies_last_irq_exit[AEE_MTK_CPU_NUMS];
+	uint32_t last_irq_enter[CPU_NUMS];
+	uint64_t jiffies_last_irq_enter[CPU_NUMS];
 
-	uint8_t hotplug_footprint[AEE_MTK_CPU_NUMS];
+	uint32_t last_irq_exit[CPU_NUMS];
+	uint64_t jiffies_last_irq_exit[CPU_NUMS];
+
+	uint8_t hotplug_footprint[CPU_NUMS];
 	uint8_t hotplug_cpu_event;
 	uint8_t hotplug_cb_index;
 	uint64_t hotplug_cb_fp;
@@ -98,8 +104,8 @@ struct last_reboot_reason {
 	uint32_t mcsodi_data;
 	uint32_t spm_suspend_data;
 	uint32_t spm_common_scenario_data;
-	uint32_t mtk_cpuidle_footprint[AEE_MTK_CPU_NUMS];
-	uint32_t mcdi_footprint[AEE_MTK_CPU_NUMS];
+	uint32_t mtk_cpuidle_footprint[CPU_NUMS];
+	uint32_t mcdi_footprint[CPU_NUMS];
 	uint32_t clk_data[8];
 	uint32_t suspend_debug_flag;
 	uint32_t fiq_cache_step;
@@ -309,6 +315,9 @@ void sram_log_save(const char *msg, int count)
 {
 	int rem;
 
+	if (!mbootlog_buf)
+		return;
+
 	/* count >= buffer_size, full the buffer */
 	if (count >= mbootlog_buf_len) {
 		memcpy(mbootlog_buf, msg + (count - mbootlog_buf_len),
@@ -365,6 +374,8 @@ void aee_sram_fiq_log(const char *msg)
 	unsigned int count = strlen(msg);
 	int delay = 100;
 
+	if (!mbootlog_buf)
+		return;
 	if (FIQ_log_size + count > mbootlog_buf_len)
 		return;
 
@@ -385,6 +396,8 @@ static void mboot_params_write(struct console *console, const char *s,
 {
 	unsigned long flags;
 
+	if (!mbootlog_buf)
+		return;
 	if (atomic_read(&mp_in_fiq))
 		return;
 
@@ -410,6 +423,8 @@ void aee_sram_printk(const char *fmt, ...)
 	int r, tlen;
 	char sram_printk_buf[256];
 
+	if (!mbootlog_buf)
+		return;
 	va_start(args, fmt);
 
 	preempt_disable();
@@ -426,6 +441,29 @@ void aee_sram_printk(const char *fmt, ...)
 	va_end(args);
 }
 EXPORT_SYMBOL(aee_sram_printk);
+
+int aee_is_enable(void)
+{
+	struct device_node *node;
+	const char *aee_enable;
+	int ret = 0;
+
+	node = of_find_node_by_path("/chosen");
+	if (node) {
+		if (of_property_read_string(node, "aee,enable", &aee_enable) == 0) {
+			if (strnstr(aee_enable, "mini", 4))
+				ret = 1;
+			else if (strnstr(aee_enable, "full", 4))
+				ret = 2;
+		}
+		of_node_put(node);
+	} else {
+		pr_notice("%s: Can't find chosen node\n", __func__);
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL(aee_is_enable);
 
 void mboot_params_enable_console(int enabled)
 {
@@ -784,6 +822,38 @@ void aee_rr_rec_kaslr_offset(uint64_t offset)
 		return;
 	LAST_RR_SET(kaslr_offset, offset);
 }
+
+void aee_rr_rec_kick(uint32_t kick_bit)
+{
+	if (!mboot_params_init_done || !mboot_params_buffer)
+		return;
+	LAST_RR_SET(kick, kick_bit);
+}
+EXPORT_SYMBOL(aee_rr_rec_kick);
+
+void aee_rr_rec_check(uint32_t check_bit)
+{
+	if (!mboot_params_init_done || !mboot_params_buffer)
+		return;
+	LAST_RR_SET(check, check_bit);
+}
+EXPORT_SYMBOL(aee_rr_rec_check);
+
+void aee_rr_rec_wdk_ktime(u64 val)
+{
+	if (!mboot_params_init_done || !mboot_params_buffer)
+		return;
+	LAST_RR_SET(wdk_ktime, val);
+}
+EXPORT_SYMBOL(aee_rr_rec_wdk_ktime);
+
+void aee_rr_rec_wdk_systimer_cnt(u64 val)
+{
+	if (!mboot_params_init_done || !mboot_params_buffer)
+		return;
+	LAST_RR_SET(wdk_systimer_cnt, val);
+}
+EXPORT_SYMBOL(aee_rr_rec_wdk_systimer_cnt);
 
 /* composite api */
 void aee_rr_rec_last_irq_enter(int cpu, int irq, u64 jiffies)
@@ -2247,9 +2317,31 @@ void aee_rr_show_oops_in_progress_addr(struct seq_file *m)
 		       oops_in_progress_addr);
 }
 
+void aee_rr_show_kick_check(struct seq_file *m)
+{
+	uint32_t kick_bit = LAST_RRR_VAL(kick);
+	uint32_t check_bit = LAST_RRR_VAL(check);
+
+	seq_printf(m, "kick=0x%x,check=0x%x\n", kick_bit, check_bit);
+}
+
 void aee_rr_show_last_irq_enter(struct seq_file *m, int cpu)
 {
 	seq_printf(m, "  irq: enter(%d, ", LAST_RRR_VAL(last_irq_enter[cpu]));
+}
+
+void aee_rr_show_wdk_ktime(struct seq_file *m)
+{
+	uint64_t ktime = LAST_RRR_VAL(wdk_ktime);
+
+	seq_printf(m, "wdk_ktime=%lld\n", ktime);
+}
+
+void aee_rr_show_wdk_systimer_cnt(struct seq_file *m)
+{
+	uint64_t systimer_cnt = LAST_RRR_VAL(wdk_systimer_cnt);
+
+	seq_printf(m, "wdk_systimer_cnt=%lld\n", systimer_cnt);
 }
 
 void aee_rr_show_jiffies_last_irq_enter(struct seq_file *m, int cpu)
@@ -3153,6 +3245,9 @@ last_rr_show_t aee_rr_show[] = {
 	aee_rr_show_exp_type,
 	aee_rr_show_kaslr_offset,
 	aee_rr_show_oops_in_progress_addr,
+	aee_rr_show_kick_check,
+	aee_rr_show_wdk_ktime,
+	aee_rr_show_wdk_systimer_cnt,
 	aee_rr_show_last_pc,
 	aee_rr_show_last_bus,
 	aee_rr_show_mcdi,

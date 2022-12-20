@@ -60,13 +60,6 @@
 #include <linux/compat.h>
 #endif
 
-#define DPE_PMQOS
-#ifdef DPE_PMQOS
-#include <linux/soc/mediatek/mtk-pm-qos.h>
-#include <mmdvfs_pmqos.h>
-#endif
-
-
 /*  #include "smi_common.h" */
 
 #ifdef CONFIG_PM_SLEEP
@@ -241,11 +234,6 @@ static unsigned int g_u4DpeCnt;
 /* index 0 is for all the user that do not do register irq first */
 #define IRQ_USER_NUM_MAX 32
 
-#ifdef DPE_PMQOS
-static u64 max_dpe_freq;
-static u64 mid_dpe_freq;
-static struct mtk_pm_qos_request g_dpe_qos_request;
-#endif
 
 enum DPE_FRAME_STATUS_ENUM {
 	DPE_FRAME_STATUS_EMPTY,	/* 0 */
@@ -967,51 +955,6 @@ for (i = start; i <= end; i += 0x10) { \
 } \
 }
 
-#ifdef DPE_PMQOS
-void DPEQOS_Init(void)
-{
-	s32 result = 0;
-	u64 dpe_freq_steps[MAX_FREQ_STEP];
-	u32 step_size;
-
-	/* Call pm_qos_add_request when initialize module or driver prob */
-	mtk_pm_qos_add_request(
-		&g_dpe_qos_request,
-		PM_QOS_DPE_FREQ,
-		PM_QOS_MM_FREQ_DEFAULT_VALUE);
-
-	/* Call mmdvfs_qos_get_freq_steps to get supported frequency */
-	result = mmdvfs_qos_get_freq_steps(
-		PM_QOS_DPE_FREQ,
-		dpe_freq_steps,
-		&step_size);
-
-	if (result < 0 || step_size == 0)
-		LOG_INF("get MMDVFS freq steps failed, result: %d\n", result);
-	else {
-		max_dpe_freq = dpe_freq_steps[0];
-		mid_dpe_freq = dpe_freq_steps[1];
-	}
-}
-
-void DPEQOS_Uninit(void)
-{
-	mtk_pm_qos_remove_request(&g_dpe_qos_request);
-}
-
-void DPEQOS_UpdateDpeFreq(bool start, unsigned int vopp)
-{
-	/* start DPE, configure MMDVFS to highest CLK */
-	if (start) {
-		if (vopp == 0)
-			mtk_pm_qos_update_request(&g_dpe_qos_request, max_dpe_freq);
-		else
-			mtk_pm_qos_update_request(&g_dpe_qos_request, mid_dpe_freq);
-	} else /* finish DPE, config MMDVFS to lowest CLK */
-		mtk_pm_qos_update_request(&g_dpe_qos_request, 0);
-}
-#endif
-
 static bool ConfigDVEFrameByReqIdx(signed int ReqIdx)
 {
 #ifdef DPE_USE_GCE
@@ -1322,6 +1265,7 @@ static signed int ConfigDVEHW(struct DPE_DVEConfig *pDveConfig)
 		struct cmdqRecStruct *handle;
 		uint64_t engineFlag = (uint64_t)(1LL << CMDQ_ENG_DPE);
 #endif
+
 	if (DPE_DBG_DBGLOG == (DPE_DBG_DBGLOG & DPEInfo.DebugMask)) {
 		log_dbg("Config DVEHW Start!\n");
 
@@ -1545,11 +1489,6 @@ static signed int ConfigDVEHW(struct DPE_DVEConfig *pDveConfig)
 	cmdqRecWait(handle, CMDQ_EVENT_DVE_EOF);
 	/* DPE Interrupt read-clear mode */
 	cmdqRecWrite(handle, DPE_DVE_START_HW, 0x0, CMDQ_REG_MASK);
-
-#ifdef DPE_PMQOS
-	/*	use high vopp */
-	DPEQOS_UpdateDpeFreq(1, 0);
-#endif
 
 	/* non-blocking API, Please  use cmdqRecFlushAsync() */
 	cmdqRecFlushAsync(handle);
@@ -1918,11 +1857,6 @@ static signed int ConfigWMFEHW(struct DPE_WMFEConfig *pWmfeCfg)
 	cmdqRecWait(handle, CMDQ_EVENT_WMF_EOF);
 	cmdqRecWrite(handle, DPE_WMFE_START_HW, 0x0, CMDQ_REG_MASK);
 
-#ifdef DPE_PMQOS
-	/*	use high vopp */
-	DPEQOS_UpdateDpeFreq(1, 0);
-#endif
-
 	/* non-blocking API, Please  use cmdqRecFlushAsync() */
 	cmdqRecFlushAsync(handle);
 	/* if you want to re-use the handle, please reset the handle */
@@ -2050,6 +1984,7 @@ static bool Check_WMFE_Is_Busy(void)
 	return MFALSE;
 }
 #endif
+
 
 /*
  *
@@ -2983,9 +2918,6 @@ static long DPE_ioctl
 			LOG_INF("DPE_WAIT_IRQ copy_from_user failed");
 			Ret = -EFAULT;
 		}
-#ifdef DPE_PMQOS
-		DPEQOS_UpdateDpeFreq(0, 0);
-#endif
 		break;
 	}
 	case DPE_CLEAR_IRQ:
@@ -4716,10 +4648,6 @@ static signed int __init DPE_Init(void)
 		DPE_ClockOnCallback,
 		DPE_DumpCallback, DPE_ResetCallback, DPE_ClockOffCallback);
 
-#ifdef DPE_PMQOS
-	DPEQOS_Init();
-#endif
-
 	log_dbg("- X. Ret: %d.", Ret);
 	return Ret;
 }
@@ -4729,11 +4657,6 @@ static void __exit DPE_Exit(void)
 	/*int i;*/
 
 	log_dbg("- E.");
-
-#ifdef DPE_PMQOS
-	DPEQOS_Uninit();
-#endif
-
 	/*  */
 	platform_driver_unregister(&DPEDriver);
 	/*  */

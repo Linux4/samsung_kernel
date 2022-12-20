@@ -73,6 +73,9 @@
 
 /* 0:MTKFB_AOD_DOZE, 1:MTKFB_AOD_DOZE_SUSPEND */
 #define MTKFB_SET_AOD_POWER_MODE MTK_IOW(28, unsigned int)
+//Bug 717431, chensibo.wt, ADD, 20220118, add CABC funciton
+#define SYSFS_SET_LCM_CABC_MODE MTK_IOW(29, unsigned int)
+#define SYSFS_GET_LCM_CABC_MODE MTK_IOR(30, unsigned int)
 
 /*error handling*/
 #define MTKFB_META_RESTORE_SCREEN MTK_IOW(101, unsigned long)

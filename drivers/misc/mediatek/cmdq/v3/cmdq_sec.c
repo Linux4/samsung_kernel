@@ -19,7 +19,6 @@
 #include <linux/module.h>
 #include <linux/io.h>
 #include <linux/sched/clock.h>
-#include "cmdq_sec_iwc_common.h"
 
 #ifdef CMDQ_MET_READY
 #include <linux/met_drv.h>
@@ -137,6 +136,7 @@ static const s32 cmdq_max_task_in_secure_thread[
 static const s32 cmdq_tz_cmd_block_size[CMDQ_MAX_SECURE_THREAD_COUNT] = {
 	4 << 12, 4 << 12, 20 << 12};
 #endif
+
 
 const u32 isp_iwc_buf_size[] = {
 	CMDQ_SEC_ISP_CQ_SIZE,
@@ -483,13 +483,6 @@ s32 cmdq_sec_fill_iwc_command_msg_unlocked(
 		cmdq_sec_get_secure_engine(
 		task->secData.enginesNeedPortSecurity);
 
-	iwc->command.metadata.enginesDisableDAPC =
-		cmdq_sec_get_secure_engine(task->secData.enginesDisableDAPC);
-	iwc->command.metadata.enginesDisablePortSecurity =
-		cmdq_sec_get_secure_engine(
-		task->secData.enginesDisablePortSecurity);
-
-
 	memset(iwcex, 0x0, sizeof(*iwcex));
 	memset(iwcex2, 0x0, sizeof(*iwcex2));
 
@@ -520,6 +513,10 @@ s32 cmdq_sec_fill_iwc_command_msg_unlocked(
 	/* assign extension and read back parameter */
 	iwc->command.extension = task->secData.extension;
 	iwc->command.readback_pa = task->reg_values_pa;
+
+
+	iwc->command.sec_id = task->secData.sec_id;
+	CMDQ_LOG("%s, sec_id:%d\n", __func__, iwc->command.sec_id);
 
 	last_buf = list_last_entry(&task->pkt->buf, typeof(*last_buf),
 		list_entry);
@@ -1191,7 +1188,6 @@ int32_t cmdq_sec_submit_to_secure_world_async_unlocked(uint32_t iwcCommand,
 			break;
 		}
 
-
 		/* always check and lunch irq notify loop thread */
 		if (pTask)
 			cmdq_sec_irq_notify_start();
@@ -1224,7 +1220,6 @@ int32_t cmdq_sec_submit_to_secure_world_async_unlocked(uint32_t iwcCommand,
 			cmdq_sec_handle_attach_status(pTask, iwcCommand,
 				handle->mtee_iwcMessage, status, &dispatch_mod);
 #endif
-
 
 		/* release resource */
 #if !(CMDQ_OPEN_SESSION_ONCE)
@@ -1383,7 +1378,7 @@ static s32 cmdq_sec_remove_handle_from_thread_by_cookie(
 {
 	struct cmdq_task *task;
 
-	if (!thread || index < 0 || index >=  cmdq_max_task_in_secure_thread[
+	if (!thread || index < 0 || index >= cmdq_max_task_in_secure_thread[
 		thread->idx - CMDQ_MIN_SECURE_THREAD_ID]) {
 		CMDQ_ERR(
 			"remove task from thread array, invalid param THR:0x%p task_slot:%d\n",
@@ -2234,8 +2229,7 @@ static void cmdq_sec_thread_irq_handle_by_cookie(
 		/* min cookie value is 0 */
 		thread->wait_cookie -= (CMDQ_MAX_COOKIE_VALUE + 1);
 	}
-	task = thread->task_list[thread->wait_cookie %
-		max_task_cnt];
+	task = thread->task_list[thread->wait_cookie % max_task_cnt];
 
 	if (task) {
 		mod_timer(&thread->timeout,
@@ -2497,6 +2491,7 @@ static __init int cmdq_init(void)
 
 	return 0;
 }
+
 arch_initcall(cmdq_init);
 
 static s32 __init cmdq_late_init(void)
@@ -2522,7 +2517,7 @@ static s32 __init cmdq_late_init(void)
 		sizeof(struct iwcCmdqMessageEx2_t), GFP_KERNEL);
 	if (!handle->mtee_iwcMessageEx2)
 		return -ENOMEM;
-	CMDQ_LOG("iwc:%p(%#lx) ex:%p(%#lx) ex2:%p(%#lx)\n",
+	CMDQ_LOG("iwc:%p(%#x) ex:%p(%#x) ex2:%p(%#x)\n",
 		handle->mtee_iwcMessage, sizeof(struct iwcCmdqMessage_t),
 		handle->mtee_iwcMessageEx, sizeof(struct iwcCmdqMessageEx_t),
 		handle->mtee_iwcMessageEx2, sizeof(struct iwcCmdqMessageEx2_t));

@@ -43,7 +43,6 @@
 #endif
 #define LOG_ERR(format, args...) pr_err("flashLight-sgm3785" "[%s]" format, __func__, ##args)
 
-
 //+bug 682590, zhanghao2.wt, ADD, 2021/9/28, fix flashlight close screen and torch had closed.
 #ifdef CONFIG_PM_WAKELOCKS
 #include <linux/pm_wakeup.h>
@@ -60,11 +59,14 @@ struct wake_lock *torch_wake_lock;
 static volatile int g_torchWaitLock;
 //-bug 682590, zhanghao2.wt, ADD, 2021/9/28, fix flashlight close screen and torch had closed.
 
-
 /* define device tree */
 /* TODO: modify temp device tree name */
 #ifndef SGM3785_GPIO_DTNAME
+#ifdef CONFIG_MTK_96516_CAMERA
 #define SGM3785_GPIO_DTNAME "mediatek,flashlights_ocp8132a"
+#else
+#define SGM3785_GPIO_DTNAME "mediatek,flashlights_sgm3785"
+#endif
 #endif
 
 /* TODO: define driver name */
@@ -113,9 +115,7 @@ struct sgm3785_platform_data {
 	struct flashlight_device_id *dev_id;
 };
 
-
 //+bug 682590, zhanghao2.wt, ADD, 2021/9/28, fix flashlight close screen and torch had closed.
-
 void enable_torch_wakelock(void)
 {
 	if (g_torchWaitLock == 0) {
@@ -746,7 +746,6 @@ static int sgm3785_probe(struct platform_device *pdev)
 	wake_lock_init(torch_wake_lock, WAKE_LOCK_SUSPEND, "torch_lock_wakelock");
 #endif
 //-bug 682590, zhanghao2.wt, ADD, 2021/9/28, fix flashlight close screen and torch had closed.
-
 
 	LOG_INF("Probe done.\n");
 

@@ -2060,6 +2060,8 @@ static int fts_test_entry(char *ini_file_name)
     } else {
         FTS_TEST_SAVE_INFO("\n\n=======Tp test failure.\n");
         fts_ftest->result = false;
+        ret = -1;
+        goto test_err;
 #if defined(TEST_SAVE_FAIL_RESULT) && TEST_SAVE_FAIL_RESULT
         do_gettimeofday(&(fts_ftest->tv));
 #endif

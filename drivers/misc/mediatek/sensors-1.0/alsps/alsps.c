@@ -603,10 +603,12 @@ static ssize_t alscali_store(struct device *dev,
 	struct alsps_context *cxt = NULL;
 	int err = 0;
 	uint8_t *cali_buf = NULL;
+
 	cali_buf = vzalloc(count);
 	if (!cali_buf)
 		return -ENOMEM;
 	memcpy(cali_buf, buf, count);
+
 	mutex_lock(&alsps_context_obj->alsps_op_mutex);
 	cxt = alsps_context_obj;
 	if (cxt->als_ctl.set_cali != NULL)
@@ -617,7 +619,7 @@ static ssize_t alscali_store(struct device *dev,
 	vfree(cali_buf);
 	return count;
 }
-
+//+Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 static ssize_t als_store_lcdinfo(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -642,7 +644,7 @@ static ssize_t als_store_lcdinfo(struct device *dev,
 	else
 		return count;
 }
-
+//-Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 #if !defined(CONFIG_NANOHUB) || !defined(CONFIG_MTK_ALSPSHUB)
 static int ps_enable_and_batch(void)
 {
@@ -1000,7 +1002,7 @@ DEVICE_ATTR_RW(alsbatch);
 DEVICE_ATTR_RW(alsflush);
 DEVICE_ATTR_RO(alsdevnum);
 DEVICE_ATTR_WO(alscali);
-DEVICE_ATTR(alslcd, 0644, NULL, als_store_lcdinfo);
+DEVICE_ATTR(alslcd, 0644, NULL, als_store_lcdinfo);//Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 DEVICE_ATTR_RW(psactive);
 DEVICE_ATTR_RW(psbatch);
 DEVICE_ATTR_RW(psflush);
@@ -1013,7 +1015,7 @@ static struct attribute *als_attributes[] = {
 	&dev_attr_alsflush.attr,
 	&dev_attr_alsdevnum.attr,
 	&dev_attr_alscali.attr,
-	&dev_attr_alslcd.attr,
+	&dev_attr_alslcd.attr,//Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 	NULL
 };
 
@@ -1164,7 +1166,7 @@ int als_register_control_path(struct als_control_path *ctl)
 	cxt->als_ctl.batch = ctl->batch;
 	cxt->als_ctl.flush = ctl->flush;
 	cxt->als_ctl.set_cali = ctl->set_cali;
-	cxt->als_ctl.als_set_lcdinfo = ctl->als_set_lcdinfo;
+	cxt->als_ctl.als_set_lcdinfo = ctl->als_set_lcdinfo;//Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 	cxt->als_ctl.rgbw_enable = ctl->rgbw_enable;
 	cxt->als_ctl.rgbw_batch = ctl->rgbw_batch;
 	cxt->als_ctl.rgbw_flush = ctl->rgbw_flush;

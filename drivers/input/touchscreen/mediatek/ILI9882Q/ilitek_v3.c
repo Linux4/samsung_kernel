@@ -1077,6 +1077,7 @@ int ili_reset_ctrl(int mode)
 	return ret;
 }
 
+extern uint32_t lcm_name;
 static int ilitek_get_tp_module(void)
 {
 	/*
@@ -1084,9 +1085,10 @@ static int ilitek_get_tp_module(void)
 	 * if there are various tp modules been used in projects.
 	 */
 	 int ret = 0;
-	 if(g_lcm_name == 3)
+	 if(lcm_name == 12)
 	 	ret = MODEL_TXD;
-
+	 if(lcm_name == 13)
+		ret = MODEL_TRULY;
 	return ret;
 }
 
@@ -1159,6 +1161,15 @@ static void ili_update_tp_module_info(void)
 		ilits->md_ini_rq_path = TM_INI_REQUEST_PATH;
 		ilits->md_fw_ili = CTPM_FW_TM;
 		ilits->md_fw_ili_size = sizeof(CTPM_FW_TM);
+		break;
+	case MODEL_TRULY:
+		ilits->md_name = "TRULY";
+		ilits->md_fw_filp_path = TRULY_FW_FILP_PATH;
+		ilits->md_fw_rq_path = TRULY_FW_REQUEST_PATH;
+		ilits->md_ini_path = TRULY_INI_NAME_PATH;
+		ilits->md_ini_rq_path = TRULY_INI_REQUEST_PATH;
+		ilits->md_fw_ili = CTPM_FW_TRULY;
+		ilits->md_fw_ili_size = sizeof(CTPM_FW_TRULY);
 		break;
 	default:
 		break;

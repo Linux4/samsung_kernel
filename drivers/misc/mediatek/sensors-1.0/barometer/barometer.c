@@ -380,7 +380,7 @@ static ssize_t barodevnum_show(struct device *dev,
 {
 	return snprintf(buf, PAGE_SIZE, "%d\n", 0);
 }
-//+Bug682590,libo7.wt,MOD,20210814,S96516AA1 add baro sensor cali function
+//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 static ssize_t barocali_store(struct device *dev, struct device_attribute *attr,
         const char *buf, size_t count)
 {
@@ -408,7 +408,7 @@ static ssize_t barocali_store(struct device *dev, struct device_attribute *attr,
 	else
 	    return count;
 }
-//-Bug682590,libo7.wt,MOD,20210814,S96516AA1 add baro sensor cali function
+//-Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 static int barometer_remove(struct platform_device *pdev)
 {
 	pr_debug("%s\n", __func__);
@@ -551,14 +551,17 @@ DEVICE_ATTR_RW(baroactive);
 DEVICE_ATTR_RW(barobatch);
 DEVICE_ATTR_RW(baroflush);
 DEVICE_ATTR_RO(barodevnum);
+//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 DEVICE_ATTR_WO(barocali);
-
+//-Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 static struct attribute *baro_attributes[] = {
 	&dev_attr_baroactive.attr,
 	&dev_attr_barobatch.attr,
 	&dev_attr_baroflush.attr,
 	&dev_attr_barodevnum.attr,
+//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 	&dev_attr_barocali.attr,
+//-Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 	NULL
 };
 
@@ -640,7 +643,7 @@ int baro_data_report(int value, int status, int64_t nt)
 	err = sensor_input_event(baro_context_obj->mdev.minor, &event);
 	return err;
 }
-//+Bug682590,libo7.wt,MOD,20210814,S96516AA1 add baro sensor cali function
+//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 int baro_cali_report(int *value)
 {
 	struct sensor_event event;
@@ -656,7 +659,7 @@ int baro_cali_report(int *value)
 	err = sensor_input_event(baro_context_obj->mdev.minor, &event);
 	return err;
 }
-//-Bug682590,libo7.wt,MOD,20210814,S96516AA1 add baro sensor cali function
+//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 int baro_flush_report(void)
 {
 	struct sensor_event event;

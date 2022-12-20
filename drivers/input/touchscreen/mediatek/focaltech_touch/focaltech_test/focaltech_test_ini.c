@@ -161,7 +161,7 @@ struct ini_ic_type ic_types[] = {
 *****************************************************************************/
 
 /*****************************************************************************
-* Static function prototypes
+* static function prototypes
 *****************************************************************************/
 /* Works only for digits and letters, but small and fast */
 #define TOLOWER(x) ((x) | 0x20)

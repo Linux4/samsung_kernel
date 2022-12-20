@@ -11,8 +11,8 @@
 
 #include "lens_list.h"
 #include <linux/ioctl.h>
-
-#define MAX_NUM_OF_LENS 32
+//bug 621775 liuxiangyin.wt, add, 2021/2/23, n21 1st supply main af TXD_S5K2P6_GT9769AF porting
+#define MAX_NUM_OF_LENS 35
 
 #define AF_MAGIC 'A'
 
@@ -24,6 +24,10 @@
 
 /* AFDRV_XXXX be the same as AF_DRVNAME in (*af).c */
 #define AFDRV_AD5820AF "AD5820AF"
+//bug 621775 liuxiangyin.wt, add, 2021/2/23, n21 1st supply main af TXD_S5K2P6_GT9769AF porting
+#define AFDRV_TXD_S5K2P6_GT9769AF "TXD_S5K2P6_GT9769AF"
+//bug 621775,lintaicheng.wt, add, 20210208, add for n21 AF bring up
+#define AFDRV_HLT_OV16B10_ZC535BAF "HLT_OV16B10_ZC535BAF"
 #define AFDRV_AD5823 "AD5823"
 #define AFDRV_AD5823AF "AD5823AF"
 #define AFDRV_AK7345AF "AK7345AF"
@@ -45,7 +49,6 @@
 #define AFDRV_DW9814AF "DW9814AF"
 #define AFDRV_DW9839AF "DW9839AF"
 #define AFDRV_FP5510E2AF "FP5510E2AF"
-#define AFDRV_FP5519AF "FP5519AF"
 #define AFDRV_FP5529AF "FP5529AF"
 #define AFDRV_FM50AF "FM50AF"
 #define AFDRV_GAF001AF "GAF001AF"
@@ -71,6 +74,12 @@
 #define AFDRV_OV8825AF "OV8825AF"
 #define AFDRV_WV511AAF "WV511AAF"
 #define AFDRV_DW9718TAF "DW9718TAF"
+//+bug720367,qinduilin.wt,ADD,2022/2/9,n26_hi5021q_rear_truly af bringup
+#define AFDRV_TRULY_HI5021Q_GT9778AF "TRULY_HI5021Q_GT9778AF"
+#define AFDRV_ST_HI5021Q_AW8601WAF "ST_HI5021Q_AW8601WAF"
+#define AFDRV_TXD_S5KJN1_GT9778AF "TXD_S5KJN1_GT9778AF"
+#define AFDRV_DELTA_HI5021Q_GT9778AF "DELTA_HI5021Q_GT9778AF"
+//-bug720367,qinduilin.wt,ADD,2022/2/9,n26_hi5021q_rear_truly af bringup
 
 #define CONVERT_CCU_TIMESTAMP 0x1000
 

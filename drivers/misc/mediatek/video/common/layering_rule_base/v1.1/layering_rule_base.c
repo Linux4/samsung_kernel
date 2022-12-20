@@ -118,6 +118,14 @@ bool is_yuv(enum DISP_FORMAT format)
 	}
 }
 
+bool is_layer_id_valid(struct disp_layer_info *disp_info,
+	int disp_idx, int i)
+{
+	if (i < 0 || i >= disp_info->layer_num[disp_idx])
+		return false;
+	else
+		return true;
+}
 
 bool is_gles_layer(struct disp_layer_info *disp_info,
 		   int disp_idx, int layer_idx)
@@ -490,27 +498,49 @@ static void print_disp_info_to_log_buffer(struct disp_layer_info *disp_info)
 		return;
 
 	n = 0;
-	n += snprintf(status_buf + n, LOGGER_BUFFER_SIZE - n,
+	n += scnprintf(status_buf + n, LOGGER_BUFFER_SIZE - n,
 		"Last hrt query data[start]\n");
 	for (i = 0 ; i < 2 ; i++) {
-		n += snprintf(status_buf + n, LOGGER_BUFFER_SIZE - n,
-			"HRT D%d/M%d/LN%d/hrt_num:%d/G(%d,%d)/fps:%d\n",
+		n += scnprintf(status_buf + n, LOGGER_BUFFER_SIZE - n,
+			"HRT D%d/M%d/LN%d/hrt_num:%d/G(%d,%d)/fps:%d/config_id:%d\n",
 			i, disp_info->disp_mode[i], disp_info->layer_num[i],
 			disp_info->hrt_num,	disp_info->gles_head[i],
-			disp_info->gles_tail[i], l_rule_info->primary_fps);
+			disp_info->gles_tail[i], l_rule_info->primary_fps,
+			disp_info->active_config_id[0]);
+
 
 		for (j = 0 ; j < disp_info->layer_num[i] ; j++) {
 			layer_info = &disp_info->input_config[i][j];
-			n += snprintf(status_buf + n, LOGGER_BUFFER_SIZE - n,
+			n += scnprintf(status_buf + n, LOGGER_BUFFER_SIZE - n,
 				"L%d->%d/of(%d,%d)/wh(%d,%d)/fmt:0x%x\n",
 				j, layer_info->ovl_id, layer_info->dst_offset_x,
 				layer_info->dst_offset_y, layer_info->dst_width,
 				layer_info->dst_height,	layer_info->src_fmt);
 		}
 	}
-	n += snprintf(status_buf + n, LOGGER_BUFFER_SIZE - n,
+	n += scnprintf(status_buf + n, LOGGER_BUFFER_SIZE - n,
 		"Last hrt query data[end]\n");
 
+}
+
+void rollback_layer_to_GPU(struct disp_layer_info *disp_info, int disp_idx,
+	int i)
+{
+	if (disp_idx < 0) {
+		DISPMSG("%s: error disp_idx:%d\n",
+			__func__, disp_idx);
+		return;
+	}
+	if (is_layer_id_valid(disp_info, disp_idx, i) == false)
+		return;
+
+	if (disp_info->gles_head[disp_idx] == -1 ||
+	    disp_info->gles_head[disp_idx] > i)
+		disp_info->gles_head[disp_idx] = i;
+	if (disp_info->gles_tail[disp_idx] == -1 ||
+		disp_info->gles_tail[disp_idx] < i)
+		disp_info->gles_tail[disp_idx] = i;
+	disp_info->input_config[disp_idx][i].ext_sel_layer = -1;
 }
 
 int rollback_resize_layer_to_GPU_range(struct disp_layer_info *disp_info,
@@ -1624,7 +1654,7 @@ static int _copy_layer_info_from_disp(struct disp_layer_info *disp_info_user,
 	unsigned long layer_size = 0;
 	int ret = 0, layer_num = 0;
 
-	if (l_info->layer_num[disp_idx] <= 0)
+	if (disp_idx < 0 || l_info->layer_num[disp_idx] <= 0)
 		return -EFAULT;
 
 
@@ -1759,6 +1789,14 @@ int layering_rule_start(struct disp_layer_info *disp_info_user,
 		DISPWARN("Layering rule has not been initialize.\n");
 		return -EFAULT;
 	}
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
+	/*DynFPS, only primary display support*/
+	/*l_rule_info->active_config_id = disp_info_user->active_config_id[0];*/
+	if (g_force_cfg) {
+		disp_info_user->active_config_id[0] = g_force_cfg_id;
+	}
+	/*primary_display_update_cfg_id(disp_info_user->active_config_id[0]);*/
+#endif
 
 	if (check_disp_info(disp_info_user) < 0) {
 		DISPERR("check_disp_info fail\n");
@@ -1841,6 +1879,7 @@ int layering_rule_start(struct disp_layer_info *disp_info_user,
 	ret = dispatch_ovl_id(&layering_info);
 	if (l_rule_ops->clear_layer)
 		l_rule_ops->clear_layer(&layering_info);
+
 	check_layering_result(&layering_info);
 
 	HRT_SET_PATH_SCENARIO(layering_info.hrt_num, l_rule_info->disp_path);
@@ -1869,7 +1908,8 @@ static void debug_set_layer_data(struct disp_layer_info *disp_info,
 	static int layer_id = -1;
 	struct layer_config *layer_info = NULL;
 
-	if (data_type != HRT_LAYER_DATA_ID && layer_id == -1)
+	if ((data_type != HRT_LAYER_DATA_ID && layer_id == -1) ||
+		disp_id < 0)
 		return;
 
 	layer_info = &disp_info->input_config[disp_id][layer_id];
@@ -1935,6 +1975,7 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 	struct layer_config *input_config;
 
 	pos = 0;
+	disp_id = 0;
 	test_case = -1;
 	oldfs = get_fs();
 	set_fs(KERNEL_DS);
@@ -1973,6 +2014,8 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 			if (!tok)
 				goto end;
 			tok = parse_hrt_data_value(tok, &disp_id);
+			if (!tok)
+				goto end;
 
 			if (disp_id > HRT_SECONDARY || disp_id < 0)
 				goto end;
@@ -1988,7 +2031,7 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 			if (disp_info->input_config[disp_id] == NULL)
 				return 0;
 		} else if (strncmp(line_buf, "[set_layer]", 11) == 0) {
-			unsigned long tmp_info;
+			unsigned long tmp_info = 0;
 
 			tok = strchr(line_buf, ']');
 			if (!tok)
@@ -1998,11 +2041,15 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 				goto end;
 			for (i = 0 ; i < HRT_LAYER_DATA_NUM ; i++) {
 				tok = parse_hrt_data_value(tok, &tmp_info);
+				if (!tok)
+					goto end;
 				debug_set_layer_data(disp_info, disp_id,
 					i, tmp_info);
 			}
 		} else if (strncmp(line_buf, "[test_start]", 12) == 0) {
 			tok = parse_hrt_data_value(line_buf, &test_case);
+			if (!tok)
+				goto end;
 			layering_rule_start(disp_info, 1);
 			is_test_pass = true;
 		} else if (strncmp(line_buf, "[test_end]", 10) == 0) {
@@ -2039,6 +2086,8 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 			if (!tok)
 				goto end;
 			tok = parse_hrt_data_value(tok, &layer_result);
+			if (!tok)
+				goto end;
 			if (layer_result != input_config->ext_sel_layer) {
 				DISPWARN(
 					"case:%d,ext_sel_layer wrong,%d/%d\n",
@@ -2069,6 +2118,8 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 			if (!tok)
 				goto end;
 			tok = parse_hrt_data_value(tok, &gles_num);
+			if (!tok)
+				goto end;
 			if (gles_num != disp_info->gles_tail[disp_id]) {
 				DISPWARN(
 					"case:%d,gles tail err,%d/%d\n",
@@ -2106,6 +2157,8 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 			if (!tok)
 				goto end;
 			tok = parse_hrt_data_value(tok, &hrt_num);
+			if (!tok)
+				goto end;
 			if (hrt_num !=
 				HRT_GET_SCALE_SCENARIO(disp_info->hrt_num)) {
 				DISPWARN(
@@ -2125,17 +2178,23 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 			if (!tok)
 				goto end;
 			tok = parse_hrt_data_value(tok, &disp_id);
+			if (!tok)
+				goto end;
 			disp_info->layer_num[disp_id] = layer_num;
 		} else if (strncmp(line_buf,
 				"[force_dual_pipe_off]", 21) == 0) {
 			unsigned long force_off = 0;
 
 			tok = parse_hrt_data_value(line_buf, &force_off);
+			if (!tok)
+				goto end;
 			set_hrt_state(DISP_HRT_FORCE_DUAL_OFF, force_off);
 		} else if (strncmp(line_buf, "[resolution_level]", 18) == 0) {
 			unsigned long resolution_level = 0;
 
 			tok = parse_hrt_data_value(line_buf, &resolution_level);
+			if (!tok)
+				goto end;
 			debug_resolution_level = resolution_level;
 		} else if (strncmp(line_buf, "[set_gles]", 10) == 0) {
 			long gles_num = 0;
@@ -2152,6 +2211,8 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 			if (!tok)
 				goto end;
 			tok = parse_hrt_data_value(tok, &gles_num);
+			if (!tok)
+				goto end;
 			disp_info->gles_tail[disp_id] = gles_num;
 		} else if (strncmp(line_buf, "[disp_mode]", 11) == 0) {
 			unsigned long disp_mode = 0;
@@ -2160,6 +2221,8 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 			if (!tok)
 				goto end;
 			tok = parse_hrt_data_value(tok, &disp_id);
+			if (!tok)
+				goto end;
 			disp_info->disp_mode[disp_id] = disp_mode;
 		}
 

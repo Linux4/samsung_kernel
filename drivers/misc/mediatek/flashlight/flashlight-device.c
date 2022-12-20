@@ -90,8 +90,8 @@ const struct flashlight_device_id flashlight_id[] = {
 #else
 const struct flashlight_device_id flashlight_id[] = {
 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
-	{0, 0, 0, "flashlights-sgm3785", 0, 1},	//bug 682590, zhanghao2.wt, ADD, 2021/9/24, modify flahlight IC ocp8132 to sgm3785.
-	{0, 0, 0, "flashlights-none", -1, 0},
+	{0, 0, 0, "flashlights-sgm3785", 0, 1},
+	{0, 0, 0, "flashlights-mt6370", 0, 0},
 	{0, 1, 0, "flashlights-none", -1, 0},
 	{1, 0, 0, "flashlights-none", -1, 0},
 	{1, 1, 0, "flashlights-none", -1, 0},

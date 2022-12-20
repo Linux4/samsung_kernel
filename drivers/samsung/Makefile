@@ -22,8 +22,7 @@ obj-$(CONFIG_SEC_PARAM)			+= sec_fmm_lock.o
 
 # Samsung Debugging Feature
 obj-$(CONFIG_SEC_KEY_NOTIFIER)	+= sec_key_notifier.o
-obj-$(CONFIG_SEC_DEBUG)		+= sec_crash_key.o
-obj-$(CONFIG_SEC_DEBUG)		+= sec_crash_key_user.o 
+obj-$(CONFIG_SEC_DEBUG)		+= sec_crash_key.o sec_crash_key_user.o sec_hard_reset_hook.o
 
 # Samsung Throughput monitoring Feature
 obj-$(CONFIG_ARGOS)			+= sec_argos.o

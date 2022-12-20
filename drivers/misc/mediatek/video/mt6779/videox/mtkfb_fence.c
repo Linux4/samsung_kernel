@@ -104,7 +104,8 @@ static struct disp_session_sync_info
 	int fence_cnt;
 	struct disp_session_sync_info *s_info = NULL;
 	struct disp_sync_info *l_info = NULL;
-	char name[32];
+	const int name_len = 32;
+	char name[name_len];
 	const char *prefix = "timeline";
 	const int len = 160;
 	char msg[len];
@@ -134,9 +135,10 @@ static struct disp_session_sync_info
 	if (i == ARRAY_SIZE(session_ctx))
 		goto done;
 
-	n = snprintf(msg, len, "not found session info for session_id:0x%08x, ",
-		     session);
-	n += snprintf(msg + n, len - n, "insert %p to array index:%d\n",
+	n = scnprintf(msg, len,
+		      "not found session info for session_id:0x%08x, ",
+		      session);
+	n += scnprintf(msg + n, len - n, "insert %p to array index:%d\n",
 		      &(session_ctx[i]), i);
 	DISPMSG("%s", msg);
 
@@ -144,73 +146,78 @@ static struct disp_session_sync_info
 	session_ctx[i].session_id = session;
 	s_info = &(session_ctx[i]);
 
-	sprintf(name, "%s%d_prepare", disp_session_type_str(session),
-		DISP_SESSION_DEV(session));
+	scnprintf(name, name_len,
+		  "%s%d_prepare", disp_session_type_str(session),
+		  DISP_SESSION_DEV(session));
 	dprec_logger_event_init(&s_info->event_prepare, name,
 				DPREC_LOGGER_LEVEL_DEFAULT |
 				DPREC_LOGGER_LEVEL_SYSTRACE,
 				&ddp_mmp_get_events()->session_Parent);
 
-	sprintf(name, "%s%d_frame_cfg",
-		disp_session_type_str(session),
-		DISP_SESSION_DEV(session));
+	scnprintf(name, name_len, "%s%d_frame_cfg",
+		  disp_session_type_str(session),
+		  DISP_SESSION_DEV(session));
 	dprec_logger_event_init(&s_info->event_frame_cfg, name,
 				DPREC_LOGGER_LEVEL_DEFAULT,
 				&s_info->event_prepare.mmp);
 
-	sprintf(name, "%s%d_wait_fence",
-		disp_session_type_str(session),
-		DISP_SESSION_DEV(session));
+	scnprintf(name, name_len, "%s%d_wait_fence",
+		  disp_session_type_str(session),
+		  DISP_SESSION_DEV(session));
 	dprec_logger_event_init(&s_info->event_wait_fence, name,
 				DPREC_LOGGER_LEVEL_DEFAULT,
 				&s_info->event_prepare.mmp);
 
-	sprintf(name, "%s%d_setinput",
-		disp_session_type_str(session),
-		DISP_SESSION_DEV(session));
+	scnprintf(name, name_len, "%s%d_setinput",
+		  disp_session_type_str(session),
+		  DISP_SESSION_DEV(session));
 	dprec_logger_event_init(&s_info->event_setinput, name,
 				DPREC_LOGGER_LEVEL_DEFAULT |
 				DPREC_LOGGER_LEVEL_SYSTRACE,
 				&s_info->event_prepare.mmp);
 
-	sprintf(name, "%s%d_setoutput",
-		disp_session_type_str(session),
-		DISP_SESSION_DEV(session));
+	scnprintf(name, name_len, "%s%d_setoutput",
+		  disp_session_type_str(session),
+		  DISP_SESSION_DEV(session));
 	dprec_logger_event_init(&s_info->event_setoutput, name,
 				DPREC_LOGGER_LEVEL_DEFAULT |
 				DPREC_LOGGER_LEVEL_SYSTRACE,
 				&s_info->event_prepare.mmp);
 
-	sprintf(name, "%s%d_trigger", disp_session_type_str(session),
-		DISP_SESSION_DEV(session));
+	scnprintf(name, name_len, "%s%d_trigger",
+		  disp_session_type_str(session),
+		  DISP_SESSION_DEV(session));
 	dprec_logger_event_init(&s_info->event_trigger, name,
 				DPREC_LOGGER_LEVEL_DEFAULT |
 				DPREC_LOGGER_LEVEL_SYSTRACE,
 				&s_info->event_prepare.mmp);
 
-	sprintf(name, "%s%d_findidx", disp_session_type_str(session),
-		DISP_SESSION_DEV(session));
+	scnprintf(name, name_len, "%s%d_findidx",
+		  disp_session_type_str(session),
+		  DISP_SESSION_DEV(session));
 	dprec_logger_event_init(&s_info->event_findidx, name,
 				DPREC_LOGGER_LEVEL_DEFAULT,
 				&s_info->event_prepare.mmp);
 
-	sprintf(name, "%s%d_release", disp_session_type_str(session),
-		DISP_SESSION_DEV(session));
+	scnprintf(name, name_len, "%s%d_release",
+		  disp_session_type_str(session),
+		  DISP_SESSION_DEV(session));
 	dprec_logger_event_init(&s_info->event_release, name,
 				DPREC_LOGGER_LEVEL_DEFAULT |
 				DPREC_LOGGER_LEVEL_SYSTRACE,
 				&s_info->event_prepare.mmp);
 
-	sprintf(name, "%s%d_waitvsync",
-		disp_session_type_str(session),
-		DISP_SESSION_DEV(session));
+	scnprintf(name, name_len, "%s%d_waitvsync",
+		  disp_session_type_str(session),
+		  DISP_SESSION_DEV(session));
 	dprec_logger_event_init(&s_info->event_waitvsync, name,
 				DPREC_LOGGER_LEVEL_DEFAULT |
 				DPREC_LOGGER_LEVEL_SYSTRACE,
 				&s_info->event_prepare.mmp);
 
-	sprintf(name, "%s%d_err", disp_session_type_str(session),
-		DISP_SESSION_DEV(session));
+	scnprintf(name, name_len, "%s%d_err",
+		  disp_session_type_str(session),
+		  DISP_SESSION_DEV(session));
 	dprec_logger_event_init(&s_info->event_err, name,
 				DPREC_LOGGER_LEVEL_DEFAULT |
 				DPREC_LOGGER_LEVEL_SYSTRACE,
@@ -223,19 +230,19 @@ static struct disp_session_sync_info
 
 		switch (type) {
 		case DISP_SESSION_PRIMARY:
-			sprintf(name, "%s-primary-%d-%d", prefix,
-				DISP_SESSION_DEV(session), j);
+			scnprintf(name, name_len, "%s-primary-%d-%d", prefix,
+				  DISP_SESSION_DEV(session), j);
 			break;
 		case DISP_SESSION_EXTERNAL:
-			sprintf(name, "%s-external-%d-%d", prefix,
+			scnprintf(name, name_len, "%s-external-%d-%d", prefix,
 				DISP_SESSION_DEV(session), j);
 			break;
 		case DISP_SESSION_MEMORY:
-			sprintf(name, "%s-memory-%d-%d", prefix,
+			scnprintf(name, name_len, "%s-memory-%d-%d", prefix,
 				DISP_SESSION_DEV(session), j);
 			break;
 		default:
-			sprintf(name, "%s-unknown-%d-%d", prefix,
+			scnprintf(name, name_len, "%s-unknown-%d-%d", prefix,
 				DISP_SESSION_DEV(session), j);
 			break;
 		}
@@ -277,6 +284,12 @@ struct disp_sync_info *__get_layer_sync_info(unsigned int session,
 	struct disp_session_sync_info *s_info = NULL;
 
 	s_info = __get_session_sync_info(session);
+	if (!s_info) {
+		_DISP_PRINT_FENCE_OR_ERR(1,
+			"%s #%d layer_info is null\n",
+			__func__, __LINE__);
+		return NULL;
+	}
 
 	mutex_lock(&_disp_fence_mutex);
 
@@ -344,7 +357,6 @@ static struct ion_handle *mtkfb_ion_import_handle(struct ion_client *client,
 						  int fd)
 {
 	struct ion_handle *handle = NULL;
-	struct ion_mm_data mm_data;
 
 	/* If no need ION support, do nothing! */
 	if (fd == MTK_FB_NO_ION_FD) {
@@ -365,15 +377,6 @@ static struct ion_handle *mtkfb_ion_import_handle(struct ion_client *client,
 		pr_err("import ion handle failed!\n");
 		return NULL;
 	}
-	mm_data.mm_cmd = ION_MM_CONFIG_BUFFER;
-	mm_data.config_buffer_param.kernel_handle = handle;
-	mm_data.config_buffer_param.module_id = 0;
-	mm_data.config_buffer_param.security = 0;
-	mm_data.config_buffer_param.coherent = 0;
-
-	if (ion_kernel_ioctl(ion_client, ION_CMD_MULTIMEDIA,
-			     (unsigned long)&mm_data))
-		pr_err("configure ion buffer failed!\n");
 
 	MTKFB_FENCE_LOG("import ion handle fd=%d,hnd=0x%p\n", fd, handle);
 
@@ -400,7 +403,7 @@ static size_t mtkfb_ion_phys_mmu_addr(struct ion_client *client,
 				      unsigned int *mva)
 {
 	size_t size;
-	ion_phys_addr_t phy_addr = 0;
+	struct ion_mm_data mm_data;
 
 	if (!ion_client) {
 		pr_err("invalid ion client!\n");
@@ -409,8 +412,18 @@ static size_t mtkfb_ion_phys_mmu_addr(struct ion_client *client,
 	if (!handle)
 		return 0;
 
-	ion_phys(client, handle, &phy_addr, &size);
-	*mva = (unsigned int)phy_addr;
+
+	memset((void *)&mm_data, 0, sizeof(mm_data));
+	mm_data.mm_cmd = ION_MM_GET_IOVA;
+	mm_data.get_phys_param.kernel_handle = handle;
+	mm_data.get_phys_param.module_id = 0;
+
+	if (ion_kernel_ioctl(ion_client, ION_CMD_MULTIMEDIA,
+		(unsigned long)&mm_data))
+		pr_info("[DISP][ION] ERR: get iova failed!\n");
+	*mva = (unsigned int)mm_data.get_phys_param.phy_addr;
+	size = (size_t)mm_data.get_phys_param.len;
+
 	MTKFB_FENCE_LOG("alloc mmu addr hnd=0x%p,mva=0x%08x\n",
 			handle, (unsigned int)*mva);
 	return size;
@@ -574,14 +587,15 @@ unsigned int mtkfb_query_buf_mva(unsigned int session_id, unsigned int layer_id,
 		int n = 0;
 
 		/* FIXME: non-ion buffer need cache sync here? */
-		n = snprintf(msg, len,
-			     "cannot find session(0x%x) buf, layer=%d, ",
-			     session_id, layer_id);
-		n += snprintf(msg + n, len - n,
-			      "idx=%d, fence_idx=%d, ", idx, l_info->fence_idx);
-		n += snprintf(msg + n, len - n,
-			      "timeline_idx=%d, cur_idx=%d!\n",
-			      l_info->timeline_idx, l_info->cur_idx);
+		n = scnprintf(msg, len,
+			      "cannot find session(0x%x) buf, layer=%d, ",
+			      session_id, layer_id);
+		n += scnprintf(msg + n, len - n,
+			       "idx=%d, fence_idx=%d, ",
+			       idx, l_info->fence_idx);
+		n += scnprintf(msg + n, len - n,
+			       "timeline_idx=%d, cur_idx=%d!\n",
+			       l_info->timeline_idx, l_info->cur_idx);
 		DISP_PR_ERR("%s", msg);
 		return mva;
 	}
@@ -612,8 +626,17 @@ unsigned int mtkfb_query_buf_va(unsigned int session_id, unsigned int layer_id,
 	unsigned int va = 0x0;
 
 	ASSERT(layer_id < DISP_SESSION_TIMELINE_COUNT);
+	if (unlikely(layer_id >= DISP_SESSION_TIMELINE_COUNT))
+		return 0;
 
 	s_info = __get_session_sync_info(session_id);
+	if (!s_info) {
+		_DISP_PRINT_FENCE_OR_ERR(1,
+			"%s #%d layer_info is null\n",
+			__func__, __LINE__);
+		return 0;
+	}
+
 	l_info = &(s_info->session_layer_info[layer_id]);
 	if (layer_id != l_info->layer_id) {
 		pr_err("wrong layer id %d(rt), %d(in)!\n",
@@ -636,13 +659,13 @@ unsigned int mtkfb_query_buf_va(unsigned int session_id, unsigned int layer_id,
 		int n = 0;
 
 		/* FIXME: non-ion buffer need cache sync here? */
-		n = snprintf(msg, len,
-			     "cannot find this buf, layer=%d, idx=%d, ",
-			     layer_id, idx);
-		n += snprintf(msg + n, len - n,
-			      "fence_idx=%d, timeline_idx=%d, cur_idx=%d!\n",
-			      l_info->fence_idx, l_info->timeline_idx,
-			      l_info->cur_idx);
+		n = scnprintf(msg, len,
+			      "cannot find this buf, layer=%d, idx=%d, ",
+			      layer_id, idx);
+		n += scnprintf(msg + n, len - n,
+			       "fence_idx=%d, timeline_idx=%d, cur_idx=%d!\n",
+			       l_info->fence_idx, l_info->timeline_idx,
+			       l_info->cur_idx);
 		pr_err("%s", msg);
 	}
 
@@ -660,6 +683,13 @@ mtkfb_query_release_idx(unsigned int session_id, unsigned int layer_id,
 	unsigned int idx = 0x0;
 
 	s_info = __get_session_sync_info(session_id);
+	if (!s_info) {
+		_DISP_PRINT_FENCE_OR_ERR(1,
+			"%s #%d layer_info is null\n",
+			__func__, __LINE__);
+		return 0;
+	}
+
 	l_info = &(s_info->session_layer_info[layer_id]);
 
 	if (layer_id != l_info->layer_id) {
@@ -722,16 +752,23 @@ mtkfb_update_buf_ticket(unsigned int session_id, unsigned int layer_id,
 		char msg[len];
 		int n = 0;
 
-		n = snprintf(msg, len,
-			     "mtkfb_update_buf_state return MVA=0x0 ");
-		n += snprintf(msg + n, len - n,
-			     "mtkfb_query_buf_mva layer_id %d !(Warning)\n",
-			     layer_id);
+		n = scnprintf(msg, len,
+			      "mtkfb_update_buf_state return MVA=0x0 ");
+		n += scnprintf(msg + n, len - n,
+			      "mtkfb_query_buf_mva layer_id %d !(Warning)\n",
+			      layer_id);
 		DISP_PR_ERR("%s", msg);
 		return mva;
 	}
 
 	s_info = __get_session_sync_info(session_id);
+	if (!s_info) {
+		_DISP_PRINT_FENCE_OR_ERR(1,
+			"%s #%d layer_info is null\n",
+			__func__, __LINE__);
+		return 0;
+	}
+
 	l_info = &(s_info->session_layer_info[layer_id]);
 
 	if (layer_id != l_info->layer_id) {
@@ -761,6 +798,13 @@ unsigned int mtkfb_query_idx_by_ticket(unsigned int session_id,
 	int idx = -1;
 
 	s_info = __get_session_sync_info(session_id);
+	if (!s_info) {
+		_DISP_PRINT_FENCE_OR_ERR(1,
+			"%s #%d layer_info is null\n",
+			__func__, __LINE__);
+		return 0;
+	}
+
 	l_info = &(s_info->session_layer_info[layer_id]);
 
 	if (layer_id != l_info->layer_id) {
@@ -793,6 +837,13 @@ bool mtkfb_update_buf_info_new(unsigned int session_id, unsigned int mva_offset,
 	}
 
 	s_info = __get_session_sync_info(session_id);
+	if (!s_info) {
+		_DISP_PRINT_FENCE_OR_ERR(1,
+			"%s #%d layer_info is null\n",
+			__func__, __LINE__);
+		return 0;
+	}
+
 	l_info = &(s_info->session_layer_info[buf_info->layer_id]);
 	if (buf_info->layer_id != l_info->layer_id) {
 		DISP_PR_ERR("wrong layer id %d(rt), %d(in)!\n",
@@ -826,6 +877,13 @@ unsigned int mtkfb_query_buf_info(unsigned int session_id,
 	int query_info = 0;
 
 	s_info = __get_session_sync_info(session_id);
+	if (!s_info) {
+		_DISP_PRINT_FENCE_OR_ERR(1,
+			"%s #%d layer_info is null\n",
+			__func__, __LINE__);
+		return 0;
+	}
+
 	l_info = &(s_info->session_layer_info[layer_id]);
 	if (layer_id != l_info->layer_id) {
 		DISP_PR_ERR("wrong layer id %d(rt), %d(in)!\n",
@@ -1003,6 +1061,13 @@ void mtkfb_release_fence(unsigned int session, unsigned int layer_id,
 	struct disp_session_sync_info *s_info = NULL;
 
 	s_info = __get_session_sync_info(session);
+	if (!s_info) {
+		_DISP_PRINT_FENCE_OR_ERR(1,
+			"%s #%d layer_info is null\n",
+			__func__, __LINE__);
+		return;
+	}
+
 	l_info = __get_layer_sync_info(session, layer_id);
 	if (!l_info) {
 		DISP_PR_ERR("layer_info is null\n");
@@ -1142,22 +1207,23 @@ void mtkfb_release_present_fence(unsigned int session_id,
 	mutex_lock(&layer_info->sync_lock);
 	fence_increment = fence_idx - layer_info->timeline->value;
 
+	if (fence_increment <= 0)
+		goto done;
+
 	if (fence_increment >= 2)
 		DISPFENCE("Warning, R/%s%d/L%d/timeline idx:%d/fence:%d\n",
 			disp_session_type_str(session_id),
 			DISP_SESSION_DEV(session_id), timeline_id,
 			layer_info->timeline->value, fence_idx);
 
-	if (fence_increment > 0) {
-		timeline_inc(layer_info->timeline, fence_increment);
-		DISPFENCE("RL+/%s%d/L%d/id%d\n",
-			disp_session_type_str(session_id),
-		     DISP_SESSION_DEV(session_id), timeline_id, fence_idx);
-	}
+	timeline_inc(layer_info->timeline, fence_increment);
+	DISPFENCE("RL+/%s%d/L%d/id%d\n",
+		disp_session_type_str(session_id),
+		DISP_SESSION_DEV(session_id), timeline_id, fence_idx);
 
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_present_fence_release,
 			MMPROFILE_FLAG_PULSE, fence_idx, fence_increment);
-
+done:
 	mutex_unlock(&layer_info->sync_lock);
 }
 
@@ -1390,6 +1456,13 @@ struct mtkfb_fence_buf_info
 	session = disp_buf->session_id;
 	timeline_id = disp_buf->layer_id;
 	s_info = __get_session_sync_info(session);
+	if (!s_info) {
+		_DISP_PRINT_FENCE_OR_ERR(1,
+			"%s #%d layer_info is null\n",
+			__func__, __LINE__);
+		return NULL;
+	}
+
 	l_info = __get_layer_sync_info(session, timeline_id);
 	if (!l_info) {
 		DISP_PR_ERR("layer_info is null\n");
@@ -1410,8 +1483,8 @@ struct mtkfb_fence_buf_info
 	data.value = ++(l_info->fence_idx);
 	mutex_unlock(&(l_info->sync_lock));
 
-	snprintf(data.name, sizeof(data.name), "disp-S%x-L%d-%d",
-		 session, timeline_id, data.value);
+	scnprintf(data.name, sizeof(data.name), "disp-S%x-L%d-%d",
+		  session, timeline_id, data.value);
 	ret = fence_create(l_info->timeline, &data);
 	if (ret) {
 		/* Does this really happen? */
@@ -1460,6 +1533,13 @@ int disp_sync_find_fence_idx_by_addr(unsigned int session_id,
 	unsigned int fence_idx = -1;
 
 	s_info = __get_session_sync_info(session_id);
+	if (!s_info) {
+		_DISP_PRINT_FENCE_OR_ERR(1,
+			"%s #%d layer_info is null\n",
+			__func__, __LINE__);
+		return -1;
+	}
+
 	l_info = __get_layer_sync_info(session_id, timeline_id);
 	if (!l_info) {
 		DISP_PR_ERR("layer_info is null\n");
@@ -1501,12 +1581,12 @@ int disp_sync_find_fence_idx_by_addr(unsigned int session_id,
 				    buf->mva + buf->size > phy_addr) {
 					;
 				} else {
-					n = snprintf(msg, len,
-						     "wrong addr:pa0x%08lx,",
-						     phy_addr);
-					n += snprintf(msg + n, len - n,
-						      "mva0x%08lx,sz0x%08x\n",
-						      buf->mva, buf->size);
+					n = scnprintf(msg, len,
+						      "wrong addr:pa0x%08lx,",
+						      phy_addr);
+					n += scnprintf(msg + n, len - n,
+						       "mva0x%08lx,sz0x%08x\n",
+						       buf->mva, buf->size);
 					DISP_PR_ERR("%s", msg);
 				}
 
@@ -1692,4 +1772,33 @@ int disp_sync_get_debug_info(char *stringbuf, int buf_len)
 	}
 
 	return len;
+}
+
+struct ion_handle *disp_sync_get_ion_handle(unsigned int session_id,
+					    unsigned int timeline_id,
+					    unsigned int idx)
+{
+	struct mtkfb_fence_buf_info *buf = NULL;
+	struct disp_sync_info *layer_info = NULL;
+	struct ion_handle *handle = NULL;
+
+	layer_info = __get_layer_sync_info(session_id, timeline_id);
+
+	if (layer_info == NULL) {
+		DISP_PR_INFO("layer_info is null, layer_info=%p\n", layer_info);
+		return 0;
+	}
+
+	mutex_lock(&layer_info->sync_lock);
+	list_for_each_entry(buf, &layer_info->buf_list, list) {
+		if (buf->idx == idx) {
+			/* use local variable here to avoid polluted pointer */
+			handle = buf->hnd;
+			DISPMSG("%s, get handle:0x%lx\n", __func__, (unsigned long)handle);
+			break;
+		}
+	}
+	mutex_unlock(&layer_info->sync_lock);
+
+	return handle;
 }

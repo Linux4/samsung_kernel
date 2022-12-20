@@ -1445,3 +1445,4 @@ static void __exit mtkts_btscharger_exit(void)
 
 module_init(mtkts_btscharger_init);
 module_exit(mtkts_btscharger_exit);
+

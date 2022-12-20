@@ -59,9 +59,11 @@ obj-$(CONFIG_PCI_ENDPOINT_TEST)	+= pci_endpoint_test.o
 obj-$(CONFIG_OCXL)		+= ocxl/
 obj-$(CONFIG_MISC_RTSX)		+= cardreader/
 obj-$(CONFIG_UID_SYS_STATS)	+= uid_sys_stats.o
+obj-y                           += hardware_info.o
 obj-y				+= mediatek/
 obj-y                           += hardware_info.o
 obj-$(CONFIG_DEV_RIL_BRIDGE) += dev_ril_bridge.o
+
 # TEEGRIS kernel driver
 ccflags-$(CONFIG_TZDEV) += -I$(srctree)/drivers/misc/tzdev/include
 obj-$(CONFIG_TZDEV)		+= tzdev/

@@ -142,6 +142,15 @@ int flashlight_verify_ct_index(int ct_index);
 int flashlight_verify_part_index(int part_index);
 int flashlight_verify_index(int type_index, int ct_index, int part_index);
 
+//+bug 627637,lintaicheng.wt, add, 2020/02/27, add for n21 flashlight bring up
+extern int  ss_flashlight_node_create(void);
+extern int mt6370_set_level(int channel, int level);
+extern void set_mt6370_ch1_mode(int mode);
+extern void set_torch(void); //+Extb 200320-03984, sunhushan.wt, ADD, 2020.4.2, modify for flash torch light level is same in 1 and 2
+extern void set_mt6370_ch2_mode(int mode);
+extern int mt6370_enable(void);
+extern int mt6370_disable(int channel);
+//-bug 627637,lintaicheng.wt, add, 2020/02/27, add for n21 flashlight bring up
 
 #endif /* _FLASHLIGHT_CORE_H */
 

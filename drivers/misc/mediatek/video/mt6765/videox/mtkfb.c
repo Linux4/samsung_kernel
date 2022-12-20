@@ -1062,7 +1062,7 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd,
 
 		aod_pm = (enum mtkfb_aod_power_mode)arg;
 		DISPCHECK("AOD: ioctl: %s\n",
-			aod_pm ? "AOD_DOZE_SUSPEND" : "AOD_DOZE");
+			aod_pm != MTKFB_AOD_DOZE ? "AOD_DOZE_SUSPEND" : "AOD_DOZE");
 
 		if (!primary_is_aod_supported()) {
 			DISPCHECK("AOD: feature not support\n");
@@ -1098,7 +1098,8 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd,
 		}
 		if (ret < 0)
 			DISPERR("AOD: set %s failed\n",
-				aod_pm ? "AOD_SUSPEND" : "AOD_RESUME");
+				(aod_pm == MTKFB_AOD_DOZE_SUSPEND) ?
+					"AOD_SUSPEND" : "AOD_RESUME");
 
 		break;
 	}
@@ -1448,6 +1449,37 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd,
 
 		return 0;
 	}
+	//+Bug 717431, chensibo.wt, ADD, 20220118, add CABC function
+		case SYSFS_SET_LCM_CABC_MODE:
+	{
+		int lcm_cabc_enable = 0;
+
+		lcm_cabc_enable = *(int*)arg;
+		if(primary_display_set_cabc(lcm_cabc_enable))
+		{
+			MTKFB_LOG("[MTKFB]: set CABC fail! line:%d\n",
+				__LINE__);
+			r = -EFAULT;
+		}
+		return r;
+	}
+
+	case SYSFS_GET_LCM_CABC_MODE:
+	{
+		int lcm_cabc_status = 0;
+
+		if(primary_display_get_cabc(&lcm_cabc_status)){
+			MTKFB_LOG("[MTKFB]: get CABC fail! line:%d\n",
+				__LINE__);
+			r = -EFAULT;
+		}
+
+		memcpy((void*)arg, (void*)&lcm_cabc_status, sizeof(int));
+
+		return r;
+	}
+	//-Bug 717431, chensibo.wt, ADD, 20220118, add CABC function
+
 	default:
 		DISPWARN(
 			"mtkfb_ioctl Not support, info=0x%p, cmd=0x%08x, arg=0x%08lx\n",
@@ -2514,12 +2546,6 @@ static int mtkfb_probe(struct platform_device *pdev)
 		primary_display_diagnose();
 
 
-	/* this function will get fb_heap base address to ion
-	 * for management frame buffer
-	 */
-#ifdef MTK_FB_ION_SUPPORT
-	ion_drv_create_FB_heap(mtkfb_get_fb_base(), mtkfb_get_fb_size());
-#endif
 	fbdev->state = MTKFB_ACTIVE;
 
 	MSG_FUNC_LEAVE();

@@ -115,8 +115,9 @@
  ************************************************************************/
 /* SENSOR CHIP VERSION */
 /*IMX*/
-
+#define IMX766_SENSOR_ID                        0x0766
 #define IMX499_SENSOR_ID                        0x0499
+#define IMX481_SENSOR_ID                        0x0481
 #define IMX486_SENSOR_ID                        0x0486
 #define IMX586_SENSOR_ID                        0x0586
 #define IMX519_SENSOR_ID                        0x0519
@@ -131,6 +132,7 @@
 #define IMX338_SENSOR_ID                        0x0338
 #define IMX376_SENSOR_ID                        0x0376
 #define IMX318_SENSOR_ID                        0x0318
+#define IMX319_SENSOR_ID                        0x0319
 #define IMX377_SENSOR_ID                        0x0377
 #define IMX278_SENSOR_ID                        0x0278
 #define IMX258_SENSOR_ID                        0x0258
@@ -158,6 +160,7 @@
 #define OV12A10_SENSOR_ID                       0x1241
 #define OV13870_SENSOR_ID                       0x013870
 #define OV13850_SENSOR_ID                       0xD850
+#define OV13855_SENSOR_ID                       0xD855
 #define OV16885_SENSOR_ID                       0x16885
 #define OV13855MAIN2_SENSOR_ID                  0xD856
 #define OV12830_SENSOR_ID                       0xC830
@@ -198,10 +201,12 @@
 #define OV2650_SENSOR_ID_2                      0x2652
 #define OV2650_SENSOR_ID_3                      0x2655
 #define OV20880MIPI_SENSOR_ID                   0x20880
-#define OV13B10_SENSOR_ID                       0x560D42
+#define OV05A20_SENSOR_ID	                    0x5305
 /*S5K*/
+#define S5KJD1_SENSOR_ID                        0x3841
 #define S5K2LQSX_SENSOR_ID                      0x2c1a
 #define S5K4H7_SENSOR_ID                        0x487B
+#define S5K4H7YXSUB_SENSOR_ID                   0x487A
 #define S5K3P8SP_SENSOR_ID                      0x3108
 #define S5K2T7SP_SENSOR_ID                      0x2147
 #define S5K3P8SX_SENSOR_ID                      0x3108
@@ -209,6 +214,7 @@
 #define S5K3L6_SENSOR_ID                        0x30C6
 #define S5K3L8_SENSOR_ID                        0x30C8
 #define S5K3M3_SENSOR_ID                        0x30D3
+#define S5K3M5SX_SENSOR_ID                      0x30D5
 #define S5K2X8_SENSOR_ID                        0x2188
 #define S5K2P6_SENSOR_ID                        0x2106
 #define S5K2P7_SENSOR_ID                        0x2107
@@ -241,6 +247,7 @@
 #define S5K5E8YX_SENSOR_ID                      0x5e80
 #define S5K5E8YXREAR2_SENSOR_ID                 0x5e81
 #define S5K5E9_SENSOR_ID                        0x559b
+#define S5KHM2SP_SENSOR_ID                      0x1AD2
 #define S5KGM2_SENSOR_ID                        0x08D2
 /*HI*/
 #define HI841_SENSOR_ID                         0x0841
@@ -343,13 +350,35 @@
 #define SR846D_SENSOR_ID                        0x0846
 #define SHARP3D_SENSOR_ID                       0x003d
 #define T8EV5_SENSOR_ID                         0x1011
+
+#define S5KGD1SP_SENSOR_ID                      0x0841
+#define HI846_SENSOR_ID                         0x0846
+#define OV02A10_MONO_SENSOR_ID                  0x2509
+#define IMX686_SENSOR_ID                        0X0686
+#define IMX616_SENSOR_ID                        0x0616
+#define OV48C_SENSOR_ID                         0x564843
+#define IMX355_SENSOR_ID                        0x0355
+#define OV13B10_SENSOR_ID                       0x560d42
+#define OV02B10_SENSOR_ID                       0x002b
+
+
+#define OV48B_SENSOR_ID                         0x564842
+#define S5K3P9SP_SENSOR_ID                      0x3109
+#define GC8054_SENSOR_ID                        0x8054
+#define GC02M0_SENSOR_ID                        0x02d0
+#define GC02M0_SENSOR_ID1                       0x02d1
+#define GC02M0_SENSOR_ID2                       0x02d2
+#define GC02K0_SENSOR_ID                        0x2385
+#define OV16A10_SENSOR_ID                       0x561641
+#define GC02M1B_SENSOR_ID                       0x02e0
+
 /* CAMERA DRIVER NAME */
 #define CAMERA_HW_DEVNAME                       "kd_camera_hw"
 /* SENSOR DEVICE DRIVER NAME */
 /*IMX*/
-
 #define SENSOR_DRVNAME_IMX499_MIPI_RAW          "imx499_mipi_raw"
 #define SENSOR_DRVNAME_IMX499_MIPI_RAW_13M      "imx499_mipi_raw_13m"
+#define SENSOR_DRVNAME_IMX481_MIPI_RAW          "imx481_mipi_raw"
 #define SENSOR_DRVNAME_IMX486_MIPI_RAW          "imx486_mipi_raw"
 #define SENSOR_DRVNAME_IMX586_MIPI_RAW          "imx586_mipi_raw"
 #define SENSOR_DRVNAME_IMX519_MIPI_RAW          "imx519_mipi_raw"
@@ -365,6 +394,7 @@
 #define SENSOR_DRVNAME_IMX338_MIPI_RAW          "imx338_mipi_raw"
 #define SENSOR_DRVNAME_IMX376_MIPI_RAW          "imx376_mipi_raw"
 #define SENSOR_DRVNAME_IMX318_MIPI_RAW          "imx318_mipi_raw"
+#define SENSOR_DRVNAME_IMX319_MIPI_RAW          "imx319_mipi_raw"
 #define SENSOR_DRVNAME_IMX377_MIPI_RAW          "imx377_mipi_raw"
 #define SENSOR_DRVNAME_IMX278_MIPI_RAW          "imx278_mipi_raw"
 #define SENSOR_DRVNAME_IMX258_MIPI_RAW          "imx258_mipi_raw"
@@ -382,11 +412,13 @@
 #define SENSOR_DRVNAME_IMX105_MIPI_RAW          "imx105_mipi_raw"
 #define SENSOR_DRVNAME_IMX091_MIPI_RAW          "imx091_mipi_raw"
 #define SENSOR_DRVNAME_IMX073_MIPI_RAW          "imx073_mipi_raw"
+#define SENSOR_DRVNAME_IMX766_MIPI_RAW          "imx766_mipi_raw"
 /*OV*/
 #define SENSOR_DRVNAME_OV23850_MIPI_RAW         "ov23850_mipi_raw"
 #define SENSOR_DRVNAME_OV16880_MIPI_RAW         "ov16880_mipi_raw"
 #define SENSOR_DRVNAME_OV16885_MIPI_RAW         "ov16885_mipi_raw"
 #define SENSOR_DRVNAME_OV16825_MIPI_RAW         "ov16825_mipi_raw"
+#define SENSOR_DRVNAME_OV13855_MIPI_RAW         "ov13855_mipi_raw"
 #define SENSOR_DRVNAME_OV13870_MIPI_RAW         "ov13870_mipi_raw"
 #define SENSOR_DRVNAME_OV13855_MIPI_RAW         "ov13855_mipi_raw"
 #define SENSOR_DRVNAME_OV13855MAIN2_MIPI_RAW    "ov13855main2_mipi_raw"
@@ -434,9 +466,12 @@
 #define SENSOR_DRVNAME_OV2650_RAW               "ov265x_raw"
 #define SENSOR_DRVNAME_OV20880_MIPI_RAW         "ov20880_mipi_raw"
 #define SENSOR_DRVNAME_OV13B10_MIPI_RAW         "ov13b10_mipi_raw"
+#define SENSOR_DRVNAME_OV05A20_MIPI_RAW         "ov05a20_mipi_raw"
 /*S5K*/
+#define SENSOR_DRVNAME_S5KJD1_MIPI_RAW        "s5kjd1_mipi_raw"
 #define SENSOR_DRVNAME_S5K2LQSX_MIPI_RAW        "s5k2lqsx_mipi_raw"
 #define SENSOR_DRVNAME_S5K4H7_MIPI_RAW          "s5k4h7_mipi_raw"
+#define SENSOR_DRVNAME_S5K4H7YXSUB_MIPI_RAW     "s5k4h7yxsub_mipi_raw"
 #define SENSOR_DRVNAME_S5K3P8SP_MIPI_RAW        "s5k3p8sp_mipi_raw"
 #define SENSOR_DRVNAME_S5K2T7SP_MIPI_RAW        "s5k2t7sp_mipi_raw"
 #define SENSOR_DRVNAME_S5K2T7SP_MIPI_RAW_5M     "s5k2t7sp_mipi_raw_5m"
@@ -445,6 +480,7 @@
 #define SENSOR_DRVNAME_S5K3L6_MIPI_RAW          "s5k3l6_mipi_raw"
 #define SENSOR_DRVNAME_S5K3L8_MIPI_RAW          "s5k3l8_mipi_raw"
 #define SENSOR_DRVNAME_S5K3M3_MIPI_RAW          "s5k3m3_mipi_raw"
+#define SENSOR_DRVNAME_S5K3M5SX_MIPI_RAW        "s5k3m5sx_mipi_raw"
 #define SENSOR_DRVNAME_S5K2X8_MIPI_RAW          "s5k2x8_mipi_raw"
 #define SENSOR_DRVNAME_S5K2P6_MIPI_RAW          "s5k2p6_mipi_raw"
 #define SENSOR_DRVNAME_S5K2P7_MIPI_RAW          "s5k2p7_mipi_raw"
@@ -467,6 +503,7 @@
 #define SENSOR_DRVNAME_S5K5E8YX_MIPI_RAW        "s5k5e8yx_mipi_raw"
 #define SENSOR_DRVNAME_S5K5E8YXREAR2_MIPI_RAW   "s5k5e8yxrear2_mipi_raw"
 #define SENSOR_DRVNAME_S5K5E9_MIPI_RAW          "s5k5e9_mipi_raw"
+#define SENSOR_DRVNAME_S5KHM2SP_MIPI_RAW        "s5khm2sp_mipi_raw"
 #define SENSOR_DRVNAME_S5KGM2_MIPI_RAW          "s5kgm2_mipi_raw"
 /*HI*/
 #define SENSOR_DRVNAME_HI841_MIPI_RAW           "hi841_mipi_raw"
@@ -493,6 +530,8 @@
 #define SENSOR_DRVNAME_MT9V113_YUV              "mt9v113_yuv"
 #define SENSOR_DRVNAME_MT9T113_MIPI_YUV         "mt9t113_mipi_yuv"
 /*GC*/
+#define SENSOR_DRVNAME_GC02M0_MIPI_RAW          "gc02m0_mipi_raw"
+#define SENSOR_DRVNAME_GC5035MIPI_RAW          "gc5035_mipi_raw"
 #define SENSOR_DRVNAME_GC5035MIPI_RAW           "gc5035_mipi_raw"
 #define SENSOR_DRVNAME_GC5035_MIPI_RAW          "gc5035_mipi_raw"
 #define SENSOR_DRVNAME_GC2375_MIPI_RAW          "gc2375_mipi_raw"
@@ -547,7 +586,7 @@
 #define SENSOR_DRVNAME_IMX135_MIPI_RAW_8MP      "imx135_mipi_raw_8mp"
 #define SENSOR_DRVNAME_OV13870_MIPI_RAW_5MP     "ov13870_mipi_raw_5mp"
 #define SENSOR_DRVNAME_OV8856_MIPI_RAW_5MP      "ov8856_mipi_raw_5mp"
-
+#ifdef CONFIG_MTK_96516_CAMERA
 //+bug682590,zhanghengyuan.wt,ADD,2021/8/12,n23_hi1336_rear_txd sensor bringup
 #define N23_HI1336_REAR_TXD_SENSOR_ID              0x1336
 #define SENSOR_DRVNAME_N23_HI1336_REAR_TXD_MIPI_RAW          "n23_hi1336_rear_txd_mipi_raw"
@@ -558,11 +597,15 @@
 #define SENSOR_DRVNAME_N23_HI1336_REAR_ST_MIPI_RAW          "n23_hi1336_rear_st_mipi_raw"
 //-bug682590,zhoumin.wt, ADD, 2021/8/19, second supply back camera bringup
 
+//+bug682590,zhoumin.wt,ADD,2021/8/16,first supply front camera bringup
+#define N23_SC500CS_FRONT_TXD_SENSOR_ID		0Xee27
+#define SENSOR_DRVNAME_N23_SC500CS_FRONT_TXD_MIPI_RAW		"n23_sc500cs_front_txd_mipi_raw"
+//-bug682590,zhoumin.wt,ADD,2021/8/16,first supply front camera bringup
+
 //+bug682590,liudijin.wt,ADD,2021/8/12,n23_gc5035_front_ly sensor bringup
 #define N23_GC5035_FRONT_LY_SENSOR_ID 0x5035
 #define SENSOR_DRVNAME_N23_GC5035_FRONT_LY_MIPI_RAW "n23_gc5035_front_ly_mipi_raw"
 //-bug682590,liudijin.wt,ADD,2021/8/12,n23_gc5035_front_ly sensor bringup
-
 
 //+bug682590, huangzheng1.wt, ADD, 2021/8/13, n23_bf2253_dep_lh sensor bringup
 #define N23_BF2253_DEP_LH_SENSOR_ID              0x2254
@@ -588,10 +631,82 @@
 #define N23_SC201CS_MICRO_LHYX_SENSOR_ID	0Xeb2c
 #define SENSOR_DRVNAME_N23_SC201CS_MICRO_LHYX_MIPI_RAW		"n23_sc201cs_micro_lhyx_mipi_raw"
 //-bug682590,zhoumin.wt,ADD,2021/8/14,second supply micro camera bringup
-//+bug682590,zhoumin.wt,ADD,2021/8/16,first supply front camera bringup
-#define N23_SC500CS_FRONT_TXD_SENSOR_ID		0Xee27
-#define SENSOR_DRVNAME_N23_SC500CS_FRONT_TXD_MIPI_RAW		"n23_sc500cs_front_txd_mipi_raw"
-//-bug682590,zhoumin.wt,ADD,2021/8/16,first supply front camera bringup
+
+#else
+//+bug 717431,liuxiangyin, mod, 20220128, for N21 camera bringup
+#ifdef CONFIG_MTK_96717_CAMERA
+#define N21_TXD_MAIN_S5K2P6_SENSOR_ID          0x2106
+#define N21_HLT_MAIN_OV16B10_SENSOR_ID         0x16b00
+#define N21_TXD_SUB_S5K3L6_SENSOR_ID                 (0x30c6+1)
+#define N21_SHINE_SUB_HI1336_SENSOR_ID               (0x1336+4)
+#define N21_CXT_DEPTH_GC02M1B_SENSOR_ID              0x02E0
+#define N21_HLT_DEPTH_GC2375H_SENSOR_ID              (0x2375+2)
+#define N21_CXT_DEPTH_GC2375H_SENSOR_ID              (0x2375+4)
+#define N21_CXT_MICRO_GC2375H_SENSOR_ID        (0x2375+1)
+#define N21_HLT_MICRO_GC2375H_SENSOR_ID        (0x2375+3)
+//+bug 621775,huangzheng1, add, 20210205, add for n21 camera bring up
+#define N21_HLT_WIDE_GC8034W_SENSOR_ID          (0x8044+1)
+#define N21_SHINE_WIDE_GC8034W_SENSOR_ID        (0x8044+2)
+//-bug 621775,huangzheng1, add, 20210205, add for n21 camera bring up
+
+#define SENSOR_DRVNAME_N21_TXD_MAIN_S5K2P6_MIPI_RAW     "n21_txd_main_s5k2p6_mipi_raw"
+#define SENSOR_DRVNAME_N21_HLT_MAIN_OV16B10_MIPI_RAW    "n21_hlt_main_ov16b10_mipi_raw"
+#define SENSOR_DRVNAME_N21_TXD_SUB_S5K3L6_MIPI_RAW          "n21_txd_sub_s5k3l6_mipi_raw"
+#define SENSOR_DRVNAME_N21_CXT_DEPTH_GC2375H_MIPI_RAW 		"n21_cxt_depth_gc2375h_mipi_raw"
+#define SENSOR_DRVNAME_N21_SHINE_SUB_HI1336_MIPI_RAW         "n21_shine_sub_hi1336_mipi_raw"
+#define SENSOR_DRVNAME_N21_CXT_DEPTH_GC02M1B_MIPI_RAW   "n21_cxt_depth_gc02m1b_mipi_raw"
+#define SENSOR_DRVNAME_N21_HLT_DEPTH_GC2375H_MIPI_RAW "n21_hlt_depth_gc2375h_mipi_raw"
+#define SENSOR_DRVNAME_N21_HLT_MICRO_GC2375H_MIPI_RAW   "n21_hlt_micro_gc2375h_mipi_raw"
+#define SENSOR_DRVNAME_N21_CXT_MICRO_GC2375H_MIPI_RAW   "n21_cxt_micro_gc2375h_mipi_raw"
+//+bug 621775,huangzheng1, add, 20210205, add for n21 camera bring up
+#define SENSOR_DRVNAME_N21_HLT_WIDE_GC8034W_MIPI_RAW "n21_hlt_wide_gc8034w_mipi_raw"
+#define SENSOR_DRVNAME_N21_SHINE_WIDE_GC8034W_MIPI_RAW "n21_shine_wide_gc8034w_mipi_raw"
+//-bug 621775,huangzheng1, add, 20210205, add for n21 camera bring up
+#else
+
+//+bug720412,qinduilin.wt,ADD,2022/1/27,n26_hi5021q_rear_truly sensor bringup
+#define N26_HI5021Q_REAR_TRULY_SENSOR_ID              0x5021
+#define SENSOR_DRVNAME_N26_HI5021Q_REAR_TRULY_MIPI_RAW "n26_hi5021q_rear_truly_mipi_raw"
+#define N26_HI5021Q_REAR_ST_SENSOR_ID              0x5022
+#define SENSOR_DRVNAME_N26_HI5021Q_REAR_ST_MIPI_RAW "n26_hi5021q_rear_st_mipi_raw"
+#define N26_S5KJN1_REAR_TXD_SENSOR_ID              0x38E1
+#define SENSOR_DRVNAME_N26_S5KJN1_REAR_TXD_MIPI_RAW "n26_s5kjn1_rear_txd_mipi_raw"
+#define N26_HI5021Q_REAR_DELTA_SENSOR_ID              0x5023
+#define SENSOR_DRVNAME_N26_HI5021Q_REAR_DELTA_MIPI_RAW "n26_hi5021q_rear_delta_mipi_raw"
+//-bug720412,qinduilin.wt,ADD,2022/1/27,n26_hi5021q_rear_truly sensor bringup
+//+bug720367,liudijin.wt,ADD,2022/01/27,gc02m2 and sc201cs micro sensor bringup
+#define N26_GC02M2_MICRO_CXT_SENSOR_ID          0x2f0
+#define SENSOR_DRVNAME_N26_GC02M2_MICRO_CXT_MIPI_RAW "n26_gc02m2_micro_cxt_mipi_raw"
+#define N26_SC201CS_MICRO_LCE_SENSOR_ID          0Xeb2c
+#define SENSOR_DRVNAME_N26_SC201CS_MICRO_LCE_MIPI_RAW "n26_sc201cs_micro_lce_mipi_raw"
+#define N26_C2599_MICRO_DELTA_SENSOR_ID          0x020e
+#define SENSOR_DRVNAME_N26_C2599_MICRO_DELTA_MIPI_RAW "n26_c2599_micro_delta_mipi_raw"
+//-bug720367,liudijin.wt,ADD,2022/01/27,gc02m2 and sc201cs micro sensor bringup
+
+//+bug682590,zhanghengyuan.wt,ADD,2022/1/24,n26 front camera bringup
+#define N26_SC501CS_FRONT_LY_SENSOR_ID		0Xee45
+#define SENSOR_DRVNAME_N26_SC501CS_FRONT_LY_MIPI_RAW		"n26_sc501cs_front_ly_mipi_raw"
+#define N26_HI556_FRONT_XL_SENSOR_ID             0x0556
+#define SENSOR_DRVNAME_N26_HI556_FRONT_XL_MIPI_RAW           "n26_hi556_front_xl_mipi_raw"
+#define N26_S5K5E9_FRONT_TXD_SENSOR_ID             0x559b
+#define SENSOR_DRVNAME_N26_S5K5E9_FRONT_TXD_MIPI_RAW           "n26_s5k5e9_front_txd_mipi_raw"
+#define N26_HI556_FRONT_DELTA_SENSOR_ID             0x0556+1
+#define SENSOR_DRVNAME_N26_HI556_FRONT_DELTA_MIPI_RAW           "n26_hi556_front_delta_mipi_raw"
+//-bug682590,zhanghengyuan.wt,ADD,2021/1/24,n26 front camera bringup
+//+bug720412,lintaicheng.wt,ADD,2022/1/28,n26_c2515_dep_cxt sensor bringup
+#define N26_C2515_DEP_CXT_SENSOR_ID             0x0209
+#define SENSOR_DRVNAME_N26_C2515_DEP_CXT_MIPI_MONO           "n26_c2515_dep_cxt_mipi_mono"
+#define N26_SC201CS_DEP_LH_SENSOR_ID            0xeb2d
+#define SENSOR_DRVNAME_N26_SC201CS_DEP_LH_MIPI_MONO          "n26_sc201cs_dep_lh_mipi_mono"
+#define N26_GC02M1_DEP_CXT_SENSOR_ID            0x02e0
+#define SENSOR_DRVNAME_N26_GC02M1_DEP_CXT_MIPI_RAW          "n26_gc02m1_dep_cxt_mipi_raw"
+#define N26_C2519_DEP_DELTA_SENSOR_ID            0x020f
+#define SENSOR_DRVNAME_N26_C2519_DEP_DELTA_MIPI_MONO          "n26_c2519_dep_delta_mipi_mono"
+//-bug720412,lintaicheng.wt,ADD,2022/1/28,n26_c2515_dep_cxt sensor bringup
+
+#endif
+#endif
+//-bug 717431,liuxiangyin, mod, 20220128, for N21 camera bringup
 /******************************************************************************
  *
  ******************************************************************************/

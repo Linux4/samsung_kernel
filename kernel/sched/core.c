@@ -25,13 +25,19 @@
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
+#ifdef CONFIG_MTK_TASK_TURBO
+#include <mt-plat/turbo_common.h>
+#endif
 #ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
 #include <linux/sec_debug.h>
 #endif
+#ifdef CONFIG_MTK_QOS_FRAMEWORK
+#include <mt-plat/mtk_qos_prefetch_common.h>
+#endif /* CONFIG_MTK_QOS_FRAMEWORK */
 
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 
-#if defined(CONFIG_SCHED_DEBUG) && defined(CONFIG_JUMP_LABEL)
+#ifdef CONFIG_SCHED_DEBUG
 /*
  * Debugging: various feature bits
  *
@@ -1369,6 +1375,9 @@ static inline void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 
 	uclamp_rq_inc(rq, p);
 	p->sched_class->enqueue_task(rq, p, flags);
+
+	/* update last_enqueued_ts for big task rotation */
+	p->last_enqueued_ts = ktime_get_ns();
 }
 
 static inline void dequeue_task(struct rq *rq, struct task_struct *p, int flags)
@@ -3058,9 +3067,18 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	 * Make sure we do not leak PI boosting priority to the child.
 	 */
 	p->prio = current->normal_prio;
-
+#ifdef CONFIG_MTK_TASK_TURBO
+	if (unlikely(is_turbo_task(current))) {
+		if (task_has_dl_policy(p) || task_has_rt_policy(p))
+			p->static_prio = NICE_TO_PRIO(current->nice_backup);
+		else {
+			p->static_prio = NICE_TO_PRIO(current->nice_backup);
+			p->prio = p->normal_prio = p->static_prio;
+			set_load_weight(p, false);
+		}
+	}
+#endif
 	uclamp_fork(p);
-
 	/*
 	 * Revert to default priority/policy on fork if requested.
 	 */
@@ -3087,8 +3105,13 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 		return -EAGAIN;
 	else if (rt_prio(p->prio))
 		p->sched_class = &rt_sched_class;
-	else
+	else {
 		p->sched_class = &fair_sched_class;
+#ifdef CONFIG_MTK_TASK_TURBO
+		/* prio and backup should be aligned */
+		p->nice_backup = PRIO_TO_NICE(p->prio);
+#endif
+	}
 
 	init_entity_runnable_average(&p->se);
 
@@ -3102,6 +3125,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	 * Silence PROVE_RCU.
 	 */
 	raw_spin_lock_irqsave(&p->pi_lock, flags);
+	rseq_migrate(p);
 	/*
 	 * We're setting the CPU for the first time, we don't migrate,
 	 * so use __set_task_cpu().
@@ -3166,12 +3190,14 @@ void wake_up_new_task(struct task_struct *p)
 	 * as we're not fully set-up yet.
 	 */
 	p->recent_used_cpu = task_cpu(p);
+	rseq_migrate(p);
 	__set_task_cpu(p, select_task_rq(p, task_cpu(p), SD_BALANCE_FORK, 0, 1));
 #endif
 	rq = __task_rq_lock(p, &rf);
 	update_rq_clock(rq);
 	post_init_entity_util_avg(&p->se);
 
+	p->last_enqueued_ts = ktime_get_ns();
 	activate_task(rq, p, ENQUEUE_NOCLOCK);
 	p->on_rq = TASK_ON_RQ_QUEUED;
 	trace_sched_wakeup_new(p);
@@ -3817,6 +3843,9 @@ void scheduler_tick(void)
 	rq_unlock(rq, &rf);
 
 	perf_event_task_tick();
+#ifdef CONFIG_MTK_CORE_CTL
+	sched_max_util_task_tracking();
+#endif
 #ifdef CONFIG_MTK_PERF_COMMON
 	perf_common(ktime_get_ns());
 #endif
@@ -3829,6 +3858,9 @@ void scheduler_tick(void)
 	if (curr->sched_class == &fair_sched_class)
 		check_for_migration(curr);
 #endif
+#ifdef CONFIG_MTK_QOS_FRAMEWORK
+	qos_prefetch_tick(cpu);
+#endif /* CONFIG_MTK_QOS_FRAMEWORK */
 }
 
 #ifdef CONFIG_NO_HZ_FULL
@@ -4565,6 +4597,36 @@ void rt_mutex_setprio(struct task_struct *p, struct task_struct *pi_task)
 	struct rq_flags rf;
 	struct rq *rq;
 
+#ifdef CONFIG_MTK_TASK_TURBO
+	rq = __task_rq_lock(p, &rf);
+	update_rq_clock(rq);
+
+	/* if rt boost, recover prio with backup */
+	if (unlikely(is_turbo_task(p))) {
+		if (!dl_prio(p->prio) && !rt_prio(p->prio)) {
+			int backup = p->nice_backup;
+
+			if (backup >= MIN_NICE && backup <= MAX_NICE) {
+				queued = task_on_rq_queued(p);
+				running = task_current(rq, p);
+				if (queued)
+					dequeue_task(rq, p, DEQUEUE_SAVE | DEQUEUE_NOCLOCK);
+				if (running)
+					put_prev_task(rq, p);
+
+				p->static_prio = NICE_TO_PRIO(backup);
+				p->prio = p->normal_prio = __normal_prio(p);
+				set_load_weight(p, false);
+
+				if (queued)
+					enqueue_task(rq, p, ENQUEUE_RESTORE | ENQUEUE_NOCLOCK);
+				if (running)
+					set_curr_task(rq, p);
+			}
+		}
+	}
+	__task_rq_unlock(rq, &rf);
+#endif
 	/* XXX used to be waiter->prio, not waiter->task->prio */
 	prio = __rt_effective_prio(pi_task, p->normal_prio);
 
@@ -4637,7 +4699,8 @@ void rt_mutex_setprio(struct task_struct *p, struct task_struct *pi_task)
 	 */
 	if (dl_prio(prio)) {
 		if (!dl_prio(p->normal_prio) ||
-		    (pi_task && dl_entity_preempt(&pi_task->dl, &p->dl))) {
+		    (pi_task && dl_prio(pi_task->prio) &&
+		     dl_entity_preempt(&pi_task->dl, &p->dl))) {
 			p->dl.dl_boosted = 1;
 			queue_flag |= ENQUEUE_REPLENISH;
 		} else
@@ -4680,6 +4743,10 @@ static inline int rt_effective_prio(struct task_struct *p, int prio)
 }
 #endif
 
+#ifdef CONFIG_MTK_TASK_TURBO
+#define task_turbo_nice(nice) (nice == 0xbeef || nice == 0xbeee)
+#endif
+
 void set_user_nice(struct task_struct *p, long nice)
 {
 	bool queued, running;
@@ -4687,14 +4754,38 @@ void set_user_nice(struct task_struct *p, long nice)
 	struct rq_flags rf;
 	struct rq *rq;
 
+#ifdef CONFIG_MTK_TASK_TURBO
+	if ((nice < MIN_NICE || nice > MAX_NICE) && !task_turbo_nice(nice))
+		return;
+#else
 	if (task_nice(p) == nice || nice < MIN_NICE || nice > MAX_NICE)
 		return;
+#endif
 	/*
 	 * We have to be careful, if called from sys_setpriority(),
 	 * the task might be in the middle of scheduling on another CPU.
 	 */
 	rq = task_rq_lock(p, &rf);
 	update_rq_clock(rq);
+
+#ifdef CONFIG_MTK_TASK_TURBO
+	/* for general use, backup it */
+	if (!task_turbo_nice(nice))
+		p->nice_backup = nice;
+
+	if (is_turbo_task(p)) {
+		nice = rlimit_to_nice(task_rlimit(p, RLIMIT_NICE));
+		if (unlikely(nice > MAX_NICE)) {
+			printk_deferred("[name:task-turbo&]pid=%d RLIMIT_NICE=%ld is not set\n",
+				p->pid, nice);
+			nice = p->nice_backup;
+		}
+	}
+	else
+		nice = p->nice_backup;
+
+	trace_sched_set_user_nice(p, nice, is_turbo_task(p));
+#endif
 
 	/*
 	 * The RT priorities are set via sched_setscheduler(), but we still
@@ -4916,8 +5007,15 @@ static void __setscheduler(struct rq *rq, struct task_struct *p,
 		p->sched_class = &dl_sched_class;
 	else if (rt_prio(p->prio))
 		p->sched_class = &rt_sched_class;
+#ifdef CONFIG_MTK_TASK_TURBO
+	else {
+		p->sched_class = &fair_sched_class;
+		p->nice_backup = PRIO_TO_NICE(p->prio);
+	}
+#else
 	else
 		p->sched_class = &fair_sched_class;
+#endif
 }
 
 /*
@@ -5804,12 +5902,8 @@ static void do_sched_yield(void)
 	schedstat_inc(rq->yld_count);
 	current->sched_class->yield_task(rq);
 
-	/*
-	 * Since we are going to call schedule() anyway, there's
-	 * no need to preempt or enable interrupts:
-	 */
 	preempt_disable();
-	rq_unlock(rq, &rf);
+	rq_unlock_irq(rq, &rf);
 	sched_preempt_enable_no_resched();
 
 	schedule();
@@ -6395,13 +6489,14 @@ void idle_task_exit(void)
 	struct mm_struct *mm = current->active_mm;
 
 	BUG_ON(cpu_online(smp_processor_id()));
+	BUG_ON(current != this_rq()->idle);
 
 	if (mm != &init_mm) {
 		switch_mm(mm, &init_mm, current);
-		current->active_mm = &init_mm;
 		finish_arch_post_lock_switch();
 	}
-	mmdrop(mm);
+
+	/* finish_cpu(), as ran on the BP, will clean up the active_mm state */
 }
 
 /*

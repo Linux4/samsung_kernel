@@ -145,6 +145,10 @@ void __attribute__((weak)) scp_register_feature(enum feature_id id)
 {
 }
 
+void __attribute__((weak)) scp_A_unregister_notify(struct notifier_block *nb)
+{
+}
+
 /* arch counter is 13M, mult is 161319385, shift is 21 */
 static inline uint64_t arch_counter_to_ns(uint64_t cyc)
 {
@@ -524,9 +528,12 @@ static void SCP_sensorHub_sync_time_func(struct timer_list *t)
 
 static int SCP_sensorHub_direct_push_work(void *data)
 {
+	int ret = 0;
 	for (;;) {
-		wait_event(chre_kthread_wait,
+		ret = wait_event_interruptible(chre_kthread_wait,
 			READ_ONCE(chre_kthread_wait_condition));
+		if (ret)
+			continue;
 		WRITE_ONCE(chre_kthread_wait_condition, false);
 		mark_timestamp(0, WORK_START, ktime_get_boot_ns(), 0);
 		SCP_sensorHub_read_wp_queue();
@@ -1431,7 +1438,7 @@ int sensor_cfg_to_hub(uint8_t handle, uint8_t *data, uint8_t count)
 	}
 	return ret;
 }
-
+//+Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 int sensor_set_lcdname_to_hub(uint8_t handle, uint8_t *data, uint8_t count)
 {
 	struct ConfigCmd *cmd = NULL;
@@ -1458,7 +1465,7 @@ int sensor_set_lcdname_to_hub(uint8_t handle, uint8_t *data, uint8_t count)
 	}
 	return ret;
 }
-
+//-Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 int sensor_calibration_to_hub(uint8_t handle)
 {
 	uint8_t sensor_type = handle + ID_OFFSET;
@@ -1988,6 +1995,7 @@ int sensor_set_cmd_to_hub(uint8_t sensorType,
 			len = offsetof(struct SCP_SENSOR_HUB_SET_CUST_REQ,
 				custData) + sizeof(req.set_cust_req.getInfo);
 			break;
+//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 		case CUST_ACTION_SET_CALI:
 			req.set_cust_req.getInfo.action = CUST_ACTION_SET_CALI;
 			req.set_cust_req.setCali.int32_data[SCP_SENSOR_HUB_X]
@@ -1997,6 +2005,7 @@ int sensor_set_cmd_to_hub(uint8_t sensorType,
 			len = offsetof(struct SCP_SENSOR_HUB_SET_CUST_REQ,
 			    custData) + sizeof(req.set_cust_req.setCali);
 			break;
+//-Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 		default:
 			return -1;
 		}
@@ -2209,12 +2218,14 @@ static void restoring_enable_sensorHub_sensor(int handle)
 
 void sensorHub_power_up_loop(void *data)
 {
-	int handle = 0;
+	int ret = 0, handle = 0;
 	struct SCP_sensorHub_data *obj = obj_data;
 	unsigned long flags = 0;
 
-	wait_event(power_reset_wait,
+	ret = wait_event_interruptible(power_reset_wait,
 		READ_ONCE(scp_system_ready) && READ_ONCE(scp_chre_ready));
+	if (ret)
+		return;
 	spin_lock_irqsave(&scp_state_lock, flags);
 	WRITE_ONCE(scp_chre_ready, false);
 	WRITE_ONCE(scp_system_ready, false);

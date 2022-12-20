@@ -36,7 +36,13 @@ struct IMGSENSOR {
 	struct imgsensor_dfs_ctx dfs_ctx;
 #endif
 };
-
+//+bug 612420,zhanghao2.wt,add,2020/12/24,add n6 camera factory message
+struct match_hardwareinfo{
+    char *psensor_name;
+    char *hardwareinfo_set_name;
+    char *sensor_id;
+};
+//-bug 612420,zhanghao2.wt,add,2020/12/24,add n6 camera factory message
 MINT32
 imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor);
 
