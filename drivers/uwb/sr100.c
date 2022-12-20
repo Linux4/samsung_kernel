@@ -223,8 +223,8 @@ static void sr100_disable_irq(struct sr100_dev* sr100_dev) {
 
   spin_lock_irqsave(&sr100_dev->irq_enabled_lock, flags);
   if((sr100_dev->irq_enabled)){
-    disable_irq_nosync(sr100_dev->spi->irq);
     disable_irq_wake(sr100_dev->spi->irq);
+    disable_irq_nosync(sr100_dev->spi->irq);
     sr100_dev->irq_received = true;
     sr100_dev->irq_enabled = false;
   }
@@ -1228,7 +1228,7 @@ static int sr100_probe(struct spi_device* spi) {
        */
   //irq_flags = IRQF_TRIGGER_RISING;
   irq_flags = IRQ_TYPE_LEVEL_HIGH;
-  sr100_dev->irq_enabled = true;
+  sr100_dev->irq_enabled = false;
   sr100_dev->irq_received = false;
 
   ret = request_irq(sr100_dev->spi->irq, sr100_dev_irq_handler, irq_flags,
@@ -1236,8 +1236,10 @@ static int sr100_probe(struct spi_device* spi) {
   if (ret) {
     UWB_LOG_ERR("request_irq failed\n");
     goto err_exit3;
+  } else {
+    disable_irq_nosync(sr100_dev->spi->irq);
   }
-  sr100_disable_irq(sr100_dev);
+
   if((int)sr100_dev->rtc_sync_gpio > 0) {
     UWB_LOG_INFO("gpio_set_value rtc_sync 0\n");
     gpio_set_value(sr100_dev->rtc_sync_gpio, 0);
