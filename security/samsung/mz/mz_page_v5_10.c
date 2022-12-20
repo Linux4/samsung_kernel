@@ -19,7 +19,7 @@
 #include <linux/vmalloc.h>
 #include <linux/kernel.h>
 #include <linux/sched/mm.h>
-#include <linux/mz.h>
+#include "mz_internal.h"
 #include "mz_log.h"
 #include "mz_page.h"
 
@@ -194,6 +194,10 @@ MzResult mz_migrate_and_pin(struct page *target_page, unsigned long va, uint8_t 
 
 	if (mz_get_migratetype(new_page[0]) == MIGRATE_CMA) {
 		mig_temp = alloc_page(GFP_KERNEL);
+		if (!mig_temp) {
+			MZ_LOG(err_level_error, "%s alloc_page fail\n", __func__);
+			goto out_pfns;
+		}
 		move_page_data(target_page, mig_temp);
 
 		mz_ret = mz_migrate_pages(new_page[0]);
@@ -230,9 +234,9 @@ MzResult mz_migrate_and_pin(struct page *target_page, unsigned long va, uint8_t 
 	cur_page->mz_page = new_page;
 	INIT_LIST_HEAD(&(cur_page->list));
 
-	mutex_lock(&(mz_pt_list[tgid].page_list_lock));
+	mutex_lock(&page_list_lock);
 	list_add_tail(&(cur_page->list), &(mz_pt_list[tgid].mz_list_head_page));
-	mutex_unlock(&(mz_pt_list[tgid].page_list_lock));
+	mutex_unlock(&page_list_lock);
 
 	return mz_ret;
 

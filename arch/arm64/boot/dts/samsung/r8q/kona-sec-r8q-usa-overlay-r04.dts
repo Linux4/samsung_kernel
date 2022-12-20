@@ -11205,6 +11205,7 @@
 				battery,chg_temp_check_type = <0x1>;
 				battery,wpc_temp_check_type = <0x1>;
 				battery,dchg_temp_check_type = <0x1>;
+				battery,lrp_temp_check_type = <0x0>;
 				battery,thermal_source = <0x2>;
 				battery,usb_thermal_source = <0x2>;
 				battery,chg_thermal_source = <0x2>;
@@ -11269,10 +11270,10 @@
 				battery,chg_polarity_full_check = <0x1>;
 				battery,chg_high_temp = <0x1c2>;
 				battery,chg_high_temp_recovery = <0x1ae>;
-				battery,dchg_high_temp = <0x1f4>;
-				battery,dchg_high_temp_recovery = <0x1b8>;
-				battery,dchg_high_batt_temp = <0x190>;
-				battery,dchg_high_batt_temp_recovery = <0x17c>;
+				battery,dchg_high_temp = <0x3e8 0x3e8 0x1f4 0x1f4>;
+				battery,dchg_high_temp_recovery = <0x3e8 0x3e8 0x1b8 0x1b8>;
+				battery,dchg_high_batt_temp = <0x3e8 0x3e8 0x190 0x190>;
+				battery,dchg_high_batt_temp_recovery = <0x3e8 0x3e8 0x17c 0x17c>;
 				battery,chg_input_limit_current = <0x3e8>;
 				battery,chg_charging_limit_current = <0x76c>;
 				battery,dchg_input_limit_current = <0x3e8>;
