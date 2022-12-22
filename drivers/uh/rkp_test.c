@@ -433,9 +433,11 @@ static int test_case_kernel_range_rwx(void)
 	u64 xn = 0, x = 0;
 	int len = 0, i;
 #ifdef CONFIG_UNMAP_KERNEL_AT_EL0
-	u64 fixmap_va = __fix_to_virt(FIX_ENTRY_TRAMP_TEXT);
+	u64 fixmap_va1 = __fix_to_virt(FIX_ENTRY_TRAMP_TEXT1);
+	u64 fixmap_va2 = __fix_to_virt(FIX_ENTRY_TRAMP_TEXT2);
+	u64 fixmap_va3 = __fix_to_virt(FIX_ENTRY_TRAMP_TEXT3);
 #else
-	u64 fixmap_va = MEM_END;
+	u64 fixmap_va1 = MEM_END;
 #endif
 
 	struct mem_range_struct test_ranges[20];
@@ -455,10 +457,12 @@ static int test_case_kernel_range_rwx(void)
 		{DDK_START_VA+DDK_CODE_SIZE,	DDK_DATA_SIZE,				"     DDK_DATA   ", false, true},
 		{RTA_START_VA,			RTA_CODE_SIZE,				"     RTA CODE   ", true, false},
 		{RTA_START_VA+RTA_CODE_SIZE,	RTA_DATA_SIZE,				"     RTA DATA   ", false, true},
-		{((u64)FIMC_LIB_END_VA),	fixmap_va - ((u64)FIMC_LIB_END_VA),	"FIMC_END- FIXMAP", false, true},
+		{((u64)FIMC_LIB_END_VA),	fixmap_va1 - ((u64)FIMC_LIB_END_VA),	"FIMC_END- FIXMAP1", false, true},
 #ifdef CONFIG_UNMAP_KERNEL_AT_EL0
-		{((u64)fixmap_va),		((u64) PAGE_SIZE),			"     FIXMAP     ", true, false},
-		{((u64)fixmap_va+PAGE_SIZE),	((u64) MEM_END-(fixmap_va+PAGE_SIZE)),	"FIXMAP - MEM_END", false, true},
+		{((u64)fixmap_va1),		((u64) PAGE_SIZE),			"     FIXMAP1     ", true, false},
+		{((u64)fixmap_va2),		((u64) PAGE_SIZE),			"     FIXMAP2     ", true, false},
+		{((u64)fixmap_va3),		((u64) PAGE_SIZE),			"     FIXMAP3     ", true, false},
+		{((u64)fixmap_va3+PAGE_SIZE),	((u64) MEM_END-(fixmap_va3+PAGE_SIZE)),	"FIXMAP3 - MEM_END", false, true},
 #endif
 	};
 	struct mem_range_struct test_ranges_cdh_not_loaded[] = {
@@ -476,10 +480,12 @@ static int test_case_kernel_range_rwx(void)
 		{DDK_START_VA+DDK_CODE_SIZE,	DDK_DATA_SIZE,				"     DDK_DATA   ", false, true},
 		{RTA_START_VA,			RTA_CODE_SIZE,				"     RTA CODE   ", true, false},
 		{RTA_START_VA+RTA_CODE_SIZE,	RTA_DATA_SIZE,				"     RTA DATA   ", false, true},
-		{((u64)FIMC_LIB_END_VA),	fixmap_va - ((u64)FIMC_LIB_END_VA),	"FIMC_END- FIXMAP", false, true},
+		{((u64)FIMC_LIB_END_VA),	fixmap_va1 - ((u64)FIMC_LIB_END_VA),	"FIMC_END- FIXMAP1", false, true},
 #ifdef CONFIG_UNMAP_KERNEL_AT_EL0
-		{((u64)fixmap_va),		((u64) PAGE_SIZE),			"     FIXMAP     ", true, false},
-		{((u64)fixmap_va+PAGE_SIZE),	((u64) MEM_END-(fixmap_va+PAGE_SIZE)),	"FIXMAP - MEM_END", false, true},
+		{((u64)fixmap_va1),		((u64) PAGE_SIZE),			"     FIXMAP1     ", true, false},
+		{((u64)fixmap_va2),		((u64) PAGE_SIZE),			"     FIXMAP2     ", true, false},
+		{((u64)fixmap_va3),		((u64) PAGE_SIZE),			"     FIXMAP3     ", true, false},
+		{((u64)fixmap_va3+PAGE_SIZE),	((u64) MEM_END-(fixmap_va3+PAGE_SIZE)),	"FIXMAP3 - MEM_END", false, true},
 #endif
 	};
 

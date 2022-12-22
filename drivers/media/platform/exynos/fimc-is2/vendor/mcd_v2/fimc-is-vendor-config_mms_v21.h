@@ -60,4 +60,7 @@
 #define CSI_SCENARIO_SEN_FRONT	(1)
 #endif
 
+/* To handle CSI error issue, disable the dual sync setting */
+#define DISABLE_DUAL_SYNC
+
 #endif /* FIMC_IS_VENDOR_CONFIG_MMS_V30S_H */
