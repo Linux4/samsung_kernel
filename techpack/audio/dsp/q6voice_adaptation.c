@@ -1243,6 +1243,8 @@ static int sec_voice_send_aec_effect_cmd(struct voice_data *v, int enable)
 	case VPM_TX_QM_LVVEFQ_COPP_TOPOLOGY:
 	case VPM_TX_SM_LVSAFQ_COPP_TOPOLOGY:
 	case VPM_TX_DM_LVSAFQ_COPP_TOPOLOGY:
+	case VPM_TX_DM_LVVEFQ_AH_COPP_TOPOLOGY:
+	case VPM_TX_QM_LVVEFQ_AH_COPP_TOPOLOGY:
 		module_id = VOICE_MODULE_LVVEFQ_TX;
 		break;
 	case VOICE_TX_DIAMONDVOICE_FVSAM_SM:

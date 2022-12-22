@@ -16,15 +16,12 @@
 
 #define BRUSH_Z_DATA			63 /* for ArtCanvas */
 
-#undef SYNAPTICS_TS_SUPPORT_TA_MODE
 #undef USE_OPEN_DWORK
 
 #ifdef USE_OPEN_DWORK
 #define TOUCH_OPEN_DWORK_TIME		10
 #endif
-#define TOUCH_PRINT_INFO_DWORK_TIME	30000	/* 30s */
-
-#define TOUCH_PRINT_INFO_DWORK_TIME	30000	/* 30s */
+#define TOUCH_PRINT_INFO_DWORK_TIME	20000	/* 30s -> 20s for temp logic */
 #define TOUCH_RESET_DWORK_TIME		10
 #define TOUCH_POWER_ON_DWORK_TIME	70
 
@@ -270,6 +267,8 @@ enum dynamic_tcm_config_id {
 enum custom_dynamic_config_id {
 	DC_TSP_SNR_TEST_FRAMES = 0xe1,
 	DC_TSP_SET_TEMP = 0xe4,
+	DC_TSP_ENABLE_POCKET_MODE = 0xe5,
+	DC_TSP_ENABLE_LOW_SENSITIVITY_MODE = 0xe6,
 };
 
 
@@ -459,6 +458,7 @@ enum custom_command {
 	CMD_GET_FACE_AREA = 0xc3,
 	CMD_SET_GRIP = 0xe6,
 	CMD_ACCESS_CALIB_DATA_FROM_NVM = 0xe7,
+	CMD_SET_IMMEDIATE_DYNAMIC_CONFIG = 0xe8,
 };
 
 enum custom_report_type {

@@ -42,6 +42,7 @@
 					battery,usb_temp_check_type = <0x0>;
 					battery,chg_temp_check_type = <0x2>;
 					battery,wpc_temp_check_type = <0x0>;
+					battery,lrp_temp_check_type = <0x0>;
 					battery,thermal_source = <0x2>;
 					battery,usb_thermal_source = <0x4>;
 					battery,chg_thermal_source = <0x2>;
@@ -62,17 +63,17 @@
 					battery,wire_cool2_cool1_thresh = <0x96>;
 					battery,wire_cool3_cool2_thresh = <0x32>;
 					battery,wire_cold_cool3_thresh = <0x0>;
-					battery,wireless_warm_overheat_thresh = <0x1c2>;
+					battery,wireless_warm_overheat_thresh = <0x1f4>;
 					battery,wireless_normal_warm_thresh = <0x1a4>;
 					battery,wireless_cool1_normal_thresh = <0xb4>;
 					battery,wireless_cool2_cool1_thresh = <0x96>;
 					battery,wireless_cool3_cool2_thresh = <0x32>;
 					battery,wireless_cold_cool3_thresh = <0x0>;
-					battery,tx_high_threshold = <0x1c2>;
-					battery,tx_high_recovery = <0x190>;
+					battery,tx_high_threshold = <0x1f4>;
+					battery,tx_high_recovery = <0x1c2>;
 					battery,tx_low_threshold = <0x0>;
 					battery,tx_low_recovery = <0x32>;
-					battery,wire_warm_current = <0x6d6>;
+					battery,wire_warm_current = <0x6a4>;
 					battery,wire_cool1_current = <0xb54>;
 					battery,wire_cool2_current = <0x47e>;
 					battery,wire_cool3_current = <0x1c2>;
@@ -91,8 +92,8 @@
 					battery,chg_charging_limit_current = <0x76c>;
 					battery,dchg_high_temp = <0x28a>;
 					battery,dchg_high_temp_recovery = <0x276>;
-					battery,dchg_high_batt_temp = <0x190>;
-					battery,dchg_high_batt_temp_recovery = <0x17c>;
+					battery,dchg_high_batt_temp = <0x3e8 0x3e8 0x190 0x190>;
+					battery,dchg_high_batt_temp_recovery = <0x3e8 0x3e8 0x17c 0x17c>;
 					battery,dchg_input_limit_current = <0x3e8>;
 					battery,dchg_charging_limit_current = <0x7d0>;
 					battery,wpc_temp_control_source = <0x1>;
@@ -103,7 +104,7 @@
 					battery,wpc_temp_lcd_on_control_source = <0x1>;
 					battery,wpc_lcd_on_high_temp = <0x190>;
 					battery,wpc_lcd_on_high_temp_rec = <0x17c>;
-					battery,wpc_lcd_on_input_limit_current = <0x1c2>;
+					battery,wpc_lcd_on_input_limit_current = <0x258>;
 					battery,wpc_store_high_temp = <0x168>;
 					battery,wpc_store_high_temp_recovery = <0x154>;
 					battery,wpc_store_charging_limit_current = <0x190>;
@@ -173,8 +174,8 @@
 					battery,expired_time = <0x25bc>;
 					battery,recharging_expired_time = <0x1518>;
 					battery,battery_full_capacity = <0x1194>;
-					battery,ttf_capacity = <0x107c>;
-					battery,cv_data = <0x76f 0x2cf 0xac8 0x769 0x2d6 0xa8c 0x763 0x2df 0xa50 0x765 0x2e6 0xa14 0x75b 0x2ec 0x9d8 0x76b 0x2f5 0x99c 0x758 0x2fa 0x960 0x758 0x303 0x924 0x74f 0x309 0x8e8 0x752 0x313 0x8ac 0x754 0x318 0x870 0x750 0x31d 0x834 0x74f 0x325 0x7f8 0x73b 0x32d 0x7bc 0x744 0x334 0x780 0x727 0x33b 0x744 0x739 0x342 0x708 0x739 0x34a 0x6cc 0x738 0x34f 0x690 0x72f 0x358 0x654 0x6e4 0x360 0x618 0x696 0x367 0x5dc 0x72c 0x36e 0x5a0 0x729 0x374 0x564 0x6d6 0x37b 0x528 0x643 0x381 0x4ec 0x5d7 0x387 0x4b0 0x55b 0x38d 0x474 0x503 0x392 0x438 0x4aa 0x397 0x3fc 0x454 0x39c 0x3c0 0x40a 0x3a1 0x384 0x3d2 0x3a5 0x348 0x387 0x3a9 0x30c 0x346 0x3ac 0x2d0 0x314 0x3b0 0x294 0x2d5 0x3b3 0x258 0x2c4 0x3b6 0x21c 0x2cf 0x3ba 0x1e0 0x274 0x3bd 0x1a4 0x24b 0x3c3 0x168 0x23e 0x3ca 0x12c 0x20a 0x3d1 0xf0 0x1fe 0x3d7 0xb4 0x1e1 0x3de 0x78 0x1b1 0x3e4 0x3c 0x1af 0x3e8 0x0>;
+					battery,ttf_capacity = <0x1077>;
+					battery,cv_data = <0xd48 0x33e 0x623 0xce4 0x352 0x5b4 0xcc6 0x366 0x54e 0xaa5 0x37a 0x4df 0x8b5 0x38e 0x456 0x6e7 0x3a2 0x3a5 0x522 0x3b6 0x2c6 0x3d8 0x3ca 0x190 0x2a5 0x3de 0x3c 0x278 0x3e8 0x0>;
 					io-channels = <0x1 0x14b 0x1 0x14a>;
 					io-channel-names = "adc-temp", "adc-chg-temp", "n/a", "n/a", "n/a";
 					pinctrl-names = "default";
@@ -200,8 +201,8 @@
 					battery,siop_call_cc_current = <0x14a>;
 					battery,siop_apdo_input_limit_current = <0x4b0>;
 					battery,siop_apdo_charging_limit_current = <0x7d0>;
-					battery,ttf_hv_charge_current = <0xc80>;
-					battery,ttf_dc25_charge_current = <0x182e>;
+					battery,ttf_hv_charge_current = <0xacd>;
+					battery,ttf_dc25_charge_current = <0x10b8>;
 					battery,max_charging_charge_power = <0x61a8>;
 					battery,health_condition = <0x384 0x0 0x4b0 0x0 0x5dc 0x0>;
 					battery,dc_step_chg_type = <0xe9>;
@@ -6319,6 +6320,7 @@
 				sec,firmware_name = "tsp_synaptics/s3908_m52xq_sdc.bin", "tsp_synaptics/s3908_m52xq_boe.bin";
 				sec,tclm_level = <0xff>;
 				sec,afe_base = <0x0>;
+				not_support_temp_noti;
 				phandle = <0xf8>;
 			};
 		};
@@ -6658,6 +6660,24 @@
 					label = "modem";
 				};
 			};
+
+			samsung,security_mz1@146e9aa0 {
+				compatible = "samsung,security_mz1";
+				reg = <0x146aaaa0 0x4>;
+				phandle = <0xff>;
+			};
+
+			samsung,security_mz2@146e9aa4 {
+				compatible = "samsung,security_mz2";
+				reg = <0x146aaaa4 0x4>;
+				phandle = <0x100>;
+			};
+
+			samsung,security_mz3@146e9aa8 {
+				compatible = "samsung,security_mz3";
+				reg = <0x146aaaa8 0x4>;
+				phandle = <0x101>;
+			};
 		};
 	};
 
@@ -6685,14 +6705,14 @@
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xf0000000 0x0 0x900000>;
-				phandle = <0xff>;
+				phandle = <0x102>;
 			};
 
 			sec_debug_rdx_bootdev@0 {
 				alloc-ranges = <0x1 0x0 0x0 0xad00000>;
 				size = <0x0 0x0>;
 				non_gki_size = <0x0 0xad00000>;
-				phandle = <0x100>;
+				phandle = <0x103>;
 			};
 
 			ss_plog@1B0900000 {
@@ -6714,14 +6734,14 @@
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xa0001000 0x0 0x1000>;
-				phandle = <0x101>;
+				phandle = <0x104>;
 			};
 
 			tima_region@B0100000 {
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xb0100000 0x0 0x100000>;
-				phandle = <0x102>;
+				phandle = <0x105>;
 			};
 
 			modem_shared_mem_region@d0000000 {
@@ -6742,7 +6762,7 @@
 			dummy_mem {
 				reg = <0x0 0x9c700000 0x0 0x100000>;
 				no-map;
-				phandle = <0x103>;
+				phandle = <0x106>;
 			};
 		};
 	};
@@ -6993,7 +7013,7 @@
 				port_id = <0x1016>;
 				reset-gpio = <0xffffffff 0x3f 0x0>;
 				irq-gpio = <0xffffffff 0x37 0x0>;
-				phandle = <0x104>;
+				phandle = <0x107>;
 			};
 		};
 	};
@@ -7039,7 +7059,7 @@
 
 			det_zones {
 				#list-det-cells = <0x2>;
-				phandle = <0x105>;
+				phandle = <0x108>;
 			};
 		};
 	};
@@ -7174,7 +7194,7 @@
 				size-cells = <0x0>;
 				pinctrl-names = "default";
 				pinctrl-0 = <0x66>;
-				phandle = <0x106>;
+				phandle = <0x109>;
 
 				a96t3x6@20 {
 					compatible = "a96t3x6";
@@ -7246,7 +7266,7 @@
 			grip_sub_i2c {
 
 				grip_sub_i2c_active {
-					phandle = <0x107>;
+					phandle = <0x10a>;
 
 					mux {
 						pins = "gpio8", "gpio9";
@@ -7398,7 +7418,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x108>;
+				phandle = <0x10b>;
 			};
 		};
 	};
@@ -7452,7 +7472,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x109>;
+				phandle = <0x10c>;
 			};
 
 			qcom,cam-sensor4 {
@@ -7502,7 +7522,7 @@
 				cam,ois = <0x1>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x10a>;
+				phandle = <0x10d>;
 			};
 
 			qcom,cam-sensor1 {
@@ -7551,7 +7571,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x10b>;
+				phandle = <0x10e>;
 			};
 
 			qcom,cam-sensor13 {
@@ -7600,7 +7620,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0x10c>;
+				phandle = <0x10f>;
 			};
 
 			qcom,actuator@0xC {
@@ -8330,6 +8350,9 @@
 		qupv3_se5_2hsuart_tx_sleep = "/fragment@104/__overlay__/qupv3_se5_2hsuart_pins/qupv3_se5_2hsuart_tx_sleep";
 		qupv3_se5_2hsuart_rx_sleep = "/fragment@104/__overlay__/qupv3_se5_2hsuart_pins/qupv3_se5_2hsuart_rx_sleep";
 		usb_noti = "/fragment@107/__overlay__/usb-notifier";
+		security_mz1 = "/fragment@107/__overlay__/samsung,security_mz1@146e9aa0";
+		security_mz2 = "/fragment@107/__overlay__/samsung,security_mz2@146e9aa4";
+		security_mz3 = "/fragment@107/__overlay__/samsung,security_mz3@146e9aa8";
 		sec_debug_region = "/fragment@109/__overlay__/sec_debug_region@F0000000";
 		sec_debug_rdx_bootdev = "/fragment@109/__overlay__/sec_debug_rdx_bootdev@0";
 		kaslr_region = "/fragment@109/__overlay__/kaslr_region@A0001000";

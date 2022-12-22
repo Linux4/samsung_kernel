@@ -246,7 +246,9 @@ __visible_for_testing ssize_t sec_cmd_store(struct device *dev,
 err_out:
 	return count;
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(sec_cmd_store);
+#endif
 
 #else	/* defined USE_SEC_CMD_QUEUE */
 static void sec_cmd_store_function(struct sec_cmd_data *data)
@@ -483,7 +485,9 @@ __visible_for_testing ssize_t sec_cmd_store(struct device *dev, struct device_at
 	sec_cmd_execution(data, true);
 	return count;
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(sec_cmd_store);
+#endif
 #endif
 
 __visible_for_testing ssize_t sec_cmd_show_status(struct device *dev,
@@ -519,7 +523,9 @@ __visible_for_testing ssize_t sec_cmd_show_status(struct device *dev,
 
 	return snprintf(buf, sizeof(buff), "%s\n", buff);
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(sec_cmd_show_status);
+#endif
 
 static ssize_t sec_cmd_show_status_all(struct device *dev,
 				 struct device_attribute *devattr, char *buf)
@@ -582,7 +588,9 @@ __visible_for_testing ssize_t sec_cmd_show_result(struct device *dev,
 
 	return size;
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(sec_cmd_show_result);
+#endif
 
 static ssize_t sec_cmd_show_result_all(struct device *dev,
 				 struct device_attribute *devattr, char *buf)
@@ -987,23 +995,28 @@ int sec_cmd_virtual_tsp_write_sysfs(struct sec_cmd_data *sec, const char *path, 
 	int len;
 
 	len = strlen(cmd);
-	if (strcmp(path, PATH_MAIN_SEC_CMD) == 0) {
+	if (strncmp(path, PATH_MAIN_SEC_CMD, 23) == 0) {
 		if (main_sec)
 			ret = sec_cmd_store(main_sec->fac_dev, NULL, cmd, len);
-	} else if (strcmp(path, PATH_SUB_SEC_CMD) == 0) {
+	} else if (strncmp(path, PATH_SUB_SEC_CMD, 23) == 0) {
 		if (sub_sec)
 			ret = sec_cmd_store(sub_sec->fac_dev, NULL, cmd, len);
-	} else if (strcmp(path, PATH_MAIN_SEC_SYSFS_DUALSCREEN_POLICY) == 0) {
+	} else if (strncmp(path, PATH_MAIN_SEC_SYSFS_DUALSCREEN_POLICY, 38) == 0) {
 		if (main_sec) {
 			if (main_sec->sysfs_functions->dualscreen_policy_store != NULL)
 				ret = main_sec->sysfs_functions->dualscreen_policy_store(main_sec->fac_dev, NULL, cmd, len);
 		}
-	} else if (strcmp(path, PATH_MAIN_SEC_SYSFS_PROX_POWER_OFF) == 0) {
+	} else if (strncmp(path, PATH_SUB_SEC_SYSFS_DUALSCREEN_POLICY, 38) == 0) {
+		if (sub_sec) {
+			if (sub_sec->sysfs_functions->dualscreen_policy_store != NULL)
+				ret = sub_sec->sysfs_functions->dualscreen_policy_store(sub_sec->fac_dev, NULL, cmd, len);
+		}
+	} else if (strncmp(path, PATH_MAIN_SEC_SYSFS_PROX_POWER_OFF, 34) == 0) {
 		if (main_sec) {
 			if (main_sec->sysfs_functions->sec_tsp_prox_power_off_store != NULL)
 				ret = main_sec->sysfs_functions->sec_tsp_prox_power_off_store(main_sec->fac_dev, NULL, cmd, len);
 		}
-	} else if (strcmp(path, PATH_SUB_SEC_SYSFS_PROX_POWER_OFF) == 0) {
+	} else if (strncmp(path, PATH_SUB_SEC_SYSFS_PROX_POWER_OFF, 34) == 0) {
 		if (sub_sec) {
 			if (sub_sec->sysfs_functions->sec_tsp_prox_power_off_store != NULL)
 				ret = sub_sec->sysfs_functions->sec_tsp_prox_power_off_store(sub_sec->fac_dev, NULL, cmd, len);
@@ -1024,6 +1037,9 @@ int sec_cmd_virtual_tsp_write_sysfs(struct sec_cmd_data *sec, const char *path, 
 	mm_segment_t old_fs;
 	struct file *sysfs;
 	int len;
+
+	if (strncmp(path, PATH_SUB_SEC_SYSFS_DUALSCREEN_POLICY, 38) == 0)
+		return ret;
 
 	len = strlen(cmd);
 	old_fs = get_fs();
@@ -1126,6 +1142,9 @@ main:
 	}
 	if (exit) {
 		input_dbg(true, sec->fac_dev, "%s: set_cmd_exit\n", sec->cmd);
+		sec_cmd_set_cmd_exit(sec);
+	} else if ((main && !main_sec) || (sub && !sub_sec)) {
+		input_err(true, sec->fac_dev, "%s: some device is not registered in virtual tsp.\n", sec->cmd);
 		sec_cmd_set_cmd_exit(sec);
 	}
 

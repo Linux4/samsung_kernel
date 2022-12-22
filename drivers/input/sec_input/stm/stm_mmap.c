@@ -1,8 +1,6 @@
-/* drivers/input/sec_input/stm/stm_mmap.c
- *
- * Copyright (C) 2011 Samsung Electronics Co., Ltd.
- *
- * Core file for Samsung TSC driver
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2022 Samsung Electronics Co., Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -10,8 +8,9 @@
  */
 
 #include "stm_dev.h"
-#include "stm_reg.h"
 
+#ifdef RAWDATA_MMAP
+#include "stm_reg.h"
 #include <linux/miscdevice.h>
 
 struct tsp_ioctl {
@@ -20,8 +19,6 @@ struct tsp_ioctl {
 };
 
 #define IOCTL_TSP_MAP_READ	_IOR(0, 0, struct tsp_ioctl)
-
-struct stm_ts_data *g_ts;
 
 static long tsp_ioctl_handler(struct file *file, unsigned int cmd, void __user *p, int compat_mode)
 {
@@ -34,8 +31,9 @@ static long tsp_ioctl_handler(struct file *file, unsigned int cmd, void __user *
 	}
 
 	if (cmd == IOCTL_TSP_MAP_READ) {
+#if 0
 		input_info(true, &g_ts->client->dev, "%s: num: %d\n", __func__, t.num);
-
+#endif
 		num = t.num % 5;
 		if (num == 0) {
 			memcpy(&t.data, g_ts->raw_v0, g_ts->raw_len);
@@ -97,7 +95,7 @@ static const struct file_operations tsp_io_fos = {
 	.release = tsp_close,
 };
 
-static struct miscdevice tsp_misc = {
+static const struct miscdevice tsp_misc = {
 	.fops = &tsp_io_fos,
 	.minor = MISC_DYNAMIC_MINOR,
 	.name = "tspio",
@@ -122,20 +120,20 @@ void tsp_ioctl_init(void)
 #define DEV_NAME4 "tsp_data4"
 #define DATA_SIZE (2 * PAGE_SIZE)
 
-static const unsigned int MINOR_BASE = 0;
+static const unsigned int MINOR_BASE;
 static const unsigned int MINOR_NUM0 = 1;
 static const unsigned int MINOR_NUM1 = 2;
 static const unsigned int MINOR_NUM2 = 3;
 static const unsigned int MINOR_NUM3 = 4;
 static const unsigned int MINOR_NUM4 = 5;
 
-static struct cdev *mmapdev_cdev0 = NULL;
-static struct cdev *mmapdev_cdev1 = NULL;
-static struct cdev *mmapdev_cdev2 = NULL;
-static struct cdev *mmapdev_cdev3 = NULL;
-static struct cdev *mmapdev_cdev4 = NULL;
+static struct cdev *mmapdev_cdev0;
+static struct cdev *mmapdev_cdev1;
+static struct cdev *mmapdev_cdev2;
+static struct cdev *mmapdev_cdev3;
+static struct cdev *mmapdev_cdev4;
 
-static struct class *mmapdev_class = NULL;
+static struct class *mmapdev_class;
 
 static dev_t dev0;
 static dev_t dev1;
@@ -165,7 +163,7 @@ static vm_fault_t mmap0_vm_fault(struct vm_fault *vmf)
 	return 0;
 }
 
-static struct vm_operations_struct vma0_ops = {
+static const struct vm_operations_struct vma0_ops = {
 	.fault = mmap0_vm_fault
 };
 
@@ -191,7 +189,7 @@ static int mmap0_remap(struct file *filp, struct vm_area_struct *vma)
 	return 0;
 }
 
-struct file_operations mmap0_fops = {
+static const struct file_operations mmap0_fops = {
 	.open = mmap0_open,
 	.release = mmap0_release,
 	.mmap = mmap0_remap,
@@ -219,7 +217,7 @@ static vm_fault_t mmap1_vm_fault(struct vm_fault *vmf)
 	return 0;
 }
 
-static struct vm_operations_struct vma1_ops = {
+static const struct vm_operations_struct vma1_ops = {
 	.fault = mmap1_vm_fault
 };
 
@@ -245,7 +243,7 @@ static int mmap1_remap(struct file *filp, struct vm_area_struct *vma)
 	return 0;
 }
 
-struct file_operations mmap1_fops = {
+static const struct file_operations mmap1_fops = {
 	.open = mmap1_open,
 	.release = mmap1_release,
 	.mmap = mmap1_remap,
@@ -273,7 +271,7 @@ static vm_fault_t mmap2_vm_fault(struct vm_fault *vmf)
 	return 0;
 }
 
-static struct vm_operations_struct vma2_ops = {
+static const struct vm_operations_struct vma2_ops = {
 	.fault = mmap2_vm_fault
 };
 
@@ -299,7 +297,7 @@ static int mmap2_remap(struct file *filp, struct vm_area_struct *vma)
 	return 0;
 }
 
-struct file_operations mmap2_fops = {
+static const struct file_operations mmap2_fops = {
 	.open = mmap2_open,
 	.release = mmap2_release,
 	.mmap = mmap2_remap,
@@ -327,7 +325,7 @@ static vm_fault_t mmap3_vm_fault(struct vm_fault *vmf)
 	return 0;
 }
 
-static struct vm_operations_struct vma3_ops = {
+static const struct vm_operations_struct vma3_ops = {
 	.fault = mmap3_vm_fault
 };
 
@@ -353,7 +351,7 @@ static int mmap3_remap(struct file *filp, struct vm_area_struct *vma)
 	return 0;
 }
 
-struct file_operations mmap3_fops = {
+static const struct file_operations mmap3_fops = {
 	.open = mmap3_open,
 	.release = mmap3_release,
 	.mmap = mmap3_remap,
@@ -381,7 +379,7 @@ static vm_fault_t mmap4_vm_fault(struct vm_fault *vmf)
 	return 0;
 }
 
-static struct vm_operations_struct vma4_ops = {
+static const struct vm_operations_struct vma4_ops = {
 	.fault = mmap4_vm_fault
 };
 
@@ -407,7 +405,7 @@ static int mmap4_remap(struct file *filp, struct vm_area_struct *vma)
 	return 0;
 }
 
-struct file_operations mmap4_fops = {
+static const struct file_operations mmap4_fops = {
 	.open = mmap4_open,
 	.release = mmap4_release,
 	.mmap = mmap4_remap,
@@ -427,7 +425,7 @@ static ssize_t raw_irq_show(struct device *dev,
 	return ret;
 }
 
-static DEVICE_ATTR(raw_irq, 0444, raw_irq_show, NULL);
+static DEVICE_ATTR_RO(raw_irq);
 
 static struct attribute *rawdata_attrs[] = {
 	&dev_attr_raw_irq.attr,
@@ -438,7 +436,7 @@ static struct attribute_group rawdata_attr_group = {
 	.attrs = rawdata_attrs,
 };
 
-int stm_ts_rawdata_map_alloc(struct stm_ts_data *ts)
+int stm_ts_rawdata_buffer_alloc(struct stm_ts_data *ts)
 {
 	ts->raw_v0 = vmalloc(ts->raw_len);
 	if (!ts->raw_v0)
@@ -489,7 +487,7 @@ alloc_out:
 	return 0;
 }
 
-int stm_ts_rawdata_map_init(struct stm_ts_data *ts)
+int stm_ts_rawdata_init(struct stm_ts_data *ts)
 {
 	int alloc_ret = 0, cdev_err = 0;
 	unsigned int mmapdev_major0;
@@ -500,7 +498,6 @@ int stm_ts_rawdata_map_init(struct stm_ts_data *ts)
 
 	input_info(true, &ts->client->dev, "%s: num: %d\n", __func__, ts->plat_data->support_rawdata_map_num);
 
-	g_ts = ts;
 	ts->raw_len = PAGE_SIZE;
 
 	/* map0 */
@@ -639,7 +636,7 @@ OUT2:
 	return -1;
 }
 
-void stm_ts_rawdata_map_remove(struct stm_ts_data *ts)
+void stm_ts_rawdata_buffer_remove(struct stm_ts_data *ts)
 {
 	input_info(true, &ts->client->dev, "%s\n", __func__);
 	kfree(ts->raw);
@@ -647,7 +644,7 @@ void stm_ts_rawdata_map_remove(struct stm_ts_data *ts)
 
 	ts->raw = NULL;
 	ts->raw_u8 = NULL;
-	
+
 	cdev_del(mmapdev_cdev4);
 	cdev_del(mmapdev_cdev3);
 	cdev_del(mmapdev_cdev2);
@@ -660,4 +657,4 @@ void stm_ts_rawdata_map_remove(struct stm_ts_data *ts)
 	unregister_chrdev_region(dev1, MINOR_NUM1);
 	unregister_chrdev_region(dev0, MINOR_NUM0);
 }
-
+#endif //#ifdef RAWDATA_MMAP

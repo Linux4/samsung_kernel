@@ -85,9 +85,8 @@ int cam_cpas_util_reg_read(struct cam_hw_info *cpas_hw,
 	uint32_t value;
 	int reg_base_index;
 
-	/*if (!reg_info->enable)
+	if (!reg_info->enable)
 		return 0;
-	*/
 
 	reg_base_index = cpas_core->regbase_index[reg_base];
 	if (reg_base_index == -1)
@@ -131,7 +130,7 @@ int cam_cpas_util_reg_update(struct cam_hw_info *cpas_hw,
 		value = reg_info->value;
 	}
 
-	CAM_INFO(CAM_CPAS, "Base[%d] Offset[0x%08x] Value[0x%08x]",
+	CAM_DBG(CAM_CPAS, "Base[%d] Offset[0x%08x] Value[0x%08x]",
 		reg_base, reg_info->offset, value);
 
 	cam_io_w_mb(value, soc_info->reg_map[reg_base_index].mem_base +

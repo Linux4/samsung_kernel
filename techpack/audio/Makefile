@@ -29,8 +29,6 @@ else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),gts7fewifi))
 include $(srctree)/techpack/audio/config/lahaina_gts7fe.conf
 else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),xcoverpro2))
 include $(srctree)/techpack/audio/config/lahaina_xcoverpro2.conf
-else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),gtactpro2))
-include $(srctree)/techpack/audio/config/lahaina_gtactpro2.conf
 else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),gtact4pro gtact4prowifi))
 include $(srctree)/techpack/audio/config/lahaina_gtact4pro.conf
 else
@@ -96,9 +94,6 @@ LINUXINCLUDE    += \
 else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),xcoverpro2))
 LINUXINCLUDE    += \
                 -include $(srctree)/techpack/audio/config/lahaina_xcoverpro2.h
-else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),gtactpro2))
-LINUXINCLUDE    += \
-                -include $(srctree)/techpack/audio/config/lahaina_gtactpro2.h
 else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),gtact4pro gtact4prowifi))
 LINUXINCLUDE    += \
                 -include $(srctree)/techpack/audio/config/lahaina_gtact4pro.h

@@ -1627,14 +1627,15 @@ int synaptics_ts_fw_update_on_probe(struct synaptics_ts_data *ts)
 	int restore_cal = 0;
 #endif
 	input_info(true, &ts->client->dev, "%s:\n", __func__);
- 	if (!ts->plat_data->firmware_name) {
-		input_err(true, &ts->client->dev, "%s: firmware name does not declair in dts\n", __func__);
-		retval = -ENOENT;
-		goto exit_fwload;
-	}
 
 	if (ts->plat_data->bringup == 1) {
 		input_info(true, &ts->client->dev, "%s: bringup 1\n", __func__);
+		goto exit_fwload;
+	}
+
+ 	if (!ts->plat_data->firmware_name) {
+		input_err(true, &ts->client->dev, "%s: firmware name does not declair in dts\n", __func__);
+		retval = -ENOENT;
 		goto exit_fwload;
 	}
 
@@ -1947,7 +1948,7 @@ int synaptics_ts_fw_update_on_hidden_menu(struct synaptics_ts_data *ts, int upda
 	}
 
 	synaptics_ts_get_custom_library(ts);
-	synaptics_ts_set_custom_library(ts);
+	ts->plat_data->init(ts);
 
 	return retval;
 }

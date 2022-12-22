@@ -41,6 +41,16 @@
 #include <linux/power_supply.h>
 #include <linux/proc_fs.h>
 #include <linux/version.h>
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#include <linux/sti/abc_common.h>
+#endif
+#include <linux/notifier.h>
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+#include <linux/vbus_notifier.h>
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
+#endif
+#endif
 
 #include "sec_cmd.h"
 #include "sec_tclm_v2.h"
@@ -84,6 +94,9 @@ const struct file_operations ops_name = {				\
 #define INPUT_FEATURE_ENABLE_MULTI_CALIBRATION		(1 << 10) /* multi calibration support */
 
 #define INPUT_FEATURE_SUPPORT_INPUT_MONITOR			(1 << 16) /* input monitor support */
+
+#define INPUT_FEATURE_SUPPORT_MOTION_PALM			(1 << 20) /* rawdata motion control: palm */
+#define INPUT_FEATURE_SUPPORT_MOTION_AIVF			(1 << 21) /* rawdata motion control: aivf */
 
 /*
  * sec Log
@@ -136,10 +149,10 @@ const struct file_operations ops_name = {				\
 	}									\
 })
 
-#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 #define MAIN_TOUCH	1
 #define SUB_TOUCH	2
 
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 #define input_raw_info(mode, dev, fmt, ...)					\
 ({										\
 	static char input_log_buf[INPUT_LOG_BUF_SIZE];				\
@@ -326,6 +339,7 @@ typedef enum {
 	SPONGE_EVENT_TYPE_FOD_PRESS		= 0x0F,
 	SPONGE_EVENT_TYPE_FOD_RELEASE		= 0x10,
 	SPONGE_EVENT_TYPE_FOD_OUT		= 0x11,
+	SPONGE_EVENT_TYPE_LONG_PRESS		= 0x12,
 	SPONGE_EVENT_TYPE_TSP_SCAN_UNBLOCK	= 0xE1,
 	SPONGE_EVENT_TYPE_TSP_SCAN_BLOCK	= 0xE2,
 } SPONGE_EVENT_TYPE;
@@ -345,12 +359,18 @@ typedef enum {
 #define SEC_TS_SUPPORT_TOUCH_COUNT		10
 #define SEC_TS_GESTURE_REPORT_BUFF_SIZE		20
 
+/* SPONGE MODE 0x00 */
 #define SEC_TS_MODE_SPONGE_SWIPE		(1 << 1)
 #define SEC_TS_MODE_SPONGE_AOD			(1 << 2)
 #define SEC_TS_MODE_SPONGE_SINGLE_TAP		(1 << 3)
 #define SEC_TS_MODE_SPONGE_PRESS		(1 << 4)
 #define SEC_TS_MODE_SPONGE_DOUBLETAP_TO_WAKEUP	(1 << 5)
 #define SEC_TS_MODE_SPONGE_TWO_FINGER_DOUBLETAP	(1 << 7)
+#define SEC_TS_MODE_SPONGE_VVC			(1 << 8)
+
+/* SPONGE MODE 0x01 */
+#define SEC_TS_MODE_SPONGE_INF_DUMP_CLEAR	(1 << 0)
+#define SEC_TS_MODE_SPONGE_INF_DUMP		(1 << 1)
 
 /*SPONGE library parameters*/
 #define SEC_TS_MAX_SPONGE_DUMP_BUFFER	512
@@ -377,6 +397,11 @@ typedef enum {
 #define TSP_EXTERNAL_FW		"tsp.bin"
 #define TSP_EXTERNAL_FW_SIGNED	"tsp_signed.bin"
 #define TSP_SPU_FW_SIGNED		"/TSP/ffu_tsp.bin"
+
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#define SEC_ABC_SEND_EVENT_TYPE "MODULE=tsp@WARN=tsp_int_fault"
+#define SEC_ABC_SEND_EVENT_TYPE_SUB "MODULE=tsp_sub@WARN=tsp_int_fault"
+#endif
 
 enum display_state {
 	DISPLAY_STATE_SERVICE_SHUTDOWN = -1,
@@ -610,6 +635,7 @@ struct sec_ts_plat_data {
 	struct input_dev *input_dev;
 	struct input_dev *input_dev_pad;
 	struct input_dev *input_dev_proximity;
+	struct device *dev;
 
 	int max_x;
 	int max_y;
@@ -683,11 +709,13 @@ struct sec_ts_plat_data {
 
 	volatile bool enabled;
 	volatile int power_state;
+	volatile int display_state;
 	volatile bool shutdown_called;
 
 	u16 touch_functions;
 	u16 ic_status;
 	u8 lowpower_mode;
+	u8 sponge_mode;
 	u8 external_noise_mode;
 	u8 touchable_area;
 	u8 ed_enable;
@@ -698,6 +726,7 @@ struct sec_ts_plat_data {
 	u8 wirelesscharger_mode;
 	bool force_wirelesscharger_mode;
 	int wet_mode;
+	int low_sensitivity_mode;
 
 	bool regulator_boot_on;
 	bool support_mt_pressure;
@@ -726,17 +755,30 @@ struct sec_ts_plat_data {
 	bool unuse_dvdd_power;
 	bool chip_on_board;
 	bool enable_sysinput_enabled;
+	bool support_rawdata_motion_aivf;
+	bool support_rawdata_motion_palm;
 	bool not_support_io_ldo;
 	bool not_support_vdd;
 	bool sense_off_when_cover_closed;
 	bool not_support_temp_noti;
+	bool support_vbus_notifier;
 
+	struct work_struct irq_work;
+	struct workqueue_struct *irq_workqueue;
 	struct completion resume_done;
 	struct wakeup_source *sec_ws;
 
 	struct sec_ts_hw_param_data hw_param;
 
 	struct delayed_work interrupt_notify_work;
+
+	int (*set_charger_mode)(struct device *dev, bool on);
+	bool charger_flag;
+	struct work_struct vbus_notifier_work;
+	struct workqueue_struct *vbus_notifier_workqueue;
+	struct notifier_block vbus_nb;
+	struct notifier_block ccic_nb;
+	bool otg_flag;
 
 	u32 print_info_cnt_release;
 	u32 print_info_cnt_open;
@@ -795,6 +837,8 @@ int sec_input_pinctrl_configure(struct device *dev, bool on);
 int sec_input_power(struct device *dev, bool on);
 int sec_input_sysfs_create(struct kobject *kobj);
 void sec_input_sysfs_remove(struct kobject *kobj);
+void sec_input_register_vbus_notifier(struct device *dev);
+void sec_input_unregister_vbus_notifier(struct device *dev);
 
 void sec_input_register_notify(struct notifier_block *nb, notifier_fn_t notifier_call, int priority);
 void sec_input_unregister_notify(struct notifier_block *nb);

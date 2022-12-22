@@ -552,6 +552,8 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		vdd->panel_dead = false;
 	}
 
+	ss_panel_power_on_pre(vdd);
+
 	/*
 		AOT disable on factory binary.
 	*/
@@ -2709,12 +2711,16 @@ static int dsi_panel_parse_jitter_config(
 	return 0;
 }
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+bool pba_regulator_control_ss;
+#endif
 static int dsi_panel_parse_power_cfg(struct dsi_panel *panel)
 {
 	int rc = 0;
 	char *supply_name;
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd;
+	struct dsi_parser_utils *utils = &panel->utils;
 #endif
 
 	if (panel->host_config.ext_bridge_mode)
@@ -2723,12 +2729,20 @@ static int dsi_panel_parse_power_cfg(struct dsi_panel *panel)
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	vdd = panel->panel_private;
 
+	/* ss_pba_regulator_control:
+	 * To turn off regulator while PBA boot
+	 * Caution!, both panels should have PBA regulators if with DSI1
+	 */
+	pba_regulator_control_ss = utils->read_bool(utils->data, "qcom,mdss-dsi-pba-regulator_ss");
+	LCD_INFO(vdd, "parse qcom,mdss-dsi-pba-regulator_ss: %d\n", pba_regulator_control_ss);
+
 	/* In this point, vdd->panel_attach_status has invalid data.
 	 * So, use panel name to verify PBA booting,
 	 * intead of ss_panel_attach_get().
 	 */
-	if (!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
-			!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1")) {
+	if ((!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
+		!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1"))
+		&& !pba_regulator_control_ss) {
 		LCD_INFO(vdd, "PBA booting, skip to parse vreg\n");
 		goto error;
 	}

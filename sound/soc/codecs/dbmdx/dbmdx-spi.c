@@ -758,6 +758,7 @@ static void spi_transport_enable(struct dbmdx_private *p, bool enable)
 
 	if (enable) {
 		p->wakeup_set(p);
+	if (p->asleep)
 		msleep(DBMDX_MSLEEP_SPI_WAKEUP);
 	} else {
 #if IS_ENABLED(CONFIG_PM_WAKELOCKS)

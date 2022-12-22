@@ -134,13 +134,39 @@ static int dbmdx_snd_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct snd_soc_card *card = &dspg_dbmdx_card;
+
+#if defined(DBMDX_DEFER_SND_CARD_LOADING)
+	struct device_node *np = pdev->dev.of_node;
+	int card_index = 0;
+	struct snd_card *card_ref;
+#endif
+
 	/* struct device_node *np = pdev->dev.of_node; */
 
 	/* note: platform_set_drvdata() here saves pointer to the card's data
 	 * on the device's 'struct device_private *p'->driver_data
 	 */
+	dev_dbg(&pdev->dev, "%s:\n", __func__);
 
-	dev_info(&pdev->dev, "%s:\n", __func__);
+#if defined(DBMDX_DEFER_SND_CARD_LOADING)
+	ret = of_property_read_u32(np, "wait_for_card_index",
+			&card_index);
+	if ((ret && ret != -EINVAL)) {
+		dev_info(&pdev->dev, "%s: invalid 'card_index' using default\n",
+				__func__);
+	} else {
+		dev_dbg(&pdev->dev, "%s: 'wait_for_card_index' = %d\n",
+				__func__, card_index);
+	}
+
+	card_ref = snd_card_ref(card_index);
+	if((!card_ref) || !(card_ref->id[0])) {
+		dev_info(&pdev->dev,
+				"%s: Defering DBMDX SND card probe, wait card[%d]..\n",
+				__func__, card_index);
+		return -EPROBE_DEFER;
+	}
+#endif
 
 	card->dev = &pdev->dev;
 	if (dbmdx_init_dai_link(card) < 0) {
@@ -150,14 +176,6 @@ static int dbmdx_snd_probe(struct platform_device *pdev)
 		goto ERR_CLEAR;
 	}
 
-#if defined(DBMDX_DEFER_IF_SND_CARD_ID_0)
-	if (!snd_card_ref(0)) {
-		dev_info(&pdev->dev,
-			"%s: Defering DBMDX SND card probe, wait primary card...\n",
-			__func__);
-		return -EPROBE_DEFER;
-	}
-#endif
 	/* Register ASoC sound Card */
 	ret = snd_soc_register_card(card);
 	if (ret) {
@@ -201,7 +219,7 @@ static struct platform_driver board_dbmdx_snd_drv = {
 	.remove = dbmdx_snd_remove,
 };
 
-#if (IS_ENABLED(CONFIG_SND_SOC_DBMDX) && !IS_MODULE(CONFIG_SND_SOC_DBMDX))
+#if !IS_MODULE(CONFIG_SND_SOC_DBMDX)
 static int __init board_dbmdx_mod_init(void)
 {
 	return platform_driver_register(&board_dbmdx_snd_drv);

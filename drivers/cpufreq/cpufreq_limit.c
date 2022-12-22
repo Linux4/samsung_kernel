@@ -356,7 +356,7 @@ static bool cflm_max_lock_need_restore(void)
 
 	if (freq_input[CFLM_USERSPACE].min > 0) {
 		if (freq_input[CFLM_USERSPACE].min > (int)param.ltl_max_freq) {
-			pr_info("%s: userspace minlock (%d) > ltl max (%d)\n",
+			pr_debug("%s: userspace minlock (%d) > ltl max (%d)\n",
 					__func__, freq_input[CFLM_USERSPACE], param.ltl_max_freq);
 			return false;
 		}
@@ -364,7 +364,7 @@ static bool cflm_max_lock_need_restore(void)
 
 	if (freq_input[CFLM_TOUCH].min > 0) {
 		if (freq_input[CFLM_TOUCH].min > (int)param.ltl_max_freq) {
-			pr_info("%s: touch minlock (%d) > ltl max (%d)\n",
+			pr_debug("%s: touch minlock (%d) > ltl max (%d)\n",
 					__func__, freq_input[CFLM_TOUCH], param.ltl_max_freq);
 			return false;
 		}
@@ -380,7 +380,7 @@ static bool cflm_high_pri_min_lock_required(void)
 
 	if (freq_input[CFLM_USERSPACE].min > 0) {
 		if (freq_input[CFLM_USERSPACE].min > (int)param.ltl_max_freq) {
-			pr_info("%s: userspace minlock (%d) > ltl max (%d)\n",
+			pr_debug("%s: userspace minlock (%d) > ltl max (%d)\n",
 					__func__, freq_input[CFLM_USERSPACE], param.ltl_max_freq);
 			return true;
 		}
@@ -388,7 +388,7 @@ static bool cflm_high_pri_min_lock_required(void)
 
 	if (freq_input[CFLM_TOUCH].min > 0) {
 		if (freq_input[CFLM_TOUCH].min > (int)param.ltl_max_freq) {
-			pr_info("%s: touch minlock (%d) > ltl max (%d)\n",
+			pr_debug("%s: touch minlock (%d) > ltl max (%d)\n",
 					__func__, freq_input[CFLM_TOUCH], param.ltl_max_freq);
 			return true;
 		}
@@ -464,14 +464,14 @@ static void cflm_freq_decision(int type, int new_min, int new_max)
 			new_min = param.ltl_min_freq;
 		}
 
-		pr_info("%s: new_min=%d, ltl_max=%d, over_limit=%d\n", __func__,
+		pr_debug("%s: new_min=%d, ltl_max=%d, over_limit=%d\n", __func__,
 				new_min, param.ltl_max_freq, param.over_limit);
 		if ((type == CFLM_USERSPACE || type == CFLM_TOUCH) &&
 			cflm_high_pri_min_lock_required()) {
 			if (freq_input[CFLM_USERSPACE].max > 0) {
 				need_update_user_max = true;
 				new_user_max = MAX((int)param.over_limit, freq_input[CFLM_USERSPACE].max);
-				pr_info("%s: override new_max %d => %d,  userspace_min=%d, touch_min=%d, ltl_max=%d\n",
+				pr_debug("%s: override new_max %d => %d,  userspace_min=%d, touch_min=%d, ltl_max=%d\n",
 						__func__, freq_input[CFLM_USERSPACE].max, new_user_max, freq_input[CFLM_USERSPACE].min,
 						freq_input[CFLM_TOUCH].min, param.ltl_max_freq);
 			}
@@ -502,7 +502,7 @@ static void cflm_freq_decision(int type, int new_min, int new_max)
 			if (freq_input[CFLM_USERSPACE].max > 0) {
 				need_update_user_max = true;
 				new_user_max = freq_input[CFLM_USERSPACE].max;
-				pr_info("%s: restore new_max => %d\n",
+				pr_debug("%s: restore new_max => %d\n",
 						__func__, new_user_max);
 			}
 		}
@@ -519,7 +519,7 @@ static void cflm_freq_decision(int type, int new_min, int new_max)
 			cflm_high_pri_min_lock_required()) {
 			need_update_user_max = true;
 			new_user_max = MAX((int)param.over_limit, freq_input[CFLM_USERSPACE].max);
-			pr_info("%s: force up new_max %d => %d, userspace_min=%d, touch_min=%d, ltl_max=%d\n",
+			pr_debug("%s: force up new_max %d => %d, userspace_min=%d, touch_min=%d, ltl_max=%d\n",
 					__func__, new_max, new_user_max, freq_input[CFLM_USERSPACE].min,
 					freq_input[CFLM_TOUCH].min, param.ltl_max_freq);
 		}
@@ -565,9 +565,9 @@ static void cflm_freq_decision(int type, int new_min, int new_max)
 	}
 
 	if (need_update_user_max) {
-		pr_info("%s: update_user_max is true\n", __func__);
+		pr_debug("%s: update_user_max is true\n", __func__);
 		if (new_user_max > param.big_max_freq) {
-			pr_info("%s: too high freq(%d), set to %d\n",
+			pr_debug("%s: too high freq(%d), set to %d\n",
 			__func__, new_user_max, param.big_max_freq);
 			new_user_max = param.big_max_freq;
 		}
