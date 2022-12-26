@@ -86,7 +86,9 @@ pabovXX_t abov_sar_ptr;
 /*TabA7 Lite code for SR-AX3565-01-14 by Hujincan at 20210111 start*/
 extern char *sar_name;
 /*TabA7 Lite code for SR-AX3565-01-14 by Hujincan at 20210111 end*/
-
+int g_anfr_flag = 1, g_irq_count = 1;
+static u16 ch0_diff = 0, ch1_diff = 0;
+u16 ch0_Previous_diff = 0, ch1_Previous_diff = 0;
 /**
  * struct abov
  * Specialized struct containing input event data, platform data, and
@@ -402,6 +404,27 @@ static int initialize(pabovXX_t this)
     return -ENOMEM;
 }
 
+void logical_recovery(pabovXX_t this)
+{
+    u8 ch0_diff1, ch1_diff1, ch0_diff2, ch1_diff2;
+    if (g_anfr_flag == 1 ) {
+        read_register(this, 0x20, &ch0_diff1);
+        read_register(this, 0x21, &ch0_diff2);
+        read_register(this, 0x22, &ch1_diff1);
+        read_register(this, 0x23, &ch1_diff2);
+        ch0_diff = (ch0_diff1 << 8) + ch0_diff2;
+        ch1_diff = (ch1_diff1 << 8) + ch1_diff2;
+        if (g_irq_count == 1) {
+            ch0_Previous_diff = (ch0_diff1 << 8) + ch0_diff2;
+            ch1_Previous_diff = (ch1_diff1 << 8) + ch1_diff2;
+        }
+        LOG_ERR("abov_a ch0_diff = %x, ch1_diff = %x \n", ch0_diff, ch1_diff);
+        LOG_ERR("abov_a ch0_Previous_diff = %x, ch1_Previous_diff = %x \n", ch0_Previous_diff, ch1_Previous_diff);
+        if ((ch0_diff != ch0_Previous_diff) || (ch1_diff != ch1_Previous_diff) || (g_irq_count >= 12)) {
+            g_anfr_flag = 0;
+        }
+    } 
+}
 /**
  * brief Handle what to do when a touch occurs
  * param this Pointer to main parent struct
@@ -422,6 +445,8 @@ static void touchProcess(pabovXX_t this)
     board = this->board;
     if (this && pDevice) {
         LOG_INFO("Inside touchProcess()\n");
+        logical_recovery(this);
+        LOG_ERR("abov_a g_irq_count = %d g_anfr_flag = %d \n", g_irq_count, g_anfr_flag);
         read_register(this, ABOV_IRQSTAT_LEVEL_REG, &i);
 
         buttons = pDevice->pbuttonInformation->buttons;
@@ -442,6 +467,12 @@ static void touchProcess(pabovXX_t this)
         }
 #endif
 
+        if (g_anfr_flag == 1) {
+            input_report_rel(input_top_sar, REL_MISC, 1);
+            input_report_rel(input_bottom_sar, REL_MISC, 1);
+            input_sync(input_top_sar);
+            input_sync(input_bottom_sar);
+        } else {
         for (counter = 0; counter < numberOfButtons; counter++) {
             pCurrentButton = &buttons[counter];
             if (pCurrentButton == NULL) {
@@ -588,6 +619,7 @@ static void touchProcess(pabovXX_t this)
             default: /* Shouldn't be here, device only allowed ACTIVE or IDLE */
                 break;
             };
+        }
         }
         LOG_INFO("Leaving touchProcess()\n");
     }
@@ -1939,7 +1971,7 @@ static int abov_probe(struct i2c_client *client, const struct i2c_device_id *id)
         INIT_WORK(&this->fw_update_work, capsense_update_work);
     }
     schedule_work(&this->fw_update_work);
-
+    g_anfr_flag = 1;
     LOG_INFO("abov_probe end()\n");
     return 0;
 
@@ -2156,7 +2188,12 @@ static irqreturn_t abovXX_interrupt_thread(int irq, void *data)
     mutex_lock(&this->mutex);
     LOG_INFO("abovXX_irq\n");
     if ((!this->get_nirq_low) || this->get_nirq_low(this->board->irq_gpio))
+    {
         abovXX_process_interrupt(this, 1);
+        if (g_anfr_flag == 1) {
+            g_irq_count++;
+        }
+    }
     else
         LOG_DBG("abovXX_irq - nirq read high\n");
     mutex_unlock(&this->mutex);

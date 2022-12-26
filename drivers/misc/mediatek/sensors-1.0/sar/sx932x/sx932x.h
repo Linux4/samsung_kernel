@@ -125,7 +125,7 @@
 
 #define LGE_SENSOR
 /*TabA7 Lite code for OT8-1296 by Hujincan at 20210117 start*/
-#define SAR_USB_CALIBRATION
+//#define SAR_USB_CALIBRATION
 /*TabA7 Lite code for OT8-1296 by Hujincan at 20210117 end*/
 
 /**************************************

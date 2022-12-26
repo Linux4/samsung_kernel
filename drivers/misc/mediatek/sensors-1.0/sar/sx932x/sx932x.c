@@ -79,6 +79,9 @@ static bool mEnabled = 1;
 /*TabA7 Lite code for OT8-3208|OT8-4719 by Hujincan at 20210419 end*/
 #endif
 
+int g_cali_sign = 1, g_irq_sign = 1;
+static void touchProcess(psx93XX_t this);
+
 /*! \struct sx932x
  * Specialized struct containing input event data, platform data, and
  * last cap state read if needed.
@@ -93,7 +96,6 @@ static int irq_gpio_num;
 
 #if defined(CONFIG_SENSORS)
 static bool mEnabled = 1;
-static void touchProcess(psx93XX_t this);
 #endif
 
 /*! \fn static int write_register(psx93XX_t this, u8 address, u8 value)
@@ -381,6 +383,7 @@ static ssize_t enable_store(struct device *dev,
             enable_irq(this->irq);
             enable_irq_wake(this->irq);
             write_register(this,SX932x_CTRL1_REG,this->sx932x_ctrl1_reg_value);//make sx932x in Active mode
+            touchProcess(this);
             mEnabled = 1;
         } else if (!strncmp(buf, "0", 1)) {
             dev_info(this->pdev, "disable sx9328\n");
@@ -968,6 +971,14 @@ static void touchProcess(psx93XX_t this)
         }
 #endif
 
+        dev_err(this->pdev,"sx932x g_cali_sign: %d sx932x g_irq_sign: %d   \n", g_cali_sign, g_irq_sign);
+        if (g_cali_sign < 3 && g_irq_sign  <  12 ) {
+            input_report_rel(input_main_sar, REL_MISC, 1);
+            input_report_rel(input_wifi_sar, REL_MISC, 1);
+            input_sync(input_main_sar);
+            input_sync(input_wifi_sar);
+            dev_err(this->pdev,"sx932x anfr starting\n");
+        } else {
         for (counter = 0; counter < numberOfButtons; counter++) {
             pCurrentButton = &buttons[counter];
             if (pCurrentButton==NULL) {
@@ -1031,9 +1042,9 @@ static void touchProcess(psx93XX_t this)
                     break;
                 default: /* Shouldn't be here, device only allowed ACTIVE or IDLE */
                     break;
-            };
+            }
         }
-
+        }
    //dev_info(this->pdev, "Leaving touchProcess()\n");
   }
 }
@@ -1550,10 +1561,14 @@ static void sx93XX_schedule_work(psx93XX_t this, unsigned long delay)
 static irqreturn_t sx93XX_irq(int irq, void *pvoid)
 {
     psx93XX_t this = 0;
+    printk(KERN_ERR "sx93XX_irq start\n");
     if (pvoid) {
         this = (psx93XX_t)pvoid;
         if ((!this->get_nirq_low) || this->get_nirq_low()) {
-        sx93XX_schedule_work(this,0);
+            sx93XX_schedule_work(this,0);
+            if (g_irq_sign < 12) {
+                g_irq_sign++;
+            }
         }
         else{
             dev_err(this->pdev, "sx93XX_irq - nirq read high\n");
@@ -1586,7 +1601,11 @@ static void sx93XX_worker_func(struct work_struct *work)
         /* since we are not in an interrupt don't need to disable irq. */
         status = this->refreshStatus(this);
         counter = -1;
-        dev_dbg(this->pdev, "Worker - Refresh Status %d\n",status);
+        if ((status >> 4) & 0x01) {
+            g_cali_sign++;
+        }
+        dev_err(this->pdev, "sx932x g_cali_sign == %d", g_cali_sign);
+        dev_err(this->pdev, "Worker - Refresh Status %d\n", status);
 
         while((++counter) < MAX_NUM_STATUS_BITS) { /* counter start from MSB */
             if (((status>>counter) & 0x01) && (this->statusFunc[counter])) {
