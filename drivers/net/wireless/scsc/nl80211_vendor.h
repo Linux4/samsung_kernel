@@ -1,6 +1,6 @@
 /*****************************************************************************
  *
- * Copyright (c) 2012 - 2019 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2021 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -13,10 +13,10 @@
 #define OUI_SAMSUNG                                     0x0000f0
 #define SLSI_NL80211_GSCAN_SUBCMD_RANGE_START           0x1000
 #define SLSI_NL80211_GSCAN_EVENT_RANGE_START            0x01
-#define SLSI_NL80211_LOGGING_SUBCMD_RANGE_START           0x1400
+#define SLSI_NL80211_RTT_SUBCMD_RANGE_START             0x1100
+#define SLSI_NL80211_LOGGING_SUBCMD_RANGE_START         0x1400
 #define SLSI_NL80211_NAN_SUBCMD_RANGE_START             0x1500
-#define SLSI_NL80211_RTT_SUBCMD_RANGE_START    0x1100
-#define SLSI_NL80211_APF_SUBCMD_RANGE_START    0x1600
+#define SLSI_NL80211_APF_SUBCMD_RANGE_START             0x1600
 #define SLSI_GSCAN_SCAN_ID_START                        0x410
 #define SLSI_GSCAN_SCAN_ID_END                          0x500
 
@@ -37,8 +37,6 @@
 #define SLSI_REPORT_EVENTS_NO_BATCH                     (4)
 
 #define SLSI_NL_ATTRIBUTE_U32_LEN                       (NLA_HDRLEN + 4)
-#define SLSI_NL_ATTRIBUTE_COUNTRY_CODE                  (4)
-#define SLSI_NL_ATTRIBUTE_LATENCY_MODE                  (5)
 
 #define SLSI_NL_VENDOR_ID_OVERHEAD                      SLSI_NL_ATTRIBUTE_U32_LEN
 #define SLSI_NL_VENDOR_SUBCMD_OVERHEAD                  SLSI_NL_ATTRIBUTE_U32_LEN
@@ -95,22 +93,51 @@
 #define SLSI_WIFI_HAL_FEATURE_LOW_LATENCY        0x40000000    /* Low Latency modes */
 #define SLSI_WIFI_HAL_FEATURE_P2P_RAND_MAC       0x80000000    /* Random P2P MAC */
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
+#define SLSI_ATTRIBUTE_START_VAL 1
+#else
+#define SLSI_ATTRIBUTE_START_VAL 0
+#define SLSI_NL_ATTRIBUTE_COUNTRY_CODE 4
+#define SLSI_NL_ATTRIBUTE_LATENCY_MODE 5
+#define SLSI_NL_ATTRIBUTE_TX_POWER_SCENARIO 6
+#endif
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
+enum slsi_low_latency_attr {
+	SLSI_NL_ATTRIBUTE_LATENCY_MODE = 1,
+	SLSI_NL_ATTRIBUTE_LATENCY_MAX
+};
+
+enum slsi_country_code_attr {
+	SLSI_NL_ATTRIBUTE_COUNTRY_CODE = 1,
+	SLSI_NL_ATTRIBUTE_COUNTRY_CODE_MAX
+};
+
+enum slsi_tx_power_scenario_attr {
+	SLSI_NL_ATTRIBUTE_TX_POWER_SCENARIO = 1,
+	SLSI_NL_ATTRIBUTE_TX_POWER_SCENARIO_MAX
+};
+#endif
+
 enum slsi_wifi_attr {
-	SLSI_NL_ATTRIBUTE_ND_OFFLOAD_VALUE = 0,
-	SLSI_NL_ATTRIBUTE_PNO_RANDOM_MAC_OUI
+	SLSI_NL_ATTRIBUTE_ND_OFFLOAD_VALUE = SLSI_ATTRIBUTE_START_VAL,
+	SLSI_NL_ATTRIBUTE_PNO_RANDOM_MAC_OUI,
+	SLSI_NL_ATTRIBUTE_MAC_OUI_MAX
 };
 
 enum SLSI_APF_ATTRIBUTES {
 	SLSI_APF_ATTR_VERSION = 0,
 	SLSI_APF_ATTR_MAX_LEN,
 	SLSI_APF_ATTR_PROGRAM,
-	SLSI_APF_ATTR_PROGRAM_LEN
+	SLSI_APF_ATTR_PROGRAM_LEN,
+	SLSI_APF_ATTR_MAX
 };
 
 enum SLSI_ROAM_ATTRIBUTES {
 	SLSI_NL_ATTR_MAX_BLACKLIST_SIZE,
 	SLSI_NL_ATTR_MAX_WHITELIST_SIZE,
-	SLSI_NL_ATTR_ROAM_STATE
+	SLSI_NL_ATTR_ROAM_STATE,
+	SLSI_NL_ATTR_ROAM_MAX
 };
 
 enum slsi_acs_attr_offload {
@@ -130,6 +157,15 @@ enum slsi_acs_attr_offload {
 	SLSI_ACS_ATTR_AFTER_LAST,
 	SLSI_ACS_ATTR_MAX =
 	SLSI_ACS_ATTR_AFTER_LAST - 1
+};
+
+enum slsi_scan_attr_config {
+	SLSI_SCAN_DEFAULT_IE_LEN = 1,
+	SLSI_SCAN_DEFAULT_IES,
+	/* keep last */
+	SLSI_SCAN_DEFAULT_AFTER_LAST,
+	SLSI_SCAN_DEFAULT_MAX =
+	SLSI_SCAN_DEFAULT_AFTER_LAST - 1,
 };
 
 #ifdef CONFIG_SLSI_WLAN_STA_FWD_BEACON
@@ -205,12 +241,13 @@ enum GSCAN_ATTRIBUTE {
 
 	GSCAN_ATTRIBUTE_NUM_BSSID,
 	GSCAN_ATTRIBUTE_BLACKLIST_BSSID,
+	GSCAN_ATTRIBUTE_BLACKLIST_FROM_SUPPLICANT,
 
 	GSCAN_ATTRIBUTE_MAX
 };
 
 enum epno_ssid_attribute {
-	SLSI_ATTRIBUTE_EPNO_MINIMUM_5G_RSSI,
+	SLSI_ATTRIBUTE_EPNO_MINIMUM_5G_RSSI = SLSI_ATTRIBUTE_START_VAL,
 	SLSI_ATTRIBUTE_EPNO_MINIMUM_2G_RSSI,
 	SLSI_ATTRIBUTE_EPNO_INITIAL_SCORE_MAX,
 	SLSI_ATTRIBUTE_EPNO_CUR_CONN_BONUS,
@@ -227,7 +264,7 @@ enum epno_ssid_attribute {
 };
 
 enum epno_hs_attribute {
-	SLSI_ATTRIBUTE_EPNO_HS_PARAM_LIST,
+	SLSI_ATTRIBUTE_EPNO_HS_PARAM_LIST = SLSI_ATTRIBUTE_START_VAL,
 	SLSI_ATTRIBUTE_EPNO_HS_NUM,
 	SLSI_ATTRIBUTE_EPNO_HS_ID,
 	SLSI_ATTRIBUTE_EPNO_HS_REALM,
@@ -265,18 +302,20 @@ enum wifi_scan_event {
 };
 
 enum wifi_mkeep_alive_attribute {
-	MKEEP_ALIVE_ATTRIBUTE_ID,
+	MKEEP_ALIVE_ATTRIBUTE_ID = SLSI_ATTRIBUTE_START_VAL,
 	MKEEP_ALIVE_ATTRIBUTE_IP_PKT,
 	MKEEP_ALIVE_ATTRIBUTE_IP_PKT_LEN,
 	MKEEP_ALIVE_ATTRIBUTE_SRC_MAC_ADDR,
 	MKEEP_ALIVE_ATTRIBUTE_DST_MAC_ADDR,
-	MKEEP_ALIVE_ATTRIBUTE_PERIOD_MSEC
+	MKEEP_ALIVE_ATTRIBUTE_PERIOD_MSEC,
+	MKEEP_ALIVE_ATTRIBUTE_MAX
 };
 
 enum wifi_rssi_monitor_attr {
-	SLSI_RSSI_MONITOR_ATTRIBUTE_MAX_RSSI,
+	SLSI_RSSI_MONITOR_ATTRIBUTE_MAX_RSSI = SLSI_ATTRIBUTE_START_VAL,
 	SLSI_RSSI_MONITOR_ATTRIBUTE_MIN_RSSI,
-	SLSI_RSSI_MONITOR_ATTRIBUTE_START
+	SLSI_RSSI_MONITOR_ATTRIBUTE_START,
+	SLSI_RSSI_MONITOR_ATTRIBUTE_MAX
 };
 
 enum lls_attribute {
@@ -318,6 +357,11 @@ enum slsi_hal_vendor_subcmds {
 	SLSI_NL80211_VENDOR_SUBCMD_GET_ROAMING_CAPABILITIES,
 	SLSI_NL80211_VENDOR_SUBCMD_SET_ROAMING_STATE,
 	SLSI_NL80211_VENDOR_SUBCMD_SET_LATENCY_MODE,
+	SLSI_NL80211_VENDOR_SUBCMD_SELECT_TX_POWER_SCENARIO,
+	SLSI_NL80211_VENDOR_SUBCMD_RESET_TX_POWER_SCENARIO,
+	SLSI_NL80211_VENDOR_SUBCMD_RTT_GET_CAPABILITIES = SLSI_NL80211_RTT_SUBCMD_RANGE_START,
+	SLSI_NL80211_VENDOR_SUBCMD_RTT_RANGE_START,
+	SLSI_NL80211_VENDOR_SUBCMD_RTT_RANGE_CANCEL,
 	SLSI_NL80211_VENDOR_SUBCMD_START_LOGGING = SLSI_NL80211_LOGGING_SUBCMD_RANGE_START,
 	SLSI_NL80211_VENDOR_SUBCMD_TRIGGER_FW_MEM_DUMP,
 	SLSI_NL80211_VENDOR_SUBCMD_GET_FW_MEM_DUMP,
@@ -346,9 +390,6 @@ enum slsi_hal_vendor_subcmds {
 	SLSI_NL80211_VENDOR_SUBCMD_NAN_DATA_REQUEST_INITIATOR,
 	SLSI_NL80211_VENDOR_SUBCMD_NAN_DATA_INDICATION_RESPONSE,
 	SLSI_NL80211_VENDOR_SUBCMD_NAN_DATA_END,
-	SLSI_NL80211_VENDOR_SUBCMD_RTT_GET_CAPABILITIES = SLSI_NL80211_RTT_SUBCMD_RANGE_START,
-	SLSI_NL80211_VENDOR_SUBCMD_RTT_RANGE_START,
-	SLSI_NL80211_VENDOR_SUBCMD_RTT_RANGE_CANCEL,
 	SLSI_NL80211_VENDOR_SUBCMD_APF_SET_FILTER = SLSI_NL80211_APF_SUBCMD_RANGE_START,
 	SLSI_NL80211_VENDOR_SUBCMD_APF_GET_CAPABILITIES,
 	SLSI_NL80211_VENDOR_SUBCMD_APF_READ_FILTER
@@ -358,6 +399,7 @@ enum slsi_supp_vendor_subcmds {
 	SLSI_NL80211_VENDOR_SUBCMD_UNSPEC = 0,
 	SLSI_NL80211_VENDOR_SUBCMD_KEY_MGMT_SET_KEY,
 	SLSI_NL80211_VENDOR_SUBCMD_ACS_INIT,
+	SLSI_NL80211_VENDOR_SUBCMD_DEFAULT_SCAN_IES
 };
 
 enum slsi_vendor_event_values {
@@ -394,7 +436,9 @@ enum slsi_vendor_event_values {
 	SLSI_NL80211_NAN_TRANSMIT_FOLLOWUP_STATUS,
 	SLSI_NAN_EVENT_NDP_REQ,
 	SLSI_NAN_EVENT_NDP_CFM,
-	SLSI_NAN_EVENT_NDP_END
+	SLSI_NAN_EVENT_NDP_END,
+	SLSI_NL80211_VENDOR_RCL_CHANNEL_LIST_EVENT = 30,
+	SLSI_NL80211_VENDOR_POWER_MEASUREMENT_EVENT
 };
 
 enum slsi_lls_interface_mode {
@@ -456,7 +500,7 @@ enum slsi_lls_peer_type {
 
 /* slsi_enhanced_logging_attributes */
 enum slsi_enhanced_logging_attributes {
-	SLSI_ENHANCED_LOGGING_ATTRIBUTE_DRIVER_VERSION,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_DRIVER_VERSION = SLSI_ATTRIBUTE_START_VAL,
 	SLSI_ENHANCED_LOGGING_ATTRIBUTE_FW_VERSION,
 	SLSI_ENHANCED_LOGGING_ATTRIBUTE_RING_ID,
 	SLSI_ENHANCED_LOGGING_ATTRIBUTE_RING_NAME,
@@ -473,6 +517,7 @@ enum slsi_enhanced_logging_attributes {
 	SLSI_ENHANCED_LOGGING_ATTRIBUTE_DRIVER_DUMP_DATA,
 	SLSI_ENHANCED_LOGGING_ATTRIBUTE_PKT_FATE_NUM,
 	SLSI_ENHANCED_LOGGING_ATTRIBUTE_PKT_FATE_DATA,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_MAX,
 	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_INVALID = 0,
 	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_TOTAL_CMD_EVENT_WAKE,
 	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_CMD_EVENT_WAKE_CNT_PTR,
@@ -492,6 +537,7 @@ enum slsi_enhanced_logging_attributes {
 	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_ICMP4_RX_MULTICAST_CNT,
 	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_ICMP6_RX_MULTICAST_CNT,
 	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_OTHER_RX_MULTICAST_CNT,
+	SLSI_ENHANCED_LOGGING_ATTRIBUTE_WAKE_STATS_MAX,
 };
 
 enum slsi_rtt_event_attributes {
@@ -562,7 +608,7 @@ enum slsi_wifi_rtt_type {
 };
 
 enum slsi_rtt_attribute {
-	SLSI_RTT_ATTRIBUTE_TARGET_CNT = 0,
+	SLSI_RTT_ATTRIBUTE_TARGET_CNT = SLSI_ATTRIBUTE_START_VAL,
 	SLSI_RTT_ATTRIBUTE_TARGET_INFO,
 	SLSI_RTT_ATTRIBUTE_TARGET_MAC,
 	SLSI_RTT_ATTRIBUTE_TARGET_TYPE,
@@ -582,7 +628,8 @@ enum slsi_rtt_attribute {
 	SLSI_RTT_ATTRIBUTE_RESULTS_PER_TARGET,
 	SLSI_RTT_ATTRIBUTE_RESULT_CNT,
 	SLSI_RTT_ATTRIBUTE_RESULT,
-	SLSI_RTT_ATTRIBUTE_TARGET_ID
+	SLSI_RTT_ATTRIBUTE_TARGET_ID,
+	SLSI_RTT_ATTRIBUTE_MAX
 };
 
 /* Ranging status */
@@ -918,10 +965,20 @@ struct slsi_rtt_capabilities {
 				      */
 };
 
+/*Data Structure to store rtt_id and list of mac_addresses which is being processed.*/
+struct slsi_rtt_id_params {
+	u8  fapi_req_id;
+	u32 hal_request_id;
+	u8 peer_type;
+	u32 peer_count;
+	u8 peers[];
+};
+
 /* RTT configuration */
 struct slsi_rtt_config {
 	u8 peer_addr[ETH_ALEN];                 /* peer device mac address */
-	u16 type;            /* 1-sided or 2-sided RTT */
+	u8 rtt_peer;                  /* optional - peer device hint (STA, P2P, AP) */
+	u8 rtt_type;            /* 1-sided or 2-sided RTT */
 	u16 channel_freq;     /* Required for STA-AP mode, optional for P2P, NBD etc. */
 	u16 channel_info;
 	u8 burst_period;         /* Time interval between bursts (units: 100 ms). */
@@ -968,7 +1025,7 @@ struct slsi_rtt_config {
 
 #define MAX_24G_CHANNELS 14  /*Max number of 2.4G channels*/
 #define MAX_5G_CHANNELS 25  /*Max number of 5G channels*/
-#define MAX_CHAN_VALUE_ACS MAX_24G_CHANNELS + MAX_5G_CHANNELS
+#define MAX_CHAN_VALUE_ACS (MAX_24G_CHANNELS + MAX_5G_CHANNELS)
 #define MAX_AP_THRESHOLD 10  /*Max AP threshold in ACS*/
 
 struct slsi_acs_chan_info {
@@ -1009,18 +1066,13 @@ int slsi_mib_get_gscan_cap(struct slsi_dev *sdev, struct slsi_nl_gscan_capabilit
 void slsi_rx_rssi_report_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 int slsi_mib_get_apf_cap(struct slsi_dev *sdev, struct net_device *dev);
 int slsi_mib_get_rtt_cap(struct slsi_dev *sdev, struct net_device *dev, struct slsi_rtt_capabilities *cap);
-int slsi_mlme_add_range_req(struct slsi_dev *sdev, u8 count, struct slsi_rtt_config *nl_rtt_params,
-			    u16 rtt_id, u16 vif_idx, u8 *source_addr);
-int slsi_mlme_del_range_req(struct slsi_dev *sdev, struct net_device *dev, u16 count, u8 *addr, u16 rtt_id);
 void slsi_rx_range_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 void slsi_rx_range_done_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 int slsi_tx_rate_calc(struct sk_buff *nl_skb, u16 fw_rate, int res, bool tx_rate);
-void slsi_check_num_radios(struct slsi_dev *sdev);
 void slsi_rx_event_log_indication(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 #ifdef CONFIG_SCSC_WLAN_DEBUG
 char *slsi_print_event_name(int event_id);
 #endif
-
 
 static inline bool slsi_is_gscan_id(u16 scan_id)
 {

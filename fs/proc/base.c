@@ -105,6 +105,16 @@
 
 #include "../../lib/kstrtox.h"
 
+#ifdef CONFIG_PAGE_BOOST
+#include <linux/delayacct.h>
+#endif
+
+#if defined(CONFIG_FAST_TRACK)
+#include <cpu/ftt/ftt.h>
+#define GLOBAL_SYSTEM_UID KUIDT_INIT(1000)
+#define GLOBAL_SYSTEM_GID KGIDT_INIT(1000)
+#endif
+
 /* NOTE:
  *	Implementing inode permission operations in /proc is almost
  *	certainly an error.  Permission checks need to happen during
@@ -470,6 +480,57 @@ static int proc_pid_stack(struct seq_file *m, struct pid_namespace *ns,
 	kfree(entries);
 
 	return err;
+}
+#endif
+
+#ifdef CONFIG_PAGE_BOOST
+static int proc_pid_ioinfo(struct seq_file *m, struct pid_namespace *ns,
+			      struct pid *pid, struct task_struct *task)
+{
+	struct task_io_accounting acct = task->ioac;
+	unsigned long flags;
+	int result;
+
+	result = mutex_lock_killable(&task->signal->cred_guard_mutex);
+	if (result)
+		return result;
+
+	if (!ptrace_may_access(task, PTRACE_MODE_READ_FSCREDS)) {
+		result = -EACCES;
+		goto out_unlock;
+	}
+
+	if (lock_task_sighand(task, &flags)) {
+		struct task_struct *t = task;
+
+		task_io_accounting_add(&acct, &task->signal->ioac);
+		while_each_thread(task, t)
+			task_io_accounting_add(&acct, &t->ioac);
+
+		unlock_task_sighand(task, &flags);
+	}
+
+	seq_printf(m,
+		   "%llu\n"
+		   "%llu\n"
+		   "%llu\n",
+#ifdef CONFIG_TASK_XACCT
+		   (unsigned long long)acct.rchar,
+#else
+		   (unsigned long long)0,
+#endif
+#ifdef CONFIG_TASK_IO_ACCOUNTING
+		   (unsigned long long)acct.read_bytes,
+#else
+ 		   (unsigned long long)0,                 
+#endif
+		   (unsigned long long)delayacct_blkio_nsecs(task));
+
+	result = 0;
+
+out_unlock:
+	mutex_unlock(&task->signal->cred_guard_mutex);
+	return result;
 }
 #endif
 
@@ -920,6 +981,117 @@ static const struct file_operations proc_mem_operations = {
 	.release	= mem_release,
 };
 
+#ifdef CONFIG_FAST_TRACK
+static int proc_static_ftt_show(struct seq_file *m, void *v)
+{
+	struct inode *inode = m->private;
+	struct task_struct *p;
+	p = get_proc_task(inode);
+	if (!p) {
+		return -ESRCH;
+	}
+	task_lock(p);
+	seq_printf(m, "%d\n", p->se.ftt_mark);
+	task_unlock(p);
+	put_task_struct(p);
+	return 0;
+}
+
+static ssize_t proc_static_ftt_read(struct file* file, char __user *buf,
+					    size_t count, loff_t *ppos)
+{
+	char buffer[PROC_NUMBUF];
+	struct task_struct *task = NULL;
+	int static_ftt = -1;
+	size_t len = 0;
+
+	task = get_proc_task(file_inode(file));
+	if (!task) {
+		return -ESRCH;
+	}
+	static_ftt = task->se.ftt_mark;
+	put_task_struct(task);
+	len = snprintf(buffer, sizeof(buffer), "%d\n", static_ftt);
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static ssize_t proc_static_ftt_write(struct file *file, const char __user *buf,
+			     size_t count, loff_t *ppos)
+{
+	struct task_struct *task;
+	char buffer[PROC_NUMBUF] = {0};
+	const size_t max_len = sizeof(buffer) - 1;
+	int err, static_ftt;
+
+	memset(buffer, 0, sizeof(buffer));
+	if (copy_from_user(buffer, buf, count > max_len ? max_len : count)) {
+		return -EFAULT;
+	}
+	err = kstrtoint(strstrip(buffer), 0, &static_ftt);
+	if(err) {
+		return err;
+	}
+
+	task = get_proc_task(file_inode(file));
+	if (!task) {
+		return -ESRCH;
+	}
+
+	if(task->se.ftt_mark && static_ftt == 0) {
+		fttstat.ftt_cnt--;
+		ftt_unmark(task);
+		printk("FTT unset ftt pid %d comm %.20s ftt count: %d pftt %d w %d\n",
+			task->pid, task->comm, fttstat.ftt_cnt, fttstat.pick_ftt, fttstat.wrong);
+	} else if(task->se.ftt_mark == 0 && static_ftt) {
+		fttstat.ftt_cnt++;
+		ftt_mark(task);
+		printk("FTT set ftt pid %d comm %.20s\n", task->pid, task->comm);
+	}
+
+	put_task_struct(task);
+	return count;
+}
+
+static int proc_static_ftt_open(struct inode* inode, struct file *filp)
+{
+	return single_open(filp, proc_static_ftt_show, inode);
+}
+
+static const struct file_operations proc_static_ftt_operations = {
+	.open       = proc_static_ftt_open,
+	.read       = proc_static_ftt_read,
+	.write      = proc_static_ftt_write,
+	.llseek     = seq_lseek,
+	.release    = single_release,
+};
+
+static int seq_file_ftt_show(struct seq_file *seq, void *v)
+{
+	seq_printf(seq, "static ftt count: %d pickftt %d wrong %d\n",
+		fttstat.ftt_cnt, fttstat.pick_ftt, fttstat.wrong);
+	return 0;
+}
+
+static int fttinfo_open(struct inode *inode, struct file *file)
+{
+        return single_open(file, &seq_file_ftt_show, NULL);
+}
+
+static const struct file_operations proc_fttinfo_operations = {
+        .open           = fttinfo_open,
+        .read           = seq_read,
+        .llseek         = seq_lseek,
+        .release        = seq_release,
+};
+
+static int __init proc_fttinfo_init(void)
+{
+        proc_create("fttinfo", S_IRWXUGO, NULL, &proc_fttinfo_operations);
+        return 0;
+}
+fs_initcall(proc_fttinfo_init);
+#endif
+
 static int environ_open(struct inode *inode, struct file *file)
 {
 	return __mem_open(inode, file, PTRACE_MODE_READ);
@@ -1111,10 +1283,6 @@ static int __set_oom_adj(struct file *file, int oom_adj, bool legacy)
 
 			task_lock(p);
 			if (!p->vfork_done && process_shares_mm(p, mm)) {
-				pr_info("updating oom_score_adj for %d (%s) from %d to %d because it shares mm with %d (%s). Report if this is unexpected.\n",
-						task_pid_nr(p), p->comm,
-						p->signal->oom_score_adj, oom_adj,
-						task_pid_nr(task), task->comm);
 				p->signal->oom_score_adj = oom_adj;
 				if (!legacy && has_capability_noaudit(current, CAP_SYS_RESOURCE))
 					p->signal->oom_score_adj_min = (short)oom_adj;
@@ -1824,6 +1992,21 @@ int pid_getattr(const struct path *path, struct kstat *stat,
 	return 0;
 }
 
+#if defined(CONFIG_FAST_TRACK)
+bool is_special_entry(struct dentry *dentry, const char* special_proc)
+{
+	const unsigned char *name;
+	if (NULL == dentry || NULL == special_proc)
+		return false;
+
+	name = dentry->d_name.name;
+	if (NULL != name && !strncmp(special_proc, name, 32))
+		return true;
+	else
+		return false;
+}
+#endif
+
 /* dentry stuff */
 
 /*
@@ -1851,6 +2034,13 @@ int pid_revalidate(struct dentry *dentry, unsigned int flags)
 
 		inode->i_mode &= ~(S_ISUID | S_ISGID);
 		security_task_to_inode(task, inode);
+#ifdef CONFIG_FAST_TRACK
+		if (is_special_entry(dentry, "static_ftt"))
+		{
+			inode->i_uid = GLOBAL_SYSTEM_UID;
+			inode->i_gid = GLOBAL_SYSTEM_GID;
+		}
+#endif
 		put_task_struct(task);
 		return 1;
 	}
@@ -2465,6 +2655,13 @@ static int proc_pident_instantiate(struct inode *dir,
 	if (p->fop)
 		inode->i_fop = p->fop;
 	ei->op = p->op;
+#ifdef CONFIG_FAST_TRACK
+	if (p->fop == &proc_static_ftt_operations)
+	{
+		inode->i_uid = GLOBAL_SYSTEM_UID;
+		inode->i_gid = GLOBAL_SYSTEM_GID;
+	}
+#endif
 	d_set_d_op(dentry, &pid_dentry_operations);
 	d_add(dentry, inode);
 	/* Close the race of the process dying before we return the dentry */
@@ -3228,6 +3425,13 @@ static const struct pid_entry tgid_base_stuff[] = {
 	ONE("statm",      S_IRUGO, proc_pid_statm),
 	ONE("statlmkd",      S_IRUGO, proc_pid_statlmkd),
 	REG("maps",       S_IRUGO, proc_pid_maps_operations),
+#ifdef CONFIG_PAGE_BOOST
+	REG("filemap_list",       S_IRUGO, proc_pid_filemap_list_operations),
+	ONE("ioinfo",  S_IRUGO, proc_pid_ioinfo),
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+	REG("io_record_control",      S_IRUGO|S_IWUGO, proc_pid_io_record_operations),
+#endif
+#endif
 #ifdef CONFIG_NUMA
 	REG("numa_maps",  S_IRUGO, proc_pid_numa_maps_operations),
 #endif
@@ -3698,6 +3902,9 @@ static const struct pid_entry tid_base_stuff[] = {
 #endif
 #ifdef CONFIG_CPU_FREQ_TIMES
 	ONE("time_in_state", 0444, proc_time_in_state_show),
+#endif
+#ifdef CONFIG_FAST_TRACK
+	REG("static_ftt", S_IRUGO | S_IWUSR | S_IWGRP, proc_static_ftt_operations),
 #endif
 };
 

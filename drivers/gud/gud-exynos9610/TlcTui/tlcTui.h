@@ -1,5 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2013-2017 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -16,6 +17,7 @@
 #define TLCTUI_H_
 
 #include "tui_ioctl.h"
+#include "dciTui.h"
 #define TUI_MOD_TAG "t-base-tui "
 
 #define ION_PHYS_WORKING_BUFFER_IDX (0)
@@ -28,10 +30,29 @@ bool tlc_notify_event(u32 event_type);
 int tlc_init_driver(void);
 u32 send_cmd_to_user(u32 command_id, u32 data0, u32 data1);
 struct mc_session_handle *get_session_handle(void);
+void set_buffer_info(struct tui_alloc_data_t alloc_data);
+void get_buffer_info(struct tlc_tui_ioctl_buffer_info *buff_info);
 
 extern atomic_t fileopened;
 extern struct tui_dci_msg_t *dci;
 extern struct tlc_tui_response_t g_user_rsp;
-extern u64 g_ion_phys[MAX_BUFFER_NUMBER];
-extern u32 g_ion_size[MAX_BUFFER_NUMBER];
+extern int (*fptr_get_fd)(u32 buff_id);
+extern struct device *dev_tlc_tui;
+
+extern struct device tui_dev;
+
+#define tui_dev_err(__ret__, fmt, ...) \
+	dev_err(&tui_dev, "ERROR %d %s: " fmt "\n", \
+		__ret__, __func__, ##__VA_ARGS__)
+
+#define tui_dev_info(fmt, ...) \
+	dev_info(&tui_dev, "%s: " fmt "\n", __func__, ##__VA_ARGS__)
+
+#ifdef DEBUG
+#define tui_dev_devel(fmt, ...) \
+	dev_info(&tui_dev, "%s: " fmt "\n", __func__, ##__VA_ARGS__)
+#else /* DEBUG */
+#define tui_dev_devel(...)		do {} while (0)
+#endif /* !DEBUG */
+
 #endif /* TLCTUI_H_ */

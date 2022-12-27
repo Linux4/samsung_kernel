@@ -1,5 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
- * Copyright (c) 2013-2017 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -26,9 +27,6 @@ extern "C" {
 /* Driver/daemon commands */
 enum {
 	/* Command 0 is reserved */
-	MC_DRV_GET_ROOT_CONTAINER = 1,
-	MC_DRV_GET_SP_CONTAINER = 2,
-	MC_DRV_GET_TRUSTLET_CONTAINER = 3,
 	MC_DRV_GET_TRUSTLET = 4,
 	MC_DRV_SIGNAL_CRASH = 5,
 };
@@ -41,13 +39,11 @@ struct mc_admin_request {
 	__u32		 command;	/* Command to daemon */
 	struct mc_uuid_t uuid;		/* UUID of trustlet, if relevant */
 	__u32		 is_gp;		/* Whether trustlet is GP */
-	__u32		 spid;		/* SPID of trustlet, if relevant */
 };
 
 struct mc_admin_response {
 	__u32		request_id;	/* Unique request identifier */
 	__u32		error_no;	/* Errno from daemon */
-	__u32		spid;		/* SPID of trustlet, if relevant */
 	__u32		service_type;	/* Type of trustlet being returned */
 	__u32		length;		/* Length of data to get */
 	/* Any data follows */
@@ -60,7 +56,6 @@ struct mc_admin_driver_info {
 };
 
 struct mc_admin_load_info {
-	__u32		 spid;		/* SPID of trustlet, if relevant */
 	__u64		 address;	/* Address of the data */
 	__u32		 length;	/* Length of data to get */
 	struct mc_uuid_t uuid;		/* UUID of trustlet, if relevant */
@@ -74,8 +69,8 @@ struct mc_admin_load_info {
 	_IOW(MC_IOC_MAGIC, 2, struct mc_admin_load_info)
 #define MC_ADMIN_IO_LOAD_TOKEN \
 	_IOW(MC_IOC_MAGIC, 3, struct mc_admin_load_info)
-#define MC_ADMIN_IO_LOAD_CHECK \
-	_IOW(MC_IOC_MAGIC, 4, struct mc_admin_load_info)
+#define MC_ADMIN_IO_LOAD_KEY_SO \
+	_IOW(MC_IOC_MAGIC, 5, struct mc_admin_load_info)
 
 #ifdef __cplusplus
 }

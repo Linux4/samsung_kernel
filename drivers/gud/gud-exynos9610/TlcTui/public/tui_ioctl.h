@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  * Copyright (c) 2013-2018 TRUSTONIC LIMITED
  * All Rights Reserved.
@@ -14,6 +15,8 @@
 
 #ifndef TUI_IOCTL_H_
 #define TUI_IOCTL_H_
+
+#include <linux/types.h>
 
 #define MAX_BUFFER_NUMBER 3
 
@@ -33,6 +36,27 @@ struct tlc_tui_response_t {
 	u32	return_code;
 	int	ion_fd[MAX_BUFFER_NUMBER];
 	u32	screen_metrics[3];
+};
+
+/* Resolution */
+struct tlc_tui_resolution_t {
+	u32	width;
+	u32	height;
+};
+
+/* Buffer Info */
+struct tlc_tui_ioctl_buffer_info {
+	__u32 num_of_buff;
+	__u32 size;
+	__u32 width;
+	__u32 height;
+	__u32 stride;
+	__u32 bits_per_pixel;
+};
+
+/* ION fd */
+struct tlc_tui_ioctl_ion_t {
+	int buffer_fd;
 };
 
 /* Command IDs */
@@ -64,6 +88,15 @@ struct tlc_tui_response_t {
 #define TLC_TUI_CMD_HIDE_SURFACE        7
 #define TLC_TUI_CMD_GET_RESOLUTION      8
 
+/* TLC_TUI_CMD_SET_RESOLUTION is for specific platforms
+ * that rely on onConfigurationChanged to set resolution
+ * it has no effect on Trustonic reference implementaton.
+ */
+#define TLC_TUI_CMD_SET_RESOLUTION      9
+
+/* To get buffer info */
+#define TLC_TUI_CMD_GET_BUFFER_INFO     10
+
 /* Return codes */
 #define TLC_TUI_OK                  0
 #define TLC_TUI_ERROR               1
@@ -80,6 +113,13 @@ struct tlc_tui_response_t {
 #define TUI_IO_WAITCMD	_IOR(TUI_IO_MAGIC, 2, struct tlc_tui_command_t)
 #define TUI_IO_ACK	_IOW(TUI_IO_MAGIC, 3, struct tlc_tui_response_t)
 #define TUI_IO_INIT_DRIVER	_IO(TUI_IO_MAGIC, 4)
+#define TUI_IO_GET_BUFFER_INFO	_IOR(TUI_IO_MAGIC, 5, \
+				     struct tlc_tui_ioctl_buffer_info)
+#define TUI_IO_GET_ION_FD	_IOR(TUI_IO_MAGIC, 6, \
+				     struct tlc_tui_ioctl_ion_t)
+#define TUI_IO_SET_RESOLUTION _IOW(TUI_IO_MAGIC, 9, \
+				   struct tlc_tui_resolution_t)
+#define TUI_IO_MAP _IOWR(TUI_IO_MAGIC, 10, struct tlc_tui_ioctl_buffer_info)
 
 #ifdef INIT_COMPLETION
 #define reinit_completion(x) INIT_COMPLETION(*(x))

@@ -2010,6 +2010,10 @@ static int decon_set_hdr_info(struct decon_device *decon,
 #else
 	video_meta = (struct exynos_video_meta *)dma_buf_vmap(
 			regs->dma_buf_data[win_num][meta_plane].dma_buf);
+	if (IS_ERR_OR_NULL(video_meta)) {
+		decon_err("Failed to get virtual address (err %pK)\n", video_meta);
+		return -ENOMEM;
+	}
 #endif
 
 	hdr_cmp = memcmp(&decon->prev_hdr_info,
@@ -2439,6 +2443,7 @@ static void decon_update_regs_handler(struct kthread_work *work)
 			decon_systrace(decon, 'C',
 					"update_regs_list", 0);
 			kfree(data);
+			atomic_dec(&decon->up.remaining_frame);
 		}
 	}
 }
@@ -2692,7 +2697,10 @@ static int decon_set_win_config(struct decon_device *decon,
 
 	mutex_lock(&decon->up.lock);
 	list_add_tail(&regs->list, &decon->up.list);
+	atomic_inc(&decon->up.remaining_frame);
 	decon->update_regs_list_cnt++;
+	win_data->extra.remained_frames =
+		atomic_read(&decon->up.remaining_frame);
 	mutex_unlock(&decon->up.lock);
 	kthread_queue_work(&decon->up.worker, &decon->up.work);
 
@@ -2747,6 +2755,7 @@ err_prepare:
 		put_unused_fd(win_data->retire_fence);
 	}
 	win_data->retire_fence = -1;
+	win_data->extra.remained_frames = -1;
 
 	for (i = 0; i < decon->dt.max_win; i++)
 		for (j = 0; j < regs->plane_cnt[i]; ++j)
@@ -2862,14 +2871,12 @@ static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 
 		ret = decon_set_vsync_int(info, active);
 		break;
-
+	case S3CFB_WIN_CONFIG_OLD:
 	case S3CFB_WIN_CONFIG:
 		argp = (struct decon_win_config_data __user *)arg;
 		DPU_EVENT_LOG(DPU_EVT_WIN_CONFIG, &decon->sd, ktime_set(0, 0));
 		decon_systrace(decon, 'C', "decon_win_config", 1);
-		if (copy_from_user(&win_data,
-				   (struct decon_win_config_data __user *)arg,
-				   sizeof(struct decon_win_config_data))) {
+		if (copy_from_user(&win_data, (void __user *)arg, _IOC_SIZE(cmd))) {
 			ret = -EFAULT;
 			break;
 		}
@@ -3391,6 +3398,10 @@ static int decon_fb_alloc_memory(struct decon_device *decon, struct decon_win *w
 	}
 
 	vaddr = dma_buf_vmap(buf);
+	if (IS_ERR_OR_NULL(vaddr)) {
+		dev_err(decon->dev, "dma_buf_vmap() failed\n");
+		goto err_map;
+	}
 #endif
 
 	memset(vaddr, 0x00, size);
@@ -3805,6 +3816,7 @@ static int decon_create_update_thread(struct decon_device *decon, char *name)
 	INIT_LIST_HEAD(&decon->up.list);
 	INIT_LIST_HEAD(&decon->up.saved_list);
 	decon->up_list_saved = false;
+	atomic_set(&decon->up.remaining_frame, 0);
 	kthread_init_worker(&decon->up.worker);
 	decon->up.thread = kthread_run(kthread_worker_fn,
 			&decon->up.worker, name);

@@ -23,7 +23,7 @@ int mifmboxman_deinit(struct mifmboxman *mbox);
 
 #ifdef CONFIG_SOC_EXYNOS7570
 #define MIFMBOX_NUM	8
-#elif defined(CONFIG_SOC_EXYNOS7872) || defined(CONFIG_SOC_EXYNOS7885) || defined(CONFIG_SOC_EXYNOS9610)
+#elif defined(CONFIG_SOC_EXYNOS7872) || defined(CONFIG_SOC_EXYNOS7885) || defined(CONFIG_SOC_EXYNOS9610) || defined(CONFIG_SOC_EXYNOS9630)
 #define MIFMBOX_NUM	4
 #else /* emulation */
 #define MIFMBOX_NUM	8

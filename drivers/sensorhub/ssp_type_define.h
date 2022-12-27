@@ -40,7 +40,7 @@
 #define SENSOR_TYPE_WAKE_UP_MOTION                  (SENSOR_TYPE_DEVICE_PRIVATE_BASE + 9)
 #define SENSOR_TYPE_LIGHT_AUTOBRIGHTNESS            (SENSOR_TYPE_DEVICE_PRIVATE_BASE + 10)
 #define SENSOR_TYPE_VDIS_GYROSCOPE                  (SENSOR_TYPE_DEVICE_PRIVATE_BASE + 11)
-#define SENSOR_TYPE_POCKET_MODE                     (SENSOR_TYPE_DEVICE_PRIVATE_BASE + 12)
+#define SENSOR_TYPE_POCKET_MODE_LITE                     (SENSOR_TYPE_DEVICE_PRIVATE_BASE + 12)
 #define SENSOR_TYPE_PROXIMITY_CALIBRATION           (SENSOR_TYPE_DEVICE_PRIVATE_BASE + 13)
 #define SENSOR_TYPE_MAX                             (SENSOR_TYPE_DEVICE_PRIVATE_BASE + 14)
 #define LEGACY_SENSOR_MAX                           (SENSOR_TYPE_MAX)
@@ -51,7 +51,7 @@
 ******************************/
 
 /* sensor types defined by samsung */
-#define SS_SENSOR_TYPE_BASE                       (LEGACY_SENSOR_MAX)
+#define SS_SENSOR_TYPE_BASE                       (128)
 #define SS_SENSOR_TYPE_CALL_POSE                  (SS_SENSOR_TYPE_BASE + 2)
 #define SS_SENSOR_TYPE_PEDOMETER                  (SS_SENSOR_TYPE_BASE + 3)
 #define SS_SENSOR_TYPE_MOTION                     (SS_SENSOR_TYPE_BASE + 4)

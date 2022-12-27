@@ -105,22 +105,10 @@ static irqreturn_t fimc_is_isr_pafstat(int irq, void *data)
 	pafstat_hw_s_irq_src(pafstat->regs, status);
 
 	if (status & (1 << PAFSTAT_INT_FRAME_START)) {
-		void __iomem *base_reg = pafstat->regs;
-
 		atomic_set(&pafstat->Vvalid, V_VALID);
-#if 0 /* TODO */
-		if (pafstat_g_current(base_reg) == PAFSTAT_SEL_SET_A)
-			base_reg = pafstat->regs_b;
-		else
-			base_reg = pafstat->regs;
-#endif
-
-		pafstat_hw_s_img_size(base_reg, pafstat->in_width, pafstat->in_height);
 
 		if (atomic_read(&pafstat->sfr_state) == PAFSTAT_SFR_READY)
 			atomic_set(&pafstat->sfr_state, PAFSTAT_SFR_APPLIED);
-
-		pafstat_hw_s_ready(base_reg, 1);
 
 		atomic_inc(&pafstat->fs);
 		dbg_isr("[%d][F:%d] F.S (0x%x)", pafstat, pafstat->id, atomic_read(&pafstat->fs), status);
@@ -197,11 +185,21 @@ static void pafstat_tasklet_fwin_stat(unsigned long data)
 	unsigned int frameptr;
 	int ch;
 	unsigned long flags;
+	void __iomem *curr_regs;
+	char *curr_set;
 
 	pafstat = (struct fimc_is_pafstat *)data;
 	if (!pafstat) {
 		err("failed to get PAFSTAT");
 		return;
+	}
+
+	if (pafstat_hw_g_current(pafstat->regs) == PAFSTAT_SEL_SET_A) {
+		curr_regs = pafstat->regs;
+		curr_set = "A";
+	} else {
+		curr_regs = pafstat->regs_b;
+		curr_set = "B";
 	}
 
 	module = (struct fimc_is_module_enum *)v4l2_get_subdev_hostdata(pafstat->subdev);
@@ -238,7 +236,7 @@ static void pafstat_tasklet_fwin_stat(unsigned long data)
 			frame = &framemgr->frames[frameptr];
 			frame->fcount = sensor->fcount;
 
-			pafstat_hw_g_fwin_stat(pafstat->regs, (void *)frame->kvaddr_buffer[0],
+			pafstat_hw_g_fwin_stat(curr_regs, (void *)frame->kvaddr_buffer[0],
 				dma_subdev->output.width * dma_subdev->output.height);
 
 			atomic_inc(&pafstat->frameptr_fwin_stat);
@@ -252,7 +250,8 @@ static void pafstat_tasklet_fwin_stat(unsigned long data)
 	else
 		schedule_work(&pafstat->work_fwin_stat);
 
-	dbg_pafstat(1, "%s, sensor fcount: %d\n", __func__, sensor->fcount);
+	dbg_pafstat(1, "%s, sensor fcount: %d, SFR curr(%s:%p)\n", __func__, sensor->fcount,
+		curr_set, curr_regs);
 }
 
 static void pafstat_worker_fwin_stat(struct work_struct *work)
@@ -329,6 +328,10 @@ int pafstat_set_num_buffers(struct v4l2_subdev *subdev, u32 num_buffers, struct 
 	if (ret)
 		err("pafstat ppc set error!\n");
 
+	ret = pafstat_hw_s_4ppc(pafstat->regs_b, csi_pixel_mode);
+	if (ret)
+		err("pafstat ppc set error!\n");
+
 	return ret;
 }
 
@@ -354,13 +357,6 @@ int pafstat_hw_set_regs(struct v4l2_subdev *subdev,
 		return -ENODEV;
 	}
 
-	dbg_pafstat(1, "PAFSTAT(%p) SFR setting\n", pafstat->regs);
-	for (i = 0; i < regs_cnt; i++) {
-		dbg_pafstat(2, "[%d] ofs: 0x%x, val: 0x%x\n",
-				i, regs[i].reg_addr, regs[i].reg_data);
-		writel(regs[i].reg_data, pafstat->regs + regs[i].reg_addr);
-	}
-
 	sensor_mode = module->vc_extra_info[VC_BUF_DATA_TYPE_GENERAL_STAT1].sensor_mode;
 	/* if distance_pd_pixel is 16 : 1 pd pixel per 16 bayer_line */
 	switch (sensor_mode) {
@@ -383,7 +379,42 @@ int pafstat_hw_set_regs(struct v4l2_subdev *subdev,
 		break;
 	}
 
-	med_line = pafstat_hw_com_s_med_line(pafstat->regs, distance_pd_pixel);
+	if (atomic_read(&pafstat->sfr_state) == PAFSTAT_SFR_INIT) {
+		for (i = 0; i < regs_cnt; i++) {
+			dbg_pafstat(2, "[%d] first ofs: 0x%x, val: 0x%x\n",
+					i, regs[i].reg_addr, regs[i].reg_data);
+			writel(regs[i].reg_data, pafstat->regs + regs[i].reg_addr);
+			writel(regs[i].reg_data, pafstat->regs_b + regs[i].reg_addr);
+		}
+
+		pafstat_hw_com_s_med_line(pafstat->regs, distance_pd_pixel);
+		med_line = pafstat_hw_com_s_med_line(pafstat->regs_b, distance_pd_pixel);
+	} else {
+		void __iomem *next_regs;
+		char *next_set;
+
+		if (pafstat_hw_g_current(pafstat->regs) == PAFSTAT_SEL_SET_A) {
+			next_regs = pafstat->regs_b;
+			next_set = "B";
+		} else {
+			next_regs = pafstat->regs;
+			next_set = "A";
+		}
+
+		dbg_pafstat(1, "PAFSTAT SFR next(%s:%p) setting\n",
+			next_set, next_regs);
+
+		for (i = 0; i < regs_cnt; i++) {
+			dbg_pafstat(2, "[%d] ofs: 0x%x, val: 0x%x\n",
+					i, regs[i].reg_addr, regs[i].reg_data);
+			writel(regs[i].reg_data, next_regs + regs[i].reg_addr);
+		}
+
+		med_line = pafstat_hw_com_s_med_line(next_regs, distance_pd_pixel);
+
+		pafstat_hw_s_ready(next_regs, 1);
+	}
+
 	dbg_pafstat(1, "SensorPD mode(%d), distance_pd(%d), MED LINE_NUM(%d)\n",
 		sensor_mode, distance_pd_pixel, med_line);
 
@@ -675,7 +706,6 @@ static int pafstat_s_stream(struct v4l2_subdev *subdev, int enable)
 			info("flush pafstat wq for fwin stat\n");
 	}
 
-
 	info("[PAFSTAT:%d] CORE_EN:%d\n", pafstat->id, enable);
 
 	return 0;
@@ -716,11 +746,13 @@ static int pafstat_s_format(struct v4l2_subdev *subdev,
 	pafstat->in_width = width;
 	pafstat->in_height = height;
 	pafstat_hw_s_img_size(pafstat->regs, pafstat->in_width, pafstat->in_height);
+	pafstat_hw_s_img_size(pafstat->regs_b, pafstat->in_width, pafstat->in_height);
 
 	lic_mode = (pafstat->fro_cnt == 0 ? LIC_MODE_INTERLEAVING : LIC_MODE_SINGLE_BUFFER);
 	pafstat_hw_com_s_lic_mode(pafstat->regs_com, pafstat->id, lic_mode, input);
 	pafstat_hw_com_s_output_mask(pafstat->regs_com, 0);
 	pafstat_hw_s_input_path(pafstat->regs, input);
+	pafstat_hw_s_input_path(pafstat->regs_b, input);
 
 	module = (struct fimc_is_module_enum *)v4l2_get_subdev_hostdata(subdev);
 	if (!module) {
@@ -754,6 +786,7 @@ static int pafstat_s_format(struct v4l2_subdev *subdev,
 			pafstat->pd_width /= 2;
 
 		pafstat_hw_s_pd_size(pafstat->regs, pafstat->pd_width, pafstat->pd_height);
+		pafstat_hw_s_pd_size(pafstat->regs_b, pafstat->pd_width, pafstat->pd_height);
 		pd_mode = sensor->cfg->pd_mode;
 	}
 
@@ -761,6 +794,8 @@ static int pafstat_s_format(struct v4l2_subdev *subdev,
 	cis_data->is_data.paf_stat_enable = pd_enable;
 
 	pafstat_hw_s_lbctrl(pafstat->regs,
+			pafstat->pd_width, pafstat->pd_height);
+	pafstat_hw_s_lbctrl(pafstat->regs_b,
 			pafstat->pd_width, pafstat->pd_height);
 
 	pafstat_hw_s_irq_mask(pafstat->regs, PAFSTAT_INT_MASK);
@@ -795,6 +830,7 @@ int fimc_is_pafstat_reset_recovery(struct v4l2_subdev *subdev, u32 reset_mode, i
 	if (reset_mode == 0) {	/* reset */
 		pafstat_hw_com_s_output_mask(pafstat->regs_com, 1);
 		pafstat_hw_sw_reset(pafstat->regs);
+        atomic_set(&pafstat->sfr_state, PAFSTAT_SFR_INIT);
 	} else {
 		pafstat_s_format(subdev, cfg, fmt);
 		pafstat_s_stream(subdev, 1);
@@ -940,6 +976,7 @@ static int __init pafstat_probe(struct platform_device *pdev)
 
 	prepare_pafstat_sfr_dump(pafstat);
 	atomic_set(&g_pafstat_rsccount, 0);
+    atomic_set(&pafstat->sfr_state, PAFSTAT_SFR_INIT);
 
 	platform_set_drvdata(pdev, pafstat);
 	probe_info("%s(%s)\n", __func__, dev_name(&pdev->dev));

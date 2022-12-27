@@ -517,6 +517,8 @@ int sm5713_afc_ta_attach(struct sm5713_muic_data *muic_data)
 	if (muic_data->pdata->afc_disable) {
 		pr_info("[%s:%s] AFC is disabled by USER, return\n",
 				MUIC_DEV_NAME, __func__);
+		muic_data->attached_dev = ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC;
+		muic_notifier_attach_attached_dev(muic_data->attached_dev);
 		return ret;
 	}
 

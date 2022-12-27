@@ -60,6 +60,7 @@ extern void dbg_snapshot_hook_hardlockup_exit(void);
 extern void dbg_snapshot_dump_sfr(void);
 extern int dbg_snapshot_hook_pmsg(char *buffer, size_t count);
 extern void dbg_snapshot_save_log(int cpu, unsigned long where);
+extern void dbg_snapshot_scratch_clear(void);
 #define dbg_snapshot_irq_var(v)   do {    v = cpu_clock(raw_smp_processor_id());  \
 				  } while(0)
 /* option */
@@ -237,6 +238,7 @@ extern void dbg_snapshot_get_softlockup_info(unsigned int cpu, void *info);
 #define dbg_snapshot_hook_hardlockup_entry(a) do { } while(0)
 #define dbg_snapshot_hook_hardlockup_exit() do { } while(0)
 #define dbg_snapshot_binder(a,b,c)	do { } while(0)
+#define dbg_snapshot_scratch_clear()	do { } while(0)
 #define dbg_snapshot_get_hardlockup_info(a, b)	do { } while (0)
 #define dbg_snapshot_get_softlockup_info(a, b)	do { } while (0)
 

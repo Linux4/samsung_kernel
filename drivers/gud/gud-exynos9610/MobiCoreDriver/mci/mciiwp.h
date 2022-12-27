@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (c) 2016-2017 TRUSTONIC LIMITED
  * All Rights Reserved.
@@ -117,6 +118,8 @@ struct interworld_session {
 	/* The following fields are only used during open-session */
 	struct teec_uuid target_uuid;
 	struct teec_uuid client_uuid;
+
+	char vm_id[16];
 };
 
 #endif /** MCIIWP_H_ */

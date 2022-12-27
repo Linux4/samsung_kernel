@@ -9,6 +9,15 @@
 #ifndef __SCSC_BT_PRIV_H
 #define __SCSC_BT_PRIV_H
 
+#include <linux/pm_qos.h>
+#include <linux/poll.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#include <scsc/scsc_wakelock.h>
+#else
+#include <linux/wakelock.h>
+#endif
+#include <linux/cdev.h>
+
 #include <scsc/scsc_mx.h>
 #include <scsc/api/bsmhcp.h>
 #include <scsc/api/bhcs.h>
@@ -230,10 +239,15 @@ struct scsc_bt_service {
 	struct scsc_bt_connection_info connection_handle_list[SCSC_BT_CONNECTION_INFO_MAX];
 	bool                           hci_event_paused;
 	bool                           acldata_paused;
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	struct scsc_wake_lock	       read_wake_lock;
+        struct scsc_wake_lock	       write_wake_lock;
+        struct scsc_wake_lock	       service_wake_lock;
+#else
 	struct wake_lock               read_wake_lock;
 	struct wake_lock               write_wake_lock;
 	struct wake_lock               service_wake_lock;
+#endif
 	size_t                         write_wake_lock_count;
 	size_t                         write_wake_unlock_count;
 
@@ -332,9 +346,15 @@ struct scsc_ant_service {
 	u32                            read_index;
 	wait_queue_head_t              read_wait;
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	struct scsc_wake_lock               read_wake_lock;
+        struct scsc_wake_lock               write_wake_lock;
+        struct scsc_wake_lock               service_wake_lock;
+#else
 	struct wake_lock               read_wake_lock;
 	struct wake_lock               write_wake_lock;
 	struct wake_lock               service_wake_lock;
+#endif
 	size_t                         write_wake_lock_count;
 	size_t                         write_wake_unlock_count;
 

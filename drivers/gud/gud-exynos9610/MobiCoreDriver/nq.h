@@ -1,5 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2013-2018 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -46,7 +47,7 @@ struct nq_session {
 	/* Time at notification state change */
 	u64			cpu_clk;
 	/* This TA is of Global Platform type, set by upper layer */
-	bool			is_gp;
+	int			is_gp;
 };
 
 /* Notification queue channel */
@@ -66,10 +67,6 @@ int nq_register_tee_stop_notifier(struct notifier_block *nb);
 int nq_unregister_tee_stop_notifier(struct notifier_block *nb);
 ssize_t nq_get_stop_message(char __user *buffer, size_t size);
 void nq_signal_tee_hung(void);
-
-/* SWd suspend/resume */
-int nq_suspend(void);
-int nq_resume(void);
 
 /* Start/stop TEE */
 int nq_start(void);

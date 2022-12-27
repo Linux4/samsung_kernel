@@ -436,9 +436,9 @@ void cal_gnss_reset_assert(void)
 	pmucal_gnss_reset_assert();
 }
 
-void cal_gnss_reset_release(void)
+int cal_gnss_reset_release(void)
 {
-	pmucal_gnss_reset_release();
+	return pmucal_gnss_reset_release();
 }
 
 void cal_gnss_reset_req_clear(void)

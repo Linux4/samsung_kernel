@@ -16,7 +16,10 @@ void slsi_handle_blockack(struct net_device *dev, struct slsi_peer *peer,
 int slsi_ba_process_frame(struct net_device *dev, struct slsi_peer *peer,
 			  struct sk_buff *skb, u16 sequence_number, u16 tid);
 
-void slsi_ba_process_complete(struct net_device *dev, bool from_ba_timer);
+void slsi_ba_update_window(struct net_device *dev,
+				  struct slsi_ba_session_rx *ba_session_rx, u16 sequence_number);
+
+void slsi_ba_process_complete(struct net_device *dev, bool ctx_napi);
 
 bool slsi_ba_check(struct slsi_peer *peer, u16 tid);
 

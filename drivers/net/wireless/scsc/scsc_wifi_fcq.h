@@ -1,6 +1,6 @@
 /*****************************************************************************
  *
- * Copyright (c) 2012 - 2016 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2020 Samsung Electronics Co., Ltd. All rights reserved
  *
  *****************************************************************************/
 
@@ -24,6 +24,11 @@ enum scsc_wifi_fcq_ps_state {
 struct scsc_wifi_fcq_q_stat {
 	u32 netq_stops;
 	u32 netq_resumes;
+	u32 netq_stop_percent;
+	u32 netq_stop_time_in_ms;
+	ktime_t last_sample_time;
+	ktime_t last_stop_time;
+	bool netq_state;
 };
 
 struct scsc_wifi_fcq_q_header {
@@ -93,6 +98,11 @@ int scsc_wifi_fcq_receive_data(struct net_device *dev, struct scsc_wifi_fcq_data
 int scsc_wifi_fcq_receive_data_no_peer(struct net_device *dev, u16 priority, struct slsi_dev *sdev, u8 vif, u8 peer_index);
 
 void scsc_wifi_fcq_pause_queues(struct slsi_dev *sdev);
+#ifdef CONFIG_SCSC_WLAN_ARP_FLOW_CONTROL
+void scsc_wifi_pause_arp_q_all_vif(struct slsi_dev *sdev);
+void scsc_wifi_unpause_arp_q_all_vif(struct slsi_dev *sdev);
+#endif
+
 void scsc_wifi_fcq_unpause_queues(struct slsi_dev *sdev);
 
 int scsc_wifi_fcq_transmit_ctrl(struct net_device *dev, struct scsc_wifi_fcq_ctrl_q *queue);

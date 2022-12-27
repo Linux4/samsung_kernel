@@ -1149,36 +1149,36 @@ void fm_rds_parser(struct fm_rds_parser_info *pi, u16 info, u8 blk_type, u8 err_
 		if (err_cnt > 5)
 			return;
 
-			switch (pi->grp) {
-			case RDS_GRPTYPE_0A:
-			case RDS_GRPTYPE_0B:
-				store_ps_data(pi, info, err_cnt);
-				break;
-
-			case RDS_GRPTYPE_2A:
-			case RDS_GRPTYPE_2B:
-				store_rt_data(pi, info, blk_type, err_cnt);
-				break;
-
-			case RDS_GRPTYPE_3A:
-				find_rtp_data(pi, info, blk_type);
-				break;
-
-			case RDS_GRPTYPE_5A:
-			case RDS_GRPTYPE_6A:
-			case RDS_GRPTYPE_7A:
-			case RDS_GRPTYPE_8A:
-			case RDS_GRPTYPE_9A:
-			case RDS_GRPTYPE_11A:
-			case RDS_GRPTYPE_12A:
-			case RDS_GRPTYPE_13A:
-				store_rtp_data(pi, info, blk_type);
-				break;
-
-			default:
-				break;
-			}
+		switch (pi->grp) {
+		case RDS_GRPTYPE_0A:
+		case RDS_GRPTYPE_0B:
+			store_ps_data(pi, info, err_cnt);
 			break;
+
+		case RDS_GRPTYPE_2A:
+		case RDS_GRPTYPE_2B:
+			store_rt_data(pi, info, blk_type, err_cnt);
+			break;
+
+		case RDS_GRPTYPE_3A:
+			find_rtp_data(pi, info, blk_type);
+			break;
+
+		case RDS_GRPTYPE_5A:
+		case RDS_GRPTYPE_6A:
+		case RDS_GRPTYPE_7A:
+		case RDS_GRPTYPE_8A:
+		case RDS_GRPTYPE_9A:
+		case RDS_GRPTYPE_11A:
+		case RDS_GRPTYPE_12A:
+		case RDS_GRPTYPE_13A:
+			store_rtp_data(pi, info, blk_type);
+			break;
+
+		default:
+			break;
+		}
+		break;
 	}
 }
 

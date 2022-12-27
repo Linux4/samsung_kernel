@@ -55,7 +55,7 @@ static irqreturn_t kepler_req_init_isr(int irq, void *arg)
 	gif_err("REQ_INIT Interrupt occurred!\n");
 
 	disable_irq_nosync(gc->req_init_irq);
-	complete(&gc->req_init_cmpl);
+	complete_all(&gc->req_init_cmpl);
 
 	return IRQ_HANDLED;
 }
@@ -158,7 +158,7 @@ static void kepler_irq_bcmd_handler(void *data)
 	struct gnss_ctl *gc = (struct gnss_ctl *)data;
 
 	/* Signal kepler_req_bcmd */
-	complete(&gc->bcmd_cmpl);
+	complete_all(&gc->bcmd_cmpl);
 }
 
 #ifdef USE_SIMPLE_WAKE_LOCK
@@ -220,7 +220,7 @@ static void mbox_kepler_rsp_fault_info(void *arg)
 {
 	struct gnss_ctl *gc = (struct gnss_ctl *)arg;
 
-	complete(&gc->fault_cmpl);
+	complete_all(&gc->fault_cmpl);
 }
 
 static DEFINE_MUTEX(reset_lock);
@@ -260,12 +260,19 @@ static int kepler_release_reset(struct gnss_ctl *gc)
 
 	gif_err("%s+++\n", __func__);
 
-	gnss_state_changed(gc, STATE_ONLINE);
 	mcu_ipc_clear_all_interrupt(MCU_GNSS);
 
 	enable_irq(gc->req_init_irq);
 
-	gc->pmu_ops->release_reset();
+	reinit_completion(&gc->req_init_cmpl);
+
+	ret = gc->pmu_ops->release_reset();
+	gif_info("pmu_ops release_reset ret : %d \n", ret);
+	if (ret) {
+		gif_err("failed to pmucal release reset\n");
+		return ret;
+	}
+	gnss_state_changed(gc, STATE_ONLINE);
 
 	if (gc->ccore_qch_lh_gnss) {
 		ret = clk_prepare_enable(gc->ccore_qch_lh_gnss);
@@ -282,7 +289,7 @@ static int kepler_release_reset(struct gnss_ctl *gc)
 		return -EIO;
 	}
 
-	msleep(100);
+	mdelay(100);
 	
 	gc->pmu_ops->check_status();
 
@@ -307,6 +314,8 @@ static int kepler_power_on(struct gnss_ctl *gc)
 
 	gnss_state_changed(gc, STATE_ONLINE);
 	mcu_ipc_clear_all_interrupt(MCU_GNSS);
+
+	reinit_completion(&gc->req_init_cmpl);
 
 	gc->pmu_ops->power_on(GNSS_POWER_ON);
 
@@ -355,6 +364,8 @@ static int kepler_req_fault_info(struct gnss_ctl *gc)
 
 	pdata = gc->gnss_data;
 	mbx = pdata->mbx;
+
+	reinit_completion(&gc->fault_cmpl);
 
 	mbox_set_interrupt(mbx->id, mbx->int_ap2gnss_req_fault_info);
 
@@ -457,7 +468,9 @@ static int kepler_req_bcmd(struct gnss_ctl *gc, u16 cmd_id, u16 flags,
 	} else if (gc->gnss_state == STATE_HOLD_RESET) {
 		ld->reset_buffers(ld);
 		gif_debug("Set RELEASE RESET on kepler_req_bcmd!!!!\n");
-		kepler_release_reset(gc);
+		ret = kepler_release_reset(gc);
+		if (ret)
+			return ret;
 	}
 #endif
 
@@ -482,6 +495,8 @@ static int kepler_req_bcmd(struct gnss_ctl *gc, u16 cmd_id, u16 flags,
 	 * register is set from Kepler.
 	 */
 	mbox_set_value(mbx->id, mbx->reg_bcmd_ctrl[CTRL3], 0xff);
+
+	reinit_completion(&gc->bcmd_cmpl);
 
 	mbox_set_interrupt(mbx->id, mbx->int_ap2gnss_bcmd);
 
@@ -532,6 +547,8 @@ static int kepler_pure_release(struct gnss_ctl *gc)
 
 	enable_irq(gc->req_init_irq);
 
+	reinit_completion(&gc->req_init_cmpl);
+
 	gc->pmu_ops->release_reset();
 
 	if (gc->ccore_qch_lh_gnss) {
@@ -550,8 +567,6 @@ static int kepler_pure_release(struct gnss_ctl *gc)
 	}
 
 	msleep(100);
-
-	gc->pmu_ops->check_status();
 
 	gif_err("%s---\n", __func__);
 

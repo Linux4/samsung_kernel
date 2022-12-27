@@ -1770,8 +1770,6 @@ static int current_may_throttle(void)
 		bdi_write_congested(current->backing_dev_info);
 }
 
-static inline bool need_memory_boosting(struct pglist_data *pgdat);
-
 /*
  * shrink_inactive_list() is a helper for shrink_node().  It returns the number
  * of reclaimed pages
@@ -1835,7 +1833,7 @@ shrink_inactive_list(unsigned long nr_to_scan, struct lruvec *lruvec,
 	if (nr_taken == 0)
 		return 0;
 	
-	if (need_memory_boosting(pgdat)) {
+	if (need_memory_boosting(pgdat, false)) {
 		force_reclaim = true;
 		ttu |= TTU_IGNORE_ACCESS;
 	}
@@ -2307,14 +2305,18 @@ static inline bool mem_boost_pgdat_wmark(struct pglist_data *pgdat)
 	return false;
 }
 
-static inline bool need_memory_boosting(struct pglist_data *pgdat)
+#define MEM_BOOST_THRESHOLD ((300 * 1024 * 1024) / (PAGE_SIZE))
+inline bool need_memory_boosting(struct pglist_data *pgdat, bool skip)
 {
 	bool ret;
+	unsigned long pgdatfile = node_page_state(pgdat, NR_ACTIVE_FILE) +
+				node_page_state(pgdat, NR_INACTIVE_FILE);
 
-	if (time_after(jiffies, last_mode_change + MEM_BOOST_MAX_TIME))
+	if (time_after(jiffies, last_mode_change + MEM_BOOST_MAX_TIME) ||
+			pgdatfile < MEM_BOOST_THRESHOLD)
 		mem_boost_mode = NO_BOOST;
 
-	if (memory_boosting_disabled)
+	if (!skip && memory_boosting_disabled)
 		return false;
 
 	switch (mem_boost_mode) {
@@ -2426,7 +2428,7 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 		}
 	}
 
-	if (current_is_kswapd() && need_memory_boosting(pgdat)) {
+	if (current_is_kswapd() && need_memory_boosting(pgdat, true)) {
 		scan_balance = SCAN_FILE;
 		goto out;
 	}
@@ -2523,9 +2525,11 @@ out:
 			/*
 			 * Scan types proportional to swappiness and
 			 * their relative recent reclaim efficiency.
+			 * Make sure we don't miss the last page
+			 * because of a round-off error.
 			 */
-			scan = div64_u64(scan * fraction[file],
-					 denominator);
+			scan = DIV64_U64_ROUND_UP(scan * fraction[file],
+						  denominator);
 			break;
 		case SCAN_FILE:
 		case SCAN_ANON:
@@ -2654,7 +2658,10 @@ static void shrink_node_memcg(struct pglist_data *pgdat, struct mem_cgroup *memc
 	}
 	blk_finish_plug(&plug);
 	sc->nr_reclaimed += nr_reclaimed;
-
+	
+	if (need_memory_boosting(NULL, true))
+		return;
+	
 	/*
 	 * Even if we did not try to evict anon pages at all, we want to
 	 * rebalance the anon lru active/inactive ratio.

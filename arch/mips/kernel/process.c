@@ -31,6 +31,7 @@
 #include <linux/prctl.h>
 #include <linux/nmi.h>
 
+#include <asm/abi.h>
 #include <asm/asm.h>
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
@@ -38,6 +39,7 @@
 #include <asm/dsp.h>
 #include <asm/fpu.h>
 #include <asm/irq.h>
+#include <asm/mips-cps.h>
 #include <asm/msa.h>
 #include <asm/pgtable.h>
 #include <asm/mipsregs.h>
@@ -368,7 +370,7 @@ static inline int is_sp_move_ins(union mips_instruction *ip, int *frame_size)
 static int get_frame_info(struct mips_frame_info *info)
 {
 	bool is_mmips = IS_ENABLED(CONFIG_CPU_MICROMIPS);
-	union mips_instruction insn, *ip, *ip_end;
+	union mips_instruction insn, *ip;
 	const unsigned int max_insns = 128;
 	unsigned int last_insn_size = 0;
 	unsigned int i;
@@ -381,10 +383,9 @@ static int get_frame_info(struct mips_frame_info *info)
 	if (!ip)
 		goto err;
 
-	ip_end = (void *)ip + info->func_size;
-
-	for (i = 0; i < max_insns && ip < ip_end; i++) {
+	for (i = 0; i < max_insns; i++) {
 		ip = (void *)ip + last_insn_size;
+
 		if (is_mmips && mm_insn_16bit(ip->halfword[0])) {
 			insn.word = ip->halfword[0] << 16;
 			last_insn_size = 2;
@@ -642,6 +643,29 @@ unsigned long get_wchan(struct task_struct *task)
 
 out:
 	return pc;
+}
+
+unsigned long mips_stack_top(void)
+{
+	unsigned long top = TASK_SIZE & PAGE_MASK;
+
+	/* One page for branch delay slot "emulation" */
+	top -= PAGE_SIZE;
+
+	/* Space for the VDSO, data page & GIC user page */
+	top -= PAGE_ALIGN(current->thread.abi->vdso->size);
+	top -= PAGE_SIZE;
+	top -= mips_gic_present() ? PAGE_SIZE : 0;
+
+	/* Space for cache colour alignment */
+	if (cpu_has_dc_aliases)
+		top -= shm_align_mask + 1;
+
+	/* Space to randomize the VDSO base */
+	if (current->flags & PF_RANDOMIZE)
+		top -= VDSO_RANDOMIZE_SIZE;
+
+	return top;
 }
 
 /*

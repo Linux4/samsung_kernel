@@ -13,6 +13,7 @@ struct scsc_mif_abs;
 struct mifqos;
 
 int mifqos_init(struct mifqos *qos, struct scsc_mif_abs *mif);
+int mifqos_set_affinity_cpu(struct mifqos *qos, u8 cpu);
 int mifqos_add_request(struct mifqos *qos, enum scsc_service_id id, enum scsc_qos_config config);
 int mifqos_update_request(struct mifqos *qos, enum scsc_service_id id, enum scsc_qos_config config);
 int mifqos_remove_request(struct mifqos *qos, enum scsc_service_id id);

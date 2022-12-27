@@ -73,10 +73,19 @@ bool sm5713_fg_fuelalert_init(struct sm5713_fuelgauge_data *fuelgauge,
 #if !defined(CONFIG_SEC_FACTORY)
 static void sm5713_fg_periodic_read(struct sm5713_fuelgauge_data *fuelgauge)
 {
+	static struct timespec old_ts = {0, };
+	struct timespec c_ts = {0, };
 	u8 reg;
 	int i;
 	int data[0x10];
 	char *str = NULL;
+
+	c_ts = ktime_to_timespec(ktime_get_boottime());
+	if ((unsigned long)(c_ts.tv_sec - old_ts.tv_sec) <= 180 && old_ts.tv_sec != 0) { /*3 min*/
+		pr_info("%s: skip old(%ld) current(%ld)\n", __func__, old_ts.tv_sec, c_ts.tv_sec);
+		return;
+	}
+	old_ts = c_ts;
 
 	str = kzalloc(sizeof(char)*1024, GFP_KERNEL);
 	if (!str)
@@ -949,7 +958,7 @@ int sm5713_fg_calculate_iocv(struct sm5713_fuelgauge_data *fuelgauge, bool is_vs
 			v_ret = sm5713_read_word(fuelgauge->i2c, i+0x10);
 		else
 			v_ret = sm5713_read_word(fuelgauge->i2c, i);
-			i_ret = sm5713_read_word(fuelgauge->i2c, i+0x20);
+		i_ret = sm5713_read_word(fuelgauge->i2c, i+0x20);
 
 		if ((i_ret&0x4000) == 0x4000) {
 			i_ret = -(i_ret&0x3FFF);
@@ -2405,6 +2414,7 @@ static int sm5713_fg_get_property(struct power_supply *psy,
 			fuelgauge->vempty_mode = VEMPTY_MODE_SW;
 		}
 
+
 		/* check whether doing the wake_unlock */
 		if ((val->intval > fuelgauge->pdata->fuel_alert_soc) &&
 			fuelgauge->is_fuel_alerted) {
@@ -2429,7 +2439,7 @@ static int sm5713_fg_get_property(struct power_supply *psy,
 
 		if (fuelgauge->pdata->capacity_calculation_type &
 			(SEC_FUELGAUGE_CAPACITY_TYPE_ATOMIC |
-			SEC_FUELGAUGE_CAPACITY_TYPE_SKIP_ABNORMAL)) {
+			SEC_FUELGAUGE_CAPACITY_TYPE_SKIP_ABNORMAL)){
 			sm5713_fg_get_atomic_capacity(fuelgauge, val);
 		}
 		break;

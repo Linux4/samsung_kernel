@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2013-2015 TRUSTONIC LIMITED
  * All Rights Reserved.
@@ -14,6 +15,10 @@
 
 #include <linux/spinlock.h>
 #include <linux/module.h>
+
+/* This file is only compiled when the code is built-in */
+#ifndef MODULE
+
 #include <linux/t-base-tui.h>
 
 static int trustedui_mode = TRUSTEDUI_MODE_OFF;
@@ -119,6 +124,4 @@ int trustedui_clear_mask(int mask)
 }
 EXPORT_SYMBOL(trustedui_clear_mask);
 
-MODULE_AUTHOR("Trustonic Limited");
-MODULE_LICENSE("GPL v2");
-MODULE_DESCRIPTION("Kinibi TUI");
+#endif

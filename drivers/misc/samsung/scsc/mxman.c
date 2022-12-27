@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2014 - 2019 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2020 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -12,6 +12,9 @@
 #include <linux/version.h>
 #include <linux/kmod.h>
 #include <linux/notifier.h>
+#ifdef CONFIG_ARCH_EXYNOS
+#include <linux/soc/samsung/exynos-soc.h>
+#endif
 #include "scsc_mx_impl.h"
 #include "miframman.h"
 #include "mifmboxman.h"
@@ -29,6 +32,9 @@
 #include "mxproc.h"
 #include "mxlog_transport.h"
 #include "mxsyserr.h"
+#if IS_ENABLED(CONFIG_EXYNOS_SYSTEM_EVENT)
+#include "mxman_sysevent.h"
+#endif
 #ifdef CONFIG_SCSC_SMAPPER
 #include "mifsmapper.h"
 #endif
@@ -40,7 +46,7 @@
 #include <scsc/scsc_release.h>
 #include <scsc/scsc_mx.h>
 #include <linux/fs.h>
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 #include <scsc/scsc_log_collector.h>
 #endif
 
@@ -50,18 +56,43 @@
 #define SCSC_SCRIPT_MOREDUMP	"moredump"
 #define SCSC_SCRIPT_LOGGER_DUMP	"mx_logger_dump.sh"
 static struct work_struct	wlbtd_work;
+#else
+#define MEMDUMP_FILE_FOR_RECOVERY 2
 #endif
 
 #include "scsc_lerna.h"
+#ifdef CONFIG_SCSC_LAST_PANIC_IN_DRAM
+#include "scsc_log_in_dram.h"
+#endif
+
+#if IS_ENABLED(CONFIG_DEBUG_SNAPSHOT)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#include <soc/samsung/debug-snapshot.h>
+#else
+#include <linux/debug-snapshot.h>
+#endif
+#endif
 
 #include <asm/page.h>
 #include <scsc/api/bt_audio.h>
+
+#if IS_ENABLED(CONFIG_SCSC_MEMLOG)
+#include <soc/samsung/memlogger.h>
+#endif
 
 #define STRING_BUFFER_MAX_LENGTH 512
 #define NUMBER_OF_STRING_ARGS	5
 #define MX_DRAM_SIZE (4 * 1024 * 1024)
 #define MX_DRAM_SIZE_SECTION_1 (8 * 1024 * 1024)
+
+#if defined(CONFIG_SOC_EXYNOS3830)
+#define MX_DRAM_SIZE_SECTION_2 (4 * 1024 * 1024)
+#else
 #define MX_DRAM_SIZE_SECTION_2 (8 * 1024 * 1024)
+#endif
+
+#define MX_DRAM_OFFSET_SECTION_2 MX_DRAM_SIZE_SECTION_1
+
 #define MX_FW_RUNTIME_LENGTH (1024 * 1024)
 #define WAIT_FOR_FW_TO_START_DELAY_MS 1000
 #define MBOX2_MAGIC_NUMBER 0xbcdeedcb
@@ -92,8 +123,16 @@ static struct work_struct	wlbtd_work;
 
 #define SCSC_R4_V2_MINOR_52 52
 #define SCSC_R4_V2_MINOR_53 53
+#define SCSC_R4_V2_MINOR_54 54
 
 #define MM_HALT_RSP_TIMEOUT_MS 100
+
+/* If limits below are exceeded, a service level reset will be raised to level 7 */
+#define SYSERR_LEVEL7_HISTORY_SIZE      (4)
+/* Minimum time between system error service resets (ms) */
+#define SYSERR_LEVEL7_MIN_INTERVAL      (300000)
+/* No more then SYSERR_RESET_HISTORY_SIZE system error service resets in this period (ms)*/
+#define SYSERR_LEVEL7_MONITOR_PERIOD    (3600000)
 
 static char panic_record_dump[PANIC_RECORD_DUMP_BUFFER_SZ];
 static BLOCKING_NOTIFIER_HEAD(firmware_chain);
@@ -132,6 +171,10 @@ static uint firmware_startup_flags;
 module_param(firmware_startup_flags, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(firmware_startup_flags, "0 = Proceed as normal (default); Bit 0 = 1 - spin at start of CRT0; Other bits reserved = 0");
 
+static uint trigger_moredump_level = MX_SYSERR_LEVEL_8;
+module_param(trigger_moredump_level, uint, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(trigger_moredump_level, "System error level that triggers moredump - may be 7 or 8 only");
+
 #ifdef CONFIG_SCSC_CHV_SUPPORT
 /* First arg controls chv function */
 int chv_run;
@@ -154,11 +197,13 @@ static bool disable_error_handling;
 module_param(disable_error_handling, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(disable_error_handling, "Disable error handling");
 
-#if defined(SCSC_SEP_VERSION) && (SCSC_SEP_VERSION >= 100000)
-int disable_recovery_handling = 2; /* MEMDUMP_FILE_FOR_RECOVERY : for /sys/wifi/memdump */
+#define DISABLE_RECOVERY_HANDLING_SCANDUMP 3 /* Halt kernel and scandump on FW failure */
+
+#if defined(SCSC_SEP_VERSION) && (SCSC_SEP_VERSION >= 10)
+static int disable_recovery_handling = 2; /* MEMDUMP_FILE_FOR_RECOVERY : for /sys/wifi/memdump */
 #else
 /* AOSP */
-int disable_recovery_handling = 1; /* Recovery disabled, enable in init.rc, not here. */
+static int disable_recovery_handling = 1; /* Recovery disabled, enable in init.rc, not here. */
 #endif
 
 module_param(disable_recovery_handling, int, S_IRUGO | S_IWUSR);
@@ -167,6 +212,10 @@ static bool disable_recovery_from_memdump_file = true;
 static int memdump = -1;
 static bool disable_recovery_until_reboot;
 
+static uint scandump_trigger_fw_panic = 0;
+module_param(scandump_trigger_fw_panic, uint, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(scandump_trigger_fw_panic, "Specify fw panic ID");
+
 static uint panic_record_delay = 1;
 module_param(panic_record_delay, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(panic_record_delay, "Delay in ms before accessing the panic record");
@@ -174,6 +223,14 @@ MODULE_PARM_DESC(panic_record_delay, "Delay in ms before accessing the panic rec
 static bool disable_logger = true;
 module_param(disable_logger, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(disable_logger, "Disable launch of user space logger");
+
+static uint syserr_level7_min_interval = SYSERR_LEVEL7_MIN_INTERVAL;
+module_param(syserr_level7_min_interval, uint, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(syserr_level7_min_interval, "Minimum time between system error level 7 resets (ms)");
+
+static uint syserr_level7_monitor_period = SYSERR_LEVEL7_MONITOR_PERIOD;
+module_param(syserr_level7_monitor_period, uint, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(syserr_level7_monitor_period, "No more then 4 system error level 7 resets in this period (ms)");
 
 /*
  * shared between this module and mgt.c as this is the kobject referring to
@@ -193,8 +250,29 @@ static ssize_t sysfs_store_memdump(struct kobject *kobj, struct kobj_attribute *
 static struct kobj_attribute memdump_attr =
 		__ATTR(memdump, 0660, sysfs_show_memdump, sysfs_store_memdump);
 
+/* Time stamps of last level7 resets in jiffies */
+static unsigned long syserr_level7_history[SYSERR_LEVEL7_HISTORY_SIZE] = {0};
+static int syserr_level7_history_index;
 
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
+static int mxman_logring_register_observer(struct scsc_logring_mx_cb *mx_cb, char *name)
+{
+	return mxlogger_register_global_observer(name);
+}
+
+static int mxman_logring_unregister_observer(struct scsc_logring_mx_cb *mx_cb, char *name)
+{
+	return mxlogger_unregister_global_observer(name);
+}
+
+/* callbacks to mxman */
+struct scsc_logring_mx_cb mx_logring = {
+	.scsc_logring_register_observer = mxman_logring_register_observer,
+	.scsc_logring_unregister_observer = mxman_logring_unregister_observer,
+};
+
+#endif
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 static int mxman_minimoredump_collect(struct scsc_log_collector_client *collect_client, size_t size)
 {
 	int ret = 0;
@@ -220,6 +298,29 @@ struct scsc_log_collector_client mini_moredump_client = {
 	.collect_end = NULL,
 	.prv = NULL,
 };
+
+static void mxman_get_fw_version_cb(struct scsc_log_collector_mx_cb *mx_cb, char *version, size_t ver_sz)
+{
+	mxman_get_fw_version(version, ver_sz);
+}
+
+static void mxman_get_drv_version_cb(struct scsc_log_collector_mx_cb *mx_cb, char *version, size_t ver_sz)
+{
+	mxman_get_driver_version(version, ver_sz);
+}
+
+static void call_wlbtd_sable_cb(struct scsc_log_collector_mx_cb *mx_cb, u8 trigger_code, u16 reason_code)
+{
+	call_wlbtd_sable(trigger_code, reason_code);
+}
+
+/* Register callbacks from scsc_collect to mx */
+struct scsc_log_collector_mx_cb mx_cb = {
+	.get_fw_version = mxman_get_fw_version_cb,
+	.get_drv_version = mxman_get_drv_version_cb,
+	.call_wlbtd_sable = call_wlbtd_sable_cb,
+};
+
 #endif
 
 /* Retrieve memdump in sysfs global */
@@ -319,7 +420,6 @@ void mxman_destroy_sysfs_memdump(void)
 }
 
 /* Track when WLBT reset fails to allow debug */
-bool reset_failed;
 static u64 reset_failed_time;
 
 /* Status of FM driver request, which persists beyond the lifecyle
@@ -338,6 +438,19 @@ static int syserr_command;
 static struct mxman *active_mxman;
 static bool send_fw_config_to_active_mxman(uint32_t fw_runtime_flags);
 static bool send_syserr_cmd_to_active_mxman(u32 syserr_cmd);
+static void mxman_fail_level8(struct mxman *mxman, u16 scsc_panic_code, const char *reason);
+
+
+static bool reset_failed;
+static bool mxman_check_reset_failed(struct scsc_mif_abs *mif)
+{
+	return reset_failed; // || mif->mif_reset_failure(mif);
+}
+
+static void mxman_set_reset_failed(void)
+{
+	reset_failed = true;
+}
 
 static int fw_runtime_flags_setter(const char *val, const struct kernel_param *kp)
 {
@@ -382,9 +495,12 @@ static int syserr_setter(const char *val, const struct kernel_param *kp)
 		u8 sub_system = (u8)(syserr_cmd / 10);
 		u8 level = (u8)(syserr_cmd % 10);
 
-		if (((sub_system > 2) && (sub_system < 8)) || (sub_system > 8) || (level > 7))
+		if (((sub_system > 2) && (sub_system < 8)) || (sub_system > 8) || (level > MX_SYSERR_LEVEL_8))
 			ret = -EINVAL;
-		else if (send_syserr_cmd_to_active_mxman(syserr_cmd))
+		else if (level == MX_SYSERR_LEVEL_8) {
+			if (active_mxman)
+				mxman_fail_level8(active_mxman, SCSC_PANIC_CODE_HOST << 15, __func__);
+		} else if (send_syserr_cmd_to_active_mxman(syserr_cmd))
 			syserr_command = syserr_cmd;
 		else
 			ret = -EINVAL;
@@ -399,7 +515,7 @@ static struct kernel_param_ops syserr_kops = {
 
 module_param_cb(syserr_command, &syserr_kops, NULL, 0200);
 MODULE_PARM_DESC(syserr_command,
-		 "Decimal XY - Trigger Type X(0,1,2,8), Level Y(1-7). Some combinations not supported");
+		 "Decimal XY - Trigger Type X(0,1,2,8), Level Y(1-8). Some combinations not supported");
 
 /**
  * Maxwell Agent Management Messages.
@@ -454,7 +570,7 @@ static bool send_fw_config_to_active_mxman(uint32_t fw_runtime_flags)
 
 	mutex_lock(&active_mxman->mxman_mutex);
 	srvman = scsc_mx_get_srvman(active_mxman->mx);
-	if (srvman && srvman->error) {
+	if (srvman && srvman_in_error(srvman)) {
 		mutex_unlock(&active_mxman->mxman_mutex);
 		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
 		return ret;
@@ -490,7 +606,7 @@ static bool send_syserr_cmd_to_active_mxman(u32 syserr_cmd)
 
 	mutex_lock(&active_mxman->mxman_mutex);
 	srvman = scsc_mx_get_srvman(active_mxman->mx);
-	if (srvman && srvman->error) {
+	if (srvman && srvman_in_error(srvman)) {
 		mutex_unlock(&active_mxman->mxman_mutex);
 		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
 		return ret;
@@ -527,7 +643,7 @@ static bool send_fm_params_to_active_mxman(struct wlbt_fm_params *params)
 
 	mutex_lock(&active_mxman->mxman_mutex);
 	srvman = scsc_mx_get_srvman(active_mxman->mx);
-	if (srvman && srvman->error) {
+	if (srvman && srvman_in_error(srvman)) {
 		mutex_unlock(&active_mxman->mxman_mutex);
 		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
 		return false;
@@ -554,10 +670,12 @@ static bool send_fm_params_to_active_mxman(struct wlbt_fm_params *params)
 
 static void mxman_stop(struct mxman *mxman);
 static void print_mailboxes(struct mxman *mxman);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 #ifdef CONFIG_SCSC_WLBTD
 static int _mx_exec(char *prog, int wait_exec) __attribute__((unused));
 #else
 static int _mx_exec(char *prog, int wait_exec);
+#endif
 #endif
 static int wait_for_mm_msg(struct mxman *mxman, struct completion *mm_msg_completion, ulong timeout_ms)
 {
@@ -618,6 +736,7 @@ static int coredump_helper(void)
 		return r;
 	}
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	for (i = 0; i < 20; i++) {
 		r = _mx_exec(mdbin, UMH_WAIT_PROC);
 		if (r != -EBUSY)
@@ -634,9 +753,12 @@ static int coredump_helper(void)
 		SCSC_TAG_INFO(MXMAN, "moredump.bin exit(%ld), check syslog\n", (r & 0xff00L) >> 8);
 
 	return r;
+#else
+	SCSC_TAG_INFO(MXMAN, "coredump_helper is not used in GKI\n");
+	return -EINVAL;
+#endif
 }
 #endif
-
 static int send_mm_msg_stop_blocking(struct mxman *mxman)
 {
 	int r;
@@ -711,8 +833,8 @@ static void mxman_print_versions(struct mxman *mxman)
 
 	SCSC_TAG_INFO(MXMAN, "%s", buf);
 	SCSC_TAG_INFO(MXMAN, "WLBT FW: %s\n", mxman->fw_build_id);
-	SCSC_TAG_INFO(MXMAN, "WLBT Driver: %d.%d.%d.%d\n",
-		SCSC_RELEASE_PRODUCT, SCSC_RELEASE_ITERATION, SCSC_RELEASE_CANDIDATE, SCSC_RELEASE_POINT);
+	SCSC_TAG_INFO(MXMAN, "WLBT Driver: %d.%d.%d.%d.%d\n",
+		SCSC_RELEASE_PRODUCT, SCSC_RELEASE_ITERATION, SCSC_RELEASE_CANDIDATE, SCSC_RELEASE_POINT, SCSC_RELEASE_CUSTOMER);
 #ifdef CONFIG_SCSC_WLBTD
 	scsc_wlbtd_get_and_print_build_type();
 #endif
@@ -756,6 +878,27 @@ static void mxman_message_handler(const void *message, void *data)
 	}
 }
 
+#if IS_ENABLED(CONFIG_SCSC_MEMLOG)
+static int mxman_is_memlog_valid(void)
+{
+	const char *desc_name = "WB_LOG";
+	const char *obj_name = "drm-mem";
+	struct memlog *desc = memlog_get_desc(desc_name);
+	struct memlog_obj *obj;
+
+	if (!desc)
+		return 1;
+		// treat this as fw is not loaded yet
+	else
+		obj = memlog_get_obj_by_name(desc, obj_name);
+
+	if(!obj)
+		return 0;
+	else
+		return 1;
+}
+#endif
+
 /*
  * This function calulates and checks two or three (depending on crc32_over_binary flag)
  * crc32 values in the firmware header. The function will check crc32 over the firmware binary
@@ -766,6 +909,12 @@ static void mxman_message_handler(const void *message, void *data)
 static int do_fw_crc32_checks(char *fw, u32 fw_image_size, struct fwhdr *fwhdr, bool crc32_over_binary)
 {
 	int r;
+#if IS_ENABLED(CONFIG_SCSC_MEMLOG)
+	if (!mxman_is_memlog_valid()) {
+		SCSC_TAG_ERR(MXMAN, "fw_crc_work_func failed by memlog API fail\n");
+		return -ENOMEM;
+	}
+#endif
 
 	if ((fwhdr->fw_crc32 == 0 || fwhdr->header_crc32 == 0 || fwhdr->const_crc32 == 0) && crc_check_allow_none == 0) {
 		SCSC_TAG_ERR(MXMAN, "error: CRC is missing fw_crc32=%d header_crc32=%d crc_check_allow_none=%d\n",
@@ -826,13 +975,11 @@ static int do_fw_crc32_checks(char *fw, u32 fw_image_size, struct fwhdr *fwhdr, 
 	return 0;
 }
 
-
 static void fw_crc_wq_start(struct mxman *mxman)
 {
 	if (mxman->check_crc && crc_check_period_ms)
 		queue_delayed_work(mxman->fw_crc_wq, &mxman->fw_crc_work, msecs_to_jiffies(crc_check_period_ms));
 }
-
 
 static void fw_crc_work_func(struct work_struct *work)
 {
@@ -847,7 +994,6 @@ static void fw_crc_work_func(struct work_struct *work)
 	}
 	fw_crc_wq_start(mxman);
 }
-
 
 static void fw_crc_wq_init(struct mxman *mxman)
 {
@@ -940,8 +1086,12 @@ static int transports_init(struct mxman *mxman)
 	mxman->mxconf = mxconf;
 	mxconf->magic = MXCONF_MAGIC;
 	mxconf->version.major = MXCONF_VERSION_MAJOR;
-	mxconf->version.minor = MXCONF_VERSION_MINOR;
 
+#ifdef CONFIG_SOC_EXYNOS7885
+	SCSC_TAG_DEBUG(MXMAN, "exynos_soc_info.revision=%d\n", exynos_soc_info.revision);
+	mxconf->soc_revision = exynos_soc_info.revision;
+#endif
+	mxconf->version.minor = MXCONF_VERSION_MINOR;
 	/* Pass pre-existing FM status to FW */
 	mxconf->flags = 0;
 #ifdef CONFIG_SCSC_FM
@@ -1017,8 +1167,7 @@ static void mbox_init(struct mxman *mxman, u32 firmware_entry_point)
 	*mbox0 = firmware_entry_point;
 	mif->get_mifram_ref(mif, mxman->mxconf, &mifram_ref);
 	*mbox1 = mifram_ref; /* must be R4-relative address here */
-	/* CPU memory barrier */
-	wmb();
+
 	/*
 	 * write the magic number "0xbcdeedcb" to MIF Mailbox #2 &
 	 * copy the firmware_startup_flags to MIF Mailbox #3 before starting (reset = 0) the R4
@@ -1027,6 +1176,9 @@ static void mbox_init(struct mxman *mxman, u32 firmware_entry_point)
 	*mbox2 = MBOX2_MAGIC_NUMBER;
 	mbox3 = mifmboxman_get_mbox_ptr(scsc_mx_get_mboxman(mx), mif, MBOX_INDEX_3);
 	*mbox3 = firmware_startup_flags;
+
+	/* CPU memory barrier */
+	smp_wmb();
 }
 
 static int fwhdr_init(char *fw, struct fwhdr *fwhdr, bool *fwhdr_parsed_ok, bool *check_crc)
@@ -1166,20 +1318,94 @@ static int fw_init(struct mxman *mxman, void *start_dram, size_t size_dram, bool
 
 }
 
+#if IS_ENABLED(CONFIG_SCSC_MEMLOG)
+struct memlog_obj *mxman_get_memlog_obj(struct scsc_mif_abs *mif, const char *desc_name)
+{
+	struct device *dev = mif->get_mif_device(mif);
+	struct memlog *desc = memlog_get_desc(desc_name);
+	struct memlog_obj *obj = NULL;
+	const char *obj_name = "drm-mem";
+
+	if (!desc) {
+		int val = memlog_register(desc_name, dev, &desc);
+
+		if (!val) {
+			/* callback can be registered in each driver (optional) */
+			// desc->ops.file_ops_completed = file_ops_completed;
+			// desc->ops.log_status_notify = log_status_notify;
+			// desc->ops.log_level_notify = log_level_notify;
+			// desc->ops.log_enable_notify = log_enable_notify;
+		} else {
+			/* error handling */
+		}
+
+		/* MX_DRAM_SIZE_SECTION_1 = 8MB */
+		obj = memlog_alloc_direct(desc, MX_DRAM_SIZE_SECTION_2, NULL, obj_name);
+		if (!obj) {
+			/* Alloc fail */
+			SCSC_TAG_INFO(MXMAN, "obj alloc failed!!\n");
+		}
+	} else {
+		obj = memlog_get_obj_by_name(desc, obj_name);
+	}
+	return obj;
+}
+
+static void mxman_set_memlog_version(struct scsc_mif_abs *mif)
+{
+	struct memlog *desc = memlog_get_desc("WB_LOG");
+	struct memlog_obj *scsc_memlog_version_info_obj;
+
+	struct scsc_memlog_version_info {
+		char fw_version[128];
+		char host_version[64];
+		char fapi_version[64];
+	} *memlog_version_info;
+
+
+	if (desc) {
+		const char *fapi_version = "ma:14.1, mlme:14.6, debug:13.3, test:14.0";
+
+		scsc_memlog_version_info_obj = memlog_get_obj_by_name(desc, "str-mem");
+		if (!scsc_memlog_version_info_obj) {
+			scsc_memlog_version_info_obj = memlog_alloc_array(
+				desc, 1, sizeof(struct scsc_memlog_version_info),
+				NULL, "str-mem", "scsc_memlog_version_info", 0);
+
+			if (!scsc_memlog_version_info_obj) {
+				/* Alloc fail */
+				return;
+			}
+		}
+
+		memlog_version_info = (struct scsc_memlog_version_info *)scsc_memlog_version_info_obj->vaddr;
+		mxman_get_fw_version(memlog_version_info->fw_version, SCSC_LOG_FW_VERSION_SIZE);
+		mxman_get_driver_version(memlog_version_info->host_version, SCSC_LOG_HOST_VERSION_SIZE);
+		memcpy(memlog_version_info->fapi_version, fapi_version, SCSC_LOG_FAPI_VERSION_SIZE);
+	}
+}
+#endif
+
 static int mxman_start(struct mxman *mxman)
 {
 	void                *start_dram;
+	void                *start_dram_section2;
 	size_t              size_dram = MX_DRAM_SIZE;
 	struct scsc_mif_abs *mif;
 	struct fwhdr        *fwhdr = &mxman->fwhdr;
 	bool                fwhdr_parsed_ok;
 	void                *start_mifram_heap;
 	u32                 length_mifram_heap;
-	void                *start_mifram_heap2;
 	u32                 length_mifram_heap2;
 	int                 r;
+#if IS_ENABLED(CONFIG_SCSC_MEMLOG)
+	const char          *desc_name = "WB_LOG";
+	struct memlog_obj   *obj;
+	struct device       *dev;
+#endif
 
-	if (reset_failed) {
+	mif = scsc_mx_get_mif_abs(mxman->mx);
+	if (mxman_check_reset_failed(mif)) {
 		struct timeval tval = ns_to_timeval(reset_failed_time);
 
 		SCSC_TAG_ERR(MXMAN, "previous reset failed at [%6lu.%06ld], ignoring\n", tval.tv_sec, tval.tv_usec);
@@ -1220,22 +1446,51 @@ static int mxman_start(struct mxman *mxman)
 		return r;
 	}
 
+	/* ABox reserved at end so adjust length - round to multiple of PAGE_SIZE */
+	length_mifram_heap2 = MX_DRAM_SIZE_SECTION_2
+		- ((sizeof(struct scsc_bt_audio_abox) + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1));
+
+#if IS_ENABLED(CONFIG_SCSC_MEMLOG)
+	dev = mif->get_mif_device(mif);
+	obj = mxman_get_memlog_obj(mif, desc_name);
+
+	/* WLBT fw update is needed only use 8MB if mxlogger is disabled */
+	/* After that, we can remove below IF block */
+	if (!obj) {
+		SCSC_TAG_ERR(MXMAN, "memlog erro\n");
+		fw_crc_wq_stop(mxman);
+		mif->unmap(mif, mxman->start_dram);
+		return -ENOMEM;
+	}
+
+	if (obj) {
+		mxman_set_memlog_version(mif);
+
+		/* do the new BAAW mapings */
+		r = mif->set_mem_region2(mif, obj->vaddr, MXL_POOL_SZ);
+
+		start_dram_section2 = (char *)obj->vaddr;
+		miframman_init(scsc_mx_get_ramman2(mxman->mx),
+			start_dram_section2,
+			length_mifram_heap2,
+			start_dram_section2);
+		miframabox_init(scsc_mx_get_aboxram(mxman->mx), start_dram_section2 + length_mifram_heap2);
+	}
+#else
+	start_dram_section2 = (char *)start_dram + MX_DRAM_SIZE_SECTION_1;
+	miframman_init(scsc_mx_get_ramman2(mxman->mx),
+		start_dram_section2,
+		length_mifram_heap2,
+		start_dram_section2);
+	miframabox_init(scsc_mx_get_aboxram(mxman->mx), start_dram_section2 + length_mifram_heap2);
+#endif
 	/* set up memory protection (read only) from start_dram to start_dram+fw_length
 	 * rounding up the size if required
 	 */
 	start_mifram_heap = (char *)start_dram + fwhdr->fw_runtime_length;
 	length_mifram_heap = MX_DRAM_SIZE_SECTION_1 - fwhdr->fw_runtime_length;
 
-
-	start_mifram_heap2 = (char *)start_dram + MX_DRAM_SIZE_SECTION_2;
-
-	/* ABox reserved at end so adjust length - round to multiple of PAGE_SIZE */
-	length_mifram_heap2 = MX_DRAM_SIZE_SECTION_2 -
-			((sizeof(struct scsc_bt_audio_abox) + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1));
-
 	miframman_init(scsc_mx_get_ramman(mxman->mx), start_mifram_heap, length_mifram_heap, start_dram);
-	miframman_init(scsc_mx_get_ramman2(mxman->mx), start_mifram_heap2, length_mifram_heap2, start_mifram_heap2);
-	miframabox_init(scsc_mx_get_aboxram(mxman->mx), start_mifram_heap2 + length_mifram_heap2);
 	mifmboxman_init(scsc_mx_get_mboxman(mxman->mx));
 	mifintrbit_init(scsc_mx_get_intrbit(mxman->mx), mif);
 	mxfwconfig_init(mxman->mx);
@@ -1254,6 +1509,9 @@ static int mxman_start(struct mxman *mxman)
 		mif->unmap(mif, mxman->start_dram);
 		return r;
 	}
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	mif->recovery_disabled_reg(mif, mxman_recovery_disabled);
+#endif
 	mbox_init(mxman, fwhdr->firmware_entry_point);
 	init_completion(&mxman->mm_msg_start_ind_completion);
 	init_completion(&mxman->mm_msg_halt_rsp_completion);
@@ -1262,14 +1520,13 @@ static int mxman_start(struct mxman *mxman)
 						&mxman_message_handler, mxman);
 
 	mxlog_init(scsc_mx_get_mxlog(mxman->mx), mxman->mx, mxman->fw_build_id);
-#ifdef CONFIG_SCSC_MXLOGGER
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
 	mxlogger_init(mxman->mx, scsc_mx_get_mxlogger(mxman->mx), MXL_POOL_SZ);
-
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#endif
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	/* Register minimoredump  client */
 	mini_moredump_client.prv = mxman;
 	scsc_log_collector_register_client(&mini_moredump_client);
-#endif
 #endif
 #ifdef CONFIG_SCSC_SMAPPER
 	/* Initialize SMAPPER */
@@ -1278,7 +1535,9 @@ static int mxman_start(struct mxman *mxman)
 #ifdef CONFIG_SCSC_QOS
 	mifqos_init(scsc_mx_get_qos(mxman->mx), mif);
 #endif
-
+#ifdef CONFIG_SCSC_LAST_PANIC_IN_DRAM
+	scsc_log_in_dram_mmap_create();
+#endif
 #ifdef CONFIG_SCSC_CHV_SUPPORT
 	if (chv_run) {
 		int i;
@@ -1313,13 +1572,17 @@ static int mxman_start(struct mxman *mxman)
 	mxman->mxman_state = MXMAN_STATE_STARTING;
 
 	/* release Maxwell from reset */
+
+#if IS_ENABLED(CONFIG_SCSC_MEMLOG)
+	mif->set_memlog_paddr(mif, obj->paddr);
+#endif
 	r = mif->reset(mif, 0);
 	if (r) {
-		reset_failed = true;
+		mxman_set_reset_failed();
 		SCSC_TAG_INFO(MXMAN, "HW reset deassertion failed\n");
 
 		/* Save log at point of failure */
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 		scsc_log_collector_schedule_collection(SCSC_LOG_HOST_COMMON, SCSC_LOG_HOST_COMMON_REASON_START);
 #else
 		mx140_log_dump();
@@ -1337,7 +1600,7 @@ static int mxman_start(struct mxman *mxman)
 			mxman_stop(mxman);
 			return r;
 		}
-#ifdef CONFIG_SCSC_MXLOGGER
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
 		mxlogger_start(scsc_mx_get_mxlogger(mxman->mx));
 #endif
 	} else {
@@ -1357,17 +1620,18 @@ static bool is_bug_on_enabled(struct scsc_mx *mx)
 		bug_on_enabled = true;
 	else
 		bug_on_enabled = false;
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	(void)firm; /* unused */
 	(void)r; /* unused */
-	return bug_on_enabled;
+	goto out;
 #else
 	/* non SABLE platforms should also follow /sys/wifi/memdump if enabled */
 	if (disable_recovery_handling == MEMDUMP_FILE_FOR_RECOVERY)
-		return bug_on_enabled;
+		goto out;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	/* for legacy platforms (including Andorid P) using .memdump.info */
-#if defined(SCSC_SEP_VERSION) && (SCSC_SEP_VERSION >= 90000)
+#if defined(SCSC_SEP_VERSION) && (SCSC_SEP_VERSION >= 9)
 	#define MX140_MEMDUMP_INFO_FILE	"/data/vendor/conn/.memdump.info"
 #else
 	#define MX140_MEMDUMP_INFO_FILE	"/data/misc/conn/.memdump.info"
@@ -1384,9 +1648,11 @@ static bool is_bug_on_enabled(struct scsc_mx *mx)
 	else if (*firm->data == '3')
 		bug_on_enabled = true;
 	mx140_release_file(mx, firm);
+#endif //(LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+#endif //CONFIG_SCSC_LOG_COLLECTION
+out:
 	SCSC_TAG_INFO(MX_FILE, "bug_on_enabled %d\n", bug_on_enabled);
 	return bug_on_enabled;
-#endif //CONFIG_SCSC_LOG_COLLECTION
 }
 
 static void print_panic_code_legacy(u16 code)
@@ -1475,6 +1741,7 @@ static void print_panic_code(u16 code)
 void mxman_show_last_panic(struct mxman *mxman)
 {
 	u32 r4_panic_record_length = 0;	/* in u32s */
+	u32 r4_panic_stack_record_length = 0;	/* in u32s */
 
 	/* Any valid panic? */
 	if (mxman->scsc_panic_code == 0)
@@ -1489,7 +1756,8 @@ void mxman_show_last_panic(struct mxman *mxman)
 
 	case SCSC_PANIC_ORIGIN_FW:
 		SCSC_TAG_INFO(MXMAN, "Last panic was FW:\n");
-		fw_parse_r4_panic_record(mxman->last_panic_rec_r, &r4_panic_record_length);
+		fw_parse_r4_panic_record(mxman->last_panic_rec_r, &r4_panic_record_length, NULL, true);
+		fw_parse_r4_panic_stack_record(mxman->last_panic_stack_rec_r, &r4_panic_stack_record_length, true);
 		break;
 
 	default:
@@ -1510,20 +1778,24 @@ void mxman_show_last_panic(struct mxman *mxman)
 	SCSC_TAG_INFO(MXMAN, "\n\n--- END DETAILS OF LAST WLBT FAILURE ---\n\n");
 }
 
-static void process_panic_record(struct mxman *mxman)
+static void process_panic_record(struct mxman *mxman, bool dump)
 {
 	u32 *r4_panic_record = NULL;
+	u32 *r4_panic_stack_record = NULL;
 	u32 *m4_panic_record = NULL;
 #ifdef CONFIG_SCSC_MX450_GDB_SUPPORT
 	u32 *m4_1_panic_record = NULL;
 #endif
 	u32 r4_panic_record_length = 0;	/* in u32s */
+	u32 r4_panic_stack_record_offset = 0; /* in bytes */
+	u32 r4_panic_stack_record_length = 0;	/* in u32s */
 	u32 m4_panic_record_length = 0; /* in u32s */
 #ifdef CONFIG_SCSC_MX450_GDB_SUPPORT
 	u32 m4_1_panic_record_length = 0; /* in u32s */
 #endif
 	u32 full_panic_code = 0;
 	bool r4_panic_record_ok = false;
+	bool r4_panic_stack_record_ok = false;
 	bool m4_panic_record_ok = false;
 #ifdef CONFIG_SCSC_MX450_GDB_SUPPORT
 	bool m4_1_panic_record_ok = false;
@@ -1536,23 +1808,25 @@ static void process_panic_record(struct mxman *mxman)
 
 	/* some configurable delay before accessing the panic record */
 	msleep(panic_record_delay);
+
 	/*
 	* Check if the panic was trigered by MX and set the subcode if so.
 	*/
 	if ((mxman->scsc_panic_code & SCSC_PANIC_ORIGIN_MASK) == SCSC_PANIC_ORIGIN_FW) {
 		if (mxman->fwhdr.r4_panic_record_offset) {
 			r4_panic_record = (u32 *)(mxman->fw + mxman->fwhdr.r4_panic_record_offset);
-			r4_panic_record_ok = fw_parse_r4_panic_record(r4_panic_record, &r4_panic_record_length);
+			r4_panic_record_ok = fw_parse_r4_panic_record(r4_panic_record, &r4_panic_record_length,
+								      &r4_panic_stack_record_offset, dump);
 		} else {
 			SCSC_TAG_INFO(MXMAN, "R4 panic record doesn't exist in the firmware header\n");
 		}
 		if (mxman->fwhdr.m4_panic_record_offset) {
 			m4_panic_record = (u32 *)(mxman->fw + mxman->fwhdr.m4_panic_record_offset);
-			m4_panic_record_ok = fw_parse_m4_panic_record(m4_panic_record, &m4_panic_record_length);
+			m4_panic_record_ok = fw_parse_m4_panic_record(m4_panic_record, &m4_panic_record_length, dump);
 #ifdef CONFIG_SCSC_MX450_GDB_SUPPORT
 		} else if (mxman->fwhdr.m4_1_panic_record_offset) {
 			m4_1_panic_record = (u32 *)(mxman->fw + mxman->fwhdr.m4_1_panic_record_offset);
-			m4_1_panic_record_ok = fw_parse_m4_panic_record(m4_1_panic_record, &m4_1_panic_record_length);
+			m4_1_panic_record_ok = fw_parse_m4_panic_record(m4_1_panic_record, &m4_1_panic_record_length, dump);
 #endif
 		} else {
 			SCSC_TAG_INFO(MXMAN, "M4 panic record doesn't exist in the firmware header\n");
@@ -1577,74 +1851,178 @@ static void process_panic_record(struct mxman *mxman)
 			mxman->scsc_panic_code |= SCSC_PANIC_TECH_UNSP;
 			print_panic_code_legacy(mxman->scsc_panic_code);
 			break;
+		case SCSC_R4_V2_MINOR_54:
 		case SCSC_R4_V2_MINOR_53:
 			if (r4_panic_record_ok) {
 				/* Save the last R4 panic record for future display */
-				BUG_ON(sizeof(mxman->last_panic_rec_r) < SCSC_R4_V2_MINOR_53 * sizeof(u32));
-				memcpy((u8 *)mxman->last_panic_rec_r, (u8 *)r4_panic_record, SCSC_R4_V2_MINOR_53 * sizeof(u32));
+				BUG_ON(sizeof(mxman->last_panic_rec_r) < r4_panic_record_length * sizeof(u32));
+				memcpy((u8 *)mxman->last_panic_rec_r, (u8 *)r4_panic_record, r4_panic_record_length * sizeof(u32));
 				mxman->last_panic_rec_sz = r4_panic_record_length;
 
 				r4_sympathetic_panic_flag = fw_parse_get_r4_sympathetic_panic_flag(r4_panic_record);
-				SCSC_TAG_INFO(MXMAN, "r4_panic_record_ok=%d r4_sympathetic_panic_flag=%d\n",
-						r4_panic_record_ok,
-						r4_sympathetic_panic_flag
-					);
+				if (dump)
+					SCSC_TAG_INFO(MXMAN, "r4_panic_record_ok=%d r4_sympathetic_panic_flag=%d\n",
+							r4_panic_record_ok,
+							r4_sympathetic_panic_flag);
+				/* Check panic stack if present */
+				if (r4_panic_record_length >= SCSC_R4_V2_MINOR_54) {
+					r4_panic_stack_record = (u32 *)(mxman->fw + r4_panic_stack_record_offset);
+					r4_panic_stack_record_ok = fw_parse_r4_panic_stack_record(r4_panic_stack_record, &r4_panic_stack_record_length, dump);
+				} else {
+					r4_panic_stack_record_ok = false;
+					r4_panic_stack_record_length = 0;
+				}
 				if (r4_sympathetic_panic_flag == false) {
 					/* process R4 record */
-					SCSC_TAG_INFO(MXMAN, "process R4 record\n");
 					full_panic_code = r4_panic_record[3];
 					mxman->scsc_panic_code |= SCSC_PANIC_CODE_MASK & full_panic_code;
-					print_panic_code(mxman->scsc_panic_code);
+					if (dump)
+						print_panic_code(mxman->scsc_panic_code);
 					break;
 				}
 			}
 			if (m4_panic_record_ok) {
 				m4_sympathetic_panic_flag = fw_parse_get_m4_sympathetic_panic_flag(m4_panic_record);
-				SCSC_TAG_INFO(MXMAN, "m4_panic_record_ok=%d m4_sympathetic_panic_flag=%d\n",
-						m4_panic_record_ok,
-						m4_sympathetic_panic_flag
-					);
+				if (dump)
+					SCSC_TAG_INFO(MXMAN, "m4_panic_record_ok=%d m4_sympathetic_panic_flag=%d\n",
+							m4_panic_record_ok,
+							m4_sympathetic_panic_flag);
 				if (m4_sympathetic_panic_flag == false) {
 					/* process M4 record */
-					SCSC_TAG_INFO(MXMAN, "process M4 record\n");
 					mxman->scsc_panic_code |= SCSC_PANIC_CODE_MASK & m4_panic_record[3];
 				} else if (r4_panic_record_ok) {
 					/* process R4 record */
-					SCSC_TAG_INFO(MXMAN, "process R4 record\n");
 					mxman->scsc_panic_code |= SCSC_PANIC_CODE_MASK & r4_panic_record[3];
 				}
-				print_panic_code(mxman->scsc_panic_code);
+				if (dump)
+					print_panic_code(mxman->scsc_panic_code);
 			}
 #ifdef CONFIG_SCSC_MX450_GDB_SUPPORT /* this is wrong but not sure what is "right" */
 /* "sympathetic panics" are not really a thing on the Neus architecture unless */
 /* generated by the host                                                       */
 			if (m4_1_panic_record_ok) {
-				m4_1_sympathetic_panic_flag = fw_parse_get_m4_sympathetic_panic_flag(m4_panic_record);
-				SCSC_TAG_INFO(MXMAN, "m4_1_panic_record_ok=%d m4_1_sympathetic_panic_flag=%d\n",
-						m4_1_panic_record_ok,
-						m4_1_sympathetic_panic_flag
-					);
+				m4_1_sympathetic_panic_flag = fw_parse_get_m4_sympathetic_panic_flag(m4_1_panic_record);
+				if (dump) {
+					SCSC_TAG_DEBUG(MXMAN, "m4_1_panic_record_ok=%d m4_1_sympathetic_panic_flag=%d\n",
+							m4_1_panic_record_ok,
+							m4_1_sympathetic_panic_flag);
+				}
 				if (m4_1_sympathetic_panic_flag == false) {
 					/* process M4 record */
-					SCSC_TAG_INFO(MXMAN, "process M4_1 record\n");
 					mxman->scsc_panic_code |= SCSC_PANIC_SUBCODE_MASK & m4_1_panic_record[3];
 				} else if (r4_panic_record_ok) {
 					/* process R4 record */
-					SCSC_TAG_INFO(MXMAN, "process R4 record\n");
 					mxman->scsc_panic_code |= SCSC_PANIC_SUBCODE_MASK & r4_panic_record[3];
 				}
-				print_panic_code(mxman->scsc_panic_code);
+				if (dump)
+					print_panic_code(mxman->scsc_panic_code);
 			}
 #endif
 			break;
 		}
 	}
 	if (r4_panic_record_ok) {
-		/* Populate syserr info with panic equivalent  */
+		/* Populate syserr info with panic equivalent, but don't modify level  */
 		mxman->last_syserr.subsys = (u8) ((full_panic_code >> SYSERR_SUB_SYSTEM_POSN) & SYSERR_SUB_SYSTEM_MASK);
-		mxman->last_syserr.level = MX_SYSERR_LEVEL_7;
 		mxman->last_syserr.type = (u8) ((full_panic_code >> SYSERR_TYPE_POSN) & SYSERR_TYPE_MASK);
 		mxman->last_syserr.subcode = (u16) ((full_panic_code >> SYSERR_SUB_CODE_POSN) & SYSERR_SUB_CODE_MASK);
+	}
+}
+
+/* Check whether syserr should be promoted based on frequency or service driver override */
+static void mxman_check_promote_syserr(struct mxman *mxman)
+{
+	int i;
+	int entry = -1;
+	unsigned long now = jiffies;
+
+	/* We use 0 as a NULL timestamp so avoid this */
+	now = (now) ? now : 1;
+
+	/* Promote all L7 to L8 to maintain existing moredump scheme,
+	 * unless code is found in the filter list
+	 */
+	if (mxman->last_syserr.level == MX_SYSERR_LEVEL_7) {
+		u8 new_level = MX_SYSERR_LEVEL_7;
+		for (i = 0; i < ARRAY_SIZE(mxfwconfig_syserr_no_promote); i++) {
+			/* End of list reached without match, promote to L8 by default */
+			if (mxfwconfig_syserr_no_promote[i] == 0) {
+				new_level = MX_SYSERR_LEVEL_8;
+				entry = i;
+				break;
+			}
+
+			/* If 0xFFFFFFFF in list: only if host induced, promote to L8 */
+			if (mxfwconfig_syserr_no_promote[i] == 0xFFFFFFFF) {
+				if ((mxman->last_syserr.subsys == SYSERR_SUB_SYSTEM_HOST || mxman->last_syserr.subcode == 0xF0)) {
+					/* Host induced so promote */
+					new_level = MX_SYSERR_LEVEL_8;
+				}
+				entry = i;
+				break;
+			}
+
+			/* If code is in list, don't promote. Note that subsequent loop
+			 * detection checks may promote later, though.
+			 */
+			if (mxfwconfig_syserr_no_promote[i] == mxman->last_syserr.subcode) {
+				entry = i;
+				break;
+			}
+		}
+
+		SCSC_TAG_INFO(MXMAN, "entry %d = 0x%x: syserr in %d, subcode 0x%0x: L%d -> L%d\n",
+			      entry,
+			      (entry != -1) ? mxfwconfig_syserr_no_promote[entry] : 0,
+			      mxman->last_syserr.subsys,
+			      mxman->last_syserr.subcode,
+			      mxman->last_syserr.level,
+			      new_level);
+
+		mxman->last_syserr.level = new_level;
+	}
+
+	/* last_syserr_level7_recovery_time is always zero-ed before we restart the chip */
+	if (mxman->last_syserr_level7_recovery_time) {
+		/* Have we had a too recent system error level 7 reset
+		 * Chance of false positive here is low enough to be acceptable
+		 */
+		if ((syserr_level7_min_interval) && (time_in_range(now, mxman->last_syserr_level7_recovery_time,
+				mxman->last_syserr_level7_recovery_time + msecs_to_jiffies(syserr_level7_min_interval)))) {
+
+			SCSC_TAG_INFO(MXMAN, "Level 7 failure raised to level 8 (less than %dms after last)\n",
+				syserr_level7_min_interval);
+			mxman->last_syserr.level = MX_SYSERR_LEVEL_8;
+		} else if (syserr_level7_monitor_period) {
+			/* Have we had too many system error level 7 resets in one period? */
+			/* This will be the case if all our stored history was in this period */
+			bool out_of_danger_period_found = false;
+
+			for (i = 0; (i < SYSERR_LEVEL7_HISTORY_SIZE) && (!out_of_danger_period_found); i++)
+				out_of_danger_period_found = ((!syserr_level7_history[i]) ||
+						      (!time_in_range(now, syserr_level7_history[i],
+							syserr_level7_history[i] + msecs_to_jiffies(syserr_level7_monitor_period))));
+
+			if (!out_of_danger_period_found) {
+				SCSC_TAG_INFO(MXMAN, "Level 7 failure raised to level 8 (too many within %dms)\n",
+					syserr_level7_monitor_period);
+				mxman->last_syserr.level = MX_SYSERR_LEVEL_8;
+			}
+		}
+	} else
+		/* First syserr level 7 reset since chip was (re)started - zap history */
+		for (i = 0; i < SYSERR_LEVEL7_HISTORY_SIZE; i++)
+			syserr_level7_history[i] = 0;
+
+	if ((mxman->last_syserr.level != MX_SYSERR_LEVEL_8) && (trigger_moredump_level > MX_SYSERR_LEVEL_7)) {
+		/* Allow services to raise to level 8 */
+		mxman->last_syserr.level = srvman_notify_services(scsc_mx_get_srvman(mxman->mx), &mxman->last_syserr);
+	}
+
+	if (mxman->last_syserr.level != MX_SYSERR_LEVEL_8) {
+		/* Log this in our history */
+		syserr_level7_history[syserr_level7_history_index++ % SYSERR_LEVEL7_HISTORY_SIZE] = now;
+		mxman->last_syserr_level7_recovery_time = now;
 	}
 }
 
@@ -1666,8 +2044,26 @@ static void mxman_failure_work(struct work_struct *work)
 	/* Take mutex shared with syserr recovery */
 	mutex_lock(&mxman->mxman_recovery_mutex);
 
-	slsi_kic_system_event(slsi_kic_system_event_category_error,
+	/* Check panic code for error promotion early on.
+	 * Attempt to parse the panic record, to get the panic ID. This will
+	 * only succeed for FW induced panics. Later we'll try again and dump.
+	 */
+	process_panic_record(mxman, false); /* check but don't dump */
+	mxman_check_promote_syserr(mxman);
+
+	SCSC_TAG_INFO(MXMAN, "This syserr level %d. Triggering moredump at level %d\n",
+		mxman->last_syserr.level, trigger_moredump_level);
+
+	if (mxman->last_syserr.level >= trigger_moredump_level) {
+		slsi_kic_system_event(slsi_kic_system_event_category_error,
 			      slsi_kic_system_events_subsystem_crashed, GFP_KERNEL);
+
+		/* Mark as level 8 as services neeed to know this has happened */
+		if (mxman->last_syserr.level < MX_SYSERR_LEVEL_8) {
+			mxman->last_syserr.level = MX_SYSERR_LEVEL_8;
+			SCSC_TAG_INFO(MXMAN, "Syserr level raised to 8\n");
+		}
+	}
 
 	blocking_notifier_call_chain(&firmware_chain, SCSC_FW_EVENT_FAILURE, NULL);
 
@@ -1697,7 +2093,7 @@ static void mxman_failure_work(struct work_struct *work)
 	mxmgmt_transport_register_channel_handler(scsc_mx_get_mxmgmt_transport(mx), MMTRANS_CHAN_ID_MAXWELL_MANAGEMENT,
 						  NULL, NULL);
 	mxmgmt_transport_set_error(scsc_mx_get_mxmgmt_transport(mx));
-	srvman_set_error(srvman);
+	srvman_set_error_complete(srvman, NOT_ALLOWED_START_STOP);
 	fw_crc_wq_stop(mxman);
 
 	mxman->mxman_state = mxman->mxman_next_state;
@@ -1733,94 +2129,121 @@ static void mxman_failure_work(struct work_struct *work)
 	srvman_freeze_services(srvman, &mxman->last_syserr);
 	if (mxman->mxman_state == MXMAN_STATE_FAILED) {
 		mxman->last_panic_time = local_clock();
-		process_panic_record(mxman);
+
+		/* Process and dump panic record, which should be valid now even for host induced panic */
+		process_panic_record(mxman, true);
+
 		SCSC_TAG_INFO(MXMAN, "Trying to schedule coredump\n");
-		SCSC_TAG_INFO(MXMAN, "scsc_release %d.%d.%d.%d\n",
+		SCSC_TAG_INFO(MXMAN, "scsc_release %d.%d.%d.%d.%d\n",
 			SCSC_RELEASE_PRODUCT,
 			SCSC_RELEASE_ITERATION,
 			SCSC_RELEASE_CANDIDATE,
-			SCSC_RELEASE_POINT);
+			SCSC_RELEASE_POINT,
+			SCSC_RELEASE_CUSTOMER);
 		SCSC_TAG_INFO(MXMAN, "Auto-recovery: %s\n", mxman_recovery_disabled() ? "off" : "on");
 #ifdef CONFIG_SCSC_WLBTD
 		scsc_wlbtd_get_and_print_build_type();
 #endif
+#if IS_ENABLED(CONFIG_DEBUG_SNAPSHOT) && defined(GO_S2D_ID)
+		/* Scandump if requested on this panic. Must be tried after process_panic_record() */
+		if (disable_recovery_handling == DISABLE_RECOVERY_HANDLING_SCANDUMP) {
+			if (scandump_trigger_fw_panic == mxman->scsc_panic_code) {
+				SCSC_TAG_WARNING(MXMAN, "WLBT FW failure - halt Exynos kernel for scandump on code 0x%x!\n",
+						 scandump_trigger_fw_panic);
+				dbg_snapshot_do_dpm_policy(GO_S2D_ID);
+			}
+		}
+#endif
 
-		/* schedule coredump and wait for it to finish */
-		if (disable_auto_coredump) {
-			SCSC_TAG_INFO(MXMAN, "Driver automatic coredump disabled, not launching coredump helper\n");
+		if (mxman->last_syserr.level != MX_SYSERR_LEVEL_8) {
+			/* schedule system error and wait for it to finish */
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
+			scsc_log_collector_schedule_collection(SCSC_LOG_SYS_ERR, mxman->scsc_panic_code);
+#endif
 		} else {
-			/**
-			 * Releasing mxman_mutex here gives way to any
-			 * eventually running resume process while waiting for
-			 * the usermode helper subsystem to be resurrected,
-			 * since this last will be re-enabled right at the end
-			 * of the resume process itself.
-			 */
-			mutex_unlock(&mxman->mxman_mutex);
-			SCSC_TAG_INFO(MXMAN,
-				      "waiting up to %dms for usermode_helper subsystem.\n",
-				      MAX_UHELP_TMO_MS);
-			/* Waits for the usermode_helper subsytem to be re-enabled. */
-			if (usermodehelper_read_lock_wait(msecs_to_jiffies(MAX_UHELP_TMO_MS))) {
-				/**
-				 * Release immediately the rwsem on usermode_helper
-				 * enabled since we anyway already hold a wakelock here
-				 */
-				usermodehelper_read_unlock();
-				/**
-				 * We claim back the mxman_mutex immediately to avoid anyone
-				 * shutting down the chip while we are dumping the coredump.
-				 */
-				mutex_lock(&mxman->mxman_mutex);
-				SCSC_TAG_INFO(MXMAN, "Invoking coredump helper\n");
-				slsi_kic_system_event(slsi_kic_system_event_category_recovery,
-					slsi_kic_system_events_coredump_in_progress,
-					GFP_KERNEL);
-#ifdef CONFIG_SCSC_WLBTD
-				/* we can safely call call_wlbtd as we are
-				 * in workqueue context
-				 */
-#ifdef CONFIG_SCSC_LOG_COLLECTION
-				/* Collect mxlogger logs */
-				scsc_log_collector_schedule_collection(SCSC_LOG_FW_PANIC, mxman->scsc_panic_code);
-#else
-				r = call_wlbtd(SCSC_SCRIPT_MOREDUMP);
-#endif
-#else
-				r = coredump_helper();
-#endif
-				if (r >= 0) {
-					slsi_kic_system_event(slsi_kic_system_event_category_recovery,
-						slsi_kic_system_events_coredump_done, GFP_KERNEL);
-				}
+			/* Reset level 7 loop protection */
+			mxman->last_syserr_level7_recovery_time = 0;
 
-				used = snprintf(panic_record_dump,
-						PANIC_RECORD_DUMP_BUFFER_SZ,
-						"RF HW Ver: 0x%X\n", mxman->rf_hw_ver);
-				used += snprintf(panic_record_dump + used,
-						 PANIC_RECORD_DUMP_BUFFER_SZ - used,
-						 "SCSC Panic Code:: 0x%X\n", mxman->scsc_panic_code);
-				used += snprintf(panic_record_dump + used,
-						 PANIC_RECORD_DUMP_BUFFER_SZ - used,
-						 "SCSC Last Panic Time:: %lld\n", mxman->last_panic_time);
-				panic_record_dump_buffer("r4", mxman->last_panic_rec_r,
-							 mxman->last_panic_rec_sz,
-							 panic_record_dump + used,
-							 PANIC_RECORD_DUMP_BUFFER_SZ - used);
-
-				/* Print the host code/reason again so it's near the FW panic
-				 * record in the kernel log
-				 */
-				print_panic_code(mxman->scsc_panic_code);
-				SCSC_TAG_INFO(MXMAN, "Reason: '%s'\n", mxman->failure_reason[0] ? mxman->failure_reason : "<null>");
-
-				blocking_notifier_call_chain(&firmware_chain,
-							     SCSC_FW_EVENT_MOREDUMP_COMPLETE,
-							     &panic_record_dump);
+			if (disable_auto_coredump) {
+				SCSC_TAG_INFO(MXMAN, "Driver automatic coredump disabled, not launching coredump helper\n");
 			} else {
+#ifndef CONFIG_SCSC_WLBTD
+				/* schedule coredump and wait for it to finish
+				 *
+				 * Releasing mxman_mutex here gives way to any
+				 * eventually running resume process while waiting for
+				 * the usermode helper subsystem to be resurrected,
+				 * since this last will be re-enabled right at the end
+				 * of the resume process itself.
+				 */
+				mutex_unlock(&mxman->mxman_mutex);
 				SCSC_TAG_INFO(MXMAN,
-					      "timed out waiting for usermode_helper. Skipping coredump.\n");
-				mutex_lock(&mxman->mxman_mutex);
+					      "waiting up to %dms for usermode_helper subsystem.\n",
+					      MAX_UHELP_TMO_MS);
+				/* Waits for the usermode_helper subsytem to be re-enabled. */
+				if (usermodehelper_read_lock_wait(msecs_to_jiffies(MAX_UHELP_TMO_MS))) {
+					/**
+					 * Release immediately the rwsem on usermode_helper
+					 * enabled since we anyway already hold a wakelock here
+					 */
+					usermodehelper_read_unlock();
+					/**
+					 * We claim back the mxman_mutex immediately to avoid anyone
+					 * shutting down the chip while we are dumping the coredump.
+					 */
+					mutex_lock(&mxman->mxman_mutex);
+					SCSC_TAG_INFO(MXMAN, "Invoking coredump helper\n");
+					slsi_kic_system_event(slsi_kic_system_event_category_recovery,
+						slsi_kic_system_events_coredump_in_progress,
+						GFP_KERNEL);
+
+					r = coredump_helper();
+#else
+					/* we can safely call call_wlbtd as we are
+					 * in workqueue context
+					 */
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
+					/* Collect mxlogger logs */
+					scsc_log_collector_schedule_collection(SCSC_LOG_FW_PANIC, mxman->scsc_panic_code);
+#else
+					r = call_wlbtd(SCSC_SCRIPT_MOREDUMP);
+#endif
+#endif
+					if (r >= 0) {
+						slsi_kic_system_event(slsi_kic_system_event_category_recovery,
+							slsi_kic_system_events_coredump_done, GFP_KERNEL);
+					}
+
+					used = snprintf(panic_record_dump,
+							PANIC_RECORD_DUMP_BUFFER_SZ,
+							"RF HW Ver: 0x%X\n", mxman->rf_hw_ver);
+					used += snprintf(panic_record_dump + used,
+							 PANIC_RECORD_DUMP_BUFFER_SZ - used,
+							 "SCSC Panic Code:: 0x%X\n", mxman->scsc_panic_code);
+					used += snprintf(panic_record_dump + used,
+							 PANIC_RECORD_DUMP_BUFFER_SZ - used,
+							 "SCSC Last Panic Time:: %lld\n", mxman->last_panic_time);
+					panic_record_dump_buffer("r4", mxman->last_panic_rec_r,
+								 mxman->last_panic_rec_sz,
+								 panic_record_dump + used,
+								 PANIC_RECORD_DUMP_BUFFER_SZ - used);
+
+					/* Print the host code/reason again so it's near the FW panic
+					 * record in the kernel log
+					 */
+					print_panic_code(mxman->scsc_panic_code);
+					SCSC_TAG_INFO(MXMAN, "Reason: '%s'\n", mxman->failure_reason[0] ? mxman->failure_reason : "<null>");
+
+					blocking_notifier_call_chain(&firmware_chain,
+								     SCSC_FW_EVENT_MOREDUMP_COMPLETE,
+								     &panic_record_dump);
+#ifndef CONFIG_SCSC_WLBTD
+				} else {
+					SCSC_TAG_INFO(MXMAN,
+						      "timed out waiting for usermode_helper. Skipping coredump.\n");
+					mutex_lock(&mxman->mxman_mutex);
+				}
+#endif
 			}
 		}
 
@@ -1832,25 +2255,20 @@ static void mxman_failure_work(struct work_struct *work)
 		/* Clean up the MIF following error handling */
 		if (mif->mif_cleanup && mxman_recovery_disabled())
 			mif->mif_cleanup(mif);
-	} else {
-		/* Populate syserr info with panic equivalent for host induced panic */
-		mxman->last_syserr.subsys = SYSERR_SUB_SYSTEM_HOST;
-		mxman->last_syserr.level = MX_SYSERR_LEVEL_7;
-		mxman->last_syserr.type = 0;
-		mxman->last_syserr.subcode = mxman->scsc_panic_code;
 	}
 
 	SCSC_TAG_INFO(MXMAN, "Auto-recovery: %s\n",
 		mxman_recovery_disabled() ? "off" : "on");
 
 	if (!mxman_recovery_disabled())
-		srvman_clear_error(srvman);
+		srvman_set_error(srvman, NOT_ALLOWED_START);
 	mutex_unlock(&mxman->mxman_mutex);
 	if (!mxman_recovery_disabled()) {
 		SCSC_TAG_INFO(MXMAN, "Calling srvman_unfreeze_services\n");
-		srvman_unfreeze_services(srvman, mxman->scsc_panic_code);
+		srvman_unfreeze_services(srvman, &mxman->last_syserr);
 		if (scsc_mx_module_reset() < 0)
 			SCSC_TAG_INFO(MXMAN, "failed to call scsc_mx_module_reset\n");
+		srvman_set_error(srvman, ALLOWED_START_STOP);
 		atomic_inc(&mxman->recovery_count);
 	}
 
@@ -1930,7 +2348,7 @@ static void mxman_syserr_recovery_work(struct work_struct *work)
 	srvman_freeze_sub_system(srvman, &mxman->last_syserr);
 
 #ifdef CONFIG_SCSC_WLBTD
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	/* Wait for log generation if not finished */
 	SCSC_TAG_INFO(MXMAN, "Wait for syserr sable logging\n");
 	scsc_wlbtd_wait_for_sable_logging();
@@ -1987,7 +2405,7 @@ static void print_mailboxes(struct mxman *mxman)
 static void wlbtd_work_func(struct work_struct *work)
 {
 	/* require sleep-able workqueue to run successfully */
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	/* Collect mxlogger logs */
 	/* Extend to scsc_log_collector_collect() if required */
 #else
@@ -2006,6 +2424,36 @@ static void wlbtd_wq_deinit(struct mxman *mx)
 	flush_work(&wlbtd_work);
 }
 #endif
+
+#if IS_ENABLED(CONFIG_EXYNOS_SYSTEM_EVENT)
+int mxman_sysevent_desc_init(struct mxman *mxman)
+{
+	int ret = 0;
+	struct device *dev;
+	struct scsc_mif_abs *mif;
+
+	mif = scsc_mx_get_mif_abs(mxman->mx);
+	dev = mif->get_mif_device(mif);
+
+	mxman->sysevent_dev = NULL;
+	mxman->sysevent_desc.name = "wlbt";
+	mxman->sysevent_desc.owner = THIS_MODULE;
+	mxman->sysevent_desc.powerup = wlbt_sysevent_powerup;
+	mxman->sysevent_desc.shutdown = wlbt_sysevent_shutdown;
+	mxman->sysevent_desc.ramdump = wlbt_sysevent_ramdump;
+	mxman->sysevent_desc.crash_shutdown = wlbt_sysevent_crash_shutdown;
+	mxman->sysevent_desc.dev = dev;
+	mxman->sysevent_dev = sysevent_register(&mxman->sysevent_desc);
+	if (IS_ERR(mxman->sysevent_dev)) {
+		ret = PTR_ERR(mxman->sysevent_dev);
+		SCSC_TAG_WARNING(MXMAN,	"sysevent_register failed :%d\n", ret);
+	} else
+		SCSC_TAG_INFO(MXMAN, "sysevent_register success\n");
+
+	return ret;
+}
+#endif
+
 /*
  * Check for matching f/w and h/w
  *
@@ -2045,7 +2493,7 @@ static int __mxman_open(struct mxman *mxman)
 	}
 	SCSC_TAG_INFO(MXMAN, "Auto-recovery: %s\n", mxman_recovery_disabled() ? "off" : "on");
 	srvman = scsc_mx_get_srvman(mxman->mx);
-	if (srvman && srvman->error) {
+	if (srvman && srvman_in_error(srvman)) {
 		mutex_unlock(&mxman->mxman_mutex);
 		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
 		return -EINVAL;
@@ -2085,10 +2533,13 @@ static int __mxman_open(struct mxman *mxman)
 			if (r) {
 				/* Not found */
 				SCSC_TAG_ERR(MXMAN, "mx_logger.sh path error\n");
-			} else {
+			}
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+			else {
 				/* Launch it */
 				_mx_exec(mxlbin, UMH_WAIT_EXEC);
 			}
+#endif
 		}
 		return 0;
 	}
@@ -2152,8 +2603,9 @@ static void mxman_stop(struct mxman *mxman)
 
 	SCSC_TAG_INFO(MXMAN, "\n");
 
+	mif = scsc_mx_get_mif_abs(mxman->mx);
 	/* If reset is failed, prevent new resets */
-	if (reset_failed) {
+	if (mxman_check_reset_failed(mif)) {
 		struct timeval tval = ns_to_timeval(reset_failed_time);
 
 		SCSC_TAG_ERR(MXMAN, "previous reset failed at [%6lu.%06ld], ignoring\n", tval.tv_sec, tval.tv_usec);
@@ -2170,10 +2622,10 @@ static void mxman_stop(struct mxman *mxman)
 	if (r) {
 		reset_failed_time = local_clock();
 		SCSC_TAG_INFO(MXMAN, "HW reset failed\n");
-		reset_failed = true;
+		mxman_set_reset_failed();
 
 		/* Save log at point of failure */
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 		scsc_log_collector_schedule_collection(SCSC_LOG_HOST_COMMON, SCSC_LOG_HOST_COMMON_REASON_STOP);
 #else
 		mx140_log_dump();
@@ -2203,6 +2655,12 @@ static void mxman_stop(struct mxman *mxman)
 #ifdef CONFIG_SCSC_QOS
 	mifqos_deinit(scsc_mx_get_qos(mxman->mx));
 #endif
+#ifdef CONFIG_SCSC_LAST_PANIC_IN_DRAM
+	scsc_log_in_dram_mmap_destroy();
+#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	mif->recovery_disabled_unreg(mif);
+#endif
 	/* Release the MIF memory resources */
 	mif->unmap(mif, mxman->start_dram);
 }
@@ -2214,9 +2672,9 @@ void mxman_close(struct mxman *mxman)
 
 	mutex_lock(&mxman->mxman_mutex);
 	srvman = scsc_mx_get_srvman(mxman->mx);
-	if (srvman && srvman->error) {
+	if (srvman && !srvman_allow_close(srvman)) {
 		mutex_unlock(&mxman->mxman_mutex);
-		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
+		SCSC_TAG_INFO(MXMAN, "Called during error(%d) - ignore\n", srvman->error);
 		return;
 	}
 
@@ -2234,8 +2692,8 @@ void mxman_close(struct mxman *mxman)
 			mutex_unlock(&mxman->mxman_mutex);
 			return;
 		}
-#ifdef CONFIG_SCSC_MXLOGGER
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 		/* Unregister minimoredump client */
 		scsc_log_collector_unregister_client(&mini_moredump_client);
 #endif
@@ -2265,8 +2723,8 @@ void mxman_close(struct mxman *mxman)
 			mutex_unlock(&mxman->mxman_mutex);
 			return;
 		}
-#ifdef CONFIG_SCSC_MXLOGGER
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 		/* Unregister minimoredump client */
 		scsc_log_collector_unregister_client(&mini_moredump_client);
 #endif
@@ -2300,14 +2758,28 @@ void mxman_syserr(struct mxman *mxman, struct mx_syserr_decode *syserr)
 	syserr_recovery_wq_start(mxman);
 }
 
-void mxman_fail(struct mxman *mxman, u16 scsc_panic_code, const char *reason)
+void mxman_fail(struct mxman *mxman, u16 failure_source, const char *reason)
 {
-	SCSC_TAG_WARNING(MXMAN, "WLBT FW failure\n");
+	SCSC_TAG_WARNING(MXMAN, "WLBT FW failure 0x%x\n", failure_source);
+
+	/* For FW failure, scsc_panic_code is not set up fully until process_panic_record() checks it */
+	if (disable_recovery_handling == DISABLE_RECOVERY_HANDLING_SCANDUMP) {
+#if IS_ENABLED(CONFIG_DEBUG_SNAPSHOT) && defined(GO_S2D_ID)
+		if (scandump_trigger_fw_panic == 0) {
+			SCSC_TAG_WARNING(MXMAN, "WLBT FW failure - halt Exynos kernel for scandump on code 0x%x!\n", scandump_trigger_fw_panic);
+			dbg_snapshot_do_dpm_policy(GO_S2D_ID);
+		}
+#else
+		/* Support not present, fallback to vanilla moredump and stop WLBT */
+		disable_recovery_handling = 1;
+		SCSC_TAG_WARNING(MXMAN, "WLBT FW failure - scandump requested but not supported in kernel\n");
+#endif
+	}
 
 	/* The STARTING state allows a crash during firmware boot to be handled */
 	if (mxman->mxman_state == MXMAN_STATE_STARTED || mxman->mxman_state == MXMAN_STATE_STARTING) {
 		mxman->mxman_next_state = MXMAN_STATE_FAILED;
-		mxman->scsc_panic_code = scsc_panic_code;
+		mxman->scsc_panic_code = failure_source;
 		strlcpy(mxman->failure_reason, reason, sizeof(mxman->failure_reason));
 		/* If recovery is disabled, don't let it be
 		 * re-enabled from now on. Device must reboot
@@ -2315,16 +2787,43 @@ void mxman_fail(struct mxman *mxman, u16 scsc_panic_code, const char *reason)
 		if (mxman_recovery_disabled())
 			disable_recovery_until_reboot  = true;
 
+		/* Populate syserr info with panic equivalent or best we can */
+		mxman->last_syserr.subsys = failure_source >> SYSERR_SUB_SYSTEM_POSN;
+		mxman->last_syserr.level = MX_SYSERR_LEVEL_7;
+		mxman->last_syserr.type = failure_source;
+		mxman->last_syserr.subcode = failure_source;
+		atomic_inc(&mxman->cancel_resume);
 		failure_wq_start(mxman);
 	} else {
 		SCSC_TAG_WARNING(MXMAN, "Not in MXMAN_STATE_STARTED state, ignore (state %d)\n", mxman->mxman_state);
 	}
+}
 
-	/* Populate syserr info with panic equivalent or best we can */
-	mxman->last_syserr.subsys = scsc_panic_code >> SYSERR_SUB_SYSTEM_POSN;
-	mxman->last_syserr.level = MX_SYSERR_LEVEL_7;
-	mxman->last_syserr.type = scsc_panic_code;
-	mxman->last_syserr.subcode = scsc_panic_code;
+void mxman_fail_level8(struct mxman *mxman, u16 failure_source, const char *reason)
+{
+	SCSC_TAG_WARNING(MXMAN, "WLBT FW level 8 failure 0x%0x\n", failure_source);
+
+	/* The STARTING state allows a crash during firmware boot to be handled */
+	if (mxman->mxman_state == MXMAN_STATE_STARTED || mxman->mxman_state == MXMAN_STATE_STARTING) {
+		mxman->mxman_next_state = MXMAN_STATE_FAILED;
+		mxman->scsc_panic_code = failure_source;
+		strlcpy(mxman->failure_reason, reason, sizeof(mxman->failure_reason));
+		/* If recovery is disabled, don't let it be
+		 * re-enabled from now on. Device must reboot
+		 */
+		if (mxman_recovery_disabled())
+			disable_recovery_until_reboot  = true;
+
+		/* Populate syserr info with panic equivalent or best we can */
+		mxman->last_syserr.subsys = failure_source >> SYSERR_SUB_SYSTEM_POSN;
+		mxman->last_syserr.level = MX_SYSERR_LEVEL_8;
+		mxman->last_syserr.type = failure_source;
+		mxman->last_syserr.subcode = failure_source;
+
+		failure_wq_start(mxman);
+	} else {
+		SCSC_TAG_WARNING(MXMAN, "Not in MXMAN_STATE_STARTED state, ignore (state %d)\n", mxman->mxman_state);
+	}
 }
 
 void mxman_freeze(struct mxman *mxman)
@@ -2357,9 +2856,18 @@ void mxman_init(struct mxman *mxman, struct scsc_mx *mx)
 	mutex_init(&mxman->mxman_recovery_mutex);
 	init_completion(&mxman->recovery_completion);
 #ifdef CONFIG_ANDROID
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	wake_lock_init(&mxman->failure_recovery_wake_lock, WAKE_LOCK_SUSPEND, "mxman_recovery");
 	wake_lock_init(&mxman->syserr_recovery_wake_lock, WAKE_LOCK_SUSPEND, "mxman_syserr_recovery");
+#else
+	wake_lock_init(NULL, &mxman->failure_recovery_wake_lock.ws, "mxman_recovery");
+        wake_lock_init(NULL, &mxman->syserr_recovery_wake_lock.ws, "mxman_syserr_recovery");
 #endif
+#endif
+	mxman->last_syserr_level7_recovery_time = 0;
+
+	atomic_set(&mxman->cancel_resume, 0);
+
 	mxman->syserr_recovery_in_progress = false;
 	mxman->last_syserr_recovery_time = 0;
 
@@ -2372,16 +2880,37 @@ void mxman_init(struct mxman *mxman, struct scsc_mx *mx)
 	mxproc_create_info_proc_dir(&mxman->mxproc, mxman);
 	active_mxman = mxman;
 
-#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000
+#if IS_ENABLED(CONFIG_EXYNOS_SYSTEM_EVENT)
+	if (!mxman_sysevent_desc_init(mxman)) {
+		mxman->sysevent_nb.notifier_call = wlbt_sysevent_notifier_cb;
+		sysevent_notif_register_notifier(mxman->sysevent_desc.name,
+							&mxman->sysevent_nb);
+	}
+#endif
+
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
 	mxman_create_sysfs_memdump();
 #endif
 	scsc_lerna_init();
+
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
+	scsc_logring_register_mx_cb(&mx_logring);
+#endif
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
+	scsc_log_collector_register_mx_cb(&mx_cb);
+#endif
 }
 
 void mxman_deinit(struct mxman *mxman)
 {
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
+	scsc_logring_unregister_mx_cb(&mx_logring);
+#endif
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
+	scsc_log_collector_unregister_mx_cb(&mx_cb);
+#endif
 	scsc_lerna_deinit();
-#if defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
 	mxman_destroy_sysfs_memdump();
 #endif
 	active_mxman = NULL;
@@ -2407,7 +2936,7 @@ int mxman_force_panic(struct mxman *mxman)
 
 	mutex_lock(&mxman->mxman_mutex);
 	srvman = scsc_mx_get_srvman(mxman->mx);
-	if (srvman && srvman->error) {
+	if (srvman && srvman_in_error(srvman)) {
 		mutex_unlock(&mxman->mxman_mutex);
 		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
 		return -EINVAL;
@@ -2430,9 +2959,11 @@ int mxman_suspend(struct mxman *mxman)
 
 	SCSC_TAG_INFO(MXMAN, "\n");
 
+	atomic_set(&mxman->cancel_resume, 0);
 	mutex_lock(&mxman->mxman_mutex);
 	srvman = scsc_mx_get_srvman(mxman->mx);
-	if (srvman && srvman->error) {
+
+	if (srvman && srvman_in_error(srvman)) {
 		mutex_unlock(&mxman->mxman_mutex);
 		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
 		return 0;
@@ -2448,7 +2979,7 @@ int mxman_suspend(struct mxman *mxman)
 
 	if (mxman->mxman_state == MXMAN_STATE_STARTED) {
 		SCSC_TAG_INFO(MXMAN, "MM_HOST_SUSPEND\n");
-#ifdef CONFIG_SCSC_MXLOGGER
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
 		mxlogger_generate_sync_record(scsc_mx_get_mxlogger(mxman->mx), MXLOGGER_SYN_SUSPEND);
 #endif
 		mxmgmt_transport_send(scsc_mx_get_mxmgmt_transport(mxman->mx), MMTRANS_CHAN_ID_MAXWELL_MANAGEMENT, &message, sizeof(message));
@@ -2539,18 +3070,22 @@ void mxman_resume(struct mxman *mxman)
 	int ret;
 
 	SCSC_TAG_INFO(MXMAN, "\n");
+	if (atomic_read(&mxman->cancel_resume)) {
+		SCSC_TAG_INFO(MXMAN, "Recovery in progress ... ignoring");
+		return;
+	}
 
 	mutex_lock(&mxman->mxman_mutex);
 	srvman = scsc_mx_get_srvman(mxman->mx);
-	if (srvman && srvman->error) {
-		mutex_unlock(&mxman->mxman_mutex);
+	if (srvman && srvman_in_error(srvman)) {
 		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
+		mutex_unlock(&mxman->mxman_mutex);
 		return;
 	}
 
 	if (mxman->mxman_state == MXMAN_STATE_STARTED) {
 		SCSC_TAG_INFO(MXMAN, "MM_HOST_RESUME\n");
-#ifdef CONFIG_SCSC_MXLOGGER
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
 		mxlogger_generate_sync_record(scsc_mx_get_mxlogger(mxman->mx), MXLOGGER_SYN_RESUME);
 #endif
 		mxmgmt_transport_send(scsc_mx_get_mxmgmt_transport(mxman->mx), MMTRANS_CHAN_ID_MAXWELL_MANAGEMENT, &message, sizeof(message));
@@ -2580,6 +3115,7 @@ static void _mx_exec_cleanup(struct subprocess_info *sp_info)
 	argv_free(sp_info->argv);
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 /* prog - full path to programme
  * wait_exec - one of UMH_WAIT_EXEC, UMH_WAIT_PROC, UMH_KILLABLE, UMH_NO_WAIT
  */
@@ -2625,8 +3161,8 @@ static int _mx_exec(char *prog, int wait_exec)
 
 	/* Allocate sp_info and initialise pointers to argv and envp. */
 	sp_info = call_usermodehelper_setup(argv[0], argv, (char **)envp,
-					    GFP_KERNEL, NULL, _mx_exec_cleanup,
-					    NULL);
+						GFP_KERNEL, NULL, _mx_exec_cleanup,
+						NULL);
 
 	if (!sp_info) {
 		SCSC_TAG_ERR(MXMAN, "call_usermodehelper_setup() failed\n");
@@ -2652,6 +3188,7 @@ static int _mx_exec(char *prog, int wait_exec)
 	}
 	return result;
 }
+#endif
 
 #if defined(CONFIG_SCSC_PRINTK) && !defined(CONFIG_SCSC_WLBTD)
 static int __stat(const char *file)
@@ -2661,7 +3198,7 @@ static int __stat(const char *file)
 	int r;
 
 	fs = get_fs();
-	set_fs(get_ds());
+	set_fs(KERNEL_DS);
 	r = vfs_stat(file, &stat);
 	set_fs(fs);
 
@@ -2692,9 +3229,11 @@ int mx140_log_dump(void)
 			return r;
 		}
 		SCSC_TAG_INFO(MXMAN, "Invoking mx_logger_dump.sh UHM\n");
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 		r = _mx_exec(mxlbin, UMH_WAIT_EXEC);
 		if (r)
 			SCSC_TAG_ERR(MXMAN, "mx_logger_dump.sh err:%d\n", r);
+#endif
 	}
 # endif /* CONFIG_SCSC_WLBTD */
 	return r;
@@ -2744,8 +3283,8 @@ void mxman_get_driver_version(char *version, size_t ver_sz)
 {
 	/* IMPORTANT - Do not change the formatting as User space tooling is parsing the string
 	* to read SAP fapi versions. */
-	snprintf(version, ver_sz, "drv_ver: %u.%u.%u.%u",
-		 SCSC_RELEASE_PRODUCT, SCSC_RELEASE_ITERATION, SCSC_RELEASE_CANDIDATE, SCSC_RELEASE_POINT);
+	snprintf(version, ver_sz, "drv_ver: %u.%u.%u.%u.%u",
+		 SCSC_RELEASE_PRODUCT, SCSC_RELEASE_ITERATION, SCSC_RELEASE_CANDIDATE, SCSC_RELEASE_POINT, SCSC_RELEASE_CUSTOMER);
 #ifdef CONFIG_SCSC_WLBTD
 	scsc_wlbtd_get_and_print_build_type();
 #endif
@@ -2785,7 +3324,7 @@ int mxman_lerna_send(struct mxman *mxman, void *message, u32 message_size)
 
 	mutex_lock(&active_mxman->mxman_mutex);
 	srvman = scsc_mx_get_srvman(active_mxman->mx);
-	if (srvman && srvman->error) {
+	if (srvman && srvman_in_error(srvman)) {
 		mutex_unlock(&active_mxman->mxman_mutex);
 		SCSC_TAG_INFO(MXMAN, "Lerna configuration called during error - ignore\n");
 		return 0;

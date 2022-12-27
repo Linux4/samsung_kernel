@@ -320,13 +320,14 @@ void dpu_prepare_win_update_config(struct decon_device *decon,
 	struct decon_win_config *win_config = win_data->config;
 	bool reconfigure = false;
 	struct decon_rect r;
-
-#if defined(CONFIG_EXYNOS_DOZE)
 	struct decon_win_config *update_config = &win_config[DECON_WIN_UPDATE_IDX];
 
+#if defined(CONFIG_EXYNOS_DOZE)
 	if (decon->dt.out_type == DECON_OUT_DSI && decon->state == DECON_STATE_DOZE)
 		memset(update_config, 0, sizeof(struct decon_win_config));
 #endif
+	if (decon->partial_force_disable)
+		memset(update_config, 0, sizeof(struct decon_win_config));
 
 	if (!decon->win_up.enabled)
 		return;

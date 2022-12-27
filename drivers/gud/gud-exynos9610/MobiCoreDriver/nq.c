@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2013-2018 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -12,7 +13,6 @@
  * GNU General Public License for more details.
  */
 
-#include <linux/cpu.h>
 #include <linux/debugfs.h>
 #include <linux/delay.h>
 #include <linux/err.h>
@@ -21,7 +21,10 @@
 #include <linux/kthread.h>
 #include <linux/of_irq.h>
 #include <linux/uaccess.h>
+#include <linux/delay.h> /* msleep */
 #include <linux/version.h>
+#include <linux/sched.h>
+#include <linux/wait.h>
 #if KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE
 #include <linux/sched/clock.h>	/* local_clock */
 #endif
@@ -29,7 +32,6 @@
 #include "platform.h"			/* CPU-related information */
 
 #include "public/mc_user.h"
-#include "public/mc_linux_api.h"	/* mc_switch_core */
 
 #include "mci/mcifc.h"
 #include "mci/mciiwp.h"
@@ -44,18 +46,11 @@
 #include "nq.h"
 
 #define NQ_NUM_ELEMS		64
-#define SCHEDULING_FREQ		5	/**< N-SIQ every n-th time */
 #define DEFAULT_TIMEOUT_MS	20000	/* We do nothing on timeout anyway */
 
-/* If not forced by platform header, use defaults below */
-
-#ifndef CPU_IDS
-#define CPU_IDS { 0x0000, 0x0001, 0x0002, 0x0003, \
-		  0x0100, 0x0101, 0x0102, 0x0103, \
-		  0x0200, 0x0201, 0x0202, 0x0203 }
+#if !defined(NQ_TEE_WORKER_THREADS)
+#define NQ_TEE_WORKER_THREADS	4
 #endif
-
-static const u32 cpu_ids[] = CPU_IDS;
 
 static struct {
 	struct mutex buffer_mutex;	/* Lock on SWd communication buffer */
@@ -89,94 +84,76 @@ static struct {
 	struct kasnprintf_buf	dump;
 	/* Time */
 	struct mcp_time		*time;
+	/* Protects above shared MCP time */
+	struct mutex		mcp_time_mutex;
 
 	/* Scheduler */
-	int			active_cpu;	/* We always start on CPU #0 */
-	int			next_cpu;	/* If core switch required */
-	struct task_struct	*tee_scheduler_thread;
+	struct task_struct	*tee_worker[NQ_TEE_WORKER_THREADS];
 	bool			tee_scheduler_run;
 	bool			tee_hung;
-	int			boot_ret;
-	struct completion	boot_complete;	/* Signal end of boot */
-	struct completion	idle_complete;	/* Unblock scheduler thread */
-	struct completion	sleep_complete;	/* Wait for sleep status */
-	struct mutex		sleep_mutex;	/* Protect sleep request */
-	struct mutex		request_mutex;	/* Protect all below */
-	/* The order of this enum matters */
-	enum sched_command {
-		NONE,		/* No specific request */
-		YIELD,		/* Run the SWd */
-		NSIQ,		/* Schedule the SWd */
-		SUSPEND,	/* Suspend the SWd */
-		RESUME,		/* Resume the SWd */
-	}			request;
-	bool			suspended;
 
 	/* Logging */
 	phys_addr_t		log_buffer;
 	u32			log_buffer_size;
 	bool			log_buffer_busy;
+
+	/* TEE affinity */
+	unsigned long		default_affinity_mask;
+	atomic_t		tee_affinity;
+
+	/* TEE workers */
+	atomic_t		workers_started;
+	atomic_t		workers_run;
+	wait_queue_head_t	workers_wq;
+
+	/* TEE worker counters */
+	char			struct_workers_counters_buf[1024];
+	int			struct_workers_counters_buf_len;
+	struct {
+		atomic64_t	nyield;
+		atomic64_t	syield;
+		atomic64_t	sbusy;
+		atomic64_t	sresume;
+	} tee_worker_counters[NQ_TEE_WORKER_THREADS];
 } l_ctx;
 
-#ifdef MC_SMC_FASTCALL
-static inline int nq_set_cpus_allowed(struct task_struct *p, cpumask_t new_mask)
-{
-	return 0;
-}
-#else /* MC_SMC_FASTCALL */
-static inline int nq_set_cpus_allowed(struct task_struct *p, cpumask_t new_mask)
-{
-	return set_cpus_allowed_ptr(p, &new_mask);
-}
-#endif /* ! MC_SMC_FASTCALL */
-
-static inline int switch_to_online_core(int dying_cpu)
-{
-	int cpu;
-
-	if (l_ctx.active_cpu != dying_cpu) {
-		mc_dev_devel("not active CPU, no action taken");
-		return 0;
-	}
-
-	/* Chose the first online CPU and switch! */
-	for_each_online_cpu(cpu) {
-		if (cpu != dying_cpu) {
-			mc_dev_info("CPU #%d is dying, switching to CPU #%d",
-				    dying_cpu, cpu);
-			return mc_switch_core(cpu);
-		}
-
-		mc_dev_devel("skipping CPU #%d", dying_cpu);
-	}
-
-	return 0;
-}
-
-#if KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE
-static int cpu_notifer_callback(struct notifier_block *nfb,
-				unsigned long action, void *hcpu)
-{
-	int cpu = (int)(uintptr_t)hcpu;
-
-	switch (action) {
-	case CPU_DOWN_PREPARE:
-	case CPU_DOWN_PREPARE_FROZEN:
-		mc_dev_devel("CPU #%d is going to die", cpu);
-		switch_to_online_core(cpu);
-		break;
-	}
-	return NOTIFY_OK;
-}
-
-static struct notifier_block cpu_notifer = {
-	.notifier_call = cpu_notifer_callback,
+enum counter_id {
+	TEE_WORKER_COUNTER_NYIELD,
+	TEE_WORKER_COUNTER_SYIELD,
+	TEE_WORKER_COUNTER_BUSY,
+	TEE_WORKER_COUNTER_RESUME
 };
-#else
-static int nq_cpu_down_prep(unsigned int cpu)
+
+static long get_tee_affinity(void)
 {
-	mc_dev_devel("CPU #%d is going to die", cpu);
-	return switch_to_online_core(cpu);
+	return atomic_read(&l_ctx.tee_affinity);
+}
+
+static u32 get_workers(void)
+{
+	return atomic_read(&l_ctx.workers_run);
+}
+
+#if KERNEL_VERSION(4, 0, 0) <= LINUX_VERSION_CODE
+static u32 get_required_workers(void)
+{
+	return READ_ONCE(l_ctx.mcp_buffer->flags.required_workers);
+}
+
+static u8 get_tee_flags(void)
+{
+	return READ_ONCE(l_ctx.mcp_buffer->flags.tee_flags);
+}
+#else
+/* NOTE: we may use ACCESS_ONCE for older kernels */
+static u32 get_required_workers(void)
+{
+	return l_ctx.mcp_buffer->flags.required_workers;
+}
+
+static u8 get_tee_flags(void)
+{
+	return l_ctx.mcp_buffer->flags.tee_flags;
 }
 #endif
 
@@ -230,15 +207,6 @@ static inline void notif_queue_push(u32 session_id, u32 payload)
 	rmb();
 }
 
-static void retrieve_last_session_payload(u32 *session_id, u32 *payload)
-{
-	struct notification_queue_header *hdr = &l_ctx.nq.tx->hdr;
-	u32 i = (hdr->write_cnt - 1) % hdr->queue_size;
-
-	*session_id = l_ctx.nq.tx->notification[i].session_id;
-	*payload = l_ctx.nq.tx->notification[i].payload;
-}
-
 /* Must be called with l_ctx.notifications_mutex taken */
 static inline bool nq_notifications_flush(void)
 {
@@ -259,31 +227,18 @@ static inline bool nq_notifications_flush(void)
 	return flushed;
 }
 
-static int nq_scheduler_command(enum sched_command command)
-{
-	if (IS_ERR_OR_NULL(l_ctx.tee_scheduler_thread))
-		return -EFAULT;
-
-	mutex_lock(&l_ctx.request_mutex);
-	if (l_ctx.request < command) {
-		l_ctx.request = command;
-		complete(&l_ctx.idle_complete);
-	}
-
-	mutex_unlock(&l_ctx.request_mutex);
-	return 0;
-}
-
 static inline void nq_update_time(void)
 {
-	struct timespec tm;
+	struct timespec tm1, tm2;
 
-	getnstimeofday(&tm);
-	l_ctx.time->wall_clock_seconds = tm.tv_sec;
-	l_ctx.time->wall_clock_nsec = tm.tv_nsec;
-	getrawmonotonic(&tm);
-	l_ctx.time->monotonic_seconds = tm.tv_sec;
-	l_ctx.time->monotonic_nsec = tm.tv_nsec;
+	getnstimeofday(&tm1);
+	getrawmonotonic(&tm2);
+	mutex_lock(&l_ctx.mcp_time_mutex);
+	l_ctx.time->wall_clock_seconds = tm1.tv_sec;
+	l_ctx.time->wall_clock_nsec    = tm1.tv_nsec;
+	l_ctx.time->monotonic_seconds  = tm2.tv_sec;
+	l_ctx.time->monotonic_nsec     = tm2.tv_nsec;
+	mutex_unlock(&l_ctx.mcp_time_mutex);
 }
 
 static inline void nq_notif_handler(u32 id, u32 payload)
@@ -327,14 +282,10 @@ static int irq_bh_worker(void *arg)
 			nq_notif_handler(nf.session_id, nf.payload);
 		}
 
-		/*
-		 * Finished processing notifications. It does not matter whether
-		 * there actually were any notification or not.  S-SIQs can also
-		 * be triggered by an SWd driver which was waiting for a FIQ.
-		 * In this case the S-SIQ tells NWd that SWd is no longer idle
-		 * an will need scheduling again.
-		 */
-		nq_scheduler_command(NSIQ);
+		/* This is needed to properly handle secure interrupts when */
+		/* there is no active worker.                               */
+		if (!get_workers())
+			wake_up(&l_ctx.workers_wq);
 	}
 	return 0;
 }
@@ -344,6 +295,56 @@ static irqreturn_t irq_handler(int intr, void *arg)
 	/* wake up thread to continue handling this interrupt */
 	complete(&l_ctx.irq_bh_complete);
 	return IRQ_HANDLED;
+}
+
+static cpumask_t tee_set_affinity(void)
+{
+	cpumask_t old_affinity = current->cpus_allowed;
+	unsigned long affinity = get_tee_affinity();
+#if KERNEL_VERSION(4, 0, 0) > LINUX_VERSION_CODE
+	char buf_aff[64];
+
+	cpulist_scnprintf(buf_aff, sizeof(buf_aff), &old_affinity);
+	mc_dev_devel("aff = %lx mask = %lx curr_aff = %s (pid = %u)",
+		     affinity,
+		     l_ctx.default_affinity_mask,
+		     buf_aff,
+		     current->pid);
+#else
+	mc_dev_devel("aff = %lx mask = %lx curr_aff = %*pbl (pid = %u)",
+		     affinity,
+		     l_ctx.default_affinity_mask,
+		     cpumask_pr_args(&old_affinity),
+		     current->pid);
+#endif
+	sched_setaffinity(current->pid, to_cpumask(&affinity));
+
+	return old_affinity;
+}
+
+static void tee_restore_affinity(cpumask_t old_affinity)
+{
+#if KERNEL_VERSION(4, 0, 0) > LINUX_VERSION_CODE
+	char buf_aff[64];
+	char buf_cur_aff[64];
+
+	cpulist_scnprintf(buf_aff, sizeof(buf_aff), &old_affinity);
+	cpulist_scnprintf(buf_cur_aff,
+			  sizeof(buf_cur_aff),
+			  &current->cpus_allowed);
+	mc_dev_devel("aff = %s mask = %lx curr_aff = %s (pid = %u)",
+		     buf_aff,
+		     l_ctx.default_affinity_mask,
+		     buf_cur_aff,
+		     current->pid);
+#else
+	mc_dev_devel("aff = %*pbl mask = %lx curr_aff = %*pbl (pid = %u)",
+		     cpumask_pr_args(&old_affinity),
+		     l_ctx.default_affinity_mask,
+		     cpumask_pr_args(&current->cpus_allowed),
+		     current->pid);
+#endif
+	sched_setaffinity(current->pid, &old_affinity);
 }
 
 void nq_session_init(struct nq_session *session, bool is_gp)
@@ -402,15 +403,19 @@ int nq_session_notify(struct nq_session *session, u32 id, u32 payload)
 		}
 
 		nq_notifications_flush();
-
-		if (nq_scheduler_command(YIELD))
-			ret = -EPROTO;
 	} else {
+		cpumask_t old_affinity;
+
 		mc_dev_devel("send %x payload %x", session->id, payload);
 		notif_queue_push(session->id, payload);
 		session_state_update_internal(session, NQ_NOTIF_SENT);
-		if (nq_scheduler_command(NSIQ))
+
+		nq_update_time();
+		old_affinity = tee_set_affinity();
+		if (fc_nsiq(session->id, payload))
 			ret = -EPROTO;
+		tee_restore_affinity(old_affinity);
+		wake_up(&l_ctx.workers_wq);
 	}
 
 	mutex_unlock(&l_ctx.notifications_mutex);
@@ -514,11 +519,18 @@ static void nq_dump_status(void)
 		{ MC_EXT_INFO_ID_MC_EXC_IPCMSG, "mcExcep.cause"},
 		/**< MobiCore exception handler last IPC data */
 		{MC_EXT_INFO_ID_MC_EXC_IPCDATA, "mcExcep.meta"},
+		/**< MobiCore last crashing task offset */
+		{MC_EXT_INFO_ID_TASK_OFFSET,
+		"faultRec.offset.task"},
+		/**< MobiCore last crashing task's mcLib offset */
+		{MC_EXT_INFO_ID_MCLIB_OFFSET,
+		"faultRec.offset.mclib"},
 	};
 
 	char uuid_str[33];
 	int ret = 0;
 	size_t i;
+	cpumask_t old_affinity;
 
 	if (l_ctx.dump.off)
 		ret = -EBUSY;
@@ -532,15 +544,18 @@ static void nq_dump_status(void)
 	}
 
 	mc_dev_info("Status dump:");
+	old_affinity = tee_set_affinity();
 	for (i = 0; i < (size_t)ARRAY_SIZE(status_map); i++) {
 		u32 info;
 
-		if (fc_info(status_map[i].index, NULL, &info))
+		if (fc_info(status_map[i].index, NULL, &info)) {
+			tee_restore_affinity(old_affinity);
 			return;
+		}
 
-		mc_dev_info("  %-20s= 0x%08x", status_map[i].msg, info);
+		mc_dev_info("  %-22s= 0x%08x", status_map[i].msg, info);
 		if (ret >= 0)
-			ret = kasnprintf(&l_ctx.dump, "%-20s= 0x%08x\n",
+			ret = kasnprintf(&l_ctx.dump, "%-22s= 0x%08x\n",
 					 status_map[i].msg, info);
 	}
 
@@ -549,18 +564,21 @@ static void nq_dump_status(void)
 		u32 info;
 		size_t j;
 
-		if (fc_info(MC_EXT_INFO_ID_MC_EXC_UUID + i, NULL, &info))
+		if (fc_info(MC_EXT_INFO_ID_MC_EXC_UUID + i, NULL, &info)) {
+			tee_restore_affinity(old_affinity);
 			return;
+		}
 
 		for (j = 0; j < sizeof(info); j++) {
 			snprintf(&uuid_str[(i * sizeof(info) + j) * 2], 3,
 				 "%02x", (info >> (j * 8)) & 0xff);
 		}
 	}
+	tee_restore_affinity(old_affinity);
 
-	mc_dev_info("  %-20s= 0x%s", "mcExcep.uuid", uuid_str);
+	mc_dev_info("  %-22s= 0x%s", "mcExcep.uuid", uuid_str);
 	if (ret >= 0)
-		ret = kasnprintf(&l_ctx.dump, "%-20s= 0x%s\n", "mcExcep.uuid",
+		ret = kasnprintf(&l_ctx.dump, "%-22s= 0x%s\n", "mcExcep.uuid",
 				 uuid_str);
 
 	if (ret < 0) {
@@ -583,56 +601,6 @@ static void nq_handle_tee_crash(void)
 	 */
 	nq_dump_status();
 	blocking_notifier_call_chain(&l_ctx.tee_stop_notifiers, 0, NULL);
-}
-
-static inline void set_sleep_mode_rq(u16 sleep_req)
-{
-	mutex_lock(&l_ctx.buffer_mutex);
-	l_ctx.mcp_buffer->flags.sleep_mode.sleep_req = sleep_req;
-	mutex_unlock(&l_ctx.buffer_mutex);
-}
-
-static inline bool nq_suspended(void)
-{
-	struct mcp_flags *flags = &l_ctx.mcp_buffer->flags;
-	bool ret;
-
-	mutex_lock(&l_ctx.buffer_mutex);
-	ret = flags->sleep_mode.ready_to_sleep & MC_STATE_READY_TO_SLEEP;
-	if (!ret) {
-		mc_dev_devel("IDLE=%d", flags->schedule);
-		mc_dev_devel("Request Sleep=%d", flags->sleep_mode.sleep_req);
-		mc_dev_devel("Sleep Ready=%d",
-			     flags->sleep_mode.ready_to_sleep);
-	}
-
-	mutex_unlock(&l_ctx.buffer_mutex);
-	return ret;
-}
-
-/*
- * Get the requested SWd sleep timeout value (ms)
- * - if the timeout is -1, wait indefinitely
- * - if the timeout is 0, re-schedule immediately (timeouts in µs in the SWd)
- * - otherwise sleep for the required time
- * returns true if sleep is required, false otherwise
- */
-static inline bool nq_get_idle_timeout(s32 *timeout)
-{
-	u32 schedule;
-	bool ret;
-
-	mutex_lock(&l_ctx.buffer_mutex);
-	schedule = l_ctx.mcp_buffer->flags.schedule;
-	if (schedule == MC_FLAG_SCHEDULE_IDLE) {
-		*timeout = l_ctx.mcp_buffer->flags.timeout_ms;
-		ret = true;
-	} else {
-		ret = false;
-	}
-
-	mutex_unlock(&l_ctx.buffer_mutex);
-	return ret;
 }
 
 union mcp_message *nq_get_mcp_buffer(void)
@@ -694,36 +662,7 @@ void nq_signal_tee_hung(void)
 	/* Stop the tee_scheduler thread */
 	l_ctx.tee_hung = true;
 	l_ctx.tee_scheduler_run = false;
-	complete(&l_ctx.idle_complete);
-	nq_scheduler_command(NONE);
-}
-
-static int nq_scheduler_pm_command(enum sched_command command)
-{
-	int ret = -EPERM;
-
-	if (IS_ERR_OR_NULL(l_ctx.tee_scheduler_thread))
-		return -EFAULT;
-
-	mutex_lock(&l_ctx.sleep_mutex);
-
-	/* Send request */
-	nq_scheduler_command(command);
-
-	/* Wait for scheduler to reply */
-	wait_for_completion(&l_ctx.sleep_complete);
-	mutex_lock(&l_ctx.request_mutex);
-	if (command == SUSPEND) {
-		if (l_ctx.suspended)
-			ret = 0;
-	} else {
-		if (!l_ctx.suspended)
-			ret = 0;
-	}
-
-	mutex_unlock(&l_ctx.request_mutex);
-	mutex_unlock(&l_ctx.sleep_mutex);
-	return ret;
+	wake_up_all(&l_ctx.workers_wq);
 }
 
 static int nq_boot_tee(void)
@@ -734,12 +673,14 @@ static int nq_boot_tee(void)
 	int ret;
 
 	/* Call the INIT fastcall to setup shared buffers */
+	cpumask_t old_affinity = tee_set_affinity();
+
 	ret = fc_init(virt_to_phys(l_ctx.mci),
 		      (uintptr_t)l_ctx.mcp_buffer - (uintptr_t)l_ctx.mci, q_len,
 		      sizeof(*l_ctx.mcp_buffer));
 	logging_run();
 	if (ret)
-		return ret;
+		goto out;
 
 	/* Set initialization values */
 #if defined(MC_INTR_SSIQ_SWD)
@@ -764,7 +705,7 @@ static int nq_boot_tee(void)
 	ret = fc_nsiq(0, 0);
 	logging_run();
 	if (ret)
-		return ret;
+		goto out;
 
 	/*
 	 * Wait until the TEE state switches to MC_STATUS_INITIALIZED
@@ -777,22 +718,24 @@ static int nq_boot_tee(void)
 		ret = fc_info(MC_EXT_INFO_ID_MCI_VERSION, &status, NULL);
 		logging_run();
 		if (ret)
-			return ret;
+			goto out;
 
 		switch (status) {
 		case MC_STATUS_NOT_INITIALIZED:
 			/* Switch to the TEE to give it more CPU time. */
-			ret = EAGAIN;
+			ret = -EAGAIN;
 			for (timeslice = 0; timeslice < 10; timeslice++) {
-				int tmp_ret = fc_yield(timeslice);
+				int tmp_ret = fc_yield(0, 0, NULL);
 
 				logging_run();
-				if (tmp_ret)
-					return tmp_ret;
+				if (tmp_ret) {
+					ret = tmp_ret;
+					goto out;
+				}
 			}
 
 			/* No need to loop like mad */
-			if (ret == EAGAIN)
+			if (ret == -EAGAIN)
 				usleep_range(100, 500);
 
 			break;
@@ -800,7 +743,7 @@ static int nq_boot_tee(void)
 			ret = -ENODEV;
 			nq_handle_tee_crash();
 			mc_dev_err(ret, "halt during init, state 0x%x", status);
-			return ret;
+			goto out;
 		case MC_STATUS_INITIALIZED:
 			mc_dev_devel("ready");
 			break;
@@ -808,248 +751,317 @@ static int nq_boot_tee(void)
 			/* MC_STATUS_BAD_INIT or anything else */
 			ret = -EIO;
 			mc_dev_err(ret, "MCI init failed, state 0x%x", status);
-			return ret;
+			goto out;
 		}
-	} while (ret == EAGAIN);
+	} while (ret == -EAGAIN);
+
+out:
+	tee_restore_affinity(old_affinity);
+	return ret;
+}
+
+static int tee_wait_infinite(void)
+{
+	return wait_event_interruptible(l_ctx.workers_wq,
+					!l_ctx.tee_scheduler_run ||
+					get_workers() < get_required_workers());
+}
+
+static int tee_wait_timeout(unsigned int timeout_ms)
+{
+	return wait_event_interruptible_timeout(l_ctx.workers_wq,
+						!l_ctx.tee_scheduler_run ||
+						get_workers() <
+						get_required_workers(),
+						msecs_to_jiffies(timeout_ms));
+}
+
+static int tee_worker_wait(unsigned int timeout_ms)
+{
+	int ret, workers;
+
+	if (timeout_ms)
+		ret = tee_wait_timeout(timeout_ms);
+	else
+		ret = tee_wait_infinite();
+	if (ret < 0)
+		return ret; /* interrupted by signal */
+
+	/* Assert nb workers between one and maximum statically allowed */
+	workers = atomic_inc_return(&l_ctx.workers_run);
+	if (workers < 1 || workers > NQ_TEE_WORKER_THREADS)
+		return -EINVAL;
+
+	return 0;
+}
+
+static int tee_worker_counter_inc(int worker_id, enum counter_id cnt_id)
+{
+	if (worker_id >= NQ_TEE_WORKER_THREADS) {
+		mc_dev_err(-EINVAL, "worker id out of range (%d)!", worker_id);
+		return -EINVAL;
+	}
+
+	switch (cnt_id) {
+	case TEE_WORKER_COUNTER_NYIELD:
+		atomic64_inc(&l_ctx.tee_worker_counters[worker_id].nyield);
+		break;
+	case TEE_WORKER_COUNTER_SYIELD:
+		atomic64_inc(&l_ctx.tee_worker_counters[worker_id].syield);
+		break;
+	case TEE_WORKER_COUNTER_BUSY:
+		atomic64_inc(&l_ctx.tee_worker_counters[worker_id].sbusy);
+		break;
+	case TEE_WORKER_COUNTER_RESUME:
+		atomic64_inc(&l_ctx.tee_worker_counters[worker_id].sresume);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static unsigned long tee_worker_counter_get(int worker_id,
+					    enum counter_id cnt_id)
+{
+	long ret = 0;
+
+	if (worker_id >= NQ_TEE_WORKER_THREADS) {
+		mc_dev_err(-EINVAL, "worker id out of range (%d)!", worker_id);
+		return -EINVAL;
+	}
+
+	switch (cnt_id) {
+	case TEE_WORKER_COUNTER_NYIELD:
+		ret = (unsigned long)atomic64_read(
+		&l_ctx.tee_worker_counters[worker_id].nyield);
+		break;
+	case TEE_WORKER_COUNTER_SYIELD:
+		ret = (unsigned long)atomic64_read(
+		&l_ctx.tee_worker_counters[worker_id].syield);
+		break;
+	case TEE_WORKER_COUNTER_BUSY:
+		ret = (unsigned long)atomic64_read(
+		&l_ctx.tee_worker_counters[worker_id].sbusy);
+		break;
+	case TEE_WORKER_COUNTER_RESUME:
+		ret = (unsigned long)atomic64_read(
+		&l_ctx.tee_worker_counters[worker_id].sresume);
+		break;
+	default:
+		/* error case, returned value is 0 */
+		break;
+	}
 
 	return ret;
 }
 
-static inline bool tee_sleep(s32 timeout_ms)
+static s32 tee_schedule(uintptr_t arg, unsigned int *timeout_ms)
 {
-	bool infinite_timeout = timeout_ms < 0;
+	u32 run;
+	struct fc_s_yield resp;
+	bool tee_halted;
+	u32 req_workers;
+	int ret, id = (int)arg;
+	*timeout_ms = 0;
 
-	/* TEE is going to sleep */
-	mc_clock_disable();
-	do {
-		s32 local_timeout_ms;
-		unsigned long jiffies;
-
-		if (infinite_timeout) {
-			local_timeout_ms = DEFAULT_TIMEOUT_MS;
-		} else {
-			local_timeout_ms = timeout_ms;
-			if (local_timeout_ms > DEFAULT_TIMEOUT_MS)
-				local_timeout_ms = DEFAULT_TIMEOUT_MS;
+	while (true) {
+		/* If nq_stop or nq_signal_tee_hung called */
+		if (!l_ctx.tee_scheduler_run) {
+			ret = -EIO;
+			goto exit;
 		}
 
-		jiffies = msecs_to_jiffies(local_timeout_ms);
-		if (wait_for_completion_timeout(&l_ctx.idle_complete, jiffies))
+		/* Check crash */
+		tee_halted = get_tee_flags() & MC_STATE_FLAG_TEE_HALT_MASK;
+		if (tee_halted) {
+			nq_signal_tee_hung(); /* Signal other workers */
+			ret = -EHOSTUNREACH;
+			goto exit;
+		}
+
+		/* Adjust worker CPU affinity based on global TEE affinity.
+		 * No need to save it, we are running in our own kthread
+		 */
+		tee_set_affinity();
+
+		/* Refresh MCI REE time */
+		nq_update_time();
+
+		/* Count number of worker N-Yield SMCs */
+		tee_worker_counter_inc(id, TEE_WORKER_COUNTER_NYIELD);
+
+		/* Relinquish current CPU to TEE */
+		ret = fc_yield(0, 0, &resp);
+		if (ret)
+			goto exit;
+
+		/* Any worker wakes up the log thread upon returning from SWd */
+		logging_run();
+
+		switch (resp.resp) {
+		case MC_SMC_S_YIELD:
+			/* NOTE: resp.code returns -1 (infinite), -2, 0, or   */
+			/* positive min. timeout value of internal time queue.*/
+			tee_worker_counter_inc(id, TEE_WORKER_COUNTER_SYIELD);
+			mc_dev_devel("[%d] MC_SMC_S_YIELD timeout=%d",
+				     id, resp.code);
+			mc_dev_devel("[%d] req workers=%d workers=%d",
+				     id,
+				     get_required_workers(),
+				     get_workers());
+
+			if ((s32)resp.code > 0) {
+				*timeout_ms = resp.code;
+			} else if (resp.code == 0) {
+				/* Reschedule the TEE immediately */
+				continue;
+			}
 			break;
 
-		if (!infinite_timeout)
-			timeout_ms -= local_timeout_ms;
-	} while (timeout_ms);
+		case MC_SMC_S_BUSY:
+			tee_worker_counter_inc(id, TEE_WORKER_COUNTER_BUSY);
+			mc_dev_devel("[%d] BUSY", id);
+			break;
 
-	/* TEE is getting back to work */
-	mc_clock_enable();
-	return timeout_ms == 0;
-}
+		case MC_SMC_S_RESUME:
+			tee_worker_counter_inc(id, TEE_WORKER_COUNTER_RESUME);
+			break;
 
-static inline int nq_switch_core(void)
-{
-	int cpu = l_ctx.next_cpu;
-	int core_id;
-	int ret;
+		case MC_SMC_S_HALT:
+			mc_dev_devel("[%d] received TEE halt response.", id);
+			nq_signal_tee_hung(); /* Signal other workers */
+			ret = -EHOSTUNREACH;
+			goto exit;
 
-	if (cpu < 0 || cpu >= nr_cpu_ids || !cpu_online(cpu))
-		return -EINVAL;
+		default:
+			mc_dev_devel("[%d] unknown TEE response (0x%x)", id,
+				     resp.resp);
+			nq_signal_tee_hung(); /* Signal other workers */
+			ret = -EIO;
+			goto exit;
+		}
 
-	core_id = cpu_ids[cpu];
-	ret = fc_switch_core(core_id);
-	logging_run();
-	if (ret) {
-		mc_dev_err(ret, "failed to switch core from %d to %d",
-			   l_ctx.active_cpu, cpu);
-		return ret;
+		/* Probe TEE activity */
+		run         = get_workers();
+		req_workers = get_required_workers();
+
+		/* If SWd has more threads to run, then add a worker */
+		if (run < req_workers && run < NQ_TEE_WORKER_THREADS) {
+			mc_dev_devel("[%d] R1 run=%d sc=%d", id, run,
+				     req_workers);
+			wake_up(&l_ctx.workers_wq);
+		}
+
+		/* If SWd has less threads to run, then current worker */
+		/* likely goes sleeping.                               */
+		if (run > req_workers) {
+			mc_dev_devel("[%d] R2 run=%d sc=%d", id, run,
+				     req_workers);
+			atomic_dec(&l_ctx.workers_run);
+			ret = 0;
+			goto exit;
+		}
 	}
 
-	mc_dev_devel("switched core from %d to %d", l_ctx.active_cpu, cpu);
-	l_ctx.active_cpu = cpu;
+exit:
 	return ret;
 }
 
 /*
- * This thread, and only this thread, schedules the SWd. Hence, reading the idle
- * status and its associated timeout is safe from race conditions.
+ * tee_worker is instantiated into NQ_TEE_WORKER_THREADS threads
  */
-static int tee_scheduler(void *arg)
+static int tee_worker(void *arg)
 {
-	int timeslice = 0;	/* Actually scheduling period */
-	int ret = 0;
+	uintptr_t id = (uintptr_t)arg;
+	int ret;
+	unsigned int timeout_ms = 0;
 
-	/* Enable TEE clock */
-	mc_clock_enable();
+	mc_dev_devel("[%ld] starts", id);
+	atomic_inc(&l_ctx.workers_started);
 
-	/* Logging */
-	if (l_ctx.log_buffer_size) {
-		ret = fc_trace_init(l_ctx.log_buffer, l_ctx.log_buffer_size);
-		if (!ret) {
-			logging_run();
-			l_ctx.log_buffer_busy = true;
-			mc_dev_info("registered log buffer of size %d",
-				    l_ctx.log_buffer_size);
-		} else {
-			mc_dev_err(ret, "failed to register log buffer");
-			/* Ignore error */
-			ret = 0;
-		}
-	} else {
-		mc_dev_info("no log buffer to register");
+	while (true) {
+		ret = tee_worker_wait(timeout_ms);
+		if (ret)
+			break; /* Worker received a signal, exit */
+
+		mc_dev_devel("[%ld] wake up run=%d required_workers=%d",
+			     id, get_workers(), get_required_workers());
+		ret = tee_schedule(id, &timeout_ms);
+		if (ret)
+			break;
 	}
 
-	/* Bootup */
-	l_ctx.boot_ret = nq_boot_tee();
-	complete(&l_ctx.boot_complete);
-	if (l_ctx.boot_ret) {
+	mc_dev_devel("[%ld] exits, ret=%d", id, ret);
+	if (!atomic_dec_return(&l_ctx.workers_started)) {
+		mc_dev_info("TEE scheduler exits ...");
+		if (l_ctx.tee_hung)
+			/* There is an error, the tee must have crashed */
+			nq_handle_tee_crash();
+
+		/* Logging */
+		ret = fc_trace_deinit();
+		if (!ret)
+			l_ctx.log_buffer_busy = false;
+		else
+			mc_dev_err(ret, "failed to unregister log buffer");
+
+		/* Disable TEE clock */
 		mc_clock_disable();
-		return l_ctx.boot_ret;
 	}
 
-	/* Run */
-	while (1) {
-		s32 timeout_ms = -1;
-		bool pm_request = false;
-		u8 tee_flags;
-
-		if (l_ctx.suspended || nq_get_idle_timeout(&timeout_ms)) {
-			/* If timeout is 0 we keep scheduling the SWd */
-			if (!timeout_ms)
-				nq_scheduler_command(NSIQ);
-			else if (tee_sleep(timeout_ms))
-				/* Timed out, force SWd schedule */
-				nq_scheduler_command(NSIQ);
-		}
-
-		/*
-		 * Potential exit causes:
-		 * 1) nq_stop is called: just stop the thread (no crash dump)
-		 * 2) nq_signal_tee_hung: breaks the loop and handle the hang as
-		 *    a crash
-		 * 3) The thread detects a TEE crash and breaks the loop
-		 */
-		if (!l_ctx.tee_scheduler_run)
-			break;
-
-		/* Get requested command if any */
-		mutex_lock(&l_ctx.request_mutex);
-		switch (l_ctx.request) {
-		case NONE:
-			break;
-		case YIELD:
-			/* Yield forced: increment timeslice */
-			timeslice++;
-			break;
-		case NSIQ:
-			timeslice = 0;
-			break;
-		case SUSPEND:
-			/* Force N_SIQ */
-			timeslice = 0;
-			set_sleep_mode_rq(MC_FLAG_REQ_TO_SLEEP);
-			pm_request = true;
-			break;
-		case RESUME:
-			/* Force N_SIQ */
-			timeslice = 0;
-			set_sleep_mode_rq(MC_FLAG_NO_SLEEP_REQ);
-			pm_request = true;
-			break;
-		}
-
-		/* Switch core */
-		if (l_ctx.next_cpu != l_ctx.active_cpu && !nq_switch_core()) {
-			cpumask_t cpu_mask;
-
-			cpumask_clear(&cpu_mask);
-			cpumask_set_cpu(l_ctx.active_cpu, &cpu_mask);
-			nq_set_cpus_allowed(l_ctx.tee_scheduler_thread,
-					    cpu_mask);
-		}
-
-		l_ctx.request = NONE;
-		nq_update_time();
-		mutex_unlock(&l_ctx.request_mutex);
-
-		/* Reset timeout so we don't loop if SWd halted */
-		mutex_lock(&l_ctx.buffer_mutex);
-		l_ctx.mcp_buffer->flags.timeout_ms = -1;
-		mutex_unlock(&l_ctx.buffer_mutex);
-
-		if (timeslice--) {
-			/* Resume SWd from where it was */
-			fc_yield(timeslice);
-		} else {
-			u32 session_id = 0;
-			u32 payload = 0;
-
-			retrieve_last_session_payload(&session_id, &payload);
-			timeslice = SCHEDULING_FREQ;
-
-			/* Call SWd scheduler */
-			fc_nsiq(session_id, payload);
-		}
-
-		/* Always flush log buffer after the SWd has run */
-		logging_run();
-
-		/* Check crash */
-		mutex_lock(&l_ctx.buffer_mutex);
-		tee_flags = l_ctx.mcp_buffer->flags.tee_flags;
-		mutex_unlock(&l_ctx.buffer_mutex);
-		if (tee_flags & MC_STATE_FLAG_TEE_HALT_MASK) {
-			ret = -EHOSTUNREACH;
-			mc_dev_err(ret, "TEE halted, exiting");
-			break;
-		}
-
-		/* Should have suspended by now if requested */
-		mutex_lock(&l_ctx.request_mutex);
-		if (pm_request) {
-			l_ctx.suspended = nq_suspended();
-			complete(&l_ctx.sleep_complete);
-		}
-
-		mutex_unlock(&l_ctx.request_mutex);
-
-		/* Flush pending notifications if possible */
-		mutex_lock(&l_ctx.notifications_mutex);
-		if (nq_notifications_flush())
-			complete(&l_ctx.idle_complete);
-
-		mutex_unlock(&l_ctx.notifications_mutex);
-	}
-
-	mc_dev_devel("loop exit, ret is %d", ret);
-	if (ret || l_ctx.tee_hung) {
-		/* There is an error, the tee must have crashed */
-		nq_handle_tee_crash();
-	}
-
-	/* Logging */
-	ret = fc_trace_deinit();
-	if (!ret)
-		l_ctx.log_buffer_busy = false;
-	else
-		mc_dev_err(ret, "failed to unregister log buffer");
-
-	mc_clock_disable();
 	return ret;
 }
 
-int nq_suspend(void)
+static ssize_t debug_tee_worker_read(struct file *file, char __user *buffer,
+				     size_t buffer_len, loff_t *ppos)
 {
-	return nq_scheduler_pm_command(SUSPEND);
+	char worker_buffer[512];
+	int worker_id, ret;
+
+	if (*ppos)
+		goto exit;
+
+	memset(l_ctx.struct_workers_counters_buf, 0,
+	       sizeof(l_ctx.struct_workers_counters_buf));
+	memset(worker_buffer, 0, sizeof(worker_buffer));
+	for (worker_id = 0; worker_id < NQ_TEE_WORKER_THREADS; worker_id++) {
+		ret = snprintf(worker_buffer,
+			       sizeof(worker_buffer),
+			       "tee_worker[%d]:\n"
+			       "nyield: %lu\n"
+			       "syield: %lu\n"
+			       "busy:   %lu\n"
+			       "resume: %lu\n",
+			       worker_id,
+		tee_worker_counter_get(worker_id, TEE_WORKER_COUNTER_NYIELD),
+		tee_worker_counter_get(worker_id, TEE_WORKER_COUNTER_SYIELD),
+		tee_worker_counter_get(worker_id, TEE_WORKER_COUNTER_BUSY),
+		tee_worker_counter_get(worker_id, TEE_WORKER_COUNTER_RESUME));
+		if (ret <= 0)
+			break;
+		strlcat(l_ctx.struct_workers_counters_buf, worker_buffer,
+			sizeof(l_ctx.struct_workers_counters_buf));
+	}
+
+	l_ctx.struct_workers_counters_buf_len =
+		strlen(l_ctx.struct_workers_counters_buf);
+
+exit:
+	return simple_read_from_buffer(buffer, buffer_len, ppos,
+				       l_ctx.struct_workers_counters_buf,
+				       l_ctx.struct_workers_counters_buf_len);
 }
 
-int nq_resume(void)
-{
-	return nq_scheduler_pm_command(RESUME);
-}
+static const struct file_operations mc_debug_tee_worker_ops = {
+	.read = debug_tee_worker_read
+};
 
 int nq_start(void)
 {
-	int ret;
+	char worker_name[15];
+	int ret, cnt;
 
 	/* Make sure we have the interrupt before going on */
 #if defined(CONFIG_OF)
@@ -1071,12 +1083,18 @@ int nq_start(void)
 	if (ret)
 		return ret;
 
+	/* Enable TEE clock */
+	mc_clock_enable();
+
 	/*
 	 * Initialize the time structure for SWd
 	 * At this stage, we don't know if the SWd needs to get the REE time and
 	 * we set it anyway.
 	 */
 	nq_update_time();
+
+	/* Init TEE workers wait queue */
+	init_waitqueue_head(&l_ctx.workers_wq);
 
 	/* Setup S-SIQ interrupt handler and its bottom-half */
 	l_ctx.irq_bh_thread_run = true;
@@ -1087,34 +1105,70 @@ int nq_start(void)
 		return ret;
 	}
 
-	/* Scheduler */
-	l_ctx.tee_scheduler_run = true;
-	l_ctx.tee_scheduler_thread = kthread_create(tee_scheduler, NULL,
-						    "tee_scheduler");
-	if (IS_ERR(l_ctx.tee_scheduler_thread)) {
-		ret = PTR_ERR(l_ctx.tee_scheduler_thread);
-		mc_dev_err(ret, "tee_scheduler thread creation failed");
+	/* Logging */
+	if (l_ctx.log_buffer_size) {
+		cpumask_t old_affinity = tee_set_affinity();
+
+		ret = fc_trace_init(l_ctx.log_buffer, l_ctx.log_buffer_size);
+		tee_restore_affinity(old_affinity);
+		if (!ret) {
+			logging_run();
+			l_ctx.log_buffer_busy = true;
+			mc_dev_info("registered log buffer of size %d",
+				    l_ctx.log_buffer_size);
+		} else {
+			mc_dev_err(ret, "failed to register log buffer");
+			/* Ignore error */
+			ret = 0;
+		}
+	} else {
+		mc_dev_info("no log buffer to register");
+	}
+
+	/* Bootup */
+	ret = nq_boot_tee();
+	if (ret) {
+		mc_clock_disable();
 		return ret;
 	}
 
-	/* The scheduler/fastcall thread MUST run on CPU 0 at startup */
-	nq_set_cpus_allowed(l_ctx.tee_scheduler_thread, CPU_MASK_CPU0);
-	wake_up_process(l_ctx.tee_scheduler_thread);
+	/* Init TEE workers */
+	atomic_set(&l_ctx.workers_started, 0);
+	atomic_set(&l_ctx.workers_run, 0);
+	l_ctx.tee_scheduler_run = true;
 
-	wait_for_completion(&l_ctx.boot_complete);
-	if (l_ctx.boot_ret)
-		return l_ctx.boot_ret;
+	for (cnt = 0; cnt < NQ_TEE_WORKER_THREADS; cnt++) {
+		snprintf(worker_name, 13, "tee_worker/%d", cnt);
+		l_ctx.tee_worker[cnt] = kthread_create(tee_worker,
+						       (void *)((uintptr_t)cnt),
+						       worker_name);
 
-	complete(&l_ctx.idle_complete);
+		if (IS_ERR(l_ctx.tee_worker[cnt])) {
+			ret = PTR_ERR(l_ctx.tee_worker[cnt]);
+			mc_dev_err(ret, "tee_worker thread creation failed");
+			return ret;
+		}
+
+		wake_up_process(l_ctx.tee_worker[cnt]);
+	}
+
+	/* Create worker debugfs entry */
+	debugfs_create_file("workers_counters", 0600, g_ctx.debug_dir, NULL,
+			    &mc_debug_tee_worker_ops);
+
 	return 0;
 }
 
 void nq_stop(void)
 {
-	/* Scheduler */
+	u32 worker;
+
+	/* Make all workers exit */
 	l_ctx.tee_scheduler_run = false;
-	complete(&l_ctx.idle_complete);
-	kthread_stop(l_ctx.tee_scheduler_thread);
+	wake_up_all(&l_ctx.workers_wq);
+
+	for (worker = 0; worker < NQ_TEE_WORKER_THREADS; worker++)
+		kthread_stop(l_ctx.tee_worker[worker]);
 
 	/* NQ */
 	l_ctx.irq_bh_thread_run = false;
@@ -1123,26 +1177,63 @@ void nq_stop(void)
 	free_irq(l_ctx.irq, NULL);
 }
 
+static ssize_t debug_tee_affinity_write(struct file *file,
+					const char __user *buffer,
+					size_t buffer_len, loff_t *x)
+{
+	long tee_affinity = 0;
+
+	/* Invalid data, nothing to do */
+	if (buffer_len < 1)
+		return -EINVAL;
+
+	if (kstrtol_from_user(buffer, buffer_len, 16, &tee_affinity))
+		return -EINVAL;
+
+	if (!tee_affinity)
+		return -EINVAL;
+
+	mc_dev_devel("aff = 0x%lx, mask = 0x%lx",
+		     tee_affinity,
+		     l_ctx.default_affinity_mask);
+	tee_affinity &= l_ctx.default_affinity_mask;
+	if (!tee_affinity) {
+		mc_dev_devel("Can't have an empty affinity.");
+		mc_dev_devel("Restoring the default mask");
+		tee_affinity = l_ctx.default_affinity_mask;
+	}
+
+	mc_dev_devel("tee_affinity 0x%lx", tee_affinity);
+	atomic_set(&l_ctx.tee_affinity, tee_affinity);
+
+	return buffer_len;
+}
+
+static ssize_t debug_tee_affinity_read(struct file *file, char __user *buffer,
+				       size_t buffer_len, loff_t *ppos)
+{
+	char cpu_str[8];
+	int ret = 0;
+
+	ret = snprintf(cpu_str, sizeof(cpu_str), "%lx\n",
+		       get_tee_affinity());
+	if (ret < 0)
+		return -EINVAL;
+
+	return simple_read_from_buffer(buffer, buffer_len, ppos,
+				       cpu_str, ret);
+}
+
+static const struct file_operations mc_debug_tee_affinity_ops = {
+	.write = debug_tee_affinity_write,
+	.read = debug_tee_affinity_read,
+};
+
 int nq_init(void)
 {
 	size_t q_len, mci_len;
 	unsigned long mci;
 	int ret;
-
-	if (nr_cpu_ids) {
-#if KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE
-		ret = register_cpu_notifier(&cpu_notifer);
-#else
-		ret = cpuhp_setup_state_nocalls(CPUHP_AP_ONLINE_DYN,
-						"tee/trustonic:online",
-						NULL, nq_cpu_down_prep);
-#endif
-		/* ExySp : Kinibi 410 */
-		if (ret < 0) {
-			mc_dev_err(ret, "cpu online callback setup failed");
-			goto err_register;
-		}
-	}
 
 	ret = mc_clock_init();
 	if (ret)
@@ -1160,6 +1251,7 @@ int nq_init(void)
 	/* Setup notification queue mutex */
 	mutex_init(&l_ctx.notifications_mutex);
 	INIT_LIST_HEAD(&l_ctx.notifications);
+	mutex_init(&l_ctx.mcp_time_mutex);
 
 	/* NQ_NUM_ELEMS must be power of 2 */
 	q_len = ALIGN(2 * (sizeof(struct notification_queue_header) +
@@ -1201,12 +1293,17 @@ int nq_init(void)
 
 	l_ctx.time = (void *)ALIGN(mci, 8);
 
-	/* Scheduler */
-	init_completion(&l_ctx.boot_complete);
-	init_completion(&l_ctx.idle_complete);
-	init_completion(&l_ctx.sleep_complete);
-	mutex_init(&l_ctx.sleep_mutex);
-	mutex_init(&l_ctx.request_mutex);
+	#if defined(PLAT_DEFAULT_TEE_AFFINITY_MASK)
+	l_ctx.default_affinity_mask = PLAT_DEFAULT_TEE_AFFINITY_MASK;
+	#else
+	l_ctx.default_affinity_mask = (1 << nr_cpu_ids) - 1;
+	#endif
+
+	mc_dev_devel("Default affinity : %lx", l_ctx.default_affinity_mask);
+	atomic_set(&l_ctx.tee_affinity, l_ctx.default_affinity_mask);
+	/* Create tee affinity debugfs entry */
+	debugfs_create_file("tee_affinity_mask", 0600, g_ctx.debug_dir, NULL,
+			    &mc_debug_tee_affinity_ops);
 	return 0;
 
 err_mci:
@@ -1214,13 +1311,6 @@ err_mci:
 err_logging:
 	mc_clock_exit();
 err_clock:
-	if (nr_cpu_ids)
-#if KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE
-		unregister_cpu_notifier(&cpu_notifer);
-#else
-		cpuhp_remove_state_nocalls(CPUHP_AP_ONLINE_DYN);
-#endif
-err_register:
 	return ret;
 }
 
@@ -1231,31 +1321,5 @@ void nq_exit(void)
 
 	free_pages((unsigned long)l_ctx.mci, l_ctx.order);
 	logging_exit(l_ctx.log_buffer_busy);
-	if (nr_cpu_ids)
-#if KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE
-		unregister_cpu_notifier(&cpu_notifer);
-#else
-		cpuhp_remove_state_nocalls(CPUHP_AP_ONLINE_DYN);
-#endif
 	mc_clock_exit();
-}
-
-int mc_active_core(void)
-{
-	return l_ctx.active_cpu;
-}
-
-int mc_switch_core(int cpu)
-{
-	if (cpu >= nr_cpu_ids)
-		return -EINVAL;
-
-	if (!cpu_online(cpu))
-		return -EPERM;
-
-	l_ctx.next_cpu = cpu;
-	/* Ping the tee_scheduler thread to update */
-	nq_scheduler_command(YIELD);
-
-	return 0;
 }

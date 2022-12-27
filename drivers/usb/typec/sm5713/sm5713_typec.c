@@ -43,6 +43,8 @@
 #include <linux/battery/battery_notifier.h>
 #endif
 
+#define I2C_RETRY_CNT	3
+
 #if defined(CONFIG_CCIC_NOTIFIER)
 static enum ccic_sysfs_property sm5713_sysfs_properties[] = {
 	CCIC_SYSFS_PROP_CHIP_NAME,
@@ -77,13 +79,18 @@ static int sm5713_usbpd_reg_init(struct sm5713_phydrv_data *_data);
 
 static int sm5713_usbpd_read_reg(struct i2c_client *i2c, u8 reg, u8 *dest)
 {
-	int ret;
+	int ret, i;
 	struct device *dev = &i2c->dev;
 #if defined(CONFIG_USB_HW_PARAM)
 	struct otg_notify *o_notify = get_otg_notify();
 #endif
 
-	ret = i2c_smbus_read_byte_data(i2c, reg);
+	for (i = 0; i < I2C_RETRY_CNT; i++) {
+		ret = i2c_smbus_read_byte_data(i2c, reg);
+		if (ret >= 0)
+			break;
+		pr_info("%s reg(0x%x), ret(%d)\n", __func__, reg, ret);
+	}
 	if (ret < 0) {
 #if defined(CONFIG_USB_HW_PARAM)
 		if (o_notify)
@@ -99,13 +106,18 @@ static int sm5713_usbpd_read_reg(struct i2c_client *i2c, u8 reg, u8 *dest)
 
 static int sm5713_usbpd_write_reg(struct i2c_client *i2c, u8 reg, u8 value)
 {
-	int ret;
+	int ret, i;
 	struct device *dev = &i2c->dev;
 #if defined(CONFIG_USB_HW_PARAM)
 	struct otg_notify *o_notify = get_otg_notify();
 #endif
 
-	ret = i2c_smbus_write_byte_data(i2c, reg, value);
+	for (i = 0; i < I2C_RETRY_CNT; i++) {
+		ret = i2c_smbus_write_byte_data(i2c, reg, value);
+		if (ret >= 0)
+			break;
+		pr_info("%s reg(0x%x), ret(%d)\n", __func__, reg, ret);
+	}
 	if (ret < 0) {
 #if defined(CONFIG_USB_HW_PARAM)
 		if (o_notify)
@@ -119,13 +131,18 @@ static int sm5713_usbpd_write_reg(struct i2c_client *i2c, u8 reg, u8 value)
 static int sm5713_usbpd_multi_read(struct i2c_client *i2c,
 		u8 reg, int count, u8 *buf)
 {
-	int ret;
+	int ret, i;
 	struct device *dev = &i2c->dev;
 #if defined(CONFIG_USB_HW_PARAM)
 	struct otg_notify *o_notify = get_otg_notify();
 #endif
 
-	ret = i2c_smbus_read_i2c_block_data(i2c, reg, count, buf);
+	for (i = 0; i < I2C_RETRY_CNT; i++) {
+		ret = i2c_smbus_read_i2c_block_data(i2c, reg, count, buf);
+		if (ret >= 0)
+			break;
+		pr_info("%s reg(0x%x), ret(%d)\n", __func__, reg, ret);
+	}
 	if (ret < 0) {
 #if defined(CONFIG_USB_HW_PARAM)
 		if (o_notify)
@@ -140,13 +157,18 @@ static int sm5713_usbpd_multi_read(struct i2c_client *i2c,
 static int sm5713_usbpd_multi_write(struct i2c_client *i2c,
 		u8 reg, int count, u8 *buf)
 {
-	int ret;
+	int ret, i;
 	struct device *dev = &i2c->dev;
 #if defined(CONFIG_USB_HW_PARAM)
 	struct otg_notify *o_notify = get_otg_notify();
 #endif
 
-	ret = i2c_smbus_write_i2c_block_data(i2c, reg, count, buf);
+	for (i = 0; i < I2C_RETRY_CNT; i++) {
+		ret = i2c_smbus_write_i2c_block_data(i2c, reg, count, buf);
+		if (ret >= 0)
+			break;
+		pr_info("%s reg(0x%x), ret(%d)\n", __func__, reg, ret);
+	}
 	if (ret < 0) {
 #if defined(CONFIG_USB_HW_PARAM)
 		if (o_notify)
@@ -1071,6 +1093,9 @@ static int sm5713_port_type_set(const struct typec_capability *cap,
 #endif
 		usbpd_data->typec_try_state_change = TRY_ROLE_SWAP_TYPE;
 		sm5713_rprd_mode_change(usbpd_data, TYPE_C_ATTACH_UFP);
+	} else if (port_type == TYPEC_PORT_DRP) {
+		pr_info("%s : set to DRP (No action)\n", __func__);
+		return 0;
 	} else {
 		pr_info("%s : invalid typec_role\n", __func__);
 		return -EIO;
@@ -1268,6 +1293,11 @@ static void sm5713_process_dr_swap(struct sm5713_phydrv_data *usbpd_data, int va
 				CCIC_NOTIFY_ATTACH/*attach*/,
 				USB_STATUS_NOTIFY_ATTACH_UFP/*drp*/, 0);
 	} else if (val == USBPD_DFP) {
+		/* muic */
+		sm5713_ccic_event_work(usbpd_data,
+			CCIC_NOTIFY_DEV_MUIC, CCIC_NOTIFY_ID_ATTACH,
+			CCIC_NOTIFY_ATTACH/*attach*/,
+			USB_STATUS_NOTIFY_ATTACH_DFP/*rprd*/, 0);
 		sm5713_ccic_event_work(usbpd_data,
 				CCIC_NOTIFY_DEV_USB, CCIC_NOTIFY_ID_USB,
 				CCIC_NOTIFY_DETACH/*attach*/,
@@ -2687,6 +2717,8 @@ static int sm5713_usbpd_notify_attach(void *data)
 		}
 #endif
 		sm5713_set_vconn_source(pd_data, USBPD_VCONN_OFF);
+		if (pdic_data->reset_done == 0)
+			sm5713_set_enable_pd_function(pd_data, PD_ENABLE);
 	/* cc_SOURCE */
 	} else if (((reg_data & SM5713_ATTACH_TYPE) == SM5713_ATTACH_SINK) &&
 			check_usb_killer(pdic_data) == 0) {
@@ -2752,6 +2784,8 @@ static int sm5713_usbpd_notify_attach(void *data)
 		dev_info(dev, "ccstat : cc_AUDIO\n");
 		manager->acc_type = CCIC_DOCK_UNSUPPORTED_AUDIO;
 		sm5713_usbpd_check_accessory(manager);
+	} else if ((reg_data & SM5713_ATTACH_TYPE) == SM5713_ATTACH_DEBUG) {
+		dev_info(dev, "ccstat : cc_DEBUG\n");
 	} else {
 		dev_err(dev, "%s, PLUG Error\n", __func__);
 		return -1;
@@ -2853,9 +2887,9 @@ static void sm5713_usbpd_notify_detach(void *data)
 		CCIC_NOTIFY_DETACH/*attach*/,
 		USB_STATUS_NOTIFY_DETACH/*drp*/, 0);
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
-	if (!pdic_data->try_state_change)
+	if (!pdic_data->try_state_change && !lpcharge)
 #elif defined(CONFIG_TYPEC)
-	if (!pdic_data->typec_try_state_change)
+	if (!pdic_data->typec_try_state_change && !lpcharge)
 #endif
 		sm5713_rprd_mode_change(pdic_data, TYPE_C_ATTACH_DRP);
 #endif /* end of CONFIG_CCIC_NOTIFIER */
@@ -3004,10 +3038,13 @@ out:
 static int sm5713_usbpd_reg_init(struct sm5713_phydrv_data *_data)
 {
 	struct i2c_client *i2c = _data->i2c;
+	u8 reg_data;
 
 	pr_info("%s", __func__);
-	/* Release SNK Only */
-	sm5713_usbpd_write_reg(i2c, SM5713_REG_CC_CNTL1, 0x80);
+	if (lpcharge) /* SNK Only Operation*/
+		sm5713_usbpd_write_reg(i2c, SM5713_REG_CC_CNTL1, 0x84);
+	else /* Release SNK Only */
+		sm5713_usbpd_write_reg(i2c, SM5713_REG_CC_CNTL1, 0x80);
 	/* DRP_PERIOD = 70ms, DUTY_DRP = 50% */
 	sm5713_usbpd_write_reg(i2c, SM5713_REG_CC_CNTL2, 0x12);
 	sm5713_check_cc_state(_data);
@@ -3033,7 +3070,8 @@ static int sm5713_usbpd_reg_init(struct sm5713_phydrv_data *_data)
 	sm5713_usbpd_write_reg(i2c, SM5713_REG_CORR_CNTL4, 0x92);
 #endif
 	/* BMC Receiver Threshold Level for Source = 0.49V, 0.77V */
-	sm5713_usbpd_write_reg(i2c, 0xEE, 0x20);
+	/* Debug Accessory Sink Recognition Enable */
+	sm5713_usbpd_write_reg(i2c, 0xEE, 0x28);
 	sm5713_usbpd_write_reg(i2c, 0x3D, 0x77);
 	/* BMC Receiver Threshold Level for Sink = 0.25V, 0.49V */
 	sm5713_usbpd_write_reg(i2c, 0x3E, 0x01);
@@ -3047,6 +3085,9 @@ static int sm5713_usbpd_reg_init(struct sm5713_phydrv_data *_data)
 	/* LPM Toggle Start &&
 	   Enable to Wake up when stay in gender state */
 	sm5713_usbpd_write_reg(i2c, 0x9C, 0x28);
+	sm5713_usbpd_read_reg(i2c, SM5713_REG_PD_STATE3, &reg_data);
+	if (reg_data & 0x06) /* Reset Done */
+		sm5713_usbpd_write_reg(i2c, SM5713_REG_PD_CNTL4, 0x01);
 	return 0;
 }
 
@@ -3592,6 +3633,7 @@ static void sm5713_usbpd_shutdown(struct i2c_client *i2c)
 
 	cancel_delayed_work_sync(&_data->debug_work);
 	sm5713_usbpd_write_reg(i2c, SM5713_REG_SYS_CNTL, 0x15);
+	sm5713_set_enable_pd_function(pd_data, PD_DISABLE);
 	sm5713_usbpd_set_vbus_dischg_gpio(_data, 0);
 }
 

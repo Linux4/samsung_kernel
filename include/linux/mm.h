@@ -2237,6 +2237,7 @@ void task_dirty_inc(struct task_struct *tsk);
 /* readahead.c */
 #define VM_MAX_READAHEAD	128	/* kbytes */
 #define VM_MIN_READAHEAD	16	/* kbytes (includes current page) */
+extern int mmap_readaround_limit;
 
 int force_page_cache_readahead(struct address_space *mapping, struct file *filp,
 			pgoff_t offset, unsigned long nr_to_read);
@@ -2322,6 +2323,12 @@ static inline struct vm_area_struct *find_exact_vma(struct mm_struct *mm,
 		vma = NULL;
 
 	return vma;
+}
+
+static inline bool range_in_vma(struct vm_area_struct *vma,
+				unsigned long start, unsigned long end)
+{
+	return (vma && vma->vm_start <= start && end <= vma->vm_end);
 }
 
 #ifdef CONFIG_MMU
@@ -2638,5 +2645,6 @@ extern void free_memsize_reserved(phys_addr_t free_base, phys_addr_t free_size);
 extern void record_memsize_reserved(const char *name, phys_addr_t base,
 				    phys_addr_t size, bool nomap,
 				    bool reusable);
+extern inline bool need_memory_boosting(struct pglist_data *pgdat, bool skip);
 #endif /* __KERNEL__ */
 #endif /* _LINUX_MM_H */

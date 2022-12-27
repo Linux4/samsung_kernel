@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2014 - 2019 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2016 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -9,14 +9,14 @@
 #include "scsc_mif_abs.h"
 
 enum wlbt_irqs {
-	PLATFORM_MIF_MBOX,
-	PLATFORM_MIF_ALIVE,
-	PLATFORM_MIF_WDOG,
-#if defined(CONFIG_SOC_EXYNOS9610) || defined(CONFIG_SOC_EXYNOS9630) || defined(CONFIG_SOC_EXYNOS3830)
-	PLATFORM_MIF_CFG_REQ,
+       PLATFORM_MIF_MBOX,
+       PLATFORM_MIF_ALIVE,
+       PLATFORM_MIF_WDOG,
+#if defined(CONFIG_SOC_EXYNOS9610) || defined(CONFIG_SOC_EXYNOS9630) || defined(CONFIG_SOC_EXYNOS3830) || defined(CONFIG_SOC_S5E9815)
+       PLATFORM_MIF_CFG_REQ,
 #endif
-	/* must be last */
-	PLATFORM_MIF_NUM_IRQS
+       /* must be last */
+       PLATFORM_MIF_NUM_IRQS
 };
 
 struct platform_device;

@@ -26,28 +26,28 @@
 #include "ssp_platform.h"
 #include "factory/ssp_factory.h"
 #define ssp_dbg(fmt, ...) do { \
-        pr_debug("[SSP] " fmt "\n", ##__VA_ARGS__); \
-        } while (0)
+	pr_debug("[SSP] " fmt "\n", ##__VA_ARGS__); \
+	} while (0)
 
 #define ssp_info(fmt, ...) do { \
-        pr_info("[SSP] " fmt "\n", ##__VA_ARGS__); \
-        } while (0)
+	pr_info("[SSP] " fmt "\n", ##__VA_ARGS__); \
+	} while (0)
 
 #define ssp_err(fmt, ...) do { \
-        pr_err("[SSP] " fmt "\n", ##__VA_ARGS__); \
-        } while (0)
+	pr_err("[SSP] " fmt "\n", ##__VA_ARGS__); \
+	} while (0)
 
 #define ssp_dbgf(fmt, ...) do { \
-        pr_debug("[SSP] %20s(%4d): " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
-        } while (0)
+	pr_debug("[SSP] %20s(%4d): " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
+	} while (0)
 
 #define ssp_infof(fmt, ...) do { \
-        pr_info("[SSP] %20s(%4d): " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
-        } while (0)
+	pr_info("[SSP] %20s(%4d): " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
+	} while (0)
 
 #define ssp_errf(fmt, ...) do { \
-        pr_err("[SSP] %20s(%4d): " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
-        } while (0)
+	pr_err("[SSP] %20s(%4d): " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
+	} while (0)
 
 #define MAKE_WORD(H,L) ((((u16)H) << 8 ) & 0xff00 ) | ((((u16)L)) & 0x00ff )
 #define WORD_TO_LOW(w) ((u8)((w) & 0xff ))
@@ -57,23 +57,22 @@
 #define FAIL    -2
 #define ERROR   -1
 
-#define DEFUALT_POLLING_DELAY   (200)
+#define DEFAULT_POLLING_DELAY   (200)
 
-#ifdef CONFIG_SENSORS_SSP_PROXIMITY_STK3X3X 
+#ifdef CONFIG_SENSORS_SSP_PROXIMITY_STK3X3X
 #define CONFIG_SENSROS_SSP_PROXIMITY_THRESH_CAL
 #endif
 #ifdef CONFIG_SENSORS_SSP_PROXIMITY_GP2AP110S
 #define CONFIG_SENSORS_SSP_PROXIMITY_MODIFY_SETTINGS
 #endif
 
-#define SENSOR_NAME_MAX_LEN             35
+#define SENSOR_NAME_MAX_LEN	     35
 
 struct sensor_info {
-    char name[SENSOR_NAME_MAX_LEN];
-    bool enable;
-    int report_mode;
-    int get_data_len;
-    int report_data_len;
+	char name[SENSOR_NAME_MAX_LEN];
+	bool enable;
+	int get_data_len;
+	int report_data_len;
 };
 
 enum {
@@ -169,8 +168,9 @@ struct sensor_value {
 		};
 		struct { /* light auto brightness */
 			s32 ab_lux;
+			u8 ab_min_flag;
 			u32 ab_brightness;
-		};
+		} __attribute__((__packed__));
 		struct meta_data_event { /* meta data */
 			s32 what;
 			s32 sensor;
@@ -181,8 +181,8 @@ struct sensor_value {
 } __attribute__((__packed__));
 
 struct sensor_delay {
-	int sampling_period;	/* delay (ms)*/
-	int max_report_latency;	 /* batch_max_latency*/
+	int sampling_period;    /* delay (ms)*/
+	int max_report_latency;  /* batch_max_latency*/
 };
 
 struct calibraion_data {
@@ -220,7 +220,7 @@ struct time_info {
 struct sensor_en_info {
 	bool enabled;
 	struct time_info regi_time;
-	struct time_info unregi_time;	
+	struct time_info unregi_time;
 };
 
 struct ssp_waitevent {
@@ -228,16 +228,30 @@ struct ssp_waitevent {
 	atomic_t state;
 };
 
+struct sensor_spec_t {
+	uint8_t uid;
+	uint8_t name[15];
+	uint8_t vendor;
+	uint16_t version;
+	uint8_t is_wake_up;
+	int32_t min_delay;
+	uint32_t max_delay;
+	uint16_t max_fifo;
+	uint16_t reserved_fifo;
+	float resolution;
+	float max_range;
+	float power;
+} __attribute__((__packed__));
+
 struct ssp_data {
 	bool is_probe_done;
 	struct wake_lock ssp_wake_lock;
 	struct delayed_work work_refresh;
-	struct delayed_work work_power_on;
 
 	struct work_struct work_reset;
 	struct ssp_waitevent reset_lock;
 	int cnt_reset;
-	unsigned int cnt_ssp_reset[RESET_TYPE_MAX+1]; /* index RESET_TYPE_MAX : total reset count */
+	unsigned int cnt_ssp_reset[RESET_TYPE_MAX + 1]; /* index RESET_TYPE_MAX : total reset count */
 	int check_noevent_reset_cnt;
 
 	struct timer_list ts_sync_timer;
@@ -247,17 +261,21 @@ struct ssp_data {
 	char fw_name[50];
 	int fw_type;
 	unsigned int curr_fw_rev;
-/* platform */
+	/* platform */
 	void *platform_data;
 
-/* comm */
+	struct device *dev;
+	char *sensor_spec;
+	unsigned int sensor_spec_size;
+
+	/* comm */
 	struct mutex comm_mutex;
 	struct mutex pending_mutex;
 	struct list_head pending_list;
 	unsigned int cnt_timeout;
 	unsigned int cnt_com_fail;
 
-/* debug */
+	/* debug */
 	char sensor_state[BIG_DATA_SENSOR_TYPE_MAX + 1];
 
 	struct timer_list debug_timer;
@@ -275,10 +293,10 @@ struct ssp_data {
 	char register_value[5];
 #endif
 
-/* sensor */
+	/* sensor */
 	struct mutex enable_mutex;
-	uint64_t sensor_probe_state;	/* uSensorState */
-	atomic64_t sensor_en_state;		/* aSensorEnable */
+	uint64_t sensor_probe_state;    /* uSensorState */
+	atomic64_t sensor_en_state;	     /* aSensorEnable */
 	u64 latest_timestamp[SENSOR_TYPE_MAX];
 
 	struct sensor_value buf[SENSOR_TYPE_MAX];
@@ -288,6 +306,8 @@ struct ssp_data {
 
 	u64 regi_timestamp[SENSOR_TYPE_MAX];
 	u64 unregi_timestamp[SENSOR_TYPE_MAX];
+
+	uint64_t ss_sensor_probe_state[2];
 
 	/* device */
 	struct device *mcu_device;
@@ -339,7 +359,7 @@ struct ssp_data {
 #endif
 #if defined(CONFIG_SENSROS_SSP_PROXIMITY_THRESH_CAL)
 #ifdef CONFIG_SENSORS_SSP_PROXIMITY_STK3X3X
-	u16 prox_thresh_addval[PROX_THRESH_SIZE+1];
+	u16 prox_thresh_addval[PROX_THRESH_SIZE + 1];
 #else
 	u16 prox_thresh_addval[PROX_THRESH_SIZE];
 #endif

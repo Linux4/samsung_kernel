@@ -612,6 +612,13 @@ int sec_bat_parse_dt(struct device *dev,
 		pdata->pre_afc_work_delay = 2000;
 	}
 
+	ret = of_property_read_u32(np, "battery,select_pd_input_current",
+		&pdata->select_pd_input_current);
+	if (ret) {
+		pr_info("%s : select_pd_input_current is Empty\n", __func__);
+		pdata->select_pd_input_current = 1000;
+	}
+
 	ret = of_property_read_u32(np, "battery,pre_wc_afc_input_current",
 		&pdata->pre_wc_afc_input_current);
 	if (ret) {

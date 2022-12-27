@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2013-2018 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -21,9 +22,9 @@
 #include "public/mc_user.h"
 
 #include "main.h"
-#include "mci/gptci.h"	/* Needs stuff from tee_client_api.h or its includes */
 #include "mci/mcinq.h"	/* TA termination codes */
 #include "client.h"
+#include "protocol.h"
 
 /* Macros */
 #define _TEEC_GET_PARAM_TYPE(t, i) (((t) >> (4 * (i))) & 0xF)
@@ -197,7 +198,7 @@ u32 teec_initialize_context(const char *name, struct teec_context *context)
 	}
 
 	/* Create client */
-	client = client_create(true);
+	client = client_create(true, protocol_vm_id());
 	if (!client)
 		return TEEC_ERROR_OUT_OF_MEMORY;
 
@@ -247,7 +248,7 @@ u32 teec_open_session(struct teec_context *context,
 		      u32 *return_origin)
 {
 	struct mc_uuid_t uuid;
-	struct mc_identity identity;
+	struct mc_identity identity = {0};
 	struct tee_client *client = NULL;
 	struct gp_operation gp_op;
 	struct gp_return gp_ret;
@@ -295,7 +296,9 @@ u32 teec_open_session(struct teec_context *context,
 	do {
 		ret = client_gp_open_session(client, &uuid, &gp_op, &identity,
 					     &gp_ret, &session->imp.session_id);
-		if (!ret || ret != EAGAIN)
+		if (ret != -ECHILD ||
+		    gp_ret.value != TEEC_ERROR_BUSY ||
+		    gp_ret.origin != TEEC_ORIGIN_TEE)
 			break;
 
 		msleep(1000);

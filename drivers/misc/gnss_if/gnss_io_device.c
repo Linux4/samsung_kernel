@@ -350,6 +350,8 @@ static int send_bcmd(struct io_device *iod, unsigned long arg)
 				bcmd_args.param1, bcmd_args.param2);
 	if (err == -EIO) { /* BCMD timeout */
 		gif_err("BCMD timeout cmd_id : %d\n", bcmd_args.cmd_id);
+	} else if (err == -EINVAL) {
+		gif_err("pmucal failed\n");
 	} else {
 		bcmd_args.ret_val = err;
 		err = copy_to_user((void __user *)arg,

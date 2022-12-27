@@ -78,7 +78,7 @@
 #define BSMHCP_ALIGNMENT                        (32)
 
 #define BSMHCP_FEATURE_LPA2DP                   (0x00000001)
-#define BSMHCP_FEATURE_M4_INTERRUPTS            (0x00000002)
+#define BSMHCP_FEATURE_RESERVED                 (0x00000002)
 #define BSMHCP_FEATURE_FW_INFORMATION           (0x00000004)
 #define BSMHCP_FEATURE_AVDTP_TRANSFER_RING      (0x00000008)
 
@@ -98,8 +98,35 @@
 #define BSMHCP_INCREASE_INDEX(index, limit) \
 		((index) = ((index) + 1) % (limit))
 
+/*
+ * For a ring where read == write indicates empty this returns false
+ * if adding one more would cause it to see the ring as empty
+ *        read = 3 % 5 = 3
+ *        v
+ * [X,X,_,X,X]
+ *      ^
+ *      write = 7 % 5 = 2
+ */
 #define BSMHCP_HAS_ROOM(write, read, limit) \
 		((((write) + 1) % (limit)) != (read))
+
+/*
+ * Calculate the how many times you could increase the write pointer
+ * without causing them to be seen as empty
+ *        read = 3 % 5 = 3
+ *        v
+ * [X,_,_,X,X]
+ *    ^
+ *    write = 6 % 5 = 1
+ *
+ * BSMHCP_AMOUNT_FREE(6,3,5) == BSMHCP_AMOUNT_FREE(1,3,5) == 1
+ *  You can add one more element before BSMHCP_HAS_ROOM would return false
+ */
+#define BSMHCP_AMOUNT_FREE(write, read, limit) \
+		(((read) - (write + 1)) % (limit))
+
+#define BSMHCP_USED_ENTRIES(write, read, limit) \
+		((write) >= (read) ? (write - read) : (limit - read + write))
 
 struct BSMHCP_TD_CONTROL {
 	uint16_t length;
@@ -200,7 +227,7 @@ struct BSMHCP_TD_IQ_REPORTING_EVT {
 struct BSMHCP_HEADER {
 	/* AP RW - M4/R4 RO - 64 octets */
 	uint32_t                        magic_value;                /* 0x00 */
-	uint16_t                        ap_to_fg_m4_int_src;        /* 0x04 */
+	uint16_t                        reserved2_u16;              /* 0x04 */
 	uint8_t                         service_request;            /* 0x06 */
 	uint8_t                         reserved1;                  /* 0x07 */
 	uint32_t                        acl_buffer_size;            /* 0x08 */
@@ -209,7 +236,7 @@ struct BSMHCP_HEADER {
 	uint16_t                        ap_to_bg_int_src;           /* 0x14 */
 	uint16_t                        ap_to_fg_int_src;           /* 0x16 */
 	uint16_t                        bg_to_ap_int_src;           /* 0x18 */
-	uint16_t                        fg_to_ap_int_src;           /* 0x1A */
+	uint16_t                        reserved3_u16;              /* 0x1A */
 	uint32_t                        mailbox_offset;             /* 0x1C */
 	uint32_t                        reserved1_u32;              /* 0x20 */
 	uint32_t                        mailbox_hci_cmd_write;      /* 0x24 */

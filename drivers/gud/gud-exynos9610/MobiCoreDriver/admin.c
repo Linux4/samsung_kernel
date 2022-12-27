@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2013-2018 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -35,9 +36,11 @@
 #include "public/mc_admin.h"
 
 #include "main.h"
-#include "mmu.h"	/* For load_check and load_token */
+#include "mci/mcloadformat.h"		/* struct mc_blob_len_info */
+#include "mmu.h"			/* For load_check and load_token */
 #include "mcp.h"
 #include "nq.h"
+#include "protocol.h"
 #include "client.h"
 #include "admin.h"
 
@@ -48,6 +51,8 @@ static struct {
 	void (*tee_stop_cb)(void);
 	int last_tee_ret;
 	struct notifier_block tee_stop_notifier;
+	/* Interface not initialised means no local registry, front-end case */
+	bool is_initialised;
 } l_ctx;
 
 static struct mc_admin_driver_request {
@@ -149,21 +154,13 @@ static inline void reinit_completion_local(struct completion *x)
 }
 #endif
 
-static struct tee_object *tee_object_alloc(bool is_sp_trustlet, size_t length)
+static struct tee_object *tee_object_alloc(size_t length)
 {
 	struct tee_object *obj;
 	size_t size = sizeof(*obj) + length;
-	size_t header_length = 0;
-
-	/* Determine required size */
-	if (is_sp_trustlet) {
-		/* Need space for lengths info and containers */
-		header_length = sizeof(struct mc_blob_len_info);
-		size += header_length + 3 * MAX_SO_CONT_SIZE;
-	}
 
 	/* Check size for overflow */
-	if (size < length) {
+	if (size < length || size > OBJECT_LENGTH_MAX) {
 		mc_dev_err(-ENOMEM, "cannot allocate object of size %zu",
 			   length);
 		return NULL;
@@ -174,8 +171,6 @@ static struct tee_object *tee_object_alloc(bool is_sp_trustlet, size_t length)
 	if (!obj)
 		return NULL;
 
-	/* A non-zero header_length indicates that we have a SP trustlet */
-	obj->header_length = (u32)header_length;
 	obj->length = (u32)length;
 	return obj;
 }
@@ -225,8 +220,7 @@ static inline bool server_state_is(enum server_state state)
 
 static void request_cancel(void);
 
-static int request_send(u32 command, const struct mc_uuid_t *uuid, bool is_gp,
-			u32 spid)
+static int request_send(u32 command, const struct mc_uuid_t *uuid, bool is_gp)
 {
 	int counter = 0;
 	int wait_tens = 0;
@@ -280,7 +274,6 @@ static int request_send(u32 command, const struct mc_uuid_t *uuid, bool is_gp,
 		memset(&g_request.request.uuid, 0, sizeof(*uuid));
 
 	g_request.request.is_gp = is_gp;
-	g_request.request.spid = spid;
 	g_request.client_state = REQUEST_SENT;
 	mutex_unlock(&g_request.states_mutex);
 
@@ -408,115 +401,24 @@ static void request_cancel(void)
 	mutex_unlock(&g_request.states_mutex);
 }
 
-static int admin_get_root_container(void *address)
-{
-	int ret = 0;
-
-	/* Lock communication channel */
-	channel_lock();
-
-	/* Send request and wait for header */
-	ret = request_send(MC_DRV_GET_ROOT_CONTAINER, NULL, 0, 0);
-	if (ret)
-		goto end;
-
-	/* Check length against max */
-	if (g_request.response.length >= MAX_SO_CONT_SIZE) {
-		request_cancel();
-		ret = EREMOTEIO;
-		mc_dev_err(ret, "response length exceeds maximum");
-		goto end;
-	}
-
-	/* Get data */
-	ret = request_receive(address, g_request.response.length);
-	if (!ret)
-		ret = g_request.response.length;
-
-end:
-	channel_unlock();
-	return ret;
-}
-
-static int admin_get_sp_container(void *address, u32 spid)
-{
-	int ret = 0;
-
-	/* Lock communication channel */
-	channel_lock();
-
-	/* Send request and wait for header */
-	ret = request_send(MC_DRV_GET_SP_CONTAINER, NULL, 0, spid);
-	if (ret)
-		goto end;
-
-	/* Check length against max */
-	if (g_request.response.length >= MAX_SO_CONT_SIZE) {
-		request_cancel();
-		ret = EREMOTEIO;
-		mc_dev_err(ret, "response length exceeds maximum");
-		goto end;
-	}
-
-	/* Get data */
-	ret = request_receive(address, g_request.response.length);
-	if (!ret)
-		ret = g_request.response.length;
-
-end:
-	channel_unlock();
-	return ret;
-}
-
-static int admin_get_trustlet_container(void *address,
-					const struct mc_uuid_t *uuid, u32 spid)
-{
-	int ret = 0;
-
-	/* Lock communication channel */
-	channel_lock();
-
-	/* Send request and wait for header */
-	ret = request_send(MC_DRV_GET_TRUSTLET_CONTAINER, uuid, 0, spid);
-	if (ret)
-		goto end;
-
-	/* Check length against max */
-	if (g_request.response.length >= MAX_SO_CONT_SIZE) {
-		request_cancel();
-		ret = EREMOTEIO;
-		mc_dev_err(ret, "response length exceeds maximum");
-		goto end;
-	}
-
-	/* Get data */
-	ret = request_receive(address, g_request.response.length);
-	if (!ret)
-		ret = g_request.response.length;
-
-end:
-	channel_unlock();
-	return ret;
-}
-
-static struct tee_object *admin_get_trustlet(const struct mc_uuid_t *uuid,
-					     bool is_gp, u32 *spid)
+struct tee_object *tee_object_get(const struct mc_uuid_t *uuid, bool is_gp)
 {
 	struct tee_object *obj = NULL;
-	bool is_sp_tl;
 	int ret = 0;
+
+	if (!l_ctx.is_initialised)
+		return ERR_PTR(-ENOPROTOOPT);
 
 	/* Lock communication channel */
 	channel_lock();
 
 	/* Send request and wait for header */
-	ret = request_send(MC_DRV_GET_TRUSTLET, uuid, is_gp, 0);
+	ret = request_send(MC_DRV_GET_TRUSTLET, uuid, is_gp);
 	if (ret)
 		goto end;
 
 	/* Allocate memory */
-	is_sp_tl = g_request.response.service_type == SERVICE_TYPE_SP_TRUSTLET;
-	obj = tee_object_alloc(is_sp_tl, g_request.response.length);
+	obj = tee_object_alloc(g_request.response.length);
 	if (!obj) {
 		request_cancel();
 		ret = -ENOMEM;
@@ -524,8 +426,7 @@ static struct tee_object *admin_get_trustlet(const struct mc_uuid_t *uuid,
 	}
 
 	/* Get data */
-	ret = request_receive(&obj->data[obj->header_length], obj->length);
-	*spid = g_request.response.spid;
+	ret = request_receive(&obj->data, obj->length);
 
 end:
 	channel_unlock();
@@ -543,7 +444,7 @@ static void mc_admin_sendcrashdump(void)
 	channel_lock();
 
 	/* Send request and wait for header */
-	ret = request_send(MC_DRV_SIGNAL_CRASH, NULL, false, 0);
+	ret = request_send(MC_DRV_SIGNAL_CRASH, NULL, false);
 	if (ret)
 		goto end;
 
@@ -562,54 +463,12 @@ static int tee_stop_notifier_fn(struct notifier_block *nb, unsigned long event,
 	return 0;
 }
 
-static int tee_object_make(u32 spid, struct tee_object *obj)
-{
-	struct mc_blob_len_info *l_info = (struct mc_blob_len_info *)obj->data;
-	u8 *address = &obj->data[obj->header_length + obj->length];
-	struct mclf_header_v2 *thdr;
-	int ret;
-
-	/* Get root container */
-	ret = admin_get_root_container(address);
-	if (ret < 0)
-		goto err;
-
-	l_info->root_size = ret;
-	address += ret;
-
-	/* Get SP container */
-	ret = admin_get_sp_container(address, spid);
-	if (ret < 0)
-		goto err;
-
-	l_info->sp_size = ret;
-	address += ret;
-
-	/* Get trustlet container */
-	thdr = (struct mclf_header_v2 *)&obj->data[obj->header_length];
-	ret = admin_get_trustlet_container(address, &thdr->uuid, spid);
-	if (ret < 0)
-		goto err;
-
-	l_info->ta_size = ret;
-	address += ret;
-
-	/* Setup lengths information */
-	l_info->magic = MC_TLBLOBLEN_MAGIC;
-	obj->length += sizeof(*l_info);
-	obj->length += l_info->root_size + l_info->sp_size + l_info->ta_size;
-	ret = 0;
-
-err:
-	return ret;
-}
-
 struct tee_object *tee_object_copy(uintptr_t address, size_t length)
 {
 	struct tee_object *obj;
 
 	/* Allocate memory */
-	obj = tee_object_alloc(false, length);
+	obj = tee_object_alloc(length);
 	if (!obj)
 		return ERR_PTR(-ENOMEM);
 
@@ -618,7 +477,7 @@ struct tee_object *tee_object_copy(uintptr_t address, size_t length)
 	return obj;
 }
 
-struct tee_object *tee_object_read(u32 spid, uintptr_t address, size_t length)
+struct tee_object *tee_object_read(uintptr_t address, size_t length)
 {
 	char __user *addr = (char __user *)address;
 	struct tee_object *obj;
@@ -640,14 +499,21 @@ struct tee_object *tee_object_read(u32 spid, uintptr_t address, size_t length)
 		return ERR_PTR(ret);
 	}
 
+	/* Check header */
+	if (thdr.intro.magic != MC_SERVICE_HEADER_MAGIC_BE &&
+	    thdr.intro.magic != MC_SERVICE_HEADER_MAGIC_LE) {
+		ret = -EINVAL;
+		mc_dev_err(ret, "header: invalid magic");
+		return ERR_PTR(ret);
+	}
+
 	/* Allocate memory */
-	obj = tee_object_alloc(thdr.service_type == SERVICE_TYPE_SP_TRUSTLET,
-			       length);
+	obj = tee_object_alloc(length);
 	if (!obj)
 		return ERR_PTR(-ENOMEM);
 
 	/* Copy header */
-	data = &obj->data[obj->header_length];
+	data = (u8 *)&obj->data;
 	memcpy(data, &thdr, sizeof(thdr));
 	/* Copy the rest of the data */
 	data += sizeof(thdr);
@@ -658,14 +524,6 @@ struct tee_object *tee_object_read(u32 spid, uintptr_t address, size_t length)
 		return ERR_PTR(ret);
 	}
 
-	if (obj->header_length) {
-		ret = tee_object_make(spid, obj);
-		if (ret) {
-			vfree(obj);
-			return ERR_PTR(ret);
-		}
-	}
-
 	return obj;
 }
 
@@ -674,42 +532,12 @@ struct tee_object *tee_object_select(const struct mc_uuid_t *uuid)
 	struct tee_object *obj;
 	struct mclf_header_v2 *thdr;
 
-	obj = tee_object_alloc(false, sizeof(*thdr));
+	obj = tee_object_alloc(sizeof(*thdr));
 	if (!obj)
 		return ERR_PTR(-ENOMEM);
 
-	thdr = (struct mclf_header_v2 *)&obj->data[obj->header_length];
+	thdr = (struct mclf_header_v2 *)&obj->data;
 	memcpy(&thdr->uuid, uuid, sizeof(thdr->uuid));
-	return obj;
-}
-
-struct tee_object *tee_object_get(const struct mc_uuid_t *uuid, bool is_gp)
-{
-	struct tee_object *obj;
-	u32 spid = 0;
-
-	/* admin_get_trustlet creates the right object based on service type */
-	obj = admin_get_trustlet(uuid, is_gp, &spid);
-	if (IS_ERR(obj))
-		return obj;
-
-	/* SP trustlet: create full secure object with all containers */
-	if (obj->header_length) {
-		int ret;
-
-		/* Do not return EINVAL in this case as SPID was not found */
-		if (!spid) {
-			vfree(obj);
-			return ERR_PTR(-ENOENT);
-		}
-
-		ret = tee_object_make(spid, obj);
-		if (ret) {
-			vfree(obj);
-			return ERR_PTR(ret);
-		}
-	}
-
 	return obj;
 }
 
@@ -717,13 +545,11 @@ static inline int load_driver(struct tee_client *client,
 			      struct mc_admin_load_info *load_info)
 {
 	struct mcp_open_info info = {
-		.spid = load_info->spid,
 		.va = load_info->address,
 		.len = load_info->length,
 		.uuid = &load_info->uuid,
 		.tci_len = PAGE_SIZE,
-		/* ExySp : Kinibi410 */
-		.user = 1,
+		.user = true,
 	};
 
 	u32 session_id = 0;
@@ -773,27 +599,22 @@ static inline int load_token(struct mc_admin_load_info *token)
 	return ret;
 }
 
-static inline int load_check(struct mc_admin_load_info *info)
+static inline int load_key_so(struct mc_admin_load_info *key_so)
 {
-	struct tee_object *obj;
 	struct tee_mmu *mmu;
 	struct mcp_buffer_map map;
 	struct mc_ioctl_buffer buf;
 	int ret;
 
-	obj = tee_object_read(info->spid, info->address, info->length);
-	if (IS_ERR(obj))
-		return PTR_ERR(obj);
-
-	buf.va = (uintptr_t)obj->data;
-	buf.len = obj->length;
+	buf.va = (uintptr_t)key_so->address;
+	buf.len = key_so->length;
 	buf.flags = MC_IO_MAP_INPUT;
-	mmu = tee_mmu_create(NULL, &buf);
+	mmu = tee_mmu_create(current->mm, &buf);
 	if (IS_ERR(mmu))
 		return PTR_ERR(mmu);
 
 	tee_mmu_buffer(mmu, &map);
-	ret = mcp_load_check(obj, &map);
+	ret = mcp_load_key_so(key_so->address, &map);
 	tee_mmu_put(mmu);
 	return ret;
 }
@@ -984,7 +805,7 @@ static long admin_ioctl(struct file *file, unsigned int cmd,
 
 		/* Make sure we have a local client */
 		if (!client) {
-			client = client_create(true);
+			client = client_create(true, protocol_vm_id());
 			/* Store client for future use/close */
 			file->private_data = client;
 		}
@@ -1008,7 +829,7 @@ static long admin_ioctl(struct file *file, unsigned int cmd,
 		ret = load_token(&info);
 		break;
 	}
-	case MC_ADMIN_IO_LOAD_CHECK: {
+	case MC_ADMIN_IO_LOAD_KEY_SO: {
 		struct mc_admin_load_info info;
 
 		if (copy_from_user(&info, uarg, sizeof(info))) {
@@ -1016,7 +837,7 @@ static long admin_ioctl(struct file *file, unsigned int cmd,
 			break;
 		}
 
-		ret = load_check(&info);
+		ret = load_key_so(&info);
 		break;
 	}
 	default:
@@ -1135,6 +956,7 @@ int mc_admin_init(struct cdev *cdev, int (*tee_start_cb)(void),
 	l_ctx.tee_start_cb = tee_start_cb;
 	l_ctx.tee_stop_cb = tee_stop_cb;
 	l_ctx.last_tee_ret = TEE_START_NOT_TRIGGERED;
+	l_ctx.is_initialised = true;
 	return 0;
 }
 

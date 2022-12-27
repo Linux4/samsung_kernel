@@ -7,7 +7,7 @@
 #ifndef _SCSC_LOGRING_H_
 #define _SCSC_LOGRING_H_
 #include <linux/types.h>
-
+#include <linux/version.h>
 #include <linux/types.h>
 #include <linux/printk.h>
 #include <linux/device.h>
@@ -417,18 +417,19 @@ int scsc_printk_bin(int force, int tag, int dlev, const void *start, size_t len)
 
 #else /* CONFIG_SCSC_PRINTK */
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 #define SCSC_TAG_LVL(tag, lvl, fmt, args...)	\
 	do {\
 		if ((lvl) < 7)\
-			printk_emit(0, (lvl), NULL, 0, fmt, ## args);\
+			dev_printk_emit((lvl), NULL, fmt, ## args);\
 	} while (0)
-
+#else
 #define SCSC_TAG_DEV_LVL(tag, lvl, dev, fmt, args...) \
 	do {\
 		if ((lvl) < 7)\
-			dev_printk_emit((lvl), (dev), fmt, ## args);\
+			printk_emit((lvl), (dev), fmt, ## args);\
 	} while (0)
-
+#endif
 #define SCSC_PRINTK(fmt, args ...)               printk(SCSC_PREFIX fmt, ## args)
 #define SCSC_PRINTK_TAG(tag, fmt, args ...)      printk(SCSC_PREFIX "[" # tag "] "fmt, ## args)
 #define SCSC_PRINTK_BIN(start, len)              print_hex_dump(KERN_INFO, \
@@ -705,5 +706,14 @@ int scsc_printk_bin(int force, int tag, int dlev, const void *start, size_t len)
 #define SCSC_TAG_DBG4(tag, fmt, args ...)		do {} while (0)
 
 #endif
+
+/* callbacks to mxman */
+struct scsc_logring_mx_cb {
+	int (*scsc_logring_register_observer)(struct scsc_logring_mx_cb *mx_cb, char *name);
+	int (*scsc_logring_unregister_observer)(struct scsc_logring_mx_cb *mx_cb, char *name);
+};
+
+int scsc_logring_register_mx_cb(struct scsc_logring_mx_cb *mx_cb);
+int scsc_logring_unregister_mx_cb(struct scsc_logring_mx_cb *mx_cb);
 
 #endif /* _SCSC_LOGRING_H_ */

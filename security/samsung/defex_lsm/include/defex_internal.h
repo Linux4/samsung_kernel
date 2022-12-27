@@ -180,7 +180,6 @@ struct defex_context {
 	int syscall_no;
 	struct task_struct *task;
 	struct file *process_file;
-	struct cred cred;
 	struct file *target_file;
 	const struct path *process_dpath;
 	const struct path *target_dpath;
@@ -188,6 +187,7 @@ struct defex_context {
 	char *target_name;
 	char *target_name_buff;
 	char *process_name_buff;
+	struct cred cred;
 };
 
 extern const char unknown_file[];
@@ -204,6 +204,7 @@ char *get_dc_target_name(struct defex_context *dc);
 struct file *defex_get_source_file(struct task_struct *p);
 char *defex_get_filename(struct task_struct *p);
 char* defex_resolve_filename(const char *name, char **out_buff);
+int defex_files_identical(const struct file *f1, const struct file *f2);
 static inline void safe_str_free(void *ptr)
 {
 	if (ptr && ptr != unknown_file)

@@ -26,10 +26,12 @@ static inline bool CsrIsSpace(u8 c)
 
 static inline char *CsrStrDup(const char *string)
 {
-	if (string != NULL) {
+	if (string) {
 		u32 len = strlen(string) + 1;
+		char *result = kmalloc(len, GFP_KERNEL);
 
-		return memcpy(kmalloc(len, GFP_KERNEL), string, len);
+		if (result)
+			return memcpy(result, string, len);
 	}
 	return NULL;
 }
@@ -160,6 +162,10 @@ static bool CsrWifiMibConvertTextParseLine(const char *linestr, struct slsi_mib_
 	const char            *current_char = linestr;
 	bool                  processingStr = false;
 
+	if (!trimmed) {
+		SLSI_ERR_NODEV("Memory allocation failed!\n");
+		return false;
+	}
 	memset(&entry, 0x00, sizeof(entry));
 	while (current_char[0] != '\0') {
 		if (current_char[0] == '"')
@@ -243,6 +249,11 @@ static bool CsrWifiMibConvertTextParseLine(const char *linestr, struct slsi_mib_
 				entry.value.type = SLSI_MIB_TYPE_OCTET;
 				entry.value.u.octetValue.dataLength = octetLen;
 				entry.value.u.octetValue.data = kmalloc(entry.value.u.octetValue.dataLength + 1, GFP_KERNEL);
+				if (!entry.value.u.octetValue.data) {
+					SLSI_ERR_NODEV("Memory allocation failed!\n");
+					kfree(trimmed);
+					return false;
+				}
 				for (i = 0; i < octetLen; i++)
 					if (!CsrHexStrToUint8(&data[1 + (i * 2)], &entry.value.u.octetValue.data[i])) {
 						SLSI_ERR_NODEV("CsrWifiMibConvertTextParseLine('%s') Convert Hex Bytes <data> failed", trimmed);
@@ -283,7 +294,7 @@ static bool CsrWifiMibConvertTextAppend(const char *mibText, struct slsi_mib_dat
 	const char *lineStart = mibText;
 	const char *lineEnd = mibText;
 
-	if (mibText == NULL)
+	if (!mibText)
 		return false;
 
 	while (lineEnd[0] != '\0') {
@@ -294,6 +305,11 @@ static bool CsrWifiMibConvertTextAppend(const char *mibText, struct slsi_mib_dat
 				strSize++;
 			if (strSize > 2) {
 				char *line = kmalloc(strSize + 1, GFP_KERNEL);
+
+				if (!line) {
+					SLSI_ERR_NODEV("Memory allocation failed!\n", line);
+					return false;
+				}
 				(void)strncpy(line, lineStart, strSize);
 				line[strSize] = '\0';
 				if (!CsrWifiMibConvertTextParseLine(line, mibDataSet, mibDataGet)) {

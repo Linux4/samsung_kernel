@@ -129,7 +129,10 @@ static ssize_t scsc_lerna_chardev_write(struct file *filep, const char *buffer, 
 	if (len >= sizeof(struct scsc_lerna_cmd_header)) {
 		/* Header at least fits, but maybe a write value wants more... */
 		if (len <= SCSC_LERNA_BUFFER_SIZE) {
-			copy_from_user(scsc_lerna_request_buffer, buffer, len);
+			if (copy_from_user(scsc_lerna_request_buffer, buffer, len)) {
+				SCSC_TAG_ERR(LERNA, "copy_from_user failed.\n");
+				return -EFAULT;
+			}
 			mxman_lerna_send(NULL, scsc_lerna_request_buffer, len);
 		} else {
 			/* Message size too long, don't write anything. */

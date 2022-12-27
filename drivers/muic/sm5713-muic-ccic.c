@@ -86,6 +86,7 @@ static void sm5713_muic_handle_RPLEVEL(struct sm5713_muic_data *muic_data)
 {
 	switch (muic_data->attached_dev) {
 	case ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC:
+	case ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC:
 	case ATTACHED_DEV_AFC_CHARGER_5V_MUIC:
 	case ATTACHED_DEV_AFC_CHARGER_9V_MUIC:
 	case ATTACHED_DEV_AFC_CHARGER_12V_MUIC:

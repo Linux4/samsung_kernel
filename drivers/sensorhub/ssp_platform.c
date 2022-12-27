@@ -38,21 +38,13 @@ int sensorhub_firmware_download(void *ssp_data)
 	return contexthub_reset(ipc, 1, 0);
 }
 
-int sensorhub_power_on(void *ssp_data)
-{
-	struct contexthub_ipc_info *ipc = ((struct ssp_data *)ssp_data)->platform_data;
-	return contexthub_poweron(ipc);
-}
-
 int sensorhub_shutdown(void *ssp_data)
 {
 	struct contexthub_ipc_info *ipc = ((struct ssp_data *)ssp_data)->platform_data;
 	int ret;
 	ret = contexthub_ipc_write_event(ipc, MAILBOX_EVT_SHUTDOWN);
 	if (ret)
-	{
 		ssp_errf("shutdonw fails, ret:%d\n", ret);
-	}
 
 	return ret;
 }
@@ -110,16 +102,16 @@ void save_ram_dump(void *ssp_data)
 	}
 
 	ssp_infof("");
-	write_ssp_dump_file(data, (char*)ipc_get_base(IPC_REG_DUMP), ipc_get_chub_mem_size(), SENSORHUB_DUMP_TYPE_DUMPSTATE);
+	write_ssp_dump_file(data, (char *)ipc_get_base(IPC_REG_DUMP), ipc_get_chub_mem_size(), 0, 1);
 	contexthub_put_token(ipc);
 }
 
 int get_sensorhub_dump_size()
 {
-    return ipc_get_chub_mem_size();
+	return ipc_get_chub_mem_size();
 }
 
-void* get_sensorhub_dump_address()
+void *get_sensorhub_dump_address(void)
 {
 	return ipc_get_base(IPC_REG_DUMP);
 }
@@ -127,29 +119,44 @@ void* get_sensorhub_dump_address()
 void ssp_dump_write_file(void *ssp_data, void *dump_data, int dump_size, int err_type)
 {
 	struct ssp_data *data = ssp_data;
-	if(err_type & 1 << CHUB_ERR_ITMON)
-		write_ssp_dump_file(data, (char*)dump_data, dump_size, SENSORHUB_DUMP_TYPE_ITMON);
-	else
-		write_ssp_dump_file(data, (char*)dump_data, dump_size, SENSORHUB_DUMP_TYPE_DUMPED);
+	int i = 0;
+	int dump_type;
+
+	if (err_type == 0) {
+		if (data->reset_type < RESET_TYPE_MAX)
+			dump_type = DUMP_TYPE_BASE + data->reset_type;
+		else
+			dump_type = 0;
+	} else {
+		for (i = 0 ; i < CHUB_ERR_MAX ; i++) {
+			if (err_type & 1 << i) {
+				dump_type = i;
+				break;
+			}
+		}
+	}
+
+	if (i != CHUB_ERR_MAX)
+		write_ssp_dump_file(data, (char *)dump_data, dump_size, dump_type, 1);
 }
 
 bool is_sensorhub_working(void *ssp_data)
 {
 	struct ssp_data *data = (struct ssp_data *)ssp_data;
 	struct contexthub_ipc_info *ipc = ((struct ssp_data *)ssp_data)->platform_data;
-	if(!work_busy(&data->work_reset) && atomic_read(&ipc->chub_status) == CHUB_ST_RUN && atomic_read(&ipc->in_reset) == 0)
+	if (!work_busy(&data->work_reset) && atomic_read(&ipc->chub_status) == CHUB_ST_RUN && atomic_read(&ipc->in_reset) == 0)
 		return true;
 	else
 		return false;
 }
 
-int ssp_download_firmware(void *ssp_data, struct device* dev, void * addr)
+int ssp_download_firmware(void *ssp_data, struct device *dev, void *addr)
 {
 	struct ssp_data *data = ssp_data;
 	return download_sensorhub_firmware(data, dev, addr);
 }
 
-void ssp_set_fimware_name(void *ssp_data,const char *fw_name)
+void ssp_set_firmware_name(void *ssp_data, const char *fw_name)
 {
 	struct ssp_data *data = ssp_data;
 	strcpy(data->fw_name, fw_name);

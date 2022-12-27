@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (c) 2013-2018 TRUSTONIC LIMITED
  * All Rights Reserved.
@@ -11,7 +12,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  */
-
 #ifndef __DCITUI_H__
 #define __DCITUI_H__
 
@@ -88,8 +88,8 @@
 /*
  * TUI DCI VERSION
  */
-#define TUI_DCI_VERSION_MAJOR   (1u)
-#define TUI_DCI_VERSION_MINOR   (1u)
+#define TUI_DCI_VERSION_MAJOR   (2u)
+#define TUI_DCI_VERSION_MINOR   (0u)
 
 #define TUI_DCI_VERSION(major, minor) \
 	((((major) & 0x0000ffff) << 16) | ((minor) & 0x0000ffff))
@@ -118,6 +118,10 @@ struct tui_hal_rsp_t {
 struct tui_alloc_data_t {
 	u32 alloc_size;
 	u32 num_of_buff;
+	u32 screen_width;	/* Board screen width */
+	u32 screen_height;  /* Board screen height */
+	u32 screen_stride;  /* Board stride */
+	u32 bits_per_pixel; /* Board bits per pixel */
 };
 
 union dci_cmd_payload_t {
@@ -152,11 +156,12 @@ struct dci_response_t {
 /* DCI buffer */
 struct tui_dci_msg_t {
 	u32 version;
-	u32     nwd_notif; /* Notification from TlcTui to DrTui */
-	struct dci_command_t  cmd_nwd;   /* Command from DrTui to TlcTui */
+	u32 nwd_notif; /* Notification from TlcTui to DrTui */
+	struct dci_command_t cmd_nwd;   /* Command from DrTui to TlcTui */
 	struct dci_response_t nwd_rsp;   /* Response from TlcTui to DrTui */
-	u32     hal_cmd;
-	u32     hal_rsp;
+	u32 hal_cmd;
+	u32 hal_rsp;
+	u32 buff_id;
 };
 
 /**

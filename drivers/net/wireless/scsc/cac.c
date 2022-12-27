@@ -172,10 +172,10 @@ static int add_ebw_ie(u8 *buf, size_t buf_len, u8 tsid)
  * return: length of bytes that were added
  */
 static int add_tsrs_ie(u8 *buf, size_t buf_len, u8 tsid,
-		       u8 rates[CCX_MAX_NUM_RATES], int num_rates)
+		       u8 rates[CCX_MAX_NUM_RATES], size_t num_rates)
 {
 	u8     *pos;
-	size_t ie_len = (size_t)(7 + num_rates);
+	size_t ie_len = 7 + num_rates;
 	int    i;
 
 	if ((buf == NULL) || (buf_len < ie_len) || (rates == NULL) ||
@@ -206,13 +206,8 @@ static const u8 *bss_get_ie(struct cfg80211_bss *bss, u8 ie)
 	const u8 *pos;
 	u8       ies_len, ies_cur_len;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
 	pos = (const u8 *)(bss->ies);
 	ies_len = (u8)bss->ies->len;
-#else
-	pos = (const u8 *)(bss->information_elements);
-	ies_len = (u8)bss->len_information_elements;
-#endif
 	ies_cur_len = 1;
 
 	while (ies_cur_len <= ies_len) {
@@ -330,7 +325,7 @@ static int cac_send_addts(struct slsi_dev *sdev, int id, int ebw)
 	hdr = (struct ieee80211_hdr *)buf;
 	hdr->frame_control = IEEE80211_FC(IEEE80211_FTYPE_MGMT, IEEE80211_STYPE_ACTION);
 	SLSI_ETHER_COPY(hdr->addr1, bssid);
-	SLSI_ETHER_COPY(hdr->addr2, sdev->hw_addr);
+	SLSI_ETHER_COPY(hdr->addr2, netdev->dev_addr);
 	SLSI_ETHER_COPY(hdr->addr3, bssid);
 
 	req = (struct action_addts_req *)(buf + IEEE80211_HEADER_SIZE);
@@ -487,7 +482,7 @@ static int cac_send_delts(struct slsi_dev *sdev, int id)
 	hdr = (struct ieee80211_hdr *)buf;
 	hdr->frame_control = IEEE80211_FC(IEEE80211_FTYPE_MGMT, IEEE80211_STYPE_ACTION);
 	SLSI_ETHER_COPY(hdr->addr1, bssid);
-	SLSI_ETHER_COPY(hdr->addr2, sdev->hw_addr);
+	SLSI_ETHER_COPY(hdr->addr2, netdev->dev_addr);
 	SLSI_ETHER_COPY(hdr->addr3, bssid);
 	req = (struct action_delts_req *)(buf + 24);
 	req_len = sizeof(*req);
@@ -1060,7 +1055,7 @@ static void cac_process_addts_rsp(struct slsi_dev *sdev, struct net_device *netd
 
 	if (rsp->hdr.status_code != ADDTS_STATUS_ACCEPTED) {
 		SLSI_ERR(sdev, "CAC: TSPEC rejected (status=0x%02X)", rsp->hdr.status_code);
-		cac_delete_tspec_by_state(sdev, itr->id , 0);
+		cac_delete_tspec_by_state(sdev, itr->id, 0);
 		return;
 	}
 

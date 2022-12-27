@@ -108,7 +108,7 @@ int pmucal_gnss_reset_release(void)
 	if (ret) {
 		pr_err("%s %s: error on handling gnss-reset_release sequence.\n",
 				PMUCAL_PREFIX, __func__);
-		return ret;
+		return -EINVAL;
 	}
 
 	return 0;

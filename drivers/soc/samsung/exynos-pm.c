@@ -40,6 +40,12 @@ extern u32 exynos_eint_to_pin_num(int eint);
 #define EXYNOS_EINT_PEND(b, x)      ((b) + 0xA00 + (((x) >> 3) * 4))
 
 #ifdef CONFIG_SEC_PM_DEBUG
+#include <linux/sec_debug.h>
+
+#define	PMU_CP_STAT		0x0038
+#define	PMU_GNSS_STAT		0x0048
+#define	PMU_WLBT_STAT		0x0058
+
 #define WAKEUP_STAT_SYSINT_MASK		~(1 << 0)
 
 struct wakeup_stat_name {
@@ -297,6 +303,18 @@ static inline bool abox_is_on(void)
 
 static int exynos_pm_syscore_suspend(void)
 {
+#ifdef CONFIG_SEC_PM_DEBUG
+	unsigned int val;
+
+	if (sec_debug_get_debug_level() <= 1) {
+		exynos_pmu_read(PMU_CP_STAT, &val);
+		pr_info("CP_STAT (0x%x) = 0x%08x\n", PMU_CP_STAT, val);
+		exynos_pmu_read(PMU_GNSS_STAT, &val);
+		pr_info("GNSS_STAT (0x%x) = 0x%08x\n", PMU_GNSS_STAT, val);
+		exynos_pmu_read(PMU_WLBT_STAT, &val);
+		pr_info("WLBT_STAT (0x%x) = 0x%08x\n", PMU_WLBT_STAT, val);
+	}
+#endif
 	if (!exynos_check_cp_status()) {
 		pr_info("%s %s: sleep canceled by CP reset \n",
 					EXYNOS_PM_PREFIX, __func__);

@@ -99,7 +99,11 @@
 
 /* firmware */
 #define TC300K_FW_PATH_SDCARD		"/sdcard/tc3xxk.bin"
+#if IS_ENABLED(CONFIG_HALL_NEW_NODE)
+#define HALL_PATH			"/sys/class/sec/hall_ic/hall_detect"
+#else
 #define HALL_PATH			"/sys/class/sec/sec_key/hall_detect"
+#endif
 #define HALL_CLOSE_STATE		1
 
 #define TK_UPDATE_PASS			0

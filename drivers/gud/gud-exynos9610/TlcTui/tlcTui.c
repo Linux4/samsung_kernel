@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2013-2018 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -29,6 +30,7 @@
 struct tui_dci_msg_t *dci;
 static DECLARE_COMPLETION(dci_comp);
 static DECLARE_COMPLETION(io_comp);
+static struct tlc_tui_ioctl_buffer_info buff_info;
 
 /* ------------------------------------------------------------- */
 /* Static */
@@ -54,8 +56,8 @@ static bool tlc_open_driver(void)
 	mc_ret = mc_malloc_wsm(DEVICE_ID, 0, sizeof(struct tui_dci_msg_t),
 			       (uint8_t **)&dci, 0);
 	if (mc_ret != MC_DRV_OK) {
-		pr_debug("ERROR %s:%d Allocation of DCI WSM failed: %d\n",
-			 __func__, __LINE__, mc_ret);
+		tui_dev_err(mc_ret, "%d Allocation of DCI WSM failed",
+			    __LINE__);
 		return false;
 	}
 
@@ -67,8 +69,7 @@ static bool tlc_open_driver(void)
 	mc_ret = mc_open_session(&dr_session_handle, &dr_uuid, (uint8_t *)dci,
 				 (u32)sizeof(struct tui_dci_msg_t));
 	if (mc_ret != MC_DRV_OK) {
-		pr_debug("ERROR %s:%d Open driver session failed: %d\n",
-			 __func__, __LINE__, mc_ret);
+		tui_dev_err(mc_ret, "%d mc_open_session() failed", __LINE__);
 		ret = false;
 	} else {
 		ret = true;
@@ -84,7 +85,7 @@ static bool tlc_open(void)
 	enum mc_result mc_ret;
 
 	/* Open the tbase device */
-	pr_debug("%s: Opening tbase device\n", __func__);
+	tui_dev_devel("Opening TEE device");
 	mc_ret = mc_open_device(DEVICE_ID);
 
 	/* In case the device is already open, mc_open_device will return an
@@ -93,12 +94,11 @@ static bool tlc_open(void)
 	 * other case of error
 	 */
 	if (MC_DRV_OK != mc_ret && MC_DRV_ERR_INVALID_OPERATION != mc_ret) {
-		pr_debug("ERROR %s:%d Error %d opening device\n", __func__,
-			 __LINE__, mc_ret);
+		tui_dev_err(mc_ret, "%d mc_open_device() failed", __LINE__);
 		return false;
 	}
 
-	pr_debug("%s: Opening driver session\n", __func__);
+	tui_dev_devel("Opening driver session");
 	ret = tlc_open_driver();
 
 	return ret;
@@ -112,10 +112,9 @@ static void tlc_wait_cmd_from_driver(void)
 	/* Wait for a command from secure driver */
 	ret = mc_wait_notification(&dr_session_handle, -1);
 	if (ret == MC_DRV_OK)
-		pr_debug("%s: Got a command\n", __func__);
+		tui_dev_devel("Got a command");
 	else
-		pr_debug("ERROR %s:%d mc_wait_notification() failed: %d\n",
-			 __func__, __LINE__, ret);
+		tui_dev_err(ret, "%d mc_wait_notification() failed", __LINE__);
 }
 
 struct mc_session_handle *get_session_handle(void)
@@ -139,8 +138,9 @@ u32 send_cmd_to_user(u32 command_id, u32 data0, u32 data1)
 
 	while (!atomic_read(&fileopened) && retry--) {
 		msleep(100);
-		pr_debug("sleep for atomic_read(&fileopened) with retry = %d\n",
-			 retry);
+		tui_dev_devel(
+			"sleep for atomic_read(&fileopened) with retry = %d",
+			      retry);
 	}
 
 	/*
@@ -156,35 +156,40 @@ u32 send_cmd_to_user(u32 command_id, u32 data0, u32 data1)
 		 * Unlock the ioctl thread (IOCTL_WAIT) in order to let the
 		 * client know that there is a command to process.
 		 */
-		pr_info("%s: give way to ioctl thread\n", __func__);
+		tui_dev_devel("give way to ioctl thread");
 		complete(&dci_comp);
-		pr_info("TUI TLC is running, waiting for the userland response\n");
+		tui_dev_devel(
+			"TUI TLC is running, waiting for the userland response"
+			);
 		/* Wait for the client acknowledge (IOCTL_ACK). */
 		unsigned long completed = wait_for_completion_timeout(&io_comp,
 				msecs_to_jiffies(5000));
 		if (!completed) {
-			pr_debug("%s:%d No acknowledge from client, timeout!\n",
-				 __func__, __LINE__);
+			tui_dev_err(-1,
+				    "%d No acknowledge from client, timeout!",
+				    __LINE__);
 		}
 	} else {
 		/*
 		 * There is no client, do nothing except reporting an error to
 		 * SWd.
 		 */
-		pr_info("TUI TLC seems dead. Not waiting for userland answer\n");
 		ret = TUI_DCI_ERR_INTERNAL_ERROR;
+		tui_dev_err(ret,
+			    "TUI TLC seems dead. Not waiting for userland answer");
 		goto end;
 	}
 
-	pr_debug("%s: Got an answer from ioctl thread.\n", __func__);
+	tui_dev_devel("Got an answer from ioctl thread.");
 	reinit_completion(&io_comp);
 
 	/* Check id of the cmd processed by ioctl thread (paranoia) */
 	if (g_user_rsp.id != command_id) {
-		pr_debug("ERROR %s:%d Wrong response id 0x%08x iso 0x%08x\n",
-			 __func__, __LINE__, dci->nwd_rsp.id,
-			 (u32)RSP_ID(command_id));
 		ret = TUI_DCI_ERR_INTERNAL_ERROR;
+		tui_dev_err(ret, "%d Wrong response id 0x%08x iso 0x%08x",
+			    __LINE__,
+			    dci->nwd_rsp.id,
+			    (u32)RSP_ID(command_id));
 	} else {
 		/* retrieve return code */
 		switch (g_user_rsp.return_code) {
@@ -216,8 +221,8 @@ static void tlc_process_cmd(void)
 	u32 command_id = CMD_TUI_SW_NONE;
 
 	if (!dci) {
-		pr_debug("ERROR %s:%d DCI has not been set up properly - exiting\n",
-			 __func__, __LINE__);
+		tui_dev_err(-1, "%d DCI has not been set up properly - exiting",
+			    __LINE__);
 		return;
 	}
 
@@ -228,43 +233,51 @@ static void tlc_process_cmd(void)
 
 	/* Warn if previous response was not acknowledged */
 	if (command_id == CMD_TUI_SW_NONE) {
-		pr_debug("ERROR %s:%d Notified without command\n", __func__,
-			 __LINE__);
+		tui_dev_err(-1, "%d Notified without command",
+			    __LINE__);
 		return;
 	}
 
 	if (dci->nwd_rsp.id != CMD_TUI_SW_NONE)
-		pr_debug("%s: Warning, previous response not ack\n",
-			 __func__);
+		tui_dev_err(-1, "Warning, previous response not ack");
 
 	/* Handle command */
 	switch (command_id) {
 	case CMD_TUI_SW_OPEN_SESSION:
-		pr_debug("%s: CMD_TUI_SW_OPEN_SESSION.\n", __func__);
+		tui_dev_devel("CMD_TUI_SW_OPEN_SESSION.");
 
 		if (!g_dci_version_checked) {
-			pr_info("ERROR %s:%d DrTui version is not compatible!\n",
-				__func__, __LINE__);
 			ret = TUI_DCI_ERR_INTERNAL_ERROR;
+			tui_dev_err(ret, "%d DrTui version is not compatible!",
+				    __LINE__);
 			break;
 		}
+
 		/* Start android TUI activity */
 		ret = send_cmd_to_user(
 			TLC_TUI_CMD_START_ACTIVITY,
 			dci->cmd_nwd.payload.alloc_data.num_of_buff,
 			dci->cmd_nwd.payload.alloc_data.alloc_size);
-		if (ret != TUI_DCI_OK)
-			break;
 
-/*****************************************************************************/
+		if (ret != TUI_DCI_OK) {
+			tui_dev_err(ret, "%d send_cmd_to_user() failed",
+				    __LINE__);
+			break;
+		}
+
+		/* Set the global tlc_tui_ioctl_buffer_info variable using
+		 * tui_alloc_data_t fiel in the dci, received from DrTui.
+		 */
+		set_buffer_info(dci->cmd_nwd.payload.alloc_data);
 
 		/* Alloc work buffer separately and send it as last buffer */
-		ret = hal_tui_alloc(dci->nwd_rsp.alloc_buffer,
-				    dci->cmd_nwd.payload.alloc_data.alloc_size,
-				   dci->cmd_nwd.payload.alloc_data.num_of_buff);
+		ret = hal_tui_alloc(
+			dci->nwd_rsp.alloc_buffer,
+			dci->cmd_nwd.payload.alloc_data.alloc_size,
+			dci->cmd_nwd.payload.alloc_data.num_of_buff);
+
 		if (ret != TUI_DCI_OK) {
-			pr_debug("%s: hal_tui_alloc() failed (0x%08X)",
-				 __func__, ret);
+			tui_dev_err(ret, "%d hal_tui_alloc() failed", __LINE__);
 			send_cmd_to_user(TLC_TUI_CMD_STOP_ACTIVITY, 0, 0);
 			break;
 		}
@@ -281,17 +294,17 @@ static void tlc_process_cmd(void)
 		break;
 
 	case CMD_TUI_SW_GET_VERSION: {
-		pr_debug("%s: CMD_TUI_SW_GET_VERSION.\n", __func__);
+		tui_dev_devel("CMD_TUI_SW_GET_VERSION.");
 		u32 drtui_dci_version = dci->version;
 		u32 tlctui_dci_version =
 			TUI_DCI_VERSION(TUI_DCI_VERSION_MAJOR,
 					TUI_DCI_VERSION_MINOR);
-		pr_info("%s: TlcTui DCI Version (%u.%u)\n",  __func__,
-			TUI_DCI_VERSION_GET_MAJOR(tlctui_dci_version),
-			TUI_DCI_VERSION_GET_MINOR(tlctui_dci_version));
-		pr_info("%s: DrTui DCI Version (%u.%u)\n",  __func__,
-			TUI_DCI_VERSION_GET_MAJOR(drtui_dci_version),
-			TUI_DCI_VERSION_GET_MINOR(drtui_dci_version));
+		tui_dev_info("TlcTui DCI Version (%u.%u)",
+			     TUI_DCI_VERSION_GET_MAJOR(tlctui_dci_version),
+			     TUI_DCI_VERSION_GET_MINOR(tlctui_dci_version));
+		tui_dev_info("DrTui DCI Version (%u.%u)",
+			     TUI_DCI_VERSION_GET_MAJOR(drtui_dci_version),
+			     TUI_DCI_VERSION_GET_MINOR(drtui_dci_version));
 		/* Write the TlcTui DCI version in the response for the SWd */
 		dci->version = tlctui_dci_version;
 		g_dci_version_checked = true;
@@ -306,9 +319,9 @@ static void tlc_process_cmd(void)
 		break;
 
 	case CMD_TUI_SW_CLOSE_SESSION:
-		pr_debug("%s: CMD_TUI_SW_CLOSE_SESSION.\n", __func__);
+		tui_dev_devel("CMD_TUI_SW_CLOSE_SESSION.");
 
-		/* QC: close ion client before activating linux UI */
+		/* QC: close ion client before activating Linux UI */
 		hal_tui_free();
 
 		/* Activate linux UI drivers */
@@ -324,15 +337,14 @@ static void tlc_process_cmd(void)
 		break;
 
 	default:
-		pr_debug("ERROR %s:%d Unknown command %d\n",
-			 __func__, __LINE__, command_id);
 		ret = TUI_DCI_ERR_UNKNOWN_CMD;
+		tui_dev_err(ret, "%d Unknown command", __LINE__);
 		break;
 	}
 
 	/* Fill in response to SWd, fill ID LAST */
-	pr_debug("%s: return 0x%08x to cmd 0x%08x\n",
-		 __func__, ret, command_id);
+	tui_dev_devel("return 0x%08x to cmd 0x%08x", ret, command_id);
+
 	/* TODO: fill data fields of pDci->nwdRsp */
 	dci->nwd_rsp.return_code = ret;
 	dci->nwd_rsp.id = RSP_ID(command_id);
@@ -341,11 +353,10 @@ static void tlc_process_cmd(void)
 	dci->cmd_nwd.id = CMD_TUI_SW_NONE;
 
 	/* Notify SWd */
-	pr_debug("DCI RSP NOTIFY CORE\n");
+	tui_dev_devel("DCI RSP NOTIFY CORE");
 	ret = mc_notify(&dr_session_handle);
 	if (ret != MC_DRV_OK)
-		pr_debug("ERROR %s:%d Notify failed: %d\n", __func__, __LINE__,
-			 ret);
+		tui_dev_err(ret, "%d mc_notify() failed", __LINE__);
 }
 
 /* ------------------------------------------------------------- */
@@ -355,10 +366,8 @@ static void tlc_close_driver(void)
 
 	/* Close session with the Driver */
 	ret = mc_close_session(&dr_session_handle);
-	if (ret != MC_DRV_OK) {
-		pr_debug("ERROR %s:%d Closing driver session failed: %d\n",
-			 __func__, __LINE__, ret);
-	}
+	if (ret != MC_DRV_OK)
+		tui_dev_err(ret, "%d mc_close_session() failed", __LINE__);
 }
 
 /* ------------------------------------------------------------- */
@@ -366,16 +375,14 @@ static void tlc_close(void)
 {
 	enum mc_result ret;
 
-	pr_debug("%s: Closing driver session\n", __func__);
+	tui_dev_devel("Closing driver session");
 	tlc_close_driver();
 
-	pr_debug("%s: Closing tbase\n", __func__);
+	tui_dev_devel("Closing TEE");
 	/* Close the tbase device */
 	ret = mc_close_device(DEVICE_ID);
-	if (ret != MC_DRV_OK) {
-		pr_debug("ERROR %s:%d Closing tbase device failed: %d\n",
-			 __func__, __LINE__, ret);
-	}
+	if (ret != MC_DRV_OK)
+		tui_dev_err(ret, "%d mc_close_device() failed", __LINE__);
 }
 
 void reset_global_command_id(void)
@@ -391,20 +398,19 @@ bool tlc_notify_event(u32 event_type)
 	enum mc_result result;
 
 	if (!dci) {
-		pr_warn("%s: DCI has not been set up properly - exiting\n",
-			__func__);
+		tui_dev_err(-1, "DCI has not been set up properly - exiting");
 		return false;
 	}
 
 	/* Prepare notification message in DCI */
-	pr_debug("%s: event_type = %d\n", __func__, event_type);
+	tui_dev_devel("event_type = %d", event_type);
 	dci->nwd_notif = event_type;
 
 	/* Signal the Driver */
-	pr_debug("DCI EVENT NOTIFY CORE\n");
+	tui_dev_devel("DCI EVENT NOTIFY CORE");
 	result = mc_notify(&dr_session_handle);
 	if (result != MC_DRV_OK) {
-		pr_err("%s: mc_notify failed: %d\n", __func__, result);
+		tui_dev_err(result, "%d mc_notify() failed", __LINE__);
 		ret = false;
 	} else {
 		ret = true;
@@ -418,13 +424,11 @@ bool tlc_notify_event(u32 event_type)
  */
 static int main_thread(void *uarg)
 {
-	pr_debug("%s: TlcTui start!\n", __func__);
+	tui_dev_devel("TlcTui start!");
 
 	/* Open session on the driver */
-	if (!tlc_open()) {
-		pr_err("%s: open driver failed!\n", __func__);
+	if (!tlc_open())
 		return 1;
-	}
 
 	/* TlcTui main thread loop */
 	for (;;) {
@@ -458,7 +462,7 @@ static int start_thread_if_needed(void)
 	thread_id = kthread_run(main_thread, NULL, "tee_tui");
 	if (IS_ERR_OR_NULL(thread_id)) {
 		rc = PTR_ERR(thread_id);
-		pr_err("Unable to start Trusted UI main thread: %d\n", rc);
+		tui_dev_err(rc, "Unable to start Trusted UI main thread");
 		thread_id = NULL;
 	}
 
@@ -477,8 +481,9 @@ int tlc_wait_cmd(struct tlc_tui_command_t *cmd_id)
 	/* Wait for signal from DCI handler */
 	/* In case of an interrupted sys call, return with -EINTR */
 	if (wait_for_completion_interruptible(&dci_comp)) {
-		pr_debug("interrupted by system\n");
-		return -ERESTARTSYS;
+		ret = -ERESTARTSYS;
+		tui_dev_err(ret, "interrupted by system");
+		return ret;
 	}
 	reinit_completion(&dci_comp);
 
@@ -502,6 +507,35 @@ int tlc_ack_cmd(struct tlc_tui_response_t *rsp)
 	complete(&io_comp);
 
 	return 0;
+}
+
+/* Use to set the struct tlc_tui_ioctl_buffer_info using
+ * the tui_alloc_data_t field in the dci, received from DrTui.
+ */
+void set_buffer_info(struct tui_alloc_data_t alloc_data)
+{
+	tui_dev_devel("%d", __LINE__);
+
+	buff_info.num_of_buff = alloc_data.num_of_buff;
+	buff_info.size = alloc_data.alloc_size;
+	buff_info.width = alloc_data.screen_width;
+	buff_info.height = alloc_data.screen_height;
+	buff_info.stride = alloc_data.screen_stride;
+	buff_info.bits_per_pixel = alloc_data.bits_per_pixel;
+}
+
+/* Use to get the tlc_tui_ioctl_buffer_info.
+ */
+void get_buffer_info(struct tlc_tui_ioctl_buffer_info *buffer_info)
+{
+	tui_dev_devel("%d", __LINE__);
+
+	buffer_info->num_of_buff = buff_info.num_of_buff;
+	buffer_info->size = buff_info.size;
+	buffer_info->width = buff_info.width;
+	buffer_info->height = buff_info.height;
+	buffer_info->stride = buff_info.stride;
+	buffer_info->bits_per_pixel = buff_info.bits_per_pixel;
 }
 
 /** @} */

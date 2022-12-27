@@ -1,5 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2013-2018 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -26,26 +27,27 @@ struct tee_mmu;
 struct interworld_session;
 
 /* Client */
-struct tee_client *client_create(bool is_from_kernel);
+struct tee_client *client_create(bool is_from_kernel, const char *vm_id);
 void client_get(struct tee_client *client);
 int client_put(struct tee_client *client);
 bool client_has_sessions(struct tee_client *client);
 void client_close(struct tee_client *client);
 void client_cleanup(void);
+const char *client_vm_id(struct tee_client *client);
 
 /* MC */
 int client_mc_open_session(struct tee_client *client,
 			   const struct mc_uuid_t *uuid,
 			   uintptr_t tci_va, size_t tci_len, u32 *session_id);
 int client_mc_open_trustlet(struct tee_client *client,
-			    u32 spid, uintptr_t ta_va, size_t ta_len,
+			    uintptr_t ta_va, size_t ta_len,
 			    uintptr_t tci_va, size_t tci_len, u32 *session_id);
 int client_mc_open_common(struct tee_client *client, struct mcp_open_info *info,
 			  u32 *session_id);
 int client_remove_session(struct tee_client *client, u32 session_id);
 int client_notify_session(struct tee_client *client, u32 session_id);
 int client_waitnotif_session(struct tee_client *client, u32 session_id,
-			     s32 timeout, bool silent_expiry);
+			     s32 timeout);
 int client_get_session_exitcode(struct tee_client *client, u32 session_id,
 				s32 *exit_code);
 int client_mc_map(struct tee_client *client, u32 session_id,
@@ -91,10 +93,10 @@ int client_cbuf_free(struct tee_client *client, uintptr_t addr);
 
 /* GP internal */
 struct client_gp_operation {
+	struct list_head	list;
 	u64			started;
 	u64			slot;
-	bool			cancelled;
-	struct list_head	list;
+	int			cancelled;
 };
 
 /* Called from session when a new operation starts/ends */

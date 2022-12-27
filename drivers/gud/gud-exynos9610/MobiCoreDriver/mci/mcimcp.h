@@ -1,5 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2013-2017 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -34,8 +35,6 @@ enum mcp_result {
 	MC_MCP_RET_ERR_UNKNOWN_DRIVER_ID                =  3,
 	/** No more session are allowed */
 	MC_MCP_RET_ERR_NO_MORE_SESSIONS                 =  4,
-	/** The container is invalid */
-	MC_MCP_RET_ERR_CONTAINER_INVALID                =  5,
 	/** The Trustlet is invalid */
 	MC_MCP_RET_ERR_TRUSTLET_INVALID                 =  6,
 	/** The memory block has already been mapped before */
@@ -58,24 +57,6 @@ enum mcp_result {
 	MC_MCP_RET_ERR_SIGNATURE_VERIFICATION_FAILED    = 15,
 	/** System Trustlet public key is wrong */
 	MC_MCP_RET_ERR_WRONG_PUBLIC_KEY                 = 16,
-	/** Wrong containter type(s) */
-	MC_MCP_RET_ERR_CONTAINER_TYPE_MISMATCH          = 17,
-	/** Container is locked (or not activated) */
-	MC_MCP_RET_ERR_CONTAINER_LOCKED                 = 18,
-	/** SPID is not registered with root container */
-	MC_MCP_RET_ERR_SP_NO_CHILD                      = 19,
-	/** UUID is not registered with sp container */
-	MC_MCP_RET_ERR_TL_NO_CHILD                      = 20,
-	/** Unwrapping of root container failed */
-	MC_MCP_RET_ERR_UNWRAP_ROOT_FAILED               = 21,
-	/** Unwrapping of service provider container failed */
-	MC_MCP_RET_ERR_UNWRAP_SP_FAILED                 = 22,
-	/** Unwrapping of Trustlet container failed */
-	MC_MCP_RET_ERR_UNWRAP_TRUSTLET_FAILED           = 23,
-	/** Container version mismatch */
-	MC_MCP_RET_ERR_CONTAINER_VERSION_MISMATCH       = 24,
-	/** Decryption of service provider trustlet failed */
-	MC_MCP_RET_ERR_SP_TL_DECRYPTION_FAILED          = 25,
 	/** Hash check of service provider trustlet failed */
 	MC_MCP_RET_ERR_SP_TL_HASH_CHECK_FAILED          = 26,
 	/** Activation/starting of task failed */
@@ -86,8 +67,6 @@ enum mcp_result {
 	MC_MCP_RET_ERR_SERVICE_BLOCKED                  = 29,
 	/**< Service is locked and a session cannot be opened to it */
 	MC_MCP_RET_ERR_SERVICE_LOCKED                   = 30,
-	/**< Service was forcefully killed (due to an administrative command) */
-	MC_MCP_RET_ERR_SERVICE_KILLED                   = 31,
 	/**< Service version is lower than the one installed. */
 	MC_MCP_RET_ERR_DOWNGRADE_NOT_AUTHORIZED         = 32,
 	/**< Filesystem not yet ready. */
@@ -112,18 +91,14 @@ enum cmd_id {
 	MC_MCP_CMD_MAP			= 0x04,
 	/** Unmap WSM from session */
 	MC_MCP_CMD_UNMAP		= 0x05,
-	/** Prepare for suspend */
-	MC_MCP_CMD_SUSPEND		= 0x06,
-	/** Resume from suspension */
-	MC_MCP_CMD_RESUME		= 0x07,
 	/** Get MobiCore version information */
 	MC_MCP_CMD_GET_MOBICORE_VERSION	= 0x09,
 	/** Close MCP and unmap MCI */
 	MC_MCP_CMD_CLOSE_MCP		= 0x0A,
 	/** Load token for device attestation */
 	MC_MCP_CMD_LOAD_TOKEN		= 0x0B,
-	/** Check that TA can be loaded */
-	MC_MCP_CMD_CHECK_LOAD_TA	= 0x0C,
+	/** Load a decryption key */
+	MC_MCP_CMD_LOAD_SYSENC_KEY_SO = 0x0D,
 };
 
 /*
@@ -205,43 +180,6 @@ struct rsp_get_version {
 	struct mc_version_info	version_info;	/** MobiCore version info */
 };
 
-/** @defgroup POWERCMD Power Management Commands
- */
-
-/** @defgroup MCPSUSPEND SUSPEND
- * Prepare MobiCore suspension.
- * This command allows MobiCore and MobiCore drivers to release or clean
- * resources and save device state.
- *
- */
-
-/** Suspend Command */
-struct cmd_suspend {
-	struct cmd_header	cmd_header;	/** Command header */
-};
-
-/** Suspend Command Response */
-struct rsp_suspend {
-	struct rsp_header	rsp_header;	/** Response header */
-};
-
-/** @defgroup MCPRESUME RESUME
- * Resume MobiCore from suspension.
- * This command allows MobiCore and MobiCore drivers to reinitialize hardware
- * affected by suspension.
- *
- */
-
-/** Resume Command */
-struct cmd_resume {
-	struct cmd_header	cmd_header;	/** Command header */
-};
-
-/** Resume Command Response */
-struct rsp_resume {
-	struct rsp_header	rsp_header;	/** Response header */
-};
-
 /** @defgroup SESSCMD Session Management Commands
  */
 
@@ -285,23 +223,6 @@ struct cmd_open {
 struct rsp_open {
 	struct rsp_header	rsp_header;	/** Response header */
 	u32	session_id;	/** Session ID */
-};
-
-/** TA Load Check Command */
-struct cmd_check_load {
-	struct cmd_header cmd_header;	/** Command header */
-	struct mc_uuid_t uuid;	/** Service UUID */
-	u8		unused[4];	/** Padding to be 64-bit aligned */
-	u64		adr_load_data;	/** Physical address of the data */
-	u32		wsm_data_type;	/** Type of MMU */
-	u32		ofs_load_data;	/** Offset to the data */
-	u32		len_load_data;	/** Length of the data to load */
-	union mclf_header tl_header;	/** Service header */
-};
-
-/** TA Load Check Response */
-struct rsp_check_load {
-	struct rsp_header	rsp_header;	/** Response header */
 };
 
 /** @defgroup MCPCLOSE CLOSE
@@ -398,6 +319,25 @@ struct rsp_load_token {
 	struct rsp_header rsp_header;	/** Response header */
 };
 
+/** @defgroup MCPLOADKEYSO
+ * Load a key SO from the normal world and share it with the TEE
+ * If something fails, the device attestation functionality will be disabled
+ */
+
+/** Load key SO */
+struct cmd_load_key_so {
+	struct cmd_header cmd_header;	/** Command header */
+	u32		wsm_data_type;	/** Type of MMU */
+	u64		adr_load_data;	/** Physical address of the MMU */
+	u64		ofs_load_data;	/** Offset to the data */
+	u64		len_load_data;	/** Length of the data */
+};
+
+/** Load key SO Command Response */
+struct rsp_load_key_so {
+	struct rsp_header rsp_header;	/** Response header */
+};
+
 /** Structure of the MCP buffer */
 union mcp_message {
 	struct init_values	init_values;	/** Initialisation values */
@@ -411,39 +351,21 @@ union mcp_message {
 	struct rsp_map		rsp_map;
 	struct cmd_unmap	cmd_unmap;	/** Unmap WSM from service */
 	struct rsp_unmap	rsp_unmap;
-	struct cmd_suspend	cmd_suspend;	/** Suspend MobiCore */
-	struct rsp_suspend	rsp_suspend;
-	struct cmd_resume	cmd_resume;	/** Resume MobiCore */
-	struct rsp_resume	rsp_resume;
 	struct cmd_get_version	cmd_get_version; /** Get MobiCore Version */
 	struct rsp_get_version	rsp_get_version;
 	struct cmd_load_token	cmd_load_token;	/** Load token */
 	struct rsp_load_token	rsp_load_token;
-	struct cmd_check_load	cmd_check_load;	/** TA load check */
-	struct rsp_check_load	rsp_check_load;
+	struct cmd_load_key_so	cmd_load_key_so;/** Load key SO */
+	struct rsp_load_key_so	rsp_load_key_so;
 };
-
-/** Minimum MCP buffer length (in bytes) */
-#define MIN_MCP_LEN         sizeof(mcp_message_t)
-
-#define MC_FLAG_NO_SLEEP_REQ   0
-#define MC_FLAG_REQ_TO_SLEEP   1
-
-#define MC_STATE_NORMAL_EXECUTION 0
-#define MC_STATE_READY_TO_SLEEP   1
 
 #define MC_STATE_FLAG_TEE_HALT_MASK BIT(0)
 
-struct sleep_mode {
-	u16		sleep_req;	/** Ask SWd to get ready to sleep */
-	u16		ready_to_sleep;	/** SWd is now ready to sleep */
-};
-
 /** MobiCore status flags */
 struct mcp_flags {
-	/** If not MC_FLAG_SCHEDULE_IDLE, MobiCore needsscheduling */
-	u32		schedule;
-	struct sleep_mode sleep_mode;
+	u16		RFU1;
+	u16		required_workers;
+	u32		RFU2;
 	/** Secure-world sleep timeout in milliseconds */
 	s32		timeout_ms;
 	/** TEE flags */
@@ -451,11 +373,6 @@ struct mcp_flags {
 	/** Reserved for future use */
 	u8		RFU_padding[3];
 };
-
-/** MobiCore is idle. No scheduling required */
-#define MC_FLAG_SCHEDULE_IDLE      0
-/** MobiCore is non idle, scheduling is required */
-#define MC_FLAG_SCHEDULE_NON_IDLE  1
 
 /** MCP buffer structure */
 struct mcp_buffer {

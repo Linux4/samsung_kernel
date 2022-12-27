@@ -12,7 +12,7 @@
 #include "scsc_mx_impl.h"
 #include "mxconf.h"
 
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 #include <scsc/scsc_log_collector.h>
 #endif
 
@@ -21,6 +21,173 @@
 #define MXFWCONFIG_CFG_FILE_SW	"common_sw.hcf"
 
 static void mxfwconfig_get_dram_ref(struct scsc_mx *mx, struct mxmibref *cfg_ref);
+
+/* CS-213274-SP */
+struct __packed mxfwconfig_vldata {
+	u8 data[6];      /* info + 1 or more data octets when it's a multi-octet entry */
+};
+
+/* "info" in data[0] of mxfwconfig_vldata*/
+#define MX_VLDATA_INFO_INDEX(x)		((x) & 0xFF)	/* When keyval length == 2 */
+/* "info" in data[0 or 1] */
+#define MX_VLDATA_INFO_MORE(x)		((x) & BIT(7))	/* more octets follow */
+#define MX_VLDATA_INFO_SIGN(x)		((x) & BIT(6))	/* sign */
+#define MX_VLDATA_INFO_TYPE(x)		((x) & BIT(5))	/* if "more", 1: octet string, 0: integer. Else part of b0-6 of single octet value */
+#define MX_VLDATA_INFO_LENGTH(x)	((x) & 0x7F)	/* if "more", length of data or string. Else part of b0-6 of single octet value */
+
+struct __packed mxfwconfig_keyval {
+	u16 psid;				/* key ID */
+	u16 length;				/* length of vldata in octets */
+	struct mxfwconfig_vldata vldata;	/* data */
+	/* u8 pad[0|1];	*/			/* padding: 0/1 instances to make data even number of octets */
+};
+
+#define MXFWCONFIG_SYSTEM_ERROR_EXCLUDE_FROM_PROMOTION 41 /* lernaSystemErrorExcludeFromPromotion */
+
+u32 mxfwconfig_syserr_no_promote[MXFWCONFIG_MAX_NO_PROMOTE];
+
+static int __mxfwconfig_advance_keyval(struct mxfwconfig_keyval **pkeyval, const u8* conf_data, const size_t conf_len)
+{
+	if ((*pkeyval)->length == 0) {
+		SCSC_TAG_ERR(MX_CFG, "Zero length\n");
+		return -EINVAL;
+	}
+
+	SCSC_TAG_DEBUG(MX_CFG, "*pkeyval=%p, ->psid=0x%x, ->length=0x%x, sizeof(psid)=%zu, sizeof(length)=%zu, conf_data=%p, conf_len=%zu\n",
+		       *pkeyval, (*pkeyval)->psid, (*pkeyval)->length, sizeof((*pkeyval)->psid), sizeof((*pkeyval)->length), conf_data, conf_len);
+	/* Advance */
+	*pkeyval = (struct mxfwconfig_keyval *)(((u8 *)*pkeyval) +
+						(((*pkeyval)->length + 1) & 0xfffe) + /* pad to even length */
+						sizeof((*pkeyval)->psid) +
+						sizeof((*pkeyval)->length));
+	/* Sanity: pointer should be even */
+	if ((uintptr_t)*pkeyval & 1) {
+		SCSC_TAG_ERR(MX_CFG, "Odd keyval pointer %p\n", *pkeyval);
+		return -EINVAL;
+	}
+
+	/* Reached end of buffer without finding key? */
+	if ((ptrdiff_t)*pkeyval >= (ptrdiff_t)conf_data + conf_len) {
+		SCSC_TAG_DEBUG(MX_CFG, "End of buffer pointer %p >= %p\n", *pkeyval, conf_data + conf_len);
+		return -ERANGE;
+	}
+	return 0;
+}
+
+/* Parse System Recovery no-promotion list */
+static int mxfwconfig_parse_system_recovery(struct scsc_mx *mx, const u8 *conf_data, const size_t conf_len, u32 *syserr_no_promote, int max_promotes)
+{
+	int r;
+	struct mxfwconfig_keyval *keyval = (struct mxfwconfig_keyval *)conf_data;
+	u16 promotes = 0;
+
+	/* Default assumption is that promotion list is empty */
+	syserr_no_promote[0] = 0;
+
+	/* Look for MXFWCONFIG_SYSTEM_ERROR_EXCLUDE_FROM_PROMOTION anywhere in file */
+	while (keyval->psid != MXFWCONFIG_SYSTEM_ERROR_EXCLUDE_FROM_PROMOTION) {
+		r = __mxfwconfig_advance_keyval(&keyval, conf_data, conf_len);
+		if (r) {
+			SCSC_TAG_DEBUG(MX_CFG, "Search for psid%d: %d\n", MXFWCONFIG_SYSTEM_ERROR_EXCLUDE_FROM_PROMOTION, r);
+			return r;
+		}
+	}
+
+	/* If list present, L7 SysErrs promote to L8, maintaining legacy panic/moredump behaviour */
+
+	while (keyval->psid == MXFWCONFIG_SYSTEM_ERROR_EXCLUDE_FROM_PROMOTION) {
+		SCSC_TAG_DEBUG(MX_CFG, "PSID=%d, ->length=%d...\n", keyval->psid, keyval->length);
+
+		/* If single entry of 0xFFFFFFFF, only host induced L7 SysErrs promote to L8 */
+
+		/* 32-bit syserr IDs */
+		if (keyval->length == 6) { /* 2 len + 4 data */
+			SCSC_TAG_DEBUG(MX_CFG, "PSID=%d, ->length=%d, vldata.info=0x%x 0x%x, vldata.more=%d, vldata.length=%d\n",
+			      keyval->psid, keyval->length, keyval->vldata.data[0], keyval->vldata.data[1], !!MX_VLDATA_INFO_MORE(keyval->vldata.data[1]), MX_VLDATA_INFO_LENGTH(keyval->vldata.data[1]));
+
+			if (MX_VLDATA_INFO_MORE(keyval->vldata.data[1]) && MX_VLDATA_INFO_LENGTH(keyval->vldata.data[1]) == 4) { /* 4 octets */
+				u32 syserr = (keyval->vldata.data[2] << 24) |
+					     (keyval->vldata.data[3] << 16) |
+					     (keyval->vldata.data[4] << 8) |
+					     (keyval->vldata.data[5] << 0);
+
+				SCSC_TAG_DEBUG(MX_CFG, "index=%d: vldata[]=%02x %02x %02x %02x\n",
+					      MX_VLDATA_INFO_INDEX(keyval->vldata.data[0]),
+					      keyval->vldata.data[2], keyval->vldata.data[3], keyval->vldata.data[4], keyval->vldata.data[5]);
+
+				if (syserr == 0xFFFFFFFF) {
+					/* L7 Host Induced promotes to L8 */
+					syserr_no_promote[0] = 0xFFFFFFFF;
+
+					SCSC_TAG_INFO(MX_CFG, "syserr_no_promote[0] = 0xFFFFFFFF\n");
+					return 0; /* Terminates list */
+				} else {
+					syserr_no_promote[promotes++] = syserr;
+					SCSC_TAG_INFO(MX_CFG, "syserr_no_promote[%d] = 0x%x\n", promotes - 1, syserr);
+
+					/* ID of zero terminates the promotion list
+					 * (Tool should not generate 16-bit ID of zero)
+					 */
+					if (syserr == 0 || promotes == max_promotes) {
+						SCSC_TAG_DEBUG(MX_CFG, "Terminated no-promote list (%d)\n", promotes);
+						return 0;
+					}
+				}
+			}
+		}
+
+		/* If any other entry found, do not promote that syserr to L8 (i.e. handle with fast recovery) */
+
+		/* 16-bit syserr IDs */
+		if (keyval->length == 4) { /* 2 len + 2 data */
+			SCSC_TAG_DEBUG(MX_CFG, "PSID=%d, ->length=%d, vldata.info=0x%x 0x%x, vldata.more=%d, vldata.length=%d\n",
+			      keyval->psid, keyval->length, keyval->vldata.data[0], keyval->vldata.data[1], !!MX_VLDATA_INFO_MORE(keyval->vldata.data[1]), MX_VLDATA_INFO_LENGTH(keyval->vldata.data[1]));
+
+			if (MX_VLDATA_INFO_MORE(keyval->vldata.data[1]) && MX_VLDATA_INFO_LENGTH(keyval->vldata.data[1]) == 2) {
+				u16 syserr = keyval->vldata.data[2] << 8 | keyval->vldata.data[3];
+				SCSC_TAG_DEBUG(MX_CFG, "index=%d: vldata[]=%02x %02x\n", MX_VLDATA_INFO_INDEX(keyval->vldata.data[0]), keyval->vldata.data[2], keyval->vldata.data[3]);
+
+				syserr_no_promote[promotes++] = syserr;
+				SCSC_TAG_INFO(MX_CFG, "syserr_no_promote[%d] = 0x%x\n", promotes - 1, syserr);
+
+				/* ID of zero terminates the promotion list.
+				 * (Tool should not generate 16-bit ID of zero)
+				 */
+				if (syserr == 0 || promotes == max_promotes) {
+					SCSC_TAG_DEBUG(MX_CFG, "Terminated no promote list (%d)\n", promotes);
+					return 0;
+				}
+			}
+		}
+
+		/* 8-bit syserr IDs */
+		if (keyval->length == 2) { /* 2 len, data */
+			u8 syserr = keyval->vldata.data[1];
+			SCSC_TAG_DEBUG(MX_CFG, "PSID=%d, ->length=%d, vldata.info=0x%x, 0x%0x\n",
+			      keyval->psid, keyval->length, keyval->vldata.data[0], keyval->vldata.data[1]);
+
+			SCSC_TAG_DEBUG(MX_CFG, "index=%d: vldata[]=%02x\n", MX_VLDATA_INFO_INDEX(keyval->vldata.data[0]), keyval->vldata.data[1]);
+
+			syserr_no_promote[promotes++] = syserr;
+			SCSC_TAG_INFO(MX_CFG, "syserr_no_promote[%d] = 0x%x\n", promotes - 1, syserr);
+
+			/* ID of zero terminates the promotion list */
+			if (syserr == 0 || promotes == max_promotes) {
+				SCSC_TAG_DEBUG(MX_CFG, "Terminate no promote list (%d)\n", promotes);
+				return 0;
+			}
+		}
+
+		/* Advance */
+		r = __mxfwconfig_advance_keyval(&keyval, conf_data, conf_len);
+		if (r) {
+			SCSC_TAG_DEBUG(MX_CFG, "advance: %d\n", r);
+			return r;
+		}
+	}
+
+	return r;
+}
 
 /* Load config into non-shared DRAM */
 static int mxfwconfig_load_cfg(struct scsc_mx *mx, struct mxfwconfig *cfg, const char *filename)
@@ -76,6 +243,12 @@ static int mxfwconfig_load_cfg(struct scsc_mx *mx, struct mxfwconfig *cfg, const
 	SCSC_TAG_INFO(MX_CFG, "Loaded common config %s, size %zu, payload size %zu, shared dram total %zu\n",
 		filename, cfg->config[i].fw->size, cfg->config[i].cfg_len, cfg->shtotal);
 
+	/* Parse syserr promotion table */
+	mxfwconfig_parse_system_recovery(mx,
+					 cfg->config[i].cfg_data,
+					 cfg->config[i].cfg_len,
+					 mxfwconfig_syserr_no_promote,
+					 ARRAY_SIZE(mxfwconfig_syserr_no_promote));
 	return r;
 }
 

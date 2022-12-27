@@ -20,6 +20,12 @@ SCSC_MODPARAM_DESC(scsc_double_buffer_sz,
 		   "Determines the size of the per-reader allocted double buffer.",
 		   "run-time", DEFAULT_TBUF_SZ);
 
+#define LOGRING_DEV_NAME	"scsc_logring"
+#define DRV_NAME		LOGRING_DEV_NAME
+
+/* Keep track of all the device numbers used. */
+#define LOGRING_MAX_DEV 5
+
 /**
  * BIG NOTE on DOUBLE BUFFERING.
  *
@@ -55,10 +61,29 @@ SCSC_MODPARAM_DESC(scsc_double_buffer_sz,
  * overwrite our data. (since we'll never ever want to slow down and starve a
  * writer.)
  */
+#ifdef CONFIG_SCSC_LOGRING_DEBUGFS
 static struct dentry *scsc_debugfs_root;
 static atomic_t      scsc_debugfs_root_refcnt;
+#endif
 static char          *global_fmt_string = "%s";
 
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
+static struct scsc_logring_mx_cb *mx_cb_single;
+
+int scsc_logring_register_mx_cb(struct scsc_logring_mx_cb *mx_cb)
+{
+	mx_cb_single = mx_cb;
+	return 0;
+}
+EXPORT_SYMBOL(scsc_logring_register_mx_cb);
+
+int scsc_logring_unregister_mx_cb(struct scsc_logring_mx_cb *mx_cb)
+{
+	mx_cb_single = NULL;
+	return 0;
+}
+EXPORT_SYMBOL(scsc_logring_unregister_mx_cb);
+#endif
 /**
  * Generic open/close calls to use with every logring debugfs file.
  * Any file in debugfs has an underlying associated ring buffer:
@@ -223,7 +248,11 @@ static ssize_t samsg_read(struct file *filp, char __user *ubuf,
 	size_t		 off = 0;
 	size_t		 retrieved_bytes = 0;
 
-	if (!filp->private_data || !access_ok(VERIFY_WRITE, ubuf, count))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+        if (!filp->private_data || !access_ok(VERIFY_WRITE, ubuf, count))
+#else
+	if (!filp->private_data || !access_ok(ubuf, count))
+#endif
 		return -ENOMEM;
 	if (filp->f_flags & O_NONBLOCK)
 		return -EAGAIN;
@@ -312,19 +341,26 @@ loff_t debugfile_llseek(struct file *filp, loff_t off, int whence)
 static int samsg_open(struct inode *ino, struct file *filp)
 {
 	int ret;
+#ifndef CONFIG_SCSC_LOGRING_DEBUGFS
+	struct scsc_debugfs_info *di = (struct scsc_debugfs_info *)container_of(ino->i_cdev,
+		struct scsc_debugfs_info, cdev_samsg);
 
+	ino->i_private = di->rb;
+	filp->private_data = NULL;
+#endif
 	ret = debugfile_open(ino, filp);
-#ifdef CONFIG_SCSC_MXLOGGER
-	if (!ret)
-		scsc_service_register_observer(NULL, "LOGRING");
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
+	if (!ret && mx_cb_single && mx_cb_single->scsc_logring_register_observer)
+		mx_cb_single->scsc_logring_register_observer(mx_cb_single, "LOGRING");
 #endif
 	return ret;
 }
 
 static int samsg_release(struct inode *ino, struct file *filp)
 {
-#ifdef CONFIG_SCSC_MXLOGGER
-	scsc_service_unregister_observer(NULL, "LOGRING");
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
+	if (mx_cb_single && mx_cb_single->scsc_logring_unregister_observer)
+		mx_cb_single->scsc_logring_unregister_observer(mx_cb_single, "LOGRING");
 #endif
 
 	return debugfile_release(ino, filp);
@@ -354,6 +390,13 @@ static int debugfile_open_snapshot(struct inode *ino, struct file *filp)
 {
 	int ret;
 
+#ifndef CONFIG_SCSC_LOGRING_DEBUGFS
+	struct scsc_debugfs_info *di = (struct scsc_debugfs_info *)container_of(ino->i_cdev,
+		struct scsc_debugfs_info, cdev_samlog);
+
+	ino->i_private = di->rb;
+	filp->private_data = NULL;
+#endif
 	ret = debugfile_open(ino, filp);
 	/* if regular debug_file_open has gone through, attempt snapshot */
 	if (!ret) {
@@ -469,19 +512,31 @@ const struct file_operations samlog_fops = {
 
 static int statfile_open(struct inode *ino, struct file *filp)
 {
+#ifdef CONFIG_SCSC_LOGRING_DEBUGFS
 	if (!filp->private_data)
 		filp->private_data = ino->i_private;
 	if (!filp->private_data)
 		return -EFAULT;
+#else
+	struct scsc_debugfs_info *di = (struct scsc_debugfs_info *)container_of(ino->i_cdev,
+		struct scsc_debugfs_info, cdev_stat);
+
+	ino->i_private = di->rb;
+	filp->private_data = ino->i_private;
+#endif
 	return 0;
 }
 
 static int statfile_release(struct inode *ino, struct file *filp)
 {
+#ifdef CONFIG_SCSC_LOGRING_DEBUGFS
 	if (!filp->private_data)
 		filp->private_data = ino->i_private;
 	if (!filp->private_data)
 		return -EFAULT;
+#else
+	filp->private_data = NULL;
+#endif
 	return 0;
 }
 
@@ -612,6 +667,93 @@ const struct file_operations samwrite_fops = {
 	.release = samwritefile_release,
 };
 
+#ifndef CONFIG_SCSC_LOGRING_DEBUGFS
+static int samlog_devfs_init(struct scsc_debugfs_info *di)
+{
+	int ret;
+
+	pr_info("%s init\n", __func__);
+	/* allocate device number */
+	ret = alloc_chrdev_region(&di->devt, 0, LOGRING_MAX_DEV, DRV_NAME);
+	if (ret) {
+		pr_err("%s. Failed to register character device\n", __func__);
+		return ret;
+	}
+
+	di->logring_class = class_create(THIS_MODULE, DRV_NAME);
+	if (IS_ERR(di->logring_class)) {
+		unregister_chrdev_region(di->devt, LOGRING_MAX_DEV);
+		pr_err("%s. Failed to create character class\n", __func__);
+		return PTR_ERR(di->logring_class);
+	}
+
+	pr_info("%s allocated device number major %i minor %i\n",
+		__func__, MAJOR(di->devt), MINOR(di->devt));
+
+	return 0;
+}
+
+static void samlog_remove_chrdev(struct scsc_debugfs_info *di)
+{
+	pr_info("%s\n", __func__);
+
+	/* Destroy device. */
+	device_destroy(di->logring_class, di->devt);
+
+	/* Unregister the device class.*/
+	class_unregister(di->logring_class);
+
+	/* Destroy created class. */
+	class_destroy(di->logring_class);
+
+	unregister_chrdev_region(di->devt, LOGRING_MAX_DEV);
+}
+
+static int samlog_create_char_dev(struct scsc_debugfs_info *di, struct cdev *cdev,
+				  const struct file_operations *fops, const char *name, int minor)
+{
+	dev_t devn;
+	char dev_name[20];
+	int ret;
+	struct device *device;
+
+	pr_info("%s\n", __func__);
+
+	devn = MKDEV(MAJOR(di->devt), MINOR(minor));
+
+	cdev_init(cdev, fops);
+	ret = cdev_add(cdev, devn, 1);
+	if (ret < 0) {
+		pr_err(	"couldn't create SAMSG char device\n");
+		return ret;
+	}
+
+	snprintf(dev_name, sizeof(dev_name), name);
+	/* create driver file */
+	device = device_create(di->logring_class, NULL, devn,
+				     NULL, dev_name);
+	if (IS_ERR(device)) {
+		pr_err(	"couldn't create samlog driver file for %s\n", name);
+		ret = PTR_ERR(device);
+		return ret;
+	}
+	pr_err("create dev %d\n", cdev->dev);
+	return 0;
+}
+
+static int samlog_remove_char_dev(struct scsc_debugfs_info *di, struct cdev *cdev)
+{
+	pr_info("%s\n", __func__);
+
+	/* Destroy device. */
+	pr_err("destroy dev %d\n", cdev->dev);
+	device_destroy(di->logring_class, cdev->dev);
+	/* remove char device*/
+	cdev_del(cdev);
+
+	return 0;
+}
+#endif
 /**
  * Initializes debugfs support build the proper debugfs file dentries:
  * - entries in debugfs are created under /sys/kernel/debugfs/scsc/@name/
@@ -628,6 +770,7 @@ void __init *samlog_debugfs_init(const char *root_name, void *rb)
 	di = kmalloc(sizeof(*di), GFP_KERNEL);
 	if (!di)
 		return NULL;
+#ifdef CONFIG_SCSC_LOGRING_DEBUGFS
 	if (!scsc_debugfs_root) {
 		/* I could have multiple rings debugfs entry all rooted at
 		 * the same /sys/kernel/debug/scsc/...so such entry could
@@ -664,8 +807,25 @@ void __init *samlog_debugfs_init(const char *root_name, void *rb)
 		goto no_samwrite;
 
 	pr_info("Samlog Debugfs Initialized\n");
+#else
+	di->rb = rb;
+
+	if (samlog_devfs_init(di))
+		goto no_chrdev;
+	if (samlog_create_char_dev(di, &di->cdev_samsg, &samsg_fops, SCSC_SAMSG_FNAME, 0))
+		goto no_samsg;
+	if (samlog_create_char_dev(di, &di->cdev_samlog, &samlog_fops, SCSC_SAMLOG_FNAME, 1))
+		goto no_samlog;
+	if (samlog_create_char_dev(di, &di->cdev_stat, &stat_fops, SCSC_STAT_FNAME, 2))
+		goto no_statfile;
+	if (samlog_create_char_dev(di, &di->cdev_samwrite, &samwrite_fops, SCSC_SAMWRITE_FNAME, 3))
+		goto no_samwrite;
+
+	pr_info("Samlog Devfs Initialized\n");
+#endif
 	return di;
 
+#ifdef CONFIG_SCSC_LOGRING_DEBUGFS
 no_samwrite:
 	debugfs_remove(di->statfile);
 no_statfile:
@@ -681,6 +841,18 @@ no_buf:
 		scsc_debugfs_root = NULL;
 	}
 no_root:
+#else
+no_samwrite:
+	samlog_remove_char_dev(di, &di->cdev_stat);
+no_statfile:
+	samlog_remove_char_dev(di, &di->cdev_samlog);
+no_samlog:
+	samlog_remove_char_dev(di, &di->cdev_samsg);
+no_samsg:
+	/* remove alloc_char dev*/
+	samlog_remove_chrdev(di);
+no_chrdev:
+#endif
 	kfree(di);
 	return NULL;
 }
@@ -693,12 +865,21 @@ void __exit samlog_debugfs_exit(void **priv)
 		return;
 	di = (struct scsc_debugfs_info **)priv;
 	if (di && *di) {
+#ifdef CONFIG_SCSC_LOGRING_DEBUGFS
 		debugfs_remove_recursive(scsc_debugfs_root);
 		atomic_dec(&scsc_debugfs_root_refcnt);
 		if (!atomic_read(&scsc_debugfs_root_refcnt)) {
 			debugfs_remove(scsc_debugfs_root);
 			scsc_debugfs_root = NULL;
 		}
+#else
+		samlog_remove_char_dev(*di, &(*di)->cdev_samwrite);
+		samlog_remove_char_dev(*di, &(*di)->cdev_stat);
+		samlog_remove_char_dev(*di, &(*di)->cdev_samlog);
+		samlog_remove_char_dev(*di, &(*di)->cdev_samsg);
+		/* remove alloc_char dev*/
+		samlog_remove_chrdev(*di);
+#endif
 		kfree(*di);
 		*di = NULL;
 	}

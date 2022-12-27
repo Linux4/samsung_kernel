@@ -1258,6 +1258,7 @@ struct mfc_user_shared_handle {
 	int fd;
 	struct dma_buf *dma_buf;
 	void *vaddr;
+	size_t data_size;
 };
 
 struct mfc_raw_info {
@@ -1385,6 +1386,12 @@ struct mfc_dec {
 	struct mfc_user_shared_handle sh_handle_dpb;
 	struct mfc_user_shared_handle sh_handle_hdr;
 	struct hdr10_plus_meta *hdr10_plus_info;
+
+	struct dma_buf *assigned_dmabufs[MFC_MAX_DPBS][2][MFC_MAX_PLANES];
+	struct dma_buf_attachment *assigned_attach[MFC_MAX_DPBS][2][MFC_MAX_PLANES];
+	dma_addr_t assigned_addr[MFC_MAX_DPBS][2][MFC_MAX_PLANES];
+	int assigned_refcnt[MFC_MAX_DPBS];
+	struct mutex dpb_mutex;
 
 	int has_multiframe;
 

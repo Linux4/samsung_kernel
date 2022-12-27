@@ -50,6 +50,24 @@
 struct mbulk;
 
 /**
+ * mbulk colour and it's accessors
+ *
+ * colour is defined as:
+ * u32 register bits:
+ * [7:0]  -  vif
+ * [15:8]  - peer_index
+ * [23:16] - ac queue
+ * [31:24] - reserved
+ */
+typedef u32 mbulk_colour;
+
+#define SLSI_MBULK_COLOUR_SET(colour, vif, peer_index, ac_q)	(colour = (ac_q << 16) | (peer_index << 8) | (vif))
+
+#define SLSI_MBULK_COLOUR_GET_VIF(colour)						(colour & 0xFF)
+#define SLSI_MBULK_COLOUR_GET_PEER_IDX(colour)					((colour >> 8) & 0xFF)
+#define SLSI_MBULK_COLOUR_GET_AC(colour)						((colour >> 16) & 0xFF)
+
+/**
  * mbulk host pool ID
  */
 #define MBULK_POOL_ID_DATA      (0)
@@ -66,13 +84,14 @@ enum mbulk_class {
 	MBULK_CLASS_CONTROL                 = 0,
 	MBULK_CLASS_HOSTIO                  = 1,
 	MBULK_CLASS_DEBUG                   = 2,
+	MBULK_CLASS_DEBUG_CRIT              = 3,
 
-	MBULK_CLASS_FROM_HOST_DAT           = 3,
-	MBULK_CLASS_FROM_HOST_CTL           = 4,
-	MBULK_CLASS_FROM_RADIO              = 5,
-	MBULK_CLASS_DPLP                    = 6,
-	MBULK_CLASS_OTHERS                  = 7,
-	MBULK_CLASS_FROM_RADIO_FORWARDED    = 8,
+	MBULK_CLASS_FROM_HOST_DAT           = 4,
+	MBULK_CLASS_FROM_HOST_CTL           = 5,
+	MBULK_CLASS_FROM_RADIO              = 6,
+	MBULK_CLASS_DPLP                    = 7,
+	MBULK_CLASS_OTHERS                  = 8,
+	MBULK_CLASS_FROM_RADIO_FORWARDED    = 9,
 	MBULK_CLASS_MAX
 } __packed;
 
@@ -172,7 +191,7 @@ struct mbulk *mbulk_with_signal_alloc(enum mbulk_class clas, size_t sig_bufsz,
  * meeting the requested size.
  *
  */
-struct mbulk *mbulk_with_signal_alloc_by_pool(u8 pool_id, u16 colour,
+struct mbulk *mbulk_with_signal_alloc_by_pool(u8 pool_id, mbulk_colour colour,
 					      enum mbulk_class clas, size_t sig_bufsz, size_t dat_bufsz);
 
 /**
@@ -504,6 +523,8 @@ int mbulk_pool_add(u8 pool_id, char *base, char *end, size_t seg_size, u8 guard,
 #else
 int mbulk_pool_add(u8 pool_id, char *base, char *end, size_t buf_size, u8 guard);
 #endif
+/* Remove pool */
+void mbulk_pool_remove(u8 pool_id);
 /**
  * check sanity of a mbulk pool
  */
@@ -519,5 +540,7 @@ void mbulk_set_handler_return_host_mbulk(void (*free_host_buf)(struct mbulk *m))
  */
 void mbulk_free_virt_host(struct mbulk *m);
 void mbulk_pool_dump(u8 pool_id, int max_cnt);
+/* Get pool colour */
+mbulk_colour mbulk_get_colour(u8 pool_id, struct mbulk *m);
 
 #endif /*__MBULK_H__*/

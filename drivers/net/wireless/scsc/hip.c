@@ -10,6 +10,7 @@
 #include "debug.h"
 #include "procfs.h"
 #include "sap.h"
+#include "hip4.h"
 #ifdef CONFIG_SCSC_SMAPPER
 #include "hip4_smapper.h"
 #endif
@@ -243,12 +244,22 @@ int slsi_hip_rx(struct slsi_dev *sdev, struct sk_buff *skb)
 	slsi_log_clients_log_signal_fast(sdev, &sdev->log_clients, skb, SLSI_LOG_DIRECTION_TO_HOST);
 	pid = fapi_get_u16(skb, receiver_pid);
 	if (pid >= SLSI_TX_PROCESS_ID_UDI_MIN && pid <= SLSI_TX_PROCESS_ID_UDI_MAX) {
-		slsi_kfree_skb(skb);
+#ifdef CONFIG_SCSC_SMAPPER
+		hip4_smapper_free_mapped_skb(skb);
+#endif
+		kfree_skb(skb);
 		return 0;
 	}
 
-	if (fapi_is_ma(skb))
-		return hip_sap_cont.sap[SAP_MA]->sap_handler(sdev, skb);
+	if (fapi_is_ma(skb)) {
+		/* It is anomolous to handle the MA_BLOCKACK_IND in the
+		 * mlme wq.
+		 */
+		if (fapi_get_sigid(skb) == MA_BLOCKACK_IND)
+			return hip_sap_cont.sap[SAP_MLME]->sap_handler(sdev, skb);
+		else
+			return hip_sap_cont.sap[SAP_MA]->sap_handler(sdev, skb);
+	}
 
 	if (fapi_is_mlme(skb))
 		return hip_sap_cont.sap[SAP_MLME]->sap_handler(sdev, skb);
@@ -263,15 +274,21 @@ int slsi_hip_rx(struct slsi_dev *sdev, struct sk_buff *skb)
 }
 
 /* Only DATA plane will look at the returning FB to account BoT */
-int slsi_hip_tx_done(struct slsi_dev *sdev, u16 colour)
+int slsi_hip_tx_done(struct slsi_dev *sdev, u8 vif, u8 peer_index, u8 ac)
 {
-	return hip_sap_cont.sap[SAP_MA]->sap_txdone(sdev, colour);
+	return hip_sap_cont.sap[SAP_MA]->sap_txdone(sdev, vif, peer_index, ac);
 }
 
 int slsi_hip_setup(struct slsi_dev *sdev)
 {
+	u32 ret_val;
+	mutex_lock(&sdev->hip.hip_mutex);
+
 	/* Setup hip4 after initialization */
-	return hip4_setup(&sdev->hip4_inst);
+	ret_val = hip4_setup(&sdev->hip4_inst);
+
+	mutex_unlock(&sdev->hip.hip_mutex);
+	return ret_val;
 }
 
 #ifdef CONFIG_SCSC_SMAPPER
@@ -294,6 +311,11 @@ void *slsi_hip_get_skb_data_from_smapper(struct slsi_dev *sdev, struct sk_buff *
 int slsi_hip_stop(struct slsi_dev *sdev)
 {
 	mutex_lock(&sdev->hip.hip_mutex);
+
+	if (atomic_read(&sdev->hip.hip_state) != SLSI_HIP_STATE_STARTED) {
+		mutex_unlock(&sdev->hip.hip_mutex);
+		return 0;
+	}
 	SLSI_DBG4(sdev, SLSI_HIP_INIT_DEINIT, "Update HIP state (SLSI_HIP_STATE_STOPPING)\n");
 	atomic_set(&sdev->hip.hip_state, SLSI_HIP_STATE_STOPPING);
 
@@ -305,3 +327,23 @@ int slsi_hip_stop(struct slsi_dev *sdev)
 	mutex_unlock(&sdev->hip.hip_mutex);
 	return 0;
 }
+#ifdef CONFIG_SCSC_WLAN_RX_NAPI
+void slsi_hip_set_napi_cpu(struct slsi_dev *sdev, u8 napi_cpu, bool perf_mode)
+{
+	hip4_set_napi_cpu(&sdev->hip4_inst, napi_cpu, perf_mode);
+}
+
+void slsi_hip_reprocess_skipped_ctrl_bh(struct slsi_dev *sdev)
+{
+	struct slsi_hip4 *hip4 = &sdev->hip4_inst;
+
+	hip4_sched_wq_ctrl(hip4);
+}
+#else
+void slsi_hip_reprocess_skipped_data_bh(struct slsi_dev *sdev)
+{
+	struct slsi_hip4 *hip4 = &sdev->hip4_inst;
+
+	hip4_sched_wq(hip4);
+}
+#endif

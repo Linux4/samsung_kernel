@@ -18,86 +18,84 @@
 #include "../ssp_data.h"
 #include "ssp_factory.h"
 
-#define PR_ABS_MAX      8388607         /* 24 bit 2'compl */
+#define PR_ABS_MAX      8388607	 /* 24 bit 2'compl */
 #define PR_ABS_MIN      -8388608
 
 /*************************************************************************/
-/* factory Sysfs                                                         */
+/* factory Sysfs							 */
 /*************************************************************************/
 
 
 static ssize_t pressure_name_show(struct device *dev,
-                                  struct device_attribute *attr, char *buf)
+				  struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-	if(data->barometer_ops == NULL || data->barometer_ops->get_barometer_name == NULL)
+	if (data->barometer_ops == NULL || data->barometer_ops->get_barometer_name == NULL)
 		return -EINVAL;
 	return data->barometer_ops->get_barometer_name(buf);
 }
 
 static ssize_t pressure_vendor_show(struct device *dev,
-                                    struct device_attribute *attr, char *buf)
+				    struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-	if(data->barometer_ops == NULL || data->barometer_ops->get_barometer_vendor == NULL)
+	if (data->barometer_ops == NULL || data->barometer_ops->get_barometer_vendor == NULL)
 		return -EINVAL;
 	return data->barometer_ops->get_barometer_vendor(buf);
 }
 
 static ssize_t sea_level_pressure_store(struct device *dev,
-                                        struct device_attribute *attr, const char *buf, size_t size)
+					struct device_attribute *attr, const char *buf, size_t size)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
 	int ret = 0;
 
-	if(data->barometer_ops == NULL || data->barometer_ops->set_barometer_sea_level_pressure == NULL)
+	if (data->barometer_ops == NULL || data->barometer_ops->set_barometer_sea_level_pressure == NULL)
 		return -EINVAL;
 	ret = data->barometer_ops->set_barometer_sea_level_pressure(data, buf);
-	if (ret < 0) {
+	if (ret < 0)
 		ssp_errf("- failed = %d", ret);
-	}
 	return size;
 }
 
 static ssize_t pressure_cabratioin_show(struct device *dev,
-                                        struct device_attribute *attr, char *buf)
+					struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-	if(data->barometer_ops == NULL || data->barometer_ops->get_barometer_calibration == NULL)
+	if (data->barometer_ops == NULL || data->barometer_ops->get_barometer_calibration == NULL)
 		return -EINVAL;
 	return data->barometer_ops->get_barometer_calibration(data, buf);
 }
 
 static ssize_t pressure_cabratioin_store(struct device *dev,
-                                         struct device_attribute *attr, const char *buf, size_t size)
+					 struct device_attribute *attr, const char *buf, size_t size)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
 	int ret = 0;
 
-	if(data->barometer_ops == NULL || data->barometer_ops->set_barometer_calibration == NULL)
+	if (data->barometer_ops == NULL || data->barometer_ops->set_barometer_calibration == NULL)
 		return -EINVAL;
 	ret = data->barometer_ops->set_barometer_calibration(data, buf);
-	if (ret < 0) {
+	if (ret < 0)
 		ssp_errf("- failed = %d", ret);
-	}
 
 	return size;
 }
 
 static ssize_t eeprom_check_show(struct device *dev,
-                                 struct device_attribute *attr, char *buf)
+				 struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-	if(data->barometer_ops == NULL || data->barometer_ops->get_barometer_eeprom_check == NULL)
+	if (data->barometer_ops == NULL || data->barometer_ops->get_barometer_eeprom_check == NULL)
 		return -EINVAL;
 	return data->barometer_ops->get_barometer_eeprom_check(data, buf);
 }
 
 static ssize_t pressure_temperature_show(struct device *dev,
-                                         struct device_attribute *attr, char *buf)
+					 struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-	if(data->barometer_ops == NULL || data->barometer_ops->get_barometer_temperature == NULL)
+	if (data->barometer_ops == NULL || data->barometer_ops->get_barometer_temperature == NULL)
 		return -EINVAL;
 	return data->barometer_ops->get_barometer_temperature(data, buf);
 }
@@ -106,9 +104,9 @@ static DEVICE_ATTR(vendor,  S_IRUGO, pressure_vendor_show, NULL);
 static DEVICE_ATTR(name,  S_IRUGO, pressure_name_show, NULL);
 static DEVICE_ATTR(eeprom_check, S_IRUGO, eeprom_check_show, NULL);
 static DEVICE_ATTR(calibration,  S_IRUGO | S_IWUSR | S_IWGRP,
-                   pressure_cabratioin_show, pressure_cabratioin_store);
+		   pressure_cabratioin_show, pressure_cabratioin_store);
 static DEVICE_ATTR(sea_level_pressure, S_IWUSR | S_IWGRP,
-                   NULL, sea_level_pressure_store);
+		   NULL, sea_level_pressure_store);
 static DEVICE_ATTR(temperature, S_IRUGO, pressure_temperature_show, NULL);
 
 static struct device_attribute *pressure_attrs[] = {
@@ -121,27 +119,25 @@ static struct device_attribute *pressure_attrs[] = {
 	NULL,
 };
 
-void select_barometer_ops(struct ssp_data *data)
+void select_barometer_ops(struct ssp_data *data, char *name)
 {
 	struct barometer_sensor_operations **barometer_ops_ary;
 	int count = 0, i;
-	char name[SENSORNAME_MAX_LEN] = {0,};
 	char temp_buffer[SENSORNAME_MAX_LEN] = {0,};
 
 #if defined(CONFIG_SENSORS_SSP_BAROMETER_LPS22H)
 	count++;
-#endif	
+#endif
 #if defined(CONFIG_SENSORS_SSP_BAROMETER_LPS25H)
 	count++;
 #endif
 
-	if(count == 0)
-	{
+	if (count == 0) {
 		ssp_infof("count is 0");
 		return;
 	}
 
-	barometer_ops_ary = (struct barometer_sensor_operations **)kzalloc(count * sizeof(struct barometer_sensor_operations*), GFP_KERNEL);
+	barometer_ops_ary = (struct barometer_sensor_operations **)kzalloc(count * sizeof(struct barometer_sensor_operations *), GFP_KERNEL);
 
 	i = 0;
 #if defined(CONFIG_SENSORS_SSP_BAROMETER_LPS22H)
@@ -151,43 +147,28 @@ void select_barometer_ops(struct ssp_data *data)
 	barometer_ops_ary[i++] = get_barometer_lps25h_function_pointer(data);
 #endif
 
-	if(count > 1) {
-		if(get_sensorname(data, SENSOR_TYPE_PRESSURE, name, sizeof(name)) != SUCCESS){
-			i = 0;
-		} else {
-			for(i = 0; i < count ; i++)
-			{
-				int size = barometer_ops_ary[i]->get_barometer_name(temp_buffer);
-				temp_buffer[size-1] = '\0';
-				ssp_infof("%d barometer name : %s",i, temp_buffer);
+	if (count > 1) {
+		for (i = 0; i < count ; i++) {
+			int size = barometer_ops_ary[i]->get_barometer_name(temp_buffer);
 
-				if(strcmp(temp_buffer, name) == 0)
-				{
-					break;
-				}
-			}
+			ssp_infof("%d barometer name : %s", i, temp_buffer);
+
+			if (strcmp(temp_buffer, name) == 0)
+				break;
 		}
-
-		if(i == count)
+		if (i == count)
 			i = 0;
-	} else {
+	} else
 		i = 0;
-	}
-	
+
 	data->barometer_ops = barometer_ops_ary[i];
 	kfree(barometer_ops_ary);
 }
 
 void initialize_barometer_factorytest(struct ssp_data *data)
 {
-#if defined(CONFIG_SENSORS_SSP_BAROMETER_LPS22H)
-	data->barometer_ops = get_barometer_lps22h_function_pointer(data);
-#elif defined(CONFIG_SENSORS_SSP_BAROMETER_LPS25H)
-	data->barometer_ops = get_barometer_lps25h_function_pointer(data);
-#endif
-
 	sensors_register(data->devices[SENSOR_TYPE_PRESSURE], data, pressure_attrs,
-	                 "barometer_sensor");
+			 "barometer_sensor");
 }
 
 void remove_barometer_factorytest(struct ssp_data *data)

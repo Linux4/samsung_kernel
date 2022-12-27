@@ -277,6 +277,7 @@ nft_target_destroy(const struct nft_ctx *ctx, const struct nft_expr *expr)
 {
 	struct xt_target *target = expr->ops->data;
 	void *info = nft_expr_priv(expr);
+	struct module *me = target->me;
 	struct xt_tgdtor_param par;
 
 	par.net = ctx->net;
@@ -287,7 +288,7 @@ nft_target_destroy(const struct nft_ctx *ctx, const struct nft_expr *expr)
 		par.target->destroy(&par);
 
 	if (nft_xt_put(container_of(expr->ops, struct nft_xt, ops)))
-		module_put(target->me);
+		module_put(me);
 }
 
 static int nft_target_dump(struct sk_buff *skb, const struct nft_expr *expr)
@@ -497,6 +498,7 @@ __nft_match_destroy(const struct nft_ctx *ctx, const struct nft_expr *expr,
 		    void *info)
 {
 	struct xt_match *match = expr->ops->data;
+	struct module *me = match->me;
 	struct xt_mtdtor_param par;
 
 	par.net = ctx->net;
@@ -507,7 +509,7 @@ __nft_match_destroy(const struct nft_ctx *ctx, const struct nft_expr *expr,
 		par.match->destroy(&par);
 
 	if (nft_xt_put(container_of(expr->ops, struct nft_xt, ops)))
-		module_put(match->me);
+		module_put(me);
 }
 
 static void
@@ -825,9 +827,17 @@ nft_target_select_ops(const struct nft_ctx *ctx,
 	rev = ntohl(nla_get_be32(tb[NFTA_TARGET_REV]));
 	family = ctx->afi->family;
 
+	if (strcmp(tg_name, XT_ERROR_TARGET) == 0 ||
+	    strcmp(tg_name, XT_STANDARD_TARGET) == 0 ||
+	    strcmp(tg_name, "standard") == 0)
+		return ERR_PTR(-EINVAL);
+
 	/* Re-use the existing target if it's already loaded. */
 	list_for_each_entry(nft_target, &nft_target_list, head) {
 		struct xt_target *target = nft_target->ops.data;
+
+		if (!target->target)
+			continue;
 
 		if (nft_target_cmp(target, tg_name, rev, family))
 			return &nft_target->ops;
@@ -836,6 +846,11 @@ nft_target_select_ops(const struct nft_ctx *ctx,
 	target = xt_request_find_target(family, tg_name, rev);
 	if (IS_ERR(target))
 		return ERR_PTR(-ENOENT);
+
+	if (!target->target) {
+		err = -EINVAL;
+		goto err;
+	}
 
 	if (target->targetsize > nla_len(tb[NFTA_TARGET_INFO])) {
 		err = -EINVAL;

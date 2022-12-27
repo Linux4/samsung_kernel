@@ -161,7 +161,7 @@ static int slsi_test_cdev_release(struct inode *inode, struct file *filp)
 
 	slsi_test_dev_detach(client->ufcdev->uftestdev);
 
-	slsi_skb_queue_purge(&client->log_list);
+	skb_queue_purge(&client->log_list);
 
 	/* free other resource */
 	kfree(client);
@@ -191,7 +191,7 @@ static ssize_t slsi_test_cdev_read(struct file *filp, char *p, size_t len, loff_
 			return -ERESTARTSYS;
 	}
 
-	skb = slsi_skb_dequeue(&client->log_list);
+	skb = skb_dequeue(&client->log_list);
 
 	msglen = skb->len;
 	if (msglen > (s32)len) {
@@ -202,11 +202,11 @@ static ssize_t slsi_test_cdev_read(struct file *filp, char *p, size_t len, loff_
 	SLSI_DBG_HEX_NODEV(SLSI_TEST, skb->data, skb->len, "cdev read skb:%p skb->data:%p\n", skb, skb->data);
 	if (copy_to_user(p, skb->data, msglen)) {
 		SLSI_ERR_NODEV("Failed to copy UDI log to user\n");
-		slsi_kfree_skb(skb);
+		kfree_skb(skb);
 		return -EFAULT;
 	}
 
-	slsi_kfree_skb(skb);
+	kfree_skb(skb);
 	return msglen;
 }
 
@@ -237,17 +237,22 @@ static ssize_t slsi_test_cdev_write(struct file *filp, const char *p, size_t len
 		return -EINVAL;
 	}
 
-	skb = slsi_alloc_skb(len, GFP_KERNEL);
+	skb = alloc_skb(len, GFP_KERNEL);
+	if (!skb) {
+		SLSI_WARN_NODEV("error allocating skb (len: %d)\n", len);
+		return -ENOMEM;
+	}
+
 	data = skb_put(skb, len);
 	if (copy_from_user(data, p, len)) {
 		SLSI_ERR_NODEV("copy from user failed\n");
-		slsi_kfree_skb(skb);
+		kfree_skb(skb);
 		return -EFAULT;
 	}
 
 	if (skb->len < sizeof(struct fapi_signal_header)) {
 		SLSI_ERR_NODEV("Data(%d) too short for a signal\n", skb->len);
-		slsi_kfree_skb(skb);
+		kfree_skb(skb);
 		return -EINVAL;
 	}
 
@@ -263,7 +268,7 @@ static ssize_t slsi_test_cdev_write(struct file *filp, const char *p, size_t len
 		sdev = uftestdev->sdev;
 		if (!sdev) {
 			SLSI_ERR_NODEV("sdev not set\n");
-			slsi_kfree_skb(skb);
+			kfree_skb(skb);
 			return -EINVAL;
 		}
 
@@ -272,7 +277,7 @@ static ssize_t slsi_test_cdev_write(struct file *filp, const char *p, size_t len
 		cb->data_length = skb->len;
 
 		if (WARN_ON(slsi_hip_rx(sdev, skb))) {
-			slsi_kfree_skb(skb);
+			kfree_skb(skb);
 			return -EINVAL;
 		}
 	}
@@ -304,7 +309,7 @@ static long slsi_test_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned l
 
 	FUNC_ENTER_NODEV();
 
-	slsi_wakelock(&sdev->wlan_wl);
+	slsi_wake_lock(&sdev->wlan_wl);
 
 	switch (cmd) {
 	case UNIFI_GET_UDI_ENABLE:
@@ -395,7 +400,7 @@ static long slsi_test_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned l
 		r = -EINVAL;
 	}
 
-	slsi_wakeunlock(&sdev->wlan_wl);
+	slsi_wake_unlock(&sdev->wlan_wl);
 	return r;
 }
 
@@ -451,7 +456,7 @@ static int udi_log_event(struct slsi_log_client *log_client, struct sk_buff *skb
 	if (WARN_ON(skb->len == 0))
 		return -EINVAL;
 
-	skb = slsi_skb_copy_expand(skb, sizeof(msg), 0, GFP_ATOMIC);
+	skb = skb_copy_expand(skb, sizeof(msg), 0, GFP_ATOMIC);
 	if (WARN_ON(!skb))
 		return -ENOMEM;
 
@@ -470,7 +475,7 @@ static int udi_log_event(struct slsi_log_client *log_client, struct sk_buff *skb
 	msg_skb = (struct udi_msg_t *)skb_push(skb, sizeof(msg));
 	*msg_skb = msg;
 
-	slsi_skb_queue_tail(&client->log_list, skb);
+	skb_queue_tail(&client->log_list, skb);
 
 	/* Wake any waiting user process */
 	wake_up_interruptible(&client->log_wq);

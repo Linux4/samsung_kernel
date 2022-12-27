@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2017 TRUSTONIC LIMITED
+ * Copyright (c) 2017-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -18,9 +19,8 @@
 
 #include "main.h"
 
-#ifdef TRUSTONIC_XEN_DOMU
+#ifdef CONFIG_XEN
 
-#include "admin.h"		/* tee_object* */
 #include "client.h"
 #include "iwp.h"
 #include "mcp.h"
@@ -30,8 +30,8 @@
 #define page_to_gfn(p) (pfn_to_gfn(page_to_phys(p) >> XEN_PAGE_SHIFT))
 
 static struct {
-	int (*probe)(void);
-	int (*start)(void);
+	int			(*probe)(void);
+	int			(*start)(void);
 	struct tee_xfe		*xfe;
 	/* MC sessions */
 	struct mutex		mc_sessions_lock;
@@ -39,6 +39,10 @@ static struct {
 	/* GP operations */
 	struct mutex		gp_operations_lock;
 	struct list_head	gp_operations;
+	/* Last back-end state,
+	 * to overcome an issue in some Xen implementations
+	 */
+	int			last_be_state;
 } l_ctx;
 
 struct xen_fe_mc_session {
@@ -430,7 +434,7 @@ static irqreturn_t xen_fe_irq_handler_domu_th(int intr, void *arg)
 
 /* MC protocol interface */
 
-int xen_mc_get_version(struct mc_version_info *version_info)
+static int xen_mc_get_version(struct mc_version_info *version_info)
 {
 	struct tee_xfe *xfe = l_ctx.xfe;
 
@@ -444,8 +448,8 @@ int xen_mc_get_version(struct mc_version_info *version_info)
 	return xfe->ring->domu.otherend_ret;
 }
 
-int xen_mc_open_session(struct mcp_session *session,
-			struct mcp_open_info *info)
+static int xen_mc_open_session(struct mcp_session *session,
+			       struct mcp_open_info *info)
 {
 	struct tee_xfe *xfe = l_ctx.xfe;
 	struct xen_fe_mc_session *fe_mc_session;
@@ -453,7 +457,6 @@ int xen_mc_open_session(struct mcp_session *session,
 	struct tee_xen_buffer *tci_buffer = &xfe->buffers[0];
 	struct xen_fe_map *ta_map = NULL;
 	struct xen_fe_map *tci_map = NULL;
-	struct tee_mmu *mmu = NULL;
 	enum tee_xen_domu_cmd cmd;
 	int ret;
 
@@ -467,28 +470,14 @@ int xen_mc_open_session(struct mcp_session *session,
 
 	ring_get(xfe);
 	/* In */
+	xfe->ring->domu.uuid = *info->uuid;
 	if (info->type == TEE_MC_UUID) {
 		cmd = TEE_XEN_MC_OPEN_SESSION;
-		xfe->ring->domu.uuid = *info->uuid;
 	} else {
-		struct mc_ioctl_buffer buf = {
-			.va = info->va,
-			.len = info->len,
-			.flags = MC_IO_MAP_INPUT,
-		};
 		struct mcp_buffer_map b_map;
 
 		cmd = TEE_XEN_MC_OPEN_TRUSTLET;
-		/* Use an otherwise unused field to pass the SPID */
-		xfe->ring->domu.spid = info->spid;
-		mmu = tee_mmu_create(info->user ? current->mm : NULL, &buf);
-		if (IS_ERR(mmu)) {
-			ret = PTR_ERR(mmu);
-			mmu = NULL;
-			goto out;
-		}
-
-		tee_mmu_buffer(mmu, &b_map);
+		tee_mmu_buffer(info->ta_mmu, &b_map);
 		ta_map = xen_fe_map_create(ta_buffer, &b_map,
 					   xfe->xdev->otherend_id);
 		if (IS_ERR(ta_map)) {
@@ -528,16 +517,15 @@ out:
 		kfree(fe_mc_session);
 	}
 
+	/* Release the PMD and PTEs, but not the pages so they remain pinned */
 	xen_fe_map_release_pmd(ta_map, ta_buffer);
 	xen_fe_map_release_pmd(tci_map, tci_buffer);
-	if (mmu)
-		tee_mmu_put(mmu);
 
 	ring_put(xfe);
 	return ret;
 }
 
-int xen_mc_close_session(struct mcp_session *session)
+static int xen_mc_close_session(struct mcp_session *session)
 {
 	struct tee_xfe *xfe = l_ctx.xfe;
 	struct xen_fe_mc_session *fe_mc_session;
@@ -566,7 +554,7 @@ int xen_mc_close_session(struct mcp_session *session)
 	return ret;
 }
 
-int xen_mc_notify(struct mcp_session *session)
+static int xen_mc_notify(struct mcp_session *session)
 {
 	struct tee_xfe *xfe = l_ctx.xfe;
 	int ret;
@@ -583,7 +571,7 @@ int xen_mc_notify(struct mcp_session *session)
 	return ret;
 }
 
-int xen_mc_wait(struct mcp_session *session, s32 timeout, bool silent_expiry)
+static int xen_mc_wait(struct mcp_session *session, s32 timeout)
 {
 	struct tee_xfe *xfe = l_ctx.xfe;
 	struct xen_fe_mc_session *fe_mc_session;
@@ -618,7 +606,7 @@ int xen_mc_wait(struct mcp_session *session, s32 timeout, bool silent_expiry)
 	return ret;
 }
 
-int xen_mc_map(u32 session_id, struct tee_mmu *mmu, u32 *sva)
+static int xen_mc_map(u32 session_id, struct tee_mmu *mmu, u32 *sva)
 {
 	struct tee_xfe *xfe = l_ctx.xfe;
 	struct tee_xen_buffer *buffer = &xfe->buffers[0];
@@ -651,7 +639,7 @@ out:
 	return ret;
 }
 
-int xen_mc_unmap(u32 session_id, const struct mcp_buffer_map *map)
+static int xen_mc_unmap(u32 session_id, const struct mcp_buffer_map *map)
 {
 	struct tee_xfe *xfe = l_ctx.xfe;
 	struct tee_xen_buffer *buffer = &xfe->buffers[0];
@@ -673,7 +661,7 @@ int xen_mc_unmap(u32 session_id, const struct mcp_buffer_map *map)
 	return ret;
 }
 
-int xen_mc_get_err(struct mcp_session *session, s32 *err)
+static int xen_mc_get_err(struct mcp_session *session, s32 *err)
 {
 	struct tee_xfe *xfe = l_ctx.xfe;
 	int ret;
@@ -695,8 +683,8 @@ int xen_mc_get_err(struct mcp_session *session, s32 *err)
 
 /* GP protocol interface */
 
-int xen_gp_register_shared_mem(struct tee_mmu *mmu, u32 *sva,
-			       struct gp_return *gp_ret)
+static int xen_gp_register_shared_mem(struct tee_mmu *mmu, u32 *sva,
+				      struct gp_return *gp_ret)
 {
 	struct tee_xfe *xfe = l_ctx.xfe;
 	struct tee_xen_buffer *buffer = &xfe->buffers[0];
@@ -731,7 +719,7 @@ out:
 	return ret;
 }
 
-int xen_gp_release_shared_mem(struct mcp_buffer_map *map)
+static int xen_gp_release_shared_mem(struct mcp_buffer_map *map)
 {
 	struct tee_xfe *xfe = l_ctx.xfe;
 	struct tee_xen_buffer *buffer = &xfe->buffers[0];
@@ -754,12 +742,12 @@ int xen_gp_release_shared_mem(struct mcp_buffer_map *map)
 	return ret;
 }
 
-int xen_gp_open_session(struct iwp_session *session,
-			const struct mc_uuid_t *uuid,
-			const struct iwp_buffer_map *b_maps,
-			struct interworld_session *iws,
-			struct interworld_session *op_iws,
-			struct gp_return *gp_ret)
+static int xen_gp_open_session(struct iwp_session *session,
+			       const struct mc_uuid_t *uuid,
+			       const struct iwp_buffer_map *b_maps,
+			       struct interworld_session *iws,
+			       struct interworld_session *op_iws,
+			       struct gp_return *gp_ret)
 {
 	struct tee_xfe *xfe = l_ctx.xfe;
 	struct xen_fe_gp_operation operation = { .ret = 0 };
@@ -819,7 +807,7 @@ err:
 	return operation.ret;
 }
 
-int xen_gp_close_session(struct iwp_session *session)
+static int xen_gp_close_session(struct iwp_session *session)
 {
 	struct tee_xfe *xfe = l_ctx.xfe;
 	struct xen_fe_gp_operation operation = { .ret = 0 };
@@ -855,10 +843,10 @@ int xen_gp_close_session(struct iwp_session *session)
 	return operation.ret;
 }
 
-int xen_gp_invoke_command(struct iwp_session *session,
-			  const struct iwp_buffer_map *b_maps,
-			  struct interworld_session *iws,
-			  struct gp_return *gp_ret)
+static int xen_gp_invoke_command(struct iwp_session *session,
+				 const struct iwp_buffer_map *b_maps,
+				 struct interworld_session *iws,
+				 struct gp_return *gp_ret)
 {
 	struct tee_xfe *xfe = l_ctx.xfe;
 	struct xen_fe_gp_operation operation = { .ret = 0 };
@@ -918,7 +906,7 @@ err:
 	return operation.ret;
 }
 
-int xen_gp_request_cancellation(u64 slot)
+static int xen_gp_request_cancellation(u64 slot)
 {
 	struct tee_xfe *xfe = l_ctx.xfe;
 	int ret;
@@ -1125,12 +1113,27 @@ static int xen_fe_probe(struct xenbus_device *xdev,
 	return 0;
 }
 
+static int xen_fe_remove(struct xenbus_device *dev)
+{
+	struct tee_xfe *xfe = l_ctx.xfe;
+
+	tee_xfe_put(xfe);
+	return 0;
+}
+
 static void xen_fe_backend_changed(struct xenbus_device *xdev,
 				   enum xenbus_state be_state)
 {
 	struct tee_xfe *xfe = l_ctx.xfe;
 
 	mc_dev_devel("be state changed to %d", be_state);
+
+	if (be_state == l_ctx.last_be_state) {
+		/* Protection against duplicated notifications (TBUG-1387) */
+		mc_dev_devel("be state (%d) already set... ignoring", be_state);
+		return;
+	}
+
 	switch (be_state) {
 	case XenbusStateUnknown:
 	case XenbusStateInitialising:
@@ -1149,31 +1152,74 @@ static void xen_fe_backend_changed(struct xenbus_device *xdev,
 	case XenbusStateReconfigured:
 		break;
 	}
+
+	/* Refresh last back-end state */
+	l_ctx.last_be_state = be_state;
 }
+
+static struct tee_protocol_fe_call_ops fe_call_ops = {
+	/* MC protocol interface */
+	.mc_get_version = xen_mc_get_version,
+	.mc_open_session = xen_mc_open_session,
+	.mc_close_session = xen_mc_close_session,
+	.mc_map = xen_mc_map,
+	.mc_unmap = xen_mc_unmap,
+	.mc_notify = xen_mc_notify,
+	.mc_wait = xen_mc_wait,
+	.mc_get_err = xen_mc_get_err,
+	/* GP protocol interface */
+	.gp_register_shared_mem = xen_gp_register_shared_mem,
+	.gp_release_shared_mem = xen_gp_release_shared_mem,
+	.gp_open_session = xen_gp_open_session,
+	.gp_close_session = xen_gp_close_session,
+	.gp_invoke_command = xen_gp_invoke_command,
+	.gp_request_cancellation = xen_gp_request_cancellation,
+};
 
 static struct xenbus_driver xen_fe_driver = {
 	.ids  = xen_fe_ids,
 	.probe = xen_fe_probe,
+	.remove = xen_fe_remove,
 	.otherend_changed = xen_fe_backend_changed,
 };
 
-int xen_fe_init(int (*probe)(void), int (*start)(void))
+static int xen_fe_early_init(int (*probe)(void), int (*start)(void))
 {
+	int ret;
+
 	l_ctx.probe = probe;
 	l_ctx.start = start;
 	mutex_init(&l_ctx.mc_sessions_lock);
 	INIT_LIST_HEAD(&l_ctx.mc_sessions);
 	mutex_init(&l_ctx.gp_operations_lock);
 	INIT_LIST_HEAD(&l_ctx.gp_operations);
-	return xenbus_register_frontend(&xen_fe_driver);
+	ret = xenbus_register_frontend(&xen_fe_driver);
+	if (ret)
+		return ret;
+
+	/* Stop init as we have our own probe/start mechanism */
+	return 1;
 }
 
-void xen_fe_exit(void)
+static void xen_fe_exit(void)
 {
-	struct tee_xfe *xfe = l_ctx.xfe;
-
-	tee_xfe_put(xfe);
 	xenbus_unregister_driver(&xen_fe_driver);
 }
 
-#endif /* TRUSTONIC_XEN_DOMU */
+static struct tee_protocol_ops protocol_ops = {
+	.name = "XEN FE",
+	.early_init = xen_fe_early_init,
+	.exit = xen_fe_exit,
+	.fe_call_ops = &fe_call_ops,
+	.fe_uses_pages_and_vas = true,
+};
+
+struct tee_protocol_ops *xen_fe_check(void)
+{
+	if (!xen_domain() || xen_initial_domain())
+		return NULL;
+
+	return &protocol_ops;
+}
+
+#endif /* CONFIG_XEN */

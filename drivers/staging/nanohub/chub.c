@@ -52,6 +52,8 @@
 #endif
 
 #define WAIT_TIMEOUT_MS (1000)
+#define HW_RESET_WAIT_TIMEOUT_MS (1)
+
 enum { CHUB_ON, CHUB_OFF };
 enum { C2A_ON, C2A_OFF };
 
@@ -293,7 +295,7 @@ static bool contexthub_lowlevel_alive(struct contexthub_ipc_info *ipc)
 	ipc_hw_gen_interrupt(AP, IRQ_EVT_CHUB_ALIVE);
 	val = wait_event_timeout(ipc->chub_alive_lock.event,
 				 ipc->chub_alive_lock.flag,
-				 msecs_to_jiffies(WAIT_TIMEOUT_MS));
+				 msecs_to_jiffies(200));
 
 	return ipc->chub_alive_lock.flag;
 }
@@ -379,7 +381,7 @@ static void contexthub_handle_debug(struct contexthub_ipc_info *ipc,
 		atomic_set(&ipc->chub_status, CHUB_ST_ERR);
 
 	/* handle err */
-	if (enable_wq) {
+	if (mutex_is_locked(&reset_mutex) || enable_wq) {
 		ipc->cur_err |= (1 << err);
 		schedule_work(&ipc->debug_work);
 	} else {
@@ -562,10 +564,9 @@ static int contexthub_hw_reset(struct contexthub_ipc_info *ipc,
 			do {
 				val = __raw_readl(ipc->pmu_chub_reset +
 						REG_CHUB_RESET_CHUB_CONFIGURATION);
-				msleep(WAIT_TIMEOUT_MS);
-				if (++trycnt > WAIT_TRY_CNT) {
-					dev_warn(ipc->dev,
-						"chub cpu status is not set correctly\n");
+				msleep(HW_RESET_WAIT_TIMEOUT_MS);
+				if (++trycnt > RESET_WAIT_TRY_CNT) {
+					dev_warn(ipc->dev, "chub cpu status is not set correctly\n");
 					break;
 				}
 			} while ((val & 0x1) == 0x0);
@@ -605,7 +606,7 @@ static int contexthub_hw_reset(struct contexthub_ipc_info *ipc,
 		/* wait active */
 		trycnt = 0;
 		do {
-			msleep(WAIT_CHUB_MS);
+			msleep(50);
 			contexthub_ipc_write_event(ipc, MAILBOX_EVT_CHUB_ALIVE);
 			if (++trycnt > WAIT_TRY_CNT)
 				break;
@@ -1484,6 +1485,13 @@ static ssize_t chub_poweron(struct device *dev,
 	struct contexthub_ipc_info *ipc = dev_get_drvdata(dev);
 	int ret = contexthub_poweron(ipc);
 
+#ifdef CONFIG_SENSORS_SSP
+	if (ret < 0) {
+		dev_err(dev, "poweron failed %d\n", ret);
+	} else {
+		ssp_platform_start_refrsh_task(ipc->ssp_data);
+	}
+#endif
 	return ret < 0 ? ret : count;
 }
 
@@ -1574,7 +1582,7 @@ static int contexthub_ipc_probe(struct platform_device *pdev)
 	}
 
 	ssp_platform_init(chub->ssp_data, chub);
-	ssp_set_fimware_name(chub->ssp_data, chub->os_name);
+	ssp_set_firmware_name(chub->ssp_data, chub->os_name);
 #endif
 	atomic_set(&chub->in_use_ipc, 0);
 	atomic_set(&chub->chub_status, CHUB_ST_NO_POWER);

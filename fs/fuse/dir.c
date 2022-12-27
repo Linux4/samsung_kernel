@@ -324,8 +324,24 @@ static void fuse_dentry_release(struct dentry *dentry)
 	kfree_rcu(fd, rcu);
 }
 
+/* @fs.sec -- 63ff82f9216c9b6d003e7d45699d54b833344719 -- */
+static int fuse_dentry_delete(const struct dentry *dentry)
+{
+	struct fuse_inode *fi;
+
+	if (d_really_is_negative(dentry))
+		return 0;
+
+	fi = get_fuse_inode(d_inode(dentry));
+	if (test_bit(FUSE_I_ATTR_FORCE_SYNC, &fi->state))
+		return 1;
+
+	return 0;
+}
+
 const struct dentry_operations fuse_dentry_operations = {
 	.d_revalidate	= fuse_dentry_revalidate,
+	.d_delete	= fuse_dentry_delete,
 	.d_init		= fuse_dentry_init,
 	.d_release	= fuse_dentry_release,
 	.d_canonical_path = fuse_dentry_canonical_path,
@@ -401,11 +417,12 @@ static struct dentry *fuse_lookup(struct inode *dir, struct dentry *entry,
 	struct inode *inode;
 	struct dentry *newent;
 	bool outarg_valid = true;
+	bool locked;
 
-	fuse_lock_inode(dir);
+	locked = fuse_lock_inode(dir);
 	err = fuse_lookup_name(dir->i_sb, get_node_id(dir), &entry->d_name,
 			       &outarg, &inode);
-	fuse_unlock_inode(dir);
+	fuse_unlock_inode(dir, locked);
 	if (err == -ENOENT) {
 		outarg_valid = false;
 		err = 0;
@@ -975,7 +992,8 @@ static int fuse_update_get_attr(struct inode *inode, struct file *file,
 	struct fuse_inode *fi = get_fuse_inode(inode);
 	int err = 0;
 
-	if (time_before64(fi->i_time, get_jiffies_64())) {
+	if (time_before64(fi->i_time, get_jiffies_64()) ||
+			test_bit(FUSE_I_ATTR_FORCE_SYNC, &fi->state)) {
 		forget_all_cached_acls(inode);
 		err = fuse_do_getattr(inode, stat, file);
 	} else if (stat) {
@@ -1155,7 +1173,8 @@ static int fuse_permission(struct inode *inode, int mask)
 	    ((mask & MAY_EXEC) && S_ISREG(inode->i_mode))) {
 		struct fuse_inode *fi = get_fuse_inode(inode);
 
-		if (time_before64(fi->i_time, get_jiffies_64())) {
+		if (time_before64(fi->i_time, get_jiffies_64()) ||
+		    test_bit(FUSE_I_ATTR_FORCE_SYNC, &fi->state)) {
 			refreshed = true;
 
 			err = fuse_perm_getattr(inode, mask);
@@ -1378,6 +1397,7 @@ static int fuse_readdir(struct file *file, struct dir_context *ctx)
 	struct fuse_conn *fc = get_fuse_conn(inode);
 	struct fuse_req *req;
 	u64 attr_version = 0;
+	bool locked;
 
 	if (is_bad_inode(inode))
 		return -EIO;
@@ -1405,9 +1425,9 @@ static int fuse_readdir(struct file *file, struct dir_context *ctx)
 		fuse_read_fill(req, file, ctx->pos, PAGE_SIZE,
 			       FUSE_READDIR);
 	}
-	fuse_lock_inode(inode);
+	locked = fuse_lock_inode(inode);
 	fuse_request_send(fc, req);
-	fuse_unlock_inode(inode);
+	fuse_unlock_inode(inode, locked);
 	nbytes = req->out.args[0].size;
 	err = req->out.h.error;
 	fuse_put_request(fc, req);
@@ -1468,7 +1488,7 @@ static int fuse_dir_open(struct inode *inode, struct file *file)
 
 static int fuse_dir_release(struct inode *inode, struct file *file)
 {
-	fuse_release_common(file, FUSE_RELEASEDIR);
+	fuse_release_common(file, true);
 
 	return 0;
 }

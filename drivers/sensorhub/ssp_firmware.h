@@ -13,6 +13,7 @@
  *
  */
 
+#include <linux/device.h>
 struct ssp_data;
 
 int download_sensorhub_firmware(struct ssp_data *data, struct device* dev, void * addr);

@@ -1,6 +1,6 @@
 /*****************************************************************************
  *
- * Copyright (c) 2012 - 2019 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2020 Samsung Electronics Co., Ltd. All rights reserved
  *
  *****************************************************************************/
 
@@ -8,10 +8,6 @@
 #include "debug.h"
 #include "dev.h"
 #include "hip4_sampler.h"
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
-#include "porting_imx.h"
-#endif
 
 /* Queues hierarchy and control domains
  *
@@ -39,35 +35,35 @@
  *       vi  vo  bk  be   vi  vo  bk  be          vi  vo  bk  be
  */
 
-uint scsc_wifi_fcq_smod = 400;
+static uint scsc_wifi_fcq_smod = 512;
 module_param(scsc_wifi_fcq_smod, uint, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(scsc_wifi_fcq_smod, "Initial value of unicast smod - peer normal (default = 400)");
+MODULE_PARM_DESC(scsc_wifi_fcq_smod, "Initial value of unicast smod - peer normal (default = 500)");
 
-uint scsc_wifi_fcq_mcast_smod = 100;
+static uint scsc_wifi_fcq_mcast_smod = 100;
 module_param(scsc_wifi_fcq_mcast_smod, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(scsc_wifi_fcq_mcast_smod, "Initial value of multicast smod - peer normal (default = 100)");
 
-uint scsc_wifi_fcq_smod_power = 4;
+static uint scsc_wifi_fcq_smod_power = 4;
 module_param(scsc_wifi_fcq_smod_power, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(scsc_wifi_fcq_smod_power, "Initial powersave SMOD value - peer powersave (default = 4)");
 
-uint scsc_wifi_fcq_mcast_smod_power = 4;
+static uint scsc_wifi_fcq_mcast_smod_power = 4;
 module_param(scsc_wifi_fcq_mcast_smod_power, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(scsc_wifi_fcq_mcast_smod_power, "Initial value of powersave multicast smod - peer normal (default = 4)");
 
-uint scsc_wifi_fcq_qmod = 400;
+static uint scsc_wifi_fcq_qmod = 512;
 module_param(scsc_wifi_fcq_qmod, uint, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(scsc_wifi_fcq_qmod, "Initial value of unicast qmod - peer normal (default = 400)");
+MODULE_PARM_DESC(scsc_wifi_fcq_qmod, "Initial value of unicast qmod - peer normal (default = 500)");
 
-uint scsc_wifi_fcq_mcast_qmod = 100;
+static uint scsc_wifi_fcq_mcast_qmod = 100;
 module_param(scsc_wifi_fcq_mcast_qmod, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(scsc_wifi_fcq_mcast_qmod, "Initial value of multicast qmod - peer normal (default = 100)");
 
-uint scsc_wifi_fcq_minimum_smod = 50;
+static uint scsc_wifi_fcq_minimum_smod = 50;
 module_param(scsc_wifi_fcq_minimum_smod, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(scsc_wifi_fcq_minimum_smod, "Initial value of minimum smod - peer normal (default = 50)");
 
-uint scsc_wifi_fcq_distribution_delay_ms;
+static uint scsc_wifi_fcq_distribution_delay_ms;
 module_param(scsc_wifi_fcq_distribution_delay_ms, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(scsc_wifi_fcq_distribution_delay_ms, "Distribution time in ms (default = 0)");
 
@@ -115,7 +111,7 @@ static u32 ac_q_layout[8][4] = {
  * #define ENABLE_QCOD 1
  */
 #define ENABLE_QCOD 1
-#ifdef CONFIG_SCSC_DEBUG
+#if IS_ENABLED(CONFIG_SCSC_DEBUG)
 /* Global debug counters */
 #define DOMAINS		3
 #define DOMAIN_G	0
@@ -168,6 +164,50 @@ static inline bool is_in_pause(struct slsi_dev *sdev)
 	return atomic_read(&sdev->in_pause_state);
 }
 
+static inline void fcq_netq_start_stop_sample(struct scsc_wifi_fcq_q_header *queue, bool new_state)
+{
+	struct scsc_wifi_fcq_q_stat *queue_stat;
+	u32 delta_in_ms = 0;
+
+	if (WARN_ON(!queue))
+		return;
+
+	queue_stat = &queue->stats;
+
+	if (ktime_to_ms(queue_stat->last_sample_time) == 0)
+		queue_stat->last_sample_time = ktime_get();
+
+	/* make sure it's a transition of state */
+	if (queue_stat->netq_state == new_state)
+		return;
+
+	queue_stat->netq_state = new_state;
+
+	/* Action on state change
+	 * resume queue: update cumulative time for Net queue Stop
+	 * stop queue: start sampling Stop time
+	 */
+	if (new_state)
+		queue_stat->netq_stop_time_in_ms += ktime_to_ms(ktime_sub(ktime_get(), queue_stat->last_stop_time));
+	else
+		queue_stat->last_stop_time = ktime_get();
+
+	/* check time elapsed; if it is more than 1 second since last sample, calculate %ge */
+	if (ktime_to_ms(ktime_sub(ktime_get(), queue_stat->last_sample_time)) > 1000) {
+		/* Compute the delta time (difference in seconds from the last update) -- should always be > 1s */
+		delta_in_ms = ktime_ms_delta(ktime_get(), queue_stat->last_sample_time);
+
+		/* if delta is more than 2 seconds, then it is a stale value from an old sample; ignore */
+		if (delta_in_ms < 2000)
+			queue_stat->netq_stop_percent = ((queue_stat->netq_stop_time_in_ms * 100) / delta_in_ms);
+		else
+			queue_stat->netq_stop_percent = 0;
+
+		queue_stat->netq_stop_time_in_ms = 0;
+		queue_stat->last_sample_time = ktime_get();
+	}
+}
+
 /* Should be called from locked context */
 static inline void fcq_stop_all_queues(struct slsi_dev *sdev)
 {
@@ -218,6 +258,52 @@ void scsc_wifi_fcq_unpause_queues(struct slsi_dev *sdev)
 	atomic_set(&sdev->in_pause_state, 0);
 	fcq_wake_all_queues(sdev);
 }
+
+#ifdef CONFIG_SCSC_WLAN_ARP_FLOW_CONTROL
+static inline void fcq_stop_arp_q_all_vif(struct slsi_dev *sdev)
+{
+	struct peers_cache *pc_node, *next;
+
+	spin_lock_bh(&peers_cache_lock);
+	list_for_each_entry_safe(pc_node, next, &peers_cache_list, list) {
+		netif_stop_subqueue(pc_node->dev, SLSI_NETIF_Q_ARP);
+		SLSI_INFO(sdev, "ARP_q stop for %s\n", pc_node->dev->name);
+	}
+	spin_unlock_bh(&peers_cache_lock);
+}
+
+static inline void fcq_wake_arp_q_all_vif(struct slsi_dev *sdev)
+{
+	struct peers_cache *pc_node, *next;
+
+	spin_lock_bh(&peers_cache_lock);
+	list_for_each_entry_safe(pc_node, next, &peers_cache_list, list) {
+		netif_wake_subqueue(pc_node->dev, SLSI_NETIF_Q_ARP);
+		SLSI_INFO(sdev, "ARP_q wake for %s\n", pc_node->dev->name);
+	}
+	spin_unlock_bh(&peers_cache_lock);
+}
+
+void scsc_wifi_pause_arp_q_all_vif(struct slsi_dev *sdev)
+{
+	if (!sdev)
+		return;
+
+	SLSI_DBG1_NODEV(SLSI_WIFI_FCQ, "Pause ARP queues\n");
+	atomic_set(&sdev->ctrl_pause_state, 1);
+	fcq_stop_arp_q_all_vif(sdev);
+}
+
+void scsc_wifi_unpause_arp_q_all_vif(struct slsi_dev *sdev)
+{
+	if (!sdev)
+		return;
+
+	SLSI_DBG1_NODEV(SLSI_WIFI_FCQ, "Unpause ARP queues\n");
+	atomic_set(&sdev->ctrl_pause_state, 0);
+	fcq_wake_arp_q_all_vif(sdev);
+}
+#endif
 
 #ifdef ENABLE_QCOD
 /* Detects AC queues that have stopped and redistributes the qmod
@@ -386,7 +472,7 @@ static int fcq_transmit_gmod_domain(struct net_device *dev, struct scsc_wifi_fcq
 
 	/* Check first the global domain */
 	if (sdev->hip4_inst.hip_priv->saturated) {
-#ifdef CONFIG_SCSC_DEBUG
+#if IS_ENABLED(CONFIG_SCSC_DEBUG)
 		SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "xxxxxxxxxxxxxxxxxxxxxxx Global domain. No space. active: %d vif: %d peer: %d ac: %d gcod (%d) gmod (%d) betx:%d berx:%d vitx:%d virx:%d votx:%d vorx:%d\n",
 				atomic_read(&sdev->hip4_inst.hip_priv->gactive), vif, peer_index, priority, atomic_read(&sdev->hip4_inst.hip_priv->gcod), atomic_read(&sdev->hip4_inst.hip_priv->gmod),
 				td[DIREC_TX][DOMAIN_G][0], td[DIREC_RX][DOMAIN_G][0], td[DIREC_TX][DOMAIN_G][2], td[DIREC_RX][DOMAIN_G][2], td[DIREC_TX][DOMAIN_G][3], td[DIREC_RX][DOMAIN_G][3]);
@@ -397,7 +483,7 @@ static int fcq_transmit_gmod_domain(struct net_device *dev, struct scsc_wifi_fcq
 	}
 
 	if (!atomic_read(&sdev->hip4_inst.hip_priv->gactive) && sdev->hip4_inst.hip_priv->guard-- == 0) {
-#ifdef CONFIG_SCSC_DEBUG
+#if IS_ENABLED(CONFIG_SCSC_DEBUG)
 		SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "xxxxxxxxxxxxxxxxxxxxxxx Global domain. Saturating Gmod. active: %d vif: %d peer: %d ac: %d gcod (%d) gmod (%d) betx:%d berx:%d vitx:%d virx:%d votx:%d vorx:%d\n",
 				atomic_read(&sdev->hip4_inst.hip_priv->gactive), vif, peer_index, priority, atomic_read(&sdev->hip4_inst.hip_priv->gcod), atomic_read(&sdev->hip4_inst.hip_priv->gmod),
 				td[DIREC_TX][DOMAIN_G][0], td[DIREC_RX][DOMAIN_G][0], td[DIREC_TX][DOMAIN_G][2], td[DIREC_RX][DOMAIN_G][2], td[DIREC_TX][DOMAIN_G][3], td[DIREC_RX][DOMAIN_G][3]);
@@ -407,7 +493,7 @@ static int fcq_transmit_gmod_domain(struct net_device *dev, struct scsc_wifi_fcq
 
 	gmod = atomic_read(&sdev->hip4_inst.hip_priv->gmod);
 	gcod = atomic_inc_return(&sdev->hip4_inst.hip_priv->gcod);
-#ifdef CONFIG_SCSC_DEBUG
+#if IS_ENABLED(CONFIG_SCSC_DEBUG)
 	fcq_update_counters(DIREC_TX, DOMAIN_G, priority);
 	SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "tx: active: %d vif: %d peer: %d ac: %d gcod (%d) gmod (%d) betx:%d berx:%d vitx:%d virx:%d votx:%d vorx:%d\n",
 			atomic_read(&sdev->hip4_inst.hip_priv->gactive), vif, peer_index, priority, gcod, gmod,
@@ -422,7 +508,7 @@ static int fcq_transmit_gmod_domain(struct net_device *dev, struct scsc_wifi_fcq
 				sdev->hip4_inst.hip_priv->saturated = true;
 		}
 		atomic_set(&sdev->hip4_inst.hip_priv->gactive, 0);
-		SCSC_HIP4_SAMPLER_BOT_STOP_Q(sdev->minor_prof, peer_index << 2 | vif);
+		SCSC_HIP4_SAMPLER_BOT_STOP_Q(sdev->minor_prof, vif, peer_index);
 		SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "Global Queues Stopped. gcod (%d) >= gmod (%d) gactive(%d)\n", gcod, gmod, atomic_read(&sdev->hip4_inst.hip_priv->gactive));
 	}
 	spin_unlock(&sdev->hip4_inst.hip_priv->gbot_lock);
@@ -453,7 +539,7 @@ static int fcq_transmit_smod_domain(struct net_device *dev, struct scsc_wifi_fcq
 	if (qs->saturated) {
 		int i;
 
-#ifdef CONFIG_SCSC_DEBUG
+#if IS_ENABLED(CONFIG_SCSC_DEBUG)
 		SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "xxxxxxxxxxxxxxxxxxxxxxx Smod domain. No space. active %d vif: %d peer: %d ac: %d scod (%d) smod (%d) betx:%d berx:%d vitx:%d virx:%d votx:%d vorx:%d\n",
 				atomic_read(&qs->active), vif, peer_index, priority, atomic_read(&qs->scod), atomic_read(&qs->smod),
 				td[DIREC_TX][DOMAIN_S][0], td[DIREC_RX][DOMAIN_S][0], td[DIREC_TX][DOMAIN_S][2], td[DIREC_RX][DOMAIN_S][2], td[DIREC_TX][DOMAIN_S][3], td[DIREC_RX][DOMAIN_S][3]);
@@ -467,7 +553,7 @@ static int fcq_transmit_smod_domain(struct net_device *dev, struct scsc_wifi_fcq
 	}
 	/* Pass the frame until reaching the actual saturation */
 	if (!atomic_read(&qs->active) && (qs->guard-- == 0)) {
-#ifdef CONFIG_SCSC_DEBUG
+#if IS_ENABLED(CONFIG_SCSC_DEBUG)
 		SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "xxxxxxxxxxxxxxxxxxxxxxx Smod domain. Going into Saturation. active %d vif: %d peer: %d ac: %d scod (%d) smod (%d) betx:%d berx:%d vitx:%d virx:%d votx:%d vorx:%d\n",
 				atomic_read(&qs->active), vif, peer_index, priority, atomic_read(&qs->scod), atomic_read(&qs->smod),
 				td[DIREC_TX][DOMAIN_S][0], td[DIREC_RX][DOMAIN_S][0], td[DIREC_TX][DOMAIN_S][2], td[DIREC_RX][DOMAIN_S][2], td[DIREC_TX][DOMAIN_S][3], td[DIREC_RX][DOMAIN_S][3]);
@@ -475,8 +561,8 @@ static int fcq_transmit_smod_domain(struct net_device *dev, struct scsc_wifi_fcq
 		qs->saturated = true;
 	}
 	scod = atomic_inc_return(&qs->scod);
-	SCSC_HIP4_SAMPLER_BOT_TX(sdev->minor_prof, scod, atomic_read(&qs->smod), priority << 6 | (peer_index & 0xf) << 2 | vif);
-#ifdef CONFIG_SCSC_DEBUG
+	SCSC_HIP4_SAMPLER_BOT_TX(sdev->minor_prof, vif, peer_index, priority, (atomic_read(&qs->smod) << 16) | (scod & 0xFFFF));
+#if IS_ENABLED(CONFIG_SCSC_DEBUG)
 	fcq_update_counters(DIREC_TX, DOMAIN_S, priority);
 	SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "tx: active: %d vif: %d peer: %d ac: %d scod (%d) smod (%d) betx:%d berx:%d vitx:%d virx:%d votx:%d vorx:%d\n",
 			atomic_read(&qs->active), vif, peer_index, priority, atomic_read(&qs->scod), atomic_read(&qs->smod),
@@ -502,7 +588,7 @@ static int fcq_transmit_smod_domain(struct net_device *dev, struct scsc_wifi_fcq
 		}
 		atomic_set(&qs->active, 0);
 		qs->stats.netq_stops++;
-		SCSC_HIP4_SAMPLER_BOT_STOP_Q(sdev->minor_prof, peer_index << 2 | vif);
+		SCSC_HIP4_SAMPLER_BOT_STOP_Q(sdev->minor_prof, vif, peer_index);
 		SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "Smod Queues Stopped vif: %d peer: %d. scod (%d) >= smod (%d)\n", vif, peer_index, atomic_read(&qs->scod), atomic_read(&qs->smod));
 	}
 	return 0;
@@ -538,8 +624,8 @@ static int fcq_transmit_qmod_domain(struct net_device *dev, struct scsc_wifi_fcq
 	}
 
 	qcod = atomic_inc_return(&queue->qcod);
-	SCSC_HIP4_SAMPLER_BOT_QMOD_TX(sdev->minor_prof, qcod, atomic_read(&queue->qmod), priority << 6 | (peer_index & 0xf) << 2 | vif);
-#ifdef CONFIG_SCSC_DEBUG
+	SCSC_HIP4_SAMPLER_BOT_QMOD_TX(sdev->minor_prof, vif, peer_index, priority, (atomic_read(&queue->qmod) << 16) | (qcod & 0xFFFF));
+#if IS_ENABLED(CONFIG_SCSC_DEBUG)
 	fcq_update_counters(DIREC_TX, DOMAIN_Q, priority);
 	SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "tx: active: %d vif: %d peer: %d ac: %d qcod (%d) qmod (%d) betx:%d berx:%d vitx:%d virx:%d votx:%d vorx:%d\n",
 			atomic_read(&queue->active), vif, peer_index, priority, atomic_read(&queue->qcod), atomic_read(&queue->qmod),
@@ -555,7 +641,7 @@ static int fcq_transmit_qmod_domain(struct net_device *dev, struct scsc_wifi_fcq
 #endif
 		if (fcq_redistribute_qmod_before_stopping(qs))
 			goto skip_stop;
-		SCSC_HIP4_SAMPLER_BOT_QMOD_STOP(sdev->minor_prof, priority << 6 | (peer_index & 0xf) << 2 | vif);
+		SCSC_HIP4_SAMPLER_BOT_QMOD_STOP(sdev->minor_prof, vif, peer_index, priority);
 		SLSI_DBG1_NODEV(SLSI_WIFI_FCQ, "Stop subqueue vif: %d peer: %d ac: %d qcod (%d) qmod (%d)\n", vif, peer_index, priority, atomic_read(&queue->qcod), atomic_read(&queue->qmod));
 		if (atomic_read(&queue->active)) {
 			queue->guard = STOP_GUARD_QMOD;
@@ -566,6 +652,7 @@ static int fcq_transmit_qmod_domain(struct net_device *dev, struct scsc_wifi_fcq
 		atomic_set(&queue->active, 0);
 		netif_stop_subqueue(dev, queue->netif_queue_id);
 		queue->stats.netq_stops++;
+		fcq_netq_start_stop_sample(queue, 0);
 	}
 skip_stop:
 	return 0;
@@ -677,7 +764,7 @@ static int fcq_receive_gmod_domain(struct net_device *dev, struct scsc_wifi_fcq_
 		SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "xxxxxxxxxxxxxxxxxxxxxxx scsc_wifi_fcq_receive: gcod is negative. Has been fixed\n");
 	}
 
-#ifdef CONFIG_SCSC_DEBUG
+#if IS_ENABLED(CONFIG_SCSC_DEBUG)
 	fcq_update_counters(DIREC_RX, DOMAIN_G, priority);
 	SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "rx: active: %d vif: %d peer: %d ac: %d gcod (%d) gmod (%d) betx:%d berx:%d vitx:%d virx:%d votx:%d vorx:%d %s\n",
 			gactive, vif, peer_index, priority, gcod, gmod,
@@ -705,14 +792,13 @@ static int fcq_receive_smod_domain(struct net_device *dev, struct scsc_wifi_fcq_
 		SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "xxxxxxxxxxxxxxxxxxxxxxx scsc_wifi_fcq_receive: scod is negative. Has been fixed\n");
 	}
 
-#ifdef CONFIG_SCSC_DEBUG
+#if IS_ENABLED(CONFIG_SCSC_DEBUG)
 	fcq_update_counters(DIREC_RX, DOMAIN_S, priority);
 	SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "rx: active: %d vif: %d peer: %d ac: %d scod (%d) smod (%d) betx:%d berx:%d vitx:%d virx:%d votx:%d vorx:%d\n",
 			atomic_read(&qs->active), vif, peer_index, priority, atomic_read(&qs->scod), atomic_read(&qs->smod),
 			td[DIREC_TX][DOMAIN_S][0], td[DIREC_RX][DOMAIN_S][0], td[DIREC_TX][DOMAIN_S][2], td[DIREC_RX][DOMAIN_S][2], td[DIREC_TX][DOMAIN_S][3], td[DIREC_RX][DOMAIN_S][3]);
 #endif
-	/* Only support a maximum of 16 peers!!!!!!*/
-	SCSC_HIP4_SAMPLER_BOT_RX(sdev->minor_prof, scod, atomic_read(&qs->smod), priority << 6 | (peer_index & 0xf) << 2 | vif);
+	SCSC_HIP4_SAMPLER_BOT_RX(sdev->minor_prof, vif, peer_index, priority, (atomic_read(&qs->smod) << 16) | (scod & 0xFFFF));
 	if (!is_smod_active(qs) && (scod + SCSC_WIFI_FCQ_SMOD_RESUME_HYSTERESIS / total < atomic_read(&qs->smod))) {
 		int i;
 		/* Resume all queues for this peer that were active . Do not wake queues in pause state or closed in upper domains */
@@ -723,7 +809,7 @@ static int fcq_receive_smod_domain(struct net_device *dev, struct scsc_wifi_fcq_
 				SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "smod wake vif %d peer_index %d ac %d not woken up!\n", vif, peer_index, i);
 		}
 
-		SCSC_HIP4_SAMPLER_BOT_START_Q(sdev->minor_prof, peer_index << 2 | vif);
+		SCSC_HIP4_SAMPLER_BOT_START_Q(sdev->minor_prof, vif, peer_index);
 		SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "Smod Queues Started vif: %d peer: %d. scod (%d) >= smod (%d)\n", vif, peer_index, atomic_read(&qs->scod), atomic_read(&qs->smod));
 		/* Regardless the queue were not woken up, set the qs as active */
 		qs->saturated = false;
@@ -758,25 +844,26 @@ static int fcq_receive_qmod_domain(struct net_device *dev, struct scsc_wifi_fcq_
 		SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "xxxxxxxxxxxxxxxxxxxxxxx fcq_receive_qmod_domain: qcod is negative. Has been fixed\n");
 	}
 
-#ifdef CONFIG_SCSC_DEBUG
+#if IS_ENABLED(CONFIG_SCSC_DEBUG)
 	fcq_update_counters(DIREC_RX, DOMAIN_Q, priority);
 	SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "rx: active: %d vif: %d peer: %d ac: %d qcod (%d) qmod (%d) betx:%d berx:%d vitx:%d virx:%d votx:%d vorx:%d\n",
 			atomic_read(&queue->active), vif, peer_index, priority, atomic_read(&queue->qcod), atomic_read(&queue->qmod),
 			td[DIREC_TX][DOMAIN_Q][0], td[DIREC_RX][DOMAIN_Q][0], td[DIREC_TX][DOMAIN_Q][2], td[DIREC_RX][DOMAIN_Q][2], td[DIREC_TX][DOMAIN_Q][3], td[DIREC_RX][DOMAIN_Q][3]);
 #endif
-	SCSC_HIP4_SAMPLER_BOT_QMOD_RX(sdev->minor_prof, qcod, atomic_read(&queue->qmod), priority << 6 | (peer_index & 0xf) << 2 | vif);
+	SCSC_HIP4_SAMPLER_BOT_QMOD_RX(sdev->minor_prof, vif, peer_index, priority, (atomic_read(&queue->qmod) << 16) | (qcod & 0xFFFF));
 
 	if (!is_qmod_active(&qs->ac_q[priority]) && ((qcod + SCSC_WIFI_FCQ_QMOD_RESUME_HYSTERESIS / total) < atomic_read(&queue->qmod))) {
 		/* Do not wake queues in pause state or closed by other domain */
 		if (is_gmod_active(sdev) && is_smod_active(qs) && !is_in_pause(sdev))
 			netif_wake_subqueue(dev, queue->netif_queue_id);
 		/* Only support a maximum of 16 peers!!!!!!*/
-		SCSC_HIP4_SAMPLER_BOT_QMOD_START(sdev->minor_prof, priority << 6 | (peer_index & 0xf) << 2 | vif);
+		SCSC_HIP4_SAMPLER_BOT_QMOD_START(sdev->minor_prof, vif, peer_index, priority);
 		SLSI_DBG1_NODEV(SLSI_WIFI_FCQ, "Start subqueue vif: %d peer: %d ac: %d qcod (%d) qmod (%d)\n", vif, peer_index, priority, atomic_read(&queue->qcod), atomic_read(&queue->qmod));
 		queue->stats.netq_resumes++;
 		/* Regardless the queue was not woken up, set the queue as active */
 		queue->saturated = false;
 		atomic_set(&queue->active, 1);
+		fcq_netq_start_stop_sample(queue, 1);
 	}
 
 	/* Ignore priority BE as it it always active */
@@ -809,7 +896,7 @@ int scsc_wifi_fcq_receive_ctrl(struct net_device *dev, struct scsc_wifi_fcq_ctrl
 int scsc_wifi_fcq_receive_data_no_peer(struct net_device *dev, u16 priority, struct slsi_dev *sdev, u8 vif, u8 peer_index)
 {
 	fcq_receive_gmod_domain(dev, NULL, sdev, priority, peer_index, vif);
-#ifdef CONFIG_SCSC_DEBUG
+#if IS_ENABLED(CONFIG_SCSC_DEBUG)
 	/* Update also S and Q domain */
 	fcq_update_counters(DIREC_RX, DOMAIN_S, priority);
 	fcq_update_counters(DIREC_RX, DOMAIN_Q, priority);
@@ -895,6 +982,14 @@ int scsc_wifi_fcq_stat_queue(struct scsc_wifi_fcq_q_header *queue,
 {
 	if (WARN_ON(!queue) || WARN_ON(!queue_stat) || WARN_ON(!qmod) || WARN_ON(!qmod))
 		return -EINTR;
+
+	/* check if the value Net q stop %ge is stale
+	 *
+	 * As we don't have a timer to monitor the %ge, a stale value can remain
+	 * a long time due to lack of transition in Net q start/stop
+	 */
+	if(ktime_to_ms(ktime_sub(ktime_get(), queue->stats.last_sample_time)) > 2000)
+		queue->stats.netq_stop_percent = 0;
 
 	memcpy(queue_stat, &queue->stats, sizeof(struct scsc_wifi_fcq_q_stat));
 	*qmod = atomic_read(&queue->qmod);
@@ -982,6 +1077,9 @@ static int fcq_data_q_init(struct net_device *dev, struct slsi_dev *sdev, enum s
 
 	queue->head.saturated = false;
 	atomic_set(&queue->head.active, 1);
+	queue->head.stats.netq_state = 1;
+	queue->head.stats.netq_stop_time_in_ms = 0;
+	queue->head.stats.netq_stop_percent = 0;
 
 	return 0;
 }
@@ -1043,8 +1141,11 @@ int scsc_wifi_fcq_unicast_qset_init(struct net_device *dev, struct scsc_wifi_fcq
 
 	SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "Init unicast queue set 0x%p vif %d peer_index %d\n", qs, vif, peer->aid);
 	fcq_qset_init(dev, sdev, SCSC_WIFI_FCQ_QUEUE_SET_TYPE_UNICAST, qs, qs_num);
-	SCSC_HIP4_SAMPLER_BOT_ADD(sdev->minor_prof, peer->address[4], peer->address[5], peer->aid << 2 | vif);
-	SCSC_HIP4_SAMPLER_BOT_TX(sdev->minor_prof, atomic_read(&qs->scod), atomic_read(&qs->smod), peer->aid << 2 | vif);
+	SCSC_HIP4_SAMPLER_BOT_ADD(	sdev->minor_prof,
+								vif,
+								peer->aid,
+								(peer->address[3] << 24) | (peer->address[2] << 16) | (peer->address[1] << 8) | (peer->address[0]));
+	SCSC_HIP4_SAMPLER_BOT_TX(sdev->minor_prof, vif, peer->aid, 0, (atomic_read(&qs->smod) << 16) | (atomic_read(&qs->scod) & 0xFFFF));
 	/* Cache the added peer to optimize the Global start/stop process */
 	pc_new_node = kzalloc(sizeof(*pc_new_node), GFP_ATOMIC);
 	if (!pc_new_node)
@@ -1091,8 +1192,8 @@ int scsc_wifi_fcq_multicast_qset_init(struct net_device *dev, struct scsc_wifi_f
 
 	SLSI_DBG4_NODEV(SLSI_WIFI_FCQ, "Init multicast queue set 0x%p\n", qs);
 	fcq_qset_init(dev, sdev, SCSC_WIFI_FCQ_QUEUE_SET_TYPE_MULTICAST, qs, 0);
-	SCSC_HIP4_SAMPLER_BOT_ADD(sdev->minor_prof, 0, 0, vif);
-	SCSC_HIP4_SAMPLER_BOT_TX(sdev->minor_prof, atomic_read(&qs->scod), atomic_read(&qs->smod), vif);
+	SCSC_HIP4_SAMPLER_BOT_ADD(sdev->minor_prof, vif, 0, 0);
+	SCSC_HIP4_SAMPLER_BOT_TX(sdev->minor_prof, vif, 0, 0, (atomic_read(&qs->smod) << 16) | (atomic_read(&qs->scod) & 0xFFFF));
 
 	/* Cache the added peer to optimize the Global start/stop process */
 	pc_node = kzalloc(sizeof(*pc_node), GFP_ATOMIC);
@@ -1120,14 +1221,9 @@ void scsc_wifi_fcq_qset_deinit(struct net_device *dev, struct scsc_wifi_fcq_data
 	int i, scod;
 #ifdef CONFIG_SCSC_WLAN_HIP4_PROFILING
 	int aid = 0;
-	u8 addr_4 = 0;
-	u8 addr_5 = 0;
 
-	if (peer) {
+	if (peer)
 		aid = peer->aid;
-		addr_4 = peer->address[4];
-		addr_5 = peer->address[5];
-	}
 #endif
 
 	WARN_ON(!qs);
@@ -1148,8 +1244,8 @@ void scsc_wifi_fcq_qset_deinit(struct net_device *dev, struct scsc_wifi_fcq_data
 	if (qs->in_sleep && total_in_sleep)
 		total_in_sleep -= 1;
 #endif
-	SCSC_HIP4_SAMPLER_BOT_RX(sdev->minor_prof, 0, 0, (aid & 0xf) << 2 | vif);
-	SCSC_HIP4_SAMPLER_BOT_REMOVE(sdev->minor_prof, addr_4, addr_5, aid << 2 | vif);
+	SCSC_HIP4_SAMPLER_BOT_RX(sdev->minor_prof, vif, aid, 0, 0);
+	SCSC_HIP4_SAMPLER_BOT_REMOVE(sdev->minor_prof, vif, aid);
 
 	if (peer)
 		SLSI_DBG1_NODEV(SLSI_WIFI_FCQ, "Delete qs %p vif %d peer->aid %d\n", qs, vif, peer->aid);

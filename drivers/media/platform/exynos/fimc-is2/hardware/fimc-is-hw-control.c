@@ -190,7 +190,7 @@ static void prepare_sfr_dump(struct fimc_is_hardware *hardware)
 		if (IS_ERR_OR_NULL(hw_ip->sfr_dump))
 			serr_hw("sfr dump memory alloc fail", hw_ip);
 		else
-			sinfo_hw("sfr dump memory (V/P/S):(%p/%p/0x%X)[0x%llX~0x%llX]\n", hw_ip,
+			sinfo_hw("sfr dump memory (V/P/S):(%lx/%lx/0x%X)[0x%llX~0x%llX]\n", hw_ip,
 				hw_ip->sfr_dump, (void *)virt_to_phys(hw_ip->sfr_dump),
 				reg_size, hw_ip->regs_start, hw_ip->regs_end);
 
@@ -205,7 +205,7 @@ static void prepare_sfr_dump(struct fimc_is_hardware *hardware)
 		if (IS_ERR_OR_NULL(hw_ip->sfr_b_dump))
 			serr_hw("sfr B dump memory alloc fail", hw_ip);
 		else
-			sinfo_hw("sfr B dump memory (V/P/S):(%p/%p/0x%X)[0x%llX~0x%llX]\n", hw_ip,
+			sinfo_hw("sfr B dump memory (V/P/S):(%lx/%lx/0x%X)[0x%llX~0x%llX]\n", hw_ip,
 				hw_ip->sfr_b_dump, (void *)virt_to_phys(hw_ip->sfr_b_dump),
 				reg_size, hw_ip->regs_b_start, hw_ip->regs_b_end);
 	}
@@ -230,7 +230,7 @@ static void _fimc_is_hardware_sfr_dump(struct fimc_is_hw_ip *hw_ip, bool flag_pr
 	if (hw_ip->sfr_dump_flag) {
 		sinfo_hw("sfr_dump was already dumped", hw_ip);
 
-		sinfo_hw("##### SFR DUMP(V/P/S):(%p/%p/0x%X)[0x%llX~0x%llX]\n", hw_ip,
+		sinfo_hw("##### SFR DUMP(V/P/S):(%lx/%lx/0x%X)[0x%llX~0x%llX]\n", hw_ip,
 				hw_ip->sfr_dump, (void *)virt_to_phys(hw_ip->sfr_dump),
 				reg_size, hw_ip->regs_start, hw_ip->regs_end);
 		if (flag_print_log)
@@ -238,7 +238,7 @@ static void _fimc_is_hardware_sfr_dump(struct fimc_is_hw_ip *hw_ip, bool flag_pr
 					hw_ip->sfr_dump, reg_size, false);
 
 		if (!IS_ERR_OR_NULL(hw_ip->sfr_b_dump)) {
-			sinfo_hw("##### SFR B DUMP(V/P/S):(%p/%p/0x%X)[0x%llX~0x%llX]\n", hw_ip,
+			sinfo_hw("##### SFR B DUMP(V/P/S):(%lx/%lx/0x%X)[0x%llX~0x%llX]\n", hw_ip,
 				hw_ip->sfr_b_dump, (void *)virt_to_phys(hw_ip->sfr_b_dump),
 				reg_b_size, hw_ip->regs_b_start, hw_ip->regs_b_end);
 			if (flag_print_log)
@@ -257,7 +257,7 @@ static void _fimc_is_hardware_sfr_dump(struct fimc_is_hw_ip *hw_ip, bool flag_pr
 	/* dump reg */
 	memcpy(hw_ip->sfr_dump, hw_ip->regs, reg_size);
 
-	sinfo_hw("##### SFR DUMP(V/P/S):(%p/%p/0x%X)[0x%llX~0x%llX]\n", hw_ip,
+	sinfo_hw("##### SFR DUMP(V/P/S):(%lx/%lx/0x%X)[0x%llX~0x%llX]\n", hw_ip,
 			hw_ip->sfr_dump, (void *)virt_to_phys(hw_ip->sfr_dump),
 			reg_size, hw_ip->regs_start, hw_ip->regs_end);
 #ifdef ENABLE_PANIC_SFR_PRINT
@@ -274,7 +274,7 @@ static void _fimc_is_hardware_sfr_dump(struct fimc_is_hw_ip *hw_ip, bool flag_pr
 	/* dump reg B */
 	memcpy(hw_ip->sfr_b_dump, hw_ip->regs_b, reg_b_size);
 
-	sinfo_hw("##### SFR B DUMP(V/P/S):(%p/%p/0x%X)[0x%llX~0x%llX]\n", hw_ip,
+	sinfo_hw("##### SFR B DUMP(V/P/S):(%lx/%lx/0x%X)[0x%llX~0x%llX]\n", hw_ip,
 			hw_ip->sfr_b_dump, (void *)virt_to_phys(hw_ip->sfr_b_dump),
 			reg_b_size, hw_ip->regs_b_start, hw_ip->regs_b_end);
 #ifdef ENABLE_PANIC_SFR_PRINT

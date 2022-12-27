@@ -17,4 +17,5 @@ obj-$(and $(CONFIG_SEC_GPIO_DVS),$(subst undefined,y,$(origin CONFIG_SAMSUNG_PRO
 
 obj-$(CONFIG_EXYNOS_DECON_LCD_S6E3FA7_VOGUE)	+= s6e3fa7_vogue_lcd_ctrl.o dynamic_aid.o
 obj-$(CONFIG_EXYNOS_DECON_LCD_EA8076_A50)	+= ea8076_a50_lcd_ctrl.o
+obj-$(and $(CONFIG_EXYNOS_DECON_LCD_EA8076_A50),$(CONFIG_SUPPORT_POC_FLASH)) += ea8076_a50_poc.o
 obj-$(CONFIG_EXYNOS_DECON_LCD_S6E3FC2_A80)	+= s6e3fc2_a80_lcd_ctrl.o

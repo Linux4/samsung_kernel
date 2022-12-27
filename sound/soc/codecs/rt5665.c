@@ -2124,7 +2124,8 @@ static void rt5665_jack_detect_handler(struct work_struct *work)
 					RT5665_EJD_CTRL_1, 0x180, 0x180);
 
 				rt5665_button_detect(rt5665->codec);
-			} else {
+			} else if ((rt5665->jack_type & SND_JACK_HEADSET) ==
+				SND_JACK_HEADSET) {
 				sar_adc_value = snd_soc_read(rt5665->codec,
 					RT5665_SAR_IL_CMD_4) & 0x7ff;
 				rt5665->adc_val = sar_adc_value;
@@ -2524,6 +2525,14 @@ static int rt5665_disable_ng2_put(struct snd_kcontrol *kcontrol,
 	struct rt5665_priv *rt5665 = snd_soc_codec_get_drvdata(codec);
 
 	rt5665->disable_ng2 = !!ucontrol->value.integer.value[0];
+
+	if (rt5665->disable_ng2) {
+		snd_soc_update_bits(codec, RT5665_STO_NG2_CTRL_1,
+			RT5665_NG2_EN_MASK, RT5665_NG2_DIS);
+		snd_soc_update_bits(codec, RT5665_MONO_NG2_CTRL_1,
+			RT5665_NG2_EN_MASK, RT5665_NG2_DIS);
+		rt5665_noise_gate(codec, false);
+	}
 
 	return 0;
 }

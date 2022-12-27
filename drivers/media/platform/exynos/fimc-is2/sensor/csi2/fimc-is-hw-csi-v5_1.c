@@ -60,7 +60,8 @@ int csi_set_ppc_mode(u32 width, u32 height, u32 frame_rate, u32 mipi_speed,
 	target_clk = clk_get_rate(target);
 	if (!target_clk) {
 		err("%s: clk value is zero: %s\n", __func__, conid);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err_get_rate;
 	}
 
 	if (pd_mode == PD_MOD1) {
@@ -83,6 +84,9 @@ int csi_set_ppc_mode(u32 width, u32 height, u32 frame_rate, u32 mipi_speed,
 	}
 
 skip_clk_check:
+err_get_rate:
+	clk_put(target);
+
 	return ret;
 }
 

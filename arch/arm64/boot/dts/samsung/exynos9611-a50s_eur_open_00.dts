@@ -2608,6 +2608,20 @@
 					net_boost,table_size = <0x1>;
 					net_boost,table = <0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x1 0x0>;
 				};
+
+				boot_device@4 {
+					net_boost,label = "WIFI TX";
+					net_boost,node = "wlan0";
+					net_boost,table_size = <0x2>;
+					net_boost,table = <0x64 0x143bb0 0x0 0x143bb0 0x0 0x0 0x0 0x0 0x0 0x0 0xc8 0x176830 0x0 0x176830 0x0 0x0 0x0 0x0 0x0 0x0>;
+				};
+
+				boot_device@5 {
+					net_boost,label = "WIFI RX";
+					net_boost,node = "wlan0";
+					net_boost,table_size = <0x2>;
+					net_boost,table = <0x64 0x143bb0 0x0 0x143bb0 0x0 0x0 0x0 0x0 0x0 0x0 0xc8 0x176830 0x0 0x176830 0x0 0x0 0x0 0x0 0x0 0x0>;
+				};
 			};
 
 			i2c@20 {
@@ -2831,12 +2845,6 @@
 				};
 			};
 		};
-	};
-
-	chosen {
-		bootargs = "console=ram skip_initramfs rootwait ro init=/init clk_ignore_unused bcm_setup=0xffffff80f8e00000 androidboot.hardware=exynos9611 androidboot.selinux=permissive androidboot.debug_level=0x4948 firmware_class.path=/vendor/firmware ecd_setup=disable reserve-fimc=0xffffff80f9fe0000 pmic_info=0x3";
-		linux,phandle = <0x5b>;
-		phandle = <0x5b>;
 	};
 
 	fragment@17 {
@@ -3208,6 +3216,8 @@
 		__overlay__ {
 			i2c-gpio,delay-us = <0x5>;
 			status = "okay";
+			samsung,glitch-filter;
+			samsung,fix-doxfer-return;
 			#address-cells = <0x1>;
 			#size-cells = <0x0>;
 			samsung,i2c-max-bus-freq = <0x61a80>;
@@ -3264,56 +3274,56 @@
 						regulator-name = "CAM_VLDO1";
 						regulator-min-microvolt = <0x10c8e0>;
 						regulator-max-microvolt = <0x10c8e0>;
-						linux,phandle = <0x5c>;
-						phandle = <0x5c>;
+						linux,phandle = <0x5b>;
+						phandle = <0x5b>;
 					};
 
 					s2mpb03-ldo2 {
 						regulator-name = "CAM_VLDO2";
 						regulator-min-microvolt = <0x100590>;
 						regulator-max-microvolt = <0x100590>;
-						linux,phandle = <0x5d>;
-						phandle = <0x5d>;
+						linux,phandle = <0x5c>;
+						phandle = <0x5c>;
 					};
 
 					s2mpb03-ldo3 {
 						regulator-name = "CAM_VLDO3";
 						regulator-min-microvolt = <0x1b7740>;
 						regulator-max-microvolt = <0x1b7740>;
-						linux,phandle = <0x5e>;
-						phandle = <0x5e>;
+						linux,phandle = <0x5d>;
+						phandle = <0x5d>;
 					};
 
 					s2mpb03-ldo4 {
 						regulator-name = "CAM_VLDO4";
 						regulator-min-microvolt = <0x124f80>;
 						regulator-max-microvolt = <0x124f80>;
-						linux,phandle = <0x5f>;
-						phandle = <0x5f>;
+						linux,phandle = <0x5e>;
+						phandle = <0x5e>;
 					};
 
 					s2mpb03-ldo5 {
 						regulator-name = "CAM_VLDO5";
 						regulator-min-microvolt = <0x2c4020>;
 						regulator-max-microvolt = <0x2c4020>;
-						linux,phandle = <0x60>;
-						phandle = <0x60>;
+						linux,phandle = <0x5f>;
+						phandle = <0x5f>;
 					};
 
 					s2mpb03-ldo6 {
 						regulator-name = "CAM_VLDO6";
 						regulator-min-microvolt = <0x2c4020>;
 						regulator-max-microvolt = <0x2c4020>;
-						linux,phandle = <0x61>;
-						phandle = <0x61>;
+						linux,phandle = <0x60>;
+						phandle = <0x60>;
 					};
 
 					s2mpb03-ldo7 {
 						regulator-name = "CAM_VLDO7";
 						regulator-min-microvolt = <0x2ab980>;
 						regulator-max-microvolt = <0x2ab980>;
-						linux,phandle = <0x62>;
-						phandle = <0x62>;
+						linux,phandle = <0x61>;
+						phandle = <0x61>;
 					};
 				};
 			};
@@ -4227,8 +4237,8 @@
 				samsung,pins = "gpa1-4";
 				samsung,pin-function = <0xf>;
 				samsung,pin-pud = <0x0>;
-				linux,phandle = <0x63>;
-				phandle = <0x63>;
+				linux,phandle = <0x62>;
+				phandle = <0x62>;
 			};
 
 			grip-int {
@@ -4310,7 +4320,6 @@
 		usb_hs_tune = "/fragment@model/__overlay__/usb_hs_tune";
 		usb3_ss_tune = "/fragment@model/__overlay__/usb3_ss_tune";
 		usb3_hs_tune = "/fragment@model/__overlay__/usb3_hs_tune";
-		chosen = "/chosen";
 		key_voldown = "/fragment@23/__overlay__/key-voldown";
 		key_volup = "/fragment@23/__overlay__/key-volup";
 		key_power = "/fragment@23/__overlay__/key-power";

@@ -15,10 +15,8 @@
 
 #include "ssp.h"
 
-#define SENSORHUB_DUMP_TYPE_DUMPED        0
-#define SENSORHUB_DUMP_TYPE_DUMPSTATE     1
-#define SENSORHUB_DUMP_TYPE_ITMON         2
+#define DUMP_TYPE_BASE		100
 
-void write_ssp_dump_file(struct ssp_data * data, char *dump, int dumpsize, int type);
+void write_ssp_dump_file(struct ssp_data * data, char *dump, int dumpsize, int type, int count);
 void initialize_ssp_dump(struct ssp_data *data);
 void remove_ssp_dump(struct ssp_data *data);

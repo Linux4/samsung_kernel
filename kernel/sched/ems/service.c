@@ -180,8 +180,13 @@ int select_service_cpu(struct task_struct *p)
 		goto out;
 	}
 
-	service_cpu = select_prefer_cpu(p, pp->coregroup_count, pp->prefer_cpus);
-	strcpy(state, "heavy task");
+	if (p->prio <= 110) {
+		service_cpu = select_prefer_cpu(p, 1, pp->prefer_cpus);
+		strcpy(state, "high-prio task");
+	} else {
+		service_cpu = select_prefer_cpu(p, pp->coregroup_count, pp->prefer_cpus);
+		strcpy(state, "heavy task");
+	}
 
 out:
 	trace_ems_prefer_perf_service(p, util, service_cpu, state);

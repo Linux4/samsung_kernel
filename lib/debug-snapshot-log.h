@@ -8,22 +8,9 @@
 #include <linux/debug-snapshot-binder.h>
 #endif
 
-#ifdef DSS_ANALYZER
-
-#define TASK_COMM_LEN 16
-#define NR_CPUS 8
-#undef CONFIG_DEBUG_SNAPSHOT_LINUX_BUILD
-#include <stdio.h>
-#include <stdlib.h>
-
-#else // DSS_ANALYZER
-
 #include <linux/clk-provider.h>
 #include <linux/debug-snapshot.h>
 #include <linux/debug-snapshot-helper.h>
-
-#endif // DSS_ANALYZER
-
 #include <dt-bindings/soc/samsung/debug-snapshot-table.h>
 
 /*  Size domain */

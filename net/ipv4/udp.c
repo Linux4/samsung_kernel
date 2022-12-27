@@ -1575,7 +1575,7 @@ busy_check:
 	*err = error;
 	return NULL;
 }
-EXPORT_SYMBOL_GPL(__skb_recv_udp);
+EXPORT_SYMBOL(__skb_recv_udp);
 
 /*
  * 	This should be easy, if there is something there we
@@ -2057,7 +2057,6 @@ static inline int udp4_csum_init(struct sk_buff *skb, struct udphdr *uh,
 	 */
 	err = (__force int)skb_checksum_init_zero_check(skb, proto, uh->check,
 							inet_compute_pseudo);
-
 	if (err)
 		return err;
 
@@ -2070,9 +2069,31 @@ static inline int udp4_csum_init(struct sk_buff *skb, struct udphdr *uh,
 		 * skb->csum is no longer the full packet checksum,
 		 * so don't treat it as such.
 		 */
-		 skb_checksum_complete_unset(skb);
+		skb_checksum_complete_unset(skb);
 	}
 
+	return 0;
+}
+
+/* wrapper for udp_queue_rcv_skb tacking care of csum conversion and
+ * return code conversion for ip layer consumption
+ */
+static int udp_unicast_rcv_skb(struct sock *sk, struct sk_buff *skb,
+			       struct udphdr *uh)
+{
+	int ret;
+
+	if (inet_get_convert_csum(sk) && uh->check && !IS_UDPLITE(sk))
+		skb_checksum_try_convert(skb, IPPROTO_UDP, uh->check,
+					 inet_compute_pseudo);
+
+	ret = udp_queue_rcv_skb(sk, skb);
+
+	/* a return value > 0 means to resubmit the input, but
+	 * it wants the return to be -protocol, or 0
+	 */
+	if (ret > 0)
+		return -ret;
 	return 0;
 }
 
@@ -2177,14 +2198,9 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 			}
 		}
 		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
-		ret = udp_queue_rcv_skb(sk, skb);
+		ret = udp_unicast_rcv_skb(sk, skb, uh);
 		sock_put(sk);
-		/* a return value > 0 means to resubmit the input, but
-		 * it wants the return to be -protocol, or 0
-		 */
-		if (ret > 0)
-			return -ret;
-		return 0;
+		return ret;
 	}
 
 	if (rt->rt_flags & (RTCF_BROADCAST|RTCF_MULTICAST))
@@ -2199,16 +2215,7 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 		struct nf_conntrack_tuple *tuple = NULL;
 		char srcaddr[INET6_ADDRSTRLEN_NAP];
 		char dstaddr[INET6_ADDRSTRLEN_NAP];
-		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
-		int ret;
 
-		if (inet_get_convert_csum(sk) && uh->check && !IS_UDPLITE(sk))
-			skb_checksum_try_convert(skb, IPPROTO_UDP, uh->check,
-						 inet_compute_pseudo);
-
-		ret = udp_queue_rcv_skb(sk, skb);
-
-		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 		/* function to handle open flows with incoming udp packets */
 		if (check_ncm_flag()) {
 			if ( (sk) && (sk->sk_protocol == IPPROTO_UDP) ) {
@@ -2256,12 +2263,7 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 			}
 		}
 		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
-		/* a return value > 0 means to resubmit the input, but
-		 * it wants the return to be -protocol, or 0
-		 */
-		if (ret > 0)
-			return -ret;
-		return 0;
+		return udp_unicast_rcv_skb(sk, skb, uh);
 	}
 
 	if (!xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb))

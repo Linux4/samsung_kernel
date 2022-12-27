@@ -28,8 +28,12 @@
 #include <linux/wait.h>
 #include <linux/kthread.h>
 #include <asm/io.h>
+#include <linux/version.h>
+#if(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#include <scsc/scsc_wakelock.h>
+#else
 #include <linux/wakelock.h>
-
+#endif
 #include <scsc/scsc_mx.h>
 #include <scsc/scsc_mifram.h>
 #include <scsc/api/bsmhcp.h>
@@ -652,7 +656,7 @@ void scsc_avdtp_detect_rxtx(u16 hci_connection_handle, const unsigned char *data
 				hci_connection_handle,
 				cid_to_fw,
 				bt_service.bsmhcp_protocol->header.avdtp_detect_stream_id);
-			mmiowb();
+			wmb();
 			scsc_service_mifintrbit_bit_set(bt_service.service,
 										bt_service.bsmhcp_protocol->header.ap_to_bg_int_src,
 										SCSC_MIFINTR_TARGET_R4);

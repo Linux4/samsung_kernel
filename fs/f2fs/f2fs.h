@@ -43,7 +43,9 @@ extern void (*ufs_debug_func)(void *);
 extern struct super_block *keypress_callback_sb;
 extern int (*keypress_callback_fn)(struct super_block *sb);
 
-#define f2fs_bug_on(sbi, condition)						\
+#define f2fs_bug_on(sbi, condition)	  __f2fs_bug_on(sbi, condition, true)
+#define f2fs_bug_on_endio(sbi, condition) __f2fs_bug_on(sbi, condition, false)	
+#define __f2fs_bug_on(sbi, condition, set_extra_blk)				\
 	do {									\
 		if (unlikely(condition)) {					\
 			if (ufs_debug_func)					\
@@ -53,7 +55,8 @@ extern int (*keypress_callback_fn)(struct super_block *sb);
 				sbi->sec_stat.fs_por_error++;			\
 				WARN_ON(1);					\
 			} else if (unlikely(!ignore_fs_panic)) {		\
-				f2fs_set_sb_extra_flag(sbi,			\
+				if (set_extra_blk)				\
+					f2fs_set_sb_extra_flag(sbi,		\
 						F2FS_SEC_EXTRA_FSCK_MAGIC);	\
 				BUG_ON_CHKFS(1);				\
 			}							\
@@ -1500,6 +1503,7 @@ struct f2fs_sb_info {
 	/* Precomputed FS UUID checksum for seeding other checksums */
 	__u32 s_chksum_seed;
 
+	unsigned int sec_hqm_preserve;
 	struct f2fs_sec_stat_info sec_stat;
 	struct f2fs_sec_fsck_info sec_fsck_stat;
 

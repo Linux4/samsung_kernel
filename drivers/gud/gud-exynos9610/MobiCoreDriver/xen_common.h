@@ -1,5 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2017 TRUSTONIC LIMITED
+ * Copyright (c) 2017-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -104,7 +105,6 @@ struct tee_xen_ring {
 		struct tee_xen_buffer_info	buffers[TEE_BUFFERS]; /* in */
 		/* MC */
 		struct mc_version_info		version_info;	/* out */
-		u32				spid;		/* in */
 		s32				timeout;	/* in */
 		s32				err;		/* out */
 		/* GP */
@@ -150,7 +150,7 @@ struct tee_xfe {
 	struct tee_xen_buffer	buffers[TEE_BUFFERS];
 	struct mutex		ring_mutex;	/* Protect our side of ring */
 	struct completion	ring_completion;
-	bool			ring_busy;
+	int			ring_busy;
 	/* Unique ID for commands */
 	u32			domu_cmd_id;
 };
