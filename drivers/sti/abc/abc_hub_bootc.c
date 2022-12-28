@@ -34,6 +34,7 @@ __visible_for_testing int abc_hub_bootc_get_total_offset(struct sub_bootc_pdata 
 
 	return total_offset;
 }
+EXPORT_SYMBOL_KUNIT(abc_hub_bootc_get_total_offset);
 
 static void abc_hub_bootc_work_func(struct work_struct *work)
 {

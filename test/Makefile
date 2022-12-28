@@ -5,6 +5,7 @@ obj-$(CONFIG_SEC_KUNIT_TEST)		+= \
   string-stream-test.o test-stream-test.o test-test.o
 obj-$(CONFIG_SEC_KUNIT_DEATH_TEST)	+= test-death-test.o
 obj-$(CONFIG_EXAMPLE_TEST)	+= example-test.o
-obj-$(CONFIG_SEC_KUNIT_MANAGER)	+= kunit_manager.o
+obj-$(CONFIG_SEC_KUNIT_MANAGER)	+= kunit_manager.o kunit_notifier.o
+obj-$(CONFIG_KUNIT_TEST_WRAPPER_TEST) += mainline_test/
 
 GCOV_PROFILE := $(CONFIG_SEC_KUNIT)

@@ -74,7 +74,11 @@ static void stk3a8x_pin_control(struct stk3a8x_data *alps_data, bool pin_set);
  ****************************************************************************************************/
 stk3a8x_register_table stk3a8x_default_register_table[] =
 {
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+	{STK3A8X_REG_ALSCTRL1,          (STK3A8X_ALS_PRS1 | STK3A8X_ALS_GAIN64 | STK3A8X_ALS_IT25),   0xFF},
+#else
 	{STK3A8X_REG_ALSCTRL1,          (STK3A8X_ALS_PRS1 | STK3A8X_ALS_GAIN64 | STK3A8X_ALS_IT100),   0xFF},
+#endif
 	{0xDB,                          0x00,                                                          0x3C},
 	{STK3A8X_REG_WAIT,              0x00,                                                          0xFF},
 	{STK3A8X_REG_GAINCTRL,          (STK3A8X_ALS_GAIN128 | STK3A8X_ALS_IR_GAIN128),                0x06},
@@ -123,7 +127,7 @@ int32_t stk3a8x_request_registry(struct stk3a8x_data *alps_data)
 	loff_t pos;
 	info_flicker("start\n");
 	memset(file_out_buf, 0, FILE_SIZE);
-	cali_file = filp_open(STK3A8X_CALI_FILE, O_CREAT | O_RDWR, 0644);
+	//cali_file = filp_open(STK3A8X_CALI_FILE, O_CREAT | O_RDWR, 0644);
 
 	if (IS_ERR(cali_file))
 	{
@@ -138,7 +142,7 @@ int32_t stk3a8x_request_registry(struct stk3a8x_data *alps_data)
 		pos = 0;
 		vfs_read(cali_file, file_out_buf, sizeof(file_out_buf), &pos);
 		set_fs(fs);
-		filp_close(cali_file, NULL);
+		//filp_close(cali_file, NULL);
 	}
 
 	memcpy(&alps_data->cali_info.cali_para.als_version, file_out_buf, FILE_SIZE);
@@ -159,7 +163,7 @@ int32_t stk3a8x_update_registry(struct stk3a8x_data *alps_data)
 	info_flicker("start\n");
 	memset(file_buf, 0, FILE_SIZE);
 	memcpy(file_buf, &alps_data->cali_info.cali_para.als_version, FILE_SIZE);
-	cali_file = filp_open(STK3A8X_CALI_FILE, O_CREAT | O_RDWR, 0666);
+	//cali_file = filp_open(STK3A8X_CALI_FILE, O_CREAT | O_RDWR, 0666);
 
 	if (IS_ERR(cali_file))
 	{
@@ -176,7 +180,7 @@ int32_t stk3a8x_update_registry(struct stk3a8x_data *alps_data)
 		set_fs(fs);
 	}
 
-	filp_close(cali_file, NULL);
+	//filp_close(cali_file, NULL);
 	info_flicker("Done\n");
 	return 0;
 }
@@ -844,7 +848,7 @@ static int32_t stk3a8x_als_gain_control_L(struct stk3a8x_data *alps_data)
 static int32_t stk3a8x_als_get_saturation(struct stk3a8x_data *alps_data, uint16_t* value)
 {
 	uint16_t als_it2;
-	uint8_t dgain_sel;
+	uint8_t dgain_sel = 0;
 	uint32_t saturation_table;
 	als_it2 = 192 + (96 * alps_data->als_info.als_it2_reg);
 
@@ -907,7 +911,12 @@ static bool stk3a8x_als_agc_get_IdeaDG(uint8_t als_it, uint8_t * gain)
 
 		if (saturation > 0xFFFF)
 		{
-			*gain = d_gain_table[--i];
+			if (i > 0)
+			{
+				i--;
+			}
+
+			*gain = d_gain_table[i];
 			break;
 		}
 	}
@@ -1445,7 +1454,7 @@ static void stk_sec_report(struct stk3a8x_data *alps_data)
 	input_sync(alps_data->als_input_dev);
 
 #if IS_ENABLED(CONFIG_SENSORS_FLICKER_SELF_TEST)
-	als_eol_update_als(raw_data->ir, raw_data->clear, raw_data->wideband);
+	als_eol_update_als(raw_data->ir, raw_data->clear, raw_data->wideband, 0);
 	als_eol_update_flicker(raw_data->flicker);
 #endif
 	alps_data->saturation = false;
@@ -1675,7 +1684,7 @@ static int32_t stk3a8x_als_get_data(struct stk3a8x_data *alps_data)
 		*(als_raw_data + loop_count ) = (*(raw_data + (2 * loop_count)) << 8 | *(raw_data + (2 * loop_count + 1) ));
 	}
 
-	memcpy(alps_data->als_info.last_raw_data, als_raw_data, sizeof(alps_data->als_info.last_raw_data));
+	memcpy(alps_data->als_info.last_raw_data, als_raw_data, sizeof(als_raw_data));
 
 	if (alps_data->als_info.is_dri)
 	{
@@ -1696,6 +1705,117 @@ static ssize_t stk_als_code_show(struct device *dev, struct device_attribute *at
 	return scnprintf(buf, PAGE_SIZE, "F ch = %d, C ch = %d\n", alps_data->als_info.last_raw_data[0], alps_data->als_info.last_raw_data[1]);
 
 }
+
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+void stk_als_init(struct stk3a8x_data *alps_data)
+{
+	uint8_t val, val2, val3;
+
+	val = STK3A8X_REG_READ(alps_data, STK3A8X_REG_ALSCTRL1);
+	val2 = STK3A8X_REG_READ(alps_data, STK3A8X_REG_GAINCTRL);
+	val3 = STK3A8X_REG_READ(alps_data, STK3A8X_REG_ALSCTRL2);
+
+	info_flicker("%s start 0x%x, 0x%x, 0x%x", __func__, val, val2, val3);
+
+	val &= (~STK3A8X_ALS_GAIN_MASK);
+	val |= STK3A8X_ALS_GAIN16;
+
+	val2 &= (~(STK3A8X_ALS_DGAIN128_MASK | STK3A8X_ALS_GAIN128_C_MASK | STK3A8X_ALS_GAIN_C_MASK));
+	val2 |= STK3A8X_ALS_IR_GAIN16;
+
+	val3 &= (~STK3A8X_IT_ALS_SEL_MASK);
+
+	STK3A8X_REG_WRITE(alps_data, STK3A8X_REG_ALSCTRL1, val);
+	STK3A8X_REG_WRITE(alps_data, STK3A8X_REG_GAINCTRL, val2);
+	STK3A8X_REG_WRITE(alps_data, STK3A8X_REG_ALSCTRL2, val3);
+
+	info_flicker("%s end 0x%x, 0x%x, 0x%x", __func__, val, val2, val3);
+}
+
+void stk_als_start(struct stk3a8x_data *alps_data)
+{
+	info_flicker("stk_als_start");
+
+	if (!alps_data->flicker_flag) {
+		stk3a8x_alps_set_config(alps_data, 1);
+		stk_als_init(alps_data);
+	}
+}
+
+void stk_als_stop(struct stk3a8x_data *alps_data)
+{
+	info_flicker("%s", __func__);
+
+	if (!alps_data->flicker_flag)
+		stk3a8x_alps_set_config(alps_data, 0);
+}
+
+static ssize_t stk_rear_als_enable_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct stk3a8x_data *data = dev_get_drvdata(dev);
+	bool value;
+
+	mutex_lock(&data->enable_lock);
+
+	if (strtobool(buf, &value)) {
+		mutex_unlock(&data->enable_lock);
+		return -EINVAL;
+	}
+
+	info_flicker("en : %d, c : %d\n", value, data->als_info.enable);
+	if (data->als_flag == value) {
+		mutex_unlock(&data->enable_lock);
+		return size;
+	}
+
+	data->als_flag = value;
+
+	if (value)
+		stk_als_start(data);
+	else
+		stk_als_stop(data);
+
+	mutex_unlock(&data->enable_lock);
+
+	return size;
+}
+
+static ssize_t stk_rear_als_enable_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct stk3a8x_data *data = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%u\n", data->als_flag);
+}
+
+static ssize_t stk_rear_als_data_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct stk3a8x_data *data = dev_get_drvdata(dev);
+	uint8_t raw_data[4];
+	uint16_t als_raw_data[2];
+	int loop_count;
+	int err = 0;
+
+	if (data->als_info.enable && data->als_flag && !data->flicker_flag) {
+		err = STK3A8X_REG_BLOCK_READ(data, STK3A8X_REG_DATA1_F, 4, &raw_data[0]);
+
+		if (err < 0) {
+			err_flicker("fail to read als data\n");
+			return snprintf(buf, PAGE_SIZE, "-6, -6");
+		}
+
+		for (loop_count = 0; loop_count < (sizeof(als_raw_data) / sizeof(als_raw_data[0])); loop_count++) {
+			*(als_raw_data + loop_count) = (*(raw_data + (2 * loop_count)) << 8 | *(raw_data + (2 * loop_count + 1)));
+		}
+	} else {
+		return snprintf(buf, PAGE_SIZE, "-1, -1");
+	}
+
+	return snprintf(buf, PAGE_SIZE, "%u, %u", als_raw_data[0], als_raw_data[1]);
+}
+#endif /* CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS */
 
 static ssize_t stk_als_enable_show(struct device *dev,
 		struct device_attribute *attr,
@@ -1720,11 +1840,19 @@ static ssize_t stk_als_enable_store(struct device *dev,
 	struct stk3a8x_data *alps_data =  dev_get_drvdata(dev);
 	unsigned int data;
 	int error;
+
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+	mutex_lock(&alps_data->enable_lock);
+#endif
+
 	error = kstrtouint(buf, 10, &data);
 	if (error)
 	{
 		dev_err(&alps_data->client->dev, "%s: kstrtoul failed, error=%d\n",
 				__func__, error);
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+		mutex_unlock(&alps_data->enable_lock);
+#endif
 		return error;
 	}
 
@@ -1732,16 +1860,35 @@ static ssize_t stk_als_enable_store(struct device *dev,
 	if (alps_data->eol_enabled) {
 		dev_err(&alps_data->client->dev, "%s: TEST RUNNING. recover %d after finish test", __func__, data);
 		alps_data->recover_state = data;
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+		mutex_unlock(&alps_data->enable_lock);
+#endif
 		return size;
 	}
 #endif
 
 	if ((1 == data) || (0 == data))
 	{
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+		alps_data->flicker_flag = (bool)data;
+
+		if (alps_data->flicker_flag && alps_data->als_flag) {
+			stk3a8x_enable_als(alps_data, false);
+			stk3a8x_enable_fifo(alps_data, false);
+		}
+#endif
 		dev_err(&alps_data->client->dev, "%s: Enable ALS : %d\n", __func__, data);
 		stk3a8x_alps_set_config(alps_data, data);
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+		if (!alps_data->flicker_flag && alps_data->als_flag) {
+			stk3a8x_alps_set_config(alps_data, true);
+			stk_als_init(alps_data);
+		}
+#endif
 	}
-
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+	mutex_unlock(&alps_data->enable_lock);
+#endif
 	return size;
 }
 
@@ -2021,7 +2168,10 @@ void stk3a8x_fifo_stop_control(struct stk3a8x_data *alps_data)
 {
 	//struct stk3a8x_data *alps_data = container_of(work, struct stk3a8x_data, stk_fifo_release_work);
 
-	flush_workqueue(alps_data->stk_alps_wq);	//stop polling thread before power off
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+	if (alps_data->stk_alps_wq != NULL)
+#endif
+		flush_workqueue(alps_data->stk_alps_wq);	//stop polling thread before power off
 
 	while (alps_data->fifo_info.fifo_reading)
 	{
@@ -2267,6 +2417,18 @@ static ssize_t stk_eol_test_show(struct device *dev, struct device_attribute *at
 static ssize_t stk_eol_test_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
 {
 	struct stk3a8x_data *alps_data =  dev_get_drvdata(dev);
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+	bool flicker_flag = alps_data->flicker_flag;
+
+	if (!flicker_flag) {
+		alps_data->flicker_flag = true;
+
+		if (alps_data->als_flag) {
+			stk3a8x_enable_als(alps_data, false);
+			stk3a8x_enable_fifo(alps_data, false);
+		}
+	}
+#endif
 	//Start
 	alps_data->recover_state = alps_data->als_info.enable;
 
@@ -2282,7 +2444,16 @@ static ssize_t stk_eol_test_store(struct device *dev, struct device_attribute *a
 
 	//Stop
 	stk3a8x_alps_set_config(alps_data, alps_data->recover_state);
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+	if (!flicker_flag) {
+		alps_data->flicker_flag = false;
 
+		if (alps_data->als_flag) {
+			stk3a8x_alps_set_config(alps_data, true);
+			stk_als_init(alps_data);
+		}
+	}
+#endif
 	return size;
 }
 
@@ -2318,6 +2489,10 @@ static DEVICE_ATTR(als_wideband,    0444, als_wideband_show,            NULL);
 static DEVICE_ATTR(flicker_data,    0444, flicker_data_show,            NULL);
 #if IS_ENABLED(CONFIG_SENSORS_FLICKER_SELF_TEST)
 static DEVICE_ATTR(eol_mode,        0664, stk_eol_test_show,            stk_eol_test_store);
+#endif
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+static DEVICE_ATTR(als_enable, 0664, stk_rear_als_enable_show, stk_rear_als_enable_store);
+static DEVICE_ATTR(als_data, 0444, stk_rear_als_data_show, NULL);
 #endif
 
 static struct attribute *stk_als_attrs [] =
@@ -2357,6 +2532,10 @@ static struct device_attribute *stk_sensor_attrs[] = {
 	&dev_attr_flicker_data,
 #if IS_ENABLED(CONFIG_SENSORS_FLICKER_SELF_TEST)
 	&dev_attr_eol_mode,
+#endif
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+	&dev_attr_als_enable,
+	&dev_attr_als_data,
 #endif
 	NULL
 };
@@ -2501,6 +2680,10 @@ static int32_t stk3a8x_init_all_setting(struct i2c_client *client, struct stk3a8
 	stk3a8x_fifo_init(alps_data);
 #endif
 	alps_data->first_init = true;
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+	alps_data->als_flag = false;
+	alps_data->flicker_flag = false;
+#endif
 	stk3a8x_dump_reg(alps_data);
 	return 0;
 }
@@ -2510,12 +2693,13 @@ static int32_t stk3a8x_alps_set_config(struct stk3a8x_data *alps_data, bool en)
 	bool is_irq = false;
 	int32_t ret = 0;
 
+	mutex_lock(&alps_data->config_lock);
 	if (alps_data->first_init)
 	{
 		ret = stk3a8x_request_registry(alps_data);
 
 		if (ret < 0)
-			return ret;
+			goto err;
 
 		stk3a8x_init_para(alps_data, alps_data->pdata);
 		alps_data->first_init = false;
@@ -2524,7 +2708,7 @@ static int32_t stk3a8x_alps_set_config(struct stk3a8x_data *alps_data, bool en)
 	if (alps_data->als_info.enable == en)
 	{
 		err_flicker("ALS status is same (%d)\n", en);
-		return 0;
+		goto done;
 	}
 
 	//To-Do: ODR setting
@@ -2562,7 +2746,7 @@ static int32_t stk3a8x_alps_set_config(struct stk3a8x_data *alps_data, bool en)
 		if (ret < 0)
 		{
 			err_flicker("ALS set INT fail\n");
-			return ret;
+			goto err;
 		}
 
 		stk3a8x_register_interrupt(alps_data);
@@ -2579,9 +2763,13 @@ static int32_t stk3a8x_alps_set_config(struct stk3a8x_data *alps_data, bool en)
 				stk3a8x_register_timer(alps_data, STK3A8X_DATA_TIMER_ALPS);
 			}
 
-			if (!alps_data->alps_timer_info.timer_is_active)
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+			if (en && alps_data->flicker_flag)
+#endif
 			{
-				stk3a8x_start_timer(alps_data, STK3A8X_DATA_TIMER_ALPS);
+				if (!alps_data->alps_timer_info.timer_is_active) {
+					stk3a8x_start_timer(alps_data, STK3A8X_DATA_TIMER_ALPS);
+				}
 			}
 		}
 	}
@@ -2590,7 +2778,10 @@ static int32_t stk3a8x_alps_set_config(struct stk3a8x_data *alps_data, bool en)
 
 	if (!en &&  !alps_data->als_info.enable)
 	{
-		flush_workqueue(alps_data->stk_alps_wq);
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+		if (alps_data->stk_alps_wq != NULL)
+#endif
+			flush_workqueue(alps_data->stk_alps_wq);
 		info_flicker("(%d) Stop ALSPS timer\n", __LINE__);
 		stk3a8x_stop_timer(alps_data, STK3A8X_DATA_TIMER_ALPS);
 	}
@@ -2632,7 +2823,11 @@ static int32_t stk3a8x_alps_set_config(struct stk3a8x_data *alps_data, bool en)
 
 #endif
 	//stk3a8x_dump_reg(alps_data);
-	return 0;
+err:
+	err_flicker("error %d", ret);
+done:
+	mutex_unlock(&alps_data->config_lock);
+	return ret;
 }
 
 static void stk3a8x_pin_control(struct stk3a8x_data *alps_data, bool pin_set)
@@ -2670,6 +2865,12 @@ int stk3a8x_suspend(struct device *dev)
 	info_flicker();
 	//mutex_lock(&alps_data->io_lock);
 
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+	if (alps_data->als_flag) {
+		alps_data->als_flag = false;
+		stk_als_stop(alps_data);
+	}
+#endif
 	if (alps_data->als_info.enable)
 	{
 		info_flicker("Disable ALS : 0\n");
@@ -2832,8 +3033,9 @@ int stk3a8x_probe(struct i2c_client *client,
 	bool vbus_1p8_enable = false;
 
 	vdd_regulator = regulator_get(&client->dev, "vdd_1p8");
+#if !defined (CONFIG_ARCH_QCOM)
 	vbus_regulator = regulator_get(&client->dev, "vbus_1p8");
-
+#endif
 	if (!IS_ERR(vdd_regulator) && vdd_regulator != NULL) {
 		err = regulator_enable(vdd_regulator);
 		if (err < 0) {
@@ -2887,9 +3089,12 @@ int stk3a8x_probe(struct i2c_client *client,
 	alps_data->dev    = &client->dev;
 	alps_data->bops   = bops;
 	i2c_set_clientdata(client, alps_data);
+	mutex_init(&alps_data->config_lock);
 	mutex_init(&alps_data->io_lock);
 	mutex_init(&alps_data->data_info_lock);
-
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+	mutex_init(&alps_data->enable_lock);
+#endif
 	// Parsing device tree
 	if (client->dev.of_node)
 	{
@@ -3023,8 +3228,12 @@ int stk3a8x_remove(struct i2c_client *client)
 #ifdef SUPPORT_SENSOR_CLASS
 	input_unregister_device(alps_data->als_input_dev);
 #endif
+	mutex_destroy(&alps_data->config_lock);
 	mutex_destroy(&alps_data->io_lock);
 	mutex_destroy(&alps_data->data_info_lock);
+#if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
+	mutex_destroy(&alps_data->enable_lock);
+#endif
 	kfree(alps_data);
 	info_flicker("remove successfully");
 	return 0;

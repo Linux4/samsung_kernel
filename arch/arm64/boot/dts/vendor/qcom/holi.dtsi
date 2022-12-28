@@ -1013,6 +1013,7 @@
 	clk_virt: interconnect {
 		compatible = "qcom,holi-clk_virt";
 		#interconnect-cells = <1>;
+		qcom,keepalive;
 		clock-names = "bus", "bus_a";
 		clocks = <&rpmcc RPM_SMD_QUP_CLK>,
 			<&rpmcc RPM_SMD_QUP_A_CLK>;
@@ -2381,6 +2382,7 @@
 
 				msm_cdsp_rm: qcom,msm_cdsp_rm {
 					compatible = "qcom,msm-cdsp-rm";
+					qcom,qos-cores = <0 1 2 3 4 5>;
 					qcom,qos-latency-us = <70>;
 					qcom,qos-maxhold-ms = <20>;
 				};
@@ -3254,6 +3256,7 @@
 		qcom,wan-use-skb-page;
 		qcom,rmnet-ctl-enable;
 		qcom,ipa-endp-delay-wa;
+		qcom,fnr-stats-not-supported;
 		qcom,tx-wrapper-cache-max-size = <400>;
 		clock-names = "core_clk";
 		clocks = <&rpmcc RPM_SMD_IPA_CLK>;

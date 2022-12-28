@@ -325,8 +325,10 @@ static int rimps_log_probe(struct platform_device *pdev)
 					dev_name(dev), 0);
 	if (!info->ipc_log_ctxt) {
 		dev_err(dev, "failed to create log context\n");
+#if !(IS_ENABLED(CONFIG_SEC_DEBUG) && !IS_ENABLED(CONFIG_DEBUG_FS))
 		ret = -ENOMEM;
 		goto exit;
+#endif
 	}
 
 	dev_set_drvdata(dev, info);

@@ -123,6 +123,7 @@ struct sm_dc_power_source_info {
 	u32 p_max;
 	u32 v;
 	u32 c;
+	u32 retry_cnt;
 };
 
 struct sm_dc_ops {
@@ -133,6 +134,7 @@ struct sm_dc_ops {
 	int (*set_charging_config)(struct i2c_client *i2c, u32 cv_gl, u32 ci_gl, u32 cc_gl);
 	u32 (*get_dc_error_status)(struct i2c_client *i2c);
 	int (*send_power_source_msg)(struct i2c_client *i2c, struct sm_dc_power_source_info *ta);
+	int (*get_apdo_max_power)(struct i2c_client *i2c, struct sm_dc_power_source_info *ta);
 	int (*check_sw_ocp)(struct i2c_client *i2c);
 };
 
@@ -213,7 +215,7 @@ extern int sm_dc_report_error_status(struct sm_dc_info *sm_dc, u32 err);
 extern int sm_dc_report_interrupt_event(struct sm_dc_info *sm_dc, u32 interrupt);
 
 extern int sm_dc_get_current_state(struct sm_dc_info *sm_dc);
-extern int sm_dc_start_charging(struct sm_dc_info *sm_dc, struct sm_dc_power_source_info *ta);
+extern int sm_dc_start_charging(struct sm_dc_info *sm_dc);
 extern int sm_dc_stop_charging(struct sm_dc_info *sm_dc);
 extern int sm_dc_set_target_vbat(struct sm_dc_info *sm_dc, u32 target_vbat);
 extern int sm_dc_set_target_ibus(struct sm_dc_info *sm_dc, u32 target_ibus);

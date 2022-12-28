@@ -2474,8 +2474,9 @@ static void addrconf_add_mroute(struct net_device *dev)
 		.fc_ifindex = dev->ifindex,
 		.fc_dst_len = 8,
 		.fc_flags = RTF_UP,
-		.fc_type = RTN_UNICAST,
+		.fc_type = RTN_MULTICAST,
 		.fc_nlinfo.nl_net = dev_net(dev),
+		.fc_protocol = RTPROT_KERNEL,
 	};
 
 	ipv6_addr_set(&cfg.fc_dst, htonl(0xFF000000), 0, 0, 0);
@@ -4142,14 +4143,14 @@ static void addrconf_dad_work(struct work_struct *w)
 	}
 
 	ifp->dad_probes--;
-	if (!strcmp(ifp->idev->dev->name, "aware_data0")) {
-		pr_info("Reduce waing time from %lu to %lu (HZ=%lu) to send NS for quick transmission for %s\n",
+	if (ifp->idev->dev != NULL && !strcmp(ifp->idev->dev->name, "aware_data0")) {
+		pr_info("Reduce wating time from %lu to %lu (HZ=%lu) to send NS for quick transmission for %s\n",
 			NEIGH_VAR(ifp->idev->nd_parms, RETRANS_TIME),
-			NEIGH_VAR(ifp->idev->nd_parms, RETRANS_TIME)/10,
+			NEIGH_VAR(ifp->idev->nd_parms, RETRANS_TIME)/100,
 			HZ,
 			ifp->idev->dev->name);
 		addrconf_mod_dad_work(ifp,
-					NEIGH_VAR(ifp->idev->nd_parms, RETRANS_TIME)/10);
+					NEIGH_VAR(ifp->idev->nd_parms, RETRANS_TIME)/100);
 	} else
 	addrconf_mod_dad_work(ifp,
 			      NEIGH_VAR(ifp->idev->nd_parms, RETRANS_TIME));
@@ -5791,7 +5792,7 @@ static int inet6_set_link_af(struct net_device *dev, const struct nlattr *nla)
 		return -EAFNOSUPPORT;
 
 	if (nla_parse_nested_deprecated(tb, IFLA_INET6_MAX, nla, NULL, NULL) < 0)
-		BUG();
+		return -EINVAL;
 
 	if (tb[IFLA_INET6_TOKEN]) {
 		err = inet6_set_iftoken(idev, nla_data(tb[IFLA_INET6_TOKEN]));

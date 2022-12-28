@@ -2,7 +2,7 @@
  * Broadcom Dongle Host Driver (DHD),
  * Linux-specific network interface for transmit(tx) path
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -614,7 +614,14 @@ BCMFASTPATH(dhd_start_xmit)(struct sk_buff *skb, struct net_device *net)
 		DHD_OS_WAKE_UNLOCK(&dhd->pub);
 		return NETDEV_TX_BUSY;
 	}
-
+#ifdef RPM_FAST_TRIGGER
+	/* Xmit is running reset RPM fast trigger */
+	if (dhd->pub.rpm_fast_trigger) {
+		DHD_ERROR(("%s: Reset RPM fast trigger\n", __FUNCTION__));
+		dhd->pub.rpm_fast_trigger = FALSE;
+	}
+	dhd->pub.last_tx_rx = jiffies;
+#endif /* RPM_FAST_TRIGGER */
 	DHD_GENERAL_UNLOCK(&dhd->pub, flags);
 
 	/* If tput test is in progress */

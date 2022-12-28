@@ -265,3 +265,4 @@ MODULE_AUTHOR("Taka Chiu <taka_chiu@sensortek.com.tw>");
 MODULE_DESCRIPTION("Sensortek stk3a8x ambient Light Sensor driver");
 MODULE_LICENSE("GPL");
 MODULE_VERSION(DRIVER_VERSION);
+MODULE_IMPORT_NS(ANDROID_GKI_VFS_EXPORT_ONLY);

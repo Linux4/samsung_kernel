@@ -363,6 +363,7 @@ static struct dsi_panel_cmd_set *ss_vrr_hmt(struct samsung_display_driver_data *
 static struct dsi_panel_cmd_set * ss_brightness_gamma_mode2_normal(struct samsung_display_driver_data *vdd, int *level_key)
 {
 	struct dsi_panel_cmd_set *pcmds;
+	bool dim_off = false;
 	int idx = 0;
 
 	if (IS_ERR_OR_NULL(vdd)) {
@@ -372,11 +373,21 @@ static struct dsi_panel_cmd_set * ss_brightness_gamma_mode2_normal(struct samsun
 
 	pcmds = ss_get_cmds(vdd, TX_GAMMA_MODE2_NORMAL);
 
-	LCD_INFO(vdd, "NORMAL : cd_idx [%d] \n", vdd->br_info.common_br.cd_idx);
+	/* smooth */
+	if (vdd->vrr.cur_refresh_rate == 120 || (vdd->vrr.cur_refresh_rate == 60 && vdd->vrr.cur_phs_mode))
+		dim_off = false;
+	else
+		dim_off = true;
 
-	/* Smooth transition : 0x28 */
+	LCD_INFO(vdd, "NORMAL : cd_idx [%d], dim_off [%d] \n", vdd->br_info.common_br.cd_idx, dim_off);
+
+	/* Smooth transition */
 	idx = ss_get_cmd_idx(pcmds, 0x00, 0x53);
-	pcmds->cmds[idx].ss_txbuf[1] = vdd->finger_mask_updated ? 0x20 : 0x28;
+	pcmds->cmds[idx].ss_txbuf[1] = vdd->finger_mask_updated ? 0x20 : (dim_off ? 0x20 : 0x28);
+
+	/* smooth frame */
+	idx = ss_get_cmd_idx(pcmds, 0x05, 0xC6);
+	pcmds->cmds[idx].ss_txbuf[2] = vdd->display_on ? (dim_off ? 0x01 : 0x18) : 0x01;
 
 	/* IRC mode - 0x6F: Moderato mode, 0x2F: flat gamma mode */
 	idx = ss_get_cmd_idx(pcmds, 0x0B, 0x92);
@@ -401,6 +412,7 @@ static struct dsi_panel_cmd_set * ss_brightness_gamma_mode2_normal(struct samsun
 static struct dsi_panel_cmd_set * ss_brightness_gamma_mode2_hbm(struct samsung_display_driver_data *vdd, int *level_key)
 {
     struct dsi_panel_cmd_set *pcmds;
+	bool dim_off = false;
 	int idx = 0;
 
     if (IS_ERR_OR_NULL(vdd)) {
@@ -410,11 +422,21 @@ static struct dsi_panel_cmd_set * ss_brightness_gamma_mode2_hbm(struct samsung_d
 
     pcmds = ss_get_cmds(vdd, TX_GAMMA_MODE2_HBM);
 
-	LCD_INFO(vdd, "HBM : cd_idx [%d] \n", vdd->br_info.common_br.cd_idx);
+	/* smooth */
+	if (vdd->vrr.cur_refresh_rate == 120 || (vdd->vrr.cur_refresh_rate == 60 && vdd->vrr.cur_phs_mode))
+		dim_off = false;
+	else
+		dim_off = true;
+
+	LCD_INFO(vdd, "HBM : cd_idx [%d], dim_off [%d] \n", vdd->br_info.common_br.cd_idx, dim_off);
 
 	/* HBM Smooth transition : 0xE8 */
 	idx = ss_get_cmd_idx(pcmds, 0x00, 0x53);
-	pcmds->cmds[idx].ss_txbuf[1] = vdd->finger_mask_updated ? 0xE0 : 0xE8;
+	pcmds->cmds[idx].ss_txbuf[1] = vdd->finger_mask_updated ? 0xE0 : (dim_off ? 0xE0 : 0xE8);
+
+	/* smooth frame */
+	idx = ss_get_cmd_idx(pcmds, 0x05, 0xC6);
+	pcmds->cmds[idx].ss_txbuf[2] = vdd->display_on ? (dim_off ? 0x01 : 0x18) : 0x01;
 
 	/* ELVSS */
 	idx = ss_get_cmd_idx(pcmds, 0x05, 0xC6);

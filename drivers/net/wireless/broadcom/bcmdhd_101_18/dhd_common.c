@@ -1,7 +1,7 @@
 /*
  * Broadcom Dongle Host Driver (DHD), common DHD core.
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -4002,6 +4002,15 @@ wl_show_host_event(dhd_pub_t *dhd_pub, wl_event_msg_t *event, void *event_data,
 		DHD_EVENT(("MACEVENT: %s: Country code changed to %s\n", event_name,
 			(char*)event_data));
 		break;
+#ifdef BCN_TSFINFO
+	case WLC_E_BCN_TSF:
+		if (datalen >= sizeof(wl_bcn_tsf_t)) {
+			wl_bcn_tsf_t *bcn_tsf = (wl_bcn_tsf_t *)event_data;
+			DHD_TRACE(("MACEVENT: %s, type:%d, event tsf 0x%x %x \n",
+				event_name, event_type, bcn_tsf->bcn_tsf_h, bcn_tsf->bcn_tsf_l));
+		}
+		break;
+#endif /* BCN_TSFINFO */
 	default:
 		DHD_INFO(("MACEVENT: %s %d, MAC %s, status %d, reason %d, auth %d\n",
 		       event_name, event_type, eabuf, (int)status, (int)reason,

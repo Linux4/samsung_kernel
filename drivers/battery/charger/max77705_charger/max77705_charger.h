@@ -339,6 +339,9 @@ typedef struct max77705_charger_platform_data {
 	bool enable_noise_wa;
 	bool enable_sysovlo_irq;
 	int fsw;
+#if defined(CONFIG_SUPPORT_SHIP_MODE)
+	int disable_ship_mode;
+#endif
 
 	/* OVP/UVLO check */
 	int ovp_uvlo_check_type;
@@ -368,6 +371,7 @@ struct max77705_charger_data {
 	/* mutex */
 	struct mutex            charger_mutex;
 	struct mutex            mode_mutex;
+	struct mutex            icl_mutex;
 
 	/* wakelock */
 	struct wakeup_source *wc_current_ws;

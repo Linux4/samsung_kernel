@@ -258,7 +258,7 @@ int stm_stui_tsp_enter(void)
 	stm_ts_release_all_finger(ts);
 
 	ret = stui_spi_lock(ts->client->controller);
-	if (ret) {
+	if (ret < 0) {
 		pr_err("[STUI] stui_spi_lock failed : %d\n", ret);
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 		sec_input_notify(&ts->stm_input_nb, NOTIFIER_SECURE_TOUCH_DISABLE, NULL);
@@ -279,7 +279,7 @@ int stm_stui_tsp_exit(void)
 		return -EINVAL;
 
 	ret = stui_spi_unlock(ts->client->controller);
-	if (ret)
+	if (ret < 0)
 		pr_err("[STUI] stui_spi_unlock failed : %d\n", ret);
 
 	enable_irq(ts->irq);
@@ -641,9 +641,14 @@ void stm_ts_reinit(void *data)
 		stm_ts_ear_detect_enable(ts, ts->plat_data->ed_enable);
 	if (ts->plat_data->pocket_mode)
 		stm_ts_pocket_mode_enable(ts, ts->plat_data->pocket_mode);
+	if (ts->sip_mode)
+		stm_ts_sip_mode_enable(ts);
+	if (ts->note_mode)
+		stm_ts_note_mode_enable(ts);
+	if (ts->game_mode)
+		stm_ts_game_mode_enable(ts);
 out:
 	stm_ts_set_scanmode(ts, ts->scan_mode);
-	
 }
 /*
  * don't need it in interrupt handler in reality, but, need it in vendor IC for requesting vendor IC.

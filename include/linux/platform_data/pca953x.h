@@ -29,6 +29,8 @@ struct pca953x_platform_data {
 
 	int		irq_gpio;
 	int		gpio_num;
+	int		reset_gpio;
+	int		pba_conn_det_gpio;
 };
 
 char *param_string(enum pin_config_param param)
