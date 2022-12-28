@@ -4,7 +4,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -433,7 +433,7 @@ enum dhd_op_flags {
  * This also needs to be increased to 24K to support NVRAM size higher than 16K
  */
 #define MAX_NVRAMBUF_SIZE	(24 * 1024) /* max nvram buf size */
-#define MAX_CLM_BUF_SIZE	(48 * 1024) /* max clm blob size */
+#define MAX_CLM_BUF_SIZE	(64 * 1024) /* max clm blob size */
 #define MAX_TXCAP_BUF_SIZE	(16 * 1024) /* max txcap blob size */
 #ifdef DHD_DEBUG
 #define DHD_JOIN_MAX_TIME_DEFAULT 10000 /* ms: Max time out for joining AP */
@@ -1556,6 +1556,12 @@ typedef struct dhd_pub {
 	bool ring_attached;
 #ifdef DHD_PCIE_RUNTIMEPM
 	bool rx_pending_due_to_rpm;
+#ifdef RPM_FAST_TRIGGER
+	bool rpm_fast_trigger;
+	bool rpm_fast_candidate;
+	/* The jiffies value when transmission begins and a packet is received */
+	ulong last_tx_rx;
+#endif /* RPM_FAST_TRIGGER */
 #endif /* DHD_PCIE_RUNTIMEPM */
 	bool disable_dtim_in_suspend;	/* Disable set bcn_li_dtim in suspend */
 	union {
@@ -3426,6 +3432,11 @@ extern void dhdpcie_block_runtime_pm(dhd_pub_t *dhdp);
 extern bool dhdpcie_is_resume_done(dhd_pub_t *dhdp);
 extern void dhd_runtime_pm_disable(dhd_pub_t *dhdp);
 extern void dhd_runtime_pm_enable(dhd_pub_t *dhdp);
+#ifdef RPM_FAST_TRIGGER
+/* Requirement is 20msec, but keep it 10msec to account for any scheduling latencies */
+#define RPM_FAST_TRIGGER_THR 10
+extern void dhdpcie_trigger_rpm_fast(dhd_pub_t *dhdp);
+#endif /* RPM_FAST_TRIGGER */
 /* Disable the Runtime PM thread and wake up if the bus is already in suspend */
 #define DHD_DISABLE_RUNTIME_PM(dhdp) \
 do { \
@@ -3936,6 +3947,10 @@ bool dhd_validate_chipid(dhd_pub_t *dhdp);
 void dhd_rx_pktpool_create(struct dhd_info *dhd, uint16 len);
 void * BCMFASTPATH(dhd_rxpool_pktget)(osl_t *osh, struct dhd_info *dhd, uint16 len);
 #endif /* RX_PKT_POOL */
+
+int dhd_rxf_thread(void *data);
+void dhd_sched_rxf(dhd_pub_t *dhdp, void *skb);
+int dhd_os_wake_lock_rx_timeout_enable(dhd_pub_t *pub, int val);
 
 #if defined(__linux__)
 #ifdef DHD_SUPPORT_VFS_CALL

@@ -74,7 +74,15 @@ static unsigned long timeout_vals[NUM_SSR_COMMS] = {
 };
 
 #ifdef CONFIG_PANIC_ON_SSR_NOTIF_TIMEOUT
-#define SSR_NOTIF_TIMEOUT_WARN(fmt...) panic(fmt)
+#define SSR_NOTIF_TIMEOUT_WARN(fmt...) do { 	\
+	if (system_state != SYSTEM_RESTART &&	\
+	    system_state != SYSTEM_POWER_OFF &&	\
+	    system_state != SYSTEM_HALT &&	\
+	    !qcom_device_shutdown_in_progress)	\
+		panic(fmt);			\
+	else					\
+		WARN(1, fmt);			\
+} while(0);
 #else /* CONFIG_PANIC_ON_SSR_NOTIF_TIMEOUT */
 #define SSR_NOTIF_TIMEOUT_WARN(fmt...) WARN(1, fmt)
 #endif /* CONFIG_PANIC_ON_SSR_NOTIF_TIMEOUT */
@@ -499,6 +507,26 @@ static int is_ramdump_enabled(struct subsys_device *dev)
 	return enable_ramdumps;
 }
 
+static struct kobject *sysfs_kobject;
+static bool qcom_device_shutdown_in_progress;
+
+static ssize_t qcom_rproc_shutdown_request_store(struct kobject *kobj, struct kobj_attribute *attr,
+						 const char *buf, size_t count)
+{
+	bool val;
+	int ret;
+
+	ret = kstrtobool(buf, &val);
+	if (ret)
+		return ret;
+
+	qcom_device_shutdown_in_progress = val;
+	pr_info("qcom rproc: Device shutdown requested: %s\n", val ? "true" : "false");
+	return count;
+}
+static struct kobj_attribute shutdown_requested_attr = __ATTR(shutdown_in_progress, 0220, NULL,
+							  qcom_rproc_shutdown_request_store);
+
 #ifdef CONFIG_SETUP_SSR_NOTIF_TIMEOUTS
 static void notif_timeout_handler(struct timer_list *t)
 {
@@ -706,14 +734,16 @@ static int subsystem_powerup(struct subsys_device *dev, void *data)
 		notify_each_subsys_device(&dev, 1, SUBSYS_POWERUP_FAILURE,
 								NULL);
 		if (system_state == SYSTEM_RESTART
-			|| system_state == SYSTEM_POWER_OFF)
+			|| system_state == SYSTEM_POWER_OFF) {
 			WARN(1, "SSR aborted: %s, system reboot/shutdown is under way\n",
 				name);
-		else if (!dev->desc->ignore_ssr_failure)
+		} else if (!dev->desc->ignore_ssr_failure) {
 			panic("[%s:%d]: Powerup error: %s!",
 				current->comm, current->pid, name);
-		else
-			pr_err("Powerup failure on %s\n", name);
+		} else {
+			pr_err("Powerup failure on %s(rc:%d)\n", name, ret);
+			dump_stack();
+		}
 		return ret;
 	}
 
@@ -1131,13 +1161,25 @@ int subsystem_restart_dev(struct subsys_device *dev)
 	} else
 		pr_info("SSR by only ap debug level!!\n");
 
-	if (strcmp(name, "wlan")) {
-		if (!sec_debug_is_enabled() || (!ssr_disable))
-			dev->restart_level = RESET_SUBSYS_COUPLED;
-		else
-			dev->restart_level = RESET_SOC;
-	}
+	if (!sec_debug_is_enabled() || (!ssr_disable))
+		dev->restart_level = RESET_SUBSYS_COUPLED;
+	else
+		dev->restart_level = RESET_SOC;
 #endif
+
+	if (!strcmp(name, "wlan") || !strcmp(name, "wpss")) {
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+		if (!sec_debug_is_enabled() || enable_ramdumps != 3) {
+#else
+		if (enable_ramdumps != 3) {
+#endif
+			pr_info("wpss : RESET_SUBSYS");
+			dev->restart_level = RESET_SUBSYS_COUPLED;
+		} else {
+			pr_info("wpss : RESET_SOC");
+			dev->restart_level = RESET_SOC;
+		}
+	}
 
 	/* force modem silent ssr */
 	if (!strncmp(name, "modem", 5)) {
@@ -1816,6 +1858,20 @@ static int __init subsys_restart_init(void)
 {
 	int ret;
 
+	qcom_device_shutdown_in_progress = false;
+
+	sysfs_kobject = kobject_create_and_add("qcom_rproc", kernel_kobj);
+	if (!sysfs_kobject) {
+		pr_err("qcom rproc: failed to create sysfs kobject\n");
+		return -EINVAL;
+	}
+
+	ret = sysfs_create_file(sysfs_kobject, &shutdown_requested_attr.attr);
+	if (ret) {
+		pr_err("qcom rproc: failed to create sysfs file\n");
+		goto remove_kobject;
+	}
+
 	ssr_wq = alloc_workqueue("ssr_wq",
 		WQ_UNBOUND | WQ_HIGHPRI | WQ_CPU_INTENSIVE, 0);
 	BUG_ON(!ssr_wq);
@@ -1843,12 +1899,16 @@ err_class:
 	bus_unregister(&subsys_bus_type);
 err_bus:
 	destroy_workqueue(ssr_wq);
+remove_kobject:
+	kobject_put(sysfs_kobject);
 	return ret;
 }
 arch_initcall(subsys_restart_init);
 
 static void __exit subsys_restart_exit(void)
 {
+	sysfs_remove_file(sysfs_kobject, &shutdown_requested_attr.attr);
+	kobject_put(sysfs_kobject);
 	atomic_notifier_chain_unregister(&panic_notifier_list, &panic_nb);
 	class_destroy(char_class);
 	bus_unregister(&subsys_bus_type);

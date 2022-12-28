@@ -54,6 +54,12 @@ config SENSORS_FINGERPRINT_NORMALSPI
 	help
 	  If you say yes here you get to use spi normal mode on goodix sensor.
 
+config SENSORS_FINGERPRINT_32BITS_PLATFORM_ONLY
+	tristate "32bits platform support"
+	default n
+	help
+	  If you say yes here you get support for 32bits platform.
+
 config SENSORS_QBT2000
 	tristate "QBT2000 fingerprint sensor support"
 	default n
@@ -69,6 +75,15 @@ config SENSORS_ET5XX
 	  If you say yes here you get support for ET5XX sensor.
 	  ET5XX is the touch type fingerprint sensor.
 	  ET5XX module can support WOF mode.
+
+config SENSORS_EC6XX
+	tristate "EC6XX fingerprint sensor support"
+	default n
+	help
+	  Fingerprint sensor driver.
+	  If you say yes here you get support for EC6XX sensor.
+	  EC6XX is the touch type fingerprint sensor.
+	  EC6XX module can support WOF mode.
 
 config SENSORS_ET7XX
 	tristate "ET7XX fingerprint sensor support"

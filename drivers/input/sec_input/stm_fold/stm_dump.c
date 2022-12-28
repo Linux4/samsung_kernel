@@ -256,7 +256,7 @@ ssize_t get_cmoffset_dump(struct stm_ts_data *ts, char *buf, u8 position)
 		if (cm_num == OFFSET_FAC_DATA_CM2) {
 			signature = STM_TS_CM2_SIGNATURE;
 			address[1] = 0x01;
-		} else if (cm_num == OFFSET_FAC_DATA_CM3){
+		} else if (cm_num == OFFSET_FAC_DATA_CM3) {
 			signature = STM_TS_CM3_SIGNATURE;
 			address[1] = 0x02;
 		}
@@ -342,7 +342,7 @@ out:
 	ret = stm_ts_wait_for_echo_event(ts, address, 2, 0);
 	if (ret < 0)
 		goto err_out;
-	
+
 	// Set Normal mode : save test data & fail history
 	address[0] = 0xE4;
 	address[1] = 0x00;
@@ -369,11 +369,7 @@ static ssize_t stm_ts_tsp_cmoffset_read(struct file *file, char __user *buf,
 	return stm_ts_tsp_cmoffset_all_read(file, buf, len, offset);
 }
 
-static const struct file_operations tsp_cmoffset_all_file_ops = {
-	.owner = THIS_MODULE,
-	.read = stm_ts_tsp_cmoffset_read,
-	.llseek = generic_file_llseek,
-};
+static sec_input_proc_ops(THIS_MODULE, tsp_cmoffset_all_file_ops, stm_ts_tsp_cmoffset_read, NULL);
 
 void stm_ts_init_proc(struct stm_ts_data *ts)
 {
@@ -394,9 +390,11 @@ void stm_ts_init_proc(struct stm_ts_data *ts)
 	if (!ts->cmoffset_main_proc)
 		goto err_alloc_main;
 
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 	if (ts->plat_data->support_dual_foldable == SUB_TOUCH)
 		entry_cmoffset_all = proc_create("tsp_cmoffset_all_sub", S_IFREG | S_IRUGO, NULL, &tsp_cmoffset_all_file_ops);
 	else
+#endif
 		entry_cmoffset_all = proc_create("tsp_cmoffset_all", S_IFREG | S_IRUGO, NULL, &tsp_cmoffset_all_file_ops);
 	
 	if (!entry_cmoffset_all) {

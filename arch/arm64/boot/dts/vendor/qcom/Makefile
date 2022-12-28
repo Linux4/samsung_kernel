@@ -106,7 +106,8 @@ dtbo-$(CONFIG_ARCH_HOLI) += holi-rumi-overlay.dtbo \
 	holi-cdp-lcd-pm6125-overlay.dtbo \
 	holi-mtp-usbc-pm6125-overlay.dtbo \
 	holi-mtp-pm6125-nopmi-overlay.dtbo \
-	holi-qrd-pm6125-overlay.dtbo
+	holi-qrd-pm6125-overlay.dtbo \
+	holi-qrd-pm6125-nopmi-overlay.dtbo
 
 holi-rumi-overlay.dtbo-base := holi.dtb
 holi-mtp-overlay.dtbo-base := holi.dtb
@@ -121,6 +122,7 @@ holi-cdp-lcd-pm6125-overlay.dtbo-base := holi.dtb
 holi-mtp-usbc-pm6125-overlay.dtbo-base := holi.dtb
 holi-mtp-pm6125-nopmi-overlay.dtbo-base := holi.dtb
 holi-qrd-pm6125-overlay.dtbo-base := holi.dtb
+holi-qrd-pm6125-nopmi-overlay.dtbo-base := holi.dtb
 
 else
 dtb-$(CONFIG_ARCH_HOLI) += holi-rumi.dtb \
@@ -135,7 +137,8 @@ dtb-$(CONFIG_ARCH_HOLI) += holi-rumi.dtb \
 	holi-cdp-lcd-pm6125.dtb \
 	holi-mtp-usbc-pm6125.dtb \
 	holi-mtp-pm6125-nopmi.dtb \
-	holi-qrd-pm6125.dtb
+	holi-qrd-pm6125.dtb \
+	holi-qrd-pm6125-nopmi.dtb
 
 endif
 
@@ -201,21 +204,25 @@ dtbo-$(CONFIG_ARCH_YUPIK) +=    \
 	yupik-idp-overlay.dtbo \
 	yupik-atp-overlay.dtbo \
 	yupik-qrd-overlay.dtbo \
-	yupik-idps-digital-mics-overlay.dtbo \
 	yupik-idps-amoled-overlay.dtbo \
 	yupik-idp-pm7250b-overlay.dtbo \
+	yupik-idp-hsp-overlay.dtbo \
 	yupikp-idp-overlay.dtbo \
 	yupikp-atp-overlay.dtbo \
 	yupikp-qrd-overlay.dtbo \
-	yupikp-idps-digital-mics-overlay.dtbo \
 	yupikp-idps-amoled-overlay.dtbo \
+	yupikp-idp-hsp-overlay.dtbo \
 	yupik-iot-idp-overlay.dtbo \
+	yupik-iot-idp-pm7250b-overlay.dtbo \
 	yupik-iot-qrd-overlay.dtbo \
 	yupik-iot-hsp-overlay.dtbo \
+	yupik-iot-hsp-pm7250b-overlay.dtbo \
 	yupik-iot-idps-amoled-overlay.dtbo \
 	yupikp-iot-idp-overlay.dtbo \
+	yupikp-iot-idp-pm7250b-overlay.dtbo \
 	yupikp-iot-qrd-overlay.dtbo \
 	yupikp-iot-hsp-overlay.dtbo \
+	yupikp-iot-hsp-pm7250b-overlay.dtbo \
 	yupikp-iot-idps-amoled-overlay.dtbo
 
 
@@ -223,42 +230,50 @@ yupik-rumi-overlay.dtbo-base := yupik.dtb
 yupik-idp-overlay.dtbo-base := yupik.dtb
 yupik-atp-overlay.dtbo-base := yupik.dtb
 yupik-qrd-overlay.dtbo-base := yupik.dtb
-yupik-idps-digital-mics-overlay.dtbo-base := yupik.dtb
 yupik-idps-amoled-overlay.dtbo-base := yupik.dtb
 yupik-idp-pm7250b-overlay.dtbo-base := yupik.dtb
+yupik-idp-hsp-overlay.dtbo-base := yupik-hsp.dtb
 yupikp-idp-overlay.dtbo-base := yupikp.dtb
 yupikp-atp-overlay.dtbo-base := yupikp.dtb
 yupikp-qrd-overlay.dtbo-base := yupikp.dtb
-yupikp-idps-digital-mics-overlay.dtbo-base := yupikp.dtb
 yupikp-idps-amoled-overlay.dtbo-base := yupikp.dtb
+yupikp-idp-hsp-overlay.dtbo-base := yupikp-hsp.dtb
 yupik-iot-idp-overlay.dtbo-base := yupik-iot.dtb
+yupik-iot-idp-pm7250b-overlay.dtbo-base := yupik-iot.dtb
 yupik-iot-qrd-overlay.dtbo-base := yupik-iot.dtb
 yupik-iot-hsp-overlay.dtbo-base := yupik-iot.dtb
+yupik-iot-hsp-pm7250b-overlay.dtbo-base := yupik-iot.dtb
 yupik-iot-idps-amoled-overlay.dtbo-base := yupik-iot.dtb
 yupikp-iot-idp-overlay.dtbo-base := yupikp-iot.dtb
+yupikp-iot-idp-pm7250b-overlay.dtbo-base := yupikp-iot.dtb
 yupikp-iot-qrd-overlay.dtbo-base := yupikp-iot.dtb
 yupikp-iot-hsp-overlay.dtbo-base := yupikp-iot.dtb
+yupikp-iot-hsp-pm7250b-overlay.dtbo-base := yupikp-iot.dtb
 yupikp-iot-idps-amoled-overlay.dtbo-base := yupikp-iot.dtb
 else
 dtb-$(CONFIG_ARCH_YUPIK) += yupik-rumi.dtb \
 	yupik-idp.dtb \
 	yupik-atp.dtb \
 	yupik-qrd.dtb \
-	yupik-idps-digital-mics.dtb \
 	yupik-idps-amoled.dtb \
 	yupik-idp-pm7250b.dtb \
+	yupik-idp-hsp.dtb \
 	yupikp-idp.dtb \
 	yupikp-atp.dtb \
 	yupikp-qrd.dtb \
-	yupikp-idps-digital-mics.dtb \
 	yupikp-idps-amoled.dtb \
+	yupikp-idp-hsp.dtb \
 	yupik-iot-idp.dtb \
+	yupik-iot-idp-pm7250b.dtb \
 	yupik-iot-qrd.dtb \
 	yupik-iot-hsp.dtb \
 	yupik-iot-idps-amoled.dtb \
 	yupikp-iot-idp.dtb \
+	yupikp-iot-idp-pm7250b.dtb \
 	yupikp-iot-qrd.dtb \
 	yupikp-iot-hsp.dtb \
+	yupik-iot-hsp-pm7250b.dtb \
+	yupikp-iot-hsp-pm7250b.dtb \
 	yupikp-iot-idps-amoled.dtb
 endif
 
@@ -406,23 +421,40 @@ dtb-$(CONFIG_ARCH_SDXLEMUR) += sdxlemur-rumi.dtb \
 	sdxlemur-mtp.dtb \
 	sdxlemur-mtp-mbb.dtb \
 	sdxlemur-mtp-cpe.dtb \
+	sdxlemur-mtp-cpe-pine1x.dtb \
+	sdxlemur-mtp-cpe-pine2x.dtb \
 	sdxlemur-mtp-mbb-emmc.dtb \
 	sdxlemur-mtp-mbb-emmc-512mb.dtb \
 	sdxlemur-mtp-mbb-ntn3-pcie.dtb \
 	sdxlemur-mtp-mbb-pcie-ep.dtb \
+	sdxlemur-mtp-mbb-pcie-ep-ipq.dtb \
 	sdxlemur-mtp-mbb-pcie-rc-ep.dtb \
+	sdxlemur-mtp-mbb-m2-ep.dtb \
+	sdxlemur-mtp-mbb-m2-ep-usb.dtb \
 	sdxlemur-mtp-mbb.dtb \
 	sdxlemur-rcm-pcie-ep.dtb \
 	sdxlemur-rcm-rc.dtb \
+	sdxlemur-rcm-rc-pine1x.dtb \
+	sdxlemur-rcm-rc-pine2x.dtb \
 	sdxlemur-v2-cdp.dtb \
 	sdxlemur-v2-mtp-mbb.dtb \
 	sdxlemur-v2-mtp-cpe.dtb \
 	sdxlemur-v2-mtp-mbb-emmc.dtb \
 	sdxlemur-v2-mtp-mbb-ntn3-pcie.dtb \
 	sdxlemur-v2-mtp-mbb-pcie-ep.dtb \
+	sdxlemur-v2-mtp-mbb-pcie-ep-ipq.dtb \
 	sdxlemur-v2-mtp-mbb-pcie-rc-ep.dtb \
 	sdxlemur-v2-rcm-pcie-ep.dtb \
-	sdxlemur-v2-rcm-rc.dtb
+	sdxlemur-v2-rcm-rc.dtb \
+	sdxlemur-v2-atp.dtb \
+	sdxlemur-v2-mtp-cpe-pine1x.dtb \
+	sdxlemur-v2-mtp-cpe-pine2x.dtb \
+	sdxlemur-v2-mtp-mbb-emmc-512mb.dtb \
+	sdxlemur-v2-mtp-mbb-m2-ep-usb.dtb \
+	sdxlemur-v2-mtp-mbb-m2-ep.dtb \
+	sdxlemur-v2-rcm-rc-pine1x.dtb \
+	sdxlemur-v2-rcm-rc-pine2x.dtb
+
 
 
 ifeq ($(CONFIG_ARCH_SHIMA), y)

@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1993,6 +1993,8 @@ struct bcm_cfg80211 {
 #ifdef CUSTOM_EVENT_PM_WAKE
 	dpm_info_t dpm_info[SOC_MAX_SLICE];
 #endif /* CUSTOM_EVENT_PM_WAKE */
+	uint32 ap_bw_limit;
+	uint32 ap_bw_chspec;
 };
 
 /* Max auth timeout allowed in case of EAP is 70sec, additional 5 sec for
@@ -3171,4 +3173,25 @@ extern void wl_android_roamoff_dbg_dump(struct bcm_cfg80211 *cfg);
 #define ROAMOFF_DBG_SAVE(dev, rsn, var)
 #define ROAMOFF_DBG_DUMP(cfg)
 #endif /* DEBUG_SETROAMMODE */
+
+/* Added wl_reassoc_params_cvt_v1 due to mis-sync between DHD and FW
+ * Because Dongle use wl_reassoc_params_v1_t for WLC_REASSOC
+ * Legacy FW use wl_reassoc_params_t
+ */
+typedef struct wl_reassoc_params_cvt_v1 {
+	uint16 version;
+	uint16 flags;
+	wl_reassoc_params_t params;
+} wl_reassoc_params_cvt_v1_t;
+
+typedef struct wl_ext_reassoc_params_cvt_v1 {
+	uint16 version;
+	uint16 length;
+	uint32 flags;
+	wl_reassoc_params_cvt_v1_t params;
+} wl_ext_reassoc_params_cvt_v1_t;
+
+#define WL_REASSOC_VERSION_V0	0u
+#define WL_REASSOC_VERSION_V1	WL_EXTJOIN_VERSION_V1
+#define WL_REASSOC_VERSION_V2	WL_EXT_REASSOC_VER_1
 #endif /* _wl_cfg80211_h_ */

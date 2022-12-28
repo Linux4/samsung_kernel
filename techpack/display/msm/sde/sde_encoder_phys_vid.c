@@ -626,7 +626,8 @@ static void sde_encoder_phys_vid_underrun_irq(void *arg, int irq_idx)
 #if IS_ENABLED(CONFIG_SEC_DISPLAYPORT)
 	if (secdp_get_hpd_status()) {
 		/* prints underrun log in case of DP connection */
-		SDE_ERROR("underrun while DP connection, %d\n", phys_enc->intf_idx);
+		SDE_ERROR("underrun while DP connection, intf:%d, type:%d\n",
+			phys_enc->intf_idx, phys_enc->parent->encoder_type);
 	}
 #endif
 	if (phys_enc->parent_ops.handle_underrun_virt)

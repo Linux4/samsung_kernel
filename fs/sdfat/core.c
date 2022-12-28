@@ -54,6 +54,19 @@ static inline u64 inode_peek_iversion(struct inode *inode)
 #endif
 
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)
+static u64 bdev_nr_sectors(struct block_device *bdev)
+{
+	struct hd_struct *part = bdev->bd_part;
+
+	if (!part)
+		return 0;
+
+	return (u64)(part->nr_sects);
+}
+#endif
+
+
 /*----------------------------------------------------------------------*/
 /*  Constant & Macro Definitions                                        */
 /*----------------------------------------------------------------------*/
@@ -1725,7 +1738,6 @@ s32 fscore_mount(struct super_block *sb)
 	pbr_t *p_pbr;
 	struct buffer_head *tmp_bh = NULL;
 	struct gendisk *disk = sb->s_bdev->bd_disk;
-	struct hd_struct *part = sb->s_bdev->bd_part;
 	struct sdfat_mount_options *opts = &(SDFAT_SB(sb)->options);
 	FS_INFO_T *fsi = &(SDFAT_SB(sb)->fsi);
 
@@ -1822,9 +1834,8 @@ free_bh:
 		"detected volume size     : %llu KB (disk : %llu KB, "
 		"part : %llu KB)",
 		(fsi->num_sectors * (sb->s_blocksize >> SECTOR_SIZE_BITS)) >> 1,
-		disk ? (u64)((disk->part0.nr_sects) >> 1) : 0,
-		part ? (u64)((part->nr_sects) >> 1) : 0);
-
+		disk ? (u64)(get_capacity(disk) >> 1) : 0,
+		(u64)bdev_nr_sectors(sb->s_bdev) >> 1);
 	ret = load_upcase_table(sb);
 	if (ret) {
 		sdfat_log_msg(sb, KERN_ERR, "failed to load upcase table");

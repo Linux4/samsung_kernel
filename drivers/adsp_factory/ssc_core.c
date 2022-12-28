@@ -1091,52 +1091,68 @@ static ssize_t ssc_mode_store(struct device *dev,
 #endif
 
 #ifdef CONFIG_SUPPORT_LIGHT_SEAMLESS
-static int light_seamless_lux, sub_light_seamless_lux;
+static int light_seamless_lux_low, light_seamless_lux_high;
+static int sub_light_seamless_lux_low, sub_light_seamless_lux_high;
 void light_seamless_work_func(struct work_struct *work)
 {
-	if (light_seamless_lux != 0 || sub_light_seamless_lux != 0) {
-		int32_t msg_buf[3] = {OPTION_TYPE_SSC_LIGHT_SEAMLESS, 0, 0};
-		msg_buf[1] = light_seamless_lux;
-		msg_buf[2] = sub_light_seamless_lux;
+	if (light_seamless_lux_low != 0
+		|| light_seamless_lux_high != 0
+		|| sub_light_seamless_lux_low != 0
+		|| sub_light_seamless_lux_high != 0) {
+		int32_t msg_buf[5] = {0, };
+		msg_buf[0] = OPTION_TYPE_SSC_LIGHT_SEAMLESS;
+		msg_buf[1] = light_seamless_lux_low;
+		msg_buf[2] = light_seamless_lux_high;
+		msg_buf[3] = sub_light_seamless_lux_low;
+		msg_buf[4] = sub_light_seamless_lux_high;
 		adsp_unicast(msg_buf, sizeof(msg_buf),
 			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
 	}
-	pr_info("[FACTORY] light seamless init:%d,%d\n",
-		light_seamless_lux, sub_light_seamless_lux);
+	pr_info("[FACTORY] light seamless init, M%d,%d, S:%d,%d\n",
+		light_seamless_lux_low, light_seamless_lux_high,
+		sub_light_seamless_lux_low, sub_light_seamless_lux_high);
 }
 
 static ssize_t light_seamless_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	pr_info("[FACTORY] light_seamless_lux:%d,%d\n",
-		light_seamless_lux, sub_light_seamless_lux);
-	return snprintf(buf, PAGE_SIZE, "%d,%d\n",
-		light_seamless_lux, sub_light_seamless_lux);
+	pr_info("[FACTORY] light seamless M%d,%d, S:%d,%d\n",
+		light_seamless_lux_low, light_seamless_lux_high,
+		sub_light_seamless_lux_low, sub_light_seamless_lux_high);
+	return snprintf(buf, PAGE_SIZE, "M:%d,%d, S:%d,%d\n",
+		light_seamless_lux_low, light_seamless_lux_high,
+		sub_light_seamless_lux_low, sub_light_seamless_lux_high);
 }
 
 static ssize_t light_seamless_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
-	int32_t msg_buf[3];
+	int32_t msg_buf[5] = {0, };
 	int32_t ret = 0;
 
-	ret = sscanf(buf, "%3d,%3d", &light_seamless_lux, &sub_light_seamless_lux);
-	if (ret != 2) {
+	ret = sscanf(buf, "%5d,%5d,%5d,%5d",
+		&light_seamless_lux_low, &light_seamless_lux_high,
+		&sub_light_seamless_lux_low, &sub_light_seamless_lux_high);
+	if (ret != 4) {
 		pr_err("[FACTORY]: %s - The number of data are wrong,%d\n",
 			__func__, ret);
 		return -EINVAL;
 	}
 
 	msg_buf[0] = OPTION_TYPE_SSC_LIGHT_SEAMLESS;
-	msg_buf[1] = light_seamless_lux;
-	msg_buf[2] = sub_light_seamless_lux;
+	msg_buf[1] = light_seamless_lux_low;
+	msg_buf[2] = light_seamless_lux_high;
+	msg_buf[3] = sub_light_seamless_lux_low;
+	msg_buf[4] = sub_light_seamless_lux_high;
 	adsp_unicast(msg_buf, sizeof(msg_buf),
 		MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
-	pr_info("[FACTORY] light_seamless_lux:%d,%d\n",
-		light_seamless_lux, sub_light_seamless_lux);
+	pr_info("[FACTORY] light_seamless_lux, M:%d,%d, S:%d,%d\n",
+		light_seamless_lux_low, light_seamless_lux_high,
+		sub_light_seamless_lux_low, sub_light_seamless_lux_high);
 
 	return size;
 }
+
 
 void light_seamless_init_work(struct adsp_data *data)
 {
@@ -1215,6 +1231,48 @@ static ssize_t fold_state_store(struct device *dev,
 }
 #endif
 
+static ssize_t ar_mode_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int32_t msg_buf[2] = {OPTION_TYPE_SSC_AUTO_ROTATION_MODE, 0};
+
+	msg_buf[1] = buf[0] - 48;
+	pr_info("[FACTORY]%s: ar_mode:%d\n", __func__, msg_buf[1]);
+	adsp_unicast(msg_buf, sizeof(msg_buf),
+		MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
+
+	return size;
+}
+
+static int sbm_init;
+static ssize_t sbm_init_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	pr_info("[FACTORY] %s sbm_init_show:%d\n", __func__, sbm_init);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", sbm_init);
+}
+
+static ssize_t sbm_init_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int32_t msg_buf[2] = {OPTION_TYPE_SSC_SBM_INIT, 0};
+
+	if (kstrtoint(buf, 10, &sbm_init)) {
+		pr_err("[FACTORY] %s: kstrtoint fail\n", __func__);
+		return -EINVAL;
+	}
+
+	if (sbm_init) {
+		msg_buf[1] = sbm_init;
+		pr_info("[FACTORY] %s sbm_init_store %d\n", __func__, sbm_init);
+		adsp_unicast(msg_buf, sizeof(msg_buf),
+			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
+	}
+
+	return size;
+}
+
 static DEVICE_ATTR(dumpstate, 0440, dumpstate_show, NULL);
 static DEVICE_ATTR(operation_mode, 0664,
 	operation_mode_show, operation_mode_store);
@@ -1253,6 +1311,8 @@ static DEVICE_ATTR(light_seamless, 0660,
 #ifdef CONFIG_SUPPORT_SENSOR_FOLD
 static DEVICE_ATTR(fold_state, 0660, fold_state_show, fold_state_store);
 #endif
+static DEVICE_ATTR(sbm_init, 0660, sbm_init_show, sbm_init_store);
+static DEVICE_ATTR(ar_mode, 0220, NULL, ar_mode_store);
 
 static struct device_attribute *core_attrs[] = {
 	&dev_attr_dumpstate,
@@ -1290,6 +1350,8 @@ static struct device_attribute *core_attrs[] = {
 #ifdef CONFIG_SUPPORT_SENSOR_FOLD
 	&dev_attr_fold_state,
 #endif
+	&dev_attr_sbm_init,
+	&dev_attr_ar_mode,
 	NULL,
 };
 

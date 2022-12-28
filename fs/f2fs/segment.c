@@ -3469,6 +3469,7 @@ void f2fs_replace_block(struct f2fs_sb_info *sbi, struct dnode_of_data *dn,
 void __update_summary_of_block(struct f2fs_sb_info *sbi,
 				struct f2fs_summary *sum, block_t blkaddr)
 {
+	struct sit_info *sit_i = SIT_I(sbi);
 	struct curseg_info *curseg;
 	unsigned int segno, old_cursegno;
 	int type;
@@ -3492,6 +3493,7 @@ void __update_summary_of_block(struct f2fs_sb_info *sbi,
 	curseg = CURSEG_I(sbi, type);
 
 	mutex_lock(&curseg->curseg_mutex);
+	down_write(&sit_i->sentry_lock);
 
 	old_cursegno = curseg->segno;
 	old_blkoff = curseg->next_blkoff;
@@ -3512,6 +3514,7 @@ void __update_summary_of_block(struct f2fs_sb_info *sbi,
 	}
 	curseg->next_blkoff = old_blkoff;
 
+	up_write(&sit_i->sentry_lock);
 	mutex_unlock(&curseg->curseg_mutex);
 	up_write(&SM_I(sbi)->curseg_lock);
 }

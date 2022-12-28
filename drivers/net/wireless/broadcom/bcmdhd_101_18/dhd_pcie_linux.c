@@ -1,7 +1,7 @@
 /*
  * Linux DHD Bus Module for PCIE
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -2991,7 +2991,13 @@ bool dhd_runtimepm_state(dhd_pub_t *dhd)
 		return FALSE;
 	}
 
-	if ((bus->idletime > 0) && (bus->idlecount >= bus->idletime)) {
+#ifdef RPM_FAST_TRIGGER
+	if ((dhd->rpm_fast_trigger == TRUE) ||
+		((bus->idletime > 0) && (bus->idlecount >= bus->idletime)))
+#else
+	if (((bus->idletime > 0) && (bus->idlecount >= bus->idletime)))
+#endif /* RPM_FAST_TRIGGER */
+	{
 		bus->idlecount = 0;
 		if (DHD_BUS_BUSY_CHECK_IDLE(dhd) && !DHD_BUS_CHECK_DOWN_OR_DOWN_IN_PROGRESS(dhd) &&
 			!DHD_CHECK_CFG_IN_PROGRESS(dhd) && !dhd_os_check_wakelock_all(bus->dhd)) {
@@ -3036,6 +3042,12 @@ bool dhd_runtimepm_state(dhd_pub_t *dhd)
 			DHD_BUS_BUSY_SET_RPM_SUSPEND_DONE(dhd);
 			/* For making sure NET TX Queue active  */
 			dhd_bus_start_queue(bus);
+#ifdef RPM_FAST_TRIGGER
+			if (dhd->rpm_fast_trigger) {
+				DHD_ERROR(("%s : reset rpm_fast_trigger\n", __FUNCTION__));
+				dhd->rpm_fast_trigger = FALSE;
+			}
+#endif /* RPM_FAST_TRIGGER */
 			DHD_GENERAL_UNLOCK(dhd, flags);
 
 			wait_event(bus->rpm_queue, bus->bus_wake);
@@ -3073,8 +3085,9 @@ bool dhd_runtimepm_state(dhd_pub_t *dhd)
 			/* Since one of the contexts are busy (TX, IOVAR or RX)
 			 * we should not suspend
 			 */
-			DHD_ERROR(("%s : bus is active with dhd_bus_busy_state = 0x%x\n",
-				__FUNCTION__, dhd->dhd_bus_busy_state));
+			DHD_ERROR(("%s : bus active dhd_bus_busy_state:0x%x cfg_in_progress:%d\n",
+				__FUNCTION__, dhd->dhd_bus_busy_state,
+				DHD_CHECK_CFG_IN_PROGRESS(dhd)));
 			return FALSE;
 		}
 	}

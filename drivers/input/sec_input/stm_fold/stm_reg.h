@@ -13,7 +13,6 @@
 
 #define BRUSH_Z_DATA			63 /* for ArtCanvas */
 
-#undef STM_TS_SUPPORT_TA_MODE
 #undef USE_OPEN_DWORK
 
 #ifdef USE_OPEN_DWORK
@@ -34,8 +33,9 @@
 
 /*
  * STM_TS1b: ID0: 0x39
- * STM_TS9c: ID0: 0x50
  * STM_TS5c: ID0: 0x48
+ * STM_TS9c: ID0: 0x50
+ * STM_TS2c: ID0: 0x52
  */
 #define STM_TS_ID0				0x48
 #define STM_TS_ID1				0x36
@@ -56,6 +56,24 @@
 #define STM_TS_CMD_SPONGE_ACCESS				0x0000
 
 /* COMMANDS */
+
+// For Spruce
+#define STM_TS_SCAN_MODE_ADDR 0x0010 /* FW reg scan mode address */
+#define STM_TS_FLASH_SAVE_ADDR 0x0020 /* FW reg flash save address */
+#define STM_TS_HDM_WRITE_REQ_ADDR 0x0021      /* FW reg hdm write address */
+#define STM_TS_PI_ADDR 0x0022                 /* FW reg Panel Init address */
+#define STM_TS_HDM_REQ_ADDR 0x0023            /* FW reg HDM request address */
+#define STM_TS_ITO_TRIGGER_ADDR 0x0024        /* FW reg ITO trigger address */
+#define STM_TS_SYS_ERROR_ADDR 0x0040          /* FW reg system error status  address */
+#define STM_TS_FIFO_READ_ADDR 0x0060          /* FW reg FIFO read address */
+
+#define STM_TS_REG_CRC_MASK 0x03   /* mask to read fw register status of reg crc */
+#define STM_TS_REG_MISC_MASK 0x0C  /* mask to read fw register status of misc crc */
+#define STM_TS_MS_CRC_MASK 0x0F    /* mask to read fw register status of ms cx crc */
+#define STM_TS_SS_CRC_MASK 0xF0    /* mask to read fw register status of ss cx crc */
+#define STM_TS_IOFF_CRC_MASK 0xFF  /* mask to read fw register status of ioff crc */
+#define STM_TS_RAWMS_CRC_MASK 0x03 /* mask to read fw register status of raw frame data crc */
+
 #define STM_TS_CMD_SENSE_ON				0x10
 #define STM_TS_CMD_SENSE_OFF				0x11
 #define STM_TS_CMD_SW_RESET				0x12
@@ -70,7 +88,7 @@
 
 #define STM_TS_CMD_SET_GET_TOUCHTYPE			0x30
 #define STM_TS_CMD_SET_GET_OPMODE				0x31
-#define STM_TS_CMD_SET_GET_CHARGER_MODE			0x32
+#define STM_TS_CMD_SET_GET_WIRELESSCHARGER_MODE			0x32
 #define STM_TS_CMD_SET_GET_NOISE_MODE			0x33
 #define STM_TS_CMD_SET_GET_REPORT_RATE			0x34
 #define STM_TS_CMD_SET_GET_TOUCH_MODE_FOR_THRESHOLD	0x35
@@ -81,6 +99,7 @@
 #define STM_TS_CMD_WRITE_COORDINATE_FILTER			0x3A
 #define STM_TS_CMD_SET_FOD_FINGER_MERGE			0x3B
 #define STM_TS_CMD_SET_LOWTEMPERATURE_MODE			0x3C
+#define STM_TS_CMD_SET_GET_WIRECHARGER_MODE			0x3F
 
 #define STM_TS_CMD_SET_EAR_DETECT				0x41
 #define STM_TS_CMD_SET_POCKET_MODE			0x42
@@ -106,7 +125,8 @@
 #define STM_TS_CMD_FUNCTION_SET_GAME_MODE		0x11
 
 /* STM_TS SPONGE COMMAND */
-#define STM_TS_CMD_SPONGE_READ_WRITE_CMD			0xAA
+#define STM_TS_CMD_SPONGE_READ_WRITE_CMD		0xAA
+#define STM_TS_CMD_SPONGE_READ_WRITE_CMD_TS2C		0xEE
 #define STM_TS_CMD_SPONGE_NOTIFY_CMD			0xC0
 
 #define STM_TS_CMD_SPONGE_OFFSET_MODE			0x00
@@ -116,6 +136,7 @@
 
 /* First byte of ONE EVENT */
 #define STM_TS_EVENT_PASS_REPORT				0x03
+#define STM_TS_EVENT_PASS_REPORT_TS2C				0xC3
 #define STM_TS_EVENT_STATUS_REPORT				0x43
 #define STM_TS_EVENT_JITTER_RESULT 			0x49
 #define STM_TS_EVENT_ERROR_REPORT				0xF3
@@ -274,3 +295,21 @@
 #define NORMAL_CX2	0	/* single driving */
 #define ACTIVE_CX2	1	/* multi driving */
 
+#define STM_TS_GET_CMOFFSET_DUMP_V1		0
+#define STM_TS_GET_CMOFFSET_DUMP_V2		1
+
+/* fw update */
+#define FRAME_BUFFER_ADDR 0x8000
+
+#define STM_TS_CMD_REG_W		0xFA
+#define STM_TS_CMD_REG_R		0xFA
+#define STM_TS_CMD_SCAN_MODE	0xA0
+#define STM_TS_CMD_FEATURE		0xA2
+#define STM_TS_CMD_SYSTEM		0xA4
+#define STM_TS_CMD_FRM_BUFF_W	0xA6
+#define STM_TS_CMD_FRM_BUFF_R	0x80
+#define STM_TS_CMD_CUSTOM_W	0xC0
+#define STM_TS_CMD_SPONGE_W	0xD0
+#define STM_TS_CMD_CUSTOM_R	0xD1
+#define STM_TS_CMD_SNR_R	0x72
+#define STM_TS_CMD_SNR_R_SIZE	2

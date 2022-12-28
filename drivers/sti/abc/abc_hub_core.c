@@ -24,6 +24,7 @@
 #endif
 
 __visible_for_testing struct device *abc_hub_dev;
+EXPORT_SYMBOL_KUNIT(abc_hub_dev);
 static int abc_hub_probed;
 
 #if IS_ENABLED(CONFIG_OF)
@@ -138,6 +139,7 @@ __visible_for_testing ssize_t store_abc_hub_enable(struct device *dev,
 	}
 	return count;
 }
+EXPORT_SYMBOL_KUNIT(store_abc_hub_enable);
 
 static ssize_t show_abc_hub_enable(struct device *dev,
 				   struct device_attribute *attr,
@@ -191,6 +193,7 @@ __visible_for_testing ssize_t store_abc_hub_bootc_offset(struct device *dev,
 
 	return count;
 }
+EXPORT_SYMBOL_KUNIT(store_abc_hub_bootc_offset);
 
 static ssize_t show_abc_hub_bootc_offset(struct device *dev,
 				   struct device_attribute *attr,
@@ -225,6 +228,7 @@ __visible_for_testing ssize_t store_abc_hub_bootc_time(struct device *dev,
 
 	return count;
 }
+EXPORT_SYMBOL_KUNIT(store_abc_hub_bootc_time);
 
 static ssize_t show_abc_hub_bootc_time(struct device *dev,
 				   struct device_attribute *attr,
@@ -421,24 +425,14 @@ static struct platform_driver abc_hub_driver = {
 	},
 };
 
-#ifdef CONFIG_SEC_KUNIT
-kunit_notifier_chain_init(abc_hub_test_module);
-#endif
-
 static int __init abc_hub_init(void)
 {
 	pr_info("%s\n", __func__);
-#ifdef CONFIG_SEC_KUNIT
-	kunit_notifier_chain_register(abc_hub_test_module);
-#endif
 	return platform_driver_register(&abc_hub_driver);
 }
 
 static void __exit abc_hub_exit(void)
 {
-#ifdef CONFIG_SEC_KUNIT
-	kunit_notifier_chain_unregister(abc_hub_test_module);
-#endif
 	return platform_driver_unregister(&abc_hub_driver);
 }
 

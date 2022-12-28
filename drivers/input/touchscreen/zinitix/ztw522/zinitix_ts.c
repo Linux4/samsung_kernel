@@ -10303,9 +10303,8 @@ static int zt75xx_ts_probe(struct i2c_client *client,
 			"%s: fail update_work", __func__);
 		goto err_fw_update;
 	}
-	snprintf(info->phys, sizeof(info->phys),
-		"%s/input0", dev_name(&client->dev));
 	info->input_dev->name = "sec_touchscreen2";
+	snprintf(info->phys, sizeof(info->phys), "%s", info->input_dev->name);
 	info->input_dev->id.bustype = BUS_I2C;
 /*	info->input_dev->id.vendor = 0x0001; */
 	info->input_dev->phys = info->phys;
