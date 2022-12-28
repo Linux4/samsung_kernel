@@ -92,6 +92,14 @@ config CAMERA_AAV_V13VE
 	bool CAMERA_AAV_V13VE
 	help
 		For AAV V13VE camera set
+config CAMERA_MMV_V13VE
+	bool CAMERA_MMV_V13VE
+	help
+		For MMV V13VE camera set
+config CAMERA_MMV_V13X
+	bool CAMERA_MMV_V13X
+	help
+		For MMV V13X camera set
 endchoice
 
 config CAMERA_SAMSUNG_MODEL_NAME

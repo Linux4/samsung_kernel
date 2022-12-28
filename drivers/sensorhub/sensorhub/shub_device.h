@@ -60,6 +60,8 @@ struct shub_data_t {
 	struct shub_waitevent reset_lock;
 	struct reset_info_t reset_info;
 
+	u64 hub_crash_timestamp;
+
 	u8 pm_status;
 	u8 lcd_status;
 
@@ -73,6 +75,8 @@ struct shub_data_t {
 	struct shub_system_info system_info;
 
 	struct regulator *sensor_vdd_regulator;
+
+	int sensor_ldo_en;
 };
 
 struct device *get_shub_device(void); // ssp_sensor sysfs 위한 device pdev랑 다름

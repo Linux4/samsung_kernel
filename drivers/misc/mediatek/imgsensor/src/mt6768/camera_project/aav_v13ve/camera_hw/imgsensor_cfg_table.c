@@ -114,7 +114,7 @@ struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[] = {
 		{
 			{
 				IMGSENSOR_HW_PIN_MIPI_SWITCH_SEL,
-				IMGSENSOR_HW_PIN_STATE_LEVEL_0,
+				IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH,
 				0,
 				IMGSENSOR_HW_PIN_STATE_LEVEL_0,
 				0
@@ -127,7 +127,7 @@ struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[] = {
 		{
 			{
 				IMGSENSOR_HW_PIN_MIPI_SWITCH_SEL,
-				IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH,
+				IMGSENSOR_HW_PIN_STATE_LEVEL_0,
 				0,
 				IMGSENSOR_HW_PIN_STATE_LEVEL_0,
 				0
@@ -147,12 +147,12 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 		SENSOR_DRVNAME_S5KJN1_MIPI_RAW,
 		{
 			{RST, Vol_Low, 1},
-			{AVDD, Vol_2800, 0},
-			{DVDD, Vol_1050, 0},
-			{DOVDD, Vol_1800, 0},
+			{DOVDD, Vol_1800, 1},
+			{DVDD, Vol_1050, 1},
 			{AFVDD, Vol_2800, 1},
+			{AVDD, Vol_2800, 1},
 			{SensorMCLK, Vol_High, 1},
-			{RST, Vol_High, 10}
+			{RST, Vol_High, 5}
 		},
 	},
 #endif
@@ -165,20 +165,20 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 			{DVDD, Vol_1200, 0},
 			{DOVDD, Vol_1800, 0},
 			{SensorMCLK, Vol_High, 1},
-			{RST, Vol_High, 13}
+			{RST, Vol_High, 5}
 		},
 	},
 #endif
-#if defined(GC5035_MIPI_RAW)
+#if defined(GC5035U_MIPI_RAW)
 	{
-		SENSOR_DRVNAME_GC5035_MIPI_RAW,
+		SENSOR_DRVNAME_GC5035U_MIPI_RAW,
 		{
 			{RST, Vol_Low, 1},
-			{AVDD, Vol_2800, 0},
-			{DVDD, Vol_1200, 0},
 			{DOVDD, Vol_1800, 1},
+			{DVDD, Vol_1200, 1},
+			{AVDD, Vol_2800, 1},
 			{SensorMCLK, Vol_High, 1},
-			{RST, Vol_High, 12},
+			{RST, Vol_High, 5},
 		},
 	},
 #endif
@@ -186,12 +186,12 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 	{
 		SENSOR_DRVNAME_GC02M1_MIPI_RAW,
 		{
-			{RST, Vol_Low, 3},
-			{DOVDD, Vol_1800, 0},
-			{DVDD, Vol_1800, 0},
-			{AVDD, Vol_2800, 0},
-			{SensorMCLK, Vol_High, 3},
-			{RST, Vol_High, 5},
+			{RST, Vol_Low, 2},
+			{DOVDD, Vol_1800, 1},
+			{DVDD, Vol_1800, 1},
+			{AVDD, Vol_2800, 1},
+			{SensorMCLK, Vol_High, 2},
+			{RST, Vol_High, 2},
 		},
 	},
 #endif
@@ -199,11 +199,11 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 	{
 		SENSOR_DRVNAME_GC02M1B_MIPI_RAW,
 		{
-			{RST, Vol_Low, 1},
-			{DOVDD, Vol_1800, 0},
-			{DVDD, Vol_1800, 0},
-			{AVDD, Vol_2800, 0},
-			{SensorMCLK, Vol_High, 1},
+			{RST, Vol_Low, 2},
+			{DOVDD, Vol_1800, 1},
+			{DVDD, Vol_1800, 1},
+			{AVDD, Vol_2800, 1},
+			{SensorMCLK, Vol_High, 2},
 			{RST, Vol_High, 2}
 
 		},

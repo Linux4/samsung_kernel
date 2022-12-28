@@ -127,7 +127,6 @@ UINT32 S5K5E8YX_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 S5K5E8YXREAR2_MIPI_RAW_SensorInit
 	(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 S5K4HAYX_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 S5K4HAYXF_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 S5K5E9YX_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 S5KGM2_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 S5K2X5SP13_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
@@ -158,7 +157,6 @@ UINT32 MT9D115MIPISensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 MT9V115_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 /*GC*/
 UINT32 GC02M1_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 GC02M1B_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC2375_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC2365_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC2366_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
@@ -209,8 +207,8 @@ extern struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[];
 int gc5035_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int size);
 int sr846d_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int size);
 int gc5035b_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int size);
-int gc02m1b_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int ssize);
+int gc02m1_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int ssize);
 int hi2021q_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int ssize);
-int s5k4hayxf_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int ssize);
+int s5k4hayx_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int ssize);
 #endif
 

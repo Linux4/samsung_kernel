@@ -184,7 +184,7 @@
 	gpslna_pins_init: gpslna@0 {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO166__FUNC_GPIO166>;
-			slew-rate = <0>;
+			slew-rate = <1>;
 			bias-disable;
 			output-low;
 		};

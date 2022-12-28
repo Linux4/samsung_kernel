@@ -29,6 +29,8 @@ enum CCCI_SECURE_REQ_ID {
 	MD_HW_REMAP_LOCKED,
 	MD_SEC_SMEM_INF,
 	UPDATE_MD_SEC_SMEM,
+	SCP_INFO_TO_SAVE = 12, /* save scp smem addr in tfa*/
+	SCP_CLK_SET_DONE,
 };
 
 enum MD_CLOCK_REG_ID {

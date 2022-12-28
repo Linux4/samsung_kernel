@@ -3797,6 +3797,13 @@ void mt6360_recv_batoc_callback(BATTERY_OC_LEVEL tag)
 }
 
 #ifdef CONFIG_TCPC_CLASS
+bool mt6360_get_is_host(void)
+{
+	if (g_mpci->is_host)
+		pr_info("%s: set\n");
+	return g_mpci->is_host;
+}
+
 static int pd_tcp_notifier_call(struct notifier_block *nb,
 					unsigned long event, void *data)
 {
@@ -3826,7 +3833,7 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 			mpci->is_host = true;
 			mt6360_set_usbsw_state(mpci, MT6360_USBSW_USB);
 			if (((mpci->chg_type == CHARGER_UNKNOWN) || (atomic_read(&mpci->bc12_nsdp_cnt) > 0))
-							&& mpci->tcpc_attach) {
+						&& (tcpm_inquire_typec_attach_state(mpci->tcpc) != TYPEC_UNATTACHED)) {
 				mpci->chg_type = NONSTANDARD_CHARGER;
 				ret = mt6360_psy_online_changed(mpci);
 				if (ret < 0)
@@ -3836,6 +3843,12 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 			}
 		} else if (noti->swap_state.new_role == PD_ROLE_UFP)
 			mpci->is_host = false;
+		break;
+	case TCP_NOTIFY_TYPEC_STATE:
+		if (noti->typec_state.new_state == TYPEC_UNATTACHED) {
+			pr_info("%s new state to UNATTACHED\n", __func__);
+			mpci->is_host = false;
+		}
 		break;
 	default:
 		break;

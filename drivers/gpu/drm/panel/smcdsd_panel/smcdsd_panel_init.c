@@ -36,6 +36,9 @@
 unsigned int lcdtype = 1;
 EXPORT_SYMBOL(lcdtype);
 
+unsigned int blictype = 1;
+EXPORT_SYMBOL(blictype);
+
 static int __init get_lcd_type(char *arg)
 {
 	get_option(&arg, &lcdtype);
@@ -45,6 +48,16 @@ static int __init get_lcd_type(char *arg)
 	return 0;
 }
 early_param("lcdtype", get_lcd_type);
+
+static int __init get_blic_type(char *arg)
+{
+	get_option(&arg, &blictype);
+
+	dbg_info("%s: blictype: %6X\n", __func__, blictype);
+
+	return 0;
+}
+early_param("blictype", get_blic_type);
 
 /* -------------------------------------------------------------------------- */
 /* helper to parse dt */
@@ -440,6 +453,9 @@ static int smcdsd_panel_get_params_from_dt(struct device_node *np, struct mipi_d
 
 	lcm_params->dsi.data_rate = config->data_rate[0];
 
+	smcdsd_of_property_read_u32(np, "lcm_params-dsi-is_cphy",
+		&lcm_params->dsi.IsCphy);
+
 	smcdsd_of_property_read_u32(np, "drm_params-vrefresh", &drm->vrefresh);
 
 	if (of_count_phandle_with_args(np, "vrr_info", NULL) > 0) {
@@ -519,6 +535,7 @@ static int smcdsd_panel_fit_config(struct mipi_dsi_lcd_config *config)
 	ext->data_rate = lcm->dsi.data_rate;
 	ext->pll_clk = lcm->dsi.PLL_CLOCK;
 	ext->dyn_fps.switch_en = !!ext->dyn_fps.vact_timing_fps;
+	ext->is_cphy = !!lcm->dsi.IsCphy;
 
 	lcm->dsi.output_mode = (lcm->dsi.output_mode != MTK_PANEL_SINGLE_PORT) ? lcm->dsi.output_mode : (lcm->dsi.dsc_enable ? MTK_PANEL_DSC_SINGLE_PORT : MTK_PANEL_SINGLE_PORT);
 	ext->output_mode = lcm->dsi.output_mode;
@@ -668,7 +685,7 @@ exit:
 static void __lcd_driver_dts_update(void)
 {
 	struct device_node *nplcd = NULL, *np = NULL;
-	int i = 0, count = 0, ret = -EINVAL;
+	int i = 0, pcount, count = 0, ret = -EINVAL;
 	unsigned int id_index, mask, expect;
 	u32 id_match_info[10] = {0, };
 
@@ -678,13 +695,13 @@ static void __lcd_driver_dts_update(void)
 		return;
 	}
 
-	count = of_count_phandle_with_args(nplcd, PANEL_DTS_NAME, NULL);
-	if (count < 2) {
+	pcount = of_count_phandle_with_args(nplcd, PANEL_DTS_NAME, NULL);
+	if (pcount < 2) {
 		/* dbg_info("%s: %s property phandle count is %d. so no need to update check\n", __func__, PANEL_DTS_NAME, count); */
 		return;
 	}
 
-	for (i = 0; i < count; i++) {
+	for (i = 0; i < pcount; i++) {
 		np = of_parse_phandle(nplcd, PANEL_DTS_NAME, i);
 		dbg_info("%s: %dth dts is %s\n", __func__, i, (np && np->name) ? np->name : "null");
 		if (!np || !of_get_property(np, "id_match", NULL))

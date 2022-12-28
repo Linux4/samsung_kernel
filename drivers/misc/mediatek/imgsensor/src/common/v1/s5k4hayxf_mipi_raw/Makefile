@@ -1,15 +1,10 @@
-#
-# Copyright (C) 2022 MediaTek Inc.
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License version 2 as
-# published by the Free Software Foundation.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
+# SPDX-License-Identifier: GPL-2.0
 
-obj-y += s5k4hayxfmipiraw_Sensor.o
-
+COMMON_SENSOR := s5k4hayx_mipi_raw
+ifneq ($(findstring $(COMMON_SENSOR), $(CONFIG_CUSTOM_KERNEL_IMGSENSOR)), )
+$(info $(COMMON_SENSOR) device driver is already in use)
+obj-y += s5k4hayxf_dummy.o
+else
+$(info use $(COMMON_SENSOR) device driver)
+obj-y += ../$(COMMON_SENSOR)/s5k4hayxmipiraw_Sensor.o
+endif

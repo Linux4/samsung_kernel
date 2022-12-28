@@ -1961,8 +1961,14 @@
 		compatible = "mediatek,flashlight_core";
 	};
 
-	flashlights_rt4505: flashlights_rt4505 {
-		compatible = "mediatek,flashlights_rt4505";
+	flashlights_s2mu005: flashlights_s2mu005 {
+		compatible = "mediatek,flashlights_s2mu005";
+		decouple = <0>;
+		channel@1 {
+			type = <0>;
+			ct = <0>;
+			part = <0>;
+		};
 	};
 
 	mtkfb: mtkfb {

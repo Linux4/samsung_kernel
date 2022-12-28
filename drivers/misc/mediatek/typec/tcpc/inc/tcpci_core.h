@@ -243,6 +243,7 @@ struct tcpc_ops {
 #endif /* CONFIG_TCPC_VSAFE0V_DETECT_IC */
 
 #ifdef CONFIG_WATER_DETECTION
+	bool (*is_in_water_detecting)(struct tcpc_device *tcpc);
 	int (*is_water_detected)(struct tcpc_device *tcpc);
 	int (*set_water_protection)(struct tcpc_device *tcpc, bool en);
 	int (*set_usbid_polling)(struct tcpc_device *tcpc, bool en);
@@ -342,6 +343,10 @@ struct tcpc_device {
 	struct mutex access_lock;
 	struct mutex typec_lock;
 	struct mutex timer_lock;
+#ifdef CONFIG_WATER_DETECTION
+	struct mutex wd_lock;
+	struct work_struct wd_report_usb_port_work;
+#endif /* CONFIG_WATER_DETECTION */
 	struct semaphore timer_enable_mask_lock;
 	spinlock_t timer_tick_lock;
 	atomic_t pending_event;
@@ -509,6 +514,7 @@ struct tcpc_device {
 	/* TypeC Shield Protection */
 #ifdef CONFIG_WATER_DETECTION
 	int usbid_calib;
+	struct delayed_work wd_status_work;
 #ifdef CONFIG_WD_INIT_POWER_OFF_CHARGE
 	bool init_pwroff_check;
 #endif /* CONFIG_WD_INIT_POWER_OFF_CHARGE */

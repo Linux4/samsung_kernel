@@ -210,6 +210,9 @@ struct dynamic_fps_params {
 };
 
 struct mtk_panel_params {
+#if defined(CONFIG_SMCDSD_PANEL)
+	struct drm_panel *dpanel;
+#endif
 	unsigned int pll_clk;
 	unsigned int data_rate;
 	struct mtk_dsi_phy_timcon phy_timcon;
@@ -270,7 +273,7 @@ struct mtk_panel_funcs {
 #if defined(CONFIG_SMCDSD_PANEL)
 	int (*late_register)(struct drm_panel *panel);
 	int (*set_power)(struct drm_panel *panel, int power);
-	int (*crtc_state_notify)(struct drm_encoder *encoder, int active, int prepare);
+	int (*crtc_state_notify)(struct drm_panel *panel, int active, int prepare);
 	int (*framedone_notify)(struct drm_panel *panel);
 #endif
 	int (*set_backlight_cmdq)(void *dsi_drv, dcs_write_gce cb,

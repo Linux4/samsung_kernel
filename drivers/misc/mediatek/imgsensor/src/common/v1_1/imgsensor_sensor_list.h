@@ -165,7 +165,6 @@ UINT32 MT9D115MIPISensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 MT9V115_YUV_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 /*GC*/
 UINT32 GC5035_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
-UINT32 GC5035F_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC2375H_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC02M0_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 GC02M1B_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
@@ -221,9 +220,8 @@ extern struct IMGSENSOR_SENSOR_LIST gimgsensor_sensor_list[];
 
 //OTP Cal
 int gc5035_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int size);
-int gc5035f_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int size);
 int s5k3l6_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int size);
 int sr846d_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int size);
-int gc02m1b_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int size);
+int gc02m1_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int size);
 #endif
 

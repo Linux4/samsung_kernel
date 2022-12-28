@@ -19,11 +19,13 @@
 #define LDI_REG_ID		0xAD
 #define LDI_REG_DATE		0xA9
 #define LDI_REG_CHIP_ID		0xEA
+#define LDI_REG_TRIM		0xEB
 
 /* len is read length */
 #define LDI_LEN_ID		3
 #define LDI_LEN_DATE		10	/* A9h 1st ... 11th but ap max rx length is 10 */
 #define LDI_LEN_CHIP_ID		10	/* EAh 1st ... 10th */
+#define LDI_LEN_TRIM		9
 
 #define NORMAL_TEMPERATURE	25	/* 25 degrees Celsius */
 
@@ -97,111 +99,138 @@ static unsigned char SW83109_BOE_00_INIT_007[] = {
 
 static unsigned char SW83109_BOE_00_INIT_008[] = {
 	0xB0,
-	0xA6,
+	0xA2,
 };
 
 static unsigned char SW83109_BOE_00_INIT_009[] = {
-	0xF7,
-	0xAC,
+	0xB3,
+	0x00, 0x00, 0x2C, 0x66, 0x07, 0x33, 0x00, 0x10, 0x87, 0x33,
+	0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x10, 0x00, 0x00,
+	0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x11, 0x15, 0x15, 0x00, 0x00, 0x00, 0x11, 0x38, 0x45, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x66,
+	0x22, 0x00, 0x00, 0x00, 0x00, 0x38, 0x40, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00,
 };
 
 static unsigned char SW83109_BOE_00_INIT_010[] = {
-	0xFC,
-	0x00, 0x00, 0x00, 0x81, 0x80, 0xAD, 0x44,
+	0xBB,
+	0x26, 0x1E, 0x0C, 0x20, 0x10, 0x20, 0x14, 0x20, 0x18, 0x20,
+	0x20, 0x18, 0x1C, 0x18, 0x1C, 0x18, 0x01, 0x21, 0x33, 0x32,
+	0x42, 0x30, 0x00, 0x00, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+	0x00,
 };
 
 static unsigned char SW83109_BOE_00_INIT_011[] = {
 	0xB0,
-	0xCA,
+	0xA6,
 };
 
 static unsigned char SW83109_BOE_00_INIT_012[] = {
+	0xF7,
+	0xAC,
+};
+
+static unsigned char SW83109_BOE_00_INIT_013[] = {
+	0xFC,
+	0x00, 0x00, 0x00, 0x81, 0x80, 0xAD, 0x44,
+};
+
+static unsigned char SW83109_BOE_00_INIT_014[] = {
+	0xB0,
+	0xCA,
+};
+
+static unsigned char SW83109_BOE_00_INIT_015[] = {
 	0x2A,
 	0x00, 0x00, 0x04, 0x37,
 };
 
-static unsigned char SW83109_BOE_00_INIT_013[] = {
+static unsigned char SW83109_BOE_00_INIT_016[] = {
 	0x2B,
 	0x00, 0x00, 0x09, 0x5F,
 };
 
-static unsigned char SW83109_BOE_00_INIT_014[] = {
+static unsigned char SW83109_BOE_00_INIT_017[] = {
 	0x30,
 	0x00, 0x00, 0x09, 0x5F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00,
 };
 
-static unsigned char SW83109_BOE_00_INIT_015[] = {
+static unsigned char SW83109_BOE_00_INIT_018[] = {
 	0x31,
 	0x00, 0x00, 0x04, 0x37,
 };
 
-static unsigned char SW83109_BOE_00_INIT_016[] = {
+static unsigned char SW83109_BOE_00_INIT_019[] = {
 	0x35,
 	0x00,
 };
 
-static unsigned char SW83109_BOE_00_INIT_017[] = {
+static unsigned char SW83109_BOE_00_INIT_020[] = {
 	0x4D,
 	0x19,
 };
 
-static unsigned char SW83109_BOE_00_INIT_018[] = {
+static unsigned char SW83109_BOE_00_INIT_021[] = {
 	0x3D,
 	0x00, 0x01,
 };
 
-static unsigned char SW83109_BOE_00_INIT_019[] = {
+static unsigned char SW83109_BOE_00_INIT_022[] = {
 	0x53,
 	0x00, 0x00,
 };
 
-static unsigned char SW83109_BOE_00_INIT_020[] = {
+static unsigned char SW83109_BOE_00_INIT_023[] = {
 	0x55,
 	0x08, 0x00, 0x00, 0x00, 0x10, 0x00, 0x10, 0x00, 0x10, 0x00,
 	0x72, 0xD0, 0x1C, 0x70, 0xD0, 0xE1,
 };
 
-static unsigned char SW83109_BOE_00_INIT_021[] = {
+static unsigned char SW83109_BOE_00_INIT_024[] = {
 	0x68,
 	0x08, 0x02,
 };
 
-static unsigned char SW83109_BOE_00_INIT_022[] = {
+static unsigned char SW83109_BOE_00_INIT_025[] = {
 	0x69,
 	0x00, 0x00, 0x00, 0x00,
 };
 
-static unsigned char SW83109_BOE_00_INIT_023[] = {
+static unsigned char SW83109_BOE_00_INIT_026[] = {
 	0x11,
 };
 
-static unsigned char SW83109_BOE_00_INIT_024[] = {
+static unsigned char SW83109_BOE_00_INIT_027[] = {
 	0xB0,
 	0xCA,
 };
 
-static unsigned char SW83109_BOE_00_INIT_025[] = {
+static unsigned char SW83109_BOE_00_INIT_028[] = {
 	0x53,
 	0x20, 0x00,
 };
 
-static unsigned char SW83109_BOE_00_INIT_026[] = {
+static unsigned char SW83109_BOE_00_INIT_029[] = {
 	0xB0,
 	0xA3,
 };
 
-static unsigned char SW83109_BOE_00_INIT_027[] = {
+static unsigned char SW83109_BOE_00_INIT_030[] = {
 	0xB3,
 	0x20, 0xE2, 0x40, 0x00, 0x08, 0x06, 0x40, 0x00,
 };
 
-static unsigned char SW83109_BOE_00_INIT_028[] = {
+static unsigned char SW83109_BOE_00_INIT_031[] = {
 	0xB0,
 	0xA4,
 };
 
-static unsigned char SW83109_BOE_00_INIT_029[] = {
+static unsigned char SW83109_BOE_00_INIT_032[] = {
 	0xB1,
 	0x07, 0xF4, 0xFF, 0x3F, 0xFF, 0x3F, 0x7F, 0x87, 0x20, 0x80,
 	0x68, 0x88, 0x68, 0x89, 0x89, 0x69, 0x2F, 0xFF, 0x4F, 0xFF,
@@ -210,44 +239,44 @@ static unsigned char SW83109_BOE_00_INIT_029[] = {
 	0x00, 0x5F, 0xC0, 0xC0, 0x20,
 };
 
-static unsigned char SW83109_BOE_00_INIT_030[] = {
+static unsigned char SW83109_BOE_00_INIT_033[] = {
 	0xB0,
 	0xA1,
 };
 
-static unsigned char SW83109_BOE_00_INIT_031[] = {
+static unsigned char SW83109_BOE_00_INIT_034[] = {
 	0xF0,
 	0x32, 0x03, 0x8B, 0x03, 0x8C, 0x01, 0x0E, 0x01, 0x0F, 0x80,
 	0xDD, 0x01, 0x00,
 };
 
-static unsigned char SW83109_BOE_00_INIT_032[] = {
+static unsigned char SW83109_BOE_00_INIT_035[] = {
 	0xB0,
 	0xA7,
 };
 
-static unsigned char SW83109_BOE_00_INIT_033[] = {
+static unsigned char SW83109_BOE_00_INIT_036[] = {
 	0xB1,
 	0xE0, 0x00,
 };
 
-static unsigned char SW83109_BOE_00_INIT_034[] = {
+static unsigned char SW83109_BOE_00_INIT_037[] = {
 	0xB0,
 	0xCA,
 };
 
-static unsigned char SW83109_BOE_00_INIT_035[] = {
+static unsigned char SW83109_BOE_00_INIT_038[] = {
 	0x57,
 	0x01,
 };
 
-static unsigned char SW83109_BOE_00_INIT_036[] = {
+static unsigned char SW83109_BOE_00_INIT_039[] = {
 	0x51,
 	0x00, 0x00,
 };
 
 #if 0
-static unsigned char SW83109_BOE_00_INIT_037[] = {
+static unsigned char SW83109_BOE_00_INIT_040[] = {
 	0x29,
 };
 #endif
@@ -588,22 +617,25 @@ static struct msg_segment MSG_SW83109_BOE_00_INIT[] = {
 	{__MSG_TX(SW83109_BOE_00_INIT_020), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
 	{__MSG_TX(SW83109_BOE_00_INIT_021), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
 	{__MSG_TX(SW83109_BOE_00_INIT_022), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
-	{__MSG_TX(SW83109_BOE_00_INIT_023), .modes = BIT(MSG_MODE_SINGLE_TRANSFER), __MSLEEP(50)},	/* Delay 50ms */
+	{__MSG_TX(SW83109_BOE_00_INIT_023), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
 	{__MSG_TX(SW83109_BOE_00_INIT_024), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
 	{__MSG_TX(SW83109_BOE_00_INIT_025), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
-	{__MSG_TX(SW83109_BOE_00_INIT_026), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
+	{__MSG_TX(SW83109_BOE_00_INIT_026), .modes = BIT(MSG_MODE_SINGLE_TRANSFER), __MSLEEP(50)},	/* Delay 50ms */
 	{__MSG_TX(SW83109_BOE_00_INIT_027), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
 	{__MSG_TX(SW83109_BOE_00_INIT_028), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
 	{__MSG_TX(SW83109_BOE_00_INIT_029), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
-#ifndef CONFIG_SMCDSD_DYNAMIC_MIPI
 	{__MSG_TX(SW83109_BOE_00_INIT_030), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
-	{__MSG_TX(SW83109_BOE_00_INIT_031), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},	/* 806 */
-#endif
+	{__MSG_TX(SW83109_BOE_00_INIT_031), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
 	{__MSG_TX(SW83109_BOE_00_INIT_032), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
-	{__MSG_TX(SW83109_BOE_00_INIT_033), .modes = BIT(MSG_MODE_SINGLE_TRANSFER), __MSLEEP(8)},	/* Delay 8ms */
-	{__MSG_TX(SW83109_BOE_00_INIT_034), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
+#ifndef CONFIG_SMCDSD_DYNAMIC_MIPI
+	{__MSG_TX(SW83109_BOE_00_INIT_033), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
+	{__MSG_TX(SW83109_BOE_00_INIT_034), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},	/* 806 */
+#endif
 	{__MSG_TX(SW83109_BOE_00_INIT_035), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
-	{__MSG_TX(SW83109_BOE_00_INIT_036), .modes = BIT(MSG_MODE_SINGLE_TRANSFER), __MSLEEP(50)},	/* Delay 50ms */
+	{__MSG_TX(SW83109_BOE_00_INIT_036), .modes = BIT(MSG_MODE_SINGLE_TRANSFER), __MSLEEP(8)},	/* Delay 8ms */
+	{__MSG_TX(SW83109_BOE_00_INIT_037), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
+	{__MSG_TX(SW83109_BOE_00_INIT_038), .modes = BIT(MSG_MODE_SINGLE_TRANSFER)},
+	{__MSG_TX(SW83109_BOE_00_INIT_039), .modes = BIT(MSG_MODE_SINGLE_TRANSFER), __MSLEEP(50)},	/* Delay 50ms */
 };
 
 static struct msg_segment MSG_SW83109_BOE_00_MIPI_806[] = {

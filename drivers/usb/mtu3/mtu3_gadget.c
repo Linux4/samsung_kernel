@@ -27,6 +27,20 @@
 #include <linux/usb_notify.h>
 #endif
 
+static void mtu3_set_usb_bootcomplete(struct mtu3 *mtu)
+{
+#if defined(CONFIG_BATTERY_SAMSUNG)
+	union power_supply_propval propval = {0,};
+
+	pr_info("%s\n", __func__);
+	propval.intval = 1;
+	psy_do_property("battery", set,
+			POWER_SUPPLY_EXT_PROP_USB_BOOTCOMPLETE,
+			propval);
+#endif
+	mtu->usb_bootcomplete = 1;
+}
+
 void mtu3_req_complete(struct mtu3_ep *mep,
 		     struct usb_request *req, int status)
 __releases(mep->mtu->lock)
@@ -578,20 +592,9 @@ static int mtu3_gadget_set_self_powered(struct usb_gadget *gadget,
 	return 0;
 }
 
-static int usb_rdy;		/* default value 0 */
-
-void set_usb_rdy(void)
-{
-	pr_info("set usb_rdy, wake up bat\n");
-	usb_rdy = 1;
-}
-
 bool is_usb_rdy(void)
 {
-	if (usb_rdy)
-		return true;
-	else
-		return false;
+	return true;
 }
 
 static int mtu3_gadget_pullup(struct usb_gadget *gadget, int is_on)
@@ -617,6 +620,9 @@ static int mtu3_gadget_pullup(struct usb_gadget *gadget, int is_on)
 			mtu3_nuke_all_ep(mtu);
 	}
 
+	if (is_on && !mtu->usb_bootcomplete)
+		mtu3_set_usb_bootcomplete(mtu);
+
 #if defined(CONFIG_USB_NOTIFY_PROC_LOG)
 	if (is_on)
 		store_usblog_notify(NOTIFY_USBSTATE,
@@ -626,8 +632,8 @@ static int mtu3_gadget_pullup(struct usb_gadget *gadget, int is_on)
 			(void *)"USB_STATE=PULLUP:DIS:SUCCESS", NULL);
 #endif
 
-	if (is_usb_rdy() == false && is_on)
-		set_usb_rdy();
+	if (!mtu->usb_rdy && is_on)
+		mtu->usb_rdy = 1;
 
 	spin_unlock_irqrestore(&mtu->lock, flags);
 	#ifdef CONFIG_USB_MTU3_PLAT_PHONE

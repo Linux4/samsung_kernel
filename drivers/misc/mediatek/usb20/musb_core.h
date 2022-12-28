@@ -518,6 +518,7 @@ struct musb {
 #endif
 	bool power;
 	bool is_ready:1;
+	bool usb_bootcomplete:1;
 	bool usb_if;
 	u16 fifo_addr;
 #if defined(CONFIG_USBIF_COMPLIANCE)

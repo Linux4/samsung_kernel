@@ -30,7 +30,7 @@
 };
 
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/melfas/dts/input-mtk-tsp-melfas.a22.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/melfas/dts/input-mtk-tsp-melfas.a22.dtsi */
 &pio {
 	melfas_icid: melfas_icid {
 		pins_cmd_dat {
@@ -62,7 +62,7 @@
 	sec,icid_match_value = <1>;
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/melfas/dts/input-mtk-tsp-melfas.a22.02.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/melfas/dts/input-mtk-tsp-melfas.a22.02.dtsi */
 &tsp_melfas {
 	sec,firmware_name = "tsp_melfas/mss100_a22.bin";
 };

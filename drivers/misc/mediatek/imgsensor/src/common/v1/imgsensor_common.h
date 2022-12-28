@@ -25,12 +25,13 @@
  ************************************************************************/
 #define DEBUG_CAMERA_HW_K
 #ifdef DEBUG_CAMERA_HW_K
-#define cam_pr_debug(fmt, arg...)  pr_info(PREFIX fmt, ##arg)
-#define cam_pr_info(fmt, arg...)   pr_info(PREFIX fmt, ##arg)
+#define PK_DBG(fmt, arg...)   pr_debug(PREFIX fmt, ##arg)
+#define PK_INF(fmt, arg...)   pr_info(PREFIX fmt, ##arg)
 #else
-#define cam_pr_debug(fmt, arg...)
-#define cam_pr_info(fmt, arg...)   pr_info(PREFIX fmt, ##arg)
+#define PK_DBG(fmt, arg...)
+#define PK_INF(fmt, arg...)   pr_info(PREFIX fmt, ##arg)
 #endif
+#define PK_ERR(fmt, arg...)   pr_err(PREFIX fmt, ##arg)
 
 #define PLATFORM_POWER_SEQ_NAME "platform_power_seq"
 #define DEBUG_CAMERA_HW_K

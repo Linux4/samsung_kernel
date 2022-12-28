@@ -68,7 +68,6 @@
 #define MMU_ION_BUF		BIT(24)
 
 static gfp_t tee_cma_saved_gfp_mask;
-static DEFINE_MUTEX(gfp_mutex);     /* Lock for gfp_allowed_mask */
 
 void tee_cma_restore_gfp_mask(void)
 {
@@ -79,7 +78,6 @@ void tee_cma_restore_gfp_mask(void)
 		gfp_allowed_mask = tee_cma_saved_gfp_mask;
 		tee_cma_saved_gfp_mask = 0;
 	}
-	mutex_unlock(&gfp_mutex);
 }
 
 void tee_cma_restrict_gfp_mask(void)
@@ -88,11 +86,9 @@ void tee_cma_restrict_gfp_mask(void)
 	WARN_ON(!mutex_is_locked(&pm_mutex));
 #endif
 	WARN_ON(tee_cma_saved_gfp_mask);
-	mutex_lock(&gfp_mutex);
 	tee_cma_saved_gfp_mask = gfp_allowed_mask;
 	gfp_allowed_mask &= ~__GFP_CMA;
 }
-
 static inline long gup_local(struct mm_struct *mm, uintptr_t start,
 			     unsigned long nr_pages, int write,
 			     struct page **pages)
@@ -116,7 +112,6 @@ static inline long gup_local_repeat(struct mm_struct *mm, uintptr_t start,
 	while (retries--) {
 		tee_cma_restrict_gfp_mask();
 		ret = gup_local(mm, start, nr_pages, write, pages);
-
 		tee_cma_restore_gfp_mask();
 		if (-EBUSY != ret)
 			break;

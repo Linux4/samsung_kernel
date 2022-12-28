@@ -23,7 +23,7 @@
 #else
 	const struct flashlight_device_id flashlight_id[] = {
 		/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
-		{0, 0, 0, "flashlights-rt4505", 0, 0},
+		{0, 0, 0, "flashlights-s2mu005", 0, 0},
 	};
 #endif
 #elif defined(mt6757)

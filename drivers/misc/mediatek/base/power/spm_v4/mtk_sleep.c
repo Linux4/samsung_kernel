@@ -51,6 +51,10 @@
 #include <mtk_lp_kernfs.h>
 #include "mtk_idle_sysfs.h"
 
+#if IS_ENABLED(CONFIG_SEC_PM)
+#include <linux/regulator/consumer.h>
+extern void sec_clock_debug_print_enabled(void);
+#endif
 
 /**************************************
  * only for internal debug
@@ -245,6 +249,10 @@ static int slp_suspend_ops_begin(suspend_state_t state)
 
 static int slp_suspend_ops_prepare(void)
 {
+#if IS_ENABLED(CONFIG_SEC_PM)
+	regulator_debug_print_enabled();
+	sec_clock_debug_print_enabled();
+#endif
 	/* legacy log */
 #if 0
 	slp_crit2(

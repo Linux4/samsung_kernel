@@ -64,6 +64,20 @@
 #include "mtk_fbconfig_kdebug.h"
 #include "mtk_layering_rule_base.h"
 
+#if defined(CONFIG_SMCDSD_PANEL)
+int fb_reserved_free = 0;
+
+static int __init get_fb_reserved_free(char *arg)
+{
+	get_option(&arg, &fb_reserved_free);
+
+	pr_info("%s: fb_reserved_free: %d\n", __func__, fb_reserved_free);
+
+	return 0;
+}
+early_param("fb_reserved_free", get_fb_reserved_free);
+#endif
+
 static struct mtk_drm_property mtk_crtc_property[CRTC_PROP_MAX] = {
 	{DRM_MODE_PROP_ATOMIC, "OVERLAP_LAYER_NUM", 0, UINT_MAX, 0},
 	{DRM_MODE_PROP_ATOMIC, "LAYERING_IDX", 0, UINT_MAX, 0},
@@ -2513,7 +2527,9 @@ static void mtk_crtc_update_ddp_state(struct drm_crtc *crtc,
 	int crtc_mask = 0x1 << index;
 	unsigned int prop_lye_idx;
 	unsigned int pan_disp_frame_weight = 4;
+#if defined(CONFIG_MT_ENG_BUILD)
 	struct drm_device *dev = crtc->dev;
+#endif
 
 	mutex_lock(&mtk_drm->lyeblob_list_mutex);
 	prop_lye_idx = crtc_state->prop_val[CRTC_PROP_LYE_IDX];
@@ -2561,10 +2577,23 @@ static void mtk_crtc_update_ddp_state(struct drm_crtc *crtc,
 						   cmdq_handle);
 #ifndef CONFIG_MTK_DISP_NO_LK
 			if (lyeblob_ids->lye_idx == 2 && !already_free) {
+#if defined(CONFIG_SMCDSD_PANEL)
+#if !defined(CONFIG_MT_ENG_BUILD)
+				struct drm_device *dev = crtc->dev;
+#endif
+				if (fb_reserved_free) {
+					mtk_drm_fb_gem_release(dev);
+					try_free_fb_buf(dev);
+				}
+				already_free = true;
+#else
+#if defined(CONFIG_MT_ENG_BUILD)
 				/*free fb buf in second query valid*/
 				mtk_drm_fb_gem_release(dev);
 				try_free_fb_buf(dev);
+#endif
 				already_free = true;
+#endif	/* CONFIG_SMCDSD_PANEL */
 #endif
 			}
 			break;

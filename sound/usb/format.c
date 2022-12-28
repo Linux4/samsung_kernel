@@ -317,6 +317,15 @@ static int parse_uac2_sample_rate_range(struct snd_usb_audio *chip,
 			if (rate > 48000 &&
 			    chip->usb_id == USB_ID(0x194f, 0x0101))
 				break;
+#ifdef CONFIG_USB_HOST_SAMSUNG_FEATURE
+			if (rate > 48000 &&
+			    chip->usb_id == USB_ID(0x04e8, 0xa051) &&
+			    fp->iface == 1) {
+			    pr_info("%s: usb_id:0x%x, intf:%d, rate:%d, skip.\n",
+					__func__, chip->usb_id, fp->iface, rate);
+			    break;
+			}
+#endif
 
 			/* Filter out invalid rates on Focusrite devices */
 			if (USB_ID_VENDOR(chip->usb_id) == 0x1235 &&

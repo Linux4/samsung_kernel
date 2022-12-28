@@ -142,7 +142,7 @@
 					&nfc_check
 #endif
 					>;
-		pinctrl-1 = <&ven_nc &firm_nc &clk_req_nc &irq_nc>;
+		pinctrl-1 = <&ven_nc &firm_nc &clk_req_nc &irq_nc &nfc_i2c_off>;
 		pinctrl-2 = <&nfc_i2c_off>;
 	};
 };

@@ -15,7 +15,7 @@
  *    SW          :   HW   : Sensor
  * camera0(Wide)  : RCAM1  : S5KJN1
  * camera1(Front) : FCAM   : S5K4HA
- * camera2(UW)    : RCAM2  : GC5035
+ * camera2(UW)    : RCAM2  : GC5035U
  * camera3(Depth) : RCAM3  : GC02M1B
  * camera4(Macro) : RCAM4  : GC02M1
  ***********************************/
@@ -129,15 +129,15 @@
 	};
 
 	// Reset
-	camera1_rst_low: camera1_rst_output_low@gpio20 {
+	camera1_rst_low: camera1_rst_output_low@gpio107 {
 		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO20__FUNC_GPIO20>;
+			pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
 			output-low;
 		};
 	};
-	camera1_rst_high: camera1_rst_output_high@gpio20 {
+	camera1_rst_high: camera1_rst_output_high@gpio107 {
 		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO20__FUNC_GPIO20>;
+			pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
 			output-high;
 		};
 	};
@@ -270,7 +270,7 @@
 	camera3_mclk_off: camera3_mclk_gpio_mode@gpio100 {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO100__FUNC_GPIO100>;
-			drive-strength = <1>;
+			drive-strength = <2>;
 		};
 	};
 
@@ -343,7 +343,7 @@
 	camera4_mclk_off: camera4_mclk_gpio_mode@gpio108 {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO108__FUNC_GPIO108>;
-			drive-strength = <2>;
+			drive-strength = <3>;
 		};
 	};
 
@@ -501,13 +501,13 @@
 	vendor {
 		rear_sensor_id = <120>;     /* SENSOR_NAME_S5KJN1*/
 		front_sensor_id = <121>;    /* SENSOR_NAME_S5K4HAYXF */
-		rear2_sensor_id = <210>;    /* SENSOR_NAME_GC5035 */
+		rear2_sensor_id = <210>;    /* SENSOR_NAME_GC5035U */
 		rear3_sensor_id = <211>;    /* SENSOR_NAME_GC02M1B */
 		rear4_sensor_id = <210>;    /* SENSOR_NAME_GC02M1 */
 
 		use_dualcam_set_cal;
 		use_module_check;
-		skip_cal_loading;
+		//skip_cal_loading;
 		//check_final_cam_module;
 		max_supported_camera = <5>;
 		supported_cameraId = <0 1 50 52 54>;
@@ -527,6 +527,7 @@
 			position = <0>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
 			//includes_sub = <4>;    /* include this for common eeprom. <_position_> - position of the sub camera */
 			afcal_type=<20>;       /* output format - 1: Near, Middle..., Far , 20: Near, Far, Middle... */
+			use_adaptive_mipi=<1>;  /* 0 : N, 1 : Y */
 		};
 		camera_info1 {             /* 1 : front1 - S5K4HAYXF */
 			isp = <0>;             /* 0 : INT , 1 : EXT , 2 : SOC */
@@ -539,8 +540,9 @@
 			valid = <1>;           /* 0 : INVALID, 1 : VALID */
 			dual_open = <0>;       /* 0 : SINGLE_OPEN , 1 : DUAL_OPEN */
 			position = <1>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
+			use_adaptive_mipi=<0>;  /* 0 : N, 1 : Y */
 		};
-		camera_info2 {             /* 2 : rear2 - GC5035 */
+		camera_info2 {             /* 2 : rear2 - GC5035U */
 			isp = <0>;             /* 0 : INT , 1 : EXT , 2 : SOC */
 			cal_memory = <3>;      /* 0 : N , 1 : FROM , 2 : EEPROM , 3 : OTP  */
 			read_version = <0>;    /* 0 : SYSFS , 1 : CAMON */
@@ -551,6 +553,7 @@
 			valid = <1>;           /* 0 : INVALID, 1 : VALID */
 			dual_open = <0>;       /* 0 : SINGLE_OPEN , 1 : DUAL_OPEN */
 			position = <2>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
+			use_adaptive_mipi=<0>;  /* 0 : N, 1 : Y */
 		};
 		camera_info3 {             /* 3 : rear3 - GC02M1B */
 			isp = <0>;             /* 0 : INT , 1 : EXT , 2 : SOC */
@@ -563,6 +566,7 @@
 			valid = <1>;           /* 0 : INVALID, 1 : VALID */
 			dual_open = <1>;       /* 0 : SINGLE_OPEN , 1 : DUAL_OPEN */
 			position = <4>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
+			use_adaptive_mipi=<0>;  /* 0 : N, 1 : Y */
 		};
 		camera_info4 {             /* 4 : rear4 - GC02M1 */
 			isp = <0>;             /* 0 : INT , 1 : EXT , 2 : SOC */
@@ -575,6 +579,7 @@
 			valid = <1>;           /* 0 : INVALID, 1 : VALID */
 			dual_open = <0>;       /* 0 : SINGLE_OPEN , 1 : DUAL_OPEN */
 			position = <6>;        /* 0 : Rear, 1:Front, 2:Rear2, 3:Front2, 4:Rear3, 6:Rear4 */
+			use_adaptive_mipi=<0>;  /* 0 : N, 1 : Y */
 		};
 	};
 };
@@ -685,5 +690,27 @@
 		compatible = "mediatek,camera_main_four";
 		reg = <0x20>;
 		status = "okay";
+	};
+};
+
+/*************************
+ *     Flash LED
+ *************************/
+ 
+&i2c3 {
+	sm5714@49 {
+		sm5714-fled {
+			status = "okay";
+			compatible = "siliconmitus,sm5714-fled";
+			flash-en-gpio = <&pio 159 0>;
+			torch-en-gpio = <&pio 110 0>;
+
+			flash-brightness = <0xA>; //0x0(300mA) ~ 0xF(1500mA) : 50mA Step
+			preflash-brightness = <0x4>;
+			torch-brightness = <0x4>; //0x0(50mA) ~ 0x7(225mA) : 25mA Step
+			factory_current = <0x6>; //0x0(300mA)
+			flashlight_current = <0 1 2 5 7>;
+			timeout = <0xff>;
+		};
 	};
 };

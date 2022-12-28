@@ -56,6 +56,7 @@ config VBUS_NOTIFIER
 config CABLE_TYPE_NOTIFIER
 	bool "CABLE TYPE notifier support"
 	depends on USB_NOTIFIER
+	depends on !VIRTUAL_MUIC
 	default n
 	help
 	  If you say yes here you will get support for

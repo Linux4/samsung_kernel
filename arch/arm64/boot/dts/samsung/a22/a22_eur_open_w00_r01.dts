@@ -678,7 +678,7 @@
 
 #define topckgen_clk topckgen
 #define infracfg_ao_clk infracfg_ao
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6769t/ap_mtk_mt6769t.a22.01.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6769t/ap_mtk_mt6769t.a22.01.dtsi */
 #include <dt-bindings/clock/mt6768-clk.h>
 #include "../../mediatek/k69v1_64_titan_buffalo.dts"
 #include "../../mediatek/k69v1_64_titan_buffalo/gpio01.dtsi"
@@ -695,7 +695,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6769t_shub/dts/sensorhub_mt6769t_shub.a22.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6769t_shub/dts/sensorhub_mt6769t_shub.a22.dtsi */
 / {
 	fragment@model {
 		target-path = "/";
@@ -712,7 +712,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6769t_shub/dts/sensorhub_mt6769t_shub.a22.01.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6769t_shub/dts/sensorhub_mt6769t_shub.a22.01.dtsi */
 / {
 	fragment@model {
 		target-path = "/";
@@ -1427,7 +1427,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/hwmon/sec_thermistor/sec_thermistor_mtk.a22.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/hwmon/sec_thermistor/sec_thermistor_mtk.a22.dtsi */
 &sec_ap_thermistor {
 	use_iio_processed;
 	adc_array = <79 94 111 131 154 183 222 262 318
@@ -1469,7 +1469,11 @@
 &smd {
 	fixed_regulator0: fixed_regulator@0 {
 		compatible = "regulator-fixed";
+#if 0
+		regulator-name = "${fixed_regulator_name}";
+#else
 		regulator-name = "fixed_regulator0";
+#endif
 		gpio = <SEC_GPIO_REF(AP,pio,4) 0>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&ldo_gpio0>;
@@ -1488,7 +1492,10 @@
 						compatible = "samsung,dc_vibrator";
 						status = "okay";
 						dc_vib,motor_type = "COINDC";
-						dc_vib,regulator_name = "vibr";
+#if 1
+						dc_vib,regulator_name = "dc_vib";
+						dc_vib-supply = <&mt_pmic_vibr_ldo_reg>;
+#endif
 					};
 				};
 			};
@@ -1598,7 +1605,7 @@
 };
 
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/stm/dts/input-mtk-tsp-stm.a22.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/stm/dts/input-mtk-tsp-stm.a22.dtsi */
 &pio {
 	stm_icid: stm_icid {
 		pins_cmd_dat {
@@ -1631,6 +1638,7 @@
 	sec,regulator_boot_on;
 	sec,tsp-icid_gpio = <&pio 28 0>;
 	sec,icid_match_value = <0>;
+	stm,lpmode_change_delay = <50>;
 };
 
 /* #include "../input_melfas.dtsi" */                /* From input_melfas.py */
@@ -1666,7 +1674,7 @@
 };
 
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/melfas/dts/input-mtk-tsp-melfas.a22.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/melfas/dts/input-mtk-tsp-melfas.a22.dtsi */
 &pio {
 	melfas_icid: melfas_icid {
 		pins_cmd_dat {
@@ -1843,7 +1851,7 @@
 					&nfc_check
 #endif
 					>;
-		pinctrl-1 = <&ven_nc &firm_nc &clk_req_nc &irq_nc>;
+		pinctrl-1 = <&ven_nc &firm_nc &clk_req_nc &irq_nc &nfc_i2c_off>;
 		pinctrl-2 = <&nfc_i2c_off>;
 	};
 };
@@ -2026,7 +2034,7 @@
 };
 
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/fuelgauge/sm5714_fuelgauge/sm5714_fuelgauge.a22.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/fuelgauge/sm5714_fuelgauge/sm5714_fuelgauge.a22.dtsi */
 /*
  * A22 LTE battery device tree common
  *
@@ -2243,8 +2251,9 @@
 
 #endif /*isg5320a_sub*/
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensors/isg5320a/dts/isg5320a_mtk.a22.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensors/isg5320a/dts/isg5320a_mtk.a22.dtsi */
 &isg5320a {
+	isg5320a,hallic_cert_detect = <0>;
 	isg5320a,set_reg = /bits/ 8 <
 		0x05 0xFC
 		0x06 0xF1
@@ -2320,12 +2329,12 @@
 		0x99 0x21
 		0x9A 0x3C
 		0x9B 0x01
-		0x9C 0x5E
+		0x9C 0x2C
 		0x9D 0x00
 		0x9E 0x00
 		0x9F 0x00
-		0xA0 0x35
-		0xA1 0xC0
+		0xA0 0x96
+		0xA1 0xD0
 		0xA2 0x22
 		0xA3 0x00
 		0xA4 0x08
@@ -2345,7 +2354,7 @@
 		0xB7 0x30
 		0xB8 0xFD
 		0xB9 0xE0
-		0xBA 0x70
+		0xBA 0xFD
 		0xBB 0x80
 		0xBC 0xFF
 		0xBD 0xFF
@@ -2400,6 +2409,7 @@
 };
 
 &isg5320a_sub {
+	isg5320a_sub,hallic_cert_detect = <0>;
 	isg5320a_sub,set_reg = /bits/ 8 <
 		0x05 0xFC
 		0x06 0xF1
@@ -2474,12 +2484,12 @@
 		0x8D 0x00
 		0x99 0x21
 		0x9A 0x3C
-		0x9B 0x01
-		0x9C 0x18
+		0x9B 0x00
+		0x9C 0xF0
 		0x9D 0x00
 		0x9E 0x00
 		0x9F 0x00
-		0xA0 0x2A
+		0xA0 0x64
 		0xA1 0xD0
 		0xA2 0x22
 		0xA3 0x00
@@ -2500,7 +2510,7 @@
 		0xB7 0x30
 		0xB8 0xFD
 		0xB9 0xE0
-		0xBA 0x80
+		0xBA 0xFD
 		0xBB 0x80
 		0xBC 0x00
 		0xBD 0x00
@@ -2524,7 +2534,7 @@
 		0x3E 0x60
 		0x94 0xE0
 		0x95 0x98
-		0x96 0x04
+		0x96 0x03
 		0x2E 0x18
 		0x0E 0xE0
 		0x0F 0x1C
@@ -2879,7 +2889,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/common/dts/battery_common.a22.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/common/dts/battery_common.a22.dtsi */
 &sec_battery {
 	pinctrl-names = "default";
 

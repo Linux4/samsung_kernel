@@ -276,7 +276,7 @@ void msdc_sd_power(struct msdc_host *host, u32 on)
 			pmic_enable_interrupt(INT_VMCH_OC, 0, "sdcard");
 
 		/* VMCH VOLSEL */
-		msdc_ldo_power(card_on, host->mmc->supply.vmmc, VOL_3000,
+		msdc_ldo_power(card_on, host->mmc->supply.vmmc, VOL_2950,
 			&host->power_flash);
 
 		if (card_on) {
@@ -306,7 +306,7 @@ void msdc_sd_power(struct msdc_host *host, u32 on)
 		pmic_config_interface(REG_VMC_VOSEL_CAL,
 			SD_VOL_ACTUAL - VOL_3000,
 			MASK_VMC_VOSEL_CAL, SHIFT_VMC_VOSEL_CAL);
-		msdc_ldo_power(on, host->mmc->supply.vqmmc, VOL_3000,
+		msdc_ldo_power(on, host->mmc->supply.vqmmc, VOL_2950,
 			&host->power_io);
 
 		if (on)

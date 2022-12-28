@@ -67,35 +67,6 @@
 #define MAX_GAIN_INDEX   17
 
 /* OTP */
-#define GC5035_OTP_CUSTOMER
-#undef GC5035_OTP_DEBUG
-
-#if defined(GC5035_OTP_DEBUG)
-#define OTP_START_ADDR 0x0000
-#define OTP_DATA_LENGTH 1024
-#endif
-#define DPC_FLAG_OFFSET         0x0068
-#define DPC_TOTAL_NUMBER_OFFSET 0x0070
-#define DPC_ERROR_NUMBER_OFFSET 0x0078
-#define REG_INFO_FLAG_OFFSET 0x0880
-#define REG_INFO_PAGE_OFFSET 0x0888
-#define REG_INFO_ADDR_OFFSET 0x0890
-#define REG_INFO_VALUE_OFFSET 0x0898
-#define REG_INFO_SIZE 5
-#if defined(GC5035_OTP_CUSTOMER)
-#define MODULE_INFO_FLAG_OFFSET 0x1f10
-#define MODULE_INFO_OFFSET      0x1f18
-#define MODULE_INFO_SIZE 6
-#define WB_INFO_FLAG_OFFSET     0x1f78
-#define WB_INFO_OFFSET          0x1f80
-#define WB_INFO_SIZE            4
-#define WB_GOLDEN_INFO_OFFSET   0x1fc0
-#define WB_GOLDEN_INFO_SIZE     4
-
-#define RG_TYPICAL       0x0400
-#define BG_TYPICAL       0x0400
-#endif
-
 #define GC5035_OTP_CAL_MAX_SIZE     0xF0
 #define GC5035_OTP_CHECK_BANK       0x1000
 #define GC5035_OTP_BANK1_MARK       0x01
@@ -218,8 +189,8 @@ struct imgsensor_info_struct {
 	/* 0, high speed signal auto detect; 1, use settle delay, unit is ns*/
 	/* default is auto detect, don't modify this para */
 	kal_uint8 sensor_output_dataformat;       /* sensor output first pixel color */
-	kal_uint8 mclk;                           /* mclk value, suggest 24 or 26 for 24Mhz or 26Mhz */
-	kal_uint8 mipi_lane_num;                  /* mipi lane num */
+	kal_uint8 mclk;             /* mclk value, suggest 24 or 26 for 24Mhz or 26Mhz */
+	kal_uint8 mipi_lane_num;    /* mipi lane num */
 	kal_uint8 i2c_addr_table[5];
 	kal_uint32 i2c_speed;
 	/* record sensor support all write id addr, only supprt 4must end with 0xff */

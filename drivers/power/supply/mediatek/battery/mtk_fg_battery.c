@@ -757,10 +757,12 @@ static int battery_set_property(struct power_supply *psy,
 			data->f_mode = val->intval;
 			pr_info("%s: mtk-fg-battery: FG f_mode: %s\n", __func__,
 					BOOT_MODE_STRING[data->f_mode]);
+#if defined(CONFIG_SEC_FACTORY)
 			if (data->f_mode == OB_MODE) {
 				set_g_low_battery_stop(1);
 				disable_fg();
 			}
+#endif
 			break;
 		default:
 			return -EINVAL;
@@ -897,6 +899,22 @@ void battery_update(struct battery_data *bat_data)
 			ui_soc_value = battery_get_uisoc();
 			if (ui_soc_value >= 0) {
 				pr_info("%s : clear fake SOC\n", __func__);
+				value.intval = ui_soc_value;
+				ret = power_supply_set_property(psy,
+					POWER_SUPPLY_PROP_CAPACITY, &value);
+				if (ret < 0)
+					pr_err("%s: psy capacity fail(%d)\n",
+						__func__, ret);
+
+#if IS_ENABLED(CONFIG_DIRECT_CHARGING)
+				value.intval = 1;
+				ret = power_supply_set_property(psy, (enum power_supply_property)
+					POWER_SUPPLY_EXT_PROP_MTK_FG_INIT, &value);
+				if (ret < 0)
+					pr_err("%s: psy update fg state fail(%d)\n",
+						__func__, ret);
+#endif
+
 				gm.is_fake_soc = 0;
 				value.intval = 0;
 				ret = power_supply_set_property(psy,

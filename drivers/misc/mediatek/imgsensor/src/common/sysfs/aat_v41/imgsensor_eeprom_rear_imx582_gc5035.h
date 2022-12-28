@@ -1,0 +1,6 @@
+#ifndef AAT_V41_IMGSENSOR_EEPROM_REAR_IMX582_GC5035_H
+#define AAT_V41_IMGSENSOR_EEPROM_REAR_IMX582_GC5035_H
+#include "imgsensor_vendor_specific.h"
+
+extern const struct imgsensor_vendor_rom_addr rear_imx582_gc5035_cal_addr;
+#endif /*AAT_V41_IMGSENSOR_EEPROM_REAR_IMX582_GC5035_H*/

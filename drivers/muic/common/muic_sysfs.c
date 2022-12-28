@@ -491,6 +491,7 @@ static ssize_t muic_sysfs_set_afc_disable(struct device *dev,
 	pr_info("%s+\n", __func__);
 	if (!strncasecmp(buf, "1", 1)) {
 		pdata->afc_disable = true;
+		muic_afc_request_cause_clear();
 	} else if (!strncasecmp(buf, "0", 1)) {
 		pdata->afc_disable = false;
 	} else {

@@ -6328,7 +6328,7 @@ page_owner=on loop.max_part=7";
 		pins_cmd2_dat {
 			pinmux = <PINMUX_GPIO160__FUNC_GPIO160>;
 			input-enable;
-			bias-disable;
+			bias-pull-down;
 		};
 	};
 	aud_dat_miso_on: aud_dat_miso_on {
@@ -6482,6 +6482,15 @@ page_owner=on loop.max_part=7";
 	aud_gpio_i2s5_off: aud_gpio_i2s5_off {
 	};
 	aud_gpio_i2s5_on: aud_gpio_i2s5_on {
+	};
+
+	afc_input: input {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO12__FUNC_GPIO12>;
+			slew-rate = <1>;
+			input-enable;
+			bias-disable;
+		};
 	};
 
 	afc_output: output {
