@@ -1,0 +1,18 @@
+config SEC_B2Q_PROJECT
+        default n
+        bool "Samsung B2Q Project"
+        help
+          Support for Samsung B2Q Project
+
+config MACH_B2Q_USA_SINGLEW
+        default n
+        bool "Samsung B2Q USA SINGLEW"
+        help
+          Support for Samsung B2Q USA SINGLEW device.
+
+config MACH_B2Q_USA_OPENW
+        default n
+        bool "Samsung B2Q USA OPENW"
+        help
+          Support for Samsung B2Q USA OPENW device.
+

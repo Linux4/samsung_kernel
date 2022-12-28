@@ -1,0 +1,6 @@
+config PANEL_PBA_FHD_DSI1
+	depends on DISPLAY_SAMSUNG
+    bool "pba config for dual display"
+    default n
+    ---help---
+    DSI_1 PBA config dual display
