@@ -23,7 +23,9 @@
 enum subsystem_clients {
 	ADSP = 0,
 	CDSP,
+#ifdef CONFIG_SUPPORT_SLPI_SLEEP_DEBUG
 	SLPI,
+#endif
 	CLIENT_MAX
 };
 
@@ -42,7 +44,9 @@ struct subsystem_client_config {
 struct subsystem_client_config subsystem_conf[] = {
 	{"adsp", ERROR_MAX, FATAL_MAX, SSR_DISABLE},
 	{"cdsp", ERROR_MAX, FATAL_MAX, SSR_DISABLE},
+#ifdef CONFIG_SUPPORT_SLPI_SLEEP_DEBUG
 	{"slpi", ERROR_MAX, FATAL_MAX, SSR_DISABLE},
+#endif
 };
 
 static struct subsystem_debug_info {

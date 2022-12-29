@@ -50,9 +50,12 @@
 			unsigned int enable_event; \
 			unsigned int debug_level; \
 			unsigned int sendevent; \
+			unsigned int ib_mode_state; \
 			enable_event = enable_event_booster; \
 			debug_level = debug_flag; \
 			sendevent = send_ev_enable; \
+			if (IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_MODE)) \
+				ib_mode_state = u_ib_mode; \
 			ret = sprintf _ARGU_; \
 			pr_booster("[Input Booster8] %s buf : %s\n", __func__, buf); \
 			return ret; \
@@ -62,9 +65,12 @@
 			unsigned int enable_event[1] = {-1}; \
 			unsigned int debug_level[1] = {-1}; \
 			unsigned int sendevent[1] = {-1}; \
+			unsigned int ib_mode_state[1] = {0}; \
 			sscanf _ARGU_; \
 			send_ev_enable = sendevent[0]; \
 			debug_flag = debug_level[0]; \
+			if (IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_MODE)) \
+				u_ib_mode = ib_mode_state[0]; \
 			enable_event_booster = enable_event[0]; \
 			pr_booster("[Input Booster8] %s buf : %s\n", __func__, buf); \
 			if (sscanf _ARGU_ != _COUNT_) { \
@@ -262,6 +268,17 @@ struct t_ib_device_tree {
 	struct t_ib_res_info *res;
 };
 
+#if IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_MODE)
+struct t_ib_boost_mode {
+	const char *label;
+	int type;
+	struct t_ib_device_tree *dt;
+	int dt_count;
+	unsigned int dt_mask;
+	int type_to_idx_table[MAX_DEVICE_TYPE_NUM];
+};
+#endif
+
 struct t_ddr_info {
 	long mHz;
 	long bps;
@@ -277,7 +294,11 @@ unsigned int create_uniq_id(int type, int code, int slot);
 void input_booster_init(void);
 void input_booster_exit(void);
 
+#if IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_MODE)
+void init_sysfs_device(struct class *sysfs_class, struct device* pdev, struct t_ib_device_tree *ib_dt);
+#else
 void init_sysfs_device(struct class *sysfs_class, struct t_ib_device_tree *ib_dt);
+#endif
 
 #if IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_QC) || \
 	IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_SLSI) || \
@@ -332,6 +353,9 @@ extern int max_cluster_count;
 extern int ib_init_succeed;
 extern unsigned int debug_flag;
 extern unsigned int enable_event_booster;
+#if IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_MODE)
+extern unsigned int u_ib_mode;
+#endif
 
 extern int trigger_cnt;
 // @ ib_trigger : input trigger starts input booster in evdev.c.

@@ -20,7 +20,6 @@ extern struct test_module sec_battery_wc_test_module;
 extern struct test_module sec_cisd_test_module;
 extern struct test_module sec_pd_test_module;
 extern struct test_module usb_typec_manager_notifier_test_module;
-extern struct test_module sec_cmd_test_module;
 extern struct test_module sec_step_charging_test_module;
 
 /*

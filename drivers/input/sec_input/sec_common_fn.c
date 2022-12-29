@@ -123,6 +123,32 @@ int sec_input_get_lcd_id(struct device *dev)
 }
 EXPORT_SYMBOL(sec_input_get_lcd_id);
 
+static void sec_input_handler_wait_resume_work(struct work_struct *work)
+{
+	struct sec_ts_plat_data *pdata = container_of(work, struct sec_ts_plat_data, irq_work);
+	unsigned int irq = gpio_to_irq(pdata->irq_gpio);
+	struct irq_desc *desc = irq_to_desc(irq);
+	int ret;
+
+	ret = wait_for_completion_interruptible_timeout(&pdata->resume_done,
+			msecs_to_jiffies(SEC_TS_WAKE_LOCK_TIME));
+	if (ret == 0) {
+		input_err(true, pdata->dev, "%s: LPM: pm resume is not handled\n", __func__);
+		goto out;
+	}
+	if (ret < 0) {
+		input_err(true, pdata->dev, "%s: LPM: -ERESTARTSYS if interrupted, %d\n", __func__, ret);
+		goto out;
+	}
+
+	if (desc && desc->action && desc->action->thread_fn) {
+		input_info(true, pdata->dev, "%s: run irq thread\n", __func__);
+		desc->action->thread_fn(irq, desc->action->dev_id);
+	}
+out:
+	enable_irq(irq);
+}
+
 int sec_input_handler_start(struct device *dev)
 {
 	struct sec_ts_plat_data *pdata = dev->platform_data;
@@ -134,18 +160,26 @@ int sec_input_handler_start(struct device *dev)
 	if (pdata->power_state == SEC_INPUT_STATE_LPM) {
 		__pm_wakeup_event(pdata->sec_ws, SEC_TS_WAKE_LOCK_TIME);
 
-		ret = wait_for_completion_interruptible_timeout(&pdata->resume_done, msecs_to_jiffies(500));
-		if (ret == 0) {
-			input_err(true, dev, "%s: LPM: pm resume is not handled\n", __func__);
-			return SEC_ERROR;
-		}
+		if (pdata->irq_workqueue) {
+			if (!pdata->resume_done.done) {
+				input_info(true, dev, "%s: disable_irq and run waiting thread\n", __func__);
+				disable_irq_nosync(gpio_to_irq(pdata->irq_gpio));
+				queue_work(pdata->irq_workqueue, &pdata->irq_work);
+				return SEC_ERROR;
+			}
+		} else {
+			ret = wait_for_completion_interruptible_timeout(&pdata->resume_done, msecs_to_jiffies(500));
+			if (ret == 0) {
+				input_err(true, dev, "%s: LPM: pm resume is not handled\n", __func__);
+				return SEC_ERROR;
+			}
+			if (ret < 0) {
+				input_err(true, dev, "%s: LPM: -ERESTARTSYS if interrupted, %d\n", __func__, ret);
+				return ret;
+			}
 
-		if (ret < 0) {
-			input_err(true, dev, "%s: LPM: -ERESTARTSYS if interrupted, %d\n", __func__, ret);
-			return ret;
+			input_info(true, dev, "%s: run LPM interrupt handler, %d\n", __func__, ret);
 		}
-
-		input_info(true, dev, "%s: run LPM interrupt handler, %d\n", __func__, ret);
 	}
 
 	return SEC_SUCCESS;
@@ -345,7 +379,7 @@ ssize_t sec_input_get_fod_info(struct device *dev, char *buf)
 
 	if (!pdata->support_fod) {
 		input_err(true, dev, "%s: fod is not supported\n", __func__);
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	if (pdata->x_node_num <= 0 || pdata->y_node_num <= 0) {
@@ -490,6 +524,8 @@ EXPORT_SYMBOL(sec_input_clear_common_hw_param);
 void sec_input_print_info(struct device *dev, struct sec_tclm_data *tdata)
 {
 	struct sec_ts_plat_data *pdata = dev->platform_data;
+	unsigned int irq = gpio_to_irq(pdata->irq_gpio);
+	struct irq_desc *desc = irq_to_desc(irq);
 	char tclm_buff[INPUT_TCLM_LOG_BUF_SIZE] = { 0 };
 
 	pdata->print_info_cnt_open++;
@@ -516,13 +552,14 @@ void sec_input_print_info(struct device *dev, struct sec_tclm_data *tdata)
 #endif
 
 	input_info(true, dev,
-			"mode:%04X tc:%d noise:%d/%d ext_n:%d wet:%d wc:%d(f:%d) lp:%x fn:%04X/%04X ED:%d PK:%d// v:%02X%02X %s // id:%d,%d tmp:%d // #%d %d\n",
+			"mode:%04X tc:%d noise:%d/%d ext_n:%d wet:%d wc:%d(f:%d) lp:%x fn:%04X/%04X irqd:%d ED:%d PK:%d LS:%d// v:%02X%02X %s // id:%d,%d tmp:%d // #%d %d\n",
 			pdata->print_info_currnet_mode, pdata->touch_count,
 			pdata->touch_noise_status, pdata->touch_pre_noise_status,
 			pdata->external_noise_mode, pdata->wet_mode,
 			pdata->wirelesscharger_mode, pdata->force_wirelesscharger_mode,
-			pdata->lowpower_mode, pdata->touch_functions, pdata->ic_status, pdata->ed_enable,
-			pdata->pocket_mode, pdata->img_version_of_ic[2], pdata->img_version_of_ic[3],
+			pdata->lowpower_mode, pdata->touch_functions, pdata->ic_status, desc->depth,
+			pdata->ed_enable, pdata->pocket_mode, pdata->low_sensitivity_mode,
+			pdata->img_version_of_ic[2], pdata->img_version_of_ic[3],
 			tclm_buff, pdata->tspid_val, pdata->tspicid_val,
 			pdata->tsp_temperature_data,
 			pdata->print_info_cnt_open, pdata->print_info_cnt_release);
@@ -577,6 +614,8 @@ void sec_input_gesture_report(struct device *dev, int id, int x, int y)
 		snprintf(buff, sizeof(buff), "SCAN UNBLOCK");
 	} else if (id == SPONGE_EVENT_TYPE_TSP_SCAN_BLOCK) {
 		snprintf(buff, sizeof(buff), "SCAN BLOCK");
+	} else if (id == SPONGE_EVENT_TYPE_LONG_PRESS) {
+		snprintf(buff, sizeof(buff), "LONG PRESS");
 	} else {
 		snprintf(buff, sizeof(buff), "");
 	}
@@ -746,7 +785,8 @@ void sec_input_coord_event(struct device *dev, int t_id)
 
 		sec_input_coord_report(dev, t_id);
 		if ((pdata->touch_count == 0) && !IS_ERR_OR_NULL(&pdata->interrupt_notify_work.work)) {
-			schedule_work(&pdata->interrupt_notify_work.work);
+			if (pdata->interrupt_notify_work.work.func && list_empty(&pdata->interrupt_notify_work.work.entry))
+				schedule_work(&pdata->interrupt_notify_work.work);
 		}
 		sec_input_coord_log(dev, t_id, SEC_TS_COORDINATE_ACTION_RELEASE);
 
@@ -759,7 +799,8 @@ void sec_input_coord_event(struct device *dev, int t_id)
 	} else if (pdata->coord[t_id].action == SEC_TS_COORDINATE_ACTION_PRESS) {
 		sec_input_coord_report(dev, t_id);
 		if ((pdata->touch_count == 1) && !IS_ERR_OR_NULL(&pdata->interrupt_notify_work.work)) {
-			schedule_work(&pdata->interrupt_notify_work.work);
+			if (pdata->interrupt_notify_work.work.func && list_empty(&pdata->interrupt_notify_work.work.entry))
+				schedule_work(&pdata->interrupt_notify_work.work);
 		}
 		sec_input_coord_log(dev, t_id, SEC_TS_COORDINATE_ACTION_PRESS);
 	} else if (pdata->coord[t_id].action == SEC_TS_COORDINATE_ACTION_MOVE) {
@@ -1130,6 +1171,151 @@ out:
 }
 EXPORT_SYMBOL(sec_input_power);
 
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+static int sec_input_ccic_notification(struct notifier_block *nb,
+	   unsigned long action, void *data)
+{
+	struct sec_ts_plat_data *pdata = container_of(nb, struct sec_ts_plat_data, ccic_nb);
+	PD_NOTI_USB_STATUS_TYPEDEF usb_status = *(PD_NOTI_USB_STATUS_TYPEDEF *)data;
+
+	if (pdata->dev == NULL) {
+		pr_err("%s %s: dev is null\n", SECLOG, __func__);
+		return 0;
+	}
+
+	if (usb_status.dest != PDIC_NOTIFY_DEV_USB)
+		return 0;
+
+	switch (usb_status.drp) {
+	case USB_STATUS_NOTIFY_ATTACH_DFP:
+		pdata->otg_flag = true;
+		input_info(true, pdata->dev, "%s: otg_flag %d\n", __func__, pdata->otg_flag);
+		break;
+	case USB_STATUS_NOTIFY_DETACH:
+		pdata->otg_flag = false;
+		input_info(true, pdata->dev, "%s: otg_flag %d\n", __func__, pdata->otg_flag);
+		break;
+	default:
+		break;
+	}
+	return 0;
+}
+#endif
+static int sec_input_vbus_notification(struct notifier_block *nb,
+		unsigned long cmd, void *data)
+{
+	struct sec_ts_plat_data *pdata = container_of(nb, struct sec_ts_plat_data, vbus_nb);
+	vbus_status_t vbus_type = *(vbus_status_t *) data;
+
+	if (pdata->dev == NULL) {
+		pr_err("%s %s: dev is null\n", SECLOG, __func__);
+		return 0;
+	}
+
+	input_info(true, pdata->dev, "%s: cmd=%lu, vbus_type=%d, otg_flag:%d\n",
+			__func__, cmd, vbus_type, pdata->otg_flag);
+
+	if (pdata->shutdown_called)
+		return 0;
+
+	switch (vbus_type) {
+	case STATUS_VBUS_HIGH:
+		if (!pdata->otg_flag)
+			pdata->charger_flag = true;
+		else
+			return 0;
+		break;
+	case STATUS_VBUS_LOW:
+		pdata->charger_flag = false;
+		break;
+	default:
+		return 0;
+	}
+
+	queue_work(pdata->vbus_notifier_workqueue, &pdata->vbus_notifier_work);
+
+	return 0;
+}
+
+static void sec_input_vbus_notification_work(struct work_struct *work)
+{
+	struct sec_ts_plat_data *pdata = container_of(work, struct sec_ts_plat_data, vbus_notifier_work);
+	int ret = 0;
+
+	if (pdata->dev == NULL) {
+		pr_err("%s %s: dev is null\n", SECLOG, __func__);
+		return;
+	}
+
+	if (pdata->set_charger_mode == NULL) {
+		input_err(true, pdata->dev, "%s: set_charger_mode function is not allocated\n", __func__);
+		return;
+	}
+
+	if (pdata->shutdown_called)
+		return;
+
+	input_info(true, pdata->dev, "%s: charger_flag:%d\n", __func__, pdata->charger_flag);
+
+	ret = pdata->set_charger_mode(pdata->dev, pdata->charger_flag);
+	if (ret < 0) {
+		input_info(true, pdata->dev, "%s: failed to set charger_flag\n", __func__);
+		return;
+	}
+}
+#endif
+
+void sec_input_register_vbus_notifier(struct device *dev)
+{
+	struct sec_ts_plat_data *pdata = dev->platform_data;
+
+	if (!pdata->support_vbus_notifier)
+		return;
+
+	input_info(true, dev, "%s\n", __func__);
+
+	pdata->otg_flag = false;
+	pdata->charger_flag = false;
+
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	manager_notifier_register(&pdata->ccic_nb, sec_input_ccic_notification,
+		MANAGER_NOTIFY_PDIC_INITIAL);
+	input_info(true, dev, "%s: register ccic notification\n", __func__);
+#endif
+	pdata->vbus_notifier_workqueue = create_singlethread_workqueue("sec_input_vbus_noti");
+	INIT_WORK(&pdata->vbus_notifier_work, sec_input_vbus_notification_work);
+	vbus_notifier_register(&pdata->vbus_nb, sec_input_vbus_notification, VBUS_NOTIFY_DEV_CHARGER);
+	input_info(true, dev, "%s: register vbus notification\n", __func__);
+#endif
+
+}
+EXPORT_SYMBOL(sec_input_register_vbus_notifier);
+
+void sec_input_unregister_vbus_notifier(struct device *dev)
+{
+	struct sec_ts_plat_data *pdata = dev->platform_data;
+
+	if (!pdata->support_vbus_notifier)
+		return;
+
+	input_info(true, dev, "%s\n", __func__);
+
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	manager_notifier_unregister(&pdata->ccic_nb);
+#endif
+	cancel_work_sync(&pdata->vbus_notifier_work);
+	flush_workqueue(pdata->vbus_notifier_workqueue);
+	destroy_workqueue(pdata->vbus_notifier_workqueue);
+
+	vbus_notifier_unregister(&pdata->vbus_nb);
+#endif
+}
+EXPORT_SYMBOL(sec_input_unregister_vbus_notifier);
+
+#define FW_NAME_DM "tsp_stm/fts2ba61y_dm"
 int sec_input_parse_dt(struct device *dev)
 {
 	struct sec_ts_plat_data *pdata = dev->platform_data;
@@ -1142,14 +1328,19 @@ int sec_input_parse_dt(struct device *dev)
 	int lcd_type = 0, lcd_type_unload = 0;
 	u32 bitmask[2] = { 0 };
 
+	pdata->dev = dev;
+
 	if (of_property_read_u32(np, "sec,support_dual_foldable", &pdata->support_dual_foldable) < 0)
 		pdata->support_dual_foldable = 0;
+
+	pdata->chip_on_board = of_property_read_bool(np, "chip_on_board");
 
 	lcd_type = sec_input_get_lcd_id(dev);
 #if !defined(DUAL_FOLDABLE_GKI)
 	if (lcd_type < 0) {
 		input_err(true, dev, "%s: lcd is not attached\n", __func__);
-		return -ENODEV;
+		if (!pdata->chip_on_board)
+			return -ENODEV;
 	}
 #endif
 	input_info(true, dev, "%s: lcdtype 0x%08X\n", __func__, lcd_type);
@@ -1262,13 +1453,10 @@ int sec_input_parse_dt(struct device *dev)
 					input_info(true, dev, "%s: lcd_id_mask: 0x%06X\n", __func__, lcd_id_mask);
 
 				for (i = 0; i < lcd_id_num; i++) {
-					if ((lcd_id_t[i] & lcd_id_mask) == (lcd_type & lcd_id_mask)) {
+					if (((lcd_id_t[i] & lcd_id_mask) == (lcd_type & lcd_id_mask)) || (i == (lcd_id_num - 1))) {
 						of_property_read_string_index(np, "sec,firmware_name", i, &pdata->firmware_name);
 						break;
 					}
-
-					if (i == (lcd_id_num - 1))
-						of_property_read_string_index(np, "sec,firmware_name", i, &pdata->firmware_name);
 				}
 				if (!pdata->firmware_name)
 					pdata->bringup = 1;
@@ -1328,11 +1516,12 @@ int sec_input_parse_dt(struct device *dev)
 	pdata->support_mis_calibration_test = of_property_read_bool(np, "support_mis_calibration_test");
 	pdata->support_wireless_tx = of_property_read_bool(np, "support_wireless_tx");
 	pdata->support_input_monitor = of_property_read_bool(np, "support_input_monitor");
-	pdata->chip_on_board = of_property_read_bool(np, "chip_on_board");
 	pdata->disable_vsync_scan = of_property_read_bool(np, "disable_vsync_scan");
 	pdata->unuse_dvdd_power = of_property_read_bool(np, "sec,unuse_dvdd_power");
 	pdata->sense_off_when_cover_closed = of_property_read_bool(np, "sense_off_when_cover_closed");
-	pdata->not_support_temp_noti = of_property_read_bool(np, "not_support_temp_noti");	
+	pdata->not_support_temp_noti = of_property_read_bool(np, "not_support_temp_noti");
+	pdata->support_vbus_notifier = of_property_read_bool(np, "support_vbus_notifier");
+
 	of_property_read_u32(np, "support_rawdata_map_num", &pdata->support_rawdata_map_num);
 
 	if (of_property_read_u32(np, "sec,support_sensor_hall", &pdata->support_sensor_hall) < 0)
@@ -1345,6 +1534,13 @@ int sec_input_parse_dt(struct device *dev)
 	pdata->enable_sysinput_enabled = of_property_read_bool(np, "sec,enable_sysinput_enabled");
 	input_info(true, dev, "%s: Sysinput enabled %s\n",
 				__func__, pdata->enable_sysinput_enabled ? "ON" : "OFF");
+
+	pdata->support_rawdata_motion_aivf = of_property_read_bool(np, "sec,support_rawdata_motion_aivf");
+	input_info(true, dev, "%s: motion aivf %s\n",
+				__func__, pdata->support_rawdata_motion_aivf ? "ON" : "OFF");
+	pdata->support_rawdata_motion_palm = of_property_read_bool(np, "sec,support_rawdata_motion_palm");
+	input_info(true, dev, "%s: motion palm %s\n",
+				__func__, pdata->support_rawdata_motion_palm ? "ON" : "OFF");
 
 	if (of_property_read_u32_array(np, "sec,area-size", px_zone, 3)) {
 		input_info(true, dev, "Failed to get zone's size\n");
@@ -1369,14 +1565,20 @@ int sec_input_parse_dt(struct device *dev)
 	input_info(true, dev, "%s: i2c buffer limit: %d, lcd_id:%06X, bringup:%d,"
 			" id:%d,%d, dex:%d, max(%d/%d), FOD:%d, AOT:%d, ED:%d, FLM:%d,"
 			" COB:%d, disable_vsync_scan:%d, unuse_dvdd_power:%d,"
-			" not_support_temp_noti:%d\n",
+			" not_support_temp_noti:%d, support_vbus_notifier:%d\n",
 			__func__, pdata->i2c_burstmax, lcd_type, pdata->bringup,
 			pdata->tsp_id, pdata->tsp_icid,
 			pdata->support_dex, pdata->max_x, pdata->max_y,
 			pdata->support_fod, pdata->enable_settings_aot,
 			pdata->support_ear_detect, pdata->support_fod_lp_mode,
 			pdata->chip_on_board, pdata->disable_vsync_scan, pdata->unuse_dvdd_power,
-			pdata->not_support_temp_noti);
+			pdata->not_support_temp_noti, pdata->support_vbus_notifier);
+
+	if (pdata->firmware_name && (strncmp(FW_NAME_DM, pdata->firmware_name, 20) == 0)) {
+		pdata->irq_workqueue = create_singlethread_workqueue("sec_input_delayed_irq");
+		INIT_WORK(&pdata->irq_work, sec_input_handler_wait_resume_work);
+	}
+
 	return ret;
 }
 EXPORT_SYMBOL(sec_input_parse_dt);
@@ -1543,7 +1745,9 @@ __visible_for_testing ssize_t sec_input_enabled_show(struct device *dev,
 
 	return scnprintf(buf, PAGE_SIZE, "%d\n", pdata->enabled);
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(sec_input_enabled_show);
+#endif
 
 __visible_for_testing ssize_t sec_input_enabled_store(struct device *dev,
 					struct device_attribute *attr,
@@ -1575,7 +1779,9 @@ __visible_for_testing ssize_t sec_input_enabled_store(struct device *dev,
 out:
 	return size;
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(sec_input_enabled_store);
+#endif
 
 static DEVICE_ATTR(enabled, 0664, sec_input_enabled_show, sec_input_enabled_store);
 

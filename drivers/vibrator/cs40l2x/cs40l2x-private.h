@@ -1583,6 +1583,7 @@ struct cs40l2x_private {
 	EVENT_STATUS save_vib_event;
 	struct sec_vibrator_drvdata sec_vib_ddata;
 	int current_temp;
+	bool use_sep_index;
 #endif
 };
 

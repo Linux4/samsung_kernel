@@ -233,6 +233,7 @@ struct vl53l5_k_module_t {
 	int32_t min;
 	int32_t avg;
 	int32_t max;
+	int32_t max_peak_signal;
 
 	int8_t enabled;
 	int8_t test_mode;

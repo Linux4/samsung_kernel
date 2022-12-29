@@ -96,6 +96,9 @@
 #include <linux/delay.h>
 
 #define MAX_FAIL_COUNT 30 // 33 * 30 = 990 msec
+#define FAC_CAL		1
+#define USER_CAL	2
+
 #endif
 
 int p2p_bh[] = VL53L5_K_P2P_CAL_BLOCK_HEADERS;
@@ -831,6 +834,16 @@ int vl53l5_ioctl_init(struct vl53l5_k_module_t *p_module)
 	if (p_module->probe_done)
 	{
 		int p2p, cha;
+		int cal_type = FAC_CAL;
+
+		status = vl53l5_input_report(p_module, 6, CMD_CHECK_CAL_FILE_TYPE);
+		if (status < 0)
+			vl53l5_k_log_error("could not find file_list");
+
+		if ((p_module->file_list & 3) == 3)
+			cal_type = USER_CAL;
+
+		vl53l5_k_log_info("Do %s cal: %d", cal_type == FAC_CAL ? "FACTORY" : "USER", p_module->file_list);
 
 		status = vl53l5_ioctl_set_power_mode(p_module, NULL, VL53L5_POWER_STATE_HP_IDLE);
 		if (status != STATUS_OK) {
@@ -838,15 +851,24 @@ int vl53l5_ioctl_init(struct vl53l5_k_module_t *p_module)
 			goto out;
 		}
 
-		usleep_range(5000, 5100);
-		cha = vl53l5_ioctl_read_generic_shape(p_module);
-		usleep_range(1000, 1100);
+		if (cal_type == FAC_CAL) {
+			usleep_range(5000, 5100);
+			cha = vl53l5_ioctl_read_generic_shape(p_module);
+			usleep_range(1000, 1100);
+			p2p = vl53l5_ioctl_read_p2p_calibration(p_module, true);
+		} else {
+			usleep_range(2000, 2100);
+			cha = vl53l5_ioctl_read_open_cal_shape_calibration(p_module);
+			msleep(100);
+			p2p = vl53l5_ioctl_read_open_cal_p2p_calibration(p_module);
+		}
+		usleep_range(2000, 2100);
+
 		if (cha == STATUS_OK)
 			p_module->load_calibration = true;
 		else
 			p_module->load_calibration = false;
 
-		p2p = vl53l5_ioctl_read_p2p_calibration(p_module, true);
 		if (p2p == STATUS_OK)
 			p_module->read_p2p_cal_data = true;
 		else
@@ -2485,7 +2507,16 @@ int vl53l5_input_report(struct vl53l5_k_module_t *p_module, int type, int cmd)
 	int status = STATUS_OK;
 	int cnt = 0;
 
+	if (cmd >= 8) {
+		status = VL53L5_IO_ERROR;
+		vl53l5_k_log_info("Invalid cmd : %d", cmd);
+		return status;
+	}
+
 	if (p_module->input_dev) {
+		p_module->pass_fail_flag &= ~(1 << cmd);
+		p_module->update_flag &= ~(1 << cmd);
+
 		vl53l5_k_log_info("send event %d", type);
 		input_report_rel(p_module->input_dev, REL_MISC, type);
 		input_sync(p_module->input_dev);

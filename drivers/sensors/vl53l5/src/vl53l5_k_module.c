@@ -140,6 +140,8 @@ extern int sensors_register(struct device *dev, void *drvdata,
 #define FAIL_GET_RANGE	-1
 #define EXCEED_AMBIENT	-2
 #define EXCEED_XTALK	-3
+#define MAX_FAILING_ZONES_LIMIT_FAIL	-452581885
+#define NO_VALID_ZONES	-452516349
 
 #define FAC_CAL		1
 #define USER_CAL	2
@@ -626,7 +628,7 @@ int vl53l5_check_calibration_condition(struct vl53l5_k_module_t *p_module, int s
 	int status = STATUS_OK, prev_state = VL53L5_STATE_RANGING;
 	int count = 0;
 	int ret = STATUS_OK;
-	int max_ambient = 0, max_xtalk = 0;
+	int max_ambient = 0, max_xtalk = 0, max_peaksignal = 0;
 	int i = 0, j = 0, idx = 0;
 #ifndef VL53L5_INTERRUPT
 	int data_ready = 0;
@@ -648,6 +650,8 @@ int vl53l5_check_calibration_condition(struct vl53l5_k_module_t *p_module, int s
 		} else {
 			vl53l5_k_log_error("start err");
 			vl53l5_k_store_error(p_module, status);
+			ret = FAIL_GET_RANGE;
+			goto out_result;
 		}
 	}
 	msleep(180);
@@ -678,6 +682,8 @@ int vl53l5_check_calibration_condition(struct vl53l5_k_module_t *p_module, int s
 				idx = (i * NUM_OF_PRINT + j);
 				if (seq == END && max_xtalk < (p_module->calibration.cal_data.pxtalk_grid_rate.cal__grid_data__rate_kcps_per_spad[idx] >> 11))
 					max_xtalk = p_module->calibration.cal_data.pxtalk_grid_rate.cal__grid_data__rate_kcps_per_spad[idx] >> 11;
+				if (max_peaksignal < (p_module->range_data.per_tgt_results.peak_rate_kcps_per_spad[idx * p_module->max_targets_per_zone] >> 11))
+					max_peaksignal = p_module->range_data.per_tgt_results.peak_rate_kcps_per_spad[idx * p_module->max_targets_per_zone] >> 11;
 				if (max_ambient < (p_module->range_data.per_zone_results.amb_rate_kcps_per_spad[idx] >> 11))
 					max_ambient = p_module->range_data.per_zone_results.amb_rate_kcps_per_spad[idx] >> 11;
 			}
@@ -685,15 +691,19 @@ int vl53l5_check_calibration_condition(struct vl53l5_k_module_t *p_module, int s
 	} else {
 		vl53l5_k_log_info("get range fail, status : %d", status);
 		ret = FAIL_GET_RANGE;
+		goto out_result;
 	}
+
+	p_module->max_peak_signal = max_peaksignal;
 
 	if (max_ambient > 35)
 		ret = EXCEED_AMBIENT;
 	else if (seq == END && max_xtalk > 200)
 		ret = EXCEED_XTALK;
 
-	vl53l5_k_log_info("max_ambient : %d, max_xtalk : %d, ret : %d\n", max_ambient, max_xtalk, ret);
+	vl53l5_k_log_info("max_ambient : %d, max_xtalk : %d, ret : %d, max_peaksignal : %d \n", max_ambient, max_xtalk, ret, max_peaksignal);
 
+out_result:
 	if (prev_state != VL53L5_STATE_RANGING) {
 		p_module->enabled = 0;
 		vl53l5_ioctl_stop(p_module, NULL, 1);
@@ -789,6 +799,11 @@ void vl53l5_load_factory_calibration(struct vl53l5_k_module_t *p_module)
 static ssize_t vl53l5_name_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
+	//test code
+	struct vl53l5_k_module_t *p_module = dev_get_drvdata(dev);
+	vl53l5_ioctl_init(p_module);
+	///end
+
 	return snprintf(buf, PAGE_SIZE, "VL53L5\n");
 }
 
@@ -1586,6 +1601,10 @@ static ssize_t vl53l5_open_calibration_show(struct device *dev,
 
 		if (cal_status == EXCEED_AMBIENT)
 			return snprintf(buf, PAGE_SIZE, "FAIL_AMBIENT\n");
+		else if ((ret == MAX_FAILING_ZONES_LIMIT_FAIL || ret == NO_VALID_ZONES) && p_module->max_peak_signal > 200)
+			return snprintf(buf, PAGE_SIZE, "FAIL_CLOSED\n");
+		else if ((ret == MAX_FAILING_ZONES_LIMIT_FAIL || ret == NO_VALID_ZONES) && p_module->max_peak_signal <= 200)
+			return snprintf(buf, PAGE_SIZE, "FAIL_BG\n");
 		else if (cal_status == EXCEED_XTALK)
 			return snprintf(buf, PAGE_SIZE, "FAIL_CLOSED_DUST\n");
 		else

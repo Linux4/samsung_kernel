@@ -395,6 +395,7 @@ static int self_mask_check(struct samsung_display_driver_data *vdd)
 	return ret;
 }
 
+#if 0
 static int self_display_debug(struct samsung_display_driver_data *vdd)
 {
 	char buf[64];
@@ -434,6 +435,7 @@ static int self_display_debug(struct samsung_display_driver_data *vdd)
 
 	return 0;
 }
+#endif
 
 static int self_display_aod_enter(struct samsung_display_driver_data *vdd)
 {
@@ -694,7 +696,7 @@ int self_display_init_FC1(struct samsung_display_driver_data *vdd)
 	vdd->self_disp.self_mask_img_write = self_mask_img_write;
 	vdd->self_disp.self_mask_on = self_mask_on;
 	vdd->self_disp.self_mask_check = self_mask_check;
-	vdd->self_disp.self_display_debug = self_display_debug;
+	//vdd->self_disp.self_display_debug = self_display_debug;
 
 	ret = ss_wrapper_misc_register(vdd, &vdd->self_disp.dev);
 	if (ret) {

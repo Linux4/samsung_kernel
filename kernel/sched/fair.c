@@ -6705,10 +6705,8 @@ static void walt_get_indicies(struct task_struct *p, int *order_index,
 	}
 
 	if (boosted || task_boost_policy(p) == SCHED_BOOST_ON_BIG ||
-		walt_task_skip_min_cpu(p)) {
+		walt_task_skip_min_cpu(p))
 		*order_index = 1;
-		return;
-	}
 
 	for (i = *order_index ; i < num_sched_clusters - 1; i++) {
 		if (task_demand_fits(p, cpumask_first(&cpu_array[i][0])))

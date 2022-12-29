@@ -113,11 +113,8 @@ static ssize_t epen_firm_version_show(struct device *dev,
 	struct i2c_client *client = wac_i2c->client;
 
 #ifdef CONFIG_SEC_FACTORY
-	if (wac_i2c->pdata->ic_type == MPU_W9021) {
-		wac_i2c->fw_ver_ic = 0;
-
-		wacom_i2c_query(wac_i2c);
-	}
+	wac_i2c->fw_ver_ic = 0;
+	wacom_i2c_query(wac_i2c);
 #endif
 
 	input_info(true, &client->dev, "%s: 0x%x|0x%X\n", __func__,
@@ -324,6 +321,20 @@ int wacom_open_test(struct wacom_i2c *wac_i2c, int test_mode)
 
 	input_info(true, &client->dev, "%s : start (%d)\n", __func__, test_mode);
 
+	if (test_mode == WACOM_GARAGE_TEST) {
+		wac_i2c->garage_connection_check = false;
+		wac_i2c->garage_fail_channel = 0;
+		wac_i2c->garage_min_adc_val = 0;
+		wac_i2c->garage_error_cal = 0;
+		wac_i2c->garage_min_cal_val = 0;
+	} else if (test_mode == WACOM_DIGITIZER_TEST) {
+		wac_i2c->connection_check = false;
+		wac_i2c->fail_channel = 0;
+		wac_i2c->min_adc_val = 0;
+		wac_i2c->error_cal = 0;
+		wac_i2c->min_cal_val = 0;
+	}
+
 	if(!wac_i2c->pdata->support_garage_open_test && test_mode == WACOM_GARAGE_TEST){
 		input_err(true, &client->dev, "%s: not support garage open test", __func__);
 		retval = EPEN_OPEN_TEST_NOTSUPPORT;
@@ -350,21 +361,9 @@ int wacom_open_test(struct wacom_i2c *wac_i2c, int test_mode)
 	wacom_enable_irq(wac_i2c, false);
 
 	if (test_mode == WACOM_GARAGE_TEST) {
-		wac_i2c->garage_connection_check = false;
-		wac_i2c->garage_fail_channel = 0;
-		wac_i2c->garage_min_adc_val = 0;
-		wac_i2c->garage_error_cal = 0;
-		wac_i2c->garage_min_cal_val = 0;
-
 		cmd = COM_GARAGE_TEST_MODE;
 
 	} else if (test_mode == WACOM_DIGITIZER_TEST) {
-		wac_i2c->connection_check = false;
-		wac_i2c->fail_channel = 0;
-		wac_i2c->min_adc_val = 0;
-		wac_i2c->error_cal = 0;
-		wac_i2c->min_cal_val = 0;
-
 		cmd = COM_DIGITIZER_TEST_MODE;
 	}
 
@@ -2029,6 +2028,11 @@ static void get_fw_ver_ic(void *device_data)
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 
 	sec_cmd_set_default_result(sec);
+
+#ifdef CONFIG_SEC_FACTORY
+	wac_i2c->fw_ver_ic = 0;
+	wacom_i2c_query(wac_i2c);
+#endif
 
 	snprintf(buff, sizeof(buff), "%04X", wac_i2c->fw_ver_ic);
 

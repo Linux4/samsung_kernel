@@ -497,7 +497,11 @@ static u32 clear_idx_knox;
 #define SYSLOG_ACTION_READ_CLEAR_KNOX 99
 // SecProductFeature_KNOX.SEC_PRODUCT_FEATURE_KNOX_SUPPORT_MDM }
 #if IS_ENABLED(CONFIG_SEC_LOG_BUF)
+#ifdef CONFIG_PRINTK_CALLER
+#define PREFIX_MAX		64
+#else
 #define PREFIX_MAX		48
+#endif
 #define LOG_LINE_MAX		(2048 - PREFIX_MAX)
 #else
 #ifdef CONFIG_PRINTK_CALLER

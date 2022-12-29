@@ -20,7 +20,6 @@ kunit_notifier_chain_init(sec_cisd_test_module);
 kunit_notifier_chain_init(sec_pd_test_module);
 kunit_notifier_chain_init(sec_step_charging_test_module);
 kunit_notifier_chain_init(usb_typec_manager_notifier_test_module);
-kunit_notifier_chain_init(sec_cmd_test_module);
 
 static __init int kunit_notifier_init(void)
 {
@@ -41,7 +40,6 @@ static __init int kunit_notifier_init(void)
 	kunit_notifier_chain_register(sec_pd_test_module);
 	kunit_notifier_chain_register(sec_step_charging_test_module);
 	kunit_notifier_chain_register(usb_typec_manager_notifier_test_module);
-	kunit_notifier_chain_register(sec_cmd_test_module);
 	return 0;
 }
 
@@ -51,7 +49,6 @@ static __exit void kunit_notifier_exit(void)
 	kunit_notifier_chain_unregister(abc_common_test_module);
 	kunit_notifier_chain_unregister(sec_battery_test_module);
 	kunit_notifier_chain_unregister(usb_typec_manager_notifier_test_module);
-	kunit_notifier_chain_unregister(sec_cmd_test_module);
 }
 
 module_init(kunit_notifier_init);

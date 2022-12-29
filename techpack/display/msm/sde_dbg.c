@@ -124,9 +124,13 @@
 #undef DEFAULT_DBGBUS_SDE
 #undef DEFAULT_DBGBUS_VBIFRT
 
-#define DEFAULT_REGDUMP		SDE_DBG_DUMP_IN_LOG
+/*#define DEFAULT_REGDUMP		SDE_DBG_DUMP_IN_LOG
 #define DEFAULT_DBGBUS_SDE	SDE_DBG_DUMP_IN_LOG
 #define DEFAULT_DBGBUS_VBIFRT	SDE_DBG_DUMP_IN_LOG
+*/
+#define DEFAULT_REGDUMP			SDE_DBG_DUMP_IN_LOG_LIMITED
+#define DEFAULT_DBGBUS_SDE		SDE_DBG_DUMP_IN_LOG_LIMITED
+#define DEFAULT_DBGBUS_VBIFRT	SDE_DBG_DUMP_IN_LOG_LIMITED
 #endif
 
 /**
@@ -1209,6 +1213,13 @@ void sde_dbg_dump(enum sde_dbg_dump_context dump_mode, const char *name, ...)
 	if ((dump_mode == SDE_DBG_DUMP_IRQ_CTX) &&
 		work_pending(&sde_dbg_base.dump_work))
 		return;
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG) && IS_ENABLED(CONFIG_SEC_DEBUG)
+        if (!sec_debug_is_enabled())
+		return;
+#else
+	return;
+#endif
 
 	blk_arr = &sde_dbg_base.req_dump_blks[0];
 	blk_len = ARRAY_SIZE(sde_dbg_base.req_dump_blks);
