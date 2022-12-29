@@ -112,6 +112,7 @@ extern char *sec_cable_type[];
 
 #define BATT_MISC_EVENT_BATTERY_HEALTH			0x000F0000
 #define BATT_MISC_EVENT_HEALTH_OVERHEATLIMIT		0x00100000
+#define BATT_MISC_EVENT_FULL_CAPACITY			0x01000000
 
 #define BATTERY_HEALTH_SHIFT                16
 enum misc_battery_health {
@@ -156,6 +157,8 @@ enum misc_battery_health {
 #define SIOP_APDO_INPUT_LIMIT_CURRENT				1000
 #define SIOP_APDO_CHARGING_LIMIT_CURRENT			2000
 #endif
+
+#define SELECT_PDO_INPUT_CURRENT 1000
 
 #define WIRELESS_OTG_INPUT_CURRENT 900
 
@@ -665,6 +668,7 @@ struct sec_battery_info {
 	int ta_alert_mode;
 
 	bool boot_complete;
+	int batt_full_capacity;
 };
 
 /* event check */

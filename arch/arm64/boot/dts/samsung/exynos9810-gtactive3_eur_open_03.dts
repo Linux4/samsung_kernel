@@ -1486,8 +1486,8 @@
 				phandle = <0x6b>;
 			};
 
-			abox_adaptation {
-				compatible = "samsung,abox-adaptation";
+			abox_adaptation_ricktek {
+				compatible = "samsung,abox-adaptation-richtek";
 				#sound-dai-cells = <0x1>;
 				abox = <0xffffffff>;
 				linux,phandle = <0x7>;
@@ -2687,6 +2687,7 @@
 				battery,charging_reset_time = <0x0>;
 				battery,chg_float_voltage = <0x10a4>;
 				battery,chg_ocp_current = <0x0>;
+				battery,chg_otg_current = <0x4b0>;
 				battery,swelling_high_temp_block = <0x1a4>;
 				battery,swelling_high_temp_recov = <0x190>;
 				battery,swelling_low_temp_block_1st = <0x96>;
@@ -5043,7 +5044,7 @@
 		ext_bin_0 = "/fragment@17/__overlay__/ext_bin@0";
 		ext_bin_3 = "/fragment@17/__overlay__/ext_bin@3";
 		ext_bin_6 = "/fragment@17/__overlay__/ext_bin@6";
-		abox_adaptation = "/fragment@17/__overlay__/abox_adaptation";
+		abox_adaptation_ricktek = "/fragment@17/__overlay__/abox_adaptation_ricktek";
 		rt5665 = "/fragment@18/__overlay__/rt5665@1b";
 		rt5510 = "/fragment@19/__overlay__/rt5510@34";
 		dbmd8_spi = "/fragment@20/__overlay__/dbmd8_interface@0";
@@ -5214,7 +5215,7 @@
 		fimc_is_sensor0 = "/fragment@9:target:0";
 		fimc_is_sensor2 = "/fragment@10:target:0";
 		clock = "/fragment@sound/__overlay__/sound:clocks:0", "/fragment@77/__overlay__:clocks:0", "/fragment@77/__overlay__:clocks:8", "/fragment@80/__overlay__/sec-nfc@27:clocks:0", "/fragment@83/__overlay__/ese_spi@0:clocks:0", "/fragment@83/__overlay__/ese_spi@0:clocks:8";
-		abox = "/fragment@sound/__overlay__/sound:samsung,codec:0", "/fragment@sound/__overlay__/sound/rdma@0/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/rdma@1/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/rdma@2/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/rdma@3/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/rdma@4/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/rdma@5/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/rdma@6/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/rdma@7/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/wdma@0/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/wdma@1/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/wdma@2/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/wdma@3/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/wdma@4/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/sifs0@0/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/sifs1@0/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/sifs2@0/cpu:sound-dai:0", "/fragment@17:target:0", "/fragment@17/__overlay__/abox_adaptation:abox:0";
+		abox = "/fragment@sound/__overlay__/sound:samsung,codec:0", "/fragment@sound/__overlay__/sound/rdma@0/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/rdma@1/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/rdma@2/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/rdma@3/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/rdma@4/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/rdma@5/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/rdma@6/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/rdma@7/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/wdma@0/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/wdma@1/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/wdma@2/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/wdma@3/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/wdma@4/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/sifs0@0/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/sifs1@0/cpu:sound-dai:0", "/fragment@sound/__overlay__/sound/sifs2@0/cpu:sound-dai:0", "/fragment@17:target:0", "/fragment@17/__overlay__/abox_adaptation_ricktek:abox:0";
 		abox_uaif_0 = "/fragment@sound/__overlay__/sound:samsung,codec:4", "/fragment@sound/__overlay__/sound/uaif@0/cpu:sound-dai:0";
 		abox_uaif_1 = "/fragment@sound/__overlay__/sound:samsung,codec:8", "/fragment@sound/__overlay__/sound/uaif@1/cpu:sound-dai:0";
 		abox_uaif_2 = "/fragment@sound/__overlay__/sound:samsung,codec:12", "/fragment@sound/__overlay__/sound/uaif@2/cpu:sound-dai:0";

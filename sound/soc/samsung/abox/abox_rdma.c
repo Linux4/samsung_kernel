@@ -1693,7 +1693,7 @@ static int abox_rdma_ack(struct snd_pcm_substream *substream)
 	pcmtask_msg->param.pointer = (unsigned int)appl_bytes;
 	msg.task_id = pcmtask_msg->channel_id = id;
 
-	return abox_rdma_request_ipc(data, &msg, 0, 0);
+	return abox_rdma_request_ipc(data, &msg, 1, 0);
 }
 
 static struct snd_pcm_ops abox_rdma_ops = {
@@ -1945,8 +1945,10 @@ static int abox_rdma_fio_common_ioctl(struct snd_hwdep *hw, struct file *filp,
 	switch (cmd) {
 	case SNDRV_PCM_IOCTL_MMAP_DATA_FD:
 		ret = abox_mmap_fd(data, &mmap_fd);
-		if (ret < 0)
+		if (ret < 0) {
 			dev_err(dev, "%s MMAP_FD failed: %d\n", __func__, ret);
+			return ret;
+		}
 
 		if (copy_to_user(_arg, &mmap_fd, sizeof(mmap_fd)))
 			return -EFAULT;

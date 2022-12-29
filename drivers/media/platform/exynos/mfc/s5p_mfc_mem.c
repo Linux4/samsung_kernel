@@ -77,14 +77,29 @@ int s5p_mfc_mem_get_user_shared_handle(struct s5p_mfc_ctx *ctx,
 	struct mfc_user_shared_handle *handle)
 {
 	struct s5p_mfc_dev *dev = ctx->dev;
+	struct dma_buf *dma_buf;
 	int ret = 0;
+	int fd = handle->fd;
 
-	handle->ion_handle =
-		ion_import_dma_buf_fd(dev->mfc_ion_client, handle->fd);
+	handle->ion_handle = ion_import_dma_buf_fd(dev->mfc_ion_client, fd);
 	if (IS_ERR(handle->ion_handle)) {
 		mfc_err_ctx("Failed to import fd\n");
 		ret = PTR_ERR(handle->ion_handle);
 		goto import_dma_fail;
+	}
+
+	dma_buf = dma_buf_get(fd);
+	if (IS_ERR(dma_buf)) {
+		mfc_err_ctx("Faiiled to dma_buf_get (err %ld)\n", PTR_ERR(dma_buf));
+		ret = -EINVAL;
+		goto dma_buf_get_fail;
+	}
+
+	if (dma_buf->size < handle->data_size) {
+		mfc_err_ctx("User-provided dma_buf size(%ld) is smaller than required size(%ld)\n",
+				dma_buf->size, handle->data_size);
+		ret = -EINVAL;
+		goto dma_buf_size_fail;
 	}
 
 	handle->vaddr =
@@ -95,14 +110,18 @@ int s5p_mfc_mem_get_user_shared_handle(struct s5p_mfc_ctx *ctx,
 		goto map_kernel_fail;
 	}
 
+	dma_buf_put(dma_buf);
+
 	mfc_debug(2, "User Handle: fd = %d, virtual addr = 0x%p\n",
 				handle->fd, handle->vaddr);
 
 	return 0;
 
 map_kernel_fail:
+dma_buf_size_fail:
+	dma_buf_put(dma_buf);
+dma_buf_get_fail:
 	ion_free(dev->mfc_ion_client, handle->ion_handle);
-
 import_dma_fail:
 	return ret;
 }
