@@ -92,37 +92,33 @@ int etspi_Interrupt_Init(
 		goto done;
 	}
 
-	if (atomic_read(&etspi->drdy_irq_flag) == DRDY_IRQ_DISABLE) {
+	if (etspi->drdy_irq_flag == DRDY_IRQ_DISABLE) {
 		if (request_irq
 			(gpio_irq, etspi_fingerprint_interrupt
-			, int_ctrl == IRQ_TYPE_LEVEL_LOW ? \
-			IRQ_TYPE_LEVEL_LOW : IRQ_TYPE_EDGE_FALLING,
-			"etspi_irq", etspi) < 0) {
+			, int_ctrl == IRQ_TYPE_LEVEL_LOW ? IRQ_TYPE_LEVEL_LOW : IRQ_TYPE_EDGE_FALLING
+			, "etspi_irq", etspi) < 0) {
 			pr_err("%s drdy request_irq failed\n", __func__);
 			status = -EBUSY;
 			goto done;
 		} else {
-			atomic_set(&etspi->drdy_irq_flag, DRDY_IRQ_ENABLE);
+			etspi->drdy_irq_flag = DRDY_IRQ_ENABLE;
 		}
 	}
 done:
-	return status;
+	return 0;
 }
 
 int etspi_Interrupt_Free(struct etspi_data *etspi)
 {
+	pr_info("%s\n", __func__);
+
 	if (etspi != NULL) {
-		if (atomic_read(&etspi->drdy_irq_flag) == DRDY_IRQ_ENABLE) {
+		if (etspi->drdy_irq_flag == DRDY_IRQ_ENABLE) {
 			free_irq(gpio_irq, etspi);
-			atomic_set(&etspi->drdy_irq_flag, DRDY_IRQ_DISABLE);
-			pr_info("%s done\n", __func__);
-		} else {
-			pr_info("%s skipped\n", __func__);
+			etspi->drdy_irq_flag = DRDY_IRQ_DISABLE;
 		}
 		etspi->finger_on = 0;
 		etspi->int_count = 0;
-	} else {
-		pr_info("%s etspi is NULL\n", __func__);
 	}
 	return 0;
 }
@@ -851,7 +847,7 @@ int etspi_platformInit(struct etspi_data *etspi)
 
 	/* gpio setting for ldo, ldo2, sleep, drdy pin */
 	if (etspi != NULL) {
-		atomic_set(&etspi->drdy_irq_flag, DRDY_IRQ_DISABLE);
+		etspi->drdy_irq_flag = DRDY_IRQ_DISABLE;
 
 		if (etspi->ocp_en) {
 			status = gpio_request(etspi->ocp_en, "etspi_ocp_en");
@@ -951,7 +947,7 @@ void etspi_platformUninit(struct etspi_data *etspi)
 	if (etspi != NULL) {
 		disable_irq(gpio_irq);
 		free_irq(gpio_irq, etspi);
-		atomic_set(&etspi->drdy_irq_flag, DRDY_IRQ_DISABLE);
+		etspi->drdy_irq_flag = DRDY_IRQ_DISABLE;
 		if (etspi->ldo_pin)
 			gpio_free(etspi->ldo_pin);
 		if (etspi->ldo_pin2)
@@ -1199,9 +1195,8 @@ static int etspi_wakeup_daemon(struct etspi_data *etspi)
 #ifdef CONFIG_SENSORS_FP_LOCKSCREEN_MODE
 	if (fp_lockscreen_mode) {
 		if (etspi->signal_id) {
-			if (wakeup_by_key() == true &&
-				atomic_read(&etspi->drdy_irq_flag)\
-				== DRDY_IRQ_DISABLE) {
+			if (wakeup_by_key() == true && 
+				etspi->drdy_irq_flag == DRDY_IRQ_DISABLE) {
 				etspi_send_wake_up_signal(etspi);
 				pr_info("%s send signal done!\n", __func__);
 			} else {
@@ -1438,7 +1433,7 @@ static int etspi_pm_suspend(struct device *dev)
 	pr_info("%s\n", __func__);
 
 	if (g_data != NULL) {
-		etspi_Interrupt_Free(g_data);
+		g_data->drdy_irq_flag = DRDY_IRQ_DISABLE;
 		etspi_disable_debug_timer();
 		etspi_power_control(g_data, 0);
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
@@ -1550,3 +1545,4 @@ module_exit(etspi_exit);
 MODULE_AUTHOR("Wang YuWei, <robert.wang@egistec.com>");
 MODULE_DESCRIPTION("SPI Interface for ET320");
 MODULE_LICENSE("GPL");
+

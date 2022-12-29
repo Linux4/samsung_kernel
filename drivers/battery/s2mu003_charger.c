@@ -62,8 +62,6 @@ static int s2mu003_reg_map[] = {
 	S2MU003_CHG_CTRL9,
 };
 
-unsigned int swelling_charging_current = 0;
-
 struct s2mu003_charger_data {
 	struct i2c_client       *client;
 	s2mu003_mfd_chip_t	*s2mu003;
@@ -405,20 +403,9 @@ static void s2mu003_set_termination_current_limit(struct i2c_client *i2c,
 static void s2mu003_set_charging_current(struct s2mu003_charger_data *charger,
 		int eoc)
 {
-	union power_supply_propval swelling_state;
 	int adj_current = 0;
 
-#if defined(CONFIG_BATTERY_SWELLING)
-	psy_do_property("battery", get,
-			POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT,
-			swelling_state);
-	if(swelling_state.intval && charger->charging_current > swelling_charging_current)
-		adj_current = swelling_charging_current;
-	else
-		adj_current = charger->charging_current * charger->siop_level / 100;
-#else
 	adj_current = charger->charging_current * charger->siop_level / 100;
-#endif
 	mutex_lock(&charger->io_lock);
 	s2mu003_set_fast_charging_current(charger->client,
 			adj_current);
@@ -980,7 +967,6 @@ static int sec_chg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
 		val->intval = s2mu003_get_fast_charging_current(charger->client);
 		break;
-	case POWER_SUPPLY_PROP_CURRENT_AVG:
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		if (charger->charging_current) {
 			aicr = s2mu003_get_input_current_limit(charger->client);
@@ -1147,10 +1133,6 @@ static int sec_chg_set_property(struct power_supply *psy,
 				charger->pdata->chg_float_voltage);
 		break;
 #endif
-	case POWER_SUPPLY_PROP_CURRENT_AVG:
-		swelling_charging_current = val->intval;
-		s2mu003_set_fast_charging_current(charger->client, val->intval);
-		break;
 	case POWER_SUPPLY_PROP_POWER_NOW:
 		eoc = s2mu003_get_current_eoc_setting(charger);
 		pr_info("%s:Set Power Now -> chg current = %d mA, eoc = %d mA\n", __func__,

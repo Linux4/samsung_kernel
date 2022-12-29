@@ -132,9 +132,8 @@
 		battery,recharge_condition_soc = <98>;
 		battery,recharge_condition_vcell = <4150>;
 
-		battery,standard_curr = <1700>;
-		battery,expired_time = <12240>; /* 204 min*/
-		battery,recharging_expired_time = <5400>;
+		battery,charging_total_time = <21600>;
+		battery,recharging_total_time = <5400>;
 		battery,charging_reset_time = <0>;
 
 		battery,chg_float_voltage = <4200>;
@@ -144,30 +143,17 @@
 		battery,self_discharging_temp_recov = <550>;
 		battery,self_discharging_temp_pollingtime = <400>;
 
-		battery,swelling_low_temp_2step_mode = <1>;
-		battery,swelling_high_temp_block = <410>;
-		battery,swelling_high_temp_recov = <390>;
-		battery,swelling_low_temp_block_1st = <150>;
-		battery,swelling_low_temp_recov_1st = <200>;
-		battery,swelling_low_temp_block_2nd = <50>;
-		battery,swelling_low_temp_recov_2nd = <100>;
-
-		battery,swelling_low_temp_current = <700>;		/* 0.3C */
-		battery,swelling_low_temp_topoff = <125>;		/* 0.05C */
-		battery,swelling_high_temp_current = <1000>;		/* 0.45C */
-		battery,swelling_high_temp_topoff = <125>;		/* 0.05C */
-
-		battery,swelling_drop_float_voltage = <4150>;
-		battery,swelling_high_rechg_voltage = <4000>;
-		battery,swelling_low_rechg_voltage = <4000>;
+		battery,swelling_low_temp_2step_mode = <0>;
+		battery,swelling_high_temp_block = <500>;
+		battery,swelling_high_temp_recov = <450>;
+		battery,swelling_low_temp_block = <50>;
+		battery,swelling_low_temp_recov = <100>;
+		battery,swelling_low_temp_current = <1300>;
+		battery,swelling_high_temp_current = <1300>;
+		battery,swelling_drop_float_voltage = <4200>;
+		battery,swelling_high_rechg_voltage = <4150>;
+		battery,swelling_low_rechg_voltage = <4050>;
 		battery,swelling_block_time = <600>;
-
-		/* cycle, chg_float_voltage, recharge_condition_vcell, full_condition_vcell, full_condition_soc */
-		battery,age_data = <0 4350 4280 4250 93
-				200  4330 4260 4230 92
-				250  4310 4240 4210 91
-				300  4290 4220 4190 90
-				1000 4240 4170 4140 89>;
 
 		io-channels = <&exynos_adc 1>;
 		io-channel-names = "adc-temp";

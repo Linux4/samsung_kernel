@@ -3,7 +3,7 @@
  *
  * Provides type definitions and function prototypes used to parse ip packet.
  *
- * Copyright (C) 1999-2018, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -23,17 +23,17 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_ip.h 793225 2018-12-07 07:37:32Z $
+ * $Id: dhd_ip.h 457888 2014-02-25 03:34:39Z $
  */
 
 #ifndef _dhd_ip_h_
 #define _dhd_ip_h_
 
-#if defined(DHDTCPACK_SUPPRESS) || defined(DHDTCPSYNC_FLOOD_BLK)
+#ifdef DHDTCPACK_SUPPRESS
 #include <dngl_stats.h>
 #include <bcmutils.h>
 #include <dhd.h>
-#endif /* DHDTCPACK_SUPPRESS || DHDTCPSYNC_FLOOD_BLK */
+#endif /* DHDTCPACK_SUPPRESS */
 
 typedef enum pkt_frag
 {
@@ -44,17 +44,6 @@ typedef enum pkt_frag
 } pkt_frag_t;
 
 extern pkt_frag_t pkt_frag_info(osl_t *osh, void *p);
-
-#ifdef DHDTCPSYNC_FLOOD_BLK
-typedef enum tcp_hdr_flags {
-	FLAG_SYNC,
-	FLAG_SYNCACK,
-	FLAG_RST,
-	FLAG_OTHERS
-} tcp_hdr_flag_t;
-
-extern tcp_hdr_flag_t dhd_tcpdata_get_flag(dhd_pub_t *dhdp, void *pkt);
-#endif /* DHDTCPSYNC_FLOOD_BLK */
 
 #ifdef DHDTCPACK_SUPPRESS
 #define	TCPACKSZMIN	(ETHER_HDR_LEN + IPV4_MIN_HEADER_LEN + TCP_MIN_HEADER_LEN)

@@ -1,7 +1,7 @@
 /*
  * Linux OS Independent Layer
  *
- * Copyright (C) 1999-2018, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: linux_osl.h 793225 2018-12-07 07:37:32Z $
+ * $Id: linux_osl.h 546957 2015-04-07 04:51:13Z $
  */
 
 #ifndef _linux_osl_h_
@@ -201,10 +201,6 @@ extern int osl_error(int bcmerror);
 #else
 #define OSL_SYSUPTIME()		((uint32)jiffies * (1000 / HZ))
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 29) */
-extern void osl_get_localtime(uint64 *sec, uint64 *usec);
-extern uint64 osl_localtime_ns(void);
-#define OSL_LOCALTIME_NS()    osl_localtime_ns()
-#define OSL_GET_LOCALTIME(sec, usec)  osl_get_localtime((sec), (usec))
 #define	printf(fmt, args...)	printk(fmt , ## args)
 #include <linux/kernel.h>	/* for vsn/printf's */
 #include <linux/string.h>	/* for mem*, str* */

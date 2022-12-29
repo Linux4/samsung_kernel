@@ -1268,15 +1268,11 @@ static bool sec_bat_set_aging_step(struct sec_battery_info *battery, int step)
 		battery->pdata->age_data[battery->pdata->age_step].full_condition_soc;
 	battery->pdata->full_condition_vcell =
 		battery->pdata->age_data[battery->pdata->age_step].full_condition_vcell;
-#if defined(CONFIG_FUELGAUGE_S2MU003)
-	value.intval = battery->pdata->age_step;
-	psy_do_property(battery->pdata->fuelgauge_name, set,
-		POWER_SUPPLY_PROP_UPDATE_BATTERY_DATA, value);
-#else
+
 	value.intval = battery->pdata->full_condition_soc;
 	psy_do_property(battery->pdata->fuelgauge_name, set,
 		POWER_SUPPLY_PROP_CAPACITY_LEVEL, value);
-#endif
+
 	dev_info(battery->dev,
 		 "%s: Step(%d/%d), Cycle(%d), float_v(%d), r_v(%d), f_s(%d), f_vl(%d)\n",
 		 __func__,
@@ -1307,8 +1303,7 @@ static void sec_bat_aging_check(struct sec_battery_info *battery)
 		if (battery->pdata->age_data[calc_step].cycle <= battery->batt_cycle)
 			break;
 	}
-	dev_info(battery->dev,
-		 "%s: [Long life] prev_step = %d, calc_step = %d\n",  __func__, prev_step, calc_step);
+
 	if (calc_step == prev_step)
 		return;
 
@@ -4426,9 +4421,7 @@ ssize_t sec_bat_store_attrs(
 				prev_battery_cycle = battery->batt_cycle;
 				battery->batt_cycle = x;
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
-				dev_info(battery->dev, "%s: [Long life] prev_battery_cycle = %d, new bat. cycle = %d\n", __func__, prev_battery_cycle, battery->batt_cycle);
 				if (prev_battery_cycle < 0) {
-					dev_info(battery->dev, "%s: [Long life] Do sec_bat_aging_check()\n", __func__);
 					sec_bat_aging_check(battery);
 				}
 #endif

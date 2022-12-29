@@ -1,7 +1,7 @@
 /*
  * OS Abstraction Layer
  *
- * Copyright (C) 1999-2018, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: osl.h 793225 2018-12-07 07:37:32Z $
+ * $Id: osl.h 424562 2013-09-18 10:57:30Z $
  */
 
 #ifndef _osl_h_
@@ -69,18 +69,6 @@ typedef void  (*osl_wreg_fn_t)(void *ctx, volatile void *reg, unsigned int val, 
 #else
 #define OSL_SYSUPTIME_SUPPORT TRUE
 #endif /* OSL_SYSUPTIME */
-
-#ifndef OSL_GET_LOCALTIME
-#define OSL_GET_LOCALTIME(sec, usec)    \
-		do { \
-			BCM_REFERENCE(sec); \
-			BCM_REFERENCE(usec); \
-		} while (0)
-#endif /* OSL_GET_LOCALTIME */
-
-#ifndef OSL_LOCALTIME_NS
-#define OSL_LOCALTIME_NS()      do {} while (0)
-#endif /* OSL_LOCALTIME_NS */
 
 #if !defined(PKTC) && !defined(PKTC_DONGLE)
 #define	PKTCGETATTR(skb)	(0)

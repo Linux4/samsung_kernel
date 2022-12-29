@@ -3,7 +3,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * Copyright (C) 1999-2018, Broadcom Corporation
+ * Copyright (C) 1999-2017, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -23,7 +23,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_debug_linux.c 744879 2018-02-06 02:45:32Z $
+ * $Id: dhd_debug_linux.c 699163 2017-05-12 05:18:23Z $
  */
 
 #include <typedefs.h>
@@ -436,7 +436,6 @@ dhd_os_dbg_get_feature(dhd_pub_t *dhdp, int32 *features)
 {
 	int ret = BCME_OK;
 	*features = 0;
-#ifdef DEBUGABILITY
 	*features |= DBG_MEMORY_DUMP_SUPPORTED;
 	if (FW_SUPPORTED(dhdp, logtrace)) {
 		*features |= DBG_CONNECT_EVENT_SUPPORTED;
@@ -450,7 +449,6 @@ dhd_os_dbg_get_feature(dhd_pub_t *dhdp, int32 *features)
 		*features |= DBG_PACKET_FATE_SUPPORTED;
 	}
 #endif /* DBG_PKT_MON */
-#endif /* DEBUGABILITY */
 	return ret;
 }
 

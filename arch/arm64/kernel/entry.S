@@ -363,7 +363,7 @@ el0_sync:
 	cmp	x24, #ESR_EL1_EC_FP_EXC64	// FP/ASIMD exception
 	b.eq	el0_fpsimd_exc
 	cmp	x24, #ESR_EL1_EC_SYS64		// configurable trap
-	b.eq	el0_sys
+	b.eq	el0_undef
 	cmp	x24, #ESR_EL1_EC_SP_ALIGN	// stack alignment exception
 	b.eq	el0_sp_pc
 	cmp	x24, #ESR_EL1_EC_PC_ALIGN	// pc alignment exception
@@ -483,16 +483,6 @@ el0_undef:
 	mov	x0, sp
 	adr	lr, ret_to_user
 	b	do_undefinstr
-el0_sys:
-	/*
-	 * System instructions, for trapped cache maintenance instructions
-	 */
-	enable_dbg
-	enable_irq
-	mov	x0, x25
-	mov	x1, sp
-    adr	lr, ret_to_user    
-	b	do_sysinstr
 el0_dbg:
 	/*
 	 * Debug exception handling

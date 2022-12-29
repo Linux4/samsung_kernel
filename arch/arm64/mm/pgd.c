@@ -57,12 +57,6 @@ pgd_t *pgd_alloc(struct mm_struct *mm)
 		else
 			ret = kzalloc(PGD_SIZE, GFP_KERNEL);
 	}
-
-	if(unlikely(!ret)) {
-		pr_warn("%s: pgd alloc is failed\n", __func__);
-		return ret;
-	}
-
 #ifdef CONFIG_KNOX_KAP
 	if (boot_mode_security && rkp_started)
 #endif  //CONFIG_KNOX_KAP

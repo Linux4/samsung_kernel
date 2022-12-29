@@ -10,7 +10,7 @@
  */
 
 /memreserve/ 0xBE800000 0x1800000;       /* EL3 monitor, secure intepreter */
-/memreserve/ 0xB0000000 0x7800000;	/* CP memory(128MB) + AP-CP shared memory(8MB) */
+/memreserve/ 0xB0000000 0x6400000;	/* CP memory(96MB) + AP-CP shared memory(4MB) */
 
 / {
 	memory@40000000 {

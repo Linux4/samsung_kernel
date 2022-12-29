@@ -640,31 +640,6 @@ static long sec_nfc_ioctl(struct file *file, unsigned int cmd,
 		}
 		break;
 #endif
-	case SEC_NFC_SET_NPT_MODE:
-		if(SEC_NFC_NPT_CMD_ON == new) {
-			pr_info("%s: NFC OFF mode NPT - Turn on VEN.\n", __func__);
-			info->mode = SEC_NFC_MODE_FIRMWARE;
-			mutex_lock(&info->i2c_info.read_mutex);
-			info->i2c_info.read_irq = SEC_NFC_SKIP;
-			mutex_unlock(&info->i2c_info.read_mutex);
-			set_pd(info, SEC_NFC_PW_ON);
-#ifdef  CONFIG_SEC_NFC_CLK_REQ
-			sec_nfc_clk_ctl_enable(info);
-#endif
-			msleep(20);
-			if (pdata->firm) gpio_set_value(pdata->firm, SEC_NFC_FW_ON);
-			enable_irq_wake(info->i2c_info.i2c_dev->irq);
-		} else if(SEC_NFC_NPT_CMD_OFF == new) {
-			pr_info("%s: NFC OFF mode NPT - Turn off VEN.\n", __func__);
-			info->mode = SEC_NFC_MODE_OFF;
-			if (pdata->firm) gpio_set_value(pdata->firm, SEC_NFC_FW_OFF);
-			set_pd(info, SEC_NFC_PW_OFF);
-#ifdef  CONFIG_SEC_NFC_CLK_REQ
-			sec_nfc_clk_ctl_disable(info);
-#endif
-			disable_irq_wake(info->i2c_info.i2c_dev->irq);
-		}
-		break;
 
 	default:
 		dev_err(info->dev, "Unknow ioctl 0x%x\n", cmd);

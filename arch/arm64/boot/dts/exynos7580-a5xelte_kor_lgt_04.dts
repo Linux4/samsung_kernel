@@ -12,7 +12,7 @@
 /dts-v1/;
 #include "exynos7580-reserve-2000MB-Ax_01.dtsi"
 #include "exynos7580-a5xelte_common.dtsi"
-#include "modem-carmen2-reserve-2000MB.dtsi"
+#include "modem-carmen2-reserve-2000MB_CP_96MB.dtsi"
 #include "exynos7580-a5xelte_battery_00.dtsi"
 #include "exynos7580-a5xelte_kor_lgt_gpio_04.dtsi"
 #include "exynos7580-a5xelte_fingerprint-sensor_00.dtsi"

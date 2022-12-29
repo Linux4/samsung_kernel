@@ -82,6 +82,14 @@ config BCMDHD_NVRAM_PATH
 	---help---
 	  Path to the calibration file.
 
+config BCMDHD_WEXT
+	bool "Enable WEXT support"
+	depends on BCMDHD && CFG80211 = n
+	select WIRELESS_EXT
+	select WEXT_PRIV
+	help
+	  Enables WEXT support
+
 config DHD_USE_STATIC_BUF
 	bool "Enable memory preallocation"
 	depends on BCMDHD
@@ -104,7 +112,7 @@ config BROADCOM_WIFI_RESERVED_MEM
 
 config WIFI_BROADCOM_COB
         bool "BROADCOM WIFI COB"
-        depends on (BCM43455 || BCM4335 || BCM4339 || BCM4334 || BCM43241 || BCM4354 || BCM4330 || BCM4343)
+        depends on (BCM43455 || BCM4343 || BCM43454)
         ---help---
           This is a configuration for broadcom WIFI COB Type.
 
@@ -149,9 +157,3 @@ config WIFI_MULTIPLE_CHIP
 	default n
 	---help---
 		This is a configuration multipul chip project(43454 & 43455).
-
-config WLAN_ON7
-	bool "model code for on7"
-	depends on BCM4343
-	---help---
-		This is configuration for TR regrev

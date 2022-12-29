@@ -56,11 +56,9 @@ typedef struct __kek_item {
 
 struct list_head kek_pack_list_head;
 spinlock_t kek_pack_list_lock;
-spinlock_t del_kek_pack_lock;
 
 void init_kek_pack(void) {
 	spin_lock_init(&kek_pack_list_lock);
-	spin_lock_init(&del_kek_pack_lock);
 	INIT_LIST_HEAD(&kek_pack_list_head);
 }
 
@@ -163,13 +161,9 @@ void del_kek_pack(int engine_id) {
 	struct list_head *entry, *q;
 	kek_pack_t *pack;
 
-	spin_lock(&del_kek_pack_lock);
 	KEK_PACK_LOGD("entered\n");
 	pack = find_kek_pack(engine_id);
-	if(pack == NULL) {
-	    spin_unlock(&del_kek_pack_lock);
-	    return;
-	}
+	if(pack == NULL) return;
 
 	spin_lock(&pack->kek_list_lock);
 	list_for_each_safe(entry, q, &pack->kek_list_head) {
@@ -181,7 +175,6 @@ void del_kek_pack(int engine_id) {
 
 	list_del(&pack->list);
 	kzfree(pack);
-	spin_unlock(&del_kek_pack_lock);
 }
 
 int add_kek(int engine_id, kek_t *kek) {
@@ -189,35 +182,26 @@ int add_kek(int engine_id, kek_t *kek) {
 	kek_pack_t *pack;
 	kek_item_t *item;
 
-	item = kmalloc(sizeof(kek_item_t), GFP_KERNEL);
-	if (item == NULL) {
-		return -ENOMEM;
-	}
-
-	spin_lock(&del_kek_pack_lock);
 	KEK_PACK_LOGD("entered\n");
 	pack = find_kek_pack(engine_id);
-	if (pack == NULL) {
-		spin_unlock(&del_kek_pack_lock);
-		kzfree(item);
-		return -ENOENT;
-	}
+	if(pack == NULL) return -ENOENT;
 
-	spin_lock(&pack->kek_list_lock);
-	if (find_kek_item(pack, kek->type)) {
+	item = kmalloc(sizeof(kek_item_t), GFP_KERNEL);
+	if(item == NULL) {
+		rc = -ENOMEM;
+	} else {
+		spin_lock(&pack->kek_list_lock);
+		if(find_kek_item(pack, kek->type)) {
+			spin_unlock(&pack->kek_list_lock);
+			kzfree(item);		
+			return -EEXIST;
+		}
+		rc = __add_kek(pack, kek, item);
+
 		spin_unlock(&pack->kek_list_lock);
-		spin_unlock(&del_kek_pack_lock);
-		kzfree(item);
-		return -EEXIST;
 	}
-	rc = __add_kek(pack, kek, item);
 
-	spin_unlock(&pack->kek_list_lock);
-	spin_unlock(&del_kek_pack_lock);
-	if (rc) {
-		KEK_PACK_LOGE("%s failed. rc = %d", __func__, rc);
-		kzfree(item);
-	}
+	if(rc) KEK_PACK_LOGE("%s failed. rc = %d", __func__, rc);
 
 	return rc;
 }
@@ -254,7 +238,6 @@ int del_kek(int engine_id, int kek_type) {
 kek_t *get_kek(int engine_id, int kek_type, int *rc) {
 	kek_pack_t *pack;
 	kek_item_t *item;
-	kek_t *kek;
     int userid = current_uid() / PER_USER_RANGE;
 
 	KEK_PACK_LOGD("entered [%d]\n", current_uid());
@@ -276,23 +259,19 @@ kek_t *get_kek(int engine_id, int kek_type, int *rc) {
 	    *rc = -EACCES;
 	    return NULL;
 	}
-
-	kek = kmalloc(sizeof(kek_t), GFP_KERNEL);
-	if (kek == NULL) {
-		*rc = -ENOMEM;
-		return NULL;
-	}
-
 	spin_lock(&pack->kek_list_lock);
 	item = find_kek_item(pack, kek_type);
-	if (item) {
+	spin_unlock(&pack->kek_list_lock);
+	if(item) {
+		kek_t *kek = kmalloc(sizeof(kek_t), GFP_KERNEL);
+		if(kek == NULL){
+		    *rc = -ENOMEM;
+		    return NULL;
+		}
+
 		*rc = 0;
 		memcpy(kek, &item->kek, sizeof(kek_t));
-		spin_unlock(&pack->kek_list_lock);
 		return kek;
-	} else {
-		spin_unlock(&pack->kek_list_lock);
-		kzfree(kek);
 	}
 
     *rc = -ENOENT;

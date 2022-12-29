@@ -26,7 +26,9 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, see <http://www.gnu.org/licenses/>.
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ *  MA  02110-1301, USA.
  */
 
 /************************************************************************/
@@ -62,7 +64,7 @@
 #include <linux/swap.h> /* for mark_page_accessed() */
 #include <asm/current.h>
 #include <asm/unaligned.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 #include <linux/aio.h>
 #endif
 
@@ -78,43 +80,30 @@ static void __mpage_write_end_io(struct bio *bio, int err);
 /*************************************************************************
  * FUNCTIONS WHICH HAS KERNEL VERSION DEPENDENCY
  *************************************************************************/
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
-static inline void __sdfat_submit_bio_write2(int flags, struct bio *bio)
-{
-	bio_set_op_attrs(bio, REQ_OP_WRITE, flags);
-	submit_bio(bio);
-}
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(4,8,0) */
-static inline void __sdfat_submit_bio_write2(int flags, struct bio *bio)
-{
-	submit_bio(WRITE | flags, bio);
-}
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,3,0)
 static void  mpage_write_end_io(struct bio *bio)
 {
 	__mpage_write_end_io(bio, bio->bi_error);
 }
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(4,3,0) */
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(4,3,0) */
 static void mpage_write_end_io(struct bio *bio, int err)
 {
 	if (test_bit(BIO_UPTODATE, &bio->bi_flags))
 		err = 0;
 	__mpage_write_end_io(bio, err);
 }
-#endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4,3,0) */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0)
 static inline int bio_get_nr_vecs(struct block_device *bdev)
 {
 	return BIO_MAX_PAGES;
 }
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(4,1,0) */
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0) */
 	/* EMPTY */
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
 static inline sector_t __sdfat_bio_sector(struct bio *bio)
 {
 	return bio->bi_iter.bi_sector;
@@ -134,10 +123,10 @@ static inline void __sdfat_set_bio_size(struct bio *bio, unsigned int size)
 {
 	bio->bi_iter.bi_size = size;
 }
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0) */
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0) */
 static inline sector_t __sdfat_bio_sector(struct bio *bio)
 {
-	return bio->bi_sector;
+        return bio->bi_sector;
 }
 
 static inline void __sdfat_set_bio_sector(struct bio *bio, sector_t sector)
@@ -147,26 +136,26 @@ static inline void __sdfat_set_bio_sector(struct bio *bio, sector_t sector)
 
 static inline unsigned int __sdfat_bio_size(struct bio *bio)
 {
-	return bio->bi_size;
+        return bio->bi_size;
 }
 
 static inline void __sdfat_set_bio_size(struct bio *bio, unsigned int size)
 {
 	bio->bi_size = size;
 }
-#endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0) */
 
-/* __check_dfr_on() and __dfr_writepage_end_io() functions
- * are copied from sdfat.c
- * Each function should be same perfectly
+/* __check_dfr_on() and __dfr_writepage_end_io() functions are copied from 
+ * sdfat.c. 
+ * Each function should be same perfectly 
  */
 static inline int __check_dfr_on(struct inode *inode, loff_t start, loff_t end, const char *fname)
 {
-#ifdef	CONFIG_SDFAT_DFR
+#ifdef  CONFIG_SDFAT_DFR
 	struct defrag_info *ino_dfr = &(SDFAT_I(inode)->dfr_info);
 
-	if ((atomic_read(&ino_dfr->stat) == DFR_INO_STAT_REQ) &&
-			fsapi_dfr_check_dfr_on(inode, start, end, 0, fname))
+	if ( (atomic_read(&ino_dfr->stat) == DFR_INO_STAT_REQ) &&
+			fsapi_dfr_check_dfr_on(inode, start, end, 0, fname) )
 		return 1;
 #endif
 	return 0;
@@ -174,9 +163,8 @@ static inline int __check_dfr_on(struct inode *inode, loff_t start, loff_t end, 
 
 static inline int __dfr_writepage_end_io(struct page *page)
 {
-#ifdef	CONFIG_SDFAT_DFR
+#ifdef  CONFIG_SDFAT_DFR
 	struct defrag_info *ino_dfr = &(SDFAT_I(page->mapping->host)->dfr_info);
-
 	if (atomic_read(&ino_dfr->stat) == DFR_INO_STAT_REQ)
 		fsapi_dfr_writepage_endio(page);
 #endif
@@ -184,7 +172,7 @@ static inline int __dfr_writepage_end_io(struct page *page)
 }
 
 
-static inline unsigned int __calc_size_to_align(struct super_block *sb)
+static inline unsigned int __calc_size_to_align(struct super_block* sb)
 {
 	struct block_device *bdev = sb->s_bdev;
 	struct gendisk *disk;
@@ -192,7 +180,7 @@ static inline unsigned int __calc_size_to_align(struct super_block *sb)
 	struct queue_limits *limit;
 	unsigned int max_sectors;
 	unsigned int aligned = 0;
-
+	
 	disk = bdev->bd_disk;
 	if (!disk)
 		goto out;
@@ -215,8 +203,8 @@ struct mpage_data {
 	struct bio *bio;
 	sector_t last_block_in_bio;
 	get_block_t *get_block;
-	unsigned int use_writepage;
-	unsigned int size_to_align;
+	unsigned use_writepage;
+	unsigned size_to_align;
 };
 
 /*
@@ -247,7 +235,7 @@ static void __mpage_write_end_io(struct bio *bio, int err)
 			if (page->mapping)
 				mapping_set_error(page->mapping, err);
 		}
-
+		
 		__dfr_writepage_end_io(page);
 
 		end_page_writeback(page);
@@ -255,10 +243,10 @@ static void __mpage_write_end_io(struct bio *bio, int err)
 	bio_put(bio);
 }
 
-static struct bio *mpage_bio_submit_write(int flags, struct bio *bio)
+static struct bio *mpage_bio_submit(int rw, struct bio *bio)
 {
 	bio->bi_end_io = mpage_write_end_io;
-	__sdfat_submit_bio_write2(flags, bio);
+	submit_bio(rw, bio);
 	return NULL;
 }
 
@@ -283,20 +271,20 @@ mpage_alloc(struct block_device *bdev,
 	return bio;
 }
 
-static int sdfat_mpage_writepage(struct page *page,
+static int sdfat_mpage_writepage(struct page *page, 
 		struct writeback_control *wbc, void *data)
 {
 	struct mpage_data *mpd = data;
 	struct bio *bio = mpd->bio;
 	struct address_space *mapping = page->mapping;
 	struct inode *inode = page->mapping->host;
-	const unsigned int blkbits = inode->i_blkbits;
-	const unsigned int blocks_per_page = PAGE_SIZE >> blkbits;
+	const unsigned blkbits = inode->i_blkbits;
+	const unsigned blocks_per_page = PAGE_CACHE_SIZE >> blkbits;
 	sector_t last_block;
 	sector_t block_in_file;
 	sector_t blocks[MAX_BUF_PER_PAGE];
-	unsigned int page_block;
-	unsigned int first_unmapped = blocks_per_page;
+	unsigned page_block;
+	unsigned first_unmapped = blocks_per_page;
 	struct block_device *bdev = NULL;
 	int boundary = 0;
 	sector_t boundary_block = 0;
@@ -304,7 +292,7 @@ static int sdfat_mpage_writepage(struct page *page,
 	int length;
 	struct buffer_head map_bh;
 	loff_t i_size = i_size_read(inode);
-	unsigned long end_index = i_size >> PAGE_SHIFT;
+	unsigned long end_index = i_size >> PAGE_CACHE_SHIFT;
 	int ret = 0;
 
 	if (page_has_buffers(page)) {
@@ -335,10 +323,9 @@ static int sdfat_mpage_writepage(struct page *page,
 
 			/* bh should be mapped if delay is set */
 			if (buffer_delay(bh)) {
-				sector_t blk_in_file =
-					(sector_t)(page->index << (PAGE_SHIFT - blkbits)) + page_block;
-
+				sector_t blk_in_file = (sector_t)(page->index << (PAGE_CACHE_SHIFT - blkbits)) + page_block;
 				BUG_ON(bh->b_size != (1 << blkbits));
+
 				if (page->index > end_index) {
 					MMSG("%s(inode:%p) "
 						"over end with delayed buffer"
@@ -364,7 +351,7 @@ static int sdfat_mpage_writepage(struct page *page,
 					unmap_underlying_metadata(bh->b_bdev, bh->b_blocknr);
 				}
 			}
-
+			
 			if (page_block) {
 				if (bh->b_blocknr != blocks[page_block-1] + 1) {
 					MMSG("%s(inode:%p) pblk(%d) "
@@ -400,7 +387,7 @@ static int sdfat_mpage_writepage(struct page *page,
 	 * The page has no buffers: map it to disk
 	 */
 	BUG_ON(!PageUptodate(page));
-	block_in_file = (sector_t)page->index << (PAGE_SHIFT - blkbits);
+	block_in_file = (sector_t)page->index << (PAGE_CACHE_SHIFT - blkbits);
 	last_block = (i_size - 1) >> blkbits;
 	map_bh.b_page = page;
 	for (page_block = 0; page_block < blocks_per_page; ) {
@@ -409,7 +396,7 @@ static int sdfat_mpage_writepage(struct page *page,
 		map_bh.b_size = 1 << blkbits;
 		if (mpd->get_block(inode, block_in_file, &map_bh, 1))
 			goto confused;
-
+		
 		if (buffer_new(&map_bh))
 			unmap_underlying_metadata(map_bh.b_bdev,
 					map_bh.b_blocknr);
@@ -443,7 +430,7 @@ page_is_mapped:
 		 * is zeroed when mapped, and writes to that region are not
 		 * written out to the file."
 		 */
-		unsigned int offset = i_size & (PAGE_SIZE - 1);
+		unsigned offset = i_size & (PAGE_CACHE_SIZE - 1);
 
 		if (page->index > end_index || !offset) {
 			MMSG("%s(inode:%p) over end "
@@ -452,7 +439,7 @@ page_is_mapped:
 				(u32)end_index, (u32)offset);
 			goto confused;
 		}
-		zero_user_segment(page, offset, PAGE_SIZE);
+		zero_user_segment(page, offset, PAGE_CACHE_SIZE);
 	}
 
 	/*
@@ -462,22 +449,22 @@ page_is_mapped:
 	 */
 	if (bio) {
 		if (mpd->last_block_in_bio != blocks[0] - 1) {
-			bio = mpage_bio_submit_write(0, bio);
+			bio = mpage_bio_submit(WRITE, bio);
 		} else if (mpd->size_to_align) {
-			unsigned int mask = mpd->size_to_align - 1;
-			sector_t max_end_block =
+			unsigned mask = mpd->size_to_align - 1;
+			sector_t max_end_block = 
 				(__sdfat_bio_sector(bio) & ~(mask)) + mask;
 
-			if ((__sdfat_bio_size(bio) != (1 << (mask + 1))) &&
-				(mpd->last_block_in_bio == max_end_block)) {
+			if ( (__sdfat_bio_size(bio) != (1 << (mask + 1))) &&
+				(mpd->last_block_in_bio == max_end_block) ) {
 				MMSG("%s(inode:%p) alignment mpage_bio_submit"
 					"(start:%u, len:%u aligned:%u)\n",
 					__func__, inode,
-					(unsigned int)__sdfat_bio_sector(bio),
-					(unsigned int)(mpd->last_block_in_bio -
+					(unsigned)__sdfat_bio_sector(bio),
+					(unsigned)(mpd->last_block_in_bio -
 						__sdfat_bio_sector(bio) + 1),
-					(unsigned int)mpd->size_to_align);
-				bio = mpage_bio_submit_write(REQ_NOMERGE, bio);
+					(unsigned)mpd->size_to_align);
+				bio = mpage_bio_submit(WRITE | REQ_NOMERGE, bio);
 			}
 		}
 	}
@@ -497,7 +484,7 @@ alloc_new:
 	 */
 	length = first_unmapped << blkbits;
 	if (bio_add_page(bio, page, length, 0) < length) {
-		bio = mpage_bio_submit_write(0, bio);
+		bio = mpage_bio_submit(WRITE, bio);
 		goto alloc_new;
 	}
 
@@ -508,7 +495,7 @@ alloc_new:
 	if (page_has_buffers(page)) {
 		struct buffer_head *head = page_buffers(page);
 		struct buffer_head *bh = head;
-		unsigned int buffer_counter = 0;
+		unsigned buffer_counter = 0;
 
 		do {
 			if (buffer_counter++ == first_unmapped)
@@ -529,29 +516,28 @@ alloc_new:
 	BUG_ON(PageWriteback(page));
 	set_page_writeback(page);
 
-	/*
+	/* 
 	 * FIXME FOR DEFRAGMENTATION : CODE REVIEW IS REQUIRED
 	 *
 	 * Turn off MAPPED flag in victim's bh if defrag on.
-	 * Another write_begin can starts after get_block for defrag victims
+	 * Another write_begin can starts after get_block for defrag victims 
 	 * called.
-	 * In this case, write_begin calls get_block and get original block
+	 * In this case, write_begin calls get_block and get original block 
 	 * number and previous defrag will be canceled.
 	 */
 	if (unlikely(__check_dfr_on(inode, (loff_t)(page->index << PAGE_SHIFT),
 			(loff_t)((page->index + 1) << PAGE_SHIFT), __func__))) {
 		struct buffer_head *head = page_buffers(page);
 		struct buffer_head *bh = head;
-
 		do {
 			clear_buffer_mapped(bh);
 			bh = bh->b_this_page;
 		} while (bh != head);
 	}
-
+ 
 	unlock_page(page);
 	if (boundary || (first_unmapped != blocks_per_page)) {
-		bio = mpage_bio_submit_write(0, bio);
+		bio = mpage_bio_submit(WRITE, bio);
 		if (boundary_block) {
 			write_boundary_block(boundary_bdev,
 					boundary_block, 1 << blkbits);
@@ -564,7 +550,7 @@ alloc_new:
 
 confused:
 	if (bio)
-		bio = mpage_bio_submit_write(0, bio);
+		bio = mpage_bio_submit(WRITE, bio);
 
 	if (mpd->use_writepage) {
 		ret = mapping->a_ops->writepage(page, wbc);
@@ -593,12 +579,14 @@ int sdfat_mpage_writepages(struct address_space *mapping,
 		.use_writepage = 1,
 		.size_to_align = __calc_size_to_align(mapping->host->i_sb),
 	};
-
+	
 	BUG_ON(!get_block);
+	
 	blk_start_plug(&plug);
+
 	ret = write_cache_pages(mapping, wbc, sdfat_mpage_writepage, &mpd);
 	if (mpd.bio)
-		mpage_bio_submit_write(0, mpd.bio);
+		mpage_bio_submit(WRITE, mpd.bio);
 	blk_finish_plug(&plug);
 	return ret;
 }

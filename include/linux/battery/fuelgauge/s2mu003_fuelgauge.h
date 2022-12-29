@@ -43,12 +43,6 @@
 #define S2MU003_REG_START		0x1A
 #define S2MU003_VBAT_L			0x01
 #define S2MU003_SOC_L			0x02
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
-#define S2MU003_FG_NUM_AGE_STEP		5	/*4.35V, 4.33V, 4.31V, 4.29V, 4.24V*/
-#define S2MU003_FG_NUM_MODELPARAM1	114
-#define S2MU003_FG_NUM_MODELPARAM2	14
-#define S2MU003_FG_NUM_MODELPARAM3	22
-#endif
 
 struct sec_fg_info {
 	/* test print count */
@@ -106,11 +100,6 @@ struct s2mu003_fuelgauge_data {
 	 * (ex. dummy_fuelgauge.c)
 	 */
 	struct sec_fg_info      info;
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
-	int fg_num_age_step;
-	int fg_age_step;
-	int age_reset_status;
-#endif
 	bool is_fuel_alerted;
 	struct wake_lock fuel_alert_wake_lock;
 

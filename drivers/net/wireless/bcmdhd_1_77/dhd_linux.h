@@ -1,7 +1,7 @@
 /*
  * DHD Linux header file (dhd_linux exports for cfg80211 and other components)
  *
- * Copyright (C) 1999-2018, Broadcom Corporation
+ * Copyright (C) 1999-2017, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_linux.h 792549 2018-12-05 09:39:13Z $
+ * $Id: dhd_linux.h 699532 2017-05-15 11:00:39Z $
  */
 
 /* wifi platform functions for power, interrupt and pre-alloc, either
@@ -143,10 +143,4 @@ typedef struct bcm_iov_buf {
 
 int dhd_enable_adps(dhd_pub_t *dhd, uint8 on);
 #endif /* WLADPS || WLADPS_PRIVATE_CMD */
-#ifdef DHDTCPSYNC_FLOOD_BLK
-extern void dhd_reset_tcpsync_info_by_dev(struct net_device *dev);
-#endif /* DHDTCPSYNC_FLOOD_BLK */
-#ifdef DHD_DISABLE_VHTMODE
-void dhd_disable_vhtmode(dhd_pub_t *dhd);
-#endif /* DHD_DISABLE_VHTMODE */
 #endif /* __DHD_LINUX_H__ */

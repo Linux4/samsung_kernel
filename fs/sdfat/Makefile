@@ -5,11 +5,10 @@
 obj-$(CONFIG_SDFAT_FS) += sdfat_fs.o
 
 sdfat_fs-objs	:= sdfat.o core.o core_fat.o core_exfat.o api.o blkdev.o \
-		   fatent.o amap_smart.o cache.o dfr.o nls.o misc.o \
+		   fatent.o amap_smart.o cache.o dfr.o nls.o misc.o xattr.o \
 		   mpage.o extent.o
 
-sdfat_fs-$(CONFIG_SDFAT_VIRTUAL_XATTR) += xattr.o
-sdfat_fs-$(CONFIG_SDFAT_STATISTICS) += statistics.o
+
 
 
 all:

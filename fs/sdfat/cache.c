@@ -12,7 +12,9 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, see <http://www.gnu.org/licenses/>.
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+ *  MA  02110-1301, USA.
  */
 
 /************************************************************************/
@@ -46,9 +48,9 @@
 /*----------------------------------------------------------------------*/
 /*  Local Variable Definitions                                          */
 /*----------------------------------------------------------------------*/
-#define LOCKBIT         (0x01)
-#define DIRTYBIT        (0x02)
-#define KEEPBIT         (0x04)
+#define LOCKBIT         0x01
+#define DIRTYBIT        0x02
+#define KEEPBIT         0x04
 
 /*----------------------------------------------------------------------*/
 /*  Cache handling function declarations                                */
@@ -72,7 +74,7 @@ static void push_to_mru(cache_ent_t *bp, cache_ent_t *list)
 	bp->prev = list;
 	list->next->prev = bp;
 	list->next = bp;
-}
+} /* end of __dcache_push_to_mru */
 
 static void push_to_lru(cache_ent_t *bp, cache_ent_t *list)
 {
@@ -80,31 +82,31 @@ static void push_to_lru(cache_ent_t *bp, cache_ent_t *list)
 	bp->next = list;
 	list->prev->next = bp;
 	list->prev = bp;
-}
+} /* end of __dcache_push_to_lru */
 
 static void move_to_mru(cache_ent_t *bp, cache_ent_t *list)
 {
 	bp->prev->next = bp->next;
 	bp->next->prev = bp->prev;
 	push_to_mru(bp, list);
-}
+} /* end of __dcache_move_to_mru */
 
 static void move_to_lru(cache_ent_t *bp, cache_ent_t *list)
 {
 	bp->prev->next = bp->next;
 	bp->next->prev = bp->prev;
 	push_to_lru(bp, list);
-}
+} /* end of __dcache_move_to_lru */
 
 static inline s32 __check_hash_valid(cache_ent_t *bp)
 {
 #ifdef DEBUG_HASH_LIST
-	if ((bp->hash.next == (cache_ent_t *)DEBUG_HASH_NEXT) ||
-		(bp->hash.prev == (cache_ent_t *)DEBUG_HASH_PREV)) {
+	if ( (bp->hash.next == (cache_ent_t*)DEBUG_HASH_NEXT) ||
+		(bp->hash.prev == (cache_ent_t*)DEBUG_HASH_PREV) ) {
 		return -EINVAL;
 	}
 #endif
-	if ((bp->hash.next == bp) || (bp->hash.prev == bp))
+	if ( (bp->hash.next == bp) || (bp->hash.prev == bp) )
 		return -EINVAL;
 
 	return 0;
@@ -117,15 +119,15 @@ static inline void __remove_from_hash(cache_ent_t *bp)
 	bp->hash.next = bp;
 	bp->hash.prev = bp;
 #ifdef DEBUG_HASH_LIST
-	bp->hash.next = (cache_ent_t *)DEBUG_HASH_NEXT;
-	bp->hash.prev = (cache_ent_t *)DEBUG_HASH_PREV;
+	bp->hash.next = (cache_ent_t*)DEBUG_HASH_NEXT;
+	bp->hash.prev = (cache_ent_t*)DEBUG_HASH_PREV;
 #endif
 }
 
-/* Do FAT mirroring (don't sync)
- * sec: sector No. in FAT1
- * bh:  bh of sec.
- */
+/* Do FAT mirroring (don't sync) 
+   sec: sector No. in FAT1
+   bh:  bh of sec.
+*/
 static inline s32 __fat_copy(struct super_block *sb, u32 sec, struct buffer_head *bh, int sync)
 {
 #ifdef CONFIG_SDFAT_FAT_MIRRORING
@@ -148,7 +150,7 @@ static inline s32 __fat_copy(struct super_block *sb, u32 sec, struct buffer_head
 
 /*
  * returns 1, if bp is flushed
- * returns 0, if bp is not dirty
+ * returns 0, if bp is not dirty 
  * returns -1, if error occurs
  */
 static s32 __fcache_ent_flush(struct super_block *sb, cache_ent_t *bp, u32 sync)
@@ -174,12 +176,11 @@ static s32 __fcache_ent_flush(struct super_block *sb, cache_ent_t *bp, u32 sync)
 static s32 __fcache_ent_discard(struct super_block *sb, cache_ent_t *bp)
 {
 	FS_INFO_T *fsi = &(SDFAT_SB(sb)->fsi);
-
 	__fcache_remove_hash(bp);
 	bp->sec = ~0;
 	bp->flag = 0;
 
-	if (bp->bh) {
+	if(bp->bh) {
 		__brelse(bp->bh);
 		bp->bh = NULL;
 	}
@@ -201,10 +202,11 @@ u8 *fcache_getblk(struct super_block *sb, u32 sec)
 			return NULL;
 		}
 		move_to_mru(bp, &fsi->fcache.lru_list);
-		return bp->bh->b_data;
+		return(bp->bh->b_data);
 	}
 
 	bp = __fcache_get(sb, sec);
+
 	if (!__check_hash_valid(bp))
 		__fcache_remove_hash(bp);
 
@@ -216,10 +218,10 @@ u8 *fcache_getblk(struct super_block *sb, u32 sec)
 	if ((sec & (page_ra_count - 1)) == 0)
 		bdev_readahead(sb, sec, page_ra_count);
 
-	/*
+	/* 
 	 * patch 1.2.4 : buffer_head null pointer exception problem.
 	 *
-	 * When read_sect is failed, fcache should be moved to
+	 * When read_sect is failed, fcache should be moved to 
 	 * EMPTY hash_list and the first of lru_list.
 	 */
 	if (read_sect(sb, sec, &(bp->bh), 1)) {
@@ -234,10 +236,9 @@ static inline int __mark_delayed_dirty(struct super_block *sb, cache_ent_t *bp)
 {
 #ifdef CONFIG_SDFAT_DELAYED_META_DIRTY
 	FS_INFO_T *fsi = &(SDFAT_SB(sb)->fsi);
-
 	if (fsi->vol_type == EXFAT)
 		return -ENOTSUPP;
-
+	
 	bp->flag |= DIRTYBIT;
 	return 0;
 #else
@@ -252,10 +253,8 @@ s32 fcache_modify(struct super_block *sb, u32 sec)
 	cache_ent_t *bp;
 
 	bp = __fcache_find(sb, sec);
-	if (!bp) {
-		sdfat_fs_error(sb, "Can`t find fcache (sec 0x%08x)", sec);
+	if (!bp)
 		return -EIO;
-	}
 
 	if (!__mark_delayed_dirty(sb, bp))
 		return 0;
@@ -347,16 +346,15 @@ s32 fcache_release_all(struct super_block *sb)
 	bp = fsi->fcache.lru_list.next;
 	while (bp != &fsi->fcache.lru_list) {
 		s32 ret_tmp = __fcache_ent_flush(sb, bp, 0);
-
 		if (ret_tmp < 0)
 			ret = ret_tmp;
 		else
 			dirtycnt += ret_tmp;
-
+		
 		bp->sec = ~0;
 		bp->flag = 0;
 
-		if (bp->bh) {
+		if(bp->bh) {
 			__brelse(bp->bh);
 			bp->bh = NULL;
 		}
@@ -385,7 +383,7 @@ s32 fcache_flush(struct super_block *sb, u32 sync)
 		dirtycnt += ret;
 		bp = bp->next;
 	}
-
+	
 	MMSG("BD: flush / dirty fat cache: %d (err:%d)\n", dirtycnt, ret);
 	return ret;
 }
@@ -397,9 +395,11 @@ static cache_ent_t *__fcache_find(struct super_block *sb, u32 sec)
 	FS_INFO_T *fsi = &(SDFAT_SB(sb)->fsi);
 
 	off = (sec + (sec >> fsi->sect_per_clus_bits)) & (FAT_CACHE_HASH_SIZE - 1);
+
 	hp = &(fsi->fcache.hash_list[off]);
 	for (bp = hp->hash.next; bp != hp; bp = bp->hash.next) {
 		if (bp->sec == sec) {
+
 			/*
 			 * patch 1.2.4 : for debugging
 			 */
@@ -407,11 +407,11 @@ static cache_ent_t *__fcache_find(struct super_block *sb, u32 sec)
 					  "It will make system panic.\n");
 
 			touch_buffer(bp->bh);
-			return bp;
+			return(bp);
 		}
 	}
-	return NULL;
-}
+	return(NULL);
+} /* end of __fcache_find */
 
 static cache_ent_t *__fcache_get(struct super_block *sb, u32 sec)
 {
@@ -419,6 +419,7 @@ static cache_ent_t *__fcache_get(struct super_block *sb, u32 sec)
 	FS_INFO_T *fsi = &(SDFAT_SB(sb)->fsi);
 
 	bp = fsi->fcache.lru_list.prev;
+
 #ifdef CONFIG_SDFAT_DELAYED_META_DIRTY
 	while (bp->flag & DIRTYBIT) {
 		cache_ent_t *bp_prev = bp->prev;
@@ -435,8 +436,8 @@ static cache_ent_t *__fcache_get(struct super_block *sb, u32 sec)
 //       sync_dirty_buffer(bp->bh);
 
 	move_to_mru(bp, &fsi->fcache.lru_list);
-	return bp;
-}
+	return(bp);
+} /* end of __fcache_get */
 
 static void __fcache_insert_hash(struct super_block *sb, cache_ent_t *bp)
 {
@@ -452,14 +453,14 @@ static void __fcache_insert_hash(struct super_block *sb, cache_ent_t *bp)
 	bp->hash.prev = hp;
 	hp->hash.next->hash.prev = bp;
 	hp->hash.next = bp;
-}
+} /* end of __fcache_insert_hash */
 
 
 static void __fcache_remove_hash(cache_ent_t *bp)
 {
 #ifdef DEBUG_HASH_LIST
-	if ((bp->hash.next == (cache_ent_t *)DEBUG_HASH_NEXT) ||
-		(bp->hash.prev == (cache_ent_t *)DEBUG_HASH_PREV)) {
+	if ( (bp->hash.next == (cache_ent_t*)DEBUG_HASH_NEXT) ||
+		(bp->hash.prev == (cache_ent_t*)DEBUG_HASH_PREV) ) {
 		EMSG("%s: FATAL: tried to remove already-removed-cache-entry"
 			"(bp:%p)\n", __func__, bp);
 		return;
@@ -467,7 +468,7 @@ static void __fcache_remove_hash(cache_ent_t *bp)
 #endif
 	WARN_ON(bp->flag & DIRTYBIT);
 	__remove_from_hash(bp);
-}
+} /* end of __fcache_remove_hash */
 
 /*======================================================================*/
 /*  Buffer Read/Write Functions                                         */
@@ -482,12 +483,12 @@ s32 dcache_readahead(struct super_block *sb, u32 sec)
 	u32 adj_ra_count = max(fsi->sect_per_clus, page_ra_count);
 	u32 ra_count = min(adj_ra_count, max_ra_count);
 
-	/* Read-ahead is not required */
+	/* Read-ahead is not required */ 
 	if (fsi->sect_per_clus == 1)
 		return 0;
 
 	if (sec < fsi->data_start_sector) {
-		EMSG("BD: %s: requested sector is invalid(sect:%u, root:%u)\n",
+		EMSG("BD: %s: requested sector is invalid(sect:%u, root:%u)\n", 
 				__func__, sec, fsi->data_start_sector);
 		return -EIO;
 	}
@@ -507,7 +508,7 @@ s32 dcache_readahead(struct super_block *sb, u32 sec)
 
 /*
  * returns 1, if bp is flushed
- * returns 0, if bp is not dirty
+ * returns 0, if bp is not dirty 
  * returns -1, if error occurs
  */
 static s32 __dcache_ent_flush(struct super_block *sb, cache_ent_t *bp, u32 sync)
@@ -532,15 +533,15 @@ static s32 __dcache_ent_discard(struct super_block *sb, cache_ent_t *bp)
 	FS_INFO_T *fsi = &(SDFAT_SB(sb)->fsi);
 
 	MMSG("%s : bp[%p] (sec:%08x flag:%08x bh:%p) list(prev:%p next:%p) "
-		"hash(prev:%p next:%p)\n", __func__,
+		"hash(prev:%p next:%p)\n", __func__, 
 		bp, bp->sec, bp->flag, bp->bh, bp->prev, bp->next,
 		bp->hash.prev, bp->hash.next);
-
+	
 	__dcache_remove_hash(bp);
 	bp->sec = ~0;
 	bp->flag = 0;
 
-	if (bp->bh) {
+	if(bp->bh) {
 		__brelse(bp->bh);
 		bp->bh = NULL;
 	}
@@ -567,7 +568,7 @@ u8 *dcache_getblk(struct super_block *sb, u32 sec)
 		if (!(bp->flag & KEEPBIT))	// already in keep list
 			move_to_mru(bp, &fsi->dcache.lru_list);
 
-		return bp->bh->b_data;
+		return(bp->bh->b_data);
 	}
 
 	bp = __dcache_get(sb, sec);
@@ -596,21 +597,20 @@ s32 dcache_modify(struct super_block *sb, u32 sec)
 	set_sb_dirty(sb);
 
 	bp = __dcache_find(sb, sec);
-	if (unlikely(!bp)) {
-		sdfat_fs_error(sb, "Can`t find dcache (sec 0x%08x)", sec);
-		return -EIO;
-	}
+	if (likely(bp)) {
 #ifdef CONFIG_SDFAT_DELAYED_META_DIRTY
-	if (SDFAT_SB(sb)->fsi.vol_type != EXFAT) {
-		bp->flag |= DIRTYBIT;
-		return 0;
-	}
+		FS_INFO_T *fsi = &(SDFAT_SB(sb)->fsi);
+		if (fsi->vol_type != EXFAT) {
+			bp->flag |= DIRTYBIT;
+			return 0;
+		}
 #endif
-	ret = write_sect(sb, sec, bp->bh, 0);
+		ret = write_sect(sb, sec, bp->bh, 0);
+	}
 
 	if (ret) {
 		DMSG("%s : failed to modify buffer(err:%d, sec:%u, bp:0x%p)\n",
-			__func__, ret, sec, bp);
+			       				__func__, ret, sec, bp);
 	}
 
 	return ret;
@@ -621,7 +621,7 @@ s32 dcache_lock(struct super_block *sb, u32 sec)
 	cache_ent_t *bp;
 
 	bp = __dcache_find(sb, sec);
-	if (likely(bp)) {
+	if (likely(bp)) { 
 		bp->flag |= LOCKBIT;
 		return 0;
 	}
@@ -662,7 +662,7 @@ s32 dcache_release(struct super_block *sb, u32 sec)
 	bp->sec = ~0;
 	bp->flag = 0;
 
-	if (bp->bh) {
+	if(bp->bh) {
 		__brelse(bp->bh);
 		bp->bh = NULL;
 	}
@@ -678,10 +678,9 @@ s32 dcache_release_all(struct super_block *sb)
 	FS_INFO_T *fsi = &(SDFAT_SB(sb)->fsi);
 	s32 dirtycnt = 0;
 
-	/* Connect list elements:
-	 * LRU list : (A - B - ... - bp_front) + (bp_first + ... + bp_last)
-	 */
-	while (fsi->dcache.keep_list.prev != &fsi->dcache.keep_list) {
+	/* Connect list elements */
+	/* LRU list : (A - B - ... - bp_front) + (bp_first + ... + bp_last) */
+	while (fsi->dcache.keep_list.prev != &fsi->dcache.keep_list){
 		cache_ent_t *bp_keep = fsi->dcache.keep_list.prev;
 		// bp_keep->flag &= ~(KEEPBIT);		// Will be 0-ed later
 		move_to_mru(bp_keep, &fsi->dcache.lru_list);
@@ -696,10 +695,11 @@ s32 dcache_release_all(struct super_block *sb)
 				ret = -EIO;
 		}
 #endif
+
 		bp->sec = ~0;
 		bp->flag = 0;
 
-		if (bp->bh) {
+		if(bp->bh) {
 			__brelse(bp->bh);
 			bp->bh = NULL;
 		}
@@ -719,14 +719,14 @@ s32 dcache_flush(struct super_block *sb, u32 sync)
 	s32 dirtycnt = 0;
 	s32 keepcnt = 0;
 
-	/* Connect list elements:
-	 * LRU list : (A - B - ... - bp_front) + (bp_first + ... + bp_last)
-	 */
-	while (fsi->dcache.keep_list.prev != &fsi->dcache.keep_list) {
+	/* Connect list elements */
+	/* LRU list : (A - B - ... - bp_front) + (bp_first + ... + bp_last) */
+	// XXX: optimization
+	while (fsi->dcache.keep_list.prev != &fsi->dcache.keep_list){
 		cache_ent_t *bp_keep = fsi->dcache.keep_list.prev;
-
 		bp_keep->flag &= ~(KEEPBIT);		// Will be 0-ed later
 		move_to_mru(bp_keep, &fsi->dcache.lru_list);
+
 		keepcnt++;
 	}
 
@@ -750,7 +750,7 @@ s32 dcache_flush(struct super_block *sb, u32 sync)
 		bp = bp->next;
 	}
 
-	MMSG("BD: flush / dirty dentry cache: %d (%d from keeplist, err:%d)\n",
+	MMSG("BD: flush / dirty dentry cache: %d (%d from keeplist, err:%d)\n", 
 						dirtycnt, keepcnt, ret);
 	return ret;
 }
@@ -767,11 +767,11 @@ static cache_ent_t *__dcache_find(struct super_block *sb, u32 sec)
 	for (bp = hp->hash.next; bp != hp; bp = bp->hash.next) {
 		if (bp->sec == sec) {
 			touch_buffer(bp->bh);
-			return bp;
+			return(bp);
 		}
 	}
 	return NULL;
-}
+} /* end of __dcache_find */
 
 static cache_ent_t *__dcache_get(struct super_block *sb, u32 sec)
 {
@@ -788,6 +788,7 @@ static cache_ent_t *__dcache_get(struct super_block *sb, u32 sec)
 			bp->flag |= KEEPBIT;
 			move_to_mru(bp, &fsi->dcache.keep_list);
 		}
+	
 		bp = bp_prev;
 
 		/* If all dcaches are dirty */
@@ -798,15 +799,15 @@ static cache_ent_t *__dcache_get(struct super_block *sb, u32 sec)
 		}
 	}
 #else
-	while (bp->flag & LOCKBIT)
+	while (bp->flag & LOCKBIT) 
 		bp = bp->prev;
 #endif
 //	if (bp->flag & DIRTYBIT)
 //       sync_dirty_buffer(bp->bh);
 
 	move_to_mru(bp, &fsi->dcache.lru_list);
-	return bp;
-}
+	return(bp);
+} /* end of __dcache_get */
 
 static void __dcache_insert_hash(struct super_block *sb, cache_ent_t *bp)
 {
@@ -822,13 +823,13 @@ static void __dcache_insert_hash(struct super_block *sb, cache_ent_t *bp)
 	bp->hash.prev = hp;
 	hp->hash.next->hash.prev = bp;
 	hp->hash.next = bp;
-}
+} /* end of __dcache_insert_hash */
 
 static void __dcache_remove_hash(cache_ent_t *bp)
 {
 #ifdef DEBUG_HASH_LIST
-	if ((bp->hash.next == (cache_ent_t *)DEBUG_HASH_NEXT) ||
-		(bp->hash.prev == (cache_ent_t *)DEBUG_HASH_PREV)) {
+	if ( (bp->hash.next == (cache_ent_t*)DEBUG_HASH_NEXT) ||
+		(bp->hash.prev == (cache_ent_t*)DEBUG_HASH_PREV) ) {
 		EMSG("%s: FATAL: tried to remove already-removed-cache-entry"
 			"(bp:%p)\n", __func__, bp);
 		return;
@@ -836,7 +837,7 @@ static void __dcache_remove_hash(cache_ent_t *bp)
 #endif
 	WARN_ON(bp->flag & DIRTYBIT);
 	__remove_from_hash(bp);
-}
+} /* end of __dcache_remove_hash */
 
 
 /* end of cache.c */

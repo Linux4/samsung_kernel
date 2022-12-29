@@ -195,7 +195,7 @@ struct etspi_data {
 #endif
 	unsigned int spi_cs;	/* spi cs pin <temporary gpio setting> */
 
-	atomic_t drdy_irq_flag;	/* irq flag */
+	unsigned int drdy_irq_flag;	/* irq flag */
 	bool ldo_onoff;
 
 	/* For polling interrupt */

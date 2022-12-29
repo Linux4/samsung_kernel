@@ -1,7 +1,7 @@
 /*
  * DHD Linux header file (dhd_linux exports for cfg80211 and other components)
  *
- * Copyright (C) 1999-2018, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -70,9 +70,5 @@ void* wifi_platform_get_prealloc_func_ptr(wifi_adapter_info_t *adapter);
 
 int dhd_get_fw_mode(struct dhd_info *dhdinfo);
 bool dhd_update_fw_nv_path(struct dhd_info *dhdinfo);
-
-#ifdef DHDTCPSYNC_FLOOD_BLK
-extern void dhd_reset_tcpsync_info_by_dev(struct net_device *dev);
-#endif /* DHDTCPSYNC_FLOOD_BLK */
 
 #endif /* __DHD_LINUX_H__ */

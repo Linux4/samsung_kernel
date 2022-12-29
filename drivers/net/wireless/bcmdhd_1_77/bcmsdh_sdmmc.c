@@ -1,7 +1,7 @@
 /*
  * BCMSDH Function Driver for the native SDIO/MMC driver in the Linux Kernel
  *
- * Copyright (C) 1999-2018, Broadcom Corporation
+ * Copyright (C) 1999-2017, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Proprietary,Open:>>
  *
- * $Id: bcmsdh_sdmmc.c 761914 2018-05-10 02:02:30Z $
+ * $Id: bcmsdh_sdmmc.c 670926 2016-11-18 05:53:11Z $
  */
 #include <typedefs.h>
 
@@ -58,27 +58,6 @@ mmc_host_clk_release(struct mmc_host *host)
 #else
 #include <linux/mmc/host.h>
 #endif /* (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 0, 0)) */
-
-#if defined(CONFIG_SOC_EXYNOS7885) || defined(CONFIG_GALILEO)
-void
-mmc_host_clk_hold(struct mmc_host *host)
-{
-	BCM_REFERENCE(host);
-	return;
-}
-void
-mmc_host_clk_release(struct mmc_host *host)
-{
-	BCM_REFERENCE(host);
-	return;
-}
-unsigned int
-mmc_host_clk_rate(struct mmc_host *host)
-{
-	return host->ios.clock;
-}
-#endif	/* CONFIG_SOC_EXYNOS7885 || CONFIG_GALILEO */
-
 #include <linux/mmc/card.h>
 #include <linux/mmc/sdio_func.h>
 #include <linux/mmc/sdio_ids.h>
@@ -486,6 +465,8 @@ const bcm_iovar_t sdioh_iovars[] = {
 	{"sd_ints",	IOV_USEINTS,	0, 0,	IOVT_BOOL,	0 },
 	{"sd_numints",	IOV_NUMINTS,	0, 0,	IOVT_UINT32,	0 },
 	{"sd_numlocalints", IOV_NUMLOCALINTS, 0, 0, IOVT_UINT32,	0 },
+	{"sd_hostreg",	IOV_HOSTREG,	0, 0,	IOVT_BUFFER,	sizeof(sdreg_t) },
+	{"sd_devreg",	IOV_DEVREG,	0, 0,	IOVT_BUFFER,	sizeof(sdreg_t) },
 	{"sd_divisor",	IOV_DIVISOR,	0, 0,	IOVT_UINT32,	0 },
 	{"sd_power",	IOV_POWER,	0, 0,	IOVT_UINT32,	0 },
 	{"sd_clock",	IOV_CLOCK,	0, 0,	IOVT_UINT32,	0 },
@@ -705,6 +686,74 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 		int_val = (int32)0;
 		bcopy(&int_val, arg, val_size);
 		break;
+
+	case IOV_GVAL(IOV_HOSTREG):
+	{
+		sdreg_t *sd_ptr = (sdreg_t *)params;
+
+		if (sd_ptr->offset < SD_SysAddr || sd_ptr->offset > SD_MaxCurCap) {
+			sd_err(("%s: bad offset 0x%x\n", __FUNCTION__, sd_ptr->offset));
+			bcmerror = BCME_BADARG;
+			break;
+		}
+
+		sd_trace(("%s: rreg%d at offset %d\n", __FUNCTION__,
+		                  (sd_ptr->offset & 1) ? 8 : ((sd_ptr->offset & 2) ? 16 : 32),
+		                  sd_ptr->offset));
+		if (sd_ptr->offset & 1)
+			int_val = 8; /* sdioh_sdmmc_rreg8(si, sd_ptr->offset); */
+		else if (sd_ptr->offset & 2)
+			int_val = 16; /* sdioh_sdmmc_rreg16(si, sd_ptr->offset); */
+		else
+			int_val = 32; /* sdioh_sdmmc_rreg(si, sd_ptr->offset); */
+
+		bcopy(&int_val, arg, sizeof(int_val));
+		break;
+	}
+
+	case IOV_SVAL(IOV_HOSTREG):
+	{
+		sdreg_t *sd_ptr = (sdreg_t *)params;
+
+		if (sd_ptr->offset < SD_SysAddr || sd_ptr->offset > SD_MaxCurCap) {
+			sd_err(("%s: bad offset 0x%x\n", __FUNCTION__, sd_ptr->offset));
+			bcmerror = BCME_BADARG;
+			break;
+		}
+
+		sd_trace(("%s: wreg%d value 0x%08x at offset %d\n", __FUNCTION__, sd_ptr->value,
+		                  (sd_ptr->offset & 1) ? 8 : ((sd_ptr->offset & 2) ? 16 : 32),
+		                  sd_ptr->offset));
+		break;
+	}
+
+	case IOV_GVAL(IOV_DEVREG):
+	{
+		sdreg_t *sd_ptr = (sdreg_t *)params;
+		uint8 data = 0;
+
+		if (sdioh_cfg_read(si, sd_ptr->func, sd_ptr->offset, &data)) {
+			bcmerror = BCME_SDIO_ERROR;
+			break;
+		}
+
+		int_val = (int)data;
+		bcopy(&int_val, arg, sizeof(int_val));
+		break;
+	}
+
+	case IOV_SVAL(IOV_DEVREG):
+	{
+		sdreg_t *sd_ptr = (sdreg_t *)params;
+		uint8 data = (uint8)sd_ptr->value;
+
+		if (sdioh_cfg_write(si, sd_ptr->func, sd_ptr->offset, &data)) {
+			bcmerror = BCME_SDIO_ERROR;
+			break;
+		}
+		break;
+	}
+
 	default:
 		bcmerror = BCME_UNSUPPORTED;
 		break;

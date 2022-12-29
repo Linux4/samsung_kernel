@@ -14,12 +14,17 @@
 
 #define	DEBUG_LOG_START			(0x47402000)
 #define	SECURE_LOG_START		(0x47502000)
+#ifdef CONFIG_TIMA_RKP
 #define DEBUG_RKP_LOG_START		(0x52300000)
 #define SECURE_RKP_LOG_START		(0x52400000)
+#endif
 
 #define	DEBUG_LOG_SIZE	(1<<20)
 #define	DEBUG_LOG_MAGIC	(0xaabbccdd)
 #define	DEBUG_LOG_ENTRY_SIZE	128
+
+#define TIMA_DEBUG_LOG_SIZE 1<<18
+#define TIMA_SEC_LOG_SIZE 0x7000
 
 typedef struct debug_log_entry_s
 {
@@ -43,8 +48,10 @@ typedef struct debug_log_header_s
 unsigned long *tima_log_addr = 0;
 unsigned long *tima_debug_log_addr = 0;
 unsigned long *tima_secure_log_addr = 0;
+#ifdef CONFIG_TIMA_RKP
 unsigned long *tima_debug_rkp_log_addr = 0;
 unsigned long *tima_secure_rkp_log_addr = 0;
+#endif
 
 ssize_t	tima_read(struct file *filep, char __user *buf, size_t size, loff_t *offset)
 {
@@ -58,6 +65,7 @@ ssize_t	tima_read(struct file *filep, char __user *buf, size_t size, loff_t *off
 		tima_log_addr = tima_secure_log_addr;
 	else if( !strcmp(filep->f_path.dentry->d_iname, "tima_debug_log"))
 		tima_log_addr = tima_debug_log_addr;
+#ifdef CONFIG_TIMA_RKP
 	else if(!strcmp(filep->f_path.dentry->d_iname, "tima_debug_rkp_log")) {
 		if (*offset >= TIMA_DEBUG_LOG_SIZE) {
 			return -EINVAL;
@@ -74,7 +82,7 @@ ssize_t	tima_read(struct file *filep, char __user *buf, size_t size, loff_t *off
 		}
 		tima_log_addr = tima_secure_rkp_log_addr;
 	}
-
+#endif
 	if (copy_to_user(buf, (const char *)tima_log_addr + (*offset), size)) {
 		printk(KERN_ERR"Copy to user failed\n");
 		return -1;
@@ -105,6 +113,7 @@ static int __init tima_debug_log_read_init(void)
 	}
 	printk(KERN_INFO"tima_debug_log_read_init: Registering /proc/tima_debug_log Interface \n");
 
+#ifdef CONFIG_TIMA_RKP
 	if (proc_create("tima_debug_rkp_log", 0644,NULL, &tima_proc_fops) == NULL) {
 		printk(KERN_ERR"tima_debug_rkp_log_read_init: Error creating proc entry\n");
 		goto remove_secure_entry;
@@ -113,17 +122,21 @@ static int __init tima_debug_log_read_init(void)
 		printk(KERN_ERR"tima_secure_rkp_log_read_init: Error creating proc entry\n");
 		goto remove_debug_rkp_entry;
 	}
-
+#endif
 	tima_debug_log_addr = (unsigned long *)phys_to_virt(DEBUG_LOG_START);
 	tima_secure_log_addr = (unsigned long *)phys_to_virt(SECURE_LOG_START);
+#ifdef CONFIG_TIMA_RKP
 	tima_debug_rkp_log_addr  = (unsigned long *)phys_to_virt(DEBUG_RKP_LOG_START);
 	tima_secure_rkp_log_addr = (unsigned long *)phys_to_virt(SECURE_RKP_LOG_START);
+#endif
 	return 0;
 
+#ifdef CONFIG_TIMA_RKP
 remove_debug_rkp_entry:
 	remove_proc_entry("tima_debug_rkp_log", NULL);
 remove_secure_entry:
 	remove_proc_entry("tima_secure_log", NULL);
+#endif
 remove_debug_entry:
 	remove_proc_entry("tima_debug_log", NULL);
 error_return:
@@ -139,8 +152,10 @@ static void __exit tima_debug_log_read_exit(void)
 {
 	remove_proc_entry("tima_debug_log", NULL);
 	remove_proc_entry("tima_secure_log", NULL);
+#ifdef CONFIG_TIMA_RKP
 	remove_proc_entry("tima_debug_rkp_log", NULL);
 	remove_proc_entry("tima_secure_rkp_log", NULL);
+#endif
 	printk(KERN_INFO"Deregistering /proc/tima_debug_log Interface\n");
 }
 

@@ -1,7 +1,7 @@
 /*
  * Linux OS Independent Layer
  *
- * Copyright (C) 1999-2018, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: linux_osl.c 793225 2018-12-07 07:37:32Z $
+ * $Id: linux_osl.c 519634 2014-12-08 13:23:52Z $
  */
 
 #define LINUX_PORT
@@ -298,7 +298,7 @@ int osl_static_mem_init(osl_t *osh, void *adapter)
 				kfree(osh);
 				return -ENOMEM;
 			} else {
-				printk("succeed to alloc static buf\n");
+				printk("alloc static buf at %p!\n", bcm_static_buf);
 			}
 
 			sema_init(&bcm_static_buf->static_sem, 1);
@@ -633,38 +633,16 @@ osl_pkt_tonative(osl_t *osh, void *pkt)
 void * BCMFASTPATH
 osl_pkt_frmnative(osl_t *osh, void *pkt)
 {
-	struct sk_buff *cskb;
 	struct sk_buff *nskb;
-	unsigned long pktalloced = 0;
-
 
 	if (osh->pub.pkttag)
 		OSL_PKTTAG_CLEAR(pkt);
 
-	/* walk the PKTCLINK() list */
-	for (cskb = (struct sk_buff *)pkt;
-		cskb != NULL;
-		cskb = PKTISCHAINED(cskb) ? PKTCLINK(cskb) : NULL) {
-
-		/* walk the pkt buffer list */
-		for (nskb = cskb; nskb; nskb = nskb->next) {
-			/* Increment the packet counter */
-			pktalloced++;
-
-			/* clean the 'prev' pointer
-			* Kernel 3.18 is leaving skb->prev pointer set to skb
-			* to indicate a non-fragmented skb
-			*/
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0))
-			nskb->prev = NULL;
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0) */
-
-
-		}
-	}
 	/* Increment the packet counter */
-	atomic_add(pktalloced, &osh->cmn->pktalloced);
+	for (nskb = (struct sk_buff *)pkt; nskb; nskb = nskb->next) {
+		atomic_add(PKTISCHAINED(nskb) ? PKTCCNT(nskb) : 1, &osh->cmn->pktalloced);
 
+	}
 	return (void *)pkt;
 }
 
@@ -1214,31 +1192,6 @@ osl_sleep(uint ms)
 	msleep(ms);
 }
 
-uint64
-osl_localtime_ns(void)
-{
-	uint64 ts_nsec = 0;
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
-	ts_nsec = local_clock();
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) */
-
-	return ts_nsec;
-}
-
-void
-osl_get_localtime(uint64 *sec, uint64 *usec)
-{
-	uint64 ts_nsec = 0;
-	unsigned long rem_nsec = 0;
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
-	ts_nsec = local_clock();
-	rem_nsec = do_div(ts_nsec, NSEC_PER_SEC);
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) */
-	*sec = (uint64)ts_nsec;
-	*usec = (uint64)(rem_nsec / MSEC_PER_SEC);
-}
 
 
 /* Clone a packet.

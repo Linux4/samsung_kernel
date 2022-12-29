@@ -3,7 +3,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 1999-2018, Broadcom Corporation
+ * Copyright (C) 1999-2017, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -26,7 +26,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_msgbuf.c 771185 2018-07-09 09:10:58Z $
+ * $Id: dhd_msgbuf.c 698895 2017-05-11 02:55:17Z $
  */
 
 
@@ -66,10 +66,6 @@
 
 #include <hnd_debug.h>
 #include <hnd_armtrap.h>
-
-#ifdef DHD_PKT_LOGGING
-#include <dhd_pktlog.h>
-#endif /* DHD_PKT_LOGGING */
 
 extern char dhd_version[];
 extern char fw_version[];
@@ -295,7 +291,6 @@ typedef struct dhd_dmaxfer {
 	bool          in_progress;
 	uint64        start_usec;
 	uint32	      d11_lpbk;
-	int           status;
 } dhd_dmaxfer_t;
 
 /**
@@ -647,8 +642,6 @@ static void BCMFASTPATH dhd_rxchain_commit(dhd_pub_t *dhd);
 #define DHD_PKT_CTF_MAX_CHAIN_LEN	64
 
 #endif /* DHD_RX_CHAINING */
-
-#define DHD_LPBKDTDUMP_ON()	(dhd_msg_level & DHD_LPBKDTDUMP_VAL)
 
 static void dhd_prot_h2d_sync_init(dhd_pub_t *dhd);
 
@@ -5005,7 +4998,7 @@ workq_ring_full:
 		dhd->dma_stats.txdata--;
 		dhd->dma_stats.txdata_sz -= len;
 #endif /* DMAMAP_STATS */
-#if defined(DBG_PKT_MON) || defined(DHD_PKT_LOGGING)
+#ifdef DBG_PKT_MON
 		if (dhd->d11_tx_status) {
 			uint16 tx_status;
 
@@ -5014,11 +5007,9 @@ workq_ring_full:
 			pkt_fate = (tx_status == WLFC_CTL_PKTFLAG_DISCARD) ? TRUE : FALSE;
 
 			DHD_DBG_PKT_MON_TX_STATUS(dhd, pkt, pktid, tx_status);
-#ifdef DHD_PKT_LOGGING
-			DHD_PKTLOG_TXS(dhd, pkt, pktid, tx_status);
-#endif /* DHD_PKT_LOGGING */
 		}
-#endif /* DBG_PKT_MON || DHD_PKT_LOGGING */
+#endif /* DBG_PKT_MON */
+
 #if defined(BCMPCIE)
 		dhd_txcomplete(dhd, pkt, pkt_fate);
 #endif 
@@ -5251,9 +5242,6 @@ dhd_prot_txdata(dhd_pub_t *dhd, void *PKTBUF, uint8 ifidx)
 #ifdef DBG_PKT_MON
 	DHD_DBG_PKT_MON_TX(dhd, PKTBUF, pktid);
 #endif /* DBG_PKT_MON */
-#ifdef DHD_PKT_LOGGING
-	DHD_PKTLOG_TX(dhd, PKTBUF, pktid);
-#endif /* DHD_PKT_LOGGING */
 
 
 	/* Extract the data pointer and length information */
@@ -5775,7 +5763,7 @@ dmaxfer_free_prev_dmaaddr(dhd_pub_t *dhdp, dmaxref_mem_map_t *dmmap)
 int dmaxfer_prepare_dmaaddr(dhd_pub_t *dhd, uint len,
 	uint srcdelay, uint destdelay, dhd_dmaxfer_t *dmaxfer)
 {
-	uint i = 0, j = 0;
+	uint i;
 	if (!dmaxfer)
 		return BCME_ERROR;
 
@@ -5793,24 +5781,10 @@ int dmaxfer_prepare_dmaaddr(dhd_pub_t *dhd, uint len,
 
 	dmaxfer->len = len;
 
-	/* Populate source with a pattern like below
-	 * 0x00000000
-	 * 0x01010101
-	 * 0x02020202
-	 * 0x03030303
-	 * 0x04040404
-	 * 0x05050505
-	 * ...
-	 * 0xFFFFFFFF
-	 */
-	while (i < dmaxfer->len) {
-		((uint8*)dmaxfer->srcmem.va)[i] = j % 256;
-		i++;
-		if (i % 4 == 0) {
-			j++;
-		}
+	/* Populate source with a pattern */
+	for (i = 0; i < dmaxfer->len; i++) {
+		((uint8*)dmaxfer->srcmem.va)[i] = i % 256;
 	}
-
 	OSL_CACHE_FLUSH(dmaxfer->srcmem.va, dmaxfer->len);
 
 	dmaxfer->srcdelay = srcdelay;
@@ -5827,67 +5801,32 @@ dhd_msgbuf_dmaxfer_process(dhd_pub_t *dhd, void *msg)
 	pcie_dmaxfer_cmplt_t *cmplt = (pcie_dmaxfer_cmplt_t *)msg;
 
 	BCM_REFERENCE(cmplt);
-	end_usec = OSL_SYSUPTIME_US();
-
-	DHD_ERROR(("DMA loopback status: %d\n", cmplt->compl_hdr.status));
-	prot->dmaxfer.status = cmplt->compl_hdr.status;
+	DHD_INFO(("DMA status: %d\n", cmplt->compl_hdr.status));
 	OSL_CACHE_INV(prot->dmaxfer.dstmem.va, prot->dmaxfer.len);
 	if (prot->dmaxfer.srcmem.va && prot->dmaxfer.dstmem.va) {
 		if (memcmp(prot->dmaxfer.srcmem.va,
-			prot->dmaxfer.dstmem.va, prot->dmaxfer.len) ||
-			cmplt->compl_hdr.status != BCME_OK) {
-			DHD_ERROR(("DMA loopback failed\n"));
+		        prot->dmaxfer.dstmem.va, prot->dmaxfer.len)) {
 			prhex("XFER SRC: ",
-				prot->dmaxfer.srcmem.va, prot->dmaxfer.len);
+			    prot->dmaxfer.srcmem.va, prot->dmaxfer.len);
 			prhex("XFER DST: ",
-				prot->dmaxfer.dstmem.va, prot->dmaxfer.len);
-			prot->dmaxfer.status = BCME_ERROR;
+			    prot->dmaxfer.dstmem.va, prot->dmaxfer.len);
+		        DHD_ERROR(("DMA failed\n"));
 		}
 		else {
-			switch (prot->dmaxfer.d11_lpbk) {
-			case M2M_DMA_LPBK: {
-				DHD_ERROR(("DMA successful pcie m2m DMA loopback\n"));
-				} break;
-			case D11_LPBK: {
+			if (prot->dmaxfer.d11_lpbk) {
 				DHD_ERROR(("DMA successful with d11 loopback\n"));
-				} break;
-			case BMC_LPBK: {
-				DHD_ERROR(("DMA successful with bmc loopback\n"));
-				} break;
-			case M2M_NON_DMA_LPBK: {
-				DHD_ERROR(("DMA successful pcie m2m NON DMA loopback\n"));
-				} break;
-			case D11_HOST_MEM_LPBK: {
-				DHD_ERROR(("DMA successful d11 host mem loopback\n"));
-				} break;
-			case BMC_HOST_MEM_LPBK: {
-				DHD_ERROR(("DMA successful bmc host mem loopback\n"));
-				} break;
-			default: {
-				DHD_ERROR(("Invalid loopback option\n"));
-				} break;
-			}
-
-			if (DHD_LPBKDTDUMP_ON()) {
-				/* debug info print of the Tx and Rx buffers */
-				dhd_prhex("XFER SRC: ", prot->dmaxfer.srcmem.va,
-					prot->dmaxfer.len, DHD_INFO_VAL);
-				dhd_prhex("XFER DST: ", prot->dmaxfer.dstmem.va,
-					prot->dmaxfer.len, DHD_INFO_VAL);
+			} else {
+				DHD_ERROR(("DMA successful without d11 loopback\n"));
 			}
 		}
 	}
-
+	end_usec = OSL_SYSUPTIME_US();
 	dhd_prepare_schedule_dmaxfer_free(dhd);
 	end_usec -= prot->dmaxfer.start_usec;
-	if (end_usec)
-		DHD_ERROR(("DMA loopback %d bytes in %lu usec, %u kBps\n",
-			prot->dmaxfer.len, (unsigned long)end_usec,
-			(prot->dmaxfer.len * (1000 * 1000 / 1024) / (uint32)end_usec)));
+	DHD_ERROR(("DMA loopback %d bytes in %llu usec, %u kBps\n",
+		prot->dmaxfer.len, end_usec,
+		(prot->dmaxfer.len * (1000 * 1000 / 1024) / (uint32)(end_usec + 1))));
 	dhd->prot->dmaxfer.in_progress = FALSE;
-
-	dhd->bus->dmaxfer_complete = TRUE;
-	dhd_os_dmaxfer_wake(dhd);
 }
 
 /** Test functionality.
@@ -5896,8 +5835,7 @@ dhd_msgbuf_dmaxfer_process(dhd_pub_t *dhd, void *msg)
  * by a spinlock.
  */
 int
-dhdmsgbuf_dmaxfer_req(dhd_pub_t *dhd, uint len, uint srcdelay, uint destdelay,
-	uint d11_lpbk, uint core_num)
+dhdmsgbuf_dmaxfer_req(dhd_pub_t *dhd, uint len, uint srcdelay, uint destdelay, uint d11_lpbk)
 {
 	unsigned long flags;
 	int ret = BCME_OK;
@@ -5909,24 +5847,22 @@ dhdmsgbuf_dmaxfer_req(dhd_pub_t *dhd, uint len, uint srcdelay, uint destdelay,
 
 	if (prot->dmaxfer.in_progress) {
 		DHD_ERROR(("DMA is in progress...\n"));
-		return BCME_ERROR;
+		return ret;
 	}
-
-	if (d11_lpbk >= MAX_LPBK) {
-		DHD_ERROR(("loopback mode should be either"
-			" 0-PCIE_M2M_DMA, 1-D11, 2-BMC or 3-PCIE_M2M_NonDMA\n"));
-		return BCME_ERROR;
-	}
-
-	DHD_GENERAL_LOCK(dhd, flags);
 
 	prot->dmaxfer.in_progress = TRUE;
 	if ((ret = dmaxfer_prepare_dmaaddr(dhd, xferlen, srcdelay, destdelay,
-		&prot->dmaxfer)) != BCME_OK) {
+	        &prot->dmaxfer)) != BCME_OK) {
 		prot->dmaxfer.in_progress = FALSE;
-		DHD_GENERAL_UNLOCK(dhd, flags);
 		return ret;
 	}
+
+#ifdef PCIE_INB_DW
+	if (dhd_prot_inc_hostactive_devwake_assert(dhd->bus) != BCME_OK)
+		return BCME_ERROR;
+#endif /* PCIE_INB_DW */
+
+	DHD_GENERAL_LOCK(dhd, flags);
 
 	dmap = (pcie_dma_xfer_params_t *)
 		dhd_prot_alloc_ring_space(dhd, ring, 1, &alloced, FALSE);
@@ -5935,6 +5871,9 @@ dhdmsgbuf_dmaxfer_req(dhd_pub_t *dhd, uint len, uint srcdelay, uint destdelay,
 		dmaxfer_free_dmaaddr(dhd, &prot->dmaxfer);
 		prot->dmaxfer.in_progress = FALSE;
 		DHD_GENERAL_UNLOCK(dhd, flags);
+#ifdef PCIE_INB_DW
+		dhd_prot_dec_hostactive_ack_pending_dsreq(dhd->bus);
+#endif
 		return BCME_NOMEM;
 	}
 
@@ -5952,35 +5891,22 @@ dhdmsgbuf_dmaxfer_req(dhd_pub_t *dhd, uint len, uint srcdelay, uint destdelay,
 	dmap->xfer_len = htol32(prot->dmaxfer.len);
 	dmap->srcdelay = htol32(prot->dmaxfer.srcdelay);
 	dmap->destdelay = htol32(prot->dmaxfer.destdelay);
-	prot->dmaxfer.d11_lpbk = d11_lpbk;
-	dmap->flags = (((core_num & PCIE_DMA_XFER_FLG_CORE_NUMBER_MASK)
-			<< PCIE_DMA_XFER_FLG_CORE_NUMBER_SHIFT) |
-			((prot->dmaxfer.d11_lpbk & PCIE_DMA_XFER_FLG_D11_LPBK_MASK)
-			<< PCIE_DMA_XFER_FLG_D11_LPBK_SHIFT));
-	prot->dmaxfer.start_usec = OSL_SYSUPTIME_US();
+	prot->dmaxfer.d11_lpbk = d11_lpbk ? 1 : 0;
+	dmap->flags = (prot->dmaxfer.d11_lpbk << PCIE_DMA_XFER_FLG_D11_LPBK_SHIFT)
+			& PCIE_DMA_XFER_FLG_D11_LPBK_MASK;
 
 	/* update ring's WR index and ring doorbell to dongle */
+	prot->dmaxfer.start_usec = OSL_SYSUPTIME_US();
 	dhd_prot_ring_write_complete(dhd, ring, dmap, 1);
-
 	DHD_GENERAL_UNLOCK(dhd, flags);
+#ifdef PCIE_INB_DW
+	dhd_prot_dec_hostactive_ack_pending_dsreq(dhd->bus);
+#endif
 
-	DHD_ERROR(("DMA loopback Started...\n"));
+	DHD_INFO(("DMA Started...\n"));
 
 	return BCME_OK;
 } /* dhdmsgbuf_dmaxfer_req */
-
-dma_xfer_status_t
-dhdmsgbuf_dmaxfer_status(dhd_pub_t *dhd)
-{
-	dhd_prot_t *prot = dhd->prot;
-
-	if (prot->dmaxfer.in_progress)
-		return DMA_XFER_IN_PROGRESS;
-	else if (prot->dmaxfer.status == BCME_OK)
-		return DMA_XFER_SUCCESS;
-	else
-		return DMA_XFER_FAILED;
-}
 
 /** Called in the process of submitting an ioctl to the dongle */
 static int
@@ -8260,9 +8186,6 @@ dhd_prot_debug_info_print(dhd_pub_t *dhd)
 	DHD_ERROR(("DHD: %s\n", dhd_version));
 	DHD_ERROR(("Firmware: %s\n", fw_version));
 
-	DHD_ERROR(("\n ------- DUMPING PCIE EP Resouce Info ------- \r\n"));
-	dhdpcie_dump_resource(dhd->bus);
-
 	DHD_ERROR(("\n ------- DUMPING PROTOCOL INFORMATION ------- \r\n"));
 	DHD_ERROR(("ICPrevs: Dev %d, Host %d, active %d\n",
 		prot->device_ipc_version,
@@ -8289,14 +8212,9 @@ dhd_prot_debug_info_print(dhd_pub_t *dhd)
 		ring->dma_buf.va, ltoh32(ring->base_addr.high_addr),
 		ltoh32(ring->base_addr.low_addr), dma_buf_len));
 	DHD_ERROR(("CtrlPost: From Host mem: RD: %d WR %d \r\n", ring->rd, ring->wr));
-	if (dhd->bus->is_linkdown) {
-		DHD_ERROR(("CtrlPost: From Shared Mem: RD and WR are invalid"
-			" due to PCIe link down\r\n"));
-	} else {
-		dhd_bus_cmn_readshared(dhd->bus, &rd, RING_RD_UPD, ring->idx);
-		dhd_bus_cmn_readshared(dhd->bus, &wr, RING_WR_UPD, ring->idx);
-		DHD_ERROR(("CtrlPost: From Shared Mem: RD: %d WR %d \r\n", rd, wr));
-	}
+	dhd_bus_cmn_readshared(dhd->bus, &rd, RING_RD_UPD, ring->idx);
+	dhd_bus_cmn_readshared(dhd->bus, &wr, RING_WR_UPD, ring->idx);
+	DHD_ERROR(("CtrlPost: From Shared Mem: RD: %d WR %d \r\n", rd, wr));
 	DHD_ERROR(("CtrlPost: seq num: %d \r\n", ring->seqnum % H2D_EPOCH_MODULO));
 
 	ring = &prot->d2hring_ctrl_cpln;
@@ -8305,14 +8223,9 @@ dhd_prot_debug_info_print(dhd_pub_t *dhd)
 		ring->dma_buf.va, ltoh32(ring->base_addr.high_addr),
 		ltoh32(ring->base_addr.low_addr), dma_buf_len));
 	DHD_ERROR(("CtrlCpl: From Host mem: RD: %d WR %d \r\n", ring->rd, ring->wr));
-	if (dhd->bus->is_linkdown) {
-		DHD_ERROR(("CtrlCpl: From Shared Mem: RD and WR are invalid"
-			" due to PCIe link down\r\n"));
-	} else {
-		dhd_bus_cmn_readshared(dhd->bus, &rd, RING_RD_UPD, ring->idx);
-		dhd_bus_cmn_readshared(dhd->bus, &wr, RING_WR_UPD, ring->idx);
-		DHD_ERROR(("CtrlCpl: From Shared Mem: RD: %d WR %d \r\n", rd, wr));
-	}
+	dhd_bus_cmn_readshared(dhd->bus, &rd, RING_RD_UPD, ring->idx);
+	dhd_bus_cmn_readshared(dhd->bus, &wr, RING_WR_UPD, ring->idx);
+	DHD_ERROR(("CtrlCpl: From Shared Mem: RD: %d WR %d \r\n", rd, wr));
 	DHD_ERROR(("CtrlCpl: Expected seq num: %d \r\n", ring->seqnum % H2D_EPOCH_MODULO));
 
 	ring = prot->h2dring_info_subn;
@@ -8322,14 +8235,9 @@ dhd_prot_debug_info_print(dhd_pub_t *dhd)
 			ring->dma_buf.va, ltoh32(ring->base_addr.high_addr),
 			ltoh32(ring->base_addr.low_addr), dma_buf_len));
 		DHD_ERROR(("InfoSub: From Host mem: RD: %d WR %d \r\n", ring->rd, ring->wr));
-		if (dhd->bus->is_linkdown) {
-			DHD_ERROR(("InfoSub: From Shared Mem: RD and WR are invalid"
-				" due to PCIe link down\r\n"));
-		} else {
-			dhd_bus_cmn_readshared(dhd->bus, &rd, RING_RD_UPD, ring->idx);
-			dhd_bus_cmn_readshared(dhd->bus, &wr, RING_WR_UPD, ring->idx);
-			DHD_ERROR(("InfoSub: From Shared Mem: RD: %d WR %d \r\n", rd, wr));
-		}
+		dhd_bus_cmn_readshared(dhd->bus, &rd, RING_RD_UPD, ring->idx);
+		dhd_bus_cmn_readshared(dhd->bus, &wr, RING_WR_UPD, ring->idx);
+		DHD_ERROR(("InfoSub: From Shared Mem: RD: %d WR %d \r\n", rd, wr));
 		DHD_ERROR(("InfoSub: seq num: %d \r\n", ring->seqnum % H2D_EPOCH_MODULO));
 	}
 	ring = prot->d2hring_info_cpln;
@@ -8339,14 +8247,9 @@ dhd_prot_debug_info_print(dhd_pub_t *dhd)
 			ring->dma_buf.va, ltoh32(ring->base_addr.high_addr),
 			ltoh32(ring->base_addr.low_addr), dma_buf_len));
 		DHD_ERROR(("InfoCpl: From Host mem: RD: %d WR %d \r\n", ring->rd, ring->wr));
-		if (dhd->bus->is_linkdown) {
-			DHD_ERROR(("InfoCpl: From Shared Mem: RD and WR are invalid"
-				" due to PCIe link down\r\n"));
-		} else {
-			dhd_bus_cmn_readshared(dhd->bus, &rd, RING_RD_UPD, ring->idx);
-			dhd_bus_cmn_readshared(dhd->bus, &wr, RING_WR_UPD, ring->idx);
-			DHD_ERROR(("InfoCpl: From Shared Mem: RD: %d WR %d \r\n", rd, wr));
-		}
+		dhd_bus_cmn_readshared(dhd->bus, &rd, RING_RD_UPD, ring->idx);
+		dhd_bus_cmn_readshared(dhd->bus, &wr, RING_WR_UPD, ring->idx);
+		DHD_ERROR(("InfoCpl: From Shared Mem: RD: %d WR %d \r\n", rd, wr));
 		DHD_ERROR(("InfoCpl: Expected seq num: %d \r\n", ring->seqnum % H2D_EPOCH_MODULO));
 	}
 
@@ -8433,50 +8336,45 @@ dhd_prot_ringupd_dump(dhd_pub_t *dhd, struct bcmstrbuf *b)
 {
 	uint32 *ptr;
 	uint32 value;
+	uint32 i;
+	uint32 max_h2d_queues = dhd_bus_max_h2d_queues(dhd->bus);
 
-	if (dhd->prot->d2h_dma_indx_wr_buf.va) {
-		uint32 i;
-		uint32 max_h2d_queues = dhd_bus_max_h2d_queues(dhd->bus);
+	OSL_CACHE_INV((void *)dhd->prot->d2h_dma_indx_wr_buf.va,
+		dhd->prot->d2h_dma_indx_wr_buf.len);
 
-		OSL_CACHE_INV((void *)dhd->prot->d2h_dma_indx_wr_buf.va,
-			dhd->prot->d2h_dma_indx_wr_buf.len);
+	ptr = (uint32 *)(dhd->prot->d2h_dma_indx_wr_buf.va);
 
-		ptr = (uint32 *)(dhd->prot->d2h_dma_indx_wr_buf.va);
+	bcm_bprintf(b, "\n max_tx_queues %d\n", max_h2d_queues);
 
-		bcm_bprintf(b, "\n max_tx_queues %d\n", max_h2d_queues);
+	bcm_bprintf(b, "\nRPTR block H2D common rings, 0x%04x\n", ptr);
+	value = ltoh32(*ptr);
+	bcm_bprintf(b, "\tH2D CTRL: value 0x%04x\n", value);
+	ptr++;
+	value = ltoh32(*ptr);
+	bcm_bprintf(b, "\tH2D RXPOST: value 0x%04x\n", value);
 
-		bcm_bprintf(b, "\nRPTR block H2D common rings, 0x%04x\n", ptr);
+	ptr++;
+	bcm_bprintf(b, "RPTR block Flow rings , 0x%04x\n", ptr);
+	for (i = BCMPCIE_H2D_COMMON_MSGRINGS; i < max_h2d_queues; i++) {
 		value = ltoh32(*ptr);
-		bcm_bprintf(b, "\tH2D CTRL: value 0x%04x\n", value);
+		bcm_bprintf(b, "\tflowring ID %d: value 0x%04x\n", i, value);
 		ptr++;
-		value = ltoh32(*ptr);
-		bcm_bprintf(b, "\tH2D RXPOST: value 0x%04x\n", value);
-
-		ptr++;
-		bcm_bprintf(b, "RPTR block Flow rings , 0x%04x\n", ptr);
-		for (i = BCMPCIE_H2D_COMMON_MSGRINGS; i < max_h2d_queues; i++) {
-			value = ltoh32(*ptr);
-			bcm_bprintf(b, "\tflowring ID %d: value 0x%04x\n", i, value);
-			ptr++;
-		}
 	}
 
-	if (dhd->prot->h2d_dma_indx_rd_buf.va) {
-		OSL_CACHE_INV((void *)dhd->prot->h2d_dma_indx_rd_buf.va,
-			dhd->prot->h2d_dma_indx_rd_buf.len);
+	OSL_CACHE_INV((void *)dhd->prot->h2d_dma_indx_rd_buf.va,
+		dhd->prot->h2d_dma_indx_rd_buf.len);
 
-		ptr = (uint32 *)(dhd->prot->h2d_dma_indx_rd_buf.va);
+	ptr = (uint32 *)(dhd->prot->h2d_dma_indx_rd_buf.va);
 
-		bcm_bprintf(b, "\nWPTR block D2H common rings, 0x%04x\n", ptr);
-		value = ltoh32(*ptr);
-		bcm_bprintf(b, "\tD2H CTRLCPLT: value 0x%04x\n", value);
-		ptr++;
-		value = ltoh32(*ptr);
-		bcm_bprintf(b, "\tD2H TXCPLT: value 0x%04x\n", value);
-		ptr++;
-		value = ltoh32(*ptr);
-		bcm_bprintf(b, "\tD2H RXCPLT: value 0x%04x\n", value);
-	}
+	bcm_bprintf(b, "\nWPTR block D2H common rings, 0x%04x\n", ptr);
+	value = ltoh32(*ptr);
+	bcm_bprintf(b, "\tD2H CTRLCPLT: value 0x%04x\n", value);
+	ptr++;
+	value = ltoh32(*ptr);
+	bcm_bprintf(b, "\tD2H TXCPLT: value 0x%04x\n", value);
+	ptr++;
+	value = ltoh32(*ptr);
+	bcm_bprintf(b, "\tD2H RXCPLT: value 0x%04x\n", value);
 
 	return 0;
 }
