@@ -668,7 +668,9 @@ static void max77705_ccstat_irq_handler(void *data, int irq)
 			cancel_delayed_work(&usbc_data->vbus_hard_reset_work);
 			break;
 	case cc_SINK:
-			msg_maxim("ccstat : cc_SINK");
+			msg_maxim("ccstat : cc_SINK, keep awake for a second.");
+			/* keep awake during pd communication */
+			pm_wakeup_ws_event(&cc_data->ccstat_ws, 1000, false);
 			usbc_data->pd_data->cc_status = CC_SNK;
 			usbc_data->pn_flag = false;
 
@@ -760,6 +762,8 @@ int max77705_cc_init(struct max77705_usbc_platform_data *usbc_data)
 	msg_maxim("IN");
 
 	cc_data = usbc_data->cc_data;
+	cc_data->ccstat_ws.name = "max77705-ccstat";
+	wakeup_source_add(&cc_data->ccstat_ws);
 
 	cc_data->irq_vconncop = usbc_data->irq_base + MAX77705_CC_IRQ_VCONNCOP_INT;
 	if (cc_data->irq_vconncop) {

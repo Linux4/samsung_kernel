@@ -12,8 +12,15 @@
 
 #include <linux/kernel.h>
 #include <linux/migrate.h>
+#include <linux/version.h>
 
-#define _mz_migrate_pages(list, alloc, free) migrate_pages((list), (alloc), (free), 0, MIGRATE_SYNC, MR_MEMORY_FAILURE)
+#if KERNEL_VERSION(5, 15, 0) <= LINUX_VERSION_CODE
+#define _mz_migrate_pages(list, alloc, free) \
+		migrate_pages((list), (alloc), (free), 0, MIGRATE_SYNC, MR_MEMORY_FAILURE, 0)
+#else
+#define _mz_migrate_pages(list, alloc, free) \
+		migrate_pages((list), (alloc), (free), 0, MIGRATE_SYNC, MR_MEMORY_FAILURE)
+#endif
 
 unsigned long mz_get_migratetype(struct page *page);
 MzResult mz_migrate_pages(struct page *page);

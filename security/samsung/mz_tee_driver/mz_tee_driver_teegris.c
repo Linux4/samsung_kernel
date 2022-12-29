@@ -20,7 +20,6 @@
 #include <linux/kthread.h>
 #include <linux/firmware.h>
 #include <linux/mz.h>
-#include <soc/samsung/exynos-pmu-if.h>
 #include <tzdev/tee_client_api.h>
 
 int target_count;
@@ -316,7 +315,7 @@ MzResult encrypt_impl(uint8_t *pt, uint8_t *ct, uint8_t *iv)
 	int taret;
 
 	taret = send_cmd_kthread(CMD_MZ_WB_ENCRYPT, 0, pt, iv);
-	if (taret != MZ_TA_SUCCESS) {
+	if (taret != MZ_SUCCESS) {
 		pr_err("MZ %s ta return error %d\n", __func__, taret);
 		mzret = MZ_TA_FAIL;
 	}
@@ -387,11 +386,6 @@ MzResult load_trusted_app_teegris(void)
 	tlc_struct->operation.params[0].memref.parent = &tlc_struct->shmem;
 	tlc_struct->operation.params[0].memref.size = tlc_struct->shmem.size;
 	tlc_struct->operation.params[0].memref.offset = 0;
-
-	if (!mz_exynos_pmu_write) {
-		pr_debug("MZ mz_exynos_pmu_write null, set\n");
-		mz_exynos_pmu_write = exynos_pmu_write;
-	}
 
 	goto exit;
 

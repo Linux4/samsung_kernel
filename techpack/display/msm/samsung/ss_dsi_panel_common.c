@@ -261,6 +261,8 @@ char ss_cmd_set_prop_map[SS_CMD_PROP_SIZE][SS_CMD_PROP_STR_LEN] = {
 	"samsung,self_mask_on_revA",
 	"samsung,self_mask_on_factory_revA",
 	"samsung,self_mask_off_revA",
+	"samsung,self_mask_udc_on_revA",
+	"samsung,self_mask_udc_off_revA",
 	"samsung,self_mask_green_circle_on_revA",
 	"samsung,self_mask_green_circle_off_revA",
 	"samsung,self_mask_green_circle_on_factory_revA",
@@ -790,6 +792,12 @@ void ss_event_frame_update_post(struct samsung_display_driver_data *vdd)
 			goto skip_display_on;
 		}
 		frame_count = 1;
+
+		/* set self_mask_udc before display on */
+		if (vdd->self_disp.self_mask_udc_on)
+			vdd->self_disp.self_mask_udc_on(vdd, vdd->self_disp.udc_mask_enable);
+		else
+			LCD_DEBUG(vdd, "Self Mask UDC Function is NULL\n");
 
 		/* delay between sleep_out and display_on cmd */
 		ss_delay(vdd->dtsi_data.sleep_out_to_on_delay, vdd->sleep_out_time);
@@ -3206,6 +3214,9 @@ int ss_panel_on_post(struct samsung_display_driver_data *vdd)
 	vdd->display_status_dsi.wait_actual_disp_on = true;
 	vdd->panel_lpm.need_self_grid = true;
 
+	/* in case the code that display_enabled is set to true in bridge_enable function is not ported */
+	vdd->display_enabled = true;
+
 	if (vdd->dyn_mipi_clk.is_support) {
 		LCD_INFO(vdd, "FFC Setting for Dynamic MIPI Clock\n");
 		ss_send_cmd(vdd, TX_FFC);
@@ -3323,6 +3334,20 @@ int ss_panel_off_post(struct samsung_display_driver_data *vdd)
 	return ret;
 }
 
+int ss_panel_power_on_pre(struct samsung_display_driver_data *vdd)
+{
+	int ret = 0;
+
+	LCD_INFO(vdd, "+\n");
+
+	if (!IS_ERR_OR_NULL(vdd->panel_func.samsung_panel_power_on_pre))
+		vdd->panel_func.samsung_panel_power_on_pre(vdd);
+
+	LCD_INFO(vdd, "-\n");
+
+	return ret;
+}
+
 int ss_panel_power_off_post(struct samsung_display_driver_data *vdd)
 {
 	int ret = 0;
@@ -3332,7 +3357,7 @@ int ss_panel_power_off_post(struct samsung_display_driver_data *vdd)
 	if (!IS_ERR_OR_NULL(vdd->panel_func.samsung_panel_power_off_post))
 		vdd->panel_func.samsung_panel_power_off_post(vdd);
 
-	LCD_INFO(vdd, "-\n", vdd->cnt_mdp_clk_underflow);
+	LCD_INFO(vdd, "-\n");
 
 	return ret;
 }
@@ -3631,7 +3656,7 @@ __visible_for_testing irqreturn_t esd_irq_handler(int irq, void *handle)
 	schedule_work(&conn->status_work.work);
 
 	LCD_INFO(vdd, "Panel Recovery(ESD, irq%d), Trial Count = %d\n", irq, vdd->panel_recovery_cnt++);
-	SS_XLOG(vdd->panel_recovery_cnt);
+	SS_XLOG(vdd->ndx, vdd->panel_recovery_cnt);
 	inc_dpui_u32_field(DPUI_KEY_QCT_RCV_CNT, 1);
 
 	if (vdd->is_factory_mode) {
@@ -4909,6 +4934,12 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 		of_property_read_bool(np, "samsung,tcon-clk-on-support");
 	LCD_INFO(vdd, "tcon clk on support: %s\n",
 			vdd->dtsi_data.samsung_tcon_clk_on_support ?
+			"enabled" : "disabled");
+
+	/* DDI Uses Flash memory */
+	vdd->dtsi_data.ddi_no_flash =
+		of_property_read_bool(np, "samsung,ddi_no_flash");
+	LCD_INFO(vdd, "ddi_no_flash: %s\n", vdd->dtsi_data.ddi_no_flash ?
 			"enabled" : "disabled");
 
 	vdd->dtsi_data.samsung_tcon_rdy_gpio =
@@ -8192,6 +8223,11 @@ int samsung_panel_initialize(char *panel_string, unsigned int ndx)
 	else if (!strncmp(panel_string, "TAP2_HX8279_TV101WUM", strlen(panel_string)))
 		vdd->panel_func.samsung_panel_init = TAP2_HX8279_TV101WUM_WUXGA_init;
 #endif
+#if IS_ENABLED(CONFIG_PANEL_GTACT4PRO_HX8279_TV101WUM_WUXGA)
+	else if (!strncmp(panel_string, "GTACT4PRO_HX8279_TV101WUM", strlen(panel_string)))
+		vdd->panel_func.samsung_panel_init = GTACT4PRO_HX8279_TV101WUM_WUXGA_init;
+#endif
+
 	else {
 		LCD_ERR(vdd, "%s not found\n", panel_string);
 		return -1;

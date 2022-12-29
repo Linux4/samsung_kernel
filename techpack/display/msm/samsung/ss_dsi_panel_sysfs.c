@@ -1652,6 +1652,43 @@ static ssize_t ss_self_mask_store(struct device *dev,
 	return size;
 }
 
+static ssize_t ss_self_mask_udc_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	int enable = 0;
+	struct samsung_display_driver_data *vdd =
+		(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_INFO(vdd, "no vdd");
+		return size;
+	}
+
+	if (!vdd->self_disp.is_support) {
+		LCD_INFO(vdd, "self display is not supported..(%d) \n",
+								vdd->self_disp.is_support);
+		return -ENODEV;
+	}
+
+	if (sscanf(buf, "%d", &enable) != 1)
+		return size;
+
+	vdd->self_disp.udc_mask_enable = enable;
+
+	if (!ss_is_ready_to_send_cmd(vdd)) {
+		LCD_INFO(vdd, "Panel is not ready. Panel State(%d) enable(%d)\n",
+			vdd->panel_state, enable);
+		return size;
+	}
+
+	if (vdd->self_disp.self_mask_udc_on)
+		vdd->self_disp.self_mask_udc_on(vdd, vdd->self_disp.udc_mask_enable);
+	else
+		LCD_INFO(vdd, "Self Mask UDC Function is NULL\n");
+
+	return size;
+}
+
 static ssize_t ss_mafpc_test_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
@@ -3369,7 +3406,16 @@ static ssize_t ss_disp_SVC_OCTA_DDI_CHIPID_show(struct device *dev,
 	}
 
 	ddi_id = vdd->ddi_id_dsi;
-	if (vdd->dtsi_data.ddi_id_length == 6) {
+
+	if (vdd->dtsi_data.ddi_id_length == 10) {
+		snprintf((char *)temp, sizeof(temp), "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
+			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4], ddi_id[5], ddi_id[6], ddi_id[7], ddi_id[8], ddi_id[9]);
+
+		strlcat(buf, temp, string_size);
+
+		LCD_INFO(vdd, "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4], ddi_id[5], ddi_id[6], ddi_id[7], ddi_id[8], ddi_id[9]);
+	} else if (vdd->dtsi_data.ddi_id_length == 6) {
 		snprintf((char *)temp, sizeof(temp), "%02x%02x%02x%02x%02x%02x\n",
 			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4], ddi_id[5]);
 
@@ -5482,6 +5528,7 @@ static DEVICE_ATTR(copr, S_IRUGO | S_IWUSR | S_IWGRP, ss_copr_show, ss_copr_stor
 static DEVICE_ATTR(copr_roi, S_IRUGO | S_IWUSR | S_IWGRP, ss_copr_roi_show, ss_copr_roi_store);
 static DEVICE_ATTR(brt_avg, S_IRUGO | S_IWUSR | S_IWGRP, ss_brt_avg_show, NULL);
 static DEVICE_ATTR(self_mask, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_self_mask_store);
+static DEVICE_ATTR(self_mask_udc, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_self_mask_udc_store);
 static DEVICE_ATTR(mafpc_test, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_mafpc_test_store);
 static DEVICE_ATTR(mafpc_check, S_IRUGO | S_IWUSR | S_IWGRP, ss_mafpc_check_show, NULL);
 static DEVICE_ATTR(dynamic_hlpm, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_dynamic_hlpm_store);
@@ -5578,6 +5625,7 @@ static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_copr_roi.attr,
 	&dev_attr_brt_avg.attr,
 	&dev_attr_self_mask.attr,
+	&dev_attr_self_mask_udc.attr,
 	&dev_attr_dynamic_hlpm.attr,
 	&dev_attr_self_display.attr,
 	&dev_attr_self_move.attr,

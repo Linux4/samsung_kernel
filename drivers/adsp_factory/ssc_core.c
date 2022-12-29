@@ -1091,52 +1091,68 @@ static ssize_t ssc_mode_store(struct device *dev,
 #endif
 
 #ifdef CONFIG_SUPPORT_LIGHT_SEAMLESS
-static int light_seamless_lux, sub_light_seamless_lux;
+static int light_seamless_lux_low, light_seamless_lux_high;
+static int sub_light_seamless_lux_low, sub_light_seamless_lux_high;
 void light_seamless_work_func(struct work_struct *work)
 {
-	if (light_seamless_lux != 0 || sub_light_seamless_lux != 0) {
-		int32_t msg_buf[3] = {OPTION_TYPE_SSC_LIGHT_SEAMLESS, 0, 0};
-		msg_buf[1] = light_seamless_lux;
-		msg_buf[2] = sub_light_seamless_lux;
+	if (light_seamless_lux_low != 0
+		|| light_seamless_lux_high != 0
+		|| sub_light_seamless_lux_low != 0
+		|| sub_light_seamless_lux_high != 0) {
+		int32_t msg_buf[5] = {0, };
+		msg_buf[0] = OPTION_TYPE_SSC_LIGHT_SEAMLESS;
+		msg_buf[1] = light_seamless_lux_low;
+		msg_buf[2] = light_seamless_lux_high;
+		msg_buf[3] = sub_light_seamless_lux_low;
+		msg_buf[4] = sub_light_seamless_lux_high;
 		adsp_unicast(msg_buf, sizeof(msg_buf),
 			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
 	}
-	pr_info("[FACTORY] light seamless init:%d,%d\n",
-		light_seamless_lux, sub_light_seamless_lux);
+	pr_info("[FACTORY] light seamless init, M%d,%d, S:%d,%d\n",
+		light_seamless_lux_low, light_seamless_lux_high,
+		sub_light_seamless_lux_low, sub_light_seamless_lux_high);
 }
 
 static ssize_t light_seamless_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	pr_info("[FACTORY] light_seamless_lux:%d,%d\n",
-		light_seamless_lux, sub_light_seamless_lux);
-	return snprintf(buf, PAGE_SIZE, "%d,%d\n",
-		light_seamless_lux, sub_light_seamless_lux);
+	pr_info("[FACTORY] light seamless M%d,%d, S:%d,%d\n",
+		light_seamless_lux_low, light_seamless_lux_high,
+		sub_light_seamless_lux_low, sub_light_seamless_lux_high);
+	return snprintf(buf, PAGE_SIZE, "M:%d,%d, S:%d,%d\n",
+		light_seamless_lux_low, light_seamless_lux_high,
+		sub_light_seamless_lux_low, sub_light_seamless_lux_high);
 }
 
 static ssize_t light_seamless_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
-	int32_t msg_buf[3];
+	int32_t msg_buf[5] = {0, };
 	int32_t ret = 0;
 
-	ret = sscanf(buf, "%3d,%3d", &light_seamless_lux, &sub_light_seamless_lux);
-	if (ret != 2) {
+	ret = sscanf(buf, "%5d,%5d,%5d,%5d",
+		&light_seamless_lux_low, &light_seamless_lux_high,
+		&sub_light_seamless_lux_low, &sub_light_seamless_lux_high);
+	if (ret != 4) {
 		pr_err("[FACTORY]: %s - The number of data are wrong,%d\n",
 			__func__, ret);
 		return -EINVAL;
 	}
 
 	msg_buf[0] = OPTION_TYPE_SSC_LIGHT_SEAMLESS;
-	msg_buf[1] = light_seamless_lux;
-	msg_buf[2] = sub_light_seamless_lux;
+	msg_buf[1] = light_seamless_lux_low;
+	msg_buf[2] = light_seamless_lux_high;
+	msg_buf[3] = sub_light_seamless_lux_low;
+	msg_buf[4] = sub_light_seamless_lux_high;
 	adsp_unicast(msg_buf, sizeof(msg_buf),
 		MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
-	pr_info("[FACTORY] light_seamless_lux:%d,%d\n",
-		light_seamless_lux, sub_light_seamless_lux);
+	pr_info("[FACTORY] light_seamless_lux, M:%d,%d, S:%d,%d\n",
+		light_seamless_lux_low, light_seamless_lux_high,
+		sub_light_seamless_lux_low, sub_light_seamless_lux_high);
 
 	return size;
 }
+
 
 void light_seamless_init_work(struct adsp_data *data)
 {

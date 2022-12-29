@@ -126,6 +126,7 @@ struct max77705_pd_data {
 	struct workqueue_struct *wqueue;
 	struct delayed_work retry_work;
 	struct delayed_work d2d_work;
+	struct delayed_work abnormal_pdo_work;
 
 	int cc_status;
 

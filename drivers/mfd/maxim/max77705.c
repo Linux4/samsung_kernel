@@ -34,7 +34,7 @@
 #include <linux/workqueue.h>
 #include <linux/version.h>
 
-#include <linux/muic/muic.h>
+#include <linux/muic/common/muic.h>
 #if defined(CONFIG_MAX77705_FW_SEPARATION_PID_BY_MODEL)
 #include <linux/mfd/firmware/max77705C_pass2_specific.h>
 #if defined(CONFIG_MAX77705_USE_EXTRA_FW)
@@ -1367,7 +1367,6 @@ static int max77705_suspend(struct device *dev)
 	if (device_may_wakeup(dev))
 		enable_irq_wake(max77705->irq);
 
-	max77705->suspended =  true;
 #if defined(CONFIG_QCOM_IFPMIC_SUSPEND)
 	wait_event_interruptible_timeout(max77705->queue_empty_wait_q,
 					(!max77705->doing_irq) && (!max77705->is_usbc_queue), 1*HZ);
@@ -1376,6 +1375,7 @@ static int max77705_suspend(struct device *dev)
 #if !defined(CONFIG_QCOM_IFPMIC_SUSPEND)
 	disable_irq(max77705->irq);
 #endif
+	max77705->suspended =  true;
 
 	return 0;
 }
