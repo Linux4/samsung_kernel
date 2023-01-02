@@ -11820,6 +11820,7 @@
 				battery,chg_temp_check_type = <0x1>;
 				battery,dchg_temp_check_type = <0x1>;
 				battery,blkt_temp_check_type = <0x1>;
+				battery,lrp_temp_check_type = <0x0>;
 				battery,thermal_source = <0x2>;
 				battery,chg_thermal_source = <0x2>;
 				battery,dchg_thermal_source = <0x3>;
@@ -11869,10 +11870,10 @@
 				battery,chg_polarity_full_check = <0x1>;
 				battery,chg_high_temp = <0x320>;
 				battery,chg_high_temp_recovery = <0x302>;
-				battery,dchg_high_temp = <0x384>;
-				battery,dchg_high_temp_recovery = <0x1a4>;
-				battery,dchg_high_batt_temp = <0x384>;
-				battery,dchg_high_batt_temp_recovery = <0x186>;
+				battery,dchg_high_temp = <0x3e8 0x3e8 0x384 0x384>;
+				battery,dchg_high_temp_recovery = <0x3e8 0x3e8 0x1a4 0x1a4>;
+				battery,dchg_high_batt_temp = <0x3e8 0x3e8 0x384 0x384>;
+				battery,dchg_high_batt_temp_recovery = <0x3e8 0x3e8 0x186 0x186>;
 				battery,chg_input_limit_current = <0x3e8>;
 				battery,chg_charging_limit_current = <0x5dc>;
 				battery,dchg_input_limit_current = <0x3e8>;
@@ -11927,8 +11928,8 @@
 				battery,siop_hv_input_limit_current = <0x2bc>;
 				battery,siop_hv_input_limit_current_2nd = <0x226>;
 				battery,siop_hv_charging_limit_current = <0x3e8>;
-				battery,siop_apdo_input_limit_current = <0x3e8>;
-				battery,siop_apdo_charging_limit_current = <0x7d0>;
+				battery,siop_apdo_input_limit_current = <0x758>;
+				battery,siop_apdo_charging_limit_current = <0xeb0>;
 				battery,ttf_hv_charge_current = <0xa78>;
 				battery,ttf_dc25_charge_current = <0x125c>;
 				battery,ttf_dc45_charge_current = <0x16a8>;
