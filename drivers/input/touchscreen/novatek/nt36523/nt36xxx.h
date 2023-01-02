@@ -137,6 +137,7 @@ struct nvt_ts_platdata {
 	bool support_dex;
 	bool enable_settings_aot;
 	bool scanoff_cover_close;
+	bool enable_glove_mode;
 };
 
 struct nvt_ts_data {
