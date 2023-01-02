@@ -1,0 +1,194 @@
+&gen_panel {
+	dsi_hx8369b_wVGA_vid: gen-panel-hx8369b-wVGA-video {
+		gen-panel-manu = "SDC";			/* condensed manufacturer name */
+		gen-panel-name = "hx8369b";
+		gen-panel-id = <0x55C090>;
+		gen-panel-dev-id = <0>;			/* SPRDFB_MAINLCD_ID : MAIN 0, SUB 1 */
+		gen-panel-type = <2>;			/* LCD_MODE_DSI: MCU 0, RGB 1, DSI 2 */
+		gen-panel-refresh = <60>;
+		gen-panel-xres = <480>;
+		gen-panel-yres = <800>;
+		gen-panel-width= <60>;			/* screen width in mm */
+		gen-panel-height = <100>;		/* screen height in mm */
+		gen-panel-work-mode = <1>;		/* SPRDFB_MIPI_MODE_VIDEO : CMD 0, VIDEO 1*/
+		gen-panel-direction = <0>;		/* LCD_DIRECT_NORMAL : Normal 0, ROT90 1, ROT180 2, ROT270 3 */
+		gen-panel-suspend-mode = <1>;	/* SEND_SLEEP_CMD : RST 0, SLEEP 1 */
+		gen-panel-bus-width = <24>;
+		gen-panel-lanes = <2>;
+		gen-panel-phy-feq = <481000>;
+		gen-panel-h-sync-pol = <0>;		/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-v-sync-pol = <0>;		/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-de-pol = <0>;			/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-te-pol = <0>;			/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-color-mode-pol = <1>;	/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-shut-down-pol = <1>;	/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-h-front-porch = <110>;/* hfp */
+		gen-panel-h-back-porch = <110>;	/* hbp */
+		gen-panel-h-sync-width = <4>;	/* hsync */
+		gen-panel-v-front-porch = <10>;	/* vfp */
+		gen-panel-v-back-porch = <12>;	/* vbp */
+		gen-panel-v-sync-width = <4>;	/* vsync */
+
+		/*
+		 * DSI PACKET HEADER INFO
+		 * @ delay(msec) : 2byte
+		 * @ size of data : 2byte
+		 */
+		gen-panel-pkt-dinfo-addr-offset = <0>;
+		gen-panel-pkt-dinfo-addr-length = <1>;
+		gen-panel-pkt-dinfo-data-offset = <1>;
+		gen-panel-pkt-dinfo-data-length = <1>;
+		gen-panel-init-cmds = [
+			39 00 00 0A 00 04		B9 FF 83 69
+			39 00 00 00 00 10		BA 31 00 16 CA B1 0A 00 10 28 02 21 21 9A
+							1A 8F
+			39 00 00 00 00 5D		D5 00 00 07 00 09 00 00 10 01 00 00 00 01
+								42 37 00 00 08 2A 08 47 00 00 03 00 00 00 00 00
+								00 00 00 00 00 00 15 00 00 98 98 44 66 00 22 51
+								00 00 89 98 33 11 77 55 04 00 00 98 98 55 77 11
+								33 40 00 00 89 98 22 00 66 44 15 00 00 00 01 00
+								00 00 03 00 0F FF FF 03 00 0F FF FF 00 8C 5A
+			15 00 00 00 00 02		3A 70
+			15 00 00 00 00 02		36 00
+			39 00 00 00 00 0B		B1 0B 83 77 00 0F 0F 16 16 0C 0A
+			15 00 00 00 00 02		B2 03
+			39 00 00 00 00 05		B3 83 00 31 03
+			15 00 00 00 00 02		B4 00
+			39 00 00 00 00 03		B6 A3 A3
+			15 00 00 00 00 02		CC 0C
+			39 00 00 00 00 07		C0 73 50 00 34 C4 00
+			39 00 00 00 00 05		E3 00 00 00 00
+			15 00 00 00 00 02		EA 72
+			39 00 00 00 00 04		C6 41 FF 7D
+			39 00 00 00 00 24		E0 
+								01 0D 18 14 13 2F 31 3B 09 10 12 16 17
+								16 16 11 14 01 0D 18 14 13 2F 30 3B 09 10 11 16
+								17 15 16 11 14 01
+			39 00 00 00 00 80		C1 
+								03 00 06 0D 15 1D 25 2D 35 3D 45 4D 55
+								5D 65 6D 75 7C 84 8C 94 9C A4 AC B4 BC C4 CC D4
+								DC E4 EC F3 FD 0F FA 95 40 FF AA 54 03 C0 00 07
+								0F 17 1F 27 2F 37 3F 47 4F 57 5F 67 6F 77 7F 87
+								8F 97 9F A7 AF B7 BF C7 CF D7 DF E7 EF F7 FF 00
+								00 00 00 00 00 00 00 00 00 07 0F 17 1F 27 2F 37
+								3F 47 4F 57 5F 67 6F 77 7F 87 8F 97 9F A7 AF B7
+								BF C7 CF D7 DF E7 EF F7 FF 00 00 00 00 00 00 00
+								00 00
+			39 00 00 05 00 03		C9 0F 00
+		];
+		gen-panel-enable-cmds = [
+			05 00 00 B4 00 01		11
+			05 00 00 0A 00 01		29
+		];
+		gen-panel-disable-cmds = [
+			05 00 00 96 00 01		28
+			05 00 00 96 00 01		10
+		];
+		gen-panel-mdnie-ui-mode-cmds = [
+			39 00 00 00 00 71		E6
+								5A 00 00 23 00 00 00 00 00 00 00 00 00 00 00 00
+								00 00 00 00 00 00 FF 00 FF 00 FF FF 00 00 FF 00
+								FF 00 FF FF 00 00 FF 00 FF 00 FF FF 00 02 FF 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 04 B5
+								1F 88 1F C3 1F E9 04 54 1F C3 1F E9 1F 88 04 8F
+		];
+		gen-panel-mdnie-video-mode-cmds = [
+			39 00 00 00 00 71		E6
+								5A 00 00 23 00 00 00 00 00 00 00 00 00 00 00 00
+								00 00 00 00 00 00 FF 00 FF 00 FF FF 00 00 FF 00
+								FF 00 FF FF 00 00 FF 00 FF 00 FF FF 00 02 FF 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 04 B5
+								1F 88 1F C3 1F E9 04 54 1F C3 1F E9 1F 88 04 8F
+		];
+		gen-panel-mdnie-camera-mode-cmds = [
+			39 00 00 00 00 71		E6
+								5A 00 00 23 00 00 00 00 00 00 00 00 00 00 00 00
+								00 00 00 00 00 00 FF 00 FF 00 FF FF 00 00 FF 00
+								FF 00 FF FF 00 00 FF 00 FF 00 FF FF 00 02 FF 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 04 B5
+								1F 88 1F C3 1F E9 04 54 1F C3 1F E9 1F 88 04 8F
+		];
+		gen-panel-mdnie-gallery-mode-cmds = [
+			39 00 00 00 00 71		E6
+								5A 00 00 23 00 00 00 00 00 00 00 00 00 00 00 00
+								00 00 00 00 00 00 FF 00 FF 00 FF FF 00 00 FF 00
+								FF 00 FF FF 00 00 FF 00 FF 00 FF FF 00 02 FF 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 04 B5
+								1F 88 1F C3 1F E9 04 54 1F C3 1F E9 1F 88 04 8F
+		];
+		gen-panel-mdnie-negative-mode-cmds = [
+			39 00 00 00 00 71		E6
+								5A 00 00 32 00 00 00 00 00 00 00 00 00 00 00 00
+								00 00 00 00 00 FF 00 FF 00 FF 00 00 FF FF 00 FF
+								00 FF 00 00 FF FF 00 FF 00 FF 00 00 FF 00 FF 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 04 00
+								00 00 00 00 00 00 04 00 00 00 00 00 00 00 04 00
+		];
+		gen-panel-mdnie-vt-mode-cmds = [
+			39 00 00 00 00 71		E6
+								5A 00 00 23 00 00 00 00 00 00 00 00 00 00 00 00
+								00 00 00 00 00 00 FF 00 FF 00 FF FF 00 00 FF 00
+								FF 00 FF FF 00 00 FF 00 FF 00 FF FF 00 02 FF 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 04 B5
+								1F 88 1F C3 1F E9 04 54 1F C3 1F E9 1F 88 04 8F
+		];
+		gen-panel-mdnie-browser-mode-cmds = [
+			39 00 00 00 00 71		E6
+								5A 00 00 23 00 00 00 00 00 00 00 00 00 00 00 00
+								00 00 00 00 00 00 FF 00 FF 00 FF FF 00 00 FF 00
+								FF 00 FF FF 00 00 FF 00 FF 00 FF FF 00 02 FF 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 04 B5
+								1F 88 1F C3 1F E9 04 54 1F C3 1F E9 1F 88 04 8F
+		];
+		gen-panel-mdnie-ebook-mode-cmds = [
+			39 00 00 00 00 71		E6
+								5A 00 00 32 00 00 00 00 00 00 00 00 00 00 00 00
+								00 00 00 00 00 00 A9 00 EA 00 FF FF 00 00 FF 00
+								FF 00 FF FF 00 00 FF 00 FF 00 FF FF 00 00 FF 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 04 00
+								00 00 00 00 00 00 04 00 00 00 00 00 00 00 04 00
+		];
+		gen-panel-mdnie-email-mode-cmds = [
+			39 00 00 00 00 71		E6
+								5A 00 00 32 00 00 00 00 00 00 00 00 00 00 00 00
+								00 00 00 00 00 00 B1 00 E5 00 FF FF 00 00 FF 00
+								FF 00 FF FF 00 00 FF 00 FF 00 FF FF 00 00 FF 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00
+								20 00 20 00 20 00 20 00 20 00 20 00 20 00 04 00
+								00 00 00 00 00 00 04 00 00 00 00 00 00 00 04 00
+		];
+		gen-panel-backlight-on-cmds = [
+			15 00 00 00 00 02		53 24
+		];
+		gen-panel-backlight-set-brightness-cmds = [
+			15 00 00 00 00 02		51 00
+		];
+		gen-panel-backlight-set-brightness-reg = <0x51>;
+		gen-panel-backlight-get-brightness-reg = <0x52>;
+		gen-panel-read-id = [
+			DA 00 01
+			DB 00 01
+			DC 00 01
+		];
+		gen-panel-read-status-reg = [0A];
+		gen-panel-read-status-ok = [9A];
+		status = "okay";
+	};
+};

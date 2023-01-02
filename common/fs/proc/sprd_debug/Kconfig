@@ -1,0 +1,24 @@
+config SPRD_DEBUG_FRAME
+	bool "sprd debug proc interface support"
+	depends on DEBUG_FS
+	default y
+
+config PHYMEM_INFO
+	bool "physical memory show support"
+	depends on SPRD_DEBUG_FRAME
+	default y
+
+config USRPROCMEM_INFO
+	bool "user proc's memory show support"
+	depends on SPRD_DEBUG_FRAME
+	default y
+
+config USRPROCSTACK_INFO
+	bool "user proc's current stack show support"
+	depends on SPRD_DEBUG_FRAME
+	default y
+
+config SPRD_CPU_RATE
+	bool "open sprd cpu rate compute"
+	depends on SPRD_DEBUG_FRAME
+	default y

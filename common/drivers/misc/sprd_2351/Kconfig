@@ -1,0 +1,19 @@
+menu "2351 modules"
+config SPRD_2351
+	bool "SPRD RF 2351 Driver"
+	default n
+	help
+	  If you say yes here you can use the sprd 2351 rf.
+
+config SHARK_CHIP_2351
+	bool "shark chip 2351 Driver"
+	depends on SPRD_2351
+	help
+	  If you say yes here you can use the sprd 2351 rf on shark chip.
+
+config DOLPHIN_CHIP_2351
+	bool "dolphin chip 2351 Driver"
+	depends on SPRD_2351
+	help
+	  If you say yes here you can use the sprd 2351 rf on shark chip.
+endmenu

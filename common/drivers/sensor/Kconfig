@@ -1,0 +1,138 @@
+menu "Sensor support"
+
+config SENSORS
+	bool "Support for sensors"
+	help
+	  Say Y here to add support for accelerometer sensors
+
+if SENSORS
+
+config SENSORS_GP2A
+        tristate "Sharp GP2AP002A00F I2C Proximity/Opto sensor driver"
+        depends on I2C
+        help
+	  Say Y here if you have a Sharp GP2AP002A00F proximity/als combo-chip
+	  hooked to an I2C bus.
+	  To compile this driver as a module, choose M here: the
+	  module will be called gp2ap002a00f.
+ 
+config SENSORS_BMA2X2
+	tristate "BMA255/BMA250E/BMA222E/BMA280 acceleration sensor support"
+	depends on I2C
+	help
+	  If you say yes here you get support for Bosch Sensortec's
+	  acceleration sensors BMA255/BMA250E/BMA222E/BMA280.
+
+config SENSORS_BMM050
+	tristate "BMM050 Magnetic Sensor Driver"
+	depends on I2C
+	help
+	 BMM050 Magnetic Sensor Driver implemented by Bosch-Sensortec.
+
+config SENSORS_K2HH
+        depends on I2C
+        tristate "SENSORS_K2HH"
+        default n
+        help
+          Say Y here if you use SENSORS_K2HH.
+          This option enables accelerometer sensors using
+          STMicroelectronic K2HH device driver.
+
+config SENSORS_GP2A002
+	tristate "GP2A002 proximity sensor support"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you get support for sharp Sensortec's
+	  proximity sensors GP2A002.
+
+config SENSORS_CM36672P
+	depends on I2C
+	tristate "CM36672P driver"
+	default n
+	help
+	  This option enables proximity sensor using CM36672P driver.
+
+config SENSORS_EMUL_I2C
+        tristate "Sensor module different HW version support"
+        depends on I2C
+        default n
+        help
+          Support gpio emulator i2c for sensor module different HW version
+
+config SENSORS_SX9500
+	depends on I2C
+	tristate "SX9500 driver"
+	default n
+	help
+	  Say Y here if you use sx9500.
+	  This option enables grip sensors using
+	  SemTech sx9500 device driver.
+
+	  Say N here if you do not use sx9500.
+
+config SENSORS_GRIP_ADJDET
+	depends on I2C
+	tristate "GRIP sensor adj cable detect"
+	default n
+	help
+	  GRIP sensor adj cable detect
+
+config SENSORS_SX9500_REGULATOR_ONOFF
+	tristate "GRIP sensor regulator onoff function"
+	default n
+	help
+	  GRIP sensor regulator onoff
+
+config SENSORS_SX9500_INIT_TOUCH_THRESHOLD
+	int "SX9500 Grip sensor threshold for init touch"
+	depends on SENSORS_SX9500
+	default "3000"
+	help
+	  This value is the standard of init touch using
+	  SemTech sx9500 device driver.
+
+config SENSORS_SX9500_NORMAL_TOUCH_THRESHOLD
+	int "SX9500 Grip sensor threshold for normal touch"
+	depends on SENSORS_SX9500
+	default "17"
+	help
+	  This value is the standard of normal touch using
+	  SemTech sx9500 device driver.
+
+config SENSORS_BMA254
+	tristate "BMA254 acceleration sensor support"
+	depends on I2C
+	default n
+	help
+		If you say yes here you get support for Bosch Sensortec's
+		acceleration sensors BMA254.
+
+config SENSORS_POWERCONTROL
+	tristate "Sensors power control"
+	default n
+	help
+		Say Y here to control power supply for drivers.
+
+config BMA254_SMART_ALERT
+	depends on I2C
+	tristate "bma254 smart alert"
+	default n
+	help
+		This option enables bma254 smart alert function.
+
+config INPUT_BMA2x2_ACC_ALERT_INT
+	tristate "BMA255/BMA250E/BMA222E/BMA280 acceleration sensor support"
+	depends on I2C=y
+	help
+		If you say yes here you get support for Bosch Sensortec's
+		acceleration sensors BMA255/BMA250E/BMA222E/BMA280.
+
+config SEC_USE_DEVICE_NODE_NAME
+	bool "Use device node name"
+	default n
+	help
+	  Say Y here to set name of input device node instead of number.
+
+endif
+endmenu
