@@ -188,7 +188,5 @@
 		qcom,mdss-dsi-lp11-init;
 		qcom,mdss-dsi-reset-delay-vsp-ms = <1>;
 		qcom,mdss-dsi-reset-keephigh;
-		qcom,ulps-enabled;
-		qcom,suspend-ulps-enabled;
 	};
 };

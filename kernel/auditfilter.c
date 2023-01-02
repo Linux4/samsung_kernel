@@ -434,7 +434,6 @@ static struct audit_entry *audit_data_to_entry(struct audit_rule_data *data,
 	bufp = data->buf;
 	for (i = 0; i < data->field_count; i++) {
 		struct audit_field *f = &entry->rule.fields[i];
-
 		u32 f_val;
 
 		err = -EINVAL;
@@ -509,7 +508,6 @@ static struct audit_entry *audit_data_to_entry(struct audit_rule_data *data,
 				err = 0;
 			} else if (err)
 				goto exit_free;
-
 			break;
 		case AUDIT_WATCH:
 			str = audit_unpack_string(&bufp, &remain, f_val);

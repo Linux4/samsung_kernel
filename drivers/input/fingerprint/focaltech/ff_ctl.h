@@ -115,3 +115,4 @@ typedef struct {
 #define FF_IOC_GET_SPIDEV_INFO  _IOR(FF_IOC_MAGIC, 0x0e, ff_spidev_info_t)
 
 #endif /* __FF_CTRL_API_H__ */
+

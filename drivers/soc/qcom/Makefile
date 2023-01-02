@@ -78,6 +78,8 @@ obj-$(CONFIG_MSM_PIL_MSS_QDSP6V5) += pil-q6v5.o pil-msa.o pil-q6v5-mss.o
 obj-$(CONFIG_MSM_BGCOM) += bgcom_spi.o
 
 obj-$(CONFIG_MSM_PERFORMANCE) += msm_performance.o
+obj-$(CONFIG_SDX_EXT_IPC) += sdx_ext_ipc.o
+obj-$(CONFIG_QTI_NOTIFY_SIDEBAND) += sideband_notify.o
 
 ifdef CONFIG_MSM_SUBSYSTEM_RESTART
        obj-y += subsystem_notif.o

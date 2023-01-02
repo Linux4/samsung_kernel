@@ -2451,14 +2451,12 @@ int smblib_get_prop_batt_charge_type(struct smb_charger *chg,
 		return rc;
 	}
 	/* HS60 add for P191114-09571  by wangzikang at 2019/11/26 start */
-
 	/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 start*/
 	if(boot_mode_is("charger"))
 		slow_charging_count = SLOW_CHARGING_COUNT;
 	else
 		slow_charging_count = SLOW_CHARGING_COUNT_POWERON;
 	/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 end*/
-
 	/*HS60 add for P200213-04659 Slow Charging Optimize by wangzikang at 2020/02/14 start*/
 	/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 start*/
 	if ((chg->slow_charging_count <= slow_charging_count) && (chg->real_charger_type != POWER_SUPPLY_TYPE_UNKNOWN))
@@ -4371,14 +4369,14 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 			}
 			/*Huaqin add for Enable Charge while TypeC mode detected as DEFAULT by wangzikang at 2020/07/14 start*/
 		}
-          	/* QL3095 add for P210204-02894 Set ICL 500ma when usb plugin detach by shixuanxuan at 2020/02/14 start */
+		/* Huaqin add for P200731-01593 Enable charging while TYPE-C is default mode by gaochao at 2020/08/10 end */
+		/* QL3095 add for P210204-02894 Set ICL 500ma when usb plugin detach by shixuanxuan at 2020/02/14 start */
 			rc = vote(chg->usb_icl_votable, SW_ICL_MAX_VOTER, true, SDP_CURRENT_UA);
 			if (rc < 0)
 			{
 			    pr_err("line=%d: Couldn't vote SW_ICL_MAX_VOTER rc=%d\n", __LINE__, rc);
 			}
 		/* QL3095 add for P210204-02894 Set ICL 500ma when usb plugin detach by shixuanxuan at 2020/02/14 end */
-		/* Huaqin add for P200731-01593 Enable charging while TYPE-C is default mode by gaochao at 2020/08/10 end */
 	}
 
 	if (chg->connector_type == POWER_SUPPLY_CONNECTOR_MICRO_USB)

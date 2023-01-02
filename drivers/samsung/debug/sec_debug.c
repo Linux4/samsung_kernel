@@ -58,6 +58,11 @@
 static inline void outer_flush_all(void) { }
 #endif
 
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
+unsigned long sec_delay_check __read_mostly = 1;
+EXPORT_SYMBOL(sec_delay_check);
+#endif
+
 /* enable sec_debug feature */
 static unsigned int sec_dbg_level;
 static int force_upload;
@@ -84,6 +89,14 @@ uint64_t get_pa_dump_sink(void)
 /* This is shared with msm-power off module. */
 void __iomem *restart_reason;
 static void __iomem *upload_cause;
+#if IS_ENABLED(CONFIG_POWER_RESET_QCOM_DOWNLOAD_MODE)
+static void __iomem *watchdog_base;
+#define WDT0_RST        0x04
+#define WDT0_EN         0x08
+#define WDT0_BITE_TIME  0x14
+#endif
+
+void (*sec_nvmem_pon_write)(u8 pon_rr) = NULL;
 
 DEFINE_PER_CPU(struct sec_debug_core_t, sec_debug_core_reg);
 DEFINE_PER_CPU(struct sec_debug_mmu_reg_t, sec_debug_mmu_reg);
@@ -265,6 +278,22 @@ static inline void sec_debug_pm_restart(char *cmd)
 	flush_cache_all();
 	outer_flush_all();
 
+#if IS_ENABLED(CONFIG_POWER_RESET_QCOM_DOWNLOAD_MODE)
+	if (!sec_nvmem_pon_write && watchdog_base) {
+		pr_emerg("Causing a watchdog bite!\n");
+		__raw_writel(1, watchdog_base + WDT0_EN);
+		mb();
+		__raw_writel(1, watchdog_base + WDT0_BITE_TIME);
+		/* Mke sure bite time is written before we reset */
+		mb();
+		__raw_writel(1, watchdog_base + WDT0_RST);
+		/* Make sure we wait only after reset */
+		mb();
+
+		/* while (1) ; */
+		asm volatile ("b .");
+	}
+#endif
 	if (arm_pm_restart)
 		arm_pm_restart(REBOOT_COLD, cmd);
 	else
@@ -278,6 +307,18 @@ static void __sec_debug_hw_reset(void)
 {
 	sec_debug_pm_restart("sec_debug_hw_reset");
 }
+
+#ifndef CONFIG_SEC_LOG_STORE_LAST_KMSG
+static bool sec_check_leave_reboot_reason(enum pon_restart_reason pon_rr)
+{
+	bool result = false;
+
+	result = (pon_rr == PON_RESTART_REASON_MULTICMD) || result;
+	result = (pon_rr == PON_RESTART_REASON_LIMITED_DRAM_SETTING) || result;
+
+	return result;
+}
+#endif
 
 void sec_debug_update_restart_reason(const char *cmd, const int in_panic,
 		const int restart_mode)
@@ -351,6 +392,9 @@ void sec_debug_update_restart_reason(const char *cmd, const int in_panic,
 		{ "from_fastboot",
 			PON_RESTART_REASON_NORMALBOOT,
 			RESTART_REASON_NOT_HANDLE, NULL},
+		{ "disallow,fastboot",
+			PON_RESTART_REASON_NORMALBOOT,
+			RESTART_REASON_NOT_HANDLE, NULL},
 #ifdef CONFIG_MUIC_SUPPORT_RUSTPROOF
 		{ "swsel",
 			PON_RESTART_REASON_UNKNOWN,
@@ -361,8 +405,24 @@ void sec_debug_update_restart_reason(const char *cmd, const int in_panic,
 			PON_RESTART_REASON_SECURE_CHECK_FAIL,
 			RESTART_REASON_NORMAL, NULL},
 #endif
+#ifdef CONFIG_SEC_QUEST_UEFI_USER
+		{ "user_quefi_quest",
+			PON_RESTART_REASON_QUEST_QUEFI_USER_START,
+			RESTART_REASON_NORMAL, NULL},
+		{ "user_suefi_quest",
+			PON_RESTART_REASON_QUEST_SUEFI_USER_START,
+			RESTART_REASON_NORMAL, NULL},			
+#endif
+#ifdef CONFIG_SEC_QUEST_DDR_SCAN_USER
+		{ "user_dram_test",
+			PON_RESTART_REASON_USER_DRAM_TEST,
+			RESTART_REASON_NORMAL, NULL},
+#endif			
 		{ "multicmd",
 			PON_RESTART_REASON_MULTICMD,
+			RESTART_REASON_NORMAL, NULL},
+		{ "dram",
+			PON_RESTART_REASON_LIMITED_DRAM_SETTING,
 			RESTART_REASON_NORMAL, NULL}
 	};
 	enum pon_restart_reason pon_rr = PON_RESTART_REASON_UNKNOWN;
@@ -388,13 +448,6 @@ __next_cmd:
 	if (!cmd || !strlen(cmd) || !strncmp(cmd, "adb", 3))
 		goto __done;
 
-#ifdef CONFIG_SEC_QUEST_UEFI_ACT_TRIGGER
-	if (!strcmp(cmd, "ACTThread")) {
-		pon_rr = PON_RESTART_REASON_QUEST_NMCHECKER_SMD_START;	
-		goto __done;
-	}
-#endif
-
 	for (i = 0; i < ARRAY_SIZE(magic); i++) {
 		size_t len = strlen(magic[i].cmd);
 
@@ -402,7 +455,7 @@ __next_cmd:
 			continue;
 
 #ifndef CONFIG_SEC_LOG_STORE_LAST_KMSG
-		if (magic[i].pon_rr == PON_RESTART_REASON_MULTICMD) {
+		if (sec_check_leave_reboot_reason(magic[i].pon_rr)) {
 			cmd = cmd + len + 1;
 			goto __next_cmd;
 		}
@@ -429,8 +482,12 @@ __next_cmd:
 	return;
 
 __done:
-	if (pon_rr != PON_RESTART_REASON_NOT_HANDLE)
-		qpnp_pon_set_restart_reason(pon_rr);
+	if (pon_rr != PON_RESTART_REASON_NOT_HANDLE) {
+		if (sec_nvmem_pon_write)
+			sec_nvmem_pon_write(pon_rr);
+		else
+			qpnp_pon_set_restart_reason(pon_rr);
+	}
 	if (sec_rr != RESTART_REASON_NOT_HANDLE)
 		__sec_debug_set_restart_reason(sec_rr);
 	__pr_err("(%s) restart_reason = 0x%x(0x%x)\n",
@@ -569,6 +626,7 @@ struct __upload_cause upload_cause_st[] = {
 	{ "qdaf_fail", UPLOAD_CAUSE_QUEST_QDAF_FAIL, SEC_STRNCMP },
 	{ "zip_unzip_test", UPLOAD_CAUSE_QUEST_ZIP_UNZIP, SEC_STRNCMP },
 	{ "quest_fail", UPLOAD_CAUSE_QUEST_FAIL, SEC_STRNCMP },
+	{ "aoss_thermal_diff", UPLOAD_CAUSE_QUEST_AOSSTHERMALDIFF, SEC_STRNCMP },		
 #endif
 };
 
@@ -726,6 +784,24 @@ static int __init __sec_debug_dt_addr_init(void)
 	pr_emerg("upload_cause addr : 0x%p(0x%llx)\n", upload_cause,
 			(unsigned long long)virt_to_phys(upload_cause));
 
+#if IS_ENABLED(CONFIG_POWER_RESET_QCOM_DOWNLOAD_MODE)
+	np = of_find_compatible_node(NULL, NULL, "qcom,msm-watchdog");
+	if (unlikely(!np)) {
+		pr_err("unable to find DT qcom,msm-watchdog node\n");
+		return -ENODEV;
+	}
+
+	watchdog_base = of_iomap(np, 0);
+	if (unlikely(!watchdog_base)) {
+		pr_err("unable to map watchdog_base offset\n");
+		return -ENODEV;
+	}
+
+	/* check upload_cause here */
+	pr_emerg("watchdog_base addr : 0x%p(0x%llx)\n", watchdog_base,
+			(unsigned long long)virt_to_phys(watchdog_base));
+#endif
+
 	return 0;
 }
 #else /* CONFIG_OF */
@@ -735,17 +811,17 @@ static int __init __sec_debug_dt_addr_init(void) { return 0; }
 static int __init force_upload_setup(char *en)
 {
 	get_option(&en, &force_upload);
-	return 1;
+	return 0;
 }
-__setup("androidboot.force_upload=", force_upload_setup);
+early_param("androidboot.force_upload", force_upload_setup);
 
 /* for sec debug level */
 static int __init sec_debug_level_setup(char *str)
 {
 	get_option(&str, &sec_dbg_level);
-	return 1;
+	return 0;
 }
-__setup("androidboot.debug_level=", sec_debug_level_setup);
+early_param("androidboot.debug_level", sec_debug_level_setup);
 
 static int __init sec_debug_init(void)
 {
@@ -768,7 +844,7 @@ static int __init sec_debug_init(void)
 	case ANDROID_DEBUG_LEVEL_MID:
 #endif
 
-#if 0	/* FIXME: */
+#if defined(CONFIG_SEC_A52Q_PROJECT) || defined(CONFIG_SEC_A72Q_PROJECT)
 		if (!force_upload)
 			qcom_scm_disable_sdi();
 #endif

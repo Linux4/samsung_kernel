@@ -71,7 +71,7 @@
 	qcom,fcc-max-ua = <3000000>;
 	/* HS70 add for HS70-919 set fcc to 3000mA by qianyingdong at 2019/11/28 end */
 	/* HS70 add for HS70-919 set icl to 3000mA by qianyingdong at 2019/11/28 start */
-	//qcom,usb-icl-ua = <1650000>;
+	//qcom,usb-icl-ua = <1670000>;
 	/* HS70 add for P200417-04435 set icl to 1800mA by wangzikang at 2020/04/28 start */
 	//qcom,usb-icl-ua = <3000000>;
 	qcom,usb-icl-ua = <1800000>;

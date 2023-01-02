@@ -500,6 +500,7 @@ static int ml_ff_upload(struct input_dev *dev,
 static void ml_ff_destroy(struct ff_device *ff)
 {
 	struct ml_device *ml = ff->private;
+
 	/*
 	 * Even though we stop all playing effects when tearing down
 	 * an input device (via input_device_flush() that calls into

@@ -122,17 +122,66 @@
 	qcom,msm-mi2s-tx-lines = <1>;
 };
 
+/*HS50 add HS50-5067 bring up aw smartpa pa by weiqiang at 2021/08/10 start*/
 &i2c_2 {
-	fs16xx@34 {
+	fs16xx@35 {
 		status = "okay";
 		compatible = "foursemi,fs16xx";
-		reg = <0x34>;
+		reg = <0x35>;
 		fs,fs-dev = "left";
 	};
+
+	aw882xx_smartpa@34 {
+		compatible = "awinic,aw882xx_smartpa";
+		reg = <0x34>;
+		reset-gpio = <&tlmm 86 0>;
+		irq-gpio = <&tlmm 87 0x2008>;
+		dc-flag = <0>;
+		sync-flag = <0>;
+		sound_channel = <0>;
+		aw-tx-topo-id = <0x1000ff00>;
+		aw-rx-topo-id = <0x1000ff01>;
+		aw-tx-port-id = <0x1017>;
+		aw-rx-port-id = <0x1016>;
+		aw-re-min = <4000>;
+		aw-re-max = <30000>;
+		aw-cali-mode = "aw_attr";
+		status = "okay";
+	};
+
+	tas2562@4c {
+		compatible = "ti,tas2562";
+		reg = <0x4c>;
+		ti,reset-gpio = <&tlmm 86 0>;
+		ti,irq-gpio = <&tlmm 87 0>;
+		ti,asi-format = <0>; /* 0, i2S; 1, DSP;  */
+		ti,left-slot = <0>; /* <left slot number> */
+		ti,right-slot = <1>; /* <right slot number> */
+		ti,imon-slot-no = <0>; /* <current sense slot number> */
+		ti,vmon-slot-no = <2>; /* <current voltage slot number> */
+		status = "ok";
+	};
+};
+/*HS50 add HS50-5066 bring up aw smartpa pa by weiqiang at 2021/08/10 end*/
+/* huaqin add bring up aw87359 pa by limengxia at 2019/11/6 start */
+&i2c_5 {
+	aw87359_pa@58 {
+		compatible = "awinic,aw87359_pa";
+		reg = <0x58>;
+		reset-gpio = <&tlmm 86 0>;
+		irq-gpio = <&tlmm 87 0>;
+		status = "okay";
+	};
+/* huaqin add bring up aw87359 pa by limengxia at 2019/11/6 end */
 };
 
 /* huaqin add bring up aw smartpa by xuyuqing at 2019/10/31 end */
 
+/* huaqin diff speaker dapm route by xuyuqing at 2019/10/22 start */
+&pmic_analog_codec {
+	qcom,distinguish_speaker = "CDC_HPH";
+};
+/* huaqin diff speaker dapm route by xuyuqing at 2019/10/22 end */
 
 /* huaqin add HS70-19 change micbias to 2.4v by xuyuqing at 2019/11/12 start */
 &pmic_analog_codec {

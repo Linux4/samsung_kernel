@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2019, Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2020, Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -73,6 +73,7 @@ static int gsi_alloc_trb_buffer(struct f_gsi *gsi);
 static void gsi_free_trb_buffer(struct f_gsi *gsi);
 static struct gsi_ctrl_pkt *gsi_ctrl_pkt_alloc(unsigned int len, gfp_t flags);
 static void gsi_ctrl_pkt_free(struct gsi_ctrl_pkt *pkt);
+static int gsi_ctrl_send_cpkt_tomodem(struct f_gsi *gsi, void *buf, size_t len);
 
 static inline bool is_ext_prot_ether(int prot_id)
 {
@@ -739,6 +740,12 @@ static int ipa_connect_channels(struct gsi_data_port *d_port)
 		d_port->out_request.db_reg_phs_addr_msb =
 			ipa_out_channel_out_params.db_reg_phs_addr_msb;
 	}
+
+	/* Send 0 byte packet to QTI only if DTR linetstate is HIGH already */
+	if (gsi->rmnet_dtr_status &&
+			(gsi->prot_id == USB_PROT_RMNET_IPA ||
+			 gsi->prot_id == USB_PROT_RMNET_V2X_IPA))
+		gsi_ctrl_send_cpkt_tomodem(gsi, NULL, 0);
 
 	return ret;
 
@@ -2220,6 +2227,14 @@ gsi_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 			queue_work(gsi->c_port.uevent_wq,
 					&gsi->c_port.uevent_work);
 
+		/* Send 0 byte packet to QTI only if IPA connect is done */
+		if (gsi->rmnet_dtr_status) {
+			if (gsi->prot_id == USB_PROT_RMNET_ETHER)
+				gsi_ctrl_send_cpkt_tomodem(gsi, NULL, 0);
+			else if (gsi->d_port.in_channel_handle != -EINVAL)
+				gsi_ctrl_send_cpkt_tomodem(gsi, NULL, 0);
+		}
+
 		value = 0;
 		break;
 	case ((USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8)
@@ -2432,6 +2447,8 @@ static int gsi_set_alt(struct usb_function *f, unsigned int intf,
 	struct usb_composite_dev *cdev = f->config->cdev;
 	struct net_device	*net;
 	int ret;
+	int in_intr_num = 0;
+	int out_intr_num = 0;
 
 	log_event_dbg("intf=%u, alt=%u", intf, alt);
 
@@ -2504,21 +2521,41 @@ static int gsi_set_alt(struct usb_function *f, unsigned int intf,
 			}
 
 			/*
-			 * Configure EPs for GSI. Note that when both RmNet LTE
-			 * (or ECM) and RmNet V2X instances are enabled in a
-			 * composition, configure HW accelerated EPs for V2X
-			 * instance and normal EPs for LTE (or ECM).
+			 * Configure EPs for GSI. Note that:
+			 * 1. In general, configure HW accelerated EPs for all
+			 *    instances.
+			 * 2. If RmNet LTE(or ECM), RmNet V2X and ADPL instances
+			 *    are enabled in a composition, configure HW
+			 *    accelerated EPs in both directions for V2X and IN
+			 *    direction for RmNet LTE(or ECM). Configure normal
+			 *    EPs for RmNet LTE(or ECM) OUT and ADPL.
 			 */
+			switch (gsi->prot_id) {
+			case USB_PROT_RMNET_IPA:
+			case USB_PROT_ECM_IPA:
+				/* If v2x is used then only IN/DL uses GSI EP */
+				if (gsi_rmnet_v2x->function.fs_descriptors) {
+					in_intr_num = 3;
+					out_intr_num = 0;
+				} else {
+					in_intr_num = 2;
+					out_intr_num = 1;
+				}
+				break;
+			case USB_PROT_DIAG_IPA:
+				/* DPL to use normal EP if used with cv2x */
+				if (!gsi_rmnet_v2x->function.fs_descriptors)
+					in_intr_num = 3;
+				break;
+			default:
+				in_intr_num = 2;
+				out_intr_num = 1;
+			}
+
+			/* gsi_configure_ep required only for GSI-IPA EPs */
 			if (gsi->d_port.in_ep &&
 				gsi->prot_id <= USB_PROT_RMNET_V2X_IPA) {
-				if (gsi->prot_id == USB_PROT_DIAG_IPA)
-					gsi->d_port.in_ep->ep_intr_num = 3;
-				else if ((gsi->prot_id == USB_PROT_RMNET_IPA ||
-					 gsi->prot_id == USB_PROT_ECM_IPA) &&
-					 gsi_rmnet_v2x->function.fs_descriptors)
-					gsi->d_port.in_ep->ep_intr_num = 0;
-				else
-					gsi->d_port.in_ep->ep_intr_num = 2;
+				gsi->d_port.in_ep->ep_intr_num = in_intr_num;
 				usb_gsi_ep_op(gsi->d_port.in_ep,
 					&gsi->d_port.in_request,
 						GSI_EP_OP_CONFIG);
@@ -2526,12 +2563,7 @@ static int gsi_set_alt(struct usb_function *f, unsigned int intf,
 
 			if (gsi->d_port.out_ep &&
 				gsi->prot_id <= USB_PROT_RMNET_V2X_IPA) {
-				if ((gsi->prot_id == USB_PROT_RMNET_IPA ||
-				     gsi->prot_id == USB_PROT_ECM_IPA) &&
-				     gsi_rmnet_v2x->function.fs_descriptors)
-					gsi->d_port.out_ep->ep_intr_num = 0;
-				else
-					gsi->d_port.out_ep->ep_intr_num = 1;
+				gsi->d_port.out_ep->ep_intr_num = out_intr_num;
 				usb_gsi_ep_op(gsi->d_port.out_ep,
 					&gsi->d_port.out_request,
 						GSI_EP_OP_CONFIG);
@@ -2598,10 +2630,7 @@ static int gsi_set_alt(struct usb_function *f, unsigned int intf,
 	if (gsi->prot_id == USB_PROT_DIAG_IPA ||
 				gsi->prot_id == USB_PROT_DPL_ETHER ||
 				gsi->prot_id == USB_PROT_GPS_CTRL ||
-				gsi->prot_id == USB_PROT_MBIM_IPA ||
-				gsi->prot_id == USB_PROT_RMNET_IPA ||
-				gsi->prot_id == USB_PROT_RMNET_V2X_IPA ||
-				gsi->prot_id == USB_PROT_RMNET_ETHER)
+				gsi->prot_id == USB_PROT_MBIM_IPA)
 		gsi_ctrl_send_cpkt_tomodem(gsi, NULL, 0);
 
 	if (gsi->c_port.uevent_wq)
@@ -3096,7 +3125,7 @@ static int gsi_bind(struct usb_configuration *c, struct usb_function *f)
 		info.out_epname = "gsi-epout";
 		info.in_req_buf_len = GSI_IN_BUFF_SIZE;
 		gsi->d_port.in_aggr_size = GSI_IN_RNDIS_AGGR_SIZE;
-		info.in_req_num_buf = GSI_NUM_IN_RNDIS_BUFFERS;
+		info.in_req_num_buf = GSI_NUM_IN_RNDIS_RMNET_ECM_BUFFERS;
 		gsi->d_port.out_aggr_size = GSI_OUT_AGGR_SIZE;
 		info.out_req_buf_len = GSI_OUT_AGGR_SIZE;
 		info.out_req_num_buf = GSI_NUM_OUT_BUFFERS;
@@ -3287,7 +3316,7 @@ static int gsi_bind(struct usb_configuration *c, struct usb_function *f)
 		info.out_epname = "gsi-epout";
 		gsi->d_port.in_aggr_size = GSI_IN_RMNET_AGGR_SIZE;
 		info.in_req_buf_len = GSI_IN_BUFF_SIZE;
-		info.in_req_num_buf = GSI_NUM_IN_BUFFERS;
+		info.in_req_num_buf = GSI_NUM_IN_RNDIS_RMNET_ECM_BUFFERS;
 		gsi->d_port.out_aggr_size = GSI_OUT_AGGR_SIZE;
 		info.out_req_buf_len = GSI_OUT_RMNET_BUF_LEN;
 		info.out_req_num_buf = GSI_NUM_OUT_BUFFERS;
@@ -3320,7 +3349,7 @@ static int gsi_bind(struct usb_configuration *c, struct usb_function *f)
 		info.out_epname = "gsi-epout";
 		gsi->d_port.in_aggr_size = GSI_ECM_AGGR_SIZE;
 		info.in_req_buf_len = GSI_IN_BUFF_SIZE;
-		info.in_req_num_buf = GSI_NUM_IN_BUFFERS;
+		info.in_req_num_buf = GSI_NUM_IN_RNDIS_RMNET_ECM_BUFFERS;
 		gsi->d_port.out_aggr_size = GSI_ECM_AGGR_SIZE;
 		info.out_req_buf_len = GSI_OUT_ECM_BUF_LEN;
 		info.out_req_num_buf = GSI_NUM_OUT_BUFFERS;

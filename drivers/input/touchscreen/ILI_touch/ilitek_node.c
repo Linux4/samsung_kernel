@@ -326,12 +326,12 @@ static int file_write(struct file_buffer *file, bool new_open)
 		ipio_err("str is invaild\n");
 		return -1;
 	}
-
-	if (file->fname == NULL) {
+#if 0
+	if (!file->fname) {
 		ipio_err("file name is invaild\n");
 		return -1;
 	}
-
+#endif
 	if (file->wlen >= file->wtemp_zise) {
 		ipio_err("Saved to file length is too long !, %d\n", file->wlen);
 		return -1;

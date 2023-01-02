@@ -24,7 +24,7 @@
 #include <asm/page.h>
 #include <asm/sections.h>
 #include <linux/timekeeper_internal.h>
-
+#include <linux/module.h>
 #include <linux/sec_debug.h>
 
 #include "sec_debug_summary_extern.h"
@@ -94,10 +94,22 @@ int __init summary_init_coreinfo(struct sec_debug_summary_data_apss *secdbg_apss
 
 	SUMMARY_COREINFO_OFFSET(timekeeper, xtime_sec);
 #ifdef CONFIG_SCHED_WALT
-	SUMMARY_COREINFO_OFFSET(rq, cluster);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5,4,0)
+	SUMMARY_COREINFO_OFFSET(rq, cluster);
 	SUMMARY_COREINFO_OFFSET(sched_cluster, cur_freq);
 	SUMMARY_COREINFO_OFFSET(sched_cluster, max_mitigated_freq);
+#else
+	SUMMARY_COREINFO_OFFSET(rq, wrq);
+	SUMMARY_COREINFO_OFFSET(walt_sched_cluster, cur_freq);
+#endif
+#endif
+
+#ifdef CONFIG_SEC_DEBUG_MODULE_INFO
+#ifdef CONFIG_MODULES_TREE_LOOKUP
+	sec_debug_coreinfo_module();
+	SUMMARY_COREINFO_OFFSET(latch_tree_root, seq);
+	SUMMARY_COREINFO_OFFSET(latch_tree_root, tree);
+	SUMMARY_COREINFO_OFFSET(seqcount, sequence);
 #endif
 #endif
 

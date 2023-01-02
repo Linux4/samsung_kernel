@@ -169,7 +169,6 @@ struct abovXX {
     void (*statusFunc[MAX_NUM_STATUS_BITS])(pabovXX_t this);
 #if defined(CONFIG_SENSORS)
     bool skip_data;
-    u16 diff;
 #endif
 };
 

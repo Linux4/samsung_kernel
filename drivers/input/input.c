@@ -899,7 +899,7 @@ static int input_default_setkeycode(struct input_dev *dev,
 		}
 	}
 
-        __set_bit(ke->keycode, dev->keybit);
+	__set_bit(ke->keycode, dev->keybit);
 	return 0;
 }
 

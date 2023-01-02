@@ -154,6 +154,7 @@ config INPUT_JOYDEV
 
 config INPUT_EVDEV
 	tristate "Event interface"
+	select SEC_INPUT_BOOSTER
 	help
 	  Say Y here if you want your input device events be accessible
 	  under char device 13:64+ - /dev/input/eventX in a generic way.
@@ -200,6 +201,15 @@ config INPUT_KEYCOMBO
 	---help---
 	  Say Y here if you want to take action when some keys are pressed;
 
+config SEC_INPUT_BOOSTER
+	bool "SEC INPUT BOOSTER"
+	depends on INPUT_EVDEV
+	default y
+	help
+	  Say Y here if you need to enable Input Booster.
+
+	  It's triggered in evdev module.
+
 comment "Input Device Drivers"
 
 source "drivers/input/keyboard/Kconfig"
@@ -220,17 +230,13 @@ source "drivers/input/sensors/smi130/Kconfig"
 
 source "drivers/input/rmi4/Kconfig"
 
-# HS70 code for HS70-26/HS70-131/HS70-161 by zhuqiang at 2019/10/11 start
 source "drivers/input/fingerprint/silead/Kconfig"
 source "drivers/input/fingerprint/cdfinger/Kconfig"
 source "drivers/input/fingerprint/focaltech/Kconfig"
-# HS70 code for HS70-26/HS70-131/HS70-161 by zhuqiang at 2019/10/11 end
+source "drivers/input/fingerprint/Kconfig"
 # HS70 code for HS70-858 by chenlei at 2019/11/11 start
 source "drivers/input/fingerprint/egis/Kconfig"
 # HS70 code for HS70-858 by chenlei at 2019/11/11 end
-# HS70 code for SR-ZQL1871-01-182/HS70-185/HS70-186 by zhuqiang at 2019/10/23 start
-source "drivers/input/fingerprint/Kconfig"
-# HS70 code for SR-ZQL1871-01-182/HS70-185/HS70-186 by zhuqiang at 2019/10/23 end
 
 endif
 

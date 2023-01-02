@@ -7,3 +7,4 @@ config SYSFS_ADM
 	select sysfs_adm
 	help
 	  This supports sysfs adm drivers.
+

@@ -1917,6 +1917,7 @@ err_irq_req:
 	device_init_wakeup(&ts_data->input_dev->dev, false);
 #endif
 /* HS70 add for P210127-01632 by gaozhengwei at 2021/02/24 end */
+
 #if FTS_POWER_SOURCE_CUST_EN
 err_power_init:
     fts_power_source_exit(ts_data);

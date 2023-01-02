@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -31,6 +31,8 @@
 #define IPA_READ_ONLY_MODE  0444
 #define IPA_READ_WRITE_MODE 0664
 #define IPA_WRITE_ONLY_MODE 0220
+
+#define DEBUG_BUF_MAX_LEN(nbytes) (nbytes < IPA_MAX_MSG_LEN ? 1 : 0)
 
 struct ipa3_debugfs_file {
 	const char *name;
@@ -84,6 +86,7 @@ const char *ipa3_hdr_l2_type_name[] = {
 	__stringify(IPA_HDR_L2_NONE),
 	__stringify(IPA_HDR_L2_ETHERNET_II),
 	__stringify(IPA_HDR_L2_802_3),
+	__stringify(IPA_HDR_L2_802_1Q),
 };
 
 const char *ipa3_hdr_proc_type_name[] = {
@@ -94,6 +97,7 @@ const char *ipa3_hdr_proc_type_name[] = {
 	__stringify(IPA_HDR_PROC_802_3_TO_802_3),
 	__stringify(IPA_HDR_PROC_L2TP_HEADER_ADD),
 	__stringify(IPA_HDR_PROC_L2TP_HEADER_REMOVE),
+	__stringify(IPA_HDR_PROC_ETHII_TO_ETHII_EX),
 };
 
 static struct dentry *dent;
@@ -390,26 +394,34 @@ static ssize_t ipa3_read_hdr(struct file *file, char __user *ubuf, size_t count,
 			ipa3_hdr_l2_type_name[entry->type]);
 
 		if (entry->is_hdr_proc_ctx) {
-			nbytes += scnprintf(
-				dbg_buff + nbytes,
-				IPA_MAX_MSG_LEN - nbytes,
-				"phys_base=0x%pa ",
-				&entry->phys_base);
+			if (DEBUG_BUF_MAX_LEN(nbytes)) {
+				nbytes += scnprintf(
+					dbg_buff + nbytes,
+					IPA_MAX_MSG_LEN - nbytes,
+					"phys_base=0x%pa ",
+					&entry->phys_base);
+			}
 		} else {
-			nbytes += scnprintf(
-				dbg_buff + nbytes,
-				IPA_MAX_MSG_LEN - nbytes,
-				"ofst=%u ",
-				entry->offset_entry->offset >> 2);
+			if (DEBUG_BUF_MAX_LEN(nbytes)) {
+				nbytes += scnprintf(
+					dbg_buff + nbytes,
+					IPA_MAX_MSG_LEN - nbytes,
+					"ofst=%u ",
+					entry->offset_entry->offset >> 2);
+			}
 		}
 		for (i = 0; i < entry->hdr_len; i++) {
-			scnprintf(dbg_buff + nbytes + i * 2,
-				  IPA_MAX_MSG_LEN - nbytes - i * 2,
-				  "%02x", entry->hdr[i]);
+			if (DEBUG_BUF_MAX_LEN(nbytes + i * 2)) {
+				scnprintf(dbg_buff + nbytes + i * 2,
+					  IPA_MAX_MSG_LEN - nbytes - i * 2,
+					  "%02x", entry->hdr[i]);
+			}
 		}
-		scnprintf(dbg_buff + nbytes + entry->hdr_len * 2,
-			  IPA_MAX_MSG_LEN - nbytes - entry->hdr_len * 2,
-			  "\n");
+		if (DEBUG_BUF_MAX_LEN(nbytes + entry->hdr_len * 2)) {
+			scnprintf(dbg_buff + nbytes + entry->hdr_len * 2,
+				  IPA_MAX_MSG_LEN - nbytes - entry->hdr_len * 2,
+				  "\n");
+		}
 		pr_err("%s", dbg_buff);
 	}
 	mutex_unlock(&ipa3_ctx->lock);
@@ -515,18 +527,23 @@ static int ipa3_attrib_dump(struct ipa_rule_attrib *attrib,
 		pr_err("frg ");
 
 	if ((attrib->attrib_mask & IPA_FLT_MAC_SRC_ADDR_ETHER_II) ||
-		(attrib->attrib_mask & IPA_FLT_MAC_SRC_ADDR_802_3)) {
+		(attrib->attrib_mask & IPA_FLT_MAC_SRC_ADDR_802_3) ||
+		(attrib->attrib_mask & IPA_FLT_MAC_SRC_ADDR_802_1Q)) {
 		pr_err("src_mac_addr:%pM ", attrib->src_mac_addr);
 	}
 
 	if ((attrib->attrib_mask & IPA_FLT_MAC_DST_ADDR_ETHER_II) ||
 		(attrib->attrib_mask & IPA_FLT_MAC_DST_ADDR_802_3) ||
-		(attrib->attrib_mask & IPA_FLT_MAC_DST_ADDR_L2TP)) {
+		(attrib->attrib_mask & IPA_FLT_MAC_DST_ADDR_L2TP) ||
+		(attrib->attrib_mask & IPA_FLT_MAC_DST_ADDR_802_1Q)) {
 		pr_err("dst_mac_addr:%pM ", attrib->dst_mac_addr);
 	}
 
 	if (attrib->attrib_mask & IPA_FLT_MAC_ETHER_TYPE)
 		pr_err("ether_type:%x ", attrib->ether_type);
+
+	if (attrib->attrib_mask & IPA_FLT_VLAN_ID)
+		pr_err("vlan_id:%x ", attrib->vlan_id);
 
 	if (attrib->attrib_mask & IPA_FLT_TCP_SYN)
 		pr_err("tcp syn ");

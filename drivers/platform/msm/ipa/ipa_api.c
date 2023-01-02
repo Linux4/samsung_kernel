@@ -3404,6 +3404,19 @@ int ipa_disable_wdi_pipes(int ipa_ep_idx_tx, int ipa_ep_idx_rx)
 }
 
 /**
+ * ipa_get_lan_rx_napi() - returns if NAPI is enabled in LAN RX
+ */
+bool ipa_get_lan_rx_napi(void)
+{
+	bool ret;
+
+	IPA_API_DISPATCH_RETURN_BOOL(ipa_get_lan_rx_napi);
+
+	return ret;
+}
+EXPORT_SYMBOL(ipa_get_lan_rx_napi);
+
+/**
  * ipa_tz_unlock_reg() - Allow AP access to memory regions controlled by TZ
  */
 int ipa_tz_unlock_reg(struct ipa_tz_unlock_reg_info *reg_info, u16 num_regs)
@@ -3414,6 +3427,21 @@ int ipa_tz_unlock_reg(struct ipa_tz_unlock_reg_info *reg_info, u16 num_regs)
 
 	return ret;
 }
+
+void ipa_register_client_callback(int (*client_cb)(bool is_lock),
+				bool (*teth_port_state)(void),
+					enum ipa_client_type client)
+{
+	IPA_API_DISPATCH(ipa_register_client_callback,
+		client_cb, teth_port_state, client);
+}
+
+void ipa_deregister_client_callback(enum ipa_client_type client)
+{
+	IPA_API_DISPATCH(ipa_deregister_client_callback,
+		client);
+}
+
 
 /**
  * ipa_pm_is_used() - Returns if IPA PM framework is used

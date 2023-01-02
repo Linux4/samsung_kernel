@@ -1393,9 +1393,9 @@ static int smem_init_target_info(phys_addr_t info_addr, resource_size_t size)
 	struct smem_targ_info_type *smem_targ_info;
 	void *smem_targ_info_addr;
 
-	smem_targ_info_addr = ioremap_nocache(info_addr, size);
+	smem_targ_info_addr = ioremap_wc(info_addr, size);
 	if (!smem_targ_info_addr) {
-		LOG_ERR("%s: failed ioremap_nocache() of addr:%pa size:%pa\n",
+		LOG_ERR("%s: failed ioremap_wc() of addr:%pa size:%pa\n",
 				__func__, &info_addr, &size);
 		return -ENODEV;
 	}
@@ -1442,7 +1442,7 @@ static int msm_smem_probe(struct platform_device *pdev)
 		void *reg_base_addr;
 		uint64_t base_addr;
 
-		reg_base_addr = ioremap_nocache(r->start, resource_size(r));
+		reg_base_addr = ioremap_wc(r->start, resource_size(r));
 		base_addr = (uint32_t)readl_relaxed(reg_base_addr);
 		base_addr |=
 			((uint64_t)readl_relaxed(reg_base_addr + 0x4) << 32);
@@ -1471,10 +1471,10 @@ smem_targ_info_done:
 		return -ENODEV;
 	}
 
-	smem_ram_base = ioremap_nocache(smem_ram_phys, smem_ram_size);
+	smem_ram_base = ioremap_wc(smem_ram_phys, smem_ram_size);
 
 	if (!smem_ram_base) {
-		LOG_ERR("%s: ioremap_nocache() of addr:%pa size: %pa\n",
+		LOG_ERR("%s: ioremap_wc() of addr:%pa size: %pa\n",
 				__func__,
 				&smem_ram_phys, &smem_ram_size);
 		return -ENODEV;
@@ -1558,7 +1558,7 @@ smem_targ_info_done:
 
 		smem_areas_tmp[smem_idx].phys_addr = aux_mem_base;
 		smem_areas_tmp[smem_idx].size = aux_mem_size;
-		smem_areas_tmp[smem_idx].virt_addr = ioremap_nocache(
+		smem_areas_tmp[smem_idx].virt_addr = ioremap_wc(
 			(unsigned long)(smem_areas_tmp[smem_idx].phys_addr),
 			smem_areas_tmp[smem_idx].size);
 		SMEM_DBG("%s: %s = %pa %pa -> %p", __func__, temp_string,
@@ -1566,7 +1566,7 @@ smem_targ_info_done:
 				smem_areas_tmp[smem_idx].virt_addr);
 
 		if (!smem_areas_tmp[smem_idx].virt_addr) {
-			LOG_ERR("%s: ioremap_nocache() of addr:%pa size: %pa\n",
+			LOG_ERR("%s: ioremap_wc() of addr:%pa size: %pa\n",
 				__func__,
 				&smem_areas_tmp[smem_idx].phys_addr,
 				&smem_areas_tmp[smem_idx].size);

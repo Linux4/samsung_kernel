@@ -92,11 +92,7 @@ struct silfp_msg_list {
     struct list_head list;
 };
 #endif /* !BSP_SIL_NETLINK */
-
-/* HS70 code for SR-ZQL1871-01-182 by zhuqiang at 2019/10/23 start */
 extern int finger_sysfs;
-/* HS70 code for SR-ZQL1871-01-182 by zhuqiang at 2019/10/23 end */
-
 struct silfp_data {
     dev_t			devt;
     struct cdev cdev;
@@ -203,7 +199,6 @@ typedef struct _key_map {
     int key_new;
 } nav_keymap_t;
 
-/* HS70 code for HS70-275 by zhuqiang at 2019/10/23 start */
 static nav_keymap_t keymap[] = {
     { NAV_KEY_UP,       KEY_RESERVED,   },
     { NAV_KEY_DOWN,     KEY_RESERVED,   },
@@ -213,7 +208,6 @@ static nav_keymap_t keymap[] = {
     { NAV_KEY_DCLICK,   KEY_RESERVED,   },
     { NAV_KEY_LONGPRESS,KEY_RESERVED,   },
 };
-/* HS70 code for HS70-275 by zhuqiang at 2019/10/23 end */
 
 static LIST_HEAD(device_list);
 static DEFINE_MUTEX(device_list_lock);
@@ -397,7 +391,7 @@ static int silfp_netlink_destroy(struct silfp_data *fp_dev)
     struct silfp_msg_list *list, *next;
     unsigned long flags;
 
-    if (fp_dev && (&fp_dev->msg_q)) {
+    if (fp_dev) {
         spin_lock_irqsave(&fp_dev->read_lock, flags);
         list_for_each_entry_safe(list, next, &fp_dev->msg_q, list) {
             list_del(&list->list);
@@ -439,7 +433,7 @@ static ssize_t silfp_read(struct file *fd, char __user *buf, size_t len,loff_t *
     }
 
     fp_dev = fd->private_data;
-    if (!&fp_dev->msg_q) {
+    if (!fp_dev) {
         return -EINVAL;
     }
 
@@ -787,8 +781,6 @@ static int silfp_input_init(struct silfp_data *fp_dev)
         status = -ENOMEM;
         return status;
     }
-
-    /*HS70 code for P200102-05384 by zhuqiang at 2020/01/09 start*/
     #ifdef FP_INPUT_EVENT
     __set_bit(EV_KEY, fp_dev->input->evbit);
     //__set_bit(KEY_Q, fp_dev->input->keybit); // it will cause Android think this is a physical keyboard.
@@ -799,7 +791,6 @@ static int silfp_input_init(struct silfp_data *fp_dev)
     __set_bit(KEY_BACK, fp_dev->input->keybit);
     __set_bit(KEY_CAMERA, fp_dev->input->keybit);
     #endif
-    /*HS70 code for P200102-05384 by zhuqiang at 2020/01/09 end*/
     for ( i = 0; i < ARRAY_SIZE(keymap); i++ ) {
         if ( keymap[i].key_new != KEY_RESERVED ) {
             __set_bit(keymap[i].key_new, fp_dev->input->keybit);
@@ -1017,9 +1008,7 @@ silfp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
     case SIFP_IOC_ENABLE_IRQ:
         LOG_MSG_DEBUG(INFO_LOG, "[%s] enable irq\n", __func__);
         silfp_irq_enable(fp_dev);
-        /* HS70 code for SR-ZQL1871-01-182 by zhuqiang at 2019/10/23 start */
-        finger_sysfs = 0x1;
-        /* HS70 code for SR-ZQL1871-01-182 by zhuqiang at 2019/10/23 end */
+	finger_sysfs = 0x1;
         break;
 
     case SIFP_IOC_DISABLE_IRQ:
@@ -1480,3 +1469,4 @@ MODULE_DESCRIPTION("Silead Fingerprint driver for GSL61XX/GSL62XX series.");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("sil:silead_fp");
 #endif /* BSP_SIL_DYNAMIC_SPI */
+

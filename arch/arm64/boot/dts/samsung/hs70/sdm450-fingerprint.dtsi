@@ -30,9 +30,7 @@
 		interrupt-parent = <&tlmm>;
 		cdfinger,irq_gpio = <&tlmm 48 0x0>;
 		cdfinger,reset_gpio = <&tlmm 140 0x0>;
-		/* HS70 code for HS70-4985 by zhuqiang at 2020/03/26 start */
 		cdfinger,id_gpio = <&tlmm 59 0x0>;
-		/* HS70 code for HS70-4985 by zhuqiang at 2020/03/26 end */
 	};
 	focaltech_fp {
 		compatible = "focaltech,fingerprint";
@@ -52,4 +50,4 @@
 	};
 /* HS70 code for HS70-858 by chenlei at 2019/11/11 end */
 };
-/* HS70 code for HS70-26/HS70-131/HS70-161 by zhuqiang at 2019/10/11 end */
+

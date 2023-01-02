@@ -5,7 +5,6 @@
 /*HS70 code for boe bringup by wangyi at 2019/11/12 start*/
 #include "dsi-panel-boe-ft8165-720p-video.dtsi"
 /*HS70 code for boe bringup by wangyi at 2019/11/12 end*/
-#include "dsi-panel-tm-ili7807g-hd-video.dtsi"
 /*HS70 code for boe bringup by zhouzichun at 2020/3/20 start*/
 #include "dsi-panel-hltcd-ft8165-720p-video.dtsi"
 /*HS70 code for boe bringup by zhouzichun at 2020/3/20 end*/
@@ -26,6 +25,7 @@
 #include "dsi-panel-txd16-hx83104a-hd-video.dtsi"
 #include "dsi-panel-inx17-ft8165-hd-video.dtsi"
 #include "dsi-panel-inx18-ili7807g-hd-video.dtsi"
+#include "dsi-panel-tm-ili7807g-hd-video.dtsi"
 #include "dsi-panel-tm19-ili7806s-hd-video.dtsi"
 #include "dsi-panel-dpt20-ft8165-720p-video.dtsi"
 &soc {

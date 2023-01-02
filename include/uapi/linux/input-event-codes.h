@@ -645,6 +645,8 @@
  */
 #define KEY_DATA			0x277
 
+#define KEY_DEX_ON			0x2bd
+
 #define BTN_TRIGGER_HAPPY		0x2c0
 #define BTN_TRIGGER_HAPPY1		0x2c0
 #define BTN_TRIGGER_HAPPY2		0x2c1
@@ -687,6 +689,10 @@
 #define BTN_TRIGGER_HAPPY39		0x2e6
 #define BTN_TRIGGER_HAPPY40		0x2e7
 
+#define BTN_HOTKEY_APP1 		0x2f5
+#define BTN_HOTKEY_APP2 		0x2f6
+#define BTN_HOTKEY_APP3 		0x2f7
+
 /* Custom fingerprint gestures keys */
 #define KEY_FP_GESTURE_UP		0x2e8
 #define KEY_FP_GESTURE_DOWN		0x2e9
@@ -694,6 +700,7 @@
 #define KEY_FP_GESTURE_RIGHT		0x2eb
 #define KEY_FP_GESTURE_LONG_PRESS	0x2ec
 #define KEY_FP_GESTURE_TAP		0x2ed
+
 /* HS50 code for HS50-4050 by xiongxiaoliang at 20201031 start */
 /*HS60 code for SR-ZQL1695-01000000493 by zhanghao6 at 20190712 start*/
 #define KEY_SAR_SLOW_IN         0x2ee

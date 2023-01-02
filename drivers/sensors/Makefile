@@ -11,3 +11,7 @@ obj-$(CONFIG_SENSORS_SX9325) += sx9325/
 # HS50 code for HS50-41/SR-QL3095-01-127 by zhuqiang at 2020/08/19 start
 obj-$(CONFIG_SENSORS_A96T349) += a96t349/
 # HS50 code for HS50-41/SR-QL3095-01-127 by zhuqiang at 2020/08/19 end
+
+# HS50 code for QN3979-4292 by wurui at 2021/10/20  start
+obj-$(CONFIG_SENSORS_SX932X) += sx932x/
+# HS50 code for QN3979-4292 by wurui at 2021/10/20  end

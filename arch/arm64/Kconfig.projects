@@ -207,13 +207,6 @@ config MACH_A02Q_CIS_OPEN
 	bool "Samsung A02Q CIS OPEN"
 	help
 	  Support for Samsung HS50 A02Q CIS OPEN device.
-	  
-config MACH_A02Q_SWA_OPEN
-	depends on SEC_A02Q_PROJECT
-	default n
-	bool "Samsung A02Q SWA OPEN"
-	help
-	  Support for Samsung HS50 A02Q SWA OPEN device.
 
 config MACH_A02Q_LTN_OPEN
 	depends on SEC_A02Q_PROJECT
@@ -221,6 +214,13 @@ config MACH_A02Q_LTN_OPEN
 	bool "Samsung A02Q LTN OPEN"
 	help
 	  Support for Samsung HS50 A02Q LTN OPEN device.
+
+config MACH_A02Q_LTN_VE
+	depends on SEC_A02Q_PROJECT
+	default n
+	bool "Samsung A02Q LTN VE"
+	help
+	  Support for Samsung HS50 A02Q LTN VE device.
 
 config MACH_A02Q_EUR_OPEN
 	depends on SEC_A02Q_PROJECT
@@ -263,8 +263,7 @@ config MACH_A02Q_USA_TFN
 	bool "Samsung A02Q USA TFN"
 	help
 	  Support for Samsung HS50 A02Q USA TFM device.
-
-      
+	  
 config MACH_A02Q_USA_OPEN
 	depends on SEC_A02Q_PROJECT
 	default n

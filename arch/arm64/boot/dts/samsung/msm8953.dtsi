@@ -68,9 +68,7 @@
 		other_ext_mem: other_ext_region@0 {
 			compatible = "removed-dma-pool";
 			no-map;
-			/* HS70 code for HS70-161 by zhuqiang at 2019/10/11 start */
 			reg = <0x0 0x84a00000 0x0 0x1e00000>;
-			/* HS70 code for HS70-161 by zhuqiang at 2019/10/11 end */
 		};
 
 		modem_mem: modem_region@0 {
@@ -142,6 +140,7 @@
 
 		adsp_shmem_device_mem: adsp_shmem_device_region@0xc0100000 {
 			compatible = "shared-dma-pool";
+			label = "adsp_shmem_device_mem";
 			reusable;
 			alloc-ranges = <0x0 0xc0100000 0x0 0x08200000>;
 			alignment = <0 0x400000>;
@@ -438,13 +437,9 @@
 		#thermal-sensor-cells = <1>;
 	};
 
-	/* HS70 code for HS70-161 by zhuqiang at 2019/10/11 start */
 	qcom_seecom: qseecom@84a00000 {
-	/* HS70 code for HS70-161 by zhuqiang at 2019/10/11 end */
 		compatible = "qcom,qseecom";
-		/* HS70 code for HS70-161 by zhuqiang at 2019/10/11 start */
 		reg = <0x84a00000 0x1900000>;
-		/* HS70 code for HS70-161 by zhuqiang at 2019/10/11 end */
 		reg-names = "secapp-region";
 		qcom,hlos-num-ce-hw-instances = <1>;
 		qcom,hlos-ce-hw-instance = <0>;
@@ -1355,7 +1350,9 @@
 		reg = <0xb017000 0x1000>;
 		reg-names = "wdt-base";
 		interrupts = <0 3 0>, <0 4 0>;
-		qcom,bark-time = <11000>;
+		/* HS50 code for OLYMPICO3-831  by liunianliang at 2021/02/18 start */
+		qcom,bark-time = <13000>;
+		/* HS50 code for OLYMPICO3-831  by liunianliang at 2021/02/18 end */
 		qcom,pet-time = <9360>;
 		qcom,ipi-ping;
 		qcom,wakeup-enable;

@@ -977,7 +977,7 @@ if(0 == strcmp(sensor_name, "gc02m1_hs50_cxt")||0 == strcmp(sensor_name, "gc02m1
  {
               return -ENODEV;
         }
- CDBG("gc02m1 is %s, supply_id is %d, sensor_slave_addr=%x", sensor_name, gc02m1_supply_id, slave_info->sensor_slave_addr);        
+ CDBG("gc02m1 is %s, supply_id is %d, sensor_slave_addr=%x", sensor_name, gc02m1_supply_id, slave_info->sensor_slave_addr);
 }
 /*HS50 code for HS50 xxx by chenjun6 at 2020/08/20 end*/
     if(0 == strcmp(sensor_name, "gc2375h_hs50_sjc")||0 == strcmp(sensor_name, "gc2375h_hs50_cxt")){

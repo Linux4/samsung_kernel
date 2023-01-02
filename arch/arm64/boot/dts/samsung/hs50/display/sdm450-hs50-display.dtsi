@@ -103,9 +103,11 @@
 	lab-supply = <&lcdb_ldo_vreg>;
 	ibb-supply = <&lcdb_ncp_vreg>;
 	bklight_en-supply = <&pm8953_l5>;
-/*HS50-SR-QL3095-01-137This power supply is for camera AF. if display is not used, delete it. Otherwise, the camera AF will start up with a constant high voltage added by xuxianwei at 2020/08/13 start*/
+/*HS50-SR-QL3095-01-137This power supply is for camera AF. if display is not used, delete it.
+Otherwise, the camera AF will start up with a constant high voltage added by xuxianwei at 2020/08/13 start*/
 	vdd-supply = <>;
-/*HS50-SR-QL3095-01-137 This power supply is for camera AF. if display is not used, delete it. Otherwise, the camera AF will start up with a constant high voltage added by xuxianwei at 2020/08/13 end*/
+/*HS50-SR-QL3095-01-137 This power supply is for camera AF. if display is not used, delete it.
+Otherwise, the camera AF will start up with a constant high voltage added by xuxianwei at 2020/08/13 end*/
 	vddio-supply = <&pm8953_l6>;
 
 	/delete-property/ qcom,platform-bklight-en-gpio;

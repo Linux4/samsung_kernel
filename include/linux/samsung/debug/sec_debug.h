@@ -10,8 +10,13 @@
 
 #include <asm/cacheflush.h>
 
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG_IRQ_V2)
+#define IRQ_ENTRY_V2	0x76324945
+#define IRQ_EXIT_V2	0x76324958
+#else
 #define IRQ_ENTRY	0x4945
 #define IRQ_EXIT	0x4958
+#endif
 
 #define SOFTIRQ_ENTRY	0x5345
 #define SOFTIRQ_EXIT	0x5358
@@ -77,8 +82,10 @@ enum sec_debug_upload_cause_t {
 	UPLOAD_CAUSE_QUEST_DDR_TEST_CAL,
 	UPLOAD_CAUSE_QUEST_DDR_TEST_SMD,
 	UPLOAD_CAUSE_SOD_RESULT,
-	UPLOAD_CAUSE_QUEST_ZIP_UNZIP,	
-	UPLOAD_CAUSE_QUEST_END = UPLOAD_CAUSE_QUEST_ZIP_UNZIP,
+	UPLOAD_CAUSE_QUEST_ZIP_UNZIP,
+	UPLOAD_CAUSE_DRAM_SCAN,
+	UPLOAD_CAUSE_QUEST_AOSSTHERMALDIFF,
+	UPLOAD_CAUSE_QUEST_END = UPLOAD_CAUSE_QUEST_AOSSTHERMALDIFF,
 /* --Quest : 0xC8_5153_xx -- */
 /* -- KP : 0xC8xx_xxxx -- */
 /* ++ TP ++ */
@@ -101,6 +108,7 @@ enum sec_debug_upload_cause_t {
 /* -- MP -- */
 /* ++ PP ++ */
 	UPLOAD_CAUSE_EDL_FORCED_UPLOAD = 0x50500000,
+	UPLOAD_CAUSE_PM_OCP,
 /* -- PP -- */
 /* ++ SP -- */
 	UPLOAD_CAUSE_SMPL = 0x53500000,
@@ -117,6 +125,7 @@ enum sec_restart_reason_t {
 	RESTART_REASON_DMVERITY_ENFORCE = 0x77665509,
 	RESTART_REASON_KEYS_CLEAR = 0x7766550a,
 	RESTART_REASON_SEC_DEBUG_MODE = 0x776655ee,
+	RESTART_REASON_RECOVERY_UPDATE = 0x776655cc,
 	RESTART_REASON_END = 0xffffffff,
 };
 
@@ -222,6 +231,7 @@ enum pon_restart_reason {
 	/***********************************************/
 	PON_RESTART_REASON_MULTICMD = 0x2B,
 	PON_RESTART_REASON_CROSS_FAIL = 0x2C,
+	PON_RESTART_REASON_LIMITED_DRAM_SETTING = 0x2D,
 	PON_RESTART_REASON_SLT_COMPLETE = 0x2F,
 	PON_RESTART_REASON_DBG_LOW		= 0x30,
 	PON_RESTART_REASON_DBG_MID		= 0x31,
@@ -264,6 +274,12 @@ enum pon_restart_reason {
 #if IS_ENABLED(CONFIG_SEC_QUEST)
 	PON_RESTART_REASON_QUEST_REWORK	= 0x50,
 #endif
+#if IS_ENABLED(CONFIG_SEC_QUEST_UEFI_USER)
+	PON_RESTART_REASON_QUEST_QUEFI_USER_START = 0x51,
+	PON_RESTART_REASON_QUEST_SUEFI_USER_START = 0x52,
+#endif
+ 	PON_RESTART_REASON_RECOVERY_UPDATE = 0x60, 
+ 	PON_RESTART_REASON_BOTA_COMPLETE = 0x61, 
 	PON_RESTART_REASON_MAX			= 0x80
 #endif
 };
@@ -279,6 +295,7 @@ DECLARE_PER_CPU(enum sec_debug_upload_cause_t, sec_debug_upload_cause);
 
 extern bool sec_debug_is_enabled(void);
 extern unsigned int sec_debug_level(void);
+extern void (*sec_nvmem_pon_write)(u8 pon_rr);
 
 static __always_inline void sec_debug_strcpy_task_comm(char *dst, char *src)
 {
@@ -375,4 +392,7 @@ extern void sec_debug_check_pwdt(void);
 static inline void sec_debug_check_pwdt(void) {}
 #endif
 
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
+extern unsigned long sec_delay_check;
+#endif
 #endif	/* __INDIRECT__SEC_DEBUG_H__ */

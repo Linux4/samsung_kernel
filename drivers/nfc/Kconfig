@@ -78,6 +78,5 @@ config NFC_NQ
           This enables the NFC driver for NQx based devices.
           This is for i2c connected version. NCI protocol logic
           resides in the usermode and it has no other NFC dependencies.
-# Huaqin modify for LSI NFC by zhangshuli at 2020/08/11 start
+
 source "drivers/nfc/samsung/Kconfig"
-# Huaqin modify for LSI NFC by zhangshuli at 2020/08/11 end

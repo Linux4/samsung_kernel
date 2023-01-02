@@ -498,7 +498,7 @@
 			<0  0  (-22) 0   0    0>, /* NOMP: -10 mV */
 			<0  0    0   0   0    0>;
 
-		qcom,cpr-enable;
+                qcom,cpr-enable;
 	};
 
 	dbu1: dbu1 {

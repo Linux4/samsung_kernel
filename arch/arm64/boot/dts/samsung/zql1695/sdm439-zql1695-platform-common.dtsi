@@ -20,15 +20,9 @@
 /* Huaqin add for HS60-37 Configure battery NTC for charging by gaochao at 2019/07/11 start */
 #include "battery-common.dtsi"
 /* Huaqin add for HS60-37 Configure battery NTC for charging by gaochao at 2019/07/11 end */
-
-/*HS60 code for HS60-32/HS60-93 by zhuqiang at 2019/7/15 start*/
-#include "sdm439-sar-sensors.dtsi"
-/*HS60 code for HS60-32/HS60-93 by zhuqiang at 2019/7/15 end*/
-
 /* huaqin rm for AR-ZQL1695-01-505 remove tps61280 by limengxia at 2019/11/12 start */
 /* #include "zql1695-tps61280.dtsi" */
 /* huaqin rm for AR-ZQL1695-01-505 remove tps61280 by limengxia at 2019/11/12 end */
-
 /* Huaqin modify for ZQL1695/HS60-138 modify usb eye diagram by wenyaqi at 2019/7/19 start */
 #include "zql169x-usb-eye-diagram.dtsi"
 /* Huaqin modify for ZQL1695/HS60-138 modify usb eye diagram by wenyaqi at 2019/7/19 end */
@@ -39,6 +33,10 @@
 /* HS60 add for HS60-341 Configure charge-thermal and MSM-thermal NTC by gaochao at 2019/08/05 start */
 #include "thermal_zones-common.dtsi"
 /* HS60 add for HS60-341 Configure charge-thermal and MSM-thermal NTC by gaochao at 2019/08/05 end */
+
+/*HS60 code for HS60-32/HS60-93 by zhuqiang at 2019/7/15 start*/
+#include "sdm439-sar-sensors.dtsi"
+/*HS60 code for HS60-32/HS60-93 by zhuqiang at 2019/7/15 end*/
 
 /* samsung qc-bsp start */
 #include "sdm439-zql1695-sec-bsp.dtsi"

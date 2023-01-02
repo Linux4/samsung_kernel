@@ -13,22 +13,6 @@
 
 #include <dt-bindings/clock/msm-clocks-8952.h>
 
-&rpm_bus {
-	camera_vdig_ldo: gpio-regulator@0 {
-		compatible = "regulator-fixed";
-		reg = <0x00 0x00>;
-		regulator-name = "camera_vdig_ldo";
-		regulator-min-microvolt = <1800000>;
-		regulator-max-microvolt = <1800000>;
-		regulator-enable-ramp-delay = <135>;
-		enable-active-high;
-		gpio = <&tlmm 62 0>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&cam_sensor_rear_vdig>;
-		vin-supply = <&pm8953_s4>;
-	};
-};
-
 &cci {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -229,14 +213,14 @@
 		qcom,csiphy-sd-index = <1>;
 		qcom,csid-sd-index = <1>;
 		qcom,mount-angle = <270>;
-		cam_vdig-supply = <&camera_vdig_ldo>;
+		cam_vdig-supply = <&pm8953_l3>;
 		cam_vana-supply = <&pm8953_l22>;
 		cam_vio-supply = <&pm8953_l6>;
 		cam_vaf-supply = <&pm8953_l17>;
 		qcom,cam-vreg-name = "cam_vdig", "cam_vio", "cam_vana",
 							"cam_vaf";
-		qcom,cam-vreg-min-voltage = <1800000 0 2800000 2850000>;
-		qcom,cam-vreg-max-voltage = <1800000 0 2800000 2850000>;
+		qcom,cam-vreg-min-voltage = <1200000 0 2800000 2850000>;
+		qcom,cam-vreg-max-voltage = <1200000 0 2800000 2850000>;
 		qcom,cam-vreg-op-mode = <200000 0 80000 100000>;
 		pinctrl-names = "cam_default", "cam_suspend";
 		pinctrl-0 = <&cam_sensor_mclk1_default
@@ -244,13 +228,16 @@
 		pinctrl-1 = <&cam_sensor_mclk1_sleep
 				&cam_sensor_front_sleep>;
 		gpios = <&tlmm 27 0>,
-			<&tlmm 38 0>;
+			<&tlmm 38 0>,
+			<&tlmm 50 0>;
 		qcom,gpio-reset = <1>;
-		qcom,gpio-req-tbl-num = <0 1>;
-		qcom,gpio-req-tbl-flags = <1 0>;
+		qcom,gpio-standby = <2>;
+		qcom,gpio-req-tbl-num = <0 1 2>;
+		qcom,gpio-req-tbl-flags = <1 0 0>;
 		qcom,gpio-req-tbl-label = "CAMIF_MCLK1",
-			"CAM_RESET1";
-		qcom,sensor-position = <2>;
+			"CAM_RESET1",
+			"CAM_STANDBY1";
+		qcom,sensor-position = <0x100>;
 		qcom,sensor-mode = <1>;
 		qcom,cci-master = <1>;
 		clocks = <&clock_gcc clk_mclk1_clk_src>,

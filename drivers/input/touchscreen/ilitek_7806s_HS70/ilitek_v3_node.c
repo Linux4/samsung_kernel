@@ -335,7 +335,7 @@ static int file_write(struct file_buffer *file, bool new_open)
 		return -1;
 	}
 
-	if (file->fname == NULL) {
+	if (file->fname[0] == '\0') {
 		ILI_ERR("file name is invaild\n");
 		return -1;
 	}

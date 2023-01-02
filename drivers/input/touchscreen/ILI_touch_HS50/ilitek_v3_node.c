@@ -205,10 +205,6 @@ static int file_write(struct file_buffer *file, bool new_open)
 		return -1;
 	}
 
-	if (file->fname == NULL) {
-		ILI_ERR("file name is invaild\n");
-		return -1;
-	}
 
 	if (file->flen >= file->max_size) {
 		ILI_ERR("The length saved to file is too long !\n");

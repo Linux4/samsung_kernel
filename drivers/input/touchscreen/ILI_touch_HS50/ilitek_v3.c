@@ -800,10 +800,7 @@ int ili_set_tp_data_len(int format, bool send, u8* data)
 		ctrl = DATA_FORMAT_DEBUG_LITE_CMD;
 		break;
 	case DATA_FORMAT_DEBUG_LITE_AREA:
-		if(cmd == NULL) {
-			ILI_ERR("DATA_FORMAT_DEBUG_LITE_AREA error cmd\n");
-			return -1;
-		}
+
 		debug_ctrl = DATA_FORMAT_DEBUG_LITE_AREA_CMD;
 		ctrl = DATA_FORMAT_DEBUG_LITE_CMD;
 		cmd[3] = data[0];

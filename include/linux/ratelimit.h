@@ -6,7 +6,11 @@
 #include <linux/spinlock.h>
 
 #define DEFAULT_RATELIMIT_INTERVAL	(5 * HZ)
+#ifdef CONFIG_SERIAL_MSM_CONSOLE
+#define DEFAULT_RATELIMIT_BURST		10000
+#else
 #define DEFAULT_RATELIMIT_BURST		10
+#endif
 
 /* issue num suppressed message on exit */
 #define RATELIMIT_MSG_ON_RELEASE	BIT(0)
