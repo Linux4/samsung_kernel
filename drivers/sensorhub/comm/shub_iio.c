@@ -106,7 +106,7 @@ static void *init_indio_device(struct device *dev, const struct iio_info *info,
 	indio_dev->name = device_name;
 	indio_dev->dev.parent = dev;
 	indio_dev->info = info;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)) && (LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0))
 	indio_dev->driver_module = THIS_MODULE;
 #endif
 	indio_dev->channels = channels;
@@ -181,7 +181,7 @@ int initialize_indio_dev(struct device *dev)
 
 	for (type = 0 ; type < SENSOR_TYPE_LEGACY_MAX; type++) {
 		sensor = get_sensor(type);
-		if (!sensor || sensor->report_event_size == 0)
+		if (!sensor || !sensor->hal_sensor)
 			continue;
 
 		bytes = (sensor->report_event_size+timestamp_len);

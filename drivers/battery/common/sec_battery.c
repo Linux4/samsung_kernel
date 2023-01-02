@@ -335,8 +335,8 @@ void set_vbus_voltage(int vol)
 	afc_set_voltage(vol);
 #endif
 #else
-#if defined(CONFIG_USE_MUIC)
-	muic_afc_set_voltage(vol);
+#if defined(CONFIG_AFC_CHARGER_MODE)
+	muic_afc_request_voltage(AFC_REQUEST_CHARGER, vol);
 #endif
 #endif
 }
@@ -380,6 +380,9 @@ __visible_for_testing int set_input_current(void * data, int v)
 	battery->charge_power = battery->input_voltage * v;
 	if (battery->charge_power > battery->max_charge_power)
 		battery->max_charge_power = battery->charge_power;
+	if (battery->current_event & SEC_BAT_CURRENT_EVENT_HV_DISABLE &&
+			battery->max_charge_power > battery->pdata->nv_charge_power)
+		battery->max_charge_power = battery->pdata->nv_charge_power;
 	value.intval = v;
 	psy_do_property(battery->pdata->charger_name, set,
 			POWER_SUPPLY_PROP_CURRENT_MAX, value);
@@ -4558,15 +4561,6 @@ static void sec_bat_cable_work(struct work_struct *work)
 	sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SKIP_HEATING_CONTROL,
 				SEC_BAT_CURRENT_EVENT_SKIP_HEATING_CONTROL);
 
-#if !defined(CONFIG_DISCRETE_CHARGER)
-	/*
-	 * showing charging icon and noti(no sound, vi, haptic) only
-	 * if slow insertion is detected by MUIC
-	 */
-	sec_bat_set_misc_event(battery, (battery->muic_cable_type == ATTACHED_DEV_TIMEOUT_OPEN_MUIC ? BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE : 0),
-		BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE);
-#endif
-
 #if defined(CONFIG_PDIC_NOTIFIER)
 	if (is_pd_wire_type(battery->wire_status)) {
 		sec_bat_get_input_current_in_power_list(battery);
@@ -4640,6 +4634,16 @@ static void sec_bat_cable_work(struct work_struct *work)
 
 	if (current_cable_type == SEC_BATTERY_CABLE_HV_TA_CHG_LIMIT)
 		current_cable_type = SEC_BATTERY_CABLE_9V_TA;
+
+	if (!can_usb_suspend_type(current_cable_type) &&
+			battery->current_event & SEC_BAT_CURRENT_EVENT_USB_SUSPENDED) {
+		pr_info("%s: clear suspend event prev_cable_type:%s -> %s\n", __func__,
+				sec_cable_type[battery->cable_type], sec_cable_type[current_cable_type]);
+		sec_bat_set_current_event(battery, 0, SEC_BAT_CURRENT_EVENT_USB_SUSPENDED);
+		sec_vote(battery->chgen_vote, VOTER_SUSPEND, false, 0);
+		sec_vote(battery->fcc_vote, VOTER_USB_100MA, false, 0);
+		sec_vote(battery->input_vote, VOTER_USB_100MA, false, 0);
+	}
 
 	prev_cable_type = battery->cable_type;
 	battery->cable_type = current_cable_type;
@@ -4726,6 +4730,19 @@ static void sec_bat_cable_work(struct work_struct *work)
 					 SEC_BAT_CURRENT_EVENT_USB_STATE |
 					 SEC_BAT_CURRENT_EVENT_DC_ERR));
 
+	/* slate_mode needs to be clear manually since smart switch does not disable slate_mode sometimes */
+	if (is_slate_mode(battery)) {
+		int voter_status = SEC_BAT_CHG_MODE_CHARGING;
+
+		if (get_sec_voter_status(battery->chgen_vote, VOTER_SMART_SLATE, &voter_status) < 0)
+			pr_err("%s: INVALID VOTER ID\n", __func__);
+		pr_info("%s: voter_status: %d\n", __func__, voter_status); // debug
+		if (voter_status == SEC_BAT_CHG_MODE_BUCK_OFF) {
+			sec_bat_set_current_event(battery, 0, SEC_BAT_CURRENT_EVENT_SLATE);
+			dev_info(battery->dev,
+					"%s: disable slate mode(smart switch) manually\n", __func__);
+		}
+	}
 		battery->wc_cv_mode = false;
 		battery->is_sysovlo = false;
 		battery->is_vbatovlo = false;
@@ -4769,6 +4786,7 @@ static void sec_bat_cable_work(struct work_struct *work)
 		for (j = 0; j < VOTER_MAX; j++) {
 			if (j == VOTER_SIOP ||
 				j == VOTER_SLATE ||
+				j == VOTER_SMART_SLATE ||
 				j == VOTER_AGING_STEP ||
 				j == VOTER_WC_TX)
 			continue;
@@ -4937,6 +4955,15 @@ end_of_cable_work:
 		(battery->misc_event & BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE))
 		sec_bat_set_misc_event(battery, 0,
 			BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE);
+#else
+	/*
+	 * showing charging icon and noti(no sound, vi, haptic) only
+	 * if slow insertion is detected by MUIC
+	 */
+	sec_bat_set_misc_event(battery,
+		(battery->muic_cable_type == ATTACHED_DEV_TIMEOUT_OPEN_MUIC ?
+			BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE : 0),
+		BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE);
 #endif
 
 	__pm_relax(battery->cable_ws);

@@ -21,6 +21,8 @@
 
 #define LIGHT_COEF_SIZE 7
 
+#define LIGHT_CALIBRATION_FILE_PATH "/efs/FactoryApp/light_cal_data"
+
 struct light_event {
 	u32 lux;
 	s32 cct;
@@ -61,7 +63,14 @@ struct light_ir_event {
 	u16 a_gain;
 } __attribute__((__packed__));
 
+struct light_cal_data {
+	u8 cal;
+	u16 max;
+	u32 lux;
+} __attribute__((__packed__));
+
 struct light_data {
+	struct light_chipset_funcs *chipset_funcs;
 	int *light_coef;
 	int light_log_cnt;
 	int brightness;
@@ -70,8 +79,23 @@ struct light_data {
 	u32 *brightness_array;
 	int raw_data_size;
 	bool ddi_support;
+	bool use_cal_data;
+	struct light_cal_data cal_data;
+};
+
+struct light_chipset_funcs {
+	int (*init)(struct light_data *data);
+	int (*init_light_variable)(struct light_data *data);
 };
 
 void set_light_ddi_support(uint32_t ddi_support);
+
+
+/* light sub command */
+#define LIGHT_SUBCMD_TWO_LIGHT_FACTORY_TEST		130
+#define LIGHT_SUBCMD_TRIM_CHECK					131
+
+
+struct light_chipset_funcs *get_light_stk33512_function_pointer(char *name);
 
 #endif /* __SHUB_LIGHT_H_ */

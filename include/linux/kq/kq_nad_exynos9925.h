@@ -54,6 +54,7 @@ enum {
 	KQ_NAD_BLOCK_CP,
 	KQ_NAD_BLOCK_FUNC,	
 	KQ_NAD_BLOCK_DRAM,
+	KQ_NAD_BLOCK_BUS,
 
 	KQ_NAD_BLOCK_END,
 };
@@ -73,7 +74,7 @@ enum {
 
 static char kq_nad_block_name[KQ_NAD_BLOCK_END][KQ_NAD_MAX_BLOCK_NAME] = {
 	"BIG",	"MIDD",	"LITT",	"DSU",	"G3D",	"MIF",	"INT",	"INTCAM",	"MFC0",	"MFC1",	"CAM",
-	"ISP",	"CSIS",	"DISP",	"AUD",	"NPU",	"DSP",	"CP_CPU",	"CP",	"FUNC",	"DRAM"
+	"ISP",	"CSIS",	"DISP",	"AUD",	"NPU",	"DSP",	"CP_CPU",	"CP",	"FUNC",	"DRAM", "BUS"
 };
 
 enum {
@@ -135,7 +136,7 @@ static struct kq_nad_block kq_nad_block_data[] = {
 	"MESH_HIGHOP",	"FLATLAND",	"SUBWAY_SUFFER",	"TEXTRI_HUGE",	"SPI_NGG",
 	"TESSELLATION",	"MHT_IFPO",	"SR_GFX",	"MHN_PWR",	"CP_RING",
 	"GC_WALKING",	"SCN_S2MPU",	"SLOW_CAMERA", "CP_ADDRESS", "BOOT_ANIMATION",
-	"GLX_CUBEMAP",	"3D_MARK_IFPO", "GL2_COMPRESS"},
+	"GLX_CUBEMAP",	"3D_MARK_IFPO", "GL2_COMPRESS", "XY_PIPE", "VRS_MSAA"},
 
 	/* MIF */
 	{"NONE",		"MEMTESTER",	"SED",			"VWM",			"RANDOM_DVFS",
@@ -190,13 +191,28 @@ static struct kq_nad_block kq_nad_block_data[] = {
 	{"NONE",		"MODEM_IF"},
 
 	/* FUNC */
-	{"NONE",	"OTP",	"PMU",	"GNSSIF",	"APM_SRAM",
-	"LLC_SICD",	"SRAM_ABOX", "NONE", "NONE", "NONE", "MMS_ID" },
+	{ "NONE", "OTP", "PMU", "GNSSIF", "APM_SRAM", "LLC_SICD",
+	"SRAM_ABOX", "CURRENT", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "NONE", "NONE", "NONE", "NONE",
+	"NONE", "DL_UNLOAD"},
 
 	/* DRAM */
 	{"NONE",		"PATTERN",		"NONE",			"NONE",			"NONE",
 	"NONE",			"NONE",			"NONE",			"NONE",			"NONE",
 	"WRITE",		"READ"},
+
+	/* BUS */
+	{"NONE",	"MMS_ID",	"MMS_UDM",	"MMS_IDM",	"MMS_MDM",
+	"MMS_AD",	"MMS_AMM"},
 };
 
 #if IS_ENABLED(CONFIG_SEC_KQ_CORRELATION_RESULT)

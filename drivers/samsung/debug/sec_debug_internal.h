@@ -59,7 +59,7 @@ struct sec_debug_ksyms {
 	uint64_t relative_base;
 	uint64_t offsets_pa;
 	uint64_t kimage_voffset;
-	uint64_t reserved[3];
+	uint64_t reserved[4];
 };
 
 /* kcnst has some kernel constant (offset) data for bootloader */
@@ -101,7 +101,7 @@ struct sec_debug_kcnst {
 
 	uint64_t target_dprm_mask;
 
-	uint64_t reserved[4];
+	uint64_t reserved[3];
 };
 
 struct member_type {

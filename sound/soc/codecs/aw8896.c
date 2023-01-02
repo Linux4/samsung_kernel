@@ -38,7 +38,7 @@
  ******************************************************/
 #define AW8896_I2C_NAME "aw889x_smartpa"
 
-#define AW8896_VERSION "v1.0.8"
+#define AW8896_VERSION "v1.0.8_19_1"
 
 #define AW8896_RATES SNDRV_PCM_RATE_8000_48000
 #define AW8896_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | \
@@ -48,11 +48,11 @@
 #define AWINIC_I2C_REGMAP
 
 #define AW_I2C_RETRIES 5
-#define AW_I2C_RETRY_DELAY 5  // 5ms
+#define AW_I2C_RETRY_DELAY 5  /*5ms*/
 #define AW_READ_CHIPID_RETRIES 5
 #define AW_READ_CHIPID_RETRY_DELAY 5
 
-#define AW8896_MAX_DSP_START_TRY_COUNT    10
+#define AW8896_MAX_DSP_START_TRY_COUNT    20
 
 
 static int aw8896_spk_control;
@@ -65,7 +65,7 @@ static char aw8896_fw_name[][AW8896_FW_NAME_MAX] = {
 	{"aw8896_fw_d.bin"},
 	{"aw8896_fw_e.bin"},
 };
-static char *aw8896_cfg_name = "aw8896_cfg.bin";
+static unsigned char aw8896_dsp_fw_data[AW8896_DSP_FW_SIZE] = {0};
 
 static int aw8896_i2c_write(struct aw8896 *aw8896,
 			unsigned char reg_addr, unsigned int reg_data);
@@ -386,14 +386,30 @@ static int aw8896_set_intmask(struct aw8896 *aw8896, bool flag)
 	return 0;
 }
 
-static void aw8896_start(struct aw8896 *aw8896)
+static void aw8896_start(struct aw8896 *aw8896, bool dsp_en)
 {
 	int ret = -1;
 	uint16_t sysint = 0;
+	int i;
 
 	pr_debug("%s enter\n", __func__);
 
 	aw8896_run_pwd(aw8896, false);
+	for (i = 0; i < AW8896_MAX_DSP_START_TRY_COUNT; i++) {
+		ret = aw8896_get_iis_status(aw8896);
+		if (ret < 0) {
+			pr_err("%s: get no iis signal, ret=%d\n",
+				__func__, ret);
+			usleep_range(2000, 2000 + 20);
+			if (i == AW8896_MAX_DSP_START_TRY_COUNT - 1)
+				break;
+		} else {
+			if (dsp_en) {
+				aw8896_dsp_enable(aw8896, true);
+			}
+			break;
+		}
+	}
 	aw8896_run_mute(aw8896, false);
 
 	ret = aw8896_get_sysint(aw8896, &sysint);
@@ -413,6 +429,7 @@ static void aw8896_start(struct aw8896 *aw8896)
 			__func__, sysint);
 
 	aw8896_set_intmask(aw8896, true);
+	aw8896->status = AW8896_PW_ON;
 }
 
 static void aw8896_stop(struct aw8896 *aw8896)
@@ -420,20 +437,16 @@ static void aw8896_stop(struct aw8896 *aw8896)
 	int ret = -1;
 	uint16_t sysint = 0;
 
-	pr_debug("%s enter\n", __func__);
-
 	ret = aw8896_get_sysint(aw8896, &sysint);
 	if (ret < 0)
-		pr_err("%s: get_sysint fail, ret=%d\n",
-			__func__, ret);
+		pr_err("%s: get_sysint fail, ret=%d\n", __func__, ret);
 	else
-		pr_info("%s: get_sysint=0x%04x\n",
-			__func__, sysint);
-
-	aw8896_set_intmask(aw8896, false);
-
+		pr_info("%s: get_sysint=0x%04x\n", __func__, sysint);
 
 	aw8896_run_mute(aw8896, true);
+	aw8896_set_intmask(aw8896, false);
+
+	aw8896_dsp_enable(aw8896, false);
 	usleep_range(1000, 2000);
 	aw8896_run_pwd(aw8896, true);
 }
@@ -483,86 +496,6 @@ static void aw8896_dsp_container_update(struct aw8896 *aw8896,
 	pr_debug("%s exit\n", __func__);
 }
 
-static void aw8896_cfg_loaded(const struct firmware *cont, void *context)
-{
-	struct aw8896 *aw8896 = context;
-	struct aw8896_container *aw8896_cfg;
-	/* int i;  */
-	int ret = -1;
-
-	aw8896->dsp_cfg_state = AW8896_DSP_CFG_FAIL;
-
-	if (!cont) {
-		pr_err("%s: failed to read %s\n", __func__, aw8896_cfg_name);
-		release_firmware(cont);
-		return;
-	}
-
-	pr_info("%s: loaded %s - size: %zu\n", __func__, aw8896_cfg_name,
-			cont ? cont->size : 0);
-
-	aw8896_cfg = kzalloc(cont->size+sizeof(int), GFP_KERNEL);
-	if (!aw8896_cfg) {
-		release_firmware(cont);
-		pr_err("%s: error allocating memory\n", __func__);
-		return;
-	}
-	aw8896_cfg->len = cont->size;
-	memcpy(aw8896_cfg->data, cont->data, cont->size);
-	release_firmware(cont);
-
-	mutex_lock(&aw8896->lock);
-	aw8896_dsp_container_update(aw8896, aw8896_cfg, AW8896_DSP_CFG_BASE);
-
-	aw8896->dsp_cfg_len = aw8896_cfg->len;
-
-	kfree(aw8896_cfg);
-	pr_info("%s: cfg update complete\n", __func__);
-
-	aw8896_dsp_enable(aw8896, true);
-
-	usleep_range(1000, 2000);
-
-	ret = aw8896_get_dsp_status(aw8896);
-	if (ret) {
-	aw8896->init = AW8896_INIT_NG;
-		aw8896_dsp_enable(aw8896, false);
-		aw8896_run_mute(aw8896, true);
-		pr_info("%s: dsp working wdt, dsp fw&cfg update failed\n",
-			__func__);
-	} else {
-		aw8896_tx_cfg(aw8896);
-			aw8896_spk_rcv_mode(aw8896);
-			aw8896_start(aw8896);
-		if (!(aw8896->flags & AW8896_FLAG_SKIP_INTERRUPTS)) {
-			aw8896_interrupt_clear(aw8896);
-			aw8896_interrupt_setup(aw8896);
-		}
-		aw8896->init = AW8896_INIT_OK;
-		aw8896->dsp_cfg_state = AW8896_DSP_CFG_OK;
-		aw8896->dsp_fw_state = AW8896_DSP_FW_OK;
-		pr_info("%s: init ok\n", __func__);
-	}
-	mutex_unlock(&aw8896->lock);
-}
-
-static int aw8896_load_cfg(struct aw8896 *aw8896)
-{
-	pr_info("%s enter\n", __func__);
-
-	if (aw8896->dsp_cfg_state == AW8896_DSP_CFG_OK) {
-		pr_debug("%s: dsp cfg ok\n", __func__);
-		return 0;
-	}
-
-	aw8896->dsp_cfg_state = AW8896_DSP_CFG_PENDING;
-
-	return request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
-			aw8896_cfg_name, aw8896->dev, GFP_KERNEL,
-			aw8896, aw8896_cfg_loaded);
-}
-
-
 static void aw8896_fw_loaded(const struct firmware *cont, void *context)
 {
 	struct aw8896 *aw8896 = context;
@@ -584,6 +517,11 @@ static void aw8896_fw_loaded(const struct firmware *cont, void *context)
 	pr_info("%s: loaded %s - size: %zu\n", __func__,
 		aw8896_fw_name[aw8896->dsp_fw_ver],
 			cont ? cont->size : 0);
+	if (cont->size > AW8896_DSP_FW_SIZE) {
+		pr_err("%s: Error:Size exceeds the limit of 512\n", __func__);
+		release_firmware(cont);
+		return;
+	}
 
 	aw8896_fw = kzalloc(cont->size+sizeof(int), GFP_KERNEL);
 	if (!aw8896_fw) {
@@ -593,21 +531,46 @@ static void aw8896_fw_loaded(const struct firmware *cont, void *context)
 	}
 	aw8896_fw->len = cont->size;
 	memcpy(aw8896_fw->data, cont->data, cont->size);
-	release_firmware(cont);
 
 	mutex_lock(&aw8896->lock);
-	aw8896_dsp_container_update(aw8896, aw8896_fw, AW8896_DSP_FW_BASE);
-	mutex_unlock(&aw8896->lock);
+	aw8896_dsp_container_update(aw8896, aw8896_fw,
+		AW8896_DSP_FW_BASE);
+	memcpy(aw8896_fw->data, cont->data, cont->size);
+	aw8896_dsp_container_update(aw8896, aw8896_fw,
+		AW8896_DSP_FW_BACKUP_BASE);
 
+	memcpy(aw8896_dsp_fw_data, cont->data, cont->size);
+
+	release_firmware(cont);
 	aw8896->dsp_fw_len = aw8896_fw->len;
 	kfree(aw8896_fw);
 
 	pr_info("%s: fw update complete\n", __func__);
 
-	ret = aw8896_load_cfg(aw8896);
-	if (ret)
-		pr_err("%s: cfg loading requested failed: %d\n", __func__, ret);
+	aw8896_dsp_enable(aw8896, true);
 
+	usleep_range(1000, 2000);
+
+	ret = aw8896_get_dsp_status(aw8896);
+	if (ret) {
+		aw8896->init = AW8896_INIT_NG;
+		aw8896_dsp_enable(aw8896, false);
+		pr_info("%s: dsp working wdt, dsp fw update failed\n",
+			__func__);
+	} else {
+		aw8896->init = AW8896_INIT_OK;
+		aw8896->dsp_fw_state = AW8896_DSP_FW_OK;
+		pr_info("%s: init ok\n", __func__);
+	}
+
+	aw8896_tx_cfg(aw8896);
+	aw8896_spk_rcv_mode(aw8896);
+	aw8896_start(aw8896, false);
+	if (!(aw8896->flags & AW8896_FLAG_SKIP_INTERRUPTS)) {
+		aw8896_interrupt_clear(aw8896);
+		aw8896_interrupt_setup(aw8896);
+	}
+	mutex_unlock(&aw8896->lock);
 }
 
 static int aw8896_load_fw(struct aw8896 *aw8896)
@@ -642,7 +605,7 @@ static int aw8896_load_fw(struct aw8896 *aw8896)
 	} else {
 		pr_err("%s: dsp fw read version err: 0x%x\n",
 			__func__, tmp_val);
-		return -1;
+		return -EINVAL;
 	}
 
 	aw8896_run_mute(aw8896, true);
@@ -684,6 +647,7 @@ static void aw8896_reg_loaded(const struct firmware *cont, void *context)
 	int ret = -1;
 	int i = 0;
 	int iis_check_max = 5;
+	unsigned int reg_val = 0;
 
 	if (!cont) {
 		pr_err("%s: failed to read %s\n", __func__, aw8896_reg_name);
@@ -705,23 +669,31 @@ static void aw8896_reg_loaded(const struct firmware *cont, void *context)
 	release_firmware(cont);
 
 	aw8896_reg_container_update(aw8896, aw8896_reg);
+	aw8896_i2c_read(aw8896, AW8896_REG_DBGCTRL, &reg_val);
+	aw8896_i2c_write(aw8896, AW8896_REG_DBGCTRL,
+		reg_val | AW8896_BIT_DBGCTRL_DISNCKRST);
+
+	aw8896_i2c_read(aw8896, AW8896_REG_I2SCTRL, &reg_val);
+	aw8896_i2c_write(aw8896, AW8896_REG_I2SCTRL,
+		reg_val & (~AW8896_BIT_I2SCTRL_INPLEV));
 
 	kfree(aw8896_reg);
 
 	for (i = 0; i < iis_check_max; i++) {
-	ret = aw8896_get_iis_status(aw8896);
-	if (ret < 0) {
-		pr_err("%s: get no iis singal, ret=%d\n", __func__, ret);
-	} else {
-		usleep_range(5000, 6000);
-		ret = aw8896_load_fw(aw8896);
-		if (ret) {
-			pr_err("%s: cfg loading requested failed: %d\n",
+		ret = aw8896_get_iis_status(aw8896);
+		if (ret < 0) {
+			pr_err("%s: get no iis signal, ret=%d\n",
 				__func__, ret);
+		} else {
+			usleep_range(5000, 6000);
+			ret = aw8896_load_fw(aw8896);
+			if (ret) {
+				pr_err("%s: fw loading requested failed: %d\n",
+					__func__, ret);
+			}
+			break;
 		}
-		break;
-	}
-	usleep_range(2000, 3000);
+		usleep_range(2000, 3000);
 	}
 }
 
@@ -743,7 +715,8 @@ static void aw8896_cold_start(struct aw8896 *aw8896)
 
 	ret = aw8896_load_reg(aw8896);
 	if (ret)
-		pr_err("%s: cfg loading requested failed: %d\n", __func__, ret);
+		pr_err("%s: reg/fw loading requested failed: %d\n",
+			__func__, ret);
 }
 
 static void aw8896_smartpa_cfg(struct aw8896 *aw8896, bool flag)
@@ -757,13 +730,22 @@ static void aw8896_smartpa_cfg(struct aw8896 *aw8896, bool flag)
 			aw8896_cold_start(aw8896);
 		} else {
 			aw8896_spk_rcv_mode(aw8896);
-			aw8896_start(aw8896);
+			aw8896_start(aw8896, true);
 		}
 	} else {
 		aw8896_stop(aw8896);
 	}
 }
 
+static void aw8896_start_work(struct work_struct *work)
+{
+	struct aw8896 *aw8896 = container_of(work, struct aw8896, start_work);
+
+	pr_info("%s enter\n", __func__);
+	mutex_lock(&aw8896->lock);
+	aw8896_smartpa_cfg(aw8896, true);
+	mutex_unlock(&aw8896->lock);
+}
 /******************************************************
  *
  * kcontrol
@@ -950,21 +932,24 @@ static int aw8896_startup(struct snd_pcm_substream *substream,
 	struct aw8896 *aw8896 = snd_soc_component_get_drvdata(component);
 
 	pr_info("%s: enter\n", __func__);
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		mutex_lock(&aw8896->lock);
 		aw8896_run_pwd(aw8896, false);
 		mutex_unlock(&aw8896->lock);
-
+	} else {
+		pr_info("%s: stream capute. do nothing\n", __func__);
+	}
 	return 0;
 }
 
 static int aw8896_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 {
-	//struct aw8896 *aw8896 = snd_soc_component_get_drvdata(dai->component);
+	/*struct aw8896 *aw8896 = snd_soc_component_get_drvdata(dai->component);*/
 	struct snd_soc_component *component = dai->component;
 
 	pr_info("%s: fmt=0x%x\n", __func__, fmt);
 
-	/* Supported mode: regular I2S, slave, or PDM */
+	/* Supported mode: regular I2S, secondary, or PDM */
 	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
 	case SND_SOC_DAIFMT_I2S:
 		if ((fmt & SND_SOC_DAIFMT_MASTER_MASK) !=
@@ -1078,34 +1063,51 @@ static int aw8896_mute(struct snd_soc_dai *dai, int mute, int stream)
 {
 	struct snd_soc_component *component = dai->component;
 	struct aw8896 *aw8896 = snd_soc_component_get_drvdata(component);
+	unsigned int reg_val = 0;
 
 	pr_info("%s: mute state=%d\n", __func__, mute);
 
 	if (!(aw8896->flags & AW8896_FLAG_DSP_START_ON_MUTE))
 		return 0;
 
-	if (mute) {
-
-	if (stream == SNDRV_PCM_STREAM_PLAYBACK)
-		aw8896->pstream = 0;
-	else
-		aw8896->cstream = 0;
-	if (aw8896->pstream != 0 || aw8896->cstream != 0)
+	if (stream != SNDRV_PCM_STREAM_PLAYBACK) {
+		pr_info("%s: not playback\n", __func__);
 		return 0;
-
+	}
+	if (mute) {
 		/* Stop DSP */
 		mutex_lock(&aw8896->lock);
+		aw8896->pstream = 0;
+
+		aw8896_i2c_read(aw8896, AW8896_REG_SYSCTRL, &reg_val);
+
+		if ((aw8896->status == AW8896_PW_OFF) &&
+			(reg_val & AW8896_BIT_SYSCTRL_PWDN)) {
+			mutex_unlock(&aw8896->lock);
+			pr_info("%s: already power off", __func__);
+			return 0;
+		}
+		aw8896->status = AW8896_PW_OFF;
 		aw8896_smartpa_cfg(aw8896, false);
 		mutex_unlock(&aw8896->lock);
 	} else {
-	if (stream == SNDRV_PCM_STREAM_PLAYBACK)
-		aw8896->pstream = 1;
-	else
-		aw8896->cstream = 1;
-
 		/* Start DSP */
 		mutex_lock(&aw8896->lock);
-		aw8896_smartpa_cfg(aw8896, true);
+		if (aw8896->pstream == 1) {
+			mutex_unlock(&aw8896->lock);
+			pr_info("%s: already power on enter\n", __func__);
+			return 0;
+		}
+
+		aw8896->pstream = 1;
+
+		if (aw8896->status == AW8896_PW_ON) {
+			mutex_unlock(&aw8896->lock);
+			pr_info("%s: already power on", __func__);
+			return 0;
+		}
+		/* check i2s in start */
+		schedule_work(&aw8896->start_work);
 		mutex_unlock(&aw8896->lock);
 	}
 
@@ -1118,8 +1120,12 @@ static void aw8896_shutdown(struct snd_pcm_substream *substream,
 	struct snd_soc_component *component = dai->component;
 	struct aw8896 *aw8896 = snd_soc_component_get_drvdata(component);
 
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		aw8896->rate = 0;
 		aw8896_run_pwd(aw8896, true);
+	} else {
+		pr_info("%s: stream capute. do nothing\n", __func__);
+	}
 }
 
 static const struct snd_soc_dai_ops aw8896_dai_ops = {
@@ -1251,10 +1257,10 @@ static const struct snd_soc_dapm_route aw8896_audio_map[] = {
 static const struct snd_soc_component_driver soc_component_dev_aw8896 = {
 	.probe = aw8896_probe,
 	.remove = aw8896_remove,
-	//.get_regmap = aw8896_get_regmap,
+	/*.get_regmap = aw8896_get_regmap,*/
 	.read = aw8896_codec_read,
 	.write = aw8896_codec_write,
-	//.readable_register= aw8896_readable,
+	/*.readable_register= aw8896_readable,*/
 	.dapm_widgets = aw8896_dapm_widgets,
 	.num_dapm_widgets = ARRAY_SIZE(aw8896_dapm_widgets),
 	.dapm_routes = aw8896_audio_map,
@@ -1501,7 +1507,6 @@ static ssize_t aw8896_dsp_store(struct device *dev,
 		if (reg_val & AW8896_BIT_SYSST_PLLS) {
 			aw8896->init = 0;
 			aw8896->dsp_fw_state = AW8896_DSP_FW_FAIL;
-			aw8896->dsp_cfg_state = AW8896_DSP_CFG_FAIL;
 			aw8896_smartpa_cfg(aw8896, false);
 			aw8896_smartpa_cfg(aw8896, true);
 		} else {
@@ -1558,11 +1563,11 @@ static ssize_t aw8896_dsp_show(struct device *dev,
 			len += snprintf(buf+len, PAGE_SIZE-len, "\n");
 
 			len += snprintf(buf+len, PAGE_SIZE-len,
-						"aw8896 dsp config:\n");
+						"aw8896 dsp firmware backup:\n");
 			addr = 0;
-			for (i = 0; i < aw8896->dsp_cfg_len; i += 2) {
+			for (i = 0; i < aw8896->dsp_fw_len; i += 2) {
 				aw8896_i2c_write(aw8896, AW8896_REG_DSPMADD,
-						AW8896_DSP_CFG_BASE+addr);
+						AW8896_DSP_FW_BACKUP_BASE+addr);
 				aw8896_i2c_read(aw8896, AW8896_REG_DSPMDAT,
 						&reg_val);
 				len += snprintf(buf+len, PAGE_SIZE-len,
@@ -1781,13 +1786,14 @@ int aw8896_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 	}
 
 	dev_set_drvdata(&i2c->dev, aw8896);
+	INIT_WORK(&aw8896->start_work, aw8896_start_work);
 	ret = sysfs_create_group(&i2c->dev.kobj, &aw8896_attribute_group);
 	if (ret < 0) {
 		dev_info(&i2c->dev,
 			"%s error creating sysfs attr files\n", __func__);
 		goto err_sysfs;
 	}
-
+	aw8896->status = AW8896_PW_OFF;
 	pr_info("%s probe completed successfully!\n", __func__);
 
 	return 0;

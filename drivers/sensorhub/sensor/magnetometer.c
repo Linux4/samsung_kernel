@@ -38,6 +38,7 @@ get_magnetometer_function_pointer *get_mag_funcs_ary[] = {
 	get_magnetic_ak09918c_function_pointer,
 	get_magnetic_yas539_function_pointer,
 	get_magnetic_mmc5633_function_pointer,
+	get_magnetic_mxg4300s_function_pointer,
 };
 
 static void parse_dt_magnetometer(struct device *dev)

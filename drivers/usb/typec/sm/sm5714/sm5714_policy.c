@@ -901,7 +901,7 @@ static policy_state sm5714_usbpd_policy_snk_give_sink_cap(
 	return PE_SNK_Give_Sink_Cap;
 }
 
-policy_state usbpd_policy_snk_get_source_cap_ext(
+static policy_state sm5714_usbpd_policy_snk_get_source_cap_ext(
 		struct sm5714_policy_data *policy)
 {
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
@@ -918,7 +918,7 @@ policy_state usbpd_policy_snk_get_source_cap_ext(
 	return PE_SNK_Get_Source_Cap_Ext;
 }
 
-policy_state usbpd_policy_snk_get_source_status(
+static policy_state sm5714_usbpd_policy_snk_get_source_status(
 		struct sm5714_policy_data *policy)
 {
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
@@ -935,7 +935,7 @@ policy_state usbpd_policy_snk_get_source_status(
 	return PE_SNK_Get_Source_Status;
 }
 
-policy_state usbpd_policy_snk_get_source_pps_status(
+static policy_state sm5714_usbpd_policy_snk_get_source_pps_status(
 		struct sm5714_policy_data *policy)
 {
 	struct sm5714_usbpd_data *pd_data = policy_to_usbpd(policy);
@@ -2974,10 +2974,12 @@ static policy_state sm5714_usbpd_policy_dfp_vdm_status_update(
 						}
 						manager->is_sent_pin_configuration = 1;
 #if IS_ENABLED(CONFIG_ARCH_QCOM) && !defined(CONFIG_USB_ARCH_EXYNOS) && !defined(CONFIG_ARCH_EXYNOS)
+#if !defined(CONFIG_USB_MTK_OTG)
 						if (manager->dp_selected_pin == PDIC_NOTIFY_DP_PIN_C ||
 									manager->dp_selected_pin == PDIC_NOTIFY_DP_PIN_E ||
 									manager->dp_selected_pin == PDIC_NOTIFY_DP_PIN_A)
 							dwc3_restart_usb_host_mode_hs();
+#endif
 #endif
 					}
 
@@ -3108,10 +3110,12 @@ static policy_state sm5714_usbpd_policy_dfp_vdm_displayport_configure(
 			}
 			manager->is_sent_pin_configuration = 1;
 #if IS_ENABLED(CONFIG_ARCH_QCOM) && !defined(CONFIG_USB_ARCH_EXYNOS) && !defined(CONFIG_ARCH_EXYNOS)
+#if !defined(CONFIG_USB_MTK_OTG)
 			if (manager->dp_selected_pin == PDIC_NOTIFY_DP_PIN_C ||
 						manager->dp_selected_pin == PDIC_NOTIFY_DP_PIN_E ||
 						manager->dp_selected_pin == PDIC_NOTIFY_DP_PIN_A)
 				dwc3_restart_usb_host_mode_hs();
+#endif
 #endif
 
 		}
@@ -3472,15 +3476,15 @@ void sm5714_usbpd_policy_work(struct work_struct *work)
 			break;
 		case PE_SNK_Get_Source_Cap_Ext:
 			policy->state =
-				usbpd_policy_snk_get_source_cap_ext(policy);
+				sm5714_usbpd_policy_snk_get_source_cap_ext(policy);
 			break;
 		case PE_SNK_Get_Source_Status:
 			policy->state =
-				usbpd_policy_snk_get_source_status(policy);
+				sm5714_usbpd_policy_snk_get_source_status(policy);
 			break;
 		case PE_SNK_Get_Source_PPS_Status:
 			policy->state =
-				usbpd_policy_snk_get_source_pps_status(policy);
+				sm5714_usbpd_policy_snk_get_source_pps_status(policy);
 			break;
 		case PE_DRS_Evaluate_Port:
 			policy->state =
