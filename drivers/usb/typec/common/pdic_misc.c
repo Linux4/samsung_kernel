@@ -36,52 +36,75 @@
 
 static struct pdic_misc_core *p_m_core;
 
-void set_endian(char *src, char *dest, int size)
+int get_checksum(const char *data, int start_addr, int size)
 {
-	int i, j;
-	int loop;
-	int dest_pos;
-	int src_pos;
+	int pos, checksum = 0;
 
-	loop = size / SEC_UVDM_ALIGN;
-	loop += (((size % SEC_UVDM_ALIGN) > 0) ? 1:0);
+	if (!data || start_addr < 0 || size < 0
+		|| start_addr > MAX_BUF_DATA || size > MAX_BUF_DATA)
+		return -EINVAL;
 
-	for (i = 0 ; i < loop ; i++)
-		for (j = 0 ; j < SEC_UVDM_ALIGN ; j++) {
-			src_pos = SEC_UVDM_ALIGN * i + j;
-			dest_pos = SEC_UVDM_ALIGN * i + SEC_UVDM_ALIGN - j - 1;
-			dest[dest_pos] = src[src_pos];
-		}
-}
-EXPORT_SYMBOL(set_endian);
-
-int get_checksum(char *data, int start_addr, int size)
-{
-	int checksum = 0;
-	int i;
-
-	for (i = 0; i < size; i++)
-		checksum += data[start_addr+i];
+	for (pos = 0; pos < size; pos++)
+		checksum += data[start_addr + pos];
 
 	return checksum;
 }
 EXPORT_SYMBOL(get_checksum);
 
+int get_data_size(bool is_first_data, int data_size)
+{
+	int max_size = SEC_UVDM_MAXDATA_NORMAL;
+
+	if (data_size < 0)
+		return -EINVAL;
+
+	if (is_first_data)
+		max_size = SEC_UVDM_MAXDATA_FIRST;
+
+	return data_size <= max_size ? data_size : max_size;
+}
+EXPORT_SYMBOL(get_data_size);
+
+int set_endian(const char *src, char *dest, int size)
+{
+	int loop, cnt, total_loop, src_pos, dest_pos;
+
+	if (!src || !dest || size < 0 || size > MAX_BUF_DATA)
+		return -EINVAL;
+
+	total_loop = size / SEC_UVDM_ALIGN;
+	if (size % SEC_UVDM_ALIGN)
+		total_loop++;
+
+	memset(dest, 0, total_loop * SEC_UVDM_ALIGN);
+
+	for (loop = 0 ; loop < total_loop ; loop++) {
+		for (cnt = 0 ; cnt < SEC_UVDM_ALIGN ; cnt++) {
+			src_pos = SEC_UVDM_ALIGN * loop + cnt;
+			dest_pos = SEC_UVDM_ALIGN * loop + SEC_UVDM_ALIGN - cnt - 1;
+			dest[dest_pos] = src[src_pos];
+		}
+	}
+	return 0;
+}
+EXPORT_SYMBOL(set_endian);
+
 int set_uvdmset_count(int size)
 {
-	int ret = 0;
+	int cnt, len = size - SEC_UVDM_MAXDATA_FIRST;
 
-	if (size <= SEC_UVDM_MAXDATA_FIRST)
-		ret = 1;
-	else {
-		ret = ((size-SEC_UVDM_MAXDATA_FIRST) / SEC_UVDM_MAXDATA_NORMAL);
-		if (((size-SEC_UVDM_MAXDATA_FIRST) %
-			SEC_UVDM_MAXDATA_NORMAL) == 0)
-			ret += 1;
-		else
-			ret += 2;
-	}
-	return ret;
+	if (size < 0)
+		return -EINVAL;
+
+	if (len <= 0)
+		return 1;
+
+	cnt = len / SEC_UVDM_MAXDATA_NORMAL;
+
+	if (len % SEC_UVDM_MAXDATA_NORMAL == 0)
+		return cnt + 1;
+
+	return cnt + 2;
 }
 EXPORT_SYMBOL(set_uvdmset_count);
 
@@ -130,21 +153,6 @@ void set_sec_uvdm_header(void *data, int pid, bool data_type, int cmd_type,
 		SEC_UVDM_HEADER->cmd_type, SEC_UVDM_HEADER->direction);
 }
 EXPORT_SYMBOL(set_sec_uvdm_header);
-
-int get_data_size(int first_set, int remained_data_size)
-{
-	int ret = 0;
-
-	if (first_set)
-		ret = (remained_data_size <= SEC_UVDM_MAXDATA_FIRST) ?
-			remained_data_size : SEC_UVDM_MAXDATA_FIRST;
-	else
-		ret = (remained_data_size <= SEC_UVDM_MAXDATA_NORMAL) ?
-			remained_data_size : SEC_UVDM_MAXDATA_NORMAL;
-
-	return ret;
-}
-EXPORT_SYMBOL(get_data_size);
 
 void set_sec_uvdm_tx_header(void *data,
 		int first_set, int cur_set, int total_size, int remained_size)

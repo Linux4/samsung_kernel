@@ -13,13 +13,20 @@
  * test passes.
  *
  * In KUnit, a test case is just a function with the signature
- * `void (*)(struct test *)`. `struct test` is a context object that stores
+ * `void (*)(struct kunit *)`. `struct kunit` is a context object that stores
  * information about the current test.
  */
 
-#if !defined(CONFIG_UML)
+#ifdef CONFIG_UML
+/* NOTE: UML TC */
+static void ${test_prefix}_bar(struct kunit *test)
+{
+	/* Test cases for UML */
+	KUNIT_EXPECT_EQ(test, 1, 1); // Pass
+}
+#else
 /* NOTE: Target running TC must be in the #ifndef CONFIG_UML */
-static void ${test_prefix}_foo(struct test *test)
+static void ${test_prefix}_foo(struct kunit *test)
 {
 	/*
 	 * This is an EXPECTATION; it is how KUnit tests things. When you want
@@ -27,22 +34,15 @@ static void ${test_prefix}_foo(struct test *test)
 	 * code should do. KUnit then runs the test and verifies that the code's
 	 * behavior matched what was expected.
 	 */
-	EXPECT_EQ(test, 1, 2); // Obvious failure.
+	KUNIT_EXPECT_EQ(test, 1, 2); // Obvious failure.
 }
 #endif
-
-/* NOTE: UML TC */
-static void ${test_prefix}_bar(struct test *test)
-{
-	/* Test cases for UML */
-	return;
-}
 
 /*
  * This is run once before each test case, see the comment on
  * example_test_module for more information.
  */
-static int ${test_prefix}_init(struct test *test)
+static int ${test_prefix}_init(struct kunit *test)
 {
 	return 0;
 }
@@ -51,7 +51,7 @@ static int ${test_prefix}_init(struct test *test)
  * This is run once after each test case, see the comment on example_test_module
  * for more information.
  */
-static void ${test_prefix}_exit(struct test *test)
+static void ${test_prefix}_exit(struct kunit *test)
 {
 }
 
@@ -59,19 +59,20 @@ static void ${test_prefix}_exit(struct test *test)
  * Here we make a list of all the test cases we want to add to the test module
  * below.
  */
-static struct test_case ${test_prefix}_cases[] = {
+static struct kunit_case ${test_prefix}_cases[] = {
 	/*
 	 * This is a helper to create a test case object from a test case
 	 * function; its exact function is not important to understand how to
 	 * use KUnit, just know that this is how you associate test cases with a
 	 * test module.
 	 */
-#if !defined(CONFIG_UML)
-	/* NOTE: Target running TC */
-	TEST_CASE(${test_prefix}_foo),
-#endif
+#ifdef CONFIG_UML
 	/* NOTE: UML TC */
-	TEST_CASE(${test_prefix}_bar),
+	KUNIT_CASE(${test_prefix}_bar),
+#else
+	/* NOTE: Target running TC */
+	KUNIT_CASE(${test_prefix}_foo),
+#endif
 	{},
 };
 
@@ -95,15 +96,18 @@ static struct test_case ${test_prefix}_cases[] = {
  * module.exit(test);
  * ...;
  */
-static struct test_module ${test_prefix}_module = {
+struct kunit_suite ${test_prefix}_module = {
 	.name = "${test_prefix}",
 	.init = ${test_prefix}_init,
 	.exit = ${test_prefix}_exit,
 	.test_cases = ${test_prefix}_cases,
 };
+EXPORT_SYMBOL_KUNIT(${test_prefix}_module);
 
 /*
  * This registers the above test module telling KUnit that this is a suite of
  * tests that need to be run.
  */
-module_test(${test_prefix}_module);
+kunit_test_suites(&${test_prefix}_module);
+
+MODULE_LICENSE("GPL v2");

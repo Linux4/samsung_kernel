@@ -33,8 +33,9 @@
 
 #ifdef POGO_NOTIFIER_ENABLED
 #include <linux/input/pogo_i2c_notifier.h>
-#include "../../sec_input/stm32/stm32_pogo_i2c.h"
 #endif
+
+#include "../../sec_input/stm32/stm32_pogo_i2c.h"
 
 /*
  * Switch events
@@ -60,7 +61,7 @@ enum LOGICAL_HALL_STATUS {
 };
 
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG)
-extern struct device *sec_hall_ic;
+struct device *hall_logical;
 #endif
 
 struct hall_drvdata {
@@ -71,6 +72,7 @@ struct hall_drvdata {
 };
 
 static int hall_logical_status = 0;
+static int hall_backflip_status = 0;
 
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 static ssize_t hall_logical_detect_show(struct device *dev,
@@ -130,19 +132,20 @@ static int logical_hallic_notifier_handler(struct notifier_block *nb,
 
 		if (hall_status == E_LID_0) {
 			hall_logical_status = LOGICAL_HALL_CLOSE;
-			pr_info("%s hall_status = %d (CLOSE)\n", __func__, hall_status);
+			input_info(true, &logical_hall_dev->input->dev, "%s hall_status = %d (CLOSE)\n", __func__, hall_status);
 			input_report_switch(logical_hall_dev->input, SW_FLIP, hall_logical_status);
 			input_sync(logical_hall_dev->input);
 		} else if (hall_status == E_LID_NORMAL) {
 			hall_logical_status = LOGICAL_HALL_OPEN;
-			pr_info("%s hall_status = %d (NORMAL)\n", __func__, hall_status);
+			hall_backflip_status = 0;
+			input_info(true, &logical_hall_dev->input->dev, "%s hall_status = %d (NORMAL)\n", __func__, hall_status);
 			input_report_switch(logical_hall_dev->input, SW_FLIP, hall_logical_status);
-			input_report_switch(logical_hall_dev->input, SW_HALL_LOGICAL, 0);
+			input_report_switch(logical_hall_dev->input, SW_HALL_LOGICAL, hall_backflip_status);
 			input_sync(logical_hall_dev->input);
 		} else if (hall_status == E_LID_360) {
-			hall_logical_status = LOGICAL_HALL_BACK;
-			pr_info("%s hall_status = %d (BACK)\n", __func__, hall_status);
-			input_report_switch(logical_hall_dev->input, SW_HALL_LOGICAL, 1);
+			hall_backflip_status = 1;
+			input_info(true, &logical_hall_dev->input->dev, "%s hall_status = %d (BACK)\n", __func__, hall_status);
+			input_report_switch(logical_hall_dev->input, SW_HALL_LOGICAL, hall_backflip_status);
 			input_sync(logical_hall_dev->input);
 		}
 
@@ -203,7 +206,12 @@ static int hall_logical_probe(struct platform_device *pdev)
 	__set_bit(EV_REP, input->evbit);
 
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG)
-	error = device_create_file(sec_hall_ic, &dev_attr_hall_logical_detect);
+	hall_logical = sec_device_create(ddata, "hall_logical");
+	if (IS_ERR(hall_logical)) {
+		dev_err(dev, "%s: failed to create device for the sysfs\n",__func__);
+	}
+
+	error = device_create_file(hall_logical, &dev_attr_hall_logical_detect);
 	if (error < 0) {
 		pr_err("Failed to create device file(%s)!, error: %d\n",
 		dev_attr_hall_logical_detect.attr.name, error);
@@ -222,6 +230,10 @@ static int hall_logical_probe(struct platform_device *pdev)
 	pogo_notifier_register(&ddata->pogo_nb,
 			logical_hallic_notifier_handler, POGO_NOTIFY_DEV_HALLIC);
 #endif
+
+	input_report_switch(input, SW_FLIP, hall_logical_status);
+	input_report_switch(input, SW_HALL_LOGICAL, hall_backflip_status);
+	input_info(true, dev, "%s hall_status = %d backflip_status = %d\n", __func__, hall_logical_status, hall_backflip_status);
 
 	pr_info("%s end", __func__);
 	return 0;
@@ -301,7 +313,8 @@ static struct platform_driver hall_device_driver = {
 int hall_logical_init(void)
 {
 	pr_info("%s start\n", __func__);
-	return platform_driver_register(&hall_device_driver);
+
+	return platform_driver_probe(&hall_device_driver, hall_logical_probe);
 }
 EXPORT_SYMBOL(hall_logical_init);
 

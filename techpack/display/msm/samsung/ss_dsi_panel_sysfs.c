@@ -1652,6 +1652,43 @@ static ssize_t ss_self_mask_store(struct device *dev,
 	return size;
 }
 
+static ssize_t ss_self_mask_udc_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	int enable = 0;
+	struct samsung_display_driver_data *vdd =
+		(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_INFO(vdd, "no vdd");
+		return size;
+	}
+
+	if (!vdd->self_disp.is_support) {
+		LCD_INFO(vdd, "self display is not supported..(%d) \n",
+								vdd->self_disp.is_support);
+		return -ENODEV;
+	}
+
+	if (sscanf(buf, "%d", &enable) != 1)
+		return size;
+
+	vdd->self_disp.udc_mask_enable = enable;
+
+	if (!ss_is_ready_to_send_cmd(vdd)) {
+		LCD_INFO(vdd, "Panel is not ready. Panel State(%d) enable(%d)\n",
+			vdd->panel_state, enable);
+		return size;
+	}
+
+	if (vdd->self_disp.self_mask_udc_on)
+		vdd->self_disp.self_mask_udc_on(vdd, vdd->self_disp.udc_mask_enable);
+	else
+		LCD_INFO(vdd, "Self Mask UDC Function is NULL\n");
+
+	return size;
+}
+
 static ssize_t ss_mafpc_test_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
@@ -3369,7 +3406,16 @@ static ssize_t ss_disp_SVC_OCTA_DDI_CHIPID_show(struct device *dev,
 	}
 
 	ddi_id = vdd->ddi_id_dsi;
-	if (vdd->dtsi_data.ddi_id_length == 6) {
+
+	if (vdd->dtsi_data.ddi_id_length == 10) {
+		snprintf((char *)temp, sizeof(temp), "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
+			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4], ddi_id[5], ddi_id[6], ddi_id[7], ddi_id[8], ddi_id[9]);
+
+		strlcat(buf, temp, string_size);
+
+		LCD_INFO(vdd, "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4], ddi_id[5], ddi_id[6], ddi_id[7], ddi_id[8], ddi_id[9]);
+	} else if (vdd->dtsi_data.ddi_id_length == 6) {
 		snprintf((char *)temp, sizeof(temp), "%02x%02x%02x%02x%02x%02x\n",
 			ddi_id[0], ddi_id[1], ddi_id[2], ddi_id[3], ddi_id[4], ddi_id[5]);
 
@@ -3517,6 +3563,9 @@ static ssize_t ss_rf_info_store(struct device *dev,
 			vdd->dyn_mipi_clk.rf_info.rat,
 			vdd->dyn_mipi_clk.rf_info.band,
 			vdd->dyn_mipi_clk.rf_info.arfcn);
+
+	if (vdd->dyn_mipi_clk.osc_support && vdd->panel_func.update_osc)
+		vdd->panel_func.update_osc(vdd, vdd->dyn_mipi_clk.requested_osc_idx);
 #else
 	LCD_INFO(vdd, "mipi clk change not support\n");
 #endif
@@ -5355,6 +5404,114 @@ end:
 	return size;
 }
 
+static ssize_t ss_seq_on_delay_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+
+	struct samsung_display_driver_data *vdd =
+			(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+	int len = 0;
+	int i;
+
+	LCD_INFO(vdd, "on delay updated: %d\n", vdd->on_delay.update);
+
+	len += sprintf(buf + len, "on delay: ");
+	for (i = 0; i < vdd->on_delay.update_count; i++)
+		len += sprintf(buf + len, "%d, ", vdd->on_delay.delay[i]);
+	len += sprintf(buf + len, "\n");
+
+	LCD_INFO(vdd, "%s", buf);
+
+	return len;
+}
+
+static ssize_t ss_seq_on_delay_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct samsung_display_driver_data *vdd =
+		(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+
+	int delay[MAX_DELAY_NUM];
+	int count;
+	int i;
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_INFO(vdd, "no vdd");
+		goto end;
+	}
+
+	count = sscanf(buf, "%d %d %d %d",
+			&delay[0], &delay[1], &delay[2], &delay[3]);
+
+	if (count > MAX_DELAY_NUM)
+		count = MAX_DELAY_NUM;
+
+	LCD_INFO(vdd, "delay(%d): %d, %d, %d, %d\n", count,
+			delay[0], delay[1], delay[2], delay[3]);
+
+	for (i = 0; i < count; i++)
+		vdd->on_delay.delay[i] = delay[i];
+
+	vdd->on_delay.update_count = count;
+	vdd->on_delay.update = true;
+end:
+	return size;
+}
+
+static ssize_t ss_seq_off_delay_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+
+	struct samsung_display_driver_data *vdd =
+			(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+	int len = 0;
+	int i;
+
+	LCD_INFO(vdd, "off delay updated: %d\n", vdd->off_delay.update);
+
+	len += sprintf(buf + len, "off delay: ");
+	for (i = 0; i < vdd->off_delay.update_count; i++)
+		len += sprintf(buf + len, "%d, ", vdd->off_delay.delay[i]);
+	len += sprintf(buf + len, "\n");
+
+	LCD_INFO(vdd, "%s", buf);
+
+	return len;
+}
+
+static ssize_t ss_seq_off_delay_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct samsung_display_driver_data *vdd =
+		(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+
+	int delay[MAX_DELAY_NUM];
+	int count;
+	int i;
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_INFO(vdd, "no vdd");
+		goto end;
+	}
+
+	count = sscanf(buf, "%d %d %d %d",
+			&delay[0], &delay[1], &delay[2], &delay[3]);
+
+	if (count > MAX_DELAY_NUM)
+		count = MAX_DELAY_NUM;
+
+	LCD_INFO(vdd, "delay(%d): %d, %d, %d, %d\n", count,
+			delay[0], delay[1], delay[2], delay[3]);
+
+	for (i = 0; i < count; i++)
+		vdd->off_delay.delay[i] = delay[i];
+
+	vdd->off_delay.update_count = count;
+	vdd->off_delay.update = true;
+end:
+	return size;
+}
+
 static DEVICE_ATTR(lcd_type, S_IRUGO, ss_disp_lcdtype_show, NULL);
 static DEVICE_ATTR(cell_id, S_IRUGO, ss_disp_cell_id_show, NULL);
 static DEVICE_ATTR(octa_id, S_IRUGO, ss_disp_octa_id_show, NULL);
@@ -5371,6 +5528,7 @@ static DEVICE_ATTR(copr, S_IRUGO | S_IWUSR | S_IWGRP, ss_copr_show, ss_copr_stor
 static DEVICE_ATTR(copr_roi, S_IRUGO | S_IWUSR | S_IWGRP, ss_copr_roi_show, ss_copr_roi_store);
 static DEVICE_ATTR(brt_avg, S_IRUGO | S_IWUSR | S_IWGRP, ss_brt_avg_show, NULL);
 static DEVICE_ATTR(self_mask, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_self_mask_store);
+static DEVICE_ATTR(self_mask_udc, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_self_mask_udc_store);
 static DEVICE_ATTR(mafpc_test, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_mafpc_test_store);
 static DEVICE_ATTR(mafpc_check, S_IRUGO | S_IWUSR | S_IWGRP, ss_mafpc_check_show, NULL);
 static DEVICE_ATTR(dynamic_hlpm, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_dynamic_hlpm_store);
@@ -5445,6 +5603,8 @@ static DEVICE_ATTR(te_check, S_IRUGO | S_IWUSR | S_IWGRP, ss_te_check_show, NULL
 static DEVICE_ATTR(udc_data, S_IRUGO | S_IWUSR | S_IWGRP, ss_udc_data_show, NULL);
 static DEVICE_ATTR(udc_fac, S_IRUGO | S_IWUSR | S_IWGRP, ss_udc_factory_show, NULL);
 static DEVICE_ATTR(set_elvss, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_set_elvss_store);
+static DEVICE_ATTR(seq_on_delay, 0644, ss_seq_on_delay_show, ss_seq_on_delay_store);
+static DEVICE_ATTR(seq_off_delay, 0644, ss_seq_off_delay_show, ss_seq_off_delay_store);
 
 static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_lcd_type.attr,
@@ -5465,6 +5625,7 @@ static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_copr_roi.attr,
 	&dev_attr_brt_avg.attr,
 	&dev_attr_self_mask.attr,
+	&dev_attr_self_mask_udc.attr,
 	&dev_attr_dynamic_hlpm.attr,
 	&dev_attr_self_display.attr,
 	&dev_attr_self_move.attr,
@@ -5529,6 +5690,8 @@ static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_udc_data.attr,
 	&dev_attr_udc_fac.attr,
 	&dev_attr_set_elvss.attr,
+	&dev_attr_seq_on_delay.attr,
+	&dev_attr_seq_off_delay.attr,
 	NULL
 };
 static const struct attribute_group panel_sysfs_group = {

@@ -109,6 +109,10 @@ enum registers {
 #define ISG5320A_BFCAL_CHK_RDY_TIME       (3 * 60 * 2) // 3min (unit: 500ms)
 #define ISG5320A_BFCAL_CHK_CYCLE_TIME     4   //  2sec (unit: 500ms)
 #define ISG5320A_BFCAL_CHK_DIFF_RATIO     3
+
+#define UNKNOWN_ON  1
+#define UNKNOWN_OFF 2
+
 enum {
 	OFF = 0,
 	ON,
@@ -205,7 +209,7 @@ static const struct isg5320a_reg_data setup_reg[] = {
 	{    .addr = 0x9D,    .val = 0x00,    },
 	{    .addr = 0x9E,    .val = 0x00,    },
 	{    .addr = 0x9F,    .val = 0x00,    },
-	{    .addr = 0xA0,    .val = 0x35,    },
+	{    .addr = 0xA0,    .val = 0xFA,    },
 	{    .addr = 0xA1,    .val = 0xC0,    },
 	{    .addr = 0xA2,    .val = 0x22,    },
 	{    .addr = 0xA3,    .val = 0x00,    },
@@ -226,7 +230,7 @@ static const struct isg5320a_reg_data setup_reg[] = {
 	{    .addr = 0xB7,    .val = 0xF6,    },
 	{    .addr = 0xB8,    .val = 0xFD,    },
 	{    .addr = 0xB9,    .val = 0xDE,    },
-	{    .addr = 0xBA,    .val = 0xA0,    },
+	{    .addr = 0xBA,    .val = 0xFD,    },
 	{    .addr = 0xBB,    .val = 0xF0,    },
 	{    .addr = 0xBC,    .val = 0x00,    },
 	{    .addr = 0xBD,    .val = 0xFF,    },
@@ -250,7 +254,7 @@ static const struct isg5320a_reg_data setup_reg[] = {
 	{    .addr = 0x3E,    .val = 0x60,    },
 	{    .addr = 0x94,    .val = 0x10,    },
 	{    .addr = 0x95,    .val = 0x98,    },
-	{    .addr = 0x96,    .val = 0x09,    },
+	{    .addr = 0x96,    .val = 0x07,    },
 	{    .addr = 0x2E,    .val = 0x15,    },
 	{    .addr = 0x0E,    .val = 0xE0,    },
 	{    .addr = 0x0F,    .val = 0x1E,    },
@@ -352,15 +356,15 @@ static const struct isg5320a_reg_data setup_reg[] = {
 	{    .addr = 0x8B,    .val = 0x00,    },
 	{    .addr = 0x8C,    .val = 0x02,    },
 	{    .addr = 0x8D,    .val = 0x00,    },
-	{    .addr = 0x99,    .val = 0x11,    },
+	{    .addr = 0x99,    .val = 0x21,    },
 	{    .addr = 0x9A,    .val = 0x3C,    },
 	{    .addr = 0x9B,    .val = 0x00,    },
-	{    .addr = 0x9C,    .val = 0xFA,    },
+	{    .addr = 0x9C,    .val = 0xC8,    },
 	{    .addr = 0x9D,    .val = 0x00,    },
 	{    .addr = 0x9E,    .val = 0x00,    },
 	{    .addr = 0x9F,    .val = 0x00,    },
-	{    .addr = 0xA0,    .val = 0x25,    },
-	{    .addr = 0xA1,    .val = 0xC0,    },
+	{    .addr = 0xA0,    .val = 0x64,    },
+	{    .addr = 0xA1,    .val = 0xE0,    },
 	{    .addr = 0xA2,    .val = 0x22,    },
 	{    .addr = 0xA3,    .val = 0x00,    },
 	{    .addr = 0xA4,    .val = 0x08,    },
@@ -380,7 +384,7 @@ static const struct isg5320a_reg_data setup_reg[] = {
 	{    .addr = 0xB7,    .val = 0x40,    },
 	{    .addr = 0xB8,    .val = 0xFD,    },
 	{    .addr = 0xB9,    .val = 0x80,    },
-	{    .addr = 0xBA,    .val = 0xC0,    },
+	{    .addr = 0xBA,    .val = 0xFD,    },
 	{    .addr = 0xBB,    .val = 0xF0,    },
 	{    .addr = 0xBC,    .val = 0x00,    },
 	{    .addr = 0xBD,    .val = 0x00,    },
@@ -419,7 +423,7 @@ static const struct isg5320a_reg_data setup_reg[] = {
 	{    .addr = 0xD6,    .val = 0x3C,    },
 	{    .addr = 0xD7,    .val = 0xFF,    },
 	{    .addr = 0xD8,    .val = 0x1E,    },
-	{    .addr = 0xD9,    .val = 0x78,    },
+	{    .addr = 0xD9,    .val = 0x60,    },
 	{    .addr = 0xDA,    .val = 0x7F,    },
 	{    .addr = 0xDB,    .val = 0xE0,    },
 	{    .addr = 0xDC,    .val = 0x00,    },
@@ -432,6 +436,9 @@ static const struct isg5320a_reg_data setup_reg[] = {
 	{    .addr = 0xAD,    .val = 0x04,    },
 	{    .addr = 0xAE,    .val = 0x00,    },
 };
+#endif
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+extern unsigned int lpcharge;
 #endif
 
 #endif /* __ISG5320A_REG_H__ */

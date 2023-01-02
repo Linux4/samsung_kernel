@@ -21,6 +21,7 @@
 #include <linux/of.h>
 #include <linux/reset.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/pinctrl/qcom-pinctrl.h>
 
 #include "sdhci-pltfm.h"
 #include "cqhci.h"
@@ -163,6 +164,10 @@
 #define CQHCI_VENDOR_CFG1	0xA00
 #define CQHCI_VENDOR_DIS_RST_ON_CQ_EN	(0x3 << 13)
 #define RCLK_TOGGLE BIT(2)
+
+/* enum for writing to TLMM_NORTH_SPARE register as defined by pinctrl API */
+#define TLMM_NORTH_SPARE	2
+#define TLMM_NORTH_SPARE_CORE_IE	BIT(15)
 
 struct sdhci_msm_offset {
 	u32 core_hc_mode;
@@ -934,7 +939,7 @@ static int msm_init_cm_dll(struct sdhci_host *host,
 
 			mclk_freq = ROUND(dll_clock * cycle_cnt, TCXO_FREQ);
 
-			if (dll_clock < 192000000)
+			if (dll_clock < 100000000)
 				pr_err("%s: %s: Non standard clk freq =%u\n",
 				mmc_hostname(mmc), __func__, dll_clock);
 
@@ -1495,9 +1500,6 @@ static int sdhci_msm_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	const struct sdhci_msm_offset *msm_offset =
 					sdhci_priv_msm_offset(host);
 
-	core_vendor_spec = readl_relaxed(host->ioaddr +
-			msm_offset->core_vendor_spec);
-
 	if (!sdhci_msm_is_tuning_needed(host)) {
 		msm_host->use_cdr = false;
 		sdhci_msm_set_cdr(host, false);
@@ -1523,6 +1525,9 @@ static int sdhci_msm_execute_tuning(struct mmc_host *mmc, u32 opcode)
 		msm_set_clock_rate_for_bus_mode(host, ios.clock);
 		host->flags &= ~SDHCI_HS400_TUNING;
 	}
+
+	core_vendor_spec = readl_relaxed(host->ioaddr +
+			msm_offset->core_vendor_spec);
 
 	/* Make sure that PWRSAVE bit is set to '0' during tuning */
 	writel_relaxed((core_vendor_spec & ~CORE_CLK_PWRSAVE),
@@ -2226,6 +2231,7 @@ static int sdhci_msm_setup_vreg(struct sdhci_msm_host *msm_host,
 	struct sdhci_msm_vreg_data *curr_slot;
 	struct sdhci_msm_reg_data *vreg_table[2];
 	struct mmc_host *mmc = msm_host->mmc;
+	u32 val = 0;
 
 	curr_slot = msm_host->vreg_data;
 	if (!curr_slot) {
@@ -2241,6 +2247,20 @@ static int sdhci_msm_setup_vreg(struct sdhci_msm_host *msm_host,
 	if (!enable && vreg_table[1]->is_always_on && !mmc->card)
 		vreg_table[1]->is_always_on = false;
 
+	if (!enable && !(mmc->caps & MMC_CAP_NONREMOVABLE)) {
+
+		/*
+		 * Disable Receiver of the Pad to avoid crowbar currents
+		 * when Pad power supplies are collapsed. Provide SW control
+		 * on the core_ie of SDC2 Pads. SW write 1’b0
+		 * into the bit 15 of register TLMM_NORTH_SPARE.
+		 */
+
+		val = msm_spare_read(TLMM_NORTH_SPARE);
+		val &= ~TLMM_NORTH_SPARE_CORE_IE;
+		msm_spare_write(TLMM_NORTH_SPARE, val);
+	}
+
 	for (i = 0; i < ARRAY_SIZE(vreg_table); i++) {
 		if (vreg_table[i]) {
 			if (enable)
@@ -2250,6 +2270,20 @@ static int sdhci_msm_setup_vreg(struct sdhci_msm_host *msm_host,
 			if (ret)
 				goto out;
 		}
+	}
+
+	if (enable && !(mmc->caps & MMC_CAP_NONREMOVABLE)) {
+
+		/*
+		 * Disable Receiver of the Pad to avoid crowbar currents
+		 * when Pad power supplies are collapsed. Provide SW control
+		 * on the core_ie of SDC2 Pads. SW write 1’b1
+		 * into the bit 15 of register TLMM_NORTH_SPARE.
+		 */
+
+		val = msm_spare_read(TLMM_NORTH_SPARE);
+		val |= TLMM_NORTH_SPARE_CORE_IE;
+		msm_spare_write(TLMM_NORTH_SPARE, val);
 	}
 out:
 	return ret;
@@ -2687,8 +2721,8 @@ static void sdhci_msm_registers_restore(struct sdhci_host *host)
 			host->ioaddr + msm_offset->core_pwrctl_mask);
 
 	if (cq_host)
-		cqhci_writel(cq_host, msm_host->cqe_regs.cqe_vendor_cfg1,
-				CQHCI_VENDOR_CFG1);
+		cqhci_writel(cq_host, msm_host->cqe_regs.cqe_vendor_cfg1 &
+				~CMDQ_SEND_STATUS_TRIGGER, CQHCI_VENDOR_CFG1);
 
 	if (((ios.timing == MMC_TIMING_MMC_HS400) ||
 			(ios.timing == MMC_TIMING_MMC_HS200) ||
@@ -2712,6 +2746,23 @@ static void sdhci_msm_registers_restore(struct sdhci_host *host)
 		mmc_hostname(host->mmc), __func__,
 		readl_relaxed(host->ioaddr +
 			msm_offset->core_pwrctl_mask));
+}
+
+static void sdhci_msm_set_timeout(struct sdhci_host *host, struct mmc_command *cmd)
+{
+	u32 count, start = 15;
+
+	__sdhci_set_timeout(host, cmd);
+	count = sdhci_readb(host, SDHCI_TIMEOUT_CONTROL);
+	/*
+	 * Update software timeout value if its value is less than hardware data
+	 * timeout value. Qcom SoC hardware data timeout value was calculated
+	 * using 4 * MCLK * 2^(count + 13). where MCLK = 1 / host->clock.
+	 */
+	if (cmd && cmd->data && host->clock > 400000 &&
+	    host->clock <= 50000000 &&
+	    ((1 << (count + start)) > (10 * host->clock)))
+		host->data_timeout = 22LL * NSEC_PER_SEC;
 }
 
 /*
@@ -3490,6 +3541,7 @@ static void sdhci_msm_hw_reset(struct sdhci_host *host)
 	if (ret)
 		dev_err(&pdev->dev, "%s: core_reset deassert failed, err = %d\n",
 				__func__, ret);
+	usleep_range(200, 210);
 
 	sdhci_msm_registers_restore(host);
 	msm_host->reg_store = false;
@@ -3522,6 +3574,7 @@ static const struct sdhci_ops sdhci_msm_ops = {
 	.notify_load = sdhci_msm_notify_load,
 #endif
 	.hw_reset = sdhci_msm_hw_reset,
+	.set_timeout = sdhci_msm_set_timeout,
 };
 
 static const struct sdhci_pltfm_data sdhci_msm_pdata = {

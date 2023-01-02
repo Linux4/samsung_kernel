@@ -195,6 +195,9 @@ static void lpm_klog_store(void)
 			len = sec_log_buf_size - idx;
 			if (len != 0)
 				memcpy(lpm_klog_write_buf, &(lpm_klog_buf->buf[idx]), len);
+		} else {
+			idx = lpm_klog_buf->idx % sec_log_buf_size;
+			len = 0;
 		}
 
 		memcpy(lpm_klog_write_buf + len, lpm_klog_buf->buf, idx);                
@@ -291,7 +294,7 @@ static int sec_log_store(struct notifier_block *nb,
 	struct rtc_time tm;
 	struct rtc_device *rtc = rtc_class_open(CONFIG_RTC_HCTOSYS_DEVICE);
 	struct timespec64 now;
-	time64_t local_time, rtc_offset;
+	time64_t local_time, rtc_offset = 0;
 	struct rtc_time local_tm;
 
 	if (!rtc) {
@@ -313,7 +316,7 @@ static int sec_log_store(struct notifier_block *nb,
 
 	ktime_get_real_ts64(&now);
 	local_time = now.tv_sec;
-	local_time -= sys_tz.tz_minuteswest * 60;	// adjust time zone
+	local_time -= (time64_t)sys_tz.tz_minuteswest * 60;	// adjust time zone
 	rtc_time64_to_tm(local_time, &local_tm);
 
 #if IS_ENABLED(CONFIG_SEC_STORE_POWER_ONOFF_HISTORY)
@@ -323,9 +326,16 @@ static int sec_log_store(struct notifier_block *nb,
 	switch (action) {
 	case SYS_RESTART:
 	case SYS_POWER_OFF:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0)
 		pr_info("%ptR(TZ:%02d), %s, %s\n",
 				&local_tm, -sys_tz.tz_minuteswest / 60,
 				action == SYS_RESTART ? "reboot" : "power off", cmd);
+#else
+		pr_info("%d-%02d-%02d %02d:%02d:%02d(TZ:%02d), %s, %s\n",
+				local_tm.tm_year + 1900, local_tm.tm_mon + 1, local_tm.tm_mday,
+				local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec, -sys_tz.tz_minuteswest / 60,
+				action == SYS_RESTART ? "reboot" : "power off", cmd);
+#endif
 		write_debug_partition(debug_index_reset_klog, s_log_buf);
 		break;
 	}

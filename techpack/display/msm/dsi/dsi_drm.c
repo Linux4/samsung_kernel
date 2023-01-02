@@ -244,6 +244,9 @@ static void dsi_bridge_enable(struct drm_bridge *bridge)
 	int rc = 0;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
 	struct dsi_display *display;
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd;
+#endif
 
 	if (!bridge) {
 		DSI_ERR("Invalid params\n");
@@ -266,6 +269,13 @@ static void dsi_bridge_enable(struct drm_bridge *bridge)
 	if (display)
 		display->enabled = true;
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	vdd = display->panel->panel_private;
+	if (vdd) {
+		vdd->display_enabled = true;
+	}
+#endif
+
 	if (display && display->drm_conn) {
 		sde_connector_helper_bridge_enable(display->drm_conn);
 		if (c_bridge->dsi_mode.dsi_mode_flags & DSI_MODE_FLAG_POMS)
@@ -280,6 +290,9 @@ static void dsi_bridge_disable(struct drm_bridge *bridge)
 	int private_flags;
 	struct dsi_display *display;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd;
+#endif
 
 	if (!bridge) {
 		DSI_ERR("Invalid params\n");
@@ -291,6 +304,13 @@ static void dsi_bridge_disable(struct drm_bridge *bridge)
 
 	if (display)
 		display->enabled = false;
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	vdd = display->panel->panel_private;
+	if (vdd) {
+ 		vdd->display_enabled = false;
+	}
+#endif
 
 	if (display && display->drm_conn) {
 		display->poms_pending =

@@ -948,9 +948,9 @@ __visible_for_testing int poc_dpui_notifier_callback(struct notifier_block *self
 	struct POC *poc = container_of(self, struct POC, dpui_notif);
 	struct samsung_display_driver_data *vdd = container_of(poc, struct samsung_display_driver_data, poc_driver);
 	char tbuf[MAX_DPUI_VAL_LEN];
-	int total_fail_cnt;
-	int total_try_cnt;
-	int size, ret, poci, poci_org;
+	int total_fail_cnt = 0;
+	int total_try_cnt = 0;
+	int size = 0, ret = 0, poci = 0, poci_org = 0;
 
 	if (poc == NULL) {
 		LCD_INFO(vdd, "err: poc is null\n");

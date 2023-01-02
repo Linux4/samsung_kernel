@@ -393,8 +393,8 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 			LCD_INFO(vdd, "ub_con_det.gpio = %d\n", ss_gpio_get_value(vdd, vdd->ub_con_det.gpio));
 
 		vdd->ub_con_det.current_wakeup_context_gpio_status = ss_gpio_get_value(vdd, vdd->ub_con_det.gpio);
-		if (vdd->ub_con_det.current_wakeup_context_gpio_status ) {
-			LCD_ERR(vdd, "Do not panel power on..\n");
+		if (vdd->ub_con_det.current_wakeup_context_gpio_status) {
+			LCD_INFO(vdd, "Do not panel power on..\n");
 			return 0;
 		}
 	}
@@ -454,7 +454,7 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	if (gpio_is_valid(vdd->dtsi_data.samsung_tcon_rdy_gpio)) {
-		LCD_ERR(vdd, "skip panel reset while panel power on sequence \n");
+		LCD_INFO(vdd, "skip panel reset while panel power on sequence \n");
 		goto exit;
 	}
 #endif
@@ -503,6 +503,11 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		return 0;
 	}
 #endif
+
+	if (panel->is_twm_en) {
+		DSI_DEBUG("TWM Enabled, skip panel power off\n");
+		return rc;
+	}
 
 	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
 		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
@@ -601,7 +606,6 @@ static int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 
 	if (!ss_panel_attach_get(panel->panel_private)) {
 		LCD_INFO(vdd, "PBA booting, skip to disable panel\n");
-		dump_stack();
 		return 0;
 	}
 
@@ -1236,6 +1240,9 @@ static int dsi_panel_parse_pixel_format(struct dsi_host_common_cfg *host,
 		break;
 	case 18:
 		fmt = DSI_PIXEL_FORMAT_RGB666;
+		break;
+	case 30:
+		fmt = DSI_PIXEL_FORMAT_RGB101010;
 		break;
 	case 24:
 	default:
@@ -4828,6 +4835,11 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
+	if (panel->is_twm_en) {
+		DSI_DEBUG("TWM Enabled, skip idle off\n");
+		return rc;
+	}
+
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, true);
 #endif
@@ -5374,7 +5386,7 @@ int dsi_panel_enable(struct dsi_panel *panel)
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	vdd = panel->panel_private;
-	LCD_ERR(vdd, "++\n");
+	LCD_INFO(vdd, "++\n");
 
 	/* delay between panel_reset and sleep_out */
 	ss_delay(vdd->dtsi_data.after_reset_delay, vdd->reset_time_64);
@@ -5387,7 +5399,7 @@ int dsi_panel_enable(struct dsi_panel *panel)
 
 	/* 3FA7 IC : display off, sleep in cmds should be sent befor sleep out in case2 */
 	if (vdd->poc_driver.read_case == READ_CASE2 && vdd->poc_driver.need_sleep_in) {
-		LCD_ERR(vdd, "display off, sleep in cmds should be sent befor sleep out in case2..\n");
+		LCD_INFO(vdd, "display off, sleep in cmds should be sent befor sleep out in case2..\n");
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_OFF);
 		if (rc) {
 			LCD_ERR(vdd, "[%s] failed to send DSI_CMD_SET_OFF cmds, rc=%d\n",
@@ -5413,7 +5425,7 @@ int dsi_panel_enable(struct dsi_panel *panel)
 	vdd->tx_set_on_time = ktime_get();
 
 	ss_panel_on_post(panel->panel_private);
-	LCD_ERR(vdd, "--\n");
+	LCD_INFO(vdd, "--\n");
 #endif
 
 	mutex_unlock(&panel->panel_lock);
@@ -5496,9 +5508,15 @@ int dsi_panel_disable(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
+	if (panel->is_twm_en) {
+		DSI_DEBUG("TWM Enabled, skip panel disable\n");
+		return rc;
+	}
+
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	vdd = panel->panel_private;
-	LCD_ERR(vdd, "++\n");
+
+	LCD_INFO(vdd, "++\n");
 	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, true);
 #endif
 	mutex_lock(&panel->panel_lock);
@@ -5544,7 +5562,7 @@ skip_cmd_tx:
 	mutex_unlock(&panel->panel_lock);
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, false);
-	LCD_ERR(vdd, "--\n");
+	LCD_INFO(vdd, "--\n");
 #endif
 	return rc;
 }

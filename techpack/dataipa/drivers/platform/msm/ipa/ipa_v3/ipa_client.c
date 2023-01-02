@@ -67,6 +67,7 @@ int ipa3_enable_data_path(u32 clnt_hdl)
 			holb_cfg.en = IPA_HOLB_TMR_EN;
 		} else if (ipa3_ctx->ipa_hw_type == IPA_HW_v4_11 &&
 				(ep->client == IPA_CLIENT_WLAN1_CONS ||
+				ep->client == IPA_CLIENT_WLAN2_CONS ||
 				 ep->client == IPA_CLIENT_USB_CONS)) {
 			holb_cfg.en = IPA_HOLB_TMR_EN;
 			holb_cfg.tmr_val = IPA_HOLB_TMR_VAL_4_5;
@@ -1497,8 +1498,10 @@ int ipa3_set_reset_client_cons_pipe_sus_holb(bool set_reset, u32 tmr_val,
 			IPA_ENDP_INIT_HOL_BLOCK_EN_n,
 			pipe_idx, &ep_holb);
 
-		/* IPA4.5 issue requires HOLB_EN to be written twice */
-		if (ipa3_ctx->ipa_hw_type >= IPA_HW_v4_5)
+		/* For targets > IPA_4.0 issue requires HOLB_EN to be
+		 * written twice.
+		 */
+		if (ipa3_ctx->ipa_hw_type >= IPA_HW_v4_0)
 			ipahal_write_reg_n_fields(
 				IPA_ENDP_INIT_HOL_BLOCK_EN_n,
 				pipe_idx, &ep_holb);
@@ -1609,6 +1612,7 @@ int ipa3_release_gsi_channel(u32 clnt_hdl)
 	struct ipa3_ep_context *ep;
 	int result = -EFAULT;
 	enum gsi_status gsi_res;
+	unsigned long flags;
 
 	IPADBG("entry\n");
 	if (clnt_hdl >= ipa3_ctx->ipa_num_pipes ||
@@ -1623,10 +1627,9 @@ int ipa3_release_gsi_channel(u32 clnt_hdl)
 		IPA_ACTIVE_CLIENTS_INC_EP(ipa3_get_client_mapping(clnt_hdl));
 
 	/* Set the disconnect in progress flag to avoid calling cb.*/
-	spin_lock(&ipa3_ctx->disconnect_lock);
+	spin_lock_irqsave(&ipa3_ctx->disconnect_lock, flags);
 	atomic_set(&ep->disconnect_in_progress, 1);
-	spin_unlock(&ipa3_ctx->disconnect_lock);
-
+	spin_unlock_irqrestore(&ipa3_ctx->disconnect_lock, flags);
 
 	gsi_res = gsi_dealloc_channel(ep->gsi_chan_hdl);
 	if (gsi_res != GSI_STATUS_SUCCESS) {
@@ -1646,9 +1649,9 @@ int ipa3_release_gsi_channel(u32 clnt_hdl)
 	if (!ep->keep_ipa_awake)
 		IPA_ACTIVE_CLIENTS_DEC_EP(ipa3_get_client_mapping(clnt_hdl));
 
-	spin_lock(&ipa3_ctx->disconnect_lock);
+	spin_lock_irqsave(&ipa3_ctx->disconnect_lock, flags);
 	memset(&ipa3_ctx->ep[clnt_hdl], 0, sizeof(struct ipa3_ep_context));
-	spin_unlock(&ipa3_ctx->disconnect_lock);
+	spin_unlock_irqrestore(&ipa3_ctx->disconnect_lock, flags);
 
 	IPADBG("exit\n");
 	return 0;

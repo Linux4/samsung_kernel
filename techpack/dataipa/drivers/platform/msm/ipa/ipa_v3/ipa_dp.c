@@ -89,6 +89,8 @@
 
 #define IPA_QMAP_ID_BYTE 0
 
+#define IPA_MEM_ALLOC_RETRY 5
+
 static struct sk_buff *ipa3_get_skb_ipa_rx(unsigned int len, gfp_t flags);
 static void ipa3_replenish_wlan_rx_cache(struct ipa3_sys_context *sys);
 static void ipa3_replenish_rx_cache(struct ipa3_sys_context *sys);
@@ -343,20 +345,22 @@ static void ipa3_send_nop_desc(struct work_struct *work)
 		return;
 	}
 	list_add_tail(&tx_pkt->link, &sys->head_desc_list);
-	sys->len++;
-	sys->nop_pending = false;
 
 	memset(&nop_xfer, 0, sizeof(nop_xfer));
 	nop_xfer.type = GSI_XFER_ELEM_NOP;
 	nop_xfer.flags = GSI_XFER_FLAG_EOT;
 	nop_xfer.xfer_user_data = tx_pkt;
 	if (gsi_queue_xfer(sys->ep->gsi_chan_hdl, 1, &nop_xfer, true)) {
+		list_del(&tx_pkt->link);
+		kmem_cache_free(ipa3_ctx->tx_pkt_wrapper_cache, tx_pkt);
 		spin_unlock_bh(&sys->spinlock);
 		IPAERR("gsi_queue_xfer for ch:%lu failed\n",
 			sys->ep->gsi_chan_hdl);
 		queue_work(sys->wq, &sys->work);
 		return;
 	}
+	sys->len++;
+	sys->nop_pending = false;
 	spin_unlock_bh(&sys->spinlock);
 
 	/* make sure TAG process is sent before clocks are gated */
@@ -1381,10 +1385,12 @@ fail_repl:
 	ep->sys->repl_hdlr = ipa3_replenish_rx_cache;
 	ep->sys->repl->capacity = 0;
 	kfree(ep->sys->repl);
+	ep->sys->repl = NULL;
 fail_page_recycle_repl:
 	if (ep->sys->page_recycle_repl) {
 		ep->sys->page_recycle_repl->capacity = 0;
 		kfree(ep->sys->page_recycle_repl);
+		ep->sys->page_recycle_repl = NULL;
 	}
 fail_napi:
 	/* Delete NAPI TX object. */
@@ -2140,7 +2146,7 @@ begin:
 			goto fail_kmem_cache_alloc;
 		rx_pkt = ipa3_alloc_rx_pkt_page(GFP_KERNEL, true);
 		if (unlikely(!rx_pkt)) {
-			IPAERR("ipa3_alloc_rx_pkt_page fails\n");
+			IPAERR_RL("ipa3_alloc_rx_pkt_page fails\n");
 			break;
 		}
 		rx_pkt->sys = sys;
@@ -2590,7 +2596,7 @@ static void ipa3_replenish_rx_cache_recycle(struct ipa3_sys_context *sys)
 			spin_lock_bh(&sys->spinlock);
 			rx_pkt = list_first_entry(&sys->rcycl_list,
 				struct ipa3_rx_pkt_wrapper, link);
-			list_del(&rx_pkt->link);
+			list_del_init(&rx_pkt->link);
 			spin_unlock_bh(&sys->spinlock);
 			ptr = skb_put(rx_pkt->data.skb, sys->rx_buff_sz);
 			rx_pkt->data.dma_addr = dma_map_single(ipa3_ctx->pdev,
@@ -2631,8 +2637,8 @@ static void ipa3_replenish_rx_cache_recycle(struct ipa3_sys_context *sys)
 	goto done;
 fail_dma_mapping:
 	spin_lock_bh(&sys->spinlock);
+	ipa3_skb_recycle(rx_pkt->data.skb);
 	list_add_tail(&rx_pkt->link, &sys->rcycl_list);
-	INIT_LIST_HEAD(&rx_pkt->link);
 	spin_unlock_bh(&sys->spinlock);
 fail_kmem_cache_alloc:
 	if (rx_len_cached == 0) {
@@ -2852,6 +2858,7 @@ static void ipa3_cleanup_rx(struct ipa3_sys_context *sys)
 
 		kfree(sys->repl->cache);
 		kfree(sys->repl);
+		sys->repl = NULL;
 	}
 	if (sys->page_recycle_repl) {
 		for (i = 0; i < sys->page_recycle_repl->capacity; i++) {
@@ -2870,6 +2877,7 @@ static void ipa3_cleanup_rx(struct ipa3_sys_context *sys)
 		}
 		kfree(sys->page_recycle_repl->cache);
 		kfree(sys->page_recycle_repl);
+		sys->page_recycle_repl = NULL;
 	}
 }
 
@@ -3679,17 +3687,21 @@ static struct sk_buff *handle_page_completion(struct gsi_chan_xfer_notify
 		sys->ep->client == IPA_CLIENT_APPS_LAN_CONS) {
 		rx_skb = alloc_skb(0, GFP_ATOMIC);
 		if (unlikely(!rx_skb)) {
-			IPAERR("skb alloc failure\n");
-			list_del(&rx_pkt->link);
-			if (!rx_page.is_tmp_alloc) {
-				init_page_count(rx_page.page);
-			} else {
-				dma_unmap_page(ipa3_ctx->pdev, rx_page.dma_addr,
-					rx_pkt->len, DMA_FROM_DEVICE);
-				__free_pages(rx_pkt->page_data.page,
-							rx_pkt->page_data.page_order);
+			IPAERR("skb alloc failure, free all pending pages\n");
+			list_for_each_entry_safe(rx_pkt, tmp, head, link) {
+				rx_page = rx_pkt->page_data;
+				size = rx_pkt->data_len;
+				list_del_init(&rx_pkt->link);
+				if (!rx_page.is_tmp_alloc) {
+					init_page_count(rx_page.page);
+				} else {
+					dma_unmap_page(ipa3_ctx->pdev, rx_page.dma_addr,
+						rx_pkt->len, DMA_FROM_DEVICE);
+					__free_pages(rx_pkt->page_data.page,
+								rx_pkt->page_data.page_order);
+				}
+				rx_pkt->sys->free_rx_wrapper(rx_pkt);
 			}
-			rx_pkt->sys->free_rx_wrapper(rx_pkt);
 			IPA_STATS_INC_CNT(ipa3_ctx->stats.rx_page_drop_cnt);
 			return NULL;
 		}
@@ -3949,7 +3961,9 @@ static void ipa3_set_aggr_limit(struct ipa_sys_connect_params *in,
 	sys->ep->status.status_en = false;
 	sys->rx_buff_sz = IPA_GENERIC_RX_BUFF_SZ(adjusted_sz);
 
-	if (in->client == IPA_CLIENT_APPS_WAN_COAL_CONS)
+	if (in->client == IPA_CLIENT_APPS_WAN_COAL_CONS ||
+		(in->client == IPA_CLIENT_APPS_WAN_CONS &&
+			ipa3_ctx->ipa_hw_type <= IPA_HW_v4_2))
 		in->ipa_ep_cfg.aggr.aggr_hard_byte_limit_en = 1;
 
 	*aggr_byte_limit = sys->rx_buff_sz < *aggr_byte_limit ?
@@ -4903,6 +4917,33 @@ fail_setup_event_ring:
 	return result;
 }
 
+static void *ipa3_ring_alloc(struct device *dev, size_t size,
+	dma_addr_t *dma_handle, gfp_t gfp)
+{
+	void *va_addr;
+	int retry_cnt = 0;
+
+alloc:
+	va_addr = dma_alloc_coherent(dev, size, dma_handle, gfp);
+	if (!va_addr) {
+		if (retry_cnt < IPA_MEM_ALLOC_RETRY) {
+			IPADBG("Fail to dma alloc retry cnt = %d\n",
+				retry_cnt);
+			retry_cnt++;
+			goto alloc;
+		}
+
+		if (gfp == GFP_ATOMIC) {
+			gfp = GFP_KERNEL;
+			goto alloc;
+		}
+		IPAERR("fail to dma alloc %u bytes\n", size);
+		ipa_assert();
+	}
+
+	return va_addr;
+}
+
 static int ipa_gsi_setup_event_ring(struct ipa3_ep_context *ep,
 	u32 ring_size, gfp_t mem_flag)
 {
@@ -4919,13 +4960,8 @@ static int ipa_gsi_setup_event_ring(struct ipa3_ep_context *ep,
 	gsi_evt_ring_props.re_size = GSI_EVT_RING_RE_SIZE_16B;
 	gsi_evt_ring_props.ring_len = ring_size;
 	gsi_evt_ring_props.ring_base_vaddr =
-		dma_alloc_coherent(ipa3_ctx->pdev, gsi_evt_ring_props.ring_len,
+		ipa3_ring_alloc(ipa3_ctx->pdev, gsi_evt_ring_props.ring_len,
 		&evt_dma_addr, mem_flag);
-	if (!gsi_evt_ring_props.ring_base_vaddr) {
-		IPAERR("fail to dma alloc %u bytes\n",
-			gsi_evt_ring_props.ring_len);
-		return -ENOMEM;
-	}
 	gsi_evt_ring_props.ring_base_addr = evt_dma_addr;
 
 	/* copy mem info */
@@ -5033,14 +5069,8 @@ static int ipa_gsi_setup_transfer_ring(struct ipa3_ep_context *ep,
 	gsi_channel_props.ring_len = ring_size;
 
 	gsi_channel_props.ring_base_vaddr =
-		dma_alloc_coherent(ipa3_ctx->pdev, gsi_channel_props.ring_len,
+		ipa3_ring_alloc(ipa3_ctx->pdev, gsi_channel_props.ring_len,
 			&dma_addr, mem_flag);
-	if (!gsi_channel_props.ring_base_vaddr) {
-		IPAERR("fail to dma alloc %u bytes\n",
-			gsi_channel_props.ring_len);
-		result = -ENOMEM;
-		goto fail_alloc_channel_ring;
-	}
 	gsi_channel_props.ring_base_addr = dma_addr;
 
 	/* copy mem info */
@@ -5118,7 +5148,6 @@ fail_alloc_channel:
 	dma_free_coherent(ipa3_ctx->pdev, ep->gsi_mem_info.chan_ring_len,
 			ep->gsi_mem_info.chan_ring_base_vaddr,
 			ep->gsi_mem_info.chan_ring_base_addr);
-fail_alloc_channel_ring:
 fail_get_gsi_ep_info:
 	if (ep->gsi_evt_ring_hdl != ~0) {
 		gsi_dealloc_evt_ring(ep->gsi_evt_ring_hdl);

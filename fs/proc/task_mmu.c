@@ -1752,6 +1752,13 @@ static int reclaim_pte_range(pmd_t *pmd, unsigned long addr,
 	LIST_HEAD(page_list);
 	int isolated;
 
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+	bool is_lru_wb = false;
+
+	if (!strcmp("PerProcessNands", current->comm))
+		is_lru_wb = true;
+#endif
+
 	if (pmd_trans_huge(*pmd))
 		return 0;
 
@@ -1763,10 +1770,6 @@ cont:
 		return -1;
 	if (is_pm_freezing())
 		return -1;
-#ifdef CONFIG_ZRAM_LRU_WRITEBACK
-	if (zram_is_app_launch())
-		return -1;
-#endif
 
 	isolated = 0;
 	pte = pte_offset_map_lock(vma->vm_mm, pmd, addr, &ptl);
@@ -1782,7 +1785,7 @@ cont:
 		if (PageTransCompound(page))
 			continue;
 #ifdef CONFIG_ZRAM_LRU_WRITEBACK
-		if (ptep_test_and_clear_young(vma, addr, pte))
+		if (is_lru_wb && ptep_test_and_clear_young(vma, addr, pte))
 			continue;
 #endif
 
@@ -1834,7 +1837,7 @@ static int writeback_pte_range(pmd_t *pmd, unsigned long addr,
 	if (is_pm_freezing())
 		return -1;
 	if (zram_is_app_launch())
-		return -1;
+		return -EBUSY;
 
 	pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
 	for (; addr != end; pte++, addr += PAGE_SIZE) {
@@ -1883,7 +1886,7 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 #ifdef CONFIG_ZRAM_LRU_WRITEBACK
 	struct zwbs *zwbs[NR_ZWBS];
 	void *private;
-	int sleep_count = 0;
+	int err = 0;
 #endif
 
 	memset(buffer, 0, sizeof(buffer));
@@ -1951,11 +1954,6 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 		}
 		reclaim_walk_ops.pmd_entry = writeback_pte_range;
 	}
-	while (zram_is_app_launch()) {
-		if (is_pm_freezing() || sleep_count++ >= 10)
-			goto out;
-		msleep(1000);
-	}
 #endif
 
 	mm = get_task_mm(task);
@@ -1993,9 +1991,12 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 				continue;
 
 			private = (type == RECLAIM_WRITEBACK) ? (void *)zwbs : (void *)vma;
-			if (walk_page_range(mm, vma->vm_start, vma->vm_end,
-					&reclaim_walk_ops, private))
+			err = walk_page_range(mm, vma->vm_start, vma->vm_end,
+					&reclaim_walk_ops, private);
+			if (err) {
+				count = err;
 				break;
+			}
 #else
 			if (walk_page_range(mm, vma->vm_start, vma->vm_end,
 					&reclaim_walk_ops, vma))

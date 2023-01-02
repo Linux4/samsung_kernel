@@ -146,6 +146,9 @@ static int a6xx_rgmu_oob_set(struct kgsl_device *device,
 	struct a6xx_rgmu_device *rgmu = to_a6xx_rgmu(ADRENO_DEVICE(device));
 	int ret, set, check;
 
+	if (req == oob_perfcntr && rgmu->num_oob_perfcntr++)
+		return 0;
+
 	set = BIT(req + 16);
 	check = BIT(req + 16);
 
@@ -160,6 +163,8 @@ static int a6xx_rgmu_oob_set(struct kgsl_device *device,
 	if (ret) {
 		unsigned int status;
 
+		if (req == oob_perfcntr)
+			rgmu->num_oob_perfcntr--;
 		gmu_core_regread(device, A6XX_RGMU_CX_PCC_DEBUG, &status);
 		dev_err(&rgmu->pdev->dev,
 				"Timed out while setting OOB req:%s status:0x%x\n",
@@ -181,6 +186,11 @@ static int a6xx_rgmu_oob_set(struct kgsl_device *device,
 static void a6xx_rgmu_oob_clear(struct kgsl_device *device,
 		enum oob_request req)
 {
+	struct a6xx_rgmu_device *rgmu = to_a6xx_rgmu(ADRENO_DEVICE(device));
+
+	if (req == oob_perfcntr && --rgmu->num_oob_perfcntr)
+		return;
+
 	gmu_core_regwrite(device, A6XX_GMU_HOST2GMU_INTR_SET, BIT(req + 24));
 	trace_kgsl_gmu_oob_clear(BIT(req + 24));
 }
@@ -1258,11 +1268,11 @@ static int a6xx_rgmu_clocks_probe(struct a6xx_rgmu_device *rgmu,
 		return ret;
 	/*
 	 * Voting for apb_pclk will enable power and clocks required for
-	 * QDSS path to function. However, if CORESIGHT is not enabled,
+	 * QDSS path to function. However, if QCOM_KGSL_QDSS_STM is not enabled,
 	 * QDSS is essentially unusable. Hence, if QDSS cannot be used,
 	 * don't vote for this clock.
 	 */
-	if (!IS_ENABLED(CONFIG_CORESIGHT)) {
+	if (!IS_ENABLED(CONFIG_QCOM_KGSL_QDSS_STM)) {
 		for (i = 0; i < ret; i++) {
 			if (!strcmp(rgmu->clks[i].id, "apb_pclk")) {
 				rgmu->clks[i].clk = NULL;

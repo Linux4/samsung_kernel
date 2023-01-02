@@ -28,6 +28,10 @@
 	qcom,iommu-dma = "bypass";
 };
 
+&ipa_eth_group2 {
+	qcom,iommu-dma = "bypass";
+};
+
 &ipa_hw {
 	qcom,use-ipa-in-mhi-mode;
 	ipa_smmu_ap {
@@ -62,4 +66,7 @@
 
 &usb {
 	qcom,iommu-dma = "bypass";
+	dwc3@a600000 {
+		snps,usb2-gadget-lpm-disable;
+	};
 };

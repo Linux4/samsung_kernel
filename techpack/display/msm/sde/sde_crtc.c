@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -1672,9 +1673,9 @@ static void _sde_crtc_blend_setup(struct drm_crtc *crtc,
 		return;
 	}
 
-	if (sde_crtc->dim_layer_revalidate) {
+	if (test_bit(SDE_CRTC_DIRTY_DIM_LAYERS, &sde_crtc->revalidate_mask)) {
 		set_bit(SDE_CRTC_DIRTY_DIM_LAYERS, sde_crtc_state->dirty);
-		sde_crtc->dim_layer_revalidate = false;
+		clear_bit(SDE_CRTC_DIRTY_DIM_LAYERS, &sde_crtc->revalidate_mask);
 	}
 
 	for (i = 0; i < sde_crtc->num_mixers; i++) {
@@ -3317,6 +3318,7 @@ static void sde_crtc_atomic_begin(struct drm_crtc *crtc,
 		if (encoder->crtc != crtc)
 			continue;
 
+		sde_encoder_trigger_rsc_state_change(encoder);
 		/* encoder will trigger pending mask now */
 		sde_encoder_trigger_kickoff_pending(encoder);
 	}
@@ -3335,8 +3337,10 @@ static void sde_crtc_atomic_begin(struct drm_crtc *crtc,
 	_sde_crtc_blend_setup(crtc, old_state, true);
 	_sde_crtc_dest_scaler_setup(crtc);
 
-	if (crtc->state->mode_changed)
+	if (crtc->state->mode_changed || sde_kms->perf.catalog->uidle_cfg.dirty)
 		sde_core_perf_crtc_update_uidle(crtc, true);
+
+	sde_kms->perf.catalog->uidle_cfg.dirty = false;
 
 	/*
 	 * Since CP properties use AXI buffer to program the
@@ -3490,6 +3494,7 @@ static void sde_crtc_destroy_state(struct drm_crtc *crtc,
 	struct sde_crtc_state *cstate;
 	struct drm_encoder *enc;
 	struct sde_kms *sde_kms;
+	u32 encoder_mask;
 
 	if (!crtc || !state) {
 		SDE_ERROR("invalid argument(s)\n");
@@ -3505,9 +3510,11 @@ static void sde_crtc_destroy_state(struct drm_crtc *crtc,
 		return;
 	}
 
-	SDE_DEBUG("crtc%d\n", crtc->base.id);
+	encoder_mask = state->encoder_mask ? state->encoder_mask :
+				crtc->state->encoder_mask;
+	SDE_DEBUG("crtc%d\n, encoder_mask=%d", crtc->base.id, encoder_mask);
 
-	drm_for_each_encoder_mask(enc, crtc->dev, state->encoder_mask)
+	drm_for_each_encoder_mask(enc, crtc->dev, encoder_mask)
 		sde_rm_release(&sde_kms->rm, enc, true);
 
 	__drm_atomic_helper_crtc_destroy_state(state);
@@ -4057,7 +4064,8 @@ void sde_crtc_reset_sw_state(struct drm_crtc *crtc)
 	sde_crtc_clear_cached_mixer_cfg(crtc);
 
 	/* mark other properties which need to be dirty for next update */
-	sde_crtc->dim_layer_revalidate = true;
+	set_bit(SDE_CRTC_DIRTY_DIM_LAYERS, &sde_crtc->revalidate_mask);
+
 	if (cstate->num_ds_enabled)
 		set_bit(SDE_CRTC_DIRTY_DEST_SCALER, cstate->dirty);
 }
@@ -4478,6 +4486,9 @@ static int _sde_crtc_check_secure_blend_config(struct drm_crtc *crtc,
 {
 	struct drm_plane *plane;
 	int i;
+	struct drm_crtc_state *old_state = crtc->state;
+	struct sde_crtc_state *old_cstate = to_sde_crtc_state(old_state);
+
 	if (secure == SDE_DRM_SEC_ONLY) {
 		/*
 		 * validate planes - only fb_sec_dir is allowed during sec_crtc
@@ -4538,6 +4549,8 @@ static int _sde_crtc_check_secure_blend_config(struct drm_crtc *crtc,
 		 * - fail empty commit
 		 * - validate dim_layer or plane is staged in the supported
 		 *   blendstage
+		 * - fail if previous commit has no planes staged and
+		 *   no dim layer at highest blendstage.
 		 */
 		if (sde_kms->catalog->sui_supported_blendstage) {
 			int sec_stage = cnt ? pstates[0].sde_pstate->stage :
@@ -4553,6 +4566,14 @@ static int _sde_crtc_check_secure_blend_config(struct drm_crtc *crtc,
 				  "crtc%d: empty cnt%d/dim%d or bad stage%d\n",
 					DRMID(crtc), cnt,
 					cstate->num_dim_layers, sec_stage);
+				return -EINVAL;
+			}
+
+			if (!old_state->plane_mask &&
+				!old_cstate->num_dim_layers) {
+				SDE_ERROR(
+				"crtc%d: no dim layer in nonsecure to secure transition\n",
+					DRMID(crtc));
 				return -EINVAL;
 			}
 		}
@@ -5465,7 +5486,7 @@ static void sde_crtc_install_properties(struct drm_crtc *crtc,
 		return;
 	}
 
-	info = kzalloc(sizeof(struct sde_kms_info), GFP_KERNEL);
+	info = vzalloc(sizeof(struct sde_kms_info));
 	if (!info) {
 		SDE_ERROR("failed to allocate info memory\n");
 		return;
@@ -5549,11 +5570,11 @@ static void sde_crtc_install_properties(struct drm_crtc *crtc,
 			info->data, SDE_KMS_INFO_DATALEN(info),
 			CRTC_PROP_INFO);
 
-	kfree(info);
+	vfree(info);
 }
 
 static int _sde_crtc_get_output_fence(struct drm_crtc *crtc,
-	const struct drm_crtc_state *state, uint64_t *val)
+	struct drm_crtc_state *state, uint64_t *val)
 {
 	struct sde_crtc *sde_crtc;
 	struct sde_crtc_state *cstate;
@@ -5566,7 +5587,7 @@ static int _sde_crtc_get_output_fence(struct drm_crtc *crtc,
 
 	drm_for_each_encoder_mask(encoder, crtc->dev, state->encoder_mask) {
 		if (sde_encoder_check_curr_mode(encoder,
-						MSM_DISPLAY_VIDEO_MODE))
+			MSM_DISPLAY_VIDEO_MODE) && !sde_crtc_state_in_clone_mode(encoder, state))
 			is_vid = true;
 		if (is_vid)
 			break;

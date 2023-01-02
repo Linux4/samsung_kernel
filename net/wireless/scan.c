@@ -229,6 +229,21 @@ bool cfg80211_is_element_inherited(const struct element *elem,
 }
 EXPORT_SYMBOL(cfg80211_is_element_inherited);
 
+static size_t oui_header_len(const u8 *oui)
+{
+
+	/* For vendor ie, compare OUI + type + subType to determine if they are
+	 * the same ie. However, few specific OUIs have OUI + type fields only
+	 * in the header.
+	 */
+
+	/* Cisco OUI (00-40-96) whose header length is 4 bytes - OUI + type */
+	if (oui[0] == 0x00 && oui[1] == 0x40 && oui[2] == 0x96)
+		return 4;
+
+	return 5;
+}
+
 static size_t cfg80211_gen_new_ie(const u8 *ie, size_t ielen,
 				  const u8 *subelement, size_t subie_len,
 				  u8 *new_ie, gfp_t gfp)
@@ -292,11 +307,9 @@ static size_t cfg80211_gen_new_ie(const u8 *ie, size_t ielen,
 			 * copy from subelement and flag the ie in subelement
 			 * as copied (by setting eid field to WLAN_EID_SSID,
 			 * which is skipped anyway).
-			 * For vendor ie, compare OUI + type + subType to
-			 * determine if they are the same ie.
 			 */
 			if (tmp_old[0] == WLAN_EID_VENDOR_SPECIFIC) {
-				if (!memcmp(tmp_old + 2, tmp + 2, 5)) {
+				if (!memcmp(tmp_old + 2, tmp + 2, oui_header_len(tmp + 2))) {
 					/* same vendor ie, copy from
 					 * subelement
 					 */
@@ -1250,14 +1263,14 @@ cfg80211_bss_update(struct cfg80211_registered_device *rdev,
 			 * be grouped with this beacon for updates ...
 			 */
 			if (!cfg80211_combine_bsses(rdev, new)) {
-				kfree(new);
+				bss_ref_put(rdev, new);
 				goto drop;
 			}
 		}
 
 		if (rdev->bss_entries >= bss_entries_limit &&
 		    !cfg80211_bss_expire_oldest(rdev)) {
-			kfree(new);
+			bss_ref_put(rdev, new);
 			goto drop;
 		}
 
