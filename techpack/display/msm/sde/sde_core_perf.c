@@ -1368,7 +1368,7 @@ static ssize_t sysfs_sde_core_perf_mode_write(struct device *dev,
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	/* This causes unexpected mdp clock issue.. disable the function until fix the issue.. */
-	LCD_INFO("skip sysfs perf_mode\n");
+	LCD_INFO(vdd, "skip sysfs perf_mode\n");
 	return count;
 #endif
 

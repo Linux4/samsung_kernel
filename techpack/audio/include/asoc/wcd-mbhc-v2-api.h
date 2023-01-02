@@ -23,7 +23,7 @@ void wcd_mbhc_deinit(struct wcd_mbhc *mbhc);
 static inline void wcd_mbhc_stop(struct wcd_mbhc *mbhc)
 {
 }
-int wcd_mbhc_init(struct wcd_mbhc *mbhc, struct snd_soc_component *component,
+static inline int wcd_mbhc_init(struct wcd_mbhc *mbhc, struct snd_soc_component *component,
 		      const struct wcd_mbhc_cb *mbhc_cb,
 		      const struct wcd_mbhc_intr *mbhc_cdc_intr_ids,
 		      struct wcd_mbhc_register *wcd_mbhc_regs,

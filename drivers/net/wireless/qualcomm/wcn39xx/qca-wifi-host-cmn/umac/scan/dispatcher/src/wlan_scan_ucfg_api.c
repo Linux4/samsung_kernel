@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -260,6 +260,8 @@ wlan_pno_global_init(struct wlan_objmgr_psoc *psoc,
 			cfg_get(psoc, CFG_MAX_SCHED_SCAN_PLAN_INTERVAL);
 	pno_def->max_sched_scan_plan_iterations =
 			cfg_get(psoc, CFG_MAX_SCHED_SCAN_PLAN_ITERATIONS);
+	pno_def->user_config_sched_scan_plan =
+			cfg_get(psoc, CFG_USER_CONFIG_SCHED_SCAN_PLAN);
 
 	mawc_cfg->enable = cfg_get(psoc, CFG_MAWC_NLO_ENABLED);
 	mawc_cfg->exp_backoff_ratio =
@@ -427,6 +429,12 @@ ucfg_scan_set_custom_scan_chan_list(struct wlan_objmgr_pdev *pdev,
 			chan_list, sizeof(*chan_list));
 
 	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
+ucfg_scm_scan_free_scan_request_mem(struct scan_start_request *req)
+{
+	return scm_scan_free_scan_request_mem(req);
 }
 
 QDF_STATUS
@@ -618,8 +626,8 @@ ucfg_scan_config_hidden_ssid_for_bssid(struct wlan_objmgr_pdev *pdev,
 	if (!scan_obj)
 		return QDF_STATUS_E_FAILURE;
 
-	scm_debug("Configure bsssid:%pM ssid:%.*s",
-		  bssid, ssid->length, ssid->ssid);
+	scm_debug("Configure bsssid:"QDF_MAC_ADDR_FMT" ssid:%.*s",
+		  QDF_MAC_ADDR_REF(bssid), ssid->length, ssid->ssid);
 	qdf_mem_copy(scan_obj->pdev_info[pdev_id].conf_bssid,
 		     bssid, QDF_MAC_ADDR_SIZE);
 	scan_obj->pdev_info[pdev_id].conf_ssid.length = ssid->length;
@@ -949,6 +957,8 @@ wlan_scan_global_init(struct wlan_objmgr_psoc *psoc,
 	scan_obj->scan_disabled = 0;
 	scan_obj->drop_bcn_on_chan_mismatch =
 			 cfg_get(psoc, CFG_DROP_BCN_ON_CHANNEL_MISMATCH);
+	scan_obj->drop_bcn_on_invalid_freq =
+			 cfg_get(psoc, CFG_DROP_BCN_ON_INVALID_FREQ);
 	scan_obj->disable_timeout = false;
 	scan_obj->scan_def.active_dwell =
 			 cfg_get(psoc, CFG_ACTIVE_MAX_CHANNEL_TIME);
@@ -1037,6 +1047,8 @@ wlan_scan_global_init(struct wlan_objmgr_psoc *psoc,
 	scan_obj->scan_def.enable_connected_scan =
 		cfg_get(psoc, CFG_ENABLE_CONNECTED_SCAN);
 	scan_obj->scan_def.scan_mode_6g = cfg_get(psoc, CFG_6GHZ_SCAN_MODE);
+	scan_obj->allow_bss_with_incomplete_ie =
+		cfg_get(psoc, CFG_SCAN_ALLOW_BSS_WITH_CORRUPTED_IE);
 	/* init scan id seed */
 	qdf_atomic_init(&scan_obj->scan_ids);
 
@@ -2042,4 +2054,17 @@ ucfg_scan_get_max_sched_scan_plan_iterations(struct wlan_objmgr_psoc *psoc)
 	return scan_obj->pno_cfg.max_sched_scan_plan_iterations;
 }
 
+bool
+ucfg_scan_get_user_config_sched_scan_plan(struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_scan_obj *scan_obj;
+
+	scan_obj = wlan_psoc_get_scan_obj(psoc);
+	if (!scan_obj) {
+		scm_err("Failed to get scan object");
+		return cfg_default(CFG_MAX_SCHED_SCAN_PLAN_ITERATIONS);
+	}
+
+	return scan_obj->pno_cfg.user_config_sched_scan_plan;
+}
 #endif

@@ -26,6 +26,7 @@
 
 #define HEALTH_DEBOUNCE_CNT     	1
 #define ENABLE_SM5714_ENBYPASS_MODE	1
+#define SM5714_CHARGER_VERSION  "UD2"
 
 static struct device_attribute sm5714_charger_attrs[] = {
 	SM5714_CHARGER_ATTR(chip_id),
@@ -286,7 +287,6 @@ static void chg_set_autostop(struct sm5714_charger_data *charger, bool enable)
 	sm5714_update_reg(charger->i2c, SM5714_CHG_REG_CHGCNTL4, (enable << 6), (0x1 << 6));
 }
 
-#if 0
 static void chg_set_lxslope(struct sm5714_charger_data *charger, u8 value)
 {
 	/* 00 : 1.58 V/ns */
@@ -297,7 +297,6 @@ static void chg_set_lxslope(struct sm5714_charger_data *charger, u8 value)
 	sm5714_update_reg(charger->i2c, SM5714_CHG_REG_CHGCNTL8, (value << 0), (0x3 << 0));
 	pr_info("sm5714-charger: %s: %d\n", __func__, value);
 }
-#endif
 
 static int chg_get_input_current_limit(struct sm5714_charger_data *charger)
 {
@@ -609,9 +608,6 @@ static int psy_chg_get_health(struct sm5714_charger_data *charger)
 static int psy_chg_get_charge_type(struct sm5714_charger_data *charger)
 {
 	int charge_type;
-	u8 reg;
-
-	sm5714_read_reg(charger->i2c, SM5714_CHG_REG_STATUS2, &reg);
 
 	if (charger->is_charging) {
 		if (charger->slow_rate_chg_mode) {
@@ -1194,7 +1190,7 @@ static inline void sm5714_chg_init(struct sm5714_charger_data *charger)
 	chg_set_autostop(charger, 1);
 	chg_set_auto_shipmode(charger, AUTO_SHIP_MODE_VREF_V_2_6);
 	chg_set_auto_shipmode_time(charger, AUTO_SHIP_MODE_TIME_S_4_0);
-/*	chg_set_lxslope(charger, 0);*/
+	chg_set_lxslope(charger, charger->pdata->chg_lxslope);
 	chg_print_regmap(charger);
 
 	dev_info(charger->dev, "%s: init done.\n", __func__);
@@ -1203,8 +1199,17 @@ static inline void sm5714_chg_init(struct sm5714_charger_data *charger)
 static int sm5714_charger_parse_dt(struct device *dev,
 	struct sm5714_charger_platform_data *pdata)
 {
-	struct device_node *np;
+	struct device_node *np = of_find_node_by_name(NULL, "sm5714-charger");
 	int ret = 0;
+
+	ret = of_property_read_u32(np, "sm5714,chg_lxslope",
+				   &pdata->chg_lxslope);
+	if (ret) {
+		pr_info("%s: sm5714,chg_lxslope is Empty\n", __func__);
+		pdata->chg_lxslope = 1; /* b01 : default */
+	}
+	pr_info("%s: sm5714,chg_lxslope is %d\n", __func__,
+		pdata->chg_lxslope);
 
 	np = of_find_node_by_name(NULL, "battery");
 	if (!np) {
@@ -1265,6 +1270,7 @@ static int sm5714_charger_probe(struct platform_device *pdev)
 	struct sm5714_charger_data *charger;
 	struct power_supply_config psy_cfg = {};
 	int ret = 0;
+	u8 reg_data1 = 0, reg_data2 = 0, reg_data3 = 0, reg_data4 = 0;
 
 	dev_info(&pdev->dev, "%s: probe start\n", __func__);
 	charger = kzalloc(sizeof(*charger), GFP_KERNEL);
@@ -1293,6 +1299,45 @@ static int sm5714_charger_probe(struct platform_device *pdev)
 
 	sm5714_chg_init(charger);
 	sm5714_charger_oper_table_init(sm5714);
+
+	/* W/A : for Q3 option bit write */
+	sm5714_read_reg(charger->i2c, 0xEA, &reg_data1);
+	sm5714_read_reg(charger->i2c, 0xED, &reg_data2);
+	sm5714_read_reg(charger->i2c, 0xE4, &reg_data3);
+	sm5714_read_reg(charger->i2c, 0xCB, &reg_data4);
+	dev_info(&pdev->dev, "%s: read sm5714 option bits [0x%X,0x%X,0x%X,0x%X]\n", __func__, reg_data1, reg_data2, reg_data3, reg_data4);
+
+	if ((reg_data1 != 0x93) || (reg_data2 != 0x10) || (reg_data3 != 0x9E) || (reg_data4 != 0x80)) {
+		sm5714_write_reg(charger->i2c, 0x51, 0xEA);
+		sm5714_write_reg(charger->i2c, 0x51, 0xAE);
+		sm5714_update_reg(charger->i2c, 0x6B, (0x1 << 2), (0x1 << 2));
+		sm5714_write_reg(charger->i2c, 0x4C, 0xFF);
+		sm5714_write_reg(charger->i2c, 0x57, 0x20);
+		sm5714_write_reg(charger->i2c, 0x49, 0xE8);
+		sm5714_write_reg(charger->i2c, 0x4A, 0x02);
+		sm5714_write_reg(charger->i2c, 0x49, 0xCB);
+		sm5714_write_reg(charger->i2c, 0x4A, 0x80);
+		sm5714_write_reg(charger->i2c, 0x49, 0xDA);
+		sm5714_write_reg(charger->i2c, 0x4A, 0x00);
+		sm5714_write_reg(charger->i2c, 0x49, 0xEA);
+		sm5714_write_reg(charger->i2c, 0x4A, 0x93);
+		sm5714_write_reg(charger->i2c, 0x49, 0xED);
+		sm5714_write_reg(charger->i2c, 0x4A, 0x10);
+		sm5714_write_reg(charger->i2c, 0x49, 0xE4);
+		sm5714_write_reg(charger->i2c, 0x4A, 0x9E);
+		sm5714_write_reg(charger->i2c, 0x4C, 0x3F);
+		sm5714_write_reg(charger->i2c, 0x57, 0x00);
+		sm5714_update_reg(charger->i2c, 0x6B, (0x0 << 2), (0x1 << 2));
+		sm5714_write_reg(charger->i2c, 0x51, 0x00);
+		dev_info(&pdev->dev, "%s: option bit write all\n", __func__);
+	}
+
+	// re-read, for check write.
+	sm5714_read_reg(charger->i2c, 0xEA, &reg_data1);
+	sm5714_read_reg(charger->i2c, 0xED, &reg_data2);
+	sm5714_read_reg(charger->i2c, 0xE4, &reg_data3);
+	sm5714_read_reg(charger->i2c, 0xCB, &reg_data4);
+	dev_info(&pdev->dev, "%s: again read sm5714 option bits [0x%X,0x%X,0x%X,0x%X]\n", __func__, reg_data1, reg_data2, reg_data3, reg_data4);
 
 	/* Re-cycle Buck contdition */
 	sm5714_chg_buck_control(charger, 0);
@@ -1378,7 +1423,7 @@ static int sm5714_charger_probe(struct platform_device *pdev)
 		goto err_reg_irq;
 	}
 
-	dev_info(&pdev->dev, "%s: probe done.\n", __func__);
+	dev_info(&pdev->dev, "%s: probe done[%s].\n", __func__, SM5714_CHARGER_VERSION);
 
 	return 0;
 
@@ -1487,3 +1532,4 @@ module_exit(sm5714_charger_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Samsung Electronics");
 MODULE_DESCRIPTION("Charger driver for SM5714");
+MODULE_VERSION(SM5714_CHARGER_VERSION);

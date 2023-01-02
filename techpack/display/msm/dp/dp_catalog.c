@@ -61,6 +61,7 @@
 	catalog->write(catalog, io_data, x, y); \
 })
 
+#ifndef CONFIG_SEC_DISPLAYPORT
 static u8 const vm_pre_emphasis[4][4] = {
 	{0x00, 0x0B, 0x12, 0xFF},       /* pe0, 0 db */
 	{0x00, 0x0A, 0x12, 0xFF},       /* pe1, 3.5 db */
@@ -103,6 +104,9 @@ static u8 const vm_voltage_swing_hbr_rbr[4][4] = {
 	{0x19, 0x1F, 0xFF, 0xFF},
 	{0x1F, 0xFF, 0xFF, 0xFF}
 };
+#else
+/* actual DP PHY params are read at each dtsi */
+#endif
 
 enum dp_flush_bit {
 	DP_PPS_FLUSH,
@@ -1698,6 +1702,16 @@ static void dp_catalog_ctrl_update_vx_px(struct dp_catalog_ctrl *ctrl,
 	struct dp_io_data *io_data;
 	u8 value0, value1;
 	u32 version;
+#ifdef CONFIG_SEC_DISPLAYPORT
+	struct dp_parser *parser;
+	u8 *vm_voltage_swing_hbr3_hbr2[MAX_VOLTAGE_LEVELS];
+	u8 *vm_pre_emphasis_hbr3_hbr2[MAX_PRE_EMP_LEVELS];
+	u8 *vm_voltage_swing_hbr_rbr[MAX_VOLTAGE_LEVELS];
+	u8 *vm_pre_emphasis_hbr_rbr[MAX_PRE_EMP_LEVELS];
+	u8 *vm_voltage_swing[MAX_VOLTAGE_LEVELS];
+	u8 *vm_pre_emphasis[MAX_PRE_EMP_LEVELS];
+	int i;
+#endif
 
 	if (!ctrl) {
 		DP_ERR("invalid input\n");
@@ -1710,6 +1724,22 @@ static void dp_catalog_ctrl_update_vx_px(struct dp_catalog_ctrl *ctrl,
 
 	io_data = catalog->io.dp_ahb;
 	version = dp_read(DP_HW_VERSION);
+
+#ifdef CONFIG_SEC_DISPLAYPORT
+	parser = catalog->parser;
+
+	for (i = 0; i < MAX_VOLTAGE_LEVELS; i++) {
+		vm_voltage_swing_hbr3_hbr2[i]	= parser->dp_swing_hbr2_hbr3[i];
+		vm_voltage_swing_hbr_rbr[i]	= parser->dp_swing_hbr_rbr[i];
+		vm_voltage_swing[i]		= parser->vm_voltage_swing[i];
+	}
+
+	for (i = 0; i < MAX_PRE_EMP_LEVELS; i++) {
+		vm_pre_emphasis_hbr3_hbr2[i]	= parser->dp_pre_emp_hbr2_hbr3[i];
+		vm_pre_emphasis_hbr_rbr[i]	= parser->dp_pre_emp_hbr_rbr[i];
+		vm_pre_emphasis[i]		= parser->vm_pre_emphasis[i];
+	}
+#endif
 
 	if (version == 0x10020004) {
 		if (high) {
@@ -2680,14 +2710,18 @@ static void dp_catalog_set_exe_mode(struct dp_catalog *dp_catalog, char *mode)
 		catalog->read = dp_read_hw;
 		catalog->write = dp_write_hw;
 
-		dp_catalog->sub->read = dp_read_sub_hw;
-		dp_catalog->sub->write = dp_write_sub_hw;
+		if (dp_catalog->sub) {
+			dp_catalog->sub->read = dp_read_sub_hw;
+			dp_catalog->sub->write = dp_write_sub_hw;
+		}
 	} else {
 		catalog->read = dp_read_sw;
 		catalog->write = dp_write_sw;
 
-		dp_catalog->sub->read = dp_read_sub_sw;
-		dp_catalog->sub->write = dp_write_sub_sw;
+		if (dp_catalog->sub) {
+			dp_catalog->sub->read = dp_read_sub_sw;
+			dp_catalog->sub->write = dp_write_sub_sw;
+		}
 	}
 }
 

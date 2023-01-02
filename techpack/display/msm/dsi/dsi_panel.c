@@ -366,6 +366,14 @@ static int dsi_panel_reset(struct dsi_panel *panel)
 	struct dsi_panel_reset_config *r_config = &panel->reset_config;
 	int i;
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd = panel->panel_private;
+
+	if (vdd->aot_reset_regulator || vdd->aot_reset_regulator_late) {
+		DSI_ERR("Not here, if reset_regulator enabled\n");
+		goto exit;
+	}
+#endif
 	if (gpio_is_valid(panel->reset_config.disp_en_gpio)) {
 		rc = gpio_direction_output(panel->reset_config.disp_en_gpio, 1);
 		if (rc) {
@@ -430,25 +438,46 @@ exit:
 }
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-/* Reset regulater control when aot_reset_regulator enabled */
+/* Reset regulater control when aot_reset_regulator enabled
+ * regulator name should be "panel_reset" or "lcd_rst"
+ */
 static int dsi_panel_reset_regulator(struct dsi_panel *panel, bool enable)
 {
 	int rc = 0;
 	struct dsi_panel_reset_config *r_config = &panel->reset_config;
 	int i;
 	struct dsi_vreg *vreg;
+	u32 pre_on_ms, post_on_ms;
+	u32 pre_off_ms, post_off_ms;
 
-	/* Himax panel's reset is at count 5, the same as array num4 */
-	/* TODO : add reset reg number in vdd to make 4 variable */
-	vreg = panel->power_info.vregs+4; //&panel->power_info.vregs[4]
+	/* Find number of "panel-reset" supply-name order among qcom,panel-supply-entries */
+	for (i = 0; i < panel->power_info.count; i++) {
+		if (!strcmp((panel->power_info.vregs + i)->vreg_name, "panel_reset") ||
+				!strcmp((panel->power_info.vregs + i)->vreg_name, "lcd_rst"))
+			break;
+	}
+
+	if (i == panel->power_info.count) {
+		DSI_ERR("Could not find reset regulator name, i:%d\n", i);
+		goto exit;
+	} else {
+		DSI_INFO("name [%s] at %dth(0~%d) enable:%d\n",
+			(panel->power_info.vregs + i)->vreg_name, i, panel->power_info.count - 1, enable);
+	}
+
+	vreg = panel->power_info.vregs + i;
 	if (!vreg) {
-		DSI_ERR("4th vregs is invalid, rc=%d\n", rc);
+		DSI_ERR("i th vregs is invalid, rc=%d\n", rc);
 		goto exit;
 	}
-	DSI_INFO("r_config->count=%d, vreg_name=%s, enable:%d\n",
-			r_config->count,  (panel->power_info.vregs+4)->vreg_name, enable);
 
 	if (enable) { /* Enable RESET with sequence*/
+		pre_on_ms = vreg->pre_on_sleep;
+		post_on_ms = vreg->post_on_sleep;
+
+		if (pre_on_ms)
+			usleep_range((pre_on_ms * 1000), (pre_on_ms * 1000) + 10);
+
 		for (i = 0; i < r_config->count; i++) {
 			if (r_config->sequence[i].level) {
 				rc = regulator_enable(vreg->vreg);
@@ -468,13 +497,98 @@ static int dsi_panel_reset_regulator(struct dsi_panel *panel, bool enable)
 				usleep_range(r_config->sequence[i].sleep_ms * 1000,
 					(r_config->sequence[i].sleep_ms * 1000) + 100);
 		}
+
+		if (post_on_ms) {
+			DSI_INFO("[panel_reset] post_on_sleep: %d ms\n", vreg->post_on_sleep);
+			usleep_range((post_on_ms * 1000), (post_on_ms * 1000) + 10);
+		}
 	} else {
 		/* Disable RESET */
+		pre_off_ms = vreg->pre_off_sleep;
+		post_off_ms = vreg->post_off_sleep;
+		if (pre_off_ms)
+			usleep_range((pre_off_ms * 1000), (pre_off_ms * 1000) + 10);
+
 		rc = regulator_disable(vreg->vreg);
 		if (rc) {
 			DSI_ERR("disable failed for %s, rc=%d\n",
 				   vreg->vreg_name, rc);
 		}
+
+		if (post_off_ms) {
+			DSI_INFO("[panel_reset] post_off_sleep: %d ms\n", vreg->post_off_sleep);
+			usleep_range((post_off_ms * 1000), (post_off_ms * 1000) + 10);
+		}
+
+		if (regulator_is_enabled(vreg->vreg))
+			DSI_INFO("%s is still enabled.\n", vreg->vreg_name);
+	}
+
+exit:
+	return rc;
+}
+
+/* Reset regulater control when boost_en_early_off enabled
+ * regulator name should be "panel_boost_en"
+ */
+int dsi_panel_boost_regulator(struct dsi_panel *panel, bool enable)
+{
+	int rc = 0;
+	int i;
+	struct dsi_vreg *vreg;
+	u32 pre_on_ms, post_on_ms;
+	u32 pre_off_ms, post_off_ms;
+
+	/* Find number of "panel_boost_en" supply-name order among qcom,panel-supply-entries */
+	for (i = 0; i < panel->power_info.count; i++) {
+		if (!strcmp((panel->power_info.vregs + i)->vreg_name, "panel_boost_en"))
+			break;
+	}
+
+	if (i == panel->power_info.count) {
+		DSI_ERR("Could not find reset regulator name, i:%d\n", i);
+		goto exit;
+	} else {
+		DSI_INFO("name[%s] matched at %dth(0~%d) enable:%d\n",
+			(panel->power_info.vregs + i)->vreg_name, i, panel->power_info.count - 1, enable);
+	}
+
+	vreg = panel->power_info.vregs + i;
+	if (!vreg) {
+		DSI_ERR("i th vregs is invalid, rc=%d\n", rc);
+		goto exit;
+	}
+
+	if (enable) { /* Enable BOOST_EN with sequence*/
+		pre_on_ms = vreg->pre_on_sleep;
+		post_on_ms = vreg->post_on_sleep;
+
+		if (pre_on_ms)
+			usleep_range((pre_on_ms * 1000), (pre_on_ms * 1000) + 10);
+
+		rc = regulator_enable(vreg->vreg);
+		if (rc) {
+			DSI_ERR("enable failed for %s, rc=%d\n",
+				   vreg->vreg_name, rc);
+		}
+
+		if (post_on_ms)
+			usleep_range((post_on_ms * 1000), (post_on_ms * 1000) + 10);
+	} else {
+		/* Disable BOOST_EN */
+		pre_off_ms = vreg->pre_off_sleep;
+		post_off_ms = vreg->post_off_sleep;
+		if (pre_off_ms)
+			usleep_range((pre_off_ms * 1000), (pre_off_ms * 1000) + 10);
+
+		rc = regulator_disable(vreg->vreg);
+		if (rc) {
+			DSI_ERR("disable failed for %s, rc=%d\n",
+				   vreg->vreg_name, rc);
+		}
+
+		if (post_off_ms)
+			usleep_range((post_off_ms * 1000), (post_off_ms * 1000) + 10);
 
 		if (regulator_is_enabled(vreg->vreg))
 			DSI_INFO("%s is still enabled.\n", vreg->vreg_name);
@@ -522,17 +636,17 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 	/* Make not to turn on the panel power when ub_con_det.gpio is high (ub is not connected) */
 	if (unlikely(vdd->is_factory_mode)) {
 		if (gpio_is_valid(vdd->ub_con_det.gpio))
-			LCD_INFO("ub_con_det.gpio = %d\n", gpio_get_value(vdd->ub_con_det.gpio));
+			LCD_INFO(vdd, "ub_con_det.gpio = %d\n", gpio_get_value(vdd->ub_con_det.gpio));
 
 		vdd->ub_con_det.current_wakeup_context_gpio_status = gpio_get_value(vdd->ub_con_det.gpio);
 		if (vdd->ub_con_det.current_wakeup_context_gpio_status ) {
-			LCD_ERR("Do not panel power on..\n");
+			LCD_INFO(vdd, "Do not panel power on..\n");
 			return 0;
 		}
 	}
 
 	if (!ss_panel_attach_get(panel->panel_private)) {
-		LCD_INFO("PBA booting, skip to power on panel\n");
+		LCD_INFO(vdd, "PBA booting, skip to power on panel\n");
 		return 0;
 	}
 
@@ -541,14 +655,35 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 	 * before start to read DDI MTP during dipslay on sequence.
 	 */
 	if (unlikely(vdd->panel_dead)) {
-		LCD_INFO("recover panel, set vdd(%d)->panel_dead to false \n", vdd->ndx);
+		LCD_INFO(vdd, "recover panel, set vdd(%d)->panel_dead to false \n", vdd->ndx);
 		vdd->panel_dead = false;
+	}
+
+	if (vdd->on_delay.update) {
+		int i;
+		int count = vdd->on_delay.update_count < panel->power_info.count ?
+				vdd->on_delay.update_count : panel->power_info.count;
+
+		DSI_INFO("update power on delay, count: %d (%d, %d)\n", count,
+				vdd->on_delay.update_count,
+				panel->power_info.count);
+
+		for (i = 0; i < count; i++) {
+			DSI_INFO("[%d] %d -> %d\n", i,
+				panel->power_info.vregs[i].post_on_sleep,
+				vdd->on_delay.delay[i]);
+			panel->power_info.vregs[i].post_on_sleep =
+				vdd->on_delay.delay[i];
+		}
+
+		vdd->on_delay.update = false;
 	}
 
 	/*
 		AOT disable on factory binary.
 	*/
 	if (!vdd->aot_enable || vdd->is_factory_mode) {
+		DSI_INFO("timing_check: panel power on\n");
 		rc = dsi_pwr_enable_regulator(&panel->power_info, true);
 		if (rc) {
 			DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
@@ -578,14 +713,17 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	if (gpio_is_valid(vdd->dtsi_data.samsung_tcon_rdy_gpio)) {
-		LCD_ERR("skip panel reset while panel power on sequence \n");
+		LCD_INFO(vdd, "skip panel reset while panel power on sequence \n");
 		goto exit;
 	}
 
+	/* Call reset_regulator func here
+	 * if aot_reset_regulator is true
+	 * not aot_reset_regulator_late
+	 */
 	if (vdd->aot_reset_regulator) {
-		DSI_INFO("[SDE] aot_reset_regulator enabled.\n");
 		rc = dsi_panel_reset_regulator(panel, true);
-	} else
+	} else if (!vdd->aot_reset_regulator_late)
 #endif
 		rc = dsi_panel_reset(panel);
 
@@ -628,7 +766,7 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 	struct samsung_display_driver_data *vdd = panel->panel_private;
 
 	if (!ss_panel_attach_get(vdd)) {
-		LCD_INFO("PBA booting, skip to power off panel\n");
+		LCD_INFO(vdd, "PBA booting, skip to power off panel\n");
 		return 0;
 	}
 #endif
@@ -641,8 +779,28 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
         usleep_range(vdd->dtsi_data.samsung_dsi_off_reset_delay,
                 vdd->dtsi_data.samsung_dsi_off_reset_delay);
 
+	if (vdd->off_delay.update) {
+		int i;
+		int count = vdd->off_delay.update_count < panel->power_info.count ?
+				vdd->off_delay.update_count : panel->power_info.count;
+
+		DSI_INFO("update power off delay, count: %d (%d, %d)\n", count,
+				vdd->off_delay.update_count,
+				panel->power_info.count);
+
+		for (i = 0; i < count; i++) {
+			DSI_INFO("[%d] %d -> %d\n", i,
+				panel->power_info.vregs[i].post_off_sleep,
+				vdd->off_delay.delay[i]);
+			panel->power_info.vregs[i].post_off_sleep =
+				vdd->off_delay.delay[i];
+		}
+
+		vdd->off_delay.update = false;
+	}
+
 	/* Reset regulator off when aot_reset_regulator enabled */
-	if (vdd->aot_reset_regulator) {
+	if (vdd->aot_reset_regulator || vdd->aot_reset_regulator_late) {
 		rc = dsi_panel_reset_regulator(panel, false);
 		if (rc) {
 			DSI_ERR("[%s] failed to off reset regulator, rc=%d\n",
@@ -679,6 +837,7 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		AOT disable on factory binary.
 	*/
 	if (!vdd->aot_enable || vdd->is_factory_mode)  {
+		DSI_INFO("timing_check: panel power off\n");
 		rc = dsi_pwr_enable_regulator(&panel->power_info, false);
 		if (rc)
 			DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
@@ -738,11 +897,11 @@ static int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 	 */
 	if (unlikely(vdd->exclusive_tx.enable &&
 			!set->exclusive_pass)) {
-		LCD_INFO("[SDE] %s: wait.. cmd[%d]=%s\n", __func__,
+		LCD_INFO(vdd, "[SDE] %s: wait.. cmd[%d]=%s\n", __func__,
 				type, ss_get_cmd_name(type));
 		wait_event(vdd->exclusive_tx.ex_tx_waitq,
 				!vdd->exclusive_tx.enable);
-		LCD_INFO("[SDE] %s: pass, cmd[%d]=%s\n", __func__,
+		LCD_INFO(vdd, "[SDE] %s: pass, cmd[%d]=%s\n", __func__,
 				type, ss_get_cmd_name(type));
 	}
 	mutex_lock(&vdd->cmd_lock);
@@ -763,7 +922,7 @@ static int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 	if (cmds && (display->ctrl[cmds->msg.ctrl].ctrl->secure_mode)) {
 		for (i = 0 ; i < count ; i++) {
 			if (cmds->msg.tx_len > DSI_CTRL_MAX_CMD_FIFO_STORE_SIZE) {
-				LCD_ERR("Over DSI_CTRL_MAX_CMD_FIFO_STORE_SIZE at secure_mode type = %d\n", type);
+				LCD_ERR(vdd, "Over DSI_CTRL_MAX_CMD_FIFO_STORE_SIZE at secure_mode type = %d\n", type);
 				if (type != TX_MDNIE_TUNE)
 					WARN(1, "unexpected cmd type = %d\n", type);
 				goto error;
@@ -921,6 +1080,9 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 {
 	int rc = 0;
 	struct mipi_dsi_device *dsi;
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd;
+#endif
 
 	if (!panel || (bl_lvl > 0xffff)) {
 		DSI_ERR("invalid params\n");
@@ -933,9 +1095,10 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 		bl_lvl = (((bl_lvl & 0xff) << 8) | (bl_lvl >> 8));
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
+	vdd = panel->panel_private;
 	rc = ss_brightness_dcs(panel->panel_private, bl_lvl, BACKLIGHT_NORMAL);
 	if (rc < 0)
-		LCD_ERR("failed to update dcs backlight:%d\n", bl_lvl);
+		LCD_ERR(vdd, "failed to update dcs backlight:%d\n", bl_lvl);
 #else
 	rc = mipi_dsi_dcs_set_display_brightness(dsi, bl_lvl);
 	if (rc < 0)
@@ -1965,6 +2128,21 @@ static int dsi_panel_parse_cmd_host_config(struct dsi_cmd_engine_cfg *cfg,
 		goto error;
 	}
 
+	cfg->mdp_idle_ctrl_en =
+		utils->read_bool(utils->data, "qcom,mdss-dsi-mdp-idle-ctrl-en");
+
+	if (cfg->mdp_idle_ctrl_en) {
+		val = 0;
+		rc = utils->read_u32(utils->data, "qcom,mdss-dsi-mdp-idle-ctrl-len", &val);
+		if (rc) {
+			DSI_DEBUG("[%s] mdp idle ctrl len is not defined\n", name);
+			cfg->mdp_idle_ctrl_len = 0;
+			cfg->mdp_idle_ctrl_en = false;
+			rc = 0;
+		} else {
+			cfg->mdp_idle_ctrl_len = val;
+		}
+	}
 error:
 	return rc;
 }
@@ -2140,6 +2318,9 @@ static int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt)
 		packet_length += tmp;
 		if (packet_length > length) {
 			DSI_ERR("format error %d\n", length);
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+			DSI_ERR("***** %d th mipi cmd line's count is wrong!!! *****\n", (count+1));
+#endif
 			return -EINVAL;
 		}
 		length -= packet_length;
@@ -2565,22 +2746,41 @@ static int dsi_panel_parse_jitter_config(
 	return 0;
 }
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+bool pba_regulator_control_ss;
+#endif
 static int dsi_panel_parse_power_cfg(struct dsi_panel *panel)
 {
 	int rc = 0;
 	char *supply_name;
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd;
+	struct dsi_parser_utils *utils = &panel->utils;
+#endif
 
 	if (panel->host_config.ext_bridge_mode)
 		return 0;
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
+	vdd = panel->panel_private;
+
+	/* ss_pba_regulator_control:
+	 * To turn off regulator while PBA boot
+	 * Caution!, both panels should have PBA regulators if with DSI1
+	 */
+	pba_regulator_control_ss = utils->read_bool(utils->data,
+			"qcom,mdss-dsi-pba-regulator_ss");
+	LCD_INFO(vdd, "parse qcom,mdss-dsi-pba-regulator_ss: %d\n",
+			pba_regulator_control_ss);
+
 	/* In this point, vdd->panel_attach_status has invalid data.
 	 * So, use panel name to verify PBA booting,
 	 * intead of ss_panel_attach_get().
 	 */
-	if (!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
-			!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1")) {
-		LCD_INFO("PBA booting, skip to parse vreg\n");
+	if ((!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
+			!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1"))
+			&& !pba_regulator_control_ss) {
+		LCD_INFO(vdd, "PBA booting, skip to parse vreg\n");
 		goto error;
 	}
 #endif
@@ -3691,7 +3891,7 @@ static int dsi_panel_parse_esd_config(struct dsi_panel *panel)
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 		} else if (!strcmp(string, "irq_check")) {
 			esd_config->status_mode = ESD_MODE_PANEL_IRQ;
-			LCD_ERR("%s : irq_check!!\n", __func__);
+			DSI_ERR("%s : irq_check!!\n", __func__);
 #endif
 		} else if (!strcmp(string, "te_signal_check")) {
 			if (panel->panel_mode == DSI_OP_CMD_MODE) {
@@ -4372,7 +4572,7 @@ int dsi_panel_get_mode(struct dsi_panel *panel,
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	vdd = panel->panel_private;
 	vdd->num_of_intf = mode->priv_info->topology.num_intf;
-	LCD_INFO_ONCE("[DISPLAY_%d] vdd->num_of_intf = %d\n", vdd->ndx, vdd->num_of_intf);
+	LCD_INFO_ONCE(vdd, "vdd->num_of_intf = %d\n", vdd->num_of_intf);
 #endif
 
 	goto done;
@@ -4490,7 +4690,7 @@ int dsi_panel_update_pps(struct dsi_panel *panel)
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	if (!priv_info->dsc_enabled) {
-		LCD_ERR("dsc is not enabled..(%d)\n", priv_info->dsc_enabled);
+		LCD_INFO(vdd, "dsc is not enabled..(%d)\n", priv_info->dsc_enabled);
 		goto error;
 	}
 #endif
@@ -4670,19 +4870,19 @@ int wait_tcon_ready(struct dsi_panel *panel)
 	int i;
 	int max_wait_cnt = 300; /* max 500ms for PV2 */
 
-	LCD_INFO("ANAPASS DDI: +: tcon_rdy val: %d\n", gpio_get_value(vdd->dtsi_data.samsung_tcon_rdy_gpio));
+	LCD_INFO(vdd, "ANAPASS DDI: +: tcon_rdy val: %d\n", gpio_get_value(vdd->dtsi_data.samsung_tcon_rdy_gpio));
 	msleep(200);
 	for (i = 0; i < max_wait_cnt; i++) {
 		if (gpio_get_value(vdd->dtsi_data.samsung_tcon_rdy_gpio)) {
-			LCD_INFO("ANAPASS DDI: tcon_rdy becomes level high!!!\n");
+			LCD_INFO(vdd, "ANAPASS DDI: tcon_rdy becomes level high!!!\n");
 			break;
 		}
 		usleep_range(1000, 1010);
 	}
-	LCD_INFO("ANAPASS DDI: -: tcon_rdy val: %d, wait_time: %d[cnt/ms]\n", gpio_get_value(vdd->dtsi_data.samsung_tcon_rdy_gpio), i+200);
+	LCD_INFO(vdd, "ANAPASS DDI: -: tcon_rdy val: %d, wait_time: %d[cnt/ms]\n", gpio_get_value(vdd->dtsi_data.samsung_tcon_rdy_gpio), i+200);
 
 	if (vdd->dtsi_data.samsung_delay_after_tcon_rdy) {
-		LCD_INFO("Reset after Tcon Ready (%d)\n", vdd->dtsi_data.samsung_delay_after_tcon_rdy);
+		LCD_INFO(vdd, "Reset after Tcon Ready (%d)\n", vdd->dtsi_data.samsung_delay_after_tcon_rdy);
 		if (vdd->dtsi_data.samsung_delay_after_tcon_rdy >= 100)
 			msleep(vdd->dtsi_data.samsung_delay_after_tcon_rdy);
 		else
@@ -4705,19 +4905,19 @@ void tcon_prepare(void)
 		return;
 
 	if (display->is_cont_splash_enabled) {
-		LCD_INFO("splashed enabled yet\n");
+		LCD_INFO(vdd, "splashed enabled yet\n");
 		return;
 	}
 
 	if (gpio_is_valid(vdd->dtsi_data.samsung_tcon_rdy_gpio)) {
-		LCD_DEBUG("tcon_rdy val[%d]: %d no need if 1.\n",
+		LCD_DEBUG(vdd, "tcon_rdy val[%d]: %d no need if 1.\n",
 			vdd->dtsi_data.samsung_tcon_rdy_gpio,
 			gpio_get_value(vdd->dtsi_data.samsung_tcon_rdy_gpio));
 		if (gpio_get_value(vdd->dtsi_data.samsung_tcon_rdy_gpio))
 			return;
 	}
 
-	LCD_INFO("tcon_prepare ++ \n");
+	LCD_INFO(vdd, "tcon_prepare ++ \n");
 	/*
 		There is panel power on requst. So panel reset executes here.
 		panle power on -> LP11 -> RESET -> wait tcon ready
@@ -4728,16 +4928,16 @@ void tcon_prepare(void)
 
 	if (gpio_is_valid(vdd->dtsi_data.samsung_tcon_rdy_gpio)) {
 		if (!wait_tcon_ready(panel)) {
-			LCD_INFO("ANAPASS DDI tcon_rdy fail \n");
+			LCD_INFO(vdd, "ANAPASS DDI tcon_rdy fail \n");
 			//panic("ANAPASS DDI tcon_rdy fail");
 		}
 	} else {
-		LCD_INFO("ANAPASS DDI tcon_rdy force wait 60ms \n");
+		LCD_INFO(vdd, "ANAPASS DDI tcon_rdy force wait 60ms \n");
 		usleep_range(60000, 61000);
 	}
 
 	vdd->reset_time_64 = ktime_get();
-	LCD_INFO("tcon_prepare -- \n");
+	LCD_INFO(vdd, "tcon_prepare -- \n");
 }
 
 void force_sustain_lp11_for_sleep(void)
@@ -4747,7 +4947,7 @@ void force_sustain_lp11_for_sleep(void)
 	if (vdd && vdd->lp11_sleep_ms_time) {
 		usleep_range(vdd->lp11_sleep_ms_time * 1000,
 				vdd->lp11_sleep_ms_time * 1000);
-		LCD_DEBUG("lp11_sleep_ms_time : %d ms\n",
+		LCD_DEBUG(vdd, "lp11_sleep_ms_time : %d ms\n",
 			vdd->lp11_sleep_ms_time);
 	}
 }
@@ -4756,6 +4956,9 @@ void force_sustain_lp11_for_sleep(void)
 int dsi_panel_prepare(struct dsi_panel *panel)
 {
 	int rc = 0;
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd;
+#endif
 
 	if (!panel) {
 		DSI_ERR("invalid params\n");
@@ -4763,7 +4966,9 @@ int dsi_panel_prepare(struct dsi_panel *panel)
 	}
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_INFO("++\n");
+	vdd = panel->panel_private;
+
+	LCD_INFO(vdd, "++\n");
 	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, true);
 #endif
 
@@ -4778,6 +4983,19 @@ int dsi_panel_prepare(struct dsi_panel *panel)
 		}
 	}
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	{
+		struct samsung_display_driver_data *vdd = panel->panel_private;
+
+		/* Call reset_regulator func here
+		 * if aot_reset_regulator_late is true
+		 * not pure aot_reset_regulator
+		 */
+		if (vdd->aot_reset_regulator_late)
+			rc = dsi_panel_reset_regulator(panel, true);
+	}
+#endif
+
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_PRE_ON);
 	if (rc) {
 		DSI_ERR("[%s] failed to send DSI_CMD_SET_PRE_ON cmds, rc=%d\n",
@@ -4790,7 +5008,7 @@ error:
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, false);
-	LCD_INFO("--\n");
+	LCD_INFO(vdd, "--\n");
 #endif
 
 	return rc;
@@ -5184,9 +5402,8 @@ int dsi_panel_enable(struct dsi_panel *panel)
 	mutex_lock(&panel->panel_lock);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("++\n");
-
 	vdd = panel->panel_private;
+	LCD_INFO(vdd, "++\n");
 
 	/* delay between panel_reset and sleep_out */
 	ss_delay(vdd->dtsi_data.after_reset_delay, vdd->reset_time_64);
@@ -5199,21 +5416,28 @@ int dsi_panel_enable(struct dsi_panel *panel)
 
 	/* 3FA7 IC : display off, sleep in cmds should be sent befor sleep out in case2 */
 	if (vdd->poc_driver.read_case == READ_CASE2 && vdd->poc_driver.need_sleep_in) {
-		LCD_ERR("display off, sleep in cmds should be sent befor sleep out in case2..\n");
+		LCD_INFO(vdd, "display off, sleep in cmds should be sent befor sleep out in case2..\n");
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_OFF);
 		if (rc) {
-			LCD_ERR("[%s] failed to send DSI_CMD_SET_OFF cmds, rc=%d\n",
-			   panel->name, rc);
+			LCD_ERR(vdd, "[%s] failed to send DSI_CMD_SET_OFF cmds, rc=%d\n", panel->name, rc);
 		}
 		vdd->poc_driver.need_sleep_in = false;
 	}
 
 	/* sleep out command is included in DSI_CMD_SET_ON */
 	vdd->sleep_out_time = ktime_get();
-	LCD_INFO("tx on_cmd +\n");
-#endif
+	LCD_INFO(vdd, "tx on_cmd +\n");
 
+	/* skip cmds during splash booting */
+	if (vdd->skip_cmd_set_on_splash_enabled && vdd->samsung_splash_enabled) {
+		LCD_INFO(vdd, "skip send DSI_CMD_SET_ON during splash booting\n");
+		rc = 0;
+	} else {
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON);
+	}
+#else
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON);
+#endif
 	if (rc)
 		DSI_ERR("[%s] failed to send DSI_CMD_SET_ON cmds, rc=%d\n",
 		       panel->name, rc);
@@ -5221,11 +5445,11 @@ int dsi_panel_enable(struct dsi_panel *panel)
 		panel->panel_initialized = true;
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_INFO("tx on_cmd -\n");
+	LCD_INFO(vdd, "tx on_cmd -\n");
 	vdd->tx_set_on_time = ktime_get();
 
 	ss_panel_on_post(panel->panel_private);
-	LCD_ERR("--\n");
+	LCD_INFO(vdd, "--\n");
 #endif
 
 	mutex_unlock(&panel->panel_lock);
@@ -5302,6 +5526,9 @@ error:
 int dsi_panel_disable(struct dsi_panel *panel)
 {
 	int rc = 0;
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd;
+#endif
 
 	if (!panel) {
 		DSI_ERR("invalid params\n");
@@ -5309,7 +5536,9 @@ int dsi_panel_disable(struct dsi_panel *panel)
 	}
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("++\n");
+	vdd = panel->panel_private;
+
+	LCD_INFO(vdd, "++\n");
 	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, true);
 #endif
 
@@ -5317,7 +5546,7 @@ int dsi_panel_disable(struct dsi_panel *panel)
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	if (!ss_panel_attach_get(panel->panel_private)) {
-		   LCD_INFO("PBA booting, skip to disable panel\n");
+		   LCD_INFO(vdd, "PBA booting, skip to disable panel\n");
 		   goto skip_cmd_tx;
 	}
 #endif
@@ -5359,7 +5588,7 @@ skip_cmd_tx:
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, false);
-	LCD_ERR("--\n");
+	LCD_INFO(vdd, "--\n");
 #endif
 
 	return rc;

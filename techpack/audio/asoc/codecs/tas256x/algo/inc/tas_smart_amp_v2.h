@@ -96,6 +96,8 @@ enum module_id_t {
 #define TAS_PCM_CHANNEL_MAPPING 3837
 #define TAS_SA_GET_RE_RANGE   3838
 #define TAS_SA_DIGITAL_GAIN   3839
+/* New Param ID Added to send IV Width and VBat info to Algo Library */
+#define TAS_SA_IV_WIDTH_VBAT_MON 3840
 
 /*Added for DC Detection*/
 #define CAPI_V2_TAS_SA_DC_DETECT 0x40404040

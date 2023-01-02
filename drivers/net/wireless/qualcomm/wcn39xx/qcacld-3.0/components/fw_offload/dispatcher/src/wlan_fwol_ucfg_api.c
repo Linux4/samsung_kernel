@@ -72,6 +72,7 @@ fwol_psoc_object_created_notification(struct wlan_objmgr_psoc *psoc, void *arg)
 	if (QDF_IS_STATUS_ERROR(status)) {
 		fwol_err("Failed to attach psoc_ctx with psoc");
 		qdf_mem_free(fwol_obj);
+		return status;
 	}
 
 	tgt_fwol_register_rx_ops(&fwol_obj->rx_ops);
@@ -283,6 +284,21 @@ QDF_STATUS ucfg_fwol_get_ani_enabled(struct wlan_objmgr_psoc *psoc,
 	}
 
 	*ani_enabled = fwol_obj->cfg.ani_enabled;
+	return QDF_STATUS_SUCCESS;
+}
+
+static QDF_STATUS ucfg_fwol_get_hw_assist_config(struct wlan_objmgr_psoc *psoc,
+						 bool *disable_hw_assist)
+{
+	struct wlan_fwol_psoc_obj *fwol_obj;
+
+	fwol_obj = fwol_get_psoc_obj(psoc);
+	if (!fwol_obj) {
+		fwol_err("Failed to get FWOL obj");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	*disable_hw_assist = fwol_obj->cfg.disable_hw_assist;
 	return QDF_STATUS_SUCCESS;
 }
 
@@ -501,6 +517,26 @@ QDF_STATUS ucfg_fwol_get_enable_fw_module_log_level(
 	*enable_fw_module_log_level = fwol_obj->cfg.enable_fw_module_log_level;
 	*enable_fw_module_log_level_num =
 				fwol_obj->cfg.enable_fw_module_log_level_num;
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS ucfg_fwol_wow_get_enable_fw_module_log_level(
+				struct wlan_objmgr_psoc *psoc,
+				uint8_t **enable_fw_wow_module_log_level,
+				uint8_t *enable_fw_wow_module_log_level_num)
+{
+	struct wlan_fwol_psoc_obj *fwol_obj;
+
+	fwol_obj = fwol_get_psoc_obj(psoc);
+	if (!fwol_obj) {
+		fwol_err("Failed to get FWOL obj");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	*enable_fw_wow_module_log_level =
+				fwol_obj->cfg.enable_fw_mod_wow_log_level;
+	*enable_fw_wow_module_log_level_num =
+				fwol_obj->cfg.enable_fw_mod_wow_log_level_num;
 	return QDF_STATUS_SUCCESS;
 }
 
@@ -942,3 +978,28 @@ QDF_STATUS ucfg_fwol_send_dscp_up_map_to_fw(struct wlan_objmgr_vdev *vdev,
 	return status;
 }
 #endif /* WLAN_SEND_DSCP_UP_MAP_TO_FW */
+
+QDF_STATUS ucfg_fwol_configure_global_params(struct wlan_objmgr_psoc *psoc,
+					     struct wlan_objmgr_pdev *pdev)
+{
+	QDF_STATUS status;
+	bool value;
+
+	/* Configure HW assist feature in FW */
+	status = ucfg_fwol_get_hw_assist_config(psoc, &value);
+	if (QDF_IS_STATUS_ERROR(status))
+		return status;
+	status = fwol_configure_hw_assist(pdev, value);
+	if (QDF_IS_STATUS_ERROR(status))
+		return status;
+
+	return status;
+}
+
+QDF_STATUS ucfg_fwol_configure_vdev_params(struct wlan_objmgr_psoc *psoc,
+					   struct wlan_objmgr_pdev *pdev,
+					   enum QDF_OPMODE device_mode,
+					   uint8_t vdev_id)
+{
+	return QDF_STATUS_SUCCESS;
+}

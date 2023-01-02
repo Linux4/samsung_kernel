@@ -11,7 +11,7 @@
 #include <linux/ratelimit.h>
 #include "sec_mm.h"
 
-static DEFINE_RATELIMIT_STATE(mm_debug_rs, 30 * HZ, 1);
+static DEFINE_RATELIMIT_STATE(mm_debug_rs, 10 * HZ, 1);
 
 #define MIN_FILE_SIZE_HIGH	300
 #define MIN_FILE_SIZE_LOW	200
@@ -29,8 +29,13 @@ static unsigned long lowfile_count(struct shrinker *s,
 	if (file < min_file && __ratelimit(&mm_debug_rs)) {
 		pr_info("low file detected : %lukB < %luKB\n", K(file),
 			K(min_file));
+#ifdef CONFIG_SEC_MM
+		show_mem(0, NULL);
+#else
 		mm_debug_show_free_areas();
+#endif
 		mm_debug_dump_tasks();
+		ion_account_print_usage();
 	}
 
 	return 0; /* return 0 not to call to scan_objects */

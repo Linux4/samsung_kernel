@@ -111,20 +111,28 @@ static ssize_t epen_firm_version_show(struct device *dev,
 	struct sec_cmd_data *sec = dev_get_drvdata(dev);
 	struct wacom_i2c *wac_i2c = container_of(sec, struct wacom_i2c, sec);
 	struct i2c_client *client = wac_i2c->client;
-
 #ifdef CONFIG_SEC_FACTORY
-	if (wac_i2c->pdata->ic_type == MPU_W9021) {
-		wac_i2c->fw_ver_ic = 0;
+	int i;
+
+	if (wac_i2c->pdata->img_version_of_ic[0] == MPU_W9021) {
+		for (i = 0; i < 4; i++)
+			wac_i2c->pdata->img_version_of_ic[i] = 0;
 
 		wacom_i2c_query(wac_i2c);
 	}
 #endif
 
-	input_info(true, &client->dev, "%s: 0x%x|0x%X\n", __func__,
-			wac_i2c->fw_ver_ic, wac_i2c->fw_ver_bin);
+	input_info(true, &client->dev, "%s: %02X%02X%02X%02X|%02X%02X%02X%02X\n", __func__,
+			wac_i2c->pdata->img_version_of_ic[0], wac_i2c->pdata->img_version_of_ic[1],
+			wac_i2c->pdata->img_version_of_ic[2], wac_i2c->pdata->img_version_of_ic[3],
+			wac_i2c->pdata->img_version_of_bin[0], wac_i2c->pdata->img_version_of_bin[1],
+			wac_i2c->pdata->img_version_of_bin[2], wac_i2c->pdata->img_version_of_bin[3]);
 
-	return snprintf(buf, PAGE_SIZE, "%04X\t%04X\n",
-			wac_i2c->fw_ver_ic, wac_i2c->fw_ver_bin);
+	return snprintf(buf, PAGE_SIZE, "%02X%02X%02X%02X\t%02X%02X%02X%02X\n",
+			wac_i2c->pdata->img_version_of_ic[0], wac_i2c->pdata->img_version_of_ic[1],
+			wac_i2c->pdata->img_version_of_ic[2], wac_i2c->pdata->img_version_of_ic[3],
+			wac_i2c->pdata->img_version_of_bin[0], wac_i2c->pdata->img_version_of_bin[1],
+			wac_i2c->pdata->img_version_of_bin[2], wac_i2c->pdata->img_version_of_bin[3]);
 }
 
 static ssize_t epen_firmware_update_store(struct device *dev,
@@ -181,9 +189,13 @@ static ssize_t epen_firm_version_of_ic_show(struct device *dev,
 	struct sec_cmd_data *sec = dev_get_drvdata(dev);
 	struct wacom_i2c *wac_i2c = container_of(sec, struct wacom_i2c, sec);
 
-	input_info(true, &wac_i2c->client->dev, "%s: %X\n", __func__, wac_i2c->fw_ver_ic);
+	input_info(true, &wac_i2c->client->dev, "%s: %02X%02X%02X%02X\n", __func__,
+			wac_i2c->pdata->img_version_of_ic[0], wac_i2c->pdata->img_version_of_ic[1],
+			wac_i2c->pdata->img_version_of_ic[2], wac_i2c->pdata->img_version_of_ic[3]);
 
-	return snprintf(buf, PAGE_SIZE, "%04X", wac_i2c->fw_ver_ic);
+	return snprintf(buf, PAGE_SIZE, "%02X%02X%02X%02X",
+			wac_i2c->pdata->img_version_of_ic[0], wac_i2c->pdata->img_version_of_ic[1],
+			wac_i2c->pdata->img_version_of_ic[2], wac_i2c->pdata->img_version_of_ic[3]);
 }
 
 static ssize_t epen_firm_version_of_bin_show(struct device *dev,
@@ -192,9 +204,13 @@ static ssize_t epen_firm_version_of_bin_show(struct device *dev,
 	struct sec_cmd_data *sec = dev_get_drvdata(dev);
 	struct wacom_i2c *wac_i2c = container_of(sec, struct wacom_i2c, sec);
 
-	input_info(true, &wac_i2c->client->dev, "%s: %X\n", __func__, wac_i2c->fw_ver_bin);
+	input_info(true, &wac_i2c->client->dev, "%s: %02X%02X%02X%02X\n", __func__,
+			wac_i2c->pdata->img_version_of_bin[0], wac_i2c->pdata->img_version_of_bin[1],
+			wac_i2c->pdata->img_version_of_bin[2], wac_i2c->pdata->img_version_of_bin[3]);
 
-	return snprintf(buf, PAGE_SIZE, "%04X", wac_i2c->fw_ver_bin);
+	return snprintf(buf, PAGE_SIZE, "%02X%02X%02X%02X",
+			wac_i2c->pdata->img_version_of_bin[0], wac_i2c->pdata->img_version_of_bin[1],
+			wac_i2c->pdata->img_version_of_bin[2], wac_i2c->pdata->img_version_of_bin[3]);
 }
 
 
@@ -1010,6 +1026,19 @@ static ssize_t get_epen_pos_show(struct device *dev,
 			max_x, max_y);
 }
 
+static ssize_t flip_status_detect_show(struct device *dev,
+		struct device_attribute *attr,
+		char *buf)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct wacom_i2c *wac_i2c = container_of(sec, struct wacom_i2c, sec);
+
+	input_info(true, &wac_i2c->client->dev, "%s: %d\n",
+			__func__,	wac_i2c->flip_state);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", wac_i2c->flip_state);
+}
+
 /* firmware update */
 static DEVICE_ATTR(epen_firm_update, (S_IWUSR | S_IWGRP),
 		NULL, epen_firmware_update_store);
@@ -1053,6 +1082,8 @@ static DEVICE_ATTR(epen_connection_check, S_IRUGO,
 static DEVICE_ATTR(epen_fac_select_firmware, (S_IWUSR | S_IWGRP),
 		NULL, epen_fac_select_firmware_store);
 #endif
+static DEVICE_ATTR(flip_status_detect, 0444,
+		flip_status_detect_show, NULL);
 
 static struct attribute *epen_attributes[] = {
 	&dev_attr_epen_firm_update.attr,
@@ -1078,6 +1109,7 @@ static struct attribute *epen_attributes[] = {
 #if WACOM_SEC_FACTORY
 	&dev_attr_epen_fac_select_firmware.attr,
 #endif
+	&dev_attr_flip_status_detect.attr,
 	NULL,
 };
 
@@ -1895,14 +1927,16 @@ static void get_chip_name(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
-	if (wac_i2c->pdata->ic_type == MPU_W9018)
+	if (wac_i2c->pdata->img_version_of_ic[0] == MPU_W9018)
 		snprintf(buff, sizeof(buff), "W9018");
-	else if (wac_i2c->pdata->ic_type == MPU_W9019)
+	else if (wac_i2c->pdata->img_version_of_ic[0] == MPU_W9019)
 		snprintf(buff, sizeof(buff), "W9019");
-	else if (wac_i2c->pdata->ic_type == MPU_W9020)
+	else if (wac_i2c->pdata->img_version_of_ic[0] == MPU_W9020)
 		snprintf(buff, sizeof(buff), "W9020");
-	else if (wac_i2c->pdata->ic_type == MPU_W9021)
+	else if (wac_i2c->pdata->img_version_of_ic[0] == MPU_W9021)
 		snprintf(buff, sizeof(buff), "W9021");
+	else if (wac_i2c->pdata->img_version_of_ic[0] == MPU_WEZ01)
+		snprintf(buff, sizeof(buff), "WEZ01");
 	else
 		snprintf(buff, sizeof(buff), "N/A");
 
@@ -1999,7 +2033,9 @@ static void get_fw_ver_bin(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
-	snprintf(buff, sizeof(buff), "%04X", wac_i2c->fw_ver_bin);
+	snprintf(buff, sizeof(buff), "%02X%02X%02X%02X",
+			wac_i2c->pdata->img_version_of_bin[0], wac_i2c->pdata->img_version_of_bin[1],
+			wac_i2c->pdata->img_version_of_bin[2], wac_i2c->pdata->img_version_of_bin[3]);
 
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_OK;
@@ -2013,7 +2049,9 @@ static void get_fw_ver_ic(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
-	snprintf(buff, sizeof(buff), "%04X", wac_i2c->fw_ver_ic);
+	snprintf(buff, sizeof(buff), "%02X%02X%02X%02X",
+			wac_i2c->pdata->img_version_of_ic[0], wac_i2c->pdata->img_version_of_ic[1],
+			wac_i2c->pdata->img_version_of_ic[2], wac_i2c->pdata->img_version_of_ic[3]);
 
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_OK;

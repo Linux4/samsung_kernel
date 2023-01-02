@@ -155,7 +155,7 @@ static void gen_hbm_interpolation_platform_level_lux_mode(struct samsung_display
 
 			hbm_itp->br_table[index].lux_mode = hbm_itp->br_table[index].interpolation_br_x10000 / MULTIPLY_x10000;
 
-			LCD_DEBUG("Platform : %3d %7d %7d %4d\n",
+			LCD_DEBUG(vdd, "Platform : %3d %7d %7d %4d\n",
 					index,
 					hbm_itp->br_table[index].platform_level_x10000,
 					hbm_itp->br_table[index].interpolation_br_x10000,
@@ -201,7 +201,7 @@ static void update_hbm_candela_map_table(struct samsung_display_driver_data *vdd
 
 	/* check table size */
 	if (table->tab_size != interpolation_step) {
-		LCD_INFO("alloc for pac hbm candela_map_table %d <- %d\n", table->tab_size, interpolation_step);
+		LCD_INFO(vdd,  "alloc for pac hbm candela_map_table %d <- %d\n", table->tab_size, interpolation_step);
 
 		table->tab_size = interpolation_step;
 
@@ -262,13 +262,13 @@ static void update_hbm_interpolation(struct samsung_display_driver_data *vdd,
 	if (vdd->panel_func.gen_hbm_interpolation_gamma)
 		vdd->panel_func.gen_hbm_interpolation_gamma(vdd, br_tbl, hbm_table, hbm_table_size);
 	else
-		LCD_ERR("No gen_hbm_interpolation_gamma !!\n");
+		LCD_ERR(vdd,   "No gen_hbm_interpolation_gamma !!\n");
 
 	/* 3st */
 	if (vdd->panel_func.gen_hbm_interpolation_irc)
 		vdd->panel_func.gen_hbm_interpolation_irc(vdd, br_tbl, hbm_table, hbm_table_size);
 	else
-		LCD_ERR("No gen_hbm_interpolation_irc !!\n");
+		LCD_ERR(vdd,   "No gen_hbm_interpolation_irc !!\n");
 
 	/* 4st */
 	update_hbm_candela_map_table(vdd, br_tbl);
@@ -338,7 +338,7 @@ static void init_normal_interpolation(struct samsung_display_driver_data *vdd,
 			ss_itp->normal.gamma[column] = kzalloc(gamma_size, GFP_KERNEL);
 	}
 
-	LCD_DEBUG("%pk %d\n", ss_itp->normal.br_aor_table, normal_interpolation_step);
+	LCD_DEBUG(vdd, "%pk %d\n", ss_itp->normal.br_aor_table, normal_interpolation_step);
 }
 
 static unsigned int A_DIMMING_AOR_CAL(
@@ -429,7 +429,7 @@ static void gen_normal_interpolation_platform_level_lux_mode(struct samsung_disp
 
 			normal_itp->br_aor_table[index].lux_mode = normal_table[loop].lux_mode;
 
-			LCD_DEBUG("Platform : %d %d %d\n", index, normal_itp->br_aor_table[index].platform_level_x10000, normal_itp->br_aor_table[index].lux_mode);
+			LCD_DEBUG(vdd, "Platform : %d %d %d\n", index, normal_itp->br_aor_table[index].platform_level_x10000, normal_itp->br_aor_table[index].lux_mode);
 
 			index++;
 		}
@@ -485,7 +485,7 @@ static void gen_normal_interpolation_br(struct samsung_display_driver_data *vdd,
 
 			normal_itp->br_aor_table[index].interpolation_br_x10000 = ROUNDING(result4 +lux_add, MULTIPLY_x100);
 
-			LCD_DEBUG("BR : %d %d\n", index, normal_itp->br_aor_table[index].interpolation_br_x10000);
+			LCD_DEBUG(vdd, "BR : %d %d\n", index, normal_itp->br_aor_table[index].interpolation_br_x10000);
 
 			index++;
 		}
@@ -524,7 +524,7 @@ int gen_normal_interpolation_aor_gamma_legacy(struct samsung_display_driver_data
 	int ddi_tot_v = br_tbl->ddi_vfp + br_tbl->ddi_vactive + br_tbl->ddi_vbp;
 	int ddi_tot_v_base = br_tbl->ddi_vfp_base + br_tbl->ddi_vactive_base + br_tbl->ddi_vbp_base;
 
-	LCD_INFO("RR: %3d %s: ddi_tot_v: %4d, ddi_tot_v_base: %d, aor_size:%d\n",
+	LCD_INFO(vdd,  "RR: %3d %s: ddi_tot_v: %4d, ddi_tot_v_base: %d, aor_size:%d\n",
 			br_tbl->refresh_rate,
 			br_tbl->is_sot_hs_mode ? "HS" : "NM",
 			ddi_tot_v, ddi_tot_v_base, aor_size);
@@ -535,7 +535,7 @@ int gen_normal_interpolation_aor_gamma_legacy(struct samsung_display_driver_data
 		normal_itp = &br_tbl->table_itp.normal;
 
 	if (!vdd->panel_func.get_gamma_V_size) {
-		LCD_ERR("error: no get_gamma_V_size\n");
+		LCD_ERR(vdd,   "error: no get_gamma_V_size\n");
 		return -ENODEV;
 	}
 	gamma_V_size = vdd->panel_func.get_gamma_V_size();
@@ -662,7 +662,7 @@ int gen_normal_interpolation_aor_gamma_legacy(struct samsung_display_driver_data
 				aor_size,
 				normal_itp->br_aor_table[index].aor_hex_string);
 
-			LCD_DEBUG("AOR index : %3d  hex: 0x%04x percent_x10000: %6d mode : %s\n", index,
+			LCD_DEBUG(vdd, "AOR index : %3d  hex: 0x%04x percent_x10000: %6d mode : %s\n", index,
 				normal_itp->br_aor_table[index].aor_hex,
 				normal_itp->br_aor_table[index].aor_percent_x10000,
 				ss_dimming_mode_debug[dimming_mode_curr]);
@@ -713,7 +713,7 @@ static int gen_normal_interpolation_aor_gamma(struct samsung_display_driver_data
 	char pBuffer[256];
 	memset(pBuffer, 0x00, 256);
 
-	LCD_INFO("flash %d, R: %3d %s: ddi_tot_v: %4d, ddi_tot_v_base: %d\n",
+	LCD_INFO(vdd,  "flash %d, R: %3d %s: ddi_tot_v: %4d, ddi_tot_v_base: %d\n",
 			vdd->br_info.panel_br_info.itp_mode,
 			br_tbl->refresh_rate,
 			br_tbl->is_sot_hs_mode ? "HS" : "NM",
@@ -725,7 +725,7 @@ static int gen_normal_interpolation_aor_gamma(struct samsung_display_driver_data
 		normal_itp = &br_tbl->table_itp.normal;
 
 	if (!vdd->panel_func.get_gamma_V_size) {
-		LCD_ERR("error: no get_gamma_V_size\n");
+		LCD_ERR(vdd,   "error: no get_gamma_V_size\n");
 		return -ENODEV;
 	}
 	gamma_V_size = vdd->panel_func.get_gamma_V_size();
@@ -736,7 +736,7 @@ static int gen_normal_interpolation_aor_gamma(struct samsung_display_driver_data
 	itp_gammaV = kzalloc(gamma_V_size * sizeof(int), GFP_KERNEL);
 
 	if (!max_gammaV || !min_gammaV || !itp_gammaV) {
-		LCD_ERR("fail to alloc gammaV memory\n");
+		LCD_ERR(vdd,   "fail to alloc gammaV memory\n");
 		kfree(max_gammaV);
 		kfree(min_gammaV);
 		kfree(itp_gammaV);
@@ -856,7 +856,7 @@ static int gen_normal_interpolation_aor_gamma(struct samsung_display_driver_data
 				aor_size,
 				normal_itp->br_aor_table[index].aor_hex_string);
 
-			LCD_DEBUG("AOR index : %3d  hex: 0x%04x percent_x10000: %6d mode : %s\n", index,
+			LCD_DEBUG(vdd, "AOR index : %3d  hex: 0x%04x percent_x10000: %6d mode : %s\n", index,
 				normal_itp->br_aor_table[index].aor_hex,
 				normal_itp->br_aor_table[index].aor_percent_x10000,
 				ss_dimming_mode_debug[dimming_mode_curr]);
@@ -864,7 +864,7 @@ static int gen_normal_interpolation_aor_gamma(struct samsung_display_driver_data
 			/* print interpolated gamma */
 			for (i = 0; i < gamma_size; i++)
 				snprintf(pBuffer + strnlen(pBuffer, 256), 256, " %2x", normal_itp->gamma[index][i]);
-			LCD_DEBUG("[gamma_itp] [%3d]  %s\n", index, pBuffer);
+			LCD_DEBUG(vdd, "[gamma_itp] [%3d]  %s\n", index, pBuffer);
 			memset(pBuffer, 0x00, 256);
 
 			index++;
@@ -904,7 +904,7 @@ static void update_candela_map_table(struct samsung_display_driver_data *vdd,
 
 	/* check table size */
 	if (table->tab_size != interpolation_step) {
-		LCD_INFO("alloc for pac_candela_map_table");
+		LCD_INFO(vdd,  "alloc for pac_candela_map_table");
 
 		table->tab_size = interpolation_step;
 		/* scaled_idx */
@@ -996,7 +996,7 @@ static void update_normal_interpolation(struct samsung_display_driver_data *vdd,
 	if (vdd->panel_func.gen_normal_interpolation_irc)
 		vdd->panel_func.gen_normal_interpolation_irc(vdd, br_tbl, normal_table, normal_table_size);
 	else
-		LCD_ERR("No gen_normal_interpolation_irc !!\n");
+		LCD_ERR(vdd,   "No gen_normal_interpolation_irc !!\n");
 
 	/* 5st */
 	update_candela_map_table(vdd, br_tbl);
@@ -1036,14 +1036,14 @@ static int find_hbm_candela(struct samsung_display_driver_data *vdd,
 	if (index < 0) {
 		for(loop = hbm_brightness_step - 1; loop >= 0; loop--)
 			if (hbm_tbl->candela_table[loop] - candela >= 0) {
-				LCD_DEBUG("index : %d lux : %d vdd_lux : %d\n", loop, hbm_tbl->candela_table[loop], candela);
+				LCD_DEBUG(vdd, "index : %d lux : %d vdd_lux : %d\n", loop, hbm_tbl->candela_table[loop], candela);
 				index = loop;
 				break;
 			}
 	}
 
 	if (index < 0) {
-		LCD_INFO("fail to find %d candela at hbm.candela_table\n", candela);
+		LCD_INFO(vdd,  "fail to find %d candela at hbm.candela_table\n", candela);
 	}
 
 	return index;
@@ -1068,14 +1068,14 @@ static int find_normal_candela(struct samsung_display_driver_data *vdd,
 	if (index < 0) {
 		for(loop = normal_brightness_step - 1; loop >= 0; loop--)
 			if (normal_tbl->candela_table[loop] - candela >= 0) {
-				LCD_DEBUG("index : %d lux : %d vdd_lux : %d\n", loop, normal_tbl->candela_table[loop], candela);
+				LCD_DEBUG(vdd, "index : %d lux : %d vdd_lux : %d\n", loop, normal_tbl->candela_table[loop], candela);
 				index = loop;
 				break;
 			}
 	}
 
 	if (index < 0) {
-		LCD_INFO("fail to find %d candela at normal.candela_table\n", candela);
+		LCD_INFO(vdd,  "fail to find %d candela at normal.candela_table\n", candela);
 	}
 
 	return index;
@@ -1097,7 +1097,7 @@ static int find_hmd_candela(struct samsung_display_driver_data *vdd,
 		}
 
 	if (index < 0) {
-		LCD_INFO("fail to find %d candela at hmd.candela_table\n", candela);
+		LCD_INFO(vdd,  "fail to find %d candela at hmd.candela_table\n", candela);
 	}
 
 	return index;
@@ -1127,12 +1127,12 @@ static int find_hbm_interpolation_candela(struct samsung_display_driver_data *vd
 		}
 
 	if (index < 0) {
-		LCD_INFO("fail to find %d candela at interpolation.hbm.candela_table\n", candela);
+		LCD_INFO(vdd,  "fail to find %d candela at interpolation.hbm.candela_table\n", candela);
 	}
 
 	return index;
 }
-
+#if 0
 void copy_cmd_debug(char *debug_str, char *cmds, int cmd_size)
 {
 	int data_cnt;
@@ -1146,10 +1146,9 @@ void copy_cmd_debug(char *debug_str, char *cmds, int cmd_size)
 		snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf),
 				"%02x ", cmds[data_cnt]);
 
-	LCD_INFO("%s\n", buf);
-
+	LCD_INFO(vdd,  "%s\n", buf);
 }
-
+#endif
 // TODO: get proper gamma size for each panel..
 #define GAMMA_V_SIZE_TMP	36 /* V_MAX * RGB_MAX */
 int ss_gamma_itp_based_fps(struct samsung_display_driver_data *vdd,
@@ -1191,7 +1190,7 @@ int ss_gamma_itp_based_fps(struct samsung_display_driver_data *vdd,
 		gammaV_itp = kzalloc(gamma_V_size * sizeof(int), GFP_KERNEL);
 
 	if (unlikely(!gammaV_start || !gammaV_end || !gammaV_itp)) {
-		LCD_ERR("fail to alloc gammaV memory\n");
+		LCD_ERR(vdd,   "fail to alloc gammaV memory\n");
 		return -ENOMEM;
 	}
 
@@ -1234,7 +1233,7 @@ int br_interpolation_generate_event(struct samsung_display_driver_data *vdd,
 	/* select brightness table for current refresh rate mode */
 	br_tbl = ss_get_cur_br_tbl(vdd);
 	if (!br_tbl) {
-		LCD_ERR("br tble is null!\n");
+		LCD_ERR(vdd,   "br tble is null!\n");
 		return -ENODEV;
 	}
 
@@ -1250,7 +1249,7 @@ int br_interpolation_generate_event(struct samsung_display_driver_data *vdd,
 
 	switch (event) {
 	case GEN_HBM_GAMMA:
-		LCD_INFO("not support event=%d\n", event);
+		LCD_INFO(vdd,  "not support event=%d\n", event);
 		break;
 	case GEN_NORMAL_GAMMA:
 		candela_index = find_normal_candela(vdd, br_tbl);
@@ -1259,7 +1258,7 @@ int br_interpolation_generate_event(struct samsung_display_driver_data *vdd,
 		break;
 
 	case GEN_NORMAL_INTERPOLATION_GAMMA:
-#if defined(CONFIG_PANEL_S6E3HAB_AMB677TY01_WQHD) || defined (CONFIG_PANEL_S6E3HAB_AMB623TS01_WQHD) || defined (CONFIG_PANEL_S6E3HAB_AMB687TZ01_WQHD)
+#if IS_ENABLED(CONFIG_PANEL_S6E3HAB_AMB677TY01_WQHD) || IS_ENABLED(CONFIG_PANEL_S6E3HAB_AMB623TS01_WQHD) || IS_ENABLED(CONFIG_PANEL_S6E3HAB_AMB687TZ01_WQHD)
 		/* ID3 03 panel:
 		 * 48MTPnm : 60MTPnm x 110MTPhs / 120MTPhs
 		 * 96MTPhs = if brt >= 98nit : 100MTPhs  else : 110MTPhs (98nit = 10601~10800 platform level)
@@ -1319,7 +1318,7 @@ int br_interpolation_generate_event(struct samsung_display_driver_data *vdd,
 			vdd->panel_func.convert_V_to_GAMMA(gammaV_48nm, gamma_48nm);
 
 			/* save gamma to 48hz or 96hz br_tbl */
-			LCD_INFO("VRR: save gamma to 48hz br_tbl\n");
+			LCD_INFO(vdd,  "VRR: save gamma to 48hz br_tbl\n");
 			br_tbl_target = ss_get_br_tbl(vdd, 48, vdd->vrr.cur_sot_hs_mode);
 			if (vdd->br_info.panel_br_info.itp_mode == FLASH_INTERPOLATION)
 				ss_itp_target = &br_tbl_target->flash_itp;
@@ -1349,7 +1348,7 @@ int br_interpolation_generate_event(struct samsung_display_driver_data *vdd,
 
 			/* save gamma to 48hz or 96hz br_tbl */
 
-			LCD_INFO("VRR: save %dhz gamma to 96hz br_tbl\n", fps_itp);
+			LCD_INFO(vdd,  "VRR: save %dhz gamma to 96hz br_tbl\n", fps_itp);
 			br_tbl_target = ss_get_br_tbl(vdd, 96, vdd->vrr.cur_sot_hs_mode);
 			if (vdd->br_info.panel_br_info.itp_mode == FLASH_INTERPOLATION)
 				ss_itp_target = &br_tbl_target->flash_itp;
@@ -1410,10 +1409,10 @@ int br_interpolation_generate_event(struct samsung_display_driver_data *vdd,
 			memcpy(buf, ss_itp->hbm.gamma[candela_index], gamma_size);
 		break;
 	case GEN_HBM_AOR:
-		LCD_INFO("not support event=%d\n", event);
+		LCD_INFO(vdd,  "not support event=%d\n", event);
 		break;
 	case GEN_NORMAL_AOR:
-		LCD_INFO("not support event=%d\n", event);
+		LCD_INFO(vdd,  "not support event=%d\n", event);
 		break;
 	case GEN_HMD_AOR:
 		candela_index = find_hmd_candela(vdd, br_tbl);
@@ -1462,13 +1461,13 @@ int br_interpolation_generate_event(struct samsung_display_driver_data *vdd,
 
 			aor_itp = (aor_base * ddi_tot_v) / ddi_tot_v_base;
 
-#if defined(CONFIG_PANEL_S6E3HAB_AMB677TY01_WQHD) || defined (CONFIG_PANEL_S6E3HAB_AMB623TS01_WQHD) || defined (CONFIG_PANEL_S6E3HAB_AMB687TZ01_WQHD)
+#if IS_ENABLED(CONFIG_PANEL_S6E3HAB_AMB677TY01_WQHD) || IS_ENABLED(CONFIG_PANEL_S6E3HAB_AMB623TS01_WQHD) || IS_ENABLED(CONFIG_PANEL_S6E3HAB_AMB687TZ01_WQHD)
 			if (fps_target == 70) {
 				aor_itp += 14;
-				LCD_INFO("VRR: AOR offset +14 for 70hz\n");
+				LCD_INFO(vdd,  "VRR: AOR offset +14 for 70hz\n");
 			} else if (fps_target == 100) {
 				aor_itp -= 1;
-				LCD_INFO("VRR: AOR offset -1 for 100hz\n");
+				LCD_INFO(vdd,  "VRR: AOR offset -1 for 100hz\n");
 			}
 #endif
 
@@ -1496,13 +1495,13 @@ int br_interpolation_generate_event(struct samsung_display_driver_data *vdd,
 		break;
 
 	case GEN_HBM_VINT:
-		LCD_INFO("not support event=%d\n", event);
+		LCD_INFO(vdd,  "not support event=%d\n", event);
 		break;
 	case GEN_NORMAL_VINT:
-		LCD_INFO("not support event=%d\n", event);
+		LCD_INFO(vdd,  "not support event=%d\n", event);
 		break;
 	case GEN_HMD_VINT:
-		LCD_INFO("not support event=%d\n", event);
+		LCD_INFO(vdd,  "not support event=%d\n", event);
 		break;
 	case GEN_NORMAL_INTERPOLATION_VINT:
 		candela_index = find_normal_candela(vdd, br_tbl);
@@ -1515,13 +1514,13 @@ int br_interpolation_generate_event(struct samsung_display_driver_data *vdd,
 			memcpy(buf, hbm_tbl->vint[candela_index], vint_size);
 		break;
 	case GEN_HBM_ELVSS:
-		LCD_INFO("not support event=%d\n", event);
+		LCD_INFO(vdd,  "not support event=%d\n", event);
 		break;
 	case GEN_NORMAL_ELVSS:
-		LCD_INFO("not support event=%d\n", event);
+		LCD_INFO(vdd,  "not support event=%d\n", event);
 		break;
 	case GEN_HMD_ELVSS:
-		LCD_INFO("not support event=%d\n", event);
+		LCD_INFO(vdd,  "not support event=%d\n", event);
 		break;
 	case GEN_NORMAL_INTERPOLATION_ELVSS:
 		candela_index = find_normal_candela(vdd, br_tbl);
@@ -1548,13 +1547,13 @@ int br_interpolation_generate_event(struct samsung_display_driver_data *vdd,
 		}
 		break;
 	case GEN_HBM_IRC:
-		LCD_INFO("not support event=%d\n", event);
+		LCD_INFO(vdd,  "not support event=%d\n", event);
 		break;
 	case GEN_NORMAL_IRC:
-		LCD_INFO("not support event=%d\n", event);
+		LCD_INFO(vdd,  "not support event=%d\n", event);
 		break;
 	case GEN_HMD_IRC:
-		LCD_INFO("not support event=%d\n", event);
+		LCD_INFO(vdd,  "not support event=%d\n", event);
 		break;
 	case GEN_NORMAL_INTERPOLATION_IRC:
 		memcpy(buf, ss_itp->normal.irc[pac_cd_idx], irc_size);
@@ -1567,11 +1566,11 @@ int br_interpolation_generate_event(struct samsung_display_driver_data *vdd,
 		//copy_cmd_debug("GEN_HBM_INTERPOLATION_IRC", buf, irc_size);
 		break;
 	default:
-		LCD_INFO("unhandled event=%d\n", event);
+		LCD_INFO(vdd,  "unhandled event=%d\n", event);
 		break;
 	}
 
-	LCD_DEBUG("event=%d candela_index:%d\n", event, candela_index);
+	LCD_DEBUG(vdd, "event=%d candela_index:%d\n", event, candela_index);
 
 	return candela_index;
 }
@@ -1602,7 +1601,7 @@ static void debug_normal_interpolation(struct samsung_display_driver_data *vdd,
 	irc = normal_itp->irc;
 
 	for (column = 0; column < brightness_step; column++) {
-		LCD_INFO("index: %3d Platform_x1000: %7d lux_mode: %3d BR_x1000: %7d AOR_x10000: %7d 0x%04X dimmng: %s\n",
+		LCD_INFO(vdd,  "index: %3d Platform_x1000: %7d lux_mode: %3d BR_x1000: %7d AOR_x10000: %7d 0x%04X dimmng: %s\n",
 				column,
 				normal_itp->br_aor_table[column].platform_level_x10000,
 				normal_itp->br_aor_table[column].lux_mode,
@@ -1614,8 +1613,8 @@ static void debug_normal_interpolation(struct samsung_display_driver_data *vdd,
 
 	memset(buf, '\n', sizeof(buf));
 
-	LCD_INFO("print interpolation data\n");
-	LCD_INFO("GAMMA(%d) AOR(%d) IRC(%d)\n", gamma_size, aor_size, irc_size);
+	LCD_INFO(vdd,  "print interpolation data\n");
+	LCD_INFO(vdd,  "GAMMA(%d) AOR(%d) IRC(%d)\n", gamma_size, aor_size, irc_size);
 
 	for (column = brightness_step - 1; column >= 0; column--) {
 		snprintf(buf, FLASH_GAMMA_DBG_BUF_SIZE, "NORMAL [%3d][%3d] ", column, normal_itp->br_aor_table[column].lux_mode);
@@ -1633,7 +1632,7 @@ static void debug_normal_interpolation(struct samsung_display_driver_data *vdd,
 			for (data_cnt = 0; data_cnt < aor_size; data_cnt++)
 				snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "%02x ", normal_itp->br_aor_table[column].aor_hex_string[data_cnt]);
 		} else
-			LCD_ERR("aor_table is null.. %d", column);
+			LCD_ERR(vdd,   "aor_table is null.. %d", column);
 
 		snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "| ");
 
@@ -1643,7 +1642,7 @@ static void debug_normal_interpolation(struct samsung_display_driver_data *vdd,
 				snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "%02X ", irc[column][data_cnt]);
 		}
 
-		LCD_INFO("%s\n", buf);
+		LCD_INFO(vdd,  "%s\n", buf);
 		memset(buf, '\n', strlen(buf));
 	}
 
@@ -1653,10 +1652,10 @@ static void debug_normal_interpolation(struct samsung_display_driver_data *vdd,
 	else
 		table = &vdd->br_info.candela_map_table[NORMAL][vdd->panel_revision];
 
-	LCD_INFO("/* <scaled idx> <idx>  <from>  <end> <cd> <interpolation cd>*/\n");
+	LCD_INFO(vdd,  "/* <scaled idx> <idx>  <from>  <end> <cd> <interpolation cd>*/\n");
 
 	for (column =  0; column < table->tab_size; column++) {
-		LCD_INFO("%4d %2d %5d %5d %3d %3d\n",
+		LCD_INFO(vdd,  "%4d %2d %5d %5d %3d %3d\n",
 			table->scaled_idx[column],
 			table->idx[column],
 			table->from[column],
@@ -1696,14 +1695,14 @@ static void debug_hbm_interpolation(struct samsung_display_driver_data *vdd,
 
 	/* Platform Level, Candela */
 	for (column =  0; column < brightness_step; column++) {
-		LCD_INFO("index: %3d Platform_x10000: %7d lux_mode_x10000: %3d\n",
+		LCD_INFO(vdd,  "index: %3d Platform_x10000: %7d lux_mode_x10000: %3d\n",
 			column,
 			hbm_itp->br_table[column].platform_level_x10000,
 			hbm_itp->br_table[column].interpolation_br_x10000);
 	}
 
-	LCD_INFO("print interpolation data\n");
-	LCD_INFO("GAMMA(%d) IRC(%d)\n", gamma_size, irc_size);
+	LCD_INFO(vdd,  "print interpolation data\n");
+	LCD_INFO(vdd,  "GAMMA(%d) IRC(%d)\n", gamma_size, irc_size);
 
 	for (column = brightness_step - 1; column >= 0; column--) {
 		snprintf(buf, FLASH_GAMMA_DBG_BUF_SIZE, "HBM [%3d][%3d] ", column, hbm_itp->br_table[column].lux_mode);
@@ -1722,7 +1721,7 @@ static void debug_hbm_interpolation(struct samsung_display_driver_data *vdd,
 				snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "%02X ", irc[column][data_cnt]);
 		}
 
-		LCD_INFO("%s\n", buf);
+		LCD_INFO(vdd,  "%s\n", buf);
 		memset(buf, '\n', strlen(buf));
  	}
 
@@ -1732,10 +1731,10 @@ static void debug_hbm_interpolation(struct samsung_display_driver_data *vdd,
 	else
 		table = &vdd->br_info.candela_map_table[HBM][vdd->panel_revision];
 
-	LCD_INFO("< idx from end cd auto >\n");
+	LCD_INFO(vdd,  "< idx from end cd auto >\n");
 
 	for (column =  0; column < table->tab_size; column++) {
-		LCD_INFO("%2d %d %d %d \n",
+		LCD_INFO(vdd,  "%2d %d %d %d \n",
 			table->idx[column],
 			table->from[column],
 			table->end[column],

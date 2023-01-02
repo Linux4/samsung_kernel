@@ -25,15 +25,13 @@ ccflags-$(CONFIG_ICD_USE_TZDEV) += -I$(srctree)/drivers/misc/tzdev
 endif
 
 ifeq ($(MTK_PLATFORM), mt6768)
-ifeq ($(filter a32%, $(TARGET_PRODUCT)),)
-	icd_driver-y += kinibi_atf_oemflag.o
-endif
+  icd_driver-$(CONFIG_ICD_USE_TRUSTONIC) += kinibi_atf_oemflag.o
 else
-	icd_driver-$(CONFIG_ICD_USE_TRUSTONIC) += kinibi_oemflag.o
+  icd_driver-$(CONFIG_ICD_USE_TRUSTONIC) += kinibi_oemflag.o
 endif
 
 ccflags-y += -Wformat
 
-ifneq ($(CONFIG_KUNIT), y)
-	EXTRA_CFLAGS += -D__visible_for_testing=static
+ifneq ($(CONFIG_SEC_KUNIT), y)
+  EXTRA_CFLAGS += -D__visible_for_testing=static
 endif

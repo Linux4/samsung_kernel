@@ -27,7 +27,7 @@
 
 
 //#include "ss_dsi_panel_common.h"
-#ifdef CONFIG_SEC_DEBUG
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
 #include <linux/sec_debug.h>
 #endif
 
@@ -105,11 +105,11 @@ struct ss_image_logging {
 	int src_format;
 };
 
-int ss_read_rddpm(struct samsung_display_driver_data *vdd);
-int ss_read_rddsm(struct samsung_display_driver_data *vdd);
-int ss_read_errfg(struct samsung_display_driver_data *vdd);
-int ss_read_dsierr(struct samsung_display_driver_data *vdd);
-int ss_read_mipi_protocol_err(struct samsung_display_driver_data *vdd);
+int ss_check_rddpm(struct samsung_display_driver_data *vdd, u8 *rddpm);
+int ss_check_rddsm(struct samsung_display_driver_data *vdd, u8 *rddsm);
+int ss_check_esderr(struct samsung_display_driver_data *vdd, u16 *esderr);
+int ss_check_dsierr(struct samsung_display_driver_data *vdd, u8 *dsierr_cnt);
+int ss_check_mipi_protocol_err(struct samsung_display_driver_data *vdd, u16 *protocol_err);
 int ss_read_self_diag(struct samsung_display_driver_data *vdd);
 int ss_read_ddi_debug_reg(struct samsung_display_driver_data *vdd);
 

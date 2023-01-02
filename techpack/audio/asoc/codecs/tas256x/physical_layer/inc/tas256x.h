@@ -627,6 +627,7 @@ struct tas256x_priv {
 	int mn_rx_slot_width;
 	int mn_rx_width;
 	int mn_tx_slot_width;
+	int mn_tx_width;
 	int mn_iv_width;
 	int curr_mn_iv_width;
 	int mn_vbat;
@@ -634,7 +635,8 @@ struct tas256x_priv {
 	bool mb_mute;
 	bool dac_mute;
 	int mn_channels;
-	int mn_slots;
+	int mn_rx_slots;
+	int mn_tx_slots;
 	int mn_rx_slot_map[2];
 	int mn_fmt;
 	int mn_fmt_mode;

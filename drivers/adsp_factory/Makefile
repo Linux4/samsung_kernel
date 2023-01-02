@@ -8,5 +8,6 @@ obj-$(CONFIG_MMC5603X_FACTORY) += mmc5603x_mag.o
 obj-$(CONFIG_VEML3235_FACTORY) += veml3xxx_light.o
 obj-$(CONFIG_VEML3235_SUB_FACTORY) += veml3xxx_sub_light.o
 obj-$(CONFIG_LPS22HH_FACTORY) += lps22hh_pressure.o
+obj-$(CONFIG_STK3A9X_FACTORY) += stk3a9x_prox.o stk3a9x_light.o
 obj-$(CONFIG_SPL07_FACTORY) += spl07_pressure.o
 obj-$(CONFIG_FLIP_COVER_DETECTOR_FACTORY) += flip_cover_detector.o

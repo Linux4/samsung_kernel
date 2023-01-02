@@ -161,9 +161,14 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 			if (panel && vdd && display) {
-				if (vdd->aot_reset_regulator &&  !display->is_cont_splash_enabled
-					&& !strcmp(vreg->vreg_name, "panel_reset")) {
-					DSI_INFO("aot_reset_regulator skip reset on here\n");
+				/* aot_reset_regulator means reset is set as regulator
+				 * but panel_reset or lcd_rst regulator should not be controlled here
+				 */
+				if ((vdd->aot_reset_regulator || vdd->aot_reset_regulator_late)
+					&& !display->is_cont_splash_enabled
+					&& (!strcmp(vreg->vreg_name, "panel_reset")
+						|| !strcmp(vreg->vreg_name, "lcd_rst"))) {
+					DSI_INFO("aot_reset_regulator(_late) -> dsi_panel_reset_regulator\n");
 					continue;
 				}
 			} else
@@ -203,9 +208,12 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 				goto error_disable_voltage;
 			}
 
-			if (vreg->post_on_sleep)
+			if (vreg->post_on_sleep) {
+				DSI_INFO("[%d][%s] post_on_sleep: %d ms\n",
+						i, vreg->vreg_name, vreg->post_on_sleep);
 				usleep_range((post_on_ms * 1000),
 						(post_on_ms * 1000) + 10);
+			}
 		}
 	} else {
 		for (i = (regs->count - 1); i >= 0; i--) {
@@ -213,10 +221,22 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 			if (panel && vdd && display) {
-				if (vdd->aot_reset_regulator && !display->is_cont_splash_enabled
-					&& !strcmp(vreg->vreg_name, "panel_reset")) {
+				if ((vdd->aot_reset_regulator || vdd->aot_reset_regulator_late)
+					&& !display->is_cont_splash_enabled
+					&& (!strcmp(vreg->vreg_name, "panel_reset")
+						|| !strcmp(vreg->vreg_name, "lcd_rst"))) {
 					DSI_INFO("aot_reset_regulator skip reset off here\n");
 					continue;
+				}
+
+				if (vdd->boost_early_off && !strcmp(vreg->vreg_name, "panel_boost_en")) {
+					if (regulator_is_enabled(regs->vregs[i].vreg)) {
+						/* Defence if boost_en is not off, due to no brightness 0 btw screen on-off */
+						DSI_INFO("boost_en is ON, so OFF here\n");
+					} else {
+						DSI_INFO("boost_en is already off.. so skip for boost_en\n");
+						continue;
+					}
 				}
 			}
 #endif
@@ -237,9 +257,12 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 						regs->vregs[i].disable_load);
 			(void)regulator_disable(regs->vregs[i].vreg);
 
-			if (post_off_ms)
+			if (post_off_ms) {
+				DSI_INFO("[%d][%s] post_off_sleep: %d ms\n",
+						i, vreg->vreg_name, vreg->post_off_sleep);
 				usleep_range((post_off_ms * 1000),
 						(post_off_ms * 1000) + 10);
+			}
 		}
 	}
 

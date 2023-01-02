@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
 #define pr_fmt(fmt)	"[drm:%s:%d] " fmt, __func__, __LINE__
@@ -955,7 +956,7 @@ void sde_connector_helper_bridge_enable(struct drm_connector *connector)
 
 		if (vdd->vrr.support_vrr_based_bl &&
 				(vdd->vrr.running_vrr_mdp || vdd->vrr.running_vrr))
-			LCD_INFO("skip brightness update during VRR\n");
+			LCD_INFO(vdd, "skip brightness update during VRR\n");
 		else
 			backlight_update_status(c_conn->bl_device);
 #else
@@ -2253,7 +2254,7 @@ int sde_connector_esd_status(struct drm_connector *conn)
 	}
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	ret = sde_conn->ops.check_status(&sde_conn->base, 
+	ret = sde_conn->ops.check_status(&sde_conn->base,
 					 sde_conn->display, false);
 #else
 	ret = sde_conn->ops.check_status(&sde_conn->base,
@@ -2432,7 +2433,7 @@ int sde_connector_set_blob_data(struct drm_connector *conn,
 		return -EINVAL;
 	}
 
-	info = kzalloc(sizeof(*info), GFP_KERNEL);
+	info = vzalloc(sizeof(*info));
 	if (!info)
 		return -ENOMEM;
 
@@ -2490,7 +2491,7 @@ int sde_connector_set_blob_data(struct drm_connector *conn,
 			SDE_KMS_INFO_DATALEN(info),
 			prop_id);
 exit:
-	kfree(info);
+	vfree(info);
 
 	return rc;
 }

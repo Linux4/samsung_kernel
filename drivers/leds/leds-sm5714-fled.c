@@ -18,6 +18,8 @@
 #include <linux/moduleparam.h>
 #include <linux/platform_device.h>
 
+#define SM5714_FLED_VERSION "XXX.UA1"
+
 static struct sm5714_fled_data *g_sm5714_fled;
 extern struct class *camera_class; /*sys/class/camera*/
 extern struct device *cam_dev_flash;
@@ -162,7 +164,10 @@ static int sm5714_fled_control(u8 fled_mode)
 			if (fled->flash_on_cnt == 0) {
 				fled_set_disable_push_event(SM5714_CHARGER_OP_EVENT_FLASH);
 				/* flash case, only vbus control, in prepare_flash & close_flash function  */
-
+				if (fled->flash_prepare_cnt == 0) {
+					muic_check_fled_state(0, FLED_MODE_FLASH);
+					sm5714_usbpd_check_fled_state(0, FLED_MODE_FLASH);
+				}
 			}
 			fled->pdata->led.en_fled = false;
 		}
@@ -454,8 +459,14 @@ static ssize_t sm5714_rear_flash_store(struct device *dev, struct device_attribu
 	mutex_lock(&fled->fled_mutex);
 
 	if (store_value == 0) { /* 0: Torch or Flash OFF */
+		pr_info("sm5714-fled: %s: Torch or Flash OFF en_mled=%d en_fled=%d.\n", __func__, fled->pdata->led.en_mled, fled->pdata->led.en_fled);
+
 		if (fled->pdata->led.en_mled == false && fled->pdata->led.en_fled == false) {
 			goto out_skip;
+		}
+		if (fled->pdata->led.en_mled == false && fled->pdata->led.en_fled == true) {
+			muic_check_fled_state(0, FLED_MODE_FLASH);
+			sm5714_usbpd_check_fled_state(0, FLED_MODE_FLASH);
 		}
 		sm5714_fled_control(FLED_MODE_OFF);
 
@@ -648,7 +659,7 @@ static int sm5714_fled_probe(struct platform_device *pdev)
 		goto free_device;
 	}
 
-	dev_info(&pdev->dev, "sm5714 fled probe done.\n");
+	dev_info(&pdev->dev, "sm5714 fled probe done [%s].\n", SM5714_FLED_VERSION);
 
 	return 0;
 
@@ -717,5 +728,5 @@ module_exit(sm5714_led_driver_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Samsung Electronics");
 MODULE_DESCRIPTION("Flash-LED device driver for SM5714");
-
+MODULE_VERSION(SM5714_FLED_VERSION);
 

@@ -926,7 +926,15 @@ int32_t msm_camera_fill_vreg_params(
 					if((soc_info->index == 0) &&
 						(platformSensorId == SENSOR_ID_S5KGW1P))						
 					{
-						CAM_ERR(CAM_SENSOR,"Inside Hardcoding Logic");
+						CAM_ERR(CAM_SENSOR,"Inside S5KGW1P Hardcoding Logic");
+						soc_info->rgltr_min_volt[j] = 1000000;
+						soc_info->rgltr_max_volt[j] = 1000000;
+						power_setting[i].config_val = 1000000;
+					}
+					if(((soc_info->index == 1) || (soc_info->index == 13)) &&
+						(platformSensorId == SENSOR_ID_S5KGD2))						
+					{
+						CAM_ERR(CAM_SENSOR,"Inside S5KGD2 Hardcoding Logic");
 						soc_info->rgltr_min_volt[j] = 1000000;
 						soc_info->rgltr_max_volt[j] = 1000000;
 						power_setting[i].config_val = 1000000;
@@ -990,12 +998,19 @@ int32_t msm_camera_fill_vreg_params(
 					if((soc_info->index == 0) &&
 						(platformSensorId == SENSOR_ID_S5KGW1P))						
 					{
-						CAM_ERR(CAM_SENSOR,"Inside Hardcoding Logic");
+						CAM_ERR(CAM_SENSOR,"Inside S5KGW1P Hardcoding Logic");
 						soc_info->rgltr_min_volt[j] = 2800000;
 						soc_info->rgltr_max_volt[j] = 2800000;
 						power_setting[i].config_val = 2800000;
 					}
-
+					if(((soc_info->index == 1) || (soc_info->index == 13)) &&
+						(platformSensorId == SENSOR_ID_S5KGD2))						
+					{
+						CAM_ERR(CAM_SENSOR,"Inside S5KGD2 Hardcoding Logic");
+						soc_info->rgltr_min_volt[j] = 2800000;
+						soc_info->rgltr_max_volt[j] = 2800000;
+						power_setting[i].config_val = 2800000;
+					}
 					CAM_ERR(CAM_SENSOR,"platformSensorId - 0x%x rgltr_min_volt - %d rgltr_max_volt - %d power_setting.config_val - %d",
 										platformSensorId,
 										soc_info->rgltr_min_volt[j],
@@ -2329,7 +2344,7 @@ int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 		case SENSOR_VAF_PWDM:
 		case SENSOR_CUSTOM_REG1:
 		case SENSOR_CUSTOM_REG2:
-#if !(defined (CONFIG_SEC_A42XQ_PROJECT) || defined(CONFIG_SEC_A51XQ_PROJECT) || defined(CONFIG_SEC_A42XUQ_PROJECT) || defined(CONFIG_SEC_A52XQ_PROJECT) || defined(CONFIG_SEC_M62XQ_PROJECT))
+#if !(defined (CONFIG_SEC_A42XQ_PROJECT) || defined(CONFIG_SEC_A51XQ_PROJECT) || defined(CONFIG_SEC_A42XUQ_PROJECT) || defined(CONFIG_SEC_A52XQ_PROJECT) || defined(CONFIG_SEC_M62XQ_PROJECT) || defined(CONFIG_SEC_M52XQ_PROJECT) || defined(CONFIG_SEC_M23XQ_PROJECT))
 			if (pd->seq_val == INVALID_VREG)
 				break;
 #endif

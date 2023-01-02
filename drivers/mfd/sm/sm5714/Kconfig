@@ -1,5 +1,5 @@
 config MFD_SM5714
-        bool "Siliconmitus SM5714 IFPM Support"
+        tristate "Siliconmitus SM5714 IFPM Support"
         depends on I2C=y
         select MFD_CORE
         help

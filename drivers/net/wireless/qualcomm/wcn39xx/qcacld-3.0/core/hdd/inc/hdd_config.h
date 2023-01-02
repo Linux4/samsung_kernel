@@ -497,6 +497,41 @@ enum hdd_runtime_pm_cfg {
 #define CFG_ENABLE_RUNTIME_PM_ALL
 #endif
 
+#ifdef WLAN_FEATURE_WMI_SEND_RECV_QMI
+/*
+ * <ini>
+ * enable_qmi_stats - enable periodic stats over qmi
+ * @Min: 0
+ * @Max: 1
+ * @Default: 1
+ *
+ * This ini is used to enable periodic stats over qmi if DUT is
+ * in RTPM suspended state to avoid WoW enter/exit for every stats
+ * request.
+ *
+ * 0: Periodic stats over QMI is disabled
+ * 1: Periodic stats over QMI is enabled
+ * Related: None
+ *
+ * Supported Feature: Power Save
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_ENABLE_QMI_STATS CFG_INI_UINT( \
+		"enable_qmi_stats", \
+		0, \
+		1, \
+		1, \
+		CFG_VALUE_OR_DEFAULT, \
+		"This ini is used to enable periodic stats over qmi")
+#define CFG_ENABLE_QMI_STATS_ALL \
+	CFG(CFG_ENABLE_QMI_STATS)
+#else
+#define CFG_ENABLE_QMI_STATS_ALL
+#endif
+
 /*
  * <ini>
  * gInformBssRssiRaw - Report rssi in cfg80211_inform_bss_frame
@@ -1257,6 +1292,43 @@ struct dhcp_server {
 	"00E04C 00 01", \
 	"Used to specify action OUIs to reconnect when assoc timeout")
 
+/*
+ * <ini>
+ * gActionOUIDisableTWT - Used to specify action OUIs to control TWT param
+ * while joining the candidate AP
+ *
+ * This ini is used to specify AP OUIs. Some APs advertise TWT but do not
+ * follow through when the STA reaches out to them. Thus, TWT will be
+ * disabled when we receive OUIs of those APs.
+ * Note: User should strictly add new action OUIs at the end of this
+ * default value.
+ *
+ * Default OUIs: (All values in Hex)
+ * OUI 1: 001018
+ *   OUI data Len: 00
+ *   Info Mask : 01 - only OUI present in Info mask
+ *
+ * OUI 2: 000986
+ *   OUI data Len: 00
+ *   Info Mask : 01 - only OUI present in Info mask
+ *
+ * Refer to gEnableActionOUI for more detail about the format.
+ *
+ * Related: gEnableActionOUI
+ *
+ * Supported Feature: Action OUIs
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_ACTION_OUI_DISABLE_TWT CFG_INI_STRING( \
+	"gActionOUIDisableTWT", \
+	0, \
+	ACTION_OUI_MAX_STR_LEN, \
+	"001018 00 01 000986 00 01", \
+	"Used to specify action OUIs to control TWT configuration")
+
 /* End of action oui inis */
 
 #ifdef ENABLE_MTRACE_LOG
@@ -1597,6 +1669,7 @@ enum host_log_level {
 #define CFG_HDD_ALL \
 	CFG_ENABLE_PACKET_LOG_ALL \
 	CFG_ENABLE_RUNTIME_PM_ALL \
+	CFG_ENABLE_QMI_STATS_ALL \
 	CFG_VC_MODE_BITMAP_ALL \
 	CFG_WLAN_AUTO_SHUTDOWN_ALL \
 	CFG_WLAN_LOGGING_SUPPORT_ALL \
@@ -1611,6 +1684,7 @@ enum host_log_level {
 	CFG(CFG_ACTION_OUI_DISABLE_AGGRESSIVE_EDCA) \
 	CFG(CFG_ACTION_OUI_SWITCH_TO_11N_MODE) \
 	CFG(CFG_ACTION_OUI_RECONN_ASSOCTIMEOUT) \
+	CFG(CFG_ACTION_OUI_DISABLE_TWT) \
 	CFG(CFG_ADVERTISE_CONCURRENT_OPERATION) \
 	CFG(CFG_BUG_ON_REINIT_FAILURE) \
 	CFG(CFG_DBS_SCAN_SELECTION) \

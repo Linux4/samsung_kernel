@@ -339,56 +339,56 @@ static void dsi_phy_hw_cphy_enable(struct dsi_phy_hw *phy,
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	{
 		struct samsung_display_driver_data *vdd;
-	
+
 		if (phy->display_index == PRIMARY_DISPLAY_NDX) {
 			vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
 		} else {
 			vdd = ss_get_vdd(SECONDARY_DISPLAY_NDX);
 		}
-	
+
 		if (test_bit(SS_PHY_CMN_VREG_CTRL_0, vdd->ss_phy_ctrl_bit)) {
 			DSI_W32(phy, DSIPHY_CMN_VREG_CTRL_0,
 				vdd->ss_phy_ctrl_data[SS_PHY_CMN_VREG_CTRL_0]);
-	
-			LCD_DEBUG("DSIPHY_CMN_VREG_CTRL_0 : 0x%x\n", DSI_R32(phy, DSIPHY_CMN_VREG_CTRL_0));
+
+			LCD_DEBUG(vdd, "DSIPHY_CMN_VREG_CTRL_0 : 0x%x\n", DSI_R32(phy, DSIPHY_CMN_VREG_CTRL_0));
 		}
-	
+
 		if (test_bit(SS_PHY_CMN_CTRL_2, vdd->ss_phy_ctrl_bit)) {
 			DSI_W32(phy, DSIPHY_CMN_CTRL_2,
 				vdd->ss_phy_ctrl_data[SS_PHY_CMN_CTRL_2]);
-	
-			LCD_DEBUG("DSIPHY_CMN_CTRL_2 : 0x%x\n", DSI_R32(phy, DSIPHY_CMN_CTRL_2));
+
+			LCD_DEBUG(vdd, "DSIPHY_CMN_CTRL_2 : 0x%x\n", DSI_R32(phy, DSIPHY_CMN_CTRL_2));
 		}
-	
+
 		if (test_bit(SS_PHY_CMN_GLBL_RESCODE_OFFSET_TOP_CTRL, vdd->ss_phy_ctrl_bit)) {
 			DSI_W32(phy, DSIPHY_CMN_GLBL_RESCODE_OFFSET_TOP_CTRL,
 				vdd->ss_phy_ctrl_data[SS_PHY_CMN_GLBL_RESCODE_OFFSET_TOP_CTRL]);
-	
-			LCD_DEBUG("DSIPHY_CMN_GLBL_RESCODE_OFFSET_TOP_CTRL : 0x%x\n",
+
+			LCD_DEBUG(vdd, "DSIPHY_CMN_GLBL_RESCODE_OFFSET_TOP_CTRL : 0x%x\n",
 					DSI_R32(phy, DSIPHY_CMN_GLBL_RESCODE_OFFSET_TOP_CTRL));
 		}
-	
+
 		if (test_bit(SS_PHY_CMN_GLBL_RESCODE_OFFSET_BOT_CTRL, vdd->ss_phy_ctrl_bit)) {
 			DSI_W32(phy, DSIPHY_CMN_GLBL_RESCODE_OFFSET_BOT_CTRL,
 				vdd->ss_phy_ctrl_data[SS_PHY_CMN_GLBL_RESCODE_OFFSET_BOT_CTRL]);
-	
-			LCD_DEBUG("DSIPHY_CMN_GLBL_RESCODE_OFFSET_BOT_CTRL : 0x%x\n",
+
+			LCD_DEBUG(vdd, "DSIPHY_CMN_GLBL_RESCODE_OFFSET_BOT_CTRL : 0x%x\n",
 					DSI_R32(phy, DSIPHY_CMN_GLBL_RESCODE_OFFSET_BOT_CTRL));
 		}
-	
+
 		if (test_bit(SS_PHY_CMN_GLBL_RESCODE_OFFSET_MID_CTRL, vdd->ss_phy_ctrl_bit)) {
 			DSI_W32(phy, DSIPHY_CMN_GLBL_RESCODE_OFFSET_MID_CTRL,
 					vdd->ss_phy_ctrl_data[SS_PHY_CMN_GLBL_RESCODE_OFFSET_MID_CTRL]);
-	
-			LCD_DEBUG("DSIPHY_CMN_GLBL_RESCODE_OFFSET_MID_CTRL : 0x%x\n",
+
+			LCD_DEBUG(vdd, "DSIPHY_CMN_GLBL_RESCODE_OFFSET_MID_CTRL : 0x%x\n",
 					DSI_R32(phy, DSIPHY_CMN_GLBL_RESCODE_OFFSET_MID_CTRL));
 		}
-	
+
 		if (test_bit(SS_PHY_CMN_GLBL_STR_SWI_CAL_SEL_CTRL, vdd->ss_phy_ctrl_bit)) {
 			DSI_W32(phy, DSIPHY_CMN_GLBL_STR_SWI_CAL_SEL_CTRL,
 				vdd->ss_phy_ctrl_data[SS_PHY_CMN_GLBL_STR_SWI_CAL_SEL_CTRL]);
-	
-			LCD_DEBUG("DSIPHY_CMN_GLBL_STR_SWI_CAL_SEL_CTRL : 0x%x\n",
+
+			LCD_DEBUG(vdd, "DSIPHY_CMN_GLBL_STR_SWI_CAL_SEL_CTRL : 0x%x\n",
 					DSI_R32(phy, DSIPHY_CMN_GLBL_STR_SWI_CAL_SEL_CTRL));
 		}
 	}

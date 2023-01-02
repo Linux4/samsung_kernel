@@ -305,7 +305,8 @@ show_dtc_error =                                                          \
 	cat $1;                                                           \
 	for err in "$$(cat $1 | grep 'Error:')"; do                       \
 	   echo "See more detail error as below:";                        \
-	   cat $$(echo $$err | cut -d':' -f2) | nl -ba                    \
+	   cat $$(echo $$err | cut -d':' -f2)                             \
+	   | awk '{printf("ERROR: %6d  %s\n"), NR, $$0}'                  \
 	   | head -n $$(echo $$err | grep -Eo ':[0-9]+' | cut -d':' -f2)  \
 	   | tail -n 2;                                                   \
 	done;                                                             \

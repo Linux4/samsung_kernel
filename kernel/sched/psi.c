@@ -141,6 +141,7 @@
 #include <linux/poll.h>
 #include <linux/psi.h>
 #include <linux/oom.h>
+#include <linux/ologk.h>
 #include "sched.h"
 
 #define CREATE_TRACE_POINTS
@@ -149,6 +150,7 @@
 static int psi_bug __read_mostly;
 
 DEFINE_STATIC_KEY_FALSE(psi_disabled);
+DEFINE_STATIC_KEY_TRUE(psi_cgroups_enabled);
 
 #ifdef CONFIG_PSI_DEFAULT_DISABLED
 static bool psi_enable;
@@ -174,6 +176,11 @@ __setup("psi=", setup_psi);
 
 #define MONITOR_WINDOW_MIN_NS 1000000000 /* 1s */
 #define MONITOR_THRESHOLD_MIN_NS 100000000 /* 100ms */
+
+#define PERFLOG_PSI_THRESHOLD	250
+#define AVG10			0
+#define AVG60			1
+#define AVG300			2
 
 /* Sampling frequency in nanoseconds */
 static u64 psi_period __read_mostly;
@@ -215,6 +222,9 @@ void __init psi_init(void)
 		static_branch_enable(&psi_disabled);
 		return;
 	}
+
+	if (!cgroup_psi_enabled())
+		static_branch_disable(&psi_cgroups_enabled);
 
 	psi_period = jiffies_to_nsecs(PSI_FREQ);
 	group_init(&psi_system);
@@ -409,6 +419,29 @@ static u64 update_averages(struct psi_group *group, u64 now)
 			sample = period;
 		group->avg_total[s] += sample;
 		calc_avgs(group->avg[s], missed_periods, sample, period);
+		if (s % 2 && (LOAD_INT(group->avg[s][AVG10]) * 100 + LOAD_FRAC(group->avg[s][AVG10])) >= PERFLOG_PSI_THRESHOLD) {
+			u64 total_full = 0, total_some = 0;
+			int some, full;
+			char title[NR_PSI_RESOURCES][4] = {"IO", "MEM", "CPU"};
+			char *strtitle;
+
+			strtitle = title[s / 2];
+			some = s - 1;
+			full = s;
+
+			total_some = div_u64(group->total[PSI_AVGS][some], NSEC_PER_USEC);
+			total_full = div_u64(group->total[PSI_AVGS][full], NSEC_PER_USEC);
+
+			perflog(PERFLOG_UNKNOWN, "[PSI][%s][%s] avg10=[%lu.%02lu/%lu.%02lu]  avg60=[%lu.%02lu/%lu.%02lu]  avg300=[%lu.%02lu/%lu.%02lu] total=[%llu/%llu]",
+				   strtitle, (group == &psi_system) ? "SYSTEM" : "CGROUP",
+				   LOAD_INT(group->avg[some][AVG10]), LOAD_FRAC(group->avg[some][AVG10]),
+				   LOAD_INT(group->avg[full][AVG10]), LOAD_FRAC(group->avg[full][AVG10]),
+				   LOAD_INT(group->avg[some][AVG60]), LOAD_FRAC(group->avg[some][AVG60]),
+				   LOAD_INT(group->avg[full][AVG60]), LOAD_FRAC(group->avg[full][AVG60]),
+				   LOAD_INT(group->avg[some][AVG300]), LOAD_FRAC(group->avg[some][AVG300]),
+				   LOAD_INT(group->avg[full][AVG300]), LOAD_FRAC(group->avg[full][AVG300]),
+				   total_some, total_full);
+		}
 	}
 
 	return avg_next_update;
@@ -844,23 +877,23 @@ static u32 psi_group_change(struct psi_group *group, int cpu,
 
 static struct psi_group *iterate_groups(struct task_struct *task, void **iter)
 {
+	if (*iter == &psi_system)
+		return NULL;
+
 #ifdef CONFIG_CGROUPS
-	struct cgroup *cgroup = NULL;
+	if (static_branch_likely(&psi_cgroups_enabled)) {
+		struct cgroup *cgroup = NULL;
 
-	if (!*iter)
-		cgroup = task->cgroups->dfl_cgrp;
-	else if (*iter == &psi_system)
-		return NULL;
-	else
-		cgroup = cgroup_parent(*iter);
+		if (!*iter)
+			cgroup = task->cgroups->dfl_cgrp;
+		else
+			cgroup = cgroup_parent(*iter);
 
-	if (cgroup && cgroup_parent(cgroup)) {
-		*iter = cgroup;
-		return cgroup_psi(cgroup);
+		if (cgroup && cgroup_parent(cgroup)) {
+			*iter = cgroup;
+			return cgroup_psi(cgroup);
+		}
 	}
-#else
-	if (*iter)
-		return NULL;
 #endif
 	*iter = &psi_system;
 	return &psi_system;

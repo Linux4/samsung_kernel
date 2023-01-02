@@ -711,9 +711,11 @@ static int card_busy_detect(struct mmc_card *card, unsigned int timeout_ms,
 	struct mmc_queue_req *mq_mrq = NULL;
 	struct mmc_blk_request *brq = NULL;
 
-	mq_mrq = req_to_mmc_queue_req(req);
-	if (mq_mrq)
-		brq = &mq_mrq->brq;
+	if (req) {
+		mq_mrq = req_to_mmc_queue_req(req);
+		if (mq_mrq)
+			brq = &mq_mrq->brq;
+	}
 
 	do {
 		bool done = time_after(jiffies, timeout);
@@ -721,7 +723,7 @@ static int card_busy_detect(struct mmc_card *card, unsigned int timeout_ms,
 		err = __mmc_send_status(card, &status, 5);
 		if (err) {
 			pr_err("%s: error %d requesting status\n",
-			       req->rq_disk->disk_name, err);
+			       __func__, err);
 			return err;
 		}
 
@@ -730,12 +732,12 @@ static int card_busy_detect(struct mmc_card *card, unsigned int timeout_ms,
 			*resp_errs |= status;
 
 		if (status & R1_ERROR)
-			pr_err("%s: %s: error sending status cmd, status %#x\n",
-				req->rq_disk->disk_name, __func__, status);
+			pr_err("%s: error sending status cmd, status %#x\n",
+				__func__, status);
 
 		if (status & CMD_ERRORS) {
 			pr_err("%s: command error reported, status = %#x\n",
-					req->rq_disk->disk_name, status);
+					__func__, status);
 
 			if (mmc_card_sd(card) && brq)
 				brq->data.error = -EIO;
@@ -757,7 +759,7 @@ static int card_busy_detect(struct mmc_card *card, unsigned int timeout_ms,
 
 				if (err)
 					pr_err("%s: error %d sending stop command\n",
-							req->rq_disk->disk_name, err);
+							__func__, err);
 				else {
 					status = cmd.resp[0];
 					mmc_card_error_logging(card, brq, status);
@@ -777,12 +779,11 @@ static int card_busy_detect(struct mmc_card *card, unsigned int timeout_ms,
 		 * leaves the program state.
 		 */
 		if (done) {
-			pr_err("%s: Card stuck in wrong state! %s %s status: %#x\n",
+			pr_err("%s: Card stuck in wrong state! %s status: %#x\n",
 				mmc_hostname(card->host),
-				req->rq_disk->disk_name, __func__, status);
+				__func__, status);
 
-			if (brq)
-				mmc_card_error_logging(card, brq, status);
+			mmc_card_error_logging(card, brq, status);
 
 			return -ETIMEDOUT;
 		}
@@ -1595,6 +1596,7 @@ static void mmc_blk_data_prep(struct mmc_queue *mq, struct mmc_queue_req *mqrq,
 	struct mmc_blk_request *brq = &mqrq->brq;
 	struct request *req = mmc_queue_req_to_req(mqrq);
 	bool do_rel_wr, do_data_tag;
+	bool read_dir = (rq_data_dir(req) == READ);
 
 	/*
 	 * Reliable writes are used to implement Forced Unit Access and
@@ -1669,6 +1671,10 @@ static void mmc_blk_data_prep(struct mmc_queue *mq, struct mmc_queue_req *mqrq,
 						(rq_data_dir(req) == READ) ?
 						MMC_DATA_READ : MMC_DATA_WRITE,
 						brq->data.blocks);
+	}
+	if (mq->use_cqe) {
+		if (read_dir || req->cmd_flags & REQ_SYNC)
+			brq->data.flags |= MMC_DATA_PRIO;
 	}
 
 	if (do_rel_wr) {
@@ -2005,31 +2011,31 @@ static void mmc_blk_read_single(struct mmc_queue *mq, struct request *req)
 	struct mmc_card *card = mq->card;
 	struct mmc_host *host = card->host;
 	blk_status_t error = BLK_STS_OK;
-	int retries = 0;
 
 	do {
 		u32 status;
 		int err;
+		int retries = 0;
 
-		mmc_blk_rw_rq_prep(mqrq, card, 1, mq);
+		while (retries++ <= MMC_READ_SINGLE_RETRIES) {
+			mmc_blk_rw_rq_prep(mqrq, card, 1, mq);
 
-		mmc_wait_for_req(host, mrq);
+			mmc_wait_for_req(host, mrq);
 
-		err = mmc_send_status(card, &status);
-		if (err)
-			goto error_exit;
-
-		if (!mmc_host_is_spi(host) &&
-		    !mmc_blk_in_tran_state(status)) {
-			err = mmc_blk_fix_state(card, req);
+			err = mmc_send_status(card, &status);
 			if (err)
 				goto error_exit;
+
+			if (!mmc_host_is_spi(host) &&
+				!mmc_blk_in_tran_state(status)) {
+				err = mmc_blk_fix_state(card, req);
+				if (err)
+					goto error_exit;
+			}
+
+			if (!mrq->cmd->error)
+				break;
 		}
-
-		if (mrq->cmd->error && retries++ < MMC_READ_SINGLE_RETRIES)
-			continue;
-
-		retries = 0;
 
 		if (mrq->cmd->error ||
 		    mrq->data->error ||

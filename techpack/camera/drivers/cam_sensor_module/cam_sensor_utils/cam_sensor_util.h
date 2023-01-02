@@ -31,6 +31,7 @@
 #define SENSOR_ID_GC5035  0x3540
 #define SENSOR_ID_IMX616  0x0616
 #define SENSOR_ID_S5K3L6  0x30c6
+#define SENSOR_ID_S5KGD2  0x0842
 
 static struct cam_sensor_i2c_reg_array gw1p_seamless_off[] = {
 	{0x6028, 0x2000, 0x00, 0x00},

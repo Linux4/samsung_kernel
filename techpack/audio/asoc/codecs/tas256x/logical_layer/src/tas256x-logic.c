@@ -639,12 +639,12 @@ void tas256x_load_config(struct tas256x_priv *p_tas256x)
 	if (ret < 0)
 		goto end;
 	if (p_tas256x->mn_fmt_mode == 2) {
-		ret |= tas256x_set_tdm_rx_slot(p_tas256x, p_tas256x->mn_slots,
-			p_tas256x->mn_rx_slot_width);
+		ret |= tas256x_set_tdm_rx_slot(p_tas256x, p_tas256x->mn_rx_slots,
+			p_tas256x->mn_rx_width);
 		if (ret < 0)
 			goto end;
-		ret |= tas256x_set_tdm_tx_slot(p_tas256x, p_tas256x->mn_slots,
-			p_tas256x->mn_tx_slot_width);
+		ret |= tas256x_set_tdm_tx_slot(p_tas256x, p_tas256x->mn_tx_slots,
+			p_tas256x->mn_tx_width);
 		if (ret < 0)
 			goto end;
 	} else { /*I2S Mode*/
@@ -701,14 +701,28 @@ void tas256x_reload(struct tas256x_priv *p_tas256x, int chn)
 		channel_both);
 	if (ret < 0)
 		goto end;
-	ret |= tas256x_set_bitwidth(p_tas256x,
-		p_tas256x->mn_rx_width, TAS256X_STREAM_PLAYBACK);
-	if (ret < 0)
-		goto end;
-	ret |= tas256x_set_bitwidth(p_tas256x,
-		p_tas256x->mn_rx_width, TAS256X_STREAM_CAPTURE);
-	if (ret < 0)
-		goto end;
+	/* Since TDM & I2S Mode can have different width and slot settings
+	 * It needs to be differentiated here
+	 */
+	if (p_tas256x->mn_fmt_mode == 2) {
+		ret |= tas256x_set_tdm_rx_slot(p_tas256x, p_tas256x->mn_rx_slots,
+			p_tas256x->mn_rx_width);
+		if (ret < 0)
+			goto end;
+		ret |= tas256x_set_tdm_tx_slot(p_tas256x, p_tas256x->mn_tx_slots,
+			p_tas256x->mn_tx_width);
+		if (ret < 0)
+			goto end;
+	} else { /*I2S Mode*/
+		ret |= tas256x_set_bitwidth(p_tas256x,
+			p_tas256x->mn_rx_width, TAS256X_STREAM_PLAYBACK);
+		if (ret < 0)
+			goto end;
+		ret |= tas256x_set_bitwidth(p_tas256x,
+			p_tas256x->mn_rx_width, TAS256X_STREAM_CAPTURE);
+		if (ret < 0)
+			goto end;
+	}
 	ret |= tas256x_set_samplerate(p_tas256x, p_tas256x->mn_sampling_rate,
 		channel_both);
 	if (ret < 0)
@@ -1160,10 +1174,15 @@ int tas256x_set_power_state(struct tas256x_priv *p_tas256x,
 	return n_result;
 }
 
+/* In Order to fix the issue of "24bit Bitwidth and 8bit IV Width and no VBat"
+ * Function is redesigned to support all the (1)Bitwidth (2) IVwidth and (3)VBat
+ * Configurations
+ */
+
 int tas256x_iv_vbat_slot_config(struct tas256x_priv *p_tas256x,
 	int mn_slot_width)
 {
-	int n_result = 0;
+	int ret = -1;
 
 	pr_info("%s: mn_slot_width %d\n", __func__, mn_slot_width);
 
@@ -1171,29 +1190,29 @@ int tas256x_iv_vbat_slot_config(struct tas256x_priv *p_tas256x,
 		if (p_tas256x->mn_channels == 2) {
 			if (mn_slot_width == 16) {
 				if (p_tas256x->mn_vbat == 1) {
-					n_result |=
+					ret =
 						tas256x_set_iv_slot(p_tas256x,
 							channel_left, TX_SLOT1,
 							TX_SLOT0);
-					n_result |=
+					ret |=
 						tas256x_set_iv_slot(p_tas256x,
 							channel_right, TX_SLOT5,
 							TX_SLOT4);
-					n_result |=
+					ret |=
 						tas256x_set_vbat_slot(p_tas256x,
 							channel_left, TX_SLOT3);
-					n_result |=
+					ret |=
 						tas256x_set_vbat_slot(p_tas256x,
 							channel_right,
 							TX_SLOT7);
 					p_tas256x->curr_mn_iv_width = 12;
 					p_tas256x->curr_mn_vbat = 1;
 				} else {
-					n_result |=
+					ret =
 						tas256x_set_iv_slot(p_tas256x,
 							channel_left, TX_SLOT2,
 							TX_SLOT0);
-					n_result |=
+					ret |=
 						tas256x_set_iv_slot(p_tas256x,
 							channel_right, TX_SLOT6,
 							TX_SLOT4);
@@ -1202,42 +1221,40 @@ int tas256x_iv_vbat_slot_config(struct tas256x_priv *p_tas256x,
 				}
 
 			} else if (mn_slot_width == 24) {
-				/*TODO:Not Verified*/
-				n_result |=
+				ret =
 					tas256x_set_iv_slot(p_tas256x,
-						channel_left, TX_SLOT3,
+						channel_left, TX_SLOT4,
 						TX_SLOT0);
-				n_result |=
-					tas256x_set_iv_slot(p_tas256x,
-						channel_right, TX_SLOT9,
-						TX_SLOT6);
+				ret |= tas256x_set_iv_slot(p_tas256x,
+						channel_right, TX_SLOTc,
+						TX_SLOT8);
 				p_tas256x->curr_mn_vbat = 0;
 				if (p_tas256x->mn_vbat == 1) {
-					n_result |=
+					ret |=
 						tas256x_set_vbat_slot(p_tas256x,
-							channel_left, TX_SLOT5);
-					n_result |=
+							channel_left, TX_SLOT6);
+					ret |=
 						tas256x_set_vbat_slot(p_tas256x,
 							channel_right,
-							TX_SLOTa);
+							TX_SLOTe);
 					p_tas256x->curr_mn_vbat = 1;
 				}
 				p_tas256x->curr_mn_iv_width = 16;
 
 			} else { /*Assumed 32bit*/
-				n_result |=
+				ret =
 					tas256x_set_iv_slot(p_tas256x,
 						channel_left, TX_SLOT4,
 						TX_SLOT0);
-				n_result |= tas256x_set_iv_slot(p_tas256x,
+				ret |= tas256x_set_iv_slot(p_tas256x,
 						channel_right, TX_SLOTc,
 						TX_SLOT8);
 				p_tas256x->curr_mn_vbat = 0;
 				if (p_tas256x->mn_vbat == 1) {
-					n_result |=
+					ret |=
 						tas256x_set_vbat_slot(p_tas256x,
 							channel_left, TX_SLOT6);
-					n_result |=
+					ret |=
 						tas256x_set_vbat_slot(p_tas256x,
 							channel_right,
 							TX_SLOTe);
@@ -1248,17 +1265,17 @@ int tas256x_iv_vbat_slot_config(struct tas256x_priv *p_tas256x,
 		} else { /*Assumed Mono Channels*/
 			if (mn_slot_width == 16) {
 				if (p_tas256x->mn_vbat == 1) {
-					n_result |=
+					ret =
 						tas256x_set_iv_slot(p_tas256x,
 							channel_left, TX_SLOT1,
 							TX_SLOT0);
-					n_result |=
+					ret |=
 						tas256x_set_vbat_slot(p_tas256x,
 							channel_left, TX_SLOT3);
 					p_tas256x->curr_mn_iv_width = 12;
 					p_tas256x->curr_mn_vbat = 1;
 				} else {
-					n_result |=
+					ret =
 						tas256x_set_iv_slot(p_tas256x,
 							channel_left, TX_SLOT2,
 							TX_SLOT0);
@@ -1266,25 +1283,27 @@ int tas256x_iv_vbat_slot_config(struct tas256x_priv *p_tas256x,
 					p_tas256x->curr_mn_vbat = 1;
 				}
 			} else if (mn_slot_width == 24) {
-				/*TODO:Not Tested*/
-				n_result |=
-					tas256x_set_iv_slot(p_tas256x,
-						channel_left, TX_SLOT3,
-						TX_SLOT0);
-				if (p_tas256x->mn_vbat == 1) {
-					n_result |=
-						tas256x_set_vbat_slot(p_tas256x,
-							channel_left, TX_SLOT5);
-				}
-			} else { /*Assumed 32bit*/
-				n_result |=
+				ret =
 					tas256x_set_iv_slot(p_tas256x,
 						channel_left, TX_SLOT4,
 						TX_SLOT0);
 				p_tas256x->curr_mn_iv_width = 16;
 				p_tas256x->curr_mn_vbat = 0;
 				if (p_tas256x->mn_vbat == 1) {
-					n_result |=
+					ret |=
+						tas256x_set_vbat_slot(p_tas256x,
+							channel_left, TX_SLOT6);
+					p_tas256x->curr_mn_vbat = 1;
+				}
+			} else { /*Assumed 32bit*/
+				ret =
+					tas256x_set_iv_slot(p_tas256x,
+						channel_left, TX_SLOT4,
+						TX_SLOT0);
+				p_tas256x->curr_mn_iv_width = 16;
+				p_tas256x->curr_mn_vbat = 0;
+				if (p_tas256x->mn_vbat == 1) {
+					ret |=
 						tas256x_set_vbat_slot(p_tas256x,
 							channel_left, TX_SLOT6);
 					p_tas256x->curr_mn_vbat = 1;
@@ -1292,121 +1311,198 @@ int tas256x_iv_vbat_slot_config(struct tas256x_priv *p_tas256x,
 			}
 		}
 	} else { /*I2S Mode*/
-		if (p_tas256x->mn_channels == 2) {
-			if (mn_slot_width == 16) {
-				/*Vbat Cannot Exit in this combination*/
-				n_result |= tas256x_set_iv_slot(p_tas256x,
-					channel_left, TX_SLOT1, TX_SLOT0);
-				n_result |= tas256x_set_iv_slot(p_tas256x,
-					channel_right, TX_SLOT3, TX_SLOT2);
-				p_tas256x->curr_mn_iv_width = 8;
-				p_tas256x->curr_mn_vbat = 0;
-			} else { /*24 or 32 bit*/
-				if (p_tas256x->mn_iv_width == 8) {
-					n_result |=
-						tas256x_set_iv_slot(p_tas256x,
-							channel_left, TX_SLOT1,
-							TX_SLOT0);
-					n_result |=
-						tas256x_set_iv_slot(p_tas256x,
-							channel_right, TX_SLOT5,
-							TX_SLOT4);
+		if (mn_slot_width == 16) {
+			if (p_tas256x->mn_channels == 2) {
+				switch (p_tas256x->mn_iv_width) {
+				case 8:
+				case 12:
+				case 16:
+				default:
+					ret = tas256x_set_iv_slot(p_tas256x,
+						channel_left, TX_SLOT1, TX_SLOT0);
+					ret |= tas256x_set_iv_slot(p_tas256x,
+						channel_right, TX_SLOT3, TX_SLOT2);
 					p_tas256x->curr_mn_iv_width = 8;
 					p_tas256x->curr_mn_vbat = 0;
+					break;
+				}
+			} else {
+				switch (p_tas256x->mn_iv_width) {
+				case 8:
+					ret = tas256x_set_iv_slot(p_tas256x,
+						channel_left, TX_SLOT1, TX_SLOT0);
+					p_tas256x->curr_mn_iv_width = 8;
 					if (p_tas256x->mn_vbat == 1) {
-						n_result |=
-							tas256x_set_vbat_slot(
-								p_tas256x,
-								channel_left,
-								TX_SLOT2);
-						n_result |=
-							tas256x_set_vbat_slot(
-								p_tas256x,
-								channel_right,
-								TX_SLOT6);
+						ret |= tas256x_set_vbat_slot(p_tas256x,
+							channel_left, TX_SLOT2);
 						p_tas256x->curr_mn_vbat = 1;
+					} else {
+						p_tas256x->curr_mn_vbat = 0;
 					}
-				} else {
-					n_result |=
-						tas256x_set_iv_slot(p_tas256x,
-							channel_left, TX_SLOT2,
-							TX_SLOT0);
-					n_result |=
-						tas256x_set_iv_slot(p_tas256x,
-							channel_right, TX_SLOT6,
-							TX_SLOT4);
-					p_tas256x->curr_mn_vbat = 0;
-				}
-			}
-		} else if ((p_tas256x->mn_channels == 1)
-			&& (mn_slot_width == 32)) {
-			if (p_tas256x->mn_iv_width == 16) {
-				n_result |= tas256x_set_iv_slot(p_tas256x,
-					channel_left, TX_SLOT4, TX_SLOT0);
-				p_tas256x->curr_mn_iv_width = 16;
-				p_tas256x->curr_mn_vbat = 0;
-			} else if (p_tas256x->mn_iv_width == 12) {
-				n_result |= tas256x_set_iv_slot(p_tas256x,
-					channel_left, TX_SLOT1, TX_SLOT0);
-				p_tas256x->curr_mn_iv_width = 12;
-				p_tas256x->curr_mn_vbat = 0;
-				if (p_tas256x->mn_vbat == 1) {
-					n_result |=
-						tas256x_set_vbat_slot(p_tas256x,
-							channel_left, TX_SLOT4);
-					p_tas256x->curr_mn_vbat = 1;
-				}
-			}
-		} else if ((p_tas256x->mn_channels == 1)
-			&& (mn_slot_width == 16)) {
-			if (p_tas256x->mn_iv_width == 16) {
-				n_result |= tas256x_set_iv_slot(p_tas256x,
-					channel_left, TX_SLOT2, TX_SLOT0);
-				p_tas256x->curr_mn_iv_width = 16;
-				p_tas256x->curr_mn_vbat = 0;
-			} else if (p_tas256x->mn_iv_width == 12) {
-				n_result |= tas256x_set_iv_slot(p_tas256x,
-					channel_left, TX_SLOT1, TX_SLOT0);
-				p_tas256x->curr_mn_iv_width = 12;
-				p_tas256x->curr_mn_vbat = 0;
-				if (p_tas256x->mn_vbat == 1) {
-					n_result |=
-						tas256x_set_vbat_slot(p_tas256x,
+					break;
+				case 12:
+					p_tas256x->curr_mn_iv_width = 12;
+					if (p_tas256x->mn_vbat == 1) {
+						ret = tas256x_set_iv_slot(p_tas256x,
+							channel_left, TX_SLOT1, TX_SLOT0);
+						ret |= tas256x_set_vbat_slot(p_tas256x,
 							channel_left, TX_SLOT3);
-					p_tas256x->curr_mn_vbat = 1;
+						p_tas256x->curr_mn_vbat = 1;
+					} else {
+						ret = tas256x_set_iv_slot(p_tas256x,
+							channel_left, TX_SLOT2, TX_SLOT0);
+						p_tas256x->curr_mn_vbat = 0;
+					}
+					break;
+				case 16:
+				default:
+					if (p_tas256x->mn_vbat == 1) {
+						ret = tas256x_set_iv_slot(p_tas256x,
+							channel_left, TX_SLOT1, TX_SLOT0);
+						ret |= tas256x_set_vbat_slot(p_tas256x,
+							channel_left, TX_SLOT3);
+						p_tas256x->curr_mn_iv_width = 12;
+						p_tas256x->curr_mn_vbat = 1;
+					} else {
+						ret = tas256x_set_iv_slot(p_tas256x,
+							channel_left, TX_SLOT2, TX_SLOT0);
+						p_tas256x->curr_mn_iv_width = 16;
+						p_tas256x->curr_mn_vbat = 0;
+					}
+					break;
 				}
-
 			}
-		} else {
-			n_result = -1;
+		} else { /* mn_slot_width == 24 or mn_slot_width == 32 */
+			if (p_tas256x->mn_channels == 2) {
+				switch (p_tas256x->mn_iv_width) {
+				case 8:
+					ret = tas256x_set_iv_slot(p_tas256x,
+						channel_left, TX_SLOT1, TX_SLOT0);
+					ret |= tas256x_set_iv_slot(p_tas256x,
+						channel_right, TX_SLOT5, TX_SLOT4);
+					p_tas256x->curr_mn_iv_width = 8;
+					if (p_tas256x->mn_vbat == 1) {
+						ret |= tas256x_set_vbat_slot(p_tas256x,
+							channel_left, TX_SLOT2);
+						ret |= tas256x_set_vbat_slot(p_tas256x,
+							channel_right, TX_SLOT6);
+						p_tas256x->curr_mn_vbat = 1;
+					} else {
+						p_tas256x->curr_mn_vbat = 0;
+					}
+					break;
+				case 12:
+					if (p_tas256x->mn_vbat == 1) {
+						ret = tas256x_set_iv_slot(p_tas256x,
+							channel_left, TX_SLOT1, TX_SLOT0);
+						ret |= tas256x_set_iv_slot(p_tas256x,
+							channel_right, TX_SLOT5, TX_SLOT4);
+						ret |= tas256x_set_vbat_slot(p_tas256x,
+							channel_left, TX_SLOT2);
+						ret |= tas256x_set_vbat_slot(p_tas256x,
+							channel_right, TX_SLOT6);
+						p_tas256x->curr_mn_iv_width = 8;
+						p_tas256x->curr_mn_vbat = 1;
+					} else {
+						ret = tas256x_set_iv_slot(p_tas256x,
+							channel_left, TX_SLOT1, TX_SLOT0);
+						ret |= tas256x_set_iv_slot(p_tas256x,
+							channel_right, TX_SLOT5, TX_SLOT4);
+						p_tas256x->curr_mn_iv_width = 12;
+						p_tas256x->curr_mn_vbat = 0;
+					}
+					break;
+				case 16:
+				default:
+					if (p_tas256x->mn_vbat == 1) {
+						ret = tas256x_set_iv_slot(p_tas256x,
+							channel_left, TX_SLOT1, TX_SLOT0);
+						ret |= tas256x_set_iv_slot(p_tas256x,
+							channel_right, TX_SLOT5, TX_SLOT4);
+						ret |= tas256x_set_vbat_slot(p_tas256x,
+							channel_left, TX_SLOT2);
+						ret |= tas256x_set_vbat_slot(p_tas256x,
+							channel_right, TX_SLOT6);
+						p_tas256x->curr_mn_iv_width = 8;
+						p_tas256x->curr_mn_vbat = 1;
+					} else {
+						ret = tas256x_set_iv_slot(p_tas256x,
+							channel_left, TX_SLOT2, TX_SLOT0);
+						ret |= tas256x_set_iv_slot(p_tas256x,
+							channel_right, TX_SLOT6, TX_SLOT4);
+						p_tas256x->curr_mn_iv_width = 16;
+						p_tas256x->curr_mn_vbat = 0;
+					}
+					break;
+				}
+			} else { /* Assumed Mono */
+				switch (p_tas256x->mn_iv_width) {
+				case 8:
+					ret = tas256x_set_iv_slot(p_tas256x,
+						channel_left, TX_SLOT1, TX_SLOT0);
+					p_tas256x->curr_mn_iv_width = 8;
+					if (p_tas256x->mn_vbat == 1) {
+						ret |= tas256x_set_vbat_slot(p_tas256x,
+							channel_left, TX_SLOT2);
+						p_tas256x->curr_mn_vbat = 1;
+					} else {
+						p_tas256x->curr_mn_vbat = 0;
+					}
+					break;
+				case 12:
+					ret = tas256x_set_iv_slot(p_tas256x,
+						channel_left, TX_SLOT1, TX_SLOT0);
+					p_tas256x->curr_mn_iv_width = 12;
+					if (p_tas256x->mn_vbat == 1) {
+						ret |= tas256x_set_vbat_slot(p_tas256x,
+							channel_left, TX_SLOT4);
+						p_tas256x->curr_mn_vbat = 1;
+					} else {
+						p_tas256x->curr_mn_vbat = 0;
+					}
+					break;
+				case 16:
+				default:
+					ret = tas256x_set_iv_slot(p_tas256x,
+						channel_left, TX_SLOT4, TX_SLOT0);
+					p_tas256x->curr_mn_iv_width = 16;
+					if (p_tas256x->mn_vbat == 1) {
+						ret |= tas256x_set_vbat_slot(p_tas256x,
+							channel_left, TX_SLOT6);
+						p_tas256x->curr_mn_vbat = 1;
+					} else {
+						p_tas256x->curr_mn_vbat = 0;
+					}
+					break;
+				}
+			}
 		}
 	}
 
-	if (n_result == 0)
+	if (ret == 0)
 		p_tas256x->mn_tx_slot_width = mn_slot_width;
 
-	return n_result;
+	return ret;
 }
 
+/* tas256x_set_bitwidth function is redesigned to accommodate change in
+ * tas256x_iv_vbat_slot_config()
+ */
 int tas256x_set_bitwidth(struct tas256x_priv *p_tas256x,
 	int bitwidth, int stream)
 {
 	int n_result = 0;
-	int slot_width_tmp = 16;
-
-	if (bitwidth == 24 || bitwidth == 32)
-		slot_width_tmp = 32;
 
 	pr_info("%s: bitwidth %d stream %d\n", __func__, bitwidth, stream);
 
 	if (stream == TAS256X_STREAM_PLAYBACK) {
 		n_result |= tas256x_rx_set_bitwidth(p_tas256x, bitwidth,
 			channel_both);
-		n_result |= tas256x_rx_set_slot_len(p_tas256x, slot_width_tmp,
+		n_result |= tas256x_rx_set_slot_len(p_tas256x, bitwidth,
 			channel_both);
 	} else { /*stream == TAS256X_STREAM_CAPTURE*/
 		n_result |= tas256x_iv_vbat_slot_config(p_tas256x,
-				slot_width_tmp);
+				bitwidth);
 		n_result |= tas256x_iv_bitwidth_config(p_tas256x,
 			p_tas256x->curr_mn_iv_width, channel_both);
 	}
@@ -1420,18 +1516,20 @@ int tas256x_set_bitwidth(struct tas256x_priv *p_tas256x,
 	return n_result;
 }
 
+/* tas256x_set_tdm_rx_slot function is redesigned to accommodate change in
+ * tas256x_iv_vbat_slot_config()
+ */
 int tas256x_set_tdm_rx_slot(struct tas256x_priv *p_tas256x,
 	int slots, int slot_width)
 {
 	int ret = -1;
-	int bitwidth = slot_width;
 
 	if (((p_tas256x->mn_channels == 1) && (slots < 1)) ||
 		((p_tas256x->mn_channels == 2) && (slots < 2))) {
 		pr_err("Invalid Slots %d\n", slots);
 		return ret;
 	}
-	p_tas256x->mn_slots = slots;
+	p_tas256x->mn_rx_slots = slots;
 
 	if ((slot_width != 16) &&
 		(slot_width != 24) &&
@@ -1442,19 +1540,8 @@ int tas256x_set_tdm_rx_slot(struct tas256x_priv *p_tas256x,
 
 	ret = tas256x_rx_set_slot_len(p_tas256x, slot_width, channel_both);
 
-	switch (bitwidth) {
-	case 16:
-		ret = tas256x_rx_set_bitwidth(p_tas256x,
-			16, channel_both);
-		break;
-	case 24:
-	case 32:
-		ret = tas256x_rx_set_bitwidth(p_tas256x,
-			24, channel_both);
-		break;
-	default:
-		pr_err("Not supported params format\n");
-	}
+	ret = tas256x_rx_set_bitwidth(p_tas256x,
+			slot_width, channel_both);
 
 	/*Enable Auto Detect of Sample Rate */
 	ret = tas256x_set_auto_detect_clock(p_tas256x,
@@ -1467,6 +1554,9 @@ int tas256x_set_tdm_rx_slot(struct tas256x_priv *p_tas256x,
 	return ret;
 }
 
+/* tas256x_set_tdm_tx_slot function is redesigned to accommodate change in
+ * tas256x_iv_vbat_slot_config()
+ */
 int tas256x_set_tdm_tx_slot(struct tas256x_priv *p_tas256x,
 	int slots, int slot_width)
 {
@@ -1484,10 +1574,8 @@ int tas256x_set_tdm_tx_slot(struct tas256x_priv *p_tas256x,
 		pr_err("Invalid Slots %d\n", slots);
 		return ret;
 	}
-	p_tas256x->mn_slots = slots;
-
-	if (slot_width == 24)
-		slot_width = 32;
+	p_tas256x->mn_tx_slots = slots;
+	p_tas256x->mn_tx_width = slot_width;
 
 	ret = tas256x_iv_vbat_slot_config(p_tas256x, slot_width);
 

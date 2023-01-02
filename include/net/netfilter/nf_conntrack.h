@@ -138,6 +138,8 @@ struct nf_conn {
 	/* Atomic variable indicating end of intermediate flow */
 	atomic_t intermediateFlow;
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
+
 };
 
 static inline struct nf_conn *

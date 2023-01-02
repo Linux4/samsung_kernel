@@ -43,14 +43,36 @@ static void init_br_info(struct samsung_display_driver_data *vdd,
 
 	gamma_tbl->br_data_size = hbm_size + normal_size + hmd_size;
 
-	LCD_INFO("vrr: %dhz, hbm_size (%d) = hbm_brightness_step(%d) * (aor_size (%d) + vint_size (%d) + elvss_size (%d) + irc_size (%d))\n",
+	LCD_INFO(vdd, "vrr: %dhz, hbm_size (%d) = hbm_brightness_step(%d) * (aor_size (%d) + vint_size (%d) + elvss_size (%d) + irc_size (%d))\n",
 		br_tbl->refresh_rate, hbm_size, vdd->br_info.hbm_brightness_step, aor_size, vint_size, elvss_size, irc_size);
-	LCD_INFO("normal_size (%d) = normal_brightness_step(%d) * (gamma_size (%d) + aor_size (%d) + vint_size (%d) + elvss_size (%d) + irc_size (%d))\n",
+	LCD_INFO(vdd, "normal_size (%d) = normal_brightness_step(%d) * (gamma_size (%d) + aor_size (%d) + vint_size (%d) + elvss_size (%d) + irc_size (%d))\n",
 		normal_size, vdd->br_info.normal_brightness_step, gamma_size, aor_size, vint_size, elvss_size, irc_size);
-	LCD_INFO("hmd_size (%d) = hmd_brightness_step(%d) * (gamma_size (%d) + aor_size (%d))\n",
+	LCD_INFO(vdd, "hmd_size (%d) = hmd_brightness_step(%d) * (gamma_size (%d) + aor_size (%d))\n",
 		hmd_size, vdd->br_info.hmd_brightness_step, gamma_size, aor_size);
-	LCD_INFO("br_data_size (%d) = hbm_size (%d) + normal_size (%d) + hmd_size (%d)\n",
+	LCD_INFO(vdd, "br_data_size (%d) = hbm_size (%d) + normal_size (%d) + hmd_size (%d)\n",
 		gamma_tbl->br_data_size, hbm_size, normal_size, hmd_size);
+
+	/* In general gamma flash, HBM has no gamma data, but some DDI, like hubble HAB, it has 800nit gamma data
+	 * for HBM mode.. And its gamma flash is way different from general gamma flash..
+	 * So, in general gamma flash calculation, br_data_size = 7358 bytes,
+	 * but hubble DDI's real br_data_size = 7392..
+	 * In result,
+	 * - out of bounds access: br_data_raw is allocated with 7358 bytes, but will be accessed with 7392 bytes..
+	 * - 48/96hz mode cannot have enough and right gamma flash raw data due to ss_copy_flash_gamma().
+	 *   It is HMD AOR data area for HBM 48/96hz mode, and there is no scenario for this, so no impact to customer.
+	 * To resolve this, update br_data_size with real flash size.
+	 */
+	if (!strcmp(vdd->br_info.flash_gamma_type, "flash")) {
+		int start_addr = gamma_tbl->flash_gamma_bank_start;
+		int end_addr = gamma_tbl->flash_gamma_bank_end;
+		int total_size = end_addr - start_addr + 1;
+
+		if (gamma_tbl->br_data_size < total_size) {
+			LCD_INFO(vdd, "flash size is greater than table size.. update: %d -> %d\n",
+					gamma_tbl->br_data_size, total_size);
+			gamma_tbl->br_data_size = total_size;
+		}
+	}
 
 	/*
 		free alloc memory : test purpose for slab memory integrity
@@ -63,11 +85,11 @@ static void init_br_info(struct samsung_display_driver_data *vdd,
 	gamma_tbl->br_data_raw =
 		kzalloc(gamma_tbl->br_data_size * sizeof(char), GFP_KERNEL);
 
-	LCD_INFO("hbm step (%d), noarml step (%d), hmd step (%d)\n",
+	LCD_INFO(vdd, "hbm step (%d), noarml step (%d), hmd step (%d)\n",
 		vdd->br_info.hbm_brightness_step, vdd->br_info.normal_brightness_step, vdd->br_info.hmd_brightness_step);
-	LCD_INFO("gamma (%d) vint (%d) elvss (%d) irc (%d) aor (%d)\n", gamma_size, vint_size, elvss_size,
+	LCD_INFO(vdd, "gamma (%d) vint (%d) elvss (%d) irc (%d) aor (%d)\n", gamma_size, vint_size, elvss_size,
 		irc_size, aor_size);
-	LCD_INFO("alloc size : %d (%d + %d + %d) \n", gamma_tbl->br_data_size,
+	LCD_INFO(vdd, "alloc size : %d (%d + %d + %d) \n", gamma_tbl->br_data_size,
 		hbm_size, normal_size, hmd_size);
 }
 
@@ -403,7 +425,7 @@ static void update_br_info_hbm(struct samsung_display_driver_data *vdd,
 				hbm_tbl->candela_table,
 				hbm_brightness_step);
 	if (rc)
-		LCD_INFO("fail to get samsung,hbm_brightness\n");
+		LCD_INFO(vdd, "fail to get samsung,hbm_brightness\n");
 }
 
 static void update_br_info_normal(struct samsung_display_driver_data *vdd,
@@ -469,7 +491,7 @@ static void update_br_info_normal(struct samsung_display_driver_data *vdd,
 				normal_tbl->candela_table,
 				normal_brightness_step);
 	if (rc)
-		LCD_INFO("fail to get samsung,normal_brightness\n");
+		LCD_INFO(vdd, "fail to get samsung,normal_brightness\n");
 }
 
 static void update_br_info_hmd(struct samsung_display_driver_data *vdd,
@@ -511,7 +533,7 @@ static void update_br_info_hmd(struct samsung_display_driver_data *vdd,
 				hmd_tbl->candela_table,
 				hmd_brightness_step);
 	if (rc)
-		LCD_INFO("fail to get samsung,hmd_brightness\n");
+		LCD_INFO(vdd, "fail to get samsung,hmd_brightness\n");
 }
 
 void set_up_br_info(struct samsung_display_driver_data *vdd,
@@ -533,7 +555,7 @@ char flash_read_one_byte(struct samsung_display_driver_data *vdd, int addr)
 	struct dsi_panel_cmd_set *rx_gamma_cmds = ss_get_cmds(vdd, RX_FLASH_GAMMA);
 
 	if (SS_IS_CMDS_NULL(flash_gamma_cmds) || SS_IS_CMDS_NULL(rx_gamma_cmds)) {
-		LCD_ERR("No cmds for TX_FLASH_GAMMA or RX_FLASH_GAMMA..\n");
+		LCD_INFO(vdd, "No cmds for TX_FLASH_GAMMA or RX_FLASH_GAMMA..\n");
 		return 0;
 	}
 
@@ -569,6 +591,102 @@ char flash_read_one_byte(struct samsung_display_driver_data *vdd, int addr)
 
 		return read_buf[0];
 	}
+}
+
+void flash_read_bytes(struct samsung_display_driver_data *vdd, int faddr, int fsize, int rsize, u8 *buf)
+{
+	struct dsi_panel_cmd_set *flash_gamma_cmds = ss_get_cmds(vdd, TX_FLASH_GAMMA);
+	struct dsi_panel_cmd_set *rx_gamma_cmds = ss_get_cmds(vdd, RX_FLASH_GAMMA);
+	bool gpara_temp;
+
+	if (SS_IS_CMDS_NULL(flash_gamma_cmds) || SS_IS_CMDS_NULL(rx_gamma_cmds)) {
+		LCD_INFO(vdd, "No cmds for TX_FLASH_GAMMA or RX_FLASH_GAMMA..\n");
+		return;
+	}
+
+	/*	TX - flash control / Execute Inst.
+		3byte address cover 15Mbyte
+	*/
+	flash_gamma_cmds->cmds[0].ss_txbuf[vdd->br_info.br_tbl->gamma_tbl->flash_gamma_data_read_addr[0]]
+									= (char)((faddr & 0xFF0000) >> 16);
+	flash_gamma_cmds->cmds[0].ss_txbuf[vdd->br_info.br_tbl->gamma_tbl->flash_gamma_data_read_addr[1]]
+									= (char)((faddr & 0xFF00) >> 8);
+	flash_gamma_cmds->cmds[0].ss_txbuf[vdd->br_info.br_tbl->gamma_tbl->flash_gamma_data_read_addr[2]]
+									= (char)(faddr & 0xFF);
+
+	flash_gamma_cmds->cmds[0].ss_txbuf[vdd->br_info.br_tbl->gamma_tbl->flash_gamma_data_read_size[0]]
+									= (char)((fsize & 0xFF0000) >> 16);
+	flash_gamma_cmds->cmds[0].ss_txbuf[vdd->br_info.br_tbl->gamma_tbl->flash_gamma_data_read_size[1]]
+									= (char)((fsize & 0xFF00) >> 8);
+	flash_gamma_cmds->cmds[0].ss_txbuf[vdd->br_info.br_tbl->gamma_tbl->flash_gamma_data_read_size[2]]
+									= (char)(fsize & 0xFF);
+
+	ss_send_cmd(vdd, TX_FLASH_GAMMA);
+
+	usleep_range(10000, 11000);
+
+	/* RX - Flash read
+	 * do not send level key.. */
+	rx_gamma_cmds->state = DSI_CMD_SET_STATE_HS;
+	rx_gamma_cmds->cmds[0].msg.rx_len = rsize;
+	rx_gamma_cmds->cmds[0].msg.rx_buf = buf;
+	rx_gamma_cmds->read_startoffset = 0;
+
+	gpara_temp = vdd->gpara;
+
+	/* Do not use gpara to read flash via MIPI */
+	vdd->gpara = false;
+	ss_panel_data_read(vdd, RX_FLASH_GAMMA, buf, LEVEL_KEY_NONE);
+
+	vdd->gpara = gpara_temp;
+
+	return;
+}
+
+void spsram_read_bytes(struct samsung_display_driver_data *vdd, int addr, int rsize, u8 *buf)
+{
+	struct dsi_panel_cmd_set *tx_sram_offset_cmds = ss_get_cmds(vdd, TX_SPSRAM_DATA_READ);
+	struct dsi_panel_cmd_set *rx_gamma_cmds = ss_get_cmds(vdd, RX_FLASH_GAMMA);
+	bool gpara_temp;
+	struct vrr_info *vrr = &vdd->vrr;
+	int cur_rr, delay;
+
+	if (SS_IS_CMDS_NULL(tx_sram_offset_cmds) || SS_IS_CMDS_NULL(rx_gamma_cmds)) {
+		LCD_INFO(vdd, "No cmds for TX_GLUT_SRAM_OFFSET or RX_FLASH_GAMMA..\n");
+		return;
+	}
+
+	if (vrr)
+		cur_rr = vrr->cur_refresh_rate;
+	else
+		cur_rr = 60;
+
+	tx_sram_offset_cmds->cmds[0].ss_txbuf[2] = (addr & 0xFF00) >> 8;
+	tx_sram_offset_cmds->cmds[0].ss_txbuf[3] = addr & 0xFF;
+
+	tx_sram_offset_cmds->cmds[0].ss_txbuf[4] = (rsize & 0xFF00) >> 8;
+	tx_sram_offset_cmds->cmds[0].ss_txbuf[5] = rsize & 0xFF;
+
+	ss_send_cmd(vdd, TX_SPSRAM_DATA_READ);
+
+	/* need 1frame delay between 71h and 6Eh */
+	delay = ss_frame_delay(cur_rr, 1);
+	usleep_range(delay, delay);
+
+	/* RX - Flash read
+	 * do not send level key.. */
+	rx_gamma_cmds->state = DSI_CMD_SET_STATE_HS;
+	rx_gamma_cmds->cmds[0].msg.rx_len = rsize;
+	rx_gamma_cmds->cmds[0].msg.rx_buf = buf;
+	rx_gamma_cmds->read_startoffset = 0;
+
+	gpara_temp = vdd->gpara;
+
+	/* Do not use gpara to read flash via MIPI */
+	vdd->gpara = false;
+	ss_panel_data_read(vdd, RX_FLASH_GAMMA, buf, LEVEL_KEY_NONE);
+
+	vdd->gpara = gpara_temp;
 }
 
 void flash_write_check_read(struct samsung_display_driver_data *vdd)
@@ -625,13 +743,13 @@ static int flash_gamma_read_spi(struct samsung_display_driver_data *vdd,
 	spi_dev = vdd->spi_dev;
 
 	if (IS_ERR_OR_NULL(spi_dev)) {
-		LCD_ERR("no spi_dev\n");
+		LCD_ERR(vdd, "no spi_dev\n");
 		return -EINVAL;
 	}
 
 	cmd_set = ss_get_spi_cmds(vdd, RX_DATA);
 	if (cmd_set == NULL) {
-		LCD_ERR("cmd_set is null..\n");
+		LCD_ERR(vdd, "cmd_set is null..\n");
 		return -EINVAL;
 	}
 
@@ -642,11 +760,11 @@ static int flash_gamma_read_spi(struct samsung_display_driver_data *vdd,
 	end_addr = gamma_tbl->flash_gamma_write_check_address;
 	total_size = end_addr - start_addr + 1;
 
-	LCD_ERR("[Write Check] size = %d addr = %06x ~ %06x\n", total_size, start_addr, end_addr);
+	LCD_INFO(vdd, "[Write Check] size = %d addr = %06x ~ %06x\n", total_size, start_addr, end_addr);
 
 	rbuf = kmalloc(total_size, GFP_KERNEL | GFP_DMA);
 	if (!rbuf) {
-		LCD_ERR("fail to kmalloc for rbuf..\n");
+		LCD_ERR(vdd, "fail to kmalloc for rbuf..\n");
 		goto err;
 	}
 
@@ -672,11 +790,11 @@ static int flash_gamma_read_spi(struct samsung_display_driver_data *vdd,
 	end_addr = bank_addr + gamma_tbl->flash_gamma_check_sum_end_offset;
 	total_size = end_addr - start_addr + 1;
 
-	LCD_ERR("[Checksum] size = %d addr = %06x ~ %06x\n", total_size, start_addr, end_addr);
+	LCD_INFO(vdd, "[Checksum] size = %d addr = %06x ~ %06x\n", total_size, start_addr, end_addr);
 
 	rbuf = kmalloc(total_size, GFP_KERNEL | GFP_DMA);
 	if (!rbuf) {
-		LCD_ERR("fail to kmalloc for rbuf..\n");
+		LCD_ERR(vdd, "fail to kmalloc for rbuf..\n");
 
 		goto err;
 	}
@@ -703,11 +821,11 @@ static int flash_gamma_read_spi(struct samsung_display_driver_data *vdd,
 	end_addr = gamma_tbl->flash_gamma_bank_end;
 	total_size = end_addr - start_addr + 1;
 
-	LCD_ERR("[Gamma] size = %d addr = %06x ~ %06x\n", total_size, start_addr, end_addr);
+	LCD_INFO(vdd, "[Gamma] size = %d addr = %06x ~ %06x\n", total_size, start_addr, end_addr);
 
 	rbuf = kmalloc(total_size, GFP_KERNEL | GFP_DMA);
 	if (!rbuf) {
-		LCD_ERR("fail to kmalloc for rbuf..\n");
+		LCD_ERR(vdd, "fail to kmalloc for rbuf..\n");
 		goto err;
 	}
 
@@ -739,11 +857,11 @@ static int flash_gamma_read_spi(struct samsung_display_driver_data *vdd,
 	end_addr = bank_addr + gamma_tbl->flash_gamma_0xc8_check_sum_end_offset;
 	total_size = end_addr - start_addr + 1;
 
-	LCD_ERR("[0xC8 1] size = %d addr = %06x ~ %06x\n", total_size, start_addr, end_addr);
+	LCD_INFO(vdd, "[0xC8 1] size = %d addr = %06x ~ %06x\n", total_size, start_addr, end_addr);
 
 	rbuf = kmalloc(total_size, GFP_KERNEL | GFP_DMA);
 	if (!rbuf) {
-		LCD_ERR("fail to kmalloc for rbuf..\n");
+		LCD_ERR(vdd, "fail to kmalloc for rbuf..\n");
 		goto err;
 	}
 
@@ -764,11 +882,11 @@ static int flash_gamma_read_spi(struct samsung_display_driver_data *vdd,
 	end_addr = gamma_tbl->flash_gamma_0xc8_end_offset + bank_addr;
 	total_size = end_addr - start_addr + 1;
 
-	LCD_ERR("[0xC8 2] size = %d addr = %06x ~ %06x\n", total_size, start_addr, end_addr);
+	LCD_INFO(vdd, "[0xC8 2] size = %d addr = %06x ~ %06x\n", total_size, start_addr, end_addr);
 
 	rbuf = kmalloc(total_size, GFP_KERNEL | GFP_DMA);
 	if (!rbuf) {
-		LCD_ERR("fail to kmalloc for rbuf..\n");
+		LCD_ERR(vdd, "fail to kmalloc for rbuf..\n");
 		goto err;
 	}
 
@@ -790,7 +908,7 @@ static int flash_gamma_read_spi(struct samsung_display_driver_data *vdd,
 	gamma_tbl->c8_register.check_sum_mtp_data &= ERASED_MMC_16BIT;
 	gamma_tbl->c8_register.check_sum_cal_data &= ERASED_MMC_16BIT;
 
-	LCD_INFO("read 0xC8 mtp_check_sum : 0x%x flash_check_sum : 0x%x cal_check_sum : 0x%x\n",
+	LCD_INFO(vdd, "read 0xC8 mtp_check_sum : 0x%x flash_check_sum : 0x%x cal_check_sum : 0x%x\n",
 			gamma_tbl->c8_register.check_sum_mtp_data,
 			gamma_tbl->c8_register.check_sum_flash_data,
 			gamma_tbl->c8_register.check_sum_cal_data);
@@ -863,7 +981,7 @@ void flash_0xc8_read(struct samsung_display_driver_data *vdd)
 	vdd->br_info.br_tbl->gamma_tbl->c8_register.check_sum_cal_data &= ERASED_MMC_16BIT;
 
 
-	LCD_INFO("read 0xC8 mtp_check_sum : 0x%x flash_check_sum : 0x%x cal_check_sum : 0x%x\n",
+	LCD_INFO(vdd, "read 0xC8 mtp_check_sum : 0x%x flash_check_sum : 0x%x cal_check_sum : 0x%x\n",
 			vdd->br_info.br_tbl->gamma_tbl->c8_register.check_sum_mtp_data,
 			vdd->br_info.br_tbl->gamma_tbl->c8_register.check_sum_flash_data,
 			vdd->br_info.br_tbl->gamma_tbl->c8_register.check_sum_cal_data);
@@ -875,16 +993,16 @@ static void flash_gamma_read_mipi(struct samsung_display_driver_data *vdd,
 	if (vdd->poc_driver.check_read_case) {
 		if (vdd->poc_driver.read_case == READ_CASE1) {
 			ss_send_cmd(vdd, TX_FLASH_GAMMA_PRE1);
-			LCD_ERR("READ_CASE1 \n");
+			LCD_INFO(vdd, "READ_CASE1 \n");
 		}
 		else if (vdd->poc_driver.read_case == READ_CASE2) {
 			ss_send_cmd(vdd, TX_FLASH_GAMMA_PRE2);
 			vdd->poc_driver.need_sleep_in = true;
-			LCD_ERR("READ_CASE2 \n");
+			LCD_INFO(vdd, "READ_CASE2 \n");
 		}
 	} else {
 		ss_send_cmd(vdd, TX_FLASH_GAMMA_PRE1);
-		LCD_ERR("No check read_case.. READ_CASE1 \n");
+		LCD_INFO(vdd, "No check read_case.. READ_CASE1 \n");
 	}
 
 	/* 1st */
@@ -908,6 +1026,7 @@ static void flash_gamma_read_mipi(struct samsung_display_driver_data *vdd,
 	return;
 }
 
+#if 0
 void flash_mcd_read(struct samsung_display_driver_data *vdd)
 {
 	char read_buf = 0;
@@ -924,6 +1043,7 @@ void flash_mcd_read(struct samsung_display_driver_data *vdd)
 	read_buf = flash_read_one_byte(vdd, vdd->br_info.br_tbl->gamma_tbl->flash_MCD2_L_address);
 	vdd->br_info.br_tbl->gamma_tbl->mcd.flash_MCD2_L = read_buf;
 }
+#endif
 
 static void br_basic_register_read(struct samsung_display_driver_data *vdd,
 		struct brightness_table *br_tbl)
@@ -954,7 +1074,7 @@ int flash_gamma_support_check(struct samsung_display_driver_data *vdd)
 {
 	/* check flash gamma support from panel dtsi property */
 	if (!vdd->br_info.flash_gamma_support) {
-		LCD_ERR("flash_gamma_support not support1");
+		LCD_INFO(vdd, "flash_gamma_support not support1");
 		return false;
 	}
 
@@ -969,7 +1089,7 @@ int flash_gamma_support_check(struct samsung_display_driver_data *vdd)
 	 */
 	if (!IS_ERR_OR_NULL(vdd->panel_func.samsung_flash_gamma_support)) {
 		if (!vdd->panel_func.samsung_flash_gamma_support(vdd)) {
-			LCD_ERR("flash_gamma_support not support2\n");
+			LCD_INFO(vdd, "flash_gamma_support not support2\n");
 			return false;
 		}
 	}
@@ -980,25 +1100,26 @@ int flash_gamma_support_check(struct samsung_display_driver_data *vdd)
 int flash_checksum_check(struct samsung_display_driver_data *vdd)
 {
 	if (vdd->br_info.br_tbl->gamma_tbl->write_check != FLASH_GAMMA_BURN_WRITE) {
-		LCD_ERR("FLASH_GAMMA_BURN_EMPTY\n");
+		LCD_ERR(vdd, "FLASH_GAMMA_BURN_EMPTY (%d)\n", vdd->br_info.br_tbl->gamma_tbl->write_check);
 		return false;
 	} else if (vdd->br_info.br_tbl->gamma_tbl->check_sum_cal_data != vdd->br_info.br_tbl->gamma_tbl->check_sum_flash_data) {
-		LCD_ERR("CHECK_SUM_FALSH_ERROR\n");
+		LCD_ERR(vdd, "CHECK_SUM_FALSH_ERROR\n");
 		return false;
 	} else if (vdd->br_info.br_tbl->gamma_tbl->c8_register.check_sum_flash_data != vdd->br_info.br_tbl->gamma_tbl->c8_register.check_sum_cal_data) {
-		LCD_ERR("CHECK_SUM_0xC8_ERROR_1\n");
+		LCD_ERR(vdd, "CHECK_SUM_0xC8_ERROR_1\n");
 		return false;
 	} else if (vdd->br_info.br_tbl->gamma_tbl->c8_register.check_sum_flash_data != vdd->br_info.br_tbl->gamma_tbl->c8_register.check_sum_mtp_data) {
-		LCD_ERR("CHECK_SUM_0xC8_ERROR_2\n");
+		LCD_ERR(vdd, "CHECK_SUM_0xC8_ERROR_2\n");
 		return false;
 	} else if (vdd->br_info.br_tbl->gamma_tbl->c8_register.check_sum_cal_data != vdd->br_info.br_tbl->gamma_tbl->c8_register.check_sum_mtp_data) {
-		LCD_ERR("CHECK_SUM_0xC8_ERROR_3\n");
+		LCD_ERR(vdd, "CHECK_SUM_0xC8_ERROR_3\n");
 		return false;
 	} else
 		return true;
 }
 
-static int ss_copy_flash_gamma(struct flash_raw_table *dest, struct flash_raw_table *src)
+static int ss_copy_flash_gamma(struct samsung_display_driver_data *vdd,
+	struct flash_raw_table *dest, struct flash_raw_table *src)
 {
 	unsigned char *br_data_raw_org = dest->br_data_raw;
 	int tot_size;
@@ -1009,12 +1130,12 @@ static int ss_copy_flash_gamma(struct flash_raw_table *dest, struct flash_raw_ta
 	dest->br_data_raw = br_data_raw_org;
 
 	if (!dest->br_data_raw || !src->br_data_raw) {
-		LCD_ERR("fail to copy flash gamma: mem is null\n");
+		LCD_INFO(vdd, "fail to copy flash gamma: mem is null\n");
 		return -ENOMEM;
 	}
 
 	tot_size = src->br_data_size * sizeof(char);
-	LCD_INFO("copy flash gamma: size: %d\n", tot_size);
+	LCD_INFO(vdd, "copy flash gamma: size: %d\n", tot_size);
 	memcpy(dest->br_data_raw, src->br_data_raw, tot_size);
 
 	return 0;
@@ -1024,15 +1145,15 @@ void __table_br(struct samsung_display_driver_data *vdd)
 {
 	int count;
 
-	LCD_INFO("+++\n");
+	LCD_INFO(vdd, "+++\n");
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("no vdd");
+		LCD_INFO(vdd, "no vdd");
 		goto end;
 	}
 
 	if (!vdd->br_info.br_tbl_count) {
-		LCD_ERR("br_tbl_count is 0\n");
+		LCD_INFO(vdd, "br_tbl_count is 0\n");
 		goto end;
 	}
 
@@ -1067,10 +1188,10 @@ end:
 	if (vdd->br_info.flash_gamma_sysfs)
 		vdd->br_info.flash_gamma_sysfs = false;
 
-	LCD_INFO("--- init_done %d\n", vdd->br_info.flash_gamma_init_done);
+	LCD_INFO(vdd, "--- init_done %d\n", vdd->br_info.flash_gamma_init_done);
 }
 
-void __flash_br(struct samsung_display_driver_data *vdd)
+int __flash_br(struct samsung_display_driver_data *vdd)
 {
 	struct dsi_display *display = NULL;
 	struct msm_drm_private *priv = NULL;
@@ -1079,21 +1200,24 @@ void __flash_br(struct samsung_display_driver_data *vdd)
 	int count;
 	int wait_cnt = 1000; /* 1000 * 0.5ms = 500ms */
 
-	LCD_INFO("+++\n");
+	LCD_INFO(vdd, "+++\n");
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("no vdd");
+		LCD_INFO(vdd, "no vdd");
+		rc = -1;
 		goto end;
 	}
 
 	display = GET_DSI_DISPLAY(vdd);
 	if (IS_ERR_OR_NULL(display)) {
-		LCD_ERR("no display");
+		LCD_INFO(vdd, "no display");
+		rc = -1;
 		goto end;
 	}
 
 	if (!flash_gamma_support_check(vdd)) {
-		LCD_ERR("flash_gamma_support not support2");
+		LCD_INFO(vdd, "flash_gamma_support not support2");
+		rc = -1;
 		goto end;
 	}
 
@@ -1113,7 +1237,7 @@ void __flash_br(struct samsung_display_driver_data *vdd)
 
 	if (test_bit(BOOST_CPU, vdd->br_info.panel_br_info.flash_br_boosting)) {
 		/* max cpu freq */
-		LCD_INFO("CPU\n");
+		LCD_INFO(vdd, "CPU\n");
 		ss_set_max_cpufreq(vdd, true, CPUFREQ_CLUSTER_ALL);
 	}
 
@@ -1122,7 +1246,7 @@ void __flash_br(struct samsung_display_driver_data *vdd)
 	cur_mnoc_ib = priv->phandle.data_bus_handle[SDE_POWER_HANDLE_DBUS_ID_MNOC].in_ib_quota;
 
 	if (test_bit(BOOST_MNOC, vdd->br_info.panel_br_info.flash_br_boosting)) {
-		LCD_INFO("MNOC\n");
+		LCD_INFO(vdd, "MNOC\n");
 		/* update only mnoc bw*/
 		sde_power_data_bus_set_quota(&priv->phandle,
 			SDE_POWER_HANDLE_DBUS_ID_MNOC,
@@ -1132,12 +1256,13 @@ void __flash_br(struct samsung_display_driver_data *vdd)
 
 	if (test_bit(BOOST_DSI_CLK, vdd->br_info.panel_br_info.flash_br_boosting)) {
 		/* enable dsi clock*/
-		LCD_INFO("CLK\n");
+		LCD_INFO(vdd, "CLK\n");
 		rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
 				DSI_ALL_CLKS, DSI_CLK_ON);
 		if (rc) {
-			LCD_ERR("[%s] failed to enable DSI core clocks, rc=%d\n",
+			LCD_INFO(vdd, "[%s] failed to enable DSI core clocks, rc=%d\n",
 					display->name, rc);
+			rc = -1;
 			goto error;
 		}
 	}
@@ -1152,18 +1277,19 @@ void __flash_br(struct samsung_display_driver_data *vdd)
 	if (vdd->ddi_spi_cs_high_gpio_for_gpara > 0) {
 		mutex_lock(&vdd->ss_spi_lock);
 		gpio_direction_output(vdd->ddi_spi_cs_high_gpio_for_gpara , 1);
-		LCD_INFO("gpio%d value : %d\n", vdd->ddi_spi_cs_high_gpio_for_gpara,
-			gpio_get_value(vdd->ddi_spi_cs_high_gpio_for_gpara));
+		LCD_INFO(vdd, "gpio%d value : %d\n", vdd->ddi_spi_cs_high_gpio_for_gpara,
+			ss_gpio_get_value(vdd, vdd->ddi_spi_cs_high_gpio_for_gpara));
 	}
 
 	for (count = 0; count < vdd->br_info.br_tbl_count; count++) {
 		struct brightness_table *br_tbl = &vdd->br_info.br_tbl[count];
 
 		if (br_tbl->parent_idx != -1) {
-			LCD_INFO("[%d] copy flash gamma data from parent node [%d]\n",
+			LCD_INFO(vdd, "[%d] copy flash gamma data from parent node [%d]\n",
 					count, br_tbl->parent_idx);
-			ss_copy_flash_gamma(vdd->br_info.br_tbl[count].gamma_tbl,
+			ss_copy_flash_gamma(vdd, vdd->br_info.br_tbl[count].gamma_tbl,
 					vdd->br_info.br_tbl[br_tbl->parent_idx].gamma_tbl);
+			rc = -1;
 			goto skip_read_flash;
 		}
 
@@ -1178,7 +1304,7 @@ void __flash_br(struct samsung_display_driver_data *vdd)
 
 skip_read_flash:
 
-		LCD_INFO("read write_check : 0x%x flash_check_sum : 0x%x cal_check_sum : 0x%x\n",
+		LCD_INFO(vdd, "read write_check : 0x%x flash_check_sum : 0x%x cal_check_sum : 0x%x\n",
 			br_tbl->gamma_tbl->write_check,
 			br_tbl->gamma_tbl->check_sum_flash_data,
 			br_tbl->gamma_tbl->check_sum_cal_data);
@@ -1191,7 +1317,8 @@ skip_read_flash:
 					vdd->panel_func.samsung_interpolation_init(vdd, br_tbl, FLASH_INTERPOLATION);
 			}
 		} else {
-			LCD_ERR("flash checksum fail.. stop reading flash data !\n");
+			LCD_ERR(vdd, "[%d] flash checksum fail.. stop reading flash data !\n", count);
+			rc = -1;
 			break;
 		}
 	}
@@ -1202,15 +1329,15 @@ skip_read_flash:
 	if (vdd->ddi_spi_cs_high_gpio_for_gpara > 0) {
 		gpio_direction_input(vdd->ddi_spi_cs_high_gpio_for_gpara);
 		mutex_unlock(&vdd->ss_spi_lock);
-		LCD_INFO("gpio%d value : %d\n", vdd->ddi_spi_cs_high_gpio_for_gpara,
-			gpio_get_value(vdd->ddi_spi_cs_high_gpio_for_gpara));
+		LCD_INFO(vdd, "gpio%d value : %d\n", vdd->ddi_spi_cs_high_gpio_for_gpara,
+			ss_gpio_get_value(vdd, vdd->ddi_spi_cs_high_gpio_for_gpara));
 	}
 
 	if (test_and_clear_bit(BOOST_DSI_CLK, vdd->br_info.panel_br_info.flash_br_boosting)) {
 		rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
 				DSI_ALL_CLKS, DSI_CLK_OFF);
 		if (rc) {
-			LCD_ERR("[%s] failed to disable DSI core clocks, rc=%d\n",
+			LCD_ERR(vdd, "[%s] failed to disable DSI core clocks, rc=%d\n",
 					display->name, rc);
 		}
 	}
@@ -1260,7 +1387,9 @@ end:
 	if (vdd->br_info.flash_gamma_sysfs)
 		vdd->br_info.flash_gamma_sysfs = false;
 
-	LCD_INFO("--- init_done %d\n", vdd->br_info.flash_gamma_init_done);
+	LCD_INFO(vdd, "--- init_done %d\n", vdd->br_info.flash_gamma_init_done);
+
+	return rc;
 }
 
 void flash_br_work_func(struct work_struct *work)
@@ -1276,24 +1405,24 @@ void flash_br_work_func(struct work_struct *work)
 	int rc = 0;
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		LCD_ERR("no vdd");
+		LCD_INFO(vdd, "no vdd");
 		return;
 	}
 
 	display = GET_DSI_DISPLAY(vdd);
 	if (IS_ERR_OR_NULL(display)) {
-		LCD_ERR("no display");
+		LCD_INFO(vdd, "no display");
 		return;
 	}
 
 	/* display ctrl and mipi host init should be done in display_lock */
 	mutex_lock(&display->display_lock);
 
-	LCD_INFO("[%s] init host, support_early_gamma_flash: %d\n",
+	LCD_INFO(vdd, "[%s] init host, support_early_gamma_flash: %d\n",
 			display->name, vdd->br_info.support_early_gamma_flash);
 	rc = dsi_display_ctrl_init(display);
 	if (rc) {
-		LCD_INFO("[%s] rc=%d, host was already initialized.. skip deinit in final state\n",
+		LCD_INFO(vdd, "[%s] rc=%d, host was already initialized.. skip deinit in final state\n",
 				display->name, rc);
 		skip_host_deinit = true;
 		mutex_unlock(&display->display_lock);
@@ -1319,12 +1448,12 @@ void flash_br_work_func(struct work_struct *work)
 	if (vdd->display_status_dsi.disp_on_pre)
 		skip_restore_panel_state_off = true;
 	if (!skip_restore_panel_state_off) {
-		LCD_INFO("[%s] restore panel state to off\n", display->name);
+		LCD_INFO(vdd, "[%s] restore panel state to off\n", display->name);
 		vdd->panel_state = PANEL_PWR_OFF;
 	}
 
 	if (!skip_host_deinit) {
-		LCD_INFO("[%s] deinit host\n", display->name);
+		LCD_INFO(vdd, "[%s] deinit host\n", display->name);
 		(void)dsi_display_ctrl_deinit(display);
 		mutex_unlock(&display->display_lock);
 	}
@@ -1364,8 +1493,8 @@ static void debug_br_info_hbm(struct samsung_display_driver_data *vdd,
 	elvss = hbm_tbl->elvss;
 	irc = hbm_tbl->irc;
 
-	LCD_INFO("print raw data from flash memory.\n");
-	LCD_INFO("AOR(%d) VINT(%d) ELVSS(%d) IRC(%d)\n", aor_size, vint_size, elvss_size, irc_size);
+	LCD_INFO(vdd, "print raw data from flash memory.\n");
+	LCD_INFO(vdd, "AOR(%d) VINT(%d) ELVSS(%d) IRC(%d)\n", aor_size, vint_size, elvss_size, irc_size);
 
 	for (column =  0; column < brightness_step; column++) {
 		snprintf(buf, FLASH_GAMMA_DBG_BUF_SIZE, "HBM [%3d] ", hbm_tbl->candela_table[column]);
@@ -1408,7 +1537,7 @@ static void debug_br_info_hbm(struct samsung_display_driver_data *vdd,
 				snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "%02x ", irc[column][data_cnt]);
 		}
 
-		LCD_INFO("%s\n", buf);
+		LCD_INFO(vdd, "%s\n", buf);
 		memset(buf, '\n', strlen(buf));
 	}
 }
@@ -1437,8 +1566,8 @@ static void debug_br_info_normal(struct samsung_display_driver_data *vdd,
 	elvss = normal_tbl->elvss;
 	irc = normal_tbl->irc;
 
-	LCD_INFO("print raw data from flash memory.\n");
-	LCD_INFO("GAMMA(%d) AOR(%d) VINT(%d) ELVSS(%d) IRC(%d)\n", gamm_size, aor_size, vint_size, elvss_size, irc_size);
+	LCD_INFO(vdd, "print raw data from flash memory.\n");
+	LCD_INFO(vdd, "GAMMA(%d) AOR(%d) VINT(%d) ELVSS(%d) IRC(%d)\n", gamm_size, aor_size, vint_size, elvss_size, irc_size);
 
 	for (column =  0; column < brightness_step; column++) {
 		snprintf(buf, FLASH_GAMMA_DBG_BUF_SIZE, "NORMAL [%3d] ", normal_tbl->candela_table[column]);
@@ -1448,7 +1577,7 @@ static void debug_br_info_normal(struct samsung_display_driver_data *vdd,
 			for (data_cnt = 0; data_cnt < gamm_size; data_cnt++)
 				snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "%02x ", gamma[column][data_cnt]);
 		} else
-			LCD_ERR("gamma is null..\n");
+			LCD_INFO(vdd, "gamma is null..\n");
 
 		snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "| ");
 
@@ -1457,7 +1586,7 @@ static void debug_br_info_normal(struct samsung_display_driver_data *vdd,
 			for (data_cnt = 0; data_cnt < aor_size; data_cnt++)
 				snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "%02x ", aor[column][data_cnt]);
 		} else
-			LCD_ERR("aor is null..\n");
+			LCD_INFO(vdd, "aor is null..\n");
 
 		snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "| ");
 
@@ -1466,7 +1595,7 @@ static void debug_br_info_normal(struct samsung_display_driver_data *vdd,
 			for (data_cnt = 0; data_cnt < vint_size; data_cnt++)
 				snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "%02x ", vint[column][data_cnt]);
 		} else
-			LCD_ERR("vint is null..\n");
+			LCD_INFO(vdd, "vint is null..\n");
 
 		snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "| ");
 
@@ -1475,7 +1604,7 @@ static void debug_br_info_normal(struct samsung_display_driver_data *vdd,
 			for (data_cnt = 0; data_cnt < elvss_size; data_cnt++)
 				snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "%02x ", elvss[column][data_cnt]);
 		} else
-			LCD_ERR("elvss is null..\n");
+			LCD_INFO(vdd, "elvss is null..\n");
 
 		snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "| ");
 
@@ -1484,9 +1613,9 @@ static void debug_br_info_normal(struct samsung_display_driver_data *vdd,
 			for (data_cnt = 0; data_cnt < irc_size; data_cnt++)
 				snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "%02x ", irc[column][data_cnt]);
 		} else
-			LCD_ERR("irc is null..\n");
+			LCD_INFO(vdd, "irc is null..\n");
 
-		LCD_INFO("%s\n", buf);
+		LCD_INFO(vdd, "%s\n", buf);
 		memset(buf, '\n', strlen(buf));
 
 	}
@@ -1510,8 +1639,8 @@ static void debug_br_info_hmd(struct samsung_display_driver_data *vdd,
 	gamma = hmd_tbl->gamma;
 	aor = hmd_tbl->aor;
 
-	LCD_INFO("print raw data from flash memory.\n");
-	LCD_INFO("GAMMA(%d) AOR(%d) \n", gamma_size, aor_size);
+	LCD_INFO(vdd, "print raw data from flash memory.\n");
+	LCD_INFO(vdd, "GAMMA(%d) AOR(%d) \n", gamma_size, aor_size);
 
 	for (column =  0; column < brightness_step; column++) {
 		snprintf(buf, FLASH_GAMMA_DBG_BUF_SIZE, "HMD [%3d] ", hmd_tbl->candela_table[column]);
@@ -1530,7 +1659,7 @@ static void debug_br_info_hmd(struct samsung_display_driver_data *vdd,
 				snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "%02x ", aor[column][data_cnt]);
 		}
 
-		LCD_INFO("%s\n", buf);
+		LCD_INFO(vdd, "%s\n", buf);
 		memset(buf, '\n', strlen(buf));
 	}
 }
@@ -1538,10 +1667,10 @@ static void debug_br_info_hmd(struct samsung_display_driver_data *vdd,
 void debug_br_info_log(struct samsung_display_driver_data *vdd,
 		struct brightness_table *br_tbl)
 {
-	LCD_INFO("%s ++ \n", __func__);
+	LCD_INFO(vdd, "%s ++ \n", __func__);
 	debug_br_info_hbm(vdd, br_tbl);
 	debug_br_info_normal(vdd, br_tbl);
 	debug_br_info_hmd(vdd, br_tbl);
-	LCD_INFO("%s -- \n", __func__);
+	LCD_INFO(vdd, "%s -- \n", __func__);
 }
 

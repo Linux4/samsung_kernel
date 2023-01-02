@@ -226,7 +226,7 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 	if (vdd->br_info.flash_gamma_support &&
 			!vdd->br_info.flash_gamma_init_done) {
 		vdd->br_info.common_br.bl_level = bl_lvl;
-		LCD_ERR("flash_gamme not ready, save level(%d) \n", bl_lvl);
+		LCD_INFO(vdd, "flash_gamme not ready, save level(%d) \n", bl_lvl);
 		return rc;
 	}
 
@@ -1098,6 +1098,9 @@ int dsi_display_set_power(struct drm_connector *connector,
 {
 	struct dsi_display *display = disp;
 	int rc = 0;
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd;
+#endif
 
 	if (!display || !display->panel) {
 		DSI_ERR("invalid display/panel\n");
@@ -1105,7 +1108,8 @@ int dsi_display_set_power(struct drm_connector *connector,
 	}
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_INFO("%s ++\n", power_mode == SDE_MODE_DPMS_LP1 ? "LP1" :
+	vdd = display->panel->panel_private;
+	LCD_INFO(vdd, "%s ++\n", power_mode == SDE_MODE_DPMS_LP1 ? "LP1" :
 			power_mode == SDE_MODE_DPMS_LP2 ? "LP2" : "NO_LP");
 	SDE_EVT32(power_mode);
 #endif
@@ -1118,11 +1122,16 @@ int dsi_display_set_power(struct drm_connector *connector,
 		rc = dsi_panel_set_lp2(display->panel);
 		break;
 	case SDE_MODE_DPMS_ON:
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	case SDE_MODE_DPMS_OFF:
+#endif
 		if ((display->panel->power_mode == SDE_MODE_DPMS_LP1) ||
 			(display->panel->power_mode == SDE_MODE_DPMS_LP2))
 			rc = dsi_panel_set_nolp(display->panel);
 		break;
+#if !defined(CONFIG_DISPLAY_SAMSUNG)
 	case SDE_MODE_DPMS_OFF:
+#endif
 	default:
 		return rc;
 	}
@@ -1135,7 +1144,7 @@ int dsi_display_set_power(struct drm_connector *connector,
 		display->panel->power_mode = power_mode;
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_INFO("%s %s --\n", power_mode == SDE_MODE_DPMS_LP1 ? "LP1" :
+	LCD_INFO(vdd, "%s %s --\n", power_mode == SDE_MODE_DPMS_LP1 ? "LP1" :
 			power_mode == SDE_MODE_DPMS_LP2 ? "LP2" : "NO_LP",
 			rc ? "failed" : "successful");
 #endif
@@ -3038,7 +3047,7 @@ static ssize_t dsi_host_transfer(struct mipi_dsi_host *host,
 
 		if (((cmd_flags & DSI_CTRL_CMD_READ) && rc <= 0) ||
 				(!(cmd_flags & DSI_CTRL_CMD_READ) && rc)) {
-			LCD_ERR("[%s] cmd transfer failed, rc=%d, cmd_flags=%x cmd = %x\n",
+			LCD_ERR(vdd, "[%s] cmd transfer failed, rc=%d, cmd_flags=%x cmd = %x\n",
 				   ss_get_cmd_name(vdd->cmd_type), rc, cmd_flags, (u8 *)msg->tx_buf + 0);
 /*
 			SDE_DBG_DUMP("sde", "dsi0_ctrl", "dsi0_phy", "dsi1_ctrl",
@@ -5013,6 +5022,9 @@ static int _dsi_display_dev_deinit(struct dsi_display *display)
 	return rc;
 }
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+extern bool pba_regulator_control_ss;
+#endif
 /**
  * dsi_display_cont_splash_config() - Initialize resources for continuous splash
  * @dsi_display:    Pointer to dsi display
@@ -5048,7 +5060,7 @@ int dsi_display_cont_splash_config(void *dsi_display)
 	if (display->is_cont_splash_enabled) {
 		vdd->samsung_splash_enabled = true;
 		vdd->display_status_dsi.first_commit_disp_on = true;
-		LCD_INFO("set samsung splash (%d)\n", vdd->samsung_splash_enabled);
+		LCD_INFO(vdd, "set samsung splash (%d)\n", vdd->samsung_splash_enabled);
 	}
 #endif
 
@@ -5078,6 +5090,29 @@ int dsi_display_cont_splash_config(void *dsi_display)
 				display->panel->name, rc);
 		goto clks_disabled;
 	}
+
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	/* Splash boot && pba_reuglator_control && PBA panel => PBA regulators off 
+	 * Caution!, both panels should have PBA regulators if with DSI1
+	 */
+	if (pba_regulator_control_ss &&
+		(!strcmp(display->panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
+		!strcmp(display->panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1"))) {
+		DSI_INFO("splash && pba_regulator && PBA panel => regulator OFF\n");		
+
+		/* Reset off : useful? */
+		if (gpio_is_valid(display->panel->reset_config.reset_gpio))
+			gpio_set_value(display->panel->reset_config.reset_gpio, 0);
+		else
+			DSI_INFO("reset_gpio is invalid\n");
+		
+		/* Regulators off : including reset regulator off */
+		rc = dsi_pwr_enable_regulator(&display->panel->power_info, false);
+		if (rc)
+			DSI_ERR("[%s] failed to disable vregs, rc=%d\n",
+				display->panel->name, rc);
+	}
+#endif
 
 	dsi_config_host_engine_state_for_cont_splash(display);
 	mutex_unlock(&display->display_lock);
@@ -5111,16 +5146,16 @@ int dsi_display_cont_splash_config(void *dsi_display)
 			struct dsi_bridge *bridge;
 			struct drm_encoder *drm_enc;
 
-			LCD_INFO("ndx=%d: splash on: enQ gamma flash work, cur panel_state: %d\n", vdd->ndx, vdd->panel_state);
+			LCD_INFO(vdd, "splash on: enQ gamma flash work, cur panel_state: %d\n", vdd->panel_state);
 
 			bridge = display->bridge;
 			if (!bridge) {
-				LCD_ERR("%s: bridge is null\n", __func__);
+				LCD_ERR(vdd, "%s: bridge is null\n", __func__);
 				goto end_gamma_flash;
 			}
 			drm_enc = bridge->base.encoder;
 			if (!drm_enc ) {
-				LCD_ERR("%s: encoder is null\n", __func__);
+				LCD_ERR(vdd, "%s: encoder is null\n", __func__);
 				goto end_gamma_flash;
 			}
 
@@ -5135,7 +5170,7 @@ int dsi_display_cont_splash_config(void *dsi_display)
 
 			/* Panel revision selection */
 			if (IS_ERR_OR_NULL(vdd->panel_func.samsung_panel_revision))
-				LCD_ERR("no panel_revision_selection_error function\n");
+				LCD_ERR(vdd, "no panel_revision_selection_error function\n");
 			else
 				vdd->panel_func.samsung_panel_revision(vdd);
 
@@ -5145,10 +5180,10 @@ int dsi_display_cont_splash_config(void *dsi_display)
 			 * TODO: get proper phys_enc and check if phys_enc->enable_state = SDE_ENC_ERR_NEEDS_HW_RESET...
 			 */
 			if (!vdd->is_autorefresh_fail) {
-				LCD_INFO("enQ gamma flash work\n");
+				LCD_INFO(vdd, "enQ gamma flash work\n");
 				queue_delayed_work(vdd->br_info.flash_br_workqueue, &vdd->br_info.flash_br_work, msecs_to_jiffies(0));
 			} else {
-				LCD_INFO("autorefresh_fail set, do not enQ gamma flash work..\n");
+				LCD_INFO(vdd, "autorefresh_fail set, do not enQ gamma flash work..\n");
 			}
 		}
 	}
@@ -7130,7 +7165,8 @@ static int dsi_display_pre_switch(struct dsi_display *display)
 	int rc = 0;
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_INFO("DMS : update dsi ctrl for new mode\n");
+	struct samsung_display_driver_data *vdd = display->panel->panel_private;
+	LCD_INFO(vdd, "DMS : update dsi ctrl for new mode\n");
 #endif
 
 	rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
@@ -7320,18 +7356,18 @@ static void dsi_display_handle_lp_rx_timeout(struct work_struct *work)
 
 		vdd = display->panel->panel_private;
 		if (!vdd) {
-			LCD_ERR("invalid vdd\n");
+			LCD_ERR(vdd, "invalid vdd\n");
 			return;
 		}
 
 		if (!vdd->support_lp_rx_err_recovery) {
-			LCD_INFO("do not support LP RX timeout recovery\n");
+			LCD_INFO(vdd, "do not support LP RX timeout recovery\n");
 			return;
 		}
 
 		conn = GET_SDE_CONNECTOR(vdd);
 		if (!conn) {
-			LCD_ERR("invalid conn\n");
+			LCD_ERR(vdd, "invalid conn\n");
 			return;
 		}
 
@@ -7342,7 +7378,7 @@ static void dsi_display_handle_lp_rx_timeout(struct work_struct *work)
 		schedule_work(&conn->status_work.work);
 		vdd->panel_recovery_cnt++;
 
-		LCD_INFO("Panel Recovery, Trial Count = %d\n", vdd->panel_recovery_cnt);
+		LCD_INFO(vdd, "Panel Recovery, Trial Count = %d\n", vdd->panel_recovery_cnt);
 		SS_XLOG(vdd->panel_recovery_cnt);
 		inc_dpui_u32_field(DPUI_KEY_QCT_RCV_CNT, 1);
 
@@ -7502,7 +7538,7 @@ int dsi_display_prepare(struct dsi_display *display)
 	struct dsi_display_mode *mode;
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("++\n");
+	struct samsung_display_driver_data *vdd;
 #endif
 
 	if (!display) {
@@ -7514,6 +7550,11 @@ int dsi_display_prepare(struct dsi_display *display)
 		DSI_ERR("no valid mode set for the display\n");
 		return -EINVAL;
 	}
+
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	vdd = display->panel->panel_private;
+	LCD_INFO(vdd, "++\n");
+#endif
 
 	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY);
 	mutex_lock(&display->display_lock);
@@ -7536,13 +7577,13 @@ int dsi_display_prepare(struct dsi_display *display)
 		if (!display->is_cont_splash_enabled) {
 			rc = dsi_display_pre_switch(display);
 			if (rc)
-				LCD_ERR("[%s] panel pre-prepare-res-switch failed, rc=%d\n",
+				LCD_ERR(vdd, "[%s] panel pre-prepare-res-switch failed, rc=%d\n",
 						display->name, rc);
 
 			goto error;
 		}
 
-		LCD_INFO("DMS was not supposed to be set on first frame, but now it is OK in SS feature!!!\n");
+		LCD_INFO(vdd, "DMS was not supposed to be set on first frame, but now it is OK in SS feature!!!\n");
 #else
 		if (display->is_cont_splash_enabled &&
 		    display->config.panel_mode == DSI_OP_VIDEO_MODE) {
@@ -7668,7 +7709,7 @@ int dsi_display_prepare(struct dsi_display *display)
 		 * which are not configured in bootloader, would be unpredictable state.
 		 * Configure display pins here, in case of cont. splash on mode.
 		 */
-		LCD_INFO("set display pinctrl in con_splash on mode\n");
+		LCD_INFO(vdd, "set display pinctrl in con_splash on mode\n");
 		rc = dsi_panel_set_pinctrl_state(display->panel, true);
 	}
 #endif
@@ -7693,7 +7734,7 @@ error:
 	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("--\n");
+	LCD_INFO(vdd, "--\n");
 #endif
 	return rc;
 }
@@ -8028,7 +8069,7 @@ int dsi_display_enable(struct dsi_display *display)
 		/* Initialize samsung display driver in continuous splash mode,
 		 * like smart dimming, mdnie, and etc.
 		 */
-		LCD_INFO("%s : is_cont_splash_enabled, support_vrr_based_bl: %d, vrr_change: %d, multi_res_change: %d\n",
+		LCD_INFO(vdd, "%s : is_cont_splash_enabled, support_vrr_based_bl: %d, vrr_change: %d, multi_res_change: %d\n",
 				__func__, vdd->vrr.support_vrr_based_bl,
 				vdd->vrr.is_vrr_changing,
 				vdd->vrr.is_multi_resolution_changing);
@@ -8047,7 +8088,7 @@ int dsi_display_enable(struct dsi_display *display)
 		 */
 		if (vdd->vrr.support_vrr_based_bl &&
 				(vdd->vrr.is_vrr_changing || vdd->vrr.is_multi_resolution_changing)) {
-			LCD_INFO("DMS: VRR: trigger dms switch in splash on mode\n");
+			LCD_INFO(vdd, "DMS: VRR: trigger dms switch in splash on mode\n");
 			dsi_panel_switch(display->panel);
 		}
 
@@ -8061,7 +8102,7 @@ int dsi_display_enable(struct dsi_display *display)
 		mutex_unlock(&display->display_lock);
 
 		vdd->samsung_splash_enabled = false;
-		LCD_INFO("%s : samsung splash diable! \n", __func__);
+		LCD_INFO(vdd, "%s : samsung splash diable! \n", __func__);
 #else
 		display->panel->panel_initialized = true;
 		DSI_DEBUG("cont splash enabled, display enable not required\n");
@@ -8070,7 +8111,7 @@ int dsi_display_enable(struct dsi_display *display)
 	}
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("++ : ndx=%d\n", vdd->ndx);
+	LCD_INFO(vdd, "++ \n");
 #endif
 
 	mutex_lock(&display->display_lock);
@@ -8100,11 +8141,15 @@ int dsi_display_enable(struct dsi_display *display)
 		mode->priv_info->dsc.pic_width *= display->ctrl_count;
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
+		DSI_INFO("%s: update pps lock\n", __func__);
 		ss_set_exclusive_tx_lock_from_qct(display->panel->panel_private, true);
+		DSI_INFO("%s: update pps\n", __func__);
 #endif
 		rc = dsi_panel_update_pps(display->panel);
 #if defined(CONFIG_DISPLAY_SAMSUNG)
+		DSI_INFO("%s: update pps done\n", __func__);
 		ss_set_exclusive_tx_lock_from_qct(display->panel->panel_private, false);
+		DSI_INFO("%s: update pps unlock done\n", __func__);
 #endif
 
 		if (rc) {
@@ -8115,6 +8160,7 @@ int dsi_display_enable(struct dsi_display *display)
 	}
 
 	if (mode->dsi_mode_flags & DSI_MODE_FLAG_DMS) {
+		DSI_INFO("%s: dms, panel switch\n", __func__);
 		rc = dsi_panel_switch(display->panel);
 		if (rc)
 			DSI_ERR("[%s] failed to switch DSI panel mode, rc=%d\n",
@@ -8124,7 +8170,7 @@ int dsi_display_enable(struct dsi_display *display)
 	}
 
 	if (display->config.panel_mode == DSI_OP_VIDEO_MODE) {
-		DSI_DEBUG("%s:enable video timing eng\n", __func__);
+		DSI_INFO("%s:enable video timing eng\n", __func__);
 		rc = dsi_display_vid_engine_enable(display);
 		if (rc) {
 			DSI_ERR("[%s]failed to enable DSI video engine, rc=%d\n",
@@ -8132,7 +8178,7 @@ int dsi_display_enable(struct dsi_display *display)
 			goto error_disable_panel;
 		}
 	} else if (display->config.panel_mode == DSI_OP_CMD_MODE) {
-		DSI_DEBUG("%s:enable command timing eng\n", __func__);
+		DSI_INFO("%s:enable command timing eng\n", __func__);
 		rc = dsi_display_cmd_engine_enable(display);
 		if (rc) {
 			DSI_ERR("[%s]failed to enable DSI cmd engine, rc=%d\n",
@@ -8154,7 +8200,7 @@ error:
 	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("-- : ndx=%d\n", vdd->ndx);
+	LCD_INFO(vdd, "--\n");
 #endif
 
 	return rc;
@@ -8167,7 +8213,7 @@ int dsi_display_post_enable(struct dsi_display *display)
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd = display->panel->panel_private;
 
-	LCD_ERR("++ : ndx=%d\n", vdd->ndx);
+	LCD_INFO(vdd, "++\n");
 #endif
 
 	if (!display) {
@@ -8209,7 +8255,7 @@ int dsi_display_post_enable(struct dsi_display *display)
 	mutex_unlock(&display->display_lock);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("-- : ndx=%d\n", vdd->ndx);
+	LCD_INFO(vdd, "-- \n");
 #endif
 
 	return rc;
@@ -8304,7 +8350,7 @@ int dsi_display_disable(struct dsi_display *display)
 	}
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("++ : ndx=%d\n", vdd->ndx);
+	LCD_INFO(vdd, "++\n");
 #endif
 
 	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY);
@@ -8340,7 +8386,7 @@ int dsi_display_disable(struct dsi_display *display)
 	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("-- : ndx=%d\n", vdd->ndx);
+	LCD_INFO(vdd, "--\n");
 #endif
 	return rc;
 }
@@ -8366,6 +8412,9 @@ int dsi_display_unprepare(struct dsi_display *display)
 {
 	int rc = 0, i;
 	struct dsi_display_ctrl *ctrl;
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd;
+#endif
 
 	if (!display) {
 		DSI_ERR("Invalid params\n");
@@ -8373,7 +8422,8 @@ int dsi_display_unprepare(struct dsi_display *display)
 	}
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("++\n");
+	vdd = display->panel->panel_private;
+	LCD_INFO(vdd, "++\n");
 #endif
 
 	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY);
@@ -8454,7 +8504,7 @@ int dsi_display_unprepare(struct dsi_display *display)
 	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-	LCD_ERR("--\n");
+	LCD_INFO(vdd, "--\n");
 #endif
 
 	return rc;

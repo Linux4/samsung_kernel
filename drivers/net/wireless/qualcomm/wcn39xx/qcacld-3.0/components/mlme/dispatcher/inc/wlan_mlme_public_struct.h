@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,6 +28,9 @@
 #include <reg_services_public_struct.h>
 #include <wmi_unified_param.h>
 #include <sir_api.h>
+
+#define OWE_TRANSITION_OUI_TYPE "\x50\x6f\x9a\x1c"
+#define OWE_TRANSITION_OUI_SIZE 4
 
 #define CFG_PMKID_MODES_OKC                        (0x1)
 #define CFG_PMKID_MODES_PMKSA_CACHING              (0x2)
@@ -1160,10 +1164,11 @@ struct wlan_mlme_chainmask {
  * @stop_all_host_scan_support: Target capability that indicates if the target
  * supports stop all host scan request type.
  * @sae_connect_retries: sae connect retry bitmask
+ * @tx_retry_multiplier: TX xretry extension parameter
  */
 struct wlan_mlme_generic {
-	enum band_info band_capability;
-	enum band_info band;
+	uint32_t band_capability;
+	uint32_t band;
 	uint8_t select_5ghz_margin;
 	uint8_t sub_20_chan_width;
 	uint8_t ito_repeat_count;
@@ -1197,6 +1202,7 @@ struct wlan_mlme_generic {
 	bool enable_peer_unmap_conf_support;
 	bool stop_all_host_scan_support;
 	uint32_t sae_connect_retries;
+	uint32_t tx_retry_multiplier;
 };
 
 /*
@@ -1372,6 +1378,7 @@ enum station_keepalive_method {
  * @dot11p_mode:                    Set 802.11p mode
  * @fils_max_chan_guard_time:       Set maximum channel guard time
  * @current_rssi:                   Current rssi
+ * @deauth_retry_cnt:               Deauth retry count
  * @ignore_peer_erp_info:           Ignore peer infrormation
  * @sta_prefer_80mhz_over_160mhz:   Set Sta preference to connect in 80HZ/160HZ
  * @enable_5g_ebt:                  Set default 5G early beacon termination
@@ -1391,6 +1398,7 @@ struct wlan_mlme_sta_cfg {
 	enum dot11p_mode dot11p_mode;
 	uint8_t fils_max_chan_guard_time;
 	uint8_t current_rssi;
+	uint8_t deauth_retry_cnt;
 	bool ignore_peer_erp_info;
 	bool sta_prefer_80mhz_over_160mhz;
 	bool enable_5g_ebt;
@@ -1504,6 +1512,10 @@ struct bss_load_trigger {
  * @roam_bg_scan_bad_rssi_threshold:RSSI threshold for background roam
  * @roam_bg_scan_client_bitmap:     Bitmap used to identify the scan clients
  * @roam_bg_scan_bad_rssi_offset_2g:RSSI threshold offset for 2G to 5G roam
+ * @roam_data_rssi_threshold_triggers: triggers of bad data RSSI threshold to
+ *                                  roam
+ * @roam_data_rssi_threshold: Bad data RSSI threshold to roam
+ * @rx_data_inactivity_time: Rx duration to check data RSSI
  * @adaptive_roamscan_dwell_mode:   Sets dwell time adaptive mode
  * @per_roam_enable:                To enabled/disable PER based roaming in FW
  * @per_roam_config_high_rate_th:   Rate at which PER based roam will stop
@@ -1614,6 +1626,9 @@ struct wlan_mlme_lfr_cfg {
 	uint32_t roam_bg_scan_bad_rssi_threshold;
 	uint32_t roam_bg_scan_client_bitmap;
 	uint32_t roam_bg_scan_bad_rssi_offset_2g;
+	uint32_t roam_data_rssi_threshold_triggers;
+	int32_t roam_data_rssi_threshold;
+	uint32_t rx_data_inactivity_time;
 	uint32_t adaptive_roamscan_dwell_mode;
 	uint32_t per_roam_enable;
 	uint32_t per_roam_config_high_rate_th;
@@ -1847,6 +1862,7 @@ struct wlan_mlme_wmm_params {
  * @pcl_weightage: PCL weightage
  * @channel_congestion_weightage: channel congestion weightage
  * @oce_wan_weightage: OCE WAN metrics weightage
+ * @sae_pk_ap_weightage: SAE-PK AP weigtage
  */
 struct  wlan_mlme_weight_config {
 	uint8_t rssi_weightage;
@@ -1860,6 +1876,7 @@ struct  wlan_mlme_weight_config {
 	uint8_t pcl_weightage;
 	uint8_t channel_congestion_weightage;
 	uint8_t oce_wan_weightage;
+	uint8_t sae_pk_ap_weightage;
 };
 
 /**
@@ -2174,6 +2191,7 @@ struct wlan_mlme_btm {
  */
 struct wlan_mlme_fe_wlm {
 	bool latency_enable;
+	bool latency_reset;
 	uint8_t latency_level;
 	uint32_t latency_flags[MLME_NUM_WLM_LATENCY_LEVEL];
 };
@@ -2212,10 +2230,22 @@ struct wlan_mlme_mwc {
 #endif
 
 /**
+ * enum mlme_reg_srd_master_modes  - Bitmap of SRD master modes supported
+ * @MLME_SRD_MASTER_MODE_SAP: SRD master mode for SAP
+ * @MLME_SRD_MASTER_MODE_P2P_GO: SRD master mode for P2P-GO
+ * @MLME_SRD_MASTER_MODE_NAN: SRD master mode for NAN
+ */
+enum mlme_reg_srd_master_modes {
+	MLME_SRD_MASTER_MODE_SAP = 1,
+	MLME_SRD_MASTER_MODE_P2P_GO = 2,
+	MLME_SRD_MASTER_MODE_NAN = 4,
+};
+
+/**
  * struct wlan_mlme_reg - REG related configs
  * @self_gen_frm_pwr: self-generated frame power in tx chain mask
  * for CCK rates
- * @etsi13_srd_chan_in_master_mode: etsi13 srd chan in master mode
+ * @etsi_srd_chan_in_master_mode: etsi srd chan in master mode
  * @restart_beaconing_on_ch_avoid: restart beaconing on ch avoid
  * @indoor_channel_support: indoor channel support
  * @scan_11d_interval: scan 11d interval
@@ -2230,10 +2260,12 @@ struct wlan_mlme_mwc {
  * @ignore_fw_reg_offload_ind: Ignore fw regulatory offload indication
  * @enable_pending_chan_list_req: enables/disables scan channel
  * list command to FW till the current scan is complete.
+ * @retain_nol_across_regdmn_update: Retain the NOL list across the regdomain.
+ * @enable_nan_on_indoor_channels: Enable nan on Indoor channels
  */
 struct wlan_mlme_reg {
 	uint32_t self_gen_frm_pwr;
-	bool etsi13_srd_chan_in_master_mode;
+	uint8_t etsi_srd_chan_in_master_mode;
 	enum restart_beaconing_on_ch_avoid_rule
 		restart_beaconing_on_ch_avoid;
 	bool indoor_channel_support;
@@ -2249,6 +2281,8 @@ struct wlan_mlme_reg {
 #endif
 	bool ignore_fw_reg_offload_ind;
 	bool enable_pending_chan_list_req;
+	bool retain_nol_across_regdmn_update;
+	bool enable_nan_on_indoor_channels;
 };
 
 /**
@@ -2369,7 +2403,7 @@ struct wlan_mlme_cfg {
 	struct wlan_mlme_dot11_mode dot11_mode;
 	struct wlan_mlme_reg reg;
 	struct roam_trigger_score_delta trig_score_delta[NUM_OF_ROAM_TRIGGERS];
-	struct roam_trigger_min_rssi trig_min_rssi[NUM_OF_ROAM_TRIGGERS];
+	struct roam_trigger_min_rssi trig_min_rssi[NUM_OF_ROAM_MIN_RSSI];
 };
 
 enum pkt_origin {

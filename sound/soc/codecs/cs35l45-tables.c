@@ -15,7 +15,7 @@
 #include "cs35l45.h"
 #include <sound/cs35l45.h>
 
-const struct reg_default cs35l45_reg[CS35L45_MAX_CACHE_REG] = {
+static const struct reg_default cs35l45_reg[] = {
 	{CS35L45_BLOCK_ENABLES,			0x00003323},
 	{CS35L45_BLOCK_ENABLES2,		0x00000010},
 	{CS35L45_GLOBAL_OVERRIDES,		0x00000002},
@@ -121,7 +121,7 @@ const struct reg_default cs35l45_reg[CS35L45_MAX_CACHE_REG] = {
 	{CS35L45_CLOCK_DETECT_1,		0x00000030},
 };
 
-bool cs35l45_readable_reg(struct device *dev, unsigned int reg)
+static bool cs35l45_readable_reg(struct device *dev, unsigned int reg)
 {
 	switch (reg) {
 	case CS35L45_DEVID:
@@ -231,30 +231,9 @@ bool cs35l45_readable_reg(struct device *dev, unsigned int reg)
 	case CS35L45_ALIVE_DCIN_WD:
 	case CS35L45_IRQ1_CFG:
 	case CS35L45_IRQ1_STATUS:
-	case CS35L45_IRQ1_EINT_1:
-	case CS35L45_IRQ1_EINT_2:
-	case CS35L45_IRQ1_EINT_3:
-	case CS35L45_IRQ1_EINT_4:
-	case CS35L45_IRQ1_EINT_5:
-	case CS35L45_IRQ1_EINT_7:
-	case CS35L45_IRQ1_EINT_8:
-	case CS35L45_IRQ1_EINT_18:
-	case CS35L45_IRQ1_STS_1:
-	case CS35L45_IRQ1_STS_2:
-	case CS35L45_IRQ1_STS_3:
-	case CS35L45_IRQ1_STS_4:
-	case CS35L45_IRQ1_STS_5:
-	case CS35L45_IRQ1_STS_7:
-	case CS35L45_IRQ1_STS_8:
-	case CS35L45_IRQ1_STS_18:
-	case CS35L45_IRQ1_MASK_1:
-	case CS35L45_IRQ1_MASK_2:
-	case CS35L45_IRQ1_MASK_3:
-	case CS35L45_IRQ1_MASK_4:
-	case CS35L45_IRQ1_MASK_5:
-	case CS35L45_IRQ1_MASK_7:
-	case CS35L45_IRQ1_MASK_8:
-	case CS35L45_IRQ1_MASK_18:
+	case CS35L45_IRQ1_EINT_1 ... CS35L45_IRQ1_EINT_18:
+	case CS35L45_IRQ1_STS_1 ... CS35L45_IRQ1_STS_18:
+	case CS35L45_IRQ1_MASK_1 ... CS35L45_IRQ1_MASK_18:
 	case CS35L45_IRQ1_EDGE_1:
 	case CS35L45_IRQ1_EDGE_4:
 	case CS35L45_IRQ1_POL_1:
@@ -362,22 +341,19 @@ bool cs35l45_readable_reg(struct device *dev, unsigned int reg)
 	}
 }
 
-bool cs35l45_volatile_reg(struct device *dev, unsigned int reg)
+static bool cs35l45_volatile_reg(struct device *dev, unsigned int reg)
 {
 	switch (reg) {
 	case CS35L45_DEVID:
 	case CS35L45_SFT_RESET:
 	case CS35L45_REVID:
 	case CS35L45_GLOBAL_ENABLES:
-	case CS35L45_BLOCK_ENABLES:
-	case CS35L45_BLOCK_ENABLES2:
 	case CS35L45_GLOBAL_OVERRIDES:
 	case CS35L45_CHIP_STATUS:
 	case CS35L45_SYNC_GPIO1:
 	case CS35L45_INTB_GPIO2_MCLK_REF:
 	case CS35L45_GPIO3:
 	case CS35L45_PWRMGT_STS:
-	case CS35L45_SYNC_TX_RX_ENABLES:
 	case CS35L45_SYNC_SW_TX_ID:
 	case CS35L45_BOOST_CCM_CFG:
 	case CS35L45_BOOST_DCM_CFG:
@@ -465,6 +441,37 @@ bool cs35l45_volatile_reg(struct device *dev, unsigned int reg)
 		return false;
 	}
 }
+
+const struct regmap_config cs35l45_i2c_regmap = {
+	.reg_bits = 32,
+	.val_bits = 32,
+	.reg_stride = CS35L45_REGSTRIDE,
+	.reg_format_endian = REGMAP_ENDIAN_BIG,
+	.val_format_endian = REGMAP_ENDIAN_BIG,
+	.max_register = CS35L45_LASTREG,
+	.reg_defaults = cs35l45_reg,
+	.num_reg_defaults = ARRAY_SIZE(cs35l45_reg),
+	.volatile_reg = cs35l45_volatile_reg,
+	.readable_reg = cs35l45_readable_reg,
+	.cache_type = REGCACHE_RBTREE,
+};
+EXPORT_SYMBOL_GPL(cs35l45_i2c_regmap);
+
+const struct regmap_config cs35l45_spi_regmap = {
+	.reg_bits = 32,
+	.val_bits = 32,
+	.pad_bits = 16,
+	.reg_stride = CS35L45_REGSTRIDE,
+	.reg_format_endian = REGMAP_ENDIAN_BIG,
+	.val_format_endian = REGMAP_ENDIAN_BIG,
+	.max_register = CS35L45_LASTREG,
+	.reg_defaults = cs35l45_reg,
+	.num_reg_defaults = ARRAY_SIZE(cs35l45_reg),
+	.volatile_reg = cs35l45_volatile_reg,
+	.readable_reg = cs35l45_readable_reg,
+	.cache_type = REGCACHE_RBTREE,
+};
+EXPORT_SYMBOL_GPL(cs35l45_spi_regmap);
 
 const struct cs35l45_pll_sysclk_config
 		cs35l45_pll_sysclk[CS35L45_MAX_PLL_CONFIGS] = {

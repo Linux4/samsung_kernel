@@ -64,6 +64,49 @@ config SPL07_FACTORY
 	  request selftest to adsp_factory.
 	  receive test result from adsp_factory.
 
+config STK3A9X_FACTORY
+	tristate "factory test for SSC - stk3a9x"
+	default n
+	help
+	  stk3a9x factory driver.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config SUPPORT_PROX_AUTO_CAL
+	tristate "Support Auto Calibration for proximity sensor - tmd490x"
+	default n
+	depends on TMD490X_FACTORY
+	help
+	  Support the Auto Calibration function in tmd490x.
+	  provide sysfs for factory test.
+	  request selftest to adsp_factory.
+	  receive test result from adsp_factory.
+
+config SUPPORT_PROX_CALIBRATION
+	tristate "prox cal for SSC"
+	default n
+	help
+	  prox calibration feature.
+	  provide sysfs for prox calibration.
+	  request prox cal to adsp_factory.
+	  receive cal value from adsp_factory.
+
+config SUPPORT_BRIGHT_SYSFS_COMPENSATION_LUX
+	tristate "Sensors support lux compensation based on brightness"
+	default n
+	help
+	  Support lux compensation based on brightness sysfs.
+	  receive aor and brightness level from hal injection.
+
+config SUPPORT_BHL_COMPENSATION_FOR_LIGHT_SENSOR
+	tristate "Sensors support BHL compensation"
+	default n
+	help
+	  Support BHL compensation for light sensor
+	  provide sysfs for LCD service.
+	  receive aor and brightness level from lcd driver.
+
 config SLPI_MOTOR
 	tristate "Sensors support motor"
 	default n

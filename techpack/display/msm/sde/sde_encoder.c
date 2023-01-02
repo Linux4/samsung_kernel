@@ -2102,7 +2102,7 @@ static int _sde_encoder_update_rsc_client(
 	if (vdd->vrr.support_vrr_based_bl) {
 		if ((vdd->vrr.running_vrr_mdp || vdd->vrr.running_vrr) &&
 				(mode_info->frame_rate < 120)) {
-			LCD_INFO("During VRR (%d|%d): set max frame_rate: %d --> 120\n",
+			LCD_INFO(vdd, "During VRR (%d|%d): set max frame_rate: %d --> 120\n",
 					vdd->vrr.running_vrr_mdp,
 					vdd->vrr.running_vrr,
 					mode_info->frame_rate);
@@ -2111,7 +2111,7 @@ static int _sde_encoder_update_rsc_client(
 			vdd->vrr.keep_max_rsc_fps = true;
 		} else if (!vdd->vrr.keep_max_rsc_fps &&
 				mode_info->frame_rate != mode_info->frame_rate_org) {
-			LCD_INFO("VRR fin(%d|%d): restore mode frame_rate: %d -> %d\n",
+			LCD_INFO(vdd, "VRR fin(%d|%d): restore mode frame_rate: %d -> %d\n",
 					vdd->vrr.running_vrr_mdp,
 					vdd->vrr.running_vrr,
 					mode_info->frame_rate,
@@ -2459,7 +2459,7 @@ static int _sde_encoder_rc_kickoff(struct drm_encoder *drm_enc,
 			if (vdd->vrr.keep_max_rsc_fps &&
 					!vdd->vrr.running_vrr_mdp &&
 					!vdd->vrr.running_vrr) {
-				LCD_INFO("VRR done, trigger rsc update to restore original rsc fps\n");
+				LCD_INFO(vdd, "VRR done, trigger rsc update to restore original rsc fps\n");
 				vdd->vrr.keep_max_rsc_fps = false;
 				_sde_encoder_update_rsc_client(drm_enc, true);
 			}
@@ -4107,14 +4107,14 @@ static inline void _sde_encoder_trigger_flush(struct drm_encoder *drm_enc,
 				while (!list_empty(&vdd->cmd_lock.wait_list) && --wait_cnt)
 					usleep_range(500, 500);
 				if (wait_cnt < 200) {
-					LCD_INFO("wait_list wait_cnt:%d, %dms passed\n", wait_cnt, (200-wait_cnt)/2);
+					LCD_INFO(vdd, "wait_list wait_cnt:%d, %dms passed\n", wait_cnt, (200-wait_cnt)/2);
 					wait_cnt = 200;
 				}
 
 				while (atomic_long_read(&vdd->cmd_lock.owner) && --wait_cnt)
 					usleep_range(500, 500);
 				if (wait_cnt < 200)
-					LCD_INFO("owner wait_cnt:%d, %dms passed\n", wait_cnt, (200-wait_cnt)/2);
+					LCD_INFO(vdd, "owner wait_cnt:%d, %dms passed\n", wait_cnt, (200-wait_cnt)/2);
 
 
 				vdd->exclusive_tx.permit_frame_update = 0;
@@ -5068,12 +5068,6 @@ int sde_encoder_prepare_for_kickoff(struct drm_encoder *drm_enc,
 	int i, rc, ret = 0;
 	struct msm_display_info *disp_info;
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
-	/* DSC Mismatch Debug, Case #04007749*/
-	struct sde_connector *sde_con;
-	struct dsi_display *display;
-	struct dsi_display_mode_priv_info *priv_info;
-#endif
 
 	if (!drm_enc || !params || !drm_enc->dev ||
 		!drm_enc->dev->dev_private) {
@@ -5179,23 +5173,6 @@ int sde_encoder_prepare_for_kickoff(struct drm_encoder *drm_enc,
 	if (sde_enc->cur_master && !sde_enc->cur_master->cont_splash_enabled)
 		sde_configure_qdss(sde_enc, sde_enc->cur_master->hw_qdss,
 				sde_enc->cur_master, sde_kms->qdss_enabled);
-
-#if defined(CONFIG_DISPLAY_SAMSUNG)
-	/* DSC Mismatch Debug, Case #04007749*/
-	if (sde_enc->cur_master) {
-		sde_con = to_sde_connector(sde_enc->cur_master->connector);
-		display = sde_con->display;
-		priv_info = display->modes->priv_info;
-
-		if (disp_info->intf_type == DRM_MODE_CONNECTOR_DSI && !_sde_encoder_is_dsc_enabled(drm_enc) && priv_info->dsc_enabled) {
-			pr_err("DSC is disabled\n");
-			if (sde_enc->phys_encs[0] && sde_enc->phys_encs[0]->connector) {
-				SDE_EVT32(sde_connector_get_topology_name(sde_enc->phys_encs[0]->connector), 0x9999);
-			}
-			SDE_DBG_DUMP("all", "dbg_bus", "panic");
-		}
-	}
-#endif
 
 end:
 	SDE_ATRACE_END("sde_encoder_prepare_for_kickoff");

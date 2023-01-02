@@ -211,11 +211,11 @@ static void cirrus_cal_complete_work(struct work_struct *work)
 			isc_in_range = cirrus_cal_isc_in_range(isc);
 
 			if (!vsc_in_range)
-				dev_err(amp_group->cal_dev, "VIMON Cal cs35l41%s: VSC out of range (%x)\n",
-					amp->mfd_suffix, vsc);
+				dev_err(amp_group->cal_dev, "VIMON Cal %s (%s): VSC out of range (%x)\n",
+					amp->dsp_part_name, amp->mfd_suffix, vsc);
 			if (!isc_in_range)
-				dev_err(amp_group->cal_dev, "VIMON Cal cs35l41%s: ISC out of range (%x)\n",
-					amp->mfd_suffix, isc);
+				dev_err(amp_group->cal_dev, "VIMON Cal %s (%s): ISC out of range (%x)\n",
+					amp->dsp_part_name, amp->mfd_suffix, isc);
 			if (!vsc_in_range || !isc_in_range) {
 				dev_err(amp_group->cal_dev, "VIMON cal out of range, invalidating results\n");
 				rdc = status = checksum = 0;
@@ -236,7 +236,8 @@ static void cirrus_cal_complete_work(struct work_struct *work)
 		}
 
 		dev_info(amp_group->cal_dev,
-			 "Calibration finished: amp%s\n", amp->mfd_suffix);
+				"Calibration finished: %s (%s)\n",
+					amp->dsp_part_name, amp->mfd_suffix);
 		dev_info(amp_group->cal_dev, "Duration:\t%d ms\n",
 			 CS35L41_CAL_COMPLETE_DELAY_MS);
 		dev_info(amp_group->cal_dev, "Status:\t%d\n", status);
@@ -435,8 +436,8 @@ static int cirrus_cal_vimon_cal_complete(struct cirrus_amp *amp)
 	cirrus_amp_read_ctl(amp, "ISC", WMFW_ADSP2_XM, amp->vimon_alg_id, &isc);
 
 	dev_info(amp_group->cal_dev,
-		 "VIMON Cal results cs35l41%s, status=%d vsc=%x isc=%x\n",
-		 amp->mfd_suffix, vimon_cal, vsc, isc);
+		 "VIMON Cal results %s (%s), status=%d vsc=%x isc=%x\n",
+		 amp->dsp_part_name, amp->mfd_suffix, vimon_cal, vsc, isc);
 
 	vsc_in_range = cirrus_cal_vsc_in_range(vsc);
 	isc_in_range = cirrus_cal_isc_in_range(isc);
@@ -645,8 +646,8 @@ int cirrus_cal_apply(const char *mfd_suffix)
 	status = 1;
 	checksum = status + rdc;
 
-	dev_info(amp_group->cal_dev, "Writing calibration to cs35l41%s\n",
-		 mfd_suffix);
+	dev_info(amp_group->cal_dev, "Writing calibration to %s (%s)\n",
+				amp->dsp_part_name, mfd_suffix);
 
 	dev_info(amp_group->cal_dev,
 		 "RDC = %d, Temp = %d, Status = %d Checksum = %d\n",
@@ -762,7 +763,8 @@ static int cirrus_cal_start(void)
 				if (ret != CS35L41_CAL_VIMON_STATUS_SUCCESS) {
 					vimon_calibration_failed = true;
 					dev_info(amp_group->cal_dev,
-					  "VIMON Calibration Error cs35l41%s\n",
+					  "VIMON Calibration Error %s (%s)\n",
+					  amp_group->amps[amp].dsp_part_name,
 					  amp_group->amps[amp].mfd_suffix);
 				}
 			}
@@ -913,8 +915,8 @@ static ssize_t cirrus_cal_v_status_store(struct device *dev,
 		suffix = &(attr->attr.name[strlen("v_status")]);
 		amps = cirrus_get_amp_from_suffix(suffix);
 		if (amps) {
-			dev_info(dev, "V-validation for amp: cs35l41%s\n",
-					suffix);
+			dev_info(dev, "V-validation for amp: %s (%s)\n",
+					amps->dsp_part_name, suffix);
 			num_amps = 1;
 			separate = true;
 		} else {

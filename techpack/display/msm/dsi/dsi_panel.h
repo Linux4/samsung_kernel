@@ -367,6 +367,7 @@ int dsi_panel_tx_cmd_set(struct dsi_panel *panel, int type);
 int __ss_dsi_panel_parse_cmd_sets(struct dsi_panel_cmd_set *cmd,
 					int type, struct dsi_parser_utils *utils,
 					char (*ss_cmd_set_prop)[SS_CMD_PROP_STR_LEN]);
+int dsi_panel_boost_regulator(struct dsi_panel *panel, bool enable);
 #endif
 
 #endif /* _DSI_PANEL_H_ */

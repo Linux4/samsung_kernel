@@ -325,7 +325,7 @@
 	};
 
 	chosen {
-		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kpti=off";
+		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kpti=off cgroup_disable=pressure";
 	};
 
 	soc: soc { };
@@ -2153,6 +2153,7 @@
 		qcom,fastrpc-adsp-audio-pdr;
 		qcom,fastrpc-adsp-sensors-pdr;
 		qcom,rpc-latency-us = <235>;
+		qcom,secure-domains = <0x0F>;
 		qcom,qos-cores = <0 1 2 3 4 5>;
 
 		qcom,msm_fastrpc_compute_cb1 {
@@ -3194,6 +3195,8 @@
 			<1 608 1338562 4096000>;
 		qcom,bus-bw-vectors-bps = <0 400000 25000000 50000000
 				100000000 200000000 4294967295>;
+
+		qcom,restore-after-cx-collapse;
 
 		/* PM QoS */
 		qcom,pm-qos-irq-type = "affine_irq";

@@ -475,7 +475,7 @@ void *sde_debugfs_get_root(struct sde_kms *sde_kms);
  */
 /* SS display modes are too many to cover all mode info with given 4K size, so increased */
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-#define SDE_KMS_INFO_MAX_SIZE	(4096 * 2)
+#define SDE_KMS_INFO_MAX_SIZE	(4096 + 2048)
 #else
 #define SDE_KMS_INFO_MAX_SIZE	4096
 #endif

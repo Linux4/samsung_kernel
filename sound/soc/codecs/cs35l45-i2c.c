@@ -16,25 +16,12 @@
 #include "cs35l45.h"
 #include <sound/cs35l45.h>
 
-static struct regmap_config cs35l45_regmap = {
-	.reg_bits = 32,
-	.val_bits = 32,
-	.reg_stride = CS35L45_REGSTRIDE,
-	.reg_format_endian = REGMAP_ENDIAN_BIG,
-	.val_format_endian = REGMAP_ENDIAN_BIG,
-	.max_register = CS35L45_LASTREG,
-	.reg_defaults = cs35l45_reg,
-	.num_reg_defaults = ARRAY_SIZE(cs35l45_reg),
-	.volatile_reg = cs35l45_volatile_reg,
-	.readable_reg = cs35l45_readable_reg,
-	.cache_type = REGCACHE_RBTREE,
-};
-
 static int cs35l45_i2c_probe(struct i2c_client *client,
 			     const struct i2c_device_id *id)
 {
 	struct cs35l45_private *cs35l45;
 	struct device *dev = &client->dev;
+	const struct i2c_adapter_quirks *quirks;
 	int ret;
 
 	cs35l45 = devm_kzalloc(dev, sizeof(struct cs35l45_private), GFP_KERNEL);
@@ -42,7 +29,7 @@ static int cs35l45_i2c_probe(struct i2c_client *client,
 		return -ENOMEM;
 
 	i2c_set_clientdata(client, cs35l45);
-	cs35l45->regmap = devm_regmap_init_i2c(client, &cs35l45_regmap);
+	cs35l45->regmap = devm_regmap_init_i2c(client, &cs35l45_i2c_regmap);
 	if (IS_ERR(cs35l45->regmap)) {
 		ret = PTR_ERR(cs35l45->regmap);
 		dev_err(dev, "Failed to allocate register map: %d\n", ret);
@@ -53,6 +40,10 @@ static int cs35l45_i2c_probe(struct i2c_client *client,
 	cs35l45->irq = client->irq;
 	cs35l45->bus_type = CONTROL_BUS_I2C;
 	cs35l45->i2c_addr = client->addr;
+
+	quirks = client->adapter->quirks;
+	if (quirks != NULL)
+		cs35l45->max_quirks_read_nwords = (int) quirks->max_read_len / 4;
 
 	ret = cs35l45_probe(cs35l45);
 	if (ret < 0) {
@@ -65,10 +56,15 @@ static int cs35l45_i2c_probe(struct i2c_client *client,
 	ret = cs35l45_initialize(cs35l45);
 	if (ret < 0) {
 		dev_err(dev, "Failed device initialization: %d\n", ret);
-		return ret;
+		goto fail;
+
 	}
 
 	return 0;
+
+fail:
+	cs35l45_remove(cs35l45);
+	return ret;
 }
 
 static int cs35l45_i2c_remove(struct i2c_client *client)

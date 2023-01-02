@@ -601,6 +601,8 @@ struct dsi_cmd_engine_cfg {
 	u32 wr_mem_start;
 	u32 wr_mem_continue;
 	bool insert_dcs_command;
+	bool mdp_idle_ctrl_en;
+	u32 mdp_idle_ctrl_len;
 };
 
 /**

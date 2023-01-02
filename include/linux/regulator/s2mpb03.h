@@ -45,6 +45,7 @@ struct s2mpb03_regulator_data {
 struct s2mpb03_platform_data {
 	bool wakeup;
 	int num_regulators;
+	int num_rdata;
 	struct	s2mpb03_regulator_data *regulators;
 	int	device_type;
 };

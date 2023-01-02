@@ -173,6 +173,12 @@ static int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 		if (scm_call2(SCM_SIP_FNID(SCM_SVC_CAMERASS, SECURE_SYSCALL_ID_2),
 			&desc)) {
 			CAM_ERR(CAM_CSIPHY, "scm call to hypervisor failed");
+		//Unload the TA when scm call failed
+	             CAM_INFO(CAM_CSIPHY, "UnLoading TA.....\n");
+	             rc = qseecom_shutdown_app(&ta_qseecom_handle);
+	             if (rc) {
+		           CAM_ERR(CAM_CSIPHY, "TA UnLoad failed\n");
+	             }
 			ret = -EINVAL;
 		}
 		else {

@@ -578,7 +578,6 @@ static int cam_vfe_rdi_handle_irq_bottom_half(void *handler_priv,
 			soc_private->cpas_version,
 			soc_private->cpas_handle);
 		cam_cpas_log_votes();
-		BUG_ON(1);
 	}
 end:
 	cam_vfe_rdi_put_evt_payload(rdi_priv, &payload);

@@ -39,8 +39,8 @@
 #include <linux/firmware.h>
 #include <linux/vmalloc.h>
 #ifdef CONFIG_VBUS_NOTIFIER
-#include <linux/muic/muic.h>
-#include <linux/muic/muic_notifier.h>
+#include <linux/muic/common/muic.h>
+#include <linux/muic/common/muic_notifier.h>
 #include <linux/vbus_notifier.h>
 #endif
 #if defined(CONFIG_INPUT_SEC_SECURE_TOUCH)

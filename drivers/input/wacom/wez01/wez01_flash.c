@@ -534,16 +534,12 @@ static int wacom_i2c_flash_w9020(struct wacom_i2c *wac_i2c, unsigned char *fw_da
 		return -EXIT_FAIL_GET_MPU_TYPE;
 	}
 
-#if defined (CONFIG_EPEN_WACOM_WEZ01)
-	if (iMpuType != MPU_WEZ01) {
+#if defined (CONFIG_EPEN_WACOM_W9021) || defined (CONFIG_EPEN_WACOM_WEZ01)
+	if (iMpuType == MPU_WEZ01 || iMpuType == MPU_W9021) {
+		input_info(true, &client->dev, "MPU is matched\n");
+	} else {
 		input_err(true, &client->dev,
-					"MPU is not for WEZ01 : %x\n", iMpuType);
-		return -EXIT_FAIL_GET_MPU_TYPE;
-	}
-#elif defined (CONFIG_EPEN_WACOM_W9021)
-	if (iMpuType != MPU_W9021) {
- 		input_err(true, &client->dev,
-					"MPU is not for W9021 : %x\n", iMpuType);
+					"MPU is not for W9021/WEZ01 : %x\n", iMpuType);
 		return -EXIT_FAIL_GET_MPU_TYPE;
 	}
 #else

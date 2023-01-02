@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019, 2021, The Linux Foundation. All rights reserved.
  */
 
 #define pr_fmt(fmt) "%s:%s " fmt, KBUILD_MODNAME, __func__
@@ -15,13 +15,23 @@
 #include <linux/cpu_cooling.h>
 #include <linux/idr.h>
 
+#include <soc/qcom/qtee_shmbridge.h>
+#include <asm/cacheflush.h>
+#include <soc/qcom/scm.h>
+
 #define LMH_CPU_VDD_MAX_LVL	1
 #define LIMITS_CLUSTER_MIN_FREQ_OFFSET	0x3C0
+#define LIMITS_DCVSH			0x10
+#define LIMITS_NODE_DCVS		0x44435653
+#define LIMITS_SUB_FN_THERMAL		0x54484D4C
+#define LIMITS_ZEROC			0x4f534d5a
+#define LIMITS_CLUSTER_0		0x6370302D
 
 struct lmh_cpu_vdd_cdev {
 	struct list_head node;
 	int id;
 	bool cpu_vdd_state;
+	bool osm_vdd_cdev;
 	void *min_freq_reg;
 	struct thermal_cooling_device *cdev;
 };
@@ -30,9 +40,59 @@ static DEFINE_IDA(lmh_cpu_vdd_ida);
 static DEFINE_MUTEX(lmh_cpu_vdd_lock);
 static LIST_HEAD(lmh_cpu_vdd_list);
 
+static int limits_dcvs_write(uint32_t val)
+{
+	int ret;
+	struct scm_desc desc_arg;
+	uint32_t *payload = NULL;
+	uint32_t payload_len;
+	struct qtee_shm shm;
+
+	payload_len = PAGE_ALIGN(5 * sizeof(uint32_t));
+	if (!qtee_shmbridge_is_enabled()) {
+		payload = kzalloc(payload_len, GFP_KERNEL);
+		if (!payload)
+			return -ENOMEM;
+		desc_arg.args[0] = SCM_BUFFER_PHYS(payload);
+	} else {
+		ret = qtee_shmbridge_allocate_shm(
+			payload_len, &shm);
+		if (ret)
+			return -ENOMEM;
+		payload = shm.vaddr;
+		desc_arg.args[0] = shm.paddr;
+	}
+
+	payload[0] = LIMITS_SUB_FN_THERMAL; /* algorithm */
+	payload[1] = 0; /* unused sub-algorithm */
+	payload[2] = LIMITS_ZEROC; //0x4f534d5a
+	payload[3] = 1; /* number of values */
+	payload[4] = val;
+
+	desc_arg.args[1] = payload_len;
+	desc_arg.args[2] = LIMITS_NODE_DCVS;
+	desc_arg.args[3] = LIMITS_CLUSTER_0;
+	desc_arg.args[4] = 0; /* version */
+	desc_arg.arginfo = SCM_ARGS(5, SCM_RO, SCM_VAL, SCM_VAL,
+					SCM_VAL, SCM_VAL);
+
+	dmac_flush_range(payload, (void *)payload + payload_len);
+	ret = scm_call2(SCM_SIP_FNID(SCM_SVC_LMH, LIMITS_DCVSH), &desc_arg);
+	if (ret < 0)
+		pr_err("scm call failed. val:%d err:%d\n", val, ret);
+
+	if (!qtee_shmbridge_is_enabled())
+		kzfree(payload);
+	else
+		qtee_shmbridge_free_shm(&shm);
+
+	return ret;
+}
+
 static int lmh_cpu_vdd_set_cur_state(struct thermal_cooling_device *cdev,
 				 unsigned long state)
 {
+	int ret;
 	struct lmh_cpu_vdd_cdev *vdd_cdev = cdev->devdata;
 
 	if (state > LMH_CPU_VDD_MAX_LVL)
@@ -43,7 +103,14 @@ static int lmh_cpu_vdd_set_cur_state(struct thermal_cooling_device *cdev,
 	if (vdd_cdev->cpu_vdd_state == state)
 		return 0;
 
-	writel_relaxed(state, vdd_cdev->min_freq_reg);
+	if (vdd_cdev->osm_vdd_cdev) {
+		ret = limits_dcvs_write((u32)state);
+		if (ret < 0)
+			return ret;
+	} else {
+		writel_relaxed(state, vdd_cdev->min_freq_reg);
+	}
+
 	vdd_cdev->cpu_vdd_state = state;
 
 	pr_debug("%s limits CPU VDD restriction for %s\n",
@@ -91,17 +158,26 @@ static int lmh_cpu_vdd_probe(struct platform_device *pdev)
 	if (!lmh_cpu_vdd_cdev)
 		return -ENOMEM;
 
-	addr = of_get_address(dn, 0, NULL, NULL);
-	if (!addr) {
-		dev_err(&pdev->dev, "Property llm-base-addr not found\n");
-		return -EINVAL;
-	}
+	lmh_cpu_vdd_cdev->osm_vdd_cdev = of_property_read_bool(dn,
+					"qcom,osm-llm-cpu-vdd-cdev");
 
-	min_reg = be32_to_cpu(addr[0]) + LIMITS_CLUSTER_MIN_FREQ_OFFSET;
-	lmh_cpu_vdd_cdev->min_freq_reg = devm_ioremap(&pdev->dev, min_reg, 0x4);
-	if (!lmh_cpu_vdd_cdev->min_freq_reg) {
-		dev_err(&pdev->dev, "lmh cpu vdd register remap failed\n");
-		return -ENOMEM;
+	if (!lmh_cpu_vdd_cdev->osm_vdd_cdev) {
+		addr = of_get_address(dn, 0, NULL, NULL);
+		if (!addr) {
+			dev_err(&pdev->dev,
+				"Property llm-base-addr not found\n");
+			return -EINVAL;
+		}
+
+		min_reg = be32_to_cpu(addr[0]) + LIMITS_CLUSTER_MIN_FREQ_OFFSET;
+
+		lmh_cpu_vdd_cdev->min_freq_reg = devm_ioremap(&pdev->dev,
+								min_reg, 0x4);
+		if (!lmh_cpu_vdd_cdev->min_freq_reg) {
+			dev_err(&pdev->dev,
+				"lmh cpu vdd register remap failed\n");
+			return -ENOMEM;
+		}
 	}
 
 	mutex_lock(&lmh_cpu_vdd_lock);

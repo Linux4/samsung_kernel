@@ -50,6 +50,10 @@ static char panic_msg[SSR_REASON_LEN];
 static char ssr_history[HISTORY_CNT][TIME_LEN + SSR_REASON_LEN];
 static unsigned char ssr_idx = NO_SSR;
 
+#if defined(CONFIG_SUPPORT_DEVICE_MODE) || defined(CONFIG_SUPPORT_VIRTUAL_OPTIC)
+static int32_t curr_fstate;
+#endif
+
 struct sdump_data {
 	struct workqueue_struct *sdump_wq;
 	struct work_struct work_sdump;
@@ -466,6 +470,32 @@ static ssize_t support_algo_store(struct device *dev,
 	return size;
 }
 
+#ifdef CONFIG_SUPPORT_VIRTUAL_OPTIC
+static ssize_t fac_fstate_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+	int32_t fstate[2] = {VOPTIC_OP_CMD_FAC_FLIP, 0};
+	
+	if (sysfs_streq(buf, "0"))
+		data->fac_fstate = fstate[1] = curr_fstate;
+	else if (sysfs_streq(buf, "1"))
+		data->fac_fstate = fstate[1] = FSTATE_FAC_INACTIVE;
+	else if (sysfs_streq(buf, "2"))
+		data->fac_fstate = fstate[1] = FSTATE_FAC_ACTIVE;
+	else if (sysfs_streq(buf, "3"))
+		data->fac_fstate = fstate[1] = FSTATE_FAC_INACTIVE_2;
+	else
+		data->fac_fstate = fstate[1] = curr_fstate;
+
+	adsp_unicast(fstate, sizeof(fstate),
+		MSG_VIR_OPTIC, 0, MSG_TYPE_OPTION_DEFINE);
+	pr_info("[FACTORY] %s - Factory flip state:%d",
+		__func__, fstate[0]);
+
+	return size;
+}
+#endif
 static ssize_t support_dual_sensor_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -751,7 +781,46 @@ static ssize_t ssc_firmware_info_show(struct device *dev,
 		ver_buf[idx][SSC_SEC], ver_buf[idx][SSC_MSEC]);
 }
 #endif
+static ssize_t ar_mode_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int32_t msg_buf[2] = {OPTION_TYPE_SSC_AUTO_ROTATION_MODE, 0};
 
+	msg_buf[1] = buf[0] - 48;
+	pr_info("[FACTORY]%s: ar_mode:%d\n", __func__, msg_buf[1]);
+	adsp_unicast(msg_buf, sizeof(msg_buf),
+		MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
+
+	return size;
+}
+static int sbm_init;
+static ssize_t sbm_init_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	pr_info("[FACTORY] %s sbm_init_show:%d\n", __func__, sbm_init);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", sbm_init);
+}
+
+static ssize_t sbm_init_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int32_t msg_buf[2] = {OPTION_TYPE_SSC_SBM_INIT, 0};
+
+	if (kstrtoint(buf, 10, &sbm_init)) {
+		pr_err("[FACTORY] %s: kstrtoint fail\n", __func__);
+		return -EINVAL;
+	}
+
+	if (sbm_init) {
+		msg_buf[1] = sbm_init;
+		pr_info("[FACTORY] %s sbm_init_store %d\n", __func__, sbm_init);
+		adsp_unicast(msg_buf, sizeof(msg_buf),
+			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
+	}
+
+	return size;
+}
 static DEVICE_ATTR(dumpstate, 0440, dumpstate_show, NULL);
 static DEVICE_ATTR(operation_mode, 0664,
 	operation_mode_show, operation_mode_store);
@@ -762,6 +831,9 @@ static DEVICE_ATTR(ssc_hw_rev, 0664, ssc_hw_rev_show, ssc_hw_rev_store);
 static DEVICE_ATTR(ssr_msg, 0440, ssr_msg_show, NULL);
 static DEVICE_ATTR(ssr_reset, 0440, ssr_reset_show, NULL);
 static DEVICE_ATTR(support_algo, 0220, NULL, support_algo_store);
+#ifdef CONFIG_SUPPORT_VIRTUAL_OPTIC
+static DEVICE_ATTR(fac_fstate, 0220, NULL, fac_fstate_store);
+#endif
 static DEVICE_ATTR(support_dual_sensor, 0440, support_dual_sensor_show, NULL);
 static DEVICE_ATTR(abs_lcd_onoff, 0220, NULL, abs_lcd_onoff_store);
 static DEVICE_ATTR(sensor_dump, 0444, sensor_dump_show, NULL);
@@ -772,6 +844,9 @@ static DEVICE_ATTR(ssc_firmware_info, 0440, ssc_firmware_info_show, NULL);
 	defined(CONFIG_SUPPORT_BRIGHT_SYSFS_COMPENSATION_LUX)
 static DEVICE_ATTR(lcd_onoff, 0220, NULL, lcd_onoff_store);
 #endif
+static DEVICE_ATTR(ar_mode, 0220, NULL, ar_mode_store);
+static DEVICE_ATTR(sbm_init, 0660, sbm_init_show, sbm_init_store);
+
 static struct device_attribute *core_attrs[] = {
 	&dev_attr_dumpstate,
 	&dev_attr_operation_mode,
@@ -782,6 +857,9 @@ static struct device_attribute *core_attrs[] = {
 	&dev_attr_ssr_msg,
 	&dev_attr_ssr_reset,
 	&dev_attr_support_algo,
+#ifdef CONFIG_SUPPORT_VIRTUAL_OPTIC	
+	&dev_attr_fac_fstate,
+#endif
 	&dev_attr_support_dual_sensor,
 	&dev_attr_abs_lcd_onoff,
 	&dev_attr_sensor_dump,
@@ -795,6 +873,8 @@ static struct device_attribute *core_attrs[] = {
 	defined(CONFIG_SUPPORT_BRIGHT_SYSFS_COMPENSATION_LUX)
 	&dev_attr_lcd_onoff,
 #endif
+	&dev_attr_sbm_init,
+	&dev_attr_ar_mode,
 	NULL,
 };
 

@@ -8307,6 +8307,9 @@ int q6asm_memory_map(struct audio_client *ac, phys_addr_t buf_add, int dir,
 		rc = adsp_err_get_lnx_err_code(
 			atomic_read(&ac->mem_state));
 		kfree(buffer_node);
+#ifdef CONFIG_SEC_SND_DEBUG
+				panic("%s: timeout.\n", __func__);
+#endif /* CONFIG_SEC_SND_DEBUG */
 		goto fail_cmd;
 	}
 	buffer_node->buf_phys_addr = buf_add;

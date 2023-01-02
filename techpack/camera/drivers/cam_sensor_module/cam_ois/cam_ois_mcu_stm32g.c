@@ -3729,12 +3729,12 @@ int cam_ois_write_gyro_orientation(struct cam_ois_ctrl_t *o_ctrl)
 #elif defined(CONFIG_SEC_F2Q_PROJECT) || defined(CONFIG_SEC_VICTORY_PROJECT)
 	uint8_t new_data1[3] = { 0x00, 0x00, 0x01 };
 	uint8_t new_data2[2] = { 0x01, 0x01 };
-#elif defined(CONFIG_MACH_A52XQ_USA_SINGLE) ||  defined(CONFIG_MACH_A52XQ_USA_OPEN)
-    uint8_t new_data1[3] = { 0x00, 0x00, 0x01 };
-    uint8_t new_data2[2] = { 0x00, 0x00 };
+#elif defined(CONFIG_MACH_A52XQ_USA_SINGLE) || defined(CONFIG_MACH_A52XQ_USA_OPEN)
+	uint8_t new_data1[3] = { 0x00, 0x00, 0x01 };
+	uint8_t new_data2[2] = { 0x00, 0x00 };
 #elif defined(CONFIG_SEC_A52XQ_PROJECT) || defined(CONFIG_SEC_M62XQ_PROJECT)
-    uint8_t new_data1[3] = { 0x00, 0x01, 0x00 };
-    uint8_t new_data2[2] = { 0x00, 0x00 };
+	uint8_t new_data1[3] = { 0x00, 0x01, 0x00 };
+	uint8_t new_data2[2] = { 0x00, 0x00 };
 #else
 	uint8_t new_data1[3] = { 0x01, 0x00, 0x00 };
 	uint8_t new_data2[2] = { 0x00, 0x01 };

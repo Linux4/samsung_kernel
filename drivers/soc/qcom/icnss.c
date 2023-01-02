@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2015-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
 #define pr_fmt(fmt) "icnss: " fmt
@@ -1086,26 +1086,26 @@ static int icnss_driver_event_server_arrive(void *data)
 			goto qmi_registered;
 		}
 		ignore_assert = true;
-		goto clear_server;
+		goto fail;
 	}
 
 	if (!penv->msa_va) {
 		icnss_pr_err("Invalid MSA address\n");
 		ret = -EINVAL;
-		goto clear_server;
+		goto fail;
 	}
 
 	ret = wlfw_msa_mem_info_send_sync_msg(penv);
 	if (ret < 0) {
 		ignore_assert = true;
-		goto clear_server;
+		goto fail;
 	}
 
 	if (!test_bit(ICNSS_MSA0_ASSIGNED, &penv->state)) {
 		ret = icnss_assign_msa_perm_all(penv,
 						ICNSS_MSA_PERM_WLAN_HW_RW);
 		if (ret < 0)
-			goto clear_server;
+			goto fail;
 		set_bit(ICNSS_MSA0_ASSIGNED, &penv->state);
 	}
 
@@ -1145,8 +1145,6 @@ static int icnss_driver_event_server_arrive(void *data)
 err_setup_msa:
 	icnss_assign_msa_perm_all(penv, ICNSS_MSA_PERM_HLOS_ALL);
 	clear_bit(ICNSS_MSA0_ASSIGNED, &penv->state);
-clear_server:
-	icnss_clear_server(penv);
 fail:
 	ICNSS_ASSERT(ignore_assert);
 qmi_registered:
@@ -3847,21 +3845,21 @@ static ssize_t store_mac_addr(struct kobject *kobj,
 			    const char *buf,
 			    size_t count)
 {
-	sscanf(buf, "%02X:%02X:%02X:%02X:%02X:%02X",
-		(unsigned int*)&mac_from_macloader[0],
-		(unsigned int*)&mac_from_macloader[1],
-		(unsigned int*)&mac_from_macloader[2],
-		(unsigned int*)&mac_from_macloader[3],
-		(unsigned int*)&mac_from_macloader[4],
-		(unsigned int*)&mac_from_macloader[5]);
+	sscanf(buf, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
+		(const u8*)&mac_from_macloader[0],
+		(const u8*)&mac_from_macloader[1],
+		(const u8*)&mac_from_macloader[2],
+		(const u8*)&mac_from_macloader[3],
+		(const u8*)&mac_from_macloader[4],
+		(const u8*)&mac_from_macloader[5]);
 
-	icnss_pr_info("Assigning MAC from Macloader %02x:%02x:%02x:%02x:%02x:%02x\n",
+	icnss_pr_info("Assigning MAC from Macloader %02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx\n",
 		mac_from_macloader[0], mac_from_macloader[1],mac_from_macloader[2],
 		mac_from_macloader[3], mac_from_macloader[4],mac_from_macloader[5]);
 
 	cnss_utils_set_wlan_mac_address(mac_from_macloader, MAC_ADDR_SIZE);
 
-	return 0;
+	return count;
 }
 
 static ssize_t show_verinfo(struct kobject *kobj,
@@ -3912,7 +3910,7 @@ static ssize_t store_pm_info(struct kobject *kobj,
 	pm_from_macloader = !pm_from_macloader;
 	icnss_pr_info("pm_from_macloader %d\n", pm_from_macloader);
 
-	return 0;
+	return count;
 }
 
 int cnss_sysfs_get_pm_info(void)
@@ -3930,7 +3928,7 @@ static ssize_t store_ant_info(struct kobject *kobj,
 	sscanf(buf, "%d", &ant_from_macloader);
 	icnss_pr_info("ant_from_macloader %d\n", ant_from_macloader);
 
-	return 0;
+	return count;
 }
 
 static ssize_t show_wificableinfo(struct kobject *kobj,
@@ -3945,31 +3943,23 @@ static ssize_t show_wificableinfo(struct kobject *kobj,
 	np = of_find_compatible_node(NULL, NULL, "samsung,rome_cable");
 
 	if (!np) {
-		icnss_pr_err("can't find the rome_cable\n");
+		printk(KERN_ERR "[WIFI] %s : can not fine the rome_cable\n",__FUNCTION__);
 		return 0;
 	}
 
-	wifi_cable1 = of_get_named_gpio(np, "wlan_cable_wifi_1", 0);
-	if (!gpio_is_valid(wifi_cable1))
-	{
-		icnss_pr_err("can't get wlan_cable_wifi1\n");
-		return 0;
-	}
+	wifi_cable1 = of_get_named_gpio(np, "wlan_cable_wifi1", 0);
+	wifi_cable2 = of_get_named_gpio(np, "wlan_cable_wifi2", 0);
 
-	wifi_cable2 = of_get_named_gpio(np, "wlan_cable_wifi_2", 0);
-	if (!gpio_is_valid(wifi_cable2))
-	{
-		icnss_pr_err("can't get wlan_cable_wifi2\n");
-		return 0;
-	}
+	printk(KERN_INFO "%s : gpio=%d value = %d \n",__FUNCTION__, wifi_cable1, gpio_get_value(wifi_cable1));
+	printk(KERN_INFO "%s : gpio=%d value = %d \n",__FUNCTION__, wifi_cable2, gpio_get_value(wifi_cable2));
 
-	icnss_pr_info("wlan_cable_wifi1 = %d wlan_cable_wifi2 = %d\n", gpio_get_value(wifi_cable1), gpio_get_value(wifi_cable2));
+	printk(KERN_ERR "%s : gpio=%d value = %d \n",__FUNCTION__, wifi_cable1, gpio_get_value(wifi_cable1));
+	printk(KERN_ERR "%s : gpio=%d value = %d \n",__FUNCTION__, wifi_cable2, gpio_get_value(wifi_cable2));
+
 	sprintf(antbuffer, "%c%c\n", (gpio_get_value(wifi_cable1) > 0) ? 'D' : 'E' , (gpio_get_value(wifi_cable2) > 0) ? 'D' : 'E');
 
 	return scnprintf(buf, PAGE_SIZE, "%s", antbuffer);
 }
-
-
 
 static ssize_t store_memdump_info(struct kobject *kobj,
 			    struct kobj_attribute *attr,
@@ -3977,7 +3967,7 @@ static ssize_t store_memdump_info(struct kobject *kobj,
 			    size_t count)
 {
 	icnss_pr_info("%s called\n", __func__);
-	return 0;
+	return count;
 }
 
 static struct kobj_attribute sec_mac_addr_attribute =

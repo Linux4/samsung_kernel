@@ -11,14 +11,14 @@ endif
 
 ifeq ($(CONFIG_ARCH_LITO), y)
 include $(srctree)/techpack/display/config/saipdisp.conf
-ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),gts7xllite))
+ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),gts7xllite gts7xllitewifi))
 include $(srctree)/techpack/display/config/lito_dp.conf
 endif
 endif
 
 ifeq ($(CONFIG_ARCH_LITO), y)
 LINUXINCLUDE    += -include $(srctree)/techpack/display/config/saipdispconf.h
-ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),gts7xllite))
+ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),gts7xllite gts7xllitewifi))
 LINUXINCLUDE    += -include $(srctree)/techpack/display/config/lito_dp.h
 endif
 endif

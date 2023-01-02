@@ -281,7 +281,7 @@ static void __cqhci_enable(struct cqhci_host *cq_host)
 		cqcfg |= CQHCI_TASK_DESC_SZ;
 
 	if (cqhci_host_is_crypto_supported(cq_host)) {
-		cqhci_crypto_enable(cq_host);
+//		cqhci_crypto_enable(cq_host);
 		cqcfg |= CQHCI_ICE_ENABLE;
 		/* For SDHC v5.0 onwards, ICE 3.0 specific registers are added
 		 * in CQ register space, due to which few CQ registers are
@@ -325,9 +325,9 @@ static void __cqhci_disable(struct cqhci_host *cq_host)
 {
 	u32 cqcfg;
 
-	if (cqhci_host_is_crypto_supported(cq_host))
-		cqhci_crypto_disable(cq_host);
-
+//	if (cqhci_host_is_crypto_supported(cq_host))
+//		cqhci_crypto_disable(cq_host);
+//
 	cqcfg = cqhci_readl(cq_host, CQHCI_CFG);
 	cqcfg &= ~CQHCI_ENABLE;
 	cqhci_writel(cq_host, cqcfg, CQHCI_CFG);
@@ -372,6 +372,8 @@ static int cqhci_enable(struct mmc_host *mmc, struct mmc_card *card)
 	err = cqhci_host_alloc_tdl(cq_host);
 	if (err)
 		return err;
+    if (cqhci_host_is_crypto_supported(cq_host))
+        cqhci_crypto_enable(cq_host);
 
 	__cqhci_enable(cq_host);
 
@@ -427,12 +429,14 @@ static void cqhci_disable(struct mmc_host *mmc)
 		return;
 
 	cqhci_off(mmc);
+    if (cqhci_host_is_crypto_supported(cq_host))
+        cqhci_crypto_disable(cq_host);
 
-	__cqhci_disable(cq_host);
+    __cqhci_disable(cq_host);
 
-	dmam_free_coherent(mmc_dev(mmc), cq_host->data_size,
-			   cq_host->trans_desc_base,
-			   cq_host->trans_desc_dma_base);
+    dmam_free_coherent(mmc_dev(mmc), cq_host->data_size,
+            cq_host->trans_desc_base,
+            cq_host->trans_desc_dma_base);
 
 	dmam_free_coherent(mmc_dev(mmc), cq_host->desc_size,
 			   cq_host->desc_base,

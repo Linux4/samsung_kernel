@@ -644,11 +644,16 @@ QDF_STATUS ol_txrx_ipa_cleanup(struct cdp_soc_t *soc_hdl, uint8_t pdev_id,
 	struct ol_txrx_ipa_resources *ipa_res;
 	struct ol_txrx_soc_t *soc = cds_get_context(QDF_MODULE_ID_SOC);
 	qdf_device_t osdev = cds_get_context(QDF_MODULE_ID_QDF_DEVICE);
-	ol_txrx_pdev_handle pdev =
-		ol_txrx_get_pdev_from_pdev_id(soc, OL_TXRX_PDEV_ID);
+	ol_txrx_pdev_handle pdev;
 
-	if (!pdev || !osdev) {
+	if (!soc || !osdev) {
 		ol_txrx_err("%s invalid instance", __func__);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	pdev = ol_txrx_get_pdev_from_pdev_id(soc, OL_TXRX_PDEV_ID);
+	if (!pdev) {
+		ol_txrx_err("%s NULL pdev invalid instance", __func__);
 		return QDF_STATUS_E_FAILURE;
 	}
 
@@ -702,8 +707,8 @@ QDF_STATUS ol_txrx_ipa_setup_iface(char *ifname, uint8_t *mac_addr,
 	int ret = -EINVAL;
 
 	QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_DEBUG,
-		  "%s: Add Partial hdr: %s, %pM",
-		  __func__, ifname, mac_addr);
+		  "%s: Add Partial hdr: %s, "QDF_MAC_ADDR_FMT,
+		  __func__, ifname, QDF_MAC_ADDR_REF(mac_addr));
 
 	qdf_mem_zero(&hdr_info, sizeof(qdf_ipa_wdi_hdr_info_t));
 	memcpy(&uc_tx_hdr, &ipa_uc_tx_hdr, OL_TXRX_IPA_UC_WLAN_TX_HDR_LEN);
@@ -1235,7 +1240,8 @@ static int ol_txrx_ipa_add_header_info(char *ifname, uint8_t *mac_addr,
 	struct ol_txrx_ipa_uc_tx_hdr *uc_tx_hdr = NULL;
 
 	QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_DEBUG,
-		  "Add Partial hdr: %s, %pM", ifname, mac_addr);
+		  "Add Partial hdr: %s, "QDF_MAC_ADDR_FMT, ifname,
+		  QDF_MAC_ADDR_REF(mac_addr));
 
 	/* dynamically allocate the memory to add the hdrs */
 	ipa_hdr = qdf_mem_malloc(sizeof(qdf_ipa_ioc_add_hdr_t)

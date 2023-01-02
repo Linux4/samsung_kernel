@@ -1416,7 +1416,7 @@ void sdhci_msm_exit_dbg_mode(struct sdhci_host *host)
 int sdhci_msm_execute_tuning(struct sdhci_host *host, u32 opcode)
 {
 	unsigned long flags;
-	int tuning_seq_cnt = 10;
+	int tuning_seq_cnt = 3;
 	u8 phase, *data_buf, tuned_phases[NUM_TUNING_PHASES], tuned_phase_cnt;
 	const u32 *tuning_block_pattern = tuning_block_64;
 	int size = sizeof(tuning_block_64); /* Tuning pattern size in bytes */
@@ -1542,7 +1542,7 @@ retry:
 			sts_cmd.opcode = MMC_SEND_STATUS;
 			sts_cmd.arg = card->rca << 16;
 			sts_cmd.flags = MMC_RSP_R1 | MMC_CMD_AC;
-			sts_retry = 5;
+			sts_retry = 3;
 			while (sts_retry) {
 				mmc_wait_for_cmd(mmc, &sts_cmd, 0);
 
@@ -5326,13 +5326,13 @@ static ssize_t t_flash_detect_show(struct device *dev,
 {
 	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
 #if defined(CONFIG_SEC_NO_SD_DETECT) || defined(CONFIG_SEC_HYBRID_TRAY)
-	if (msm_host->mmc->card) {
-		pr_debug("External sd: card inserted.\n");
-		return sprintf(buf, "Insert\n");
-	}
 	if (!mmc_gpio_get_cd(msm_host->mmc)) {
 		pr_debug("SD slot tray Removed.\n");
 		return sprintf(buf, "Notray\n");
+	}
+	if (msm_host->mmc->card) {
+		pr_debug("External sd: card inserted.\n");
+		return sprintf(buf, "Insert\n");
 	}
 	pr_debug("External sd: card removed.\n");
 	return sprintf(buf, "Remove\n");
@@ -6484,12 +6484,6 @@ static int sdhci_msm_runtime_suspend(struct device *dev)
 defer_disable_host_irq:
 	disable_irq(msm_host->pwr_irq);
 
-	if (host->mmc->card && !mmc_host_may_gate_card(host->mmc->card))
-		goto skip_clk_gating;
-
-	sdhci_msm_disable_controller_clock(host);
-
-skip_clk_gating:
 	trace_sdhci_msm_runtime_suspend(mmc_hostname(host->mmc), 0,
 			ktime_to_us(ktime_sub(ktime_get(), start)));
 	return 0;
@@ -6500,19 +6494,7 @@ static int sdhci_msm_runtime_resume(struct device *dev)
 	struct sdhci_host *host = dev_get_drvdata(dev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_msm_host *msm_host = pltfm_host->priv;
-	int ret;
 	ktime_t start = ktime_get();
-
-	if (host->mmc->card && !mmc_host_may_gate_card(host->mmc->card))
-		goto skip_clk_ungating;
-
-	ret = sdhci_msm_enable_controller_clock(host);
-	if (ret) {
-		pr_err("%s: Failed to enable reqd clocks\n",
-			mmc_hostname(host->mmc));
-	}
-
-skip_clk_ungating:
 
 	if (host->mmc->ios.timing == MMC_TIMING_MMC_HS400)
 		sdhci_msm_toggle_fifo_write_clk(host);
@@ -6544,6 +6526,7 @@ static int sdhci_msm_suspend(struct device *dev)
 	}
 	ret = sdhci_msm_runtime_suspend(dev);
 out:
+	sdhci_msm_disable_controller_clock(host);
 	if (host->mmc->card && mmc_card_sdio(host->mmc->card)) {
 		sdio_cfg = sdhci_msm_cfg_sdio_wakeup(host, true);
 		if (sdio_cfg)

@@ -1485,6 +1485,10 @@ struct task_struct {
 	/* Used by LSM modules for access restriction: */
 	void				*security;
 #endif
+#ifdef CONFIG_SEC_PERF_MANAGER
+	int drawing_flag;
+	int drawing_mig_boost;
+#endif
 	/* task is frozen/stopped (used by the cgroup freezer) */
 	ANDROID_KABI_USE(1, unsigned frozen:1);
 

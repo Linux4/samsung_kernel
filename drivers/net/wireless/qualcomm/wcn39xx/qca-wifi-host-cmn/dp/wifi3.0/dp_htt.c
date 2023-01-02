@@ -50,6 +50,10 @@
 #define HTT_SHIFT_UPPER_TIMESTAMP 32
 #define HTT_MASK_UPPER_TIMESTAMP 0xFFFFFFFF00000000
 
+#define HTT_HTC_PKT_STATUS_SUCCESS \
+	((pkt->htc_pkt.Status != QDF_STATUS_E_CANCELED) && \
+	(pkt->htc_pkt.Status != QDF_STATUS_E_RESOURCES))
+
 /*
  * dp_htt_get_ppdu_sniffer_ampdu_tlv_bitmap() - Get ppdu stats tlv
  * bitmap for sniffer mode
@@ -575,7 +579,7 @@ static inline QDF_STATUS DP_HTT_SEND_HTC_PKT(struct htt_soc *soc,
 	htt_command_record(soc->htt_logger_handle, cmd, buf);
 
 	status = htc_send_pkt(soc->htc_soc, &pkt->htc_pkt);
-	if (status == QDF_STATUS_SUCCESS)
+	if (status == QDF_STATUS_SUCCESS && HTT_HTC_PKT_STATUS_SUCCESS)
 		htt_htc_misc_pkt_list_add(soc, pkt);
 
 	return status;
@@ -744,7 +748,7 @@ static int htt_h2t_ver_req_msg(struct htt_soc *soc)
 	SET_HTC_PACKET_INFO_TX(&pkt->htc_pkt,
 		dp_htt_h2t_send_complete_free_netbuf, qdf_nbuf_data(msg),
 		qdf_nbuf_len(msg), soc->htc_endpoint,
-		1); /* tag - not relevant here */
+		HTC_TX_PACKET_TAG_RTPM_PUT_RC);
 
 	SET_HTC_PACKET_NET_BUF_CONTEXT(&pkt->htc_pkt, msg);
 	status = DP_HTT_SEND_HTC_PKT(soc, pkt, HTT_H2T_MSG_TYPE_VERSION_REQ,
@@ -1746,7 +1750,7 @@ int htt_h2t_rx_ring_cfg(struct htt_soc *htt_soc, int pdev_id,
 		qdf_nbuf_data(htt_msg),
 		qdf_nbuf_len(htt_msg),
 		soc->htc_endpoint,
-		1); /* tag - not relevant here */
+		HTC_TX_PACKET_TAG_RUNTIME_PUT); /* tag for no FW response msg */
 
 	SET_HTC_PACKET_NET_BUF_CONTEXT(&pkt->htc_pkt, htt_msg);
 	status = DP_HTT_SEND_HTC_PKT(soc, pkt,
@@ -1986,10 +1990,16 @@ void htt_t2h_stats_handler(void *context)
 	uint8_t done;
 	uint32_t rem_stats;
 
-	if (!soc || !qdf_atomic_read(&soc->cmn_init_done)) {
+	if (!soc) {
 		QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_ERROR,
-			"soc: 0x%pK, init_done: %d", soc,
-			qdf_atomic_read(&soc->cmn_init_done));
+			  "soc is NULL");
+		return;
+	}
+
+	if (!qdf_atomic_read(&soc->cmn_init_done)) {
+		QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_ERROR,
+			  "soc: 0x%pK, init_done: %d", soc,
+			  qdf_atomic_read(&soc->cmn_init_done));
 		return;
 	}
 
@@ -3963,17 +3973,27 @@ static void dp_htt_t2h_msg_handler(void *context, HTC_PACKET *pkt)
 
 	case HTT_T2H_MSG_TYPE_VERSION_CONF:
 		{
-			htc_pm_runtime_put(soc->htc_soc);
+			/*
+			 * HTC maintains runtime pm count for H2T messages that
+			 * have a response msg from FW. This count ensures that
+			 * in the case FW does not sent out the response or host
+			 * did not process this indication runtime_put happens
+			 * properly in the cleanup path.
+			 */
+			if (htc_dec_return_runtime_cnt(soc->htc_soc) >= 0)
+				htc_pm_runtime_put(soc->htc_soc);
+			else
+				soc->stats.htt_ver_req_put_skip++;
 			soc->tgt_ver.major = HTT_VER_CONF_MAJOR_GET(*msg_word);
 			soc->tgt_ver.minor = HTT_VER_CONF_MINOR_GET(*msg_word);
-			QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_INFO_HIGH,
+			QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_INFO_LOW,
 				"target uses HTT version %d.%d; host uses %d.%d",
 				soc->tgt_ver.major, soc->tgt_ver.minor,
 				HTT_CURRENT_VERSION_MAJOR,
 				HTT_CURRENT_VERSION_MINOR);
 			if (soc->tgt_ver.major != HTT_CURRENT_VERSION_MAJOR) {
 				QDF_TRACE(QDF_MODULE_ID_TXRX,
-					QDF_TRACE_LEVEL_ERROR,
+					QDF_TRACE_LEVEL_WARN,
 					"*** Incompatible host/target HTT versions!");
 			}
 			/* abort if the target is incompatible with the host */
@@ -3981,7 +4001,7 @@ static void dp_htt_t2h_msg_handler(void *context, HTC_PACKET *pkt)
 				HTT_CURRENT_VERSION_MAJOR);
 			if (soc->tgt_ver.minor != HTT_CURRENT_VERSION_MINOR) {
 				QDF_TRACE(QDF_MODULE_ID_TXRX,
-					QDF_TRACE_LEVEL_WARN,
+					QDF_TRACE_LEVEL_INFO_LOW,
 					"*** Warning: host/target HTT versions"
 					" are different, though compatible!");
 			}
@@ -4575,7 +4595,8 @@ QDF_STATUS dp_h2t_cfg_stats_msg_send(struct dp_pdev *pdev,
 			dp_htt_h2t_send_complete_free_netbuf,
 			qdf_nbuf_data(msg), qdf_nbuf_len(msg),
 			soc->htc_endpoint,
-			1); /* tag - not relevant here */
+			/* tag for no FW response msg */
+			HTC_TX_PACKET_TAG_RUNTIME_PUT);
 
 	SET_HTC_PACKET_NET_BUF_CONTEXT(&pkt->htc_pkt, msg);
 	status = DP_HTT_SEND_HTC_PKT(soc, pkt, HTT_H2T_MSG_TYPE_PPDU_STATS_CFG,

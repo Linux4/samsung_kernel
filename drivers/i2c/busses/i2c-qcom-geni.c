@@ -128,6 +128,9 @@ struct geni_i2c_dev {
 	bool is_shared;
 	u32 dbg_num;
 	struct dbg_buf_ctxt *dbg_buf_ptr;
+#if defined(CONFIG_BATTERY_SAMSUNG)
+	bool disable_mas_clk_stretch;
+#endif
 };
 
 static struct geni_i2c_dev *gi2c_dev_dbg[MAX_SE];
@@ -508,7 +511,11 @@ static int geni_i2c_gsi_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 		int segs = 3 - op;
 		int index = 0;
 		u8 *dma_buf = NULL;
+#if defined(CONFIG_BATTERY_SAMSUNG)
+		int stretch = 0;
+#else
 		int stretch = (i < (num - 1));
+#endif
 		dma_cookie_t tx_cookie, rx_cookie;
 		struct msm_gpi_tre *go_t = &gi2c->go_t;
 		struct device *rx_dev = gi2c->wrapper_dev;
@@ -516,6 +523,10 @@ static int geni_i2c_gsi_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 		reinit_completion(&gi2c->xfer);
 
 		gi2c->cur = &msgs[i];
+#if defined(CONFIG_BATTERY_SAMSUNG)
+		if (!gi2c->disable_mas_clk_stretch)
+			stretch = (i < (num - 1));
+#endif
 
 		dma_buf = i2c_get_dma_safe_msg_buf(&msgs[i], 1);
 		if (!dma_buf) {
@@ -771,7 +782,11 @@ static int geni_i2c_xfer(struct i2c_adapter *adap,
 	}
 
 	for (i = 0; i < num; i++) {
+#if defined(CONFIG_BATTERY_SAMSUNG)
+		int stretch = 0;
+#else
 		int stretch = (i < (num - 1));
+#endif
 		u32 m_param = 0;
 		u32 m_cmd = 0;
 		u8 *dma_buf = NULL;
@@ -779,6 +794,11 @@ static int geni_i2c_xfer(struct i2c_adapter *adap,
 		dma_addr_t rx_dma = 0;
 		enum se_xfer_mode mode = FIFO_MODE;
 		reinit_completion(&gi2c->xfer);
+
+#if defined(CONFIG_BATTERY_SAMSUNG)
+		if (!gi2c->disable_mas_clk_stretch)
+			stretch = (i < (num - 1));
+#endif
 
 		m_param |= (stretch ? STOP_STRETCH : 0);
 		m_param |= ((msgs[i].addr & 0x7F) << SLV_ADDR_SHFT);
@@ -1027,6 +1047,13 @@ static int geni_i2c_probe(struct platform_device *pdev)
 		gi2c->is_shared = true;
 		dev_info(&pdev->dev, "Multi-EE usecase\n");
 	}
+
+#if defined(CONFIG_BATTERY_SAMSUNG)
+	if (of_property_read_bool(pdev->dev.of_node, "qcom,mas_clk_stretch")) {
+		gi2c->disable_mas_clk_stretch = true;
+		dev_info(&pdev->dev, "disable_mas_clk_stretch read\n");
+	}
+#endif
 
 	if (of_property_read_u32(pdev->dev.of_node, "qcom,clk-freq-out",
 				&gi2c->i2c_rsc.clk_freq_out)) {

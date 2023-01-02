@@ -423,6 +423,36 @@ void wmi_set_target_suspend(wmi_unified_t wmi_handle, bool val);
  */
 bool wmi_is_target_suspended(struct wmi_unified *wmi_handle);
 
+#ifdef WLAN_FEATURE_WMI_SEND_RECV_QMI
+/**
+ *  wmi_set_qmi_stats() - WMI API to set qmi stats enabled/disabled
+ *  @wmi_handle: handle to WMI.
+ *  @val: suspend state boolean
+ */
+void wmi_set_qmi_stats(wmi_unified_t wmi_handle, bool val);
+
+/**
+ * wmi_is_qmi_stats_enabled() - WMI API to check if periodic stats
+ * over qmi is enableid
+ * @wmi_handle: handle to WMI.
+ *
+ * WMI API to check if periodic stats over qmi is enabled
+ *
+ * Return: true if qmi stats is enabled, else false.
+ */
+bool wmi_is_qmi_stats_enabled(struct wmi_unified *wmi_handle);
+#else
+static inline
+void wmi_set_qmi_stats(wmi_unified_t wmi_handle, bool val)
+{}
+
+static inline
+bool wmi_is_qmi_stats_enabled(struct wmi_unified *wmi_handle)
+{
+	return false;
+}
+#endif /* end if of WLAN_FEATURE_WMI_SEND_RECV_QMI */
+
 /**
  * WMI API to set bus suspend state
  * @param wmi_handle:	handle to WMI.
@@ -606,6 +636,18 @@ QDF_STATUS
 wmi_unified_extract_roam_11kv_stats(wmi_unified_t wmi, void *evt_buf,
 				    struct wmi_neighbor_report_data *dst,
 				    uint8_t idx, uint8_t rpt_idx);
+/**
+ * wmi_unified_extract_roam_msg_info() - Extract Roam msg stats
+ * @wmi:       wmi handle
+ * @evt_buf:   Pointer to the event buffer
+ * @dst:       Pointer to destination structure to fill data
+ * @idx:       TLV id
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wmi_unified_extract_roam_msg_info(wmi_unified_t wmi, void *evt_buf,
+				   struct wmi_roam_msg_info *dst, uint8_t idx);
 
 /**
  * wmi_unified_vdev_create_send() - send VDEV create command to fw

@@ -25,8 +25,14 @@ else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),a52xq))
 include $(srctree)/techpack/audio/config/lito_a52.conf
 else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),m62xq))
 include $(srctree)/techpack/audio/config/lito_m62.conf
+else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),m42xq))
+include $(srctree)/techpack/audio/config/lito_m42.conf
+else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),m52xq))
+include $(srctree)/techpack/audio/config/lito_m52.conf
 else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),gts7xllite gts7xllitewifi))
 include $(srctree)/techpack/audio/config/lito_gts7plite.conf
+else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),m23xq))
+include $(srctree)/techpack/audio/config/lito_m23.conf
 else
 include $(srctree)/techpack/audio/config/litoauto.conf
 endif
@@ -74,9 +80,18 @@ LINUXINCLUDE    += \
 else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),m62xq))
 LINUXINCLUDE    += \
                 -include $(srctree)/techpack/audio/config/lito_m62.h
+else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),m42xq))
+LINUXINCLUDE    += \
+                -include $(srctree)/techpack/audio/config/lito_m42.h
+else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),m52xq))
+LINUXINCLUDE    += \
+                -include $(srctree)/techpack/audio/config/lito_m52.h
 else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),gts7xllite gts7xllitewifi))
 LINUXINCLUDE    += \
                 -include $(srctree)/techpack/audio/config/lito_gts7plite.h
+else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),m23xq))
+LINUXINCLUDE    += \
+                -include $(srctree)/techpack/audio/config/lito_m23.h
 else
 LINUXINCLUDE    += \
                 -include $(srctree)/techpack/audio/config/litoautoconf.h

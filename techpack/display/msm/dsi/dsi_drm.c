@@ -470,14 +470,14 @@ static bool dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 				if ((cur_mode->vrefresh != adjusted_mode->vrefresh) ||
 						(cur_sot_hs != adjusted_sot_hs) ||
 						(cur_phs != adjusted_phs)) {
-					LCD_INFO("DMS: VRR flag: %d -> 1\n", vrr->is_vrr_changing);
+					LCD_INFO(vdd, "DMS: VRR flag: %d -> 1\n", vrr->is_vrr_changing);
 					vrr->is_vrr_changing = true;
 					vdd->vrr.running_vrr_mdp= true;
 				}
 
 				if ((cur_mode->hdisplay != adjusted_mode->hdisplay) ||
 						(cur_mode->vdisplay != adjusted_mode->vdisplay)) {
-					LCD_INFO("DMS: MULTI RES flag: %d -> 1\n",
+					LCD_INFO(vdd, "DMS: MULTI RES flag: %d -> 1\n",
 							vrr->is_multi_resolution_changing);
 					vrr->is_multi_resolution_changing = true;
 				}
@@ -491,12 +491,12 @@ static bool dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 				 */
 				rc = ss_set_max_sde_core_clk(display->drm_dev);
 				if (rc) {
-					LCD_ERR("fail to set max sde core clock..(%d)\n", rc);
+					LCD_ERR(vdd, "fail to set max sde core clock..(%d)\n", rc);
 					SS_XLOG(rc, 0xebad);
 				}
 
 				SS_XLOG(cur_mode->vrefresh, cur_sot_hs, cur_phs, adjusted_mode->vrefresh, adjusted_sot_hs);
-				LCD_INFO("DMS: switch mode %s(%dx%d@%d%s) -> %s(%dx%d@%d%s)\n",
+				LCD_INFO(vdd, "DMS: switch mode %s(%dx%d@%d%s) -> %s(%dx%d@%d%s)\n",
 					cur_mode->name,
 					cur_mode->hdisplay,
 					cur_mode->vdisplay,
@@ -549,7 +549,7 @@ static bool dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 				adjusted_mode->vrefresh, adjusted_sot_hs,
 				crtc_state->active_changed, display->is_cont_splash_enabled);
 
-			LCD_INFO("DMS: switch mode %s(%dx%d@%d%s) -> %s(%dx%d@%d%s) " \
+			LCD_INFO(vdd, "DMS: switch mode %s(%dx%d@%d%s) -> %s(%dx%d@%d%s) " \
 					"during active_changed(%d) or splash(%d)\n",
 				cur_mode->name,
 				cur_mode->hdisplay,

@@ -13,6 +13,10 @@
 
 #include "sec_direct_charger.h"
 
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#include <linux/sti/abc_common.h>
+#endif
+
 char *sec_direct_chg_mode_str[] = {
 	"OFF", //SEC_DIRECT_CHG_MODE_DIRECT_OFF
 	"CHECK_VBAT", //SEC_DIRECT_CHG_MODE_DIRECT_CHECK_VBAT
@@ -146,6 +150,12 @@ static int sec_direct_chg_check_charging_source(struct sec_direct_charger_info *
 		pr_info("%s:  S/C was selected! Tbat(%d)\n", __func__, value.intval);
 		return SEC_DIRECT_CHG_CHARGING_SOURCE_SWITCHING;
 	}
+	/* check mix limit */
+	psy_do_property("battery", get, POWER_SUPPLY_EXT_PROP_MIX_LIMIT, value);
+	if (value.intval) {
+		pr_info("%s:  S/C was selected! mix_limit(%d)\n", __func__, value.intval);
+		return SEC_DIRECT_CHG_CHARGING_SOURCE_SWITCHING;
+	}
 
 	/* check current event */
 	psy_do_property("battery", get, POWER_SUPPLY_EXT_PROP_CURRENT_EVENT, value);
@@ -195,6 +205,7 @@ static int sec_direct_chg_check_charging_source(struct sec_direct_charger_info *
 static int sec_direct_chg_set_charging_source(struct sec_direct_charger_info *charger,
 		unsigned int charger_mode, int charging_source)
 {
+	mutex_lock(&charger->charger_mutex);
 	if (charging_source == SEC_DIRECT_CHG_CHARGING_SOURCE_DIRECT &&
 		charger_mode == SEC_BAT_CHG_MODE_CHARGING) {
 		sec_direct_chg_set_switching_charge(charger, SEC_BAT_CHG_MODE_BUCK_OFF);
@@ -237,6 +248,7 @@ static int sec_direct_chg_set_charging_source(struct sec_direct_charger_info *ch
 	}
 
 	charger->charging_source = charging_source;
+	mutex_unlock(&charger->charger_mutex);
 
 	return 0;
 }
@@ -290,7 +302,11 @@ static int sec_direct_chg_set_charging_current(struct sec_direct_charger_info *c
 	union power_supply_propval value = {0,};
 	int charging_source;
 
-	pr_info("%s: called(%dmA)\n", __func__, charging_current);
+	psy_do_property("battery", get,
+				POWER_SUPPLY_EXT_PROP_DIRECT_CHARGER_MODE, value);
+	charger->now_isApdo = value.intval;
+
+	pr_info("%s: called(%dmA) now_isApdo(%d)\n", __func__, charging_current, charger->now_isApdo);
 
 	/* main charger */
 	value.intval = charging_current;
@@ -309,11 +325,15 @@ static int sec_direct_chg_set_charging_current(struct sec_direct_charger_info *c
 
 		charging_source = sec_direct_chg_check_charging_source(charger);
 		if (charging_source == SEC_DIRECT_CHG_CHARGING_SOURCE_DIRECT) {
+#if IS_ENABLED(CONFIG_SEC_ABC)
+			if(charger->now_isApdo && charger->dc_input_current < (SEC_DIRECT_CHG_MIN_IOUT / 2))
+				sec_abc_send_event("MODULE=battery@WARN=dc_current");
+#endif
 			value.intval = charger->dc_input_current;
 			psy_do_property(charger->pdata->direct_charger_name, set,
 				POWER_SUPPLY_PROP_CURRENT_MAX, value);
 		}
-		sec_direct_chg_set_charging_source(charger, charger->charger_mode, charging_source);		
+		sec_direct_chg_set_charging_source(charger, charger->charger_mode, charging_source);
 	}
 
 	return 0;

@@ -17,6 +17,8 @@
 #define COM_BOOKCOVER_COMPENSATION	0x81
 #define COM_KBDCOVER_COMPENSATION	0x82
 
+#define COM_KBDCOVER_CHECK_STATUS	0x88
+
 /* elec test*/
 #define COM_ASYNC_VSYNC			0X28
 #define COM_SYNC_VSYNC			0X29
@@ -97,7 +99,8 @@ enum epen_ble_charge_state {
 #define EPEN_REG_TILT_X			0x0B
 #define EPEN_REG_TILT_Y			0x0C
 #define EPEN_REG_HEIGHT			0x0D
-#define EPEN_REG_FMTREV			0x0F
+#define EPEN_REG_FMTREV			0x0E
+#define EPEN_REG_PROJ_ID		0x0F
 
 /* wacom ic values */
 #define MPU_W9018			0x42
@@ -106,3 +109,5 @@ enum epen_ble_charge_state {
 #define MPU_W9021			0x45
 #define MPU_WEZ01			0x46
 
+/* Switch events */
+#define SW_FLIP                 0x15  /* set = flip cover open, close*/

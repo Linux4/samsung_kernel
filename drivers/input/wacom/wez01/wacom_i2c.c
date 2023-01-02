@@ -20,6 +20,7 @@
 #include "wacom_dev.h"
 
 struct wacom_i2c *g_wac_i2c;
+static void wacom_i2c_cover_handler(struct wacom_i2c *wac_i2c, char *data);
 
 void wacom_forced_release(struct wacom_i2c *wac_i2c)
 {
@@ -342,26 +343,31 @@ int wacom_i2c_query(struct wacom_i2c *wac_i2c)
 		}
 
 		input_info(true, &client->dev,
-				"(retry:%d) %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X\n",
+				"(retry:%d) %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X\n",
 				i, query[0], query[1], query[2], query[3], query[4], query[5],
 				query[6], query[7],	query[8], query[9], query[10], query[11],
-				query[12], query[13], query[14]);
+				query[12], query[13], query[14], query[15]);
 
 		if (query[EPEN_REG_HEADER] == 0x0F) {
-			wac_i2c->fw_ver_ic = (query[EPEN_REG_FWVER1] << 8) | query[EPEN_REG_FWVER2];
+			wac_i2c->pdata->img_version_of_ic[0] = query[EPEN_REG_MPUVER];
+			wac_i2c->pdata->img_version_of_ic[1] = query[EPEN_REG_PROJ_ID];
+			wac_i2c->pdata->img_version_of_ic[2] = query[EPEN_REG_FWVER1];
+			wac_i2c->pdata->img_version_of_ic[3] = query[EPEN_REG_FWVER2];
 			break;
 		}
 	}
 
 	input_info(true, &client->dev,
-			"%X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X\n",
+			"%X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X, %X\n",
 			query[0], query[1], query[2], query[3], query[4], query[5],
 			query[6], query[7],  query[8], query[9], query[10], query[11],
-			query[12], query[13], query[14]);
+			query[12], query[13], query[14], query[15]);
 
 	if (ret < 0) {
 		input_err(true, &client->dev, "%s: failed to read query\n", __func__);
-		wac_i2c->fw_ver_ic = 0;
+		for (i = 0; i < 4; i++)
+			wac_i2c->pdata->img_version_of_ic[i] = 0;
+
 		wac_i2c->query_status = false;
 
 		return ret;
@@ -377,15 +383,15 @@ int wacom_i2c_query(struct wacom_i2c *wac_i2c)
 	pdata->max_x_tilt = query[EPEN_REG_TILT_X];
 	pdata->max_y_tilt = query[EPEN_REG_TILT_Y];
 	pdata->max_height = query[EPEN_REG_HEIGHT];
-	pdata->ic_type = query[EPEN_REG_MPUVER];
 	pdata->bl_ver = query[EPEN_REG_BLVER];
 
 	input_info(true, &client->dev, "use_dt_coord: %d, max_x: %d max_y: %d, max_pressure: %d\n",
 			pdata->use_dt_coord, pdata->max_x, pdata->max_y, pdata->max_pressure);
-	input_info(true, &client->dev, "fw_ver_ic=0x%X\n", wac_i2c->fw_ver_ic);
-	input_info(true, &client->dev, "mpu: 0x%X, bl: 0x%X, tiltX: %d, tiltY: %d, maxH: %d\n",
-			pdata->ic_type, pdata->bl_ver, pdata->max_x_tilt,
-			pdata->max_y_tilt, pdata->max_height);
+	input_info(true, &client->dev, "fw_ver_ic=%02X%02X%02X%02X\n",
+			pdata->img_version_of_ic[0], pdata->img_version_of_ic[1],
+			pdata->img_version_of_ic[2], pdata->img_version_of_ic[3]);
+	input_info(true, &client->dev, "bl: 0x%X, tiltX: %d, tiltY: %d, maxH: %d\n",
+			pdata->bl_ver, pdata->max_x_tilt, pdata->max_y_tilt, pdata->max_height);
 
 	return 0;
 }
@@ -476,14 +482,20 @@ void wacom_select_survey_mode(struct wacom_i2c *wac_i2c, bool enable)
 	if (enable) {
 		if (wac_i2c->epen_blocked ||
 				(wac_i2c->battery_saving_mode && !(wac_i2c->function_result & EPEN_EVENT_PEN_OUT))) {
-			input_info(true, &client->dev, "%s: %s power off\n", __func__,
-					wac_i2c->epen_blocked ? "epen blocked" : "ps on & pen in");
+			if (wac_i2c->pdata->support_cover_detection) {
+				input_info(true, &client->dev, "%s: %s cover detection only\n", 
+					__func__, wac_i2c->epen_blocked ? "epen blocked" : "ps on & pen in");
+				wacom_i2c_set_survey_mode(wac_i2c, EPEN_SURVEY_MODE_COVER_DETECTION_ONLY);
+			} else {
+				input_info(true, &client->dev, "%s: %s power off\n", __func__,
+						wac_i2c->epen_blocked ? "epen blocked" : "ps on & pen in");
 
-			wacom_enable_irq(wac_i2c, false);
-			wacom_power(wac_i2c, false);
+				wacom_enable_irq(wac_i2c, false);
+				wacom_power(wac_i2c, false);
 
-			wac_i2c->survey_mode = EPEN_SURVEY_MODE_NONE;
-			wac_i2c->function_result &= ~EPEN_EVENT_SURVEY;
+				wac_i2c->survey_mode = EPEN_SURVEY_MODE_NONE;
+				wac_i2c->function_result &= ~EPEN_EVENT_SURVEY;
+			}
 		} else if (wac_i2c->survey_mode) {
 			input_info(true, &client->dev, "%s: exit aop mode\n", __func__);
 
@@ -505,22 +517,34 @@ void wacom_select_survey_mode(struct wacom_i2c *wac_i2c, bool enable)
 	} else {
 		if (wac_i2c->epen_blocked || (wac_i2c->battery_saving_mode &&
 				!(wac_i2c->function_result & EPEN_EVENT_PEN_OUT))) {
-			input_info(true, &client->dev, "%s: %s power off\n",
+			if (wac_i2c->pdata->support_cover_detection) {
+				input_info(true, &client->dev, "%s: %s cover detection only\n", 
 					__func__, wac_i2c->epen_blocked ? "epen blocked" : "ps on & pen in");
+				wacom_i2c_set_survey_mode(wac_i2c, EPEN_SURVEY_MODE_COVER_DETECTION_ONLY);
+			} else {
+				input_info(true, &client->dev, "%s: %s power off\n",
+						__func__, wac_i2c->epen_blocked ? "epen blocked" : "ps on & pen in");
 
-			wacom_enable_irq(wac_i2c, false);
-			wacom_power(wac_i2c, false);
+				wacom_enable_irq(wac_i2c, false);
+				wacom_power(wac_i2c, false);
 
-			wac_i2c->survey_mode = EPEN_SURVEY_MODE_NONE;
-			wac_i2c->function_result &= ~EPEN_EVENT_SURVEY;
+				wac_i2c->survey_mode = EPEN_SURVEY_MODE_NONE;
+				wac_i2c->function_result &= ~EPEN_EVENT_SURVEY;
+			}
 		} else if (!(wac_i2c->function_set & EPEN_SETMODE_AOP)) {
-			input_info(true, &client->dev, "%s: aop off & garage off. power off\n", __func__);
+			if (wac_i2c->pdata->support_cover_detection) {
+				input_info(true, &client->dev, "%s: AOP off. cover detection only\n", 
+					__func__);
+				wacom_i2c_set_survey_mode(wac_i2c, EPEN_SURVEY_MODE_COVER_DETECTION_ONLY);
+			} else {
+				input_info(true, &client->dev, "%s: aop off & garage off. power off\n", __func__);
 
-			wacom_enable_irq(wac_i2c, false);
-			wacom_power(wac_i2c, false);
+				wacom_enable_irq(wac_i2c, false);
+				wacom_power(wac_i2c, false);
 
-			wac_i2c->survey_mode = EPEN_SURVEY_MODE_NONE;
-			wac_i2c->function_result &= ~EPEN_EVENT_SURVEY;
+				wac_i2c->survey_mode = EPEN_SURVEY_MODE_NONE;
+				wac_i2c->function_result &= ~EPEN_EVENT_SURVEY;
+			}
 		} else {
 			/* aop on => (aod : screen off memo = 1:1 or 1:0 or 0:1)
 			 * double tab & hover + button event will be occurred,
@@ -574,6 +598,9 @@ int wacom_i2c_set_survey_mode(struct wacom_i2c *wac_i2c, int mode)
 			data[0] = COM_SURVEY_SYNC_SCAN;
 		else
 			data[0] = COM_SURVEY_ASYNC_SCAN;
+		break;
+	case EPEN_SURVEY_MODE_COVER_DETECTION_ONLY:
+		data[0] = COM_SURVEY_GARAGE_ONLY;
 		break;
 	default:
 		input_err(true, &client->dev, "%s: wrong param %d\n", __func__, mode);
@@ -786,6 +813,10 @@ reset:
 				data[0], data[1], data[2], data[3], data[4], data[5],
 				data[6], data[7], data[8], data[9], data[10],
 				data[11], data[12]);
+
+		/* protection codes for cover status - need to check*/
+		if ((data[0] & 0x0F) == NOTI_PACKET && data[1] == COVER_DETECT_PACKET)
+			 wacom_i2c_cover_handler(wac_i2c, data);
 	}
 
 	if (!wac_i2c->samplerate_state) {
@@ -980,6 +1011,19 @@ static void wac_i2c_block_tsp_scan(struct wacom_i2c *wac_i2c, char *data)
 #endif
 }
 
+static void wacom_i2c_cover_handler(struct wacom_i2c *wac_i2c, char *data)
+{
+	char change_status;
+
+	change_status = (data[3] >> 7) & 0x01;
+
+	input_info(true, &wac_i2c->client->dev, "%s: cover status %d\n", __func__, change_status);
+	input_report_switch(wac_i2c->input_dev,
+		SW_FLIP, change_status);
+	input_sync(wac_i2c->input_dev);
+	wac_i2c->flip_state = change_status;
+}
+
 static void wacom_i2c_noti_handler(struct wacom_i2c *wac_i2c, char *data)
 {
 	char pack_sub_id;
@@ -1007,6 +1051,9 @@ static void wacom_i2c_noti_handler(struct wacom_i2c *wac_i2c, char *data)
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 		sec_input_notify(&wac_i2c->nb, NOTIFIER_WACOM_PEN_CHARGING_FINISHED, NULL);
 #endif
+		break;
+	case COVER_DETECT_PACKET:
+			 wacom_i2c_cover_handler(wac_i2c, data);
 		break;
 	default:
 		input_err(true, &wac_i2c->client->dev, "%s: unexpected packet %d\n", __func__, pack_sub_id);
@@ -1454,10 +1501,10 @@ static void open_test_work(struct work_struct *work)
 {
 	struct wacom_i2c *wac_i2c =
 		container_of(work, struct wacom_i2c, open_test_dwork.work);
-
-#if !WACOM_SEC_FACTORY
+	char data;
 	int ret = 0;
 
+#if !WACOM_SEC_FACTORY
 	if (wac_i2c->pdata->support_garage_open_test) {
 		ret = wacom_open_test(wac_i2c, WACOM_GARAGE_TEST);
 		if (ret) {
@@ -1474,6 +1521,15 @@ static void open_test_work(struct work_struct *work)
 #else
 	input_info(true, &wac_i2c->client->dev, "open test skiped!\n");
 #endif
+
+	/* occur cover status event*/
+	if (wac_i2c->pdata->support_cover_detection) {
+		data = COM_KBDCOVER_CHECK_STATUS;
+		ret = wacom_i2c_send(wac_i2c, &data, 1);
+		if (ret < 0) {
+			input_err(true, &wac_i2c->client->dev, "%s: failed to send cover status event %d\n", __func__, ret);
+		}
+	}
 }
 
 static void probe_open_test(struct wacom_i2c *wac_i2c)
@@ -1575,6 +1631,9 @@ static void wacom_i2c_set_input_values(struct wacom_i2c *wac_i2c,
 	input_set_capability(input_dev, EV_KEY, KEY_WAKEUP_UNLOCK);
 	input_set_capability(input_dev, EV_KEY, KEY_HOMEPAGE);
 
+	/* flip cover */
+	input_set_capability(input_dev, EV_SW, SW_FLIP);
+
 	input_set_drvdata(input_dev, wac_i2c);
 }
 
@@ -1594,14 +1653,17 @@ void wacom_print_info(struct wacom_i2c *wac_i2c)
 		wac_i2c->scan_info_fail_cnt = 1000;
 
 	input_info(true, &wac_i2c->client->dev,
-			"%s: ps %s, pen %s, report_scan_seq %d, epen %s, count(%u,%u,%u), mode(%d), block_cnt(%d), check(%d), test(%d,%d), ver[0x%x] #%d\n",
+			"%s: ps %s, pen %s, report_scan_seq %d, epen %s, count(%u,%u,%u), "
+			"mode(%d), block_cnt(%d), check(%d), test(%d,%d), ver[%02X%02X%02X%02X], cover(%d,%d) #%d\n",
 			__func__, wac_i2c->battery_saving_mode ?  "on" : "off",
 			(wac_i2c->function_result & EPEN_EVENT_PEN_OUT) ? "out" : "in",
 			wac_i2c->report_scan_seq, wac_i2c->epen_blocked ? "blocked" : "unblocked",
 			wac_i2c->i2c_fail_count, wac_i2c->abnormal_reset_count, wac_i2c->scan_info_fail_cnt,
 			wac_i2c->check_survey_mode, wac_i2c->tsp_block_cnt, wac_i2c->check_elec,
 			wac_i2c->connection_check, wac_i2c->garage_connection_check,
-			wac_i2c->fw_ver_ic, wac_i2c->print_info_cnt_open);
+			wac_i2c->pdata->img_version_of_ic[0], wac_i2c->pdata->img_version_of_ic[1],
+			wac_i2c->pdata->img_version_of_ic[2], wac_i2c->pdata->img_version_of_ic[3],
+			wac_i2c->cover, wac_i2c->flip_state, wac_i2c->print_info_cnt_open);
 }
 
 static void wacom_print_info_work(struct work_struct *work)
@@ -1666,17 +1728,17 @@ static int wacom_i2c_get_fw_size(struct wacom_i2c *wac_i2c)
 {
 	u32 fw_size = 0;
 
-	if (wac_i2c->pdata->ic_type == MPU_W9020)
+	if (wac_i2c->pdata->img_version_of_ic[0] == MPU_W9020)
 		fw_size = 144 * 1024;
-	else if (wac_i2c->pdata->ic_type == MPU_W9021)
+	else if (wac_i2c->pdata->img_version_of_ic[0] == MPU_W9021)
 		fw_size = 256 * 1024;
-	else if (wac_i2c->pdata->ic_type == MPU_WEZ01)
+	else if (wac_i2c->pdata->img_version_of_ic[0] == MPU_WEZ01)
 		fw_size = 256 * 1024;
 	else
 		fw_size = 128 * 1024;
 
 	input_info(true, &wac_i2c->client->dev, "%s: type[%d] size[0x%X]\n",
-			__func__, wac_i2c->pdata->ic_type, fw_size);
+			__func__, wac_i2c->pdata->img_version_of_ic[0], fw_size);
 
 	return fw_size;
 }
@@ -1835,10 +1897,16 @@ int wacom_i2c_load_fw(struct wacom_i2c *wac_i2c, u8 fw_update_way)
 #else
 		if (fw_update_way == FW_BUILT_IN) {
 #endif
-			wac_i2c->fw_ver_bin = fw_img->fw_ver1;
+			wac_i2c->pdata->img_version_of_bin[0] = (fw_img->fw_ver1 >> 8) & 0xFF;
+			wac_i2c->pdata->img_version_of_bin[1] = fw_img->fw_ver1 & 0xFF;
+			wac_i2c->pdata->img_version_of_bin[2] = (fw_img->fw_ver2 >> 8) & 0xFF;
+			wac_i2c->pdata->img_version_of_bin[3] = fw_img->fw_ver2 & 0xFF;
 			memcpy(wac_i2c->fw_chksum, fw_img->checksum, 5);
 		} else if (fw_update_way == FW_SPU || fw_update_way == FW_VERIFICATION) {
-			wac_i2c->fw_ver_spu = fw_img->fw_ver1;
+			wac_i2c->pdata->img_version_of_spu[0] = (fw_img->fw_ver1 >> 8) & 0xFF;
+			wac_i2c->pdata->img_version_of_spu[1] = fw_img->fw_ver1 & 0xFF;
+			wac_i2c->pdata->img_version_of_spu[2] = (fw_img->fw_ver2 >> 8) & 0xFF;
+			wac_i2c->pdata->img_version_of_spu[3] = fw_img->fw_ver2 & 0xFF;
 			memcpy(wac_i2c->fw_chksum, fw_img->checksum, 5);
 		}
 	} else {
@@ -1882,9 +1950,9 @@ void wacom_i2c_unload_fw(struct wacom_i2c *wac_i2c)
 int wacom_fw_update_on_hidden_menu(struct wacom_i2c *wac_i2c, u8 fw_update_way)
 {
 	struct i2c_client *client = wac_i2c->client;
-	u32 fw_ver_ic = wac_i2c->fw_ver_ic;
 	int ret;
 	int retry = 3;
+	int i;
 
 	input_info(true, &client->dev, "%s: update:%d\n", __func__, fw_update_way);
 
@@ -1913,11 +1981,17 @@ int wacom_fw_update_on_hidden_menu(struct wacom_i2c *wac_i2c, u8 fw_update_way)
 
 	/* firmware info */
 	if (fw_update_way == FW_SPU || fw_update_way == FW_VERIFICATION)
-		input_info(true, &client->dev, "wacom ic fw ver : 0x%x, new fw ver : 0x%x\n",
-				wac_i2c->fw_ver_ic, wac_i2c->fw_ver_spu);
+		input_info(true, &client->dev, "ic fw ver : %02X%02X%02X%02X new fw ver : %02X%02X%02X%02X\n",
+				wac_i2c->pdata->img_version_of_ic[0], wac_i2c->pdata->img_version_of_ic[1],
+				wac_i2c->pdata->img_version_of_ic[2], wac_i2c->pdata->img_version_of_ic[3],
+				wac_i2c->pdata->img_version_of_spu[0], wac_i2c->pdata->img_version_of_spu[1],
+				wac_i2c->pdata->img_version_of_spu[2], wac_i2c->pdata->img_version_of_spu[3]);
 	else
-		input_info(true, &client->dev, "wacom ic fw ver : 0x%x, new fw ver : 0x%x\n",
-				wac_i2c->fw_ver_ic, wac_i2c->fw_ver_bin);
+		input_info(true, &client->dev, "ic fw ver : %02X%02X%02X%02X new fw ver : %02X%02X%02X%02X\n",
+				wac_i2c->pdata->img_version_of_ic[0], wac_i2c->pdata->img_version_of_ic[1],
+				wac_i2c->pdata->img_version_of_ic[2], wac_i2c->pdata->img_version_of_ic[3],
+				wac_i2c->pdata->img_version_of_bin[0], wac_i2c->pdata->img_version_of_bin[1],
+				wac_i2c->pdata->img_version_of_bin[2], wac_i2c->pdata->img_version_of_bin[3]);
 
 	// have to check it later
 	if (wac_i2c->fw_update_way == FW_BUILT_IN && wac_i2c->pdata->bringup == 1) {
@@ -1927,7 +2001,10 @@ int wacom_fw_update_on_hidden_menu(struct wacom_i2c *wac_i2c, u8 fw_update_way)
 	}
 
 	/* If FFU firmware version is lower than IC's version, do not run update routine */
-	if (fw_update_way == FW_SPU && fw_ver_ic >= wac_i2c->fw_ver_spu) {
+	if (fw_update_way == FW_SPU && (wac_i2c->pdata->img_version_of_ic[0] == wac_i2c->pdata->img_version_of_spu[0] &&
+			wac_i2c->pdata->img_version_of_ic[1] == wac_i2c->pdata->img_version_of_spu[1] &&
+			wac_i2c->pdata->img_version_of_ic[2] == wac_i2c->pdata->img_version_of_spu[2] &&
+			wac_i2c->pdata->img_version_of_ic[3] >= wac_i2c->pdata->img_version_of_spu[3])) {
 		input_info(true, &client->dev, "FFU. update is skipped\n");
 		wac_i2c->update_status = FW_UPDATE_PASS;
 
@@ -1957,7 +2034,8 @@ int wacom_fw_update_on_hidden_menu(struct wacom_i2c *wac_i2c, u8 fw_update_way)
 	}
 	if (ret) {
 		wac_i2c->update_status = FW_UPDATE_FAIL;
-		wac_i2c->fw_ver_ic = 0;
+		for (i = 0; i < 4; i++)
+			wac_i2c->pdata->img_version_of_ic[i] = 0;
 		goto out_update_fw;
 	}
 
@@ -2004,8 +2082,7 @@ err_update_load_fw:
 int wacom_fw_update_on_probe(struct wacom_i2c *wac_i2c)
 {
 	struct i2c_client *client = wac_i2c->client;
-	u32 fw_ver_ic = wac_i2c->fw_ver_ic;
-	int ret;
+	int ret, i;
 	int retry = 3;
 	bool bforced = false;
 
@@ -2013,7 +2090,8 @@ int wacom_fw_update_on_probe(struct wacom_i2c *wac_i2c)
 
 	if (wac_i2c->pdata->bringup == 1) {
 		input_info(true, &client->dev, "bringup #1. do not update\n");
-		wac_i2c->fw_ver_bin = 0;
+		for (i = 0; i < 4; i++)
+			wac_i2c->pdata->img_version_of_bin[i] = 0;
 		goto out_update_fw;
 	}
 
@@ -2031,8 +2109,11 @@ int wacom_fw_update_on_probe(struct wacom_i2c *wac_i2c)
 	wac_i2c->fw_update_way = FW_BUILT_IN;
 
 	/* firmware info */
-	input_info(true, &client->dev, "wacom ic fw ver : 0x%x, new fw ver : 0x%x\n",
-			wac_i2c->fw_ver_ic, wac_i2c->fw_ver_bin);
+	input_info(true, &client->dev, "ic fw ver : %02X%02X%02X%02X new fw ver : %02X%02X%02X%02X\n",
+			wac_i2c->pdata->img_version_of_ic[0], wac_i2c->pdata->img_version_of_ic[1],
+			wac_i2c->pdata->img_version_of_ic[2], wac_i2c->pdata->img_version_of_ic[3],
+			wac_i2c->pdata->img_version_of_bin[0], wac_i2c->pdata->img_version_of_bin[1],
+			wac_i2c->pdata->img_version_of_bin[2], wac_i2c->pdata->img_version_of_bin[3]);
 
 	if (wac_i2c->pdata->bringup == 3) {
 		input_info(true, &client->dev, "bringup #3. force update\n");
@@ -2040,24 +2121,56 @@ int wacom_fw_update_on_probe(struct wacom_i2c *wac_i2c)
 	}
 
 	if (bforced) {
-		if (fw_ver_ic != wac_i2c->fw_ver_bin)
-			input_info(true, &client->dev, "not equal, update fw\n");
-		else
-			goto out_update_fw;
+		for (i = 0; i < 4; i++) {
+			if (wac_i2c->pdata->img_version_of_ic[i] != wac_i2c->pdata->img_version_of_bin[i])
+				input_info(true, &client->dev, "force update : not equal, update fw\n");
+				goto fw_update;
+		}
+		input_info(true, &client->dev, "force update : equal, skip update fw\n");
+		goto out_update_fw;
 	} else {
-		if (fw_ver_ic == wac_i2c->fw_ver_bin) {
-			ret = wacom_checksum(wac_i2c);
-			if (ret) {
-				input_info(true, &client->dev, "crc ok, do not update fw\n");
+		if (wac_i2c->pdata->img_version_of_ic[2] == 0 && wac_i2c->pdata->img_version_of_ic[3] == 0) {
+			input_info(true, &client->dev, "fw is not written in ic. force update\n");
+			goto fw_update;
+		}
+		for (i = 0; i < 2; i++) {
+			if (wac_i2c->pdata->img_version_of_ic[i] != wac_i2c->pdata->img_version_of_bin[i]) {
+				input_err(true, &wac_i2c->client->dev, "%s: do not matched version info\n", __func__);
 				goto out_update_fw;
 			}
-			input_info(true, &client->dev, "crc err, do update\n");
+		}
 
-		} else if (fw_ver_ic > wac_i2c->fw_ver_bin) {
-			input_info(true, &client->dev, "ic version is high, do not update fw\n");
-			goto out_update_fw;
+		if ((wac_i2c->pdata->img_version_of_ic[2] >> 4) == WACOM_FIRMWARE_VERSION_UNIT) {
+			input_err(true, &wac_i2c->client->dev, "%s: assy fw. force update\n", __func__);
+			goto fw_update;
+		} else if ((wac_i2c->pdata->img_version_of_ic[2] >> 4) == WACOM_FIRMWARE_VERSION_SET) {
+			if ((wac_i2c->pdata->img_version_of_ic[2] & 0x0F) != (wac_i2c->pdata->img_version_of_bin[2] & 0x0F)) {
+				input_err(true, &wac_i2c->client->dev, "%s: HW ID is different. force update\n", __func__);
+				goto fw_update;
+			} else {				
+				if (wac_i2c->pdata->img_version_of_ic[3] == wac_i2c->pdata->img_version_of_bin[3]) {
+					ret = wacom_checksum(wac_i2c);
+					if (ret) {
+						input_info(true, &client->dev, "crc ok, do not update fw\n");
+						goto out_update_fw;
+					}
+					input_info(true, &client->dev, "crc err, do update\n");
+
+				} else if (wac_i2c->pdata->img_version_of_ic[3] >= wac_i2c->pdata->img_version_of_bin[3]) {
+					input_info(true, &client->dev, "ic version is high, do not update fw\n");
+					goto out_update_fw;
+				}
+			}
+		} else if ((wac_i2c->pdata->img_version_of_ic[2] >> 4) == WACOM_FIRMWARE_VERSION_TEST) {
+			input_info(true, &client->dev, "test fw\n");
+			if (wac_i2c->pdata->img_version_of_ic[3] == wac_i2c->pdata->img_version_of_bin[3]) {
+				input_info(true, &client->dev, "fw ver is same, do not update fw\n");
+				goto out_update_fw;
+			}
 		}
 	}
+
+fw_update:
 	while (retry--) {
 		ret = wacom_i2c_flash(wac_i2c);
 		if (ret) {
@@ -2067,7 +2180,8 @@ int wacom_fw_update_on_probe(struct wacom_i2c *wac_i2c)
 		break;
 	}
 	if (ret) {
-		wac_i2c->fw_ver_ic = 0;
+		for (i = 0; i < 4; i++)
+			wac_i2c->pdata->img_version_of_ic[i] = 0;
 		goto err_update_fw;
 	}
 	wacom_i2c_unload_fw(wac_i2c);
@@ -2621,7 +2735,9 @@ static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 	lcdtype = get_lcd_attached("GET");
 	if (lcdtype == 0xFFFFFF) {
 		input_err(true, &client->dev, "%s: lcd is not attached\n", __func__);
+#if !WACOM_SEC_FACTORY
 		return ERR_PTR(-ENODEV);
+#endif
 	}
 
 	input_info(true, &client->dev, "%s: lcdtype 0x%08X\n", __func__, lcdtype);
@@ -2693,12 +2809,14 @@ static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 	}
 
 	pdata->support_cover_noti = of_property_read_bool(np, "wacom,support_cover_noti");
+	pdata->support_cover_detection = of_property_read_bool(np, "wacom,support_cover_detection");
 
 	input_info(true, &client->dev,
 			"boot_addr: 0x%X, origin: (%d,%d), max_coords: (%d,%d), "
 			"max_pressure: %d, max_height: %d, max_tilt: (%d,%d) "
 			"invert: (%d,%d,%d), fw_path: %s, "
-			"module_ver:%d, table_swap:%d%s%s, cover_noti:%s\n",
+			"module_ver:%d, table_swap:%d%s%s, cover_noti:%d,"
+			"cover_detect:%d\n",
 			pdata->boot_addr, pdata->origin[0], pdata->origin[1],
 			pdata->max_x, pdata->max_y, pdata->max_pressure,
 			pdata->max_height, pdata->max_x_tilt, pdata->max_y_tilt,
@@ -2706,7 +2824,7 @@ static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 			pdata->fw_path, pdata->module_ver, pdata->table_swap,
 			pdata->support_garage_open_test ? ", support garage open test" : "",
 			pdata->regulator_boot_on ? ", boot on" : "",
-			pdata->support_cover_noti ? ", support cover noti" : "");
+			pdata->support_cover_noti, pdata->support_cover_detection);
 
 	return pdata;
 }

@@ -9,6 +9,9 @@
 #include "dsi_hw.h"
 #include "dsi_phy_hw.h"
 #include "dsi_catalog.h"
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+#include "ss_dsi_panel_common.h"
+#endif
 
 #define DSIPHY_CMN_CLK_CFG0						0x010
 #define DSIPHY_CMN_CLK_CFG1						0x014
@@ -172,6 +175,18 @@ static void dsi_phy_hw_v3_0_lane_settings(struct dsi_phy_hw *phy,
 {
 	int i;
 	u8 tx_dctrl[] = {0x00, 0x00, 0x00, 0x04, 0x01};
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd;
+
+	if (phy->display_index == PRIMARY_DISPLAY_NDX)
+		vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
+	else
+		vdd = ss_get_vdd(SECONDARY_DISPLAY_NDX);
+
+	DSI_PHY_DBG(phy, "index:%d, display_index:%d, swing:%x\n",
+		phy->index, phy->display_index, vdd->motto_info.motto_swing);
+#endif
+
 
 	/* Strength ctrl settings */
 	for (i = DSI_LOGICAL_LANE_0; i < DSI_LANE_MAX; i++) {
@@ -194,8 +209,18 @@ static void dsi_phy_hw_v3_0_lane_settings(struct dsi_phy_hw *phy,
 		DSI_W32(phy, DSIPHY_LNX_CFG1(i), cfg->lanecfg.lane[i][1]);
 		DSI_W32(phy, DSIPHY_LNX_CFG2(i), cfg->lanecfg.lane[i][2]);
 		DSI_W32(phy, DSIPHY_LNX_CFG3(i), cfg->lanecfg.lane[i][3]);
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+		if (vdd->motto_info.motto_swing) {
+			DSI_W32(phy, DSIPHY_LNX_OFFSET_TOP_CTRL(i), vdd->motto_info.motto_swing);
+			DSI_W32(phy, DSIPHY_LNX_OFFSET_BOT_CTRL(i), vdd->motto_info.motto_swing);
+		} else {
+			DSI_W32(phy, DSIPHY_LNX_OFFSET_TOP_CTRL(i), 0x0);
+			DSI_W32(phy, DSIPHY_LNX_OFFSET_BOT_CTRL(i), 0x0);
+		}
+#else
 		DSI_W32(phy, DSIPHY_LNX_OFFSET_TOP_CTRL(i), 0x0);
 		DSI_W32(phy, DSIPHY_LNX_OFFSET_BOT_CTRL(i), 0x0);
+#endif
 		DSI_W32(phy, DSIPHY_LNX_TX_DCTRL(i), tx_dctrl[i]);
 	}
 }

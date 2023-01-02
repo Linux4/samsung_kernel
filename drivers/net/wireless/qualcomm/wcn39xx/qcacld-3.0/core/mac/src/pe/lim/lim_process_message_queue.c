@@ -133,8 +133,8 @@ static void lim_process_sae_msg_ap(struct mac_context *mac,
 
 	if (!sta_pre_auth_ctx) {
 		pe_debug("No preauth node created for "
-			 QDF_MAC_ADDR_STR,
-			 QDF_MAC_ADDR_ARRAY(sae_msg->peer_mac_addr));
+			 QDF_MAC_ADDR_FMT,
+			 QDF_MAC_ADDR_REF(sae_msg->peer_mac_addr));
 		return;
 	}
 
@@ -142,8 +142,8 @@ static void lim_process_sae_msg_ap(struct mac_context *mac,
 
 	if (sae_msg->sae_status != IEEE80211_STATUS_SUCCESS) {
 		pe_debug("SAE authentication failed for "
-			 QDF_MAC_ADDR_STR " status: %u",
-			 QDF_MAC_ADDR_ARRAY(sae_msg->peer_mac_addr),
+			 QDF_MAC_ADDR_FMT " status: %u",
+			 QDF_MAC_ADDR_REF(sae_msg->peer_mac_addr),
 			 sae_msg->sae_status);
 		if (assoc_req->present) {
 			pe_debug("Assoc req cached; clean it up");
@@ -215,9 +215,9 @@ static void lim_process_sae_msg(struct mac_context *mac, struct sir_sae_msg *bod
 	}
 
 	pe_debug("SAE:status %d limMlmState %d opmode %d peer: "
-		 QDF_MAC_ADDR_STR, sae_msg->sae_status,
+		 QDF_MAC_ADDR_FMT, sae_msg->sae_status,
 		 session->limMlmState, session->opmode,
-		 QDF_MAC_ADDR_ARRAY(sae_msg->peer_mac_addr));
+		 QDF_MAC_ADDR_REF(sae_msg->peer_mac_addr));
 	if (LIM_IS_STA_ROLE(session))
 		lim_process_sae_msg_sta(mac, session, sae_msg);
 	else if (LIM_IS_AP_ROLE(session))
@@ -524,8 +524,7 @@ static bool def_msg_decision(struct mac_context *mac_ctx,
 	if (mac_ctx->lim.gLimSmeState == eLIM_SME_OFFLINE_STATE) {
 		/* Defer processing this message */
 		if (lim_defer_msg(mac_ctx, lim_msg) != TX_SUCCESS) {
-			QDF_TRACE(QDF_MODULE_ID_PE, LOGE,
-					FL("Unable to Defer Msg"));
+			pe_err_rl("Unable to Defer Msg");
 			lim_log_session_states(mac_ctx);
 			lim_handle_defer_msg_error(mac_ctx, lim_msg);
 		}
@@ -1012,7 +1011,8 @@ uint32_t lim_defer_msg(struct mac_context *mac, struct scheduler_msg *pMsg)
 			(mac, NO_SESSION,
 			LIM_TRACE_MAKE_RXMSG(pMsg->type, LIM_MSG_DEFERRED)));
 	} else {
-		pe_err("Dropped lim message (0x%X) Message %s", pMsg->type, lim_msg_str(pMsg->type));
+		pe_err_rl("Dropped lim message (0x%X) Message %s", pMsg->type,
+			  lim_msg_str(pMsg->type));
 		MTRACE(mac_trace_msg_rx
 			(mac, NO_SESSION,
 			LIM_TRACE_MAKE_RXMSG(pMsg->type, LIM_MSG_DROPPED)));
@@ -1813,9 +1813,9 @@ static void lim_process_messages(struct mac_context *mac_ctx,
 					     msg->bodyptr,
 					     sizeof(tSirP2PNoaAttr));
 				pe_debug("bssId"
-					 QDF_MAC_ADDR_STR
+					 QDF_MAC_ADDR_FMT
 					 " ctWin=%d oppPsFlag=%d",
-					 QDF_MAC_ADDR_ARRAY(session_entry->bssId),
+					 QDF_MAC_ADDR_REF(session_entry->bssId),
 					 session_entry->p2pGoPsUpdate.ctWin,
 					 session_entry->p2pGoPsUpdate.oppPsFlag);
 				pe_debug("uNoa1IntervalCnt=%d uNoa1Duration=%d uNoa1Interval=%d uNoa1StartTime=%d",
@@ -2127,6 +2127,8 @@ static void lim_process_messages(struct mac_context *mac_ctx,
 		lim_process_vdev_delete(mac_ctx, msg->bodyptr);
 		/* Do not free msg->bodyptr, same memory used to send resp */
 		msg->bodyptr = NULL;
+		break;
+	case SIR_LIM_PROCESS_DEFERRED_QUEUE:
 		break;
 	default:
 		qdf_mem_free((void *)msg->bodyptr);

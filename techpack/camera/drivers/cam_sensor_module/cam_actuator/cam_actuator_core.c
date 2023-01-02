@@ -187,7 +187,7 @@ int32_t cam_actuator_get_status(struct cam_actuator_ctrl_t *a_ctrl, uint16_t *in
 	rc = cam_actuator_i2c_read(a_ctrl, 0x05, &val, CAMERA_SENSOR_I2C_TYPE_BYTE, CAMERA_SENSOR_I2C_TYPE_BYTE);
 	if (rc < 0) {
 		CAM_ERR(CAM_ACTUATOR, "get status i2c read fail:%d", rc);
-		return -EINVAL;
+		//return -EINVAL;
 	}
 
 	*info = ((val & 0x03) == 0) ? ACTUATOR_IDLE : ACTUATOR_BUSY;
@@ -205,11 +205,7 @@ void cam_actuator_busywait(struct cam_actuator_ctrl_t *a_ctrl)
 		rc = cam_actuator_get_status(a_ctrl, &info);
 		if (info == ACTUATOR_BUSY || rc < 0) {
 			CAM_INFO(CAM_ACTUATOR, "Busy rc: %d", rc);
-#if defined(CONFIG_SEC_A42XQ_PROJECT) || defined(CONFIG_SEC_A52XQ_PROJECT) || defined(CONFIG_SEC_A42XUQ_PROJECT) || defined(CONFIG_SEC_M62XQ_PROJECT)
 			msleep(10);
-#else
-			msleep(5);
-#endif
 		}
 	       status_check_count++;
 	} while (info && status_check_count < 8);
@@ -220,8 +216,8 @@ void cam_actuator_busywait(struct cam_actuator_ctrl_t *a_ctrl)
 	   CAM_INFO(CAM_ACTUATOR, "Idle");
 }
 
-#if defined(CONFIG_SEC_A42XQ_PROJECT) || defined(CONFIG_SEC_A52XQ_PROJECT) || defined(CONFIG_SEC_A42XUQ_PROJECT) || defined(CONFIG_SEC_M62XQ_PROJECT)
-void cam_actuator_check_pwr(
+#if defined(CONFIG_SEC_A42XQ_PROJECT) || defined(CONFIG_SEC_A52XQ_PROJECT) || defined(CONFIG_SEC_A42XUQ_PROJECT) || defined(CONFIG_SEC_M62XQ_PROJECT) || defined(CONFIG_SEC_GTS7XLLITE_PROJECT) || defined(CONFIG_SEC_GTS7XLLITEWIFI_PROJECT)
+int32_t cam_actuator_check_pwr(
 		struct cam_hw_soc_info *soc_info)
 {
 	int val = 0, i = 0;
@@ -232,12 +228,12 @@ void cam_actuator_check_pwr(
 
 	if (!gpio_conf) {
 		CAM_INFO(CAM_SENSOR, "No GPIO data");
-		return;
+		return -EINVAL ;
 	}
 
 	if (gpio_conf->cam_gpio_common_tbl_size <= 0) {
 		CAM_INFO(CAM_SENSOR, "No GPIO entry");
-		return;
+		return -EINVAL;
 	}
 
 	gpio_tbl = gpio_conf->cam_gpio_req_tbl;
@@ -246,14 +242,18 @@ void cam_actuator_check_pwr(
 	if (!gpio_tbl || !size) {
 		CAM_ERR(CAM_SENSOR, "invalid gpio_tbl %pK / size %d",
 			gpio_tbl, size);
-		return;
+		return -EINVAL;
 	}
 
 	for (i = 0; i < size; i++) {
 		val = gpio_get_value_cansleep(gpio_tbl[i].gpio);
 		CAM_ERR(CAM_SENSOR, "gpio[%d]= %d:%s dir: %ld value: %d",
 			i, gpio_tbl[i].gpio, gpio_tbl[i].label, gpio_tbl[i].flags, val);
+		if(val==0)
+			return -EINVAL;
 	}
+	
+	return 0;
 }
 
 int32_t cam_actuator_do_soft_landing(struct cam_actuator_ctrl_t *a_ctrl)
@@ -266,11 +266,15 @@ int32_t cam_actuator_do_soft_landing(struct cam_actuator_ctrl_t *a_ctrl)
 	CAM_DBG(CAM_ACTUATOR, "cam_actuator_do_soft_landing() Entry ");
 
 	// Check if IC is off
+	rc = cam_actuator_check_pwr(&a_ctrl->soc_info);
+	if (rc < 0)  {
+		CAM_ERR(CAM_ACTUATOR, "Sensor powered off first - actuator slave will not be read now :%d", rc);
+		return 0;
+	}		
 	cam_actuator_busywait(a_ctrl);
 	rc = cam_actuator_i2c_read(a_ctrl, 0x02, &reg_data, CAMERA_SENSOR_I2C_TYPE_BYTE, CAMERA_SENSOR_I2C_TYPE_BYTE);
 	if (rc < 0) {
 		CAM_ERR(CAM_ACTUATOR, "IC status - i2c read fail err:%d", rc);
-		cam_actuator_check_pwr(&a_ctrl->soc_info);
 		return 0;
 	}
 
@@ -346,8 +350,6 @@ int32_t cam_actuator_do_soft_landing(struct cam_actuator_ctrl_t *a_ctrl)
 	uint32_t pos1, pos2;
 	uint32_t position;
 	uint32_t reg_data;
-	int32_t interval = 50;
-	int32_t i;
 
 	CAM_DBG(CAM_ACTUATOR, "cam_actuator_do_soft_landing() Entry ");
 
@@ -380,22 +382,46 @@ int32_t cam_actuator_do_soft_landing(struct cam_actuator_ctrl_t *a_ctrl)
 	// PRESET initial position
 	pos1 = pos1 & 0x03;
 	position = ((uint16_t)pos1 << 8) | pos2;
-	interval = (int32_t) (512 - position) / 3;
 	
-	CAM_INFO(CAM_ACTUATOR, "current position:%d ", position);
-	CAM_INFO(CAM_ACTUATOR, "interval:%d ", interval);
+	CAM_INFO(CAM_ACTUATOR, "current position: %d ", position);
 	
-	for(i = 0; i < 3; i++) {
-		position += interval;
-		rc = cam_actuator_i2c_write(a_ctrl, 0x03, position, CAMERA_SENSOR_I2C_TYPE_WORD);
+	/*Max position is 1023, keep half of max. lens position*/
+	if( position > 512 ) {
+		position = 512;
+
+		rc = cam_actuator_i2c_write(a_ctrl, 0x03, position - 1, CAMERA_SENSOR_I2C_TYPE_WORD);
 		if (rc < 0) {
 			CAM_ERR(CAM_ACTUATOR, "preset register - i2c write fail err:%d", rc);
 			return -EINVAL;
 		}
 
 		cam_actuator_busywait(a_ctrl);
-		CAM_ERR(CAM_ACTUATOR, "current position is set to :%d ", position);
+		CAM_INFO(CAM_ACTUATOR, "current position is set to :%d ", position);
 	}
+	rc = cam_actuator_i2c_write(a_ctrl, 0x0A,  ((position >> 1) - 1), CAMERA_SENSOR_I2C_TYPE_BYTE);
+	if (rc < 0) {
+		CAM_ERR(CAM_ACTUATOR, "preset register - i2c write fail err:%d", rc);
+		return -EINVAL;
+	}
+
+	CAM_INFO(CAM_ACTUATOR, "preset initial position:%d ", position);
+
+	// NRC Time Setting
+	cam_actuator_i2c_write(a_ctrl, 0x0C, 0x85,CAMERA_SENSOR_I2C_TYPE_BYTE);
+	if (rc < 0) {
+		CAM_ERR(CAM_ACTUATOR, "nrc timing issue- i2c write fail err:%d", rc);
+		return -EINVAL;
+	}
+
+	// Enable - softlanding
+	cam_actuator_i2c_write(a_ctrl, 0x0B, 0x01,CAMERA_SENSOR_I2C_TYPE_BYTE);
+	if (rc < 0) {
+		CAM_ERR(CAM_ACTUATOR, "softlanding register configuration failed, rc:%d", rc);
+		return -EINVAL;
+	}
+
+	// Check if busy -> wait
+	cam_actuator_busywait(a_ctrl);
 	CAM_DBG(CAM_ACTUATOR, "cam_actuator_do_soft_landing() Exit ");
 
 	return rc;
@@ -811,6 +837,9 @@ int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
 	struct cam_cmd_buf_desc   *cmd_desc = NULL;
 	struct cam_actuator_soc_private *soc_private = NULL;
 	struct cam_sensor_power_ctrl_t  *power_info = NULL;
+#if defined(CONFIG_SEC_A42XQ_PROJECT)
+	int32_t retry = 0;
+#endif
 
 	if (!a_ctrl || !arg) {
 		CAM_ERR(CAM_ACTUATOR, "Invalid Args");
@@ -968,12 +997,32 @@ int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
 			a_ctrl->cam_act_state = CAM_ACTUATOR_CONFIG;
 		}
 
+#if defined(CONFIG_SEC_A42XQ_PROJECT)
+		for (retry = 0; retry < 3; retry++)
+		{
+			rc = cam_actuator_apply_settings(a_ctrl,
+				&a_ctrl->i2c_data.init_settings);
+			if (rc < 0) {
+				CAM_ERR(CAM_ACTUATOR, "Cannot apply Init settings, retry %d", retry);
+				cam_actuator_power_down(a_ctrl);
+				msleep(20);
+				cam_actuator_power_up(a_ctrl);
+			} else {
+				break;
+			}
+		}
+		if (rc < 0) {
+			CAM_ERR(CAM_ACTUATOR, "Cannot apply Init settings");
+			goto end;
+		}
+#else
 		rc = cam_actuator_apply_settings(a_ctrl,
 			&a_ctrl->i2c_data.init_settings);
 		if (rc < 0) {
 			CAM_ERR(CAM_ACTUATOR, "Cannot apply Init settings");
 			goto end;
 		}
+#endif
 
 		/* Delete the request even if the apply is failed */
 		rc = delete_request(&a_ctrl->i2c_data.init_settings);

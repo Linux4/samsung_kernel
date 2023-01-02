@@ -74,7 +74,6 @@
 #include <net/smc.h>
 #include <net/l3mdev.h>
 #include <linux/android_kabi.h>
-
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 #define NAP_PROCESS_NAME_LEN	128
 #define NAP_DOMAIN_NAME_LEN	255

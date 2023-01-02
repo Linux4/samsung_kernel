@@ -29,6 +29,11 @@ static int __is_kdp_recovery __kdp_ro = 0;
 #define VERITY_PARAM_LENGTH 20
 static char verifiedbootstate[VERITY_PARAM_LENGTH];
 
+#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
+extern int selinux_enforcing __kdp_ro_aligned;
+extern int ss_initialized __kdp_ro_aligned;
+#endif
+
 void __init kdp_init(void)
 {
 	struct kdp_init cred;
@@ -62,6 +67,13 @@ void __init kdp_init(void)
 	cred.bp_cred_secptr 	= offsetof(struct task_security_struct,bp_cred);
 #ifndef CONFIG_RUSTUH_KDP
 	cred.verifiedbootstate	= (u64)verifiedbootstate;
+#endif
+#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
+	cred.selinux.selinux_enforcing_va  = (u64)&selinux_enforcing;
+	cred.selinux.ss_initialized_va	= (u64)&ss_initialized;
+#else
+	cred.selinux.selinux_enforcing_va  = 0;
+	cred.selinux.ss_initialized_va	= 0;
 #endif
 	uh_call(UH_APP_KDP, KDP_INIT, (u64)&cred, 0, 0, 0);
 }
@@ -107,6 +119,7 @@ struct kdp_usecnt init_cred_use_cnt = {
 	.kdp_use_cnt = ATOMIC_INIT(4),
 	.kdp_rcu_head.non_rcu = 0,
 	.kdp_rcu_head.bp_cred = (void *)0,
+	.kdp_rcu_head.reflected_cred    = (void *)0,
 };
 static struct kmem_cache *cred_jar_ro;
 static struct kmem_cache *tsec_jar;
@@ -284,6 +297,7 @@ struct cred *prepare_ro_creds(struct cred *old, int kdp_cmd, u64 p)
 	}
 
 	GET_ROCRED_RCU(new_ro)->non_rcu = old->non_rcu;
+	GET_ROCRED_RCU(new_ro)->reflected_cred = 0;
 	ROCRED_UC_SET(new_ro, 2);
 
 	set_cred_subscribers(new_ro, 0);
@@ -549,6 +563,7 @@ static int kdp_check_path_mismatch(struct vfsmount *vfsmnt)
 		"/com.android.conscrypt",
 		"/com.android.art",
 		"/com.android.adbd",
+		"/com.android.sdkext",
 	};
 
 	if (!vfsmnt->bp_mount) {

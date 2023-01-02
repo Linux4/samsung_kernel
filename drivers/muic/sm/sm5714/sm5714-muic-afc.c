@@ -26,7 +26,7 @@
 #include <linux/delay.h>
 #include <linux/power_supply.h>
 #include <linux/device.h>
-#if defined(CONFIG_BATTERY_SAMSUNG)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 #include "../../../battery/common/sec_battery.h"
 #endif
 
@@ -38,14 +38,11 @@
 #include <linux/muic/sm/sm5714/sm5714-muic.h>
 
 
-#if defined(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/common/muic_notifier.h>
 #endif /* CONFIG_MUIC_NOTIFIER */
 
 static struct sm5714_muic_data *afc_init_data;
-
-/* To make AFC work properly on boot */
-static int is_charger_ready;
 
 static void sm5714_afc_notifier_attach(struct sm5714_muic_data *muic_data,
 	int afcta, int txt_voltage);
@@ -186,6 +183,22 @@ int muic_check_fled_state(int enable, int mode)
 }
 EXPORT_SYMBOL(muic_check_fled_state);
 
+bool sm5714_is_afc_disabled(struct sm5714_muic_data *muic_data)
+{
+	bool ret = (muic_data->fled_torch_enable == 1) ||
+				(muic_data->fled_flash_enable == 1) ||
+				(muic_data->is_water_detect);
+
+	if (ret) {
+		pr_info("[%s:%s] Torch(%d), Flash(%d), Water(%d), AFC DISABLED\n",
+				MUIC_DEV_NAME, __func__,
+				muic_data->fled_torch_enable,
+				muic_data->fled_flash_enable,
+				muic_data->is_water_detect);
+	}
+	return ret;
+}
+
 int muic_disable_afc(int disable)
 {
 	struct sm5714_muic_data *muic_data = afc_init_data;
@@ -221,7 +234,7 @@ int muic_disable_afc(int disable)
 			break;
 		}
 	} else { /* AFC enable : 5V -> 9V(12V) */
-#if defined(CONFIG_MUIC_SUPPORT_PDIC)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PDIC)
 		if (muic_data->pdic_afc_state == SM5714_MUIC_AFC_ABNORMAL) {
 			pr_info("[%s:%s] pdic abnormal: AFC(QC20) skip\n",
 					MUIC_DEV_NAME, __func__);
@@ -339,7 +352,7 @@ int sm5714_muic_voltage_control(struct sm5714_muic_data *muic_data,
 		/* Wait until less than 500mA.*/
 		for (retry = 0; retry < 20; retry++) {
 			usleep_range(5000, 5100);
-#if defined(CONFIG_BATTERY_SAMSUNG)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 			psy_do_property("sm5714-charger", get,
 					POWER_SUPPLY_PROP_CURRENT_MAX, value);
 #endif
@@ -547,8 +560,14 @@ int sm5714_afc_ta_attach(struct sm5714_muic_data *muic_data)
 
 	pr_info("[%s:%s] AFC_TA_ATTACHED\n", MUIC_DEV_NAME, __func__);
 
-	if (!is_charger_ready) {
+	if (!afc_init_data->is_charger_ready) {
 		pr_info("[%s:%s] charger is not ready, return\n",
+				MUIC_DEV_NAME, __func__);
+		return ret;
+	}
+
+	if (!afc_init_data->is_pdic_ready) {
+		pr_info("[%s:%s] pdic is not ready, return\n",
 				MUIC_DEV_NAME, __func__);
 		return ret;
 	}
@@ -615,16 +634,15 @@ int sm5714_afc_ta_attach(struct sm5714_muic_data *muic_data)
 				MUIC_DEV_NAME, __func__);
 	pr_info("[%s:%s] AFC_STATUS [0x%02x]\n", MUIC_DEV_NAME, __func__, ret);
 
-	if ((muic_data->fled_torch_enable == 1) ||
-		(muic_data->fled_flash_enable == 1)) {
-		pr_info("[%s:%s] FLASH or Torch On, Skip AFC\n",
+	if (sm5714_is_afc_disabled(muic_data)) {
+		pr_info("[%s:%s] Skip AFC\n",
 			MUIC_DEV_NAME, __func__);
 		muic_data->attached_dev = ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC;
 		muic_notifier_attach_attached_dev(muic_data->attached_dev);
 		return 0;
 	}
 
-#if defined(CONFIG_MUIC_SUPPORT_PDIC)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PDIC)
 	if (muic_data->pdic_afc_state == SM5714_MUIC_AFC_ABNORMAL) {
 		muic_data->pdic_afc_state_count = 0;
 		cancel_delayed_work(&muic_data->pdic_afc_work);
@@ -645,7 +663,7 @@ int sm5714_afc_ta_attach(struct sm5714_muic_data *muic_data)
 	/* Wait until less than 500mA.*/
 	for (retry = 0; retry < 20; retry++) {
 		usleep_range(5000, 5100);
-#if defined(CONFIG_BATTERY_SAMSUNG)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 		psy_do_property("sm5714-charger", get,
 				POWER_SUPPLY_PROP_CURRENT_MAX, value);
 #endif
@@ -687,6 +705,7 @@ int sm5714_afc_ta_accept(struct sm5714_muic_data *muic_data)
 	int txd_voltage = 0, vbus_voltage = 0;
 	int voltage_min = 0, voltage_max = 0;
 	int i = 0, vbus_check = 0;
+	bool afc_disabled = false;
 
 	pr_info("[%s:%s] AFC_ACCEPTED\n", MUIC_DEV_NAME, __func__);
 
@@ -701,50 +720,48 @@ int sm5714_afc_ta_accept(struct sm5714_muic_data *muic_data)
 
 	muic_data->vbus_changed_9to5 = 0;
 
-	if ((muic_data->fled_torch_enable == 1) ||
-			(muic_data->fled_flash_enable == 1)) {
-		pr_info("[%s:%s] FLASH or Torch On, AFC_ACCEPTED VBUS(9V->5V)\n",
-				MUIC_DEV_NAME, __func__);
-		mutex_unlock(&muic_data->afc_mutex);
-		muic_disable_afc(1); /* 9V(12V) -> 5V */
-		return 0;
-	}
+	afc_disabled = sm5714_is_afc_disabled(muic_data);
 
-	dev1 = sm5714_i2c_read_byte(i2c, SM5714_MUIC_REG_DEVICETYPE1);
-	pr_info("[%s:%s] dev1 [0x%02x]\n", MUIC_DEV_NAME, __func__, dev1);
-	if (dev1 & DEV_TYPE1_AFC_TA) {
-		txd_voltage = sm5714_i2c_read_byte(i2c, SM5714_MUIC_REG_AFCTXD);
-		txd_voltage = 5 + ((txd_voltage&0xF0)>>4);
-		voltage_min  = txd_voltage - 2;
-		voltage_max  = txd_voltage + 1;
+	if (!afc_disabled) {
+		dev1 = sm5714_i2c_read_byte(i2c, SM5714_MUIC_REG_DEVICETYPE1);
+		pr_info("[%s:%s] dev1 [0x%02x]\n", MUIC_DEV_NAME, __func__, dev1);
+		if (dev1 & DEV_TYPE1_AFC_TA) {
+			txd_voltage = sm5714_i2c_read_byte(i2c, SM5714_MUIC_REG_AFCTXD);
+			txd_voltage = 5 + ((txd_voltage&0xF0)>>4);
+			voltage_min  = txd_voltage - 2;
+			voltage_max  = txd_voltage + 1;
 
-		vbus_check = 0;
-		for (i = 0 ; i < 5 ; i++) {
-			vbus_voltage = sm5714_muic_get_vbus_value(muic_data);
-			pr_info("[%s:%s]i:%d TXD:%dV voltage_min:%dV voltage_max:%dV vbus_voltage:%dV\n",
-					MUIC_DEV_NAME, __func__, i, txd_voltage,
-					voltage_min, voltage_max, vbus_voltage);
-			if ((voltage_min <= vbus_voltage) &&
-				(vbus_voltage <= voltage_max)) {
-				vbus_check = 1;
-				i = 10; /* break */
-			} else {
-				msleep(100);
-				pr_info("[%s:%s] retry:%d\n",
-					MUIC_DEV_NAME, __func__, i);
+			vbus_check = 0;
+			for (i = 0 ; i < 5 ; i++) {
+				vbus_voltage = sm5714_muic_get_vbus_value(muic_data);
+				pr_info("[%s:%s]i:%d TXD:%dV voltage_min:%dV voltage_max:%dV vbus_voltage:%dV\n",
+						MUIC_DEV_NAME, __func__, i, txd_voltage,
+						voltage_min, voltage_max, vbus_voltage);
+				if ((voltage_min <= vbus_voltage) &&
+					(vbus_voltage <= voltage_max)) {
+					vbus_check = 1;
+					i = 10; /* break */
+				} else {
+					msleep(100);
+					pr_info("[%s:%s] retry:%d\n",
+						MUIC_DEV_NAME, __func__, i);
+				}
 			}
+			if (vbus_check)
+				sm5714_afc_notifier_attach(muic_data,
+					SM5714_MUIC_AFC_TA, txd_voltage);
+			else
+				sm5714_afc_notifier_attach(muic_data,
+					SM5714_MUIC_AFC_TA, 5);
+		} else {
+			sm5714_afc_notifier_attach(muic_data, SM5714_MUIC_AFC_TA, 5);
 		}
-		if (vbus_check)
-			sm5714_afc_notifier_attach(muic_data,
-				SM5714_MUIC_AFC_TA, txd_voltage);
-		else
-			sm5714_afc_notifier_attach(muic_data,
-				SM5714_MUIC_AFC_TA, 5);
-	} else {
-		sm5714_afc_notifier_attach(muic_data, SM5714_MUIC_AFC_TA, 5);
 	}
 
 	mutex_unlock(&muic_data->afc_mutex);
+
+	if (afc_disabled)
+		muic_disable_afc(1); /* 9V(12V) -> 5V */
 
 	return 0;
 }
@@ -1109,7 +1126,7 @@ static void hv_muic_change_afc_voltage(int tx_data)
 		/* Wait until less than 500mA.*/
 		for (retry = 0; retry < 20; retry++) {
 			usleep_range(5000, 5100);
-#if defined(CONFIG_BATTERY_SAMSUNG)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 			psy_do_property("sm5714-charger", get,
 					POWER_SUPPLY_PROP_CURRENT_MAX, value);
 #endif
@@ -1179,12 +1196,11 @@ int sm5714_muic_afc_set_voltage(int vol)
 		return 0;
 	}
 
-#if defined(CONFIG_MUIC_SUPPORT_PDIC)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PDIC)
 	/* do not set high voltage at below conditions */
 	if (vol > 5) {
-		if ((muic_data->fled_torch_enable == 1) ||
-				(muic_data->fled_flash_enable == 1)) {
-			pr_info("[%s:%s] FLASH or Torch On, Skip AFC\n",
+		if (sm5714_is_afc_disabled(muic_data)) {
+			pr_info("[%s:%s] Skip AFC\n",
 					MUIC_DEV_NAME, __func__);
 			return 0;
 		}
@@ -1253,7 +1269,7 @@ static void muic_afc_retry_work(struct work_struct *work)
 	}
 }
 
-#if defined(CONFIG_MUIC_SUPPORT_PDIC)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PDIC)
 static void sm5714_muic_pdic_afc_handler(struct work_struct *work)
 {
 	struct sm5714_muic_data *muic_data =
@@ -1317,13 +1333,19 @@ int sm5714_muic_charger_init(void)
 		return ret;
 	}
 
-	if (is_charger_ready) {
+	if (afc_init_data->is_charger_ready) {
 		pr_info("[%s:%s] charger is already ready.\n",
 				MUIC_DEV_NAME, __func__);
 		return ret;
 	}
 
-	is_charger_ready = true;
+	afc_init_data->is_charger_ready = true;
+
+	if (!afc_init_data->is_pdic_ready) {
+		pr_info("[%s:%s] pdic is not ready.\n",
+				MUIC_DEV_NAME, __func__);
+		return ret;
+	}
 
 	if ((afc_init_data->attached_dev == ATTACHED_DEV_TA_MUIC) ||
 			(afc_init_data->attached_dev == ATTACHED_DEV_UNOFFICIAL_TA_MUIC))
@@ -1338,7 +1360,7 @@ void sm5714_hv_muic_initialize(struct sm5714_muic_data *muic_data)
 
 	afc_init_data = muic_data;
 
-	is_charger_ready = false;
+	afc_init_data->is_charger_ready = false;
 
 	/* To make AFC work properly on boot */
 	INIT_WORK(&(muic_data->muic_afc_init_work), sm5714_hv_muic_init_detect);
@@ -1346,9 +1368,8 @@ void sm5714_hv_muic_initialize(struct sm5714_muic_data *muic_data)
 	INIT_DELAYED_WORK(&muic_data->afc_retry_work, muic_afc_retry_work);
 	INIT_DELAYED_WORK(&muic_data->afc_torch_work, muic_afc_torch_work);
 
-#if defined(CONFIG_MUIC_SUPPORT_PDIC)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PDIC)
 	INIT_DELAYED_WORK(&muic_data->pdic_afc_work,
 			sm5714_muic_pdic_afc_handler);
 #endif
 }
-

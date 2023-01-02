@@ -133,6 +133,9 @@ int xhci_halt(struct xhci_hcd *xhci)
 {
 	int ret;
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "// Halt the HC");
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	xhci_info(xhci, "%s\n", __func__);
+#endif
 	xhci_quiesce(xhci);
 
 	ret = xhci_handshake(&xhci->op_regs->status,

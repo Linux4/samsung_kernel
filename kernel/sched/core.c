@@ -32,6 +32,10 @@
 
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 
+#ifdef CONFIG_SEC_PERF_MANAGER
+unsigned long get_max_fps_util(int group_id);
+#endif /* CONFIG_FPS */
+
 #if defined(CONFIG_SCHED_DEBUG) && defined(CONFIG_JUMP_LABEL)
 /*
  * Debugging: various feature bits
@@ -1286,15 +1290,24 @@ long schedtune_task_margin(struct task_struct *task);
 unsigned int uclamp_task(struct task_struct *p)
 {
 	unsigned long util = task_util_est(p);
-#ifdef CONFIG_SCHED_TUNE
-	long margin = schedtune_task_margin(p);
-
-	trace_sched_boost_task(p, util, margin);
-
-	util += margin;
+	unsigned long ret_value = util;
+#ifdef CONFIG_SEC_PERF_MANAGER
+	unsigned long fps_util;
 #endif
 
-	return util;
+#ifdef CONFIG_SCHED_TUNE
+	long margin = schedtune_task_margin(p);
+	ret_value = util + margin;
+#ifdef CONFIG_SEC_PERF_MANAGER
+	if (p->drawing_flag) {
+		fps_util = get_max_fps_util(p->drawing_flag);
+		ret_value = max(ret_value, fps_util);
+	}
+#endif
+	trace_sched_boost_task(p, util, margin);
+#endif
+
+	return ret_value;
 }
 
 bool uclamp_boosted(struct task_struct *p)
@@ -1494,8 +1507,11 @@ static inline bool is_per_cpu_kthread(struct task_struct *p)
  */
 static inline bool is_cpu_allowed(struct task_struct *p, int cpu)
 {
-	if (!cpumask_test_cpu(cpu, &p->cpus_allowed))
-		return false;
+#ifdef CONFIG_SEC_PERF_MANAGER
+	if (!p->drawing_mig_boost)
+#endif
+		if (!cpumask_test_cpu(cpu, &p->cpus_allowed))
+			return false;
 
 	if (is_per_cpu_kthread(p))
 		return cpu_online(cpu);

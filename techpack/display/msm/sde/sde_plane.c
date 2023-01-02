@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2014-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (C) 2014-2021 The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -643,6 +644,7 @@ int sde_plane_wait_input_fence(struct drm_plane *plane, uint32_t wait_ms)
 
 					pr_info("DPCI Logging for fence timeout\n");
 					ss_inc_ftout_debug(tout_fence->ops->get_timeline_name(tout_fence));
+					BUG_ON(1);
 				}
 #endif
 
@@ -3604,7 +3606,7 @@ static void _sde_plane_install_properties(struct drm_plane *plane,
 			"prefill_time", 0x0, 0, ~0, 0,
 			PLANE_PROP_PREFILL_TIME);
 
-	info = kzalloc(sizeof(struct sde_kms_info), GFP_KERNEL);
+	info = vzalloc(sizeof(struct sde_kms_info));
 	if (!info) {
 		SDE_ERROR("failed to allocate info memory\n");
 		return;
@@ -3715,7 +3717,7 @@ static void _sde_plane_install_properties(struct drm_plane *plane,
 			info->data, SDE_KMS_INFO_DATALEN(info),
 			PLANE_PROP_INFO);
 
-	kfree(info);
+	vfree(info);
 
 	if (psde->features & BIT(SDE_SSPP_MEMCOLOR)) {
 		snprintf(feature_name, sizeof(feature_name), "%s%d",

@@ -2,6 +2,7 @@
 config ICNSS2
 	tristate "Platform driver for Wi-Fi Module module"
 	select CNSS_UTILS
+	select SEC_SS_CNSS_FEATURE_SYSFS
 	help
 	  This module adds support for Q6 integrated WLAN connectivity
 	  subsystem with iWCN architecture. This module is responsible for
@@ -36,3 +37,7 @@ config CNSS_QCA6750
 	  CNSS QCA6750 chipset.
 	  These changes are needed to support the new hardware architecture
 	  for CNSS QCA6750 chipset.
+
+config SEC_SS_CNSS_FEATURE_SYSFS
+	bool "SS Feature sysfs support"
+	depends on ICNSS2

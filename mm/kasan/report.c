@@ -85,13 +85,13 @@ static void start_report(unsigned long *flags)
 	spin_lock_irqsave(&report_lock, *flags);
 	pr_err("==================================================================\n");
 }
-
+int kasan_panic = true;
 static void end_report(unsigned long *flags)
 {
 	pr_err("==================================================================\n");
 	add_taint(TAINT_BAD_PAGE, LOCKDEP_NOW_UNRELIABLE);
 	spin_unlock_irqrestore(&report_lock, *flags);
-	if (panic_on_warn)
+	if (kasan_panic)
 		panic("panic_on_warn set ...\n");
 	kasan_enable_current();
 }

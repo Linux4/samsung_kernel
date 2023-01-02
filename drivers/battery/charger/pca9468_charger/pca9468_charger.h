@@ -334,6 +334,8 @@ static int adc_gain[16] = { 0, 1, 2, 3, 4, 5, 6, 7, -8, -7, -6, -5, -4, -3, -2, 
 
 /* Maximum TA voltage threshold */
 #define PCA9468_TA_MAX_VOL		9800000 // 9800000uV
+/* Minimum TA voltage threshold */
+#define PCA9468_TA_MIN_VOL		7000000	// 7000000uV
 /* Maximum TA current threshold */
 #define PCA9468_TA_MAX_CUR		2450000	// 2450000uA
 /* Mimimum TA current threshold */
@@ -375,10 +377,15 @@ static int adc_gain[16] = { 0, 1, 2, 3, 4, 5, 6, 7, -8, -7, -6, -5, -4, -3, -2, 
 #define PCA9468_TA_IIN_OFFSET		100000	// 100mA
 /* IIN_CC upper protection offset in Power Limit Mode TA */
 #define PCA9468_IIN_CC_UPPER_OFFSET	150000	// 150mA
+/* TA current low offset for reducing input current */
+#define PCA9468_TA_CUR_LOW_OFFSET	200000	// 200mA
 
 /* PD Message Voltage and Current Step */
 #define PD_MSG_TA_VOL_STEP			20000	// 20mV
 #define PD_MSG_TA_CUR_STEP			50000	// 50mA
+
+/* Step1 vfloat threshold */
+#define STEP1_VFLOAT_THRESHOLD		4200000	// 4200000uV
 
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 #define PCA9468_SEC_DENOM_U_M		1000 // 1000, denominator
@@ -515,6 +522,7 @@ struct pca9468_platform_data {
 	unsigned int 	fsw_cfg; 	/* Switching frequency, refer to the datasheet, 0 - 833kHz, ... , 3 - 980kHz */
 	unsigned int	ntc_th;		/* NTC voltage threshold : 0~2.4V - uV unit */
 	unsigned int	ta_mode;	/* Default ta mode, 0 - No direct charging, 1 - 2:1 charging mode, 2 - 4:1 charging mode */
+	unsigned int	cv_polling;	/* CV mode polling time in step1 charging - ms unit */
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	int chgen_gpio;
 	char *sec_dc_name;

@@ -138,6 +138,7 @@ static int cam_cpas_util_vote_bus_client_bw(
 			ib = CAM_CPAS_AXI_MIN_MNOC_IB_BW;
 	}
 
+#if defined(CONFIG_SEC_A52XQ_PROJECT)	
 	CAM_INFO(CAM_CPAS, "before Bus client=[%d][%s] :ab[%llu] ib[%llu], index[%d] camnoc_bw:%d",
 		bus_client->client_id, bus_client->name, ab, ib, idx, camnoc_bw);
 
@@ -145,6 +146,7 @@ static int cam_cpas_util_vote_bus_client_bw(
 		ab = 12000000000UL;
 	if (ib > 0)
 		ib = 12000000000UL;
+#endif
 
 	pdata = bus_client->pdata;
 	path = &(pdata->usecase[idx]);

@@ -239,6 +239,12 @@ static void dp_ctrl_update_hw_vx_px(struct dp_ctrl_private *ctrl)
 	    ctrl->link->link_params.bw_code == DP_LINK_BW_8_1)
 		high = true;
 
+#ifdef CONFIG_SEC_DISPLAYPORT
+	secdp_redriver_linkinfo(link->link_params.bw_code,
+		link->phy_params.v_level,
+		link->phy_params.p_level);
+#endif
+
 	ctrl->catalog->update_vx_px(ctrl->catalog,
 		link->phy_params.v_level, link->phy_params.p_level, high);
 }

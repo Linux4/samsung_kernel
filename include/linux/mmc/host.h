@@ -657,6 +657,9 @@ struct mmc_host {
 	bool need_hw_reset;
 	atomic_t active_reqs;
 	unsigned int		card_detect_cnt;
+#if IS_ENABLED(CONFIG_SEC_ABC)
+	unsigned int		card_removed_cnt;
+#endif
 	int (*sdcard_uevent)(struct mmc_card *card);
 #ifndef CONFIG_MMC_CLKGATE
 #define SEC_MMC_PM_ACTIVE_STATE		0

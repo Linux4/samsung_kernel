@@ -320,7 +320,7 @@ skip_call_handle_vblank_virt:
 			fps = 1000000 / t_delt;
 
 			if (cnt[ndx] == 1) {
-				LCD_INFO("VRR: teirq: %d, %d\n", prev_fps[ndx], fps);
+				LCD_INFO(vdd, "VRR: teirq: %d, %d\n", prev_fps[ndx], fps);
 				SS_XLOG(prev_fps[ndx], fps);
 			}
 
@@ -1872,7 +1872,7 @@ static void _sde_encoder_autorefresh_disable_seq1(
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 			struct samsung_display_driver_data *vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
 			vdd->is_autorefresh_fail = true;
-			LCD_INFO("set is_autorefresh_fail true\n");
+			LCD_INFO(vdd, "set is_autorefresh_fail true\n");
 #endif
 			SDE_ERROR_CMDENC(cmd_enc,
 					"disable autorefresh failed\n");

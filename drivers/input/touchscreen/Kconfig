@@ -1354,16 +1354,4 @@ source "drivers/input/touchscreen/synaptics_tcm/Kconfig"
 source "drivers/input/touchscreen/focaltech_touch/Kconfig"
 
 source "drivers/input/touchscreen/nt36xxx/Kconfig"
-
-config TOUCHSCREEN_HIMAX_CHIPSET
-	bool "Himax touchpanel CHIPSET"
-	help
-		Say Y here if you have a Himax CHIPSET touchscreen.
-		HIMAX controllers are multi touch controllers which can
-		report 10 touches at a time.
-
-		If unsure, say N.
-
-source "drivers/input/touchscreen/himax/himax_83102E/Kconfig"
-
 endif

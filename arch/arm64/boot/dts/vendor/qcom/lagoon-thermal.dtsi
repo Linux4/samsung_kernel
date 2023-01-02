@@ -67,15 +67,9 @@
 };
 
 &soc {
-	lmh_cpu_vdd0: qcom,lmh-cpu-vdd@18358800 {
+	lmh_cpu_vdd: qcom,lmh-cpu-vdd {
 		compatible = "qcom,lmh-cpu-vdd";
-		reg =  <0x18358800 0x1000>;
-		#cooling-cells = <2>;
-	};
-
-	lmh_cpu_vdd1: qcom,lmh-cpu-vdd@18350800 {
-		compatible = "qcom,lmh-cpu-vdd";
-		reg =  <0x18350800 0x1000>;
+		qcom,osm-llm-cpu-vdd-cdev;
 		#cooling-cells = <2>;
 	};
 
@@ -1182,14 +1176,9 @@
 		};
 
 		cooling-maps {
-			lmh_cpu0_cdev {
+			lmh_apc_cdev {
 				trip = <&min_temp_0_lowc>;
-				cooling-device = <&lmh_cpu_vdd0 1 1>;
-			};
-
-			lmh_cpu6_cdev {
-				trip = <&min_temp_0_lowc>;
-				cooling-device = <&lmh_cpu_vdd1 1 1>;
+				cooling-device = <&lmh_cpu_vdd 1 1>;
 			};
 		};
 	};
@@ -1233,14 +1222,9 @@
 		};
 
 		cooling-maps {
-			lmh_cpu0_cdev {
+			lmh_apc_cdev {
 				trip = <&min_temp_1_lowc>;
-				cooling-device = <&lmh_cpu_vdd0 1 1>;
-			};
-
-			lmh_cpu6_cdev {
-				trip = <&min_temp_1_lowc>;
-				cooling-device = <&lmh_cpu_vdd1 1 1>;
+				cooling-device = <&lmh_cpu_vdd 1 1>;
 			};
 		};
 	};

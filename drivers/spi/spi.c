@@ -77,6 +77,17 @@ modalias_show(struct device *dev, struct device_attribute *a, char *buf)
 }
 static DEVICE_ATTR_RO(modalias);
 
+static ssize_t name_show(struct device *dev, struct device_attribute *a, char *buf)
+{
+	const struct spi_device	*spi = to_spi_device(dev);
+	const struct spi_driver *sdrv = to_spi_driver(spi->dev.driver);
+
+	if (sdrv->driver.name)
+		return sprintf(buf, "%s\n", sdrv->driver.name);
+	return sprintf(buf, "\n");
+}
+static DEVICE_ATTR_RO(name);
+
 #define SPI_STATISTICS_ATTRS(field, file)				\
 static ssize_t spi_controller_##field##_show(struct device *dev,	\
 					     struct device_attribute *attr, \
@@ -158,6 +169,7 @@ SPI_STATISTICS_SHOW(transfers_split_maxsize, "%lu");
 
 static struct attribute *spi_dev_attrs[] = {
 	&dev_attr_modalias.attr,
+	&dev_attr_name.attr,
 	NULL,
 };
 

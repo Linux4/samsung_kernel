@@ -19,8 +19,14 @@ else ifdef CONFIG_SEC_A42XUQ_PROJECT
 fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_a42xuq.bin
 fw-external-$(CONFIG_SENSORS_A96T3X6_SUB) += abov/a96t356_a42xuq_sub.bin
 else ifdef CONFIG_SEC_GTS7XLLITE_PROJECT
-fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_gts7xl_main1.bin
-fw-external-$(CONFIG_SENSORS_A96T3X6_WIFI) += abov/a96t356_gts7xl_wifi1.bin
+fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_gts7l_5g_main1_usa.bin	abov/a96t356_gts7l_5g_main1.bin 	abov/a96t356_gts7l_lte_main1.bin 
+fw-external-$(CONFIG_SENSORS_A96T3X6_WIFI) += abov/a96t356_gts7l_5g_wifi1_usa.bin	abov/a96t356_gts7l_5g_wifi1.bin 	abov/a96t356_gts7l_lte_wifi1.bin
+else ifdef CONFIG_SEC_GTS7XLLITEWIFI_PROJECT
+fw-external-$(CONFIG_SENSORS_A96T3X6) += 	abov/a96t356_gts7l_wifi_main1.bin
+fw-external-$(CONFIG_SENSORS_A96T3X6_WIFI) += 	abov/a96t356_gts7l_wifi_wifi1.bin
+else ifdef CONFIG_SEC_M52XQ_PROJECT
+fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_m52xq.bin
+fw-external-$(CONFIG_SENSORS_A96T3X6_SUB) += abov/a96t356_m52xq_sub.bin
 else
 fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_a42xq.bin
 fw-external-$(CONFIG_SENSORS_A96T3X6_SUB) += abov/a96t356_a42xq_sub.bin
@@ -34,11 +40,20 @@ fw-external-$(CONFIG_TOUCHSCREEN_STM_FTS5CU56A) += tsp_stm/fts5cu56a_m62xq.bin
 else
 fw-external-$(CONFIG_TOUCHSCREEN_STM_FTS5CU56A) += tsp_stm/fts5cu56a_a52xq.bin
 endif
+fw-external-$(CONFIG_TOUCHSCREEN_STM) += tsp_stm/fts5cu56a_m52xq.bin
+fw-external-$(CONFIG_TOUCHSCREEN_SLSI) += tsp_slsi/y771_m52xq.bin
+fw-external-$(CONFIG_TOUCHSCREEN_SYNAPTICS) += tsp_synaptics/s3908_m52xq.bin
 fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83102) += tsp_himax/hx83102e_gta4xl.bin
 fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83121) += tsp_himax/hx83121a_gts7xllite.bin
+fw-external-$(CONFIG_TOUCHSCREEN_FTS_FT820X) += tsp_focaltech/ft8203_gts7xllite.bin
 fw-external-$(CONFIG_KEYBOARD_STM32_POGO) += keyboard_stm/stm32_gts7llite.bin
 
-fw-external-$(CONFIG_EPEN_WACOM_WEZ01) += epen/wez01_gts7xllite_00.bin epen/wez01_gts7xllite.bin
+ifdef CONFIG_SEC_M23XQ_PROJECT
+fw-external-$(CONFIG_TOUCHSCREEN_NOVATEK_NT36523_SPI) += tsp_novatek/nt36672_m23xq_csot.bin tsp_novatek/nt36672_m23xq_tianma.bin \
+									tsp_novatek/nt36672_m23xq_csot_mp.bin tsp_novatek/nt36672_m23xq_tianma_mp.bin
+endif
+
+fw-external-$(CONFIG_EPEN_WACOM_WEZ01) += epen/wez01_gts7xllite_00.bin epen/wez01_gts7xllite.bin epen/w9021_gts7xllite.bin
 
 # FIVE
 ifeq ($(CONFIG_FIVE_TEE_DRIVER),y)

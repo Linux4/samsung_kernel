@@ -25,6 +25,7 @@ ifeq ($(CONFIG_CNSS_QCA6390), y)
 	CONFIG_DIRECT_BUF_RX_ENABLE := y
 	CONFIG_WMI_DBR_SUPPORT := y
 	CONFIG_MORE_TX_DESC := y
+	CONFIG_FIX_TXDMA_ALIGNMENT := y
 endif
 
 ifeq ($(CONFIG_CNSS_QCA6490), y)
@@ -395,6 +396,7 @@ endif #CONFIG_HELIUMPLUS
 
 ifeq ($(CONFIG_LITHIUM), y)
 CONFIG_RX_DEFRAG_DO_NOT_REINJECT := y
+CONFIG_IPA_SET_RESET_TX_DB_PA := y
 #
 # Enable Shadow V2 for all lithium platform
 #
@@ -449,6 +451,7 @@ CONFIG_MAX_ALLOC_PAGE_SIZE := y
 CONFIG_REO_DESC_DEFER_FREE := y
 CONFIG_RXDMA_ERR_PKT_DROP := y
 CONFIG_DELIVERY_TO_STACK_STATUS_CHECK := y
+CONFIG_DP_MEM_PRE_ALLOC := y
 
 ifeq ($(CONFIG_FEATURE_TSO), y)
 	CONFIG_FEATURE_TSO_STATS := y
@@ -522,6 +525,10 @@ else ifeq ($(CONFIG_PERF_DEBUG), y)
 else
 	PANIC_ON_BUG := n
 	WLAN_WARN_ON_ASSERT := n
+endif
+
+ifeq ($(TARGET_BUILD_VARIANT),user)
+	PANIC_ON_BUG := n
 endif
 
 # Compile all log levels by default
@@ -811,6 +818,9 @@ CONFIG_ENABLE_MTRACE_LOG := y
 #Flag to enable nud tracking feature
 CONFIG_WLAN_NUD_TRACKING := y
 
+#Flag to enable/Disable Function call trace
+CONFIG_FUNC_CALL_MAP := n
+
 #Flag to enable wbuff feature
 CONFIG_WLAN_WBUFF := y
 
@@ -943,6 +953,7 @@ ifeq ($(CONFIG_LITHIUM), y)
 		CONFIG_WLAN_RECORD_RX_PADDR := y
 		CONFIG_HIF_CPU_PERF_AFFINE_MASK := y
 		CONFIG_WLAN_FEATURE_DP_RX_RING_HISTORY := y
+		CONFIG_ALLOW_PKT_DROPPING := y
 	endif
 	CONFIG_DYNAMIC_RX_AGGREGATION := y
 	CONFIG_RX_DESC_DEBUG_CHECK:= y
@@ -1061,6 +1072,8 @@ CONFIG_FEATURE_WLAN_TIME_SYNC_FTM := y
 endif
 
 CONFIG_WLAN_HANG_EVENT := y
+
+CONFIG_FEATURE_GPIO_CFG := y
 
 #Enable VDEV Response wakelock feature
 CONFIG_FEATURE_VDEV_RSP_WAKELOCK := y

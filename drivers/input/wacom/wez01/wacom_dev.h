@@ -68,7 +68,7 @@ extern unsigned int lpcharge;
 /* query data */
 #define COM_COORD_NUM			16
 #define COM_RESERVED_NUM		0
-#define COM_QUERY_NUM			15
+#define COM_QUERY_NUM			16
 #define COM_QUERY_POS			(COM_COORD_NUM + COM_RESERVED_NUM)
 #define COM_QUERY_BUFFER		(COM_QUERY_POS + COM_QUERY_NUM)
 
@@ -89,6 +89,7 @@ enum NOTI_SUB_ID {
 	OOK_PACKET,
 	CMD_PACKET,
 	GCF_PACKET		= 7,	/* Garage Charging Finished notification data*/
+	COVER_DETECT_PACKET	= 10,
 };
 
 enum REPLY_SUB_ID {
@@ -175,12 +176,13 @@ struct fw_image {
 #define EPEN_EVENT_PEN_OUT		(1 << 0)
 #define EPEN_EVENT_GARAGE		(1 << 1)
 #define EPEN_EVENT_AOP			(1 << 2)
-#define EPEN_EVENT_SURVEY		(EPEN_EVENT_GARAGE | EPEN_EVENT_AOP)
+#define EPEN_EVENT_COVER_DETECTION			(1 << 3)
+#define EPEN_EVENT_SURVEY		(EPEN_EVENT_GARAGE | EPEN_EVENT_AOP | EPEN_EVENT_COVER_DETECTION)
 
 #define EPEN_SURVEY_MODE_NONE		0x0
 #define EPEN_SURVEY_MODE_GARAGE_ONLY	EPEN_EVENT_GARAGE
 #define EPEN_SURVEY_MODE_GARAGE_AOP	EPEN_EVENT_AOP
-
+#define EPEN_SURVEY_MODE_COVER_DETECTION_ONLY	EPEN_EVENT_COVER_DETECTION
 
 /*--------------------------------------------------
  * function setting by user or default
@@ -260,6 +262,12 @@ typedef enum {
 	WACOM_ENABLE = 0,
 	WACOM_DISABLE = 1,
 } wacom_disable_mode_t;
+
+enum epen_fw_ver_info{
+	WACOM_FIRMWARE_VERSION_UNIT = 3,
+	WACOM_FIRMWARE_VERSION_SET = 4,
+	WACOM_FIRMWARE_VERSION_TEST = 6,
+} ;
 
 /* WACOM_DEBUG : Print event contents */
 #define WACOM_DEBUG_PRINT_I2C_READ_CMD		0x01
@@ -376,7 +384,6 @@ struct wacom_g5_platform_data {
 #if WACOM_SEC_FACTORY
 	const char *fw_fac_path;
 #endif
-	u8 ic_type;
 	u8 bl_ver;
 	u32 module_ver;
 	u32 support_garage_open_test;
@@ -384,10 +391,15 @@ struct wacom_g5_platform_data {
 	bool regulator_boot_on;
 	u32 bringup;
 	bool support_cover_noti;
+	bool support_cover_detection;
 
 	u32	area_indicator;
 	u32	area_navigation;
 	u32	area_edge;
+
+	u8 img_version_of_ic[4];
+	u8 img_version_of_bin[4];
+	u8 img_version_of_spu[4];
 };
 
 
@@ -465,9 +477,6 @@ struct wacom_i2c {
 	struct fw_image *fw_img;
 	const struct firmware *firm_data;
 
-	u16 fw_ver_ic;
-	u16 fw_ver_bin;
-	u16 fw_ver_spu;
 	int update_status;
 	u8 *fw_data;
 	u8 fw_update_way;
@@ -535,6 +544,7 @@ struct wacom_i2c {
 	char *ble_hist1;
 	int ble_hist_index;
 	char cover;
+	u8 flip_state;
 };
 
 extern struct wacom_i2c *g_wac_i2c;

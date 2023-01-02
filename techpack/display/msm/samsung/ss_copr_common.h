@@ -123,7 +123,7 @@ struct COPR {
 	void (*panel_init)(struct samsung_display_driver_data *vdd);
 };
 
-void print_copr_cmd(struct COPR_CMD cmd);
+void print_copr_cmd(struct samsung_display_driver_data *vdd);
 int ss_copr_set_cmd_offset(struct COPR_CMD *cmd, char* p);
 void ss_copr_set_cmd(struct samsung_display_driver_data *vdd, struct COPR_CMD *copr_cmd);
 int ss_get_copr_orig_cmd(struct samsung_display_driver_data *vdd);
@@ -134,6 +134,6 @@ void ss_copr_reset_cnt(struct samsung_display_driver_data *vdd);
 int ss_copr_get_roi_opr(struct samsung_display_driver_data *vdd);
 
 void ss_read_copr_work(struct work_struct *work);
-void ss_copr_init(struct samsung_display_driver_data *vdd);
+int ss_copr_init(struct samsung_display_driver_data *vdd);
 
 #endif /* __SS_COPR_COMMON_H__ */

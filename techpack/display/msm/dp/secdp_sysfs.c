@@ -102,6 +102,8 @@ exit:
 static CLASS_ATTR_WO(dp_sbu_sw_sel);
 #endif
 
+#define SECDP_DEX_ADAPTER_SKIP	"SkipAdapterCheck"
+
 static ssize_t dex_show(struct class *class,
 				struct class_attribute *attr, char *buf)
 {
@@ -116,8 +118,9 @@ static ssize_t dex_show(struct class *class,
 		dex->prev = dex->curr = dex->status = DEX_DISABLED;
 	}
 
-	DP_INFO("prev: %d, curr: %d, status: %d\n",
-			dex->prev, dex->curr, dex->status);
+	DP_INFO("prev:%d, curr:%d, status:%d, %s:%d\n",
+			dex->prev, dex->curr, dex->status,
+			SECDP_DEX_ADAPTER_SKIP, secdp_dex_adapter_skip_show());
 	rc = scnprintf(buf, PAGE_SIZE, "%d\n", dex->status);
 
 	if (dex->status == DEX_DURING_MODE_CHANGE)
@@ -167,28 +170,19 @@ static ssize_t dex_store(struct class *class,
 	len = strlen(tok);
 	DP_DEBUG("tok: %s, len: %d\n", tok, len);
 
-	if (!strncmp(DEX_TAG_HMD, tok, len)) {
-		/* called by HmtManager to inform list of supported HMD devices
-		 *
-		 * Format :
-		 *   HMD,NUM,NAME01,VID01,PID01,NAME02,VID02,PID02,...
-		 *
-		 *   HMD  : tag
-		 *   NUM  : num of HMD dev ..... max 2 bytes to decimal (max 32)
-		 *   NAME : name of HMD ...... max 14 bytes, char string
-		 *   VID  : vendor  id ....... 4 bytes to hexadecimal
-		 *   PID  : product id ....... 4 bytes to hexadecimal
-		 *
-		 * ex) HMD,2,PicoVR,2d40,0000,Nreal light,0486,573c
-		 *
-		 * call hmd store function with tag(HMD),NUM removed
-		 */
+	if (len && !strncmp(DEX_TAG_HMD, tok, len)) {
 		int num_hmd = 0, sz = 0, ret;
 
 		tok = strsep(&p, ",");
+		if (!tok) {
+			DP_ERR("wrong input!\n");
+			mutex_unlock(&sec->hmd.lock);
+			goto exit;
+		}
 		sz  = strlen(tok);
 		ret = kstrtouint(tok, 10, &num_hmd);
-		DP_DEBUG("HMD num: %d, sz:%d, ret:%d\n", num_hmd, sz, ret);
+		DP_DEBUG("[%s] num:%d,sz:%d,ret:%d\n", DEX_TAG_HMD,
+			num_hmd, sz, ret);
 		if (!ret) {
 			ret = secdp_store_hmd_dev(str + (len + sz + 2),
 					size - (len + sz + 2), num_hmd);
@@ -200,6 +194,28 @@ static ssize_t dex_store(struct class *class,
 		goto exit;
 	}
 	mutex_unlock(&sec->hmd.lock);
+
+	if (len && !strncmp(SECDP_DEX_ADAPTER_SKIP, tok, len)) {
+		int param = 0, sz = 0, ret;
+
+		tok = strsep(&p, ",");
+		if (!tok) {
+			DP_ERR("wrong input!\n");
+			goto exit;
+		}
+		sz  = strlen(tok);
+		ret = kstrtouint(tok, 2, &param);
+		if (ret) {
+			DP_ERR("error:%d\n", ret);
+			goto exit;
+		}
+
+		DP_DEBUG("[%s] param:%d,sz:%d,ret:%d\n", SECDP_DEX_ADAPTER_SKIP,
+			param, sz, ret);
+
+		secdp_dex_adapter_skip_store((!param) ? false : true);
+		goto exit;
+	}
 
 	get_options(buf, ARRAY_SIZE(val), val);
 	DP_INFO("%d(0x%02x)\n", val[1], val[1]);
@@ -688,18 +704,13 @@ static ssize_t dp_forced_resolution_show(struct class *class,
 	secdp_show_link_param(tmp);
 	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "\n< link params >\n%s\n", tmp);
 
-	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "Adapter Check: %d\n",
-			secdp_debug_adapter_check_show());
 	return rc;
 }
-
-#define SECDP_DBG_ADAPTER_SKIP	"adapter_skip"
 
 static ssize_t dp_forced_resolution_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
-	char str[MAX_DEX_STORE_LEN] = {0,}, *p, *tok;
-	int len, val[10] = {0, };
+	int val[10] = {0, };
 
 	if (secdp_check_store_args(buf, size)) {
 		DP_ERR("args error!\n");
@@ -708,30 +719,29 @@ static ssize_t dp_forced_resolution_store(struct class *dev,
 
 	get_options(buf, ARRAY_SIZE(val), val);
 
+#if 0/*blocked for future test*/
+{
+	char str[MAX_DEX_STORE_LEN] = {0,}, *p, *tok;
+	int len;
+
+	if (size >= MAX_DEX_STORE_LEN) {
+		DP_ERR("too long args! %d\n", size);
+		goto exit;
+	}
+
 	memcpy(str, buf, size);
 	p   = str;
 	tok = strsep(&p, ",");
-	len = strlen(tok);
-	DP_DEBUG("tok:%s, len:%d\n", tok, len);
-
-	if (!strncmp(SECDP_DBG_ADAPTER_SKIP, tok, len)) {
-		/* "adapter_skip,0" or "adapter_skip,1" */
-		int param = 0, sz = 0, ret;
-
-		tok = strsep(&p, ",");
-		sz  = strlen(tok);
-		ret = kstrtouint(tok, 2, &param);
-		if (ret) {
-			DP_ERR("error:%d\n", ret);
-			goto exit;
-		}
-
-		DP_DEBUG("[%s] param:%d, sz:%d, ret:%d\n",
-			SECDP_DBG_ADAPTER_SKIP, param, sz, ret);
-
-		secdp_debug_adapter_check_store((!param) ? false : true);
+	if (!p)
 		goto exit;
-	}
+
+	len = strlen(tok);
+	if (!len)
+		goto exit;
+
+	DP_DEBUG("tok:%s, len:%d\n", tok, len);
+}
+#endif
 
 	if (val[1] <= 0)
 		forced_resolution = 0;
@@ -854,10 +864,17 @@ static ssize_t dp_vx_lvl_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
 	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
 
-	memcpy(tmp, buf, min(ARRAY_SIZE(tmp), size));
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
 	secdp_parse_vxpx_store(DP_HW_LEGACY, DP_PARAM_VX, tmp);
-
+end:
 	return size;
 }
 
@@ -879,10 +896,17 @@ static ssize_t dp_px_lvl_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
 	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
 
-	memcpy(tmp, buf, min(ARRAY_SIZE(tmp), size));
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
 	secdp_parse_vxpx_store(DP_HW_LEGACY, DP_PARAM_PX, tmp);
-
+end:
 	return size;
 }
 
@@ -904,10 +928,17 @@ static ssize_t dp_vx_lvl_hbr2_hbr3_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
 	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
 
-	memcpy(tmp, buf, min(ARRAY_SIZE(tmp), size));
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
 	secdp_parse_vxpx_store(DP_HW_V123_HBR2_HBR3, DP_PARAM_VX, tmp);
-
+end:
 	return size;
 
 }
@@ -930,10 +961,17 @@ static ssize_t dp_px_lvl_hbr2_hbr3_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
 	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
 
-	memcpy(tmp, buf, min(ARRAY_SIZE(tmp), size));
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
 	secdp_parse_vxpx_store(DP_HW_V123_HBR2_HBR3, DP_PARAM_PX, tmp);
-
+end:
 	return size;
 }
 
@@ -955,10 +993,17 @@ static ssize_t dp_vx_lvl_hbr_rbr_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
 	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
 
-	memcpy(tmp, buf, min(ARRAY_SIZE(tmp), size));
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
 	secdp_parse_vxpx_store(DP_HW_V123_HBR_RBR, DP_PARAM_VX, tmp);
-
+end:
 	return size;
 }
 
@@ -980,10 +1025,17 @@ static ssize_t dp_px_lvl_hbr_rbr_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
 	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
 
-	memcpy(tmp, buf, min(ARRAY_SIZE(tmp), size));
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
 	secdp_parse_vxpx_store(DP_HW_V123_HBR_RBR, DP_PARAM_PX, tmp);
-
+end:
 	return size;
 }
 

@@ -46,6 +46,7 @@ struct dp_power_private {
 
 	void (*redrv_onoff)(bool enable, int lane);
 	void (*redrv_aux_ctrl)(int cross);
+	void (*redrv_notify_linkinfo)(u32 bw_code, u8 v_level, u8 p_level);
 #endif
 };
 
@@ -663,6 +664,13 @@ static void secdp_ptn36502_onoff(bool enable, int lane)
 exit:
 	return;
 }
+
+static void secdp_ptn36502_notify_linkinfo(u32 bw_code, u8 v_level, u8 p_level)
+{
+	DP_DEBUG("+++ 0x%x,%d,%d, do nothing!\n", bw_code, v_level, p_level);
+
+	//.TODO:
+}
 #elif IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
 static void secdp_ps5169_aux_ctrl(int cross)
 {
@@ -699,6 +707,13 @@ static void secdp_ps5169_onoff(bool enable, int lane)
 exit:
 	return;
 }
+
+static void secdp_ps5169_notify_linkinfo(u32 bw_code, u8 v_level, u8 p_level)
+{
+	DP_DEBUG("+++ 0x%x,%d,%d\n", bw_code, v_level, p_level);
+
+//	ps5169_notify_dplink(bw_code, v_level, p_level);
+}
 #endif
 
 void secdp_redriver_onoff(bool enable, int lane)
@@ -715,6 +730,14 @@ static void secdp_redriver_aux_ctrl(int cross)
 
 	if (power && power->redrv_aux_ctrl)
 		power->redrv_aux_ctrl(cross);
+}
+
+void secdp_redriver_linkinfo(u32 rate, u8 v_level, u8 p_level)
+{
+	struct dp_power_private *power = g_secdp_power;
+
+	if (power && power->redrv_notify_linkinfo)
+		power->redrv_notify_linkinfo(rate, v_level, p_level);
 }
 
 static void secdp_redriver_register(struct dp_power_private *power)
@@ -737,10 +760,12 @@ static void secdp_redriver_register(struct dp_power_private *power)
 #if IS_ENABLED(CONFIG_COMBO_REDRIVER_PTN36502)
 	power->redrv_onoff = secdp_ptn36502_onoff;
 	power->redrv_aux_ctrl = secdp_ptn36502_aux_ctrl;
+	power->redrv_notify_linkinfo = secdp_ptn36502_notify_linkinfo;
 	DP_INFO("ptn36502 API registered!\n");
 #elif IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
 	power->redrv_onoff = secdp_ps5169_onoff;
 	power->redrv_aux_ctrl = secdp_ps5169_aux_ctrl;
+	power->redrv_notify_linkinfo = secdp_ps5169_notify_linkinfo;
 	DP_INFO("ps5169 API registered!\n");
 #endif
 

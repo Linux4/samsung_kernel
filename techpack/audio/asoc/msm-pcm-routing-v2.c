@@ -2369,6 +2369,11 @@ static void msm_pcm_routing_process_voice(u16 reg, u16 val, int set)
 
 	session_id = msm_pcm_routing_get_voc_sessionid(val);
 
+	if (!session_id) {
+		pr_err("%s: Invalid session_id %x\n", __func__, session_id);
+		return;
+	}
+
 	pr_debug("%s: FE DAI 0x%x session_id 0x%x\n",
 		__func__, val, session_id);
 
@@ -3033,6 +3038,7 @@ static int msm_routing_lsm_port_put(struct snd_kcontrol *kcontrol,
 	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
 	int mux = ucontrol->value.enumerated.item[0];
 	int lsm_port = AFE_PORT_ID_SLIMBUS_MULTI_CHAN_5_TX;
+	int lsm_port_idx = 0;
 	u8 fe_idx = 0;
 
 	if (mux >= e->items) {
@@ -3042,6 +3048,7 @@ static int msm_routing_lsm_port_put(struct snd_kcontrol *kcontrol,
 
 	pr_debug("%s: LSM enable %ld\n", __func__,
 			ucontrol->value.integer.value[0]);
+	lsm_port_idx = ucontrol->value.integer.value[0];
 	switch (ucontrol->value.integer.value[0]) {
 	case 1:
 		lsm_port = AFE_PORT_ID_SLIMBUS_MULTI_CHAN_0_TX;
@@ -3098,6 +3105,10 @@ static int msm_routing_lsm_port_put(struct snd_kcontrol *kcontrol,
 	set_lsm_port(lsm_port);
 	msm_routing_get_lsm_fe_idx(kcontrol, &fe_idx);
 	lsm_port_index[fe_idx] = ucontrol->value.integer.value[0];
+	/* Set the default AFE LSM Port to 0xffff */
+	if(lsm_port_idx <= 0 || lsm_port_idx >= ARRAY_SIZE(lsm_port_text))
+		lsm_port = 0xffff;
+	afe_set_lsm_afe_port_id(fe_idx, lsm_port);
 
 	return 0;
 }
@@ -5542,6 +5553,10 @@ static int get_ec_ref_port_id(int value, int *index)
 		*index = 43;
 		port_id = SLIMBUS_7_TX;
 		break;
+	case 44:
+		*index = 44;
+		port_id = AFE_PORT_ID_QUATERNARY_TDM_TX;
+		break;
 	default:
 		*index = 0; /* NONE */
 		pr_err("%s: Invalid value %d\n", __func__, value);
@@ -5600,7 +5615,7 @@ static const char *const ec_ref_rx[] = { "None", "SLIM_RX", "I2S_RX",
 	"SLIM_7_RX", "RX_CDC_DMA_RX_0", "RX_CDC_DMA_RX_1", "RX_CDC_DMA_RX_2",
 	"RX_CDC_DMA_RX_3", "TX_CDC_DMA_TX_0", "TERT_TDM_RX_2", "SEC_TDM_TX_0",
 	"DISPLAY_PORT1", "SEN_MI2S_RX", "SENARY_MI2S_TX", "QUIN_TDM_TX_0",
-	"QUIN_MI2S_RX", "QUIN_TDM_RX_0", "SLIM_7_TX",
+	"QUIN_MI2S_RX", "QUIN_TDM_RX_0", "SLIM_7_TX", "QUAT_TDM_TX_0",
 };
 
 static const struct soc_enum msm_route_ec_ref_rx_enum[] = {
@@ -5808,6 +5823,9 @@ static int msm_routing_ext_ec_put(struct snd_kcontrol *kcontrol,
 	case EXT_EC_REF_SEC_TDM_TX:
 		ext_ec_ref_port_id = AFE_PORT_ID_SECONDARY_TDM_TX;
 		break;
+	case EXT_EC_REF_QUAT_TDM_TX:
+		ext_ec_ref_port_id = AFE_PORT_ID_QUATERNARY_TDM_TX;
+		break;
 	case EXT_EC_REF_NONE:
 	default:
 		ext_ec_ref_port_id = AFE_PORT_INVALID;
@@ -5833,7 +5851,8 @@ static const char * const ext_ec_ref_rx[] = {"NONE", "PRI_MI2S_TX",
 					"SEC_MI2S_TX", "TERT_MI2S_TX",
 					"QUAT_MI2S_TX", "QUIN_MI2S_TX",
 					"SLIM_1_TX", "PRI_TDM_TX",
-					"SEC_TDM_TX", "SENARY_MI2S_TX"};
+					"SEC_TDM_TX", "QUAT_TDM_TX",
+					"SENARY_MI2S_TX"};
 
 static const struct soc_enum msm_route_ext_ec_ref_rx_enum[] = {
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(ext_ec_ref_rx), ext_ec_ref_rx),
@@ -25056,6 +25075,10 @@ static const struct snd_soc_dapm_widget msm_qdsp6_widgets_mi2s[] = {
 				SND_SOC_NOPM, 0, 0,
 				quin_mi2s_rx_voice_mixer_controls,
 				ARRAY_SIZE(quin_mi2s_rx_voice_mixer_controls)),
+	SND_SOC_DAPM_MIXER("SEN_MI2S_RX_Voice Mixer",
+				SND_SOC_NOPM, 0, 0,
+				sen_mi2s_rx_voice_mixer_controls,
+				ARRAY_SIZE(sen_mi2s_rx_voice_mixer_controls)),
 	/* port mixer */
 	SND_SOC_DAPM_MIXER("SEC_I2S_RX Port Mixer",
 	SND_SOC_NOPM, 0, 0, sec_i2s_rx_port_mixer_controls,
@@ -25711,10 +25734,6 @@ static const struct snd_soc_dapm_widget msm_qdsp6_widgets_tdm[] = {
 				SND_SOC_NOPM, 0, 0,
 				pri_tdm_rx_3_voice_mixer_controls,
 				ARRAY_SIZE(pri_tdm_rx_3_voice_mixer_controls)),
-	SND_SOC_DAPM_MIXER("SEN_MI2S_RX_Voice Mixer",
-				SND_SOC_NOPM, 0, 0,
-				sen_mi2s_rx_voice_mixer_controls,
-				ARRAY_SIZE(sen_mi2s_rx_voice_mixer_controls)),
 	SND_SOC_DAPM_MIXER("QUAT_TDM_RX_0_Voice Mixer",
 				SND_SOC_NOPM, 0, 0,
 				quat_tdm_rx_0_voice_mixer_controls,
@@ -28658,6 +28677,7 @@ static const struct snd_soc_dapm_route intercon_tdm[] = {
 
 	{"VOC_EXT_EC MUX", "PRI_TDM_TX",   "PRI_TDM_TX_0"},
 	{"VOC_EXT_EC MUX", "SEC_TDM_TX",   "SEC_TDM_TX_0"},
+	{"VOC_EXT_EC MUX", "QUAT_TDM_TX",   "QUAT_TDM_TX_0"},
 
 	{"PRI_TDM_TX_0_UL_HL", NULL, "PRI_TDM_TX_0"},
 	{"PRI_TDM_TX_1_UL_HL", NULL, "PRI_TDM_TX_1"},
@@ -29430,6 +29450,7 @@ static const struct snd_soc_dapm_route intercon_tdm[] = {
 	{"SEN_TDM_RX_3 Port Mixer", "SEN_TDM_TX_3", "SEN_TDM_TX_3"},
 	{"SEN_TDM_RX_3", NULL, "SEN_TDM_RX_3 Port Mixer"},
 
+	{"AUDIO_REF_EC_UL1 MUX", "QUAT_TDM_TX_0", "QUAT_TDM_TX_0"},
 	{"AUDIO_REF_EC_UL1 MUX", "QUAT_TDM_TX_1", "QUAT_TDM_TX_1"},
 	{"AUDIO_REF_EC_UL1 MUX", "QUAT_TDM_RX_0", "QUAT_TDM_RX_0"},
 	{"AUDIO_REF_EC_UL1 MUX", "QUAT_TDM_RX_1", "QUAT_TDM_RX_1"},

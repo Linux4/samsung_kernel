@@ -300,7 +300,7 @@
 	pinctrl-names = "default";
 	qcom,enable-toggle-stat;
 	pinctrl-0 = <&smb_stat_default>;
-	status = "ok";
+	status = "disabled";
 };
 
 &smb1396_div2_cp_master {
@@ -308,13 +308,13 @@
 	qcom,parallel-input-mode = <1>; /* USBIN */
 	qcom,parallel-output-mode = <2>; /* VBAT */
 	qcom,div2-cp-min-ilim-ua = <750000>;
-	status = "ok";
+	status = "disabled";
 };
 
 &smb1396_slave {
-	status = "ok";
+	status = "disabled";
 };
 
 &smb1396_div2_cp_slave {
-	status = "ok";
+	status = "disabled";
 };

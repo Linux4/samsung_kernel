@@ -239,6 +239,10 @@ int snd_card_locked(int card);
 extern int (*snd_mixer_oss_notify_callback)(struct snd_card *card, int cmd);
 #endif
 
+#ifdef CONFIG_USB_AUDIO_ENHANCED_DETECT_TIME
+int get_next_snd_card_number(struct module *module);
+#endif
+
 int snd_card_new(struct device *parent, int idx, const char *xid,
 		 struct module *module, int extra_size,
 		 struct snd_card **card_ret);

@@ -34,7 +34,7 @@ enum FLASH_READ_CASE {
 };
 
 int ss_dsi_poc_init(struct samsung_display_driver_data *vdd);
-void ss_poc_read_mca(struct samsung_display_driver_data *vdd);
+int ss_poc_read_mca(struct samsung_display_driver_data *vdd);
 void ss_poc_comp(struct samsung_display_driver_data *vdd);
 
 #endif

@@ -99,9 +99,7 @@ struct gpio_ctrl {
 	unsigned int invert;
 };
 
-struct cs35l45_irq_monitor {
-	unsigned int reg;
-	unsigned int mask;
+struct cs35l45_irq_bit_monitor {
 	unsigned int bitmask;
 	const char *description;
 	const char *info_msg;
@@ -109,6 +107,13 @@ struct cs35l45_irq_monitor {
 	const char *warn_msg;
 	const char *err_msg;
 	int (*callback)(struct cs35l45_private *cs35l45);
+};
+
+struct cs35l45_irq_monitor {
+	unsigned int reg;
+	unsigned int mask;
+	unsigned int nbits;
+	struct cs35l45_irq_bit_monitor *bits;
 };
 
 #ifdef CONFIG_SND_SOC_CIRRUS_AMP
@@ -145,6 +150,22 @@ struct cs35l45_platform_data {
 #endif
 };
 
+struct cs35l45_compr {
+	struct wm_adsp *dsp;
+	struct snd_compr_stream *stream;
+	struct snd_compressed_buffer size;
+	struct work_struct start_work;
+	struct work_struct stop_work;
+	u32 *raw_buf;
+	unsigned int copied_total;
+	unsigned int sample_rate;
+	int read_index;
+	int last_read_index;
+	int buffer_size;
+	int avail;
+	int buffer_count;
+};
+
 struct cs35l45_private {
 	struct wm_adsp dsp; /* needs to be first member */
 	struct device *dev;
@@ -152,19 +173,31 @@ struct cs35l45_private {
 	struct gpio_desc *reset_gpio;
 	struct regulator_bulk_data supplies[CS35L45_NUM_SUPPLIES];
 	struct cs35l45_platform_data pdata;
+	struct cs35l45_compr *compr;
+	struct work_struct dsp_pmu_work;
 	struct work_struct dsp_pmd_work;
+	struct delayed_work hb_work;
+	struct delayed_work global_err_rls_work;
+	struct workqueue_struct *wq;
 	struct mutex rate_lock;
-	struct mutex dsp_pmd_lock;
+	struct mutex dsp_power_lock;
+	struct mutex hb_lock;
+	struct completion virt2_mbox_comp;
+	struct regmap_irq_chip_data *irq_data;
 	enum dapm_route_mode dapm_mode;
 	enum control_bus_type bus_type;
 	bool initialized;
+	bool hibernate_state;
 	unsigned int i2c_addr;
 	unsigned int sync_num_devices;
 	unsigned int sync_id;
+	unsigned int speaker_status;
 	int irq;
 	int slot_width;
 	int amplifier_mode;
 	int hibernate_mode;
+	int max_quirks_read_nwords;
+	struct snd_soc_component *component;
 };
 
 int cs35l45_initialize(struct cs35l45_private *cs35l45);

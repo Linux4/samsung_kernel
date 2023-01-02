@@ -73,6 +73,7 @@ bool tas25xx_set_iv_bit_fomat(int iv_data_with, int vbat, int update_now)
 {
 	int32_t param_id;
 	int32_t ret;
+	int32_t iv_width_vbat;
 	bool success;
 
 	if ((vbat == 1) && (iv_data_with == 12))
@@ -87,6 +88,7 @@ bool tas25xx_set_iv_bit_fomat(int iv_data_with, int vbat, int update_now)
 	success = true;
 
 	if (update_now) {
+		/* Old Method - Keep Legacy Support*/
 		param_id = TAS_CALC_PARAM_IDX(TAS_SA_IV_VBAT_FMT, 1, CHANNEL0);
 		pr_info("TI-SmartPA: %s: Sending IV,Vbat format %d\n",
 			__func__, g_fmt);
@@ -99,6 +101,20 @@ bool tas25xx_set_iv_bit_fomat(int iv_data_with, int vbat, int update_now)
 			success = false;
 		}
 
+		/* New method
+		 * send IV Width and VBat info
+		 */
+		param_id = TAS_CALC_PARAM_IDX(TAS_SA_IV_WIDTH_VBAT_MON, 1, CHANNEL0);
+		iv_width_vbat = (iv_data_with & 0xFFFF) | ((vbat & 0xFFFF) << 16);
+		pr_info("TI-SmartPA: %s: Sending IV-width=%d,Vbat-mon=%d, iv_width_vbat=%d\n",
+			__func__, iv_data_with, vbat, iv_width_vbat);
+		ret = tas25xx_smartamp_algo_ctrl((u8 *)&iv_width_vbat, param_id,
+				TAS_SET_PARAM, sizeof(int32_t), TISA_MOD_RX);
+		if (ret < 0) {
+			pr_err("TI-SmartPA: %s: Failed to set config TAS_SA_IV_WIDTH_VBAT_MON\n",
+				__func__);
+			success = false;
+		}
 	}
 
 	return success;

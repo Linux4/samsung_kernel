@@ -1403,7 +1403,7 @@ static void dsi_ctrl_validate_msg_flags(struct dsi_ctrl *dsi_ctrl,
 }
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
-static void print_cmd_desc(const struct mipi_dsi_msg *msg, int display_ndx)
+static void print_cmd_desc(const struct mipi_dsi_msg *msg, struct samsung_display_driver_data *vdd)
 {
 	char buf[1024];
 	int len = 0;
@@ -1430,7 +1430,7 @@ static void print_cmd_desc(const struct mipi_dsi_msg *msg, int display_ndx)
 			break;
 	}
 
-	LCD_INFO("[DISPLAY_%d] (%02d) %s\n", display_ndx, (unsigned int)msg->tx_len, buf);
+	LCD_INFO(vdd, "(%02d) %s\n", (unsigned int)msg->tx_len, buf);
 }
 #endif
 
@@ -1450,7 +1450,7 @@ static int dsi_message_tx(struct dsi_ctrl *dsi_ctrl,
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd = ss_get_vdd(dsi_ctrl->cell_index);
 	if (vdd->debug_data && vdd->debug_data->print_cmds)
-		print_cmd_desc(msg, vdd->ndx);
+		print_cmd_desc(msg, vdd);
 #endif
 
 	/* Select the tx mode to transfer the command */

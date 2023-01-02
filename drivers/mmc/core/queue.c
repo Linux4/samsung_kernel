@@ -400,7 +400,8 @@ static void mmc_setup_queue(struct mmc_queue *mq, struct mmc_card *card)
 		 * function is called. It is effective for slow external sdcard.
 		 */
 		mq->queue->nr_requests = BLKDEV_MAX_RQ / 8;
-		if (mq->queue->nr_requests < 32) mq->queue->nr_requests = 32;
+		if (mq->queue->nr_requests < 32)
+			mq->queue->nr_requests = 32;
 #ifdef CONFIG_LARGE_DIRTY_BUFFER
 		/* apply more throttle on external sdcard */
 		mq->queue->backing_dev_info->capabilities |= BDI_CAP_STRICTLIMIT;
@@ -408,10 +409,10 @@ static void mmc_setup_queue(struct mmc_queue *mq, struct mmc_card *card)
 		bdi_set_max_ratio(mq->queue->backing_dev_info, 60);
 #endif
 		pr_info("Parameters for external-sdcard: min/max_ratio: %u/%u "
-				"strictlimit: on nr_requests: %lu read_ahead_kb: %lu\n",
-				mq->queue->backing_dev_info->min_ratio,
-				mq->queue->backing_dev_info->max_ratio,
-				mq->queue->nr_requests,
+			"strictlimit: on nr_requests: %lu read_ahead_kb: %lu\n",
+			mq->queue->backing_dev_info->min_ratio,
+			mq->queue->backing_dev_info->max_ratio,
+			mq->queue->nr_requests,
 				mq->queue->backing_dev_info->ra_pages * 4);
 	}
 

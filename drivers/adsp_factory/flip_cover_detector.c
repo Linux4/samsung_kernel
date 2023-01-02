@@ -79,6 +79,8 @@ static int nfc_cover_status = -1;
 static uint8_t axis_update = AXIS_SELECT;
 static int32_t threshold_update = THRESHOLD;
 
+char sysfs_cover_status[10];
+
 static void send_axis_threshold_settings(struct adsp_data *data, int axis, int threshold)
 {
 	uint8_t cnt = 0;
@@ -341,24 +343,15 @@ static void enable_factory_test(int request)
 static ssize_t nfc_cover_status_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	char status[10];
-	static int status_flag = -1;
-
 	if (nfc_cover_status == COVER_ATTACH || nfc_cover_status == COVER_ATTACH_NFC_ACTIVE) {
-		snprintf(status, 10, "CLOSE");
-		if (status_flag != nfc_cover_status) {
-			status_flag = nfc_cover_status;
-			pr_info("[FACTORY] %s: status=%s(ATTACH)\n", __func__, status);
-		}
-	} else {
-		snprintf(status, 10, "OPEN");
-		if (status_flag != nfc_cover_status) {
-			status_flag = nfc_cover_status;
-			pr_info("[FACTORY] %s: status=%s(DETACH)\n", __func__, status);
-		}
+		snprintf(sysfs_cover_status, 10, "CLOSE");
+	} else if (nfc_cover_status == COVER_DETACH)  {
+		snprintf(sysfs_cover_status, 10, "OPEN");
 	}
 
-	return snprintf(buf, PAGE_SIZE, "%s\n",	status);
+	pr_info("[FACTORY] %s: sysfs_cover_status=%s\n", __func__, sysfs_cover_status);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n",	sysfs_cover_status);
 }
 
 static ssize_t nfc_cover_status_store(struct device *dev,
@@ -500,6 +493,8 @@ static int __init flip_cover_detector_factory_init(void)
 	INIT_WORK(&fcd_data->work_fcd, fcd_work_func);
 
 	fcd_data->poll_delay = ns_to_ktime(MAG_DELAY_MS * NSEC_PER_MSEC);
+
+	snprintf(sysfs_cover_status, 10, "OPEN");
 
 	pr_info("[FACTORY] %s\n", __func__);
 
