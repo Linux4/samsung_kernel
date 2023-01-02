@@ -379,7 +379,10 @@ static ssize_t make_command_store(struct device *dev, struct device_attribute *a
 			break;
 		case 3:
 			if (cmd == CMD_SETVALUE && subcmd == HUB_SYSTEM_CHECK) {
-				kstrtouint(tmp, 10, &arg[0]);
+				if (kstrtouint(tmp, 10, &arg[0])) {
+					shub_errf("parsing error");
+					goto exit;
+				}
 			} else {
 				if ((strlen(tmp) - 1) % 2 != 0) {
 					shub_errf("not match buf len(%d) != %d", (int)strlen(tmp), send_buf_len);
@@ -400,7 +403,10 @@ static ssize_t make_command_store(struct device *dev, struct device_attribute *a
 			break;
 		case 4:
 			if (cmd == CMD_SETVALUE && subcmd == HUB_SYSTEM_CHECK)
-				kstrtouint(tmp, 10, &arg[1]);
+				if (kstrtouint(tmp, 10, &arg[1])) {
+					shub_errf("parsing error");
+					goto exit;
+				}
 			break;
 		default:
 			goto exit;

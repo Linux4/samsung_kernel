@@ -327,7 +327,7 @@ static const struct backlight_ops panel_backlight_ops = {
 	.check_fb = panel_check_fb_brightness,
 };
 
-static int nt36672c_read_id(struct lcd_info *lcd)
+static int nt36672c_csot_read_id(struct lcd_info *lcd)
 {
 	int i = 0, ret = 0;
 	struct mipi_dsi_lcd_common *pdata = lcd->pdata;
@@ -356,7 +356,7 @@ static int nt36672c_read_id(struct lcd_info *lcd)
 	return ret;
 }
 
-static int nt36672c_read_init_info(struct lcd_info *lcd)
+static int nt36672c_csot_read_init_info(struct lcd_info *lcd)
 {
 	int ret = 0;
 
@@ -373,46 +373,31 @@ static int nt36672c_read_init_info(struct lcd_info *lcd)
 	if (!lcd->fac_info)
 		return ret;
 
-	nt36672c_read_id(lcd);
+	nt36672c_csot_read_id(lcd);
 
 	return ret;
 }
 
-static int nt36672c_exit(struct lcd_info *lcd)
+static int nt36672c_csot_exit(struct lcd_info *lcd)
 {
 	int ret = 0;
 
 	dev_info(&lcd->ld->dev, "%s\n", __func__);
 
-	DSI_WRITE(SEQ_NT36672C_DISPLAY_OFF, ARRAY_SIZE(SEQ_NT36672C_DISPLAY_OFF));
-
-	msleep(20);
-
-	DSI_WRITE(SEQ_NT36672C_SLEEP_IN, ARRAY_SIZE(SEQ_NT36672C_SLEEP_IN));
+	smcdsd_dsi_tx_set(lcd, LCD_SEQ_EXIT_1, ARRAY_SIZE(LCD_SEQ_EXIT_1));
 
 	return ret;
 }
 
-static int nt36672c_init(struct lcd_info *lcd)
+static int nt36672c_csot_init(struct lcd_info *lcd)
 {
 	int ret = 0;
 
 	dev_info(&lcd->ld->dev, "%s\n", __func__);
 
-	nt36672c_read_init_info(lcd);
+	nt36672c_csot_read_init_info(lcd);
 
 	smcdsd_dsi_tx_set(lcd, LCD_SEQ_INIT_1, ARRAY_SIZE(LCD_SEQ_INIT_1));
-
-	/* DO NOT REMOVE: back to page 1 for setting DCS commands */
-	DSI_WRITE(SEQ_NT36672C_BACK_TO_PAGE_1_A, ARRAY_SIZE(SEQ_NT36672C_BACK_TO_PAGE_1_A));
-	DSI_WRITE(SEQ_NT36672C_BACK_TO_PAGE_1_B, ARRAY_SIZE(SEQ_NT36672C_BACK_TO_PAGE_1_B));
-
-	DSI_WRITE(SEQ_NT36672C_BRIGHTNESS, ARRAY_SIZE(SEQ_NT36672C_BRIGHTNESS));
-	DSI_WRITE(SEQ_NT36672C_BRIGHTNESS_ON, ARRAY_SIZE(SEQ_NT36672C_BRIGHTNESS_ON));
-
-	DSI_WRITE(SEQ_NT36672C_SLEEP_OUT, ARRAY_SIZE(SEQ_NT36672C_SLEEP_OUT));
-	msleep(100);
-	DSI_WRITE(SEQ_NT36672C_DISPLAY_ON, ARRAY_SIZE(SEQ_NT36672C_DISPLAY_ON));
 
 	return ret;
 }
@@ -473,7 +458,7 @@ static int panel_reboot_notify(struct notifier_block *self,
 	return NOTIFY_DONE;
 }
 
-static int nt36672c_register_notifier(struct lcd_info *lcd)
+static int nt36672c_csot_register_notifier(struct lcd_info *lcd)
 {
 	lcd->fb_notif_panel.notifier_call = fb_notifier_callback;
 	smcdsd_register_notifier(&lcd->fb_notif_panel);
@@ -541,7 +526,7 @@ static struct i2c_driver i2c_lcd_bias_driver = {
 	.probe = i2c_lcd_bias_probe,
 };
 
-static int nt36672c_probe(struct lcd_info *lcd)
+static int nt36672c_csot_probe(struct lcd_info *lcd)
 {
 	dev_info(&lcd->ld->dev, "+ %s\n", __func__);
 
@@ -553,7 +538,7 @@ static int nt36672c_probe(struct lcd_info *lcd)
 	lcd->lux = -1;
 
 	mutex_lock(&lcd->lock);
-	nt36672c_read_init_info(lcd);
+	nt36672c_csot_read_init_info(lcd);
 	smcdsd_panel_set_brightness(lcd, 1);
 	mutex_unlock(&lcd->lock);
 
@@ -883,9 +868,9 @@ static int smcdsd_panel_probe(struct platform_device *p)
 
 	set_lcd_info(p, lcd);
 
-	nt36672c_probe(lcd);
+	nt36672c_csot_probe(lcd);
 
-	nt36672c_register_notifier(lcd);
+	nt36672c_csot_register_notifier(lcd);
 
 	lcd_init_sysfs(lcd);
 
@@ -901,7 +886,7 @@ static int smcdsd_panel_init(struct platform_device *p)
 	dev_info(&lcd->ld->dev, "+ %s: state(%d)\n", __func__, lcd->state);
 
 	if (lcd->state == PANEL_STATE_SUSPENED) {
-		nt36672c_init(lcd);
+		nt36672c_csot_init(lcd);
 
 		lcd->state = PANEL_STATE_RESUMED;
 	}
@@ -936,15 +921,19 @@ static int smcdsd_panel_power(struct platform_device *p, unsigned int on)
 	if (on) {
 		run_list(&p->dev, "panel_power_enable");
 
-		if (get_regulator_use_count(NULL, "gpio_lcd_bl_en") >= 2)
+		if (get_regulator_use_count(NULL, "lcd_bl_en") >= 2)
 			dev_info(&lcd->ld->dev, "%s: i2c init cmd skip(%d)\n", __func__,
-				get_regulator_use_count(NULL, "gpio_lcd_bl_en"));
+				get_regulator_use_count(NULL, "lcd_bl_en"));
 		else
 			i2c_lcd_bias_array_write(lcd->blic_client, KTZ8864_INIT, ARRAY_SIZE(KTZ8864_INIT));
+
+		run_list(&p->dev, "panel_post_power_enable");
 	} else {
-		if (get_regulator_use_count(NULL, "gpio_lcd_bl_en") >= 2)
+		run_list(&p->dev, "panel_pre_power_disable");
+
+		if (get_regulator_use_count(NULL, "lcd_bl_en") >= 2)
 			dev_info(&lcd->ld->dev, "%s: i2c exit cmd skip(%d)\n", __func__,
-				get_regulator_use_count(NULL, "gpio_lcd_bl_en"));
+				get_regulator_use_count(NULL, "lcd_bl_en"));
 		else
 			i2c_lcd_bias_array_write(lcd->blic_client, KTZ8864_EXIT, ARRAY_SIZE(KTZ8864_EXIT));
 
@@ -965,7 +954,7 @@ static int smcdsd_panel_exit(struct platform_device *p)
 	if (lcd->state == PANEL_STATE_SUSPENED)
 		goto exit;
 
-	nt36672c_exit(lcd);
+	nt36672c_csot_exit(lcd);
 
 	lcd->state = PANEL_STATE_SUSPENED;
 
@@ -992,7 +981,7 @@ static int smcdsd_panel_path_lock(struct platform_device *p, bool locking)
 	return 0;
 }
 
-struct mipi_dsi_lcd_driver nt36672c_mipi_lcd_driver = {
+struct mipi_dsi_lcd_driver nt36672c_csot_mipi_lcd_driver = {
 	.driver = {
 		.name = "nt36672c_csot",
 	},
@@ -1003,7 +992,7 @@ struct mipi_dsi_lcd_driver nt36672c_mipi_lcd_driver = {
 	.panel_power	= smcdsd_panel_power,
 	.path_lock	= smcdsd_panel_path_lock,
 };
-__XX_ADD_LCD_DRIVER(nt36672c_mipi_lcd_driver);
+__XX_ADD_LCD_DRIVER(nt36672c_csot_mipi_lcd_driver);
 
 static int __init panel_conn_init(void)
 {

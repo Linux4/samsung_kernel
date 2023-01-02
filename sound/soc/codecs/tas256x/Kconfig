@@ -52,7 +52,7 @@ config PLATFORM_MTK
 config TAS256X_REGBIN_PARSER
     bool "REG Bin File support"
     depends on SND_SOC_TAS256X
-    default y
+    default n
     help
       Enable support for REG Bin File.
 

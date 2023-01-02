@@ -50,6 +50,9 @@
 				gpio_pcd = <&pio 54 0x1>;					/* LCD_PCD_DET */
 				gpio_err = <&pio 28 0x1>;					/* LCD_ERR_FG */
 
+				abd_func_refresh =
+					"gpio_det",	"CHAIN_TYPE_LEVEL_ENTER";
+
 				panel_power_enable {
 					type =
 					"regulator,enable",	"gpio_lcd_1p8_en",

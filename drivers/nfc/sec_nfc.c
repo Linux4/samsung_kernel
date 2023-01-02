@@ -778,7 +778,7 @@ int trig_cold_reset_id(int id)
 
 	t1 = ktime_get();
 	gpio_set_value(cold_reset_gpio_data.coldreset_gpio, SEC_NFC_COLDRESET_ON);
-	usleep_range(duration, duration);
+	usleep_range(duration * 1000, duration * 1000 + 10);
 	gpio_set_value(cold_reset_gpio_data.coldreset_gpio, SEC_NFC_COLDRESET_OFF);
 	t2 = ktime_get();
 

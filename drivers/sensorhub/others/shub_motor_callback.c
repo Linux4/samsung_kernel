@@ -62,7 +62,7 @@ static void shub_motor_work_func(struct work_struct *work)
 	else
 		sub_cmd = MOTOR_OFF;
 
-	ret = shub_send_command(CMD_SETVALUE, TYPE_MCU, sub_cmd, &buf, sizeof(buf));
+	ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, sub_cmd, &buf, sizeof(buf));
 
 	if (ret < 0)
 		shub_errf("send motor state failed : %d", motor_state);

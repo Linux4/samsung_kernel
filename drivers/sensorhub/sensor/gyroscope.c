@@ -332,3 +332,32 @@ err_no_mem:
 	return -ENOMEM;
 }
 
+
+int init_super_steady_gyroscope(bool en)
+{
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_SUPER_STEADY_GYROSCOPE);
+
+	if (!sensor)
+		return 0;
+
+	if (en) {
+		strcpy(sensor->name, "super_steady_gyro_sensor");
+		sensor->receive_event_size = 6;
+		sensor->report_event_size = 6;
+		sensor->event_buffer.value = kzalloc(sizeof(struct gyro_event), GFP_KERNEL);
+		if (!sensor->event_buffer.value)
+			goto err_no_mem;
+	} else {
+		kfree(sensor->event_buffer.value);
+		sensor->event_buffer.value = NULL;
+	}
+
+	return 0;
+
+err_no_mem:
+	kfree(sensor->event_buffer.value);
+	sensor->event_buffer.value = NULL;
+
+	return -ENOMEM;
+}
+

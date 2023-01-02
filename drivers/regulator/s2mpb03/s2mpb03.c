@@ -31,6 +31,9 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
+#if IS_ENABLED(CONFIG_REGULATOR_DEBUG_CONTROL)
+#include <linux/regulator/debug-regulator.h>
+#endif
 #include <linux/regulator/s2mpb03.h>
 #include <linux/regulator/of_regulator.h>
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG_PMIC)
@@ -567,6 +570,12 @@ static int s2mpb03_pmic_probe(struct i2c_client *i2c,
 			s2mpb03->rdev[i] = NULL;
 			goto err_s2mpb03_data;
 		}
+#if IS_ENABLED(CONFIG_REGULATOR_DEBUG_CONTROL)
+		ret = devm_regulator_debug_register(&i2c->dev, s2mpb03->rdev[i]);
+		if (ret)
+			dev_err(&i2c->dev, "failed to register debug regulator for %d, rc=%d\n",
+					i, ret);
+#endif
 	}
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG_PMIC)
 	ret = s2mpb03_create_sysfs(s2mpb03);

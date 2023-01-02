@@ -1288,36 +1288,56 @@
  */
 
 &smd {
-	hall_ic {
+	hall_ic: hall_ic {
 		status = "okay";
 		compatible = "hall_ic";
 		pinctrl-names = "default";
-		pinctrl-0 = <&hall_irq 
+		pinctrl-0 = <
+#if 1
+		&hall_irq
+#endif
 #if 1
 		&certify_hall_irq
 #endif
+#if 0
+		&hall_wacom_irq
+#endif
 		>;
-		hall {
+#if 0
+		hall_ic,debounce-interval = <${debounce_interval}>;
+#endif
+#if 1
+		hall: hall {
 			name = "hall";
 			event = <0x15>;
 			gpios = <SEC_GPIO_REF(AP,pio,6) 1>;
 		};
+#endif
 #if 1
-		certify_hall {
+		certify_hall: certify_hall {
 			name = "certify_hall";
 			event = <0x1b>;
 			gpios = <SEC_GPIO_REF(AP,pio,18) 1>;
 		};
 #endif
+#if 0
+		hall_wacom: hall_wacom {
+			name = "hall_wacom";
+			event = <0x1e>;
+			gpios = <SEC_GPIO_REF(${wacom_hall_gpio}) 1>;
+		};
+#endif
 	};
 };
 
+#if 1
 &pio {
 	hall_irq: hall_irq {
 		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,6), 0)>;
 		bias-disable;
 	};
 };
+#endif
 
 #if 1
 &pio {
@@ -1328,6 +1348,14 @@
 };
 #endif
 
+#if 0
+&${wacom_hall_parent} {
+	hall_wacom_irq: hall_wacom_irq {
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${wacom_hall_gpio}), 0)>;
+		bias-disable;
+	};
+};
+#endif
 /* #include "../mst.dtsi" */                         /* From mst.py */
 /* Copyright (c) 2020, Samsung Electronics Corporation. All rights reserved.
  *
@@ -1478,7 +1506,10 @@
 						compatible = "samsung,dc_vibrator";
 						status = "okay";
 						dc_vib,motor_type = "COINDC";
-						dc_vib,regulator_name = "vibr";
+#if 1
+						dc_vib,regulator_name = "dc_vib";
+						dc_vib-supply = <&mt_pmic_vibr_ldo_reg>;
+#endif
 					};
 				};
 			};
@@ -2230,9 +2261,9 @@
 	battery,wire_cool3_cool2_thresh = <50>;
 	battery,wire_cold_cool3_thresh = <0>;
 
-	battery,wire_warm_current = <1700>;	/* 0.36C */
+	battery,wire_warm_current = <1610>;	/* 0.36C */
 	battery,wire_cool1_current = <2300>;	/* 0.72C */
-	battery,wire_cool2_current = <1150>;	/* 0.24C */
+	battery,wire_cool2_current = <1080>;	/* 0.24C */
 	battery,wire_cool3_current = <490>;	/* 0.1C */
 
 	battery,high_temp_topoff = <250>;

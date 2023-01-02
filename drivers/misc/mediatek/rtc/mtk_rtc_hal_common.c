@@ -303,6 +303,26 @@ void hal_rtc_read_rg(void)
 	hal_rtc_xinfo("RTC_IRQ_EN = 0x%x, RTC_PDN1 = 0x%x\n", irqen, pdn1);
 }
 
+#ifdef CONFIG_SEC_PM
+#define RTC_SPAR0_BATT_REMOVAL  BIT(15)
+int hal_rtc_reset_check(void)
+{
+	u16 spar0 = rtc_read(RTC_SPAR0);
+
+	if (!(spar0 & RTC_SPAR0_BATT_REMOVAL)) {
+		pr_info("%s BATTERY REMOVED\n", __func__);
+
+		rtc_write(RTC_SPAR0,
+			  (rtc_read(RTC_SPAR0) & ~(RTC_SPAR0_BATT_REMOVAL))
+			  | RTC_SPAR0_BATT_REMOVAL);
+		rtc_write_trigger();
+		return 1;
+	}
+
+	return 0;
+}
+#endif
+
 #ifndef USER_BUILD_KERNEL
 void rtc_lp_exception(void)
 {

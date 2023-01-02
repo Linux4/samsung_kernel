@@ -84,6 +84,9 @@
 #include "simulator_kernel.h"
 #endif
 
+#if defined(CONFIG_SEC_FACTORY)
+#include <../drivers/battery/common/sec_charging_common.h>
+#endif
 
 
 /* ============================================================ */
@@ -3369,7 +3372,13 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 			int is_bat_exist = 0;
 
 			is_bat_exist = pmic_is_battery_exist();
-
+#if defined(CONFIG_SEC_FACTORY)
+			if (battery_main.f_mode == OB_MODE) {
+				is_bat_exist = 0;
+				bm_err("[fr] FG_DAEMON_CMD_IS_BAT_EXIST = %d\n",
+					is_bat_exist);
+			}
+#endif
 			ret_msg->fgd_data_len += sizeof(is_bat_exist);
 			memcpy(ret_msg->fgd_data,
 				&is_bat_exist, sizeof(is_bat_exist));

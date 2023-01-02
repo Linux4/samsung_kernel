@@ -46,7 +46,6 @@ subdir-ccflags-y += -I$(IMGSENSOR_DRIVER_PATH)/common/$(COMMON_VERSION) \
 	-I$(IMGSENSOR_DRIVER_PATH)/inc \
 	-I$(IMGSENSOR_DRIVER_PATH)/common/sysfs \
 	-I$(IMGSENSOR_DRIVER_PATH)/common/adaptive_mipi \
-	-I$(IMGSENSOR_DRIVER_PATH)/$(MTK_PLATFORM)/seninf/ \
 	-I$(MTK_DRIVER_PATH)/mmdvfs \
 	-I$(srctree)/drivers/i2c/busses/
 
@@ -125,9 +124,9 @@ ifneq (,$(wildcard $(IMGSENSOR_DRIVER_PATH)/$(MTK_PLATFORM)/seninf_$(MTK_DERIVED
 subdir-ccflags-y += -I$(IMGSENSOR_DRIVER_PATH)/$(MTK_PLATFORM)/seninf_$(MTK_DERIVED_PLATFORM)/
 obj-y += seninf_$(MTK_DERIVED_PLATFORM)/
 else
+subdir-ccflags-y += -I$(IMGSENSOR_DRIVER_PATH)/$(MTK_PLATFORM)/seninf/
 obj-y += seninf/
 endif
-subdir-ccflags-y += -I$(IMGSENSOR_DRIVER_PATH)/$(MTK_PLATFORM)/seninf/
 
 
 

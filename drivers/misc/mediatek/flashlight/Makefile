@@ -18,6 +18,7 @@ obj-$(CONFIG_MTK_FLASHLIGHT_MT6370)      += flashlights-mt6370.o
 obj-$(CONFIG_MTK_FLASHLIGHT_MT6360)      += flashlights-mt6360.o
 obj-$(CONFIG_MTK_SM5714_FLASHLIGHT)      += flashlights-sm5714.o
 obj-$(CONFIG_MTK_S2MU106_FLASHLIGHT)     += flashlights-s2mu106.o
+obj-$(CONFIG_MTK_S2MU005_FLASHLIGHT)     += flashlights-s2mu005.o
 obj-$(CONFIG_MTK_FLASHLIGHT_DUMMY)       += flashlights-dummy.o
 obj-$(CONFIG_MTK_FLASHLIGHT_DUMMY_GPIO)  += flashlights-dummy-gpio.o
 

@@ -50,6 +50,8 @@ int init_proximity_calibration(bool en)
 
 	if (en) {
 		strcpy(sensor->name, "proximity_calibration");
+		sensor->hal_sensor = false;
+
 		sensor->receive_event_size = 4;
 		sensor->report_event_size = 0;
 		sensor->event_buffer.value = kzalloc(sizeof(struct prox_cal_event), GFP_KERNEL);

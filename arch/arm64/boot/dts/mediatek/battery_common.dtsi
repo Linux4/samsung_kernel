@@ -360,9 +360,9 @@
 	battery,wire_cool3_cool2_thresh = <50>;
 	battery,wire_cold_cool3_thresh = <0>;
 
-	battery,wire_warm_current = <1700>;	/* 0.36C */
+	battery,wire_warm_current = <1610>;	/* 0.36C */
 	battery,wire_cool1_current = <2300>;	/* 0.72C */
-	battery,wire_cool2_current = <1150>;	/* 0.24C */
+	battery,wire_cool2_current = <1080>;	/* 0.24C */
 	battery,wire_cool3_current = <490>;	/* 0.1C */
 
 	battery,high_temp_topoff = <250>;

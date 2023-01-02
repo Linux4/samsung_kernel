@@ -9481,6 +9481,13 @@ static long ISP_ioctl_compat(struct file *filp, unsigned int cmd,
 			(unsigned long)data);
 		return ret;
 	}
+	case COMPAT_ISP_TRANSFOR_CCU_REG: {
+		ret =
+			filp->f_op->unlocked_ioctl(filp, ISP_TRANSFOR_CCU_REG,
+					   (unsigned long)compat_ptr(arg));
+		return ret;
+	}
+
 	case ISP_GET_DUMP_INFO:
 	case ISP_WAIT_IRQ:
 	case ISP_CLEAR_IRQ: /* structure (no pointer) */

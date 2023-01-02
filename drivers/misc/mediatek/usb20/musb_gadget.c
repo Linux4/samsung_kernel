@@ -61,6 +61,9 @@
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG
 #include <linux/usb_notify.h>
 #endif
+#if defined(CONFIG_BATTERY_SAMSUNG)
+#include "../../../battery/common/sec_charging_common.h"
+#endif
 
 extern bool acc_dev_status;
 #define FIFO_START_ADDR 512
@@ -2287,19 +2290,23 @@ static int musb_gadget_vbus_draw
 	return usb_phy_set_power(musb->xceiv, mA);
 }
 
-/* default value 0 */
-static int usb_rdy;
-void set_usb_rdy(void)
-{
-	DBG(0, "set usb_rdy, wake up bat\n");
-	usb_rdy = 1;
-}
 bool is_usb_rdy(void)
 {
-	if (usb_rdy)
-		return true;
-	else
-		return false;
+	return true;
+}
+
+static void musb_set_usb_bootcomplete(struct musb *musb)
+{
+#if defined(CONFIG_BATTERY_SAMSUNG)
+	union power_supply_propval propval = {0,};
+
+	pr_info("%s\n", __func__);
+	propval.intval = 1;
+	psy_do_property("battery", set,
+			POWER_SUPPLY_EXT_PROP_USB_BOOTCOMPLETE,
+			propval);
+#endif
+	musb->usb_bootcomplete = 1;
 }
 
 static int musb_gadget_pullup(struct usb_gadget *gadget, int is_on)
@@ -2330,13 +2337,15 @@ static int musb_gadget_pullup(struct usb_gadget *gadget, int is_on)
 
 	if (!musb->is_ready && is_on) {
 		musb->is_ready = true;
-		set_usb_rdy();
 		/* direct issue connection work if usb is forced on */
 		if (musb_force_on) {
 			DBG(0, "mt_usb_connect() on is_ready begin\n");
 			mt_usb_connect();
 		}
 	}
+
+	if (is_on && !musb->usb_bootcomplete)
+		musb_set_usb_bootcomplete(musb);
 
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG
 	if (is_on)

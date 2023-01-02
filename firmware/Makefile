@@ -17,8 +17,7 @@ fw-external-$(CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI) += tsp_novatek/NT36525C_BOE
 fw-external-$(CONFIG_TOUCHSCREEN_NOVATEK_NT36523_SPI) += tsp_novatek/nt36525c_a13x_boe.bin tsp_novatek/nt36525c_a13x_mp_boe.bin \
 							tsp_novatek/nt36525c_a13x_bringup.bin tsp_novatek/nt36525c_a13x_mp_bringup.bin \
 							tsp_novatek/nt36525c_a13x_sharp.bin tsp_novatek/nt36525c_a13x_mp_sharp.bin \
-							tsp_novatek/nt36672_a13ve_csot.bin tsp_novatek/nt36672_a13ve_csot_mp.bin \
-							tsp_novatek/nt36672_a13ve_tianma.bin tsp_novatek/nt36672_a13ve_tianma_mp.bin
+							tsp_novatek/nt36672_a13ve_csot.bin tsp_novatek/nt36672_a13ve_csot_mp.bin
 fw-external-$(CONFIG_TOUCHSCREEN_SYNA_TCM2) += tsp_synaptics/PR3482364-S3908_M52_BOE_PRA_3102000C_20210903.img
 ifeq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6739"))
 fw-external-$(CONFIG_TOUCHSCREEN_SYNAPTICS_TCM) += tsp_synaptics/PR2100000870-td4150b0_01010011_20200504.img
@@ -30,7 +29,7 @@ fw-external-$(CONFIG_TOUCHSCREEN_MELFAS_MSS100) += melfas/melfas_mip4_ts.fw
 fw-external-$(CONFIG_TOUCHSCREEN_MELFAS) += tsp_melfas/mss100_a22.bin tsp_melfas/mss100_a22_old.bin
 fw-external-$(CONFIG_TOUCHSCREEN_IST4050) += tsp_imagis/ist40xx_a31.bin
 fw-external-$(CONFIG_TOUCHSCREEN_IST4050) += tsp_imagis/ist40xx_a31_cmcs.bin
-fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_SPI) += tsp_himax/hx83108a_a13x.bin
+fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_SPI) += tsp_himax/hx83108a_a13x.bin tsp_himax/hx83112f_boe_a13ve.bin
 fw-external-$(CONFIG_TOUCHSCREEN_OVT_TD4150_SPI) += tsp_ovt/td4160_a13x_boe.bin
 fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_I2C_ONLY) += tsp_himax/hx83102d_a22e_Al.bin tsp_himax/hx83102d_a22e_Cu.bin
 

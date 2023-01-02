@@ -127,7 +127,7 @@ s32 cmdq_sec_mtee_allocate_wsm(struct cmdq_sec_mtee_context *tee,
 			return status;
 		}
 		else
-				cmdq_msg(
+			cmdq_msg(
 				"%s: session:%#x handle:%#x size:%#x buffer:%p:%#x",
 				__func__, tee->wsm_pHandle, tee->wsm_handle,
 				tee->wsm_param.size, *wsm_buffer, *wsm_buffer);

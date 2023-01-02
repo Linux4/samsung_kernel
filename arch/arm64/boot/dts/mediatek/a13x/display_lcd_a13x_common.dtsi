@@ -177,7 +177,7 @@
 			};
 
 			__nt36525c_sharp_90: __nt36525c_sharp_90 {
-				lcm_params-dsi-vertical_frontporch = <28>;	/* 60Hz: 980, 90Hz: 13 */
+				lcm_params-dsi-vertical_frontporch = <28>;	/* 60Hz: 1008, 90Hz: 28 */
 
 				drm_params-vrefresh = <90>;
 			};
@@ -192,14 +192,14 @@
 				lcm_params-dsi-lane_num = <3>;
 
 				lcm_params-resolution = <720 1600>;
-				lcm_params-physical_width = <68>;		/* 68.43mm x 152.57mm */
-				lcm_params-physical_height = <152>;
+				lcm_params-physical_width = <68>;		/* 67.93mm x 150.96mm */
+				lcm_params-physical_height = <151>;
 
 				lcm_params-dsi-horizontal_backporch = <34>;
 				lcm_params-dsi-horizontal_frontporch = <24>;
 				lcm_params-dsi-horizontal_sync_active = <2>;
 				lcm_params-dsi-vertical_backporch = <330>;
-				lcm_params-dsi-vertical_frontporch = <1008>;	/* 60Hz: 980, 90Hz: 13 */
+				lcm_params-dsi-vertical_frontporch = <1008>;	/* 60Hz: 1008, 90Hz: 28 */
 				lcm_params-dsi-vertical_sync_active = <2>;
 
 				lcm_params-dsi-data_rate = <1198>;

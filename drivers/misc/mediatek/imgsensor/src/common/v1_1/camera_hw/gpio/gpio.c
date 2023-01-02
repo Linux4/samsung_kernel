@@ -137,7 +137,7 @@ static enum IMGSENSOR_RETURN gpio_set(
 	struct GPIO           *pgpio = (struct GPIO *)pinstance;
 	enum   GPIO_STATE      gpio_state;
 
-	/* PK_DBG("%s :debug pinctrl ENABLE, PinIdx %d, Val %d\n",
+	/* PK_INFO("%s :debug pinctrl ENABLE, PinIdx %d, Val %d\n",
 	 *	__func__, pin, pin_state);
 	 */
 
@@ -186,9 +186,9 @@ static enum IMGSENSOR_RETURN gpio_set(
 static enum IMGSENSOR_RETURN gpio_dump(void *pintance)
 {
 #ifdef DUMP_GPIO
-	PK_DBG("[sensor_dump][gpio]\n");
+	PK_INFO("[sensor_dump][gpio]\n");
 	gpio_dump_regs();
-	PK_DBG("[sensor_dump][gpio] finish\n");
+	PK_INFO("[sensor_dump][gpio] finish\n");
 #endif
 	return IMGSENSOR_RETURN_SUCCESS;
 }

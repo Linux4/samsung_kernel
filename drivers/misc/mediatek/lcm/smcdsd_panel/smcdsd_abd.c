@@ -40,7 +40,7 @@
 #include "disp_lcm.h"
 #include "disp_helper.h"
 #if defined(SMCDSD_ABD_MTK_UEVENT)
-//#include "mtk_notify.h"
+#include "mtk_notify.h"
 #endif
 #endif
 
@@ -481,7 +481,7 @@ static void __smcdsd_abd_blank(struct abd_protect *abd)
 {
 	dbg_info("+ %s: noti_uevent\n", __func__);
 
-//	noti_uevent_user(&uevent_data, 1);
+	noti_uevent_user(&uevent_data, 1);
 
 	dbg_info("- %s\n", __func__);
 }

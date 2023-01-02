@@ -1504,6 +1504,32 @@ int xhci_hub_status_data(struct usb_hcd *hcd, char *buf)
 
 #ifdef CONFIG_PM
 
+static bool xhci_all_ports_suspended(struct xhci_hcd *xhci)
+{
+	int port_index;
+	struct xhci_bus_state *bus_state;
+
+	/* check u3 ports */
+	bus_state = &xhci->bus_state[0];
+	port_index = xhci->num_usb3_ports;
+
+	while (port_index--) {
+		if (!test_bit(port_index, &bus_state->bus_suspended))
+			return false;
+	}
+
+	/* check u2 ports */
+	bus_state = &xhci->bus_state[1];
+	port_index = xhci->num_usb2_ports;
+
+	while (port_index--) {
+		if (!test_bit(port_index, &bus_state->bus_suspended))
+			return false;
+	}
+
+	return true;
+}
+
 int xhci_bus_suspend(struct usb_hcd *hcd)
 {
 	struct xhci_hcd	*xhci = hcd_to_xhci(hcd);
@@ -1612,7 +1638,8 @@ int xhci_bus_suspend(struct usb_hcd *hcd)
 	bus_state->next_statechange = jiffies + msecs_to_jiffies(10);
 	spin_unlock_irqrestore(&xhci->lock, flags);
 #if IS_ENABLED(CONFIG_USB_XHCI_MTK_SUSPEND)
-	if (hcd->self.root_hub->do_remote_wakeup == 1) {
+	if (xhci_all_ports_suspended(xhci) &&
+			hcd->self.root_hub->do_remote_wakeup == 1) {
 		struct xhci_hcd_mtk *mtk = hcd_to_mtk(hcd);
 
 		dev_info(&hcd->self.root_hub->dev, "%s %d\n",

@@ -20,6 +20,10 @@
 #include "adsp_excep.h"
 #include "adsp_logger.h"
 
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+#include <sound/samsung/sec_audio_sysfs.h>
+#endif
+
 #define ADSP_MISC_EXTRA_SIZE    0x400 //1KB
 #define ADSP_MISC_BUF_SIZE      0x10000 //64KB
 #define ADSP_TEST_EE_PATTERN    "Assert-Test"
@@ -241,6 +245,14 @@ void adsp_aed_worker(struct work_struct *ws)
 
 	/* exception dump */
 	adsp_exception_dump(ctrl);
+
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+	send_adsp_silent_reset_ev();
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	pr_info("%s, adsp dead, bug on", __func__);
+	BUG_ON(1);
+#endif
+#endif
 
 	/* reset adsp */
 	adsp_enable_clock();

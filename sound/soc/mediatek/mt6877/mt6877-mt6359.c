@@ -209,7 +209,7 @@ static int cs35l41_i2s3_init(struct snd_soc_pcm_runtime *rtd)
 
 	component = codec_dai->component;
 
-	if (component)
+	if (component && strstr(component->name, "speaker_amp"))
 		register_cirrus_bigdata_cb(component);
 
 	return 0;

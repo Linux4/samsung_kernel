@@ -5,6 +5,10 @@
  */
 
 #include "mtk_notify.h"
+#if defined(CONFIG_SMCDSD_PANEL)
+#include "ddp_irq.h"
+#include "primary_display.h"
+#endif
 
 static struct class *notify_class;
 

@@ -32,6 +32,16 @@
 
 enum {
 	MTK_FPS_CHANGE = 0,
+	MTK_POWER_MODE_CHANGE = 1,
+	MTK_POWER_MODE_DONE = 2,
+};
+
+enum {
+	DISP_NONE = -1,
+	DISP_OFF = 0,
+	DISP_ON = 1,
+	DISP_DOZE = 2,
+	DISP_DOZE_SUSPEND = 3,
 };
 
 struct mtk_uevent_dev {
@@ -44,6 +54,7 @@ struct mtk_uevent_dev {
 struct mtk_notifier {
 	struct notifier_block notifier;
 	int fps;
+	int power_mode;
 };
 
 int uevent_dev_register(struct mtk_uevent_dev *sdev);

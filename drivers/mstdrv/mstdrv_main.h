@@ -27,6 +27,9 @@
 #endif
 #include <linux/msm_pcie.h>
 #include <linux/qseecom.h>
+#if IS_ENABLED(CONFIG_QSEECOM_PROXY)
+#include <linux/qseecom_kernel.h>
+#endif
 #endif
 
 #if defined(CONFIG_MST_ARCH_EXYNOS)
@@ -36,8 +39,8 @@
 #include <linux/smc.h> // for Kinibi
 #endif
 
-#if defined(CONFIG_MST_ARCH_MTK)
-#include <linux/arm-smccc.h> // for Kinibi
+#if defined(CONFIG_MST_ARCH_MTK) && !defined(CONFIG_MST_TEEGRIS) && !defined(CONFIG_MST_NONSECURE) // for Kinibi
+#include <linux/arm-smccc.h>
 #include <mt-plat/mtk_secure_api.h>
 #endif
 
@@ -98,12 +101,14 @@ typedef enum {
 	MST_CMD_UNKNOWN = MST_CREATE_CMD(0x7FFFFFFF)
 } mst_cmd_type;
 
+#if !IS_ENABLED(CONFIG_QSEECOM_PROXY)
 /* struct definitions */
 struct qseecom_handle {
 	void *dev;		/* in/out */
 	unsigned char *sbuf;	/* in/out */
 	uint32_t sbuf_len;	/* in/out */
 };
+#endif
 static struct qseecom_handle *qhandle;
 
 typedef struct mst_req_s {
@@ -116,6 +121,7 @@ typedef struct mst_rsp_s {
 	uint32_t status;
 } __attribute__ ((packed)) mst_rsp_t;
 
+#if !IS_ENABLED(CONFIG_QSEECOM_PROXY)
 /* extern function declarations */
 extern int qseecom_start_app(struct qseecom_handle **handle, char *app_name,
 			     uint32_t size);
@@ -123,6 +129,7 @@ extern int qseecom_shutdown_app(struct qseecom_handle **handle);
 extern int qseecom_send_command(struct qseecom_handle *handle, void *send_buf,
 				uint32_t sbuf_len, void *resp_buf,
 				uint32_t rbuf_len);
+#endif
 
 #if defined(_ARCH_ARM_MACH_MSM_BUS_H) // build error
 static struct msm_bus_paths ss_mst_usecases[] = {

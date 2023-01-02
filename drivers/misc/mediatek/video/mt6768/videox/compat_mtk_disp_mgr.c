@@ -894,6 +894,8 @@ static int compat_get_disp_frame_cfg(
 	struct disp_frame_cfg_t __user *data)
 {
 	compat_uint_t u;
+	bool l;
+	compat_int_t i;
 	int err;
 	int j;
 
@@ -953,6 +955,11 @@ static int compat_get_disp_frame_cfg(
 	err |= get_user(u, &(data32->hrt_idx));
 	err |= put_user(u, &(data->hrt_idx));
 
+	err |= get_user(l, &(data32->hbm_en));
+	err |= put_user(l, &(data->hbm_en));
+
+	err |= get_user(i, &(data32->active_config));
+	err |= put_user(i, &(data->active_config));
 	return err;
 }
 

@@ -178,7 +178,6 @@ int primary_display_def_dst_mode;
 int primary_display_cur_dst_mode;
 unsigned long long last_primary_trigger_time;
 bool is_switched_dst_mode;
-bool is_tui_started = false;
 int primary_trigger_cnt;
 unsigned int dynamic_fps_changed;
 unsigned int arr_fps_enable;
@@ -194,6 +193,8 @@ static unsigned int _need_lfr_check(void);
 struct Layer_draw_info *draw;
 struct mtk_uevent_dev uevent_data;
 EXPORT_SYMBOL(uevent_data);
+
+static bool is_tui_started; //static init to false
 
 #ifdef CONFIG_MTK_DISPLAY_120HZ_SUPPORT
 static int od_need_start;
@@ -3153,6 +3154,11 @@ unsigned int cmdqDdpDumpInfo(uint64_t engineFlag, char *pOutBuf,
 
 	ddp_dump_analysis(DISP_MODULE_WDMA0);
 
+#if !defined(CONFIG_SEC_FACTORY) && defined(CONFIG_SMCDSD_PANEL_A13VE)
+	if (islcmconnected)
+		BUG();
+#endif
+
 	return 0;
 }
 
@@ -4272,6 +4278,7 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 #endif
 	uevent_data.name = "lcm_disconnect";
 	uevent_dev_register(&uevent_data);
+	mtk_notifier_activate();
 
 	DISPCHECK("%s done\n", __func__);
 
@@ -4802,6 +4809,12 @@ int primary_display_suspend(void)
 		DISPWARN("primary display path is already sleep, skip\n");
 		goto done;
 	}
+
+	if (dpmgr_get_power_status(pgc->dpmgr_handle) == 0) {
+		DISPWARN("primary display power state is already off, skip\n");
+		goto done;
+	}
+
 	primary_display_idlemgr_kick(__func__, 0);
 
 	if (pgc->session_mode == DISP_SESSION_RDMA_MODE) {
@@ -10056,12 +10069,13 @@ static struct DDP_MODULE_DRIVER *ddp_module_backup;
 int display_vsync_switch_to_dsi(unsigned int flg)
 {
 	if (!primary_display_is_video_mode()) {
+		/* Handling for CMD mode */
 		if (flg)
 			is_tui_started = true;
 		else
 			is_tui_started = false;
- 		return 0;
-        }
+		return 0;
+	}
 
 	if (!flg) {
 		dpmgr_map_event_to_irq(pgc->dpmgr_handle,
@@ -10179,7 +10193,8 @@ int display_exit_tui(void)
 	return 0;
 }
 
-bool primary_display_is_tui_started(void) {
+bool primary_display_is_tui_started(void)
+{
 	return is_tui_started;
 }
 
@@ -10691,7 +10706,9 @@ void primary_display_dynfps_chg_fps(int cfg_id)
 	pgc->lcm_fps = new_dynfps;
 
 	DISPMSG("%s,done\n", __func__);
-
+	mtk_notifier_call_chain(MTK_FPS_CHANGE, (void *)&pgc->lcm_refresh_rate);
+	mmprofile_log_ex(ddp_mmp_get_events()->primary_switch_fps,
+		MMPROFILE_FLAG_END, 0, 3);
 }
 
 void primary_display_dynfps_get_vfp_info(

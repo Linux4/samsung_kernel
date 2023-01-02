@@ -446,19 +446,12 @@ static int common_lcd_doze_area(struct drm_panel *panel,
 #endif
 #endif
 
-static int common_lcd_crtc_state_notify(struct drm_encoder *encoder,
+static int common_lcd_crtc_state_notify(struct drm_panel *panel,
 	int active, int prepare)
 {
-	struct drm_bridge *bridge;
-	struct mipi_dsi_lcd_common *plcd;
+	//struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-	if (!encoder->bridge) {
-		dbg_info("%s: bridge is null\n", __func__);
-		return 0;
-	}
-
-	bridge = encoder->bridge;
-	plcd = bridge_to_common_lcd(bridge);
+	//dbg_info("%s: dev_name(%s)\n", __func__, dev_name(plcd->dev));
 
 	smcdsd_fb_simple_notifier_call_chain(prepare ? SMCDSD_EARLY_EVENT_BLANK : SMCDSD_EVENT_BLANK, active ? FB_BLANK_UNBLANK : FB_BLANK_POWERDOWN);
 
@@ -672,7 +665,7 @@ static int common_lcd_probe(struct mipi_dsi_device *dsi)
 {
 	struct device *dev = &dsi->dev;
 	struct mipi_dsi_lcd_common *plcd = &lcd_common;
-	int ret;
+	int ret, i;
 
 	dbg_info("%s: node(%s)\n", __func__, of_node_full_name(dev->of_node));
 
@@ -687,6 +680,9 @@ static int common_lcd_probe(struct mipi_dsi_device *dsi)
 	ret = smcdsd_panel_get_config(plcd);
 	if (ret <= 1)
 		ext_funcs.ext_param_set = NULL;
+
+	for (i = 0; i < LCD_CONFIG_MAX; i++)
+		plcd->config[i].ext.dpanel = &plcd->panel;
 
 	drm_panel_init(&plcd->panel);
 	plcd->panel.dev = dev;

@@ -337,7 +337,9 @@ int stm_ts_read_from_sponge(struct stm_ts_data *ts, u8 *data, int length)
 	t2->len = 3 + 1 + length; /* (dummy:D1(1) + offset(2) + length*/
 	t2->tx_buf = tbuf2;
 	t2->rx_buf = rbuf2;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 	t2->delay_usecs = 10;
+#endif
 	spi_message_add_tail(t2, m2);
 
 	if (ts->plat_data->gpio_spi_cs > 0)
@@ -833,8 +835,9 @@ int stm_ts_spi_read(struct stm_ts_data *ts, u8 *reg, int tlen, u8 *buf, int rlen
 	t->len = rlen + 1 + buf_len;
 	t->tx_buf = tbuf;
 	t->rx_buf = rbuf;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 	t->delay_usecs = 10;
-
+#endif
 	spi_message_add_tail(t, m);
 
 	if (ts->plat_data->gpio_spi_cs > 0)
@@ -928,9 +931,7 @@ int stm_ts_spi_probe(struct spi_device *client)
 	ts->plat_data->stui_tsp_type = stm_stui_tsp_type;
 #endif
 	ret = stm_ts_probe(ts);
-#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
-	stm_ts_tool_proc_init(ts);
-#endif
+
 	return ret;
 
 error_allocate_tdata:

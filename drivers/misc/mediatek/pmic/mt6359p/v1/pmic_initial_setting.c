@@ -335,7 +335,9 @@ void PMIC_LP_INIT_SETTING(void)
 	pmic_ldo_va12_lp(SRCLKEN0, 1, 1, HW_LP);
 	pmic_ldo_va09_lp(SRCLKEN1, 1, 1, HW_LP);
 	pmic_ldo_vbbck_lp(SRCLKEN14, 1, 1, HW_OFF);
+#ifdef CONFIG_MTK_SEC_VFE28_CONTROL_ENABLE
 	pmic_ldo_vfe28_lp(SRCLKEN1, 0, 1, HW_OFF);
+#endif
 	pmic_ldo_vbif28_lp(SRCLKEN0, 1, 1, HW_OFF);
 	pmic_ldo_vaud18_lp(SW, 1, 1, SW_OFF);
 	pmic_ldo_vaux18_lp(SRCLKEN0, 1, 1, HW_LP);
@@ -386,7 +388,9 @@ void PMIC_LP_INIT_SETTING(void)
 	pmic_ldo_va09_lp(SRCLKEN1, 1, 1, HW_LP);
 	/* SRCLKEN14 HW_ON no need to setting */
 	/*pmic_ldo_vbbck_lp(SRCLKEN14, 1, 1, HW_ON);*/
+#ifdef CONFIG_MTK_SEC_VFE28_CONTROL_ENABLE
 	pmic_ldo_vfe28_lp(SRCLKEN1, 0, 1, HW_OFF);
+#endif
 	pmic_ldo_vbif28_lp(SRCLKEN2, 1, 1, HW_OFF);
 	pmic_ldo_vaud18_lp(SW, 1, 1, SW_OFF);
 	pmic_ldo_vaux18_lp(SRCLKEN2, 1, 1, HW_LP);

@@ -462,6 +462,7 @@ extern bool pmic_is_battery_exist(void);
 extern void notify_adapter_event(enum adapter_type type, enum adapter_event evt,
 	void *val);
 
+extern bool mt6360_get_is_host(void);
 
 /* FIXME */
 enum usb_state_enum {

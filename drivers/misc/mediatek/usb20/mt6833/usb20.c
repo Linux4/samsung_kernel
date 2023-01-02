@@ -49,6 +49,8 @@
 
 #if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
 #include <linux/cable_type_notifier.h>
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+#include <linux/usb/typec/common/pdic_notifier.h>
 #endif
 
 #ifndef FPGA_PLATFORM
@@ -625,6 +627,23 @@ static bool cmode_effect_on(void)
 	return effect;
 }
 
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+void mt_usb_event_work(int event)
+{
+	PD_NOTI_TYPEDEF pdic_noti = {
+		.src = PDIC_NOTIFY_DEV_PDIC,
+		.dest = PDIC_NOTIFY_DEV_USB,
+		.id = PDIC_NOTIFY_ID_USB,
+		.sub1 = 0,
+		.sub2 = event,
+		.sub3 = 0,
+	};
+
+	pr_info("usb: %s :%s\n", __func__, pdic_usbstatus_string(event));
+	pdic_notifier_notify((PD_NOTI_TYPEDEF *)&pdic_noti, 0, 0);
+}
+#endif
+
 void do_connection_work(struct work_struct *data)
 {
 	unsigned long flags = 0;
@@ -744,6 +763,8 @@ void mt_usb_connect(void)
 	DBG(0, "[MUSB] USB connect\n");
 #if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
 	cable_type_notifier_set_attached_dev(CABLE_TYPE_USB);
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	mt_usb_event_work(USB_STATUS_NOTIFY_ATTACH_UFP);
 #else
 	issue_connection_work(CONNECTION_OPS_CONN);
 #endif
@@ -761,6 +782,8 @@ void mt_usb_disconnect(void)
 	DBG(0, "[MUSB] USB disconnect\n");
 #if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
 	cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	mt_usb_event_work(USB_STATUS_NOTIFY_DETACH);
 #else
 	issue_connection_work(CONNECTION_OPS_DISC);
 #endif

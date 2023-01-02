@@ -133,7 +133,7 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 			ppwr_info->pin != IMGSENSOR_HW_PIN_UNDEF) {
 			pdev = phw->pdev[psensor_pwr->id[ppwr_info->pin]];
 
-			pr_info("sensor_idx = %d, pin=%d, pin_state_on=%d, hw_id =%d, delay=%u ms",
+			pr_info("[Power on] sensor_idx = %d, pin = %d, pin_state_on = %d, hw_id = %d, delay after setting = %u ms",
 					sensor_idx, ppwr_info->pin, ppwr_info->pin_state_on,
 					psensor_pwr->id[ppwr_info->pin], ppwr_info->pin_on_delay);
 
@@ -159,7 +159,7 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 				if (ppwr_info->pin_on_delay)
 					mDELAY(ppwr_info->pin_on_delay);
 
-				pr_info("sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_off %d, hw_id =%d, delay=%u ms",
+				pr_info("[Power off] sensor_idx = %d, pin = %d, pin_state_off = %d, hw_id = %d, delay before setting = %u ms",
 						sensor_idx, ppwr_info->pin, ppwr_info->pin_state_off,
 						psensor_pwr->id[ppwr_info->pin], ppwr_info->pin_on_delay);
 
@@ -185,10 +185,9 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 	char str_index[LENGTH_FOR_SNPRINTF];
 	int ret = 0;
 
-	pr_info(
-		"sensor_idx %d, power %d curr_sensor_name %s, enable list %s\n",
+	pr_info("[Power %s] sensor_idx = %d, curr_sensor_name = %s, enable list = %s",
+		pwr_status ? "on" : "off",
 		sensor_idx,
-		pwr_status,
 		curr_sensor_name,
 		phw->enable_sensor_by_index[(uint32_t)sensor_idx] == NULL
 		? "NULL"

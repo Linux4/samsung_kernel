@@ -88,6 +88,7 @@ extern void usb_phy_context_restore(void);
 extern void usb_phy_context_save(void);
 extern bool usb_enable_clock(bool enable);
 extern void usb_rev6_setting(int value);
+extern void usb_dpdm_pullup(bool enable);
 
 /* general USB */
 extern bool mt_usb_is_device(void);
@@ -125,4 +126,7 @@ extern void musb_session_restart(struct musb *musb);
 extern int mt_usb_dual_role_init(struct musb *musb);
 extern int mt_usb_dual_role_changed(struct musb *musb);
 #endif /* CONFIG_DUAL_ROLE_USB_INTF */
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+extern void mt_usb_event_work(int event);
+#endif
 #endif

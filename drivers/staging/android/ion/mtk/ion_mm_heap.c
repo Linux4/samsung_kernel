@@ -35,6 +35,8 @@
 #define MTK_ION_MAPPING_PERF_DEBUG
 #endif
 
+static atomic_long_t systemheap_total_allocated = ATOMIC_LONG_INIT(0);
+
 static unsigned int order_gfp_flags[] = {
 	(GFP_HIGHUSER | __GFP_ZERO | __GFP_NOWARN | __GFP_NORETRY) &
 	    ~__GFP_RECLAIM,
@@ -413,7 +415,7 @@ static int ion_mm_heap_allocate(struct ion_heap *heap,
 	caller_pid = 0;
 	caller_tid = 0;
 
-	atomic_long_add(size, &system_heap->heap.total_allocated);
+	atomic_long_add(size, &systemheap_total_allocated);
 	return 0;
 
 err1:
@@ -573,7 +575,8 @@ void ion_mm_heap_free(struct ion_buffer *buffer)
 
 	sg_free_table(table);
 	kfree(table);
-	atomic_long_sub(size, &system_heap->heap.total_allocated);
+	atomic_long_sub(size, &systemheap_total_allocated);
+
 }
 
 struct sg_table *ion_mm_heap_map_dma(struct ion_heap *heap,
@@ -1052,6 +1055,16 @@ static int __do_dump_share_fd(const void *data, struct file *file,
 	if (IS_ERR_OR_NULL(buffer))
 		return 0;
 
+	/*
+	 * secure heap buffer struct is different with mm_heap buffer,
+	 * and it isn't public, don't dump here.
+	 *
+	 * only dump supported heap type in ion_mm_heap.c
+	 */
+	if (buffer->heap->type != (unsigned int)ION_HEAP_TYPE_MULTIMEDIA &&
+	    buffer->heap->type != (unsigned int)ION_HEAP_TYPE_SYSTEM)
+		return 0;
+
 	bug_info = (struct ion_mm_buffer_info *)buffer->priv_virt;
 	if (bug_info) {
 		pid = bug_info->pid;
@@ -1292,9 +1305,8 @@ static int ion_mm_heap_debug_show(struct ion_heap *heap, struct seq_file *s,
 
 			client->dbg_hnd_cnt++;
 			ION_DUMP(s,
-				 "\thandle=0x%p (id: %d), buffer=0x%p/0x%lx, heap=%u, fd=%4d, ts: %lldms (%d)\n",
+				 "\thandle=0x%p (id: %d), buffer=0x%p, heap=%u, fd=%4d, ts: %lldms (%d)\n",
 				 handle, handle->id, handle->buffer,
-				 (unsigned long)handle->buffer,
 				 handle->buffer->heap->id,
 				 handle->dbg.fd,
 				 handle->dbg.user_ts,
@@ -1615,7 +1627,7 @@ static void show_ion_system_heap_pool_size(struct seq_file *s)
 	unsigned long cached_total = 0;
 	unsigned long secure_total = 0;
 	struct ion_page_pool *pool;
-	int i, j;
+	int i;
 
 	if (!system_heap) {
 		pr_err("system_heap_pool is not ready\n");
@@ -1651,6 +1663,7 @@ void show_ion_system_heap_size(struct seq_file *s)
 {
 	struct ion_heap *heap;
 	unsigned long system_byte = 0;
+	unsigned long all_system_kb;
 
 	if (!system_heap) {
 		pr_err("system_heap is not ready\n");
@@ -1658,11 +1671,17 @@ void show_ion_system_heap_size(struct seq_file *s)
 	}
 
 	heap = &system_heap->heap;
-	system_byte = (unsigned int)atomic_long_read(&heap->total_allocated);
-	if (s)
+	system_byte = (unsigned long)atomic_long_read(&systemheap_total_allocated);
+	all_system_kb = (unsigned long)(atomic64_read(&page_sz_cnt)
+							<< (PAGE_SHIFT - 10));
+	if (s) {
 		seq_printf(s, "SystemHeap:     %8lu kB\n", system_byte >> 10);
-	else
+		seq_printf(s, "AllSystemHeap:  %8lu kB\n", all_system_kb);
+	}
+	else {
 		pr_cont("SystemHeap:%lukB ", system_byte >> 10);
+		pr_cont("AllSystemHeap:%lukB ", all_system_kb);
+	}
 }
 
 static int ion_system_heap_size_notifier(struct notifier_block *nb,

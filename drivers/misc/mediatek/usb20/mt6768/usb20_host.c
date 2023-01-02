@@ -27,6 +27,8 @@
 #include <linux/of_address.h>
 #if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
 #include <linux/cable_type_notifier.h>
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+#include <linux/usb/typec/common/pdic_notifier.h>
 #endif
 #ifdef CONFIG_MTK_USB_TYPEC
 #ifdef CONFIG_TCPC_CLASS
@@ -329,6 +331,9 @@ void mt_usb_host_connect(int delay)
 #if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
 	host_onoff_delay = delay;
 	cable_type_notifier_set_attached_dev(CABLE_TYPE_OTG);
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	host_onoff_delay = delay;
+	mt_usb_event_work(USB_STATUS_NOTIFY_ATTACH_DFP);
 #else
 	typec_req_host = true;
 	DBG(0, "%s\n", typec_req_host ? "connect" : "disconnect");
@@ -349,6 +354,9 @@ void mt_usb_host_disconnect(int delay)
 #if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
 	host_onoff_delay = delay;
 	cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	host_onoff_delay = delay;
+	mt_usb_event_work(USB_STATUS_NOTIFY_DETACH);
 #else
 	typec_req_host = false;
 	DBG(0, "%s\n", typec_req_host ? "connect" : "disconnect");
@@ -625,8 +633,7 @@ static void do_host_work(struct work_struct *data)
 		/* setup fifo for host mode */
 		ep_config_from_table_for_host(mtk_musb);
 
-		if (!mtk_musb->host_suspend)
-			__pm_stay_awake(mtk_musb->usb_lock);
+		__pm_stay_awake(mtk_musb->usb_lock);
 
 		mt_usb_set_vbus(mtk_musb, 1);
 

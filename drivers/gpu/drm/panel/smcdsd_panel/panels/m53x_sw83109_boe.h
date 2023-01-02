@@ -98,6 +98,7 @@ static char *LDI_BIT_DESC_9F[BITS_PER_BYTE * 2] = {
 //	[3] = "PS_CHK",		/* Power sequence Error flag */
 //	[4] = "HS_CHK",		/* Hsync Time out flag */
 //	[5] = "VS_CHK",		/* Vsync Time out flag */
+	[6] = "FMEM0_CHK",	/* Frame memory write/read CRC Error flag */
 //	[8] = "PCD_OUT",	/* PCD output value */
 };
 

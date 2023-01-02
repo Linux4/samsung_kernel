@@ -39,14 +39,14 @@
 #include "aw_log.h"
 #include "aw_dsp.h"
 
-#define AW882XX_DRIVER_VERSION "v1.7.0.3"
+#define AW882XX_DRIVER_VERSION "v1.7.0.4_MTK"
 #define AW882XX_I2C_NAME "aw882xx_smartpa"
 
 #define AW_READ_CHIPID_RETRIES		5	/* 5 times */
 #define AW_READ_CHIPID_RETRY_DELAY	5	/* 5 ms */
 
 static unsigned int g_aw882xx_dev_cnt = 0;
-static unsigned int g_print_dbg = 1;
+static unsigned int g_print_dbg = 0;
 static unsigned int g_algo_rx_en = false;
 static unsigned int g_algo_tx_en = false;
 static unsigned int g_algo_copp_en = false;

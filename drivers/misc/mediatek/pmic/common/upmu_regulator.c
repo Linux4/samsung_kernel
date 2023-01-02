@@ -311,7 +311,7 @@ static int pmic_regulator_ldo_dts_parser(struct platform_device *pdev,
 	int isEn;
 #endif /*--REGULATOR_TEST--*/
 
-	ldo_regulators = of_get_child_by_name(np, "ldo_regulators");
+	ldo_regulators = of_get_child_by_name(np, "mt6357regulator");
 	if (!ldo_regulators) {
 		pr_info("[PMIC]regulators node not found\n");
 		return -EINVAL;

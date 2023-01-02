@@ -742,8 +742,9 @@ struct mtk_drm_crtc {
 	atomic_t cmdq_done;
 	wait_queue_head_t signal_fence_task_wq;
 	int need_lock_tid;
-	int frame_update_cnt;
 	int customer_lock_tid;
+
+	int frame_update_cnt;
 };
 
 struct mtk_crtc_state {

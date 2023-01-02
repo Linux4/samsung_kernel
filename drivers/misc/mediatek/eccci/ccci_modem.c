@@ -1803,7 +1803,6 @@ static void config_ap_side_feature(struct ccci_modem *md,
 #endif
 
 #ifdef CUST_FT_BIGDATA
-
 	/* only support for mt6853 */
 	md_feature->feature_set[CCCI_MD_BIGDATA_SHARE_MEMORY].support_mask
 		= CCCI_FEATURE_MUST_SUPPORT;
@@ -1814,7 +1813,6 @@ static void config_ap_side_feature(struct ccci_modem *md,
 		= CCCI_FEATURE_NOT_SUPPORT;
 	md_feature->feature_set[CCCI_MD_IPCA_BIGDATA_SHARE_MEMORY].support_mask
 		= CCCI_FEATURE_NOT_SUPPORT;
-
 #endif
 
 #if (MD_GENERATION >= 6293)
@@ -1972,10 +1970,8 @@ static void config_ap_side_feature(struct ccci_modem *md,
 #endif
 
 #ifdef CUST_FT_EE_TRIGGER_REBOOT
-
 	md_feature->feature_set[AP_DEBUG_LEVEL].support_mask =
 		CCCI_FEATURE_MUST_SUPPORT;
-
 #endif
 }
 

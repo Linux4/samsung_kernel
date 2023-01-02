@@ -12,7 +12,7 @@
 #include "s5kjn1mipiraw_Sensor.h"
 #include "kd_imgsensor_adaptive_mipi.h"
 
-/* sensor set-file: JN1_EVT0.0_Setfile_20210809_ver0.06.xlsx */
+/* sensor set-file: JN1_EVT0.0_Setfile_20220302_ver0.13.xlsx */
 static kal_uint16 addr_data_init_s5kjn1[] = {
 	0x6226, 0x0001,
 	0x6028, 0x2400,
@@ -1143,7 +1143,11 @@ static kal_uint16 s5kjn1_mipi_full_793mhz[] = {
 
 struct cam_mipi_channel s5kjn1_mipi_channel_full[] = {
 	{ CAM_RAT_BAND(CAM_RAT_1_GSM, CAM_BAND_001_GSM_GSM850), 0, 0, CAM_JN1_SET_A_all_721p5_MHZ },
+#if defined(CONFIG_CAMERA_AAV_V13VE)
+	{ CAM_RAT_BAND(CAM_RAT_1_GSM, CAM_BAND_002_GSM_EGSM900), 0, 0, CAM_JN1_SET_A_all_773p5_MHZ },
+#else
 	{ CAM_RAT_BAND(CAM_RAT_1_GSM, CAM_BAND_002_GSM_EGSM900), 0, 0, CAM_JN1_SET_A_all_793_MHZ },
+#endif
 	{ CAM_RAT_BAND(CAM_RAT_1_GSM, CAM_BAND_003_GSM_DCS1800), 0, 0, CAM_JN1_SET_A_all_773p5_MHZ },
 	{ CAM_RAT_BAND(CAM_RAT_1_GSM, CAM_BAND_004_GSM_PCS1900), 0, 0, CAM_JN1_SET_A_all_793_MHZ },
 	{ CAM_RAT_BAND(CAM_RAT_2_WCDMA, CAM_BAND_011_WCDMA_WB01), 10562, 10604, CAM_JN1_SET_A_all_721p5_MHZ },

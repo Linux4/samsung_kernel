@@ -289,10 +289,10 @@ long FP5519AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
 /* Q1 : Try release multiple times. */
 int FP5519AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 {
-	int upperSoundPos = 300;
-	int lowerSoundPos = 200;
-	int afSteps1 = 100;
-	int afSteps2 = 10;
+
+	int noTickSoundDAC[] = {300, 280, 260, 245, 230, 220, 210};
+	//faster, only 8 steps*SAC time to leave. Barely able to hear sound.
+	int i = 0;
 
 	LOG_INF("Start\n");
 
@@ -305,41 +305,11 @@ int FP5519AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 		LOG_INF("Free\n");
 
 	if (g_u4AF_INF < g_u4CurrPosition) {
-		int Position = g_u4CurrPosition;
-
-		LOG_INF("g_u4CurrPosition:%lu  g_u4AF_INF:%lu\n",
-		g_u4CurrPosition, g_u4AF_INF);
-
-		while (Position > g_u4AF_INF) {
-			if (Position > upperSoundPos) {
-				moveAF(upperSoundPos);
-				usleep_range(2000, 2100);
-				Position = upperSoundPos;
-				LOG_INF("write to upperSoundPos:%d\n",
-				upperSoundPos);
-			} else if (Position > lowerSoundPos && Position
-				<= upperSoundPos) {
-				Position -= (Position % afSteps2);
-				if (Position == upperSoundPos)
-					Position -= afSteps2;
-
-				moveAF(Position);
-				usleep_range(8000, 8100);
-				LOG_INF("write to Position:%d\n", Position);
-
-				if (Position != lowerSoundPos)
-					Position -= afSteps2;
-
-			} else {
-				Position -= (Position % afSteps1);
-				moveAF(Position);
-				usleep_range(8000, 8100);
-				LOG_INF("write to Position:%d\n", Position);
-				Position -= afSteps1;
-				if (Position < 0)
-					break;
-
-			}
+		for (i = 0; i < ARRAY_SIZE(noTickSoundDAC); i++) {
+			LOG_INF("now at dac %d\n", noTickSoundDAC[i]);
+			moveAF(noTickSoundDAC[i]);
+			mDELAY(8);
+			g_u4CurrPosition = noTickSoundDAC[i];
 		}
 	}
 		spin_lock(g_pAF_SpinLock);

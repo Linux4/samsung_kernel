@@ -40,7 +40,7 @@
 #include <mt-plat/mtk_battery.h>
 #include <mt-plat/charger_type.h>
 #include <mt-plat/mtk_boot_common.h>
-#include <mt-plat/afc_charger.h>
+#include <linux/muic/afc_gpio/gpio_afc_charger.h>
 #include "../drivers/misc/mediatek/typec/tcpc/inc/mt6360.h"
 #include "../drivers/misc/mediatek/typec/tcpc/inc/tcpci.h"
 
@@ -61,6 +61,14 @@ struct gpio_afc_ddata *g_ddata;
 static int gpio_hiccup;
 #endif
 
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
+#include <linux/muic/common/muic_notifier.h>
+extern struct muic_platform_data muic_pdata;
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+#include <linux/muic/common/vt_muic/vt_muic.h>
+#endif
+#endif
+
 /* afc_mode:
  *   0x31 : Disabled
  *   0x30 : Enabled
@@ -78,6 +86,17 @@ static int __init set_charging_mode(char *str)
 	return 0;
 }
 early_param("charging_mode", set_charging_mode);
+
+void set_attached_afc_dev(int attached_afc_dev)
+{
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	vt_muic_set_attached_afc_dev(attached_afc_dev);
+#else
+	muic_notifier_attach_attached_dev(attached_afc_dev);
+#endif
+#endif /* CONFIG_MUIC_NOTIFIER */
+}
 
 static int _get_afc_mode(void)
 {
@@ -402,6 +421,7 @@ static void gpio_afc_kwork(struct kthread_work *work)
 	}
 
 	ddata->curr_voltage = ret;
+	set_attached_afc_dev(ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC);
 
 	mutex_lock(&ddata->mutex);
 	__pm_stay_awake(&ddata->ws);
@@ -434,19 +454,17 @@ static void gpio_afc_kwork(struct kthread_work *work)
 	} else
 		ret = 0;
 
-#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 	if (vol == 0x9) {
 		if (!ret)
-			muic_notifier_attach_attached_dev(ATTACHED_DEV_AFC_CHARGER_9V_MUIC);
+			set_attached_afc_dev(ATTACHED_DEV_AFC_CHARGER_9V_MUIC);
 		else
-			muic_notifier_attach_attached_dev(ATTACHED_DEV_TA_MUIC);
+			set_attached_afc_dev(ATTACHED_DEV_TA_MUIC);
 	} else if (vol == 0x5) {
 		if (!ret)
-			muic_notifier_attach_attached_dev(ATTACHED_DEV_AFC_CHARGER_5V_MUIC);
+			set_attached_afc_dev(ATTACHED_DEV_AFC_CHARGER_5V_MUIC);
 		else if (vol == 0x9)
-			muic_notifier_attach_attached_dev(ATTACHED_DEV_AFC_CHARGER_9V_DUPLI_MUIC);
+			set_attached_afc_dev(ATTACHED_DEV_AFC_CHARGER_9V_DUPLI_MUIC);
 	}
-#endif /* CONFIG_USB_TYPEC_MANAGER_NOTIFIER */
 
 #if defined(CONFIG_BATTERY_SAMSUNG)
 	if (!IS_ERR_OR_NULL(psy)) {
@@ -487,6 +505,11 @@ int set_afc_voltage(int voltage)
 {
 	struct gpio_afc_ddata *ddata = g_ddata;
 	int vbus = 0, cur = 0;
+
+	if (voltage == 0x9)
+		set_afc_voltage_for_performance(false);
+	else if (voltage == 0x5)
+		set_afc_voltage_for_performance(true);
 
 	if (!ddata) {
 		pr_err("driver is not ready\n");
@@ -630,7 +653,18 @@ static ssize_t adc_show(struct device *dev,
 	return sprintf(buf, "%d\n", !!result);
 }
 
+static ssize_t vbus_value_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int val;
+
+	val = vbus_level_check();
+	pr_info("%s vbus=%d\n", __func__, val);
+	return sprintf(buf, "%d\n", val);
+}
+
 static DEVICE_ATTR_RO(adc);
+static DEVICE_ATTR_RO(vbus_value);
 static DEVICE_ATTR_RW(afc_disable);
 #if IS_ENABLED(CONFIG_SEC_HICCUP)
 static DEVICE_ATTR_RW(hiccup);
@@ -638,6 +672,7 @@ static DEVICE_ATTR_RW(hiccup);
 
 static struct attribute *gpio_afc_attributes[] = {
 	&dev_attr_adc.attr,
+	&dev_attr_vbus_value.attr,
 	&dev_attr_afc_disable.attr,
 #if IS_ENABLED(CONFIG_SEC_HICCUP)
 	&dev_attr_hiccup.attr,
@@ -754,12 +789,36 @@ static int gpio_afc_probe(struct platform_device *pdev)
 	gpio_direction_output(ddata->pdata->gpio_afc_switch, 0);
 	gpio_direction_output(ddata->pdata->gpio_afc_data, 0);
 
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
+	ddata->muic_pdata = &muic_pdata;
+	ddata->muic_pdata->muic_afc_set_voltage_cb = set_afc_voltage;
+#endif
+
 	return 0;
 }
 
-static void gpio_afc_shutdown(struct platform_device *dev)
+static void gpio_afc_shutdown(struct platform_device *pdev)
 {
-	/* TBD */
+	struct device *dev = &pdev->dev;
+	struct gpio_afc_ddata *ddata = dev_get_drvdata(dev);
+	int vol;
+
+	if (!ddata) {
+		pr_err("%s: driver is not ready\n", __func__);
+		return;
+	}
+
+	vol = vbus_level_check();
+	pr_info("%s: vbus %d (set_voltage=%d)\n", __func__,
+		vol, ddata->set_voltage);
+
+	if (ddata->set_voltage == 0x9 && vol == 0x9) {
+		gpio_afc_reset(ddata);
+		vol = vbus_level_check();
+		pr_info("%s: after afc reset=> vbus %d\n", __func__, vol);
+		if (vol == 0x9)
+			gpio_afc_set_voltage(ddata, 0x5);
+	}
 }
 
 static const struct of_device_id gpio_afc_of_match[] = {
