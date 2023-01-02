@@ -1114,13 +1114,28 @@ port_type_store(struct device *dev, struct device_attribute *attr,
 	int ret;
 	enum typec_port_type type;
 
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
     /* modify code for O6 */
 	if (!port->cap->port_type_set || port->cap->type != TYPEC_PORT_DRP) {
 		dev_dbg(dev, "changing port type not supported\n");
 		return -EOPNOTSUPP;
 	}
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_O22
+    /* modify code for O22 */
+	if (!port->cap->port_type_set || port->cap->type != TYPEC_PORT_DRP) {
+		dev_dbg(dev, "changing port type not supported\n");
+		return -EOPNOTSUPP;
+	}
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+    /* modify code for O6 */
+	if (!port->cap->port_type_set || port->cap->type != TYPEC_PORT_DRP) {
+		dev_dbg(dev, "changing port type not supported\n");
+		return -EOPNOTSUPP;
+	}
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
     /* modify code for OT8 */
 	if (!port->cap->port_type_set) {
 		dev_dbg(dev, "changing port type not supported\n");
@@ -1179,7 +1194,13 @@ static ssize_t power_operation_mode_show(struct device *dev,
 					 char *buf)
 {
 	struct typec_port *port = to_typec_port(dev);
-
+	/* HS03S for P220909-05865 by duanweiping at 20220914 start */
+	/* Tab A7 lite_T for P221011-07704 by duanweiping at 20221020 start */
+	if((port->pwr_opmode < TYPEC_PWR_MODE_USB) || (port->pwr_opmode > TYPEC_PWR_MODE_PD)){
+		return sprintf(buf, "%s\n", typec_pwr_opmodes[TYPEC_PWR_MODE_USB]);
+	}
+	/* Tab A7 lite_T for P221011-07704 by duanweiping at 20221020 end */
+	/* HS03S for P220909-05865 by duanweiping at 20220914 end */
 	return sprintf(buf, "%s\n", typec_pwr_opmodes[port->pwr_opmode]);
 }
 static DEVICE_ATTR_RO(power_operation_mode);
@@ -1403,6 +1424,7 @@ void typec_set_pwr_opmode(struct typec_port *port,
 			partner->usb_pd = 1;
 			sysfs_notify(&partner_dev->kobj, NULL,
 				     "supports_usb_power_delivery");
+			kobject_uevent(&port->dev.kobj, KOBJ_CHANGE);
 		}
 		put_device(partner_dev);
 	}

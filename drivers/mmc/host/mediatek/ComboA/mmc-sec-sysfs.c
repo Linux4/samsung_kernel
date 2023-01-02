@@ -170,7 +170,6 @@ static ssize_t sd_cid_show(struct device *dev,
 		len = snprintf(buf, PAGE_SIZE, "no card\n");
 		goto out;
 	}
-
 	len = snprintf(buf, PAGE_SIZE,
 			"%08x%08x%08x%08x\n",
 			card->raw_cid[0], card->raw_cid[1],
@@ -259,8 +258,8 @@ static struct attribute_group mmc_attr_group = {
 };
 
 static struct attribute *sdcard_attributes[] = {
-	&dev_attr_err_count.attr,
 	&dev_attr_status.attr,
+	&dev_attr_err_count.attr,
 	NULL,
 };
 
@@ -280,14 +279,14 @@ static struct attribute_group sdinfo_attr_group = {
 };
 
 void msdc_sec_create_sysfs_group(struct mmc_host *mmc, struct device **dev,
-		const struct attribute_group *dev_attr_group, const char *str)
+		const struct attribute_group *dev_attr_group, const char *group_name)
 {
-	*dev = sec_device_create(NULL, str);
+	*dev = sec_device_create(NULL, group_name);
 	if (IS_ERR(*dev))
 		pr_err("%s: Failed to create device!\n", __func__);
 	else {
 		if (sysfs_create_group(&(*dev)->kobj, dev_attr_group))
-			pr_err("%s: Failed to create %s sysfs group\n", __func__, str);
+			pr_err("%s: Failed to create %s sysfs group\n", __func__, group_name);
 		else
 			dev_set_drvdata(*dev, mmc);
 	}
@@ -300,7 +299,7 @@ void mmc_sec_init_sysfs(struct mmc_host *mmc)
 	if (host->hw->host_function == MSDC_EMMC)
 		msdc_sec_create_sysfs_group(mmc, &mmc_sec_dev,
 				&mmc_attr_group, "mmc");
-	
+
 	if (host->hw->host_function == MSDC_SD) {
 		msdc_sec_create_sysfs_group(mmc, &sdcard_sec_dev,
 				&sdcard_attr_group, "sdcard");

@@ -1221,67 +1221,6 @@ static ssize_t disk_discard_alignment_show(struct device *dev,
 	return sprintf(buf, "%d\n", queue_discard_alignment(disk->queue));
 }
 
-/* IOPP-bigdata-v1.0.4.19 */
-#define DIFF_IOs(n, o, i) ( \
-	((n)->ios[(i)] >= (o)->ios[(i)]) ? \
-	((n)->ios[(i)] - (o)->ios[(i)]) : \
-	((n)->sectors[(i)] + (0 - (o)->sectors[(i)])))
-#define DIFF_KBs(n, o, i) ( \
-	((n)->sectors[(i)] >= (o)->sectors[(i)]) ? \
-	((n)->sectors[(i)] - (o)->sectors[(i)]) / 2 : \
-	((n)->sectors[(i)] + (0 - (o)->sectors[(i)])) / 2)
-
-static ssize_t disk_ios_show(struct device *dev,
-		struct device_attribute *attr,
-		char *buf)
-{
-	/* disk->accios is set to all zero in alloc_disk_node */
-	struct gendisk *disk = dev_to_disk(dev);
-	struct hd_struct *hd = dev_to_part(dev);
-	struct accumulated_io_stats *old = &(disk->accios);
-	struct accumulated_io_stats new;
-	long hours;
-	int cpu;
-	int ret;
-
-	cpu = part_stat_lock();
-	part_round_stats(disk->queue, cpu, hd);
-	part_stat_unlock();
-
-	new.ios[STAT_READ] = part_stat_read(hd, ios[STAT_READ]);
-	new.ios[STAT_WRITE] = part_stat_read(hd, ios[STAT_WRITE]);
-	new.ios[STAT_DISCARD] = part_stat_read(hd, ios[STAT_DISCARD]);
-	new.sectors[STAT_READ] = part_stat_read(hd, sectors[STAT_READ]);
-	new.sectors[STAT_WRITE] = part_stat_read(hd, sectors[STAT_WRITE]);
-	new.sectors[STAT_DISCARD] = part_stat_read(hd, sectors[STAT_DISCARD]);
-
-	get_monotonic_boottime(&(new.uptime));
-	hours = (new.uptime.tv_sec - old->uptime.tv_sec) / 60; /* to minutes */
-	hours = (hours + 30) / 60 ; /* round up to hours */
-
-	ret = sprintf(buf, "\"ReadC\":\"%lu\",\"ReadKB\":\"%lu\","
-			"\"WriteC\":\"%lu\",\"WriteKB\":\"%lu\","
-			"\"DiscardC\":\"%lu\",\"DiscardKB\":\"%lu\","
-			"\"Hours\":\"%ld\"\n",
-			DIFF_IOs(&new, old, STAT_READ),
-			DIFF_KBs(&new, old, STAT_READ),
-			DIFF_IOs(&new, old, STAT_WRITE) + DIFF_IOs(&new, old, STAT_DISCARD),
-			DIFF_KBs(&new, old, STAT_WRITE) + DIFF_KBs(&new, old, STAT_DISCARD),
-			DIFF_IOs(&new, old, STAT_DISCARD),
-			DIFF_KBs(&new, old, STAT_DISCARD),
-			hours);
-
-	disk->accios.ios[STAT_READ] = new.ios[STAT_READ];
-	disk->accios.ios[STAT_WRITE] = new.ios[STAT_WRITE];
-	disk->accios.ios[STAT_DISCARD] = new.ios[STAT_DISCARD];
-	disk->accios.sectors[STAT_READ] = new.sectors[STAT_READ];
-	disk->accios.sectors[STAT_WRITE] = new.sectors[STAT_WRITE];
-	disk->accios.sectors[STAT_DISCARD] = new.sectors[STAT_DISCARD];
-	disk->accios.uptime = new.uptime;
-
-	return ret;
-}
-
 static DEVICE_ATTR(range, 0444, disk_range_show, NULL);
 static DEVICE_ATTR(ext_range, 0444, disk_ext_range_show, NULL);
 static DEVICE_ATTR(removable, 0444, disk_removable_show, NULL);
@@ -1294,7 +1233,6 @@ static DEVICE_ATTR(capability, 0444, disk_capability_show, NULL);
 static DEVICE_ATTR(stat, 0444, part_stat_show, NULL);
 static DEVICE_ATTR(inflight, 0444, part_inflight_show, NULL);
 static DEVICE_ATTR(badblocks, 0644, disk_badblocks_show, disk_badblocks_store);
-static DEVICE_ATTR(diskios, 0400, disk_ios_show, NULL);
 #ifdef CONFIG_FAIL_MAKE_REQUEST
 static struct device_attribute dev_attr_fail =
 	__ATTR(make-it-fail, 0644, part_fail_show, part_fail_store);
@@ -1317,7 +1255,6 @@ static struct attribute *disk_attrs[] = {
 	&dev_attr_stat.attr,
 	&dev_attr_inflight.attr,
 	&dev_attr_badblocks.attr,
-	&dev_attr_diskios.attr,
 #ifdef CONFIG_FAIL_MAKE_REQUEST
 	&dev_attr_fail.attr,
 #endif

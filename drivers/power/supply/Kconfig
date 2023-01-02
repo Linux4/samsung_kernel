@@ -847,6 +847,15 @@ config CHARGER_SGM41513
 	  SGM41513 driver.
 # hs03s_NM code for SR-AL5625-01-646 by shixuanxuan at 20220414 end
 
+# HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start
+config CHARGER_UPM6910
+	bool "CHARGER_UPM6910"
+	depends on MTK_CHARGER
+	help
+	  Say Yes to enable
+	  UPM6910 driver.
+# HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end
+
 # HS03s for SR-AL5625-01-543 by wenyaqi at 20210611 start
 config CHARGER_ETA6953
 	bool "CHARGER_ETA6953"
@@ -864,6 +873,80 @@ config CHARGER_SY6974
 	  Say Yes to enable
 	  SY6974 driver.
 # HS03s for SR-AL5625-01-542 by wenyaqi at 20210609 end
+
+config CUSTOM_BATTERY_EXTERNAL_CHANNEL
+	bool "customer external gauge test"
+	depends on MTK_PMIC_CHIP_MT6359P
+	default n
+	help
+	  This config is for internal testing only.
+	  Say Yes to enable support for Customer external gauge.
+          It depends on MTK_PMIC_CHIP_MT6359P
+          Added for Battery System test
+
+if MACH_MT6768
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6739
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6771
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6877
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6781
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6833
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6893
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6885
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6853
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6873
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+if MACH_MT6785
+source "drivers/power/supply/mediatek/battery/Kconfig"
+source "drivers/power/supply/mediatek/charger/Kconfig"
+endif
+
+# HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start
+config CHARGER_HARDINFO
+	bool "CHARGER_HARDINFO"
+	depends on MTK_CHARGER
+	help
+	  Say Yes to enable
+	  charger hardinfo driver.
+#HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end
 
 endif # POWER_SUPPLY
 

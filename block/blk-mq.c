@@ -27,6 +27,7 @@
 #include <linux/prefetch.h>
 
 #include <trace/events/block.h>
+#include <uapi/linux/sched/types.h>
 
 #include <linux/blk-mq.h>
 #include "blk.h"
@@ -1583,6 +1584,7 @@ EXPORT_SYMBOL(blk_mq_start_stopped_hw_queues);
 static void blk_mq_run_work_fn(struct work_struct *work)
 {
 	struct blk_mq_hw_ctx *hctx;
+	struct sched_param scheduler_params = {0};
 
 	hctx = container_of(work, struct blk_mq_hw_ctx, run_work.work);
 
@@ -1591,6 +1593,10 @@ static void blk_mq_run_work_fn(struct work_struct *work)
 	 */
 	if (test_bit(BLK_MQ_S_STOPPED, &hctx->state))
 		return;
+
+	/* Set as RT priority */
+	scheduler_params.sched_priority = 1;
+	sched_setscheduler(current, SCHED_FIFO, &scheduler_params);
 
 	__blk_mq_run_hw_queue(hctx);
 }
@@ -2710,10 +2716,12 @@ EXPORT_SYMBOL(blk_mq_init_allocated_queue);
 /* tags can _not_ be used after returning from blk_mq_exit_queue */
 void blk_mq_exit_queue(struct request_queue *q)
 {
-	struct blk_mq_tag_set	*set = q->tag_set;
+	struct blk_mq_tag_set *set = q->tag_set;
 
-	blk_mq_del_queue_tag_set(q);
+	/* Checks hctx->flags & BLK_MQ_F_TAG_QUEUE_SHARED. */
 	blk_mq_exit_hw_queues(q, set, set->nr_hw_queues);
+	/* May clear BLK_MQ_F_TAG_QUEUE_SHARED in hctx->flags. */
+	blk_mq_del_queue_tag_set(q);
 }
 
 /* Basically redo blk_mq_init_queue with queue frozen */

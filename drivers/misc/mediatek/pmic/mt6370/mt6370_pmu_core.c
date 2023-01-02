@@ -23,7 +23,8 @@ extern bool g_system_is_shutdown;
 int primary_display_suspend(void);
 void primary_display_shutdown_set_power_mode(void);
 /*TabA7 Lite code for OT8-4010 by gaozhengwei at 20210319 end*/
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS03S
     /* modify code for O6 */
 /* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 start */
 /* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 start */
@@ -34,7 +35,28 @@ void primary_display_shutdown_set_power_mode(void);
 /* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 end */
 /* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 end */
 #endif
-
+#ifdef CONFIG_HQ_PROJECT_O22
+    /* modify code for O22 */
+/* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 start */
+/* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 start */
+#ifndef CONFIG_HQ_SET_LCD_BIAS
+int primary_display_suspend(void);
+void primary_display_shutdown_set_power_mode(void);
+#endif
+/* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 end */
+/* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+    /* modify code for O6 */
+/* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 start */
+/* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 start */
+#ifndef CONFIG_HQ_SET_LCD_BIAS
+int primary_display_suspend(void);
+void primary_display_shutdown_set_power_mode(void);
+#endif
+/* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 end */
+/* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 end */
+#endif
 struct mt6370_pmu_core_data {
 	struct mt6370_pmu_chip *chip;
 	struct device *dev;
@@ -267,7 +289,36 @@ static void mt6370_pmu_core_shutdown(struct platform_device *pdev)
 		dev_err(core_data->dev, "primary display suspend failed\n");
 	}
 	/*TabA7 Lite code for OT8-4010 by gaozhengwei at 20210319 end*/
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS03S
+    /* modify code for O6 */
+	/* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 start */
+/* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 start */
+#ifndef CONFIG_HQ_SET_LCD_BIAS
+	primary_display_shutdown_set_power_mode();
+	ret = primary_display_suspend();
+	if (ret < 0) {
+		dev_err(core_data->dev, "primary display suspend failed\n");
+	}
+#endif
+/* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 end */
+	/* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_O22
+    /* modify code for O22 */
+	/* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 start */
+/* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 start */
+#ifndef CONFIG_HQ_SET_LCD_BIAS
+	primary_display_shutdown_set_power_mode();
+	ret = primary_display_suspend();
+	if (ret < 0) {
+		dev_err(core_data->dev, "primary display suspend failed\n");
+	}
+#endif
+/* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 end */
+	/* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
     /* modify code for O6 */
 	/* HS03S code for SR-AL5625-01-313 by gaozhengwei at 2021/04/25 start */
 /* HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 start */

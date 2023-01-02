@@ -43,6 +43,11 @@
 #include <linux/touchscreen_info.h>
 /* hs03s_NM code added for SR-AL5625-01-590 by fengzhigang at 20220422 end */
 #endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+/* hs03s_NM code added for SR-AL5625-01-590 by fengzhigang at 20220422 start */
+#include <linux/touchscreen_info.h>
+/* hs03s_NM code added for SR-AL5625-01-590 by fengzhigang at 20220422 end */
+#endif
 /*****************************************************************************/
 enum MIPITX_PAD_VALUE {
 	PAD_D2P_V = 0,
@@ -144,6 +149,11 @@ do {	\
 #define DSI_MODULE_to_ID(x)	(x == DISP_MODULE_DSI0 ? 0 : 1)
 #define DIFF_CLK_LANE_LP (0x10)
 #ifdef CONFIG_HQ_PROJECT_HS03S
+/* hs03s_NM code added for SR-AL5625-01-590 by fengzhigang at 20220422 start */
+extern enum tp_module_used tp_is_used;
+/* hs03s_NM code added for SR-AL5625-01-590 by fengzhigang at 20220422 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
 /* hs03s_NM code added for SR-AL5625-01-590 by fengzhigang at 20220422 start */
 extern enum tp_module_used tp_is_used;
 /* hs03s_NM code added for SR-AL5625-01-590 by fengzhigang at 20220422 end */
@@ -3587,7 +3597,7 @@ UINT32 DSI_dcs_read_lcm_reg_v3(enum DISP_MODULE_ENUM module,
 }
 
 void DSI_set_cmdq_V2(enum DISP_MODULE_ENUM module, struct cmdqRecStruct *cmdq,
-	unsigned int cmd, unsigned char count, unsigned char *para_list,
+	unsigned int cmd, unsigned int count, unsigned char *para_list,
 	unsigned char force_update)
 {
 	UINT32 i = 0;
@@ -3863,7 +3873,8 @@ void DSI_set_cmdq_V3(enum DISP_MODULE_ENUM module, struct cmdqRecStruct *cmdq,
 	/* DSI_T1_INS t1; */
 	struct DSI_T2_INS t2;
 	UINT32 index = 0;
-	unsigned char data_id, cmd, count;
+	unsigned char data_id, cmd;
+	unsigned int count;
 	unsigned char *para_list;
 	UINT32 d;
 
@@ -4022,7 +4033,7 @@ void DSI_set_cmdq_V4(enum DISP_MODULE_ENUM module,
 	unsigned int d = 0;
 	unsigned long goto_addr, mask_para, set_para;
 	unsigned int cmd;
-	unsigned char count;
+	unsigned int count;
 	unsigned char *para_list;
 	unsigned char virtual_channel;
 	struct DSI_T0_INS t0;
@@ -4047,7 +4058,7 @@ void DSI_set_cmdq_V4(enum DISP_MODULE_ENUM module,
 	}
 
 	cmd = cmds->dtype;
-	count = (unsigned char)cmds->dlen;
+	count = cmds->dlen;
 	para_list = cmds->payload;
 	virtual_channel = (unsigned char)cmds->vc;
 
@@ -5014,21 +5025,21 @@ void DSI_set_cmdq_V11_wrapper_DSI1(void *cmdq, unsigned int *pdata,
 	DSI_set_cmdq(DISP_MODULE_DSI1, cmdq, pdata, queue_size, force_update);
 }
 
-void DSI_set_cmdq_V2_DSI0(void *cmdq, unsigned int cmd, unsigned char count,
+void DSI_set_cmdq_V2_DSI0(void *cmdq, unsigned int cmd, unsigned int count,
 	unsigned char *para_list, unsigned char force_update)
 {
 	DSI_set_cmdq_V2(DISP_MODULE_DSI0, cmdq, cmd, count, para_list,
 		force_update);
 }
 
-void DSI_set_cmdq_V2_DSI1(void *cmdq, unsigned int cmd, unsigned char count,
+void DSI_set_cmdq_V2_DSI1(void *cmdq, unsigned int cmd, unsigned int count,
 	unsigned char *para_list, unsigned char force_update)
 {
 	DSI_set_cmdq_V2(DISP_MODULE_DSI1, cmdq, cmd, count, para_list,
 		force_update);
 }
 
-void DSI_set_cmdq_V2_DSIDual(void *cmdq, unsigned int cmd, unsigned char count,
+void DSI_set_cmdq_V2_DSIDual(void *cmdq, unsigned int cmd, unsigned int count,
 	unsigned char *para_list, unsigned char force_update)
 {
 	DSI_set_cmdq_V2(DISP_MODULE_DSIDUAL, cmdq, cmd, count, para_list,
@@ -5050,21 +5061,21 @@ void DSI_set_cmdq_V4_DSIDual(void *cmdq, struct dsi_cmd_desc *cmds)
 	DSI_set_cmdq_V4(DISP_MODULE_DSIDUAL, cmdq, cmds);
 }
 
-void DSI_set_cmdq_V2_Wrapper_DSI0(unsigned int cmd, unsigned char count,
+void DSI_set_cmdq_V2_Wrapper_DSI0(unsigned int cmd, unsigned int count,
 	unsigned char *para_list, unsigned char force_update)
 {
 	DSI_set_cmdq_V2(DISP_MODULE_DSI0, NULL, cmd, count, para_list,
 		force_update);
 }
 
-void DSI_set_cmdq_V2_Wrapper_DSI1(unsigned int cmd, unsigned char count,
+void DSI_set_cmdq_V2_Wrapper_DSI1(unsigned int cmd, unsigned int count,
 	unsigned char *para_list, unsigned char force_update)
 {
 	DSI_set_cmdq_V2(DISP_MODULE_DSI1, NULL, cmd, count, para_list,
 		force_update);
 }
 
-void DSI_set_cmdq_V2_Wrapper_DSIDual(unsigned int cmd, unsigned char count,
+void DSI_set_cmdq_V2_Wrapper_DSIDual(unsigned int cmd, unsigned int count,
 	unsigned char *para_list, unsigned char force_update)
 {
 	DSI_set_cmdq_V2(DISP_MODULE_DSIDUAL, NULL, cmd, count, para_list,
@@ -6652,6 +6663,9 @@ int ddp_dsi_build_cmdq(enum DISP_MODULE_ENUM module,
 #ifdef CONFIG_HQ_PROJECT_HS03S
 	char *lcm_cmdline = saved_command_line;
 #endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+	char *lcm_cmdline = saved_command_line;
+#endif
 /* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 end */
 	static cmdqBackupSlotHandle hSlot[4] = {0, 0, 0, 0};
 
@@ -6936,7 +6950,30 @@ int ddp_dsi_build_cmdq(enum DISP_MODULE_ENUM module,
 					DISPDBG("[DSI]cmp pass cnt = %d\n", j);
 				}
 			}
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+			/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 start */
+			if (NULL != strstr(lcm_cmdline, "lcd_gc7202_ls_hsd_mipi_hdp_video")) {
+			/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 end */
+				ret = 0;
+			} else {
+				for (j = 0; j < lcm_esd_tb->count; j++) {
+
+					DISPDBG("buffer[%d]=0x%x\n", j, buffer[j]);
+					if (buffer[j] != lcm_esd_tb->para_list[j]) {
+						DISPERR
+				("buffer[%d]0x%x != lcm_esd_tb->para_list[%d]0x%x\n",
+					j, buffer[j], j, lcm_esd_tb->para_list[j]);
+
+						ret |= 1;/*esd failed*/
+						break;
+					}
+					ret |= 0;/*esd pass*/
+					DISPDBG("[DSI]cmp pass cnt = %d\n", j);
+				}
+			}
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
 			for (j = 0; j < lcm_esd_tb->count; j++) {
 
 				DISPDBG("buffer[%d]=0x%x\n", j, buffer[j]);
@@ -7256,7 +7293,7 @@ int ddp_dsi_read_lcm_cmdq_v1(enum DISP_MODULE_ENUM module,
 
 int ddp_dsi_write_lcm_cmdq(enum DISP_MODULE_ENUM module,
 	struct cmdqRecStruct *cmdq, unsigned  char cmd_char,
-	unsigned char count, unsigned char *para_list)
+	unsigned int count, unsigned char *para_list)
 {
 	UINT32 i = 0;
 	int d = 0;

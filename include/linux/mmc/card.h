@@ -271,7 +271,7 @@ struct mmc_card_error_log {
 	u32	wp_cnt;			// status[26] : write protection error_count
 	u32	oor_cnt;		// status[31] : out of range error
 	u32	noti_cnt;		// uevent notification count
-	u32	halt_cnt;	// cq halt / unhalt fail
+	u32	halt_cnt;		// cq halt / unhalt fail
 	u32	cq_cnt;		// cq enable / disable fail
 	u32	rpmb_cnt;	// RPMB switch fail
 	u32	hw_rst_cnt;	// reset count
@@ -346,10 +346,14 @@ struct mmc_card {
 	struct dentry		*debugfs_root;
 	struct mmc_part	part[MMC_NUM_PHY_PARTITION]; /* physical partitions */
 	unsigned int    nr_parts;
+#ifdef CONFIG_MTK_EMMC_HW_CQ
+	unsigned int	part_curr;
+	bool cqe_init;
+#endif
 
 	unsigned int		bouncesz;	/* Bounce buffer size */
 	struct workqueue_struct *complete_wq;	/* Private workqueue */
-
+	
 	struct mmc_card_error_log err_log[MAX_ERR_LOG_INDEX];
 };
 

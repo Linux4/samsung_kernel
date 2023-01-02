@@ -491,7 +491,6 @@ firmware_class.path=/vendor/firmware";
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
-
 #if defined(CONFIG_SEC_DEBUG)
 		sec-log-reserve-memory@0x46C00000 {
 			reg = <0 0x46C00000 0 0x200000>;
@@ -513,7 +512,6 @@ firmware_class.path=/vendor/firmware";
 			reg = <0 0x47410000 0 0x1F0000>;
 		};
 #endif
-
 		reserve-memory-sspm_share {
 			compatible = "mediatek,reserve-memory-sspm_share";
 			no-map;
@@ -538,7 +536,7 @@ firmware_class.path=/vendor/firmware";
 		consys_mem: consys-reserve-memory {
 			compatible = "mediatek,consys-reserve-memory";
 			no-map;
-			size = <0 0x400000>;
+			size = <0 0x440000>;
 			alignment = <0 0x1000000>;
 			alloc-ranges = <0 0x40000000 0 0x80000000>;
 		};
@@ -975,6 +973,7 @@ firmware_class.path=/vendor/firmware";
 		interrupts = <GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>;
 		core_1 = "enable";
 		scp_sramSize = <0x00040000>;
+		scp_mpuRegionId = <27>;
 		scp_feature_tbl = <0 47>,   /* vow */
 				  <1 356>,  /* dsp */
 				  <2 62>,   /* sensor */
@@ -1469,12 +1468,19 @@ firmware_class.path=/vendor/firmware";
 
 	md_auxadc:md_auxadc {
 		compatible = "mediatek,md_auxadc";
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
     /* modify code for O6 */
 	io-channels = <&auxadc 2>;
 		io-channel-names = "md-channel",
 			"md-battery";
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+    /* modify code for O6 */
+	io-channels = <&auxadc 2>;
+		io-channel-names = "md-channel",
+			"md-battery";
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
     /* modify code for O8 */
 		/*
 		io-channels = <&auxadc 2>;
@@ -2367,7 +2373,16 @@ firmware_class.path=/vendor/firmware";
 		interconnects = <&auxadc 1>;
 	};
 
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
+	tboard_thermistor3: thermal-sensor3 {
+		compatible = "mediatek,mtboard-thermistor3";
+		io-channels = <&auxadc 2>;
+		io-channel-names = "thermistor-ch2";
+		interconnects = <&auxadc 2>;
+	};
+
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
 	tboard_thermistor3: thermal-sensor3 {
 		compatible = "mediatek,mtboard-thermistor3";
 		io-channels = <&auxadc 2>;
@@ -2385,7 +2400,7 @@ firmware_class.path=/vendor/firmware";
 		interconnects = <&auxadc 3>;
 	};
 	/*HS03s code for SR-AL5625-01-259 by wenyaqi at 20210422 end*/
-#ifndef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_OT8
 	tboard_thermistor5: thermal-sensor5 {
 		compatible = "mediatek,mtboard-thermistor5";
 		io-channels = <&auxadc 4>;
@@ -2552,7 +2567,7 @@ firmware_class.path=/vendor/firmware";
 		clock-names = "usb0",
 			"usb0_clk_top_sel",
 			"usb0_clk_univpll3_d4";
-#ifndef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_OT8
 		charger = <&mt6370_chg>;
 #endif
 		pericfg= <&pericfg>;
@@ -3500,11 +3515,11 @@ firmware_class.path=/vendor/firmware";
 		ta_ac_12v_input_current = <3200000>;
 		ta_ac_9v_input_current = <3200000>;
 		ta_ac_7v_input_current = <3200000>;
-#ifdef HQ_PROJECT_HS03S
+#if 0
 		pe_charger_current = <3000000>;
-#else
-		pe_charger_current = <2700000>;
 #endif
+		pe_charger_current = <2700000>;
+
 	};
 
 	pe2: pe2 {
@@ -3523,11 +3538,11 @@ firmware_class.path=/vendor/firmware";
 
 		/* single charger */
 		sc_input_current = <3200000>;
-#ifdef HQ_PROJECT_HS03S
+#if 0
 		sc_charger_current = <3000000>;
-#else
-		sc_charger_current = <2700000>;
 #endif
+		sc_charger_current = <2700000>;
+
 		/* dual charger in series */
 		dcs_input_current = <3200000>;
 		dcs_chg1_charger_current = <1500000>;
@@ -3543,11 +3558,11 @@ firmware_class.path=/vendor/firmware";
 
 		min_charger_voltage = <4600000>;
 		pd_vbus_low_bound = <5000000>;
-#ifdef HQ_PROJECT_HS03S
+#if 0
 		pd_vbus_upper_bound = <5000000>;
-#else
-		pd_vbus_upper_bound = <15000000>;
 #endif
+		pd_vbus_upper_bound = <15000000>;
+
 		vsys_watt = <5000000>;
 		ibus_err = <30>;
 
@@ -3555,11 +3570,11 @@ firmware_class.path=/vendor/firmware";
 
 		/* single charger */
 		sc_input_current = <3200000>;
-#ifdef HQ_PROJECT_HS03S
+#if 0
 		sc_charger_current = <3000000>;
-#else
-		sc_charger_current = <2700000>;
 #endif
+		sc_charger_current = <2700000>;
+
 
 		/* dual charger in series */
 		dcs_input_current = <3200000>;
@@ -3591,11 +3606,11 @@ firmware_class.path=/vendor/firmware";
 
 		/* single charger */
 		sc_input_current = <3200000>;
-#ifdef HQ_PROJECT_HS03S
+#if 0
 		sc_charger_current = <3000000>;
-#else
-		sc_charger_current = <2700000>;
 #endif
+		sc_charger_current = <2700000>;
+
 
 		/* dual charger in series*/
 		dcs_input_current = <3200000>;
@@ -3670,7 +3685,9 @@ firmware_class.path=/vendor/firmware";
 		charger = <&mt6370_chg>;
 		vbus-supply = <&otg_vbus>;
 		vbus-voltage = <5000000>;
-		vbus-current = <1800000>;
+		/*Tab A7 lite_T code for AL5626TDEV-170 by kangkai at 20220927 start*/
+		vbus-current = <1300000>;
+		/*Tab A7 lite_T code for AL5626TDEV-170 by kangkai at 20220927 end*/
 		dev-conn = <&usb>;
 		mediatek,bypss-typec-sink = <1>;
 	};
@@ -3951,12 +3968,13 @@ firmware_class.path=/vendor/firmware";
 		required-opps = <&dvfsrc_freq_opp0>,
 				<&dvfsrc_freq_opp1>;
 	};
-        // TabA7 Lite code added by SunXunou at 20201120 start
-        sdcard-det-pin {
-            compatible = "qcom,sdcard-detect-pin";
-            qcom,sdcard-detect-pin-no = <&pio 1 0>;
-         };
-        // TabA7 Lite code added by SunXunou at 20201120 end
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+	hwinfo:HardwareInfo {
+		compatible = "hardinfo,hardinfo_charger";
+		status = "okay";
+	};
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
+
 	input_booster {
 		status = "okay";
 		compatible = "input_booster";
@@ -4235,14 +4253,18 @@ firmware_class.path=/vendor/firmware";
 #include "mediatek/cust_mt6765_msdc.dtsi"
 #include "mediatek/mt6357.dtsi"
 #include "mediatek/bat_setting/mt6765_battery_prop.dtsi"
-#ifndef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_OT8
 #include "mediatek/TabA7_Lite/AX3565-OT8-common.dtsi"
 #endif
 #include "mediatek/mt6370.dtsi"
 /*HS03s for SR-AL5625-01-515 by wangzikang at 20210607 start*/
 #ifdef CONFIG_HQ_PROJECT_HS03S
 #include "mediatek/hs03s/ccic.dtsi"
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+#include "mediatek/hs04/ccic.dtsi"
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
 #include "mediatek/mt6370_pd.dtsi"
 #endif
 /*HS03s for SR-AL5625-01-515 by wangzikang at 20210607 end*/

@@ -124,11 +124,6 @@ static struct mmprofile_event_t *p_mmprofile_ring_buffer;
 static unsigned char *p_mmprofile_meta_buffer;
 #endif
 
-static struct mmp_static_event_t mmprofile_static_events[] = {
-	{MMP_ROOT_EVENT, "Root_Event", MMP_INVALID_EVENT},
-	{MMP_TOUCH_PANEL_EVENT, "TouchPanel_Event", MMP_ROOT_EVENT},
-};
-
 static struct mmprofile_global_t mmprofile_globals
 __aligned(PAGE_SIZE) = {
 	.buffer_size_record = MMPROFILE_DEFAULT_BUFFER_SIZE,
@@ -2268,12 +2263,12 @@ static int mmprofile_mmap(struct file *file, struct vm_area_struct *vma)
 	} else if (mmprofile_globals.selected_buffer ==
 		MMPROFILE_PRIMARY_BUFFER) {
 
+		mmprofile_init_buffer();
+
 		/* check user space buffer length */
 		if ((vma->vm_end - vma->vm_start) !=
 			mmprofile_globals.buffer_size_bytes)
 			return -EINVAL;
-
-		mmprofile_init_buffer();
 
 		if (!bmmprofile_init_buffer)
 			return -EAGAIN;

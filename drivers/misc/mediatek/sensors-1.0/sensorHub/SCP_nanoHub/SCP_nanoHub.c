@@ -145,6 +145,10 @@ void __attribute__((weak)) scp_register_feature(enum feature_id id)
 {
 }
 
+void __attribute__((weak)) scp_A_unregister_notify(struct notifier_block *nb)
+{
+}
+
 /* arch counter is 13M, mult is 161319385, shift is 21 */
 static inline uint64_t arch_counter_to_ns(uint64_t cyc)
 {
@@ -271,7 +275,9 @@ static int ipi_txrx_bufs(struct ipi_transfer *t)
 	hw->tx = t->tx_buf;
 	hw->rx = t->rx_buf;
 	hw->len = t->len;
-
+	/*hs14 code for AL6528A-492 by houxin at 2022/10/31 start*/
+	pr_debug("[%s] mtkdebug 1028!\n", __func__);
+	/*hs14 code for AL6528A-492 by houxin at 2022/10/31 end*/
 	init_completion(&hw->done);
 	hw->context = &hw->done;
 	spin_unlock_irqrestore(&txrx_cmd_lock, flags);
@@ -294,8 +300,9 @@ static int ipi_txrx_bufs(struct ipi_transfer *t)
 
 	if (retry >= 100)
 		pr_debug("retry time:%d\n", retry);
-
-	timeout = wait_for_completion_timeout(&hw->done, msecs_to_jiffies(500));
+	/*hs14 code for AL6528A-492 by houxin at 2022/10/31 start*/
+	timeout = wait_for_completion_timeout(&hw->done, msecs_to_jiffies(1000));
+	/*hs14 code for AL6528A-492 by houxin at 2022/10/31 end*/
 	spin_lock_irqsave(&txrx_cmd_lock, flags);
 	if (!timeout) {
 		pr_err("transfer timeout!");
@@ -313,9 +320,12 @@ static void ipi_complete(void *arg)
 
 static void ipi_work(struct work_struct *work)
 {
-	struct ipi_message	*m, *_m;
+        /*HS03_T code for AL5626TDEV-172 by wangliang at 2022/09/27 start*/
+	struct ipi_message	*m = NULL;
+	struct ipi_message	*_m = NULL;
 	struct ipi_transfer	*t = NULL;
 	int			status = 0;
+        /*HS03_T code for AL5626TDEV-172 by wangliang at 2022/09/27 end*/
 
 	spin_lock(&master.lock);
 	list_for_each_entry_safe(m, _m, &master.queue, queue) {
@@ -384,9 +394,11 @@ static int scp_ipi_txrx(const unsigned char *txbuf, unsigned int n_tx,
 	struct ipi_message	m;
 	int status = 0;
 
-	t.tx_buf = txbuf,
-	t.len = n_tx,
-
+	/*hs14 code for AL6528A-492 by houxin at 2022/10/31 start*/
+	t.tx_buf = txbuf;
+	t.len = n_tx;
+	pr_debug("[%s] mtkdebug 1028!\n", __func__);
+	/*hs14 code for AL6528A-492 by houxin at 2022/10/31 end*/
 	ipi_message_init(&m);
 	ipi_message_add_tail(&t, &m);
 	status =  __ipi_xfer(&m);
@@ -397,6 +409,9 @@ static int scp_ipi_txrx(const unsigned char *txbuf, unsigned int n_tx,
 
 static int SCP_sensorHub_ipi_txrx(unsigned char *txrxbuf)
 {
+	/*hs14 code for AL6528A-492 by houxin at 2022/10/31 start*/
+	pr_debug("[%s] mtkdebug 1028!\n", __func__);
+	/*hs14 code for AL6528A-492 by houxin at 2022/10/31 end*/
 	return scp_ipi_txrx(txrxbuf,
 		SENSOR_IPI_SIZE, txrxbuf, SENSOR_IPI_SIZE);
 }
@@ -419,11 +434,10 @@ int scp_sensorHub_req_send(union SCP_SENSOR_HUB_DATA *data,
 	uint *len, unsigned int wait)
 {
 	int ret = 0;
-
-	/* pr_err("sensorType = %d, action = %d\n", data->req.sensorType,
-	 *	data->req.action);
-	 */
-
+	/*hs14 code for AL6528A-492 by houxin at 2022/10/31 start*/
+	 pr_err("sensorType = %d, action = %d\n", data->req.sensorType,
+		data->req.action);
+	/*hs14 code for AL6528A-492 by houxin at 2022/10/31 end*/
 	if (*len > SENSOR_IPI_SIZE) {
 		pr_err("over sensor data size!!\n");
 		return -1;
@@ -524,9 +538,12 @@ static void SCP_sensorHub_sync_time_func(struct timer_list *t)
 
 static int SCP_sensorHub_direct_push_work(void *data)
 {
+	int ret = 0;
 	for (;;) {
-		wait_event(chre_kthread_wait,
+		ret = wait_event_interruptible(chre_kthread_wait,
 			READ_ONCE(chre_kthread_wait_condition));
+		if (ret)
+			continue;
 		WRITE_ONCE(chre_kthread_wait_condition, false);
 		mark_timestamp(0, WORK_START, ktime_get_boot_ns(), 0);
 		SCP_sensorHub_read_wp_queue();
@@ -1833,11 +1850,11 @@ int sensor_set_cmd_to_hub(uint8_t sensorType,
 					pr_err("scp_sHub_req_send fail!\n");
 					return -1;
 				}
-				/* hs03s code for SR-AL5625-01-49 by xiongxiaoliang at 2021/05/06 start */
+				/*HS03_T code for AL5626TDEV-172 by wangliang at 2022/09/27 start*/
 				pGetRawData = &req.set_cust_rsp.getRawData;
-				*((uint32_t *) data) =
-					pGetRawData->pdata_offset;
-				/* hs03s code for SR-AL5625-01-49 by xiongxiaoliang at 2021/05/06 end */
+				*((uint8_t *) data) =
+					pGetRawData->uint8_data[0];
+				/*HS03_T code for AL5626TDEV-172 by wangliang at 2022/09/27 end*/
 			} else {
 				pr_err("scp_sensorHub_req_send failed!\n");
 			}
@@ -1922,8 +1939,10 @@ int sensor_set_cmd_to_hub(uint8_t sensorType,
 					return -1;
 				}
 				pGetRawData = &req.set_cust_rsp.getRawData;
-				*((uint16_t *) data) =
-					pGetRawData->uint16_data[0];
+				/*HS03_T code for AL5626TDEV-172 by wangliang at 2022/09/27 start*/
+				*((uint32_t *) data) =
+					pGetRawData->pdata_offset;
+				/*HS03_T code for AL5626TDEV-172 by wangliang at 2022/09/27 end*/
 			} else {
 				pr_err("scp_sensorHub_req_send failed!\n");
 			}
@@ -2172,12 +2191,14 @@ static void restoring_enable_sensorHub_sensor(int handle)
 
 void sensorHub_power_up_loop(void *data)
 {
-	int handle = 0;
+	int ret = 0, handle = 0;
 	struct SCP_sensorHub_data *obj = obj_data;
 	unsigned long flags = 0;
 
-	wait_event(power_reset_wait,
+	ret = wait_event_interruptible(power_reset_wait,
 		READ_ONCE(scp_system_ready) && READ_ONCE(scp_chre_ready));
+	if (ret)
+		return;
 	spin_lock_irqsave(&scp_state_lock, flags);
 	WRITE_ONCE(scp_chre_ready, false);
 	WRITE_ONCE(scp_system_ready, false);

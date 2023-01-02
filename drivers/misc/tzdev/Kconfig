@@ -80,7 +80,7 @@ config TZDEV_SK_MULTICORE
 config ION_FD2PHYS
 	bool "ION FD to physical address converter"
 	depends on ION && (ARCH_EXYNOS || ARCH_MSM || ARCH_WHALE || ARCH_MT6755 || ARCH_MT6735 || ARCH_RANCHU || MACH_MT6757 || MACH_MT6853 || MACH_MT6768)
-	default y
+	default n
 	help
 	  Provide a method for userspace to get physical address from ION buffer
 	  descriptor.

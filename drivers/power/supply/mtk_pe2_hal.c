@@ -123,7 +123,7 @@ int pe2_hal_get_uisoc(struct chg_alg_device *alg)
 {
 	union power_supply_propval prop;
 	struct power_supply *bat_psy = NULL;
-	int ret;
+	int ret = 50;
 	struct mtk_pe20 *pe2;
 
 	if (alg == NULL)

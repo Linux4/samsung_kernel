@@ -315,6 +315,13 @@ extern unsigned long task_statm(struct mm_struct *,
 				unsigned long *, unsigned long *);
 extern void task_mem(struct seq_file *, struct mm_struct *);
 
+extern const struct dentry_operations proc_net_dentry_ops;
+static inline void pde_force_lookup(struct proc_dir_entry *pde)
+{
+	/* /proc/net/ entries can be changed under us by setns(CLONE_NEWNET) */
+	pde->proc_dops = &proc_net_dentry_ops;
+}
+
 #ifdef CONFIG_PAGE_BOOST
 #include <linux/pagevec.h>
 
@@ -328,11 +335,6 @@ struct proc_filemap_private {
 };
 
 extern const struct file_operations proc_pid_filemap_list_operations;
+extern const struct file_operations proc_pid_filemap_info_operations;
 extern const struct file_operations proc_pid_io_record_operations;
 #endif
-extern const struct dentry_operations proc_net_dentry_ops;
-static inline void pde_force_lookup(struct proc_dir_entry *pde)
-{
-	/* /proc/net/ entries can be changed under us by setns(CLONE_NEWNET) */
-	pde->proc_dops = &proc_net_dentry_ops;
-}

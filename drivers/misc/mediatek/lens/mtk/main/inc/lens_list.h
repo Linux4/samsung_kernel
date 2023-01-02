@@ -10,6 +10,8 @@
 #define _LENS_LIST_H
 
 extern void MAIN2AF_PowerDown(void);
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 start*/
+#ifdef CONFIG_HQ_PROJECT_OT8
 /*gaozhenyu add for af start*/
 #define GT9769AF_SetI2Cclient GT9769AF_SetI2Cclient_Main
 #define GT9769AF_Ioctl GT9769AF_Ioctl_Main
@@ -71,6 +73,8 @@ extern int FP5510MAIN6AF_Release(struct inode *a_pstInode, struct file *a_pstFil
 extern int FP5510MAIN6AF_GetFileName(unsigned char *pFileName);
 /* TabA7 Lite code for SR-AX3565-01-906  by chenjun at 2022/02/19 end */
 /* A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 start */
+#endif
+
 #ifdef CONFIG_HQ_PROJECT_HS03S
 #define GT9772AF_SetI2Cclient GT9772AF_SetI2Cclient_Main
 #define GT9772AF_Ioctl GT9772AF_Ioctl_Main
@@ -143,6 +147,101 @@ extern int CN3927XLAF_Release(struct inode *a_pstInode, struct file *a_pstFile);
 extern int CN3927XLAF_GetFileName(unsigned char *pFileName);
 /* A03s code for CAM-AL5625-01-247 by xuxianwei at 2021/05/18 end */
 #endif
+
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 start*/
+#ifdef CONFIG_HQ_PROJECT_HS04
+	//ADD AF for O2101
+	#define O2101_GT9772AF_SetI2Cclient O2101_GT9772AF_SetI2Cclient_Main
+	#define O2101_GT9772AF_Ioctl O2101_GT9772AF_Ioctl_Main
+	#define O2101_GT9772AF_Release O2101_GT9772AF_Release_Main
+	#define O2101_GT9772AF_GetFileName O2101_GT9772AF_GetFileName_Main
+	extern int O2101_GT9772AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+					spinlock_t *pAF_SpinLock, int *pAF_Opened);
+	extern long O2101_GT9772AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+				unsigned long a_u4Param);
+	extern int O2101_GT9772AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+	extern int O2101_GT9772AF_GetFileName(unsigned char *pFileName);
+
+    //ADD AF for O2102
+    #define O2102_GT9769AF_SetI2Cclient O2102_GT9769AF_SetI2Cclient_Main
+    #define O2102_GT9769AF_Ioctl O2102_GT9769AF_Ioctl_Main
+    #define O2102_GT9769AF_Release O2102_GT9769AF_Release_Main
+    #define O2102_GT9769AF_GetFileName O2102_GT9769AF_GetFileName_Main
+    extern int O2102_GT9769AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+                    spinlock_t *pAF_SpinLock, int *pAF_Opened);
+    extern long O2102_GT9769AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+                unsigned long a_u4Param);
+    extern int O2102_GT9769AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+    extern int O2102_GT9769AF_GetFileName(unsigned char *pFileName);
+
+    //ADD AF for O2103
+    #define O2103_PE916AF_SetI2Cclient O2103_PE916AF_SetI2Cclient_Main
+    #define O2103_PE916AF_Ioctl O2103_PE916AF_Ioctl_Main
+    #define O2103_PE916AF_Release O2103_PE916AF_Release_Main
+    #define O2103_PE916AF_GetFileName O2103_PE916AF_GetFileName_Main
+    extern int O2103_PE916AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+                    spinlock_t *pAF_SpinLock, int *pAF_Opened);
+    extern long O2103_PE916AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+                unsigned long a_u4Param);
+    extern int O2103_PE916AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+    extern int O2103_PE916AF_GetFileName(unsigned char *pFileName);
+
+    //ADD AF for O2104
+    #define O2104_GT9769AF_SetI2Cclient O2104_GT9769AF_SetI2Cclient_Main
+    #define O2104_GT9769AF_Ioctl O2104_GT9769AF_Ioctl_Main
+    #define O2104_GT9769AF_Release O2104_GT9769AF_Release_Main
+    #define O2104_GT9769AF_GetFileName O2104_GT9769AF_GetFileName_Main
+    extern int O2104_GT9769AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+                    spinlock_t *pAF_SpinLock, int *pAF_Opened);
+    extern long O2104_GT9769AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+                unsigned long a_u4Param);
+    extern int O2104_GT9769AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+    extern int O2104_GT9769AF_GetFileName(unsigned char *pFileName);
+
+#endif
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
+/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by lisizhou at 2022/9/23 start*/
+#ifdef CONFIG_HQ_PROJECT_O22
+#define A1401AW8601WAF_SetI2Cclient A1401AW8601WAF_SetI2Cclient_Main
+#define A1401AW8601WAF_Ioctl A1401AW8601WAF_Ioctl_Main
+#define A1401AW8601WAF_Release A1401AW8601WAF_Release_Main
+#define A1401AW8601WAF_GetFileName A1401AW8601WAF_GetFileName_Main
+extern int A1401AW8601WAF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long A1401AW8601WAF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+				unsigned long a_u4Param);
+extern int A1401AW8601WAF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int A1401AW8601WAF_GetFileName(unsigned char *pFileName);
+
+#define A1402DW9767AF_SetI2Cclient A1402DW9767AF_SetI2Cclient_Main
+#define A1402DW9767AF_Ioctl A1402DW9767AF_Ioctl_Main
+#define A1402DW9767AF_Release A1402DW9767AF_Release_Main
+#define A1402DW9767AF_GetFileName A1402DW9767AF_GetFileName_Main
+extern int A1402DW9767AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long A1402DW9767AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+				unsigned long a_u4Param);
+extern int A1402DW9767AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int A1402DW9767AF_GetFileName(unsigned char *pFileName);
+
+#define A1403GT9778AF_SetI2Cclient A1403GT9778AF_SetI2Cclient_Main
+#define A1403GT9778AF_Ioctl A1403GT9778AF_Ioctl_Main
+#define A1403GT9778AF_Release A1403GT9778AF_Release_Main
+#define A1403GT9778AF_PowerDown A1403GT9778AF_PowerDown_Main
+#define A1403GT9778AF_GetFileName A1403GT9778AF_GetFileName_Main
+extern int A1403GT9778AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long A1403GT9778AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+				unsigned long a_u4Param);
+extern int A1403GT9778AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int A1403GT9778AF_PowerDown(struct i2c_client *pstAF_I2Cclient,
+				int *pAF_Opened);
+extern int A1403GT9778AF_GetFileName(unsigned char *pFileName);
+#endif
+/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by lisizhou at 2022/9/23 end*/
+/* hs04 code for SR-AL6398A-01-16 by liluling at 2022/07/05 end */
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
+
 #define AK7371AF_SetI2Cclient AK7371AF_SetI2Cclient_Main
 #define AK7371AF_Ioctl AK7371AF_Ioctl_Main
 #define AK7371AF_Release AK7371AF_Release_Main

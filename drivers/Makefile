@@ -69,6 +69,7 @@ obj-$(CONFIG_FB_INTEL)          += video/fbdev/intelfb/
 
 obj-$(CONFIG_PARPORT)		+= parport/
 obj-$(CONFIG_NVM)		+= lightnvm/
+obj-$(CONFIG_SPI)               += spi/
 obj-$(CONFIG_MEMORY)		+= memory/
 obj-y				+= base/ block/ misc/ mfd/ nfc/
 obj-$(CONFIG_LIBNVDIMM)		+= nvdimm/
@@ -193,3 +194,4 @@ obj-$(CONFIG_INTERCONNECT)	+= interconnect/
 obj-$(CONFIG_USE_MUIC)		+= muic/
 obj-$(CONFIG_SWITCH)		+= switch/
 obj-$(CONFIG_SEC_EXT)	+= samsung/
+obj-$(CONFIG_BATTERY_SAMSUNG)   += battery/

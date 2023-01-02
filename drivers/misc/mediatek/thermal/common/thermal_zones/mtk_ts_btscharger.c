@@ -53,12 +53,11 @@ do { \
 
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
 
-#ifdef CONFIG_HS03S_SUPPORT
-struct iio_channel *thermistor_ch2;
-#else
+#if defined(CONFIG_HQ_PROJECT_OT8)
 struct iio_channel *thermistor_ch4;
+#else
+struct iio_channel *thermistor_ch2;
 #endif
-
 #endif
 
 
@@ -555,10 +554,10 @@ static int mtktscharger_get_hw_temp(void)
 #endif
 
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
-#ifdef CONFIG_HS03S_SUPPORT
-	ret = iio_read_channel_processed(thermistor_ch2, &val);
-#else
+#if defined(CONFIG_HQ_PROJECT_OT8)
 	ret = iio_read_channel_processed(thermistor_ch4, &val);
+#else
+	ret = iio_read_channel_processed(thermistor_ch2, &val);
 #endif
 	if (ret < 0) {
 		mtktscharger_dprintk_always(
@@ -833,25 +832,14 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		pr_notice("*****************************************\n");
 		pr_notice("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
 
-#ifdef CONFIG_HS03S_SUPPORT
-    /* modify code for O6 */
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
-		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210429 start*/
+		/* hs14 code for SR-AL6528A-01-336 by shanxinkai at 2022/09/15 start */
 		#if defined(HQ_FACTORY_BUILD) && (!defined(HQ_D85_BUILD))
 		BUG();
 		#endif
-		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210429 end*/
-#else
-    /* modify code for OT8 */
-		/*TabA7 Lite code for OT8-3638 import D85 policy by wenyaqi at 20210301 start*/
-		#ifndef HQ_D85_BUILD
-		BUG();
-		#endif
-		/*TabA7 Lite code for OT8-3638 import D85 policy by wenyaqi at 20210301 end*/
-#endif
-
+		/* hs14 code for SR-AL6528A-01-336 by shanxinkai at 2022/09/15 end */
 	}
 
 	return 0;
@@ -1282,23 +1270,8 @@ static int mtktscharger_pdrv_probe(struct platform_device *pdev)
 			__func__);
 		return -ENODEV;
 	}
-#ifdef CONFIG_HS03S_SUPPORT
 
-	thermistor_ch2 = devm_kzalloc(&pdev->dev, sizeof(*thermistor_ch2),
-		GFP_KERNEL);
-	if (!thermistor_ch2)
-		return -ENOMEM;
-
-
-	thermistor_ch2 = iio_channel_get(&pdev->dev, "thermistor-ch2");
-	ret = IS_ERR(thermistor_ch2);
-	if (ret) {
-		mtktscharger_dprintk_always(
-			"[%s] fail to get auxadc iio ch2: %d\n",
-			__func__, ret);
-		return ret;
-	}
-#else
+#if defined(CONFIG_HQ_PROJECT_OT8)
 	/*TabA7 Lite code for SR-AX3565-01-55 modify charger temp ntc by wenyaqi at 20201123 start*/
 	thermistor_ch4 = devm_kzalloc(&pdev->dev, sizeof(*thermistor_ch4),
 		GFP_KERNEL);
@@ -1315,6 +1288,21 @@ static int mtktscharger_pdrv_probe(struct platform_device *pdev)
 		return ret;
 	}
 	/*TabA7 Lite code for SR-AX3565-01-55 modify charger temp ntc by wenyaqi at 20201123 end*/
+#else
+	thermistor_ch2 = devm_kzalloc(&pdev->dev, sizeof(*thermistor_ch2),
+		GFP_KERNEL);
+	if (!thermistor_ch2)
+		return -ENOMEM;
+
+
+	thermistor_ch2 = iio_channel_get(&pdev->dev, "thermistor-ch2");
+	ret = IS_ERR(thermistor_ch2);
+	if (ret) {
+		mtktscharger_dprintk_always(
+			"[%s] fail to get auxadc iio ch2: %d\n",
+			__func__, ret);
+		return ret;
+	}
 
 #endif
 	err = mtktscharger_register_thermal();
@@ -1350,18 +1338,8 @@ static int mtktscharger_pdrv_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_HS03S_SUPPORT
 
-#ifdef CONFIG_OF
-const struct of_device_id mt_thermistor_of_match3[2] = {
-	{.compatible = "mediatek,mtboard-thermistor3",},
-	{},
-};
-#endif
-#define THERMAL_THERMISTOR_NAME    "mtboard-thermistor3"
-
-#else
-
+#ifdef CONFIG_HQ_PROJECT_OT8
 #ifdef CONFIG_OF
 const struct of_device_id mt_thermistor_of_match3[2] = {
 	/*TabA7 Lite code for SR-AX3565-01-55 modify charger temp ntc by wenyaqi at 20201123 start*/
@@ -1374,7 +1352,15 @@ const struct of_device_id mt_thermistor_of_match3[2] = {
 /*TabA7 Lite code for SR-AX3565-01-55 modify charger temp ntc by wenyaqi at 20201123 start*/
 #define THERMAL_THERMISTOR_NAME    "mtboard-thermistor5"
 /*TabA7 Lite code for SR-AX3565-01-55 modify charger temp ntc by wenyaqi at 20201123 end*/
+#else
+#ifdef CONFIG_OF
+const struct of_device_id mt_thermistor_of_match3[2] = {
+	{.compatible = "mediatek,mtboard-thermistor3",},
+	{},
+};
+#endif
 
+#define THERMAL_THERMISTOR_NAME    "mtboard-thermistor3"
 #endif
 static struct platform_driver mtktscharger_driver = {
 	.probe = mtktscharger_pdrv_probe,

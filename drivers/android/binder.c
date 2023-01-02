@@ -62,7 +62,6 @@
 #include <linux/nsproxy.h>
 #include <linux/poll.h>
 #include <linux/debugfs.h>
-#include <linux/delay.h>
 #include <linux/rbtree.h>
 #include <linux/sched/signal.h>
 #include <linux/sched/mm.h>
@@ -75,6 +74,10 @@
 
 #include <uapi/linux/android/binder.h>
 #include <uapi/linux/sched/types.h>
+
+#ifdef CONFIG_MTK_TASK_TURBO
+#include <mt-plat/turbo_common.h>
+#endif
 
 #include <asm/cacheflush.h>
 
@@ -625,6 +628,9 @@ struct binder_transaction {
 #ifdef CONFIG_ANDROID_BINDER_USER_TRACKING
 	struct timespec timestamp;
 	struct timeval tv;
+#endif
+#ifdef CONFIG_MTK_TASK_TURBO
+	struct task_struct *inherit_task;
 #endif
 };
 
@@ -1989,6 +1995,18 @@ static int binder_inc_ref_for_node(struct binder_proc *proc,
 	}
 	ret = binder_inc_ref_olocked(ref, strong, target_list);
 	*rdata = ref->data;
+	if (ret && ref == new_ref) {
+		/*
+		 * Cleanup the failed reference here as the target
+		 * could now be dead and have already released its
+		 * references by now. Calling on the new reference
+		 * with strong=0 and a tmp_refs will not decrement
+		 * the node. The new_ref gets kfree'd below.
+		 */
+		binder_cleanup_ref_olocked(new_ref);
+		ref = NULL;
+	}
+
 	binder_proc_unlock(proc);
 	if (new_ref && ref != new_ref)
 		/*
@@ -2914,6 +2932,11 @@ static bool binder_proc_transaction(struct binder_transaction *t,
 		binder_transaction_priority(thread->task, t, node_prio,
 					    node->inherit_rt);
 		binder_enqueue_thread_work_ilocked(thread, &t->work);
+#ifdef CONFIG_MTK_TASK_TURBO
+		if (binder_start_turbo_inherit(t->from ?
+				t->from->task : NULL, thread->task))
+			t->inherit_task = thread->task;
+#endif
 	} else if (!pending_async) {
 		binder_enqueue_work_ilocked(&t->work, &proc->todo);
 	} else {
@@ -3198,6 +3221,9 @@ static void binder_transaction(struct binder_proc *proc,
 		return_error_line = __LINE__;
 		goto err_alloc_t_failed;
 	}
+#ifdef CONFIG_MTK_TASK_TURBO
+	t->inherit_task = NULL;
+#endif
 #ifdef CONFIG_ANDROID_BINDER_USER_TRACKING
 	memcpy(&t->timestamp, &e->timestamp, sizeof(struct timespec));
 	/* do_gettimeofday(&t->tv); */
@@ -3260,26 +3286,9 @@ static void binder_transaction(struct binder_proc *proc,
 	if (target_node && target_node->txn_security_ctx) {
 		u32 secid;
 		size_t added_size;
-		int retries = 0;
-		int max_retries = 100;
 
 		security_cred_getsecid(proc->cred, &secid);
-retry_lowmem:
 		ret = security_secid_to_secctx(secid, &secctx, &secctx_sz);
-		if (ret == -ENOMEM && retries++ < max_retries) {
-			/*
-			 * security_secid_to_secctx() can fail
-			 * because of a GFP_ATOMIC allocation in
-			 * which case -ENOMEM is returned. This needs
-			 * to be retried, but there is currently no
-			 * way to tell userspace to retry so we do
-			 * it here. Sleep briefly to allow the low
-			 * memory condition to resolve.
-			 */
-			udelay(100);
-			goto retry_lowmem;
-		}
-
 		if (ret) {
 			return_error = BR_FAILED_REPLY;
 			return_error_param = ret;
@@ -3583,6 +3592,13 @@ retry_lowmem:
 		binder_enqueue_thread_work_ilocked(target_thread, &t->work);
 		binder_inner_proc_unlock(target_proc);
 		wake_up_interruptible_sync(&target_thread->wait);
+
+#ifdef CONFIG_MTK_TASK_TURBO
+		if (thread->task && in_reply_to->inherit_task == thread->task) {
+			binder_stop_turbo_inherit(thread->task);
+			in_reply_to->inherit_task = NULL;
+		}
+#endif
 		binder_restore_priority(current, in_reply_to->saved_priority);
 		binder_free_transaction(in_reply_to);
 	} else if (!(t->flags & TF_ONE_WAY)) {
@@ -3694,6 +3710,12 @@ err_invalid_target_handle:
 
 	BUG_ON(thread->return_error.cmd != BR_OK);
 	if (in_reply_to) {
+#ifdef CONFIG_MTK_TASK_TURBO
+		if (thread->task && in_reply_to->inherit_task == thread->task) {
+			binder_stop_turbo_inherit(thread->task);
+			in_reply_to->inherit_task = NULL;
+		}
+#endif
 		binder_restore_priority(current, in_reply_to->saved_priority);
 		thread->return_error.cmd = BR_TRANSACTION_COMPLETE;
 		binder_enqueue_thread_work(thread, &thread->return_error.work);
@@ -4281,6 +4303,9 @@ retry:
 			wait_event_interruptible(binder_user_error_wait,
 						 binder_stop_on_user_error < 2);
 		}
+#ifdef CONFIG_MTK_TASK_TURBO
+		binder_stop_turbo_inherit(current);
+#endif
 		binder_restore_priority(current, proc->default_priority);
 	}
 
@@ -4523,6 +4548,13 @@ retry:
 			trd->sender_pid =
 				task_tgid_nr_ns(sender,
 						task_active_pid_ns(current));
+
+#ifdef CONFIG_MTK_TASK_TURBO
+			if (binder_start_turbo_inherit(t_from->task,
+							thread->task))
+				t->inherit_task = thread->task;
+#endif
+
 		} else {
 			trd->sender_pid = 0;
 		}
@@ -5249,7 +5281,7 @@ static int binder_mmap(struct file *filp, struct vm_area_struct *vma)
 	return 0;
 
 err_bad_arg:
-	pr_err("%s: %d %lx-%lx %s failed %d\n", __func__,
+	pr_err_ratelimited("%s: %d %lx-%lx %s failed %d\n", __func__,
 	       proc->pid, vma->vm_start, vma->vm_end, failure_string, ret);
 	return ret;
 }

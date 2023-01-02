@@ -1012,6 +1012,7 @@ const char *v4l2_ctrl_get_name(u32 id)
 	case V4L2_CID_JPEG_COMPRESSION_QUALITY:	return "Compression Quality";
 	case V4L2_CID_JPEG_ACTIVE_MARKER:	return "Active Markers";
 	case V4L2_CID_JPEG_ENABLE_EXIF:		return "Enable Exif";
+	case V4L2_CID_JPEG_DST_OFFSET:		return "Dst Offset";
 
 	/* Image source controls */
 	/* Keep the order of the 'case's the same as in v4l2-controls.h! */
@@ -1098,6 +1099,7 @@ const char *v4l2_ctrl_get_name(u32 id)
 		return "P-Frame QP Value";
 	case V4L2_CID_MPEG_MTK_ENCODE_RC_B_FRAME_QP:
 		return "B-Frame QP Value";
+	case V4L2_CID_MPEG_MTK_LOG:	return "Video Log";
 	default:
 		return NULL;
 	}
@@ -1132,6 +1134,7 @@ void v4l2_ctrl_fill(u32 id, const char **name, enum v4l2_ctrl_type *type,
 		break;
 	case V4L2_CID_MPEG_MTK_CRC_PATH:
 	case V4L2_CID_MPEG_MTK_GOLDEN_PATH:
+	case V4L2_CID_MPEG_MTK_LOG:
 		*type = V4L2_CTRL_TYPE_STRING;
 		*flags |= V4L2_CTRL_FLAG_WRITE_ONLY;
 		break;

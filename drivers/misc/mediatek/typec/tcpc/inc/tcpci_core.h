@@ -218,6 +218,7 @@ struct tcpc_ops {
 #endif /* CONFIG_TCPC_VSAFE0V_DETECT_IC */
 
 #ifdef CONFIG_WATER_DETECTION
+	bool (*is_in_water_detecting)(struct tcpc_device *tcpc);
 	int (*is_water_detected)(struct tcpc_device *tcpc);
 	int (*set_water_protection)(struct tcpc_device *tcpc, bool en);
 	int (*set_usbid_polling)(struct tcpc_device *tcpc, bool en);
@@ -317,6 +318,10 @@ struct tcpc_device {
 	struct mutex access_lock;
 	struct mutex typec_lock;
 	struct mutex timer_lock;
+#ifdef CONFIG_WATER_DETECTION
+	struct mutex wd_lock;
+	struct work_struct wd_report_usb_port_work;
+#endif /* CONFIG_WATER_DETECTION */
 	struct semaphore timer_enable_mask_lock;
 	spinlock_t timer_tick_lock;
 	atomic_t pending_event;
@@ -478,15 +483,25 @@ struct tcpc_device {
 	bool vbus_present;
 	u8 irq_enabled:1;
 	u8 pd_inited_flag:1; /* MTK Only */
+	int bootmode;
 
 	/* TypeC Shield Protection */
 #ifdef CONFIG_WATER_DETECTION
 	int usbid_calib;
-	int bootmode;
+	struct delayed_work wd_status_work;
+#ifdef CONFIG_WD_INIT_POWER_OFF_CHARGE
+	bool init_pwroff_check;
+#endif /* CONFIG_WD_INIT_POWER_OFF_CHARGE */
+	bool water_state;
 #endif /* CONFIG_WATER_DETECTION */
 #ifdef CONFIG_CABLE_TYPE_DETECTION
 	enum tcpc_cable_type typec_cable_type;
 #endif /* CONFIG_CABLE_TYPE_DETECTION */
+#ifdef CONFIG_CC_BOUNCE_DETECTION
+	u32 cc_bounce_cnt;
+	ktime_t last_cc_change_time;
+	bool cc_bounce_detected;
+#endif /* CONFIG_CC_BOUNCE_DETECTION */
 };
 
 #define to_tcpc_device(obj) container_of(obj, struct tcpc_device, dev)

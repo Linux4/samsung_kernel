@@ -24,7 +24,7 @@
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/host.h>
 #include <linux/mmc/card.h>
-
+#include "mtk-msdc.h"
 #include "cqhci.h"
 #include "cqhci-crypto.h"
 
@@ -304,6 +304,7 @@ static void __cqhci_enable(struct cqhci_host *cq_host)
 	cqhci_writel(cq_host, upper_32_bits(cq_host->desc_dma_base),
 		     CQHCI_TDLBAU);
 
+	cqhci_writel(cq_host, 0x40, CQHCI_SSC1);
 	cqhci_writel(cq_host, cq_host->rca, CQHCI_SSC2);
 
 	cqhci_set_irqs(cq_host, 0);
@@ -311,6 +312,9 @@ static void __cqhci_enable(struct cqhci_host *cq_host)
 	cqcfg |= CQHCI_ENABLE;
 
 	cqhci_writel(cq_host, cqcfg, CQHCI_CFG);
+
+	if (cqhci_readl(cq_host, CQHCI_CTL) & CQHCI_HALT)
+		cqhci_writel(cq_host, 0, CQHCI_CTL);
 
 	mmc->cqe_on = true;
 
@@ -997,7 +1001,6 @@ static void cqhci_recovery_start(struct mmc_host *mmc)
 	if (cq_host->ops->disable)
 		cq_host->ops->disable(mmc, true);
 
-	mmc->cqe_on = false;
 }
 
 static int cqhci_error_from_flags(unsigned int flags)
@@ -1100,7 +1103,6 @@ static void cqhci_recovery_finish(struct mmc_host *mmc)
 	spin_lock_irqsave(&cq_host->lock, flags);
 	cq_host->qcnt = 0;
 	cq_host->recovery_halt = false;
-	mmc->cqe_on = false;
 	spin_unlock_irqrestore(&cq_host->lock, flags);
 
 	/* Ensure all writes are done before interrupts are re-enabled */

@@ -51,6 +51,10 @@
 #define RST_DU_MASK				0x3
 #define INVALID_VALUE			0
 
+/*HS03s_T code for AL5626TDEV-701 by yuli at 2022/10/30 start*/
+extern void get_volumedown_state(int keycode,int pressed);
+extern void get_power_state(int keycode,int pressed);
+/*HS03s_T code for AL5626TDEV-701 by yuli at 2022/10/30 end*/
 struct mtk_pmic_keys_regs {
 	u32 deb_reg;
 	u32 deb_mask;
@@ -161,11 +165,6 @@ enum mtk_pmic_keys_lp_mode {
 	LP_TWOKEY,
 };
 
-/*hs03s  code for SR-AL5625-01-266 by wangdeyan at 20210408 start*/
-extern void power_homekey_pressed(int keycode);
-extern void power_homekey_released(int keycode);
-/*hs03s  code for SR-AL5625-01-266 by wangdeyan at 20210408 end*/
-
 struct mtk_pmic_keys *keys;
 
 static void mtk_pmic_keys_lp_reset_setup(struct mtk_pmic_keys *keys,
@@ -230,12 +229,12 @@ static irqreturn_t mtk_pmic_keys_release_irq_handler_thread(
 	input_report_key(info->keys->input_dev, info->keycode, 0);
 	input_sync(info->keys->input_dev);
 
-/*hs03s  code for SR-AL5625-01-266 by wangdeyan at 20210408 start*/
-	power_homekey_released(info->keycode);
-/*hs03s  code for SR-AL5625-01-266 by wangdeyan at 20210408 end*/
 	dev_dbg(info->keys->dev, "release key =%d using PMIC\n",
 			info->keycode);
-
+	/*HS03s_T code for AL5626TDEV-701 by yuli at 2022/10/30 start*/
+	get_volumedown_state(info->keycode,0);
+	get_power_state(info->keycode,0);
+	/*HS03s_T code for AL5626TDEV-701 by yuli at 2022/10/30 end*/
 	return IRQ_HANDLED;
 }
 
@@ -255,13 +254,12 @@ static irqreturn_t mtk_pmic_keys_irq_handler_thread(int irq, void *data)
 	input_report_key(info->keys->input_dev, info->keycode, pressed);
 	input_sync(info->keys->input_dev);
 
-/*hs03s  code for SR-AL5625-01-266 by wangdeyan at 20210408 start*/
-	power_homekey_pressed(info->keycode);
-/*hs03s  code for SR-AL5625-01-266 by wangdeyan at 20210408 end*/
-
 	dev_dbg(info->keys->dev, "(%s) key =%d using PMIC\n",
 		 pressed ? "pressed" : "released", info->keycode);
-
+	/*HS03s_T code for AL5626TDEV-701 by yuli at 2022/10/30 start*/
+	get_volumedown_state(info->keycode,pressed);
+	get_power_state(info->keycode,pressed);
+	/*HS03s_T code for AL5626TDEV-701 by yuli at 2022/10/30 end*/
 	return IRQ_HANDLED;
 }
 

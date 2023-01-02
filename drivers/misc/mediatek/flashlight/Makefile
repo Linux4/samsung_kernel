@@ -23,10 +23,20 @@ obj-$(CONFIG_MTK_FLASHLIGHT_DUMMY_GPIO)  += flashlights-dummy-gpio.o
 #can't change this order,iic device must be first,otherwise can't compatible device
 obj-$(CONFIG_MTK_FLASHLIGHT_AW36518)  += flashlights-aw36518.o
 #hs03s code add for flashlights_aw36518 by chengzhi at 2021.06.13 end
-# HS03s code for CAM-AL5625-01-324 by lisizhou at 2021/05/31 start
-obj-$(CONFIG_MTK_FLASHLIGHT_SGM3785_GPIO)  += flashlights-sgm3785-gpio.o
-# HS03s code for CAM-AL5625-01-324 by lisizhou at 2021/05/31 end
 
+#hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/18 start
+ifeq ($(CONFIG_HQ_PROJECT_HS04),y)
+obj-$(CONFIG_MTK_FLASHLIGHT_O21_SGM3785_GPIO)  += flashlights-o21-sgm3785-gpio.o
+endif
+#hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/18 end
+
+# hs14 code for SR-AL5628-01-161 by lisizhou at 2022-9-26 start
+ifeq ($(CONFIG_HQ_PROJECT_O22), y)
+obj-$(CONFIG_MTK_FLASHLIGHT_SGM3785_GPIO)  += flashlights-sgm3785-gpio-hq.o
+else
+obj-$(CONFIG_MTK_FLASHLIGHT_SGM3785_GPIO)  += flashlights-sgm3785-gpio.o
+endif
+# hs14 code for SR-AL5628-01-161 by lisizhou at 2022-9-26 end
 
 ccflags-$(CONFIG_MTK_FLASHLIGHT_DEBUG)     := -DDEBUG
 ccflags-$(CONFIG_MTK_FLASHLIGHT_SYWT78)    += -DCONFIG_MTK_FLASHLIGHT_SYWT78

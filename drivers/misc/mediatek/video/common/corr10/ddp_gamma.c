@@ -16,7 +16,9 @@
 	defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6763) || \
 	defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771) || \
+	defined(CONFIG_MACH_MT6785)
 #include <ddp_clkmgr.h>
 #endif
 #endif
@@ -25,13 +27,16 @@
 #include <ddp_reg.h>
 #include <ddp_path.h>
 #include <ddp_gamma.h>
+#include <ddp_color.h>
 #include <ddp_pq.h>
 #include <disp_drv_platform.h>
 #if defined(CONFIG_MACH_MT6755) || defined(CONFIG_MACH_MT6797) || \
 	defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_KIBOPLUS) || \
 	defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771) || \
+	defined(CONFIG_MACH_MT6785)
 #include <disp_helper.h>
 #endif
 #include <primary_display.h>
@@ -40,6 +45,11 @@
 /* # echo corr_dbg:1 > /sys/kernel/debug/dispsys */
 int corr_dbg_en;
 int ccorr_scenario;
+
+#if defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6785)
+static bool bypass_color;
+#endif
+
 #define GAMMA_ERR(fmt, arg...) \
 	pr_notice("[GAMMA] %s: " fmt "\n", __func__, ##arg)
 #define GAMMA_NOTICE(fmt, arg...) \
@@ -69,7 +79,8 @@ static DEFINE_MUTEX(g_gamma_global_lock);
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779)
+	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6768) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6785)
 #define GAMMA0_MODULE_NAMING (DISP_MODULE_GAMMA0)
 #else
 #define GAMMA0_MODULE_NAMING (DISP_MODULE_GAMMA)
@@ -78,7 +89,9 @@ static DEFINE_MUTEX(g_gamma_global_lock);
 #if defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6763) || \
 	defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771) || \
+	defined(CONFIG_MACH_MT6785)
 #define GAMMA0_CLK_NAMING (DISP0_DISP_GAMMA0)
 #else
 #define GAMMA0_CLK_NAMING (DISP0_DISP_GAMMA)
@@ -90,7 +103,8 @@ static DEFINE_MUTEX(g_gamma_global_lock);
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779)
+	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6768) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6785)
 #define GAMMA_SUPPORT_PARTIAL_UPDATE
 #endif
 
@@ -372,7 +386,9 @@ static int disp_gamma_power_on(enum DISP_MODULE_ENUM module, void *handle)
 #elif defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771) || \
+	defined(CONFIG_MACH_MT6785)
 
 	ddp_clk_prepare_enable(ddp_get_module_clk_id(module));
 #else
@@ -404,7 +420,9 @@ static int disp_gamma_power_off(enum DISP_MODULE_ENUM module, void *handle)
 #elif defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771) || \
+	defined(CONFIG_MACH_MT6785)
 	ddp_clk_disable_unprepare(ddp_get_module_clk_id(module));
 #else
 #ifdef ENABLE_CLK_MGR
@@ -456,7 +474,8 @@ struct DDP_MODULE_DRIVER ddp_driver_gamma = {
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779)
+	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6768) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6785)
 #define CCORR0_BASE_NAMING (DISPSYS_CCORR0_BASE)
 #define CCORR0_MODULE_NAMING (DISP_MODULE_CCORR0)
 #else
@@ -467,7 +486,8 @@ struct DDP_MODULE_DRIVER ddp_driver_gamma = {
 #if defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6763) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779)
+	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6768) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6785)
 #define CCORR0_CLK_NAMING (DISP0_DISP_CCORR0)
 #else
 #define CCORR0_CLK_NAMING (DISP0_DISP_CCORR)
@@ -479,7 +499,8 @@ struct DDP_MODULE_DRIVER ddp_driver_gamma = {
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
 	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT3967) || \
-	defined(CONFIG_MACH_MT6779)
+	defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6768) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6785)
 #define CCORR_SUPPORT_PARTIAL_UPDATE
 #endif
 
@@ -942,6 +963,95 @@ static int disp_ccorr_config(enum DISP_MODULE_ENUM module,
 	return 0;
 }
 
+#if defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6785)
+int disp_ccorr_set_color_matrix(void *cmdq, int32_t matrix[16],
+	bool fte_flag, int32_t hint)
+{
+	int ret = 0;
+	int i, j;
+	int ccorr_without_gamma = 0;
+	bool need_refresh = false;
+	bool identity_matrix = true;
+
+	if (cmdq == NULL) {
+		CCORR_ERR("cmdq can not be NULL\n");
+		return -EFAULT;
+	}
+	mutex_lock(&g_gamma_global_lock);
+
+	for (i = 0; i < 3; i++) {
+		for (j = 0; j < 3; j++) {
+			/* Copy Color Matrix */
+			g_ccorr_color_matrix[i][j] = matrix[j*4 + i];
+
+			/* early jump out */
+			if (ccorr_without_gamma == 1)
+				continue;
+
+			if (i == j && g_ccorr_color_matrix[i][j] != 1024) {
+				ccorr_without_gamma = 1;
+				identity_matrix = false;
+			} else if (i != j && g_ccorr_color_matrix[i][j] != 0) {
+				ccorr_without_gamma = 1;
+				identity_matrix = false;
+			}
+		}
+	}
+
+// hint: 0: identity matrix; 1: arbitraty matrix
+// fte_flag: true: gpu overlay && hwc not identity matrix
+// arbitraty matrix maybe identity matrix or color transform matrix;
+// only when set identity matrix and not gpu overlay, open display color
+	CCORR_DBG("hint: %d, identity: %d, fte_flag: %d, bypass_color: %d",
+		hint, identity_matrix, fte_flag, bypass_color);
+
+	if (((hint == 0) || ((hint == 1) && identity_matrix)) && (!fte_flag)) {
+		if (bypass_color == true) {
+			mtk_color_setbypass(DISP_MODULE_COLOR0, false, cmdq);
+			bypass_color = false;
+		}
+	} else {
+		if (bypass_color == false) {
+			mtk_color_setbypass(DISP_MODULE_COLOR0, true, cmdq);
+			bypass_color = true;
+		}
+	}
+
+	g_disp_ccorr_without_gamma = ccorr_without_gamma;
+
+	disp_ccorr_write_coef_reg(cmdq, CCORR0_MODULE_NAMING, 0, 0);
+
+	for (i = 0; i < 3; i++) {
+		for (j = 0; j < 3; j++) {
+			if (g_ccorr_prev_matrix[i][j]
+				!= g_ccorr_color_matrix[i][j]) {
+				/* refresh when matrix changed */
+				need_refresh = true;
+			}
+			/* Copy Color Matrix */
+			g_ccorr_prev_matrix[i][j] = g_ccorr_color_matrix[i][j];
+		}
+	}
+
+	for (i = 0; i < 3; i += 1) {
+		CCORR_DBG("g_ccorr_color_matrix[%d][0-2] = {%d, %d, %d}\n",
+				i,
+				g_ccorr_color_matrix[i][0],
+				g_ccorr_color_matrix[i][1],
+				g_ccorr_color_matrix[i][2]);
+	}
+
+	CCORR_DBG("g_disp_ccorr_without_gamma: [%d], need_refresh: [%d]\n",
+		g_disp_ccorr_without_gamma, need_refresh);
+
+	mutex_unlock(&g_gamma_global_lock);
+
+	if (need_refresh == true)
+		disp_ccorr_trigger_refresh(DISP_CCORR0);
+
+	return ret;
+}
+#else
 int disp_ccorr_set_color_matrix(void *cmdq, int32_t matrix[16], int32_t hint)
 {
 	int ret = 0;
@@ -1006,6 +1116,7 @@ int disp_ccorr_set_color_matrix(void *cmdq, int32_t matrix[16], int32_t hint)
 
 	return ret;
 }
+#endif
 
 int disp_ccorr_set_RGB_Gain(int r, int g, int b)
 {
@@ -1143,7 +1254,9 @@ static int disp_ccorr_power_on(enum DISP_MODULE_ENUM module, void *handle)
 #if defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771) || \
+	defined(CONFIG_MACH_MT6785)
 	ddp_clk_prepare_enable(ddp_get_module_clk_id(module));
 #else
 #ifdef ENABLE_CLK_MGR
@@ -1182,7 +1295,9 @@ static int disp_ccorr_power_off(enum DISP_MODULE_ENUM module, void *handle)
 #if defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
 	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
 	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
-	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779)
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6779) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6771) || \
+	defined(CONFIG_MACH_MT6785)
 	ddp_clk_disable_unprepare(ddp_get_module_clk_id(module));
 #else
 

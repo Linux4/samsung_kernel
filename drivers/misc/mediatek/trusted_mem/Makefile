@@ -18,13 +18,7 @@ ccflags-y += -Werror
 #==========================================================================
 # Ensure module is built only when option is enabled
 obj-$(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM) = trusted_mem.o
-obj-$(CONFIG_MTK_SSMR) += ssmr_module.o
-ifeq ($(filter y m,$(CONFIG_MTK_SSMR)),m)
-ssmr_module-y += ssmr/memory_ssmr_module.o
-endif
-ifeq ($(filter y m,$(CONFIG_MTK_SSMR)),y)
-ssmr_module-y += ssmr/memory_ssmr.o
-endif
+trusted_mem-y += ssmr/memory_ssmr.o
 trusted_mem-y += dev_mgr.o
 trusted_mem-y += entry.o
 trusted_mem-y += region_mgr.o
@@ -77,10 +71,12 @@ endif
 # MTEE Multiple Chunk Devices & Geniezone Peer Driver
 #==========================================================================
 ifneq ($(filter y m,$(CONFIG_MTK_PROT_MEM_SUPPORT) \
-		  $(CONFIG_MTK_MTEE_MULTI_CHUNK_SUPPORT)),)
+		$(CONFIG_MTK_MTEE_MULTI_CHUNK_SUPPORT) \
+		$(CONFIG_MTK_SVP_ON_MTEE_SUPPORT)),)
 trusted_mem-y += mtee_devices.o
 ccflags-y += -DMTEE_DEVICES_SUPPORT
 endif
+
 ifneq ($(filter y m,$(CONFIG_MTK_GZ_KREE)),)
 trusted_mem-y += mtee_impl/mtee_ops.o
 trusted_mem-y += mtee_impl/mtee_invoke.o
@@ -120,5 +116,5 @@ ccflags-y += -I$(srctree)/drivers/misc/tzdev
 endif # !CONFIG_BLOWFISH_TEE_SUPPORT
 
 ifeq ($(CONFIG_TEEGRIS_TEE_SUPPORT),y)
-ccflags-y += -I$(srctree)/drivers/tee/tzdev/include/tzdev
+include $(srctree)/drivers/tee/tzdev/Makefile.include
 endif # CONFIG_TEEGRIS_TEE_SUPPORT

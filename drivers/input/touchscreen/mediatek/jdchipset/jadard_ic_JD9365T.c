@@ -1954,7 +1954,9 @@ static int jd9365t_HostWriteFlash(uint32_t WriteAddr, uint8_t *pFileData, uint32
 	}
 
 	/* 16. Reload section info. */
-	jd9365t_ReadSectionInfo(false);
+	/*hs03s code for DEVAL5626-1004 by huangzhongjie at 20220720 start*/
+	jd9365t_ReadSectionInfo(true);
+	/*hs03s code for DEVAL5626-1004 by huangzhongjie at 20220720 end*/
 
 	return ReCode;
 }
@@ -2168,7 +2170,9 @@ static int jd9365t_HostWritePram(uint32_t WriteAddr, uint8_t *pFileData, uint32_
 	}
 
 	/* 12. Reload section info. */
-	jd9365t_ReadSectionInfo(true);
+	/*hs03s code for DEVAL5626-1004 by huangzhongjie at 20220720 start*/
+	jd9365t_ReadSectionInfo(false);
+	/*hs03s code for DEVAL5626-1004 by huangzhongjie at 20220720 end*/
 
 	return ReCode;
 }

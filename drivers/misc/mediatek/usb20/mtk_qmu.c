@@ -945,7 +945,7 @@ void qmu_done_rx(struct musb *musb, u8 ep_num)
 	request = &req->request;
 	if (!request) {
 		QMU_ERR(
-			"[RXD]%s Cannot get next usb_request of %d",
+			"[RXD]%s Cannot get next usb_request of %d"
 			"but we should have next request and QMU has done.\n"
 			, __func__, ep_num);
 		return;
@@ -1023,6 +1023,10 @@ void qmu_done_rx(struct musb *musb, u8 ep_num)
 			, rcv_len, buf_len,
 			 TGPD_GET_DATA_RX(gpd));
 
+		if (!request) {
+			QMU_WARN("[RXD]%s the request is null, return.\n");
+			return;
+		}
 		request->actual += rcv_len;
 
 		if (!TGPD_GET_NEXT_RX(gpd) || !TGPD_GET_DATA_RX(gpd)) {

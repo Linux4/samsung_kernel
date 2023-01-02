@@ -1258,7 +1258,7 @@ int dump_mp_data_row_to_buffer(char *buf, size_t size, const u16 *data,
 
             if(hole == 1){
                 count += scnprintf(buf + count, size - count, " %c", seperator);
-                GTP_DEBUG("empty node %d is blank.", empty_place[j]);
+                GTP_DEBUG("empty node %d is blank.", empty_place[j-1]);
             }else if(hole == 0){
                 count += scnprintf(buf + count, size - count, "%4u%c ", data[c], seperator);
             }
@@ -1815,12 +1815,13 @@ int gcore_mp_bin_update(void)
     u8 *fw_buf = NULL;
 #ifdef CONFIG_UPDATE_FIRMWARE_BY_BIN_FILE
     const struct firmware *fw = NULL;
-
-    fw_buf = kzalloc(FW_SIZE, GFP_KERNEL);
+    /*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 start*/
+    fw_buf = g_mp_data->gdev->fw_mem;
     if (IS_ERR_OR_NULL(fw_buf)) {
-        GTP_ERROR("fw buf mem allocate fail");
+        GTP_ERROR("fw buf mem is NULL");
         return -EPERM;
     }
+    /*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 end*/
 
     if (request_firmware(&fw, MP_BIN_NAME, &g_mp_data->gdev->bus_device->dev)) {
         GTP_ERROR("request firmware fail");
@@ -1861,16 +1862,9 @@ int gcore_mp_bin_update(void)
     }
 #endif
 
-#ifdef CONFIG_UPDATE_FIRMWARE_BY_BIN_FILE
-    kfree(fw_buf);
-#endif
-
     return 0;
 
 fail1:
-#ifdef CONFIG_UPDATE_FIRMWARE_BY_BIN_FILE
-    kfree(fw_buf);
-#endif
 
     return -EPERM;
 
@@ -1912,6 +1906,10 @@ int gcore_mp_test_all_result(struct gcore_mp_data *mp_data)
 int gcore_start_mp_test(void)
 {
     struct gcore_mp_data *mp_data = g_mp_data;
+	/*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 start*/
+    int retry = 0;
+    bool mpupdate = false;
+	/*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 end*/
 
     fn_data.gdev->ts_stat = TS_MPTEST;
 
@@ -1952,13 +1950,25 @@ int gcore_start_mp_test(void)
                            || mp_data->test_noise) {
         GTP_DEBUG("mp test begin to updata mp bin");
 
-        if (gcore_mp_bin_update()) {
-            GTP_ERROR("gcore mp bin update fail!");
-            mp_data->open_test_result = -1;
-            mp_data->short_test_result = -1;
-            mp_data->rawdata_test_result = -1;
-            mp_data->noise_test_result = -1;
-        } else {
+        /*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 start*/
+        for (retry = 0; retry < 3; retry++) {
+            if (gcore_mp_bin_update()) {
+                GTP_ERROR("gcore mp bin update fail!try:%d", retry);
+                mp_data->open_test_result = -1;
+                mp_data->short_test_result = -1;
+                mp_data->rawdata_test_result = -1;
+                mp_data->noise_test_result = -1;
+                mpupdate = false;
+            } else {
+                GTP_DEBUG("mp bin update success");
+                mpupdate = true;
+                break;
+            }
+            msleep (100);
+        }
+
+        if (mpupdate) {
+		/*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 end*/
             msleep(100);
 
             if (mp_data->test_open) {

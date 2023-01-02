@@ -24,7 +24,12 @@
 #include <usb20_phy.h>
 #endif
 
+#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
+#include <linux/cable_type_notifier.h>
+#endif
+
 #include <mt-plat/mtk_boot_common.h>
+#include <linux/usb_notify.h>
 
 MODULE_LICENSE("GPL v2");
 
@@ -80,10 +85,6 @@ EXPORT_SYMBOL(register_usb_hal_disconnect_check);
 
 #if defined(CONFIG_MTK_BASE_POWER)
 #include "mtk_spm_resource_req.h"
-
-#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
-#include <linux/cable_type_notifier.h>
-#endif
 
 static int dpidle_status = USB_DPIDLE_ALLOWED;
 module_param(dpidle_status, int, 0644);
@@ -196,22 +197,6 @@ static void usb_6765_dpidle_request(int mode)
 	spin_unlock_irqrestore(&usb_hal_dpidle_lock, flags);
 }
 #endif
-
-/* default value 0 */
-static int usb_rdy;
-bool is_usb_rdy(void)
-{
-	if (mtk_musb->is_ready) {
-		usb_rdy = 1;
-		DBG(0, "set usb_rdy, wake up bat\n");
-	}
-
-	if (usb_rdy)
-		return true;
-	else
-		return false;
-}
-EXPORT_SYMBOL(is_usb_rdy);
 
 /* BC1.2 */
 /* Duplicate define in phy-mtk-tphy */
@@ -702,7 +687,8 @@ MODULE_DEVICE_TABLE(of, apusb_of_ids);
 #ifndef HQ_FACTORY_BUILD	//ss version
 extern int hq_get_boot_mode(void);
 #endif
-#if 0
+/*hs04 code for SR-AL6398A-01-82 by wenyaqi at 20220705 start*/
+#ifdef CONFIG_HQ_PROJECT_HS03S
 #ifdef CONFIG_TCPC_CLASS
 extern bool sink_to_src_flag;
 extern bool src_to_sink_flag;
@@ -718,7 +704,7 @@ static int mt_usb_psy_notifier(struct notifier_block *nb,
 
 		DBG(0, "psy=%s, event=%d", psy->desc->name, event);
 
-		#ifdef CONFIG_TCPC_CLASS
+#ifdef CONFIG_TCPC_CLASS
 		if (sink_to_src_flag && !src_to_sink_flag &&
 			!ss_musb_is_host()) {
 			DBG(0, "device mode, typec sink->src, keep device\n");
@@ -736,9 +722,9 @@ static int mt_usb_psy_notifier(struct notifier_block *nb,
 			DBG(0, "host mode, typec sink->src, keep host\n");
 			return NOTIFY_DONE;
 		}
-		#endif
+#endif
 
-		#ifndef HQ_FACTORY_BUILD	//ss version
+#ifndef HQ_FACTORY_BUILD	//ss version
 		if (hq_get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT ||
 			hq_get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT) {
 			/* do nothing */
@@ -749,12 +735,71 @@ static int mt_usb_psy_notifier(struct notifier_block *nb,
 			else
 				mt_usb_disconnect();
 		}
-		#else
+#else
 		if (usb_cable_connected(musb))
 			mt_usb_connect();
 		else
 			mt_usb_disconnect();
-		#endif
+#endif
+/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210428 end*/
+	}
+	return NOTIFY_DONE;
+}
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+/*hs04 code for SR-AL6398A-01-82 by wenyaqi at 20220705 end*/
+#ifdef CONFIG_TCPC_CLASS
+extern bool sink_to_src_flag;
+extern bool src_to_sink_flag;
+extern bool ss_musb_is_host(void);
+#endif
+static int mt_usb_psy_notifier(struct notifier_block *nb,
+				unsigned long event, void *ptr)
+{
+	struct musb *musb = container_of(nb, struct musb, psy_nb);
+	struct power_supply *psy = ptr;
+
+	if (event == PSY_EVENT_PROP_CHANGED && psy == musb->usb_psy) {
+
+		DBG(0, "psy=%s, event=%d", psy->desc->name, event);
+
+#ifdef CONFIG_TCPC_CLASS
+		if (sink_to_src_flag && !src_to_sink_flag &&
+			!ss_musb_is_host()) {
+			DBG(0, "device mode, typec sink->src, keep device\n");
+			return NOTIFY_DONE;
+		} else if (!sink_to_src_flag && src_to_sink_flag &&
+			ss_musb_is_host()) {
+			DBG(0, "host mode, typec src->sink, keep host\n");
+			return NOTIFY_DONE;
+		} else if (!sink_to_src_flag && src_to_sink_flag &&
+			!ss_musb_is_host()) {
+			DBG(0, "device mode, typec src->sink, keep device\n");
+			return NOTIFY_DONE;
+		} else if (sink_to_src_flag && !src_to_sink_flag &&
+			ss_musb_is_host()) {
+			DBG(0, "host mode, typec sink->src, keep host\n");
+			return NOTIFY_DONE;
+		}
+#endif
+
+#ifndef HQ_FACTORY_BUILD	//ss version
+		if (hq_get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT ||
+			hq_get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT) {
+			/* do nothing */
+			pr_notice("%s: do nothing in KPOC\n", __func__);
+		} else {
+			if (usb_cable_connected(musb))
+				mt_usb_connect();
+			else
+				mt_usb_disconnect();
+		}
+#else
+		if (usb_cable_connected(musb))
+			mt_usb_connect();
+		else
+			mt_usb_disconnect();
+#endif
 /*HS03s for SR-AL5625-01-261 by wenyaqi at 20210428 end*/
 	}
 	return NOTIFY_DONE;
@@ -906,6 +951,7 @@ exit:
 EXPORT_SYMBOL(usb_enable_clock);
 #endif
 
+#if !defined(CONFIG_EXTCON_MTK_USB)
 static int mt_usb_psy_init(struct musb *musb)
 {
 	int ret = 0;
@@ -916,7 +962,15 @@ static int mt_usb_psy_init(struct musb *musb)
 		DBG(0, "couldn't get usb_psy\n");
 		return -EINVAL;
 	}
-#if 0
+/*hs04 code for SR-AL6398A-01-82 by wenyaqi at 20220705 start*/
+#ifdef CONFIG_HQ_PROJECT_HS03S
+	musb->psy_nb.notifier_call = mt_usb_psy_notifier;
+	ret = power_supply_reg_notifier(&musb->psy_nb);
+	if (ret)
+		DBG(0, "failed to reg notifier: %d\n", ret);
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+/*hs04 code for SR-AL6398A-01-82 by wenyaqi at 20220705 end*/
 	musb->psy_nb.notifier_call = mt_usb_psy_notifier;
 	ret = power_supply_reg_notifier(&musb->psy_nb);
 	if (ret)
@@ -924,6 +978,7 @@ static int mt_usb_psy_init(struct musb *musb)
 #endif
 	return ret;
 }
+#endif
 
 static struct delayed_work idle_work;
 
@@ -1215,6 +1270,22 @@ static bool musb_hal_is_vbus_exist(void)
 }
 
 /* be aware this could not be used in non-sleep context */
+#if defined(CONFIG_EXTCON_MTK_USB) && IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
+bool usb_cable_connected(void)
+{
+	struct otg_notify *usb_notify;
+	int usb_mode = 0;
+
+	usb_notify = get_otg_notify();
+	usb_mode = get_usb_mode(usb_notify);
+	pr_info("usb: %s: %d\n", __func__, usb_mode);
+	if (usb_mode == NOTIFY_PERIPHERAL_MODE)
+		return true;
+	else
+		return false;
+
+}
+#else
 bool usb_cable_connected(struct musb *musb)
 {
 	struct power_supply *psy;
@@ -1252,6 +1323,7 @@ bool usb_cable_connected(struct musb *musb)
 	else
 		return false;
 }
+#endif
 
 static bool cmode_effect_on(void)
 {
@@ -1270,7 +1342,7 @@ static bool cmode_effect_on(void)
 void do_connection_work(struct work_struct *data)
 {
 	unsigned long flags = 0;
-	int usb_clk_state = NO_CHANGE;
+	int usb_clk_state = NO_CHANGE, phy_mode = -1;
 	bool usb_on, usb_connected;
 	struct mt_usb_work *work =
 		container_of(data, struct mt_usb_work, dwork.work);
@@ -1283,8 +1355,11 @@ void do_connection_work(struct work_struct *data)
 	usb_prepare_clock(true);
 
 	/* be aware this could not be used in non-sleep context */
+#if defined(CONFIG_EXTCON_MTK_USB) && IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
+	usb_connected = usb_cable_connected();
+#else
 	usb_connected = usb_cable_connected(mtk_musb);
-
+#endif
 	/* additional check operation here */
 	if (musb_force_on)
 		usb_on = true;
@@ -1292,17 +1367,9 @@ void do_connection_work(struct work_struct *data)
 		usb_on = usb_connected;
 #if defined(CONFIG_CABLE_TYPE_NOTIFIER)
 		if (!musb_is_host() && usb_on) {
-			DBG(0, "mtk_musb->sec_cable_type=%d", mtk_musb->sec_cable_type);
-			switch (mtk_musb->sec_cable_type) {
-				case POWER_SUPPLY_USB_TYPE_SDP:
-					cable_type_notifier_set_attached_dev(CABLE_TYPE_USB_SDP);
-					break;
-				case POWER_SUPPLY_USB_TYPE_CDP:
-					cable_type_notifier_set_attached_dev(CABLE_TYPE_USB_CDP);
-					break;
-				default:
-					break;
-			}
+			cable_type_notifier_set_attached_dev(CABLE_TYPE_USB_SDP);
+			/* skip usb_on to enable usb by cable_type_notifier */
+			goto skip;
 		}
 #endif
 	} else
@@ -1338,8 +1405,9 @@ void do_connection_work(struct work_struct *data)
 		/* note this already put SOFTCON */
 		musb_start(mtk_musb);
 		usb_clk_state = OFF_TO_ON;
-
+		phy_mode = PHY_MODE_USB_DEVICE;
 	} else if (mtk_musb->power && (usb_on == false)) {
+		phy_mode = PHY_MODE_INVALID;
 		/* disable usb */
 		musb_stop(mtk_musb);
 		if (mtk_musb->usb_lock->active) {
@@ -1354,7 +1422,16 @@ void do_connection_work(struct work_struct *data)
 				usb_on, mtk_musb->power);
 exit:
 	spin_unlock_irqrestore(&mtk_musb->lock, flags);
-
+#ifdef CONFIG_PHY_MTK_TPHY
+	/* set PHY mode after spinlock released */
+	if(phy_mode == PHY_MODE_USB_DEVICE)
+		phy_set_mode(glue->phy, PHY_MODE_USB_DEVICE);
+	else if (phy_mode == PHY_MODE_INVALID)
+		phy_set_mode(glue->phy, PHY_MODE_INVALID);
+#endif
+#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
+skip:
+#endif
 	if (usb_clk_state == ON_TO_OFF) {
 		/* clock on -> of: clk_prepare_cnt -2 */
 		usb_prepare_clock(false);
@@ -1389,23 +1466,49 @@ static void issue_connection_work(int ops)
 	queue_delayed_work(mtk_musb->st_wq, &work->dwork, 0);
 }
 
+void mtk_usb_connect(void)
+{
+	DBG(0, "[MUSB] USB connect work\n");
+	issue_connection_work(CONNECTION_OPS_CONN);
+}
+EXPORT_SYMBOL(mtk_usb_connect);
+
 void mt_usb_connect(void)
 {
 	DBG(0, "[MUSB] USB connect\n");
+#if defined(CONFIG_CABLE_TYPE_NOTIFIER) && !defined(CONFIG_EXTCON_MTK_USB)
+	cable_type_notifier_set_attached_dev(CABLE_TYPE_USB_SDP);
+#else
 	issue_connection_work(CONNECTION_OPS_CONN);
+#endif
 }
 EXPORT_SYMBOL(mt_usb_connect);
+
+void mtk_usb_disconnect(void)
+{
+	DBG(0, "[MUSB] USB disconnect work\n");
+	issue_connection_work(CONNECTION_OPS_DISC);
+}
+EXPORT_SYMBOL(mtk_usb_disconnect);
 
 void mt_usb_disconnect(void)
 {
 	DBG(0, "[MUSB] USB disconnect\n");
+#if defined(CONFIG_CABLE_TYPE_NOTIFIER) && !defined(CONFIG_EXTCON_MTK_USB)
+	cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
+#else
 	issue_connection_work(CONNECTION_OPS_DISC);
+#endif
 }
 
 void mt_usb_dev_disconnect(void)
 {
 	DBG(0, "[MUSB] USB disconnect\n");
+#if defined(CONFIG_CABLE_TYPE_NOTIFIER) && !defined(CONFIG_EXTCON_MTK_USB)
+	cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
+#else
 	issue_connection_work(CONNECTION_OPS_DISC);
+#endif
 }
 
 void mt_usb_reconnect(void)
@@ -1593,25 +1696,6 @@ static irqreturn_t mt_usb_interrupt(int irq, void *dev_id)
 	return status;
 
 }
-
-extern bool usb_data_enabled;
-extern void set_otg_vbus(bool val);
-void usb_notify_control(bool data_enabled)
-{
-	usb_data_enabled = data_enabled;
-	pr_err("SXX, usb_data_enabled = %d\n",usb_data_enabled);
-
-	if (cable_mode != usb_data_enabled) {
-			cable_mode = usb_data_enabled;
-			mt_usb_reconnect();
-			/* let conection work do its job */
-			msleep(50);
-	}
-
-	set_otg_vbus(usb_data_enabled);
-
-}
-EXPORT_SYMBOL(usb_notify_control);
 
 static bool saving_mode;
 
@@ -1809,7 +1893,6 @@ out_unreg:
 	for (; attr >= mt_usb_attributes; attr--)
 		device_remove_file(dev, *attr);
 	return rc;
-
 }
 #endif
 
@@ -2296,7 +2379,11 @@ static int __init mt_usb_init(struct musb *musb)
 	mt_usb_otg_init(musb);
 	/* enable host suspend mode */
 	mt_usb_wakeup_init(musb);
+#ifdef CONFIG_USB_HOST_SAMSUNG_FEATURE
+	musb->host_suspend = false;
+#else
 	musb->host_suspend = true;
+#endif
 #endif
 #ifdef CONFIG_MACH_MT6761
 	/* only for mt6761 */
@@ -2310,7 +2397,14 @@ err_phy_power_on:
 	phy_exit(glue->phy);
 err_phy_init:
 #endif
-	//mt_usb_psy_init(musb);
+/*hs04 code for SR-AL6398A-01-82 by wenyaqi at 20220705 start*/
+#ifdef CONFIG_HQ_PROJECT_HS03S
+	mt_usb_psy_init(musb);
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+	mt_usb_psy_init(musb);
+#endif
+/*hs04 code for SR-AL6398A-01-82 by wenyaqi at 20220705 end*/
 	return ret;
 }
 

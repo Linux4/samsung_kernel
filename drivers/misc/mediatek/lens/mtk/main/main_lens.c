@@ -83,6 +83,8 @@ static struct stAF_OisPosInfo OisPosInfo;
 /* ------------------------- */
 
 static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 start*/
+#ifdef CONFIG_HQ_PROJECT_OT8
 /*TabA7 Lite code for SR-AX3565-01-320 by liuchengfei at 20201127 start*/
 	{1, AFDRV_GT9772AFHLT, GT9772AFHLT_SetI2Cclient, GT9772AFHLT_Ioctl,
 	 GT9772AFHLT_Release, GT9772AFHLT_GetFileName, NULL},
@@ -105,6 +107,9 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 /* TabA7 Lite code for SR-AX3565-01-906  by chenjun at 2022/02/19 end */
 /* A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 start */
 /*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 start*/
+#endif
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
+
 #ifdef CONFIG_HQ_PROJECT_HS03S
 	{1, AFDRV_GT9772AF, GT9772AF_SetI2Cclient, GT9772AF_Ioctl,
 	 GT9772AF_Release, GT9772AF_GetFileName, NULL},
@@ -123,6 +128,37 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 	 CN3927XLAF_Release, CN3927XLAF_GetFileName, NULL},
 /* A03s code for CAM-AL5625-01-247 by xuxianwei at 2021/05/18 end */
 #endif
+
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 start*/
+#ifdef CONFIG_HQ_PROJECT_HS04
+    //ADD AF FOR O2101
+    {1, AFDRV_O2101_GT9772AF, O2101_GT9772AF_SetI2Cclient, O2101_GT9772AF_Ioctl,
+     O2101_GT9772AF_Release, O2101_GT9772AF_GetFileName, NULL},
+    //ADD AF FOR O2102
+    {1, AFDRV_O2102_GT9769AF, O2102_GT9769AF_SetI2Cclient, O2102_GT9769AF_Ioctl,
+     O2102_GT9769AF_Release, O2102_GT9769AF_GetFileName, NULL},
+    //ADD AF FOR O2103
+    {1, AFDRV_O2103_PE916AF, O2103_PE916AF_SetI2Cclient, O2103_PE916AF_Ioctl,
+     O2103_PE916AF_Release, O2103_PE916AF_GetFileName, NULL},
+    //ADD AF FOR O2104
+    {1, AFDRV_O2104_GT9769AF, O2104_GT9769AF_SetI2Cclient, O2104_GT9769AF_Ioctl,
+     O2104_GT9769AF_Release, O2104_GT9769AF_GetFileName, NULL},
+#endif
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
+/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by lisizhou at 2022/9/23 start*/
+#ifdef CONFIG_HQ_PROJECT_O22
+    //ADD AF FOR A1401AW8601WAF
+	{1, AFDRV_A1401AW8601WAF, A1401AW8601WAF_SetI2Cclient, A1401AW8601WAF_Ioctl,
+	 A1401AW8601WAF_Release, A1401AW8601WAF_GetFileName, NULL},
+	{1, AFDRV_A1402DW9767AF, A1402DW9767AF_SetI2Cclient, A1402DW9767AF_Ioctl,
+	 A1402DW9767AF_Release, A1402DW9767AF_GetFileName, NULL},
+	{1, AFDRV_A1403GT9778AF, A1403GT9778AF_SetI2Cclient, A1403GT9778AF_Ioctl,
+	A1403GT9778AF_Release, A1403GT9778AF_GetFileName, NULL},
+#endif
+/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by lisizhou at 2022/9/23 end*/
+/* hs04 code for SR-AL6398A-01-16 by liluling at 2022/07/05 end */
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
+
 /* A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 end */
 	{1, AFDRV_DW9718TAF, DW9718TAF_SetI2Cclient, DW9718TAF_Ioctl,
 	 DW9718TAF_Release, DW9718TAF_GetFileName, NULL},

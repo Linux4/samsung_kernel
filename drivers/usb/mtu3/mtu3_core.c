@@ -92,7 +92,7 @@ static inline void mtu3_hs_softconn_set(struct mtu3 *mtu, bool enable)
 }
 
 /* only port0 of U2/U3 supports device mode */
-static int mtu3_device_enable(struct mtu3 *mtu)
+int mtu3_device_enable(struct mtu3 *mtu)
 {
 	void __iomem *ibase = mtu->ippc_base;
 	u32 check_clk = 0;
@@ -119,7 +119,7 @@ static int mtu3_device_enable(struct mtu3 *mtu)
 	return ssusb_check_clocks(mtu->ssusb, check_clk);
 }
 
-static void mtu3_device_disable(struct mtu3 *mtu)
+void mtu3_device_disable(struct mtu3 *mtu)
 {
 	void __iomem *ibase = mtu->ippc_base;
 
@@ -186,7 +186,7 @@ static void mtu3_intr_enable(struct mtu3 *mtu)
 	mtu3_writel(mbase, U3D_LV1IESR, value);
 
 	/* Enable U2 common USB interrupts */
-	value = SUSPEND_INTR | RESUME_INTR | RESET_INTR;
+	value = SUSPEND_INTR | RESUME_INTR | RESET_INTR | LPM_RESUME_INTR;
 	mtu3_writel(mbase, U3D_COMMON_USB_INTR_ENABLE, value);
 
 	if (mtu->is_u3_ip) {
@@ -203,6 +203,79 @@ static void mtu3_intr_enable(struct mtu3 *mtu)
 
 	/* Enable speed change interrupt */
 	mtu3_writel(mbase, U3D_DEV_LINK_INTR_ENABLE, SSUSB_DEV_SPEED_CHG_INTR);
+}
+
+
+static void mtu3_set_speed(struct mtu3 *mtu)
+{
+	void __iomem *mbase = mtu->mac_base;
+
+	if (!mtu->is_u3_ip && (mtu->max_speed > USB_SPEED_HIGH))
+		mtu->max_speed = USB_SPEED_HIGH;
+
+	if (mtu->max_speed == USB_SPEED_FULL) {
+		/* disable U3 SS function */
+		mtu3_clrbits(mbase, U3D_USB3_CONFIG, USB3_EN);
+		/* disable HS function */
+		mtu3_clrbits(mbase, U3D_POWER_MANAGEMENT, HS_ENABLE);
+	} else if (mtu->max_speed == USB_SPEED_HIGH) {
+		mtu3_clrbits(mbase, U3D_USB3_CONFIG, USB3_EN);
+		/* HS/FS detected by HW */
+		mtu3_setbits(mbase, U3D_POWER_MANAGEMENT, HS_ENABLE);
+	} else if (mtu->max_speed == USB_SPEED_SUPER) {
+		mtu3_clrbits(mtu->ippc_base, SSUSB_U3_CTRL(0),
+			     SSUSB_U3_PORT_SSP_SPEED);
+	}
+
+	dev_info(mtu->dev, "max_speed: %s\n",
+		usb_speed_string(mtu->max_speed));
+}
+
+static void mtu3_regs_init(struct mtu3 *mtu)
+{
+
+	void __iomem *mbase = mtu->mac_base;
+
+	/* be sure interrupts are disabled before registration of ISR */
+	mtu3_intr_disable(mtu);
+	mtu3_intr_status_clear(mtu);
+
+	if (mtu->is_u3_ip) {
+		/* disable LGO_U1/U2 by default */
+		mtu3_clrbits(mbase, U3D_LINK_POWER_CONTROL,
+				SW_U1_REQUEST_ENABLE | SW_U2_REQUEST_ENABLE);
+		/* enable accept LGO_U1/U2 link command from host */
+		mtu3_setbits(mbase, U3D_LINK_POWER_CONTROL,
+				SW_U1_ACCEPT_ENABLE | SW_U2_ACCEPT_ENABLE);
+		mtu3_setbits(mbase, U3D_MAC_U1_EN_CTRL,
+				ACCEPT_BMU_RX_EMPTY_HCK);
+		mtu3_setbits(mbase, U3D_MAC_U2_EN_CTRL,
+				ACCEPT_BMU_RX_EMPTY_HCK);
+		/* device responses to u3_exit from host automatically */
+		mtu3_clrbits(mbase, U3D_LTSSM_CTRL, SOFT_U3_EXIT_EN);
+		/* automatically build U2 link when U3 detect fail */
+		mtu3_setbits(mbase, U3D_USB2_TEST_MODE, U2U3_AUTO_SWITCH);
+		/* auto clear SOFT_CONN when clear USB3_EN if work as HS */
+		mtu3_setbits(mbase, U3D_U3U2_SWITCH_CTRL, SOFTCON_CLR_AUTO_EN);
+	}
+
+	mtu3_set_speed(mtu);
+
+	/* delay about 0.1us from detecting reset to send chirp-K */
+	mtu3_clrbits(mbase, U3D_LINK_RESET_INFO, WTCHRP_MSK);
+	/* U2/U3 detected by HW */
+	mtu3_writel(mbase, U3D_DEVICE_CONF, 0);
+	/* vbus detected by HW */
+	mtu3_clrbits(mbase, U3D_MISC_CTRL, VBUS_FRC_EN | VBUS_ON);
+	/* enable automatical HWRW from L1 */
+	mtu3_setbits(mbase, U3D_POWER_MANAGEMENT, LPM_HRWE);
+	mtu3_writel(mbase, U3D_USB2_EPCTL_LPM, L1_EXIT_EP0_CHK);
+	mtu3_writel(mbase, U3D_USB2_EPCTL_LPM_FC_CHK, 0);
+
+	ssusb_set_force_vbus(mtu->ssusb, true);
+	/* use new QMU format when HW version >= 0x1003 */
+	if (mtu->gen2cp)
+		mtu3_writel(mbase, U3D_QFCR, ~0x0);
 }
 
 /* reset: u2 - data toggle, u3 - SeqN, flow control status etc */
@@ -240,8 +313,10 @@ void mtu3_ep_stall_set(struct mtu3_ep *mep, bool set)
 	}
 
 	if (!set) {
+		mtu3_qmu_stop(mep);
 		mtu3_ep_reset(mep);
 		mep->flags &= ~MTU3_EP_STALL;
+		mtu3_qmu_resume(mep);
 	} else {
 		mep->flags |= MTU3_EP_STALL;
 	}
@@ -252,13 +327,45 @@ void mtu3_ep_stall_set(struct mtu3_ep *mep, bool set)
 
 void mtu3_dev_on_off(struct mtu3 *mtu, int is_on)
 {
-	if (mtu->is_u3_ip && mtu->max_speed >= USB_SPEED_SUPER)
-		mtu3_ss_func_set(mtu, is_on);
-	else
-		mtu3_hs_softconn_set(mtu, is_on);
+	if (is_on) {
+		if (mtu->is_u3_ip && mtu->max_speed >= USB_SPEED_SUPER)
+			mtu3_ss_func_set(mtu, true);
+		else {
+			mtu3_ss_func_set(mtu, false);
+			mtu3_hs_softconn_set(mtu, true);
+		}
+	} else {
+		mtu3_ss_func_set(mtu, false);
+		mtu3_hs_softconn_set(mtu, false);
+	}
 
 	dev_info(mtu->dev, "gadget (%s) pullup D%s\n",
 		usb_speed_string(mtu->max_speed), is_on ? "+" : "-");
+}
+
+static void mtu3_gadget_set_ready(struct mtu3 *mtu)
+{
+	struct device_node *np = mtu->dev->of_node;
+	struct property *prop = NULL;
+	int ret = 0;
+
+	dev_info(mtu->dev, "update gadget-ready property\n");
+
+	prop = of_find_property(np, "gadget-ready", NULL);
+	if (!prop) {
+		dev_info(mtu->dev, "no gadget-ready node\n");
+
+		prop = kzalloc(sizeof(*prop), GFP_KERNEL);
+		if (!prop)
+			return;
+
+		prop->name = "gadget-ready";
+		ret = of_add_property(np, prop);
+		if (ret) {
+			pr_err("add prop failed\n");
+			return;
+		}
+	}
 }
 
 void mtu3_start(struct mtu3 *mtu)
@@ -269,6 +376,8 @@ void mtu3_start(struct mtu3 *mtu)
 		mtu3_readl(mbase, U3D_DEVICE_CONTROL));
 
 	mtu3_clrbits(mtu->ippc_base, U3D_SSUSB_IP_PW_CTRL2, SSUSB_IP_DEV_PDN);
+
+	mtu3_regs_init(mtu);
 
 	/*
 	 * When disable U2 port, USB2_CSR's register will be reset to
@@ -284,6 +393,8 @@ void mtu3_start(struct mtu3 *mtu)
 
 	if (mtu->softconnect)
 		mtu3_dev_on_off(mtu, 1);
+	else if (!mtu->is_gadget_ready)
+		ssusb_phy_dp_pullup(mtu->ssusb);
 }
 
 void mtu3_stop(struct mtu3 *mtu)
@@ -393,6 +504,16 @@ int mtu3_config_ep(struct mtu3 *mtu, struct mtu3_ep *mep,
 			mtu3_readl(mbase, MU3D_EP_RXCR1(epnum)),
 			mtu3_readl(mbase, MU3D_EP_RXCR2(epnum)));
 	}
+
+	/* L1 Exit Check Enable except ISOC OUT EP*/
+	if (!((mep->type == USB_ENDPOINT_XFER_ISOC) && !(mep->is_in)))
+		mtu3_setbits(mbase, U3D_USB2_EPCTL_LPM,
+				L1_EXIT_EP_CHK(mep->is_in, epnum));
+
+	/* RX initiate L1 exit only when latest transaction is flow controlled */
+	if (!(mep->is_in))
+		mtu3_setbits(mbase, U3D_USB2_EPCTL_LPM_FC_CHK,
+				L1_EXIT_EP_FC_CHK(mep->is_in, epnum));
 
 	dev_dbg(mtu->dev, "csr0:%#x, csr1:%#x, csr2:%#x\n", csr0, csr1, csr2);
 	dev_dbg(mtu->dev, "%s: %s, fifo-addr:%#x, fifo-size:%#x(%#x/%#x)\n",
@@ -548,72 +669,6 @@ static void mtu3_mem_free(struct mtu3 *mtu)
 	kfree(mtu->ep_array);
 }
 
-static void mtu3_set_speed(struct mtu3 *mtu)
-{
-	void __iomem *mbase = mtu->mac_base;
-
-	if (!mtu->is_u3_ip && (mtu->max_speed > USB_SPEED_HIGH))
-		mtu->max_speed = USB_SPEED_HIGH;
-
-	if (mtu->max_speed == USB_SPEED_FULL) {
-		/* disable U3 SS function */
-		mtu3_clrbits(mbase, U3D_USB3_CONFIG, USB3_EN);
-		/* disable HS function */
-		mtu3_clrbits(mbase, U3D_POWER_MANAGEMENT, HS_ENABLE);
-	} else if (mtu->max_speed == USB_SPEED_HIGH) {
-		mtu3_clrbits(mbase, U3D_USB3_CONFIG, USB3_EN);
-		/* HS/FS detected by HW */
-		mtu3_setbits(mbase, U3D_POWER_MANAGEMENT, HS_ENABLE);
-	} else if (mtu->max_speed == USB_SPEED_SUPER) {
-		mtu3_clrbits(mtu->ippc_base, SSUSB_U3_CTRL(0),
-			     SSUSB_U3_PORT_SSP_SPEED);
-	}
-
-	dev_info(mtu->dev, "max_speed: %s\n",
-		usb_speed_string(mtu->max_speed));
-}
-
-static void mtu3_regs_init(struct mtu3 *mtu)
-{
-
-	void __iomem *mbase = mtu->mac_base;
-
-	/* be sure interrupts are disabled before registration of ISR */
-	mtu3_intr_disable(mtu);
-	mtu3_intr_status_clear(mtu);
-
-	if (mtu->is_u3_ip) {
-		/* disable LGO_U1/U2 by default */
-		mtu3_clrbits(mbase, U3D_LINK_POWER_CONTROL,
-				SW_U1_REQUEST_ENABLE | SW_U2_REQUEST_ENABLE);
-		/* enable accept LGO_U1/U2 link command from host */
-		mtu3_setbits(mbase, U3D_LINK_POWER_CONTROL,
-				SW_U1_ACCEPT_ENABLE | SW_U2_ACCEPT_ENABLE);
-		/* device responses to u3_exit from host automatically */
-		mtu3_clrbits(mbase, U3D_LTSSM_CTRL, SOFT_U3_EXIT_EN);
-		/* automatically build U2 link when U3 detect fail */
-		mtu3_setbits(mbase, U3D_USB2_TEST_MODE, U2U3_AUTO_SWITCH);
-		/* auto clear SOFT_CONN when clear USB3_EN if work as HS */
-		mtu3_setbits(mbase, U3D_U3U2_SWITCH_CTRL, SOFTCON_CLR_AUTO_EN);
-	}
-
-	mtu3_set_speed(mtu);
-
-	/* delay about 0.1us from detecting reset to send chirp-K */
-	mtu3_clrbits(mbase, U3D_LINK_RESET_INFO, WTCHRP_MSK);
-	/* U2/U3 detected by HW */
-	mtu3_writel(mbase, U3D_DEVICE_CONF, 0);
-	/* vbus detected by HW */
-	mtu3_clrbits(mbase, U3D_MISC_CTRL, VBUS_FRC_EN | VBUS_ON);
-	/* enable automatical HWRW from L1 */
-	mtu3_setbits(mbase, U3D_POWER_MANAGEMENT, LPM_HRWE);
-
-	ssusb_set_force_vbus(mtu->ssusb, true);
-	/* use new QMU format when HW version >= 0x1003 */
-	if (mtu->gen2cp)
-		mtu3_writel(mbase, U3D_QFCR, ~0x0);
-}
-
 static irqreturn_t mtu3_link_isr(struct mtu3 *mtu)
 {
 	void __iomem *mbase = mtu->mac_base;
@@ -668,6 +723,9 @@ static irqreturn_t mtu3_link_isr(struct mtu3 *mtu)
 	mtu->g.speed = udev_speed;
 	mtu->g.ep0->maxpacket = maxpkt;
 	mtu->ep0_state = MU3D_EP0_STATE_SETUP;
+
+	if (udev_speed >= MTU3_SPEED_SUPER)
+		ssusb_phy_dp_pullup(mtu->ssusb);
 
 	if (udev_speed == USB_SPEED_UNKNOWN)
 		mtu3_gadget_disconnect(mtu);
@@ -788,7 +846,11 @@ static int mtu3_hw_init(struct mtu3 *mtu)
 	value = mtu3_readl(mtu->ippc_base, U3D_SSUSB_IP_TRUNK_VERS);
 	mtu->hw_version = IP_TRUNK_VERS(value);
 	mtu->gen2cp = !!(mtu->hw_version >= MTU3_TRUNK_VERS_1003);
-
+#if defined(CONFIG_MACH_MT6877) || defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6873)
+	mtu->gen2cp = 0;
+	dev_info(mtu->dev, "force gen2cp to be 0 ");
+#endif
 	value = mtu3_readl(mtu->ippc_base, U3D_SSUSB_IP_DEV_CAP);
 	mtu->is_u3_ip = !!SSUSB_IP_DEV_U3_PORT_NUM(value);
 
@@ -808,6 +870,8 @@ static int mtu3_hw_init(struct mtu3 *mtu)
 		return -ENOMEM;
 
 	mtu3_regs_init(mtu);
+
+	mtu3_gadget_set_ready(mtu);
 
 	return 0;
 }

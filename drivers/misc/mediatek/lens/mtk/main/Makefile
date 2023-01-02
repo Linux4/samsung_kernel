@@ -79,6 +79,26 @@ mainaf-y  += common/cn3927ddaf/CN3927DDAF.o
 mainaf-y  += common/cn3927ofilmaf/CN3927OFILMAF.o
 mainaf-y  += common/cn3927xlaf/CN3927XLAF.o
 #A03s code for CAM-AL5625-01-247 by xuxianwei at 2021/05/18 end
+
+#hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/17 start
+##################### M04 AF CODE START #########################
+ifeq ($(CONFIG_HQ_PROJECT_HS04), y)
+mainaf-y  += common/o2101_gt9772af/O2101_GT9772AF.o
+mainaf-y  += common/o2102_gt9769af/O2102_GT9769AF.o
+mainaf-y  += common/o2103_pe916af/O2103_PE916AF.o
+mainaf-y  += common/o2104_gt9769af/O2104_GT9769AF.o
+endif
+##################### M04 AF CODE END #########################
+#hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/17 end
+#hs14 code for SR-AL6528-01-161 Universal macro adaptation by renxinglin at 2022/9/27 start
+ifeq ($(CONFIG_HQ_PROJECT_O22), y)
+##################### A14 AF CODE START #########################
+mainaf-y  += common/a1401aw8601waf/A1401AW8601WAF.o
+mainaf-y  += common/a1402dw9767af/A1402DW9767AF.o
+mainaf-y  += common/a1403gt9778af/A1403GT9778AF.o
+##################### A14 AF CODE START #########################
+endif
+#hs14 code for SR-AL6528-01-161 Universal macro adaptation by renxinglin at 2022/9/27 end
 mainaf-y  += common/lc898212af/LC898212AF.o
 mainaf-y  += common/lc898212xdaf/LC898212XDAF.o
 mainaf-y  += common/lc898212xdaf/AfInter.o

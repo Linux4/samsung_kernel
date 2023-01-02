@@ -35,8 +35,12 @@ obj-$(CONFIG_INPUT_APMPOWER)	+= apm-power.o
 obj-$(CONFIG_RMI4_CORE)		+= rmi4/
 obj-$(CONFIG_FINGER)		+= fingerprint/
 
+# hs14 code for SR-AL6528A-01-262 by zhangziyi at 2022/10/05 start
+obj-$(CONFIG_FINGER_O22)	+= fingerprint_O22/
+# hs14 code for SR-AL6528A-01-262 by zhangziyi at 2022/10/05 end
 
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/performance/include/
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/
 
 #TabA7 Lite code for OT8-54 by Hujincan at 20201126 start
 obj-$(CONFIG_SAR_MODE_DETECT) += sar_mode_detect/

@@ -974,7 +974,9 @@
 #define ACCDET_EINT0_DEB_CLR		(0x0F)
 
 /* AUDENC_ANA_CON10: */
-#define RG_ACCDET_MODE_ANA11_MODE1	(0x0807)
+/*hs04 code for DEAL6398A-107 by hujincan at 2022/07/25 start*/
+#define RG_ACCDET_MODE_ANA11_MODE1	(0x1c07)
+/*hs04 code for DEAL6398A-107 by hujincan at 2022/07/25 end*/
 #define RG_ACCDET_MODE_ANA11_MODE2	(0x0887)
 #define RG_ACCDET_MODE_ANA11_MODE6	(0x0887)
 

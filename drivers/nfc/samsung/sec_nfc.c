@@ -6,13 +6,13 @@
  *         Heejae Kim <heejae12.kim@samsung.com>
  *
  * This program is free software; you can redistribute it and/or modify it
- * under  the terms of  the GNU General  Public License as published by the
+ * under the terms of the GNU General Public License as published by the
  * Free Software Foundation;  either version 2 of the License, or (at your
  * option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
@@ -23,6 +23,8 @@
 #define CONFIG_SEC_NFC_IF_I2C
 #endif
 
+#define CONFIG_SEC_NFC_WAKE_LOCK
+#define CONFIG_NFC_SHUTDOWN_WORKAROUND
 #include <linux/wait.h>
 #include <linux/delay.h>
 
@@ -41,7 +43,10 @@
 #ifdef CONFIG_SEC_NFC_GPIO_CLK
 #include <linux/interrupt.h>
 #endif
-
+#ifdef CONFIG_SEC_NFC_WAKE_LOCK
+/*#include <linux/wakelock.h>*/
+#include "wakelock.h"
+#endif
 #include <linux/of_gpio.h>
 #include <linux/clk.h>
 
@@ -60,7 +65,7 @@ struct sec_nfc_i2c_info {};
 #include <linux/sched.h>
 #include <linux/i2c.h>
 #include "sec_nfc.h"
-#include <linux/wakelock.h>
+
 #define SEC_NFC_GET_INFO(dev) i2c_get_clientdata(to_i2c_client(dev))
 enum sec_nfc_irq {
     SEC_NFC_SKIP = -1,
@@ -86,8 +91,10 @@ struct sec_nfc_info {
     struct device *dev;
     struct sec_nfc_platform_data *pdata;
     struct sec_nfc_i2c_info i2c_info;
+#ifdef CONFIG_SEC_NFC_WAKE_LOCK
     struct wake_lock nfc_wake_lock;
-#ifdef  CONFIG_SEC_NFC_GPIO_CLK
+#endif
+#ifdef CONFIG_SEC_NFC_GPIO_CLK
     bool clk_ctl;
     bool clk_state;
 #endif
@@ -95,6 +102,15 @@ struct sec_nfc_info {
     void __iomem *clkctrl;
 #endif
 };
+
+#ifdef CONFIG_SEC_ESE_COLDRESET
+struct mutex coldreset_mutex;
+struct mutex sleep_wake_mutex;
+bool sleep_wakeup_state[2];
+u8 disable_combo_reset_cmd[4] = {0x2F, 0x30, 0x01, 0x00};
+bool is_shutdown = false;
+enum sec_nfc_mode cur_mode;
+#endif
 
 #ifdef CONFIG_SEC_NFC_IF_I2C
 static irqreturn_t sec_nfc_irq_thread_fn(int irq, void *dev_id)
@@ -108,6 +124,7 @@ static irqreturn_t sec_nfc_irq_thread_fn(int irq, void *dev_id)
         dev_err(info->dev, "[NFC] Warning,irq-gpio state is low!\n");
         return IRQ_HANDLED;
     }
+
     mutex_lock(&info->i2c_info.read_mutex);
     /* Skip interrupt during power switching
      * It is released after first write */
@@ -121,24 +138,25 @@ static irqreturn_t sec_nfc_irq_thread_fn(int irq, void *dev_id)
     mutex_unlock(&info->i2c_info.read_mutex);
 
     wake_up_interruptible(&info->i2c_info.read_wait);
-    wake_lock_timeout(&info->nfc_wake_lock, 2*HZ);
+#ifdef CONFIG_SEC_NFC_WAKE_LOCK
+    wake_lock_timeout(&info->nfc_wake_lock, 2 * HZ);
+#endif
 
     return IRQ_HANDLED;
 }
 
 static ssize_t sec_nfc_read(struct file *file, char __user *buf,
-                size_t count, loff_t *ppos)
+                            size_t count, loff_t *ppos)
 {
     struct sec_nfc_info *info = container_of(file->private_data,
-                        struct sec_nfc_info, miscdev);
+                                                struct sec_nfc_info, miscdev);
     enum sec_nfc_irq irq;
     int ret = 0;
 
     dev_dbg(info->dev, "%s: info: %p, count: %zu\n", __func__,
-        info, count);
+            info, count);
 
     mutex_lock(&info->mutex);
-
     if (info->mode == SEC_NFC_MODE_OFF) {
         dev_err(info->dev, "sec_nfc is not enabled\n");
         ret = -ENODEV;
@@ -183,7 +201,7 @@ static ssize_t sec_nfc_read(struct file *file, char __user *buf,
         goto read_error;
     } else if (ret != count) {
         dev_err(info->dev, "read failed: return: %d count: %d\n",
-            ret, (u32)count);
+                ret, (u32)count);
         /* ret = -EREMOTEIO; */
         goto read_error;
     }
@@ -213,14 +231,14 @@ out:
 }
 
 static ssize_t sec_nfc_write(struct file *file, const char __user *buf,
-                size_t count, loff_t *ppos)
+                                size_t count, loff_t *ppos)
 {
     struct sec_nfc_info *info = container_of(file->private_data,
-                        struct sec_nfc_info, miscdev);
+                                                struct sec_nfc_info, miscdev);
     int ret = 0;
 
     dev_dbg(info->dev, "%s: info: %p, count %d\n", __func__,
-        info, (u32)count);
+            info, (u32)count);
 
     mutex_lock(&info->mutex);
 
@@ -276,7 +294,7 @@ out:
 static unsigned int sec_nfc_poll(struct file *file, poll_table *wait)
 {
     struct sec_nfc_info *info = container_of(file->private_data,
-                        struct sec_nfc_info, miscdev);
+                                                struct sec_nfc_info, miscdev);
     enum sec_nfc_irq irq;
 
     int ret = 0;
@@ -325,8 +343,7 @@ int sec_nfc_i2c_probe(struct i2c_client *client)
     info->i2c_info.buflen = SEC_NFC_MAX_BUFFER_SIZE;
     info->i2c_info.buf = kzalloc(SEC_NFC_MAX_BUFFER_SIZE, GFP_KERNEL);
     if (!info->i2c_info.buf) {
-        dev_err(dev,
-            "failed to allocate memory for sec_nfc_info->buf\n");
+        dev_err(dev, "failed to allocate memory for sec_nfc_info->buf\n");
         return -ENOMEM;
     }
     info->i2c_info.i2c_dev = client;
@@ -346,8 +363,8 @@ int sec_nfc_i2c_probe(struct i2c_client *client)
     pr_info("%s: push interrupt no = %d\n", __func__, client->irq);
 
     ret = request_threaded_irq(client->irq, NULL, sec_nfc_irq_thread_fn,
-            IRQF_TRIGGER_RISING | IRQF_ONESHOT, SEC_NFC_DRIVER_NAME,
-            info);
+                                IRQF_TRIGGER_RISING | IRQF_ONESHOT, SEC_NFC_DRIVER_NAME,
+                                info);
     if (ret < 0) {
         pr_err("failed to register IRQ handler\n");
         kfree(info->i2c_info.buf);
@@ -371,7 +388,7 @@ void sec_nfc_i2c_remove(struct device *dev)
 }
 #endif /* CONFIG_SEC_NFC_IF_I2C */
 
-#ifdef  CONFIG_SEC_NFC_GPIO_CLK
+#ifdef CONFIG_SEC_NFC_GPIO_CLK
 static irqreturn_t sec_nfc_clk_irq_thread(int irq, void *dev_id)
 {
     struct sec_nfc_info *info = dev_id;
@@ -407,13 +424,14 @@ void sec_nfc_clk_ctl_enable(struct sec_nfc_info *info)
 
     info->clk_state = false;
     ret = request_threaded_irq(irq, NULL, sec_nfc_clk_irq_thread,
-            IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
-            SEC_NFC_DRIVER_NAME, info);
-    if (ret < 0) {
+                                IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+                                SEC_NFC_DRIVER_NAME, info);
+    if (ret < 0)
         dev_err(info->dev, "failed to register CLK REQ IRQ handler\n");
-    }
+
     info->clk_ctl = true;
 }
+
 void sec_nfc_clk_ctl_disable(struct sec_nfc_info *info)
 {
     struct sec_nfc_platform_data *pdata = info->pdata;
@@ -439,10 +457,14 @@ void sec_nfc_clk_ctl_disable(struct sec_nfc_info *info)
 #endif /* CONFIG_SEC_NFC_GPIO_CLK */
 
 static void sec_nfc_set_mode(struct sec_nfc_info *info,
-                    enum sec_nfc_mode mode)
+                                enum sec_nfc_mode mode)
 {
     struct sec_nfc_platform_data *pdata = info->pdata;
-
+#ifdef CONFIG_SEC_ESE_COLDRESET
+    int alreadFirmHigh = 0;
+    int ret ;
+    enum sec_nfc_mode oldmode = info->mode;
+#endif
 #ifdef CONFIG_SEC_NFC_DEDICATED_CLK
     unsigned int val = readl(info->clkctrl);
 #endif
@@ -458,8 +480,41 @@ static void sec_nfc_set_mode(struct sec_nfc_info *info,
     /* Skip interrupt during power switching
      * It is released after first write */
     mutex_lock(&info->i2c_info.read_mutex);
+#ifdef CONFIG_SEC_ESE_COLDRESET
+    cur_mode = mode;
+    memset(sleep_wakeup_state, false, sizeof(sleep_wakeup_state));
+    if (oldmode == SEC_NFC_MODE_OFF) {
+        if (gpio_get_value(pdata->firm) == 1) {
+            alreadFirmHigh = 1;
+            pr_err("Firm is already high; do not anything");
+        } else { /*Firm pin is low*/
+            gpio_set_value(pdata->firm, SEC_NFC_FW_ON);
+            msleep(SEC_NFC_VEN_WAIT_TIME);
+        }
+
+        if (gpio_get_value(pdata->ven) == SEC_NFC_PW_ON) {
+            ret = i2c_master_send(info->i2c_info.i2c_dev, disable_combo_reset_cmd,
+                                    sizeof(disable_combo_reset_cmd)/sizeof(u8));
+            pr_err("disable combo_reset_command ret: %d", ret);
+        } else {
+            pr_err("skip disable combo_reset_command");
+        }
+
+        if (alreadFirmHigh == 1) {
+            pr_err("Firm is already high; do not anything2");
+        } else { /*Firm pin is low*/
+            mdelay(3); /*wait for FW*/
+            gpio_set_value(pdata->firm, SEC_NFC_FW_OFF);
+        }
+    }
+#endif
     info->i2c_info.read_irq = SEC_NFC_SKIP;
     mutex_unlock(&info->i2c_info.read_mutex);
+#endif
+
+#ifdef CONFIG_SEC_ESE_COLDRESET
+    mdelay(1); 
+    pr_err("FIRMWARE_GUARD_TIME(+1ms) in PW_OFF(total:4ms)\n");
 #endif
 
     gpio_set_value(pdata->ven, SEC_NFC_PW_OFF);
@@ -483,6 +538,20 @@ static void sec_nfc_set_mode(struct sec_nfc_info *info,
 #endif
         msleep(SEC_NFC_VEN_WAIT_TIME/2);
     } else {
+#ifdef CONFIG_SEC_ESE_COLDRESET
+        int PW_OFF_DURATION = 20;
+        struct timespec t0, t1;
+        getnstimeofday(&t0);
+        mdelay(PW_OFF_DURATION);
+
+        if (is_shutdown == false)
+            gpio_set_value(pdata->ven, SEC_NFC_PW_ON);
+
+        getnstimeofday(&t1);
+        pr_err("DeepStby: PW_OFF duration (%d)ms, real PW_OFF duration is (%ld-%ld)ms\n",
+                    PW_OFF_DURATION ,t0.tv_nsec*1000, t1.tv_nsec*1000);
+        pr_err("DeepStby: enter DeepStby(PW_ON)\n");
+#endif
         sec_nfc_clk_ctl_disable(info);
 #ifdef CONFIG_SEC_NFC_DEDICATED_CLK
         val &= ~0xC0000000;
@@ -493,17 +562,124 @@ static void sec_nfc_set_mode(struct sec_nfc_info *info,
 #endif
     }
 
+#ifdef CONFIG_SEC_NFC_WAKE_LOCK
     if (wake_lock_active(&info->nfc_wake_lock))
         wake_unlock(&info->nfc_wake_lock);
+#endif
 
     pr_info("%s NFC mode is : %d\n", __func__, mode);
 }
+
+#ifdef CONFIG_SEC_ESE_COLDRESET
+struct cold_reset_gpio {
+    int firm_gpio;
+    int coldreset_gpio;
+};
+
+struct cold_reset_gpio cold_reset_gpio_data;
+
+void init_coldreset_mutex(void)
+{
+    mutex_init(&coldreset_mutex);
+}
+
+void init_sleep_wake_mutex(void)
+{
+    mutex_init(&sleep_wake_mutex);
+}
+
+void check_and_sleep_nfc(unsigned int gpio, int value) {
+    if (sleep_wakeup_state[IDX_SLEEP_WAKEUP_NFC] == true ||
+            sleep_wakeup_state[IDX_SLEEP_WAKEUP_ESE] == true) {
+        pr_info("%s keep wake up state\n", __func__);
+        return;
+    }
+    gpio_set_value(gpio, value);
+}
+
+int trig_cold_reset_id(int id)
+{
+    int wakeup_delay = 20;
+    int duration = 18;
+    struct timespec t0, t1, t2;
+    int isFirmHigh = 0;
+
+    if (id == ESE_ID)
+        mutex_lock(&coldreset_mutex);
+
+    getnstimeofday(&t0);
+    if (gpio_get_value(cold_reset_gpio_data.firm_gpio) == 1) {
+        isFirmHigh = 1;
+    } else {
+        gpio_set_value(cold_reset_gpio_data.firm_gpio, SEC_NFC_FW_ON);
+        mdelay(wakeup_delay);
+    }
+
+    getnstimeofday(&t1);
+    gpio_set_value(cold_reset_gpio_data.coldreset_gpio, SEC_NFC_COLDRESET_ON);
+    mdelay(duration);
+    gpio_set_value(cold_reset_gpio_data.coldreset_gpio, SEC_NFC_COLDRESET_OFF);
+    getnstimeofday(&t2);
+
+    if (isFirmHigh == 1)
+        pr_err("COLDRESET: FW_PIN already high, do not FW_OFF\n");
+    else
+        gpio_set_value(cold_reset_gpio_data.firm_gpio, SEC_NFC_FW_OFF);
+
+    pr_err("COLDRESET: FW_ON time (%ld-%ld)\n", t0.tv_nsec*1000, t1.tv_nsec*1000); 
+    pr_err("COLDRESET: GPIO3 ON time (%ld-%ld)\n", t1.tv_nsec*1000, t2.tv_nsec*1000);
+
+    if (id == ESE_ID)
+        mutex_unlock(&coldreset_mutex);
+
+    pr_err("COLDRESET: exit");
+    return 0;
+}
+
+extern int trig_cold_reset(void) // Called from eSE driver
+{
+    pr_info("%s trig_cold_reset\n", __func__);
+    return trig_cold_reset_id(ESE_ID);
+}
+EXPORT_SYMBOL(trig_cold_reset);
+
+extern int trig_nfc_wakeup(void)
+{
+    pr_info("%s trig_nfc_wakeup\n", __func__);
+
+    if (cur_mode == SEC_NFC_MODE_OFF || cur_mode == SEC_NFC_MODE_BOOTLOADER) {
+        pr_err("nfc mode not support to wake up");
+        return -EPERM;;
+    }
+    mutex_lock(&sleep_wake_mutex);
+    gpio_set_value(cold_reset_gpio_data.firm_gpio, SEC_NFC_WAKE_UP);
+    sleep_wakeup_state[IDX_SLEEP_WAKEUP_ESE] = true;
+    mutex_unlock(&sleep_wake_mutex);
+    return 0;
+}
+EXPORT_SYMBOL(trig_nfc_wakeup);
+
+extern int trig_nfc_sleep(void)
+{
+    pr_info("%s trig_nfc_sleep\n", __func__);
+    if (cur_mode == SEC_NFC_MODE_OFF || cur_mode == SEC_NFC_MODE_BOOTLOADER) {
+        pr_err("nfc mode not support to sleep");
+        return -EPERM;;
+    }
+    mutex_lock(&sleep_wake_mutex);
+    sleep_wakeup_state[IDX_SLEEP_WAKEUP_ESE] = false;
+    check_and_sleep_nfc(cold_reset_gpio_data.firm_gpio, SEC_NFC_WAKE_SLEEP);
+    mutex_unlock(&sleep_wake_mutex);
+    return 0;
+}
+EXPORT_SYMBOL(trig_nfc_sleep);
+#endif
 
 static long sec_nfc_ioctl(struct file *file, unsigned int cmd,
                             unsigned long arg)
 {
     struct sec_nfc_info *info = container_of(file->private_data,
-                        struct sec_nfc_info, miscdev);
+                                                struct sec_nfc_info, miscdev);
     struct sec_nfc_platform_data *pdata = info->pdata;
     unsigned int new = (unsigned int)arg;
     int ret = 0;
@@ -512,6 +688,9 @@ static long sec_nfc_ioctl(struct file *file, unsigned int cmd,
             __func__, info, cmd);
 
     mutex_lock(&info->mutex);
+#ifdef CONFIG_SEC_ESE_COLDRESET
+    mutex_lock(&coldreset_mutex);
+#endif
 
     switch (cmd) {
     case SEC_NFC_SET_MODE:
@@ -524,7 +703,6 @@ static long sec_nfc_ioctl(struct file *file, unsigned int cmd,
             break;
         }
         sec_nfc_set_mode(info, new);
-
         break;
 
 #if defined(CONFIG_SEC_NFC_PRODUCT_N3)
@@ -535,49 +713,63 @@ static long sec_nfc_ioctl(struct file *file, unsigned int cmd,
 #elif defined(CONFIG_SEC_NFC_PRODUCT_N5) || defined(CONFIG_SEC_NFC_PRODUCT_N7)
     case SEC_NFC_SLEEP:
         if (info->mode != SEC_NFC_MODE_BOOTLOADER) {
+#ifdef CONFIG_SEC_NFC_WAKE_LOCK
             if (wake_lock_active(&info->nfc_wake_lock))
                 wake_unlock(&info->nfc_wake_lock);
+#endif
+#ifdef CONFIG_SEC_ESE_COLDRESET
+            mutex_lock(&sleep_wake_mutex);
+            sleep_wakeup_state[IDX_SLEEP_WAKEUP_NFC] = false;
+            check_and_sleep_nfc(pdata->wake, SEC_NFC_WAKE_SLEEP);
+            mutex_unlock(&sleep_wake_mutex);
+#else
             gpio_set_value(pdata->wake, SEC_NFC_WAKE_SLEEP);
+#endif
         }
         break;
 
     case SEC_NFC_WAKEUP:
         if (info->mode != SEC_NFC_MODE_BOOTLOADER) {
             gpio_set_value(pdata->wake, SEC_NFC_WAKE_UP);
+#ifdef CONFIG_SEC_ESE_COLDRESET
+            sleep_wakeup_state[IDX_SLEEP_WAKEUP_NFC] = true;
+#endif
+#ifdef CONFIG_SEC_NFC_WAKE_LOCK
             if (!wake_lock_active(&info->nfc_wake_lock))
                 wake_lock(&info->nfc_wake_lock);
+#endif
         }
         break;
 #endif
-
+#ifdef CONFIG_SEC_ESE_COLDRESET
+    case SEC_NFC_COLD_RESET:
+        trig_cold_reset_id(DEVICEHOST_ID);
+        break;
+    case SEC_NFC_SHUTDOWN:
+        is_shutdown = true;
+        break;
+#endif
     default:
         dev_err(info->dev, "Unknown ioctl 0x%x\n", cmd);
         ret = -ENOIOCTLCMD;
         break;
     }
 
+#ifdef CONFIG_SEC_ESE_COLDRESET
+    mutex_unlock(&coldreset_mutex);
+#endif
     mutex_unlock(&info->mutex);
 
     return ret;
 }
 
-/*HS03s code for SR-AL5625-01-462 by huanglei at 2021/5/7 start*/
-/*For 32+64 */
-static long sec_nfc_compat_ioctl(struct file *file, unsigned int cmd,
-                            unsigned long arg) {
-    long ret = 0;
-    ret = sec_nfc_ioctl(file, cmd, (unsigned long)compat_ptr(arg));
-    return ret;
-}
-/*HS03s code for SR-AL5625-01-462 by huanglei at 2021/5/7 end */
-
 static int sec_nfc_open(struct inode *inode, struct file *file)
 {
     struct sec_nfc_info *info = container_of(file->private_data,
-                        struct sec_nfc_info, miscdev);
+                                                struct sec_nfc_info, miscdev);
     int ret = 0;
 
-    pr_info("%s  info : %p\n", __func__, info);
+    pr_info("%s info : %p\n", __func__, info);
 
     mutex_lock(&info->mutex);
     if (info->mode != SEC_NFC_MODE_OFF) {
@@ -596,7 +788,7 @@ out:
 static int sec_nfc_close(struct inode *inode, struct file *file)
 {
     struct sec_nfc_info *info = container_of(file->private_data,
-                        struct sec_nfc_info, miscdev);
+                                                struct sec_nfc_info, miscdev);
 
     pr_info("%s: info : %p\n", __func__, info);
 
@@ -615,21 +807,34 @@ static const struct file_operations sec_nfc_fops = {
     .open       = sec_nfc_open,
     .release    = sec_nfc_close,
     .unlocked_ioctl = sec_nfc_ioctl,
-    /*HS03s code for SR-AL5625-01-462 by huanglei at 2021/5/7 start */
-    .compat_ioctl = sec_nfc_compat_ioctl,
-    /*HS03s code for SR-AL5625-01-462 by huanglei at 2021/5/7 end */
 };
 
 #ifdef CONFIG_PM
 static int sec_nfc_suspend(struct device *dev)
 {
     struct sec_nfc_info *info = SEC_NFC_GET_INFO(dev);
+    struct sec_nfc_platform_data *pdata = info->pdata;
     int ret = 0;
+    int value;
 
     mutex_lock(&info->mutex);
 
     if (info->mode == SEC_NFC_MODE_BOOTLOADER)
         ret = -EPERM;
+
+    value = gpio_get_value(pdata->wake);
+    if(value > 0){
+        pr_info("%s: hal is still active, block suspend.\n", __func__);
+        ret = -EPERM;
+    }
+
+#ifdef CONFIG_SEC_NFC_GPIO_CLK
+    value = gpio_get_value(pdata->clk_req);
+    if(value > 0){
+        pr_info("%s: clk req is still active, block suspend.\n", __func__);
+        ret = -EPERM;
+    }
+#endif
 
     mutex_unlock(&info->mutex);
 
@@ -647,7 +852,7 @@ static SIMPLE_DEV_PM_OPS(sec_nfc_pm_ops, sec_nfc_suspend, sec_nfc_resume);
 #ifdef CONFIG_OF
 /*device tree parsing*/
 static int sec_nfc_parse_dt(struct device *dev,
-    struct sec_nfc_platform_data *pdata)
+                            struct sec_nfc_platform_data *pdata)
 {
     struct device_node *np = dev->of_node;
 
@@ -656,6 +861,12 @@ static int sec_nfc_parse_dt(struct device *dev,
     pdata->wake = pdata->firm;
 #ifdef CONFIG_SEC_NFC_IF_I2C
     pdata->irq = of_get_named_gpio(np, "sec-nfc,irq-gpio", 0);
+#endif
+
+#ifdef CONFIG_SEC_ESE_COLDRESET
+    pdata->coldreset = of_get_named_gpio(np, "sec-nfc,coldreset-gpio",0);
+    cold_reset_gpio_data.firm_gpio = pdata->firm;
+    cold_reset_gpio_data.coldreset_gpio = pdata->coldreset;
 #endif
 
 #ifdef CONFIG_SEC_NFC_LDO_EN
@@ -679,29 +890,27 @@ static int sec_nfc_parse_dt(struct device *dev,
             __func__, pdata->irq, pdata->ven, pdata->firm);
     return 0;
 }
-
-#else
+#else /* CONFIG_OF */
 static int sec_nfc_parse_dt(struct device *dev,
-    struct sec_nfc_platform_data *pdata)
+                            struct sec_nfc_platform_data *pdata)
 {
     return -ENODEV;
 }
 #endif
 
-/*Hs03s code for SR-AL5625-01-462 NFC customize by huanglei at 2021/05/14 start */
-#define PCBA_INFO_STR_LEN 7
-static char PCBA_INFO_from_cmdline[PCBA_INFO_STR_LEN + 1];
+/*hs14 code for SR-AL5625-01-462 NFC customize by lijun at 2022/09/17 start */
+#define NFC_INFO_STR_LEN 7
 
-static int __init PCBA_INFO_setup(char *str)
+static char NFC_INFO_from_cmdline[NFC_INFO_STR_LEN + 1];
+static int __init NFC_INFO_setup(char *str)
 {
-    pr_info("%s: Begin read pcbainfo from cmdline \n", __func__);
-    strlcpy(PCBA_INFO_from_cmdline, str,
-                            PCBA_INFO_STR_LEN + 1);
-    pr_info("%s: PCBA_INFO_from_cmdline is %s\n", __func__, PCBA_INFO_from_cmdline);
+    pr_info("%s: Begin read nfcinfo from cmdline \n", __func__);
+    strlcpy(NFC_INFO_from_cmdline, str, NFC_INFO_STR_LEN + 1);
+    pr_info("%s: NFC_INFO_from_cmdline is %s\n", __func__, NFC_INFO_from_cmdline);
     return 1;
 }
 
-/*Hs03s code for SR-AL5625-01-462 NFC customize by huanglei at 2021/05/14 end */
+/*hs14 code for SR-AL5625-01-462 NFC customize by lijun at 2022/09/17 end */
 
 static int __sec_nfc_probe(struct device *dev)
 {
@@ -709,27 +918,38 @@ static int __sec_nfc_probe(struct device *dev)
     struct sec_nfc_platform_data *pdata = NULL;
     int ret = 0;
 
-/*Hs03s code for SR-AL5625-01-462 NFC customize by huanglei at 2021/05/14 start */
-    __setup("androidboot.pcbainfo=", PCBA_INFO_setup);
-    if (strncmp(PCBA_INFO_from_cmdline, "E_27AA_",
-                       strlen("E_27AA_"))) {
-        pr_info("%s: pcba is not EU ,we ignore it \n", __func__);
+/*hs14 code for SR-AL5625-01-462 NFC customize by lijun at 2022/09/17 start */
+#ifdef CONFIG_HQ_PROJECT_O22
+    __setup("androidboot.nfcinfo=", NFC_INFO_setup);
+    if (strncmp(NFC_INFO_from_cmdline, "NFC_SMD",
+                       strlen("NFC_SMD"))) {
+        pr_info("%s: NFCinfo this device do not support NFC ,we ignore it \n", __func__);
         return -ENOMEM;
                 }
-/*Hs03s code for SR-AL5625-01-462 NFC customize by huanglei at 2021/05/14 end */
+
+#else
+
+    __setup("androidboot.pcbainfo=", NFC_INFO_setup);
+    if (strncmp(NFC_INFO_from_cmdline, "E_27AA_",
+                       strlen("E_27AA_"))) {
+        pr_info("%s: PCBAinfo this device do not support NFC ,we ignore it \n", __func__);
+        return -ENOMEM;
+                }
+#endif
+/*hs14 code for SR-AL5625-01-462 NFC customize by lijun at 2022/09/17 end */
 
     pr_info("%s : start\n", __func__);
     if (dev->of_node) {
-        pdata = devm_kzalloc(dev,
-            sizeof(struct sec_nfc_platform_data), GFP_KERNEL);
+        pdata = devm_kzalloc(dev, sizeof(struct sec_nfc_platform_data), GFP_KERNEL);
         if (!pdata)
             return -ENOMEM;
 
         ret = sec_nfc_parse_dt(dev, pdata);
         if (ret)
             return ret;
-    } else
+    } else {
         pdata = dev->platform_data;
+    }
 
     if (!pdata) {
         dev_err(dev, "No platform data\n");
@@ -807,13 +1027,30 @@ static int __sec_nfc_probe(struct device *dev)
         }
         gpio_direction_output(pdata->firm, SEC_NFC_FW_OFF);
     }
-
+#ifdef CONFIG_SEC_ESE_COLDRESET
+    init_coldreset_mutex();
+    init_sleep_wake_mutex();
+    memset(sleep_wakeup_state, false, sizeof(sleep_wakeup_state));
+    ret = gpio_request(pdata->coldreset, "nfc_coldreset");
+    if (ret) {
+        dev_err(dev, "failed to get gpio coldreset(NFC-GPIO3)\n");
+        goto err_gpio_coldreset;
+    }
+    gpio_direction_output(pdata->coldreset, SEC_NFC_COLDRESET_OFF);
+#endif
+#ifdef CONFIG_SEC_NFC_WAKE_LOCK
+    info->nfc_wake_lock.dev = dev;
     wake_lock_init(&info->nfc_wake_lock, WAKE_LOCK_SUSPEND, "nfc_wake_lock");
+#endif
 
     dev_info(dev, "%s: success info: %p, pdata %p\n", __func__, info, pdata);
 
     return 0;
 
+#ifdef CONFIG_SEC_ESE_COLDRESET
+err_gpio_coldreset:
+    gpio_free(pdata->coldreset);
+#endif
 err_gpio_firm:
     gpio_free(pdata->ven);
 err_gpio_ven:
@@ -852,7 +1089,9 @@ static int __sec_nfc_remove(struct device *dev)
     if (pdata->firm)
         gpio_free(pdata->firm);
 
+#ifdef CONFIG_SEC_NFC_WAKE_LOCK
     wake_lock_destroy(&info->nfc_wake_lock);
+#endif
 
     kfree(info);
 
@@ -860,13 +1099,17 @@ static int __sec_nfc_remove(struct device *dev)
 }
 
 #ifdef CONFIG_SEC_NFC_IF_I2C
+static struct i2c_device_id sec_nfc_id_table[] = {
+    { SEC_NFC_DRIVER_NAME, 0 },
+    { }
+};
 MODULE_DEVICE_TABLE(i2c, sec_nfc_id_table);
 typedef struct i2c_driver sec_nfc_driver_type;
 #define SEC_NFC_INIT(driver)    i2c_add_driver(driver)
 #define SEC_NFC_EXIT(driver)    i2c_del_driver(driver)
 
 static int sec_nfc_probe(struct i2c_client *client,
-        const struct i2c_device_id *id)
+                            const struct i2c_device_id *id)
 {
     int ret = 0;
 
@@ -885,13 +1128,7 @@ static int sec_nfc_remove(struct i2c_client *client)
     sec_nfc_i2c_remove(&client->dev);
     return __sec_nfc_remove(&client->dev);
 }
-
-static struct i2c_device_id sec_nfc_id_table[] = {
-    { SEC_NFC_DRIVER_NAME, 0 },
-    { }
-};
-
-#else   /* CONFIG_SEC_NFC_IF_I2C */
+#else /* CONFIG_SEC_NFC_IF_I2C */
 MODULE_DEVICE_TABLE(platform, sec_nfc_id_table);
 typedef struct platform_driver sec_nfc_driver_type;
 #define SEC_NFC_INIT(driver)    platform_driver_register(driver);
@@ -911,7 +1148,6 @@ static struct platform_device_id sec_nfc_id_table[] = {
     { SEC_NFC_DRIVER_NAME, 0 },
     { }
 };
-
 #endif /* CONFIG_SEC_NFC_IF_I2C */
 
 #ifdef CONFIG_OF
@@ -919,24 +1155,27 @@ static const struct of_device_id nfc_match_table[] = {
     { .compatible = SEC_NFC_DRIVER_NAME,},
     {},
 };
-#else
+#else /* CONFIG_OF */
 #define nfc_match_table NULL
 #endif
-
+#ifdef CONFIG_NFC_SHUTDOWN_WORKAROUND
 static void sec_nfc_shutdown(struct i2c_client *client)
 {
     struct sec_nfc_info *info = dev_get_drvdata(&client->dev);
 
-    dev_err(info->dev, "%s\n", __func__);
+    pr_info("%s : start\n", __func__);
 
     sec_nfc_set_mode(info, SEC_NFC_MODE_FIRMWARE);
 }
+#endif
 
 static struct i2c_driver sec_nfc_driver = {
     .probe = sec_nfc_probe,
     .id_table = sec_nfc_id_table,
     .remove = sec_nfc_remove,
+#ifdef CONFIG_NFC_SHUTDOWN_WORKAROUND
     .shutdown = sec_nfc_shutdown,
+#endif
     .driver = {
         .name = SEC_NFC_DRIVER_NAME,
 #ifdef CONFIG_PM
@@ -946,15 +1185,17 @@ static struct i2c_driver sec_nfc_driver = {
     },
 };
 
+#if 0
 static int __init is_poweroff_charging_mode(char *str)
 {
     if (strncmp("charger", str, 7) == 0)
         is_charging_mode = true;
-    else {
+    else
         is_charging_mode = false;
-    }
+
     return 0;
 } early_param("androidboot.mode", is_poweroff_charging_mode);
+#endif
 
 static int __init sec_nfc_init(void)
 {

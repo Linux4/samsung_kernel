@@ -114,7 +114,7 @@ extern bool in_uart_mode;
 #define OFFSET_RG_USB20_PHY_REV6 0x18
 #define SHFT_RG_USB20_PHY_REV6 30
 /*HS03s for DEVAL5625-8 by wangzikang at 20210615 start*/
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 #define U2_VRT_REF 0x7
 #define U2_TERM_REF 0x7
 #define U2_HSTX_SRCTRL 0x7
@@ -123,20 +123,33 @@ extern bool in_uart_mode;
 #define HOST_U2_TERM_REF 0x7
 #define HOST_U2_HSTX_SRCTRL 0x7
 #define HOST_U2_ENHANCE 0x3
-#else /*ELSE CONFIG_HS03S_SUPPORT*/
-/*HS03s for DEVAL5625-8 by wangzikang at 20210615 end*/
-/*HS03s for DEVAL5625-8 by wenyaqi at 20210425 start*/
+#endif /*ELSE CONFIG_HQ_PROJECT_HS03S*/
+#ifdef CONFIG_HQ_PROJECT_HS04
 #define U2_VRT_REF 0x7
 #define U2_TERM_REF 0x7
 #define U2_HSTX_SRCTRL 0x7
-#define U2_ENHANCE 0x1
+#define U2_ENHANCE 0x3
+#define HOST_U2_VRT_REF 0x7
+#define HOST_U2_TERM_REF 0x7
+#define HOST_U2_HSTX_SRCTRL 0x7
+#define HOST_U2_ENHANCE 0x3
+#endif /*ELSE CONFIG_HQ_PROJECT_HS04*/
+#ifdef CONFIG_HQ_PROJECT_OT8
+/*HS03s for DEVAL5625-8 by wangzikang at 20210615 end*/
+/*HS03s for DEVAL5625-8 by wenyaqi at 20210425 start*/
+/* Tab A7 lite_T for AX3565TDEV-739 by duanweiping at 20221029 start */
+#define U2_VRT_REF 0x7
+#define U2_TERM_REF 0x5
+#define U2_HSTX_SRCTRL 0x7
+#define U2_ENHANCE 0x3
 #define HOST_U2_VRT_REF 0x4
 #define HOST_U2_TERM_REF 0x4
 #define HOST_U2_HSTX_SRCTRL 0x5
 #define HOST_U2_ENHANCE 0x1
+/* Tab A7 lite_T for AX3565TDEV-739 by duanweiping at 20221029 start */
 /*HS03s for DEVAL5625-8 by wenyaqi at 20210425 end*/
 /*HS03s for DEVAL5625-8 by wangzikang at 20210615 start*/
-#endif /*END CONFIG_HS03S_SUPPORT*/
+#endif /*END CONFIG_HQ_PROJECT_OT8*/
 /*HS03s for DEVAL5625-8 by wangzikang at 20210615 end*/
 extern int usb20_phy_init_debugfs(void);
 #define PHY_IDLE_MODE       0

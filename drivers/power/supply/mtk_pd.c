@@ -608,9 +608,13 @@ int __mtk_pdc_get_setting(struct chg_alg_device *alg, int *newvbus, int *newcur,
 	if ((now_max_watt >= pd_max_watt) || chg1_mivr || chg2_mivr) {
 		*newidx = pd->pd_boost_idx;
 		boost = true;
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 	} else if (now_max_watt <= pd_min_watt) {
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+	} else if (now_max_watt <= pd_min_watt) {
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
 	} else if (now_max_watt <= pd_min_watt || ibus > 1800) {
 #endif
 		*newidx = pd->pd_buck_idx;

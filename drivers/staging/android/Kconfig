@@ -43,12 +43,6 @@ config ANDROID_INTF_ALARM_DEV
 	  Espically for wake up alarm ioctl.
 	  Also exports the alarm interface to user-space.
 
-config SAMSUNG_LMKD_DEBUG
-	bool "record lmkd kill history"
-	default y
-	help
-	  record lmkd kill history
-
 ############################################################################
 menuconfig ION
 	bool "Ion Memory Manager"
@@ -104,6 +98,12 @@ config MTK_ION_DEBUG
 	  the information only support ion system heap. It can
 	  show the buffer of total size about ion system heap,
 	  and show the number of the dma_map_attachment.
+
+config SAMSUNG_LMKD_DEBUG
+	bool "record lmkd kill history"
+	default y
+	help
+	  record lmkd kill history
 
 config MTK_ION_SEC_HEAP
 	bool "Ion mtk secure heap support"

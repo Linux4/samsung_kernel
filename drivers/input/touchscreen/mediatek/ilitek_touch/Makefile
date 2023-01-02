@@ -30,12 +30,6 @@ interface=ilitek_v3_spi
 fwupdate=ilitek_v3_hostdl
 endif
 
-ifeq ($(CONFIG_HQ_PROJECT_OT8),y)
-EXTRA_CFLAGS += -DHQ_PROJECT_OT8
-endif
-
-$(warning HQ_PROJECT_OT8=$(CONFIG_HQ_PROJECT_OT8))
-
 ifeq ($(BUILD_MODULE),n)
 obj-y += ilitek_v3.o \
 	$(interface).o \

@@ -2,6 +2,7 @@
 /*
  * Copyright (c) 2020 MediaTek Inc.
  */
+#ifdef JPEG_ENC_DRIVER
 #include <linux/kernel.h>
 /* #include <linux/xlog.h> */
 
@@ -198,7 +199,7 @@ unsigned int jpeg_drv_enc_set_src_buf(struct ion_client *pIonClient,
 			return 0;
 
 		jpeg_ion_free_handle(pIonClient, handle);
-		srcAddr_C = srcAddr + mem_stride*mem_height;
+		srcAddr_C = (dma_addr_t)mem_stride*mem_height + srcAddr;
 		JPEG_MSG("srcAddr 0x%p srcAddr_C 0x%p line %d\n", srcAddr, srcAddr_C, __LINE__);
 	} else {
 		handle = jpeg_ion_import_handle(pIonClient, srcFd);
@@ -639,4 +640,5 @@ unsigned int jpeg_drv_enc_get_result(unsigned int *fileSize)
 	return 3;
 }
 
+#endif
 #endif

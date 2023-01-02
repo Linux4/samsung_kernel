@@ -38,8 +38,10 @@
 #include <linux/workqueue.h>
 #include <linux/rwsem.h>
 
-#if IS_ENABLED(CONFIG_MTK_LCM)
+#if IS_ENABLED(CONFIG_MTK_FB_SUPPORT_ASSERTION_LAYER) || IS_ENABLED(CONFIG_MTK_LCM)
 #include <disp_assert_layer.h>
+#elif IS_ENABLED(CONFIG_DRM_MEDIATEK)
+#include <mtk_drm_assert_ext.h>
 #endif
 #include <mt-plat/aee.h>
 
@@ -73,6 +75,7 @@ static struct proc_dir_entry *aed_proc_dir;
 
 static DECLARE_RWSEM(ee_rw_ops_sem);
 static DECLARE_RWSEM(ke_rw_ops_sem);
+#define MAX_PROCTITLE_AUDIT_LEN 128
 
 #define MaxStackSize 8100
 #define MaxMapsSize 65536
@@ -987,11 +990,83 @@ static void ee_worker(struct work_struct *work)
 }
 
 /******************************************************************************
+ * aee_get_cmdline is a copy of get_cmdline in mm/util.c, please pay attension to
+ *whether this function has changed when the kernel version is upgraded.
+ *****************************************************************************/
+static int aee_get_cmdline(struct task_struct *task, char *buffer, int buflen)
+{
+	int res = 0;
+	unsigned int len;
+	struct mm_struct *mm = get_task_mm(task);
+	unsigned long arg_start, arg_end, env_start, env_end;
+
+	if (!mm)
+		goto out;
+	if (!mm->arg_end)
+		goto out_mm;	/* Shh! No looking before we're done */
+
+	spin_lock(&mm->arg_lock);
+	arg_start = mm->arg_start;
+	arg_end = mm->arg_end;
+	env_start = mm->env_start;
+	env_end = mm->env_end;
+	spin_unlock(&mm->arg_lock);
+
+	len = arg_end - arg_start;
+
+	if (len > buflen)
+		len = buflen;
+
+	res = access_process_vm(task, arg_start, buffer, len, FOLL_FORCE);
+
+	/*
+	 * If the nul at the end of args has been overwritten, then
+	 * assume application is using setproctitle(3).
+	 */
+	if (res > 0 && buffer[res-1] != '\0' && len < buflen) {
+		len = strnlen(buffer, res);
+		if (len < res) {
+			res = len;
+		} else {
+			len = env_end - env_start;
+			if (len > buflen - res)
+				len = buflen - res;
+			res += access_process_vm(task, env_start,
+						 buffer+res, len,
+						 FOLL_FORCE);
+			res = strnlen(buffer, res);
+		}
+	}
+out_mm:
+	mmput(mm);
+out:
+	return res;
+}
+
+static int compare_cmdline(void)
+{
+	int len = 0;
+	char buf[MAX_PROCTITLE_AUDIT_LEN] = {0};
+
+	len = aee_get_cmdline(current, buf, MAX_PROCTITLE_AUDIT_LEN);
+	if (len == 0)
+		return -1;
+
+	if (strncmp(buf, "/system_ext/bin/aee_aed", 23) &&
+		strncmp(buf, "/system/system_ext/bin/aee_aed", 30) &&
+		strncmp(buf,  "/vendor/bin/aee_aed", 19)) {
+		pr_debug("%s:open failed!\n", __func__);
+		return -1;
+	}
+	return 0;
+}
+
+/******************************************************************************
  * AED EE File operations
  *****************************************************************************/
 static int aed_ee_open(struct inode *inode, struct file *filp)
 {
-	if (strncmp(current->comm, "aee_aed", 7))
+	if (compare_cmdline() != 0)
 		return -1;
 	pr_debug("%s:%d:%d\n", __func__, MAJOR(inode->i_rdev),
 						MINOR(inode->i_rdev));
@@ -1131,7 +1206,7 @@ static int aed_ke_open(struct inode *inode, struct file *filp)
 	int minor;
 	unsigned char *devname;
 
-	if (strncmp(current->comm, "aee_aed", 7))
+	if (compare_cmdline() != 0)
 		return -1;
 
 	major = MAJOR(inode->i_rdev);
@@ -1360,6 +1435,8 @@ static ssize_t aed_ke_write(struct file *filp, const char __user *buf,
 	return count;
 }
 
+
+#if IS_ENABLED(CONFIG_MTK_AEE_UT)
 void Maps2Buffer(unsigned char *Userthread_maps, int *Userthread_mapsLength,
 	const char *fmt, ...)
 {
@@ -1552,6 +1629,7 @@ done:
 			pgoff, MAJOR(dev), MINOR(dev), ino, name);
 	}
 }
+#endif
 
 /*
  * aed process daemon and other command line may access me
@@ -1565,9 +1643,11 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	int aee_force_exp_tmp = 0;
 	struct aee_dal_show *dal_show;
 	struct aee_dal_setcolor dal_setcolor;
-	struct aee_thread_reg *tmp;
 	int pid;
 	struct aee_siginfo aee_si;
+#if IS_ENABLED(CONFIG_MTK_AEE_UT)
+	struct aee_thread_reg *tmp;
+#endif
 
 	if (!arg && (cmd != AEEIOCTL_DAL_CLEAN)) {
 		pr_info("ERR: %s arg=NULL\n", __func__);
@@ -1643,7 +1723,8 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		/* Try to prevent overrun */
 		dal_show->msg[sizeof(dal_show->msg) - 1] = 0;
-#if IS_ENABLED(CONFIG_MTK_LCM)
+#if IS_ENABLED(CONFIG_MTK_FB_SUPPORT_ASSERTION_LAYER) || IS_ENABLED(CONFIG_DRM_MEDIATEK) \
+		|| IS_ENABLED(CONFIG_MTK_LCM)
 		pr_debug("AEE CALL DAL_Printf now\n");
 		DAL_Printf("%s", dal_show->msg);
 #endif
@@ -1659,7 +1740,8 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		dal_setcolor.foreground = 0x00ff00;	/*green */
 		dal_setcolor.background = 0xff0000;	/*red */
 
-#if IS_ENABLED(CONFIG_MTK_LCM)
+#if IS_ENABLED(CONFIG_MTK_FB_SUPPORT_ASSERTION_LAYER) || IS_ENABLED(CONFIG_DRM_MEDIATEK) \
+		|| IS_ENABLED(CONFIG_MTK_LCM)
 		pr_debug("AEE CALL DAL_SetColor now\n");
 		DAL_SetColor(dal_setcolor.foreground,
 				dal_setcolor.background);
@@ -1680,7 +1762,8 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			ret = -EFAULT;
 			goto EXIT;
 		}
-#if IS_ENABLED(CONFIG_MTK_LCM)
+#if IS_ENABLED(CONFIG_MTK_FB_SUPPORT_ASSERTION_LAYER) || IS_ENABLED(CONFIG_DRM_MEDIATEK) \
+		|| IS_ENABLED(CONFIG_MTK_LCM)
 		pr_debug("AEE CALL DAL_SetColor now\n");
 		DAL_SetColor(dal_setcolor.foreground,
 				dal_setcolor.background);
@@ -1688,6 +1771,8 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		DAL_SetScreenColor(dal_setcolor.screencolor);
 #endif
 		break;
+
+#if IS_ENABLED(CONFIG_MTK_AEE_UT)
 	case AEEIOCTL_GET_THREAD_REG:
 		pr_debug("%s: get thread registers ioctl\n", __func__);
 
@@ -1722,16 +1807,28 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				goto EXIT;
 			}
 
+			get_task_struct(task);
+			rcu_read_unlock();
+
+			if (!try_get_task_stack(task)) {
+				ret = -EINVAL;
+				put_task_struct(task);
+				goto EXIT;
+			}
+
 			user_ret = task_pt_regs(task);
 			memcpy(&(tmp->regs), user_ret,
 					sizeof(struct pt_regs));
-			rcu_read_unlock();
 			if (copy_to_user((struct aee_thread_reg __user *)arg,
 					tmp, sizeof(struct aee_thread_reg))) {
 				kfree(tmp);
 				ret = -EFAULT;
+				put_task_stack(task);
+				put_task_struct(task);
 				goto EXIT;
 			}
+			put_task_stack(task);
+			put_task_struct(task);
 
 		} else {
 			pr_info("%s: get thread registers ioctl tid invalid\n",
@@ -1753,6 +1850,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		unsigned long end = 0, length = 0;
 		unsigned char *stack;
 		int copied;
+		struct mm_struct *raw_mm;
 
 		pr_info("Get direct unwind backtrace stack");
 
@@ -1773,11 +1871,25 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			ret = -EFAULT;
 			goto EXIT;
 		}
+		get_task_struct(task);
 		rcu_read_unlock();
+		if (!try_get_task_stack(task)) {
+			ret = -EINVAL;
+			put_task_struct(task);
+			goto EXIT;
+		}
+
+		raw_mm = get_task_mm(task);
+		if (!raw_mm) {
+			ret = -EINVAL;
+			put_task_stack(task);
+			put_task_struct(task);
+			goto EXIT;
+		}
 
 		start = stack_raw.sp;
-		down_read(&task->mm->mmap_sem);
-		vma = task->mm->mmap;
+		down_read(&raw_mm->mmap_sem);
+		vma = raw_mm->mmap;
 		while (vma) {
 			if (vma->vm_start <= start &&
 				vma->vm_end >= start) {
@@ -1785,14 +1897,17 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				break;
 			}
 			vma = vma->vm_next;
-			if (vma == task->mm->mmap)
+			if (vma == raw_mm->mmap)
 				break;
 		}
-		up_read(&task->mm->mmap_sem);
+		up_read(&raw_mm->mmap_sem);
+		mmput(raw_mm);
 
 		if (end == 0) {
 			pr_info("Dump native stack failed:\n");
 			ret = -EFAULT;
+			put_task_stack(task);
+			put_task_struct(task);
 			goto EXIT;
 		}
 
@@ -1803,11 +1918,15 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		stack = vmalloc(MaxStackSize);
 		if (!stack) {
 			ret = -ENOMEM;
+			put_task_stack(task);
+			put_task_struct(task);
 			goto EXIT;
 		}
 
 		copied = access_process_vm(task, start, stack,
 				length, 0);
+		put_task_stack(task);
+		put_task_struct(task);
 		if (copied != length) {
 			pr_info("Access stack error");
 			vfree(stack);
@@ -2021,7 +2140,11 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				"AEEIOCTL_USER_IOCTL_TO_KERNEL_WANING",
 				"Trigger Kernel warning");
 		break;
+#endif
+
 	case AEEIOCTL_CHECK_SUID_DUMPABLE:
+	{
+		struct mm_struct *t_mm;
 		pr_debug("%s: check suid dumpable ioctl\n", __func__);
 
 		if (copy_from_user(&pid, (void __user *)arg, sizeof(int))) {
@@ -2045,18 +2168,26 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				ret = -EINVAL;
 				goto EXIT;
 			}
+			get_task_struct(task);
+			rcu_read_unlock();
 
-			task_lock(task);
-			if (!task->mm) {
+			if (!try_get_task_stack(task)) {
+				ret = -EINVAL;
+				put_task_struct(task);
+				goto EXIT;
+			}
+
+			t_mm = get_task_mm(task);
+			if (!t_mm) {
 				pr_info("%s: process:%d task mm null\n",
 					__func__, pid);
-				task_unlock(task);
-				rcu_read_unlock();
+				put_task_stack(task);
+				put_task_struct(task);
 				ret = -EINVAL;
 				goto EXIT;
 			}
 
-			dumpable = get_dumpable(task->mm);
+			dumpable = get_dumpable(t_mm);
 			if (!dumpable) {
 				pr_info("%s: %d no need set dumpable\n",
 					__func__, pid);
@@ -2064,8 +2195,9 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				pr_info("%s: get process:%d dumpable:%d\n",
 					__func__, pid, dumpable);
 			}
-			task_unlock(task);
-			rcu_read_unlock();
+			mmput(t_mm);
+			put_task_stack(task);
+			put_task_struct(task);
 		} else {
 			pr_info("%s: check suid dumpable ioctl pid invalid\n",
 				__func__);
@@ -2073,6 +2205,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 
 		break;
+	}
 	case AEEIOCTL_SET_FORECE_RED_SCREEN:
 		if (copy_from_user(
 				&force_red_screen, (void __user *)arg,
@@ -2106,7 +2239,14 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				ret = -EINVAL;
 				goto EXIT;
 			}
+			get_task_struct(task);
 			rcu_read_unlock();
+			if (!try_get_task_stack(task)) {
+				ret = -EINVAL;
+				put_task_struct(task);
+				goto EXIT;
+			}
+
 
 			psi = task->last_siginfo;
 			if (psi) {
@@ -2118,9 +2258,13 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 						(struct aee_siginfo __user *)arg
 						, &aee_si, sizeof(aee_si))) {
 					ret = -EFAULT;
+					put_task_stack(task);
+					put_task_struct(task);
 					goto EXIT;
 				}
 			}
+			put_task_stack(task);
+			put_task_struct(task);
 		} else {
 			pr_info("%s: get aee_siginfo ioctl tid invalid\n",
 				__func__);

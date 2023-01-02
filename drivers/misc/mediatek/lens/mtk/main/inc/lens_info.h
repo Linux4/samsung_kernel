@@ -37,6 +37,23 @@
 /* A03s code for CAM-AL5625-01-247 by xuxianwei at 2021/05/18 end */
 #endif
 /* A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 end */
+
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 start*/
+#ifdef CONFIG_HQ_PROJECT_HS04
+    #define AFDRV_O2101_GT9772AF "O2101_GT9772AF"
+    #define AFDRV_O2102_GT9769AF "O2102_GT9769AF"
+    #define AFDRV_O2103_PE916AF  "O2103_PE916AF"
+    #define AFDRV_O2104_GT9769AF "O2104_GT9769AF"
+#endif
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
+/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by lisizhou at 2022/9/23 start*/
+#define AFDRV_A1401AW8601WAF "A1401AW8601WAF"
+#define AFDRV_A1402DW9767AF "A1402DW9767AF"
+#define AFDRV_A1403GT9778AF "A1403GT9778AF"
+/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by lisizhou at 2022/9/23 end*/
+/* hs04 code for SR-AL6398A-01-16 by liluling at 2022/07/05 end */
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
+
 /* AFDRV_XXXX be the same as AF_DRVNAME in (*af).c */
 #define AFDRV_AD5820AF "AD5820AF"
 #define AFDRV_AD5823 "AD5823"
@@ -81,13 +98,15 @@
 #define AFDRV_OV8825AF "OV8825AF"
 #define AFDRV_WV511AAF "WV511AAF"
 #define AFDRV_DW9718TAF "DW9718TAF"
+
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 start*/
+#ifdef CONFIG_HQ_PROJECT_OT8
 /*gaozhenyu add for af start*/
 #define AFDRV_GT9769AF "GT9769AF"
 /*gaozhenyu add for af end*/
 /*TabA7 Lite code for SR-AX3565-01-320 by liuchengfei at 20201127 start*/
 #define AFDRV_GT9772AFHLT "GT9772AFHLT"
 /*TabA7 Lite code for SR-AX3565-01-320 by liuchengfei at 20201127 end*/
-#define CONVERT_CCU_TIMESTAMP 0x1000
 /* TabA7 Lite  code for SR-AX3565-01-320 by lisizhou at 20201129 start */
 #define AFDRV_VA26X802AF "VA26X802AF"
 /* TabA7 Lite  code for SR-AX3565-01-320 by lisizhou at 20201129 end */
@@ -97,6 +116,10 @@
 /* TabA7 Lite code for SR-AX3565-01-906  by chenjun at 2022/02/19 start */
 #define AFDRV_FP5510MAIN6AF "FP5510MAIN6AF"
 /* TabA7 Lite code for SR-AX3565-01-906  by chenjun at 2022/02/19 end */
+#endif
+#define CONVERT_CCU_TIMESTAMP 0x1000
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
+
 /* Structures */
 struct stAF_MotorInfo {
 	/* current position */

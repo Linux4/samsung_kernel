@@ -1,0 +1,29 @@
+#
+# Input misc drivers configuration
+#
+menuconfig INPUT_MISC
+    bool "Miscellaneous devices"
+    help
+      Say Y here, and a list of miscellaneous input drivers will be displayed.
+      Everything that didn't fit into the other categories is here. This option
+      doesn't affect the kernel.
+
+      If unsure, say Y.
+
+config SENSORS
+    bool "Sensors Class Support"
+    help
+      This option enables the sensor sysfs class in /sys/class/sensors.
+      You'll need this to do anything useful with sensorss. If unsure, say N.
+
+if INPUT_MISC
+
+config INPUT_SX933x
+    tristate "SX933x_SAR_sensor"
+    depends on I2C
+    default n
+    help
+      Say Y to enable the SAR detection application, if N here not to use the
+      this SAR sensor
+
+endif

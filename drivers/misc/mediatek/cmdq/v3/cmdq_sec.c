@@ -1847,7 +1847,7 @@ static s32 cmdq_sec_insert_handle_from_thread_array_by_cookie(
 	struct cmdq_task *task, struct cmdq_sec_thread *thread,
 	const s32 cookie, const bool reset_thread)
 {
-	s32 err = 0, max_task = 0;
+	s32 max_task = 0;
 
 	if (!task || !thread) {
 		CMDQ_ERR(
@@ -1892,7 +1892,7 @@ static s32 cmdq_sec_insert_handle_from_thread_array_by_cookie(
 		CMDQ_ERR("task_cnt:%u cannot more than %u task:%p thrd-idx:%u",
 			task->thread->task_cnt, max_task,
 			task, task->thread->idx);
-		err = -EMSGSIZE;
+		return -EMSGSIZE;
 	}
 
 	thread->task_list[cookie % cmdq_max_task_in_secure_thread[
@@ -1905,7 +1905,7 @@ static s32 cmdq_sec_insert_handle_from_thread_array_by_cookie(
 		cookie % cmdq_max_task_in_secure_thread[
 		thread->idx - CMDQ_MIN_SECURE_THREAD_ID]);
 
-	return err;
+	return 0;
 }
 
 static void cmdq_sec_exec_task_async_impl(struct work_struct *work_item)
@@ -1985,6 +1985,8 @@ static void cmdq_sec_exec_task_async_impl(struct work_struct *work_item)
 			spin_unlock_irqrestore(&task->thread->chan->lock, flags);
 
 			cmdq_sec_release_task(task);
+			status = err;
+			break;
 		}
 
 		handle->state = TASK_STATE_BUSY;
@@ -2491,6 +2493,7 @@ static __init int cmdq_init(void)
 
 	return 0;
 }
+
 arch_initcall(cmdq_init);
 
 static s32 __init cmdq_late_init(void)
@@ -2516,7 +2519,7 @@ static s32 __init cmdq_late_init(void)
 		sizeof(struct iwcCmdqMessageEx2_t), GFP_KERNEL);
 	if (!handle->mtee_iwcMessageEx2)
 		return -ENOMEM;
-	CMDQ_LOG("iwc:%p(%#lx) ex:%p(%#lx) ex2:%p(%#lx)\n",
+	CMDQ_LOG("iwc:%p(%#x) ex:%p(%#x) ex2:%p(%#x)\n",
 		handle->mtee_iwcMessage, sizeof(struct iwcCmdqMessage_t),
 		handle->mtee_iwcMessageEx, sizeof(struct iwcCmdqMessageEx_t),
 		handle->mtee_iwcMessageEx2, sizeof(struct iwcCmdqMessageEx2_t));

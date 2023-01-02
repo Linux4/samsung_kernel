@@ -123,6 +123,7 @@ struct xhci_hcd_mtk {
 	struct phy **phys;
 	int num_phys;
 	bool lpm_support;
+	bool u2_lpm_disable;
 	/* usb remote wakeup */
 	bool uwk_en;
 	struct regmap *uwk;
@@ -156,5 +157,9 @@ static inline void xhci_mtk_drop_ep_quirk(struct usb_hcd *hcd,
 }
 
 #endif
-
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+extern void xhci_link_segments(struct xhci_hcd *xhci,
+		struct xhci_segment *prev,
+		struct xhci_segment *next, enum xhci_ring_type type);
+#endif
 #endif		/* _XHCI_MTK_H_ */

@@ -10,12 +10,21 @@
 #include <linux/dmapool.h>
 #include <linux/atomic.h>
 #include "mt-plat/mtk_ccci_common.h"
+#include "ccci_config.h"
 #include "ccci_ringbuf.h"
 #include "ccci_core.h"
 #include "ccci_modem.h"
 #include "ccci_hif_internal.h"
 
+#if (MD_GENERATION >= 6295)
 #define QUEUE_NUM   16
+#else
+#define QUEUE_NUM   8
+#endif
+
+/* speciall for user: ccci_fsd data[0] */
+#define CCCI_FS_AP_CCCI_WAKEUP (0x40000000)
+#define CCCI_FS_REQ_SEND_AGAIN 0x80000000
 
 /*#define FLOW_CTRL_ENABLE*/
 #define FLOW_CTRL_HEAD		0x464C4F57	/*FLOW*/
@@ -26,6 +35,10 @@
 
 #define RX_BUGDET 16
 #define NET_RX_QUEUE_MASK 0x4
+
+#define platform_mt6779 ("MT6779")
+#define platform_mt6877 ("MT6877")
+#define PLATFORM_AP_LEN (16)
 
 struct ccif_flow_control {
 	unsigned int head_magic;
@@ -98,13 +111,14 @@ struct md_ccif_ctrl {
 	void __iomem *ccif_md_base;
 	void __iomem *md_pcore_pccif_base;
 	void __iomem *md_ccif4_base;
+	void __iomem *md_ccif5_base;
 	unsigned int ap_ccif_irq0_id;
 	unsigned int ap_ccif_irq1_id;
 	unsigned long ap_ccif_irq0_flags;
 	unsigned long ap_ccif_irq1_flags;
 	atomic_t ccif_irq_enabled;
 	atomic_t ccif_irq1_enabled;
-	atomic_t wakeup_src;
+	unsigned long wakeup_ch;
 	unsigned int wakeup_count;
 
 	struct work_struct wdt_work;
@@ -119,6 +133,7 @@ struct md_ccif_ctrl {
 	struct ccci_hif_ops *ops;
 	struct platform_device *plat_dev;
 	struct ccci_hif_ccif_val plat_val;
+	unsigned long long isr_cnt[CCIF_CH_NUM];
 };
 
 static inline void ccif_set_busy_queue(struct md_ccif_ctrl *md_ctrl,
@@ -237,16 +252,6 @@ static inline int ccci_ccif_hif_dump_status(unsigned int hif_id,
 
 }
 
-static inline int ccci_ccif_hif_set_wakeup_src(unsigned char hif_id, int value)
-{
-	struct md_ccif_ctrl *md_ctrl =
-		(struct md_ccif_ctrl *)ccci_hif_get_by_id(hif_id);
-
-	if (md_ctrl)
-		return atomic_set(&md_ctrl->wakeup_src, value);
-	else
-		return -1;
-}
 
 #ifdef CCCI_KMODULE_ENABLE
 
@@ -281,15 +286,12 @@ void md_ccif_reset_queue(unsigned char hif_id, unsigned char for_start);
 void ccif_polling_ready(unsigned char hif_id, int step);
 
 void md_ccif_sram_reset(unsigned char hif_id);
-//int md_ccif_ring_buf_init(unsigned char hif_id);
+int md_ccif_ring_buf_init(unsigned char hif_id);
 void md_ccif_switch_ringbuf(unsigned char hif_id, enum ringbuf_id rb_id);
 void ccci_reset_ccif_hw(unsigned char md_id,
 			int ccif_id, void __iomem *baseA,
 			void __iomem *baseB,
 			struct md_ccif_ctrl *md_ctrl);
-
-
-//int md_ccif_send(unsigned char hif_id, int channel_id);
 
 /* always keep this in mind:
  * what if there are more than 1 modems using CLDMA...
@@ -303,5 +305,7 @@ extern void mt_irq_set_polarity(unsigned int irq, unsigned int polarity);
 /* used for throttling feature - start */
 extern unsigned long ccci_modem_boot_count[];
 extern int md_fsm_exp_info(int md_id, unsigned int channel_id);
+extern char *ccci_port_get_dev_name(unsigned int rx_user_id);
+extern void mt_irq_dump_status(int irq);
 /* used for throttling feature - end */
 #endif				/* __MODEM_CCIF_H__ */

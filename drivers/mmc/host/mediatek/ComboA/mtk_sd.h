@@ -616,6 +616,8 @@ static inline unsigned int uffs(unsigned int x)
 
 /* data timeout for worker */
 #define DATA_TIMEOUT_MS         (1000  * 30)    /* 30s */
+/* The max erase timeout for sdcard */
+#define SD_ERASE_TIMEOUT_MS	(60 * 1000) /* 60 s */
 extern struct msdc_host *mtk_msdc_host[];
 extern unsigned int msdc_latest_transfer_mode[HOST_MAX_NUM];
 extern u32 latest_int_status[];

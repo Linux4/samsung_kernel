@@ -104,6 +104,12 @@ struct charger_ops {
 	/*HS03s added for DEVAL5626-463 by wangzikang at 20210729 start */
 	int (*get_hiz_mode)(struct charger_device *chg_dev);
 	/*HS03s added for DEVAL5626-463 by wangzikang at 20210729 end */
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+#if defined(CONFIG_HQ_PROJECT_HS04)
+	int (*get_ship_mode)(struct charger_device *chg_dev);
+	int (*set_ship_mode)(struct charger_device *chg_dev, bool enable);
+#endif
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 
 	/* PE+/PE+2.0 */
 	int (*send_ta_current_pattern)(struct charger_device *dev, bool is_inc);
@@ -241,6 +247,12 @@ extern int charger_dev_get_chr_status(
 extern int charger_dev_set_hiz_mode(
 	struct charger_device *chg_dev, bool enable);
 /*HS03s for DEVAL5625-1125 by wenyaqi at 20210607 end*/
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+#if defined(CONFIG_HQ_PROJECT_HS04)
+extern int charger_dev_set_shipmode(struct charger_device *chg_dev, bool enable);
+extern int charger_dev_get_shipmode(struct charger_device *chg_dev);
+#endif
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
 /*HS03s added for DEVAL5626-463 by wangzikang at 20210729 start */
 extern int charger_dev_get_hiz_mode(
 	struct charger_device *chg_dev);

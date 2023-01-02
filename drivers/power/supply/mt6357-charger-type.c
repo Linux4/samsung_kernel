@@ -75,7 +75,15 @@
 #define R_CHARGER_2	39
 
 /*HS03s for SR-AL5625-01-513 by wenyaqi at 20210526 start*/
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
+enum CHG_STATUS {
+	CHG_STATUS_NOT_CHARGING = 0,
+	CHG_STATUS_PRE_CHARGE,
+	CHG_STATUS_FAST_CHARGING,
+	CHG_STATUS_DONE,
+};
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
 enum CHG_STATUS {
 	CHG_STATUS_NOT_CHARGING = 0,
 	CHG_STATUS_PRE_CHARGE,
@@ -147,9 +155,12 @@ static enum power_supply_property chr_type_properties[] = {
 	#endif
 /*HS03s for SR-AL5625-01-278 by wenyaqi at 20210427 end*/
 /*HS03s for SR-AL5625-01-513 by wenyaqi at 20210526 start*/
-	#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 	POWER_SUPPLY_PROP_STATUS,
-	#endif
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+	POWER_SUPPLY_PROP_STATUS,
+#endif
 /*HS03s for SR-AL5625-01-513 by wenyaqi at 20210526 end*/
 };
 
@@ -568,7 +579,7 @@ static void dump_charger_name(int type)
 	}
 }
 
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 //wangtao for o8
 static int get_charger_type(struct mtk_charger_type *info)
 {
@@ -629,8 +640,91 @@ static int get_charger_type(struct mtk_charger_type *info)
 
 	return type;
 }
-#else//for o8
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+//wangtao for o8
+static int get_charger_type(struct mtk_charger_type *info)
+{
+	enum power_supply_usb_type type;
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+	int retry_num = 5;
+	int curr_num = 6;
+	bool bc11_flag = 0;
+
+	hw_bc11_init(info);
+	if (hw_bc11_DCD(info)) {
+		do {
+			msleep(100);
+			pr_err("bc1.1 detect no type, it will retry 5 times: retry = %d\n",
+                               (curr_num - retry_num));
+			bc11_flag = hw_bc11_DCD(info);
+		} while ( bc11_flag && retry_num--);
+	}
+
+	if (bc11_flag) {
+		pr_err("bc1.1 detect no type!\n");
+		info->psy_desc.type = POWER_SUPPLY_TYPE_USB;
+		type = POWER_SUPPLY_USB_TYPE_DCP;
+	} else {
+		if (hw_bc11_stepA2(info)) {
+			if (hw_bc11_stepB2(info)) {
+				info->psy_desc.type = POWER_SUPPLY_TYPE_USB_DCP;
+				type = POWER_SUPPLY_USB_TYPE_DCP;
+			} else {
+				info->psy_desc.type = POWER_SUPPLY_TYPE_USB_CDP;
+				type = POWER_SUPPLY_USB_TYPE_CDP;
+			}
+		} else {
+			info->psy_desc.type = POWER_SUPPLY_TYPE_USB;
+			type = POWER_SUPPLY_USB_TYPE_SDP;
+		}
+	}
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
+
+/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210428 start*/
+	#ifndef HQ_FACTORY_BUILD	//ss version
+	if (type == POWER_SUPPLY_USB_TYPE_CDP) {
+		if (hq_get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT ||
+		    hq_get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT) {
+			pr_info("Pull up D+ to 0.6V for CDP in KPOC\n");
+			/*HS03s for bugid by wangzikang at 20210731 start*/
+			msleep(100);
+			/*HS03s for bugid by wangzikang at 20210731 end*/
+			/* RG_bc11_VSRC_EN[1:0] = 10 */
+			bc11_set_register_value(info->regmap,
+				PMIC_RG_BC11_VSRC_EN_ADDR,
+				PMIC_RG_BC11_VSRC_EN_MASK,
+				PMIC_RG_BC11_VSRC_EN_SHIFT,
+				0x2);
+			/* RG_bc11_IPU_EN[1.0] = 10 */
+			bc11_set_register_value(info->regmap,
+				PMIC_RG_BC11_IPU_EN_ADDR,
+				PMIC_RG_BC11_IPU_EN_MASK,
+				PMIC_RG_BC11_IPU_EN_SHIFT,
+				0x2);
+		} else
+			hw_bc11_done(info);
+	} else if (type != POWER_SUPPLY_USB_TYPE_DCP)
+	#else
+	if (type != POWER_SUPPLY_USB_TYPE_DCP)
+	#endif
+/*HS03s for SR-AL5625-01-261 by wenyaqi at 20210428 end*/
+		hw_bc11_done(info);
+	else
+		pr_info("charger type: skip bc11 release for BC12 DCP SPEC\n");
+
+	dump_charger_name(info->psy_desc.type);
+
+	return type;
+}
+#endif
+//for o8
+#ifdef CONFIG_HQ_PROJECT_OT8
 extern bool pd_hub_flag;
+/* Tab A7 lite_T for P221008-02933 by duanweiping at 20221029 start */
+bool bc12_done = false;
+EXPORT_SYMBOL(bc12_done);
+/* Tab A7 lite_T for P221008-02933 by duanweiping at 20221029 end */
 static int get_charger_type(struct mtk_charger_type *info)
 {
 	enum power_supply_usb_type type;
@@ -653,7 +747,10 @@ static int get_charger_type(struct mtk_charger_type *info)
 			type = POWER_SUPPLY_USB_TYPE_SDP;
 		}
 	}
-
+	/* Tab A7 lite_T for P221008-02933 by duanweiping at 20221029 start */
+	bc12_done = true;
+	pr_err("get_charger_type BC12 done\n");
+	/* Tab A7 lite_T for P221008-02933 by duanweiping at 20221029 end */
 	/*TabA7 Lite code for P201215-02072 samsung lpm animation in POWER_OFF_CHARGING by wenyaqi at 20201224 start*/
 	#ifndef HQ_FACTORY_BUILD	//ss version
 	if (type == POWER_SUPPLY_USB_TYPE_CDP) {
@@ -720,7 +817,7 @@ static int get_vbus_voltage(struct mtk_charger_type *info,
 }
 
 
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 void do_charger_detect(struct mtk_charger_type *info, bool en)
 {
 	union power_supply_propval prop_online, prop_type, prop_usb_type;
@@ -760,8 +857,51 @@ void do_charger_detect(struct mtk_charger_type *info, bool en)
 	//spin_unlock_irqrestore(&info->slock, flags);
 	/*HS03s for bugid by wangzikang at 20210731 end*/
 }
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+void do_charger_detect(struct mtk_charger_type *info, bool en)
+{
+	union power_supply_propval prop_online, prop_type, prop_usb_type;
+	int ret = 0;
+
+	/*HS03s for bugid by wangzikang at 20210731 start*/
+	//unsigned long flags;
+	//spin_lock_irqsave(&info->slock, flags);
+	pr_info("%s enter \n",__func__);
+	/*HS03s for bugid by wangzikang at 20210731 end*/
+/* HS03s for SR-AL5625-01-515 by wangzikang at 21210610 start*/
+//#ifndef CONFIG_TCPC_CLASS
+	if (!mt_usb_is_device()) {
+		pr_info("charger type: UNKNOWN, Now is usb host mode. Skip detection\n");
+		return;
+	}
+//#endif
+/* HS03s for SR-AL5625-01-515 by wangzikang at 21210610 end*/
+
+	prop_online.intval = en;
+	if (en) {
+		ret = power_supply_set_property(info->psy,
+				POWER_SUPPLY_PROP_ONLINE, &prop_online);
+		ret = power_supply_get_property(info->psy,
+				POWER_SUPPLY_PROP_TYPE, &prop_type);
+		ret = power_supply_get_property(info->psy,
+				POWER_SUPPLY_PROP_USB_TYPE, &prop_usb_type);
+		pr_notice("type:%d usb_type:%d\n", prop_type.intval, prop_usb_type.intval);
+	} else {
+		info->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
+		info->type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
+		pr_notice("%s type:0 usb_type:0\n", __func__);
+	}
+
+	power_supply_changed(info->psy);
+	/*HS03s for bugid by wangzikang at 20210731 start*/
+	//spin_unlock_irqrestore(&info->slock, flags);
+	/*HS03s for bugid by wangzikang at 20210731 end*/
+}
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
 /* modify code for O8 */
+/*TabA7 Lite code for SR-AX3565-01-97 enable otg by wenyaqi at 20201124 start*/
 void do_charger_detect(struct mtk_charger_type *info, bool en)
 {
 	union power_supply_propval prop, prop2, prop3;
@@ -793,8 +933,7 @@ void do_charger_detect(struct mtk_charger_type *info, bool en)
 
 	power_supply_changed(info->psy);
 }
-#endif
-
+#endif//for o8
 
 #ifndef HQ_FACTORY_BUILD	//ss version
 #define POWER_OFF_CHECK_TIME_MS 1000
@@ -841,12 +980,23 @@ static void do_charger_detection_work(struct work_struct *data)
 		hq_get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT) {
 			pr_info("%s: Unplug Charger/USB\n", __func__);
 
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+/* HS03s_T for AL5626TDEV-715 by duanweiping at 20221102 start */
+#if defined(CONFIG_HQ_PROJECT_HS04)||defined(CONFIG_HQ_PROJECT_HS03S)
+/* HS03s_T for AL5626TDEV-715 by duanweiping at 20221102 end */
+			pr_info("%s: system_state=%d\n", __func__,
+				system_state);
+			if (system_state != SYSTEM_POWER_OFF)
+				kernel_power_off();
+#else
 #ifndef CONFIG_TCPC_CLASS
 			pr_info("%s: system_state=%d\n", __func__,
 				system_state);
 			if (system_state != SYSTEM_POWER_OFF)
 				kernel_power_off();
 #endif
+#endif
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end */
 		}
 	}
 	#endif
@@ -878,6 +1028,17 @@ irqreturn_t chrdet_int_handler(int irq, void *data)
 		    hq_get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT) {
 			pr_info("%s: Unplug Charger/USB\n", __func__);
 
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+/* HS03s_T for AL5626TDEV-715 by duanweiping at 20221102 start */
+#if defined(CONFIG_HQ_PROJECT_HS04)||defined(CONFIG_HQ_PROJECT_HS03S)
+/* HS03s_T for AL5626TDEV-715 by duanweiping at 20221102 end */
+			pr_info("%s: system_state=%d\n", __func__,
+				system_state);
+			if (system_state != SYSTEM_POWER_OFF) {
+				info->power_off_flag = FLAG_POWER_OFF;
+				schedule_delayed_work(&info->dwork,msecs_to_jiffies(POWER_OFF_CHECK_TIME_MS));
+			}
+#else
 #ifndef CONFIG_TCPC_CLASS
 			pr_info("%s: system_state=%d\n", __func__,
 				system_state);
@@ -886,6 +1047,8 @@ irqreturn_t chrdet_int_handler(int irq, void *data)
 				schedule_delayed_work(&info->dwork,msecs_to_jiffies(POWER_OFF_CHECK_TIME_MS));
 			}
 #endif
+#endif
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
 		}
 	}
 	else {
@@ -902,7 +1065,67 @@ irqreturn_t chrdet_int_handler(int irq, void *data)
 
 /*HS03s for SR-AL5625-01-278 by wenyaqi at 20210701 start*/
 #ifndef HQ_FACTORY_BUILD	//ss version
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
+enum ss_batt_chr_status {
+	SS_NOT_CHARGE = 0,
+	SS_PRE_CHARGE,
+	SS_FAST_CHARGE,
+	SS_CHARGE_DONE,
+};
+
+static int ss_get_chr_type(struct charger_device *chg_dev, int *chr_type)
+{
+	int ret = 0;
+	int chg_stat = 0;
+	struct power_supply *psys = NULL;
+	union power_supply_propval vbat;
+
+	if (chg_dev == NULL || chr_type == NULL) {
+		pr_err("%s: get chg_dev or chr_type failed\n", __func__);
+		return -EINVAL;
+	}
+	ret = charger_dev_get_chr_status(chg_dev, &chg_stat);
+	if (ret < 0) {
+		pr_err("%s: get chg_stat failed\n", __func__);
+		*chr_type = POWER_SUPPLY_CHARGE_TYPE_UNKNOWN;
+		return ret;
+	}
+
+	switch(chg_stat)
+	{
+	case SS_NOT_CHARGE:
+		*chr_type = POWER_SUPPLY_CHARGE_TYPE_NONE;
+		break;
+	case SS_PRE_CHARGE:
+		*chr_type = POWER_SUPPLY_CHARGE_TYPE_TRICKLE;
+		break;
+	case SS_FAST_CHARGE:
+	case SS_CHARGE_DONE:
+		*chr_type = POWER_SUPPLY_CHARGE_TYPE_FAST;
+		break;
+	default:
+		*chr_type = POWER_SUPPLY_CHARGE_TYPE_NONE;
+		break;
+	}
+
+	psys = power_supply_get_by_name("battery");
+	if (!IS_ERR_OR_NULL(psys)) {
+		vbat.intval = 0;
+		ret = power_supply_get_property(psys,
+			POWER_SUPPLY_PROP_VOLTAGE_NOW, &vbat);
+		if (ret < 0) {
+			pr_err("%s: get vbat failed\n", __func__);
+			return ret;
+		}
+
+		if (vbat.intval > 4350000)
+			*chr_type = POWER_SUPPLY_CHARGE_TYPE_TAPER;
+	}
+	pr_debug("%s:charger_type=%d\n", __func__, *chr_type);
+	return 0;
+}
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
 enum ss_batt_chr_status {
 	SS_NOT_CHARGE = 0,
 	SS_PRE_CHARGE,
@@ -975,16 +1198,23 @@ static int psy_chr_type_get_property(struct power_supply *psy,
 	#ifndef HQ_FACTORY_BUILD	//ss version
 	int chr_type = 0;
 	#endif
-	#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 	int chr_status = 0, ret = 0;
 	bool chg_en = false;
 	/*HS03s for P210623-03592 by wenyaqi at 20210625 start*/
 	struct power_supply *psys = NULL;
 	static int chr_status_old = 0;
-	#endif
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+	int chr_status = 0, ret = 0;
+	bool chg_en = false;
+	/*HS03s for P210623-03592 by wenyaqi at 20210625 start*/
+	struct power_supply *psys = NULL;
+	static int chr_status_old = 0;
+#endif
 	/*HS03s for SR-AL5625-01-513 by wenyaqi at 20210608 end*/
 
-//	pr_notice("%s: prop:%d\n", __func__, psp);
+	pr_notice("%s: prop:%d\n", __func__, psp);
 	info = (struct mtk_charger_type *)power_supply_get_drvdata(psy);
 	if (info->psy != NULL && info->psy == psy)
 		chg = info->chg_dev;
@@ -992,7 +1222,7 @@ static int psy_chr_type_get_property(struct power_supply *psy,
 		pr_err("%s fail\n", __func__);
 	}
 
-#ifndef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_OT8
 	if (pd_hub_flag) {
 		info->type = POWER_SUPPLY_USB_TYPE_SDP;
 		info->psy_desc.type = POWER_SUPPLY_TYPE_USB;
@@ -1022,11 +1252,15 @@ static int psy_chr_type_get_property(struct power_supply *psy,
 	#ifndef HQ_FACTORY_BUILD	//ss version
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
 		if (chg != NULL) {
-			#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 			ss_get_chr_type(chg, &chr_type);
-			#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+			ss_get_chr_type(chg, &chr_type);
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
 			charger_dev_get_chr_type(chg, &chr_type);
-			#endif
+#endif
 			/*HS03s for SR-AL5625-01-278 by wenyaqi at 20210701 end*/
 			val->intval = chr_type;
 		} else {
@@ -1037,7 +1271,7 @@ static int psy_chr_type_get_property(struct power_supply *psy,
 	/*HS03s for SR-AL5625-01-278 by wenyaqi at 20210427 end*/
 	#endif
 	/*HS03s for SR-AL5625-01-513 by wenyaqi at 20210608 start*/
-	#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 	case POWER_SUPPLY_PROP_STATUS:
 		if (info->type == POWER_SUPPLY_USB_TYPE_UNKNOWN)
 		{
@@ -1085,7 +1319,56 @@ static int psy_chr_type_get_property(struct power_supply *psy,
 		}
 		/*HS03s for P210623-03592 by wenyaqi at 20210625 end*/
 		break;
-	#endif
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+	case POWER_SUPPLY_PROP_STATUS:
+		if (info->type == POWER_SUPPLY_USB_TYPE_UNKNOWN)
+		{
+			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+			goto update_status;
+		}
+		/*HS03s for P210610-03373 by wenyaqi at 20210610 start*/
+		if (chg == NULL) {
+			pr_err("%s get chg fail\n", __func__);
+			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+			goto update_status;
+		}
+		ret = charger_dev_get_chr_status(chg, &chr_status);
+		if (ret < 0) {
+			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+			goto update_status;
+		}
+		/*HS03s for P210610-03373 by wenyaqi at 20210610 end*/
+		switch(chr_status) {
+		case CHG_STATUS_NOT_CHARGING:
+			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+			break;
+		case CHG_STATUS_PRE_CHARGE:
+		case CHG_STATUS_FAST_CHARGING:
+			ret = charger_dev_is_enabled(chg, &chg_en);
+			if(chg_en)
+				val->intval = POWER_SUPPLY_STATUS_CHARGING;
+			else
+				val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+			break;
+		case CHG_STATUS_DONE:
+			val->intval = POWER_SUPPLY_STATUS_FULL;
+			break;
+		default:
+			ret = -ENODATA;
+			break;
+		}
+	update_status:
+		if (chr_status_old != val->intval) {
+			chr_status_old = val->intval;
+			power_supply_changed(info->psy);
+			psys = power_supply_get_by_name("battery");
+			if (!IS_ERR_OR_NULL(psys))
+				power_supply_changed(psys);
+		}
+		/*HS03s for P210623-03592 by wenyaqi at 20210625 end*/
+		break;
+#endif
 	/*HS03s for SR-AL5625-01-513 by wenyaqi at 20210608 end*/
 	default:
 		return -EINVAL;
@@ -1168,13 +1451,18 @@ static int mt_ac_get_property(struct power_supply *psy,
 	return 0;
 }
 
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 /* HS03s for SR-AL5625-01-52 by wenyaqi at 20210419 start */
 extern int usb_cc_flag;
 /* HS03s for SR-AL5625-01-52 by wenyaqi at 20210419 end */
-#endif /*CONFIG_HS03S_SUPPORT*/
+#endif /*CONFIG_HQ_PROJECT_HS03S*/
+#ifdef CONFIG_HQ_PROJECT_HS04
+/* HS03s for SR-AL5625-01-52 by wenyaqi at 20210419 start */
+extern int usb_cc_flag;
+/* HS03s for SR-AL5625-01-52 by wenyaqi at 20210419 end */
+#endif /*CONFIG_HQ_PROJECT_HS04*/
 
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 //wangtao for 06
 static int mt_usb_get_property(struct power_supply *psy,
 	enum power_supply_property psp, union power_supply_propval *val)
@@ -1221,9 +1509,12 @@ static int mt_usb_get_property(struct power_supply *psy,
 	/* HS03s for SR-AL5625-01-55 by wenyaqi at 20210419 end */
 	/* HS03s for SR-AL5625-01-52 by wenyaqi at 20210419 start */
 	case POWER_SUPPLY_PROP_TYPEC_CC_ORIENTATION:
-	#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 		val->intval = usb_cc_flag;
-	#endif /*CONFIG_HS03S_SUPPORT*/
+#endif /*CONFIG_HQ_PROJECT_HS03S*/
+#ifdef CONFIG_HQ_PROJECT_HS04
+		val->intval = usb_cc_flag;
+#endif /*CONFIG_HQ_PROJECT_HS04*/
 		val->intval = 0;
 		break;
 	/* HS03s for SR-AL5625-01-52 by wenyaqi at 20210419 end */
@@ -1233,7 +1524,72 @@ static int mt_usb_get_property(struct power_supply *psy,
 
 	return 0;
 }
-#else//for o8
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+//wangtao for 06
+static int mt_usb_get_property(struct power_supply *psy,
+	enum power_supply_property psp, union power_supply_propval *val)
+{
+	struct mtk_charger_type *info;
+	/* HS03s for SR-AL5625-01-55 by wenyaqi at 20210419 start */
+	struct charger_device *chg = NULL;
+	int vbus = 0;
+	int ibus = 0;
+
+	info = (struct mtk_charger_type *)power_supply_get_drvdata(psy);
+	if (info->usb_psy != NULL && info->usb_psy == psy)
+		chg = info->chg_dev;
+	else {
+		pr_err("%s fail\n", __func__);
+	}
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		if ((info->type == POWER_SUPPLY_USB_TYPE_SDP) ||
+			(info->type == POWER_SUPPLY_USB_TYPE_CDP))
+			val->intval = 1;
+		else
+			val->intval = 0;
+		break;
+	case POWER_SUPPLY_PROP_CURRENT_MAX:
+		val->intval = 500000;
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
+		val->intval = 5000000;
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+		get_vbus_voltage(info, &vbus);
+		val->intval = vbus;
+		break;
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_NOW:
+		if (chg != NULL) {
+			charger_dev_get_ibus(chg, &ibus);
+			val->intval = ibus / 1000;
+		} else {
+			pr_err("%s get_ibus fail\n", __func__);
+		}
+		break;
+	/* HS03s for SR-AL5625-01-55 by wenyaqi at 20210419 end */
+	/* HS03s for SR-AL5625-01-52 by wenyaqi at 20210419 start */
+	case POWER_SUPPLY_PROP_TYPEC_CC_ORIENTATION:
+#ifdef CONFIG_HQ_PROJECT_HS03S
+		val->intval = usb_cc_flag;
+#endif /*CONFIG_HQ_PROJECT_HS03S*/
+#ifdef CONFIG_HQ_PROJECT_HS04
+		val->intval = usb_cc_flag;
+#endif /*CONFIG_HQ_PROJECT_HS04*/
+		val->intval = 0;
+		break;
+	/* HS03s for SR-AL5625-01-52 by wenyaqi at 20210419 end */
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
+//for o8
 //wangtao
 extern int usb_cc_flag;
 /* OT8 add for SR-AX3565-01-18 Add typec cc orientation by shixuanxuan at 2020/11/28 end */

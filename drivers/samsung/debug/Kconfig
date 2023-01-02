@@ -66,4 +66,3 @@ config SEC_DEBUG_SOFTDOG_PWDT
 	depends on WATCHDOG
 	help
 	  This option enables soft watchdog device and soft_panic.
-

@@ -97,7 +97,8 @@ static int FM_i2s_RecordVol_Set(struct snd_kcontrol *kcontrol,
 	pr_info("%s mfm_i2s_RecordVol = 0x%x\n", __func__, mfm_i2s_RecordVol);
 
 	if (GetFmI2sInPathEnable() == true)
-		SetHwDigitalGain(Soc_Aud_Digital_Block_HW_GAIN2, mfm_i2s_RecordVol);
+		SetHwDigitalGain(Soc_Aud_Digital_Block_HW_GAIN2,
+						 mfm_i2s_RecordVol);
 
 	return 0;
 }
