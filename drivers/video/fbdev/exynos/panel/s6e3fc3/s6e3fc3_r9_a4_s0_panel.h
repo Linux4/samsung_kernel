@@ -212,13 +212,15 @@ static u8 r9_a4_s0_acl_dim_speed_table[][1] = {
 	{ 0x20 }, /* 0x20 : ACL Dimming 32 Frames */
 };
 
-static u8 r9_a4_s0_acl_opr_table[ACL_OPR_MAX][1] = {
-	{ 0x00 }, /* ACL OFF OPR */
-	{ 0x01 }, /* ACL ON OPR_3 */
-	{ 0x01 }, /* ACL ON OPR_6 */
-	{ 0x01 }, /* ACL ON OPR_8 */
-	{ 0x02 }, /* ACL ON OPR_12 */
-	{ 0x02 }, /* ACL ON OPR_15 */
+static u8 r9_a4_s0_acl_opr_table[MAX_PANEL_HBM][MAX_S6E3FC3_ACL_OPR][1] = {
+	[PANEL_HBM_OFF] = {
+		[S6E3FC3_ACL_OPR_0] = { 0x00 }, /* adaptive_control 0, 0% */
+		[S6E3FC3_ACL_OPR_1] = { 0x01 }, /* adaptive_control 1, 8% */
+		[S6E3FC3_ACL_OPR_2] = { 0x01 }, /* adaptive_control 2, 8% */
+	},
+	[PANEL_HBM_ON] = {
+		[S6E3FC3_ACL_OPR_0 ... S6E3FC3_ACL_OPR_2] = { 0x01 }, /* adaptive_control 0, 8% */
+	},
 };
 
 static u8 r9_a4_s0_lpm_nit_table[4][1] = {
@@ -304,7 +306,7 @@ static struct maptbl r9_a4_s0_maptbl[MAX_MAPTBL] = {
 	[ACL_FRAME_AVG_MAPTBL] = DEFINE_2D_MAPTBL(r9_a4_s0_acl_frame_avg_table, init_common_table, getidx_acl_onoff_table, copy_common_maptbl),
 	[ACL_START_POINT_MAPTBL] = DEFINE_2D_MAPTBL(r9_a4_s0_acl_start_point_table, init_common_table, getidx_hbm_onoff_table, copy_common_maptbl),
 	[ACL_DIM_SPEED_MAPTBL] = DEFINE_2D_MAPTBL(r9_a4_s0_acl_dim_speed_table, init_common_table, getidx_acl_dim_onoff_table, copy_common_maptbl),
-	[ACL_OPR_MAPTBL] = DEFINE_2D_MAPTBL(r9_a4_s0_acl_opr_table, init_common_table, getidx_acl_opr_table, copy_common_maptbl),
+	[ACL_OPR_MAPTBL] = DEFINE_3D_MAPTBL(r9_a4_s0_acl_opr_table, init_common_table, getidx_acl_opr_table, copy_common_maptbl),
 
 	[TSET_MAPTBL] = DEFINE_0D_MAPTBL(r9_a4_s0_tset_table, init_common_table, NULL, copy_tset_maptbl),
 	[LPM_NIT_MAPTBL] = DEFINE_2D_MAPTBL(r9_a4_s0_lpm_nit_table, init_lpm_brt_table, getidx_lpm_brt_table, copy_common_maptbl),
@@ -430,6 +432,32 @@ static DEFINE_COND(r9_a4_s0_cond_is_60hz, s6e3fc3_is_60hz);
 static DEFINE_COND(r9_a4_s0_cond_is_120hz, s6e3fc3_is_120hz);
 #endif
 
+#ifdef CONFIG_SUPPORT_TIG
+static char R9_A4_S0_TIG_ENABLE[] = {
+	0xBF,
+	0x01, 0x00
+};
+static DEFINE_STATIC_PACKET(r9_a4_s0_tig_enable, DSI_PKT_TYPE_WR, R9_A4_S0_TIG_ENABLE, 0x00);
+
+static char R9_A4_S0_TIG_DISABLE[] = {
+	0xBF,
+	0x00, 0x00
+};
+static DEFINE_STATIC_PACKET(r9_a4_s0_tig_disable, DSI_PKT_TYPE_WR, R9_A4_S0_TIG_DISABLE, 0x00);
+
+static void *r9_a4_s0_tig_enable_cmdtbl[] = {
+	&KEYINFO(r9_a4_s0_level2_key_enable),
+	&PKTINFO(r9_a4_s0_tig_enable),
+	&KEYINFO(r9_a4_s0_level2_key_disable),
+};
+
+static void *r9_a4_s0_tig_disable_cmdtbl[] = {
+	&KEYINFO(r9_a4_s0_level2_key_enable),
+	&PKTINFO(r9_a4_s0_tig_disable),
+	&KEYINFO(r9_a4_s0_level2_key_disable),
+};
+#endif
+
 static u8 R9_A4_S0_HBM_TRANSITION[] = {
 	0x53, 0x20
 };
@@ -445,7 +473,7 @@ static u8 R9_A4_S0_ACL_SET[] = {
 static DECLARE_PKTUI(r9_a4_s0_acl_set) = {
 	{ .offset = 1, .maptbl = &r9_a4_s0_maptbl[ACL_FRAME_AVG_MAPTBL] },
 	{ .offset = 2, .maptbl = &r9_a4_s0_maptbl[ACL_START_POINT_MAPTBL] },
-	{ .offset = 19, .maptbl = &r9_a4_s0_maptbl[ACL_DIM_SPEED_MAPTBL] },
+	{ .offset = 17, .maptbl = &r9_a4_s0_maptbl[ACL_DIM_SPEED_MAPTBL] },
 };
 static DEFINE_VARIABLE_PACKET(r9_a4_s0_acl_set, DSI_PKT_TYPE_WR, R9_A4_S0_ACL_SET, 0x3B3);
 
@@ -454,6 +482,9 @@ static u8 R9_A4_S0_ACL[] = {
 };
 static DEFINE_PKTUI(r9_a4_s0_acl_control, &r9_a4_s0_maptbl[ACL_OPR_MAPTBL], 1);
 static DEFINE_VARIABLE_PACKET(r9_a4_s0_acl_control, DSI_PKT_TYPE_WR, R9_A4_S0_ACL, 0);
+
+static u8 R9_A4_S0_ACL_OFF[] = { 0x55, 0x00 };
+static DEFINE_STATIC_PACKET(r9_a4_s0_acl_off, DSI_PKT_TYPE_WR, R9_A4_S0_ACL_OFF, 0);
 
 static u8 R9_A4_S0_WRDISBV[] = {
 	0x51, 0x03, 0xFF
@@ -573,23 +604,19 @@ static DEFINE_STATIC_PACKET(r9_a4_s0_tsp_sync_set2, DSI_PKT_TYPE_WR, R9_A4_S0_TS
 
 static u8 R9_A4_S0_MCD_ON_01[] = { 0xCB, 0x0B, 0x00, 0x02 };
 static u8 R9_A4_S0_MCD_ON_02[] = { 0xCB, 0x71 };
-static u8 R9_A4_S0_MCD_ON_03[] = { 0xF2, 0x60, 0x04, 0x00 };
-static u8 R9_A4_S0_MCD_ON_04[] = { 0xF2, 0x90 };
+static u8 R9_A4_S0_MCD_ON_03[] = { 0xF6, 0x08 };
 
-static u8 R9_A4_S0_MCD_OFF_01[] = { 0xF2, 0x60, 0x05, 0x0E };
-static u8 R9_A4_S0_MCD_OFF_02[] = { 0xF2, 0x10 };
-static u8 R9_A4_S0_MCD_OFF_03[] = { 0xCB, 0x07, 0x00, 0x06 };
-static u8 R9_A4_S0_MCD_OFF_04[] = { 0xCB, 0x00 };
+static u8 R9_A4_S0_MCD_OFF_01[] = { 0xF6, 0x00 };
+static u8 R9_A4_S0_MCD_OFF_02[] = { 0xCB, 0x07, 0x00, 0x06 };
+static u8 R9_A4_S0_MCD_OFF_03[] = { 0xCB, 0x00 };
 
 static DEFINE_STATIC_PACKET(r9_a4_s0_mcd_on_01, DSI_PKT_TYPE_WR, R9_A4_S0_MCD_ON_01, 0xDE);
 static DEFINE_STATIC_PACKET(r9_a4_s0_mcd_on_02, DSI_PKT_TYPE_WR, R9_A4_S0_MCD_ON_02, 336);	// 0x01, 0x50
-static DEFINE_STATIC_PACKET(r9_a4_s0_mcd_on_03, DSI_PKT_TYPE_WR, R9_A4_S0_MCD_ON_03, 0);
-static DEFINE_STATIC_PACKET(r9_a4_s0_mcd_on_04, DSI_PKT_TYPE_WR, R9_A4_S0_MCD_ON_04, 0x1F);
+static DEFINE_STATIC_PACKET(r9_a4_s0_mcd_on_03, DSI_PKT_TYPE_WR, R9_A4_S0_MCD_ON_03, 0x0C);
 
-static DEFINE_STATIC_PACKET(r9_a4_s0_mcd_off_01, DSI_PKT_TYPE_WR, R9_A4_S0_MCD_OFF_01, 0);
-static DEFINE_STATIC_PACKET(r9_a4_s0_mcd_off_02, DSI_PKT_TYPE_WR, R9_A4_S0_MCD_OFF_02, 0x1F);
-static DEFINE_STATIC_PACKET(r9_a4_s0_mcd_off_03, DSI_PKT_TYPE_WR, R9_A4_S0_MCD_OFF_03, 0xDE);
-static DEFINE_STATIC_PACKET(r9_a4_s0_mcd_off_04, DSI_PKT_TYPE_WR, R9_A4_S0_MCD_OFF_04, 336);	// 0x01, 0x50
+static DEFINE_STATIC_PACKET(r9_a4_s0_mcd_off_01, DSI_PKT_TYPE_WR, R9_A4_S0_MCD_OFF_01, 0x0C);
+static DEFINE_STATIC_PACKET(r9_a4_s0_mcd_off_02, DSI_PKT_TYPE_WR, R9_A4_S0_MCD_OFF_02, 0xDE);
+static DEFINE_STATIC_PACKET(r9_a4_s0_mcd_off_03, DSI_PKT_TYPE_WR, R9_A4_S0_MCD_OFF_03, 336);	// 0x01, 0x50
 
 #ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
 #define GRAYSPOT_START_SWIRE		0x35
@@ -650,6 +677,12 @@ static DEFINE_VARIABLE_PACKET(r9_a4_s0_fps_1, DSI_PKT_TYPE_WR, R9_A4_S0_FPS_1, 0
 static u8 R9_A4_S0_DIMMING_SPEED[] = { 0x63, 0x00};
 static DEFINE_PKTUI(r9_a4_s0_dimming_speed, &r9_a4_s0_maptbl[DIMMING_SPEED], 1);
 static DEFINE_VARIABLE_PACKET(r9_a4_s0_dimming_speed, DSI_PKT_TYPE_WR, R9_A4_S0_DIMMING_SPEED, 0x91);
+
+static u8 R9_A4_S0_DIMMING_SPEED_NORMAL[] = {
+	0x63,
+	0x20
+};
+static DEFINE_STATIC_PACKET(r9_a4_s0_dimming_speed_normal, DSI_PKT_TYPE_WR, R9_A4_S0_DIMMING_SPEED_NORMAL, 0x91);
 
 static u8 R9_A4_S0_PANEL_UPDATE[] = {
 	0xF7,
@@ -800,12 +833,20 @@ static void *r9_a4_s0_init_cmdtbl[] = {
 #endif
 };
 
+
+static void *r9_a4_s0_id_read_cmdtbl[] = {
+	&KEYINFO(r9_a4_s0_level1_key_enable),
+	&KEYINFO(r9_a4_s0_level2_key_enable),
+	&s6e3fc3_restbl[RES_ID],
+	&KEYINFO(r9_a4_s0_level2_key_disable),
+	&KEYINFO(r9_a4_s0_level1_key_disable),
+};
+
 static void *r9_a4_s0_res_init_cmdtbl[] = {
 	&KEYINFO(r9_a4_s0_level1_key_enable),
 	&KEYINFO(r9_a4_s0_level2_key_enable),
 	&KEYINFO(r9_a4_s0_level3_key_enable),
 
-	&s6e3fc3_restbl[RES_ID],
 	&s6e3fc3_restbl[RES_COORDINATE],
 	&s6e3fc3_restbl[RES_CODE],
 	&s6e3fc3_restbl[RES_DATE],
@@ -816,6 +857,7 @@ static void *r9_a4_s0_res_init_cmdtbl[] = {
 #ifdef CONFIG_DISPLAY_USE_INFO
 	&s6e3fc3_restbl[RES_SELF_DIAG],
 	&s6e3fc3_restbl[RES_ERR_FG],
+	&s6e3fc3_restbl[RES_ERR],
 	&s6e3fc3_restbl[RES_DSI_ERR],
 #endif
 	&KEYINFO(r9_a4_s0_level3_key_disable),
@@ -883,7 +925,11 @@ static void *r9_a4_s0_exit_cmdtbl[] = {
 	&KEYINFO(r9_a4_s0_level1_key_enable),
 	&KEYINFO(r9_a4_s0_level2_key_enable),
 	&KEYINFO(r9_a4_s0_level3_key_enable),
+	&s6e3fc3_dmptbl[DUMP_RDDPM_SLEEP_IN],
 #ifdef CONFIG_DISPLAY_USE_INFO
+	&s6e3fc3_dmptbl[DUMP_RDDSM],
+	&s6e3fc3_dmptbl[DUMP_ERR_FG],
+	&s6e3fc3_dmptbl[DUMP_ERR],
 	&s6e3fc3_dmptbl[DUMP_DSI_ERR],
 	&s6e3fc3_dmptbl[DUMP_SELF_DIAG],
 #endif
@@ -921,13 +967,15 @@ static void *r9_a4_s0_alpm_exit_cmdtbl[] = {
 	&PKTINFO(r9_a4_s0_lpm_porch_1_off),
 	&PKTINFO(r9_a4_s0_normal_setting),
 
-	&PKTINFO(r9_a4_s0_dimming_speed),
+	&PKTINFO(r9_a4_s0_dimming_speed_normal),
 	&PKTINFO(r9_a4_s0_normal_mode),
 	&PKTINFO(r9_a4_s0_panel_update),
 
 	&DLYINFO(r9_a4_s0_wait_34msec),
 
-	&SEQINFO(r9_a4_s0_set_bl_param_seq),
+	&PKTINFO(r9_a4_s0_fps_1),
+	&PKTINFO(r9_a4_s0_wrdisbv),
+	&PKTINFO(r9_a4_s0_panel_update),
 	&DLYINFO(r9_a4_s0_wait_1usec),
 
 	&KEYINFO(r9_a4_s0_level3_key_disable),
@@ -943,6 +991,8 @@ static void *r9_a4_s0_dump_cmdtbl[] = {
 	&s6e3fc3_dmptbl[DUMP_RDDSM],
 	&s6e3fc3_dmptbl[DUMP_DSI_ERR],
 	&s6e3fc3_dmptbl[DUMP_SELF_DIAG],
+	&s6e3fc3_dmptbl[DUMP_ERR_FG],
+	&s6e3fc3_dmptbl[DUMP_ERR],
 	&KEYINFO(r9_a4_s0_level3_key_disable),
 	&KEYINFO(r9_a4_s0_level2_key_disable),
 	&KEYINFO(r9_a4_s0_level1_key_disable),
@@ -1003,29 +1053,38 @@ static void *r9s_mask_layer_workaround_cmdtbl[] = {
 
 static void *r9s_mask_layer_enter_br_cmdtbl[] = {
 	&KEYINFO(r9_a4_s0_level1_key_enable),
-	&PKTINFO(r9_a4_s0_acl_control),
+	&KEYINFO(r9_a4_s0_level2_key_enable),
+	&KEYINFO(r9_a4_s0_level3_key_enable),
+	&PKTINFO(r9_a4_s0_acl_off),
 	&PKTINFO(r9_a4_s0_dimming_speed),
 	&PKTINFO(r9_a4_s0_fod_enter_1),
 	&PKTINFO(r9_a4_s0_hbm_transition),
 	&PKTINFO(r9_a4_s0_wrdisbv),
-	&PKTINFO(r9_a4_s0_panel_update),
 	&PKTINFO(r9_a4_s0_fod_enter_2),
 	&PKTINFO(r9_a4_s0_fod_enter_3),
+	&PKTINFO(r9_a4_s0_panel_update),
+	&KEYINFO(r9_a4_s0_level3_key_disable),
+	&KEYINFO(r9_a4_s0_level2_key_disable),
 	&KEYINFO(r9_a4_s0_level1_key_disable),
 	&DLYINFO(r9_a4_s0_wait_7msec),
 };
 
 static void *r9s_mask_layer_exit_br_cmdtbl[] = {
 	&KEYINFO(r9_a4_s0_level1_key_enable),
+	&KEYINFO(r9_a4_s0_level2_key_enable),
+	&KEYINFO(r9_a4_s0_level3_key_enable),
 	&PKTINFO(r9_a4_s0_acl_control),
-	&PKTINFO(r9_a4_s0_dimming_speed),
+	&PKTINFO(r9_a4_s0_dimming_speed_normal),
 	&PKTINFO(r9_a4_s0_fod_exit_1),
 	&PKTINFO(r9_a4_s0_hbm_transition),
 	&PKTINFO(r9_a4_s0_wrdisbv),
 	&PKTINFO(r9_a4_s0_fod_exit_2),
 	&PKTINFO(r9_a4_s0_fod_exit_3),
 	&PKTINFO(r9_a4_s0_panel_update),
+	&KEYINFO(r9_a4_s0_level3_key_disable),
+	&KEYINFO(r9_a4_s0_level2_key_disable),
 	&KEYINFO(r9_a4_s0_level1_key_disable),
+	&DLYINFO(r9_a4_s0_wait_7msec),
 };
 #endif
 
@@ -1037,7 +1096,6 @@ static void *r9_a4_s0_mcd_on_cmdtbl[] = {
 	&PKTINFO(r9_a4_s0_panel_update),
 	&DLYINFO(r9_a4_s0_wait_180msec),
 	&PKTINFO(r9_a4_s0_mcd_on_03),
-	&PKTINFO(r9_a4_s0_mcd_on_04),
 	&PKTINFO(r9_a4_s0_panel_update),
 	&DLYINFO(r9_a4_s0_wait_100msec),
 	&KEYINFO(r9_a4_s0_level2_key_disable),
@@ -1046,11 +1104,10 @@ static void *r9_a4_s0_mcd_on_cmdtbl[] = {
 static void *r9_a4_s0_mcd_off_cmdtbl[] = {
 	&KEYINFO(r9_a4_s0_level2_key_enable),
 	&PKTINFO(r9_a4_s0_mcd_off_01),
-	&PKTINFO(r9_a4_s0_mcd_off_02),
 	&PKTINFO(r9_a4_s0_panel_update),
 	&DLYINFO(r9_a4_s0_wait_180msec),
+	&PKTINFO(r9_a4_s0_mcd_off_02),
 	&PKTINFO(r9_a4_s0_mcd_off_03),
-	&PKTINFO(r9_a4_s0_mcd_off_04),
 	&PKTINFO(r9_a4_s0_panel_update),
 	&DLYINFO(r9_a4_s0_wait_100msec),
 	&KEYINFO(r9_a4_s0_level2_key_disable),
@@ -1114,6 +1171,7 @@ static void *r9_a4_s0_dummy_cmdtbl[] = {
 static struct seqinfo r9_a4_s0_seqtbl[MAX_PANEL_SEQ] = {
 	[PANEL_INIT_SEQ] = SEQINFO_INIT("init-seq", r9_a4_s0_init_cmdtbl),
 	[PANEL_RES_INIT_SEQ] = SEQINFO_INIT("resource-init-seq", r9_a4_s0_res_init_cmdtbl),
+	[PANEL_ID_READ_SEQ] = SEQINFO_INIT("id-read-seq", r9_a4_s0_id_read_cmdtbl),
 	[PANEL_SET_BL_SEQ] = SEQINFO_INIT("set-bl-seq", r9_a4_s0_set_bl_cmdtbl),
 	[PANEL_DISPLAY_ON_SEQ] = SEQINFO_INIT("display-on-seq", r9_a4_s0_display_on_cmdtbl),
 	[PANEL_DISPLAY_OFF_SEQ] = SEQINFO_INIT("display-off-seq", r9_a4_s0_display_off_cmdtbl),
@@ -1145,6 +1203,10 @@ static struct seqinfo r9_a4_s0_seqtbl[MAX_PANEL_SEQ] = {
 #endif
 #ifdef CONFIG_SUPPORT_CCD_TEST
 	[PANEL_CCD_TEST_SEQ] = SEQINFO_INIT("ccd-test-seq", r9_a4_s0_ccd_test_cmdtbl),
+#endif
+#ifdef CONFIG_SUPPORT_TIG
+	[PANEL_TIG_ENABLE_SEQ] = SEQINFO_INIT("tig-enable-seq", r9_a4_s0_tig_enable_cmdtbl),
+	[PANEL_TIG_DISABLE_SEQ] = SEQINFO_INIT("tig-disable-seq", r9_a4_s0_tig_disable_cmdtbl),
 #endif
 	[PANEL_DUMP_SEQ] = SEQINFO_INIT("dump-seq", r9_a4_s0_dump_cmdtbl),
 	[PANEL_CHECK_CONDITION_SEQ] = SEQINFO_INIT("check-condition-seq", r9_a4_s0_check_condition_cmdtbl),

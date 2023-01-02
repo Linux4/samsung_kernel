@@ -1,7 +1,7 @@
 /*
  * Wifi Virtual Interface implementaion
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -128,6 +128,9 @@ extern s32 wl_release_vif_macaddr(struct bcm_cfg80211 *cfg, u8 *mac_addr, u16 wl
 
 int wl_cfg80211_set_he_mode(struct net_device *dev, struct bcm_cfg80211 *cfg,
 		s32 bssidx, u32 interface_type, bool set);
+#ifdef BCN_TSFINFO
+int wl_cfg80211_tsfinfo_set(struct net_device *dev, s32 tsf_enable);
+#endif /* BCN_TSFINFO */
 #ifdef SUPPORT_AP_SUSPEND
 extern int wl_set_ap_suspend(struct net_device *dev, bool enable, char *ifname);
 #endif /* SUPPORT_AP_SUSPEND */
@@ -240,4 +243,11 @@ extern bool wl_cfg80211_is_tdls_tunneled_frame(void *frame, u32 frame_len);
 #ifdef SUPPORT_AP_BWCTRL
 extern void wl_restore_ap_bw(struct bcm_cfg80211 *cfg);
 #endif /* SUPPORT_AP_BWCTRL */
+
+#if defined(LIMIT_AP_BW)
+uint32 wl_cfg80211_get_ap_bw_limit_bit(struct bcm_cfg80211 *cfg, uint32 band);
+chanspec_t wl_cfg80211_get_ap_bw_limited_chspec(struct bcm_cfg80211 *cfg,
+	uint32 band, chanspec_t candidate);
+int wl_cfg80211_set_softap_bw(struct bcm_cfg80211 *cfg, uint32 band, uint32 limit);
+#endif /* LIMIT_AP_BW */
 #endif /* _wl_cfgvif_h_ */

@@ -604,6 +604,21 @@
 
 #define MFC_FW_MSG		"@MFC_FW "
 
+#if defined(CONFIG_MST_V2)
+#define MST_MODE_ON				1		// ON Message to MFC ic
+#define MST_MODE_OFF			0		// OFF Message to MFC ic
+#define DELAY_FOR_MST			40		// IDT : 40 ms
+#define MFC_MST_LDO_CONFIG_1	0x7400
+#define MFC_MST_LDO_CONFIG_2	0x7409
+#define MFC_MST_LDO_CONFIG_3	0x7418
+#define MFC_MST_LDO_CONFIG_4	0x3014
+#define MFC_MST_LDO_CONFIG_5	0x3405
+#define MFC_MST_LDO_CONFIG_6	0x3010
+#define MFC_MST_LDO_TURN_ON		0x301c
+#define MFC_MST_LDO_CONFIG_8	0x343c
+#define MFC_MST_OVER_TEMP_INT	0x0024
+#endif
+
 /* IDT F/W Update & Verification ERROR CODES */
 enum {
 	MFC_FWUP_ERR_COMMON_FAIL = 0,
@@ -1145,6 +1160,7 @@ struct mfc_charger_data {
 
 	struct power_supply *psy_chg;
 	struct wakeup_source *wpc_ws;
+	struct wakeup_source *wpc_det_ws;
 	struct wakeup_source *wpc_tx_ws;
 	struct wakeup_source *wpc_rx_ws;
 	struct wakeup_source *wpc_update_ws;
@@ -1245,7 +1261,7 @@ struct mfc_charger_data {
 	bool wc_checking_align;
 	struct timespec64 wc_align_check_start;
 	int vout_strength;
-	wait_queue_head_t suspend_wait;
+	bool skip_phm_work_in_sleep;
 #if defined(CONFIG_WIRELESS_IC_PARAM)
 	unsigned int wireless_param_info;
 	unsigned int wireless_fw_ver_param;

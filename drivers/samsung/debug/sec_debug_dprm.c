@@ -20,20 +20,30 @@
 #include <linux/sec_debug.h>
 #include "sec_debug_internal.h"
 
+#define DPRM_MAGIC			0xABC
+#define DPRM_MAGIC_SHIFT	16
+
 struct sec_debug_kcnst *kcnst;
+
+static void set_sec_dprm_value(uint64_t value)
+{
+	if (!kcnst) {
+		pr_crit("%s: No kcnst buffer\n", __func__);
+		return;
+	}
+
+	kcnst->target_dprm_mask = value;
+	kcnst->target_dprm_mask |= (DPRM_MAGIC << DPRM_MAGIC_SHIFT);
+	pr_crit("%s: target_dprm_mask: 0x%llx\n", __func__, kcnst->target_dprm_mask);
+}
 
 static int sec_dprm_reboot_handler(struct notifier_block *this,
 				unsigned long mode, void *cmd)
 {
 	unsigned long value;
 
-	if (!kcnst) {
-		pr_crit("%s: No kcnst buffer\n", __func__);
-		return 0;
-	}
-
 	if (cmd && !strncmp(cmd, "dprm", 4) && !kstrtoul(cmd + 4, 0, &value))
-		kcnst->target_dprm_mask = (uint64_t) value;
+		set_sec_dprm_value((uint64_t) value);
 
 	return 0;
 }
@@ -58,7 +68,7 @@ static int sec_debug_set_clear_target_dprm_mask(const char *val, const struct ke
 		if (argc > 1) {
 			ret = kstrtoul(argv[1], 16, &mask);
 			if (!ret)
-				kcnst->target_dprm_mask = (uint64_t) mask;
+				set_sec_dprm_value((uint64_t) mask);
 		}
 	}
 

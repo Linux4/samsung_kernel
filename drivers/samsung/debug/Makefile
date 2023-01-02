@@ -25,3 +25,4 @@ obj-$(CONFIG_SEC_DEBUG_LOGBUF_IF)		+= sec_debug_logbuf_interface.o
 obj-$(CONFIG_SEC_DEBUG_SCHED_INFO)		+= sec_debug_sched_info.o
 obj-$(CONFIG_SEC_DEBUG_STACKTRACE)		+= sec_debug_stacktrace.o
 obj-$(CONFIG_SEC_DEBUG_HARDLOCKUP_INFO)		+= sec_debug_hardlockup_info.o
+obj-$(CONFIG_SEC_DEBUG_SCHED_REPORT)		+= sec_debug_sched_report.o

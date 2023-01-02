@@ -1,3 +1,27 @@
+if UML
+
+config BATTERY_SAMSUNG
+	tristate "samsung battery driver"
+	help
+	  Say Y to include support for samsung battery driver
+	  This battery driver integrated all battery-related functions
+	  To see battery-related functions,
+	  refer to sec_charging_common.h
+
+config SEC_PD
+	tristate "support for sec pd"
+	help
+	 Say Y to include support for sec pd control module.
+	 This sec_pd driver integrated all pdo related function.
+	 To see pdo related functions,
+	 refer to sec_pd.h
+
+config REGMAP
+	default y
+	bool
+
+endif
+
 config CHARGER_PCA9468
 	tristate "PCA9468 charger driver"
 	default n

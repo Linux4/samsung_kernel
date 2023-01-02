@@ -818,6 +818,7 @@ int ois_mcu_init(struct v4l2_subdev *subdev)
 			info_mcu("%s gyro init data applied.\n", __func__);
 
 			ois_hw_check = true;
+			mcu->is_mcu_active = false;
 
 			if (module->position == SENSOR_POSITION_REAR)
 				ois_wide_init = true;
@@ -998,6 +999,7 @@ int ois_mcu_deinit(struct v4l2_subdev *subdev)
 
 		ois_fadeupdown = false;
 		ois_hw_check = false;
+		mcu->is_mcu_active = false;
 		info_mcu("%s ois stop. sensor = (%d)X\n", __func__, module->position);
 	}
 
@@ -1185,6 +1187,14 @@ int ois_mcu_set_mode(struct v4l2_subdev *subdev, int mode)
 			dbg_ois("%s: ois_mode value(%d)\n", __func__, mode);
 			break;
 	}
+
+#ifdef USE_OIS_STABILIZATION_DELAY
+	if (!mcu->is_mcu_active) {
+		usleep_range(USE_OIS_STABILIZATION_DELAY, USE_OIS_STABILIZATION_DELAY + 10);
+		mcu->is_mcu_active = true;
+		info_mcu("%s : Stabilization delay applied, %d\n", __func__, USE_OIS_STABILIZATION_DELAY);
+	}
+#endif
 
 	return ret;
 }

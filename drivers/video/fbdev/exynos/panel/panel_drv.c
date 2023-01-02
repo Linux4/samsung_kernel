@@ -636,6 +636,19 @@ static int __panel_seq_display_off(struct panel_device *panel)
 	return 0;
 }
 
+static int __panel_seq_id_read(struct panel_device *panel)
+{
+	int ret;
+
+	ret = panel_do_seqtbl_by_index(panel, PANEL_ID_READ_SEQ);
+	if (unlikely(ret < 0)) {
+		panel_err("failed to seqtbl(PANEL_ID_READ_SEQ)\n");
+		return ret;
+	}
+
+	return 0;
+}
+
 static int __panel_seq_res_init(struct panel_device *panel)
 {
 	int ret;
@@ -1116,16 +1129,8 @@ static struct common_panel_info *panel_detect(struct panel_device *panel)
 		detect = false;
 	}
 
-	panel_id = (id[0] << 16) | (id[1] << 8) | id[2];
-	memcpy(panel_data->id, id, sizeof(id));
+	panel_id = boot_panel_id;
 	panel_info("panel id : %x\n", panel_id);
-
-#ifdef CONFIG_SUPPORT_PANEL_SWAP
-	if ((boot_panel_id >= 0) && (detect == true)) {
-		boot_panel_id = (id[0] << 16) | (id[1] << 8) | id[2];
-		panel_info("boot_panel_id : 0x%x\n", boot_panel_id);
-	}
-#endif
 
 	info = find_panel(panel, panel_id);
 	if (unlikely(!info)) {
@@ -1176,6 +1181,23 @@ static int panel_prepare(struct panel_device *panel, struct common_panel_info *i
 static int panel_resource_init(struct panel_device *panel)
 {
 	__panel_seq_res_init(panel);
+
+	return 0;
+}
+
+static int panel_id_init(struct panel_device *panel)
+{
+	struct panel_info *panel_data = &panel->panel_data;
+	char buf[32] = { 0, };
+	int i, len = 0;
+
+	__panel_seq_id_read(panel);
+
+	resource_copy_by_name(panel_data, panel_data->id, "id");
+	for (i = 0; i < PANEL_ID_LEN; i++)
+		len += snprintf(buf + len, 32 - len, "%02X", panel_data->id[i]);
+
+	panel_info("id from resource: %s\n", buf);
 
 	return 0;
 }
@@ -1440,6 +1462,12 @@ int panel_reprobe(struct panel_device *panel)
 	ret = panel_prepare(panel, info);
 	if (unlikely(ret)) {
 		panel_err("failed to panel_prepare\n");
+		return ret;
+	}
+
+	ret = panel_id_init(panel);
+	if (unlikely(ret)) {
+		panel_err("failed to id init\n");
 		return ret;
 	}
 
@@ -1852,6 +1880,12 @@ int panel_probe(struct panel_device *panel)
 		panel_err("failed to probe poc driver\n");
 
 #endif /* CONFIG_SUPPORT_DDI_FLASH */
+
+	ret = panel_id_init(panel);
+	if (unlikely(ret)) {
+		panel_err("failed to id init\n");
+		return -ENODEV;
+	}
 
 	ret = panel_resource_init(panel);
 	if (unlikely(ret)) {
@@ -2337,7 +2371,7 @@ static int panel_doze(struct panel_device *panel, unsigned int cmd)
 		if (ret)
 			panel_err("failed to write alpm\n");
 		panel_set_cur_state(panel, PANEL_STATE_ALPM);
-#ifdef EXYNOS_DECON_MDNIE_LITE
+#ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
 		panel_mdnie_update(panel);
 #endif
 		break;
@@ -3145,8 +3179,9 @@ static int panel_set_mask_layer(struct panel_device *panel, void *arg)
 
 			/* 0. STOP SMOOTH DIMMING */
 			mutex_lock(&panel_bl->lock);
-			if (check_seqtbl_exist(&panel->panel_data, PANEL_MASK_LAYER_STOP_DIMMING_SEQ)) {
+			if (check_seqtbl_exist(&panel->panel_data, PANEL_MASK_LAYER_BEFORE_SEQ))
 				panel_do_seqtbl_by_index(panel, PANEL_MASK_LAYER_BEFORE_SEQ);
+			if (check_seqtbl_exist(&panel->panel_data, PANEL_MASK_LAYER_STOP_DIMMING_SEQ)) {
 				panel_bl->props.smooth_transition = SMOOTH_TRANS_OFF;
 				panel_do_seqtbl_by_index(panel, PANEL_MASK_LAYER_STOP_DIMMING_SEQ);
 			}
@@ -3192,7 +3227,10 @@ static int panel_set_mask_layer(struct panel_device *panel, void *arg)
 				panel_info("mask_layer_br exit (%d)->(%d)\n",
 					panel_bl->props.mask_layer_br_target, panel_bl->bd->props.brightness);
 				panel_bl->props.brightness = panel_bl->bd->props.brightness;
-
+				panel_bl->subdev[PANEL_BL_SUBDEV_TYPE_DISP].brightness = panel_bl->props.brightness;
+#ifdef CONFIG_SUPPORT_AOD_BL
+				panel_bl->subdev[PANEL_BL_SUBDEV_TYPE_AOD].brightness = panel_bl->props.brightness;
+#endif
 				panel_do_seqtbl_by_index(panel, PANEL_MASK_LAYER_EXIT_BR_SEQ);
 				mutex_unlock(&panel_bl->lock);
 			} else {

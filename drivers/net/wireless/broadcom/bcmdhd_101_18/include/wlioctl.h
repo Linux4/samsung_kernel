@@ -6,7 +6,7 @@
  *
  * Definitions subject to change without notice.
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24010,7 +24010,7 @@ typedef struct wlc_sroam {
 #define	DEF_SROAM_OFF			0
 #define	DEF_SROAM_MIN_RSSI		-65
 #define	DEF_SROAM_RSSI_RANGE		3u
-#define	DEF_SROAM_SCORE_DELTA		1u
+#define	DEF_SROAM_SCORE_DELTA		0
 #define	DEF_SROAM_PERIOD_TIME		10u
 #define	DEF_SROAM_INACT_CNT		5u
 #define	MAX_SROAM_RSSI			-70

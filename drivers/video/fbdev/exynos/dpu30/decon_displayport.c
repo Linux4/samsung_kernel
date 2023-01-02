@@ -254,7 +254,6 @@ int decon_displayport_get_hdr_capa_info(struct decon_device *decon,
 {
 #if defined(CONFIG_EXYNOS_DISPLAYPORT)
 	struct displayport_device *displayport = get_displayport_drvdata();
-	struct decon_device *decon0 = get_decon_drvdata(0);
 	u32 sst_id = displayport_get_sst_id_with_decon_id(decon->id);
 
 	if (displayport->sst[sst_id]->rx_edid_data.hdr_support) {
@@ -267,14 +266,11 @@ int decon_displayport_get_hdr_capa_info(struct decon_device *decon,
 		hdr_capa_info->min_luminance =
 			displayport->sst[sst_id]->rx_edid_data.min_lumi_data;
 	} else { /* For P version platform */
-		hdr_capa_info->out_num =
-			decon0->lcd_info->hdr.num;
-		hdr_capa_info->max_luminance =
-			decon0->lcd_info->hdr.max_luma;
-		hdr_capa_info->max_average_luminance =
-			decon0->lcd_info->hdr.max_avg_luma;
-		hdr_capa_info->min_luminance =
-			decon0->lcd_info->hdr.min_luma;
+		hdr_capa_info->out_num = 0;
+		hdr_capa_info->max_luminance = 2500000;
+		hdr_capa_info->max_average_luminance = 1200000;
+		hdr_capa_info->min_luminance = 5;
+		/* default capability */
 	}
 #else
 	decon_info("Not compiled displayport driver\n");

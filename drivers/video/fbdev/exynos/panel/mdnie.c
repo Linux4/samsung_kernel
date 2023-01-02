@@ -1266,6 +1266,7 @@ int mdnie_enable(struct mdnie_info *mdnie)
 
 	if (IS_MDNIE_ENABLED(mdnie)) {
 		panel_info("mdnie already enabled\n");
+		panel_mdnie_update(panel);
 		return 0;
 	}
 

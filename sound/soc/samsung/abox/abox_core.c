@@ -527,7 +527,7 @@ int abox_core_download_firmware(void)
 			}
 			if (IS_ENABLED(CONFIG_EXYNOS_IMGLOADER)) {
 				if (fw->code_signed && fw->fw_imgloader_desc) {
-					imgloader_boot(fw->fw_imgloader_desc);
+					ret |= imgloader_boot(fw->fw_imgloader_desc);
 					continue;
 				}
 			}

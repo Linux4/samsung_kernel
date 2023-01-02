@@ -78,14 +78,15 @@ static void __mfc_handle_black_bar_info(struct mfc_core *core,
 static unsigned int __mfc_handle_frame_field(struct mfc_core *core,
 		struct mfc_ctx *ctx)
 {
-	unsigned int interlace_type = 0, is_interlace = 0, is_mbaff = 0;
+	struct mfc_dec *dec = ctx->dec_priv;
+	unsigned int interlace_type = 0, is_interlace = 0;
 	unsigned int field;
 
 	if (CODEC_INTERLACED(ctx))
 		is_interlace = mfc_core_is_interlace_picture();
 
 	if (CODEC_MBAFF(ctx))
-		is_mbaff = mfc_core_is_mbaff_picture();
+		dec->is_mbaff = mfc_core_is_mbaff_picture();
 
 	if (is_interlace) {
 		interlace_type = mfc_core_get_interlace_type();
@@ -93,14 +94,14 @@ static unsigned int __mfc_handle_frame_field(struct mfc_core *core,
 			field = V4L2_FIELD_INTERLACED_TB;
 		else
 			field = V4L2_FIELD_INTERLACED_BT;
-	} else if (is_mbaff) {
+	} else if (dec->is_mbaff) {
 		field = V4L2_FIELD_INTERLACED_TB;
 	} else {
 		field = V4L2_FIELD_NONE;
 	}
 
 	mfc_debug(2, "[INTERLACE] is_interlace: %d (type : %d), is_mbaff: %d, field: 0x%#x\n",
-			is_interlace, interlace_type, is_mbaff, field);
+			is_interlace, interlace_type, dec->is_mbaff, field);
 
 	return field;
 }
@@ -1441,7 +1442,7 @@ static int __mfc_handle_seq_dec(struct mfc_core *core, struct mfc_ctx *ctx)
 	struct mfc_core_ctx *core_ctx = core->core_ctx[ctx->num];
 	struct mfc_dec *dec = ctx->dec_priv;
 	struct mfc_buf *src_mb;
-	int i, is_interlace, is_mbaff;
+	int i, is_interlace;
 	unsigned int bytesused, fps, num_sbwc_inst = 0;
 
 	if (ctx->src_fmt->fourcc != V4L2_PIX_FMT_FIMV1) {
@@ -1488,11 +1489,11 @@ static int __mfc_handle_seq_dec(struct mfc_core *core, struct mfc_ctx *ctx)
 		mfc_change_state(core_ctx, MFCINST_ERROR);
 	} else {
 		is_interlace = mfc_core_is_interlace_picture();
-		is_mbaff = mfc_core_is_mbaff_picture();
-		if (is_interlace || is_mbaff)
+		dec->is_mbaff = mfc_core_is_mbaff_picture();
+		if (is_interlace || dec->is_mbaff)
 			dec->is_interlaced = 1;
 		mfc_debug(2, "[INTERLACE] interlace: %d, mbaff: %d\n",
-				is_interlace, is_mbaff);
+				is_interlace, dec->is_mbaff);
 
 		if (dev->pdata->support_sbwc) {
 			ctx->is_sbwc = mfc_core_is_sbwc_avail();

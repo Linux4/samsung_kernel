@@ -1064,7 +1064,8 @@ int abox_dma_func_put(struct snd_kcontrol *kcontrol,
 
 	if (abox_dma_progress(cmpnt)) {
 		static const unsigned int VOL_MAX = 0x800000;
-		unsigned int change = 1, rate, wait_ms;
+		unsigned int change = 1, rate;
+		unsigned long wait_ms;
 
 		snd_soc_component_read(cmpnt, DMA_REG_VOL_CHANGE, &change);
 		rate = params_rate(&data->hw_params);
@@ -1074,9 +1075,9 @@ int abox_dma_func_put(struct snd_kcontrol *kcontrol,
 		reinit_completion(&data->func_changed);
 		ret = snd_soc_put_enum_double(kcontrol, ucontrol);
 		if (ret > 0) {
-			abox_info(dev, "func %d, wait %u ms\n", item[0], wait_ms);
+			abox_info(dev, "func %d, wait %lu ms\n", item[0], wait_ms);
 			wait_for_completion_timeout(&data->func_changed,
-					msecs_to_jiffies(wait_ms));
+					msecs_to_jiffies((unsigned int)wait_ms));
 		}
 	} else {
 		ret = snd_soc_put_enum_double(kcontrol, ucontrol);

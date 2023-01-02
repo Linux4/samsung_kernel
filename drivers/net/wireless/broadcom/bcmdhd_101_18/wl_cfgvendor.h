@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 Vendor Extension Code
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -628,6 +628,8 @@ typedef enum wl_vendor_event {
 	BRCM_VENDOR_EVENT_TPUT_DUMP		= 44,
 	GOOGLE_NAN_EVENT_MATCH_EXPIRY		= 45,
 	BRCM_VENDOR_EVENT_RCC_FREQ_INFO		= 46,
+	BRCM_VENDOR_EVENT_CONNECTIVITY_LOG	= 47,
+	BRCM_VENDOR_EVENT_HAPD_TSF		= 48,
 	BRCM_VENDOR_EVENT_LAST
 } wl_vendor_event_t;
 
@@ -833,6 +835,18 @@ typedef enum {
 	WIFI_TWT_ATTR_MAX
 } wifi_twt_attribute;
 #endif /* WL_TWT */
+
+#ifdef BCN_TSFINFO
+#define BRCM_VENDOR_GET_TSFINFO_LEN     \
+	sizeof(uint32) * 4
+
+typedef enum {
+	WIFI_SOFTAP_TSFINFO_HIGH        = 0,
+	WIFI_SOFTAP_TSFINFO_LOW         = 1,
+	WIFI_UTCTIME_SEC                = 2,
+	WIFI_UTCTIME_USEC               = 3
+} softap_tsfinfo_attribute;
+#endif /* BCN_TSFINFO */
 
 #ifdef TPUT_DEBUG_DUMP
 typedef enum {

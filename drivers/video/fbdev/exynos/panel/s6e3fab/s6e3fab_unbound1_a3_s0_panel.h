@@ -435,8 +435,8 @@ static u8 unbound1_a3_s0_vfp_fq_high_table[][2] = {
 	[S6E3FAB_VRR_60HS_120HS_TE_HW_SKIP_1] = { 0x00, 0x10 },
 	[S6E3FAB_VRR_96HS] = { 0x02, 0x70 },
 	[S6E3FAB_VRR_48HS_96HS_TE_HW_SKIP_1] = { 0x02, 0x70 },
-	[S6E3FAB_VRR_60HS] = { 0x00, 0x10 }, 
-	[S6E3FAB_VRR_48HS] = { 0x00, 0x10 }, 
+	[S6E3FAB_VRR_60HS] = { 0x00, 0x10 },
+	[S6E3FAB_VRR_48HS] = { 0x00, 0x10 },
 };
 
 static u8 unbound1_a3_s0_osc_0_table[][2] = {
@@ -479,8 +479,8 @@ static u8 unbound1_a3_s0_aor_table[][1] = {
 	[S6E3FAB_VRR_60HS_120HS_TE_HW_SKIP_1] = { 0x00 },
 	[S6E3FAB_VRR_96HS] = { 0x03 },
 	[S6E3FAB_VRR_48HS_96HS_TE_HW_SKIP_1] = { 0x03 },
-	[S6E3FAB_VRR_60HS] = { 0x00 }, 
-	[S6E3FAB_VRR_48HS] = { 0x03 }, 
+	[S6E3FAB_VRR_60HS] = { 0x00 },
+	[S6E3FAB_VRR_48HS] = { 0x03 },
 };
 
 static u8 unbound1_a3_s0_aor_fq_low_table[][S6E3FAB_TOTAL_STEP][2] = {
@@ -1599,6 +1599,16 @@ static void *unbound1_a3_s0_init_cmdtbl[] = {
 #endif
 };
 
+static void *unbound1_a3_s0_id_read_cmdtbl[] = {
+	&KEYINFO(unbound1_a3_s0_level1_key_enable),
+	&KEYINFO(unbound1_a3_s0_level2_key_enable),
+	&KEYINFO(unbound1_a3_s0_level3_key_enable),
+	&s6e3fab_restbl[RES_ID],
+	&KEYINFO(unbound1_a3_s0_level3_key_disable),
+	&KEYINFO(unbound1_a3_s0_level2_key_disable),
+	&KEYINFO(unbound1_a3_s0_level1_key_disable),
+};
+
 static void *unbound1_a3_s0_res_init_cmdtbl[] = {
 	&KEYINFO(unbound1_a3_s0_level1_key_enable),
 	&KEYINFO(unbound1_a3_s0_level2_key_enable),
@@ -2071,6 +2081,7 @@ static void *unbound1_a3_s0_dummy_cmdtbl[] = {
 static struct seqinfo unbound1_a3_s0_seqtbl[MAX_PANEL_SEQ] = {
 	[PANEL_INIT_SEQ] = SEQINFO_INIT("init-seq", unbound1_a3_s0_init_cmdtbl),
 	[PANEL_RES_INIT_SEQ] = SEQINFO_INIT("resource-init-seq", unbound1_a3_s0_res_init_cmdtbl),
+	[PANEL_ID_READ_SEQ] = SEQINFO_INIT("id-read-seq", unbound1_a3_s0_id_read_cmdtbl),
 	[PANEL_SET_BL_SEQ] = SEQINFO_INIT("set-bl-seq", unbound1_a3_s0_set_bl_cmdtbl),
 #ifdef CONFIG_SUPPORT_HMD
 	[PANEL_HMD_ON_SEQ] = SEQINFO_INIT("hmd-on-seq", unbound1_a3_s0_hmd_on_cmdtbl),

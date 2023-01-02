@@ -102,6 +102,7 @@ static int auto_sleep_thread_thrfunc(void *data)
 	BUG_ON(!thrctx);
 	BUG_ON(!(thrctx->do_task));
 
+	thrctx->idle_start_ns = 0;
 	while (!kthread_should_stop()) {
 		/* Execute thread task */
 		if (!(thrctx->do_task)) {

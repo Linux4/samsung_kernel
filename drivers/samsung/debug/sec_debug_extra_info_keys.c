@@ -8,11 +8,12 @@
 
 /* keys are grouped by size */
 static char key32[][MAX_ITEM_KEY_LEN] = {
-	"ID", "KTIME", "BIN", "FTYPE", "RR",
+	"ID", "KTIME", "BIN", "RR",
 	"DPM", "SMP", "MER", "PCB", "SMD",
 	"CHI", "LPI", "CDI", "LEV", "DCN",
 	"WAK", "ASB", "PSITE", "DDRID", "RST",
 	"INFO2", "INFO3", "RBASE", "MAGIC", "RSTCNT",
+	"FPMU",
 };
 
 static char key64[][MAX_ITEM_KEY_LEN] = {
@@ -32,18 +33,18 @@ static char key256[][MAX_ITEM_KEY_LEN] = {
 static char key1024[][MAX_ITEM_KEY_LEN] = {
 	"CPU0", "CPU1", "CPU2", "CPU3", "CPU4",
 	"CPU5", "CPU6", "CPU7", "MFC", "STACK",
-	"FPMU", "REGS", "HLDATA", "HLFREQ",
+	"REGS", "HLDATA", "HLFREQ", "FPMUMSG",
 };
 
 /* keys are grouped by sysfs node */
 static char akeys[][MAX_ITEM_KEY_LEN] = {
-	"ID", "KTIME", "BIN", "FTYPE", "FAULT",
+	"ID", "KTIME", "BIN", "FAULT",
 	"BUG", "PC", "LR", "STACK", "RR",
 	"RSTCNT", "PINFO", "SMU", "BUS", "DPM",
 	"ETC", "ESR", "MER", "PCB", "SMD",
 	"CHI", "LPI", "CDI", "WDGC", "KLG", "PANIC",
 	"LEV", "DCN", "WAK", "BAT", "SMP",
-	"HLTYPE", "HLDATA", "HLFREQ", "HLEHLD",
+	"HLTYPE", "HLDATA", "HLFREQ", "HLEHLD", "FPMU",
 };
 
 static char bkeys[][MAX_ITEM_KEY_LEN] = {
@@ -60,7 +61,7 @@ static char ckeys[][MAX_ITEM_KEY_LEN] = {
 };
 
 static char fkeys[][MAX_ITEM_KEY_LEN] = {
-	"ID", "RR", "UP", "DOWN", "FPMU",
+	"ID", "RR", "UP", "DOWN", "FPMUMSG",
 };
 
 static char mkeys[][MAX_ITEM_KEY_LEN] = {

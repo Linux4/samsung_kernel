@@ -286,14 +286,10 @@ static ssize_t show_energy_table(struct kobject *kobj,
 		table = get_energy_table(cpu);
 		for (i = 0; i < table->nr_states; i++) {
 			ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"cap=%4lu power=%4lu | static-power=%4lu | static-power-2nd=%4lu\n",
+				"cap=%lu dp=%lu | sp=%lu\n",
 				table->states[i].cap, table->states[i].power,
-				table->states[i].static_power,
-				table->states[i].static_power_2nd);
+				table->states[i].static_power);
 		}
-
-		ret += snprintf(buf + ret, PAGE_SIZE - ret,
-					"wakeup_cost=%4lu\n", table->wakeup_cost);
 
 		ret += snprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	}

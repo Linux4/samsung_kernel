@@ -56,7 +56,7 @@ static int __mfc_core_init(struct mfc_core *core, struct mfc_ctx *ctx)
 	} else {
 		/* Request buffer protection for DRM F/W */
 		ret = exynos_smc(SMC_DRM_PPMP_MFCFW_PROT,
-				core->drm_fw_buf.daddr, 0, 0);
+				core->drm_fw_buf.daddr, core->id * PROT_MFC1, 0);
 		if (ret != DRMDRV_OK) {
 			mfc_core_err("failed MFC DRM F/W prot(%#x)\n", ret);
 			call_dop(core, dump_and_stop_debug_mode, core);
@@ -119,7 +119,7 @@ err_common_ctx:
 		core->fw.drm_status = 0;
 		/* Request buffer unprotection for DRM F/W */
 		smc_ret = exynos_smc(SMC_DRM_PPMP_MFCFW_UNPROT,
-					core->drm_fw_buf.daddr, 0, 0);
+					core->drm_fw_buf.daddr, core->id * PROT_MFC1, 0);
 		if (smc_ret != DRMDRV_OK) {
 			mfc_core_err("failed MFC DRM F/W unprot(%#x)\n", smc_ret);
 			call_dop(core, dump_and_stop_debug_mode, core);
@@ -224,7 +224,7 @@ static int __mfc_core_deinit(struct mfc_core *core, struct mfc_ctx *ctx)
 			core->fw.drm_status = 0;
 			/* Request buffer unprotection for DRM F/W */
 			ret = exynos_smc(SMC_DRM_PPMP_MFCFW_UNPROT,
-					core->drm_fw_buf.daddr, 0, 0);
+					core->drm_fw_buf.daddr, core->id * PROT_MFC1, 0);
 			if (ret != DRMDRV_OK) {
 				mfc_ctx_err("failed MFC DRM F/W unprot(%#x)\n", ret);
 				call_dop(core, dump_and_stop_debug_mode, core);
@@ -691,13 +691,13 @@ void mfc_core_instance_dpb_flush(struct mfc_core *core, struct mfc_ctx *ctx)
 				core_ctx->state);
 		mfc_core_release_hwlock_ctx(core_ctx);
 		mfc_ctx_ready_set_bit(core_ctx, &core->work_bits);
-		if (mfc_core_is_work_to_do(core))
+		if (mfc_core_is_work_to_do(core)) {
 			queue_work(core->butler_wq, &core->butler_work);
 
-		
-		if (mfc_wait_for_done_drc(core_ctx)) {
-			mfc_err("[DRC] timed out waiting for DRC processing\n");
-			return;
+			if (mfc_wait_for_done_drc(core_ctx)) {
+				mfc_err("[DRC] timed out waiting for DRC processing\n");
+				return;
+			}
 		}
 
 		ret = mfc_core_get_hwlock_ctx(core_ctx);

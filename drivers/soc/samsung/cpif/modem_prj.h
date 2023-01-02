@@ -861,7 +861,6 @@ struct modem_ctl {
 	void (*gpio_revers_bias_restore)(void);
 	void (*modem_complete)(struct modem_ctl *mc);
 
-	int receive_first_ipc;
 
 	struct notifier_block lcd_notifier;
 

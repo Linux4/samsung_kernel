@@ -31,6 +31,8 @@
 #include "trace.h"
 #include <trace/events/f2fs.h>
 
+/* @fs.sec -- 80d73a766b8cf3cd0e32fdfe7adebe4b -- */
+
 #ifdef CONFIG_FSCRYPT_SDP
 #include <linux/fscrypto_sdp_ioctl.h>
 #endif
@@ -72,6 +74,10 @@ static vm_fault_t f2fs_vm_page_mkwrite(struct vm_fault *vmf)
 		goto err;
 	}
 
+	err = f2fs_convert_inline_inode(inode);
+	if (err)
+		goto err;
+
 #ifdef CONFIG_F2FS_FS_COMPRESSION
 	if (f2fs_compressed_file(inode)) {
 		int ret = f2fs_is_compressed_cluster(inode, page->index);
@@ -80,10 +86,6 @@ static vm_fault_t f2fs_vm_page_mkwrite(struct vm_fault *vmf)
 			err = ret;
 			goto err;
 		} else if (ret) {
-			if (ret < F2FS_I(inode)->i_cluster_size) {
-				err = -EAGAIN;
-				goto err;
-			}
 			need_alloc = false;
 		}
 	}
@@ -540,18 +542,12 @@ static loff_t f2fs_llseek(struct file *file, loff_t offset, int whence)
 static int f2fs_file_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct inode *inode = file_inode(file);
-	int err;
 
 	if (unlikely(f2fs_cp_error(F2FS_I_SB(inode))))
 		return -EIO;
 
 	if (!f2fs_is_compress_backend_ready(inode))
 		return -EOPNOTSUPP;
-
-	/* we don't need to use inline_data strictly */
-	err = f2fs_convert_inline_inode(inode);
-	if (err)
-		return err;
 
 	file_accessed(file);
 	vma->vm_ops = &f2fs_file_vm_ops;
@@ -2042,15 +2038,24 @@ static int f2fs_setflags_common(struct inode *inode, u32 iflags, u32 mask)
 		if (iflags & F2FS_COMPR_FL) {
 			if (!f2fs_may_compress(inode))
 				return -EINVAL;
-
+			if (S_ISREG(inode->i_mode)) {
 #ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
-			f2fs_drop_extent_tree(inode);
-			if (convert_and_set_compress_context(inode))
-				return -EINVAL;
-#else
-			set_compress_context(inode);
-#endif
+				if (fi->i_extra_isize
+				    < F2FS_COMPRESS_SUPPORT_EXTRA_ATTR_SIZE)
+					return -EINVAL;
 
+				f2fs_drop_extent_tree(inode);
+				if (convert_and_set_compress_context(inode))
+					return -EINVAL;
+#else
+				if (inode->i_size)
+					return -EINVAL;
+
+				set_compress_context(inode);
+#endif
+			} else {
+				set_compress_context(inode);
+			}
 		}
 	}
 	if ((iflags ^ masked_flags) & F2FS_NOCOMP_FL) {
@@ -4163,6 +4168,12 @@ static int f2fs_ioc_decompress_file(struct file *filp, unsigned long arg)
 		ret = -EOPNOTSUPP;
 		goto out;
 	}
+
+	if (IS_IMMUTABLE(inode)) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 #ifndef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
 	if (f2fs_is_mmap_file(inode)) {
 		ret = -EBUSY;
@@ -4239,6 +4250,12 @@ static int f2fs_ioc_compress_file(struct file *filp, unsigned long arg)
 		ret = -EOPNOTSUPP;
 		goto out;
 	}
+
+	if (IS_IMMUTABLE(inode)) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 #ifndef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
 	if (f2fs_is_mmap_file(inode)) {
 		ret = -EBUSY;

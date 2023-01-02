@@ -780,6 +780,7 @@ struct mfc_qos_weight {
 	unsigned int weight_gpb;
 	unsigned int weight_num_of_tile;
 	unsigned int weight_super64_bframe;
+	unsigned int weight_mbaff;
 };
 
 struct mfc_feature {
@@ -1981,6 +1982,7 @@ struct mfc_dec {
 	int mv_count;
 	int idr_decoding;
 	int is_interlaced;
+	int is_mbaff;
 	int is_dts_mode;
 	int stored_tag;
 	int inter_res_change;

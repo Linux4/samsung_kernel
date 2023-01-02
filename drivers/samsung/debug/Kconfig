@@ -349,3 +349,11 @@ config SEC_DEBUG_HARDLOCKUP_INFO
 	help
 	  This option enables hardlockup information.
 	  Select the option to show debugging information when hardlockup is detected.
+
+config SEC_DEBUG_SCHED_REPORT
+	tristate "Enable schded report for debugging"
+	depends on SEC_DEBUG && DEBUG_SNAPSHOT
+	default m
+	help
+	  This option enables sched report for debugging.
+	  Select the option to show sched information when stall issue is detected.

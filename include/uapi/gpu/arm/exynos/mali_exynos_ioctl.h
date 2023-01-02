@@ -104,6 +104,25 @@ struct mali_exynos_ioctl_cmar_boost {
 #define MALI_EXYNOS_IOCTL_CMAR_BOOST \
 	_IOW(KBASE_IOCTL_EXTRA_TYPE, 4, struct mali_exynos_ioctl_cmar_boost)
 
+/* GPU Profiler - CONFIG_MALI_TSG */
+struct kbase_ioctl_slsi_egp {
+	__u64 start_timestamp;
+	__u64 end_timestamp;
+};
+
+#define KBASE_IOCTL_SLSI_EGP \
+       _IOW(KBASE_IOCTL_EXTRA_TYPE, 5, struct kbase_ioctl_slsi_egp)
+
+/*
+ * struct mali_exynos_ioctl_interactive_boost - boost to interactive clock
+ * @duration: boost duration in msec
+ */
+struct mali_exynos_ioctl_interactive_boost {
+	__u64 duration;
+};
+
+#define MALI_EXYNOS_IOCTL_INTERACTIVE_BOOST \
+       _IOW(KBASE_IOCTL_EXTRA_TYPE, 6, struct mali_exynos_ioctl_interactive_boost)
 
 /*** Legacy IOCTLs for backward compatibility ***/
 

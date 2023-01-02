@@ -174,7 +174,7 @@
 #define S6E3HAD_RDDSM_OFS			0
 #define S6E3HAD_RDDSM_LEN			(PANEL_RDDSM_LEN)
 
-#define S6E3HAD_ERR_REG				0xEA
+#define S6E3HAD_ERR_REG				0xE9
 #define S6E3HAD_ERR_OFS				0
 #define S6E3HAD_ERR_LEN				5
 
@@ -1344,6 +1344,7 @@ static bool is_first_set_bl(struct panel_device *panel);
 static bool is_wait_vsync_needed(struct panel_device *panel);
 static bool is_vrr_96hs_mode(struct panel_device *panel);
 static bool is_vrr_96hs_hbm_enter(struct panel_device *panel);
+static bool is_gamma_select_off_brt(struct panel_device *panel);
 
 #ifdef CONFIG_SUPPORT_BRIGHTDOT_TEST
 static int s6e3had_getidx_brightdot_aor_table(struct maptbl *tbl);

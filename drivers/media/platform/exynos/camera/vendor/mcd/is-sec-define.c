@@ -29,6 +29,11 @@
 #define IS_LATEST_ROM_VERSION_M	'M'
 
 #define IS_READ_MAX_EEP_CAL_SIZE	(32 * 1024)
+#define IS_READ_MAX_HI1336_OTP_CAL_SIZE	(1264)
+#define HI1336_OTP_START_ADDR_BANK1	(0x0404)
+#define HI1336_OTP_START_ADDR_BANK2	(0x0904)
+#define HI1336_OTP_START_ADDR_BANK3	(0x0E04)
+#define HI1336_OTP_START_ADDR_BANK4	(0x1304)
 
 bool force_caldata_dump = false;
 
@@ -1784,7 +1789,8 @@ int is_sec_readcal_otprom_hi1336(int rom_id)
 	struct is_device_sensor_peri *sensor_peri = NULL;
 	struct is_module_enum *module = NULL;
 	u32 i2c_channel;
-	u16 bank;
+	u8 bank;
+	u16 start_addr = 0;
 #ifdef CONFIG_SEC_CAL_ENABLE
 	char *buf_rom_data = NULL;
 #endif
@@ -1857,14 +1863,34 @@ crc_retry:
 
 	ret = is_i2c_read(client,&bank,read_addr,1);
 
+	/* select start address */
+	switch (bank) {
+	case 0x01 :
+		start_addr = HI1336_OTP_START_ADDR_BANK1;
+		break;
+	case 0x03 :
+		start_addr = HI1336_OTP_START_ADDR_BANK2;
+		break;
+	case 0x07 :
+		start_addr = HI1336_OTP_START_ADDR_BANK3;
+		break;
+	case 0x0F :
+		start_addr = HI1336_OTP_START_ADDR_BANK4;
+		break;
+	default :
+		start_addr = HI1336_OTP_START_ADDR_BANK1;
+		break;
+	}
+	info("%s: otp_bank = %d start_addr = %x\n", __func__, bank, start_addr);
+
 	//OTP burst read
-	is_i2c_write(client, 0x030A, ((0x404) >> 8) & 0xFF); // upper 16bit
-	is_i2c_write(client, 0x030B, 0x404 & 0xFF); // lower 16bit
+	is_i2c_write(client, 0x030A, ((start_addr) >> 8) & 0xFF); // upper 16bit
+	is_i2c_write(client, 0x030B, start_addr & 0xFF); // lower 16bit
 	is_i2c_write(client, 0x0302, 0x01); // read mode
 	is_i2c_write(client, 0x0712, 0x01); // burst read register on
 
 	info("Camera: I2C read cal data for rom_id:%d\n",rom_id);
-	ret = is_i2c_read(client, &buf[0], read_addr, IS_READ_MAX_EEP_CAL_SIZE);
+	ret = is_i2c_read(client, &buf[0], read_addr, IS_READ_MAX_HI1336_OTP_CAL_SIZE);
 	if (ret) {
 		err("failed to is_i2c_read (%d)\n", ret);
 		ret = -EINVAL;

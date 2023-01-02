@@ -268,9 +268,6 @@ enum {
 #define NTCV_STEP		2346 	// 2.346mV(2346uV) LSB, Range(0V ~ 2.4V)
 #define ADC_IIN_OFFSET	900000	// 900mA
 
-/* adc_gain bit[7:4] of reg 0x31 - 2's complement */
-static int adc_gain[16] = { 0, 1, 2, 3, 4, 5, 6, 7, -8, -7, -6, -5, -4, -3, -2, -1 };
-
 /* Timer definition */
 #if defined(CONFIG_SEC_FACTORY)
 #define PCA9468_VBATMIN_CHECK_T	0		// 0ms
@@ -505,10 +502,6 @@ enum {
 	REV_B3,		/* B3 */
 	REV_B4,		/* B4 */
 };
-
-/* IIN offset as the switching frequency in uA*/
-static int iin_fsw_cfg[16] = { 9990, 10540, 11010, 11520, 12000, 12520, 12990, 13470,
-								5460, 6050, 6580, 7150, 7670, 8230, 8720, 9260 };
 
 struct pca9468_platform_data {
 	int	irq_gpio;	/* GPIO pin that's connected to INT# */

@@ -51,8 +51,8 @@
 #endif
 
 #if defined(CONFIG_MUIC_NOTIFIER)
-#include <linux/muic/muic.h>
-#include <linux/muic/muic_notifier.h>
+#include <linux/muic/common/muic.h>
+#include <linux/muic/common/muic_notifier.h>
 #endif
 
 #ifdef CONFIG_PANEL_NOTIFY
@@ -159,6 +159,9 @@
 #define CONFIG_SENSORS_SSP_PROX_ADC_CAL
 #endif
 
+#define SSP_AUTO_ROTATION_ORIENTATION "SSP:AUTO_ROTATION_ORIENTATION="
+#define SSP_SAR_BACKOFF_MOTION_NOTI "SSP:SAR_BACKOFF_MOTION_NOTI="
+
 extern bool ssp_debug_time_flag;
 
 #define ssp_debug_time(format, ...) \
@@ -243,6 +246,7 @@ enum {
 #define MSG2SSP_AP_STATUS_POW_DISCONNECTED	0xD7
 #define MSG2SSP_AP_STATUS_SCONTEXT_WAKEUP	0x97
 #define MSG2SSP_AP_STATUS_SCONTEXT_SLEEP	0x98
+#define MSG2SSP_AP_SAR_BACKOFF_MOTION_NOTI	0x9B
 #define MSG2SSP_AP_TEMPHUMIDITY_CAL_DONE	0xDA
 #define MSG2SSP_AP_MCU_SET_DUMPMODE		0xDB
 #define MSG2SSP_AP_MCU_DUMP_CHECK		0xDC
@@ -340,6 +344,8 @@ enum {
 #define MSG2SSP_GET_LIGHT_TEST		0x93
 #define MSG2SSP_GET_COPR_ROIX		0x95
 #define MSG2SSP_HALL_IC_ON_OFF		0x96
+#define MSG2SSP_AUTO_ROTATION_ORIENTATION 0x9A
+
 /* voice data */
 #define TYPE_WAKE_UP_VOICE_SERVICE			0x01
 #define TYPE_WAKE_UP_VOICE_SOUND_SOURCE_AM		0x01
@@ -643,6 +649,7 @@ struct sensor_value {
 		u8 shake_tracker_event;
 		u32 light_seamless_event;
 		u8 auto_rotation_event;
+		u8 sar_backoff_motion_event;
 		u8 scontext_buf[SCONTEXT_DATA_SIZE];
 		struct {
 			u8 proximity_pocket_detect;
@@ -1262,6 +1269,7 @@ void report_auto_rotation_data(struct ssp_data *data, int sensor_type, struct se
 #ifdef CONFIG_SENSORS_FLIP_COVER_DETECTOR
 void report_flip_cover_detector_data(struct ssp_data *data, int sensor_type, struct sensor_value *flip_cover_detector_data);
 #endif
+void report_sar_backoff_motion_data(struct ssp_data *data, int sensor_type, struct sensor_value *sar_backoff_motion_data);
 unsigned int get_module_rev(struct ssp_data *data);
 void reset_mcu(struct ssp_data *data);
 int sensors_register(struct device *dev, void *drvdata,

@@ -92,6 +92,9 @@ static void sensor_hi1336_cis_data_calculation(const struct sensor_pll_info_comp
 	cis_data->min_frame_us_time = (1 * 1000 * 1000) / frame_rate;
 	cis_data->cur_frame_us_time = cis_data->min_frame_us_time;
 
+#ifdef CAMERA_REAR2
+	cis_data->min_sync_frame_us_time = cis_data->min_frame_us_time;
+#endif
 	dbg_sensor(1, "frame_duration(%d) - frame_rate (%d) = pixel_rate(%llu) / "
 		KERN_CONT "(pll_info->frame_length_lines(%d) * total_line_length_pck(%d))\n",
 		cis_data->min_frame_us_time, frame_rate, pixel_rate, pll_info->frame_length_lines, total_line_length_pck);
@@ -641,15 +644,17 @@ int sensor_hi1336_cis_set_test_pattern(struct v4l2_subdev *subdev, camera2_senso
 			cis->cis_data->cur_pattern_mode, sensor_ctl->testPatternMode);
 
 	if (cis->cis_data->cur_pattern_mode != sensor_ctl->testPatternMode) {
-		info("%s REG : 0x0B04 write to 0x00dd", __func__);
-		is_sensor_write16(client, 0x0B04, 0x00dd);
-
 		cis->cis_data->cur_pattern_mode = sensor_ctl->testPatternMode;
 		if (sensor_ctl->testPatternMode == SENSOR_TEST_PATTERN_MODE_OFF) {
 			info("%s: set DEFAULT pattern! (testpatternmode : %d)\n", __func__, sensor_ctl->testPatternMode);
 
 			I2C_MUTEX_LOCK(cis->i2c_lock);
-			is_sensor_write16(client, 0x0C0A, 0x0000);
+			is_sensor_write16(client, 0x0b04, 0x037c);
+			is_sensor_write16(client, 0x0c0a, 0x0000);
+			is_sensor_write16(client, 0x0c0c, 0x0000);
+			is_sensor_write16(client, 0x0c0e, 0x0000);
+			is_sensor_write16(client, 0x0c10, 0x0000);
+			is_sensor_write16(client, 0x0c12, 0x0000);
 			I2C_MUTEX_UNLOCK(cis->i2c_lock);
 		} else if (sensor_ctl->testPatternMode == SENSOR_TEST_PATTERN_MODE_BLACK) {
 			info("%s: set BLACK pattern! (testpatternmode :%d), Data : 0x(%x, %x, %x, %x)\n",
@@ -660,8 +665,12 @@ int sensor_hi1336_cis_set_test_pattern(struct v4l2_subdev *subdev, camera2_senso
 				(unsigned short)sensor_ctl->testPatternData[3]);
 
 			I2C_MUTEX_LOCK(cis->i2c_lock);
-			is_sensor_write16(client, 0x0C0A, 0x0100);
-
+			is_sensor_write16(client, 0x0b04, 0x037d);
+			is_sensor_write16(client, 0x0c0a, 0x0100);
+			is_sensor_write16(client, 0x0c0c, 0x0040);
+			is_sensor_write16(client, 0x0c0e, 0x0040);
+			is_sensor_write16(client, 0x0c10, 0x0040);
+			is_sensor_write16(client, 0x0c12, 0x0040);
 			I2C_MUTEX_UNLOCK(cis->i2c_lock);
 		}
 	}
@@ -887,7 +896,6 @@ int sensor_hi1336_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 	frame_length_lines = coarse_integ_time + cis_data->max_margin_coarse_integration_time;
 
 	frame_duration = (u32)((u64)((frame_length_lines * line_length_pck) / pix_rate_freq_khz) * 1000);
-	max_frame_us_time = 1000000/cis->min_fps;
 
 	dbg_sensor(1, "[%s](vsync cnt = %d) input exp(%d), adj duration, frame duraion(%d), min_frame_us(%d)\n",
 			__func__, cis_data->sen_vsync_count, input_exposure_time, frame_duration, cis_data->min_frame_us_time);
@@ -897,9 +905,6 @@ int sensor_hi1336_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 	dbg_sensor(1, "[%s] requested min_fps(%d), max_fps(%d) from HAL\n", __func__, cis->min_fps, cis->max_fps);
 
 	*target_duration = MAX(frame_duration, cis_data->min_frame_us_time);
-	if(cis->min_fps == cis->max_fps) {
-		*target_duration = MIN(frame_duration, max_frame_us_time);
-	}
 
 	dbg_sensor(1, "[%s] calcurated frame_duration(%d), adjusted frame_duration(%d)\n", __func__, frame_duration, *target_duration);
 
@@ -1038,7 +1043,11 @@ int sensor_hi1336_cis_set_frame_rate(struct v4l2_subdev *subdev, u32 min_fps)
 		goto p_err;
 	}
 
+#ifdef CAMERA_REAR2
+	cis_data->min_frame_us_time = MAX(frame_duration, cis_data->min_sync_frame_us_time);
+#else
 	cis_data->min_frame_us_time = frame_duration;
+#endif
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);

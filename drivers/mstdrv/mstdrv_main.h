@@ -27,6 +27,9 @@
 #endif
 #include <linux/msm_pcie.h>
 #include <linux/qseecom.h>
+#if IS_ENABLED(CONFIG_QSEECOM_PROXY)
+#include <linux/qseecom_kernel.h>
+#endif
 #endif
 
 #if defined(CONFIG_MST_ARCH_EXYNOS)
@@ -36,25 +39,13 @@
 #include <linux/smc.h> // for Kinibi
 #endif
 
-#if defined(CONFIG_MST_ARCH_MTK)
-#include <linux/arm-smccc.h> // for Kinibi
+#if defined(CONFIG_MST_ARCH_MTK) && !defined(CONFIG_MST_TEEGRIS) && !defined(CONFIG_MST_NONSECURE) // for Kinibi
+#include <linux/arm-smccc.h>
 #include <mt-plat/mtk_secure_api.h>
 #endif
 
 #if defined(CONFIG_MST_TEEGRIS)
 #include "../../drivers/misc/tzdev/include/tzdev/tee_client_api.h"
-#endif
-
-#if defined(CONFIG_MFC_CHARGER)
-#if IS_ENABLED(CONFIG_WIRELESS_CHARGER_P9320)
-#include "../../drivers/battery/wireless/p9320_charger.h"
-#elif IS_ENABLED(CONFIG_WIRELESS_CHARGER_S2MIW04)
-#include "../../drivers/battery/wireless/s2miw04_charger.h"
-#elif IS_ENABLED(CONFIG_WIRELESS_CHARGER_MFC_S2MIW04)
-#include "../../drivers/battery/wireless/mfc_s2miw04_charger.h"
-#else
-#include "../../drivers/battery/wireless/mfc_charger.h"
-#endif
 #endif
 
 #if defined(CONFIG_MST_NONSECURE)
@@ -72,21 +63,6 @@
 DEFINE_MUTEX(mst_mutex);
 DEFINE_MUTEX(transmit_mutex);
 #endif
-
-#if defined(CONFIG_MST_V2)
-#define MFC_MST_LDO_CONFIG_1				0x7400
-#define MFC_MST_LDO_CONFIG_2				0x7409
-#define MFC_MST_LDO_CONFIG_3				0x7418
-#define MFC_MST_LDO_CONFIG_4				0x3014
-#define MFC_MST_LDO_CONFIG_5				0x3405
-#define MFC_MST_LDO_CONFIG_6				0x3010
-#define MFC_MST_LDO_TURN_ON				0x301c
-#define MFC_MST_LDO_CONFIG_8				0x343c
-#define MFC_MST_OVER_TEMP_INT				0x0024
-#endif
-#define MFC_CHIP_ID_L_REG				0x00
-#define MFC_CHIP_ID_P9320				0x20
-#define MFC_CHIP_ID_S2MIW04				0x04
 
 /* for logging */
 #include <linux/printk.h>
@@ -108,7 +84,6 @@ struct workqueue_struct *cluster_freq_ctrl_wq;
 struct delayed_work dwork;
 
 static uint32_t mode_set_wait = 40;
-static uint32_t idt_i2c_command = -1;
 
 typedef enum {
 	MFC_CHIP_ID_IDT = 1,
@@ -126,12 +101,14 @@ typedef enum {
 	MST_CMD_UNKNOWN = MST_CREATE_CMD(0x7FFFFFFF)
 } mst_cmd_type;
 
+#if !IS_ENABLED(CONFIG_QSEECOM_PROXY)
 /* struct definitions */
 struct qseecom_handle {
 	void *dev;		/* in/out */
 	unsigned char *sbuf;	/* in/out */
 	uint32_t sbuf_len;	/* in/out */
 };
+#endif
 static struct qseecom_handle *qhandle;
 
 typedef struct mst_req_s {
@@ -144,6 +121,7 @@ typedef struct mst_rsp_s {
 	uint32_t status;
 } __attribute__ ((packed)) mst_rsp_t;
 
+#if !IS_ENABLED(CONFIG_QSEECOM_PROXY)
 /* extern function declarations */
 extern int qseecom_start_app(struct qseecom_handle **handle, char *app_name,
 			     uint32_t size);
@@ -151,6 +129,7 @@ extern int qseecom_shutdown_app(struct qseecom_handle **handle);
 extern int qseecom_send_command(struct qseecom_handle *handle, void *send_buf,
 				uint32_t sbuf_len, void *resp_buf,
 				uint32_t rbuf_len);
+#endif
 
 #if defined(_ARCH_ARM_MACH_MSM_BUS_H) // build error
 static struct msm_bus_paths ss_mst_usecases[] = {

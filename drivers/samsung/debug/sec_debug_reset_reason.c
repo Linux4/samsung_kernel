@@ -20,7 +20,7 @@
 #include <linux/of.h>
 #include <linux/of_reserved_mem.h>
 #include "sec_debug_internal.h"
-
+#include <linux/ctype.h>
 
 static const char *regs_bit[][8] = {
 	{ "SUB_OFF", "TSD", "TIMEOUT", "LDO_SYS_OK", "PWRHOLD", "WTSR_TOUT", "SMPL_TOUT", "UVLOB" },	/* OFFSRC */
@@ -194,6 +194,18 @@ static void parse_pwrsrc_rs(struct outbuf *buf)
 	buf->already = 1;
 }
 
+static int secdbg_rere_pwr_to_ul(char *src, unsigned long *dst)
+{
+	char val[32] = {0, };
+	int i, pos = 0;
+
+	for (i = 0 ; i < strlen(src) ; i++)
+		if (isdigit(*(src + i)))
+			val[pos++] = *(src + i);
+
+	return kstrtoul(val, 16, dst);
+}
+
 /*
  * proc/pwrsrc
  * OFFSRC (from PWROFF - 32) + ONSRC (from PWR - 32) + RSTSTAT (from RST - 32)
@@ -214,7 +226,7 @@ static int secdbg_reset_reason_pwrsrc_show(struct seq_file *m, void *v)
 
 	memset(val, 0, 32);
 	get_bk_item_val_as_string("PWROFF", val);
-	if (kstrtoul(val, 0, &tmp) < 0) {
+	if (secdbg_rere_pwr_to_ul(val, &tmp) < 0) {
 		pr_err("%s: Bad PWROFF value\n", __func__);
 		tmp = 0;
 	}
@@ -232,7 +244,7 @@ static int secdbg_reset_reason_pwrsrc_show(struct seq_file *m, void *v)
 
 	memset(val, 0, 32);
 	get_bk_item_val_as_string("PWR", val);
-	if (kstrtoul(val, 0, &tmp) < 0) {
+	if (secdbg_rere_pwr_to_ul(val, &tmp) < 0) {
 		pr_err("%s: Bad PWR value\n", __func__);
 		tmp = 0;
 	}

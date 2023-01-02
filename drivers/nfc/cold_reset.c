@@ -260,6 +260,10 @@ int do_reset_protection(bool type)
 	uint8_t prop_cmd[] = {0x2F, 0x1F, 0x01, 0x00};
 
 	pn547_dev = get_nfcc_dev_data();
+	if (!pn547_dev) {
+		pr_info("%s: exit, no nfc dev", __func__);
+		return -ENODEV;
+	}
 
 	pr_info("%s: Enter cmd type: %d", __func__, type);
 
@@ -333,6 +337,10 @@ int ese_cold_reset(enum ese_cold_reset_origin src)
 	}
 
 	pn547_dev = get_nfcc_dev_data();
+	if (!pn547_dev) {
+		pr_info("%s: exit, no nfc dev", __func__);
+		return -ENODEV;
+	}
 
 	mutex_lock(&ese_cold_reset_sync_mutex);
 

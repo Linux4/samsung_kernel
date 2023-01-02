@@ -1,7 +1,7 @@
 /*
  * Wifi Virtual Interface implementaion
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1308,6 +1308,16 @@ wl_get_bandwidth_cap(struct net_device *ndev, uint32 band, uint32 *bandwidth)
 	} else if (band == WL_CHANSPEC_BAND_2G) {
 		bw = WL_CHANSPEC_BW_20;
 	}
+
+#if defined(LIMIT_AP_BW)
+	if (band == WL_CHANSPEC_BAND_6G) {
+		struct bcm_cfg80211 *cfg = wl_get_cfg(ndev);
+		if (cfg->ap_bw_chspec != INVCHANSPEC &&
+			(wf_bw_chspec_to_mhz(cfg->ap_bw_chspec) < wf_bw_chspec_to_mhz(bw))) {
+			bw = cfg->ap_bw_chspec;
+		}
+	}
+#endif /* LIMIT_AP_BW */
 
 	*bandwidth = bw;
 
@@ -3568,7 +3578,11 @@ wl_cfg80211_stop_ap(
 		}
 #endif /* DHD_PCIE_RUNTIMEPM */
 #endif /* CUSTOMER_HW4 */
-
+#ifdef BCN_TSFINFO
+		if (wl_cfg80211_tsfinfo_set(dev, 0)) {
+			WL_ERR(("Fail to clear tsfinfo\n"));
+		}
+#endif /* BCN_TSFINFO */
 #ifdef DISABLE_WL_FRAMEBURST_SOFTAP
 		wl_cfg80211_set_frameburst(cfg, TRUE);
 #endif /* DISABLE_WL_FRAMEBURST_SOFTAP */
@@ -5709,6 +5723,18 @@ int wl_cfg80211_set_he_mode(struct net_device *dev, struct bcm_cfg80211 *cfg,
 
 	return err;
 }
+#ifdef BCN_TSFINFO
+int wl_cfg80211_tsfinfo_set(struct net_device *dev, s32 tsf_enable)
+{
+	uint err = BCME_OK;
+
+	err = wldev_iovar_setint(dev, "bcn_tsf_enab", tsf_enable);
+	if (err != BCME_OK) {
+		WL_ERR(("failed to set tsfinfo=%d\n", err));
+	}
+	return err;
+}
+#endif /* BCN_TSFINO */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0))
 int
@@ -6461,3 +6487,90 @@ fail:
 	return err;
 }
 #endif /* CUSTOM_SOFTAP_SET_ANT */
+
+#if defined(LIMIT_AP_BW)
+uint32
+wl_cfg80211_get_ap_bw_limit_bit(struct bcm_cfg80211 *cfg, uint32 band)
+{
+
+	if (band != WL_CHANSPEC_BAND_6G) {
+		WL_ERR(("AP BW LIMIT supportted for 6G band only requested = %d\n", band));
+		return 0;
+	}
+
+	return cfg->ap_bw_limit;
+}
+
+#ifdef WL_6G_320_SUPPORT
+#define BAND_PARAM(a) a, 0
+#else
+#define BAND_PARAM(a) a
+#endif /* WL_6G_320_SUPPORT */
+
+chanspec_t
+wl_cfg80211_get_ap_bw_limited_chspec(struct bcm_cfg80211 *cfg, uint32 band, chanspec_t candidate)
+{
+
+	chanspec_t updated_chspec;
+	if (band != WL_CHANSPEC_BAND_6G) {
+		WL_ERR(("AP BW LIMIT supported for 6G band only requested = %d\n", band));
+		return candidate;
+	}
+
+	if (!cfg->ap_bw_limit ||
+		(wf_bw_chspec_to_mhz(candidate) <= wf_bw_chspec_to_mhz(cfg->ap_bw_chspec))) {
+		/* LIMIT is not set or narrower bandwidth is required */
+		return candidate;
+	}
+	updated_chspec = wf_create_chspec_from_primary(
+		wf_chspec_primary20_chan(candidate),
+		cfg->ap_bw_chspec,
+		BAND_PARAM(WL_CHANSPEC_BAND_6G));
+
+	return updated_chspec;
+}
+
+/* configure BW limit for AP
+ * support 6G band only
+ */
+int
+wl_cfg80211_set_softap_bw(struct bcm_cfg80211 *cfg, uint32 band, uint32 limit)
+{
+	int i, found = FALSE, f_idx = 0;
+	uint32 support_bw[][2] = {
+		{WLC_BW_20MHZ_BIT, WL_CHANSPEC_BW_20},
+		{WLC_BW_40MHZ_BIT, WL_CHANSPEC_BW_40},
+		{WLC_BW_80MHZ_BIT, WL_CHANSPEC_BW_80},
+#if defined(CHSPEC_IS160)
+		{WLC_BW_160MHZ_BIT, WL_CHANSPEC_BW_160},
+#endif /* CHSPEC_IS160 */
+	};
+
+	if (band != WL_CHANSPEC_BAND_6G) {
+		WL_ERR(("AP BW LIMIT supportted for 6G band only requested = %d\n", band));
+		return FALSE;
+	}
+
+	for (i = 0; i < ARRAYSIZE(support_bw); i++) {
+		if (support_bw[i][0] == limit) {
+			found = TRUE;
+			f_idx = i;
+			break;
+		}
+	}
+
+	if (limit && !found) {
+		WL_ERR(("AP BW LIMIT not supported bandwidth :%d\n", limit));
+		return BCME_ERROR;
+	}
+
+	cfg->ap_bw_limit = limit;
+	if (found) {
+		cfg->ap_bw_chspec = support_bw[f_idx][1];
+	} else {
+		cfg->ap_bw_chspec = INVCHANSPEC;
+	}
+
+	return BCME_OK;
+}
+#endif /* LIMIT_AP_BW */

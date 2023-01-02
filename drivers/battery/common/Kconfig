@@ -151,15 +151,6 @@ config TABLET_MODEL_CONCEPT
 	  tablet models support this for charging,
 	  then it make Y.
 
-config DUAL_BATTERY
-    bool "DUAL BATTERY support"
-    depends on I2C
-    help
-	  Say Y here to enable
-	  support for dual battery.
-	  This integrated all dual-battery related functions.
-	  it needs dual battery tables.
-
 config PREVENT_USB_CONN_OVERHEAT
     bool "enable prevent usb conn overheat"
     default n
@@ -277,7 +268,7 @@ config SEC_BATTERY_TTF_TEST
           for sec_battery_ttf_test
 
 config SEC_STEP_CHARGING_TEST
-	bool "KUnit test for sec_step_charging_test"
+	tristate "KUnit test for sec_step_charging_test"
 	depends on SEC_KUNIT
 	help
     	  Say Y here to enable

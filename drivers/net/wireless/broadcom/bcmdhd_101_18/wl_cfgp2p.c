@@ -1,7 +1,7 @@
 /*
  * Linux cfgp2p driver
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -590,30 +590,30 @@ wl_cfgp2p_handle_discovery_busy(struct bcm_cfg80211 *cfg)
 		goto done;
 	}
 
-		CFGP2P_ERR(("p2p disc busy!!!\n"));
+	CFGP2P_ERR(("p2p disc busy!!!\n"));
 
-		if (ETHER_ISNULLADDR(p2p_dev_addr)) {
-			CFGP2P_ERR(("NULL p2p_dev_addr\n"));
-		} else {
-			CFGP2P_ERR(("p2p disc mac : "MACDBG"\n", MAC2STRDBG(p2p_dev_addr->octet)));
-		}
+	if (ETHER_ISNULLADDR(p2p_dev_addr)) {
+		CFGP2P_ERR(("NULL p2p_dev_addr\n"));
+	} else {
+		CFGP2P_ERR(("p2p disc mac : "MACDBG"\n", MAC2STRDBG(p2p_dev_addr->octet)));
+	}
 
-		if (dhd_query_bus_erros(dhdp)) {
-			CFGP2P_ERR(("bus error\n"));
+	if (dhd_query_bus_erros(dhdp)) {
+		CFGP2P_ERR(("bus error\n"));
 		goto done;
-		}
+	}
 
-		dhdp->p2p_disc_busy_occurred = TRUE;
+	dhdp->p2p_disc_busy_occurred = TRUE;
 
 #if defined(DHD_DEBUG) && defined(DHD_FW_COREDUMP)
-		if (dhdp->memdump_enabled) {
-			dhdp->memdump_type = DUMP_TYPE_P2P_DISC_BUSY;
-			dhd_bus_mem_dump(dhdp);
-		}
+	if (dhdp->memdump_enabled) {
+		dhdp->memdump_type = DUMP_TYPE_P2P_DISC_BUSY;
+		dhd_bus_mem_dump(dhdp);
+	}
 #endif /* DHD_DEBUG && DHD_FW_COREDUMP */
-		dhdp->hang_reason = HANG_REASON_P2P_DISC_BUSY;
+	dhdp->hang_reason = HANG_REASON_P2P_DISC_BUSY;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
-		dhd_os_send_hang_message(dhdp);
+	dhd_os_send_hang_message(dhdp);
 #endif
 
 done:
@@ -634,7 +634,7 @@ wl_cfgp2p_set_discovery(struct bcm_cfg80211 *cfg, s32 on)
 		CFGP2P_ERR(("p2p_disc %d error %d\n", on, ret));
 	}
 
-		if (on) {
+	if (on) {
 		if (ret == BCME_BUSY ||
 			dhdp->dhd_induce_error == DHD_INDUCE_P2P_DISC_BUSY) {
 			wl_cfgp2p_handle_discovery_busy(cfg);

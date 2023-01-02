@@ -147,7 +147,7 @@
 #define S6E3HAB_RDDSM_OFS			0
 #define S6E3HAB_RDDSM_LEN			(PANEL_RDDSM_LEN)
 
-#define S6E3HAB_ERR_REG				0xEA
+#define S6E3HAB_ERR_REG				0xE9
 #define S6E3HAB_ERR_OFS				0
 #define S6E3HAB_ERR_LEN				5
 

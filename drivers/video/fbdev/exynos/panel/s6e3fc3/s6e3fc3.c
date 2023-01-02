@@ -245,7 +245,7 @@ static int getidx_smooth_transition_table(struct maptbl *tbl)
 	panel_data = &panel->panel_data;
 	panel_bl = &panel->panel_bl;
 
-	row = panel_bl->props.smooth_transition;
+	row = is_hbm_brightness(panel_bl, panel_bl->props.brightness) ? SMOOTH_TRANS_OFF : SMOOTH_TRANS_ON;
 
 	return maptbl_index(tbl, 0, row, 0);
 }
@@ -301,19 +301,22 @@ static int getidx_acl_dim_onoff_table(struct maptbl *tbl)
 static int getidx_acl_opr_table(struct maptbl *tbl)
 {
 	struct panel_device *panel = (struct panel_device *)tbl->pdata;
-	int row;
+	struct panel_bl_device *panel_bl;
+	u32 layer, row;
 
 	if (panel == NULL) {
 		panel_err("panel is null\n");
 		return -EINVAL;
 	}
+	panel_bl = &panel->panel_bl;
 
-	if (panel_bl_get_acl_pwrsave(&panel->panel_bl) == ACL_PWRSAVE_OFF)
-		row = ACL_OPR_OFF;
-	else
-		row = panel_bl_get_acl_opr(&panel->panel_bl);
-
-	return maptbl_index(tbl, 0, row, 0);
+	layer = is_hbm_brightness(panel_bl, panel_bl->props.brightness) ? PANEL_HBM_ON : PANEL_HBM_OFF;
+	row = panel_bl_get_acl_opr(panel_bl);
+	if (tbl->nrow <= row) {
+		panel_err("invalid acl opr range %d %d\n", tbl->nrow, row);
+		row = 0;
+	}
+	return maptbl_index(tbl, layer, row, 0);
 }
 
 static int init_lpm_brt_table(struct maptbl *tbl)
@@ -336,7 +339,7 @@ static int getidx_lpm_brt_table(struct maptbl *tbl)
 	panel_bl = &panel->panel_bl;
 	props = &panel->panel_data.props;
 
-#ifdef CONFIG_SUPPORT_DOZE
+#ifdef CONFIG_EXYNOS_DOZE
 #ifdef CONFIG_SUPPORT_AOD_BL
 	panel_bl = &panel->panel_bl;
 	row = get_subdev_actual_brightness_index(panel_bl, PANEL_BL_SUBDEV_TYPE_AOD,
@@ -957,6 +960,35 @@ static void show_rddpm(struct dumpinfo *info)
 #endif
 }
 
+static void show_rddpm_before_sleep_in(struct dumpinfo *info)
+{
+	int ret;
+	struct resinfo *res = info->res;
+	u8 rddpm[S6E3FC3_RDDPM_LEN] = { 0, };
+
+	if (!res || ARRAY_SIZE(rddpm) != res->dlen) {
+		panel_err("invalid resource\n");
+		return;
+	}
+
+	ret = resource_copy(rddpm, info->res);
+	if (unlikely(ret < 0)) {
+		panel_err("failed to copy rddpm resource\n");
+		return;
+	}
+
+	panel_info("========== SHOW PANEL [0Ah:RDDPM] INFO (Before SLEEP_IN) ==========\n");
+	panel_info("* Reg Value : 0x%02x, Result : %s\n",
+			rddpm[0], ((rddpm[0] & 0x9C) == 0x98) ? "GOOD" : "NG");
+	panel_info("* Bootster Mode : %s\n", rddpm[0] & 0x80 ? "ON (GD)" : "OFF (NG)");
+	panel_info("* Idle Mode     : %s\n", rddpm[0] & 0x40 ? "ON (NG)" : "OFF (GD)");
+	panel_info("* Partial Mode  : %s\n", rddpm[0] & 0x20 ? "ON" : "OFF");
+	panel_info("* Sleep Mode    : %s\n", rddpm[0] & 0x10 ? "OUT (GD)" : "IN (NG)");
+	panel_info("* Normal Mode   : %s\n", rddpm[0] & 0x08 ? "OK (GD)" : "SLEEP (NG)");
+	panel_info("* Display ON    : %s\n", rddpm[0] & 0x04 ? "ON (NG)" : "OFF (GD)");
+	panel_info("=================================================\n");
+}
+
 static void show_rddsm(struct dumpinfo *info)
 {
 	int ret;
@@ -1007,7 +1039,7 @@ static void show_err(struct dumpinfo *info)
 	err_15_8 = err[0];
 	err_7_0 = err[1];
 
-	panel_info("========== SHOW PANEL [EAh:DSIERR] INFO ==========\n");
+	panel_info("========== SHOW PANEL [E9h:DSIERR] INFO ==========\n");
 	panel_info("* Reg Value : 0x%02x%02x, Result : %s\n", err_15_8, err_7_0,
 			(err[0] || err[1] || err[2] || err[3] || err[4]) ? "NG" : "GOOD");
 

@@ -486,9 +486,13 @@ void is_sensor_setting_mode_change(struct is_device_sensor_peri *sensor_peri)
 			expo.long_val, &frame_duration);
 	is_sensor_peri_s_frame_duration(device, frame_duration);
 
-	is_sensor_peri_s_analog_gain(device, again);
-	is_sensor_peri_s_digital_gain(device, dgain);
-	is_sensor_peri_s_exposure_time(device, expo);
+	if (sensor_peri->cis.use_vendor_total_gain) {
+		is_sensor_peri_s_totalgain(device, expo, again, dgain);
+	} else {
+		is_sensor_peri_s_analog_gain(device, again);
+		is_sensor_peri_s_digital_gain(device, dgain);
+		is_sensor_peri_s_exposure_time(device, expo);
+	}
 
 	is_sensor_peri_s_wb_gains(device, sensor_peri->cis.mode_chg_wb_gains);
 	is_sensor_peri_s_sensor_stats(device, false, NULL,
@@ -570,9 +574,13 @@ void is_sensor_flash_fire_work(struct work_struct *data)
 		    flash->flash_ae.expo[step], &frame_duration);
 		is_sensor_peri_s_frame_duration(device, frame_duration);
 
-		is_sensor_peri_s_analog_gain(device, again);
-		is_sensor_peri_s_digital_gain(device, dgain);
-		is_sensor_peri_s_exposure_time(device, expo);
+		if (sensor_peri->cis.use_vendor_total_gain) {
+			is_sensor_peri_s_totalgain(device, expo, again, dgain);
+		} else {
+			is_sensor_peri_s_analog_gain(device, again);
+			is_sensor_peri_s_digital_gain(device, dgain);
+			is_sensor_peri_s_exposure_time(device, expo);
+		}
 
 		sensor_peri->sensor_interface.cis_itf_ops.request_reset_expo_gain(&sensor_peri->sensor_interface,
 			EXPOSURE_GAIN_COUNT_3,
@@ -594,9 +602,13 @@ void is_sensor_flash_fire_work(struct work_struct *data)
 			MAX(flash->flash_ae.long_expo[step], flash->flash_ae.short_expo[step]), &frame_duration);
 		is_sensor_peri_s_frame_duration(device, frame_duration);
 
-		is_sensor_peri_s_analog_gain(device, again);
-		is_sensor_peri_s_digital_gain(device, dgain);
-		is_sensor_peri_s_exposure_time(device, expo);
+		if (sensor_peri->cis.use_vendor_total_gain) {
+			is_sensor_peri_s_totalgain(device, expo, again, dgain);
+		} else {
+			is_sensor_peri_s_analog_gain(device, again);
+			is_sensor_peri_s_digital_gain(device, dgain);
+			is_sensor_peri_s_exposure_time(device, expo);
+		}
 
 		sensor_peri->sensor_interface.cis_itf_ops.request_reset_expo_gain(&sensor_peri->sensor_interface,
 			EXPOSURE_GAIN_COUNT_3,
@@ -1442,9 +1454,13 @@ void is_sensor_long_term_mode_set_work(struct work_struct *data)
 	CALL_CISOPS(&sensor_peri->cis, cis_adjust_frame_duration, sensor_peri->subdev_cis,
 			cis->long_term_mode.expo[step], &frame_duration);
 	is_sensor_peri_s_frame_duration(device, frame_duration);
-	is_sensor_peri_s_analog_gain(device, again);
-	is_sensor_peri_s_digital_gain(device, dgain);
-	is_sensor_peri_s_exposure_time(device, expo);
+	if (sensor_peri->cis.use_vendor_total_gain) {
+		is_sensor_peri_s_totalgain(device, expo, again, dgain);
+	} else {
+		is_sensor_peri_s_analog_gain(device, again);
+		is_sensor_peri_s_digital_gain(device, dgain);
+		is_sensor_peri_s_exposure_time(device, expo);
+	}
 
 	sensor_peri->sensor_interface.cis_itf_ops.request_reset_expo_gain(&sensor_peri->sensor_interface,
 			EXPOSURE_GAIN_COUNT_3,
@@ -1900,10 +1916,11 @@ bool is_sensor_peri_check_mcu_disable_condition(struct is_device_sensor *device)
 
 	if ((device->ischain->setfile & IS_SETFILE_MASK) == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY
 		|| (device->ischain->setfile & IS_SETFILE_MASK) == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_AUTO
-		|| (device->ischain->setfile & IS_SETFILE_MASK) == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_ON) {
+		|| (device->ischain->setfile & IS_SETFILE_MASK) == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_ON
+		|| (sensor_peri->check_auto_framing)) {
 		device_mcu = &core->sensor[0];
 
-		if (device_mcu->mcu->off_during_uwonly_mode) {
+		if (device_mcu->mcu->off_during_uwonly_mode || sensor_peri->check_auto_framing) {
 			ret = true;
 			info("[%s] set ois disable condition.", __func__);
 
@@ -1970,18 +1987,29 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 
 		if (sensor_peri->mcu && !sensor_peri->mcu->support_photo_fastae)
 			skip_sub_device_mcu = true;
+		else if (sensor_peri->mcu)
+			sensor_peri->mcu->ois->ois_mode = OPTICAL_STABILIZATION_MODE_STILL;
 	}
 
 	if (cis->cis_data->is_data.scene_mode == AA_SCENE_MODE_FAST_AE
 		&& core->vender.opening_hint == IS_OPENING_HINT_FASTEN_AE_VIDEO) {
 		if (sensor_peri->mcu && sensor_peri->mcu->skip_video_fastae)
 			skip_sub_device_mcu = true;
+		else if (sensor_peri->mcu)
+			sensor_peri->mcu->ois->ois_mode = OPTICAL_STABILIZATION_MODE_VIDEO;
 	}
 
 	ret = is_sensor_peri_debug_fixed((struct is_device_sensor *)v4l2_get_subdev_hostdata(subdev_module));
 	if (ret) {
 		err("is_sensor_peri_debug_fixed is fail(%d)", ret);
 		goto p_err;
+	}
+
+	if (!on) {
+		if (sensor_peri->check_auto_framing) {
+			sensor_peri->check_auto_framing = false;
+			info("%s off auto framing flag", __func__);
+		}
 	}
 
 	check_mcu_disable = is_sensor_peri_check_mcu_disable_condition(device);

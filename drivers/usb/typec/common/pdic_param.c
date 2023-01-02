@@ -40,12 +40,17 @@ static char *f_mode;
 
 #if ((IS_MODULE(CONFIG_SEC_PARAM) || IS_ENABLED(CONFIG_SEC_MPARAM)) && !IS_ENABLED(CONFIG_PDIC_USE_MODULE_PARAM))
 extern unsigned int lpcharge;
+extern int factory_mode;
 #else
 static unsigned int lpcharge;
+static int factory_mode;
 #endif
 
 static int pdic_param_lpcharge = -1;
 module_param(pdic_param_lpcharge, int, 0444);
+
+static int pdic_param_factory_mode = -1;
+module_param(pdic_param_factory_mode, int, 0444);
 
 static unsigned int usb_mode = PDIC_PARAM_MODE_NO;
 #if IS_BUILTIN(CONFIG_PDIC_NOTIFIER)
@@ -148,4 +153,21 @@ out:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(is_lpcharge_pdic_param);
+
+int is_factory_mode_pdic_param(void)
+{
+	int ret = 0;
+
+	if (pdic_param_factory_mode != -1) {
+		ret = pdic_param_factory_mode;
+		goto out;
+	}
+
+	ret = factory_mode;
+
+out:
+	pr_info("%s factory_mode=%d\n", __func__, ret);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(is_factory_mode_pdic_param);
 

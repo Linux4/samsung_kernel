@@ -78,3 +78,11 @@ config SENSORS_ISG5320A_SUB
 	  This option enables grip sensors using
 	  IMAGIS ISG5320A device driver for grip.
 
+config SENSORS_ISG5320A_O1S
+	depends on I2C
+	tristate "ISG5320A O1S grip"
+	default n
+	help
+	  If you say yes here if you use O1S project for grip.
+	  This option enables grip sensors using
+	  O1S device driver for grip.

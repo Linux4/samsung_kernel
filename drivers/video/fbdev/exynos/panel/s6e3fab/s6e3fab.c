@@ -1385,7 +1385,7 @@ static void show_err(struct dumpinfo *info)
 	err_15_8 = err[0];
 	err_7_0 = err[1];
 
-	panel_info("========== SHOW PANEL [EAh:DSIERR] INFO ==========\n");
+	panel_info("========== SHOW PANEL [E9h:DSIERR] INFO ==========\n");
 	panel_info("* Reg Value : 0x%02x%02x, Result : %s\n", err_15_8, err_7_0,
 			(err[0] || err[1] || err[2] || err[3] || err[4]) ? "NG" : "GOOD");
 
@@ -2185,7 +2185,7 @@ static int do_gamma_update(struct panel_device *panel, int vrr_index, int br_ind
 			if (panel_log_level >= 7)
 				print_hex_dump(KERN_INFO, "", DUMP_PREFIX_NONE, 16, 1, gamma_8_new, ARRAY_SIZE(gamma_8_new), false);
 		}
-		
+
 		memcpy(gamma_8_new_set[gamma_index], gamma_8_new, S6E3FAB_GAMMA_MTP_LEN);
 	}
 
@@ -2272,7 +2272,7 @@ static int do_gamma_flash_checksum(struct panel_device *panel, void *data, u32 l
 	result->state = state = GAMMA_FLASH_PROGRESS;
 
 	memset(result->result, 0, ARRAY_SIZE(result->result));
-	
+
 	if (is_id_gte_03(panel)) {
 		do {
 			/* gamma mode 2 flash data */

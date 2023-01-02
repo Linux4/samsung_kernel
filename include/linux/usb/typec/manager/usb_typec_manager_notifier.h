@@ -59,6 +59,7 @@ typedef enum {
 typedef enum {
 	PD_USB_TYPE,
 	PD_TA_TYPE,
+	PD_NONE_TYPE,
 } pd_usb_state_t;
 
 typedef enum
@@ -137,9 +138,15 @@ typedef struct _manager_data_t
 	struct workqueue_struct *manager_muic_noti_wq;
 	struct manager_dwork usb_enum_check;
 	struct manager_dwork usb_event_by_vbus;
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	struct manager_dwork usb_event_by_pogo;
+#endif
 
 	struct mutex mo_lock;
 	int vbus_state;
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	int is_muic_pogo;
+#endif
 	int classified_cable_type;
 
 	int pdic_attach_state;
@@ -151,6 +158,7 @@ typedef struct _manager_data_t
 	int vbus_by_otg_detection;
 
 	int pd_con_state;
+	int svid_info;
 	void *pd;
 
 	char fac_control[16];
@@ -170,6 +178,19 @@ struct typec_manager_gadget_ops {
 	void		*driver_data;
 	int		(*get_cmply_link_state)(void *dev);
 };
+
+typedef union {
+	struct {
+		uint64_t src:4;
+		uint64_t dest:4;
+		uint64_t id:8;
+		uint64_t sub1:16;
+		uint64_t sub2:16;
+		uint64_t sub3:16;
+	};
+	uint64_t noti_event;
+
+} MANAGER_NOTI_TYPEDEF_REF;
 
 #define PDIC_BATTERY	(1<<0)
 #define PDIC_USB	(1<<1)

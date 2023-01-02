@@ -96,7 +96,7 @@ struct enhanced_boot_time {
 	struct list_head next;
 	char buf[MAX_LENGTH_OF_BOOTING_LOG];
 	unsigned int time;
-	int freq[2];
+	int freq[3];
 	int online;
 };
 
@@ -314,15 +314,15 @@ static int sec_enhanced_boot_stat_proc_show(struct seq_file *m, void *v)
 	unsigned int last_time = 0;
 	struct enhanced_boot_time *entry;
 
-	seq_printf(m, "%-90s %6s %6s %6s %4s %4s\n", "Boot Events", "time", "ktime", "delta", "f_c0", "f_c1");
-	seq_puts(m, "-----------------------------------------------------------------------------------------------------------------------\n");
+	seq_printf(m, "%-90s %6s %6s %6s %4s %4s %4s\n", "Boot Events", "time", "ktime", "delta", "f_c0", "f_c1", "f_c2");
+	seq_puts(m, "------------------------------------------------------------------------------------------------------------------------------\n");
 	seq_puts(m, "BOOTLOADER - KERNEL\n");
-	seq_puts(m, "-----------------------------------------------------------------------------------------------------------------------\n");
+	seq_puts(m, "------------------------------------------------------------------------------------------------------------------------------\n");
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: MCT_is_initialized", 0, 0, 0, 0, 0, 0);
 	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: boot_time_bl1", boot_time_bl1, 0, boot_time_bl1, 0, 0, 0);
-	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: boot_time_bl2", boot_time_bl2, 0, boot_time_bl2, 0, 0, 0);
-	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: boot_time_bl3", boot_time_bl3, 0, boot_time_bl3, 0, 0, 0);
-	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: MCT_is_initialized_in_bl2", 0, 0, 0, 0, 0, 0);
-	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: start_kernel_timer", mct_start, 0, mct_start, 0, 0, 0);
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: boot_time_bl2", boot_time_bl2, 0, boot_time_bl2 - boot_time_bl1, 0, 0, 0);
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: boot_time_bl3", boot_time_bl3, 0, boot_time_bl3 - boot_time_bl2, 0, 0, 0);
+	seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", "!@Boot_EBS_B: start_kernel_timer", mct_start, 0, mct_start - boot_time_bl3, 0, 0, 0);
 
 #if IS_BUILTIN(CONFIG_SEC_BOOTSTAT)
 	for (i = 0; i < ARRAY_SIZE(boot_initcall); i++) {
@@ -331,17 +331,17 @@ static int sec_enhanced_boot_stat_proc_show(struct seq_file *m, void *v)
 		last_time = boot_initcall[i].time;
 	}
 #endif
-	seq_puts(m, "-----------------------------------------------------------------------------------------------------------------------\n");
+	seq_puts(m, "------------------------------------------------------------------------------------------------------------------------------\n");
 	seq_puts(m, "FRAMEWORK\n");
-	seq_puts(m, "-----------------------------------------------------------------------------------------------------------------------\n");
+	seq_puts(m, "------------------------------------------------------------------------------------------------------------------------------\n");
 	list_for_each_entry_reverse (entry, &enhanced_boot_time_list, next){
 		if (entry->buf[0] == '!') {
-			seq_printf(m, "%-90s %6u %6u %6u %4d %4d\n", entry->buf, entry->time + mct_start, entry->time, entry->time - last_time,
-			entry->freq[0] / 1000, entry->freq[1] / 1000);
+			seq_printf(m, "%-90s %6u %6u %6u %4d %4d %4d\n", entry->buf, entry->time + mct_start, entry->time, entry->time - last_time,
+			entry->freq[0] / 1000, entry->freq[1] / 1000, entry->freq[2] / 1000);
 			last_time = entry->time;
 		}
 		else {
-			seq_printf(m, "%-90s %6u %6u %11d %4d\n", entry->buf, entry->time + mct_start, entry->time, entry->freq[0] / 1000, entry->freq[1] / 1000);
+			seq_printf(m, "%-90s %6u %6u %11d %4d %4d\n", entry->buf, entry->time + mct_start, entry->time, entry->freq[0] / 1000, entry->freq[1] / 1000, entry->freq[2] / 1000);
 		}
 	}
 	return 0;

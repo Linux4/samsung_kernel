@@ -34,7 +34,7 @@
 #include <linux/usb/typec/maxim/max77705_usbc.h>
 
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
-#include <linux/muic/muic_notifier.h>
+#include <linux/muic/common/muic_notifier.h>
 #endif /* CONFIG_MUIC_NOTIFIER */
 
 #if defined(CONFIG_USB_HW_PARAM)
@@ -110,8 +110,7 @@ void max77705_muic_check_afc_disabled(struct max77705_muic_data *muic_data)
 
 	if ((!pdata->afc_disable && (muic_data->attached_dev == ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC ||
 					muic_data->attached_dev == ATTACHED_DEV_AFC_CHARGER_5V_MUIC ||		
-					muic_data->attached_dev == ATTACHED_DEV_QC_CHARGER_5V_MUIC ||
-					muic_data->attached_dev == ATTACHED_DEV_TA_MUIC)) ||
+					muic_data->attached_dev == ATTACHED_DEV_QC_CHARGER_5V_MUIC)) ||
 		(pdata->afc_disable && (muic_data->attached_dev == ATTACHED_DEV_AFC_CHARGER_9V_MUIC ||
 					muic_data->attached_dev == ATTACHED_DEV_QC_CHARGER_9V_MUIC ||
 					muic_data->attached_dev == ATTACHED_DEV_AFC_CHARGER_5V_MUIC ||		
@@ -160,7 +159,7 @@ void max77705_muic_clear_hv_control(struct max77705_muic_data *muic_data)
 	max77705_usbc_opcode_write(usbc_pdata, &write_data);
 }
 
-void max77705_muic_afc_hv_set(struct max77705_muic_data *muic_data, int voltage)
+int max77705_muic_afc_hv_set(struct max77705_muic_data *muic_data, int voltage)
 {
 	struct max77705_usbc_platform_data *usbc_pdata = muic_data->usbc_pdata;
 	usbc_cmd_data write_data;
@@ -176,7 +175,7 @@ void max77705_muic_afc_hv_set(struct max77705_muic_data *muic_data, int voltage)
 	default:
 		pr_info("%s:%s invalid value(%d), return\n", MUIC_DEV_NAME,
 				__func__, voltage);
-		return;
+		return -EINVAL;
 	}
 
 	pr_info("%s:%s voltage(%d)\n", MUIC_DEV_NAME, __func__, voltage);
@@ -187,10 +186,10 @@ void max77705_muic_afc_hv_set(struct max77705_muic_data *muic_data, int voltage)
 	write_data.write_data[0] = tx_byte;
 	write_data.read_length = 10;
 
-	max77705_usbc_opcode_write(usbc_pdata, &write_data);
+	return max77705_usbc_opcode_write(usbc_pdata, &write_data);
 }
 
-void max77705_muic_qc_hv_set(struct max77705_muic_data *muic_data, int voltage)
+int max77705_muic_qc_hv_set(struct max77705_muic_data *muic_data, int voltage)
 {
 	struct max77705_usbc_platform_data *usbc_pdata = muic_data->usbc_pdata;
 	usbc_cmd_data write_data;
@@ -206,7 +205,7 @@ void max77705_muic_qc_hv_set(struct max77705_muic_data *muic_data, int voltage)
 	default:
 		pr_info("%s:%s invalid value(%d), return\n", MUIC_DEV_NAME,
 				__func__, voltage);
-		return;
+		return -EINVAL;
 	}
 
 	pr_info("%s:%s voltage(%d)\n", MUIC_DEV_NAME, __func__, voltage);
@@ -217,7 +216,7 @@ void max77705_muic_qc_hv_set(struct max77705_muic_data *muic_data, int voltage)
 	write_data.write_data[0] = dpdndrv;
 	write_data.read_length = 2;
 
-	max77705_usbc_opcode_write(usbc_pdata, &write_data);
+	return max77705_usbc_opcode_write(usbc_pdata, &write_data);
 }
 
 #if !defined(CONFIG_MUIC_QC_DISABLE)
@@ -271,6 +270,7 @@ void max77705_muic_handle_detect_dev_afc(struct max77705_muic_data *muic_data, u
 	muic_attached_dev_t current_attached_dev = muic_data->attached_dev;
 #endif
 	int i = 0;
+	int ret = 0;
 
 	/* W/A: vbadc of opcode result is 0, but vbadc register value is not 0 */
 	if (vbadc == 0 && vbadc2 > 0)
@@ -585,7 +585,11 @@ void max77705_muic_handle_detect_dev_afc(struct max77705_muic_data *muic_data, u
 
 		if (muic_data->pdata->afc_disabled_updated & MAX77705_MUIC_AFC_SET_VOLTAGE_CHANGE_DURING_WORK) {
 			muic_data->pdata->afc_disabled_updated |= MAX77705_MUIC_AFC_WORK_PROCESS;
-			__max77705_muic_afc_set_voltage(muic_data, muic_data->reserve_hv_voltage);
+
+			ret = __max77705_muic_afc_set_voltage(muic_data, muic_data->reserve_hv_voltage);
+			if (ret < 0)
+				muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_WORK_PROCESS_END;
+
 			muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_SET_VOLTAGE_CHANGE_DURING_WORK_END;
 		}
 		mutex_unlock(&muic_data->afc_lock);
@@ -623,6 +627,7 @@ void max77705_muic_handle_detect_dev_qc(struct max77705_muic_data *muic_data, un
 	bool afc_err = false;
 #endif
 	bool afc_nack = false;
+	int ret = 0;
 
 	/* W/A: vbadc of opcode result is 0, but vbadc register value is not 0 */
 	if (vbadc == 0 && vbadc2 > 0)
@@ -742,7 +747,11 @@ void max77705_muic_handle_detect_dev_qc(struct max77705_muic_data *muic_data, un
 
 		if (muic_data->pdata->afc_disabled_updated & MAX77705_MUIC_AFC_SET_VOLTAGE_CHANGE_DURING_WORK) {
 			muic_data->pdata->afc_disabled_updated |= MAX77705_MUIC_AFC_WORK_PROCESS;
-			__max77705_muic_afc_set_voltage(muic_data, muic_data->reserve_hv_voltage);
+
+			ret = __max77705_muic_afc_set_voltage(muic_data, muic_data->reserve_hv_voltage);
+			if (ret < 0)
+				muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_WORK_PROCESS_END;
+
 			muic_data->pdata->afc_disabled_updated &= MAX77705_MUIC_AFC_SET_VOLTAGE_CHANGE_DURING_WORK_END;
 		}
 		mutex_unlock(&muic_data->afc_lock);

@@ -1,4 +1,19 @@
-BCM4361/BCM4375/BCM430132 DHD 101.16.89 for Android S OS - Palette(O1,T2)/Canvas/Hubble/Davinci/Beyond/R7/R9/Watch Project
+BCM4361/BCM4375/BCM430132 DHD 101.16.90 for Android S OS - Palette(O1,T2)/Canvas/Hubble/Davinci/Beyond/R7/R9/Watch Project
+
+DHD 101.16.90 - 2022.04.05
+Kernel Panic
+ - CS00012224356(By Suthar Nitesh) Fixed kernel panic caused by out of bounds array access in softap bigdata parsing
+ - CS00012229955(By Jeong Min Cheol) Fixed kernel panic caused by deleting the wrong list in wl_bad_ap_mngr_deinit
+ - CS00012233932(By LEE EONJI) Fixed BRK panic by doing array index validation
+ - CS00012237206(By Kim Taeyong) Fixed kernel panic caused by wrong remained length
+
+Others
+ - CS00012222928(By Lee SoonHo) Increased NAN max discovery cache number
+ - CS00012224765(By Kim TaeYong) Fixed continuous IOVARs failure with added handles for resumed on timeout during WiFi turn on
+ - CS00012229256(By Shivendra) Fixed connection failure caused by disconnect event handled asynchronously
+ - CS00012232088(By Lee Sunghee) Disabled RuntimePM during monitor mode
+ - Allow PNO scan interval to 3600 sec(max) for connected state
+
 
 DHD 101.16.89 - 2021.12.15
 Kernel Panic

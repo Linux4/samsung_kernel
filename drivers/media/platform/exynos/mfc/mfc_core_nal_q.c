@@ -532,7 +532,10 @@ void mfc_core_nal_q_stop_if_started(struct mfc_core *core)
 				MFC_REG_R2H_CMD_COMPLETE_QUEUE_RET)) {
 		mfc_core_err("[NALQ] Failed to stop qeueue during get hwlock\n");
 		core->logging_data->cause |= (1 << MFC_CAUSE_FAIL_STOP_NAL_Q_FOR_OTHER);
-		call_dop(core, dump_and_stop_always, core);
+		call_dop(core, dump_and_stop_debug_mode, core);
+		nal_q_handle->nal_q_state = NAL_Q_STATE_CREATED;
+		mfc_core_nal_q_cleanup_queue(core);
+		mfc_core_nal_q_cleanup_clock(core);
 	}
 
 	mfc_core_debug_leave();

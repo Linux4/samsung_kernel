@@ -752,6 +752,7 @@ int maptbl_fill(struct maptbl *tbl, struct maptbl_pos *pos, u8 *src, size_t n);
 enum PANEL_SEQ {
 	PANEL_INIT_SEQ,
 	PANEL_EXIT_SEQ,
+	PANEL_ID_READ_SEQ,
 	PANEL_RES_INIT_SEQ,
 #ifdef CONFIG_SUPPORT_DIM_FLASH
 	PANEL_DIM_FLASH_RES_INIT_SEQ,

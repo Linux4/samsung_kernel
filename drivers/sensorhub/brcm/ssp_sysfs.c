@@ -756,7 +756,58 @@ static ssize_t set_ssp_control(struct device *dev,
 			pr_err("[SSP]: %s - i2c fail %d\n", __func__, iRet);
 			return size;
 		}
+	} else if ((pos = strstr(buf, SSP_AUTO_ROTATION_ORIENTATION))) {
+		int len = strlen(SSP_AUTO_ROTATION_ORIENTATION);
+		int iRet = 0;
+		struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+
+		if (msg == NULL) {
+			iRet = -ENOMEM;
+			pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n",
+				__func__);
+			return iRet;
+		}
+		msg->cmd = MSG2SSP_AUTO_ROTATION_ORIENTATION;
+		msg->length = 1;
+		msg->options = AP2HUB_WRITE;
+		msg->buffer = (char *)(buf + len);
+		msg->free_buffer = 0;
+
+		iRet = ssp_spi_async(data, msg);
+
+		if (iRet != SUCCESS) {
+			pr_err("[SSP]: %s - i2c fail %d\n", __func__, iRet);
+			return size;
+		} else {
+			pr_err("[SSP] %s, AUTO_ROTATION_ORIENTATION send success\n", __func__);
+		}
 	}
+	else if (strstr(buf, SSP_SAR_BACKOFF_MOTION_NOTI)) {
+		int len = strlen(SSP_SAR_BACKOFF_MOTION_NOTI);
+		int iRet = 0;
+		struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+
+		if (msg == NULL) {
+			iRet = -ENOMEM;
+			pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n",
+				__func__);
+			return iRet;
+		}
+		msg->cmd = MSG2SSP_AP_SAR_BACKOFF_MOTION_NOTI;
+		msg->length = 4;
+		msg->options = AP2HUB_WRITE;
+		msg->buffer = (char *)(buf + len);
+		msg->free_buffer = 0;
+
+		iRet = ssp_spi_async(data, msg);
+
+		if (iRet != SUCCESS) {
+			pr_err("[SSP]: %s - i2c fail %d\n", __func__, iRet);
+			return size;
+		} else {
+			pr_err("[SSP] %s, SSP_SAR_BACKOFF_MOTION_NOTI send success\n", __func__);
+		}
+	} 
 	else if((pos = strstr(buf, SSP_FILE_MANAGER_READ))){
 		int len = strlen(SSP_FILE_MANAGER_READ);
 		memcpy(&data->hub_data->fm_rx_buffer, buf + len, size - len);
@@ -766,13 +817,34 @@ static ssize_t set_ssp_control(struct device *dev,
 		complete(&data->hub_data->fm_write_done);
 	}
 	else if (strstr(buf,SSP_LIGHT_SEAMLESS_THD)) {
-		int thd = 200;
 		int iRet = 0;
 		struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
 
+#if defined(CONFIG_SENSORS_SSP_UNBOUND)	
+		int thd[2] = {200, 1000000};
+		int index = 0;
+
+		char *str = (char *)(buf + strlen(SSP_LIGHT_SEAMLESS_THD));
+		char *token = strsep(&str, ",");
+
+		while (token != NULL && index < 2) {
+			iRet = kstrtoint(token, 10, &thd[index++]);
+			if (iRet < 0) {
+				pr_err("[SSP]: %s - kstrtoint failed.(%d)\n", __func__, iRet);
+				if (msg != NULL)
+					kfree(msg);
+				return iRet;
+			}
+			token = strsep(&str, ",");
+		}
+
+		pr_err("set light_seamless threshold = %d,%d", thd[0], thd[1]);
+#else
+		int thd = 200;
 		kstrtoint(buf + strlen(SSP_LIGHT_SEAMLESS_THD), 10, &thd);
 		
 		pr_err("set light_seamless threshold = %d", thd);
+#endif
 
 		if (msg == NULL) {
 			iRet = -ENOMEM;

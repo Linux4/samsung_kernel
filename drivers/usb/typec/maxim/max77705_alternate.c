@@ -786,6 +786,9 @@ void max77705_vdm_message_handler(struct max77705_usbc_platform_data *usbpd_data
 		usbpd_data->Device_Version = DATA_MSG_PRODUCT->BITS.Device_Version;
 		msg_maxim("Vendor_ID : 0x%X, Product_ID : 0x%X Device Version 0x%X",
 			usbpd_data->Vendor_ID, usbpd_data->Product_ID, usbpd_data->Device_Version);
+		max77705_ccic_event_work(usbpd_data,
+				PDIC_NOTIFY_DEV_ALL, PDIC_NOTIFY_ID_DEVICE_INFO,
+				usbpd_data->Vendor_ID, usbpd_data->Product_ID, usbpd_data->Device_Version);
 		if (max77705_process_check_accessory(usbpd_data))
 			msg_maxim("Samsung Accessory Connected.");
 	break;
@@ -1103,6 +1106,10 @@ void max77705_acc_detach_check(struct work_struct *wk)
 			usbpd_data->Vendor_ID = 0;
 			usbpd_data->Product_ID = 0;
 			usbpd_data->send_enter_mode_req = 0;
+			usbpd_data->Device_Version = 0;
+			max77705_ccic_event_work(usbpd_data,
+				PDIC_NOTIFY_DEV_ALL, PDIC_NOTIFY_ID_CLEAR_INFO,
+				PDIC_NOTIFY_ID_DEVICE_INFO, 0, 0);
 #if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
 			if (o_notify)
 				send_otg_notify(o_notify, NOTIFY_EVENT_HMD_EXT_CURRENT, 0);

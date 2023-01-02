@@ -44,6 +44,7 @@ struct dsp_graph_manager {
 	struct list_head		list;
 	unsigned int			count;
 	struct mutex			lock;
+	struct mutex			lock_for_unload;
 
 	struct dsp_kernel_manager	kernel_manager;
 	struct dsp_core			*core;

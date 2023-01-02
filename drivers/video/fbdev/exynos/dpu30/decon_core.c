@@ -3673,8 +3673,8 @@ static int decon_set_win_config(struct decon_device *decon,
 			win_data->retire_fence = decon_create_fence(decon, &sync_ifile);
 			if (win_data->retire_fence < 0)
 				goto err;
-			fd_install(win_data->retire_fence, sync_ifile->file);
 			decon_signal_fence(decon, sync_ifile->fence);
+			fd_install(win_data->retire_fence, sync_ifile->file);
 		}
 
 #if defined(CONFIG_EXYNOS_SUPPORT_READBACK)
@@ -3683,8 +3683,8 @@ static int decon_set_win_config(struct decon_device *decon,
 			win_data->config[decon->dt.wb_win].acq_fence = readback_fence;
 			if (readback_fence < 0)
 				goto err;
-			fd_install(readback_fence, sync_ofile->file);
 			decon_signal_fence(decon, sync_ofile->fence);
+			fd_install(readback_fence, sync_ofile->file);
 		}
 #endif
 		goto err;
@@ -3715,7 +3715,6 @@ static int decon_set_win_config(struct decon_device *decon,
 			win_data->config[decon->dt.wb_win].acq_fence = readback_fence;
 			if (readback_fence < 0)
 				goto err_prepare;
-			fd_install(readback_fence, sync_ofile->file);
 			regs->readback_entry.fence = dma_fence_get(sync_ofile->fence);
 		}
 #else
@@ -3740,9 +3739,15 @@ static int decon_set_win_config(struct decon_device *decon,
 	dpu_prepare_win_update_config(decon, win_data, regs);
 
 	ret = decon_prepare_win_config(decon, win_data, regs);
-	if (ret)
+	if (ret) {
 		goto err_prepare;
-
+	}
+#if defined(CONFIG_EXYNOS_SUPPORT_READBACK)
+	else {
+		if ((readback_req) && (readback_fence >= 0))
+			fd_install(readback_fence, sync_ofile->file);
+	}
+#endif
 #if IS_ENABLED(CONFIG_MCD_PANEL)
 	if (mcd_prepare_hdr_config(decon, win_data, regs))
 		decon_err("%s: failed to get hdr_info\n", __func__);
@@ -3851,6 +3856,8 @@ err_prepare:
 		if (readback_fence >= 0) {
 			if (decon->lcd_info->mode == DECON_MIPI_COMMAND_MODE)
 				decon_signal_fence(decon, sync_ofile->fence);
+
+			//fd_install(readback_fence, sync_ofile->file);
 			fput(sync_ofile->file);
 			put_unused_fd(readback_fence);
 		}

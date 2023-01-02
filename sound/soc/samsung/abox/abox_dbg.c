@@ -586,6 +586,7 @@ static void abox_dbg_rmem_init(struct abox_data *data)
 				p_dump->previous_gpr = 0;
 				p_dump->previous_mem = 0;
 			}
+			p_dump->dram = NULL;
 		}
 
 		abox_dbg_dump_count = ABOX_DBG_DUMP_COUNT;

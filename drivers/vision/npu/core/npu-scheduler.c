@@ -2290,15 +2290,18 @@ int npu_scheduler_release(struct npu_device *device)
 	if (ret) {
 		probe_err("fail(%d) relase ocp\n", ret);
 		ret = -EFAULT;
+		goto p_err;
 	}
 
 	ret = npu_scheduler_governor_unregister(info);
 	if (ret) {
 		probe_err("fail(%d) unregister governor\n", ret);
 		ret = -EFAULT;
+		goto p_err;
 	}
-	g_npu_scheduler_info = NULL;
 
+p_err:
+	g_npu_scheduler_info = NULL;
 	return ret;
 }
 

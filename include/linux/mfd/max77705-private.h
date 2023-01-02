@@ -36,6 +36,8 @@
 #define MAX77705_IRQSRC_TOP		(1 << 1)
 #define MAX77705_IRQSRC_FG              (1 << 2)
 #define MAX77705_IRQSRC_USBC		(1 << 3)
+#define MAX77705_ELRN			(1 << 0)
+#define MAX77705_FILT_EMPTY		(1 << 2)
 
 enum max77705_hw_rev {
 	MAX77705_PASS1 = 0x1,
@@ -121,6 +123,7 @@ enum max77705_fuelgauge_reg {
 	SOCAV_REG				= 0x0E,
 	REMCAP_MIX_REG				= 0x0F,
 	FULLCAP_REG				= 0x10,
+	QRTABLE00_REG			= 0x12,
 	RFAST_REG				= 0x15,
 	AVR_TEMPERATURE_REG			= 0x16,
 	CYCLES_REG				= 0x17,
@@ -130,6 +133,7 @@ enum max77705_fuelgauge_reg {
 	CONFIG_REG				= 0x1D,
 	ICHGTERM_REG				= 0x1E,
 	REMCAP_AV_REG				= 0x1F,
+	QRTABLE10_REG				= 0x22,
 	FULLCAP_NOM_REG				= 0x23,
 	LEARN_CFG_REG				= 0x28,
 	FILTER_CFG_REG				= 0x29,

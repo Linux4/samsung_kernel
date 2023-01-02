@@ -18,14 +18,32 @@
  * http://www.gnu.org/licenses/gpl-2.0.html.
  */
 
+/* Implements */
 #include <gpexbe_smc.h>
 
-void gpexbe_smc_notify_power_on(void)
+int gpexbe_smc_protection_enable()
 {
-	return;
+	return 0;
 }
 
-void gpexbe_smc_notify_power_off(void)
+int gpexbe_smc_protection_disable()
 {
-	return;
+	return 0;
+}
+
+void gpexbe_smc_notify_power_on()
+{
+}
+
+void gpexbe_smc_notify_power_off()
+{
+}
+
+int gpexbe_smc_init(void)
+{
+	return 0;
+}
+
+void gpexbe_smc_term(void)
+{
 }

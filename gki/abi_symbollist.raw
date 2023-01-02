@@ -225,6 +225,7 @@ __scsi_device_lookup_by_target
 __scsi_execute
 __scsi_print_sense
 __sdhci_add_host
+__sdhci_set_timeout
 __seq_open_private
 __serio_register_port
 __sg_alloc_table_from_pages
@@ -269,6 +270,7 @@ __tracepoint_device_pm_callback_end
 __tracepoint_device_pm_callback_start
 __tracepoint_dma_fence_emit
 __tracepoint_gpu_mem_total
+__tracepoint_kfree_skb
 __tracepoint_pelt_cfs_tp
 __tracepoint_suspend_resume
 __tracepoint_xdp_exception
@@ -712,7 +714,9 @@ clk_register_fixed_factor
 clk_register_fixed_rate
 clk_register_gate
 clk_register_mux
+clk_restore_context
 clk_round_rate
+clk_save_context
 clk_set_parent
 clk_set_rate
 clk_sync_state
@@ -1766,6 +1770,7 @@ fs_bio_set
 fs_kobj
 fsl8250_handle_irq
 fsstack_copy_attr_all
+ftrace_set_clr_event
 full_name_hash
 fwnode_connection_find_match
 fwnode_device_is_available
@@ -2281,6 +2286,7 @@ iov_iter_alignment
 iov_iter_bvec
 iov_iter_get_pages
 iov_iter_init
+iov_iter_kvec
 ip6_local_out
 ip6_redirect
 ip6_route_output_flags
@@ -2402,6 +2408,7 @@ kernel_restart
 kernel_sendmsg
 kernel_setsockopt
 kernel_sigaction
+kernel_sock_shutdown
 kernel_write
 kernfs_find_and_get_ns
 kernfs_notify
@@ -2771,7 +2778,6 @@ netdev_increment_features
 netdev_info
 netdev_lower_state_changed
 netdev_master_upper_dev_link
-netdev_notice
 netdev_notify_peers
 netdev_pick_tx
 netdev_printk
@@ -2893,6 +2899,7 @@ of_find_node_by_type
 of_find_node_opts_by_path
 of_find_node_with_property
 of_find_property
+of_find_spi_device_by_node
 of_fwnode_ops
 of_gen_pool_get
 of_genpd_add_provider_onecell
@@ -3235,6 +3242,7 @@ pinmux_generic_get_function_groups
 pinmux_generic_get_function_name
 pipe_lock
 pipe_unlock
+platform_bus
 platform_bus_type
 platform_device_add
 platform_device_add_data
@@ -3411,6 +3419,7 @@ refcount_dec_checked
 refcount_dec_not_one
 refcount_inc_checked
 refcount_inc_not_zero_checked
+refresh_frequency_limits
 reg_initiator_name
 regcache_cache_bypass
 regcache_cache_only
@@ -3722,11 +3731,13 @@ sdio_set_host_pm_flags
 sdio_signal_irq
 sdio_unregister_driver
 sdio_writeb
+sdio_writeb_readb
 sdio_writel
 sdio_writesb
 sdio_writew
 search_binary_handler
 security_sk_classify_flow
+security_sk_clone
 security_sock_graft
 securityfs_create_dir
 securityfs_create_file
@@ -3887,6 +3898,7 @@ smpboot_unregister_percpu_thread
 snd_card_disconnect
 snd_card_free
 snd_card_new
+snd_card_ref
 snd_card_register
 snd_card_rw_proc_new
 snd_component_add
@@ -3974,8 +3986,10 @@ snd_soc_card_get_kcontrol
 snd_soc_card_jack_new
 snd_soc_component_async_complete
 snd_soc_component_disable_pin
+snd_soc_component_enable_pin
 snd_soc_component_exit_regmap
 snd_soc_component_force_enable_pin
+snd_soc_component_get_pin_status
 snd_soc_component_init_regmap
 snd_soc_component_read
 snd_soc_component_read32
@@ -4095,11 +4109,13 @@ sock_no_setsockopt
 sock_no_shutdown
 sock_no_socketpair
 sock_queue_rcv_skb
+sock_recvmsg
 sock_register
 sock_release
 sock_unregister
 sock_wfree
 sock_wmalloc
+sockfd_lookup
 softnet_data
 sort
 spi_bus_lock
@@ -4268,6 +4284,8 @@ timer_unstable_counter_workaround
 timespec64_to_jiffies
 touch_buffer
 touch_softlockup_watchdog
+trace_array_create
+trace_array_destroy
 trace_define_field
 trace_event_buffer_commit
 trace_event_buffer_reserve

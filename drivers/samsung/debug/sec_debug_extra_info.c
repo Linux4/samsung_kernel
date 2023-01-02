@@ -183,7 +183,7 @@ static int is_ocp;
 static int is_key_in_blocklist(const char *key)
 {
 	char blkey[][MAX_ITEM_KEY_LEN] = {
-		"KTIME", "BAT", "FTYPE", "ODR", "DDRID",
+		"KTIME", "BAT", "ODR", "DDRID",
 		"PSITE", "ASB", "ASV", "IDS",
 	};
 
@@ -289,7 +289,7 @@ static void set_item_val(const char *key, const char *fmt, ...)
 	v = get_item_val(p);
 	if (!get_val_len(v)) {
 		va_start(args, fmt);
-		vsnprintf(v, max, fmt, args);
+		vsnprintf(v, max - MAX_ITEM_KEY_LEN, fmt, args);
 		va_end(args);
 
 		set_key_order(key);
