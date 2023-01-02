@@ -192,4 +192,7 @@
 	cd-gpios = <&tlmm 88 0x0>;
 };
 
+&icnss {
+	vdd-3.3-ch1-supply = <>;
+};
 

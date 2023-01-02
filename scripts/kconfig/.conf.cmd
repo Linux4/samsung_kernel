@@ -1,1 +1,1 @@
-cmd_scripts/kconfig/conf := /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b/bin/clang  -o scripts/kconfig/conf scripts/kconfig/conf.o scripts/kconfig/zconf.tab.o  
+cmd_scripts/kconfig/conf := /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b/bin/clang  -o scripts/kconfig/conf scripts/kconfig/conf.o scripts/kconfig/zconf.tab.o  

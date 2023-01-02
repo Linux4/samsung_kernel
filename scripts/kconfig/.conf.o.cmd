@@ -1,4 +1,4 @@
-cmd_scripts/kconfig/conf.o := /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b/bin/clang -Wp,-MD,scripts/kconfig/.conf.o.d -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89  -Wno-unused-value -Wno-unused-parameter -Wno-missing-field-initializers   -D_GNU_SOURCE -D_DEFAULT_SOURCE -DCURSES_LOC="<ncurses.h>" -DLOCALE   -c -o scripts/kconfig/conf.o scripts/kconfig/conf.c
+cmd_scripts/kconfig/conf.o := /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b/bin/clang -Wp,-MD,scripts/kconfig/.conf.o.d -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89  -Wno-unused-value -Wno-unused-parameter -Wno-missing-field-initializers   -D_GNU_SOURCE -D_DEFAULT_SOURCE -DCURSES_LOC="<ncurses.h>" -DLOCALE   -c -o scripts/kconfig/conf.o scripts/kconfig/conf.c
 
 source_scripts/kconfig/conf.o := scripts/kconfig/conf.c
 
@@ -16,7 +16,7 @@ deps_scripts/kconfig/conf.o := \
   /usr/include/x86_64-linux-gnu/bits/long-double.h \
   /usr/include/x86_64-linux-gnu/gnu/stubs.h \
   /usr/include/x86_64-linux-gnu/gnu/stubs-64.h \
-  /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b/lib64/clang/11.0.2/include/stddef.h \
+  /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b/lib64/clang/11.0.2/include/stddef.h \
   /usr/include/x86_64-linux-gnu/bits/locale.h \
   /usr/include/x86_64-linux-gnu/bits/types/locale_t.h \
   /usr/include/x86_64-linux-gnu/bits/types/__locale_t.h \
@@ -28,7 +28,7 @@ deps_scripts/kconfig/conf.o := \
   /usr/include/x86_64-linux-gnu/bits/byteswap.h \
   /usr/include/x86_64-linux-gnu/bits/byteswap-16.h \
   /usr/include/x86_64-linux-gnu/bits/uintn-identity.h \
-  /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b/lib64/clang/11.0.2/include/limits.h \
+  /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b/lib64/clang/11.0.2/include/limits.h \
   /usr/include/limits.h \
   /usr/include/x86_64-linux-gnu/bits/libc-header-start.h \
   /usr/include/x86_64-linux-gnu/bits/posix1_lim.h \
@@ -44,7 +44,7 @@ deps_scripts/kconfig/conf.o := \
   /usr/include/x86_64-linux-gnu/bits/_G_config.h \
     $(wildcard include/config/h.h) \
   /usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h \
-  /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b/lib64/clang/11.0.2/include/stdarg.h \
+  /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b/lib64/clang/11.0.2/include/stdarg.h \
   /usr/include/x86_64-linux-gnu/bits/stdio_lim.h \
   /usr/include/x86_64-linux-gnu/bits/sys_errlist.h \
   /usr/include/x86_64-linux-gnu/bits/stdio.h \
@@ -105,7 +105,7 @@ deps_scripts/kconfig/conf.o := \
     $(wildcard include/config/config.h) \
   /usr/include/assert.h \
   scripts/kconfig/list.h \
-  /home/dpi/qb5_8814/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b/lib64/clang/11.0.2/include/stdbool.h \
+  /home/dpi/qb5_8815/workspace/P4_1716/android/prebuilts/clang/host/linux-x86/clang-r383902b/lib64/clang/11.0.2/include/stdbool.h \
   /usr/include/libintl.h \
   scripts/kconfig/lkc_proto.h \
 

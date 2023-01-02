@@ -87,12 +87,12 @@
 				<&lpi_tlmm>, <&bolero>;
 	mbhc-button-thres = <&det_zones 13 63>,
 			 <&det_zones 88 138>,
-			 <&det_zones 125 125>,
+			 <&det_zones 138 138>,
 			 <&det_zones 225 225>,
-			 <&det_zones 500 500>,
-			 <&det_zones 500 620>,
-			 <&det_zones 500 620>,
-			 <&det_zones 500 620>;
+			 <&det_zones 450 450>,
+			 <&det_zones 450 620>,
+			 <&det_zones 450 620>,
+			 <&det_zones 450 620>;
 };
 
 &soc {
