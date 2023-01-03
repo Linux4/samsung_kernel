@@ -328,7 +328,7 @@ static int sec_direct_chg_set_charging_current(struct sec_direct_charger_info *c
 		charging_source = sec_direct_chg_check_charging_source(charger);
 		if (charging_source == SEC_CHARGING_SOURCE_DIRECT) {
 #if IS_ENABLED(CONFIG_SEC_ABC)
-			if(charger->now_isApdo && charger->dc_input_current < (SEC_DIRECT_CHG_MIN_IOUT / 2))
+			if (charger->now_isApdo && charger->dc_input_current < 900)
 				sec_abc_send_event("MODULE=battery@WARN=dc_current");
 #endif
 			value.intval = charger->dc_input_current;
