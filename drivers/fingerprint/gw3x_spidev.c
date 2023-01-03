@@ -33,7 +33,6 @@ int gw3x_spi_read_bytes(struct gf_device *gf_dev, u16 addr,
 	*(tmp_buf + 2) = (u8)(addr & 0xFF);
 	xfer[0].tx_buf = tmp_buf;
 	xfer[0].len = 3;
-	xfer[0].delay_usecs = 5;
 	spi_message_add_tail(&xfer[0], &msg);
 	spi_sync(gf_dev->spi, &msg);
 
@@ -44,7 +43,6 @@ int gw3x_spi_read_bytes(struct gf_device *gf_dev, u16 addr,
 	xfer[1].tx_buf = tmp_buf + 4;
 	xfer[1].rx_buf = tmp_buf + 4;
 	xfer[1].len = data_len + 1;
-	xfer[1].delay_usecs = 5;
 	spi_message_add_tail(&xfer[1], &msg);
 	spi_sync(gf_dev->spi, &msg);
 
@@ -77,7 +75,6 @@ int gw3x_spi_write_bytes(struct gf_device *gf_dev, u16 addr,
 	memcpy(tmp_buf + 3, tx_buf, data_len);
 	xfer[0].len = data_len + 3;
 	xfer[0].tx_buf = tmp_buf;
-	xfer[0].delay_usecs = 5;
 	spi_message_add_tail(&xfer[0], &msg);
 	spi_sync(gf_dev->spi, &msg);
 
@@ -104,7 +101,6 @@ int gw3x_spi_read_byte(struct gf_device *gf_dev, u16 addr, u8 *value)
 
 	xfer[0].tx_buf = gf_dev->spi_buffer;
 	xfer[0].len = 3;
-	xfer[0].delay_usecs = 5;
 	spi_message_add_tail(&xfer[0], &msg);
 	spi_sync(gf_dev->spi, &msg);
 
@@ -114,7 +110,6 @@ int gw3x_spi_read_byte(struct gf_device *gf_dev, u16 addr, u8 *value)
 	xfer[1].tx_buf = gf_dev->spi_buffer + 4;
 	xfer[1].rx_buf = gf_dev->spi_buffer + 4;
 	xfer[1].len = 2;
-	xfer[1].delay_usecs = 5;
 	spi_message_add_tail(&xfer[1], &msg);
 	spi_sync(gf_dev->spi, &msg);
 
@@ -144,7 +139,6 @@ int gw3x_spi_write_byte(struct gf_device *gf_dev, u16 addr, u8 value)
 
 	xfer[0].tx_buf = gf_dev->spi_buffer;
 	xfer[0].len = 3 + 1;
-	xfer[0].delay_usecs = 5;
 	spi_message_add_tail(&xfer[0], &msg);
 	spi_sync(gf_dev->spi, &msg);
 
@@ -179,15 +173,35 @@ int gw3x_ioctl_transfer_raw_cmd(struct gf_device *gf_dev,
 	struct gf_ioc_transfer_raw ioc_xraw;
 	int retval = 0;
 	uint32_t len;
+#ifdef CONFIG_SENSORS_FINGERPRINT_32BITS_PLATFORM_ONLY
+	struct gf_ioc_transfer_raw_32 ioc_xraw_32;
+	u64 read_buf_64;
+	u64 write_buf_64;
+#endif
 
 	do {
+#ifdef CONFIG_SENSORS_FINGERPRINT_32BITS_PLATFORM_ONLY
+		if (copy_from_user(&ioc_xraw_32, (void __user *)arg,
+				sizeof(struct gf_ioc_transfer_raw_32)))
+#else
 		if (copy_from_user(&ioc_xraw, (void __user *)arg,
-				sizeof(struct gf_ioc_transfer_raw))) {
+				sizeof(struct gf_ioc_transfer_raw)))
+#endif
+		{
 			pr_err("Failed to copy gf_ioc_transfer_raw from user to kernel\n");
 			retval = -EFAULT;
 			break;
 		}
 
+#ifdef CONFIG_SENSORS_FINGERPRINT_32BITS_PLATFORM_ONLY
+		read_buf_64 = (u64)ioc_xraw_32.read_buf;
+		write_buf_64 = (u64)ioc_xraw_32.write_buf;
+		ioc_xraw.read_buf = (u8 *)read_buf_64;
+		ioc_xraw.write_buf = (u8 *)write_buf_64;
+		ioc_xraw.high_time = ioc_xraw_32.high_time;
+		ioc_xraw.bits_per_word = ioc_xraw_32.bits_per_word;
+		ioc_xraw.len = ioc_xraw_32.len;
+#endif
 		if ((ioc_xraw.len > bufsiz) || (ioc_xraw.len == 0)) {
 			pr_err("request transfer length larger than maximum buffer\n");
 			retval = -EINVAL;

@@ -42,6 +42,10 @@
 #define SECURE_TOUCH_DISABLE	0
 #endif
 
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+#include <linux/vbus_notifier.h>
+#endif
+
 #include "../sec_tclm_v2.h"
 #if IS_ENABLED(CONFIG_INPUT_TOUCHSCREEN_TCLMV2)
 #define TCLM_CONCEPT
@@ -345,6 +349,15 @@ struct stm_ts_syncframeheader {
 	u32	  reserved2;  // 12~15
 } __packed;
 
+struct stm_ts_syncframeheader_ts2c {
+	u8		type; // 0
+	u8		cnt; // 1
+	u16		length;  // 2~3
+	u8		dbg_frm_len;  // 4
+	u8		force_len; // 5
+	u8		sense_len; // 6
+} __packed;
+
 enum stm_ts_nvm_data_type {		/* Write Command */
 	STM_TS_NVM_OFFSET_FAC_RESULT = 1,
 	STM_TS_NVM_OFFSET_CAL_COUNT,
@@ -398,10 +411,6 @@ struct stm_ts_data {
 
 	int irq;
 	struct sec_ts_plat_data *plat_data;
-#ifdef STM_TS_SUPPORT_TA_MODE
-	void (*register_cb)(void *);
-	struct stm_ts_callbacks callbacks;
-#endif
 	struct mutex lock;
 	bool probe_done;
 	struct sec_cmd_data sec;
@@ -437,10 +446,6 @@ struct stm_ts_data {
 	struct completion secure_interrupt;
 #endif
 
-#ifdef STM_TS_SUPPORT_TA_MODE
-	bool TA_Pluged;
-#endif
-
 	int fw_version_of_ic;			/* firmware version of IC */
 	int fw_version_of_bin;			/* firmware version of binary */
 	int config_version_of_ic;		/* Config release data from IC */
@@ -455,7 +460,9 @@ struct stm_ts_data {
 	u8 module_version_of_bin;
 	int panel_revision;			/* Octa panel revision */
 	u32 chip_id;
-
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+	struct notifier_block vbus_nb;
+#endif
 	int flip_status_prev;
 	int flip_status;
 	int flip_status_current;
@@ -589,7 +596,8 @@ int stm_ts_set_fod_rect(struct stm_ts_data *ts);
 int stm_ts_set_touchable_area(struct stm_ts_data *ts);
 int stm_ts_ear_detect_enable(struct stm_ts_data *ts, u8 enable);
 int stm_ts_pocket_mode_enable(struct stm_ts_data *ts, u8 enable);
-int stm_ts_set_charger_mode(struct stm_ts_data *ts);
+int stm_ts_set_wirelesscharger_mode(struct stm_ts_data *ts);
+int stm_ts_set_wirecharger_mode(struct stm_ts_data *ts);
 void stm_ts_set_cover_type(struct stm_ts_data *ts, bool enable);
 int stm_ts_set_press_property(struct stm_ts_data *ts);
 int stm_ts_get_sysinfo_data(struct stm_ts_data *ts, u8 sysinfo_addr, u8 read_cnt, u8 *data);
@@ -603,7 +611,9 @@ int stm_ts_get_channel_info(struct stm_ts_data *ts);
 int stm_ts_set_opmode(struct stm_ts_data *ts, u8 mode);
 int stm_ts_set_touch_function(struct stm_ts_data *ts);
 void stm_ts_get_touch_function(struct work_struct *work);
-
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+int stm_ts_vbus_notification(struct notifier_block *nb, unsigned long cmd, void *data);
+#endif
 //cmd
 void stm_ts_fn_remove(struct stm_ts_data *ts);
 int stm_ts_fn_init(struct stm_ts_data *ts);
@@ -643,13 +653,6 @@ int stm_hall_ic_ssh_notify(struct notifier_block *nb, unsigned long flip_cover, 
 
 #ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
 extern struct tsp_dump_callbacks dump_callbacks;
-#endif
-
-#ifdef STM_TS_SUPPORT_TA_MODE
-extern struct stm_ts_callbacks *STM_TS_charger_callbacks;
-struct stm_ts_callbacks {
-	void (*inform_charger)(struct STM_TS_callbacks *, int);
-};
 #endif
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)

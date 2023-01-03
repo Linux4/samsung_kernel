@@ -25,6 +25,10 @@
 
 #include "ipc_logging_private.h"
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+#include <linux/sec_debug.h>
+#endif
+
 #define LOG_PAGE_DATA_SIZE	sizeof(((struct ipc_log_page *)0)->data)
 #define LOG_PAGE_FLAG (1 << 31)
 #define MAX_MINIDUMP_BUFFERS CONFIG_IPC_LOG_MINIDUMP_BUFFERS
@@ -842,6 +846,11 @@ void *ipc_log_context_create(int max_num_pages,
 
 	if (ctxt)
 		return ctxt;
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG) && !IS_ENABLED(CONFIG_DEBUG_FS)
+	if (!sec_debug_is_enabled())
+		return 0;
+#endif
 
 	ctxt = kzalloc(sizeof(struct ipc_log_context), GFP_KERNEL);
 	if (!ctxt)

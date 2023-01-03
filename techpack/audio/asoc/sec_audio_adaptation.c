@@ -369,8 +369,9 @@ int q6asm_set_dolby_atmos(struct audio_client *ac, long *param)
 	cmd.enable = (uint32_t)param[0];
 	cmd.device = (uint16_t)param[1];
 	cmd.dolby_profile = (uint16_t)param[2];
-	pr_info("%s: %d %d %d\n", __func__,
-		cmd.enable, cmd.device, cmd.dolby_profile);
+	cmd.swap_param = (uint16_t)param[3];
+	pr_info("%s: %d %d %d %d\n", __func__,
+		cmd.enable, cmd.device, cmd.dolby_profile, cmd.swap_param);
 
 	rc = q6asm_pack_and_set_pp_param_in_band(ac, param_info,
 						 (u8 *) &cmd);
@@ -1350,7 +1351,7 @@ static const struct snd_kcontrol_new samsung_solution_mixer_controls[] = {
 				sec_audio_sb_rotation_get, sec_audio_sb_rotation_put),
 	SOC_SINGLE_MULTI_EXT("SB flatmotion", SND_SOC_NOPM, 0, 65535, 0, 1,
 				sec_audio_sb_flatmotion_get, sec_audio_sb_flatmotion_put),
-	SOC_SINGLE_MULTI_EXT("DA data", SND_SOC_NOPM, 0, 65535, 0, 3,
+	SOC_SINGLE_MULTI_EXT("DA data", SND_SOC_NOPM, 0, 65535, 0, 4,
 				sec_audio_dolby_atmos_get, sec_audio_dolby_atmos_put),
 	SOC_SINGLE_EXT("SB RX Volume", SND_SOC_NOPM, 0, 65535, 0,
 				sec_audio_sb_rx_vol_get,

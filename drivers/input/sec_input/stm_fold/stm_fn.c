@@ -120,7 +120,10 @@ int stm_ts_read_from_sponge(struct stm_ts_data *ts, u8 *data, int length)
 	u8 address[3];
 
 	mutex_lock(&ts->sponge_mutex);
-	address[0] = STM_TS_CMD_SPONGE_READ_WRITE_CMD;
+	if (ts->chip_id == 0x523601)
+		address[0] = STM_TS_CMD_SPONGE_READ_WRITE_CMD_TS2C;
+	else
+		address[0] = STM_TS_CMD_SPONGE_READ_WRITE_CMD;
 	address[1] = data[1];
 	address[2] = data[0];
 	ret = ts->stm_ts_i2c_read(ts, address, 3, data, length);
@@ -137,7 +140,10 @@ int stm_ts_write_to_sponge(struct stm_ts_data *ts, u8 *data, int length)
 	u8 address[3];
 
 	mutex_lock(&ts->sponge_mutex);
-	address[0] = STM_TS_CMD_SPONGE_READ_WRITE_CMD;
+	if (ts->chip_id == 0x523601)
+		address[0] = STM_TS_CMD_SPONGE_READ_WRITE_CMD_TS2C;
+	else
+		address[0] = STM_TS_CMD_SPONGE_READ_WRITE_CMD;
 	address[1] = data[1];
 	address[2] = data[0];
 	ret = ts->stm_ts_i2c_write(ts, address, 3, &data[2], length - 2);
@@ -170,6 +176,12 @@ int stm_ts_read_chip_id(struct stm_ts_data *ts)
 
 	input_info(true, &ts->client->dev, "%s: %c %c %02X %02X %02X (%x)\n",
 			__func__, data[0], data[1], data[2], data[3], data[4], ts->chip_id);
+
+	/* (393603) fts9cu59_q2 */
+	/* (503601) fts9cu80f_b2 */
+	/* (523601) fts2ca78y_b2 */
+	if (ts->chip_id == 0x523601)
+		input_info(true, &ts->client->dev, "%s: STM_TS2c panel\n", __func__);
 
 	if ((data[2] != STM_TS_ID0) && (data[3] != STM_TS_ID1))
 		return -STM_TS_ERROR_INVALID_CHIP_ID;
@@ -363,11 +375,23 @@ int stm_ts_fix_active_mode(struct stm_ts_data *ts, bool enable)
 	int ret;
 
 	if (enable) {
-		address[1] = 0x03;
-		address[2] = 0x00;
+		if (ts->chip_id == 0x523601) {
+			address[0] = 0x00;
+			address[1] = 0x10;
+			address[2] = 0x10;
+		} else {
+			address[1] = 0x03;
+			address[2] = 0x00;
+		}
 	} else {
-		address[1] = 0x00;
-		address[2] = 0x01;
+		if (ts->chip_id == 0x523601) {
+			address[0] = 0x00;
+			address[1] = 0x10;
+			address[2] = 0x01;
+		} else {
+			address[1] = 0x00;
+			address[2] = 0x01;
+		}
 	}
 	
 	ret = ts->stm_ts_i2c_write(ts, &address[0], 3, NULL, 0);
@@ -432,17 +456,25 @@ int stm_ts_wait_for_ready(struct stm_ts_data *ts)
 {
 	struct stm_ts_event_status *p_event_status;
 	int rc;
-	u8 address = STM_TS_READ_ONE_EVENT;
+	u8 address[2] = {0x00, STM_TS_READ_ONE_EVENT};
 	u8 data[STM_TS_EVENT_BUFF_SIZE];
 	int retry = 0;
 	int err_cnt = 0;
+	int len;
 
 	mutex_lock(&ts->fn_mutex);
 
 	memset(data, 0x0, STM_TS_EVENT_BUFF_SIZE);
 
+	if (ts->chip_id == 0x523601)
+		len = sizeof(address);
+	else {
+		address[0] = STM_TS_READ_ONE_EVENT;
+		len = 1;
+	}
+
 	rc = -1;
-	while (ts->stm_ts_i2c_read(ts, &address, 1, (u8 *)data, STM_TS_EVENT_BUFF_SIZE) > 0) {
+	while (ts->stm_ts_i2c_read(ts, &address[0], len, (u8 *)data, STM_TS_EVENT_BUFF_SIZE) > 0) {
 		p_event_status = (struct stm_ts_event_status *) &data[0];
 
 		if ((p_event_status->stype == STM_TS_EVENT_STATUSTYPE_INFO) &&
@@ -518,9 +550,12 @@ int stm_ts_wait_for_echo_event(struct stm_ts_data *ts, u8 *cmd, u8 cmd_cnt, int 
 	int rc;
 	int i;
 	bool matched = false;
-	u8 reg = STM_TS_READ_ONE_EVENT;
+	u8 reg[2] = {0x00, STM_TS_READ_ONE_EVENT};
 	u8 data[STM_TS_EVENT_BUFF_SIZE];
 	int retry = 0;
+
+	int cmd_offset = 0;
+	int len;
 
 	mutex_lock(&ts->fn_mutex);
 	disable_irq(ts->irq);
@@ -538,9 +573,18 @@ int stm_ts_wait_for_echo_event(struct stm_ts_data *ts, u8 *cmd, u8 cmd_cnt, int 
 
 	memset(data, 0x0, STM_TS_EVENT_BUFF_SIZE);
 
+	if (ts->chip_id == 0x523601) {
+		len = sizeof(reg);
+		if (cmd[0] == 0x00)
+			cmd_offset = 1;
+	} else {
+		reg[0] = STM_TS_READ_ONE_EVENT;
+		len = 1;
+	}
+
 	rc = -EIO;
 
-	while (ts->stm_ts_i2c_read(ts, &reg, 1, (u8 *)data, STM_TS_EVENT_BUFF_SIZE) > 0) {
+	while (ts->stm_ts_i2c_read(ts, &reg[0], len, (u8 *)data, STM_TS_EVENT_BUFF_SIZE) > 0) {
 		if (data[0] != 0x00)
 			input_info(true, &ts->client->dev,
 					"%s: event %02X, %02X, %02X, %02X, %02X, %02X, %02X, %02X,"
@@ -556,10 +600,10 @@ int stm_ts_wait_for_echo_event(struct stm_ts_data *ts, u8 *cmd, u8 cmd_cnt, int 
 			if (cmd_cnt > 4)
 				loop_cnt = 4;
 			else
-				loop_cnt = cmd_cnt;
+				loop_cnt = cmd_cnt - cmd_offset;
 
 			for (i = 0; i < loop_cnt; i++) {
-				if (data[i + 2] != cmd[i]) {
+				if (data[i + 2] != cmd[i + cmd_offset]) {
 					matched = false;
 					break;
 				}
@@ -596,6 +640,11 @@ int stm_ts_set_scanmode(struct stm_ts_data *ts, u8 scan_mode)
 {
 	u8 address[3] = { 0xA0, 0x00, scan_mode };
 	int rc;
+
+	if (ts->chip_id == 0x523601) {
+		address[0] = 0x00;
+		address[1] = 0x10;
+	}
 
 	rc = stm_ts_wait_for_echo_event(ts, &address[0], 3, 0);
 	if (rc < 0) {
@@ -978,7 +1027,12 @@ void stm_ts_read_info_work(struct work_struct *work)
 			work_read_info.work);
 	int ret;
 
-#if !IS_ENABLED(CONFIG_QGKI)
+	if (ts->chip_id == 0x523601) {
+		ts->info_work_done = true;
+		return;
+	}
+
+#if defined(DUAL_FOLDABLE_GKI)
 	ts->info_work_done = true;
 	stm_ts_input_close(ts->plat_data->input_dev);
 	stm_ts_input_open(ts->plat_data->input_dev);
@@ -1121,7 +1175,7 @@ int stm_ts_set_fod_rect(struct stm_ts_data *ts)
 	return ret;
 }
 
-int stm_ts_set_charger_mode(struct stm_ts_data *ts)
+int stm_ts_set_wirelesscharger_mode(struct stm_ts_data *ts)
 {
 	int ret;
 	u8 address;
@@ -1139,7 +1193,7 @@ int stm_ts_set_charger_mode(struct stm_ts_data *ts)
 		return SEC_ERROR;
 	}
 
-	address = STM_TS_CMD_SET_GET_CHARGER_MODE;
+	address = STM_TS_CMD_SET_GET_WIRELESSCHARGER_MODE;
 	ret = ts->stm_ts_i2c_write(ts, &address, 1, &data, 1);
 	if (ret < 0)
 		input_err(true, &ts->client->dev,
@@ -1152,6 +1206,62 @@ int stm_ts_set_charger_mode(struct stm_ts_data *ts)
 
 	return ret;
 }
+
+int stm_ts_set_wirecharger_mode(struct stm_ts_data *ts)
+{
+	int ret;
+	u8 address;
+	u8 data;
+
+	if (ts->charger_mode == TYPE_WIRE_CHARGER_NONE) {
+		data = STM_TS_BIT_CHARGER_MODE_NORMAL;
+	} else if (ts->charger_mode == TYPE_WIRE_CHARGER) {
+		data = STM_TS_BIT_CHARGER_MODE_WIRE_CHARGER;
+	} else {
+		input_err(true, &ts->client->dev, "%s: not supported mode %d\n",
+				__func__, ts->plat_data->wirelesscharger_mode);
+		return SEC_ERROR;
+	}
+
+	address = STM_TS_CMD_SET_GET_WIRECHARGER_MODE;
+	ret = ts->stm_ts_i2c_write(ts, &address, 1, &data, 1);
+	if (ret < 0)
+		input_err(true, &ts->client->dev,
+				"%s: Failed to write mode 0x%02X (cmd:%d), ret=%d\n",
+				__func__, address, ts->charger_mode, ret);
+
+	return ret;
+}
+
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+int stm_ts_vbus_notification(struct notifier_block *nb, unsigned long cmd, void *data)
+{
+	struct stm_ts_data *ts = container_of(nb, struct stm_ts_data, vbus_nb);
+	vbus_status_t vbus_type = *(vbus_status_t *)data;
+
+	if (ts->plat_data->shutdown_called)
+		return 0;
+
+	switch (vbus_type) {
+	case STATUS_VBUS_HIGH:
+		ts->charger_mode = TYPE_WIRE_CHARGER;
+		break;
+	case STATUS_VBUS_LOW:
+		ts->charger_mode = TYPE_WIRE_CHARGER_NONE;
+		break;
+	default:
+		goto out;
+	}
+
+	input_info(true, &ts->client->dev, "%s: %sabled\n", __func__,
+				ts->charger_mode == TYPE_WIRE_CHARGER_NONE ? "dis" : "en");
+
+	stm_ts_set_wirecharger_mode(ts);
+
+out:
+	return 0;
+}
+#endif
 
 /*
  *	flag     1  :  set edge handler
@@ -1418,15 +1528,22 @@ int get_nvm_data_by_size(struct stm_ts_data *ts, u8 offset, int length, u8 *nvda
 	u8 address[3] = {0};
 	u8 data[128] = { 0 };
 	int ret;
+	int addr;
 
 	ts->stm_ts_command(ts, STM_TS_CMD_CLEAR_ALL_EVENT, true); // Clear FIFO
 
 	stm_ts_release_all_finger(ts);
 
 	// Request SEC factory debug data from flash
-	address[0] = 0xA4;
-	address[1] = 0x06;
-	address[2] = 0x90;
+	if (ts->chip_id == 0x523601) {
+		address[0] = 0x00;
+		address[1] = 0x23;
+		address[2] = 0x67;
+	} else {
+		address[0] = 0xA4;
+		address[1] = 0x06;
+		address[2] = 0x90;
+	}
 
 	ret = stm_ts_wait_for_echo_event(ts, &address[0], 3, 0);
 	if (ret < 0) {
@@ -1435,12 +1552,20 @@ int get_nvm_data_by_size(struct stm_ts_data *ts, u8 offset, int length, u8 *nvda
 		return ret;
 	}
 
+	if (ts->chip_id == 0x523601) {
+		addr = FRAME_BUFFER_ADDR + offset;
+		address[0] = (u8)((addr >> 8) & 0xFF);
+		address[1] = (u8)(addr & 0xFF);
 
-	address[0] = 0xA6;
-	address[1] = 0x00;
-	address[2] = offset;
+		ret = ts->stm_ts_i2c_read(ts, &address[0], 2, data, length + 1);
+	} else {
+		address[0] = 0xA6;
+		address[1] = 0x00;
+		address[2] = offset;
 
-	ret = ts->stm_ts_i2c_read(ts, &address[0], 3, data, length + 1);
+		ret = ts->stm_ts_i2c_read(ts, &address[0], 3, data, length + 1);
+	}
+
 	if (ret < 0) {
 		input_err(true, &ts->client->dev,
 				"%s: read failed. ret: %d\n", __func__, ret);
@@ -1494,9 +1619,15 @@ int set_nvm_data_by_size(struct stm_ts_data *ts, u8 offset, int length, u8 *buf)
 	}
 
 	// Save to flash
-	buff[0] = 0xA4;
-	buff[1] = 0x05;
-	buff[2] = 0x04; // panel configuration area
+	if (ts->chip_id == 0x523601) {
+		buff[0] = 0x00;
+		buff[1] = 0x20;
+		buff[2] = 0xC0; // panel configuration area + config area
+	} else {
+		buff[0] = 0xA4;
+		buff[1] = 0x05;
+		buff[2] = 0x04; // panel configuration area
+	}
 
 	ret = stm_ts_wait_for_echo_event(ts, &buff[0], 3, 200);
 	if (ret < 0)

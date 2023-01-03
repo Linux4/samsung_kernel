@@ -40,8 +40,8 @@
 		clock-names = "gcc_bus", "throttle_clk",
 				"iface_clk", "core_clk", "vsync_clk",
 				"lut_clk";
-		clock-rate = <0 0 0 0 0 256000000 19200000 192000000>;
-		clock-max-rate = <0 0 0 0 0 384000000 19200000 384000000>;
+		clock-rate = <0 0 0 300000000 19200000 192000000>;
+		clock-max-rate = <0 0 0 400000000 19200000 400000000>;
 
 		sde-vdd-supply = <&mdss_core_gdsc>;
 
@@ -79,9 +79,15 @@
 		qcom,sde-dspp-off = <0x55000>;
 		qcom,sde-dspp-size = <0xfe4>;
 
+		qcom,sde-dspp-rc-version = <0x00010000>;
+		qcom,sde-dspp-rc-off = <0x15800>;
+		qcom,sde-dspp-rc-size = <0x100>;
+		qcom,sde-dspp-rc-mem-size = <2720>;
+
 		qcom,sde-intf-off = <0x0 0x6b800>;
 		qcom,sde-intf-size = <0x2b8>;
 		qcom,sde-intf-type = "none", "dsi";
+		qcom,sde-intf-tear-irq-off = <0 0x6e800>;
 
 		qcom,sde-pp-off = <0x71000>;
 		qcom,sde-pp-size = <0xd4>;
@@ -140,17 +146,19 @@
 
 		/*Pending macrotile & macrotile-qseed has the same configs */
 
-		qcom,sde-danger-lut = <0x000000ff 0x00000000
+		qcom,sde-danger-lut = <0x000000ff 0x00000000 0x00000000
 			0x00000000 0x00000000 0x00000000>;
 
-		qcom,sde-safe-lut-linear = <0 0xfff0>;
+		qcom,sde-safe-lut = <0xfff0 0x0000 0x0000 0x0000
+			0x0000 0x0000>;
 
-		qcom,sde-qos-lut-linear = <0 0x00112222 0x22335777>;
+		qcom,sde-qos-lut-linear = <0x00112222 0x22335777>;
 
 		qcom,sde-cdp-setting = <1 0>;
 
 		qcom,sde-qos-cpu-mask = <0x3>;
 		qcom,sde-qos-cpu-dma-latency = <300>;
+		qcom,sde-qos-cpu-irq-latency = <300>;
 
 		qcom,sde-secure-sid-mask = <0x0000421>;
 		qcom,sde-num-mnoc-ports = <1>;
@@ -258,6 +266,7 @@
 				qcom,supply-max-voltage = <1312000>;
 				qcom,supply-enable-load = <21800>;
 				qcom,supply-disable-load = <0>;
+				qcom,supply-ulp-load = <0>;
 			};
 		};
 
@@ -313,6 +322,7 @@
 				qcom,supply-max-voltage = <904000>;
 				qcom,supply-enable-load = <37550>;
 				qcom,supply-disable-load = <0>;
+				qcom,supply-ulp-load = <0>;
 			};
 		};
 	};

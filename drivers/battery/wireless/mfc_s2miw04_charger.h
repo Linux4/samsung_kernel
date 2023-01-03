@@ -25,7 +25,7 @@
 #include <linux/pm_wakeup.h>
 #include "../common/sec_charging_common.h"
 
-#define MFC_FW_BIN_VERSION		0x1026
+#define MFC_FW_BIN_VERSION		0x102C
 #define MFC_FW_VER_BIN_LSI		0xBFC
 #define MTP_MAX_PROGRAM_SIZE 0x4000
 #define MTP_VERIFY_ADDR			0x0000
@@ -605,6 +605,21 @@
 
 #define MFC_FW_MSG		"@MFC_FW "
 
+#if defined(CONFIG_MST_V2)
+#define MST_MODE_ON				1		// ON Message to MFC ic
+#define MST_MODE_OFF			0		// OFF Message to MFC ic
+#define DELAY_FOR_MST			100		// S.LSI : 100 ms
+#define MFC_MST_LDO_CONFIG_1	0x7400
+#define MFC_MST_LDO_CONFIG_2	0x7409
+#define MFC_MST_LDO_CONFIG_3	0x7418
+#define MFC_MST_LDO_CONFIG_4	0x3014
+#define MFC_MST_LDO_CONFIG_5	0x3405
+#define MFC_MST_LDO_CONFIG_6	0x3010
+#define MFC_MST_LDO_TURN_ON		0x301c
+#define MFC_MST_LDO_CONFIG_8	0x343c
+#define MFC_MST_OVER_TEMP_INT	0x0024
+#endif
+
 /* F/W Update & Verification ERROR CODES */
 enum {
 	MFC_FWUP_ERR_COMMON_FAIL = 0,
@@ -849,7 +864,8 @@ struct mfc_charger_platform_data {
 	bool wpc_vout_ctrl_lcd_on;
 	int no_hv;
 	bool keep_tx_vout;
-	bool wpc_vout_ctrl_full;
+	u32 wpc_vout_ctrl_full;
+	bool wpc_headroom_ctrl_full;
 #if defined(CONFIG_TX_GEAR_PHM_VOUT_CTRL)
 	u32 phm_vout_ctrl_dev;
 #endif
@@ -887,6 +903,7 @@ struct mfc_charger_data {
 	struct wakeup_source *wpc_tx_phm_ws;
 	struct wakeup_source *wpc_tx_id_ws;
 	struct wakeup_source *wpc_pdrc_ws;
+	struct wakeup_source *wpc_cs100_ws;
 	struct workqueue_struct *wqueue;
 	struct work_struct	wcin_work;
 	struct delayed_work	wpc_det_work;
@@ -966,6 +983,7 @@ struct mfc_charger_data {
 
 	bool req_tx_id;
 	bool is_abnormal_pad;
+	bool afc_tx_done;
 
 	int req_afc_delay;
 

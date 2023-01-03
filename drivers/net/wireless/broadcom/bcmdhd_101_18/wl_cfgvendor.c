@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 Vendor Extension Code
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -7487,6 +7487,11 @@ exit:
 		MFREE(cfg->osh, per_chspec_stats, per_chspec_stats_size);
 	}
 #endif /* CHAN_STATS_SUPPORT */
+
+#ifdef RPM_FAST_TRIGGER
+	WL_INFORM(("Trgger RPM Fast\n"));
+	dhd_trigger_rpm_fast(cfg);
+#endif /* RPM_FAST_TRIGGER */
 	return err;
 }
 #endif /* LINKSTAT_SUPPORT */
@@ -11043,6 +11048,8 @@ static const struct  nl80211_vendor_cmd_info wl_vendor_events [] = {
 		{ OUI_GOOGLE, BRCM_VENDOR_EVENT_TPUT_DUMP},
 		{ OUI_GOOGLE, GOOGLE_NAN_EVENT_MATCH_EXPIRY},
 		{ OUI_BRCM, BRCM_VENDOR_EVENT_RCC_FREQ_INFO},
+		{ OUI_BRCM, BRCM_VENDOR_EVENT_CONNECTIVITY_LOG},
+		{ OUI_BRCM, BRCM_VENDOR_EVENT_HAPD_TSF},
 };
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))

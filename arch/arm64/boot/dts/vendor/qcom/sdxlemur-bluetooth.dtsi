@@ -19,15 +19,12 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&bt_en_default>;
 		qcom,bt-reset-gpio = <&pmx65_gpios 15 0>; /* BT_EN */
-		qcom,bt-sw-ctrl-gpio = <&pmx65_gpios 2 0>; /* SW_CTRL */
 
 		clocks = <&rpmhcc RPMH_RF_CLK3>;
 		clock-names = "ref3_clk";
 
 		qcom,bt-vdd-aon-supply = <&S7B>;
-		qcom,bt-vdd-aon-config = <1012000 1012000 0 0>;
-		qcom,bt-vdd-io-supply = <&L6B>;
-		qcom,bt-vdd-io-config = <1800000 1800000 0 0>;
+		qcom,bt-vdd-aon-config = <1012000 1012000 0 1>;
 	};
 };
 

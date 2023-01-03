@@ -44,14 +44,21 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&display_panel_avdd_default>;
 	};
+
+	display_panel_ibb: display_panel_ibb_stub {
+		compatible = "qcom,stub-regulator";
+		regulator-name = "display_panel_ibb";
+		regulator-min-microvolt = <4600000>;
+		regulator-max-microvolt = <6000000>;
+	};
 };
 
 &sde_dsi {
 	vddio-supply = <&L13A>;
 	avdd-supply = <&display_panel_avdd>;
+	ibb-supply = <&display_panel_ibb>;
 
 	/delete-property/ lab-supply;
-	/delete-property/ ibb-supply;
 
 	pinctrl-0 = <&sde_te_active &disp_pins_reset>;
 	qcom,dsi-default-panel = <&dsi_r66451_amoled_cmd>;
@@ -64,6 +71,7 @@
 	qcom,mdss-brightness-max-level = <255>;
 	qcom,mdss-dsi-bl-max-level = <4095>;
 	qcom,mdss-dsi-bl-inverted-dbv;
+	qcom,bl-update-flag = "delay_until_first_frame";
 	qcom,platform-te-gpio = <&tlmm 23 0>;
 	qcom,platform-reset-gpio = <&pmr735a_gpios 2 0>;
 };
@@ -74,6 +82,7 @@
 	qcom,mdss-dsi-bl-min-level = <1>;
 	qcom,mdss-brightness-max-level = <255>;
 	qcom,mdss-dsi-bl-inverted-dbv;
+	qcom,bl-update-flag = "delay_until_first_frame";
 	qcom,mdss-dsi-bl-max-level = <4095>;
 	qcom,platform-reset-gpio = <&pmr735a_gpios 2 0>;
 };
@@ -85,6 +94,7 @@
 	qcom,mdss-dsi-bl-max-level = <4095>;
 	qcom,mdss-brightness-max-level = <255>;
 	qcom,mdss-dsi-bl-inverted-dbv;
+	qcom,bl-update-flag = "delay_until_first_frame";
 	qcom,platform-reset-gpio = <&pmr735a_gpios 2 0>;
 };
 
@@ -95,6 +105,7 @@
 	qcom,mdss-dsi-bl-max-level = <4095>;
 	qcom,mdss-brightness-max-level = <255>;
 	qcom,mdss-dsi-bl-inverted-dbv;
+	qcom,bl-update-flag = "delay_until_first_frame";
 	qcom,platform-te-gpio = <&tlmm 23 0>;
 	qcom,platform-reset-gpio = <&pmr735a_gpios 2 0>;
 };
@@ -106,6 +117,7 @@
 	qcom,mdss-brightness-max-level = <255>;
 	qcom,mdss-dsi-bl-max-level = <4095>;
 	qcom,mdss-dsi-bl-inverted-dbv;
+	qcom,bl-update-flag = "delay_until_first_frame";
 	qcom,platform-te-gpio = <&tlmm 23 0>;
 	qcom,platform-reset-gpio = <&pmr735a_gpios 2 0>;
 };
@@ -116,6 +128,7 @@
 	qcom,mdss-dsi-bl-min-level = <1>;
 	qcom,mdss-brightness-max-level = <255>;
 	qcom,mdss-dsi-bl-inverted-dbv;
+	qcom,bl-update-flag = "delay_until_first_frame";
 	qcom,mdss-dsi-bl-max-level = <4095>;
 	qcom,platform-reset-gpio = <&pmr735a_gpios 2 0>;
 };

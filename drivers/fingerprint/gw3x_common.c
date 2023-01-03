@@ -136,14 +136,19 @@ static struct device_attribute *fp_attrs[] = {
 static void gw3x_enable_irq(struct gf_device *gf_dev)
 {
 	struct irq_desc *desc = irq_to_desc(gf_dev->irq);
+#if KERNEL_VERSION(5, 4, 0) <= LINUX_VERSION_CODE
+	struct irq_data *d = irq_get_irq_data(gf_dev->irq);
+#endif
 	if (gf_dev->irq_enabled == 1) {
 		pr_err("irq already enabled\n");
 	} else {
 		/* Pending IRQ clear */
-		if ((!IS_ERR_OR_NULL(desc)) && (desc->irq_data.chip->irq_ack)) {
-			pr_debug("pending IRQ clear!\n");
+		if ((!IS_ERR_OR_NULL(desc)) && (desc->irq_data.chip->irq_ack))
 			desc->irq_data.chip->irq_ack(&desc->irq_data);
-		}
+#if KERNEL_VERSION(5, 4, 0) <= LINUX_VERSION_CODE
+		if (d->parent_data) /* QC case 05534084 */
+			irq_chip_set_parent_state(d, IRQCHIP_STATE_PENDING, false);
+#endif
 		enable_irq(gf_dev->irq);
 		enable_irq_wake(gf_dev->irq);
 		gf_dev->irq_enabled = 1;
@@ -797,6 +802,11 @@ int gw3x_type_check(struct gf_device *gf_dev)
 		pr_info("%s sensor type is GW36T2\n",
 		sensor_status[gf_dev->sensortype + 2]);
 		retval = 0;
+	} else if (mcuid32 == GF_GW36T3_CHIP_ID) {
+		gf_dev->sensortype = SENSOR_GOODIX;
+		pr_info("%s sensor type is GW36T3\n",
+		sensor_status[gf_dev->sensortype + 2]);
+		retval = 0;
 	} else if (mcuid32 == GF_GW36T1_SHIFT_CHIP_ID) {
 		gf_dev->sensortype = SENSOR_GOODIX;
 		pr_info("%s sensor type is GW36T1 SHIFT\n",
@@ -805,6 +815,11 @@ int gw3x_type_check(struct gf_device *gf_dev)
 	} else if (mcuid32 == GF_GW36T2_SHIFT_CHIP_ID) {
 		gf_dev->sensortype = SENSOR_GOODIX;
 		pr_info("%s sensor type is GW36T2 SHIFT\n",
+		sensor_status[gf_dev->sensortype + 2]);
+		retval = 0;
+	} else if (mcuid32 == GF_GW36T3_SHIFT_CHIP_ID) {
+		gf_dev->sensortype = SENSOR_GOODIX;
+		pr_info("%s sensor type is GW36T3 SHIFT\n",
 		sensor_status[gf_dev->sensortype + 2]);
 		retval = 0;
 	} else {
@@ -958,7 +973,7 @@ static int gw3x_probe_common(struct device *dev, struct gf_device *gf_dev)
 		goto gw3x_probe_netlink_init;
 	}
 
-#if KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE
+#if KERNEL_VERSION(4, 19, 188) > LINUX_VERSION_CODE
 	// 4.19 R
 	wakeup_source_init(gf_dev->wake_lock, "gw3x_irq_wake_lock");
 	// 4.19 Q
@@ -1173,10 +1188,7 @@ static int gw3x_remove(struct spi_device *spi)
 static int gw3x_pm_suspend(struct device *dev)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
-#ifdef CONFIG_BATTERY_SAMSUNG
-	if (lpcharge)
-		return 0;
-#endif
+
 	pr_info("Entry\n");
 	disable_fp_debug_timer(gf_dev->logger);
 	return 0;
@@ -1185,10 +1197,7 @@ static int gw3x_pm_suspend(struct device *dev)
 static int gw3x_pm_resume(struct device *dev)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
-#ifdef CONFIG_BATTERY_SAMSUNG
-	if (lpcharge)
-		return 0;
-#endif
+
 	pr_info("Entry\n");
 	enable_fp_debug_timer(gf_dev->logger);
 	return 0;
@@ -1222,12 +1231,7 @@ static int __init gw3x_init(void)
 	int status = 0;
 
 	pr_info("Entry\n");
-#ifdef CONFIG_BATTERY_SAMSUNG
-	if (lpcharge) {
-		pr_info("Do not load driver due to : lpm %d\n", lpcharge);
-		return status;
-	}
-#endif
+
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
 	status = spi_register_driver(&gw3x_spi_driver);
 #else

@@ -4770,6 +4770,7 @@ void secdp_timing_init(void)
 	struct dp_display_private *dp = g_secdp_priv;
 	struct secdp_misc *sec = &dp->sec;
 	struct secdp_prefer *prefer = &sec->prefer;
+	struct secdp_dex *dex = &sec->dex;
 
 	secdp_update_max_timing(&sec->prf_timing, NULL);
 	secdp_update_max_timing(&sec->mrr_timing, NULL);
@@ -4781,6 +4782,8 @@ void secdp_timing_init(void)
 	prefer->hdisp    = 0;
 	prefer->vdisp    = 0;
 	prefer->refresh  = 0;
+
+	dex->ignore_prefer_ratio = false;
 
 #ifdef SECDP_IGNORE_PREFER_IF_DEX_RES_EXIST
 	sec->dex.res_exist = false;
@@ -5061,18 +5064,27 @@ __visible_for_testing bool secdp_check_dex_resolution(struct dp_display_private 
 				struct drm_display_mode *mode)
 {
 	struct secdp_display_timing *dex_table = secdp_dex_resolution;
-	int i;
+	struct secdp_misc *sec = NULL;
+	struct secdp_prefer *prefer = NULL;
+	struct secdp_dex *dex = NULL;
+	enum mon_aspect_ratio_t mode_ratio = MON_RATIO_NA;
+	u64 i;
 	bool mode_interlaced = !!(mode->flags & DRM_MODE_FLAG_INTERLACE);
 	bool prefer_support, prefer_mode, ret = false;
 
 	if (!secdp_check_dex_refresh(mode))
 		goto end;
 
+	sec = &dp->sec;
+	prefer = &sec->prefer;
+	dex = &sec->dex;
+	mode_ratio = secdp_get_aspect_ratio(mode);
+
 	prefer_support = dp->parser->prefer_support;
 	prefer_mode = secdp_check_prefer_resolution(dp, mode);
 	if (prefer_support && prefer_mode &&
 			secdp_check_dex_rowcol(mode) &&
-			secdp_check_dex_ratio(secdp_get_aspect_ratio(mode))) {
+			secdp_check_dex_ratio(mode_ratio)) {
 		ret = true;
 		goto end;
 	}
@@ -5080,7 +5092,11 @@ __visible_for_testing bool secdp_check_dex_resolution(struct dp_display_private 
 	for (i = 0; i < ARRAY_SIZE(secdp_dex_resolution); i++) {
 		if ((mode_interlaced != dex_table[i].interlaced) ||
 				(mode->hdisplay != dex_table[i].active_h) ||
-				(mode->vdisplay != dex_table[i].active_v))
+				(mode->vdisplay != dex_table[i].active_v) ||
+				!secdp_check_dex_ratio(mode_ratio))
+			continue;
+
+		if (!dex->ignore_prefer_ratio && mode_ratio != prefer->ratio)
 			continue;
 
 		if (dex_table[i].dex_res <= secdp_get_dex_res()) {
@@ -5106,6 +5122,7 @@ __visible_for_testing bool secdp_check_resolution(struct dp_display_private *dp,
 {
 	struct secdp_prefer *prefer = NULL;
 	struct secdp_misc *sec = NULL;
+	struct secdp_dex *dex = NULL;
 	struct secdp_display_timing *prf_timing, *mrr_timing, *dex_timing;
 	bool prefer_support, prefer_mode, ret = false, dex_supported = false;
 
@@ -5115,6 +5132,7 @@ __visible_for_testing bool secdp_check_resolution(struct dp_display_private *dp,
 	}
 
 	sec = &dp->sec;
+	dex = &sec->dex;
 	prefer = &sec->prefer;
 	prefer_support = dp->parser->prefer_support;
 
@@ -5125,6 +5143,11 @@ __visible_for_testing bool secdp_check_resolution(struct dp_display_private *dp,
 	prefer_mode = secdp_check_prefer_resolution(dp, mode);
 	if (prefer_mode) {
 		secdp_show_max_timing(dp);
+
+		if ((mrr_timing->clock || prf_timing->clock) && !dex_timing->clock) {
+			dex->ignore_prefer_ratio = true;	
+			DP_INFO("[dex] ignore prefer ratio\n");
+		}
 
 		prefer->ratio = secdp_get_aspect_ratio(mode);
 		DP_INFO("prefer timing found! %dx%d@%dhz, %s\n",
@@ -5145,6 +5168,11 @@ __visible_for_testing bool secdp_check_resolution(struct dp_display_private *dp,
 
 	if (prefer->ratio == MON_RATIO_NA) {
 		DP_INFO("prefer timing is absent!\n");
+
+		if ((mrr_timing->clock || prf_timing->clock) && !dex_timing->clock) {
+			dex->ignore_prefer_ratio = true;	
+			DP_INFO("[dex] ignore prefer ratio\n");
+		}
 
 		prefer->ratio = secdp_get_aspect_ratio(mode);
 		if (prefer->ratio != MON_RATIO_NA) {

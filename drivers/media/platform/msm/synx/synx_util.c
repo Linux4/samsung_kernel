@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  */
 #define pr_fmt(fmt) "synx: " fmt
 
@@ -158,8 +158,8 @@ void synx_util_object_destroy(struct synx_coredata *synx_obj)
 		data = bind_desc->external_data;
 		bind_ops = synx_util_get_bind_ops(type);
 		if (!bind_ops) {
-			pr_err("bind ops fail id: %d, type: %u, err: %d\n",
-				sync_id, type, rc);
+			pr_err("bind ops fail id: %d, type: %u\n",
+				sync_id, type);
 			continue;
 		}
 
@@ -231,6 +231,7 @@ int synx_util_init_handle(struct synx_client *client,
 	synx_data->handle = h_synx;
 	synx_data->synx_obj = synx_obj;
 	kref_init(&synx_data->internal_refcount);
+	synx_data->rel_count = 1;
 	mutex_unlock(&client->synx_table_lock[idx]);
 
 	*new_synx = h_synx;
@@ -569,6 +570,9 @@ struct synx_handle_coredata *synx_util_acquire_handle(
 			client->id, h_synx);
 	} else if (synx_data->handle != h_synx) {
 		pr_err("[sess: %u] stale object handle %d\n",
+			client->id, h_synx);
+	} else if (synx_data->rel_count == 0) {
+		pr_err("[sess: %u] released object handle %d\n",
 			client->id, h_synx);
 	} else if (!kref_read(&synx_data->internal_refcount)) {
 		pr_err("[sess: %u] destroyed object handle %d\n",

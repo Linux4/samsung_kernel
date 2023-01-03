@@ -109,6 +109,10 @@ enum registers {
 #define ISG5320A_BFCAL_CHK_RDY_TIME       (3 * 60 * 2) // 3min (unit: 500ms)
 #define ISG5320A_BFCAL_CHK_CYCLE_TIME     4   //  2sec (unit: 500ms)
 #define ISG5320A_BFCAL_CHK_DIFF_RATIO     3
+
+#define UNKNOWN_ON  1
+#define UNKNOWN_OFF 2
+
 enum {
 	OFF = 0,
 	ON,

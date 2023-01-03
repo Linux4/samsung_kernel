@@ -34,7 +34,7 @@ static ssize_t hardware_param_show(struct device *dev,
 
 	memset(buff, 0x00, sizeof(buff));
 
-	sec_input_get_common_hw_param(ts->plat_data, buff);	
+	sec_input_get_common_hw_param(ts->plat_data, buff);
 
 	/* module_id */
 	memset(tbuff, 0x00, sizeof(tbuff));
@@ -45,7 +45,7 @@ static ssize_t hardware_param_show(struct device *dev,
 			ts->tdata->tclm_string[ts->tdata->nvdata.cal_position].s_name,
 			ts->tdata->nvdata.cal_count & 0xF);
 #else
-			'0',0);
+			'0', 0);
 #endif
 	strlcat(buff, tbuff, sizeof(buff));
 
@@ -271,7 +271,7 @@ ssize_t get_lp_dump(struct device *dev, struct device_attribute *attr, char *buf
 		input_err(true, &ts->client->dev, "%s: Touch is stopped!\n", __func__);
 		if (buf)
 			return snprintf(buf, SEC_CMD_BUF_SIZE, "TSP turned off");
-		else 
+		else
 			return 0;
 	}
 
@@ -279,7 +279,7 @@ ssize_t get_lp_dump(struct device *dev, struct device_attribute *attr, char *buf
 		input_err(true, &ts->client->dev, "%s: Reset is ongoing!\n", __func__);
 		if (buf)
 			return snprintf(buf, SEC_CMD_BUF_SIZE, "Reset is ongoing");
-		else 
+		else
 			return 0;
 	}
 
@@ -289,7 +289,7 @@ ssize_t get_lp_dump(struct device *dev, struct device_attribute *attr, char *buf
 		input_err(true, &ts->client->dev, "%s : Failed!!\n", __func__);
 		if (buf)
 			return snprintf(buf, SEC_CMD_BUF_SIZE, "vmalloc failed");
-		else 
+		else
 			return 0;
 	}
 	memset(sec_spg_dat, 0, SEC_TS_MAX_SPONGE_DUMP_BUFFER);
@@ -444,7 +444,7 @@ out:
 
 	if (buf)
 		return strlen(buf);
-	else 
+	else
 		return 0;
 }
 
@@ -557,7 +557,7 @@ static ssize_t stm_ts_fod_position_show(struct device *dev,
 
 	if (!ts->plat_data->support_fod) {
 		input_err(true, &ts->client->dev, "%s: fod is not supported\n", __func__);
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	if (!ts->plat_data->fod_data.vi_size) {
@@ -1000,6 +1000,7 @@ ERROREXIT:
 int stm_ts_read_nonsync_frame(struct stm_ts_data *ts, short *min, short *max)
 {
 	struct stm_ts_syncframeheader *psyncframeheader;
+	struct stm_ts_syncframeheader_ts2c  *psyncframeheader_ts2c;
 	u8 reg[8] = { 0 };
 	unsigned int totalbytes = 0;
 	u8 *pRead;
@@ -1007,6 +1008,8 @@ int stm_ts_read_nonsync_frame(struct stm_ts_data *ts, short *min, short *max)
 	int ret = 0;
 	int i = 0;
 	int retry = 10;
+	int addr;
+	short rawdata_addr;
 
 	input_info(true, &ts->client->dev, "%s\n", __func__);
 
@@ -1015,59 +1018,113 @@ int stm_ts_read_nonsync_frame(struct stm_ts_data *ts, short *min, short *max)
 		return -ENOMEM;
 
 	/* Request System Information */
-	reg[0] = 0xA4;
-	reg[1] = 0x06;
-	reg[2] = 0x01;
-	ts->stm_ts_i2c_write(ts, &reg[0], 3, NULL, 0);
-	sec_delay(50);
+	if (ts->chip_id == 0x523601) {
+		reg[0] = 0x00;
+		reg[1] = 0x23;
+		reg[2] = 0x01;
+		ts->stm_ts_i2c_write(ts, &reg[0], 3, NULL, 0);
+		sec_delay(50);
 
-	do {
-		reg[0] = 0xA6;
-		reg[1] = 0x00;
-		reg[2] = 0x00;
-		ret = ts->stm_ts_i2c_read(ts, &reg[0], 3, &pRead[0], STM_TS_COMP_DATA_HEADER_SIZE);
-		if (ret < 0) {
-			input_err(true, &ts->client->dev, "%s: read failed rc = %d\n", __func__, ret);
-			rc = -3;
+		do {
+			reg[0] = (u8)((FRAME_BUFFER_ADDR >> 8) & 0xFF);
+			reg[1] = (u8)(FRAME_BUFFER_ADDR & 0xFF);
+			ret = ts->stm_ts_i2c_read(ts, &reg[0], 2, &pRead[0], STM_TS_COMP_DATA_HEADER_SIZE);
+			if (ret < 0) {
+				input_err(true, &ts->client->dev, "%s: read failed rc = %d\n", __func__, ret);
+				rc = -3;
+				goto ERROREXIT;
+			}
+
+			psyncframeheader_ts2c = (struct stm_ts_syncframeheader_ts2c *)&pRead[0];
+
+			if (psyncframeheader_ts2c->type == 0x01)
+				break;
+
+			sec_delay(100);
+		} while (retry--);
+
+		if (retry == 0) {
+			input_err(true, &ts->client->dev,
+					  "%s: didn't match header or type = %02X\n",
+					  __func__, psyncframeheader_ts2c->type);
+			rc = -4;
 			goto ERROREXIT;
 		}
 
-		psyncframeheader = (struct stm_ts_syncframeheader *) &pRead[0];
+		addr = FRAME_BUFFER_ADDR + 0x88;	// 0x88 Rawdata offset
+		reg[0] = (u8)((addr >> 8) & 0xFF);
+		reg[1] = (u8)(addr & 0xFF);
+		ret = ts->stm_ts_i2c_read(ts, &reg[0], 2, &pRead[0], 2);
+		rawdata_addr = (short)(pRead[0] + (pRead[1] << 8));
 
-		if ((psyncframeheader->header == 0xA5) && (psyncframeheader->host_data_mem_id == 0x01))
-			break;
+		totalbytes = (ts->tx_count * ts->rx_count  * 2);
 
-		sec_delay(100);
-	} while (retry--);
+		reg[0] = STM_TS_CMD_REG_R;
+		reg[1] = 0x20;
+		reg[2] = 0x01;
+		reg[3] = (u8)((rawdata_addr >> 8) & 0xFF);
+		reg[4] = (u8)(rawdata_addr & 0xFF);
+		ret = ts->stm_ts_i2c_read(ts, &reg[0], 5, &pRead[0], totalbytes);
+		if (ret < 0) {
+			input_err(true, &ts->client->dev, "%s: read failed rc = %d\n", __func__, ret);
+			rc = -6;
+			goto ERROREXIT;
+		}
+	} else {
+		reg[0] = 0xA4;
+		reg[1] = 0x06;
+		reg[2] = 0x01;
+		ts->stm_ts_i2c_write(ts, &reg[0], 3, NULL, 0);
+		sec_delay(50);
 
-	if (retry == 0) {
-		input_err(true, &ts->client->dev,
-				"%s: didn't match header or id. header = %02X, id = %02X\n",
-				__func__, psyncframeheader->header, psyncframeheader->host_data_mem_id);
-		rc = -4;
-		goto ERROREXIT;
-	}
+		do {
+			reg[0] = 0xA6;
+			reg[1] = 0x00;
+			reg[2] = 0x00;
+			ret = ts->stm_ts_i2c_read(ts, &reg[0], 3, &pRead[0], STM_TS_COMP_DATA_HEADER_SIZE);
+			if (ret < 0) {
+				input_err(true, &ts->client->dev, "%s: read failed rc = %d\n", __func__, ret);
+				rc = -3;
+				goto ERROREXIT;
+			}
 
-	reg[0] = 0xA6;
-	reg[1] = 0x00;
-	reg[2] = 0x88;   // ms screen rawdata
-	ret = ts->stm_ts_i2c_read(ts, &reg[0], 3, &pRead[0], 2);
-	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: read failed rc = %d\n", __func__, ret);
-		rc = -5;
-		goto ERROREXIT;
-	}
+			psyncframeheader = (struct stm_ts_syncframeheader *) &pRead[0];
 
-	totalbytes = (ts->tx_count * ts->rx_count  * 2);
+			if ((psyncframeheader->header == 0xA5) && (psyncframeheader->host_data_mem_id == 0x01))
+				break;
 
-	reg[0] = 0xA6;
-	reg[1] = (u8)pRead[1];
-	reg[2] = (u8)pRead[0];
-	ret = ts->stm_ts_i2c_read(ts, &reg[0], 3, &pRead[0], totalbytes);
-	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: read failed rc = %d\n", __func__, ret);
-		rc = -6;
-		goto ERROREXIT;
+			sec_delay(100);
+		} while (retry--);
+
+		if (retry == 0) {
+			input_err(true, &ts->client->dev,
+					"%s: didn't match header or id. header = %02X, id = %02X\n",
+					__func__, psyncframeheader->header, psyncframeheader->host_data_mem_id);
+			rc = -4;
+			goto ERROREXIT;
+		}
+
+		reg[0] = 0xA6;
+		reg[1] = 0x00;
+		reg[2] = 0x88;   // ms screen rawdata
+		ret = ts->stm_ts_i2c_read(ts, &reg[0], 3, &pRead[0], 2);
+		if (ret < 0) {
+			input_err(true, &ts->client->dev, "%s: read failed rc = %d\n", __func__, ret);
+			rc = -5;
+			goto ERROREXIT;
+		}
+
+		totalbytes = (ts->tx_count * ts->rx_count  * 2);
+
+		reg[0] = 0xA6;
+		reg[1] = (u8)pRead[1];
+		reg[2] = (u8)pRead[0];
+		ret = ts->stm_ts_i2c_read(ts, &reg[0], 3, &pRead[0], totalbytes);
+		if (ret < 0) {
+			input_err(true, &ts->client->dev, "%s: read failed rc = %d\n", __func__, ret);
+			rc = -6;
+			goto ERROREXIT;
+		}
 	}
 
 	for (i = 0; i < totalbytes / 2; i++)
@@ -1110,7 +1167,10 @@ int stm_ts_fw_wait_for_jitter_result(struct stm_ts_data *ts, u8 *reg, u8 count, 
 
 		if ((data[0] == STM_TS_EVENT_JITTER_RESULT) && (data[1] == 0x03)) {  // Check Jitter result
 				if (data[2] == STM_TS_EVENT_JITTER_MUTUAL_MAX) {
-					*ret2 = (s16)((data[3] << 8) + data[4]);
+					if (ts->chip_id == 0x523601)
+						*ret2 = (s16)((data[8] << 8) + data[9]);
+					else
+						*ret2 = (s16)((data[3] << 8) + data[4]);
 					input_info(true, &ts->client->dev, "%s: Mutual max jitter Strength : %d, RX:%d, TX:%d\n",
 	    					__func__, *ret2, data[5], data[6]);
 				} else if (data[2] == STM_TS_EVENT_JITTER_MUTUAL_MIN){
@@ -1220,19 +1280,33 @@ int stm_ts_panel_ito_test(struct stm_ts_data *ts, int testmode)
 
 	stm_ts_release_all_finger(ts);
 
-	reg[0] = 0xA4;
-	reg[1] = 0x04;
+	if (ts->chip_id == 0x523601) {
+		reg[0] = 0x00;
+		reg[1] = 0x24;
+	} else {
+		reg[0] = 0xA4;
+		reg[1] = 0x04;
+	}
+
 	switch (testmode) {
 	case OPEN_TEST:
-		reg[2] = 0x00;
-		reg[3] = 0x30;
+		if (ts->chip_id == 0x523601) {
+			reg[2] = 0xFF;
+			reg[3] = 0x07;
+		} else {
+			reg[2] = 0x00;
+			reg[3] = 0x30;
+		}
 		break;
 
 	case OPEN_SHORT_CRACK_TEST:
 	case SAVE_MISCAL_REF_RAW:
 	default:
 		reg[2] = 0xFF;
-		reg[3] = 0x01;
+		if (ts->chip_id == 0x523601)
+			reg[3] = 0x07;
+		else
+			reg[3] = 0x01;
 		break;
 	}
 
@@ -1244,12 +1318,22 @@ int stm_ts_panel_ito_test(struct stm_ts_data *ts, int testmode)
 
 	while (ts->stm_ts_i2c_read(ts, &cmd, 1, (u8 *)data, STM_TS_EVENT_BUFF_SIZE)) {
 		if ((data[0] == STM_TS_EVENT_STATUS_REPORT) && (data[1] == 0x01)) {  // Check command ECHO - finished
-			for (i = 0; i < 4; i++) {
-				if (data[i + 2] != reg[i]) {
-					matched = false;
-					break;
+			if (ts->chip_id == 0x523601) {
+				for (i = 0; i < 3; i++) {
+					if (data[i + 2] != reg[i + 1]) {
+						matched = false;
+						break;
+					}
+					matched = true;
 				}
-				matched = true;
+			} else {
+				for (i = 0; i < 4; i++) {
+					if (data[i + 2] != reg[i]) {
+						matched = false;
+						break;
+					}
+					matched = true;
+				}
 			}
 
 			if (matched == true)
@@ -1343,19 +1427,6 @@ int stm_ts_panel_ito_test(struct stm_ts_data *ts, int testmode)
 	stm_ts_set_touch_function(ts);
 	sec_delay(10);
 
-#ifdef STM_TS_SUPPORT_TA_MODE
-	if (ts->TA_Pluged) {
-		u8 wiredCharger;
-
-		reg[0] = STM_TS_CMD_SET_GET_CHARGER_MODE;
-		ts->stm_ts_i2c_read(ts, &reg[0], 1, &data[0], 1);
-		wiredCharger = data[0] | STM_TS_BIT_CHARGER_MODE_WIRE_CHARGER;
-		reg[1] = { wiredCharger };
-		ts->stm_ts_i2c_write(ts, &reg[0], 2, NULL, 0);
-		sec_delay(10);
-	}
-#endif
-
 	ts->plat_data->touch_count = 0;
 
 	stm_ts_set_scanmode(ts, ts->scan_mode);
@@ -1403,10 +1474,17 @@ int stm_ts_panel_test_result(struct stm_ts_data *ts, int type)
 
 	disable_irq(ts->irq);
 
-	reg[0] = 0xA4;
-	reg[1] = 0x04;
-	reg[2] = 0xFC;
-	reg[3] = 0x09;
+	if (ts->chip_id == 0x523601) {
+		reg[0] = 0x00;
+		reg[1] = 0x24;
+		reg[2] = 0xFC;
+		reg[3] = 0x07;
+	} else {
+		reg[0] = 0xA4;
+		reg[1] = 0x04;
+		reg[2] = 0xFC;
+		reg[3] = 0x09;
+	}
 	ts->stm_ts_i2c_write(ts, &reg[0], 4, NULL, 0);
 	sec_delay(100);
 
@@ -1417,16 +1495,25 @@ int stm_ts_panel_test_result(struct stm_ts_data *ts, int type)
 		memset(tempv, 0x00, 25);
 		memset(temph, 0x00, 30);
 		if ((data[0] == STM_TS_EVENT_STATUS_REPORT) && (data[1] == 0x01)) {
-			for (i = 0; i < 4; i++) {
-				if (data[i + 2] != reg[i]) {
-					matched = false;
-					break;
+			if (ts->chip_id == 0x523601) {
+				for (i = 0; i < 3; i++) {
+					if (data[i + 2] != reg[i + 1]) {
+						matched = false;
+						break;
+					}
+					matched = true;
 				}
-				matched = true;
+			} else {
+				for (i = 0; i < 4; i++) {
+					if (data[i + 2] != reg[i]) {
+						matched = false;
+						break;
+					}
+					matched = true;
+				}
 			}
 			if (matched == true)
 				break;
-
 		} else if (data[0] == STM_TS_EVENT_ERROR_REPORT) {
 			ts->plat_data->hw_param.ito_test[0] = data[0];
 			ts->plat_data->hw_param.ito_test[1] = data[1];
@@ -1563,18 +1650,30 @@ static int stm_ts_panel_test_micro_result(struct stm_ts_data *ts, int type)
 
 	save_cmd[0] = 0x76;
 	if (type == MICRO_OPEN_TEST) {
-		data[0] = 0xA4;
-		data[1] = 0x04;
-		data[2] = 0xFF;
-		data[3] = 0x01;
-
+		if (ts->chip_id == 0x523601) {
+			data[0] = 0x00;
+			data[1] = 0x24;
+			data[2] = 0xFF;
+			data[3] = 0x07;
+		} else {
+			data[0] = 0xA4;
+			data[1] = 0x04;
+			data[2] = 0xFF;
+			data[3] = 0x01;
+		}
 		save_cmd[1] = 0x00;	/* OPEN */
 	} else if (type == MICRO_SHORT_TEST) {
-		data[0] = 0xA4;
-		data[1] = 0x04;
-		data[2] = 0x00;
-		data[3] = 0xC0;
-
+		if (ts->chip_id == 0x523601) {
+			data[0] = 0x00;
+			data[1] = 0x24;
+			data[2] = 0x00;
+			data[3] = 0x08;
+		} else {
+			data[0] = 0xA4;
+			data[1] = 0x04;
+			data[2] = 0x00;
+			data[3] = 0xC0;
+		}
 		save_cmd[1] = 0x01;	/* SHORT */
 	}
 
@@ -1602,7 +1701,7 @@ static int stm_ts_panel_test_micro_result(struct stm_ts_data *ts, int type)
 				data[4], data[5], data[6], data[7]);
 		msleep(20);
 
-		if (data[0] == 0x03) {
+		if (data[0] == STM_TS_EVENT_PASS_REPORT || data[0] == STM_TS_EVENT_PASS_REPORT_TS2C) {
 			save_cmd[2] = 0x00;	/* PASS */
 			snprintf(buff, sizeof(buff), "OK");
 			ret = 0;
@@ -1916,9 +2015,15 @@ static void run_jitter_test(void *device_data)
 	stm_ts_release_all_finger(ts);
 
 	/* lock active scan mode */
-	reg[0] = 0xA0;
-	reg[1] = 0x03;
-	reg[2] = 0x00;
+	if (ts->chip_id == 0x523601) {
+		reg[0] = 0x00;
+		reg[1] = 0x10;
+		reg[2] = 0x10;
+	} else {
+		reg[0] = 0xA0;
+		reg[1] = 0x03;
+		reg[2] = 0x00;
+	}
 	ts->stm_ts_i2c_write(ts, &reg[0], 3, NULL, 0);
 	sec_delay(10);
 
@@ -2050,9 +2155,15 @@ static void run_self_jitter(void *device_data)
 	stm_ts_release_all_finger(ts);
 
 	/* lock active scan mode */
-	reg[0] = 0xA0;
-	reg[1] = 0x03;
-	reg[2] = 0x00;
+	if (ts->chip_id == 0x523601) {
+		reg[0] = 0x00;
+		reg[1] = 0x10;
+		reg[2] = 0x10;
+	} else {
+		reg[0] = 0xA0;
+		reg[1] = 0x03;
+		reg[2] = 0x00;
+	}
 	ts->stm_ts_i2c_write(ts, &reg[0], 3, NULL, 0);
 	sec_delay(10);
 
@@ -2130,9 +2241,15 @@ static void run_jitter_delta_test(void *device_data)
 	mutex_lock(&ts->fn_mutex);
 
 	/* lock active scan mode */
-	reg[0] = 0xA0;
-	reg[1] = 0x03;
-	reg[2] = 0x00;
+	if (ts->chip_id == 0x523601) {
+		reg[0] = 0x00;
+		reg[1] = 0x10;
+		reg[2] = 0x10;
+	} else {
+		reg[0] = 0xA0;
+		reg[1] = 0x03;
+		reg[2] = 0x00;
+	}
 	ret = ts->stm_ts_i2c_write(ts, &reg[0], 3, NULL, 0);
 	if (ret < 0) {
 		input_info(true, &ts->client->dev, "%s: failed to set active mode\n", __func__);
@@ -2617,7 +2734,13 @@ static void run_lp_single_ended_rawcap_read(void *device_data)
 
 	/* Request to Prepare single ended raw data from flash */
 
-	ret = stm_ts_wait_for_echo_event(ts, regr, 4, 0);
+	if (ts->chip_id == 0x523601) {
+		regr[0] = 0xC3;
+		regr[1] = 0x03;
+		ret = stm_ts_wait_for_echo_event(ts, regr, 2, 0);
+	} else
+		ret = stm_ts_wait_for_echo_event(ts, regr, 4, 0);
+
 	if (ret < 0) {
 		input_err(true, &ts->client->dev,
 				"%s: timeout, ret: %d\n", __func__, ret);
@@ -2679,7 +2802,13 @@ static void run_lp_single_ended_rawcap_read_all(void *device_data)
 
 	/* Request to Prepare single ended raw data from flash */
 
-	ret = stm_ts_wait_for_echo_event(ts, regr, 4, 0);
+	if (ts->chip_id == 0x523601) {
+		regr[0] = 0xC3;
+		regr[1] = 0x03;
+		ret = stm_ts_wait_for_echo_event(ts, regr, 2, 0);
+	} else
+		ret = stm_ts_wait_for_echo_event(ts, regr, 4, 0);
+
 	if (ret < 0) {
 		input_err(true, &ts->client->dev,
 				"%s: timeout, ret: %d\n", __func__, ret);
@@ -2723,6 +2852,11 @@ static void run_low_frequency_rawcap_read(void *device_data)
 	sec_delay(30);
 
 	/* Request to Prepare Hight Frequency(ITO) raw data from flash */
+	if (ts->chip_id == 0x523601) {
+		reg[0] = 0x00;
+		reg[1] = 0x24;
+		reg[3] = 0x08;
+	}
 
 	ret = stm_ts_wait_for_echo_event(ts, reg, 4, 30);
 	if (ret < 0) {
@@ -2773,6 +2907,11 @@ static void run_low_frequency_rawcap_read_all(void *device_data)
 	sec_delay(30);
 
 	/* Request to Prepare Hight Frequency(ITO) raw data from flash */
+	if (ts->chip_id == 0x523601) {
+		reg[0] = 0x00;
+		reg[1] = 0x24;
+		reg[3] = 0x08;
+	}
 
 	ret = stm_ts_wait_for_echo_event(ts, reg, 4, 30);
 	if (ret < 0) {
@@ -2817,6 +2956,11 @@ static void run_high_frequency_rawcap_read(void *device_data)
 	sec_delay(30);
 
 	/* Request to Prepare Hight Frequency(ITO) raw data from flash */
+	if (ts->chip_id == 0x523601) {
+		reg[0] = 0x00;
+		reg[1] = 0x24;
+		reg[3] = 0x07;
+	}
 
 	ret = stm_ts_wait_for_echo_event(ts, reg, 4, 100);
 	if (ret < 0) {
@@ -2876,6 +3020,11 @@ static void run_high_frequency_rawcap_read_all(void *device_data)
 	sec_delay(30);
 
 	/* Request to Prepare Hight Frequency(ITO) raw data from flash */
+	if (ts->chip_id == 0x523601) {
+		reg[0] = 0x00;
+		reg[1] = 0x24;
+		reg[3] = 0x07;
+	}
 
 	ret = stm_ts_wait_for_echo_event(ts, reg, 4, 100);
 	if (ret < 0) {
@@ -3068,7 +3217,7 @@ static void run_cs_delta_read_all(void *device_data)
 	short max = 0x8000;
 	char *all_strbuff;
 	short *rdata;
-	int i, j, k; 
+	int i, j, k;
 
 	sec_cmd_set_default_result(sec);
 	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
@@ -3211,6 +3360,7 @@ static void stm_ts_read_self_raw_frame(struct stm_ts_data *ts, bool allnode)
 	struct sec_cmd_data *sec = &ts->sec;
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 	struct stm_ts_syncframeheader *psyncframeheader;
+	struct stm_ts_syncframeheader_ts2c  *psyncframeheader_ts2c;
 	u8 reg[STM_TS_EVENT_BUFF_SIZE] = {0};
 	u8 *data;
 	s16 self_force_raw_data[100];
@@ -3239,53 +3389,102 @@ static void stm_ts_read_self_raw_frame(struct stm_ts_data *ts, bool allnode)
 	}
 
 	// Request Data Type
-	reg[0] = 0xA4;
-	reg[1] = 0x06;
-	reg[2] = TYPE_RAW_DATA;
-	ts->stm_ts_i2c_write(ts, &reg[0], 3, NULL, 0);
+	if (ts->chip_id == 0x523601) {
+		reg[0] = 0x00;
+		reg[1] = 0x23;
+		reg[2] = TYPE_RAW_DATA;
+		ts->stm_ts_i2c_write(ts, &reg[0], 3, NULL, 0);
 
-	do {
-		reg[0] = 0xA6;
-		reg[1] = 0x00;
-		reg[2] = 0x00;
-		ret = ts->stm_ts_i2c_read(ts, &reg[0], 3, &data[0], STM_TS_COMP_DATA_HEADER_SIZE);
+		do {
+			reg[0] = (u8)((FRAME_BUFFER_ADDR >> 8) & 0xFF);
+			reg[1] = (u8)(FRAME_BUFFER_ADDR & 0xFF);
+			ret = ts->stm_ts_i2c_read(ts, &reg[0], 2, &data[0], STM_TS_COMP_DATA_HEADER_SIZE);
+			if (ret < 0) {
+				input_err(true, &ts->client->dev, "%s: read failed rc = %d\n", __func__, ret);
+				snprintf(buff, sizeof(buff), "NG");
+				sec->cmd_state = SEC_CMD_STATUS_FAIL;
+				goto out;
+			}
+
+			psyncframeheader_ts2c = (struct stm_ts_syncframeheader_ts2c *) &data[0];
+
+			if (psyncframeheader_ts2c->type == TYPE_RAW_DATA)
+				break;
+
+			sec_delay(100);
+		} while (retry--);
+
+		if (retry == 0) {
+			input_err(true, &ts->client->dev, "%s: didn't match type = %02X\n",
+					__func__, psyncframeheader_ts2c->type);
+			snprintf(buff, sizeof(buff), "NG");
+			sec->cmd_state = SEC_CMD_STATUS_FAIL;
+			goto out;
+		}
+
+		Offset = FRAME_BUFFER_ADDR + (STM_TS_COMP_DATA_HEADER_SIZE + psyncframeheader_ts2c->dbg_frm_len +
+				(psyncframeheader_ts2c->force_len * psyncframeheader_ts2c->sense_len * 2));
+
+		totalbytes = (psyncframeheader_ts2c->force_len + psyncframeheader_ts2c->sense_len) * 2;
+
+		reg[0] = (u8)(Offset >> 8);
+		reg[1] = (u8)(Offset & 0xFF);
+		ret = ts->stm_ts_i2c_read(ts, &reg[0], 2, &data[0], totalbytes);
 		if (ret < 0) {
 			input_err(true, &ts->client->dev, "%s: read failed rc = %d\n", __func__, ret);
 			snprintf(buff, sizeof(buff), "NG");
 			sec->cmd_state = SEC_CMD_STATUS_FAIL;
 			goto out;
 		}
+	} else {
+		reg[0] = 0xA4;
+		reg[1] = 0x06;
+		reg[2] = TYPE_RAW_DATA;
+		ts->stm_ts_i2c_write(ts, &reg[0], 3, NULL, 0);
 
-		psyncframeheader = (struct stm_ts_syncframeheader *) &data[0];
+		do {
+			reg[0] = 0xA6;
+			reg[1] = 0x00;
+			reg[2] = 0x00;
+			ret = ts->stm_ts_i2c_read(ts, &reg[0], 3, &data[0], STM_TS_COMP_DATA_HEADER_SIZE);
+			if (ret < 0) {
+				input_err(true, &ts->client->dev, "%s: read failed rc = %d\n", __func__, ret);
+				snprintf(buff, sizeof(buff), "NG");
+				sec->cmd_state = SEC_CMD_STATUS_FAIL;
+				goto out;
+			}
 
-		if ((psyncframeheader->header == 0xA5) && (psyncframeheader->host_data_mem_id == TYPE_RAW_DATA))
-			break;
+			psyncframeheader = (struct stm_ts_syncframeheader *) &data[0];
 
-		sec_delay(100);
-	} while (retry--);
+			if ((psyncframeheader->header == 0xA5) && (psyncframeheader->host_data_mem_id == TYPE_RAW_DATA))
+				break;
 
-	if (retry == 0) {
-		input_err(true, &ts->client->dev, "%s: didn't match header or id. header = %02X, id = %02X\n",
-				__func__, psyncframeheader->header, psyncframeheader->host_data_mem_id);
-		snprintf(buff, sizeof(buff), "NG");
-		sec->cmd_state = SEC_CMD_STATUS_FAIL;
-		goto out;
-	}
+			sec_delay(100);
+		} while (retry--);
 
-	Offset = STM_TS_COMP_DATA_HEADER_SIZE + psyncframeheader->dbg_frm_len +
-			(psyncframeheader->ms_force_len * psyncframeheader->ms_sense_len * 2);
+		if (retry == 0) {
+			input_err(true, &ts->client->dev, "%s: didn't match header or id. header = %02X, id = %02X\n",
+					__func__, psyncframeheader->header, psyncframeheader->host_data_mem_id);
+			snprintf(buff, sizeof(buff), "NG");
+			sec->cmd_state = SEC_CMD_STATUS_FAIL;
+			goto out;
+		}
 
-	totalbytes = (psyncframeheader->ss_force_len + psyncframeheader->ss_sense_len) * 2;
+		Offset = STM_TS_COMP_DATA_HEADER_SIZE + psyncframeheader->dbg_frm_len +
+				(psyncframeheader->ms_force_len * psyncframeheader->ms_sense_len * 2);
 
-	reg[0] = 0xA6;
-	reg[1] = (u8)(Offset >> 8);
-	reg[2] = (u8)(Offset & 0xFF);
-	ret = ts->stm_ts_i2c_read(ts, &reg[0], 3, &data[0], totalbytes);
-	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: read failed rc = %d\n", __func__, ret);
-		snprintf(buff, sizeof(buff), "NG");
-		sec->cmd_state = SEC_CMD_STATUS_FAIL;
-		goto out;
+		totalbytes = (psyncframeheader->ss_force_len + psyncframeheader->ss_sense_len) * 2;
+
+		reg[0] = 0xA6;
+		reg[1] = (u8)(Offset >> 8);
+		reg[2] = (u8)(Offset & 0xFF);
+		ret = ts->stm_ts_i2c_read(ts, &reg[0], 3, &data[0], totalbytes);
+		if (ret < 0) {
+			input_err(true, &ts->client->dev, "%s: read failed rc = %d\n", __func__, ret);
+			snprintf(buff, sizeof(buff), "NG");
+			sec->cmd_state = SEC_CMD_STATUS_FAIL;
+			goto out;
+		}
 	}
 
 	Offset = 0;
@@ -3430,8 +3629,13 @@ static int read_ms_cx_data(struct stm_ts_data *ts, u8 active, s8 *cx_min, s8 *cx
 	else if (active == ACTIVE_CX2)
 		dataID = 0x10;	// MS - ACTIVE
 
-	reg[0] = 0xA4;
-	reg[1] = 0x06;
+	if (ts->chip_id == 0x523601) {
+		reg[0] = 0x00;
+		reg[1] = 0x23;
+	} else {
+		reg[0] = 0xA4;
+		reg[1] = 0x06;
+	}
 	reg[2] = dataID;
 
 	ret = stm_ts_wait_for_echo_event(ts, &reg[0], 3, 0);
@@ -3439,18 +3643,34 @@ static int read_ms_cx_data(struct stm_ts_data *ts, u8 active, s8 *cx_min, s8 *cx
 		return ret;
 
 	// Read Header
-	reg[0] = 0xA6;
-	reg[1] = 0x00;
-	reg[2] = 0x00;
-	ret = ts->stm_ts_i2c_read(ts, &reg[0], 3, &cdata[0], STM_TS_COMP_DATA_HEADER_SIZE);
+	if (ts->chip_id == 0x523601) {
+		reg[0] = (u8)((FRAME_BUFFER_ADDR >> 8) & 0xFF);
+		reg[1] = (u8)(FRAME_BUFFER_ADDR & 0xFF);
+		ret = ts->stm_ts_i2c_read(ts, &reg[0], 2, &cdata[0], STM_TS_COMP_DATA_HEADER_SIZE);
+	} else {
+		reg[0] = 0xA6;
+		reg[1] = 0x00;
+		reg[2] = 0x00;
+		ret = ts->stm_ts_i2c_read(ts, &reg[0], 3, &cdata[0], STM_TS_COMP_DATA_HEADER_SIZE);
+	}
+
 	if (ret < 0)
 		return ret;
 
-	if ((cdata[0] != 0xA5) && (cdata[1] != dataID)) {
-		input_info(true, &ts->client->dev, "%s: failed to read signature data of header.\n", __func__);
-		ret = -EIO;
-		return ret;
+	if (ts->chip_id == 0x523601) {
+		if (cdata[0] != dataID) {
+			input_info(true, &ts->client->dev, "%s: failed to read signature data of header.\n", __func__);
+			ret = -EIO;
+			return ret;
+		}
+	} else {
+		if ((cdata[0] != 0xA5) && (cdata[1] != dataID)) {
+			input_info(true, &ts->client->dev, "%s: failed to read signature data of header.\n", __func__);
+			ret = -EIO;
+			return ret;
+		}
 	}
+
 
 	txnum = cdata[4];
 	rxnum = cdata[5];
@@ -3459,11 +3679,19 @@ static int read_ms_cx_data(struct stm_ts_data *ts, u8 active, s8 *cx_min, s8 *cx
 	if (!rdata)
 		return -ENOMEM;
 
-	comp_start_addr = (u16)STM_TS_COMP_DATA_HEADER_SIZE;
-	reg[0] = 0xA6;
-	reg[1] = (u8)(comp_start_addr >> 8);
-	reg[2] = (u8)(comp_start_addr & 0xFF);
-	ret = ts->stm_ts_i2c_read(ts, &reg[0], 3, &rdata[0], txnum * rxnum);
+	if (ts->chip_id == 0x523601) {
+		comp_start_addr = (u16)(FRAME_BUFFER_ADDR + (STM_TS_COMP_DATA_HEADER_SIZE));
+		reg[0] = (u8)(comp_start_addr >> 8);
+		reg[1] = (u8)(comp_start_addr & 0xFF);
+		ret = ts->stm_ts_i2c_read(ts, &reg[0], 2, &rdata[0], txnum * rxnum);
+	} else {
+		comp_start_addr = (u16)STM_TS_COMP_DATA_HEADER_SIZE;
+		reg[0] = 0xA6;
+		reg[1] = (u8)(comp_start_addr >> 8);
+		reg[2] = (u8)(comp_start_addr & 0xFF);
+		ret = ts->stm_ts_i2c_read(ts, &reg[0], 3, &rdata[0], txnum * rxnum);
+	}
+
 	if (ret < 0)
 		goto out;
 
@@ -3774,8 +4002,13 @@ static void stm_ts_read_ix_data(struct stm_ts_data *ts, bool allnode)
 
 	// Request compensation data type
 	dataID = 0x52;
-	reg[0] = 0xA4;
-	reg[1] = 0x06;
+	if (ts->chip_id == 0x523601) {
+		reg[0] = 0x00;
+		reg[1] = 0x23;
+	} else {
+		reg[0] = 0xA4;
+		reg[1] = 0x06;
+	}
 	reg[2] = dataID; // SS - CX total
 
 	rc = stm_ts_wait_for_echo_event(ts, &reg[0], 3, 0);
@@ -3786,26 +4019,45 @@ static void stm_ts_read_ix_data(struct stm_ts_data *ts, bool allnode)
 	}
 
 	// Read Header
-	reg[0] = 0xA6;
-	reg[1] = 0x00;
-	reg[2] = 0x00;
-	ts->stm_ts_i2c_read(ts, &reg[0], 3, &data[0], STM_TS_COMP_DATA_HEADER_SIZE);
+	if (ts->chip_id == 0x523601) {
+		reg[0] = (u8)((FRAME_BUFFER_ADDR >> 8) & 0xFF);
+		reg[1] = (u8)(FRAME_BUFFER_ADDR & 0xFF);
+		ts->stm_ts_i2c_read(ts, &reg[0], 2, &data[0], STM_TS_COMP_DATA_HEADER_SIZE);
 
-	if ((data[0] != 0xA5) && (data[1] != dataID)) {
-		snprintf(buff, sizeof(buff), "NG");
-		sec->cmd_state = SEC_CMD_STATUS_FAIL;
-		goto out;
+		if (data[0] != dataID) {
+			snprintf(buff, sizeof(buff), "NG");
+			sec->cmd_state = SEC_CMD_STATUS_FAIL;
+			goto out;
+		}
+	} else {
+		reg[0] = 0xA6;
+		reg[1] = 0x00;
+		reg[2] = 0x00;
+		ts->stm_ts_i2c_read(ts, &reg[0], 3, &data[0], STM_TS_COMP_DATA_HEADER_SIZE);
+
+		if ((data[0] != 0xA5) && (data[1] != dataID)) {
+			snprintf(buff, sizeof(buff), "NG");
+			sec->cmd_state = SEC_CMD_STATUS_FAIL;
+			goto out;
+		}
 	}
 
 	tx_num = data[4];
 	rx_num = data[5];
 
 	/* Read TX IX data */
-	comp_start_tx_addr = (u16)STM_TS_COMP_DATA_HEADER_SIZE;
-	reg[0] = 0xA6;
-	reg[1] = (u8)(comp_start_tx_addr >> 8);
-	reg[2] = (u8)(comp_start_tx_addr & 0xFF);
-	ts->stm_ts_i2c_read(ts, &reg[0], 3, &data[0], tx_num * 2);
+	if (ts->chip_id == 0x523601) {
+		comp_start_tx_addr = (u16)(FRAME_BUFFER_ADDR + (STM_TS_COMP_DATA_HEADER_SIZE));
+		reg[0] = (u8)(comp_start_tx_addr >> 8);
+		reg[1] = (u8)(comp_start_tx_addr & 0xFF);
+		ts->stm_ts_i2c_read(ts, &reg[0], 2, &data[0], tx_num * 2);
+	} else {
+		comp_start_tx_addr = (u16)STM_TS_COMP_DATA_HEADER_SIZE;
+		reg[0] = 0xA6;
+		reg[1] = (u8)(comp_start_tx_addr >> 8);
+		reg[2] = (u8)(comp_start_tx_addr & 0xFF);
+		ts->stm_ts_i2c_read(ts, &reg[0], 3, &data[0], tx_num * 2);
+	}
 
 	for (i = 0; i < tx_num; i++) {
 		force_ix_data[i] = data[2 * i] | data[2 * i + 1] << 8;
@@ -3818,11 +4070,18 @@ static void stm_ts_read_ix_data(struct stm_ts_data *ts, bool allnode)
 	}
 
 	/* Read RX IX data */
-	comp_start_rx_addr = (u16)(STM_TS_COMP_DATA_HEADER_SIZE + (tx_num * 2));
-	reg[0] = 0xA6;
-	reg[1] = (u8)(comp_start_rx_addr >> 8);
-	reg[2] = (u8)(comp_start_rx_addr & 0xFF);
-	ts->stm_ts_i2c_read(ts, &reg[0], 3, &data[0], rx_num * 2);
+	if (ts->chip_id == 0x523601) {
+		comp_start_rx_addr = (u16)(FRAME_BUFFER_ADDR + (STM_TS_COMP_DATA_HEADER_SIZE + (tx_num * 2)));
+		reg[0] = (u8)(comp_start_rx_addr >> 8);
+		reg[1] = (u8)(comp_start_rx_addr & 0xFF);
+		ts->stm_ts_i2c_read(ts, &reg[0], 2, &data[0], rx_num * 2);
+	} else {
+		comp_start_rx_addr = (u16)(STM_TS_COMP_DATA_HEADER_SIZE + (tx_num * 2));
+		reg[0] = 0xA6;
+		reg[1] = (u8)(comp_start_rx_addr >> 8);
+		reg[2] = (u8)(comp_start_rx_addr & 0xFF);
+		ts->stm_ts_i2c_read(ts, &reg[0], 3, &data[0], rx_num * 2);
+	}
 
 	for (i = 0; i < rx_num; i++) {
 		sense_ix_data[i] = data[2 * i] | data[2 * i + 1] << 8;
@@ -4276,7 +4535,8 @@ static void run_factory_miscalibration(void *device_data)
 				data[4], data[5], data[6], data[7]);
 		sec_delay(10);
 
-		if (data[0] == 0x03 || data[0] == 0xF3) {
+		if (data[0] == STM_TS_EVENT_PASS_REPORT || data[0] == STM_TS_EVENT_PASS_REPORT_TS2C ||
+				data[0] == STM_TS_EVENT_ERROR_REPORT) {
 			max = data[3] << 8 | data[2];
 			min = data[5] << 8 | data[4];
 
@@ -4290,7 +4550,7 @@ static void run_factory_miscalibration(void *device_data)
 		snprintf(buff, sizeof(buff), "%d,%d", min, max);
 		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "MIS_CAL");
 	} else {
-		if (data[0] == 0x03) {
+		if (data[0] == STM_TS_EVENT_PASS_REPORT || data[0] == STM_TS_EVENT_PASS_REPORT_TS2C) {
 			snprintf(buff, sizeof(buff), "OK,%d,%d", min, max);
 		} else {
 			snprintf(buff, sizeof(buff), "NG,%d,%d", min, max);
@@ -4354,7 +4614,8 @@ static void run_miscalibration(void *device_data)
 				data[4], data[5], data[6], data[7]);
 		sec_delay(10);
 
-		if (data[0] == 0x03 || data[0] == 0xF3) {
+		if (data[0] == STM_TS_EVENT_PASS_REPORT || data[0] == STM_TS_EVENT_PASS_REPORT_TS2C ||
+				data[0] == STM_TS_EVENT_ERROR_REPORT) {
 			max = data[3] << 8 | data[2];
 			min = data[5] << 8 | data[4];
 
@@ -4364,7 +4625,7 @@ static void run_miscalibration(void *device_data)
 			goto error;
 	}
 
-	if (data[0] == 0x03) {
+	if (data[0] == STM_TS_EVENT_PASS_REPORT || data[0] == STM_TS_EVENT_PASS_REPORT_TS2C) {
 		snprintf(buff, sizeof(buff), "OK,%d,%d", min, max);
 	} else {
 		snprintf(buff, sizeof(buff), "NG,%d,%d", min, max);
@@ -4754,12 +5015,19 @@ static void run_elvss_test(void *device_data)
 
 	memset(data, 0x00, 8);
 
-	data[0] = 0xA4;
-	data[1] = 0x04;
-	data[2] = 0x00;
-	data[3] = 0x04;
+	if (ts->chip_id == 0x523601) {
+		data[0] = 0x00;
+		data[1] = 0x25;
+		data[2] = 0x10;
+		ret = ts->stm_ts_i2c_write(ts, &data[0], 3, NULL, 0);
+	} else {
+		data[0] = 0xA4;
+		data[1] = 0x04;
+		data[2] = 0x00;
+		data[3] = 0x04;
+		ret = ts->stm_ts_i2c_write(ts, &data[0], 4, NULL, 0);
+	}
 
-	ret = ts->stm_ts_i2c_write(ts, &data[0], 4, NULL, 0);
 	if (ret < 0) {
 		input_err(true, &ts->client->dev,
 				"%s: write failed. ret: %d\n", __func__, ret);
@@ -4781,7 +5049,7 @@ static void run_elvss_test(void *device_data)
 
 		if (data[1] == STM_TS_EVENT_ERROR_REPORT) {
 			break;
-		} else if (data[1] == 0x03) {
+		} else if ((data[1] == STM_TS_EVENT_PASS_REPORT) || (data[1] == STM_TS_EVENT_PASS_REPORT_TS2C)) {
 			snprintf(buff, sizeof(buff), "OK");
 			break;
 		} else if (retry < 0) {
@@ -5045,7 +5313,8 @@ static void run_sram_test(void *device_data)
 					__func__, data[0], data[1], data[2], data[3],
 					data[4], data[5], data[6], data[7]);
 
-		if (data[0] == STM_TS_EVENT_PASS_REPORT && data[1] == STM_TS_EVENT_SRAM_TEST_RESULT) {
+		if ((data[0] == STM_TS_EVENT_PASS_REPORT || data[0] == STM_TS_EVENT_PASS_REPORT_TS2C) &&
+				data[1] == STM_TS_EVENT_SRAM_TEST_RESULT) {
 			rc = 0; /* PASS */
 			break;
 		} else if (data[0] == STM_TS_EVENT_ERROR_REPORT && data[1] == STM_TS_EVENT_SRAM_TEST_RESULT) {
@@ -5115,7 +5384,7 @@ static void run_polarity_test(void *device_data)
 				__func__, data[0], data[1], data[2], data[3],
 				data[4], data[5], data[6], data[7]);
 
-		if (data[0] == STM_TS_EVENT_PASS_REPORT) {
+		if (data[0] == STM_TS_EVENT_PASS_REPORT || data[0] == STM_TS_EVENT_PASS_REPORT_TS2C) {
 			rc = 0; /* PASS */
 			break;
 		} else if (data[0] == STM_TS_EVENT_ERROR_REPORT) {
@@ -5185,7 +5454,7 @@ static void run_hf_sensor_diff_test(void *device_data)
 				__func__, data[0], data[1], data[2], data[3],
 				data[4], data[5], data[6], data[7]);
 
-		if (data[0] == STM_TS_EVENT_PASS_REPORT) {
+		if (data[0] == STM_TS_EVENT_PASS_REPORT || data[0] == STM_TS_EVENT_PASS_REPORT_TS2C) {
 			rc = 0; /* PASS */
 			break;
 		} else if (data[0] == STM_TS_EVENT_ERROR_REPORT) {
@@ -5387,7 +5656,8 @@ static void factory_cmd_result_all(void *device_data)
 	run_factory_miscalibration(sec);
 	run_sram_test(sec);
 	run_polarity_test(sec);
-	run_hf_sensor_diff_test(sec);
+	if (ts->chip_id != 0x523601)
+		run_hf_sensor_diff_test(sec);
 
 	sec->cmd_all_factory_state = SEC_CMD_STATUS_OK;
 
@@ -5525,38 +5795,33 @@ static void set_wirelesscharger_mode(void *device_data)
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
 	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int ret;
 
 	sec_cmd_set_default_result(sec);
 
-	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
-		ts->charger_mode = sec->cmd_param[0];
+	ret = sec_input_check_wirelesscharger_mode(&ts->client->dev, sec->cmd_param[0], sec->cmd_param[1]);
+	if (ret == SEC_ERROR)
+		goto NG;
+	else if (ret == SEC_SKIP)
+		goto OK;
 
-		input_err(true, &ts->client->dev, "%s: [ERROR] Touch is stopped\n",
-				__func__);
-		snprintf(buff, sizeof(buff), "NG");
-		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
-		sec->cmd_state = SEC_CMD_STATUS_FAIL;
-		goto out;
-	}
+	ret = stm_ts_set_wirelesscharger_mode(ts);
+	if (ret < 0)
+		goto NG;
 
-	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 3) {
-		snprintf(buff, sizeof(buff), "NG");
-		sec->cmd_state = SEC_CMD_STATUS_FAIL;
-	} else {
-		ts->plat_data->wirelesscharger_mode= sec->cmd_param[0];
-
-		stm_ts_set_charger_mode(ts);
-
+OK:
 		snprintf(buff, sizeof(buff), "OK");
 		sec->cmd_state = SEC_CMD_STATUS_OK;
-	}
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
-	sec->cmd_state = SEC_CMD_STATUS_WAITING;
+	sec_cmd_set_cmd_exit(sec);
+	return;
 
-out:
+NG:
+	snprintf(buff, sizeof(buff), "NG");
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec_cmd_set_cmd_exit(sec);
 
-	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
 };
 
 /*

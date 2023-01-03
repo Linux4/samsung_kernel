@@ -1752,6 +1752,13 @@ static int reclaim_pte_range(pmd_t *pmd, unsigned long addr,
 	LIST_HEAD(page_list);
 	int isolated;
 
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+	bool is_lru_wb = false;
+
+	if (!strcmp("PerProcessNands", current->comm))
+		is_lru_wb = true;
+#endif
+
 	if (pmd_trans_huge(*pmd))
 		return 0;
 
@@ -1778,7 +1785,7 @@ cont:
 		if (PageTransCompound(page))
 			continue;
 #ifdef CONFIG_ZRAM_LRU_WRITEBACK
-		if (ptep_test_and_clear_young(vma, addr, pte))
+		if (is_lru_wb && ptep_test_and_clear_young(vma, addr, pte))
 			continue;
 #endif
 

@@ -37,6 +37,9 @@
 #include <linux/regulator/s2dos05.h>
 #include <linux/regulator/of_regulator.h>
 #include <linux/regulator/pmic_class.h>
+#if IS_ENABLED(CONFIG_REGULATOR_DEBUG_CONTROL)
+#include <linux/regulator/debug-regulator.h>
+#endif
 #if IS_ENABLED(CONFIG_SEC_PM)
 #include <linux/sec_class.h>
 #include <linux/fb.h>
@@ -65,7 +68,42 @@ struct s2dos05_data {
 	struct delayed_work fd_work __maybe_unused;
 	bool fd_work_init;
 #endif /* CONFIG_SEC_PM */
+#if IS_ENABLED(CONFIG_SEC_ABC)
+	atomic_t i2c_fail_count;
+#endif /* CONFIG_SEC_ABC */
 };
+
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#define s2dos05_abc_event(arg...)	\
+	__s2dos05_abc_event((char *)__func__, ##arg)
+
+static void __s2dos05_abc_event(char *func, struct s2dos05_data *info, int ret)
+{
+	char buf[64];
+	char *type;
+	int count;
+	const int fail_threshold_cnt = 2;
+
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+	type = "INFO";
+#else
+	type = "WARN";
+#endif /* CONFIG_SEC_FACTORY */
+
+	if (ret < 0) {
+		count = atomic_inc_return(&info->i2c_fail_count);
+		if (count >= fail_threshold_cnt) {
+			atomic_set(&info->i2c_fail_count, 0);
+			snprintf(buf, sizeof(buf), "MODULE=pmic@%s=%s", type, func);
+			sec_abc_send_event(buf);
+		}
+	} else {
+		atomic_set(&info->i2c_fail_count, 0);
+	}
+}
+#else
+#define s2dos05_abc_event(arg...)	do {} while (0)
+#endif /* CONFIG_SEC_ABC */
 
 int s2dos05_read_reg(struct i2c_client *i2c, u8 reg, u8 *dest)
 {
@@ -76,16 +114,10 @@ int s2dos05_read_reg(struct i2c_client *i2c, u8 reg, u8 *dest)
 	mutex_lock(&s2dos05->i2c_lock);
 	ret = i2c_smbus_read_byte_data(i2c, reg);
 	mutex_unlock(&s2dos05->i2c_lock);
+	s2dos05_abc_event(info, ret);
 	if (ret < 0) {
 		pr_info("%s:%s reg(0x%02hhx), ret(%d)\n",
 			 MFD_DEV_NAME, __func__, reg, ret);
-#if IS_ENABLED(CONFIG_SEC_ABC)
-#if IS_ENABLED(CONFIG_SEC_FACTORY)
-		sec_abc_send_event("MODULE=pmic@INFO=s2dos05_read_reg");
-#else
-		sec_abc_send_event("MODULE=pmic@WARN=s2dos05_read_reg");
-#endif
-#endif /* CONFIG_SEC_ABC */
 		return ret;
 	}
 
@@ -104,16 +136,9 @@ int s2dos05_bulk_read(struct i2c_client *i2c, u8 reg, int count, u8 *buf)
 	mutex_lock(&s2dos05->i2c_lock);
 	ret = i2c_smbus_read_i2c_block_data(i2c, reg, count, buf);
 	mutex_unlock(&s2dos05->i2c_lock);
-	if (ret < 0) {
-#if IS_ENABLED(CONFIG_SEC_ABC)
-#if IS_ENABLED(CONFIG_SEC_FACTORY)
-		sec_abc_send_event("MODULE=pmic@INFO=s2dos05_bulk_read");
-#else
-		sec_abc_send_event("MODULE=pmic@WARN=s2dos05_bulk_read");
-#endif
-#endif /* CONFIG_SEC_ABC */
+	s2dos05_abc_event(info, ret);
+	if (ret < 0)
 		return ret;
-	}
 
 	return 0;
 }
@@ -128,16 +153,9 @@ int s2dos05_read_word(struct i2c_client *i2c, u8 reg)
 	mutex_lock(&s2dos05->i2c_lock);
 	ret = i2c_smbus_read_word_data(i2c, reg);
 	mutex_unlock(&s2dos05->i2c_lock);
-	if (ret < 0) {
-#if IS_ENABLED(CONFIG_SEC_ABC)
-#if IS_ENABLED(CONFIG_SEC_FACTORY)
-		sec_abc_send_event("MODULE=pmic@INFO=s2dos05_read_word");
-#else
-		sec_abc_send_event("MODULE=pmic@WARN=s2dos05_read_word");
-#endif
-#endif /* CONFIG_SEC_ABC */
+	s2dos05_abc_event(info, ret);
+	if (ret < 0)
 		return ret;
-	}
 
 	return ret;
 }
@@ -152,17 +170,10 @@ int s2dos05_write_reg(struct i2c_client *i2c, u8 reg, u8 value)
 	mutex_lock(&s2dos05->i2c_lock);
 	ret = i2c_smbus_write_byte_data(i2c, reg, value);
 	mutex_unlock(&s2dos05->i2c_lock);
-	if (ret < 0) {
+	s2dos05_abc_event(info, ret);
+	if (ret < 0)
 		pr_info("%s:%s reg(0x%02hhx), ret(%d)\n",
 				MFD_DEV_NAME, __func__, reg, ret);
-#if IS_ENABLED(CONFIG_SEC_ABC)
-#if IS_ENABLED(CONFIG_SEC_FACTORY)
-		sec_abc_send_event("MODULE=pmic@INFO=s2dos05_write_reg");
-#else
-		sec_abc_send_event("MODULE=pmic@WARN=s2dos05_write_reg");
-#endif
-#endif /* CONFIG_SEC_ABC */
-	}
 
 	return ret;
 }
@@ -177,16 +188,9 @@ int s2dos05_bulk_write(struct i2c_client *i2c, u8 reg, int count, u8 *buf)
 	mutex_lock(&s2dos05->i2c_lock);
 	ret = i2c_smbus_write_i2c_block_data(i2c, reg, count, buf);
 	mutex_unlock(&s2dos05->i2c_lock);
-	if (ret < 0) {
-#if IS_ENABLED(CONFIG_SEC_ABC)
-#if IS_ENABLED(CONFIG_SEC_FACTORY)
-		sec_abc_send_event("MODULE=pmic@INFO=s2dos05_bulk_write");
-#else
-		sec_abc_send_event("MODULE=pmic@WARN=s2dos05_bulk_write");
-#endif
-#endif /* CONFIG_SEC_ABC */
+	s2dos05_abc_event(info, ret);
+	if (ret < 0)
 		return ret;
-	}
 
 	return 0;
 }
@@ -207,16 +211,7 @@ int s2dos05_update_reg(struct i2c_client *i2c, u8 reg, u8 val, u8 mask)
 		ret = i2c_smbus_write_byte_data(i2c, reg, new_val);
 	}
 	mutex_unlock(&s2dos05->i2c_lock);
-
-#if IS_ENABLED(CONFIG_SEC_ABC)
-	if (ret < 0)
-#if IS_ENABLED(CONFIG_SEC_FACTORY)
-		sec_abc_send_event("MODULE=pmic@INFO=s2dos05_update_reg");
-#else
-		sec_abc_send_event("MODULE=pmic@WARN=s2dos05_update_reg");
-#endif
-#endif /* CONFIG_SEC_ABC */
-
+	s2dos05_abc_event(info, ret);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(s2dos05_update_reg);
@@ -1241,6 +1236,9 @@ static int s2dos05_pmic_probe(struct i2c_client *i2c,
 		goto err_s2dos05_data;
 	}
 
+#if IS_ENABLED(CONFIG_SEC_ABC)
+	atomic_set(&s2dos05->i2c_fail_count, 0);
+#endif /* CONFIG_SEC_ABC */
 	i2c_set_clientdata(i2c, s2dos05);
 	s2dos05->iodev = iodev;
 	s2dos05->num_regulators = pdata->num_rdata;
@@ -1260,6 +1258,12 @@ static int s2dos05_pmic_probe(struct i2c_client *i2c,
 			s2dos05->rdev[i] = NULL;
 			goto err_s2dos05_data;
 		}
+#if IS_ENABLED(CONFIG_REGULATOR_DEBUG_CONTROL)
+		ret = devm_regulator_debug_register(&i2c->dev, s2dos05->rdev[i]);
+		if (ret)
+			dev_err(&i2c->dev, "failed to register debug regulator for %d, rc=%d\n",
+					i, ret);
+#endif
 	}
 
 #if IS_ENABLED(CONFIG_SEC_PM)

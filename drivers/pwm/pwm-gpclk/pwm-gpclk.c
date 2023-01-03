@@ -1,6 +1,12 @@
+/* 	to use pr_debug: add #define DEBUG 	*/
+#if defined(CONFIG_PWM_GPCLK_DEBUG_FEATURE)
+#define DEBUG
+#endif
+
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
+#include <linux/delay.h>
 #include <linux/pwm.h>
 #include <linux/module.h>
 #include <linux/gpio.h>
@@ -12,8 +18,9 @@
 #include <linux/pm_qos.h>
 #include <linux/pm_wakeup.h>
 #include <linux/version.h>
-
-/* 	to use pr_debug: add #define DEBUG 	*/
+#include <linux/slab.h>
+#include <linux/uaccess.h>
+#include <linux/fs.h>
 
 static struct pwm_gc *g_pwm_gc;
 static struct pm_qos_request pm_qos_req;
@@ -23,23 +30,97 @@ static int32_t g_nlra_gp_clk_m = GP_CLK_M_DEFAULT;
 static int32_t g_nlra_gp_clk_n = GP_CLK_N_DEFAULT;
 void __iomem *virt_mmss_gp1_base;
 
+static void hwio_settling_delay(void) 
+{
+	if(g_pwm_gc->allow_delay)
+		usleep_range(g_pwm_gc->hwio_reg_update_delay, g_pwm_gc->hwio_reg_update_delay);
+}
+
+#if defined(CONFIG_PWM_GPCLK_DEBUG_FEATURE)
+static ssize_t allow_delay_show(struct device *dev, \
+		struct device_attribute *attr, char *buf)
+{
+	pr_info("[VIB]start! %s %d, val:%d\n", __func__, __LINE__,
+			g_pwm_gc->allow_delay);
+	
+	return snprintf(buf, PAGE_SIZE, "%d\n", g_pwm_gc->allow_delay);
+}
+
+static ssize_t allow_delay_store(struct device *dev, \
+		struct device_attribute *attr, const char *buf, size_t len)
+{
+	int val = 20;	
+	sscanf(buf, "%d", &val);	
+	pr_info("[VIB] %s %d: val.new: %d, val.old: %d\n", __func__, __LINE__, 
+			val, g_pwm_gc->allow_delay);
+	
+	g_pwm_gc->allow_delay = val;	
+	return len;
+}
+static DEVICE_ATTR_RW(allow_delay);
+
+
+static ssize_t udelay_val_show(struct device *dev, \
+		struct device_attribute *attr, char *buf)
+{
+	pr_info("[VIB]start! %s %d, val:%d\n", __func__, __LINE__,
+			g_pwm_gc->hwio_reg_update_delay);
+	
+	return snprintf(buf, PAGE_SIZE, "%d\n", g_pwm_gc->hwio_reg_update_delay);
+}
+
+static ssize_t udelay_val_store(struct device *dev, \
+		struct device_attribute *attr, const char *buf, size_t len)
+{
+	int val = 20;	
+	sscanf(buf, "%d", &val);	
+	pr_info("[VIB] %s %d: val.new: %d, val.old: %d\n", __func__, __LINE__, 
+		val, g_pwm_gc->hwio_reg_update_delay);
+	
+	g_pwm_gc->hwio_reg_update_delay = val;
+	return len;
+}
+static DEVICE_ATTR_RW(udelay_val);
+
+static struct attribute *gpclk_attributes[] = {
+	&dev_attr_allow_delay.attr,
+	&dev_attr_udelay_val.attr,
+	NULL,
+};
+ 
+static struct attribute_group gpclk_attr_group = {
+	.attrs = gpclk_attributes,
+};
+#endif //#if defined(CONFIG_PWM_GPCLK_DEBUG_FEATURE)
+
 static int pwm_gpclk_enable(struct pwm_chip *chip, struct pwm_device *pwm)
 {
 	u32 data;
+
+	mutex_lock(&g_pwm_gc->lock);
+
 	HWIO_OUTM(GPx_CMD_RCGR, HWIO_UPDATE_VAL_BMSK,
 				1 << HWIO_UPDATE_VAL_SHFT); /* UPDATE ACTIVE */
+	hwio_settling_delay();
 	HWIO_OUTM(GPx_CMD_RCGR, HWIO_ROOT_EN_VAL_BMSK,
 				1 << HWIO_ROOT_EN_VAL_SHFT);/* ROOT_EN */
+	hwio_settling_delay();
 	HWIO_OUTM(CAMSS_GPx_CBCR, HWIO_CLK_ENABLE_VAL_BMSK,
 				1 << HWIO_CLK_ENABLE_VAL_SHFT); /* CLK_ENABLE */
+	hwio_settling_delay();
 	__pm_stay_awake(ws);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	pm_qos_update_request(&pm_qos_req, PM_QOS_NONIDLE_VALUE);
-
+#else
+	cpu_latency_qos_update_request(&pm_qos_req, PM_QOS_NONIDLE_VALUE);
+#endif
 	data = HWIO_GPx_CMD_RCGR_IN;
 	pr_debug("[VIB] %s HWIO_GPx_CMD_RCGR_IN: 0x%x\n", __func__, data);
 
 	data = HWIO_CAMSS_GPx_CBCR_IN;
 	pr_debug("[VIB] %s HWIO_CAMSS_GP0_CBCR_IN: 0x%x\n", __func__, data);
+
+	mutex_unlock(&g_pwm_gc->lock);
 
 	pr_debug("[VIB] %s done\n", __func__);
 
@@ -50,18 +131,26 @@ static void pwm_gpclk_disable(struct pwm_chip *chip, struct pwm_device *pwm)
 {
 	pr_debug("[VIB] %s called\n", __func__);
 
+	mutex_lock(&g_pwm_gc->lock);
 	HWIO_OUTM(GPx_CMD_RCGR, HWIO_UPDATE_VAL_BMSK,
 				0 << HWIO_UPDATE_VAL_SHFT);
+	hwio_settling_delay();
 	HWIO_OUTM(GPx_CMD_RCGR, HWIO_ROOT_EN_VAL_BMSK,
 				0 << HWIO_ROOT_EN_VAL_SHFT);
+	hwio_settling_delay();
 	HWIO_OUTM(CAMSS_GPx_CBCR, HWIO_CLK_ENABLE_VAL_BMSK,
 				0 << HWIO_CLK_ENABLE_VAL_SHFT);
+	hwio_settling_delay();
 
 	__pm_relax(ws);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	pm_qos_update_request(&pm_qos_req, PM_QOS_DEFAULT_VALUE);
+#else
+	cpu_latency_qos_update_request(&pm_qos_req, PM_QOS_DEFAULT_VALUE);
+#endif
+	mutex_unlock(&g_pwm_gc->lock);
 
 	pr_debug("[VIB] %s done\n", __func__);
-
 	return;
 }
 
@@ -87,6 +176,7 @@ static int pwm_gpclk_config(struct pwm_chip *chip, struct pwm_device *pwm,
 		return -EINVAL;
 	}
 
+	mutex_lock(&g_pwm_gc->lock);
 	base_n = ip_clock / freq;
 	n_m2 = base_n * 2;
 	n_m3 = base_n * 3;
@@ -117,14 +207,18 @@ static int pwm_gpclk_config(struct pwm_chip *chip, struct pwm_device *pwm,
 	/* Put the MND counter in reset mode for programming */
 	HWIO_OUTM(GPx_CFG_RCGR, HWIO_GP_SRC_SEL_VAL_BMSK,
 				0 << HWIO_GP_SRC_SEL_VAL_SHFT); /* SRC_SEL = 000(cxo) */
+	hwio_settling_delay();
 	HWIO_OUTM(GPx_CFG_RCGR, HWIO_GP_SRC_DIV_VAL_BMSK,
 				31 << HWIO_GP_SRC_DIV_VAL_SHFT); /* SRC_DIV = 11111 (Div 16) */
+	hwio_settling_delay();
 	HWIO_OUTM(GPx_CFG_RCGR, HWIO_GP_MODE_VAL_BMSK,
 				2 << HWIO_GP_MODE_VAL_SHFT); /* Mode Select 10 */
+	hwio_settling_delay();
 
 	/* M value */
 	HWIO_OUTM(GPx_M_REG, HWIO_GP_MD_REG_M_VAL_BMSK,
 		g_nlra_gp_clk_m << HWIO_GP_MD_REG_M_VAL_SHFT);
+	hwio_settling_delay();
 
 	calc_n = (~(g_nlra_gp_clk_n - g_nlra_gp_clk_m) & 0xFF);
 
@@ -143,8 +237,10 @@ static int pwm_gpclk_config(struct pwm_chip *chip, struct pwm_device *pwm,
 
 	/* D value */
 	HWIO_OUTM(GPx_D_REG, HWIO_GP_MD_REG_D_VAL_BMSK, calc_d);
+	hwio_settling_delay();
 	/* N value */
 	HWIO_OUTM(GPx_N_REG, HWIO_GP_N_REG_N_VAL_BMSK, calc_n);
+	hwio_settling_delay();
 
 	data = HWIO_GPx_CFG_RCGR_IN;
 	pr_debug("%s HWIO_GPx_CFG_RCGR_IN: 0x%x\n", __func__, data);
@@ -160,6 +256,9 @@ static int pwm_gpclk_config(struct pwm_chip *chip, struct pwm_device *pwm,
 	/* Update new M/N:D value */
 	HWIO_OUTM(GPx_CMD_RCGR, HWIO_UPDATE_VAL_BMSK,
 				1 << HWIO_UPDATE_VAL_SHFT); /* UPDATE ACTIVE */
+	hwio_settling_delay();
+	
+	mutex_unlock(&g_pwm_gc->lock);
 
 	return 0;
 }
@@ -191,6 +290,7 @@ static int pwm_gc_parse_dt(struct pwm_gc *gc)
 {
 	struct device_node *np = gc->dev->of_node;
 	int rc;
+	int val = 0;
 
 	rc = of_property_read_u32(np, "samsung,gp_clk", &gc->gp_clk);
 	if (rc) {
@@ -200,7 +300,13 @@ static int pwm_gc_parse_dt(struct pwm_gc *gc)
 	}
 
 	gc->def_enabled = of_property_read_bool(np, "samsung,enabled_default");
-	pr_info("def_enabled: (%d)\n", gc->def_enabled);
+
+	gc->allow_delay = of_property_read_bool(np, "samsung,use_wr_delay");
+	if (!of_property_read_u32(np, "samsung,wr_delay", &val))
+		gc->hwio_reg_update_delay = val;
+
+	pr_info("def_enabled: (%d), allow_delay: %d, delay_val: %d\n", 
+		gc->def_enabled, gc->allow_delay, gc->hwio_reg_update_delay);
 
 	return rc;
 }
@@ -268,9 +374,28 @@ static int pwm_gpclk_probe(struct platform_device *pdev)
 	ws = wakeup_source_register("pwm_present");
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	pm_qos_add_request(&pm_qos_req, PM_QOS_CPU_DMA_LATENCY, PM_QOS_DEFAULT_VALUE);
-
+#else
+	cpu_latency_qos_add_request(&pm_qos_req, PM_QOS_DEFAULT_VALUE);
+#endif
 	dev_set_drvdata(&pdev->dev, g_pwm_gc);
+
+	mutex_init(&gc->lock);
+
+#if defined(CONFIG_PWM_GPCLK_DEBUG_FEATURE)
+	/* create /sys/class/gpclk/ */
+	gc->gpclk_class = class_create(THIS_MODULE, "gpclk");
+	
+	/* create /sys/class/gpclk/hwio_delay/ */
+	gc->gpclk_dev = device_create(gc->gpclk_class, NULL, MKDEV(0, 0), g_pwm_gc, "hwio_delay");
+	
+	/*
+		/sys/class/gpclk/hwio_delay/allow_delay 
+		/sys/class/gpclk/hwio_delay/udelay_val 
+	*/
+	sysfs_create_group(&gc->gpclk_dev->kobj, &gpclk_attr_group);
+#endif //#if defined(CONFIG_PWM_GPCLK_DEBUG_FEATURE)
 
 	pr_info("pwm_gpclk : probe done\n");
 	return 0;
@@ -287,7 +412,11 @@ static int pwm_gpclk_remove(struct platform_device *pdev)
 		dev_err(chip->dev, "Remove pwmchip failed, ret=%d\n", ret);
 
 	wakeup_source_unregister(ws);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	pm_qos_remove_request(&pm_qos_req);
+#else
+	cpu_latency_qos_remove_request(&pm_qos_req);
+#endif
 	dev_set_drvdata(chip->dev, NULL);
 
 	return ret;

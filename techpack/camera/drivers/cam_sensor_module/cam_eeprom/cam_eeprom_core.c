@@ -1485,7 +1485,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 			AfIdx_t rear_idx[] = {
 				{AF_CAL_NEAR_IDX, AF_CAL_NEAR_OFFSET_FROM_AF},
 				{AF_CAL_FAR_IDX, AF_CAL_FAR_OFFSET_FROM_AF},
-#if !defined(CONFIG_SEC_R9Q_PROJECT) 
+#if !defined(CONFIG_SEC_R9Q_PROJECT)
 				{AF_CAL_M1_IDX, AF_CAL_M1_OFFSET_FROM_AF}
 #endif
 			};
@@ -2228,7 +2228,7 @@ static uint32_t cam_eeprom_match_crc(struct cam_eeprom_memory_block_t *data, uin
  * This function iterates through blocks stored in block->map, reads each
  * region and concatenate them into the pre-allocated block->mapdata
  */
-static int cam_otp_read_memory(struct cam_eeprom_ctrl_t *e_ctrl, 
+static int cam_otp_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 							   struct cam_eeprom_memory_block_t *block)
 {
 	int rc = 0;
@@ -4365,6 +4365,7 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 	struct cam_eeprom_soc_private  *soc_private =
 		(struct cam_eeprom_soc_private *)e_ctrl->soc_info.soc_private;
 	struct cam_sensor_power_ctrl_t *power_info = &soc_private->power_info;
+	uint8_t                         crc_check_retry_cnt = 0;
 
 	ioctl_ctrl = (struct cam_control *)arg;
 
@@ -4456,6 +4457,14 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 			goto error;
 		}
 
+eeropm_crc_check :
+		rc = cam_eeprom_power_up(e_ctrl,
+			&soc_private->power_info);
+		if (rc) {
+			CAM_ERR(CAM_EEPROM, "failed rc %d", rc);
+			goto memdata_free;
+		}
+
 		if (e_ctrl->eeprom_device_type == MSM_CAMERA_SPI_DEVICE) {
 			rc = cam_eeprom_match_id(e_ctrl);
 			if (rc) {
@@ -4463,13 +4472,6 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 					"eeprom not matching %d", rc);
 				goto memdata_free;
 			}
-		}
-
-		rc = cam_eeprom_power_up(e_ctrl,
-			&soc_private->power_info);
-		if (rc) {
-			CAM_ERR(CAM_EEPROM, "failed rc %d", rc);
-			goto memdata_free;
 		}
 
 		e_ctrl->cam_eeprom_state = CAM_EEPROM_CONFIG;
@@ -4508,8 +4510,9 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 			}
 
 			if (1 < e_ctrl->cal_data.num_map) {
-				rc = cam_eeprom_get_customInfo(e_ctrl, csl_packet);
-
+				if (crc_check_retry_cnt == 0) {
+					rc = cam_eeprom_get_customInfo(e_ctrl, csl_packet);
+				}
 #if defined(CONFIG_SAMSUNG_CAMERA_OTP)
 				if(e_ctrl->soc_info.index == SEC_ULTRA_WIDE_SENSOR &&
 					soc_private->i2c_info.slave_addr  == 0x42){
@@ -4520,10 +4523,23 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 				e_ctrl->is_supported |= cam_eeprom_match_crc(&e_ctrl->cal_data,
 					e_ctrl->soc_info.index);
 
-				if (e_ctrl->is_supported != normal_crc_value)
+				if (e_ctrl->is_supported != normal_crc_value) {
 					CAM_ERR(CAM_EEPROM, "Any CRC values at F-ROM are not matched.");
-				else
+					if (crc_check_retry_cnt < 3) {
+						crc_check_retry_cnt++;
+						CAM_ERR(CAM_EEPROM, "Retry to read F-ROM : %d", crc_check_retry_cnt);
+#if defined(FORCE_DISABLE_REGULATOR)
+						cam_eeprom_force_power_down(e_ctrl);
+#else
+						cam_eeprom_power_down(e_ctrl);
+#endif
+						goto eeropm_crc_check;
+
+					}
+ 				} else {
 					CAM_INFO(CAM_EEPROM, "All CRC values are matched.");
+					crc_check_retry_cnt = 0;
+				}
 
 				rc = cam_eeprom_update_module_info(e_ctrl);
 				if (rc < 0) {

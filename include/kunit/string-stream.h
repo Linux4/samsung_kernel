@@ -26,12 +26,20 @@ struct string_stream {
 	/* length and fragments are protected by this lock */
 	struct spinlock lock;
 	struct kref refcount;
+	struct test *test;
+	gfp_t gfp;
+
 	int (*add)(struct string_stream *this, const char *fmt, ...);
 	int (*vadd)(struct string_stream *this, const char *fmt, va_list args);
 	char *(*get_string)(struct string_stream *this);
 	void (*clear)(struct string_stream *this);
 	bool (*is_empty)(struct string_stream *this);
 };
+
+void string_stream_clear(struct string_stream *stream);
+bool string_stream_is_empty(struct string_stream *this);
+int string_stream_add(struct string_stream *this, const char *fmt, ...);
+char *string_stream_get_string(struct string_stream *this);
 
 struct string_stream *new_string_stream(void);
 

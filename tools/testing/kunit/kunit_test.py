@@ -410,6 +410,16 @@ class TestExtKunitconfigGenerator(unittest.TestCase):
                 ]
         self.assertCountEqual(result, tobe)
 
+    def test_get_subconfig_simular_name(self):
+        ek = kunit_kernel.ExtKunitconfigGenerator(['xxx'], path=self.test_path)
+        result = ek.get_sub_config('xxx')
+        tobe = [
+                os.path.join(self.test_path, 'kunitconfigs/kunitconfig.xxx'),
+                os.path.join(self.test_path, 'kunitconfigs/kunitconfig.xxx.yyy')
+                ]
+        self.assertCountEqual(result, tobe)
+
+
     def test_get_merge_config_single(self):
         ek = kunit_kernel.ExtKunitconfigGenerator(['muic'], path=self.test_path)
         with open(ek.final_config_file, 'r') as fp:

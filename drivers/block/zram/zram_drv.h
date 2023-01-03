@@ -55,6 +55,7 @@ enum zram_pageflags {
 	ZRAM_READ_BDEV,
 	ZRAM_PPR,
 	ZRAM_UNDER_PPR,
+	ZRAM_LRU,
 
 	__NR_ZRAM_PAGEFLAGS,
 };
@@ -110,6 +111,7 @@ struct zram_stats {
 	atomic64_t bd_ppr_max_size;
 	atomic64_t bd_objreads;
 	atomic64_t bd_objwrites;
+	atomic64_t lru_pages;
 #endif
 };
 
@@ -121,13 +123,6 @@ struct zram_stats {
 struct zram_wb_header {
 	u32 index;
 	u32 size;
-	unsigned long blk_idx;
-	unsigned long wb_jiffies;
-};
-
-struct wb_dbg {
-	unsigned long index;
-	unsigned long wb_jiffies;
 };
 
 struct zram_wb_work {
@@ -207,8 +202,6 @@ struct zram {
 	spinlock_t list_lock;
 	spinlock_t wb_table_lock;
 	spinlock_t bitmap_lock;
-	struct zwbs **zwbs;
-	struct wb_dbg *wb_dbg;
 	unsigned long *blk_bitmap;
 	struct mutex blk_bitmap_lock;
 #endif

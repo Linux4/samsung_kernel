@@ -95,12 +95,38 @@
 /* only nonTZ -----*/
 #endif
 
+#ifdef CONFIG_COMPAT
+#define P61_SET_PWR_COMPAT				_IOW(P61_MAGIC, 0x01, unsigned int)
+#define P61_SET_DBG_COMPAT				_IOW(P61_MAGIC, 0x02, unsigned int)
+#define P61_SET_POLL_COMPAT				_IOW(P61_MAGIC, 0x03, unsigned int)
+#define P61_SET_SPM_PWR_COMPAT			_IOW(P61_MAGIC, 0x04, unsigned int)
+#define P61_GET_SPM_STATUS_COMPAT		_IOR(P61_MAGIC, 0x05, unsigned int)
+#define P61_SET_THROUGHPUT_COMPAT		_IOW(P61_MAGIC, 0x06, unsigned int)
+#define P61_GET_ESE_ACCESS_COMPAT		_IOW(P61_MAGIC, 0x07, unsigned int)
+#define P61_SET_POWER_SCHEME_COMPAT		_IOW(P61_MAGIC, 0x08, unsigned int)
+#define P61_SET_DWNLD_STATUS_COMPAT		_IOW(P61_MAGIC, 0x09, unsigned int)
+#define P61_INHIBIT_PWR_CNTRL_COMPAT	_IOW(P61_MAGIC, 0x0A, unsigned int)
+#define P61_RW_SPI_DATA_COMPAT			_IOWR(P61_MAGIC, 0x0F, unsigned int)
+
+#ifdef CONFIG_NFC_FEATURE_SN100U
+#define ESE_PERFORM_COLD_RESET_COMPAT	_IOW(P61_MAGIC, 0x0C, unsigned int)
+#define PERFORM_RESET_PROTECTION_COMPAT	_IOW(P61_MAGIC, 0x0D, unsigned int)
+#endif
+#endif
+
 struct p61_ioctl_transfer {
 	unsigned char *rx_buffer;
 	unsigned char *tx_buffer;
 	unsigned int len;
 };
 
+#ifdef CONFIG_COMPAT
+struct p61_ioctl_transfer32 {
+	u32 rx_buffer;
+	u32 tx_buffer;
+	u32 len;
+};
+#endif
 struct p61_spi_platform_data {
 	unsigned int irq_gpio;
 	unsigned int rst_gpio;

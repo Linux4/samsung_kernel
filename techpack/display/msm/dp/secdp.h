@@ -342,6 +342,7 @@ struct secdp_dex {
 	enum DEX_STATUS curr; /* previously known as "dex_en" */
 	int  setting_ui;      /* "dex_set", true if setting has Dex mode */
 
+	bool ignore_prefer_ratio; /* true if prefer ratio does not match to dex ratio */
 	bool adapter_check_skip;
 
 	/*

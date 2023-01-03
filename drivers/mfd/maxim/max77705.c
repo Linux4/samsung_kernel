@@ -34,7 +34,7 @@
 #include <linux/workqueue.h>
 #include <linux/version.h>
 
-#include <linux/muic/muic.h>
+#include <linux/muic/common/muic.h>
 #if defined(CONFIG_MAX77705_FW_SEPARATION_PID_BY_MODEL)
 #include <linux/mfd/firmware/max77705C_pass2_specific.h>
 #if defined(CONFIG_MAX77705_USE_EXTRA_FW)
@@ -1223,8 +1223,8 @@ static int max77705_i2c_probe(struct i2c_client *i2c,
 	}
 	mutex_init(&max77705->i2c_lock);
 	
-#if defined(CONFIG_QCOM_IFPMIC_SUSPEND)	
 	max77705->suspended = false;
+#if defined(CONFIG_QCOM_IFPMIC_SUSPEND)
 	init_waitqueue_head(&max77705->suspend_wait);
 #endif
 
@@ -1368,8 +1368,6 @@ static int max77705_suspend(struct device *dev)
 		enable_irq_wake(max77705->irq);
 
 #if defined(CONFIG_QCOM_IFPMIC_SUSPEND)
-	max77705->suspended =  true;
-
 	wait_event_interruptible_timeout(max77705->queue_empty_wait_q,
 					(!max77705->doing_irq) && (!max77705->is_usbc_queue), 1*HZ);
 #endif
@@ -1377,6 +1375,7 @@ static int max77705_suspend(struct device *dev)
 #if !defined(CONFIG_QCOM_IFPMIC_SUSPEND)
 	disable_irq(max77705->irq);
 #endif
+	max77705->suspended =  true;
 
 	return 0;
 }
@@ -1385,8 +1384,9 @@ static int max77705_resume(struct device *dev)
 {
 	struct i2c_client *i2c = container_of(dev, struct i2c_client, dev);
 	struct max77705_dev *max77705 = i2c_get_clientdata(i2c);
-#if defined(CONFIG_QCOM_IFPMIC_SUSPEND)
+
 	max77705->suspended =  false;
+#if defined(CONFIG_QCOM_IFPMIC_SUSPEND)
 	wake_up(&max77705->suspend_wait);
 #endif
 
