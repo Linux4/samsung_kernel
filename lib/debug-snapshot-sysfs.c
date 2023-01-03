@@ -79,7 +79,6 @@ static ssize_t dss_enable_store(struct device *dev,
 	if (!name)
 		return count;
 
-	name[count - 1] = '\0';
 	en = dbg_snapshot_get_enable_item(name);
 
 	if (en == -1)

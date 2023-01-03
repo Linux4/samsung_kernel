@@ -82,6 +82,8 @@ struct shub_sensor {
 	int receive_event_size;
 	int report_event_size;
 
+	bool hal_sensor;
+
 	u64 enable_timestamp;
 	u64 disable_timestamp;
 	struct rtc_time enable_time;

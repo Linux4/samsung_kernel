@@ -37,6 +37,7 @@
 #if defined(CONVERT_BUFFER_SECURE_TO_NON_SECURE)
 #include <linux/smc.h>
 #include "../../../../staging/android/ion/ion.h"
+#include "../../../../staging/android/ion/ion_exynos.h"
 #endif
 
 const struct v4l2_file_operations is_vra_video_fops;
@@ -581,6 +582,19 @@ static int is_vra_video_g_ctrl(struct file *file, void *priv,
 	return 0;
 }
 
+#if defined(CONVERT_BUFFER_SECURE_TO_NON_SECURE)
+static struct ion_buffer *ion_buffer_get(struct dma_buf *dmabuf)
+{
+	if (!dmabuf)
+		return ERR_PTR(-EINVAL);
+
+	if (dmabuf->ops != &ion_dma_buf_ops)
+		return ERR_PTR(-EINVAL);
+
+	return (struct ion_buffer *)dmabuf->priv;
+}
+#endif
+
 static int is_vra_video_s_ext_ctrl(struct file *file, void *priv,
 	struct v4l2_ext_controls *ctrls)
 {
@@ -663,7 +677,7 @@ static int is_vra_video_s_ext_ctrl(struct file *file, void *priv,
 				return -EINVAL;
 			}
 
-			buffer = s_dbuf->priv;
+			buffer = ion_buffer_get(s_dbuf);
 			if (IS_ERR_OR_NULL(buffer)) {
 				pr_err("failed to get buffer of s_dbuf");
 				ret = -EINVAL;
@@ -697,7 +711,7 @@ static int is_vra_video_s_ext_ctrl(struct file *file, void *priv,
 				goto free_s_dbuf;
 			}
 
-			buffer = n_dbuf->priv;
+			buffer = ion_buffer_get(n_dbuf);
 			if (IS_ERR_OR_NULL(buffer)) {
 				pr_err("failed to get buffer of n_dbuf");
 				ret = -EINVAL;

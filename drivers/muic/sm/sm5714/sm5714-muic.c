@@ -25,16 +25,18 @@
 
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/common/muic_notifier.h>
-#endif 
+#endif
 
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_BATTERY_GKI)
 #include <linux/sec_batt.h>
 #endif
 
+#if IS_BUILTIN(CONFIG_MUIC_SM5714)
 #if IS_ENABLED(CONFIG_ARCH_QCOM) && !defined(CONFIG_USB_ARCH_EXYNOS) && !defined(CONFIG_ARCH_EXYNOS)
 #include <linux/sec_param.h>
 #else
 #include <linux/sec_ext.h>
+#endif
 #endif
 
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
@@ -726,10 +728,9 @@ static ssize_t hiccup_store(struct device *dev,
 	struct sm5714_muic_data *muic_data = dev_get_drvdata(dev);
 
 	if (!strncasecmp(buf, "DISABLE", 7)) {
-#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
-#if IS_ENABLED(CONFIG_HICCUP_CC_DISABLE)
-		usbpd_hiccup_cc_command(muic_data->man, 0);
-#endif
+		pr_info("%s\n", __func__);
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER) && IS_ENABLED(CONFIG_HICCUP_CC_DISABLE)
+		usbpd_cc_control_command(muic_data->man, 0);
 #endif
 		muic_data->is_hiccup_mode = false;
 		com_to_open(muic_data);
@@ -2207,7 +2208,7 @@ static void sm5714_set_bc1p2_retry_count(struct sm5714_muic_data *muic_data)
 	int count;
 
 	np = of_find_compatible_node(NULL, NULL, "siliconmitus,sm5714mfd");
-	
+
 	if (np && !of_property_read_u32(np, "sm5714,bc1p2_retry_count", &count))
 		muic_data->bc1p2_retry_count_max = count;
 	else

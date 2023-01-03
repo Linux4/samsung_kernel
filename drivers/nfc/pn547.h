@@ -267,6 +267,7 @@ struct pn547_dev {
 	struct mutex read_mutex;
 	struct i2c_client *client;
 	struct miscdevice pn547_device;
+	struct mutex dev_ref_mutex;
 	int ven_gpio;
 	int firm_gpio;
 	int irq_gpio;

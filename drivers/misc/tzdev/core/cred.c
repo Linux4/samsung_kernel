@@ -113,7 +113,7 @@ static int tz_format_cred_user(struct tz_cred *cred)
 			goto unlock;
 		}
 	}
-
+	
 	exe_file = get_mm_exe_file(current->mm);
 	if (!exe_file) {
 		ret = -EINVAL;

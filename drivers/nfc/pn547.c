@@ -261,7 +261,7 @@ static irqreturn_t pn547_wake_irq_handler(int irq, void *dev_id)
 			}
 		}
 	} else {
-		NFC_LOG_REC("clk_req irq, wakelock %d\n", pn547_dev->clk_req_wakelock);
+		NFC_LOG_REC("clk_req\n");
 #ifdef CONFIG_PM
 		if (pn547_dev->clk_req_wakelock) {
 			pn547_dev->clk_req_wakelock = false;
@@ -572,9 +572,12 @@ static int pn547_dev_open(struct inode *inode, struct file *filp)
 						   struct pn547_dev,
 						   pn547_device);
 
+	mutex_lock(&pn547_dev->dev_ref_mutex);
+
 	if (!atomic_dec_and_test(&s_Device_opened)) {
 		atomic_inc(&s_Device_opened);
 		NFC_LOG_ERR("already opened!\n");
+		mutex_unlock(&pn547_dev->dev_ref_mutex);
 		return -EBUSY;
 	}
 	if (!regulator_is_enabled(pn547_dev->nfc_pvdd))
@@ -596,16 +599,19 @@ static int pn547_dev_open(struct inode *inode, struct file *filp)
 		if (ret) {
 			nfc_ese_secured = ESE_NOT_SECURED;
 			NFC_LOG_ERR("eSE spi is not Secured\n");
+			mutex_unlock(&pn547_dev->dev_ref_mutex);
 			return -EBUSY;
 		}
 		nfc_ese_secured = ESE_SECURED;
 	} else if (nfc_ese_secured == ESE_NOT_SECURED) {
 		NFC_LOG_ERR("eSE spi is not Secured\n");
+		mutex_unlock(&pn547_dev->dev_ref_mutex);
 		return -EBUSY;
 	}
 #endif
 	pn547_clk_req_irq_control(pn547_dev, true);
 	pn547_dev->clk_req_wakelock = false;
+	mutex_unlock(&pn547_dev->dev_ref_mutex);
 
 	return 0;
 }
@@ -642,6 +648,7 @@ static int pn547_dev_release(struct inode *inode, struct file *filp)
 #endif
 
 	NFC_LOG_INFO("release\n");
+	mutex_lock(&pn547_dev->dev_ref_mutex);
 	set_force_reset(false);
 	if (pn547_dev->firm_gpio)
 		gpio_set_value_cansleep(pn547_dev->firm_gpio, 0);
@@ -660,6 +667,7 @@ static int pn547_dev_release(struct inode *inode, struct file *filp)
 	pn547_print_status();
 	atomic_inc(&s_Device_opened);
 
+	mutex_unlock(&pn547_dev->dev_ref_mutex);
 	return 0;
 }
 
@@ -2032,6 +2040,7 @@ static int pn547_probe(struct i2c_client *client, const struct i2c_device_id *id
 	/* init mutex and queues */
 	init_waitqueue_head(&pn547_dev->read_wq);
 	mutex_init(&pn547_dev->read_mutex);
+	mutex_init(&pn547_dev->dev_ref_mutex);
 	spin_lock_init(&pn547_dev->irq_enabled_lock);
 #ifdef CONFIG_NFC_PN547_ESE_SUPPORT
 	p61_trans_acc_on = 0;
@@ -2162,6 +2171,7 @@ err_misc_register:
 #ifdef FEATURE_SN100X
 	ese_reset_resource_destroy();
 #endif
+	mutex_destroy(&pn547_dev->dev_ref_mutex);
 	mutex_destroy(&pn547_dev->read_mutex);
 #ifdef CONFIG_NFC_PN547_ESE_SUPPORT
 	mutex_destroy(&pn547_dev->p61_state_mutex);
@@ -2197,6 +2207,7 @@ static int pn547_remove(struct i2c_client *client)
 	wake_lock_destroy(&pn547_dev->nfc_wake_lock);
 	free_irq(client->irq, pn547_dev);
 	misc_deregister(&pn547_dev->pn547_device);
+	mutex_destroy(&pn547_dev->dev_ref_mutex);
 	mutex_destroy(&pn547_dev->read_mutex);
 	gpio_free(pn547_dev->irq_gpio);
 	gpio_free(pn547_dev->ven_gpio);

@@ -195,7 +195,6 @@ static int open_pressure_files(void)
 {
 	shub_infof("");
 	open_pressure_calibration_file();
-	open_pressure_sw_offset_file();
 
 	return 0;
 }
