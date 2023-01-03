@@ -1,14 +1,7 @@
 #
-# Copyright (C) 2021 MediaTek Inc.
+# SPDX-License-Identifier: GPL-2.0 */
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License version 2 as
-# published by the Free Software Foundation.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+# Copyright (C) 2016 MediaTek Inc.
 #
 
 # driver code for VDEC-FMT
@@ -17,8 +10,8 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/mmdvfs/ \
              -I$(srctree)/drivers/misc/mediatek/smi/ \
              -I$(srctree)/drivers/misc/mediatek/m4u/$(MTK_PLATFORM) \
              -I$(srctree)/drivers/iommu/ \
-             -I$(srctree)/drivers/staging/android/ion/ \
-             -I$(srctree)/drivers/staging/android/ion/mtk
+             -I$(srctree)/drivers/staging/android/mtk_ion/ \
+             -I$(srctree)/drivers/staging/android/mtk_ion/mtk
 
 ifeq ($(CONFIG_MACH_MT6781),y)
 FMT_PLATFORM := mt6781

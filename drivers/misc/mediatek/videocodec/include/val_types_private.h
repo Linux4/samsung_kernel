@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2020 MediaTek Inc.
  */
 
 #ifndef _VAL_TYPES_PRIVATE_H_
@@ -224,8 +216,8 @@ struct VAL_VCODEC_OAL_HW_CONTEXT_T {
 	unsigned long			ObjId;
 	struct VAL_EVENT_T			IsrEvent;
 	unsigned int			slotindex;
-	unsigned int			u4ThreadNum;
-	unsigned int			u4ThreadID[VCODEC_THREAD_MAX_NUM];
+	unsigned int			u4VCodecThreadNum;
+	unsigned int			u4VCodecThreadID[VCODEC_THREAD_MAX_NUM];
 	/* physical address of the owner handle */
 	unsigned long			pvHandle;
 	unsigned int			u4NumOfRegister;

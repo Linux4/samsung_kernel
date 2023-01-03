@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include "imgsensor_sensor.h"
@@ -16,15 +8,13 @@
 #include <linux/atomic.h>
 #include <linux/delay.h>
 #include <linux/string.h>
+#include <linux/pinctrl/pinctrl.h>
 
 #include "kd_camera_typedef.h"
 #include "kd_camera_feature.h"
 #include "kd_imgsensor.h"
 
 #include "imgsensor_hw.h"
-#ifdef CONFIG_CAMERA_OIS_MCU
-#include "main/inc/camera_ois_mcu.h"
-#endif
 
 enum IMGSENSOR_RETURN imgsensor_hw_release_all(struct IMGSENSOR_HW *phw)
 {
@@ -133,7 +123,7 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 			ppwr_info->pin != IMGSENSOR_HW_PIN_UNDEF) {
 			pdev = phw->pdev[psensor_pwr->id[ppwr_info->pin]];
 
-			pr_info("[Power on] sensor_idx = %d, pin = %d, pin_state_on = %d, hw_id = %d, delay after setting = %u ms",
+			PK_INF("[power on]sensor_idx = %d, pin=%d, pin_state_on=%d, hw_id =%d, delay=%u ms",
 					sensor_idx, ppwr_info->pin, ppwr_info->pin_state_on,
 					psensor_pwr->id[ppwr_info->pin], ppwr_info->pin_on_delay);
 
@@ -159,7 +149,7 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 				if (ppwr_info->pin_on_delay)
 					mDELAY(ppwr_info->pin_on_delay);
 
-				pr_info("[Power off] sensor_idx = %d, pin = %d, pin_state_off = %d, hw_id = %d, delay before setting = %u ms",
+				PK_INF("[power off]sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_off %d, hw_id =%d, delay=%u ms",
 						sensor_idx, ppwr_info->pin, ppwr_info->pin_state_off,
 						psensor_pwr->id[ppwr_info->pin], ppwr_info->pin_on_delay);
 
@@ -185,9 +175,10 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 	char str_index[LENGTH_FOR_SNPRINTF];
 	int ret = 0;
 
-	pr_info("[Power %s] sensor_idx = %d, curr_sensor_name = %s, enable list = %s",
-		pwr_status ? "on" : "off",
+	pr_info(
+		"sensor_idx %d, power %d curr_sensor_name %s, enable list %s\n",
 		sensor_idx,
+		pwr_status,
 		curr_sensor_name,
 		phw->enable_sensor_by_index[(uint32_t)sensor_idx] == NULL
 		? "NULL"
@@ -232,11 +223,6 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 	    pwr_status,
 	    sensor_power_sequence,
 	    curr_sensor_name);
-
-#if defined(CONFIG_CAMERA_OIS_MCU)
-	if (sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN)
-		ois_mcu_power_onoff((bool)pwr_status);
-#endif
 
 	return IMGSENSOR_RETURN_SUCCESS;
 }

@@ -42,7 +42,7 @@ ENTRY(ftrace_caller)
 	.set	ftrace_regs_caller,ftrace_caller
 	stg	%r14,(__SF_GPRS+8*8)(%r15)	# save traced function caller
 	lgr	%r1,%r15
-#ifndef CC_USING_HOTPATCH
+#if !(defined(CC_USING_HOTPATCH) || defined(CC_USING_NOP_MCOUNT))
 	aghi	%r0,MCOUNT_RETURN_FIXUP
 #endif
 	# allocate stack frame for ftrace_caller to contain traced function

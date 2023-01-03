@@ -14,9 +14,6 @@
 #include <linux/regulator/mt6315-misc.h>
 #include <linux/regulator/mt6315-regulator.h>
 #include <linux/regulator/of_regulator.h>
-#ifdef CONFIG_SEC_PM
-#include <linux/wakeup_reason.h>
-#endif /* CONFIG_SEC_PM */
 
 #define MT6315_REG_WIDTH		8
 
@@ -185,9 +182,6 @@ static irqreturn_t mt6315_irq_handler(int irq, void *data)
 			"Reg[0x%x]=0x%x,hwirq=%d,type=%d\n",
 			irq_data->sta_reg, int_status, hwirq,
 			irq_get_trigger_type(virq));
-#ifdef CONFIG_SEC_PM
-		log_threaded_irq_wakeup_reason(virq, chip->irq);
-#endif /* CONFIG_SEC_PM */
 		if (virq)
 			handle_nested_irq(virq);
 	}

@@ -1,21 +1,21 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2021 MediaTek Inc.
  */
 
 #define LOG_TAG "DEBUG"
 
 #include <linux/string.h>
 #include <linux/uaccess.h>
+
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 #include <linux/debugfs.h>
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+#include <linux/proc_fs.h>
+#endif
+
 /* #include "mt-plat/aee.h" */
 #include "disp_assert_layer.h"
 #include <linux/dma-mapping.h>
@@ -53,14 +53,31 @@
 #include "disp_cust.h"
 #include "mtk_notify.h"
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+// file: /d/dispsys
 static struct dentry *debugfs;
+//dir: /d/disp/
 static struct dentry *debugDir;
-
-
+//file: /d/disp/dump
 static struct dentry *debugfs_dump;
+static int debug_init;
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+//file: /proc/dispsys
+static struct proc_dir_entry *dispsys_procfs;
+//dir: /proc/disp/
+static struct proc_dir_entry *disp_dir_procfs;
+//file: /proc/disp/dump
+static struct proc_dir_entry *disp_dump_procfs;
+//file: /proc/disp/lowpowermode
+static struct proc_dir_entry *disp_lpmode_procfs;
+static int debug_procfs_init;
+#endif
+
 
 static const long int DEFAULT_LOG_FPS_WND_SIZE = 30;
-static int debug_init;
+
 
 unsigned char pq_debug_flag;
 unsigned char aal_debug_flag;
@@ -174,22 +191,6 @@ void _ddic_test_read_v1(void)
 	memset(cmd_tab->payload, 0, 4);
 	cmd_tab->dlen = 4;
 	cmd_tab->cmd = 0x06;
-
-	#if 0
-	/*read ID2 Value*/
-	cmd_tab->dtype = 0xDB;
-	cmd_tab->payload = vmalloc(4 * sizeof(unsigned char));
-	memset(cmd_tab->payload, 0, 4);
-	cmd_tab->dlen = 12;
-	cmd_tab->cmd = 0x06;
-
-	/*read display id*/
-	cmd_tab->dtype = 0x04;
-	cmd_tab->payload = vmalloc(4 * sizeof(unsigned char));
-	memset(cmd_tab->payload, 0, 4);
-	cmd_tab->dlen = 4;
-	cmd_tab->cmd = 0x06;
-	#endif
 
 	ret = do_lcm_vdo_lp_read_v1(cmd_tab);
 	if (ret == -1) {
@@ -776,33 +777,34 @@ static void process_dbg_opt(const char *opt)
 		pr_info("set_dsi_cmd cmd=0x%x\n", cmd);
 		for (i = 0; i < para_cnt; i++)
 			pr_info("para[%d] = 0x%x\n", i, para[i]);
-		set_lcm(&test, 1, hs);
+		set_lcm(&test, 1, hs, true);
 
 	} else if (strncmp(opt, "read_customer_cmd:", 18) == 0) {
 		int cmd;
 		int size, i;
 		char para[15] = {0};
 		int sendhs;
+		unsigned char offset = 0;
 
-		ret = sscanf(opt, "read_customer_cmd:0x%x, %d, %d\n",
-						&cmd, &size, &sendhs);
+		DDPMSG("read_customer_cmd\n");
 
-		if (ret != 3 || size > ARRAY_SIZE(para)) {
+		ret = sscanf(opt, "read_customer_cmd:0x%x, %d, %d %hhx\n",
+						&cmd, &size, &sendhs, &offset);
+
+		if (ret != 4 || size > ARRAY_SIZE(para)) {
 			snprintf(buf, 50, "error to parse cmd %s\n", opt);
 			return;
 		}
 		pr_info(" read_lcm: 0x%x, size= %d %d\n", cmd, size, sendhs);
-		read_lcm(cmd, para, size, sendhs);
+		read_lcm(cmd, para, size, sendhs, true, offset);
 
 		for (i = 0; i < size; i++)
 			pr_info("para[%d] = 0x%x\n", i, para[i]);
-
 	} else if (strncmp(opt, "lcd:", 4) == 0) {
-		if (strncmp(opt + 4, "on", 2) == 0) {
+		if (strncmp(opt + 4, "on", 2) == 0)
 			noti_uevent_user(&uevent_data, 1);
-		} else if (strncmp(opt + 4, "off", 3) == 0) {
+		else if (strncmp(opt + 4, "off", 3) == 0)
 			noti_uevent_user(&uevent_data, 0);
-		}
 	} else {
 		dbg_buf[0] = '\0';
 		goto Error;
@@ -934,6 +936,7 @@ static const struct file_operations debug_fops_dump = {
 
 void ddp_debug_init(void)
 {
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct dentry *d;
 
 	if (debug_init)
@@ -941,7 +944,7 @@ void ddp_debug_init(void)
 
 	debug_init = 1;
 	debugfs = debugfs_create_file("dispsys",
-		S_IFREG | 0444, NULL, (void *)0, &debug_fops);
+		S_IFREG | 0440, NULL, (void *)0, &debug_fops);
 
 
 	debugDir = debugfs_create_dir("disp", NULL);
@@ -949,9 +952,57 @@ void ddp_debug_init(void)
 		return;
 
 	debugfs_dump = debugfs_create_file("dump",
-		S_IFREG | 0444, debugDir, NULL, &debug_fops_dump);
-	d = debugfs_create_file("lowpowermode", S_IFREG | 0444,
+		S_IFREG | 0440, debugDir, NULL, &debug_fops_dump);
+	d = debugfs_create_file("lowpowermode", S_IFREG | 0440,
 		debugDir, NULL, &low_power_cust_fops);
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+	if (debug_procfs_init)
+		return;
+	debug_procfs_init = 1;
+
+	dispsys_procfs = proc_create("dispsys",
+				S_IFREG | 0440,
+				NULL,
+				&debug_fops);
+	if (!dispsys_procfs) {
+		pr_info("[%s %d]failed to create dispsys in /proc/\n",
+			__func__, __LINE__);
+		goto out;
+	}
+
+	disp_dir_procfs = proc_mkdir("disp", NULL);
+	if (!disp_dir_procfs) {
+		pr_info("[%s %d]failed to create dir disp in /proc/\n",
+			__func__, __LINE__);
+		goto out;
+	}
+
+	disp_dump_procfs = proc_create("dump",
+				S_IFREG | 0440,
+				disp_dir_procfs,
+				&debug_fops_dump);
+	if (!disp_dump_procfs) {
+		pr_info("[%s %d]failed to create dump in /proc/disp/\n",
+			__func__, __LINE__);
+		goto out;
+	}
+
+	disp_lpmode_procfs = proc_create("lowpowermode",
+				S_IFREG | 0440,
+				disp_dir_procfs,
+				&low_power_cust_fops);
+	if (!disp_lpmode_procfs) {
+		pr_info("[%s %d]failed to create lowpowermode in /proc/disp/\n",
+			__func__, __LINE__);
+		goto out;
+	}
+
+out:
+	return;
+#endif
+
 }
 
 unsigned int ddp_debug_analysis_to_buffer(void)
@@ -1001,9 +1052,23 @@ int ddp_debug_force_roi_h(void)
 
 void ddp_debug_exit(void)
 {
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	debugfs_remove(debugfs);
-	debugfs_remove(debugfs_dump);
+	debugfs_remove(debugDir);
 	debug_init = 0;
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+	if (dispsys_procfs) {
+		proc_remove(dispsys_procfs);
+		dispsys_procfs = NULL;
+	}
+	if (disp_dir_procfs) {
+		proc_remove(disp_dir_procfs);
+		disp_dir_procfs = NULL;
+	}
+	debug_procfs_init = 0;
+#endif
 }
 
 int ddp_mem_test(void)

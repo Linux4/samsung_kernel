@@ -90,7 +90,7 @@ struct gc5035_otp {
 #endif
 };// gc5035_otp_struct;
 
-enum {
+enum IMGSENSOR_MODE {
 	IMGSENSOR_MODE_INIT,
 	IMGSENSOR_MODE_PREVIEW,
 	IMGSENSOR_MODE_CAPTURE,
@@ -101,7 +101,14 @@ enum {
 	IMGSENSOR_MODE_CUSTOM2,
 	IMGSENSOR_MODE_CUSTOM3,
 	IMGSENSOR_MODE_CUSTOM4,
-	IMGSENSOR_MODE_CUSTOM5
+	IMGSENSOR_MODE_CUSTOM5,
+	IMGSENSOR_MODE_MAX
+};
+
+struct setfile_mode_info {
+	kal_uint8 *setfile;
+	kal_uint32 size;
+	char *name;
 };
 
 struct imgsensor_mode_struct {

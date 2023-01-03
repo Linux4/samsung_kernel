@@ -1,18 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.
- * If not, see <http://www.gnu.org/licenses/>.
+ * Copyright (c) 2019 MediaTek Inc.
+ * Author: Michael Hsiao <michael.hsiao@mediatek.com>
  */
 
 #include <linux/module.h>
@@ -28,14 +17,14 @@
 #if defined(CONFIG_SND_SOC_RT5509)
 #include "../../codecs/rt5509.h"
 #endif
-#if defined(CONFIG_SND_SOC_AW8896)
-#include "../../codecs/aw8896.h"
-#endif
 #ifdef CONFIG_SND_SOC_MT6660
 #include "../../codecs/mt6660.h"
 #endif /* CONFIG_SND_SOC_MT6660 */
 #if defined(CONFIG_SND_SOC_TAS5782M)
 #include "../../codecs/tas5782m.h"
+#endif
+#ifdef CONFIG_SND_SOC_SMA1303
+#include "../../codecs/sma1303.h"
 #endif
 
 static unsigned int mtk_spk_type;
@@ -44,6 +33,14 @@ static struct mtk_spk_i2c_ctrl mtk_spk_list[MTK_SPK_TYPE_NUM] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 	},
+#if defined(CONFIG_SND_SOC_SMA1303)
+	[MTK_SPK_SILICON_SM1303] = {
+		.i2c_probe = sma1303_i2c_probe,
+		.i2c_remove = sma1303_i2c_remove,
+		.codec_dai_name = "sma1303-amplifier",
+		.codec_name = "sma1303.18-001e",
+	},
+#endif /* CONFIG_SND_SOC_SMA1303 */
 #if defined(CONFIG_SND_SOC_RT5509)
 	[MTK_SPK_RICHTEK_RT5509] = {
 		.i2c_probe = rt5509_i2c_probe,
@@ -51,14 +48,6 @@ static struct mtk_spk_i2c_ctrl mtk_spk_list[MTK_SPK_TYPE_NUM] = {
 		.i2c_shutdown = rt5509_i2c_shutdown,
 		.codec_dai_name = "rt5509-aif1",
 		.codec_name = "RT5509_MT_0",
-	},
-#endif
-#if defined(CONFIG_SND_SOC_AW8896)
-	[MTK_SPK_AWINIC_AW8896] = {
-		.i2c_probe = aw8896_i2c_probe,
-		.i2c_remove = aw8896_i2c_remove,
-		.codec_dai_name = "aw8896-aif",
-		.codec_name = "aw8896_smartpa",
 	},
 #endif
 #if defined(CONFIG_SND_SOC_TAS5782M)
@@ -152,6 +141,9 @@ EXPORT_SYMBOL(mtk_spk_update_dai_link);
 
 
 static const struct i2c_device_id mtk_spk_i2c_id[] = {
+#ifdef CONFIG_SND_SOC_SMA1303
+	{ "sma1303", 0},
+#endif
 	{ "speaker_amp", 0},
 	{}
 };
@@ -159,6 +151,9 @@ MODULE_DEVICE_TABLE(i2c, mtk_spk_i2c_id);
 
 #ifdef CONFIG_OF
 static const struct of_device_id mtk_spk_match_table[] = {
+#ifdef CONFIG_SND_SOC_SMA1303
+	{.compatible = "siliconmitus,sma1303",},
+#endif
 	{.compatible = "mediatek,speaker_amp",},
 	{},
 };
@@ -167,7 +162,11 @@ MODULE_DEVICE_TABLE(of, mtk_spk_match_table);
 
 static struct i2c_driver mtk_spk_i2c_driver = {
 	.driver = {
+#ifdef CONFIG_SND_SOC_SMA1303
+		.name = "sma1303",
+#else
 		.name = "speaker_amp",
+#endif
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(mtk_spk_match_table),
 	},

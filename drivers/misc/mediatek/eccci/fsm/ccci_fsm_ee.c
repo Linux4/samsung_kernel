@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 #include "ccci_fsm_internal.h"
@@ -17,14 +9,8 @@
 #include <mt-plat/aee.h>
 #endif
 
-#ifdef CUST_FT_EMI_DUMP_EN
-#if (MD_GENERATION >= 6297)
-#include <memory/mediatek/emi.h>
-#endif
-#endif
-
 void mdee_set_ex_start_str(struct ccci_fsm_ee *ee_ctl,
-	const unsigned int type, const char *str)
+	unsigned int type, char *str)
 {
 	u64 ts_nsec;
 	unsigned long rem_nsec;
@@ -63,7 +49,11 @@ void fsm_md_bootup_timeout_handler(struct ccci_fsm_ee *ee_ctl)
 			"invalid  mem_layout\n");
 		return;
 	}
-
+	CCCI_NORMAL_LOG(ee_ctl->md_id, FSM,
+		"Dump MD image not support\n");
+	ccci_mem_dump(ee_ctl->md_id,
+		(void *)mem_layout->md_bank0.base_ap_view_vir,
+		MD_IMG_DUMP_SIZE);
 	CCCI_NORMAL_LOG(ee_ctl->md_id, FSM,
 		"Dump MD layout struct\n");
 	ccci_mem_dump(ee_ctl->md_id, mem_layout,
@@ -72,26 +62,24 @@ void fsm_md_bootup_timeout_handler(struct ccci_fsm_ee *ee_ctl)
 		"Dump queue 0 & 1\n");
 	ccci_md_dump_info(ee_ctl->md_id,
 		(DUMP_FLAG_QUEUE_0_1 | DUMP_MD_BOOTUP_STATUS
-		| DUMP_FLAG_REG | DUMP_FLAG_CCIF_REG), NULL, 0);
+		| DUMP_FLAG_REG | DUMP_FLAG_CCIF_REG | DUMP_FLAG_IRQ_STATUS |DUMP_FLAG_CCIF), NULL, 0);
 	CCCI_NORMAL_LOG(ee_ctl->md_id, FSM,
 		"Dump MD ee boot failed info\n");
 
 	ee_ctl->ops->dump_ee_info(ee_ctl, MDEE_DUMP_LEVEL_BOOT_FAIL, 0);
+
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+	if (ccci_fsm_get_md_state(ee_ctl->md_id)
+			== BOOT_WAITING_FOR_HS1) {
+		CCCI_ERROR_LOG(ee_ctl->md_id, FSM, "[md1] MD_BOOT_HS1_FAIL trigger panic\n");
+		drv_tri_panic_by_lvl(ee_ctl->md_id);
+	}
+#endif
 }
 
 void fsm_md_exception_stage(struct ccci_fsm_ee *ee_ctl, int stage)
 {
 	unsigned long flags;
-
-#ifdef CUST_FT_EMI_DUMP_EN
-#if (MD_GENERATION >= 6297)
-	CCCI_ERROR_LOG(-1, FSM,
-		"Dump MD ee mtk_emidbg_dump start\n");
-	mtk_emidbg_dump();
-	CCCI_ERROR_LOG(-1, FSM,
-		"Dump MD ee mtk_emidbg_dump end\n");
-#endif
-#endif
 
 	if (stage == 0) { /* CCIF handshake just came in */
 		mdee_set_ex_start_str(ee_ctl, 0, NULL);
@@ -164,7 +152,7 @@ void fsm_md_exception_stage(struct ccci_fsm_ee *ee_ctl, int stage)
 				MDEE_DUMP_LEVEL_STAGE1, ee_case);
 
 		/* Dump MD register*/
-		md_dump_flag = DUMP_FLAG_REG | DUMP_FLAG_MD_WDT;
+		md_dump_flag = DUMP_FLAG_REG;
 		if (ee_case == MD_EE_CASE_ONLY_SWINT)
 			md_dump_flag |= (DUMP_FLAG_QUEUE_0
 							| DUMP_FLAG_CCIF
@@ -178,6 +166,11 @@ void fsm_md_exception_stage(struct ccci_fsm_ee *ee_ctl, int stage)
 			+ CCCI_EE_OFFSET_CCIF_SRAM,
 			CCCI_EE_SIZE_CCIF_SRAM);
 
+		/* Dump MD image memory */
+		CCCI_MEM_LOG_TAG(md_id, FSM, "Dump MD image memory\n");
+		ccci_util_mem_dump(md_id, CCCI_DUMP_MEM_DUMP,
+			(void *)mem_layout->md_bank0.base_ap_view_vir,
+			MD_IMG_DUMP_SIZE);
 		/* Dump MD memory layout */
 		CCCI_MEM_LOG_TAG(md_id, FSM, "Dump MD layout struct\n");
 		ccci_util_mem_dump(md_id, CCCI_DUMP_MEM_DUMP, mem_layout,
@@ -214,7 +207,7 @@ _dump_done:
 		/* Dump MD register, only NO response case dump */
 		if (md_id == MD_SYS1
 			|| ee_ctl->ee_case == MD_EE_CASE_NO_RESPONSE)
-			md_dump_flag = DUMP_FLAG_REG | DUMP_FLAG_MD_WDT;
+			md_dump_flag = DUMP_FLAG_REG;
 		if (ee_ctl->ee_case == MD_EE_CASE_ONLY_SWINT)
 			md_dump_flag |= (DUMP_FLAG_QUEUE_0
 			| DUMP_FLAG_CCIF | DUMP_FLAG_CCIF_REG);
@@ -236,8 +229,7 @@ _dump_done:
 		if (ccci_fsm_get_md_state(GET_OTHER_MD_ID(md_id))
 				== BOOT_WAITING_FOR_HS2)
 			ccci_md_dump_info(GET_OTHER_MD_ID(md_id),
-				DUMP_FLAG_CCIF,
-				NULL, 0);
+				DUMP_FLAG_CCIF, NULL, 0);
 
 		spin_lock_irqsave(&ee_ctl->ctrl_lock, flags);
 		/* this flag should be the last action of

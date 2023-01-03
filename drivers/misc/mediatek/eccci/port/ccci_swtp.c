@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
  */
+
 #include <linux/kernel.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
@@ -28,15 +21,29 @@
 #include "ccci_swtp.h"
 #include "ccci_fsm.h"
 
+/* must keep ARRAY_SIZE(swtp_of_match) = ARRAY_SIZE(irq_name) */
 const struct of_device_id swtp_of_match[] = {
 	{ .compatible = SWTP_COMPATIBLE_DEVICE_ID, },
 	{ .compatible = SWTP1_COMPATIBLE_DEVICE_ID,},
+	{ .compatible = SWTP2_COMPATIBLE_DEVICE_ID,},
+	{ .compatible = SWTP3_COMPATIBLE_DEVICE_ID,},
+	{ .compatible = SWTP4_COMPATIBLE_DEVICE_ID,},
 	{},
 };
+
+static const char irq_name[][16] = {
+	"swtp0-eint",
+	"swtp1-eint",
+	"swtp2-eint",
+	"swtp3-eint",
+	"swtp4-eint",
+	"",
+};
+
 #define SWTP_MAX_SUPPORT_MD 1
 struct swtp_t swtp_data[SWTP_MAX_SUPPORT_MD];
 static const char rf_name[] = "RF_cable";
-#define MAX_RETRY_CNT 10
+#define MAX_RETRY_CNT 30
 
 static int swtp_send_tx_power(struct swtp_t *swtp)
 {
@@ -172,7 +179,7 @@ int swtp_md_tx_power_req_hdlr(int md_id, int data)
 {
 	struct swtp_t *swtp = NULL;
 	unsigned long flags;
-	
+
 	if (md_id < 0 || md_id >= SWTP_MAX_SUPPORT_MD) {
 		CCCI_LEGACY_ERR_LOG(md_id, SYS,
 		"%s:md_id=%d not support\n",
@@ -180,12 +187,15 @@ int swtp_md_tx_power_req_hdlr(int md_id, int data)
 		return -1;
 	}
 
+	CCCI_NORMAL_LOG(md_id, SYS, "%s min: line = %d\n", __func__, __LINE__);
+
 	swtp = &swtp_data[md_id];
 	/*default do tx power for special use*/
 	spin_lock_irqsave(&swtp->spinlock, flags);
 	swtp->tx_power_mode = SWTP_DO_TX_POWER;
 	spin_unlock_irqrestore(&swtp->spinlock, flags);
 	swtp_send_tx_power_state(swtp);
+	CCCI_NORMAL_LOG(md_id, SYS, "%s end: line = %d\n", __func__, __LINE__);
 
 	return 0;
 }
@@ -213,6 +223,17 @@ static void swtp_init_delayed_work(struct work_struct *work)
 		ret = -2;
 		CCCI_LEGACY_ERR_LOG(-1, SYS,
 			"%s: invalid md_id = %d\n", __func__, md_id);
+		goto SWTP_INIT_END;
+	}
+
+	if (ARRAY_SIZE(swtp_of_match) != ARRAY_SIZE(irq_name) ||
+		ARRAY_SIZE(swtp_of_match) > MAX_PIN_NUM + 1 ||
+		ARRAY_SIZE(irq_name) > MAX_PIN_NUM + 1) {
+		ret = -3;
+		CCCI_LEGACY_ERR_LOG(-1, SYS,
+			"%s: invalid array count = %lu(of_match), %lu(irq_name)\n",
+			__func__, ARRAY_SIZE(swtp_of_match),
+			ARRAY_SIZE(irq_name));
 		goto SWTP_INIT_END;
 	}
 
@@ -254,8 +275,7 @@ static void swtp_init_delayed_work(struct work_struct *work)
 
 			ret = request_irq(swtp_data[md_id].irq[i],
 				swtp_irq_handler, IRQF_TRIGGER_NONE,
-				(i == 0 ? "swtp0-eint" : "swtp1-eint"),
-				&swtp_data[md_id]);
+				irq_name[i], &swtp_data[md_id]);
 			if (ret) {
 				CCCI_LEGACY_ERR_LOG(md_id, SYS,
 					"swtp%d-eint IRQ LINE NOT AVAILABLE\n",
@@ -266,7 +286,7 @@ static void swtp_init_delayed_work(struct work_struct *work)
 			CCCI_LEGACY_ERR_LOG(md_id, SYS,
 				"%s:can't find swtp%d compatible node\n",
 				__func__, i);
-			ret = -3;
+			ret = -4;
 		}
 	}
 	register_ccci_sys_call_back(md_id, MD_SW_MD1_TX_POWER_REQ,

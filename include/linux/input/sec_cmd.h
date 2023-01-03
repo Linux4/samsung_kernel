@@ -11,9 +11,11 @@
 #include <linux/err.h>
 #include <linux/input.h>
 #include <linux/sched/clock.h>
-#if defined(CONFIG_DRV_SAMSUNG)
+#ifdef CONFIG_DRV_SAMSUNG
 #include <linux/sec_class.h>
 #endif
+
+#include <linux/sec_debug.h>
 
 #ifndef CONFIG_SEC_FACTORY
 #define USE_SEC_CMD_QUEUE
@@ -86,13 +88,6 @@ struct sec_cmd_data {
 	char cmd_result_all[SEC_CMD_RESULT_STR_LEN];
 	u8 cmd_all_factory_state;
 };
-
-struct sec_ts_plat_data {
-	int (*stui_tsp_enter)(void);
-	int (*stui_tsp_exit)(void);
-	int (*stui_tsp_type)(void);
-};
-
 
 extern void sec_cmd_set_cmd_exit(struct sec_cmd_data *data);
 extern void sec_cmd_set_default_result(struct sec_cmd_data *data);

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef _MT_ISP_H
 #define _MT_ISP_H
@@ -852,6 +844,7 @@ enum ISP_HALT_DMA_ENUM {
 					struct compat_ISP_MEM_INFO_STRUCT)
 #define COMPAT_ISP_SET_VIR_CQCNT      \
 	_IOWR(ISP_MAGIC, ISP_CMD_SET_VIR_CQCNT, unsigned int)
+
 #define COMPAT_ISP_TRANSFOR_CCU_REG     \
 	_IOWR(ISP_MAGIC, ISP_CMD_TRANSFOR_CCU_REG,   compat_uptr_t)
 #endif

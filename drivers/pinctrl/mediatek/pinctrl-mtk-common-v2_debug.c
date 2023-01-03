@@ -1,27 +1,24 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
+ * Copyright (C) 2020 MediaTek Inc.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * Author: Light Hsieh <light.hsieh@mediatek.com>
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
+
+#include <linux/module.h>
 
 #include <dt-bindings/pinctrl/mt65xx.h>
 #include <linux/gpio.h>
 #include <linux/gpio/consumer.h>
 #include <../../gpio/gpiolib.h>
+#include <asm-generic/gpio.h>
 #include <linux/delay.h>
 #include "pinctrl-paris.h"
 
 #define MTK_PINCTRL_DEV_NAME "pinctrl_paris"
 #define PULL_DELAY 50 /* in ms */
 #define FUN_3STATE "gpio_get_value_tristate"
-
 
 static const char *pinctrl_paris_modname = MTK_PINCTRL_DEV_NAME;
 static struct mtk_pinctrl *g_hw;
@@ -50,7 +47,7 @@ int gpio_get_tristate_input(unsigned int pin)
 {
 	struct mtk_pinctrl *hw = NULL;
 	const struct mtk_pin_desc *desc;
-	int val, val_up, val_down, ret, pullup, pullen;
+	int val, val_up, val_down, ret, pullup, pullen, pull_type;
 
 	if (!g_hw)
 		mtk_gpio_find_mtk_pinctrl_dev();
@@ -61,6 +58,11 @@ int gpio_get_tristate_input(unsigned int pin)
 	if (!hw->soc) {
 		pr_notice("invalid gpio chip\n");
 		return -EINVAL;
+	}
+
+	if (!hw->soc->bias_set_combo) {
+		pr_notice("not supported gpio chip\n");
+		return -ENOTSUPP;
 	}
 
 	if (pin < hw->chip.base) {
@@ -76,34 +78,46 @@ int gpio_get_tristate_input(unsigned int pin)
 	}
 
 	desc = (const struct mtk_pin_desc *)&hw->soc->pins[pin];
-	val = mtk_pctrl_get_pinmux(hw, pin);
+	ret = mtk_hw_get_value(hw, desc, PINCTRL_PIN_REG_MODE, &val);
+	if (ret)
+		return ret;
 	if (val != 0) {
 		pr_notice(FUN_3STATE ":GPIO%d in mode %d, not GPIO mode\n",
 			pin, val);
 		return -EINVAL;
 	}
 
-	ret = mtk_pinconf_bias_get_combo(hw, desc, &pullup, &pullen);
+	ret = hw->soc->bias_get_combo(hw, desc, &pullup, &pullen);
 	if (ret)
 		return ret;
 	if (pullen == 0 ||  pullen == MTK_PUPD_SET_R1R0_00) {
 		pr_notice(FUN_3STATE ":GPIO%d not pullen, skip floating test\n",
 			pin);
-		return mtk_pctrl_get_in(hw, pin);
+		return gpio_get_value(pin+hw->chip.base);
 	}
+	if (pullen > MTK_PUPD_SET_R1R0_00)
+		pull_type = 1;
+	else
+		pull_type = 0;
 
 	/* set pullsel as pull-up and get input value */
 	pr_notice(FUN_3STATE ":pull up GPIO%d\n", pin);
-	mtk_pinconf_bias_set_combo(hw, desc, 1, pullen);
+	ret = hw->soc->bias_set_combo(hw, desc, 1,
+		(pull_type ? MTK_PUPD_SET_R1R0_11 : MTK_ENABLE));
+	if (ret)
+		goto out;
 	mdelay(PULL_DELAY);
-	val_up = mtk_pctrl_get_in(hw, pin),
+	val_up = gpio_get_value(pin+hw->chip.base);
 	pr_notice(FUN_3STATE ":GPIO%d input %d\n", pin, val_up);
 
 	/* set pullsel as pull-down and get input value */
 	pr_notice(FUN_3STATE ":pull down GPIO%d\n", pin);
-	mtk_pinconf_bias_set_combo(hw, desc, 0, pullen);
+	ret = hw->soc->bias_set_combo(hw, desc, 0,
+		(pull_type ? MTK_PUPD_SET_R1R0_11 : MTK_ENABLE));
+	if (ret)
+		goto out;
 	mdelay(PULL_DELAY);
-	val_down = mtk_pctrl_get_in(hw, pin);
+	val_down = gpio_get_value(pin+hw->chip.base);
 	pr_notice(FUN_3STATE ":GPIO%d input %d\n", pin, val_down);
 
 	if (val_up && val_down)
@@ -117,8 +131,9 @@ int gpio_get_tristate_input(unsigned int pin)
 		ret = -EINVAL;
 	}
 
+out:
 	/* restore pullsel */
-	mtk_pinconf_bias_set_combo(hw, desc, pullup, pullen);
+	hw->soc->bias_set_combo(hw, desc, pullup, pullen);
 
 	return ret;
 }
@@ -219,6 +234,7 @@ void gpio_dump_regs_range(int start, int end)
 		pr_notice("%s", buf);
 	}
 }
+EXPORT_SYMBOL_GPL(gpio_dump_regs_range);
 
 void gpio_dump_regs(void)
 {
@@ -404,10 +420,12 @@ static int mtk_gpio_create_attr(void)
 
 	return err;
 }
-
 static int __init pinctrl_mtk_debug_v2_init(void)
 {
 	return mtk_gpio_create_attr();
 }
 
 late_initcall(pinctrl_mtk_debug_v2_init);
+
+MODULE_LICENSE("GPL v2");
+MODULE_DESCRIPTION("MediaTek Pinctrl DEBUG Driver");

@@ -100,6 +100,11 @@
 #define HX_MOD_KSYM_HX83121            HX_MOD_KSYM_HX83121
 #endif
 
+#if defined(__HIMAX_HX83122_MOD__)
+#define HX_MOD_KSYM_HX83122            HX_MOD_KSYM_HX83122
+#endif
+
+
 #define CORE_INIT
 #define CORE_IC
 #define CORE_FW
@@ -311,8 +316,13 @@ struct hx_guest_info {
 	#define fw_addr_fw_state_addr							0x900000f8
 	#define fw_addr_fw_dbg_msg_addr							0x10007f40
 	#define fw_addr_chk_fw_status							0x900000a8
+	#define fw_addr_chk_dd_status             				0x900000E8
 	#define fw_addr_dd_handshak_addr						0x900000fc
 	#define fw_addr_dd_data_addr							0x10007f80
+	#define fw_addr_clr_fw_record_dd_sts        0x10007FCC
+	#define fw_addr_ap_notify_fw_sus            0x10007FD0
+	#define fw_data_ap_notify_fw_sus_en         0xA55AA55A
+	#define fw_data_ap_notify_fw_sus_dis        0x00000000
 	#define fw_data_dd_request								0xaa
 	#define fw_data_dd_ack									0xbb
 	#define fw_data_rawdata_ready_hb						0xa3
@@ -329,6 +339,7 @@ struct hx_guest_info {
 	#define fw_data_ulpm_22									0x22
 	#define fw_data_ulpm_33									0x33
 	#define fw_data_ulpm_aa									0xAA
+	#define fw_addr_gesture_history						0x10006E00
 #ifdef SEC_FACTORY_MODE
 	#define FW_EDGE_BORDER_ON						0x11
 	#define FW_EDGE_BORDER_OFF						0x00
@@ -338,6 +349,37 @@ struct hx_guest_info {
 //	#define FW_CAL_ADDR								0x10007088	/*bit[2] */
 	#define FW_RPORT_THRSH_ADDR						0x1000708C	/*byte[3] */
 #endif
+	#define fw_addr_ctrl_mpap_ovl               0x100073EC
+	#define fw_data_ctrl_mpap_ovl_on            0x107380
+	/* inspection */
+	#define fw_addr_normal_noise_thx            0x1000708C
+	#define fw_addr_lpwug_noise_thx             0x10007090
+	#define fw_addr_noise_scale                 0x10007094
+	#define fw_addr_recal_thx                   0x10007090
+	#define fw_addr_palm_num                    0x100070A8
+	#define fw_addr_weight_sup                  0x100072C8
+	#define fw_addr_normal_weight_a             0x1000709C
+	#define fw_addr_lpwug_weight_a              0x100070A0
+	#define fw_addr_weight_b                    0x10007094
+	#define fw_addr_max_dc                      0x10007FC8
+	#define fw_addr_skip_frame                  0x100070F4
+	#define fw_addr_neg_noise_sup               0x10007FD8
+	#define fw_data_neg_noise                   0x7F0C0000
+
+	#define ADDR_ROTATIVE_MODE 0x10007F3C
+	#define DATA_PORTRAIT 0XA55AA55A
+	#define DATA_LANDSCAPE 0XA11AA11A
+	#define ADDR_GRIP_ZONE 0X10007268
+	#define ADDR_REJECT_ZONE 0X1000726C
+	#define ADDR_REJECT_ZONE_BOUD 0X10007270
+	#define ADDR_EXCEPT_ZONE 0X10007274
+
+	#define ADDR_GESTURE_HISTORY 0x10006200
+	#define ADDR_SNR_MEASUREMENT 0x10007F30
+	#define ADDR_MODE_BASE 0x10007F00
+	#define ADDR_PROXIMITY_MODE 0x10007f20
+	#define ADDR_PROXIMITY_DEBUG 0x10007f18
+
 	#define on_fw_addr_smwp_enable							0xA2
 	#define on_fw_usb_detect_addr							0xA4
 	#define on_fw_addr_program_reload_from					0x00000000
@@ -387,13 +429,23 @@ struct hx_guest_info {
 	#define flash_addr_spi200_cmd							(flash_addr_ctrl_base + 0x24)
 	#define flash_addr_spi200_addr							(flash_addr_ctrl_base + 0x28)
 	#define flash_addr_spi200_data							(flash_addr_ctrl_base + 0x2c)
+	#define flash_addr_spi200_fifo_rst     (flash_addr_ctrl_base + 0x30)
+	#define flash_addr_spi200_rst_status   (flash_addr_ctrl_base + 0x34)
+	#define flash_addr_spi200_flash_speed  (flash_addr_ctrl_base + 0x40)
+
 	#define flash_addr_spi200_bt_num						(flash_addr_ctrl_base + 0xe8)
+	#define flash_data_spi200_txfifo_rst   0x00000004
+	#define flash_data_spi200_rxfifo_rst   0x00000002
+
 	#define flash_data_spi200_trans_fmt						0x00020780
 	#define flash_data_spi200_trans_ctrl_1					0x42000003
 	#define flash_data_spi200_trans_ctrl_2					0x47000000
 	#define flash_data_spi200_trans_ctrl_3					0x67000000
 	#define flash_data_spi200_trans_ctrl_4					0x610ff000
 	#define flash_data_spi200_trans_ctrl_5					0x694002ff
+	#define flash_data_spi200_trans_ctrl_6 0x42000000
+	#define flash_data_spi200_trans_ctrl_7 0x6940020f
+
 	#define flash_data_spi200_cmd_1							0x00000005
 	#define flash_data_spi200_cmd_2							0x00000006
 	#define flash_data_spi200_cmd_3							0x000000C7
@@ -401,6 +453,7 @@ struct hx_guest_info {
 	#define flash_data_spi200_cmd_5							0x00000020
 	#define flash_data_spi200_cmd_6							0x00000002
 	#define flash_data_spi200_cmd_7							0x0000003b
+	#define flash_data_spi200_cmd_8        0x00000003
 	#define flash_data_spi200_addr							0x00000000
 	#define flash_clk_setup_addr							0x80000040
 
@@ -451,6 +504,8 @@ struct hx_guest_info {
 	#define driver_data_fw_define_rxnum_txnum_maxpt_normal	0x00000014
 	#define driver_addr_fw_define_xy_res_enable				0x100070f8
 	#define driver_addr_fw_define_x_y_res					0x100070fc
+	#define driver_addr_fw_define_stylus                    0x1000719c
+	#define driver_addr_fw_define_idv2_ratio                0x100071fc
 	#define driver_data_df_rx								36
 	#define driver_data_df_tx								18
 	#define driver_data_df_pt								10
@@ -526,154 +581,199 @@ enum bin_desc_map_table {
 };
 
 struct ic_operation {
-	uint8_t  addr_ahb_addr_byte_0[1];
-	uint8_t  addr_ahb_rdata_byte_0[1];
-	uint8_t  addr_ahb_access_direction[1];
-	uint8_t  addr_conti[1];
-	uint8_t  addr_incr4[1];
-	uint8_t  adr_i2c_psw_lb[1];
-	uint8_t  adr_i2c_psw_ub[1];
-	uint8_t  data_ahb_access_direction_read[1];
-	uint8_t  data_conti[1];
-	uint8_t  data_incr4[1];
-	uint8_t  data_i2c_psw_lb[1];
-	uint8_t  data_i2c_psw_ub[1];
-	uint8_t  addr_tcon_on_rst[4];
-	uint8_t  addr_adc_on_rst[4];
-	uint8_t  addr_psl[4];
-	uint8_t  addr_cs_central_state[4];
-	uint8_t  data_rst[4];
-	uint8_t  adr_osc_en[4];
-	uint8_t  adr_osc_pw[4];
+	uint8_t addr_ahb_addr_byte_0[1];
+	uint8_t addr_ahb_rdata_byte_0[1];
+	uint8_t addr_ahb_access_direction[1];
+	uint8_t addr_conti[1];
+	uint8_t addr_incr4[1];
+	uint8_t adr_i2c_psw_lb[1];
+	uint8_t adr_i2c_psw_ub[1];
+	uint8_t data_ahb_access_direction_read[1];
+	uint8_t data_conti[1];
+	uint8_t data_incr4[1];
+	uint8_t data_i2c_psw_lb[1];
+	uint8_t data_i2c_psw_ub[1];
+	uint8_t addr_tcon_on_rst[4];
+	uint8_t addr_adc_on_rst[4];
+	uint8_t addr_psl[4];
+	uint8_t addr_cs_central_state[4];
+	uint8_t data_rst[4];
+	uint8_t adr_osc_en[4];
+	uint8_t adr_osc_pw[4];
 };
 
 struct fw_operation {
-	uint8_t  addr_system_reset[4];
-	uint8_t  addr_safe_mode_release_pw[4];
-	uint8_t  addr_ctrl_fw_isr[4];
-	uint8_t  addr_flag_reset_event[4];
-	uint8_t  addr_hsen_enable[4];
-	uint8_t  addr_smwp_enable[4];
-	uint8_t  addr_program_reload_from[4];
-	uint8_t  addr_program_reload_to[4];
-	uint8_t  addr_program_reload_page_write[4];
-	uint8_t  addr_raw_out_sel[4];
-	uint8_t  addr_reload_status[4];
-	uint8_t  addr_reload_crc32_result[4];
-	uint8_t  addr_reload_addr_from[4];
-	uint8_t  addr_reload_addr_cmd_beat[4];
-	uint8_t  addr_selftest_addr_en[4];
-	uint8_t  addr_criteria_addr[4];
-	uint8_t  addr_set_frame_addr[4];
-	uint8_t  addr_selftest_result_addr[4];
-	uint8_t  addr_sorting_mode_en[4];
-	uint8_t  addr_fw_mode_status[4];
-	uint8_t  addr_icid_addr[4];
-	uint8_t  addr_trigger_addr[4];
-	uint8_t  addr_fw_ver_addr[4];
-	uint8_t  addr_fw_cfg_addr[4];
-	uint8_t  addr_fw_vendor_addr[4];
-	uint8_t  addr_ver_ic_name[4];
-	uint8_t  addr_cus_info[4];
-	uint8_t  addr_proj_info[4];
-	uint8_t  addr_fw_state_addr[4];
-	uint8_t  addr_fw_dbg_msg_addr[4];
-	uint8_t  addr_chk_fw_status[4];
-	uint8_t  addr_dd_handshak_addr[4];
-	uint8_t  addr_dd_data_addr[4];
-	uint8_t  data_system_reset[4];
-	uint8_t  data_safe_mode_release_pw_active[4];
-	uint8_t  data_safe_mode_release_pw_reset[4];
-	uint8_t  data_clear[4];
-	uint8_t  data_fw_stop[4];
-	uint8_t  data_program_reload_start[4];
-	uint8_t  data_program_reload_compare[4];
-	uint8_t  data_program_reload_break[4];
-	uint8_t  data_selftest_request[4];
-	uint8_t  data_criteria_aa_top[1];
-	uint8_t  data_criteria_aa_bot[1];
-	uint8_t  data_criteria_key_top[1];
-	uint8_t  data_criteria_key_bot[1];
-	uint8_t  data_criteria_avg_top[1];
-	uint8_t  data_criteria_avg_bot[1];
-	uint8_t  data_set_frame[4];
-	uint8_t  data_selftest_ack_hb[1];
-	uint8_t  data_selftest_ack_lb[1];
-	uint8_t  data_selftest_pass[1];
-	uint8_t  data_normal_cmd[1];
-	uint8_t  data_normal_status[1];
-	uint8_t  data_sorting_cmd[1];
-	uint8_t  data_sorting_status[1];
-	uint8_t  data_dd_request[1];
-	uint8_t  data_dd_ack[1];
-	uint8_t  data_idle_dis_pwd[1];
-	uint8_t  data_idle_en_pwd[1];
-	uint8_t  data_rawdata_ready_hb[1];
-	uint8_t  data_rawdata_ready_lb[1];
-	uint8_t  addr_ahb_addr[1];
-	uint8_t  data_ahb_dis[1];
-	uint8_t  data_ahb_en[1];
-	uint8_t  addr_event_addr[1];
-	uint8_t  addr_usb_detect[4];
-	uint8_t  addr_ulpm_33[1];
-	uint8_t  addr_ulpm_34[1];
-	uint8_t  data_ulpm_11[1];
-	uint8_t  data_ulpm_22[1];
-	uint8_t  data_ulpm_33[1];
-	uint8_t  data_ulpm_aa[1];
+	uint8_t addr_system_reset[4];
+	uint8_t addr_safe_mode_release_pw[4];
+	uint8_t addr_ctrl_fw_isr[4];
+	uint8_t addr_flag_reset_event[4];
+	uint8_t addr_hsen_enable[4];
+	uint8_t addr_smwp_enable[4];
+	uint8_t addr_program_reload_from[4];
+	uint8_t addr_program_reload_to[4];
+	uint8_t addr_program_reload_page_write[4];
+	uint8_t addr_raw_out_sel[4];
+	uint8_t addr_reload_status[4];
+	uint8_t addr_reload_crc32_result[4];
+	uint8_t addr_reload_addr_from[4];
+	uint8_t addr_reload_addr_cmd_beat[4];
+	uint8_t addr_selftest_addr_en[4];
+	uint8_t addr_criteria_addr[4];
+	uint8_t addr_set_frame_addr[4];
+	uint8_t addr_selftest_result_addr[4];
+	uint8_t addr_sorting_mode_en[4];
+	uint8_t addr_fw_mode_status[4];
+	uint8_t addr_icid_addr[4];
+	uint8_t addr_trigger_addr[4];
+	uint8_t addr_fw_ver_addr[4];
+	uint8_t addr_fw_cfg_addr[4];
+	uint8_t addr_fw_vendor_addr[4];
+	uint8_t addr_ver_ic_name[4];
+	uint8_t addr_cus_info[4];
+	uint8_t addr_proj_info[4];
+	uint8_t addr_fw_state_addr[4];
+	uint8_t addr_fw_dbg_msg_addr[4];
+	uint8_t addr_chk_fw_status[4];
+	uint8_t addr_chk_dd_status[4];
+	uint8_t addr_dd_handshak_addr[4];
+	uint8_t addr_dd_data_addr[4];
+	uint8_t addr_clr_fw_record_dd_sts[4];
+	uint8_t addr_ap_notify_fw_sus[4];
+	uint8_t data_ap_notify_fw_sus_en[4];
+	uint8_t data_ap_notify_fw_sus_dis[4];
+	uint8_t data_system_reset[4];
+	uint8_t data_safe_mode_release_pw_active[4];
+	uint8_t data_safe_mode_release_pw_reset[4];
+	uint8_t data_clear[4];
+	uint8_t data_fw_stop[4];
+	uint8_t data_program_reload_start[4];
+	uint8_t data_program_reload_compare[4];
+	uint8_t data_program_reload_break[4];
+	uint8_t data_selftest_request[4];
+	uint8_t data_criteria_aa_top[1];
+	uint8_t data_criteria_aa_bot[1];
+	uint8_t data_criteria_key_top[1];
+	uint8_t data_criteria_key_bot[1];
+	uint8_t data_criteria_avg_top[1];
+	uint8_t data_criteria_avg_bot[1];
+	uint8_t data_set_frame[4];
+	uint8_t data_selftest_ack_hb[1];
+	uint8_t data_selftest_ack_lb[1];
+	uint8_t data_selftest_pass[1];
+	uint8_t data_normal_cmd[1];
+	uint8_t data_normal_status[1];
+	uint8_t data_sorting_cmd[1];
+	uint8_t data_sorting_status[1];
+	uint8_t data_dd_request[1];
+	uint8_t data_dd_ack[1];
+	uint8_t data_idle_dis_pwd[1];
+	uint8_t data_idle_en_pwd[1];
+	uint8_t data_rawdata_ready_hb[1];
+	uint8_t data_rawdata_ready_lb[1];
+	uint8_t addr_ahb_addr[1];
+	uint8_t data_ahb_dis[1];
+	uint8_t data_ahb_en[1];
+	uint8_t addr_event_addr[1];
+	uint8_t addr_usb_detect[4];
+	uint8_t addr_ulpm_33[1];
+	uint8_t addr_ulpm_34[1];
+	uint8_t data_ulpm_11[1];
+	uint8_t data_ulpm_22[1];
+	uint8_t data_ulpm_33[1];
+	uint8_t data_ulpm_aa[1];
+	uint8_t addr_gesture_history[4];
 #ifdef SEC_FACTORY_MODE
 	uint8_t addr_edge_border[4];
 //	uint8_t addr_cal[4];
 	uint8_t addr_rport_thrsh[4];
 #endif
+	uint8_t addr_ctrl_mpap_ovl[4];
+	uint8_t data_ctrl_mpap_ovl_on[4];
+	uint8_t addr_normal_noise_thx[4];
+	uint8_t addr_lpwug_noise_thx[4];
+	uint8_t addr_noise_scale[4];
+	uint8_t addr_recal_thx[4];
+	uint8_t addr_palm_num[4];
+	uint8_t addr_weight_sup[4];
+	uint8_t addr_normal_weight_a[4];
+	uint8_t addr_lpwug_weight_a[4];
+	uint8_t addr_weight_b[4];
+	uint8_t addr_max_dc[4];
+	uint8_t addr_skip_frame[4];
+	uint8_t addr_neg_noise_sup[4];
+	uint8_t data_neg_noise[4];
+
+	uint8_t addr_rotative_mode[4];
+	uint8_t data_portrait[4];
+	uint8_t data_landscape[4];
+
+	uint32_t addr_grip_zone;
+	uint32_t addr_reject_zone;
+	uint32_t addr_reject_zone_boud;
+	uint32_t addr_except_zone;
+
+	uint8_t addr_snr_measurement[4];
+	uint8_t addr_mode_base[4];
+	uint8_t addr_proximity_mode[4];
+	uint8_t addr_proximity_debug[4];
 };
 
 struct flash_operation {
-	uint8_t  addr_spi200_trans_fmt[4];
-	uint8_t  addr_spi200_trans_ctrl[4];
-	uint8_t  addr_spi200_cmd[4];
-	uint8_t  addr_spi200_addr[4];
-	uint8_t  addr_spi200_data[4];
-	uint8_t  addr_spi200_bt_num[4];
+	uint8_t addr_spi200_trans_fmt[4];
+	uint8_t addr_spi200_trans_ctrl[4];
+	uint8_t addr_spi200_fifo_rst[4];
+	uint8_t addr_spi200_rst_status[4];
+	uint8_t addr_spi200_flash_speed[4];
+	uint8_t addr_spi200_cmd[4];
+	uint8_t addr_spi200_addr[4];
+	uint8_t addr_spi200_data[4];
+	uint8_t addr_spi200_bt_num[4];
 
-	uint8_t  data_spi200_trans_fmt[4];
-	uint8_t  data_spi200_trans_ctrl_1[4];
-	uint8_t  data_spi200_trans_ctrl_2[4];
-	uint8_t  data_spi200_trans_ctrl_3[4];
-	uint8_t  data_spi200_trans_ctrl_4[4];
-	uint8_t  data_spi200_trans_ctrl_5[4];
-	uint8_t  data_spi200_cmd_1[4];
-	uint8_t  data_spi200_cmd_2[4];
-	uint8_t  data_spi200_cmd_3[4];
-	uint8_t  data_spi200_cmd_4[4];
-	uint8_t  data_spi200_cmd_5[4];
-	uint8_t  data_spi200_cmd_6[4];
-	uint8_t  data_spi200_cmd_7[4];
-	uint8_t  data_spi200_addr[4];
+	uint8_t data_spi200_txfifo_rst[4];
+	uint8_t data_spi200_rxfifo_rst[4];
+	uint8_t data_spi200_trans_fmt[4];
+	uint8_t data_spi200_trans_ctrl_1[4];
+	uint8_t data_spi200_trans_ctrl_2[4];
+	uint8_t data_spi200_trans_ctrl_3[4];
+	uint8_t data_spi200_trans_ctrl_4[4];
+	uint8_t data_spi200_trans_ctrl_5[4];
+	uint8_t data_spi200_trans_ctrl_6[4];
+	uint8_t data_spi200_trans_ctrl_7[4];
+	uint8_t data_spi200_cmd_1[4];
+	uint8_t data_spi200_cmd_2[4];
+	uint8_t data_spi200_cmd_3[4];
+	uint8_t data_spi200_cmd_4[4];
+	uint8_t data_spi200_cmd_5[4];
+	uint8_t data_spi200_cmd_6[4];
+	uint8_t data_spi200_cmd_7[4];
+	uint8_t data_spi200_cmd_8[4];
+	uint8_t data_spi200_addr[4];
 };
 
 struct sram_operation {
-	uint8_t  addr_mkey[4];
-	uint8_t  addr_rawdata_addr[4];
-	uint8_t  addr_rawdata_end[4];
-	uint8_t	 passwrd_start[2];
-	uint8_t	 passwrd_end[2];
+	uint8_t addr_mkey[4];
+	uint8_t addr_rawdata_addr[4];
+	uint8_t addr_rawdata_end[4];
+	uint8_t passwrd_start[2];
+	uint8_t passwrd_end[2];
 };
 
 struct driver_operation {
-	uint8_t  addr_fw_define_flash_reload[4];
-	uint8_t  addr_fw_define_2nd_flash_reload[4];
-	uint8_t  addr_fw_define_int_is_edge[4];
-	uint8_t  addr_fw_define_rxnum_txnum_maxpt[4];
-	uint8_t  addr_fw_define_xy_res_enable[4];
-	uint8_t  addr_fw_define_x_y_res[4];
-	uint8_t  data_df_rx[1];
-	uint8_t  data_df_tx[1];
-	uint8_t  data_df_pt[1];
-	uint8_t  data_fw_define_flash_reload_dis[4];
-	uint8_t  data_fw_define_flash_reload_en[4];
-	uint8_t  data_fw_define_rxnum_txnum_maxpt_sorting[4];
-	uint8_t  data_fw_define_rxnum_txnum_maxpt_normal[4];
+	uint8_t addr_fw_define_flash_reload[4];
+	uint8_t addr_fw_define_2nd_flash_reload[4];
+	uint8_t addr_fw_define_int_is_edge[4];
+	uint8_t addr_fw_define_rxnum_txnum_maxpt[4];
+	uint8_t addr_fw_define_xy_res_enable[4];
+	uint8_t addr_fw_define_x_y_res[4];
+	uint8_t addr_fw_define_stylus[4];
+	uint8_t addr_fw_define_idv2_ratio[4];
+	uint8_t data_df_rx[1];
+	uint8_t data_df_tx[1];
+	uint8_t data_df_pt[1];
+	uint8_t data_fw_define_flash_reload_dis[4];
+	uint8_t data_fw_define_flash_reload_en[4];
+	uint8_t data_fw_define_rxnum_txnum_maxpt_sorting[4];
+	uint8_t data_fw_define_rxnum_txnum_maxpt_normal[4];
 };
 
 struct zf_operation {
@@ -696,6 +796,7 @@ struct zf_operation {
 	uint8_t data_activ_sts[1];
 	uint8_t addr_activ_relod[4];
 	uint8_t data_activ_in[1];
+	uint8_t addr_ovl_handshake[4];
 };
 
 struct himax_core_command_operation {
@@ -708,15 +809,15 @@ struct himax_core_command_operation {
 };
 
 struct on_ic_operation {
-	uint8_t  addr_ahb_addr_byte_0[1];
-	uint8_t  addr_ahb_rdata_byte_0[1];
-	uint8_t  addr_ahb_access_direction[1];
-	uint8_t  addr_conti[1];
-	uint8_t  addr_incr4[1];
+	uint8_t addr_ahb_addr_byte_0[1];
+	uint8_t addr_ahb_rdata_byte_0[1];
+	uint8_t addr_ahb_access_direction[1];
+	uint8_t addr_conti[1];
+	uint8_t addr_incr4[1];
 	uint8_t adr_mcu_ctrl[1];
-	uint8_t  data_ahb_access_direction_read[1];
-	uint8_t  data_conti[1];
-	uint8_t  data_incr4[1];
+	uint8_t data_ahb_access_direction_read[1];
+	uint8_t data_conti[1];
+	uint8_t data_incr4[1];
 	uint8_t cmd_mcu_on[1];
 	uint8_t cmd_mcu_off[1];
 	uint8_t adr_sleep_ctrl[1];
@@ -730,99 +831,99 @@ struct on_ic_operation {
 };
 
 struct on_fw_operation {
-	uint8_t  addr_smwp_enable[1];
-	uint8_t  addr_program_reload_from[4];
-	uint8_t  addr_raw_out_sel[1];
-	uint8_t  addr_flash_checksum[4];
-	uint8_t  data_flash_checksum[4];
-	uint8_t  addr_crc_value[4];
-	uint8_t  addr_reload_status[4];
-	uint8_t  addr_reload_crc32_result[4];
-	uint8_t  addr_reload_addr_from[4];
-	uint8_t  addr_reload_addr_cmd_beat[4];
-	uint8_t  addr_set_frame_addr[4];
-	uint8_t  addr_fw_mode_status[1];
-	uint8_t  addr_icid_addr[4];
-	uint8_t  addr_trigger_addr[4];
-	uint8_t  addr_fw_ver_start[1];
-	uint8_t  data_safe_mode_release_pw_active[4];
-	uint8_t  data_safe_mode_release_pw_reset[4];
-	uint8_t  data_clear[4];
-	uint8_t  addr_criteria_addr[1];
-	uint8_t  data_selftest_pass[1];
-	uint8_t  addr_reK_crtl[4];
-	uint8_t  data_reK_en[1];
-	uint8_t  data_reK_dis[1];
-	uint8_t  data_rst_init[1];
-	uint8_t  data_dc_set[1];
-	uint8_t  data_bank_set[1];
-	uint8_t  addr_selftest_addr_en[1];
-	uint8_t  addr_selftest_result_addr[1];
-	uint8_t  data_selftest_request[1];
-	uint8_t  data_thx_avg_mul_dc_lsb[1];
-	uint8_t  data_thx_avg_mul_dc_msb[1];
-	uint8_t  data_thx_mul_dc_up_low_bud[1];
-	uint8_t  data_thx_avg_slf_dc_lsb[1];
-	uint8_t  data_thx_avg_slf_dc_msb[1];
-	uint8_t  data_thx_slf_dc_up_low_bud[1];
-	uint8_t  data_thx_slf_bank_up[1];
-	uint8_t  data_thx_slf_bank_low[1];
-	uint8_t  data_idle_dis_pwd[1];
-	uint8_t  data_idle_en_pwd[1];
-	uint8_t  data_rawdata_ready_hb[1];
-	uint8_t  data_rawdata_ready_lb[1];
-	uint8_t  addr_ahb_addr[1];
-	uint8_t  data_ahb_dis[1];
-	uint8_t  data_ahb_en[1];
-	uint8_t  addr_event_addr[1];
-	uint8_t  addr_usb_detect[1];
+	uint8_t addr_smwp_enable[1];
+	uint8_t addr_program_reload_from[4];
+	uint8_t addr_raw_out_sel[1];
+	uint8_t addr_flash_checksum[4];
+	uint8_t data_flash_checksum[4];
+	uint8_t addr_crc_value[4];
+	uint8_t addr_reload_status[4];
+	uint8_t addr_reload_crc32_result[4];
+	uint8_t addr_reload_addr_from[4];
+	uint8_t addr_reload_addr_cmd_beat[4];
+	uint8_t addr_set_frame_addr[4];
+	uint8_t addr_fw_mode_status[1];
+	uint8_t addr_icid_addr[4];
+	uint8_t addr_trigger_addr[4];
+	uint8_t addr_fw_ver_start[1];
+	uint8_t data_safe_mode_release_pw_active[4];
+	uint8_t data_safe_mode_release_pw_reset[4];
+	uint8_t data_clear[4];
+	uint8_t addr_criteria_addr[1];
+	uint8_t data_selftest_pass[1];
+	uint8_t addr_reK_crtl[4];
+	uint8_t data_reK_en[1];
+	uint8_t data_reK_dis[1];
+	uint8_t data_rst_init[1];
+	uint8_t data_dc_set[1];
+	uint8_t data_bank_set[1];
+	uint8_t addr_selftest_addr_en[1];
+	uint8_t addr_selftest_result_addr[1];
+	uint8_t data_selftest_request[1];
+	uint8_t data_thx_avg_mul_dc_lsb[1];
+	uint8_t data_thx_avg_mul_dc_msb[1];
+	uint8_t data_thx_mul_dc_up_low_bud[1];
+	uint8_t data_thx_avg_slf_dc_lsb[1];
+	uint8_t data_thx_avg_slf_dc_msb[1];
+	uint8_t data_thx_slf_dc_up_low_bud[1];
+	uint8_t data_thx_slf_bank_up[1];
+	uint8_t data_thx_slf_bank_low[1];
+	uint8_t data_idle_dis_pwd[1];
+	uint8_t data_idle_en_pwd[1];
+	uint8_t data_rawdata_ready_hb[1];
+	uint8_t data_rawdata_ready_lb[1];
+	uint8_t addr_ahb_addr[1];
+	uint8_t data_ahb_dis[1];
+	uint8_t data_ahb_en[1];
+	uint8_t addr_event_addr[1];
+	uint8_t addr_usb_detect[1];
 };
 
 struct on_flash_operation {
 	uint8_t addr_ctrl_base[4];
-	uint8_t  addr_ctrl_auto[4];
-	uint8_t  data_main_erase[4];
-	uint8_t  data_auto[1];
-	uint8_t  data_main_read[1];
-	uint8_t  data_page_write[1];
-	uint8_t  data_sfr_read[1];
-	uint8_t  data_spp_read[1];
-	uint8_t  addr_ahb_ctrl[4];
-	uint8_t  data_ahb_squit[4];
+	uint8_t addr_ctrl_auto[4];
+	uint8_t data_main_erase[4];
+	uint8_t data_auto[1];
+	uint8_t data_main_read[1];
+	uint8_t data_page_write[1];
+	uint8_t data_sfr_read[1];
+	uint8_t data_spp_read[1];
+	uint8_t addr_ahb_ctrl[4];
+	uint8_t data_ahb_squit[4];
 
-	uint8_t  addr_unlock_0[4];
-	uint8_t  addr_unlock_4[4];
-	uint8_t  addr_unlock_8[4];
-	uint8_t  addr_unlock_c[4];
-	uint8_t  data_cmd0[4];
-	uint8_t  data_cmd1[4];
-	uint8_t  data_cmd2[4];
-	uint8_t  data_cmd3[4];
-	uint8_t  data_lock[4];
+	uint8_t addr_unlock_0[4];
+	uint8_t addr_unlock_4[4];
+	uint8_t addr_unlock_8[4];
+	uint8_t addr_unlock_c[4];
+	uint8_t data_cmd0[4];
+	uint8_t data_cmd1[4];
+	uint8_t data_cmd2[4];
+	uint8_t data_cmd3[4];
+	uint8_t data_lock[4];
 };
 
 struct on_sram_operation {
-	uint8_t  addr_rawdata_addr[4];
-	uint8_t  addr_rawdata_end[4];
-	uint8_t  data_conti[4];
-	uint8_t  data_fin[4];
-	uint8_t	 passwrd_start[2];
-	uint8_t	 passwrd_end[2];
+	uint8_t addr_rawdata_addr[4];
+	uint8_t addr_rawdata_end[4];
+	uint8_t data_conti[4];
+	uint8_t data_fin[4];
+	uint8_t passwrd_start[2];
+	uint8_t passwrd_end[2];
 };
 
 struct on_driver_operation {
-	uint8_t  addr_fw_define_int_is_edge[4];
+	uint8_t addr_fw_define_int_is_edge[4];
 	uint8_t addr_fw_rx_tx_maxpt_num[4];
 #ifdef HX_NEW_EVENT_STACK_FORMAT
 	uint8_t addr_fw_maxpt_bt_num[4];
 #endif
 	uint8_t addr_fw_xy_rev_int_edge[4];
 	uint8_t addr_fw_define_x_y_res[4];
-	uint8_t  data_fw_define_rxnum_txnum_maxpt_sorting[4];
-	uint8_t  data_fw_define_rxnum_txnum_maxpt_normal[4];
-	uint8_t  data_df_rx[1];
-	uint8_t  data_df_tx[1];
-	uint8_t  data_df_pt[1];
+	uint8_t data_fw_define_rxnum_txnum_maxpt_sorting[4];
+	uint8_t data_fw_define_rxnum_txnum_maxpt_normal[4];
+	uint8_t data_df_rx[1];
+	uint8_t data_df_tx[1];
+	uint8_t data_df_pt[1];
 };
 
 struct himax_on_core_command_operation {
@@ -937,6 +1038,7 @@ struct himax_core_fp {
 	bool (*fp_unlock_flash)(void);
 	void  (*fp_init_auto_func)(void);
 	int	(*_diff_overlay_flash)(void);
+	bool (*fp_bin_desc_get)(unsigned char *fw, uint32_t max_sz);
 #endif
 
 #ifdef CORE_SRAM

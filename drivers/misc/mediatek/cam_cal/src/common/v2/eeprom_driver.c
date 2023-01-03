@@ -1,16 +1,9 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
-#define PFX "CAM_CAL"
+
+#define PFX "CAM_CAL D/D"
 #define pr_fmt(fmt) PFX "[%s] " fmt, __func__
 
 #include <linux/cdev.h>
@@ -31,12 +24,17 @@
 #include "cam_cal_list.h"
 
 #include "cam_cal.h"
-#include "kd_imgsensor_sysfs_adapter.h"
+#include <kd_imgsensor_sysfs_adapter.h>
+
+#if IS_ENABLED(CONFIG_CAMERA_OIS)
+#include "camera_ois.h"
+#endif
 
 #define DEV_NODE_NAME_PREFIX "camera_eeprom"
 #define DEV_NAME_FMT "camera_eeprom%u"
 #define DEV_CLASS_NAME_FMT "camera_eepromdrv%u"
 #define EEPROM_DEVICE_NNUMBER 255
+#define CAM_CAL_BRINGUP "[cam_cal]"
 
 static struct EEPROM_DRV ginst_drv[MAX_EEPROM_NUMBER];
 
@@ -93,6 +91,11 @@ static unsigned int read_region(struct EEPROM_DRV_FD_DATA *pdata,
 	if (IMGSENSOR_SYSFS_UPDATE(buf, pdata->sensor_info.device_id,
 		pdata->sensor_info.sensor_id, offset, size, ret) < 0)
 		ret = 0;
+
+#if IS_ENABLED(CONFIG_CAMERA_OIS)
+	if (pdata->sensor_info.device_id == DUAL_CAMERA_MAIN_SENSOR)
+		cam_ois_mcu_update();
+#endif
 
 	return ret;
 }
@@ -247,7 +250,7 @@ int eeprom_ioctl_get_command_data(enum CAM_CAL_COMMAND command, unsigned int dev
 	rom_addr = IMGSENSOR_SYSGET_ROM_ADDR_BY_ID(device_id, sensor_id);
 
 	if (rom_addr == NULL) {
-		pr_err("[%s] rom_addr is NULL", __func__);
+		pr_err(CAM_CAL_BRINGUP "[%s] rom_addr is NULL", __func__);
 		return -EFAULT;
 	}
 
@@ -346,6 +349,17 @@ long compat_eeprom_ioctl_control_command(void *pBuff)
 }
 #endif
 
+#if IS_ENABLED(CONFIG_CAMERA_OIS)
+static int cam_ois_gyro_cal_from_hal(struct CAM_CAL_OIS_GYRO_CAL *cam_ois_gyro_cal_usr)
+{
+	pr_info("[cam_ois] get gyro cal from hal: %s", (char *)cam_ois_gyro_cal_usr->efsData);
+
+	cam_ois_set_efs_gyro_cal(cam_ois_gyro_cal_usr->efsData);
+
+	return 0;
+}
+#endif
+
 static long eeprom_ioctl(struct file *a_file, unsigned int a_cmd,
 			 unsigned long a_param)
 {
@@ -391,8 +405,13 @@ static long eeprom_ioctl(struct file *a_file, unsigned int a_cmd,
 	case CAM_CALIOC_G_SENSOR_INFO:
 		ret = eeprom_ioctl_control_command(pBuff);
 		if (ret < 0)
-			pr_err("[%s] Failed to get data", __func__);
+			pr_err(CAM_CAL_BRINGUP "[%s] Failed to get data", __func__);
 		break;
+#if IS_ENABLED(CONFIG_CAMERA_OIS)
+	case CAM_CALIOC_S_CAM_OIS_CAL:
+		cam_ois_gyro_cal_from_hal((struct CAM_CAL_OIS_GYRO_CAL *)pBuff);
+	break;
+#endif
 	default:
 		pr_err("No such command %d\n", a_cmd);
 		ret = -EINVAL;
@@ -446,7 +465,7 @@ static long eeprom_compat_ioctl(struct file *a_file, unsigned int a_cmd,
 	case COMPAT_CAM_CALIOC_G_SENSOR_INFO:
 		ret = compat_eeprom_ioctl_control_command(pBuff);
 		if (ret < 0)
-			pr_err("[%s] Failed to get data", __func__);
+			pr_err(CAM_CAL_BRINGUP "[%s] Failed to get data", __func__);
 		break;
 	default:
 		pr_err("No such command %u\n", a_cmd);

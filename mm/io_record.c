@@ -2,7 +2,7 @@
 #include <linux/compiler.h>
 #include <linux/dax.h>
 #include <linux/fs.h>
-#include <linux/sched.h>
+#include <linux/sched/signal.h>
 #include <linux/uaccess.h>
 #include <linux/capability.h>
 #include <linux/kernel_stat.h>
@@ -36,8 +36,8 @@ struct io_info {
 	int nr_pages;
 };
 
-#define NUM_IO_INFO_IN_BUF (128 * 1024) /* # of struct io_info */
-#define RESULT_BUF_SIZE_IN_BYTES (5 * 1024 * 1024) /* 5MB */
+#define NUM_IO_INFO_IN_BUF (64 * 1024) /* # of struct io_info */
+#define RESULT_BUF_SIZE_IN_BYTES (512 * 1024) /* 512 KB */
 #define RESULT_BUF_END_MAGIC (~0) /* -1 */
 
 struct io_info *record_buf; /* array of struct io_info */
@@ -71,7 +71,7 @@ int fill_result_buf(int start_idx, int end_idx)
 	int pathsize;
 	int result_buf_used;
 	int prev_offset = -1;
-	int long max_size = 0;
+	long max_size = 0;
 	void *buf_start;
 	struct file *file;
 
@@ -278,11 +278,11 @@ static int io_info_compare(const void *lhs, const void *rhs)
 	struct io_info *linfo = (struct io_info *)lhs;
 	struct io_info *rinfo = (struct io_info *)rhs;
 
-	if ((unsigned long)linfo->inode > (unsigned long)rinfo->inode)
+	if ((unsigned long)linfo->inode > (unsigned long)rinfo->inode) {
 		return 1;
-	else if ((unsigned long)linfo->inode < (unsigned long)rinfo->inode)
+	} else if ((unsigned long)linfo->inode < (unsigned long)rinfo->inode) {
 		return -1;
-	else {
+	} else {
 		if ((unsigned long)linfo->offset > (unsigned long)rinfo->offset)
 			return 1;
 		else if ((unsigned long)linfo->offset <
@@ -467,6 +467,7 @@ static int __init io_record_init(void)
 	record_buf = vzalloc(sizeof(struct io_info) * NUM_IO_INFO_IN_BUF);
 	if (!record_buf)
 		goto record_buf_fail;
+
 	result_buf = vzalloc(RESULT_BUF_SIZE_IN_BYTES);
 	if (!result_buf)
 		goto result_buf_fail;

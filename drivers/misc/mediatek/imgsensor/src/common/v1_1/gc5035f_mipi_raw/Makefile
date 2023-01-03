@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: GPL-2.0
 
-COMMON_SENSOR := gc5035_mipi_raw
-ifneq ($(findstring $(COMMON_SENSOR), $(CONFIG_CUSTOM_KERNEL_IMGSENSOR)), )
+COMMON_SENSOR := gc5035
+CHECK_DRIVER_DIR := $(COMMON_SENSOR)_mipi_raw
+
+ifneq ($(findstring $(CHECK_DRIVER_DIR), $(CONFIG_CUSTOM_KERNEL_IMGSENSOR)), )
 $(info $(COMMON_SENSOR) device driver is already in use)
-obj-y += gc5035f_dummy.o
+obj-y += $(COMMON_SENSOR)f_dummy.o
 else
-$(info use $(COMMON_SENSOR) device driver)
-obj-y += ../$(COMMON_SENSOR)/gc5035mipiraw_Sensor.o
+$(info used common driver: $(COMMON_SENSOR))
+obj-y += ../$(COMMON_SENSOR)_mipi_raw/
 endif

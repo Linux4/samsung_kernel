@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (C) 2011 Samsung Electronics, Co. Ltd
  *
  * This program is free software; you can redistribute it and/or modify
@@ -8,7 +8,7 @@
 
 #ifndef _IMGSENSOR_SYSFS_H_
 #define _IMGSENSOR_SYSFS_H_
-
+#include <linux/platform_device.h>
 #include "imgsensor_vendor_specific.h"
 #include "imgsensor_vendor.h"
 #include "crc32.h"
@@ -208,13 +208,13 @@ struct imgsensor_rom_info {
 };
 
 struct ssrm_camera_data {
-        int operation;
-        int cameraID;
-        int previewSizeWidth;
-        int previewSizeHeight;
-        int previewMinFPS;
-        int previewMaxFPS;
-        int sensorOn;
+	int operation;
+	int cameraID;
+	int previewSizeWidth;
+	int previewSizeHeight;
+	int previewMinFPS;
+	int previewMaxFPS;
+	int sensorOn;
 };
 
 struct imgsensor_eeprom_read_info {
@@ -225,9 +225,9 @@ struct imgsensor_eeprom_read_info {
 };
 
 enum ssrm_camerainfo_operation {
-        SSRM_CAMERA_INFO_CLEAR,
-        SSRM_CAMERA_INFO_SET,
-        SSRM_CAMERA_INFO_UPDATE,
+	SSRM_CAMERA_INFO_CLEAR,
+	SSRM_CAMERA_INFO_SET,
+	SSRM_CAMERA_INFO_UPDATE,
 };
 
 struct cal_crc_info {
@@ -243,6 +243,7 @@ void imgsensor_get_common_cam_info(struct imgsensor_common_cam_info **caminfo);
 enum sensor_position map_position(enum IMGSENSOR_SENSOR_IDX img_position);
 void update_curr_sensor_pos(int sensorId);
 void update_mipi_sensor_err_cnt(void);
+unsigned int imgsensor_read_otp_cal(unsigned int dual_device_id, unsigned int sensor_id, unsigned int addr, unsigned char *data, unsigned int size);
 int imgsensor_sysfs_update(unsigned char* pRomData, unsigned int dualDeviceId, unsigned int sensorId, unsigned int offset, unsigned int length, int i4RetValue);
 int imgsensor_sys_get_cal_size_by_dual_device_id(unsigned int dualDeviceId, unsigned int sensorId);
 const struct imgsensor_vendor_rom_addr *imgsensor_sys_get_rom_addr_by_id(
@@ -254,4 +255,6 @@ bool imgsensor_get_sac_value_by_sensor_idx(int sensor_idx, u8 *ac_mode, u8 *ac_t
 //return cal_addr by command: ois, crosstalk(for remosaic)
 const struct rom_cal_addr *imgsensor_get_cal_addr_by_sensor_idx(int sensor_idx, enum imgsensor_cal_command command);
 bool imgsensor_get_adaptive_mipi_status(int position);
+bool imgsensor_is_default_cal(int sensor_id);
+int imgsensor_sysfs_get_camera_class(struct class **cam_calss);
 #endif /* _IMGSENSOR_SYSFS_H_ */

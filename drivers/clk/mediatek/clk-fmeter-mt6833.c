@@ -1,21 +1,14 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2020 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/delay.h>
 #include <linux/of_address.h>
 
 #include "clkchk.h"
 #include "clk-fmeter.h"
+#include "clkdbg.h"
 
 static DEFINE_SPINLOCK(meter_lock);
 #define fmeter_lock(flags)   spin_lock_irqsave(&meter_lock, flags)
@@ -33,7 +26,7 @@ static DEFINE_SPINLOCK(meter_lock);
 		.id = _i, .name = _n, .ofs = _o, .pdn = _p}
 #define FMCLK(_t, _i, _n) { .type = _t, .id = _i, .name = _n}
 
-const struct fmeter_clk fclks[] = {
+static const struct fmeter_clk fclks[] = {
 	/* CKGEN Part */
 	FMCLK2(CKGEN, FM_AXI_CK, "fm_axi_ck", 0x10, 7),
 	FMCLK2(CKGEN, FM_SPM_CK, "fm_spm_ck", 0x10, 15),

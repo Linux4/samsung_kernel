@@ -95,7 +95,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/sm5714/sm5714_fuelgauge.a13ve.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/sm5714/sm5714_fuelgauge.a13ve.dtsi */
 /*
  * A13ve battery device tree common
  *
@@ -170,6 +170,14 @@
 
 #if 0
 				mag-check-nfc = <SEC_GPIO_REF(${gpio_nfc_check}) 0>;
+#endif
+
+#if 0
+				pogo-int = <SEC_GPIO_REF(${gpio_pogo_int}) 0>;
+#endif
+
+#if 0
+				sensor-ldo-en = <SEC_GPIO_REF(${gpio_sensor_ldo_en}) 0>;
 #endif
 			};
 		};
@@ -539,15 +547,14 @@
 	};
 };
 
-/* #include "../ap_mtk_mt6769t.dtsi" */              /* From ap_mtk_mt6769t.py */
+/* #include "../ap_mtk_mt6769t_T.dtsi" */            /* From ap_mtk_mt6769t_T.py */
 #include <dt-bindings/clock/mt6768-clk.h>
 
 #define topckgen_clk topckgen
 #define infracfg_ao_clk infracfg_ao
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6769t/ap_mtk_mt6769t.a13ve_eur.00.dtsi */
-#include <dt-bindings/clock/mt6768-clk.h>
-#include "../../mediatek/k69v1_64_titan_bengal_tiger/Board_00.dts"
-#include "../../mediatek/k69v1_64_titan_bengal_tiger/gpio00.dtsi"
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6769t/ap_mtk_mt6769t_T.a13ve_eur.00.dtsi */
+#include "../../mediatek/k69v1_64_titan_bengal_tiger_k419/Board_00.dts"
+#include "../../mediatek/k69v1_64_titan_bengal_tiger_k419/gpio00.dtsi"
 
 /* #include "../sensorhub_mt6769t_shub.dtsi" */      /* From sensorhub_mt6769t_shub.py */
 / {
@@ -561,7 +568,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6769t_shub/dts/sensorhub_mt6769t_shub.a13ve.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6769t_shub/dts/sensorhub_mt6769t_shub.a13ve.dtsi */
 / {
 	fragment@model {
 		target-path = "/";
@@ -935,8 +942,8 @@
 		battery,wireless_cool2_cool1_thresh = <150>;
 		battery,wireless_cool3_cool2_thresh = <50>;
 		battery,wireless_cold_cool3_thresh = <0>;
-		battery,tx_high_threshold = <450>;
-		battery,tx_high_recovery = <400>;
+		battery,tx_high_threshold = <500>;
+		battery,tx_high_recovery = <450>;
 		battery,tx_low_threshold = <0>;
 		battery,tx_low_recovery = <50>;
 
@@ -970,12 +977,10 @@
 		battery,wpc_temp_control_source = <TEMP_CONTROL_SOURCE_BAT_THM>;
 		battery,wpc_high_temp = <400>;
 		battery,wpc_high_temp_recovery = <380>;
-		battery,wpc_input_limit_current = <600>;
+		battery,wpc_input_limit_current = <800>;
 		battery,wpc_charging_limit_current = <1000>;
 		battery,wpc_temp_lcd_on_control_source = <TEMP_CONTROL_SOURCE_BAT_THM>;
-		battery,wpc_lcd_on_high_temp = <400>;
-		battery,wpc_lcd_on_high_temp_rec = <380>;
-		battery,wpc_lcd_on_input_limit_current = <600>;
+		battery,wpc_lcd_on_input_limit_current = <800>;
 
 		battery,wpc_store_high_temp = <360>;
 		battery,wpc_store_high_temp_recovery = <340>;
@@ -994,6 +999,14 @@
 		battery,mix_high_temp = <420>;
 		battery,mix_high_chg_temp = <500>;
 		battery,mix_high_temp_recovery = <390>;
+
+		/* battery,enable_mix_v2; */
+		/* if you want to use mix_v2 concept, add "battery,enable_mix_v2;" */
+		battery,mix_v2_lrp_recov = <460>;
+		battery,mix_v2_lrp_cond = <480>;
+		battery,mix_v2_bat_cond = <480>;
+		battery,mix_v2_chg_cond = <0>;	/* 0 means no use chg thm condition */
+		battery,mix_v2_dchg_cond = <0>; /* 0 means no use dchg thm condition */
 
 		battery,full_condition_type = <(SEC_BATTERY_FULL_CONDITION_NOTIMEFULL | SEC_BATTERY_FULL_CONDITION_VCELL)>;
 		battery,full_condition_soc = <93>;
@@ -1342,7 +1355,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/common/dts/a13ve/battery_common.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/common/dts/a13ve/battery_common.dtsi */
 #include <dt-bindings/battery/sec-battery.h>
 
 #define MAX_FV 4350
@@ -1592,6 +1605,68 @@
 };
 
 
+/* #include "../sec_thermistor-1.dtsi" */            /* From sec_thermistor.py */
+/ {
+	fragment@smd {
+		target-path = "/";
+		__overlay__ {
+			samsung_mobile_device {
+				sec_pa_thermistor: sec_thermistor@1 {
+					compatible = "samsung,sec-thermistor";
+					status = "okay";
+					thermistor_name = "sec-pa-thermistor";
+					id = <1>;
+
+					io-channels = SEC_ADC(auxadc,0);
+					io-channel-names = "pa_therm";
+					io-channel-ranges;
+				};
+			};
+		};
+	};
+};
+
+/* #include "../sec_thermistor.dtsi" */              /* From sec_thermistor.py */
+/ {
+	fragment@smd {
+		target-path = "/";
+		__overlay__ {
+			samsung_mobile_device {
+				sec_ap_thermistor: sec_thermistor@0 {
+					compatible = "samsung,sec-thermistor";
+					status = "okay";
+					thermistor_name = "sec-ap-thermistor";
+					id = <0>;
+
+					io-channels = SEC_ADC(auxadc,4);
+					io-channel-names = "ap_therm";
+					io-channel-ranges;
+				};
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sec_pm/sec_thermistor/dts/sec_thermistor_mtk.a13ve.dtsi */
+&sec_ap_thermistor {
+	adc_array = <76 91 111 136 163 192 234 288 345
+				416 497 596 744 889 1074 1306 1529 1769 2107
+				2359 2753 3060 3428>;
+	temp_array = <900 850 800 750 700 650 600 550 500
+				450 400 350 300 250 200 150 100 50 0
+				(-50) (-100) (-150) (-200)>;
+};
+
+&sec_pa_thermistor {
+	adc_array = <85 101 120 144 173 203 247 301 361
+				433 520 629 765 928 1116 1335 1573 1845 2160
+				2431 2807 3126 3464>;
+
+	temp_array = <900 850 800 750 700 650 600 550 500
+				450 400 350 300 250 200 150 100 50 0
+				(-50) (-100) (-150) (-200)>;
+};
+
 /* #include "../sm5714.dtsi" */                      /* From sm5714.py */
 &pio {
 	if_pmic_irq: if_pmic_irq {
@@ -1678,7 +1753,7 @@
 };
 
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/mfd/sm/sm5714/sm5714_mtk.a13ve.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/mfd/sm/sm5714/sm5714_mtk.a13ve.dtsi */
 &pio {
 	if_pmic_scl: if_pmic_scl {
 		pins_cmd_dat {
@@ -2017,7 +2092,7 @@
 		novatek,enable_sysinput_enabled;
 	};
 };
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/novatek/nt36523_spi/dts/input-mtk-tsp-nt36523-spi.a13ve.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/novatek/nt36523_spi/dts/input-mtk-tsp-nt36523-spi.a13ve.dtsi */
 &nt36523_tsp_on_cs {
 	pins_cmd_dat{
 		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,18), 2)>;
@@ -2136,70 +2211,6 @@
 		diff_test_frame = <50>;
 		fdm_x_num = <2>;
 	};
-};
-
-/* #include "../sec_thermistor.dtsi" */              /* From sec_thermistor.py */
-/ {
-	fragment@smd {
-		target-path = "/";
-		__overlay__ {
-			samsung_mobile_device {
-				sec_ap_thermistor: sec_thermistor@0 {
-					compatible = "samsung,sec-thermistor";
-					status = "okay";
-					thermistor_name = "sec-ap-thermistor";
-					id = <0>;
-
-					io-channels = SEC_ADC(auxadc,4);
-					io-channel-names = "ap_therm";
-					io-channel-ranges;
-				};
-			};
-		};
-	};
-};
-
-/* #include "../sec_thermistor-1.dtsi" */            /* From sec_thermistor.py */
-/ {
-	fragment@smd {
-		target-path = "/";
-		__overlay__ {
-			samsung_mobile_device {
-				sec_pa_thermistor: sec_thermistor@1 {
-					compatible = "samsung,sec-thermistor";
-					status = "okay";
-					thermistor_name = "sec-pa-thermistor";
-					id = <1>;
-
-					io-channels = SEC_ADC(auxadc,0);
-					io-channel-names = "pa_therm";
-					io-channel-ranges;
-				};
-			};
-		};
-	};
-};
-
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/hwmon/sec_thermistor/sec_thermistor_mtk.a13ve.dtsi */
-&sec_ap_thermistor {
-	use_iio_processed;
-	adc_array = <76 91 111 136 163 192 234 288 345
-				416 497 596 744 889 1074 1306 1529 1769 2107
-				2359 2753 3060 3428>;
-	temp_array = <900 850 800 750 700 650 600 550 500
-				450 400 350 300 250 200 150 100 50 0
-				(-50) (-100) (-150) (-200)>;
-};
-
-&sec_pa_thermistor {
-	use_iio_processed;
-	adc_array = <85 101 120 144 173 203 247 301 361
-				433 520 629 765 928 1116 1335 1573 1845 2160
-				2431 2807 3126 3464>;
-
-	temp_array = <900 850 800 750 700 650 600 550 500
-				450 400 350 300 250 200 150 100 50 0
-				(-50) (-100) (-150) (-200)>;
 };
 
 /* #include "../input_hx83xxx_spi.dtsi" */           /* From input_hx83xxx_spi.py */
@@ -2338,7 +2349,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/himax/hx83xxx_spi/dts/input-mtk-tsp-hx83xxx_spi.a13ve.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/himax/hx83xxx_spi/dts/input-mtk-tsp-hx83xxx_spi.a13ve.dtsi */
 &himax_tsp_on_cs {
 	pins_cmd_dat{
 		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,18), 2)>;
@@ -2444,7 +2455,10 @@
 						compatible = "samsung,dc_vibrator";
 						status = "okay";
 						dc_vib,motor_type = "COINDC";
-						dc_vib,regulator_name = "vibr";
+#if 1
+						dc_vib,regulator_name = "dc_vib";
+						dc_vib-supply = <&mt_pmic_vibr_ldo_reg>;
+#endif
 					};
 				};
 			};
@@ -2688,7 +2702,7 @@
 
 #endif/* isg6320_wifi */
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensors/isg6320/dts/isg6320.a13ve.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensors/isg6320/dts/isg6320.a13ve.dtsi */
 &isg6320 {
 	isg6320,reg_num = <116>;
 	isg6320,set_reg = /bits/ 8 <

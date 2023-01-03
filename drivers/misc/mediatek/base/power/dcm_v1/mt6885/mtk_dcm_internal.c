@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -860,12 +852,17 @@ void dcm_set_hotplug_nb(void)
 
 int dcm_smc_get_cnt(int type_id)
 {
+#if 0
 	return dcm_smc_read_cnt(type_id);
+#endif
+	return 0;
 }
 
 void dcm_smc_msg_send(unsigned int msg)
 {
+#if 0
 	dcm_smc_msg(msg);
+#endif
 }
 
 short dcm_get_cpu_cluster_stat(void)

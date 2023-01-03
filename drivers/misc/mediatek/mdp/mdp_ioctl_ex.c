@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/platform_device.h>
 #include <linux/fs.h>
@@ -319,6 +311,10 @@ static unsigned long translate_fd(struct op_meta *meta,
 	} else {
 		mva = mapping_job->mvas[i];
 	}
+
+	if (meta->fd_offset >= U32_MAX)
+		return 0;
+
 	mva += meta->fd_offset;
 
 	return mva;
@@ -574,11 +570,23 @@ static s32 mdp_init_secure_id(struct cmdqRecStruct *handle)
 	if (!handle->secData.is_secure)
 		return 0;
 	secMetadatas = (struct cmdqSecAddrMetadataStruct *)handle->secData.addrMetadatas;
-
 	for (i = 0; i < handle->secData.addrMetadataCount; i++) {
 		secMetadatas[i].useSecIdinMeta = 1;
 		if (secMetadatas[i].ionFd <= 0) {
 			secMetadatas[i].sec_id = 0;
+#ifdef MDP_M4U_TEE_SUPPORT
+			// if camera scenario and type is DP_SECURE, set sec id as MEM_2D_FR
+			if ((handle->engineFlag & ((1LL << CMDQ_ENG_MDP_CAMIN)
+			| CMDQ_ENG_ISP_GROUP_BITS))
+			&& secMetadatas[i].type == CMDQ_SAM_H_2_MVA) {
+				secMetadatas[i].sec_id = 3;
+				CMDQ_LOG("%s,port:%d,ionFd:%d,sec_id:%d,sec_handle:0x%#llx",
+						__func__, secMetadatas[i].port,
+						secMetadatas[i].ionFd,
+						secMetadatas[i].sec_id,
+						secMetadatas[i].baseHandle);
+			}
+#endif
 			continue;
 		}
 
@@ -601,6 +609,38 @@ static s32 mdp_init_secure_id(struct cmdqRecStruct *handle)
 	return 0;
 #endif
 }
+
+#ifdef CONFIG_MTK_IN_HOUSE_TEE_SUPPORT
+static s32 mdp_init_secure_id_in_house(struct cmdqRecStruct *handle)
+{
+	u32 i;
+	ion_phys_addr_t sec_handle;
+	struct cmdqSecAddrMetadataStruct *secMetadatas = NULL;
+
+	if (!handle->secData.is_secure)
+		return 0;
+	secMetadatas = (struct cmdqSecAddrMetadataStruct *)handle->secData.addrMetadatas;
+
+	for (i = 0; i < handle->secData.addrMetadataCount; i++) {
+		secMetadatas[i].useSecIdinMeta = 1;
+		if (secMetadatas[i].ionFd <= 0) {
+			secMetadatas[i].sec_id = 0;
+			continue;
+		}
+
+		mdp_ion_import_sec_handle(secMetadatas[i].ionFd, &sec_handle);
+		secMetadatas[i].baseHandle = (uint64_t)sec_handle;
+
+		CMDQ_MSG("%s,port:%d,ionFd:%d,sec_id:%d,sec_handle:0x%#llx",
+				__func__, secMetadatas[i].port,
+				secMetadatas[i].ionFd,
+				secMetadatas[i].sec_id,
+				secMetadatas[i].baseHandle);
+	}
+	return 1;
+}
+#endif
+
 
 static int mdp_implement_read_v1(struct mdp_submit *user_job,
 				struct cmdqRecStruct *handle,
@@ -663,15 +703,6 @@ static int mdp_implement_read_v1(struct mdp_submit *user_job,
 	return status;
 }
 
-#ifdef MDP_CHECK_IN_TUI
-extern bool hal_in_tui(void);
-#else
-static bool hal_in_tui(void)
-{
-	return false;
-}
-#endif
- 
 #define CMDQ_MAX_META_COUNT 0x100000
 
 s32 mdp_ioctl_async_exec(struct file *pf, unsigned long param)
@@ -751,18 +782,6 @@ s32 mdp_ioctl_async_exec(struct file *pf, unsigned long param)
 	}
 #endif
 
-    /* Check if current is TUI session, if yes, return error directly */
-	if (!user_job.secData.is_secure && hal_in_tui()) {
-		CMDQ_ERR("%s normal task conflict with TUI", __func__);
-		cmdq_task_destroy(handle);
-		kfree(mapping_job);
-		kfree(cmd_buf.va_base);
-		status = -EFAULT;
-		goto done;
-	} else {
-		CMDQ_LOG("%s normal task", __func__);
-	}
-
 	/* setup secure data */
 	status = cmdq_mdp_handle_sec_setup(&user_job.secData, handle);
 	if (status < 0) {
@@ -774,6 +793,10 @@ s32 mdp_ioctl_async_exec(struct file *pf, unsigned long param)
 	}
 
 	mdp_init_secure_id(handle);
+
+#ifdef CONFIG_MTK_IN_HOUSE_TEE_SUPPORT
+	mdp_init_secure_id_in_house(handle);
+#endif
 
 	/* Make command from user job */
 	CMDQ_TRACE_FORCE_BEGIN("mdp_translate_user_job\n");

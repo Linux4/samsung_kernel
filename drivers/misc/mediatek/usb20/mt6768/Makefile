@@ -30,7 +30,7 @@ endif
 # for ep0 test
 ccflags-y += -I$(srctree)/drivers/usb/core/
 
-obj-$(CONFIG_USB_MTK_HDRC)	:= usb20.o usb20_phy.o
-obj-$(CONFIG_USB_MTK_HDRC)  += usb20_host.o
-obj-$(CONFIG_USBIF_COMPLIANCE)   += usb20_otg_if.o
-obj-$(CONFIG_DEBUG_FS)	+= usb20_phy_debugfs.o
+# Phy
+obj-$(CONFIG_MTK_MUSB_PHY)		+= mtk_usb20_phy.o
+mtk_usb20_phy-y				+= usb20_phy.o
+mtk_usb20_phy-$(CONFIG_DEBUG_FS)	+= usb20_phy_debugfs.o

@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 #include <linux/cdev.h>
 #include <linux/device.h>
@@ -19,8 +11,9 @@
 #include <linux/kthread.h>
 #include <linux/poll.h>
 #include <linux/bitops.h>
-#include <mt-plat/mtk_ccci_common.h>
+#include "mt-plat/mtk_ccci_common.h"
 #include "ccci_config.h"
+#include "ccci_common_config.h"
 #include "ccci_core.h"
 #include "ccci_bm.h"
 #include "port_ipc.h"
@@ -345,15 +338,16 @@ static int port_ipc_kernel_thread(void *arg)
 	CCCI_DEBUG_LOG(port->md_id, IPC,
 		"port %s's thread running\n", port->name);
 
-	while (!kthread_should_stop()) {
+	while (1) {
 retry:
 		if (skb_queue_empty(&port->rx_skb_list)) {
 			ret = wait_event_interruptible(port->rx_wq,
 				!skb_queue_empty(&port->rx_skb_list));
 			if (ret == -ERESTARTSYS)
-				continue;
+				continue;	/* FIXME */
 		}
-
+		if (kthread_should_stop())
+			break;
 		CCCI_DEBUG_LOG(port->md_id, IPC,
 			"read on %s\n", port->name);
 		/* 1. dequeue */
@@ -466,9 +460,8 @@ int port_ipc_init(struct port_t *port)
 			.rx_cb = ccci_ipc_send_ilm_to_md1};
 
 			mtk_conn_md_bridge_reg(MD_MOD_EL1, &ccci_ipc_conn_ops);
-			/* mp1 1, mp2 0, ro 1 */
 			mtk_conn_md_bridge_reg(MD_MOD_GMMGR,
-						&ccci_ipc_conn_ops);
+					&ccci_ipc_conn_ops);
 #endif
 		}
 	}
@@ -530,10 +523,10 @@ int ccci_get_emi_info(int md_id, struct ccci_emi_info *emi_info)
 	if (md_id < 0 || md_id > MAX_MD_NUM || !emi_info)
 		return -EINVAL;
 	mem_layout = ccci_md_get_mem(md_id);
-	if (mem_layout == NULL) {
-		CCCI_ERROR_LOG(md_id, IPC,
-			"ccci_md_get_mem fail\n");
-		return -EINVAL;
+	if (!mem_layout) {
+		CCCI_ERROR_LOG(md_id, IPC, "%s:ccci_md_get_mem fail\n",
+		__func__);
+		return -1;
 	}
 
 	emi_info->ap_domain_id = 0;

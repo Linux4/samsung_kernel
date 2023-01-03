@@ -1,19 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * n_gsm.c GSM 0710 tty multiplexor
  * Copyright (c) 2009/10 Intel Corporation
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  *	* THIS IS A DEVELOPMENT SNAPSHOT IT IS NOT A FINAL RELEASE *
  *
@@ -1329,9 +1317,9 @@ static void gsm_control_transmit(struct gsm_mux *gsm, struct gsm_control *ctrl)
  *	gsm->pending_cmd will be NULL and we just let the timer expire.
  */
 
-static void gsm_control_retransmit(unsigned long data)
+static void gsm_control_retransmit(struct timer_list *t)
 {
-	struct gsm_mux *gsm = (struct gsm_mux *)data;
+	struct gsm_mux *gsm = from_timer(gsm, t, t2_timer);
 	struct gsm_control *ctrl;
 	unsigned long flags;
 	spin_lock_irqsave(&gsm->control_lock, flags);
@@ -1482,9 +1470,9 @@ static void gsm_dlci_open(struct gsm_dlci *dlci)
  *	DLCI_OPENING retries time out.
  */
 
-static void gsm_dlci_t1(unsigned long data)
+static void gsm_dlci_t1(struct timer_list *t)
 {
-	struct gsm_dlci *dlci = (struct gsm_dlci *)data;
+	struct gsm_dlci *dlci = from_timer(dlci, t, t1);
 	struct gsm_mux *gsm = dlci->gsm;
 
 	switch (dlci->state) {
@@ -1671,9 +1659,7 @@ static struct gsm_dlci *gsm_dlci_alloc(struct gsm_mux *gsm, int addr)
 	}
 
 	skb_queue_head_init(&dlci->skb_list);
-	init_timer(&dlci->t1);
-	dlci->t1.function = gsm_dlci_t1;
-	dlci->t1.data = (unsigned long)dlci;
+	timer_setup(&dlci->t1, gsm_dlci_t1, 0);
 	tty_port_init(&dlci->port);
 	dlci->port.ops = &gsm_port_ops;
 	dlci->gsm = gsm;
@@ -2127,7 +2113,7 @@ static int gsm_activate_mux(struct gsm_mux *gsm)
 	struct gsm_dlci *dlci;
 	int i = 0;
 
-	setup_timer(&gsm->t2_timer, gsm_control_retransmit, (unsigned long)gsm);
+	timer_setup(&gsm->t2_timer, gsm_control_retransmit, 0);
 	init_waitqueue_head(&gsm->event);
 	spin_lock_init(&gsm->control_lock);
 	spin_lock_init(&gsm->tx_lock);
@@ -2496,20 +2482,20 @@ static ssize_t gsmld_write(struct tty_struct *tty, struct file *file,
  *	Called without the kernel lock held - fine
  */
 
-static unsigned int gsmld_poll(struct tty_struct *tty, struct file *file,
+static __poll_t gsmld_poll(struct tty_struct *tty, struct file *file,
 							poll_table *wait)
 {
-	unsigned int mask = 0;
+	__poll_t mask = 0;
 	struct gsm_mux *gsm = tty->disc_data;
 
 	poll_wait(file, &tty->read_wait, wait);
 	poll_wait(file, &tty->write_wait, wait);
 	if (tty_hung_up_p(file))
-		mask |= POLLHUP;
+		mask |= EPOLLHUP;
 	if (!tty_is_writelocked(tty) && tty_write_room(tty) > 0)
-		mask |= POLLOUT | POLLWRNORM;
+		mask |= EPOLLOUT | EPOLLWRNORM;
 	if (gsm->dead)
-		mask |= POLLHUP;
+		mask |= EPOLLHUP;
 	return mask;
 }
 
@@ -2693,7 +2679,7 @@ static inline void muxnet_put(struct gsm_mux_net *mux_net)
 	kref_put(&mux_net->ref, net_free);
 }
 
-static int gsm_mux_net_start_xmit(struct sk_buff *skb,
+static netdev_tx_t gsm_mux_net_start_xmit(struct sk_buff *skb,
 				      struct net_device *net)
 {
 	struct gsm_mux_net *mux_net = netdev_priv(net);
@@ -3005,7 +2991,6 @@ static int gsmtty_open(struct tty_struct *tty, struct file *filp)
 static void gsmtty_close(struct tty_struct *tty, struct file *filp)
 {
 	struct gsm_dlci *dlci = tty->driver_data;
-	struct gsm_mux *gsm;
 
 	if (dlci == NULL)
 		return;
@@ -3014,7 +2999,6 @@ static void gsmtty_close(struct tty_struct *tty, struct file *filp)
 	mutex_lock(&dlci->mutex);
 	gsm_destroy_network(dlci);
 	mutex_unlock(&dlci->mutex);
-	gsm = dlci->gsm;
 	if (tty_port_close_start(&dlci->port, tty, filp) == 0)
 		return;
 	gsm_dlci_begin_close(dlci);

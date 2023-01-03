@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright IBM Corp. 2012
  *
@@ -419,7 +420,6 @@ int arch_setup_msi_irqs(struct pci_dev *pdev, int nvec, int type)
 	/* Request MSI interrupts */
 	hwirq = 0;
 	for_each_pci_msi_entry(msi, pdev) {
-		rc = -EIO;
 		if (hwirq >= msi_vecs)
 			break;
 		irq = irq_alloc_desc(0);	/* Alloc irq on node 0 */

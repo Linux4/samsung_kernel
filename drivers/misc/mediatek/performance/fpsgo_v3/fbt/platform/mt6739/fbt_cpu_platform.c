@@ -1,18 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include "eas_ctrl.h"
 #include "fbt_cpu_platform.h"
@@ -101,12 +90,16 @@ void fbt_clear_boost_value(void)
 void fbt_set_per_task_min_cap(int pid, unsigned int base_blc)
 {
 	int ret = -1;
+	unsigned int base_blc_1024;
 
 	if (!pid)
 		return;
 
+	base_blc_1024 = (base_blc << 10) / 100U;
+	base_blc_1024 = clamp(base_blc_1024, 1U, 1024U);
+
 #ifdef CONFIG_UCLAMP_TASK
-	ret = set_task_util_min_pct(pid, base_blc);
+	ret = set_task_util_min(pid, base_blc_1024);
 #endif
 	if (ret != 0) {
 		fpsgo_systrace_c_fbt(pid, 0, ret, "uclamp fail");
@@ -173,6 +166,11 @@ int fbt_get_default_gcc_enable(void)
 }
 
 int fbt_get_l_min_bhropp(void)
+{
+	return 0;
+}
+
+int fbt_get_L_cluster_num(void)
 {
 	return 0;
 }

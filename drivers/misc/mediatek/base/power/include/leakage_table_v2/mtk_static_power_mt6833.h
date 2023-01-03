@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2020 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __MTK_STATIC_POWER_MTK6833_H__
 #define __MTK_STATIC_POWER_MTK6833_H__
@@ -43,21 +35,21 @@
 /* devinfo offset for each bank */
 /* CCI use LL leakage */
 /* "Efuse_address" */
-#define DEVINFO_IDX_LL 137 //0x11C107BC[15:8]
-#define DEVINFO_IDX_L 137 //0x11C107BC[7:0]
-#define DEVINFO_IDX_CCI 136 //0x11C107B8[31:24]
-#define DEVINFO_IDX_GPU 135 //0x11C107B4[31:24]
-#define DEVINFO_IDX_VCORE 135 //0x11C107B4[23:16]
-#define DEVINFO_IDX_MODEM 135 //0x11C107B4[7:0]
-#define DEVINFO_IDX_VPU 136 //0x11C107B8[15:8]
-#define DEVINFO_IDX_VSRAM_PROC12 138 //0x11C107C0[31:24]
-#define DEVINFO_IDX_VSRAM_PROC11 138 //0x11C107C0[23:16]
-#define DEVINFO_IDX_VSRAM_OTHERS 137 //0x11C107BC[31:24]
-#define DEVINFO_IDX_ADSP 137 //0x11C107B8[23:16]
-#define DEVINFO_IDX_VSRAM_GPU 138 //0x11C107C0[15:8]
-#define DEVINFO_IDX_VSRAM_VPU_MDLA 138 //0x11C107C0[7:0]
-#define DEVINFO_IDX_VSRAM_MODEM 139 //0x11C107C4[7:0]
-#define DEVINFO_IDX_VCORE_OFF 137 //0x11C107BC[23:16]
+#define DEVINFO_IDX_LL 0x224 //0x11C107BC[15:8]
+#define DEVINFO_IDX_L 0x224 //0x11C107BC[7:0]
+#define DEVINFO_IDX_CCI 0x220 //0x11C107B8[31:24]
+#define DEVINFO_IDX_GPU 0x21C //0x11C107B4[31:24]
+#define DEVINFO_IDX_VCORE 0x21C //0x11C107B4[23:16]
+#define DEVINFO_IDX_MODEM 0x21C //0x11C107B4[7:0]
+#define DEVINFO_IDX_VPU 0x220 //0x11C107B8[15:8]
+#define DEVINFO_IDX_VSRAM_PROC12 0x228 //0x11C107C0[31:24]
+#define DEVINFO_IDX_VSRAM_PROC11 0x228 //0x11C107C0[23:16]
+#define DEVINFO_IDX_VSRAM_OTHERS 0x224 //0x11C107BC[31:24]
+#define DEVINFO_IDX_ADSP 0x224 //0x11C107B8[23:16]
+#define DEVINFO_IDX_VSRAM_GPU 0x228 //0x11C107C0[15:8]
+#define DEVINFO_IDX_VSRAM_VPU_MDLA 0x228 //0x11C107C0[7:0]
+#define DEVINFO_IDX_VSRAM_MODEM 0x22C //0x11C107C4[7:0]
+#define DEVINFO_IDX_VCORE_OFF 0x224 //0x11C107BC[23:16]
 
 #define DEVINFO_OFF_LL 0
 #define DEVINFO_OFF_L 8

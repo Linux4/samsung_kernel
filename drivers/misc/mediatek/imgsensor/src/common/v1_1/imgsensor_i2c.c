@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include "imgsensor_common.h"
@@ -346,6 +338,7 @@ enum IMGSENSOR_RETURN imgsensor_i2c_read(
 {
 	struct IMGSENSOR_I2C_INST *pinst = pi2c_cfg->pinst;
 	enum   IMGSENSOR_RETURN    ret   = IMGSENSOR_RETURN_SUCCESS;
+	int i2c_ret = 0;
 
 	if (pinst->pi2c_client == NULL) {
 		PK_PR_ERR("pi2c_client is NULL!\n");
@@ -364,21 +357,20 @@ enum IMGSENSOR_RETURN imgsensor_i2c_read(
 	pi2c_cfg->msg[1].len   = read_length;
 	pi2c_cfg->msg[1].buf   = pread_data;
 
-	if (mtk_i2c_transfer(
+	i2c_ret = mtk_i2c_transfer(
 			pinst->pi2c_client->adapter,
 			pi2c_cfg->msg,
 			IMGSENSOR_I2C_MSG_SIZE_READ,
 			(pi2c_cfg->pinst->status.filter_msg)
 				? I2C_A_FILTER_MSG : 0,
 			((speed > 0) && (speed <= 1000))
-				? speed * 1000 : IMGSENSOR_I2C_SPEED * 1000)
-			!= IMGSENSOR_I2C_MSG_SIZE_READ) {
+				? speed * 1000 : IMGSENSOR_I2C_SPEED * 1000);
+	if (i2c_ret != IMGSENSOR_I2C_MSG_SIZE_READ) {
 		static DEFINE_RATELIMIT_STATE(ratelimit, 1 * HZ, 30);
 
 		if (__ratelimit(&ratelimit))
-			PK_PR_ERR(
-			"I2C read failed (0x%x)! speed(0=%d) (0x%x)\n",
-			ret, speed, *pwrite_data);
+			PK_PR_ERR("I2C read failed (%d)! speed(0=%d) (0x%x)\n",
+				i2c_ret, speed, *pwrite_data);
 		ret = IMGSENSOR_RETURN_ERROR;
 	}
 
@@ -401,6 +393,7 @@ enum IMGSENSOR_RETURN imgsensor_i2c_write(
 	u8                 *pdata = pwrite_data;
 	u8                 *pend  = pwrite_data + write_length;
 	int i   = 0;
+	int i2c_ret = 0;
 
 	if (pinst->pi2c_client == NULL) {
 		PK_PR_ERR("pi2c_client is NULL!\n");
@@ -420,21 +413,20 @@ enum IMGSENSOR_RETURN imgsensor_i2c_write(
 		pdata += write_per_cycle;
 	}
 
-	if (mtk_i2c_transfer(
+	i2c_ret = mtk_i2c_transfer(
 			pinst->pi2c_client->adapter,
 			pi2c_cfg->msg,
 			i,
 			(pi2c_cfg->pinst->status.filter_msg)
 				? I2C_A_FILTER_MSG : 0,
 			((speed > 0) && (speed <= 1000))
-				? speed * 1000 : IMGSENSOR_I2C_SPEED * 1000)
-			!= i) {
+				? speed * 1000 : IMGSENSOR_I2C_SPEED * 1000);
+	if (i2c_ret != i) {
 		static DEFINE_RATELIMIT_STATE(ratelimit, 1 * HZ, 30);
 
 		if (__ratelimit(&ratelimit))
-			PK_PR_ERR(
-				"I2C write failed (0x%x)! speed(0=%d) (0x%x)\n",
-				ret, speed, *pwrite_data);
+			PK_PR_ERR("I2C write failed (%d)! speed(0=%d) (0x%x)\n",
+				i2c_ret, speed, *pwrite_data);
 		ret = IMGSENSOR_RETURN_ERROR;
 	}
 
@@ -454,15 +446,11 @@ void imgsensor_i2c_filter_msg(struct IMGSENSOR_I2C_CFG *pi2c_cfg, bool en)
 #include <linux/syscalls.h>
 
 
-
 struct IMGSENSOR_I2C_CFG *pgi2c_cfg_legacy[IMGSENSOR_SENSOR_IDX_MAX_NUM];
 pid_t tid_mapping[IMGSENSOR_SENSOR_IDX_MAX_NUM];
 #else
 struct IMGSENSOR_I2C_CFG *pgi2c_cfg_legacy;
-
 #endif
-
-
 
 void imgsensor_i2c_set_device(struct IMGSENSOR_I2C_CFG *pi2c_cfg)
 {
@@ -492,10 +480,9 @@ void imgsensor_i2c_set_device(struct IMGSENSOR_I2C_CFG *pi2c_cfg)
 	/* PK_DBG("set tid = %d i = %d pi2c_cfg %p\n", _tid, i, pi2c_cfg); */
 #else
 	pgi2c_cfg_legacy = pi2c_cfg;
-
 #endif
-
 }
+
 struct IMGSENSOR_I2C_CFG *imgsensor_i2c_get_device(void)
 {
 #ifdef SENSOR_PARALLEISM

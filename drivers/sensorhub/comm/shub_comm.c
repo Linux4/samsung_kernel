@@ -41,6 +41,7 @@
 #define SHUB2AP_MAG_CAL		0x0B
 #define SHUB2AP_DUMP_DATA	0xDD
 #define SHUB2AP_CALLSTACK	0x0F
+#define SHUB2AP_LOG_DUMP	0x12
 #define SHUB2AP_SYSTEM_INFO	0x31
 #define SHUB2AP_SENSOR_SPEC	0x41
 
@@ -110,6 +111,11 @@ static int comm_to_sensorhub(struct shub_msg *msg)
 {
 	int ret;
 
+	if (!is_shub_working()) {
+		shub_errf("sensorhub is not working");
+		return -EIO;
+	}
+
 	mutex_lock(&comm_mutex);
 	memcpy(shub_cmd_data, msg, SHUB_MSG_HEADER_SIZE);
 	if (msg->length > 0) {
@@ -118,12 +124,6 @@ static int comm_to_sensorhub(struct shub_msg *msg)
 		shub_errf("command size(%d) is over.", msg->length);
 		mutex_unlock(&comm_mutex);
 		return -EINVAL;
-	}
-
-	if (!is_shub_working()) {
-		shub_errf("sensorhub is not working");
-		mutex_unlock(&comm_mutex);
-		return -EIO;
 	}
 
 	shub_infof("cmd %d type %d subcmd %d send_buf_len %d ts %llu", msg->cmd, msg->type, msg->subcmd, msg->length,
@@ -318,6 +318,9 @@ static int parse_dataframe(char *dataframe, int frame_len)
 			if (sensor)
 				sensor->funcs->parsing_data(dataframe, &index, frame_len);
 			break;
+		case SHUB2AP_LOG_DUMP:
+			ret = save_log_dump(dataframe, &index, frame_len);
+			break;
 		default:
 			shub_errf("0x%x cmd doesn't support, index = %d", cmd, index);
 			ret = -1;
@@ -505,8 +508,8 @@ int init_comm_to_hub(void)
 
 void exit_comm_to_hub(void)
 {
+	clean_pending_list();
 	mutex_destroy(&comm_mutex);
 	mutex_destroy(&pending_mutex);
 	mutex_destroy(&rx_msg_mutex);
-	clean_pending_list();
 }

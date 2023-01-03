@@ -14,20 +14,49 @@
 #include <linux/pm-trace.h>
 #include <linux/workqueue.h>
 #include <linux/debugfs.h>
-#include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#include <linux/suspend.h>
 #ifdef CONFIG_SEC_PM
 #include <linux/fb.h>
 #endif /* CONFIG_SEC_PM */
-#include "power.h"
 
-DEFINE_MUTEX(pm_mutex);
+#include "power.h"
 
 #ifdef CONFIG_SEC_PM
 static struct delayed_work ws_work;
-#endif
+#endif /* CONFIG_SEC_PM  */
 
 #ifdef CONFIG_PM_SLEEP
+
+void lock_system_sleep(void)
+{
+	current->flags |= PF_FREEZER_SKIP;
+	mutex_lock(&system_transition_mutex);
+}
+EXPORT_SYMBOL_GPL(lock_system_sleep);
+
+void unlock_system_sleep(void)
+{
+	/*
+	 * Don't use freezer_count() because we don't want the call to
+	 * try_to_freeze() here.
+	 *
+	 * Reason:
+	 * Fundamentally, we just don't need it, because freezing condition
+	 * doesn't come into effect until we release the
+	 * system_transition_mutex lock, since the freezer always works with
+	 * system_transition_mutex held.
+	 *
+	 * More importantly, in the case of hibernation,
+	 * unlock_system_sleep() gets called in snapshot_read() and
+	 * snapshot_write() when the freezing condition is still in effect.
+	 * Which means, if we use try_to_freeze() here, it would make them
+	 * enter the refrigerator, thus causing hibernation to lockup.
+	 */
+	current->flags &= ~PF_FREEZER_SKIP;
+	mutex_unlock(&system_transition_mutex);
+}
+EXPORT_SYMBOL_GPL(unlock_system_sleep);
 
 /* Routines for PM-transition notifications */
 
@@ -325,8 +354,7 @@ static struct attribute_group suspend_attr_group = {
 	.attrs = suspend_attrs,
 };
 
-//#ifdef CONFIG_DEBUG_FS
-#if 1
+#ifdef CONFIG_DEBUG_FS
 static int suspend_stats_show(struct seq_file *s, void *unused)
 {
 	int i, index, last_dev, last_errno, last_step;
@@ -399,7 +427,6 @@ static int __init pm_debugfs_init(void)
 {
 	debugfs_create_file("suspend_stats", S_IFREG | S_IRUGO,
 			NULL, NULL, &suspend_stats_operations);
-	proc_create("suspend_stats", 0644, NULL, &suspend_stats_operations);
 	return 0;
 }
 
@@ -515,13 +542,15 @@ static inline void pm_print_times_init(void) {}
 #endif /* CONFIG_PM_SLEEP_DEBUG */
 
 struct kobject *power_kobj;
+EXPORT_SYMBOL_GPL(power_kobj);
 
 /**
  * state - control system sleep states.
  *
  * show() returns available sleep state labels, which may be "mem", "standby",
- * "freeze" and "disk" (hibernation).  See Documentation/power/states.txt for a
- * description of what they mean.
+ * "freeze" and "disk" (hibernation).
+ * See Documentation/admin-guide/pm/sleep-states.rst for a description of
+ * what they mean.
  *
  * store() accepts one of those strings, translates it into the proper
  * enumerated value, and initiates a suspend transition.
@@ -823,42 +852,54 @@ power_attr(pm_freeze_timeout);
 
 #ifdef CONFIG_FOTA_LIMIT
 static char fota_limit_str[] =
-#ifdef CONFIG_MACH_MT6877
-	"[START]\n"
-	"/sys/power/cpufreq_max_limit 1430000\n"
-	"[STOP]\n"
-	"/sys/power/cpufreq_max_limit -1\n"
-	"[END]\n";
-#elif defined(CONFIG_MACH_MT6739)
-	"[START]\n"
-	"/sys/power/cpufreq_max_limit 1495000\n"
-	"[STOP]\n"
-	"/sys/power/cpufreq_max_limit -1\n"
-	"[END]\n";
+#ifdef CONFIG_MACH_MT6853
+    "[START]\n"
+    "/sys/power/cpufreq_max_limit 1418000\n"
+    "[STOP]\n"
+    "/sys/power/cpufreq_max_limit -1\n"
+    "[END]\n";
 #elif defined(CONFIG_MACH_MT6768)
     "[START]\n"
     "/sys/power/cpufreq_max_limit 1443000\n"
     "[STOP]\n"
     "/sys/power/cpufreq_max_limit -1\n"
     "[END]\n";
+#elif defined(CONFIG_MACH_MT6765)
+    "[START]\n"
+    "/sys/power/cpufreq_max_limit 1750000\n"
+    "[STOP]\n"
+    "/sys/power/cpufreq_max_limit -1\n"
+    "[END]\n";
+#elif defined(CONFIG_MACH_MT6739)
+    "[START]\n"
+    "/sys/power/cpufreq_max_limit 1495000\n"
+    "[STOP]\n"
+    "/sys/power/cpufreq_max_limit -1\n"
+    "[END]\n";
+#elif defined(CONFIG_MACH_MT6877)
+    "[START]\n"
+    "/sys/power/cpufreq_max_limit 1430000\n"
+    "[STOP]\n"
+    "/sys/power/cpufreq_max_limit -1\n"
+    "[END]\n";
 #else
-	"[NOT_SUPPORT]\n";
+    "[NOT_SUPPORT]\n";
 #endif
 
 static ssize_t fota_limit_show(struct kobject *kobj,
-					struct kobj_attribute *attr,
-					char *buf)
+                    struct kobj_attribute *attr,
+                    char *buf)
 {
-	pr_info("%s\n", __func__);
-	return sprintf(buf, "%s", fota_limit_str);
+    pr_info("%s\n", __func__);
+    return sprintf(buf, "%s", fota_limit_str);
 }
 
 static struct kobj_attribute fota_limit_attr = {
-	.attr	= {
-		.name = __stringify(fota_limit),
-		.mode = 0440,
-	},
-	.show	= fota_limit_show,
+    .attr   = {
+        .name = __stringify(fota_limit),
+        .mode = 0440,
+    },
+    .show   = fota_limit_show,
 };
 #endif /* CONFIG_FOTA_LIMIT */
 
@@ -969,7 +1010,7 @@ static int __init pm_init(void)
 #ifdef CONFIG_SEC_PM
 	fb_register_client(&fb_notifier);
 	INIT_DELAYED_WORK(&ws_work, handle_ws_work);
-#endif /* CONFIG_SEC_PM */	
+#endif /* CONFIG_SEC_PM */
 	return pm_autosleep_init();
 }
 

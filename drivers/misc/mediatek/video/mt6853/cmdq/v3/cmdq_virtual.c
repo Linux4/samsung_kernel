@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #include "cmdq_helper_ext.h"
 #include "cmdq_reg.h"
@@ -170,9 +163,6 @@ const char *cmdq_virtual_parse_module_from_reg_addr_legacy(u32 reg_addr)
 	return cmdq_core_parse_subsys_from_reg_addr(reg_addr);
 }
 
-/*
- * GCE capability
- */
 u32 cmdq_virtual_get_subsys_LSB_in_arg_a(void)
 {
 	return 16;

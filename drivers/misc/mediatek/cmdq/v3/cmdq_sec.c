@@ -125,8 +125,7 @@ struct cmdq {
 /* TODO: should be removed? */
 static struct cmdq *g_cmdq;
 
-#if IS_ENABLED(CONFIG_MACH_MT6779) || IS_ENABLED(CONFIG_MACH_MT6785) || \
-	IS_ENABLED(CONFIG_MACH_MT6768)
+#if IS_ENABLED(CONFIG_MACH_MT6779) || IS_ENABLED(CONFIG_MACH_MT6785)
 static const s32 cmdq_max_task_in_secure_thread[
 	CMDQ_MAX_SECURE_THREAD_COUNT] = {10, 10, 4, 10};
 static const s32 cmdq_tz_cmd_block_size[CMDQ_MAX_SECURE_THREAD_COUNT] = {
@@ -137,6 +136,7 @@ static const s32 cmdq_max_task_in_secure_thread[
 static const s32 cmdq_tz_cmd_block_size[CMDQ_MAX_SECURE_THREAD_COUNT] = {
 	4 << 12, 4 << 12, 20 << 12};
 #endif
+
 
 const u32 isp_iwc_buf_size[] = {
 	CMDQ_SEC_ISP_CQ_SIZE,
@@ -541,7 +541,6 @@ s32 cmdq_sec_fill_iwc_command_msg_unlocked(
 		}
 	}
 
-#ifndef CMDQ_TABLET_ENABLE
 	/* do not gen irq */
 	last_inst = &iwc->command.pVABase[iwc->command.commandSize / 4 - 4];
 	if (last_inst[0] == 0x1 && last_inst[1] == 0x40000000)
@@ -549,7 +548,6 @@ s32 cmdq_sec_fill_iwc_command_msg_unlocked(
 	else
 		CMDQ_ERR("fail to find eoc with 0x%08x%08x\n",
 			last_inst[1], last_inst[0]);
-#endif
 
 	/* cookie */
 	iwc->command.waitCookie = task->secData.waitCookie;
@@ -1380,7 +1378,7 @@ static s32 cmdq_sec_remove_handle_from_thread_by_cookie(
 {
 	struct cmdq_task *task;
 
-	if (!thread || index < 0 || index >=  cmdq_max_task_in_secure_thread[
+	if (!thread || index < 0 || index >= cmdq_max_task_in_secure_thread[
 		thread->idx - CMDQ_MIN_SECURE_THREAD_ID]) {
 		CMDQ_ERR(
 			"remove task from thread array, invalid param THR:0x%p task_slot:%d\n",
@@ -1605,7 +1603,6 @@ int32_t cmdq_sec_create_shared_memory(
 
 	CMDQ_LOG("%s\n", __func__);
 
-#ifndef CMDQ_TABLET_ENABLE
 	/* allocate non-cachable memory */
 	pVA = cmdq_core_alloc_hw_buffer(cmdq_dev_get(), size, &PA,
 		GFP_KERNEL);
@@ -1616,13 +1613,6 @@ int32_t cmdq_sec_create_shared_memory(
 		kfree(handle);
 		return -ENOMEM;
 	}
-#else
-	if (cmdq_sec_trustzone_create_share_memory(&pVA,
-			(u32 *)(&PA), size) != 0) {
-		kfree(handle);
-		return -ENOMEM;
-	}
-#endif
 
 	/* update memory information */
 	handle->size = size;
@@ -1858,18 +1848,12 @@ static s32 cmdq_sec_insert_handle_from_thread_array_by_cookie(
 	const s32 cookie, const bool reset_thread)
 {
 	s32 max_task = 0;
+
 	if (!task || !thread) {
 		CMDQ_ERR(
 			"invalid param pTask:0x%p pThread:0x%p cookie:%d needReset:%d\n",
 			task, thread, cookie, reset_thread);
 		return -EFAULT;
-	}
-
-	if (thread->idx < CMDQ_MIN_SECURE_THREAD_ID) {
-		CMDQ_ERR(
-			"invalid param pTask:0x%p pThread:0x%p idx:%u cookie:%d needReset:%d\n",
-			task, thread, thread->idx, cookie, reset_thread);
-		return -EINVAL;
 	}
 
 	if (reset_thread == true) {
@@ -1911,13 +1895,15 @@ static s32 cmdq_sec_insert_handle_from_thread_array_by_cookie(
 		return -EMSGSIZE;
 	}
 
-	thread->task_list[cookie % max_task] = task;
+	thread->task_list[cookie % cmdq_max_task_in_secure_thread[
+		thread->idx - CMDQ_MIN_SECURE_THREAD_ID]] = task;
 	task->handle->secData.waitCookie = cookie;
 	task->handle->secData.resetExecCnt = reset_thread;
 
 	CMDQ_MSG("%s leave task:0x%p handle:0x%p insert with idx:%d\n",
 		__func__, task, task->handle,
-		cookie % max_task);
+		cookie % cmdq_max_task_in_secure_thread[
+		thread->idx - CMDQ_MIN_SECURE_THREAD_ID]);
 
 	return 0;
 }
@@ -1952,8 +1938,6 @@ static void cmdq_sec_exec_task_async_impl(struct work_struct *work_item)
 		handle->pkt->cmd_buf_size, handle->pkt->buf_size,
 		handle->scenario, handle->engineFlag);
 	CMDQ_MSG("%s", long_msg);
-
-	CMDQ_LOG("%s: cmdq send handle:0x%p to secure world.", __func__, handle);
 
 	if (!handle->secData.is_secure)
 		CMDQ_ERR("not secure %s", long_msg);
@@ -1993,9 +1977,9 @@ static void cmdq_sec_exec_task_async_impl(struct work_struct *work_item)
 			task->thread->next_cookie = (task->thread->next_cookie - 1 +
 				CMDQ_MAX_COOKIE_VALUE) % CMDQ_MAX_COOKIE_VALUE;
 
-			CMDQ_ERR(
+			CMDQ_MSG(
 				"gce: err:%d task:%p pkt:%p thread:%u task_cnt:%u wait_cookie:%u next_cookie:%u",
-				err, task, task->handle->pkt,
+				(unsigned long) err, task, task->handle->pkt,
 				task->thread->idx, task->thread->task_cnt,
 				task->thread->wait_cookie, task->thread->next_cookie);
 			spin_unlock_irqrestore(&task->thread->chan->lock, flags);
@@ -2004,6 +1988,7 @@ static void cmdq_sec_exec_task_async_impl(struct work_struct *work_item)
 			status = err;
 			break;
 		}
+
 		handle->state = TASK_STATE_BUSY;
 		handle->trigger = sched_clock();
 
@@ -2246,8 +2231,7 @@ static void cmdq_sec_thread_irq_handle_by_cookie(
 		/* min cookie value is 0 */
 		thread->wait_cookie -= (CMDQ_MAX_COOKIE_VALUE + 1);
 	}
-	task = thread->task_list[thread->wait_cookie %
-		max_task_cnt];
+	task = thread->task_list[thread->wait_cookie % max_task_cnt];
 
 	if (task) {
 		mod_timer(&thread->timeout,
@@ -2273,9 +2257,9 @@ static void cmdq_sec_thread_irq_handle_by_cookie(
 	spin_unlock_irqrestore(&cmdq_sec_task_list_lock, flags);
 }
 
-static void cmdq_sec_thread_handle_timeout(unsigned long data)
+static void cmdq_sec_thread_handle_timeout(struct timer_list *t)
 {
-	struct cmdq_sec_thread *thread = (struct cmdq_sec_thread *)data;
+	struct cmdq_sec_thread *thread = from_timer(thread, t, timeout);
 	struct cmdq *cmdq = container_of(thread->chan->mbox, struct cmdq, mbox);
 
 	if (!work_pending(&thread->timeout_work))
@@ -2331,9 +2315,7 @@ static int cmdq_mbox_startup(struct mbox_chan *chan)
 	/* initialize when request channel */
 	struct cmdq_sec_thread *thread = chan->con_priv;
 
-	init_timer(&thread->timeout);
-	thread->timeout.function = cmdq_sec_thread_handle_timeout;
-	thread->timeout.data = (unsigned long)thread;
+	timer_setup(&thread->timeout, cmdq_sec_thread_handle_timeout, 0);
 	INIT_WORK(&thread->timeout_work, cmdq_sec_task_timeout_work);
 	thread->task_exec_wq = create_singlethread_workqueue("task_exec_wq");
 	thread->occupied = true;
@@ -2473,10 +2455,6 @@ static int cmdq_probe(struct platform_device *pdev)
 	cmdq_msg("cmdq device: addr:0x%p va:0x%p irq:%d",
 		dev, cmdq->base, cmdq->irq);
 
-#ifdef CONFIG_MTK_IN_HOUSE_TEE_SUPPORT
-	cmdq_sec_alloc_iwc_buffer();
-#endif
-
 	return 0;
 }
 
@@ -2515,6 +2493,7 @@ static __init int cmdq_init(void)
 
 	return 0;
 }
+
 arch_initcall(cmdq_init);
 
 static s32 __init cmdq_late_init(void)
@@ -2540,7 +2519,7 @@ static s32 __init cmdq_late_init(void)
 		sizeof(struct iwcCmdqMessageEx2_t), GFP_KERNEL);
 	if (!handle->mtee_iwcMessageEx2)
 		return -ENOMEM;
-	CMDQ_LOG("iwc:%p(%#lx) ex:%p(%#lx) ex2:%p(%#lx)\n",
+	CMDQ_LOG("iwc:%p(%#x) ex:%p(%#x) ex2:%p(%#x)\n",
 		handle->mtee_iwcMessage, sizeof(struct iwcCmdqMessage_t),
 		handle->mtee_iwcMessageEx, sizeof(struct iwcCmdqMessageEx_t),
 		handle->mtee_iwcMessageEx2, sizeof(struct iwcCmdqMessageEx2_t));

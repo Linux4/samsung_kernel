@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 /*****************************************************************************
@@ -345,12 +337,18 @@ static kal_uint16 imx576_seq_write_cmos_sensor(kal_uint16 addr,
 static kal_uint16 imx576_table_write_cmos_sensor(kal_uint16 *para,
 						 kal_uint32 len)
 {
-	char puSendCmd[I2C_BUFFER_LEN];
-	kal_uint32 tosend, IDX;
+	kal_uint32 tosend = 0, IDX = 0;
 	kal_uint16 addr = 0, addr_last = 0, data;
+	char *puSendCmd = NULL;
 
-	tosend = 0;
-	IDX = 0;
+	puSendCmd = kmalloc(
+		sizeof(char) * I2C_BUFFER_LEN,
+		GFP_KERNEL);
+
+	if (puSendCmd == NULL) {
+		pr_info("allocate mem failed\n");
+		return -ENOMEM;
+	}
 
 	while (len > IDX) {
 		addr = para[IDX];
@@ -382,12 +380,8 @@ static kal_uint16 imx576_table_write_cmos_sensor(kal_uint16 *para,
 		tosend = 0;
 #endif
 	}
+	kfree(puSendCmd);
 
-#if 0 /*for debug*/
-	for (int i = 0; i < len/2; i++)
-		LOG_INF("readback addr(0x%x)=0x%x\n",
-			para[2*i], read_cmos_sensor_8(para[2*i]));
-#endif
 	return 0;
 }
 
@@ -2613,9 +2607,11 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 			break;
 		}
 		break;
+#ifdef IMGSENSOR_MT6885
 	case SENSOR_FEATURE_GET_OFFSET_TO_START_OF_EXPOSURE:
 		*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = 1500000;
 		break;
+#endif
 	case SENSOR_FEATURE_GET_PERIOD_BY_SCENARIO:
 		switch (*feature_data) {
 		case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
@@ -2873,6 +2869,15 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		imx576_set_lsc_reg_setting(index, feature_data_16,
 					  (*feature_para_len)/sizeof(UINT16));
 		}
+		break;
+	case SENSOR_FEATURE_GET_FRAME_CTRL_INFO_BY_SCENARIO:
+		/*
+		 * 1, if driver support new sw frame sync
+		 * set_shutter_frame_length() support third para auto_extend_en
+		 */
+		*(feature_data + 1) = 1;
+		/* margin info by scenario */
+		*(feature_data + 2) = imgsensor_info.margin;
 		break;
 	case SENSOR_FEATURE_GET_SENSOR_HDR_CAPACITY:
 		/*

@@ -94,16 +94,6 @@
 					host = <0x0>;
 				};
 			};
-
-			reserved-memory {
-				ion-rbin-heap {
-					compatible = "mediatek,ion-rbin-heap";
-					ion,recyclable;
-					size = <0 0xFA00000>;
-					alignment = <0 0x1000>;
-					alloc-ranges = <0 0x40000000 0 0x80000000>;
-				};
-			};	
 		};
 	};
 };
@@ -245,15 +235,21 @@
 	flashlight_current = <1 2 3 6 8>;
 };
 
-&mtu3_0 {
-	maximum-speed = "high-speed";
-};
-
 &mt6360_typec {
 	pd-data {
 		pd,vid = <0x04e8>;
 		pd,pid = <0x6860>;
 		pd,id-vdo-data = <0xd14004e8 0x0 0x68600000
 				 0x41800000 0x0 0x21800000>;
+	};
+};
+
+&reserved_memory {
+	ion-rbin-heap {
+		compatible = "mediatek,ion-rbin-heap";
+		ion,recyclable;
+		size = <0 0xFA00000>;
+		alignment = <0 0x1000>;
+		alloc-ranges = <0 0x40000000 0 0x80000000>;
 	};
 };

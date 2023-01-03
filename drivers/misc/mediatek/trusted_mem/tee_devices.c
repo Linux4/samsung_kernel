@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
  */
 
 #define PR_FMT_HEADER_MUST_BE_INCLUDED_BEFORE_ALL_HDRS
@@ -202,7 +194,7 @@ defined(CONFIG_TEEGRIS_TEE_SUPPORT)
 	return t_device;
 }
 
-static int __init tee_smem_devs_init(void)
+int tee_smem_devs_init(void)
 {
 	struct trusted_mem_device *t_device;
 	int idx = 0;
@@ -228,13 +220,6 @@ static int __init tee_smem_devs_init(void)
 	return TMEM_OK;
 }
 
-static void __exit tee_smem_devs_exit(void)
+void tee_smem_devs_exit(void)
 {
 }
-
-module_init(tee_smem_devs_init);
-module_exit(tee_smem_devs_exit);
-
-MODULE_AUTHOR("MediaTek Inc.");
-MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("MediaTek TEE Secure Memory Device Driver");

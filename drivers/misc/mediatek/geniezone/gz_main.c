@@ -1,14 +1,18 @@
+// SPDX-License-Identifier: GPL-2.0
+
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
+ */
+
+/*
+ * GenieZone (hypervisor-based seucrity platform) enables hardware protected
+ * and isolated security execution environment, includes
+ * 1. GZ hypervisor
+ * 2. Hypervisor-TEE OS (built-in Trusty OS)
+ * 3. Drivers (ex: debug, communication and interrupt) for GZ and
+ *    hypervisor-TEE OS
+ * 4. GZ and hypervisor-TEE and GZ framework (supporting multiple TEE
+ *    ecosystem, ex: M-TEE, Trusty, GlobalPlatform, ...)
  */
 
 
@@ -37,8 +41,14 @@
 #include "mtee_ut/gz_vreg_ut.h"
 #include "unittest.h"
 
+#define enable_code 0 /*replace #if 0*/
+
+#if enable_code
+/*devapc related function is not supported in Kernel-4.19*/
 #if IS_ENABLED(CONFIG_MTK_DEVAPC) && !IS_ENABLED(CONFIG_DEVAPC_LEGACY)
 #include <mt-plat/devapc_public.h>
+#endif
+
 #endif
 
 /* FIXME: MTK_PPM_SUPPORT is disabled temporarily */
@@ -128,6 +138,7 @@ static ssize_t gz_test_store(struct device *dev,
 		break;
 	default:
 		KREE_DEBUG("err: unknown test case\n");
+
 		break;
 	}
 	return n;
@@ -392,6 +403,59 @@ int mtee_sdsp_enable(u32 on)
 	return trusty_std_call32(tz_system_dev->dev.parent,
 			MTEE_SMCNR(MT_SMCF_SC_VPU, tz_system_dev->dev.parent),
 			on, 0, 0);
+}
+
+int gz_get_cpuinfo_thread(void *data)
+{
+#ifdef MTK_PPM_SUPPORT
+	struct cpufreq_policy curr_policy;
+#endif
+
+	if (platform_driver_register(&tz_system_driver))
+		KREE_ERR("%s driver register fail\n", __func__);
+
+	KREE_DEBUG("%s driver register done\n", __func__);
+
+#if IS_ENABLED(CONFIG_MACH_MT6758)
+	msleep(3000);
+#else
+	msleep(1000);
+#endif
+
+#ifdef MTK_PPM_SUPPORT
+	cpufreq_get_policy(&curr_policy, 0);
+	cpus_cluster_freq[0].max_freq = curr_policy.cpuinfo.max_freq;
+	cpus_cluster_freq[0].min_freq = curr_policy.cpuinfo.min_freq;
+	cpufreq_get_policy(&curr_policy, 4);
+	cpus_cluster_freq[1].max_freq = curr_policy.cpuinfo.max_freq;
+	cpus_cluster_freq[1].min_freq = curr_policy.cpuinfo.min_freq;
+	KREE_INFO("%s, cluster [0]=%u-%u, [1]=%u-%u\n", __func__,
+		  cpus_cluster_freq[0].max_freq, cpus_cluster_freq[0].min_freq,
+		  cpus_cluster_freq[1].max_freq, cpus_cluster_freq[1].min_freq);
+#endif
+
+	perf_boost_cnt = 0;
+	mutex_init(&perf_boost_lock);
+
+#if IS_ENABLED(CONFIG_PM_SLEEP)
+	/*kernel-4.14*/
+	//wakeup_source_init(&TeeServiceCall_wake_lock, "KREE_TeeServiceCall");
+
+	/*kernel-4.19*/
+	if (IS_ERR_OR_NULL(tz_system_dev))
+		return TZ_RESULT_ERROR_GENERIC;
+
+	TeeServiceCall_wake_lock =
+		wakeup_source_register(
+		tz_system_dev->dev.parent, "KREE_TeeServiceCall");
+	if (!TeeServiceCall_wake_lock) {
+		KREE_ERR("TeeServiceCall_wake_lock null\n");
+		return TZ_RESULT_ERROR_GENERIC;
+	}
+
+#endif
+
+	return 0;
 }
 
 static int gz_dev_open(struct inode *inode, struct file *filp)
@@ -1012,6 +1076,8 @@ static long gz_compat_ioctl(struct file *filep, unsigned int cmd,
 }
 #endif
 
+#if enable_code
+
 #if IS_ENABLED(CONFIG_MTK_DEVAPC) && !IS_ENABLED(CONFIG_DEVAPC_LEGACY)
 static void gz_devapc_vio_dump(void)
 {
@@ -1033,6 +1099,7 @@ static struct devapc_vio_callbacks gz_devapc_vio_handle = {
 };
 #endif
 
+#endif
 /************ kernel module init entry ***************/
 static int __init gz_init(void)
 {
@@ -1044,25 +1111,26 @@ static int __init gz_init(void)
 	if (res) {
 		KREE_DEBUG("create sysfs failed: %d\n", res);
 	} else {
-		res = platform_driver_register(&tz_system_driver);
-		if (res) {
-			KREE_ERR("%s driver register fail\n", __func__);
-			return res;
-		}
+		struct task_struct *gz_get_cpuinfo_task;
 
-		perf_boost_cnt = 0;
-		mutex_init(&perf_boost_lock);
-
-#if IS_ENABLED(CONFIG_PM_SLEEP)
-		/*kernel-4.14*/
-		wakeup_source_init(&TeeServiceCall_wake_lock, "KREE_TeeServiceCall");
-#endif
+		gz_get_cpuinfo_task =
+		    kthread_create(gz_get_cpuinfo_thread, NULL,
+				"gz_get_cpuinfo_task");
+		if (IS_ERR(gz_get_cpuinfo_task)) {
+			KREE_ERR("Unable to start kernel thread %s\n",
+				__func__);
+			res = PTR_ERR(gz_get_cpuinfo_task);
+		} else
+			wake_up_process(gz_get_cpuinfo_task);
 	}
+
+#if enable_code
 
 #if IS_ENABLED(CONFIG_MTK_DEVAPC) && !IS_ENABLED(CONFIG_DEVAPC_LEGACY)
 	register_devapc_vio_callback(&gz_devapc_vio_handle);
 #endif
 
+#endif
 
 	return res;
 }

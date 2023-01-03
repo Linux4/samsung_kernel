@@ -15,6 +15,7 @@
 extern struct device *sec_device_create(void *drvdata, const char *fmt);
 extern void sec_device_destroy(dev_t devt);
 extern struct device *sec_device_find(const char *name);
+
 #else
 #define sec_device_create(a, b)		(-1)
 #define sec_device_destroy(a)		do { } while (0)

@@ -29,6 +29,7 @@
 enum {
 	FM_READ = 0,
 	FM_WRITE,
+	FM_REMOVE,
 	FM_READY,
 };
 
@@ -163,6 +164,21 @@ int shub_file_read(char *path, char *buf, int buf_len, long long pos)
 	ret = _shub_file_rw(FM_READ, true);
 	if (ret > 0)
 		memcpy(buf, fm_msg.rx_buf, buf_len);
+	mutex_unlock(&fm_mutex);
+
+	return ret;
+}
+
+int shub_file_remove(char *path)
+{
+	int ret;
+
+	if (!is_fm_ready)
+		return -ENODEV;
+
+	mutex_lock(&fm_mutex);
+	fm_msg.tx_buf_size = snprintf(fm_msg.tx_buf, sizeof(fm_msg.tx_buf), "%s", path);
+	ret = _shub_file_rw(FM_REMOVE, true);
 	mutex_unlock(&fm_mutex);
 
 	return ret;

@@ -1,23 +1,13 @@
-
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
+
 
 #ifndef _MTK_EEM_INTERNAL_H_
 #define _MTK_EEM_INTERNAL_H_
 
-/*
- * bit operation
- */
 #undef  BIT
 #define BIT(bit)	(1U << (bit))
 
@@ -41,9 +31,6 @@
 #define GET_BITS_VAL(_bits_, _val_) \
 	(((_val_) & (BITMASK(_bits_))) >> ((0) ? _bits_))
 
-/*
- * LOG
- */
 #define EEM_TAG	 "[CPU][EEM]"
 #if 1
 	#define eem_error(fmt, args...)		pr_notice(EEM_TAG fmt, ##args)
@@ -111,9 +98,6 @@
 		}	\
 	} while (0)
 
-/*
- * REG ACCESS
- */
 #define eem_read(addr)	__raw_readl((void __iomem *)(addr))/*DRV_Reg32(addr)*/
 #define eem_read_field(addr, range)	\
 	((eem_read(addr) & BITMASK(range)) >> LSB(range))

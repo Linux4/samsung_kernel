@@ -143,10 +143,9 @@ int cpufreq_table_index_unsorted(struct cpufreq_policy *policy,
 		break;
 	}
 
-	cpufreq_for_each_valid_entry(pos, table) {
+	cpufreq_for_each_valid_entry_idx(pos, table, i) {
 		freq = pos->frequency;
 
-		i = pos - table;
 		if ((freq < policy->min) || (freq > policy->max))
 			continue;
 		if (freq == target_freq) {
@@ -211,15 +210,16 @@ int cpufreq_frequency_table_get_index(struct cpufreq_policy *policy,
 		unsigned int freq)
 {
 	struct cpufreq_frequency_table *pos, *table = policy->freq_table;
+	int idx;
 
 	if (unlikely(!table)) {
 		pr_debug("%s: Unable to find frequency table\n", __func__);
 		return -ENOENT;
 	}
 
-	cpufreq_for_each_valid_entry(pos, table)
+	cpufreq_for_each_valid_entry_idx(pos, table, idx)
 		if (pos->frequency == freq)
-			return pos - table;
+			return idx;
 
 	return -EINVAL;
 }
@@ -233,9 +233,9 @@ static ssize_t show_available_freqs(struct cpufreq_policy *policy, char *buf,
 {
 	ssize_t count = 0;
 	struct cpufreq_frequency_table *pos, *table = policy->freq_table;
-#if IS_ENABLED(CONFIG_SEC_PM)
+#ifdef CONFIG_CPU_FREQ_LIMIT
 	struct cpufreq_frequency_table *prev_pos = NULL;
-#endif
+#endif /* CONFIG_CPU_FREQ_LIMIT  */
 
 	if (!table)
 		return -ENODEV;
@@ -254,13 +254,13 @@ static ssize_t show_available_freqs(struct cpufreq_policy *policy, char *buf,
 		 */
 		if (show_boost ^ (pos->flags & CPUFREQ_BOOST_FREQ))
 			continue;
-
-#if IS_ENABLED(CONFIG_SEC_PM)
+#ifdef CONFIG_CPU_FREQ_LIMIT
 		if (prev_pos && prev_pos->frequency == pos->frequency)
 			continue;
 
 		prev_pos = pos;
-#endif
+#endif /* CONFIG_CPU_FREQ_LIMIT */
+
 		count += sprintf(&buf[count], "%d ", pos->frequency);
 	}
 	count += sprintf(&buf[count], "\n");
@@ -361,19 +361,19 @@ static int set_freq_table_sorted(struct cpufreq_policy *policy)
 	return 0;
 }
 
-int cpufreq_table_validate_and_show(struct cpufreq_policy *policy,
-				      struct cpufreq_frequency_table *table)
+int cpufreq_table_validate_and_sort(struct cpufreq_policy *policy)
 {
 	int ret;
 
-	ret = cpufreq_frequency_table_cpuinfo(policy, table);
+	if (!policy->freq_table)
+		return 0;
+
+	ret = cpufreq_frequency_table_cpuinfo(policy, policy->freq_table);
 	if (ret)
 		return ret;
 
-	policy->freq_table = table;
 	return set_freq_table_sorted(policy);
 }
-EXPORT_SYMBOL_GPL(cpufreq_table_validate_and_show);
 
 MODULE_AUTHOR("Dominik Brodowski <linux@brodo.de>");
 MODULE_DESCRIPTION("CPUfreq frequency table helpers");

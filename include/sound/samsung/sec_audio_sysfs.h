@@ -20,6 +20,7 @@ struct sec_audio_sysfs_data {
 	struct device *jack_dev;
 	struct device *codec_dev;
 	struct device *amp_dev;
+	struct device *adsp_dev;
 	bool no_earjack;
 	int (*get_jack_state)(void);
 	int (*get_key_state)(void);
@@ -57,6 +58,7 @@ int audio_register_excursion_max_cb(int (*excursion_max) (enum amp_id));
 int audio_register_excursion_overcount_cb(int (*excursion_overcount) (enum amp_id));
 int audio_register_curr_temperature_cb(int (*curr_temperature) (enum amp_id));
 int audio_register_surface_temperature_cb(int (*surface_temperature) (enum amp_id, int temperature));
+void send_adsp_silent_reset_ev(void);
 #else
 inline int audio_register_jack_select_cb(int (*set_jack) (int))
 {
@@ -88,7 +90,7 @@ inline int audio_register_force_enable_antenna_cb(int (*force_enable_antenna) (i
 	return -EACCES;
 }
 
-int audio_register_antenna_state_cb(int (*antenna_state) (void))
+inline int audio_register_antenna_state_cb(int (*antenna_state) (void))
 {
 	return -EACCES;
 }
@@ -123,10 +125,16 @@ inline int audio_register_curr_temperature_cb(int (*curr_temperature) (enum amp_
 	return -EACCES;
 }
 
-int audio_register_surface_temperature_cb(int (*surface_temperature) (enum amp_id, int temperature))
+inline int audio_register_surface_temperature_cb(int (*surface_temperature) (enum amp_id, int temperature))
 {
 	return -EACCES;
 }
+
+inline void send_adsp_silent_reset_ev(void)
+{
+
+}
+
 #endif
 
 #endif /* _SEC_AUDIO_SYSFS_H */

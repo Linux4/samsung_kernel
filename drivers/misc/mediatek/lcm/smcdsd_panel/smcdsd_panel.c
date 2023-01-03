@@ -64,10 +64,6 @@ static void smcdsd_panel_get_params(struct LCM_PARAMS *params)
 
 	smcdsd_panel_get_params_from_dt(params);
 
-/*	set value in each model file */
-	params->hbm_enable_wait_frame = 0;
-	params->hbm_disable_wait_frame = 0;
-
 	plcd->lcm_params = params;
 
 	dbg_info("%s -\n", __func__);

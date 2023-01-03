@@ -1,14 +1,7 @@
 /*
- * Copyright (C) 2016 MediaTek Inc.
+ * SPDX-License-Identifier: GPL-2.0
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <kpd.h>
@@ -37,6 +30,11 @@ static u16 kpd_keymap_state[KPD_NUM_MEMS] = {
 };
 
 static bool kpd_sb_enable;
+
+unsigned int get_boot_mode(void)
+{
+	return 0;
+}
 
 #ifdef CONFIG_MTK_SMARTBOOK_SUPPORT
 static void sb_kpd_release_keys(struct input_dev *dev)

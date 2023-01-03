@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __M4U_PRIV_H__
 #define __M4U_PRIV_H__
@@ -29,6 +21,68 @@
 #include "m4u.h"
 #include "m4u_reg.h"
 #include "../2.0/m4u_pgtable.h"
+
+#define m4u_err(string, args...)	pr_err("[M4U] "string, ##args)
+#define m4u_warn(string, args...)	pr_warn("[M4U] "string, ##args)
+#define m4u_info(string, args...)       pr_info("[M4U] "string, ##args)
+#define m4u_notice(string, args...)     pr_notice("[M4U] "string, ##args)
+#define m4u_debug(string, args...)      pr_debug("[M4U] "string, ##args)
+
+#define M4U_LOG_LEVEL_HIGH    3
+#define M4U_LOG_LEVEL_MID     2
+#define M4U_LOG_LEVEL_LOW     1
+
+extern int gM4U_log_level;
+extern int gM4U_log_to_uart;
+#define __M4ULOG(level, string, args...) \
+	do {\
+		if (level > gM4U_log_level) {\
+			if (level > gM4U_log_to_uart)\
+				pr_info("[M4U] "string, ##args);\
+			else\
+				pr_debug("[M4U] "string, ##args);\
+		} \
+	} while (0)
+
+#define M4U_LOW(string, args...)   __M4ULOG(M4U_LOG_LEVEL_LOW, string, ##args)
+#define M4U_MID(string, args...)   __M4ULOG(M4U_LOG_LEVEL_MID, string, ##args)
+#define M4U_HIGH(string, args...)  __M4ULOG(M4U_LOG_LEVEL_HIGH, string, ##args)
+
+/* for pass check service */
+#define m4u_low_info    M4U_LOW
+#define m4u_mid_info    M4U_MID
+#define m4u_high_info   M4U_HIGH
+
+#ifdef CONFIG_MTK_AEE_FEATURE
+#define M4UERR(string, args...) do {\
+	pr_err("[M4U]:"string, ##args); \
+	       aee_kernel_exception("M4U", "[M4U] error:"string, ##args); \
+	} while (0)
+
+#define m4u_aee_err(string, args...) do {\
+	char m4u_name[100]; \
+	int name_length = snprintf(m4u_name, 100, \
+			"[M4U]"string, ##args); \
+	if (name_length > 0) \
+		aee_kernel_warning_api(__FILE__, __LINE__, \
+			DB_OPT_MMPROFILE_BUFFER | DB_OPT_DUMP_DISPLAY, \
+			m4u_name, "[M4U]"string, ##args); \
+	pr_err("[M4U]:"string, ##args); \
+	} while (0)
+/*aee_kernel_warning(m4u_name, "[M4U] error:"string,##args); */
+#else
+#define M4UERR(string, args...)  pr_debug("[M4U]:"string, ##args)
+
+#define m4u_aee_err(string, args...) \
+	{ \
+		char m4u_name[100]; \
+		int name_length = snprintf(m4u_name, 100, \
+			"[M4U]"string, ##args); \
+		if (name_length > 0) \
+			pr_debug("[M4U]:"string, ##args); \
+	}
+
+#endif
 
 #define M4UMSG(string, args...) pr_info("[M4U] " string, ##args)
 #define M4UINFO(string, args...) pr_debug("[M4U] " string, ##args)
@@ -56,7 +110,7 @@
 #define mmp_event unsigned int
 #else
 #include <mmprofile.h>
-/* #include <mmprofile_function.h> */
+#include <mmprofile_function.h>
 #endif
 
 #ifdef CONFIG_PM
@@ -139,7 +193,7 @@ struct m4u_device {
 };
 
 struct m4u_domain {
-	struct imu_pgd_t *pgd;
+	struct imu_pgd *pgd;
 	dma_addr_t pgd_pa;
 	struct mutex pgtable_mutex;
 	unsigned int pgsize_bitmap;
@@ -235,7 +289,7 @@ int mau_start_monitor(unsigned int m4u_id,
 	unsigned int port_mask, unsigned int larb_mask);
 
 /*int config_mau(M4U_MAU_STRUCT mau);*/
-int m4u_enable_tf(unsigned int port, bool fgenable);
+//int m4u_enable_tf(unsigned int port, bool fgenable);
 
 extern int gM4U_4G_DRAM_Mode;
 
@@ -289,12 +343,6 @@ extern int gM4U_log_to_uart;
 #define M4ULOG_LOW(string, args...) _M4ULOG(M4U_LOG_LEVEL_LOW, string, ##args)
 #define M4ULOG_MID(string, args...) _M4ULOG(M4U_LOG_LEVEL_MID, string, ##args)
 #define M4ULOG_HIGH(string, args...) _M4ULOG(M4U_LOG_LEVEL_HIGH, string, ##args)
-
-#define M4UERR(string, args...)                                                \
-	do {                                                                   \
-		pr_info("[M4U] error:" string, ##args);                        \
-		aee_kernel_exception("M4U", "[M4U] error:" string, ##args);    \
-	} while (0)
 
 #define m4u_aee_print(string, args...)                                         \
 	do {                                                                   \
@@ -403,7 +451,7 @@ struct M4U_DMA {
 #define MTK_M4U_T_SEC_INIT _IOW(MTK_M4U_MAGICNO, 50, int)
 
 #ifdef M4U_TEE_SERVICE_ENABLE
-int m4u_config_port_tee(M4U_PORT_STRUCT *pM4uPort);
+int m4u_config_port_tee(struct m4u_port_config_struct *pM4uPort);
 int m4u_larb_backup_sec(unsigned int larb_idx);
 int m4u_larb_restore_sec(unsigned int larb_idx);
 int m4u_config_port_array_tee(unsigned char *port_array);

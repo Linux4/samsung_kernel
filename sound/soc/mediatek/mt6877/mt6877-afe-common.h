@@ -243,7 +243,7 @@ int mt6877_dai_pcm_register(struct mtk_base_afe *afe);
 
 int mt6877_dai_hostless_register(struct mtk_base_afe *afe);
 
-int mt6877_add_misc_control(struct snd_soc_platform *platform);
+int mt6877_add_misc_control(struct snd_soc_component *platform);
 
 int mt6877_set_local_afe(struct mtk_base_afe *afe);
 

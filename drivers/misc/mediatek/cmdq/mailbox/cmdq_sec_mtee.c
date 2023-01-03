@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/arm-smccc.h>
 #include <linux/soc/mediatek/mtk-cmdq.h>
@@ -119,15 +111,13 @@ s32 cmdq_sec_mtee_allocate_wsm(struct cmdq_sec_mtee_context *tee,
 		tee->wsm_param.buffer = (void *)(u64)virt_to_phys(*wsm_buffer);
 		status = KREE_RegisterSharedmem(tee->wsm_pHandle,
 			&tee->wsm_handle, &tee->wsm_param);
-		if (status != TZ_RESULT_SUCCESS){
+		if (status != TZ_RESULT_SUCCESS)
 			cmdq_err(
 				"%s: session:%#x handle:%#x size:%#x buffer:%p:%#x",
 				__func__, tee->wsm_pHandle, tee->wsm_handle,
 				tee->wsm_param.size, *wsm_buffer, *wsm_buffer);
-			return status;
-		}
 		else
-			cmdq_msg(
+			cmdq_log(
 				"%s: session:%#x handle:%#x size:%#x buffer:%p:%#x",
 				__func__, tee->wsm_pHandle, tee->wsm_handle,
 				tee->wsm_param.size, *wsm_buffer, *wsm_buffer);
@@ -152,7 +142,7 @@ s32 cmdq_sec_mtee_allocate_wsm(struct cmdq_sec_mtee_context *tee,
 				tee->wsm_ex_param.size,
 				*wsm_buf_ex, *wsm_buf_ex);
 		else
-			cmdq_msg(
+			cmdq_log(
 				"%s: session:%#x handle:%#x size:%#x buffer:%p:%#x",
 				__func__, tee->wsm_pHandle, tee->wsm_ex_handle,
 				tee->wsm_ex_param.size,
@@ -178,7 +168,7 @@ s32 cmdq_sec_mtee_allocate_wsm(struct cmdq_sec_mtee_context *tee,
 				tee->wsm_ex2_param.size,
 				*wsm_buf_ex2, *wsm_buf_ex2);
 		else
-			cmdq_msg(
+			cmdq_log(
 				"%s: session:%#x handle:%#x size:%#x buffer:%p:%#x",
 				__func__, tee->wsm_pHandle, tee->wsm_ex2_handle,
 				tee->wsm_ex2_param.size,

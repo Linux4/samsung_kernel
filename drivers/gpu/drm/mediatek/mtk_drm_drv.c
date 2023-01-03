@@ -1,16 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2015 MediaTek Inc.
- * Author: YT SHEN <yt.shen@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/syscalls.h>
 #include <drm/drmP.h>
@@ -70,6 +61,10 @@
 #include "include/pmic_api_buck.h"
 #endif
 
+#ifdef CONFIG_MTK_MT6382_BDG
+#include "mtk_disp_bdg.h"
+#endif
+
 #define DRIVER_NAME "mediatek"
 #define DRIVER_DESC "Mediatek SoC DRM"
 #define DRIVER_DATE "20150513"
@@ -122,20 +117,23 @@ void disp_drm_debug(const char *opt)
 {
 	pr_notice("[debug] opt=%s\n", opt);
 	if (strncmp(opt, "shift:", 6) == 0) {
-
 		int len = strlen(opt);
-		char buf[100];
+		#define BUF_LEN 100
 
-		strcpy(buf, opt + 6);
-		buf[len - 6] = '\0';
+		if (len < BUF_LEN) {
+			char buf[BUF_LEN];
 
-		pr_notice("[debug] buf=%s\n",
-			buf);
+			strcpy(buf, opt + 6);
+			buf[len - 6] = '\0';
 
-		manual_shift = mtk_atoi(buf);
+			pr_notice("[debug] buf=%s\n",
+				buf);
 
-		pr_notice("[debug] manual_shift=%d\n",
-			manual_shift);
+			manual_shift = mtk_atoi(buf);
+
+			pr_notice("[debug] manual_shift=%d\n",
+				manual_shift);
+		}
 	} else if (strncmp(opt, "no_shift:", 9) == 0) {
 		no_shift = strncmp(opt + 9, "1", 1) == 0;
 		pr_notice("[debug] no_shift=%d\n",
@@ -234,7 +232,7 @@ static void mtk_atomic_wait_for_fences(struct drm_atomic_state *state)
 	struct drm_plane_state *plane_state;
 	int i;
 
-	for_each_plane_in_state(state, plane, plane_state, i)
+	for_each_old_plane_in_state(state, plane, plane_state, i)
 		mtk_fb_wait(plane->state->fb);
 }
 
@@ -314,57 +312,61 @@ static void mtk_atomic_rsz_calc_dual_params(
 	param[tile_idx].sub_offset = (u32)(sub_offset[0] & 0x1fffff);
 	param[tile_idx].in_len = tile_in_len[0];
 	param[tile_idx].out_len = tile_out_len[0];
-	DDPINFO("%s,%d :%s:step:%u,offset:%u.%u,len:%u->%u,out_x:%u\n", __func__, __LINE__,
-	       is_dual ? "dual" : "single",
-	       param[0].step,
-	       param[0].int_offset,
-	       param[0].sub_offset,
-	       param[0].in_len,
-	       param[0].out_len,
-	       param[0].out_x);
-
-	if (!is_dual)
-		return;
+	if (tile_idx == 0) {
+		DDPINFO("%s,%d :%s:step:%u,offset:%u.%u,len:%u->%u,out_x:%u\n",
+			__func__, __LINE__, is_dual ? "dual" : "single",
+		       param[0].step,
+		       param[0].int_offset,
+		       param[0].sub_offset,
+		       param[0].in_len,
+		       param[0].out_len,
+		       param[0].out_x);
+	}
 
 	/* right half */
-	tile_out_len[1] = dst_roi->width - tile_out_len[0];
-	tile_in_len[1] = ((tile_out_len[1] * src_roi->width * 10) /
-		dst_roi->width + 5) / 10 + tile_loss + (offset[0] ? 1 : 0);
+	if (is_dual) {
+		tile_out_len[1] = dst_roi->width - tile_out_len[0];
+		tile_in_len[1] = ((tile_out_len[1] * src_roi->width * 10) /
+			dst_roi->width + 5) / 10 + tile_loss + (offset[0] ? 1 : 0);
 
-	offset[1] = (-offset[0]) + (tile_out_len[0] * step) -
+		offset[1] = (-offset[0]) + (tile_out_len[0] * step) -
 			(src_roi->width - tile_in_len[1]) * UNIT + manual_shift;
-	/*
-	 * offset[1] = (init_phase + dst_roi->width / 2 * step) -
-	 *	(src_roi->width / 2 - tile_loss - (offset[0] ? 1 : 0) + 1) * UNIT +
-	 *	UNIT + manual_shift;
-	 */
-	if (no_shift)
-		offset[1] = 0;
-	DDPINFO("%s,in_ph:%d,man_sh:%d,off[1]:%d\n", __func__, init_phase, manual_shift, offset[1]);
-	int_offset[1] = offset[1] / UNIT;
-	sub_offset[1] = offset[1] - UNIT * int_offset[1];
-	/*
-	if (int_offset[1] & 0x1) {
-		int_offset[1]++;
-		tile_in_len[1]++;
-		DDPINFO("%s :right tile int_offset: make odd to even\n", __func__);
+		/*
+		 * offset[1] = (init_phase + dst_roi->width / 2 * step) -
+		 *	(src_roi->width / 2 - tile_loss - (offset[0] ? 1 : 0) + 1) * UNIT +
+		 *	UNIT + manual_shift;
+		 */
+		if (no_shift)
+			offset[1] = 0;
+		DDPINFO("%s,in_ph:%d,man_sh:%d,off[1]:%d\n", __func__,
+			init_phase, manual_shift, offset[1]);
+		int_offset[1] = offset[1] / UNIT;
+		sub_offset[1] = offset[1] - UNIT * int_offset[1];
+		/*
+		 * if (int_offset[1] & 0x1) {
+		 *	int_offset[1]++;
+		 *	tile_in_len[1]++;
+		 *	DDPINFO("%s :right tile int_offset: make odd to even\n", __func__);
+		 * }
+		 */
+		param[1].step = step;
+		param[1].out_x = 0;
+		param[1].int_offset = (u32)(int_offset[1] & 0xffff);
+		param[1].sub_offset = (u32)(sub_offset[1] & 0x1fffff);
+		param[1].in_len = tile_in_len[1];
+		param[1].out_len = tile_out_len[1];
 	}
-	*/
-	param[1].step = step;
-	param[1].out_x = 0;
-	param[1].int_offset = (u32)(int_offset[1] & 0xffff);
-	param[1].sub_offset = (u32)(sub_offset[1] & 0x1fffff);
-	param[1].in_len = tile_in_len[1];
-	param[1].out_len = tile_out_len[1];
 
-	DDPINFO("%s,%d :%s:step:%u,offset:%u.%u,len:%u->%u,out_x:%u\n", __func__, __LINE__,
-	       is_dual ? "dual" : "single",
-	       param[1].step,
-	       param[1].int_offset,
-	       param[1].sub_offset,
-	       param[1].in_len,
-	       param[1].out_len,
-	       param[1].out_x);
+	if (tile_idx == 1 || (tile_idx == 0 && is_dual)) {
+		DDPINFO("%s,%d :%s:step:%u,offset:%u.%u,len:%u->%u,out_x:%u\n",
+			__func__, __LINE__, is_dual ? "dual" : "single",
+		       param[1].step,
+		       param[1].int_offset,
+		       param[1].sub_offset,
+		       param[1].in_len,
+		       param[1].out_len,
+		       param[1].out_x);
+	}
 }
 
 static void mtk_atomic_disp_rsz_roi(struct drm_device *dev,
@@ -382,7 +384,7 @@ static void mtk_atomic_disp_rsz_roi(struct drm_device *dev,
 	bool rsz_enable[MAX_CRTC] = {false};
 	struct mtk_plane_comp_state comp_state[MAX_CRTC][OVL_LAYER_NR];
 
-	for_each_crtc_in_state(old_state, crtc, old_crtc_state, i) {
+	for_each_old_crtc_in_state(old_state, crtc, old_crtc_state, i) {
 		struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
 
 		for (i = 0 ; i < mtk_crtc->layer_nr; i++) {
@@ -394,7 +396,7 @@ static void mtk_atomic_disp_rsz_roi(struct drm_device *dev,
 		}
 	}
 
-	for_each_plane_in_state(old_state, plane, old_plane_state, i) {
+	for_each_old_plane_in_state(old_state, plane, old_plane_state, i) {
 		struct drm_plane_state *plane_state = plane->state;
 		int src_w = drm_rect_width(&plane_state->src) >> 16;
 		int src_h = drm_rect_height(&plane_state->src) >> 16;
@@ -414,8 +416,8 @@ static void mtk_atomic_disp_rsz_roi(struct drm_device *dev,
 		else
 			idx = i - (OVL_LAYER_NR + EXTERNAL_INPUT_LAYER_NR);
 
-		if (comp_state[drm_crtc_index(crtc)][idx].layer_caps
-			& MTK_DISP_RSZ_LAYER) {
+		if (crtc && (comp_state[drm_crtc_index(crtc)][idx].layer_caps
+			& MTK_DISP_RSZ_LAYER)) {
 			mtk_rect_make(&src_layer_roi,
 				((dst_x * src_w * 10) / dst_w + 5) / 10,
 				((dst_y * src_h * 10) / dst_h + 5) / 10,
@@ -437,7 +439,7 @@ static void mtk_atomic_disp_rsz_roi(struct drm_device *dev,
 		}
 	}
 
-	for_each_crtc_in_state(old_state, crtc, old_crtc_state, i) {
+	for_each_old_crtc_in_state(old_state, crtc, old_crtc_state, i) {
 		struct mtk_crtc_state *state = to_mtk_crtc_state(crtc->state);
 		struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
 		int disp_idx;
@@ -497,7 +499,7 @@ mtk_atomic_calculate_plane_enabled_number(struct drm_device *dev,
 	struct drm_crtc_state *old_crtc_state;
 	unsigned int cnt[MAX_CRTC] = {0};
 
-	for_each_plane_in_state(old_state, plane, old_plane_state, i) {
+	for_each_old_plane_in_state(old_state, plane, old_plane_state, i) {
 		if (plane->state->crtc) {
 			struct mtk_drm_crtc *mtk_crtc =
 					to_mtk_crtc(plane->state->crtc);
@@ -505,7 +507,7 @@ mtk_atomic_calculate_plane_enabled_number(struct drm_device *dev,
 		}
 	}
 
-	for_each_crtc_in_state(old_state, crtc, old_crtc_state, i) {
+	for_each_old_crtc_in_state(old_state, crtc, old_crtc_state, i) {
 		struct mtk_crtc_state *state = to_mtk_crtc_state(crtc->state);
 
 		atomic_set(&state->plane_enabled_num, cnt[i]);
@@ -523,13 +525,13 @@ static void mtk_atomic_check_plane_sec_state(struct drm_device *dev,
 	struct drm_crtc *crtc;
 	struct drm_crtc_state *new_crtc_state;
 #endif
-	for_each_plane_in_state(new_state, plane, new_plane_state, i) {
+	for_each_old_plane_in_state(new_state, plane, new_plane_state, i) {
 		if (plane->state->crtc) {
 			struct mtk_drm_crtc *mtk_crtc =
 					to_mtk_crtc(plane->state->crtc);
 
 			if (plane->state->fb
-				&& plane->state->fb->pixel_format
+				&& plane->state->fb->format->format
 					!= DRM_FORMAT_C8
 				&& mtk_drm_fb_is_secure(plane->state->fb))
 				sec_on[drm_crtc_index(&mtk_crtc->base)] = true;
@@ -537,7 +539,7 @@ static void mtk_atomic_check_plane_sec_state(struct drm_device *dev,
 	}
 
 #if defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT)
-	for_each_crtc_in_state(new_state, crtc, new_crtc_state, i) {
+	for_each_old_crtc_in_state(new_state, crtc, new_crtc_state, i) {
 		struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
 
 		/* check output buffer is secure or not */
@@ -923,7 +925,7 @@ static bool mtk_atomic_skip_plane_update(struct mtk_drm_private *private,
 	 * CRTC state and skip the whole frame update. If the behavior
 	 * above changed, the statement below should be modified.
 	 */
-	for_each_crtc_in_state(state, crtc, old_crtc_state, i) {
+	for_each_old_crtc_in_state(state, crtc, old_crtc_state, i) {
 		struct mtk_crtc_state *mtk_state =
 			to_mtk_crtc_state(crtc->state);
 		if (mtk_state->doze_changed ||
@@ -934,7 +936,7 @@ static bool mtk_atomic_skip_plane_update(struct mtk_drm_private *private,
 			return true;
 		}
 	}
-
+#ifdef IF_ZERO
 	/* The CRTC would be enabled in LK stage and the content of
 	 * corresponding display
 	 *  may modified unexpected when first set crtc. If the case occur, we
@@ -950,12 +952,12 @@ static bool mtk_atomic_skip_plane_update(struct mtk_drm_private *private,
 	 * from LK, then
 	 * skip the plane update.
 	 */
-	for_each_crtc_in_state(state, crtc, old_crtc_state, i) {
+	for_each_old_crtc_in_state(state, crtc, old_crtc_state, i) {
 		if (!mtk_drm_is_enable_from_lk(crtc))
 			return false;
 	}
-
-	return true;
+#endif
+	return false;
 }
 
 #ifdef MTK_DRM_ESD_SUPPORT
@@ -969,7 +971,7 @@ static void drm_atomic_esd_chk_first_enable(struct drm_device *dev,
 
 
 	if (is_first) {
-		for_each_crtc_in_state(old_state, crtc, old_crtc_state, i) {
+		for_each_old_crtc_in_state(old_state, crtc, old_crtc_state, i) {
 			if (drm_crtc_index(crtc) == 0) {
 				if  (mtk_drm_lcm_is_connect())
 					mtk_disp_esd_check_switch(crtc, true);
@@ -1080,7 +1082,7 @@ static int mtk_atomic_check(struct drm_device *dev,
 	if (ret)
 		return ret;
 
-	for_each_crtc_in_state(state, crtc, crtc_state, i) {
+	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
 		old_state = to_mtk_crtc_state(crtc->state);
 		new_state = to_mtk_crtc_state(crtc_state);
 
@@ -1211,8 +1213,11 @@ static int mtk_atomic_commit(struct drm_device *drm,
 	}
 	mutex_nested_time_start = sched_clock();
 
+#ifndef CONFIG_ARCH_HAS_SYSCALL_WRAPPER
 	mtk_crtc->need_lock_tid = sys_gettid();
-
+#else
+	mtk_crtc->need_lock_tid = current->pid;
+#endif
 	ret = drm_atomic_helper_swap_state(state, 0);
 	if (ret) {
 		DDPPR_ERR("DRM swap state failed! state:%p, ret:%d\n",
@@ -1971,8 +1976,8 @@ static const struct mtk_crtc_path_data mt6873_mtk_main_path_data = {
 	.path_req_hrt[DDP_MAJOR][0] = true,
 	.wb_path[DDP_MAJOR] = mt6873_mtk_ddp_main_wb_path,
 	.wb_path_len[DDP_MAJOR] = ARRAY_SIZE(mt6873_mtk_ddp_main_wb_path),
-	.path[DDP_MINOR][0] = mt6873_mtk_ddp_main_minor,
-	.path_len[DDP_MINOR][0] = ARRAY_SIZE(mt6873_mtk_ddp_main_minor),
+	.path[DDP_MINOR][0] = NULL,
+	.path_len[DDP_MINOR][0] = 0,
 	.path_req_hrt[DDP_MINOR][0] = false,
 	.path[DDP_MINOR][1] = mt6873_mtk_ddp_main_minor_sub,
 	.path_len[DDP_MINOR][1] = ARRAY_SIZE(mt6873_mtk_ddp_main_minor_sub),
@@ -3194,6 +3199,10 @@ static int mtk_drm_kms_init(struct drm_device *drm)
 
 	mtk_drm_first_enable(drm);
 
+#ifdef CONFIG_MTK_MT6382_BDG
+	bdg_first_init();
+#endif
+
 	return 0;
 err_kms_helper_poll_fini:
 	drm_kms_helper_poll_fini(drm);
@@ -3308,11 +3317,6 @@ static const struct drm_ioctl_desc mtk_ioctls[] = {
 #endif
 	DRM_IOCTL_DEF_DRV(MTK_DEBUG_LOG, mtk_disp_ioctl_debug_log_switch,
 					DRM_UNLOCKED),
-
-	DRM_IOCTL_DEF_DRV(MTK_GET_PQ_CAPS, mtk_drm_ioctl_get_pq_caps,
-			  DRM_UNLOCKED),
-	DRM_IOCTL_DEF_DRV(MTK_SET_PQ_CAPS, mtk_drm_ioctl_set_pq_caps,
-			  DRM_UNLOCKED),
 };
 
 #if IS_ENABLED(CONFIG_COMPAT)

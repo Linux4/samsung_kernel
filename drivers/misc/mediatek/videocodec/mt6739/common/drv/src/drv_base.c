@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2020 MediaTek Inc.
  */
 
 #include <linux/sched.h>
@@ -51,9 +43,9 @@ int search_HWLockSlot_ByTID(unsigned long ulpa, unsigned int curr_tid)
 	int j;
 
 	for (i = 0; i < MULTI_INST_NUM; i++) {
-		if (oal_hw_context[i].u4ThreadNum != VCODEC_THREAD_MAX_NUM) {
-			for (j = 0; j < oal_hw_context[i].u4ThreadNum; j++) {
-				if (oal_hw_context[i].u4ThreadID[j]	==
+		if (oal_hw_context[i].u4VCodecThreadNum != VCODEC_THREAD_MAX_NUM) {
+			for (j = 0; j < oal_hw_context[i].u4VCodecThreadNum; j++) {
+				if (oal_hw_context[i].u4VCodecThreadID[j]	==
 					curr_tid) {
 					pr_debug("[VCODEC][%s]\n",
 						__func__);
@@ -112,9 +104,9 @@ struct VAL_VCODEC_OAL_HW_CONTEXT_T *setCurr_HWLockSlot(unsigned long ulpa,
 
 	/* if not exist in table,  find a new free slot and put it */
 	for (i = 0; i < MULTI_INST_NUM; i++) {
-		if (oal_hw_context[i].u4ThreadNum != VCODEC_THREAD_MAX_NUM) {
-			for (j = 0; j < oal_hw_context[i].u4ThreadNum; j++) {
-				if (oal_hw_context[i].u4ThreadID[j] ==
+		if (oal_hw_context[i].u4VCodecThreadNum != VCODEC_THREAD_MAX_NUM) {
+			for (j = 0; j < oal_hw_context[i].u4VCodecThreadNum; j++) {
+				if (oal_hw_context[i].u4VCodecThreadID[j] ==
 					current->pid) {
 					oal_hw_context[i].ObjId = ulpa;
 					pr_debug("[VCODEC][%s] setCurr %d Slot\n",
@@ -127,10 +119,10 @@ struct VAL_VCODEC_OAL_HW_CONTEXT_T *setCurr_HWLockSlot(unsigned long ulpa,
 
 	pr_err("[VCODEC][ERROR] %s All %d Slots unavaliable\n",
 		__func__, MULTI_INST_NUM);
-	oal_hw_context[0].u4ThreadNum = VCODEC_THREAD_MAX_NUM - 1;
-	for (i = 0; i < oal_hw_context[0].u4ThreadNum; i++) {
+	oal_hw_context[0].u4VCodecThreadNum = VCODEC_THREAD_MAX_NUM - 1;
+	for (i = 0; i < oal_hw_context[0].u4VCodecThreadNum; i++) {
 		/* Add one line comment for avoid kernel coding style, WARNING:BRACES: */
-		oal_hw_context[0].u4ThreadID[i] = current->pid;
+		oal_hw_context[0].u4VCodecThreadID[i] = current->pid;
 	}
 	return &oal_hw_context[0];
 }
@@ -146,30 +138,30 @@ struct VAL_VCODEC_OAL_HW_CONTEXT_T *setCurr_HWLockSlot_Thread_ID(
 
 	/* Dump current tids */
 	for (i = 0; i < MULTI_INST_NUM; i++) {
-		if (oal_hw_context[i].u4ThreadNum != VCODEC_THREAD_MAX_NUM) {
-			for (j = 0; j < oal_hw_context[i].u4ThreadNum; j++) {
+		if (oal_hw_context[i].u4VCodecThreadNum != VCODEC_THREAD_MAX_NUM) {
+			for (j = 0; j < oal_hw_context[i].u4VCodecThreadNum; j++) {
 				pr_debug("[VCODEC][%s]\n", __func__);
 				pr_debug("Dump curr slot %d, ThreadID[%d] = %d\n",
 					i, j,
-					oal_hw_context[i].u4ThreadID[j]);
+					oal_hw_context[i].u4VCodecThreadID[j]);
 			}
 		}
 	}
 
-	for (i = 0; i < a_prVcodecThreadID.u4ThreadNum; i++) {
+	for (i = 0; i < a_prVcodecThreadID.u4VCodecThreadNum; i++) {
 		pr_debug("[VCODEC][%s] VCodecThreadNum = %d, VCodecThreadID = %d\n",
-		     __func__, a_prVcodecThreadID.u4ThreadNum,
-		     a_prVcodecThreadID.u4ThreadID[i]);
+		     __func__, a_prVcodecThreadID.u4VCodecThreadNum,
+		     a_prVcodecThreadID.u4VCodecThreadID[i]);
 	}
 
 	/* check if current tids exist in oal_hw_context[i].ObjId */
 	for (i = 0; i < MULTI_INST_NUM; i++) {
-		if (oal_hw_context[i].u4ThreadNum != VCODEC_THREAD_MAX_NUM) {
-			for (j = 0; j < oal_hw_context[i].u4ThreadNum; j++) {
+		if (oal_hw_context[i].u4VCodecThreadNum != VCODEC_THREAD_MAX_NUM) {
+			for (j = 0; j < oal_hw_context[i].u4VCodecThreadNum; j++) {
 				for (k = 0; k <
-					a_prVcodecThreadID.u4ThreadNum; k++) {
-					if (oal_hw_context[i].u4ThreadID[j] ==
-					    a_prVcodecThreadID.u4ThreadID[k]) {
+					a_prVcodecThreadID.u4VCodecThreadNum; k++) {
+					if (oal_hw_context[i].u4VCodecThreadID[j] ==
+					    a_prVcodecThreadID.u4VCodecThreadID[k]) {
 						pr_debug("[VCODEC][%s]\n",
 							__func__);
 						pr_debug("Curr Already exist in %d Slot\n",
@@ -184,15 +176,15 @@ struct VAL_VCODEC_OAL_HW_CONTEXT_T *setCurr_HWLockSlot_Thread_ID(
 
 	/* if not exist in table,  find a new free slot and put it */
 	for (i = 0; i < MULTI_INST_NUM; i++) {
-		if (oal_hw_context[i].u4ThreadNum == VCODEC_THREAD_MAX_NUM) {
-			oal_hw_context[i].u4ThreadNum =
-				a_prVcodecThreadID.u4ThreadNum;
-			for (j = 0; j < a_prVcodecThreadID.u4ThreadNum; j++) {
-				oal_hw_context[i].u4ThreadID[j] =
-				    a_prVcodecThreadID.u4ThreadID[j];
+		if (oal_hw_context[i].u4VCodecThreadNum == VCODEC_THREAD_MAX_NUM) {
+			oal_hw_context[i].u4VCodecThreadNum =
+				a_prVcodecThreadID.u4VCodecThreadNum;
+			for (j = 0; j < a_prVcodecThreadID.u4VCodecThreadNum; j++) {
+				oal_hw_context[i].u4VCodecThreadID[j] =
+				    a_prVcodecThreadID.u4VCodecThreadID[j];
 				pr_debug("[VCODEC][%s] setCurr %d Slot, %d\n",
 					__func__, i,
-					oal_hw_context[i].u4ThreadID[j]);
+					oal_hw_context[i].u4VCodecThreadID[j]);
 			}
 			*a_prIndex = i;
 			return &oal_hw_context[i];
@@ -202,11 +194,11 @@ struct VAL_VCODEC_OAL_HW_CONTEXT_T *setCurr_HWLockSlot_Thread_ID(
 	{
 		pr_err("[VCODEC][ERROR] %s All %d Slots unavaliable\n",
 			__func__, MULTI_INST_NUM);
-		oal_hw_context[0].u4ThreadNum = a_prVcodecThreadID.u4ThreadNum;
-		for (i = 0; i < oal_hw_context[0].u4ThreadNum; i++) {
+		oal_hw_context[0].u4VCodecThreadNum = a_prVcodecThreadID.u4VCodecThreadNum;
+		for (i = 0; i < oal_hw_context[0].u4VCodecThreadNum; i++) {
 			/* Add one line comment for avoid kernel coding style, WARNING:BRACES: */
-			oal_hw_context[0].u4ThreadID[i] =
-			    a_prVcodecThreadID.u4ThreadID[i];
+			oal_hw_context[0].u4VCodecThreadID[i] =
+			    a_prVcodecThreadID.u4VCodecThreadID[i];
 		}
 		*a_prIndex = 0;
 		return &oal_hw_context[0];
@@ -224,11 +216,11 @@ struct VAL_VCODEC_OAL_HW_CONTEXT_T *freeCurr_HWLockSlot(unsigned long ulpa)
 	for (i = 0; i < MULTI_INST_NUM; i++) {
 		if (oal_hw_context[i].ObjId == ulpa) {
 			oal_hw_context[i].ObjId = -1L;
-			for (j = 0; j < oal_hw_context[i].u4ThreadNum; j++) {
+			for (j = 0; j < oal_hw_context[i].u4VCodecThreadNum; j++) {
 				/* Add one line comment for avoid kernel coding style, WARNING:BRACES: */
-				oal_hw_context[i].u4ThreadID[j] = -1;
+				oal_hw_context[i].u4VCodecThreadID[j] = -1;
 			}
-			oal_hw_context[i].u4ThreadNum =
+			oal_hw_context[i].u4VCodecThreadNum =
 				VCODEC_THREAD_MAX_NUM;
 			oal_hw_context[i].Oal_HW_reg =
 				(struct VAL_VCODEC_OAL_HW_REGISTER_T  *)0;

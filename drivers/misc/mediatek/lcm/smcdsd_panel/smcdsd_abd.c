@@ -293,6 +293,9 @@ static void smcdsd_abd_save_pin(struct abd_protect *abd, struct abd_pin_info *pi
 	if (!abd || !abd->init_done)
 		return;
 
+	if (pin->index == ABD_PIN_LOG)
+		return;
+
 	first = &pin->p_first;
 
 	first_log = &first->log[(first->count) % ABD_LOG_MAX];
@@ -362,7 +365,6 @@ static void __smcdsd_abd_pin_enable(struct abd_protect *abd, struct abd_pin_info
 	struct abd_pin *trace = &pin->p_lcdon;
 	struct abd_pin *event = &pin->p_event;
 	struct abd_sub_info *sub_info = NULL;
-	unsigned int state = 0;
 	struct list_head *chain_list = NULL;
 
 	if (!abd || !abd->init_done || !pin)
@@ -378,9 +380,9 @@ static void __smcdsd_abd_pin_enable(struct abd_protect *abd, struct abd_pin_info
 
 	pin->level = gpio_get_value(pin->gpio);
 
-	dbg_info("%s: on: %d, %s(%3d,%3d,%d) level: %d, count: %d(event: %d), state: %d, %s\n", __func__,
-		on, pin->name, pin->gpio, pin->irq, pin->desc->depth, pin->level, trace->count, event->count, state,
-		(pin->level == pin->active_level) ? "abnormal" : "normal");
+	dbg_info("%s: on: %d, %s(%3d,%3d,%d) level: %d, count: %d(event: %d) %s\n", __func__,
+		on, pin->name, pin->gpio, pin->irq, pin->desc->depth, pin->level, trace->count, event->count,
+		(pin->level == pin->active_level) ? (pin->index == ABD_PIN_LOG ? "undefined" : "abnormal") : "normal");
 
 	if (pin->name && !strcmp(pin->name, "pcd"))
 		set_frame_bypass(abd, (pin->level == pin->active_level) ? 1 : 0);
@@ -390,8 +392,13 @@ static void __smcdsd_abd_pin_enable(struct abd_protect *abd, struct abd_pin_info
 	if (pin->level == pin->active_level) {
 		smcdsd_abd_save_pin(abd, pin, trace, on);
 
+		if (pin->bug_flag == 1 || pin->bug_flag & IRQ_TYPE_LEVEL_MASK) {
+			dbg_info("%s: %s has bug_flag(%d)\n", __func__, pin->name, pin->bug_flag);
+			BUG();
+		}
+
 		list_for_each_entry(sub_info, chain_list, node) {
-			if (sub_info && sub_info->handler)
+			if (sub_info->handler)
 				sub_info->handler(pin->gpio, sub_info->chain_data);
 		}
 	}
@@ -434,7 +441,7 @@ irqreturn_t smcdsd_abd_handler(int irq, void *dev_id)
 	struct abd_pin *trace = NULL;
 	struct abd_pin *lcdon = NULL;
 	struct abd_sub_info *sub_info = NULL;
-	unsigned int i = 0, state = 0;
+	unsigned int i = 0;
 
 	spin_lock(&abd->slock);
 
@@ -455,9 +462,14 @@ irqreturn_t smcdsd_abd_handler(int irq, void *dev_id)
 
 	smcdsd_abd_save_pin(abd, pin, trace, 1);
 
-	dbg_info("%s: %s(%3d,%3d) level: %d, count: %d(lcdon: %d), state: %d, %s\n", __func__,
-		pin->name, pin->gpio, pin->irq, pin->level, trace->count, lcdon->count, state,
-		(pin->level == pin->active_level) ? "abnormal" : "normal");
+	dbg_info("%s: %s(%3d,%3d) level: %d, count: %d(lcdon: %d) %s\n", __func__,
+		pin->name, pin->gpio, pin->irq, pin->level, trace->count, lcdon->count,
+		(pin->level == pin->active_level) ? (pin->index == ABD_PIN_LOG ? "undefined" : "abnormal") : "normal");
+
+	if (pin->bug_flag == 1 || pin->bug_flag & IRQ_TYPE_EDGE_BOTH) {
+		dbg_info("%s: %s has bug_flag(%d)\n", __func__, pin->name, pin->bug_flag);
+		BUG();
+	}
 
 	if (pin->active_level != pin->level)
 		goto exit;
@@ -466,7 +478,7 @@ irqreturn_t smcdsd_abd_handler(int irq, void *dev_id)
 		set_frame_bypass(abd, 1);
 
 	list_for_each_entry(sub_info, &pin->event_chain, node) {
-		if (sub_info && sub_info->handler)
+		if (sub_info->handler)
 			sub_info->handler(irq, sub_info->chain_data);
 	}
 
@@ -638,8 +650,7 @@ static irqreturn_t smcdsd_abd_detatch_handler(int id, void *dev_id)
 
 int smcdsd_abd_pin_register_refresh_handler(struct abd_protect *abd, int irq)
 {
-	if (!abd->init_done)
-		return -EINVAL;
+	BUG_ON(!abd->init_done);
 
 	return smcdsd_abd_pin_register_handler(abd, irq, smcdsd_abd_refresh_handler, abd);
 }
@@ -1035,9 +1046,9 @@ static void __smcdsd_abd_print_pin(struct seq_file *m, struct abd_pin *trace)
 
 		tv = ns_to_timeval(log->stamp);
 		rtc_time_to_tm(log->ktime, &tm);
-		abd_printf(m, "%d-%02d-%02d %02d:%02d:%02d / %lu.%06lu / level: %d onoff: %d state: %d\n",
+		abd_printf(m, "%d-%02d-%02d %02d:%02d:%02d / %lu.%06lu / level: %d onoff: %d\n",
 			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
-			(unsigned long)tv.tv_sec, tv.tv_usec, log->level, log->onoff, log->state);
+			(unsigned long)tv.tv_sec, tv.tv_usec, log->level, log->onoff);
 	}
 }
 
@@ -1144,7 +1155,7 @@ static int smcdsd_abd_show(struct seq_file *m, void *unused)
 	smcdsd_abd_print_str(m, &abd->s_event);
 
 	list_for_each_entry(sub_info, &abd->printer_list, node) {
-		if (sub_info && sub_info->show)
+		if (sub_info->show)
 			sub_info->show(m, sub_info->chain_data);
 	}
 
@@ -1263,7 +1274,11 @@ static int of_smcdsd_abd_pin_append_extra_information(struct abd_protect *abd,
 	int ret, count, extra;
 	unsigned int type;
 
-	of_parse_phandle_with_args(np, dts_name, "#gpio-cells", 0, &gpiospec);
+	ret = of_parse_phandle_with_args(np, dts_name, "#gpio-cells", 0, &gpiospec);
+	if (ret < 0) {
+		dbg_info("%s: of_parse_phandle_with_args fail %d\n", __func__, ret);
+		return 0;
+	}
 
 	count = of_property_count_u32_elems(np, dts_name);
 	if (count < 0 || count > MAX_PHANDLE_ARGS) {
@@ -1403,14 +1418,12 @@ static int smcdsd_abd_pin_early_notifier_callback(struct notifier_block *this,
 		return NOTIFY_DONE;
 
 	if (!abd->boot_done) {
-		dbg_none("%s: boot_done\n", __func__);
+		dbg_info("%s: boot_done\n", __func__);
 		abd->boot_done = 1;
 	}
 
-	if (IS_EARLY(event) && fb_blank == FB_BLANK_POWERDOWN) {
-		flush_workqueue(abd->blank_workqueue);
-		smcdsd_abd_enable(abd, 0);
-	}
+	flush_workqueue(abd->blank_workqueue);
+	smcdsd_abd_enable(abd, 0);
 
 	return NOTIFY_DONE;
 }
@@ -1437,14 +1450,14 @@ static int smcdsd_abd_pin_after_notifier_callback(struct notifier_block *this,
 	if (evdata->info->node)
 		return NOTIFY_DONE;
 
-	if (IS_AFTER(event) && fb_blank == FB_BLANK_UNBLANK) {
+	if (fb_blank == FB_BLANK_UNBLANK) {
 		smcdsd_abd_enable(abd, 1);
 
 		if (abd->blank_flag) {
 			dbg_info("%s: blank_flag: %u\n", __func__, abd->blank_flag);
 			abd->blank_flag = 0;
 		}
-	} else if (IS_AFTER(event) && fb_blank == FB_BLANK_POWERDOWN) {
+	} else if (fb_blank == FB_BLANK_POWERDOWN) {
 		for (i = 0; i < ABD_PIN_MAX; i++) {
 			pin = &abd->pin[i];
 			if (pin && pin->irq)
@@ -1458,6 +1471,12 @@ static int smcdsd_abd_pin_after_notifier_callback(struct notifier_block *this,
 static void smcdsd_abd_pin_register(struct abd_protect *abd)
 {
 	spin_lock_init(&abd->slock);
+
+	abd->pin[ABD_PIN_PCD].index = ABD_PIN_PCD;
+	abd->pin[ABD_PIN_DET].index = ABD_PIN_DET;
+	abd->pin[ABD_PIN_ERR].index = ABD_PIN_ERR;
+	abd->pin[ABD_PIN_CON].index = ABD_PIN_CON;
+	abd->pin[ABD_PIN_LOG].index = ABD_PIN_LOG;
 
 	of_smcdsd_abd_pin_register_handler(abd, &abd->pin[ABD_PIN_PCD], "pcd", smcdsd_abd_handler);
 	of_smcdsd_abd_pin_register_handler(abd, &abd->pin[ABD_PIN_DET], "det", smcdsd_abd_handler);
@@ -1474,6 +1493,39 @@ static void smcdsd_abd_pin_register(struct abd_protect *abd)
 	smcdsd_register_notifier(&abd->pin_after_notifier);
 
 	of_smcdsd_abd_pin_register_handler_chain(abd);
+}
+
+static void smcdsd_abd_register_debugfs(struct abd_protect *abd)
+{
+	struct dentry *abd_debugfs_root = NULL;
+
+	if (IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP))
+		return;
+
+	if (!IS_ENABLED(CONFIG_SMCDSD_LCD_DEBUG))
+		return;
+
+	if (!IS_ENABLED(CONFIG_DEBUG_FS))
+		return;
+
+	dbg_info("%s: ++\n", __func__);
+
+	if (!abd_debugfs_root)
+		abd_debugfs_root = debugfs_create_dir("panel", NULL);
+
+	abd->debugfs_root = abd_debugfs_root;
+	if (!abd->debugfs_root) {
+		dbg_info("%s: debugfs_create_dir fail\n", __func__);
+		return;
+	}
+
+	debugfs_create_u32("pcd_bug", 0644, abd_debugfs_root, (u32 *)&abd->pin[ABD_PIN_PCD].bug_flag);
+	debugfs_create_u32("det_bug", 0644, abd_debugfs_root, (u32 *)&abd->pin[ABD_PIN_DET].bug_flag);
+	debugfs_create_u32("err_bug", 0644, abd_debugfs_root, (u32 *)&abd->pin[ABD_PIN_ERR].bug_flag);
+	debugfs_create_u32("con_bug", 0644, abd_debugfs_root, (u32 *)&abd->pin[ABD_PIN_CON].bug_flag);
+	debugfs_create_u32("log_bug", 0644, abd_debugfs_root, (u32 *)&abd->pin[ABD_PIN_LOG].bug_flag);
+
+	dbg_info("%s: -- entity was registered\n", __func__);
 }
 
 static void smcdsd_abd_register(struct abd_protect *abd)
@@ -1496,6 +1548,7 @@ static void smcdsd_abd_register(struct abd_protect *abd)
 		dbg_info("%s: create_singlethread_workqueue fail\n", __func__);
 
 	smcdsd_abd_register_fops(abd);
+	smcdsd_abd_register_debugfs(abd);
 
 	dbg_info("%s: -- entity was registered\n", __func__);
 }

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/delay.h>
 #include <linux/sched.h>
@@ -297,7 +289,7 @@ static int _should_config_ovl_input(void)
 static int _build_path_direct_link(unsigned int session)
 {
 	int ret = 0;
-	struct M4U_PORT_STRUCT sPort;
+	struct m4u_port_config_struct sPort;
 
 	EXTDFUNC();
 	pgc->mode = EXTD_DIRECT_LINK_MODE;
@@ -349,7 +341,7 @@ static int _build_path_single_layer(void)
 static int _build_path_rdma_dpi(void)
 {
 	int ret = 0;
-	struct M4U_PORT_STRUCT sPort;
+	struct m4u_port_config_struct sPort;
 
 	EXTDFUNC();
 	pgc->mode = EXTD_RDMA_DPI_MODE;
@@ -1844,7 +1836,7 @@ int ext_disp_frame_cfg_input(struct disp_frame_cfg_t *cfg)
 	int i = 0;
 	int layer_cnt = 0;
 	int config_layer_id = 0;
-	struct M4U_PORT_STRUCT sPort;
+	struct m4u_port_config_struct sPort;
 	struct disp_ddp_path_config *data_config;
 	unsigned int ext_last_fence, ext_cur_fence, ext_sub, input_source;
 	struct ddp_io_golden_setting_arg gset_arg;

@@ -37,8 +37,8 @@
 #endif
 #include <linux/ktime.h>
 #include <linux/pinctrl/consumer.h>
-#include <mt-plat/mtk_battery.h>
-#include <mt-plat/charger_type.h>
+#include <mt-plat/v1/mtk_battery.h>
+#include <mt-plat/v1/charger_type.h>
 #include <mt-plat/mtk_boot_common.h>
 #include <linux/muic/afc_gpio/gpio_afc_charger.h>
 #include "../drivers/misc/mediatek/typec/tcpc/inc/mt6360.h"
@@ -61,10 +61,12 @@ struct gpio_afc_ddata *g_ddata;
 static int gpio_hiccup;
 #endif
 
-#if IS_ENABLED(CONFIG_MUIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/common/muic_notifier.h>
-#include <linux/muic/common/vt_muic/vt_muic.h>
 extern struct muic_platform_data muic_pdata;
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+#include <linux/muic/common/vt_muic/vt_muic.h>
+#endif
 #endif
 
 /* afc_mode:
@@ -389,7 +391,7 @@ static void gpio_afc_kwork(struct kthread_work *work)
 {
 	struct gpio_afc_ddata *ddata =
 	    container_of(work, struct gpio_afc_ddata, kwork);
-#if defined(CONFIG_BATTERY_SAMSUNG)
+#if defined(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_VIRTUAL_MUIC)
 	struct power_supply *psy = power_supply_get_by_name("battery");
 #endif
 	int ret = 0, i = 0;
@@ -398,6 +400,11 @@ static void gpio_afc_kwork(struct kthread_work *work)
 
 	if (!ddata) {
 		pr_err("driver is not ready\n");
+		return;
+	}
+
+	if (ddata->is_hiccup_mode == SEC_HICCUP_MODE_ON) {
+		pr_err("%s hiccup mode is active\n", __func__);
 		return;
 	}
 
@@ -413,16 +420,15 @@ static void gpio_afc_kwork(struct kthread_work *work)
 	ret = vbus_level_check();
 	pr_info("%s set vol[%dV], current[%dV]\n",
 		__func__, vol, ret);
-	if (ret == 0) {
-		pr_err("%s disconnected\n", __func__);
+	if (ret == 0 || ddata->is_hiccup_mode == SEC_HICCUP_MODE_ON) {
+		pr_err("%s disconnected or hiccup mode(%d)\n", __func__,
+			ddata->is_hiccup_mode);
 		return;
 	}
-
 	ddata->curr_voltage = ret;
-	set_attached_afc_dev(ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC);
 
 	mutex_lock(&ddata->mutex);
-	__pm_stay_awake(&ddata->ws);
+	__pm_stay_awake(ddata->ws);
 
 	if (ret != vol) {
 		gpio_set_value(ddata->pdata->gpio_afc_switch, 1);
@@ -431,6 +437,8 @@ static void gpio_afc_kwork(struct kthread_work *work)
 			for (i = 0; i < AFC_RETRY_CNT ; i++) {
 				gpio_afc_set_voltage(ddata, vol);
 				usleep_range(1000, 1000);
+				if (ddata->is_hiccup_mode == SEC_HICCUP_MODE_ON)
+					goto err;
 			}
 
 			ret = vbus_level_check();
@@ -458,13 +466,16 @@ static void gpio_afc_kwork(struct kthread_work *work)
 		else
 			set_attached_afc_dev(ATTACHED_DEV_TA_MUIC);
 	} else if (vol == 0x5) {
-		if (!ret)
-			set_attached_afc_dev(ATTACHED_DEV_AFC_CHARGER_5V_MUIC);
-		else if (vol == 0x9)
+		if (!ret) {
+			if (ddata->afc_disable)
+				set_attached_afc_dev(ATTACHED_DEV_TA_MUIC);
+			else
+				set_attached_afc_dev(ATTACHED_DEV_AFC_CHARGER_5V_MUIC);
+		} else if (vol == 0x9)
 			set_attached_afc_dev(ATTACHED_DEV_AFC_CHARGER_9V_DUPLI_MUIC);
 	}
 
-#if defined(CONFIG_BATTERY_SAMSUNG)
+#if defined(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_VIRTUAL_MUIC)
 	if (!IS_ERR_OR_NULL(psy)) {
 		union power_supply_propval val;
 
@@ -495,7 +506,7 @@ static void gpio_afc_kwork(struct kthread_work *work)
 #endif
 err:
 	gpio_set_value(ddata->pdata->gpio_afc_switch, 0);
-	__pm_relax(&ddata->ws);
+	__pm_relax(ddata->ws);
 	mutex_unlock(&ddata->mutex);
 }
 
@@ -503,6 +514,11 @@ int set_afc_voltage(int voltage)
 {
 	struct gpio_afc_ddata *ddata = g_ddata;
 	int vbus = 0, cur = 0;
+
+	if (voltage == 0x9)
+		set_afc_voltage_for_performance(false);
+	else if (voltage == 0x5)
+		set_afc_voltage_for_performance(true);
 
 	if (!ddata) {
 		pr_err("driver is not ready\n");
@@ -541,6 +557,29 @@ int set_afc_voltage(int voltage)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_SEC_HICCUP)
+void set_sec_hiccup(bool en)
+{
+	int ret = 0;
+	struct gpio_afc_ddata *ddata = g_ddata;
+
+	ret = get_boot_mode();
+	if (ret == KERNEL_POWER_OFF_CHARGING_BOOT) {
+		pr_info("%s %d, lpm mode\n", __func__, en, ret);
+		return;
+	}
+
+	if (en)
+		ddata->is_hiccup_mode = SEC_HICCUP_MODE_ON;
+	else
+		ddata->is_hiccup_mode = SEC_HICCUP_MODE_OFF;
+
+	gpio_set_value(gpio_hiccup, en);
+	ret = gpio_get_value(gpio_hiccup);
+	pr_info("%s %d, %d\n", __func__, en, ret);
+}
+#endif
+
 #if defined(CONFIG_DRV_SAMSUNG)
 static ssize_t afc_disable_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -568,6 +607,10 @@ static ssize_t afc_disable_store(struct device *dev,
 #ifdef CONFIG_BATTERY_SAMSUNG
 	union power_supply_propval psy_val;
 #endif
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	int attached_dev = vt_muic_get_attached_dev();
+	int vbus = 0, curr = 0;
+#endif /* CONFIG_VIRTUAL_MUIC */
 
 	if (!strncasecmp(buf, "1", 1)) {
 		ddata->afc_disable = true;
@@ -591,29 +634,35 @@ static ssize_t afc_disable_store(struct device *dev,
 	psy_val.intval = param_val;
 	psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_HV_DISABLE, psy_val);
 #endif
-	pr_info("%s afc_disable(%d)\n", __func__, ddata->afc_disable);
 
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	switch (attached_dev) {
+	case ATTACHED_DEV_TA_MUIC:
+	case ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC ... ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC:
+		kthread_flush_work(&ddata->kwork);
+
+		curr = vbus_level_check();
+		vbus = ddata->afc_disable ? 5 : 9;
+
+		if (curr == vbus) {
+			if (ddata->afc_disable && attached_dev != ATTACHED_DEV_TA_MUIC)
+				vt_muic_set_attached_afc_dev(ATTACHED_DEV_TA_MUIC);
+		} else {
+			ddata->curr_voltage = curr;
+			ddata->set_voltage = vbus;
+			kthread_queue_work(&ddata->kworker, &ddata->kwork);
+		}
+		break;
+	default:
+		break;
+	}
+#endif /* CONFIG_VIRTUAL_MUIC */
+
+	pr_info("%s afc_disable(%d)\n", __func__, ddata->afc_disable);
 	return count;
 }
 
 #if IS_ENABLED(CONFIG_SEC_HICCUP)
-void set_sec_hiccup(bool en)
-{
-	int ret = 0;
-
-	ret = get_boot_mode();
-	if (ret == KERNEL_POWER_OFF_CHARGING_BOOT) {
-		pr_info("%s %d, lpm mode\n", __func__, en, ret);
-		return;
-	}
-
-	gpio_set_value(gpio_hiccup, en);
-
-	ret = gpio_get_value(gpio_hiccup);
-
-	pr_info("%s %d, %d\n", __func__, en, ret);
-}
-
 static ssize_t hiccup_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -676,6 +725,32 @@ static const struct attribute_group gpio_afc_group = {
 	.attrs = gpio_afc_attributes,
 };
 #endif /* CONFIG_DRV_SAMSUNG */
+
+#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
+static int sec_set_hiccup_mode(int val)
+{
+#if IS_ENABLED(CONFIG_SEC_HICCUP)
+	int ret = 0;
+
+	ret = get_boot_mode();
+	if (ret == KERNEL_POWER_OFF_CHARGING_BOOT) {
+		pr_info("%s %d, lpm mode\n", __func__, val, ret);
+		return 0;
+	}
+
+	if (val) {
+		set_attached_afc_dev(ATTACHED_DEV_HICCUP_MUIC);
+		set_sec_hiccup(true);
+	} else {
+		set_sec_hiccup(false);
+	}
+#else
+	pr_info("%s gpio_hiccup is not defined\n", __func__);
+#endif
+
+	return 0;
+}
+#endif
 
 static struct gpio_afc_pdata *gpio_afc_get_dt(struct device *dev)
 {
@@ -741,8 +816,9 @@ static int gpio_afc_probe(struct platform_device *pdev)
 		return ret;
 	}
 #endif /* CONFIG_SEC_HICCUP */
+	ddata->is_hiccup_mode = SEC_HICCUP_MODE_OFF;
 
-	wakeup_source_init(&ddata->ws, "afc_wakelock");
+	ddata->ws = wakeup_source_register(NULL, "afc_wakelock");
 	spin_lock_init(&ddata->spin_lock);
 	mutex_init(&ddata->mutex);
 	dev_set_drvdata(dev, ddata);
@@ -767,10 +843,19 @@ static int gpio_afc_probe(struct platform_device *pdev)
 	psy_val.intval = ddata->afc_disable ? '1' : '0';
 	psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_HV_DISABLE, psy_val);
 #endif
-	ddata->dev = sec_device_create(ddata, "switch");
-	if (IS_ERR(ddata->dev)) {
-		pr_err("failed to create device\n");
-		return -ENODEV;
+#if defined(CONFIG_MUIC_NOTIFIER)
+	if (switch_device) {
+		pr_info("switch_device is aleady created in muic common\n");
+		ddata->dev = switch_device;
+		dev_set_drvdata(ddata->dev, ddata);
+	} else
+#endif
+	{
+		ddata->dev = sec_device_create(ddata, "switch");
+		if (IS_ERR(ddata->dev)) {
+			pr_err("failed to create device\n");
+			return -ENODEV;
+		}
 	}
 
 	ret = sysfs_create_group(&ddata->dev->kobj, &gpio_afc_group);
@@ -782,17 +867,40 @@ static int gpio_afc_probe(struct platform_device *pdev)
 	gpio_direction_output(ddata->pdata->gpio_afc_switch, 0);
 	gpio_direction_output(ddata->pdata->gpio_afc_data, 0);
 
-#if IS_ENABLED(CONFIG_MUIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 	ddata->muic_pdata = &muic_pdata;
 	ddata->muic_pdata->muic_afc_set_voltage_cb = set_afc_voltage;
+#endif
+#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
+	ddata->muic_pdata->muic_set_hiccup_mode_cb =
+			sec_set_hiccup_mode;
 #endif
 
 	return 0;
 }
 
-static void gpio_afc_shutdown(struct platform_device *dev)
+static void gpio_afc_shutdown(struct platform_device *pdev)
 {
-	/* TBD */
+	struct device *dev = &pdev->dev;
+	struct gpio_afc_ddata *ddata = dev_get_drvdata(dev);
+	int vol;
+
+	if (!ddata) {
+		pr_err("%s: driver is not ready\n", __func__);
+		return;
+	}
+
+	vol = vbus_level_check();
+	pr_info("%s: vbus %d (set_voltage=%d)\n", __func__,
+		vol, ddata->set_voltage);
+
+	if (ddata->set_voltage == 0x9 && vol == 0x9) {
+		gpio_afc_reset(ddata);
+		vol = vbus_level_check();
+		pr_info("%s: after afc reset=> vbus %d\n", __func__, vol);
+		if (vol == 0x9)
+			gpio_afc_set_voltage(ddata, 0x5);
+	}
 }
 
 static const struct of_device_id gpio_afc_of_match[] = {

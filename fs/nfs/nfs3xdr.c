@@ -34,6 +34,7 @@
  */
 #define NFS3_fhandle_sz		(1+16)
 #define NFS3_fh_sz		(NFS3_fhandle_sz)	/* shorthand */
+#define NFS3_post_op_fh_sz	(1+NFS3_fh_sz)
 #define NFS3_sattr_sz		(15)
 #define NFS3_filename_sz	(1+(NFS3_MAXNAMLEN>>2))
 #define NFS3_path_sz		(1+(NFS3_MAXPATHLEN>>2))
@@ -71,7 +72,7 @@
 #define NFS3_readlinkres_sz	(1+NFS3_post_op_attr_sz+1)
 #define NFS3_readres_sz		(1+NFS3_post_op_attr_sz+3)
 #define NFS3_writeres_sz	(1+NFS3_wcc_data_sz+4)
-#define NFS3_createres_sz	(1+NFS3_fh_sz+NFS3_post_op_attr_sz+NFS3_wcc_data_sz)
+#define NFS3_createres_sz	(1+NFS3_post_op_fh_sz+NFS3_post_op_attr_sz+NFS3_wcc_data_sz)
 #define NFS3_renameres_sz	(1+(2 * NFS3_wcc_data_sz))
 #define NFS3_linkres_sz		(1+NFS3_post_op_attr_sz+NFS3_wcc_data_sz)
 #define NFS3_readdirres_sz	(1+NFS3_post_op_attr_sz+2)
@@ -561,6 +562,7 @@ static __be32 *xdr_decode_nfstime3(__be32 *p, struct timespec *timep)
  */
 static void encode_sattr3(struct xdr_stream *xdr, const struct iattr *attr)
 {
+	struct timespec ts;
 	u32 nbytes;
 	__be32 *p;
 
@@ -610,8 +612,10 @@ static void encode_sattr3(struct xdr_stream *xdr, const struct iattr *attr)
 		*p++ = xdr_zero;
 
 	if (attr->ia_valid & ATTR_ATIME_SET) {
+		struct timespec ts;
 		*p++ = xdr_two;
-		p = xdr_encode_nfstime3(p, &attr->ia_atime);
+		ts = timespec64_to_timespec(attr->ia_atime);
+		p = xdr_encode_nfstime3(p, &ts);
 	} else if (attr->ia_valid & ATTR_ATIME) {
 		*p++ = xdr_one;
 	} else
@@ -619,7 +623,8 @@ static void encode_sattr3(struct xdr_stream *xdr, const struct iattr *attr)
 
 	if (attr->ia_valid & ATTR_MTIME_SET) {
 		*p++ = xdr_two;
-		xdr_encode_nfstime3(p, &attr->ia_mtime);
+		ts = timespec64_to_timespec(attr->ia_mtime);
+		xdr_encode_nfstime3(p, &ts);
 	} else if (attr->ia_valid & ATTR_MTIME) {
 		*p = xdr_one;
 	} else
@@ -1997,6 +2002,7 @@ int nfs3_decode_dirent(struct xdr_stream *xdr, struct nfs_entry *entry,
 	struct nfs_entry old = *entry;
 	__be32 *p;
 	int error;
+	u64 new_cookie;
 
 	p = xdr_inline_decode(xdr, 4);
 	if (unlikely(p == NULL))
@@ -2019,8 +2025,7 @@ int nfs3_decode_dirent(struct xdr_stream *xdr, struct nfs_entry *entry,
 	if (unlikely(error))
 		return error;
 
-	entry->prev_cookie = entry->cookie;
-	error = decode_cookie3(xdr, &entry->cookie);
+	error = decode_cookie3(xdr, &new_cookie);
 	if (unlikely(error))
 		return error;
 
@@ -2053,6 +2058,9 @@ int nfs3_decode_dirent(struct xdr_stream *xdr, struct nfs_entry *entry,
 		} else
 			zero_nfs_fh3(entry->fh);
 	}
+
+	entry->prev_cookie = entry->cookie;
+	entry->cookie = new_cookie;
 
 	return 0;
 

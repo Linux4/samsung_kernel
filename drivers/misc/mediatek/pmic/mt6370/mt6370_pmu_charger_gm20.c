@@ -1,14 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
+
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/module.h>
@@ -300,6 +293,24 @@ static inline void mt6370_chg_irq_clr_flag(
 	mutex_lock(&chg_data->irq_access_lock);
 	*irq &= ~mask;
 	mutex_unlock(&chg_data->irq_access_lock);
+}
+
+static inline int mt6370_pmu_reg_test_bit(
+	struct mt6370_pmu_chip *chip, u8 cmd, u8 shift, bool *is_one)
+{
+	int ret = 0;
+	u8 data = 0;
+
+	ret = mt6370_pmu_reg_read(chip, cmd);
+	if (ret < 0) {
+		*is_one = false;
+		return ret;
+	}
+
+	data = ret & (1 << shift);
+	*is_one = (data == 0 ? false : true);
+
+	return ret;
 }
 
 static u8 mt6370_find_closest_reg_value(u32 min, u32 max, u32 step, u32 num,
@@ -1727,52 +1738,6 @@ static int mt6370_enable_otg(struct mtk_charger_info *mchr_info, void *data)
 	return ret;
 }
 
-#if 0
-static int mt6370_enable_discharge(struct mtk_charger_info *mchr_info,
-	void *data)
-{
-	int ret = 0, i = 0;
-	const u32 check_dischg_max = 3;
-	bool is_dischg = true;
-	bool en = *((bool *)data);
-	struct mt6370_pmu_charger_data *chg_data =
-		(struct mt6370_pmu_charger_data *)mchr_info;
-
-	dev_info(chg_data->dev, "%s: en = %d\n", __func__, en);
-
-	ret = mt6370_enable_hidden_mode(chg_data, true);
-	if (ret < 0)
-		return ret;
-
-	/* Set bit2 of reg[0x31] to 1/0 to enable/disable discharging */
-	ret = (en ? mt6370_pmu_reg_set_bit : mt6370_pmu_reg_clr_bit)
-		(chg_data->chip, MT6370_PMU_REG_CHGHIDDENCTRL1, 0x04);
-	if (ret < 0) {
-		dev_err(chg_data->dev, "%s: en = %d failed, ret = %d\n",
-			__func__, en, ret);
-		return ret;
-	}
-
-	if (!en) {
-		for (i = 0; i < check_dischg_max; i++) {
-			ret = mt6370_pmu_reg_test_bit(chg_data->chip,
-				MT6370_PMU_REG_CHGHIDDENCTRL1, 2, &is_dischg);
-			if (!is_dischg)
-				break;
-			ret = mt6370_pmu_reg_clr_bit(chg_data->chip,
-				MT6370_PMU_REG_CHGHIDDENCTRL1, 0x04);
-		}
-		if (i == check_dischg_max)
-			dev_err(chg_data->dev,
-				"%s: disable discharg failed, ret = %d\n",
-				__func__, ret);
-	}
-
-	ret = mt6370_enable_hidden_mode(chg_data, false);
-	return ret;
-}
-#endif
-
 static int mt6370_set_pep_current_pattern(struct mtk_charger_info *mchr_info,
 	void *data)
 {
@@ -1895,40 +1860,6 @@ static int mt6370_set_pep20_efficiency_table(struct mtk_charger_info *mchr_info,
 
 	return ret;
 }
-
-#if 0
-static int mt6370_enable_cable_drop_comp(struct mtk_charger_info *mchr_info,
-	void *data)
-{
-	int ret = 0;
-	bool en = *((bool *)data);
-	struct mt6370_pmu_charger_data *chg_data =
-		(struct mt6370_pmu_charger_data *)mchr_info;
-
-	dev_info(chg_data->dev, "%s: en = %d\n", __func__, en);
-
-	/* Set to PEP2.0 */
-	ret = mt6370_pmu_reg_set_bit(chg_data->chip, MT6370_PMU_REG_CHGCTRL17,
-		MT6370_MASK_PUMPX_20_10);
-	if (ret < 0)
-		return ret;
-
-	/* Set Voltage */
-	ret = mt6370_pmu_reg_update_bits(
-		chg_data->chip,
-		MT6370_PMU_REG_CHGCTRL17,
-		MT6370_MASK_PUMPX_DEC,
-		0x1F << MT6370_SHIFT_PUMPX_DEC
-	);
-	if (ret < 0)
-		return ret;
-
-	/* Enable PumpX */
-	ret = mt6370_enable_pump_express(chg_data, true);
-
-	return ret;
-}
-#endif
 
 static int mt6370_is_charging_done(struct mtk_charger_info *mchr_info,
 	void *data)

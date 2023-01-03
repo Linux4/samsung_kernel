@@ -22,6 +22,6 @@ else
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/smi/$(MTK_PLATFORM)
 endif
 
-ccflags-y += -I$(srctree)/drivers/staging/android/ion
-ccflags-y += -I$(srctree)/drivers/staging/android/ion/mtk
+ccflags-y += -I$(srctree)/drivers/staging/android/mtk_ion
+ccflags-y += -I$(srctree)/drivers/staging/android/mtk_ion/mtk
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/mmdvfs

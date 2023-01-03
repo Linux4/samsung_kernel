@@ -25,12 +25,13 @@ struct ufs_sec_err_info ufs_err_info;
 struct ufs_sec_err_info ufs_err_info_backup;
 
 static void ufs_sec_set_unique_number(struct ufs_hba *hba,
-		u8 *str_desc_buf, u8 *desc_buf)
+			u8 *str_desc_buf, u8 *desc_buf)
 {
 	u8 manid;
 	u8 snum_buf[SERIAL_NUM_SIZE + 1];
+	struct ufs_dev_info *dev_info = &hba->dev_info;
 
-	manid = hba->manu_id & 0xFF;
+	manid = dev_info->wmanufacturerid & 0xFF;
 	memset(hba->unique_number, 0, sizeof(hba->unique_number));
 	memset(snum_buf, 0, sizeof(snum_buf));
 
@@ -38,8 +39,10 @@ static void ufs_sec_set_unique_number(struct ufs_hba *hba,
 
 	sprintf(hba->unique_number, "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
 			manid,
-			desc_buf[DEVICE_DESC_PARAM_MANF_DATE], desc_buf[DEVICE_DESC_PARAM_MANF_DATE + 1],
-			snum_buf[0], snum_buf[1], snum_buf[2], snum_buf[3], snum_buf[4], snum_buf[5], snum_buf[6]);
+			desc_buf[DEVICE_DESC_PARAM_MANF_DATE],
+			desc_buf[DEVICE_DESC_PARAM_MANF_DATE + 1],
+			snum_buf[0], snum_buf[1], snum_buf[2], snum_buf[3],
+			snum_buf[4], snum_buf[5], snum_buf[6]);
 
 	/* Null terminate the unique number string */
 	hba->unique_number[UFS_UN_20_DIGITS] = '\0';
@@ -58,7 +61,7 @@ void ufs_sec_get_health_info(struct ufs_hba *hba)
 	}
 
 	/* getting Life Time at Device Health DESC*/
-	hba->lifetime = desc_buf[HEALTH_DEVICE_DESC_PARAM_LIFETIMEA];
+	hba->lifetime = desc_buf[HEALTH_DESC_PARAM_LIFE_TIME_EST_A];
 
 	dev_info(hba->dev, "LT: 0x%02x\n", desc_buf[3] << 4 | desc_buf[4]);
 }
@@ -76,7 +79,7 @@ void ufs_remove_sec_features(struct ufs_hba *hba)
 	ufs_sec_remove_sysfs_nodes(hba);
 }
 
-void ufs_sec_check_hwrst_cnt(void)
+void ufs_sec_hwrst_cnt_check(void)
 {
 	struct SEC_UFS_op_count *op_cnt = &ufs_err_info.op_count;
 
@@ -85,11 +88,7 @@ void ufs_sec_check_hwrst_cnt(void)
 
 #if IS_ENABLED(CONFIG_SEC_ABC)
 	if ((op_cnt->HW_RESET_count % 3) == 0)
-#if IS_ENABLED(CONFIG_SEC_FACTORY)
-		sec_abc_send_event("MODULE=storage@INFO=ufs_hwreset_err");
-#else
 		sec_abc_send_event("MODULE=storage@WARN=ufs_hwreset_err");
-#endif
 #endif
 }
 
@@ -104,7 +103,7 @@ static void ufs_sec_check_link_startup_error_cnt(void)
 static void ufs_sec_uic_error_check(enum ufs_event_type evt, u32 reg)
 {
 	struct SEC_UFS_UIC_err_count *uic_err_cnt = &ufs_err_info.UIC_err_count;
-	u32 check_val = 0;
+	u32 lane_idx = 0;
 
 	switch (evt) {
 	case UFS_EVT_PA_ERR:
@@ -114,9 +113,9 @@ static void ufs_sec_uic_error_check(enum ufs_event_type evt, u32 reg)
 		if (reg & UIC_PHY_ADAPTER_LAYER_GENERIC_ERROR)
 			SEC_UFS_ERR_COUNT_INC(uic_err_cnt->PA_ERR_linereset, UINT_MAX);
 
-		check_val = reg & UIC_PHY_ADAPTER_LAYER_LANE_ERR_MASK;
-		if (check_val)
-			SEC_UFS_ERR_COUNT_INC(uic_err_cnt->PA_ERR_lane[check_val - 1], UINT_MAX);
+		lane_idx = reg & UIC_PHY_ADAPTER_LAYER_LANE_ERR_MASK;
+		if (lane_idx)
+			SEC_UFS_ERR_COUNT_INC(uic_err_cnt->PA_ERR_lane[lane_idx - 1], UINT_MAX);
 		break;
 	case UFS_EVT_DL_ERR:
 		if (reg & UIC_DATA_LINK_LAYER_ERROR_PA_INIT) {
@@ -215,7 +214,8 @@ static void ufs_sec_utp_error_check(struct ufs_hba *hba, int tag)
 	SEC_UFS_ERR_COUNT_INC(utp_err->UTP_err, UINT_MAX);
 }
 
-void ufs_sec_check_op_err(struct ufs_hba *hba, enum ufs_event_type evt, void *data)
+void ufs_sec_op_err_check(struct ufs_hba *hba,
+			enum ufs_event_type evt, void *data)
 {
 	u32 error_val = *(u32 *)data;
 
@@ -333,7 +333,8 @@ void ufs_sec_tm_error_check(u8 tm_cmd)
 	SEC_UFS_ERR_COUNT_INC(utp_err->UTP_err, UINT_MAX);
 }
 
-static void ufs_sec_query_error_check(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
+static void ufs_sec_query_error_check(struct ufs_hba *hba,
+			struct ufshcd_lrb *lrbp)
 {
 	struct SEC_UFS_QUERY_count *query_cnt = &ufs_err_info.query_count;
 	struct ufs_query_req *request = &hba->dev_cmd.query.request;
@@ -380,14 +381,14 @@ static void ufs_sec_query_error_check(struct ufs_hba *hba, struct ufshcd_lrb *lr
 	SEC_UFS_ERR_COUNT_INC(query_cnt->Query_err, UINT_MAX);
 }
 
-static void ufs_sec_check_medium_error_region(struct ufs_sec_cmd_info *ufs_cmd)
+static void ufs_sec_medium_err_lba_check(struct ufs_sec_cmd_info *ufs_cmd)
 {
 	struct SEC_SCSI_SENSE_err_log *sense_err_log = &ufs_err_info.sense_err_log;
 	unsigned int lba_count = sense_err_log->issue_LBA_count;
 	unsigned long region_bit = 0;
 	int i = 0;
 
-	if (ufs_cmd->lun == 0) {
+	if (ufs_cmd->lun == UFS_USER_LUN) {
 		if (lba_count < SEC_MAX_LBA_LOGGING) {
 			for (i = 0; i < SEC_MAX_LBA_LOGGING; i++) {
 				if (sense_err_log->issue_LBA_list[i] == ufs_cmd->lba)
@@ -400,14 +401,15 @@ static void ufs_sec_check_medium_error_region(struct ufs_sec_cmd_info *ufs_cmd)
 		region_bit = ufs_cmd->lba / SEC_ISSUE_REGION_STEP;
 		if (region_bit > 51)
 			region_bit = 52;
-	} else if (ufs_cmd->lun < UFS_UPIU_WLUN_ID) {
+	} else if (ufs_cmd->lun < UFS_UPIU_MAX_GENERAL_LUN) {
 		region_bit = (unsigned long)(64 - ufs_cmd->lun);
 	}
 
 	sense_err_log->issue_region_map |= ((u64)1 << region_bit);
 }
 
-static void ufs_sec_sense_err_check(struct ufshcd_lrb *lrbp, struct ufs_sec_cmd_info *ufs_cmd)
+static void ufs_sec_sense_err_check(struct ufshcd_lrb *lrbp,
+			struct ufs_sec_cmd_info *ufs_cmd)
 {
 	struct SEC_SCSI_SENSE_count *sense_err = &ufs_err_info.sense_count;
 	u8 sense_key = 0;
@@ -427,13 +429,9 @@ static void ufs_sec_sense_err_check(struct ufshcd_lrb *lrbp, struct ufs_sec_cmd_
 
 	if (sense_key == MEDIUM_ERROR) {
 		sense_err->scsi_medium_err++;
-		ufs_sec_check_medium_error_region(ufs_cmd);
+		ufs_sec_medium_err_lba_check(ufs_cmd);
 #if IS_ENABLED(CONFIG_SEC_ABC)
-#if IS_ENABLED(CONFIG_SEC_FACTORY)
-		sec_abc_send_event("MODULE=storage@INFO=ufs_medium_err");
-#else
 		sec_abc_send_event("MODULE=storage@WARN=ufs_medium_err");
-#endif
 #endif
 
 #ifdef CONFIG_SEC_DEBUG
@@ -451,7 +449,8 @@ static void ufs_sec_sense_err_check(struct ufshcd_lrb *lrbp, struct ufs_sec_cmd_
 	}
 }
 
-static bool ufs_sec_get_scsi_cmd_info(struct ufshcd_lrb *lrbp, struct ufs_sec_cmd_info *ufs_cmd)
+static bool ufs_sec_get_scsi_cmd_info(struct ufshcd_lrb *lrbp,
+			struct ufs_sec_cmd_info *ufs_cmd)
 {
 	struct scsi_cmnd *cmd;
 
@@ -461,14 +460,16 @@ static bool ufs_sec_get_scsi_cmd_info(struct ufshcd_lrb *lrbp, struct ufs_sec_cm
 	cmd = lrbp->cmd;
 
 	ufs_cmd->opcode = (u8)(*cmd->cmnd);
-	ufs_cmd->lba = (cmd->cmnd[2] << 24) | (cmd->cmnd[3] << 16) | (cmd->cmnd[4] << 8) | cmd->cmnd[5];
+	ufs_cmd->lba = (cmd->cmnd[2] << 24) | (cmd->cmnd[3] << 16) |
+					(cmd->cmnd[4] << 8) | cmd->cmnd[5];
 	ufs_cmd->transfer_len = (cmd->cmnd[7] << 8) | cmd->cmnd[8];
 	ufs_cmd->lun = ufshcd_scsi_to_upiu_lun(cmd->device->lun);
 
 	return true;
 }
 
-void ufs_sec_compl_cmd_check(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
+void ufs_sec_compl_cmd_check(struct ufs_hba *hba,
+			struct ufshcd_lrb *lrbp)
 {
 	struct ufs_sec_cmd_info ufs_cmd = { 0, };
 	bool is_scsi_cmd = false;

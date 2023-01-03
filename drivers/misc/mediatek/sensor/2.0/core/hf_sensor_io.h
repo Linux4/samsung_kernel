@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (C) 2020 MediaTek Inc.
  */
 
 #ifndef _HF_SENSOR_IO_H_
@@ -46,7 +38,8 @@ struct hf_manager_batch {
 
 struct hf_manager_cmd {
 	uint8_t sensor_type;
-	uint8_t action;
+	uint8_t action : 4;
+	uint8_t down_sample : 1;
 	uint8_t length;
 	uint8_t padding[1];
 	int8_t data[48] __aligned(4);

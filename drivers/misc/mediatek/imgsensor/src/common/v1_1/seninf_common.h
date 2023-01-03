@@ -1,26 +1,18 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #ifndef __SENINF_COMMON_H__
 #define __SENINF_COMMON_H__
 
-#define PREFIX "[seninf]"
+#define PREFIX "[seninf D/D]"
 
 #define DEBUG_CAMERA_HW_K
 #ifdef DEBUG_CAMERA_HW_K
-#define PK_DBG(fmt, arg...)  pr_debug(PREFIX fmt, ##arg)
-#define PK_PR_ERR(fmt, arg...)  pr_err(fmt, ##arg)
-#define PK_INFO(fmt, arg...) pr_debug(PREFIX fmt, ##arg)
+#define PK_DBG(fmt, arg...)     pr_debug(PREFIX "[%s] " fmt, __func__, ##arg)
+#define PK_PR_ERR(fmt, arg...)  pr_err(PREFIX "[%s] " fmt, __func__, ##arg)
+#define PK_INFO(fmt, arg...)    pr_info(PREFIX "[%s] " fmt, __func__, ##arg)
 #else
 #define PK_DBG(fmt, arg...)
 #define PK_PR_ERR(fmt, arg...)  pr_err(fmt, ##arg)

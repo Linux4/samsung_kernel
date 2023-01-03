@@ -1,27 +1,23 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 /*
  * Author: Xiao Wang <xiao.wang@mediatek.com>
  */
-
-#include "ccci_fsm_internal.h"
-#include <memory/mediatek/emi.h>
-
-#if defined(CONFIG_MACH_MT6739)
-#include "plat_lastbus.h"
+#include <linux/platform_device.h>
+#include <linux/device.h>
+#include <linux/module.h>
+#include <linux/interrupt.h>
+#ifdef CONFIG_OF
+#include <linux/of.h>
+#include <linux/of_fdt.h>
+#include <linux/of_irq.h>
+#include <linux/of_address.h>
 #endif
-
+#include <memory/mediatek/emi.h>
+#include "ccci_config.h"
 #if (MD_GENERATION >= 6297)
 #include <mt-plat/mtk_ccci_common.h>
 #include "modem_secure_base.h"
@@ -32,6 +28,10 @@
 #include "md_sys1_platform.h"
 #include "modem_reg_base.h"
 #endif
+
+#include "ccci_fsm_internal.h"
+#include "ccci_platform.h"
+
 
 static struct ccci_fsm_ctl *ccci_fsm_entries[MAX_MD_NUM];
 
@@ -66,10 +66,12 @@ int force_md_stop(struct ccci_fsm_monitor *monitor_ctl)
 
 	needforcestop = 1;
 	if (!ctl) {
-		CCCI_ERROR_LOG(monitor_ctl->md_id, FSM,
-			"fsm_append_command:CCCI_COMMAND_STOP fal\n");
+		CCCI_ERROR_LOG(-1, FSM,
+			"%s:fsm_get_entity_by_md_id fail\n",
+			__func__);
 		return -1;
 	}
+
 	ret = fsm_append_command(ctl, CCCI_COMMAND_STOP, 0);
 	CCCI_NORMAL_LOG(monitor_ctl->md_id, FSM,
 			"force md stop\n");
@@ -86,9 +88,10 @@ void mdee_set_ex_time_str(unsigned char md_id, unsigned int type, char *str)
 {
 	struct ccci_fsm_ctl *ctl = fsm_get_entity_by_md_id(md_id);
 
-	if (ctl == NULL) {
-		CCCI_ERROR_LOG(md_id, FSM,
-			"%s:fsm_get_entity_by_md_id fail\n", __func__);
+	if (!ctl) {
+		CCCI_ERROR_LOG(-1, FSM,
+			"%s:fsm_get_entity_by_md_id fail\n",
+			__func__);
 		return;
 	}
 	mdee_set_ex_start_str(&ctl->ee_ctl, type, str);
@@ -179,11 +182,10 @@ static void fsm_routine_zombie(struct ccci_fsm_ctl *ctl)
 		fsm_finish_event(ctl, event);
 	}
 	spin_unlock_irqrestore(&ctl->event_lock, flags);
-#if 0
-	while (1)
-		msleep(5000);
-#endif
+
 }
+
+
 
 int ccci_fsm_is_normal_mdee(void)
 {
@@ -304,14 +306,9 @@ static void fsm_routine_exception(struct ccci_fsm_ctl *ctl,
 			count++;
 			msleep(EVENT_POLL_INTEVAL);
 		}
-
-#if defined(CONFIG_MACH_MT6739)
-		CCCI_ERROR_LOG(ctl->md_id, FSM,
-			"No bus timeout!\n");
-		timeout_dump();
-#endif
-
 		fsm_md_exception_stage(&ctl->ee_ctl, 2);
+		/*wait until modem memory dump done*/
+		fsm_check_ee_done(&ctl->ee_ctl, EE_DONE_TIMEOUT);
 		break;
 	default:
 		break;
@@ -355,7 +352,7 @@ static void fsm_routine_start(struct ccci_fsm_ctl *ctl,
 	}
 	ctl->last_state = ctl->curr_state;
 	ctl->curr_state = CCCI_FSM_STARTING;
-	__pm_stay_awake(&ctl->wakelock);
+	__pm_stay_awake(ctl->wakelock);
 	/* 2. poll for critical users exit */
 	while (count < BOOT_TIMEOUT/EVENT_POLL_INTEVAL && !needforcestop) {
 		if (ccci_port_check_critical_user(ctl->md_id) == 0 ||
@@ -387,6 +384,7 @@ static void fsm_routine_start(struct ccci_fsm_ctl *ctl,
 	/* 3. action and poll event queue */
 	ccci_md_pre_start(ctl->md_id);
 	fsm_broadcast_state(ctl, BOOT_WAITING_FOR_HS1);
+
 	ret = ccci_md_start(ctl->md_id);
 	if (ret)
 		goto fail;
@@ -465,7 +463,7 @@ fail:
 	else
 		fsm_routine_exception(ctl, NULL, EXCEPTION_HS1_TIMEOUT);
 	fsm_finish_command(ctl, cmd, -1);
-	__pm_relax(&ctl->wakelock);
+	__pm_relax(ctl->wakelock);
 	return;
 
 fail_ee:
@@ -473,7 +471,7 @@ fail_ee:
 	 * let md_init have chance to start MD logger service
 	 */
 	fsm_finish_command(ctl, cmd, -1);
-	__pm_relax(&ctl->wakelock);
+	__pm_relax(ctl->wakelock);
 	return;
 
 success:
@@ -481,8 +479,8 @@ success:
 	ctl->curr_state = CCCI_FSM_READY;
 	ccci_md_post_start(ctl->md_id);
 	fsm_finish_command(ctl, cmd, 1);
-	__pm_relax(&ctl->wakelock);
-	__pm_wakeup_event(&ctl->wakelock, jiffies_to_msecs(10 * HZ));
+	__pm_relax(ctl->wakelock);
+	__pm_wakeup_event(ctl->wakelock, jiffies_to_msecs(10 * HZ));
 }
 
 static void fsm_routine_stop(struct ccci_fsm_ctl *ctl,
@@ -504,7 +502,7 @@ static void fsm_routine_stop(struct ccci_fsm_ctl *ctl,
 		fsm_routine_zombie(ctl);
 		return;
 	}
-	__pm_stay_awake(&ctl->wakelock);
+	__pm_stay_awake(ctl->wakelock);
 	ctl->last_state = ctl->curr_state;
 	ctl->curr_state = CCCI_FSM_STOPPING;
 	/* 2. pre-stop: polling MD for infinit sleep mode */
@@ -542,7 +540,7 @@ static void fsm_routine_stop(struct ccci_fsm_ctl *ctl,
 		fsm_finish_event(ctl, event);
 	}
 	spin_unlock_irqrestore(&ctl->event_lock, flags);
-	__pm_relax(&ctl->wakelock);
+	__pm_relax(ctl->wakelock);
 	/* 6. always end in stopped state */
 success:
 	needforcestop = 0;
@@ -570,14 +568,33 @@ static void fsm_routine_wdt(struct ccci_fsm_ctl *ctl,
 {
 	int reset_md = 0;
 	int is_epon_set = 0;
+	struct device_node *node;
+	unsigned int offset_apon_md1 = 0;
 	struct ccci_smem_region *mdss_dbg
 		= ccci_md_get_smem_by_user_id(ctl->md_id,
 			SMEM_USER_RAW_MDSS_DBG);
+	int ret;
 #ifdef CCCI_PLATFORM_MT6781
-	struct ccci_modem *md = NULL;
-	struct md_sys1_info *md_info = NULL;
-	struct md_pll_reg *md_reg = NULL;
+			struct ccci_modem *md = NULL;
+			struct md_sys1_info *md_info = NULL;
+			struct md_pll_reg *md_reg = NULL;
+#endif
 
+	node = of_find_compatible_node(NULL, NULL, "mediatek,mddriver");
+	if (node) {
+		ret = of_property_read_u32(node,
+				"mediatek,offset_apon_md1", &offset_apon_md1);
+		if (ret < 0)
+			CCCI_ERROR_LOG(ctl->md_id, FSM,
+				"[%s] not found: mediatek,offset_apon_md1\n",
+				__func__);
+
+	} else
+		CCCI_ERROR_LOG(ctl->md_id, FSM,
+			"[%s] error: not found the mediatek,mddriver\n",
+			__func__);
+
+#ifdef CCCI_PLATFORM_MT6781
 	md = ccci_md_get_modem_by_id(ctl->md_id);
 	if (md)
 		md_info = (struct md_sys1_info *)md->private_data;
@@ -613,7 +630,7 @@ static void fsm_routine_wdt(struct ccci_fsm_ctl *ctl,
 #else
 		is_epon_set =
 			*((int *)(mdss_dbg->base_ap_view_vir
-				+ CCCI_EE_OFFSET_EPON_MD1)) == 0xBAEBAE10;
+				+ offset_apon_md1)) == 0xBAEBAE10;
 #endif
 	else if (ctl->md_id == MD_SYS3)
 		is_epon_set = *((int *)(mdss_dbg->base_ap_view_vir
@@ -888,14 +905,18 @@ int ccci_fsm_init(int md_id)
 	atomic_set(&ctl->fs_ongoing, 0);
 	ret = snprintf(ctl->wakelock_name, sizeof(ctl->wakelock_name),
 		"md%d_wakelock", ctl->md_id + 1);
-	if (ret <= 0 || ret >= sizeof(ctl->wakelock_name)) {
-		CCCI_ERROR_LOG(md_id, FSM,
-			"%s snprintf wakelock_name fail\n",
-			__func__);
-		ctl->wakelock_name[0] = 0;
+	if (ret < 0 || ret >= sizeof(ctl->wakelock_name)) {
+		CCCI_ERROR_LOG(ctl->md_id, FSM,
+			"%s-%d:snprintf fail,ret=%d\n", __func__, __LINE__, ret);
+		return -1;
 	}
-	wakeup_source_init(&ctl->wakelock, ctl->wakelock_name);
-
+	ctl->wakelock = wakeup_source_register(NULL, ctl->wakelock_name);
+	if (!ctl->wakelock) {
+		CCCI_ERROR_LOG(ctl->md_id, FSM,
+			"%s %d: init wakeup source fail",
+			__func__, __LINE__);
+		return -1;
+	}
 	ctl->fsm_thread = kthread_run(fsm_main_thread, ctl,
 		"ccci_fsm%d", md_id + 1);
 #ifdef FEATURE_SCP_CCCI_SUPPORT
@@ -919,6 +940,7 @@ enum MD_STATE ccci_fsm_get_md_state(int md_id)
 	else
 		return INVALID;
 }
+EXPORT_SYMBOL(ccci_fsm_get_md_state);
 
 enum MD_STATE_FOR_USER ccci_fsm_get_md_state_for_user(int md_id)
 {
@@ -946,7 +968,7 @@ enum MD_STATE_FOR_USER ccci_fsm_get_md_state_for_user(int md_id)
 		return MD_STATE_INVALID;
 	}
 }
-
+EXPORT_SYMBOL(ccci_fsm_get_md_state_for_user);
 
 
 int ccci_fsm_recv_md_interrupt(int md_id, enum MD_IRQ_TYPE type)
@@ -956,7 +978,7 @@ int ccci_fsm_recv_md_interrupt(int md_id, enum MD_IRQ_TYPE type)
 	if (!ctl)
 		return -CCCI_ERR_INVALID_PARAM;
 
-	__pm_wakeup_event(&ctl->wakelock, jiffies_to_msecs(10 * HZ));
+	__pm_wakeup_event(ctl->wakelock, jiffies_to_msecs(10 * HZ));
 
 	if (type == MD_IRQ_WDT) {
 		fsm_append_command(ctl, CCCI_COMMAND_WDT, 0);

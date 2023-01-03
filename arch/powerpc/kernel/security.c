@@ -9,9 +9,9 @@
 #include <linux/device.h>
 #include <linux/seq_buf.h>
 
-#include <asm/debugfs.h>
 #include <asm/asm-prototypes.h>
 #include <asm/code-patching.h>
+#include <asm/debugfs.h>
 #include <asm/security_features.h>
 #include <asm/setup.h>
 

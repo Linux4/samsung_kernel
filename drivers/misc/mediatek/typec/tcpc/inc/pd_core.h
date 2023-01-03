@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #ifndef PD_CORE_H_
@@ -868,12 +860,6 @@ struct pe_data {		/* reset after detached */
 #ifdef CONFIG_USB_PD_REV30_STATUS_LOCAL
 	uint8_t pd_status_event;
 #endif	/* CONFIG_USB_PD_REV30_STATUS_LOCAL */
-
-#ifdef CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG
-	bool pd_sent_ams_init_cmd;
-	bool pd_unexpected_event_pending;
-	struct pd_event pd_unexpected_event;
-#endif	/* CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG */
 };
 
 #ifdef CONFIG_USB_PD_REV30_BAT_INFO
@@ -1248,7 +1234,6 @@ enum {
 };
 
 void pd_reset_svid_data(struct pd_port *pd_port);
-void pd_free_unexpected_event(struct pd_port *pd_port);
 int pd_reset_protocol_layer(struct pd_port *pd_port, bool sop_only);
 
 int pd_set_rx_enable(struct pd_port *pd_port, uint8_t enable);
@@ -1317,8 +1302,6 @@ extern void pd_notify_tcp_event_1st_result(struct pd_port *pd_port, int ret);
 extern void pd_notify_tcp_event_2nd_result(struct pd_port *pd_port, int ret);
 extern void pd_notify_tcp_vdm_event_2nd_result(
 		struct pd_port *pd_port, uint8_t ret);
-
-extern bool pd_is_pe_wait_pd_transmit_done(struct pd_port *pd_port);
 
 /* ---- pd_timer ---- */
 
@@ -1423,13 +1406,12 @@ static inline bool pd_put_dpm_event(struct pd_port *pd_port, uint8_t msg)
 	return pd_put_event(pd_port->tcpc, &evt, false);
 }
 
-static inline bool pd_put_tcp_pd_event(struct pd_port *pd_port, uint8_t event,
-				       uint8_t from)
+static inline bool pd_put_tcp_pd_event(struct pd_port *pd_port, uint8_t event)
 {
 	struct pd_event evt = {
 		.event_type = PD_EVT_TCP_MSG,
 		.msg = event,
-		.msg_sec = from,
+		.msg_sec = PD_TCP_FROM_PE,
 		.pd_msg = NULL,
 	};
 

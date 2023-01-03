@@ -81,11 +81,20 @@ config SEC_DEBUG_SOFTDOG_PWDT
 	depends on WATCHDOG
 	help
 	  This option enables soft watchdog device and soft_panic.
-
-config SEC_DEBUG_SOFTDOG
-	bool "Enable enhanced softdog info"
-	depends on SEC_DEBUG && SOFT_WATCHDOG
+	  
+config SEC_DEBUG_BUG_ON_SLUB_CORRUPTION
+	bool "Trigger a BUG when slub corruption is detected"
+	depends on SEC_DEBUG
 	default y
 	help
-	  This option enables enhanced softdog info.
-	  Select the option to show related task info.
+	  Select this option if the kernel should BUG when it encounters
+ 	  slub corruption when they get checked for validity.	  
+
+config SEC_DEBUG_REDUCED_RMEM
+	bool "Reduced reserved memory for SEC_DEBUG"
+	depends on SEC_DEBUG
+	default n
+	help
+	  Select this option in case there is memory pressure.
+	  The rmem at dt can be separated with this feature & 
+	  pmsg buffer will be freeed in debug level LOW.

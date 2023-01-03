@@ -1,14 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
+
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/vmalloc.h>
@@ -116,7 +109,7 @@ static const struct file_operations vpu_debug_ ## name ## _fops = { \
 	.open = vpu_debug_ ## name ## _open, \
 	.read = seq_read, \
 	.llseek = seq_lseek, \
-	.release = single_release, \
+	.release = seq_release, \
 }
 
 #define IMPLEMENT_VPU_DEBUGFS_RW(name)	\
@@ -126,7 +119,7 @@ static const struct file_operations vpu_debug_ ## name ## _fops = { \
 	.read = seq_read, \
 	.write = vpu_debug_ ## name ## _write, \
 	.llseek = seq_lseek, \
-	.release = single_release, \
+	.release = seq_release, \
 }
 
 IMPLEMENT_VPU_DEBUGFS(register);
@@ -193,8 +186,6 @@ static ssize_t vpu_debug_power_write(struct file *flip,
 		param = VPU_EARA_CTL;
 	else if (strcmp(token, "ct") == 0)
 		param = VPU_CT_INFO;
-	else if (strcmp(token, "disable_power_off") == 0)
-		param = VPU_POWER_PARAM_DISABLE_OFF;
 	else {
 		ret = -EINVAL;
 		LOG_ERR("no power param[%s]!\n", token);
@@ -338,6 +329,7 @@ int vpu_init_debug(struct vpu_device *vpu_dev)
 
 #undef CREATE_VPU_DEBUGFS
 #undef CREATE_VPU_PROCFS
+
 out:
 	return ret;
 }

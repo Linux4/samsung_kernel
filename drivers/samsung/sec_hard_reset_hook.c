@@ -52,6 +52,9 @@ int hard_reset_key_pressed = 0;
 struct super_block *keypress_callback_sb = NULL;
 int (*keypress_callback_fn)(struct super_block *sb) = NULL;
 
+extern int mtk_pmic_pwrkey_status(void);
+extern int mtk_pmic_homekey_status(void);
+
 /* Proc node to enable hard reset */
 static bool hard_reset_hook_enable = 1;
 module_param_named(hard_reset_hook_enable, hard_reset_hook_enable, bool, 0664);
@@ -95,17 +98,17 @@ static int hard_reset_key_all_pressed(void)
 
 static bool is_all_key_pressed(void)
 {
-	unsigned short released;
+	unsigned short pressed;
 
-	released = pmic_get_register_value_nolock(PMIC_PWRKEY_DEB);
-	if (released) {
-		pr_info("%s: PowerButton was released(%d)\n", __func__, released);
+	pressed = mtk_pmic_pwrkey_status();
+	if (!pressed) {
+		pr_info("%s: PowerButton was released(%d)\n", __func__, pressed);
 		return false;
 	}
 	
-	released = pmic_get_register_value_nolock(PMIC_HOMEKEY_DEB);
-	if (released) {
-		pr_info("%s: Vol DN was released(%d)\n", __func__, released);
+	pressed = mtk_pmic_homekey_status();
+	if (!pressed) {
+		pr_info("%s: Vol DN was released(%d)\n", __func__, pressed);
 		return false;
 	}
 

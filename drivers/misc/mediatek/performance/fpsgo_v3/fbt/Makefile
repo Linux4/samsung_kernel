@@ -20,32 +20,23 @@ COMP_TOP = $(FPSGO_TOP)/composer
 MTK_TOP = $(srctree)/drivers/misc/mediatek
 BASE_TOP = $(FPSGO_TOP)/base
 FSTB_TOP = $(FPSGO_TOP)/fstb
-EARA_TOP = $(FPSGO_TOP)/eara_job
 
 ccflags-y += -DNR_FREQ_CPU=16
 
-ifeq ($(CONFIG_MACH_MT6893),y)
-obj-y += platform/mt6893/fbt_cpu_platform.o
+ifeq ($(CONFIG_MACH_MT6781),y)
+obj-y += platform/mt6781/fbt_cpu_platform.o
 else ifeq ($(CONFIG_MACH_MT6877),y)
 obj-y += platform/mt6877/fbt_cpu_platform.o
+else ifeq ($(CONFIG_MACH_MT6893),y)
+obj-y += platform/mt6893/fbt_cpu_platform.o
 else
 obj-y += platform/$(MTK_PLATFORM)/fbt_cpu_platform.o
-endif
-
-ifeq ($(CONFIG_MACH_MT6893),y)
-CONFIG_FPSGO_THERMAL_SUPPORT := y
-ccflags-y += -DCONFIG_FPSGO_THERMAL_SUPPORT
-else
-CONFIG_FPSGO_THERMAL_SUPPORT := n
 endif
 
 obj-y += \
 	src/fbt_cpu.o \
 	src/xgf.o \
-	src/mini_top.o \
-	src/uboost.o \
-
-obj-$(CONFIG_FPSGO_THERMAL_SUPPORT) += src/thermal_aware.o
+	src/mini_top.o
 
 ccflags-y += \
 	-I$(srctree)/include/ \
@@ -57,9 +48,5 @@ ccflags-y += \
 	-I$(MTK_TOP)/base/power/include/ \
 	-I$(MTK_TOP)/base/power/$(MTK_PLATFORM)/ \
 	-I$(FSTB_TOP)/ \
-	-I$(EARA_TOP)/include/ \
-	-I$(srctree)/kernel/ \
-	-I$(MTK_TOP)/thermal/$(MTK_PLATFORM)/inc/ \
-	-I$(MTK_TOP)/thermal/$(MTK_PLATFORM)/inc/mach \
-	-I$(MTK_TOP)/include/mt-plat \
-	-I$(MTK_TOP)/include/mt-plat/$(MTK_PLATFORM)/include/mach
+	-I$(MTK_TOP)/cm_mgr/ \
+	-I$(srctree)/kernel/

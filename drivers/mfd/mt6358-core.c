@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
-
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
-
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 #include <linux/interrupt.h>
 #include <linux/mfd/core.h>
@@ -58,6 +50,9 @@ static const struct mfd_cell mt6357_devs[] = {
 	}, {
 		.name = "mt6357-dcxo",
 		.of_compatible = "mediatek,mt6357-dcxo",
+	}, {
+		.name = "mtk_ts_pmic",
+		.of_compatible = "mediatek,mtk_ts_pmic"
 	},
 };
 
@@ -80,6 +75,9 @@ static const struct mfd_cell mt6358_devs[] = {
 	}, {
 		.name = "pmic-oc-debug",
 		.of_compatible = "mediatek,pmic-oc-debug",
+	}, {
+		.name = "mtk_ts_pmic",
+		.of_compatible = "mediatek,mtk_ts_pmic"
 	},
 };
 
@@ -111,6 +109,9 @@ static const struct mfd_cell mt6359_devs[] = {
 	}, {
 		.name = "pmic-oc-debug",
 		.of_compatible = "mediatek,pmic-oc-debug",
+	},{
+		.name = "mtk_ts_pmic",
+		.of_compatible = "mediatek,mtk_ts_pmic"
 	},
 };
 
@@ -412,11 +413,19 @@ static struct mt6358_chip *mt6358_pm_off;
 static void mt6358_power_off(void)
 {
 	pr_info("%s\n", __func__);
-	if (mt6358_pm_off)
-		regmap_update_bits(mt6358_pm_off->regmap,
-				PMIC_RG_PWRHOLD_ADDR,
-				PMIC_RG_PWRHOLD_MASK << PMIC_RG_PWRHOLD_SHIFT,
-				0 << PMIC_RG_PWRHOLD_SHIFT);
+	if (mt6358_pm_off){
+		#if defined(CONFIG_MTK_PMIC_CHIP_MT6357)
+			regmap_update_bits(mt6358_pm_off->regmap,
+					MT6357_RG_PWRHOLD_ADDR,
+					MT6357_RG_PWRHOLD_MASK << MT6357_RG_PWRHOLD_SHIFT,
+					0 << MT6357_RG_PWRHOLD_SHIFT);
+		#else
+			regmap_update_bits(mt6358_pm_off->regmap,
+					PMIC_RG_PWRHOLD_ADDR,
+					PMIC_RG_PWRHOLD_MASK << PMIC_RG_PWRHOLD_SHIFT,
+					0 << PMIC_RG_PWRHOLD_SHIFT);
+		#endif
+    }
 }
 
 static int mt6358_probe(struct platform_device *pdev)
@@ -441,8 +450,11 @@ static int mt6358_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, chip);
-
-	ret = regmap_read(chip->regmap, PMIC_HWCID_ADDR, &id);
+	#if defined(CONFIG_MTK_PMIC_CHIP_MT6357)
+		ret = regmap_read(chip->regmap, MT6357_HWCID_ADDR, &id);
+	#else
+		ret = regmap_read(chip->regmap, PMIC_HWCID_ADDR, &id);
+	#endif
 	if (ret) {
 		dev_notice(chip->dev, "Failed to read chip id: %d\n", ret);
 		return ret;
@@ -456,7 +468,11 @@ static int mt6358_probe(struct platform_device *pdev)
 	switch (id & 0xFF00) {
 	case MT6357_CID_CODE:
 	case MT6390_CID_CODE:
-		chip->top_int_status_reg = PMIC_INT_STATUS_TOP_RSV_ADDR;
+		#if defined(CONFIG_MTK_PMIC_CHIP_MT6357)
+			chip->top_int_status_reg = MT6357_INT_STATUS_TOP_RSV_ADDR;
+		#else
+			chip->top_int_status_reg = PMIC_INT_STATUS_TOP_RSV_ADDR;
+		#endif
 		ret = mt6358_irq_init(chip);
 		if (ret)
 			return ret;
@@ -466,7 +482,11 @@ static int mt6358_probe(struct platform_device *pdev)
 		break;
 	case MT6358_CID_CODE:
 	case MT6366_CID_CODE:
-		chip->top_int_status_reg = PMIC_INT_STATUS_TOP_RSV_ADDR;
+		#if defined(CONFIG_MTK_PMIC_CHIP_MT6357)
+			chip->top_int_status_reg = MT6357_INT_STATUS_TOP_RSV_ADDR;
+		#else
+			chip->top_int_status_reg = PMIC_INT_STATUS_TOP_RSV_ADDR;
+		#endif
 		ret = mt6358_irq_init(chip);
 		if (ret)
 			return ret;
@@ -475,7 +495,11 @@ static int mt6358_probe(struct platform_device *pdev)
 					   0, chip->irq_domain);
 		break;
 	case MT6359_CID_CODE:
-		chip->top_int_status_reg = PMIC_INT_STATUS_TOP_RSV_ADDR;
+		#if defined(CONFIG_MTK_PMIC_CHIP_MT6357)
+			chip->top_int_status_reg = MT6357_INT_STATUS_TOP_RSV_ADDR;
+		#else
+			chip->top_int_status_reg = PMIC_INT_STATUS_TOP_RSV_ADDR;
+		#endif
 		ret = mt6358_irq_init(chip);
 		if (ret)
 			return ret;

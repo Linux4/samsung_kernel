@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include "kd_imgsensor.h"
@@ -27,7 +19,7 @@ enum IMGSENSOR_RETURN (*hw_open[IMGSENSOR_HW_ID_MAX_NUM])
 };
 
 struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
-	{ // s5kgm2_mipi_raw
+	{
 		IMGSENSOR_SENSOR_IDX_MAIN,
 		IMGSENSOR_I2C_DEV_0,
 		{
@@ -41,7 +33,7 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 			{IMGSENSOR_HW_PIN_NONE,  IMGSENSOR_HW_ID_NONE},
 		},
 	},
-	{ // s5k3l6_mipi_raw
+	{
 		IMGSENSOR_SENSOR_IDX_SUB,
 		IMGSENSOR_I2C_DEV_1,
 		{
@@ -59,7 +51,7 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 			{IMGSENSOR_HW_PIN_NONE, IMGSENSOR_HW_ID_NONE},
 		},
 	},
-	{ // sr846d_mipi_raw
+	{
 		IMGSENSOR_SENSOR_IDX_MAIN2,
 		IMGSENSOR_I2C_DEV_2,
 		{
@@ -78,7 +70,7 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 			{IMGSENSOR_HW_PIN_NONE,  IMGSENSOR_HW_ID_NONE},
 		},
 	},
-	{ // gc02m1b_mipi_mono
+	{
 		IMGSENSOR_SENSOR_IDX_SUB2,
 		IMGSENSOR_I2C_DEV_2,
 		{
@@ -91,7 +83,7 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 			{IMGSENSOR_HW_PIN_NONE,  IMGSENSOR_HW_ID_NONE},
 		},
 	},
-	{ // gc5035_mipi_raw
+	{
 		IMGSENSOR_SENSOR_IDX_MAIN3,
 		IMGSENSOR_I2C_DEV_2,
 		{

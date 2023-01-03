@@ -25,28 +25,20 @@ config SMCDSD_DYNAMIC_MIPI
 	bool "Support dynamic mipi"
 	default n
 
+config SMCDSD_PANEL_A23EX
+	bool "Support SMCDSD_PANEL_A23EX driver"
+	default n
+
 config SMCDSD_PANEL_M53X
 	bool "Support SMCDSD_PANEL_M53X driver"
 	default n
 
-config SMCDSD_PANEL_A32X
-	bool "Support SMCDSD_PANEL_A32X driver"
+config SMCDSD_PANEL_BIRDIE
+	bool "Support SMCDSD_PANEL_BIRDIE driver"
 	default n
 
-config SMCDSD_PANEL_A32XU
-	bool "Support SMCDSD_PANEL_A32XU driver"
-	default n
-
-config SMCDSD_PANEL_A22EX
-	bool "Support SMCDSD_PANEL_A22EX driver"
-	default n
-
-config SMCDSD_PANEL_A13X
-	bool "Support SMCDSD_PANEL_A13X driver"
-	default n
-
-config SMCDSD_PANEL_A13XU
-	bool "Support SMCDSD_PANEL_A13XU driver"
+config SMCDSD_PANEL_A34X
+	bool "Support SMCDSD_PANEL_A34X driver"
 	default n
 
 endif # DRM_MEDIATEK && !MTK_FB && SMCDSD_PANEL

@@ -11,6 +11,17 @@
 #define __SMCDSD_DSI_MSG_H__
 
 #include <drm/drm_mipi_dsi.h>
+#include "../../mediatek/mtk_panel_ext.h"
+
+enum {
+	MIPI_DCS_WRITE_SIDE_RAM_START = 0x4C,
+	MIPI_DCS_WRITE_SIDE_RAM_CONTINUE = 0x5C,
+
+	MTK_DSI_MAX_TX_FIFO = 510,
+	SRAM_BYTE_ALIGN = 16,
+
+	MAX_SEGMENT_NUM = (MAX_TX_CMD_NUM * 2),
+};
 
 enum {
 	/* bit number for flow control modes */
@@ -68,7 +79,6 @@ struct msg_package {
 #define __XX_ADDRESS(_name1, _name2, ...)	ADDRESS(_name1, _name1##_##_name2)
 
 extern void dump_dsi_msg_tx(unsigned long data0);
-extern int send_msg_segment(void *msg, int len);
 extern int send_msg_package(void *src, int len, void *dst);
 extern int send_cmd(unsigned char *cmd, int len);
 

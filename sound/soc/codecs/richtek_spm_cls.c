@@ -33,10 +33,11 @@ enum {
 
 #pragma pack(push, 1)
 struct richtek_ipi_cmd {
+	int32_t data[16];
 	int32_t type;
 	int32_t cmd;
-	int32_t data[16];
-};
+	int32_t id;
+} __aligned(32);
 #pragma pack(pop)
 
 enum {
@@ -103,6 +104,7 @@ static int rt_spm_trigger_calibration(struct device *dev, void *data)
 	int polling_cnt = 6;
 
 	ric.type = RTK_IPI_TYPE_CALIBRATION;
+	ric.id = rdc->id;
 	if (tmp < 0 || tmp >= RTK_IPI_CMD_NR)
 		return -EINVAL;
 	rdc->calib_running = cali_status = 1;
@@ -163,7 +165,7 @@ static int rt_spm_trigger_calibration(struct device *dev, void *data)
 			break;
 		case RTK_IPI_CMD_VVALIDATION:
 			dev_err(dev, "vvalidation failed...\n");
-			if (rdc->ops && rdc->ops->post_vvalid)
+			if (rdc->ops->post_vvalid)
 				rdc->ops->post_vvalid(rdc);
 			break;
 		default:
@@ -612,7 +614,7 @@ module_exit(richtek_spm_exit);
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Richtek BIGDATA Class driver");
 MODULE_AUTHOR("Jeff Chang <jeff_chang@richtek.com>");
-MODULE_VERSION("1.0.5_M");
+MODULE_VERSION("1.0.4_G");
 
 /* 1.0.1_G
  * 1. implement calibration interface like LSI Platform

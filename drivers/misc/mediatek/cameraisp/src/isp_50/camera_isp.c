@@ -1,14 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
+
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2022 MediaTek Inc.
  */
 
 /******************************************************************************
@@ -89,15 +82,16 @@
 #include "inc/camera_isp.h"
 
 #ifndef EP_NO_PMQOS /* EP_NO_PMQOS is equivalent to EP_MARK_MMDVFS */
-//#include <mmdvfs_mgr.h>
+#include <mmdvfs_mgr.h>
 #ifdef CONFIG_MTK_QOS_SUPPORT
 #include <mmdvfs_pmqos.h>
 #endif
 #include <linux/pm_qos.h>
+#include <linux/soc/mediatek/mtk-pm-qos.h>
 /* Use this qos request to control camera dynamic frequency change */
 #ifdef CONFIG_MTK_QOS_SUPPORT
-struct pm_qos_request isp_qos;
-struct pm_qos_request camsys_qos_request[ISP_IRQ_TYPE_INT_CAM_C_ST+1];
+struct mtk_pm_qos_request isp_qos;
+struct mtk_pm_qos_request camsys_qos_request[ISP_IRQ_TYPE_INT_CAM_C_ST+1];
 static struct ISP_PM_QOS_STRUCT G_PM_QOS[ISP_IRQ_TYPE_INT_CAM_C_ST+1];
 static u32 PMQoS_BW_value;
 #else
@@ -253,7 +247,7 @@ const struct ISR_TABLE IRQ_CB_TBL[ISP_IRQ_TYPE_AMOUNT] = {
  *  "ISP_DEV_NODE_ENUM" in camera_isp.h
  */
 static const struct of_device_id isp_of_ids[] = {
-	{ .compatible = "mediatek,camsys", },
+	{ .compatible = "mediatek,camsys1", },
 	{ .compatible = "mediatek,cam1", },
 	{ .compatible = "mediatek,cam2", },
 	{ .compatible = "mediatek,cam3", },
@@ -358,7 +352,7 @@ static struct isp_sec_dapc_reg lock_reg;
 static unsigned int sec_on;
 
 #ifdef CONFIG_PM_SLEEP
-struct wakeup_source isp_wake_lock;
+struct wakeup_source *isp_wake_lock;
 #endif
 static int g_WaitLockCt;
 
@@ -740,7 +734,7 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 						    '\0';\
 						LOG_DBG("%s",\
 						    &ptr[NORMAL_STR_LEN*i]);\
-					} else{\
+					} else {\
 						LOG_DBG("%s",\
 						    &ptr[NORMAL_STR_LEN*i]);\
 						break;\
@@ -755,7 +749,7 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 						    '\0';\
 						LOG_INF("%s",\
 						    &ptr[NORMAL_STR_LEN*i]);\
-					} else{\
+					} else {\
 						LOG_INF("%s",\
 						    &ptr[NORMAL_STR_LEN*i]);\
 						break;\
@@ -770,7 +764,7 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 						    '\0';\
 						LOG_NOTICE("%s",\
 						    &ptr[NORMAL_STR_LEN*i]);\
-					} else{\
+					} else {\
 						LOG_NOTICE("%s",\
 						    &ptr[NORMAL_STR_LEN*i]);\
 						break;\
@@ -799,7 +793,6 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 } while (0)
 
 
-#if 1
 #define IRQ_LOG_PRINTER(irq, ppb_in, logT_in) do {\
 	struct SV_LOG_STR *pSrc = &gSvLog[irq];\
 	char *ptr;\
@@ -808,12 +801,12 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 	unsigned int logT;\
 	if (ppb_in > 1) {\
 		ppb = 1;\
-	} else{\
+	} else {\
 		ppb = ppb_in;\
 	} \
 	if (logT_in > _LOG_ERR) {\
 		logT = _LOG_ERR;\
-	} else{\
+	} else {\
 		logT = logT_in;\
 	} \
 	ptr = pSrc->_str[ppb][logT];\
@@ -823,7 +816,7 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 				if (ptr[NORMAL_STR_LEN*(i+1) - 1] != '\0') {\
 					ptr[NORMAL_STR_LEN*(i+1) - 1] = '\0';\
 					LOG_DBG("%s", &ptr[NORMAL_STR_LEN*i]);\
-				} else{\
+				} else {\
 					LOG_DBG("%s", &ptr[NORMAL_STR_LEN*i]);\
 					break;\
 				} \
@@ -834,7 +827,7 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 				if (ptr[NORMAL_STR_LEN*(i+1) - 1] != '\0') {\
 					ptr[NORMAL_STR_LEN*(i+1) - 1] = '\0';\
 					LOG_INF("%s", &ptr[NORMAL_STR_LEN*i]);\
-				} else{\
+				} else {\
 					LOG_INF("%s", &ptr[NORMAL_STR_LEN*i]);\
 					break;\
 				} \
@@ -846,7 +839,7 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 					ptr[NORMAL_STR_LEN*(i+1) - 1] = '\0';\
 					LOG_NOTICE("%s",\
 					    &ptr[NORMAL_STR_LEN*i]);\
-				} else{\
+				} else {\
 					LOG_NOTICE("%s",\
 					    &ptr[NORMAL_STR_LEN*i]);\
 					break;\
@@ -861,10 +854,6 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 	} \
 } while (0)
 
-
-#else
-#define IRQ_LOG_PRINTER(irq, ppb, logT)
-#endif
 
 /* //////////////////////////////////////////////////// */
 
@@ -1389,11 +1378,8 @@ static void ISP_EnableClock(bool En)
 #endif
 		/* Disable CAMSYS_HALT1_EN: LSCI & BPCI*/
 		/* To avoid ISP halt keep arise */
-		#if 1/* ALSK TBD */
 		LOG_INF("# NEED UPDATE CAMSYS_HALT1_EN: LSCI & BPCI SETTING #");
-		#else
-		ISP_WR32(ISP_CAMSYS_CONFIG_BASE + 0x120, 0xFFFFFF4F);
-		#endif
+
 	} else {                /* Disable clock. */
 #if defined(EP_NO_CLKMGR)
 		spin_lock(&(IspInfo.SpinLockClock));
@@ -1445,12 +1431,7 @@ static inline void ISP_Reset(int module)
 		/* Reset CAM flow */
 		ISP_WR32(CAM_REG_CTL_SW_CTL(module), 0x2);
 		ISP_WR32(CAM_REG_CTL_SW_CTL(module), 0x1);
-#if 0
-		while (ISP_RD32(CAM_REG_CTL_SW_CTL(module)) != 0x2)
-			LOG_DBG("CAM resetting... module:%d\n", module);
-#else
 		mdelay(1);
-#endif
 		ISP_WR32(CAM_REG_CTL_SW_CTL(module), 0x4);
 		ISP_WR32(CAM_REG_CTL_SW_CTL(module), 0x0);
 
@@ -1474,12 +1455,7 @@ static inline void ISP_Reset(int module)
 		/* Reset UNI flow */
 		ISP_WR32(CAM_UNI_REG_TOP_SW_CTL(module), 0x222);
 		ISP_WR32(CAM_UNI_REG_TOP_SW_CTL(module), 0x111);
-#if 0
-		while (ISP_RD32(CAM_UNI_REG_TOP_SW_CTL(module)) != 0x222)
-			LOG_DBG("UNI resetting... module:%d\n", module);
-#else
 		mdelay(1);
-#endif
 		ISP_WR32(CAM_UNI_REG_TOP_SW_CTL(module), 0x0444);
 		ISP_WR32(CAM_UNI_REG_TOP_SW_CTL(module), 0x0);
 		break;
@@ -1992,7 +1968,7 @@ static int ISP_SetPMQOS(unsigned int cmd, unsigned int module)
 		Ret = -1;
 		break;
 	}
-	pm_qos_update_request(&camsys_qos_request[module], bw_cal);
+	mtk_pm_qos_update_request(&camsys_qos_request[module], bw_cal);
 
 	if (PMQoS_BW_value != bw_cal) {
 		LOG_INF(
@@ -2384,95 +2360,6 @@ NON_CLEAR_WAIT:
 		WaitIrq->EventInfo.UserKey] &= (~WaitIrq->EventInfo.Status);
 	spin_unlock_irqrestore(&(IspInfo.SpinLockIrq[WaitIrq->Type]), flags);
 
-#if 0
-	/* time period for 3A */
-	if (WaitIrq->EventInfo.Status & IspInfo.IrqInfo.MarkedFlag[
-	    WaitIrq->Type][WaitIrq->EventInfo.UserKey]) {
-		WaitIrq->EventInfo.TimeInfo.tMark2WaitSig_usec =
-			(time_getrequest.tv_usec -
-			IspInfo.IrqInfo.MarkedTime_usec[WaitIrq->Type][
-			idx][WaitIrq->EventInfo.UserKey]);
-		WaitIrq->EventInfo.TimeInfo.tMark2WaitSig_sec =
-			(time_getrequest.tv_sec -
-			IspInfo.IrqInfo.MarkedTime_sec[WaitIrq->Type][
-			idx][WaitIrq->EventInfo.UserKey]));
-		if ((int)(WaitIrq->EventInfo.TimeInfo.tMark2WaitSig_usec) < 0) {
-			WaitIrq->EventInfo.TimeInfo.tMark2WaitSig_sec =
-			    WaitIrq->EventInfo.TimeInfo.tMark2WaitSig_sec - 1;
-			if ((int)(WaitIrq->EventInfo
-			    .TimeInfo.tMark2WaitSig_sec) < 0)
-				WaitIrq->EventInfo
-				    .TimeInfo.tMark2WaitSig_sec = 0;
-
-			WaitIrq->EventInfo.TimeInfo.tMark2WaitSig_usec =
-				1 * 1000000 +
-				WaitIrq->EventInfo.TimeInfo.tMark2WaitSig_usec;
-		}
-		/*  */
-		WaitIrq->EventInfo.TimeInfo.tLastSig2GetSig_usec =
-			(time_ready2return.tv_usec -
-			IspInfo.IrqInfo.LastestSigTime_usec[
-			WaitIrq->Type][idx]);
-		WaitIrq->EventInfo.TimeInfo.tLastSig2GetSig_sec =
-			(time_ready2return.tv_sec -
-			IspInfo.IrqInfo.LastestSigTime_sec[WaitIrq->Type][idx]);
-		if ((int)(WaitIrq->EventInfo
-		    .TimeInfo.tLastSig2GetSig_usec) < 0) {
-			WaitIrq->EventInfo.TimeInfo.tLastSig2GetSig_sec =
-			    WaitIrq->EventInfo
-			    .TimeInfo.tLastSig2GetSig_sec - 1;
-			if ((int)(WaitIrq->EventInfo
-			    .TimeInfo.tLastSig2GetSig_sec) < 0)
-				WaitIrq->EventInfo
-				    .TimeInfo.tLastSig2GetSig_sec = 0;
-
-			WaitIrq->EventInfo.TimeInfo.tLastSig2GetSig_usec =
-			  1 * 1000000 +
-			  WaitIrq->EventInfo.TimeInfo.tLastSig2GetSig_usec;
-		}
-		/*  */
-		if (freeze_passbysigcnt)
-			WaitIrq->EventInfo.TimeInfo.passedbySigcnt =
-				IspInfo.IrqInfo.PassedBySigCnt[WaitIrq->Type][
-				idx][WaitIrq->EventInfo.UserKey] - 1;
-		else
-			WaitIrq->EventInfo.TimeInfo.passedbySigcnt =
-				IspInfo.IrqInfo.PassedBySigCnt[WaitIrq->Type][
-				idx][WaitIrq->EventInfo.UserKey];
-
-	}
-	IspInfo.IrqInfo.Status[
-		WaitIrq->Type][WaitIrq->EventInfo.UserKey] &=
-		(~WaitIrq->EventInfo.Status);
-	/* clear the status if someone get the irq */
-	spin_unlock_irqrestore(&(IspInfo.SpinLockIrq[WaitIrq->Type]), flags);
-	if (WaitIrq->EventInfo.UserKey > 0) {
-		LOG_VRB(
-		    "[WAITIRQv3]user(%d) mark sec/usec (%d/%d),last irq sec/usec(%d/%d),enterwait(%d/%d),getIRQ(%d/%d)\n",
-		    WaitIrq->EventInfo.UserKey,
-		    IspInfo.IrqInfo.MarkedTime_sec[WaitIrq->Type][
-			idx][WaitIrq->EventInfo.UserKey],
-		    IspInfo.IrqInfo.MarkedTime_usec[WaitIrq->Type][
-			idx][WaitIrq->EventInfo.UserKey],
-		    IspInfo.IrqInfo.LastestSigTime_sec[WaitIrq->Type][idx],
-		    IspInfo.IrqInfo.LastestSigTime_usec[WaitIrq->Type][idx],
-		    (int)(time_getrequest.tv_sec),
-		    (int)(time_getrequest.tv_usec),
-		    (int)(time_ready2return.tv_sec),
-		    (int)(time_ready2return.tv_usec));
-		LOG_VRB(
-		    "[WAITIRQv3]user(%d)  sigNum(%d/%d), mark sec/usec (%d/%d), irq sec/usec (%d/%d),user(0x%x)\n",
-		    WaitIrq->EventInfo.UserKey,
-		    IspInfo.IrqInfo.PassedBySigCnt[WaitIrq->Type][
-			idx][WaitIrq->EventInfo.UserKey],
-		    WaitIrq->EventInfo.TimeInfo.passedbySigcnt,
-		    WaitIrq->EventInfo.TimeInfo.tMark2WaitSig_sec,
-		    WaitIrq->EventInfo.TimeInfo.tMark2WaitSig_usec,
-		    WaitIrq->EventInfo.TimeInfo.tLastSig2GetSig_sec,
-		    WaitIrq->EventInfo.TimeInfo.tLastSig2GetSig_usec,
-		    WaitIrq->EventInfo.UserKey);
-	}
-#endif
 
 EXIT:
 	/* 4. clear mark flag / reset marked time / reset time related
@@ -2687,7 +2574,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 					  g_WaitLockCt);
 				} else {
 #ifdef CONFIG_PM_SLEEP
-					__pm_stay_awake(&isp_wake_lock);
+					__pm_stay_awake(isp_wake_lock);
 #endif
 					g_WaitLockCt++;
 					LOG_DBG("wakelock enable!! cnt(%d)\n",
@@ -2702,7 +2589,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 					  g_WaitLockCt);
 				else {
 #ifdef CONFIG_PM_SLEEP
-					__pm_relax(&isp_wake_lock);
+					__pm_relax(isp_wake_lock);
 #endif
 					LOG_DBG("wakelock disable!! cnt(%d)\n",
 					  g_WaitLockCt);
@@ -3247,7 +3134,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 				if (dfs_ctrl == MTRUE) {
 					if (++camsys_qos == 1) {
 						#ifdef CONFIG_MTK_QOS_SUPPORT
-						pm_qos_add_request(
+						mtk_pm_qos_add_request(
 						  &isp_qos,
 						  PM_QOS_CAM_FREQ,
 						  0);
@@ -3262,7 +3149,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 				} else {
 					if (--camsys_qos == 0) {
 						#ifdef CONFIG_MTK_QOS_SUPPORT
-						pm_qos_remove_request(
+						mtk_pm_qos_remove_request(
 						    &isp_qos);
 						#else
 						mmdvfs_pm_qos_remove_request(
@@ -3286,7 +3173,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 			if (copy_from_user(&dfs_update, (void *)Param,
 			    sizeof(unsigned int)) == 0) {
 				#ifdef CONFIG_MTK_QOS_SUPPORT
-				pm_qos_update_request(
+				mtk_pm_qos_update_request(
 					&isp_qos,
 					dfs_update);
 				#else
@@ -3481,7 +3368,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 				}
 				if (DebugFlag[0] == 1) {
 					if (++bw_request[DebugFlag[1]] == 1) {
-						pm_qos_add_request(
+						mtk_pm_qos_add_request(
 						    &camsys_qos_request[
 						    DebugFlag[1]],
 						    PM_QOS_MM_MEMORY_BANDWIDTH,
@@ -3495,7 +3382,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 					Ret = ISP_SetPMQOS(
 						DebugFlag[0],
 						DebugFlag[1]);
-					pm_qos_remove_request(
+					mtk_pm_qos_remove_request(
 						&camsys_qos_request[
 						DebugFlag[1]]);
 					bw_request[DebugFlag[1]] = 0;
@@ -4897,7 +4784,7 @@ static int ISP_release(
 	if (g_WaitLockCt) {
 		LOG_INF("wakelock disable!! cnt(%d)\n", g_WaitLockCt);
 #ifdef CONFIG_PM_SLEEP
-		__pm_relax(&isp_wake_lock);
+		__pm_relax(isp_wake_lock);
 #endif
 		g_WaitLockCt = 0;
 	}
@@ -5123,7 +5010,7 @@ static int ISP_probe(struct platform_device *pDev)
 	/* Get platform_device parameters */
 #ifdef CONFIG_OF
 	if (pDev == NULL) {
-		dev_err(&pDev->dev, "pDev is NULL");
+		dev_info(&pDev->dev, "pDev is NULL");
 		return -ENXIO;
 	}
 
@@ -5133,7 +5020,7 @@ static int ISP_probe(struct platform_device *pDev)
 	_ispdev = krealloc(
 		isp_devs, sizeof(struct isp_device) * nr_isp_devs, GFP_KERNEL);
 	if (!_ispdev) {
-		dev_err(&pDev->dev, "Unable to allocate isp_devs\n");
+		dev_info(&pDev->dev, "Unable to allocate isp_devs\n");
 		return -ENOMEM;
 	}
 	isp_devs = _ispdev;
@@ -5145,7 +5032,7 @@ static int ISP_probe(struct platform_device *pDev)
 	/* iomap registers */
 	isp_dev->regs = of_iomap(pDev->dev.of_node, 0);
 	if (!isp_dev->regs) {
-		dev_err(&pDev->dev, "Unable to ioremap registers, of_iomap fail, nr_isp_devs=%d, devnode(%s).\n",
+		dev_info(&pDev->dev, "Unable to ioremap registers, of_iomap fail, nr_isp_devs=%d, devnode(%s).\n",
 			nr_isp_devs, pDev->dev.of_node->name);
 		return -ENOMEM;
 	}
@@ -5162,7 +5049,7 @@ static int ISP_probe(struct platform_device *pDev)
 		if (of_property_read_u32_array(
 		    pDev->dev.of_node,
 		    "interrupts", irq_info, ARRAY_SIZE(irq_info))) {
-			dev_err(&pDev->dev, "get irq flags from DTS fail!!\n");
+			dev_info(&pDev->dev, "get irq flags from DTS fail!!\n");
 			return -ENODEV;
 		}
 
@@ -5178,7 +5065,7 @@ static int ISP_probe(struct platform_device *pDev)
 					(const char *)IRQ_CB_TBL[i].device_name,
 					NULL);
 				if (Ret) {
-					dev_err(&pDev->dev,
+					dev_info(&pDev->dev,
 					"request_irq fail, nr_isp_devs=%d, devnode(%s), irq=%d, ISR: %s\n",
 					nr_isp_devs,
 					pDev->dev.of_node->name,
@@ -5215,7 +5102,7 @@ static int ISP_probe(struct platform_device *pDev)
 		/* Register char driver */
 		Ret = ISP_RegCharDev();
 		if ((Ret)) {
-			dev_err(&pDev->dev, "register char failed");
+			dev_info(&pDev->dev, "register char failed");
 			return Ret;
 		}
 
@@ -5232,7 +5119,7 @@ static int ISP_probe(struct platform_device *pDev)
 
 		if (IS_ERR(dev)) {
 			Ret = PTR_ERR(dev);
-			dev_err(&pDev->dev,
+			dev_info(&pDev->dev,
 				"Failed to create device: /dev/%s, err = %d",
 				ISP_DEV_NAME, Ret);
 			goto EXIT;
@@ -5316,7 +5203,7 @@ static int ISP_probe(struct platform_device *pDev)
 			init_waitqueue_head(&IspInfo.WaitQueueHead[i]);
 
 #ifdef CONFIG_PM_SLEEP
-		wakeup_source_init(&isp_wake_lock, "isp_lock_wakelock");
+		isp_wake_lock = wakeup_source_register(&pDev->dev, "isp_lock_wakelock");
 #endif
 
 		for (i = 0; i < ISP_IRQ_TYPE_AMOUNT; i++)
@@ -6350,56 +6237,10 @@ enum CAM_FrameST Irq_CAM_FrameStatus(
 				continue;
 
 			if (fbc_ctrl1[dma_arry_map[i]].Raw != 0) {
-#if 0 /* TSTP_V3 (TIMESTAMP_QUEUE_EN == 1) */
-				if (delayCheck == 0) {
-					if (fbc_ctrl2[dma_arry_map[i]]
-						.Bits.DROP_CNT !=
-					    IspInfo.TstpQInfo[irq_mod]
-						.Dmao[i].PrevFbcDropCnt) {
-						IspInfo.TstpQInfo[irq_mod]
-						    .Dmao[i].PrevFbcDropCnt =
-						((IspInfo.TstpQInfo[irq_mod]
-						    .Dmao[i].PrevFbcDropCnt
-						    + frmPeriod) & 0xFF);
-						product = 0;
-					}
-					/* Prevent *0 for SOF ISR delayed
-					 * after P1_DON
-					 */
-					if (fbc_ctrl2[dma_arry_map[i]]
-						.Bits.FBC_CNT == 0)
-						product *= 1;
-					else
-						product *=
-						    fbc_ctrl2[dma_arry_map[
-							i]].Bits.FBC_CNT;
-				} else {
-					LOG_INF(
-					"cam:%d dma:%d overwrite preveFbcDropCnt %d <= %d subsample:%d\n",
-					irq_mod, i,
-					IspInfo.TstpQInfo[irq_mod]
-						.Dmao[i].PrevFbcDropCnt,
-					fbc_ctrl2[dma_arry_map[i]]
-						.Bits.DROP_CNT,
-					frmPeriod);
-
-					IspInfo.TstpQInfo[irq_mod]
-						.Dmao[i].PrevFbcDropCnt =
-					(frmPeriod > 1) ?
-					(fbc_ctrl2[dma_arry_map[i]]
-					  .Bits.DROP_CNT/frmPeriod)*frmPeriod :
-					fbc_ctrl2[dma_arry_map[i]]
-					  .Bits.DROP_CNT;
-
-					product *= fbc_ctrl2[dma_arry_map[i]]
-							.Bits.FBC_CNT;
-				}
-#else
 				product *= fbc_ctrl2[dma_arry_map[i]]
 								.Bits.FBC_CNT;
 				if (product == 0)
 					return CAM_FST_DROP_FRAME;
-#endif
 			}
 
 		}
@@ -6409,53 +6250,12 @@ enum CAM_FrameST Irq_CAM_FrameStatus(
 				continue;
 
 			if (fbc_ctrl1[dma_arry_map[i]].Raw != 0) {
-#if 0 /* TSTP_V3 (TIMESTAMP_QUEUE_EN == 1) */
-				if (delayCheck == 0) {
-					if (fbc_ctrl2[dma_arry_map[i]]
-					    .Bits.DROP_CNT !=
-					    IspInfo.TstpQInfo[irq_mod]
-					    .Dmao[i].PrevFbcDropCnt) {
-						IspInfo.TstpQInfo[irq_mod]
-						    .Dmao[i].PrevFbcDropCnt =
-						((IspInfo.TstpQInfo[irq_mod]
-						    .Dmao[i].PrevFbcDropCnt +
-							frmPeriod) & 0xFF);
-						product = 0;
-					}
-					if ((fbc_ctrl1[dma_arry_map[i]]
-					    .Bits.FBC_NUM -
-					    fbc_ctrl2[dma_arry_map[i]]
-					    .Bits.FBC_CNT) == 0)
-						product *= 1;
-					else
-						product *= (fbc_ctrl1[
-							    dma_arry_map[i]]
-							      .Bits.FBC_NUM -
-							    fbc_ctrl2[
-							      dma_arry_map[i]]
-							      .Bits.FBC_CNT);
-				} else {
-					IspInfo.TstpQInfo[irq_mod]
-						.Dmao[i].PrevFbcDropCnt =
-					(frmPeriod > 1) ?
-					(fbc_ctrl2[dma_arry_map[i]]
-					  .Bits.DROP_CNT/frmPeriod)*frmPeriod :
-					 fbc_ctrl2[dma_arry_map[i]]
-					  .Bits.DROP_CNT;
-
-					product *= (fbc_ctrl1[dma_arry_map[i]]
-							.Bits.FBC_NUM -
-						    fbc_ctrl2[dma_arry_map[i]]
-							.Bits.FBC_CNT);
-				}
-#else
 				product *= (fbc_ctrl1[dma_arry_map[i]].
 						Bits.FBC_NUM -
 					    fbc_ctrl2[dma_arry_map[i]].
 						Bits.FBC_CNT);
 				if (product == 0)
 					return CAM_FST_DROP_FRAME;
-#endif
 			}
 
 		}
@@ -6593,85 +6393,19 @@ static enum CAM_FrameST Irq_CAM_SttFrameStatus(
 
 	if (bQueMode) {
 		if (fbc_ctrl1.Raw != 0) {
-#if 0 /* TSTP_V3 (TIMESTAMP_QUEUE_EN == 1) */
-			if (delayCheck == 0) {
-				if (fbc_ctrl2.Bits.DROP_CNT !=
-					IspInfo.TstpQInfo[irq_mod]
-						.Dmao[dma_id].PrevFbcDropCnt) {
-					IspInfo.TstpQInfo[irq_mod]
-						.Dmao[dma_id].PrevFbcDropCnt =
-					((IspInfo.TstpQInfo[irq_mod]
-						.Dmao[dma_id].PrevFbcDropCnt +
-					frmPeriod) & 0xFF);
-					product = 0;
-				}
-				/* Prevent *0 for SOF ISR delayed after P1_DON*/
-				if (fbc_ctrl2.Bits.FBC_CNT == 0)
-					product *= 1;
-				else
-					product *= fbc_ctrl2.Bits.FBC_CNT;
-			} else {
-				LOG_INF(
-				    "cam:%d dma:%d overwrite preveFbcDropCnt %d <= %d\n",
-				    irq_mod, dma_id,
-				    IspInfo.TstpQInfo[irq_mod]
-					.Dmao[dma_id].PrevFbcDropCnt,
-				    fbc_ctrl2.Bits.DROP_CNT);
-
-				IspInfo.TstpQInfo[irq_mod]
-					.Dmao[dma_id].PrevFbcDropCnt =
-				(frmPeriod > 1) ?
-				(fbc_ctrl2.Bits.DROP_CNT/frmPeriod)*frmPeriod :
-				fbc_ctrl2.Bits.DROP_CNT;
-
-				product *= fbc_ctrl2.Bits.FBC_CNT;
-			}
-#else
 			product *= fbc_ctrl2.Bits.FBC_CNT;
 
 			if (product == 0)
 				return CAM_FST_DROP_FRAME;
-#endif
 		} else
 			return CAM_FST_DROP_FRAME;
 	} else {
 		if (fbc_ctrl1.Raw != 0) {
-#if 0 /* TSTP_V3 (TIMESTAMP_QUEUE_EN == 1) */
-			if (delayCheck == 0) {
-				if (fbc_ctrl2.Bits.DROP_CNT !=
-					IspInfo.TstpQInfo[irq_mod]
-						.Dmao[dma_id].PrevFbcDropCnt) {
-					IspInfo.TstpQInfo[irq_mod]
-						.Dmao[dma_id].PrevFbcDropCnt =
-					((IspInfo.TstpQInfo[irq_mod]
-						.Dmao[dma_id].PrevFbcDropCnt +
-					frmPeriod) & 0xFF);
-					product = 0;
-				}
-				/* Prevent *0 for SOF ISR delayed after P1_DON*/
-				if ((fbc_ctrl1.Bits.FBC_NUM -
-						fbc_ctrl2.Bits.FBC_CNT) == 0)
-					product *= 1;
-				else
-					product *= (fbc_ctrl1.Bits.FBC_NUM -
-						fbc_ctrl2.Bits.FBC_CNT);
-			} else {
-				IspInfo.TstpQInfo[irq_mod]
-					.Dmao[dma_id].PrevFbcDropCnt =
-				(frmPeriod > 1) ?
-				(fbc_ctrl2.Bits.DROP_CNT/frmPeriod)*frmPeriod :
-				fbc_ctrl2.Bits.DROP_CNT;
-
-				product *= (fbc_ctrl1.Bits.FBC_NUM -
-					fbc_ctrl2.Bits.FBC_CNT);
-			}
-#else
 			product *= (fbc_ctrl1.Bits.FBC_NUM -
 						fbc_ctrl2.Bits.FBC_CNT);
 
 			if (product == 0)
 				return CAM_FST_DROP_FRAME;
-#endif
 		} else
 			return CAM_FST_DROP_FRAME;
 	}

@@ -1,30 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * MUSB OTG driver virtual root hub support
- *
- * Copyright 2005 Mentor Graphics Corporation
- * Copyright (C) 2005-2006 by Texas Instruments
- * Copyright (C) 2006-2007 Nokia Corporation
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN
- * NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
- * USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
+ * Copyright (C) 2018 MediaTek Inc.
  */
 
 #include <linux/module.h>
@@ -42,6 +18,21 @@
 static int h_pre_disable = 1;
 module_param(h_pre_disable, int, 0644);
 
+static void musb_lock_wakelock(struct musb *musb)
+{
+	if (!musb->usb_lock->active) {
+		__pm_stay_awake(musb->usb_lock);
+		DBG(0, "wake lock\n");
+	} else
+		DBG(1, "wake lock already active\n");
+}
+
+static void musb_release_wakelock(struct musb *musb)
+{
+	DBG(0, "wake unlock\n");
+	__pm_relax(musb->usb_lock);
+}
+
 static void musb_host_check_disconnect(struct musb *musb)
 {
 	u8 opstate = musb_readb(musb->mregs, MUSB_OPSTATE);
@@ -50,6 +41,7 @@ static void musb_host_check_disconnect(struct musb *musb)
 	if (opstate == MUSB_OPSTATE_HOST_WAIT_DEV && is_con) {
 		DBG(0, "disconnect when suspend");
 		musb->int_usb |= MUSB_INTR_DISCONNECT;
+		musb->xceiv->otg->state = OTG_STATE_A_HOST;
 		musb_interrupt(musb);
 	}
 }
@@ -101,6 +93,9 @@ int musb_port_suspend(struct musb *musb, bool do_suspend)
 				mod_timer(&musb->otg_timer, jiffies
 				+ msecs_to_jiffies(OTG_TIME_A_AIDL_BDIS));
 			musb_platform_try_idle(musb, 0);
+
+			if (musb->host_suspend)
+				musb_release_wakelock(musb);
 			break;
 		case OTG_STATE_B_HOST:
 			musb->xceiv->otg->state = OTG_STATE_B_WAIT_ACON;
@@ -121,6 +116,9 @@ int musb_port_suspend(struct musb *musb, bool do_suspend)
 		/* later, GetPortStatus will stop RESUME signaling */
 		musb->port1_status |= MUSB_PORT_STAT_RESUME;
 		musb->rh_timer = jiffies + msecs_to_jiffies(20);
+
+		if (musb->host_suspend)
+			musb_lock_wakelock(musb);
 	}
 	return 0;
 }
@@ -225,6 +223,9 @@ void musb_root_disconnect(struct musb *musb)
 	DBG(0, "host disconnect (%s)\n",
 		otg_state_string(musb->xceiv->otg->state));
 
+	if (musb->host_suspend)
+		musb_release_wakelock(musb);
+
 	switch (musb->xceiv->otg->state) {
 	case OTG_STATE_A_SUSPEND:
 		if (otg->host->b_hnp_enable) {
@@ -245,7 +246,7 @@ void musb_root_disconnect(struct musb *musb)
 			otg_state_string(musb->xceiv->otg->state));
 	}
 }
-
+EXPORT_SYMBOL(musb_root_disconnect);
 
 /*---------------------------------------------------------------------*/
 
@@ -270,6 +271,15 @@ int musb_hub_control(struct usb_hcd *hcd,
 	u32 temp;
 	int retval = 0;
 	unsigned long flags;
+	#ifdef CONFIG_MTK_MUSB_PORT0_LOWPOWER_MODE
+	bool usb_active = true;
+
+	if (!mtk_usb_power) {
+		musb_platform_enable(musb);
+		usb_active = false;
+		DBG(1, "musb was in-active!!!\n");
+	}
+	#endif
 
 	musb_platform_prepare_clk(musb);
 
@@ -377,10 +387,8 @@ int musb_hub_control(struct usb_hcd *hcd,
 			usb_hcd_poll_rh_status(musb_to_hcd(musb));
 			/* NOTE: it might really be A_WAIT_BCON ... */
 			musb->xceiv->otg->state = OTG_STATE_A_HOST;
-
-			musb_host_check_disconnect(musb);
 		}
-
+		musb_host_check_disconnect(musb);
 		put_unaligned(cpu_to_le32(musb->port1_status
 					  & ~MUSB_PORT_STAT_RESUME),
 					  (__le32 *) buf);
@@ -472,5 +480,9 @@ error:
 
 	musb_platform_unprepare_clk(musb);
 
+	#ifdef CONFIG_MTK_MUSB_PORT0_LOWPOWER_MODE
+	if (!usb_active)
+		musb_platform_disable(musb);
+	#endif
 	return retval;
 }

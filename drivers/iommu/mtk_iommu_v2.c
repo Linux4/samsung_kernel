@@ -1,15 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2019 MediaTek Inc.
- * Author: Yong Wu <yong.wu@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Copyright (C) 2019 MediaTek Inc.
  */
 #include <linux/bootmem.h>
 #include <linux/bug.h>
@@ -38,7 +29,11 @@
 #include <asm/dma-iommu.h>
 #endif
 #include "mtk_lpae.h"
-#include "mtk_secure_api.h"
+//smccc related include
+//#include "mtk_secure_api.h" //old
+#include <linux/soc/mediatek/mtk_sip_svc.h>
+#include <linux/arm-smccc.h>
+
 #include "io-pgtable.h"
 #include "mtk_iommu.h"
 #include "mach/mt_iommu.h"
@@ -348,6 +343,7 @@ int __mtk_iommu_atf_call(unsigned int cmd, unsigned int m4u_id,
 #ifdef IOMMU_DESIGN_OF_BANK
 	unsigned int atf_cmd = 0;
 	int ret = 0;
+	struct arm_smccc_res res;
 
 	if (cmd >= IOMMU_ATF_CMD_COUNT ||
 	    m4u_id >= MTK_IOMMU_M4U_COUNT ||
@@ -358,11 +354,12 @@ int __mtk_iommu_atf_call(unsigned int cmd, unsigned int m4u_id,
 	}
 	atf_cmd = IOMMU_ATF_SET_COMMAND(m4u_id, bank, cmd);
 	/*pr_notice("%s, M4U CALL ATF CMD:0x%x\n", __func__, atf_cmd);*/
-#ifndef CONFIG_FPGA_EARLY_PORTING
-	ret = mt_secure_call_ret4(MTK_M4U_DEBUG_DUMP,
-				atf_cmd, 0, 0, 0, tf_port,
-				tf_iova, tf_int);
-#endif
+	arm_smccc_smc(MTK_M4U_DEBUG_DUMP, atf_cmd,
+			      0, 0, 0, 0, 0, 0, &res);
+	ret = res.a0;
+	*tf_port = res.a1;
+	*tf_iova = res.a2;
+	*tf_int = res.a3;
 	return ret;
 #else
 	return 0;
@@ -379,35 +376,11 @@ int mtk_iommu_atf_call(unsigned int cmd, unsigned int m4u_id,
 }
 
 #ifndef SMI_LARB_SEC_CON_EN
-#if 0 /*for security concern, normal world is forbiden to config secure/domain*/
-int mtk_iommu_set_sec_larb(int larb, int port,
-		int sec_en, int dom)
-{
-	unsigned int atf_cmd = 0;
-	int ret;
-
-	if (larb >= SMI_LARB_NR ||
-	    port >= ONE_SMI_PORT_NR) {
-		pr_notice("%s, invalid larb:%d, port:%d\n",
-			  __func__, larb, port);
-		return -1;
-	}
-	atf_cmd = IOMMU_ATF_SET_COMMAND(0, 0, IOMMU_ATF_SET_SMI_SEC_LARB);
-
-	ret = mt_secure_call_ret4(MTK_M4U_DEBUG_DUMP,
-				atf_cmd, MTK_M4U_ID(larb, port),
-				sec_en, dom, 0, 0, 0);
-	if (ret)
-		pr_notice("%s, %d, fail!! larb:%d, port:%d, dom:%d\n",
-			  __func__, __LINE__, larb, port, dom);
-
-	return ret;
-}
-#endif
 int mtk_iommu_dump_sec_larb(int larb, int port)
 {
 	unsigned int atf_cmd = 0;
 	int ret = 0;
+	struct arm_smccc_res res;
 
 	if (larb >= SMI_LARB_NR ||
 	    port >= ONE_SMI_PORT_NR) {
@@ -417,9 +390,9 @@ int mtk_iommu_dump_sec_larb(int larb, int port)
 	}
 
 	atf_cmd = IOMMU_ATF_SET_COMMAND(0, 0, IOMMU_ATF_DUMP_SMI_SEC_LARB);
-	ret = mt_secure_call_ret4(MTK_M4U_DEBUG_DUMP,
-				atf_cmd, MTK_M4U_ID(larb, port), 0, 0,
-				0, 0, 0);
+	arm_smccc_smc(MTK_M4U_DEBUG_DUMP, atf_cmd,
+			      MTK_M4U_ID(larb, port), 0, 0, 0, 0, 0, &res);
+	ret = res.a0;
 
 	return ret;
 }
@@ -1250,7 +1223,7 @@ static inline void mtk_iommu_intr_modify_all(unsigned long enable)
 	}
 }
 
-static void mtk_iommu_isr_restart(unsigned long unused)
+static void mtk_iommu_isr_restart(struct timer_list *t)
 {
 	mtk_iommu_intr_modify_all(1);
 	mtk_iommu_debug_reset();
@@ -1258,8 +1231,7 @@ static void mtk_iommu_isr_restart(unsigned long unused)
 
 static int mtk_iommu_isr_pause_timer_init(struct mtk_iommu_data *data)
 {
-	init_timer(&data->iommu_isr_pause_timer);
-	data->iommu_isr_pause_timer.function = mtk_iommu_isr_restart;
+	timer_setup(&data->iommu_isr_pause_timer, mtk_iommu_isr_restart, 0);
 	return 0;
 }
 
@@ -4594,7 +4566,6 @@ static int mtk_iommu_probe(struct platform_device *pdev)
 	ret = mtk_iommu_power_switch(data, false, "iommu_probe");
 	if (ret)
 		pr_notice("%s, failed to power switch off\n", __func__);
-
 #endif
 
 	pr_notice("%s-, %d,total=%d,m4u%d,base=0x%lx,protect=0x%pa\n",
@@ -4790,7 +4761,6 @@ static int __init mtk_iommu_init(void)
 {
 	int ret = 0;
 
-	dma_debug_init(PREALLOC_DMA_DEBUG_ENTRIES);
 	ret = platform_driver_register(&mtk_iommu_driver);
 	if (ret != 0)
 		pr_notice("Failed to register MTK IOMMU driver\n");

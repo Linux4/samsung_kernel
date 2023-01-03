@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2015 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <drm/drmP.h>
 #include <drm/drm_gem.h>
@@ -499,22 +491,19 @@ void mtk_drm_gem_ion_destroy_client(struct ion_client *client)
 void mtk_drm_gem_ion_free_handle(struct ion_client *client,
 	struct ion_handle *handle, const char *name, int line)
 {
-	if (handle)
-		DRM_MMP_EVENT_START(ion_import_free,
-			    (unsigned long)handle->buffer, line);
-
 	if (!client) {
 		DDPPR_ERR("invalid ion client!\n");
 		DRM_MMP_MARK(ion_import_free, 0, 1);
-		DRM_MMP_EVENT_END(ion_import_free, (unsigned long)client, line);
 		return;
 	}
 	if (!handle) {
 		DDPPR_ERR("invalid ion handle!\n");
 		DRM_MMP_MARK(ion_import_free, 0, 2);
-		DRM_MMP_EVENT_END(ion_import_free, (unsigned long)client, line);
 		return;
 	}
+
+	DRM_MMP_EVENT_START(ion_import_free,
+			    (unsigned long)handle->buffer, line);
 
 	ion_free(client, handle);
 
@@ -830,7 +819,9 @@ int mtk_drm_sec_hnd_to_gem_hnd(struct drm_device *dev, void *data,
 {
 	struct drm_mtk_sec_gem_hnd *args = data;
 	struct mtk_drm_gem_obj *mtk_gem_obj;
+#ifdef CONFIG_MTK_SVP_ON_MTEE_SUPPORT
 	int sec_buffer = 0;
+#endif
 
 	DDPDBG("%s:%d dev:0x%p, data:0x%p, priv:0x%p +\n",
 		  __func__, __LINE__,
@@ -846,8 +837,12 @@ int mtk_drm_sec_hnd_to_gem_hnd(struct drm_device *dev, void *data,
 		return -ENOMEM;
 
 	mtk_gem_obj->sec = true;
+#ifdef CONFIG_MTK_SVP_ON_MTEE_SUPPORT
 	ion_fd2sec_type(args->sec_hnd/*ion_fd*/, &sec_buffer,
 			&mtk_gem_obj->sec_id, (ion_phys_addr_t *)&mtk_gem_obj->dma_addr);
+#else
+	mtk_gem_obj->dma_addr = args->sec_hnd;
+#endif
 
 	drm_gem_private_object_init(dev, &mtk_gem_obj->base, 0);
 	drm_gem_handle_create(file_priv, &mtk_gem_obj->base, &args->gem_hnd);

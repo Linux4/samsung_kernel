@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef _PRIMARY_DISPLAY_H_
 #define _PRIMARY_DISPLAY_H_
@@ -21,14 +13,16 @@
 #include "disp_lcm.h"
 #include "disp_helper.h"
 #ifdef MTK_FB_MMDVFS_SUPPORT
-#include <linux/pm_qos.h>
+#include <linux/soc/mediatek/mtk-pm-qos.h>
 #endif
+#include "mt-plat/mtk_smi.h"
+#include "mtk_smi.h"
 
 
 #ifdef MTK_FB_MMDVFS_SUPPORT
-extern struct pm_qos_request primary_display_qos_request;
-extern struct pm_qos_request primary_display_emi_opp_request;
-extern struct pm_qos_request primary_display_mm_freq_request;
+extern struct mtk_pm_qos_request primary_display_qos_request;
+extern struct mtk_pm_qos_request primary_display_emi_opp_request;
+extern struct mtk_pm_qos_request primary_display_mm_freq_request;
 #endif
 
 enum DISP_PRIMARY_PATH_MODE {
@@ -271,11 +265,6 @@ struct display_primary_path_context {
 	cmdqBackupSlotHandle dsi_vfp_line;
 	cmdqBackupSlotHandle night_light_params;
 
-#if defined(CONFIG_SMCDSD_PANEL)
-	wait_queue_head_t framedone_wait;
-	ktime_t framedone_timestamp;
-	bool need_framedone_notify;
-#endif
 	int is_primary_sec;
 	int primary_display_scenario;
 #ifdef CONFIG_MTK_DISPLAY_120HZ_SUPPORT
@@ -522,9 +511,6 @@ extern struct completion dump_buf_comp;
 
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 /**************function for DynFPS start************************/
-#if defined(CONFIG_SMCDSD_PANEL)
-bool primary_display_is_chg_fps(int cfg_id);
-#endif
 unsigned int primary_display_is_support_DynFPS(void);
 unsigned int primary_display_get_default_disp_fps(int need_lock);
 unsigned int primary_display_get_def_timing_fps(int need_lock);
@@ -547,5 +533,6 @@ bool primary_display_need_update_hrt_fps(
 
 /**************function for DynFPS end************************/
 #endif
+extern int mtk_notifier_call_chain(unsigned long val, void *v);
 
 #endif

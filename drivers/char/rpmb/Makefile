@@ -1,4 +1,3 @@
-ifeq ($(CONFIG_MEDIATEK_SOLUTION),y)
 MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
 ccflags-y += -I$(srctree)/drivers/mmc/core
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include
@@ -19,16 +18,13 @@ ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/$(MTK_PLATFORM)
 ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/$(MTK_PLATFORM)/$(MTK_PLATFORM)
 
 ifeq ($(CONFIG_TRUSTONIC_TEE_SUPPORT),y)
-include $(srctree)/drivers/misc/mediatek/gud/Makefile.include
+include $(srctree)/drivers/tee/gud/Makefile.include
 ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/rpmb/drrpmb/public
 ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/rpmb/drrpmb_gp/public
 ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/rpmb/tlrpmb/public
 endif
 
 ifeq ($(CONFIG_TEEGRIS_TEE_SUPPORT),y)
-ifeq ($(CONFIG_MTK_PLATFORM), "mt6739")
-ccflags-y += -DNO_MTK_SVP_RELEASE
-endif
 ccflags-y += -I$(srctree)/drivers/misc/tzdev/$(CONFIG_TEEGRIS_VERSION_STRING)
 include $(srctree)/drivers/misc/tzdev/Makefile.include
 ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/rpmb/drrpmb/public
@@ -50,7 +46,6 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/fde_aes/$(MTK_PLATFORM)
 endif
 
 obj-$(CONFIG_RPMB) += rpmb-mtk.o
-endif
 
 obj-$(CONFIG_RPMB) += rpmb.o
 rpmb-objs += core.o

@@ -83,7 +83,7 @@
 };
 
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/mfd/sm/sm5714/sm5714_mtk.a13ve.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/mfd/sm/sm5714/sm5714_mtk.a13ve.dtsi */
 &pio {
 	if_pmic_scl: if_pmic_scl {
 		pins_cmd_dat {

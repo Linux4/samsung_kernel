@@ -15,20 +15,29 @@
 #include <linux/cpufreq.h>
 #include <linux/cpufreq_limit.h>
 #include <cpu_ctrl.h>
-#include <sched_ctl.h>
-
-#define CLUSTER_NUM 2
-#define LITTLE 0
-#define BIG 1
 
 #define SCHED_BOOST_ENABLE 1
+
+enum {
+	SCHED_NO_BOOST = 0,
+	SCHED_ALL_BOOST,
+	SCHED_FG_BOOST,
+#ifdef CONFIG_PRIO_PINNED_BOOST
+	SCHED_PINNED_BOOST,
+#endif
+	SCHED_UNKNOWN_BOOST
+};
+
+#if SCHED_BOOST_ENABLE
+extern int set_sched_boost_type(int type);
+#endif
 
 /* cpu frequency table from cpufreq dt parse */
 static struct cpufreq_frequency_table *cpuftbl_L;
 static struct cpufreq_frequency_table *cpuftbl_b;
 
 static int ltl_max_freq_div;
-static struct ppm_limit_data *freq_to_set[DVFS_MAX_ID];
+static struct cpu_ctrl_data *freq_to_set[DVFS_MAX_ID];
 static unsigned int sched_boost_state[DVFS_MAX_ID];
 DEFINE_MUTEX(cpufreq_limit_mutex);
 
@@ -64,16 +73,6 @@ static struct cpufreq_limit_parameter param = {
 	.ltl_divider			= 4,
 	.over_limit				= -1,
 };
-#elif defined(CONFIG_MACH_MT6877)
-static struct cpufreq_limit_parameter param = {
-	.ltl_cpu_start			= 0,
-	.big_cpu_start			= 6,
-	.ltl_max_freq			= 2000000,
-	.ltl_min_lock_freq		= 1115000,
-	.big_max_lock_freq		= 740000,
-	.ltl_divider			= 4,
-	.over_limit				= -1,
-};
 #elif defined(CONFIG_MACH_MT6768)
 static struct cpufreq_limit_parameter param = {
 	.ltl_cpu_start			= 0,
@@ -81,6 +80,26 @@ static struct cpufreq_limit_parameter param = {
 	.ltl_max_freq			= 1800000,
 	.ltl_min_lock_freq		= 1175000,
 	.big_max_lock_freq		= 850000,
+	.ltl_divider			= 4,
+	.over_limit				= -1,
+};
+#elif defined(CONFIG_MACH_MT6765)
+static struct cpufreq_limit_parameter param = {
+	.ltl_cpu_start			= 4,
+	.big_cpu_start			= 0,
+	.ltl_max_freq			= 1800000,
+	.ltl_min_lock_freq		= 1138000,
+	.big_max_lock_freq		= 900000,
+	.ltl_divider			= 2,
+	.over_limit				= -1,
+};
+#elif defined(CONFIG_MACH_MT6877)
+static struct cpufreq_limit_parameter param = {
+	.ltl_cpu_start			= 0,
+	.big_cpu_start			= 6,
+	.ltl_max_freq			= 2000000,
+	.ltl_min_lock_freq		= 1115000,
+	.big_max_lock_freq		= 900000,
 	.ltl_divider			= 4,
 	.over_limit				= -1,
 };
@@ -96,11 +115,18 @@ static struct cpufreq_limit_parameter param = {
 };
 #endif
 
+static int little_policy_index = 0;
+static int big_policy_index = 1;
+
+#define CLUSTER_NUM 2
+#define LITTLE little_policy_index
+#define BIG big_policy_index
+
 void cpufreq_limit_set_table(int cpu, struct cpufreq_frequency_table *ftbl)
 {
-	if ( cpu == param.big_cpu_start )
+	if (cpu == param.big_cpu_start)
 		cpuftbl_b = ftbl;
-	else if ( cpu == param.ltl_cpu_start )
+	else if (cpu == param.ltl_cpu_start)
 		cpuftbl_L = ftbl;
 }
 
@@ -108,18 +134,18 @@ int set_freq_limit(unsigned int id, int freq)
 {
 	pr_debug("%s: id=%u freq=%d\n", __func__, id, freq);
 
-	if(unlikely(!freq_to_set[id])) {
+	if (unlikely(!freq_to_set[id])) {
 		pr_err("%s: cpufreq_limit driver uninitialization\n", __func__);
 		return -ENODEV;
 	}
 
 	mutex_lock(&cpufreq_limit_mutex);
 
-	if(freq == -1) {
+	if (freq == -1) {
 		freq_to_set[id][LITTLE].min = freq;
 		freq_to_set[id][BIG].min = freq;
 		cpufreq_limit_set_sched_boost(id, SCHED_NO_BOOST);
-	} else if(freq > ltl_max_freq_div) {
+	} else if (freq > ltl_max_freq_div) {
 		freq_to_set[id][LITTLE].min = param.ltl_min_lock_freq;
 		freq_to_set[id][BIG].min = freq;
 #ifdef CONFIG_PRIO_PINNED_BOOST
@@ -133,7 +159,7 @@ int set_freq_limit(unsigned int id, int freq)
 		cpufreq_limit_set_sched_boost(id, SCHED_NO_BOOST);
 	}
 
-	switch(id) {
+	switch (id) {
 	case DVFS_USER_ID:
 		update_userlimit_cpu_freq(CPU_KIR_SEC_LIMIT, CLUSTER_NUM, freq_to_set[id]);
 		break;
@@ -160,34 +186,36 @@ static ssize_t cpufreq_limit_get_table(char *buf)
 	int i, k;
 	int count_b = 0, count_l = 0;
 
-	if(!cpuftbl_b || !cpuftbl_L) {
+	if (!cpuftbl_b || !cpuftbl_L) {
 		pr_err("%s: Can not find cpufreq table\n", __func__);
 		return len;
 	}
 
-	for (i = 0; cpuftbl_b[i].frequency != CPUFREQ_TABLE_END; i++){};
+	for (i = 0; cpuftbl_b[i].frequency != CPUFREQ_TABLE_END; i++)
+		;
 	count_b = i;
 
-	for (i = 0; cpuftbl_L[i].frequency != CPUFREQ_TABLE_END; i++){};
+	for (i = 0; cpuftbl_L[i].frequency != CPUFREQ_TABLE_END; i++)
+		;
 	count_l = i;
 
 	for (i = 0, k = 0; i < count_b && k < count_l; ) {
-		if(cpuftbl_b[i].frequency > (unsigned int)(cpuftbl_L[k].frequency / param.ltl_divider))
-			len += sprintf(buf + len,"%u ", cpuftbl_b[i++].frequency);
-		else if(cpuftbl_b[i].frequency < (unsigned int)(cpuftbl_L[k].frequency / param.ltl_divider))
-			len += sprintf(buf + len,"%u ", (unsigned int)(cpuftbl_L[k++].frequency / param.ltl_divider));
-		else{
-			len += sprintf(buf + len,"%u ", cpuftbl_b[i].frequency);
+		if (cpuftbl_b[i].frequency > (unsigned int)(cpuftbl_L[k].frequency / param.ltl_divider))
+			len += sprintf(buf + len, "%u ", cpuftbl_b[i++].frequency);
+		else if (cpuftbl_b[i].frequency < (unsigned int)(cpuftbl_L[k].frequency / param.ltl_divider))
+			len += sprintf(buf + len, "%u ", (unsigned int)(cpuftbl_L[k++].frequency / param.ltl_divider));
+		else {
+			len += sprintf(buf + len, "%u ", cpuftbl_b[i].frequency);
 			i++;
 			k++;
 		}
 	}
 
-	while(i < count_b)
-		len += sprintf(buf + len,"%u ", cpuftbl_b[i++].frequency);
+	while (i < count_b)
+		len += sprintf(buf + len, "%u ", cpuftbl_b[i++].frequency);
 
-	while(k < count_l)
-		len += sprintf(buf + len,"%u ", (unsigned int)(cpuftbl_L[k++].frequency / param.ltl_divider));
+	while (k < count_l)
+		len += sprintf(buf + len, "%u ", (unsigned int)(cpuftbl_L[k++].frequency / param.ltl_divider));
 
 	len = (len != 0) ? len - 1 : len;
 	len += sprintf(buf + len, "\n");
@@ -208,19 +236,19 @@ static void cpufreq_limit_set_sched_boost(int id, unsigned int val)
 
 	sched_boost_state[id] = val;
 
-	for(i = 0; i < DVFS_MAX_ID; i++) {
+	for (i = 0; i < DVFS_MAX_ID; i++) {
 		if (sched_boost_state[i] > boost_val)
 			boost_val = sched_boost_state[i];
 	}
 
-	set_sched_boost(boost_val);
+	set_sched_boost_type(boost_val);
 }
 #else
 static void cpufreq_limit_set_sched_boost(int id, unsigned int val) {}
 #endif
 
-#define MAX(x,y) (((x) > (y) ? (x) : (y)))
-#define MIN(x,y) (((x) < (y) ? (x) : (y)))
+#define MAX(x, y) (((x) > (y) ? (x) : (y)))
+#define MIN(x, y) (((x) < (y) ? (x) : (y)))
 
 #define cpufreq_limit_attr(_name)				\
 static struct kobj_attribute _name##_attr = {	\
@@ -236,7 +264,7 @@ static struct kobj_attribute _name##_attr = {	\
 static struct kobj_attribute _name##_attr = {	\
 	.attr	= {									\
 		.name = __stringify(_name),				\
-		.mode = S_IRUGO,						\
+		.mode = 0444,							\
 	},											\
 	.show	= _name##_show,						\
 }
@@ -258,10 +286,10 @@ static ssize_t cpufreq_max_limit_show(struct kobject *kobj,
 		if (i == DVFS_OVERLIMIT_ID)
 			continue;
 
-		if(freq_to_set[i][BIG].max != -1)
+		if (freq_to_set[i][BIG].max != -1)
 			val = MIN(freq_to_set[i][BIG].max, val);
 
-		if(freq_to_set[i][LITTLE].max != -1)
+		if (freq_to_set[i][LITTLE].max != -1)
 			val = MIN((int)(freq_to_set[i][LITTLE].max / param.ltl_divider), val);
 	}
 	mutex_unlock(&cpufreq_limit_mutex);
@@ -277,16 +305,16 @@ static ssize_t cpufreq_max_limit_store(struct kobject *kobj,
 	int val;
 	ssize_t ret = -EINVAL;
 
-	if (sscanf(buf, "%d", &val) != 1) {
+	if (kstrtoint(buf, 10, &val)) {
 		pr_err("%s: Invalid cpufreq format\n", __func__);
 		goto out;
 	}
 
 	mutex_lock(&cpufreq_limit_mutex);
-	if(val == -1) {
+	if (val == -1) {
 		freq_to_set[DVFS_USER_ID][LITTLE].max = val;
 		freq_to_set[DVFS_USER_ID][BIG].max = val;
-	} else if(val > ltl_max_freq_div) {
+	} else if (val > ltl_max_freq_div) {
 		freq_to_set[DVFS_USER_ID][LITTLE].max = -1;
 		freq_to_set[DVFS_USER_ID][BIG].max = val;
 	} else {
@@ -310,10 +338,10 @@ static ssize_t cpufreq_min_limit_show(struct kobject *kobj,
 
 	mutex_lock(&cpufreq_limit_mutex);
 	for (i = 0; i < DVFS_MAX_ID; i++) {
-		if(freq_to_set[i][BIG].min != -1)
+		if (freq_to_set[i][BIG].min != -1)
 			val = MAX(freq_to_set[i][BIG].min, val);
 
-		if(freq_to_set[i][LITTLE].min != -1)
+		if (freq_to_set[i][LITTLE].min != -1)
 			val = MAX((int)(freq_to_set[i][LITTLE].min / param.ltl_divider), val);
 	}
 	mutex_unlock(&cpufreq_limit_mutex);
@@ -328,7 +356,7 @@ static ssize_t cpufreq_min_limit_store(struct kobject *kobj,
 	int val;
 	ssize_t ret = -EINVAL;
 
-	if (sscanf(buf, "%d", &val) != 1) {
+	if (kstrtoint(buf, 10, &val)) {
 		pr_err("%s: Invalid cpufreq format\n", __func__);
 		goto out;
 	}
@@ -361,10 +389,10 @@ static ssize_t over_limit_store(struct kobject *kobj,
 
 	mutex_lock(&cpufreq_limit_mutex);
 	param.over_limit = (unsigned int)val;
-	if(val == -1) {
+	if (val == -1) {
 		freq_to_set[DVFS_OVERLIMIT_ID][LITTLE].max = val;
 		freq_to_set[DVFS_OVERLIMIT_ID][BIG].max = val;
-	} else if(val > ltl_max_freq_div) {
+	} else if (val > ltl_max_freq_div) {
 		freq_to_set[DVFS_OVERLIMIT_ID][LITTLE].max = -1;
 		freq_to_set[DVFS_OVERLIMIT_ID][BIG].max = val;
 	} else {
@@ -384,7 +412,7 @@ cpufreq_limit_attr(cpufreq_max_limit);
 cpufreq_limit_attr(cpufreq_min_limit);
 cpufreq_limit_attr(over_limit);
 
-static struct attribute * g[] = {
+static struct attribute *g[] = {
 	&cpufreq_table_attr.attr,
 	&cpufreq_max_limit_attr.attr,
 	&cpufreq_min_limit_attr.attr,
@@ -396,12 +424,12 @@ static const struct attribute_group limit_attr_group = {
 	.attrs = g,
 };
 
-#define show_one(_name, object)											\
-static ssize_t _name##_show												\
-	(struct kobject *kobj, struct kobj_attribute *attr, char *buf)		\
-{																		\
-	return sprintf(buf, "%u\n", param.object);							\
-}
+#define show_one(_name, object)	\
+static ssize_t _name##_show	\
+	(struct kobject *kobj, struct kobj_attribute *attr, char *buf)	\
+{	\
+	return sprintf(buf, "%u\n", param.object);	\
+}	\
 
 show_one(ltl_cpu_start, ltl_cpu_start);
 show_one(big_cpu_start, big_cpu_start);
@@ -434,7 +462,7 @@ static ssize_t ltl_max_freq_store(struct kobject *kobj,
 	int val;
 	ssize_t ret = -EINVAL;
 
-	if (sscanf(buf, "%d", &val) != 1) {
+	if (kstrtoint(buf, 10, &val)) {
 		pr_err("%s: Invalid cpufreq format\n", __func__);
 		goto out;
 	}
@@ -454,7 +482,7 @@ static ssize_t ltl_min_lock_freq_store(struct kobject *kobj,
 	int val;
 	ssize_t ret = -EINVAL;
 
-	if (sscanf(buf, "%d", &val) != 1) {
+	if (kstrtoint(buf, 10, &val)) {
 		pr_err("%s: Invalid cpufreq format\n", __func__);
 		goto out;
 	}
@@ -473,7 +501,7 @@ static ssize_t big_max_lock_freq_store(struct kobject *kobj,
 	int val;
 	ssize_t ret = -EINVAL;
 
-	if (sscanf(buf, "%d", &val) != 1) {
+	if (kstrtoint(buf, 10, &val)) {
 		pr_err("%s: Invalid cpufreq format\n", __func__);
 		goto out;
 	}
@@ -492,7 +520,7 @@ static ssize_t ltl_divider_store(struct kobject *kobj,
 	int val;
 	ssize_t ret = -EINVAL;
 
-	if (sscanf(buf, "%d", &val) != 1) {
+	if (kstrtoint(buf, 10, &val)) {
 		pr_err("%s: Invalid cpufreq format\n", __func__);
 		goto out;
 	}
@@ -533,8 +561,13 @@ static int __init cpufreq_limit_init(void)
 {
 	int i, ret = 0;
 
+	if (param.ltl_cpu_start > param.big_cpu_start) {
+		little_policy_index = 1;
+		big_policy_index = 0;
+	}
+
 	for (i = 0; i < DVFS_MAX_ID; i++) {
-		freq_to_set[i] = kcalloc(CLUSTER_NUM, sizeof(struct ppm_limit_data), GFP_KERNEL);
+		freq_to_set[i] = kcalloc(CLUSTER_NUM, sizeof(struct cpu_ctrl_data), GFP_KERNEL);
 		if (!freq_to_set[i]) {
 			pr_err("%s: failed, kcalloc freq_to_set fail\n", __func__);
 			return -ENOMEM;
@@ -551,7 +584,7 @@ static int __init cpufreq_limit_init(void)
 
 	ltl_max_freq_div = (int)(param.ltl_max_freq / param.ltl_divider);
 
-	if(power_kobj) {
+	if (power_kobj) {
 		ret = sysfs_create_group(power_kobj, &limit_attr_group);
 		if (ret)
 			pr_err("%s: failed %d\n", __func__, ret);

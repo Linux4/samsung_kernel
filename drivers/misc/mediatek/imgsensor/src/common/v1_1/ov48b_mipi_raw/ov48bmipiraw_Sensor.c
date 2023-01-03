@@ -2,6 +2,7 @@
 /*
  * Copyright (c) 2019 MediaTek Inc.
  */
+
 /*****************************************************************************
  *
  * Filename:
@@ -316,7 +317,7 @@ static struct SET_PD_BLOCK_INFO_T imgsensor_pd_info = {
 #endif
 
 #if MULTI_WRITE
-#define I2C_BUFFER_LEN 765	/*trans# max is 255, each 3 bytes*/
+#define I2C_BUFFER_LEN 255	/*trans# max is 255, each 3 bytes*/
 #else
 #define I2C_BUFFER_LEN 3
 #endif

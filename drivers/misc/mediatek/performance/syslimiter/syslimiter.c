@@ -1,17 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #define pr_fmt(fmt) "[syslimiter]"fmt
@@ -32,8 +21,8 @@
 #include "mtk_perfmgr_internal.h"
 
 
-static struct ppm_limit_data *freq_to_set;
-static struct ppm_limit_data *current_freq;
+static struct cpu_ctrl_data *freq_to_set;
+static struct cpu_ctrl_data *current_freq;
 static int dfrc_fps;
 static int limit_freq;
 static int limit_freq_at_60;
@@ -447,10 +436,10 @@ int syslimiter_init(struct proc_dir_entry *parent)
 	}
 
 	freq_to_set = kcalloc(perfmgr_clusters,
-				sizeof(struct ppm_limit_data), GFP_KERNEL);
+				sizeof(struct cpu_ctrl_data), GFP_KERNEL);
 
 	current_freq = kcalloc(perfmgr_clusters,
-				sizeof(struct ppm_limit_data), GFP_KERNEL);
+				sizeof(struct cpu_ctrl_data), GFP_KERNEL);
 
 	if (!freq_to_set) {
 		pr_debug("kcalloc freq_to_set fail\n");

@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
 */
 
 /********************************************************************
@@ -45,7 +37,11 @@
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
 
+#ifdef CONFIG_MTK_M4U
 #include <m4u.h>
+#endif
+
+
 /* #define EP_NO_CLKMGR */
 #include <cmdq_core.h>
 
@@ -64,7 +60,7 @@
 
 /* #define ISP_DEBUG */
 
-#define LOG_CONSTRAINT_ADJ              (1)
+#define LOG_CONSTRAINT_ADJ              (0)
 #if (LOG_CONSTRAINT_ADJ == 1)
 /* for kernel log reduction */
 #include <linux/printk.h>
@@ -218,7 +214,7 @@ static unsigned long gISPSYS_Irq[ISP_CAM_IRQ_IDX_NUM];
 static unsigned long gISPSYS_Reg[ISP_CAM_BASEADDR_NUM];
 
 #ifdef CONFIG_PM_SLEEP
-struct wakeup_source isp_wake_lock;
+struct wakeup_source *isp_wake_lock;
 #endif
 
 static int g_bWaitLock;
@@ -10211,7 +10207,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 			if (wakelock_ctrl == 1) {       /* Enable     wakelock */
 				if (g_bWaitLock == 0) {
 #ifdef CONFIG_PM_SLEEP
-					__pm_stay_awake(&isp_wake_lock);
+					__pm_stay_awake(isp_wake_lock);
 #endif
 					g_bWaitLock = 1;
 					LOG_DBG("wakelock enable!!\n");
@@ -10219,7 +10215,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 			} else {        /* Disable wakelock */
 				if (g_bWaitLock == 1) {
 #ifdef CONFIG_PM_SLEEP
-					__pm_relax(&isp_wake_lock);
+					__pm_relax(isp_wake_lock);
 #endif
 					g_bWaitLock = 0;
 					LOG_DBG("wakelock disable!!\n");
@@ -11682,7 +11678,7 @@ static signed int ISP_release(struct inode *pInode, struct file *pFile)
 	/* the power-saving mode */
 	if (g_bWaitLock == 1) {
 #ifdef CONFIG_PM_SLEEP
-		__pm_relax(&isp_wake_lock);
+		__pm_relax(isp_wake_lock);
 #endif
 		g_bWaitLock = 0;
 	}
@@ -12099,7 +12095,9 @@ static signed int ISP_probe(struct platform_device *pDev)
 	tasklet_init(&isp_tasklet, ISP_TaskletFunc, 0);
 
 #ifdef CONFIG_PM_SLEEP
-	wakeup_source_init(&isp_wake_lock, "isp_lock_wakelock");
+	/*wakeup_source_init(&isp_wake_lock, "isp_lock_wakelock");*/
+	isp_wake_lock = wakeup_source_register(&pDev->dev,
+	"isp_lock_wakelock");
 #endif
 
 	/*      */
@@ -12838,7 +12836,8 @@ int32_t ISP_EndGCECallback(uint32_t taskID, uint32_t regCount, uint32_t *regValu
 	return 0;
 }
 
-enum m4u_callback_ret_t ISP_M4U_TranslationFault_callback(
+#ifdef CONFIG_MTK_M4U
+m4u_callback_ret_t ISP_M4U_TranslationFault_callback(
 			int port, unsigned int mva, void *data)
 {
 	LOG_DBG("[ISP_M4U]fault	call port=%d, mva=0x%x", port, mva);
@@ -13491,6 +13490,7 @@ enum m4u_callback_ret_t ISP_M4U_TranslationFault_callback(
 
 	return M4U_CALLBACK_HANDLED;
 }
+#endif
 
 /*******************************************************************************
 *

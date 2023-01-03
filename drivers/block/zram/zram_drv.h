@@ -22,7 +22,6 @@
 
 #include "zcomp.h"
 
-#define SECTOR_SHIFT		9
 #define SECTORS_PER_PAGE_SHIFT	(PAGE_SHIFT - SECTOR_SHIFT)
 #define SECTORS_PER_PAGE	(1 << SECTORS_PER_PAGE_SHIFT)
 #define ZRAM_LOGICAL_BLOCK_SHIFT 12
@@ -41,12 +40,7 @@
  * The lower ZRAM_FLAG_SHIFT bits is for object size (excluding header),
  * the higher bits is for zram_pageflags.
  */
-#ifdef CONFIG_ARM
-/* 32-bit ARM compatibility of ZRAM_PPR and ZRAM_UNDER_PPR flags */
-#define ZRAM_FLAG_SHIFT 16
-#else
 #define ZRAM_FLAG_SHIFT 24
-#endif
 
 /* Flags for zram pages (table[page_no].flags) */
 enum zram_pageflags {
@@ -73,7 +67,6 @@ struct zram_table_entry {
 	union {
 		unsigned long handle;
 		unsigned long element;
-		unsigned long long bhandle;
 	};
 	unsigned long flags;
 #ifdef CONFIG_ZRAM_MEMORY_TRACKING
@@ -138,7 +131,7 @@ struct zram_wb_work {
 	struct page *dst_page;
 	struct bio *bio;
 	struct zram *zram;
-	unsigned long long handle;
+	unsigned long handle;
 };
 
 struct zram_wb_entry {
@@ -213,7 +206,4 @@ struct zram {
 	struct mutex blk_bitmap_lock;
 #endif
 };
-
-/* mlog */
-unsigned long zram_mlog(void);
 #endif

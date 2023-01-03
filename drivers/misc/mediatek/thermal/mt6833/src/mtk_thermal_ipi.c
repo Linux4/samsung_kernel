@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include "mtk_thermal_ipi.h"
 #include "mach/mtk_thermal.h"
@@ -40,7 +32,7 @@ static int ack_data;
 
 static int register_thermal_ipi(void)
 {
-#ifndef THERMAL_CPUEB_USE_PLATFORM_IPI
+#ifndef THERMAL_CPUSYS_USE_PLATFORM_IPI
 	int ret;
 
 	ret = mtk_ipi_register(&mcupm_ipidev, CH_S_PLATFORM, NULL, NULL,

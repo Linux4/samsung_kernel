@@ -1,15 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (c) 2014 MediaTek Inc.
- * Author: James Liao <jamesjj.liao@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/of.h>
@@ -800,6 +791,10 @@ static void ram_console_update(void)
 			if (DBG_ID >= (DBG_ID_NUM / 2))
 				id = DBG_ID - (DBG_ID_NUM / 2);
 			/* dump only when power off failes */
+			if (id == SYS_MFG0 || id == SYS_MFG1
+			|| id == SYS_MFG2 || id == SYS_MFG3
+			|| id == SYS_MFG5)
+				print_subsys_reg(mfgsys);
 
 			if (id == SYS_AUDIO) {
 				print_subsys_reg(audio);
@@ -4603,7 +4598,7 @@ struct clk *mt_clk_register_power_gate(const char *name,
 {
 	struct mt_power_gate *pg;
 	struct clk *clk;
-	struct clk_init_data init;
+	struct clk_init_data init = {};
 
 	pg = kzalloc(sizeof(*pg), GFP_KERNEL);
 	if (!pg)

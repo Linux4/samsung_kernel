@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 
 #include <linux/kernel.h>
@@ -547,7 +539,7 @@ void ana_macro_on(void *cmdq)
 		break;
 	case 270:
 		DISPMSG("%s, 6382 mmclk 270M\n", __func__);
-		reg = (3 << 24) | (1 << 16) | (1 << 8) | (1 << 0); //270M for 90Hz
+	reg = (3 << 24) | (1 << 16) | (1 << 8) | (1 << 0); //270M for 90Hz
 		break;
 	default:
 		DISPMSG("%s, 6382 mmclk default 546M\n", __func__);
@@ -1578,8 +1570,27 @@ int bdg_tx_vdo_timing_set(enum DISP_BDG_ENUM module,
 					tx_params->vertical_sync_active);
 		DSI_OUTREG32(cmdq, TX_REG[i]->DSI_TX_VBP_NL,
 					(tx_params->vertical_backporch));
+
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
+		if (!pgc->vfp_chg_sync_bdg) {
+			int j;
+
+			/* keep 6382's vfp in 90hz level as default */
+			for (j = 0; j < DFPS_LEVELS; j++) {
+				if (tx_params->dfps_params[j].fps == 9000) {
+					DSI_OUTREG32(cmdq, TX_REG[i]->DSI_TX_VFP_NL,
+						(tx_params->dfps_params[j].vertical_frontporch));
+					break;
+				}
+			}
+		} else {
+			DSI_OUTREG32(cmdq, TX_REG[i]->DSI_TX_VFP_NL,
+						(tx_params->vertical_frontporch));
+		}
+#else
 		DSI_OUTREG32(cmdq, TX_REG[i]->DSI_TX_VFP_NL,
 					(tx_params->vertical_frontporch));
+#endif
 
 		DSI_OUTREG32(cmdq, TX_REG[i]->DSI_TX_HSA_WC, hsa_byte);
 		DSI_OUTREG32(cmdq, TX_REG[i]->DSI_TX_HBP_WC, hbp_byte);

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2020 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/cpu.h>
 #include <linux/init.h>
@@ -40,7 +32,6 @@
 #include <mtk_swpm_platform.h>
 #include <mtk_swpm_sp_platform.h>
 #include <mtk_swpm_interface.h>
-
 #undef swpm_pmu_enable
 
 /****************************************************************************
@@ -56,7 +47,7 @@
  *  Local Variables
  ****************************************************************************/
 static unsigned int swpm_init_state;
-
+extern unsigned int mt_gpufreq_get_leakage_no_lock(void);
 /* index snapshot */
 static struct mutex swpm_snap_lock;
 static struct mem_swpm_index mem_idx_snap;
@@ -678,10 +669,18 @@ static void swpm_send_init_ipi(unsigned int addr, unsigned int size,
 
 	if (offset == -1) {
 		swpm_err("qos ipi not ready init fail\n");
-		goto error;
+		swpm_init_state = 0;
+		share_idx_ref = NULL;
+		share_idx_ctrl = NULL;
+		idx_ref_uint_ptr = NULL;
+		idx_output_size = 0;
 	} else if (offset == 0) {
 		swpm_err("swpm share sram init fail\n");
-		goto error;
+		swpm_init_state = 0;
+		share_idx_ref = NULL;
+		share_idx_ctrl = NULL;
+		idx_ref_uint_ptr = NULL;
+		idx_output_size = 0;
 	}
 
 	/* get wrapped sram address */
@@ -691,7 +690,11 @@ static void swpm_send_init_ipi(unsigned int addr, unsigned int size,
 	/* exception control for illegal sbuf request */
 	if (!wrap_d) {
 		swpm_err("swpm share sram offset fail\n");
-		goto error;
+		swpm_init_state = 0;
+		share_idx_ref = NULL;
+		share_idx_ctrl = NULL;
+		idx_ref_uint_ptr = NULL;
+		idx_output_size = 0;
 	}
 
 	/* get sram power index and control address from wrap data */
@@ -721,13 +724,8 @@ static void swpm_send_init_ipi(unsigned int addr, unsigned int size,
 #endif
 	swpm_init_state = 1;
 	return;
+	
 
-error:
-	swpm_init_state = 0;
-	share_idx_ref = NULL;
-	share_idx_ctrl = NULL;
-	idx_ref_uint_ptr = NULL;
-	idx_output_size = 0;
 }
 
 static inline void swpm_pass_to_sspm(void)
@@ -874,7 +872,7 @@ static void swpm_idx_snap(void)
 
 static char idx_buf[POWER_INDEX_CHAR_SIZE] = { 0 };
 
-static void swpm_log_loop(unsigned long data)
+static void swpm_log_loop(struct timer_list *data)
 {
 	char buf[256] = {0};
 	char *ptr = buf;
@@ -934,7 +932,7 @@ static void swpm_log_loop(unsigned long data)
 		trace_swpm_power_idx(idx_buf);
 	}
 	/* put power data to ftrace */
-	trace_swpm_power(buf);
+	//trace_swpm_power(buf);
 
 #ifdef LOG_LOOP_TIME_PROFILE
 	t2 = ktime_get();

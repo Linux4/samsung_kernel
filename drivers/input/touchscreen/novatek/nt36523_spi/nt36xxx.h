@@ -50,7 +50,7 @@
 #include <linux/input/stui_inf.h>
 #endif
 
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER)
 #include <linux/sec_panel_notifier.h>
 #endif
 
@@ -79,6 +79,7 @@ extern void stui_tsp_init(int (*stui_tsp_enter)(void), int (*stui_tsp_exit)(void
 
 //---SPI driver info.---
 #define NVT_SPI_NAME "NVT-ts"
+
 #if 0
 #if NVT_DEBUG
 #define NVT_LOG(fmt, args...)    pr_err("[%s] %s %d: " fmt, NVT_SPI_NAME, __func__, __LINE__, ##args)
@@ -110,7 +111,7 @@ extern const uint16_t touch_key_array[TOUCH_KEY_NUM];
 #define NVT_TOUCH_PROC 1
 #define NVT_TOUCH_EXT_PROC 1
 //#define NVT_TOUCH_MP 1
-#define MT_PROTOCOL_B 1
+//#define MT_PROTOCOL_B 1
 #define WAKEUP_GESTURE 1
 #if WAKEUP_GESTURE
 extern const uint16_t gesture_key_array[];
@@ -159,15 +160,14 @@ struct nvt_ts_event_coord {
 struct nvt_ts_coord {
 	u16 x;
 	u16 y;
-	u16 p;
-	u16 p_x;
-	u16 p_y;
+	u16 first_x;
+	u16 first_y;
 	u8 w_major;
 	u8 w_minor;
 	u8 status;
-	u8 p_status;
+	u8 prev_status;
 	bool press;
-	bool p_press;
+	bool prev_press;
 	int move_count;
 };
 
@@ -279,7 +279,6 @@ struct nvt_ts_data {
 	u8 touch_count;
 	struct input_dev *input_dev;
 	struct input_dev *input_dev_proximity;
-	struct delayed_work nvt_fwu_work;
 	uint16_t addr;
 	int8_t phys[32];
 	uint8_t fw_ver;
@@ -530,6 +529,7 @@ typedef enum {
 #define CHECK_ONLY_SHORT_TEST	2
 
 typedef enum {
+	FUNCT_MIN = 0,
 	GLOVE = 1,
 	CHARGER,
 #ifdef PROXIMITY_FUNCTION
@@ -637,6 +637,7 @@ extern void nvt_esd_check_enable(uint8_t enable);
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
 
 u16 nvt_ts_mode_read(struct nvt_ts_data *ts);
+void nvt_ts_release_all_finger(struct nvt_ts_data *ts);
 
 void nvt_ts_early_resume(struct device *dev);
 int32_t nvt_ts_resume(struct device *dev);
@@ -647,7 +648,7 @@ int nvt_sec_mp_parse_dt(struct nvt_ts_data *ts, const char *node_compatible);
 int nvt_ts_lpwg_dump_buf_read(u8 *buf);
 #endif
 
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER)
 extern int ss_panel_notifier_register(struct notifier_block *nb);
 extern int ss_panel_notifier_unregister(struct notifier_block *nb);
 #endif

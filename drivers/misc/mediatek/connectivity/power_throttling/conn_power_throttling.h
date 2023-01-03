@@ -8,10 +8,6 @@
 
 #define CONN_PWR_GET_CUSTOMER_POWER_LEVEL(value, index) ((value >> (index * 8)) & 0xFF)
 
-#if IS_ENABLED(CONFIG_MTK_ENG_BUILD)
-#define CONFIG_CONN_PWR_DEBUG 1
-#endif
-
 struct conn_pwr_plat_info {
 	int chip_id;		/* platform chip id */
 	int adie_id;		/* a die chip id */

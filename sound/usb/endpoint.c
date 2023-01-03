@@ -25,7 +25,6 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
-#include <linux/io.h>
 
 #include "usbaudio.h"
 #include "helper.h"
@@ -87,14 +86,10 @@ static inline unsigned get_usb_high_speed_rate(unsigned int rate)
  */
 static void release_urb_ctx(struct snd_urb_ctx *u)
 {
-	struct snd_usb_endpoint *ep = u->ep;
-
-	if (u->buffer_size) {
-		if (!ep->databuf_sram)
-			usb_free_coherent(u->ep->chip->dev, u->buffer_size,
-					  u->urb->transfer_buffer,
-					  u->urb->transfer_dma);
-	}
+	if (u->buffer_size)
+		usb_free_coherent(u->ep->chip->dev, u->buffer_size,
+				  u->urb->transfer_buffer,
+				  u->urb->transfer_dma);
 	usb_free_urb(u->urb);
 	u->urb = NULL;
 }
@@ -217,20 +212,11 @@ static void prepare_silent_urb(struct snd_usb_endpoint *ep,
 		urb->iso_frame_desc[i].length = length + extra;
 		if (extra) {
 			packet_length = cpu_to_le32(length);
-			if (ep->databuf_sram) {
-				memcpy_toio(urb->transfer_buffer + offset,
-					&packet_length, sizeof(packet_length));
-			} else {
-				memcpy(urb->transfer_buffer + offset,
-					&packet_length, sizeof(packet_length));
-			}
+			memcpy(urb->transfer_buffer + offset,
+			       &packet_length, sizeof(packet_length));
 		}
-		if (ep->databuf_sram)
-			memset_io(urb->transfer_buffer + offset + extra,
-				ep->silence_value, length);
-		else
-			memset(urb->transfer_buffer + offset + extra,
-				ep->silence_value, length);
+		memset(urb->transfer_buffer + offset + extra,
+		       ep->silence_value, length);
 		offs += counts;
 	}
 
@@ -339,7 +325,6 @@ static void queue_pending_output_urbs(struct snd_usb_endpoint *ep)
 		unsigned long flags;
 		struct snd_usb_packet_info *uninitialized_var(packet);
 		struct snd_urb_ctx *ctx = NULL;
-		struct urb *urb;
 		int err, i;
 
 		spin_lock_irqsave(&ep->lock, flags);
@@ -349,17 +334,16 @@ static void queue_pending_output_urbs(struct snd_usb_endpoint *ep)
 			ep->next_packet_read_pos %= MAX_URBS;
 
 			/* take URB out of FIFO */
-			if (!list_empty(&ep->ready_playback_urbs))
+			if (!list_empty(&ep->ready_playback_urbs)) {
 				ctx = list_first_entry(&ep->ready_playback_urbs,
 					       struct snd_urb_ctx, ready_list);
+				list_del_init(&ctx->ready_list);
+			}
 		}
 		spin_unlock_irqrestore(&ep->lock, flags);
 
 		if (ctx == NULL)
 			return;
-
-		list_del_init(&ctx->ready_list);
-		urb = ctx->urb;
 
 		/* copy over the length information */
 		for (i = 0; i < packet->packets; i++)
@@ -433,7 +417,8 @@ static void snd_complete_urb(struct urb *urb)
 	if (err == 0)
 		return;
 
-	usb_audio_err(ep->chip, "cannot submit urb (err = %d)\n", err);
+	usb_audio_err_ratelimited(ep->chip,
+		   "cannot submit urb (err = %d)\n", err);
 	if (ep->data_subs && ep->data_subs->pcm_substream) {
 		substream = ep->data_subs->pcm_substream;
 		snd_pcm_stop_xrun(substream);
@@ -522,11 +507,6 @@ struct snd_usb_endpoint *snd_usb_add_endpoint(struct snd_usb_audio *chip,
 			ep->syncinterval = 3;
 
 		ep->syncmaxsize = le16_to_cpu(get_endpoint(alts, 1)->wMaxPacketSize);
-
-
-		/* let controller driver to know endpoint type */
-		get_endpoint(alts, 1)->bmAttributes |=
-			USB_ENDPOINT_USAGE_FEEDBACK;
 	}
 
 	list_add_tail(&ep->list, &chip->ep_list);
@@ -542,7 +522,7 @@ __exit_unlock:
  */
 static int wait_clear_urbs(struct snd_usb_endpoint *ep)
 {
-	unsigned long end_time = jiffies + msecs_to_jiffies(1500);
+	unsigned long end_time = jiffies + msecs_to_jiffies(1000);
 	int alive;
 
 	do {
@@ -622,25 +602,11 @@ static void release_urbs(struct snd_usb_endpoint *ep, int force)
 	for (i = 0; i < ep->nurbs; i++)
 		release_urb_ctx(&ep->urb[i]);
 
-	if (ep->databuf && ep->databuf_sram) {
-		if (usb_pipein(ep->pipe))
-			mtk_usb_free_sram(USB_AUDIO_DATA_IN);
-		else
-			mtk_usb_free_sram(USB_AUDIO_DATA_OUT);
-	}
-
-	if (ep->syncbuf) {
-		if (ep->syncbuf_sram)
-			mtk_usb_free_sram(USB_AUDIO_DATA_SYNC);
-		else
-			usb_free_coherent(ep->chip->dev, SYNC_URBS * 4,
-				       ep->syncbuf, ep->sync_dma);
-	}
+	if (ep->syncbuf)
+		usb_free_coherent(ep->chip->dev, SYNC_URBS * 4,
+				  ep->syncbuf, ep->sync_dma);
 
 	ep->syncbuf = NULL;
-	ep->databuf = NULL;
-	ep->syncbuf_sram = 0;
-	ep->databuf_sram = 0;
 	ep->nurbs = 0;
 }
 
@@ -819,9 +785,9 @@ static int data_ep_set_params(struct snd_usb_endpoint *ep,
 		/* try to use enough URBs to contain an entire ALSA buffer */
 		max_urbs = min((unsigned) MAX_URBS,
 				max_queue * packs_per_ms / urb_packs);
-
 		ep->nurbs = min(max_urbs, urbs_per_period * periods_per_buffer);
-		if (ep->nurbs < 2)
+
+		if (ep->nurbs <= 2)
 			ep->nurbs++;
 
 		usb_audio_info(ep->chip,
@@ -836,15 +802,6 @@ static int data_ep_set_params(struct snd_usb_endpoint *ep,
 	}
 
 	/* allocate and initialize data urbs */
-	if (usb_pipein(ep->pipe))
-		ep->databuf = mtk_usb_alloc_sram(USB_AUDIO_DATA_IN,
-				ep->nurbs * maxsize * urb_packs, &ep->data_dma);
-	else
-		ep->databuf = mtk_usb_alloc_sram(USB_AUDIO_DATA_OUT,
-				ep->nurbs * maxsize * urb_packs, &ep->data_dma);
-
-	if (ep->databuf)
-		ep->databuf_sram = 1;
 	for (i = 0; i < ep->nurbs; i++) {
 		struct snd_urb_ctx *u = &ep->urb[i];
 		u->index = i;
@@ -858,19 +815,9 @@ static int data_ep_set_params(struct snd_usb_endpoint *ep,
 		if (!u->urb)
 			goto out_of_memory;
 
-		if (ep->databuf_sram) {
-			u->urb->transfer_buffer = ep->databuf +
-				i * u->buffer_size;
-			u->urb->transfer_dma = ep->data_dma +
-				i * u->buffer_size;
-		} else {
-			/* re-allocate buffer */
-			u->urb->transfer_buffer =
-				usb_alloc_coherent(ep->chip->dev,
-					u->buffer_size, GFP_KERNEL,
-					&u->urb->transfer_dma);
-		}
-
+		u->urb->transfer_buffer =
+			usb_alloc_coherent(ep->chip->dev, u->buffer_size,
+					   GFP_KERNEL, &u->urb->transfer_dma);
 		if (!u->urb->transfer_buffer)
 			goto out_of_memory;
 		u->urb->pipe = ep->pipe;
@@ -895,18 +842,8 @@ static int sync_ep_set_params(struct snd_usb_endpoint *ep)
 {
 	int i;
 
-	/* FIXME feedback ep force use dram */
-	#if 0
-	ep->syncbuf = mtk_usb_alloc_sram(USB_AUDIO_DATA_SYNC,
-					SYNC_URBS * 4, &ep->sync_dma);
-	#endif
-	if (ep->syncbuf) {
-		ep->syncbuf_sram = 1;
-	} else {
-		ep->syncbuf = usb_alloc_coherent(ep->chip->dev, SYNC_URBS * 4,
-			       GFP_KERNEL, &ep->sync_dma);
-	}
-
+	ep->syncbuf = usb_alloc_coherent(ep->chip->dev, SYNC_URBS * 4,
+					 GFP_KERNEL, &ep->sync_dma);
 	if (!ep->syncbuf)
 		return -ENOMEM;
 

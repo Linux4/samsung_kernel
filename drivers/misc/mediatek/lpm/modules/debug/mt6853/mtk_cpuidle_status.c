@@ -12,8 +12,9 @@
 #include <linux/pm_qos.h>
 #include <linux/tick.h>
 #include <linux/timer.h>
-
-#include <mtk_ram_console.h>
+#include <mboot_params.h>
+//#include <mtk_ram_console.h>
+#include <mt6853_spm_comm.h>
 #include <mtk_lpm.h>
 #include <mtk_lp_plat_reg.h>
 

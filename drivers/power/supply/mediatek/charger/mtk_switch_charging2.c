@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 /*
  *
@@ -60,11 +52,19 @@
 #include <linux/seq_file.h>
 #include <linux/scatterlist.h>
 #include <linux/suspend.h>
+#include <linux/of.h>
 
 #include <mt-plat/mtk_boot.h>
 #include "mtk_charger_intf.h"
 #include "mtk_switch_charging.h"
 #include "mtk_intf.h"
+
+struct tag_bootmode {
+	u32 size;
+	u32 tag;
+	u32 bootmode;
+	u32 boottype;
+};
 
 #if defined(CONFIG_BATTERY_SAMSUNG)
 static int mtk_switch_chr_pdc_run(struct charger_manager *info)
@@ -158,6 +158,26 @@ static void swchg_select_charging_current_limit(struct charger_manager *info)
 	u32 ichg1_min = 0, aicr1_min = 0;
 	int ret = 0;
 
+	struct device *dev = NULL;
+	struct device_node *boot_node = NULL;
+	struct tag_bootmode *tag = NULL;
+	int boot_mode = 11;//UNKNOWN_BOOT
+
+	dev = &(info->pdev->dev);
+	if (dev != NULL) {
+		boot_node = of_parse_phandle(dev->of_node, "bootmode", 0);
+		if (!boot_node) {
+			chr_err("%s: failed to get boot mode phandle\n", __func__);
+		} else {
+			tag = (struct tag_bootmode *)of_get_property(boot_node,
+								"atag,boot", NULL);
+			if (!tag) {
+				chr_err("%s: failed to get atag,boot\n", __func__);
+			} else
+				boot_mode = tag->bootmode;
+		}
+	}
+
 	if (info->pe5.online) {
 		chr_err("In PE5.0\n");
 		return;
@@ -212,8 +232,8 @@ static void swchg_select_charging_current_limit(struct charger_manager *info)
 		goto done;
 	}
 
-	if ((get_boot_mode() == META_BOOT) ||
-	    (get_boot_mode() == ADVMETA_BOOT)) {
+	if ((boot_mode == META_BOOT) ||
+		(boot_mode == ADVMETA_BOOT)) {
 		pdata->input_current_limit = 200000; /* 200mA */
 		goto done;
 	}
@@ -407,14 +427,34 @@ static void swchg_turn_on_charging(struct charger_manager *info)
 	struct switch_charging_alg_data *swchgalg = info->algorithm_data;
 	bool charging_enable = true;
 
+	struct device *dev = NULL;
+	struct device_node *boot_node = NULL;
+	struct tag_bootmode *tag = NULL;
+	int boot_mode = 11;//UNKNOWN_BOOT
+
+	dev = &(info->pdev->dev);
+	if (dev != NULL) {
+		boot_node = of_parse_phandle(dev->of_node, "bootmode", 0);
+		if (!boot_node) {
+			chr_err("%s: failed to get boot mode phandle\n", __func__);
+		} else {
+			tag = (struct tag_bootmode *)of_get_property(boot_node,
+								"atag,boot", NULL);
+			if (!tag)
+				chr_err("%s: failed to get atag,boot\n", __func__);
+			else
+				boot_mode = tag->bootmode;
+		}
+	}
+
 	if (swchgalg->state == CHR_ERROR) {
 		charging_enable = false;
 		chr_err("[charger]Charger Error, turn OFF charging !\n");
-	} else if ((get_boot_mode() == META_BOOT) ||
-			((get_boot_mode() == ADVMETA_BOOT))) {
+	} else if ((boot_mode == META_BOOT) ||
+			(boot_mode == ADVMETA_BOOT)) {
 		charging_enable = false;
 		info->chg1_data.input_current_limit = 200000; /* 200mA */
-		charger_dev_set_input_current(info->chg1_dev,
+	charger_dev_set_input_current(info->chg1_dev,
 					info->chg1_data.input_current_limit);
 		chr_err("In meta mode, disable charging and set input current limit to 200mA\n");
 	} else {
@@ -755,7 +795,7 @@ static int mtk_switch_chr_pdc_run(struct charger_manager *info)
 
 	if (info->enable_hv_charging == false)
 		goto stop;
-
+	info->is_pdc_run = true;
 	ret = pdc_run();
 
 	if (ret == 2 &&
@@ -763,6 +803,7 @@ static int mtk_switch_chr_pdc_run(struct charger_manager *info)
 		info->chg1_data.thermal_input_current_limit == -1) {
 		chr_err("leave pdc\n");
 		info->leave_pdc = true;
+		info->is_pdc_run = false;
 		swchgalg->state = CHR_CC;
 	}
 
@@ -771,7 +812,7 @@ static int mtk_switch_chr_pdc_run(struct charger_manager *info)
 stop:
 	pdc_stop();
 	swchgalg->state = CHR_CC;
-
+	info->is_pdc_run = false;
 	return 0;
 }
 

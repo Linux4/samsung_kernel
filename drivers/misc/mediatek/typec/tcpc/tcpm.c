@@ -1,16 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * Power Delivery Managert Driver
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include "inc/tcpm.h"
@@ -361,21 +351,19 @@ uint32_t tcpm_inquire_dpm_flags(struct tcpc_device *tcpc)
 	return pd_port->pe_data.dpm_flags;
 }
 
-#if defined(CONFIG_BATTERY_SAMSUNG)
-inline bool tcpm_is_src_usb_suspend_support(struct tcpc_device *tcpc)
+inline bool tcpm_is_src_usb_suspend_support(struct tcpc_device *tcpc_dev)
 {
-	struct pd_port *pd_port = &tcpc->pd_port;
+	struct pd_port *pd_port = &tcpc_dev->pd_port;
 
 	return !!(pd_port->pe_data.dpm_flags & DPM_FLAGS_PARTNER_USB_SUSPEND);
 }
 
-bool tcpm_is_src_usb_communication_capable(struct tcpc_device *tcpc)
+bool tcpm_is_src_usb_communication_capable(struct tcpc_device *tcpc_dev)
 {
-	struct pd_port *pd_port = &tcpc->pd_port;
+	struct pd_port *pd_port = &tcpc_dev->pd_port;
 
 	return !!(pd_port->pe_data.dpm_flags & DPM_FLAGS_PARTNER_USB_COMM);
 }
-#endif
 
 uint32_t tcpm_inquire_dpm_caps(struct tcpc_device *tcpc)
 {
@@ -1315,8 +1303,7 @@ int tcpm_put_tcp_dpm_event(
 		return ret;
 
 	if (imme) {
-		ret = pd_put_tcp_pd_event(pd_port, event->event_id,
-					  PD_TCP_FROM_TCPM);
+		ret = pd_put_tcp_pd_event(pd_port, event->event_id);
 
 #ifdef CONFIG_USB_PD_TCPM_CB_2ND
 		if (ret)
@@ -1825,8 +1812,6 @@ static const char * const bk_event_ret_name[] = {
 	"Recovery",
 	"BIST",
 	"PEBusy",
-	"Discard",
-	"Unexpected",
 
 	"Wait",
 	"Reject",
@@ -1969,14 +1954,11 @@ static int tcpm_put_tcp_dpm_event_bk(
 	while (1) {
 		ret = __tcpm_put_tcp_dpm_event_bk(
 			tcpc, event, tout_ms, data, size);
-		if (retry > 0 &&
-		    (ret == TCP_DPM_RET_TIMEOUT ||
-		    ret == TCP_DPM_RET_DROP_DISCARD ||
-		    ret == TCP_DPM_RET_DROP_UNEXPECTED)) {
-			retry--;
-			continue;
-		}
-		break;
+
+		if ((ret != TCP_DPM_RET_TIMEOUT) || (retry == 0))
+			break;
+
+		retry--;
 	}
 
 	mutex_unlock(&pd_port->tcpm_bk_lock);

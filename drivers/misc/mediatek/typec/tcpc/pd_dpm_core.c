@@ -1,16 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * PD Device Policy Manager Core Driver
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/delay.h>
@@ -1589,7 +1579,7 @@ void pd_dpm_drs_change_role(struct pd_port *pd_port, uint8_t role)
 
 #ifdef CONFIG_USB_PD_PR_SWAP
 
-#if 0
+#ifdef NEVER
 static bool pd_dpm_evaluate_source_cap_match(pd_port_t *pd_port)
 {
 	int i, j;
@@ -1614,7 +1604,7 @@ static bool pd_dpm_evaluate_source_cap_match(pd_port_t *pd_port)
 
 	return find_cap;
 }
-#endif
+#endif /* NEVER */
 
 /*
  * Rules:

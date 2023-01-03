@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 #define MNOC_PMU_POLL_STR1 "c1=%u, c2=%u, c3=%u, c4=%u, c5=%u, c6=%u, "
 #define MNOC_PMU_POLL_STR2 "c7=%u, c8=%u, c9=%u, c10=%u, c11=%u, "
@@ -26,7 +18,7 @@
 #include <linux/tracepoint.h>
 #include "mnoc_hw.h"
 TRACE_EVENT(mnoc_pmu_polling,
-	TP_PROTO(u32 c[NR_MNOC_PMU_CNTR]),
+	TP_PROTO(u32 *c),
 	TP_ARGS(c),
 	TP_STRUCT__entry(
 		__array(u32, c, NR_MNOC_PMU_CNTR)

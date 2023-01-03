@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+* Copyright (C) 2021 MediaTek Inc.
+*/
 
 #include "accdet.h"
 #if PMIC_ACCDET_KERNEL
@@ -47,9 +39,8 @@
 #endif
 #include "pmic_auxadc.h"
 #endif /* end of #if PMIC_ACCDET_KERNEL */
-
 #ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
-#include "../../../../../sound/soc/samsung/jack_accdet_sysfs_cb.h"
+#include "../../../../../sound/soc/samsung/sec_accdet_sysfs_cb.h"
 #endif
 
 /********************grobal variable definitions******************/
@@ -269,7 +260,6 @@ static int moisture_ext_r = 470000;
 static bool debug_thread_en;
 static bool dump_reg;
 static struct task_struct *thread;
-
 #ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
 static struct accdet_data accdet_pdata;
 #endif
@@ -1074,11 +1064,10 @@ static void multi_key_detection(u32 cur_AB)
 
 	if (cur_AB == ACCDET_STATE_AB_00)
 		cur_key = key_check(cali_voltage);
-
 #ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
 	if (cur_AB == ACCDET_STATE_AB_00)
 		accdet_pdata.mic_adc = cali_voltage;
-	else 
+	else
 		accdet_pdata.mic_adc = 0;
 #endif
 
@@ -2165,7 +2154,7 @@ static inline int ext_eint_setup(struct platform_device *platform_device)
 	accdet_irq = platform_get_irq(platform_device, 0);
 	if (moisture_ver != 0x1)
 		ret = of_property_read_u32_array(node, "interrupts", ints,
-				ARRAY_SIZE(ints));
+			ARRAY_SIZE(ints));
 	else
 		ret = of_property_read_u32_array(node, "interrupts", ints, 4);
 
@@ -2686,8 +2675,6 @@ static void accdet_init_once(void)
 		pmic_read(ACCDET_CTRL) | ACCDET_EINT_EN_B2_4);
 #endif
 	accdet_eint_high_level_support();
-#endif
-#ifdef CONFIG_ACCDET_EINT_IRQ
 	/* extend plug in debounce time to 512ms, default is 256ms */
 	eint_debounce_set(PMIC_EINT0, ACCDET_EINT0_DEB_512);
 #endif
@@ -2933,6 +2920,7 @@ int mt_accdet_probe(struct platform_device *dev)
 	pmic_enable_interrupt(INT_ACCDET_EINT1, 1, "ACCDET_EINT1");
 #endif
 #endif
+
 #ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
 	register_accdet_jack_cb(&accdet_pdata);
 #endif

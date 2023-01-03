@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2017 MediaTek Inc.
  */
 
 #include <linux/module.h>
@@ -49,7 +41,7 @@ void mtk_idle_power_pre_process(int idle_type, unsigned int op_cond)
 
 	ret = spm_to_sspm_command_async(cmd, &spm_d);
 	if (ret < 0)
-		pr_notice("%s: ret %d", __func__, ret);
+		printk_deferred("[name:spm&]%s: ret %d", __func__, ret);
 }
 
 void mtk_idle_power_pre_process_async_wait(int idle_type, unsigned int op_cond)
@@ -63,7 +55,7 @@ void mtk_idle_power_pre_process_async_wait(int idle_type, unsigned int op_cond)
 
 	ret = spm_to_sspm_command_async_wait(cmd);
 	if (ret < 0)
-		pr_notice("%s: ret %d", __func__, ret);
+		printk_deferred("[name:spm&]%s: ret %d", __func__, ret);
 }
 
 void mtk_idle_power_post_process(int idle_type, unsigned int op_cond)
@@ -92,7 +84,7 @@ void mtk_idle_power_post_process(int idle_type, unsigned int op_cond)
 
 	ret = spm_to_sspm_command_async(cmd, &spm_d);
 	if (ret < 0)
-		pr_notice("%s: ret %d", __func__, ret);
+		printk_deferred("[name:spm&]%s: ret %d", __func__, ret);
 }
 
 void mtk_idle_power_post_process_async_wait(int idle_type, unsigned int op_cond)
@@ -106,6 +98,6 @@ void mtk_idle_power_post_process_async_wait(int idle_type, unsigned int op_cond)
 
 	ret = spm_to_sspm_command_async_wait(cmd);
 	if (ret < 0)
-		pr_notice("%s: ret %d", __func__, ret);
+		printk_deferred("[name:spm&]%s: ret %d", __func__, ret);
 }
 

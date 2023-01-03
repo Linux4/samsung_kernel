@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __MTK_SWPM_COMMON_H__
 #define __MTK_SWPM_COMMON_H__
@@ -149,7 +141,7 @@ extern int swpm_core_ops_register(struct swpm_core_internal_ops *ops);
 extern int swpm_append_procfs(struct swpm_entry *p);
 extern int swpm_create_procfs(void);
 extern void swpm_update_periodic_timer(void);
-extern int swpm_set_periodic_timer(void (*func)(unsigned long));
+extern int swpm_set_periodic_timer(void (*func)(struct timer_list *));
 extern void swpm_get_rec_addr(phys_addr_t *phys,
 			      phys_addr_t *virt,
 			      unsigned long long *size);

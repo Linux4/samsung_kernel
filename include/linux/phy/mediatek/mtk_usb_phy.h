@@ -1,15 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2020 MediaTek Inc.
+*/
+
 
 #ifndef __MTK_USB_PHY_NEW_H
 #define __MTK_USB_PHY_NEW_H
@@ -28,7 +21,6 @@ extern int usb_mtkphy_sib_enable_switch(struct phy *phy, bool enable);
 extern int usb_mtkphy_sib_enable_switch_status(struct phy *phy);
 extern int usb_mtkphy_switch_to_bc11(struct phy *phy, bool on);
 extern int usb_mtkphy_dpdm_pulldown(struct phy *phy, bool enable);
-extern int usb_mtkphy_dpdm_pullup(struct phy *phy, bool enable);
 extern int usb_mtkphy_lpm_enable(struct phy *phy, bool on);
 extern int usb_mtkphy_host_mode(struct phy *phy, bool on);
 extern int usb_mtkphy_io_read(struct phy *phy, u32 reg);

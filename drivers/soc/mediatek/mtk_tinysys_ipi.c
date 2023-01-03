@@ -1,19 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
-
 
 #include <linux/platform_device.h>
 #include <linux/io.h>
+#include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/errno.h>
 #include <linux/delay.h>
@@ -21,12 +13,11 @@
 #include <linux/sched/clock.h>
 #include <linux/rpmsg.h>
 #include <linux/rpmsg/mtk_rpmsg.h>
-#include <mt-plat/mtk-mbox.h>
-#include <mt-plat/mtk_tinysys_ipi.h>
+#include <linux/soc/mediatek/mtk-mbox.h>
+#include <linux/soc/mediatek/mtk_tinysys_ipi.h>
 
-#define MS_TO_NS(x) ((x)*1000000)
-#define ts_before(ts) (cpu_clock(0) < (ts))
-#define ipi_delay() udelay(10)
+#define IPI_POLLING_INTERVAL_US    10
+#define MS_TO_US(x) ((x)*1000)
 
 #define ipi_echo(en, fmt, args...) \
 	({ if (en) pr_info(fmt, ##args); })
@@ -143,6 +134,7 @@ void ipi_monitor_dump(struct mtk_ipi_device *ipidev)
 
 	spin_unlock_irqrestore(&ipidev->lock_monitor, flags);
 }
+EXPORT_SYMBOL(ipi_monitor_dump);
 
 int mtk_ipi_device_register(struct mtk_ipi_device *ipidev,
 		struct platform_device *pdev, struct mtk_mbox_device *mbox,
@@ -177,12 +169,6 @@ int mtk_ipi_device_register(struct mtk_ipi_device *ipidev,
 			ipidev->name, index);
 		mtk_rpchan = mtk_rpmsg_create_channel(mtk_rpdev, index,
 				chan_name);
-		if (!mtk_rpchan) {
-			pr_err("%s create rpmsg channel %d fail.\n",
-				ipidev->name, index);
-			kfree(mtk_rpdev);
-			return IPI_RPMSG_ERR;
-		}
 		ipi_chan_table[index].rpchan = mtk_rpchan;
 		ipi_chan_table[index].ept =
 			rpmsg_create_ept(&(mtk_rpdev->rpdev),
@@ -224,6 +210,7 @@ int mtk_ipi_device_register(struct mtk_ipi_device *ipidev,
 		ipidev->name, ipi_chan_count);
 	return IPI_ACTION_DONE;
 }
+EXPORT_SYMBOL(mtk_ipi_device_register);
 
 int mtk_ipi_device_reset(struct mtk_ipi_device *ipidev)
 {
@@ -257,6 +244,7 @@ int mtk_ipi_device_reset(struct mtk_ipi_device *ipidev)
 
 	return IPI_ACTION_DONE;
 }
+EXPORT_SYMBOL(mtk_ipi_device_reset);
 
 int mtk_ipi_register(struct mtk_ipi_device *ipidev, int ipi_id,
 		mbox_pin_cb_t cb, void *prdata, void *msg)
@@ -291,7 +279,6 @@ EXPORT_SYMBOL(mtk_ipi_register);
 
 int mtk_ipi_unregister(struct mtk_ipi_device *ipidev, int ipi_id)
 {
-	unsigned long flags = 0;
 	struct mtk_mbox_pin_recv *pin_recv;
 
 	if (!ipidev->ipi_inited)
@@ -302,14 +289,6 @@ int mtk_ipi_unregister(struct mtk_ipi_device *ipidev, int ipi_id)
 		return IPI_UNAVAILABLE;
 
 	mutex_lock(&ipidev->mutex_ipi_reg);
-
-	/* Drop the ipi and reset the record */
-	complete(&pin_recv->notify);
-
-	spin_lock_irqsave(&ipidev->lock_monitor, flags);
-	ipidev->table[ipi_id].ipi_stage = UNUSED;
-	ipidev->table[ipi_id].ipi_seqno = 0;
-	spin_unlock_irqrestore(&ipidev->lock_monitor, flags);
 
 	pin_recv->mbox_pin_cb = NULL;
 	pin_recv->pin_buf = NULL;
@@ -322,12 +301,11 @@ int mtk_ipi_unregister(struct mtk_ipi_device *ipidev, int ipi_id)
 EXPORT_SYMBOL(mtk_ipi_unregister);
 
 int mtk_ipi_send(struct mtk_ipi_device *ipidev, int ipi_id,
-		int opt, void *data, int len, int timeout)
+		int opt, void *data, int len, int retry_timeout)
 {
 	struct mtk_mbox_pin_send *pin;
 	unsigned long flags = 0;
-	u64 timeover;
-	int ret = 1;
+	int wait_us, ret = 1;
 
 	if (!ipidev->ipi_inited)
 		return IPI_DEV_ILLEGAL;
@@ -341,8 +319,13 @@ int mtk_ipi_send(struct mtk_ipi_device *ipidev, int ipi_id,
 	else if (!len)
 		len = pin->msg_size;
 
-	if (ipidev->pre_cb)
-		ipidev->pre_cb(ipidev->prdata);
+	wait_us = MS_TO_US(retry_timeout);
+
+	if (ipidev->pre_cb && ipidev->pre_cb(ipidev->prdata)) {
+		pr_notice("Error: IPI [%s] pre_cb fail\n", ipidev->table[ipi_id].rpchan->info.name);
+		return IPI_PRE_CB_FAIL;
+	}
+
 
 	if (opt == IPI_SEND_POLLING) {
 		if (mutex_is_locked(&pin->mutex_send)) {
@@ -362,13 +345,12 @@ int mtk_ipi_send(struct mtk_ipi_device *ipidev, int ipi_id,
 		mutex_lock(&pin->mutex_send);
 	}
 
-	timeover = cpu_clock(0) + MS_TO_NS(timeout);
-
 	ret = rpmsg_trysend(ipidev->table[ipi_id].ept, data, len);
 	ipidev->table[ipi_id].trysend_count = 1;
 
-	while (ret && ts_before(timeover)) {
-		ipi_delay();
+	while (wait_us > 0 && ret) {
+		udelay(IPI_POLLING_INTERVAL_US);
+		wait_us -= IPI_POLLING_INTERVAL_US;
 		ret = rpmsg_trysend(ipidev->table[ipi_id].ept, data, len);
 		ipidev->table[ipi_id].trysend_count++;
 	}
@@ -383,8 +365,11 @@ int mtk_ipi_send(struct mtk_ipi_device *ipidev, int ipi_id,
 	else
 		mutex_unlock(&pin->mutex_send);
 
-	if (ipidev->post_cb)
-		ipidev->post_cb(ipidev->prdata);
+	if (ipidev->post_cb && ipidev->post_cb(ipidev->prdata)) {
+		pr_notice("Error: IPI [%s] post_cb fail\n",
+			ipidev->table[ipi_id].rpchan->info.name);
+		return IPI_POST_CB_FAIL;
+	}
 
 	if (ret == MBOX_PIN_BUSY) {
 		ipi_timeout_dump(ipidev, ipi_id);
@@ -430,8 +415,7 @@ int mtk_ipi_send_compl(struct mtk_ipi_device *ipidev, int ipi_id,
 	struct mtk_mbox_pin_send *pin_s;
 	struct mtk_mbox_pin_recv *pin_r;
 	unsigned long flags = 0;
-	u64 timeover;
-	int ret;
+	int wait, ret;
 
 	if (!ipidev->ipi_inited)
 		return IPI_DEV_ILLEGAL;
@@ -446,8 +430,12 @@ int mtk_ipi_send_compl(struct mtk_ipi_device *ipidev, int ipi_id,
 	else if (!len)
 		len = pin_s->msg_size;
 
-	if (ipidev->pre_cb)
-		ipidev->pre_cb(ipidev->prdata);
+	wait = MS_TO_US(timeout);
+
+	if (ipidev->pre_cb && ipidev->pre_cb(ipidev->prdata)) {
+		pr_notice("Error: IPI [%s] pre_cb fail\n", ipidev->table[ipi_id].rpchan->info.name);
+		return IPI_PRE_CB_FAIL;
+	}
 
 	if (opt == IPI_SEND_POLLING) {
 		if (mutex_is_locked(&pin_s->mutex_send)) {
@@ -469,14 +457,13 @@ int mtk_ipi_send_compl(struct mtk_ipi_device *ipidev, int ipi_id,
 
 	atomic_inc(&ipidev->table[ipi_id].holder);
 
-	timeover = cpu_clock(0) + MS_TO_NS(timeout);
-
 	ret = rpmsg_trysend(ipidev->table[ipi_id].ept, data, len);
 	ipidev->table[ipi_id].trysend_count = 1;
 	ipidev->table[ipi_id].polling_count = 0;
 
-	while (ret && ts_before(timeover)) {
-		ipi_delay();
+	while (ret && wait > 0) {
+		udelay(IPI_POLLING_INTERVAL_US);
+		wait -= IPI_POLLING_INTERVAL_US;
 		ret = rpmsg_trysend(ipidev->table[ipi_id].ept, data, len);
 		ipidev->table[ipi_id].trysend_count++;
 	}
@@ -489,8 +476,11 @@ int mtk_ipi_send_compl(struct mtk_ipi_device *ipidev, int ipi_id,
 
 		atomic_set(&ipidev->table[ipi_id].holder, 0);
 
-		if (ipidev->post_cb)
-			ipidev->post_cb(ipidev->prdata);
+		if (ipidev->post_cb && ipidev->post_cb(ipidev->prdata)) {
+			pr_notice("Error: IPI [%s] post_cb fail\n",
+				ipidev->table[ipi_id].rpchan->info.name);
+			return IPI_POST_CB_FAIL;
+		}
 
 		pr_warn("%s IPI %d send fail (%d)\n",
 			ipidev->name, ipi_id, ret);
@@ -499,32 +489,32 @@ int mtk_ipi_send_compl(struct mtk_ipi_device *ipidev, int ipi_id,
 
 	ipi_monitor(ipidev, ipi_id, SEND_MSG);
 
+	/* Run receive at least once */
+	wait = (wait < 1) ? IPI_POLLING_INTERVAL_US : wait;
+
 	if (opt == IPI_SEND_POLLING) {
-		do {
+		while (wait > 0) {
 			ipidev->table[ipi_id].polling_count++;
+
 			if (mtk_mbox_polling(ipidev->mbdev, pin_r->mbox,
-				pin_r->pin_buf, pin_r) == MBOX_DONE) {
-				ret = 1;
+				pin_r->pin_buf, pin_r) == MBOX_DONE)
 				break;
-			}
 
-			if (try_wait_for_completion(&pin_r->notify)) {
-				ret = 1;
+			if (try_wait_for_completion(&pin_r->notify))
 				break;
-			}
 
-			ipi_delay();
-		} while (ts_before(timeover));
+			udelay(IPI_POLLING_INTERVAL_US);
+			wait -= IPI_POLLING_INTERVAL_US;
+		}
 	} else {
 		/* WAIT Mode */
-		timeover = ts_before(timeover) ? timeover - cpu_clock(0) : 0;
-		ret = wait_for_completion_timeout(&pin_r->notify,
-			nsecs_to_jiffies(timeover));
+		wait = wait_for_completion_timeout(&pin_r->notify,
+			usecs_to_jiffies(wait));
 	}
 
 	atomic_set(&ipidev->table[ipi_id].holder, 0);
 
-	if (ret > 0) {
+	if (wait > 0) {
 		ipi_monitor(ipidev, ipi_id, RECV_ACK);
 		ipidev->ipi_last_done = ipi_id;
 		ret = IPI_ACTION_DONE;
@@ -541,8 +531,11 @@ int mtk_ipi_send_compl(struct mtk_ipi_device *ipidev, int ipi_id,
 	else
 		mutex_unlock(&pin_s->mutex_send);
 
-	if (ipidev->post_cb)
-		ipidev->post_cb(ipidev->prdata);
+	if (ipidev->post_cb && ipidev->post_cb(ipidev->prdata)) {
+		pr_notice("Error: IPI [%s] post_cb fail\n",
+			ipidev->table[ipi_id].rpchan->info.name);
+		return IPI_POST_CB_FAIL;
+	}
 
 	return ret;
 }
@@ -579,8 +572,10 @@ int mtk_ipi_recv_reply(struct mtk_ipi_device *ipidev, int ipi_id,
 			pin_r->msg_size);
 
 	/* send the response*/
-	if (ipidev->pre_cb)
-		ipidev->pre_cb(ipidev->prdata);
+	if (ipidev->pre_cb && ipidev->pre_cb(ipidev->prdata)) {
+		pr_notice("Error: IPI [%s] pre_cb fail\n", ipidev->table[ipi_id].rpchan->info.name);
+		return IPI_PRE_CB_FAIL;
+	}
 
 	/* lock this pin until send ack*/
 	spin_lock_irqsave(&pin_s->pin_lock, flags);
@@ -594,8 +589,11 @@ int mtk_ipi_recv_reply(struct mtk_ipi_device *ipidev, int ipi_id,
 
 	spin_unlock_irqrestore(&pin_s->pin_lock, flags);
 
-	if (ipidev->post_cb)
-		ipidev->post_cb(ipidev->prdata);
+	if (ipidev->post_cb && ipidev->post_cb(ipidev->prdata)) {
+		pr_notice("Error: IPI [%s] post_cb fail\n",
+			ipidev->table[ipi_id].rpchan->info.name);
+		return IPI_POST_CB_FAIL;
+	}
 
 	if (ret == MBOX_PIN_BUSY)
 		return IPI_PIN_BUSY;
@@ -614,6 +612,7 @@ void mtk_ipi_tracking(struct mtk_ipi_device *ipidev, bool en)
 	ipidev->mbdev->log_enable = en;
 	pr_info("%s IPI tracking %s\n", ipidev->name, en ? "on" : "off");
 }
+EXPORT_SYMBOL(mtk_ipi_tracking);
 
 static void ipi_isr_cb(struct mtk_mbox_pin_recv *pin, void *priv)
 {
@@ -630,3 +629,6 @@ static void ipi_isr_cb(struct mtk_mbox_pin_recv *pin, void *priv)
 	}
 
 }
+
+MODULE_LICENSE("GPL v2");
+MODULE_DESCRIPTION("MediaTek Tinysys IPI driver");

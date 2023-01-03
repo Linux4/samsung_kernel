@@ -1,17 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Mediatek's MT6877 SoC device tree source
- *
- * Copyright (C) 2021 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 
 #include <linux/delay.h>
@@ -20,23 +10,24 @@
 
 #include "clk-fmeter.h"
 #include "clkchk.h"
+#include "clkdbg.h"
 
 #define SUBSYS_PLL_NUM		4
 
-static DEFINE_SPINLOCK(pdn_lock);
-#define pdn_lock(flags)   spin_lock_irqsave(&pdn_lock, flags)
-#define pdn_unlock(flags) spin_unlock_irqrestore(&pdn_lock, flags)
+//static DEFINE_SPINLOCK(pdn_lock);
+//#define pdn_lock(flags)   spin_lock_irqsave(&pdn_lock, flags)
+//#define pdn_unlock(flags) spin_unlock_irqrestore(&pdn_lock, flags)
 
 static DEFINE_SPINLOCK(meter_lock);
 #define fmeter_lock(flags)   spin_lock_irqsave(&meter_lock, flags)
 #define fmeter_unlock(flags) spin_unlock_irqrestore(&meter_lock, flags)
-
+/*
 static DEFINE_SPINLOCK(subsys_meter_lock);
 #define subsys_fmeter_lock(flags)	\
 	spin_lock_irqsave(&subsys_meter_lock, flags)
 #define subsys_fmeter_unlock(flags)	\
 	spin_unlock_irqrestore(&subsys_meter_lock, flags)
-
+*/
 /*
  * clkdbg fmeter
  */
@@ -224,8 +215,8 @@ static const struct fmeter_clk fclks[] = {
 
 static void __iomem *topck_base;
 static void __iomem *apmixed_base;
-static void __iomem *gpu_pll_ctrl_base;
-static void __iomem *apu_pll_ctrl_base;
+//static void __iomem *gpu_pll_ctrl_base;
+//static void __iomem *apu_pll_ctrl_base;
 static void __iomem *spm_base;
 
 const struct fmeter_clk *get_fmeter_clks(void)
@@ -541,7 +532,7 @@ unsigned int mt_get_abist2_freq(unsigned int ID)
 unsigned int mt_get_subsys_freq(unsigned int ID)
 {
 	int output = 0, i = 0;
-	unsigned int temp, pll4h_fqmtr_con0, pll4h_fqmtr_con1;
+	unsigned int temp;
 	unsigned long flags;
 	void __iomem *base, *con0, *con1;
 	unsigned int id;

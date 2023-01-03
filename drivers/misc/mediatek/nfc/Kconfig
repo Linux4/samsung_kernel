@@ -1,6 +1,6 @@
 config NFC_CHIP_SUPPORT
 	tristate "NFC driver solution - NFC Controller Driver"
-	depends on I2C && MTK_NFC_CLKBUF_ENABLE
+	depends on I2C
 	select NFC_ST54_SPI
 	help
 	  STMicroelectronics ST21NFC Near Field Communication controller
@@ -20,7 +20,10 @@ config NFC_ST54_SPI
 	  support SPI interface (eSE still usable).
 
 config MTK_NFC_CLKBUF_ENABLE
-	tristate "Enable clock buffer for NFC"
+	bool "Enable clock buffer for NFC"
 	help
-          Enable clock buffer from PMIC for NFC.
-
+	  Enable clock buffer from PMIC for NFC.
+	  This configuration need to be set if support NFC functionality
+	  whether STMicroelectronics solution or not.
+	  If NFC solution is not STMicroelectronics,
+	  this configuration SHOULD be set.

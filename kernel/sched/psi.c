@@ -128,7 +128,6 @@
  */
 
 #include "../workqueue_internal.h"
-#include <uapi/linux/sched/types.h>
 #include <linux/sched/loadavg.h>
 #include <linux/seq_file.h>
 #include <linux/proc_fs.h>
@@ -528,7 +527,6 @@ static u64 update_triggers(struct psi_group *group, u64 now)
 
 		/* Calculate growth since last update */
 		growth = window_update(&t->win, now, total[t->state]);
-
 		if (growth < t->threshold)
 			continue;
 
@@ -537,11 +535,8 @@ static u64 update_triggers(struct psi_group *group, u64 now)
 			continue;
 
 		/* Generate an event */
-		if (cmpxchg(&t->event, 0, 1) == 0) {
-			pr_info("%s: group:%p t:%p triggered!\n",
-				__func__, group, t);
+		if (cmpxchg(&t->event, 0, 1) == 0)
 			wake_up_interruptible(&t->event_wait);
-		}
 		t->last_event_time = now;
 	}
 
@@ -1151,8 +1146,6 @@ static void psi_trigger_destroy(struct kref *ref)
 
 		kthread_destroy_worker(kworker_to_destroy);
 	}
-
-	pr_info("update_trigger:%s, old:%p\n", __func__, t);
 	kfree(t);
 }
 
@@ -1168,21 +1161,21 @@ void psi_trigger_replace(void **trigger_ptr, struct psi_trigger *new)
 		kref_put(&old->refcount, psi_trigger_destroy);
 }
 
-unsigned int psi_trigger_poll(void **trigger_ptr, struct file *file,
-			      poll_table *wait)
+__poll_t psi_trigger_poll(void **trigger_ptr,
+				struct file *file, poll_table *wait)
 {
-	unsigned int ret = DEFAULT_POLLMASK;
+	__poll_t ret = DEFAULT_POLLMASK;
 	struct psi_trigger *t;
 
 	if (static_branch_likely(&psi_disabled))
-		return DEFAULT_POLLMASK | POLLERR | POLLPRI;
+		return DEFAULT_POLLMASK | EPOLLERR | EPOLLPRI;
 
 	rcu_read_lock();
 
 	t = rcu_dereference(*(void __rcu __force **)trigger_ptr);
 	if (!t) {
 		rcu_read_unlock();
-		return DEFAULT_POLLMASK | POLLERR | POLLPRI;
+		return DEFAULT_POLLMASK | EPOLLERR | EPOLLPRI;
 	}
 	kref_get(&t->refcount);
 
@@ -1190,11 +1183,8 @@ unsigned int psi_trigger_poll(void **trigger_ptr, struct file *file,
 
 	poll_wait(file, &t->event_wait, wait);
 
-	if (cmpxchg(&t->event, 1, 0) == 1) {
-		pr_info("%s: t:%p triggered!\n",
-			__func__, t);
-		ret |= POLLPRI;
-	}
+	if (cmpxchg(&t->event, 1, 0) == 1)
+		ret |= EPOLLPRI;
 
 	kref_put(&t->refcount, psi_trigger_destroy);
 
@@ -1231,8 +1221,6 @@ static ssize_t psi_write(struct file *file, const char __user *user_buf,
 	psi_trigger_replace(&seq->private, new);
 	mutex_unlock(&seq->lock);
 
-	pr_info("%s: new:%p\n", __func__, new);
-
 	return nbytes;
 }
 
@@ -1254,7 +1242,7 @@ static ssize_t psi_cpu_write(struct file *file, const char __user *user_buf,
 	return psi_write(file, user_buf, nbytes, PSI_CPU);
 }
 
-static unsigned int psi_fop_poll(struct file *file, poll_table *wait)
+static __poll_t psi_fop_poll(struct file *file, poll_table *wait)
 {
 	struct seq_file *seq = file->private_data;
 

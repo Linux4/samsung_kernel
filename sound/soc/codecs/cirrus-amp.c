@@ -28,6 +28,12 @@ EXPORT_SYMBOL_GPL(cirrus_amp_class);
 
 struct cirrus_amp_group *amp_group;
 
+static struct cirrus_cal_ops *cirrus_cal_ops[3] = {
+	&cirrus_cspl_cal_ops,
+	&cirrus_cspl_cal_ops,
+	&cirrus_cs35l43_cal_ops
+};
+
 struct cirrus_amp *cirrus_get_amp_from_suffix(const char *suffix)
 {
 	int i;
@@ -57,6 +63,24 @@ struct cirrus_amp *cirrus_get_amp_from_suffix(const char *suffix)
 }
 EXPORT_SYMBOL_GPL(cirrus_get_amp_from_suffix);
 
+void cirrus_amp_register_i2c_error_callback(const char *suffix, void *func)
+{
+	struct cirrus_amp *amp = cirrus_get_amp_from_suffix(suffix);
+
+	if (amp)
+		amp->i2c_callback = func;
+}
+EXPORT_SYMBOL_GPL(cirrus_amp_register_i2c_error_callback);
+
+void cirrus_amp_register_error_callback(const char *suffix, void *func)
+{
+	struct cirrus_amp *amp = cirrus_get_amp_from_suffix(suffix);
+
+	if (amp)
+		amp->error_callback = func;
+}
+EXPORT_SYMBOL_GPL(cirrus_amp_register_error_callback);
+
 int cirrus_amp_add(const char *mfd_suffix, struct cirrus_amp_config cfg)
 {
 	struct cirrus_amp *amp = cirrus_get_amp_from_suffix(mfd_suffix);
@@ -66,7 +90,7 @@ int cirrus_amp_add(const char *mfd_suffix, struct cirrus_amp_config cfg)
 			 "Amp added, suffix: %s dsp_part_name: %s\n",
 			 mfd_suffix, cfg.dsp_part_name);
 
-		amp->codec = cfg.codec;
+		amp->component = cfg.component;
 		amp->regmap = cfg.regmap;
 		amp->dsp_part_name = cfg.dsp_part_name;
 		amp->num_pre_configs = cfg.num_pre_configs;
@@ -82,14 +106,28 @@ int cirrus_amp_add(const char *mfd_suffix, struct cirrus_amp_config cfg)
 		amp->calibration_disable = cfg.calibration_disable;
 		amp->cal_vpk_id = cfg.cal_vpk_id ? cfg.cal_vpk_id :
 					CIRRUS_CAL_RTLOG_ID_V_PEAK;
-		amp->cal_ipk_id = cfg.cal_vpk_id ? cfg.cal_ipk_id :
+		amp->cal_ipk_id = cfg.cal_ipk_id ? cfg.cal_ipk_id :
 					CIRRUS_CAL_RTLOG_ID_I_PEAK;
 		amp->halo_alg_id = cfg.halo_alg_id ? cfg.halo_alg_id :
 					CIRRUS_AMP_ALG_ID_HALO;
+		amp->bd.bd_alg_id = cfg.bd_alg_id ? cfg.bd_alg_id :
+					CIRRUS_AMP_ALG_ID_CSPL;
+		amp->bd.bd_prefix = cfg.bd_prefix ? cfg.bd_prefix :
+					"BDLOG_";
+		amp->cal_vsc_ub = cfg.cal_vsc_ub ? cfg.cal_vsc_ub :
+					CIRRUS_CAL_VIMON_CAL_VSC_UB;
+		amp->cal_vsc_lb = cfg.cal_vsc_lb ? cfg.cal_vsc_lb :
+					CIRRUS_CAL_VIMON_CAL_VSC_LB;
+		amp->cal_isc_ub = cfg.cal_isc_ub ? cfg.cal_isc_ub :
+					CIRRUS_CAL_VIMON_CAL_ISC_UB;
+		amp->cal_isc_lb = cfg.cal_isc_lb ? cfg.cal_isc_lb :
+					CIRRUS_CAL_VIMON_CAL_ISC_LB;
 		amp->bd.max_temp_limit = cfg.bd_max_temp ?
 						 cfg.bd_max_temp - 1 : 99;
 		amp->default_redc = cfg.default_redc ? cfg.default_redc :
 						CIRRUS_CAL_RDC_DEFAULT;
+		amp->cal_ops = cfg.cal_ops_idx ? cirrus_cal_ops[cfg.cal_ops_idx] :
+					cirrus_cal_ops[CIRRUS_CAL_CSPL_CAL_OPS_IDX];
 
 		amp->pre_config = kcalloc(cfg.num_pre_configs,
 					  sizeof(struct reg_sequence),
@@ -100,6 +138,7 @@ int cirrus_amp_add(const char *mfd_suffix, struct cirrus_amp_config cfg)
 					   GFP_KERNEL);
 
 		amp->amp_reinit = cfg.amp_reinit;
+		amp->runtime_pm = cfg.runtime_pm;
 
 		amp_group->pwr_enable |= cfg.pwr_enable;
 
@@ -121,11 +160,16 @@ EXPORT_SYMBOL_GPL(cirrus_amp_add);
 int cirrus_amp_read_ctl(struct cirrus_amp *amp, const char *name,
 			int type, unsigned int id, unsigned int *value)
 {
-	struct wm_adsp *dsp = snd_soc_codec_get_drvdata(amp->codec);
+	struct wm_adsp *dsp;
 	unsigned int tmp;
 	int ret = 0;
 
-	if (amp->codec) {
+	if (amp && amp->component)
+		dsp = snd_soc_component_get_drvdata(amp->component);
+	else
+		return -EINVAL;
+
+	if (dsp) {
 		ret = wm_adsp_read_ctl(dsp, name, type, id, (void *)&tmp, 4);
 		*value = (tmp & 0xff0000) >> 8 |
 			(tmp & 0xff00) << 8 |
@@ -139,15 +183,20 @@ EXPORT_SYMBOL_GPL(cirrus_amp_read_ctl);
 int cirrus_amp_write_ctl(struct cirrus_amp *amp, const char *name,
 			 int type, unsigned int id, unsigned int value)
 {
-	struct wm_adsp *dsp = snd_soc_codec_get_drvdata(amp->codec);
+	struct wm_adsp *dsp;
 	unsigned int tmp;
+
+	if (amp && amp->component)
+		dsp = snd_soc_component_get_drvdata(amp->component);
+	else
+		return -EINVAL;
 
 	tmp = (value & 0xff0000) >> 8 |
 			(value & 0xff00) << 8 |
 			(value & 0xff000000) >> 24 |
 			(value & 0xff) << 24;
 
-	if (amp->codec)
+	if (dsp)
 		return wm_adsp_write_ctl(dsp, name, type, id, (void *)&tmp, 4);
 
 	return 0;

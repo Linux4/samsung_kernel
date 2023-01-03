@@ -216,14 +216,14 @@ EXPORT_SYMBOL(sdfat_log_version);
 /* do not use time_t directly to prevent compile errors on 32bit kernel */
 #define time_do_div(ori, base)	\
 ({				\
-	u64 __ori = ori;        \
+	u64 __ori = ori;	\
 	do_div(__ori, base);	\
-	(time_t)__ori;          \
+	(time_t)__ori;		\
 })
 
 #define time_do_mod(ori, base)		\
-({				\
-	u64 __ori = ori;	\
+({					\
+	u64 __ori = ori;		\
 	(time_t)do_div(__ori, base);	\
 })
 

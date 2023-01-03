@@ -1,14 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
+ * Author: Joey Pan <joey.pan@mediatek.com>
  */
 
 #ifndef __LCM_DRV_H__
@@ -313,15 +306,6 @@ struct LCM_DBI_DATA_FORMAT {
 	enum LCM_DBI_DATA_WIDTH width;
 };
 
-enum  LCM_DBI_C_WIRE_NUM {
-	LCM_DBI_C_3WIRE = 1,
-	LCM_DBI_C_4WIRE = 2,
-};
-
-enum LCM_DBI_C_DATA_PIN_NUM {
-	LCM_DBI_C_1DATA_PIN = 1,
-	LCM_DBI_C_2DATA_PIN = 2,
-};
 
 struct LCM_DBI_SERIAL_PARAMS {
 	enum LCM_POLARITY cs_polarity;
@@ -346,9 +330,6 @@ struct LCM_DBI_SERIAL_PARAMS {
 	unsigned int sif_div2;
 	unsigned int sif_hw_cs;
 /* ////////////////////////////////// */
-
-	enum LCM_DBI_C_WIRE_NUM wire_num;
-	enum LCM_DBI_C_DATA_PIN_NUM datapin_num;
 };
 
 
@@ -456,7 +437,6 @@ struct LCM_DSC_CONFIG_PARAMS {
 
 
 struct LCM_DBI_PARAMS {
-	enum LCM_CTRL ctrl;
 	/* common parameters for serial & parallel interface */
 	unsigned int port;
 	enum LCM_DBI_CLOCK_FREQ clock_freq;
@@ -571,6 +551,7 @@ enum MIPITX_PHY_PORT {
 	MIPITX_PHY_PORT_NUM
 };
 
+/*ARR*/
 #define DYNAMIC_FPS_LEVELS 10
 struct dynamic_fps_info {
 	unsigned int fps;
@@ -588,11 +569,10 @@ struct vsync_trigger_time {
 enum DynFPS_LEVEL {
 	DFPS_LEVEL0 = 0,
 	DFPS_LEVEL1,
-	DFPS_LEVEL2,
 	DFPS_LEVELNUM,
 };
 
-#define DFPS_LEVELS 3
+#define DFPS_LEVELS 2
 enum FPS_CHANGE_INDEX {
 	DYNFPS_NOT_DEFINED = 0,
 	DYNFPS_DSI_VFP = 1,
@@ -612,6 +592,7 @@ struct dfps_info {
 	unsigned int horizontal_sync_active;
 	unsigned int horizontal_backporch;
 	unsigned int horizontal_frontporch;
+
 	unsigned int PLL_CLOCK;
 	/* data_rate = PLL_CLOCK x 2 */
 	unsigned int data_rate;
@@ -637,6 +618,7 @@ struct dfps_info {
 	/*real fps during active*/
 	unsigned int vact_timing_fps_dyn;
 };
+
 
 struct LCM_DSI_PARAMS {
 	enum LCM_DSI_MODE_CON mode;
@@ -715,7 +697,6 @@ struct LCM_DSI_PARAMS {
 	/* PLL_CLOCK = (int) PLL_CLOCK */
 	unsigned int PLL_CLOCK;
 	/* data_rate = PLL_CLOCK x 2 */
-	unsigned int ap_data_rate;
 	unsigned int data_rate;
 	unsigned int PLL_CK_VDO;
 	unsigned int PLL_CK_CMD;
@@ -841,6 +822,7 @@ struct LCM_PARAMS {
 	unsigned int corner_pattern_height_bot;
 	unsigned int corner_pattern_tp_size;
 	void *corner_pattern_lt_addr;
+
 	int lcm_color_mode;
 	unsigned int min_luminance;
 	unsigned int average_luminance;
@@ -849,14 +831,9 @@ struct LCM_PARAMS {
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	enum LCM_Send_Cmd_Mode sendmode;
 #endif
-	/* HBM: High Backlight Mode */
-#if defined(CONFIG_SMCDSD_PANEL)
-	unsigned int hbm_enable_wait_frame;
-	unsigned int hbm_disable_wait_frame;
-#else
+
 	unsigned int hbm_en_time;
 	unsigned int hbm_dis_time;
-#endif
 };
 
 
@@ -1029,6 +1006,7 @@ struct LCM_UTIL_FUNCS {
 		void *cmdq, unsigned int cmd,
 		unsigned int count, unsigned char *para_list,
 		unsigned char force_update, enum LCM_Send_Cmd_Mode sendmode);
+
 };
 enum LCM_DRV_IOCTL_CMD {
 	LCM_DRV_IOCTL_ENABLE_CMD_MODE = 0x100,
@@ -1101,6 +1079,7 @@ struct LCM_DRIVER {
 	void (*set_pwm_for_mix)(int enable);
 
 	void (*aod)(int enter);
+
 	/* /////////////DynFPS///////////////////////////// */
 	void (*dfps_send_lcm_cmd)(void *cmdq_handle,
 		unsigned int from_level, unsigned int to_level, struct LCM_PARAMS *params);

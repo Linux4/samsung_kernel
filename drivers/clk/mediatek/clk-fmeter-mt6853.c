@@ -1,29 +1,19 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2020 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #include <linux/delay.h>
 #include <linux/of_address.h>
 
 #include "clkchk.h"
 #include "clk-fmeter.h"
-
+#include "clkdbg.h"
 static DEFINE_SPINLOCK(meter_lock);
 #define fmeter_lock(flags)   spin_lock_irqsave(&meter_lock, flags)
 #define fmeter_unlock(flags) spin_unlock_irqrestore(&meter_lock, flags)
 
-/*
- * clkdbg fmeter
- */
 
 #define clk_readl(addr)		readl(addr)
 #define clk_writel(addr, val)	\

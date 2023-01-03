@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2019 MediaTek Inc.
  */
 #include <linux/version.h>
 #include <linux/kernel.h>
@@ -25,10 +17,12 @@
 #include "mt-plat/mtk_thermal_monitor.h"
 #include "mach/mtk_thermal.h"
 #include "mtk_thermal_timer.h"
-#include <mt-plat/upmu_common.h>
+//#include <mt-plat/upmu_common.h>
 #include <tspmic_settings.h>
 #include <linux/uidgid.h>
 #include <linux/slab.h>
+#include <linux/mfd/mt6397/core.h>/* PMIC MFD core header */
+#include <linux/regmap.h>
 
 /*=============================================================
  *Local variable definition
@@ -74,7 +68,7 @@ static char g_bind7[20] = { 0 };
 static char g_bind8[20] = { 0 };
 static char g_bind9[20] = { 0 };
 
-static long int mt6357tsbuck1_cur_temp;
+static long mt6357tsbuck1_cur_temp;
 /*
  *static long int mt6357tsbuck1_start_temp;
  *static long int mt6357tsbuck1_end_temp;
@@ -104,44 +98,44 @@ static int mt6357tsbuck1_bind
 
 	if (!strcmp(cdev->type, g_bind0)) {
 		table_val = 0;
-		mtktspmic_dprintk("[mt6357tsbuck1_bind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind1)) {
 		table_val = 1;
-		mtktspmic_dprintk("[mt6357tsbuck1_bind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind2)) {
 		table_val = 2;
-		mtktspmic_dprintk("[mt6357tsbuck1_bind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind3)) {
 		table_val = 3;
-		mtktspmic_dprintk("[mt6357tsbuck1_bind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind4)) {
 		table_val = 4;
-		mtktspmic_dprintk("[mt6357tsbuck1_bind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind5)) {
 		table_val = 5;
-		mtktspmic_dprintk("[mt6357tsbuck1_bind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind6)) {
 		table_val = 6;
-		mtktspmic_dprintk("[mt6357tsbuck1_bind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind7)) {
 		table_val = 7;
-		mtktspmic_dprintk("[mt6357tsbuck1_bind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind8)) {
 		table_val = 8;
-		mtktspmic_dprintk("[mt6357tsbuck1_bind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind9)) {
 		table_val = 9;
-		mtktspmic_dprintk("[mt6357tsbuck1_bind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else {
 		return 0;
 	}
 
 	if (mtk_thermal_zone_bind_cooling_device(thermal, table_val, cdev)) {
-		mtktspmic_info("[mt6357tsbuck1_bind] error binding cooling dev\n");
+		mtktspmic_info("[%s] error binding cooling dev\n", __func__);
 		return -EINVAL;
 	}
 
-	mtktspmic_dprintk("[mt6357tsbuck1_bind] binding OK, %d\n", table_val);
+	mtktspmic_dprintk("[%s] binding OK, %d\n", __func__, table_val);
 	return 0;
 }
 
@@ -152,43 +146,43 @@ static int mt6357tsbuck1_unbind(struct thermal_zone_device *thermal,
 
 	if (!strcmp(cdev->type, g_bind0)) {
 		table_val = 0;
-		mtktspmic_dprintk("[mt6357tsbuck1_unbind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind1)) {
 		table_val = 1;
-		mtktspmic_dprintk("[mt6357tsbuck1_unbind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind2)) {
 		table_val = 2;
-		mtktspmic_dprintk("[mt6357tsbuck1_unbind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind3)) {
 		table_val = 3;
-		mtktspmic_dprintk("[mt6357tsbuck1_unbind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind4)) {
 		table_val = 4;
-		mtktspmic_dprintk("[mt6357tsbuck1_unbind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind5)) {
 		table_val = 5;
-		mtktspmic_dprintk("[mt6357tsbuck1_unbind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind6)) {
 		table_val = 6;
-		mtktspmic_dprintk("[mt6357tsbuck1_unbind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind7)) {
 		table_val = 7;
-		mtktspmic_dprintk("[mt6357tsbuck1_unbind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind8)) {
 		table_val = 8;
-		mtktspmic_dprintk("[mt6357tsbuck1_unbind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind9)) {
 		table_val = 9;
-		mtktspmic_dprintk("[mt6357tsbuck1_unbind] %s\n", cdev->type);
+		mtktspmic_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else
 		return 0;
 
 	if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
-		mtktspmic_info("[mt6357tsbuck1_unbind] error unbinding cooling dev\n");
+		mtktspmic_info("[%s] error unbinding cooling dev\n", __func__);
 		return -EINVAL;
 	}
 
-	mtktspmic_dprintk("[mt6357tsbuck1_unbind] unbinding OK\n");
+	mtktspmic_dprintk("[%s] unbinding OK\n", __func__);
 	return 0;
 }
 
@@ -266,15 +260,6 @@ static int mt6357tsbuck1_sysrst_set_cur_state(
 		mtktspmic_info("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 		mtktspmic_info("*****************************************");
 		mtktspmic_info("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-
-#if 0	/* temp marked off to check temperature correctness. */
-
-		BUG();
-		/*
-		 *To trigger data abort to reset the system for thermal
-		 *protection.
-		 */
-#endif
 	}
 	return 0;
 }
@@ -288,7 +273,8 @@ static struct thermal_cooling_device_ops mt6357tsbuck1_cooling_sysrst_ops = {
 static int mt6357tsbuck1_read(struct seq_file *m, void *v)
 {
 	seq_printf(m,
-		"[mt6357tsbuck1_read] trip_0_temp=%d,trip_1_temp=%d,trip_2_temp=%d,trip_3_temp=%d,\n",
+		"[%s] trip_0_temp=%d,trip_1_temp=%d,trip_2_temp=%d,trip_3_temp=%d,\n",
+		__func__,
 		trip_temp[0], trip_temp[1], trip_temp[2], trip_temp[3]);
 	seq_printf(m,
 		"trip_4_temp=%d,trip_5_temp=%d,trip_6_temp=%d,trip_7_temp=%d, trip_8_temp=%d,trip_9_temp=%d,\n",
@@ -378,7 +364,7 @@ static ssize_t mt6357tsbuck1_write(struct file *file,
 
 		down(&sem_mutex);
 		mtktspmic_dprintk(
-			"[mt6357tsbuck1_write] mt6357tsbuck1_unregister_thermal\n");
+			"[%s] mt6357tsbuck1_unregister_thermal\n", __func__);
 		mt6357tsbuck1_unregister_thermal();
 
 		if (num_trip < 0 || num_trip > 10) {
@@ -388,7 +374,7 @@ static ssize_t mt6357tsbuck1_write(struct file *file,
 				"mt6357tsbuck1_write", "Bad argument");
 			#endif
 			mtktspmic_dprintk(
-				"[mt6357tsbuck1_write] bad argument\n");
+				"[%s] bad argument\n", __func__);
 			kfree(ptr_mt6357tsbuck1_data);
 			up(&sem_mutex);
 			return -EINVAL;
@@ -429,8 +415,8 @@ static ssize_t mt6357tsbuck1_write(struct file *file,
 			g_THERMAL_TRIP[7], g_THERMAL_TRIP[8],
 			g_THERMAL_TRIP[9]);
 		mtktspmic_dprintk(
-			"[mt6357tsbuck1_write] cooldev0=%s,cooldev1=%s,cooldev2=%s,cooldev3=%s,cooldev4=%s,",
-			g_bind0, g_bind1, g_bind2, g_bind3, g_bind4);
+			"[%s] cooldev0=%s,cooldev1=%s,cooldev2=%s,cooldev3=%s,cooldev4=%s,",
+			 __func__, g_bind0, g_bind1, g_bind2, g_bind3, g_bind4);
 		mtktspmic_dprintk(
 			"cooldev5=%s,cooldev6=%s,cooldev7=%s,cooldev8=%s,cooldev9=%s\n",
 			g_bind5, g_bind6, g_bind7, g_bind8, g_bind9);
@@ -441,7 +427,8 @@ static ssize_t mt6357tsbuck1_write(struct file *file,
 		interval = ptr_mt6357tsbuck1_data->time_msec / 1000;
 
 		mtktspmic_dprintk(
-			"[mt6357tsbuck1_write] trip_0_temp=%d,trip_1_temp=%d,trip_2_temp=%d,trip_3_temp=%d,",
+			"[%s] trip_0_temp=%d,trip_1_temp=%d,trip_2_temp=%d,trip_3_temp=%d,",
+			__func__,
 			trip_temp[0], trip_temp[1], trip_temp[2], trip_temp[3]);
 		mtktspmic_dprintk(
 			"trip_4_temp=%d,trip_5_temp=%d,trip_6_temp=%d,trip_7_temp=%d,trip_8_temp=%d,",
@@ -459,7 +446,7 @@ static ssize_t mt6357tsbuck1_write(struct file *file,
 		return count;
 	}
 
-	mtktspmic_dprintk("[mt6357tsbuck1_write] bad argument\n");
+	mtktspmic_dprintk("[%s] bad argument\n", __func__);
     #ifdef CONFIG_MTK_AEE_FEATURE
 	aee_kernel_warning_api(__FILE__, __LINE__, DB_OPT_DEFAULT,
 		"mt6357tsbuck1_write", "Bad argument");
@@ -515,7 +502,7 @@ static int mt6357tsbuck1_register_cooler(void)
 
 static int mt6357tsbuck1_register_thermal(void)
 {
-	mtktspmic_dprintk("[mt6357tsbuck1_register_thermal]\n");
+	mtktspmic_dprintk("[%s]\n", __func__);
 
 	/* trips : trip 0~2 */
 	thz_dev = mtk_thermal_zone_device_register(
@@ -535,7 +522,7 @@ static void mt6357tsbuck1_unregister_cooler(void)
 
 static void mt6357tsbuck1_unregister_thermal(void)
 {
-	mtktspmic_dprintk("[mt6357tsbuck1_unregister_thermal]\n");
+	mtktspmic_dprintk("[%s]\n", __func__);
 
 	if (thz_dev) {
 		mtk_thermal_zone_device_unregister(thz_dev);
@@ -556,17 +543,16 @@ static const struct file_operations mt6357tsbuck1_fops = {
 	.write = mt6357tsbuck1_write,
 	.release = single_release,
 };
-
-static int __init mt6357tsbuck1_init(void)
+static int mt6357_ts_buck1_probe(struct platform_device *pdev)
 {
 	int err = 0;
-
 	struct proc_dir_entry *entry = NULL;
 	struct proc_dir_entry *mt6357tsbuck1_dir = NULL;
+	struct mt6397_chip *chip;
 
-	mtktspmic_info("[mt6357tsbuck1_init]\n");
-
-	mtktspmic_cali_prepare();
+	chip = (struct mt6397_chip *)dev_get_drvdata(pdev->dev.parent);
+	mtktspmic_info("[%s]\n", __func__);
+	mtktspmic_cali_prepare(chip->regmap);
 	mtktspmic_cali_prepare2();
 
 	err = mt6357tsbuck1_register_cooler();
@@ -587,23 +573,49 @@ static int __init mt6357tsbuck1_init(void)
 		if (entry)
 			proc_set_user(entry, uid, gid);
 	}
-
-	mtkTTimer_register("mt6357tsbuck1", mt6357tsbuck1_start_thermal_timer,
-		mt6357tsbuck1_cancel_thermal_timer);
+	mtkTTimer_register("mt6357tsbuck1",
+		mt6357tsbuck1_start_thermal_timer,
+			mt6357tsbuck1_cancel_thermal_timer);
 
 	return 0;
 
 err_unreg:
-	mt6357tsbuck1_unregister_cooler();
-	return err;
+		mt6357tsbuck1_unregister_cooler();
+		return err;
+
+}
+
+static const struct of_device_id mt6357_ts_buck1_of_match[] = {
+	{.compatible = "mediatek,mt6357_ts_buck1",},
+	{},
+};
+
+
+MODULE_DEVICE_TABLE(of, mt6357_ts_buck1_of_match);
+
+static struct platform_driver mt6357_ts_buck1_driver = {
+	.probe = mt6357_ts_buck1_probe,
+	.driver = {
+		.name = "mt6357_ts_buck1",
+		.of_match_table = mt6357_ts_buck1_of_match,
+		},
+};
+
+static int __init mt6357tsbuck1_init(void)
+{
+	return platform_driver_register(&mt6357_ts_buck1_driver);
 }
 
 static void __exit mt6357tsbuck1_exit(void)
 {
-	mtktspmic_info("[mt6357tsbuck1_exit]\n");
+	mtktspmic_info("[%s]\n", __func__);
 	mt6357tsbuck1_unregister_thermal();
 	mt6357tsbuck1_unregister_cooler();
 	mtkTTimer_unregister("mt6357tsbuck1");
+	platform_driver_unregister(&mt6357_ts_buck1_driver);
 }
 module_init(mt6357tsbuck1_init);
 module_exit(mt6357tsbuck1_exit);
+
+MODULE_DESCRIPTION("MEDIATEK Thermal zone PMIC buck1 temperature sensor");
+MODULE_LICENSE("GPL v2");

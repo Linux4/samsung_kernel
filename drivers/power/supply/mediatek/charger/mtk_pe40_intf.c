@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 #include <linux/errno.h>
 #include <linux/mutex.h>
@@ -17,8 +9,8 @@
 #include <linux/time.h>
 
 #include <mt-plat/mtk_boot.h>
-#include <mt-plat/charger_type.h>
-#include <mt-plat/mtk_battery.h>
+#include <mt-plat/v1/charger_type.h>
+#include <mt-plat/v1/mtk_battery.h>
 #include <upmu_common.h>
 #include "mtk_charger_intf.h"
 #include "mtk_charger_init.h"
@@ -395,9 +387,9 @@ bool mtk_pe40_get_is_connect(struct charger_manager *pinfo)
 
 	if (pinfo->enable_pe_4 == false)
 		return false;
-
-	if ((get_boot_mode() == META_BOOT) && (get_boot_mode() == ADVMETA_BOOT))
-		return false;
+// workaround for mt6768
+//	if ((get_boot_mode() == META_BOOT) && (get_boot_mode() == ADVMETA_BOOT))
+//		return false;
 
 	return pinfo->pe4.is_connect;
 }

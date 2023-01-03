@@ -11,8 +11,14 @@
 # See http://www.gnu.org/licenses/gpl-2.0.html for more details.
 #
 
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/scp/$(CONFIG_MTK_PLATFORM)
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/audio_ipi/common/framework
+ifeq ($(CONFIG_MTK_TINYSYS_SCP_SUPPORT),y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/scp/include
+ifeq ($(CONFIG_MACH_MT6779),y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/audio_ipi/common_v1/framework
+else
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/audio_ipi/common_v2/framework
+endif
+endif
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/vow
 
 mtk-vow-objs := \

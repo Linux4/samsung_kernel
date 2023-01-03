@@ -3,7 +3,7 @@
  * Copyright (c) 2020 MediaTek Inc.
  */
 
-#include <mt-plat/mtk-mbox.h>
+#include <linux/soc/mediatek/mtk-mbox.h>
 #include <linux/vmalloc.h>      /* needed by vmalloc */
 #include "adsp_core.h"
 #include "adsp_platform.h"

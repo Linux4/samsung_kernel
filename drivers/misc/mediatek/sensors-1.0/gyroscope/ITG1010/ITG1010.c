@@ -1,20 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright(C)2014 MediaTek Inc.
- * Modification based on code covered by the below mentioned copyright
- * and/or permission notice(S).
- */
-
-/* ITG1010 motion sensor driver
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #include "ITG1010.h"
@@ -34,6 +20,10 @@
 #define ITG1010_AXES_NUM 3
 #define ITG1010_DATA_LEN 6
 #define ITG1010_DEV_NAME "ITG-1010A"
+
+#define DRIVER_ATTR(_name, _mode, _show, _store) \
+        struct driver_attribute driver_attr_##_name = \
+        __ATTR(_name, _mode, _show, _store)
 
 int packet_thresh = 75; /* 600 ms / 8ms/sample */
 /*----------------------------------------------------------------------------*/

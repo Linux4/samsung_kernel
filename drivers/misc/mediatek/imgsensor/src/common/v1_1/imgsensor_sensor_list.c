@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include "kd_imgsensor.h"
@@ -41,6 +33,9 @@ struct IMGSENSOR_SENSOR_LIST
 #if defined(OV05A20_MIPI_RAW)
 {OV05A20_SENSOR_ID, SENSOR_DRVNAME_OV05A20_MIPI_RAW,
 	OV05A20_MIPI_RAW_SensorInit},
+#endif
+#if defined(IMX582_MIPI_RAW)
+{IMX582_SENSOR_ID, SENSOR_DRVNAME_IMX582_MIPI_RAW, IMX582_MIPI_RAW_SensorInit},
 #endif
 #if defined(IMX586_MIPI_RAW)
 {IMX586_SENSOR_ID, SENSOR_DRVNAME_IMX586_MIPI_RAW, IMX586_MIPI_RAW_SensorInit},
@@ -136,6 +131,9 @@ struct IMGSENSOR_SENSOR_LIST
 #if defined(IMX258_MIPI_RAW)
 {IMX258_SENSOR_ID, SENSOR_DRVNAME_IMX258_MIPI_RAW, IMX258_MIPI_RAW_SensorInit},
 #endif
+#if defined(IMX258F_MIPI_RAW)
+{IMX258F_SENSOR_ID, SENSOR_DRVNAME_IMX258F_MIPI_RAW, IMX258_MIPI_RAW_SensorInit},
+#endif
 #if defined(IMX258_MIPI_MONO)
 {IMX258_MONO_SENSOR_ID, SENSOR_DRVNAME_IMX258_MIPI_MONO,
 	IMX258_MIPI_MONO_SensorInit},
@@ -163,6 +161,12 @@ struct IMGSENSOR_SENSOR_LIST
 #endif
 #if defined(IMX355_MIPI_RAW)
 {IMX355_SENSOR_ID, SENSOR_DRVNAME_IMX355_MIPI_RAW, IMX355_MIPI_RAW_SensorInit},
+#endif
+#if defined(IMX355W_MIPI_RAW)
+{IMX355W_SENSOR_ID, SENSOR_DRVNAME_IMX355W_MIPI_RAW, IMX355_MIPI_RAW_SensorInit},
+#endif
+#if defined(IMX355U_MIPI_RAW)
+{IMX355U_SENSOR_ID, SENSOR_DRVNAME_IMX355U_MIPI_RAW, IMX355_MIPI_RAW_SensorInit},
 #endif
 
 /*OV (OmniVision)*/
@@ -392,8 +396,10 @@ struct IMGSENSOR_SENSOR_LIST
 	S5K3H2YX_MIPI_RAW_SensorInit},
 #endif
 #if defined(S5K4HAYX_MIPI_RAW)
-{S5K4HAYX_SENSOR_ID, SENSOR_DRVNAME_S5K4HAYX_MIPI_RAW,
-	S5K4HAYX_MIPI_RAW_SensorInit},
+{S5K4HAYX_SENSOR_ID, SENSOR_DRVNAME_S5K4HAYX_MIPI_RAW, S5K4HAYX_MIPI_RAW_SensorInit},
+#endif
+#if defined(S5K4HAYXU_MIPI_RAW)
+{S5K4HAYXU_SENSOR_ID, SENSOR_DRVNAME_S5K4HAYXU_MIPI_RAW, S5K4HAYX_MIPI_RAW_SensorInit},
 #endif
 #if defined(S5K3H7Y_MIPI_RAW)
 {S5K3H7Y_SENSOR_ID, SENSOR_DRVNAME_S5K3H7Y_MIPI_RAW,
@@ -520,6 +526,9 @@ struct IMGSENSOR_SENSOR_LIST
 #if defined(GC5035F_MIPI_RAW)
 {GC5035F_SENSOR_ID, SENSOR_DRVNAME_GC5035F_MIPI_RAW, GC5035_MIPI_RAW_SensorInit},
 #endif
+#if defined(GC5035M_MIPI_RAW)
+{GC5035M_SENSOR_ID, SENSOR_DRVNAME_GC5035M_MIPI_RAW, GC5035_MIPI_RAW_SensorInit},
+#endif
 #if defined(GC2375H_MIPI_RAW)
 {GC2375H_SENSOR_ID, SENSOR_DRVNAME_GC2375H_MIPI_RAW, GC2375H_MIPI_RAW_SensorInit},
 #endif
@@ -635,63 +644,4 @@ struct IMGSENSOR_SENSOR_LIST
 
 /* e_add new sensor driver here */
 
-extern struct IMGSENSOR_SENSOR *imgsensor_sensor_get_inst(enum IMGSENSOR_SENSOR_IDX idx);
-unsigned int imgsensor_read_otp_cal(struct i2c_client *client, struct CAM_CAL_SENSOR_INFO sensor_info,
-		unsigned int addr, unsigned char *data, unsigned int size)
-{
-	int ret = 0;
-	struct IMGSENSOR_SENSOR *psensor = NULL;
 
-	psensor = imgsensor_sensor_get_inst(IMGSENSOR_SENSOR_IDX_MAP(sensor_info.device_id));
-	if (psensor != NULL)
-		imgsensor_i2c_set_device(&psensor->inst.i2c_cfg);
-
-	pr_debug("[%s] sensor_id: %#06x - E\n", __func__, sensor_info.sensor_id);
-	switch (sensor_info.sensor_id) {
-#if defined(GC5035_MIPI_RAW)
-	case GC5035_SENSOR_ID:
-		ret = gc5035_read_otp_cal(addr, data, size);
-		break;
-#endif
-#if defined(GC5035F_MIPI_RAW)
-	case GC5035F_SENSOR_ID:
-		ret = gc5035_read_otp_cal(addr, data, size);
-		break;
-#endif
-#if defined(S5K3L6_MIPI_RAW)
-	case S5K3L6_SENSOR_ID:
-		ret = s5k3l6_read_otp_cal(addr, data, size);
-		break;
-#endif
-#if defined(SR846D_MIPI_RAW)
-	case SR846D_SENSOR_ID:
-		ret = sr846d_read_otp_cal(addr, data, size);
-		break;
-#endif
-#if defined(GC02M1B_MIPI_MONO)
-	case GC02M1B_SENSOR_ID:
-		ret = gc02m1_read_otp_cal(addr, data, size);
-		break;
-#endif
-#if defined(GC02M1B_MIPI_RAW)
-	case GC02M1B_SENSOR_ID:
-		ret = gc02m1_read_otp_cal(addr, data, size);
-		break;
-#endif
-	default:
-		pr_err("[%s] no searched otp cal\n", __func__);
-		ret = -1;
-		break;
-	}
-
-	if (psensor != NULL)
-		imgsensor_i2c_set_device(NULL);
-
-	if (ret < 0) {
-		pr_err("[%s] fail\n", __func__);
-		return 0;
-	}
-
-	pr_debug("[%s] - X\n", __func__);
-	return ret;
-}

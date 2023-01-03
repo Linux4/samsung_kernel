@@ -1264,6 +1264,49 @@ static int himax_vbus_notification(struct notifier_block *nb,
 #endif
 #endif
 
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+static void himax_input_notify_work(struct work_struct *work)
+{
+	struct himax_ts_data *ts = container_of(work, struct himax_ts_data, himax_input_notify_work.work);
+
+	switch (ts->input_notify) {
+	case NOTIFIER_WACOM_PEN_HOVER_IN:
+		himax_set_ap_change_mode(SPEN_MODE, 1);
+		break;
+	case NOTIFIER_WACOM_PEN_HOVER_OUT:
+		himax_set_ap_change_mode(SPEN_MODE, 0);
+		break;
+	default:
+		break;
+	}
+}
+
+static int himax_input_notify_call(struct notifier_block *n, unsigned long data, void *v)
+{
+	struct himax_ts_data *ts = container_of(n, struct himax_ts_data, himax_input_nb);
+
+	if (!ts)
+		return -ENODEV;
+
+	switch (data) {
+	case NOTIFIER_WACOM_PEN_HOVER_IN:
+		cancel_delayed_work(&ts->himax_input_notify_work);
+		ts->input_notify = NOTIFIER_WACOM_PEN_HOVER_IN;
+		schedule_work(&ts->himax_input_notify_work.work);
+		break;
+	case NOTIFIER_WACOM_PEN_HOVER_OUT:
+		cancel_delayed_work(&ts->himax_input_notify_work);
+		ts->input_notify = NOTIFIER_WACOM_PEN_HOVER_OUT;
+		schedule_work(&ts->himax_input_notify_work.work);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+#endif
+
 int himax_chip_common_probe(struct spi_device *spi)
 {
 	struct himax_ts_data *ts;
@@ -1326,6 +1369,10 @@ int himax_chip_common_probe(struct spi_device *spi)
 			VBUS_NOTIFY_DEV_CHARGER);
 #endif
 #endif
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+	sec_input_register_notify(&ts->himax_input_nb, himax_input_notify_call, 1);
+	INIT_DELAYED_WORK(&ts->himax_input_notify_work, himax_input_notify_work);
+#endif
 
 #if SEC_LPWG_DUMP
 	himax_lpwg_dump_buf_init();
@@ -1343,6 +1390,10 @@ int himax_chip_common_remove(struct spi_device *spi)
 {
 	struct himax_ts_data *ts = spi_get_drvdata(spi);
 
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+	sec_input_unregister_notify(&ts->himax_input_nb);
+	cancel_delayed_work_sync(&ts->himax_input_notify_work);
+#endif
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 #if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	manager_notifier_unregister(&ts->ccic_nb);

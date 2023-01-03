@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #include <generated/autoconf.h>
 #include <linux/module.h>
@@ -204,11 +197,6 @@ void mtkfb_log_enable(int enable)
 	MTKFB_LOG("mtkfb log %s\n", enable ? "enabled" : "disabled");
 }
 
-/*
- * ---------------------------------------------------------------------------
- * fbdev framework callbacks and the ioctl interface
- * ---------------------------------------------------------------------------
- */
 /* Called each time the mtkfb device is opened */
 static int mtkfb_open(struct fb_info *info, int user)
 {
@@ -1964,11 +1952,6 @@ static struct fb_ops mtkfb1_ops = {
 #endif
 };
 #endif
-/*
- * ---------------------------------------------------------------------------
- * Sysfs interface
- * ---------------------------------------------------------------------------
- */
 
 static int mtkfb_register_sysfs(struct mtkfb_device *fbdev)
 {
@@ -1982,11 +1965,6 @@ static void mtkfb_unregister_sysfs(struct mtkfb_device *fbdev)
 	NOT_REFERENCED(fbdev);
 }
 
-/*
- * ---------------------------------------------------------------------------
- * LDM callbacks
- * ---------------------------------------------------------------------------
- */
 /* Initialize system fb_info object and set the default video mode.
  * The frame buffer memory already allocated by lcddma_init
  */

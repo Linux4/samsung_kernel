@@ -1,15 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2019 MediaTek Inc.
  */
+
 
 #ifndef __MODEM_REG_BASE_H__
 #define __MODEM_REG_BASE_H__
@@ -25,11 +18,12 @@
 
 #define MD_BOOT_VECTOR_EN 0x20000024
 
-#define MD_PCORE_PCCIF_BASE 0x20510000
+//#define MD_PCORE_PCCIF_BASE 0x20510000
 
 #define MD_GLOBAL_CON0 0x20000450
 #define MD_GLOBAL_CON0_CLDMA_BIT 12
-#define CCIF_SRAM_SIZE 512
+
+//#define CCIF_SRAM_SIZE 512
 
 #define BASE_ADDR_MDRSTCTL   0x200f0000  /* From md, no use by AP directly */
 #define L1_BASE_ADDR_L1RGU   0x26010000  /* From md, no use by AP directly  */
@@ -94,11 +88,14 @@
 #define MD_BUSREC_LAY_LEN		0x8
 
  /* ECT */
-#define MD_ECT_REG_BASE0		(0x0D0CC130)/* MD ECT triggerIn/Out status */
+ /* MD ECT triggerIn/Out status */
+#define MD_ECT_REG_BASE0		(0x0D0CC130)
 #define MD_ECT_REG_LEN0			0x8
-#define MD_ECT_REG_BASE1		(0x0D0CD130)/* ModemSys ECT triggerIn/Out status */
+/* ModemSys ECT triggerIn/Out status */
+#define MD_ECT_REG_BASE1		(0x0D0CD130)
 #define MD_ECT_REG_LEN1			0x8
-#define MD_ECT_REG_BASE2		(0x0D0CE000)/* MD32 ECT status */
+/* MD32 ECT status */
+#define MD_ECT_REG_BASE2		(0x0D0CE000)
 #define MD_ECT_REG_LEN2			0x20
  /* TOPSM reg */
 #define MD_TOPSM_REG_BASE		(0x0200D0000)
@@ -127,11 +124,11 @@
 #define MD_SRAM_PD_PSMCUSYS_SRAM_LEN	(0xB00)
 
 /*
-* ============================================================
-*  Modem 3 part
-* ============================================================
-* need modify, haow
-*/
+ * ============================================================
+ *  Modem 3 part
+ * ============================================================
+ * need modify, haow
+ */
 #define MD3_BOOT_VECTOR 0x30190000
 #define MD3_BOOT_VECTOR_KEY 0x3019379C
 #define MD3_BOOT_VECTOR_EN 0x30195488

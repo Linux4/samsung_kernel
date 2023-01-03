@@ -166,21 +166,18 @@ static void common_lcd_bridge_enable(struct drm_bridge *bridge)
 
 static int common_framedone_notify(struct drm_panel *panel)
 {
-	int ret = 0;
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
-	ret = call_drv_ops(plcd, framedone_notify);
-	return ret;
+
+	return call_drv_ops(plcd, framedone_notify);
 }
 
-static int common_lcd_set_dispon_cmdq(void *dsi, dcs_write_gce cb,
-		void *handle)
+static int common_lcd_set_dispon_cmdq(void *dsi, dcs_write_gce cb, void *handle)
 {
-	char disp_on[] = {0x29};
+	struct mipi_dsi_lcd_common *plcd = g_lcd_common;
 
 	dbg_info("%s\n", __func__);
 
-//	call_drv_ops(plcd, displayon_late);
-	cb(dsi, handle, disp_on, ARRAY_SIZE(disp_on));
+	call_drv_ops(plcd, displayon_late);
 
 	return 0;
 }
@@ -360,6 +357,7 @@ static int common_lcd_late_register(struct drm_panel *panel)
 }
 
 #if defined(CONFIG_SMCDSD_DOZE)
+#if 0
 static unsigned long common_lcd_doze_get_mode_flags(struct drm_panel *panel,
 	int doze_en)
 {
@@ -374,7 +372,6 @@ static unsigned long common_lcd_doze_get_mode_flags(struct drm_panel *panel,
 	return mode_flags;
 }
 
-#if 0
 static int common_lcd_doze_enable_start(struct drm_panel *panel,
 	void *dsi, dcs_write_gce cb, void *handle)
 {
@@ -396,6 +393,17 @@ static int common_lcd_doze_enable(struct drm_panel *panel,
 	return 0;
 }
 
+#if 0
+static int common_lcd_doze_area(struct drm_panel *panel,
+	void *dsi, dcs_write_gce cb, void *handle)
+{
+	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
+
+	dbg_info("%s\n", __func__);
+
+	return call_drv_ops(plcd, doze_area);
+}
+
 static int common_lcd_doze_post_disp_on(struct drm_panel *panel,
 		void *dsi, dcs_write_gce cb, void *handle)
 {
@@ -407,6 +415,7 @@ static int common_lcd_doze_post_disp_on(struct drm_panel *panel,
 
 	return 0;
 }
+#endif
 
 static int common_lcd_doze_disable(struct drm_panel *panel,
 	void *dsi, dcs_write_gce cb, void *handle)
@@ -426,22 +435,9 @@ static int common_lcd_set_aod_light_mode(void *dsi,
 {
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-//todo: how dsi -> panel
-//todo: change cb parameter structure
-
 	dbg_info("%s\n", __func__);
 
 	return 0;
-}
-
-static int common_lcd_doze_area(struct drm_panel *panel,
-	void *dsi, dcs_write_gce cb, void *handle)
-{
-	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
-
-	dbg_info("%s\n", __func__);
-
-	return call_drv_ops(plcd, doze_area);
 }
 #endif
 #endif
@@ -521,7 +517,6 @@ int smcdsd_panel_dsi_command_tx(void *drvdata,
 	ret = set_lcm_wrapper(&dsi_msg, 1);
 	if (ret < 0) {
 		dbg_info("%s: error(%d)\n", __func__, ret);
-		plcd->error = ret;
 		return -EINVAL;
 	}
 
@@ -542,7 +537,6 @@ int smcdsd_dsi_msg_tx(void *drvdata, unsigned long data0, int blocking)
 	ret = set_lcm_wrapper(dsi_msg, blocking);
 	if (ret < 0) {
 		dbg_info("%s: error(%d)\n", __func__, ret);
-		plcd->error = ret;
 		return -EINVAL;
 	}
 
@@ -646,7 +640,7 @@ static int smcdsd_probe(struct platform_device *p)
 		return -EINVAL;
 	}
 
-	run_list(&plcd->drv->pdev->dev, "panel_regulator_init");
+	//run_list(&plcd->drv->pdev->dev, "panel_regulator_init");
 
 	return 0;
 }
@@ -701,6 +695,8 @@ static int common_lcd_probe(struct mipi_dsi_device *dsi)
 	if (ret < 0)
 		return ret;
 #endif
+
+	call_drv_ops(plcd, setup);
 
 	return ret;
 }

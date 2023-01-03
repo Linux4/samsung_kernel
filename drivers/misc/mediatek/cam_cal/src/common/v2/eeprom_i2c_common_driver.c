@@ -1,16 +1,9 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
-#define PFX "CAM_CAL"
+
+#define PFX "CAM_CAL D/D"
 #define pr_fmt(fmt) PFX "[%s] " fmt, __func__
 
 
@@ -26,6 +19,7 @@
 #include <linux/of.h>
 #include "cam_cal.h"
 #include "cam_cal_define.h"
+#include <kd_imgsensor_sysfs_adapter.h>
 #include <linux/dma-mapping.h>
 #ifdef CONFIG_COMPAT
 /* 64 bit */
@@ -231,6 +225,16 @@ unsigned int Common_write_region(struct i2c_client *client, struct CAM_CAL_SENSO
 #endif
 
 	return ret;
+}
+
+unsigned int Common_read_otp_cal(struct i2c_client *client, struct CAM_CAL_SENSOR_INFO sensor_info,
+				unsigned int addr, unsigned char *data, unsigned int size)
+{
+	int read_size = 0;
+
+	pr_info("%s, sensor_id = %#06x", __func__, sensor_info.sensor_id);
+	read_size = IMGSENSER_READ_OTP_CAL(sensor_info.device_id, sensor_info.sensor_id, addr, data, size);
+	return read_size;
 }
 
 unsigned int DW9763_write_region(struct i2c_client *client, struct CAM_CAL_SENSOR_INFO sensor_info,

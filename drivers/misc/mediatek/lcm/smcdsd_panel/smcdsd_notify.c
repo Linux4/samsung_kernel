@@ -126,7 +126,8 @@ EXPORT_SYMBOL(smcdsd_notifier_call_chain);
 
 int smcdsd_simple_notifier_call_chain(unsigned long val, int blank)
 {
-	struct fb_info *fbinfo = registered_fb[0];
+	static struct fb_info dummy_fb;
+	struct fb_info *fbinfo = num_registered_fb ? registered_fb[0] : &dummy_fb;
 	struct fb_event v = {0, };
 	int fb_blank = blank;
 

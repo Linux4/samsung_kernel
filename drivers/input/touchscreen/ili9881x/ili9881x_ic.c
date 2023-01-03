@@ -35,7 +35,7 @@ static struct ilitek_protocol_info protocol_info[PROTOCL_VER_NUM] = {
 	[7] = {PROTOCOL_VER_570, 9, 4, 14, 30, 5, 5, 3, 8, 15, 14},
 };
 
-#define FUNC_CTRL_NUM	19
+#define FUNC_CTRL_NUM	18
 static struct ilitek_ic_func_ctrl func_ctrl[FUNC_CTRL_NUM] = {
 	/* cmd[3] = cmd, func, ctrl */
 	// rec_state 0:disable, 1: enable, 2: ignore record
@@ -57,7 +57,6 @@ static struct ilitek_ic_func_ctrl func_ctrl[FUNC_CTRL_NUM] = {
 	[15] = {"ear_phone", {0x1, 0x17, 0x0}, 3, 0x0, 0, 0xFF},
 	[16] = {"sip_mode", {0x1, 0x20, 0x0}, 3, 0x1, 2, 0xFF},
 	[17] = {"dead_zone_ctrl", {0x1, 0x12, 0x3}, 3, 0x0, 2, 0xFF},
-	[18] = {"cover_mode", {0x1, 0x0C, 0x00}, 3, 0x0, 2, 0xFF},
 };
 
 #define CHIP_SUP_NUM	5
@@ -90,32 +89,7 @@ int ili_tddi_ic_sram_test(void)
 
 	ili_ice_mode_write(0x046002, 0x00, 1);
 
-	input_info(true, ilits->dev, "%s id:0x%x, type:0x%x\n", __func__, ilits->chip->id, ilits->chip->type);
-	switch (ilits->chip->id) {
-	case ILI9881_CHIP:
-		if (ilits->chip->type == 0x1D) {
-			/* 9881T */
-			ili_ice_mode_write(0x046004, 0x1FFFFF00, 4);
-		} else {
-			ili_ice_mode_write(0x046004, 0x27FFFF00, 4);
-		}
-		break;
-	case ILI9882_CHIP:
-	/* 9882N */
-		ili_ice_mode_write(0x046004, 0x1FFFFF00, 4);
-		break;
-	case ILI7807_CHIP:
-		if (ilits->chip->type == 0x1F) {
-			/* 7807V *//* 7806S */
-			ili_ice_mode_write(0x046004, 0x0FFFFF00, 4);
-		} else {
-			ili_ice_mode_write(0x046004, 0x1FFFFF00, 4);
-		}
-		break;
-	default:
-		ili_ice_mode_write(0x046004, 0x1FFFFF00, 4);
-		break;
-	}
+	ili_ice_mode_write(0x046004, 0x1FFFFF00, 4);
 
 	ili_ice_mode_write(0x046014, 0xA4409800, 4);
 	ili_ice_mode_write(0x046018, 0xB480F590, 4);
@@ -1064,63 +1038,6 @@ out:
 	input_info(true, ilits->dev, "%s Protocol version = %d.%d.%d\n", __func__, ilits->protocol->ver >> 16,
 		(ilits->protocol->ver >> 8) & 0xFF, ilits->protocol->ver & 0xFF);
 	return ret;
-}
-
-void ili_get_ini_path(void)
-{
-	int i = 0;
-	char chip_id[8] = {0};
-	char ini_name[MP_INI_PATH_MAX][INI_PATH_SIZE];
-
-	input_info(true, ilits->dev, "%s id:0x%x, type:0x%x\n", __func__, ilits->chip->id, ilits->chip->type);
-
-	for (i = 0; i < MP_INI_PATH_MAX; i++) {
-		memset(ilits->mp_ini_path[i], 0, INI_PATH_SIZE);
-		memset(ini_name[i], 0, INI_PATH_SIZE);
-	}
-
-	snprintf(ini_name[RAWDATANOBK_LCMON_PATH_NUM], INI_PATH_SIZE, "%s", RAWDATANOBK_LCMON_PATH);
-	snprintf(ini_name[DOZERAW_PATH_NUM], INI_PATH_SIZE, "%s", DOZERAW_PATH);
-	snprintf(ini_name[DAC_PATH_NUM], INI_PATH_SIZE, "%s", DAC_PATH);
-	snprintf(ini_name[OPENTESTC_PATH_NUM], INI_PATH_SIZE, "%s", OPENTESTC_PATH);
-	snprintf(ini_name[SHORTTEST_PATH_NUM], INI_PATH_SIZE, "%s", SHORTTEST_PATH);
-	snprintf(ini_name[NOISEPP_LCMON_PATH_NUM], INI_PATH_SIZE, "%s", NOISEPP_LCMON_PATH);
-	snprintf(ini_name[DOZEPP_PATH_NUM], INI_PATH_SIZE, "%s", DOZEPP_PATH);
-	snprintf(ini_name[NOISEPP_LCMOFF_PATH_NUM], INI_PATH_SIZE, "%s", NOISEPP_LCMOFF_PATH);
-	snprintf(ini_name[P2P_TD_PATH_NUM], INI_PATH_SIZE, "%s", P2P_TD_PATH);
-	snprintf(ini_name[RAWDATATD_PATH_NUM], INI_PATH_SIZE, "%s", RAWDATATD_PATH);
-	snprintf(ini_name[RAWDATANOBK_LCMOFF_PATH_NUM], INI_PATH_SIZE, "%s", RAWDATANOBK_LCMOFF_PATH);
-	/* only for 9882Q ic */
-	snprintf(ini_name[RAWDATAHAVEBK_LCMON_PATH_NUM], INI_PATH_SIZE, "%s", RAWDATAHAVEBK_LCMON_PATH);
-	snprintf(ini_name[RAWDATAHAVEBK_LCMOFF_PATH_NUM], INI_PATH_SIZE, "%s", RAWDATAHAVEBK_LCMOFF_PATH);
-
-	switch (ilits->chip->id) {
-	case ILI9882_CHIP:
-		if (ilits->chip->id == ILI9882_CHIP && ilits->chip->type == 0x1A) {
-			/* 9882Q */
-			snprintf(chip_id, sizeof(chip_id), "%s", CHIP_ID_9882Q);
-		} else {
-			/* 9882N */
-			snprintf(chip_id, sizeof(chip_id), "%s", CHIP_ID_9882);
-		}
-		break;
-	case ILI7807_CHIP:
-		if (ilits->chip->type == 0x1F) {
-			/* 7806S */
-			snprintf(chip_id, sizeof(chip_id), "%s", CHIP_ID_7806S);
-		}
-		break;
-	default:
-		input_err(true, ilits->dev, "%s chip id check failed\n", __func__);
-		break;
-	}
-
-	input_info(true, ilits->dev, "%s, chip_id:%s\n", __func__, chip_id);
-
-	for (i = 0; i < MP_INI_PATH_MAX; i++) {
-		snprintf(ilits->mp_ini_path[i], INI_PATH_SIZE, "%s%s/%s", INI_PATH, chip_id, ini_name[i]);
-		input_info(true, ilits->dev, "%s,i:%d,%s\n", __func__, i, ilits->mp_ini_path[i]);
-	}
 }
 
 int ili_ic_get_info(void)

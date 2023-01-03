@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include "imgsensor_common.h"
@@ -21,6 +13,12 @@ static const struct i2c_device_id gi2c_dev_id[] = {
 	{IMGSENSOR_I2C_DRV_NAME_0, 0},
 	{IMGSENSOR_I2C_DRV_NAME_1, 0},
 	{IMGSENSOR_I2C_DRV_NAME_2, 0},
+#ifdef IMGSENSOR_I2C_DRV_NAME_3
+	{IMGSENSOR_I2C_DRV_NAME_3, 0},
+#endif
+#ifdef IMGSENSOR_I2C_DRV_NAME_4
+	{IMGSENSOR_I2C_DRV_NAME_4, 0},
+#endif
 	{}
 };
 
@@ -37,6 +35,18 @@ static const struct of_device_id gof_device_id_2[] = {
 	{ .compatible = IMGSENSOR_I2C_OF_DRV_NAME_2, },
 	{}
 };
+#ifdef IMGSENSOR_I2C_OF_DRV_NAME_3
+static const struct of_device_id gof_device_id_3[] = {
+	{.compatible = IMGSENSOR_I2C_OF_DRV_NAME_3,},
+	{}
+};
+#endif
+#ifdef IMGSENSOR_I2C_OF_DRV_NAME_4
+static const struct of_device_id gof_device_id_4[] = {
+	{.compatible = IMGSENSOR_I2C_OF_DRV_NAME_4,},
+	{}
+};
+#endif
 #endif
 
 static int imgsensor_i2c_pinctrl(struct i2c_client *client,
@@ -84,15 +94,33 @@ static int
 imgsensor_i2c_probe_1(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	gi2c.inst[IMGSENSOR_I2C_DEV_1].pi2c_client = client;
-	return imgsensor_i2c_pinctrl(client, &gi2c.inst[IMGSENSOR_I2C_DEV_1]);
+	return imgsensor_i2c_pinctrl(client, &gi2c.inst[IMGSENSOR_I2C_DEV_0]);
 }
 
 static int
 imgsensor_i2c_probe_2(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	gi2c.inst[IMGSENSOR_I2C_DEV_2].pi2c_client = client;
-	return imgsensor_i2c_pinctrl(client, &gi2c.inst[IMGSENSOR_I2C_DEV_2]);
+	return imgsensor_i2c_pinctrl(client, &gi2c.inst[IMGSENSOR_I2C_DEV_0]);
 }
+
+#ifdef IMGSENSOR_I2C_DRV_NAME_3
+static int imgsensor_i2c_probe_3(struct i2c_client *client,
+				const struct i2c_device_id *id)
+{
+	gi2c.inst[IMGSENSOR_I2C_DEV_3].pi2c_client = client;
+	return imgsensor_i2c_pinctrl(client, &gi2c.inst[IMGSENSOR_I2C_DEV_0]);
+}
+#endif
+
+#ifdef IMGSENSOR_I2C_DRV_NAME_4
+static int imgsensor_i2c_probe_4(struct i2c_client *client,
+				const struct i2c_device_id *id)
+{
+	gi2c.inst[IMGSENSOR_I2C_DEV_4].pi2c_client = client;
+	return imgsensor_i2c_pinctrl(client, &gi2c.inst[IMGSENSOR_I2C_DEV_0]);
+}
+#endif
 
 static int imgsensor_i2c_remove(struct i2c_client *client)
 {
@@ -135,7 +163,35 @@ static struct i2c_driver gi2c_driver[IMGSENSOR_I2C_DEV_MAX_NUM] = {
 #endif
 		},
 		.id_table = gi2c_dev_id,
+	},
+#ifdef IMGSENSOR_I2C_DRV_NAME_3
+	{
+		.probe = imgsensor_i2c_probe_3,
+		.remove = imgsensor_i2c_remove,
+		.driver = {
+		.name = IMGSENSOR_I2C_DRV_NAME_3,
+		.owner = THIS_MODULE,
+#ifdef CONFIG_OF
+		.of_match_table = gof_device_id_3,
+#endif
+		},
+		.id_table = gi2c_dev_id,
+	},
+#endif
+#ifdef IMGSENSOR_I2C_DRV_NAME_4
+	{
+		.probe = imgsensor_i2c_probe_4,
+		.remove = imgsensor_i2c_remove,
+		.driver = {
+		.name = IMGSENSOR_I2C_DRV_NAME_4,
+		.owner = THIS_MODULE,
+#ifdef CONFIG_OF
+		.of_match_table = gof_device_id_4,
+#endif
+		},
+		.id_table = gi2c_dev_id,
 	}
+#endif
 };
 
 enum IMGSENSOR_RETURN imgsensor_i2c_create(void)
@@ -163,8 +219,7 @@ enum IMGSENSOR_RETURN imgsensor_i2c_init(
 	enum   IMGSENSOR_I2C_DEV  device)
 {
 	if (!pi2c_cfg ||
-	    device >= IMGSENSOR_I2C_DEV_MAX_NUM ||
-	    device < IMGSENSOR_I2C_DEV_0)
+	    device >= IMGSENSOR_I2C_DEV_MAX_NUM)
 		return IMGSENSOR_RETURN_ERROR;
 
 	pi2c_cfg->pinst       = &gi2c.inst[device];
@@ -175,6 +230,30 @@ enum IMGSENSOR_RETURN imgsensor_i2c_init(
 	return IMGSENSOR_RETURN_SUCCESS;
 }
 
+#ifndef NO_I2C_MTK
+enum IMGSENSOR_RETURN imgsensor_i2c_buffer_mode(int enable)
+{
+	struct IMGSENSOR_I2C_INST *pinst =
+	    &gi2c.inst[IMGSENSOR_I2C_BUFF_MODE_DEV];
+
+	enum   IMGSENSOR_RETURN    ret   = IMGSENSOR_RETURN_SUCCESS;
+
+	pr_debug("i2c_buf_mode_en %d\n", enable);
+
+	ret = (enable) ?
+		hw_trig_i2c_enable(pinst->pi2c_client->adapter) :
+		hw_trig_i2c_disable(pinst->pi2c_client->adapter);
+
+	return ret;
+}
+#else
+enum IMGSENSOR_RETURN imgsensor_i2c_buffer_mode(int enable)
+{
+	pr_info("not support i2c_buf_mode\n");
+	return IMGSENSOR_RETURN_SUCCESS;
+}
+#endif
+
 enum IMGSENSOR_RETURN imgsensor_i2c_read(
 	struct IMGSENSOR_I2C_CFG *pi2c_cfg,
 	u8 *pwrite_data,
@@ -184,8 +263,19 @@ enum IMGSENSOR_RETURN imgsensor_i2c_read(
 	u16 id,
 	int speed)
 {
-	struct IMGSENSOR_I2C_INST *pinst = pi2c_cfg->pinst;
+	struct IMGSENSOR_I2C_INST *pinst = NULL;
 	enum   IMGSENSOR_RETURN    ret   = IMGSENSOR_RETURN_SUCCESS;
+
+	if (pi2c_cfg == NULL) {
+		pr_err("pi2c_cfg is NULL!\n");
+		return IMGSENSOR_RETURN_ERROR;
+	}
+	pinst = pi2c_cfg->pinst;
+
+	if (pinst->pi2c_client == NULL) {
+		pr_err("pi2c_client is NULL!\n");
+		return IMGSENSOR_RETURN_ERROR;
+	}
 
 	mutex_lock(&pi2c_cfg->i2c_mutex);
 
@@ -199,16 +289,19 @@ enum IMGSENSOR_RETURN imgsensor_i2c_read(
 	pinst->msg[1].len   = read_length;
 	pinst->msg[1].buf   = pread_data;
 
-	if (i2c_transfer(
+	if (mtk_i2c_transfer(
 	    pinst->pi2c_client->adapter,
 	    pinst->msg,
-	    IMGSENSOR_I2C_MSG_SIZE_READ)
+	    IMGSENSOR_I2C_MSG_SIZE_READ,
+	    (pi2c_cfg->pinst->status.filter_msg) ? I2C_A_FILTER_MSG : 0,
+	    ((speed > 0) && (speed <= 1000))
+	      ? speed * 1000 : IMGSENSOR_I2C_SPEED * 1000)
 	    != IMGSENSOR_I2C_MSG_SIZE_READ) {
 
 		static DEFINE_RATELIMIT_STATE(ratelimit, 1 * HZ, 30);
 
 		if (__ratelimit(&ratelimit))
-			pr_err(
+			pr_info(
 			    "I2C read failed (0x%x)! speed(0=%d) (0x%x)\n",
 			    ret,
 			    speed,
@@ -250,14 +343,19 @@ enum IMGSENSOR_RETURN imgsensor_i2c_write(
 		pdata += write_per_cycle;
 	}
 
-	if (i2c_transfer(
+	if (mtk_i2c_transfer(
 	    pinst->pi2c_client->adapter,
-	    pinst->msg, i) != i) {
+	    pinst->msg,
+	    i,
+	    (pi2c_cfg->pinst->status.filter_msg) ? I2C_A_FILTER_MSG : 0,
+	    ((speed > 0) && (speed <= 1000))
+	      ? speed * 1000 : IMGSENSOR_I2C_SPEED * 1000)
+	    != i) {
 
 		static DEFINE_RATELIMIT_STATE(ratelimit, 1 * HZ, 30);
 
 		if (__ratelimit(&ratelimit))
-			pr_err(
+			pr_info(
 			    "I2C write failed (0x%x)! speed(0=%d) (0x%x)\n",
 			    ret,
 			    speed,

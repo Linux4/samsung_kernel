@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2019 MediaTek Inc.
  */
 
 #include <linux/kernel.h>
@@ -319,6 +311,11 @@ static int mt_cirq_set_pol(unsigned int cirq_num, unsigned int pol)
 	return 0;
 }
 
+/*
+ * CIRQ register, which is under infra power down domain,
+ * will be corrupted after exiting suspend/resume flow.
+ * Due to the HW change, so we need reset the cirq by SW.
+ */
 void mt_cirq_sw_reset(void)
 {
 	unsigned int st;
@@ -338,7 +335,7 @@ void mt_cirq_enable(void)
 {
 	unsigned int st;
 
-	/* level only */
+
 	mt_cirq_ack_all();
 
 	st = readl(IOMEM(CIRQ_CON));

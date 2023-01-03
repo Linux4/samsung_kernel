@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 #include <linux/module.h>
 #include <linux/stat.h>
@@ -18,7 +10,7 @@
 #include <linux/err.h>
 #include <linux/slab.h>
 
-#include <mt-plat/charger_class.h>
+#include <mt-plat/v1/charger_class.h>
 
 static struct class *charger_class;
 
@@ -32,6 +24,7 @@ static ssize_t charger_show_name(struct device *dev,
 		       chg_dev->props.alias_name : "anonymous");
 }
 
+/*
 static int charger_suspend(struct device *dev, pm_message_t state)
 {
 	struct charger_device *chg_dev = to_charger_device(dev);
@@ -51,6 +44,7 @@ static int charger_resume(struct device *dev)
 
 	return 0;
 }
+*/
 
 static void charger_device_release(struct device *dev)
 {
@@ -185,6 +179,7 @@ int charger_dev_get_vbus(struct charger_device *chg_dev, u32 *vbus)
 }
 EXPORT_SYMBOL(charger_dev_get_vbus);
 
+#if defined(CONFIG_USB_FACTORY_MODE)
 int charger_dev_get_vsys(struct charger_device *chg_dev, u32 *vsys)
 {
 	if (chg_dev != NULL && chg_dev->ops != NULL &&
@@ -194,6 +189,7 @@ int charger_dev_get_vsys(struct charger_device *chg_dev, u32 *vsys)
 	return -ENOTSUPP;
 }
 EXPORT_SYMBOL(charger_dev_get_vsys);
+#endif
 
 int charger_dev_get_ibus(struct charger_device *chg_dev, u32 *ibus)
 {
@@ -394,6 +390,7 @@ int charger_dev_enable_hz(struct charger_device *chg_dev, bool en)
 }
 EXPORT_SYMBOL(charger_dev_enable_hz);
 
+#if defined(CONFIG_USB_FACTORY_MODE)
 int charger_dev_enable_aicc(struct charger_device *chg_dev, bool en)
 {
 	if (chg_dev != NULL && chg_dev->ops != NULL &&
@@ -434,6 +431,7 @@ int charger_dev_en_ilim(struct charger_device *chg_dev, bool en)
 	return -ENOTSUPP;
 }
 EXPORT_SYMBOL(charger_dev_en_ilim);
+#endif
 
 int charger_dev_get_adc(struct charger_device *charger_dev,
 	enum adc_channel chan, int *min, int *max)
@@ -703,6 +701,7 @@ int charger_dev_enable_discharge(struct charger_device *chg_dev, bool en)
 }
 EXPORT_SYMBOL(charger_dev_enable_discharge);
 
+#if defined(CONFIG_USB_FACTORY_MODE)
 int charger_dev_enable_eoc(struct charger_device *chg_dev, bool en)
 {
 	if (chg_dev != NULL && chg_dev->ops != NULL &&
@@ -722,6 +721,7 @@ int charger_dev_set_eoc_timer(struct charger_device *chg_dev, unsigned int time)
 	return -ENOTSUPP;
 }
 EXPORT_SYMBOL(charger_dev_set_eoc_timer);
+#endif
 
 int charger_dev_set_boost_current_limit(struct charger_device *chg_dev, u32 uA)
 {
@@ -761,6 +761,7 @@ int charger_dev_reset_eoc_state(struct charger_device *chg_dev)
 }
 EXPORT_SYMBOL(charger_dev_reset_eoc_state);
 
+#if defined(CONFIG_USB_FACTORY_MODE)
 int charger_dev_enable_ship_mode(struct charger_device *chg_dev, bool battfet)
 {
 	if (chg_dev != NULL && chg_dev->ops != NULL &&
@@ -770,6 +771,7 @@ int charger_dev_enable_ship_mode(struct charger_device *chg_dev, bool battfet)
 	return -ENOTSUPP;
 }
 EXPORT_SYMBOL(charger_dev_enable_ship_mode);
+#endif
 
 int charger_dev_safety_check(struct charger_device *chg_dev, u32 polling_ieoc)
 {
@@ -875,6 +877,7 @@ int charger_dev_enable_bleed_discharge(struct charger_device *charger_dev,
 }
 EXPORT_SYMBOL(charger_dev_enable_bleed_discharge);
 
+#if defined(CONFIG_USB_FACTORY_MODE)
 int charger_dev_get_health(struct charger_device *chg_dev, int *health)
 {
 	if (chg_dev != NULL && chg_dev->ops != NULL && chg_dev->ops->get_health)
@@ -905,6 +908,7 @@ int charger_dev_get_charging_status(struct charger_device *charger_dev,
 	return -ENOTSUPP;
 }
 EXPORT_SYMBOL(charger_dev_get_charging_status);
+#endif
 
 static DEVICE_ATTR(name, 0444, charger_show_name, NULL);
 
@@ -1015,6 +1019,7 @@ void charger_device_unregister(struct charger_device *chg_dev)
 }
 EXPORT_SYMBOL(charger_device_unregister);
 
+
 static int charger_match_device_by_name(struct device *dev,
 	const void *data)
 {
@@ -1051,8 +1056,10 @@ static int __init charger_class_init(void)
 		return PTR_ERR(charger_class);
 	}
 	charger_class->dev_groups = charger_groups;
+	/*
 	charger_class->suspend = charger_suspend;
 	charger_class->resume = charger_resume;
+	*/
 	return 0;
 }
 

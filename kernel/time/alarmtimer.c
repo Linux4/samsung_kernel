@@ -261,7 +261,7 @@ static int alarmtimer_suspend(struct device *dev)
 	struct rtc_time tm, time;
 #ifdef CONFIG_SEC_PM
 	struct alarm *min_alarm;
-#endif /* CONFIG_SEC_PM */
+#endif /* CONFIG_SEC_PM  */
 
 	spin_lock_irqsave(&freezer_delta_lock, flags);
 	min = freezer_delta;
@@ -293,7 +293,7 @@ static int alarmtimer_suspend(struct device *dev)
 			type = i;
 #ifdef CONFIG_SEC_PM
 			min_alarm = container_of(next, struct alarm, node);
-#endif /* CONFIG_SEC_PM */
+#endif /* CONFIG_SEC_PM  */
 		}
 	}
 	if (min == 0)
@@ -301,9 +301,8 @@ static int alarmtimer_suspend(struct device *dev)
 
 	if (ktime_to_ns(min) < 2 * NSEC_PER_SEC) {
 #ifdef CONFIG_SEC_PM
-		if (min_alarm)
-			pr_info("alarmtimer suspending blocked by %ps\n", min_alarm->function);
-#endif /* CONFIG_SEC_PM */
+		pr_info("alarmtimer suspending blocked by %ps\n", min_alarm->function);
+#endif /* CONFIG_SEC_PM  */
 		__pm_wakeup_event(ws, 2 * MSEC_PER_SEC);
 		return -EBUSY;
 	}
@@ -847,9 +846,9 @@ static int alarm_timer_nsleep(const clockid_t which_clock, int flags,
 	if (flags == TIMER_ABSTIME)
 		return -ERESTARTNOHAND;
 
-	restart->fn = alarm_timer_nsleep_restart;
 	restart->nanosleep.clockid = type;
 	restart->nanosleep.expires = exp;
+	set_restart_fn(restart, alarm_timer_nsleep_restart);
 	return ret;
 }
 

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #define LOG_TAG "DSI"
 
@@ -454,9 +446,6 @@ static void _DSI_INTERNAL_IRQ_Handler(enum DISP_MODULE_ENUM module,
 #if 0
 	struct DSI_TXRX_CTRL_REG txrx_ctrl;
 #endif
-#if defined(CONFIG_SMCDSD_PANEL)
-	ktime_t timestamp = ktime_get();
-#endif
 
 	i = DSI_MODULE_to_ID(module);
 	status = *(struct DSI_INT_STATUS_REG *)(&param);
@@ -479,13 +468,6 @@ static void _DSI_INTERNAL_IRQ_Handler(enum DISP_MODULE_ENUM module,
 
 	if (status.SLEEPIN_DONE)
 		_set_condition_and_wake_up(&(_dsi_context[i].sleep_in_done_wq));
-
-#if defined(CONFIG_SMCDSD_PANEL)
-	if (status.FRAME_DONE_INT_EN)	{
-		pgc->framedone_timestamp = timestamp;
-		wake_up_interruptible_all(&pgc->framedone_wait);
-	}
-#endif
 
 	if (status.BUFFER_UNDERRUN_INT_EN) {
 		if (disp_helper_get_option(DISP_OPT_DSI_UNDERRUN_AEE)) {
@@ -2246,7 +2228,7 @@ int mipi_clk_change(int msg, int en)
 	struct LCM_DSI_PARAMS *dsi_params =
 			&(_dsi_context[0].dsi_params);
 
-	pr_info("%s,msg=%d,en=%d\n", __func__, msg, en);
+	DISPMSG("%s,msg=%d,en=%d\n", __func__, msg, en);
 
 	_primary_path_lock(__func__);
 	if (dsi_params->mode == CMD_MODE)
@@ -2254,9 +2236,7 @@ int mipi_clk_change(int msg, int en)
 
 	path_handle = (struct ddp_path_handle *)primary_get_dpmgr_handle();
 	lcm_params = &path_handle->last_config.dispif_config;
-
 	if (en) {
-#if !defined(CONFIG_SMCDSD_PANEL)
 		if (!strcmp(mtkfb_lcm_name,
 			"ea8076g_fhdplus_dis_cmd_drv")) {
 			def_data_rate = 1160;
@@ -2278,16 +2258,6 @@ int mipi_clk_change(int msg, int en)
 		}
 
 		/*TODO: for other lcm */
-#else
-		if (def_data_rate == msg) {
-			_primary_path_unlock(__func__);
-			return 0;
-		}
-
-		def_data_rate = msg;
-		lcm_params->dsi.data_rate = def_data_rate;
-		lcm_params->dsi.PLL_CLOCK = def_data_rate / 2;
-#endif
 	} else {
 		unsigned int data_rate = dsi_params->data_rate != 0 ?
 			dsi_params->data_rate : dsi_params->PLL_CLOCK * 2;
@@ -2346,7 +2316,6 @@ int mipi_clk_change(int msg, int en)
 
 		cmdqRecFlushAsync(handle);
 		cmdqRecDestroy(handle);
-		pr_info("%s,msg=%d,en=%d done.\n", __func__, msg, en);
 	}
 
 	_primary_path_unlock(__func__);
@@ -2687,6 +2656,7 @@ UINT32 DSI_dcs_read_lcm_reg_v2(enum DISP_MODULE_ENUM module,
 #endif
 		DSI_OUTREG32(cmdq, &DSI_REG[d]->DSI_START, 0);
 		DSI_OUTREG32(cmdq, &DSI_REG[d]->DSI_START, 1);
+
 #if 0
 		/*
 		 * the following code is to
@@ -5679,14 +5649,10 @@ static void _dsi_basic_irq_enable(enum DISP_MODULE_ENUM module, void *cmdq)
 		}
 
 		/* cmd mode enable dsi te */
-		if (_dsi_context[0].dsi_params.mode == CMD_MODE) {
+		if (_dsi_context[0].dsi_params.mode == CMD_MODE)
 			DSI_OUTREGBIT(cmdq, struct DSI_INT_ENABLE_REG,
 				DSI_REG[0]->DSI_INTEN, TE_RDY, 1);
-#if defined(CONFIG_SMCDSD_PANEL)
-			DSI_OUTREGBIT(cmdq, struct DSI_INT_ENABLE_REG,
-				DSI_REG[0]->DSI_INTEN, VM_DONE_EVENT_EN, 1);
-#endif
-		}
+
 		if (_dsi_context[0].dsi_params.mode != CMD_MODE ||
 		    ((_dsi_context[0].dsi_params.switch_mode_enable == 1) &&
 		     (_dsi_context[0].dsi_params.switch_mode != CMD_MODE))) {

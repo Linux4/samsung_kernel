@@ -1,18 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2015 MediaTek Inc.
  * Author:
  *  Zhigang.Wei <zhigang.wei@mediatek.com>
  *  Chunfeng.Yun <chunfeng.yun@mediatek.com>
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
  */
 
 #ifndef _XHCI_MTK_H_
@@ -66,7 +57,6 @@ struct mu3h_sch_bw_info {
  *		times; 1: distribute the (bMaxBurst+1)*(Mult+1) packets
  *		according to @pkts and @repeat. normal mode is used by
  *		default
- * @bw_budget_table: table to record bandwidth budget per microframe
  */
 struct mu3h_sch_ep_info {
 	u32 esit;
@@ -83,7 +73,6 @@ struct mu3h_sch_ep_info {
 	u32 pkts;
 	u32 cs_count;
 	u32 burst_mode;
-	u32 bw_budget_table[0];
 };
 
 #define MU3C_U3_PORT_MAX 4
@@ -123,28 +112,29 @@ struct xhci_hcd_mtk {
 	bool has_ippc;
 	int num_u2_ports;
 	int num_u3_ports;
+	int u3p_dis_msk;
 	struct regulator *vusb33;
 	struct regulator *vbus;
 	struct clk *sys_clk;	/* sys and mac clock */
 	struct clk *ref_clk;
-	struct clk *wk_deb_p0;	/* port0's wakeup debounce clock */
-	struct clk *wk_deb_p1;
+	struct clk *mcu_clk;
+	struct clk *dma_clk;
 	struct regmap *pericfg;
 	struct phy **phys;
 	int num_phys;
-	int wakeup_src;
 	bool lpm_support;
-	struct dentry *debugfs_root;
-	int last_speed;
+	bool u2_lpm_disable;
+	/* usb remote wakeup */
+	bool uwk_en;
+	struct regmap *uwk;
+	u32 uwk_reg_base;
+	u32 uwk_vers;
 };
 
 static inline struct xhci_hcd_mtk *hcd_to_mtk(struct usb_hcd *hcd)
 {
 	return dev_get_drvdata(hcd->self.controller);
 }
-
-int mtk_xhci_wakelock_lock(struct xhci_hcd_mtk *mtk);
-int mtk_xhci_wakelock_unlock(struct xhci_hcd_mtk *mtk);
 
 #if IS_ENABLED(CONFIG_USB_XHCI_MTK)
 int xhci_mtk_sch_init(struct xhci_hcd_mtk *mtk);
@@ -153,8 +143,6 @@ int xhci_mtk_add_ep_quirk(struct usb_hcd *hcd, struct usb_device *udev,
 		struct usb_host_endpoint *ep);
 void xhci_mtk_drop_ep_quirk(struct usb_hcd *hcd, struct usb_device *udev,
 		struct usb_host_endpoint *ep);
-void xhci_mtk_set_port_mode(struct usb_hcd *hcd, __le32 __iomem **port_array,
-				int port_id);
 
 #else
 static inline int xhci_mtk_add_ep_quirk(struct usb_hcd *hcd,
@@ -168,10 +156,6 @@ static inline void xhci_mtk_drop_ep_quirk(struct usb_hcd *hcd,
 {
 }
 
-static inline void xhci_mtk_set_port_mode(struct usb_hcd *hcd,
-	__le32 __iomem **port_array, int port_id)
-{
-}
 #endif
 
 #endif		/* _XHCI_MTK_H_ */

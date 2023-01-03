@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <generated/autoconf.h>
 #include <linux/module.h>
@@ -26,7 +18,8 @@
 #include <linux/interrupt.h>
 #include <linux/mfd/mt6358/core.h>
 #include <linux/iio/adc/mt635x-auxadc-internal.h>
-
+#include <linux/power_supply.h>
+#include <dt-bindings/iio/mt635x-auxadc.h>
 #include <mt-plat/upmu_common.h>
 #if defined(CONFIG_MTK_AEE_FEATURE)
 #include <mt-plat/aee.h>
@@ -36,7 +29,7 @@
 #include "include/pmic_throttling_dlpt.h"
 #include "include/pmic_auxadc.h"
 #include <pmic_lbat_service.h>
-#include <mt-plat/mtk_charger.h>
+#include <mt-plat/v1/mtk_charger.h>
 #include "mtk_devinfo.h"
 
 #if defined(CONFIG_MTK_BASE_POWER)
@@ -47,7 +40,7 @@
 #define CONFIG_MTK_GAUGE_VERSION 0
 #endif
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
-#include <mt-plat/mtk_battery.h>
+#include <mt-plat/v1/mtk_battery.h>
 #include <mach/mtk_battery_property.h>
 #include <linux/reboot.h>
 #include <mtk_battery_internal.h>
@@ -101,8 +94,8 @@ void lbat_test_callback(unsigned int thd)
 }
 #endif
 
-static struct lbat_user lbat_pt;
-static struct lbat_user lbat_pt_ext;
+static struct lbat_user *lbat_pt;
+static struct lbat_user *lbat_pt_ext;
 int g_low_battery_level;
 int g_low_battery_stop;
 /* give one change to ignore DLPT power off. battery voltage
@@ -207,24 +200,24 @@ void low_battery_protect_init(void)
 	int ret = 0;
 	u32 seg = 0;
 
-	ret = lbat_user_register(&lbat_pt, "power throttling"
+	lbat_pt = lbat_user_register("power throttling"
 			, POWER_INT0_VOLT, POWER_INT1_VOLT
 			, POWER_INT2_VOLT, exec_low_battery_callback);
 
 	seg = get_devinfo_with_index(12);
 
 	if (seg != 0xffaa) {
-		ret = lbat_user_register(&lbat_pt_ext, "power throttling ext"
+		lbat_pt_ext = lbat_user_register("power throttling ext"
 			, POWER_INT0_VOLT_EXT, POWER_INT1_VOLT_EXT
 			, POWER_INT2_VOLT_EXT, exec_low_battery_callback_ext);
 	}
 
 #if PMIC_THROTTLING_DLPT_UT
-	ret = lbat_user_register(&lbat_test1, "test1",
+	lbat_test1 = lbat_user_register("test1",
 		3450, 3200, 3000, lbat_test_callback);
-	ret = lbat_user_register(&lbat_test2, "test2",
+	lbat_test2 = lbat_user_register("test2",
 		POWER_INT0_VOLT, 2900, 2800, lbat_test_callback);
-	ret = lbat_user_register(&lbat_test3, "test3",
+	lbat_test3 = lbat_user_register("test3",
 		3450, 3200, 3000, NULL);
 #endif
 	if (ret)
@@ -316,7 +309,7 @@ int __attribute__ ((weak)) dlpt_check_power_off(void)
  *  /fg_cust_data.car_tune_value))
  *
  * Ricky update for MT6359
- * 65535¡V(I_mA*1000*fg_cust_data.r_fg_value / DEFAULT_RFG*1000*1000
+ * 65535Â¡V(I_mA*1000*fg_cust_data.r_fg_value / DEFAULT_RFG*1000*1000
  * / fg_cust_data.car_tune_value / UNIT_FGCURRENT * 95 / 100)
  *
  */
@@ -517,7 +510,7 @@ static struct task_struct *bat_percent_notify_thread;
 static bool bat_percent_notify_flag;
 static DECLARE_WAIT_QUEUE_HEAD(bat_percent_notify_waiter);
 
-struct wakeup_source bat_percent_notify_lock;
+struct wakeup_source *bat_percent_notify_lock;
 static DEFINE_MUTEX(bat_percent_notify_mutex);
 
 #define BPCB_NUM 16
@@ -605,7 +598,7 @@ int bat_percent_notify_handler(void *unused)
 		wait_event_interruptible(bat_percent_notify_waiter,
 					 (bat_percent_notify_flag == true));
 
-		__pm_stay_awake(&bat_percent_notify_lock);
+		__pm_stay_awake(bat_percent_notify_lock);
 		mutex_lock(&bat_percent_notify_mutex);
 
 		exec_battery_percent_callback(g_battery_percent_level);
@@ -614,7 +607,7 @@ int bat_percent_notify_handler(void *unused)
 			g_battery_percent_level);
 
 		mutex_unlock(&bat_percent_notify_mutex);
-		__pm_relax(&bat_percent_notify_lock);
+		__pm_relax(bat_percent_notify_lock);
 	} while (!kthread_should_stop());
 
 	return 0;
@@ -663,7 +656,8 @@ int dlpt_psy_event(struct notifier_block *nb, unsigned long event, void *v)
 
 void bat_percent_notify_init(void)
 {
-	wakeup_source_init(&bat_percent_notify_lock,
+	//wakeup_source_init(&bat_percent_notify_lock,
+	bat_percent_notify_lock = wakeup_source_register(NULL,
 		"bat_percent_notify_lock wakelock");
 
 	bat_percent_notify_thread =
@@ -689,19 +683,19 @@ void __attribute__ ((weak)) register_battery_percent_notify(
  * AuxADC Impedence Measurement
  *******************************************************************/
 static unsigned int count_time_out_adc_imp = 36;
-static struct wakeup_source ptim_wake_lock;
+static struct wakeup_source *ptim_wake_lock;
 static struct mutex ptim_mutex;
 
 static void ptim_lock(void)
 {
-	__pm_stay_awake(&ptim_wake_lock);
+	__pm_stay_awake(ptim_wake_lock);
 	mutex_lock(&ptim_mutex);
 }
 
 static void ptim_unlock(void)
 {
 	mutex_unlock(&ptim_mutex);
-	__pm_relax(&ptim_wake_lock);
+	__pm_relax(ptim_wake_lock);
 }
 
 int do_ptim_internal(bool isSuspend, unsigned int *bat,
@@ -840,7 +834,7 @@ static struct timer_list dlpt_notify_timer;
 static struct task_struct *dlpt_notify_thread;
 static bool dlpt_notify_flag;
 static DECLARE_WAIT_QUEUE_HEAD(dlpt_notify_waiter);
-struct wakeup_source dlpt_notify_lock;
+struct wakeup_source *dlpt_notify_lock;
 static DEFINE_MUTEX(dlpt_notify_mutex);
 
 #define DLPT_NUM 16
@@ -1100,7 +1094,7 @@ int get_dlpt_imix(void)
 
 }
 
-static int get_dlpt_imix_charging(void)
+static int get_dlpt_imix_charging(struct platform_device *pdev)
 {
 	int zcv_val = 0;
 	int vsys_min_1_val = DLPT_VOLT_MIN;
@@ -1110,15 +1104,16 @@ static int get_dlpt_imix_charging(void)
 
 	if (chan == NULL) {
 		if (is_isense_supported() && is_power_path_supported())
-			chan = iio_channel_get(NULL, "AUXADC_ISENSE");
+			chan = devm_iio_channel_get(&pdev->dev, "pmic_isense");
 		else
-			chan = iio_channel_get(NULL, "AUXADC_BATADC");
+			chan = devm_iio_channel_get(&pdev->dev, "pmic_batadc");
 	}
-	if (IS_ERR(chan)) {
-		pr_notice("[%s] iio channel consumer error, (%d, %d)\n",
-			__func__, is_isense_supported(),
-			is_power_path_supported());
-		return 0;
+	 ret = PTR_ERR_OR_ZERO(chan);
+	if (ret) {
+		if (ret != -EPROBE_DEFER)
+			pr_notice("[%s] iio channel consumer error, (%d, %d)\n",
+				__func__, is_isense_supported(),
+				is_power_path_supported());
 	}
 	ret = iio_read_channel_processed(chan, &zcv_val);
 	if (ret < 0) {
@@ -1139,6 +1134,7 @@ static int g_low_per_timeout_val = 60;
 
 int dlpt_notify_handler(void *unused)
 {
+	struct platform_device *pdev = (struct platform_device *)unused;
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
 	unsigned long dlpt_notify_interval;
 	int pre_ui_soc = 0;
@@ -1158,7 +1154,7 @@ int dlpt_notify_handler(void *unused)
 		wait_event_interruptible(dlpt_notify_waiter,
 			(dlpt_notify_flag == true));
 
-		__pm_stay_awake(&dlpt_notify_lock);
+		__pm_stay_awake(dlpt_notify_lock);
 		mutex_lock(&dlpt_notify_mutex);
 
 		cur_ui_soc = battery_get_uisoc();
@@ -1183,7 +1179,7 @@ int dlpt_notify_handler(void *unused)
 			pr_info("[DLPT] ptim_rac_val_avg=0, skip\n");
 		else {
 			if (upmu_get_rgs_chrdet())
-				g_imix_val = get_dlpt_imix_charging();
+				g_imix_val = get_dlpt_imix_charging(pdev);
 			else
 				g_imix_val = get_dlpt_imix();
 
@@ -1211,21 +1207,15 @@ int dlpt_notify_handler(void *unused)
 				pr_info("[DLPT_POWER_OFF_EN] notify SOC=0 to power off, power_off_cnt=%d\n"
 					, power_off_cnt);
 
-				/*
-				 * TODO: After kernel-4.19, pm_mutex change to
-				 * system_transition_mutex.
-				 */
-				if (power_off_cnt >= 4 &&
-				    mutex_trylock(&pm_mutex)) {
-					kernel_restart("DLPT reboot system");
-					mutex_unlock(&pm_mutex);
-				}
+				if (power_off_cnt >= 4)
+					kernel_restart(
+						"DLPT reboot system");
 			} else
 				power_off_cnt = 0;
 		}
 #endif
 		mutex_unlock(&dlpt_notify_mutex);
-		__pm_relax(&dlpt_notify_lock);
+		__pm_relax(dlpt_notify_lock);
 
 		mod_timer(&dlpt_notify_timer, jiffies + dlpt_notify_interval);
 
@@ -1235,25 +1225,26 @@ int dlpt_notify_handler(void *unused)
 	return 0;
 }
 
-void dlpt_notify_task(unsigned long data)
+void dlpt_notify_task(struct timer_list *t)
 {
 	dlpt_notify_flag = true;
 	wake_up_interruptible(&dlpt_notify_waiter);
 }
 
-void dlpt_notify_init(void)
+void dlpt_notify_init(struct platform_device *pdev)
 {
 	unsigned long dlpt_notify_interval;
 
 	dlpt_notify_interval = HZ * 30;
-	init_timer_deferrable(&dlpt_notify_timer);
-	dlpt_notify_timer.function = dlpt_notify_task;
-	dlpt_notify_timer.data = (unsigned long)&dlpt_notify_timer;
+	timer_setup(&dlpt_notify_timer, dlpt_notify_task, TIMER_DEFERRABLE);
+	//init_timer_deferrable(&dlpt_notify_timer);
+	//dlpt_notify_timer.function = dlpt_notify_task;
+	//dlpt_notify_timer.data = (unsigned long)&dlpt_notify_timer;
 	mod_timer(&dlpt_notify_timer, jiffies + dlpt_notify_interval);
 
-	wakeup_source_init(&dlpt_notify_lock, "dlpt_notify_lock wakelock");
+	dlpt_notify_lock = wakeup_source_register(NULL, "dlpt_notify_lock wakelock");
 
-	dlpt_notify_thread = kthread_run(dlpt_notify_handler, 0,
+	dlpt_notify_thread = kthread_run(dlpt_notify_handler, pdev,
 		"dlpt_notify_thread");
 	if (IS_ERR(dlpt_notify_thread))
 		pr_notice("Failed to create dlpt_notify_thread\n");
@@ -1887,7 +1878,7 @@ int pmic_throttling_dlpt_init(struct platform_device *pdev)
 {
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
 	struct device_node *np;
-	u32 val;
+	u32 val = 0;
 	char *path;
 
 	path = "/battery";
@@ -1913,7 +1904,8 @@ int pmic_throttling_dlpt_init(struct platform_device *pdev)
 	pr_info("Get default UNIT_FGCURRENT= %d\n", UNIT_FGCURRENT);
 #endif /* end of #if CONFIG_MTK_GAUGE_VERSION == 30 */
 
-	wakeup_source_init(&ptim_wake_lock, "PTIM_wakelock");
+	//wakeup_source_init(&ptim_wake_lock, "PTIM_wakelock");
+	ptim_wake_lock = wakeup_source_register(NULL, "PTIM_wakelock");
 	mutex_init(&ptim_mutex);
 	/* IMPEDANCE initial setting move to LK */
 
@@ -1938,7 +1930,7 @@ int pmic_throttling_dlpt_init(struct platform_device *pdev)
 #endif
 
 #ifdef DLPT_FEATURE_SUPPORT
-	dlpt_notify_init();
+	dlpt_notify_init(pdev);
 #else
 	pr_info("[PMIC] no define DLPT_FEATURE_SUPPORT\n");
 #endif

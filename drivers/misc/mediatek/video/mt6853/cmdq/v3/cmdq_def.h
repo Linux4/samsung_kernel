@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #ifndef __CMDQ_DEF_H__
 #define __CMDQ_DEF_H__
@@ -107,14 +100,6 @@
 
 typedef u64 CMDQ_VARIABLE;
 
-/*
- * SPR / CPR / VAR naming rule and number
- **********************************************
- *    <-       SPR	 ->    <-     CPR    ->
- *    <reserved><FREE use >    <   FREE use   >
- * VAR#    0	1    2	  3    4    5	 6    7
- * CPR#			       0    1	 2    3
- */
 
 #define CMDQ_SPR_FOR_LOOP_DEBUG		(1)
 #define CMDQ_THR_SPR_START		(2)
@@ -347,17 +332,6 @@ struct cmdqReadAddressStruct {
 	cmdqU32Ptr_t values;
 };
 
-/*
- * Secure address metadata:
- * According to handle type,
- * translate handle and replace (_d)th instruciton to
- *     1. sec_addr = hadnle_sec_base_addr(baseHandle) + offset(_b)
- *     2. sec_mva = mva( hadnle_sec_base_addr(baseHandle) + offset(_b) )
- *     3. secure world normal mva = map(baseHandle)
- *        . pass normal mva to parameter baseHandle
- *        . use case: OVL reads from secure and normal buffers
- *          at the same time)
- */
 enum CMDQ_SEC_ADDR_METADATA_TYPE {
 	CMDQ_SAM_H_2_PA = 0,	/* sec handle to sec PA */
 	CMDQ_SAM_H_2_MVA = 1,	/* sec handle to sec MVA */

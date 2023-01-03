@@ -93,7 +93,7 @@ int adsp_enable_clock(void)
 {
 	int ret = 0;
 
-	pr_info("%s()\n", __func__);
+	pr_debug("%s()\n", __func__);
 
 	/* enable scp clock before access adsp clock cg */
 	ret = clk_prepare_enable(scp_clks[CLK_TOP_SCP_SEL].clock);
@@ -125,7 +125,7 @@ int adsp_enable_clock(void)
 
 void adsp_disable_clock(void)
 {
-	pr_info("%s()\n", __func__);
+	pr_debug("%s()\n", __func__);
 
 	adsp_clock_count--;
 	clk_disable_unprepare(adsp_clks[CLK_ADSP_CK_CG].clock);

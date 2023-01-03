@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2020 MediaTek Inc.
+ * Copyright (C) 2022 MediaTek Inc.
  * Author Harry.Lee <Harry.Lee@mediatek.com>
  */
 
@@ -11,6 +11,7 @@
 #endif
 
 static struct class *notify_class;
+static BLOCKING_NOTIFIER_HEAD(mtk_notifier_list);
 
 static int create_notify_class(void)
 {
@@ -76,6 +77,64 @@ int noti_uevent_user(struct mtk_uevent_dev *udev, int state)
 
 	return 0;
 }
+
+int mtk_notifier_callback(struct notifier_block *p, unsigned long event, void *data)
+{
+	struct mtk_notifier *n = container_of(p, struct mtk_notifier, notifier);
+
+	if (!n) {
+		pr_info("%s: mtk_notifier is not initialized\n", __func__);
+		return -EINVAL;
+	}
+
+	if (event == MTK_FPS_CHANGE) {
+		int fps = *((int *)data);
+
+		if (fps != n->fps) {
+			n->fps = fps;
+			pr_info("%s: FPS_CHANGED: %d\n", __func__, n->fps);
+		} else {
+			pr_info("%s: Ignore_FPS_CHANGE: %d\n", __func__, fps);
+		}
+	}
+	return 0;
+}
+
+int mtk_notifier_activate(void)
+{
+	int ret = 0;
+	struct mtk_notifier *n;
+
+	n = kzalloc(sizeof(struct mtk_notifier), GFP_KERNEL);
+	if (!n)
+		return -ENOMEM;
+
+	n->notifier.notifier_call = mtk_notifier_callback;
+
+	ret = mtk_register_client(&n->notifier);
+	if (ret)
+		pr_info("unable to register mtk_notifier\n");
+
+	return 0;
+}
+
+int mtk_register_client(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&mtk_notifier_list, nb);
+}
+EXPORT_SYMBOL(mtk_register_client);
+
+int mtk_unregister_client(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&mtk_notifier_list, nb);
+}
+EXPORT_SYMBOL(mtk_unregister_client);
+
+int mtk_notifier_call_chain(unsigned long val, void *v)
+{
+	return blocking_notifier_call_chain(&mtk_notifier_list, val, v);
+}
+EXPORT_SYMBOL_GPL(mtk_notifier_call_chain);
 
 #if defined(CONFIG_MTK_VSYNC_PRINT)
 static unsigned long mtk_ddp_get_tracing_mark(void)

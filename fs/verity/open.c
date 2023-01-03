@@ -343,8 +343,9 @@ EXPORT_SYMBOL_GPL(fsverity_cleanup_inode);
 
 int __init fsverity_init_info_cache(void)
 {
-	fsverity_info_cachep = KMEM_CACHE(fsverity_info,
-						   SLAB_RECLAIM_ACCOUNT);
+	fsverity_info_cachep = KMEM_CACHE_USERCOPY(fsverity_info,
+						   SLAB_RECLAIM_ACCOUNT,
+						   file_digest);
 	if (!fsverity_info_cachep)
 		return -ENOMEM;
 	return 0;

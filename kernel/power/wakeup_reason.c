@@ -333,7 +333,7 @@ static void print_wakeup_sources(void)
 		pr_info("Resume caused by IRQ %d, SPM%s", spm_irq, spm_reason);
 #else
 		pr_info("Resume cause unknown\n");
-#endif /* CONFIG_SEC_PM */
+#endif /* CONFIG_SEC_PM  */
 
 	spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 }
@@ -428,7 +428,7 @@ static int wakeup_reason_pm_event(struct notifier_block *notifier,
 		last_stime = ktime_get_boottime();
 #ifdef CONFIG_SEC_PM
 		spm_reason[0] = '\0';
-#endif /* CONFIG_SEC_PM */		
+#endif /* CONFIG_SEC_PM  */
 		clear_wakeup_reasons();
 		break;
 	case PM_POST_SUSPEND:

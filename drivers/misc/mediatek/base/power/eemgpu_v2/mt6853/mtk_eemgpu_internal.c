@@ -1,16 +1,9 @@
-
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
+
 
 /**
  * @file	mtk_eemg_internal.c
@@ -91,7 +84,7 @@ struct eemg_det eemg_detectors[NR_EEMG_DET] = {
 		.volt_offset	= 0,
 #endif
 		.ctrl_id	= EEMG_CTRL_GPU,
-		.features	= FEA_INIT02,
+		.features	= FEA_INIT01 | FEA_INIT02,
 		.max_freq_khz   = GPU_FREQ_BASE,
 		.VMAX		= VMAX_VAL_GPU,
 		.VBOOT		= VBOOT_VAL, /* 10uV */

@@ -36,6 +36,9 @@
 unsigned int lcdtype = 1;
 EXPORT_SYMBOL(lcdtype);
 
+unsigned int blictype = 1;
+EXPORT_SYMBOL(blictype);
+
 static int __init get_lcd_type(char *arg)
 {
 	get_option(&arg, &lcdtype);
@@ -45,6 +48,16 @@ static int __init get_lcd_type(char *arg)
 	return 0;
 }
 early_param("lcdtype", get_lcd_type);
+
+static int __init get_blic_type(char *arg)
+{
+	get_option(&arg, &blictype);
+
+	dbg_info("%s: blictype: %6X\n", __func__, blictype);
+
+	return 0;
+}
+early_param("blictype", get_blic_type);
 
 /* -------------------------------------------------------------------------- */
 /* helper to parse dt */
@@ -443,9 +456,6 @@ int __smcdsd_panel_get_params_from_dt(struct LCM_PARAMS *lcm_params)
 	/* First CLK is default CLK */
 	lcm_params->dsi.data_rate = plcd->data_rate[0];
 
-	smcdsd_of_property_read_u32(np, "lcm_params-hbm_enable_wait_frame", &lcm_params->hbm_enable_wait_frame);
-	smcdsd_of_property_read_u32(np, "lcm_params-hbm_disable_wait_frame", &lcm_params->hbm_disable_wait_frame);
-
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 	smcdsd_of_property_read_u32(np, "lcm_params-dfps_enable",
 			&(lcm_params->dsi.dfps_enable));
@@ -567,7 +577,7 @@ exit:
 static void __lcd_driver_dts_update(void)
 {
 	struct device_node *nplcd = NULL, *np = NULL;
-	int i = 0, count = 0, ret = -EINVAL;
+	int i = 0, pcount, count = 0, ret = -EINVAL;
 	unsigned int id_index, mask, expect;
 	u32 id_match_info[10] = {0, };
 
@@ -577,13 +587,13 @@ static void __lcd_driver_dts_update(void)
 		return;
 	}
 
-	count = of_count_phandle_with_args(nplcd, PANEL_DTS_NAME, NULL);
-	if (count < 2) {
+	pcount = of_count_phandle_with_args(nplcd, PANEL_DTS_NAME, NULL);
+	if (pcount < 2) {
 		/* dbg_info("%s: %s property phandle count is %d. so no need to update check\n", __func__, PANEL_DTS_NAME, count); */
 		return;
 	}
 
-	for (i = 0; i < count; i++) {
+	for (i = 0; i < pcount; i++) {
 		np = of_parse_phandle(nplcd, PANEL_DTS_NAME, i);
 		dbg_info("%s: %dth dts is %s\n", __func__, i, (np && np->name) ? np->name : "null");
 		if (!np || !of_get_property(np, "id_match", NULL))

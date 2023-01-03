@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
  *      http://www.samsung.com
  *
  * Samsung TN debugging code
@@ -14,8 +14,33 @@
 #include <linux/proc_fs.h>
 #include <linux/sec_debug.h>
 
-static u32 __initdata dhist_base = SEC_HIST_LOG_BASE;
-static u32 __initdata dhist_size = SZ_512K;
+/* 
+	dhist_base = sec_extra_info_base + SEC_DEBUG_SIZE_OFFS
+	bore_base = dhist_base + SEC_DEBUG_SIZE_OFFS
+
+	----------------------------------------  sec-autocomment base
+	-              SZ_64K                  -  
+	----------------------------------------  sec-extrainfo base
+	-         SEC_DEBUG_SIZE_OFFS          -
+	----------------------------------------  debug-history base
+	-         SEC_DEBUG_SIZE_OFFS          -  
+	----------------------------------------  bore base
+	-         SEC_DEBUG_SIZE_OFFS          -
+	----------------------------------------	sec-initlog
+*/
+
+
+#define SEC_DEBUG_SIZE_OFFS SZ_512K
+
+static u32 dhist_base;
+static u32 dhist_size = SEC_DEBUG_SIZE_OFFS;
+
+void sec_debug_hist_base_init(int extrainfo_base)
+{
+	dhist_base = extrainfo_base + SEC_DEBUG_SIZE_OFFS;
+	pr_info("%s, extrainfo_base:0x%x, dhist_base:0x%x\n", __func__, extrainfo_base, dhist_base);
+}
+EXPORT_SYMBOL(sec_debug_hist_base_init);
 
 static ssize_t sec_debug_hist_hist_read(struct file *file, char __user *buf,
 				  size_t len, loff_t *offset)

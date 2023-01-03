@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 #include <linux/seq_file.h>
 #include <linux/proc_fs.h>
@@ -96,7 +88,6 @@ static void init_cpu_loading_value(void)
 	cl_unlock(__func__);
 }
 
-#if 1
 static bool sentuevent(const char *src)
 {
 	int ret;
@@ -116,7 +107,6 @@ static bool sentuevent(const char *src)
 			perfmgr_trace_printk("cpu_loading", "string is null");
 			return false;
 		}
-#if 1
 		ret = kobject_uevent_env(
 				&cpu_loading_object.this_device->kobj,
 				KOBJ_CHANGE, envp);
@@ -126,7 +116,6 @@ static bool sentuevent(const char *src)
 
 			return false;
 		}
-#endif
 		show_debug("sent uevent success:%s", src);
 
 		perfmgr_trace_log("cpu_loading",
@@ -135,7 +124,6 @@ static bool sentuevent(const char *src)
 	return true;
 }
 
-#endif
 /*update info*/
 static void calculat_loading_callback(int mask_loading, int loading)
 {
@@ -206,6 +194,7 @@ static void start_calculate_loading(void)
 static void stop_calculate_loading(void)
 {
 	int ret_unreg;
+
 	cl_unlock(__func__);
 	ret_unreg = unreg_loading_tracking(calculat_loading_callback);
 
@@ -567,9 +556,9 @@ static int init_cpu_loading_kobj(void)
 	/* dev init */
 
 	cpu_loading_object.name = "cpu_loading";
-	cpu_loading_object.minor = MISC_DYNAMIC_MINOR;
 	ret = misc_register(&cpu_loading_object);
 	if (ret) {
+		ret = -ENODEV;
 		pr_debug("misc_register error:%d\n", ret);
 		return ret;
 	}

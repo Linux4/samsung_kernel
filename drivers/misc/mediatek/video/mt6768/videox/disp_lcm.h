@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef _DISP_LCM_H_
 #define _DISP_LCM_H_
@@ -65,13 +57,7 @@ int disp_lcm_set_hbm(bool en, struct disp_lcm_handle *plcm, void *qhandle);
 int disp_lcm_get_hbm_state(struct disp_lcm_handle *plcm);
 int disp_lcm_get_hbm_wait(struct disp_lcm_handle *plcm);
 int disp_lcm_set_hbm_wait(bool wait, struct disp_lcm_handle *plcm);
-#if defined(CONFIG_SMCDSD_PANEL)
-bool primary_display_is_hbm_change(bool en);
-unsigned int disp_lcm_get_hbm_wait_frame(bool en, struct disp_lcm_handle *plcm);
-int disp_lcm_framedone_notify(struct disp_lcm_handle *plcm);
-#else
 unsigned int disp_lcm_get_hbm_time(bool en, struct disp_lcm_handle *plcm);
-#endif
 int disp_lcm_read_fb(struct disp_lcm_handle *plcm);
 int disp_lcm_ioctl(struct disp_lcm_handle *plcm, enum LCM_IOCTL ioctl,
 	unsigned int arg);

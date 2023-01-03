@@ -1,15 +1,5 @@
-#
-# Copyright (C) 2015 MediaTek Inc.
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License version 2 as
-# published by the Free Software Foundation.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
+# SPDX-License-Identifier: GPL-2.0
+
 #
 # Makefile for misc devices that really don't fit anywhere else.
 #
@@ -17,6 +7,7 @@ MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
 
 ifeq ($(CONFIG_MACH_MT6877),y)
 MTK_DERIVED_PLATFORM := mt6877
+subdir-ccflags-y += -DIMGSENSOR_MT6877
 endif
 
 ifeq ($(CONFIG_MACH_MT6833),y)
@@ -46,7 +37,6 @@ subdir-ccflags-y += -I$(IMGSENSOR_DRIVER_PATH)/common/$(COMMON_VERSION) \
 	-I$(IMGSENSOR_DRIVER_PATH)/inc \
 	-I$(IMGSENSOR_DRIVER_PATH)/common/sysfs \
 	-I$(IMGSENSOR_DRIVER_PATH)/common/adaptive_mipi \
-	-I$(IMGSENSOR_DRIVER_PATH)/$(MTK_PLATFORM)/seninf/ \
 	-I$(MTK_DRIVER_PATH)/mmdvfs \
 	-I$(srctree)/drivers/i2c/busses/
 
@@ -70,7 +60,11 @@ obj-$(CONFIG_CAMERA_ADAPTIVE_MIPI) += ../common/adaptive_mipi/
 define FILTER_DRV
 ifeq ($(wildcard $(IMGSENSOR_DRIVER_PATH)/$(MTK_PLATFORM)/camera_project/$(ARCH_MTK_PROJECT)/$(1)),)
 ifeq ($(wildcard $(IMGSENSOR_DRIVER_PATH)/$(MTK_PLATFORM)/$(1)),)
+ifneq (,$(wildcard $(IMGSENSOR_DRIVER_PATH)/common/$(COMMON_VERSION)/$(1)/$(ARCH_MTK_PROJECT)))
+common_drv += ../common/$(COMMON_VERSION)/$(1)/$(ARCH_MTK_PROJECT)/
+else
 common_drv += ../common/$(COMMON_VERSION)/$(1)/
+endif
 else
 platform_drv += $(1)/
 endif
@@ -118,16 +112,16 @@ endif
 #subdir-ccflags-y		+= -I$(IMGSENSOR_DRIVER_PATH)/common/$(COMMON_VERSION)/camera_hw
 
 # Enable parallelism
-subdir-ccflags-y += -DSENSOR_PARALLEISM
+# subdir-ccflags-y += -DSENSOR_PARALLEISM
 
 
 ifneq (,$(wildcard $(IMGSENSOR_DRIVER_PATH)/$(MTK_PLATFORM)/seninf_$(MTK_DERIVED_PLATFORM)))
 subdir-ccflags-y += -I$(IMGSENSOR_DRIVER_PATH)/$(MTK_PLATFORM)/seninf_$(MTK_DERIVED_PLATFORM)/
 obj-y += seninf_$(MTK_DERIVED_PLATFORM)/
 else
+subdir-ccflags-y += -I$(IMGSENSOR_DRIVER_PATH)/$(MTK_PLATFORM)/seninf/
 obj-y += seninf/
 endif
-subdir-ccflags-y += -I$(IMGSENSOR_DRIVER_PATH)/$(MTK_PLATFORM)/seninf/
 
 
 

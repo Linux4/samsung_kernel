@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <generated/autoconf.h>
 #include <linux/module.h>
@@ -1128,15 +1120,6 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd,
 		enum mtkfb_aod_power_mode aod_pm = MTKFB_AOD_POWER_MODE_ERROR;
 
 		aod_pm = (enum mtkfb_aod_power_mode)arg;
-#if defined(CONFIG_SMCDSD_PANEL)
-		if (aod_pm == MTKFB_AOD_DOZE || aod_pm == MTKFB_AOD_DOZE_SUSPEND)
-			smcdsd_simple_notifier_call_chain(SMCDSD_EARLY_EVENT_DOZE, (aod_pm == MTKFB_AOD_DOZE) ? FB_BLANK_UNBLANK : FB_BLANK_POWERDOWN);
-#endif
-		ret = mtkfb_aod_mode_switch(arg);
-#if defined(CONFIG_SMCDSD_PANEL)
-		if (aod_pm == MTKFB_AOD_DOZE || aod_pm == MTKFB_AOD_DOZE_SUSPEND)
-			smcdsd_simple_notifier_call_chain(SMCDSD_EVENT_DOZE, (aod_pm == MTKFB_AOD_DOZE) ? FB_BLANK_UNBLANK : FB_BLANK_POWERDOWN);
-#endif
 
 		break;
 	}
@@ -2668,8 +2651,10 @@ static int mtkfb_probe(struct platform_device *pdev)
 
 	if (!strcmp(mtkfb_find_lcm_driver(),
 		"ea8076g_fhdplus_dis_cmd_drv")) {
+#ifdef CONFIG_MTK_CCCI_DRIVER
 		register_ccci_sys_call_back(MD_SYS1,
 			MD_DISPLAY_DYNAMIC_MIPI, mipi_clk_change);
+#endif
 	}
 
 	MSG_FUNC_LEAVE();

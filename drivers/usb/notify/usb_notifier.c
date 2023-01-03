@@ -41,8 +41,10 @@
 #include <linux/regulator/consumer.h>
 #include <linux/workqueue.h>
 
-#if IS_ENABLED(CONFIG_MACH_MT6768) || IS_ENABLED(CONFIG_MACH_MT6739)
+#if IS_ENABLED(CONFIG_MACH_MT6739) || IS_ENABLED(CONFIG_MACH_MT6765)
 #include "../../misc/mediatek/usb20/mtk_musb.h"
+#elif IS_ENABLED(CONFIG_EXTCON_MTK_USB)
+#include "../../misc/mediatek/extcon/extcon-mtk-usb.h"
 #endif
 
 struct usb_notifier_platform_data {
@@ -560,16 +562,16 @@ static int mtk_set_host(bool enable)
 {
 	pr_info("%s enable %d +\n", __func__, enable);
 #if !IS_ENABLED(CONFIG_USB_MU3D_DRV)
-#if IS_ENABLED(CONFIG_MACH_MT6768) || IS_ENABLED(CONFIG_MACH_MT6739)
+#if IS_ENABLED(CONFIG_MACH_MT6739) || IS_ENABLED(CONFIG_MACH_MT6765)
 	if (enable)
 		mt_usb_host_connect(0);
 	else
 		mt_usb_host_disconnect(0);
-#else
+#elif IS_ENABLED(CONFIG_EXTCON_MTK_USB)
 	if (enable)
-		mtk_usbhost_connect();
+		mtk_usb_notify_set_mode(DUAL_PROP_DR_HOST);
 	else
-		mtk_usbhost_disconnect();
+		mtk_usb_notify_set_mode(DUAL_PROP_DR_NONE);
 #endif
 #endif
 	pr_info("%s -\n", __func__);
@@ -580,16 +582,16 @@ static int mtk_set_peripheral(bool enable)
 {
 	pr_info("%s enable %d +\n", __func__, enable);
 #if !IS_ENABLED(CONFIG_USB_MU3D_DRV)
-#if IS_ENABLED(CONFIG_MACH_MT6768) || IS_ENABLED(CONFIG_MACH_MT6739)
+#if IS_ENABLED(CONFIG_MACH_MT6739) || IS_ENABLED(CONFIG_MACH_MT6765)
 	if (enable)
 		mt_usb_connect();
 	else
 		mt_usb_disconnect();
-#else
+#elif IS_ENABLED(CONFIG_EXTCON_MTK_USB)
 	if (enable)
-		mtk_usb_connect();
+		mtk_usb_notify_set_mode(DUAL_PROP_DR_DEVICE);
 	else
-		mtk_usb_disconnect();
+		mtk_usb_notify_set_mode(DUAL_PROP_DR_NONE);
 #endif
 #endif
 	pr_info("%s -\n", __func__);

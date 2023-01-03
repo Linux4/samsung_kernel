@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifdef CONFIG_MTK_CLKMGR
 #include <mach/mt_clkmgr.h>
@@ -24,6 +16,7 @@
 #include <musb_core.h>
 #include "usb20.h"
 #include "mtk_devinfo.h"
+#include <linux/phy/phy.h>
 
 #ifdef CONFIG_OF
 #include <linux/of_address.h>
@@ -60,7 +53,7 @@ void usb_phy_savecurrent(void)
 {
 }
 
-void usb_phy_recover(struct musb *musb)
+void usb_phy_recover(void)
 {
 }
 
@@ -99,35 +92,59 @@ void usb_phy_switch_to_usb(void)
 #else
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
+#define VAL_MAX_WIDTH_2	0x3
+#define VAL_MAX_WIDTH_3	0x7
 #define OFFSET_RG_USB20_VRT_VREF_SEL 0x4
 #define SHFT_RG_USB20_VRT_VREF_SEL 12
 #define OFFSET_RG_USB20_TERM_VREF_SEL 0x4
 #define SHFT_RG_USB20_TERM_VREF_SEL 8
 #define OFFSET_RG_USB20_PHY_REV6 0x18
 #define SHFT_RG_USB20_PHY_REV6 30
-
-void usb_phy_tuning(bool is_host)
+void usb_phy_tuning(void)
 {
-	int i = 0;
+	static bool inited;
+	static s32 u2_vrt_ref, u2_term_ref, u2_enhance;
+	static struct device_node *of_node;
 
-	pr_info("%s : is_host %d\n", __func__, is_host);
+	if (!inited) {
+		u2_vrt_ref = u2_term_ref = u2_enhance = -1;
+		of_node = of_find_compatible_node(NULL,
+			NULL, "mediatek,phy_tuning");
+		if (of_node) {
+			/* value won't be updated if property not being found */
+			of_property_read_u32(of_node,
+				"u2_vrt_ref", (u32 *) &u2_vrt_ref);
+			of_property_read_u32(of_node,
+				"u2_term_ref", (u32 *) &u2_term_ref);
+			of_property_read_u32(of_node,
+				"u2_enhance", (u32 *) &u2_enhance);
+		}
+		inited = true;
+	} else if (!of_node)
+		return;
 
-	for (i = 0; i < phy_data_cnt; i++) {
-		struct mt_usb_phy_data *data = &phy_data[i];
-
-		USBPHY_CLR32(data->offset,
-			data->mask << data->shift);
-
-		if (is_host && data->host) {
-			USBPHY_SET32(data->offset,
-					data->host << data->shift);
-			pr_info("%s %s : 0x%x\n", __func__,
-					data->name, data->host);
-		} else {
-			USBPHY_SET32(data->offset,
-					data->value << data->shift);
-			pr_info("%s %s : 0x%x\n", __func__,
-					data->name, data->value);
+	if (u2_vrt_ref != -1) {
+		if (u2_vrt_ref <= VAL_MAX_WIDTH_3) {
+			USBPHY_CLR32(OFFSET_RG_USB20_VRT_VREF_SEL,
+				VAL_MAX_WIDTH_3 << SHFT_RG_USB20_VRT_VREF_SEL);
+			USBPHY_SET32(OFFSET_RG_USB20_VRT_VREF_SEL,
+				u2_vrt_ref << SHFT_RG_USB20_VRT_VREF_SEL);
+		}
+	}
+	if (u2_term_ref != -1) {
+		if (u2_term_ref <= VAL_MAX_WIDTH_3) {
+			USBPHY_CLR32(OFFSET_RG_USB20_TERM_VREF_SEL,
+				VAL_MAX_WIDTH_3 << SHFT_RG_USB20_TERM_VREF_SEL);
+			USBPHY_SET32(OFFSET_RG_USB20_TERM_VREF_SEL,
+				u2_term_ref << SHFT_RG_USB20_TERM_VREF_SEL);
+		}
+	}
+	if (u2_enhance != -1) {
+		if (u2_enhance <= VAL_MAX_WIDTH_2) {
+			USBPHY_CLR32(OFFSET_RG_USB20_PHY_REV6,
+				VAL_MAX_WIDTH_2 << SHFT_RG_USB20_PHY_REV6);
+			USBPHY_SET32(OFFSET_RG_USB20_PHY_REV6,
+					u2_enhance<<SHFT_RG_USB20_PHY_REV6);
 		}
 	}
 }
@@ -465,19 +482,19 @@ void usb_phy_switch_to_usb(void)
 void set_usb_phy_mode(int mode)
 {
 	switch (mode) {
-	case PHY_DEV_ACTIVE:
+	case PHY_MODE_USB_DEVICE:
 	/* VBUSVALID=1, AVALID=1, BVALID=1, SESSEND=0, IDDIG=1, IDPULLUP=1 */
 		USBPHY_CLR32(0x6C, (0x10<<0));
 		USBPHY_SET32(0x6C, (0x2F<<0));
 		USBPHY_SET32(0x6C, (0x3F<<8));
 		break;
-	case PHY_HOST_ACTIVE:
+	case PHY_MODE_USB_HOST:
 	/* VBUSVALID=1, AVALID=1, BVALID=1, SESSEND=0, IDDIG=0, IDPULLUP=1 */
 		USBPHY_CLR32(0x6c, (0x12<<0));
 		USBPHY_SET32(0x6c, (0x2d<<0));
 		USBPHY_SET32(0x6c, (0x3f<<8));
 		break;
-	case PHY_IDLE_MODE:
+	case PHY_MODE_INVALID:
 	/* VBUSVALID=0, AVALID=0, BVALID=0, SESSEND=1, IDDIG=0, IDPULLUP=1 */
 		USBPHY_SET32(0x6c, (0x11<<0));
 		USBPHY_CLR32(0x6c, (0x2e<<0));
@@ -636,7 +653,7 @@ static void usb_phy_savecurrent_internal(void)
 
 	udelay(1);
 
-	set_usb_phy_mode(PHY_IDLE_MODE);
+	set_usb_phy_mode(PHY_MODE_INVALID);
 }
 
 void usb_phy_savecurrent(void)
@@ -646,7 +663,7 @@ void usb_phy_savecurrent(void)
 }
 
 /* M17_USB_PWR Sequence 20160603.xls */
-void usb_phy_recover(struct musb *musb)
+void usb_phy_recover(void)
 {
 	unsigned int efuse_val = 0;
 
@@ -745,7 +762,22 @@ void usb_phy_recover(struct musb *musb)
 	USBPHY_CLR32(0x18, (0xf0<<0));
 	USBPHY_SET32(0x18, (0x70<<0));
 
-	usb_phy_tuning(musb->is_host);
+	/* HQA special request */
+	{
+		USBPHY_CLR32(OFFSET_RG_USB20_VRT_VREF_SEL,
+				VAL_MAX_WIDTH_3 << SHFT_RG_USB20_VRT_VREF_SEL);
+		USBPHY_SET32(OFFSET_RG_USB20_VRT_VREF_SEL,
+				5 << SHFT_RG_USB20_VRT_VREF_SEL);
+
+		USBPHY_CLR32(OFFSET_RG_USB20_TERM_VREF_SEL,
+				VAL_MAX_WIDTH_3 << SHFT_RG_USB20_TERM_VREF_SEL);
+		USBPHY_SET32(OFFSET_RG_USB20_TERM_VREF_SEL,
+				5 << SHFT_RG_USB20_TERM_VREF_SEL);
+
+		/* discth = 7, u2_enhance = 1 already in */
+	}
+
+	usb_phy_tuning();
 
 	DBG(0, "usb recovery success\n");
 }
@@ -773,6 +805,7 @@ void Charger_Detect_Init(void)
 
 	DBG(0, "%s\n", __func__);
 }
+EXPORT_SYMBOL(Charger_Detect_Init);
 
 void Charger_Detect_Release(void)
 {
@@ -795,6 +828,7 @@ void Charger_Detect_Release(void)
 
 	DBG(0, "%s\n", __func__);
 }
+EXPORT_SYMBOL(Charger_Detect_Release);
 
 void usb_phy_context_save(void)
 {
@@ -811,14 +845,4 @@ void usb_phy_context_restore(void)
 #endif
 }
 
-void usb_dpdm_pullup(bool enable)
-{
-	if (enable) {
-		/* RG_USB20_EN_PU_DP, 1'b1, RG_USB20_PUPD_BIST_EN, 1'b1 */
-		USBPHY_SET32(0x1c, (0x1 << 9) | (0x1 << 12));
-	} else {
-		/* RG_USB20_EN_PU_DP, 1'b0, RG_USB20_PUPD_BIST_EN, 1'b0 */
-		USBPHY_CLR32(0x1c, (0x1 << 9) | (0x1 << 12));
-	}
-}
 #endif

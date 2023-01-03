@@ -1,15 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #ifndef __IMGSENSOR_COMMON_H__
 #define __IMGSENSOR_COMMON_H__
@@ -25,13 +18,13 @@
  ************************************************************************/
 #define DEBUG_CAMERA_HW_K
 #ifdef DEBUG_CAMERA_HW_K
-#define PK_DBG(fmt, arg...)   pr_debug(PREFIX fmt, ##arg)
-#define PK_INF(fmt, arg...)   pr_info(PREFIX fmt, ##arg)
+#define PK_DBG(fmt, arg...) pr_debug(PREFIX fmt, ##arg)
+#define PK_INF(fmt, arg...) pr_info(PREFIX fmt, ##arg)
 #else
 #define PK_DBG(fmt, arg...)
-#define PK_INF(fmt, arg...)   pr_info(PREFIX fmt, ##arg)
+#define PK_INF(fmt, arg...) pr_debug(PREFIX fmt, ##arg)
 #endif
-#define PK_ERR(fmt, arg...)   pr_err(PREFIX fmt, ##arg)
+#define PK_ERR(fmt, arg...) pr_err(PREFIX fmt, ##arg)
 
 #define PLATFORM_POWER_SEQ_NAME "platform_power_seq"
 #define DEBUG_CAMERA_HW_K

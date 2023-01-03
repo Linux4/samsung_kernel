@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2021 MediaTek Inc.
  */
 
 #include <linux/kernel.h>
@@ -644,15 +636,6 @@ int get_md1_tx_power(enum md_scenario scenario, u32 *share_mem,
 	enum tx_rat_type rat;
 	int tx_power = 0, tx_power_max = 0;
 	struct md_power_status mdpm_power_s_tmp;
-
-#if 0
-	if (scenario == S_STANDBY) {
-		if (mt_mdpm_debug)
-			pr_info("MD1 is standby, dBm pw: 0\n");
-
-		return 0;
-	}
-#endif
 
 	if (share_mem == NULL) {
 		if (mt_mdpm_debug)

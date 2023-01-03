@@ -34,6 +34,7 @@
 #include <mtk_lpm_type.h>
 #include <mtk_lpm_call_type.h>
 #include <mtk_dbg_common_v1.h>
+#include <mt6877_spm_comm.h>
 #include <mt-plat/mtk_ccci_common.h>
 #include <uapi/linux/sched/types.h>
 #include "mt6877.h"
@@ -43,6 +44,7 @@
 #include <linux/regulator/consumer.h>
 extern void sec_clock_debug_print_enabled(void);
 #endif /* CONFIG_SEC_PM */
+
 
 unsigned int mt6877_suspend_status;
 static struct cpumask abort_cpumask;
@@ -174,9 +176,10 @@ static int __mt6877_suspend_prompt(int type, int cpu,
 
 	printk_deferred("[name:spm&][%s:%d] - prepare suspend enter\n",
 			__func__, __LINE__);
+
 #if IS_ENABLED(CONFIG_SEC_PM)
-	regulator_debug_print_enabled();
-	sec_clock_debug_print_enabled();
+			regulator_debug_print_enabled();
+			sec_clock_debug_print_enabled();
 #endif /* CONFIG_SEC_PM */
 
 	ret = mt6877_suspend_common_enter(&mt6877_suspend_status);

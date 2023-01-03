@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/delay.h>
 #include <linux/sched.h>
@@ -184,9 +176,10 @@ EXPORT_SYMBOL(uevent_data);
 static int od_need_start;
 #endif
 
-#ifdef MTK_FB_MMDVFS_SUPPORT
 /* dvfs */
-static int dvfs_last_ovl_req = HRT_LEVEL_HPM;
+#ifdef MTK_FB_MMDVFS_SUPPORT
+static int dvfs_last_ovl_req = HRT_LEVEL_NUM - 1;
+static unsigned int ovl_throughput_freq_req;
 #endif
 
 /* delayed trigger */
@@ -232,7 +225,7 @@ static void _primary_path_unlock(const char *caller)
 
 	mutex_time_end = sched_clock();
 	mutex_time_period = mutex_time_end - mutex_time_start;
-	if (mutex_time_period > 300000000) {
+	if (mutex_time_period > 100000000) {
 		DISPCHECK("mutex_release_timeout1 <%lld ns>\n",
 			  mutex_time_period);
 		dump_stack();
@@ -241,8 +234,8 @@ static void _primary_path_unlock(const char *caller)
 
 	mutex_time_end1 = sched_clock();
 	mutex_time_period1 = mutex_time_end1 - mutex_time_start;
-	if ((mutex_time_period < 300000000 && mutex_time_period1 > 300000000) ||
-	   (mutex_time_period < 300000000 && mutex_time_period1 < 0)) {
+	if ((mutex_time_period < 100000000 && mutex_time_period1 > 100000000) ||
+	   (mutex_time_period < 100000000 && mutex_time_period1 < 0)) {
 		DISPCHECK("mutex_release_timeout2 <%lld ns>,<%lld ns>\n",
 			mutex_time_period1, mutex_time_period);
 		dump_stack();
@@ -4153,26 +4146,17 @@ int primary_display_suspend(void)
 	if (primary_display_is_video_mode())
 		primary_display_switch_dst_mode(0);
 #endif
-#if defined(CONFIG_SMCDSD_PANEL)
-	disp_lcm_path_lock(1, pgc->plcm);
-#endif
 	_primary_path_switch_dst_lock();
 	disp_sw_mutex_lock(&(pgc->capture_lock));
 	_primary_path_lock(__func__);
 
 	while (primary_get_state() == DISP_BLANK) {
 		_primary_path_unlock(__func__);
-#if defined(CONFIG_SMCDSD_PANEL)
-		disp_lcm_path_lock(0, pgc->plcm);
-#endif
 		DISPCHECK("%s wait tui finish!!\n", __func__);
 #ifdef CONFIG_TRUSTONIC_TRUSTED_UI
 		switch_set_state(&disp_switch_data, DISP_SLEPT);
 #endif
 		primary_display_wait_state(DISP_ALIVE, MAX_SCHEDULE_TIMEOUT);
-#if defined(CONFIG_SMCDSD_PANEL)
-		disp_lcm_path_lock(1, pgc->plcm);
-#endif
 		_primary_path_lock(__func__);
 		DISPCHECK("%s wait tui done stat=%d\n",
 			  __func__, primary_get_state());
@@ -4230,14 +4214,6 @@ int primary_display_suspend(void)
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_suspend,
 			 MMPROFILE_FLAG_PULSE, 0, 2);
 
-#if defined(CONFIG_SMCDSD_PANEL)
-	if (primary_display_get_power_mode_nolock() == FB_SUSPEND)
-		disp_lcm_disable(pgc->plcm);
-
-	/* From now, MIPI TX command will be written on register directly */
-	disp_lcm_cmdq(pgc->plcm, 0);
-#endif
-
 	if (disp_helper_get_option(DISP_OPT_USE_CMDQ)) {
 		DISPCHECK("[POWER]display cmdq trigger loop stop\n");
 		_cmdq_stop_trigger_loop();
@@ -4293,27 +4269,17 @@ int primary_display_suspend(void)
 			 MMPROFILE_FLAG_PULSE, 0, 8);
 
 	pgc->lcm_refresh_rate = 60;
-#if defined(CONFIG_SMCDSD_PANEL)
-	if (primary_display_get_power_mode_nolock() == FB_SUSPEND)
-		disp_lcm_power_enable(pgc->plcm, 0);
-#endif
 /* pgc->state = DISP_SLEPT; */
 done:
 	primary_set_state(DISP_SLEPT);
-	dvfsrc_mdsrclkena_control_nolock(0);
 
 	if (primary_display_get_power_mode_nolock() == DOZE_SUSPEND)
 		primary_display_esd_check_enable(0);
 
 	_primary_path_unlock(__func__);
-#if defined(CONFIG_SMCDSD_PANEL)
-	disp_lcm_path_lock(0, pgc->plcm);
-#endif
 	disp_sw_mutex_unlock(&(pgc->capture_lock));
 	_primary_path_switch_dst_unlock();
 
-	aee_kernel_wdt_kick_Powkey_api("mtkfb_early_suspend",
-				       WDT_SETBY_Display);
 	primary_trigger_cnt = 0;
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_suspend,
 			 MMPROFILE_FLAG_END, 0, 0);
@@ -4391,13 +4357,6 @@ int primary_display_resume(void)
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_resume,
 			 MMPROFILE_FLAG_START, 0, 0);
 
-#if defined(CONFIG_SMCDSD_PANEL)
-/*
- *	@ disp_lcm_path_lock
- *	LCM lock -> primary display lock.
- */
-	disp_lcm_path_lock(1, pgc->plcm);
-#endif
 	_primary_path_lock(__func__);
 	if (pgc->state == DISP_ALIVE) {
 		DISPCHECK("primary display path is already resume, skip\n");
@@ -4429,13 +4388,6 @@ int primary_display_resume(void)
 		if (dsi_force_config)
 			DSI_ForceConfig(1);
 	}
-#if defined(CONFIG_SMCDSD_PANEL)
-	if ((primary_display_get_power_mode_nolock() == FB_RESUME) ||
-		(primary_display_get_power_mode_nolock() == DOZE))
-		disp_lcm_power_enable(pgc->plcm, 1);
-#endif
-
-	dvfsrc_mdsrclkena_control_nolock(1);
 	DISPDBG("dpmanager path power on[begin]\n");
 	primary_display_power_control(1);
 
@@ -4658,11 +4610,6 @@ int primary_display_resume(void)
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_resume,
 			 MMPROFILE_FLAG_PULSE, 0, 9);
 
-#if defined(CONFIG_SMCDSD_PANEL)
-	/* From now, MIPI TX command will be written via CMDQ engine */
-	disp_lcm_cmdq(pgc->plcm, 1);
-#endif
-
 	/* primary_display_diagnose(); */
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_resume,
 			 MMPROFILE_FLAG_PULSE, 0, 10);
@@ -4738,12 +4685,9 @@ done:
 		primary_display_esd_check_enable(1);
 
 	_primary_path_unlock(__func__);
-#if defined(CONFIG_SMCDSD_PANEL)
-	disp_lcm_path_lock(0, pgc->plcm);
-#endif
 	DISPMSG("skip_update:%d\n", skip_update);
 
-	aee_kernel_wdt_kick_Powkey_api("mtkfb_late_resume", WDT_SETBY_Display);
+	//aee_kernel_wdt_kick_Powkey_api("mtkfb_late_resume", WDT_SETBY_Display);
 #if defined(CONFIG_MTK_VSYNC_PRINT)
 	disp_register_irq_callback(vsync_print_handler);
 #endif
@@ -4928,13 +4872,8 @@ static int primary_display_trigger_nolock(int blocking, void *callback,
 	smart_ovl_try_switch_mode_nolock();
 
 	atomic_set(&delayed_trigger_kick, 1);
-done:
-	if ((primary_trigger_cnt > 1) && aee_kernel_Powerkey_is_press()) {
-		aee_kernel_wdt_kick_Powkey_api("primary_display_trigger",
-					       WDT_SETBY_Display);
-		primary_trigger_cnt = 0;
-	}
 
+done:
 	if (pgc->session_id > 0)
 		update_frm_seq_info(0, 0, 0, FRM_TRIGGER);
 
@@ -7293,75 +7232,6 @@ static int _screen_cap_by_cpu(unsigned int mva, enum UNIFIED_COLOR_FMT ufmt,
 	dpmgr_path_memout_clock(pgc->dpmgr_handle, 0);
 	_primary_path_unlock(__func__);
 	return 0;
-}
-
-int primary_display_capture_framebuffer_ovl(unsigned long pbuf,
-					    enum UNIFIED_COLOR_FMT ufmt)
-{
-	int ret = 0;
-	struct m4u_client_t *m4uClient = NULL;
-	unsigned int mva = 0;
-	unsigned int w_xres = primary_display_get_width();
-	unsigned int h_yres = primary_display_get_height();
-	unsigned int pixel_byte = primary_display_get_bpp() / 8;
-	int buffer_size = h_yres * w_xres * pixel_byte;
-	enum DISP_MODULE_ENUM after_eng = DISP_MODULE_OVL0;
-	int tmp;
-
-	DISPMSG("primary capture: begin\n");
-
-	disp_sw_mutex_lock(&(pgc->capture_lock));
-
-	if (primary_display_is_sleepd()) {
-		memset((void *)pbuf, 0, buffer_size);
-		DISPMSG("primary capture: Fail black End\n");
-		goto out;
-	}
-
-	m4uClient = m4u_create_client();
-	if (m4uClient == NULL) {
-		DISPERR("primary capture:Fail to alloc  m4uClient\n");
-		ret = -1;
-		goto out;
-	}
-
-	ret = m4u_alloc_mva(m4uClient, DISP_M4U_PORT_DISP_WDMA0, pbuf, NULL,
-			    buffer_size, M4U_PROT_READ | M4U_PROT_WRITE,
-			    0, &mva);
-	if (ret) {
-		DISPERR("primary capture:Fail to allocate mva\n");
-		ret = -1;
-		goto out;
-	}
-
-	ret = m4u_cache_sync(m4uClient, DISP_M4U_PORT_DISP_WDMA0, pbuf,
-			     buffer_size, mva, M4U_CACHE_FLUSH_ALL);
-	if (ret) {
-		DISPERR("primary capture:Fail to cach sync\n");
-		ret = -1;
-		goto out;
-	}
-	tmp = disp_helper_get_option(DISP_OPT_SCREEN_CAP_FROM_DITHER);
-	if (tmp == 0)
-		after_eng = DISP_MODULE_OVL0;
-
-	if (primary_display_cmdq_enabled())
-		_screen_cap_by_cmdq(mva, ufmt, after_eng);
-	else
-		_screen_cap_by_cpu(mva, ufmt, after_eng);
-
-	ret = m4u_cache_sync(m4uClient, DISP_M4U_PORT_DISP_WDMA0, pbuf,
-			     buffer_size, mva, M4U_CACHE_FLUSH_BY_RANGE);
-out:
-	if (mva > 0)
-		m4u_dealloc_mva(m4uClient, DISP_M4U_PORT_DISP_WDMA0, mva);
-
-	if (m4uClient)
-		m4u_destroy_client(m4uClient);
-
-	disp_sw_mutex_unlock(&(pgc->capture_lock));
-	DISPMSG("primary capture: end\n");
-	return ret;
 }
 
 int primary_display_capture_framebuffer(unsigned long pbuf)

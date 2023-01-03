@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 #include <linux/errno.h>
 #include <linux/mutex.h>
@@ -290,7 +282,6 @@ void pdc_select_pdo(int idx)
 	pd_noti.sink_status.selected_pdo_num = idx + 1;
 	pd_noti.sink_status.current_pdo_num = idx + 1;
 #endif
-
 	pr_info("%s: checking capabilities\n", __func__);
 	pdc_get_setting();
 }
@@ -423,6 +414,7 @@ int pdc_clear(void)
 	pd->data.unknown_num = 0;
 	pd->data.ps_rdy = 0;
 	pd->data.prev_available_pdo = -1;
+	pd->pd_idx = -1;
 #if defined(CONFIG_BATTERY_SAMSUNG) && defined(CONFIG_PDIC_NOTIFIER)
 	pdic_noti.src = PDIC_NOTIFY_DEV_PDIC;
 	pdic_noti.dest = PDIC_NOTIFY_DEV_BATT;
@@ -504,7 +496,7 @@ int pdc_get_setting(void)
 
 	cap = &pd->cap;
 
-	if (cap->nr == 0 || !pdc_is_ready() || !mt_charger_plugin())
+	if (cap->nr == 0 || !mt_charger_plugin())
 		return -1;
 
 	ret = charger_get_ibus(&ibus);
@@ -566,7 +558,7 @@ int pdc_get_setting(void)
 		pd_noti.sink_status.power_list[i + 1].comm_capable = adapter_is_src_usb_communication_capable();
 		pd_noti.sink_status.power_list[i + 1].suspend = adapter_is_src_usb_suspend_support();
 
-		pd_noti.sink_status.power_list[i + 1].accept = true;
+			pd_noti.sink_status.power_list[i + 1].accept = true;
 		if (cap->type[i] == MTK_PD_APDO) {
 			pd_noti.sink_status.power_list[i + 1].apdo = true;
 			pd_noti.sink_status.power_list[i + 1].pdo_type = APDO_TYPE;
@@ -577,7 +569,7 @@ int pdc_get_setting(void)
 			pd_noti.sink_status.has_apdo = false;
 		}
 		pr_info("%s : PDO_Num[%d,%s,%s] MAX_CURR(%d) MAX_VOLT(%d), AVAILABLE_PDO_Num(%d), comm(%d), suspend(%d)\n", __func__,
-				i, pd_noti.sink_status.power_list[i + 1].apdo ? "APDO" : "FIXED", pd_noti.sink_status.power_list[i + 1].accept ? "O" : "X", 
+				i, pd_noti.sink_status.power_list[i + 1].apdo ? "APDO" : "FIXED", pd_noti.sink_status.power_list[i + 1].accept ? "O" : "X",
 				pd_noti.sink_status.power_list[i + 1].max_current,
 				pd_noti.sink_status.power_list[i + 1].max_voltage,
 				pd_noti.sink_status.available_pdo_num,
@@ -609,12 +601,8 @@ int pdc_get_setting(void)
 	pd->data.ps_rdy = 1;
 	pd->data.prev_available_pdo = pd_noti.sink_status.available_pdo_num;
 
-	pr_info("%s : pd_noti.event = %d, mt_charger_plugin:%d\n", __func__, pd_noti.event, mt_charger_plugin());
-#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	pr_info("%s : pd_noti.event = %d\n", __func__, pd_noti.event);
 	pdic_noti.sub1 = 1;
-#else
-	pdic_noti.sub1 = 0;
-#endif
 	pdic_noti.sub2 = 0;
 	pdic_noti.sub3 = 0;
 	if (mt_charger_plugin())

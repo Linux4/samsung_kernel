@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (C) 2020 MediaTek Inc.
  */
 
 #define pr_fmt(fmt) "[mtk_nanohub]" fmt
@@ -22,20 +14,22 @@
 #include <linux/types.h>
 #include <linux/module.h>
 #include <linux/suspend.h>
-#include <linux/time.h>
+#include <linux/pm_wakeup.h>
+#include <linux/timer.h>
+#include <linux/timekeeping.h>
 #include <asm/arch_timer.h>
 #include <linux/math64.h>
 #include <linux/delay.h>
 #include <uapi/linux/sched/types.h>
+#include <scp.h>
 
-#include "scp_ipi.h"
-#include "scp_helper.h"
-#include "scp_excep.h"
 #include "mtk_nanohub.h"
 #include "comms.h"
 #include "hf_manager.h"
 #include "sensor_list.h"
 #include "mtk_nanohub_ipi.h"
+
+extern int __init nanohub_init(void);
 
 /* ALGIN TO SCP SENSOR_IPI_SIZE AT FILE CONTEXTHUB_FW.H, ALGIN
  * TO SCP_SENSOR_HUB_DATA UNION, ALGIN TO STRUCT DATA_UNIT_T
@@ -77,8 +71,8 @@ struct mtk_nanohub_device {
 	struct hf_device hf_dev;
 	struct timer_list sync_time_timer;
 	struct work_struct sync_time_worker;
-	struct wakeup_source time_sync_wakeup_src;
-	struct wakeup_source data_notify_wakeup_src;
+	struct wakeup_source *time_sync_wakeup_src;
+	struct wakeup_source *data_notify_wakeup_src;
 
 	struct sensor_fifo *scp_sensor_fifo;
 	struct curr_wp_queue wp_queue;
@@ -124,15 +118,15 @@ static int mtk_nanohub_report_to_manager(struct data_unit_t *data);
 static int mtk_nanohub_create_manager(void);
 
 enum scp_ipi_status __attribute__((weak)) scp_ipi_registration(enum ipi_id id,
-	void (*ipi_handler)(int id, void *data, unsigned int len),
-	const char *name)
+        void (*ipi_handler)(int id, void *data, unsigned int len),
+        const char *name)
 {
-	return SCP_IPI_ERROR;
+        return SCP_IPI_ERROR;
 }
 
 enum scp_ipi_status __attribute__((weak)) scp_ipi_unregistration(enum ipi_id id)
 {
-	return SCP_IPI_ERROR;
+        return SCP_IPI_ERROR;
 }
 
 void __attribute__((weak)) scp_A_register_notify(struct notifier_block *nb)
@@ -146,21 +140,21 @@ void __attribute__((weak)) scp_A_unregister_notify(struct notifier_block *nb)
 }
 
 phys_addr_t __attribute__((weak))
-	scp_get_reserve_mem_virt(enum scp_reserve_mem_id_t id)
+        scp_get_reserve_mem_virt(enum scp_reserve_mem_id_t id)
 {
-	return 0;
+        return 0;
 }
 
 phys_addr_t __attribute__((weak))
-	scp_get_reserve_mem_phys(enum scp_reserve_mem_id_t id)
+        scp_get_reserve_mem_phys(enum scp_reserve_mem_id_t id)
 {
-	return 0;
+        return 0;
 }
 
 phys_addr_t __attribute__((weak))
-	scp_get_reserve_mem_size(enum scp_reserve_mem_id_t id)
+        scp_get_reserve_mem_size(enum scp_reserve_mem_id_t id)
 {
-	return 0;
+        return 0;
 }
 
 void __attribute__((weak)) scp_register_feature(enum feature_id id)
@@ -177,7 +171,7 @@ static inline uint64_t arch_counter_to_ns(uint64_t cyc)
 
 #define FILTER_DATAPOINTS	16
 #define FILTER_TIMEOUT		10000000000ULL /* 10 seconds, ~100us drift */
-#define FILTER_FREQ			10000000ULL /* 10 ms */
+#define FILTER_FREQ		10000000ULL /* 10 ms */
 struct moving_average {
 	uint64_t last_time;
 	int64_t input[FILTER_DATAPOINTS];
@@ -188,6 +182,7 @@ struct moving_average {
 };
 static struct moving_average moving_average_algo;
 static uint8_t rtc_compensation_suspend;
+
 static void moving_average_filter(struct moving_average *filter,
 		uint64_t ap_time, uint64_t hub_time)
 {
@@ -209,8 +204,6 @@ static void moving_average_filter(struct moving_average *filter,
 	filter->tail &= (FILTER_DATAPOINTS - 1);
 	if (filter->cnt < FILTER_DATAPOINTS)
 		filter->cnt++;
-
-	/* pr_err("hongxu raw_offset=%lld\n", ap_time - hub_time); */
 
 	for (i = 1, avg = 0; i < filter->cnt; i++)
 		avg += (filter->input[i] - filter->input[0]);
@@ -247,7 +240,8 @@ int mtk_nanohub_req_send(union SCP_SENSOR_HUB_DATA *data)
 	int ret = 0;
 
 	if (data->req.sensorType >= ID_SENSOR_MAX) {
-		pr_err("invalid sensor type %d\n", data->rsp.sensorType);
+		pr_err("invalid sensor type %d when req send ipi\n",
+			data->rsp.sensorType);
 		return -1;
 	}
 	ret = mtk_nanohub_ipi_sync((unsigned char *)data,
@@ -307,7 +301,7 @@ static void mtk_nanohub_sync_time_work(struct work_struct *work)
 	mtk_nanohub_send_timestamp_to_hub();
 }
 
-static void mtk_nanohub_sync_time_func(unsigned long data)
+static void mtk_nanohub_sync_time_func(struct timer_list *list)
 {
 	struct mtk_nanohub_device *device = mtk_nanohub_dev;
 
@@ -319,11 +313,13 @@ static void mtk_nanohub_sync_time_func(unsigned long data)
 
 static int mtk_nanohub_direct_push_work(void *data)
 {
-	for (;;) {
-		if (wait_event_interruptible(chre_kthread_wait,
-			READ_ONCE(chre_kthread_wait_condition)))
-			continue;
+	int ret = 0;
 
+	for (;;) {
+		ret = wait_event_interruptible(chre_kthread_wait,
+			READ_ONCE(chre_kthread_wait_condition));
+		if (ret)
+			continue;
 		WRITE_ONCE(chre_kthread_wait_condition, false);
 		mtk_nanohub_read_wp_queue();
 	}
@@ -342,10 +338,12 @@ static void mtk_nanohub_moving_average(union SCP_SENSOR_HUB_DATA *rsp)
 	uint64_t scp_raw_time = 0, scp_now_time = 0;
 	uint64_t ipi_transfer_time = 0;
 
-	if (!timekeeping_rtc_skipresume()) {
-		if (READ_ONCE(rtc_compensation_suspend))
-			return;
-	}
+	/*
+	 *if (!timekeeping_rtc_skipresume()) {
+	 *	if (READ_ONCE(rtc_compensation_suspend))
+	 *		return;
+	 *}
+	 */
 	ap_now_time = ktime_get_boot_ns();
 	arch_counter = arch_counter_get_cntvct();
 	scp_raw_time = rsp->notify_rsp.scp_timestamp;
@@ -371,6 +369,7 @@ static void mtk_nanohub_notify_cmd(union SCP_SENSOR_HUB_DATA *rsp,
 	case SCP_NOTIFY:
 		break;
 	case SCP_INIT_DONE:
+		pr_info("notify cmd SCP_INIT_DONE\n");
 		spin_lock_irqsave(&scp_state_lock, flags);
 		WRITE_ONCE(scp_chre_ready, true);
 		if (READ_ONCE(scp_system_ready) && READ_ONCE(scp_chre_ready)) {
@@ -423,7 +422,7 @@ static void mtk_nanohub_ipi_handler(int id,
 	const struct mtk_nanohub_cmd *cmd;
 
 	if (len > SENSOR_IPI_SIZE) {
-		pr_err("%s len=%d error\n", __func__, len);
+		pr_err("IPI_SENSOR len=%d error\n", len);
 		return;
 	}
 	/*pr_err("sensorType:%d, action=%d event:%d len:%d\n",
@@ -433,7 +432,7 @@ static void mtk_nanohub_ipi_handler(int id,
 	if (cmd != NULL)
 		cmd->handler(rsp, len);
 	else
-		pr_err("cannot find cmd!\n");
+		pr_err("IPI_SENSOR cannot find cmd!\n");
 }
 
 static void mtk_nanohub_get_sensor_info(void)
@@ -920,9 +919,9 @@ static int mtk_nanohub_send_timestamp_to_hub(void)
 		return 0;
 	}
 
-	__pm_stay_awake(&device->time_sync_wakeup_src);
+	__pm_stay_awake(device->time_sync_wakeup_src);
 	err = mtk_nanohub_send_timestamp_wake_locked();
-	__pm_relax(&device->time_sync_wakeup_src);
+	__pm_relax(device->time_sync_wakeup_src);
 	return err;
 }
 
@@ -1313,7 +1312,7 @@ int mtk_nanohub_set_cmd_to_hub(uint8_t sensor_id,
 		switch (action) {
 		case CUST_ACTION_GET_RAW_DATA:
 			req.set_cust_req.getRawData.action =
-				CUST_ACTION_GET_RAW_DATA;
+						CUST_ACTION_GET_RAW_DATA;
 			len = offsetof(struct SCP_SENSOR_HUB_SET_CUST_REQ,
 				custData) + sizeof(req.set_cust_req.getRawData);
 			err = mtk_nanohub_req_send(&req);
@@ -1596,6 +1595,7 @@ int mtk_nanohub_set_cmd_to_hub(uint8_t sensor_id,
 			return -1;
 		}
 	}
+
 	err = mtk_nanohub_req_send(&req);
 	if (err < 0) {
 		pr_err("set_cust fail!\n");
@@ -1796,14 +1796,15 @@ static void mtk_nanohub_start_timesync(void)
 
 void mtk_nanohub_power_up_loop(void *data)
 {
-	int id = 0;
+	int ret = 0, id = 0;
 	struct mtk_nanohub_device *device = mtk_nanohub_dev;
 	unsigned long flags = 0;
 
-	if (wait_event_interruptible(power_reset_wait,
-		READ_ONCE(scp_system_ready) && READ_ONCE(scp_chre_ready)))
+	ret = wait_event_interruptible(power_reset_wait,
+		READ_ONCE(scp_system_ready) && READ_ONCE(scp_chre_ready));
+	if (ret)
 		return;
-
+	pr_info("SCP power up\n");
 	spin_lock_irqsave(&scp_state_lock, flags);
 	WRITE_ONCE(scp_chre_ready, false);
 	WRITE_ONCE(scp_system_ready, false);
@@ -1813,6 +1814,7 @@ void mtk_nanohub_power_up_loop(void *data)
 	/* 1. reset wp queue head and tail */
 	device->wp_queue.head = 0;
 	device->wp_queue.tail = 0;
+
 	/* 2. init dram information */
 	WRITE_ONCE(device->scp_sensor_fifo,
 		(struct sensor_fifo *)
@@ -1854,11 +1856,40 @@ static int mtk_nanohub_power_up_work(void *data)
 	return 0;
 }
 
+static int send_sensor_init_start_event(void)
+{
+	enum scp_ipi_status ipi_status = SCP_IPI_ERROR;
+	uint32_t sensor_init_start_event = 0;
+	uint32_t retry = 0;
+
+	do {
+		ipi_status = scp_ipi_send(IPI_SENSOR_INIT_START,
+			&sensor_init_start_event,
+			sizeof(sensor_init_start_event),
+			0, SCP_A_ID);
+		if (ipi_status == SCP_IPI_ERROR) {
+			pr_err("IPI_SENSOR_INIT_START send fail\n");
+			return -1;
+		}
+		if (ipi_status == SCP_IPI_BUSY) {
+			if (retry++ == 1000) {
+				pr_err("IPI_SENSOR_INIT_START retry fail\n");
+				return -1;
+			}
+			if (retry % 10 == 0)
+				usleep_range(1000, 2000);
+		}
+	} while (ipi_status == SCP_IPI_BUSY);
+
+	return 0;
+}
+
 static int mtk_nanohub_ready_event(struct notifier_block *this,
 	unsigned long event, void *ptr)
 {
 	unsigned long flags = 0;
 
+	pr_info("notify event:%lu\n", event);
 	if (event == SCP_EVENT_STOP) {
 		spin_lock_irqsave(&scp_state_lock, flags);
 		WRITE_ONCE(scp_system_ready, false);
@@ -1868,6 +1899,9 @@ static int mtk_nanohub_ready_event(struct notifier_block *this,
 	}
 
 	if (event == SCP_EVENT_READY) {
+		if (send_sensor_init_start_event())
+			return NOTIFY_BAD;
+
 		spin_lock_irqsave(&scp_state_lock, flags);
 		WRITE_ONCE(scp_system_ready, true);
 		if (READ_ONCE(scp_system_ready) && READ_ONCE(scp_chre_ready)) {
@@ -1933,6 +1967,7 @@ static int mtk_nanohub_config(struct hf_device *hfdev,
 
 	if (sensor_type <= 0)
 		return 0;
+
 	pr_notice("%s [%d]\n", __func__, sensor_type);
 	switch (type_to_id(sensor_type)) {
 	case ID_ACCELEROMETER:
@@ -2429,16 +2464,14 @@ static int mtk_nanohub_report_to_manager(struct data_unit_t *data)
 		event.word[4] = data->data[4];
 		event.word[5] = data->data[5];
 	}
-	/*
-	 * oneshot proximity tiledetect should wakeup source when data action
-	 */
+
+	/* oneshot proximity tiledetect should wakeup source when data action */
 	if (data->flush_action == DATA_ACTION) {
 		if (data->sensor_type == ID_PROXIMITY ||
 			data->sensor_type == ID_TILT_DETECTOR ||
 			sensor_state[id_to_type(data->sensor_type)].rate ==
 				SENSOR_RATE_ONESHOT) {
-			__pm_wakeup_event(&device->data_notify_wakeup_src,
-				250);
+			__pm_wakeup_event(device->data_notify_wakeup_src, 250);
 		}
 	}
 	return manager->report(manager, &event);
@@ -2512,18 +2545,18 @@ static ssize_t trace_store(struct device_driver *ddri,
 	int res = 0;
 
 	if (sscanf(buf, "%d,%d", &id, &trace) != 2) {
-		pr_err("invalid content: '%s', length = %zu\n", buf, count);
+		pr_info("invalid content: '%s', length = %zu\n", buf, count);
 		goto err_out;
 	}
 
 	if (id < 0 || id >= ID_SENSOR_MAX) {
-		pr_debug("invalid id value:%d,should be '0<=id<=%d'\n",
+		pr_info("invalid id value:%d,should be '0<=id<=%d'\n",
 			trace, ID_SENSOR_MAX);
 		goto err_out;
 	}
 
 	if (trace != 0 && trace != 1) {
-		pr_debug("invalid trace value:%d,trace should be '0' or '1'",
+		pr_info("invalid trace value:%d,trace should be '0' or '1'",
 			trace);
 		goto err_out;
 	}
@@ -2531,7 +2564,7 @@ static ssize_t trace_store(struct device_driver *ddri,
 	res = mtk_nanohub_set_cmd_to_hub(id,
 			CUST_ACTION_SET_TRACE, &trace);
 	if (res < 0) {
-		pr_err("cmd_to_hub (ID: %d),(action: %d)err: %d\n", id,
+		pr_info("cmd_to_hub fail.ID: %d,action:%d,err: %d\n", id,
 					CUST_ACTION_SET_TRACE, res);
 	} else
 		atomic_set(&device->traces[id], trace);
@@ -2557,7 +2590,7 @@ static int mtk_nanohub_create_attr(struct device_driver *driver)
 	for (idx = 0; idx < num; idx++) {
 		err = driver_create_file(driver, mtk_nanohub_attrs[idx]);
 		if (err) {
-			pr_err("driver_create_file (%s) = %d\n",
+			pr_err("driver_create_file(%s) failed,err = %d\n",
 				mtk_nanohub_attrs[idx]->attr.name, err);
 			break;
 		}
@@ -2611,6 +2644,7 @@ static int mtk_nanohub_probe(struct platform_device *pdev)
 		goto exit_kfree;
 	}
 	mtk_nanohub_dev = device;
+
 	/* init sensor share dram write pointer event queue */
 	spin_lock_init(&device->wp_queue.buffer_lock);
 	device->wp_queue.head = 0;
@@ -2622,75 +2656,107 @@ static int mtk_nanohub_probe(struct platform_device *pdev)
 		err = -ENOMEM;
 		goto exit_device;
 	}
+
 	/* init the debug trace flag */
 	for (index = 0; index < ID_SENSOR_MAX; index++)
 		atomic_set(&device->traces[index], 0);
+
 	/* init scp boot flags */
 	atomic_set(&device->cfg_data_after_reboot, 0);
 	atomic_set(&device->start_timesync_first_boot, 0);
 	atomic_set(&device->create_manager_first_boot, 0);
+
 	/* init timestamp sync worker */
 	INIT_WORK(&device->sync_time_worker, mtk_nanohub_sync_time_work);
-	device->sync_time_timer.expires =
-		jiffies + msecs_to_jiffies(SYNC_TIME_START_CYCLC);
-	device->sync_time_timer.function = mtk_nanohub_sync_time_func;
-	init_timer(&device->sync_time_timer);
+	timer_setup(&device->sync_time_timer, mtk_nanohub_sync_time_func, 0);
+	mod_timer(&device->sync_time_timer,
+			  jiffies + msecs_to_jiffies(SYNC_TIME_START_CYCLC));
+
 	/* init wakeup source */
-	wakeup_source_init(&device->time_sync_wakeup_src, "sync_time");
-	wakeup_source_init(&device->data_notify_wakeup_src, "data_notify");
+	device->time_sync_wakeup_src = wakeup_source_register(NULL, "synctime");
+	if (!device->time_sync_wakeup_src) {
+		pr_err("time sync wakeup source init fail\n");
+		err = -ENOMEM;
+		goto exit_kfree_2;
+	}
+
+	device->data_notify_wakeup_src = wakeup_source_register(NULL,
+								"data_notify");
+	if (!device->data_notify_wakeup_src) {
+		pr_err("data_notify wakeup source init fail\n");
+		err = -ENOMEM;
+		goto exit_wakeup_source_unreg;
+	}
+
 	/* init nanohub ipi */
-	mtk_nanohub_ipi_init();
+	err = mtk_nanohub_ipi_init();
+	if (err)
+		goto exit_wakeup_source_unreg_2;
+
 	/* register ipi interrupt handler */
-	scp_ipi_registration(IPI_SENSOR,
-		mtk_nanohub_ipi_handler, "mtk_nanohub");
+	err = scp_ipi_registration(IPI_SENSOR, mtk_nanohub_ipi_handler,
+				   "mtk_nanohub");
+	if (err != SCP_IPI_DONE) {
+		pr_err("IPI_SENSOR register fail, err:%d\n", err);
+		goto exit_wakeup_source_unreg_2;
+	}
+
 	/* this call back can get scp power down status */
 	scp_A_register_notify(&mtk_nanohub_ready_notifier);
+
 	/* init data path */
 	WRITE_ONCE(chre_kthread_wait_condition, false);
 	task = kthread_run(mtk_nanohub_direct_push_work,
-		NULL, "chre_kthread");
+			   NULL, "chre_kthread");
 	if (IS_ERR(task)) {
+		err = -ENOMEM;
 		pr_err("mtk_nanohub_direct_push_work create fail!\n");
-		goto exit_scp;
+		goto exit_scp_ipi_reg;
 	}
 	sched_setscheduler(task, SCHED_FIFO, &param);
+
 	/* this call back can get scp power UP status */
 	task_power_reset = kthread_run(mtk_nanohub_power_up_work,
-		NULL, "scp_power_reset");
+				       NULL, "scp_power_reset");
 	if (IS_ERR(task_power_reset)) {
+		err = -ENOMEM;
 		pr_err("mtk_nanohub_power_up_work create fail!\n");
-		goto exit_scp;
+		goto exit_scp_ipi_reg;
 	}
+
 	err = mtk_nanohub_create_attr(pdev->dev.driver);
 	if (err < 0) {
-		pr_err("create attribute err\n");
-		goto exit_scp;
+		pr_err("create attribute err,err:%d\n", err);
+		goto exit_scp_ipi_reg;
 	}
 	err = register_pm_notifier(&mtk_nanohub_pm_notifier_func);
 	if (err < 0) {
-		pr_err("Failed to register PM notifier.\n");
+		pr_err("register PM notifier fail, err:%d\n", err);
 		goto exit_attr;
 	}
 
 	pr_info("init done, data_unit_t:%d, SCP_SENSOR_HUB_DATA:%d\n",
 		(int)sizeof(struct data_unit_t),
 		(int)sizeof(union SCP_SENSOR_HUB_DATA));
-	BUG_ON(sizeof(struct data_unit_t) != SENSOR_DATA_SIZE
-		|| sizeof(union SCP_SENSOR_HUB_DATA) != SENSOR_IPI_SIZE);
 	return 0;
 
 exit_attr:
 	mtk_nanohub_delete_attr(pdev->dev.driver);
-exit_scp:
+exit_scp_ipi_reg:
 	scp_A_unregister_notify(&mtk_nanohub_ready_notifier);
 	scp_ipi_unregistration(IPI_SENSOR);
+exit_wakeup_source_unreg_2:
+	wakeup_source_unregister(device->data_notify_wakeup_src);
+exit_wakeup_source_unreg:
+	wakeup_source_unregister(device->time_sync_wakeup_src);
+exit_kfree_2:
 	vfree(device->wp_queue.ringbuffer);
 exit_device:
 	hf_device_unregister(&device->hf_dev);
 exit_kfree:
 	kfree(device);
 exit:
-	pr_err("%s: err = %d\n", __func__, err);
+	pr_err("%s fail.err = %d\n", __func__, err);
 	return err;
 }
 
@@ -2728,7 +2794,7 @@ static void mtk_nanohub_shutdown(struct platform_device *pdev)
 			ret = nanohub_external_write((const uint8_t *)&cmd,
 				sizeof(struct ConfigCmd));
 			if (ret < 0)
-				pr_notice("failed registerlistener [%d,%d]\n",
+				pr_warn("fail to set sensor:%d %d in shutdwn\n",
 					id, cmd.cmd);
 		}
 	}
@@ -2751,23 +2817,41 @@ static struct platform_driver mtk_nanohub_pdrv = {
 
 static int __init mtk_nanohub_init(void)
 {
-	if (platform_device_register(&mtk_nanohub_pdev)) {
-		pr_err("mtk_nanohub platform device error\n");
-		return -1;
+	int ret = 0;
+
+	ret = nanohub_init();
+	if (ret)
+		goto err_exit;
+
+	ret = platform_device_register(&mtk_nanohub_pdev);
+	if (ret) {
+		pr_err("platform dev reg fail,ret:%d\n", ret);
+		goto err_exit;
 	}
-	if (platform_driver_register(&mtk_nanohub_pdrv)) {
-		pr_err("mtk_nanohub platform driver error\n");
-		return -1;
+
+	ret = platform_driver_register(&mtk_nanohub_pdrv);
+	if (ret) {
+		pr_err("platform drv reg fail,ret:%d\n", ret);
+		goto err_unregister_device;
 	}
+
 	return 0;
+
+err_unregister_device:
+	platform_device_unregister(&mtk_nanohub_pdev);
+err_exit:
+	return ret;
 }
 
 static void __exit mtk_nanohub_exit(void)
 {
+	platform_driver_unregister(&mtk_nanohub_pdrv);
+	platform_device_unregister(&mtk_nanohub_pdev);
 }
 
 module_init(mtk_nanohub_init);
 module_exit(mtk_nanohub_exit);
+
 MODULE_AUTHOR("Mediatek");
 MODULE_DESCRIPTION("mtk_nanohub driver");
 MODULE_LICENSE("GPL");

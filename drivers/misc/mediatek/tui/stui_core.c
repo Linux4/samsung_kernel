@@ -9,6 +9,7 @@
  * published by the Free Software Foundation.
  */
 
+#include <linux/device.h>
 #include <linux/delay.h>
 #include <linux/highmem.h>
 #include <linux/interrupt.h>
@@ -20,7 +21,7 @@
 #include "stui_ioctl.h"
 #include "stui_inf.h"
 
-extern struct wakeup_source tui_ws;
+extern struct wakeup_source *tui_ws;
 
 #ifdef SAMSUNG_TUI_TEST
 static uint64_t g_fb_pa;
@@ -85,7 +86,7 @@ long stui_process_cmd(struct file *f, unsigned int cmd, unsigned long arg)
 		/* Prepare display for TUI / Deactivate linux UI drivers */
 		if (!stui_prepare_tui()) {
 			stui_set_mask(STUI_MODE_DISPLAY_SEC);
-			__pm_stay_awake(&tui_ws);
+			__pm_stay_awake(tui_ws);
 			break;
 		}
 clean_touch_lock:
@@ -108,7 +109,7 @@ clean_fb_prepare:
 			stui_clear_mask(STUI_MODE_DISPLAY_SEC);
 			stui_finish_tui();
 			stui_free_video_space();
-			__pm_relax(&tui_ws);
+			__pm_relax(tui_ws);
 		}
 		if (stui_get_mode() & STUI_MODE_TOUCH_SEC) {
 			stui_clear_mask(STUI_MODE_TOUCH_SEC);

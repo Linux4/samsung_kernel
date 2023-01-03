@@ -1,15 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2019 MediaTek Inc.
  */
+
 
 #ifndef __MODEM_REG_BASE_H__
 #define __MODEM_REG_BASE_H__
@@ -25,11 +18,12 @@
 
 #define MD_BOOT_VECTOR_EN 0x20000024
 
-#define MD_PCORE_PCCIF_BASE 0x20510000
+//#define MD_PCORE_PCCIF_BASE 0x20510000
 
 #define MD_GLOBAL_CON0 0x20000450
 #define MD_GLOBAL_CON0_CLDMA_BIT 12
-#define CCIF_SRAM_SIZE 512
+
+//#define CCIF_SRAM_SIZE 512
 
 #define BASE_ADDR_MDRSTCTL   0x200f0000  /* From md, no use by AP directly */
 #define L1_BASE_ADDR_L1RGU   0x26010000  /* From md, no use by AP directly  */

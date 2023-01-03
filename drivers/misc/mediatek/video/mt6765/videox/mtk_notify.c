@@ -5,6 +5,9 @@
  */
 
 #include "mtk_notify.h"
+#if defined(CONFIG_SMCDSD_PANEL)
+#include "primary_display.h"
+#endif
 
 static struct class *notify_class;
 

@@ -22,12 +22,7 @@
 #include <linux/fs_struct.h>
 #include <linux/ratelimit.h>
 #include <linux/sched/task.h>
-#ifdef CONFIG_KDP_CRED
-#include <linux/kdp.h>
-#endif
-#ifdef CONFIG_RUSTUH_KDP_CRED
-#include <linux/rustkdp.h>
-#endif
+
 const struct cred *override_fsids(struct sdcardfs_sb_info *sbi,
 		struct sdcardfs_inode_data *data)
 {
@@ -60,14 +55,6 @@ void revert_fsids(const struct cred *old_cred)
 	const struct cred *cur_cred;
 
 	cur_cred = current->cred;
-#ifdef CONFIG_KDP_CRED
-	if(rkp_ro_page((unsigned long)cur_cred))
-		cur_cred = (const struct cred *)get_reflected_cred(cur_cred);
-#endif
-#ifdef CONFIG_RUSTUH_KDP_CRED
-	if(is_kdp_protect_addr((unsigned long)cur_cred))
-		cur_cred = (const struct cred *)GET_REFLECTED_CRED(cur_cred);
-#endif
 	revert_creds(old_cred);
 	put_cred(cur_cred);
 }
@@ -796,11 +783,6 @@ static int sdcardfs_getattr(const struct path *path, struct kstat *stat,
 		goto out;
 	sdcardfs_copy_and_fix_attrs(d_inode(dentry),
 			      d_inode(lower_path.dentry));
-	if (sizeof(loff_t) > sizeof(long))
-		inode_lock(dentry->d_inode);
-	fsstack_copy_inode_size(dentry->d_inode, lower_path.dentry->d_inode);
-	if (sizeof(loff_t) > sizeof(long))
-		inode_unlock(dentry->d_inode);
 	err = sdcardfs_fillattr(mnt, d_inode(dentry), &lower_stat, stat);
 out:
 	sdcardfs_put_lower_path(dentry, &lower_path);

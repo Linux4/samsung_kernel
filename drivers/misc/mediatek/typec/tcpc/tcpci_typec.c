@@ -1,16 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * TCPC Type-C Driver for Richtek
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/delay.h>
@@ -33,7 +23,7 @@ extern struct pdic_notifier_struct pd_noti;
 #endif
 #if defined(CONFIG_BATTERY_NOTIFIER)
 #include <linux/battery/battery_notifier.h>
-#else
+#elif defined(CONFIG_BATTERY_SAMSUNG)
 #include <linux/battery/sec_pd.h>
 #endif
 
@@ -517,8 +507,10 @@ static void typec_wd_work(struct work_struct *work)
 	struct tcpc_device *tcpc = container_of(work, struct tcpc_device,
 						wd_status_work.work);
 
+	mutex_lock(&tcpc->wd_lock);
 	if (tcpci_is_water_detected(tcpc) > 0)
 		tcpc_typec_handle_wd(tcpc, true);
+	mutex_unlock(&tcpc->wd_lock);
 }
 
 static int typec_check_water_status(struct tcpc_device *tcpc)
@@ -528,8 +520,6 @@ static int typec_check_water_status(struct tcpc_device *tcpc)
 
 	TCPC_INFO("%s\n", __func__);
 
-
-	cancel_delayed_work_sync(&tcpc->wd_status_work);
 	schedule_delayed_work(&tcpc->wd_status_work, 0);
 
 	return 0;
@@ -537,41 +527,41 @@ static int typec_check_water_status(struct tcpc_device *tcpc)
 #endif /* CONFIG_WATER_DETECTION */
 
 #ifdef CONFIG_CC_BOUNCE_DETECTION
-static void typec_reset_cc_bounce(struct tcpc_device *tcpc_dev)
+static void typec_reset_cc_bounce(struct tcpc_device *tcpc)
 {
-	tcpc_dev->cc_bounce_cnt = 0;
-	tcpc_dev->cc_bounce_detected = false;
+	tcpc->cc_bounce_cnt = 0;
+	tcpc->cc_bounce_detected = false;
 }
 
-static bool typec_check_cc_bounce(struct tcpc_device *tcpc_dev)
+static bool typec_check_cc_bounce(struct tcpc_device *tcpc)
 {
 	s64 bounce_lapse;
 
-	if (tcpc_dev->cc_bounce_cnt > 0) {
+	if (tcpc->cc_bounce_cnt > 0) {
 		bounce_lapse = ktime_ms_delta(ktime_get(),
-					      tcpc_dev->last_cc_change_time);
+					      tcpc->last_cc_change_time);
 		TCPC_INFO("%s cc bounce lapse %lldms\n", __func__, bounce_lapse);
 		if (bounce_lapse >= CONFIG_CC_BOUNCE_TIME) {
-			typec_reset_cc_bounce(tcpc_dev);
+			typec_reset_cc_bounce(tcpc);
 			goto out;
 		}
-		if (tcpc_dev->cc_bounce_cnt == CONFIG_CC_BOUNCE_COUNT &&
-		    !tcpc_dev->cc_bounce_detected) {
-			tcpc_dev->cc_bounce_detected = true;
+		if (tcpc->cc_bounce_cnt == CONFIG_CC_BOUNCE_COUNT &&
+		    !tcpc->cc_bounce_detected) {
+			tcpc->cc_bounce_detected = true;
 			TCPC_INFO("%s cc bounce detected\n", __func__);
 #ifdef CONFIG_WD_TRY_CC_BOUNCE
-			typec_check_water_status(tcpc_dev);
+			typec_check_water_status(tcpc);
 #endif /* CONFIG_WD_TRY_CC_BOUNCE */
 		}
 	}
-	if (!tcpc_dev->cc_bounce_detected) {
-		tcpc_dev->cc_bounce_cnt++;
+	if (!tcpc->cc_bounce_detected) {
+		tcpc->cc_bounce_cnt++;
 		TCPC_INFO("%s cc bounce count %d\n", __func__,
-			 tcpc_dev->cc_bounce_cnt);
+			 tcpc->cc_bounce_cnt);
 	}
-	tcpc_dev->last_cc_change_time = ktime_get();
+	tcpc->last_cc_change_time = ktime_get();
 out:
-	return tcpc_dev->cc_bounce_detected;
+	return tcpc->cc_bounce_detected;
 }
 #endif /* CONFIG_CC_BOUNCE_DETECTION */
 
@@ -613,8 +603,7 @@ static inline int typec_norp_src_attached_entry(struct tcpc_device *tcpc)
 #ifdef CONFIG_WATER_DETECTION
 #ifdef CONFIG_WD_POLLING_ONLY
 	if (!tcpc->typec_power_ctrl) {
-		if (get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT ||
-		    get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT)
+		if (tcpc->bootmode == 8 || tcpc->bootmode == 9)
 			typec_check_water_status(tcpc);
 
 		tcpci_set_usbid_polling(tcpc, false);
@@ -772,9 +761,7 @@ static inline void typec_unattached_cc_entry(struct tcpc_device *tcpc)
 	}
 #endif	/* CONFIG_TYPEC_CAP_ROLE_SWAP */
 #ifdef CONFIG_CABLE_TYPE_DETECTION
-	if (tcpc->typec_state == typec_attached_snk ||
-	    tcpc->typec_state == typec_unattachwait_pe)
-		tcpc_typec_handle_ctd(tcpc, TCPC_CABLE_TYPE_NONE);
+	tcpc_typec_handle_ctd(tcpc, TCPC_CABLE_TYPE_NONE);
 #endif /* CONFIG_CABLE_TYPE_DETECTION */
 
 	tcpc->typec_role = tcpc->typec_role_new;
@@ -2355,13 +2342,14 @@ int tcpc_typec_handle_cc_change(struct tcpc_device *tcpc)
 		if (typec_state_old == typec_unattached_snk ||
 		    typec_state_old == typec_unattached_src) {
 #ifdef CONFIG_WD_POLLING_ONLY
-			if (get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT
-			    || get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT)
+			if (tcpc->bootmode == 8 || tcpc->bootmode == 9)
 				typec_check_water_status(tcpc);
 #ifdef CONFIG_WD_INIT_POWER_OFF_CHARGE
 			else if (tcpc->init_pwroff_check) {
 				tcpc->init_pwroff_check = false;
+#if IS_ENABLED(CONFIG_SEC_HICCUP)
 				tcpc->init_pwroff_hiccup = true;
+#endif
 				typec_check_water_status(tcpc);
 			}
 #endif /* CONFIG_WD_INIT_POWER_OFF_CHARGE */
@@ -2492,20 +2480,22 @@ static inline int typec_handle_pe_idle(struct tcpc_device *tcpc)
 #ifdef CONFIG_USB_PD_WAIT_BC12
 static inline void typec_handle_pd_wait_bc12(struct tcpc_device *tcpc)
 {
+	int ret = 0;
 	uint8_t type = TYPEC_UNATTACHED;
-	enum charger_type chg_type = CHARGER_UNKNOWN;
+	union power_supply_propval val = {.intval = 0};
 
 	mutex_lock(&tcpc->access_lock);
 
 	type = tcpc->typec_attach_new;
-	chg_type = mt_get_charger_type();
-	TYPEC_INFO("type=%d, chg_type=%d, count=%d\n", type, chg_type,
-		tcpc->pd_wait_bc12_count);
+	ret = power_supply_get_property(tcpc->chg_psy,
+		POWER_SUPPLY_PROP_USB_TYPE, &val);
+	TYPEC_INFO("type=%d, ret,chg_type=%d,%d, count=%d\n", type,
+		ret, val.intval, tcpc->pd_wait_bc12_count);
 
 	if (type != TYPEC_ATTACHED_SNK && type != TYPEC_ATTACHED_DBGACC_SNK)
 		goto out;
 
-	if (chg_type != CHARGER_UNKNOWN ||
+	if ((ret >= 0 && val.intval != POWER_SUPPLY_USB_TYPE_UNKNOWN) ||
 		tcpc->pd_wait_bc12_count >= 20) {
 		__pd_put_cc_attached_event(tcpc, type);
 	} else {
@@ -3013,6 +3003,14 @@ int tcpc_typec_change_role(
 			typec_role_name[typec_role]);
 		return 0;
 	}
+
+#ifdef CONFIG_WATER_DETECTION
+	if (tcpc->water_state) {
+		TYPEC_INFO("water is detected: %s is not allowed\n", __func__);
+		return 0;
+	}
+#endif
+
 	tcpc->typec_role_new = typec_role;
 
 	TYPEC_INFO("typec_new_role: %s\n", typec_role_name[typec_role]);
@@ -3075,10 +3073,9 @@ int tcpc_typec_init(struct tcpc_device *tcpc, uint8_t typec_role)
 {
 	int ret = 0;
 #ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
-	unsigned int boot_mode = get_boot_mode();
-	bool is_power_off_boot = (boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT
-		|| boot_mode == LOW_POWER_OFF_CHARGING_BOOT) ? true:false;
-#endif /* CONFIG_KPOC_GET_SOURCE_CAP_TRY */
+	bool is_power_off_boot = (tcpc->bootmode == KERNEL_POWER_OFF_CHARGING_BOOT
+		|| tcpc->bootmode == LOW_POWER_OFF_CHARGING_BOOT) ? true:false;
+#endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
 
 	if (typec_role == TYPEC_ROLE_UNKNOWN ||
 		typec_role >= TYPEC_ROLE_NR) {
@@ -3101,6 +3098,9 @@ int tcpc_typec_init(struct tcpc_device *tcpc, uint8_t typec_role)
 
 	tcpc->typec_remote_cc[0] = TYPEC_CC_VOLT_OPEN;
 	tcpc->typec_remote_cc[1] = TYPEC_CC_VOLT_OPEN;
+#ifdef CONFIG_WATER_DETECTION
+	INIT_WORK(&tcpc->wd_report_usb_port_work, typec_wd_report_usb_port_work);
+#endif /* CONFIG_WATER_DETECTION */
 
 	mutex_lock(&tcpc->access_lock);
 	tcpc->wake_lock_pd = 0;
@@ -3137,7 +3137,7 @@ int tcpc_typec_init(struct tcpc_device *tcpc, uint8_t typec_role)
 		tcpc_typec_error_recovery(tcpc);
 		return ret;
 	}
-#endif
+#endif /* CONFIG_KPOC_GET_SOURCE_CAP_TRY */
 	typec_unattached_entry(tcpc);
 	return ret;
 }
@@ -3153,27 +3153,31 @@ void  tcpc_typec_deinit(struct tcpc_device *tcpc)
 int tcpc_typec_handle_wd(struct tcpc_device *tcpc, bool wd)
 {
 	int ret = 0;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+	PD_NOTI_TYPEDEF pdic_noti;
+#endif /* CONFIG_BATTERY_SAMSUNG && CONFIG_PDIC_NOTIFIER */
 
-	pr_info("%s: wd = %d\n", __func__, wd);
 	if (!(tcpc->tcpc_flags & TCPC_FLAGS_WATER_DETECTION))
 		return 0;
 
 	TYPEC_INFO("%s %d\n", __func__, wd);
+	tcpci_lock_typec(tcpc);
 	if (!wd) {
 		tcpci_set_water_protection(tcpc, false);
 		tcpc_typec_error_recovery(tcpc);
 		goto out;
 	}
 
-	ret = get_boot_mode();
-	if (ret == KERNEL_POWER_OFF_CHARGING_BOOT ||
-	    ret == LOW_POWER_OFF_CHARGING_BOOT) {
+#ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
+	if (tcpc->bootmode == 8 || tcpc->bootmode == 9) {
 		TYPEC_INFO("KPOC does not enter water protection\n");
 		goto out;
 	}
+#endif /* CONFIG_MTK_KERNEL_POWER_OFF_CHARGING */
 
 	tcpc->typec_attach_new = TYPEC_UNATTACHED;
 	ret = tcpci_set_cc(tcpc, TYPEC_CC_OPEN);
+	typec_enable_low_power_mode(tcpc, TYPEC_CC_DRP);
 #ifdef CONFIG_TCPC_VSAFE0V_DETECT_IC
 	ret = tcpci_is_vsafe0v(tcpc);
 	if (ret == 0) {
@@ -3194,6 +3198,17 @@ out:
 		typec_alert_attach_state_change(tcpc);
 		tcpc->typec_attach_old = tcpc->typec_attach_new;
 	}
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && defined(CONFIG_PDIC_NOTIFIER)
+	pdic_noti.src = PDIC_NOTIFY_DEV_PDIC;
+	pdic_noti.dest = PDIC_NOTIFY_DEV_BATT;
+	pdic_noti.id = PDIC_NOTIFY_ID_WATER;
+	pdic_noti.sub1 = wd;
+	pdic_noti.sub2 = 0;
+	pdic_noti.sub3 = 0;
+
+	pdic_notifier_notify((PD_NOTI_TYPEDEF *)&pdic_noti, NULL, 0);
+#endif /* CONFIG_BATTERY_SAMSUNG && CONFIG_PDIC_NOTIFIER */
+	tcpci_unlock_typec(tcpc);
 	return ret;
 }
 #endif /* CONFIG_WATER_DETECTION */
@@ -3204,9 +3219,9 @@ int tcpc_typec_handle_ctd(struct tcpc_device *tcpc,
 {
 	int ret;
 
-	TCPC_INFO("%s: cable_type = %d\n", __func__, cable_type);
 	if (!(tcpc->tcpc_flags & TCPC_FLAGS_CABLE_TYPE_DETECTION))
 		return 0;
+
 
 	/* Filter out initial no cable */
 	if (cable_type == TCPC_CABLE_TYPE_C2C) {
@@ -3221,24 +3236,6 @@ int tcpc_typec_handle_ctd(struct tcpc_device *tcpc,
 		}
 	}
 
-	TCPC_INFO("%s: typec_state=%s, pre_ct=%d, ct=%d, typec_ct=%d\n",
-		  __func__, typec_state_name[tcpc->typec_state],
-		  tcpc->pre_typec_cable_type,
-		  cable_type,  tcpc->typec_cable_type);
-
-	if (tcpc->typec_state == typec_attachwait_snk) {
-		TCPC_INFO("%s during attachwait_snk\n", __func__);
-		tcpc->pre_typec_cable_type = cable_type;
-	} else if (tcpc->typec_state == typec_try_snk ||
-		   (tcpc->typec_state == typec_attached_snk &&
-			cable_type != TCPC_CABLE_TYPE_NONE)) {
-		if (tcpc->pre_typec_cable_type != TCPC_CABLE_TYPE_NONE) {
-			TCPC_INFO("%s try_snk cable(%d, %d)\n", __func__,
-				  tcpc->pre_typec_cable_type, cable_type);
-			cable_type = tcpc->pre_typec_cable_type;
-			tcpc->pre_typec_cable_type = TCPC_CABLE_TYPE_NONE;
-		}
-	}
 	TCPC_INFO("%s cable (%d, %d)\n", __func__, tcpc->typec_cable_type,
 		  cable_type);
 

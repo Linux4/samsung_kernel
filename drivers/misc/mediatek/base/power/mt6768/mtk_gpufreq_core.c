@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 /**
  * @file	mtk_gpufreq_core
@@ -781,12 +773,6 @@ unsigned int mt_gpufreq_get_min_power(void)
 {
 	return (!g_power_table) ? 0
 	: g_power_table[g_segment_min_opp_idx].gpufreq_power;
-}
-
-/* API : get immediate gpu temperature */
-int mt_gpufreq_get_immed_gpu_temp(void)
-{
-	return get_immediate_gpu_wrap();
 }
 
 /* API : get static leakage power */

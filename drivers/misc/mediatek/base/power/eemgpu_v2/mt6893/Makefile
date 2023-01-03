@@ -18,6 +18,8 @@ ccflags-y += \
 	-I$(srctree)/drivers/misc/mediatek/base/power/$(CONFIG_MTK_PLATFORM)\
 	-I$(srctree)/drivers/misc/mediatek/base/power/include/	\
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/	\
+	-I$(srctree)/drivers/gpu/mediatek/gpufreq/ \
+	-I$(srctree)/drivers/gpu/mediatek/gpufreq/include/ \
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(CONFIG_MTK_PLATFORM)/include/mach	\
 	-I$(srctree)/drivers/misc/mediatek/pmic/	\
 	-I$(srctree)/drivers/misc/mediatek/pmic/include	\
@@ -30,35 +32,12 @@ ccflags-y += \
 	-I$(EEMGPU_ROOT_DIR)/mt6893/inc	\
 	-I$(srctree)/drivers/misc/mediatek/base/power/mcdi/include/	\
 
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6893v1_64_120hz_mcl50)
-subdir-ccflags-y += -DMC50_LOAD
-endif
 
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6891v1_64_mcl50)
-subdir-ccflags-y += -DMC50_LOAD
-endif
-
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6893v1_64_mcl50)
+ifeq ($(findstring mcl,$(PROJECT_DTB_NAMES)),mcl)
 subdir-ccflags-y += -DMC50_LOAD
 endif
 
 ifeq ($(PROJECT_DTB_NAMES),mediatek/k6893v1_64_cmd)
-subdir-ccflags-y += -DMC50_LOAD
-endif
-
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6893v1_64_144hz_vdo_mcl50)
-subdir-ccflags-y += -DMC50_LOAD
-endif
-
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6891v1_64_120hz_mcl50)
-subdir-ccflags-y += -DMC50_LOAD
-endif
-
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6893v1_64_120hz_vdo_dphy_mcl50)
-subdir-ccflags-y += -DMC50_LOAD
-endif
-
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6891v1_64_120hz_vdo_dphy_mcl50)
 subdir-ccflags-y += -DMC50_LOAD
 endif
 

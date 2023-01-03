@@ -1,19 +1,12 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2019 MediaTek Inc.
  */
+
 #ifndef __TZBATT_INITCFG_H__
 #define __TZBATT_INITCFG_H__
 
-#define TZBATT_SET_INIT_CFG				(1)
+#define TZBATT_SET_INIT_CFG				(0)
 
 #define TZBATT_INITCFG_INTERVAL				(1)
 #define TZBATT_INITCFG_NUM_TRIPS			(3)

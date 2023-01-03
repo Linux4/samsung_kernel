@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __MTK_CPUFREQ_PLATFORM_H__
 #define __MTK_CPUFREQ_PLATFORM_H__
@@ -25,6 +17,8 @@
 #define EEM_AP_SIDE	1
 /* #define CPU_DVFS_NOT_READY	1 */
 #endif
+
+#define NR_FREQ                16
 
 /* buck ctrl configs */
 #define PMIC_STEP	625
@@ -49,6 +43,43 @@
 #define DVFS_LOG_NUM		150
 #define ENTRY_EACH_LOG		5
 
+#define TOTAL_CORE_NUM  (CORE_NUM_L)
+#define CORE_NUM_L      (4)
+
+#define get_cluster_cpu_core(id) (id ? 0 : CORE_NUM_L)
+
+static inline int arch_get_nr_clusters(void)
+{
+	return 1;
+}
+
+static inline void arch_get_cluster_cpus(struct cpumask *cpus, int cluster_id)
+{
+	int cpu = 0;
+
+	cpumask_clear(cpus);
+
+	if (cluster_id == 0) {
+		cpu = 0;
+
+		while (cpu < CORE_NUM_L) {
+			cpumask_set_cpu(cpu, cpus);
+			cpu++;
+		}
+	} else {
+		cpu = CORE_NUM_L;
+
+		while (cpu < TOTAL_CORE_NUM) {
+			cpumask_set_cpu(cpu, cpus);
+			cpu++;
+		}
+	}
+}
+
+static inline int arch_get_cluster_id(unsigned int cpu)
+{
+	return cpu < 4 ? 0:1;
+}
 extern struct mt_cpu_dvfs cpu_dvfs[NR_MT_CPU_DVFS];
 extern struct buck_ctrl_t buck_ctrl[NR_MT_BUCK];
 extern struct pll_ctrl_t pll_ctrl[NR_MT_PLL];

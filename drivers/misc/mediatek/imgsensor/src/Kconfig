@@ -44,62 +44,30 @@ config IMGSENSOR_CUSTOM_CAMERA
 if IMGSENSOR_CUSTOM_CAMERA
 choice IMGSENSOR_CAMERA_SET_CHOICE
 	prompt "Choose the proper camera set"
-config CAMERA_AAT_V31
-	bool CAMERA_AAT_V31
+config CAMERA_AAT_V12
+	bool CAMERA_AAT_V12
 	help
-	  For AAT V31 camera set
+		For AAT V12 camera set
 config CAMERA_MMV_V53X
 	bool CAMERA_MMV_V53X
 	help
 		For MMV V53X camera set
-config CAMERA_AAU_V13X
-	bool CAMERA_AAU_V13X
-	help
-		For AAU V13X camera set
-config CAMERA_AAU_V22
-	bool CAMERA_AAU_V22
-	help
-	  For AAU V22 camera set
-config CAMERA_AAT_V32X
-	bool CAMERA_AAT_V32X
-	help
-		For AAT V32X camera set
-config CAMERA_AAU_V32
-	bool CAMERA_AAU_V32
-	help
-	  For AAU V32 camera set
-config CAMERA_MMU_V32
-	bool CAMERA_MMU_V32
-	help
-	  For MMU V32 camera set
-config CAMERA_AAT_V41
-	bool CAMERA_AAT_V41
-	help
-	  For AAT V41 camera set
-config CAMERA_AAU_V02
-	bool CAMERA_AAU_V02
-	help
-	  For AAU V02 camera set
-config CAMERA_MMU_V22
-	bool CAMERA_MMU_V22
-	help
-	  For MMU V22 camera set
-config CAMERA_AAU_V22EX
-	bool CAMERA_AAU_V22EX
-	help
-		For AAU V22EX camera set
 config CAMERA_AAV_V13VE
 	bool CAMERA_AAV_V13VE
 	help
 		For AAV V13VE camera set
-config CAMERA_MMV_V13VE
-	bool CAMERA_MMV_V13VE
+config CAMERA_AAV_V23EX
+	bool CAMERA_AAV_V23EX
 	help
-		For MMV V13VE camera set
-config CAMERA_MMV_V13X
-	bool CAMERA_MMV_V13X
+		For AAV V23EX camera set
+config CAMERA_AAW_V34X
+	bool CAMERA_AAW_V34X
 	help
-		For MMV V13X camera set
+		For AAW V34X camera set
+config CAMERA_BTW_V00
+	bool CAMERA_BTW_V00
+	help
+		For BTW V00 camera set
 endchoice
 
 config CAMERA_SAMSUNG_MODEL_NAME

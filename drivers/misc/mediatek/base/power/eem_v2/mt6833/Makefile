@@ -13,45 +13,53 @@
 #-I$(srctree)/drivers/misc/mediatek/pmic/include/	\
 #
 
+ifeq ($(CONFIG_MACH_MT6833),y)
+    platform = mt6833
+    MTK_PLATFORM := mt6833
+else
+    platform = $(subst ",,$(CONFIG_MTK_PLATFORM))
+endif
+
 ccflags-y += \
 	-I$(srctree)/drivers/misc/mediatek/base/power/include/spm_v3/	\
-	-I$(srctree)/drivers/misc/mediatek/base/power/$(CONFIG_MTK_PLATFORM)\
+	-I$(srctree)/drivers/misc/mediatek/base/power/$(platform)\
 	-I$(srctree)/drivers/misc/mediatek/base/power/include/	\
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/	\
-	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(CONFIG_MTK_PLATFORM)/include/mach	\
+	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(platform)/include/mach	\
 	-I$(srctree)/drivers/misc/mediatek/pmic/	\
 	-I$(srctree)/drivers/misc/mediatek/pmic/include	\
 	-I$(srctree)/drivers/misc/mediatek/pmic/extbuck \
 	-I$(srctree)/drivers/misc/mediatek/pmic/include/mt6356	\
 	-I$(srctree)/drivers/misc/mediatek/pmic/include/mt6358	\
-	-I$(srctree)/drivers/misc/mediatek/thermal/$(CONFIG_MTK_PLATFORM)/inc/mach	\
+	-I$(srctree)/drivers/misc/mediatek/thermal/$(platform)/inc/mach	\
 	-I$(srctree)/include/linux/	\
 	-I$(srctree)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM)	\
 	-I$(EEM_ROOT_DIR)/mt6833/inc	\
-	-I$(srctree)/drivers/misc/mediatek/base/power/mcdi/include/
+	-I$(srctree)/drivers/misc/mediatek/base/power/mcdi/include/ \
+	-I$(srctree)/drivers/gpu/mediatek/gpufreq/ \
+	-I$(srctree)/drivers/gpu/mediatek/gpufreq/v1/include
 
 ifeq ($(CONFIG_MTK_TINYSYS_MCUPM_SUPPORT), y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/mcupm/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/mcupm/$(MTK_PLATFORM)/
 endif
 
-
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6833pv1_64_mcl)
+ifeq ($(PROJECT_DTB_NAMES),mediatek/k6833pv1_64_mcl_k419)
 subdir-ccflags-y += -DMT6833
 subdir-ccflags-y += -DMC50_LOAD
 endif
 
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6833v1_64_mcl)
+ifeq ($(PROJECT_DTB_NAMES),mediatek/k6833v1_64_mcl_k419)
 subdir-ccflags-y += -DMT6833
 subdir-ccflags-y += -DMC50_LOAD
 endif
 
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6833v1_64_33m_mcl)
+ifeq ($(PROJECT_DTB_NAMES),mediatek/k6833v1_64_33m_mcl_k419)
 subdir-ccflags-y += -DMT6833
 subdir-ccflags-y += -DMC50_LOAD
 endif
 
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6833v1_64_4gb_mcl)
+ifeq ($(PROJECT_DTB_NAMES),mediatek/k6833v1_64_4gb_mcl_k419)
 subdir-ccflags-y += -DMT6833
 subdir-ccflags-y += -DMC50_LOAD
 endif

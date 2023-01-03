@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #define pr_fmt(fmt) "[cpu_ctrl_cfp]"fmt
@@ -20,6 +12,8 @@
 #include <linux/uaccess.h>
 #include <linux/cpumask.h>
 
+#include <mt-plat/cpu_ctrl.h>
+#include <mt-plat/mtk_ppm_api.h>
 #include "cpu_ctrl.h"
 #include "boost_ctrl.h"
 #include "mtk_perfmgr_internal.h"
@@ -110,12 +104,7 @@ static void set_cfp_ppm(struct ppm_limit_data *desired_freq, int headroom_opp)
 #ifdef CONFIG_TRACING
 	perfmgr_trace_count(cc_is_ceiled, "cfp_ceiled");
 #endif
-#ifndef CONFIG_FPGA_EARLY_PORTING
-	if (mt_ppm_userlimit_cpu_freq)
-		mt_ppm_userlimit_cpu_freq(perfmgr_clusters, cfp_freq);
-	else
-		perfmgr_common_userlimit_cpu_freq(perfmgr_clusters, cfp_freq);
-#endif
+	mt_ppm_userlimit_cpu_freq(perfmgr_clusters, cfp_freq);
 }
 
 static void cfp_lt_callback(int mask_loading, int loading)
@@ -397,7 +386,6 @@ PROC_FOPS_RW(cfp_up_loading);
 PROC_FOPS_RW(cfp_down_loading);
 PROC_FOPS_RO(cfp_curr_stat);
 
-#ifdef CONFIG_MTK_CPU_CTRL_CFP
 int cpu_ctrl_cfp_init(struct proc_dir_entry *parent)
 {
 	int i;
@@ -463,7 +451,8 @@ int cpu_ctrl_cfp_init(struct proc_dir_entry *parent)
 
 		for (opp_idx = 0; opp_idx < MAX_NR_FREQ; opp_idx++)
 			freq_tbl[clu_idx][opp_idx] =
-				mt_cpufreq_get_freq_by_idx(clu_idx, opp_idx);
+			mt_cpufreq_get_freq_by_idx(clu_idx, opp_idx);
+
 	}
 
 	__cfp_enable       = 1;
@@ -501,4 +490,3 @@ void cpu_ctrl_cfp_exit(void)
 
 	kfree(freq_tbl);
 }
-#endif

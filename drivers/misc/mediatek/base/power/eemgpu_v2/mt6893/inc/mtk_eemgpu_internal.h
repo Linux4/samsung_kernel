@@ -1,15 +1,6 @@
-
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2021 MediaTek Inc.
  */
 
 #ifndef _MTK_EEMG_INTERNAL_H_
@@ -45,19 +36,21 @@
  * LOG
  */
 #define EEMG_TAG	 "[xxxxEEMG] "
-#if 1
-	#define eemg_error(fmt, args...)	pr_notice(EEMG_TAG fmt, ##args)
-	#define eemg_warning(fmt, args...)
-	#define eemg_notice(fmt, args...)
-	#define eemg_info(fmt, args...)
-	#define eemg_debug(fmt, args...)
-#else
-	#define eemg_error(fmt, args...)	 pr_debug(EEMG_TAG fmt, ##args)
-	#define eemg_warning(fmt, args...)   pr_debug(EEMG_TAG fmt, ##args)
-	#define eemg_notice(fmt, args...)   pr_debug(EEMG_TAG fmt, ##args)
-	#define eemg_info(fmt, args...)   pr_debug(EEMG_TAG fmt, ##args)
-	#define eemg_debug(fmt, args...)   pr_debug(EEMG_TAG fmt, ##args)
-#endif
+
+#define eemg_error(fmt, args...) pr_notice(EEMG_TAG fmt, ##args)
+#define eemg_warning(fmt, args...)
+#define eemg_notice(fmt, args...)
+#define eemg_info(fmt, args...)
+#define eemg_debug(fmt, args...)
+
+/*
+ * #define eemg_error(fmt, args...) pr_debug(EEMG_TAG fmt, ##args)
+ * #define eemg_warning(fmt, args...) pr_debug(EEMG_TAG fmt, ##args)
+ * #define eemg_notice(fmt, args...) pr_debug(EEMG_TAG fmt, ##args)
+ * #define eemg_info(fmt, args...) pr_debug(EEMG_TAG fmt, ##args)
+ * #define eemg_debug(fmt, args...) pr_debug(EEMG_TAG fmt, ##args)
+ * #endif
+ */
 
 #if EN_ISR_LOG /* For Interrupt use */
 	#define eemg_isr_info(fmt, args...)  eemg_debug(fmt, ##args)

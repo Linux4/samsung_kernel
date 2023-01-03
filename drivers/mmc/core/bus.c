@@ -135,11 +135,9 @@ static void mmc_bus_shutdown(struct device *dev)
 	int ret;
 
 	if (!drv || !card) {
-		pr_debug("%s: %s: drv or card is NULL. SDcard/tray was removed\n",
-			dev_name(dev), __func__);
+		pr_debug("%s: %s: drv or card is NULL. SD card/tray was removed.\n", dev_name(dev), __func__);
 		return;
 	}
-
 	/* disable rescan in shutdown sequence */
 	host->rescan_disable = 1;
 
@@ -355,7 +353,7 @@ int mmc_add_card(struct mmc_card *card)
 			mmc_card_hs400es(card) ? "Enhanced strobe " : "",
 			mmc_card_ddr52(card) ? "DDR " : "",
 			uhs_bus_speed_mode, type, card->rca);
-		ST_LOG("%s: new %s%s%s%s%s%s card at address %04x\n",
+		ST_LOG("%s: new %s%s%s%s%s%s card at address %04x(clk %u)\n",
 			mmc_hostname(card->host),
 			mmc_card_uhs(card) ? "ultra high speed " :
 			(mmc_card_hs(card) ? "high speed " : ""),
@@ -363,14 +361,13 @@ int mmc_add_card(struct mmc_card *card)
 			(mmc_card_hs200(card) ? "HS200 " : ""),
 			mmc_card_hs400es(card) ? "Enhanced strobe " : "",
 			mmc_card_ddr52(card) ? "DDR " : "",
-			uhs_bus_speed_mode, type, card->rca);
+			uhs_bus_speed_mode, type, card->rca,
+			card->host->ios.clock);
 	}
 
 #ifdef CONFIG_DEBUG_FS
 	mmc_add_card_debugfs(card);
 #endif
-	mmc_init_context_info(card->host);
-
 	card->dev.of_node = mmc_of_find_child_device(card->host, 0);
 
 	device_enable_async_suspend(&card->dev);
@@ -390,6 +387,7 @@ int mmc_add_card(struct mmc_card *card)
  */
 void mmc_remove_card(struct mmc_card *card)
 {
+	struct mmc_host *host = card->host;
 	struct mmc_card_error_log *err_log;
 	u64 total_c_cnt = 0;
 	u64 total_t_cnt = 0;
@@ -427,6 +425,10 @@ void mmc_remove_card(struct mmc_card *card)
 		of_node_put(card->dev.of_node);
 	}
 
+	if (host->cqe_enabled) {
+		host->cqe_ops->cqe_disable(host);
+		host->cqe_enabled = false;
+	}
+
 	put_device(&card->dev);
 }
-

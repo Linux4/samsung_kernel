@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef _MT_GPUFREQ_H_
 #define _MT_GPUFREQ_H_
@@ -93,10 +85,5 @@ extern void mt_gpufreq_power_limit_notify_registerCB(gpufreq_power_limit_notify 
  ******************/
 typedef void (*gpufreq_input_boost_notify)(unsigned int);
 extern void mt_gpufreq_input_boost_notify_registerCB(gpufreq_input_boost_notify pCB);
-
-/**
- * GED_SKI_SUPPORT
- */
-extern int mt_gpufreq_get_immed_gpu_temp(void);
 
 #endif /* _MT_GPUFREQ_H_ */

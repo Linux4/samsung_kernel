@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 #define SPI_SLAVE_DRV_NAME	"spi-slave"
 #define pr_fmt(fmt) SPI_SLAVE_DRV_NAME ": " fmt
 
@@ -26,6 +18,7 @@
 #include <linux/slab.h>
 #include <linux/compat.h>
 #include <linux/delay.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/uaccess.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
@@ -476,6 +469,8 @@ static int spi_slave_probe(struct spi_device *spi)
 	RS_TRANSFER.rx_nbits = slv_data.rx_nbits;
 	RS_TRANSFER.speed_hz = slv_data.rx_speed_hz;
 
+	/* fix 6382 Screen still be black when lock phone and select power on key */
+	spi->mode = 0x08;
 	spi->bits_per_word = 8;
 	spi->controller_data = (void *)&spislv_chip_info;
 	spislv_chip_info.tick_delay = slv_data.low_speed_tick_delay;

@@ -15,6 +15,7 @@
 
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
+#include <sound/soc.h>
 
 #define CIRRUS_MAX_AMPS			8
 
@@ -23,6 +24,8 @@
 #define CIRRUS_AMP_ALG_ID_CSPL	0xcd
 
 extern struct class *cirrus_amp_class;
+
+struct cirrus_amp;
 
 struct cs35l41_data {
 	struct cs35l41_platform_data *pdata;
@@ -35,12 +38,35 @@ struct cs35l41_data {
 	int irq;
 };
 
+struct cirrus_cal_control {
+	const char *name;
+	int alg_id;
+};
+
+struct cirrus_cal_controls {
+	struct cirrus_cal_control cal_r;
+	struct cirrus_cal_control cal_checksum;
+	struct cirrus_cal_control cal_set_status;
+};
+
+struct cirrus_cal_ops {
+	struct cirrus_cal_controls controls;
+	int (*cal_start)(void);
+	void (*cal_complete)(void);
+	int (*v_val)(struct cirrus_amp *amps, int num_amps, bool separate);
+	int (*cal_apply)(struct cirrus_amp *amp);
+	int (*read_temp)(struct cirrus_amp *amp);
+	int (*set_temp)(struct cirrus_amp *amp, int temperature);
+};
+
 struct cirrus_amp_config {
-	struct snd_soc_codec *codec;
+	struct snd_soc_component *component;
 	struct regmap *regmap;
 	struct reg_sequence *pre_config;
 	struct reg_sequence *post_config;
+	int cal_ops_idx;
 	const char *dsp_part_name;
+	const char *bd_prefix;
 	unsigned int num_pre_configs;
 	unsigned int num_post_configs;
 	unsigned int mbox_cmd;
@@ -49,20 +75,27 @@ struct cirrus_amp_config {
 	unsigned int global_en_mask;
 	unsigned int vimon_alg_id;
 	unsigned int halo_alg_id;
+	unsigned int bd_alg_id;
 	unsigned int bd_max_temp;
 	unsigned int target_temp;
 	unsigned int exit_temp;
 	unsigned int default_redc;
 	unsigned int cal_vpk_id;
 	unsigned int cal_ipk_id;
+	unsigned int cal_vsc_ub;
+	unsigned int cal_vsc_lb;
+	unsigned int cal_isc_ub;
+	unsigned int cal_isc_lb;
 	bool perform_vimon_cal;
 	bool calibration_disable;
 	bool pwr_enable;
-	int (*amp_reinit)(struct snd_soc_codec *codec);
+	int (*amp_reinit)(struct snd_soc_component *component);
+	bool runtime_pm;
 };
 
 struct cirrus_bd {
 	const char *bd_suffix;
+	const char *bd_prefix;
 	unsigned int max_exc;
 	unsigned int over_exc_count;
 	unsigned int max_temp;
@@ -70,6 +103,7 @@ struct cirrus_bd {
 	unsigned int over_temp_count;
 	unsigned int abnm_mute;
 	int max_temp_limit;
+	int bd_alg_id;
 };
 
 struct cirrus_cal {
@@ -93,12 +127,13 @@ struct cirrus_pwr {
 
 struct cirrus_amp {
 	struct regmap *regmap;
-	struct snd_soc_codec *codec;
+	struct snd_soc_component *component;
 	struct cirrus_bd bd;
 	struct cirrus_cal cal;
 	struct cirrus_pwr pwr;
 	struct reg_sequence *pre_config;
 	struct reg_sequence *post_config;
+	struct cirrus_cal_ops *cal_ops;
 	const char *dsp_part_name;
 	const char *mfd_suffix;
 	unsigned int num_pre_configs;
@@ -112,11 +147,18 @@ struct cirrus_amp {
 	unsigned int default_redc;
 	unsigned int cal_vpk_id;
 	unsigned int cal_ipk_id;
+	unsigned int cal_vsc_ub;
+	unsigned int cal_vsc_lb;
+	unsigned int cal_isc_ub;
+	unsigned int cal_isc_lb;
 	int index;
 	bool perform_vimon_cal;
 	bool calibration_disable;
 	bool v_val_separate;
-	int (*amp_reinit)(struct snd_soc_codec *codec);
+	bool runtime_pm;
+	int (*amp_reinit)(struct snd_soc_component *component);
+	void (*i2c_callback)(const char *suffix);
+	void (*error_callback)(const char *suffix);
 };
 
 struct cirrus_amp_group {
@@ -141,6 +183,9 @@ struct cirrus_amp_group {
 	struct cirrus_amp amps[];
 };
 
+void cirrus_amp_register_i2c_error_callback(const char *suffix, void *func);
+void cirrus_amp_register_error_callback(const char *suffix, void *func);
+
 struct cirrus_amp *cirrus_get_amp_from_suffix(const char *suffix);
 int cirrus_amp_add(const char *mfd_suffix, struct cirrus_amp_config cfg);
 int cirrus_amp_read_ctl(struct cirrus_amp *amp, const char *name,
@@ -150,9 +195,17 @@ int cirrus_amp_write_ctl(struct cirrus_amp *amp, const char *name,
 
 extern struct cirrus_amp_group *amp_group;
 
-extern int cs35l41_i2c_probe(struct i2c_client *client,
+#ifdef CONFIG_SND_SOC_CS35L41
+int cs35l41_i2c_probe(struct i2c_client *client,
 				const struct i2c_device_id *id);
 
-extern int cs35l41_i2c_remove(struct i2c_client *client);
+int cs35l41_i2c_remove(struct i2c_client *client);
+#endif
+#ifdef CONFIG_SND_SOC_CS35L43
+extern const struct dev_pm_ops cs35l43_pm_ops;
+int cs35l43_i2c_probe(struct i2c_client *client,
+				const struct i2c_device_id *id);
 
+int cs35l43_i2c_remove(struct i2c_client *client);
+#endif
 #endif

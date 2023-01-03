@@ -12,17 +12,12 @@
 
 #include <uapi/linux/incrementalfs.h>
 
-#include <linux/eventpoll.h>
-
 #include "pseudo_files.h"
 
 #include "data_mgmt.h"
 #include "format.h"
 #include "integrity.h"
 #include "vfs.h"
-
-/* Needed for kernel 4.14 - remove for later kernels */
-typedef unsigned int __poll_t;
 
 #define READ_WRITE_FILE_MODE 0666
 
@@ -268,7 +263,7 @@ static int dir_relative_path_resolve(
 		LOOKUP_FOLLOW | LOOKUP_DIRECTORY, result_path, NULL);
 
 out:
-	sys_close(dir_fd);
+	ksys_close(dir_fd);
 	if (error)
 		pr_debug("Error: %d\n", error);
 	return error;
@@ -1301,7 +1296,7 @@ static bool get_pseudo_inode(int ino, struct inode *inode)
 	if (i == ARRAY_SIZE(incfs_pseudo_file_inodes))
 		return false;
 
-	inode->i_ctime = (struct timespec){};
+	inode->i_ctime = (struct timespec64){};
 	inode->i_mtime = inode->i_ctime;
 	inode->i_atime = inode->i_ctime;
 	inode->i_size = 0;

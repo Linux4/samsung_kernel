@@ -27,10 +27,13 @@ endif
 
 ifeq ($(CONFIG_MTK_AUDIODSP_SUPPORT),y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/adsp/$(MTK_PLATFORM)
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/adsp/common
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/adsp/common_v2
 endif
 
 
 # spm
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/include
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include
+ifeq ($(CONFIG_SND_SOC_CS35L43),y)
+subdir-ccflags-y += -DCONFIG_SND_TDM_1PIN4CH
+endif

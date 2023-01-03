@@ -1,16 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
-
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -24,7 +15,7 @@
 #include <linux/spinlock.h>
 #include <linux/jiffies.h>
 #include <linux/timer.h>
-
+#include <linux/mod_devicetable.h>
 #include <vibrator.h>
 #include <vibrator_hal.h>
 #include <mt-plat/upmu_common.h>
@@ -87,11 +78,11 @@ static void vibrator_enable(unsigned int dur, unsigned int activate)
 	unsigned long flags;
 	struct vibrator_hw *hw = mt_get_cust_vibrator_hw();
 
-	spin_lock_irqsave(&g_mt_vib->vibr_lock, flags);
 	hrtimer_cancel(&g_mt_vib->vibr_timer);
-	cancel_work(&g_mt_vib->vibr_onwork);
 	pr_info(VIB_TAG "cancel hrtimer, cust:%dms, value:%u, activate:%d, shutdown:%d\n",
 			hw->vib_timer, dur, activate, g_mt_vib->shutdown_flag);
+	cancel_work_sync(&g_mt_vib->vibr_onwork);
+	spin_lock_irqsave(&g_mt_vib->vibr_lock, flags);
 
 	if (activate == 0 || g_mt_vib->shutdown_flag == 1) {
 		atomic_set(&g_mt_vib->vibr_state, 0);

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/kernel.h>
 #include <linux/device.h>
@@ -48,6 +40,16 @@
 
 #include <mt-plat/aee.h>
 #include <mt-plat/mtk_chip.h>
+
+struct mem_desc {
+	u64 start;
+	u64 size;
+};
+
+struct dram_info {
+	u32 rank_num;
+	struct mem_desc rank_info[4];
+};
 
 void __iomem *DRAMC_AO_CHA_BASE_ADDR;
 void __iomem *DRAMC_NAO_CHA_BASE_ADDR;
@@ -845,11 +847,13 @@ const char *buf, size_t count)
 	return count;
 }
 
+#define DRIVER_ATTR(_name, _mode, _show, _store) \
+	struct driver_attribute driver_attr_##_name = \
+	__ATTR(_name, _mode, _show, _store)
 
-DRIVER_ATTR(emi_clk_mem_test, 0664,
+static DRIVER_ATTR(emi_clk_mem_test, 0664,
 complex_mem_test_show, complex_mem_test_store);
-
-DRIVER_ATTR(read_dram_data_rate, 0664,
+static DRIVER_ATTR(read_dram_data_rate, 0664,
 read_dram_data_rate_show, read_dram_data_rate_store);
 
 /*DRIVER_ATTR(dram_dfs, 0664, dram_dfs_show, dram_dfs_store);*/

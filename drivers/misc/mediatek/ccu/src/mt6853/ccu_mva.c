@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #include <linux/fdtable.h>
 #include "ccu_cmn.h"
@@ -177,7 +170,7 @@ int ccu_allocate_mem(struct CcuMemHandle *memHandle, int size, bool cached)
 		0, (size_t)size, (cached)?3:0, memHandle->meminfo.ion_log);
 
 	if (!memHandle->ionHandleKd) {
-		LOG_ERR("fail to get ion buffer handle (size=0x%x)\n", size);
+		LOG_ERR("fail to get ion buffer handle (size=0x%lx)\n", size);
 		return -1;
 	}
 
@@ -213,7 +206,7 @@ int ccu_deallocate_mem(struct CcuMemHandle *memHandle)
 {
 	uint32_t idx = (memHandle->meminfo.cached != 0) ? 1 : 0;
 
-	LOG_DBG_MUST("free idx(%u) mva(0x%x) fd(0x%x) cached(0x%x)\n", idx,
+	LOG_DBG_MUST("free idx(%d) mva(0x%x) fd(0x%x) cached(0x%x)\n", idx,
 		ccu_buffer_handle[idx].meminfo.mva,
 		ccu_buffer_handle[idx].meminfo.shareFd,
 		memHandle->meminfo.cached);
@@ -223,7 +216,7 @@ int ccu_deallocate_mem(struct CcuMemHandle *memHandle)
 		return -EINVAL;
 	}
 	if (ccu_buffer_handle[idx].ionHandleKd == 0) {
-		LOG_ERR("idx %u handle %p is empty\n", idx,
+		LOG_ERR("idx %d handle %d is empty\n", idx,
 			ccu_buffer_handle[idx].ionHandleKd);
 		return -EINVAL;
 	}

@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #define LOG_TAG "RDMA"
 #include "ddp_log.h"
@@ -265,11 +258,6 @@ void rdma_set_ultra_l(unsigned int idx, unsigned int bpp, void *handle,
 	unsigned int ultra_high_us = 6;
 	unsigned int preultra_low_us = ultra_high_us;
 	unsigned int preultra_high_us = 7;
-/*
- *
- *	unsigned int urgent_low_us = 4;
- *	unsigned int urgent_high_us = 45;  10 times
- */
 
 	unsigned long long fill_rate = 0;
 	unsigned long long consume_rate = 0;

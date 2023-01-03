@@ -19,8 +19,8 @@ config SEC_BOOTSTAT
 
 config SEC_DEVICE_BOOTSTAT
 	bool "Enable Samsung Device Bootstat logging"
-	default y
-	depends on SEC_EXT && !SAMSUNG_PRODUCT_SHIP
+	default n
+	depends on SEC_EXT
 	help
 	  Samsung TN Device Bootstat Feature.
 

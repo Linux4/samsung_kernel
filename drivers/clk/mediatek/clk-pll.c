@@ -1,26 +1,20 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2014 MediaTek Inc.
- * Author: James Liao <jamesjj.liao@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
-#include <linux/of.h>
-#include <linux/of_address.h>
-#include <linux/io.h>
-#include <linux/slab.h>
 #include <linux/clkdev.h>
 #include <linux/delay.h>
+#include <linux/io.h>
+#include <linux/math64.h>
+#include <linux/module.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
+#include <linux/slab.h>
 #include <linux/mfd/syscon.h>
 
 #include "clk-mtk.h"
+#include "clk-gate.h"
 
 #define REG_CON0		0
 #define REG_CON1		4
@@ -28,7 +22,7 @@
 #define CON0_BASE_EN		BIT(0)
 #define CON0_PWR_ON		BIT(0)
 #define CON0_ISO_EN		BIT(1)
-#define CON1_PCW_CHG		BIT(31)
+#define PCW_CHG_MASK		BIT(31)
 
 #define AUDPLL_TUNER_EN		BIT(31)
 
@@ -51,6 +45,7 @@ struct mtk_clk_pll {
 	void __iomem	*tuner_addr;
 	void __iomem	*tuner_en_addr;
 	void __iomem	*pcw_addr;
+	void __iomem	*pcw_chg_addr;
 	void __iomem	*en_addr;
 	void __iomem	*rst_bar_addr;
 	const struct mtk_pll_data *data;
@@ -61,11 +56,22 @@ struct mtk_clk_pll {
 	struct regmap	*pwr_regmap;
 };
 
+bool (*mtk_fh_set_rate)(int pll_id, unsigned long dds, int postdiv) = NULL;
+EXPORT_SYMBOL(mtk_fh_set_rate);
+
+
 static inline struct mtk_clk_pll *to_mtk_clk_pll(struct clk_hw *hw)
 {
 	return container_of(hw, struct mtk_clk_pll, hw);
 }
 
+#if (defined(CONFIG_MACH_MT6877) \
+	|| defined(CONFIG_MACH_MT6768) \
+	|| defined(CONFIG_MACH_MT6781) \
+	|| defined(CONFIG_MACH_MT6739) \
+	|| defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6833) \
+	|| defined(CONFIG_MACH_MT6873))
 static int is_subsys_pwr_on(struct mtk_clk_pll *pll)
 {
 	struct pwr_status *pwr = pll->pwr_stat;
@@ -89,22 +95,31 @@ static int is_subsys_pwr_on(struct mtk_clk_pll *pll)
 
 	return true;
 }
-
+#endif
 static int mtk_pll_is_prepared(struct clk_hw *hw)
 {
 	struct mtk_clk_pll *pll = to_mtk_clk_pll(hw);
 
-	if (is_subsys_pwr_on(pll))
+#if (defined(CONFIG_MACH_MT6877) \
+	|| defined(CONFIG_MACH_MT6768) \
+	|| defined(CONFIG_MACH_MT6781) \
+	|| defined(CONFIG_MACH_MT6739) \
+	|| defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6833) \
+	|| defined(CONFIG_MACH_MT6873))
+    if (is_subsys_pwr_on(pll))
 		return (readl(pll->en_addr) & pll->data->en_mask) != 0;
-
 	return false;
+#else
+	return (readl(pll->base_addr + REG_CON0) & CON0_BASE_EN) != 0;
+#endif
 }
 
 static unsigned long __mtk_pll_recalc_rate(struct mtk_clk_pll *pll, u32 fin,
 		u32 pcw, int postdiv)
 {
 	int pcwbits = pll->data->pcwbits;
-	int pcwfbits;
+	int pcwfbits = 0;
 	int ibits;
 	u64 vco;
 	u8 c = 0;
@@ -125,6 +140,14 @@ static unsigned long __mtk_pll_recalc_rate(struct mtk_clk_pll *pll, u32 fin,
 
 	return ((unsigned long)vco + postdiv - 1) / postdiv;
 }
+
+#if (defined(CONFIG_MACH_MT6877) \
+	|| defined(CONFIG_MACH_MT6768) \
+	|| defined(CONFIG_MACH_MT6781) \
+	|| defined(CONFIG_MACH_MT6739) \
+	|| defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6833) \
+	|| defined(CONFIG_MACH_MT6873))
 
 static void mtk_pll_set_rate_regs(struct mtk_clk_pll *pll, u32 pcw,
 		int postdiv)
@@ -157,7 +180,7 @@ static void mtk_pll_set_rate_regs(struct mtk_clk_pll *pll, u32 pcw,
 	val = readl(pll->pd_addr);
 	val &= ~(POSTDIV_MASK << pll->data->pd_shift);
 	val |= (ffs(postdiv) - 1) << pll->data->pd_shift;
-	val &= ~CON1_PCW_CHG;
+	val &= ~PCW_CHG_MASK;
 
 	/* postdiv and pcw need to set at the same time if on same register */
 	if (pll->pd_addr != pll->pcw_addr) {
@@ -177,7 +200,7 @@ static void mtk_pll_set_rate_regs(struct mtk_clk_pll *pll, u32 pcw,
 	if (pll->pd_addr != pll->pcw_addr)
 		val = readl(pll->pd_addr);
 
-	val |= CON1_PCW_CHG;
+	val |= PCW_CHG_MASK;
 
 	writel(val, pll->pd_addr);
 
@@ -191,6 +214,69 @@ static void mtk_pll_set_rate_regs(struct mtk_clk_pll *pll, u32 pcw,
 	udelay(20);
 }
 
+#else
+
+static void __mtk_pll_tuner_enable(struct mtk_clk_pll *pll)
+{
+	u32 r;
+
+	if (pll->tuner_en_addr) {
+		r = readl(pll->tuner_en_addr) | BIT(pll->data->tuner_en_bit);
+		writel(r, pll->tuner_en_addr);
+	} else if (pll->tuner_addr) {
+		r = readl(pll->tuner_addr) | AUDPLL_TUNER_EN;
+		writel(r, pll->tuner_addr);
+	}
+}
+
+static void __mtk_pll_tuner_disable(struct mtk_clk_pll *pll)
+{
+	u32 r;
+
+	if (pll->tuner_en_addr) {
+		r = readl(pll->tuner_en_addr) & ~BIT(pll->data->tuner_en_bit);
+		writel(r, pll->tuner_en_addr);
+	} else if (pll->tuner_addr) {
+		r = readl(pll->tuner_addr) & ~AUDPLL_TUNER_EN;
+		writel(r, pll->tuner_addr);
+	}
+}
+
+static void mtk_pll_set_rate_regs(struct mtk_clk_pll *pll, u32 pcw,
+		int postdiv)
+{
+	u32 chg, val;
+
+	/* disable tuner */
+	__mtk_pll_tuner_disable(pll);
+
+	/* set postdiv */
+	val = readl(pll->pd_addr);
+	val &= ~(POSTDIV_MASK << pll->data->pd_shift);
+	val |= (ffs(postdiv) - 1) << pll->data->pd_shift;
+
+	/* postdiv and pcw need to set at the same time if on same register */
+	if (pll->pd_addr != pll->pcw_addr) {
+		writel(val, pll->pd_addr);
+		val = readl(pll->pcw_addr);
+	}
+
+	/* set pcw */
+	val &= ~GENMASK(pll->data->pcw_shift + pll->data->pcwbits - 1,
+			pll->data->pcw_shift);
+	val |= pcw << pll->data->pcw_shift;
+	writel(val, pll->pcw_addr);
+	chg = readl(pll->pcw_chg_addr) | PCW_CHG_MASK;
+	writel(chg, pll->pcw_chg_addr);
+	if (pll->tuner_addr)
+		writel(val + 1, pll->tuner_addr);
+
+	/* restore tuner_en */
+	__mtk_pll_tuner_enable(pll);
+
+	udelay(20);
+}
+#endif
 /*
  * mtk_pll_calc_values - calculate good values for a given input frequency.
  * @pll:	The pll
@@ -246,8 +332,20 @@ static int mtk_pll_set_rate(struct clk_hw *hw, unsigned long rate,
 	u32 postdiv;
 
 	mtk_pll_calc_values(pll, &pcw, &postdiv, rate, parent_rate);
-	mtk_pll_set_rate_regs(pll, pcw, postdiv);
+#if (defined(CONFIG_MACH_MT6877) \
+	|| defined(CONFIG_MACH_MT6768) \
+	|| defined(CONFIG_MACH_MT6781) \
+	|| defined(CONFIG_MACH_MT6739) \
+	|| defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6833) \
+	|| defined(CONFIG_MACH_MT6873))
 
+	mtk_pll_set_rate_regs(pll, pcw, postdiv);
+#else
+
+	if (!mtk_fh_set_rate || !mtk_fh_set_rate(pll->data->id, pcw, postdiv))
+		mtk_pll_set_rate_regs(pll, pcw, postdiv);
+#endif
 	return 0;
 }
 
@@ -278,6 +376,14 @@ static long mtk_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 
 	return __mtk_pll_recalc_rate(pll, *prate, pcw, postdiv);
 }
+
+#if (defined(CONFIG_MACH_MT6877) \
+	|| defined(CONFIG_MACH_MT6768) \
+	|| defined(CONFIG_MACH_MT6781) \
+	|| defined(CONFIG_MACH_MT6739) \
+	|| defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6833) \
+	|| defined(CONFIG_MACH_MT6873))
 
 static int mtk_pll_prepare(struct clk_hw *hw)
 {
@@ -315,6 +421,50 @@ static int mtk_pll_prepare(struct clk_hw *hw)
 
 	return 0;
 }
+
+#else
+static int mtk_pll_prepare(struct clk_hw *hw)
+{
+	struct mtk_clk_pll *pll = to_mtk_clk_pll(hw);
+	u32 r;
+
+	r = readl(pll->pwr_addr) | CON0_PWR_ON;
+	writel(r, pll->pwr_addr);
+	udelay(1);
+
+	r = readl(pll->pwr_addr) & ~CON0_ISO_EN;
+	writel(r, pll->pwr_addr);
+	udelay(1);
+
+	r = readl(pll->en_addr) | pll->en_mask;
+	writel(r, pll->en_addr);
+
+	if (pll->data->flags & EN_BIT_CTRL) {
+		r = readl(pll->en_addr) | BIT(pll->data->pll_en_bit);
+		writel(r, pll->en_addr);
+	}
+
+	__mtk_pll_tuner_enable(pll);
+
+	udelay(20);
+
+	if (pll->data->flags & HAVE_RST_BAR) {
+		r = readl(pll->base_addr + REG_CON0);
+		r |= pll->data->rst_bar_mask;
+		writel(r, pll->base_addr + REG_CON0);
+	}
+
+	return 0;
+}
+#endif
+
+#if (defined(CONFIG_MACH_MT6877) \
+	|| defined(CONFIG_MACH_MT6768) \
+	|| defined(CONFIG_MACH_MT6781) \
+	|| defined(CONFIG_MACH_MT6739) \
+	|| defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6833) \
+	|| defined(CONFIG_MACH_MT6873))
 
 static void mtk_pll_unprepare(struct clk_hw *hw)
 {
@@ -369,13 +519,52 @@ static void mtk_pll_unprepare(struct clk_hw *hw)
 
 	writel(r, pll->pwr_addr);
 }
+#else
 
-#if (defined(CONFIG_MACH_MT6765) \
-	|| defined(CONFIG_MACH_MT6739) \
-	|| defined(CONFIG_MACH_MT6761) \
-	|| defined(CONFIG_MACH_MT6768) \
-	|| defined(CONFIG_MACH_MT6771) \
-	|| defined(CONFIG_MACH_MT6785))
+static void mtk_pll_unprepare(struct clk_hw *hw)
+{
+	struct mtk_clk_pll *pll = to_mtk_clk_pll(hw);
+	u32 r;
+
+	if (pll->data->flags & HAVE_RST_BAR) {
+		r = readl(pll->base_addr + REG_CON0);
+		r &= ~pll->data->rst_bar_mask;
+		writel(r, pll->base_addr + REG_CON0);
+	}
+
+	__mtk_pll_tuner_disable(pll);
+
+	if (pll->data->flags & EN_BIT_CTRL) {
+		r = readl(pll->en_addr) & ~BIT(pll->data->pll_en_bit);
+		writel(r, pll->en_addr);
+	}
+
+	r = readl(pll->en_addr) & ~pll->en_mask;
+	writel(r, pll->en_addr);
+
+	r = readl(pll->pwr_addr) | CON0_ISO_EN;
+	writel(r, pll->pwr_addr);
+
+	r = readl(pll->pwr_addr) & ~CON0_PWR_ON;
+	writel(r, pll->pwr_addr);
+}
+#endif
+
+static void mtk_pll_unprepare_unused(struct clk_hw *hw)
+{
+	const char *c_n = clk_hw_get_name(hw);
+
+	pr_notice("disable_unused - %s\n", c_n);
+
+	mtk_pll_unprepare(hw);
+}
+
+#if (defined(CONFIG_MACH_MT6779) \
+    || defined(CONFIG_MACH_MT6739) \
+    || defined(CONFIG_MACH_MT6768) \
+    || defined(CONFIG_MACH_MT6761) \
+    || defined(CONFIG_MACH_MT6785))
+
 static const struct clk_ops mtk_pll_ops = {
 	.is_enabled	= mtk_pll_is_prepared,
 	.enable		= mtk_pll_prepare,
@@ -383,6 +572,7 @@ static const struct clk_ops mtk_pll_ops = {
 	.recalc_rate	= mtk_pll_recalc_rate,
 	.round_rate	= mtk_pll_round_rate,
 	.set_rate	= mtk_pll_set_rate,
+	.disable_unused	= mtk_pll_unprepare_unused,
 };
 #else
 static const struct clk_ops mtk_pll_ops = {
@@ -392,6 +582,7 @@ static const struct clk_ops mtk_pll_ops = {
 	.recalc_rate	= mtk_pll_recalc_rate,
 	.round_rate	= mtk_pll_round_rate,
 	.set_rate	= mtk_pll_set_rate,
+	.unprepare_unused	= mtk_pll_unprepare_unused,
 };
 #endif
 
@@ -410,12 +601,16 @@ static struct clk *mtk_clk_register_pll(const struct mtk_pll_data *data,
 
 	pll->base_addr = base + data->reg;
 	pll->pwr_addr = base + data->pwr_reg;
+	pll->pd_addr = base + data->pd_reg;
+	pll->pcw_addr = base + data->pcw_reg;
 	if (data->en_reg)
 		pll->en_addr = base + data->en_reg;
 	else
 		pll->en_addr = pll->base_addr + REG_CON0;
-	pll->pd_addr = base + data->pd_reg;
-	pll->pcw_addr = base + data->pcw_reg;
+	if (data->pcw_chg_reg)
+		pll->pcw_chg_addr = base + data->pcw_chg_reg;
+	else
+		pll->pcw_chg_addr = pll->base_addr + REG_CON1;
 	if (data->rst_bar_reg)
 		pll->rst_bar_addr = base + data->rst_bar_reg;
 	else
@@ -496,3 +691,9 @@ void mtk_clk_register_plls(struct device_node *node,
 		clk_data->clks[pll->id] = clk;
 	}
 }
+
+EXPORT_SYMBOL(mtk_clk_register_plls);
+
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("MediaTek PLL");
+MODULE_AUTHOR("MediaTek Inc.");

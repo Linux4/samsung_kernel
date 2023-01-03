@@ -43,6 +43,7 @@ struct cs35l41_platform_data {
 	int bst_vctrl;
 	int bst_ipk;
 	int temp_warn_thld;
+	int algo_frame_delay;
 	int dsp_ng_pcm_thld;
 	int dsp_ng_delay;
 	int dout_hiz;
@@ -53,8 +54,8 @@ struct cs35l41_platform_data {
 	unsigned int fixed_width;
 	unsigned int fixed_wl;
 	bool fixed_params;
-	const char * dsp_part_name;
-	const char * mfd_suffix;
+	const char *dsp_part_name;
+	const char *mfd_suffix;
 	struct cs35l41_irq_cfg irq_config1;
 	struct cs35l41_irq_cfg irq_config2;
 	struct classh_cfg classh_config;
@@ -97,7 +98,7 @@ struct cs35l41_private {
 	struct mutex rate_lock;
 };
 
-int cs35l41_reinit(struct snd_soc_codec *codec);
+int cs35l41_reinit(struct snd_soc_component *component);
 
 int cs35l41_probe(struct cs35l41_private *cs35l41);
 int cs35l41_remove(struct cs35l41_private *cs35l41);

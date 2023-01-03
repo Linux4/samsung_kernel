@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2020 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #include <linux/types.h>
@@ -17,6 +9,7 @@
 #include <linux/list.h>
 #include <linux/slab.h>
 #include <linux/list_sort.h>
+#include <linux/vmalloc.h>
 #ifdef CONFIG_PM_SLEEP
 #include <linux/device.h>
 #include <linux/pm_wakeup.h>
@@ -949,9 +942,16 @@ rewait:
 			mdw_dbg_aee("apusys midware wait timeout");
 		cmd_parser->abort_cmd(c);
 	} else { /* Wait done, delete cmd */
+		if (c->sc_rets) {
+			mdw_drv_err("cmd(0x%llx) sc(0x%llx) fail\n",
+				c->kid, c->sc_rets);
+			ret = -EIO;
+		} else {
+			ret = 0;
+		}
+
 		if (cmd_parser->delete_cmd(c))
 			mdw_drv_err("delete cmd fail\n");
-		ret = 0;
 	}
 
 	mdw_usr_ws_unlock();

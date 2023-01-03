@@ -30,7 +30,8 @@ config EXTCON_ARIZONA
 
 config EXTCON_AXP288
 	tristate "X-Power AXP288 EXTCON support"
-	depends on MFD_AXP20X && USB_PHY
+	depends on MFD_AXP20X && USB_SUPPORT && X86
+	select USB_ROLE_SWITCH
 	help
 	  Say Y here to enable support for USB peripheral detection
 	  and USB MUX switching by X-Power AXP288 PMIC.
@@ -143,15 +144,6 @@ config EXTCON_SM5502
 	  Silicon Mitus SM5502. The SM5502 is a USB port accessory
 	  detector and switch.
 
-config EXTCON_USB_CHG
-	tristate "USB Charger extcon support"
-	depends on GPIOLIB || COMPILE_TEST
-	help
-	  Say Y here to enable charger detection extcon support
-	  But the driver do not send VBUS event, MTK charger
-	  would do the Job
-	  Used typically if GPIO is used for USB ID pin detection
-
 config EXTCON_USB_GPIO
 	tristate "USB GPIO extcon support"
 	depends on GPIOLIB || COMPILE_TEST
@@ -165,7 +157,5 @@ config EXTCON_USBC_CROS_EC
 	help
 	  Say Y here to enable USB Type C cable detection extcon support when
 	  using Chrome OS EC based USB Type-C ports.
-
-source "drivers/extcon/mediatek/Kconfig"
 
 endif

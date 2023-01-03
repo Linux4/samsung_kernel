@@ -1,15 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2021 MediaTek Inc.
  */
+
 #ifndef __TSCPU_SETTINGS_H__
 #define __TSCPU_SETTINGS_H__
 
@@ -445,12 +438,12 @@ extern struct regulator *vcore_reg_id;
 #endif
 #endif
 #if LVTS_VALID_DATA_TIME_PROFILING
-extern unsigned long long int SODI3_count, noValid_count;
+extern unsigned long long SODI3_count, noValid_count;
 /* If isTempValid is 0, it means no valid temperature data
  * between two SODI3 entry points.
  */
 extern int isTempValid;
-extern long long int start_timestamp;
+extern long long start_timestamp;
 /* count if start_timestamp is bigger than end_timestamp */
 extern int diff_error_count;
 #endif
@@ -477,7 +470,7 @@ extern int tscpu_next_fp_factor;
 #endif
 
 /*In common/thermal_zones/mtk_ts_cpu.c*/
-extern long long int thermal_get_current_time_us(void);
+extern long long thermal_get_current_time_us(void);
 extern void tscpu_workqueue_cancel_timer(void);
 extern void tscpu_workqueue_start_timer(void);
 
@@ -638,6 +631,20 @@ extern void dump_lvts_register_value(void);
 #if LVTS_VALID_DATA_TIME_PROFILING
 extern void lvts_dump_time_profiling_result(struct seq_file *m);
 #endif
+/*aee related*/
+#if (CONFIG_THERMAL_AEE_RR_REC == 1)
+extern int aee_rr_init_thermal_temp(int num);
+extern int aee_rr_rec_thermal_temp(int index, s8 val);
+extern void aee_rr_rec_thermal_status(u8 val);
+extern void aee_rr_rec_thermal_ATM_status(u8 val);
+extern void aee_rr_rec_thermal_ktime(u64 val);
+
+extern s8 aee_rr_curr_thermal_temp(int index);
+extern u8 aee_rr_curr_thermal_status(void);
+extern u8 aee_rr_curr_thermal_ATM_status(void);
+extern u64 aee_rr_curr_thermal_ktime(void);
+#endif
+
 /*=============================================================
  *LOG
  *=============================================================
@@ -664,9 +671,6 @@ extern void lvts_dump_time_profiling_result(struct seq_file *m);
 #define lvts_reg_print(fmt, args...)	pr_notice(LVTS_LOG_REG_TAG fmt, ##args)
 #define lvts_printk(fmt, args...)	pr_notice(LVTS_LOG_TAG fmt, ##args)
 #define lvts_warn(fmt, args...)		pr_notice(LVTS_LOG_TAG fmt, ##args)
-#if 0
-#define lvts_dbg_printk(fmt, args...)  pr_notice(LVTS_LOG_TAG fmt, ##args)
-#else
 #define lvts_dbg_printk(fmt, args...)   \
 	do {                                    \
 		if (lvts_debug_log == 1) {                \
@@ -674,25 +678,16 @@ extern void lvts_dump_time_profiling_result(struct seq_file *m);
 		}                                   \
 	} while (0)
 #endif
-#endif
 
 /*=============================================================
  * Register macro for internal use
  *=============================================================
  */
 
-#if 1
 #define THERM_CTRL_BASE_2    thermal_base
 #define AUXADC_BASE_2        auxadc_ts_base
 #define INFRACFG_AO_BASE_2   infracfg_ao_base
 #define APMIXED_BASE_2       th_apmixed_base
-#else
-#include <mach/mt_reg_base.h>
-#define AUXADC_BASE_2     AUXADC_BASE
-#define THERM_CTRL_BASE_2 THERM_CTRL_BASE
-#define PERICFG_BASE_2    PERICFG_BASE
-#define APMIXED_BASE_2    APMIXED_BASE
-#endif
 
 /*******************************************************************************
  * AUXADC Register Definition

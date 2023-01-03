@@ -1,17 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
-#if IS_ENABLED(BUILD_MMDVFS_PMQOS)
 #include <linux/module.h>
 #include <linux/clk.h>
 #include <linux/kthread.h>
@@ -52,10 +43,16 @@
 #define CREATE_TRACE_POINTS
 #include "mmdvfs_events.h"
 
-#include <helio-dvfsrc-opp.h>
+#include <linux/soc/mediatek/mtk_dvfsrc.h>
+#include <dvfsrc-exp.h>
 
 #ifdef MMDVFS_MMP
 #include "mmprofile.h"
+#include "mmprofile_function.h"
+#endif
+
+#if !(defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6779))
+#include <helio-dvfsrc-opp.h>
 #endif
 
 #ifdef QOS_BOUND_DETECT
@@ -111,7 +108,6 @@ enum mmdvfs_log_level {
 	log_limit,
 	log_smi_freq,
 	log_qos_validation,
-	log_qoslarb,
 };
 
 #define STEP_UNREQUEST -1
@@ -182,9 +178,9 @@ static s32 current_max_step = STEP_UNREQUEST;
 static s32 force_step = STEP_UNREQUEST;
 static bool mmdvfs_enable;
 static bool mmdvfs_autok_enable;
-static struct pm_qos_request vcore_request;
-static struct pm_qos_request mm_bw_request;
-static struct pm_qos_request smi_freq_request[MAX_COMM_NUM];
+static struct mtk_pm_qos_request vcore_request;
+static struct mtk_pm_qos_request mm_bw_request;
+static struct mtk_pm_qos_request smi_freq_request[MAX_COMM_NUM];
 static DEFINE_MUTEX(step_mutex);
 static DEFINE_MUTEX(bw_mutex);
 static s32 total_hrt_bw = UNINITIALIZED_VALUE;
@@ -274,23 +270,20 @@ int __attribute__ ((weak)) is_dvfsrc_opp_fixed(void) { return 1; }
 
 static void mm_apply_vcore(s32 vopp)
 {
-	pm_qos_update_request(&vcore_request, vopp);
+	mtk_pm_qos_update_request(&vcore_request, vopp);
 
 	if (vcore_reg_id) {
 #ifdef CHECK_VOLTAGE
-		u32 v_real, v_target;
+		u32 v_real, v_target, max_opp;
 
-		if (vopp >= 0 && vopp < VCORE_OPP_NUM) {
+		max_opp = mtk_dvfsrc_vcore_opp_count();
+		if (vopp >= 0 && vopp < max_opp) {
 			v_real = regulator_get_voltage(vcore_reg_id);
-			v_target = get_vcore_uv_table(vopp);
-			if (v_real < v_target) {
+			v_target = mtk_dvfsrc_vcore_uv_table(vopp);
+			if (v_real < v_target)
 				pr_info("err vcore %d < %d\n",
 					v_real, v_target);
-				if (!is_dvfsrc_opp_fixed())
-					aee_kernel_warning("mmdvfs",
-						"vcore(%d)<target(%d)\n",
-						v_real, v_target);
-			}
+
 		}
 #endif
 	}
@@ -804,7 +797,7 @@ static s32 get_io_width(void)
 #ifdef SIMULATE_DVFSRC
 static s32 bw_threshold_high[DDR_OPP_NUM] = {0};
 static s32 bw_threshold_low[DDR_OPP_NUM] = {0};
-static struct pm_qos_request ddr_request;
+static struct mtk_pm_qos_request ddr_request;
 
 
 static void init_simulation(void)
@@ -830,8 +823,9 @@ static void init_simulation(void)
 			(s32)MULTIPLY_BW_THRESHOLD_LOW(freq);
 	}
 
-	pm_qos_add_request(
-		&ddr_request, PM_QOS_DDR_OPP,  PM_QOS_DDR_OPP_DEFAULT_VALUE);
+	mtk_pm_qos_add_request(
+		&ddr_request, MTK_PM_QOS_DDR_OPP,
+		MTK_PM_QOS_DDR_OPP_DEFAULT_VALUE);
 }
 
 static u32 get_ddr_opp_by_threshold(s32 bw, s32 *threshold_array)
@@ -870,7 +864,7 @@ static void simulate_dvfsrc(s32 next_hrt_bw)
 
 	if ((is_up && next_opp < current_opp) ||
 		(!is_up && next_opp > current_opp)) {
-		pm_qos_update_request(&ddr_request, next_opp);
+		mtk_pm_qos_update_request(&ddr_request, next_opp);
 		if (log_level & 1 << log_bw)
 			pr_notice("up=%d copp=%d nopp=%d cbw=%d nbw=%d\n",
 				is_up, current_opp, next_opp,
@@ -878,12 +872,12 @@ static void simulate_dvfsrc(s32 next_hrt_bw)
 	}
 }
 #else
-static struct pm_qos_request dvfsrc_isp_hrt_req;
+static struct mtk_pm_qos_request dvfsrc_isp_hrt_req;
 static void init_dvfsrc(void)
 {
-	pm_qos_add_request(
-		&dvfsrc_isp_hrt_req, PM_QOS_ISP_HRT_BANDWIDTH,
-		PM_QOS_ISP_HRT_BANDWIDTH_DEFAULT_VALUE);
+	mtk_pm_qos_add_request(
+		&dvfsrc_isp_hrt_req, MTK_PM_QOS_HRT_BANDWIDTH,
+		MTK_PM_QOS_HRT_BANDWIDTH_DEFAULT_VALUE);
 }
 #endif
 
@@ -893,7 +887,11 @@ static void log_hrt_bw_info(u32 master_id)
 	s32 p1_hrt_bw = get_cam_hrt_bw() - ccu_hrt_bw;
 	s32 disp_hrt_bw =
 		larb_req[SMI_PMQOS_LARB_DEC(PORT_VIRTUAL_DISP)].total_hrt_data;
-	u32 ddr_opp = get_cur_ddr_opp();
+
+	/* Note: Should be enabled when mmdvfs gki complete
+	 * u32 ddr_opp = mtk_dvfsrc_query_opp_info(MTK_DVFSRC_CURR_DRAM_OPP);
+	 */
+	u32 ddr_opp = 0;
 #ifdef MMDVFS_MMP
 	u32 param1 = (SMI_PMQOS_LARB_DEC(master_id) << 24) |
 		(ddr_opp << 16) | disp_hrt_bw;
@@ -919,7 +917,7 @@ static void update_hrt_bw_to_dvfsrc(s32 next_hrt_bw)
 	s32 mm_used_hrt_bw =
 		next_hrt_bw - larb_req[md_larb_id].total_hrt_data;
 
-	pm_qos_update_request(&dvfsrc_isp_hrt_req, mm_used_hrt_bw);
+	mtk_pm_qos_update_request(&dvfsrc_isp_hrt_req, mm_used_hrt_bw);
 	if (log_level & 1 << log_bw)
 		pr_notice("%s report dvfsrc mm_hrt_bw=%d\n",
 			__func__, mm_used_hrt_bw);
@@ -1222,7 +1220,7 @@ void mm_qos_update_all_request(struct plist_head *owner_list)
 	u64 profile;
 	u32 i = 0, larb_update = 0, mm_bw = 0;
 	s32 next_hrt_bw;
-	s32 cam_bw, larb_bw;
+	s32 cam_bw;
 	u32 larb_count = 0, larb_id = 0, larb_port_id = 0, larb_port_bw = 0;
 	u32 port_id = 0;
 	u32 comm, comm_port;
@@ -1385,7 +1383,7 @@ void mm_qos_update_all_request(struct plist_head *owner_list)
 			SHIFT_ROUND(max_ch_srt_bw, 4) : 0;
 		smi_hrt_clk = max_ch_hrt_bw ?
 			SHIFT_ROUND(max_ch_hrt_bw, 4) : 0;
-		pm_qos_update_request(&smi_freq_request[comm],
+		mtk_pm_qos_update_request(&smi_freq_request[comm],
 			max_t(s32, smi_srt_clk, smi_hrt_clk));
 		if (log_level & 1 << log_smi_freq)
 			pr_notice("comm:%d smi_srt_clk:%d smi_hrt_clk:%d\n",
@@ -1409,14 +1407,10 @@ void mm_qos_update_all_request(struct plist_head *owner_list)
 #endif
 
 	/* update mm total bw */
-	for (i = 0; i < MAX_LARB_COUNT; i++) {
-		larb_bw = (larb_req[i].comm_port != SMI_COMM_MASTER_NUM) ?
+	for (i = 0; i < MAX_LARB_COUNT; i++)
+		mm_bw += (larb_req[i].comm_port != SMI_COMM_MASTER_NUM) ?
 			larb_req[i].total_bw_data : 0;
-		mm_bw += larb_bw;
-		if (log_level & 1 << log_qoslarb)
-			trace_mmqos__update_qoslarb(i, larb_bw);
-	}
-	pm_qos_update_request(&mm_bw_request, mm_bw);
+	mtk_pm_qos_update_request(&mm_bw_request, mm_bw);
 	if (log_level & 1 << log_bw)
 		pr_notice("config mm_bw=%d\n", mm_bw);
 	mutex_unlock(&bw_mutex);
@@ -1752,7 +1746,7 @@ static void mmdvfs_get_larb_node(struct device *dev, u32 larb_id)
 	const __be32 *p;
 	struct property *prop;
 	char larb_name[MAX_LARB_NAME];
-	s32 result;
+	s32 ret = 0;
 
 	if (larb_id >= MAX_LARB_COUNT) {
 		pr_notice("larb_id:%d is over MAX_LARB_COUNT:%d\n",
@@ -1760,9 +1754,10 @@ static void mmdvfs_get_larb_node(struct device *dev, u32 larb_id)
 		return;
 	}
 
-	result = snprintf(larb_name, MAX_LARB_NAME, "larb%d", larb_id);
-	if (result < 0)
-		pr_notice("snprintf fail(%d) larb_id=%d\n", result, larb_id);
+
+	ret = snprintf(larb_name, MAX_LARB_NAME, "larb%d", larb_id);
+	if (ret < 0)
+		pr_notice("snprintf return error, ret:%d, larb_id:%d\n", ret, larb_id);
 	of_property_for_each_u32(dev->of_node, larb_name, prop, p, value) {
 		if (count >= MAX_PORT_COUNT) {
 			pr_notice("port size is over (%d)\n", MAX_PORT_COUNT);
@@ -1875,7 +1870,7 @@ static void mmdvfs_get_limit_step_node(struct device *dev,
 		result = snprintf(ext_name, sizeof(ext_name) - 1,
 			"%s_limit_%d", freq_name, i);
 		if (result < 0) {
-			pr_notice("snprint fail(%d) freq=%s id=%d\n",
+			pr_notice("snprintf error(%d) limit name:%s id:%d\n",
 				result, freq_name, i);
 			continue;
 		}
@@ -1928,10 +1923,10 @@ static int mmdvfs_probe(struct platform_device *pdev)
 
 	mmdvfs_enable = true;
 	mmdvfs_autok_enable = true;
-	pm_qos_add_request(&vcore_request, PM_QOS_VCORE_OPP,
-		PM_QOS_VCORE_OPP_DEFAULT_VALUE);
-	pm_qos_add_request(&mm_bw_request, PM_QOS_MM_MEMORY_BANDWIDTH,
-		PM_QOS_MM_MEMORY_BANDWIDTH_DEFAULT_VALUE);
+	mtk_pm_qos_add_request(&vcore_request, MTK_PM_QOS_VCORE_OPP,
+		MTK_PM_QOS_VCORE_OPP_DEFAULT_VALUE);
+	mtk_pm_qos_add_request(&mm_bw_request, MTK_PM_QOS_MEMORY_BANDWIDTH,
+		MTK_PM_QOS_MEMORY_BANDWIDTH_DEFAULT_VALUE);
 	step_size = 0;
 	of_property_for_each_u32(node, VCORE_NODE_NAME, prop, p, value) {
 		if (step_size >= MAX_FREQ_STEP) {
@@ -1966,7 +1961,7 @@ static int mmdvfs_probe(struct platform_device *pdev)
 			mm_freq->step_config);
 
 		if (likely(mm_freq->pm_qos_class >= PM_QOS_DISP_FREQ)) {
-			pm_qos_add_notifier(mm_freq->pm_qos_class,
+			mtk_pm_qos_add_notifier(mm_freq->pm_qos_class,
 				&mm_freq->nb);
 			pr_notice("%s: add notifier\n", mm_freq->prop_name);
 		}
@@ -1992,7 +1987,7 @@ static int mmdvfs_probe(struct platform_device *pdev)
 			pr_notice("wrong comm_freq name:%s\n", mux_name);
 			break;
 		}
-		pm_qos_add_request(&smi_freq_request[comm_count],
+		mtk_pm_qos_add_request(&smi_freq_request[comm_count],
 			comm_freq_class[comm_count],
 			PM_QOS_MM_FREQ_DEFAULT_VALUE);
 		comm_count++;
@@ -2069,12 +2064,12 @@ static int mmdvfs_remove(struct platform_device *pdev)
 {
 	u32 i;
 
-	pm_qos_remove_request(&vcore_request);
-	pm_qos_remove_request(&mm_bw_request);
+	mtk_pm_qos_remove_request(&vcore_request);
+	mtk_pm_qos_remove_request(&mm_bw_request);
 	for (i = 0; i < MAX_COMM_NUM; i++) {
 		if (comm_freq_class[i] == 0)
 			continue;
-		pm_qos_remove_request(&smi_freq_request[i]);
+		mtk_pm_qos_remove_request(&smi_freq_request[i]);
 	}
 	for (i = 0; i < ARRAY_SIZE(all_freqs); i++)
 		pm_qos_remove_notifier(
@@ -2082,9 +2077,9 @@ static int mmdvfs_remove(struct platform_device *pdev)
 
 #ifdef HRT_MECHANISM
 #ifdef SIMULATE_DVFSRC
-	pm_qos_remove_request(&ddr_request);
+	mtk_pm_qos_remove_request(&ddr_request);
 #else
-	pm_qos_remove_request(&dvfsrc_isp_hrt_req);
+	mtk_pm_qos_remove_request(&dvfsrc_isp_hrt_req);
 #endif
 #endif
 
@@ -2318,7 +2313,7 @@ int mmdvfs_qos_force_step(int step)
 		return -EINVAL;
 	}
 	force_step = step;
-#if defined(CONFIG_MACH_MT6785)
+#if defined(CONFIG_MACH_MT6785) || defined(CONFIG_MACH_MT6768)
 #if (defined(CONFIG_MTK_MT6382_BDG) && defined(CONFIG_MTK_MT6382_VDO_MODE))
 	force_step = 0;
 #endif
@@ -2352,11 +2347,7 @@ void mmdvfs_autok_qos_enable(bool enable)
 {
 	pr_notice("%s: step_size=%d current_max_step=%d\n",
 		__func__, step_size, current_max_step);
-	if (!enable && step_size > 0
-#ifndef AUTOK_FORCE_LOW
-		&& current_max_step == STEP_UNREQUEST
-#endif
-	)
+	if (!enable && step_size > 0 && current_max_step == STEP_UNREQUEST)
 		mmdvfs_qos_force_step(step_size - 1);
 
 	mmdvfs_autok_enable = enable;
@@ -2532,7 +2523,7 @@ module_param_cb(larb_mode, &larb_mode_ops, &force_larb_mode, 0644);
 MODULE_PARM_DESC(larb_mode, "set or get current larb mode");
 static s32 vote_freq;
 static bool vote_req_init;
-struct pm_qos_request vote_req;
+struct mtk_pm_qos_request vote_req;
 int set_vote_freq(const char *val, const struct kernel_param *kp)
 {
 	int result;
@@ -2545,13 +2536,13 @@ int set_vote_freq(const char *val, const struct kernel_param *kp)
 	}
 
 	if (!vote_req_init) {
-		pm_qos_add_request(
+		mtk_pm_qos_add_request(
 			&vote_req, PM_QOS_DISP_FREQ,
 			PM_QOS_MM_FREQ_DEFAULT_VALUE);
 		vote_req_init = true;
 	}
 	vote_freq = new_vote_freq;
-	pm_qos_update_request(&vote_req, vote_freq);
+	mtk_pm_qos_update_request(&vote_req, vote_freq);
 	return 0;
 }
 static struct kernel_param_ops vote_freq_ops = {
@@ -2710,7 +2701,7 @@ int mmdvfs_ut_set(const char *val, const struct kernel_param *kp)
 	int result;
 	int value1, value2;
 	u32 old_log_level = log_level;
-	struct pm_qos_request disp_req = {};
+	struct mtk_pm_qos_request disp_req = {};
 
 	result = sscanf(val, "%d %d", &mmdvfs_ut_case, &value1);
 	if (result != 2) {
@@ -2722,7 +2713,7 @@ int mmdvfs_ut_set(const char *val, const struct kernel_param *kp)
 
 	log_level = 1 << log_freq |
 		1 << log_limit;
-	pm_qos_add_request(&disp_req, PM_QOS_DISP_FREQ,
+	mtk_pm_qos_add_request(&disp_req, PM_QOS_DISP_FREQ,
 		PM_QOS_MM_FREQ_DEFAULT_VALUE);
 
 	switch (mmdvfs_ut_case) {
@@ -2739,7 +2730,7 @@ int mmdvfs_ut_set(const char *val, const struct kernel_param *kp)
 		/* limit enable then opp1 -> opp0 */
 		mmdvfs_qos_limit_config(value1, 1, MMDVFS_LIMIT_THERMAL);
 		mmdvfs_qos_limit_config(value1, value2, MMDVFS_LIMIT_CAM);
-		pm_qos_update_request(&disp_req, 1000);
+		mtk_pm_qos_update_request(&disp_req, 1000);
 		pr_notice("limit enable then opp up: %d freq=%llu MHz\n",
 			mmdvfs_get_limit_status(value1),
 			mmdvfs_qos_get_freq(value1));
@@ -2755,19 +2746,19 @@ int mmdvfs_ut_set(const char *val, const struct kernel_param *kp)
 			mmdvfs_qos_get_freq(value1));
 		/* limit disable then opp0 -> opp1 */
 		mmdvfs_qos_limit_config(value1, 0, MMDVFS_LIMIT_THERMAL);
-		pm_qos_update_request(&disp_req, 0);
+		mtk_pm_qos_update_request(&disp_req, 0);
 		pr_notice("limit disable then opp down: %d freq=%llu MHz\n",
 			mmdvfs_get_limit_status(value1),
 			mmdvfs_qos_get_freq(value1));
 		/* limit enable when opp1 */
 		mmdvfs_qos_limit_config(value1, 1, MMDVFS_LIMIT_THERMAL);
-		pm_qos_update_request(&disp_req, 0);
+		mtk_pm_qos_update_request(&disp_req, 0);
 		pr_notice("limit enable when opp down: %d freq=%llu MHz\n",
 			mmdvfs_get_limit_status(value1),
 			mmdvfs_qos_get_freq(value1));
 		/* limit disable when opp1 */
 		mmdvfs_qos_limit_config(value1, 0, MMDVFS_LIMIT_THERMAL);
-		pm_qos_update_request(&disp_req, 0);
+		mtk_pm_qos_update_request(&disp_req, 0);
 		pr_notice("limit disable when opp down: %d freq=%llu MHz\n",
 			mmdvfs_get_limit_status(value1),
 			mmdvfs_qos_get_freq(value1));
@@ -2798,7 +2789,7 @@ int mmdvfs_ut_set(const char *val, const struct kernel_param *kp)
 		break;
 	}
 
-	pm_qos_remove_request(&disp_req);
+	mtk_pm_qos_remove_request(&disp_req);
 
 	pr_notice("%s END\n", __func__);
 	log_level = old_log_level;
@@ -2899,105 +2890,3 @@ module_exit(mmdvfs_pmqos_exit);
 MODULE_DESCRIPTION("MTK MMDVFS driver");
 MODULE_AUTHOR("Damon Chu<damon.chu@mediatek.com>");
 MODULE_LICENSE("GPL");
-#else
-#include <linux/string.h>
-#include <linux/math64.h>
-#include "mmdvfs_pmqos.h"
-struct mm_qos_request *req;
-s32 mm_qos_add_request(struct plist_head *owner_list,
-	struct mm_qos_request *req, u32 smi_master_id)
-{
-	return 0;
-}
-
-s32 mm_qos_set_request(struct mm_qos_request *req, u32 bw_value,
-	u32 hrt_value, u32 comp_type)
-{
-	return 0;
-}
-
-s32 mm_qos_set_bw_request(struct mm_qos_request *req,
-	u32 bw_value, s32 comp_type)
-{
-	return 0;
-}
-
-s32 mm_qos_set_hrt_request(struct mm_qos_request *req,
-	u32 hrt_value)
-{
-	return 0;
-}
-
-void mm_qos_update_all_request(struct plist_head *owner_list)
-{
-}
-
-void mm_qos_remove_all_request(struct plist_head *owner_list)
-{
-}
-
-void mm_qos_update_all_request_zero(struct plist_head *owner_list)
-{
-}
-
-s32 mm_hrt_get_available_hrt_bw(u32 master_id)
-{
-	return -1;
-}
-
-s32 mm_hrt_add_bw_throttle_notifier(struct notifier_block *nb)
-{
-	return 0;
-}
-
-s32 mm_hrt_remove_bw_throttle_notifier(struct notifier_block *nb)
-{
-	return 0;
-}
-
-void mmdvfs_set_max_camera_hrt_bw(u32 bw)
-{
-}
-
-int mmdvfs_qos_get_freq_steps(u32 pm_qos_class,
-	u64 *out_freq_steps, u32 *out_step_size)
-{
-	return 0;
-}
-
-int mmdvfs_qos_force_step(int step)
-{
-	return 0;
-}
-
-void mmdvfs_qos_enable(bool enable)
-{
-}
-
-void mmdvfs_autok_qos_enable(bool enable)
-{
-}
-
-u64 mmdvfs_qos_get_freq(u32 pm_qos_class)
-{
-	return 0;
-}
-
-void mmdvfs_qos_limit_config(u32 pm_qos_class, u32 limit_value,
-	enum mmdvfs_limit_source source)
-{
-}
-
-void mmdvfs_print_larbs_info(void)
-{
-}
-
-void mmdvfs_prepare_action(enum mmdvfs_prepare_event event)
-{
-}
-
-s32 get_virtual_port(enum virtual_source_id id)
-{
-	return 0;
-}
-#endif

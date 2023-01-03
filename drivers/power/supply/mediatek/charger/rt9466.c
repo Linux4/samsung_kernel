@@ -1533,18 +1533,18 @@ static int rt9466_sw_workaround(struct rt9466_info *info)
 	if (info->chip_rev <= RT9466_CHIP_REV_E3) {
 		/* Worst case delay: wait auto sensing */
 		msleep(200);
-
-		if (get_boot_mode() == NORMAL_BOOT) {
-			ret = rt9466_set_iprec(info, 850000);
-			if (ret < 0)
-				goto out;
-
-			/* Increase Isys drop threshold to 2.5A */
-			ret = rt9466_i2c_write_byte(info,
-				RT9466_REG_CHG_HIDDEN_CTRL7, 0x1c);
-			if (ret < 0)
-				goto out;
-		}
+// workaround for mt6768
+//		if (get_boot_mode() == NORMAL_BOOT) {
+//			ret = rt9466_set_iprec(info, 850000);
+//			if (ret < 0)
+//				goto out;
+//
+//			/* Increase Isys drop threshold to 2.5A */
+//			ret = rt9466_i2c_write_byte(info,
+//				RT9466_REG_CHG_HIDDEN_CTRL7, 0x1c);
+//			if (ret < 0)
+//				goto out;
+//		}
 	}
 
 	/* Only revision <= E1 needs the following workaround */

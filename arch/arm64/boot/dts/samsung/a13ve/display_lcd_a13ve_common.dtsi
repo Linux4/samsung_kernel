@@ -103,13 +103,13 @@
 					"delay,msleep",	"70",
 					"regulator,disable",	"lcd_rst";
 				};
-				panel_regulator_init {
+				panel_not_connected {
 					type =
-					"regulator,enable",	"lcd_vddi",
-					"regulator,enable",	"lcd_rst",
-					"regulator,enable",	"lcd_vsp",
-					"regulator,enable",	"lcd_vsn",
-					"regulator,enable",	"lcd_bl_en";
+					"regulator,disable",	"lcd_vddi",
+					"regulator,disable",	"lcd_rst",
+					"regulator,disable",	"lcd_vsp",
+					"regulator,disable",	"lcd_vsn",
+					"regulator,disable",	"lcd_bl_en";
 				};
 			};
 
@@ -185,13 +185,13 @@
 					"delay,msleep",	"80",
 					"regulator,disable",	"lcd_rst";
 				};
-				panel_regulator_init {
+				panel_not_connected {
 					type =
-					"regulator,enable",	"lcd_vddi",
-					"regulator,enable",	"lcd_rst",
-					"regulator,enable",	"lcd_vsp",
-					"regulator,enable",	"lcd_vsn",
-					"regulator,enable",	"lcd_bl_en";
+					"regulator,disable",	"lcd_vddi",
+					"regulator,disable",	"lcd_rst",
+					"regulator,disable",	"lcd_vsp",
+					"regulator,disable",	"lcd_vsn",
+					"regulator,disable",	"lcd_bl_en";
 				};
 			};
 

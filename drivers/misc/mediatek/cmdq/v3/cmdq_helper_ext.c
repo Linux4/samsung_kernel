@@ -11,7 +11,7 @@
 #include <linux/dmapool.h>
 #include <linux/uaccess.h>
 #include <linux/notifier.h>
-#ifdef CMDQ_IRQ_DUMP_SUPPORT
+#ifdef CONFIG_MTK_GIC_V3_EXT
 #include <linux/irqchip/mtk-gic-extend.h>
 #endif
 #include <linux/sched/clock.h>
@@ -1423,7 +1423,6 @@ int cmdq_core_print_status_seq(struct seq_file *m, void *v)
 #else
 		cmdq_task_get_thread_irq(client->chan, &irq);
 #endif
-
 		seq_printf(m,
 			"Scenario:%d Priority:%d Flag:0x%llx va end:0x%p IRQ:0x%x\n",
 			handle->scenario, 0, handle->engineFlag,
@@ -1511,8 +1510,12 @@ static void cmdq_core_dump_thread(const struct cmdqRecStruct *handle,
 
 	/* if pc match end and irq flag on, dump irq status */
 	if (dump_irq && value[0] == value[1] && value[2] == 1)
+#ifdef CONFIG_MTK_GIC_V3_EXT
+		mt_irq_dump_status(cmdq_dev_get_irq_id());
+#else
 		CMDQ_LOG("gic dump not support irq id:%u\n",
 			cmdq_dev_get_irq_id());
+#endif
 }
 
 void cmdq_core_dump_trigger_loop_thread(const char *tag)
@@ -1779,7 +1782,6 @@ void *cmdq_core_alloc_hw_buffer_clt(struct device *dev, size_t size,
 		*pool = true;
 	}
 
-
 	alloc_cnt = atomic_inc_return(&cmdq_alloc_cnt[CMDQ_CLT_MAX]);
 	alloc_cnt = atomic_inc_return(&cmdq_alloc_cnt[clt]);
 	if (alloc_cnt > alloc_max)
@@ -1848,6 +1850,7 @@ void cmdq_core_free_hw_buffer_clt(struct device *dev, size_t size,
 {
 	atomic_dec(&cmdq_alloc_cnt[CMDQ_CLT_MAX]);
 	atomic_dec(&cmdq_alloc_cnt[clt]);
+
 	if (pool)
 		mdp_pool_free_impl(mdp_rb_pool, cpu_addr, dma_handle,
 			&mdp_rb_pool_cnt);
@@ -3325,7 +3328,6 @@ static void cmdq_core_attach_cmdq_error(
 	/* Then we just print out info */
 	CMDQ_ERR("============== [CMDQ] Begin of Error %d =============\n",
 		cmdq_ctx.errNum);
-
 #if defined(CONFIG_MTK_MT6382_BDG)
 	if (CMDQ_BDG_TASK(handle->thread))
 		cmdq_bdg_dump_handle((void *)handle, "ERR");
@@ -3338,6 +3340,7 @@ static void cmdq_core_attach_cmdq_error(
 	cmdq_core_dump_handle_summary(handle, thread, &nghandle, nginfo_out);
 	cmdq_core_dump_error_handle(handle, thread, pc_out);
 #endif
+
 
 	CMDQ_ERR("============== [CMDQ] End of Error %d =============\n",
 		 cmdq_ctx.errNum);
@@ -4926,6 +4929,7 @@ s32 cmdq_pkt_wait_flush_ex_result(struct cmdqRecStruct *handle)
 	u32 count = 0;
 	const struct cmdq_controller *ctrl = handle->ctrl;
 	struct cmdq_client *client;
+	bool skip = false;
 
 	CMDQ_PROF_MMP(cmdq_mmp_get_event()->wait_task,
 		MMPROFILE_FLAG_PULSE, ((unsigned long)handle), handle->thread);
@@ -4947,7 +4951,22 @@ s32 cmdq_pkt_wait_flush_ex_result(struct cmdqRecStruct *handle)
 			handle->thread, client->chan->mbox,
 			client->chan->mbox->dev);
 
-	do {
+	while (!handle->pkt->task_alloc) {
+		waitq = wait_event_timeout(
+			cmdq_wait_queue[(u32)handle->thread],
+			(handle->state != TASK_STATE_BUSY &&
+			handle->state != TASK_STATE_WAITING),
+			msecs_to_jiffies(CMDQ_PREDUMP_TIMEOUT_MS));
+		if (waitq) {
+			/* task alloc failed then skip predump */
+			skip = true;
+			break;
+		}
+		CMDQ_LOG("wait before submit handle:%p pkt:%p, task_alloc:%d",
+			handle, handle->pkt, handle->pkt->task_alloc);
+	}
+
+	while (!skip) {
 		if (!handle->pkt->loop) {
 			/* wait event and pre-dump */
 			waitq = wait_event_timeout(
@@ -4998,31 +5017,34 @@ s32 cmdq_pkt_wait_flush_ex_result(struct cmdqRecStruct *handle)
 		}
 
 		count++;
-	} while (1);
+	}
+	handle->pkt->task_alloc = false;
 
 	handle->wakedUp = sched_clock();
 	CMDQ_SYSTRACE_END();
 
 	if (handle->profile_exec) {
 		u32 *va = cmdq_pkt_get_perf_ret(handle->pkt);
-		u64 exec;
 
-		if (!va) {
-			CMDQ_ERR("handle:%p pkt:%p thread:%d empty buffer\n",
-				handle, handle->pkt, handle->thread);
-			return -EINVAL;
+		if (va) {
+			if (va[0] == 0xdeaddead || va[1] == 0xdeaddead) {
+				CMDQ_ERR(
+					"task may not execute handle:%p pkt:%p exec:%#x %#x",
+					handle, handle->pkt, va[0], va[1]);
+			} else {
+				u32 cost = va[1] < va[0] ?
+					~va[0] + va[1] : va[1] - va[0];
+
+				cost = div_u64(cost, 26);
+				if (cost > 80000) {
+					CMDQ_LOG(
+						"[WARN]task executes %uus engine:%#llx caller:%llu-%s\n",
+						cost, handle->engineFlag,
+						(u64)handle->caller_pid,
+						handle->caller_name);
+				}
+			}
 		}
-
-		if (va[1] > va[0])
-			exec = 0xffffffff - va[0] + va[1];
-		else
-			exec = va[1] - va[0];
-
-		exec = (u32)CMDQ_TICK_TO_US(exec);
-
-		CMDQ_LOG(
-			"task profile thread:%d handle:0x%p execute time:%lluus begin:%u end:%u\n",
-			handle->thread, handle, exec, va[0], va[1]);
 
 		CMDQ_PROF_MMP(cmdq_mmp_get_event()->task_exec,
 			MMPROFILE_FLAG_PULSE, ((unsigned long)handle), exec);
@@ -5214,10 +5236,10 @@ static s32 cmdq_pkt_flush_async_ex_impl(struct cmdqRecStruct *handle,
 	err = cmdq_pkt_flush_async(handle->pkt, cmdq_pkt_flush_handler,
 		(void *)handle);
 	CMDQ_SYSTRACE_END();
+
 	if (err < 0) {
 		CMDQ_ERR("pkt flush failed err:%d handle:%p thread:%d\n",
 			err, handle, thread);
-
 		return err;
 	}
 
@@ -5319,6 +5341,30 @@ s32 cmdq_pkt_stop(struct cmdqRecStruct *handle)
 	CMDQ_MSG("%s done handle:0x%p\n", __func__, handle);
 	return 0;
 }
+
+void cmdq_core_dump_active(void)
+{
+	u64 cost;
+	u32 idx = 0;
+	struct cmdqRecStruct *task;
+
+	mutex_lock(&cmdq_handle_list_mutex);
+	list_for_each_entry(task, &cmdq_ctx.handle_active, list_entry) {
+		if (idx >= 3)
+			break;
+
+		cost = div_u64(sched_clock() - task->submit, 1000);
+		if (cost <= 800000)
+			break;
+
+		CMDQ_LOG(
+			"[warn] waiting task %u cost time:%lluus submit:%llu enging:%#llx caller:%llu-%s\n",
+			idx, cost, task->submit, task->engineFlag,
+			(u64)task->caller_pid, task->caller_name);
+		idx++;
+	}
+	mutex_unlock(&cmdq_handle_list_mutex);
+}
 EXPORT_SYMBOL(cmdq_pkt_stop);
 
 /* mailbox helper functions */
@@ -5352,13 +5398,8 @@ s32 cmdq_helper_mbox_register(struct device *dev)
 		clt = cmdq_mbox_create(dev, i);
 		if (!clt || IS_ERR(clt)) {
 			CMDQ_LOG("register mbox stop:0x%p idx:%u\n", clt, i);
-#if IS_ENABLED(CONFIG_MTK_MT6382_DBG)
 			break;
-#else
-			continue;
-#endif
 		}
-
 #ifdef CMDQ_SECURE_PATH_SUPPORT
 		/* if channel is not valid in normal controller, check sec */
 		if (i >= sec_thread[0] && i <= sec_thread[1])
@@ -5376,27 +5417,16 @@ s32 cmdq_helper_mbox_register(struct device *dev)
 		}
 
 		cmdq_clients[chan_id] = clt;
-		CMDQ_LOG("chan %u 0x%p dev:0x%p mbox:%p mbox->dev:%p\n",
-			chan_id, cmdq_clients[chan_id]->chan, dev,
-			cmdq_clients[chan_id]->chan->mbox,
-			cmdq_clients[chan_id]->chan->mbox->dev);
-
-		if (!cmdq_clients[chan_id]->chan->mbox ||
-			!cmdq_clients[chan_id]->chan->mbox->dev)
-			CMDQ_AEE("CMDQ",
-				"chan:%u mbox:%p or mbox->dev:%p invalid!!",
-				chan_id, cmdq_clients[chan_id]->chan->mbox,
-				cmdq_clients[chan_id]->chan->mbox->dev);
+		CMDQ_LOG("chan %d 0x%p dev:0x%p\n",
+			chan_id, cmdq_clients[chan_id]->chan, dev);
 	}
 
 #if defined(CONFIG_MTK_MT6382_BDG)
 	node = of_parse_phandle(dev->of_node, "gce_mbox_bdg", 0);
 	pdev = of_find_device_by_node(node);
 	of_node_put(node);
-
 	CMDQ_LOG("%s: node:%p pdev:%p dev:%p MAX_THREAD_COUNT:%d\n",
 		__func__, node, pdev, &pdev->dev, CMDQ_MAX_THREAD_COUNT);
-
 	for (i = 0; i < CMDQ_MAX_THREAD_COUNT; i++) {
 		clt = cmdq_mbox_create(&pdev->dev, i);
 		if (!clt || IS_ERR(clt)) {
@@ -5404,7 +5434,6 @@ s32 cmdq_helper_mbox_register(struct device *dev)
 				__func__, clt, PTR_ERR(clt));
 			break;
 		}
-
 		chan_id = cmdq_mbox_chan_id(clt->chan);
 		cmdq_clients[BIT(5) | chan_id] = clt;
 		CMDQ_LOG("%s: i:%d chan_id:%d clt:%p",
@@ -5560,6 +5589,7 @@ void cmdq_core_initialize(void)
 	/* Initialize secure path context */
 	cmdqSecInitialize();
 #endif
+
 	mdp_rb_pool = dma_pool_create("mdp_rb", cmdq_dev_get(),
 		CMDQ_BUF_ALLOC_SIZE, 0, 0);
 	atomic_set(&mdp_rb_pool_cnt, 0);

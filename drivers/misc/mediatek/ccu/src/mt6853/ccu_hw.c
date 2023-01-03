@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -1316,21 +1309,21 @@ void *ccu_da_to_va(u64 da, uint32_t len)
 	struct CcuMemInfo *bin_mem = ccu_get_binary_memory();
 
 	if (bin_mem == NULL) {
-		LOG_ERR("failed lookup da(%llx), bin_mem NULL", da);
+		LOG_ERR("failed lookup da(%x), bin_mem NULL", da);
 		return NULL;
 	}
 	if (da < CCU_CACHE_BASE) {
 		offset = da;
 		if ((offset >= 0) && ((offset + len) < CCU_PMEM_SIZE)) {
-			LOG_INF_MUST("da(0x%llx) to va(0x%llx)",
-				da, (u64)(pmem_base + offset));
+			LOG_INF_MUST("da(0x%lx) to va(0x%lx)",
+				da, pmem_base + offset);
 			return (uint32_t *)(pmem_base + offset);
 		}
 	} else if (da >= CCU_CORE_DMEM_BASE) {
 		offset = da - CCU_CORE_DMEM_BASE;
 		if ((offset >= 0) && ((offset + len) < CCU_DMEM_SIZE)) {
-			LOG_INF_MUST("da(0x%llx) to va(0x%llx)",
-				da, (u64)(dmem_base + offset));
+			LOG_INF_MUST("da(0x%lx) to va(0x%lx)",
+				da, dmem_base + offset);
 			return (uint32_t *)(dmem_base + offset);
 		}
 	} else {
@@ -1338,14 +1331,13 @@ void *ccu_da_to_va(u64 da, uint32_t len)
 		if ((offset >= 0) &&
 		((offset + len) < CCU_CTRL_BUF_TOTAL_SIZE) &&
 		((offset + len) < bin_mem->size)) {
-			LOG_INF_MUST("da(0x%llx) to va(0x%llx)",
-				da, (u64)(bin_mem->va + offset));
+			LOG_INF_MUST("da(0x%lx) to va(0x%lx)",
+				da, bin_mem->va + offset);
 			return (uint32_t *)(bin_mem->va + offset);
 		}
 	}
 
-	LOG_ERR("failed lookup da(%llx) len(%x) to va, offset(%x)",
-		da, len, offset);
+	LOG_ERR("failed lookup da(%x) len(%x) to va, offset(%x)", da, offset);
 	return NULL;
 }
 

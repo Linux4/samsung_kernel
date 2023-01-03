@@ -1,18 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
-
-
-
 #include <linux/kernel.h>
 /* #include <linux/xlog.h> */
 
@@ -42,13 +31,18 @@ int jpeg_drv_hybrid_dec_start(unsigned int data[],
 										unsigned int id,
 										int *index_buf_fd)
 {
-	u64 buf_index_iova;
+	u64 buf_index_iova = 0;
 	struct ion_handle *index_buf_hdl;
 	int ret;
 	void *ptr;
 
 	ret = 0;
 	index_buf_hdl = jpg_ion_alloc_handle(data[20], 128, 0);
+	if (!index_buf_hdl) {
+		JPEG_WRN("%s jpg ion handle failed!", __func__);
+		*index_buf_fd = -1;
+		return -1;
+	}
 	*index_buf_fd = jpg_ion_share_handle(index_buf_hdl);
 	ret = jpg_ion_get_iova(index_buf_hdl, &buf_index_iova, 235);
 	ptr = jpg_ion_map_handle(index_buf_hdl);
@@ -343,13 +337,6 @@ unsigned int  jpeg_drv_dec_set_brz_factor(unsigned char yHScale,
 	/* yVScale =  yVScale; */
 	/* cbcrHScale = cbcrHScale; */
 	/* cbcrVScale = cbcrVScale; */
-#if 0
-	if (srcFormat == JPG_COLOR_444 ||
-	    srcFormat == JPG_COLOR_422V || srcFormat == JPG_COLOR_422Vx2) {
-
-		cbcrHScale++;
-	}
-#endif
 
 	if (yHScale > 3 || yVScale > 3 || cbcrHScale > 3 || cbcrVScale > 3)
 		return 0;

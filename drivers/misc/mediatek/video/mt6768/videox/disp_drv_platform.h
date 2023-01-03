@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __DISP_DRV_PLATFORM_H__
 #define __DISP_DRV_PLATFORM_H__
@@ -94,6 +86,6 @@ enum DISP_SESSION_ENUM {
 /* #define DISP_PLATFORM_HAS_SHADOW_REG */
 
 /* define MET ready to use*/
-#define CONFIG_MTK_MET
+//#define CONFIG_MTK_MET
 
 #endif				/* __DISP_DRV_PLATFORM_H__ */

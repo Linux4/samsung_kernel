@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #ifndef _POWER_CLOCK_API_H_
@@ -21,11 +13,9 @@
 #if 1
 extern unsigned int mt_get_ckgen_freq(unsigned int ID);
 extern unsigned int mt_get_abist_freq(unsigned int ID);
-extern void check_vpu_clk_sts(void);
 #else
 static inline unsigned int mt_get_ckgen_freq(unsigned int ID) { return 0; }
 static inline unsigned int mt_get_abist_freq(unsigned int ID) { return 0; }
-static inline void check_vpu_clk_sts(void) { }
 #endif
 
 /**********************************************

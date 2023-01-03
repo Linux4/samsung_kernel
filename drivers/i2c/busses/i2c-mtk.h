@@ -1,16 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2014 MediaTek Inc.
- * Author: Xudong.chen <xudong.chen@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 #ifndef __I2C_MTK_H__
 #define __I2C_MTK_H__
 
@@ -21,7 +13,7 @@
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/sched/clock.h>
-//#include <linux/sched.h>
+#include <linux/sched.h>
 #include <linux/delay.h>
 #include <linux/errno.h>
 #include <linux/err.h>
@@ -95,6 +87,7 @@
 #define I2C_DMA_INT_FLAG_NONE	0x0000
 #define I2C_DMA_CLR_FLAG		0x0000
 #define I2C_DMA_WARM_RST		0x0001
+#define I2C_DMA_HARD_RST		0x0002
 #define I2C_DMA_4G_MODE		0x0001
 
 #define I2C_DMA_DIR_CHANGE              (0x1 << 9)

@@ -6,6 +6,7 @@
  *
  */
 
+#include <linux/module.h>
 #include "pinctrl-mtk-mt6765.h"
 #include "pinctrl-paris.h"
 
@@ -1043,7 +1044,7 @@ static const struct mtk_pin_reg_calc mt6765_reg_cals[PINCTRL_PIN_REG_MAX] = {
 static const struct mtk_eint_hw mt6765_eint_hw = {
 	.port_mask = 7,
 	.ports     = 6,
-	.ap_num    = 212,
+	.ap_num    = 160,
 	.db_cnt    = 13,
 };
 
@@ -1055,11 +1056,10 @@ static const struct mtk_pin_soc mt6765_data = {
 	.nfuncs = 8,
 	.eint_hw = &mt6765_eint_hw,
 	.gpio_m = 0,
-	.race_free_access = true,
 	.bias_set_combo = mtk_pinconf_bias_set_combo,
 	.bias_get_combo = mtk_pinconf_bias_get_combo,
-	.drive_set = mtk_pinconf_drive_set_direct_val,
-	.drive_get = mtk_pinconf_drive_get_direct_val,
+	.drive_set = mtk_pinconf_drive_set_raw,
+	.drive_get = mtk_pinconf_drive_get_raw,
 };
 
 static const struct of_device_id mt6765_pinctrl_of_match[] = {
@@ -1086,3 +1086,6 @@ static int __init mt6765_pinctrl_init(void)
 	return platform_driver_register(&mt6765_pinctrl_driver);
 }
 arch_initcall(mt6765_pinctrl_init);
+
+MODULE_LICENSE("GPL v2");
+MODULE_DESCRIPTION("MediaTek MT6765 Pinctrl Driver");

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __ECCCI_INTERNAL_OPTION__
 #define __ECCCI_INTERNAL_OPTION__
@@ -17,7 +9,11 @@
 /* platform info */
 #define MD_GENERATION       (6297)
 #define MD_PLATFORM_INFO    "6297"
+#ifdef CCCI_PLATFORM_MT6893
+#define AP_PLATFORM_INFO    "MT6893"
+#else
 #define AP_PLATFORM_INFO    "MT6885"
+#endif
 #define CCCI_DRIVER_VER     0x20110118
 #define MT6297
 #define _97_REORDER_BAT_PAGE_TABLE_
@@ -53,7 +49,9 @@
 
 /* feature option, always try using platform info first! */
 #ifdef CONFIG_MTK_TINYSYS_SCP_SUPPORT
+#ifdef CCCI_PLATFORM_MT6893
 #define FEATURE_SCP_CCCI_SUPPORT
+#endif
 #endif
 /*#define ENABLE_EMI_PROTECTION*/
 /* #define FEATURE_LOW_BATTERY_SUPPORT */
@@ -86,5 +84,7 @@
 #define REFINE_BAT_OFFSET_REMOVE
 #define PIT_USING_CACHE_MEM
 #define USING_TX_DONE_KERNEL_THREAD
+
+#define CCCI_USE_DFD_OFFSET_0
 
 #endif

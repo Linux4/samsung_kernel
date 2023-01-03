@@ -1,16 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
-
 /* #define DEBUG 1 */
 #include <linux/version.h>
 #include <linux/kernel.h>
@@ -292,7 +283,7 @@ static unsigned int g_lvts_controller_value_e[LVTS_CONTROLLER_NUM]
 #endif
 
 #if LVTS_VALID_DATA_TIME_PROFILING
-unsigned long long int SODI3_count, noValid_count;
+unsigned long long SODI3_count, noValid_count;
 /* If isTempValid is 0, it means no valid temperature data
  * between two SODI3 entry points.
  */
@@ -324,8 +315,8 @@ static unsigned int latency_array[NUM_TIME_TH][2] = {
 	{10000, 0},
 	{-1, 0}
 };
-long long int start_timestamp;
-static long long int end_timestamp, time_diff;
+long long start_timestamp;
+static long long end_timestamp, time_diff;
 /* count if start_timestamp is bigger than end_timestamp */
 int diff_error_count;
 #endif
@@ -472,7 +463,7 @@ int lvts_raw_to_temp(unsigned int msr_raw, enum lvts_sensor_enum ts_name)
 	int temp_mC = 0;
 	int temp1 = 0;
 
-	temp1 = (LVTS_COEFF_A_X_1000 * ((unsigned long long int)msr_raw)) >> 14;
+	temp1 = (LVTS_COEFF_A_X_1000 * ((unsigned long long)msr_raw)) >> 14;
 
 	temp_mC = temp1 + g_golden_temp * 500 + LVTS_COEFF_B_X_1000;
 
@@ -590,7 +581,8 @@ static void dump_lvts_register_value(void)
 		for (j = 0; j < NUM_LVTS_CONTROLLER_REG; j++) {
 
 			if (((sizeof(buffer) - offset) <= 0) || (offset < 0)) {
-				lvts_printk("%s %d error\n", __func__, __LINE__);
+				lvts_printk("%s %d error\n", __func__,
+					__LINE__);
 				break;
 			}
 
@@ -607,7 +599,8 @@ static void dump_lvts_register_value(void)
 		for (j = 0; j < NUM_LVTS_DEVICE_REG; j++) {
 
 			if (((sizeof(buffer) - offset) <= 0) || (offset < 0)) {
-				lvts_printk("%s %d error\n", __func__, __LINE__);
+				lvts_printk("%s %d error\n", __func__,
+					__LINE__);
 				break;
 			}
 
@@ -964,7 +957,7 @@ void lvts_efuse_setting(void)
 
 #if LVTS_DEVICE_AUTO_RCK == 0
 			efuse_data =
-			(((unsigned long long int)g_count_rc_now[s_index]) *
+			(((unsigned long long)g_count_rc_now[s_index]) *
 				g_count_r[s_index]) >> 14;
 #else
 			efuse_data = g_count_r[s_index];
@@ -1326,7 +1319,7 @@ static unsigned int lvts_temp_to_raw(int temp, enum lvts_sensor_enum ts_name)
 	 */
 	unsigned int msr_raw = 0;
 
-	msr_raw = ((long long int)(((long long int)g_golden_temp * 500 +
+	msr_raw = ((long long)(((long long)g_golden_temp * 500 +
 		LVTS_COEFF_B_X_1000 - temp)) << 14)/(-1 * LVTS_COEFF_A_X_1000);
 
 	lvts_dbg_printk("%s msr_raw = 0x%x,temp=%d\n", __func__, msr_raw, temp);
@@ -1517,7 +1510,7 @@ static void lvts_configure_polling_speed_and_filter(int tc_num)
 
 		/*
 		 * bus clock 66M counting unit is
-		 *			12 * 1/66M * 256 = 12 * 3.879us = 46.545 us
+		 * 12 * 1/66M * 256 = 12 * 3.879us = 46.545 us
 		 */
 		mt_reg_sync_writel_print(lvtsMonCtl1, offset + LVTSMONCTL1_0);
 		/*
@@ -1684,13 +1677,13 @@ void lvts_dump_time_profiling_result(struct seq_file *m)
 	seq_printf(m, "Current time_diff= %lldus\n", time_diff);
 }
 
-static void lvts_count_valid_temp_latency(long long int time_diff)
+static void lvts_count_valid_temp_latency(long long time_diff)
 {
 	/* time_diff is in microseconds */
 	int i;
 
 	for (i = 0; i < (NUM_TIME_TH - 1); i++) {
-		if (time_diff < (((long long int)latency_array[i][0])
+		if (time_diff < (((long long)latency_array[i][0])
 			* 1000)) {
 			latency_array[i][1]++;
 			break;

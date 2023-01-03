@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2016 MediaTek Inc.
  */
 
 #if IS_ENABLED(BUILD_MMQOS)
@@ -36,6 +28,7 @@
 #include "mmdvfs_pmqos.h"
 #include "mmdvfs_plat.h"
 #include <mt-plat/aee.h>
+
 
 #include "smi_pmqos.h"
 #include "smi_public.h"
@@ -102,8 +95,8 @@ static u32 cam_larb_ids[MAX_LARB_COUNT];
 static u32 max_bw_bound;
 #define MAX_COMM_NUM (2)
 
-static struct pm_qos_request mm_bw_request;
-static struct pm_qos_request smi_freq_request[MAX_COMM_NUM];
+static struct mtk_pm_qos_request mm_bw_request;
+static struct mtk_pm_qos_request smi_freq_request[MAX_COMM_NUM];
 static DEFINE_MUTEX(bw_mutex);
 static s32 total_hrt_bw = UNINITIALIZED_VALUE;
 static s32 total_ui_only_hrt_bw = UNINITIALIZED_VALUE;
@@ -300,7 +293,7 @@ static s32 get_io_width(void)
 #ifdef SIMULATE_DVFSRC
 static s32 bw_threshold_high[DDR_OPP_NUM] = {0};
 static s32 bw_threshold_low[DDR_OPP_NUM] = {0};
-static struct pm_qos_request ddr_request;
+static struct mtk_pm_qos_request ddr_request;
 
 
 static void init_simulation(void)
@@ -326,8 +319,8 @@ static void init_simulation(void)
 			(s32)MULTIPLY_BW_THRESHOLD_LOW(freq);
 	}
 
-	pm_qos_add_request(
-		&ddr_request, PM_QOS_DDR_OPP,  PM_QOS_DDR_OPP_DEFAULT_VALUE);
+	mtk_pm_qos_add_request(
+		&ddr_request, MTK_PM_QOS_DDR_OPP,  PM_QOS_DDR_OPP_DEFAULT_VALUE);
 }
 
 static u32 get_ddr_opp_by_threshold(s32 bw, s32 *threshold_array)
@@ -366,7 +359,7 @@ static void simulate_dvfsrc(s32 next_hrt_bw)
 
 	if ((is_up && next_opp < current_opp) ||
 		(!is_up && next_opp > current_opp)) {
-		pm_qos_update_request(&ddr_request, next_opp);
+		mtk_pm_qos_update_request(&ddr_request, next_opp);
 		if (log_level & 1 << log_bw)
 			pr_notice("up=%d copp=%d nopp=%d cbw=%d nbw=%d\n",
 				is_up, current_opp, next_opp,
@@ -374,11 +367,11 @@ static void simulate_dvfsrc(s32 next_hrt_bw)
 	}
 }
 #else
-static struct pm_qos_request dvfsrc_isp_hrt_req;
+static struct mtk_pm_qos_request dvfsrc_isp_hrt_req;
 static void init_dvfsrc(void)
 {
-	pm_qos_add_request(
-		&dvfsrc_isp_hrt_req, PM_QOS_ISP_HRT_BANDWIDTH,
+	mtk_pm_qos_add_request(
+		&dvfsrc_isp_hrt_req, MTK_PM_QOS_ISP_HRT_BANDWIDTH,
 		PM_QOS_ISP_HRT_BANDWIDTH_DEFAULT_VALUE);
 }
 #endif
@@ -415,7 +408,7 @@ static void update_hrt_bw_to_dvfsrc(s32 next_hrt_bw)
 	s32 mm_used_hrt_bw =
 		next_hrt_bw - larb_req[md_larb_id].total_hrt_data;
 
-	pm_qos_update_request(&dvfsrc_isp_hrt_req, mm_used_hrt_bw);
+	mtk_pm_qos_update_request(&dvfsrc_isp_hrt_req, mm_used_hrt_bw);
 	if (log_level & 1 << log_bw)
 		pr_notice("%s report dvfsrc mm_hrt_bw=%d\n",
 			__func__, mm_used_hrt_bw);
@@ -867,7 +860,7 @@ void mm_qos_update_all_request(struct plist_head *owner_list)
 			SHIFT_ROUND(max_ch_srt_bw, 4) : 0;
 		smi_hrt_clk = max_ch_hrt_bw ?
 			SHIFT_ROUND(max_ch_hrt_bw, 4) : 0;
-		pm_qos_update_request(&smi_freq_request[comm],
+		mtk_pm_qos_update_request(&smi_freq_request[comm],
 			max_t(s32, smi_srt_clk, smi_hrt_clk));
 		if (log_level & 1 << log_smi_freq)
 			pr_notice("comm:%d smi_srt_clk:%d smi_hrt_clk:%d\n",
@@ -897,7 +890,7 @@ void mm_qos_update_all_request(struct plist_head *owner_list)
 		if (log_level & 1 << log_qoslarb)
 			trace_mmqos__update_qoslarb(i, larb_bw);
 	}
-	pm_qos_update_request(&mm_bw_request, mm_bw);
+	mtk_pm_qos_update_request(&mm_bw_request, mm_bw);
 	if (log_level & 1 << log_bw)
 		pr_notice("config mm_bw=%d\n", mm_bw);
 }
@@ -1200,7 +1193,7 @@ static int mmqos_probe(struct platform_device *pdev)
 	mmprofile_start(1);
 #endif
 
-	pm_qos_add_request(&mm_bw_request, PM_QOS_MM_MEMORY_BANDWIDTH,
+	mtk_pm_qos_add_request(&mm_bw_request, MTK_PM_QOS_MEMORY_BANDWIDTH,
 		PM_QOS_MM_MEMORY_BANDWIDTH_DEFAULT_VALUE);
 
 	of_property_for_each_u32(
@@ -1211,7 +1204,7 @@ static int mmqos_probe(struct platform_device *pdev)
 			comm_freq_class[comm_count] = PM_QOS_MDP_FREQ;
 		else
 			pr_notice("[mmqos]wrong comm_freq value:%d\n", value);
-		pm_qos_add_request(&smi_freq_request[comm_count],
+		mtk_pm_qos_add_request(&smi_freq_request[comm_count],
 			comm_freq_class[comm_count],
 			PM_QOS_MM_FREQ_DEFAULT_VALUE);
 		comm_count++;
@@ -1279,18 +1272,18 @@ static int mmqos_remove(struct platform_device *pdev)
 {
 	u32 i;
 
-	pm_qos_remove_request(&mm_bw_request);
+	mtk_pm_qos_remove_request(&mm_bw_request);
 	for (i = 0; i < MAX_COMM_NUM; i++) {
 		if (comm_freq_class[i] == 0)
 			continue;
-		pm_qos_remove_request(&smi_freq_request[i]);
+		mtk_pm_qos_remove_request(&smi_freq_request[i]);
 	}
 
 #ifdef HRT_MECHANISM
 #ifdef SIMULATE_DVFSRC
-	pm_qos_remove_request(&ddr_request);
+	mtk_pm_qos_remove_request(&ddr_request);
 #else
-	pm_qos_remove_request(&dvfsrc_isp_hrt_req);
+	mtk_pm_qos_remove_request(&dvfsrc_isp_hrt_req);
 #endif
 #endif
 	return 0;

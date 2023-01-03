@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __CMDQ_HELPER_EXT_H__
 #define __CMDQ_HELPER_EXT_H__
@@ -188,6 +180,12 @@ do {if (1) mmprofile_log_ex(args); } while (0);	\
 	preempt_enable(); \
 } while (0)
 
+#define CMDQ_TRACE_FORCE_COUNTER(fmt, count, args...) do { \
+	preempt_disable(); \
+	event_trace_printk(cmdq_get_tracing_mark(), \
+		"C|%d|"fmt"|%d\n", current->tgid, ##args, count); \
+	preempt_enable(); \
+} while (0)
 
 #define CMDQ_SYSTRACE_BEGIN(fmt, args...) do { \
 	if (cmdq_core_ftrace_enabled()) { \
@@ -198,6 +196,24 @@ do {if (1) mmprofile_log_ex(args); } while (0);	\
 #define CMDQ_SYSTRACE_END() do { \
 	if (cmdq_core_ftrace_enabled()) { \
 		CMDQ_TRACE_FORCE_END(); \
+	} \
+} while (0)
+
+#define CMDQ_SYSTRACE2_BEGIN(fmt, args...) do { \
+	if (cmdq_core_ftrace2_enabled()) { \
+		CMDQ_TRACE_FORCE_BEGIN(fmt, ##args); \
+	} \
+} while (0)
+
+#define CMDQ_SYSTRACE2_END() do { \
+	if (cmdq_core_ftrace2_enabled()) { \
+		CMDQ_TRACE_FORCE_END(); \
+	} \
+} while (0)
+
+#define CMDQ_SYSTRACE2_COUNTER(fmt, count, args...) do { \
+	if (cmdq_core_ftrace2_enabled()) { \
+		CMDQ_TRACE_FORCE_COUNTER(fmt, count, ##args); \
 	} \
 } while (0)
 
@@ -339,6 +355,7 @@ enum CMDQ_PROFILE_LEVEL {
 	CMDQ_PROFILE_EXEC = 3,
 	CMDQ_PROFILE_PQRB_ONCE = 4,
 	CMDQ_PROFILE_PQRB = 5,
+	CMDQ_PROFILE_FTRACE2 = 6,
 
 	CMDQ_PROFILE_MAX	/* ALWAYS keep at the end */
 };
@@ -843,6 +860,7 @@ bool cmdq_core_ftrace_enabled(void);
 bool cmdq_core_profile_exec_enabled(void);
 bool cmdq_core_profile_pqreadback_once_enabled(void);
 bool cmdq_core_profile_pqreadback_enabled(void);
+bool cmdq_core_ftrace2_enabled(void);
 void cmdq_long_string_init(bool force, char *buf, u32 *offset, s32 *max_size);
 void cmdq_long_string(char *buf, u32 *offset, s32 *max_size,
 	const char *string, ...);

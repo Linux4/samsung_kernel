@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2020 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/clk-provider.h>
 #include <linux/platform_device.h>
@@ -101,6 +93,6 @@ static int __init clk_mt6833_msdc0_platform_init(void)
 {
 	return platform_driver_register(&clk_mt6833_msdc0_drv);
 }
-arch_initcall_sync(clk_mt6833_msdc0_platform_init);
+arch_initcall(clk_mt6833_msdc0_platform_init);
 
 #endif	/* MT_CLKMGR_MODULE_INIT */

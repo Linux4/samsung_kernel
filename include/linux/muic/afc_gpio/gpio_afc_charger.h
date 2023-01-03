@@ -18,6 +18,11 @@
 #define AFC_SPING_MIN			2
 #define AFC_SPING_MAX			20
 
+enum GPIO_AFC_HICCUP_MODE {
+	SEC_HICCUP_MODE_OFF	=	0,
+	SEC_HICCUP_MODE_ON,
+};
+
 struct gpio_afc_pdata {
 	int gpio_afc_switch;
 	int gpio_afc_data;
@@ -26,7 +31,7 @@ struct gpio_afc_pdata {
 struct gpio_afc_ddata {
 	struct device *dev;
 	struct gpio_afc_pdata *pdata;
-	struct wakeup_source ws;
+	struct wakeup_source *ws;
 	struct mutex mutex;
 	struct kthread_worker kworker;
 	struct kthread_work kwork;
@@ -36,7 +41,8 @@ struct gpio_afc_ddata {
 	int afc_disable;
 	int curr_voltage;
 	int set_voltage;
-#if IS_ENABLED(CONFIG_MUIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	int is_hiccup_mode;
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 	struct muic_platform_data *muic_pdata;
 #endif
 };

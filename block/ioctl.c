@@ -202,9 +202,15 @@ static int blk_ioctl_discard(struct block_device *bdev, fmode_t mode,
 {
 	uint64_t range[2];
 	uint64_t start, len;
+	struct request_queue *q = bdev_get_queue(bdev);
+	struct address_space *mapping = bdev->bd_inode->i_mapping;
+
 
 	if (!(mode & FMODE_WRITE))
 		return -EBADF;
+
+	if (!blk_queue_discard(q))
+		return -EOPNOTSUPP;
 
 	if (copy_from_user(range, (void __user *)arg, sizeof(range)))
 		return -EFAULT;
@@ -216,16 +222,16 @@ static int blk_ioctl_discard(struct block_device *bdev, fmode_t mode,
 		return -EINVAL;
 	if (len & 511)
 		return -EINVAL;
-	start >>= 9;
-	len >>= 9;
 
-	if (start + len > (i_size_read(bdev->bd_inode) >> 9))
+	if (start + len > i_size_read(bdev->bd_inode))
 		return -EINVAL;
 	printk("%s %d:%d %llu %llu",
 		(flags & BLKDEV_DISCARD_SECURE) ? "SECDIS" : "DIS",
 		MAJOR(bdev->bd_dev), MINOR(bdev->bd_dev),
 		(unsigned long long)start, (unsigned long long)len);
-	return blkdev_issue_discard(bdev, start, len, GFP_KERNEL, flags);
+	truncate_inode_pages_range(mapping, start, start + len - 1);
+	return blkdev_issue_discard(bdev, start >> 9, len >> 9,
+				    GFP_KERNEL, flags);
 }
 
 static int blk_ioctl_zeroout(struct block_device *bdev, fmode_t mode,
@@ -441,11 +447,12 @@ static int blkdev_roset(struct block_device *bdev, fmode_t mode,
 {
 	int ret, n;
 
-	ret = __blkdev_driver_ioctl(bdev, mode, cmd, arg);
-	if (ret && !is_unrecognized_ioctl(ret))
-		return ret;
 	if (!capable(CAP_SYS_ADMIN))
 		return -EACCES;
+
+	ret = __blkdev_driver_ioctl(bdev, mode, cmd, arg);
+	if (!is_unrecognized_ioctl(ret))
+		return ret;
 	if (get_user(n, (int __user *)arg))
 		return -EFAULT;
 	set_device_ro(bdev, n);

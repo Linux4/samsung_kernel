@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -44,7 +36,7 @@
 #include "mtkfb.h"
 #endif
 
-#define MET_USER_EVENT_SUPPORT
+// #define MET_USER_EVENT_SUPPORT
 #ifdef MET_USER_EVENT_SUPPORT
 #include <mt-plat/met_drv.h>
 #endif
@@ -81,7 +73,7 @@ static int button_flag_isink1;
 struct wakeup_source leds_suspend_lock;
 struct cust_mt65xx_led *pled_dtsi;
 
-char *leds_name[TYPE_TOTAL] = {
+char *leds_name[MT65XX_LED_TYPE_TOTAL] = {
 	"red",
 	"green",
 	"blue",
@@ -150,9 +142,12 @@ static void backlight_debug_log(int level, int mappingLevel)
 
 void mt_leds_wake_lock_init(void)
 {
-	wakeup_source_init(&leds_suspend_lock, "leds wakelock");
+	// wakeup_source_init(&leds_suspend_lock, "leds wakelock");
 }
-
+unsigned int *mt_get_div_array(void)
+{
+	return &div_array_hal[0];
+}
 struct cust_mt65xx_led *get_cust_led_dtsi(void)
 {
 	struct device_node *led_node = NULL;
@@ -165,14 +160,14 @@ struct cust_mt65xx_led *get_cust_led_dtsi(void)
 		goto out;
 
 	pr_info("[LED] %s pled_dtsi is null, load dts file\n", __func__);
-	pled_dtsi = kmalloc_array(TYPE_TOTAL,
+	pled_dtsi = kmalloc_array(MT65XX_LED_TYPE_TOTAL,
 			sizeof(struct cust_mt65xx_led), GFP_KERNEL);
 	if (pled_dtsi == NULL) {
 		LEDS_DEBUG("%s kmalloc fail\n", __func__);
 		goto out;
 	}
 
-	for (i = 0; i < TYPE_TOTAL; i++) {
+	for (i = 0; i < MT65XX_LED_TYPE_TOTAL; i++) {
 		char node_name[32] = "mediatek,";
 
 		if (strlen(node_name) + strlen(leds_name[i]) + 1 >
@@ -696,8 +691,8 @@ int mt_brightness_set_pmic(enum mt65xx_led_pmic pmic_type, u32 level, u32 div)
 		if ((button_flag_isink0 == 0) && (first_time == true)) {
 			/* sw workround for sync leds status */
 			if (button_flag_isink1 == 0)
-				pmic_set_register_value(PMIC_ISINK_CH1_EN,
-					NLED_OFF);
+				// pmic_set_register_value(PMIC_ISINK_CH1_EN,
+				// 	NLED_OFF);
 			first_time = false;
 		}
 		pmic_set_register_value(PMIC_RG_DRV_128K_CK_PDN, 0x0);

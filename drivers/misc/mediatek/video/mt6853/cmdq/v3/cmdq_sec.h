@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #ifndef __CMDQ_SEC_H__
 #define __CMDQ_SEC_H__
@@ -27,16 +20,10 @@
 #endif /* CMDQ_SECURE_PATH_SUPPORT */
 
 
-/*
- * error code for CMDQ
- */
 #define CMDQ_ERR_NULL_SEC_CTX_HANDLE (6000)
 #define CMDQ_ERR_SEC_CTX_SETUP (6001)
 #define CMDQ_ERR_SEC_CTX_TEARDOWN (6002)
 
-/*
- * inter-world communication state
- */
 enum CMDQ_IWC_STATE_ENUM {
 	IWC_INIT = 0,
 	IWC_CONTEXT_INITED = 1,
@@ -79,37 +66,14 @@ s32 cmdq_sec_task_copy_to_buffer(struct cmdqRecStruct *task,
 
 const struct cmdq_controller *cmdq_sec_get_controller(void);
 
-/*
- * Create and destroy non-cachable shared memory,
- * used to share data for CMDQ driver between NWd and SWd
- *
- * Be careful that we should not disvlose any information about secure buffer
- * address of
- */
 int32_t cmdq_sec_create_shared_memory(
 	struct cmdqSecSharedMemoryStruct **pHandle, const uint32_t size);
 int32_t cmdq_sec_destroy_shared_memory(
 	struct cmdqSecSharedMemoryStruct *handle);
 
-/*
- * Callback to fill message buffer for secure task
- *
- * Params:
- *     init32_t command id
- *     void*	pornter of TaskStruct
- *     int32_t  CMDQ HW thread id
- *     void*    the inter-world communication buffer
- * Return:
- *     >=0 for success;
- */
 typedef int32_t(*CmdqSecFillIwcCB) (int32_t, void *, int32_t, void *, void *);
 
 
-/*
- * Entry secure world to handle secure path jobs
- * .submit task
- * .cancel error task
- */
 
 int32_t cmdq_sec_exec_task_async_unlocked(
 	struct cmdqRecStruct *pTask, int32_t thread);
@@ -129,9 +93,6 @@ s32 cmdq_sec_insert_backup_cookie_instr(struct cmdqRecStruct *task, s32 thread);
 void cmdq_sec_dump_secure_thread_cookie(s32 thread);
 s32 cmdq_mbox_sec_chan_id(void *chan);
 
-/*
- * secure path control
- */
 void cmdq_sec_lock_secure_path(void);
 void cmdq_sec_unlock_secure_path(void);
 
@@ -141,9 +102,6 @@ void cmdqSecDeInitialize(void);
 void cmdqSecEnableProfile(const bool enable);
 
 #if defined(CMDQ_SECURE_PATH_SUPPORT)
-/*
- * tee vendor interface
- */
 void cmdq_sec_setup_tee_context(struct cmdq_sec_tee_context *tee);
 
 s32 cmdq_sec_init_context(struct cmdq_sec_tee_context *tee);

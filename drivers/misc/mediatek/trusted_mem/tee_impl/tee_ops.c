@@ -1,14 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #define PR_FMT_HEADER_MUST_BE_INCLUDED_BEFORE_ALL_HDRS
@@ -40,26 +33,29 @@
 #endif
 #include "tee_client_api.h"
 
+#if defined(CONFIG_TEEGRIS_TEE_SUPPORT)
+#include <tee_client_api.h>
+#endif
+
 #if IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
 	#define TYPE_STRUCT
 #else
 	#define TYPE_STRUCT struct
 #endif
 
+/* clang-format off */
 #if defined(CONFIG_TEEGRIS_TEE_SUPPORT)
 #define SECMEM_TL_GP_UUID_STRING NULL
 #define SECMEM_TL_GP_UUID \
-	{0x00000000, 0x4D54, 0x4B5F, \
-	 {0x42, 0x46, 0x53, 0x4D, 0x45, 0x4D, 0x54, 0x41 } }
+	{ 0x00000000, 0x4D54, 0x4B5F, \
+	{ 0x42, 0x46, 0x53, 0x4D, 0x45, 0x4D, 0x54, 0x41 } }
 #else
-/* clang-format off */
+#define SECMEM_TL_GP_UUID_STRING "08030000000000000000000000000000"
 #define SECMEM_TL_GP_UUID \
 	{ 0x08030000, 0x0000, 0x0000, \
 	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } }
-/* clang-format on */
-
-#define SECMEM_TL_GP_UUID_STRING "08030000000000000000000000000000"
 #endif
+/* clang-format on */
 
 struct TEE_GP_SESSION_DATA {
 	TYPE_STRUCT TEEC_Context context;

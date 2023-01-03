@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 #include <linux/init.h>		/* For init/exit macros */
 #include <linux/module.h>	/* For MODULE_ marcros  */
@@ -20,6 +12,7 @@
 #include <linux/suspend.h>
 #include <linux/platform_device.h>
 #include <linux/pm_wakeup.h>
+#include <linux/mod_devicetable.h>
 #include "mtk_gauge_time_service.h"
 
 
@@ -30,7 +23,7 @@ static int ftlog_level;
 
 static struct mutex gtimer_lock;
 static spinlock_t slock;
-static struct wakeup_source wlock;
+static struct wakeup_source *wlock;
 static wait_queue_head_t wait_que;
 static struct hrtimer gtimer_kthread_timer;
 static struct timespec gtimer_suspend_time;
@@ -105,8 +98,8 @@ void wake_up_gtimer(void)
 	unsigned long flags;
 
 	spin_lock_irqsave(&slock, flags);
-	if (wlock.active == 0)
-		__pm_stay_awake(&wlock);
+	if (wlock->active == 0)
+		__pm_stay_awake(wlock);
 	spin_unlock_irqrestore(&slock, flags);
 
 	gtimer_thread_timeout = true;
@@ -272,7 +265,7 @@ static int gtimer_thread(void *arg)
 		gtimer_handler();
 
 		spin_lock_irqsave(&slock, flags);
-		__pm_relax(&wlock);
+		__pm_relax(wlock);
 		spin_unlock_irqrestore(&slock, flags);
 
 		mutex_gtimer_unlock();
@@ -399,7 +392,7 @@ static int gauge_timer_service_probe(struct platform_device *pdev)
 {
 	mutex_init(&gtimer_lock);
 	spin_lock_init(&slock);
-	wakeup_source_init(&wlock, "gtime timer wakelock");
+	wlock = wakeup_source_register(NULL, "gtime timer wakelock");
 	init_waitqueue_head(&wait_que);
 
 

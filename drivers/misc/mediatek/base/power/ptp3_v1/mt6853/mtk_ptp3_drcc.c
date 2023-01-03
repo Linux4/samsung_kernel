@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 /**
  * @file	mkt_fll.c
@@ -282,7 +275,7 @@ static void mtk_drcc_enable(unsigned int onOff,
 	const unsigned int drcc_group = DRCC_GROUP_ENABLE;
 	/* update via atf */
 	drcc_smc_handle(drcc_group, onOff, drcc_n);
-	/* update via mcupm or cpu_eb */
+	/* update via mcupm or cputoeb */
 	// drcc_ipi_handle(drcc_group, onoff, cpu);
 }
 

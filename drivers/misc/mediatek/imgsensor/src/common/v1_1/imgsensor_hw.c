@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (C) 2016 MediaTek Inc.
  */
 
 #include <linux/delay.h>
@@ -142,7 +134,7 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 				pdev = phw->pdev[psensor_pwr->id[ppwr_info->pin]];
 
 				if (__ratelimit(&ratelimit))
-					PK_INFO("[Power on] sensor_idx = %d, pin = %d, pin_state_on = %d, delay after setting = %u ms",
+					PK_INFO("sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_on %d, delay %u",
 					sensor_idx, ppwr_info->pin, ppwr_info->pin_state_on, ppwr_info->pin_on_delay);
 
 				if (pdev->set != NULL)
@@ -166,7 +158,7 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 				mDELAY(ppwr_info->pin_on_delay);
 
 			if (__ratelimit(&ratelimit))
-				PK_INFO("[Power off] sensor_idx = %d, pin = %d, pin_state_off = %d, delay before setting = %u ms",
+				PK_INFO("sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_off %d, delay %u",
 					sensor_idx,	ppwr_info->pin,	ppwr_info->pin_state_off, ppwr_info->pin_on_delay);
 
 			if (ppwr_info->pin != IMGSENSOR_HW_PIN_UNDEF) {
@@ -192,9 +184,9 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 	char *curr_sensor_name = psensor->inst.psensor_list->name;
 	char str_index[LENGTH_FOR_SNPRINTF];
 
-	PK_INFO("[Power %s] sensor_idx = %d, curr_sensor_name = %s, enable list = %s",
-		pwr_status ? "on" : "off",
+	PK_INFO("sensor_idx %d, power %d curr_sensor_name %s, enable list %s\n",
 		sensor_idx,
+		pwr_status,
 		curr_sensor_name,
 		phw->enable_sensor_by_index[(uint32_t)sensor_idx] == NULL
 		? "NULL"

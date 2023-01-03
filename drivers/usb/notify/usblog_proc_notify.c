@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  *
- * Copyright (C) 2016-2021 Samsung, Inc.
+ * Copyright (C) 2016-2022 Samsung, Inc.
  * Author: Dongrak Shin <dongrak.shin@samsung.com>
  *
  */
 
- /* usb notify layer v3.6 */
+ /* usb notify layer v3.7 */
 
  #define pr_fmt(fmt) "usb_notify: " fmt
 
@@ -30,7 +30,7 @@
 #define USBLOG_MAX_BUF2_SIZE	(1 << 7) /* 128 */
 #define USBLOG_MAX_BUF3_SIZE	(1 << 8) /* 256 */
 #define USBLOG_MAX_BUF4_SIZE	(1 << 9) /* 512 */
-#define USBLOG_MAX_STRING_SIZE	(1 << 4) /* 16 */
+#define USBLOG_MAX_STRING_SIZE	(1 << 5) /* 32 */
 #define USBLOG_CMP_INDEX	3
 #define USBLOG_MAX_STORE_PORT	(1 << 6) /* 64 */
 
@@ -271,6 +271,8 @@ static const char *ccic_dev_string(enum ccic_device dev)
 		return "MUIC2";
 	case NOTIFY_DEV_DEDICATED_MUIC:
 		return "DEDICATED MUIC";
+	case NOTIFY_DEV_ALL:
+		return "DEV ALL";
 	default:
 		return "UNDEFINED";
 	}
@@ -315,6 +317,12 @@ static const char *ccic_id_string(enum ccic_id id)
 		return "ID_WATER_CABLE";
 	case NOTIFY_ID_POFF_WATER:
 		return "ID_POWEROFF_WATER";
+	case NOTIFY_ID_DEVICE_INFO:
+		return "ID_DEVICE_INFO";
+	case NOTIFY_ID_SVID_INFO:
+		return "ID_SVID_INFO";
+	case NOTIFY_ID_CLEAR_INFO:
+		return "ID_CLEAR_INFO";
 	default:
 		return "UNDEFINED";
 	}
@@ -715,12 +723,33 @@ static void print_ccic_event(struct seq_file *m, unsigned long long ts,
 			ccic_dev_string(type.dest),
 			ccic_con_string(type.sub1));
 		else if (type.id  == NOTIFY_ID_POFF_WATER)
-			seq_printf(m, "[%5lu.%06lu] ccic notify:   id=%s src=%s dest=%s POWEROFF %s detected\n",
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s POWEROFF %s detected\n",
 			(unsigned long)ts, rem_nsec / 1000,
 			ccic_id_string(type.id),
 			ccic_dev_string(type.src),
 			ccic_dev_string(type.dest),
 			type.sub1 ? "WATER":"DRY");
+		else if (type.id  == NOTIFY_ID_DEVICE_INFO)
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s vid=%04x pid=%04x bcd=%04x\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			type.sub1, type.sub2, type.sub3);
+		else if (type.id  == NOTIFY_ID_SVID_INFO)
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s svid=%04x\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			type.sub1);
+		else if (type.id  == NOTIFY_ID_CLEAR_INFO)
+			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s clear %s\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			(type.sub1 == NOTIFY_ID_DEVICE_INFO) ? "DEVICE INFO" : "SVID INFO");
 		else
 			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s rprd=%s %s\n",
 			(unsigned long)ts, rem_nsec / 1000,
@@ -862,6 +891,27 @@ static void print_ccic_event(struct seq_file *m, unsigned long long ts,
 			ccic_dev_string(type.src),
 			ccic_dev_string(type.dest),
 			ccic_con_string(type.sub1));
+		else if (type.id  == NOTIFY_ID_DEVICE_INFO)
+			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s vid=%04x pid=%04x bcd=%04x\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			type.sub1, type.sub2, type.sub3);
+		else if (type.id  == NOTIFY_ID_SVID_INFO)
+			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s svid=%04x\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			type.sub1);
+		else if (type.id  == NOTIFY_ID_CLEAR_INFO)
+			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s clear %s\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			(type.sub1 == NOTIFY_ID_DEVICE_INFO) ? "DEVICE INFO" : "SVID INFO");
 		else
 			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s rprd=%s %s\n",
 			(unsigned long)ts, rem_nsec / 1000,
@@ -894,6 +944,10 @@ static void print_port_string(struct seq_file *m, unsigned long long ts,
 		break;
 	case NOTIFY_PORT_CLASS:
 		seq_printf(m, "[%5lu.%06lu] device class %d, interface class %d\n",
+			(unsigned long)ts, rem_nsec / 1000, param1, param2);
+		break;
+	case NOTIFY_PORT_CLASS_BLOCK:
+		seq_printf(m, "[%5lu.%06lu] block device class %d, interface class %d\n",
 			(unsigned long)ts, rem_nsec / 1000, param1, param2);
 		break;
 	default:
@@ -1617,7 +1671,8 @@ void store_usblog_notify(int type, void *param1, void *param2)
 		state_store_usblog_notify(type, (char *)param1);
 	else if (type == NOTIFY_PORT_CONNECT ||
 				type == NOTIFY_PORT_DISCONNECT ||
-					type == NOTIFY_PORT_CLASS)
+					type == NOTIFY_PORT_CLASS ||
+						type == NOTIFY_PORT_CLASS_BLOCK)
 		port_store_usblog_notify(type, param1, param2);
 	else if (type == NOTIFY_PCM_PLAYBACK ||
 				type == NOTIFY_PCM_CAPTURE)

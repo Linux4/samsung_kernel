@@ -4,6 +4,7 @@
 #
 
 obj-$(CONFIG_IBM_ASM)		+= ibmasm/
+obj-$(CONFIG_IBMVMC)		+= ibmvmc.o
 obj-$(CONFIG_AD525X_DPOT)	+= ad525x_dpot.o
 obj-$(CONFIG_AD525X_DPOT_I2C)	+= ad525x_dpot-i2c.o
 obj-$(CONFIG_AD525X_DPOT_SPI)	+= ad525x_dpot-spi.o
@@ -12,7 +13,7 @@ obj-$(CONFIG_ATMEL_SSC)		+= atmel-ssc.o
 obj-$(CONFIG_ATMEL_TCLIB)	+= atmel_tclib.o
 obj-$(CONFIG_DUMMY_IRQ)		+= dummy-irq.o
 obj-$(CONFIG_ICS932S401)	+= ics932s401.o
-obj-$(CONFIG_LKDTM)		+= lkdtm.o
+obj-$(CONFIG_LKDTM)		+= lkdtm/
 obj-$(CONFIG_TIFM_CORE)       	+= tifm_core.o
 obj-$(CONFIG_TIFM_7XX1)       	+= tifm_7xx1.o
 obj-$(CONFIG_PHANTOM)		+= phantom.o
@@ -31,7 +32,6 @@ obj-$(CONFIG_ISL29003)		+= isl29003.o
 obj-$(CONFIG_ISL29020)		+= isl29020.o
 obj-$(CONFIG_SENSORS_TSL2550)	+= tsl2550.o
 obj-$(CONFIG_DS1682)		+= ds1682.o
-obj-$(CONFIG_TI_DAC7512)	+= ti_dac7512.o
 obj-$(CONFIG_C2PORT)		+= c2port/
 obj-$(CONFIG_HMC6352)		+= hmc6352.o
 obj-y				+= eeprom/
@@ -48,7 +48,6 @@ obj-$(CONFIG_VMWARE_VMCI)	+= vmw_vmci/
 obj-$(CONFIG_LATTICE_ECP3_CONFIG)	+= lattice-ecp3-config.o
 obj-$(CONFIG_SRAM)		+= sram.o
 obj-$(CONFIG_SRAM_EXEC)		+= sram-exec.o
-obj-$(CONFIG_ACCESS_RAMOOPS)	+= access_ramoops.o
 obj-y				+= mic/
 obj-$(CONFIG_GENWQE)		+= genwqe/
 obj-$(CONFIG_ECHO)		+= echo/
@@ -57,35 +56,23 @@ obj-$(CONFIG_CXL_BASE)		+= cxl/
 obj-$(CONFIG_ASPEED_LPC_CTRL)	+= aspeed-lpc-ctrl.o
 obj-$(CONFIG_ASPEED_LPC_SNOOP)	+= aspeed-lpc-snoop.o
 obj-$(CONFIG_PCI_ENDPOINT_TEST)	+= pci_endpoint_test.o
-
+obj-$(CONFIG_OCXL)		+= ocxl/
+obj-$(CONFIG_MISC_RTSX)		+= cardreader/
 obj-$(CONFIG_UID_SYS_STATS)	+= uid_sys_stats.o
-obj-$(CONFIG_MEMORY_STATE_TIME)	+= memory_state_time.o
-obj-$(CONFIG_MEDIATEK_SOLUTION) += mediatek/
-
+obj-y				+= mediatek/
+obj-$(CONFIG_DEV_RIL_BRIDGE) += dev_ril_bridge.o
 # TEEGRIS kernel driver
-ifeq ($(CONFIG_MACH_MT6877),y)
-ccflags-$(CONFIG_TZDEV)		+= -I$(srctree)/drivers/misc/tzdev/4.2.1/include
-obj-$(CONFIG_TZDEV)		+= tzdev/4.2.1/
+ifneq ($(CONFIG_TEEGRIS_VERSION_STRING),)
+ccflags-$(CONFIG_TZDEV)		+= -I$(srctree)/drivers/misc/tzdev/$(CONFIG_TEEGRIS_VERSION_STRING)/include
+obj-$(CONFIG_TZDEV)		+= tzdev/$(CONFIG_TEEGRIS_VERSION_STRING)/
 else
 ccflags-$(CONFIG_TZDEV)		+= -I$(srctree)/drivers/misc/tzdev/include
 obj-$(CONFIG_TZDEV)		+= tzdev/
 endif
-
-lkdtm-$(CONFIG_LKDTM)		+= lkdtm_core.o
-lkdtm-$(CONFIG_LKDTM)		+= lkdtm_bugs.o
-lkdtm-$(CONFIG_LKDTM)		+= lkdtm_heap.o
-lkdtm-$(CONFIG_LKDTM)		+= lkdtm_perms.o
-lkdtm-$(CONFIG_LKDTM)		+= lkdtm_refcount.o
-lkdtm-$(CONFIG_LKDTM)		+= lkdtm_rodata_objcopy.o
-lkdtm-$(CONFIG_LKDTM)		+= lkdtm_usercopy.o
-
-KCOV_INSTRUMENT_lkdtm_rodata.o	:= n
-CFLAGS_lkdtm_rodata.o		+= $(DISABLE_LTO)
-
-OBJCOPYFLAGS :=
-OBJCOPYFLAGS_lkdtm_rodata_objcopy.o := \
-	--rename-section .text=.rodata,alloc,readonly,load
-targets += lkdtm_rodata.o lkdtm_rodata_objcopy.o
-$(obj)/lkdtm_rodata_objcopy.o: $(obj)/lkdtm_rodata.o FORCE
-	$(call if_changed,objcopy)
 obj-$(CONFIG_SAMSUNG_TUI)	+= tui/
+
+#
+# Makefile for the Dev-Ril-Bridge driver
+#
+
+obj-$(CONFIG_DEV_RIL_BRIDGE) += dev_ril_bridge.o

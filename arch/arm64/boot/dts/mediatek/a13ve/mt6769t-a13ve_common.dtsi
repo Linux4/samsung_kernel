@@ -89,21 +89,19 @@
 	/* moisture SW mode config end */
 };
 
-&usb_tuning {
-	/* term_vref_sel */
-	tune@4 {
-		value = <0x3>;
-	};
-	/* hstx_srctrl */
-	tune@7 {
-		value = <0x0>;
-	};
-	/* sqth */
-	tune@9 {
-		value = <0x0>;
-	};
-	/* discth */
-	tune@10 {
-		value = <0x6>;
-	};
+&u2port0 {
+	mediatek,eye-vrt = <0x7>; /* 0~7 */
+	mediatek,eye-term = <0x3>; /* 0~7 */
+	mediatek,eye-rev6 = <0x3>; /* 0~3 */
+	mediatek,eye-disc = <0x6>;
+	mediatek,eye-sqth = <0x0>;
+	mediatek,eye-intr_cal = <0x19>;
+	mediatek,eye-hstx_srctrl = <0x0>;
+	mediatek,host-eye-vrt = <0x7>; /* 0~7 */
+	mediatek,host-eye-term = <0x3>; /* 0~7 */
+	mediatek,host-eye-rev6 = <0x3>; /* 0~3 */
+	mediatek,host-eye-disc = <0x6>; /* 0~8 */
+	mediatek,host-eye-sqth = <0x0>;
+	mediatek,host-eye-intr_cal = <0x19>;
+	mediatek,host-eye-hstx_srctrl = <0x0>;
 };

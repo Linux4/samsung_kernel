@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 #ifndef _DEA_MODIFY_
 #include <linux/errno.h>
@@ -22,8 +14,8 @@
 #include <linux/alarmtimer.h>
 #include <linux/suspend.h>
 
-#include <mt-plat/charger_type.h>
-#include <mt-plat/mtk_battery.h>
+#include <mt-plat/v1/charger_type.h>
+#include <mt-plat/v1/mtk_battery.h>
 #include <mach/mtk_battery_property.h>
 #else
 #include <string.h>
@@ -190,11 +182,11 @@ int set_shutdown_cond(int shutdown_cond)
 		sdc.shutdown_status.is_overheat = true;
 		mutex_unlock(&sdc.lock);
 		bm_err("[%s]OVERHEAT shutdown!\n", __func__);
-		mutex_lock(&pm_mutex);
+		mutex_lock(&system_transition_mutex);
 #if !defined(CONFIG_BATTERY_SAMSUNG)
 		kernel_power_off();
 #endif
-		mutex_unlock(&pm_mutex);
+		mutex_unlock(&system_transition_mutex);
 		break;
 	case SOC_ZERO_PERCENT:
 		if (sdc.shutdown_status.is_soc_zero_percent != true) {
@@ -312,11 +304,11 @@ static int shutdown_event_handler(struct shutdown_controller *sdd)
 			polling++;
 			if (duraction.tv_sec >= SHUTDOWN_TIME) {
 				bm_err("soc zero shutdown\n");
-				mutex_lock(&pm_mutex);
+				mutex_lock(&system_transition_mutex);
 #if !defined(CONFIG_BATTERY_SAMSUNG)
 				kernel_power_off();
 #endif
-				mutex_unlock(&pm_mutex);
+				mutex_unlock(&system_transition_mutex);
 				return next_waketime(polling);
 
 			}
@@ -338,11 +330,11 @@ static int shutdown_event_handler(struct shutdown_controller *sdd)
 			polling++;
 			if (duraction.tv_sec >= SHUTDOWN_TIME) {
 				bm_err("uisoc one percent shutdown\n");
-				mutex_lock(&pm_mutex);
+				mutex_lock(&system_transition_mutex);
 #if !defined(CONFIG_BATTERY_SAMSUNG)
 				kernel_power_off();
 #endif
-				mutex_unlock(&pm_mutex);
+				mutex_unlock(&system_transition_mutex);
 				return next_waketime(polling);
 			}
 		} else if (now_current > 0 && current_soc > 0) {
@@ -362,11 +354,11 @@ static int shutdown_event_handler(struct shutdown_controller *sdd)
 		polling++;
 		if (duraction.tv_sec >= SHUTDOWN_TIME) {
 			bm_err("dlpt shutdown\n");
-			mutex_lock(&pm_mutex);
+			mutex_lock(&system_transition_mutex);
 #if !defined(CONFIG_BATTERY_SAMSUNG)
 			kernel_power_off();
 #endif
-			mutex_unlock(&pm_mutex);
+			mutex_unlock(&system_transition_mutex);
 			return next_waketime(polling);
 		}
 	}
@@ -433,11 +425,11 @@ static int shutdown_event_handler(struct shutdown_controller *sdd)
 				if (duraction.tv_sec >= SHUTDOWN_TIME) {
 					bm_err("low bat shutdown, over %d second\n",
 						SHUTDOWN_TIME);
-					mutex_lock(&pm_mutex);
+					mutex_lock(&system_transition_mutex);
 #if !defined(CONFIG_BATTERY_SAMSUNG)
 					kernel_power_off();
 #endif
-					mutex_unlock(&pm_mutex);
+					mutex_unlock(&system_transition_mutex);
 					return next_waketime(polling);
 				}
 			}
@@ -524,11 +516,11 @@ static int power_misc_routine_thread(void *arg)
 			sdd->overheat = false;
 			bm_err("%s battery overheat~ power off\n",
 				__func__);
-			mutex_lock(&pm_mutex);
+			mutex_lock(&system_transition_mutex);
 #if !defined(CONFIG_BATTERY_SAMSUNG)
 			kernel_power_off();
 #endif
-			mutex_unlock(&pm_mutex);
+			mutex_unlock(&system_transition_mutex);
 			fix_coverity = 1;
 			return 1;
 		}

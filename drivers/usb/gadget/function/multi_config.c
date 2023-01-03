@@ -1,11 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * File Name : multi_config.c
  *
  * Virtual multi configuration utilities for composite USB gadgets.
  * This utilitie can support variable interface for variable Host PC.
  *
- * Copyright (C) 2011-2021 Samsung Electronics
+ * Copyright (C) 2011 Samsung Electronics
+ * Author: SoonYong, Cho <soonyong.cho@samsung.com>
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and

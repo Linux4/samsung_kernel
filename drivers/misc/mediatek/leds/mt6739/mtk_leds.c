@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -38,7 +30,7 @@
 #include "ddp_pwm.h"
 #include "mtkfb.h"
 
-#define MET_USER_EVENT_SUPPORT
+// #define MET_USER_EVENT_SUPPORT
 #ifdef MET_USER_EVENT_SUPPORT
 #include <mt-plat/met_drv.h>
 #endif
@@ -89,7 +81,7 @@ static int button_flag_isink1;
 
 struct wakeup_source leds_suspend_lock;
 
-char *leds_name[TYPE_TOTAL] = {
+char *leds_name[MT65XX_LED_TYPE_TOTAL] = {
 	"red",
 	"green",
 	"blue",
@@ -159,7 +151,7 @@ static void backlight_debug_log(int level, int mappingLevel)
 
 void mt_leds_wake_lock_init(void)
 {
-	wakeup_source_init(&leds_suspend_lock, "leds wakelock");
+	// wakeup_source_init(&leds_suspend_lock, "leds wakelock");
 }
 
 unsigned int mt_get_bl_brightness(void)
@@ -214,7 +206,7 @@ struct cust_mt65xx_led *get_cust_led_dtsi(void)
 
 	if (pled_dtsi == NULL) {
 		/* this can allocat an new struct array */
-		pled_dtsi = kmalloc_array(TYPE_TOTAL,
+		pled_dtsi = kmalloc_array(MT65XX_LED_TYPE_TOTAL,
 				sizeof(struct cust_mt65xx_led),
 				GFP_KERNEL);
 		if (pled_dtsi == NULL) {
@@ -222,7 +214,7 @@ struct cust_mt65xx_led *get_cust_led_dtsi(void)
 			goto out;
 		}
 
-		for (i = 0; i < TYPE_TOTAL; i++) {
+		for (i = 0; i < MT65XX_LED_TYPE_TOTAL; i++) {
 			char node_name[32] = "mediatek,";
 
 			if (strlen(node_name) + strlen(leds_name[i]) + 1 > sizeof(node_name)) {

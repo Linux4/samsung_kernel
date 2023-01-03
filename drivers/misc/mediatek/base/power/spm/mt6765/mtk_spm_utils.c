@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2017 MediaTek Inc.
  */
 
 #include <linux/init.h>
@@ -16,6 +8,7 @@
 #include <linux/kernel.h>
 #include <linux/device.h>
 #include <linux/delay.h>
+#include <linux/of_device.h>
 #include <asm/setup.h>
 
 #include <mtk_spm_internal.h>
@@ -148,9 +141,43 @@ ssize_t get_spm_last_debug_flag(char *ToUserBuf
 }
 EXPORT_SYMBOL(get_spm_last_debug_flag);
 
+ssize_t get_spmfw_version(char *ToUserBuf
+		, size_t sz, void *priv)
+{
+	int index = 0;
+	const char *version;
+	char *p = ToUserBuf;
+
+#undef log
+#define log(fmt, args...) ({\
+	p += scnprintf(p, sz - strlen(ToUserBuf), fmt, ##args); p; })
+
+	struct device_node *node =
+	of_find_compatible_node(NULL, NULL, "mediatek,sleep");
+
+	if (node == NULL) {
+		log("No Found mediatek,sleep\n");
+		goto return_size;
+	}
+
+	while (!of_property_read_string_index(node,
+		"spmfw_version", index, &version)) {
+		log("%d: %s\n", index, version);
+		index++;
+	}
+
+	log("spmfw index: %d\n", spm_get_spmfw_idx());
+
+	if (node)
+		of_node_put(node);
+return_size:
+	return p - ToUserBuf;
+}
+EXPORT_SYMBOL(get_spmfw_version);
+
 void spm_output_sleep_option(void)
 {
-	pr_info("[SPM] PWAKE_EN:%d, PCMWDT_EN:%d, BYPASS_SYSPWREQ:%d\n",
+	printk_deferred("[name:spm&][SPM] PWAKE_EN:%d, PCMWDT_EN:%d, BYPASS_SYSPWREQ:%d\n",
 		   SPM_PWAKE_EN, SPM_PCMWDT_EN, SPM_BYPASS_SYSPWREQ);
 }
 EXPORT_SYMBOL(spm_output_sleep_option);

@@ -1,17 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Mediatek's MT6739 SoC device tree source
- *
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 /dts-v1/;
 #include <dt-bindings/clock/mt6739-clk.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
@@ -22,6 +12,7 @@
 #include <dt-bindings/iio/mt635x-auxadc.h>
 #include <dt-bindings/mfd/mt6357-irq.h>
 #include <generated/autoconf.h>
+#include <dt-bindings/soc/mediatek,boot-mode.h>
 
 / {
 	model = "mt6739";
@@ -230,7 +221,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		#size-cells = <2>;
 		ranges;
 		/*TODO: add reserved memory node here*/
-		consys-reserve-memory {
+		consys_mem: consys-reserve-memory {
 			compatible = "mediatek,consys-reserve-memory";
 			#address-cells = <2>;
 			#size-cells = <2>;
@@ -462,10 +453,28 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		wakeup-source = <&keypad 0 (1 << 2)>, <&mdcldma 3 (1 << 25)>;
 	};
 
-	toprgu@10007000 {
-		compatible = "mediatek,toprgu";
+	toprgu:toprgu@10007000 {
+		compatible = "mediatek,mt6739-wdt",
+			"mediatek,mt6589-wdt",
+			"mediatek,toprgu",
+			"syscon", "simple-mfd";
 		reg = <0 0x10007000 0 0x1000>;
 		interrupts = <GIC_SPI 139 IRQ_TYPE_NONE>;
+		mediatek,rg_dfd_timeout = <0xa0>;
+		#reset-cells = <1>;
+		reboot-mode {
+			compatible = "syscon-reboot-mode";
+			offset = <0x24>;
+			mask = <0xf>;
+			mode-charger = <BOOT_CHARGER>;
+			mode-recovery = <BOOT_RECOVERY>;
+			mode-bootloader = <BOOT_BOOTLOADER>;
+			mode-dm-verity-dev-corrupt = <BOOT_DM_VERITY>;
+			mode-kpoc = <BOOT_KPOC>;
+			mode-ddr-reserve = <BOOT_DDR_RSVD>;
+			mode-meta = <BOOT_META>;
+			mode-rpmbpk = <BOOT_RPMBPK>;
+		};
 	};
 
 	apxgpt@10008000 {
@@ -1525,6 +1534,11 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 			"usb0_clk_top_sel",
 			"usb0_clk_univpll3_d4";
 	};
+	audclk: audclk@11220000 {
+		compatible = "mediatek,mt6739-audsys", "syscon";
+		reg = <0 0x11220000 0 0x1000>;
+		#clock-cells = <1>;
+	};
 
 	audio: audio@11220000 {
 		compatible = "mediatek,audio", "syscon";
@@ -1538,13 +1552,13 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		compatible = "mediatek,mt_soc_pcm_dl1";
 		reg = <0 0x11220000 0 0x1000>;
 		interrupts = <GIC_SPI 153 IRQ_TYPE_LEVEL_LOW>;
-		clocks = <&audio CLK_AUDIO_AFE>,
-			<&audio CLK_AUDIO_DAC>,
-			<&audio CLK_AUDIO_DAC_PREDIS>,
-			<&audio CLK_AUDIO_ADC>,
-			<&audio CLK_AUDIO_22M>,
-			<&audio CLK_AUDIO_APLL_TUNER>,
-			<&audio CLK_AUDIO_TML>,
+		clocks = <&audclk CLK_AUDIO_AFE>,
+			<&audclk CLK_AUDIO_DAC>,
+			<&audclk CLK_AUDIO_DAC_PREDIS>,
+			<&audclk CLK_AUDIO_ADC>,
+			<&audclk CLK_AUDIO_22M>,
+			<&audclk CLK_AUDIO_APLL_TUNER>,
+			<&audclk CLK_AUDIO_TML>,
 			<&infracfg_ao CLK_INFRA_AUDIO>,
 			<&infracfg_ao CLK_INFRA_AUDIO_26M_BCLK>,
 			<&topckgen CLK_TOP_AUDIO_SEL>,
@@ -1788,7 +1802,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		reg = <0 0x13ffe000 0 0x1000>;
 	};
 
-	gpufreq {
+	gpufreq: gpufreq {
 		compatible = "mediatek,mt6739-gpufreq";
 		clocks = <&topckgen CLK_TOP_MFG_SEL>,
 					<&clk26m>,
@@ -1796,6 +1810,11 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		clock-names = "CLK_TOP_MFG",
 						"CLK_TOP_MFG_OFF",
 						"CLK_TOP_MFG_ON";
+	};
+
+	ged: ged {
+		compatible = "mediatek,ged";
+		gpufreq-supply = <&gpufreq>;
 	};
 
 	mmsys_config: mmsys_config@14000000 {
@@ -2180,6 +2199,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 
 	mt6357_gauge {
 		compatible = "mediatek,mt6357_gauge";
+		bootmode = <&chosen>;
 		gauge_name = "gauge";
 		alias_name = "mt6357";
 	};
@@ -2198,6 +2218,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 
 	mt_charger: mt_charger {
 		compatible = "mediatek,mt-charger";
+		bootmode = <&chosen>;
 	};
 
 	charger: charger {
@@ -2207,6 +2228,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		enable_pe_plus;
 		enable_pe_2;
 		enable_pe_3;
+		bootmode = <&chosen>;
 
 		/* common */
 		battery_cv = <4350000>;
@@ -2299,6 +2321,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 			<GIC_SPI 235 IRQ_TYPE_EDGE_FALLING>; /*WDT_EINT */
 		clocks = <&scpsys SCP_SYS_CONN>;
 		clock-names = "conn";
+		memory-region = <&consys_mem>;
 	};
 
 	gps {

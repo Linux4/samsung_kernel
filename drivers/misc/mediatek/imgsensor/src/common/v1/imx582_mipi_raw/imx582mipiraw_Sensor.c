@@ -1,35 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd
  */
 
-/*****************************************************************************
- *
- * Filename:
- * ---------
- *	 IMX582mipi_Sensor.c
- *
- * Project:
- * --------
- *	 ALPS
- *
- * Description:
- * ------------
- *	 Source code of Sensor driver
- *
- *
- *------------------------------------------------------------------------------
- * Upper this line, this part is controlled by CC/CQ. DO NOT MODIFY!!
- *============================================================================
- ****************************************************************************/
 #include <linux/videodev2.h>
 #include <linux/i2c.h>
 #include <linux/platform_device.h>
@@ -50,7 +23,7 @@
 #include "imgsensor_sysfs.h"
 
 #include "imx582mipiraw_Sensor.h"
-#include "imx582_eeprom.h"
+#include "imx582mipiraw_setfile.h"
 
 #define WRITE_SENSOR_CAL_FOR_LRC                (1)
 #define WRITE_SENSOR_CAL_FOR_QSC                (1)
@@ -58,308 +31,25 @@
 #undef VENDOR_EDIT
 
 /***************Modify Following Strings for Debug**********************/
-#define PFX "IMX582_camera_sensor"
-#define LOG_1 LOG_INF("IMX582,MIPI 4LANE\n")
+#define PFX "IMX582 D/D"
 /****************************   Modify end	**************************/
-
-#define LOG_INF(format, args...) pr_debug(PFX "[%s] " format, __func__, ##args)
+#define LOG_DBG(format, args...) pr_debug(PFX "[%s] " format, __func__, ##args)
+#define LOG_INF(format, args...) pr_info(PFX "[%s] " format, __func__, ##args)
+#define LOG_ERR(format, args...) pr_err(PFX "[%s] " format, __func__, ##args)
 
 #ifdef VENDOR_EDIT
 #define MODULE_ID_OFFSET 0x0000
 #endif
 
 #define INDIRECT_BURST 1
-
-static void imx582_check_setfile_ver(void);
-static kal_uint8 imx582_setfile_ver = IMGSENSOR_IMX582_SETFILE_VER_5;
-
-BYTE imx582_LRC_data[384] = {0};
-
-static DEFINE_SPINLOCK(imgsensor_drv_lock);
-
 #define SENSOR_IMX582_COARSE_INTEGRATION_TIME_MAX_MARGIN       (5)
 #define SENSOR_IMX582_MAX_COARSE_INTEGRATION_TIME              (65535)
 
+BYTE imx582_LRC_data[384] = {0};
+static DEFINE_SPINLOCK(imgsensor_drv_lock);
 static kal_bool sIsNightHyperlapse = KAL_FALSE;
 
-
 static struct imgsensor_info_struct imgsensor_info = {
-	.sensor_id = IMX582_SENSOR_ID,
-
-	.checksum_value = 0x8ac2d94a,
-
-	.pre = { /* reg_C_2 */
-		.pclk = 863200000,
-		.linelength = 7872,
-		.framelength = 3654,
-		.startx = 0,
-		.starty = 0,
-		.grabwindow_width = 4000,
-		.grabwindow_height = 3000,
-		.mipi_data_lp2hs_settle_dc = 85,
-		/* following for GetDefaultFramerateByScenario() */
-		.mipi_pixel_rate = 823200000,
-		.max_framerate = 300, /* 30fps */
-	},
-
-	.cap = { /* reg_C_2 */
-		.pclk = 863200000,
-		.linelength = 7872,
-		.framelength = 3654,
-		.startx = 0,
-		.starty = 0,
-		.grabwindow_width = 4000,
-		.grabwindow_height = 3000,
-		.mipi_data_lp2hs_settle_dc = 85,
-		/* following for GetDefaultFramerateByScenario() */
-		.mipi_pixel_rate = 823200000,
-		.max_framerate = 300, /* 30fps */
-	},
-
-	.normal_video = { /* reg_I */
-		.pclk = 863200000,
-		.linelength = 7872,
-		.framelength = 3654,
-		.startx = 0,
-		.starty = 0,
-		.grabwindow_width = 4000,
-		.grabwindow_height = 2256,
-		.mipi_data_lp2hs_settle_dc = 85,
-		.mipi_pixel_rate = 823200000,
-		.max_framerate = 300,
-	},
-
-	.hs_video = { /* reg_L */
-		.pclk = 863200000,
-		.linelength = 2912,
-		.framelength = 2470,
-		.startx = 0,
-		.starty = 0,
-		.grabwindow_width = 2000,
-		.grabwindow_height = 1128,
-		.mipi_data_lp2hs_settle_dc = 85,
-		.mipi_pixel_rate = 739200000,
-		.max_framerate = 1200,
-	},
-
-	/* Don't use */
-	.slim_video = {
-		.pclk = 1728000000,
-		.linelength = 5376,
-		.framelength = 10714,
-		.startx = 0,
-		.starty = 0,
-		.grabwindow_width = 2000,
-		.grabwindow_height = 1500,
-		.mipi_data_lp2hs_settle_dc = 85,
-		.mipi_pixel_rate = 814630000,
-		.max_framerate = 300,
-	},
-
-	.custom1 = { /*reg_K */
-		.pclk = 863200000,
-		.linelength = 2912,
-		.framelength = 4940,
-		.startx = 0,
-		.starty = 0,
-		.grabwindow_width = 2000,
-		.grabwindow_height = 1500,
-		.mipi_data_lp2hs_settle_dc = 85,
-		.mipi_pixel_rate = 739200000,
-		.max_framerate = 600,
-	},
-
-	.custom2 = { /* reg_A */
-		.pclk = 863200000,
-		.linelength = 9184,
-		.framelength = 6115,
-		.startx = 0,
-		.starty = 0,
-		.grabwindow_width = 8000,
-		.grabwindow_height = 6000,
-		.mipi_data_lp2hs_settle_dc = 85,
-		.mipi_pixel_rate = 823200000,
-		.max_framerate = 150,
-	},
-
-	.margin = 48,		/* sensor framelength & shutter margin */
-	.min_shutter = 6,	/* min shutter */
-	.min_gain = 64, /*1x gain*/
-	.max_gain = 4096, /*64x gain*/
-	.min_gain_iso = 100,
-	.gain_step = 16,
-	.gain_type = 0,
-	.max_frame_length = 0xffff,
-	.ae_shut_delay_frame = 0,
-	.ae_sensor_gain_delay_frame = 0,
-	.ae_ispGain_delay_frame = 2,	/* isp gain delay frame for AE cycle */
-	.ihdr_support = 0,	/* 1, support; 0,not support */
-	.ihdr_le_firstline = 0,	/* 1,le first ; 0, se first */
-	.sensor_mode_num = 8,	/* support sensor mode num */
-
-	.cap_delay_frame = 2,	/* enter capture delay frame num */
-	.pre_delay_frame = 2,	/* enter preview delay frame num */
-	.video_delay_frame = 2,	/* enter video delay frame num */
-	.hs_video_delay_frame = 2,
-	.slim_video_delay_frame = 2,	/* enter slim video delay frame num */
-	.custom1_delay_frame = 2,	/* enter custom1 delay frame num */
-	.custom2_delay_frame = 2,	/* enter custom2 delay frame num */
-	.isp_driving_current = ISP_DRIVING_6MA,
-	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,
-	/* .mipi_sensor_type = MIPI_OPHY_NCSI2, */
-	/* 0,MIPI_OPHY_NCSI2;  1,MIPI_OPHY_CSI2 */
-	.mipi_sensor_type = MIPI_OPHY_NCSI2,
-	.mipi_settle_delay_mode = 0,
-	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_4CELL_HW_BAYER_R,
-	.mclk = 26, /* mclk value, suggest 24 or 26 for 24Mhz or 26Mhz */
-	/*.mipi_lane_num = SENSOR_MIPI_4_LANE,*/
-	.mipi_lane_num = SENSOR_MIPI_4_LANE,
-	.i2c_addr_table = {0x34, 0x20, 0xff},
-	/* record sensor support all write id addr,
-	 * only supprt 4 must end with 0xff
-	 */
-	.i2c_speed = 1000, /* i2c read/write speed */
-};
-
-static struct imgsensor_info_struct imgsensor_info_rev5 = {
-	.sensor_id = IMX582_SENSOR_ID,
-
-	.checksum_value = 0x8ac2d94a,
-
-	.pre = { /* reg_C_2 */
-		.pclk = 863200000,
-		.linelength = 7872,
-		.framelength = 3654,
-		.startx = 0,
-		.starty = 0,
-		.grabwindow_width = 4000,
-		.grabwindow_height = 3000,
-		.mipi_data_lp2hs_settle_dc = 85,
-		/* following for GetDefaultFramerateByScenario() */
-		.mipi_pixel_rate = 823200000,
-		.max_framerate = 300, /* 30fps */
-	},
-
-	.cap = { /* reg_C_2 */
-		.pclk = 863200000,
-		.linelength = 7872,
-		.framelength = 3654,
-		.startx = 0,
-		.starty = 0,
-		.grabwindow_width = 4000,
-		.grabwindow_height = 3000,
-		.mipi_data_lp2hs_settle_dc = 85,
-		/* following for GetDefaultFramerateByScenario() */
-		.mipi_pixel_rate = 823200000,
-		.max_framerate = 300, /* 30fps */
-	},
-
-	.normal_video = { /* reg_I */
-		.pclk = 863200000,
-		.linelength = 7872,
-		.framelength = 3654,
-		.startx = 0,
-		.starty = 0,
-		.grabwindow_width = 4000,
-		.grabwindow_height = 2256,
-		.mipi_data_lp2hs_settle_dc = 85,
-		.mipi_pixel_rate = 823200000,
-		.max_framerate = 300,
-	},
-
-	.hs_video = { /* reg_L */
-		.pclk = 863200000,
-		.linelength = 2912,
-		.framelength = 2470,
-		.startx = 0,
-		.starty = 0,
-		.grabwindow_width = 2000,
-		.grabwindow_height = 1128,
-		.mipi_data_lp2hs_settle_dc = 85,
-		.mipi_pixel_rate = 739200000,
-		.max_framerate = 1200,
-	},
-
-	/* Don't use */
-	.slim_video = {
-		.pclk = 1728000000,
-		.linelength = 5376,
-		.framelength = 10714,
-		.startx = 0,
-		.starty = 0,
-		.grabwindow_width = 2000,
-		.grabwindow_height = 1500,
-		.mipi_data_lp2hs_settle_dc = 85,
-		.mipi_pixel_rate = 814630000,
-		.max_framerate = 300,
-	},
-
-	.custom1 = { /*reg_K */
-		.pclk = 863200000,
-		.linelength = 2912,
-		.framelength = 4940,
-		.startx = 0,
-		.starty = 0,
-		.grabwindow_width = 2000,
-		.grabwindow_height = 1500,
-		.mipi_data_lp2hs_settle_dc = 85,
-		.mipi_pixel_rate = 739200000,
-		.max_framerate = 600,
-	},
-
-	.custom2 = { /*reg_A */
-		.pclk = 863200000,
-		.linelength = 9184,
-		.framelength = 6115,
-		.startx = 0,
-		.starty = 0,
-		.grabwindow_width = 8000,
-		.grabwindow_height = 6000,
-		.mipi_data_lp2hs_settle_dc = 85,
-		.mipi_pixel_rate = 823200000,
-		.max_framerate = 150,
-	},
-
-	.margin = 48,		/* sensor framelength & shutter margin */
-	.min_shutter = 6,	/* min shutter */
-	.min_gain = 64, /*1x gain*/
-	.max_gain = 4096, /*64x gain*/
-	.min_gain_iso = 100,
-	.gain_step = 16,
-	.gain_type = 0,
-	.max_frame_length = 0xffff,
-	.ae_shut_delay_frame = 0,
-	.ae_sensor_gain_delay_frame = 0,
-	.ae_ispGain_delay_frame = 2,	/* isp gain delay frame for AE cycle */
-	.ihdr_support = 0,	/* 1, support; 0,not support */
-	.ihdr_le_firstline = 0,	/* 1,le first ; 0, se first */
-	.sensor_mode_num = 8,	/* support sensor mode num */
-
-	.cap_delay_frame = 2,	/* enter capture delay frame num */
-	.pre_delay_frame = 2,	/* enter preview delay frame num */
-	.video_delay_frame = 2,	/* enter video delay frame num */
-	.hs_video_delay_frame = 2,
-	.slim_video_delay_frame = 2,	/* enter slim video delay frame num */
-	.custom1_delay_frame = 2,	/* enter custom1 delay frame num */
-	.custom2_delay_frame = 2,	/* enter custom2 delay frame num */
-	.isp_driving_current = ISP_DRIVING_6MA,
-	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,
-	/* .mipi_sensor_type = MIPI_OPHY_NCSI2, */
-	/* 0,MIPI_OPHY_NCSI2;  1,MIPI_OPHY_CSI2 */
-	.mipi_sensor_type = MIPI_OPHY_NCSI2,
-	.mipi_settle_delay_mode = 0,
-	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_4CELL_HW_BAYER_R,
-	.mclk = 26, /* mclk value, suggest 24 or 26 for 24Mhz or 26Mhz */
-	/*.mipi_lane_num = SENSOR_MIPI_4_LANE,*/
-	.mipi_lane_num = SENSOR_MIPI_4_LANE,
-	.i2c_addr_table = {0x34, 0x20, 0xff},
-	/* record sensor support all write id addr,
-	 * only supprt 4 must end with 0xff
-	 */
-	.i2c_speed = 1000, /* i2c read/write speed */
-};
-
-static struct imgsensor_info_struct imgsensor_info_rev6 = {
 	.sensor_id = IMX582_SENSOR_ID,
 
 	.checksum_value = 0x8ac2d94a,
@@ -458,11 +148,31 @@ static struct imgsensor_info_struct imgsensor_info_rev6 = {
 		.max_framerate = 150,
 	},
 
+	.custom3 = { /* reg_G */
+		.pclk = 863200000,
+		.linelength = 9184,
+		.framelength = 3132,
+		.startx = 0,
+		.starty = 0,
+		.grabwindow_width = 4000,
+		.grabwindow_height = 3000,
+		.mipi_data_lp2hs_settle_dc = 85,
+		.mipi_pixel_rate = 823200000,
+		.max_framerate = 300,
+	},
+
 	.margin = 48,		/* sensor framelength & shutter margin */
 	.min_shutter = 6,	/* min shutter */
 	.min_gain = 64, /*1x gain*/
 	.max_gain = 4096, /*64x gain*/
+
+#if IS_ENABLED(CONFIG_CAMERA_AAW_V34X)
+	.min_gain_iso = 40,
+#else
 	.min_gain_iso = 100,
+#endif
+
+	.exp_step = 1,
 	.gain_step = 16,
 	.gain_type = 0,
 	.max_frame_length = 0xffff,
@@ -480,6 +190,7 @@ static struct imgsensor_info_struct imgsensor_info_rev6 = {
 	.slim_video_delay_frame = 2,	/* enter slim video delay frame num */
 	.custom1_delay_frame = 2,	/* enter custom1 delay frame num */
 	.custom2_delay_frame = 2,	/* enter custom2 delay frame num */
+	.custom3_delay_frame = 2,	/* enter custom3 delay frame num */
 	.isp_driving_current = ISP_DRIVING_6MA,
 	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,
 	/* .mipi_sensor_type = MIPI_OPHY_NCSI2, */
@@ -519,11 +230,11 @@ static struct imgsensor_struct imgsensor = {
 /* Sensor output window information */
 static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[8] = {
 	{8000, 6000, 0000, 0000, 8000, 6000, 4000, 3000,
-	0000, 0000, 4000, 3000,    0,    0, 4000, 3000},/* Preview */
+	 0000, 0000, 4000, 3000,    0,    0, 4000, 3000}, /* preview */
 	{8000, 6000, 0000, 0000, 8000, 6000, 4000, 3000,
-	0000, 0000, 4000, 3000,    0,    0, 4000, 3000},
+	 0000, 0000, 4000, 3000,    0,    0, 4000, 3000}, /* capture */
 	{8000, 6000, 0000, 0000, 8000, 6000, 4000, 3000,
-	 0000,  372, 4000, 2256,    0,    0, 4000, 2256},/* video */
+	 0000,  372, 4000, 2256,    0,    0, 4000, 2256}, /* video */
 	{8000, 6000, 0000, 0000, 8000, 6000, 2000, 1500,
 	 0000,  186, 2000, 1128,    0,    0, 2000, 1128}, /* high speed video */
 	{8000, 6000, 0000, 0000, 8000, 6000, 2000, 1500,
@@ -532,21 +243,36 @@ static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[8] = {
 	 0000, 0000, 2000, 1500,    0,    0, 2000, 1500}, /* custom1 */
 	{8000, 6000, 0000, 0000, 8000, 6000, 8000, 6000,
 	 0000, 0000, 8000, 6000,    0,    0, 8000, 6000}, /* custom2, remosaic full size  */
+	{8000, 6000, 0000, 1488, 8000, 3016, 8000, 3016,
+	 2000,    8, 4000, 3000,    0,    0, 4000, 3000}, /* custom3, remosaic crop size  */
 };
- /*VC1 for HDR(DT=0X35), VC2 for PDAF(DT=0X36), unit : 10bit */
-static struct SENSOR_VC_INFO_STRUCT SENSOR_VC_INFO[7] = {
+
+/*VC1 for HDR(DT=0X35), VC2 for PDAF(DT=0X36), unit : 10bit */
+static struct SENSOR_VC_INFO_STRUCT SENSOR_VC_INFO[8] = {
 	/* Preview mode setting */
 	{0x02, 0x0a, 0x00, 0x08, 0x40, 0x00,
 	 0x00, 0x2b, 0x0fa0, 0x0BB8, 0x00, 0x00, 0x00, 0x00,
-	 0x01, 0x2b, 0x04D8, 0x05D0, 0x00, 0x00, 0x0000, 0x0000},
+#if defined(CONFIG_MACH_MT6877)
+	 0x01, 0x2b, 0x03E0, 0x05D0, 0x00, 0x00, 0x0000, 0x0000}, /* VC2, 992x1488 pixel */
+#else
+	 0x01, 0x2b, 0x04D8, 0x05D0, 0x00, 0x00, 0x0000, 0x0000}, /* VC2, 992x1488 pixel -> 1240x1488 byte*/
+#endif
 	/* Capture mode setting */
 	{0x02, 0x0a, 0x00, 0x08, 0x40, 0x00,
 	 0x00, 0x2b, 0x0fa0, 0x0BB8, 0x00, 0x00, 0x00, 0x00,
-	 0x01, 0x2b, 0x04D8, 0x05D0, 0x00, 0x00, 0x0000, 0x0000},
+#if defined(CONFIG_MACH_MT6877)
+	 0x01, 0x2b, 0x03E0, 0x05D0, 0x00, 0x00, 0x0000, 0x0000}, /* VC2, 992x1488 pixel */
+#else
+	 0x01, 0x2b, 0x04D8, 0x05D0, 0x00, 0x00, 0x0000, 0x0000}, /* VC2, 992x1488 pixel -> 1240x1488 byte */
+#endif
 	/* Video mode setting */
 	{0x02, 0x0a, 0x00, 0x08, 0x40, 0x00,
 	 0x00, 0x2b, 0x0FA0, 0x08D0, 0x00, 0x00, 0x0000, 0x0000,
-	 0x01, 0x2b, 0x04D8, 0x0460, 0x00, 0x00, 0x0000, 0x0000},
+#if defined(CONFIG_MACH_MT6877)
+	 0x01, 0x2b, 0x03E0, 0x0460, 0x00, 0x00, 0x0000, 0x0000}, /* VC2, 992x1120 pixel */
+#else
+	 0x01, 0x2b, 0x04D8, 0x0460, 0x00, 0x00, 0x0000, 0x0000}, /* VC2, 992x1120 pixel -> 1240x1120 byte */
+#endif
 	/* hs mode setting */
 	{0x02, 0x0a, 0x00, 0x08, 0x40, 0x00,
 	 0x00, 0x2b, 0x0FA0, 0x08D0, 0x00, 0x00, 0x0000, 0x0000,
@@ -562,7 +288,19 @@ static struct SENSOR_VC_INFO_STRUCT SENSOR_VC_INFO[7] = {
 	/* custom2 mode setting */
 	{0x02, 0x0a, 0x00, 0x08, 0x40, 0x00,
 	 0x00, 0x2b, 0x1f40, 0x1770, 0x00, 0x00, 0x00, 0x00,
-	 0x01, 0x2b, 0x04D8, 0x05D0, 0x00, 0x00, 0x0000, 0x0000},
+#if defined(CONFIG_MACH_MT6877)
+	 0x01, 0x2b, 0x03E0, 0x05D0, 0x00, 0x00, 0x0000, 0x0000}, /* VC2, 992x1488 pixel */
+#else
+	 0x01, 0x2b, 0x04D8, 0x05D0, 0x00, 0x00, 0x0000, 0x0000}, /* VC2, 992x1488 pixel -> 1240x1488 byte */
+#endif
+	/* custom3 mode setting */
+	{0x02, 0x0a, 0x00, 0x08, 0x40, 0x00,
+	 0x00, 0x2b, 0x0FA0, 0x0BB8, 0x00, 0x00, 0x0000, 0x0000,/*VC0, RAW10(0x2B), 4000x3000 pixel*/
+#if defined(CONFIG_MACH_MT6877)
+	 0x01, 0x2b, 0x01F0, 0x02EC, 0x00, 0x00, 0x0000, 0x0000}, /* VC2, 496x748 pixel */
+#else
+	 0x01, 0x2b, 0x026C, 0x02EC, 0x00, 0x00, 0x0000, 0x0000}, /* VC2, 496x748 pixel -> 620x748 byte */
+#endif
 };
 
 
@@ -575,14 +313,20 @@ static struct SET_PD_BLOCK_INFO_T imgsensor_pd_info = {
 	.i4PairNum = 8,
 	.i4SubBlkW = 8,
 	.i4SubBlkH = 2,
-	.i4PosL = {{20, 13}, {18, 15}, {22, 17}, {24, 19},
-		   {20, 21}, {18, 23}, {22, 25}, {24, 27} },
-	.i4PosR = {{19, 13}, {17, 15}, {21, 17}, {23, 19},
-		   {19, 21}, {17, 23}, {21, 25}, {23, 27} },
+	.i4PosL = {
+		{20, 13}, {18, 15}, {22, 17}, {24, 19},
+		{20, 21}, {18, 23}, {22, 25}, {24, 27}
+	},
+	.i4PosR = {
+		{19, 13}, {17, 15}, {21, 17}, {23, 19},
+		{19, 21}, {17, 23}, {21, 25}, {23, 27}
+	},
 	.i4BlockNumX = 496,
 	.i4BlockNumY = 186,
-	.i4Crop = {{0, 0}, {0, 0}, {0, 372}, {0, 0}, {0, 0},
-		   {0, 0}, {0, 0}, {0,   0}, {0, 0}, {0, 0} }
+	.i4Crop = {
+		{0, 0}, {0, 0}, {0, 372}, {0, 0}, {0, 0},
+		{0, 0}, {0, 0}, {0,   0}, {0, 0}, {0, 0}
+	}
 };
 
 static struct SET_PD_BLOCK_INFO_T imgsensor_pd_info_video = {
@@ -593,14 +337,20 @@ static struct SET_PD_BLOCK_INFO_T imgsensor_pd_info_video = {
 	.i4PairNum = 8,
 	.i4SubBlkW = 8,
 	.i4SubBlkH = 2,
-	.i4PosL = {{20, 13}, {18, 15}, {22, 17}, {24, 19},
-		   {20, 21}, {18, 23}, {22, 25}, {24, 27} },
-	.i4PosR = {{19, 13}, {17, 15}, {21, 17}, {23, 19},
-		   {19, 21}, {17, 23}, {21, 25}, {23, 27} },
+	.i4PosL = {
+		{20, 13}, {18, 15}, {22, 17}, {24, 19},
+		{20, 21}, {18, 23}, {22, 25}, {24, 27}
+	},
+	.i4PosR = {
+		{19, 13}, {17, 15}, {21, 17}, {23, 19},
+		{19, 21}, {17, 23}, {21, 25}, {23, 27}
+	},
 	.i4BlockNumX = 496,
 	.i4BlockNumY = 140,
-	.i4Crop = {{0, 0}, {0, 0}, {0, 372}, {0, 0}, {0, 0},
-		   {0, 0}, {0, 0}, {0,   0}, {0, 0}, {0, 0} }
+	.i4Crop = {
+		{0, 0}, {0, 0}, {0, 372}, {0, 0}, {0, 0},
+		{0, 0}, {0, 0},   {0, 0}, {0, 0}, {0, 0}
+	}
 };
 
 static kal_uint16 read_cmos_sensor(kal_uint32 addr)
@@ -659,7 +409,7 @@ static kal_int32 burst_table_write_cmos_sensor(kal_uint16 start_addr, kal_uint8 
 
 	puSendCmd = kzalloc(2 + (len * 2), GFP_KERNEL);
 	if (!puSendCmd) {
-		pr_err("%s: i2c buffer alloc fail!\n", __func__);
+		LOG_ERR("%s: i2c buffer alloc fail!\n", __func__);
 		ret  = -ENODEV;
 		goto p_err;
 	}
@@ -673,9 +423,8 @@ static kal_int32 burst_table_write_cmos_sensor(kal_uint16 start_addr, kal_uint8 
 
 	ret = iBurstWriteReg_multi(puSendCmd, tosend,
 					imgsensor.i2c_write_id, tosend, imgsensor_info.i2c_speed);
-	if (ret < 0) {
-		pr_err("%s: fail!\n", __func__);
-	}
+	if (ret < 0)
+		LOG_ERR("%s: fail!\n", __func__);
 
 	kfree(puSendCmd);
 p_err:
@@ -685,8 +434,8 @@ p_err:
 
 static void set_dummy(void)
 {
-	LOG_INF("dummyline = %d, dummypixels = %d\n",
-		imgsensor.dummy_line, imgsensor.dummy_pixel);
+	LOG_DBG("dummyline = %d, dummypixels = %d\n", imgsensor.dummy_line, imgsensor.dummy_pixel);
+
 	/* return;*/ /* for test */
 	write_cmos_sensor_8(0x0104, 0x01);
 
@@ -733,8 +482,7 @@ static void set_max_framerate(UINT16 framerate, kal_bool min_framelength_en)
 	/*kal_int16 dummy_line;*/
 	kal_uint32 frame_length = imgsensor.frame_length;
 
-	LOG_INF("framerate = %d, min framelength should enable %d\n", framerate,
-		min_framelength_en);
+	LOG_DBG("framerate = %d, min framelength should enable %d\n", framerate, min_framelength_en);
 
 	frame_length = imgsensor.pclk / framerate * 10 / imgsensor.line_length;
 	spin_lock(&imgsensor_drv_lock);
@@ -850,9 +598,7 @@ static void write_shutter(kal_uint32 shutter)
 			write_cmos_sensor_8(0x0341, imgsensor.frame_length & 0xFF);
 			write_cmos_sensor_8(0x0104, 0x00);
 
-			LOG_INF("(else)imgsensor.frame_length = %d\n",
-				imgsensor.frame_length);
-
+			LOG_DBG("(else)imgsensor.frame_length = %d\n", imgsensor.frame_length);
 		}
 	}
 #ifdef VENDOR_EDIT
@@ -863,8 +609,7 @@ static void write_shutter(kal_uint32 shutter)
 	}
 
 	if (longexposure_times > 0) {
-		LOG_INF("enter long exposure mode, time is %d",
-			longexposure_times);
+		LOG_INF("enter long exposure mode, time is %d", longexposure_times);
 		long_exposure_status = 1;
 		imgsensor.frame_length = shutter + 32;
 		write_cmos_sensor_8(0x0104, 0x01);
@@ -888,8 +633,7 @@ static void write_shutter(kal_uint32 shutter)
 	write_cmos_sensor_8(0x0202, (shutter >> 8) & 0xFF);
 	write_cmos_sensor_8(0x0203, shutter  & 0xFF);
 	write_cmos_sensor_8(0x0104, 0x00);
-	LOG_INF("shutter =%d, framelength =%d\n",
-		shutter, imgsensor.frame_length);
+	LOG_DBG("shutter =%d, framelength =%d\n", shutter, imgsensor.frame_length);
 
 }	/*	write_shutter  */
 
@@ -1009,7 +753,7 @@ static void set_shutter_frame_length(UINT32 shutter,
 
 static kal_uint16 gain2reg(const kal_uint16 gain)
 {
-	 kal_uint16 reg_gain = 0x0;
+	kal_uint16 reg_gain = 0x0;
 
 	reg_gain = 1024 - (1024*64)/gain;
 	return (kal_uint16) reg_gain;
@@ -1084,8 +828,7 @@ static kal_uint16 set_gain(kal_uint16 gain)
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.gain = reg_gain;
 	spin_unlock(&imgsensor_drv_lock);
-	LOG_INF("gain = %d, reg_gain = 0x%x, max_gain: 0x%x\n",
-		gain, reg_gain, max_gain);
+	LOG_DBG("gain = %d, reg_gain = 0x%x, max_gain: 0x%x\n", gain, reg_gain, max_gain);
 
 	write_cmos_sensor_8(0x0104, 0x01);
 	write_cmos_sensor_8(0x0204, (reg_gain>>8) & 0xFF);
@@ -1174,2292 +917,39 @@ static kal_uint16 imx582_table_write_cmos_sensor(kal_uint16 *para,
 	return 0;
 }
 
-static kal_uint16 imx582_init_setting[] = {
-	/* External Clock Setting */
-	0x0136, 0x1A,
-	0x0137, 0x00,
-
-	/* Register version */
-	0x3C7E, 0x02,
-	0x3C7F, 0x05,
-
-	/* Global Setting for 12 */
-	0x5265, 0x13,
-	0x5268, 0x05,
-	0x526A, 0x27,
-	0x526B, 0x23,
-	0x5727, 0x77,
-	0x5729, 0x05,
-	0x572B, 0x0A,
-	0x5737, 0x88,
-	0x5739, 0x0F,
-	0x573B, 0x0A,
-	0x574B, 0x4D,
-	0x574F, 0x0A,
-	0x5757, 0xA8,
-	0x5759, 0x14,
-	0x575B, 0x0A,
-	0x5765, 0x8C,
-	0x5768, 0x00,
-	0x5769, 0xE7,
-	0x577D, 0x5A,
-	0x577F, 0x00,
-	0x5781, 0x0A,
-	0x5783, 0x95,
-	0x5787, 0xC2,
-	0x5789, 0x06,
-	0x578B, 0x0A,
-	0x579B, 0x8A,
-	0x579D, 0x00,
-	0x579F, 0x0A,
-	0x57A5, 0x95,
-	0x57A9, 0x99,
-	0x57AB, 0x01,
-	0x57AF, 0xC9,
-	0x57B3, 0x95,
-	0x57BF, 0x00,
-	0x57C1, 0x0A,
-	0x57C9, 0x00,
-	0x57CB, 0x0A,
-	0x5801, 0x00,
-	0x5803, 0x0A,
-	0x5811, 0x00,
-	0x5813, 0x0A,
-	0x5B79, 0xB5,
-	0x5B7B, 0x51,
-	0x5C57, 0x54,
-	0x5C59, 0xD9,
-	0x5C5B, 0x90,
-	0x5C5D, 0x18,
-	0x5C5F, 0x2A,
-	0x5C61, 0xAF,
-	0x5C62, 0x01,
-	0x5C63, 0xBA,
-	0x5C65, 0x42,
-	0x5C67, 0xC8,
-	0x5C69, 0x4D,
-	0x5C6B, 0xBC,
-	0x5C6D, 0x44,
-	0x5C7F, 0x40,
-	0x5C81, 0xA7,
-	0x5C82, 0x01,
-	0x5C83, 0xD8,
-	0x5C85, 0xA6,
-	0x5C8B, 0x6F,
-	0x5C8C, 0x01,
-	0x5C8D, 0xF7,
-	0x6024, 0x05,
-	0x6027, 0x05,
-	0x6030, 0x05,
-	0x6033, 0x05,
-	0x603C, 0x05,
-	0x603F, 0x05,
-	0x6048, 0x05,
-	0x604B, 0x05,
-	0x606A, 0x08,
-	0x606F, 0x08,
-	0x6071, 0x08,
-	0x6079, 0x06,
-	0x607A, 0x07,
-	0x607B, 0x07,
-	0x607C, 0x06,
-	0x607D, 0x0D,
-	0x607E, 0x06,
-	0x607F, 0x06,
-	0x6080, 0x06,
-	0x6081, 0x0E,
-	0x6082, 0x06,
-	0x6083, 0x06,
-	0x6084, 0x0E,
-	0x6085, 0x0B,
-	0x6086, 0x0E,
-	0x6087, 0x0E,
-	0x6088, 0x0E,
-	0x6089, 0x0B,
-	0x608B, 0x0E,
-	0x608C, 0x0E,
-	0x6091, 0x06,
-	0x6095, 0x06,
-	0x6098, 0x06,
-	0x6099, 0x06,
-	0x609A, 0x06,
-	0x609B, 0x06,
-	0x609C, 0x06,
-	0x609D, 0x06,
-	0x609E, 0x06,
-	0x609F, 0x06,
-	0x60A0, 0x06,
-	0x60B7, 0x32,
-	0x60C1, 0x32,
-	0x60C5, 0x32,
-	0x60D5, 0x99,
-	0x60DF, 0x99,
-	0x60E3, 0x99,
-	0x60F3, 0x99,
-	0x60F7, 0xAD,
-	0x60FB, 0xCE,
-	0x60FD, 0x99,
-	0x60FF, 0xCE,
-	0x6103, 0xCE,
-	0x6147, 0x0D,
-	0x6148, 0x0D,
-	0x6149, 0x0D,
-	0x614A, 0x0D,
-	0x614B, 0x0D,
-	0x614C, 0x0D,
-	0x614D, 0x02,
-	0x614E, 0x0D,
-	0x614F, 0x0D,
-	0x6150, 0x02,
-	0x6151, 0x0D,
-	0x6152, 0x02,
-	0x6153, 0x02,
-	0x6154, 0x02,
-	0x6155, 0x02,
-	0x621E, 0x50,
-	0x6223, 0x6E,
-	0x621F, 0x3C,
-	0x6224, 0x5E,
-	0x6229, 0x64,
-	0x6220, 0x30,
-	0x6225, 0x5C,
-	0x622A, 0x66,
-	0x6221, 0x30,
-	0x6226, 0x5C,
-	0x622B, 0x66,
-	0x6106, 0x16,
-	0x610A, 0x17,
-	0x610E, 0x18,
-	0x6112, 0x18,
-	0x6116, 0x18,
-	0x6107, 0x15,
-	0x610B, 0x16,
-	0x610F, 0x16,
-	0x6113, 0x17,
-	0x6117, 0x18,
-	0x6108, 0x0E,
-	0x610C, 0x0F,
-	0x6110, 0x0F,
-	0x6114, 0x10,
-	0x6118, 0x11,
-	0x5E2C, 0x03,
-	0x5E2D, 0x03,
-	0xA596, 0x06,
-	0xA779, 0x20,
-	0xA112, 0x68,
-	0xA113, 0x56,
-	0xA114, 0x2B,
-	0xA115, 0x55,
-	0xA116, 0x55,
-	0xA117, 0x16,
-	0xA119, 0x51,
-	0xA11A, 0x34,
-	0xAC12, 0x01,
-	0xAC13, 0x26,
-	0xAC14, 0x01,
-	0xAC15, 0x26,
-	0xAC17, 0xC4,
-	0xB069, 0x02,
-	0xA597, 0x13,
-	0xA598, 0x13,
-	0xEA4B, 0x00,
-	0xEA4C, 0x00,
-	0xEA4D, 0x00,
-	0xEA4E, 0x00,
-	0xA139, 0x4F,
-	0xA13A, 0x48,
-	0xA13B, 0x45,
-	0xA13C, 0x02,
-	0xA13F, 0x23,
-	0xA140, 0x16,
-	0xA141, 0x12,
-	0xA142, 0x02,
-	0xF001, 0x10,
-	0xF00D, 0x40,
-	0xF031, 0x10,
-	0xF03D, 0x40,
-	0xF44B, 0x80,
-	0xF44D, 0x06,
-	0xF44E, 0x80,
-	0xF450, 0x06,
-	0xF451, 0x80,
-	0xF453, 0x06,
-	0xF454, 0x80,
-	0xF456, 0x06,
-	0xF457, 0x80,
-	0xF459, 0x06,
-	0xF478, 0x20,
-	0xF47B, 0x20,
-	0xF47E, 0x20,
-	0xF481, 0x20,
-	0xF484, 0x20,
-	0xAF05, 0x48,
-	0x3F89, 0x01,
-	0x5C6E, 0x01,
-	0x5C6F, 0xE5,
-	0x5C73, 0x34,
-	0x5C74, 0x02,
-	0x5C75, 0xBC,
-	0x6157, 0x21,
-	0x6159, 0x0C,
-	0x615B, 0x0C,
-	0x615D, 0x0A,
-	0x6161, 0x22,
-	0x6163, 0x20,
-	0x6165, 0x1F,
-	0x6167, 0x1A,
-	0x616B, 0x22,
-	0x616D, 0x21,
-	0x616F, 0x20,
-	0x6171, 0x1B,
-	0x6175, 0x23,
-	0x6177, 0x22,
-	0x6179, 0x21,
-	0x617B, 0x1E,
-	0x617F, 0x23,
-	0x6181, 0x23,
-	0x6183, 0x23,
-	0x6185, 0x1E,
-	0x6188, 0xB4,
-	0x6189, 0x7E,
-	0x618A, 0x96,
-	0x618B, 0x50,
-	0x618D, 0xD2,
-	0x618E, 0xC8,
-	0x618F, 0xB4,
-	0x6190, 0x78,
-	0x6192, 0xE6,
-	0x6193, 0xCC,
-	0x6194, 0xB4,
-	0x6195, 0x82,
-	0x6197, 0xE6,
-	0x6198, 0xD2,
-	0x6199, 0xD2,
-	0x619A, 0xAA,
-	0x619C, 0xE6,
-	0x619D, 0xE8,
-	0x619E, 0xDC,
-	0x619F, 0xCD,
-	0x61A1, 0x09,
-	0x61A2, 0x0A,
-	0x61A3, 0x0B,
-	0x61A4, 0x0A,
-	0x61A6, 0x08,
-	0x61A7, 0x0A,
-	0x61A8, 0x0B,
-	0x61A9, 0x0A,
-	0x61AB, 0x08,
-	0x61AC, 0x0A,
-	0x61AD, 0x0B,
-	0x61AE, 0x0A,
-	0x61B0, 0x08,
-	0x61B1, 0x08,
-	0x61B2, 0x0A,
-	0x61B3, 0x09,
-	0x61B5, 0x08,
-	0x61B6, 0x08,
-	0x61B7, 0x09,
-	0x61B8, 0x09,
-	0x61C4, 0x0F,
-	0x61C5, 0x05,
-	0x61C9, 0x14,
-	0x61CA, 0x05,
-	0x61CC, 0x0A,
-	0x61CE, 0x14,
-	0x61CF, 0x14,
-	0x61D1, 0x23,
-	0xC448, 0x01,
-	0xC44B, 0x07,
-	0xC44C, 0x0E,
-	0xC44D, 0x50,
-	0xC451, 0x00,
-	0xC452, 0x01,
-	0xC455, 0x00,
-
-	/* Global Setting */
-	0x3C00, 0x10,
-	0x3C01, 0x10,
-	0x3C02, 0x10,
-	0x3C03, 0x10,
-	0x3C04, 0x10,
-	0x3C05, 0x01,
-	0x3C06, 0x00,
-	0x3C07, 0x00,
-	0x3C08, 0x03,
-	0x3C09, 0xFF,
-	0x3C0A, 0x01,
-	0x3C0B, 0x00,
-	0x3C0C, 0x00,
-	0x3C0D, 0x03,
-	0x3C0E, 0xFF,
-	0x3C0F, 0x20,
-	0x6E1D, 0x00,
-	0x6E25, 0x00,
-	0x6E38, 0x03,
-	0x6E3B, 0x01,
-	0x9004, 0x2C,
-	0x9200, 0xF4,
-	0x9201, 0xA7,
-	0x9202, 0xF4,
-	0x9203, 0xAA,
-	0x9204, 0xF4,
-	0x9205, 0xAD,
-	0x9206, 0xF4,
-	0x9207, 0xB0,
-	0x9208, 0xF4,
-	0x9209, 0xB3,
-	0x920A, 0xB7,
-	0x920B, 0x34,
-	0x920C, 0xB7,
-	0x920D, 0x36,
-	0x920E, 0xB7,
-	0x920F, 0x37,
-	0x9210, 0xB7,
-	0x9211, 0x38,
-	0x9212, 0xB7,
-	0x9213, 0x39,
-	0x9214, 0xB7,
-	0x9215, 0x3A,
-	0x9216, 0xB7,
-	0x9217, 0x3C,
-	0x9218, 0xB7,
-	0x9219, 0x3D,
-	0x921A, 0xB7,
-	0x921B, 0x3E,
-	0x921C, 0xB7,
-	0x921D, 0x3F,
-	0x921E, 0x85,
-	0x921F, 0x77,
-	0x9226, 0x42,
-	0x9227, 0x52,
-	0x9228, 0x60,
-	0x9229, 0xB9,
-	0x922A, 0x60,
-	0x922B, 0xBF,
-	0x922C, 0x60,
-	0x922D, 0xC5,
-	0x922E, 0x60,
-	0x922F, 0xCB,
-	0x9230, 0x60,
-	0x9231, 0xD1,
-	0x9232, 0x60,
-	0x9233, 0xD7,
-	0x9234, 0x60,
-	0x9235, 0xDD,
-	0x9236, 0x60,
-	0x9237, 0xE3,
-	0x9238, 0x60,
-	0x9239, 0xE9,
-	0x923A, 0x60,
-	0x923B, 0xEF,
-	0x923C, 0x60,
-	0x923D, 0xF5,
-	0x923E, 0x60,
-	0x923F, 0xF9,
-	0x9240, 0x60,
-	0x9241, 0xFD,
-	0x9242, 0x61,
-	0x9243, 0x01,
-	0x9244, 0x61,
-	0x9245, 0x05,
-	0x924A, 0x61,
-	0x924B, 0x6B,
-	0x924C, 0x61,
-	0x924D, 0x7F,
-	0x924E, 0x61,
-	0x924F, 0x92,
-	0x9250, 0x61,
-	0x9251, 0x9C,
-	0x9252, 0x61,
-	0x9253, 0xAB,
-	0x9254, 0x61,
-	0x9255, 0xC4,
-	0x9256, 0x61,
-	0x9257, 0xCE,
-	0x9810, 0x14,
-	0x9814, 0x14,
-	0xC449, 0x04,
-	0xC44A, 0x01,
-	0xE286, 0x31,
-	0xE2A6, 0x32,
-	0xE2C6, 0x33,
-	0x3E14, 0x01,
-	0xE013, 0x01,
-	0xE186, 0x2B,
-
-	/* Image Quality adjustment setting */
-	0x88D6, 0x60,
-	0x9852, 0x00,
-	0xAE09, 0xFF,
-	0xAE0A, 0xFF,
-	0xAE12, 0x58,
-	0xAE13, 0x58,
-	0xAE15, 0x10,
-	0xAE16, 0x10,
-	0xB071, 0x00,
-};
-
-static kal_uint16 imx582_preview_setting[] = {
-	/* MIPI output setting */
-	0x0112,	0x0A,
-	0x0113,	0x0A,
-	0x0114,	0x03,
-
-	/* Line Length PCK Setting */
-	0x0342,	0x1E,
-	0x0343,	0xC0,
-
-	/* Frame Length Lines Setting */
-	0x0340,	0x0E,
-	0x0341,	0x46,
-
-	/* ROI Setting */
-	0x0344,	0x00,
-	0x0345,	0x00,
-	0x0346,	0x00,
-	0x0347,	0x00,
-	0x0348,	0x1F,
-	0x0349,	0x3F,
-	0x034A,	0x17,
-	0x034B,	0x6F,
-
-	/* Mode Setting */
-	0x0900,	0x01,
-	0x0901,	0x22,
-	0x0902,	0x08,
-	0x3246,	0x81,
-	0x3247,	0x81,
-
-	/* Digital Crop & Scaling */
-	0x0401,	0x00,
-	0x0404,	0x00,
-	0x0405,	0x10,
-	0x0408,	0x00,
-	0x0409,	0x00,
-	0x040A,	0x00,
-	0x040B,	0x00,
-	0x040C,	0x0F,
-	0x040D,	0xA0,
-	0x040E,	0x0B,
-	0x040F,	0xB8,
-
-	/* Output Size Setting */
-	0x034C,	0x0F,
-	0x034D,	0xA0,
-	0x034E,	0x0B,
-	0x034F,	0xB8,
-
-	/* Clock Setting */
-	0x0301,	0x05,
-	0x0303,	0x02,
-	0x0305,	0x04,
-	0x0306,	0x01,
-	0x0307,	0x4C,
-	0x030B,	0x01,
-	0x030D,	0x0D,
-	0x030E,	0x04,
-	0x030F,	0x05,
-	0x0310,	0x01,
-
-	/* Other Setting */
-	0x3620,	0x00,
-	0x3621,	0x00,
-	0x380C,	0x80,
-	0x3C13,	0x00,
-	0x3C14,	0x28,
-	0x3C15,	0x28,
-	0x3C16,	0x32,
-	0x3C17,	0x46,
-	0x3C18,	0x67,
-	0x3C19,	0x8F,
-	0x3C1A,	0x8F,
-	0x3C1B,	0x99,
-	0x3C1C,	0xAD,
-	0x3C1D,	0xCE,
-	0x3C1E,	0x8F,
-	0x3C1F,	0x8F,
-	0x3C20,	0x99,
-	0x3C21,	0xAD,
-	0x3C22,	0xCE,
-	0x3C25,	0x22,
-	0x3C26,	0x23,
-	0x3C27,	0xE6,
-	0x3C28,	0xE6,
-	0x3C29,	0x08,
-	0x3C2A,	0x0F,
-	0x3C2B,	0x14,
-	0x3F0C,	0x01,
-	0x3F14,	0x00,
-	0x3F80,	0x0B,
-	0x3F81,	0x77,
-	0x3F82,	0x07,
-	0x3F83,	0x0E,
-	0x3F8C,	0x07,
-	0x3F8D,	0xD0,
-	0x3FF4,	0x01,
-	0x3FF5,	0x6E,
-	0x3FFC,	0x04,
-	0x3FFD,	0xF2,
-
-	/* Integration Setting */
-	0x0202,	0x0E,
-	0x0203,	0x16,
-	0x0224,	0x01,
-	0x0225,	0xF4,
-	0x3FE0,	0x01,
-	0x3FE1,	0xF4,
-
-	/* Gain Setting */
-	0x0204,	0x00,
-	0x0205,	0x70,
-	0x0216,	0x00,
-	0x0217,	0x70,
-	0x0218,	0x01,
-	0x0219,	0x00,
-	0x020E,	0x01,
-	0x020F,	0x00,
-	0x0210,	0x01,
-	0x0211,	0x00,
-	0x0212,	0x01,
-	0x0213,	0x00,
-	0x0214,	0x01,
-	0x0215,	0x00,
-	0x3FE2,	0x00,
-	0x3FE3,	0x70,
-	0x3FE4,	0x01,
-	0x3FE5,	0x00,
-
-	/* DPC output ctrl Setting */
-	0x0B06, 0x00,
-
-	/* PDAF TYPE Setting */
-	0x3E20, 0x02,
-
-	/* PDAF TYPE2 Setting */
-	0x3E3B, 0x01,
-	0x4034, 0x01,
-	0x4035, 0xF0,
-};
-
-static kal_uint16 imx582_capture_setting[] = {
-	/* MIPI output setting */
-	0x0112,	0x0A,
-	0x0113,	0x0A,
-	0x0114,	0x03,
-
-	/* Line Length PCK Setting */
-	0x0342,	0x23,
-	0x0343,	0xE0,
-
-	/* Frame Length Lines Setting */
-	0x0340,	0x17,
-	0x0341,	0xE3,
-
-	/* ROI Setting */
-	0x0344,	0x00,
-	0x0345,	0x00,
-	0x0346,	0x00,
-	0x0347,	0x00,
-	0x0348,	0x1F,
-	0x0349,	0x3F,
-	0x034A,	0x17,
-	0x034B,	0x6F,
-
-	/* Mode Setting */
-	0x0900,	0x00,
-	0x0901,	0x11,
-	0x0902,	0x0A,
-	0x3246,	0x01,
-	0x3247,	0x01,
-
-	/* Digital Crop & Scaling */
-	0x0401,	0x00,
-	0x0404,	0x00,
-	0x0405,	0x10,
-	0x0408,	0x00,
-	0x0409,	0x00,
-	0x040A,	0x00,
-	0x040B,	0x00,
-	0x040C,	0x1F,
-	0x040D,	0x40,
-	0x040E,	0x17,
-	0x040F,	0x70,
-
-	/* Output Size Setting */
-	0x034C,	0x1F,
-	0x034D,	0x40,
-	0x034E,	0x17,
-	0x034F,	0x70,
-
-	/* Clock Setting */
-	0x0301,	0x05,
-	0x0303,	0x02,
-	0x0305,	0x04,
-	0x0306,	0x01,
-	0x0307,	0x4C,
-	0x030B,	0x01,
-	0x030D,	0x0D,
-	0x030E,	0x04,
-	0x030F,	0x44,
-	0x0310,	0x01,
-
-	/* Other Setting */
-	0x3620,	0x01,
-	0x3621,	0x01,
-	0x380C,	0x80,
-	0x3C13,	0x00,
-	0x3C14,	0x28,
-	0x3C15,	0x28,
-	0x3C16,	0x32,
-	0x3C17,	0x46,
-	0x3C18,	0x67,
-	0x3C19,	0x8F,
-	0x3C1A,	0x8F,
-	0x3C1B,	0x99,
-	0x3C1C,	0xAD,
-	0x3C1D,	0xCE,
-	0x3C1E,	0x8F,
-	0x3C1F,	0x8F,
-	0x3C20,	0x99,
-	0x3C21,	0xAD,
-	0x3C22,	0xCE,
-	0x3C25,	0x22,
-	0x3C26,	0x23,
-	0x3C27,	0xE6,
-	0x3C28,	0xE6,
-	0x3C29,	0x08,
-	0x3C2A,	0x0F,
-	0x3C2B,	0x14,
-	0x3F0C,	0x00,
-	0x3F14,	0x01,
-	0x3F80,	0x0A,
-	0x3F81,	0xFE,
-	0x3F82,	0x00,
-	0x3F83,	0x00,
-	0x3F8C,	0x03,
-	0x3F8D,	0x5C,
-	0x3FF4,	0x00,
-	0x3FF5,	0x00,
-	0x3FFC,	0x00,
-	0x3FFD,	0x97,
-
-	/* Integration Setting */
-	0x0202,	0x17,
-	0x0203,	0xB3,
-	0x0224,	0x01,
-	0x0225,	0xF4,
-	0x3FE0,	0x01,
-	0x3FE1,	0xF4,
-
-	/* Gain Setting */
-	0x0204,	0x00,
-	0x0205,	0x70,
-	0x0216,	0x00,
-	0x0217,	0x70,
-	0x0218,	0x01,
-	0x0219,	0x00,
-	0x020E,	0x01,
-	0x020F,	0x00,
-	0x0210,	0x01,
-	0x0211,	0x00,
-	0x0212,	0x01,
-	0x0213,	0x00,
-	0x0214,	0x01,
-	0x0215,	0x00,
-	0x3FE2,	0x00,
-	0x3FE3,	0x70,
-	0x3FE4,	0x01,
-	0x3FE5,	0x00,
-
-	/* DPC output ctrl Setting */
-	0x0B06, 0x01,
-
-	/* PDAF TYPE Setting */
-	0x3E20, 0x02,
-
-	/* PDAF TYPE2 Setting */
-	0x3E3B, 0x01,
-	0x4034, 0x01,
-	0x4035, 0xF0,
-};
-
-static kal_uint16 imx582_normal_video_setting[] = {
-	/* MIPI output setting */
-	0x0112,	0x0A,
-	0x0113,	0x0A,
-	0x0114,	0x03,
-
-	/* Line Length PCK Setting */
-	0x0342,	0x1E,
-	0x0343,	0xC0,
-
-	/* Frame Length Lines Setting */
-	0x0340,	0x0E,
-	0x0341,	0x46,
-
-	/* ROI Setting */
-	0x0344,	0x00,
-	0x0345,	0x00,
-	0x0346,	0x02,
-	0x0347,	0xCC,
-	0x0348,	0x1F,
-	0x0349,	0x3F,
-	0x034A,	0x14,
-	0x034B,	0xA3,
-
-	/* Mode Setting */
-	0x0900,	0x01,
-	0x0901,	0x22,
-	0x0902,	0x08,
-	0x3246,	0x81,
-	0x3247,	0x81,
-
-	/* Digital Crop & Scaling */
-	0x0401,	0x00,
-	0x0404,	0x00,
-	0x0405,	0x10,
-	0x0408,	0x00,
-	0x0409,	0x00,
-	0x040A,	0x00,
-	0x040B,	0x0E,
-	0x040C,	0x0F,
-	0x040D,	0xA0,
-	0x040E,	0x08,
-	0x040F,	0xD0,
-
-	/* Output Size Setting */
-	0x034C,	0x0F,
-	0x034D,	0xA0,
-	0x034E,	0x08,
-	0x034F,	0xD0,
-
-	/* Clock Setting */
-	0x0301,	0x05,
-	0x0303,	0x02,
-	0x0305,	0x04,
-	0x0306,	0x01,
-	0x0307,	0x4C,
-	0x030B,	0x01,
-	0x030D,	0x0D,
-	0x030E,	0x04,
-	0x030F,	0x05,
-	0x0310,	0x01,
-
-	/* Other Setting */
-	0x3620,	0x00,
-	0x3621,	0x00,
-	0x380C,	0x80,
-	0x3C13,	0x00,
-	0x3C14,	0x28,
-	0x3C15,	0x28,
-	0x3C16,	0x32,
-	0x3C17,	0x46,
-	0x3C18,	0x67,
-	0x3C19,	0x8F,
-	0x3C1A,	0x8F,
-	0x3C1B,	0x99,
-	0x3C1C,	0xAD,
-	0x3C1D,	0xCE,
-	0x3C1E,	0x8F,
-	0x3C1F,	0x8F,
-	0x3C20,	0x99,
-	0x3C21,	0xAD,
-	0x3C22,	0xCE,
-	0x3C25,	0x22,
-	0x3C26,	0x23,
-	0x3C27,	0xE6,
-	0x3C28,	0xE6,
-	0x3C29,	0x08,
-	0x3C2A,	0x0F,
-	0x3C2B,	0x14,
-	0x3F0C,	0x01,
-	0x3F14,	0x00,
-	0x3F80,	0x0B,
-	0x3F81,	0x77,
-	0x3F82,	0x07,
-	0x3F83,	0x0E,
-	0x3F8C,	0x07,
-	0x3F8D,	0xD0,
-	0x3FF4,	0x01,
-	0x3FF5,	0x6E,
-	0x3FFC,	0x04,
-	0x3FFD,	0xF2,
-
-	/* Integration Setting */
-	0x0202,	0x0E,
-	0x0203,	0x16,
-	0x0224,	0x01,
-	0x0225,	0xF4,
-	0x3FE0,	0x01,
-	0x3FE1,	0xF4,
-
-	/* Gain Setting */
-	0x0204,	0x00,
-	0x0205,	0x70,
-	0x0216,	0x00,
-	0x0217,	0x70,
-	0x0218,	0x01,
-	0x0219,	0x00,
-	0x020E,	0x01,
-	0x020F,	0x00,
-	0x0210,	0x01,
-	0x0211,	0x00,
-	0x0212,	0x01,
-	0x0213,	0x00,
-	0x0214,	0x01,
-	0x0215,	0x00,
-	0x3FE2,	0x00,
-	0x3FE3,	0x70,
-	0x3FE4,	0x01,
-	0x3FE5,	0x00,
-
-	/* DPC output ctrl Setting */
-	0x0B06, 0x00,
-
-	/* PDAF TYPE Setting */
-	0x3E20, 0x02,
-
-	/* PDAF TYPE2 Setting */
-	0x3E3B, 0x01,
-	0x4034, 0x01,
-	0x4035, 0xF0,
-};
-
-/* reg_L*/
-static kal_uint16 imx582_hs_video_setting[] = {
-	/*MIPI output setting*/
-	0x0112,	0x0A,
-	0x0113,	0x0A,
-	0x0114,	0x03,
-
-	/*Line Length PCK Setting*/
-	0x0342,	0x0B,
-	0x0343,	0x60,
-
-	/*Frame Length Lines Setting*/
-	0x0340,	0x09,
-	0x0341,	0xA6,
-
-	/*ROI Setting*/
-	0x0344,	0x00,
-	0x0345,	0x00,
-	0x0346,	0x02,
-	0x0347,	0xC0,
-	0x0348,	0x1F,
-	0x0349,	0x3F,
-	0x034A,	0x14,
-	0x034B,	0x9F,
-
-	/*Mode Setting*/
-	0x0900,	0x01,
-	0x0901,	0x44,
-	0x0902,	0x08,
-	0x3246,	0x89,
-	0x3247,	0x89,
-
-	/*Digital Crop & Scaling*/
-	0x0401,	0x00,
-	0x0404,	0x00,
-	0x0405,	0x10,
-	0x0408,	0x00,
-	0x0409,	0x00,
-	0x040A,	0x00,
-	0x040B,	0x08,
-	0x040C,	0x07,
-	0x040D,	0xD0,
-	0x040E,	0x04,
-	0x040F,	0x68,
-
-	/*Output Size Setting*/
-	0x034C,	0x07,
-	0x034D,	0xD0,
-	0x034E,	0x04,
-	0x034F,	0x68,
-
-	/*Clock Setting*/
-	0x0301,	0x05,
-	0x0303,	0x02,
-	0x0305,	0x04,
-	0x0306,	0x01,
-	0x0307,	0x4C,
-	0x030B,	0x01,
-	0x030D,	0x0D,
-	0x030E,	0x03,
-	0x030F,	0x9C,
-	0x0310,	0x01,
-
-	/*Other Setting*/
-	0x3620,	0x00,
-	0x3621,	0x00,
-	0x380C,	0x80,
-	0x3C13,	0x00,
-	0x3C14,	0x28,
-	0x3C15,	0x28,
-	0x3C16,	0x32,
-	0x3C17,	0x46,
-	0x3C18,	0x67,
-	0x3C19,	0x8F,
-	0x3C1A,	0x8F,
-	0x3C1B,	0x99,
-	0x3C1C,	0xAD,
-	0x3C1D,	0xCE,
-	0x3C1E,	0x8F,
-	0x3C1F,	0x8F,
-	0x3C20,	0x99,
-	0x3C21,	0xAD,
-	0x3C22,	0xCE,
-	0x3C25,	0x22,
-	0x3C26,	0x23,
-	0x3C27,	0xE6,
-	0x3C28,	0xE6,
-	0x3C29,	0x08,
-	0x3C2A,	0x0F,
-	0x3C2B,	0x14,
-	0x3F0C,	0x00,
-	0x3F14,	0x00,
-	0x3F80,	0x02,
-	0x3F81,	0x53,
-	0x3F82,	0x01,
-	0x3F83,	0x66,
-	0x3F8C,	0x00,
-	0x3F8D,	0x00,
-	0x3FF4,	0x00,
-	0x3FF5,	0xF0,
-	0x3FFC,	0x00,
-	0x3FFD,	0x8D,
-
-	/*Integration Setting*/
-	0x0202,	0x09,
-	0x0203,	0x76,
-	0x0224,	0x01,
-	0x0225,	0xF4,
-	0x3FE0,	0x01,
-	0x3FE1,	0xF4,
-
-	/*Gain Setting*/
-	0x0204,	0x00,
-	0x0205,	0x70,
-	0x0216,	0x00,
-	0x0217,	0x70,
-	0x0218,	0x01,
-	0x0219,	0x00,
-	0x020E,	0x01,
-	0x020F,	0x00,
-	0x0210,	0x01,
-	0x0211,	0x00,
-	0x0212,	0x01,
-	0x0213,	0x00,
-	0x0214,	0x01,
-	0x0215,	0x00,
-	0x3FE2,	0x00,
-	0x3FE3,	0x70,
-	0x3FE4,	0x01,
-	0x3FE5,	0x00,
-
-	/* DPC output ctrl Setting */
-	0x0B06, 0x00,
-
-	/* PDAF TYPE Setting */
-	0x3E20, 0x01,
-
-	/* PDAF TYPE2 Setting */
-	0x3E3B, 0x01,
-	0x4034, 0x01,
-	0x4035, 0xF0,
-};
-
-static kal_uint16 imx582_slim_video_setting[] = {
-	/*MIPI output setting*/
-	0x0112,	0x0A,
-	0x0113,	0x0A,
-	0x0114,	0x03,
-
-	/*Line Length PCK Setting*/
-	0x0342,	0x0B,
-	0x0343,	0x60,
-
-	/*Frame Length Lines Setting*/
-	0x0340,	0x09,
-	0x0341,	0xA6,
-
-	/*ROI Setting*/
-	0x0344,	0x00,
-	0x0345,	0x00,
-	0x0346,	0x00,
-	0x0347,	0x00,
-	0x0348,	0x1F,
-	0x0349,	0x3F,
-	0x034A,	0x17,
-	0x034B,	0x6F,
-
-	/*Mode Setting*/
-	0x0900,	0x01,
-	0x0901,	0x44,
-	0x0902,	0x08,
-	0x3246,	0x89,
-	0x3247,	0x89,
-
-	/*Digital Crop & Scaling*/
-	0x0401,	0x00,
-	0x0404,	0x00,
-	0x0405,	0x10,
-	0x0408,	0x00,
-	0x0409,	0x00,
-	0x040A,	0x00,
-	0x040B,	0x00,
-	0x040C,	0x07,
-	0x040D,	0xD0,
-	0x040E,	0x05,
-	0x040F,	0xDC,
-
-	/*Output Size Setting*/
-	0x034C,	0x07,
-	0x034D,	0xD0,
-	0x034E,	0x05,
-	0x034F,	0xDC,
-
-	/*Clock Setting*/
-	0x0301,	0x05,
-	0x0303,	0x02,
-	0x0305,	0x04,
-	0x0306,	0x01,
-	0x0307,	0x4C,
-	0x030B,	0x01,
-	0x030D,	0x0D,
-	0x030E,	0x03,
-	0x030F,	0x9C,
-	0x0310,	0x01,
-
-	/*Other Setting*/
-	0x3620,	0x00,
-	0x3621,	0x00,
-	0x380C,	0x80,
-	0x3C13,	0x00,
-	0x3C14,	0x28,
-	0x3C15,	0x28,
-	0x3C16,	0x32,
-	0x3C17,	0x46,
-	0x3C18,	0x67,
-	0x3C19,	0x8F,
-	0x3C1A,	0x8F,
-	0x3C1B,	0x99,
-	0x3C1C,	0xAD,
-	0x3C1D,	0xCE,
-	0x3C1E,	0x8F,
-	0x3C1F,	0x8F,
-	0x3C20,	0x99,
-	0x3C21,	0xAD,
-	0x3C22,	0xCE,
-	0x3C25,	0x22,
-	0x3C26,	0x23,
-	0x3C27,	0xE6,
-	0x3C28,	0xE6,
-	0x3C29,	0x08,
-	0x3C2A,	0x0F,
-	0x3C2B,	0x14,
-	0x3F0C,	0x00,
-	0x3F14,	0x00,
-	0x3F80,	0x02,
-	0x3F81,	0x53,
-	0x3F82,	0x01,
-	0x3F83,	0x66,
-	0x3F8C,	0x00,
-	0x3F8D,	0x00,
-	0x3FF4,	0x00,
-	0x3FF5,	0xF0,
-	0x3FFC,	0x00,
-	0x3FFD,	0x8D,
-
-	/*Integration Setting*/
-	0x0202,	0x09,
-	0x0203,	0x76,
-	0x0224,	0x01,
-	0x0225,	0xF4,
-	0x3FE0,	0x01,
-	0x3FE1,	0xF4,
-
-	/*Gain Setting*/
-	0x0204,	0x00,
-	0x0205,	0x70,
-	0x0216,	0x00,
-	0x0217,	0x70,
-	0x0218,	0x01,
-	0x0219,	0x00,
-	0x020E,	0x01,
-	0x020F,	0x00,
-	0x0210,	0x01,
-	0x0211,	0x00,
-	0x0212,	0x01,
-	0x0213,	0x00,
-	0x0214,	0x01,
-	0x0215,	0x00,
-	0x3FE2,	0x00,
-	0x3FE3,	0x70,
-	0x3FE4,	0x01,
-	0x3FE5,	0x00,
-
-	/* DPC output ctrl Setting */
-	0x0B06, 0x00,
-
-	/* PDAF TYPE Setting */
-	0x3E20, 0x01,
-
-	/* PDAF TYPE2 Setting */
-	0x3E3B, 0x00,
-	0x4034, 0x01,
-	0x4035, 0xF0,
-};
-
-static kal_uint16 imx582_custom1_setting[] = {
-	/*MIPI output setting*/
-	0x0112,	0x0A,
-	0x0113,	0x0A,
-	0x0114,	0x03,
-
-	/*Line Length PCK Setting*/
-	0x0342,	0x0B,
-	0x0343,	0x60,
-
-	/*Frame Length Lines Setting*/
-	0x0340,	0x13, //0x09A6 * 2
-	0x0341,	0x4C,
-
-	/*ROI Setting*/
-	0x0344,	0x00,
-	0x0345,	0x00,
-	0x0346,	0x00,
-	0x0347,	0x00,
-	0x0348,	0x1F,
-	0x0349,	0x3F,
-	0x034A,	0x17,
-	0x034B,	0x6F,
-
-	/*Mode Setting*/
-	0x0900,	0x01,
-	0x0901,	0x44,
-	0x0902,	0x08,
-	0x3246,	0x89,
-	0x3247,	0x89,
-
-	/*Digital Crop & Scaling*/
-	0x0401,	0x00,
-	0x0404,	0x00,
-	0x0405,	0x10,
-	0x0408,	0x00,
-	0x0409,	0x00,
-	0x040A,	0x00,
-	0x040B,	0x00,
-	0x040C,	0x07,
-	0x040D,	0xD0,
-	0x040E,	0x05,
-	0x040F,	0xDC,
-
-	/*Output Size Setting*/
-	0x034C,	0x07,
-	0x034D,	0xD0,
-	0x034E,	0x05,
-	0x034F,	0xDC,
-
-	/*Clock Setting*/
-	0x0301,	0x05,
-	0x0303,	0x02,
-	0x0305,	0x04,
-	0x0306,	0x01,
-	0x0307,	0x4C,
-	0x030B,	0x01,
-	0x030D,	0x0D,
-	0x030E,	0x03,
-	0x030F,	0x9C,
-	0x0310,	0x01,
-
-	/*Other Setting*/
-	0x3620,	0x00,
-	0x3621,	0x00,
-	0x380C,	0x80,
-	0x3C13,	0x00,
-	0x3C14,	0x28,
-	0x3C15,	0x28,
-	0x3C16,	0x32,
-	0x3C17,	0x46,
-	0x3C18,	0x67,
-	0x3C19,	0x8F,
-	0x3C1A,	0x8F,
-	0x3C1B,	0x99,
-	0x3C1C,	0xAD,
-	0x3C1D,	0xCE,
-	0x3C1E,	0x8F,
-	0x3C1F,	0x8F,
-	0x3C20,	0x99,
-	0x3C21,	0xAD,
-	0x3C22,	0xCE,
-	0x3C25,	0x22,
-	0x3C26,	0x23,
-	0x3C27,	0xE6,
-	0x3C28,	0xE6,
-	0x3C29,	0x08,
-	0x3C2A,	0x0F,
-	0x3C2B,	0x14,
-	0x3F0C,	0x00,
-	0x3F14,	0x00,
-	0x3F80,	0x02,
-	0x3F81,	0x53,
-	0x3F82,	0x01,
-	0x3F83,	0x66,
-	0x3F8C,	0x00,
-	0x3F8D,	0x00,
-	0x3FF4,	0x00,
-	0x3FF5,	0xF0,
-	0x3FFC,	0x00,
-	0x3FFD,	0x8D,
-
-	/*Integration Setting*/
-	0x0202,	0x09,
-	0x0203,	0x76,
-	0x0224,	0x01,
-	0x0225,	0xF4,
-	0x3FE0,	0x01,
-	0x3FE1,	0xF4,
-
-	/*Gain Setting*/
-	0x0204,	0x00,
-	0x0205,	0x70,
-	0x0216,	0x00,
-	0x0217,	0x70,
-	0x0218,	0x01,
-	0x0219,	0x00,
-	0x020E,	0x01,
-	0x020F,	0x00,
-	0x0210,	0x01,
-	0x0211,	0x00,
-	0x0212,	0x01,
-	0x0213,	0x00,
-	0x0214,	0x01,
-	0x0215,	0x00,
-	0x3FE2,	0x00,
-	0x3FE3,	0x70,
-	0x3FE4,	0x01,
-	0x3FE5,	0x00,
-
-	/* DPC output ctrl Setting */
-	0x0B06, 0x00,
-
-	/* PDAF TYPE Setting */
-	0x3E20, 0x01,
-
-	/* PDAF TYPE2 Setting */
-	0x3E3B, 0x00,
-	0x4034, 0x01,
-	0x4035, 0xF0,
-};
-
-static kal_uint16 imx582_init_setting_rev6[] = {
-	/* External Clock Setting */
-	0x0136,	0x1A,
-	0x0137,	0x00,
-
-
-	/* Register version */
-	0x3C7E,	0x02,
-	0x3C7F,	0x06,
-
-
-	/* Global Setting */
-	0x3C00,	0x10,
-	0x3C01,	0x10,
-	0x3C02,	0x10,
-	0x3C03,	0x10,
-	0x3C04,	0x10,
-	0x3C05,	0x01,
-	0x3C06,	0x00,
-	0x3C07,	0x00,
-	0x3C08,	0x03,
-	0x3C09,	0xFF,
-	0x3C0A,	0x01,
-	0x3C0B,	0x00,
-	0x3C0C,	0x00,
-	0x3C0D,	0x03,
-	0x3C0E,	0xFF,
-	0x3C0F,	0x20,
-	0x6E1D, 0x00,
-	0x6E25, 0x00,
-	0x6E38, 0x03,
-	0x6E3B, 0x01,
-	0x9004, 0x2C,
-	0x9200, 0xF4,
-	0x9201, 0xA7,
-	0x9202, 0xF4,
-	0x9203, 0xAA,
-	0x9204, 0xF4,
-	0x9205, 0xAD,
-	0x9206, 0xF4,
-	0x9207, 0xB0,
-	0x9208, 0xF4,
-	0x9209, 0xB3,
-	0x920A, 0xB7,
-	0x920B, 0x34,
-	0x920C, 0xB7,
-	0x920D, 0x36,
-	0x920E, 0xB7,
-	0x920F, 0x37,
-	0x9210, 0xB7,
-	0x9211, 0x38,
-	0x9212, 0xB7,
-	0x9213, 0x39,
-	0x9214, 0xB7,
-	0x9215, 0x3A,
-	0x9216, 0xB7,
-	0x9217, 0x3C,
-	0x9218, 0xB7,
-	0x9219, 0x3D,
-	0x921A, 0xB7,
-	0x921B, 0x3E,
-	0x921C, 0xB7,
-	0x921D, 0x3F,
-	0x921E, 0x85,
-	0x921F, 0x77,
-	0x9226, 0x42,
-	0x9227, 0x52,
-	0x9228, 0x60,
-	0x9229, 0xB9,
-	0x922A, 0x60,
-	0x922B, 0xBF,
-	0x922C, 0x60,
-	0x922D, 0xC5,
-	0x922E, 0x60,
-	0x922F, 0xCB,
-	0x9230, 0x60,
-	0x9231, 0xD1,
-	0x9232, 0x60,
-	0x9233, 0xD7,
-	0x9234, 0x60,
-	0x9235, 0xDD,
-	0x9236, 0x60,
-	0x9237, 0xE3,
-	0x9238, 0x60,
-	0x9239, 0xE9,
-	0x923A, 0x60,
-	0x923B, 0xEF,
-	0x923C, 0x60,
-	0x923D, 0xF5,
-	0x923E, 0x60,
-	0x923F, 0xF9,
-	0x9240, 0x60,
-	0x9241, 0xFD,
-	0x9242, 0x61,
-	0x9243, 0x01,
-	0x9244, 0x61,
-	0x9245, 0x05,
-	0x924A, 0x61,
-	0x924B, 0x6B,
-	0x924C, 0x61,
-	0x924D, 0x7F,
-	0x924E, 0x61,
-	0x924F, 0x92,
-	0x9250, 0x61,
-	0x9251, 0x9C,
-	0x9252, 0x61,
-	0x9253, 0xAB,
-	0x9254, 0x61,
-	0x9255, 0xC4,
-	0x9256, 0x61,
-	0x9257, 0xCE,
-	0x9810, 0x14,
-	0x9814, 0x14,
-	0xC449, 0x04,
-	0xC44A, 0x01,
-	0xE286, 0x31,
-	0xE2A6, 0x32,
-	0xE2C6, 0x33,
-	0x3E14, 0x01,
-	0xE013, 0x01,
-	0xE186, 0x2B,
-
-
-	/* Image Quality adjustment setting */
-	0x88D6,	0x60,
-	0x9852,	0x00,
-	0xAE09,	0xFF,
-	0xAE0A,	0xFF,
-	0xAE12,	0x58,
-	0xAE13,	0x58,
-	0xAE15,	0x10,
-	0xAE16,	0x10,
-	0xB071,	0x00,
-};
-
-static kal_uint16 imx582_preview_setting_rev6[] = {
-	/* MIPI output setting */
-	0x0112,	0x0A,
-	0x0113,	0x0A,
-	0x0114,	0x03,
-
-	/* Line Length PCK Setting */
-	0x0342,	0x1E,
-	0x0343,	0xC0,
-
-	/* Frame Length Lines Setting */
-	0x0340,	0x0E,
-	0x0341,	0x46,
-
-	/* ROI Setting */
-	0x0344,	0x00,
-	0x0345,	0x00,
-	0x0346,	0x00,
-	0x0347,	0x00,
-	0x0348,	0x1F,
-	0x0349,	0x3F,
-	0x034A,	0x17,
-	0x034B,	0x6F,
-
-	/* Mode Setting */
-	0x0900,	0x01,
-	0x0901,	0x22,
-	0x0902,	0x08,
-	0x3246,	0x81,
-	0x3247,	0x81,
-
-	/* Digital Crop & Scaling */
-	0x0401,	0x00,
-	0x0404,	0x00,
-	0x0405,	0x10,
-	0x0408,	0x00,
-	0x0409,	0x00,
-	0x040A,	0x00,
-	0x040B,	0x00,
-	0x040C,	0x0F,
-	0x040D,	0xA0,
-	0x040E,	0x0B,
-	0x040F,	0xB8,
-
-	/* Output Size Setting */
-	0x034C,	0x0F,
-	0x034D,	0xA0,
-	0x034E,	0x0B,
-	0x034F,	0xB8,
-
-
-	/* Clock Setting */
-	0x0301,	0x05,
-	0x0303,	0x02,
-	0x0305,	0x04,
-	0x0306,	0x01,
-	0x0307,	0x4C,
-	0x030B,	0x01,
-	0x030D,	0x0D,
-	0x030E,	0x04,
-	0x030F,	0x05,
-	0x0310,	0x01,
-
-	/* Other Setting */
-	0x3620,	0x00,
-	0x3621,	0x00,
-	0x380C,	0x80,
-	0x3C13,	0x00,
-	0x3C14, 0x28,
-	0x3C15, 0x28,
-	0x3C16, 0x32,
-	0x3C17, 0x46,
-	0x3C18, 0x67,
-	0x3C19, 0x8F,
-	0x3C1A, 0x8F,
-	0x3C1B, 0x99,
-	0x3C1C, 0xAD,
-	0x3C1D, 0xCE,
-	0x3C1E, 0x8F,
-	0x3C1F, 0x8F,
-	0x3C20, 0x99,
-	0x3C21, 0xAD,
-	0x3C22, 0xCE,
-	0x3C25, 0x22,
-	0x3C26, 0x23,
-	0x3C27, 0xE6,
-	0x3C28, 0xE6,
-	0x3C29, 0x08,
-	0x3C2A, 0x0F,
-	0x3C2B, 0x14,
-	0x3F0C, 0x01,
-	0x3F14, 0x00,
-	0x3F80, 0x0B,
-	0x3F81, 0x77,
-	0x3F82, 0x07,
-	0x3F83, 0x0E,
-	0x3F8C, 0x07,
-	0x3F8D, 0xD0,
-	0x3FF4, 0x01,
-	0x3FF5, 0x6E,
-	0x3FFC, 0x04,
-	0x3FFD, 0xF2,
-
-	/* Integration Setting */
-	0x0202,	0x0E,
-	0x0203,	0x16,
-	0x0224,	0x01,
-	0x0225,	0xF4,
-	0x3FE0,	0x01,
-	0x3FE1,	0xF4,
-
-	/* Gain Setting */
-	0x0204,	0x00,
-	0x0205,	0x70,
-	0x0216,	0x00,
-	0x0217,	0x70,
-	0x0218,	0x01,
-	0x0219,	0x00,
-	0x020E,	0x01,
-	0x020F,	0x00,
-	0x0210,	0x01,
-	0x0211,	0x00,
-	0x0212,	0x01,
-	0x0213,	0x00,
-	0x0214,	0x01,
-	0x0215,	0x00,
-	0x3FE2,	0x00,
-	0x3FE3,	0x70,
-	0x3FE4,	0x01,
-	0x3FE5,	0x00,
-
-	/* DPC output ctrl Setting */
-	0x0B06, 0x00,
-
-	/* PDAF TYPE Setting */
-	0x3E20, 0x02,
-
-	/* PDAF TYPE2 Setting */
-	0x3E3B, 0x01,
-	0x4034, 0x01,
-	0x4035, 0xF0,
-};
-
-static kal_uint16 imx582_capture_setting_rev6[] = {
-	/* MIPI output setting */
-	0x0112,	0x0A,
-	0x0113,	0x0A,
-	0x0114,	0x03,
-
-	/* Line Length PCK Setting */
-	0x0342,	0x23,
-	0x0343,	0xE0,
-
-	/* Frame Length Lines Setting */
-	0x0340,	0x17,
-	0x0341,	0xE3,
-
-	/* ROI Setting */
-	0x0344,	0x00,
-	0x0345,	0x00,
-	0x0346,	0x00,
-	0x0347,	0x00,
-	0x0348,	0x1F,
-	0x0349,	0x3F,
-	0x034A,	0x17,
-	0x034B,	0x6F,
-
-	/* Mode Setting */
-	0x0900,	0x00,
-	0x0901,	0x11,
-	0x0902,	0x0A,
-	0x3246,	0x01,
-	0x3247,	0x01,
-
-	/* Digital Crop & Scaling */
-	0x0401,	0x00,
-	0x0404,	0x00,
-	0x0405,	0x10,
-	0x0408,	0x00,
-	0x0409,	0x00,
-	0x040A,	0x00,
-	0x040B,	0x00,
-	0x040C,	0x1F,
-	0x040D,	0x40,
-	0x040E,	0x17,
-	0x040F,	0x70,
-
-	/* Output Size Setting */
-	0x034C,	0x1F,
-	0x034D,	0x40,
-	0x034E,	0x17,
-	0x034F,	0x70,
-
-	/* Clock Setting */
-	0x0301,	0x05,
-	0x0303,	0x02,
-	0x0305,	0x04,
-	0x0306,	0x01,
-	0x0307,	0x4C,
-	0x030B,	0x01,
-	0x030D,	0x0D,
-	0x030E,	0x04,
-	0x030F,	0x44,
-	0x0310,	0x01,
-
-	/* Other Setting */
-	0x3620,	0x01,
-	0x3621,	0x01,
-	0x380C,	0x80,
-	0x3C13,	0x00,
-	0x3C14,	0x28,
-	0x3C15,	0x28,
-	0x3C16,	0x32,
-	0x3C17,	0x46,
-	0x3C18,	0x67,
-	0x3C19,	0x8F,
-	0x3C1A,	0x8F,
-	0x3C1B,	0x99,
-	0x3C1C,	0xAD,
-	0x3C1D,	0xCE,
-	0x3C1E,	0x8F,
-	0x3C1F,	0x8F,
-	0x3C20,	0x99,
-	0x3C21,	0xAD,
-	0x3C22,	0xCE,
-	0x3C25,	0x22,
-	0x3C26,	0x23,
-	0x3C27,	0xE6,
-	0x3C28,	0xE6,
-	0x3C29,	0x08,
-	0x3C2A,	0x0F,
-	0x3C2B,	0x14,
-	0x3F0C,	0x00,
-	0x3F14,	0x01,
-	0x3F80,	0x0A,
-	0x3F81,	0xFE,
-	0x3F82,	0x00,
-	0x3F83,	0x00,
-	0x3F8C,	0x03,
-	0x3F8D,	0x5C,
-	0x3FF4,	0x00,
-	0x3FF5,	0x00,
-	0x3FFC,	0x00,
-	0x3FFD,	0x97,
-
-	/* Integration Setting */
-	0x0202,	0x17,
-	0x0203,	0xB3,
-	0x0224,	0x01,
-	0x0225,	0xF4,
-	0x3FE0,	0x01,
-	0x3FE1,	0xF4,
-
-	/* Gain Setting */
-	0x0204,	0x00,
-	0x0205,	0x70,
-	0x0216,	0x00,
-	0x0217,	0x70,
-	0x0218,	0x01,
-	0x0219,	0x00,
-	0x020E,	0x01,
-	0x020F,	0x00,
-	0x0210,	0x01,
-	0x0211,	0x00,
-	0x0212,	0x01,
-	0x0213,	0x00,
-	0x0214,	0x01,
-	0x0215,	0x00,
-	0x3FE2,	0x00,
-	0x3FE3,	0x70,
-	0x3FE4,	0x01,
-	0x3FE5,	0x00,
-
-	/* DPC output ctrl Setting */
-	0x0B06, 0x01,
-
-	/* PDAF TYPE Setting */
-	0x3E20, 0x02,
-
-	/* PDAF TYPE2 Setting */
-	0x3E3B, 0x01,
-	0x4034, 0x01,
-	0x4035, 0xF0,
-};
-
-static kal_uint16 imx582_normal_video_setting_rev6[] = {
-	/* MIPI output setting */
-	0x0112,	0x0A,
-	0x0113,	0x0A,
-	0x0114,	0x03,
-
-	/* Line Length PCK Setting */
-	0x0342,	0x1E,
-	0x0343,	0xC0,
-
-	/* Frame Length Lines Setting */
-	0x0340,	0x0E,
-	0x0341,	0x46,
-
-	/* ROI Setting */
-	0x0344,	0x00,
-	0x0345,	0x00,
-	0x0346,	0x02,
-	0x0347,	0xCC,
-	0x0348,	0x1F,
-	0x0349,	0x3F,
-	0x034A,	0x14,
-	0x034B,	0xA3,
-
-	/* Mode Setting */
-	0x0900,	0x01,
-	0x0901,	0x22,
-	0x0902,	0x08,
-	0x3246,	0x81,
-	0x3247,	0x81,
-
-	/* Digital Crop & Scaling */
-	0x0401,	0x00,
-	0x0404,	0x00,
-	0x0405,	0x10,
-	0x0408,	0x00,
-	0x0409,	0x00,
-	0x040A,	0x00,
-	0x040B,	0x0E,
-	0x040C,	0x0F,
-	0x040D,	0xA0,
-	0x040E,	0x08,
-	0x040F,	0xD0,
-
-	/* Output Size Setting */
-	0x034C,	0x0F,
-	0x034D,	0xA0,
-	0x034E,	0x08,
-	0x034F,	0xD0,
-
-	/* Clock Setting */
-	0x0301,	0x05,
-	0x0303,	0x02,
-	0x0305,	0x04,
-	0x0306,	0x01,
-	0x0307,	0x4C,
-	0x030B,	0x01,
-	0x030D,	0x0D,
-	0x030E,	0x04,
-	0x030F,	0x05,
-	0x0310,	0x01,
-
-	/* Other Setting */
-	0x3620, 0x00,
-	0x3621, 0x00,
-	0x380C, 0x80,
-	0x3C13, 0x00,
-	0x3C14, 0x28,
-	0x3C15, 0x28,
-	0x3C16, 0x32,
-	0x3C17, 0x46,
-	0x3C18, 0x67,
-	0x3C19, 0x8F,
-	0x3C1A, 0x8F,
-	0x3C1B, 0x99,
-	0x3C1C, 0xAD,
-	0x3C1D, 0xCE,
-	0x3C1E, 0x8F,
-	0x3C1F, 0x8F,
-	0x3C20, 0x99,
-	0x3C21, 0xAD,
-	0x3C22, 0xCE,
-	0x3C25, 0x22,
-	0x3C26, 0x23,
-	0x3C27, 0xE6,
-	0x3C28, 0xE6,
-	0x3C29, 0x08,
-	0x3C2A, 0x0F,
-	0x3C2B, 0x14,
-	0x3F0C, 0x01,
-	0x3F14, 0x00,
-	0x3F80, 0x0B,
-	0x3F81, 0x77,
-	0x3F82, 0x07,
-	0x3F83, 0x0E,
-	0x3F8C, 0x07,
-	0x3F8D, 0xD0,
-	0x3FF4, 0x01,
-	0x3FF5, 0x6E,
-	0x3FFC, 0x04,
-	0x3FFD, 0xF2,
-
-	/* Integration Setting */
-	0x0202,	0x0E,
-	0x0203,	0x16,
-	0x0224,	0x01,
-	0x0225,	0xF4,
-	0x3FE0,	0x01,
-	0x3FE1,	0xF4,
-
-	/* Gain Setting */
-	0x0204,	0x00,
-	0x0205, 0x70,
-	0x0216, 0x00,
-	0x0217, 0x70,
-	0x0218, 0x01,
-	0x0219, 0x00,
-	0x020E, 0x01,
-	0x020F, 0x00,
-	0x0210, 0x01,
-	0x0211, 0x00,
-	0x0212, 0x01,
-	0x0213, 0x00,
-	0x0214, 0x01,
-	0x0215, 0x00,
-	0x3FE2, 0x00,
-	0x3FE3, 0x70,
-	0x3FE4, 0x01,
-	0x3FE5, 0x00,
-
-	/* DPC output ctrl Setting */
-	0x0B06, 0x00,
-
-	/* PDAF TYPE Setting */
-	0x3E20, 0x02,
-
-	/* PDAF TYPE2 Setting */
-	0x3E3B, 0x01,
-	0x4034, 0x01,
-	0x4035, 0xF0,
-};
-
-/* reg_L*/
-static kal_uint16 imx582_hs_video_setting_rev6[] = {
-	/*MIPI output setting*/
-	0x0112, 0x0A,
-	0x0113, 0x0A,
-	0x0114, 0x03,
-	/*Line Length PCK Setting*/
-	0x0342, 0x0B,
-	0x0343, 0x60,
-	/*Frame Length Lines Setting*/
-	0x0340, 0x09,
-	0x0341, 0xA6,
-
-	/*ROI Setting*/
-	0x0344, 0x00,
-	0x0345, 0x00,
-	0x0346, 0x02,
-	0x0347, 0xC0,
-	0x0348, 0x1F,
-	0x0349, 0x3F,
-	0x034A, 0x14,
-	0x034B, 0x9F,
-
-	/*Mode Setting*/
-	0x0900, 0x01,
-	0x0901, 0x44,
-	0x0902, 0x08,
-	0x3246, 0x89,
-	0x3247, 0x89,
-
-	/*Digital Crop & Scaling*/
-	0x0401, 0x00,
-	0x0404, 0x00,
-	0x0405, 0x10,
-	0x0408, 0x00,
-	0x0409, 0x00,
-	0x040A, 0x00,
-	0x040B, 0x08,
-	0x040C, 0x07,
-	0x040D, 0xD0,
-	0x040E, 0x04,
-	0x040F, 0x68,
-
-	/*Output Size Setting*/
-	0x034C, 0x07,
-	0x034D, 0xD0,
-	0x034E, 0x04,
-	0x034F, 0x68,
-
-	/*Clock Setting*/
-	0x0301, 0x05,
-	0x0303, 0x02,
-	0x0305, 0x04,
-	0x0306, 0x01,
-	0x0307, 0x4C,
-	0x030B, 0x01,
-	0x030D, 0x0D,
-	0x030E, 0x03,
-	0x030F, 0x9C,
-	0x0310, 0x01,
-
-	/*Other Setting*/
-	0x3620, 0x00,
-	0x3621, 0x00,
-	0x380C, 0x80,
-	0x3C13, 0x00,
-	0x3C14, 0x28,
-	0x3C15, 0x28,
-	0x3C16, 0x32,
-	0x3C17, 0x46,
-	0x3C18, 0x67,
-	0x3C19, 0x8F,
-	0x3C1A, 0x8F,
-	0x3C1B, 0x99,
-	0x3C1C, 0xAD,
-	0x3C1D, 0xCE,
-	0x3C1E, 0x8F,
-	0x3C1F, 0x8F,
-	0x3C20, 0x99,
-	0x3C21, 0xAD,
-	0x3C22, 0xCE,
-	0x3C25, 0x22,
-	0x3C26, 0x23,
-	0x3C27, 0xE6,
-	0x3C28, 0xE6,
-	0x3C29, 0x08,
-	0x3C2A, 0x0F,
-	0x3C2B, 0x14,
-	0x3F0C, 0x00,
-	0x3F14, 0x00,
-	0x3F80, 0x02,
-	0x3F81, 0x53,
-	0x3F82, 0x01,
-	0x3F83, 0x66,
-	0x3F8C, 0x00,
-	0x3F8D, 0x00,
-	0x3FF4, 0x00,
-	0x3FF5, 0xF0,
-	0x3FFC, 0x00,
-	0x3FFD, 0x8D,
-
-	/*Integration Setting*/
-	0x0202, 0x09,
-	0x0203, 0x76,
-	0x0224, 0x01,
-	0x0225, 0xF4,
-	0x3FE0, 0x01,
-	0x3FE1, 0xF4,
-
-	/*Gain Setting*/
-	0x0204, 0x00,
-	0x0205, 0x70,
-	0x0216, 0x00,
-	0x0217, 0x70,
-	0x0218, 0x01,
-	0x0219, 0x00,
-	0x020E, 0x01,
-	0x020F, 0x00,
-	0x0210, 0x01,
-	0x0211, 0x00,
-	0x0212, 0x01,
-	0x0213, 0x00,
-	0x0214, 0x01,
-	0x0215, 0x00,
-	0x3FE2, 0x00,
-	0x3FE3, 0x70,
-	0x3FE4, 0x01,
-	0x3FE5, 0x00,
-
-	/* DPC output ctrl Setting */
-	0x0B06, 0x00,
-
-	/* PDAF TYPE Setting */
-	0x3E20, 0x01,
-
-	/* PDAF TYPE2 Setting */
-	0x3E3B, 0x01,
-	0x4034, 0x01,
-	0x4035, 0xF0,
-
-};
-
-static kal_uint16 imx582_slim_video_setting_rev6[] = {
-	/*MIPI output setting*/
-	0x0112, 0x0A,
-	0x0113, 0x0A,
-	0x0114, 0x03,
-
-	/*Line Length PCK Setting*/
-	0x0342, 0x0B,
-	0x0343, 0x60,
-
-	/*Frame Length Lines Setting*/
-	0x0340, 0x09,
-	0x0341, 0xA6,
-
-	/*ROI Setting*/
-	0x0344, 0x00,
-	0x0345, 0x00,
-	0x0346, 0x00,
-	0x0347, 0x00,
-	0x0348, 0x1F,
-	0x0349, 0x3F,
-	0x034A, 0x17,
-	0x034B, 0x6F,
-
-	/*Mode Setting*/
-	0x0900, 0x01,
-	0x0901, 0x44,
-	0x0902, 0x08,
-	0x3246, 0x89,
-	0x3247, 0x89,
-
-	/*Digital Crop & Scaling*/
-	0x0401, 0x00,
-	0x0404, 0x00,
-	0x0405, 0x10,
-	0x0408, 0x00,
-	0x0409, 0x00,
-	0x040A, 0x00,
-	0x040B, 0x00,
-	0x040C, 0x07,
-	0x040D, 0xD0,
-	0x040E, 0x05,
-	0x040F, 0xDC,
-
-	/*Output Size Setting*/
-	0x034C, 0x07,
-	0x034D, 0xD0,
-	0x034E, 0x05,
-	0x034F, 0xDC,
-
-	/*Clock Setting*/
-	0x0301, 0x05,
-	0x0303, 0x02,
-	0x0305, 0x04,
-	0x0306, 0x01,
-	0x0307, 0x4C,
-	0x030B, 0x01,
-	0x030D, 0x0D,
-	0x030E, 0x03,
-	0x030F, 0x9C,
-	0x0310, 0x01,
-
-	/*Other Setting*/
-	0x3620, 0x00,
-	0x3621, 0x00,
-	0x380C, 0x80,
-	0x3C13, 0x00,
-	0x3C14, 0x28,
-	0x3C15, 0x28,
-	0x3C16, 0x32,
-	0x3C17, 0x46,
-	0x3C18, 0x67,
-	0x3C19, 0x8F,
-	0x3C1A, 0x8F,
-	0x3C1B, 0x99,
-	0x3C1C, 0xAD,
-	0x3C1D, 0xCE,
-	0x3C1E, 0x8F,
-	0x3C1F, 0x8F,
-	0x3C20, 0x99,
-	0x3C21, 0xAD,
-	0x3C22, 0xCE,
-	0x3C25, 0x22,
-	0x3C26, 0x23,
-	0x3C27, 0xE6,
-	0x3C28, 0xE6,
-	0x3C29, 0x08,
-	0x3C2A, 0x0F,
-	0x3C2B, 0x14,
-	0x3F0C, 0x00,
-	0x3F14, 0x00,
-	0x3F80, 0x02,
-	0x3F81, 0x53,
-	0x3F82, 0x01,
-	0x3F83, 0x66,
-	0x3F8C, 0x00,
-	0x3F8D, 0x00,
-	0x3FF4, 0x00,
-	0x3FF5, 0xF0,
-	0x3FFC, 0x00,
-	0x3FFD, 0x8D,
-
-	/*Integration Setting*/
-	0x0202, 0x09,
-	0x0203, 0x76,
-	0x0224, 0x01,
-	0x0225, 0xF4,
-	0x3FE0, 0x01,
-	0x3FE1, 0xF4,
-
-	/*Gain Setting*/
-	0x0204, 0x00,
-	0x0205, 0x70,
-	0x0216, 0x00,
-	0x0217, 0x70,
-	0x0218, 0x01,
-	0x0219, 0x00,
-	0x020E, 0x01,
-	0x020F, 0x00,
-	0x0210, 0x01,
-	0x0211, 0x00,
-	0x0212, 0x01,
-	0x0213, 0x00,
-	0x0214, 0x01,
-	0x0215, 0x00,
-	0x3FE2, 0x00,
-	0x3FE3, 0x70,
-	0x3FE4, 0x01,
-	0x3FE5, 0x00,
-
-	/* DPC output ctrl Setting */
-	0x0B06, 0x00,
-
-	/* PDAF TYPE Setting */
-	0x3E20, 0x01,
-
-	/* PDAF TYPE2 Setting */
-	0x3E3B, 0x00,
-	0x4034, 0x01,
-	0x4035, 0xF0,
-};
-
-static kal_uint16 imx582_custom1_setting_rev6[] = {
-	/*MIPI output setting*/
-	0x0112, 0x0A,
-	0x0113, 0x0A,
-	0x0114, 0x03,
-
-	/*Line Length PCK Setting*/
-	0x0342, 0x0B,
-	0x0343, 0x60,
-
-	/*Frame Length Lines Setting*/
-	0x0340, 0x13, //0x09A6 * 2
-	0x0341, 0x4C,
-
-	/*ROI Setting*/
-	0x0344, 0x00,
-	0x0345, 0x00,
-	0x0346, 0x00,
-	0x0347, 0x00,
-	0x0348, 0x1F,
-	0x0349, 0x3F,
-	0x034A, 0x17,
-	0x034B, 0x6F,
-
-	/*Mode Setting*/
-	0x0900, 0x01,
-	0x0901, 0x44,
-	0x0902, 0x08,
-	0x3246, 0x89,
-	0x3247, 0x89,
-
-	/*Digital Crop & Scaling*/
-	0x0401, 0x00,
-	0x0404, 0x00,
-	0x0405, 0x10,
-	0x0408, 0x00,
-	0x0409, 0x00,
-	0x040A, 0x00,
-	0x040B, 0x00,
-	0x040C, 0x07,
-	0x040D, 0xD0,
-	0x040E, 0x05,
-	0x040F, 0xDC,
-
-	/*Output Size Setting*/
-	0x034C, 0x07,
-	0x034D, 0xD0,
-	0x034E, 0x05,
-	0x034F, 0xDC,
-
-	/*Clock Setting*/
-	0x0301, 0x05,
-	0x0303, 0x02,
-	0x0305, 0x04,
-	0x0306, 0x01,
-	0x0307, 0x4C,
-	0x030B, 0x01,
-	0x030D, 0x0D,
-	0x030E, 0x03,
-	0x030F, 0x9C,
-	0x0310, 0x01,
-
-	/*Other Setting*/
-	0x3620, 0x00,
-	0x3621, 0x00,
-	0x380C, 0x80,
-	0x3C13, 0x00,
-	0x3C14, 0x28,
-	0x3C15, 0x28,
-	0x3C16, 0x32,
-	0x3C17, 0x46,
-	0x3C18, 0x67,
-	0x3C19, 0x8F,
-	0x3C1A, 0x8F,
-	0x3C1B, 0x99,
-	0x3C1C, 0xAD,
-	0x3C1D, 0xCE,
-	0x3C1E, 0x8F,
-	0x3C1F, 0x8F,
-	0x3C20, 0x99,
-	0x3C21, 0xAD,
-	0x3C22, 0xCE,
-	0x3C25, 0x22,
-	0x3C26, 0x23,
-	0x3C27, 0xE6,
-	0x3C28, 0xE6,
-	0x3C29, 0x08,
-	0x3C2A, 0x0F,
-	0x3C2B, 0x14,
-	0x3F0C, 0x00,
-	0x3F14, 0x00,
-	0x3F80, 0x02,
-	0x3F81, 0x53,
-	0x3F82, 0x01,
-	0x3F83, 0x66,
-	0x3F8C, 0x00,
-	0x3F8D, 0x00,
-	0x3FF4, 0x00,
-	0x3FF5, 0xF0,
-	0x3FFC, 0x00,
-	0x3FFD, 0x8D,
-
-	/*Integration Setting*/
-	0x0202, 0x09,
-	0x0203, 0x76,
-	0x0224, 0x01,
-	0x0225, 0xF4,
-	0x3FE0, 0x01,
-	0x3FE1, 0xF4,
-
-	/*Gain Setting*/
-	0x0204, 0x00,
-	0x0205, 0x70,
-	0x0216, 0x00,
-	0x0217, 0x70,
-	0x0218, 0x01,
-	0x0219, 0x00,
-	0x020E, 0x01,
-	0x020F, 0x00,
-	0x0210, 0x01,
-	0x0211, 0x00,
-	0x0212, 0x01,
-	0x0213, 0x00,
-	0x0214, 0x01,
-	0x0215, 0x00,
-	0x3FE2, 0x00,
-	0x3FE3, 0x70,
-	0x3FE4, 0x01,
-	0x3FE5, 0x00,
-
-	/* DPC output ctrl Setting */
-	0x0B06, 0x00,
-
-	/* PDAF TYPE Setting */
-	0x3E20, 0x01,
-
-	/* PDAF TYPE2 Setting */
-	0x3E3B, 0x00,
-	0x4034, 0x01,
-	0x4035, 0xF0,
-};
+static int set_mode_setfile(enum IMGSENSOR_MODE mode)
+{
+	int ret = -1;
+
+	if (mode >= IMGSENSOR_MODE_MAX) {
+		LOG_ERR("invalid mode: %d", mode);
+		return -1;
+	}
+	LOG_INF("-E");
+	LOG_INF("mode: %s", imx582_setfile_info[mode].name);
+
+	if ((imx582_setfile_info[mode].setfile == NULL) || (imx582_setfile_info[mode].size == 0)) {
+		LOG_ERR("failed, mode: %d", mode);
+		ret = -1;
+	} else
+		ret = imx582_table_write_cmos_sensor(imx582_setfile_info[mode].setfile, imx582_setfile_info[mode].size);
+
+	LOG_INF("-X");
+	return ret;
+}
 
 static void sensor_init(void)
 {
 	int ret = 0;
-	struct cam_hw_param *hw_param = NULL;
 
 	LOG_INF("E\n");
 
-	if (imx582_setfile_ver == IMGSENSOR_IMX582_SETFILE_VER_6) {
-		ret = imx582_table_write_cmos_sensor(imx582_init_setting_rev6,
-			sizeof(imx582_init_setting_rev6)/sizeof(kal_uint16));
-	} else {
-		ret = imx582_table_write_cmos_sensor(imx582_init_setting,
-			sizeof(imx582_init_setting)/sizeof(kal_uint16));
-	}
+	ret = set_mode_setfile(IMGSENSOR_MODE_INIT);
 
-	if (ret != 0) {
-		imgsensor_sec_get_hw_param(&hw_param, SENSOR_POSITION_REAR);
-		if (hw_param)
-			hw_param->i2c_sensor_err_cnt++;
-	}
+#ifdef IMGSENSOR_HW_PARAM
+	if (ret != 0)
+		imgsensor_increase_hw_param_err_cnt(IMX582_CAL_SENSOR_POSITION);
+#endif
 
 	set_mirror_flip(imgsensor.mirror);
 
@@ -3482,17 +972,17 @@ static void sensor_LRC_write(void)
 	// TODO : sensor_dev_id needs to be updated according to actual id.
 	int sensor_dev_id = IMGSENSOR_SENSOR_IDX_MAIN;
 
-	pr_debug("%s", __func__);
+	LOG_DBG("%s", __func__);
 
 	lrc_cal_addr = IMGSENSOR_GET_CAL_ADDR_BY_SENSOR_IDX(sensor_dev_id, GET_CAL_CROSSTALK);
 	if (lrc_cal_addr == NULL) {
-		pr_err("[%s] lrc_cal_addr is NULL");
+		LOG_ERR("LRC cal_addr is NULL");
 		return;
 	}
 
 	while (1) {
 		if (lrc_cal_addr == NULL) {
-			pr_err("[%s] crosstalk cal is NULL", __func__);
+			LOG_ERR("[%s] crosstalk cal is NULL", __func__);
 			return;
 		}
 
@@ -3505,10 +995,10 @@ static void sensor_LRC_write(void)
 		lrc_cal_addr = lrc_cal_addr->next;
 	}
 
-	pr_info("[%s] addr: %x, size: %x", __func__, lrc_addr, lrc_size);
+	LOG_INF("[%s] addr: %x, size: %x", __func__, lrc_addr, lrc_size);
 
 	if (IMGSENSOR_GET_CAL_BUF_BY_SENSOR_IDX(sensor_dev_id, &rom_cal_buf)) {
-		pr_err("%s : cal data is NULL, sensor_dev_id: %d", __func__, sensor_dev_id);
+		LOG_ERR("%s : cal data is NULL, sensor_dev_id: %d", __func__, sensor_dev_id);
 		return;
 	}
 	rom_cal_buf += lrc_addr;
@@ -3519,7 +1009,7 @@ static void sensor_LRC_write(void)
 	for (i = 0; i < lrc_size ; i++)
 		write_cmos_sensor_8(SENSOR_IMX582_LRC_REG_ADDR+i, rom_cal_buf[i]);
 #endif
-	pr_info("%s done writing %d bytes", __func__, lrc_size);
+	LOG_INF("%s done writing %d bytes", __func__, lrc_size);
 }
 #endif
 
@@ -3539,13 +1029,17 @@ static void sensor_QSC_write(void)
 	// TODO : sensor_dev_id needs to be updated according to actual id.
 	int sensor_dev_id = IMGSENSOR_SENSOR_IDX_MAIN;
 
-	pr_debug("%s", __func__);
+	LOG_DBG("%s", __func__);
 
 	qsc_cal_addr = IMGSENSOR_GET_CAL_ADDR_BY_SENSOR_IDX(sensor_dev_id, GET_CAL_CROSSTALK);
+	if (qsc_cal_addr == NULL) {
+		LOG_ERR("QSC cal_addr is NULL");
+		return;
+	}
 
 	while (1) {
 		if (qsc_cal_addr == NULL) {
-			pr_err("[%s] crosstalk cal is NULL", __func__);
+			LOG_ERR("[%s] crosstalk cal is NULL", __func__);
 			return;
 		}
 
@@ -3560,10 +1054,10 @@ static void sensor_QSC_write(void)
 		qsc_cal_addr = qsc_cal_addr->next;
 	}
 
-	pr_info("[%s] addr: %x, size: %x", __func__, qsc_addr, qsc_size);
+	LOG_INF("[%s] addr: %x, size: %x", __func__, qsc_addr, qsc_size);
 
 	if (IMGSENSOR_GET_CAL_BUF_BY_SENSOR_IDX(sensor_dev_id, &rom_cal_buf)) {
-		pr_err("%s : cal data is NULL, sensor_dev_id %d", __func__, sensor_dev_id);
+		LOG_ERR("%s : cal data is NULL, sensor_dev_id %d", __func__, sensor_dev_id);
 		return;
 	}
 	rom_cal_buf += qsc_addr;
@@ -3573,127 +1067,9 @@ static void sensor_QSC_write(void)
 	for (i = 0; i < qsc_size ; i++)
 		write_cmos_sensor_8(SENSOR_IMX582_QSC_REG_ADDR+i, rom_cal_buf[i]);
 #endif
-	pr_info("%s done writing %d bytes", __func__, qsc_size);
+	LOG_INF("%s done writing %d bytes", __func__, qsc_size);
 }
 #endif
-
-static void preview_setting(void)
-{
-	LOG_INF("E\n");
-	if (imx582_setfile_ver == IMGSENSOR_IMX582_SETFILE_VER_6) {
-		imx582_table_write_cmos_sensor(imx582_preview_setting_rev6,
-			sizeof(imx582_preview_setting_rev6)/sizeof(kal_uint16));
-	} else {
-		imx582_table_write_cmos_sensor(imx582_preview_setting,
-			sizeof(imx582_preview_setting)/sizeof(kal_uint16));
-	}
-	LOG_INF("X");
-} /* preview_setting */
-
-
-static void capture_setting(kal_uint16 currefps)
-{
-	LOG_INF("%s 30 fps E! currefps:%d\n", __func__, currefps);
-
-	if (imx582_setfile_ver == IMGSENSOR_IMX582_SETFILE_VER_6) {
-		imx582_table_write_cmos_sensor(imx582_preview_setting_rev6,
-			sizeof(imx582_preview_setting_rev6)/sizeof(kal_uint16));
-	} else {
-		imx582_table_write_cmos_sensor(imx582_preview_setting,
-			sizeof(imx582_preview_setting)/sizeof(kal_uint16));
-	}
-
-	LOG_INF("%s 30 fpsX\n", __func__);
-}
-
-static void normal_video_setting(kal_uint16 currefps)
-{
-	LOG_INF("%s E! currefps:%d\n", __func__, currefps);
-
-	LOG_INF("imx582 VIDEO_30_FPS\n");
-	if (imx582_setfile_ver == IMGSENSOR_IMX582_SETFILE_VER_6) {
-		imx582_table_write_cmos_sensor(imx582_normal_video_setting_rev6,
-			sizeof(imx582_normal_video_setting_rev6)/sizeof(kal_uint16));
-	} else {
-		imx582_table_write_cmos_sensor(imx582_normal_video_setting,
-			sizeof(imx582_normal_video_setting)/sizeof(kal_uint16));
-	}
-
-	LOG_INF("X\n");
-}
-
-static void hs_video_setting(void)
-{
-	LOG_INF("%s E! currefps 120\n", __func__);
-
-	if (imx582_setfile_ver == IMGSENSOR_IMX582_SETFILE_VER_6) {
-		imx582_table_write_cmos_sensor(imx582_hs_video_setting_rev6,
-			sizeof(imx582_hs_video_setting_rev6)/sizeof(kal_uint16));
-	} else {
-		imx582_table_write_cmos_sensor(imx582_hs_video_setting,
-			sizeof(imx582_hs_video_setting)/sizeof(kal_uint16));
-	}
-
-	LOG_INF("X\n");
-}
-
-static void slim_video_setting(void)
-{
-	LOG_INF("%s E\n", __func__);
-
-	LOG_INF("%s 30 fps E! currefps\n", __func__);
-
-	if (imx582_setfile_ver == IMGSENSOR_IMX582_SETFILE_VER_6) {
-		imx582_table_write_cmos_sensor(imx582_slim_video_setting_rev6,
-			sizeof(imx582_slim_video_setting_rev6)/sizeof(kal_uint16));
-	} else {
-		imx582_table_write_cmos_sensor(imx582_slim_video_setting,
-			sizeof(imx582_slim_video_setting)/sizeof(kal_uint16));
-	}
-
-	LOG_INF("X\n");
-}
-
-
-static void custom1_setting(void)
-{
-	LOG_INF("%s E! currefps %d\n",
-				__func__, imgsensor.current_fps);
-
-	/*************MIPI output setting************/
-	if (imx582_setfile_ver == IMGSENSOR_IMX582_SETFILE_VER_6) {
-		imx582_table_write_cmos_sensor(imx582_custom1_setting_rev6,
-			sizeof(imx582_custom1_setting_rev6)/sizeof(kal_uint16));
-	} else {
-		imx582_table_write_cmos_sensor(imx582_custom1_setting,
-			sizeof(imx582_custom1_setting)/sizeof(kal_uint16));
-	}
-
-	LOG_INF("X");
-}
-
-
-static void custom2_setting(void)
-{
-	LOG_INF("%s 8000*6000@15fps E! currefps\n", __func__);
-	/*************MIPI output setting************/
-#if 0 // WRITE_SENSOR_CAL_FOR_QSC, FIXME
-	if (qsc_write == false) {
-		LOG_INF("%s QSC Write\n", __func__);
-		sensor_QSC_write();
-		qsc_write = true;
-	}
-#endif
-
-	if (imx582_setfile_ver == IMGSENSOR_IMX582_SETFILE_VER_6) {
-		imx582_table_write_cmos_sensor(imx582_capture_setting_rev6,
-			sizeof(imx582_capture_setting_rev6)/sizeof(kal_uint16));
-	} else {
-		imx582_table_write_cmos_sensor(imx582_capture_setting,
-			sizeof(imx582_capture_setting)/sizeof(kal_uint16));
-	}
-	LOG_INF("X");
-}
 
 /*************************************************************************
  * FUNCTION
@@ -3731,21 +1107,7 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 				read_cmos_sensor_8(0x0017),
 				read_cmos_sensor(0x0000));
 			if (*sensor_id == imgsensor_info.sensor_id) {
-				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n",
-					imgsensor.i2c_write_id, *sensor_id);
-
-				imx582_check_setfile_ver();
-				if (imx582_setfile_ver == IMGSENSOR_IMX582_SETFILE_VER_6) {
-					memcpy((void *)&imgsensor_info, (void *)&imgsensor_info_rev6,
-							sizeof(struct imgsensor_info_struct));
-				} else if (imx582_setfile_ver == IMGSENSOR_IMX582_SETFILE_VER_5) {
-					memcpy((void *)&imgsensor_info, (void *)&imgsensor_info_rev5,
-							sizeof(struct imgsensor_info_struct));
-				} else {
-					memcpy((void *)&imgsensor_info, (void *)&imgsensor_info_rev5,
-							sizeof(struct imgsensor_info_struct));
-				}
-
+				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
 				return ERROR_NONE;
 			}
 
@@ -3797,7 +1159,7 @@ static kal_uint32 open(void)
 	sensor_LRC_write();
 #endif
 
-#if 1 // WRITE_SENSOR_CAL_FOR_QSC
+#if WRITE_SENSOR_CAL_FOR_QSC
 	sensor_QSC_write();
 #else
 	qsc_write = false;
@@ -3882,8 +1244,7 @@ static kal_uint32 preview(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	imgsensor.autoflicker_en = KAL_FALSE;
 	spin_unlock(&imgsensor_drv_lock);
 
-	preview_setting();
-
+	set_mode_setfile(imgsensor.sensor_mode);
 	return ERROR_NONE;
 } /* preview */
 
@@ -3918,14 +1279,9 @@ static kal_uint32 capture(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	imgsensor.frame_length = imgsensor_info.cap.framelength;
 	imgsensor.min_frame_length = imgsensor_info.cap.framelength;
 	imgsensor.autoflicker_en = KAL_FALSE;
-
 	spin_unlock(&imgsensor_drv_lock);
 
-	capture_setting(imgsensor.current_fps);
-
-
-	/* set_mirror_flip(imgsensor.mirror); */
-
+	set_mode_setfile(imgsensor.sensor_mode);
 	return ERROR_NONE;
 }	/* capture() */
 static kal_uint32 normal_video(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
@@ -3941,9 +1297,8 @@ static kal_uint32 normal_video(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	imgsensor.min_frame_length = imgsensor_info.normal_video.framelength;
 	imgsensor.autoflicker_en = KAL_FALSE;
 	spin_unlock(&imgsensor_drv_lock);
-	normal_video_setting(imgsensor.current_fps);
-	/*set_mirror_flip(imgsensor.mirror);*/
 
+	set_mode_setfile(imgsensor.sensor_mode);
 	return ERROR_NONE;
 }	/*	normal_video   */
 
@@ -3964,9 +1319,8 @@ static kal_uint32 hs_video(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	/*imgsensor.current_fps = 300;*/
 	imgsensor.autoflicker_en = KAL_FALSE;
 	spin_unlock(&imgsensor_drv_lock);
-	hs_video_setting();
-	/*set_mirror_flip(imgsensor.mirror);*/
 
+	set_mode_setfile(imgsensor.sensor_mode);
 	return ERROR_NONE;
 }	/*	hs_video   */
 
@@ -3987,9 +1341,8 @@ static kal_uint32 slim_video(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	/*imgsensor.current_fps = 300;*/
 	imgsensor.autoflicker_en = KAL_FALSE;
 	spin_unlock(&imgsensor_drv_lock);
-	slim_video_setting();
-	/*set_mirror_flip(imgsensor.mirror);*/
 
+	set_mode_setfile(imgsensor.sensor_mode);
 	return ERROR_NONE;
 }	/* slim_video */
 
@@ -4007,9 +1360,8 @@ static kal_uint32 custom1(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	imgsensor.min_frame_length = imgsensor_info.custom1.framelength;
 	imgsensor.autoflicker_en = KAL_FALSE;
 	spin_unlock(&imgsensor_drv_lock);
-	custom1_setting();
 
-
+	set_mode_setfile(imgsensor.sensor_mode);
 	return ERROR_NONE;
 }	/* custom1 */
 
@@ -4026,9 +1378,26 @@ static kal_uint32 custom2(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	imgsensor.min_frame_length = imgsensor_info.custom2.framelength;
 	imgsensor.autoflicker_en = KAL_FALSE;
 	spin_unlock(&imgsensor_drv_lock);
-	custom2_setting();
 
+	set_mode_setfile(imgsensor.sensor_mode);
+	return ERROR_NONE;
+}	/* custom2 */
 
+static kal_uint32 custom3(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
+			  MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
+{
+	LOG_INF("%s.\n", __func__);
+
+	spin_lock(&imgsensor_drv_lock);
+	imgsensor.sensor_mode = IMGSENSOR_MODE_CUSTOM3;
+	imgsensor.pclk = imgsensor_info.custom3.pclk;
+	imgsensor.line_length = imgsensor_info.custom3.linelength;
+	imgsensor.frame_length = imgsensor_info.custom3.framelength;
+	imgsensor.min_frame_length = imgsensor_info.custom3.framelength;
+	imgsensor.autoflicker_en = KAL_FALSE;
+	spin_unlock(&imgsensor_drv_lock);
+
+	set_mode_setfile(imgsensor.sensor_mode);
 	return ERROR_NONE;
 }	/* custom2 */
 
@@ -4071,6 +1440,11 @@ get_resolution(MSDK_SENSOR_RESOLUTION_INFO_STRUCT *sensor_resolution)
 	sensor_resolution->SensorCustom2Height =
 		imgsensor_info.custom2.grabwindow_height;
 
+	sensor_resolution->SensorCustom3Width =
+		imgsensor_info.custom3.grabwindow_width;
+	sensor_resolution->SensorCustom3Height =
+		imgsensor_info.custom3.grabwindow_height;
+
 	return ERROR_NONE;
 } /* get_resolution */
 
@@ -4103,6 +1477,7 @@ static kal_uint32 get_info(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 		imgsensor_info.slim_video_delay_frame;
 	sensor_info->Custom1DelayFrame = imgsensor_info.custom1_delay_frame;
 	sensor_info->Custom2DelayFrame = imgsensor_info.custom2_delay_frame;
+	sensor_info->Custom3DelayFrame = imgsensor_info.custom3_delay_frame;
 	sensor_info->SensorMasterClockSwitch = 0; /* not use */
 	sensor_info->SensorDrivingCurrent = imgsensor_info.isp_driving_current;
 
@@ -4198,6 +1573,14 @@ static kal_uint32 get_info(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 		sensor_info->MIPIDataLowPwr2HighSpeedSettleDelayCount =
 			imgsensor_info.custom2.mipi_data_lp2hs_settle_dc;
 		break;
+
+	case MSDK_SCENARIO_ID_CUSTOM3:
+		sensor_info->SensorGrabStartX = imgsensor_info.custom3.startx;
+		sensor_info->SensorGrabStartY = imgsensor_info.custom3.starty;
+
+		sensor_info->MIPIDataLowPwr2HighSpeedSettleDelayCount =
+			imgsensor_info.custom3.mipi_data_lp2hs_settle_dc;
+		break;
 	}
 
 	return ERROR_NONE;
@@ -4234,6 +1617,9 @@ static kal_uint32 control(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 	case MSDK_SCENARIO_ID_CUSTOM2:
 		custom2(image_window, sensor_config_data);
 		break;
+	case MSDK_SCENARIO_ID_CUSTOM3:
+		custom3(image_window, sensor_config_data);
+		break;
 	default:
 		LOG_INF("Error ScenarioId setting");
 		preview(image_window, sensor_config_data);
@@ -4267,7 +1653,7 @@ static kal_uint32 set_video_mode(UINT16 framerate)
 
 static kal_uint32 set_auto_flicker_mode(kal_bool enable, UINT16 framerate)
 {
-	LOG_INF("enable = %d, framerate = %d\n", enable, framerate);
+	LOG_DBG("enable = %d, framerate = %d\n", enable, framerate);
 	spin_lock(&imgsensor_drv_lock);
 	if (enable) /*enable auto flicker*/
 		imgsensor.autoflicker_en = KAL_TRUE;
@@ -4404,6 +1790,22 @@ static kal_uint32 set_max_framerate_by_scenario(
 		if (imgsensor.frame_length > imgsensor.shutter)
 			set_dummy();
 		break;
+	case MSDK_SCENARIO_ID_CUSTOM3:
+		frame_length = imgsensor_info.custom3.pclk / framerate * 10
+				/ imgsensor_info.custom3.linelength;
+		spin_lock(&imgsensor_drv_lock);
+		imgsensor.dummy_line =
+			(frame_length > imgsensor_info.custom3.framelength)
+			? (frame_length - imgsensor_info.custom3.framelength)
+			: 0;
+		imgsensor.frame_length =
+			imgsensor_info.custom3.framelength
+			+ imgsensor.dummy_line;
+		imgsensor.min_frame_length = imgsensor.frame_length;
+		spin_unlock(&imgsensor_drv_lock);
+		if (imgsensor.frame_length > imgsensor.shutter)
+			set_dummy();
+		break;
 	default:  /*coding with  preview scenario by default*/
 		frame_length = imgsensor_info.pre.pclk / framerate * 10
 			/ imgsensor_info.pre.linelength;
@@ -4452,6 +1854,9 @@ static kal_uint32 get_default_framerate_by_scenario(
 	case MSDK_SCENARIO_ID_CUSTOM2:
 		*framerate = imgsensor_info.custom2.max_framerate;
 		break;
+	case MSDK_SCENARIO_ID_CUSTOM3:
+		*framerate = imgsensor_info.custom3.max_framerate;
+		break;
 	default:
 		break;
 	}
@@ -4493,7 +1898,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 	MSDK_SENSOR_REG_INFO_STRUCT *sensor_reg_data
 		= (MSDK_SENSOR_REG_INFO_STRUCT *) feature_para;
 
-	/*LOG_INF("feature_id = %d\n", feature_id);*/
+	LOG_DBG("feature_id = %d\n", feature_id);
 	switch (feature_id) {
 	case SENSOR_FEATURE_GET_PIXEL_CLOCK_FREQ_BY_SCENARIO:
 		switch (*feature_data) {
@@ -4516,6 +1921,10 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		case MSDK_SCENARIO_ID_CUSTOM2:
 			*(MUINT32 *)(uintptr_t)(*(feature_data + 1))
 				= imgsensor_info.custom2.pclk;
+			break;
+		case MSDK_SCENARIO_ID_CUSTOM3:
+			*(MUINT32 *)(uintptr_t)(*(feature_data + 1))
+				= imgsensor_info.custom3.pclk;
 			break;
 		case MSDK_SCENARIO_ID_SLIM_VIDEO:
 			*(MUINT32 *)(uintptr_t)(*(feature_data + 1))
@@ -4560,6 +1969,11 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 			= (imgsensor_info.custom2.framelength << 16)
 				+ imgsensor_info.custom2.linelength;
 			break;
+		case MSDK_SCENARIO_ID_CUSTOM3:
+			*(MUINT32 *)(uintptr_t)(*(feature_data + 1))
+			= (imgsensor_info.custom3.framelength << 16)
+				+ imgsensor_info.custom3.linelength;
+			break;
 		case MSDK_SCENARIO_ID_CAMERA_PREVIEW:
 		default:
 			*(MUINT32 *)(uintptr_t)(*(feature_data + 1))
@@ -4582,7 +1996,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		 set_shutter(*feature_data);
 		break;
 	case SENSOR_FEATURE_SET_NIGHTMODE:
-		pr_info("SENSOR_FEATURE_SET_NIGHTMODE = %d, data=%d\n", feature_id, *feature_data);
+		LOG_INF("SENSOR_FEATURE_SET_NIGHTMODE = %d, data=%d\n", feature_id, *feature_data);
 		if (*feature_data)
 			sIsNightHyperlapse = KAL_TRUE;
 		else
@@ -4701,6 +2115,11 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 			(void *)&imgsensor_winsize_info[6],
 			sizeof(struct SENSOR_WINSIZE_INFO_STRUCT));
 			break;
+		case MSDK_SCENARIO_ID_CUSTOM3:
+			memcpy((void *)wininfo,
+			(void *)&imgsensor_winsize_info[7],
+			sizeof(struct SENSOR_WINSIZE_INFO_STRUCT));
+			break;
 		case MSDK_SCENARIO_ID_CAMERA_PREVIEW:
 		default:
 			memcpy((void *)wininfo,
@@ -4716,6 +2135,10 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		  (struct SET_PD_BLOCK_INFO_T *)(uintptr_t)(*(feature_data+1));
 		switch (*feature_data) {
 		case MSDK_SCENARIO_ID_CUSTOM2:
+			memcpy((void *)PDAFinfo, (void *)&imgsensor_pd_info,
+				 sizeof(struct SET_PD_BLOCK_INFO_T));
+			break;
+		case MSDK_SCENARIO_ID_CUSTOM3:
 			memcpy((void *)PDAFinfo, (void *)&imgsensor_pd_info,
 				 sizeof(struct SET_PD_BLOCK_INFO_T));
 			break;
@@ -4794,6 +2217,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 	case SENSOR_FEATURE_GET_BINNING_TYPE:
 		switch (*(feature_data + 1)) {
 		case MSDK_SCENARIO_ID_CUSTOM2:
+		case MSDK_SCENARIO_ID_CUSTOM3:
 			*feature_return_para_32 = 1; /*BINNING_NONE*/
 			break;
 		case MSDK_SCENARIO_ID_VIDEO_PREVIEW:
@@ -4807,7 +2231,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 			*feature_return_para_32 = 2; /*BINNING_AVERAGED*/
 			break;
 		}
-		pr_debug("SENSOR_FEATURE_GET_BINNING_TYPE AE_binning_type:%d,\n",
+		LOG_DBG("SENSOR_FEATURE_GET_BINNING_TYPE AE_binning_type:%d,\n",
 			*feature_return_para_32);
 		*feature_para_len = 4;
 
@@ -4838,6 +2262,10 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		case MSDK_SCENARIO_ID_CUSTOM2:
 			*(MUINT32 *)(uintptr_t)(*(feature_data + 1))
 				= imgsensor_info.custom2.mipi_pixel_rate;
+			break;
+		case MSDK_SCENARIO_ID_CUSTOM3:
+			*(MUINT32 *)(uintptr_t)(*(feature_data + 1))
+				= imgsensor_info.custom3.mipi_pixel_rate;
 			break;
 		case MSDK_SCENARIO_ID_CAMERA_PREVIEW:
 		default:
@@ -4874,6 +2302,10 @@ break;
 			memcpy((void *)pvcinfo, (void *)&SENSOR_VC_INFO[1],
 				sizeof(struct SENSOR_VC_INFO_STRUCT));
 			break;
+		case MSDK_SCENARIO_ID_CUSTOM3:
+			memcpy((void *)pvcinfo, (void *)&SENSOR_VC_INFO[7],
+				sizeof(struct SENSOR_VC_INFO_STRUCT));
+			break;
 		default:
 			#if 0
 			memcpy((void *)pvcinfo, (void *)&SENSOR_VC_INFO[0],
@@ -4884,36 +2316,37 @@ break;
 	case SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY:
 		switch (*feature_data) {
 		case MSDK_SCENARIO_ID_CUSTOM2:
-			*(MUINT32 *) (uintptr_t) (*(feature_data + 1)) = 1;
+		case MSDK_SCENARIO_ID_CUSTOM3:
+			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = 1;
 			break;
 		case MSDK_SCENARIO_ID_VIDEO_PREVIEW:
-			*(MUINT32 *) (uintptr_t) (*(feature_data + 1)) = 1;
+			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = 1;
 			break;
 		case MSDK_SCENARIO_ID_HIGH_SPEED_VIDEO:
-			*(MUINT32 *) (uintptr_t) (*(feature_data + 1)) = 0;
+			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = 0;
 			break;
 		case MSDK_SCENARIO_ID_CUSTOM1:
 		case MSDK_SCENARIO_ID_SLIM_VIDEO:
-			*(MUINT32 *) (uintptr_t) (*(feature_data + 1)) = 0;
+			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = 0;
 			break;
 		case MSDK_SCENARIO_ID_CAMERA_PREVIEW:
 		case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
-				*(MUINT32 *) (uintptr_t)
-					(*(feature_data + 1)) = 1;
+				*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = 1;
 			break;
 		default:
-			*(MUINT32 *) (uintptr_t) (*(feature_data + 1)) = 0;
+			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = 0;
 			break;
 		}
-		pr_debug(
-		    "SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY scenarioId:%llu=%d\n",
-		    *feature_data,
-		    *(MUINT32 *)(uintptr_t)(*(feature_data + 1)));
+		LOG_DBG(
+			"SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY scenarioId:%llu=%d\n",
+			*feature_data,
+			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)));
 
-	      break;
+		break;
 	case SENSOR_FEATURE_GET_AWB_REQ_BY_SCENARIO:
 		switch (*feature_data) {
 		case MSDK_SCENARIO_ID_CUSTOM2:
+		case MSDK_SCENARIO_ID_CUSTOM3:
 			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = 1;
 			break;
 		default:
@@ -4921,58 +2354,25 @@ break;
 			break;
 		}
 		break;
+	case SENSOR_FEATURE_GET_GAIN_RANGE_BY_SCENARIO:
+		*(feature_data + 1) = imgsensor_info.min_gain;
+		*(feature_data + 2) = imgsensor_info.max_gain;
+		break;
+	case SENSOR_FEATURE_GET_BASE_GAIN_ISO_AND_STEP:
+		*(feature_data + 0) = imgsensor_info.min_gain_iso;
+		*(feature_data + 1) = imgsensor_info.gain_step;
+		*(feature_data + 2) = imgsensor_info.gain_type;
+		break;
+	case SENSOR_FEATURE_GET_MIN_SHUTTER_BY_SCENARIO:
+		*(feature_data + 1) = imgsensor_info.min_shutter;
+		*(feature_data + 2) = imgsensor_info.exp_step;
+		break;
 	default:
 		break;
 	}
 
 	return ERROR_NONE;
 } /* feature_control() */
-
-
-static void imx582_check_setfile_ver(void)
-{
-	unsigned char status = 0;
-	unsigned char chip_id = 0;
-
-	/* Specify OTP Page Address for READ - Page127(dec) */
-	write_cmos_sensor_8(IMX582_OTP_PAGE_SETUP_ADDR, 0x7F);
-
-	/* Turn ON OTP Read MODE */
-	write_cmos_sensor_8(IMX582_OTP_READ_TRANSFER_MODE_ADDR,  0x01);
-
-	/* Check status - 0x01 : read ready*/
-	status = (unsigned char)read_cmos_sensor_8(IMX582_OTP_STATUS_REGISTER_ADDR);
-	if ((status & 0x1) == false) {
-		LOG_INF("IMX582 Chip ID checking: fail");
-		/*setfile version is default value */
-		imx582_setfile_ver = IMGSENSOR_IMX582_SETFILE_VER_5;
-		return;
-	}
-
-	/* CHIP REV 0x0018 */
-	chip_id = (unsigned char)read_cmos_sensor_8(IMX582_OTP_CHIP_REVISION_ADDR);
-	LOG_INF("IMX582 Chip: %#x", chip_id);
-
-	switch (chip_id) {
-	case IMGSENSOR_IMX582_CHIP_ID_0X02:
-	case IMGSENSOR_IMX582_CHIP_ID_0X08:
-	case IMGSENSOR_IMX582_CHIP_ID_0X09:
-	case IMGSENSOR_IMX582_CHIP_ID_0X10:
-	case IMGSENSOR_IMX582_CHIP_ID_0X18:
-		imx582_setfile_ver = IMGSENSOR_IMX582_SETFILE_VER_5;
-		break;
-	case IMGSENSOR_IMX582_CHIP_ID_0X0D:
-	case IMGSENSOR_IMX582_CHIP_ID_0X1B:
-	case IMGSENSOR_IMX582_CHIP_ID_0X20:
-		imx582_setfile_ver = IMGSENSOR_IMX582_SETFILE_VER_6;
-		break;
-	default:
-		imx582_setfile_ver = IMGSENSOR_IMX582_SETFILE_VER_5;
-		break;
-	}
-	pr_info("IMX582 setfile version: %#x", imx582_setfile_ver);
-}
-
 
 static struct SENSOR_FUNCTION_STRUCT sensor_func = {
 	open,
@@ -4990,5 +2390,3 @@ UINT32 IMX582_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc)
 		*pfFunc = &sensor_func;
 	return ERROR_NONE;
 } /* IMX582_MIPI_RAW_SensorInit */
-
-

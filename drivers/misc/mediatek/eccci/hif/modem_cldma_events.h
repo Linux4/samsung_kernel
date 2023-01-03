@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 /*
@@ -79,11 +71,11 @@
  * fast_assign: This is a C like function that is used to store the items
  *    into the ring buffer.
  *
- * printk: This is a way to print out the data in pretty print. This is
+ * print: This is a way to print out the data in pretty print. This is
  *    useful if the system crashes and you are logging via a serial line,
- *    the data can be printed to the console using this "printk" method.
+ *    the data can be printed to the console using this "print" method.
  *
- * Note, that for both the assign and the printk, __entry is the handler
+ * Note, that for both the assign and the print, __entry is the handler
  * to the data structure in the ring buffer, and is defined by the
  * TP_STRUCT__entry.
  */

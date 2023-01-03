@@ -63,6 +63,9 @@ static const char * const himax_ksym_lookup[] = {
 	#if defined(HX_MOD_KSYM_HX83121)
 	TO_STR(HX_MOD_KSYM_HX83121),
 	#endif
+	#if defined(HX_MOD_KSYM_HX83122)
+	TO_STR(HX_MOD_KSYM_HX83122),
+	#endif
 	NULL
 };
 #else

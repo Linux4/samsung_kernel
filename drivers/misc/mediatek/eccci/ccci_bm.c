@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 #include <linux/skbuff.h>
@@ -18,8 +10,9 @@
 #include <linux/module.h>
 #include <linux/stacktrace.h>
 
-#include <mt-plat/mtk_ccci_common.h>
+#include "mt-plat/mtk_ccci_common.h"
 #include "ccci_config.h"
+#include "ccci_common_config.h"
 #include "ccci_bm.h"
 #ifdef CCCI_BM_TRACE
 #define CREATE_TRACE_POINTS
@@ -66,27 +59,9 @@ static int my_wp_handler(phys_addr_t addr)
 	 * since the auto-disable is not working
 	 */
 	del_hw_watchpoint(&wp_event);
-#if 0
-	wp_err = add_hw_watchpoint(&wp_event);
-	if (wp_err != 0)
-		/* error */
-		CCCI_NORMAL_LOG(-1, BM, "[mydebug]watchpoint init fail\n");
-	else
-		/* success */
-		CCCI_NORMAL_LOG(-1, BM, "[mydebug]watchpoint init done\n");
-#endif
+
 	return 0;
 }
-
-#if 0
-static void disable_watchpoint(void)
-{
-	if (atomic_read(&hwp_enable)) {
-		del_hw_watchpoint(&wp_event);
-		atomic_set(&hwp_enable, 0);
-	}
-}
-#endif
 
 static void enable_watchpoint(void *address)
 {
@@ -301,6 +276,7 @@ struct sk_buff *ccci_skb_dequeue(struct ccci_skb_queue *queue)
 
 	return result;
 }
+EXPORT_SYMBOL(ccci_skb_dequeue);
 
 void ccci_skb_enqueue(struct ccci_skb_queue *queue, struct sk_buff *newsk)
 {
@@ -350,6 +326,7 @@ void ccci_skb_queue_init(struct ccci_skb_queue *queue, unsigned int skb_size,
 	}
 	queue->max_history = 0;
 }
+EXPORT_SYMBOL(ccci_skb_queue_init);
 
 /* may return NULL, caller should check, network should always use blocking
  * as we do not want it consume our own pool
@@ -408,6 +385,7 @@ struct sk_buff *ccci_alloc_skb(int size, unsigned char from_pool,
 
 	return skb;
 }
+EXPORT_SYMBOL(ccci_alloc_skb);
 
 void ccci_free_skb(struct sk_buff *skb)
 {
@@ -415,13 +393,6 @@ void ccci_free_skb(struct sk_buff *skb)
 	enum DATA_POLICY policy = FREE;
 
 	/*skb is onlink from caller cldma_gpd_bd_tx_collect*/
-#if 0
-	if (unlikely(skb->next != NULL || skb->prev != NULL)) {
-		CCCI_ERROR_LOG(-1, BM,
-			"warning!!!! skb %p is still onlink!\n", skb);
-		dump_stack();
-	}
-#endif
 	buf_ctrl = (struct ccci_buffer_ctrl *)(skb->head + NET_SKB_PAD -
 		sizeof(struct ccci_buffer_ctrl));
 	if (buf_ctrl->head_magic == CCCI_BUF_MAGIC) {
@@ -459,6 +430,7 @@ void ccci_free_skb(struct sk_buff *skb)
 		break;
 	};
 }
+EXPORT_SYMBOL(ccci_free_skb);
 
 void ccci_dump_skb_pool_usage(int md_id)
 {

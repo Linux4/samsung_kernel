@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 /**
  * @file	mtk_eem.
@@ -88,8 +80,6 @@
 #include "mtk_mcdi_api.h"
 
 #ifdef CONFIG_MTK_TINYSYS_MCUPM_SUPPORT
-#include <mt-plat/mtk-mbox.h>
-#include <mt-plat/mtk_tinysys_ipi.h>
 #include "mcupm_ipi_id.h"
 #include "mcupm_driver.h"
 #endif
@@ -118,7 +108,7 @@ struct regulator *eem_regulator_vproc2;
 static void eem_buck_set_mode(unsigned int mode);
 #endif
 #endif
-static unsigned int eem_to_cpueb(unsigned int cmd,
+static unsigned int eem_to_eb(unsigned int cmd,
 	struct eem_ipi_data *eem_data);
 
 static int create_procfs(void);
@@ -230,14 +220,14 @@ unsigned int *ackData, unsigned int xx)
 }
 #endif
 
-static unsigned int eem_to_cpueb(unsigned int cmd,
+static unsigned int eem_to_eb(unsigned int cmd,
 	struct eem_ipi_data *eem_data)
 {
 	//unsigned int len = EEM_IPI_SEND_DATA_LEN;
 	unsigned int ret;
 
 #if EEM_IPI_ENABLE
-	eem_debug("to_cpueb, cmd:%d\n", cmd);
+	eem_debug("to_eb, cmd:%d\n", cmd);
 #if 1
 	//FUNC_ENTER(EEM_FUNC_LV_MODULE);
 	eem_data->cmd = cmd;
@@ -410,6 +400,7 @@ static struct eemsn_det *id_to_eem_det(enum eemsn_det_id id)
 		return NULL;
 }
 
+#ifdef CONFIG_MTK_TINYSYS_MCUPM_SUPPORT
 #if SUPPORT_PICACHU
 static void get_picachu_efuse(void)
 {
@@ -428,6 +419,7 @@ static void get_picachu_efuse(void)
 			addr_ptr, sizeof(eemsn_log->vf_tbl_det));
 	}
 }
+#endif
 #endif
 
 static int get_devinfo(void)
@@ -1419,7 +1411,7 @@ static int eem_probe(struct platform_device *pdev)
 	}
 	memset(&eem_data, 0, sizeof(struct eem_ipi_data));
 	eem_data.u.data.arg[0] = 0;
-	ret = eem_to_cpueb(IPI_EEMSN_PROBE, &eem_data);
+	ret = eem_to_eb(IPI_EEMSN_PROBE, &eem_data);
 #endif
 #if SUPPORT_DCONFIG
 	for_each_det(det)
@@ -1446,7 +1438,7 @@ static int eem_probe(struct platform_device *pdev)
 #if 1
 	memset(&eem_data, 0, sizeof(struct eem_ipi_data));
 	eem_data.u.data.arg[0] = 0;
-	ret = eem_to_cpueb(IPI_EEMSN_GET_EEM_VOLT, &eem_data);
+	ret = eem_to_eb(IPI_EEMSN_GET_EEM_VOLT, &eem_data);
 #endif
 	ptp_data[0] = 0;
 
@@ -1512,7 +1504,7 @@ static int eem_probe(struct platform_device *pdev)
 
 	memset(&eem_data, 0, sizeof(struct eem_ipi_data));
 	eem_data.u.data.arg[0] = 0;
-	ret = eem_to_cpueb(IPI_EEMSN_INIT02, &eem_data);
+	ret = eem_to_eb(IPI_EEMSN_INIT02, &eem_data);
 
 	if (ctrl_EEMSN_Enable == 0)
 		return 0;
@@ -1739,7 +1731,7 @@ static ssize_t eem_debug_proc_write(struct file *file,
 		memset(&eem_data, 0, sizeof(struct eem_ipi_data));
 		eem_data.u.data.arg[0] = det_to_id(det);
 		eem_data.u.data.arg[1] = enabled;
-		ipi_ret = eem_to_cpueb(IPI_EEMSN_DEBUG_PROC_WRITE, &eem_data);
+		ipi_ret = eem_to_eb(IPI_EEMSN_DEBUG_PROC_WRITE, &eem_data);
 		det->disabled = enabled;
 
 	} else
@@ -1913,7 +1905,7 @@ static int eem_dump_proc_show(struct seq_file *m, void *v)
 
 
 	memset(&eem_data, 0, sizeof(struct eem_ipi_data));
-	ipi_ret = eem_to_cpueb(IPI_EEMSN_DUMP_PROC_SHOW, &eem_data);
+	ipi_ret = eem_to_eb(IPI_EEMSN_DUMP_PROC_SHOW, &eem_data);
 	seq_printf(m, "ipi_ret:%d\n", ipi_ret);
 
 	/* Print initial data */
@@ -2021,7 +2013,7 @@ static int eem_aging_dump_proc_show(struct seq_file *m, void *v)
 	FUNC_ENTER(FUNC_LV_HELP);
 
 	memset(&eem_data, 0, sizeof(struct eem_ipi_data));
-	ipi_ret = eem_to_cpueb(IPI_EEMSN_AGING_DUMP_PROC_SHOW, &eem_data);
+	ipi_ret = eem_to_eb(IPI_EEMSN_AGING_DUMP_PROC_SHOW, &eem_data);
 
 	for (i = 0; i < NR_EEMSN_DET; i++) {
 		seq_printf(m, "id:%d, vf_tbl_det pi_vf_num:%d\n",
@@ -2262,7 +2254,7 @@ static int eem_cur_volt_proc_show(struct seq_file *m, void *v)
 
 	/* update volt_tbl_pmic info from mcupm */
 	memset(&eem_data, 0, sizeof(struct eem_ipi_data));
-	ipi_ret = eem_to_cpueb(IPI_EEMSN_PULL_DATA, &eem_data);
+	ipi_ret = eem_to_eb(IPI_EEMSN_PULL_DATA, &eem_data);
 	seq_printf(m, "ret:%d\n", ipi_ret);
 
 	if (det->features != 0) {
@@ -2317,7 +2309,7 @@ static int eem_log_en_proc_show(struct seq_file *m, void *v)
 
 	FUNC_ENTER(FUNC_LV_HELP);
 	memset(&eem_data, 0, sizeof(struct eem_ipi_data));
-	ipi_ret = eem_to_cpueb(IPI_EEMSN_LOGEN_PROC_SHOW, &eem_data);
+	ipi_ret = eem_to_eb(IPI_EEMSN_LOGEN_PROC_SHOW, &eem_data);
 	seq_printf(m, "kernel:%d, EB:%d\n", eem_log_en, ipi_ret);
 	FUNC_EXIT(FUNC_LV_HELP);
 
@@ -2362,7 +2354,7 @@ static ssize_t eem_log_en_proc_write(struct file *file,
 	ret = 0;
 	memset(&eem_data, 0, sizeof(struct eem_ipi_data));
 	eem_data.u.data.arg[0] = eem_log_en;
-	ipi_ret = eem_to_cpueb(IPI_EEMSN_LOGEN_PROC_WRITE, &eem_data);
+	ipi_ret = eem_to_eb(IPI_EEMSN_LOGEN_PROC_WRITE, &eem_data);
 
 
 out:
@@ -2379,7 +2371,7 @@ static int eem_en_proc_show(struct seq_file *m, void *v)
 
 	FUNC_ENTER(FUNC_LV_HELP);
 	memset(&eem_data, 0, sizeof(struct eem_ipi_data));
-	ipi_ret = eem_to_cpueb(IPI_EEMSN_EN_PROC_SHOW, &eem_data);
+	ipi_ret = eem_to_eb(IPI_EEMSN_EN_PROC_SHOW, &eem_data);
 	seq_printf(m, "kernel:%d, EB:%d\n", ctrl_EEMSN_Enable, ipi_ret);
 	FUNC_EXIT(FUNC_LV_HELP);
 
@@ -2425,7 +2417,7 @@ static ssize_t eem_en_proc_write(struct file *file,
 	memset(&eem_data, 0, sizeof(struct eem_ipi_data));
 	eemsn_log->eemsn_enable = ctrl_EEMSN_Enable;
 	eem_data.u.data.arg[0] = ctrl_EEMSN_Enable;
-	ipi_ret = eem_to_cpueb(IPI_EEMSN_EN_PROC_WRITE, &eem_data);
+	ipi_ret = eem_to_eb(IPI_EEMSN_EN_PROC_WRITE, &eem_data);
 
 
 out:
@@ -2442,7 +2434,7 @@ static int eem_sn_en_proc_show(struct seq_file *m, void *v)
 
 	FUNC_ENTER(FUNC_LV_HELP);
 	memset(&eem_data, 0, sizeof(struct eem_ipi_data));
-	ipi_ret = eem_to_cpueb(IPI_EEMSN_SNEN_PROC_SHOW, &eem_data);
+	ipi_ret = eem_to_eb(IPI_EEMSN_SNEN_PROC_SHOW, &eem_data);
 	seq_printf(m, "kernel:%d, EB:%d\n", ctrl_SN_Enable, ipi_ret);
 	FUNC_EXIT(FUNC_LV_HELP);
 
@@ -2489,7 +2481,7 @@ static ssize_t eem_sn_en_proc_write(struct file *file,
 	memset(&eem_data, 0, sizeof(struct eem_ipi_data));
 	eemsn_log->sn_enable = ctrl_SN_Enable;
 	eem_data.u.data.arg[0] = ctrl_SN_Enable;
-	ipi_ret = eem_to_cpueb(IPI_EEMSN_SNEN_PROC_WRITE, &eem_data);
+	ipi_ret = eem_to_eb(IPI_EEMSN_SNEN_PROC_WRITE, &eem_data);
 
 
 out:
@@ -2506,7 +2498,7 @@ static int eem_force_sensing_proc_show(struct seq_file *m, void *v)
 
 	FUNC_ENTER(FUNC_LV_HELP);
 	memset(&eem_data, 0, sizeof(struct eem_ipi_data));
-	ipi_ret = eem_to_cpueb(IPI_EEMSN_FORCE_SN_SENSING, &eem_data);
+	ipi_ret = eem_to_eb(IPI_EEMSN_FORCE_SN_SENSING, &eem_data);
 	seq_printf(m, "ret:%d\n", ipi_ret);
 	FUNC_EXIT(FUNC_LV_HELP);
 
@@ -2525,7 +2517,7 @@ static int eem_pull_data_proc_show(struct seq_file *m, void *v)
 
 	FUNC_ENTER(FUNC_LV_HELP);
 	memset(&eem_data, 0, sizeof(struct eem_ipi_data));
-	ipi_ret = eem_to_cpueb(IPI_EEMSN_PULL_DATA, &eem_data);
+	ipi_ret = eem_to_eb(IPI_EEMSN_PULL_DATA, &eem_data);
 	seq_printf(m, "ret:%d\n", ipi_ret);
 #if ENABLE_COUNT_SNTEMP
 	while (1) {
@@ -2611,7 +2603,7 @@ static ssize_t eem_offset_proc_write(struct file *file,
 		memset(&eem_data, 0, sizeof(struct eem_ipi_data));
 		eem_data.u.data.arg[0] = det_to_id(det);
 		eem_data.u.data.arg[1] = offset;
-		ipi_ret = eem_to_cpueb(IPI_EEMSN_OFFSET_PROC_WRITE, &eem_data);
+		ipi_ret = eem_to_eb(IPI_EEMSN_OFFSET_PROC_WRITE, &eem_data);
 		/* to show in eem_offset_proc_show */
 		det->volt_offset = (signed char)offset;
 		eem_debug("set volt_offset %d(%d)\n", offset, det->volt_offset);
@@ -2883,7 +2875,7 @@ struct eemsn_det *det;
 #endif
 
 	eemsn_log->ctrl_aging_Enable = ctrl_agingload_enable;
-	eem_to_cpueb(IPI_EEMSN_SHARERAM_INIT, &eem_data);
+	eem_to_eb(IPI_EEMSN_SHARERAM_INIT, &eem_data);
 #else
 	return 0;
 #endif

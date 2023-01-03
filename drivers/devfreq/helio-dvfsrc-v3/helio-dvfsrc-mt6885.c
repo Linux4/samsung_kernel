@@ -1,24 +1,17 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/platform_device.h>
 #ifdef CONFIG_MEDIATEK_DRAMC
 #include <dramc.h>
 #endif
+/*
 #ifdef CONFIG_MTK_EMI
 #include <mt_emi_api.h>
 #endif
-
+*/
 #include <mt-plat/upmu_common.h>
 #include "helio-dvfsrc-ip-v2.h"
 #include <helio-dvfsrc-opp.h>
@@ -295,7 +288,7 @@ void begin_autok_task(void)
 void finish_autok_task(void)
 {
 	/* check if dvfs force is released */
-	int force = pm_qos_request(PM_QOS_VCORE_DVFS_FORCE_OPP);
+	int force = mtk_pm_qos_request(MTK_PM_QOS_VCORE_DVFS_FORCE_OPP);
 
 	/* notify MM DVFS for msdc autok finish */
 	mmdvfs_prepare_action(MMDVFS_PREPARE_CALIBRATION_END);
@@ -563,7 +556,7 @@ static void vcorefs_get_src_vcore_req(void)
 
 static void vcorefs_get_src_misc_info(void)
 {
-#ifdef CONFIG_MTK_EMI
+#if 0 //def CONFIG_MTK_EMI
 	unsigned int total_bw_last = (get_emi_bwvl(0) & 0x7F) * 813;
 #endif
 	u32 qos_bw0, qos_bw1, qos_bw2, qos_bw3, qos_bw4;
@@ -598,7 +591,8 @@ static void vcorefs_get_src_misc_info(void)
 	met_vcorefs_src[SRC_PMQOS_BW4_IDX] =
 		qos_bw4;
 
-#ifdef CONFIG_MTK_EMI
+#if 0
+def CONFIG_MTK_EMI
 	met_vcorefs_src[SRC_TOTAL_EMI_BW_IDX] =
 		total_bw_last;
 #endif

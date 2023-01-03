@@ -15,12 +15,29 @@ ifeq ($(CONFIG_MTK_GCOV_KERNEL),y)
 GCOV_PROFILE := y
 endif
 
-ifeq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6771"))
-ifdef CONFIG_MTK_PLATFORM
-MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
-ifeq (,$(filter $(CONFIG_MACH_MT8168), y))
-include $(srctree)/drivers/misc/mediatek/base/power/qos/$(MTK_PLATFORM)/Makefile
+ifeq ($(CONFIG_MACH_MT6781),y)
+PLATFORM_DIR = mt6781
+else ifeq ($(CONFIG_MACH_MT6877),y)
+PLATFORM_DIR = mt6877
+else ifeq ($(CONFIG_MACH_MT6768),y)
+PLATFORM_DIR = mt6768
+else ifeq ($(CONFIG_MACH_MT6833),y)
+PLATFORM_DIR = mt6833
+else ifeq ($(CONFIG_MACH_MT6873),y)
+PLATFORM_DIR = mt6873
+else ifeq ($(CONFIG_MACH_MT6853),y)
+PLATFORM_DIR = mt6853
+else ifeq ($(CONFIG_MACH_MT6785),y)
+PLATFORM_DIR = mt6785
+else ifeq ($(CONFIG_MACH_MT6885),y)
+PLATFORM_DIR = mt6885
+else ifeq ($(CONFIG_MACH_MT6893),y)
+PLATFORM_DIR = mt6893
 endif
+
+ifeq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6771"))
+ifeq (,$(filter $(CONFIG_MACH_MT8168), y))
+include $(srctree)/drivers/misc/mediatek/base/power/qos/$(PLATFORM_DIR)/Makefile
 endif
 endif
 
@@ -46,13 +63,13 @@ ccflags-y += \
 	-I$(CPUFREQ_ROOT_DIR)/inc \
 	-I$(CPUFREQ_ROOT_DIR)/src/mach/$(CONFIG_MTK_PLATFORM) \
 	-I$(srctree)/drivers/devfreq \
-	-I$(srctree)/drivers/devfreq/helio-dvfsrc-v4/ \
+	-I$(srctree)/drivers/devfreq/helio-dvfsrc-v3/ \
 	-I$(srctree)/drivers/misc/mediatek/base/power/$(CONFIG_MTK_PLATFORM) \
 	-I$(srctree)/drivers/misc/mediatek/base/power/cm_mgr_v1/ \
 	-I$(srctree)/drivers/misc/mediatek/base/power/cpufreq_v1/inc \
-	-I$(srctree)/drivers/misc/mediatek/base/power/cpufreq_v1/src/mach/$(CONFIG_MTK_PLATFORM) \
+	-I$(srctree)/drivers/misc/mediatek/base/power/cpufreq_v1/src/mach/$(PLATFORM_DIR)/  \
 	-I$(srctree)/drivers/misc/mediatek/base/power/include \
-	-I$(srctree)/drivers/misc/mediatek/base/power/qos/$(CONFIG_MTK_PLATFORM)/ \
+	-I$(srctree)/drivers/misc/mediatek/base/power/qos/$(PLATFORM_DIR)/  \
 	-I$(srctree)/drivers/misc/mediatek/dramc/$(CONFIG_MTK_PLATFORM) \
 	-I$(srctree)/drivers/misc/mediatek/emi/$(CONFIG_MTK_PLATFORM) \
 	-I$(srctree)/drivers/misc/mediatek/include \
@@ -84,7 +101,7 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/cm_mgr_v1/mt6877
 obj-y += mt6877/
 else ifeq ($(CONFIG_MACH_MT6781),y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/mt6781
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/cm_mgr_v1/mt6781
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/cm_mgr_v1/mt6781/
 obj-y += mt6781/
 else
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/cm_mgr_v1/$(CONFIG_MTK_PLATFORM)

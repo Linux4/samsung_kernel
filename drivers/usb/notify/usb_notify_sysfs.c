@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- *  drivers/usb/notify/usb_notify_sysfs.c
  *
- * Copyright (C) 2015-2021 Samsung, Inc.
+ * Copyright (C) 2015-2022 Samsung, Inc.
  * Author: Dongrak Shin <dongrak.shin@samsung.com>
  *
  */
 
- /* usb notify layer v3.6 */
+ /* usb notify layer v3.7 */
 
 #define pr_fmt(fmt) "usb_notify: " fmt
 
@@ -80,6 +79,7 @@ usb_hw_param_print[USB_CCIC_HW_PARAM_MAX][MAX_HWPARAM_STRING] = {
 	{"CC_PRS"},
 	{"CC_DRS"},
 	{"C_ARP"},
+	{"CC_UMVS"},
 	{"CC_VER"},
 };
 #endif /* CONFIG_USB_HW_PARAM */
@@ -841,6 +841,56 @@ error:
 	return ret;
 }
 
+static ssize_t usb_request_action_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct usb_notify_dev *udev = (struct usb_notify_dev *)
+		dev_get_drvdata(dev);
+
+	if (udev == NULL) {
+		pr_err("udev is NULL\n");
+		return -EINVAL;
+	}
+	pr_info("%s request_action = %u\n",
+		__func__, udev->request_action);
+
+	return sprintf(buf, "%u\n", udev->request_action);
+}
+
+static ssize_t usb_request_action_store(
+		struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t size)
+
+{
+	struct usb_notify_dev *udev = (struct usb_notify_dev *)
+		dev_get_drvdata(dev);
+	unsigned int request_action = 0;
+	int sret = -EINVAL;
+	size_t ret = -ENOMEM;
+
+	if (udev == NULL) {
+		pr_err("udev is NULL\n");
+		return -EINVAL;
+	}
+	if (size > PAGE_SIZE) {
+		pr_err("%s size(%zu) is too long.\n", __func__, size);
+		goto error;
+	}
+
+	sret = sscanf(buf, "%u", &request_action);
+	if (sret != 1)
+		goto error;
+
+	udev->request_action = request_action;
+
+	pr_info("%s request_action = %s\n",
+		__func__, udev->request_action);
+	ret = size;
+
+error:
+	return ret;
+}
+
 static ssize_t cards_show(
 	struct device *dev, struct device_attribute *attr,
 		char *buf)
@@ -918,6 +968,7 @@ static DEVICE_ATTR_RO(cards);
 static DEVICE_ATTR_RW(usb_hw_param);
 static DEVICE_ATTR_RW(hw_param);
 #endif
+static DEVICE_ATTR_RW(usb_request_action);
 
 static struct attribute *usb_notify_attrs[] = {
 	&dev_attr_disable.attr,
@@ -932,6 +983,7 @@ static struct attribute *usb_notify_attrs[] = {
 	&dev_attr_usb_hw_param.attr,
 	&dev_attr_hw_param.attr,
 #endif
+	&dev_attr_usb_request_action.attr,
 	NULL,
 };
 

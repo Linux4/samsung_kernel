@@ -1,16 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2016 MediaTek Inc.
- * Author: PC Chen <pc.chen@mediatek.com>
- *         Tiffany Lin <tiffany.lin@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/slab.h>
@@ -185,7 +175,7 @@ static const struct v4l2_file_operations mtk_vcodec_fops = {
 
 
 /**
- * Suspsend callbacks after user space processes are frozen
+ * Suspend callbacks after user space processes are frozen
  * Since user space processes are frozen, there is no need and cannot hold same
  * mutex that protects lock owner while checking status.
  * If video codec hardware is still active now, must not to enter suspend.
@@ -283,7 +273,7 @@ static int mtk_vcodec_dec_probe(struct platform_device *pdev)
 	for (i = VDEC_SYS; i < NUM_MAX_VDEC_REG_BASE; i++) {
 		res = platform_get_resource(pdev, IORESOURCE_MEM, i);
 		if (res == NULL) {
-			dev_err(&pdev->dev, "get memory resource failed.");
+			dev_info(&pdev->dev, "get memory resource failed.");
 			ret = -ENXIO;
 			goto err_res;
 		}
@@ -421,9 +411,12 @@ static const struct of_device_id mtk_vcodec_match[] = {
 	{.compatible = "mediatek,mt6885-vcodec-dec",},
 	{.compatible = "mediatek,mt6873-vcodec-dec",},
 	{.compatible = "mediatek,mt6853-vcodec-dec",},
+	{.compatible = "mediatek,mt6779-vcodec-dec",},
 	{.compatible = "mediatek,mt6833-vcodec-dec",},
 	{.compatible = "mediatek,mt6877-vcodec-dec",},
 	{.compatible = "mediatek,mt6781-vcodec-dec",},
+	{.compatible = "mediatek,mt6768-vcodec-dec",},
+	{.compatible = "mediatek,mt6785-vcodec-dec",},
 	{.compatible = "mediatek,vdec_gcon",},
 	{},
 };

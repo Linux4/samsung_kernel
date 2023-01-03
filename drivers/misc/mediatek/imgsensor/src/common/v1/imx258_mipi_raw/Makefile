@@ -1,15 +1,7 @@
-#
-# Copyright (C) 2015 MediaTek Inc.
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License version 2 as
-# published by the Free Software Foundation.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2022 Samsung Electronics Co., Ltd
 
-obj-y += imx258mipiraw_Sensor.o
+SENSOR_NAME  := imx258
 
+obj-y += $(SENSOR_NAME)mipiraw_Sensor.o
+$(info used driver: $(SENSOR_NAME))

@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2020 MediaTek Inc.
  */
 
 #include <linux/kernel.h>
@@ -47,24 +39,33 @@
 #include "queue.h"
 #include "mmc_ops.h"
 #include "core.h"
-#include "mtk_sd.h"
 #include "card.h"
 #ifdef CONFIG_TEEGRIS_TEE_SUPPORT
 #include "tee_client_api.h"
 #include "tzdev.h"
 #endif
 
-#ifndef CONFIG_TEEGRIS_TEE_SUPPORT
-#ifdef CONFIG_MTK_UFS_SUPPORT
-#include "ufs-mtk.h"
-#endif
+#if defined(CONFIG_MMC_MTK_PRO)
+#include "mtk_sd.h"
 #endif
 
+#if defined(CONFIG_MMC_MTK)
+#include <linux/of.h>
+#include <linux/of_fdt.h>
+#include <linux/of_irq.h>
+#include <linux/of_platform.h>
+static struct mmc_host *mtk_mmc_host[] = {NULL};
+#endif
+#ifndef CONFIG_TEEGRIS_TEE_SUPPORT
+#ifdef CONFIG_SCSI_UFS_MEDIATEK
+#include "ufs-mediatek.h"
+#endif
+#endif
 #include <mt-plat/mtk_boot.h>
 
 /* #define __RPMB_MTK_DEBUG_MSG */
 /* #define __RPMB_MTK_DEBUG_HMAC_VERIFY */
-#if defined(CONFIG_TEEGRIS_TEE_SUPPORT)
+#if defined(CONFIG_TEEGRIS_TEE_SUPPORT) || defined(CONFIG_TRUSTONIC_TEE_SUPPORT)
 #include "drrpmb_Api.h"
 #include "drrpmb_gp_Api.h"
 static struct dciMessage_t *rpmb_gp_dci;
@@ -73,10 +74,8 @@ static struct dciMessage_t *rpmb_gp_dci;
 /* TEE usage */
 #ifdef CONFIG_TRUSTONIC_TEE_SUPPORT
 #include "mobicore_driver_api.h"
-#include "drrpmb_Api.h"
-#include "drrpmb_gp_Api.h"
 
-#ifndef CONFIG_MTK_TEE_GP_SUPPORT
+#ifndef CONFIG_TEE
 static struct mc_uuid_t rpmb_uuid = RPMB_UUID;
 static struct mc_session_handle rpmb_session = {0};
 static u32 rpmb_devid = MC_DEVICE_ID_DEFAULT;
@@ -86,28 +85,20 @@ static struct dciMessage_t *rpmb_dci;
 static struct mc_uuid_t rpmb_gp_uuid = RPMB_GP_UUID;
 static struct mc_session_handle rpmb_gp_session = {0};
 static u32 rpmb_gp_devid = MC_DEVICE_ID_DEFAULT;
-static struct dciMessage_t *rpmb_gp_dci;
 
 #endif
 
 #ifdef CONFIG_TEEGRIS_TEE_SUPPORT
 #include <core/iwsock.h>
-#ifdef NO_MTK_SVP_RELEASE
-#include <linux/dma-mapping.h>
-#endif
 
 #define RPMB_SOCKET_NAME "rpmb_socket"
 
-#define MAX_RPMB_TRANSFER_BLK (32)
-#define MAX_RPMB_REQUEST_SIZE (512 * MAX_RPMB_TRANSFER_BLK)
+#define TEEGRIS_MAX_RPMB_TRANSFER_BLK (32)
+#define TEEGRIS_MAX_RPMB_REQUEST_SIZE (512 * TEEGRIS_MAX_RPMB_TRANSFER_BLK)
 
 #define RPMB_IPC_MAGIC			0x11111111
 #define RPMB_REQUEST_MAGIC		0x44444444
 #define RPMB_REPLY_MAGIC		0x66666666
-
-#ifdef CONFIG_TEEGRIS_TEE_SUPPORT
-struct rpmb_dev *ufs_mtk_rpmb_get_raw_dev(void);
-#endif
 
 struct rpmb_req {
 	uint16_t type;
@@ -118,13 +109,16 @@ struct rpmb_req {
 
 struct rpmb_ctx {
 	void *wsm_vaddr;
-#ifdef NO_MTK_SVP_RELEASE
-	dma_addr_t wsm_paddr;
-#endif
 	struct rpmb_req *req;
 };
+
+#ifdef CONFIG_SCSI_UFS_MEDIATEK
+struct rpmb_dev *ufs_mtk_rpmb_get_raw_dev(void);
+#endif
+
 static struct task_struct *iwsock_th;
 static DEFINE_MUTEX(rpmb_mutex);
+static int dt_get_boot_type(void);
 #endif
 
 /*
@@ -204,7 +198,7 @@ static struct class *mtk_rpmb_class;
  * If every projects have to add this callback, the operation is complicated.
  */
 
-#if 0
+#ifdef EMMC_RPMB_SET_HOST
 struct mmc_host *emmc_rpmb_host;
 
 void emmc_rpmb_set_host(void *mmc_host)
@@ -289,24 +283,38 @@ int rpmb_cal_hmac(struct rpmb_frame *frame, int blk_cnt, u8 *key, u8 *key_mac)
  * CHECK THIS!!! Copy from block.c mmc_blk_data structure.
  */
 struct emmc_rpmb_blk_data {
-	spinlock_t	lock;
+	spinlock_t lock;
 	struct device	*parent;
-	struct gendisk	*disk;
+	struct gendisk *disk;
 	struct mmc_queue queue;
 	struct list_head part;
 	struct list_head rpmbs;
-	unsigned int	flags;
-	unsigned int	usage;
-	unsigned int	read_only;
-	unsigned int	part_type;
-	unsigned int	reset_done;
-	unsigned int	part_curr;
+
+	unsigned int flags;
+	unsigned int usage;
+	unsigned int read_only;
+	unsigned int part_type;
+	/* unsigned int name_idx; */
+	unsigned int reset_done;
+
+	/*
+	 * Only set in main mmc_blk_data associated
+	 * with mmc_card with mmc_set_drvdata, and keeps
+	 * track of the current selected device partition.
+	 */
+	unsigned int part_curr;
 	struct device_attribute force_ro;
 	struct device_attribute power_ro_lock;
-	int	area_type;
+	int area_type;
+};
 
-	struct dentry *status_dentry;
-	struct dentry *ext_csd_dentry;
+struct emmc_rpmb_data {
+	struct device dev;
+	struct cdev chrdev;
+	int id;
+	unsigned int part_index;
+	struct emmc_rpmb_blk_data *md;
+	struct list_head node;
 };
 
 static void rpmb_dump_frame(u8 *data_frame)
@@ -354,6 +362,17 @@ int emmc_rpmb_switch(struct mmc_card *card, struct emmc_rpmb_blk_data *md)
 			MSG(ERR, "CQ disabled failed!!!(%x)\n", ret);
 			return ret;
 		}
+		mmc_card_clr_cmdq(card);
+	}
+#elif defined(CONFIG_MMC_MTK)
+	if (md->part_type == EXT_CSD_PART_CONFIG_ACC_RPMB) {
+		if (card->ext_csd.cmdq_en) {
+			ret = mmc_cmdq_disable(card);
+			if (ret) {
+				MSG(ERR, "CMDQ disabled failed!(%d)\n", ret);
+				return ret;
+			}
+		}
 	}
 #endif
 
@@ -380,6 +399,17 @@ int emmc_rpmb_switch(struct mmc_card *card, struct emmc_rpmb_blk_data *md)
 		if (ret)
 			pr_notice("%s enable CMDQ error %d, so just work without CMDQ\n",
 					mmc_hostname(card->host), ret);
+		else
+			mmc_card_set_cmdq(card);
+	}
+#elif defined(CONFIG_MMC_MTK)
+	if (main_md->part_curr == EXT_CSD_PART_CONFIG_ACC_RPMB) {
+		if (card->reenable_cmdq && !card->ext_csd.cmdq_en) {
+			ret = mmc_cmdq_enable(card);
+			if (ret)
+				pr_notice("%s enable CMDQ error %d,so just work without CMDQ\n",
+					mmc_hostname(card->host), ret);
+		}
 	}
 #endif
 
@@ -533,24 +563,29 @@ int emmc_rpmb_req_handle(struct mmc_card *card, struct emmc_rpmb_req *rpmb_req)
 {
 	struct emmc_rpmb_blk_data *md = NULL, *part_md;
 	int ret;
+	struct emmc_rpmb_data *rpmb;
+	struct list_head *pos;
 
-	/* rpmb_dump_frame(rpmb_req->data_frame);    */
-
+	part_md = vzalloc(sizeof(struct emmc_rpmb_blk_data));
+	if (!part_md)
+		return -ENOMEM;
+	/* rpmb_dump_frame(rpmb_req->data_frame); */
 	md = dev_get_drvdata(&card->dev);
 
 	if (md == NULL)
 		return -ENODEV;
 
-	list_for_each_entry(part_md, &md->part, part) {
-		if (part_md->part_type == EXT_CSD_PART_CONFIG_ACC_RPMB)
+	list_for_each(pos, &md->rpmbs) {
+		rpmb = list_entry(pos, struct emmc_rpmb_data, node);
+		if (rpmb) {
+			part_md->part_type = EXT_CSD_PART_CONFIG_ACC_RPMB;
 			break;
+		}
 	}
-
-	down(&part_md->queue.thread_sem);
 
 	/*  MSG(INFO, "%s start.\n", __func__); */
 
-	mmc_get_card(card);
+	mmc_get_card(card, NULL);
 
 	/*
 	 * STEP1: Switch to RPMB partition.
@@ -581,12 +616,10 @@ error:
 		MSG(ERR, "%s emmc_rpmb_switch main failed. (%x)\n",
 			__func__, ret);
 
-	mmc_put_card(card);
-
-	up(&part_md->queue.thread_sem);
+	mmc_put_card(card, NULL);
 
 	rpmb_dump_frame(rpmb_req->data_frame);
-
+	vfree(part_md);
 	return ret;
 }
 
@@ -687,7 +720,7 @@ void rpmb_req_copy_data_for_hmac(u8 *buf, struct rpmb_frame *f)
 	buf += size;
 }
 
-#ifdef CONFIG_MTK_UFS_SUPPORT
+#ifdef CONFIG_SCSI_UFS_MEDIATEK
 static struct rpmb_frame *rpmb_alloc_frames(unsigned int cnt)
 {
 	return kzalloc(sizeof(struct rpmb_frame) * cnt, 0);
@@ -2123,8 +2156,8 @@ EXPORT_SYMBOL(ut_rpmb_req_write_data);
 
 #ifdef CONFIG_TRUSTONIC_TEE_SUPPORT
 
-#ifdef CONFIG_MTK_UFS_SUPPORT
-#ifndef CONFIG_MTK_TEE_GP_SUPPORT
+#ifdef CONFIG_SCSI_UFS_MEDIATEK
+#ifndef CONFIG_TEE
 static int rpmb_execute_ufs(u32 cmdId)
 {
 	int ret;
@@ -2231,13 +2264,17 @@ static int rpmb_gp_execute_ufs(u32 cmdId)
 }
 #endif
 
-#ifndef CONFIG_MTK_TEE_GP_SUPPORT
-#if defined(CONFIG_MMC_MTK_PRO)
+#ifndef CONFIG_TEE
+#if defined(CONFIG_MMC_MTK_PRO) || defined(CONFIG_MMC_MTK)
 static int rpmb_execute_emmc(u32 cmdId)
 {
 	int ret;
-
+#if defined(CONFIG_MMC_MTK_PRO)
 	struct mmc_card *card = mtk_msdc_host[0]->mmc->card;
+#else
+	struct mmc_host *mmc = mtk_mmc_host[0];
+	struct mmc_card *card = mmc->card;
+#endif
 	struct emmc_rpmb_req rpmb_req;
 
 	switch (cmdId) {
@@ -2318,12 +2355,16 @@ static int rpmb_execute_emmc(u32 cmdId)
 #endif
 #endif
 
-#if defined(CONFIG_MMC_MTK_PRO)
+#if defined(CONFIG_MMC_MTK_PRO) || defined(CONFIG_MMC_MTK)
 static int rpmb_gp_execute_emmc(u32 cmdId)
 {
 	int ret;
-
+#if defined(CONFIG_MMC_MTK_PRO)
 	struct mmc_card *card = mtk_msdc_host[0]->mmc->card;
+#else
+	struct mmc_host *mmc = mtk_mmc_host[0];
+	struct mmc_card *card = mmc->card;
+#endif
 	struct emmc_rpmb_req rpmb_req;
 
 	switch (cmdId) {
@@ -2402,12 +2443,11 @@ static int rpmb_gp_execute_emmc(u32 cmdId)
 }
 #endif
 
-#ifndef CONFIG_MTK_TEE_GP_SUPPORT
+#ifndef CONFIG_TEE
 int rpmb_listenDci(void *data)
 {
 	enum mc_result mc_ret;
 	u32 cmdId;
-	int boot_type;
 
 	MSG(INFO, "%s: DCI listener.\n", __func__);
 
@@ -2429,15 +2469,23 @@ int rpmb_listenDci(void *data)
 		MSG(INFO, "%s: wait notification done!! cmdId = %x\n",
 			__func__, cmdId);
 
+#if defined(CONFIG_MMC_MTK_PRO)
 		/* Received exception. */
-		boot_type = get_boot_type();
-		if (boot_type == BOOTDEV_SDMMC)
+		if (mtk_msdc_host[0] && mtk_msdc_host[0]->mmc
+			&& mtk_msdc_host[0]->mmc->card)
 			mc_ret = rpmb_execute_emmc(cmdId);
-#ifdef CONFIG_MTK_UFS_SUPPORT
-		else if (boot_type == BOOTDEV_UFS)
-			mc_ret = rpmb_execute_ufs(cmdId);
+		else
+#elif defined(CONFIG_MMC_MTK)
+		/* Received exception. */
+		if (mtk_mmc_host[0] && mtk_mmc_host[0]->card)
+			mc_ret = rpmb_execute_emmc(cmdId);
+		else
 #endif
-
+#ifdef CONFIG_SCSI_UFS_MEDIATEK
+			mc_ret = rpmb_execute_ufs(cmdId);
+#else
+			return -EFAULT;
+#endif
 		/* Notify the STH */
 		mc_ret = mc_notify(&rpmb_session);
 		if (mc_ret != MC_DRV_OK) {
@@ -2451,7 +2499,7 @@ int rpmb_listenDci(void *data)
 }
 #endif
 
-#ifndef CONFIG_MTK_TEE_GP_SUPPORT
+#ifndef CONFIG_TEE
 static int rpmb_open_session(void)
 {
 	int cnt = 0;
@@ -2539,7 +2587,6 @@ int rpmb_gp_listenDci(void *data)
 {
 	enum mc_result mc_ret;
 	u32 cmdId;
-	int boot_type;
 
 	MSG(ERR, "%s: DCI listener.\n", __func__);
 
@@ -2561,13 +2608,22 @@ int rpmb_gp_listenDci(void *data)
 		MSG(INFO, "%s: wait notification done!! cmdId = %x\n",
 			__func__, cmdId);
 
+#if defined(CONFIG_MMC_MTK_PRO)
 		/* Received exception. */
-		boot_type = get_boot_type();
-		if (boot_type == BOOTDEV_SDMMC)
+		if (mtk_msdc_host[0] && mtk_msdc_host[0]->mmc
+			&& mtk_msdc_host[0]->mmc->card)
 			mc_ret = rpmb_gp_execute_emmc(cmdId);
-#ifdef CONFIG_MTK_UFS_SUPPORT
-		else if (boot_type == BOOTDEV_UFS)
+		else
+#elif defined(CONFIG_MMC_MTK)
+		/* Received exception. */
+		if (mtk_mmc_host[0] && mtk_mmc_host[0]->card)
+			mc_ret = rpmb_gp_execute_emmc(cmdId);
+		else
+#endif
+#ifdef CONFIG_SCSI_UFS_MEDIATEK
 			mc_ret = rpmb_gp_execute_ufs(cmdId);
+#else
+			return -EFAULT;
 #endif
 
 		/* Notify the STH*/
@@ -2676,7 +2732,7 @@ static int rpmb_thread(void *context)
 
 	MSG(INFO, "%s start\n", __func__);
 
-#ifndef CONFIG_MTK_TEE_GP_SUPPORT
+#ifndef CONFIG_TEE
 	ret = rpmb_open_session();
 	MSG(INFO, "%s rpmb_open_session, ret = %x\n", __func__, ret);
 #endif
@@ -2703,8 +2759,7 @@ static struct rpmb_ctx *create_rpmb_ctx(void)
 
 static int init_rpmb_wsm(struct rpmb_ctx *ctx)
 {
-#ifndef NO_MTK_SVP_RELEASE
-	ctx->wsm_vaddr = kzalloc(sizeof(struct rpmb_req) + MAX_RPMB_REQUEST_SIZE, GFP_KERNEL);
+	ctx->wsm_vaddr = kzalloc(sizeof(struct rpmb_req) + TEEGRIS_MAX_RPMB_REQUEST_SIZE, GFP_KERNEL);
 	if (!ctx->wsm_vaddr) {
 		MSG(ERR, "%s failed to alloc rpmb wsm\n", __func__);
 		return -ENOMEM;
@@ -2712,18 +2767,6 @@ static int init_rpmb_wsm(struct rpmb_ctx *ctx)
 
 	MSG(INFO, "%s rpmb dma ddr : virt(%pK)\n",
 			__func__, (uint64_t)ctx->wsm_vaddr);
-#else
-	ctx->wsm_vaddr = dma_alloc_coherent(NULL,
-			sizeof(struct rpmb_req) + MAX_RPMB_REQUEST_SIZE,
-			&ctx->wsm_paddr, GFP_KERNEL);
-	if (!ctx->wsm_vaddr || !ctx->wsm_paddr) {
-		MSG(ERR, "%s failed to alloc rpmb wsm\n", __func__);
-		return -ENOMEM;
-	}
-
-	MSG(INFO, "%s rpmb dma ddr : virt(%pK), phy(%pK)\n",
-			__func__, (uint64_t)ctx->wsm_vaddr, (uint64_t)ctx->wsm_paddr);
-#endif
 
 	ctx->req = (struct rpmb_req *)ctx->wsm_vaddr;
 	return 0;
@@ -2786,19 +2829,15 @@ static int register_rpmb_wsm(struct rpmb_ctx *ctx, struct sock_desc *rpmb_conn)
 		return -EINVAL;
 	}
 
-#ifndef NO_MTK_SVP_RELEASE
 	sock_data = virt_to_phys(ctx->wsm_vaddr);
-#else
-	sock_data = ctx->wsm_paddr;
-#endif
 	len = tz_iwsock_write(rpmb_conn, &sock_data, sizeof(sock_data), 0);
 	if (len != sizeof(sock_data)) {
 		ret = len >= 0 ? -EMSGSIZE : len;
 		MSG(ERR, "failed to send reply, err = %d\n", ret);
 		return ret;
 	}
-
 	MSG(INFO, "%s registered WSM success\n", __func__);
+
 	return 0;
 }
 
@@ -2845,8 +2884,8 @@ static int rpmb_send_reply(struct sock_desc *rpmb_conn)
 		MSG(ERR, "%s failed to send reply, err = %d\n", __func__, ret);
 		return ret;
 	}
-
 	MSG(INFO, "%s Sent reply\n", __func__);
+
 	return 0;
 }
 
@@ -2857,13 +2896,7 @@ static inline void release_rpmb_sock(struct sock_desc *rpmb_conn)
 
 static inline void release_rpmb_wsm(struct rpmb_ctx *ctx)
 {
-#ifndef NO_MTK_SVP_RELEASE
 	kfree(ctx->wsm_vaddr);
-#else
-	dma_free_coherent(NULL,
-			sizeof(struct rpmb_req) + MAX_RPMB_REQUEST_SIZE,
-			ctx->wsm_vaddr, ctx->wsm_paddr);
-#endif
 }
 
 static inline void destroy_rpmb_ctx(struct rpmb_ctx *ctx)
@@ -2871,7 +2904,7 @@ static inline void destroy_rpmb_ctx(struct rpmb_ctx *ctx)
 	kfree(ctx);
 }
 
-#ifdef CONFIG_MTK_UFS_SUPPORT
+#ifdef CONFIG_SCSI_UFS_MEDIATEK
 static void rpmb_iwsock_execute_ufs(struct rpmb_ctx *ctx)
 {
 	int ret = 0;
@@ -2910,19 +2943,33 @@ static void rpmb_iwsock_execute_ufs(struct rpmb_ctx *ctx)
 }
 #endif
 
+
 static void rpmb_iwsock_execute_emmc(struct rpmb_ctx *ctx)
 {
 	int ret = 0, cnt = 0;
-	struct mmc_card *card = mtk_msdc_host[0]->mmc->card;
+	struct mmc_card *card;
 	struct emmc_rpmb_req rpmb_req;
 
-	/* max wait time 20s */
-	while (!card || !dev_get_drvdata(&card->dev)) {
+#if defined(CONFIG_MMC_MTK_PRO)
+	while (!mtk_msdc_host[0]
+			|| !mtk_msdc_host[0]->mmc
+			|| !mtk_msdc_host[0]->mmc->card
+			|| !dev_get_drvdata(&(mtk_msdc_host[0]->mmc->card)->dev)) {
 		msleep(100);
-		card = mtk_msdc_host[0]->mmc->card;
 		if (cnt++ > 200)
 			return;
 	};
+	card = mtk_msdc_host[0]->mmc->card;
+#elif defined(CONFIG_MMC_MTK)
+	while (!mtk_mmc_host[0]
+			|| !mtk_mmc_host[0]->card
+			|| !dev_get_drvdata(&(mtk_mmc_host[0]->card)->dev)) {
+		msleep(100);
+		if (cnt++ > 200)
+			return;
+	};
+	card = mtk_mmc_host[0]->card;
+#endif
 
 	switch (ctx->req->type) {
 	case RPMB_READ_DATA:
@@ -2984,10 +3031,10 @@ static int rpmb_iwsock_thread(void *context)
 	int ret;
 	int boot_type;
 
-	MSG(INFO, "%s teegris iwsock thread start\n", __func__);
-
 	struct rpmb_ctx *ctx;
 	struct sock_desc *rpmb_conn;
+
+	MSG(INFO, "%s teegris iwsock thread start\n", __func__);
 
 	ctx = create_rpmb_ctx();
 	if (IS_ERR(ctx)) {
@@ -3020,11 +3067,11 @@ static int rpmb_iwsock_thread(void *context)
 		if (ret)
 			goto release_sock;
 
-		boot_type = get_boot_type();
+		boot_type = dt_get_boot_type();
 		mutex_lock(&rpmb_mutex);
 		if (boot_type == BOOTDEV_SDMMC)
 			rpmb_iwsock_execute_emmc(ctx);
-#ifdef CONFIG_MTK_UFS_SUPPORT
+#ifdef CONFIG_SCSI_UFS_MEDIATEK
 		else if (boot_type == BOOTDEV_UFS)
 			rpmb_iwsock_execute_ufs(ctx);
 #endif
@@ -3059,7 +3106,7 @@ static int rpmb_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-#ifdef CONFIG_MTK_UFS_SUPPORT
+#ifdef CONFIG_SCSI_UFS_MEDIATEK
 long rpmb_ioctl_ufs(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int err = 0;
@@ -3302,7 +3349,10 @@ long rpmb_ioctl_emmc(struct file *file, unsigned int cmd, unsigned long arg)
 		return -EFAULT;
 
 	card = mtk_msdc_host[0]->mmc->card;
-
+#elif defined(CONFIG_MMC_MTK)
+	if (!mtk_mmc_host[0] || !mtk_mmc_host[0]->card)
+		return -EFAULT;
+	card = mtk_mmc_host[0]->card;
 #else
 	card = NULL;
 	ret = -EFAULT;
@@ -3562,7 +3612,7 @@ static int rpmb_close(struct inode *inode, struct file *file)
 	return ret;
 }
 
-#ifdef CONFIG_MTK_UFS_SUPPORT
+#ifdef CONFIG_SCSI_UFS_MEDIATEK
 static const struct file_operations rpmb_fops_ufs = {
 	.owner = THIS_MODULE,
 	.open = rpmb_open,
@@ -3581,9 +3631,61 @@ static const struct file_operations rpmb_fops_emmc = {
 	.write = NULL,
 	.read = NULL,
 };
+#if defined(CONFIG_MMC_MTK_PRO) || defined(CONFIG_MMC_MTK)
+struct tag_bootmode {
+	u32 size;
+	u32 tag;
+	u32 bootmode;
+	u32 boottype;
+};
 
+static int dt_get_boot_type(void)
+{
+	struct tag_bootmode *tags = NULL;
+	struct device_node *node = NULL;
+	unsigned long size = 0;
+	int ret = BOOTDEV_UFS;
+
+	node = of_find_node_by_path("/chosen");
+	if (!node)
+		node = of_find_node_by_path("/chosen@0");
+
+	if (node) {
+		tags = (struct tag_bootmode *)of_get_property(node,
+				"atag,boot", (int *)&size);
+	} else
+		pr_notice("[%s] of_chosen not found\n", __func__);
+
+	if (tags) {
+		ret = tags->boottype;
+		if ((ret > 2) || (ret < 0))
+			ret = BOOTDEV_SDMMC;
+	} else {
+		pr_notice("[%s] 'atag,boot' is not found\n", __func__);
+	}
+
+	return ret;
+}
+#endif
+
+#if defined(CONFIG_MMC_MTK)
+int mmc_rpmb_register(struct mmc_host *mmc)
+{
+	int ret = 0;
+
+	if (!(mmc->caps2 & MMC_CAP2_NO_MMC))
+		mtk_mmc_host[0] = mmc;
+	else if (!(mmc->caps2 & MMC_CAP2_NO_SD))
+		return ret;
+	else
+		return -EINVAL;
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(mmc_rpmb_register);
+#endif
 #ifdef CONFIG_TEEGRIS_TEE_SUPPORT
-#ifdef CONFIG_MTK_UFS_SUPPORT
+#ifdef CONFIG_SCSI_UFS_MEDIATEK
 static void rpmb_gp_execute_ufs(u32 cmdId)
 {
 	int ret;
@@ -3638,13 +3740,31 @@ static void rpmb_gp_execute_ufs(u32 cmdId)
 		MSG(ERR, "%s: Error ret(%d).\n", __func__, ret);
 }
 #endif
-
+#if defined(CONFIG_MMC_MTK_PRO) || defined(CONFIG_MMC_MTK)
 static void rpmb_gp_execute_emmc(u32 cmdId)
 {
 	int ret;
-
-	struct mmc_card *card = mtk_msdc_host[0]->mmc->card;
+	struct mmc_card *card;
 	struct emmc_rpmb_req rpmb_req;
+
+#if defined(CONFIG_MMC_MTK_PRO)
+	if (!mtk_msdc_host[0] || !mtk_msdc_host[0]->mmc
+		|| !mtk_msdc_host[0]->mmc->card) {
+		MSG(ERR, "%s: ret= %x\n", __func__, -EFAULT);
+		return;
+	}
+		card = mtk_msdc_host[0]->mmc->card;
+#elif defined(CONFIG_MMC_MTK)
+	if (!mtk_mmc_host[0] || !mtk_mmc_host[0]->card) {
+		MSG(ERR, "%s: ret= %x\n", __func__, -EFAULT);
+		return;
+	}
+	card = mtk_mmc_host[0]->card;
+#else
+	card = NULL;
+	MSG(ERR, "%s: ret= %x\n", __func__, -EFAULT);
+	return;
+#endif
 
 	switch (cmdId) {
 
@@ -3721,12 +3841,12 @@ static void rpmb_gp_execute_emmc(u32 cmdId)
 	if (ret)
 		MSG(ERR, "%s: Error ret(%d).\n", __func__, ret);
 }
-
+#endif
 TEEC_UUID uuid_client = {
 	.timeLow = 0x00000000,
 	.timeMid = 0x4D54,
 	.timeHiAndVersion = 0x4B5F,
-	.clockSeqAndNode = {0x42, 0x46, 0x72, 0x70, 0x6D, 0x62, 0x64, 0x72},
+	.clockSeqAndNode = {0x42, 0x46, 0x72, 0x70, 0x6D, 0x62, 0x74, 0x61},
 };
 
 enum cmd_invoke {
@@ -3764,7 +3884,7 @@ TEEC_Result teegris_rpmb_open_session(TEEC_Context *context,
 				__func__, res);
 			break;
 		}
-		msleep(500);
+		msleep(1000);
 	} while (1);
 
 	return res;
@@ -3808,15 +3928,16 @@ TEEC_Result teegris_rpmb_run(TEEC_Context *context)
 		MSG(ERR, "%s: cmd wait notify done!! cmdId = %x\n",
 			__func__, cmdId);
 
-		boot_type = get_boot_type();
+		boot_type = dt_get_boot_type();
 		mutex_lock(&rpmb_mutex);
 		if (boot_type == BOOTDEV_SDMMC)
 			rpmb_gp_execute_emmc(cmdId);
-#ifdef CONFIG_MTK_UFS_SUPPORT
+#ifdef CONFIG_SCSI_UFS_MEDIATEK
 		else if (boot_type == BOOTDEV_UFS)
 			rpmb_gp_execute_ufs(cmdId);
 #endif
 		mutex_unlock(&rpmb_mutex);
+
 		switch (cmdId) {
 		case DCI_RPMB_CMD_READ_DATA:
 		case DCI_RPMB_CMD_GET_WCNT:
@@ -3877,8 +3998,9 @@ int teegris_rpmb_thread(void *data)
 	}
 
 	res = teegris_rpmb_run(&rpmb_gp_session->context);
-	if (res)
+	if (res) {
 		kfree(rpmb_gp_session->wsm_buffer);
+	}
 
 	MSG(ERR, "TEEC_FinalizeContex\n", res);
 
@@ -3897,7 +4019,6 @@ static int __init rpmb_init(void)
 	int major;
 	dev_t dev;
 	struct device *device = NULL;
-	int boot_type;
 
 	MSG(INFO, "%s start\n", __func__);
 
@@ -3910,12 +4031,16 @@ static int __init rpmb_init(void)
 
 	major = MAJOR(dev);
 
-	boot_type = get_boot_type();
-	if (boot_type == BOOTDEV_SDMMC)
+#if defined(CONFIG_MMC_MTK_PRO) || defined(CONFIG_MMC_MTK)
+	if (dt_get_boot_type() == BOOTDEV_SDMMC)
 		cdev_init(&rpmb_dev, &rpmb_fops_emmc);
-#ifdef CONFIG_MTK_UFS_SUPPORT
-	else if (boot_type == BOOTDEV_UFS)
+	else
+#endif
+#ifdef CONFIG_SCSI_UFS_MEDIATEK
+
 		cdev_init(&rpmb_dev, &rpmb_fops_ufs);
+#else
+		return -EFAULT;
 #endif
 
 	rpmb_dev.owner = THIS_MODULE;
@@ -3948,11 +4073,9 @@ static int __init rpmb_init(void)
 #endif
 
 #ifdef CONFIG_TEEGRIS_TEE_SUPPORT
-#ifndef NO_MTK_SVP_RELEASE
 	open_th = kthread_run(teegris_rpmb_thread, NULL, "teegris rpmb");
 	if (IS_ERR(open_th))
 		MSG(ERR, "%s, init kthread_run failed!\n", __func__);
-#endif
 
 	iwsock_th = kthread_run(rpmb_iwsock_thread, NULL, "rpmb_iwsock");
 	if (IS_ERR(iwsock_th))

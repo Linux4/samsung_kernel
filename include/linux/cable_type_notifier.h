@@ -32,19 +32,16 @@ typedef enum {
 	CABLE_TYPE_USB_CDP,
 	CABLE_TYPE_OTG,
 	CABLE_TYPE_TA,
-	CABLE_TYPE_AFC,
 	CABLE_TYPE_NONSTANDARD,
 	CABLE_TYPE_UNKNOWN,
 } cable_type_attached_dev_t;
 
 static const char *cable_type_names[] = {
 	"NONE",
-	"USB",
 	"USB SDP",
 	"USB CDP",
 	"OTG",
 	"TA",
-	"AFC",
 	"NON-STANDARD Charger",
 	"UNKNOWN",
 };

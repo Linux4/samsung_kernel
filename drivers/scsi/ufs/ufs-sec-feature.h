@@ -16,6 +16,9 @@
 /* unique number */
 #define SERIAL_NUM_SIZE 7
 
+/* the user LU for mtk solution is set as 2 */
+#define UFS_USER_LUN 2
+
 #define SEC_UFS_ERR_COUNT_INC(count, max) ((count) += ((count) < (max)) ? 1 : 0)
 
 struct SEC_UFS_op_count {
@@ -124,13 +127,12 @@ struct ufs_sec_err_info {
 void ufs_sec_get_health_info(struct ufs_hba *hba);
 void ufs_set_sec_features(struct ufs_hba *hba, u8 *str_desc_buf, u8 *desc_buf);
 void ufs_remove_sec_features(struct ufs_hba *hba);
-void ufs_sec_check_hwrst_cnt(void);
-void ufs_sec_check_op_err(struct ufs_hba *hba, enum ufs_event_type evt, void *data);
+void ufs_sec_hwrst_cnt_check(void);
+void ufs_sec_op_err_check(struct ufs_hba *hba, enum ufs_event_type evt, void *data);
 void ufs_sec_uic_cmd_error_check(struct ufs_hba *hba, u32 cmd);
 void ufs_sec_tm_error_check(u8 tm_cmd);
 void ufs_sec_compl_cmd_check(struct ufs_hba *hba, struct ufshcd_lrb *lrbp);
 void ufs_sec_print_err_info(struct ufs_hba *hba);
 void ufs_sec_send_errinfo(struct ufs_hba *hba);
-
 
 #endif

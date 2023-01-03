@@ -15,10 +15,10 @@
 #include "vow.h"
 #include "vow_assert.h"
 #ifdef CONFIG_MTK_TINYSYS_SCP_SUPPORT
-#include "scp_ipi_pin.h"
-#include "scp_mbox_layout.h"  /* for IPI mbox size */
+#include "scp.h"
 #endif
 
+#ifdef CONFIG_MTK_TINYSYS_SCP_SUPPORT
 static int vow_ipi_recv_handler(unsigned int id,
 				void *prdata,
 				void *data,
@@ -27,6 +27,7 @@ static int vow_ipi_ack_handler(unsigned int id,
 			       void *prdata,
 			       void *data,
 			       unsigned int len);
+#endif
 
 unsigned int ipi_ack_return;
 unsigned int ipi_ack_id;
@@ -64,6 +65,7 @@ void vow_ipi_register(void (*ipi_rx_call)(unsigned int, void *),
 	ipi_tx_ack_handle = ipi_tx_ack_call;
 }
 
+#ifdef CONFIG_MTK_TINYSYS_SCP_SUPPORT
 static int vow_ipi_recv_handler(unsigned int id,
 				void *prdata,
 				void *data,
@@ -90,6 +92,7 @@ static int vow_ipi_ack_handler(unsigned int id,
 	ipi_ack_data = ipi_info->msg_data;
 	return 0;
 }
+#endif
 
 bool vow_ipi_send(unsigned int msg_id,
 		  unsigned int payload_len,

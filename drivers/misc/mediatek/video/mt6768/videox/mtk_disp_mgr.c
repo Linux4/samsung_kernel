@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/kernel.h>
 #include <linux/mm.h>
@@ -354,7 +346,7 @@ int _ioctl_prepare_present_fence(unsigned long arg)
 {
 	int ret = 0;
 	void __user *argp = (void __user *)arg;
-	struct fence_data data;
+	struct mtk_sync_create_fence_data data;
 	struct disp_present_fence pnt_fence;
 	static unsigned int fence_idx;
 	struct disp_sync_info *layer_info = NULL;

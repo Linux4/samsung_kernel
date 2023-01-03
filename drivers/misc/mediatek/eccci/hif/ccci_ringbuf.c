@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 #include <linux/skbuff.h>
@@ -162,8 +154,8 @@ struct ccci_ringbuf *ccci_create_ringbuf(int md_id, unsigned char *buf,
 
 	buflen = CCCI_RINGBUF_CTL_LEN + rx_size + tx_size;
 	CCCI_NORMAL_LOG(md_id, TAG,
-	"crb:buf=0x%p, buf_size=%d,buflen=%d,rx_size=%d,tx_size=%d,ctr_len=%zu\n",
-	buf, buf_size, buflen, rx_size, tx_size, CCCI_RINGBUF_CTL_LEN);
+		"crb:buf vir_addr=0x%p, buf_size=%d,buflen=%d,rx_size=%d,tx_size=%d,ctr_len=%zu\n",
+			buf, buf_size, buflen, rx_size, tx_size, CCCI_RINGBUF_CTL_LEN);
 	if (buf_size < buflen)
 		return NULL;
 	memset_io(buf, 0x0, buflen);
@@ -193,7 +185,7 @@ struct ccci_ringbuf *ccci_create_ringbuf(int md_id, unsigned char *buf,
 	ringbuf->tx_control.length = tx_size;
 	ringbuf->tx_control.read = 0;
 	ringbuf->tx_control.write = 0;
-	CCCI_NORMAL_LOG(md_id, TAG, "crb:rbf=0x%p\n", ringbuf);
+	CCCI_NORMAL_LOG(md_id, TAG, "crb:rbf=0x%llx\n", (u64)ringbuf);
 	return ringbuf;
 }
 
@@ -228,13 +220,7 @@ int ccci_ringbuf_writeable(int md_id, struct ccci_ringbuf *ringbuf,
 	} else {
 		size = read - write - 1;
 	}
-#if 0
-	if (write_size > size) {
-		CCCI_NORMAL_LOG(-1, TAG,
-			"rbwb:rbf=%p write_size(%d)>size(%d) r=%d,w=%d\n",
-			ringbuf, write_size, size, read, write);
-	}
-#endif
+
 	return (write_size < size) ? write_size : -(write_size - size);
 }
 

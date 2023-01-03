@@ -1,17 +1,7 @@
 /*
- * Copyright (C) 2010 MediaTek, Inc.
+ * SPDX-License-Identifier: GPL-2.0
  *
- * Author: Terry Chang <terry.chang@mediatek.com>
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+ * Copyright (c) 2021 MediaTek Inc.
  */
 
 #include "kpd.h"
@@ -46,7 +36,7 @@ static u16 kpd_keymap_state[KPD_NUM_MEMS];
 
 struct input_dev *kpd_input_dev;
 #ifdef CONFIG_PM_SLEEP
-struct wakeup_source kpd_suspend_lock;
+struct wakeup_source* kpd_suspend_lock;
 #endif
 struct keypad_dts_data kpd_dts_data;
 
@@ -152,6 +142,40 @@ void vol_down_long_press(unsigned long pressed)
 #endif
 /*****************************************/
 
+#if defined(PMIC_KEY_STATUS)
+unsigned int kpd_pwrkey_pmic_status(void)
+{
+	unsigned int pressed;
+
+	pressed = kpd_pmic_pwrkey_status_hal();
+	pr_info("[%s] %s power key\n", __func__, pressed ? "pressed" : "released");
+
+	return pressed;
+}
+
+unsigned int kpd_homekey_pmic_status(void)
+{
+	unsigned int pressed;
+
+	pressed = kpd_pmic_homekey_status_hal();
+	pr_info("[%s] %s home key\n", __func__, pressed ? "pressed" : "released");
+
+	return pressed;
+}
+#endif
+
+#if defined(CONFIG_SEC_DEBUG) && !defined(CONFIG_KEYBOARD_MTK_PMIC)
+int mtk_pmic_pwrkey_status(void)
+{
+	return kpd_pwrkey_pmic_status();
+}
+
+int mtk_pmic_homekey_status(void)
+{
+	return kpd_homekey_pmic_status();
+}
+#endif
+
 #ifdef CONFIG_KPD_PWRKEY_USE_PMIC
 void kpd_pwrkey_pmic_handler(unsigned long pressed)
 {
@@ -180,11 +204,10 @@ static void kpd_keymap_handler(unsigned long data)
 	int32_t pressed;
 	u16 new_state[KPD_NUM_MEMS], change, mask;
 	u16 hw_keycode, linux_keycode;
-	void *dest;
 
 	kpd_get_keymap_state(new_state);
 #ifdef CONFIG_PM_SLEEP
-	__pm_wakeup_event(&kpd_suspend_lock, 500);
+	__pm_wakeup_event(kpd_suspend_lock, 500);
 #endif
 	for (i = 0; i < KPD_NUM_MEMS; i++) {
 		change = new_state[i] ^ kpd_keymap_state[i];
@@ -234,7 +257,7 @@ static void kpd_keymap_handler(unsigned long data)
 		}
 	}
 
-	dest = memcpy(kpd_keymap_state, new_state, sizeof(new_state));
+	memcpy(kpd_keymap_state, new_state, sizeof(new_state));
 	enable_irq(kp_irqnr);
 }
 
@@ -280,6 +303,8 @@ void kpd_get_dts_info(struct device_node *node)
 		&kpd_dts_data.kpd_hw_factory_key);
 	of_property_read_u32(node, "mediatek,kpd-hw-map-num",
 		&kpd_dts_data.kpd_hw_map_num);
+	of_property_read_u32(node, "mediatek,boot_mode",
+		&kpd_dts_data.boot_mode);
 	ret = of_property_read_u32_array(node, "mediatek,kpd-hw-init-map",
 		kpd_dts_data.kpd_hw_init_map,
 			kpd_dts_data.kpd_hw_map_num);
@@ -345,7 +370,7 @@ static int kpd_pdrv_probe(struct platform_device *pdev)
 	struct clk *kpd_clk = NULL;
 	u32 i;
 	int32_t err = 0;
-
+	printk("kpd_pdrv_probe\n");
 	if (!pdev->dev.of_node) {
 		kpd_notice("no kpd dev node\n");
 		return -ENODEV;
@@ -424,7 +449,7 @@ static int kpd_pdrv_probe(struct platform_device *pdev)
 		return err;
 	}
 #ifdef CONFIG_PM_SLEEP
-	wakeup_source_init(&kpd_suspend_lock, "kpd wakelock");
+	kpd_suspend_lock = wakeup_source_register(NULL, "kpd wakelock");
 #endif
 	/* register IRQ and EINT */
 	kpd_set_debounce(kpd_dts_data.kpd_key_debounce);

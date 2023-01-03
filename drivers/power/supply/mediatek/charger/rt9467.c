@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 #include <linux/module.h>
 #include <linux/init.h>
@@ -2042,19 +2034,19 @@ static int rt9467_sw_workaround(struct rt9467_info *info)
 	if (info->chip_rev <= RT9467_CHIP_REV_E3) {
 		/* Worst case delay: wait auto sensing */
 		msleep(200);
-
-		if (get_boot_mode() == NORMAL_BOOT) {
-			ret = rt9467_set_iprec(info, 850000);
-			if (ret < 0)
-				goto out;
-
-			/* Increase Isys drop threshold to 2.5A */
-			ret = rt9467_i2c_write_byte(info,
-				RT9467_REG_CHG_HIDDEN_CTRL7, 0x1C);
-			if (ret < 0)
-				goto out;
-		}
-	}
+// workaround for mt6768
+//		if (get_boot_mode() == NORMAL_BOOT) {
+//			ret = rt9467_set_iprec(info, 850000);
+//			if (ret < 0)
+//				goto out;
+//
+//			/* Increase Isys drop threshold to 2.5A */
+//			ret = rt9467_i2c_write_byte(info,
+//				RT9467_REG_CHG_HIDDEN_CTRL7, 0x1C);
+//			if (ret < 0)
+//				goto out;
+//		}
+//	}
 
 	/* Only revision <= E1 needs the following workaround */
 	if (info->chip_rev > RT9467_CHIP_REV_E1)

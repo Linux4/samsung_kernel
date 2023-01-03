@@ -30,7 +30,7 @@
 #define SR846D_OTP_BANK1_MARK       0x01
 #define SR846D_OTP_BANK2_MARK       0x03
 #define SR846D_OTP_BANK1_START_ADDR 0x0234
-#define SR846D_OTP_BANK2_START_ADDR 0x6A4
+#define SR846D_OTP_BANK2_START_ADDR 0x06A4
 
 enum{
 	IMGSENSOR_MODE_INIT,
@@ -146,7 +146,7 @@ struct imgsensor_info_struct {
 
 	kal_uint8  mipi_lane_num;		//mipi lane num
 	kal_uint8  i2c_addr_table[5];
-	kal_uint32 i2c_speed;     //i2c speed
+	kal_uint32  i2c_speed;     //i2c speed
 } imgsensor_info_struct;
 
 

@@ -164,7 +164,7 @@
 
 #endif/* isg6320_wifi */
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensors/isg6320/dts/isg6320.a13ve.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensors/isg6320/dts/isg6320.a13ve.dtsi */
 &isg6320 {
 	isg6320,reg_num = <116>;
 	isg6320,set_reg = /bits/ 8 <

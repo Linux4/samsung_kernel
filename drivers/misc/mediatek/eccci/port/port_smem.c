@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 #include <linux/cdev.h>
 #include <linux/device.h>
@@ -21,12 +13,123 @@
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
 #endif
-#include <mt-plat/mtk_ccci_common.h>
+#include "mt-plat/mtk_ccci_common.h"
 #include "ccci_fsm.h"
 #include "port_smem.h"
 
 #define TAG SMEM
 
+#define DUMMY_PAGE_SIZE (128)
+#define DUMMY_PADDING_CNT (5)
+
+#define CTRL_PAGE_SIZE (1024)
+#define CTRL_PAGE_NUM (32)
+
+#define MD_EX_PAGE_SIZE (20*1024)
+#define MD_EX_PAGE_NUM  (6)
+
+
+/*
+ *  Note : Moidy this size will affect dhl frame size in this page
+ *  Minimum : 352B to reserve 256B for header frame
+ */
+#define MD_HW_PAGE_SIZE (512)
+
+/* replace with HW page */
+#define MD_BUF1_PAGE_SIZE (MD_HW_PAGE_SIZE)
+#define MD_BUF1_PAGE_NUM  (72)
+#define AP_BUF1_PAGE_SIZE (1024)
+#define AP_BUF1_PAGE_NUM  (32)
+
+#define MD_BUF2_0_PAGE_SIZE (MD_HW_PAGE_SIZE)
+#define MD_BUF2_1_PAGE_SIZE (MD_HW_PAGE_SIZE)
+#define MD_BUF2_2_PAGE_SIZE (MD_HW_PAGE_SIZE)
+
+#define MD_BUF2_0_PAGE_NUM (64)
+#define MD_BUF2_1_PAGE_NUM (64)
+#define MD_BUF2_2_PAGE_NUM (256)
+
+#define MD_MDM_PAGE_SIZE (MD_HW_PAGE_SIZE)
+#define MD_MDM_PAGE_NUM  (32)
+
+#define AP_MDM_PAGE_SIZE (1024)
+#define AP_MDM_PAGE_NUM  (16)
+
+#define MD_META_PAGE_SIZE (65*1024)
+#define MD_META_PAGE_NUM (8)
+
+#define AP_META_PAGE_SIZE (63*1024)
+
+/*kernel 4.14 diff kernel 4.19
+kernel4.14中
+MT6765-----GEN93
+MT6833-----GEN97
+MT6853 (MT6877)------GEN97
+#define AP_META_PAGE_SIZE (65*1024)
+
+其他部分
+#define AP_META_PAGE_SIZE (63*1024)
+kernel4.19中
+#define AP_META_PAGE_SIZE (63*1024)
+*/
+
+#define AP_META_PAGE_NUM (8)
+
+struct ccci_ccb_config ccb_configs[] = {
+	{SMEM_USER_CCB_DHL, P_CORE, CTRL_PAGE_SIZE,
+			CTRL_PAGE_SIZE, CTRL_PAGE_SIZE*CTRL_PAGE_NUM,
+			CTRL_PAGE_SIZE*CTRL_PAGE_NUM}, /* Ctrl */
+	{SMEM_USER_CCB_DHL, P_CORE, MD_EX_PAGE_SIZE,
+		 DUMMY_PAGE_SIZE, MD_EX_PAGE_SIZE*MD_EX_PAGE_NUM,
+			DUMMY_PAGE_SIZE},			/* exception */
+	{SMEM_USER_CCB_DHL, P_CORE, MD_BUF1_PAGE_SIZE,
+	 AP_BUF1_PAGE_SIZE, (MD_BUF1_PAGE_SIZE*MD_BUF1_PAGE_NUM),
+			AP_BUF1_PAGE_SIZE*AP_BUF1_PAGE_NUM},/* PS */
+	{SMEM_USER_CCB_DHL, P_CORE, MD_BUF2_0_PAGE_SIZE,
+		 DUMMY_PAGE_SIZE, MD_BUF2_0_PAGE_SIZE*MD_BUF2_0_PAGE_NUM,
+			DUMMY_PAGE_SIZE},     /* HWLOGGER1 */
+	{SMEM_USER_CCB_DHL, P_CORE, MD_BUF2_1_PAGE_SIZE,
+		 DUMMY_PAGE_SIZE, MD_BUF2_1_PAGE_SIZE*MD_BUF2_1_PAGE_NUM,
+			DUMMY_PAGE_SIZE},     /* HWLOGGER2  */
+	{SMEM_USER_CCB_DHL, P_CORE, MD_BUF2_2_PAGE_SIZE,
+		 DUMMY_PAGE_SIZE, MD_BUF2_2_PAGE_SIZE*MD_BUF2_2_PAGE_NUM,
+			DUMMY_PAGE_SIZE},     /* HWLOGGER3 */
+	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
+		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
+	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
+		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
+	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
+		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
+	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
+		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
+	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
+		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
+	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
+		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
+	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
+		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
+	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
+		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
+	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
+		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
+	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
+		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
+	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
+		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
+	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
+		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE*DUMMY_PADDING_CNT,
+		DUMMY_PAGE_SIZE},
+	{SMEM_USER_CCB_MD_MONITOR, P_CORE, MD_MDM_PAGE_SIZE,
+		 AP_MDM_PAGE_SIZE, MD_MDM_PAGE_SIZE*MD_MDM_PAGE_NUM,
+		AP_MDM_PAGE_SIZE*AP_MDM_PAGE_NUM},     /* MDM */
+	{SMEM_USER_CCB_META, P_CORE, MD_META_PAGE_SIZE,
+		AP_META_PAGE_SIZE, MD_META_PAGE_SIZE*MD_META_PAGE_NUM,
+		AP_META_PAGE_SIZE*AP_META_PAGE_NUM},   /* META */
+};
+unsigned int ccb_configs_len =
+			sizeof(ccb_configs)/sizeof(struct ccci_ccb_config);
+			
+			
 #ifdef DEBUG_FOR_CCB
 static struct buffer_header *s_ccb_ctl_head_tbl;
 static unsigned int *s_dl_last_w;
@@ -330,7 +433,7 @@ int port_smem_rx_wakeup(struct port_t *port)
 	smem_port->wakeup = 0xFFFFFFFF;
 	spin_unlock_irqrestore(&smem_port->write_lock, flags);
 
-	__pm_wakeup_event(&port->rx_wakelock, jiffies_to_msecs(HZ));
+	__pm_wakeup_event(port->rx_wakelock, jiffies_to_msecs(HZ));
 	CCCI_DEBUG_LOG(md_id, TAG, "wakeup port.\n");
 #ifdef DEBUG_FOR_CCB
 	s_dl_active_bitmap |= dl_active_scan();
@@ -798,6 +901,7 @@ int port_smem_init(struct port_t *port)
 	}
 	kmemleak_ignore(s_dl_last_w);
 #endif
+
 	return 0;
 }
 

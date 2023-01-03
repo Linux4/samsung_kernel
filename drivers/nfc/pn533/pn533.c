@@ -692,6 +692,9 @@ static bool pn533_target_type_a_is_valid(struct pn533_target_type_a *type_a,
 	if (PN533_TYPE_A_SEL_CASCADE(type_a->sel_res) != 0)
 		return false;
 
+	if (type_a->nfcid_len > NFC_NFCID1_MAXSIZE)
+		return false;
+
 	return true;
 }
 
@@ -1232,9 +1235,9 @@ static int pn533_init_target_complete(struct pn533 *dev, struct sk_buff *resp)
 	return 0;
 }
 
-static void pn533_listen_mode_timer(unsigned long data)
+static void pn533_listen_mode_timer(struct timer_list *t)
 {
-	struct pn533 *dev = (struct pn533 *)data;
+	struct pn533 *dev = from_timer(dev, t, listen_timer);
 
 	dev_dbg(dev->dev, "Listen mode timeout\n");
 
@@ -2632,9 +2635,7 @@ struct pn533 *pn533_register_device(u32 device_type,
 	if (priv->wq == NULL)
 		goto error;
 
-	init_timer(&priv->listen_timer);
-	priv->listen_timer.data = (unsigned long) priv;
-	priv->listen_timer.function = pn533_listen_mode_timer;
+	timer_setup(&priv->listen_timer, pn533_listen_mode_timer, 0);
 
 	skb_queue_head_init(&priv->resp_q);
 	skb_queue_head_init(&priv->fragment_skb);

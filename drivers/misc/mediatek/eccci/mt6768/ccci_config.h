@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __ECCCI_INTERNAL_OPTION__
 #define __ECCCI_INTERNAL_OPTION__
@@ -64,15 +56,6 @@
 #define CUST_FT_BUS_TIMEOUT_DEBUG
 #define CUST_FT_EMI_DUMP_EN
 #define CUST_FT_DEVAPC_MD_DEBUG
-
-#define ENABLE_MD_SEC_SMEM
-#define ENABLE_SECURITY_SHARE_MEMORY
-#define CUST_FT_DUMP_BUF_FROM_DT
-#define CUST_FT_CARKIT_ENABLE
-#define CUST_FT_BIGDATA
-#define CUST_FT_EE_TRIGGER_REBOOT
-#define CUST_FT_BUS_TIMEOUT_DEBUG
-#define CUST_FT_EMI_DUMP_EN
-#define CUST_FT_DEVAPC_MD_DEBUG
+#define CUST_FT_SEND_TX_POWER
 
 #endif

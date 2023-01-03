@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (c) 2019 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+*/
 
 /* TOUCH start */
 &i2c0 {
@@ -47,7 +39,7 @@
 &pio {
 	ctp_pins_default: eint0default {
 	};
-	ctp_pins_eint_as_int: eint@0 {
+	ctp_pins_eint_as_int: eint1touch@0 {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO14__FUNC_GPIO14>;
 			input-enable;

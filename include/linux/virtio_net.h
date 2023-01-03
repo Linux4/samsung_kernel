@@ -62,6 +62,8 @@ static inline int virtio_net_hdr_to_skb(struct sk_buff *skb,
 			return -EINVAL;
 	}
 
+	skb_reset_mac_header(skb);
+
 	if (hdr->flags & VIRTIO_NET_HDR_F_NEEDS_CSUM) {
 		u16 start = __virtio16_to_cpu(little_endian, hdr->csum_start);
 		u16 off = __virtio16_to_cpu(little_endian, hdr->csum_offset);
@@ -77,12 +79,14 @@ static inline int virtio_net_hdr_to_skb(struct sk_buff *skb,
 		 * probe and drop if does not match one of the above types.
 		 */
 		if (gso_type && skb->network_header) {
-			struct flow_keys keys;
+			struct flow_keys_basic keys;
 
 			if (!skb->protocol)
 				virtio_net_hdr_set_proto(skb, hdr);
 retry:
-			if (!skb_flow_dissect_flow_keys(skb, &keys, 0)) {
+			if (!skb_flow_dissect_flow_keys_basic(skb, &keys,
+							      NULL, 0, 0, 0,
+							      0)) {
 				/* UFO does not specify ipv4 or 6: try both */
 				if (gso_type & SKB_GSO_UDP &&
 				    skb->protocol == htons(ETH_P_IP)) {
@@ -107,16 +111,17 @@ retry:
 
 	if (hdr->gso_type != VIRTIO_NET_HDR_GSO_NONE) {
 		u16 gso_size = __virtio16_to_cpu(little_endian, hdr->gso_size);
+		struct skb_shared_info *shinfo = skb_shinfo(skb);
 
-		if (skb->len - p_off <= gso_size)
-			return -EINVAL;
+		/* Too small packets are not really GSO ones. */
+		if (skb->len - p_off > gso_size) {
+			shinfo->gso_size = gso_size;
+			shinfo->gso_type = gso_type;
 
-		skb_shinfo(skb)->gso_size = gso_size;
-		skb_shinfo(skb)->gso_type = gso_type;
-
-		/* Header must be checked, and gso_segs computed. */
-		skb_shinfo(skb)->gso_type |= SKB_GSO_DODGY;
-		skb_shinfo(skb)->gso_segs = 0;
+			/* Header must be checked, and gso_segs computed. */
+			shinfo->gso_type |= SKB_GSO_DODGY;
+			shinfo->gso_segs = 0;
+		}
 	}
 
 	return 0;

@@ -1,16 +1,26 @@
+// SPDX-License-Identifier: GPL-2.0
+
 /*
- * Copyright (C) 2013 Google, Inc.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
+/*
+ * GenieZone (hypervisor-based seucrity platform) enables hardware protected
+ * and isolated security execution environment, includes
+ * 1. GZ hypervisor
+ * 2. Hypervisor-TEE OS (built-in Trusty OS)
+ * 3. Drivers (ex: debug, communication and interrupt) for GZ and
+ *    hypervisor-TEE OS
+ * 4. GZ and hypervisor-TEE and GZ framework (supporting multiple TEE
+ *    ecosystem, ex: M-TEE, Trusty, GlobalPlatform, ...)
+ */
+/*
+ * This is interrupt driver
+ *
+ * GZ does not support virtual interrupt, interrupt forwarding driver is
+ * need for passing GZ and hypervisor-TEE interrupts
+ */
+
 #include <linux/cpu.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
@@ -219,11 +229,13 @@ void handle_trusty_ipi(int ipinr)
 	if (trusty_ipi_init[ipinr] == 0)
 		return;
 
-	/*for kernel-4.14*/
+	//irq_enter() and irq_exit() are not supported when compiled as .ko
+	/*for kernel-4.19*/
+	//irq_enter();
+	//trusty_irq_handler(ipinr, this_cpu_ptr(trusty_ipi_data[ipinr]));
+	//irq_exit();
 
-	irq_enter();
-	trusty_irq_handler(ipinr, this_cpu_ptr(trusty_ipi_data[ipinr]));
-	irq_exit();
+	pr_info("%s not supported.\n", __func__);
 }
 
 static int trusty_irq_cpu_up(unsigned int cpu, struct hlist_node *node)
@@ -379,7 +391,7 @@ static int trusty_irq_init_normal_irq(struct trusty_irq_state *is, int tirq)
 		oirq.args_count = 3;
 		oirq.args[0] = GIC_SPI;
 		oirq.args[1] = irq - 32;
-		oirq.args[2] = 0;
+		oirq.args[2] = IRQ_TYPE_LEVEL_HIGH;
 
 		irq = irq_create_of_mapping(&oirq);
 		if (irq == 0) {
@@ -473,7 +485,7 @@ static int trusty_irq_init_per_cpu_irq(struct trusty_irq_state *is, int tirq)
 		oirq.args_count = 3;
 		oirq.args[0] = GIC_PPI;
 		oirq.args[1] = irq - 16;
-		oirq.args[2] = 0;
+		oirq.args[2] = IRQ_TYPE_LEVEL_HIGH;
 
 		irq = irq_create_of_mapping(&oirq);
 		if (irq == 0) {

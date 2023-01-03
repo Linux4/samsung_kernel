@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #ifndef __CCU_CMN_H__
 #define __CCU_CMN_H__
@@ -70,33 +63,14 @@ struct ccu_user_s {
 		/*struct list_head link; \*/
 /*} type ## _list*/
 
-/*
- * vlist_node_of - get the pointer to the node which has specific vlist
- * @ptr:        the pointer to struct list_head
- * @type:        the type of list node
- */
 #define vlist_node_of(ptr, type) ({ \
 		const struct list_head *__mptr = (ptr); \
 		(type *)((char *)__mptr - offsetof(type ## _list, link)); })
 
-/*
- * vlist_link - get the pointer to struct list_head
- * @ptr:        the pointer to struct vlist
- * @type:        the type of list node
- */
 #define vlist_link(ptr, type) (&((type ## _list *)ptr)->link)
 
-/*
- * vlist_type - get the type of struct vlist
- * @type:        the type of list node
- */
 #define vlist_type(type) type ## _list
 
-/*
- * vlist_node - get the pointer to the node of vlist
- * @ptr:        the pointer to struct vlist
- * @type:        the type of list node
- */
 #define vlist_node(ptr, type)  ((type *) ptr)
 
 

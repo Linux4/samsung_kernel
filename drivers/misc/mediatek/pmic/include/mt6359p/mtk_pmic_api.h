@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2019 MediaTek Inc.
-
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
-
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef _MT_PMIC_API_H_
 #define _MT_PMIC_API_H_
@@ -202,4 +194,7 @@ extern unsigned int mt6359_upmu_set_rg_vcn33_2_bt_vosel(unsigned int val);
 extern unsigned int mt6359_upmu_get_rg_vcn33_2_bt_vosel(void);
 extern unsigned int mt6359_upmu_set_rg_vcn33_2_wifi_vosel(unsigned int val);
 extern unsigned int mt6359_upmu_get_rg_vcn33_2_wifi_vosel(void);
+extern unsigned int mt6359_upmu_get_pwrkey_deb(void);
+extern unsigned int mt6359_upmu_get_homekey_deb(void);
+
 #endif		/* _MT_PMIC_API_H_ */

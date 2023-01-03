@@ -612,6 +612,9 @@ static void hx83112f_reg_re_init(void)
 	kp_himax_in_parse_assign_cmd(hx83112f_addr_ic_ver_name,
 		(*kp_pfw_op)->addr_ver_ic_name,
 		sizeof((*kp_pfw_op)->addr_ver_ic_name));
+	kp_himax_in_parse_assign_cmd(hx83112f_fw_addr_gesture_history,
+		(*kp_pfw_op)->addr_gesture_history,
+		sizeof((*kp_pfw_op)->addr_gesture_history));
 }
 
 static bool hx83112_chip_detect(void)

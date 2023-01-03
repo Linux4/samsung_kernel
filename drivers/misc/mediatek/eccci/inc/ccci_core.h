@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 #ifndef __CCCI_CORE_H__
@@ -24,8 +16,9 @@
 #include <linux/pm_wakeup.h>
 #include <linux/kobject.h>
 #include <linux/sysfs.h>
-#include <mt-plat/mtk_ccci_common.h>
+#include "mt-plat/mtk_ccci_common.h"
 #include "ccci_config.h"
+#include "ccci_common_config.h"
 #include "ccci_debug.h"
 #include "ccci_bm.h"
 
@@ -279,14 +272,10 @@ extern void mtk_ccci_ccb_info_peek(void);
 /* for user space ccci mdinit user */
 #define CCCI_IOC_GET_MDINIT_KILLED      \
 	_IOR(CCCI_IOC_MAGIC, 72, unsigned int)
-
-/* modem log */
-#define CCCI_IOC_ENTER_UPLOAD		\
-	_IO(CCCI_IOC_MAGIC, 73)
-
+#define CCCI_IOC_ENTER_UPLOAD	\
+	_IO(CCCI_IOC_MAGIC, 73) /* modem log */
 #define CCCI_IOC_DRV_ENTER_UPLOAD	\
 	_IO(CCCI_IOC_MAGIC, 74) /* modem log for s */
-
 #define CCCI_IOC_LOG_LVL	\
 	_IOW(CCCI_IOC_MAGIC, 75, unsigned int) /* modem log for s */
 
@@ -422,11 +411,11 @@ enum CCCI_CH {
 	CCCI_CCMNI8_DLACK_RX            = 93,
 	CCCI_MDL_MONITOR_DL             = 94,
 	CCCI_MDL_MONITOR_UL             = 95,
-	CCCI_CCMNILAN_RX                = 96,
-	CCCI_CCMNILAN_RX_ACK            = 97,
-	CCCI_CCMNILAN_TX                = 98,
-	CCCI_CCMNILAN_TX_ACK            = 99,
-	CCCI_CCMNILAN_DLACK_RX          = 100,
+	CCCI_CCMNI9_RX                = 96,
+	CCCI_CCMNI9_RX_ACK            = 97,
+	CCCI_CCMNI9_TX                = 98,
+	CCCI_CCMNI9_TX_ACK            = 99,
+	CCCI_CCMNI9_DLACK_RX          = 100,
 	CCCI_IMSEM_UL                   = 101,
 	CCCI_IMSEM_DL                   = 102,
 	CCCI_CCMNI10_RX                 = 103,
@@ -524,6 +513,8 @@ enum CCCI_CH {
 
 	CCCI_IKERAW_RX			= 191,
 	CCCI_IKERAW_TX			= 192,
+
+	/* support Samsung RIL (193~198) */
 	CCCI_RIL_IPC0_RX		= 193,
 	CCCI_RIL_IPC0_TX		= 194,
 	CCCI_RIL_IPC1_RX		= 195,
@@ -547,8 +538,8 @@ enum CCCI_CH {
 	CCCI_EPDG4_RX			= 242,
 	CCCI_EPDG4_TX			= 243,
 
-	CCCI_AT_RX				= 258,
-	CCCI_AT_TX				= 259,
+	CCCI_AT_RX			= 258,
+	CCCI_AT_TX			= 259,
 
 	CCCI_C2K_PPP_DATA, /* data ch for c2k */
 
@@ -640,18 +631,12 @@ enum md_bc_event {
 /* ========================================================================= */
 /* common API */
 /* ========================================================================= */
-void ccci_sysfs_add_md(int md_id, void *kobj);
-int ccci_register_dev_node(const char *name, int major_id, int minor);
-
-#ifdef CONFIG_MEDIATEK_MT6577_AUXADC
-int ccci_get_adc_num(void);
-int ccci_get_adc_val(void);
-#endif
-
-int hif_empty_query(int qno);
 
 #ifdef FEATURE_SCP_CCCI_SUPPORT
 extern void fsm_scp_init0(void);
+#endif
+#ifdef CCCI_KMODULE_ENABLE
+int ccci_init(void);
 #endif
 void drv_tri_panic_by_lvl(int md_id);
 #endif	/* __CCCI_CORE_H__ */

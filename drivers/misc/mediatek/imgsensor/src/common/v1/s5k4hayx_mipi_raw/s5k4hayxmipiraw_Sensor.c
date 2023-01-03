@@ -49,7 +49,7 @@
 #include "kd_imgsensor_errcode.h"
 #include "kd_camera_typedef.h"
 
-#include "imgsensor_sysfs.h"
+#include "kd_imgsensor_sysfs_adapter.h"
 #include "s5k4hayxmipiraw_Sensor.h"
 #include "s5k4hayxmipiraw_setfile.h"
 
@@ -196,7 +196,14 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.min_shutter = 4,
 	.min_gain = 64, /* 1x gain */
 	.max_gain = 1024, /* 16x gain */
+
+#if IS_ENABLED(CONFIG_CAMERA_AAW_V34X)
+	.min_gain_iso = 40,
+#else
 	.min_gain_iso = 100,
+#endif
+
+	.exp_step = 1,
 	.gain_step = 32,
 	.gain_type = 2,
 	.max_frame_length = 0xffff,
@@ -583,27 +590,40 @@ static kal_uint32 streaming_control(kal_bool enable)
 	return ERROR_NONE;
 }
 
-static void set_mode_setfile(enum IMGSENSOR_MODE mode)
+static int set_mode_setfile(enum IMGSENSOR_MODE mode)
 {
+	int ret = -1;
+
 	if (mode >= IMGSENSOR_MODE_MAX) {
 		LOG_ERR("invalid mode: %d", mode);
-		return;
+		return -1;
 	}
 	LOG_INF(" - E");
 	LOG_INF("mode: %s", s5k4hayx_setfile_info[mode].name);
 
-	if ((s5k4hayx_setfile_info[mode].setfile == NULL) || (s5k4hayx_setfile_info[mode].size == 0))
+	if ((s5k4hayx_setfile_info[mode].setfile == NULL) || (s5k4hayx_setfile_info[mode].size == 0)) {
 		LOG_ERR("failed, mode: %d", mode);
-	else
-		table_write_cmos_sensor(s5k4hayx_setfile_info[mode].setfile, s5k4hayx_setfile_info[mode].size);
+		ret = -1;
+	} else
+		ret = table_write_cmos_sensor(s5k4hayx_setfile_info[mode].setfile, s5k4hayx_setfile_info[mode].size);
 
 	LOG_INF(" - X");
+
+	return ret;
 }
 
 static void sensor_init(void)
 {
+	int ret = 0;
+
 	LOG_INF(" - E");
-	set_mode_setfile(IMGSENSOR_MODE_INIT);
+	ret = set_mode_setfile(IMGSENSOR_MODE_INIT);
+
+#ifdef IMGSENSOR_HW_PARAM
+	if (ret != 0)
+		imgsensor_increase_hw_param_err_cnt(S5K4HA_CAL_SENSOR_POSITION);
+#endif
+
 	LOG_INF(" - X");
 }				/*  s5k4hayxMIPI_Sensor_Init  */
 
@@ -919,7 +939,7 @@ static kal_uint32 custom1(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	set_mode_setfile(imgsensor.sensor_mode);
 
 	set_mirror_flip(IMAGE_NORMAL);
-	
+
 	return ERROR_NONE;
 }
 
@@ -1518,7 +1538,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 	UINT16 *feature_data_16 = (UINT16 *) feature_para;
 	UINT32 *feature_return_para_32 = (UINT32 *) feature_para;
 	UINT32 *feature_data_32 = (UINT32 *) feature_para;
-	
+
 	unsigned long long *feature_data = (unsigned long long *)feature_para;
 	struct SENSOR_WINSIZE_INFO_STRUCT *wininfo;
 
@@ -1698,6 +1718,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		spin_lock(&imgsensor_drv_lock);
 		imgsensor.current_fps = (UINT16)*feature_data_32;
 		spin_unlock(&imgsensor_drv_lock);
+		break;
 	case SENSOR_FEATURE_SET_HDR:
 		LOG_DBG("SENSOR_FEATURE_SET_HDR = %d\n", feature_id);
 		LOG_INF("ihdr enable :%d\n", *feature_data_32);
@@ -1709,7 +1730,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		LOG_DBG("SENSOR_FEATURE_GET_CROP_INFO = %d\n", feature_id);
 		LOG_INF("SENSOR_FEATURE_GET_CROP_INFO scenarioId:%d\n", (UINT32) *feature_data);
 		wininfo = (struct SENSOR_WINSIZE_INFO_STRUCT *) (uintptr_t) (*(feature_data + 1));
-		
+
 		switch (*feature_data_32) {
 		case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
 			LOG_DBG("MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG = %d\n", *feature_data_32);
@@ -1783,54 +1804,78 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		break;
 
 	case SENSOR_FEATURE_GET_MIPI_PIXEL_RATE:
-	{
-		LOG_DBG("SENSOR_FEATURE_GET_MIPI_PIXEL_RATE = %d\n", feature_id);
-		
-		switch (*feature_data) {
-		case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
-			LOG_INF("MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG = %d\n", *feature_data);
-			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = imgsensor_info.cap.mipi_pixel_rate;
-			break;
-		case MSDK_SCENARIO_ID_VIDEO_PREVIEW:
-			LOG_INF("MSDK_SCENARIO_ID_VIDEO_PREVIEW = %d\n", *feature_data);
-			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = imgsensor_info.normal_video.mipi_pixel_rate;
-			break;
-		case MSDK_SCENARIO_ID_HIGH_SPEED_VIDEO:
-			LOG_INF("MSDK_SCENARIO_ID_HIGH_SPEED_VIDEO = %d\n", *feature_data);
-			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = imgsensor_info.hs_video.mipi_pixel_rate;
-			break;
-		case MSDK_SCENARIO_ID_SLIM_VIDEO:
-			LOG_INF("MSDK_SCENARIO_ID_SLIM_VIDEO = %d\n", *feature_data);
-			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = imgsensor_info.slim_video.mipi_pixel_rate;
-			break;
+		{
+			LOG_DBG("SENSOR_FEATURE_GET_MIPI_PIXEL_RATE = %d\n", feature_id);
 
-		case MSDK_SCENARIO_ID_CUSTOM1:
-			LOG_INF("MSDK_SCENARIO_ID_CUSTOM1 = %d\n", *feature_data);
-			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = imgsensor_info.custom1.mipi_pixel_rate;
-			break;
+			switch (*feature_data) {
+			case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
+				LOG_INF("MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG = %d\n", *feature_data);
+				*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = imgsensor_info.cap.mipi_pixel_rate;
+				break;
+			case MSDK_SCENARIO_ID_VIDEO_PREVIEW:
+				LOG_INF("MSDK_SCENARIO_ID_VIDEO_PREVIEW = %d\n", *feature_data);
+				*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = imgsensor_info.normal_video.mipi_pixel_rate;
+				break;
+			case MSDK_SCENARIO_ID_HIGH_SPEED_VIDEO:
+				LOG_INF("MSDK_SCENARIO_ID_HIGH_SPEED_VIDEO = %d\n", *feature_data);
+				*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = imgsensor_info.hs_video.mipi_pixel_rate;
+				break;
+			case MSDK_SCENARIO_ID_SLIM_VIDEO:
+				LOG_INF("MSDK_SCENARIO_ID_SLIM_VIDEO = %d\n", *feature_data);
+				*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = imgsensor_info.slim_video.mipi_pixel_rate;
+				break;
+
+			case MSDK_SCENARIO_ID_CUSTOM1:
+				LOG_INF("MSDK_SCENARIO_ID_CUSTOM1 = %d\n", *feature_data);
+				*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = imgsensor_info.custom1.mipi_pixel_rate;
+				break;
+			case MSDK_SCENARIO_ID_CUSTOM2:
+				LOG_INF("MSDK_SCENARIO_ID_CUSTOM2 = %d\n", *feature_data);
+				*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) =
+				imgsensor_info.custom2.mipi_pixel_rate;
+				break;
+			case MSDK_SCENARIO_ID_CUSTOM3:
+				LOG_INF("MSDK_SCENARIO_ID_CUSTOM3 = %d\n", *feature_data);
+				*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) =
+				imgsensor_info.custom3.mipi_pixel_rate;
+				break;
+			case MSDK_SCENARIO_ID_CUSTOM4:
+				LOG_INF("MSDK_SCENARIO_ID_CUSTOM4 = %d\n", *feature_data);
+				*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) =
+				imgsensor_info.custom4.mipi_pixel_rate;
+				break;
+			case MSDK_SCENARIO_ID_CAMERA_PREVIEW:
+				LOG_INF("MSDK_SCENARIO_ID_CAMERA_PREVIEW = %d\n", *feature_data);
+			default:
+				*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = imgsensor_info.pre.mipi_pixel_rate;
+				break;
+			}
+		}
+		break;
+	case SENSOR_FEATURE_GET_AWB_REQ_BY_SCENARIO:
+		switch (*feature_data) {
 		case MSDK_SCENARIO_ID_CUSTOM2:
-			LOG_INF("MSDK_SCENARIO_ID_CUSTOM2 = %d\n", *feature_data);
-			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) =
-			imgsensor_info.custom2.mipi_pixel_rate;
+			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = 1;
 			break;
-		case MSDK_SCENARIO_ID_CUSTOM3:
-			LOG_INF("MSDK_SCENARIO_ID_CUSTOM3 = %d\n", *feature_data);
-			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) =
-			imgsensor_info.custom3.mipi_pixel_rate;
-			break;
-		case MSDK_SCENARIO_ID_CUSTOM4:
-			LOG_INF("MSDK_SCENARIO_ID_CUSTOM4 = %d\n", *feature_data);
-			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) =
-			imgsensor_info.custom4.mipi_pixel_rate;
-			break;
-		case MSDK_SCENARIO_ID_CAMERA_PREVIEW:
-			LOG_INF("MSDK_SCENARIO_ID_CAMERA_PREVIEW = %d\n", *feature_data);
 		default:
-			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = imgsensor_info.pre.mipi_pixel_rate;
+			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = 0;
 			break;
 		}
-	}
-	break;
+		break;
+	case SENSOR_FEATURE_GET_GAIN_RANGE_BY_SCENARIO:
+		*(feature_data + 1) = imgsensor_info.min_gain;
+		*(feature_data + 2) = imgsensor_info.max_gain;
+		break;
+	case SENSOR_FEATURE_GET_BASE_GAIN_ISO_AND_STEP:
+		*(feature_data + 0) = imgsensor_info.min_gain_iso;
+		*(feature_data + 1) = imgsensor_info.gain_step;
+		*(feature_data + 2) = imgsensor_info.gain_type;
+		break;
+	case SENSOR_FEATURE_GET_MIN_SHUTTER_BY_SCENARIO:
+		*(feature_data + 1) = imgsensor_info.min_shutter;
+		*(feature_data + 2) = imgsensor_info.exp_step;
+		break;
+
 	default:
 		break;
 	}

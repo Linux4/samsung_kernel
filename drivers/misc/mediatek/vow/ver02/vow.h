@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2020 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #ifndef __VOW_H__
@@ -57,7 +49,7 @@
 #define VOW_MODEL_SIZE_THRES           0x2800
 #define VOW_MODEL_SIZE                 0x11000
 #define VOW_VOICEDATA_OFFSET           (VOW_MODEL_SIZE * MAX_VOW_SPEAKER_MODEL)
-#define VOW_VOICEDATA_SIZE             0x12500 /* 74880, need over 2.3sec */
+#define VOW_VOICEDATA_SIZE             0xA280 // 41600, need over 1.3
 /* IPI return value definition */
 #define WORD_H                         16
 #define WORD_L                         0
@@ -129,6 +121,7 @@
 #define VOW_SET_PAYLOADDUMP_INFO      _IOW(VOW_IOC_MAGIC, 0x16, unsigned int)
 #define VOW_READ_VOICE_DATA           _IOW(VOW_IOC_MAGIC, 0x17, unsigned int)
 #define VOW_READ_VOW_DUMP_DATA        _IOW(VOW_IOC_MAGIC, 0x18, unsigned int)
+#define VOW_SET_WAKEUP_MODE           _IOW(VOW_IOC_MAGIC, 0x1E, unsigned int)
 
 #ifdef VOW_ECHO_SW_SRC
 #define VOW_BARGEIN_AFE_MEMIF_SIZE    0x1E00
@@ -206,7 +199,11 @@ enum vow_ipi_msgid_t {
 	IPIMSG_VOW_ALEXA_ENGINE_VER = 25,
 	IPIMSG_VOW_GOOGLE_ENGINE_VER = 26,
 	IPIMSG_VOW_GOOGLE_ARCH = 27,
-	IPIMSG_VOW_SET_CUSTOM_MODEL = 28
+	IPIMSG_VOW_SET_CUSTOM_MODEL = 28,
+	IPIMSG_VOW_HAL_REBOOT = 29,
+	IPIMSG_VOW_FLUSH = 30,
+	IPIMSG_VOW_SET_BIXBY_ENGINE_VER = 40,
+	IPIMSG_VOW_SET_BIXBY_ENGINE_MODE = 41
 };
 
 enum vow_eint_status_t {

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __MODEM_SECURE_BASE_H__
 #define __MODEM_SECURE_BASE_H__
@@ -29,7 +21,10 @@ enum CCCI_SECURE_REQ_ID {
 	MD_HW_REMAP_LOCKED,
 	MD_SEC_SMEM_INF,
 	UPDATE_MD_SEC_SMEM,
+	SCP_INFO_TO_SAVE = 12, /* save scp smem addr in tfa*/
+	SCP_CLK_SET_DONE,
 };
+
 
 enum MD_CLOCK_REG_ID {
 	MD_REG_AP_MDSRC_REQ = 0,

@@ -14,6 +14,7 @@
 #include <linux/dcache.h>
 #include <linux/namei.h>
 #include <linux/quotaops.h>
+#include <linux/iversion.h>
 
 #include "f2fs.h"
 #include "node.h"
@@ -50,11 +51,10 @@ static struct inode *f2fs_new_inode(struct inode *dir, umode_t mode)
 	inode->i_ino = ino;
 	inode->i_blocks = 0;
 
-	if (IS_I_VERSION(inode))
-		inode->i_version++;
+	inode_inc_iversion(inode);
 
-	inode->i_mtime = inode->i_atime = inode->i_ctime =
-			F2FS_I(inode)->i_crtime = current_time(inode);
+	inode->i_mtime = inode->i_atime = inode->i_ctime = current_time(inode);
+	F2FS_I(inode)->i_crtime = inode->i_mtime;
 	inode->i_generation = prandom_u32();
 
 	if (S_ISDIR(inode->i_mode))
@@ -488,7 +488,7 @@ static struct dentry *f2fs_lookup(struct inode *dir, struct dentry *dentry,
 	unsigned int root_ino = F2FS_ROOT_INO(F2FS_I_SB(dir));
 	struct f2fs_filename fname;
 
-	/* Comment out temporarily for since this has use-after-free issue */
+	/* Comment out since this has use-after-free issue */
 	/* trace_f2fs_lookup_start(dir, dentry, flags); */
 
 	if (dentry->d_name.len > F2FS_NAME_LEN) {
@@ -560,19 +560,21 @@ out_splice:
 		 * well.  For now, prevent the negative dentry
 		 * from being cached.
 		 */
-		trace_f2fs_lookup_end(dir, dentry, ino, err);
+		/* Comment out since this has use-after-free issue */
+		/* trace_f2fs_lookup_end(dir, dentry, ino, err); */
 		return NULL;
 	}
 #endif
 	new = d_splice_alias(inode, dentry);
 	err = PTR_ERR_OR_ZERO(new);
-	/* Comment out temporarily for since this has use-after-free issue */
+	/* Comment out since this has use-after-free issue */
 	/* trace_f2fs_lookup_end(dir, dentry, ino, !new ? -ENOENT : err); */
 	return new;
 out_iput:
 	iput(inode);
 out:
-	trace_f2fs_lookup_end(dir, dentry, ino, err);
+	/* Comment out since this has use-after-free issue */
+	/* trace_f2fs_lookup_end(dir, dentry, ino, err); */
 	return ERR_PTR(err);
 }
 
@@ -584,7 +586,7 @@ static int f2fs_unlink(struct inode *dir, struct dentry *dentry)
 	struct page *page;
 	int err;
 
-	/* Comment out temporarily for since this has use-after-free issue */
+	/* Comment out since this has use-after-free issue */
 	/* trace_f2fs_unlink_enter(dir, dentry); */
 
 	if (unlikely(f2fs_cp_error(sbi)))
@@ -629,7 +631,7 @@ static int f2fs_unlink(struct inode *dir, struct dentry *dentry)
 	if (IS_DIRSYNC(dir))
 		f2fs_sync_fs(sbi->sb, 1);
 fail:
-	/* Comment out temporarily for since this has use-after-free issue */
+	/* Comment out since this has use-after-free issue */
 	/* trace_f2fs_unlink_exit(inode, err); */
 	return err;
 }
@@ -866,7 +868,11 @@ static int __f2fs_tmpfile(struct inode *dir, struct dentry *dentry,
 
 	if (whiteout) {
 		f2fs_i_links_write(inode, false);
+
+		spin_lock(&inode->i_lock);
 		inode->i_state |= I_LINKABLE;
+		spin_unlock(&inode->i_lock);
+
 		*whiteout = inode;
 	} else {
 		d_tmpfile(dentry, inode);
@@ -1052,7 +1058,11 @@ static int f2fs_rename(struct inode *old_dir, struct dentry *old_dentry,
 		err = f2fs_add_link(old_dentry, whiteout);
 		if (err)
 			goto put_out_dir;
+
+		spin_lock(&whiteout->i_lock);
 		whiteout->i_state &= ~I_LINKABLE;
+		spin_unlock(&whiteout->i_lock);
+
 		iput(whiteout);
 	}
 

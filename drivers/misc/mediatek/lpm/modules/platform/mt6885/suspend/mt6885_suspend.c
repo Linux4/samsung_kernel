@@ -3,6 +3,7 @@
  * Copyright (c) 2019 MediaTek Inc.
  */
 
+#include <linux/atomic.h>
 #include <linux/cpuidle.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -15,8 +16,16 @@
 #include <linux/suspend.h>
 #include <linux/timekeeping.h>
 #include <linux/rtc.h>
+#include <linux/hrtimer.h>
+#include <linux/timer.h>
+#include <linux/completion.h>
+#include <linux/jiffies.h>
 #include <asm/cpuidle.h>
 #include <asm/suspend.h>
+
+#include <linux/sched.h>
+#include <linux/kthread.h>
+#include <mt6885_spm_comm.h>
 
 #include <mtk_lpm.h>
 #include <mtk_lpm_module.h>
@@ -25,14 +34,13 @@
 #include <mtk_lpm_call_type.h>
 #include <mtk_dbg_common_v1.h>
 #include <mt-plat/mtk_ccci_common.h>
-
+#include <uapi/linux/sched/types.h>
 #include "mt6885.h"
 #include "mt6885_suspend.h"
 
 unsigned int mt6885_suspend_status;
 struct md_sleep_status before_md_sleep_status;
 struct md_sleep_status after_md_sleep_status;
-
 struct cpumask s2idle_cpumask;
 struct mtk_lpm_model mt6885_model_suspend;
 
@@ -93,6 +101,7 @@ static void get_md_sleep_time(struct md_sleep_status *md_data)
 
 static void log_md_sleep_info(void)
 {
+#if BITS_PER_LONG == 64
 #define LOG_BUF_SIZE	256
 	char log_buf[LOG_BUF_SIZE] = { 0 };
 	int log_size = 0;
@@ -131,6 +140,7 @@ static void log_md_sleep_info(void)
 		WARN_ON(strlen(log_buf) >= LOG_BUF_SIZE);
 		printk_deferred("[name:spm&][SPM] %s", log_buf);
 	}
+#endif
 }
 
 static inline int mt6885_suspend_common_enter(unsigned int *susp_status)
@@ -208,8 +218,8 @@ static void __mt6885_suspend_reflect(int type, int cpu,
 int mt6885_suspend_system_prompt(int cpu,
 					const struct mtk_lpm_issuer *issuer)
 {
-	int is_resume_enter = 0;
 #ifdef CONFIG_MTK_CCCI_DEVICES
+	int is_resume_enter = 0;
 	printk_deferred("[name:spm&][%s:%d] - notify MD that AP suspend\n",
 		__func__, __LINE__);
 	is_resume_enter = 1 << 0;
@@ -224,8 +234,8 @@ int mt6885_suspend_system_prompt(int cpu,
 void mt6885_suspend_system_reflect(int cpu,
 					const struct mtk_lpm_issuer *issuer)
 {
-	int is_resume_enter = 0;
 #ifdef CONFIG_MTK_CCCI_DEVICES
+	int is_resume_enter = 0;
 	printk_deferred("[name:spm&][%s:%d] - notify MD that AP resume\n",
 		__func__, __LINE__);
 	is_resume_enter = 1 << 1;
@@ -321,8 +331,8 @@ struct mtk_lpm_model mt6885_model_suspend = {
 
 static int mtk_lpm_suspend_prepare_late(void)
 {
-	int is_resume_enter = 0;
 #ifdef CONFIG_MTK_CCCI_DEVICES
+	int is_resume_enter = 0;
 	printk_deferred("[name:spm&][%s:%d] - notify MD that AP suspend\n",
 		__func__, __LINE__);
 	is_resume_enter = 1 << 0;
@@ -335,8 +345,8 @@ static int mtk_lpm_suspend_prepare_late(void)
 
 static void mtk_lpm_suspend_restore(void)
 {
-	int is_resume_enter = 0;
 #ifdef CONFIG_MTK_CCCI_DEVICES
+	int is_resume_enter = 0;
 	printk_deferred("[name:spm&][%s:%d] - notify MD that AP resume\n",
 		__func__, __LINE__);
 	is_resume_enter = 1 << 1;
@@ -389,7 +399,7 @@ static struct notifier_block mt6885_spm_suspend_pm_notifier_func = {
 	.notifier_call = mt6885_spm_suspend_pm_event,
 	.priority = 0,
 };
-#endif
+#endif /* CONFIG_PM */
 
 int __init mt6885_model_suspend_init(void)
 {

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2015 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 
 #ifndef _UAPI_MEDIATEK_DRM_H
@@ -25,6 +17,7 @@
 #define MTK_DRM_PROP_OVERLAP_LAYER_NUM  "OVERLAP_LAYER_NUM"
 #define MTK_DRM_PROP_NEXT_BUFF_IDX  "NEXT_BUFF_IDX"
 #define MTK_DRM_PROP_PRESENT_FENCE  "PRESENT_FENCE"
+#define MTK_DRM_PROP_OVL_DSI_SEQ  "OVL_DSI_SEQ"
 
 struct mml_frame_info;
 
@@ -150,10 +143,10 @@ struct msync_parameter_table {
 #define COLOR_TUNING_INDEX 19
 #define THSHP_TUNING_INDEX 24
 #define THSHP_PARAM_MAX 146 /* TDSHP_3_0 */
-#define PARTIAL_Y_INDEX 11
-#define GLOBAL_SAT_SIZE 11
-#define CONTRAST_SIZE 11
-#define BRIGHTNESS_SIZE 11
+#define PARTIAL_Y_INDEX 22
+#define GLOBAL_SAT_SIZE 22
+#define CONTRAST_SIZE 22
+#define BRIGHTNESS_SIZE 22
 #define PARTIAL_Y_SIZE 16
 #define PQ_HUE_ADJ_PHASE_CNT 4
 #define PQ_SAT_ADJ_PHASE_CNT 4
@@ -476,9 +469,6 @@ struct DISP_PQ_PARAM {
 #define DRM_MTK_HDMI_AUDIO_CONFIG	0x3C
 #define DRM_MTK_HDMI_GET_CAPABILITY	0x3D
 
-#define DRM_MTK_GET_PQ_CAPS 0x54
-#define DRM_MTK_SET_PQ_CAPS 0x55
-
 #define DRM_MTK_DEBUG_LOG			0x3E
 
 enum MTKFB_DISPIF_TYPE {
@@ -705,16 +695,6 @@ struct DRM_DISP_WRITE_REG {
 	unsigned int mask;
 };
 
-struct drm_mtk_ccorr_caps {
-	unsigned int ccorr_bit;
-	unsigned int ccorr_number;
-	unsigned int ccorr_linear;//1st byte:high 4 bit:CCORR1,low 4 bit:CCORR0
-};
-
-struct mtk_drm_pq_caps_info {
-	struct drm_mtk_ccorr_caps ccorr_caps;
-};
-
 #define DRM_IOCTL_MTK_GEM_CREATE	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_GEM_CREATE, struct drm_mtk_gem_create)
 
@@ -820,11 +800,6 @@ struct mtk_drm_pq_caps_info {
 
 #define DRM_IOCTL_MTK_DEBUG_LOG     DRM_IOWR(DRM_COMMAND_BASE + \
 			DRM_MTK_DEBUG_LOG, int)
-
-#define DRM_IOCTL_MTK_GET_PQ_CAPS DRM_IOWR(DRM_COMMAND_BASE + \
-		DRM_MTK_GET_PQ_CAPS, struct mtk_drm_pq_caps_info)
-#define DRM_IOCTL_MTK_SET_PQ_CAPS    DRM_IOWR(DRM_COMMAND_BASE + \
-		DRM_MTK_SET_PQ_CAPS, struct mtk_drm_pq_caps_info)
 
 
 /* AAL IOCTL */

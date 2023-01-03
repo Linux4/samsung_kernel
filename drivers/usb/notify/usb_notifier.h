@@ -24,11 +24,5 @@ extern int exynos_otg_vbus_event(struct platform_device *pdev, int state);
 static inline int exynos_otg_vbus_event(
 		struct platform_device *pdev, int state) {return 0; }
 #endif
-#if !IS_ENABLED(CONFIG_USB_MU3D_DRV)
-void mtk_usb_connect(void);
-void mtk_usb_disconnect(void);
-void mtk_usbhost_connect(void);
-void mtk_usbhost_disconnect(void);
-#endif
 #endif
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
  *      http://www.samsung.com
  *
  * This program is free software; you can redistribute it and/or modify
@@ -21,9 +21,12 @@
 #include <linux/kexec.h>
 #include <linux/kmsg_dump.h>
 #include <linux/memblock.h>
+#include <linux/of.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/module.h>
 #include <linux/mount.h>
 #include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 #include <linux/ptrace.h>
 #include <linux/reboot.h>
 #include <linux/sec_debug.h>
@@ -43,105 +46,19 @@
 #endif
 
 #ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
-static u32 __initdata sec_extra_info_base = SEC_EXTRA_INFO_BASE;
-static u32 __initdata sec_extra_info_size = SZ_64K;
+static u32 sec_extra_info_base;
+static u32 sec_extra_info_size = SZ_64K;
 #endif
 
 DEFINE_PER_CPU(unsigned char, coreregs_stored);
-#ifdef CONFIG_MACH_MT6739
-DEFINE_PER_CPU(struct pt_regs, sec_debug_core_reg);
-DEFINE_PER_CPU(sec_debug_mmu_reg_t, sec_debug_mmu_reg);
-#else
 DEFINE_PER_CPU(struct pt_regs, sec_aarch64_core_reg);
 DEFINE_PER_CPU(sec_debug_mmu_reg_t, sec_aarch64_mmu_reg);
-#endif
 
 union sec_debug_level_t sec_debug_level = { .en.kernel_fault = 1, };
 module_param_named(enable, sec_debug_level.en.kernel_fault, ushort, 0644);
 module_param_named(enable_user, sec_debug_level.en.user_fault, ushort, 0644);
 module_param_named(level, sec_debug_level.uint_val, uint, 0644);
 
-#ifdef CONFIG_MACH_MT6739
-void sec_debug_save_core_reg(void *v_regs)
-{
-	struct pt_regs *regs = (struct pt_regs *)v_regs;
-	struct pt_regs *core_reg =
-			&per_cpu(sec_debug_core_reg, smp_processor_id());
-
-	if (!regs) {
-		asm (
-			"str r0, [%0,#0]\n\t"		/* R0 is pushed first to core_reg */
-			"mov r0, %0\n\t"		/* R0 will be alias for core_reg */
-			"str r1, [r0,#4]\n\t"		/* R1 */
-			"str r2, [r0,#8]\n\t"		/* R2 */
-			"str r3, [r0,#12]\n\t"		/* R3 */
-			"str r4, [r0,#16]\n\t"		/* R4 */
-			"str r5, [r0,#20]\n\t"		/* R5 */
-			"str r6, [r0,#24]\n\t"		/* R6 */
-			"str r7, [r0,#28]\n\t"		/* R7 */
-			"str r8, [r0,#32]\n\t"		/* R8 */
-			"str r9, [r0,#36]\n\t"		/* R9 */
-			"str r10, [r0,#40]\n\t"		/* R10 */
-			"str r11, [r0,#44]\n\t"		/* R11 */
-			"str r12, [r0,#48]\n\t"		/* R12 ip*/
-			"str r13, [r0,#52]\n\t"		/* R13 sp */
-			"str r14, [r0,#56]\n\t"		/* R14 lr */
-			/* PC and CPSR */
-			"sub r1, r15, #0x4\n\t"		/* PC */
-			"str r1, [r0,#60]\n\t"
-			"mrs r1, cpsr\n\t"		/* CPSR */
-			"str r1, [r0,#64]\n\t" :		/* output */
-			: "r"(core_reg)			/* input */
-			: "%r0", "%r1"			/* clobbered registers */
-		);
-	} else {
-		memcpy(core_reg, regs, sizeof(struct pt_regs));
-	}
-
-	return;
-}
-
-void sec_debug_save_mmu_reg(sec_debug_mmu_reg_t *mmu_reg)
-{
-	asm (
-		"mrc    p15, 0, r1, c1, c0, 0\n\t"	/* SCTLR */
-		"str r1, [%0]\n\t"
-		"mrc    p15, 0, r1, c2, c0, 0\n\t"	/* TTBR0 */
-		"str r1, [%0,#4]\n\t"
-		"mrc    p15, 0, r1, c2, c0,1\n\t"	/* TTBR1 */
-		"str r1, [%0,#8]\n\t"
-		"mrc    p15, 0, r1, c2, c0,2\n\t"	/* TTBCR */
-		"str r1, [%0,#12]\n\t"
-		"mrc    p15, 0, r1, c3, c0,0\n\t"	/* DACR */
-		"str r1, [%0,#16]\n\t"
-		"mrc    p15, 0, r1, c5, c0,0\n\t"	/* DFSR */
-		"str r1, [%0,#20]\n\t"
-		"mrc    p15, 0, r1, c6, c0,0\n\t"	/* DFAR */
-		"str r1, [%0,#24]\n\t"
-		"mrc    p15, 0, r1, c5, c0,1\n\t"	/* IFSR */
-		"str r1, [%0,#28]\n\t"
-		"mrc    p15, 0, r1, c6, c0,2\n\t"	/* IFAR */
-		"str r1, [%0,#32]\n\t"
-		/* Don't populate DAFSR and RAFSR */
-		"mrc    p15, 0, r1, c10, c2,0\n\t"	/* PMRRR */
-		"str r1, [%0,#44]\n\t"
-		"mrc    p15, 0, r1, c10, c2,1\n\t"	/* NMRRR */
-		"str r1, [%0,#48]\n\t"
-		"mrc    p15, 0, r1, c13, c0,0\n\t"	/* FCSEPID */
-		"str r1, [%0,#52]\n\t"
-		"mrc    p15, 0, r1, c13, c0,1\n\t"	/* CONTEXT */
-		"str r1, [%0,#56]\n\t"
-		"mrc    p15, 0, r1, c13, c0,2\n\t"	/* URWTPID */
-		"str r1, [%0,#60]\n\t"
-		"mrc    p15, 0, r1, c13, c0,3\n\t"	/* UROTPID */
-		"str r1, [%0,#64]\n\t"
-		"mrc    p15, 0, r1, c13, c0,4\n\t"	/* POTPIDR */
-		"str r1, [%0,#68]\n\t" :		/* output */
-		: "r"(mmu_reg)			/* input */
-		: "%r1", "memory"			/* clobbered register */
-	);
-}
-#else
 void sec_debug_save_core_reg(void *v_regs)
 {
 	struct pt_regs *regs = (struct pt_regs *)v_regs;
@@ -215,15 +132,11 @@ void sec_debug_save_mmu_reg(sec_debug_mmu_reg_t *mmu_reg)
 	    : "%x1", "memory"			/* clobbered register */
 	);
 }
-#endif
+
 
 void sec_debug_init_mmu(void *unused)
 {
-#ifdef CONFIG_MACH_MT6739
-	sec_debug_save_mmu_reg(&per_cpu(sec_debug_mmu_reg, raw_smp_processor_id()));
-#else
 	sec_debug_save_mmu_reg(&per_cpu(sec_aarch64_mmu_reg, raw_smp_processor_id()));
-#endif
 }
 
 int sec_save_context(int cpu, void *v_regs)
@@ -247,19 +160,12 @@ int sec_save_context(int cpu, void *v_regs)
 	local_irq_save(flags);
 	sec_debug_save_core_reg(regs);
 
-#ifdef CONFIG_MACH_MT6739
-	if (cpu == _THIS_CPU) {
-		sec_debug_save_mmu_reg(&per_cpu(sec_debug_mmu_reg, smp_processor_id()));
-	} else {
-		sec_debug_save_mmu_reg(&per_cpu(sec_debug_mmu_reg, cpu));
-	}
-#else
 	if (cpu == _THIS_CPU) {
 		sec_debug_save_mmu_reg(&per_cpu(sec_aarch64_mmu_reg, smp_processor_id()));
 	} else {
 		sec_debug_save_mmu_reg(&per_cpu(sec_aarch64_mmu_reg, cpu));
 	}
-#endif
+
 	//crash_setup_regs(&tmp, regs);
 	//crash_save_vmcoreinfo();
 	if (cpu == _THIS_CPU) {
@@ -416,7 +322,6 @@ void sec_upload_cause(void *buf)
 	LAST_RR_MEMCPY(panic_str, buf, PANIC_STRBUF_LEN);		
 }
 
-#ifndef CONFIG_MACH_MT6739
 static void sec_dump_one_task_info(struct task_struct *tsk, bool is_main)
 {
 	char state_array[] = {'R', 'S', 'D', 'T', 't', 'X', 'Z', 'P', 'x', 'K', 'W', 'I', 'N'};
@@ -444,7 +349,7 @@ static void sec_dump_one_task_info(struct task_struct *tsk, bool is_main)
 
 	touch_softlockup_watchdog();
 
-	pr_info("%8d %8d %8d %16lld %c(%d) %3d  %16lx %16lx  %16lx %c %16s [%s]\n",
+	pr_info("%8d %8d %8d %16lld %c(%d) %3d	%16lx %16lx  %16lx %c %16s [%s]\n",
 			tsk->pid, (int)(tsk->utime), (int)(tsk->stime),
 			tsk->se.exec_start, state_array[idx], (int)(tsk->state),
 			task_cpu(tsk), wchan, pc, (unsigned long)tsk,
@@ -552,7 +457,6 @@ void sec_debug_dump_info(void)
 	sec_dump_irq_info();
 	hard_reset_delay();
 }
-#endif
 
 #ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
 static int sec_debug_check_magic(struct sec_debug_shared_info *sdi)
@@ -586,10 +490,18 @@ static int sec_debug_check_magic(struct sec_debug_shared_info *sdi)
 
 static struct sec_debug_shared_info *sec_debug_info;
 
+#ifdef CONFIG_SEC_DEBUG_HIST_LOG	
+extern void sec_debug_hist_base_init(int extrainfo_base);
+#endif	
+
 static void sec_debug_init_base_buffer(void)
 {
 	int magic_status = 0;
+	struct reserved_mem *rmem;
 
+	rmem = sec_log_get_rmem("samsung,sec-extrainfo");
+	sec_extra_info_base = rmem->base;
+	
 	sec_debug_info = (struct sec_debug_shared_info *)phys_to_virt(sec_extra_info_base);
 
 	if (sec_debug_info) {
@@ -606,6 +518,10 @@ static void sec_debug_init_base_buffer(void)
 	}
 
 	pr_info("%s, base(virt):0x%lx size:0x%x\n", __func__, (unsigned long)sec_debug_info, sec_extra_info_size);
+
+#ifdef CONFIG_SEC_DEBUG_HIST_LOG	
+	sec_debug_hist_base_init(sec_extra_info_base);
+#endif	
 }
 #endif
 
@@ -620,10 +536,7 @@ static void sec_free_dbg_mem(phys_addr_t base, phys_addr_t size)
 
 static int __init sec_debug_init(void)
 {
-	/* In order to skip DRAM Calibration after Soft-Reset*/
-	wd_dram_reserved_mode(true);
-
-#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO		
+#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
 	sec_debug_init_base_buffer();
 #endif
 

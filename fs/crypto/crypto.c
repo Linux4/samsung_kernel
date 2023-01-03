@@ -389,11 +389,6 @@ static int __init fscrypt_init(void)
 	if (err)
 		goto fail_free_info;
 
-#ifdef CONFIG_FSCRYPT_SDP
-	err = sdp_crypto_init();
-	if (!fscrypt_sdp_init_sdp_info_cachep())
-		goto fail_free_info;
-#endif
 	return 0;
 
 fail_free_info:

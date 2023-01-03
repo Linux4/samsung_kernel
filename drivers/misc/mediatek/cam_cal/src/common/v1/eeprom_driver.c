@@ -1,16 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
-#define PFX "CAM_CAL"
+#define PFX "CAM_CAL D/D"
 #define pr_fmt(fmt) PFX "[%s] " fmt, __func__
 
 
@@ -29,16 +21,15 @@
 #include "cam_cal_list.h"
 #include "eeprom_i2c_dev.h"
 #include "eeprom_i2c_common_driver.h"
-#include "imgsensor_sysfs.h"
-#include "kd_imgsensor_sysfs_adapter.h"
+#include <kd_imgsensor_sysfs_adapter.h>
 #include <linux/dma-mapping.h>
 #ifdef CONFIG_COMPAT
 /* 64 bit */
 #include <linux/fs.h>
 #include <linux/compat.h>
 #endif
-#ifdef CONFIG_CAMERA_OIS_MCU
-#include "main/inc/camera_ois_mcu.h"
+#if IS_ENABLED(CONFIG_CAMERA_OIS)
+#include "camera_ois.h"
 #endif
 
 #define CAM_CAL_DRV_NAME "CAM_CAL_DRV"
@@ -50,6 +41,8 @@
 #define CAM_CAL_I2C_DEV2_NAME "CAM_CAL_DEV2"
 #define CAM_CAL_I2C_DEV3_NAME "CAM_CAL_DEV3"
 #define CAM_CAL_I2C_DEV4_NAME "CAM_CAL_DEV4"
+
+#define CAM_CAL_BRINGUP "[cam_cal]"
 
 static dev_t g_devNum = MKDEV(CAM_CAL_DEV_MAJOR_NUMBER, 0);
 static struct cdev *g_charDrv;
@@ -177,6 +170,8 @@ static struct stCAM_CAL_CMD_INFO_STRUCT *EEPROM_get_cmd_info_ex
 		for (i = 0; i < IMGSENSOR_SENSOR_IDX_MAX_NUM; i++) {
 			/* To Set Client */
 			if (g_camCalDrvInfo[i].sensorID == 0) {
+				if (sensorID == 0x02e0 && deviceID == 0x08)
+					sensorID = 0x02d0;
 				pr_debug("Start get_cmd_info!\n");
 				EEPROM_get_cmd_info(sensorID,
 					&g_camCalDrvInfo[i]);
@@ -544,7 +539,7 @@ long eeprom_ioctl_control_command(struct stCAM_CAL_INFO_STRUCT *camCalInfo,
 
 	rom_addr = IMGSENSOR_SYSGET_ROM_ADDR_BY_ID(camCalInfo->deviceID, camCalInfo->sensorID);
 	if (rom_addr == NULL) {
-		pr_err("[%s] rom_addr is NULL: deviceID(0x%x), sensorID(0x%x) doesn't have a cal map, ret: %d",
+		pr_err(CAM_CAL_BRINGUP "[%s] rom_addr is NULL: deviceID(0x%x), sensorID(0x%x) doesn't have a cal map, ret: %d",
 			__func__, camCalInfo->deviceID, camCalInfo->sensorID, -ENODATA);
 		return -ENODATA;
 	}
@@ -584,7 +579,7 @@ long eeprom_ioctl_control_command(struct stCAM_CAL_INFO_STRUCT *camCalInfo,
 		pr_debug("[%s] Not used anymore", __func__);
 		return -EINVAL;
 	default:
-		pr_info("[%s] No such command %d\n", __func__, camCalInfo->command);
+		pr_info(CAM_CAL_BRINGUP "[%s] No such command %d\n", __func__, camCalInfo->command);
 		return -EINVAL;
 	}
 	for (i = 0; i < camCalInfo->u4Length; i++) {
@@ -745,11 +740,10 @@ static long EEPROM_drv_ioctl(struct file *file,
 			}
 			break;
 		} else {
-#if defined(CONFIG_CAMERA_OIS_MCU)
-			if (ptempbuf->deviceID == DUAL_CAMERA_MAIN_SENSOR) {
-				//only when eeprom preload of wide sensor
-				ois_mcu_update();
-			}
+#if IS_ENABLED(CONFIG_CAMERA_OIS)
+			//only when eeprom preload of wide sensor
+			if (ptempbuf->deviceID == DUAL_CAMERA_MAIN_SENSOR)
+				cam_ois_mcu_update();
 #endif
 		}
 
@@ -847,6 +841,7 @@ static int EEPROM_drv_open(struct inode *a_pstInode, struct file *a_pstFile)
 		g_drvOpened = 1;
 		spin_unlock(&g_spinLock);
 	}
+	mdelay(2);
 
 	return ret;
 }

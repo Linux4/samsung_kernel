@@ -238,9 +238,8 @@ static int sel_netnode_sid_slow(void *addr, u16 family, u32 *sid)
 out:
 	spin_unlock_bh(&sel_netnode_lock);
 	if (unlikely(ret)) {
-		printk(KERN_WARNING
-		       "SELinux: failure in sel_netnode_sid_slow(),"
-		       " unable to determine network node label\n");
+		pr_warn("SELinux: failure in %s(), unable to determine network node label\n",
+			__func__);
 		kfree(new);
 	}
 	return ret;
@@ -308,7 +307,7 @@ static __init int sel_netnode_init(void)
 	selinux_enabled = 1;
 #endif
 // ] SEC_SELINUX_PORTING_COMMON
-	
+
 	if (!selinux_enabled)
 		return 0;
 

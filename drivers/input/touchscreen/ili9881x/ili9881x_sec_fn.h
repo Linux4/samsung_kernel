@@ -38,12 +38,7 @@
 
 #include <linux/vmalloc.h>
 #include <linux/uaccess.h>
-#if IS_ENABLED(CONFIG_SPU_VERIFY)
-#define SUPPORT_FW_SIGNED
-#endif
-#ifdef SUPPORT_FW_SIGNED
 #include <linux/spu-verify.h>
-#endif
 #include "ili9881x.h"
 #define TEST_MODE_MIN_MAX		false
 #define TEST_MODE_ALL_NODE		true
@@ -93,11 +88,6 @@ enum DEAD_ZONE {
 enum SIP_MODE {
 	SIP_MODE_DISABLE = 0,
 	SIP_MODE_ENABLE = 1,
-};
-
-enum GAME_MODE {
-	GAME_MODE_DISABLE = 0,
-	GAME_MODE_ENABLE = 1,
 };
 
 enum {

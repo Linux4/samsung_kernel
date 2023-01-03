@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 #include <linux/interrupt.h>
 #include <linux/list.h>
@@ -27,7 +19,7 @@
 #include <linux/of.h>
 
 #include <mt-plat/upmu_common.h>
-#include "pmic_lbat_service.h"
+#include <include/pmic_lbat_service.h>
 
 #define USER_SIZE	16
 
@@ -194,6 +186,7 @@ static void lbat_set_next_thd(struct lbat_user *user, struct lbat_thd_t *thd)
  * Execute user's callback and set its next threshold if reach deb_times,
  * otherwise ignore this event and reset lbat_list
  */
+// workaround for mt6877
 static void lbat_deb_handler(struct work_struct *work)
 {
 	enum lbat_thd_type type;
@@ -226,11 +219,13 @@ static void lbat_deb_handler(struct work_struct *work)
 	mutex_unlock(&lbat_mutex);
 }
 
-static void lbat_timer_func(unsigned long data)
+//static void lbat_timer_func(unsigned long data)
+static void lbat_timer_func(struct timer_list *t)
 {
 	unsigned int deb_prd = 0;
 	unsigned int deb_times = 0;
-	struct lbat_user *user = (struct lbat_user *)data;
+//	struct lbat_user *user = (struct lbat_user *)data;
+	struct lbat_user *user =  from_timer(user, t, deb_timer);
 
 	if (user->deb_thd_ptr == user->hv_thd) {
 		/* LBAT user HV de-bounce */
@@ -277,10 +272,11 @@ static void lbat_user_init_timer(struct lbat_user *user)
 	user->hv_deb_times = 0;
 	user->lv_deb_prd = 0;
 	user->lv_deb_times = 0;
-	init_timer(&user->deb_timer);
-	user->deb_timer.data = (unsigned long)user;
-	user->deb_timer.expires = 0;
-	user->deb_timer.function = lbat_timer_func;
+	//init_timer(&user->deb_timer);
+	//user->deb_timer.data = (unsigned long)user;
+	//user->deb_timer.expires = 0;
+	//user->deb_timer.function = lbat_timer_func;
+	timer_setup(&user->deb_timer, lbat_timer_func, 0);
 }
 
 static int lbat_user_update(struct lbat_user *user)
@@ -321,16 +317,18 @@ static struct lbat_thd_t *lbat_thd_init(unsigned int thd_volt,
 	return thd;
 }
 
-int lbat_user_register_ext(struct lbat_user *user, const char *name,
+struct lbat_user *lbat_user_register_ext(const char *name,
 	unsigned int *thd_volt_arr, unsigned int thd_volt_size,
 	void (*callback)(unsigned int thd_volt))
 {
 	int i, ret;
 	struct lbat_thd_t *thd;
+	struct lbat_user *user;
 
 	mutex_lock(&lbat_mutex);
-	if (IS_ERR(user)) {
-		ret = PTR_ERR(user);
+	user = kzalloc(sizeof(*user), GFP_KERNEL);
+	if (user == NULL) {
+		ret = -10;
 		goto out;
 	}
 	strncpy(user->name, name, ARRAY_SIZE(user->name) - 1);
@@ -353,26 +351,29 @@ int lbat_user_register_ext(struct lbat_user *user, const char *name,
 	pr_info("[%s] name=%s, thd_volt_max=%d, thd_volt_min=%d\n", __func__,
 		user->name, thd_volt_arr[0], thd_volt_arr[thd_volt_size - 1]);
 	ret = lbat_user_update(user);
+out:
 	if (ret)
 		pr_notice("[%s] error ret=%d\n", __func__, ret);
-out:
 	mutex_unlock(&lbat_mutex);
-	return ret;
+	return user;
 }
 EXPORT_SYMBOL(lbat_user_register_ext);
 
-int lbat_user_register(struct lbat_user *user, const char *name,
+struct lbat_user *lbat_user_register(const char *name,
 	unsigned int hv_thd_volt,
 	unsigned int lv1_thd_volt, unsigned int lv2_thd_volt,
 	void (*callback)(unsigned int thd_volt))
 {
 	int ret = 0;
+	struct lbat_user *user;
 
 	mutex_lock(&lbat_mutex);
-	if (IS_ERR(user)) {
-		ret = PTR_ERR(user);
+	user = kzalloc(sizeof(*user), GFP_KERNEL);
+	if (user == NULL) {
+		ret = -10;
 		goto out;
-	}
+	}	
+
 	strncpy(user->name, name, ARRAY_SIZE(user->name) - 1);
 	if (hv_thd_volt >= 5400 || lv1_thd_volt <= 2650) {
 		ret = -11;
@@ -395,11 +396,11 @@ int lbat_user_register(struct lbat_user *user, const char *name,
 	pr_info("[%s] name=%s, hv=%d, lv1=%d, lv2=%d\n",
 		__func__, name, hv_thd_volt, lv1_thd_volt, lv2_thd_volt);
 	ret = lbat_user_update(user);
+out:
 	if (ret)
 		pr_notice("[%s] error ret=%d\n", __func__, ret);
-out:
 	mutex_unlock(&lbat_mutex);
-	return ret;
+	return user;
 }
 EXPORT_SYMBOL(lbat_user_register);
 

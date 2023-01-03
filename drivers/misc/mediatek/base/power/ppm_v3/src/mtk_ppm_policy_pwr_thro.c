@@ -1,24 +1,25 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
-
 
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/init.h>
 
-#include "mach/upmu_sw.h"
 #include "mtk_ppm_internal.h"
+#if defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT6739) || \
+	defined(CONFIG_MACH_MT6781) || defined(CONFIG_MACH_MT6877) || \
+	defined(CONFIG_MACH_MT6833) || defined(CONFIG_MACH_MT6885) || \
+	defined(CONFIG_MACH_MT6893) || defined(CONFIG_MACH_MT6853) || \
+	defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6785)
+#include "mach/upmu_sw.h"
 #include "mach/mtk_pmic.h"
+#else
+#include "mtk_low_battery_throttling.h"
+#include "mtk_battery_oc_throttling.h"
+#include "mtk_battery_percentage_throttling.h"
+#endif
 
 #if defined(LOW_BATTERY_PT_SETTING_V2) || defined(LBAT_LIMIT_BCPU_OPP)
 #define ENABLE_OPP_LIMIT
@@ -212,7 +213,7 @@ end:
 #endif
 
 #ifndef DISABLE_BATTERY_OC_PROTECT
-static void ppm_pwrthro_bat_oc_protect(BATTERY_OC_LEVEL level)
+static void ppm_pwrthro_bat_oc_protect(enum BATTERY_OC_LEVEL_TAG level)
 {
 	unsigned int limited_power = ~0;
 
@@ -253,7 +254,7 @@ end:
 #endif
 
 #ifndef DISABLE_LOW_BATTERY_PROTECT
-void ppm_pwrthro_low_bat_protect(LOW_BATTERY_LEVEL level)
+void ppm_pwrthro_low_bat_protect(enum LOW_BATTERY_LEVEL_TAG level)
 {
 #ifndef LOW_BATTERY_PT_SETTING_V2
 	unsigned int limited_power = ~0;

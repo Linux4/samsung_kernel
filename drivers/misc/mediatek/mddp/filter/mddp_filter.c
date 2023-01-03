@@ -467,10 +467,10 @@ static int mddp_netops_change_mtu(struct net_device *dev, int new_mtu)
 	return mddp_wan_netdev_ops_save->ndo_change_mtu(dev, new_mtu);
 }
 
-static u16 mddp_netops_select_queue(struct net_device *dev, struct sk_buff *skb, void *accel_priv,
-				    select_queue_fallback_t fallback)
+static u16 mddp_netops_select_queue(struct net_device *dev, struct sk_buff *skb,
+				    struct net_device *sb_dev, select_queue_fallback_t fallback)
 {
-	return mddp_wan_netdev_ops_save->ndo_select_queue(dev, skb, accel_priv, fallback);
+	return mddp_wan_netdev_ops_save->ndo_select_queue(dev, skb, sb_dev, fallback);
 }
 
 static const struct net_device_ops mddp_wan_netdev_ops = {

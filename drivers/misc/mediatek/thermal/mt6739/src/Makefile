@@ -15,12 +15,13 @@ THERMAL_CHIP_DRIVER_DIR := $(srctree)/drivers/misc/mediatek/thermal/$(MTK_PLATFO
 ccflags-y  += -I$(THERMAL_CHIP_DRIVER_DIR)/inc
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/base/power/$(MTK_PLATFORM)
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/gpu/hal/
+ccflags-y  += -I$(srctree)/drivers/gpu/mediatek/mt-plat/
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/thermal/fakeHeader/
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/base/power/eem_v2/$(MTK_PLATFORM)/inc/
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/pmic/include/
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/thermal/common/inc/
 
-obj-$(CONFIG_THERMAL) += mtk_tc.o
-obj-$(CONFIG_THERMAL) += mtk_pmic_efuse.o
-obj-$(CONFIG_THERMAL) += mtk_ts_6357buck1.o
-obj-$(CONFIG_THERMAL) += mtk_ts_6357buck2.o
+obj-$(CONFIG_MTK_LEGACY_THERMAL) += mtk_tc.o
+obj-$(CONFIG_MTK_LEGACY_THERMAL) += mtk_pmic_efuse.o
+obj-$(CONFIG_MTK_LEGACY_THERMAL) += mtk_ts_6357buck1.o
+obj-$(CONFIG_MTK_LEGACY_THERMAL) += mtk_ts_6357buck2.o

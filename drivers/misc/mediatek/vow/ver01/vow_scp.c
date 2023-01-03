@@ -10,9 +10,11 @@
 /*****************************************************************************
  * Header Files
  *****************************************************************************/
+#include <linux/types.h>
+#include <linux/notifier.h>
 #include "vow_scp.h"
 #ifdef CONFIG_MTK_TINYSYS_SCP_SUPPORT
-#include "scp_ipi.h"
+#include "scp.h"
 #endif
 
 /*****************************************************************************

@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2018 MediaTek Inc.
  */
 
 #include <linux/proc_fs.h>
@@ -41,6 +33,7 @@ void lockdep_test_recursive_lock(void)
 struct lockdep_test_rcu {
 	int val;
 };
+
 static struct lockdep_test_rcu __rcu *lockdep_test_rcu_data;
 
 void lockdep_test_suspicious_rcu(void)
@@ -51,7 +44,7 @@ void lockdep_test_suspicious_rcu(void)
 
 		rcu_updater =
 			kmalloc(sizeof(struct lockdep_test_rcu), GFP_KERNEL);
-		if (rcu_updater == NULL)
+		if (!rcu_updater)
 			return;
 
 		rcu_updater->val = 123;
@@ -84,7 +77,7 @@ void lockdep_test_circular_deadlock(void)
 	spin_unlock(&lockB);
 }
 
-static void lockdep_test_timer(unsigned long arg)
+static void lockdep_test_timer(struct timer_list *t)
 {
 	spin_lock(&lockA);
 	spin_unlock(&lockA);
@@ -97,14 +90,14 @@ void lockdep_test_inconsistent_lock_a(void)
 	spin_unlock(&lockA);
 
 	/* {IN-SOFTIRQ-W} */
-	setup_timer(&lockdep_timer, lockdep_test_timer, 0);
+	timer_setup(&lockdep_timer, lockdep_test_timer, 0);
 	mod_timer(&lockdep_timer, jiffies + msecs_to_jiffies(10));
 }
 
 void lockdep_test_inconsistent_lock_b(void)
 {
 	/* {IN-SOFTIRQ-W} */
-	setup_timer(&lockdep_timer, lockdep_test_timer, 0);
+	timer_setup(&lockdep_timer, lockdep_test_timer, 0);
 	mod_timer(&lockdep_timer, jiffies + msecs_to_jiffies(10));
 	msleep(100);
 
@@ -145,7 +138,7 @@ void lockdep_test_irq_lock_inversion(void)
 	 * The state of lockA in SOFTIRQ field will change from {.} to {-}.
 	 * No lock dependency is generated.
 	 */
-	setup_timer(&lockdep_timer, lockdep_test_timer, 0);
+	timer_setup(&lockdep_timer, lockdep_test_timer, 0);
 	mod_timer(&lockdep_timer, jiffies + msecs_to_jiffies(10));
 }
 
@@ -177,7 +170,7 @@ void lockdep_test_irq_lock_inversion_sp(void)
 	spin_unlock_irqrestore(&lockA, flags);
 	spin_unlock(&lockB);
 
-	setup_timer(&lockdep_timer, lockdep_test_timer, 0);
+	timer_setup(&lockdep_timer, lockdep_test_timer, 0);
 	mod_timer(&lockdep_timer, jiffies + msecs_to_jiffies(10));
 }
 
@@ -190,7 +183,7 @@ void lockdep_test_safe_to_unsafe(void)
 	spin_unlock(&lockB);
 
 	/* SOFTIRQ-safe */
-	setup_timer(&lockdep_timer, lockdep_test_timer, 0);
+	timer_setup(&lockdep_timer, lockdep_test_timer, 0);
 	mod_timer(&lockdep_timer, jiffies + msecs_to_jiffies(10));
 
 	/* wait for lockdep_test_timer to finish */
@@ -233,11 +226,9 @@ void lockdep_test_wrong_owner_cpu(void)
 
 void lockdep_test_held_lock_freed(void)
 {
-	spinlock_t *lockE;
+	spinlock_t *lockE; /* pointer */
 
 	lockE = kmalloc(sizeof(spinlock_t), GFP_KERNEL);
-	if (lockE == NULL)
-		return;
 	spin_lock_init(lockE);
 	spin_lock(lockE);
 	kfree(lockE);
@@ -276,9 +267,7 @@ static int lock_monitor_thread1(void *data)
 	down_read(&rw_semA);
 	mutex_lock(&mutexA);
 	rcu_read_lock();
-
 	mspin(20000);
-
 	rcu_read_unlock();
 	mutex_unlock(&mutexA);
 	up_read(&rw_semA);
@@ -345,8 +334,9 @@ struct lockdep_test_func lockdep_test_list[] = {
 	{"held_lock_freed", lockdep_test_held_lock_freed}
 };
 
-static ssize_t lockdep_test_write(struct file *file,
-	const char *ubuf, size_t count, loff_t *ppos)
+static ssize_t
+lockdep_test_write(struct file *file, const char *ubuf,
+		   size_t count, loff_t *ppos)
 {
 	int i;
 	char buf[32];
@@ -374,7 +364,7 @@ static const struct file_operations proc_lockdep_test_fops = {
 	.write = lockdep_test_write,
 };
 
-void lockdep_test_init(void)
+static int __init lockdep_test_init(void)
 {
 	static struct lock_class_key key;
 
@@ -386,5 +376,8 @@ void lockdep_test_init(void)
 	lockdep_init_map(&dep_mapA, "dep_mapA", &key, 0);
 
 	proc_create("lockdep_test", 0220, NULL, &proc_lockdep_test_fops);
+
+	return 0;
 }
 
+late_initcall(lockdep_test_init);

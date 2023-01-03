@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __M4U_HW_H__
 #define __M4U_HW_H__
@@ -205,7 +197,7 @@ static inline unsigned int larb_port_2_m4u_port(int larb, int larb_port)
 }
 
 void m4u_print_perf_counter(int m4u_index, int m4u_slave_id, const char *msg);
-int m4u_dump_reg(int m4u_index, unsigned int start);
+int m4u_dump_reg(int m4u_index, unsigned int start, unsigned int end);
 
 extern struct m4u_device *gM4uDev;
 

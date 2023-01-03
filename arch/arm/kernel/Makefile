@@ -12,13 +12,8 @@ CFLAGS_REMOVE_insn.o = -pg
 CFLAGS_REMOVE_patch.o = -pg
 endif
 
-ifeq ($(cc-name),clang)
-ccflags-y += -DCONFIG_CC_IS_CLANG
-endif
-
 CFLAGS_REMOVE_return_address.o = -pg
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/mtprof/
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/
+
 # Object file lists.
 
 obj-y		:= elf.o entry-common.o irq.o opcodes.o \
@@ -93,6 +88,11 @@ obj-$(CONFIG_PARAVIRT)	+= paravirt.o
 head-y			:= head$(MMUEXT).o
 obj-$(CONFIG_DEBUG_LL)	+= debug.o
 obj-$(CONFIG_EARLY_PRINTK)	+= early_printk.o
+
+# This is executed very early using a temporary stack when no memory allocator
+# nor global data is available. Everything has to be allocated on the stack.
+CFLAGS_head-inflate-data.o := $(call cc-option,-Wframe-larger-than=10240)
+obj-$(CONFIG_XIP_DEFLATED_DATA) += head-inflate-data.o
 
 obj-$(CONFIG_ARM_VIRT_EXT)	+= hyp-stub.o
 AFLAGS_hyp-stub.o		:=-Wa,-march=armv7-a

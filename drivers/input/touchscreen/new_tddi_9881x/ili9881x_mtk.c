@@ -239,7 +239,7 @@ out:
 
 static irqreturn_t ilitek_plat_isr_top_half(int irq, void *dev_id)
 {
-	ILI_DBG("%s\n", __func__);
+	ILI_INFO("%s\n", __func__);
 
 	if (irq != ilits->irq_num) {
 		ILI_ERR("Incorrect irq number (%d)\n", irq);
@@ -258,7 +258,7 @@ static irqreturn_t ilitek_plat_isr_top_half(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	}
 
-	ILI_INFO("report: %d, rst: %d, fw: %d, switch: %d, mp: %d, sleep: %d, esd: %d\n",
+	ILI_DBG("report: %d, rst: %d, fw: %d, switch: %d, mp: %d, sleep: %d, esd: %d\n",
 			ilits->report,
 			atomic_read(&ilits->tp_reset),
 			atomic_read(&ilits->fw_stat),

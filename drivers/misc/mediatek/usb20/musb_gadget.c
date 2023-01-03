@@ -1,31 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * MUSB OTG driver peripheral support
- *
- * Copyright 2005 Mentor Graphics Corporation
- * Copyright (C) 2005-2006 by Texas Instruments
- * Copyright (C) 2006-2007 Nokia Corporation
- * Copyright (C) 2009 MontaVista Software, Inc. <source@mvista.com>
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN
- * NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
- * USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
+ * Copyright (C) 2018 MediaTek Inc.
  */
 
 #include <linux/kernel.h>
@@ -48,7 +23,8 @@
 
 #include <linux/usb/composite.h>
 
-#include "musb_core.h"
+#include <musb_core.h>
+#include <mtk_musb.h>
 
 /* GADGET only support all-ep QMU, otherwise downgrade to non-QMU */
 #ifdef MUSB_QMU_LIMIT_SUPPORT
@@ -64,8 +40,9 @@
 #if defined(CONFIG_BATTERY_SAMSUNG)
 #include "../../../battery/common/sec_charging_common.h"
 #endif
-
+#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
 extern bool acc_dev_status;
+#endif
 #define FIFO_START_ADDR 512
 
 /* #define RX_DMA_MODE1 1 */
@@ -245,10 +222,8 @@ void musb_g_giveback(struct musb_ep *ep,
 	if (!dma_mapping_error(musb->controller, request->dma) &&
 			req->request.length != 0)
 		unmap_dma_buffer(req, musb);
-#if defined(CONFIG_64BIT) && defined(CONFIG_MTK_LM_MODE)
 	else if (req->epnum != 0)
 		DBG(0, "%s dma_mapping_error\n", ep->end_point.name);
-#endif
 
 	if (request->status == 0)
 		DBG(1, "%s done request %p,  %d/%d\n",
@@ -593,7 +568,7 @@ void musb_g_tx(struct musb *musb, u8 epnum)
 		}
 
 		if (request->actual == request->length) {
-#if 0
+#ifdef NEVER
 			if (ep_in == &(musb_ep->end_point)) {
 				adbCmdLog(request->buf, request->actual,
 					musb_ep->is_in, "musb_g_tx");
@@ -1267,7 +1242,7 @@ static void fifo_setup(struct musb *musb, struct musb_ep *musb_ep)
 
 	/* Set double buffer, if the transfer type is bulk or isoc. */
 	/* So user need to take care the fifo buffer is enough or not. */
-	if (musb_ep->fifo_mode == MUSB_BUF_DOUBLE
+	if (musb_ep->fifo_mode == BUF_DOUBLE
 	    && (musb_ep->type == USB_ENDPOINT_XFER_BULK
 		|| musb_ep->type == USB_ENDPOINT_XFER_ISOC)) {
 			dbuffer_needed = 1;
@@ -1276,7 +1251,7 @@ static void fifo_setup(struct musb *musb, struct musb_ep *musb_ep)
 	if (dbuffer_needed) {
 		if ((musb->fifo_addr + (maxpacket << 1)) > (musb->fifo_size)) {
 			DBG(0,
-				"MUSB_BUF_DOUBLE USB FIFO is not enough!!! (%d>%d), fifo_addr=%d\n",
+				"BUF_DOUBLE USB FIFO is not enough!!! (%d>%d), fifo_addr=%d\n",
 			    (musb->fifo_addr + (maxpacket << 1)),
 			    (musb->fifo_size),
 			    musb->fifo_addr);
@@ -1295,7 +1270,7 @@ static void fifo_setup(struct musb *musb, struct musb_ep *musb_ep)
 			c_size |= MUSB_FIFOSZ_DPB;
 		}
 	} else if ((musb->fifo_addr + maxpacket) > (musb->fifo_size)) {
-		DBG(0, "MUSB_BUF_SINGLE USB FIFO is not enough!!! (%d>%d)\n",
+		DBG(0, "BUF_SINGLE USB FIFO is not enough!!! (%d>%d)\n",
 		    (musb->fifo_addr + maxpacket), (musb->fifo_size));
 		return;
 	}
@@ -1461,7 +1436,7 @@ static int musb_gadget_enable
 		 * here will lost those packets. We will flush fifo during
 		 * disabe ep
 		 */
-#if 0
+#ifdef NEVER
 		csr = MUSB_RXCSR_FLUSHFIFO | MUSB_RXCSR_CLRDATATOG;
 		if (musb_ep->type == USB_ENDPOINT_XFER_ISOC)
 			csr |= MUSB_RXCSR_P_ISO;
@@ -1626,7 +1601,7 @@ struct free_record {
 void musb_ep_restart(struct musb *musb, struct musb_request *req)
 {
 #ifdef CONFIG_MTK_MUSB_QMU_SUPPORT
-	/* limit debug mechanism to avoid printk too much */
+	/* limit debug mechanism to avoid too much log */
 	static DEFINE_RATELIMIT_STATE(ratelimit, HZ, 10);
 
 	if (__ratelimit(&ratelimit))
@@ -1661,13 +1636,6 @@ static int musb_gadget_queue
 		return -EINVAL;
 	if (!req->buf)
 		return -ENODATA;
-
-	#ifdef CONFIG_MTK_MUSB_PORT0_LOWPOWER_MODE
-	if (musb_shutted) {
-		DBG(0, "%s, already shut down\n", __func__);
-		return -EINVAL;
-	}
-	#endif
 
 	musb_ep = to_musb_ep(ep);
 	musb = musb_ep->musb;
@@ -1810,6 +1778,7 @@ static int musb_gadget_dequeue(struct usb_ep *ep, struct usb_request *request)
 
 	if (!ep || !request || to_musb_request(request)->ep != musb_ep)
 		return -EINVAL;
+
 	disable_irq_nosync(musb->nIrq);
 
 	spin_lock_irqsave(&musb->lock, flags);
@@ -2102,8 +2071,8 @@ static void musb_gadget_resume_control(struct usb_ep *ep)
 	}
 
 	DBG(2,
-		"%s : timeout_count: %d\n"
-		, __func__, timeout_count);
+		"%s : timeout_count: %d\n", __func__
+		, timeout_count);
 
 	if (int_md)
 		DBG(2,
@@ -2266,7 +2235,7 @@ static void musb_pullup(struct musb *musb, int is_on, bool usb_in)
 	DBG(0, "MUSB: gadget pull up %d end\n", is_on);
 }
 
-#if 0
+#ifdef NEVER
 static int musb_gadget_vbus_session(struct usb_gadget *gadget, int is_active)
 {
 	DBG(2, "<= %s =>\n", __func__);
@@ -2294,6 +2263,7 @@ bool is_usb_rdy(void)
 {
 	return true;
 }
+EXPORT_SYMBOL(is_usb_rdy);
 
 static void musb_set_usb_bootcomplete(struct musb *musb)
 {
@@ -2320,7 +2290,6 @@ static int musb_gadget_pullup(struct usb_gadget *gadget, int is_on)
 	is_on = !!is_on;
 	pm_runtime_get_sync(musb->controller);
 
-
 	/* NOTE: this assumes we are sensing vbus; we'd rather
 	 * not pullup unless the B-session is active.
 	 */
@@ -2337,10 +2306,14 @@ static int musb_gadget_pullup(struct usb_gadget *gadget, int is_on)
 
 	if (!musb->is_ready && is_on) {
 		musb->is_ready = true;
+
 		/* direct issue connection work if usb is forced on */
 		if (musb_force_on) {
 			DBG(0, "mt_usb_connect() on is_ready begin\n");
 			mt_usb_connect();
+		} else {
+			DBG(0, "mt_usb_reconnect() on is_ready begin\n");
+			mt_usb_reconnect();
 		}
 	}
 
@@ -2496,6 +2469,16 @@ int musb_gadget_setup(struct musb *musb)
 
 	musb->is_active = 0;
 	musb_platform_try_idle(musb, 0);
+
+	/* Fix: gadget device dma ops is null,so add musb controller dma ops */
+	/* to gadget device dma ops, otherwise will go do dma dump ops. */
+#ifdef CONFIG_XEN
+	if (musb->controller->archdata.dev_dma_ops) {
+		DBG(0, "musb controller dma ops is non-null\n");
+		musb->g.dev.archdata.dev_dma_ops =
+			musb->controller->archdata.dev_dma_ops;
+	}
+#endif
 
 	status = usb_add_gadget_udc(musb->controller, &musb->g);
 	if (status)
@@ -2671,6 +2654,7 @@ static int musb_gadget_stop(struct usb_gadget *g)
 		musb->xceiv->otg->state = state;
 	}
 
+#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
 	if (musb->rst_err_noti) {
 		musb->event_state = RELEASE;
 		musb->rst_err_noti = false;
@@ -2678,6 +2662,7 @@ static int musb_gadget_stop(struct usb_gadget *g)
 	}
 	musb->rst_err_cnt = 0;
 	acc_dev_status = 0;
+#endif
 
 	spin_unlock_irqrestore(&musb->lock, flags);
 
@@ -2712,7 +2697,7 @@ void musb_g_resume(struct musb *musb)
 		}
 		break;
 	default:
-		pr_warn("unhandled RESUME transition (%s)\n"
+		pr_notice("unhandled RESUME transition (%s)\n"
 			, otg_state_string(musb->xceiv->otg->state));
 	}
 }
@@ -2743,7 +2728,7 @@ void musb_g_suspend(struct musb *musb)
 		/* REVISIT if B_HOST, clear DEVCTL.HOSTREQ;
 		 * A_PERIPHERAL may need care too
 		 */
-		pr_warn("unhandled SUSPEND transition (%s)\n",
+		pr_notice("unhandled SUSPEND transition (%s)\n",
 			otg_state_string(musb->xceiv->otg->state));
 	}
 }
@@ -2863,8 +2848,7 @@ int polling_vbus_value(void *data)
 			devctl = musb_readb(mtk_musb->mregs, MUSB_DEVCTL);
 			DBG(0, "Sending SRP Done: devctl: %02x\n", devctl);
 
-			DBG(0,
-				"%s - before OTG_STATE_B_IDLE\n", __func__);
+			DBG(0, "before OTG_STATE_B_IDLE\n");
 			mtk_musb->xceiv->otg->state = OTG_STATE_B_IDLE;
 			DBG(0, "%s - after OTG_STATE_B_IDLE\n", __func__);
 
@@ -2923,12 +2907,11 @@ int polling_vbus_value(void *data)
 				polling_vbus = false;
 				mt_usb_disconnect();
 			}
-			DBG(0, "%s - Done - %s\n",
-				__func__,
+			DBG(0, "%s - Done - %s\n", __func__,
 			    otg_state_string(mtk_musb->xceiv->otg->state));
 
 			break;
-#if 0
+#ifdef NEVER
 		case OTG_STATE_A_WAIT_BCON:
 		case OTG_STATE_A_IDLE:
 		case OTG_STATE_A_WAIT_VRISE:
@@ -3035,7 +3018,9 @@ void musb_g_reset(struct musb *musb)
 	u8 devctl = musb_readb(mbase, MUSB_DEVCTL);
 	u8 power;
 	struct musb_ep		*ep;
+#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
 	ktime_t current_time;
+#endif
 
 	DBG(2, "<== %s driver '%s'\n", (devctl & MUSB_DEVCTL_BDEVICE)
 	    ? "B-Device" : "A-Device",
@@ -3056,10 +3041,10 @@ void musb_g_reset(struct musb *musb)
 	if (!musb->usb_lock->active)
 		__pm_stay_awake(musb->usb_lock);
 
-#ifndef FPGA_PLATFORM 
-	musb_platform_reset(musb); 
-	musb_generic_disable(musb); 
-#endif 
+#ifndef FPGA_PLATFORM
+	musb_platform_reset(musb);
+	musb_generic_disable(musb);
+#endif
 
 	/* re-init interrupt setting */
 	musb->intrrxe = 0;
@@ -3121,6 +3106,7 @@ void musb_g_reset(struct musb *musb)
 		musb->g.is_a_peripheral = 1;
 	}
 
+#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
 	if (acc_dev_status && (musb->rst_err_noti == false)) {
 		current_time = ktime_to_ms(ktime_get_boottime());
 
@@ -3130,11 +3116,10 @@ void musb_g_reset(struct musb *musb)
 				musb->rst_time_first = musb->rst_time_before;
 			}
 		} else {
-			if ((current_time - musb->rst_time_first) < 1000) {
+			if ((current_time - musb->rst_time_first) < 1000)
 				musb->rst_err_cnt++;
-			} else {
+			else
 				musb->rst_err_cnt = 0;
-			}
 		}
 
 		if (musb->rst_err_cnt > ERR_RESET_CNT) {
@@ -3148,6 +3133,7 @@ void musb_g_reset(struct musb *musb)
 
 		musb->rst_time_before = current_time;
 	}
+#endif
 
 	/* start with default limits on VBUS power draw */
 	(void)musb_gadget_vbus_draw(&musb->g, 8);

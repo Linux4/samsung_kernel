@@ -24,8 +24,6 @@
 #include <linux/spinlock.h>
 #include <linux/uhid.h>
 #include <linux/wait.h>
-#include <linux/fb.h>
-#include <linux/eventpoll.h>
 
 #define UHID_NAME	"uhid"
 #define UHID_BUFSIZE	32
@@ -57,8 +55,6 @@ struct uhid_device {
 };
 
 static struct miscdevice uhid_misc;
-
-bool lcd_is_on = true;
 
 static void uhid_device_add_worker(struct work_struct *work)
 {
@@ -500,6 +496,7 @@ static int uhid_dev_create2(struct uhid_device *uhid,
 		goto err_free;
 	}
 
+	/* @hid is zero-initialized, strncpy() is correct, strlcpy() not */
 	len = min(sizeof(hid->name), sizeof(ev->u.create2.name)) - 1;
 	strncpy(hid->name, ev->u.create2.name, len);
 	len = min(sizeof(hid->phys), sizeof(ev->u.create2.phys)) - 1;
@@ -757,15 +754,15 @@ unlock:
 	return ret ? ret : count;
 }
 
-static unsigned int uhid_char_poll(struct file *file, poll_table *wait)
+static __poll_t uhid_char_poll(struct file *file, poll_table *wait)
 {
 	struct uhid_device *uhid = file->private_data;
-	unsigned int mask = POLLOUT | POLLWRNORM; /* uhid is always writable */
+	__poll_t mask = EPOLLOUT | EPOLLWRNORM; /* uhid is always writable */
 
 	poll_wait(file, &uhid->waitq, wait);
 
 	if (uhid->head != uhid->tail)
-		mask |= POLLIN | POLLRDNORM;
+		mask |= EPOLLIN | EPOLLRDNORM;
 
 	return mask;
 }
@@ -785,47 +782,7 @@ static struct miscdevice uhid_misc = {
 	.minor		= UHID_MINOR,
 	.name		= UHID_NAME,
 };
-static int fb_state_change(struct notifier_block *nb,
-    unsigned long val, void *data)
-{
-	struct fb_event *evdata = data;
-	unsigned int blank;
-    dbg_hid("fb_state_change");
-	if (val != FB_EVENT_BLANK)
-		return 0;
-
-	blank = *(int *)evdata->data;
-
-	switch (blank) {
-	case FB_BLANK_POWERDOWN:
-		lcd_is_on = false;
-		break;
-	case FB_BLANK_UNBLANK:
-		lcd_is_on = true;
-		break;
-	default:
-		break;
-	}
-
-	return NOTIFY_OK;
-}
-static struct notifier_block fb_block = {
-    .notifier_call = fb_state_change,
-};
-
-static int __init uhid_init(void)
-{
-	fb_register_client(&fb_block);
-	return misc_register(&uhid_misc);
-}
-
-static void __exit uhid_exit(void)
-{
-	fb_unregister_client(&fb_block);
-	misc_deregister(&uhid_misc);
-}
-module_init(uhid_init);
-module_exit(uhid_exit);
+module_misc_device(uhid_misc);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("David Herrmann <dh.herrmann@gmail.com>");

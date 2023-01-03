@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/kernel.h>
 #include <linux/mm.h>
@@ -305,25 +297,28 @@ int _ioctl_prepare_present_fence(unsigned long arg)
 	int ret = 0;
 
 	void __user *argp = (void __user *)arg;
-	struct fence_data data;
-	struct disp_present_fence pf;
+	struct mtk_sync_create_fence_data data;
+	struct disp_present_fence pnt_fence;
 	static unsigned int fence_idx;
 	struct disp_sync_info *layer_info = NULL;
 	int timeline_id = disp_sync_get_present_timeline_id();
 
-	if (copy_from_user(&pf, (void __user *)arg, sizeof(pf))) {
-		DISPERR("[FB Driver]: copy_from_user failed! line:%d\n",
+	if (copy_from_user(&pnt_fence, (void __user *)arg,
+			sizeof(struct disp_present_fence))) {
+		pr_info("[FB Driver]: copy_from_user failed! line:%d\n",
 			__LINE__);
 		return -EFAULT;
 	}
 
-	if (DISP_SESSION_TYPE(pf.session_id) != DISP_SESSION_PRIMARY) {
-		DISPERR("non-primary ask for present fence! session=0x%x\n",
-			pf.session_id);
+	if (DISP_SESSION_TYPE(pnt_fence.session_id) !=
+		DISP_SESSION_PRIMARY) {
+		DISPWARN("non-primary ask for present fence! session=0x%x\n",
+			pnt_fence.session_id);
 		data.fence = MTK_FB_INVALID_FENCE_FD;
 		data.value = 0;
 	} else {
-		layer_info = _get_sync_info(pf.session_id, timeline_id);
+		layer_info = _get_sync_info(pnt_fence.session_id,
+			timeline_id);
 		if (layer_info == NULL) {
 			DISPERR("layer_info is null\n");
 			ret = -EFAULT;
@@ -335,30 +330,30 @@ int _ioctl_prepare_present_fence(unsigned long arg)
 		ret = fence_create(layer_info->timeline, &data);
 		if (ret != 0) {
 			DISPERR("%s%d,layer%d create Fence Object failed!\n",
-				disp_session_mode_spy(pf.session_id),
-				DISP_SESSION_DEV(pf.session_id),
+				disp_session_mode_spy(pnt_fence.session_id),
+				DISP_SESSION_DEV(pnt_fence.session_id),
 				timeline_id);
 			ret = -EFAULT;
 		}
 	}
 
-	pf.present_fence_fd = data.fence;
-	pf.present_fence_index = data.value;
-	if (copy_to_user(argp, &pf, sizeof(pf))) {
-		DISPERR("[FB Driver]: copy_to_user failed! line:%d\n",
+	pnt_fence.present_fence_fd = data.fence;
+	pnt_fence.present_fence_index = data.value;
+	if (copy_to_user(argp, &pnt_fence,
+		sizeof(pnt_fence))) {
+		pr_info("[FB Driver]: copy_to_user failed! line:%d\n",
 			__LINE__);
 		ret = -EFAULT;
 	}
 	mmprofile_log_ex(ddp_mmp_get_events()->present_fence_get,
-			 MMPROFILE_FLAG_PULSE,
-			 pf.present_fence_fd,
-			 pf.present_fence_index);
+		MMPROFILE_FLAG_PULSE,
+		pnt_fence.present_fence_fd,
+		pnt_fence.present_fence_index);
 	DISPPR_FENCE("P+/%s%d/L%d/id%d/fd%d\n",
-		     disp_session_mode_spy(pf.session_id),
-		     DISP_SESSION_DEV(pf.session_id),
-		     timeline_id, pf.present_fence_index,
-		     pf.present_fence_fd);
-
+		disp_session_mode_spy(pnt_fence.session_id),
+		DISP_SESSION_DEV(pnt_fence.session_id), timeline_id,
+		pnt_fence.present_fence_index,
+		pnt_fence.present_fence_fd);
 	return ret;
 }
 

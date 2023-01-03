@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/platform_device.h>
@@ -65,7 +57,9 @@
 #include "kd_imgsensor_adaptive_mipi.h"
 #endif
 
+#ifdef CONFIG_IMGSENSOR_CUSTOM_CAMERA
 #define USING_GENERAL_VARIANT_FOR_IMGSENSOR
+#endif
 
 static DEFINE_MUTEX(gimgsensor_mutex);
 static DEFINE_MUTEX(gimgsensor_open_mutex);
@@ -117,8 +111,7 @@ void IMGSENSOR_PROFILE(struct timeval *ptv, char *tag)
 struct IMGSENSOR_SENSOR
 *imgsensor_sensor_get_inst(enum IMGSENSOR_SENSOR_IDX idx)
 {
-	if (idx < IMGSENSOR_SENSOR_IDX_MIN_NUM ||
-		idx >= IMGSENSOR_SENSOR_IDX_MAX_NUM)
+	if (idx >= IMGSENSOR_SENSOR_IDX_MAX_NUM)
 		return NULL;
 	else
 		return &gimgsensor.sensor[idx];
@@ -181,13 +174,13 @@ MINT32 imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 	enum IMGSENSOR_SENSOR_IDX sensor_idx = psensor->inst.sensor_idx;
 	struct i2c_client *pi2c_client = NULL;
 #endif
-	
+
 #ifdef CONFIG_CAMERA_ADAPTIVE_MIPI
 	MUINT8 param_data = 0;
 	MUINT32 param_length = 0;
 
 	if (imgsensor_print_cp_info() < 0)
-		pr_info("adaptive mipi is disabled\n");
+		PK_INFO("adaptive mipi is disabled\n");
 #endif
 
 	IMGSENSOR_FUNCTION_ENTRY();
@@ -267,7 +260,7 @@ MINT32 imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 
 		if (param_data) {
 			imgsensor_sensor_feature_control(psensor, SENSOR_FEATURE_SET_ADAPTIVE_MIPI, &param_data, &param_length);
-			pr_info("Enable adaptive mipi[sensor_idx %d]-> %d\n", psensor->inst.sensor_idx, param_data);
+			PK_INFO("Enable adaptive mipi[sensor_idx %d]-> %d\n", psensor->inst.sensor_idx, param_data);
 		}
 #endif
 
@@ -560,7 +553,7 @@ static void imgsensor_init_sensor_list(void)
 static unsigned int get_sensor_id(char *sensor_name)
 {
 	unsigned int searched_sensor_id = 0;
-	int i =0;
+	int i = 0;
 
 	struct IMGSENSOR_SENSOR_LIST *psensor_list = gimgsensor_sensor_list;
 
@@ -599,9 +592,8 @@ static void imgsensor_set_sensor_id(struct IMGSENSOR_SENSOR *psensor)
 	}
 
 	searched_sensor_id = get_sensor_id(psensor->inst.psensor_list->name);
-	if (!searched_sensor_id) {
+	if (!searched_sensor_id)
 		return;
-	}
 
 	param_length = sizeof(searched_sensor_id);
 	imgsensor_sensor_feature_control(psensor, SENSOR_FEATURE_SET_SENSOR_ID, (MUINT8 *)&searched_sensor_id, &param_length);
@@ -2065,7 +2057,7 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 			kal_uint32 buf_type = (kal_uint32) (*(pFeaturePara_64 + 0));
 			void *usr_ptr = (void *)(uintptr_t)(*(pFeaturePara_64 + 1));
 			kal_uint32 buf_size = (kal_uint32) (*(pFeaturePara_64 + 2));
-#if defined(CONFIG_CAMERA_AAU_V13X) || defined(CONFIG_CAMERA_MMV_V13X)
+#if defined(CONFIG_CAMERA_AAU_V13X) || defined(CONFIG_CAMERA_MMV_V13X) || defined(CONFIG_CAMERA_AAV_V23EX)
 			char *XTC_CAL = NULL;
 			const int TYPE_XTALK_CAL = 0; // Correspond to FOUR_CELL_CAL_TYPE_GAIN_TBL (XTALK_CAL)
 
@@ -2113,7 +2105,7 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 
 			IMGSENSOR_GET_CAL_BUF_BY_SENSOR_IDX(pFeatureCtrl->InvokeCamera, &rom_cal_buf);
 
-			pr_info("[CAMERA_HW] GET_4CELL_DATA - camera=%d, buf_size=%d, actual read = header(%d) + cal read(%d of %d(0x%X~0x%X))\n",
+			PK_INFO("[CAMERA_HW] GET_4CELL_DATA - camera=%d, buf_size=%d, actual read = header(%d) + cal read(%d of %d(0x%X~0x%X))\n",
 				pFeatureCtrl->InvokeCamera, buf_size, HEADER_SIZE, cal_read_size, CAL_SIZE, OFFSET_START, OFFSET_END);
 			if ((usr_ptr == NULL) || (rom_cal_buf == NULL) ||
 				(pFeatureCtrl->InvokeCamera != IMGSENSOR_SENSOR_IDX_MAIN) ||
@@ -2125,12 +2117,12 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 			}
 
 			if (buf_type != TYPE_XTALK_CAL) {
-				pr_info("[CAMERA_HW] GET_4CELL_DATA - read skip for non XTALK type %d", buf_type);
+				PK_INFO("[CAMERA_HW] GET_4CELL_DATA - read skip for non XTALK type %d", buf_type);
 				cal_read_size = 0;
 			}
 
 			if (cal_read_size > CAL_SIZE) {
-				pr_info("[CAMERA_HW] GET_4CELL_DATA - cal read size (%d) change to CAL_SIZE (%d)",
+				PK_INFO("[CAMERA_HW] GET_4CELL_DATA - cal read size (%d) change to CAL_SIZE (%d)",
 					cal_read_size, CAL_SIZE);
 				cal_read_size = CAL_SIZE;
 			}
@@ -2180,7 +2172,7 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 			/* buffer size exam */
 			if ((sizeof(kal_uint8) * u4RegLen) >
 			    IMGSENSOR_FEATURE_PARA_LEN_MAX ||
-			    (u4RegLen > LSC_TBL_DATA_SIZE || u4RegLen < 0)) {
+			    (u4RegLen > LSC_TBL_DATA_SIZE)) {
 				kfree(pFeaturePara);
 				PK_PR_ERR(" buffer size (%u) is too large\n",
 					u4RegLen);
@@ -2553,6 +2545,8 @@ static long imgsensor_ioctl(
 			goto CAMERA_HW_Ioctl_EXIT;
 		}
 
+		memset(pBuff, 0x0, _IOC_SIZE(a_u4Command));
+
 		if (_IOC_WRITE & _IOC_DIR(a_u4Command)) {
 			if (copy_from_user(pBuff, (void *)a_u4Param,
 			_IOC_SIZE(a_u4Command))) {
@@ -2781,8 +2775,8 @@ static int __init imgsensor_init(void)
 	if (platform_driver_register(&gimgsensor_platform_driver)) {
 		PK_PR_ERR("failed to register CAMERA_HW driver\n");
 		return -ENODEV;
-	}	
-	
+	}
+
 #ifdef CONFIG_CAMERA_ADAPTIVE_MIPI
 	imgsensor_register_ril_notifier();
 #endif

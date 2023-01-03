@@ -231,7 +231,7 @@ int debug_mode_onoff(bool enabled)
 	u8 temp[5] = { 0 };
 
 
-	if ((ilits->power_status == POWER_OFF_STATUS) || ilits->tp_shutdown) {
+	if (ilits->power_status == POWER_OFF_STATUS) {
 		input_err(true, ilits->dev, "%s failed(power off state).\n", __func__);
 		return -1;
 	}

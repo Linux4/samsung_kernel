@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/slab.h>
 #include <linux/string.h>
@@ -33,9 +25,6 @@ static int __init ppm_power_data_init(void)
 #endif
 
 	ppm_unlock(&ppm_main_info.lock);
-	
-	/* let PPM apply setting issued earlier*/
-	mt_ppm_main();
 
 	ppm_info("power data init done!\n");
 

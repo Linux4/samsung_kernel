@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #ifndef __LINUX_RT_TCPC_H
@@ -40,6 +32,9 @@
 
 /* provide to TCPC interface */
 extern int tcpci_report_usb_port_changed(struct tcpc_device *tcpc);
+#ifdef CONFIG_WATER_DETECTION
+extern void typec_wd_report_usb_port_work(struct work_struct *work);
+#endif /* CONFIG_WATER_DETECTION */
 extern int tcpci_set_wake_lock(
 	struct tcpc_device *tcpc, bool pd_lock, bool user_lock);
 extern int tcpci_report_power_control(struct tcpc_device *tcpc, bool en);
@@ -77,7 +72,10 @@ int tcpci_get_alert_status(struct tcpc_device *tcpc, uint32_t *alert);
 int tcpci_get_fault_status(struct tcpc_device *tcpc, uint8_t *fault);
 int tcpci_get_power_status(struct tcpc_device *tcpc, uint16_t *pw_status);
 int tcpci_init(struct tcpc_device *tcpc, bool sw_reset);
+#if defined(CONFIG_USB_FACTORY_MODE)
+/* [ALPS07177780] battery: factory higher sleep current by charger buck mode*/
 int tcpci_ss_factory(struct tcpc_device *tcpc);
+#endif
 int tcpci_init_alert_mask(struct tcpc_device *tcpc);
 void tcpci_set_vbus_dischg_gpio(struct tcpc_device *tcpc, int value);
 
@@ -110,6 +108,7 @@ int tcpci_is_vsafe0v(struct tcpc_device *tcpc);
 #endif /* CONFIG_TCPC_VSAFE0V_DETECT_IC */
 
 #ifdef CONFIG_WATER_DETECTION
+bool tcpci_is_in_water_detecting(struct tcpc_device *tcpc);
 int tcpci_is_water_detected(struct tcpc_device *tcpc);
 int tcpci_set_water_protection(struct tcpc_device *tcpc, bool en);
 int tcpci_set_usbid_polling(struct tcpc_device *tcpc, bool en);

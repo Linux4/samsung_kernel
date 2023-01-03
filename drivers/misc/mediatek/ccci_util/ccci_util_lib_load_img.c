@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
  */
 
 #include <linux/module.h>
@@ -38,8 +30,8 @@
 #include <sec_osal.h>
 #include <sec_export.h>
 #endif
-#include <mt-plat/mtk_boot_common.h>
-#include <mt-plat/mtk_ccci_common.h>
+#include "mt-plat/mtk_boot_common.h"
+#include "mt-plat/mtk_ccci_common.h"
 #include "ccci_util_log.h"
 #include "ccci_util_lib_main.h"
 #if defined(CONFIG_MTK_AEE_FEATURE)
@@ -98,6 +90,33 @@ static struct md_check_header_v5 md_img_header_v5[MAX_MD_NUM];
 static struct md_check_header_v6 md_img_header_v6[MAX_MD_NUM];
 /*static struct ccci_image_info		img_info[MAX_MD_NUM][IMG_NUM]; */
 char md_img_info_str[MAX_MD_NUM][256];
+
+static char *s_ap_platform_info;
+
+char *ccci_get_ap_platform(void)
+{
+	struct device_node *node;
+	int ret;
+	u32 ap_plat_numb;
+
+	if (!s_ap_platform_info) {
+		node = of_find_compatible_node(NULL, NULL,
+				"mediatek,mddriver");
+		if (!node)
+			return NULL;
+
+		ret = of_property_read_u32(node,
+				"mediatek,ap_plat_info", &ap_plat_numb);
+		if (ret < 0)
+			return NULL;
+
+		s_ap_platform_info = kzalloc(16, GFP_KERNEL);
+		scnprintf(s_ap_platform_info, 16, "MT%d", ap_plat_numb);
+	}
+
+	return s_ap_platform_info;
+}
+EXPORT_SYMBOL(ccci_get_ap_platform);
 
 /*--- MD header check ------------ */
 static int check_dsp_header(int md_id, void *parse_addr,
@@ -252,7 +271,6 @@ static int check_md_header_v3(int md_id, void *parse_addr,
 					"MD%d mem size(0x%x)<header size(0x%x),please check memory config in <chip>.dtsi",
 					md_id + 1, image->size,
 					head->md_img_size);
-
 #if defined(CONFIG_MTK_AEE_FEATURE)
 				aed_md_exception_api(NULL, 0,
 					(const int *)info,
@@ -393,7 +411,6 @@ static int md_check_header_parser(int md_id, void *parse_addr,
 		head = (struct md_check_header_struct *)headv12;
 		header_up = 2;
 	}
-
 	start = (unsigned char *)(head);
 	ptr = (unsigned char *)(parse_addr - header_size);
 	for (idx = 0; idx < header_size; idx++)
@@ -807,6 +824,7 @@ char *ccci_get_md_info_str(int md_id)
 {
 	return md_img_info_str[md_id];
 }
+EXPORT_SYMBOL(ccci_get_md_info_str);
 
 void get_md_postfix(int md_id, const char k[], char buf[], char buf_ex[])
 {
@@ -826,7 +844,7 @@ void get_md_postfix(int md_id, const char k[], char buf[], char buf_ex[])
 	/* X */
 	X = md_id + 1;
 
-	if ((img_type != 0) && (md_id == MD_SYS1)) {
+	if ((img_type > 0) && (md_id == MD_SYS1)) {
 		if (buf) {
 			scnprintf(buf, IMG_POSTFIX_LEN,
 				"%d_%s_n", X, get_md_img_cap_str(img_type));
@@ -873,14 +891,7 @@ void get_md_postfix(int md_id, const char k[], char buf[], char buf_ex[])
 			"_%s_%s", get_md_img_cap_str(feature_val), k);
 
 	/* [_Ex] Get chip version */
-#if 0
-	if (get_chip_version() == CHIP_SW_VER_01)
-		Ex = 1;
-	else if (get_chip_version() == CHIP_SW_VER_02)
-		Ex = 2;
-#else
 	Ex = 1;
-#endif
 
 	/* Gen post fix */
 	if (buf) {
@@ -918,6 +929,7 @@ int ccci_load_firmware(int md_id, void *img_inf,
 	void *img_data_ptr = NULL;
 	char *img_str = md_img_info_str[md_id];
 	static const int md_type_val = 3; //only MT6580 using this
+
 
 	if (dev == NULL) {
 		CCCI_UTIL_ERR_MSG_WITH_ID(md_id,
@@ -957,6 +969,10 @@ int ccci_load_firmware(int md_id, void *img_inf,
 		else if (img->type == IMG_DSP)
 			scnprintf(img_name, IMG_NAME_LEN,
 				"dsp_%d_%s_n.bin",
+				md_id+1, md_img_type_str[md_type_val]);
+		else if (img->type == IMG_ARMV7)
+			scnprintf(img_name, IMG_NAME_LEN,
+				"armv7_%d_%s_n.bin",
 				md_id+1, md_img_type_str[md_type_val]);
 		else {
 			CCCI_UTIL_ERR_MSG_WITH_ID(md_id,
@@ -1099,6 +1115,7 @@ int ccci_init_security(void)
 #endif
 	return ret;
 }
+EXPORT_SYMBOL(ccci_init_security);
 
 #define IMG_MAGIC		0x58881688
 #define EXT_MAGIC		0x58891689
@@ -1201,6 +1218,7 @@ int ccci_get_md_check_hdr_inf(int md_id, void *img_inf, char post_fix[])
 
 	return 0;
 }
+EXPORT_SYMBOL(ccci_get_md_check_hdr_inf);
 
 int check_if_bypass_header(void *buf, int *img_size)
 {

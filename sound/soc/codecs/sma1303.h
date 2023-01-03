@@ -1,7 +1,7 @@
 /*
  * sma1303.h -- sma1303 ALSA SoC Audio driver
  *
- * r010_ps, 2020.05.18
+ * r013, 2020.05.06
  *
  * Copyright 2019 Silicon Mitus Corporation / Iron Device Corporation
  *
@@ -37,9 +37,9 @@
 /* 0x05 ~ 0x08 : Reserved */
 #define  SMA1303_09_OUTPUT_CTRL		0x09
 #define  SMA1303_0A_SPK_VOL		0x0a
-#define  SMA1303_0B_BST_TEST		0x0b
-#define  SMA1303_0C_BST_TEST1		0x0c
-#define  SMA1303_0D_SPK_TEST		0x0d
+#define  SMA1303_0B_BST_TEST        	0x0b
+#define  SMA1303_0C_BST_TEST1       	0x0c
+#define  SMA1303_0D_SPK_TEST        	0x0d
 #define  SMA1303_0E_MUTE_VOL_CTRL	0x0e
 /* 0x0F : Reserved */
 #define  SMA1303_10_SYSTEM_CTRL1	0x10
@@ -87,13 +87,13 @@
 #define  SMA1303_96_BOOST_CTRL3		0x96
 #define  SMA1303_97_BOOST_CTRL4		0x97
 /* 0x98 ~ 0x9F : Reserved */
-#define  SMA1303_A0_PAD_CTRL0		0xa0
-#define  SMA1303_A1_PAD_CTRL1		0xa1
+#define  SMA1303_A0_PAD_CTRL0       	0xa0
+#define  SMA1303_A1_PAD_CTRL1       	0xa1
 #define	 SMA1303_A2_TOP_MAN1		0xa2
 #define	 SMA1303_A3_TOP_MAN2		0xa3
 #define	 SMA1303_A4_TOP_MAN3		0xa4
-#define  SMA1303_A5_TDM1		0xa5
-#define  SMA1303_A6_TDM2		0xa6
+#define  SMA1303_A5_TDM1            	0xa5
+#define  SMA1303_A6_TDM2            	0xa6
 #define  SMA1303_A7_CLK_MON		0xa7
 /* 0xA8 ~ 0xF9 : Reserved */
 #define	 SMA1303_FA_STATUS1		0xfa

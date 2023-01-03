@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 #include <linux/semaphore.h>
 #include <linux/completion.h>
@@ -96,7 +88,7 @@ int mdla_pwr_on(unsigned int core_id, bool force)
 
 	ret = apu_device_power_on(register_user);
 	if (!ret) {
-		mdla_drv_debug("%s power on device %d success\n",
+		mdla_cmd_debug("%s power on device %d success\n",
 						__func__, register_user);
 		mdla_devices[core_id].mdla_power_status = PWR_ON;
 	} else {
@@ -228,9 +220,12 @@ int mdla_start_power_off(unsigned int core_id, int suspend, bool force)
 	return ret;
 }
 
-void mdla_power_timeup(unsigned long data)
+void mdla_power_timeup(struct timer_list *timer)
 {
-	schedule_work(&mdla_devices[data].power_off_work);
+	struct mdla_dev *mdla_info;
+
+	mdla_info = container_of(timer, struct mdla_dev, power_timer);
+	schedule_work(&mdla_info->power_off_work);
 }
 
 void mdla_setup_power_down(unsigned int core_id)

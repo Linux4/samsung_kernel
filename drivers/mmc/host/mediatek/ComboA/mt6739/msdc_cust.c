@@ -1,14 +1,7 @@
-/* Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifdef pr_fmt
 #undef pr_fmt
@@ -29,11 +22,7 @@
 
 #include "mtk_sd.h"
 #include "dbg.h"
-#if !defined(FPGA_PLATFORM)
-#ifdef POWER_READY
-#include "include/pmic_regulator.h"
-#endif
-#endif
+
 
 
 struct msdc_host *mtk_msdc_host[HOST_MAX_NUM];
@@ -184,7 +173,7 @@ void msdc_dump_ldo_sts(char **buff, unsigned long *size,
 #endif
 }
 
-void msdc_sd_power_switch(struct msdc_host *host, u32 on)
+int msdc_sd_power_switch(struct msdc_host *host, u32 on)
 {
 #ifdef POWER_READY
 	if (host->id == 1) {
@@ -200,6 +189,7 @@ void msdc_sd_power_switch(struct msdc_host *host, u32 on)
 		msdc_set_driving(host, host->hw->driving_applied);
 	}
 #endif
+	return 0;
 }
 
 void msdc_sdio_power(struct msdc_host *host, u32 on)
@@ -1178,7 +1168,8 @@ int msdc_of_parse(struct platform_device *pdev, struct mmc_host *mmc)
 	struct msdc_host *host = mmc_priv(mmc);
 	int ret = 0;
 	int len = 0;
-	u8 hw_dvfs_support, id = 0;
+	u8 hw_dvfs_support = 0;
+	u8 id = 0;
 	const char *dup_name;
 
 	np = mmc->parent->of_node; /* mmcx node in project dts */

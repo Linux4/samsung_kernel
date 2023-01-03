@@ -4,17 +4,10 @@
 #ifndef __ASSEMBLY__
 
 /* For uH Command */
-#ifdef CONFIG_RUSTUH_RKP
 #define APP_INIT	0
 #define APP_RKP		1
 #define APP_KDP		2
 #define APP_HDM		6
-#else
-#define	APP_INIT	0
-#define	APP_SAMPLE	1
-#define APP_RKP		2
-#define APP_HDM		6
-#endif
 
 #define UH_PREFIX  UL(0x83000000)
 #define UH_APPID(APP_ID)  (((UL(APP_ID) << 8) & UL(0xFF00)) | UH_PREFIX)
@@ -23,23 +16,14 @@
 #define GZ_MM_MAP_TEST     0x71
 #define GZ_MM_UNMAP_TEST     0x72
 
-#ifdef CONFIG_RUSTUH_RKP
 enum __UH_APP_ID {
 	UH_INIT = UH_APPID(APP_INIT),
 	UH_APP_RKP = UH_APPID(APP_RKP),
 	UH_APP_KDP = UH_APPID(APP_KDP),
 	UH_APP_HDM = UH_APPID(APP_HDM),
 };
-#else
-enum __UH_APP_ID {
-	UH_APP_INIT     = UH_APPID(APP_INIT),
-	UH_APP_SAMPLE   = UH_APPID(APP_SAMPLE),
-	UH_APP_RKP      = UH_APPID(APP_RKP),
-	UH_APP_HDM	= UH_APPID(APP_HDM)
-};
-#endif
 
-struct uh_app_test_case {
+struct test_case {
 	int (*fn)(void); //test case func
 	char *describe;
 };

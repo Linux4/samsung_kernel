@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2018 MediaTek Inc.
  */
 
 #ifdef CONFIG_MTK_CLKMGR
@@ -23,7 +15,8 @@
 #include <mtk_musb.h>
 #include <musb_core.h>
 #include "usb20.h"
-#include "mtk_devinfo.h"
+#include <linux/nvmem-consumer.h>
+#include <linux/phy/phy.h>
 
 #ifdef CONFIG_OF
 #include <linux/of_address.h>
@@ -99,35 +92,59 @@ void usb_phy_switch_to_usb(void)
 #else
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
+#define VAL_MAX_WIDTH_2	0x3
+#define VAL_MAX_WIDTH_3	0x7
 #define OFFSET_RG_USB20_VRT_VREF_SEL 0x4
 #define SHFT_RG_USB20_VRT_VREF_SEL 12
 #define OFFSET_RG_USB20_TERM_VREF_SEL 0x4
 #define SHFT_RG_USB20_TERM_VREF_SEL 8
 #define OFFSET_RG_USB20_PHY_REV6 0x18
 #define SHFT_RG_USB20_PHY_REV6 30
-
-void usb_phy_tuning(bool is_host)
+void usb_phy_tuning(void)
 {
-	int i = 0;
+	static bool inited;
+	static s32 u2_vrt_ref, u2_term_ref, u2_enhance;
+	static struct device_node *of_node;
 
-	pr_info("%s : is_host %d\n", __func__, is_host);
+	if (!inited) {
+		u2_vrt_ref = u2_term_ref = u2_enhance = -1;
+		of_node = of_find_compatible_node(NULL,
+			NULL, "mediatek,phy_tuning");
+		if (of_node) {
+			/* value won't be updated if property not being found */
+			of_property_read_u32(of_node,
+				"u2_vrt_ref", (u32 *) &u2_vrt_ref);
+			of_property_read_u32(of_node,
+				"u2_term_ref", (u32 *) &u2_term_ref);
+			of_property_read_u32(of_node,
+				"u2_enhance", (u32 *) &u2_enhance);
+		}
+		inited = true;
+	} else if (!of_node)
+		return;
 
-	for (i = 0; i < phy_data_cnt; i++) {
-		struct mt_usb_phy_data *data = &phy_data[i];
-
-		USBPHY_CLR32(data->offset,
-			data->mask << data->shift);
-
-		if (is_host && data->host) {
-			USBPHY_SET32(data->offset,
-					data->host << data->shift);
-			pr_info("%s %s : 0x%x\n", __func__,
-					data->name, data->host);
-		} else {
-			USBPHY_SET32(data->offset,
-					data->value << data->shift);
-			pr_info("%s %s : 0x%x\n", __func__,
-					data->name, data->value);
+	if (u2_vrt_ref != -1) {
+		if (u2_vrt_ref <= VAL_MAX_WIDTH_3) {
+			USBPHY_CLR32(OFFSET_RG_USB20_VRT_VREF_SEL,
+				VAL_MAX_WIDTH_3 << SHFT_RG_USB20_VRT_VREF_SEL);
+			USBPHY_SET32(OFFSET_RG_USB20_VRT_VREF_SEL,
+				u2_vrt_ref << SHFT_RG_USB20_VRT_VREF_SEL);
+		}
+	}
+	if (u2_term_ref != -1) {
+		if (u2_term_ref <= VAL_MAX_WIDTH_3) {
+			USBPHY_CLR32(OFFSET_RG_USB20_TERM_VREF_SEL,
+				VAL_MAX_WIDTH_3 << SHFT_RG_USB20_TERM_VREF_SEL);
+			USBPHY_SET32(OFFSET_RG_USB20_TERM_VREF_SEL,
+				u2_term_ref << SHFT_RG_USB20_TERM_VREF_SEL);
+		}
+	}
+	if (u2_enhance != -1) {
+		if (u2_enhance <= VAL_MAX_WIDTH_2) {
+			USBPHY_CLR32(OFFSET_RG_USB20_PHY_REV6,
+				VAL_MAX_WIDTH_2 << SHFT_RG_USB20_PHY_REV6);
+			USBPHY_SET32(OFFSET_RG_USB20_PHY_REV6,
+					u2_enhance<<SHFT_RG_USB20_PHY_REV6);
 		}
 	}
 }
@@ -145,13 +162,13 @@ int usb2jtag_usb_init(void)
 #endif
 
 	if (!node) {
-		pr_err("[USB2JTAG] map node @ mediatek,USB0 failed\n");
+		pr_notice("[USB2JTAG] map node @ mediatek,USB0 failed\n");
 		return -1;
 	}
 
 	usb_phy_base = of_iomap(node, 1);
 	if (!usb_phy_base) {
-		pr_err("[USB2JTAG] iomap usb_phy_base failed\n");
+		pr_notice("[USB2JTAG] iomap usb_phy_base failed\n");
 		return -1;
 	}
 
@@ -468,19 +485,19 @@ void usb_phy_switch_to_usb(void)
 void set_usb_phy_mode(int mode)
 {
 	switch (mode) {
-	case PHY_DEV_ACTIVE:
+	case PHY_MODE_USB_DEVICE:
 	/* VBUSVALID=1, AVALID=1, BVALID=1, SESSEND=0, IDDIG=1, IDPULLUP=1 */
 		USBPHY_CLR32(0x6C, (0x10<<0));
 		USBPHY_SET32(0x6C, (0x2F<<0));
 		USBPHY_SET32(0x6C, (0x3F<<8));
 		break;
-	case PHY_HOST_ACTIVE:
+	case PHY_MODE_USB_HOST:
 	/* VBUSVALID=1, AVALID=1, BVALID=1, SESSEND=0, IDDIG=0, IDPULLUP=1 */
 		USBPHY_CLR32(0x6c, (0x12<<0));
 		USBPHY_SET32(0x6c, (0x2d<<0));
 		USBPHY_SET32(0x6c, (0x3f<<8));
 		break;
-	case PHY_IDLE_MODE:
+	case PHY_MODE_INVALID:
 	/* VBUSVALID=0, AVALID=0, BVALID=0, SESSEND=1, IDDIG=0, IDPULLUP=1 */
 		USBPHY_SET32(0x6c, (0x11<<0));
 		USBPHY_CLR32(0x6c, (0x2e<<0));
@@ -513,7 +530,7 @@ void usb_phy_poweron(void)
 {
 #ifdef CONFIG_MTK_UART_USB_SWITCH
 	if (in_uart_mode) {
-		DBG(0, "At UART mode. No usb_phy_poweron\n");
+		DBG(0, "At UART mode. No %s\n", __func__);
 		return;
 	}
 #endif
@@ -569,7 +586,7 @@ static void usb_phy_savecurrent_internal(void)
 {
 #ifdef CONFIG_MTK_UART_USB_SWITCH
 	if (in_uart_mode) {
-		DBG(0, "At UART mode. No usb_phy_savecurrent_internal\n");
+		DBG(0, "At UART mode. No %s\n", __func__);
 		return;
 	}
 #endif
@@ -639,13 +656,42 @@ static void usb_phy_savecurrent_internal(void)
 
 	udelay(1);
 
-	set_usb_phy_mode(PHY_IDLE_MODE);
+	set_usb_phy_mode(PHY_MODE_INVALID);
 }
 
 void usb_phy_savecurrent(void)
 {
 	usb_phy_savecurrent_internal();
 	DBG(0, "usb save current success\n");
+}
+
+unsigned int usb_phy_get_efuse_val(struct device *dev)
+{
+	unsigned int efuse_val = 0;
+	struct nvmem_cell *cell;
+	u32 *buf;
+	size_t len;
+
+	/* M_ANALOG8[4:0] => RG_USB20_INTR_CAL[4:0] */
+	cell = nvmem_cell_get(dev, "efuse_idx107");
+	if (cell == NULL) {
+		DBG(0, "nvmem_cell_get return NULL");
+		return 0;
+	}
+	if (IS_ERR(cell)) {
+		DBG(0, "can not get efuse_cell");
+		return 0;
+	}
+
+	buf = (u32 *)nvmem_cell_read(cell, &len);
+	nvmem_cell_put(cell);
+	if (IS_ERR(buf)) {
+		DBG(0, "can not get efuse_buf");
+		return 0;
+	}
+	efuse_val = (*buf & (0x1f<<0)) >> 0;
+	kfree(buf);
+	return efuse_val;
 }
 
 /* M17_USB_PWR Sequence 20160603.xls */
@@ -655,7 +701,7 @@ void usb_phy_recover(struct musb *musb)
 
 #ifdef CONFIG_MTK_UART_USB_SWITCH
 	if (in_uart_mode) {
-		DBG(0, "At UART mode. No usb_phy_recover\n");
+		DBG(0, "At UART mode. No %s\n", __func__);
 		return;
 	}
 #endif
@@ -731,23 +777,22 @@ void usb_phy_recover(struct musb *musb)
 	udelay(800);
 
 	/* force enter device mode */
-	set_usb_phy_mode(PHY_DEV_ACTIVE);
+	set_usb_phy_mode(PHY_MODE_USB_DEVICE);
 
 	hs_slew_rate_cal();
 
-	/* M_ANALOG8[4:0] => RG_USB20_INTR_CAL[4:0] */
-	efuse_val = (get_devinfo_with_index(107) & (0x1f<<0)) >> 0;
+	efuse_val = musb->efuse_val;
 	if (efuse_val) {
 		DBG(0, "apply efuse setting, RG_USB20_INTR_CAL=0x%x\n",
 			efuse_val);
 		USBPHY_CLR32(0x04, (0x1F<<19));
-		USBPHY_SET32(0x04, (efuse_val<<19));
+		/* Add pass margin */
+		USBPHY_SET32(0x04, ((efuse_val+2)<<19));
 	}
 
 	/* disc threshold to max, RG_USB20_DISCTH[7:4], dft:1000, MAX:1111 */
 	USBPHY_SET32(0x18, (0xf0<<0));
-
-	usb_phy_tuning(musb->is_host);
+	usb_phy_tuning();
 
 	DBG(0, "usb recovery success\n");
 }
@@ -755,12 +800,6 @@ void usb_phy_recover(struct musb *musb)
 /* BC1.2 */
 void Charger_Detect_Init(void)
 {
-	if ((get_boot_mode() == META_BOOT) ||
-		(get_boot_mode() == ADVMETA_BOOT)) {
-		DBG(0, "%s Skip\n", __func__);
-		return;
-	}
-
 	usb_prepare_enable_clock(true);
 
 	/* wait 50 usec. */
@@ -771,17 +810,12 @@ void Charger_Detect_Init(void)
 
 	usb_prepare_enable_clock(false);
 
-	DBG(0, "Charger_Detect_Init\n");
+	DBG(0, "%s\n", __func__);
 }
+EXPORT_SYMBOL(Charger_Detect_Init);
 
 void Charger_Detect_Release(void)
 {
-	if ((get_boot_mode() == META_BOOT) ||
-		(get_boot_mode() == ADVMETA_BOOT)) {
-		DBG(0, "%s Skip\n", __func__);
-		return;
-	}
-
 	usb_prepare_enable_clock(true);
 
 	/* RG_USB20_BC11_SW_EN = 1'b0 */
@@ -791,8 +825,9 @@ void Charger_Detect_Release(void)
 
 	usb_prepare_enable_clock(false);
 
-	DBG(0, "Charger_Detect_Release\n");
+	DBG(0, "%s\n", __func__);
 }
+EXPORT_SYMBOL(Charger_Detect_Release);
 
 void usb_phy_context_save(void)
 {
@@ -809,14 +844,4 @@ void usb_phy_context_restore(void)
 #endif
 }
 
-void usb_dpdm_pullup(bool enable)
-{
-	if (enable) {
-		/* RG_USB20_EN_PU_DP, 1'b1, RG_USB20_PUPD_BIST_EN, 1'b1 */
-		USBPHY_SET32(0x1c, (0x1 << 9) | (0x1 << 12));
-	} else {
-		/* RG_USB20_EN_PU_DP, 1'b0, RG_USB20_PUPD_BIST_EN, 1'b0 */
-		USBPHY_CLR32(0x1c, (0x1 << 9) | (0x1 << 12));
-	}
-}
 #endif

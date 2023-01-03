@@ -84,11 +84,5 @@ config ARGOS
 	  enhancing the performance such as adjusting the CPU freqency, allocating the tasks
 	  to the appropriate CPU and so on
 
-config SEC_DUMP_SINK
-	bool "Enable to dump_sink"
-	default n
-	help
-	  This option enables dump_sink.
-
 source "drivers/samsung/debug/Kconfig"
 source "drivers/samsung/misc/Kconfig"

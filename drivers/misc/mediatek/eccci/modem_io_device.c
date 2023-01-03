@@ -180,6 +180,11 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return ccci_port_ops->unlocked_ioctl(filp, CCCI_IOC_FORCE_MD_ASSERT, arg);
 
 	case IOCTL_MODEM_RESET:
+		if (md_state == EXCEPTION) {
+			pr_err("mif: %s skip IOCTL_MODEM_RESET md_state:EXCEPTION\n", __func__);
+			return 0;
+		}
+
 		pr_err("mif: %s: cmd=0x%x\n", __func__, cmd);
 		return ccci_port_ops->unlocked_ioctl(filp, CCCI_IOC_MD_RESET, arg);
 
@@ -450,7 +455,6 @@ module_platform_driver(modem_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Samsung Modem Interface Driver");
-
 
 
 

@@ -401,14 +401,8 @@ static int himax_self_test_proc_open(struct inode *inode, struct file *file)
 	return seq_open(file, &himax_self_test_seq_ops);
 };
 
-static const struct file_operations himax_proc_self_test_ops = {
-	.owner = THIS_MODULE,
-	.open = himax_self_test_proc_open,
-	.read = seq_read,
-	.write = himax_self_test_write,
-	.release = seq_release,
-};
 
+static sec_himax_input_proc_ops(THIS_MODULE, himax_proc_self_test_ops, seq_read, himax_self_test_write, himax_self_test_proc_open, seq_release);
 #ifdef HX_HIGH_SENSE
 static ssize_t himax_HSEN_read(struct file *file, char *buf,
 							   size_t len, loff_t *pos)
@@ -459,11 +453,7 @@ static ssize_t himax_HSEN_write(struct file *file, const char *buff,
 	return len;
 }
 
-static const struct file_operations himax_proc_HSEN_ops = {
-	.owner = THIS_MODULE,
-	.read = himax_HSEN_read,
-	.write = himax_HSEN_write,
-};
+static sec_himax_input_proc_ops(THIS_MODULE, himax_proc_HSEN_ops, himax_HSEN_read, himax_HSEN_writen, NULL, NULL);
 #endif
 
 int himax_set_gesture(int gesture_state)
@@ -547,12 +537,7 @@ static ssize_t himax_SMWP_write(struct file *file, const char *buff,
 	return len;
 }
 
-static const struct file_operations himax_proc_SMWP_ops = {
-	.owner = THIS_MODULE,
-	.read = himax_SMWP_read,
-	.write = himax_SMWP_write,
-};
-
+static sec_himax_input_proc_ops(THIS_MODULE, himax_proc_SMWP_ops, himax_SMWP_read, himax_SMWP_write, NULL, NULL);
 static ssize_t himax_GESTURE_read(struct file *file, char *buf,
 								  size_t len, loff_t *pos)
 {
@@ -613,12 +598,7 @@ static ssize_t himax_GESTURE_write(struct file *file, const char *buff,
 
 	return len;
 }
-
-static const struct file_operations himax_proc_Gesture_ops = {
-	.owner = THIS_MODULE,
-	.read = himax_GESTURE_read,
-	.write = himax_GESTURE_write,
-};
+static sec_himax_input_proc_ops(THIS_MODULE, himax_proc_Gesture_ops, himax_GESTURE_read, himax_GESTURE_write, NULL, NULL);
 
 #ifdef HX_P_SENSOR
 static ssize_t himax_psensor_read(struct file *file, char *buf,
@@ -673,11 +653,7 @@ static ssize_t himax_psensor_write(struct file *file, const char *buff,
 	return len;
 }
 
-static const struct file_operations himax_proc_psensor_ops = {
-	.owner = THIS_MODULE,
-	.read = himax_psensor_read,
-	.write = himax_psensor_write,
-};
+static sec_himax_input_proc_ops(THIS_MODULE, himax_proc_psensor_ops, himax_psensor_read, himax_psensor_write, NULL, NULL);
 #endif
 #endif
 
@@ -966,6 +942,7 @@ static int i_get_FW(void)
 	}
 
 	if (image != NULL) {
+		g_core_fp.fp_bin_desc_get((unsigned char *)image->data, HX1K);
 		i_CTPM_FW_len = image->size;
 		i_CTPM_FW = kcalloc(i_CTPM_FW_len, sizeof(char), GFP_KERNEL);
 		memcpy(i_CTPM_FW, image->data, sizeof(char)*i_CTPM_FW_len);
@@ -1781,18 +1758,10 @@ void hx_fw_dbg(void)
 	uint8_t tmp_addr[4] = {0};
 	uint8_t tmp_data[4] = {0};
 
-	tmp_addr[3] = 0x90;
-	tmp_addr[2] = 0x00;
-	tmp_addr[1] = 0x00;
-	tmp_addr[0] = 0xA8;
-	g_core_fp.fp_register_read(tmp_addr, 4, tmp_data, false);
+	g_core_fp.fp_register_read(pfw_op->addr_chk_fw_status, 4, tmp_data, 0);
 	I("%s: 0x900000A8, tmp_data[0]=%x,tmp_data[1]=%x,tmp_data[2]=%x,tmp_data[3]=%x \n", __func__, tmp_data[0], tmp_data[1], tmp_data[2], tmp_data[3]);
 
-	tmp_addr[3] = 0x90;
-	tmp_addr[2] = 0x00;
-	tmp_addr[1] = 0x00;
-	tmp_addr[0] = 0xE4;
-	g_core_fp.fp_register_read(tmp_addr, 4, tmp_data, false);
+	g_core_fp.fp_register_read(pfw_op->addr_flag_reset_event, 4, tmp_data, 0);
 	I("%s: 0x900000E4, tmp_data[0]=%x,tmp_data[1]=%x,tmp_data[2]=%x,tmp_data[3]=%x \n", __func__, tmp_data[0], tmp_data[1], tmp_data[2], tmp_data[3]);
 
 	tmp_addr[3] = 0x90;
@@ -1802,11 +1771,7 @@ void hx_fw_dbg(void)
 	g_core_fp.fp_register_read(tmp_addr, 4, tmp_data, false);
 	I("%s: 0x900000E8, tmp_data[0]=%x,tmp_data[1]=%x,tmp_data[2]=%x,tmp_data[3]=%x \n", __func__, tmp_data[0], tmp_data[1], tmp_data[2], tmp_data[3]);
 
-	tmp_addr[3] = 0x10;
-	tmp_addr[2] = 0x00;
-	tmp_addr[1] = 0x7F;
-	tmp_addr[0] = 0x40;
-	g_core_fp.fp_register_read(tmp_addr, 4, tmp_data, false);
+	g_core_fp.fp_register_read(pfw_op->addr_fw_dbg_msg_addr, 4, tmp_data, 0);
 	I("%s: 0x10007F40,tmp_data[0]=%x,tmp_data[1]=%x,tmp_data[2]=%x,tmp_data[3]=%x \n", __func__, tmp_data[0], tmp_data[1], tmp_data[2], tmp_data[3]);
 }
 
@@ -1973,7 +1938,9 @@ END_FUNCTION:
 static void himax_touch_info(void)
 {
 	if (strcmp(HX_83108A_SERIES_PWON, private_ts->chip_name) == 0
-		|| strcmp(HX_83112F_SERIES_PWON, private_ts->chip_name) == 0) {
+		|| strcmp(HX_83112F_SERIES_PWON, private_ts->chip_name) == 0
+		|| strcmp(HX_83102J_SERIES_PWON, private_ts->chip_name) == 0
+		|| strcmp(HX_83122A_SERIES_PWON, private_ts->chip_name) == 0) {
 		if (g_last_fw_irq_flag != hx_touch_data->hx_state_info[0]) {
 			if ((g_last_fw_irq_flag & 0x03) != (hx_touch_data->hx_state_info[0] & 0x03))
 				I("%s ReCal change to %d\n",
@@ -3064,6 +3031,13 @@ int hx_ic_register(void)
 	}
 #endif
 
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83122)
+	if (_hx83122_init()) {
+		ret = NO_ERR;
+		goto END;
+	}
+#endif
+
 END:
 	if (ret == NO_ERR)
 		I("%s: detect IC!\n", __func__);
@@ -3281,7 +3255,7 @@ int himax_chip_common_init(void)
 #if defined(HX_TOUCH_PROXIMITY)
 	ts->prox_power_off = 0;
 	ts->proxy_1b_en = 0;
-	ts->ear_detect_mode = -1;
+	ts->ear_detect_mode = 0;
 	ts->ear_detect_val = -1;
 	ts->prox_lp_scan_mode_enabled = false;
 #endif
@@ -3690,36 +3664,27 @@ int himax_ctrl_lcd_regulators(struct himax_ts_data *ts, bool on)
 	return ret;
 }
 
-static void hx_ap_nodify_suspend(int notify)
+static void hx_ap_notify_suspend(int notify)
 {
-	uint8_t tmp_addr[4] = {0};
-	uint8_t tmp_write[4] = {0};
+
+	uint8_t *tmp_write;
 	uint8_t tmp_read[4] = {0};
 	int retry = 10;
 	int write_chk = 0;
 
-	tmp_addr[3] = 0x10;
-	tmp_addr[2] = 0x00;
-	tmp_addr[1] = 0x7F;
-	tmp_addr[0] = 0xD0;
 	if (notify == 1) {
-		tmp_write[3] = 0xA5;
-		tmp_write[2] = 0x5A;
-		tmp_write[1] = 0xA5;
-		tmp_write[0] = 0x5A;
+
+		tmp_write = pfw_op->data_ap_notify_fw_sus_en;
 		input_info(true, private_ts->dev, "%s %s:Notify AP suspend\n", __func__, HIMAX_LOG_TAG);
 	} else {
-		tmp_write[3] = 0x00;
-		tmp_write[2] = 0x00;
-		tmp_write[1] = 0x00;
-		tmp_write[0] = 0x00;
+		tmp_write = pfw_op->data_ap_notify_fw_sus_dis;
 		input_info(true, private_ts->dev, "%s %s:Notify AP resume\n", __func__, HIMAX_LOG_TAG);
 	}
 
 	do {
-		g_core_fp.fp_register_write(tmp_addr, 4, tmp_write, 0);
+		g_core_fp.fp_register_write(pfw_op->addr_ap_notify_fw_sus, 4, tmp_write, 0);
 		usleep_range(10000, 10001);
-		g_core_fp.fp_register_read(tmp_addr, 4, tmp_read, 0);
+		g_core_fp.fp_register_read(pfw_op->addr_ap_notify_fw_sus, 4, tmp_read, 0);
 		if (tmp_write[3] == tmp_read[3] && tmp_write[2] == tmp_read[2]
 			&& tmp_write[1] == tmp_read[1] && tmp_write[0] == tmp_read[0]) {
 			input_info(true, private_ts->dev, "%s:write success(%d)\n", __func__, retry);
@@ -3758,7 +3723,7 @@ int himax_chip_common_early_suspend(struct himax_ts_data *ts)
 		I("[himax] %s: Flash dump is going, reject suspend\n", __func__);
 		goto END;
 	}
-	hx_ap_nodify_suspend(1);
+	hx_ap_notify_suspend(1);
 
 	if (ts->proxy_1b_en == 0) {
 		if (ts->ear_detect_mode && (ts->aot_enabled || ts->spay_enabled))
@@ -3965,7 +3930,8 @@ int himax_lpwg_dump_buf_read(u8 *buf)
 void himax_parse_gesture_history(void)
 {
 	uint8_t *total_buffer;
-	uint8_t tmp_addr[] = {0x00, 0x62, 0x00, 0x10};
+	uint32_t daddr;
+	uint8_t tmp_addr[4] = {0};
 	int pack_num = 0;
 	int i = 0, j = 0;
 	int read_times = 0;
@@ -3984,7 +3950,7 @@ void himax_parse_gesture_history(void)
 	int total_sz = 0;
 	I("%s start\n", __func__);
 
-	g_core_fp.fp_register_read(tmp_addr, 4, size_buf, 0);
+	g_core_fp.fp_register_read(pfw_op->addr_gesture_history, 4, size_buf, 0);
 	pack_num = size_buf[0];
 	pack_num = pack_num >= 99 ? 99 : pack_num;
 	total_sz = pack_num * 5;
@@ -3992,10 +3958,19 @@ void himax_parse_gesture_history(void)
 	I("%s: package number=%d, total size=%d\n", __func__, pack_num, total_sz);
 
 	if (pack_num > 0) {
-		total_buffer = kcalloc(total_sz, sizeof(uint8_t), GFP_KERNEL);
+		total_buffer = kcalloc(total_sz + 1, sizeof(uint8_t), GFP_KERNEL);
 		read_times = total_sz / FLASH_RW_MAX_LEN + (total_sz % FLASH_RW_MAX_LEN > 0 ? 1 : 0);
 
 		for (i = 0; i < read_times; i++) {
+			daddr = (pfw_op->addr_gesture_history[3] << 24
+				| pfw_op->addr_gesture_history[2] << 16
+				| pfw_op->addr_gesture_history[1] << 8
+				| pfw_op->addr_gesture_history[0]) + i * FLASH_RW_MAX_LEN; 
+
+			tmp_addr[3] = (uint8_t)((daddr >> 24) & 0x00FF);
+			tmp_addr[2] = (uint8_t)((daddr >> 16) & 0x00FF);
+			tmp_addr[1] = (uint8_t)((daddr >> 8) & 0x00FF);
+			tmp_addr[0] = (uint8_t)((daddr) & 0x00FF);
 			if (i == (read_times - 1))
 				g_core_fp.fp_register_read(tmp_addr, total_sz % FLASH_RW_MAX_LEN, &total_buffer[i * FLASH_RW_MAX_LEN], 0);
 			else
@@ -4015,29 +3990,6 @@ void himax_parse_gesture_history(void)
 			}
 		}
 		/* data in format*/
-#if 0
-		for (i = 0; i < pack_num; i++) {
-			event_type = each_packet[i][0] & 0x03;
-			if (event_type == 0) { /* coordinate */
-				frame_count = (each_packet[i][1]) + ((each_packet[i][0] & 0xC0) << 2);
-				tid = (each_packet[i][0] & 0x30) >> 4;
-				touch_status = each_packet[i][0] & 0x0C;
-				touch_x = (each_packet[i][2] << 4) + ((each_packet[i][4] >> 4) & 0x0F);
-				touch_y = (each_packet[i][3] << 4) + (each_packet[i][4] & 0x0F);
-				I("pack[%d]: coordinate: frame=%d, tid=%d, (%d, %d), %s\n",
-						i, frame_count, tid, touch_x, touch_y, touch_status == 0 ? "Press" : "Release");
-			} else if (event_type == 1) { /* gesture */
-				gesture_id = ((each_packet[i][0] & 0xFB) >> 6);
-				I("pack[%d]: gesture: %s, reserved 0x%02X,0x%02X,0x%02X,0x%02X\n",
-					i, gesture_id == 0 ? "Double tap" : "Swipe up",
-					each_packet[i][1], each_packet[i][2],
-					each_packet[i][3], each_packet[i][4]);
-			} else {
-				E("Reserved value=%d, fail, continue!\n", event_type);
-				continue;
-			}
-		}
-#endif
 		for (i = 0; i < pack_num; i++) {
 			kfree(each_packet[i]);
 		}
@@ -4132,7 +4084,7 @@ int himax_chip_common_late_resume(struct himax_ts_data *ts)
 #if defined(HX_SMART_WAKEUP) || defined(HX_HIGH_SENSE) || defined(HX_USB_DETECT_GLOBAL)
 		g_core_fp.fp_resend_cmd_func(ts->suspended);
 #endif
-	hx_ap_nodify_suspend(0);
+	hx_ap_notify_suspend(0);
 
 #if defined(HX_RST_PIN_FUNC) && defined(HX_RESUME_HW_RESET)
 	if (g_core_fp.fp_ic_reset != NULL)
@@ -4158,8 +4110,7 @@ int himax_chip_common_late_resume(struct himax_ts_data *ts)
 	ts->prox_power_off = 0;
 	ts->prox_lp_scan_mode_enabled = false;
 #ifdef HX_TOUCH_PROXIMITY
-	if (ts->ear_detect_mode)
-		psensor_enable(ts, ts->ear_detect_mode);
+	psensor_enable(ts, ts->ear_detect_mode);
 #endif
 
 #if defined(HX_SMART_WAKEUP) || defined(HX_HIGH_SENSE) || defined(HX_USB_DETECT_GLOBAL)

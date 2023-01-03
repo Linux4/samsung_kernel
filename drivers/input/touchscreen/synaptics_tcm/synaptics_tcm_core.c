@@ -3557,8 +3557,8 @@ f35_boot_recheck:
 
 			if (fn_number != RMI_UBL_FN_NUMBER) {
 					LOGE(tcm_hcd->pdev->dev.parent,
-							"Failed to find F$35, try_times = %d\n",
-							retry);
+							"Failed to find F$35, try_times = %d err(0x%x)\n",
+							retry, fn_number);
 				if (retry < retry_max) {
 					msleep(100);
 					retry++;

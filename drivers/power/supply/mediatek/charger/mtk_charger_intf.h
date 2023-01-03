@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 #ifndef __MTK_CHARGER_INTF_H__
 #define __MTK_CHARGER_INTF_H__
 
@@ -22,13 +14,13 @@
 #include <linux/timer.h>
 #include <linux/wait.h>
 #include <linux/alarmtimer.h>
-#include <mt-plat/charger_type.h>
-#include <mt-plat/mtk_charger.h>
-#include <mt-plat/mtk_battery.h>
+#include <mt-plat/v1/charger_type.h>
+#include <mt-plat/v1/mtk_charger.h>
+#include <mt-plat/v1/mtk_battery.h>
 
 #include <mtk_gauge_time_service.h>
 
-#include <mt-plat/charger_class.h>
+#include <mt-plat/v1/charger_class.h>
 
 struct charger_manager;
 struct charger_data;
@@ -392,6 +384,7 @@ struct charger_manager {
 	bool leave_pdc;
 	struct mtk_pdc pdc;
 	bool disable_pd_dual;
+	bool is_pdc_run;
 
 	int pd_type;
 	bool pd_reset;
@@ -404,7 +397,7 @@ struct charger_manager {
 	struct timespec endtime;
 	bool is_suspend;
 
-	struct wakeup_source charger_wakelock;
+	struct wakeup_source *charger_wakelock;
 	struct mutex charger_lock;
 	struct mutex charger_pd_lock;
 	struct mutex cable_out_lock;
@@ -462,7 +455,6 @@ extern bool pmic_is_battery_exist(void);
 extern void notify_adapter_event(enum adapter_type type, enum adapter_event evt,
 	void *val);
 
-extern bool mt6360_get_is_host(void);
 
 /* FIXME */
 enum usb_state_enum {
@@ -471,11 +463,16 @@ enum usb_state_enum {
 	USB_CONFIGURED
 };
 
+#if defined(CONFIG_MACH_MT6877) || defined(CONFIG_MACH_MT6893) \
+	|| defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785)
+bool is_usb_rdy(struct device *dev);
+#else
 bool __attribute__((weak)) is_usb_rdy(void)
 {
 	pr_info("%s is not defined\n", __func__);
 	return false;
 }
+#endif
 
 /* procfs */
 #define PROC_FOPS_RW(name)						\

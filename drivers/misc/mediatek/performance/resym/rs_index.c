@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2020 MediaTek Inc.
- * Authors:
- *	Chiayu Ku <chiayu.ku@mediatek.com>
- *	Stanley Chu <stanley.chu@mediatek.com>
  */
 
 #include <linux/mutex.h>
@@ -17,13 +14,14 @@
 #include <linux/slab.h>
 #include <asm/div64.h>
 #include <linux/sched/task.h>
-#include <trace/events/mtk_events.h>
+//#include <trace/events/mtk_events.h>
 #include <trace/events/block.h>
 #include <linux/blk_types.h>
 #include <linux/mm.h>
 #include <linux/swap.h>
 #include <mt-plat/mtk_blocktag.h>
 
+//#include <perf_tracker_trace.h>
 #include "rs_index.h"
 #include "rs_trace.h"
 
@@ -116,57 +114,8 @@ static void wq_func(struct work_struct *data)
 	if (diff <= TIME_5S)
 		return;
 
-	rsi_switch_collect(0);
+	perf_rsi_switch_collect(0);
 
-}
-
-static void rs_foolproof_slocked(void)
-{
-	unsigned long long cur_ts = rs_get_time();
-	unsigned long long diff;
-
-	if (cur_ts < last_access_ts)
-		return;
-
-	diff = cur_ts - last_access_ts;
-
-	if (diff <= TIME_5S)
-		return;
-
-	schedule_work(&rs_work);
-}
-
-static void rs_update_io_stat(void *data, long free_mem, long avail_mem,
-		int io_wl, int io_req_r, int io_all_r, int io_reqsz_r, int io_reqc_r,
-		int io_req_w, int io_all_w, int io_reqsz_w, int io_reqc_w,
-		int io_dur, int io_q_dept, int io_top, int *stall)
-{
-	struct rs_io_stat *obj;
-	unsigned long flags;
-
-	spin_lock_irqsave(&rs_loading_slock, flags);
-	if (is_active == RS_STATE_INACTIVE) {
-		spin_unlock_irqrestore(&rs_loading_slock, flags);
-		return;
-	}
-	spin_unlock_irqrestore(&rs_loading_slock, flags);
-
-	obj = kzalloc(sizeof(struct rs_io_stat), GFP_ATOMIC);
-	if (!obj)
-		return;
-
-	INIT_LIST_HEAD(&obj->entry);
-	obj->dur_ns = io_dur;
-	obj->io_wl = io_wl;
-	obj->io_reqc_r = io_reqc_r;
-	obj->io_reqc_w = io_reqc_w;
-	obj->io_q_dept = io_q_dept;
-	obj->io_top = io_top;
-
-	spin_lock_irqsave(&rs_loading_slock, flags);
-	list_add(&obj->entry, &io_stat_list);
-	rs_foolproof_slocked();
-	spin_unlock_irqrestore(&rs_loading_slock, flags);
 }
 
 static void rs_reset_io_list_locked(void)
@@ -241,7 +190,7 @@ EXIT:
 	return ret;
 }
 
-int rsi_get_data(struct rs_sys_data *sysdata)
+int perf_rsi_get_data(struct rs_sys_data *sysdata)
 {
 	int ret = RS_RET_SUCCESS;
 	int ret_io;
@@ -290,9 +239,9 @@ static void rs_start_collect(void)
 
 	spin_unlock_irqrestore(&rs_loading_slock, flags);
 
-	register_trace_perf_index_l(rs_update_io_stat, NULL);
+	//register_trace_perf_index_l(rs_update_io_stat, NULL);
 
-	rsi_get_data(&sysdata);
+	perf_rsi_get_data(&sysdata);
 }
 
 static void rs_stop_collect(void)
@@ -312,12 +261,12 @@ static void rs_stop_collect(void)
 	rs_reset_io_list_locked();
 	spin_unlock_irqrestore(&rs_loading_slock, flags);
 
-	unregister_trace_perf_index_l(rs_update_io_stat, NULL);
+	//unregister_trace_perf_index_l(rs_update_io_stat, NULL);
 
 	prev_ts = 0;
 }
 
-void rsi_switch_collect(int cmd)
+void perf_rsi_switch_collect(int cmd)
 {
 	mutex_lock(&rs_loading_mutex);
 
@@ -329,14 +278,14 @@ void rsi_switch_collect(int cmd)
 	mutex_unlock(&rs_loading_mutex);
 }
 
-void rsi_trans_index(__s32 *data, __s32 input_size)
+void perf_rsi_trans_index(__s32 *data, __s32 input_size)
 {
 	struct rs_sys_data sysdata = {0};
 	int limit_size;
 	int ret;
 
 	mutex_lock(&rs_loading_mutex);
-	ret = rsi_get_data(&sysdata);
+	ret = perf_rsi_get_data(&sysdata);
 	mutex_unlock(&rs_loading_mutex);
 
 	if (ret == RS_RET_INVALID)
@@ -386,12 +335,12 @@ static ssize_t rs_mask_write(struct file *flip,
 
 RS_DEBUGFS_ENTRY(mask);
 
-int __init rs_index_init(void)
+int __init perf_rs_index_init(void)
 {
 	INIT_LIST_HEAD(&(io_stat_list));
 
-	rsi_getindex_fp = rsi_trans_index;
-	rsi_switch_collect_fp = rsi_switch_collect;
+	perf_rsi_getindex_fp = perf_rsi_trans_index;
+	perf_rsi_switch_collect_fp = perf_rsi_switch_collect;
 
 	return 0;
 }

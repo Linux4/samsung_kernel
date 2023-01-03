@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 #include "ccci_core.h"
 #include "ccci_platform.h"
 
@@ -22,7 +14,7 @@
 #define TAG "mcd"
 
 #define RAnd2W(a, b, c)  ccci_write32(a, b, (ccci_read32(a, b)&c))
-static unsigned int ioremap_dump_flag = 1;
+static unsigned int ioremap_dump_flag;
 
 /*
  * This file is generated.
@@ -68,9 +60,8 @@ void md_io_remap_internal_dump_register(struct ccci_modem *md)
 					dump_reg_tab[i].size);
 		if (*dump_reg_tab[i].dump_reg == NULL) {
 			/* ioremap fail, skip internal dump. */
-			ioremap_dump_flag = 0;
 			CCCI_MEM_LOG_TAG(md->index, TAG,
-				"Dump MD failed to ioremap %u bytes from %lu\n",
+				"Dump MD failed to ioremap %lu bytes from 0x%llX\n",
 				dump_reg_tab[i].size, dump_reg_tab[i].addr);
 			CCCI_MEM_LOG_TAG(md->index, TAG,
 				"MD ioremap fail, skip internal dump.ioremap_dump_flag:%u\n",
@@ -78,6 +69,7 @@ void md_io_remap_internal_dump_register(struct ccci_modem *md)
 			return;
 		}
 	}
+	ioremap_dump_flag = 1;
 }
 void internal_md_dump_debug_register(unsigned int md_index)
 {
@@ -690,5 +682,9 @@ void internal_md_dump_debug_register(unsigned int md_index)
 		"Dump mcore peri dbus2: [0]0x0D144800\n");
 	ccci_util_mem_dump(md_index, CCCI_DUMP_MEM_DUMP,
 		(USIP + 0x00040400), 0xB0);
+}
 
+void md_dump_register_6877(unsigned int md_index)
+{
+	internal_md_dump_debug_register(md_index);
 }

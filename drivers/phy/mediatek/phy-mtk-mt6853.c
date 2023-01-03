@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 
 #include <linux/clk.h>
@@ -120,8 +113,8 @@ static void phy_advance_settings(struct mtk_phy_instance *instance)
 	u3phywrite32(
 		U3D_USBPHYACR2, 11, (0x3<<11), 0x3);
 
-//	u3phywrite32(U3D_USBPHYACR6, RG_USB20_SQTH_OFST,
-//		RG_USB20_SQTH, 0x2);
+	u3phywrite32(U3D_USBPHYACR6, RG_USB20_SQTH_OFST,
+		RG_USB20_SQTH, 0x2);
 
 	u3phywrite32(U3D_USBPHYACR6, (28),
 		(0x1<<28), 0x1);
@@ -183,20 +176,8 @@ static int phy_slew_rate_calibration(struct mtk_phy_instance *instance)
 	int fgRet = 0;
 	int u4FmOut = 0;
 	int u4Tmp = 0;
-	struct mtk_phy_tuning *pdata, *data;
-	int hstx_srctrl_tune = -1;
 
 	phy_printk(K_DEBUG, "%s\n", __func__);
-
-	pdata = instance->phy_tuning;
-	for (i = 0; i < instance->phy_data_cnt; i++) {
-		data = &pdata[i];
-		if (strcmp(data->name, "hstx_srctrl") == 0) {
-			hstx_srctrl_tune = data->value;
-			pr_info("%s hstx_srctrl_tune=%d\n", __func__, hstx_srctrl_tune);
-			break;
-		}
-	}
 
 	/* enable USB ring oscillator */
 	u3phywrite32(U3D_USBPHYACR5, RG_USB20_HSTX_SRCAL_EN_OFST,
@@ -237,10 +218,7 @@ static int phy_slew_rate_calibration(struct mtk_phy_instance *instance)
 	u3phywrite32(RG_SSUSB_SIFSLV_FMMONR1, RG_FRCK_EN_OFST,
 		RG_FRCK_EN, 0);
 
-	if (hstx_srctrl_tune >= 0) {
-		u3phywrite32(U3D_USBPHYACR5, RG_USB20_HSTX_SRCTRL_OFST,
-			RG_USB20_HSTX_SRCTRL, hstx_srctrl_tune);
-	} else if (u4FmOut == 0) {
+	if (u4FmOut == 0) {
 		u3phywrite32(U3D_USBPHYACR5, RG_USB20_HSTX_SRCTRL_OFST,
 			RG_USB20_HSTX_SRCTRL, 0x4);
 		fgRet = 1;
@@ -418,20 +396,54 @@ reg_done:
 	usb_enable_clock(phy_drv, false);
 }
 
+#define VAL_MAX_WIDTH_2	0x3
+#define VAL_MAX_WIDTH_3	0x7
 static void usb_phy_tuning(struct mtk_phy_instance *instance)
 {
-	struct mtk_phy_tuning *pdata, *data;
-	int i = 0;
+	s32 u2_vrt_ref, u2_term_ref, u2_enhance;
+	struct device_node *of_node;
 
-	pdata = instance->phy_tuning;
-	for (i = 0; i < instance->phy_data_cnt; i++) {
-		data = &pdata[i];
-		u3phywrite32(SSUSB_SIFSLV_U2PHY_COM_BASE + data->offset,
-			data->shift, data->mask << data->shift,
-			data->value);
+	if (!instance->phy_tuning.inited) {
+		instance->phy_tuning.u2_vrt_ref = 6;
+		instance->phy_tuning.u2_term_ref = 6;
+		instance->phy_tuning.u2_enhance = 1;
+		of_node = of_find_compatible_node(NULL, NULL,
+			instance->phycfg->tuning_node_name);
+		if (of_node) {
+			/* value won't be updated if property not being found */
+			of_property_read_u32(of_node, "u2_vrt_ref",
+				(u32 *) &instance->phy_tuning.u2_vrt_ref);
+			of_property_read_u32(of_node, "u2_term_ref",
+				(u32 *) &instance->phy_tuning.u2_term_ref);
+			of_property_read_u32(of_node, "u2_enhance",
+				(u32 *) &instance->phy_tuning.u2_enhance);
+		}
+		instance->phy_tuning.inited = true;
+	}
+	u2_vrt_ref = instance->phy_tuning.u2_vrt_ref;
+	u2_term_ref = instance->phy_tuning.u2_term_ref;
+	u2_enhance = instance->phy_tuning.u2_enhance;
 
-		pr_info("%s, %s device 0x%x\n",
-			__func__, data->name, data->value);
+	if (u2_vrt_ref != -1) {
+		if (u2_vrt_ref <= VAL_MAX_WIDTH_3) {
+			u3phywrite32(U3D_USBPHYACR1,
+				RG_USB20_VRT_VREF_SEL_OFST,
+				RG_USB20_VRT_VREF_SEL, u2_vrt_ref);
+		}
+	}
+	if (u2_term_ref != -1) {
+		if (u2_term_ref <= VAL_MAX_WIDTH_3) {
+			u3phywrite32(U3D_USBPHYACR1,
+				RG_USB20_TERM_VREF_SEL_OFST,
+				RG_USB20_TERM_VREF_SEL, u2_term_ref);
+		}
+	}
+	if (u2_enhance != -1) {
+		if (u2_enhance <= VAL_MAX_WIDTH_2) {
+			u3phywrite32(U3D_USBPHYACR6,
+				RG_USB20_PHY_REV_6_OFST,
+				RG_USB20_PHY_REV_6, u2_enhance);
+		}
 	}
 
 	phy_printk(K_INFO, "%s - SSUSB TX EYE Tuning\n", __func__);
@@ -517,8 +529,8 @@ static void phy_recover(struct mtk_phy_instance *instance)
 
 	phy_efuse_settings(instance);
 
-//	u3phywrite32(U3D_USBPHYACR6, RG_USB20_DISCTH_OFST,
-//		RG_USB20_DISCTH, 0x7);
+	u3phywrite32(U3D_USBPHYACR6, RG_USB20_DISCTH_OFST,
+		RG_USB20_DISCTH, 0x7);
 
 	usb_phy_tuning(instance);
 	phy_advance_settings(instance);
@@ -625,24 +637,7 @@ static int phy_lpm_enable(struct mtk_phy_instance  *instance, bool on)
 
 static int phy_host_mode(struct mtk_phy_instance  *instance, bool on)
 {
-	struct mtk_phy_tuning *pdata, *data;
-	int i = 0;
-
 	phy_printk(K_DEBUG, "%s+ = %d\n", __func__, on);
-
-	if (!on)
-		return 0;
-
-	pdata = instance->phy_tuning;
-	for (i = 0; i < instance->phy_data_cnt; i++) {
-		data = &pdata[i];
-		u3phywrite32(SSUSB_SIFSLV_U2PHY_COM_BASE + data->offset,
-			data->shift, data->mask << data->shift,
-			data->host);
-
-		pr_info("%s, %s host 0x%x\n",
-			__func__, data->name, data->host);
-	}
 
 	return 0;
 }

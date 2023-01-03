@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #ifndef __LINUX_MT6360_H
@@ -120,7 +112,10 @@ enum mt6360_id_rupsel {
 
 #define MT6360_REG_DEBOUNCE_CTRL4			(0xE5)
 #define MT6360_REG_CTD_CTRL2				(0xEC)
+#if defined(CONFIG_USB_FACTORY_MODE)
+/* [ALPS07177780] battery: factory higher sleep current by charger buck mode*/
 #define MT6360_REG_CC_CTRL5				(0xED)
+#endif
 
 /*
  * Device ID
@@ -352,10 +347,13 @@ enum mt6360_id_rupsel {
 #define MT6360_REG_WD_DET_CTRL5_SET(time) \
 	(time & MT6360_WD_SLEEP_TIME)
 
+#if defined(CONFIG_USB_FACTORY_MODE)
+/* [ALPS07177780] battery: factory higher sleep current by charger buck mode*/
 /*
  * MT6360_REG_WD_DET_CTRL7			(0xC6)
  */
 #define MT6360_DRP_AUTO_EN			BIT(7)
+#endif
 
 /*
  * MT6360_REG_RX_CTRL2				(0xCF)
@@ -394,10 +392,13 @@ enum mt6360_id_rupsel {
 #define MT6360_DIS_RPDET			BIT(7)
 #define MT6360_RPDET_ONESHOT			BIT(6)
 
+#if defined(CONFIG_USB_FACTORY_MODE)
+/* [ALPS07177780] battery: factory higher sleep current by charger buck mode*/
 /*
  * MT6360_REG_CC_CTRL5				(0xED)
  */
 #define MT6360_MASK_LPWR_RPRD_CC2_CC1		(0xF0)
+#endif
 
 #if ENABLE_MT6360_DBG
 #define MT6360_INFO(format, args...) \

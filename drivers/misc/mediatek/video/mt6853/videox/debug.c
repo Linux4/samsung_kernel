@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #include <linux/string.h>
 #include <linux/time.h>
@@ -790,17 +783,6 @@ out_unlock:
 	return 0;
 }
 
-/*
- * provided by @CJ
- * disp_fake_engine_config (rd_addr, wr_add, 1, 2047, 3, 0, 0, 0, 1, 0)
- * wr_pat: 1
- * length: 2047
- * burst : 3
- * disable_rd : 0
- * disable_wr : 0
- * latency : 0
- * loop : 1
- */
 static int  disp_fake_engine_config(
 				unsigned int rd_add,
 				unsigned int wr_add,

@@ -1,67 +1,69 @@
-#ifndef _KDP_H
-#define _KDP_H
+#ifndef __KDP_H__
+#define __KDP_H__
 
 #ifndef __ASSEMBLY__
-#ifndef LINKER_SCRIPT
-#include <linux/rkp.h>
-#ifdef CONFIG_KDP_NS
+#include <linux/mm_types.h>
+#include <linux/stddef.h>
+#include <linux/fs.h>
 #include <linux/mount.h>
-#endif
+#include <linux/binfmts.h>
+#include <linux/uh.h>
 
-/* uH_RKP Command ID */
-/*
-Add KDP call IDs
-*/
+#define __kdp_ro_aligned __attribute__((__section__(".kdp_ro"), aligned((sizeof(void *)))))
+#define __kdp_ro __section(.kdp_ro)
+#define __lsm_ro_after_init_kdp __section(.kdp_ro)
 
-/***************** KDP_CRED *****************/
 #define CRED_JAR_RO		"cred_jar_ro"
 #define TSEC_JAR		"tsec_jar"
 #define VFSMNT_JAR		"vfsmnt_cache"
 
-#define rocred_uc_read(x) atomic_read(x->use_cnt)
-#define rocred_uc_inc(x)  atomic_inc(x->use_cnt)
-#define rocred_uc_dec_and_test(x) atomic_dec_and_test(x->use_cnt)
-#define rocred_uc_inc_not_zero(x) atomic_inc_not_zero(x->use_cnt)
-#define rocred_uc_set(x,v) atomic_set(x->use_cnt,v)
-
-extern int rkp_cred_enable;
-extern char __rkp_ro_start[], __rkp_ro_end[];
-extern struct cred init_cred;
-extern struct task_security_struct init_sec;
-extern int security_integrity_current(void);
-
-#ifdef CONFIG_KDP_NS
-void rkp_reset_mnt_flags(struct vfsmount *mnt,int flags);
+enum __KDP_CMD_ID {
+	KDP_INIT			= 0x00,
+	//SET_VERIFIED		= 0x01, // for BL. change to 0x00
+	JARRO_TSEC_SIZE		= 0x02,
+	SET_SLAB_RO			= 0x03,
+	SET_FREEPTR			= 0x04,
+	PREPARE_RO_CRED		= 0x05,
+	SET_CRED_PGD		= 0x06,
+	SELINUX_CRED_FREE	= 0x07,
+	PGD_RWX				= 0x08,
+	MARK_PPT			= 0x09,
+	PROTECT_SELINUX_VAR = 0x0A,
+	NS_INIT				= 0x10,
+	SET_NS_BP			= 0x11,
+	SET_NS_DATA			= 0x12,
+	SET_NS_ROOT_SB		= 0x13,
+	SET_NS_SB_VFSMOUNT	= 0x14,
+	SET_NS_FLAGS		= 0x15,
+#ifdef CONFIG_KDP_TEST
+	TEST_INIT = 0x16,
+	TEST_GET_PAR = 0x17,
+	TEST_EXIT = 0x18,
 #endif
-
-enum __KDP_CMD_ID{
-	RKP_KDP_X40 = 0x40,
-	RKP_KDP_X41 = 0x41,
-	RKP_KDP_X42 = 0x42,
-	RKP_KDP_X43 = 0x43,
-	RKP_KDP_X44 = 0x44,
-	RKP_KDP_X45 = 0x45,
-	RKP_KDP_X46 = 0x46,
-	RKP_KDP_X47 = 0x47,
-	RKP_KDP_X48 = 0x48,
-	RKP_KDP_X49 = 0x49,
-	RKP_KDP_X4A = 0x4A,
-	RKP_KDP_X4B = 0x4B,
-	RKP_KDP_X4C = 0x4C,
-	RKP_KDP_X4D = 0x4D,
-	RKP_KDP_X4E = 0x4E,
-	RKP_KDP_X4F = 0x4F,
-	RKP_KDP_X50 = 0x50,
-	RKP_KDP_X51 = 0x51,
-	RKP_KDP_X52 = 0x52,
-	RKP_KDP_X53 = 0x53,
-	RKP_KDP_X54 = 0x54,
-	RKP_KDP_X55 = 0x55,
-	RKP_KDP_X56 = 0x56,
-	RKP_KDP_X60 = 0x60,
 };
 
-typedef struct kdp_init_struct {
+//kernel/cred.c
+enum __CRED_CMD_ID {
+	CMD_COPY_CREDS = 0,
+	CMD_COMMIT_CREDS,
+	CMD_OVRD_CREDS,
+};
+
+#ifdef CONFIG_KDP
+enum _KMEM_TYPE {
+	UNKNOWN_JAR_TYPE = 0,
+	CRED_JAR_TYPE,
+	TSEC_JAR_TYPE,
+	VFSMNT_JAR_TYPE
+};
+#endif
+
+struct kdp_init {
+	u64 _srodata;
+	u64 _erodata;
+#ifdef CONFIG_KDP
+	u64 init_mm_pgd;
+#endif
 	u32 credSize;
 	u32 sp_size;
 	u32 pgd_mm;
@@ -81,57 +83,172 @@ typedef struct kdp_init_struct {
 	u32 comm_task;
 	u32 bp_cred_secptr;
 	u32 task_threadinfo;
+#ifndef CONFIG_KDP
 	u64 verifiedbootstate;
+#endif
 	struct {
 		u64 selinux_enforcing_va;
 		u64 ss_initialized_va;
 	} selinux;
-} kdp_init_t;
+};
 
-/*Check whether the address belong to Cred Area*/
-static inline u8 rkp_ro_page(unsigned long addr)
-{
-	if (!rkp_cred_enable)
-		return (u8)0;
-	if ((addr == ((unsigned long)&init_cred)) ||
-		(addr == ((unsigned long)&init_sec)))
-		return (u8)1;
-	else
-		return rkp_is_pg_protected(addr);
-}
+extern int kdp_enable;
+extern void __init kdp_init(void);
+extern bool is_kdp_kmem_cache(struct kmem_cache *s);
 
-/***************** KDP_NS *****************/
+#ifdef CONFIG_KDP_CRED
+/***************** KDP_CRED *****************/
+struct ro_rcu_head {
+	/* RCU deletion */
+	union {
+		int non_rcu;		/* Can we skip RCU deletion? */
+		struct rcu_head	rcu;	/* RCU deletion hook */
+	};
+	void *bp_cred;
+	void *reflected_cred;
+};
+
+struct kdp_usecnt {
+	union {
+		atomic_t kdp_use_cnt;
+		u64 padding;
+	};
+	struct ro_rcu_head kdp_rcu_head;
+};
+
+struct cred_param {
+	struct cred *cred;
+	struct cred *cred_ro;
+	void *use_cnt_ptr;
+	void *sec_ptr;
+	unsigned long type;
+	union {
+		void *task_ptr;
+		u64 use_cnt;
+	};
+};
+
+#define KDP_IS_NONROOT(x)	((x->cred->type) >> 1 & 1)
+#define CHECK_ROOT_UID(x)	\
+	(x->cred->uid.val == 0 || x->cred->gid.val == 0 || \
+	 x->cred->euid.val == 0 || x->cred->egid.val == 0 || \
+	 x->cred->suid.val == 0 || x->cred->sgid.val == 0)
+
+#define GET_ROCRED_RCU(cred) 	(&(((struct kdp_usecnt *)(cred->use_cnt))->kdp_rcu_head))
+
+/*
+After KDP endbled, argument of override_creds will not become the current->cred.
+But some code trys to put_creds the current->cred, to free the resource of cred
+which was allocated before the override_creds. In those case, we need to find the
+original cred by below function.
+*/
+#define GET_REFLECTED_CRED(cred) 	((struct cred *)GET_ROCRED_RCU(cred)->reflected_cred)
+
+#define ROCRED_UC_READ(x)			atomic_read(x->use_cnt)
+#define ROCRED_UC_INC(x)			atomic_inc(x->use_cnt)
+#define ROCRED_UC_DEC_AND_TEST(x)	atomic_dec_and_test(x->use_cnt)
+#define ROCRED_UC_INC_NOT_ZERO(x)	atomic_inc_not_zero(x->use_cnt)
+#define ROCRED_UC_SET(x, v)			atomic_set(x->use_cnt, v)
+
+extern struct cred init_cred;
+extern struct task_security_struct init_sec;
+extern struct kdp_usecnt init_cred_use_cnt;
+
+extern void __init kdp_cred_init(void);
+extern void __init kdp_do_early_param_setup(char *param, char *val);
+
+// match for kernel/cred.c function
+extern inline void set_cred_subscribers(struct cred *cred, int n);
+
+// linux/cred.h
+extern inline struct cred *get_new_cred(struct cred *cred);
+extern inline void put_cred(const struct cred *_cred);
+extern void put_rocred_rcu(struct rcu_head *rcu);
+extern unsigned int kdp_get_usecount(struct cred *cred);
+extern struct cred *prepare_ro_creds(struct cred *old, int kdp_cmd, u64 p);
+
+extern int security_integrity_current(void);
+extern void kdp_assign_pgd(struct task_struct *p);
+extern inline int kdp_restrict_fork(struct filename *path);
+extern void kdp_free_security(unsigned long tsec);
+
+extern bool is_kdp_protect_addr(unsigned long addr);
+#endif /* CONFIG_KDP_CRED */
+
 #ifdef CONFIG_KDP_NS
-typedef struct ns_param {
+/***************** KDP_NS *****************/
+struct ns_param {
 	u32 ns_buff_size;
 	u32 ns_size;
 	u32 bp_offset;
 	u32 sb_offset;
 	u32 flag_offset;
 	u32 data_offset;
-} ns_param_t;
+};
 
-#define rkp_ns_fill_params(nsparam, buff_size, size, bp, sb, flag, data)	\
-do {						\
-	nsparam.ns_buff_size = (u64)buff_size;		\
-	nsparam.ns_size  = (u64)size;		\
-	nsparam.bp_offset = (u64)bp;		\
-	nsparam.sb_offset = (u64)sb;		\
-	nsparam.flag_offset = (u64)flag;		\
-	nsparam.data_offset = (u64)data;		\
-} while(0)
-#endif
+/* Populate all superblocks required for NS Protection */
+enum __KDP_SB {
+	KDP_SB_ROOTFS = 0,
+	KDP_SB_ODM,
+	KDP_SB_SYS,
+	KDP_SB_VENDOR,
+	KDP_SB_ART,
+	KDP_SB_CRYPT,
+	KDP_SB_DEX2OAT,
+	KDP_SB_ADBD,
+	KDP_SB_MAX
+};
 
+/* fs/pnode.h */
+#define IS_MNT_SHARED(m) ((m)->mnt->mnt_flags & MNT_SHARED)
+#define CLEAR_MNT_SHARED(m) kdp_clear_mnt_flags((m)->mnt,MNT_SHARED)
+#define IS_MNT_UNBINDABLE(m) ((m)->mnt->mnt_flags & MNT_UNBINDABLE)
+#define IS_MNT_MARKED(m) ((m)->mnt->mnt_flags & MNT_MARKED)
+#define SET_MNT_MARK(m) kdp_set_mnt_flags((m)->mnt,MNT_MARKED)
+#define CLEAR_MNT_MARK(m) kdp_clear_mnt_flags((m)->mnt,MNT_MARKED)
+#define IS_MNT_LOCKED(m) ((m)->mnt->mnt_flags & MNT_LOCKED)
 
-/***************** KDP_DMAP *****************/
-#ifdef CONFIG_KDP_DMAP
-static inline void dmap_prot(u64 addr, u64 order, u64 val)
-{
-	if (rkp_cred_enable)
-		uh_call(UH_APP_RKP, RKP_KDP_X4A, order, val, 0, 0);
-}
-#endif
+#define KDP_MOUNT_SYSTEM "/system"
+#define KDP_MOUNT_SYSTEM_LEN strlen(KDP_MOUNT_SYSTEM)
 
-#endif // LINKER_SCRIPT
+#define KDP_MOUNT_PRODUCT "/product"
+#define KDP_MOUNT_PRODUCT_LEN strlen(KDP_MOUNT_PRODUCT)
+
+#define KDP_MOUNT_VENDOR "/vendor"
+#define KDP_MOUNT_VENDOR_LEN strlen(KDP_MOUNT_VENDOR)
+
+#define KDP_MOUNT_ART "/com.android.runtime"
+#define KDP_MOUNT_ART_LEN strlen(KDP_MOUNT_ART)
+
+#define KDP_MOUNT_CRYPT "/com.android.conscrypt"
+#define KDP_MOUNT_CRYPT_LEN strlen(KDP_MOUNT_CRYPT)
+
+#define KDP_MOUNT_DEX2OAT "/com.android.art"
+#define KDP_MOUNT_DEX2OAT_LEN strlen(KDP_MOUNT_DEX2OAT)
+
+#define KDP_MOUNT_ADBD "/com.android.adbd"
+#define KDP_MOUNT_ADBD_LEN strlen(KDP_MOUNT_ADBD)
+
+extern unsigned int ns_protect;
+
+extern void __init kdp_mnt_init(void);
+extern void __init kdp_init_mount_tree(struct vfsmount *mnt);
+
+extern int kdp_mnt_alloc_vfsmount(struct mount *mnt);
+extern void kdp_set_ns_data(struct vfsmount *mnt,void *data);
+inline extern void kdp_set_mnt_root_sb(struct vfsmount *mnt, struct dentry *mnt_root, struct super_block *mnt_sb);
+inline extern void kdp_set_mnt_flags(struct vfsmount *mnt, int flags);
+inline extern void kdp_clear_mnt_flags(struct vfsmount *mnt,int flags);
+inline extern void kdp_assign_mnt_flags(struct vfsmount *mnt, int flags);
+extern int kdp_do_new_mount(struct vfsmount *mnt, struct path *path);
+
+extern bool is_kdp_vfsmnt_cache(unsigned long addr);
+extern void kdp_free_vfsmount(void *objp);
+
+//check for fn
+extern int is_kdp_priv_task(void);
+extern int invalid_drive(struct linux_binprm * bprm);
+#endif /* CONFIG_KDP_NS */
+
 #endif //__ASSEMBLY__
-#endif //_KDP_H
+#endif //__KDP_H__

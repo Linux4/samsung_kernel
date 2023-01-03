@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 #ifndef __TSCPU_SETTINGS_H__
 #define __TSCPU_SETTINGS_H__
@@ -132,9 +124,7 @@
 #endif
 
 /* EARA_Thermal power budget allocation support */
-#ifdef CONFIG_MTK_EARA_THERMAL /* ALPS04992221 */
 #define EARA_THERMAL_SUPPORT
-#endif
 
 #define TS_FILL(n) {#n, n}
 /*#define TS_LEN_ARRAY(name) (sizeof(name)/sizeof(name[0]))*/

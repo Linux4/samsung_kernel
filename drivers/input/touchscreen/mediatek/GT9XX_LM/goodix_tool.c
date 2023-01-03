@@ -1,20 +1,7 @@
-/* drivers/input/touchscreen/mediatek/gt9xx_mtk/goodix_tool.c
- *
- * Copyright  (C)  2010 - 2016 Goodix., Ltd.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be a reference
- * to you, when you are integrating the GOODiX's CTP IC into your system,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the GNU
- * General Public License for more details.
- *
- * Version: V2.6.0.3
- */
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include "include/tpd_gt9xx_common.h"
 #include "tpd.h"
@@ -235,7 +222,7 @@ s32 init_wr_node(struct i2c_client *client)
 	register_i2c_func();
 
 	tool_set_proc_name(procname);
-	goodix_proc_entry = proc_create(procname, 0444, NULL, &tool_ops);
+	goodix_proc_entry = proc_create(procname, 0440, NULL, &tool_ops);
 
 	if (misc_register(&hotknot_misc_device)) {
 		GTP_ERROR("mtk_tpd: hotknot_device register failed\n");

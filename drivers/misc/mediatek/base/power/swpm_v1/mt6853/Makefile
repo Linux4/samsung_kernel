@@ -12,6 +12,7 @@
 #
 
 ccflags-y += \
+	-I$(srctree)/drivers/gpu/mediatek/gpufreq/ \
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/	\
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(CONFIG_MTK_PLATFORM)/include/	\
 	-I$(srctree)/drivers/misc/mediatek/base/power/include/	\

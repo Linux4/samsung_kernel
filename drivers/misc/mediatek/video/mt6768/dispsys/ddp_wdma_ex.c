@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #define LOG_TAG "WDMA"
 #include "ddp_log.h"
@@ -27,7 +19,12 @@
 #include <ion_sec_heap.h>
 
 #define ALIGN_TO(x, n)	(((x) + ((n) - 1)) & ~((n) - 1))
+
+#ifdef CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM
 enum TRUSTED_MEM_REQ_TYPE mem_type;
+#else
+int mem_type;
+#endif
 static int wdma_is_sec[2];
 
 /*****************************************************************************/
@@ -1284,10 +1281,11 @@ static int wdma_config_l(enum DISP_MODULE_ENUM module,
 		int sec = -1;
 		int sec_id = -1;
 		ion_phys_addr_t sec_hdl = -1;
-
+#ifdef CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM
 		mem_type = ion_hdl2sec_type(config->hnd, &sec, &sec_id, &sec_hdl);
 		DDPERR("[SVP]begin output setting sec id as: %d, type:%d\n",
 			sec_id, mem_type);
+#endif
 	} else {
 		mem_type = -1;
 	}

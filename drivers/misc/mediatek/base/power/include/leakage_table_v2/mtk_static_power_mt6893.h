@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2021 MediaTek Inc.
  */
 
 #ifndef __MTK_STATIC_POWER_MTK6885_H__
@@ -39,24 +31,24 @@
 
 /* devinfo offset for each bank */
 /* CCI use LL leakage */
-#define DEVINFO_IDX_LL 136 /* 07B8 */
-#define DEVINFO_IDX_L 136 /* 07B8 */
-#define DEVINFO_IDX_B 139 /* 07B8 */
-#define DEVINFO_IDX_CCI 137 /* 07BC */
-#define DEVINFO_IDX_GPU 137 /* 07BC */
-#define DEVINFO_IDX_VCORE 137 /* 07BC */
-#define DEVINFO_IDX_MODEM 137 /* 07BC */
-#define DEVINFO_IDX_NR 138 /* C0 */
-#define DEVINFO_IDX_VPU 136 /* C0 */
-#define DEVINFO_IDX_MDLA 138 /* 07B8 */
-#define DEVINFO_IDX_VSRAM_PROC12 135 /* 07B4 */
-#define DEVINFO_IDX_VSRAM_PROC11 135 /* 07B4 */
-#define DEVINFO_IDX_VSRAM_OTHERS 135 /* 07B4 */
-#define DEVINFO_IDX_ADSP 138
-#define DEVINFO_IDX_VSRAM_GPU 136 /* 07B8 */
-#define DEVINFO_IDX_VSRAM_VPU_MDLA 138
-#define DEVINFO_IDX_VSRAM_MODEM 135
-#define DEVINFO_IDX_VCORE_OFF 139 /* 07BC */
+#define DEVINFO_IDX_LL 0x220
+#define DEVINFO_IDX_L 0x220
+#define DEVINFO_IDX_B 0x22C
+#define DEVINFO_IDX_CCI 0x224
+#define DEVINFO_IDX_GPU 0x224
+#define DEVINFO_IDX_VCORE 0x224
+#define DEVINFO_IDX_MODEM 0x224
+#define DEVINFO_IDX_NR 0x228
+#define DEVINFO_IDX_VPU 0x220
+#define DEVINFO_IDX_MDLA 0x228
+#define DEVINFO_IDX_VSRAM_PROC12 0x21C
+#define DEVINFO_IDX_VSRAM_PROC11 0x21C
+#define DEVINFO_IDX_VSRAM_OTHERS 0x21C
+#define DEVINFO_IDX_ADSP 0x228
+#define DEVINFO_IDX_VSRAM_GPU 0x220
+#define DEVINFO_IDX_VSRAM_VPU_MDLA 0x224
+#define DEVINFO_IDX_VSRAM_MODEM 0x21C
+#define DEVINFO_IDX_VCORE_OFF 0x22C
 
 #define DEVINFO_OFF_LL 0
 #define DEVINFO_OFF_L 8

@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 #include <linux/kernel.h>
 #include <linux/cdev.h>
@@ -31,13 +23,16 @@
 #include <linux/of_irq.h>
 #include <linux/of_gpio.h>
 #include <linux/of_address.h>
+#include <linux/arm-smccc.h>
+#include <linux/soc/mediatek/mtk_sip_svc.h>
 #include "ccci_config.h"
-#include <mt-plat/mtk_secure_api.h>
+#include "ccci_common_config.h"
 
 #ifdef FEATURE_INFORM_NFC_VSIM_CHANGE
 #include <mach/mt6605.h>
 #endif
 #ifdef FEATURE_RF_CLK_BUF
+#include <mtk-clkbuf-bridge.h>
 #include <mtk_clkbuf_ctl.h>
 #endif
 #ifdef CONFIG_MTK_OTP
@@ -45,11 +40,23 @@
 #endif
 
 #include "ccci_core.h"
+#include "ccci_auxadc.h"
 #include "ccci_bm.h"
 #include "ccci_modem.h"
 #include "port_rpc.h"
 #define MAX_QUEUE_LENGTH 16
 #define MTK_RNG_MAGIC 0x74726e67
+
+static size_t mt_secure_call(size_t function_id,
+		size_t arg0, size_t arg1, size_t arg2,
+		size_t arg3, size_t r1, size_t r2, size_t r3)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(function_id, arg0, arg1,
+			arg2, arg3, r1, r2, r3, &res);
+	return res.a0;
+}
 
 static struct gpio_item gpio_mapping_table[] = {
 	{"GPIO_FDD_Band_Support_Detection_1",
@@ -98,7 +105,8 @@ static int get_md_adc_val(__attribute__((unused))unsigned int num)
 #ifdef CONFIG_MEDIATEK_MT6577_AUXADC
 	return ccci_get_adc_val();
 #endif
-	CCCI_ERROR_LOG(0, RPC, "ERR:CONFIG AUXADC and IIO not ready");
+	CCCI_ERROR_LOG(0, RPC, "%s:ERR:CONFIG AUXADC and IIO not ready",
+		__func__);
 	return -1;
 }
 
@@ -118,7 +126,9 @@ static int get_md_adc_info(__attribute__((unused))char *adc_name,
 #ifdef CONFIG_MEDIATEK_MT6577_AUXADC
 	return ccci_get_adc_num();
 #endif
-	CCCI_ERROR_LOG(0, RPC, "ERR:CONFIG AUXADC and IIO not ready");
+
+	CCCI_ERROR_LOG(0, RPC, "%s:ERR:CONFIG AUXADC and IIO not ready",
+		__func__);
 	return -1;
 }
 
@@ -194,6 +204,29 @@ static int get_md_gpio_info(char *gpio_name,
 	}
 	gpio_id = get_gpio_id_from_dt(node, gpio_name, md_view_gpio_id);
 	return gpio_id;
+}
+
+static void md_drdi_gpio_status_scan(void)
+{
+	int i;
+	int size;
+	int gpio_id;
+	int gpio_md_view;
+	char *curr;
+	int val;
+
+	CCCI_BOOTUP_LOG(0, RPC, "scan didr gpio status\n");
+	for (i = 0; i < ARRAY_SIZE(gpio_mapping_table); i++) {
+		curr = gpio_mapping_table[i].gpio_name_from_md;
+		size = strlen(curr) + 1;
+		gpio_md_view = -1;
+		gpio_id = get_md_gpio_info(curr, size, &gpio_md_view);
+		if (gpio_id >= 0) {
+			val = get_md_gpio_val(gpio_id);
+			CCCI_BOOTUP_LOG(0, RPC, "GPIO[%s]%d(%d@md),val:%d\n",
+					curr, gpio_id, gpio_md_view, val);
+		}
+	}
 }
 
 static int get_dram_type_clk(int *clk, int *type)
@@ -406,9 +439,9 @@ static void get_md_dtsi_debug(void)
 	output.retValue = 0;
 	ret = snprintf(input.strName, sizeof(input.strName), "%s",
 		"mediatek,md_drdi_rf_set_idx");
-	if (ret < 0 || ret >= sizeof(input.strName)) {
-		CCCI_ERROR_LOG(-1, RPC,
-			"%s-%d:snprintf fail,ret = %d\n", __func__, __LINE__, ret);
+	if (ret <= 0 || ret >= sizeof(input.strName)) {
+		CCCI_ERROR_LOG(-1, RPC, "%s:snprintf input.strName fail\n",
+			__func__);
 		return;
 	}
 	get_md_dtsi_val(&input, &output);
@@ -1166,8 +1199,8 @@ static void ccci_rpc_work_helper(struct port_t *port, struct rpc_pkt *pkt,
 				pkt[pkt_num++].buf = (void *)&tmp_data[0];
 				break;
 			}
-			trng = mt_secure_call_ret1(MTK_SIP_KERNEL_GET_RND,
-					MTK_RNG_MAGIC, 0, 0, 0);
+			trng = mt_secure_call(MTK_SIP_KERNEL_GET_RND,
+					MTK_RNG_MAGIC, 0, 0, 0, 0, 0, 0);
 			pkt_num = 0;
 			tmp_data[0] = 0;
 			tmp_data[1] = trng;
@@ -1387,6 +1420,7 @@ static int port_rpc_init(struct port_t *port)
 	if (first_init) {
 		get_dtsi_eint_node(port->md_id);
 		get_md_dtsi_debug();
+		md_drdi_gpio_status_scan();
 		first_init = 0;
 	}
 	return 0;

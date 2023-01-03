@@ -53,8 +53,8 @@
 		battery,wireless_cool2_cool1_thresh = <150>;
 		battery,wireless_cool3_cool2_thresh = <50>;
 		battery,wireless_cold_cool3_thresh = <0>;
-		battery,tx_high_threshold = <450>;
-		battery,tx_high_recovery = <400>;
+		battery,tx_high_threshold = <500>;
+		battery,tx_high_recovery = <450>;
 		battery,tx_low_threshold = <0>;
 		battery,tx_low_recovery = <50>;
 
@@ -88,12 +88,10 @@
 		battery,wpc_temp_control_source = <TEMP_CONTROL_SOURCE_BAT_THM>;
 		battery,wpc_high_temp = <400>;
 		battery,wpc_high_temp_recovery = <380>;
-		battery,wpc_input_limit_current = <600>;
+		battery,wpc_input_limit_current = <800>;
 		battery,wpc_charging_limit_current = <1000>;
 		battery,wpc_temp_lcd_on_control_source = <TEMP_CONTROL_SOURCE_BAT_THM>;
-		battery,wpc_lcd_on_high_temp = <400>;
-		battery,wpc_lcd_on_high_temp_rec = <380>;
-		battery,wpc_lcd_on_input_limit_current = <600>;
+		battery,wpc_lcd_on_input_limit_current = <800>;
 
 		battery,wpc_store_high_temp = <360>;
 		battery,wpc_store_high_temp_recovery = <340>;
@@ -112,6 +110,14 @@
 		battery,mix_high_temp = <420>;
 		battery,mix_high_chg_temp = <500>;
 		battery,mix_high_temp_recovery = <390>;
+
+		/* battery,enable_mix_v2; */
+		/* if you want to use mix_v2 concept, add "battery,enable_mix_v2;" */
+		battery,mix_v2_lrp_recov = <460>;
+		battery,mix_v2_lrp_cond = <480>;
+		battery,mix_v2_bat_cond = <480>;
+		battery,mix_v2_chg_cond = <0>;	/* 0 means no use chg thm condition */
+		battery,mix_v2_dchg_cond = <0>; /* 0 means no use dchg thm condition */
 
 		battery,full_condition_type = <(SEC_BATTERY_FULL_CONDITION_NOTIMEFULL | SEC_BATTERY_FULL_CONDITION_VCELL)>;
 		battery,full_condition_soc = <93>;
@@ -460,7 +466,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/common/dts/a13ve/battery_common.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/common/dts/a13ve/battery_common.dtsi */
 #include <dt-bindings/battery/sec-battery.h>
 
 #define MAX_FV 4350

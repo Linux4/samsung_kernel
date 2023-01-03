@@ -1,18 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- *  drivers/misc/mediatek/pmic/mt6360/mt6360_ldo.c
- *  Driver for MT6360 LDO part
- *
- *  Copyright (C) 2018 Mediatek Technology Inc.
- *  cy_huang <cy_huang@richtek.com>
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License version 2 as
- *  published by the Free Software Foundation.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- *  See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #include <linux/init.h>
@@ -31,7 +19,6 @@ module_param(dbg_log_en, bool, 0644);
 
 static const struct mt6360_ldo_platform_data def_platform_data = {
 	.sdcard_det_en = true,
-	.sdcard_hlact = true,
 };
 
 struct mt6360_regulator_desc {
@@ -42,6 +29,10 @@ struct mt6360_regulator_desc {
 	unsigned int mode_mask;
 	unsigned int moder_reg;
 	unsigned int moder_mask;
+};
+
+static const u8 ldo_ctrl_mask[MT6360_LDO_CTRLS_NUM] = {
+	0xff, 0x8f, 0xff, 0xff, 0xff
 };
 
 static int mt6360_ldo_read_device(void *client, u32 addr, int len, void *dst)
@@ -57,7 +48,7 @@ static int mt6360_ldo_read_device(void *client, u32 addr, int len, void *dst)
 		return -EINVAL;
 	}
 	chunk[0] = ((i2c->addr & 0x7f) << 1) + 1;
-	chunk[1] = (addr & 0x3f) | (((u8)(len - 1)) << 6);
+	chunk[1] = (addr & 0x3f) | ((len - 1) << 6);
 	ret =  i2c_smbus_read_i2c_block_data(client, chunk[1],
 					     len + 1, chunk + 2);
 	if (ret < 0)
@@ -82,7 +73,7 @@ static int mt6360_ldo_write_device(void *client, u32 addr,
 		return -EINVAL;
 	}
 	chunk[0] = (i2c->addr & 0x7f) << 1;
-	chunk[1] = (addr & 0x3f) | ((u32)(len - 1) << 6);
+	chunk[1] = (addr & 0x3f) | ((len - 1) << 6);
 	memcpy(chunk + 2, src, len);
 	chunk[2 + len] = crc8(mli->crc8_table, chunk, 2 + len, 0);
 	return i2c_smbus_write_i2c_block_data(client, chunk[1],
@@ -287,8 +278,8 @@ static struct resource *mt6360_ldo_get_irq_byname(struct device *dev,
 
 static void mt6360_ldo_irq_register(struct mt6360_ldo_info *mli)
 {
-	struct mt6360_ldo_irq_desc *irq_desc = mt6360_ldo_irq_desc;
-	struct resource *r = NULL;
+	struct mt6360_ldo_irq_desc *irq_desc;
+	struct resource *r;
 	int i, ret;
 
 	for (i = 0; i < ARRAY_SIZE(mt6360_ldo_irq_desc); i++) {
@@ -319,32 +310,22 @@ static int mt6360_ldo_enable(struct regulator_dev *rdev)
 	int id = rdev_get_id(rdev), ret;
 
 	mt_dbg(&rdev->dev, "%s, id = %d\n", __func__, id);
-
-	/* Enable SDCARD_DET before LDO5 enables. */
+	ret = mt6360_ldo_reg_update_bits(mli, desc->enable_reg,
+					 desc->enable_mask, 0xff);
+	if (ret < 0) {
+		dev_err(&rdev->dev, "%s: fail (%d)\n", __func__, ret);
+		return ret;
+	}
+	/* when LDO5 enable, enable SDCARD_DET */
 	if (id == MT6360_LDO_LDO5 && pdata->sdcard_det_en) {
-		ret = mt6360_ldo_reg_update_bits(mli, MT6360_LDO_LDO5_CTRL0,
-						 0x80, pdata->sdcard_hlact ? 0xff : 0);
-		if (ret < 0) {
-			dev_info(&rdev->dev,
-				"%s: sdcard_hlact fail (%d)\n", __func__, ret);
-			return ret;
-		}
 		ret = mt6360_ldo_reg_update_bits(mli, MT6360_LDO_LDO5_CTRL0,
 						 0x40, 0xff);
 		if (ret < 0) {
-			dev_info(&rdev->dev,
+			dev_err(&rdev->dev,
 				"%s: en sdcard_det fail (%d)\n", __func__, ret);
 			return ret;
 		}
 	}
-
-	ret = mt6360_ldo_reg_update_bits(mli, desc->enable_reg,
-					 desc->enable_mask, 0xff);
-	if (ret < 0) {
-		dev_info(&rdev->dev, "%s: fail (%d)\n", __func__, ret);
-		return ret;
-	}
-
 	return 0;
 }
 
@@ -387,7 +368,7 @@ static int mt6360_ldo_is_enabled(struct regulator_dev *rdev)
 	ret = mt6360_ldo_reg_read(mli, desc->enst_reg);
 	if (ret < 0)
 		return ret;
-	return ((u8)ret & desc->enst_mask) ? 1 : 0;
+	return (ret & desc->enst_mask) ? 1 : 0;
 }
 
 static int mt6360_ldo_set_voltage_sel(struct regulator_dev *rdev,
@@ -395,8 +376,8 @@ static int mt6360_ldo_set_voltage_sel(struct regulator_dev *rdev,
 {
 	struct mt6360_ldo_info *mli = rdev_get_drvdata(rdev);
 	const struct regulator_desc *desc = rdev->desc;
-	int id = rdev_get_id(rdev), ret;
-	u32 shift = ffs(desc->vsel_mask) - 1;
+	int id = rdev_get_id(rdev);
+	int shift = ffs(desc->vsel_mask) - 1, ret;
 
 	mt_dbg(&rdev->dev, "%s, id = %d, sel %d\n", __func__, id, sel);
 	ret = mt6360_ldo_reg_update_bits(mli, desc->vsel_reg,
@@ -412,17 +393,17 @@ static int mt6360_ldo_get_voltage_sel(struct regulator_dev *rdev)
 {
 	struct mt6360_ldo_info *mli = rdev_get_drvdata(rdev);
 	const struct regulator_desc *desc = rdev->desc;
-	int id = rdev_get_id(rdev), ret;
-	u32 shift = ffs(desc->vsel_mask) - 1, sel;
+	int id = rdev_get_id(rdev);
+	int shift = ffs(desc->vsel_mask) - 1;
+	int ret;
 
 	mt_dbg(&rdev->dev, "%s, id = %d\n", __func__, id);
 	ret = mt6360_ldo_reg_read(mli, desc->vsel_reg);
 	if (ret < 0)
 		return ret;
-	sel = ret;
-	sel &= (desc->vsel_mask);
-	sel >>= shift;
-	return sel;
+	ret &= (desc->vsel_mask);
+	ret >>= shift;
+	return ret;
 }
 
 static int mt6360_ldo_set_mode(struct regulator_dev *rdev, unsigned int mode)
@@ -430,14 +411,14 @@ static int mt6360_ldo_set_mode(struct regulator_dev *rdev, unsigned int mode)
 	struct mt6360_ldo_info *mli = rdev_get_drvdata(rdev);
 	const struct mt6360_regulator_desc *desc =
 			       (const struct mt6360_regulator_desc *)rdev->desc;
-	int id = rdev_get_id(rdev), ret;
-	u32 shift = ffs(desc->mode_mask) - 1;
+	int id = rdev_get_id(rdev);
+	int shift = ffs(desc->mode_mask) - 1, ret;
 	u8 val;
 
 	mt_dbg(&rdev->dev, "%s, id = %d, mode = %d\n", __func__, id, mode);
 	if (!mode)
 		return -EINVAL;
-	switch (1 << ((u8)(ffs(mode) - 1))) {
+	switch (1 << (ffs(mode) - 1)) {
 	case REGULATOR_MODE_NORMAL:
 		val = 0;
 		break;
@@ -473,7 +454,7 @@ static unsigned int mt6360_ldo_get_mode(struct regulator_dev *rdev)
 	if (ret < 0)
 		return ret;
 	ret &= desc->moder_mask;
-	ret = (u8)ret >> shift;
+	ret >>= shift;
 	switch (ret) {
 	case 0:
 		ret = REGULATOR_MODE_NORMAL;
@@ -607,7 +588,7 @@ static const struct mt6360_regulator_desc mt6360_ldo_descs[] =  {
 			0x0b, 0x04, 0x0b, 0x30, 0x0b, 0x03, 120),
 };
 
-static inline int mt6360_pdata_apply_helper(void *info, void *const pdata,
+static inline int mt6360_pdata_apply_helper(void *info, void *pdata,
 					   const struct mt6360_pdata_prop *prop,
 					   int prop_cnt)
 {
@@ -646,14 +627,13 @@ static int mt6360_ldo_apply_pdata(struct mt6360_ldo_info *mli,
 
 static const struct mt6360_val_prop mt6360_val_props[] = {
 	MT6360_DT_VALPROP(sdcard_det_en, struct mt6360_ldo_platform_data),
-	MT6360_DT_VALPROP(sdcard_hlact, struct mt6360_ldo_platform_data),
 };
 
 static int mt6360_ldo_parse_dt_data(struct device *dev,
 				    struct mt6360_ldo_platform_data *pdata)
 {
 	struct device_node *np = dev->of_node;
-	struct resource *res = NULL;
+	struct resource *res;
 	int res_cnt, ret;
 
 	dev_dbg(dev, "%s ++\n", __func__);
@@ -686,7 +666,7 @@ static inline int mt6360_pmic_chip_id_check(struct i2c_client *i2c)
 	ret = i2c_smbus_read_byte_data(&pmu_client, 0x00);
 	if (ret < 0)
 		return ret;
-	if (((u8)ret & 0xf0) != 0x50)
+	if ((ret & 0xf0) != 0x50)
 		return -ENODEV;
 	return (ret & 0x0f);
 }
@@ -708,10 +688,10 @@ static int mt6360_ldo_i2c_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
 {
 	struct mt6360_ldo_platform_data *pdata = dev_get_platdata(&client->dev);
-	struct mt6360_ldo_info *mli = NULL;
+	struct mt6360_ldo_info *mli;
 	bool use_dt = client->dev.of_node;
 	struct regulator_config config = {};
-	struct regulation_constraints *constraints = NULL;
+	struct regulation_constraints *constraints;
 	u8 chip_rev;
 	int i, ret;
 

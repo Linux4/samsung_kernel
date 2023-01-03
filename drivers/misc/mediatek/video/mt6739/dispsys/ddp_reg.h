@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef _DDP_REG_H_
 #define _DDP_REG_H_
@@ -239,25 +231,6 @@ static inline unsigned long disp_addr_convert(unsigned long va)
 				disp_addr_convert((unsigned long)(reg32)), \
 				val, mask);				\
 		}							\
-	} while (0)
-
-#define DISP_REG_CMDQ_POLLING_TIMEOUT(handle, reg32, val, mask, timeout) \
-	do { \
-		int i = 0; \
-		if (handle == NULL) { \
-			while ((DISP_REG_GET(reg32) & (mask)) \
-				!= ((val) & (mask)))\
-				if (i < timeout) {  \
-					i++; \
-				} \
-				else { \
-					break; \
-				} \
-		} else { \
-			cmdqRecPoll(handle, \
-				disp_addr_convert((unsigned long)(reg32)), \
-				val, mask); \
-		}  \
 	} while (0)
 
 #define DISP_REG_BACKUP(handle, hSlot, idx, reg32)			\

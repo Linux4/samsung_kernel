@@ -1,15 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2016 MediaTek Inc.
  */
+
 
 #ifndef _MT_ISP_H
 #define _MT_ISP_H
@@ -669,7 +662,7 @@ struct compat_ISP_REF_CNT_CTRL_STRUCT {
  *
  ******************************************************************************/
 enum ISP_CMD_ENUM {
-	ISP_CMD_RESET_BY_HWMODULE = 0,
+	ISP_CMD_RESET_BY_HWMODULE,
 	ISP_CMD_READ_REG,     /* Read register from driver */
 	ISP_CMD_WRITE_REG,    /* Write register to driver */
 	ISP_CMD_WAIT_IRQ,     /* Wait IRQ */
@@ -942,9 +935,6 @@ enum ISP_HALT_DMA_ENUM {
 
 #define COMPAT_ISP_POWER_CTRL                 \
 	_IOWR(ISP_MAGIC, ISP_CMD_POWER_CTRL, compat_uptr_t)
-
-#define COMPAT_ISP_GET_CUR_HWP1DONE             \
-	_IOWR(ISP_MAGIC, ISP_CMD_GET_CUR_HWP1DONE, compat_uptr_t)
 
 #define COMPAT_ISP_DUMP_BUFFER                   \
 	_IOWR(ISP_MAGIC,                         \

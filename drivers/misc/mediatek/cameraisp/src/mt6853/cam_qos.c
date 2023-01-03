@@ -1,15 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
+
 #ifdef CONFIG_COMPAT
 	/* 64 bit */
 #include <linux/fs.h>
@@ -29,7 +22,7 @@
 #ifdef CONFIG_MTK_QOS_SUPPORT_ENABLE
 #ifndef EP_STAGE
 #include <mmdvfs_pmqos.h>
-#include <linux/pm_qos.h>
+#include <linux/soc/mediatek/mtk-pm-qos.h>
 #include <mt6853-larb-port.h>
 #endif
 #else
@@ -109,7 +102,7 @@
 
 
 
-	struct pm_qos_request isp_qos;
+	struct mtk_pm_qos_request isp_qos;
 #else
 #ifndef EP_STAGE
 	struct mmdvfs_pm_qos_request isp_qos;
@@ -766,17 +759,17 @@ void mtk_pmqos_clr(enum ISP_IRQ_TYPE_ENUM module)
 }
 
 	#define mtk_dfs_add()		\
-		pm_qos_add_request(&isp_qos, PM_QOS_CAM_FREQ, 0)
+		mtk_pm_qos_add_request(&isp_qos, PM_QOS_CAM_FREQ, 0)
 
 	#define mtk_dfs_remove()	\
-		pm_qos_remove_request(&isp_qos)
+		mtk_pm_qos_remove_request(&isp_qos)
 	#define mtk_dfs_clr()		\
-		pm_qos_update_request(&isp_qos, 0)
+		mtk_pm_qos_update_request(&isp_qos, 0)
 
 	#define mtk_dfs_set()
 
 	#define mtk_dfs_update(clk)	\
-		pm_qos_update_request(&isp_qos, clk)
+		mtk_pm_qos_update_request(&isp_qos, clk)
 
 	#define mtk_dfs_supported(frq, step)	\
 		mmdvfs_qos_get_freq_steps(PM_QOS_CAM_FREQ, frq, &step)

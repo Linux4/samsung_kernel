@@ -1,16 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2016 MediaTek Inc.
- * Author: Tiffany Lin <tiffany.lin@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/clk.h>
 #include <linux/of_address.h>
@@ -31,10 +22,11 @@
 
 #if DEC_DVFS
 #include <linux/pm_qos.h>
+#include <linux/soc/mediatek/mtk-pm-qos.h>
 #include <mmdvfs_pmqos.h>
 #include "vcodec_dvfs.h"
 #define STD_VDEC_FREQ 249
-static struct pm_qos_request vdec_qos_req_f;
+static struct mtk_pm_qos_request vdec_qos_req_f;
 static u64 vdec_freq;
 static u32 vdec_freq_step_size;
 static u64 vdec_freq_steps[MAX_FREQ_STEP];
@@ -83,6 +75,7 @@ static struct ion_client *ion_vdec_client;
 void mtk_dec_init_ctx_pm(struct mtk_vcodec_ctx *ctx)
 {
 	ctx->input_driven = 0;
+	ctx->user_lock_hw = 1;
 }
 
 int mtk_vcodec_init_dec_pm(struct mtk_vcodec_dev *mtkdev)
@@ -185,6 +178,10 @@ void mtk_vcodec_dec_clock_on(struct mtk_vcodec_pm *pm, int hw_id)
 				ret);
 	} else if (hw_id == MTK_VDEC_LAT) {
 		smi_bus_prepare_enable(SMI_LARB5, "VDEC_LAT");
+		ret = clk_prepare_enable(pm->clk_MT_CG_SOC);
+		if (ret)
+			mtk_v4l2_err("clk_prepare_enable VDEC_SOC fail %d",
+				ret);
 		ret = clk_prepare_enable(pm->clk_MT_CG_VDEC1);
 		if (ret)
 			mtk_v4l2_err("clk_prepare_enable VDEC_LAT fail %d",
@@ -285,6 +282,7 @@ void mtk_vcodec_dec_clock_off(struct mtk_vcodec_pm *pm, int hw_id)
 		smi_bus_disable_unprepare(SMI_LARB4, "VDEC_CORE");
 	} else if (hw_id == MTK_VDEC_LAT) {
 		clk_disable_unprepare(pm->clk_MT_CG_VDEC1);
+		clk_disable_unprepare(pm->clk_MT_CG_SOC);
 		smi_bus_disable_unprepare(SMI_LARB5, "VDEC_LAT");
 	} else
 		mtk_v4l2_err("invalid hw_id %d", hw_id);
@@ -745,7 +743,7 @@ void mtk_prepare_vdec_dvfs(void)
 #if DEC_DVFS
 	int ret;
 
-	pm_qos_add_request(&vdec_qos_req_f, PM_QOS_VDEC_FREQ,
+	mtk_pm_qos_add_request(&vdec_qos_req_f, PM_QOS_VDEC_FREQ,
 				PM_QOS_DEFAULT_VALUE);
 	vdec_freq_step_size = 1;
 	ret = mmdvfs_qos_get_freq_steps(PM_QOS_VDEC_FREQ, &vdec_freq_steps[0],
@@ -761,8 +759,8 @@ void mtk_unprepare_vdec_dvfs(void)
 	int freq_idx = 0;
 
 	freq_idx = (vdec_freq_step_size == 0) ? 0 : (vdec_freq_step_size - 1);
-	pm_qos_update_request(&vdec_qos_req_f, vdec_freq_steps[freq_idx]);
-	pm_qos_remove_request(&vdec_qos_req_f);
+	mtk_pm_qos_update_request(&vdec_qos_req_f, vdec_freq_steps[freq_idx]);
+	mtk_pm_qos_remove_request(&vdec_qos_req_f);
 	free_hist(&vdec_hists, 0);
 	/* TODO: jobs error handle */
 #endif
@@ -843,12 +841,12 @@ void mtk_vdec_dvfs_begin(struct mtk_vcodec_ctx *ctx, int hw_id)
 			if (vdec_freq > target_freq_64)
 				vdec_freq = target_freq_64;
 			vdec_cur_job->mhz = (int)target_freq_64;
-			pm_qos_update_request(&vdec_qos_req_f, target_freq_64);
+			mtk_pm_qos_update_request(&vdec_qos_req_f, target_freq_64);
 		}
 	} else {
 		target_freq_64 = match_freq(DEFAULT_MHZ, &vdec_freq_steps[0],
 						vdec_freq_step_size);
-		pm_qos_update_request(&vdec_qos_req_f, target_freq_64);
+		mtk_pm_qos_update_request(&vdec_qos_req_f, target_freq_64);
 	}
 	mutex_unlock(&ctx->dev->dec_dvfs_mutex);
 #endif
@@ -903,7 +901,7 @@ void mtk_vdec_dvfs_begin(struct mtk_vcodec_ctx *ctx, int hw_id)
 	vdec_freq = vdec_req_freq[0] > vdec_req_freq[1] ?
 			vdec_req_freq[0] : vdec_req_freq[1];
 
-	pm_qos_update_request(&vdec_qos_req_f, vdec_freq);
+	mtk_pm_qos_update_request(&vdec_qos_req_f, vdec_freq);
 	mutex_unlock(&ctx->dev->dec_dvfs_mutex);
 #endif
 }
@@ -927,7 +925,7 @@ void mtk_vdec_dvfs_end(struct mtk_vcodec_ctx *ctx, int hw_id)
 	}
 
 	freq_idx = (vdec_freq_step_size == 0) ? 0 : (vdec_freq_step_size - 1);
-	pm_qos_update_request(&vdec_qos_req_f, vdec_freq_steps[freq_idx]);
+	mtk_pm_qos_update_request(&vdec_qos_req_f, vdec_freq_steps[freq_idx]);
 	mutex_unlock(&ctx->dev->dec_dvfs_mutex);
 #endif
 #if DEC_DVFS
@@ -946,7 +944,7 @@ void mtk_vdec_dvfs_end(struct mtk_vcodec_ctx *ctx, int hw_id)
 	if (dev->dec_cnt > 2)
 		vdec_req_freq[hw_id] = 546;
 
-	pm_qos_update_request(&vdec_qos_req_f, vdec_freq);
+	mtk_pm_qos_update_request(&vdec_qos_req_f, vdec_freq);
 	mutex_unlock(&ctx->dev->dec_dvfs_mutex);
 #endif
 }
@@ -995,7 +993,7 @@ void mtk_vdec_emi_bw_begin(struct mtk_vcodec_ctx *ctx, int hw_id)
 	/* bits/s to MBytes/s */
 	emi_bw = emi_bw / (1024 * 1024) / 8;
 
-	pm_qos_update_request(&vdec_qos_req_bw, (int)emi_bw);
+	mtk_pm_qos_update_request(&vdec_qos_req_bw, (int)emi_bw);
 #endif
 #if DEC_EMI_BW
 	int f_type = 1;

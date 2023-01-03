@@ -40,7 +40,6 @@ struct pin_log {
 
 	/* pin */
 	unsigned int level;
-	unsigned int state;
 	unsigned int onoff;
 };
 
@@ -61,6 +60,8 @@ struct abd_pin_info {
 	int active_level;
 	unsigned int active_depth;
 	unsigned int enable;
+	unsigned int index;
+	unsigned int bug_flag;
 
 	struct abd_pin p_first;
 	struct abd_pin p_lcdon;
@@ -116,6 +117,22 @@ struct abd_udr {
 	unsigned int lcdon_flag;
 
 	struct udr_log log[ABD_LOG_MAX];
+};
+
+struct abd_bit_info {
+	unsigned int reg;
+	unsigned int len;
+	char **print;
+	unsigned int expect;
+	unsigned int offset;
+	unsigned int g_para;
+	unsigned int invert;
+	unsigned int mask;
+	unsigned int result;
+	union {
+		unsigned int reserved;
+		unsigned int dpui_key;
+	};
 };
 
 struct bit_log {
@@ -184,6 +201,8 @@ struct abd_protect {
 
 	struct miscdevice misc_entry;
 	struct mutex misc_lock;
+
+	struct dentry *debugfs_root;
 };
 
 extern unsigned int lcdtype;

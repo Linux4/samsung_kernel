@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2021 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2022 Samsung Electronics Inc.
  */
 
 /*****************************************************************************
@@ -904,10 +896,11 @@ static void set_mode_setfile(enum IMGSENSOR_MODE mode)
 		LOG_ERR("invalid mode: %d\n", mode);
 		return;
 	}
-
+	LOG_INF(" - E");
 	LOG_INF("mode: %s\n", s5kjn1_setfile_info[mode].name);
 
 	table_write_cmos_sensor(s5kjn1_setfile_info[mode].setfile, s5kjn1_setfile_info[mode].size);
+	LOG_INF(" - X");
 }
 
 /** JN1_EVT0.0_Setfile_20220302_ver0.13 **/
@@ -1088,9 +1081,6 @@ static kal_uint16 addr_data_global_jn1[] = {
 static void sensor_init(void)
 {
 	int ret = 0;
-#ifdef IMGSENSOR_HW_PARAM
-	struct cam_hw_param *hw_param = NULL;
-#endif
 
 	LOG_INF("%s", __func__);
 	ret = write_cmos_sensor(0xFCFC, 0x4000);
@@ -1118,11 +1108,8 @@ static void sensor_init(void)
 #endif
 
 #ifdef IMGSENSOR_HW_PARAM
-	if (ret != 0) {
-		imgsensor_sec_get_hw_param(&hw_param, S5KJN1_CAL_SENSOR_POSITION);
-		if (hw_param)
-			hw_param->i2c_sensor_err_cnt++;
-	}
+	if (ret != 0)
+		imgsensor_increase_hw_param_err_cnt(S5KJN1_CAL_SENSOR_POSITION);
 #endif
 }
 
@@ -1409,7 +1396,7 @@ static kal_uint32 open(void)
 	kal_uint8 retry = 2;
 	kal_uint16 sensor_id = 0;
 
-	LOG_INF("%s", __func__);
+	LOG_INF(" - E");
 #if defined(CONFIG_MACH_MT6833)
 	LOG_INF("used MT6833");
 #endif
@@ -1466,6 +1453,7 @@ static kal_uint32 open(void)
 	imgsensor.current_fps		= imgsensor_info.pre.max_framerate;
 	spin_unlock(&imgsensor_drv_lock);
 
+	LOG_INF(" - X");
 	return ERROR_NONE;
 }
 

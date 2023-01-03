@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (C) 2021 MediaTek Inc.
  */
 
 #include <linux/kernel.h>
@@ -160,15 +152,14 @@ int upower_bank_to_spower_bank(int upower_bank)
 	case UPOWER_BANK_B:
 		ret = MTK_SPOWER_CPUB;
 		break;
-
-#if 0
-	case UPOWER_BANK_CLS_LL:
-		ret = MTK_SPOWER_CPULL_CLUSTER;
-		break;
-	case UPOWER_BANK_CLS_L:
-		ret = MTK_SPOWER_CPUL_CLUSTER;
-		break;
-#endif
+	/*
+	 * case UPOWER_BANK_CLS_LL:
+	 * ret = MTK_SPOWER_CPULL_CLUSTER;
+	 * break;
+	 * case UPOWER_BANK_CLS_L:
+	 * ret = MTK_SPOWER_CPUL_CLUSTER;
+	 * break;
+	 */
 	case UPOWER_BANK_CCI:
 		ret = MTK_SPOWER_CCI;
 		break;
@@ -267,10 +258,10 @@ void get_original_table(void)
 			upower_tbl_ref, upower_tbl_infos);
 	/* p_upower_tbl_infos = upower_tbl_infos; */
 
-#if 0
-	upower_debug("upower_tbl_ll_1_6785 %p\n", &upower_tbl_ll_1_6785);
-	upower_debug("upower_tbl_ll_2_6785 %p\n", &upower_tbl_ll_2_6785);
-#endif
+	/*
+	 * upower_debug("upower_tbl_ll_1_6785 %p\n", &upower_tbl_ll_1_6785);
+	 * upower_debug("upower_tbl_ll_2_6785 %p\n", &upower_tbl_ll_2_6785);
+	 */
 
 	/*
 	 *  Clear volt fields before eem run.                                  *

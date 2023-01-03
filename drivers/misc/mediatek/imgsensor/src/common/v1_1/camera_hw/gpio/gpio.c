@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include "gpio.h"
@@ -137,7 +129,7 @@ static enum IMGSENSOR_RETURN gpio_set(
 	struct GPIO           *pgpio = (struct GPIO *)pinstance;
 	enum   GPIO_STATE      gpio_state;
 
-	/* PK_INFO("%s :debug pinctrl ENABLE, PinIdx %d, Val %d\n",
+	/* PK_DBG("%s :debug pinctrl ENABLE, PinIdx %d, Val %d\n",
 	 *	__func__, pin, pin_state);
 	 */
 
@@ -148,8 +140,7 @@ static enum IMGSENSOR_RETURN gpio_set(
 		pin > IMGSENSOR_HW_PIN_AFVDD ||
 #endif
 		pin_state < IMGSENSOR_HW_PIN_STATE_LEVEL_0 ||
-		pin_state > IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH ||
-		sensor_idx < 0)
+		pin_state > IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH)
 		return IMGSENSOR_RETURN_ERROR;
 
 	gpio_state = (pin_state > IMGSENSOR_HW_PIN_STATE_LEVEL_0)
@@ -186,9 +177,9 @@ static enum IMGSENSOR_RETURN gpio_set(
 static enum IMGSENSOR_RETURN gpio_dump(void *pintance)
 {
 #ifdef DUMP_GPIO
-	PK_INFO("[sensor_dump][gpio]\n");
+	PK_DBG("[sensor_dump][gpio]\n");
 	gpio_dump_regs();
-	PK_INFO("[sensor_dump][gpio] finish\n");
+	PK_DBG("[sensor_dump][gpio] finish\n");
 #endif
 	return IMGSENSOR_RETURN_SUCCESS;
 }

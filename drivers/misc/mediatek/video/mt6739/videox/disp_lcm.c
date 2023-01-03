@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/slab.h>
 
@@ -1062,13 +1054,6 @@ struct disp_lcm_handle *disp_lcm_probe(char *plcm_name,
 			DISPCHECK("LCM Name NULL\n");
 		} else {
 			lcm_drv = lcm_driver_list[0];
-#if defined(CONFIG_SMCDSD_PANEL)
-			/* temporary code */
-			if (strcmp(lcm_drv->name, plcm_name)) {
-				DISPCHECK("LCM Driver defined in kernel(%s) is different with LK(%s)\n", lcm_drv->name, plcm_name);
-				lcm_drv->name = kstrdup(plcm_name, GFP_KERNEL);
-			}
-#endif
 			if (strcmp(lcm_drv->name, plcm_name)) {
 				DISPERR("FATAL ERROR!!!LCM Driver defined in kernel(%s) is different with LK(%s)\n",
 					lcm_drv->name, plcm_name);
@@ -1328,76 +1313,6 @@ int disp_lcm_suspend(struct disp_lcm_handle *plcm)
 		return -1;
 	}
 }
-
-#if defined(CONFIG_SMCDSD_PANEL)
-int disp_lcm_power_enable(struct disp_lcm_handle *plcm, unsigned int enable)
-{
-	struct LCM_DRIVER *lcm_drv = NULL;
-
-	DISPFUNC();
-	if (_is_lcm_inited(plcm)) {
-		lcm_drv = plcm->drv;
-
-		if (lcm_drv->power_enable)
-			lcm_drv->power_enable(enable);
-
-		return 0;
-	}
-	DISPERR("lcm_drv is null\n");
-	return -1;
-}
-
-int disp_lcm_disable(struct disp_lcm_handle *plcm)
-{
-	struct LCM_DRIVER *lcm_drv = NULL;
-
-	DISPMSG("%s+\n", __func__);
-	if (_is_lcm_inited(plcm)) {
-		lcm_drv = plcm->drv;
-		if (lcm_drv->disable) {
-			lcm_drv->disable();
-		} else {
-			DISPERR("FATAL ERROR, lcm_drv->disable is null\n");
-			return -1;
-		}
-		return 0;
-	}
-
-	DISPERR("lcm_drv is null\n");
-	return -1;
-}
-
-int disp_lcm_cmdq(struct disp_lcm_handle *plcm, unsigned int enable)
-{
-	struct LCM_DRIVER *lcm_drv = NULL;
-
-	DISPMSG("%s, enable:%d\n", __func__, enable);
-	if (_is_lcm_inited(plcm)) {
-		lcm_drv = plcm->drv;
-		if (lcm_drv->cmdq) {
-			lcm_drv->cmdq(enable);
-		} else {
-			return -1;
-		}
-		return 0;
-	}
-
-	DISPERR("lcm_drv is null\n");
-	return -1;
-}
-
-int disp_lcm_path_lock(bool lock, struct disp_lcm_handle *plcm)
-{
-	if (!_is_lcm_inited(plcm)) {
-		DISPERR("lcm_drv is null\n");
-		return -1;
-	}
-
-	plcm->drv->path_lock(lock);
-
-	return 0;
-}
-#endif
 
 int disp_lcm_resume(struct disp_lcm_handle *plcm)
 {

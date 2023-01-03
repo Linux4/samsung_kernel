@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #define PFX "ov13b10_camera_sensor"
@@ -74,14 +66,14 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.max_framerate = 150,
 	},
 	.normal_video = {
-		.pclk = 108183240,
-		.linelength = 1122,
-		.framelength = 3214,
+		.pclk = 112000000,
+		.linelength =  1176,
+		.framelength = 3196,
 		.startx = 0,
 		.starty = 0,
-		.grabwindow_width = 4224,
-		.grabwindow_height = 3136,
-		.mipi_data_lp2hs_settle_dc = 19,
+		.grabwindow_width = 2104,
+		.grabwindow_height = 1560,
+		.mipi_data_lp2hs_settle_dc = 19,//unit , ns , 85
 		.mipi_pixel_rate = 224000000,
 		.max_framerate = 300,
 	},
@@ -154,15 +146,18 @@ static struct imgsensor_struct imgsensor = {
 
 /* Sensor output window information */
 static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[10] = {
-	{ 4240, 3136,    0,    0, 4240, 3136, 2120, 1560,
+	{ 4240, 3136,    0,    8, 4240, 3120, 2120, 1560,
 	      8,    4, 2104, 1560,    0,    0, 2104, 1560},
 	{ 4240, 3136,    0,    0, 4240, 3136, 4240, 3136,
 	      16,    8, 4208, 3120,    0,    0, 4208, 3120},
-	{ 4256, 3168,    0,    8, 4256, 3152, 4256, 3152,
+	{ 4240, 3136,    0,    8, 4240, 3120, 2120, 1560,
+	      8,    4, 2104, 1560,    0,    0, 2104, 1560},
+	/*{ 4256, 3168,    0,    8, 4256, 3152, 4256, 3152,
 	    16,    8, 4224, 3136,    0,    0, 4224, 3136},
-	{ 4256, 3168,   64,   64, 4128, 3104, 1032,  776,
+		*/
+	{ 4240, 3136,   6,   16, 4128, 3104, 1032,  776,
 	   196,  148,  640,  480,    0,    0,  640,  480},
-	{ 4256, 3168,   64,   64, 4128, 3104, 1032,  776,
+	{ 4240, 3136,   6,   16, 4128, 3104, 1032,  776,
 	     4,    4, 1024,  768,    0,    0, 1024,  768},
 };
 
@@ -252,7 +247,7 @@ static void set_dummy(void)
 {
 	write_cmos_sensor(0x380c, imgsensor.line_length >> 8);
 	write_cmos_sensor(0x380d, imgsensor.line_length & 0xFF);
-	write_cmos_sensor(0x380e, imgsensor.frame_length >> 8);
+	write_cmos_sensor(0x380e, (imgsensor.frame_length >> 8) & 0x7f);
 	write_cmos_sensor(0x380f, imgsensor.frame_length & 0xFF);
 }
 
@@ -315,22 +310,21 @@ static void write_shutter(kal_uint16 shutter)
 			realtime_fps = 146;
 			set_max_framerate(realtime_fps, 0);
 		} else	{
-			imgsensor.frame_length =
-				(imgsensor.frame_length  >> 1) << 1;
-			write_cmos_sensor(0x380e, imgsensor.frame_length >> 8);
+			/* Extend frame length */
+			write_cmos_sensor(0x380e,
+				(imgsensor.frame_length >> 8) & 0x7f);
 			write_cmos_sensor(0x380f,
 				imgsensor.frame_length & 0xFF);
 		}
 	} else	{
-		imgsensor.frame_length = (imgsensor.frame_length  >> 1) << 1;
-		write_cmos_sensor(0x380e, imgsensor.frame_length >> 8);
+		write_cmos_sensor(0x380e, (imgsensor.frame_length >> 8) & 0x7f);
 		write_cmos_sensor(0x380f, imgsensor.frame_length & 0xFF);
 	}
 
-	/*Warning : shutter must be even. Odd might happen Unexpected Results */
-	write_cmos_sensor(0x3500, (shutter >> 12) & 0x0F);
-	write_cmos_sensor(0x3501, (shutter >> 4) & 0xFF);
-	write_cmos_sensor(0x3502, (shutter<<4)  & 0xF0);
+	/* Update Shutter */
+	write_cmos_sensor(0x3500, (shutter >> 16) & 0xFF);
+	write_cmos_sensor(0x3501, (shutter >> 8) & 0xFF);
+	write_cmos_sensor(0x3502, shutter & 0xFF);
 
 	cam_pr_debug("shutter =%d, framelength =%d, realtime_fps =%d\n",
 		shutter, imgsensor.frame_length, realtime_fps);
@@ -1023,6 +1017,8 @@ kal_uint16 addr_data_pair_video_ov13b10[] = {
 };
 #endif
 
+#undef VIDEO_REPLACE_BY_PREVIEW
+#ifdef VIDEO_REPLACE_BY_PREVIEW
 static void normal_video_setting(kal_uint16 currefps)
 {
 	cam_pr_debug("E RES_4224x3136_zsl_30fps\n");
@@ -1072,6 +1068,7 @@ static void normal_video_setting(kal_uint16 currefps)
 	write_cmos_sensor(0x4902, 0x01);
 #endif
 }
+#endif
 
 #if MULTI_WRITE
 kal_uint16 addr_data_pair_hs_video_ov13b10[] = {
@@ -1429,7 +1426,8 @@ static kal_uint32 normal_video(
 	imgsensor.frame_length = imgsensor_info.normal_video.framelength;
 	imgsensor.min_frame_length = imgsensor_info.normal_video.framelength;
 	spin_unlock(&imgsensor_drv_lock);
-	normal_video_setting(imgsensor.current_fps);
+	//normal_video_setting(imgsensor.current_fps);
+	preview_setting();
 	return ERROR_NONE;
 }
 
@@ -1887,7 +1885,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		(MSDK_SENSOR_REG_INFO_STRUCT *) feature_para;
 	struct SET_PD_BLOCK_INFO_T *PDAFinfo;
 
-	UINT32 fps = 0;
+	UINT32 rate = 0;
 
 	if (!((feature_id == 3040) || (feature_id == 3058)))
 		cam_pr_debug("feature_id = %d\n", feature_id);
@@ -2061,7 +2059,6 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		streaming_control(KAL_TRUE);
 		break;
 	case SENSOR_FEATURE_GET_MIPI_PIXEL_RATE:
-		kal_uint32 rate;
 
 		switch (*feature_data) {
 		case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:

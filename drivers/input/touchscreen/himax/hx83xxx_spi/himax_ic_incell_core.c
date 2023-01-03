@@ -23,7 +23,9 @@ struct fw_operation *pfw_op;
 EXPORT_SYMBOL(pfw_op);
 
 struct flash_operation *pflash_op;
+EXPORT_SYMBOL(pflash_op);
 struct sram_operation *psram_op;
+EXPORT_SYMBOL(psram_op);
 struct driver_operation *pdriver_op;
 EXPORT_SYMBOL(pdriver_op);
 
@@ -1234,6 +1236,48 @@ static int himax_mcu_read_i2c_status(void)
 	return i2c_error_count;
 }
 
+#define TEMP_LOG "%s: R%02X%02X%02X%02X, tmp_data[0]=%x,tmp_data[1]=%x,tmp_data[2]=%x,tmp_data[3]=%x\n"
+
+static void hx_debug(void)
+{
+	uint8_t tmp_addr[4] = {0};
+	uint8_t tmp_data[4] = {0};
+
+	g_core_fp.fp_register_read(pfw_op->addr_chk_fw_status, 4, tmp_data, 0);
+	I(TEMP_LOG, __func__,
+		pfw_op->addr_chk_fw_status[3], pfw_op->addr_chk_fw_status[2],
+		pfw_op->addr_chk_fw_status[1], pfw_op->addr_chk_fw_status[0],
+		tmp_data[0], tmp_data[1], tmp_data[2], tmp_data[3]);
+
+	g_core_fp.fp_register_read(pfw_op->addr_flag_reset_event, 4, tmp_data, 0);
+	I(TEMP_LOG, __func__,
+		pfw_op->addr_flag_reset_event[3], pfw_op->addr_flag_reset_event[2],
+		pfw_op->addr_flag_reset_event[1], pfw_op->addr_flag_reset_event[0],
+		tmp_data[0], tmp_data[1], tmp_data[2], tmp_data[3]);
+
+	himax_in_parse_assign_cmd(0x900000E8, tmp_addr, sizeof(tmp_addr));
+	g_core_fp.fp_register_read(tmp_addr, 4, tmp_data, false);
+	I(TEMP_LOG, __func__,
+		tmp_addr[3], tmp_addr[2],
+		tmp_addr[1], tmp_addr[0],
+		tmp_data[0], tmp_data[1], tmp_data[2], tmp_data[3]);
+
+#ifdef HX_ZERO_FLASH
+	himax_in_parse_assign_cmd(0x90000048, tmp_addr, sizeof(tmp_addr));
+	g_core_fp.fp_register_read(tmp_addr, 4, tmp_data, false);
+	I(TEMP_LOG, __func__,
+		tmp_addr[3], tmp_addr[2],
+		tmp_addr[1], tmp_addr[0],
+		tmp_data[0], tmp_data[1], tmp_data[2], tmp_data[3]);
+#endif
+
+	g_core_fp.fp_register_read(pfw_op->addr_fw_dbg_msg_addr, 4, tmp_data, 0);
+	I(TEMP_LOG, __func__,
+		pfw_op->addr_fw_dbg_msg_addr[3], pfw_op->addr_fw_dbg_msg_addr[2],
+		pfw_op->addr_fw_dbg_msg_addr[1], pfw_op->addr_fw_dbg_msg_addr[0],
+		tmp_data[0], tmp_data[1], tmp_data[2], tmp_data[3]);
+}
+
 static void himax_mcu_read_FW_ver(void)
 {
 	uint8_t data[12];
@@ -1270,8 +1314,10 @@ static void himax_mcu_read_FW_ver(void)
 		} else {
 			retry--;
 			usleep_range(10000, 11000);
-			if (retry % 10 == 0)
+			if (retry % 10 == 0) {
 				I("reload fail ,delay 10ms retry=%d\n", retry);
+				hx_debug();
+			}
 		}
 	}
 
@@ -1318,7 +1364,8 @@ END:
 static bool himax_mcu_read_event_stack(uint8_t *buf, uint8_t length)
 {
 	uint8_t cmd[DATA_LEN_4];
-	struct timespec t_start, t_end, t_delta;
+	unsigned long long t_start, t_end, t_delta;
+	unsigned long nano_start, nano_end, nano_delta;
 	int len = length;
 	int i2c_speed = 0;
 
@@ -1329,17 +1376,21 @@ static bool himax_mcu_read_event_stack(uint8_t *buf, uint8_t length)
 		E("%s: i2c access fail!\n", __func__);
 		return 0;
 	}
-	if (private_ts->debug_log_level & BIT(2))
-		getnstimeofday(&t_start);
+	if (private_ts->debug_log_level & BIT(2)) {
+		t_start = local_clock();
+		nano_start = do_div(t_start, 1000000000);
+	}
 
 	himax_bus_read(pfw_op->addr_event_addr[0], buf, length, HIMAX_I2C_RETRY_TIMES);
 
 	if (private_ts->debug_log_level & BIT(2)) {
-		getnstimeofday(&t_end);
-		t_delta.tv_nsec = (t_end.tv_sec * 1000000000 + t_end.tv_nsec) - (t_start.tv_sec * 1000000000 + t_start.tv_nsec); /*ns*/
-		i2c_speed =	(len * 9 * 1000000 / (int)t_delta.tv_nsec) * 13 / 10;
+		t_end = local_clock();
+		nano_end = do_div(t_end, 1000000000);
+		t_delta  = t_start - t_end;
+		nano_delta = (nano_start - nano_end) / 1000;
+		i2c_speed = (len * 9 * 1000000 / (int)nano_delta) * 13 / 10;
 		private_ts->bus_speed = (int)i2c_speed;
-		}
+	}
 
 	/*  AHB_I2C Burst Read On */
 	cmd[0] = pfw_op->data_ahb_en[0];
@@ -1851,12 +1902,11 @@ static void himax_mcu_flash_page_write(uint8_t *write_addr, int length, uint8_t 
 
 static void himax_flash_speed_set(HX_FLASH_SPEED_ENUM speed)
 {
-	uint8_t tmp_addr[4];
 	uint8_t tmp_data[4];
 
-	himax_in_parse_assign_cmd(flash_clk_setup_addr, tmp_addr, 4);
 	himax_in_parse_assign_cmd((uint32_t)speed, tmp_data, 4);
-	g_core_fp.fp_register_write(tmp_addr, 4, tmp_data, 0);
+	g_core_fp.fp_register_write(pflash_op->addr_spi200_flash_speed, 4, tmp_data, 0);
+
 }
 
 static int himax_mcu_fts_ctpm_fw_upgrade_with_sys_fs_32k(unsigned char *fw, int len, bool change_iref)
@@ -2182,96 +2232,114 @@ static bool himax_mcu_get_DSRAM_data(uint8_t *info_data, bool DSRAM_Flag)
 	unsigned int i = 0;
 	unsigned char tmp_addr[ADDR_LEN_4];
 	unsigned char tmp_data[DATA_LEN_4];
-	uint8_t max_i2c_size = MAX_I2C_TRANS_SZ;
+	unsigned int max_bus_size = MAX_I2C_TRANS_SZ;
 	uint8_t x_num = ic_data->HX_RX_NUM;
 	uint8_t y_num = ic_data->HX_TX_NUM;
 	/*int m_key_num = 0;*/
-	int total_size = (x_num * y_num + x_num + y_num) * 2 + 4;
-	int total_size_temp;
-	int mutual_data_size = x_num * y_num * 2;
-	int total_read_times = 0;
-	int address = 0;
-	uint8_t *temp_info_data; /*max mkey size = 8*/
-	uint16_t check_sum_cal = 0;
+	unsigned int total_size = (x_num * y_num + x_num + y_num) * 2 + 4;
+	unsigned int data_size = (x_num * y_num + x_num + y_num) * 2;
+	unsigned int remain_size;
+	uint8_t retry = 0;
+	/*int mutual_data_size = x_num * y_num * 2;*/
+	unsigned int output_addr = 0;
+	unsigned int addr = 0;
+	uint8_t  *temp_info_data = NULL; /*max mkey size = 8*/
+	uint32_t checksum = 0;
 	int fw_run_flag = -1;
+
+
+	if (strcmp(private_ts->chip_name, HX_83121A_SERIES_PWON) == 0) {
+
+		if (max_bus_size > 4096)
+			max_bus_size = 4096;
+	}
 
 	temp_info_data = kcalloc((total_size + 8), sizeof(uint8_t), GFP_KERNEL);
 	if (temp_info_data == NULL) {
-		E("%s: temp_info_data allocate memory fail!!!!!\n", __func__);
+		E("%s, Failed to allocate memory\n", __func__);
 		return false;
 	}
+	output_addr = psram_op->addr_rawdata_addr[3] << 24
+		| psram_op->addr_rawdata_addr[2] << 16
+		| psram_op->addr_rawdata_addr[1] << 8
+		| psram_op->addr_rawdata_addr[0];
 	/* 1. Read number of MKey R100070E8H to determin data size */
 	/* m_key_num = ic_data->HX_BT_NUM; */
 	/* I("%s,m_key_num=%d\n",__func__ ,m_key_num); */
 	/* total_size += m_key_num * 2; */
+
 	/* 2. Start DSRAM Rawdata and Wait Data Ready */
-	tmp_data[3] = 0x00; tmp_data[2] = 0x00;
+	tmp_data[3] = 0x00;
+	tmp_data[2] = 0x00;
 	tmp_data[1] = psram_op->passwrd_start[1];
 	tmp_data[0] = psram_op->passwrd_start[0];
-	fw_run_flag = himax_write_read_reg(psram_op->addr_rawdata_addr, tmp_data, psram_op->passwrd_end[1], psram_op->passwrd_end[0]);
+	fw_run_flag = himax_write_read_reg(psram_op->addr_rawdata_addr,
+			tmp_data,
+			psram_op->passwrd_end[1],
+			psram_op->passwrd_end[0]);
 
 	if (fw_run_flag < 0) {
-		I("%s Data NOT ready => bypass\n", __func__);
-		goto FAIL;
+		E("%s: Data NOT ready => bypass\n", __func__);
+		kfree(temp_info_data);
+		return false;
 	}
 
 	/* 3. Read RawData */
-	total_size_temp = total_size;
-	/*I("%s: tmp_data[0] = 0x%02X,tmp_data[1] = 0x%02X,tmp_data[2] = 0x%02X,tmp_data[3] = 0x%02X\n",
-	  __func__, psram_op->addr_rawdata_addr[0], psram_op->addr_rawdata_addr[1], psram_op->addr_rawdata_addr[2], psram_op->addr_rawdata_addr[3]);*/
-	tmp_addr[0] = psram_op->addr_rawdata_addr[0];
-	tmp_addr[1] = psram_op->addr_rawdata_addr[1];
-	tmp_addr[2] = psram_op->addr_rawdata_addr[2];
-	tmp_addr[3] = psram_op->addr_rawdata_addr[3];
+	while (retry++ < 5) {
+		remain_size = total_size;
+		while (remain_size > 0) {
 
-	if (total_size % max_i2c_size == 0)
-		total_read_times = total_size / max_i2c_size;
-	else
-		total_read_times = total_size / max_i2c_size + 1;
+			i = total_size - remain_size;
+		//	addr = sram_adr_rawdata_addr + i;
+			addr = output_addr + i;
 
-	for (i = 0; i < total_read_times; i++) {
-		address = (psram_op->addr_rawdata_addr[3] << 24) +
-		(psram_op->addr_rawdata_addr[2] << 16) +
-		(psram_op->addr_rawdata_addr[1] << 8) +
-		psram_op->addr_rawdata_addr[0] + i * max_i2c_size;
-		/*I("%s address = %08X\n", __func__, address);*/
+			tmp_addr[3] = (uint8_t)((addr >> 24) & 0x00FF);
+			tmp_addr[2] = (uint8_t)((addr >> 16) & 0x00FF);
+			tmp_addr[1] = (uint8_t)((addr >> 8) & 0x00FF);
+			tmp_addr[0] = (uint8_t)((addr) & 0x00FF);
 
-		tmp_addr[3] = (uint8_t)((address >> 24) & 0x00FF);
-		tmp_addr[2] = (uint8_t)((address >> 16) & 0x00FF);
-		tmp_addr[1] = (uint8_t)((address >> 8) & 0x00FF);
-		tmp_addr[0] = (uint8_t)((address) & 0x00FF);
+			if (remain_size >= max_bus_size) {
+				g_core_fp.fp_register_read(tmp_addr,
+					max_bus_size, &temp_info_data[i], 0);
+				remain_size -= max_bus_size;
+			} else {
+				g_core_fp.fp_register_read(tmp_addr,
+					remain_size, &temp_info_data[i], 0);
+				remain_size = 0;
+			}
+		}
 
-		if (total_size_temp >= max_i2c_size) {
-			g_core_fp.fp_register_read(tmp_addr, max_i2c_size, &temp_info_data[i * max_i2c_size], 0);
-			total_size_temp = total_size_temp - max_i2c_size;
+		/* 5. Data Checksum Check */
+		/* 2 is meaning PASSWORD NOT included */
+		checksum = 0;
+		for (i = 2; i < total_size; i += 2)
+			checksum += temp_info_data[i+1]<<8 | temp_info_data[i];
+
+		if (checksum % 0x10000 != 0) {
+
+			E("%s: check_sum_cal fail=%08X\n", __func__, checksum);
+
 		} else {
-			/*I("last total_size_temp=%d\n",total_size_temp);*/
-			g_core_fp.fp_register_read(tmp_addr, total_size_temp % max_i2c_size, &temp_info_data[i * max_i2c_size], 0);
+			memcpy(info_data, &temp_info_data[4],
+				data_size * sizeof(uint8_t));
+			break;
 		}
 	}
 
 	/* 4. FW stop outputing */
-	tmp_data[3] = temp_info_data[3]; tmp_data[2] = temp_info_data[2];
-	tmp_data[1] = 0x00; tmp_data[0] = 0x00;
-	g_core_fp.fp_register_write(psram_op->addr_rawdata_addr, DATA_LEN_4, tmp_data, 0);
-
-	/* 5. Data Checksum Check */
-	for (i = 2; i < total_size; i += 2)/* 2:PASSWORD NOT included */
-		check_sum_cal += (temp_info_data[i + 1] * 256 + temp_info_data[i]);
-
-	if (check_sum_cal % 0x10000 != 0) {
-		I("%s check_sum_cal fail=%2X\n", __func__, check_sum_cal);
-		goto FAIL;
-	} else {
-		memcpy(info_data, &temp_info_data[4], mutual_data_size * sizeof(uint8_t));
-		/*I("%s checksum PASS\n", __func__);*/
-	}
+	tmp_data[3] = temp_info_data[3];
+	tmp_data[2] = temp_info_data[2];
+	tmp_data[1] = 0x00;
+	tmp_data[0] = 0x00;
+	g_core_fp.fp_register_write(psram_op->addr_rawdata_addr, DATA_LEN_4, tmp_data,
+		0);
 
 	kfree(temp_info_data);
-	return true;
-FAIL:
-	kfree(temp_info_data);
-	return false;
+	if (retry >= 5)
+		return false;
+	else
+		return true;
+
 }
 /* SRAM side end*/
 #endif
@@ -3786,6 +3854,7 @@ static void himax_mcu_fp_init(void)
 	g_core_fp.fp_flash_dump_func = himax_mcu_flash_dump_func;
 	g_core_fp.fp_flash_lastdata_check = himax_mcu_flash_lastdata_check;
 	g_core_fp._diff_overlay_flash = hx_mcu_diff_overlay_flash;
+	g_core_fp.fp_bin_desc_get = hx_mcu_bin_desc_get;
 #ifdef SEC_FACTORY_MODE
 	g_core_fp.set_edge_border = hx_mcu_set_edge_border;
 //	g_core_fp.set_cal_switch = hx_mcu_set_cal_switch;
@@ -4069,6 +4138,9 @@ void himax_mcu_in_cmd_init(void)
 	himax_in_parse_assign_cmd(fw_addr_chk_fw_status, pfw_op->addr_chk_fw_status, sizeof(pfw_op->addr_chk_fw_status));
 	himax_in_parse_assign_cmd(fw_addr_dd_handshak_addr, pfw_op->addr_dd_handshak_addr, sizeof(pfw_op->addr_dd_handshak_addr));
 	himax_in_parse_assign_cmd(fw_addr_dd_data_addr, pfw_op->addr_dd_data_addr, sizeof(pfw_op->addr_dd_data_addr));
+	himax_in_parse_assign_cmd(fw_addr_ap_notify_fw_sus, pfw_op->addr_ap_notify_fw_sus, sizeof(pfw_op->addr_ap_notify_fw_sus));
+	himax_in_parse_assign_cmd(fw_data_ap_notify_fw_sus_en, pfw_op->data_ap_notify_fw_sus_en, sizeof(pfw_op->data_ap_notify_fw_sus_en));
+	himax_in_parse_assign_cmd(fw_data_ap_notify_fw_sus_dis, pfw_op->data_ap_notify_fw_sus_dis, sizeof(pfw_op->data_ap_notify_fw_sus_dis));
 	himax_in_parse_assign_cmd(fw_data_system_reset, pfw_op->data_system_reset, sizeof(pfw_op->data_system_reset));
 	himax_in_parse_assign_cmd(fw_data_safe_mode_release_pw_active, pfw_op->data_safe_mode_release_pw_active, sizeof(pfw_op->data_safe_mode_release_pw_active));
 	himax_in_parse_assign_cmd(fw_data_clear, pfw_op->data_clear, sizeof(pfw_op->data_clear));
@@ -4104,6 +4176,7 @@ void himax_mcu_in_cmd_init(void)
 	himax_in_parse_assign_cmd(fw_data_ahb_en, pfw_op->data_ahb_en, sizeof(pfw_op->data_ahb_en));
 	himax_in_parse_assign_cmd(fw_addr_event_addr, pfw_op->addr_event_addr, sizeof(pfw_op->addr_event_addr));
 	himax_in_parse_assign_cmd(fw_usb_detect_addr, pfw_op->addr_usb_detect, sizeof(pfw_op->addr_usb_detect));
+	himax_in_parse_assign_cmd(fw_addr_gesture_history, pfw_op->addr_gesture_history, sizeof(pfw_op->addr_gesture_history));
 #ifdef HX_P_SENSOR
 	himax_in_parse_assign_cmd(fw_addr_ulpm_33, pfw_op->addr_ulpm_33, sizeof(pfw_op->addr_ulpm_33));
 	himax_in_parse_assign_cmd(fw_addr_ulpm_34, pfw_op->addr_ulpm_34, sizeof(pfw_op->addr_ulpm_34));
@@ -4117,15 +4190,100 @@ void himax_mcu_in_cmd_init(void)
 //	himax_in_parse_assign_cmd(FW_CAL_ADDR, pfw_op->addr_cal, sizeof(pfw_op->addr_cal));
 	himax_in_parse_assign_cmd(FW_RPORT_THRSH_ADDR, pfw_op->addr_rport_thrsh, sizeof(pfw_op->addr_rport_thrsh));
 #endif
+
+	himax_in_parse_assign_cmd(fw_addr_ctrl_mpap_ovl,
+		pfw_op->addr_ctrl_mpap_ovl, sizeof(pfw_op->addr_ctrl_mpap_ovl));
+	himax_in_parse_assign_cmd(fw_data_ctrl_mpap_ovl_on,
+		pfw_op->data_ctrl_mpap_ovl_on,
+		sizeof(pfw_op->data_ctrl_mpap_ovl_on));
+
+	himax_in_parse_assign_cmd(fw_addr_normal_noise_thx,
+		pfw_op->addr_normal_noise_thx,
+		sizeof(pfw_op->addr_normal_noise_thx));
+	himax_in_parse_assign_cmd(fw_addr_lpwug_noise_thx,
+		pfw_op->addr_lpwug_noise_thx,
+		sizeof(pfw_op->addr_lpwug_noise_thx));
+	himax_in_parse_assign_cmd(fw_addr_noise_scale, pfw_op->addr_noise_scale,
+		sizeof(pfw_op->addr_noise_scale));
+	himax_in_parse_assign_cmd(fw_addr_recal_thx, pfw_op->addr_recal_thx,
+		sizeof(pfw_op->addr_recal_thx));
+	himax_in_parse_assign_cmd(fw_addr_palm_num, pfw_op->addr_palm_num,
+		sizeof(pfw_op->addr_palm_num));
+	himax_in_parse_assign_cmd(fw_addr_weight_sup, pfw_op->addr_weight_sup,
+		sizeof(pfw_op->addr_weight_sup));
+	himax_in_parse_assign_cmd(fw_addr_normal_weight_a,
+		pfw_op->addr_normal_weight_a,
+		sizeof(pfw_op->addr_normal_weight_a));
+	himax_in_parse_assign_cmd(fw_addr_lpwug_weight_a,
+		pfw_op->addr_lpwug_weight_a,
+		sizeof(pfw_op->addr_lpwug_weight_a));
+	himax_in_parse_assign_cmd(fw_addr_weight_b, pfw_op->addr_weight_b,
+		sizeof(pfw_op->addr_weight_b));
+	himax_in_parse_assign_cmd(fw_addr_max_dc, pfw_op->addr_max_dc,
+		sizeof(pfw_op->addr_max_dc));
+	himax_in_parse_assign_cmd(fw_addr_skip_frame, pfw_op->addr_skip_frame,
+		sizeof(pfw_op->addr_skip_frame));
+	himax_in_parse_assign_cmd(fw_addr_neg_noise_sup,
+		pfw_op->addr_neg_noise_sup,
+		sizeof(pfw_op->addr_neg_noise_sup));
+	himax_in_parse_assign_cmd(fw_data_neg_noise, pfw_op->data_neg_noise,
+		sizeof(pfw_op->data_neg_noise));
+	himax_in_parse_assign_cmd(fw_addr_ctrl_mpap_ovl,
+		pfw_op->addr_ctrl_mpap_ovl, sizeof(pfw_op->addr_ctrl_mpap_ovl));
+
+	himax_in_parse_assign_cmd(ADDR_ROTATIVE_MODE, pfw_op->addr_rotative_mode,
+		sizeof(pfw_op->addr_rotative_mode));
+	himax_in_parse_assign_cmd(DATA_PORTRAIT,
+		pfw_op->data_portrait, sizeof(pfw_op->data_portrait));
+	himax_in_parse_assign_cmd(DATA_LANDSCAPE, pfw_op->data_landscape,
+		sizeof(pfw_op->data_landscape));
+
+	pfw_op->addr_grip_zone = ADDR_GRIP_ZONE;
+	pfw_op->addr_reject_zone = ADDR_REJECT_ZONE;
+	pfw_op->addr_reject_zone_boud = ADDR_REJECT_ZONE_BOUD;
+	pfw_op->addr_except_zone = ADDR_EXCEPT_ZONE;
+
+	himax_in_parse_assign_cmd(ADDR_GESTURE_HISTORY, pfw_op->addr_gesture_history,
+		sizeof(pfw_op->addr_gesture_history));
+
+	himax_in_parse_assign_cmd(ADDR_SNR_MEASUREMENT, pfw_op->addr_snr_measurement,
+		sizeof(pfw_op->addr_snr_measurement));
+
+	himax_in_parse_assign_cmd(ADDR_MODE_BASE, pfw_op->addr_mode_base,
+		sizeof(pfw_op->addr_mode_base));
+
+	himax_in_parse_assign_cmd(ADDR_PROXIMITY_MODE, pfw_op->addr_proximity_mode,
+		sizeof(pfw_op->addr_proximity_mode));
+
+	himax_in_parse_assign_cmd(ADDR_PROXIMITY_DEBUG, pfw_op->addr_proximity_debug,
+		sizeof(pfw_op->addr_proximity_debug));
 #endif
 #ifdef CORE_FLASH
 	himax_in_parse_assign_cmd(flash_addr_spi200_trans_fmt, pflash_op->addr_spi200_trans_fmt, sizeof(pflash_op->addr_spi200_trans_fmt));
+	himax_in_parse_assign_cmd(flash_addr_spi200_fifo_rst,
+		pflash_op->addr_spi200_fifo_rst,
+		sizeof(pflash_op->addr_spi200_fifo_rst));
+	himax_in_parse_assign_cmd(flash_addr_spi200_flash_speed,
+		pflash_op->addr_spi200_flash_speed,
+		sizeof(pflash_op->addr_spi200_flash_speed));
+	himax_in_parse_assign_cmd(flash_addr_spi200_rst_status,
+		pflash_op->addr_spi200_rst_status,
+		sizeof(pflash_op->addr_spi200_rst_status));
+
 	himax_in_parse_assign_cmd(flash_addr_spi200_trans_ctrl, pflash_op->addr_spi200_trans_ctrl, sizeof(pflash_op->addr_spi200_trans_ctrl));
 	himax_in_parse_assign_cmd(flash_addr_spi200_cmd, pflash_op->addr_spi200_cmd, sizeof(pflash_op->addr_spi200_cmd));
 	himax_in_parse_assign_cmd(flash_addr_spi200_addr, pflash_op->addr_spi200_addr, sizeof(pflash_op->addr_spi200_addr));
 	himax_in_parse_assign_cmd(flash_addr_spi200_data, pflash_op->addr_spi200_data, sizeof(pflash_op->addr_spi200_data));
 	himax_in_parse_assign_cmd(flash_addr_spi200_bt_num, pflash_op->addr_spi200_bt_num, sizeof(pflash_op->addr_spi200_bt_num));
 	himax_in_parse_assign_cmd(flash_data_spi200_trans_fmt, pflash_op->data_spi200_trans_fmt, sizeof(pflash_op->data_spi200_trans_fmt));
+
+	himax_in_parse_assign_cmd(flash_data_spi200_txfifo_rst,
+		pflash_op->data_spi200_txfifo_rst,
+		sizeof(pflash_op->data_spi200_txfifo_rst));
+	himax_in_parse_assign_cmd(flash_data_spi200_rxfifo_rst,
+		pflash_op->data_spi200_rxfifo_rst,
+		sizeof(pflash_op->data_spi200_rxfifo_rst));
+
 	himax_in_parse_assign_cmd(flash_data_spi200_trans_ctrl_1, pflash_op->data_spi200_trans_ctrl_1, sizeof(pflash_op->data_spi200_trans_ctrl_1));
 	himax_in_parse_assign_cmd(flash_data_spi200_trans_ctrl_2, pflash_op->data_spi200_trans_ctrl_2, sizeof(pflash_op->data_spi200_trans_ctrl_2));
 	himax_in_parse_assign_cmd(flash_data_spi200_trans_ctrl_3, pflash_op->data_spi200_trans_ctrl_3, sizeof(pflash_op->data_spi200_trans_ctrl_3));
@@ -4138,6 +4296,10 @@ void himax_mcu_in_cmd_init(void)
 	himax_in_parse_assign_cmd(flash_data_spi200_cmd_5, pflash_op->data_spi200_cmd_5, sizeof(pflash_op->data_spi200_cmd_5));
 	himax_in_parse_assign_cmd(flash_data_spi200_cmd_6, pflash_op->data_spi200_cmd_6, sizeof(pflash_op->data_spi200_cmd_6));
 	himax_in_parse_assign_cmd(flash_data_spi200_cmd_7, pflash_op->data_spi200_cmd_7, sizeof(pflash_op->data_spi200_cmd_7));
+	himax_in_parse_assign_cmd(flash_data_spi200_cmd_8,
+		pflash_op->data_spi200_cmd_8,
+		sizeof(pflash_op->data_spi200_cmd_8));
+
 	himax_in_parse_assign_cmd(flash_data_spi200_addr, pflash_op->data_spi200_addr, sizeof(pflash_op->data_spi200_addr));
 #endif
 #ifdef CORE_SRAM

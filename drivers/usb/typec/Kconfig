@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 
 menuconfig TYPEC
 	tristate "USB Type-C Support"
@@ -44,7 +43,46 @@ menuconfig TYPEC
 	  <https://www.kernel.org/doc/html/latest/driver-api/usb/typec.html>
 	  and ABI (Documentation/ABI/testing/sysfs-class-typec).
 
-menu "USB Power Delivery and Type-C drivers"
+if TYPEC
+
+config TYPEC_TCPM
+	tristate "USB Type-C Port Controller Manager"
+	depends on USB
+	select USB_ROLE_SWITCH
+	select POWER_SUPPLY
+	help
+	  The Type-C Port Controller Manager provides a USB PD and USB Type-C
+	  state machine for use with Type-C Port Controllers.
+
+if TYPEC_TCPM
+
+config TYPEC_TCPCI
+	tristate "Type-C Port Controller Interface driver"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  Type-C Port Controller driver for TCPCI-compliant controller.
+
+config TYPEC_RT1711H
+	tristate "Richtek RT1711H Type-C chip driver"
+	depends on I2C
+	select TYPEC_TCPCI
+	help
+	  Richtek RT1711H Type-C chip driver that works with
+	  Type-C Port Controller Manager to provide USB PD and USB
+	  Type-C functionalities.
+
+config TYPEC_MT6360
+	tristate "Mediatek MT6360 Type-C chip driver"
+	depends on I2C
+	select TYPEC_TCPCI
+	help
+	  Mediatek MT6360 Type-C chip driver that works with
+	  Type-C Port Controller Manager to provide USB PD and USB
+	  Type-C functionalities.
+	  In Addition, include Type-C Interface FOD.
+
+source "drivers/usb/typec/fusb302/Kconfig"
 
 config TYPEC_WCOVE
 	tristate "Intel WhiskeyCove PMIC USB Type-C PHY driver"
@@ -52,7 +90,6 @@ config TYPEC_WCOVE
 	depends on INTEL_SOC_PMIC
 	depends on INTEL_PMC_IPC
 	depends on BXT_WC_PMIC_OPREGION
-	select TYPEC
 	help
 	  This driver adds support for USB Type-C detection on Intel Broxton
 	  platforms that have Intel Whiskey Cove PMIC. The driver can detect the
@@ -61,6 +98,25 @@ config TYPEC_WCOVE
 	  To compile this driver as module, choose M here: the module will be
 	  called typec_wcove
 
+endif # TYPEC_TCPM
+
 source "drivers/usb/typec/ucsi/Kconfig"
 
-endmenu
+config TYPEC_TPS6598X
+	tristate "TI TPS6598x USB Power Delivery controller driver"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  Say Y or M here if your system has TI TPS65982 or TPS65983 USB Power
+	  Delivery controller.
+
+	  If you choose to build this driver as a dynamically linked module, the
+	  module will be called tps6598x.ko.
+
+source "drivers/usb/typec/mux/Kconfig"
+
+source "drivers/usb/typec/altmodes/Kconfig"
+
+# source "drivers/usb/typec/sm/sm5714/Kconfig"
+
+endif # TYPEC

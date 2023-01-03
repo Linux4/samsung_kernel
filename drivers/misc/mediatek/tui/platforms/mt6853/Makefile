@@ -4,7 +4,7 @@
 
 ccflags-$(CONFIG_TEEGRIS_TUI)	+= -DTUI_ENABLE_DISPLAY
 ccflags-y += -Idrivers/misc/mediatek/tui
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/memory-ssmr
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/trusted_mem/ssmr
 
 obj-y	+= stui_hal_display.o
 obj-y	+= stui_hal_touch.o

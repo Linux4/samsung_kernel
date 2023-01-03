@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include "gpio.h"
@@ -86,6 +78,7 @@ static enum IMGSENSOR_RETURN gpio_init(void *pinstance)
 	enum   IMGSENSOR_RETURN ret           = IMGSENSOR_RETURN_SUCCESS;
 	char str_pinctrl_name[LENGTH_FOR_SNPRINTF];
 	char *lookup_names = NULL;
+	int ret_snprintf = 0;
 
 
 	pgpio->ppinctrl = devm_pinctrl_get(&pplatform_dev->dev);
@@ -100,11 +93,16 @@ static enum IMGSENSOR_RETURN gpio_init(void *pinstance)
 			lookup_names =
 				gpio_pinctrl_list_cam[i].ppinctrl_lookup_names;
 			if (lookup_names) {
-				snprintf(str_pinctrl_name,
+				ret_snprintf = snprintf(str_pinctrl_name,
 					sizeof(str_pinctrl_name),
 					"cam%d_%s",
 					j,
 					lookup_names);
+				if (ret_snprintf < 0) {
+					pr_info(
+					"snprintf alloc error!, ret_snprintf = %d\n",
+					ret_snprintf);
+				}
 				pgpio->ppinctrl_state_cam[j][i] =
 					pinctrl_lookup_state(
 					    pgpio->ppinctrl,
@@ -163,7 +161,9 @@ static enum IMGSENSOR_RETURN gpio_set(
 	   pin > IMGSENSOR_HW_PIN_AFVDD ||
 #endif
 	   pin_state < IMGSENSOR_HW_PIN_STATE_LEVEL_0 ||
-	   pin_state > IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH)
+	   pin_state > IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH ||
+	   sensor_idx < IMGSENSOR_SENSOR_IDX_MIN_NUM ||
+	   sensor_idx >= IMGSENSOR_SENSOR_IDX_MAX_NUM)
 		return IMGSENSOR_RETURN_ERROR;
 
 	gpio_state = (pin_state > IMGSENSOR_HW_PIN_STATE_LEVEL_0) ? GPIO_STATE_H : GPIO_STATE_L;

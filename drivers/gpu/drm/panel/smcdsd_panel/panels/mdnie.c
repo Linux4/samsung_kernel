@@ -123,7 +123,7 @@ exit:
 		memcpy(&(mdnie->table_buffer), table, sizeof(struct mdnie_table));
 		memcpy(mdnie->sequence_buffer, table->seq[trans_info->index].dsi_msg.tx_buf, table->seq[trans_info->index].dsi_msg.tx_len);
 		mdnie->table_buffer.seq[trans_info->index].dsi_msg.tx_buf = mdnie->sequence_buffer;
-		mdnie->table_buffer.seq[trans_info->index].dsi_msg.tx_buf[trans_info->offset] = 0x0;
+		((mdnie_t *)mdnie->table_buffer.seq[trans_info->index].dsi_msg.tx_buf)[trans_info->offset] = 0x0;
 		mutex_unlock(&mdnie->lock);
 		return &(mdnie->table_buffer);
 	}
@@ -148,9 +148,9 @@ static void mdnie_update(struct mdnie_info *mdnie)
 		mdnie_write_table(mdnie, table);
 		dev_info(mdnie->dev, "%s\n", table->name);
 
-		mdnie->wrgb_current.r = table->seq[scr_info->index].dsi_msg.tx_buf[scr_info->wr];
-		mdnie->wrgb_current.g = table->seq[scr_info->index].dsi_msg.tx_buf[scr_info->wg];
-		mdnie->wrgb_current.b = table->seq[scr_info->index].dsi_msg.tx_buf[scr_info->wb];
+		mdnie->wrgb_current.r = ((mdnie_t *)table->seq[scr_info->index].dsi_msg.tx_buf)[scr_info->wr];
+		mdnie->wrgb_current.g = ((mdnie_t *)table->seq[scr_info->index].dsi_msg.tx_buf)[scr_info->wg];
+		mdnie->wrgb_current.b = ((mdnie_t *)table->seq[scr_info->index].dsi_msg.tx_buf)[scr_info->wb];
 	}
 }
 
@@ -181,9 +181,9 @@ int mdnie_force_update(struct device *dev, void *data)
 
 	dev_info(mdnie->dev, "%s\n", table->name);
 
-	mdnie->wrgb_current.r = table->seq[scr_info->index].dsi_msg.tx_buf[scr_info->wr];
-	mdnie->wrgb_current.g = table->seq[scr_info->index].dsi_msg.tx_buf[scr_info->wg];
-	mdnie->wrgb_current.b = table->seq[scr_info->index].dsi_msg.tx_buf[scr_info->wb];
+	mdnie->wrgb_current.r = ((mdnie_t *)table->seq[scr_info->index].dsi_msg.tx_buf)[scr_info->wr];
+	mdnie->wrgb_current.g = ((mdnie_t *)table->seq[scr_info->index].dsi_msg.tx_buf)[scr_info->wg];
+	mdnie->wrgb_current.b = ((mdnie_t *)table->seq[scr_info->index].dsi_msg.tx_buf)[scr_info->wb];
 
 	return ret;
 }
@@ -200,7 +200,7 @@ static void update_color_position(struct mdnie_info *mdnie, unsigned int idx)
 
 	for (mode = 0; mode < MODE_MAX; mode++) {
 		for (scenario = 0; scenario <= EMAIL_MODE; scenario++) {
-			wbuf = mdnie->tune->main_table[scenario][mode].seq[scr_info->index].dsi_msg.tx_buf;
+			wbuf = (mdnie_t *)mdnie->tune->main_table[scenario][mode].seq[scr_info->index].dsi_msg.tx_buf;
 			if (IS_ERR_OR_NULL(wbuf))
 				continue;
 			if (scenario != EBOOK_MODE && mode != EBOOK) {
@@ -393,7 +393,7 @@ static ssize_t accessibility_store(struct device *dev,
 			mutex_unlock(&mdnie->lock);
 			return -EINVAL;
 		}
-		wbuf = &mdnie->tune->accessibility_table[value].seq[scr_info->index].dsi_msg.tx_buf[scr_info->cr];
+		wbuf = &((mdnie_t *)mdnie->tune->accessibility_table[value].seq[scr_info->index].dsi_msg.tx_buf)[scr_info->cr];
 		while (i < ret - 1) {
 			wbuf[i * 2 + 0] = GET_LSB_8BIT(s[i]);
 			wbuf[i * 2 + 1] = GET_MSB_8BIT(s[i]);
@@ -569,9 +569,9 @@ static ssize_t sensorRGB_store(struct device *dev,
 		memcpy(&mdnie->sequence_buffer, table->seq[scr_info->index].dsi_msg.tx_buf, table->seq[scr_info->index].dsi_msg.tx_len);
 		mdnie->table_buffer.seq[scr_info->index].dsi_msg.tx_buf = mdnie->sequence_buffer;
 
-		mdnie->table_buffer.seq[scr_info->index].dsi_msg.tx_buf[scr_info->wr] = mdnie->wrgb_current.r = (unsigned char)white_r;
-		mdnie->table_buffer.seq[scr_info->index].dsi_msg.tx_buf[scr_info->wg] = mdnie->wrgb_current.g = (unsigned char)white_g;
-		mdnie->table_buffer.seq[scr_info->index].dsi_msg.tx_buf[scr_info->wb] = mdnie->wrgb_current.b = (unsigned char)white_b;
+		((mdnie_t *)mdnie->table_buffer.seq[scr_info->index].dsi_msg.tx_buf)[scr_info->wr] = mdnie->wrgb_current.r = (unsigned char)white_r;
+		((mdnie_t *)mdnie->table_buffer.seq[scr_info->index].dsi_msg.tx_buf)[scr_info->wg] = mdnie->wrgb_current.g = (unsigned char)white_g;
+		((mdnie_t *)mdnie->table_buffer.seq[scr_info->index].dsi_msg.tx_buf)[scr_info->wb] = mdnie->wrgb_current.b = (unsigned char)white_b;
 
 		mdnie_write_table(mdnie, &mdnie->table_buffer);
 	}
@@ -617,7 +617,7 @@ static ssize_t whiteRGB_store(struct device *dev,
 	}
 
 	for (scenario = 0; scenario < SCENARIO_MAX; scenario++) {
-		wbuf = mdnie->tune->main_table[scenario][mdnie->mode].seq[scr_info->index].dsi_msg.tx_buf;
+		wbuf = (mdnie_t *)mdnie->tune->main_table[scenario][mdnie->mode].seq[scr_info->index].dsi_msg.tx_buf;
 		if (IS_ERR_OR_NULL(wbuf))
 			continue;
 		if (scenario != EBOOK_MODE) {
@@ -631,7 +631,7 @@ static ssize_t whiteRGB_store(struct device *dev,
 	}
 
 	if (!IS_ERR_OR_NULL(mdnie->tune->dmb_table)) {
-		wbuf = mdnie->tune->dmb_table[mdnie->mode].seq[scr_info->index].dsi_msg.tx_buf;
+		wbuf = (mdnie_t *)mdnie->tune->dmb_table[mdnie->mode].seq[scr_info->index].dsi_msg.tx_buf;
 		if (!IS_ERR_OR_NULL(wbuf)) {
 			wbuf[scr_info->wr] = (unsigned char)(mdnie->wrgb_ldu.r + white_r);
 			wbuf[scr_info->wg] = (unsigned char)(mdnie->wrgb_ldu.g + white_g);
@@ -689,7 +689,7 @@ static ssize_t night_mode_store(struct device *dev,
 	update = (mdnie->night_mode != enable || mdnie->night_mode_level != level) ? 1 : 0;
 
 	if (enable) {
-		wbuf = &mdnie->tune->night_table[enable].seq[scr_info->index].dsi_msg.tx_buf[scr_info->cr];
+		wbuf = &((mdnie_t *)mdnie->tune->night_table[enable].seq[scr_info->index].dsi_msg.tx_buf)[scr_info->cr];
 		base_index = mdnie->tune->night_info->max_w * level;
 		for (i = 0; i < mdnie->tune->night_info->max_w; i++)
 			wbuf[i] = mdnie->tune->night_mode_table[mdnie->mode][base_index + i];
@@ -773,7 +773,7 @@ static ssize_t mdnie_ldu_store(struct device *dev,
 	mdnie->ldu = idx;
 	for (mode = 0; mode < MODE_MAX; mode++) {
 		for (scenario = 0; scenario <= EMAIL_MODE; scenario++) {
-			wbuf = mdnie->tune->main_table[scenario][mode].seq[scr_info->index].dsi_msg.tx_buf;
+			wbuf = (mdnie_t *)mdnie->tune->main_table[scenario][mode].seq[scr_info->index].dsi_msg.tx_buf;
 			if (IS_ERR_OR_NULL(wbuf))
 				continue;
 			if (scenario != EBOOK_MODE && mode != EBOOK) {
@@ -872,7 +872,7 @@ static ssize_t color_lens_store(struct device *dev,
 	mutex_lock(&mdnie->lock);
 
 	if (enable) {
-		wbuf = &mdnie->tune->lens_table[enable].seq[scr_info->index].dsi_msg.tx_buf[scr_info->cr];
+		wbuf = &((mdnie_t *)mdnie->tune->lens_table[enable].seq[scr_info->index].dsi_msg.tx_buf)[scr_info->cr];
 		base_index = (mdnie->tune->color_lens_info->max_level * mdnie->tune->color_lens_info->max_w * color) + (mdnie->tune->color_lens_info->max_w * level);
 		for (i = 0; i < mdnie->tune->color_lens_info->max_w; i++)
 			wbuf[i] = mdnie->tune->color_lens_table[base_index + i];
@@ -1144,7 +1144,7 @@ exit:
 	return ret;
 }
 
-int mdnie_register(struct device *p, void *data, mdnie_w w, mdnie_r r,
+struct class *mdnie_register(struct device *p, void *data, mdnie_w w, mdnie_r r,
 		unsigned int *coordinate, struct mdnie_tune *tune)
 {
 	int ret = 0;
@@ -1236,7 +1236,7 @@ exit2:
 exit1:
 	kfree(mdnie);
 exit0:
-	return ret;
+	return mdnie_class;
 }
 
 

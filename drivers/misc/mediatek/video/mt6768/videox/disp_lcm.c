@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/slab.h>
 
@@ -1508,6 +1500,18 @@ int disp_lcm_path_lock(bool lock, struct disp_lcm_handle *plcm)
 
 	return 0;
 }
+
+int disp_lcm_framedone_notify(struct disp_lcm_handle *plcm)
+{
+	if (!_is_lcm_inited(plcm)) {
+		DISPERR("lcm_drv is null\n");
+		return -1;
+	}
+
+	plcm->drv->framedone_notify();
+
+	return 0;
+}
 #endif
 
 int disp_lcm_resume(struct disp_lcm_handle *plcm)
@@ -1607,100 +1611,7 @@ int disp_lcm_set_backlight(struct disp_lcm_handle *plcm,
 
 	return 0;
 }
-#if defined(CONFIG_SMCDSD_PANEL)
-int disp_lcm_set_hbm_wait(bool wait, struct disp_lcm_handle *plcm)
-{
-	if (!_is_lcm_inited(plcm)) {
-		DISPERR("lcm_drv is null\n");
-		return -1;
-	}
 
-	if (!plcm->drv->set_hbm_wait) {
-		DISPERR("FATAL ERROR, lcm_drv->set_hbm_wait is null\n");
-		return -1;
-	}
-
-	pr_info("%s %d\n", __func__, wait);
-	plcm->drv->set_hbm_wait(wait);
-	return 0;
-}
-
-int disp_lcm_get_hbm_wait(struct disp_lcm_handle *plcm)
-{
-	if (!_is_lcm_inited(plcm)) {
-		DISPERR("lcm_drv is null\n");
-		return -1;
-	}
-
-	if (!plcm->drv->get_hbm_wait) {
-		DISPERR("FATAL ERROR, lcm_drv->get_hbm_wait is null\n");
-		return -1;
-	}
-
-	return plcm->drv->get_hbm_wait();
-}
-
-int disp_lcm_set_hbm(bool en, struct disp_lcm_handle *plcm, void *qhandle)
-{
-	if (!_is_lcm_inited(plcm)) {
-		DISPERR("lcm_drv is null\n");
-		return -1;
-	}
-
-	if (!plcm->drv->set_hbm_cmdq) {
-		DISPERR("FATAL ERROR, lcm_drv->set_mask_cmdq is null\n");
-		return -1;
-	}
-
-	plcm->drv->set_hbm_cmdq(en, qhandle);
-
-	return 0;
-}
-
-int disp_lcm_get_hbm_state(struct disp_lcm_handle *plcm)
-{
-	if (!_is_lcm_inited(plcm)) {
-		DISPERR("lcm_drv is null\n");
-		return -1;
-	}
-
-	if (!plcm->drv->get_hbm_state) {
-		DISPERR("FATAL ERROR, lcm_drv->get_mask_state is null\n");
-		return -1;
-	}
-
-	return plcm->drv->get_hbm_state();
-}
-
-unsigned int disp_lcm_get_hbm_wait_frame(bool en, struct disp_lcm_handle *plcm)
-{
-	unsigned int time = 0;
-
-	if (!_is_lcm_inited(plcm)) {
-		DISPERR("lcm_drv is null\n");
-		return -1;
-	}
-
-	if (en)
-		time = plcm->params->hbm_enable_wait_frame;
-	else
-		time = plcm->params->hbm_disable_wait_frame;
-
-	return time;
-}
-
-int disp_lcm_framedone_notify(struct disp_lcm_handle *plcm)
-{
-	if (!_is_lcm_inited(plcm)) {
-		DISPERR("lcm_drv is null\n");
-		return -1;
-	}
-
-	plcm->drv->framedone_notify();
-
-	return 0;
-}
-#else
 int disp_lcm_get_hbm_state(struct disp_lcm_handle *plcm)
 {
 	if (!_is_lcm_inited(plcm)) {
@@ -1772,7 +1683,7 @@ unsigned int disp_lcm_get_hbm_time(bool en, struct disp_lcm_handle *plcm)
 
 	return time;
 }
-#endif
+
 int disp_lcm_ioctl(struct disp_lcm_handle *plcm, enum LCM_IOCTL ioctl,
 	unsigned int arg)
 {

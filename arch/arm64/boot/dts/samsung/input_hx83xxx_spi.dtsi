@@ -133,7 +133,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/himax/hx83xxx_spi/dts/input-mtk-tsp-hx83xxx_spi.a13ve.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/himax/hx83xxx_spi/dts/input-mtk-tsp-hx83xxx_spi.a13ve.dtsi */
 &himax_tsp_on_cs {
 	pins_cmd_dat{
 		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,18), 2)>;

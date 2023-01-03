@@ -1,19 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Goodix Firmware Update Driver.
- *
- * Copyright (C) 2019 - 2020 Goodix, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be a reference
- * to you, when you are integrating the GOODiX's CTP IC into your system,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
+ * Copyright (C) 2016 MediaTek Inc.
  */
+
 #include "goodix_cfg_bin.h"
 
 int gt9896s_parse_cfg_bin(struct gt9896s_cfg_bin *cfg_bin)
@@ -453,7 +442,7 @@ int gt9896s_read_cfg_bin(struct gt9896s_ts_device *ts_dev, struct gt9896s_cfg_bi
 		if (r < 0) {
 			ts_err("failed get cfg bin[%s] error:%d, try_times:%d",
 				cfg_bin_name, r, i + 1);
-			msleep(1000);
+			msleep(3000);
 		} else {
 			ts_info("Cfg_bin image [%s] is ready, try_times:%d",
 				cfg_bin_name, i + 1);

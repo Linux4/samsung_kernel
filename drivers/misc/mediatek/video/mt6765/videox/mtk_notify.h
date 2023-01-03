@@ -8,6 +8,9 @@
 #define __MTK_NOTIFY_H
 
 #include <linux/of.h>
+#include <linux/fs.h>
+#include <linux/module.h>
+#include <linux/device.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/of_platform.h>
@@ -24,7 +27,9 @@
 #include <linux/trace_events.h>
 #include "ddp_hal.h"
 #include "ddp_irq.h"
+#if !defined(CONFIG_SMCDSD_PANEL)
 #include "primary_display.h"
+#endif
 
 struct mtk_uevent_dev {
 	const char *name;

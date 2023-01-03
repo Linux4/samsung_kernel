@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 
@@ -717,11 +709,16 @@ void apusys_dvfs_info(void)
 	int ret, ret_v, ret_f = 0;
 
 	ret = sprintf(log_str, "(u_op,T,min,max)");
-	ret_v = sprintf(logv_str, "v[");
-	ret_f = sprintf(logf_str, "f[");
+	if (ret < 0)
+		LOG_ERR("%s sprintf fail (%d)\n", __func__, ret);
 
-	if (ret < 0 || ret_v < 0 || ret_f < 0)
-		LOG_ERR("%s sprintf fail\n", __func__);
+	ret_v = sprintf(logv_str, "v[");
+	if (ret_v < 0)
+		LOG_ERR("%s sprintf fail (%d)\n", __func__, ret_v);
+
+	ret_f = sprintf(logf_str, "f[");
+	if (ret_f < 0)
+		LOG_ERR("%s sprintf fail (%d)\n", __func__, ret_f);
 
 	for (user = 0; user < APUSYS_DVFS_USER_NUM; user++) {
 		if (dvfs_user_support(user) == false)

@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2016 MediaTek Inc.
  */
 
 #ifndef __MTK_SPM_SUSPEND_INTERNAL_H__
@@ -23,6 +15,13 @@
 #define WAIT_UART_ACK_TIMES     10	/* 10 * 10us */
 #define spm_is_wakesrc_invalid(wakesrc)     (!!((u32)(wakesrc) & 0xc0003803))
 #define CPU_FOOTPRINT_SHIFT 24
+
+struct spm_wakesrc_irq_list {
+	unsigned int wakesrc;
+	const char *name;
+	int order;
+	unsigned int irq_no;
+};
 
 enum spm_suspend_step {
 	SPM_SUSPEND_ENTER = 0x00000001,
@@ -39,7 +38,6 @@ bool spm_is_enable_sleep(void);
 bool spm_get_is_cpu_pdn(void);
 bool spm_get_is_infra_pdn(void);
 unsigned int spm_go_to_sleep(void);
-unsigned int spm_go_to_sleep_ex(unsigned int ex_flag);
 
 bool spm_is_md_sleep(void);
 bool spm_is_md1_sleep(void);
@@ -51,6 +49,8 @@ ssize_t get_spm_sleep_count(char *ToUserBuf
 ssize_t get_spm_last_wakeup_src(char *ToUserBuf
 			, size_t sz, void *priv);
 ssize_t get_spm_last_debug_flag(char *ToUserBuf
+			, size_t sz, void *priv);
+ssize_t get_spmfw_version(char *ToUserBuf
 			, size_t sz, void *priv);
 void spm_output_sleep_option(void);
 
@@ -84,9 +84,6 @@ void spm_suspend_post_process(struct pwr_ctrl *pwrctrl);
 /**************************************
  * External functions and variable
  **************************************/
-#if defined(CONFIG_MTK_EIC) || defined(CONFIG_PINCTRL_MTK)
-extern void mt_eint_print_status(void);
-#endif
 
 #ifdef CONFIG_MTK_TINYSYS_SCP_SUPPORT
 extern void mt_print_scp_ipi_id(void);

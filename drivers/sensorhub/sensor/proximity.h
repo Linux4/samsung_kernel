@@ -37,8 +37,8 @@
 #define PROX_CALIBRATION_FILE_PATH		"/efs/FactoryApp/prox_cal_data"
 #define PROX_SETTING_MODE_FILE_PATH		"/efs/FactoryApp/prox_settings"
 
-#define PROX_CMD_CALIBRATION_START		128
-
+#define PROX_SUBCMD_CALIBRATION_START		128
+#define PROX_SUBCMD_TRIM_CHECK				131
 
 enum {
 	PROX_RAW_MIN = 0,
@@ -122,5 +122,6 @@ struct proximity_chipset_funcs *get_proximity_stk3x6x_function_pointer(char *nam
 struct proximity_chipset_funcs *get_proximity_gp2ap110s_function_pointer(char *name);
 struct proximity_chipset_funcs *get_proximity_stk3328_function_pointer(char *name);
 struct proximity_chipset_funcs *get_proximity_stk33910_function_pointer(char *name);
+struct proximity_chipset_funcs *get_proximity_stk33512_function_pointer(char *name);
 
 u16 get_prox_raw_data(void);

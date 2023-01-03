@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as<<<<<<<
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 /******************************************************************************
  * camera_isp.c - MT6768 Linux ISP Device Driver
@@ -108,16 +100,17 @@
 #define EP_NO_PMQOS /* If PMQoS is not ready on EP stage */
 //#define EP_NO_CLKMGR /* for clkmgr*/
 #endif
-
+//#define EP_NO_PMQOS /* If PMQoS is not ready on EP stage */
 #include "inc/camera_isp.h"
 
 #ifndef EP_NO_PMQOS /* EP_NO_PMQOS is equivalent to EP_MARK_MMDVFS */
 //#include <mmdvfs_mgr.h>
 #include <mmdvfs_pmqos.h>
 #include <linux/pm_qos.h>
+#include <linux/soc/mediatek/mtk-pm-qos.h>
 /* Use this qos request to control camera dynamic frequency change */
-struct pm_qos_request isp_qos;
-struct pm_qos_request camsys_qos_request[ISP_IRQ_TYPE_INT_CAM_B_ST+1];
+struct mtk_pm_qos_request isp_qos;
+struct mtk_pm_qos_request camsys_qos_request[ISP_IRQ_TYPE_INT_CAM_B_ST+1];
 static struct ISP_PM_QOS_STRUCT G_PM_QOS[ISP_IRQ_TYPE_INT_CAM_B_ST+1];
 static u32 PMQoS_BW_value;
 static u32 target_clk;
@@ -578,7 +571,7 @@ static struct ISP_MEM_INFO_STRUCT g_CmdqBaseAddrInfo = {0x0, 0x0, NULL, 0x0};
 static unsigned int m_CurrentPPB;
 
 #ifdef CONFIG_PM_SLEEP
-struct wakeup_source isp_wake_lock;
+struct wakeup_source *isp_wake_lock;
 #endif
 static int g_WaitLockCt;
 /*
@@ -650,11 +643,10 @@ struct S_START_T {
  */
 static unsigned int g_regScen = 0xa5a5a5a5; /* remove later */
 
-static unsigned int g_virtual_cq_cnt[2] = {0, 0};
+static unsigned int g_virtual_cq_cnt[2] = {0,0};
 static unsigned int g_virtual_cq_cnt_a;
 static unsigned int g_virtual_cq_cnt_b;
 static  spinlock_t  virtual_cqcnt_lock;
-
 
 static /*volatile*/ wait_queue_head_t P2WaitQueueHead_WaitDeque;
 static /*volatile*/ wait_queue_head_t P2WaitQueueHead_WaitFrame;
@@ -4257,11 +4249,10 @@ static inline void ISP_Reset(signed int module)
 
 	pr_info("- E.\n");
 
-	/* pr_info(
-	 * "Reset module(%d), CAMSYS clk gate(0x%x), IMGSYS clk gate(0x%x)\n",
-	 * module, ISP_RD32(CAMSYS_REG_CG_CON),
-	 * ISP_RD32(IMGSYS_REG_CG_CON));
-	 */
+	pr_info(
+	"Reset module(%d), CAMSYS clk gate(0x%x), IMGSYS clk gate(0x%x)\n",
+		module, ISP_RD32(CAMSYS_REG_CG_CON),
+		ISP_RD32(IMGSYS_REG_CG_CON));
 
 	switch (module) {
 	case ISP_CAM_A_IDX:
@@ -5424,7 +5415,7 @@ static int ISP_SetPMQOS(unsigned int cmd, unsigned int module)
 		Ret = -1;
 		break;
 	}
-	pm_qos_update_request(&camsys_qos_request[module], bw_cal);
+	mtk_pm_qos_update_request(&camsys_qos_request[module], bw_cal);
 
 	if (PMQoS_BW_value != bw_cal) {
 		pr_info(
@@ -7311,7 +7302,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 						g_WaitLockCt);
 				} else {
 #ifdef CONFIG_PM_SLEEP
-					__pm_stay_awake(&isp_wake_lock);
+					__pm_stay_awake(isp_wake_lock);
 #endif
 					g_WaitLockCt++;
 					pr_info("wakelock enable!! cnt(%d)\n",
@@ -7326,7 +7317,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 						g_WaitLockCt);
 				else {
 #ifdef CONFIG_PM_SLEEP
-					__pm_relax(&isp_wake_lock);
+					__pm_relax(isp_wake_lock);
 #endif
 					pr_info("wakelock disable!! cnt(%d)\n",
 						g_WaitLockCt);
@@ -7862,8 +7853,9 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 					hds2_sel = ((ISP_RD32(
 						CAM_UNI_REG_TOP_PATH_SEL(
 						  ISP_UNI_A_IDX))) & 0x3);
-					pr_info("CAM_A viewFinder is ON (SecOn:0x%x) 0x%x 0x%x 0x%x\n",
-						sec_on, ISP_SET_SEC_ENABLE, ISP_SET_VIR_CQCNT, ISP_SET_SEC_DAPC_REG);
+					pr_info("CAM_A viewFinder is ON (SecOn:0x%x)\n",
+						sec_on);
+
 					if (sec_on) {
 						cam_dmao =
 						    lock_reg.CAM_REG_CTL_DMA_EN
@@ -8403,14 +8395,14 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 			    sizeof(unsigned int)) == 0) {
 				if (dfs_ctrl == MTRUE) {
 					if (++camsys_qos == 1) {
-						pm_qos_add_request(
+						mtk_pm_qos_add_request(
 						  &isp_qos, PM_QOS_CAM_FREQ, 0);
 						pr_debug(
 						  "CAMSYS PMQoS turn on");
 					}
 				} else {
 					if (--camsys_qos == 0) {
-						pm_qos_remove_request(&isp_qos);
+						mtk_pm_qos_remove_request(&isp_qos);
 						pr_debug(
 							"CAMSYS PMQoS turn off");
 					}
@@ -8428,7 +8420,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 
 			if (copy_from_user(&dfs_update, (void *)Param,
 			    sizeof(unsigned int)) == 0) {
-				pm_qos_update_request(&isp_qos, dfs_update);
+				mtk_pm_qos_update_request(&isp_qos, dfs_update);
 				target_clk = dfs_update;
 				pr_debug("Set clock level:%d", dfs_update);
 			} else {
@@ -8540,7 +8532,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 				}
 				if (DebugFlag[0] == 1) {
 					if (++bw_request[DebugFlag[1]] == 1) {
-						pm_qos_add_request(
+						mtk_pm_qos_add_request(
 						  &camsys_qos_request[
 							DebugFlag[1]],
 						  PM_QOS_MM_MEMORY_BANDWIDTH,
@@ -8553,7 +8545,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 						break;
 					Ret = ISP_SetPMQOS(DebugFlag[0],
 							   DebugFlag[1]);
-					pm_qos_remove_request(
+					mtk_pm_qos_remove_request(
 					    &camsys_qos_request[DebugFlag[1]]);
 					bw_request[DebugFlag[1]] = 0;
 				}
@@ -9013,16 +9005,16 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 		if (copy_from_user(&g_virtual_cq_cnt, (void *)Param,
 			sizeof(unsigned int)*2) == 0) {
 			LOG_NOTICE("From hw_module:%d Virtual CQ count from user land : %d\n",
-			g_virtual_cq_cnt[0], g_virtual_cq_cnt[1]);
+				g_virtual_cq_cnt[0], g_virtual_cq_cnt[1]);
 		} else {
 			LOG_NOTICE(
 				"Virtual CQ count copy_from_user failed\n");
 			Ret = -EFAULT;
 		}
-		if (g_virtual_cq_cnt[0] == 0) {
+		if(g_virtual_cq_cnt[0] == 0){
 			g_virtual_cq_cnt_a = g_virtual_cq_cnt[1];
 			LOG_NOTICE("Update Virtual CQ cnt for hw_module:0\n");
-		} else if (g_virtual_cq_cnt[0] == 1) {
+		}else if(g_virtual_cq_cnt[0] == 1){
 			g_virtual_cq_cnt_b = g_virtual_cq_cnt[1];
 			LOG_NOTICE("Update Virtual CQ cnt for hw_module:1\n");
 		}
@@ -9487,7 +9479,6 @@ static long ISP_ioctl_compat(struct file *filp, unsigned int cmd,
 					   (unsigned long)compat_ptr(arg));
 		return ret;
 	}
-
 	case ISP_GET_DUMP_INFO:
 	case ISP_WAIT_IRQ:
 	case ISP_CLEAR_IRQ: /* structure (no pointer) */
@@ -9870,11 +9861,6 @@ static signed int ISP_release(
 
 	pr_info("- E. UserCount: %d.\n", IspInfo.UserCount);
 
-	/*  */
-
-	/*  */
-	/* pr_info("UserCount(%d)",IspInfo.UserCount); */
-	/*  */
 	if (pFile->private_data != NULL) {
 		pUserInfo = (struct ISP_USER_INFO_STRUCT *)pFile->private_data;
 		kfree(pFile->private_data);
@@ -9900,15 +9886,18 @@ static signed int ISP_release(
 	set_detect_count(pr_detect_count);
 #endif
 	/*      */
+
 	pr_info(
 		"Curr UserCount(%d), (process, pid, tgid)=(%s, %d, %d), log_limit_line(%d), last user",
 		IspInfo.UserCount, current->comm, current->pid, current->tgid,
 		pr_detect_count);
 
+
 	/* Close VF when ISP_release.
 	 * reason of close vf is to make sure camera can serve regular after
 	 * previous abnormal exit
 	 */
+
 	Reg = ISP_RD32(CAM_REG_TG_VF_CON(ISP_CAM_A_IDX));
 	Reg &= 0xfffffffE;/* close Vfinder */
 	ISP_WR32(CAM_REG_TG_VF_CON(ISP_CAM_A_IDX), Reg);
@@ -9917,11 +9906,13 @@ static signed int ISP_release(
 	Reg &= 0xfffffffE;/* close Vfinder */
 	ISP_WR32(CAM_REG_TG_VF_CON(ISP_CAM_B_IDX), Reg);
 
+
 	for (i = ISP_CAMSV0_IDX; i <= ISP_CAMSV3_IDX; i++) {
 		Reg = ISP_RD32(CAM_REG_TG_VF_CON(i));
-		Reg &= 0xfffffffE;/* close Vfinder */
+		Reg &= 0xfffffffE;
 		ISP_WR32(CAM_REG_TG_VF_CON(i), Reg);
 	}
+
 
 	/* Set DMX_SEL = 0 when ISP_release.
 	 * Reson:
@@ -9954,7 +9945,7 @@ static signed int ISP_release(
 	if (g_WaitLockCt) {
 		pr_info("wakelock disable!! cnt(%d)\n", g_WaitLockCt);
 #ifdef CONFIG_PM_SLEEP
-		__pm_relax(&isp_wake_lock);
+		__pm_relax(isp_wake_lock);
 #endif
 		g_WaitLockCt = 0;
 	}
@@ -10050,8 +10041,10 @@ static signed int ISP_release(
 	}
 
 	/*  */
+	pr_info("Start ISP_StopHW");
 	ISP_StopHW(ISP_CAM_A_IDX);
 	ISP_StopHW(ISP_CAM_B_IDX);
+	pr_info("End ISP_StopHW");
 
 #ifdef ENABLE_KEEP_ION_HANDLE
 	/* free keep ion handles, then destroy ion client*/
@@ -10059,8 +10052,9 @@ static signed int ISP_release(
 		if (gION_TBL[i].node != ISP_DEV_NODE_NUM)
 			ISP_ion_free_handle_by_module(i);
 	}
-
+	pr_info("Start ISP_ion_uninit");
 	ISP_ion_uninit();
+	pr_info("End ISP_ion_uninit");
 #endif
 
 	/*  */
@@ -10511,7 +10505,8 @@ static signed int ISP_probe(struct platform_device *pDev)
 	}
 
 #ifdef CONFIG_PM_SLEEP
-		wakeup_source_init(&isp_wake_lock, "isp_lock_wakelock");
+		isp_wake_lock = wakeup_source_register(&pDev->dev, "isp_lock_wakelock");
+		// wakeup_source_init(&isp_wake_lock, "isp_lock_wakelock");
 #endif
 
 		/* enqueue/dequeue control in ihalpipe wrapper */
@@ -11729,10 +11724,7 @@ int32_t ISP_MDPDumpCallback(uint64_t engineFlag, int level)
 {
 	pr_info("ISP_MDPDumpCallback");
 
-	if (G_u4EnableClockCount > 0)
-		ISP_DumpDIPReg();
-	else
-		pr_info("G_u4EnableClockCount(%d) <= 0\n", G_u4EnableClockCount);
+	ISP_DumpDIPReg();
 
 	return 0;
 }
@@ -11740,7 +11732,7 @@ int32_t ISP_MDPResetCallback(uint64_t engineFlag)
 {
 	pr_info("ISP_MDPResetCallback");
 
-	/* ISP_Reset(ISP_REG_SW_CTL_RST_CAM_P2); */
+	ISP_Reset(ISP_REG_SW_CTL_RST_CAM_P2);
 
 	return 0;
 }
@@ -14905,20 +14897,22 @@ LB_CAMA_SOF_IGNORE:
 	spin_unlock(&(IspInfo.SpinLockIrq[module]));
 	/*  */
 	if (IrqStatus & SOF_INT_ST) {
-		if ((ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100) != g_virtual_cq_cnt_a) {
+		//wake_up_interruptible(&IspInfo.WaitQHeadCam
+		if( (ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100) != g_virtual_cq_cnt_a){
 			IRQ_LOG_KEEPER(module, m_CurrentPPB, _LOG_INF,
-			"CAMA PHY cqcnt:%d != VIR cqcnt:%d\n",
-			(ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100), g_virtual_cq_cnt_a);
-		} else {
+				"CAMA PHY cqcnt:%d != VIR cqcnt:%d\n",
+				(ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100),
+				g_virtual_cq_cnt_a);
+		}else {
 			IRQ_LOG_KEEPER(module, m_CurrentPPB, _LOG_INF,
-			"CAMA PHY cqcnt:%d VIR cqcnt:%d\n",
-			(ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100), g_virtual_cq_cnt_a);
+				"CAMA PHY cqcnt:%d VIR cqcnt:%d\n",
+				(ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100),
+				g_virtual_cq_cnt_a);
 			wake_up_interruptible(&IspInfo.WaitQHeadCam
-			[ISP_GetWaitQCamIndex(module)]
-			[ISP_WAITQ_HEAD_IRQ_SOF]);
+ 			[ISP_GetWaitQCamIndex(module)]
+ 			[ISP_WAITQ_HEAD_IRQ_SOF]);
 		}
 	}
-
 	if (IrqStatus & SW_PASS1_DON_ST) {
 		wake_up_interruptible(&IspInfo.WaitQHeadCam
 			[ISP_GetWaitQCamIndex(module)]
@@ -15524,17 +15518,20 @@ LB_CAMB_SOF_IGNORE:
 	spin_unlock(&(IspInfo.SpinLockIrq[module]));
 	/*  */
 	if (IrqStatus & SOF_INT_ST) {
-		if ((ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100) != g_virtual_cq_cnt_b) {
+		//wake_up_interruptible(&IspInfo.WaitQHeadCam
+		if( (ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100) != g_virtual_cq_cnt_b){
 			IRQ_LOG_KEEPER(module, m_CurrentPPB, _LOG_INF,
-			"CAMB PHY cqcnt:%d != VIR cqcnt:%d\n",
-			(ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100), g_virtual_cq_cnt_b);
-		} else {
+				"CAMB PHY cqcnt:%d != VIR cqcnt:%d\n",
+				(ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100),
+				g_virtual_cq_cnt_b);
+		}else {
 			IRQ_LOG_KEEPER(module, m_CurrentPPB, _LOG_INF,
-			"CAMB PHY cqcnt:%d VIR cqcnt:%d\n",
-			(ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100), g_virtual_cq_cnt_b);
+				"CAMB PHY cqcnt:%d VIR cqcnt:%d\n",
+				(ISP_RD32(CAM_REG_CTL_SPARE2(reg_module))%0x100),
+				g_virtual_cq_cnt_b);
 			wake_up_interruptible(&IspInfo.WaitQHeadCam
-			[ISP_GetWaitQCamIndex(module)]
-			[ISP_WAITQ_HEAD_IRQ_SOF]);
+ 			[ISP_GetWaitQCamIndex(module)]
+ 			[ISP_WAITQ_HEAD_IRQ_SOF]);
 		}
 	}
 	if (IrqStatus & SW_PASS1_DON_ST) {

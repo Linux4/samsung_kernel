@@ -1,18 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- *  drivers/misc/mediatek/pmic/mt6360/mt6360_pmic.c
- *  Driver for MT6360 PMIC part
- *
- *  Copyright (C) 2018 Mediatek Technology Inc.
- *  cy_huang <cy_huang@richtek.com>
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License version 2 as
- *  published by the Free Software Foundation.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- *  See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #include <linux/init.h>
@@ -24,16 +12,14 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/delay.h>
-#if defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6785)
+#ifdef FIXME
+//#if defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6785)
 #include <mach/mtk_pmic_wrap.h>
 #include <mt-plat/upmu_common.h>
 #endif
 #include "../inc/mt6360_pmic.h"
-#include <mt-plat/charger_class.h>
+#include <charger_class.h>
 
-#if defined(CONFIG_MACH_MT6877)
-static unsigned int pmu_id;
-#endif
 static bool dbg_log_en; /* module param to enable/disable debug log */
 module_param(dbg_log_en, bool, 0644);
 
@@ -51,6 +37,18 @@ static const struct mt6360_pmic_platform_data def_platform_data = {
 	.pwr_off_seq = { 0x06, 0x04, 0x00, 0x02 },
 };
 
+static const u8 sys_ctrl_mask[MT6360_SYS_CTRLS_NUM] = {
+	0xfe, 0xc0, 0xff
+};
+
+static const u8 buck_ctrl_mask[MT6360_BUCK_CTRLS_NUM] = {
+	0xff, 0xff, 0xff, 0xff, 0xff, 0x8f, 0xff, 0xff
+};
+
+static const u8 ldo_ctrl_mask[MT6360_LDO_CTRLS_NUM] = {
+	0xff, 0x8f, 0x3f, 0xfe, 0xff
+};
+
 static int mt6360_pmic_read_device(void *client, u32 addr, int len, void *dst)
 {
 	struct i2c_client *i2c = client;
@@ -64,7 +62,7 @@ static int mt6360_pmic_read_device(void *client, u32 addr, int len, void *dst)
 		return -EINVAL;
 	}
 	chunk[0] = ((i2c->addr & 0x7f) << 1) + 1;
-	chunk[1] = (addr & 0x3f) | (((u8)(len - 1)) << 6);
+	chunk[1] = (addr & 0x3f) | ((len - 1) << 6);
 	ret =  i2c_smbus_read_i2c_block_data(client, chunk[1],
 					     len + 1, chunk + 2);
 	if (ret < 0)
@@ -89,7 +87,7 @@ static int mt6360_pmic_write_device(void *client, u32 addr,
 		return -EINVAL;
 	}
 	chunk[0] = (i2c->addr & 0x7f) << 1;
-	chunk[1] = (addr & 0x3f) | (((u8)(len - 1)) << 6);
+	chunk[1] = (addr & 0x3f) | ((len - 1) << 6);
 	memcpy(chunk + 2, src, len);
 	chunk[2 + len] = crc8(mpi->crc8_table, chunk, 2 + len, 0);
 	return i2c_smbus_write_i2c_block_data(client, chunk[1],
@@ -338,8 +336,8 @@ static struct resource *mt6360_pmic_get_irq_byname(struct device *dev,
 
 static void mt6360_pmic_irq_register(struct mt6360_pmic_info *mpi)
 {
-	struct mt6360_pmic_irq_desc *irq_desc = NULL;
-	struct resource *r = NULL;
+	struct mt6360_pmic_irq_desc *irq_desc;
+	struct resource *r;
 	int i, ret;
 
 	for (i = 0; i < ARRAY_SIZE(mt6360_pmic_irq_desc); i++) {
@@ -406,7 +404,7 @@ static int mt6360_pmic_is_enabled(struct regulator_dev *rdev)
 	ret = mt6360_pmic_reg_read(mpi, desc->enst_reg);
 	if (ret < 0)
 		return ret;
-	return ((u8)ret & desc->enst_mask) ? 1 : 0;
+	return (ret & desc->enst_mask) ? 1 : 0;
 }
 
 static int mt6360_enable_fpwm_usm(struct mt6360_pmic_info *mpi, bool en)
@@ -447,14 +445,15 @@ static int mt6360_pmic_get_voltage_sel(struct regulator_dev *rdev)
 {
 	struct mt6360_pmic_info *mpi = rdev_get_drvdata(rdev);
 	const struct regulator_desc *desc = rdev->desc;
-	int id = rdev_get_id(rdev), ret;
-	u32 shift = ffs(desc->vsel_mask) - 1;
+	int id = rdev_get_id(rdev);
+	int shift = ffs(desc->vsel_mask) - 1;
+	int ret;
 
 	mt_dbg(&rdev->dev, "%s, id = %d\n", __func__, id);
 	ret = mt6360_pmic_reg_read(mpi, desc->vsel_reg);
 	if (ret < 0)
 		return ret;
-	ret = (u8)ret & (desc->vsel_mask);
+	ret &= (desc->vsel_mask);
 	ret >>= shift;
 	/* for LDO6/7 vocal add */
 	if (id > MT6360_PMIC_BUCK2) {
@@ -471,8 +470,8 @@ static int mt6360_pmic_set_voltage_sel(struct regulator_dev *rdev,
 {
 	struct mt6360_pmic_info *mpi = rdev_get_drvdata(rdev);
 	const struct regulator_desc *desc = rdev->desc;
-	int id = rdev_get_id(rdev), ret;
-	u32 shift = ffs(desc->vsel_mask) - 1;
+	int id = rdev_get_id(rdev);
+	int shift = ffs(desc->vsel_mask) - 1, ret;
 	u8 dvfs_down = 0;
 
 	mt_dbg(&rdev->dev, "%s, id = %d, sel 0x%02x\n", __func__, id, sel);
@@ -493,7 +492,8 @@ static int mt6360_pmic_set_voltage_sel(struct regulator_dev *rdev,
 	/* for LDO6/7 vocal add */
 	if (id > MT6360_PMIC_BUCK2)
 		sel = (sel >= 160) ? 0xfa : (((sel / 10) << 4) + sel % 10);
-#if defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6785)
+#ifdef FIXME
+//#if defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6785)
 	if (id == MT6360_PMIC_BUCK1)
 		pwrap_write(MT6359_RG_SPI_CON12, sel);
 #endif
@@ -521,8 +521,7 @@ static int mt6360_pmic_set_mode(struct regulator_dev *rdev, unsigned int mode)
 	const struct mt6360_regulator_desc *desc =
 			       (const struct mt6360_regulator_desc *)rdev->desc;
 	int id = rdev_get_id(rdev);
-	int ret;
-	u32 shift = ffs(desc->mode_mask) - 1, mask;
+	int shift = ffs(desc->mode_mask) - 1, ret;
 	u8 val;
 
 	dev_dbg(&rdev->dev, "%s, id = %d, mode = %d\n", __func__, id, mode);
@@ -530,9 +529,7 @@ static int mt6360_pmic_set_mode(struct regulator_dev *rdev, unsigned int mode)
 		return -ENOTSUPP;
 	if (!mode)
 		return -EINVAL;
-	mask = (u32)(ffs(mode) - 1);
-	mask = 1 << mask;
-	switch (mask) {
+	switch (1 << (ffs(mode) - 1)) {
 	case REGULATOR_MODE_NORMAL:
 		val = 0;
 		break;
@@ -540,7 +537,7 @@ static int mt6360_pmic_set_mode(struct regulator_dev *rdev, unsigned int mode)
 		val = 2;
 		break;
 	case REGULATOR_MODE_STANDBY:
-		val = 3;
+		val = 1;
 		break;
 	default:
 		return -ENOTSUPP;
@@ -560,17 +557,16 @@ static unsigned int mt6360_pmic_get_mode(struct regulator_dev *rdev)
 	const struct mt6360_regulator_desc *desc =
 			       (const struct mt6360_regulator_desc *)rdev->desc;
 	int id = rdev_get_id(rdev);
-	u32 shift = ffs(desc->moder_mask) - 1, val;
+	int shift = ffs(desc->moder_mask) - 1;
 	int ret;
 
 	mt_dbg(&rdev->dev, "%s, id = %d\n", __func__, id);
 	ret = mt6360_pmic_reg_read(mpi, desc->moder_reg);
 	if (ret < 0)
 		return ret;
-	val = (u32)ret;
-	val &= desc->moder_mask;
-	val >>= shift;
-	switch (val) {
+	ret &= desc->moder_mask;
+	ret >>= shift;
+	switch (ret) {
 	case 0:
 		ret = REGULATOR_MODE_NORMAL;
 		break;
@@ -650,7 +646,7 @@ static bool buck_vol_rewrite_needed(u32 val)
 	return val ? true : false;
 }
 
-static inline int mt6360_pdata_apply_helper(void *info, void *const pdata,
+static inline int mt6360_pdata_apply_helper(void *info, void *pdata,
 					   const struct mt6360_pdata_prop *prop,
 					   int prop_cnt)
 {
@@ -704,7 +700,7 @@ static int mt6360_pmic_parse_dt_data(struct device *dev,
 				     struct mt6360_pmic_platform_data *pdata)
 {
 	struct device_node *np = dev->of_node;
-	struct resource *res = NULL;
+	struct resource *res;
 	int res_cnt, ret;
 
 	dev_dbg(dev, "%s ++\n", __func__);
@@ -722,11 +718,8 @@ static int mt6360_pmic_parse_dt_data(struct device *dev,
 	ret = of_irq_to_resource_table(np, res, res_cnt);
 	pdata->irq_res = res;
 	pdata->irq_res_cnt = ret;
-#if defined(CONFIG_MACH_MT6877)
-	if (pmu_id == 2)
-#endif
-		of_property_read_u8_array(np, "pwr_off_seq",
-					  pdata->pwr_off_seq, MT6360_PMIC_MAX);
+	of_property_read_u8_array(np, "pwr_off_seq",
+				  pdata->pwr_off_seq, MT6360_PMIC_MAX);
 bypass_irq_res:
 	dev_dbg(dev, "%s --\n", __func__);
 	return 0;
@@ -742,21 +735,9 @@ static inline int mt6360_ldo_chip_id_check(struct i2c_client *i2c)
 	ret = i2c_smbus_read_byte_data(&pmu_client, 0x00);
 	if (ret < 0)
 		return ret;
-	if (((u8)ret & 0xf0) != 0x50)
+	if ((ret & 0xf0) != 0x50)
 		return -ENODEV;
-
-#if defined(CONFIG_MACH_MT6877)
-	pmu_id = i2c_smbus_read_byte_data(&pmu_client, 0x0f);
-	if ((pmu_id & 0x60) == 0x40) // LP5
-		pmu_id = 1;
-	else if ((pmu_id & 0x60) == 0) // LP4
-		pmu_id = 2;
-	else if ((pmu_id & 0x60) == 0x60) // LP5-2
-		pmu_id = 3;
-	else
-		pmu_id = 0;
-#endif
-	return ((u8)ret & 0x0f);
+	return (ret & 0x0f);
 }
 
 static inline void mt6360_config_of_node(struct device *dev, const char *name)
@@ -801,10 +782,10 @@ static int mt6360_pmic_i2c_probe(struct i2c_client *client,
 {
 	struct mt6360_pmic_platform_data *pdata =
 					dev_get_platdata(&client->dev);
-	struct mt6360_pmic_info *mpi = NULL;
+	struct mt6360_pmic_info *mpi;
 	bool use_dt = client->dev.of_node;
 	struct regulator_config config = {};
-	struct regulation_constraints *constraints = NULL;
+	struct regulation_constraints *constraints;
 	u8 chip_rev;
 	int i, ret;
 
@@ -892,8 +873,8 @@ static int mt6360_pmic_i2c_probe(struct i2c_client *client,
 	}
 	mt6360_pmic_irq_register(mpi);
 	dev_info(&client->dev, "%s: successfully probed\n", __func__);
-
-#if defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6785)
+#ifdef FIXME
+//#if defined(CONFIG_MACH_MT6779) || defined(CONFIG_MACH_MT6785)
 	/* MT6359 record VMDLA vosel */
 	ret = mt6360_pmic_reg_read(mpi,
 		mt6360_pmic_descs[MT6360_PMIC_BUCK1].desc.vsel_reg);
@@ -907,7 +888,7 @@ out_pdata:
 	mt6360_pmic_regmap_unregister(mpi);
 out_regmap:
 	mutex_destroy(&mpi->io_lock);
-	return ret;
+	return -EPROBE_DEFER;
 }
 
 static int mt6360_pmic_i2c_remove(struct i2c_client *client)
@@ -946,7 +927,7 @@ static void mt6360_pmic_shutdown(struct i2c_client *client)
 	struct mt6360_pmic_info *mpi = i2c_get_clientdata(client);
 	int ret = 0;
 
-	dev_dbg(mpi->dev, "%s\n", __func__);
+	dev_dbg(&client->dev, "%s\n", __func__);
 	if (mpi == NULL)
 		return;
 	ret = mt6360_pmic_enable_poweroff_sequence(mpi, true);
@@ -997,7 +978,18 @@ static struct i2c_driver mt6360_pmic_i2c_driver = {
 	.shutdown = mt6360_pmic_shutdown,
 	.id_table = mt6360_pmic_i2c_id,
 };
-module_i2c_driver(mt6360_pmic_i2c_driver);
+
+static int __init mt6360_pmic_i2c_init(void)
+{
+	return i2c_add_driver(&mt6360_pmic_i2c_driver);
+}
+device_initcall_sync(mt6360_pmic_i2c_init);
+
+static void __exit mt6360_pmic_i2c_exit(void)
+{
+	i2c_del_driver(&mt6360_pmic_i2c_driver);
+}
+module_exit(mt6360_pmic_i2c_exit);
 
 MODULE_AUTHOR("CY_Huang <cy_huang@richtek.com>");
 MODULE_DESCRIPTION("MT6660 PMIC Driver");

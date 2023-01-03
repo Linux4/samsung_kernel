@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2016 MediaTek Inc.
  */
 
 #if IS_ENABLED(BUILD_MMDVFS)
@@ -31,6 +23,8 @@
 #endif
 
 #include "mmdvfs_pmqos.h"
+
+
 #include "mmdvfs_plat.h"
 #include <mt-plat/aee.h>
 
@@ -134,7 +128,7 @@ static s32 current_max_step = STEP_UNREQUEST;
 static s32 force_step = STEP_UNREQUEST;
 static bool mmdvfs_enable;
 static bool mmdvfs_autok_enable;
-static struct pm_qos_request vcore_request;
+static struct mtk_pm_qos_request vcore_request;
 static DEFINE_MUTEX(step_mutex);
 
 #ifdef MMDVFS_SKIP_SMI_CONFIG
@@ -224,7 +218,7 @@ int __attribute__ ((weak)) is_dvfsrc_opp_fixed(void) { return 1; }
 
 static void mm_apply_vcore(s32 vopp)
 {
-	pm_qos_update_request(&vcore_request, vopp);
+	mtk_pm_qos_update_request(&vcore_request, vopp);
 
 	if (vcore_reg_id) {
 #ifdef CHECK_VOLTAGE
@@ -724,8 +718,8 @@ static int mmdvfs_probe(struct platform_device *pdev)
 
 	mmdvfs_enable = true;
 	mmdvfs_autok_enable = true;
-	pm_qos_add_request(&vcore_request, PM_QOS_VCORE_OPP,
-		PM_QOS_VCORE_OPP_DEFAULT_VALUE);
+	mtk_pm_qos_add_request(&vcore_request, MTK_PM_QOS_VCORE_OPP,
+		MTK_PM_QOS_VCORE_OPP_DEFAULT_VALUE);
 	step_size = 0;
 	of_property_for_each_u32(node, VCORE_NODE_NAME, prop, p, value) {
 		if (step_size >= MAX_FREQ_STEP) {
@@ -760,7 +754,7 @@ static int mmdvfs_probe(struct platform_device *pdev)
 			mm_freq->step_config);
 
 		if (likely(mm_freq->pm_qos_class >= PM_QOS_DISP_FREQ)) {
-			pm_qos_add_notifier(mm_freq->pm_qos_class,
+			mtk_pm_qos_add_notifier(mm_freq->pm_qos_class,
 				&mm_freq->nb);
 			pr_notice("%s: add notifier\n", mm_freq->prop_name);
 		}
@@ -785,10 +779,10 @@ static int mmdvfs_remove(struct platform_device *pdev)
 {
 	u32 i;
 
-	pm_qos_remove_request(&vcore_request);
+	mtk_pm_qos_remove_request(&vcore_request);
 
 	for (i = 0; i < ARRAY_SIZE(all_freqs); i++)
-		pm_qos_remove_notifier(
+		mtk_pm_qos_remove_notifier(
 			all_freqs[i]->pm_qos_class, &all_freqs[i]->nb);
 
 	return 0;
@@ -1072,7 +1066,7 @@ MODULE_PARM_DESC(log_level, "mmdvfs log level");
 
 static s32 vote_freq;
 static bool vote_req_init;
-struct pm_qos_request vote_req;
+struct mtk_pm_qos_request vote_req;
 int set_vote_freq(const char *val, const struct kernel_param *kp)
 {
 	int result;
@@ -1085,13 +1079,13 @@ int set_vote_freq(const char *val, const struct kernel_param *kp)
 	}
 
 	if (!vote_req_init) {
-		pm_qos_add_request(
+		mtk_pm_qos_add_request(
 			&vote_req, PM_QOS_DISP_FREQ,
 			PM_QOS_MM_FREQ_DEFAULT_VALUE);
 		vote_req_init = true;
 	}
 	vote_freq = new_vote_freq;
-	pm_qos_update_request(&vote_req, vote_freq);
+	mtk_pm_qos_update_request(&vote_req, vote_freq);
 	return 0;
 }
 static struct kernel_param_ops vote_freq_ops = {
@@ -1108,7 +1102,7 @@ int mmdvfs_ut_set(const char *val, const struct kernel_param *kp)
 	int result;
 	int value1, value2;
 	u32 old_log_level = log_level;
-	struct pm_qos_request disp_req = {};
+	struct mtk_pm_qos_request disp_req = {};
 
 	result = sscanf(val, "%d %d", &mmdvfs_ut_case, &value1);
 	if (result != 2) {
@@ -1120,7 +1114,7 @@ int mmdvfs_ut_set(const char *val, const struct kernel_param *kp)
 
 	log_level = 1 << log_freq |
 		1 << log_limit;
-	pm_qos_add_request(&disp_req, PM_QOS_DISP_FREQ,
+	mtk_pm_qos_add_request(&disp_req, PM_QOS_DISP_FREQ,
 		PM_QOS_MM_FREQ_DEFAULT_VALUE);
 
 	switch (mmdvfs_ut_case) {
@@ -1137,7 +1131,7 @@ int mmdvfs_ut_set(const char *val, const struct kernel_param *kp)
 		/* limit enable then opp1 -> opp0 */
 		mmdvfs_qos_limit_config(value1, 1, MMDVFS_LIMIT_THERMAL);
 		mmdvfs_qos_limit_config(value1, value2, MMDVFS_LIMIT_CAM);
-		pm_qos_update_request(&disp_req, 1000);
+		mtk_pm_qos_update_request(&disp_req, 1000);
 		pr_notice("limit enable then opp up: %d freq=%llu MHz\n",
 			mmdvfs_get_limit_status(value1),
 			mmdvfs_qos_get_freq(value1));
@@ -1153,19 +1147,19 @@ int mmdvfs_ut_set(const char *val, const struct kernel_param *kp)
 			mmdvfs_qos_get_freq(value1));
 		/* limit disable then opp0 -> opp1 */
 		mmdvfs_qos_limit_config(value1, 0, MMDVFS_LIMIT_THERMAL);
-		pm_qos_update_request(&disp_req, 0);
+		mtk_pm_qos_update_request(&disp_req, 0);
 		pr_notice("limit disable then opp down: %d freq=%llu MHz\n",
 			mmdvfs_get_limit_status(value1),
 			mmdvfs_qos_get_freq(value1));
 		/* limit enable when opp1 */
 		mmdvfs_qos_limit_config(value1, 1, MMDVFS_LIMIT_THERMAL);
-		pm_qos_update_request(&disp_req, 0);
+		mtk_pm_qos_update_request(&disp_req, 0);
 		pr_notice("limit enable when opp down: %d freq=%llu MHz\n",
 			mmdvfs_get_limit_status(value1),
 			mmdvfs_qos_get_freq(value1));
 		/* limit disable when opp1 */
 		mmdvfs_qos_limit_config(value1, 0, MMDVFS_LIMIT_THERMAL);
-		pm_qos_update_request(&disp_req, 0);
+		mtk_pm_qos_update_request(&disp_req, 0);
 		pr_notice("limit disable when opp down: %d freq=%llu MHz\n",
 			mmdvfs_get_limit_status(value1),
 			mmdvfs_qos_get_freq(value1));
@@ -1196,7 +1190,7 @@ int mmdvfs_ut_set(const char *val, const struct kernel_param *kp)
 		break;
 	}
 
-	pm_qos_remove_request(&disp_req);
+	mtk_pm_qos_remove_request(&disp_req);
 
 	pr_notice("%s END\n", __func__);
 	log_level = old_log_level;

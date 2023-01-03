@@ -1,16 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * PD Device Policy Manager for UVDM
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include "inc/tcpci.h"
@@ -40,7 +30,7 @@ int richtek_dfp_notify_pe_ready(
 	pd_port->richtek_init_done = true;
 	UVDM_INFO("%s\n", __func__);
 
-#if 0
+#ifdef NEVER
 	pd_port->uvdm_cnt = 3;
 	pd_port->uvdm_wait_resp = true;
 
@@ -49,7 +39,7 @@ int richtek_dfp_notify_pe_ready(
 	pd_port->uvdm_data[2] = 0x44332211;
 
 	pd_put_tcp_vdm_event(pd_port, TCP_DPM_EVT_UVDM);
-#endif
+#endif /* NEVER */
 
 	return 1;
 }

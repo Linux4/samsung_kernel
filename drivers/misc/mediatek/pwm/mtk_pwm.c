@@ -1,19 +1,6 @@
-/******************************************************************************
- * mtk_pwm.c PWM Drvier
- *
- * Copyright (c) 2016, Media Teck.inc
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public Licence,
- * version 2, as publish by the Free Software Foundation.
- *
- * This program is distributed and in hope it will be useful, but WITHOUT
- * ANY WARRNTY; without even the implied warranty of MERCHANTABITLITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- *
- ******************************************************************************
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/init.h>
@@ -44,7 +31,7 @@
 #include <mt-plat/mtk_pwm_hal_pub.h>
 #include <mach/mtk_pwm_hal.h>
 
-#define PWM_LDVT_FLAG		0
+#define PWM_LDVT_FLAG		1
 #if PWM_LDVT_FLAG
 #include <linux/gpio.h>
 #include <linux/pinctrl/consumer.h>
@@ -74,7 +61,7 @@ static struct pwm_device pwm_dat = {
 
 static struct pwm_device *pwm_dev = &pwm_dat;
 
-static void mt_pwm_power_on(u32 pwm_no, bool pmic_pad)
+void mt_pwm_power_on(u32 pwm_no, bool pmic_pad)
 {
 	mutex_lock(&pwm_power_lock);
 
@@ -913,7 +900,6 @@ void mt_set_pwm_3dlcm_inv(u32 pwm_no, u8 inv)
 
 s32 pwm_set_easy_config(struct pwm_easy_config *conf)
 {
-
 	u32 duty = 0;
 	u16 duration = 0;
 	u32 data_AllH = 0xffffffff;
@@ -1049,7 +1035,6 @@ EXPORT_SYMBOL(pwm_set_easy_config);
 
 s32 pwm_set_spec_config(struct pwm_spec_config *conf)
 {
-
 	if (conf->pwm_no >= PWM_MAX) {
 		pr_debug(T "pwm%d excess PWM_MAX(%d)\n", conf->pwm_no, PWM_MAX);
 		return -EEXCESSPWMNO;
@@ -1817,13 +1802,6 @@ static ssize_t pwm_debug_store(struct device *dev,
 		conf.PWM_MODE_MEMORY_REGS.STOP_BITPOS_VALUE = 30;
 
 #if LARGE_8G_DRAM_TEST
-	#if 0
-		if (dma_set_mask(dev, DMA_BIT_MASK(36))) {
-			pr_debug(T "[PWM]  dma_set_mask failed, dma_mask:%llx",
-				DMA_BIT_MASK(36));
-			return count;
-		}
-	#endif
 		if (dma_set_coherent_mask(dev, DMA_BIT_MASK(36))) {
 			pr_debug(T "[PWM] dma alloc fail, dma_mask:0x%llx",
 					DMA_BIT_MASK(36));

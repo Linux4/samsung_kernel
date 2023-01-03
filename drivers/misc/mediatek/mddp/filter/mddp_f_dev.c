@@ -154,9 +154,8 @@ bool mddp_f_dev_add_lan_dev(char *dev_name, int netif_id)
 
 	/* Find unused id */
 	for (i = 0; i < MDDP_MAX_LAN_DEV_NUM; i++) {
-		if (mddp_f_lan_dev[i].is_valid == false) {
+		if (mddp_f_lan_dev[i].is_valid == false)
 			break;
-		}
 	}
 
 	if (i >= MDDP_MAX_LAN_DEV_NUM) {
@@ -193,9 +192,8 @@ bool mddp_f_dev_add_wan_dev(char *dev_name)
 
 	/* Find unused id */
 	for (i = 0; i < MDDP_MAX_WAN_DEV_NUM; i++) {
-		if (mddp_f_wan_dev[i].is_valid == false) {
+		if (mddp_f_wan_dev[i].is_valid == false)
 			break;
-		}
 	}
 
 	if (i >= MDDP_MAX_WAN_DEV_NUM) {
@@ -236,9 +234,8 @@ void mddp_f_dev_del_lan_dev(char *dev_name)
 	int active_dev_cnt = mddp_f_lan_dev_cnt_g;
 
 	for (i = 0; (i < MDDP_MAX_LAN_DEV_NUM) && (active_dev_cnt > 0); i++) {
-		if (strcmp(mddp_f_lan_dev[i].dev_name, dev_name) == 0) {
+		if (strcmp(mddp_f_lan_dev[i].dev_name, dev_name) == 0)
 			break;
-		}
 	}
 
 	if (i >= MDDP_MAX_LAN_DEV_NUM) {
@@ -267,9 +264,8 @@ void mddp_f_dev_del_wan_dev(char *dev_name)
 	int active_dev_cnt = mddp_f_wan_dev_cnt_g;
 
 	for (i = 0; (i < MDDP_MAX_WAN_DEV_NUM) && (active_dev_cnt > 0); i++) {
-		if (strcmp(mddp_f_wan_dev[i].dev_name, dev_name) == 0) {
+		if (strcmp(mddp_f_wan_dev[i].dev_name, dev_name) == 0)
 			break;
-		}
 	}
 
 	if (i >= MDDP_MAX_WAN_DEV_NUM) {

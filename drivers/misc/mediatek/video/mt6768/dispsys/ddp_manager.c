@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #define LOG_TAG "ddp_manager"
 
@@ -1734,17 +1726,6 @@ int dpmgr_disable_event(disp_path_handle dp_handle, enum DISP_PATH_EVENT event)
 	wq_handle->init = 0;
 	wq_handle->data = 0;
 	return 0;
-}
-
-int dpmgr_get_power_status(disp_path_handle dp_handle)
-{
-	struct ddp_path_handle *handle;
-	int state;
-
-	handle = (struct ddp_path_handle *)dp_handle;
-	state = handle->power_state;
-
-	return state;
 }
 
 int dpmgr_check_status_by_scenario(enum DDP_SCENARIO_ENUM scenario)

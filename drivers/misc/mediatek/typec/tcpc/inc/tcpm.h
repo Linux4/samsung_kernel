@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #ifndef TCPM_H_
@@ -266,10 +258,8 @@ enum {
 	/* HardReset failed because detach or error recovery */
 	TCP_HRESET_RESULT_FAIL,
 
-#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
 	/* ERROR Recovery because in power off charge not receive source cap*/
 	TCP_ERROR_RECOVERY_KPOC,
-#endif
 
 	/* HardReset signal from Local Policy Engine */
 	TCP_HRESET_SIGNAL_SEND,
@@ -551,8 +541,6 @@ enum tcp_dpm_return_code {
 	TCP_DPM_RET_DROP_ERROR_REOCVERY,
 	TCP_DPM_RET_DROP_SEND_BIST,
 	TCP_DPM_RET_DROP_PE_BUSY,	/* SinkTXNg*/
-	TCP_DPM_RET_DROP_DISCARD,
-	TCP_DPM_RET_DROP_UNEXPECTED,
 
 	TCP_DPM_RET_WAIT,
 	TCP_DPM_RET_REJECT,
@@ -915,13 +903,11 @@ extern uint8_t tcpm_inquire_cable_current(
 extern uint32_t tcpm_inquire_dpm_flags(
 	struct tcpc_device *tcpc);
 
-#if defined(CONFIG_BATTERY_SAMSUNG)
 extern bool tcpm_is_src_usb_suspend_support(
-	struct tcpc_device *tcpc);
+	struct tcpc_device *tcpc_dev);
 
 extern bool tcpm_is_src_usb_communication_capable(
-	struct tcpc_device *tcpc);
-#endif
+	struct tcpc_device *tcpc_dev);
 
 extern uint32_t tcpm_inquire_dpm_caps(
 	struct tcpc_device *tcpc);
@@ -1446,19 +1432,17 @@ static inline uint32_t tcpm_inquire_dpm_flags(
 	return 0;
 }
 
-#if defined(CONFIG_BATTERY_SAMSUNG)
 static inline bool tcpm_is_src_usb_suspend_support(
-	struct tcpc_device *tcpc)
+	struct tcpc_device *tcpc_dev)
 {
 	return 0;
 }
 
 static inline bool tcpm_is_src_usb_communication_capable(
-	struct tcpc_device *tcpc)
+	struct tcpc_device *tcpc_dev)
 {
 	return 0;
 }
-#endif
 
 static inline uint32_t tcpm_inquire_dpm_caps(
 	struct tcpc_device *tcpc)

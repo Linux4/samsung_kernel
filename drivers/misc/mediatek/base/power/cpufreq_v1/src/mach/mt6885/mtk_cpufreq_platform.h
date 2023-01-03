@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __MTK_CPUFREQ_PLATFORM_H__
 #define __MTK_CPUFREQ_PLATFORM_H__
@@ -40,7 +32,6 @@
 #define CPU_DVFS_NOT_READY	1
 #endif
 #endif
-#define DFD_WORKAROUND  1
 #define INIT_MCUPM_VOLTAGE_SETTING  1
 #define NR_FREQ		16
 #define NR_CCI_TBL		2

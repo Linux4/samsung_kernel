@@ -1573,12 +1573,10 @@ static int __init panel_lut_ddi_recommend_init(void)
 
 int panel_clean_board(struct device *dev)
 {
-	int ret = 0;
-
 	if (!get_boot_lcdconnected())
 		run_list(dev, PANEL_PBA_NODE);
 
-	return ret;
+	return 0;
 }
 
 static int __init smcdsd_board_init(void)

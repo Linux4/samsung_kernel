@@ -1,30 +1,19 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2020 MediaTek Inc.
+*/
 
 
 #ifndef __PHY_MTK_SSUSB_H
 #define __PHY_MTK_SSUSB_H
 #include <linux/types.h>
 #include <linux/clk.h>
-#include <linux/platform_device.h>
 
 struct mtk_phy_tuning {
-	const char *name;
-	u32 offset;
-	u32 shift;
-	u32 mask;
-	u32 value;
-	u32 host;
+	s32 u2_vrt_ref;
+	s32 u2_term_ref;
+	s32 u2_enhance;
+	bool inited;
 };
 
 struct mtk_phy_instance {
@@ -45,8 +34,7 @@ struct mtk_phy_instance {
 	bool sib_mode;
 	bool uart_mode;
 	int phy_number;
-	struct mtk_phy_tuning *phy_tuning;
-	int phy_data_cnt;
+	struct mtk_phy_tuning phy_tuning;
 };
 
 
@@ -57,8 +45,6 @@ struct mtk_phy_interface {
 	void (*usb_phy_switch_to_bc11)(struct mtk_phy_instance *instance,
 		bool on);
 	void (*usb_phy_dpdm_pulldown)(struct mtk_phy_instance *instance,
-		bool enable);
-	void (*usb_phy_dpdm_pullup)(struct mtk_phy_instance *instance,
 		bool enable);
 	int  (*usb_phy_lpm_enable)(struct mtk_phy_instance *instance, bool on);
 	int  (*usb_phy_host_mode)(struct mtk_phy_instance *instance, bool on);

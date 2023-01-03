@@ -21,6 +21,7 @@
 
 #define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
 
+#include <linux/clk.h>
 #include <linux/dma-mapping.h>
 #include <linux/etherdevice.h>
 #include <linux/ethtool.h>
@@ -59,6 +60,9 @@
 /* Min number of tx ring entries before stopping queue */
 #define TX_THRESHOLD		(MAX_SKB_FRAGS + 1)
 
+#define FTGMAC_100MHZ		100000000
+#define FTGMAC_25MHZ		25000000
+
 struct ftgmac100 {
 	/* Registers */
 	struct resource *res;
@@ -96,6 +100,7 @@ struct ftgmac100 {
 	struct napi_struct napi;
 	struct work_struct reset_task;
 	struct mii_bus *mii_bus;
+	struct clk *clk;
 
 	/* Link management */
 	int cur_speed;
@@ -1328,6 +1333,7 @@ static int ftgmac100_poll(struct napi_struct *napi, int budget)
 	 */
 	if (unlikely(priv->need_mac_restart)) {
 		ftgmac100_start_hw(priv);
+		priv->need_mac_restart = false;
 
 		/* Re-enable "bad" interrupts */
 		iowrite32(FTGMAC100_INT_BAD,
@@ -1729,8 +1735,24 @@ static void ftgmac100_ncsi_handler(struct ncsi_dev *nd)
 	if (unlikely(nd->state != ncsi_dev_state_functional))
 		return;
 
-	netdev_info(nd->dev, "NCSI interface %s\n",
-		    nd->link_up ? "up" : "down");
+	netdev_dbg(nd->dev, "NCSI interface %s\n",
+		   nd->link_up ? "up" : "down");
+}
+
+static void ftgmac100_setup_clk(struct ftgmac100 *priv)
+{
+	priv->clk = devm_clk_get(priv->dev, NULL);
+	if (IS_ERR(priv->clk))
+		return;
+
+	clk_prepare_enable(priv->clk);
+
+	/* Aspeed specifies a 100MHz clock is required for up to
+	 * 1000Mbit link speeds. As NCSI is limited to 100Mbit, 25MHz
+	 * is sufficient
+	 */
+	clk_set_rate(priv->clk, priv->use_ncsi ? FTGMAC_25MHZ :
+			FTGMAC_100MHZ);
 }
 
 static int ftgmac100_probe(struct platform_device *pdev)
@@ -1829,6 +1851,9 @@ static int ftgmac100_probe(struct platform_device *pdev)
 			goto err_setup_mdio;
 	}
 
+	if (priv->is_aspeed)
+		ftgmac100_setup_clk(priv);
+
 	/* Default ring sizes */
 	priv->rx_q_entries = priv->new_rx_q_entries = DEF_RX_QUEUE_ENTRIES;
 	priv->tx_q_entries = priv->new_tx_q_entries = DEF_TX_QUEUE_ENTRIES;
@@ -1860,6 +1885,8 @@ static int ftgmac100_probe(struct platform_device *pdev)
 	return 0;
 
 err_ncsi_dev:
+	if (priv->ndev)
+		ncsi_unregister_dev(priv->ndev);
 err_register_netdev:
 	ftgmac100_destroy_mdio(netdev);
 err_setup_mdio:
@@ -1880,7 +1907,11 @@ static int ftgmac100_remove(struct platform_device *pdev)
 	netdev = platform_get_drvdata(pdev);
 	priv = netdev_priv(netdev);
 
+	if (priv->ndev)
+		ncsi_unregister_dev(priv->ndev);
 	unregister_netdev(netdev);
+
+	clk_disable_unprepare(priv->clk);
 
 	/* There's a small chance the reset task will have been re-queued,
 	 * during stop, make sure it's gone before we free the structure.

@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #ifndef _KD_IMGSENSOR_DATA_H
@@ -601,6 +593,7 @@ struct ACDK_SENSOR_INFO_STRUCT {
 	MUINT32 Custom13DelayFrame;
 	MUINT32 Custom14DelayFrame;
 	MUINT32 Custom15DelayFrame;
+
 	MUINT16 SensorGrabStartX;
 	MUINT16 SensorGrabStartY;
 	MUINT16 SensorGrabStartX_PRV;
@@ -944,6 +937,17 @@ enum VC_FEATURE {
 
 	VC_PDAF_MIN_NUM = VC_RAW_DATA_MAX,
 	VC_PDAF_STATS = VC_PDAF_MIN_NUM,
+	VC_PDAF_STATS_NE,
+	VC_PDAF_STATS_ME,
+	VC_PDAF_STATS_SE,
+	VC_PDAF_STATS_PIX_1,
+	VC_PDAF_STATS_PIX_2,
+	VC_PDAF_STATS_NE_PIX_1 = VC_PDAF_STATS_PIX_1,
+	VC_PDAF_STATS_NE_PIX_2 = VC_PDAF_STATS_PIX_2,
+	VC_PDAF_STATS_ME_PIX_1,
+	VC_PDAF_STATS_ME_PIX_2,
+	VC_PDAF_STATS_SE_PIX_1,
+	VC_PDAF_STATS_SE_PIX_2,
 	VC_PDAF_MAX_NUM,
 
 	VC_HDR_MIN_NUM = VC_PDAF_MAX_NUM,
@@ -1063,6 +1067,7 @@ enum IMGSENSOR_PDAF_SUPPORT_TYPE_ENUM {
 	PDAF_SUPPORT_RAW_DUALPD = 4,
 	PDAF_SUPPORT_CAMSV_DUALPD = 5,
 	PDAF_SUPPORT_RAW_LEGACY = 6,
+	PDAF_SUPPORT_CAMSV_QPD = 7,
 };
 
 enum SENSOR_PHY_TYPE_ENUM {
@@ -1564,4 +1569,5 @@ struct IMGSENSOR_AE_FRM_MODE {
 	MUINT32 frame_mode_3:4;
 	MUINT32 frame_mode_4:4;
 };
+
 #endif              /* _KD_IMGSENSOR_DATA_H */

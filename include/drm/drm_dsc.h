@@ -597,7 +597,7 @@ struct drm_dsc_picture_parameter_set {
  *               as represented in &struct drm_dsc_picture_parameter_set
  */
 struct drm_dsc_pps_infoframe {
-	struct edp_sdp_header pps_header;
+	struct dp_sdp_header pps_header;
 	struct drm_dsc_picture_parameter_set pps_payload;
 } __packed;
 

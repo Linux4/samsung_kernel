@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef _MT_GPUFREQ_H
 #define _MT_GPUFREQ_H
@@ -101,9 +93,6 @@ extern void mt_gpufreq_set_power_limit_by_pbm(unsigned int limited_power);
 extern unsigned int mt_gpufreq_get_leakage_mw(void);
 extern void mt_gpufreq_set_loading(unsigned int gpu_loading);
 extern int mt_gpufreq_get_cur_ceiling_idx(void);
-extern int mt_gpufreq_get_immed_gpu_temp(void);
-extern struct mt_gpufreq_power_table_info *pass_gpu_table_to_eara(void);
-extern unsigned int mt_gpufreq_get_seg_max_opp_index(void);
 
 extern unsigned int mt_get_mfgclk_freq(void);	/* Freq Meter API */
 extern unsigned int mt_get_ckgen_freq(unsigned int);

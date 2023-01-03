@@ -29,6 +29,7 @@ ccflags-y += \
 	-I$(srctree)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM)	\
 	-I$(EEMGPU_ROOT_DIR)/$(CONFIG_MTK_PLATFORM)/inc	\
 	-I$(srctree)/drivers/misc/mediatek/base/power/mcdi/include/	\
+	-I$(srctree)/drivers/gpu/mediatek/gpufreq/
 
 ifeq ($(PROJECT_DTB_NAMES),mediatek/k6853v1_64_6360_alpha_mcl)
 subdir-ccflags-y += -DMC50_LOAD

@@ -1,15 +1,6 @@
-/*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+// SPDX-License-Identifier: GPL-2.0
+//
+// Copyright (c) 2016 MediaTek Inc.
 
 #include <audio_ipi_dma.h>
 
@@ -65,7 +56,7 @@
 #undef ipi_dbg
 #endif
 
-#if 0
+#ifdef DEBUG_IPI
 #define ipi_dbg(x...) pr_info(x)
 #else
 #define ipi_dbg(x...)
@@ -1165,6 +1156,8 @@ int audio_ipi_dma_write_region(const uint8_t task,
 		return -ENODATA;
 	}
 
+	mutex_lock(&region_lock);
+
 	region = &g_dma[dsp_id]->region[task][AUDIO_IPI_DMA_AP_TO_SCP];
 	DUMP_REGION(ipi_dbg, "region", region, data_size);
 
@@ -1174,6 +1167,8 @@ int audio_ipi_dma_write_region(const uint8_t task,
 	/* write data */
 	ret = audio_region_write_from_linear(dsp_id,
 					     region, data_buf, data_size);
+
+	mutex_unlock(&region_lock);
 
 	return ret;
 }
@@ -1491,26 +1486,10 @@ static int hal_dma_init_msg_queue(struct hal_dma_queue_t *msg_queue,
 				  const uint32_t size)
 {
 	int i = 0;
-	uint32_t dma_rb_sz = size / 2; /* tmp push-pop ring buffer */
 
 	if (msg_queue == NULL) {
 		pr_info("NULL!! msg_queue: %p", msg_queue);
 		return -EFAULT;
-	}
-
-	if (msg_queue->dma_data.base ||
-	    msg_queue->tmp_buf_d2k ||
-	    msg_queue->tmp_buf_k2h) {
-		pr_info("already init!! %u %u", msg_queue->dma_data.size, size);
-		if (dma_rb_sz > msg_queue->dma_data.size) {
-			vfree(msg_queue->dma_data.base);
-
-			msg_queue->dma_data.size = dma_rb_sz;
-			msg_queue->dma_data.base = vmalloc(dma_rb_sz);
-			msg_queue->dma_data.read = msg_queue->dma_data.base;
-			msg_queue->dma_data.write = msg_queue->dma_data.base;
-		}
-		return 0;
 	}
 
 
@@ -1525,7 +1504,7 @@ static int hal_dma_init_msg_queue(struct hal_dma_queue_t *msg_queue,
 	spin_lock_init(&msg_queue->queue_lock);
 	init_waitqueue_head(&msg_queue->queue_wq);
 
-	msg_queue->dma_data.size = dma_rb_sz;
+	msg_queue->dma_data.size = size;
 	msg_queue->dma_data.base = vmalloc(msg_queue->dma_data.size);
 	msg_queue->dma_data.read = msg_queue->dma_data.base;
 	msg_queue->dma_data.write = msg_queue->dma_data.base;
@@ -1621,7 +1600,7 @@ int audio_ipi_dma_msg_to_hal(struct ipi_msg_t *p_ipi_msg)
 		return -EFAULT;
 	}
 
-#if 0
+#ifdef DEBUG_IPI
 	DUMP_IPI_MSG("dma dsp -> kernel", p_ipi_msg);
 #endif
 
@@ -1669,7 +1648,7 @@ size_t audio_ipi_dma_msg_read(void __user *buf, size_t count)
 	}
 	p_ipi_msg = &msg_queue->msg[idx_msg];
 
-#if 0
+#ifdef DEBUG_IPI
 	DUMP_IPI_MSG("dma kernel -> hal", p_ipi_msg);
 #endif
 

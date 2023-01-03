@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <generated/autoconf.h>
 #include <linux/module.h>
@@ -36,8 +28,8 @@
 #include "include/pmic.h"
 #include "include/pmic_throttling_dlpt.h"
 #include "include/pmic_auxadc.h"
-#include <pmic_lbat_service.h>
-#include <mt-plat/mtk_charger.h>
+#include <include/pmic_lbat_service.h>
+#include <mt-plat/v1/mtk_charger.h>
 
 #if defined(CONFIG_MTK_BASE_POWER)
 #include <mtk_idle.h>
@@ -47,7 +39,7 @@
 #define CONFIG_MTK_GAUGE_VERSION 0
 #endif
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
-#include <mt-plat/mtk_battery.h>
+#include <mt-plat/v1/mtk_battery.h>
 #include <mach/mtk_battery_property.h>
 #include <linux/reboot.h>
 #include <mtk_battery_internal.h>
@@ -91,9 +83,9 @@ void bat_per_test(enum BATTERY_PERCENT_LEVEL_TAG level_val)
 #ifdef LOW_BATTERY_PROTECT
 
 #if PMIC_THROTTLING_DLPT_UT
-static struct lbat_user lbat_test1;
-static struct lbat_user lbat_test2;
-static struct lbat_user lbat_test3;
+static struct lbat_user *lbat_test1;
+static struct lbat_user *lbat_test2;
+static struct lbat_user *lbat_test3;
 
 void lbat_test_callback(unsigned int thd)
 {
@@ -101,8 +93,10 @@ void lbat_test_callback(unsigned int thd)
 }
 #endif
 
-static struct lbat_user lbat_pt;
-static struct lbat_user lbat_pt_ext;
+
+static struct lbat_user *lbat_pt;
+static struct lbat_user *lbat_pt_ext;
+//struct mutex pm_mutex;
 int g_low_battery_level;
 int g_low_battery_stop;
 /* give one change to ignore DLPT power off. battery voltage
@@ -208,33 +202,30 @@ void exec_low_battery_callback_ext(unsigned int thd)
 
 void low_battery_protect_init(void)
 {
-	int ret = 0;
 #ifdef LOW_BATTERY_PT_SETTING_V2
 	unsigned int volt_arr[4] = {3300, 3100, 2900, 2700};
 
-	ret = lbat_user_register_ext(&lbat_pt, "power throttling",
+	lbat_pt = lbat_user_register_ext("power throttling",
 				     volt_arr, ARRAY_SIZE(volt_arr),
 				     exec_low_battery_callback);
 #else
-	ret = lbat_user_register(&lbat_pt, "power throttling"
+	lbat_pt = lbat_user_register("power throttling"
 			, POWER_INT0_VOLT, POWER_INT1_VOLT
 			, POWER_INT2_VOLT, exec_low_battery_callback);
 
-	ret = lbat_user_register(&lbat_pt_ext, "power throttling ext"
+	lbat_pt_ext = lbat_user_register("power throttling ext"
 		, POWER_INT0_VOLT_EXT, POWER_INT1_VOLT_EXT
 		, POWER_INT2_VOLT_EXT, exec_low_battery_callback_ext);
 #endif
 
 #if PMIC_THROTTLING_DLPT_UT
-	ret = lbat_user_register(&lbat_test1, "test1",
+	lbat_test1 = lbat_user_register("test1",
 		3450, 3200, 3000, lbat_test_callback);
-	ret = lbat_user_register(&lbat_test2, "test2",
+	lbat_test2 = lbat_user_register("test2",
 		POWER_INT0_VOLT, 2900, 2800, lbat_test_callback);
-	ret = lbat_user_register(&lbat_test3, "test3",
+	lbat_test3 = lbat_user_register("test3",
 		3450, 3200, 3000, NULL);
 #endif
-	if (ret)
-		pr_notice("[%s] error ret=%d\n", __func__, ret);
 
 	lbat_dump_reg();
 	pr_info("[%s] %d mV, %d mV, %d mV Done\n"
@@ -242,7 +233,7 @@ void low_battery_protect_init(void)
 		, POWER_INT1_VOLT, POWER_INT2_VOLT);
 }
 
-#if defined(CONFIG_BATTERY_SAMSUNG)
+#if defined(CONFIG_USB_FACTORY_MODE)
 void set_g_low_battery_stop(int val)
 {
 	g_low_battery_stop = val;
@@ -534,7 +525,7 @@ static bool bat_percent_notify_flag_ext;
 
 static DECLARE_WAIT_QUEUE_HEAD(bat_percent_notify_waiter);
 
-struct wakeup_source bat_percent_notify_lock;
+struct wakeup_source *bat_percent_notify_lock;
 static DEFINE_MUTEX(bat_percent_notify_mutex);
 
 #define BPCB_NUM 16
@@ -681,7 +672,7 @@ int bat_percent_notify_handler(void *unused)
 					 (bat_percent_notify_flag == true));
 #endif
 
-		__pm_stay_awake(&bat_percent_notify_lock);
+		__pm_stay_awake(bat_percent_notify_lock);
 		mutex_lock(&bat_percent_notify_mutex);
 
 		if (bat_percent_notify_flag) {
@@ -703,7 +694,7 @@ int bat_percent_notify_handler(void *unused)
 #endif
 
 		mutex_unlock(&bat_percent_notify_mutex);
-		__pm_relax(&bat_percent_notify_lock);
+		__pm_relax(bat_percent_notify_lock);
 	} while (!kthread_should_stop());
 
 	return 0;
@@ -778,8 +769,9 @@ int dlpt_psy_event(struct notifier_block *nb, unsigned long event, void *v)
 
 void bat_percent_notify_init(void)
 {
-	wakeup_source_init(&bat_percent_notify_lock,
-		"bat_percent_notify_lock wakelock");
+	//wakeup_source_init(&bat_percent_notify_lock,
+		//"bat_percent_notify_lock wakelock");
+	bat_percent_notify_lock = wakeup_source_register(NULL, "bat_percent_notify_lock wakelock");
 
 	bat_percent_notify_thread =
 		kthread_run(bat_percent_notify_handler, 0,
@@ -804,19 +796,19 @@ void __attribute__ ((weak)) register_battery_percent_notify(
  * AuxADC Impedence Measurement
  *******************************************************************/
 static unsigned int count_time_out_adc_imp = 36;
-static struct wakeup_source ptim_wake_lock;
+static struct wakeup_source* ptim_wake_lock;
 static struct mutex ptim_mutex;
 
 static void ptim_lock(void)
 {
-	__pm_stay_awake(&ptim_wake_lock);
+	__pm_stay_awake(ptim_wake_lock);
 	mutex_lock(&ptim_mutex);
 }
 
 static void ptim_unlock(void)
 {
 	mutex_unlock(&ptim_mutex);
-	__pm_relax(&ptim_wake_lock);
+	__pm_relax(ptim_wake_lock);
 }
 
 int do_ptim_internal(bool isSuspend, unsigned int *bat,
@@ -825,7 +817,9 @@ int do_ptim_internal(bool isSuspend, unsigned int *bat,
 	unsigned int vbat_reg = 0;
 	unsigned int count_adc_imp = 0;
 	int ret = 0;
+#if !(defined(CONFIG_MACH_MT6833) || defined(CONFIG_MACH_MT6877))
 	unsigned char *r_ratio = NULL;
+#endif
 
 	/* selection setting, move to LK pmic_dlpt_init */
 
@@ -845,8 +839,13 @@ int do_ptim_internal(bool isSuspend, unsigned int *bat,
 	/* stop setting */
 	pmic_set_hk_reg_value(PMIC_AUXADC_IMP_EN, 0);
 
+//TODO MIgration
+#if defined(CONFIG_MACH_MT6833) || defined(CONFIG_MACH_MT6877)
+	*bat = (vbat_reg * 3 * 18000) / 32768;
+#else
 	r_ratio = auxadc_get_r_ratio(AUXADC_BATADC);
 	*bat = (vbat_reg * 18000 * r_ratio[0] / r_ratio[1]) >> 15;
+#endif
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
 	gauge_get_ptim_current(cur, is_charging);
 #else
@@ -955,7 +954,7 @@ static struct timer_list dlpt_notify_timer;
 static struct task_struct *dlpt_notify_thread;
 static bool dlpt_notify_flag;
 static DECLARE_WAIT_QUEUE_HEAD(dlpt_notify_waiter);
-struct wakeup_source dlpt_notify_lock;
+struct wakeup_source* dlpt_notify_lock;
 static DEFINE_MUTEX(dlpt_notify_mutex);
 
 #define DLPT_NUM 16
@@ -1273,7 +1272,7 @@ int dlpt_notify_handler(void *unused)
 		wait_event_interruptible(dlpt_notify_waiter,
 			(dlpt_notify_flag == true));
 
-		__pm_stay_awake(&dlpt_notify_lock);
+		__pm_stay_awake(dlpt_notify_lock);
 		mutex_lock(&dlpt_notify_mutex);
 
 		cur_ui_soc = battery_get_uisoc();
@@ -1325,22 +1324,22 @@ int dlpt_notify_handler(void *unused)
 				power_off_cnt++;
 				pr_info("[DLPT_POWER_OFF_EN] notify SOC=0 to power off, power_off_cnt=%d\n"
 					, power_off_cnt);
-
+				
 				/*
 				 * TODO: After kernel-4.19, pm_mutex change to
-				 * system_transition_mutex.
+				 * system_transition_mutex. workarond for mt6877
 				 */
-				if (power_off_cnt >= 4 &&
+				/*if (power_off_cnt >= 4 &&
 				    mutex_trylock(&pm_mutex)) {
 					kernel_restart("DLPT reboot system");
 					mutex_unlock(&pm_mutex);
-				}
+				}*/
 			} else
 				power_off_cnt = 0;
 		}
 #endif
 		mutex_unlock(&dlpt_notify_mutex);
-		__pm_relax(&dlpt_notify_lock);
+		__pm_relax(dlpt_notify_lock);
 
 		mod_timer(&dlpt_notify_timer, jiffies + dlpt_notify_interval);
 
@@ -1350,7 +1349,7 @@ int dlpt_notify_handler(void *unused)
 	return 0;
 }
 
-void dlpt_notify_task(unsigned long data)
+void dlpt_notify_task(struct timer_list *t)
 {
 	dlpt_notify_flag = true;
 	wake_up_interruptible(&dlpt_notify_waiter);
@@ -1361,12 +1360,9 @@ void dlpt_notify_init(void)
 	unsigned long dlpt_notify_interval;
 
 	dlpt_notify_interval = HZ * 30;
-	init_timer_deferrable(&dlpt_notify_timer);
-	dlpt_notify_timer.function = dlpt_notify_task;
-	dlpt_notify_timer.data = (unsigned long)&dlpt_notify_timer;
+	timer_setup(&dlpt_notify_timer, dlpt_notify_task, TIMER_DEFERRABLE);
 	mod_timer(&dlpt_notify_timer, jiffies + dlpt_notify_interval);
-
-	wakeup_source_init(&dlpt_notify_lock, "dlpt_notify_lock wakelock");
+	dlpt_notify_lock = wakeup_source_register(NULL, "dlpt_notify_lock wakelock");
 
 	dlpt_notify_thread = kthread_run(dlpt_notify_handler, 0,
 		"dlpt_notify_thread");
@@ -2015,7 +2011,7 @@ int pmic_throttling_dlpt_init(struct platform_device *pdev)
 {
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
 	struct device_node *np;
-	u32 val;
+	u32 val = 0;
 #if !defined(CONFIG_BATTERY_SAMSUNG)
 	char *path;
 #endif
@@ -2049,7 +2045,8 @@ int pmic_throttling_dlpt_init(struct platform_device *pdev)
 	pr_info("Get default UNIT_FGCURRENT= %d\n", UNIT_FGCURRENT);
 #endif /* end of #if CONFIG_MTK_GAUGE_VERSION == 30 */
 
-	wakeup_source_init(&ptim_wake_lock, "PTIM_wakelock");
+	//wakeup_source_init(&ptim_wake_lock, "PTIM_wakelock");
+	ptim_wake_lock = wakeup_source_register(NULL, "PTIM_wakelock");
 	mutex_init(&ptim_mutex);
 	/* IMPEDANCE initial setting move to LK */
 

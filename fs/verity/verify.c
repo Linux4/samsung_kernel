@@ -222,7 +222,7 @@ EXPORT_SYMBOL_GPL(fsverity_verify_page);
  */
 void fsverity_verify_bio(struct bio *bio)
 {
-	struct inode *inode = bio->bi_io_vec->bv_page->mapping->host;
+	struct inode *inode = bio_first_page_all(bio)->mapping->host;
 	const struct fsverity_info *vi = inode->i_verity_info;
 	const struct merkle_tree_params *params = &vi->tree_params;
 	struct ahash_request *req;

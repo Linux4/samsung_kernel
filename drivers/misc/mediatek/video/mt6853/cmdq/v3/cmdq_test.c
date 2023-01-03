@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -4725,11 +4718,6 @@ static void testcase_read_with_mask(void)
 	CMDQ_LOG("%s END\n", __func__);
 }
 
-/*
- * Test Global CPR
- * 1. initialize and read should be correct
- * 2. no initialize and read should be correct
- */
 static void testcase_global_variable(void)
 {
 	s32 status = 0;
@@ -4808,11 +4796,6 @@ static void testcase_global_variable(void)
 	CMDQ_LOG("%s END\n", __func__);
 }
 
-/*
- * Test Efficient Polling
- * 1. Polling basic function should work
- * 2. Polling should not block low priority thread
- */
 static void testcase_efficient_polling(void)
 {
 	struct cmdqRecStruct *h_poll, *h_low;

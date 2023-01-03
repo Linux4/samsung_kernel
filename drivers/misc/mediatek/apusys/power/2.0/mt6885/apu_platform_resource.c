@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #include <linux/err.h>
@@ -127,10 +119,14 @@ struct hal_param_init_power *init_power_data)
 	LOG_INF("%s apusys_vcore = 0x%p, size = %d\n", __func__,
 				init_power_data->vcore_base_addr,
 				(unsigned int)resource_size(apusys_vcore_res));
-
 	// apusys conn
+#if defined(CONFIG_MACH_MT6893)
 	apusys_conn_node = of_find_compatible_node(NULL, NULL,
-							"mediatek,apu_conn");
+						"mediatek,mt6893-apu_conn");
+#else
+	apusys_conn_node = of_find_compatible_node(NULL, NULL,
+						"mediatek,apu_conn");
+#endif
 	if (apusys_conn_node) {
 		init_power_data->conn_base_addr = of_iomap(
 							apusys_conn_node, 0);
@@ -142,8 +138,13 @@ struct hal_param_init_power *init_power_data)
 	}
 
 	// apusys vpu0
+#if defined(CONFIG_MACH_MT6893)
 	apusys_vpu0_node = of_find_compatible_node(NULL, NULL,
-							"mediatek,apu0");
+						"mediatek,mt6893-apu0");
+#else
+	apusys_vpu0_node = of_find_compatible_node(NULL, NULL,
+						"mediatek,apu0");
+#endif
 	if (apusys_vpu0_node) {
 		init_power_data->vpu0_base_addr = of_iomap(
 							apusys_vpu0_node, 0);
@@ -155,8 +156,13 @@ struct hal_param_init_power *init_power_data)
 	}
 
 	// apusys vpu1
+#if defined(CONFIG_MACH_MT6893)
 	apusys_vpu1_node = of_find_compatible_node(NULL, NULL,
-							"mediatek,apu1");
+						"mediatek,mt6893-apu1");
+#else
+	apusys_vpu1_node = of_find_compatible_node(NULL, NULL,
+						"mediatek,apu1");
+#endif
 	if (apusys_vpu1_node) {
 		init_power_data->vpu1_base_addr = of_iomap(
 							apusys_vpu1_node, 0);
@@ -168,8 +174,13 @@ struct hal_param_init_power *init_power_data)
 	}
 
 	// apusys vpu2
+#if defined(CONFIG_MACH_MT6893)
 	apusys_vpu2_node = of_find_compatible_node(NULL, NULL,
-							"mediatek,apu2");
+						"mediatek,mt6893-apu2");
+#else
+	apusys_vpu2_node = of_find_compatible_node(NULL, NULL,
+						"mediatek,apu2");
+#endif
 	if (apusys_vpu2_node) {
 		init_power_data->vpu2_base_addr = of_iomap(
 							apusys_vpu2_node, 0);
@@ -181,8 +192,13 @@ struct hal_param_init_power *init_power_data)
 	}
 
 	// apusys mdla0
+#if defined(CONFIG_MACH_MT6893)
 	apusys_mdla0_node = of_find_compatible_node(NULL, NULL,
-							"mediatek,apu_mdla0");
+						"mediatek,mt6893-apu_mdla0");
+#else
+	apusys_mdla0_node = of_find_compatible_node(NULL, NULL,
+						"mediatek,apu_mdla0");
+#endif
 	if (apusys_mdla0_node) {
 		init_power_data->mdla0_base_addr = of_iomap(
 							apusys_mdla0_node, 0);
@@ -194,8 +210,13 @@ struct hal_param_init_power *init_power_data)
 	}
 
 	// apusys mdla1
+#if defined(CONFIG_MACH_MT6893)
 	apusys_mdla1_node = of_find_compatible_node(NULL, NULL,
-							"mediatek,apu_mdla1");
+						"mediatek,mt6893-apu_mdla1");
+#else
+	apusys_mdla1_node = of_find_compatible_node(NULL, NULL,
+						"mediatek,apu_mdla1");
+#endif
 	if (apusys_mdla1_node) {
 		init_power_data->mdla1_base_addr = of_iomap(
 							apusys_mdla1_node, 0);

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/delay.h>
 #include <linux/sched.h>
@@ -80,9 +72,11 @@
 
 #include "ddp_clkmgr.h"
 #ifdef MTK_FB_MMDVFS_SUPPORT
-//#include "mmdvfs_mgr.h"
-#include "mtk_vcorefs_governor.h"
-#include "mtk_vcorefs_manager.h"
+#ifdef CONFIG_MTK_SMI_EXT
+#include "mmdvfs_mgr.h"
+#endif
+/* #include "mtk_vcorefs_governor.h" */
+/* #include "mtk_vcorefs_manager.h" */
 #endif
 
 #include "ddp_disp_bdg.h"
@@ -97,7 +91,7 @@
 #include "ddp_aal.h"
 #include "ddp_gamma.h"
 #ifdef MTK_FB_MMDVFS_SUPPORT
-#include <linux/pm_qos.h>
+#include <linux/soc/mediatek/mtk-pm-qos.h>
 #endif
 #include "mtk_notify.h"
 
@@ -154,21 +148,15 @@ static struct task_struct *primary_delay_trigger_task;
 static struct task_struct *primary_od_trigger_task;
 static struct task_struct *decouple_update_rdma_config_thread;
 static struct task_struct *decouple_trigger_thread;
-#if defined(CONFIG_SMCDSD_PANEL)
-static struct task_struct *framedone_thread;
-#endif
 static struct task_struct *init_decouple_buffer_thread;
 #ifdef MTK_FB_MMDVFS_SUPPORT
-struct pm_qos_request primary_display_qos_request;
-struct pm_qos_request primary_display_emi_opp_request;
-struct pm_qos_request primary_display_mm_freq_request;
+struct mtk_pm_qos_request primary_display_qos_request;
+struct mtk_pm_qos_request primary_display_emi_opp_request;
+struct mtk_pm_qos_request primary_display_mm_freq_request;
 #endif
 
 static int decouple_mirror_update_rdma_config_thread(void *data);
 static int decouple_trigger_worker_thread(void *data);
-#if defined(CONFIG_SMCDSD_PANEL)
-static int framedone_worker_thread(void *data);
-#endif
 
 struct task_struct *primary_display_frame_update_task;
 wait_queue_head_t primary_display_frame_update_wq;
@@ -230,7 +218,7 @@ static int primary_display_get_round_corner_mva(
 
 /* Must manipulate wake lock through lock_primary_wake_lock() */
 /* hold the wakelock to make kernel awake when primary display is on*/
-struct wakeup_source pri_wk_lock;
+struct wakeup_source* pri_wk_lock;
 
 /*DynFPS for debug*/
 bool g_force_cfg;
@@ -246,13 +234,13 @@ void lock_primary_wake_lock(bool lock)
 			DISPMSG("wake lock already held...\n");
 		else {
 			DISPMSG("hold the wakelock...\n");
-			__pm_stay_awake(&pri_wk_lock);
+			__pm_stay_awake(pri_wk_lock);
 			is_locked = 1;
 		}
 	} else {
 		if (is_locked) {
 			DISPMSG("release wakelock...\n");
-			__pm_relax(&pri_wk_lock);
+			__pm_relax(pri_wk_lock);
 			is_locked = 0;
 		} else
 			DISPMSG("wake lock already free...\n");
@@ -3154,11 +3142,6 @@ unsigned int cmdqDdpDumpInfo(uint64_t engineFlag, char *pOutBuf,
 
 	ddp_dump_analysis(DISP_MODULE_WDMA0);
 
-#if !defined(CONFIG_SEC_FACTORY) && defined(CONFIG_SMCDSD_PANEL_A13VE)
-	if (islcmconnected)
-		BUG();
-#endif
-
 	return 0;
 }
 
@@ -3496,7 +3479,7 @@ static int _ovl_fence_release_callback(unsigned long userdata)
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_START,
 			!primary_display_is_decouple_mode(), bandwidth);
-	pm_qos_update_request(&primary_display_qos_request, bandwidth);
+	mtk_pm_qos_update_request(&primary_display_qos_request, bandwidth);
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_END,
 			!primary_display_is_decouple_mode(), bandwidth);
@@ -3916,11 +3899,12 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 			disp_helper_get_option(DISP_OPT_FPS_EXT_INTERVAL));
 
 #ifdef MTK_FB_MMDVFS_SUPPORT
-	pm_qos_add_request(&primary_display_qos_request,
-		PM_QOS_MM_MEMORY_BANDWIDTH, PM_QOS_DEFAULT_VALUE);
-	pm_qos_add_request(&primary_display_emi_opp_request,
-		PM_QOS_DDR_OPP, PM_QOS_DDR_OPP_DEFAULT_VALUE);
-	pm_qos_add_request(&primary_display_mm_freq_request,
+	mtk_pm_qos_add_request(&primary_display_qos_request,
+		MTK_PM_QOS_MEMORY_BANDWIDTH,
+		MTK_PM_QOS_MEMORY_BANDWIDTH_DEFAULT_VALUE);
+	mtk_pm_qos_add_request(&primary_display_emi_opp_request,
+		MTK_PM_QOS_DDR_OPP, MTK_PM_QOS_DDR_OPP_DEFAULT_VALUE);
+	mtk_pm_qos_add_request(&primary_display_mm_freq_request,
 		PM_QOS_DISP_FREQ, PM_QOS_MM_FREQ_DEFAULT_VALUE);
 #endif
 
@@ -4178,15 +4162,6 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 				NULL, "decouple_trigger");
 		wake_up_process(decouple_trigger_thread);
 	}
-#if defined(CONFIG_SMCDSD_PANEL)
-	if (framedone_thread == NULL) {
-		init_waitqueue_head(&pgc->framedone_wait);
-		framedone_thread =
-			kthread_create(framedone_worker_thread,
-				NULL, "primary_framedone");
-		wake_up_process(framedone_thread);
-	}
-#endif
 
 	if (disp_helper_get_stage() == DISP_HELPER_STAGE_NORMAL) {
 		primary_path_aal_task =
@@ -4260,7 +4235,6 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 
 	pgc->lcm_fps = lcm_fps;
 	pgc->lcm_refresh_rate = 60;
-	pgc->vfp_chg_sync_bdg = false;
 	/* keep lowpower init after setting lcm_fps */
 	primary_display_lowpower_init();
 
@@ -4278,13 +4252,14 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 #endif
 	uevent_data.name = "lcm_disconnect";
 	uevent_dev_register(&uevent_data);
+	mtk_notifier_activate();
 
 	DISPCHECK("%s done\n", __func__);
 
 done:
-	DISPCHECK("init and hold wakelock...\n");
-	wakeup_source_init(&pri_wk_lock, "pri_disp_wakelock");
-	lock_primary_wake_lock(1);
+	DISPDBG("init and hold wakelock...\n");
+	pri_wk_lock = wakeup_source_register(NULL, "pri_disp_wakelock");
+	__pm_stay_awake(pri_wk_lock);
 
 	if (disp_helper_get_stage() != DISP_HELPER_STAGE_NORMAL)
 		primary_display_diagnose();
@@ -4555,9 +4530,9 @@ int primary_display_deinit(void)
 	_primary_path_unlock(__func__);
 
 #ifdef MTK_FB_MMDVFS_SUPPORT
-	pm_qos_remove_request(&primary_display_qos_request);
-	pm_qos_remove_request(&primary_display_emi_opp_request);
-	pm_qos_remove_request(&primary_display_mm_freq_request);
+	mtk_pm_qos_remove_request(&primary_display_qos_request);
+	mtk_pm_qos_remove_request(&primary_display_emi_opp_request);
+	mtk_pm_qos_remove_request(&primary_display_mm_freq_request);
 #endif
 
 	return 0;
@@ -4758,14 +4733,6 @@ int primary_display_suspend(void)
 #if defined(CONFIG_MTK_VSYNC_PRINT)
 	disp_unregister_irq_callback(vsync_print_handler);
 #endif
-#if defined(CONFIG_SMCDSD_PANEL)
-	if (pgc->need_framedone_notify) {
-		primary_display_idlemgr_kick(__func__, 0);
-		pr_info("[SEC_MASK] %s: force notify to LCM.\n", __func__);
-		disp_lcm_framedone_notify(pgc->plcm);
-		pgc->need_framedone_notify = 0;
-	}
-#endif
 	DISPCHECK("%s begin\n", __func__);
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_suspend,
 		MMPROFILE_FLAG_START, 0, 0);
@@ -4808,12 +4775,6 @@ int primary_display_suspend(void)
 		DISPWARN("primary display path is already sleep, skip\n");
 		goto done;
 	}
-
-	if (dpmgr_get_power_status(pgc->dpmgr_handle) == 0) {
-		DISPWARN("primary display power state is already off, skip\n");
-		goto done;
-	}
-
 	primary_display_idlemgr_kick(__func__, 0);
 
 	if (pgc->session_mode == DISP_SESSION_RDMA_MODE) {
@@ -4949,7 +4910,7 @@ int primary_display_suspend(void)
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_START,
 			!primary_display_is_decouple_mode(), 0);
-	pm_qos_update_request(&primary_display_qos_request, 0);
+	mtk_pm_qos_update_request(&primary_display_qos_request, 0);
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_END,
 			!primary_display_is_decouple_mode(), 0);
@@ -4991,9 +4952,11 @@ done:
 	disp_sw_mutex_unlock(&(pgc->capture_lock));
 	_primary_path_switch_dst_unlock();
 
+#if 0
 #ifdef CONFIG_MTK_AEE_FEATURE
 	aee_kernel_wdt_kick_Powkey_api("mtkfb_early_suspend",
 		WDT_SETBY_Display);
+#endif
 #endif
 	primary_trigger_cnt = 0;
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_suspend,
@@ -5465,7 +5428,7 @@ int primary_display_resume(void)
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_START,
 			!primary_display_is_decouple_mode(), bandwidth);
-	pm_qos_update_request(&primary_display_qos_request, bandwidth);
+	mtk_pm_qos_update_request(&primary_display_qos_request, bandwidth);
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_END,
 			!primary_display_is_decouple_mode(), bandwidth);
@@ -5533,9 +5496,11 @@ done:
 #endif
 	DISPMSG("skip_update:%d\n", skip_update);
 
+#if 0
 #ifdef CONFIG_MTK_AEE_FEATURE
 	aee_kernel_wdt_kick_Powkey_api("mtkfb_late_resume",
 		WDT_SETBY_Display);
+#endif
 #endif
 #if defined(CONFIG_MTK_VSYNC_PRINT)
 	disp_register_irq_callback(vsync_print_handler);
@@ -5917,12 +5882,14 @@ static int primary_display_trigger_nolock(int blocking, void *callback,
 	atomic_set(&delayed_trigger_kick, 1);
 
 done:
+#if 0
 #ifdef CONFIG_MTK_AEE_FEATURE
 	if ((primary_trigger_cnt > 1) && aee_kernel_Powerkey_is_press()) {
 		aee_kernel_wdt_kick_Powkey_api("primary_display_trigger",
 			WDT_SETBY_Display);
 		primary_trigger_cnt = 0;
 	}
+#endif
 #endif
 	if (pgc->session_id > 0)
 		update_frm_seq_info(0, 0, 0, FRM_TRIGGER);
@@ -5973,26 +5940,6 @@ static int decouple_trigger_worker_thread(void *data)
 	return 0;
 }
 
-#if defined(CONFIG_SMCDSD_PANEL)
-static int framedone_worker_thread(void *data)
-{
-	struct sched_param param = {.sched_priority = 94 };
-
-	sched_setscheduler(current, SCHED_RR, &param);
-
-	while (!kthread_should_stop()) {
-		ktime_t timestamp = pgc->framedone_timestamp;
-		int ret = wait_event_interruptible(pgc->framedone_wait,
-				(timestamp != pgc->framedone_timestamp));
-		if (!ret) {
-			disp_lcm_framedone_notify(pgc->plcm);
-			pgc->need_framedone_notify = 0;
-		}
-	}
-
-	return 0;
-}
-#endif
 static int config_wdma_output(disp_path_handle disp_handle,
 	struct cmdqRecStruct *cmdq_handle,
 	struct disp_output_config *output)
@@ -7385,12 +7332,6 @@ int primary_display_frame_cfg(struct disp_frame_cfg_t *cfg)
 	struct disp_session_sync_info *session_info =
 		disp_get_session_sync_info_for_debug(cfg->session_id);
 	struct dprec_logger_event *input_event, *output_event, *trigger_event;
-#if defined(CONFIG_SMCDSD_PANEL)
-	bool hbm_change = 0;
-#ifdef CONFIG_MTK_HIGH_FRAME_RATE
-	bool fps_change = 0;
-#endif
-#endif
 
 	if (session_info) {
 		input_event = &session_info->event_setinput;
@@ -7399,18 +7340,6 @@ int primary_display_frame_cfg(struct disp_frame_cfg_t *cfg)
 	} else {
 		input_event = output_event = trigger_event = NULL;
 	}
-#if defined(CONFIG_SMCDSD_PANEL)
-	hbm_change = primary_display_is_hbm_change(cfg->hbm_en);
-#ifdef CONFIG_MTK_HIGH_FRAME_RATE
-	if (primary_display_is_support_DynFPS())
-		fps_change = primary_display_is_chg_fps(cfg->active_config);
-	if (hbm_change || fps_change)
-		disp_lcm_path_lock(1, pgc->plcm);
-#else
-	if (hbm_change)
-		disp_lcm_path_lock(1, pgc->plcm);
-#endif
-#endif
 
 	_primary_path_lock(__func__);
 
@@ -7483,15 +7412,6 @@ int primary_display_frame_cfg(struct disp_frame_cfg_t *cfg)
 	dprec_done(trigger_event, 0, 0);
 
 	_primary_path_unlock(__func__);
-#if defined(CONFIG_SMCDSD_PANEL)
-#ifdef CONFIG_MTK_HIGH_FRAME_RATE
-	if (hbm_change || fps_change)
-		disp_lcm_path_lock(0, pgc->plcm);
-#else
-	if (hbm_change)
-		disp_lcm_path_lock(0, pgc->plcm);
-#endif
-#endif
 	return ret;
 }
 
@@ -8479,115 +8399,6 @@ int _set_backlight_by_cpu(unsigned int level)
 	return ret;
 }
 
-#if defined(CONFIG_SMCDSD_PANEL)
-static int _primary_display_set_lcm_hbm(bool en)
-{
-	int ret = 0;
-	pr_info("[SEC_MASK] %s: %s ++\n", __func__, en ? "[on]" : "[off]");
-
-	if (ret) {
-		DISPMSG("%s:failed to create cmdq handle\n", __func__);
-		return -1;
-	}
-
-	if (!primary_display_is_video_mode()) {
-		/* wait for TE */
-		pr_info("[SEC_MASK] %s TE wait berfor pre command. (0)\n", __func__);
-		dpmgr_wait_event_timeout(pgc->dpmgr_handle,
-			DISP_PATH_EVENT_IF_VSYNC, HZ);
-		pr_info("[SEC_MASK] %s TE arrived. (0)\n", __func__);
-
-		/* Stack MIPI cmd for HBM on qhandle_hbm */
-		disp_lcm_set_hbm(en, pgc->plcm, NULL);
-	}
-
-	pr_info("[SEC_MASK] %s done.\n", __func__);
-
-	return ret;
-}
-
-bool primary_display_is_hbm_change(bool en)
-{
-	int state = 0;
-
-	state = disp_lcm_get_hbm_state(pgc->plcm);
-	if (state == -1)
-		return 0;
-	else if (state == en)
-		return 0;
-
-	return true;
-}
-
-int primary_display_set_lcm_hbm(bool en)
-{
-	int state = 0;
-
-	state = disp_lcm_get_hbm_state(pgc->plcm);
-	if (state == -1)
-		return -EINVAL;
-	else if (state == en)
-		return 0;
-
-	if (disp_helper_get_stage() != DISP_HELPER_STAGE_NORMAL) {
-		DISPMSG("%s: skip, stage:%s\n", __func__,
-			disp_helper_stage_spy());
-		return 0;
-	}
-	if (pgc->state == DISP_SLEPT) {
-		DISPMSG("%s: skip, slept\n", __func__);
-		return 0;
-	}
-
-	primary_display_idlemgr_kick(__func__, 0);
-	if (primary_display_cmdq_enabled()) {
-		pr_info("[SEC_MASK] %s: set LCM hbm en:%d\n", __func__, en);
-		_primary_display_set_lcm_hbm(en);
-		/* Wait for HBM ready */
-		disp_lcm_set_hbm_wait(true, pgc->plcm);
-		/* After framdone, notity */
-#if defined(CONFIG_SMCDSD_PANEL)
-		pgc->need_framedone_notify = 1;
-#endif
-	}
-
-
-	return 0;
-}
-
-int primary_display_hbm_wait(bool en)
-{
-	int wait = 0;
-	unsigned int wait_count = 0;
-	unsigned int total_count = 0;
-
-	wait = disp_lcm_get_hbm_wait(pgc->plcm);
-	if (wait == -1)
-		return -EINVAL;
-	else if (wait != 1)
-		return 0;
-
-	total_count = wait_count = disp_lcm_get_hbm_wait_frame(en, pgc->plcm);
-
-	if (wait_count == -1)
-		return -EINVAL;
-
-	pr_info("LCM hbm %s wait %u-TE\n", en ? "enable" : "disable",
-		wait_count);
-
-	while (wait_count) {
-		wait_count--;
-		pr_info("[SEC_MASK] %s TE wait. (%d).\n", __func__, total_count - wait_count, total_count);
-		primary_display_idlemgr_kick(__func__, 0);
-		dpmgr_wait_event_timeout(pgc->dpmgr_handle,
-			DISP_PATH_EVENT_IF_VSYNC, HZ);
-		pr_info("[SEC_MASK] %s TE arrived. (%d).\n", __func__, total_count - wait_count, total_count);
-	}
-
-	disp_lcm_set_hbm_wait(false, pgc->plcm);
-	return 0;
-}
-#else
 static int _primary_display_set_lcm_hbm(bool en)
 {
 	int ret = 0;
@@ -8674,7 +8485,6 @@ int primary_display_hbm_wait(bool en)
 	disp_lcm_set_hbm_wait(false, pgc->plcm);
 	return 0;
 }
-#endif
 
 int primary_display_setbacklight_nolock(unsigned int level)
 {
@@ -9150,6 +8960,7 @@ int primary_display_capture_framebuffer_ovl(unsigned long pbuf,
 
 	disp_sw_mutex_lock(&(pgc->capture_lock));
 
+#if 0 //m4u_cache_sync disabled now? add by SI
 #ifdef CONFIG_MTK_M4U
 	if (primary_display_is_sleepd()) {
 		memset((void *)pbuf, 0, buffer_size);
@@ -9199,6 +9010,7 @@ out:
 	if (m4uClient != 0)
 		m4u_destroy_client(m4uClient);
 #endif
+#endif //phase out
 	disp_sw_mutex_unlock(&(pgc->capture_lock));
 	DISPMSG("primary capture: end\n");
 	return ret;
@@ -10068,7 +9880,7 @@ static struct DDP_MODULE_DRIVER *ddp_module_backup;
 int display_vsync_switch_to_dsi(unsigned int flg)
 {
 	if (!primary_display_is_video_mode()) {
-		/* Handling for CMD mode */
+	/* Handling for CMD mode */
 		if (flg)
 			is_tui_started = true;
 		else
@@ -10303,42 +10115,6 @@ unsigned int primary_display_get_idle_interval(unsigned int fps)
 
 #ifdef CONFIG_MTK_HIGH_FRAME_RATE
 /*-----------------DynFPS start-------------------------------*/
-#if defined(CONFIG_SMCDSD_PANEL)
-bool primary_display_is_chg_fps(int cfg_id)
-{
-	int last_cfg_id;
-	unsigned int new_dynfps;
-	unsigned int last_dynfps;
-	bool need_send_cmd = false;
-
-	/*1,check whether fps changed*/
-	/*last_cfg_id = pgc->active_cfg;*/
-	last_cfg_id = primary_display_get_current_cfg_id();
-
-	if (cfg_id == last_cfg_id)
-		return false;
-
-	primary_display_get_cfg_fps(last_cfg_id, &last_dynfps, NULL);
-	primary_display_get_cfg_fps(cfg_id, &new_dynfps, NULL);
-
-	if (new_dynfps == last_dynfps)
-		return false;
-
-	DISPMSG("%s,cfg_id:%d -> %d\n", __func__, last_cfg_id, cfg_id);
-	DISPMSG("%s,fps:%d -> %d\n", __func__, last_dynfps, new_dynfps);
-	/*2, do fps change*/
-	/* Only support CMD mode fps switch without mipi clock switching */
-
-	if (pgc->plcm == NULL) {
-		DISPMSG("lcm handle is null\n");
-		ASSERT(0);
-	}
-
-	need_send_cmd = disp_lcm_need_send_cmd(pgc->plcm, last_dynfps, new_dynfps);
-
-	return need_send_cmd;
-}
-#endif
 unsigned int primary_display_is_support_DynFPS(void)
 {
 
@@ -10705,7 +10481,9 @@ void primary_display_dynfps_chg_fps(int cfg_id)
 	pgc->lcm_fps = new_dynfps;
 
 	DISPMSG("%s,done\n", __func__);
-
+	mtk_notifier_call_chain(MTK_FPS_CHANGE, (void *)&pgc->lcm_refresh_rate);
+	mmprofile_log_ex(ddp_mmp_get_events()->primary_switch_fps,
+		MMPROFILE_FLAG_END, 0, 3);
 }
 
 void primary_display_dynfps_get_vfp_info(

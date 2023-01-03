@@ -1,14 +1,18 @@
 #
 # Ilitek ili9881x touchscreen driver configuration
 #
-config TOUCHSCREEN_ILITEK_ILI9881X
+menuconfig TOUCHSCREEN_ILITEK_ILI9881X
 	bool "Ilitek ili9881x touchscreen"
 	default n
 	help
 	  Say Y here if you have a Synaptics TCM touchscreen connected
 	  to your system.
 
+	  If unsure, say N.
+
+if TOUCHSCREEN_ILITEK_ILI9881X
+
 config TOUCHSCREEN_ILITEK_ILI9881X_SPI
 	bool "SPI"
 	depends on SPI_MASTER
-
+endif

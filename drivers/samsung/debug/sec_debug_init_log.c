@@ -1,7 +1,7 @@
 /*
  * sec_debug_init_log.c
  *
- * Copyright (c) 2016 Samsung Electronics Co., Ltd
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd
  *              http://www.samsung.com
  *
  *  This program is free software; you can redistribute  it and/or modify it
@@ -12,10 +12,13 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/memblock.h>
+#include <linux/of.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/sec_debug.h>
 
-static u32 __initdata init_log_base = SEC_INIT_LOG_BASE;
-static u32 __initdata init_log_size = SZ_2M;
+static u32 init_log_base;
+static u32 init_log_size;
 
 extern void register_init_log_hook_func(void (*func)(const char *buf, size_t size));
 static char *buf_ptr;
@@ -39,6 +42,13 @@ static void secdbg_hook_init_log(const char *str, size_t size)
 
 static int __init secdbg_hook_init_log_init(void)
 {
+	struct reserved_mem *rmem;
+
+	rmem = sec_log_get_rmem("samsung,sec-initlog");
+  
+	init_log_base = rmem->base;
+	init_log_size = rmem->size;
+
 	pr_err("%s: start\n", __func__);
 
 	buf_ptr = persistent_ram_vmap((phys_addr_t)init_log_base, (phys_addr_t)init_log_size, 0);

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __MT_EMI_H__
 #define __MT_EMI_H__
@@ -22,7 +14,7 @@
 #define DECS_ON_SSPM
 #define MPU_BYPASS
 #define ISU_VER_CTRL
-#define ENABLE_MPU_SLVERR
+/* #define ENABLE_MPU_SLVERR */
 #define DBG_INFO_READY	1
 #define ENABLE_EMI_DEBUG_API
 

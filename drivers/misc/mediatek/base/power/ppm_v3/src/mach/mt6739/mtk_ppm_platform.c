@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/slab.h>
 #include <linux/string.h>
@@ -132,6 +124,10 @@ static int ppm_cpu_up(unsigned int cpu)
 
 	return 0;
 }
+int __attribute__((weak)) get_immediate_cpuL_wrap(void)
+{
+	return 0;
+}
 
 #ifdef CONFIG_THERMAL
 static unsigned int ppm_get_cpu_temp(enum ppm_cluster cluster)
@@ -140,7 +136,7 @@ static unsigned int ppm_get_cpu_temp(enum ppm_cluster cluster)
 
 	switch (cluster) {
 	case PPM_CLUSTER_LL:
-		temp = get_immediate_cpu_wrap() / 1000;
+		temp = get_immediate_cpuL_wrap() / 1000;
 		break;
 	default:
 		ppm_err("@%s: invalid cluster id = %d\n", __func__, cluster);

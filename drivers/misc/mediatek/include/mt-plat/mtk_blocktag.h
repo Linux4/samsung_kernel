@@ -57,6 +57,7 @@ enum {
 	BTAG_STORAGE_UNKNOWN = 2
 };
 
+
 struct mtk_btag_workload {
 	__u64 period;  /* period time (ns) */
 	__u64 usage;   /* busy time (ns) */
@@ -121,7 +122,6 @@ struct mtk_btag_mictx_struct {
 	__u64 idle_begin;
 	__u64 idle_begin_top;
 	__u64 idle_total;
-	__u64 idle_total_top;
 	__u64 weighted_qd;
 	__u32 top_r_pages;
 	__u32 top_w_pages;
@@ -153,6 +153,7 @@ struct mtk_btag_pidlogger_entry_rw {
 
 struct mtk_btag_pidlogger_entry {
 	__u16 pid;
+	char comm[TASK_COMM_LEN];
 	struct mtk_btag_pidlogger_entry_rw r; /* read */
 	struct mtk_btag_pidlogger_entry_rw w; /* write */
 };
@@ -222,6 +223,7 @@ struct mtk_blocktag {
 		struct proc_dir_entry *droot;
 		struct proc_dir_entry *dlog;
 		struct proc_dir_entry *dlog_mictx;
+		struct proc_dir_entry *dindex;
 	} dentry;
 
 	struct mtk_btag_vops *vops;
@@ -235,22 +237,14 @@ struct mtk_blocktag {
 struct mtk_blocktag *mtk_btag_alloc(const char *name,
 	unsigned int ringtrace_count, size_t ctx_size, unsigned int ctx_count,
 	struct mtk_btag_vops *vops);
-void mtk_btag_free(struct mtk_blocktag *btag);
-#if IS_ENABLED(CONFIG_SCHED_TUNE)
 void mtk_btag_earaio_boost(bool boost);
-#else
-#define mtk_btag_earaio_boost(...)
-#endif
+void mtk_btag_free(struct mtk_blocktag *btag);
 
 struct mtk_btag_trace *mtk_btag_curr_trace(struct mtk_btag_ringtrace *rt);
 struct mtk_btag_trace *mtk_btag_next_trace(struct mtk_btag_ringtrace *rt);
 
-#ifdef CONFIG_MMC_BLOCK_IO_LOG
 int mtk_btag_pidlog_add_mmc(struct request_queue *q, pid_t pid, __u32 len,
 	int rw);
-#else
-#define mtk_btag_pidlog_add_mmc(...)
-#endif
 #ifdef CONFIG_MTK_UFS_BLOCK_IO_LOG
 int mtk_btag_pidlog_add_ufs(struct request_queue *q, short pid, __u32 len,
 	int rw);
@@ -259,7 +253,8 @@ int mtk_btag_pidlog_add_ufs(struct request_queue *q, short pid, __u32 len,
 #endif
 void mtk_btag_pidlog_insert(struct mtk_btag_pidlogger *pidlog, pid_t pid,
 __u32 len, int rw);
-
+void mtk_mq_btag_pidlog_insert(struct mtk_btag_pidlogger *pidlog, pid_t pid,
+	__u32 len, int write, bool ext_sd);
 void mtk_btag_cpu_eval(struct mtk_btag_cpu *cpu);
 void mtk_btag_pidlog_eval(struct mtk_btag_pidlogger *pl,
 	struct mtk_btag_pidlogger *ctx_pl);
@@ -278,6 +273,7 @@ void mtk_btag_pidlog_set_pid(struct page *p, int mode, bool write);
 void mtk_btag_pidlog_set_pid_pages(struct page **page, int page_cnt,
 				   int mode, bool write);
 
+
 void mtk_btag_mictx_enable(int enable);
 void mtk_btag_mictx_eval_tp(
 	struct mtk_blocktag *btag,
@@ -288,6 +284,9 @@ void mtk_btag_mictx_eval_req(
 int mtk_btag_mictx_get_data(
 	struct mtk_btag_mictx_iostat_struct *iostat);
 void mtk_btag_mictx_update_ctx(struct mtk_blocktag *btag, __u32 q_depth);
+
+void rs_index_init(struct mtk_blocktag *btag,
+		   struct proc_dir_entry *parent);
 
 #else
 
@@ -302,6 +301,8 @@ void mtk_btag_mictx_update_ctx(struct mtk_blocktag *btag, __u32 q_depth);
 #define mtk_btag_mictx_eval_req(...)
 #define mtk_btag_mictx_get_data(...)
 #define mtk_btag_mictx_update_ctx(...)
+
+#define rs_index_init(...)
 
 #endif
 

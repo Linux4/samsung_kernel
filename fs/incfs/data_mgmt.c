@@ -1145,7 +1145,9 @@ static int wait_for_data_block(struct data_file *df, int block_index,
 	mi = df->df_mount_info;
 	segment = get_file_segment(df, block_index);
 
-	down_read(&segment->rwsem);
+	error = down_read_killable(&segment->rwsem);
+	if (error)
+		return error;
 
 	/* Look up the given block */
 	error = get_data_file_block(df, block_index, &block);
@@ -1215,7 +1217,9 @@ static int wait_for_data_block(struct data_file *df, int block_index,
 			return error;
 	}
 
-	down_read(&segment->rwsem);
+	error = down_read_killable(&segment->rwsem);
+	if (error)
+		return error;
 
 	/*
 	 * Re-read blocks info now, it has just arrived and
@@ -1382,7 +1386,9 @@ int incfs_process_new_data_block(struct data_file *df,
 	else if (block->compression)
 		return -EINVAL;
 
-	down_read(&segment->rwsem);
+	error = down_read_killable(&segment->rwsem);
+	if (error)
+		return error;
 
 	error = get_data_file_block(df, block->block_index, &existing_block);
 

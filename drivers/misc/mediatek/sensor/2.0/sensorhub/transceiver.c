@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2020 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 #define pr_fmt(fmt) "transceiver " fmt
@@ -64,15 +56,18 @@ struct transceiver_device {
 	struct share_mem_data shm_buffer[8];
 	struct share_mem shm_super_reader;
 	struct share_mem_super_data shm_super_buffer[4];
-	struct wakeup_source wakeup_src;
+	struct wakeup_source *wakeup_src;
 	int64_t raw_ts_reverse_debug[SENSOR_TYPE_SENSOR_MAX];
 	int64_t comp_ts_reverse_debug[SENSOR_TYPE_SENSOR_MAX];
 
 	atomic_t first_bootup;
+	atomic_t normal_wp_dropped;
+	atomic_t super_wp_dropped;
 	struct task_struct *task;
 };
 
 static struct transceiver_device transceiver_dev;
+static DEFINE_RATELIMIT_STATE(ratelimit, 5 * HZ, 10);
 DEFINE_SPINLOCK(transceiver_fifo_lock);
 DECLARE_COMPLETION(transceiver_done);
 DEFINE_KFIFO(transceiver_fifo, uint32_t, 32);
@@ -84,22 +79,35 @@ static void transceiver_notify_func(struct sensor_comm_notify *n,
 	uint32_t wp = 0;
 	struct transceiver_device *dev = private_data;
 	struct data_notify *dnotify = (struct data_notify *)n->value;
+	uint64_t start_time = 0, end_time = 0, timeout_ns = 5000000;
+	uint64_t wait_spin_lock_end_time = 0, timesync_end_time = 0;
+	uint64_t kfifo_end_time = 0, complete_end_time = 0;
 
 	if (n->command != SENS_COMM_NOTIFY_DATA_CMD &&
 	    n->command != SENS_COMM_NOTIFY_FULL_CMD)
 		return;
 
+	start_time = ktime_get_boottime_ns();
 	spin_lock(&transceiver_fifo_lock);
+	wait_spin_lock_end_time = ktime_get_boottime_ns();
 	timesync_filter_set(&dev->filter,
 		dnotify->scp_timestamp, dnotify->scp_archcounter);
+	timesync_end_time = ktime_get_boottime_ns();
 	if (kfifo_is_full(&transceiver_fifo)) {
 		if (kfifo_out(&transceiver_fifo, &wp, 1))
-			pr_err_ratelimited("drop normal write position\n");
+			atomic_inc(&dev->normal_wp_dropped);
 	}
 	wp = dnotify->write_position;
 	kfifo_in(&transceiver_fifo, &wp, 1);
+	kfifo_end_time = ktime_get_boottime_ns();
 	complete(&transceiver_done);
+	complete_end_time = ktime_get_boottime_ns();
 	spin_unlock(&transceiver_fifo_lock);
+	end_time = ktime_get_boottime_ns();
+	if (end_time - start_time > timeout_ns && __ratelimit(&ratelimit))
+		printk_deferred("time monitor:%llu, %llu, %llu, %llu, %llu, %llu\n",
+			start_time, wait_spin_lock_end_time, timesync_end_time,
+			kfifo_end_time, complete_end_time, end_time);
 }
 
 static void transceiver_super_notify_func(struct sensor_comm_notify *n,
@@ -118,7 +126,7 @@ static void transceiver_super_notify_func(struct sensor_comm_notify *n,
 		dnotify->scp_timestamp, dnotify->scp_archcounter);
 	if (kfifo_is_full(&transceiver_super_fifo)) {
 		if (kfifo_out(&transceiver_super_fifo, &wp, 1))
-			pr_err_ratelimited("drop super write position\n");
+			atomic_inc(&dev->super_wp_dropped);
 	}
 	wp = dnotify->write_position;
 	kfifo_in(&transceiver_super_fifo, &wp, 1);
@@ -239,7 +247,7 @@ static void transceiver_report(struct transceiver_device *dev,
 	do {
 		if (action != FLUSH_ACTION) {
 			if (need_wakeup)
-				__pm_wakeup_event(&dev->wakeup_src, 250);
+				__pm_wakeup_event(dev->wakeup_src, 250);
 			ret = manager->report(manager, event);
 		} else {
 			/*
@@ -483,11 +491,21 @@ static int transceiver_thread(void *data)
 {
 	int ret = 0;
 	struct transceiver_device *dev = data;
+	int32_t normal_wp_dropped = 0, super_wp_dropped = 0;
 
 	while (!kthread_should_stop()) {
 		ret = wait_for_completion_interruptible(&transceiver_done);
 		if (ret)
 			continue;
+
+		normal_wp_dropped = atomic_xchg(&dev->normal_wp_dropped, 0);
+		super_wp_dropped = atomic_xchg(&dev->super_wp_dropped, 0);
+		if (unlikely(normal_wp_dropped))
+			pr_err_ratelimited("drop normal write position:%u\n",
+				normal_wp_dropped);
+		if (unlikely(super_wp_dropped))
+			pr_err_ratelimited("drop super write position:%u\n",
+				super_wp_dropped);
 		transceiver_process(dev);
 		transceiver_process_super(dev);
 	}
@@ -831,8 +849,15 @@ static int __init transceiver_init(void)
 	mutex_init(&dev->enable_lock);
 	mutex_init(&dev->flush_lock);
 	mutex_init(&dev->config_lock);
-	wakeup_source_init(&dev->wakeup_src, "trans_data");
+	dev->wakeup_src = wakeup_source_register(NULL, "trans_data");
+	if (!dev->wakeup_src) {
+		pr_err("trans_data wakeup source register fail\n");
+		return -ENOMEM;
+	}
+
 	atomic_set(&dev->first_bootup, true);
+	atomic_set(&dev->normal_wp_dropped, 0);
+	atomic_set(&dev->super_wp_dropped, 0);
 
 	memset(&dev->hf_dev, 0, sizeof(dev->hf_dev));
 	dev->hf_dev.dev_name = "transceiver";
@@ -965,6 +990,7 @@ out_sensor_comm:
 	sensor_comm_exit();
 out_device:
 	hf_device_unregister(&dev->hf_dev);
+	wakeup_source_unregister(dev->wakeup_src);
 	return ret;
 }
 
@@ -989,6 +1015,7 @@ static void __exit transceiver_exit(void)
 	host_ready_exit();
 	sensor_comm_exit();
 	hf_device_unregister(&dev->hf_dev);
+	wakeup_source_unregister(dev->wakeup_src);
 	transceiver_destroy_manager(dev);
 }
 

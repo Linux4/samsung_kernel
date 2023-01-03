@@ -70,8 +70,6 @@ struct mipi_dsi_lcd_driver {
 extern struct mipi_dsi_lcd_common *g_lcd_common;
 extern unsigned int lcdtype;
 extern unsigned int rx_offset;
-extern unsigned char data_type;
-extern unsigned int gpara_len;
 extern unsigned int islcmconnected;
 
 static inline struct mipi_dsi_lcd_common *get_lcd_common(u32 id)

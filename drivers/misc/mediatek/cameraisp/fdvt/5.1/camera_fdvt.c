@@ -1,14 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
+ * Copyright (c) 2016 MediaTek Inc.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * Author: Ya-Wen Hsu <Ya-Wen.Hsu@mediatek.com>
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 /*****************************************************************************
@@ -291,7 +286,7 @@ static struct tasklet_table fdvt_tasklet[FDVT_IRQ_TYPE_AMOUNT] = {
 
 //struct wake_lock fdvt_wake_lock;
 #ifdef CONFIG_PM_SLEEP
-struct wakeup_source fdvt_wake_lock;
+//struct wakeup_source fdvt_wake_lock;
 #endif /* CONFIG_PM_SLEEP */
 
 static DEFINE_MUTEX(fdvt_mutex);
@@ -383,7 +378,11 @@ static struct FDVT_REQUEST_RING_STRUCT fdvt_req_ring;
 static struct FDVT_CONFIG_STRUCT fdvt_enq_req;
 static struct FDVT_CONFIG_STRUCT fdvt_deq_req;
 static struct cmdq_client *fdvt_clt;
+#if IS_ENABLED(CONFIG_MTK_CAM_SECURITY_SUPPORT)
+#ifdef CMDQ_MTEE
 static struct cmdq_client *fdvt_secure_clt;
+#endif
+#endif
 static s32 fdvt_event_id;
 
 /*****************************************************************************
@@ -1656,7 +1655,7 @@ static signed int config_secure_fdvt_hw(struct fdvt_config *basic_config)
 #if !BYPASS_REG
 {
 #if IS_ENABLED(CONFIG_MTK_CAM_SECURITY_SUPPORT)
-
+#ifdef CMDQ_MTEE
 #ifdef FDVT_USE_GCE
 	struct cmdq_pkt *pkt;
 #endif /* FDVT_USE_GCE */
@@ -1884,6 +1883,7 @@ static signed int config_secure_fdvt_hw(struct fdvt_config *basic_config)
 #endif /* __FDVT_KERNEL_PERFORMANCE_MEASURE__ */
 
 #endif
+#endif /* CMDQ_MTEE */
 #endif /* IS_ENABLED(CONFIG_MTK_CAM_SECURITY_SUPPORT) */
 	return 0;
 }
@@ -2342,6 +2342,13 @@ static signed int fdvt_read_reg(FDVT_REG_IO_STRUCT *pRegIo)
 	    pRegIo->count > (FDVT_REG_RANGE >> 2)) {
 		log_err("%s pRegIo->pData is NULL, count:%d!!",
 			__func__, pRegIo->count);
+		ret = -EFAULT;
+		goto EXIT;
+	}
+
+	if (pData->addr < 0x0 || pData->addr > 0x1000) {
+		log_err("%s pData->addr is out of range",
+			__func__);
 		ret = -EFAULT;
 		goto EXIT;
 	}
@@ -3846,13 +3853,15 @@ static signed int FDVT_probe(struct platform_device *pDev)
 		log_err("cmdq mbox create fail\n");
 	else
 		log_inf("cmdq mbox create done\n");
-
+#if IS_ENABLED(CONFIG_MTK_CAM_SECURITY_SUPPORT)
+#ifdef CMDQ_MTEE
 	fdvt_secure_clt = cmdq_mbox_create(FDVT_dev->dev, 1);
 	if (!fdvt_secure_clt)
 		log_err("cmdq mbox create fail\n");
 	else
 		log_inf("cmdq mbox create done\n");
-
+#endif
+#endif
 	of_property_read_u32(pDev->dev.of_node, "fdvt_frame_done",
 			     &fdvt_event_id);
 	log_inf("fdvt event id is %d\n", fdvt_event_id);
@@ -3983,7 +3992,7 @@ static signed int FDVT_probe(struct platform_device *pDev)
 		INIT_WORK(&fdvt_info.schedule_fdvt_work, fdvt_schedule_work);
 
 #ifdef CONFIG_PM_SLEEP
-		wakeup_source_init(&fdvt_wake_lock, "fdvt_lock_wakelock");
+		//wakeup_source_init(&fdvt_wake_lock, "fdvt_lock_wakelock");
 #endif
 		// wake_lock_init(
 		// &fdvt_wake_lock, WAKE_LOCK_SUSPEND, "fdvt_lock_wakelock");

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 /*****************************************************************************
  *
@@ -3226,7 +3218,7 @@ static void mt_battery_charger_detect_check(void)
 
 		if ((BMT_status.charger_type == STANDARD_HOST) ||
 		    (BMT_status.charger_type == CHARGING_HOST)) {
-			mt_usb_connect();
+				mt_usb_connect_v1();
 		}
 #else
 #if !defined(CONFIG_MTK_DUAL_INPUT_CHARGER_SUPPORT)
@@ -3238,8 +3230,8 @@ static void mt_battery_charger_detect_check(void)
 			mt_charger_type_detection();
 
 			if ((BMT_status.charger_type == STANDARD_HOST) ||
-			    (BMT_status.charger_type == CHARGING_HOST)) {
-				mt_usb_connect();
+			    (BMT_status.charger_type == CHARGING_HOST)){
+					mt_usb_connect_v1();
 			}
 		}
 #endif
@@ -3275,8 +3267,7 @@ static void mt_battery_charger_detect_check(void)
 		BMT_status.POSTFULL_charging_time = 0;
 
 		battery_log(BAT_LOG_CRTI, "[BAT_thread]Cable out \r\n");
-
-		mt_usb_disconnect();
+		mt_usb_disconnect_v1();
 
 #ifdef CONFIG_MTK_BQ25896_SUPPORT
 		/*New low power feature of MT6531: disable charger CLK without
@@ -3346,20 +3337,21 @@ void do_chrdet_int_task(void)
 			BMT_status.charger_exist = KAL_TRUE;
 
 			__pm_stay_awake(battery_suspend_lock);
-
 #if defined(CONFIG_POWER_EXT)
-			mt_usb_connect();
+			mt_usb_connect_v1();
 			battery_log(
 				BAT_LOG_CRTI,
-				"[%s] call mt_usb_connect() in EVB\n",
+				"[%s] call mt_usb_connect_v1() in EVB\n",
 				__func__);
-#elif defined(CONFIG_MTK_POWER_EXT_DETECT)
+#if defined(CONFIG_MTK_POWER_EXT_DETECT)
 			if (bat_is_ext_power() == KAL_TRUE) {
-				mt_usb_connect();
+				mt_usb_connect_v1();
 				battery_log(
-					BAT_LOG_CRTI,
-					"[%s] call mt_usb_connect() in EVB\n",
-					__func__);
+				BAT_LOG_CRTI,
+				"[%s] call mt_usb_connect_v1() in EVB\n",
+				__func__);
+				#endif
+
 				return;
 			}
 #endif
@@ -3391,20 +3383,21 @@ void do_chrdet_int_task(void)
 #endif
 
 			__pm_relax(battery_suspend_lock);
-
+			
 #if defined(CONFIG_POWER_EXT)
-			mt_usb_disconnect();
+				mt_usb_disconnect_v1();
 			battery_log(
 				BAT_LOG_CRTI,
-				"[%s] call mt_usb_disconnect() in EVB\n",
+				"[%s] call mt_usb_disconnect_v1() in EVB\n",
 				__func__);
 #elif defined(CONFIG_MTK_POWER_EXT_DETECT)
 			if (bat_is_ext_power() == KAL_TRUE) {
-				mt_usb_disconnect();
-				battery_log(
-					BAT_LOG_CRTI,
-					"[%s] call mt_usb_disconnect() in EVB\n",
-					__func__);
+				mt_usb_disconnect_v1();
+			battery_log(
+				BAT_LOG_CRTI,
+				"[%s] call mt_usb_disconnect_v1() in EVB\n",
+				__func__);
+
 				return;
 			}
 #endif
@@ -4236,7 +4229,8 @@ static irqreturn_t diso_auxadc_irq_thread(int irq, void *dev_id)
 		 */
 		if ((BMT_status.charger_type == STANDARD_HOST) ||
 		    (BMT_status.charger_type == CHARGING_HOST))
-			mt_usb_disconnect(); /* disconnect if connected */
+			mt_usb_disconnect_v1();
+
 		BMT_status.charger_type = CHARGER_UNKNOWN; /* reset chr_type */
 		wake_up_bat();
 		break;

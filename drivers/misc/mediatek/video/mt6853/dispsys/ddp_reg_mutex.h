@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #ifndef _DDP_REG_MUTEX_H_
 #define _DDP_REG_MUTEX_H_
@@ -25,11 +18,6 @@
 
 #define DISP_REG_CONFIG_MUTEX0_EN (DISPSYS_MUTEX_BASE + 0x020)
 	#define EN_FLD_MUTEX0_EN REG_FLD(1, 0)
-/*
- *	#define DISP_REG_CONFIG_MUTEX0_GET (DISPSYS_MUTEX_BASE + 0x024)
- *		#define GET_FLD_MUTEX0_GET REG_FLD(1, 0)
- *		#define GET_FLD_INT_MUTEX0_EN REG_FLD(1, 1)
- */
 #define DISP_REG_CONFIG_MUTEX0_RST (DISPSYS_MUTEX_BASE + 0x028)
 	#define RST_FLD_MUTEX0_RST REG_FLD(1, 0)
 #define DISP_REG_CONFIG_MUTEX0_SOF (DISPSYS_MUTEX_BASE + 0x02C)
@@ -87,10 +75,6 @@
 	#define DEBUG_OUT_SEL_FLD_DEBUG_OUT_SEL REG_FLD(2, 0)
 
 #define DISP_REG_CONFIG_MUTEX_EN(n) (DISP_REG_CONFIG_MUTEX0_EN + (0x20 * (n)))
-/*
- *	#define DISP_REG_CONFIG_MUTEX_GET(n)  \
- *		(DISP_REG_CONFIG_MUTEX0_GET + (0x20 * (n)))
- */
 #define DISP_REG_CONFIG_MUTEX_RST(n) (DISP_REG_CONFIG_MUTEX0_RST + (0x20 * (n)))
 #define DISP_REG_CONFIG_MUTEX_MOD0(n) \
 	(DISP_REG_CONFIG_MUTEX0_MOD0 + (0x20 * (n)))

@@ -697,8 +697,6 @@ void mddp_enqueue_dstate(enum mddp_dstate_id_e id, ...)
 	entry->rb_len = sizeof(struct mddp_dstate_t);
 	entry->rb_data = dstat;
 	mddp_dev_rb_enqueue_tail(list, entry);
-
-	return;
 }
 
 //------------------------------------------------------------------------------

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 /* system includes */
 #include <linux/kernel.h>
@@ -68,6 +60,15 @@ int cm_ipi_ackdata;
 #include <sspm_ipi.h>
 #endif
 #endif /* CONFIG_MTK_TINYSYS_SSPM_SUPPORT */
+
+#if (defined(CONFIG_MACH_MT6877) \
+	|| defined(CONFIG_MACH_MT6781) \
+	|| defined(CONFIG_MACH_MT6739))
+
+#include <helio-dvfsrc-qos.h>
+#endif
+
+
 
 __attribute__((weak))
 void cm_mgr_update_dram_by_cpu_opp(int cpu_opp) {};
@@ -139,7 +140,7 @@ static void update_v2f(int update, int debug)
 #ifdef USE_TIMER_CHECK
 struct timer_list cm_mgr_timer;
 
-static void cm_mgr_timer_fn(unsigned long data)
+static void cm_mgr_timer_fn(struct timer_list *unused)
 {
 	if (cm_mgr_timer_enable)
 		check_cm_mgr_status_internal();
@@ -321,7 +322,7 @@ static int cm_mgr_check_down_status(int level, int *cpu_ratio_idx)
 struct timer_list cm_mgr_perf_timer;
 #define USE_TIMER_PERF_CHECK_TIME msecs_to_jiffies(50)
 
-static void cm_mgr_perf_timer_fn(unsigned long data)
+static void cm_mgr_perf_timer_fn(struct timer_list *unused)
 {
 	if (cm_mgr_perf_timer_enable)
 		check_cm_mgr_status_internal();
@@ -682,7 +683,6 @@ void check_cm_mgr_status(unsigned int cluster, unsigned int freq)
 
 	check_cm_mgr_status_internal();
 }
-
 void cm_mgr_enable_fn(int enable)
 {
 	cm_mgr_enable = enable;
@@ -693,6 +693,7 @@ void cm_mgr_enable_fn(int enable)
 			cm_mgr_enable);
 #endif /* CONFIG_MTK_TINYSYS_SSPM_SUPPORT */
 }
+
 
 #if defined(CONFIG_MTK_TINYSYS_SSPM_SUPPORT) && defined(USE_CM_MGR_AT_SSPM)
 #if defined(USE_SSMP_VER_V2)
@@ -920,7 +921,7 @@ void cm_mgr_cpu_map_update_table(void)
 			cm_mgr_cpu_opp_to_dram[i] = cm_mgr_cpu_map_emi_opp;
 		else
 			cm_mgr_cpu_opp_to_dram[i] =
-				PM_QOS_DDR_OPP_DEFAULT_VALUE;
+				MTK_PM_QOS_DDR_OPP_DEFAULT_VALUE;
 	}
 }
 #endif /* USE_CPU_TO_DRAM_MAP_NEW */
@@ -1696,15 +1697,13 @@ int __init cm_mgr_module_init(void)
 	}
 
 	vcore_power_gain = vcore_power_gain_ptr(cm_mgr_get_idx());
+	timer_setup(&cm_mgr_perf_timer, cm_mgr_perf_timer_fn, 0);
 
-	init_timer_deferrable(&cm_mgr_perf_timer);
-	cm_mgr_perf_timer.function = cm_mgr_perf_timer_fn;
-	cm_mgr_perf_timer.data = 0;
+
 
 #ifdef USE_TIMER_CHECK
-	init_timer_deferrable(&cm_mgr_timer);
-	cm_mgr_timer.function = cm_mgr_timer_fn;
-	cm_mgr_timer.data = 0;
+	
+	timer_setup(&cm_mgr_timer, cm_mgr_timer_fn, 0);
 #endif /* USE_TIMER_CHECK */
 
 #if defined(CONFIG_MTK_TINYSYS_SSPM_SUPPORT) && defined(USE_CM_MGR_AT_SSPM)

@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #include <mt-plat/mtk_lpae.h>
 #include <linux/sched/clock.h>
@@ -701,15 +694,6 @@ static s32 cmdq_append_command_pkt(struct cmdq_pkt *pkt, enum cmdq_code code,
 	return 0;
 }
 
-/*
- * centralize the write/polling/read command for APB and GPR handle
- * this function must be called inside cmdq_append_command
- * because we ignore buffer and pre-fetch check here.
- * Parameter:
- *     same as cmdq_append_command
- * Return:
- *     same as cmdq_append_command
- */
 static s32 cmdq_append_wpr_command(
 	struct cmdqRecStruct *handle, enum cmdq_code code,
 	u32 arg_a, u32 arg_b, u32 arg_a_type, u32 arg_b_type)

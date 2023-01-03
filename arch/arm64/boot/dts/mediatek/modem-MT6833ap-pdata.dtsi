@@ -30,7 +30,7 @@
 			io_device_0 {
 				iod,name = "umts_boot0";
 				iod,id = <236>;
-				iod,minor = <30>;
+				iod,minor = <82>;
 				iod,format = <0>;		/* IPC_FMT */
 				iod,io_type = <0>;		/* IODEV_MISC */
 				iod,links = <0x200>;		/* LINKDEV_SHMEM */
@@ -40,7 +40,7 @@
 			io_device_1 {
 				iod,name = "umts_ipc0";
 				iod,id = <236>;
-				iod,minor = <28>;
+				iod,minor = <80>;
 				iod,format = <0>;		/* IPC_FMT */
 				iod,io_type = <0>;		/* IODEV_MISC */
 				iod,links = <0x200>;		/* LINKDEV_SHMEM */
@@ -50,7 +50,7 @@
 			io_device_2 {
 				iod,name = "umts_ipc1";
 				iod,id = <236>;
-				iod,minor = <29>;
+				iod,minor = <81>;
 				iod,format = <0>;		/* IPC_FMT */
 				iod,io_type = <0>;		/* IODEV_MISC */
 				iod,links = <0x200>;		/* LINKDEV_SHMEM */
@@ -69,7 +69,7 @@
 			};
 			io_device_4 {
 				iod,name = "umts_csd";
-				iod,minor = <30>;
+				iod,minor = <82>;
 				iod,format = <1>;		/* IPC_FMT */
 				iod,io_type = <0>;		/* IODEV_MISC */
 				iod,links = <0x200>;		/* LINKDEV_SHMEM */

@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/version.h>
@@ -20,9 +12,6 @@
 #include <linux/proc_fs.h>
 #include "mt-plat/mtk_thermal_monitor.h"
 #include "mach/mtk_thermal.h"
-#ifdef CONFIG_MACH_MT8168
-#include "mtk_power_throttle.h"
-#endif
 #include "mt-plat/mtk_thermal_platform.h"
 #if defined(CONFIG_MTK_CLKMGR)
 #include <mach/mtk_clkmgr.h>
@@ -35,25 +24,20 @@
 #include <mt-plat/aee.h>
 #include <linux/uidgid.h>
 #include <ap_thermal_limit.h>
-#if (CONFIG_THERMAL_AEE_RR_REC == 1)
-#include <mtk_ram_console.h>
-#endif
 #ifndef CLATM_USE_MIN_CPU_OPP
 #define CLATM_USE_MIN_CPU_OPP			(0)
 #endif
 #ifdef ATM_USES_PPM
+//#if defined(CONFIG_MTK_PPM) || defined(CONFIG_MACH_MT6781)
 #include "mtk_ppm_api.h"
-#if CLATM_USE_MIN_CPU_OPP
 #include "mtk_ppm_platform.h"
-#endif
 #else
-#ifndef CONFIG_MACH_MT8168
 #include "mt_cpufreq.h"
-#endif
 #endif
 
 #ifdef FAST_RESPONSE_ATM
 #include <linux/time.h>
+#include <linux/timer.h>
 #include <linux/sched.h>
 #include <linux/kthread.h>
 #endif
@@ -76,13 +60,13 @@
 #include "mdla_dvfs.h"
 #endif
 #endif
+
 #if defined(CATM_TPCB_EXTEND)
 #include <mt-plat/mtk_devinfo.h>
 #endif
 
 #define CREATE_TRACE_POINTS
 #include "mtk_cooler_atm_events.h"
-
 #if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
 #include <linux/thermal.h>
 #endif
@@ -443,7 +427,6 @@ s64 gpu_pwr_lmt_latest_delay;
 unsigned int gpu_pwr_lmt_cnt = 1;
 #endif
 
-
 #if defined(THERMAL_APU_UNLIMIT)
 static unsigned long total_apu_polling_time;
 #endif
@@ -460,28 +443,11 @@ static void set_adaptive_gpu_power_limit(unsigned int limit);
  *Weak functions
  *=============================================================
  */
-#if 0
-#ifdef ATM_USES_PPM
-void __attribute__ ((weak))
-mt_ppm_cpu_thermal_protect(unsigned int limited_power)
-{
-	pr_notice("E_WF: %s doesn't exist\n", __func__);
-}
-#else
-void __attribute__ ((weak))
-mt_cpufreq_thermal_protect(unsigned int limited_power)
-{
-	pr_notice("E_WF: %s doesn't exist\n", __func__);
-}
-#endif
-#endif
-
 int __attribute__((weak))
 mtk_eara_thermal_pb_handle(int total_pwr_budget,
 			   int max_cpu_power, int max_gpu_power,
 			   int max_vpu_power,  int max_mdla_power)
 {
-	pr_notice("E_WF: %s doesn't exist\n", __func__);
 	return 0;
 }
 
@@ -879,8 +845,7 @@ static void set_adaptive_cpu_power_limit(unsigned int limit)
 				adaptive_limit[1][0], adaptive_limit[1][1],
 				adaptive_limit[0][0], adaptive_limit[0][1]);
 #if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
-				ss_thermal_print("(0x%x) %d T=%d, %d T=%d, %d T=%d, %d T=%d, %d T=%d\n",
-					tscpu_get_temperature_range(),
+				ss_thermal_print("%d T=%d, %d T=%d, %d T=%d, %d T=%d, %d T=%d\n",
 					adaptive_limit[4][0], adaptive_limit[4][1],
 					adaptive_limit[3][0], adaptive_limit[3][1],
 					adaptive_limit[2][0], adaptive_limit[2][1],
@@ -2417,7 +2382,7 @@ static ssize_t tscpu_write_atm_setting
 				#ifdef CONFIG_MTK_AEE_FEATURE
 				aee_kernel_warning_api(__FILE__, __LINE__,
 						DB_OPT_DEFAULT,
-						"tscpu_write_atm_setting",
+						__func__,
 						"Wrong thermal policy");
 				#endif
 			}
@@ -2427,7 +2392,7 @@ static ssize_t tscpu_write_atm_setting
 				#ifdef CONFIG_MTK_AEE_FEATURE
 				aee_kernel_warning_api(__FILE__, __LINE__,
 						DB_OPT_DEFAULT,
-						"tscpu_write_atm_setting",
+						__func__,
 						"Wrong thermal policy");
 				#endif
 			}
@@ -2437,7 +2402,7 @@ static ssize_t tscpu_write_atm_setting
 				#ifdef CONFIG_MTK_AEE_FEATURE
 				aee_kernel_warning_api(__FILE__, __LINE__,
 						DB_OPT_DEFAULT,
-						"tscpu_write_atm_setting",
+						__func__,
 						"Wrong thermal policy");
 				#endif
 			}
@@ -2447,7 +2412,7 @@ static ssize_t tscpu_write_atm_setting
 				#ifdef CONFIG_MTK_AEE_FEATURE
 				aee_kernel_warning_api(__FILE__, __LINE__,
 						DB_OPT_DEFAULT,
-						"tscpu_write_atm_setting",
+						__func__,
 						"Wrong thermal policy");
 				#endif
 			}
@@ -2463,7 +2428,7 @@ static ssize_t tscpu_write_atm_setting
 				#ifdef CONFIG_MTK_AEE_FEATURE
 				aee_kernel_warning_api(__FILE__, __LINE__,
 						DB_OPT_DEFAULT,
-						"tscpu_write_atm_setting",
+						__func__,
 						"Wrong thermal policy");
 				#endif
 			}
@@ -2479,7 +2444,7 @@ static ssize_t tscpu_write_atm_setting
 				#ifdef CONFIG_MTK_AEE_FEATURE
 				aee_kernel_warning_api(__FILE__, __LINE__,
 						DB_OPT_DEFAULT,
-						"tscpu_write_atm_setting",
+						__func__,
 						"Wrong thermal policy");
 				#endif
 			}
@@ -2499,7 +2464,7 @@ static ssize_t tscpu_write_atm_setting
 				#ifdef CONFIG_MTK_AEE_FEATURE
 				aee_kernel_warning_api(__FILE__, __LINE__,
 						DB_OPT_DEFAULT,
-						"tscpu_write_atm_setting",
+						__func__,
 						"Wrong thermal policy");
 				#endif
 			}
@@ -2521,7 +2486,7 @@ static ssize_t tscpu_write_atm_setting
 				#ifdef CONFIG_MTK_AEE_FEATURE
 				aee_kernel_warning_api(__FILE__, __LINE__,
 						DB_OPT_DEFAULT,
-						"tscpu_write_atm_setting",
+						__func__,
 						"Wrong thermal policy");
 				#endif
 			}
@@ -2536,7 +2501,7 @@ static ssize_t tscpu_write_atm_setting
 						MINIMUM_GPU_POWERS[i_id];
 
 			tscpu_printk(
-				"tscpu_write_atm_setting applied %d %d %d %d %d %d %d %d %d\n",
+				"tscpu_write_dtm_setting applied %d %d %d %d %d %d %d %d %d\n",
 					i_id,
 					FIRST_STEP_TOTAL_POWER_BUDGETS[i_id],
 					PACKAGE_THETA_JA_RISES[i_id],
@@ -2550,14 +2515,14 @@ static ssize_t tscpu_write_atm_setting
 			#ifdef CONFIG_MTK_AEE_FEATURE
 			aee_kernel_warning_api(__FILE__, __LINE__,
 					DB_OPT_DEFAULT,
-					"tscpu_write_atm_setting",
+					__func__,
 					"Wrong thermal policy");
 			#endif
 		}
 
 		return count;
 	}
-	tscpu_dprintk("tscpu_write_atm_setting bad argument\n");
+	tscpu_dprintk("tscpu_write_dtm_setting bad argument\n");
 	return -EINVAL;
 }
 
@@ -2801,7 +2766,7 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 			#ifdef CONFIG_MTK_AEE_FEATURE
 			aee_kernel_warning_api(__FILE__, __LINE__,
 							DB_OPT_DEFAULT,
-							"tscpu_write_ctm",
+							__func__,
 							"Wrong thermal policy");
 			#endif
 		}
@@ -2809,7 +2774,7 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 			#ifdef CONFIG_MTK_AEE_FEATURE
 			aee_kernel_warning_api(__FILE__, __LINE__,
 							DB_OPT_DEFAULT,
-							"tscpu_write_ctm",
+							__func__,
 							"Wrong thermal policy");
 			#endif
 		}
@@ -2818,7 +2783,7 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 			#ifdef CONFIG_MTK_AEE_FEATURE
 			aee_kernel_warning_api(__FILE__, __LINE__,
 							DB_OPT_DEFAULT,
-							"tscpu_write_ctm",
+							__func__,
 							"Wrong thermal policy");
 			#endif
 		}
@@ -2826,7 +2791,7 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 			#ifdef CONFIG_MTK_AEE_FEATURE
 			aee_kernel_warning_api(__FILE__, __LINE__,
 							DB_OPT_DEFAULT,
-							"tscpu_write_ctm",
+							__func__,
 							"Wrong thermal policy");
 			#endif
 		}
@@ -2835,7 +2800,7 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 			#ifdef CONFIG_MTK_AEE_FEATURE
 			aee_kernel_warning_api(__FILE__, __LINE__,
 							DB_OPT_DEFAULT,
-							"tscpu_write_ctm",
+							__func__,
 							"Wrong thermal policy");
 			#endif
 		}
@@ -2843,7 +2808,7 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 			#ifdef CONFIG_MTK_AEE_FEATURE
 			aee_kernel_warning_api(__FILE__, __LINE__,
 							DB_OPT_DEFAULT,
-							"tscpu_write_ctm",
+							__func__,
 							"Wrong thermal policy");
 			#endif
 		}
@@ -2851,7 +2816,7 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 			#ifdef CONFIG_MTK_AEE_FEATURE
 			aee_kernel_warning_api(__FILE__, __LINE__,
 							DB_OPT_DEFAULT,
-							"tscpu_write_ctm",
+							__func__,
 							"Wrong thermal policy");
 			#endif
 		}
@@ -2860,7 +2825,7 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 			#ifdef CONFIG_MTK_AEE_FEATURE
 			aee_kernel_warning_api(__FILE__, __LINE__,
 							DB_OPT_DEFAULT,
-							"tscpu_write_ctm",
+							__func__,
 							"Wrong thermal policy");
 			#endif
 		}
@@ -3171,7 +3136,6 @@ static int tscpu_atm_cpu_min_opp_read(struct seq_file *m, void *v)
 				j, g_c_min_opp.cpu_opp_set[i][j].core_num,
 				g_c_min_opp.cpu_opp_set[i][j].freq_idx);
 		}
-
 		seq_puts(m, "\n");
 	}
 
@@ -3232,7 +3196,6 @@ static ssize_t tscpu_atm_cpu_min_opp_write
 
 		g_c_min_opp.min_CPU_power_from_opp[atm_id] =
 			ppm_find_pwr_idx(g_c_min_opp.cpu_opp_set[atm_id]);
-
 		if (g_c_min_opp.min_CPU_power_from_opp[atm_id] == -1) {
 			g_c_min_opp.mode[atm_id] = 0;
 			tscpu_printk("Error: When transfer a CPU opp to a power budget\n");
@@ -3574,7 +3537,7 @@ static enum hrtimer_restart atm_loop(struct hrtimer *timer)
 {
 	ktime_t ktime;
 #elif KRTATM_TIMER == KRTATM_NORMAL
-static void atm_loop(unsigned long data)
+static void atm_loop(struct timer_list *t)
 {
 #endif
 	int temp;
@@ -3685,7 +3648,6 @@ exit:
 			__func__);
 	}
 #endif
-
 #if KRTATM_TIMER == KRTATM_HR
 
 	/*avoid overflow*/
@@ -3709,9 +3671,7 @@ exit:
 
 	atm_timer.expires = jiffies + msecs_to_jiffies(polling_time);
 	add_timer(&atm_timer);
-
 #endif
-
 }
 
 #if KRTATM_TIMER == KRTATM_HR
@@ -3742,9 +3702,7 @@ static void atm_timer_init(void)
 	atm_timer_polling_delay = (atm_timer_polling_delay < 100) ?
 		atm_timer_polling_delay : 100;
 
-	init_timer_deferrable(&atm_timer);
-	atm_timer.function = &atm_loop;
-	atm_timer.data = (unsigned long)&atm_timer;
+	timer_setup(&atm_timer, atm_loop, TIMER_DEFERRABLE);
 	atm_timer.expires =
 		jiffies + msecs_to_jiffies(atm_timer_polling_delay);
 
@@ -3827,7 +3785,8 @@ static int krtatm_thread(void *arg)
 #if defined(CONFIG_MACH_MT6739)
 				get_immediate_cpu_wrap(),
 				0,
-#elif defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT8168)
+#elif defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6771) || \
+		defined(CONFIG_MACH_MT8168) || defined(CONFIG_MACH_MT6761)
 				get_immediate_cpuLL_wrap(),
 				get_immediate_cpuL_wrap(),
 #else

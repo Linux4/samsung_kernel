@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (C) 2020 MediaTek Inc.
  */
 
 #define pr_fmt(fmt) "[mtk_nanohub_ipi] " fmt
@@ -17,17 +9,14 @@
 #include <linux/workqueue.h>
 #include <linux/spinlock.h>
 #include <linux/delay.h>
-
 #include "mtk_nanohub_ipi.h"
-#include "scp_ipi.h"
-#include "scp_helper.h"
-#include "scp_excep.h"
+#include "scp.h"
 
 enum scp_ipi_status __attribute__((weak)) scp_ipi_send(enum ipi_id id,
-		void *buf, unsigned int  len,
-		unsigned int wait, enum scp_core_id scp_id)
+                void *buf, unsigned int  len,
+                unsigned int wait, enum scp_core_id scp_id)
 {
-	return SCP_IPI_ERROR;
+        return SCP_IPI_ERROR;
 }
 
 struct ipi_hw_master {
@@ -73,12 +62,12 @@ static int ipi_txrx_bufs(struct ipi_transfer *t)
 		status = scp_ipi_send(IPI_SENSOR,
 			(unsigned char *)hw->tx, hw->tx_len, 0, SCP_A_ID);
 		if (status == SCP_IPI_ERROR) {
-			pr_err("scp_ipi_send fail\n");
+			pr_err("IPI_SENSOR send fail\n");
 			return -1;
 		}
 		if (status == SCP_IPI_BUSY) {
 			if (retry++ == 1000) {
-				pr_err("retry fail\n");
+				pr_err("IPI_SENSOR send retry fail\n");
 				return -1;
 			}
 			if (retry % 100 == 0)
@@ -87,13 +76,13 @@ static int ipi_txrx_bufs(struct ipi_transfer *t)
 	} while (status == SCP_IPI_BUSY);
 
 	if (retry >= 100)
-		pr_debug("retry time:%d\n", retry);
+		pr_debug("IPI_SENSOR send retry time:%d\n", retry);
 
 	timeout = wait_for_completion_timeout(&hw->done,
 			msecs_to_jiffies(500));
 	spin_lock_irqsave(&hw_transfer_lock, flags);
 	if (!timeout) {
-		pr_err("transfer timeout!");
+		pr_err("IPI_SENSOR transfer timeout!");
 		hw->count = -1;
 	}
 	hw->context = NULL;
@@ -125,8 +114,7 @@ static void ipi_transfer_messages(void)
 		list_for_each_entry(t, &m->transfers, transfer_list) {
 			if (!t->tx_buf && t->tx_len) {
 				status = -EINVAL;
-				pr_err("transfer param wrong :%d\n",
-					status);
+				pr_err("transfer param wrong, null tx buf\n");
 				break;
 			}
 			if (t->tx_len)

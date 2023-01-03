@@ -65,7 +65,6 @@ enum {
 	MT6853_DAI_HOSTLESS_SPH_ECHO_REF,
 	MT6853_DAI_HOSTLESS_SPK_INIT,
 	MT6853_DAI_HOSTLESS_IMPEDANCE,
-	MT6853_DAI_HOSTLESS_HWGain_1,
 	MT6853_DAI_HOSTLESS_SRC_1,	/* just an exmpale */
 	MT6853_DAI_HOSTLESS_SRC_BARGEIN,
 	MT6853_DAI_HOSTLESS_UL1,
@@ -241,7 +240,7 @@ int mt6853_dai_tdm_register(struct mtk_base_afe *afe);
 
 int mt6853_dai_hostless_register(struct mtk_base_afe *afe);
 
-int mt6853_add_misc_control(struct snd_soc_platform *platform);
+int mt6853_add_misc_control(struct snd_soc_component *platform);
 
 int mt6853_set_local_afe(struct mtk_base_afe *afe);
 

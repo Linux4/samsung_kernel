@@ -1,20 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- *
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License
- * along with this program
- * If not, see <http://www.gnu.org/licenses/>.
+ * Copyright (c) 2019 MediaTek Inc.
+ * Author: Michael Hsiao <michael.hsiao@mediatek.com>
  */
+
 /*****************************************************************************
  *
  * Filename:
@@ -219,6 +208,19 @@ bool SetModem2InCh1ToI2s3(unsigned int ConnectionState)
 			   Soc_Aud_InterConnectionOutput_O01);
 	return true;
 }
+bool SetI2s0Ch1ToModem1OutCh4(unsigned int ConnectionState)
+{
+	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I00,
+			   Soc_Aud_InterConnectionOutput_O27);
+	return true;
+}
+
+bool SetI2s0Ch1ToModem2OutCh4(unsigned int ConnectionState)
+{
+	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I00,
+			   Soc_Aud_InterConnectionOutput_O24);
+	return true;
+}
 
 bool SetI2s0Ch2ToModem1OutCh4(unsigned int ConnectionState)
 {
@@ -293,6 +295,24 @@ bool SetConnsysToHwGain1Out(unsigned int ConnectionState)
 	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I34,
 			   Soc_Aud_InterConnectionOutput_O13);
 	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I35,
+			   Soc_Aud_InterConnectionOutput_O14);
+	return true;
+}
+
+bool SetDLToHwGain1Out(unsigned int ConnectionState)
+{
+	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I05,
+			   Soc_Aud_InterConnectionOutput_O13);
+	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I06,
+			   Soc_Aud_InterConnectionOutput_O14);
+	return true;
+}
+
+bool SetDL2ToHwGain1Out(unsigned int ConnectionState)
+{
+	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I07,
+			   Soc_Aud_InterConnectionOutput_O13);
+	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I08,
 			   Soc_Aud_InterConnectionOutput_O14);
 	return true;
 }
@@ -722,6 +742,28 @@ bool SetI2s2ToawbData2(unsigned int ConnectionState)
 
 	return true;
 }
+
+#ifdef CONFIG_MTK_TC10_FEATURE
+bool SetConnsysToHwGain2Out(uint32_t ConnectionState)
+{
+	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I34,
+			   Soc_Aud_InterConnectionOutput_O15);
+	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I35,
+			   Soc_Aud_InterConnectionOutput_O16);
+	return true;
+}
+
+bool SetHwGain2InToVul2(uint32_t ConnectionState)
+{
+	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I12,
+			   Soc_Aud_InterConnectionOutput_O32);
+	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I13,
+			   Soc_Aud_InterConnectionOutput_O33);
+	return true;
+}
+
+#endif
+
 struct connection_link_t {
 	unsigned int input;
 	unsigned int output;
@@ -755,6 +797,10 @@ static const struct connection_link_t mConnectionLink[] = {
 	 Soc_Aud_AFE_IO_Block_I2S3, SetModem1InCh1ToI2s3},
 	{Soc_Aud_AFE_IO_Block_MODEM_PCM_2_I_CH1,
 	 Soc_Aud_AFE_IO_Block_I2S3, SetModem2InCh1ToI2s3},
+	{Soc_Aud_AFE_IO_Block_I2S0_CH1,
+	 Soc_Aud_AFE_IO_Block_MODEM_PCM_1_O_CH4, SetI2s0Ch1ToModem1OutCh4},
+	{Soc_Aud_AFE_IO_Block_I2S0_CH1,
+	 Soc_Aud_AFE_IO_Block_MODEM_PCM_2_O_CH4, SetI2s0Ch1ToModem2OutCh4},
 	{Soc_Aud_AFE_IO_Block_I2S0_CH2,
 	 Soc_Aud_AFE_IO_Block_MODEM_PCM_1_O_CH4, SetI2s0Ch2ToModem1OutCh4},
 	{Soc_Aud_AFE_IO_Block_I2S0_CH2,
@@ -769,6 +815,10 @@ static const struct connection_link_t mConnectionLink[] = {
 	 Soc_Aud_AFE_IO_Block_HW_GAIN1_OUT, SetI2s0ToHwGain1Out},
 	{Soc_Aud_AFE_IO_Block_I2S_CONNSYS,
 	 Soc_Aud_AFE_IO_Block_HW_GAIN1_OUT, SetConnsysToHwGain1Out},
+	{Soc_Aud_AFE_IO_Block_MEM_DL1,
+	 Soc_Aud_AFE_IO_Block_HW_GAIN1_OUT, SetDLToHwGain1Out},
+	{Soc_Aud_AFE_IO_Block_MEM_DL2,
+	 Soc_Aud_AFE_IO_Block_HW_GAIN1_OUT, SetDL2ToHwGain1Out},
 	{Soc_Aud_AFE_IO_Block_HW_GAIN1_IN,
 	 Soc_Aud_AFE_IO_Block_I2S1_DAC, SetHwGain1InToI2s1Dac},
 	{Soc_Aud_AFE_IO_Block_HW_GAIN1_IN,
@@ -855,7 +905,13 @@ static const struct connection_link_t mConnectionLink[] = {
 	Soc_Aud_AFE_IO_Block_MEM_AWB2,
 	 SetI2s0ToawbData2},
 	{Soc_Aud_AFE_IO_Block_I2S2,
-	 Soc_Aud_AFE_IO_Block_MEM_AWB2, SetI2s2ToawbData2}
+	 Soc_Aud_AFE_IO_Block_MEM_AWB2, SetI2s2ToawbData2},
+#ifdef CONFIG_MTK_TC10_FEATURE
+	{Soc_Aud_AFE_IO_Block_I2S_CONNSYS,
+	 Soc_Aud_AFE_IO_Block_HW_GAIN2_OUT, SetConnsysToHwGain2Out},
+	{Soc_Aud_AFE_IO_Block_HW_GAIN2_IN,
+	 Soc_Aud_AFE_IO_Block_MEM_VUL2, SetHwGain2InToVul2}
+#endif
 };
 
 static const int CONNECTION_LINK_NUM = ARRAY_SIZE(mConnectionLink);
@@ -889,7 +945,7 @@ bool SetConnectionState(unsigned int ConnectionState, unsigned int Input,
 			unsigned int Output)
 {
 	/*
-	 * printk("SetinputConnection ConnectionState = %d
+	 * pr_debug("SetinputConnection ConnectionState = %d
 	 * Input = %d Output = %d\n", ConnectionState, Input, Output);
 	 */
 	int connectReg = 0;
@@ -904,7 +960,7 @@ bool SetConnectionState(unsigned int ConnectionState, unsigned int Input,
 
 	switch (ConnectionState) {
 	case Soc_Aud_InterCon_DisConnect: {
-		/* printk("nConnectionState = %d\n", ConnectionState); */
+		/* pr_debug("nConnectionState = %d\n", ConnectionState); */
 		if ((mConnectionState[Input][Output] &
 		     Soc_Aud_InterCon_Connection) ==
 		    Soc_Aud_InterCon_Connection) {
@@ -930,7 +986,7 @@ bool SetConnectionState(unsigned int ConnectionState, unsigned int Input,
 		break;
 	}
 	case Soc_Aud_InterCon_Connection: {
-		/* printk("nConnectionState = %d\n", ConnectionState); */
+		/* pr_debug("nConnectionState = %d\n", ConnectionState); */
 		if (CheckBitsandReg(connectReg, set_bit)) {
 			Afe_Set_Reg(connectReg, 1 << set_bit, 1 << set_bit);
 			mConnectionState[Input][Output] |=
@@ -939,7 +995,7 @@ bool SetConnectionState(unsigned int ConnectionState, unsigned int Input,
 		break;
 	}
 	case Soc_Aud_InterCon_ConnectionShift: {
-		/* printk("nConnectionState = %d\n", ConnectionState); */
+		/* pr_debug("nConnectionState = %d\n", ConnectionState); */
 		unsigned int shiftReg = GetConnectionShiftReg(Output);
 		unsigned int shiftOffset = GetConnectionShiftOffset(Output);
 

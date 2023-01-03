@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/vmalloc.h>
@@ -1109,8 +1101,7 @@ static int m4u_debug_set(void *data, u64 val)
 #ifdef M4U_TEE_SERVICE_ENABLE
 	case 50:
 	{
-#if (defined(CONFIG_TRUSTONIC_TEE_SUPPORT) || \
-		defined(CONFIG_TEEGRIS_TEE_SUPPORT)) && \
+#if defined(CONFIG_TRUSTONIC_TEE_SUPPORT) &&   \
 		defined(CONFIG_MTK_TEE_GP_SUPPORT)
 		u32 sec_handle = 0;
 		u32 refcount;

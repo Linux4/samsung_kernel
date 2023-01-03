@@ -37,3 +37,4 @@
 #define hx83112f_isram_addr 0x20000000
 #define hx83112f_dsram_size 32768
 #define hx83112f_isram_size 65536
+#define hx83112f_fw_addr_gesture_history 0x10006200

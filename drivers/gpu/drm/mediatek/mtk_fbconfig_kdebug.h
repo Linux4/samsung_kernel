@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __MTK_FBCONFIG_KDEBUG_H
 #define __MTK_FBCONFIG_KDEBUG_H
@@ -99,6 +91,24 @@ struct PM_LAYER_INFO {
 	int width;
 	int fmt;
 	unsigned int layer_size;
+};
+
+struct PM_MMQOS_REL_INFO {
+	int vact;
+	int hact;
+	int vrefresh;
+	int vtotal;
+	int htotal;
+	int data_rate;
+	int isCphy;
+	int mode;
+	int lane_num;
+	int compress_ratio;
+	int scr_bpp;
+	int is_dual_pipe;
+	int idle;
+	int bdg_rxtx_ratio;
+	int dal_enable;
 };
 
 struct ESD_PARA {
@@ -205,6 +215,24 @@ struct compat_pm_layer_info {
 	compat_uint_t layer_size;
 };
 
+struct compat_pm_mmqos_rel_info {
+	compat_int_t vact;
+	compat_int_t hact;
+	compat_int_t vrefresh;
+	compat_int_t vtotal;
+	compat_int_t htotal;
+	compat_int_t data_rate;
+	compat_int_t isCphy;
+	compat_int_t mode;
+	compat_int_t lane_num;
+	compat_int_t compress_ratio;
+	compat_int_t scr_bpp;
+	compat_int_t is_dual_pipe;
+	compat_int_t idle;
+	compat_int_t bdg_rxtx_ratio;
+	compat_int_t dal_enable;
+};
+
 struct compat_esd_para {
 	compat_int_t addr;
 	compat_int_t type;
@@ -220,6 +248,7 @@ u32 fbconfig_mtk_dsi_get_lanes_num(struct mtk_ddp_comp *comp);
 int fbconfig_mtk_dsi_get_mode_type(struct mtk_ddp_comp *comp);
 int fbconfig_get_esd_check_test(struct drm_crtc *crtc,
 	uint32_t cmd, uint8_t *buffer, uint32_t num);
+int fbconfig_mtk_dsi_get_bpp(struct mtk_ddp_comp *comp);
 
 int Panel_Master_lcm_get_dsi_timing_entry(struct drm_crtc *crtc,
 	int type);

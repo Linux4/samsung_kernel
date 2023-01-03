@@ -1,9 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2015 Samsung Electronics Co., Ltd
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * Copyright (c) 2022 Samsung Electronics Inc.
  */
 
 #ifndef IMGESENSOR_VENDOR_ROM_CONFIG_H
@@ -11,34 +8,18 @@
 
 #include "imgsensor_vendor_specific.h"
 
-#if defined(CONFIG_CAMERA_MMV_V53X)
-#include "imgsensor_vendor_rom_config_mmv_v53x.h"
-#elif defined(CONFIG_CAMERA_AAU_V13X)
-#include "imgsensor_vendor_rom_config_aau_v13x.h"
-#elif defined(CONFIG_CAMERA_MMV_V13X)
-#include "imgsensor_vendor_rom_config_mmv_v13x.h"
+#if defined(CONFIG_CAMERA_AAT_V12)
+#include "aat_v12/imgsensor_vendor_rom_config_aat_v12.h"
 #elif defined(CONFIG_CAMERA_AAV_V13VE)
-#include "imgsensor_vendor_rom_config_aav_v13ve.h"
-#elif defined(CONFIG_CAMERA_MMV_V13VE)
-#include "imgsensor_vendor_rom_config_mmv_v13ve.h"
-#elif defined(CONFIG_CAMERA_AAT_V32X)
-#include "imgsensor_vendor_rom_config_aat_v32x.h"
-#elif defined(CONFIG_CAMERA_AAU_V32)
-#include "imgsensor_vendor_rom_config_aau_v32.h"
-#elif defined(CONFIG_CAMERA_MMU_V32)
-#include "imgsensor_vendor_rom_config_mmu_v32.h"
-#elif defined(CONFIG_CAMERA_AAT_V31)
-#include "imgsensor_vendor_rom_config_aat_v31.h"
-#elif defined(CONFIG_CAMERA_AAT_V41)
-#include "imgsensor_vendor_rom_config_aat_v41.h"
-#elif defined(CONFIG_CAMERA_AAU_V22)
-#include "imgsensor_vendor_rom_config_aau_v22.h"
-#elif defined(CONFIG_CAMERA_MMU_V22)
-#include "imgsensor_vendor_rom_config_mmu_v22.h"
-#elif defined(CONFIG_CAMERA_AAU_V22EX)
-#include "imgsensor_vendor_rom_config_aau_v22ex.h"
-#elif defined(CONFIG_CAMERA_AAU_V02)
-#include "imgsensor_vendor_rom_config_aau_v02.h"
+#include "aav_v13ve/imgsensor_vendor_rom_config_aav_v13ve.h"
+#elif defined(CONFIG_CAMERA_AAV_V23EX)
+#include "aav_v23ex/imgsensor_vendor_rom_config_aav_v23ex.h"
+#elif  defined(CONFIG_CAMERA_MMV_V53X)
+#include "mmv_v53x/imgsensor_vendor_rom_config_mmv_v53x.h"
+#elif  defined(CONFIG_CAMERA_BTW_V00)
+#include "btw_v00/imgsensor_vendor_rom_config_btw_v00.h"
+#elif  defined(CONFIG_CAMERA_AAW_V34X)
+#include "aaw_v34x/imgsensor_vendor_rom_config_aaw_v34x.h"
 #else
 //default
 #include "imgsensor_vendor_rom_config_default.h"

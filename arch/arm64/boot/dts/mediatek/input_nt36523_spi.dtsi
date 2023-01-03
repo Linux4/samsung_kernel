@@ -132,7 +132,7 @@
 		novatek,enable_sysinput_enabled;
 	};
 };
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/novatek/nt36523_spi/dts/input-mtk-tsp-nt36523-spi.a13ve.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/novatek/nt36523_spi/dts/input-mtk-tsp-nt36523-spi.a13ve.dtsi */
 &nt36523_tsp_on_cs {
 	pins_cmd_dat{
 		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,18), 2)>;

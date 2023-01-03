@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/delay.h>
 #include <mt-plat/upmu_common.h>
@@ -440,7 +432,9 @@ void PMIC_LP_INIT_SETTING(void)
 	pmic_ldo_va12_lp(SRCLKEN0, 1, 1, HW_LP);
 	pmic_ldo_va09_lp(SRCLKEN1, 1, 1, HW_LP);
 	pmic_ldo_vbbck_lp(SRCLKEN14, 1, 1, HW_OFF);
+#ifdef CONFIG_MTK_SEC_VFE28_CONTROL_ENABLE  /* ALPS07596799 VFE28 don't listen to SRCLKEN1 */
 	pmic_ldo_vfe28_lp(SRCLKEN1, 0, 1, HW_OFF);
+#endif
 	pmic_ldo_vbif28_lp(SRCLKEN0, 1, 1, HW_OFF);
 	pmic_ldo_vaud18_lp(SW, 1, 1, SW_OFF);
 	pmic_ldo_vaux18_lp(SRCLKEN0, 1, 1, HW_LP);
@@ -483,7 +477,9 @@ void PMIC_LP_INIT_SETTING(void)
 	pmic_ldo_va09_lp(SRCLKEN1, 1, 1, HW_LP);
 	/* SRCLKEN14 HW_ON no need to setting */
 	/*pmic_ldo_vbbck_lp(SRCLKEN14, 1, 1, HW_ON);*/
+#ifdef CONFIG_MTK_SEC_VFE28_CONTROL_ENABLE  /* ALPS07596799 VFE28 don't listen to SRCLKEN1 */
 	pmic_ldo_vfe28_lp(SRCLKEN1, 0, 1, HW_OFF);
+#endif
 	pmic_ldo_vbif28_lp(SRCLKEN2, 1, 1, HW_OFF);
 	pmic_ldo_vaud18_lp(SW, 1, 1, SW_OFF);
 	pmic_ldo_vaux18_lp(SRCLKEN2, 1, 1, HW_LP);

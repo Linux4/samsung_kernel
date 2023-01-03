@@ -1,23 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2015 MediaTek Inc.
  */
 
-/**************************************************************
- * camera_MFB.c - Linux MFB Device Driver
- *
- * DESCRIPTION:
- *     This file provid the other drivers MFB relative functions
- *
- **************************************************************/
 #include <linux/types.h>
 #include <linux/device.h>
 #include <linux/cdev.h>
@@ -309,7 +294,7 @@ static unsigned int g_SuspendCnt;
 #define IRQ_USER_NUM_MAX 31
 
 #ifdef MFB_PMQOS
-static struct pm_qos_request mfb_pmqos_request;
+static struct mtk_pm_qos_request mfb_pmqos_request;
 static u64 max_img_freq[4];
 #define MFB_PORT_NUM 8
 struct plist_head module_request_list;  /* all module list */
@@ -792,8 +777,8 @@ void MFBQOS_Init(void)
 	u32 step_size;
 	int i = 0;
 
-	/* Call pm_qos_add_request when initialize module or driver prob */
-	pm_qos_add_request(
+	/* Call mtk_pm_qos_add_request when initialize module or driver prob */
+	mtk_pm_qos_add_request(
 		&mfb_pmqos_request,
 		PM_QOS_IMG_FREQ,
 		PM_QOS_MM_FREQ_DEFAULT_VALUE);
@@ -833,7 +818,7 @@ void MFBQOS_Init(void)
 
 void MFBQOS_Uninit(void)
 {
-	pm_qos_remove_request(&mfb_pmqos_request);
+	mtk_pm_qos_remove_request(&mfb_pmqos_request);
 
 	/* Call mm_qos_remove_request */
 	/* when de-initialize module or driver remove */
@@ -853,19 +838,19 @@ void MFBQOS_Update(bool start, unsigned int scen, unsigned long bw)
 		qos_total = qos_total + bw;
 		if (qos_total > 600000000) {
 			spin_unlock(&(SpinLockMfbPmqos));
-			pm_qos_update_request(&mfb_pmqos_request,
+			mtk_pm_qos_update_request(&mfb_pmqos_request,
 						max_img_freq[0]);
 		} else if (qos_total > 300000000) {
 			spin_unlock(&(SpinLockMfbPmqos));
-			pm_qos_update_request(&mfb_pmqos_request,
+			mtk_pm_qos_update_request(&mfb_pmqos_request,
 						max_img_freq[1]);
 		} else if (qos_total > 100000000) {
 			spin_unlock(&(SpinLockMfbPmqos));
-			pm_qos_update_request(&mfb_pmqos_request,
+			mtk_pm_qos_update_request(&mfb_pmqos_request,
 						max_img_freq[2]);
 		} else {
 			spin_unlock(&(SpinLockMfbPmqos));
-			pm_qos_update_request(&mfb_pmqos_request, 0);
+			mtk_pm_qos_update_request(&mfb_pmqos_request, 0);
 		}
 	} else { /* finish MFB, config MMDVFS to lowest CLK */
 		LOG_DBG("MFB total: %ld", qos_total);
@@ -874,19 +859,19 @@ void MFBQOS_Update(bool start, unsigned int scen, unsigned long bw)
 		qos_scen[scen] = 0;
 		if (qos_total > 600000000) {
 			spin_unlock(&(SpinLockMfbPmqos));
-			pm_qos_update_request(&mfb_pmqos_request,
+			mtk_pm_qos_update_request(&mfb_pmqos_request,
 						max_img_freq[0]);
 		} else if (qos_total > 300000000) {
 			spin_unlock(&(SpinLockMfbPmqos));
-			pm_qos_update_request(&mfb_pmqos_request,
+			mtk_pm_qos_update_request(&mfb_pmqos_request,
 						max_img_freq[1]);
 		} else if (qos_total > 100000000) {
 			spin_unlock(&(SpinLockMfbPmqos));
-			pm_qos_update_request(&mfb_pmqos_request,
+			mtk_pm_qos_update_request(&mfb_pmqos_request,
 						max_img_freq[2]);
 		} else {
 			spin_unlock(&(SpinLockMfbPmqos));
-			pm_qos_update_request(&mfb_pmqos_request, 0);
+			mtk_pm_qos_update_request(&mfb_pmqos_request, 0);
 		}
 	}
 
@@ -3261,6 +3246,9 @@ static long MFB_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 				goto EXIT;
 			}
 
+			/* Protect the Multi Process */
+			mutex_lock(&gMfbMsfMutex);
+
 			if (copy_from_user(
 				g_MsfEnqueReq_Struct.MsfFrameConfig,
 				(void *)mfb_MsfReq.m_pMsfConfig,
@@ -3273,9 +3261,6 @@ static long MFB_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 			}
 			msf_get_reqs(mfb_MsfReq.exec, &reqs);
 			pUserInfo->reqs = reqs;
-
-			/* Protect the Multi Process */
-			mutex_lock(&gMfbMsfMutex);
 
 			spin_lock_irqsave(
 				&(MFBInfo.SpinLockIrq[MFB_IRQ_TYPE_INT_MSF_ST]),
@@ -4327,9 +4312,10 @@ static signed int MFB_probe(struct platform_device *pDev)
 			create_singlethread_workqueue("MSF-CMDQ-WQ");
 		if (!MFBInfo.wkqueueMsf)
 			LOG_ERR("NULL MSF-CMDQ-WQ\n");
-
+#ifdef WAKE_UP
 		wakeup_source_init(&MSS_wake_lock, "mss_lock_wakelock");
 		wakeup_source_init(&MSF_wake_lock, "msf_lock_wakelock");
+#endif
 		INIT_WORK(&logWork, logPrint);
 
 		for (i = 0; i < MFB_IRQ_TYPE_AMOUNT; i++)

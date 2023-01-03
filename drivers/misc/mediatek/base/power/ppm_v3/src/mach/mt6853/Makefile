@@ -10,11 +10,18 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
-
+ifeq ($(CONFIG_MACH_MT6877),y)
+		PDIR = mt6877
+else ifeq ($(CONFIG_MACH_MT6833),y)
+		PDIR = mt6833
+else
+		PDIR = $(CONFIG_MTK_PLATFORM)
+endif
 ccflags-y +=	\
 	-I$(PPM_ROOT_DIR)/inc \
 	-I$(srctree)/drivers/misc/mediatek/base/power/$(CONFIG_MTK_PLATFORM)/	\
-	-I$(srctree)/drivers/misc/mediatek/thermal/$(CONFIG_MTK_PLATFORM)/inc/  \
+	-I$(srctree)/drivers/misc/mediatek/thermal/$(PDIR)/inc/  \
+	-I$(srctree)/drivers/gpu/mediatek/gpufreq/   \
 	-I$(srctree)/drivers/misc/mediatek/base/power/include
 
 # platform dependent functions

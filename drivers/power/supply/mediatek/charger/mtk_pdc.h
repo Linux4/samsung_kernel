@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 #ifndef __MTK_PDC_H
 #define __MTK_PDC_H
@@ -100,4 +92,5 @@ extern int pdc_stop(void);
 extern int pdc_run(void);
 extern int pdc_set_data(struct pdc_data data);
 extern struct pdc_data *pdc_get_data(void);
+
 #endif /* __MTK_PDC_H */

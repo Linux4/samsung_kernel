@@ -1,15 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+* Copyright (C) 2021 MediaTek Inc.
+*/
+
 
 #ifndef MTK_RTC_HAL_COMMON_H
 #define MTK_RTC_HAL_COMMON_H
@@ -62,9 +55,6 @@ extern void hal_rtc_save_pwron_alarm(void);
 extern void hal_rtc_get_pwron_alarm_time(struct rtc_time *tm);
 extern void hal_rtc_set_pwron_alarm_time(struct rtc_time *tm);
 extern void hal_rtc_read_rg(void);
-#ifdef CONFIG_SEC_PM
-extern int hal_rtc_reset_check(void);
-#endif
 #ifndef USER_BUILD_KERNEL
 extern void rtc_lp_exception(void);
 #endif

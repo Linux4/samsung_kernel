@@ -2,7 +2,6 @@
 #
 # kbuild file for firmware/
 #
-CONFIG_EXTRA_FIRMWARE_DIR="firmware"
 
 # Create $(fwabs) from $(CONFIG_EXTRA_FIRMWARE_DIR) -- if it doesn't have a
 # leading /, it's relative to $(srctree).
@@ -10,52 +9,26 @@ fwdir := $(subst $(quote),,$(CONFIG_EXTRA_FIRMWARE_DIR))
 fwabs := $(addprefix $(srctree)/,$(filter-out /%,$(fwdir)))$(filter /%,$(fwdir))
 
 fw-external-y := $(subst $(quote),,$(CONFIG_EXTRA_FIRMWARE))
-fw-external-$(CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI) += tsp_novatek/nt36525_a32_5g_csot.bin
-fw-external-$(CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI) += tsp_novatek/nt36525_a13_5g_csot.bin
-fw-external-$(CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI) += tsp_novatek/nt36525_a02_csot.bin
-fw-external-$(CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI) += tsp_novatek/NT36525C_BOE_06517_HDp.bin
-fw-external-$(CONFIG_TOUCHSCREEN_NOVATEK_NT36523_SPI) += tsp_novatek/nt36525c_a13x_boe.bin tsp_novatek/nt36525c_a13x_mp_boe.bin \
-							tsp_novatek/nt36525c_a13x_bringup.bin tsp_novatek/nt36525c_a13x_mp_bringup.bin \
-							tsp_novatek/nt36525c_a13x_sharp.bin tsp_novatek/nt36525c_a13x_mp_sharp.bin \
-							tsp_novatek/nt36672_a13ve_csot.bin tsp_novatek/nt36672_a13ve_csot_mp.bin
+fw-external-$(CONFIG_TOUCHSCREEN_NT36xxx) += tsp_novatek/NT36525B_BOE_0583_HDp_SEC_A23e_PID724D_V00_20220330.bin
+fw-external-$(CONFIG_TOUCHSCREEN_ILITEK_ILI9881X) += tsp_ilitek/ili9881x_a12.hex
+fw-external-$(CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI) += tsp_novatek/nt36525_a12_csot.bin tsp_novatek/nt36525_a12_mp_csot.bin \
+							tsp_novatek/nt36525_a12_dtc.bin tsp_novatek/nt36525_a12_mp_dtc.bin \
+							tsp_novatek/nt36525_a12_boe.bin tsp_novatek/nt36525_a12_mp_boe.bin \
+							tsp_novatek/nt36675_a12_ltps.bin tsp_novatek/nt36675_a12_mp_ltps.bin
+fw-external-$(CONFIG_TOUCHSCREEN_NOVATEK_NT36523_SPI) += tsp_novatek/nt36672_a13ve_csot.bin tsp_novatek/nt36672_a13ve_csot_mp.bin
+fw-external-$(CONFIG_TOUCHSCREEN_NOVATEK_NT36523_I2C) += tsp_novatek/nt36525b_a23ex.bin
 fw-external-$(CONFIG_TOUCHSCREEN_SYNA_TCM2) += tsp_synaptics/PR3482364-S3908_M52_BOE_PRA_3102000C_20210903.img
-ifeq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6739"))
-fw-external-$(CONFIG_TOUCHSCREEN_SYNAPTICS_TCM) += tsp_synaptics/PR2100000870-td4150b0_01010011_20200504.img
-else
-fw-external-$(CONFIG_TOUCHSCREEN_SYNAPTICS_TCM) += tsp_synaptics/PR3160762_TD4150_A3CORE_01020001.img
-endif
-
-fw-external-$(CONFIG_TOUCHSCREEN_MELFAS_MSS100) += melfas/melfas_mip4_ts.fw
-fw-external-$(CONFIG_TOUCHSCREEN_MELFAS) += tsp_melfas/mss100_a22.bin tsp_melfas/mss100_a22_old.bin
-fw-external-$(CONFIG_TOUCHSCREEN_IST4050) += tsp_imagis/ist40xx_a31.bin
-fw-external-$(CONFIG_TOUCHSCREEN_IST4050) += tsp_imagis/ist40xx_a31_cmcs.bin
-fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_SPI) += tsp_himax/hx83108a_a13x.bin tsp_himax/hx83112f_boe_a13ve.bin
-fw-external-$(CONFIG_TOUCHSCREEN_OVT_TD4150_SPI) += tsp_ovt/td4160_a13x_boe.bin
-fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_I2C_ONLY) += tsp_himax/hx83102d_a22e_Al.bin tsp_himax/hx83102d_a22e_Cu.bin
+fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_HX83XXX_SPI) += tsp_himax/hx83102j_birdie.bin tsp_himax/hx83112f_boe_a13ve.bin
+fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_HX83XXX_I2C) += tsp_himax/hx83102d_a23ex.bin
+fw-external-$(CONFIG_TOUCHSCREEN_GOODIX_9895_BRL) += tsp_goodix/A33_GT9895_COMBINED_20220517_v20.bin
+fw-external-$(CONFIG_TOUCHSCREEN_GOODIX_BRL) += tsp_goodix/gt9895_a34x.bin
 
 fw-external-$(CONFIG_TOUCHSCREEN_SYNAPTICS) += tsp_synaptics/s3908_m53x_boe.bin tsp_synaptics/s3908_m52xq_sdc.bin
-fw-external-$(CONFIG_TOUCHSCREEN_ILITEK_ILI9881X) += tsp_ilitek/ili9881x_a32x.hex tsp_ilitek/ili7806s_a32x.hex \
-							tsp_ilitek/ili9881x_a03core.hex tsp_ilitek/ili9881x_a03core_boe.hex \
-							tsp_ilitek/ili9881x_a02.hex tsp_ilitek/ili9881x_a02_boe.hex \
-							tsp_ilitek/ili9882q_a02_boe.hex \
-							tsp_ilitek/ili9881x_a03core_tianma.hex
-fw-external-$(CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI) += tsp_novatek/nt36525_a32_sharp.bin tsp_novatek/nt36525_a32_mp_sharp.bin \
-							tsp_novatek/nt36675_a32_ltps.bin tsp_novatek/nt36675_a32_mp_ltps.bin \
-							tsp_novatek/nt36525_a03core_csot.bin tsp_novatek/nt36525_a03core_mp_csot.bin \
-							tsp_novatek/nt36575_a03core_ltps.bin tsp_novatek/nt36575_a03core_mp_ltps.bin \
-							tsp_novatek/nt36525_a03core_boe.bin tsp_novatek/nt36525_a03core_mp_boe.bin \
-							tsp_novatek/nt36525_a03core_sharp.bin tsp_novatek/nt36525_a03core_mp_sharp.bin \
-							tsp_novatek/nt36525_a02_csot.bin tsp_novatek/nt36525_a02_mp_csot.bin \
-							tsp_novatek/nt36575_a02_ltps.bin tsp_novatek/nt36575_a02_mp_ltps.bin \
-							tsp_novatek/nt36525_a02_boe.bin tsp_novatek/nt36525_a02_mp_boe.bin
-fw-external-$(CONFIG_SENSORS_A96T396_A13X_EUR) += abov/a96t396_a13x_eur_main.bin \
-							abov/a96t396_a13x_eur_sub.bin
-fw-external-$(CONFIG_SENSORS_A96T396_A13X) += abov/a96t396_a13x_main.bin
-fw-external-$(CONFIG_SENSORS_A96T3X6_A32X) += abov/a96t356_a32x_main.bin abov/a96t356_a32x_sub.bin \
-					 abov/a96t356_a32x_kor_main.bin abov/a96t356_a32x_kor_sub.bin
-fw-external-$(CONFIG_TOUCHSCREEN_STM) += tsp_stm/fts5cu56a_a32.bin tsp_stm/fts5cu56a_a22.bin
-
-fw-external-$(CONFIG_TOUCHSCREEN_ZINITIX_ZT75XX) += tsp_zinitix/zt7548_a41.bin tsp_zinitix/zt7548_a415d.bin
+fw-external-$(CONFIG_SENSORS_A96T3X6_A12) += abov/a96t356_a12_main.bin abov/a96t356_a12_sub.bin \
+					 abov/a96t356_a12_usa_main.bin abov/a96t356_a12_usa_sub.bin
+fw-external-$(CONFIG_SENSORS_A96T396_BIRDIE) += abov/a96t396_birdie_main.bin abov/a96t396_birdie_sub.bin abov/a96t396_birdie_wifi.bin
+fw-external-$(CONFIG_EPEN_WACOM_WEZ01) += epen/w9021_birdie.bin
+fw-external-$(CONFIG_KEYBOARD_STM32_POGO) += keyboard_stm/stm32_birdie.bin
 
 quiet_cmd_fwbin = MK_FW   $@
       cmd_fwbin = FWNAME="$(patsubst firmware/%.gen.S,%,$@)";		     \
@@ -89,11 +62,10 @@ wordsize_deps := $(wildcard include/config/64bit.h include/config/32bit.h \
 		include/config/x86_32.h include/config/x86_64.h \
 		firmware/Makefile)
 
-$(patsubst %,$(obj)/%.gen.S, $(fw-shipped-y)): %: $(wordsize_deps)
-	$(call cmd,fwbin,$(patsubst %.gen.S,%,$@))
-$(patsubst %,$(obj)/%.gen.S, $(fw-external-y)): %: $(wordsize_deps)
-
+$(patsubst %,$(obj)/%.gen.S, $(fw-external-y)): %: $(wordsize_deps) \
+		include/config/extra/firmware/dir.h
 	$(call cmd,fwbin,$(fwabs)/$(patsubst $(obj)/%.gen.S,%,$@))
+
 # The .o files depend on the binaries directly; the .S files don't.
 $(patsubst %,$(obj)/%.gen.o, $(fw-external-y)): $(obj)/%.gen.o: $(fwdir)/%
 
@@ -107,6 +79,3 @@ endif
 
 targets := $(patsubst $(obj)/%,%, \
                                 $(shell find $(obj) -name \*.gen.S 2>/dev/null))
-# Without this, built-in.o won't be created when it's empty, and the
-# final vmlinux link will fail.
-obj- := dummy

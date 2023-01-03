@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/platform_device.h>
 #include <linux/device.h>
@@ -29,7 +21,7 @@
 #include "modem_secure_base.h"
 
 #include <linux/arm-smccc.h>
-#include <linux/soc/mediatek/mtk_sip_svc.h>
+
 
 #define MTK_SIP_CCCI_CONTROL_ARCH32		0x82000505
 #define MTK_SIP_CCCI_CONTROL_ARCH64		0xC2000505
@@ -52,7 +44,6 @@ int Is_MD_EMI_voilation(void)
 	return 1;
 }
 
-unsigned long pericfg_base;
 unsigned long infra_ao_base;
 unsigned long infra_ao_mem_base;
 
@@ -172,7 +163,7 @@ static void ccci_md_over_current_cb(BATTERY_OC_LEVEL level)
 #define PCCIF_SRAM_SIZE (512)
 
 void ccci_reset_ccif_hw(unsigned char md_id,
-			int ccif_id, void __iomem *baseA, void __iomem *baseB)
+			int ccif_id, void __iomem *baseA, void __iomem *baseB, struct md_ccif_ctrl *md_ctrl)
 {
 	int i;
 	struct ccci_smem_region *region = NULL;
@@ -235,29 +226,23 @@ int ccci_platform_init(struct ccci_modem *md)
 	}
 	CCCI_INIT_LOG(-1, TAG, "infra_ao_base:0x%p\n", (void *)infra_ao_base);
 
-	/*Get pericfg base(0x1000 3000) for ccif5*/
-	node = of_find_compatible_node(NULL, NULL, "mediatek,pericfg");
-	pericfg_base = (unsigned long)of_iomap(node, 0);
-	if (!pericfg_base) {
-		CCCI_ERROR_LOG(md->index, TAG,
-			"%s: pericfg_base of_iomap failed\n", node->full_name);
-		return -1;
-	}
-	CCCI_INIT_LOG(-1, TAG, "pericfg_base:0x%p\n", (void *)pericfg_base);
-
 	node = of_find_compatible_node(NULL, NULL, "mediatek,infracfg_ao_mem");
-	infra_ao_mem_base = (unsigned long)of_iomap(node, 0);
-	if (!infra_ao_mem_base) {
-		CCCI_ERROR_LOG(md->index, TAG,
-			"%s: infra_ao_mem_base of_iomap failed\n",
-			node->full_name);
-		return -1;
+	if (node) {
+		infra_ao_mem_base = (unsigned long)of_iomap(node, 0);
+		if (!infra_ao_mem_base) {
+			CCCI_ERROR_LOG(md->index, TAG,
+				"%s: infra_ao_mem_base of_iomap failed\n",
+				node->full_name);
+			return -1;
+		}
+		CCCI_INIT_LOG(-1, TAG, "infra_ao_mem_base:0x%p\n",
+				(void *)infra_ao_mem_base);
 	}
-	CCCI_INIT_LOG(-1, TAG, "infra_ao_mem_base:0x%p\n",
-			(void *)infra_ao_mem_base);
 
+#if IS_ENABLED(CONFIG_MTK_DEVAPC) && !IS_ENABLED(CONFIG_DEVAPC_LEGACY)
 	ccci_md_devapc_register_cb();
 	CCCI_INIT_LOG(-1, TAG, "ccci_md_devapc_register_callback success\n");
+#endif
 
 #ifdef FEATURE_LOW_BATTERY_SUPPORT
 	register_low_battery_notify_ext(
@@ -267,103 +252,6 @@ int ccci_platform_init(struct ccci_modem *md)
 #endif
 	return 0;
 }
-
-#define DUMMY_PAGE_SIZE (128)
-#define DUMMY_PADDING_CNT (5)
-
-#define CTRL_PAGE_SIZE (1024)
-#define CTRL_PAGE_NUM (32)
-
-#define MD_EX_PAGE_SIZE (20*1024)
-#define MD_EX_PAGE_NUM  (6)
-
-
-/*
- *  Note : Moidy this size will affect dhl frame size in this page
- *  Minimum : 352B to reserve 256B for header frame
- */
-#define MD_HW_PAGE_SIZE (512)
-
-/* replace with HW page */
-#define MD_BUF1_PAGE_SIZE (MD_HW_PAGE_SIZE)
-#define MD_BUF1_PAGE_NUM  (72)
-#define AP_BUF1_PAGE_SIZE (1024)
-#define AP_BUF1_PAGE_NUM  (32)
-
-#define MD_BUF2_0_PAGE_SIZE (MD_HW_PAGE_SIZE)
-#define MD_BUF2_1_PAGE_SIZE (MD_HW_PAGE_SIZE)
-#define MD_BUF2_2_PAGE_SIZE (MD_HW_PAGE_SIZE)
-
-#define MD_BUF2_0_PAGE_NUM (64)
-#define MD_BUF2_1_PAGE_NUM (64)
-#define MD_BUF2_2_PAGE_NUM (256)
-
-#define MD_MDM_PAGE_SIZE (MD_HW_PAGE_SIZE)
-#define MD_MDM_PAGE_NUM  (32)
-
-#define AP_MDM_PAGE_SIZE (1024)
-#define AP_MDM_PAGE_NUM  (16)
-
-#define MD_META_PAGE_SIZE (65*1024)
-#define MD_META_PAGE_NUM (8)
-
-#define AP_META_PAGE_SIZE (65*1024)
-#define AP_META_PAGE_NUM (8)
-
-struct ccci_ccb_config ccb_configs[] = {
-	{SMEM_USER_CCB_DHL, P_CORE, CTRL_PAGE_SIZE,
-			CTRL_PAGE_SIZE, CTRL_PAGE_SIZE*CTRL_PAGE_NUM,
-			CTRL_PAGE_SIZE*CTRL_PAGE_NUM}, /* Ctrl */
-	{SMEM_USER_CCB_DHL, P_CORE, MD_EX_PAGE_SIZE,
-		 DUMMY_PAGE_SIZE, MD_EX_PAGE_SIZE*MD_EX_PAGE_NUM,
-			DUMMY_PAGE_SIZE},			/* exception */
-	{SMEM_USER_CCB_DHL, P_CORE, MD_BUF1_PAGE_SIZE,
-	 AP_BUF1_PAGE_SIZE, (MD_BUF1_PAGE_SIZE*MD_BUF1_PAGE_NUM),
-			AP_BUF1_PAGE_SIZE*AP_BUF1_PAGE_NUM},/* PS */
-	{SMEM_USER_CCB_DHL, P_CORE, MD_BUF2_0_PAGE_SIZE,
-		 DUMMY_PAGE_SIZE, MD_BUF2_0_PAGE_SIZE*MD_BUF2_0_PAGE_NUM,
-			DUMMY_PAGE_SIZE},     /* HWLOGGER1 */
-	{SMEM_USER_CCB_DHL, P_CORE, MD_BUF2_1_PAGE_SIZE,
-		 DUMMY_PAGE_SIZE, MD_BUF2_1_PAGE_SIZE*MD_BUF2_1_PAGE_NUM,
-			DUMMY_PAGE_SIZE},     /* HWLOGGER2  */
-	{SMEM_USER_CCB_DHL, P_CORE, MD_BUF2_2_PAGE_SIZE,
-		 DUMMY_PAGE_SIZE, MD_BUF2_2_PAGE_SIZE*MD_BUF2_2_PAGE_NUM,
-			DUMMY_PAGE_SIZE},     /* HWLOGGER3 */
-	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
-		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
-	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
-		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
-	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
-		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
-	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
-		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
-	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
-		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
-	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
-		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
-	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
-		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
-	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
-		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
-	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
-		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
-	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
-		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
-	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
-		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE},
-	{SMEM_USER_CCB_DHL, P_CORE, DUMMY_PAGE_SIZE,
-		 DUMMY_PAGE_SIZE, DUMMY_PAGE_SIZE*DUMMY_PADDING_CNT,
-		DUMMY_PAGE_SIZE},
-	{SMEM_USER_CCB_MD_MONITOR, P_CORE, MD_MDM_PAGE_SIZE,
-		 AP_MDM_PAGE_SIZE, MD_MDM_PAGE_SIZE*MD_MDM_PAGE_NUM,
-		AP_MDM_PAGE_SIZE*AP_MDM_PAGE_NUM},     /* MDM */
-	{SMEM_USER_CCB_META, P_CORE, MD_META_PAGE_SIZE,
-		AP_META_PAGE_SIZE, MD_META_PAGE_SIZE*MD_META_PAGE_NUM,
-		AP_META_PAGE_SIZE*AP_META_PAGE_NUM},   /* META */
-};
-unsigned int ccb_configs_len =
-			sizeof(ccb_configs)/sizeof(struct ccci_ccb_config);
-
 
 /* Iperf setting */
 /* static const struct dvfs_ref s_dvfs_tbl[] = { */
@@ -387,6 +275,8 @@ static  struct dvfs_ref s_dl_dvfs_tbl[] = {
 	{0LL, -1, -1, -1, -1, -1, 0xFF, 0xFF, 0x3D},
 };
 
+#ifndef CCCI_PLATFORM_MT6877
+/* for mt6853 UL dvfs table */
 static  struct dvfs_ref s_ul_dvfs_tbl[] = {
 	/*speed, cluster0, cluster1, cluster2, cluster3, dram, isr, push, rps*/
 	{600000000LL, 2700000, 2706000, -1, -1, 0, 0x02, 0xC0, 0xC0},
@@ -397,6 +287,19 @@ static  struct dvfs_ref s_ul_dvfs_tbl[] = {
 	/* normal */
 	{0LL, -1, -1, -1, -1, -1, 0xFF, 0xFF, 0x3D},
 };
+
+#else
+/* for mt6877 UL dvfs table */
+static  struct dvfs_ref s_ul_dvfs_tbl[] = {
+	/*speed, cluster0, cluster1, cluster2, cluster3, dram, isr, push, rps*/
+	{500000000LL, 1800000, 1300000, -1, -1, 0, 0x02, 0xC0, 0xC0},
+	{300000000LL, 1703000, 740000, -1, -1, 1, 0xFF, 0xFF, 0x3D},
+	{250000000LL, -1, -1, -1, -1, -1, 0xFF, 0xFF, 0x3D},
+
+	/* normal */
+	{0LL, -1, -1, -1, -1, -1, 0xFF, 0xFF, 0x3D},
+};
+#endif
 
 struct dvfs_ref *mtk_ccci_get_dvfs_table(int is_ul, int *tbl_num)
 {

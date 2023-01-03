@@ -3283,7 +3283,6 @@ static int mt6358_amic_enable(struct mt6358_priv *priv)
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON1,
 				   RG_AUDPREAMPRON_MASK_SFT,
 				   0x1 << RG_AUDPREAMPRON_SFT);
-
 		usleep_range(1000, 1050);
 		if (IS_DCC_BASE(mic_type)) {
 			/* R preamplifier DCCEN */
@@ -3316,12 +3315,14 @@ static int mt6358_amic_enable(struct mt6358_priv *priv)
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON3,
 				   0x1 << 12, 0x0);
 	}
+
+	usleep_range(500, 520);
 	regmap_read(priv->regmap, MT6358_AUDENC_ANA_CON12, &reg_value);
 	rc_1 = reg_value & 0x1f;
 	rc_2 = (reg_value >> 8 ) & 0x1f;
-	dev_info(priv->dev, "%s(), MT6358_AUDENC_CON12(rc2, rc1) = 0x%x(0x%x, 0x%x)\n",
+	dev_dbg(priv->dev, "%s(), MT6358_AUDENC_CON12(rc2, rc1) = 0x%x(0x%x, 0x%x)\n",
 		__func__, reg_value, rc_2, rc_1);
-	if ((rc_2 == 0) || (rc_1 == 0)) {
+	if ((rc_2 == 0) || (rc_1 == 0) || (rc_1 == 0x1f) || (rc_2 == 0x1f)) {
 		/* Disable audio L ADC */
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON0,
 				   RG_AUDADCLPWRUP_MASK_SFT,
@@ -3338,15 +3339,10 @@ static int mt6358_amic_enable(struct mt6358_priv *priv)
 		regmap_update_bits(priv->regmap, MT6358_AUDENC_ANA_CON1,
 				   RG_AUDADCRPWRUP_MASK_SFT,
 				   0x1 << RG_AUDADCRPWRUP_SFT);
-
-		regmap_read(priv->regmap, MT6358_AUDENC_ANA_CON12, &reg_value);
-		rc_1 = reg_value & 0x1f;
-		rc_2 = (reg_value >> 8 ) & 0x1f;
-		dev_info(priv->dev, "%s(), MT6358_AUDENC_CON12(rc2, rc1) = 0x%x(0x%x, 0x%x)\n",
-			__func__, reg_value, rc_2, rc_1);
 	}
+	usleep_range(500, 520);
 	regmap_read(priv->regmap, MT6358_AUDENC_ANA_CON12, &reg_value);
-	dev_info(priv->dev, "%s(), final: MT6358_AUDENC_CON12 = 0x%x\n",
+	dev_dbg(priv->dev, "%s(), final: MT6358_AUDENC_CON12 = 0x%x\n",
 		__func__, reg_value);
 	/* here to set digital part */
 	mt6358_mtkaif_tx_enable(priv);
@@ -7254,9 +7250,8 @@ static int get_hp_current_calibrate_val(struct mt6358_priv *priv)
 	return value;
 }
 
-static int mt6358_codec_probe(struct snd_soc_codec *codec)
+static int mt6358_codec_probe(struct snd_soc_component *cmpnt)
 {
-	struct snd_soc_component *cmpnt = &codec->component;
 	struct mt6358_priv *priv = snd_soc_component_get_drvdata(cmpnt);
 
 	snd_soc_component_init_regmap(cmpnt, priv->regmap);
@@ -7289,14 +7284,13 @@ static int mt6358_codec_probe(struct snd_soc_codec *codec)
 	return 0;
 }
 
-static struct snd_soc_codec_driver mt6358_soc_codec_driver = {
+static struct snd_soc_component_driver mt6358_soc_component_driver = {
+	.name = CODEC_MT6358_NAME,
 	.probe = mt6358_codec_probe,
-	.component_driver = {
-		.dapm_widgets = mt6358_dapm_widgets,
-		.num_dapm_widgets = ARRAY_SIZE(mt6358_dapm_widgets),
-		.dapm_routes = mt6358_dapm_routes,
-		.num_dapm_routes = ARRAY_SIZE(mt6358_dapm_routes),
-	},
+	.dapm_widgets = mt6358_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(mt6358_dapm_widgets),
+	.dapm_routes = mt6358_dapm_routes,
+	.num_dapm_routes = ARRAY_SIZE(mt6358_dapm_routes),
 };
 
 #ifdef CONFIG_DEBUG_FS
@@ -8274,8 +8268,8 @@ static int mt6358_platform_driver_probe(struct platform_device *pdev)
 	dev_info(priv->dev, "%s(), dev name %s\n",
 		 __func__, dev_name(&pdev->dev));
 
-	return snd_soc_register_codec(&pdev->dev,
-				      &mt6358_soc_codec_driver,
+	return snd_soc_register_component(&pdev->dev,
+				      &mt6358_soc_component_driver,
 				      mt6358_dai_driver,
 				      ARRAY_SIZE(mt6358_dai_driver));
 }
@@ -8289,7 +8283,7 @@ static int mt6358_platform_driver_remove(struct platform_device *pdev)
 
 	debugfs_remove(priv->debugfs);
 #endif
-	snd_soc_unregister_codec(&pdev->dev);
+	snd_soc_unregister_component(&pdev->dev);
 	return 0;
 }
 

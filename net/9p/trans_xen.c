@@ -38,7 +38,6 @@
 
 #include <linux/module.h>
 #include <linux/spinlock.h>
-#include <linux/rwlock.h>
 #include <net/9p/9p.h>
 #include <net/9p/client.h>
 #include <net/9p/transport.h>
@@ -142,7 +141,7 @@ static int p9_xen_request(struct p9_client *client, struct p9_req_t *p9_req)
 	struct xen_9pfs_front_priv *priv = NULL;
 	RING_IDX cons, prod, masked_cons, masked_prod;
 	unsigned long flags;
-	u32 size = p9_req->tc->size;
+	u32 size = p9_req->tc.size;
 	struct xen_9pfs_dataring *ring;
 	int num;
 
@@ -155,7 +154,7 @@ static int p9_xen_request(struct p9_client *client, struct p9_req_t *p9_req)
 	if (!priv || priv->client != client)
 		return -EINVAL;
 
-	num = p9_req->tc->tag % priv->num_rings;
+	num = p9_req->tc.tag % priv->num_rings;
 	ring = &priv->rings[num];
 
 again:
@@ -177,7 +176,7 @@ again:
 	masked_prod = xen_9pfs_mask(prod, XEN_9PFS_RING_SIZE);
 	masked_cons = xen_9pfs_mask(cons, XEN_9PFS_RING_SIZE);
 
-	xen_9pfs_write_packet(ring->data.out, p9_req->tc->sdata, size,
+	xen_9pfs_write_packet(ring->data.out, p9_req->tc.sdata, size,
 			      &masked_prod, masked_cons, XEN_9PFS_RING_SIZE);
 
 	p9_req->status = REQ_STATUS_SENT;
@@ -186,6 +185,7 @@ again:
 	ring->intf->out_prod = prod;
 	spin_unlock_irqrestore(&ring->lock, flags);
 	notify_remote_via_irq(ring->irq);
+	p9_req_put(p9_req);
 
 	return 0;
 }
@@ -230,12 +230,12 @@ static void p9_xen_response(struct work_struct *work)
 			continue;
 		}
 
-		memcpy(req->rc, &h, sizeof(h));
-		req->rc->offset = 0;
+		memcpy(&req->rc, &h, sizeof(h));
+		req->rc.offset = 0;
 
 		masked_cons = xen_9pfs_mask(cons, XEN_9PFS_RING_SIZE);
 		/* Then, read the whole packet (including the header) */
-		xen_9pfs_read_packet(req->rc->sdata, ring->data.in, h.size,
+		xen_9pfs_read_packet(req->rc.sdata, ring->data.in, h.size,
 				     masked_prod, &masked_cons,
 				     XEN_9PFS_RING_SIZE);
 
@@ -488,7 +488,7 @@ static int xen_9pfs_front_probe(struct xenbus_device *dev,
 
 static int xen_9pfs_front_resume(struct xenbus_device *dev)
 {
-	dev_warn(&dev->dev, "suspsend/resume unsupported\n");
+	dev_warn(&dev->dev, "suspend/resume unsupported\n");
 	return 0;
 }
 
@@ -552,3 +552,7 @@ static void p9_trans_xen_exit(void)
 	return xenbus_unregister_driver(&xen_9pfs_front_driver);
 }
 module_exit(p9_trans_xen_exit);
+
+MODULE_AUTHOR("Stefano Stabellini <stefano@aporeto.com>");
+MODULE_DESCRIPTION("Xen Transport for 9P");
+MODULE_LICENSE("GPL");

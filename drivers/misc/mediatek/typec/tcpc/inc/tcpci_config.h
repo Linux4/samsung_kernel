@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #ifndef __LINUX_TCPC_CONFIG_H
@@ -28,8 +20,8 @@
 #define CONFIG_TYPEC_CAP_CUSTOM_SRC
 #define CONFIG_TYPEC_CAP_NORP_SRC
 /* #define CONFIG_COMPATIBLE_APPLE_TA */
-
-#define CONFIG_RECV_BAT_ABSENT_NOTIFY
+/* FIXME : skip build error */
+/* #define CONFIG_RECV_BAT_ABSENT_NOTIFY */
 
 /* #define CONFIG_TYPEC_ATTACHED_SRC_SAFE0V_DELAY */
 #define CONFIG_TYPEC_ATTACHED_SRC_SAFE0V_TIMEOUT
@@ -265,8 +257,6 @@
 #define CONFIG_USB_PD_DFP_FLOW_DELAY_DRSWAP
 #define CONFIG_USB_PD_DFP_FLOW_DELAY_RESET
 
-#define CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG
-
 /* Only in startup */
 #define CONFIG_USB_PD_UFP_FLOW_DELAY
 #define CONFIG_USB_PD_VCONN_STABLE_DELAY
@@ -401,7 +391,10 @@
 #undef CONFIG_USB_PD_WAIT_BC12
 #endif /* CONFIG_MTK_CHARGER */
 
+#ifdef CONFIG_MTK_CHARGER
+/* Need APIs from MTK charger */
 #define CONFIG_KPOC_GET_SOURCE_CAP_TRY
+#endif
 #endif /* CONFIG_USB_POWER_DELIVERY */
 
 /* debug config */
@@ -425,16 +418,9 @@
 #define CONFIG_WD_INIT_POWER_OFF_CHARGE
 #define CONFIG_WD_SBU_CALIB_INIT	1800 /* mV */
 #define CONFIG_WD_SBU_PL_BOUND		200 /* mV */
-#define CONFIG_WD_SBU_PL_LBOUND_C2C	1100 /* mV */
-#define CONFIG_WD_SBU_PL_UBOUND_C2C	2600 /* mV */
-#define CONFIG_WD_SBU_PL_RETRY		2
-#define CONFIG_WD_SBU_PH_RETRY		2
 #define CONFIG_WD_SBU_PH_AUDDEV		70 /* mV */
 #define CONFIG_WD_SBU_PH_LBOUND_ATTACH	1650 /* mV */
 #define CONFIG_WD_SBU_PH_LBOUND		1180 /* mV */
-#define CONFIG_WD_SBU_PH_LBOUND_LPM		1650 /* mV */
-#define CONFIG_WD_SBU_PH_LBOUND1_SS	1150 /* mV */
-#define CONFIG_WD_SBU_PH_UBOUND1_SS	1250 /* mV */
 #define CONFIG_WD_SBU_PH_LBOUND1_C2C	2850 /* mV */
 #define CONFIG_WD_SBU_PH_UBOUND1_C2C	3150 /* mV */
 #define CONFIG_WD_SBU_PH_UBOUND2_C2C	3800 /* mV */

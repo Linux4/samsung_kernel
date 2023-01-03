@@ -8,9 +8,13 @@
  *      Storage Driver <storage.sec@samsung.com>
  */
 
-#include <linux/sysfs.h>
-#include <linux/mmc/slot-gpio.h>
-#include <linux/mmc/mmc.h>
+#include <linux/device.h>
+#include <linux/gpio.h>
+#include <linux/sec_class.h>
+#include <mmc/core/host.h>
+#include <mmc/core/card.h>
+#include "mtk_sd.h"
+#include "mmc-sec-sysfs.h"
 
 static inline void mmc_check_error_count(struct mmc_card_error_log *err_log,
 		unsigned long long *total_c_cnt, unsigned long long *total_t_cnt)
@@ -151,7 +155,6 @@ static ssize_t mmc_summary_show(struct device *dev,
 			bus_speed_mode = "LEGACY";
 
 		/* SUMMARY */
-#if defined(CONFIG_MTK_EMMC_CQ_SUPPORT) || defined(CONFIG_MTK_EMMC_HW_CQ)
 		len = sprintf(buf, "\"MANID\":\"0x%02X\",\"PNM\":\"%s\","
 				"\"REV\":\"%#x%x%x%x\",\"CQ\":\"%d\","
 				"\"SIZE\":\"%s\",\"SPEEDMODE\":\"%s\","
@@ -167,36 +170,14 @@ static ssize_t mmc_summary_show(struct device *dev,
 				 card->ext_csd.device_life_time_est_typ_b ?
 				 card->ext_csd.device_life_time_est_typ_a :
 				 card->ext_csd.device_life_time_est_typ_b));
-#else
-		len = sprintf(buf, "\"MANID\":\"0x%02X\",\"PNM\":\"%s\","\
-				"\"REV\":\"%#x%x%x%x\","\
-				"\"SIZE\":\"%s\",\"SPEEDMODE\":\"%s\","\
-				"\"LIFE\":\"%u\"\n",
-				card->cid.manfid, card->cid.prod_name,
-				(char)card->ext_csd.fwrev[4],
-				(char)card->ext_csd.fwrev[5],
-				(char)card->ext_csd.fwrev[6],
-				(char)card->ext_csd.fwrev[7],
-				ret_size, bus_speed_mode,
-				(card->ext_csd.device_life_time_est_typ_a >
-				 card->ext_csd.device_life_time_est_typ_b ?
-				 card->ext_csd.device_life_time_est_typ_a :
-				 card->ext_csd.device_life_time_est_typ_b));
-#endif
 		dev_info(dev, "%s", buf);
 		return len;
 	} else {
 		/* SUMMARY : No MMC Case */
 		dev_info(dev, "%s : No eMMC Card\n", __func__);
-#if defined(CONFIG_MTK_EMMC_CQ_SUPPORT) || defined(CONFIG_MTK_EMMC_HW_CQ)
 		return sprintf(buf, "\"MANID\":\"NoCard\",\"PNM\":\"NoCard\",\"REV\":\"NoCard\""
 				",\"CQ\":\"NoCard\",\"SIZE\":\"NoCard\",\"SPEEDMODE\":\"NoCard\""
 				",\"LIFE\":\"NoCard\"\n");
-#else
-	    return sprintf(buf, "\"MANID\":\"NoCard\",\"PNM\":\"NoCard\",\"REV\":\"NoCard\""\
-				",\"SIZE\":\"NoCard\",\"SPEEDMODE\":\"NoCard\""\
-				",\"LIFE\":\"NoCard\"\n");
-#endif
 	}
 }
 
@@ -271,21 +252,6 @@ static ssize_t mmc_ext_csd_show(struct device *dev,
 		return snprintf(buf, PAGE_SIZE, "No Card\n");
 }
 
-#ifdef CONFIG_SEC_FACTORY
-/* For checking reset pin of mmc*/
-static ssize_t mmc_hwrst_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct mmc_host *mmc = dev_get_drvdata(dev);
-	struct mmc_card *card = mmc->card;
-
-	if (card)
-		return sprintf(buf, "%d\n", card->ext_csd.rst_n_function);
-	else
-		return sprintf(buf, "no card\n");
-}
-#endif
-
 static ssize_t error_count_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -346,7 +312,6 @@ out:
 	return total_len;
 }
 
-/* SYSFS for SD card detection */
 static ssize_t sdcard_status_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -609,7 +574,6 @@ static inline void mmc_check_error_count_calc_current(struct mmc_card *card,
 	SEC_MMC_STATUS_ERR_INFO_GET_VALUE(noti_cnt);
 }
 
-
 #define SEC_MMC_STATUS_ERR_INFO_BACKUP(member) ({		\
 		err_log_backup->member = err_log->member;	})
 
@@ -683,12 +647,9 @@ static ssize_t sd_data_store(struct device *dev, struct device_attribute *attr,
 }
 
 static DEVICE_ATTR(un, 0440, mmc_gen_unique_number_show, NULL);
+static DEVICE_ATTR(mmc_data, 0444, mmc_data_show, NULL);
 static DEVICE_ATTR(mmc_summary, 0444, mmc_summary_show, NULL);
 static DEVICE_ATTR(mmc_ecsd, 0444, mmc_ext_csd_show, NULL);
-static DEVICE_ATTR(mmc_data, 0444, mmc_data_show, NULL);
-#ifdef CONFIG_SEC_FACTORY
-static DEVICE_ATTR(hwrst, 0444, mmc_hwrst_show, NULL);
-#endif
 static DEVICE_ATTR(err_count, 0444, error_count_show, NULL);
 
 static DEVICE_ATTR(status, 0444, sdcard_status_show, NULL);
@@ -705,12 +666,9 @@ static DEVICE_ATTR(sd_data, 0664, sd_data_show, sd_data_store);
 
 static struct attribute *mmc_attributes[] = {
 	&dev_attr_un.attr,
+	&dev_attr_mmc_data.attr,
 	&dev_attr_mmc_summary.attr,
 	&dev_attr_mmc_ecsd.attr,
-	&dev_attr_mmc_data.attr,
-#ifdef CONFIG_SEC_FACTORY
-	&dev_attr_hwrst.attr,
-#endif
 	&dev_attr_err_count.attr,
 	NULL,
 };

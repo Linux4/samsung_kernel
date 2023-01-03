@@ -1,28 +1,20 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 /*
  * @file    mtk_clk_buf_hw.c
  * @brief   Driver for clock buffer control of each platform
  *
  */
-
+#include <linux/regmap.h>
 #include <mtk_spm.h>
 #include <mtk_clkbuf_ctl.h>
 #include <mtk_clkbuf_common.h>
 
 static void __iomem *pwrap_base;
-
+struct regmap *clkbuf_regmap;
 #define PWRAP_REG(ofs)		(pwrap_base + ofs)
 
 /* PMICWRAP Reg */
@@ -87,6 +79,8 @@ static void __iomem *pwrap_base;
 /* TODO: enable BBLPM if its function is ready (set as 1) */
 static unsigned int bblpm_switch = 1;
 
+static unsigned int bblpm_cnt;
+
 static unsigned int pwrap_dcxo_en_flag = (DCXO_CONN_ENABLE | DCXO_NFC_ENABLE);
 
 static unsigned int CLK_BUF1_STATUS_PMIC = CLOCK_BUFFER_HW_CONTROL,
@@ -104,11 +98,11 @@ static int PMIC_CLK_BUF1_DRIVING_CURR = CLK_BUF_DRIVING_CURR_AUTO_K,
 	   PMIC_CLK_BUF6_DRIVING_CURR = CLK_BUF_DRIVING_CURR_AUTO_K,
 	   PMIC_CLK_BUF7_DRIVING_CURR = CLK_BUF_DRIVING_CURR_AUTO_K;
 
-static u8 clkbuf_drv_curr_auxout[CLKBUF_NUM];
-static u8 xo_en_stat[CLKBUF_NUM];
+static u8 clkbuf_drv_curr_auxout[XO_NUMBER];
+static u8 xo_en_stat[XO_NUMBER];
 
 #ifndef CLKBUF_BRINGUP
-static enum CLK_BUF_SWCTRL_STATUS_T  pmic_clk_buf_swctrl[CLKBUF_NUM] = {
+static enum CLK_BUF_SWCTRL_STATUS_T  pmic_clk_buf_swctrl[XO_NUMBER] = {
 	CLK_BUF_SW_ENABLE,
 	CLK_BUF_SW_DISABLE,
 	CLK_BUF_SW_DISABLE,
@@ -118,7 +112,7 @@ static enum CLK_BUF_SWCTRL_STATUS_T  pmic_clk_buf_swctrl[CLKBUF_NUM] = {
 	CLK_BUF_SW_ENABLE
 };
 #else /* For Bring-up */
-static enum CLK_BUF_SWCTRL_STATUS_T  pmic_clk_buf_swctrl[CLKBUF_NUM] = {
+static enum CLK_BUF_SWCTRL_STATUS_T  pmic_clk_buf_swctrl[XO_NUMBER] = {
 	CLK_BUF_SW_ENABLE,
 	CLK_BUF_SW_ENABLE,
 	CLK_BUF_SW_ENABLE,
@@ -227,11 +221,11 @@ void clk_buf_control_bblpm(bool on)
 	if (!is_clkbuf_initiated || !is_pmic_clkbuf)
 		return;
 
-	if (on) /* FPM -> BBLPM */
+	if (on) 
 		pmic_config_interface_nolock(PMIC_DCXO_CW00_SET_ADDR, 0x1,
 				      PMIC_XO_BB_LPM_EN_MASK,
 				      PMIC_XO_BB_LPM_EN_SHIFT);
-	else /* BBLPM -> FPM */
+	else 
 		pmic_config_interface_nolock(PMIC_DCXO_CW00_CLR_ADDR, 0x1,
 				      PMIC_XO_BB_LPM_EN_MASK,
 				      PMIC_XO_BB_LPM_EN_SHIFT);
@@ -242,7 +236,9 @@ void clk_buf_control_bblpm(bool on)
 	pr_info("%s(%u): CW00=0x%x\n", __func__, (on ? 1 : 0), cw00);
 #endif
 #endif
-}
+} 
+
+
 
 /*
  * Baseband Low Power Mode (BBLPM) for PMIC clkbuf
@@ -272,12 +268,11 @@ u32 clk_buf_bblpm_enter_cond(void)
 	if (pmic_clk_buf_swctrl[XO_NFC] == CLK_BUF_SW_ENABLE)
 		bblpm_cond |= BBLPM_COND_NFC;
 
+	if (!bblpm_cond)
+		bblpm_cnt++;
 #else /* !CLKBUF_USE_BBLPM */
 	bblpm_cond |= BBLPM_COND_SKIP;
 #endif
-
-	if (!bblpm_cond)
-		bblpm_cnt++;
 
 	return bblpm_cond;
 }
@@ -423,7 +418,6 @@ bool clk_buf_ctrl(enum clk_buf_id id, bool onoff)
 			pmic_clk_buf_swctrl[XO_WCN] = 0;
 			break;
 		}
-		/* record the status of CONN from caller for checking BBLPM */
 		pmic_clk_buf_swctrl[XO_WCN] = onoff;
 		break;
 	case CLK_BUF_NFC:
@@ -433,7 +427,6 @@ bool clk_buf_ctrl(enum clk_buf_id id, bool onoff)
 				__func__, id);
 			break;
 		}
-		/* record the status of NFC from caller for checking BBLPM */
 		pmic_clk_buf_swctrl[XO_NFC] = onoff;
 		break;
 	case CLK_BUF_RF:
@@ -494,7 +487,7 @@ bool clk_buf_ctrl(enum clk_buf_id id, bool onoff)
 	else
 		return true;
 }
-EXPORT_SYMBOL(clk_buf_ctrl);
+EXPORT_SYMBOL(clk_buf_ctrl); 
 
 static u32 dcxo_dbg_read_auxout(u16 sel)
 {
@@ -847,13 +840,14 @@ void clk_buf_show_status_info(void)
 static ssize_t clk_buf_ctrl_store(struct kobject *kobj,
 		struct kobj_attribute *attr, const char *buf, size_t count)
 {
-	u32 clk_buf_en[CLKBUF_NUM], i;
+	u32 clk_buf_en[XO_NUMBER];
 	char cmd[32];
+	u32 i;
 
 	if (sscanf(buf, "%31s %x %x %x %x %x %x %x", cmd, &clk_buf_en[XO_SOC],
 		   &clk_buf_en[XO_WCN], &clk_buf_en[XO_NFC], &clk_buf_en[XO_CEL],
 		   &clk_buf_en[XO_AUD], &clk_buf_en[XO_PD], &clk_buf_en[XO_EXT])
-	    != (CLKBUF_NUM + 1))
+	    != (XO_NUMBER + 1))
 		return -EPERM;
 
 	if (!strcmp(cmd, "pmic")) {
@@ -862,7 +856,7 @@ static ssize_t clk_buf_ctrl_store(struct kobject *kobj,
 
 		mutex_lock(&clk_buf_ctrl_lock);
 
-		for (i = 0; i < CLKBUF_NUM; i++)
+		for (i = 0; i < XO_NUMBER; i++)
 			pmic_clk_buf_swctrl[i] = clk_buf_en[i];
 
 		pmic_clk_buf_ctrl(pmic_clk_buf_swctrl);
@@ -876,7 +870,7 @@ static ssize_t clk_buf_ctrl_store(struct kobject *kobj,
 
 		mutex_lock(&clk_buf_ctrl_lock);
 
-		for (i = 0; i < CLKBUF_NUM; i++) {
+		for (i = 0; i < XO_NUMBER; i++) {
 			if (i == XO_WCN) {
 				if (clk_buf_en[i])
 					pwrap_dcxo_en_flag |= DCXO_CONN_ENABLE;
@@ -1033,13 +1027,13 @@ int clk_buf_fs_init(void)
 int clk_buf_dts_map(void)
 {
 	struct device_node *node;
-	u32 vals[CLKBUF_NUM] = {0, 0, 0, 0, 0, 0, 0};
+	u32 vals[XO_NUMBER] = {0, 0, 0, 0, 0, 0, 0};
 	int ret = -1;
 
 	node = of_find_compatible_node(NULL, NULL, "mediatek,pmic_clock_buffer");
 	if (node) {
 		ret = of_property_read_u32_array(node, "mediatek,clkbuf-config",
-						 vals, CLKBUF_NUM);
+						 vals, XO_NUMBER);
 		if (!ret) {
 			CLK_BUF1_STATUS_PMIC = vals[0];
 			CLK_BUF2_STATUS_PMIC = vals[1];
@@ -1050,7 +1044,7 @@ int clk_buf_dts_map(void)
 			CLK_BUF7_STATUS_PMIC = vals[6];
 		}
 		ret = of_property_read_u32_array(node, "mediatek,clkbuf-driving-current",
-						 vals, CLKBUF_NUM);
+						 vals, XO_NUMBER);
 		if (!ret) {
 			PMIC_CLK_BUF1_DRIVING_CURR = vals[0];
 			PMIC_CLK_BUF2_DRIVING_CURR = vals[1];
@@ -1083,10 +1077,11 @@ int clk_buf_dts_map(void)
 }
 #endif
 
-void clk_buf_init_pmic_clkbuf(void)
+void clk_buf_init_pmic_clkbuf_legacy(void)
 {
 	/* Dump registers before setting */
 	clk_buf_dump_clkbuf_log();
+
 
 #ifndef __KERNEL__
 	/* Setup initial PMIC clock buffer setting */
@@ -1202,7 +1197,7 @@ short is_clkbuf_bringup(void)
 
 void clk_buf_post_init(void)
 {
-#ifndef CONFIG_NFC_CHIP_SUPPORT
+#ifndef CONFIG_MTK_NFC_CLKBUF_ENABLE
 	/* no need to use XO_NFC if no NFC */
 	clk_buf_ctrl_internal(CLK_BUF_NFC, false);
 #endif

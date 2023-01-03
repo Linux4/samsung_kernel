@@ -23,6 +23,14 @@
 #if defined(CONFIG_SEC_ABC)
 #include <linux/sti/abc_common.h>
 #endif
+
+/* function ptr for original arm_pm_restart */
+void (*mach_power_off)(void);
+EXPORT_SYMBOL(mach_power_off);
+
+void (*mach_restart)(enum reboot_mode mode, const char *cmd);
+EXPORT_SYMBOL(mach_restart);
+
 #define psy_get_property(psy, property, value) \
 {	\
 	int ret;	\
@@ -41,22 +49,11 @@
 	}	\
 }
 
-#if defined(CONFIG_SEC_DUMP_SINK)
-void sec_set_reboot_magic(int magic)
-{
-	int tmp;
-
-	tmp = LAST_RR_VAL(reboot_magic);
-	pr_info("%s: prev: %x\n", __func__, tmp);
-	tmp = magic;
-	pr_info("%s: set as: %x\n", __func__, tmp);
-	LAST_RR_SET(reboot_magic, tmp);
-}
-#endif
+extern int mtk_pmic_pwrkey_status(void);
 
 static void sec_power_off(void)
 {
-	unsigned short released;
+	int pressed;
 	union power_supply_propval ac_val = {0, }, usb_val = {0, }, wc_val = {0, };
 	struct power_supply *ac_psy = power_supply_get_by_name("ac");
 	struct power_supply *usb_psy = power_supply_get_by_name("usb");
@@ -76,14 +73,15 @@ static void sec_power_off(void)
 
 	while (1) {
 		/* wait for power button release */
-		released = pmic_get_register_value_nolock(PMIC_PWRKEY_DEB);
-		if (released) {
-			pr_info("%s: PowerButton was released(%d)\n", __func__, released);
-			mt_power_off();
+		pressed = mtk_pmic_pwrkey_status();
+		if (!pressed) {
+			pr_info("%s: PowerButton was released(%d)\n", __func__, pressed);
+			mach_power_off();
 		} else {
 		/* if power button is not released, wait and check TA again */
-			pr_info("%s: PowerButton wasn't released(%d)\n", __func__, released);
+			pr_info("%s: PowerButton wasn't released(%d)\n", __func__, pressed);
 		}
+
 		mdelay(1000);
 	}
 }
@@ -124,10 +122,6 @@ static void sec_reboot(enum reboot_mode reboot_mode, const char *cmd)
 		else if (!strncmp(cmd, "debug", 5)
 			 && !kstrtoul(cmd + 5, 0, &value))
 			LAST_RR_SET(power_reset_reason, SEC_RESET_SET_DEBUG | value);
-#if defined(CONFIG_SEC_DUMP_SINK)
-		else if (!strncmp(cmd, "dump_sink", 9) && !kstrtoul(cmd + 9, 0, &value))
-			LAST_RR_SET(power_reset_reason, SEC_RESET_SET_DUMPSINK | (SEC_DUMPSINK_MASK & value));
-#endif
 		else if (!strncmp(cmd, "swsel", 5)
 			 && !kstrtoul(cmd + 5, 0, &value))
 			LAST_RR_SET(power_reset_reason, SEC_RESET_SET_SWSEL | value);
@@ -153,17 +147,21 @@ static void sec_reboot(enum reboot_mode reboot_mode, const char *cmd)
 	LAST_RR_SET(is_upload, UPLOAD_MAGIC_NORMAL);
 	pr_emerg("%s: waiting for reboot\n", __func__);
 
-	wd_dram_reserved_mode(false);
-
 	__inner_flush_dcache_all();
-	wdt_arch_reset(1);
+
+	mach_restart(REBOOT_COLD, "hw reset");
+
 	while (1);
 }
 
 static int __init sec_reboot_init(void)
 {
+	mach_restart = arm_pm_restart;
+	mach_power_off = pm_power_off;
+
 	pm_power_off = sec_power_off;
 	arm_pm_restart = sec_reboot;
+
 	return 0;
 }
 subsys_initcall(sec_reboot_init);

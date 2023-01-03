@@ -1,15 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
+
 
 /******************************************************************************
  * camera_isp.c - MT6769 Linux ISP Device Driver
@@ -58,7 +51,7 @@
 #endif
 
 /* MET: define to enable MET*/
-#define ISP_MET_READY
+//#define ISP_MET_READY
 
 /* Clkmgr is not ready in early porting, en/disable clock by hardcode */
 #ifdef CONFIG_FPGA_EARLY_PORTING
@@ -71,9 +64,14 @@
 //#define DUMMY_INT   /* For early if load dont need to use camera */
 
 /* EP no need to adjust upper bound of kernel log count */
-//#define EP_NO_K_LOG_ADJUST
+#define EP_NO_K_LOG_ADJUST
 #endif
 #define ENABLE_TIMESYNC_HANDLE /* able/disable TimeSync related for EP */
+
+#if defined (CONFIG_MACH_MT6833)
+/* Special check for 6833 for temp.*/
+#define EP_NO_K_LOG_ADJUST
+#endif
 
 #ifdef CONFIG_COMPAT
 /* 64 bit */
@@ -435,7 +433,7 @@ static unsigned int sec_on;
 static unsigned int cq_recovery[ISP_IRQ_TYPE_AMOUNT];
 
 #ifdef CONFIG_PM_SLEEP
-struct wakeup_source isp_wake_lock;
+struct wakeup_source *isp_wake_lock;
 #endif
 static int g_WaitLockCt;
 
@@ -444,10 +442,6 @@ static struct mutex open_isp_mutex;
 
 /* Get HW modules' base address from device nodes */
 #define ISP_CAMSYS_CONFIG_BASE (isp_devs[ISP_CAMSYS_CONFIG_IDX].regs)
-
-#ifdef CONFIG_MACH_MT6781
-#define SUB_COMMON_CLR
-#endif
 
 #ifdef SUB_COMMON_CLR
 #define LARB_IDLE (0)
@@ -2367,13 +2361,14 @@ static inline void Prepare_Enable_ccf_clock(enum ISP_DEV_NODE_ENUM module)
 
 	if (module == ISP_CAM_A_IDX) {
 		ret = clk_prepare_enable(isp_clk.ISP_SCP_SYS_RAWA);
-		//if (ret)
-		LOG_NOTICE("CAMA pre-en ISP_SCP_SYS_RAWA clock ret =%d \n",ret);
+		if (ret)
+			LOG_NOTICE("cannot pre-en ISP_SCP_SYS_RAWA clock\n");
 	}
 
 	if (module == ISP_CAM_B_IDX) {
 		ret = clk_prepare_enable(isp_clk.ISP_SCP_SYS_RAWB);
-		LOG_NOTICE("CAMB pre-en ISP_SCP_SYS_RAWB clock ret =%d\n", ret);
+		if (ret)
+			LOG_NOTICE("cannot pre-en ISP_SCP_SYS_RAWB clock\n");
 	}
 
 #ifndef DISABLE_SV_TOP0
@@ -2767,7 +2762,6 @@ static void ISP_ConfigDMAControl(enum ISP_DEV_NODE_ENUM module)
  ******************************************************************************/
 static void ISP_EnableClock(enum ISP_DEV_NODE_ENUM module, bool En)
 {
-	LOG_INF("ISP_EnableClock %d %d\n",module ,En);
 	if (En) {
 #if defined(EP_NO_CLKMGR)
 		int cg_con1 = 0, cg_con2 = 0;
@@ -2815,7 +2809,7 @@ static void ISP_EnableClock(enum ISP_DEV_NODE_ENUM module, bool En)
 		}
 #endif
 #else /*CCF*/
-		LOG_INF("CCF:prepare_enable clk"); 
+		/*LOG_INF("CCF:prepare_enable clk"); */
 		spin_lock(&(IspInfo.SpinLockClock));
 		G_u4EnableClockCount[module]++;
 		spin_unlock(&(IspInfo.SpinLockClock));
@@ -4625,7 +4619,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 
 				} else {
 #ifdef CONFIG_PM_SLEEP
-					__pm_stay_awake(&isp_wake_lock);
+					__pm_stay_awake(isp_wake_lock);
 #endif
 					g_WaitLockCt++;
 
@@ -4643,7 +4637,7 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 
 				} else {
 #ifdef CONFIG_PM_SLEEP
-					__pm_relax(&isp_wake_lock);
+					__pm_relax(isp_wake_lock);
 #endif
 					LOG_DBG("wakelock disable!! cnt(%d)\n",
 						g_WaitLockCt);
@@ -6602,13 +6596,6 @@ static long ISP_ioctl_compat(struct file *filp, unsigned int cmd,
 
 		return ret;
 	}
-	case COMPAT_ISP_GET_CUR_HWP1DONE: {
-		ret = filp->f_op->unlocked_ioctl(
-			filp, ISP_GET_CUR_HWP1DONE,
-			(unsigned long)compat_ptr(arg));
-
-		return ret;
-	}
 	case COMPAT_ISP_NOTE_CQTHR0_BASE: {
 		ret = filp->f_op->unlocked_ioctl(
 			filp, ISP_NOTE_CQTHR0_BASE, (unsigned long)compat_ptr(arg));
@@ -6711,10 +6698,15 @@ static int ISP_open(struct inode *pInode, struct file *pFile)
 
 /* kernel log limit to (current+150) lines per second */
 #ifndef EP_NO_K_LOG_ADJUST
+#ifdef CONFIG_LOG_TOO_MUCH_WARNING
 		pr_detect_count = get_detect_count();
+#else
+		pr_detect_count = 0;
+#endif
 		i = pr_detect_count + 150;
+#ifdef CONFIG_LOG_TOO_MUCH_WARNING
 		set_detect_count(i);
-
+#endif
 		LOG_DBG(
 			"Curr UserCount(%d), (process, pid, tgid)=(%s, %d, %d), log_limit_line(%d), first user\n",
 			IspInfo.UserCount,
@@ -6843,7 +6835,9 @@ static int ISP_release(struct inode *pInode, struct file *pFile)
 
 /* kernel log limit back to default */
 #ifndef EP_NO_K_LOG_ADJUST
+#ifdef CONFIG_LOG_TOO_MUCH_WARNING
 	set_detect_count(pr_detect_count);
+#endif
 #endif
 	/*      */
 	LOG_DBG(
@@ -6925,7 +6919,7 @@ static int ISP_release(struct inode *pInode, struct file *pFile)
 	if (g_WaitLockCt) {
 		LOG_INF("wakelock disable!! cnt(%d)\n", g_WaitLockCt);
 #ifdef CONFIG_PM_SLEEP
-		__pm_relax(&isp_wake_lock);
+		__pm_relax(isp_wake_lock);
 #endif
 		g_WaitLockCt = 0;
 	}
@@ -7477,7 +7471,7 @@ static int ISP_probe(struct platform_device *pDev)
 		}
 
 #ifdef CONFIG_PM_SLEEP
-		wakeup_source_init(&isp_wake_lock, "isp_lock_wakelock");
+		isp_wake_lock = wakeup_source_register(&pDev->dev, "isp_lock_wakelock");
 #endif
 
 #if (ISP_BOTTOMHALF_WORKQ == 1)
@@ -12191,7 +12185,6 @@ irqreturn_t ISP_Irq_CAM(
 
 			if (snprintf(gPass1doneLog[module]._str, P1DONE_STR_LEN, "\\") < 0)
 				LOG_NOTICE("[%s] Error : snprintf failed!", __func__);
-
 			if (snprintf(gLostPass1doneLog[module]._str, P1DONE_STR_LEN, "\\") < 0)
 				LOG_NOTICE("[%s] Error : snprintf failed!", __func__);
 
@@ -12849,7 +12842,9 @@ static void ISP_BH_Switch_Workqueue(struct work_struct *pWork)
 	}
 
 	/* set CAM MUX & CAMSV */
+#if IS_ENABLED(CONFIG_MTK_IMGSENSOR)
 	Switch_Tg_For_Stagger(irq_module);
+#endif
 	ISP_CAMSV_Config(irq_module);
 
 	/* 7. enable TG CMOS & viewFinder */
