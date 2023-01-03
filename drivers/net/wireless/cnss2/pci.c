@@ -2177,7 +2177,7 @@ int cnss_wlan_register_driver(struct cnss_wlan_driver *driver_ops)
 
 	timeout = cnss_get_boot_timeout(&pci_priv->pci_dev->dev);
 	ret = wait_for_completion_timeout(&plat_priv->cal_complete,
-					  msecs_to_jiffies(timeout) << 2);
+					  msecs_to_jiffies(timeout) << 3);
 	if (!ret) {
 		cnss_pr_err("Timeout waiting for calibration to complete\n");
 		if (!test_bit(CNSS_IN_REBOOT, &plat_priv->driver_state))
