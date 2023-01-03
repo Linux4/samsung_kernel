@@ -9234,8 +9234,9 @@
 				sx9360,againfreq_reg = <0x31>;
 				sx9360,refgainrawfilt_reg = <0x22>;
 				sx9360,gainrawfilt_reg = <0x22>;
-				sx9360,hyst_reg = <0x15>;
-				sx9360,proxthresh_reg = <0x32>;
+				sx9360,regproxctrl3_reg = <0x0e>;
+				sx9360,hyst_reg = <0x35>;
+				sx9360,proxthresh_reg = <0x2a>;
 				sx9360,hallic_cert_detect = <0x01>;
 			};
 		};
