@@ -30,7 +30,7 @@ config SEC_ABC_MOTTO
 
 comment "Samsung ABC_COMMON KUNIT Options"
 config SEC_ABC_COMMON_KUNIT
-	bool "Samsung ABC_COMMON KUNIT Feature"
+	tristate "Samsung ABC_COMMON KUNIT Feature"
 	depends on SEC_ABC && SEC_KUNIT
 	default n
 	help
@@ -105,7 +105,7 @@ config SEC_ABC_HUB_BOOTC_ENG
 
 comment "Samsung ABC_HUB KUNIT Options"
 config SEC_ABC_HUB_KUNIT
-	bool "Samsung ABC_HUB KUNIT Feature"
+	tristate "Samsung ABC_HUB KUNIT Feature"
 	depends on SEC_ABC_HUB && SEC_KUNIT
 	default n
 	help

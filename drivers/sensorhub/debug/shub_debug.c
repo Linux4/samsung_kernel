@@ -17,6 +17,9 @@
 #include <linux/timer.h>
 #include <linux/kernel.h>
 #include <linux/workqueue.h>
+#if defined(CONFIG_SEC_DEBUG)
+#include <linux/sec_debug.h>
+#endif
 
 #include "../comm/shub_comm.h"
 #include "../sensormanager/shub_sensor.h"
@@ -25,6 +28,7 @@
 #include "../sensorhub/shub_device.h"
 #include "../sensorhub/shub_firmware.h"
 #include "../utility/shub_utility.h"
+#include "../utility/shub_file_manager.h"
 #include "shub_debug.h"
 
 static struct timer_list debug_timer;
@@ -82,7 +86,7 @@ static void check_no_event(void)
 
 			buffer[0] = type;
 			memcpy(&buffer[1], &(sensor->sampling_period), sizeof(sensor->sampling_period));
-			ret = shub_send_command(CMD_SETVALUE, TYPE_MCU, NO_EVENT_CHECK, buffer, sizeof(buffer));
+			ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, NO_EVENT_CHECK, buffer, sizeof(buffer));
 			if (ret < 0)
 				shub_errf("type %d comm failed ret %d", type, ret);
 			else
@@ -114,6 +118,20 @@ static void debug_work_func(struct work_struct *work)
 
 	if (is_shub_working())
 		check_no_event();
+
+#if defined(CONFIG_SHUB_MTK) && defined(CONFIG_SEC_DEBUG)
+	if (data->hub_crash_timestamp && data->hub_crash_timestamp + 100000000000ULL < get_current_timestamp() ) {
+		shub_infof("hub crash timestamp %llu", data->hub_crash_timestamp);
+		/* only work for debug level is mid */
+		if (SEC_DEBUG_LEVEL(kernel)) {
+			shub_infof("panic!");
+			panic("sensorhub crash error\n");
+		} else {
+			shub_infof("debug level is low");
+		}
+		data->hub_crash_timestamp = 0;
+	}
+#endif
 }
 
 static void debug_timer_func(struct timer_list *timer)
@@ -314,5 +332,38 @@ int print_system_info(char *dataframe, int *index, int frame_len)
 		  s_info->time.nMinute, s_info->time.nSecond, s_info->time.nMilliSecond, s_info->timestamp.kernel_base,
 		  s_info->timestamp.hub_base);
 
+	return 0;
+}
+
+
+int log_dump_size;
+
+void init_log_dump(void)
+{
+	shub_infof("");
+	log_dump_size = 0;
+	shub_file_remove("/data/vendor/sensorhub/hub_log_dump.txt");
+}
+
+int save_log_dump(char *dataframe, int *index, int frame_len)
+{
+	u16 length = 0;
+	int ret;
+
+	shub_infof("%d", log_dump_size);
+	memcpy(&length, dataframe + *index, 1);
+	*index += 1;
+
+	shub_info("[D] %s", &dataframe[*index]);
+
+	ret = shub_file_write("/data/vendor/sensorhub/hub_log_dump.txt", dataframe + *index, length, log_dump_size);
+	if (ret > 0) {
+		shub_infof("ret %d length %d", ret, length);
+		log_dump_size += length;
+	} else {
+		shub_errf("save file failed");
+	}
+
+	*index += length;
 	return 0;
 }

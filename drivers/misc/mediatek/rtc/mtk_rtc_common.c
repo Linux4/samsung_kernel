@@ -881,10 +881,33 @@ static const struct rtc_class_ops rtc_ops = {
 	.ioctl = rtc_ops_ioctl,
 };
 
+#ifdef CONFIG_SEC_PM
+static int poff_status;
+static ssize_t rtc_status_show(struct kobject *kobj,
+				  struct kobj_attribute *attr, char *buf)
+{
+	int status = poff_status;
+
+	pr_info("complete power off status(%d)\n", status);
+	poff_status = 0;
+	return sprintf(buf, "%d\n", status);
+}
+
+static struct kobj_attribute rtc_status_attr = {
+	.attr = {
+		.name = __stringify(rtc_status),
+		.mode = 0444,
+	},
+	.show = rtc_status_show,
+};
+#endif
+
 static int rtc_pdrv_probe(struct platform_device *pdev)
 {
 	unsigned long flags;
-
+#ifdef CONFIG_SEC_PM
+	int ret;
+#endif
 	/* only enable LPD interrupt in engineering build */
 	spin_lock_irqsave(&rtc_lock, flags);
 	hal_rtc_set_lp_irq();
@@ -903,6 +926,17 @@ static int rtc_pdrv_probe(struct platform_device *pdev)
 	pmic_register_interrupt_callback(INT_RTC, rtc_irq_handler);
 	pmic_enable_interrupt(INT_RTC, 1, "RTC");
 
+#ifdef CONFIG_SEC_PM
+	spin_lock_irqsave(&rtc_lock, flags);
+	poff_status = hal_rtc_reset_check();
+	spin_unlock_irqrestore(&rtc_lock, flags);
+	if (power_kobj) {
+		ret = sysfs_create_file(power_kobj, &rtc_status_attr.attr);
+		if (ret)
+			pr_err("%s: failed %d\n", __func__, ret);
+	}
+#endif
+	
 	return 0;
 }
 

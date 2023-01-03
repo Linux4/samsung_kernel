@@ -18,7 +18,11 @@
 
 #define LOW_POWER_LIMIT_LEVEL_1 15
 
+#if (CONFIG_MTK_GAUGE_VERSION == 30)
 #define PT_DLPT_BRINGUP 0
+#else
+#define PT_DLPT_BRINGUP 1
+#endif
 
 #if defined(CONFIG_FPGA_EARLY_PORTING) || PT_DLPT_BRINGUP
 /* Define for disable low battery protect feature,

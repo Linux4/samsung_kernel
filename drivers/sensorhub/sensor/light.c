@@ -18,6 +18,7 @@
 #include "../sensormanager/shub_sensor.h"
 #include "../sensormanager/shub_sensor_manager.h"
 #include "../utility/shub_utility.h"
+#include "../utility/shub_file_manager.h"
 #include "light.h"
 
 #include <linux/of_gpio.h>
@@ -30,8 +31,12 @@ static void init_light_variable(struct light_data *data)
 
 	data->brightness = -1;
 	data->raw_data_size = 2;
+	data->use_cal_data = false;
 
 	set_light_ddi_support(system_info->support_ddi);
+
+	if (data->chipset_funcs && data->chipset_funcs->init_light_variable)
+		data->chipset_funcs->init_light_variable(data);
 }
 
 static void parse_dt_light(struct device *dev)
@@ -123,13 +128,36 @@ int set_light_region(struct light_data *data)
 }
 #endif
 
+typedef struct light_chipset_funcs *(get_light_function_pointer)(char *);
+
+get_light_function_pointer *get_light_funcs_ary[] = {
+	get_light_stk33512_function_pointer,
+};
 
 int init_light_chipset(void)
 {
+	uint64_t i;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT);
 	struct light_data *data = sensor->data;
+	struct light_chipset_funcs *funcs;
+
+	if (data->chipset_funcs)
+		return 0;
 
 	shub_infof("");
+
+	for (i = 0; i < ARRAY_SIZE(get_light_funcs_ary); i++) {
+		funcs = get_light_funcs_ary[i](sensor->spec.name);
+		if (funcs) {
+			data->chipset_funcs = funcs;
+			if (data->chipset_funcs->init)
+				data->chipset_funcs->init(data);
+			break;
+		}
+	}
+
+	if (!data->chipset_funcs)
+		shub_infof("cannot find light sensor chipset");
 
 	parse_dt_light(get_shub_device());
 	init_light_variable(data);
@@ -139,6 +167,40 @@ int init_light_chipset(void)
 void set_light_ddi_support(uint32_t ddi_support)
 {
 	shub_infof("%d", ddi_support);
+}
+
+int light_open_calibration(void)
+{
+	int ret;
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT);
+	struct light_data *data = sensor->data;
+
+	ret = shub_file_read(LIGHT_CALIBRATION_FILE_PATH, (char *)&data->cal_data, sizeof(data->cal_data), 0);
+	if (ret != sizeof(data->cal_data)) {
+		shub_errf("Can't read calibration file %d", ret);
+		return -EIO;
+	}
+
+	shub_infof("%d %d %d", data->cal_data.cal, data->cal_data.max, data->cal_data.lux);
+
+	return ret;
+}
+
+static int set_light_cal(struct light_data *data)
+{
+	int ret = 0;
+
+	if (!data->use_cal_data)
+		return 0;
+
+	shub_infof("%d %d %d", data->cal_data.cal, data->cal_data.max, data->cal_data.lux);
+
+	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, CAL_DATA, (u8 *)(&data->cal_data),
+							sizeof(data->cal_data));
+	if (ret < 0)
+		shub_errf("shub_send_command fail %d", ret);
+
+	return ret;
 }
 
 static int sync_light_status(void)
@@ -151,6 +213,8 @@ static int sync_light_status(void)
 #ifdef CONFIG_SENSORS_SSP_LIGHT_JPNCONCEPT
 	set_light_region(data);
 #endif
+	set_light_cal(data);
+
 	return ret;
 }
 
@@ -288,6 +352,7 @@ int init_light(bool en)
 		sensor->funcs->inject_additional_data = inject_light_additional_data;
 		sensor->funcs->init_chipset = init_light_chipset;
 		sensor->funcs->get_sensor_value = get_light_sensor_value;
+		sensor->funcs->open_calibration_file = light_open_calibration;
 	} else {
 		struct light_data *data = get_sensor(SENSOR_TYPE_LIGHT)->data;
 
@@ -312,106 +377,6 @@ err_no_mem:
 
 	kfree(sensor->data);
 	sensor->data = NULL;
-
-	kfree(sensor->funcs);
-	sensor->funcs = NULL;
-
-	return -ENOMEM;
-}
-
-void print_light_ir_debug(void)
-{
-	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT_IR);
-	struct sensor_event *event = &(sensor->event_buffer);
-	struct light_ir_event *sensor_value = (struct light_ir_event *)(event->value);
-
-	shub_info("%s(%u) : %u(%lld) (%ums, %dms)", sensor->name, SENSOR_TYPE_LIGHT_IR, sensor_value->ir,
-		  event->timestamp, sensor->sampling_period, sensor->max_report_latency);
-}
-
-int init_light_ir(bool en)
-{
-	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT_IR);
-
-	if (!sensor)
-		return 0;
-
-	if (en) {
-		strcpy(sensor->name, "light_ir_sensor");
-		sensor->receive_event_size = 16;
-		sensor->report_event_size = 16;
-		sensor->event_buffer.value = kzalloc(sizeof(struct light_ir_event), GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
-
-		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
-		if (!sensor->funcs)
-			goto err_no_mem;
-
-		sensor->funcs->print_debug = print_light_ir_debug;
-	} else {
-		kfree(sensor->funcs);
-		sensor->funcs = NULL;
-
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
-	}
-
-	return 0;
-
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	kfree(sensor->funcs);
-	sensor->funcs = NULL;
-
-	return -ENOMEM;
-}
-
-void print_light_seamless_debug(void)
-{
-	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT_SEAMLESS);
-	struct sensor_event *event = &(sensor->event_buffer);
-	struct light_seamless_event *sensor_value = (struct light_seamless_event *)(event->value);
-
-	shub_info("%s(%u) : %u(%lld) (%ums, %dms)", sensor->name, SENSOR_TYPE_LIGHT_SEAMLESS, sensor_value->lux,
-		  event->timestamp, sensor->sampling_period, sensor->max_report_latency);
-}
-
-int init_light_seamless(bool en)
-{
-	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT_SEAMLESS);
-
-	if (!sensor)
-		return 0;
-
-	if (en) {
-		strcpy(sensor->name, "light_seamless");
-		sensor->receive_event_size = 4;
-		sensor->report_event_size = 4;
-		sensor->event_buffer.value = kzalloc(sizeof(struct light_seamless_event), GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
-
-		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
-		if (!sensor->funcs)
-			goto err_no_mem;
-
-		sensor->funcs->print_debug = print_light_ir_debug;
-	} else {
-		kfree(sensor->funcs);
-		sensor->funcs = NULL;
-
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
-	}
-
-	return 0;
-
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
 
 	kfree(sensor->funcs);
 	sensor->funcs = NULL;

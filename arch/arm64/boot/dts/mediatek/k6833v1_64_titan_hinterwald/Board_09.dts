@@ -50,6 +50,13 @@
 #include "mediatek/bat_setting/k6833v1_64_titan_hinterwald/battery_prop.dtsi"
 #endif
 
+&bat_gm30 {
+	CAR_TUNE_VALUE = <(100)>;
+/*	Tune value for current measurement*/
+	SHUTDOWN_1_TIME = <(90)>;
+/*	If ui_soc shows 1% more than X minites, system will shutdown*/
+};
+
 &mt6360_pmu {
 	mt6360,intr_gpio_num = <10>; /* direct defined GPIO num */
 	mt6360,intr_gpio = <&pio 10 0x0>;

@@ -23,13 +23,12 @@
 static void set_dbg_sel(int val, int offset, int shift, int mask)
 {
 	void *target = apu_top + offset;
-	
 	u32 tmp;
 
 	if (apu_top == NULL) /* Skip if apu_top is not valid */
 		return;
 
-	tmp = ioread32(target); 
+	tmp = ioread32(target);
 
 	tmp = (tmp & ~(mask << shift)) | (val << shift);
 	iowrite32(tmp, target);
@@ -215,7 +214,7 @@ int apusys_dump_init(struct device *dev)
 	ret = sysfs_create_group(&dev->kobj, &mdw_reg_dump_attr_group);
 	apu_top = ioremap_nocache(APUSYS_BASE, APUSYS_REG_SIZE);
 	apu_to_infra_top = ioremap_nocache(INFRA_BASE, INFRA_SIZE);
- 
+
 	if (apu_top == NULL || apu_to_infra_top == NULL)
 		return -EIO;
 

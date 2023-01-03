@@ -3566,6 +3566,18 @@ static void chg_nl_data_handler(struct sk_buff *skb)
 
 	sc_msg = (struct sc_nl_msg_t *)data;
 
+	if (sc_msg->identity != SCD_NL_MAGIC) {
+		chr_err("[Netlink] not correct MTKSC netlink packet!%d\n",
+			sc_msg->identity);
+		return;
+	}
+
+	if (sc_msg->sc_ret_data_len > SCD_NL_MSG_MAX_LEN) {
+		chr_err("[Netlink] not correct MTKSC netlink data len!%d\n",
+			sc_msg->sc_ret_data_len);
+		return;
+	}
+
 	size = sc_msg->sc_ret_data_len + SCD_NL_MSG_T_HDR_LEN;
 
 	if (size > (PAGE_SIZE << 1))

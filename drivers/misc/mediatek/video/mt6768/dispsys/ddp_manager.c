@@ -348,7 +348,7 @@ static int acquire_mutex(enum DDP_SCENARIO_ENUM scenario)
 		++mutex_id;
 	}
 	ASSERT(mutex_id < (DISP_MUTEX_DDP_FIRST + DISP_MUTEX_DDP_COUNT));
-	DDPDBG("scenario %s acquire mutex %d, left mutex 0x%x!\n",
+	DDPMSG("scenario %s acquire mutex %d, left mutex 0x%x!\n",
 		ddp_get_scenario_name(scenario), mutex_id,
 		ctx->mutex_idx);
 	return mutex_id;
@@ -1736,6 +1736,17 @@ int dpmgr_disable_event(disp_path_handle dp_handle, enum DISP_PATH_EVENT event)
 	return 0;
 }
 
+int dpmgr_get_power_status(disp_path_handle dp_handle)
+{
+	struct ddp_path_handle *handle;
+	int state;
+
+	handle = (struct ddp_path_handle *)dp_handle;
+	state = handle->power_state;
+
+	return state;
+}
+
 int dpmgr_check_status_by_scenario(enum DDP_SCENARIO_ENUM scenario)
 {
 	int i = 0;
@@ -2018,6 +2029,8 @@ int dpmgr_init(void)
 	ddp_debug_init();
 	disp_init_irq();
 	disp_register_irq_callback(dpmgr_irq_handler);
+	/* init dpmgr context */
+	_get_context();
 	return 0;
 }
 

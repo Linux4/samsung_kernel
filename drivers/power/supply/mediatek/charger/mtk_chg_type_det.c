@@ -54,9 +54,6 @@
 #include <tcpci_core.h>
 
 #include "mtk_charger_intf.h"
-#if defined(CONFIG_AFC_CHARGER)
-#include <mt-plat/afc_charger.h>
-#endif
 
 #ifdef CONFIG_BATTERY_SAMSUNG
 #ifdef CONFIG_PDIC_NOTIFIER
@@ -275,6 +272,7 @@ static int mt_charger_set_property(struct power_supply *psy,
 	#ifdef CONFIG_EXTCON_USB_CHG
 	struct usb_extcon_info *info;
 	#endif
+	bool is_host = 0;
 
 	pr_info("%s\n", __func__);
 
@@ -317,18 +315,19 @@ static int mt_charger_set_property(struct power_supply *psy,
 			pr_notice("%s: do nothing in KPOC\n", __func__);
 		} else {
 			/* usb */
+			is_host = mt6360_get_is_host();
 			if ((mtk_chg->chg_type == STANDARD_HOST) ||
 				(mtk_chg->chg_type == CHARGING_HOST)) {
 				struct otg_notify *o_notify = get_otg_notify();
 
 				send_otg_notify(o_notify, NOTIFY_EVENT_USB_CABLE, 1);
 				mt_usb_connect();
-			} else if (mtk_chg->chg_type == NONSTANDARD_CHARGER) {
+			} else if ((mtk_chg->chg_type == NONSTANDARD_CHARGER) && !is_host) {
 				mt_usb_connect();
 #ifdef CONFIG_EXTCON_USB_CHG
 				info->vbus_state = 1;
 #endif
-			} else {
+			} else if (!is_host) {
 				struct otg_notify *o_notify = get_otg_notify();
 
 				send_otg_notify(o_notify, NOTIFY_EVENT_USB_CABLE, 0);
@@ -349,7 +348,11 @@ static int mt_charger_set_property(struct power_supply *psy,
 
 #if defined(CONFIG_BATTERY_SAMSUNG)
 	if (psp == POWER_SUPPLY_PROP_CHARGE_TYPE) {
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+		psy = power_supply_get_by_name("bc12");
+#else
 		psy = power_supply_get_by_name("battery");
+#endif
 		if (!psy) {
 			pr_err("%s: Fail to get psy (battery)\n",
 				__func__);

@@ -473,6 +473,9 @@ void dpmgr_get_input_address(disp_path_handle dp_handle, unsigned long *addr);
 int dpmgr_factory_mode_test(int module_name, void *cmdqhandle, void *config);
 int dpmgr_factory_mode_reset(int module_name, void *cmdqhandle, void *config);
 
+/* get path power state */
+int dpmgr_get_power_status(disp_path_handle dp_handle);
+
 /* turn off dsi */
 int dpmgr_path_dsi_power_off(disp_path_handle dp_handle, void *cmdqhandle);
 

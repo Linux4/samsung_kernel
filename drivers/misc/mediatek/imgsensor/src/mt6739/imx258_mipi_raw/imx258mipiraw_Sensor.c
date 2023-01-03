@@ -3465,7 +3465,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
 		case MSDK_SCENARIO_ID_VIDEO_PREVIEW:
 		case MSDK_SCENARIO_ID_CUSTOM1:
-			*(MUINT32 *) (uintptr_t) (*(feature_data + 1)) = 1;
+			*(MUINT32 *) (uintptr_t) (*(feature_data + 1)) = 0;
 			break;
 
 		case MSDK_SCENARIO_ID_HIGH_SPEED_VIDEO:

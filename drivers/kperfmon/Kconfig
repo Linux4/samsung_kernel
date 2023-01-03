@@ -6,7 +6,7 @@ menu "samsung Performace manager"
 
 config KPERFMON
 	bool "Enable performance log"
-	default y
+	default n
 	help
 		Samsung performance log(OLOG).
 		Say Y here if enable performance olog driver to do logging system resources.

@@ -34,6 +34,11 @@
 #define ConditionEnterSuspend mtk_audio_condition_enter_suspend
 #endif /* CONFIG_SND_SOC_MTK_SMART_PHONE */
 
+#ifdef CONFIG_SEC_PM
+#include <linux/regulator/consumer.h>
+extern void sec_clock_debug_print_enabled(void);
+#endif /* CONFIG_SEC_PM  */
+
 #include <mtk_mcdi_api.h>
 
 #include <mtk_lp_dts.h>
@@ -76,6 +81,10 @@ static int slp_suspend_ops_prepare(void)
 	/* legacy log */
 	printk_deferred("[name:spm&][SLP] @@@@@@@@@@@@@@\tChip_pm_prepare\t@@@@@@@@@@@@@@\n");
 #endif
+#ifdef CONFIG_SEC_PM
+	regulator_debug_print_enabled();
+	sec_clock_debug_print_enabled();
+#endif /* CONFIG_SEC_PM  */
 	return 0;
 }
 

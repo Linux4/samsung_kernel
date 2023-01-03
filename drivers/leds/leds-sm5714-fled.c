@@ -19,6 +19,10 @@
 
 #define SM5714_FLED_VERSION "XXX.UA1"
 
+#define SM5714_FLASH_LIGHT_MAX 5
+unsigned int flashlight_current[SM5714_FLASH_LIGHT_MAX];
+int flashlight_using_dt = -1;
+
 static struct sm5714_fled_data *g_sm5714_fled;
 #ifdef CONFIG_IMGSENSOR_SYSFS
 extern struct class *camera_class; /*sys/class/camera*/
@@ -530,12 +534,30 @@ static ssize_t sm5714_rear_flash_store(struct device *dev, struct device_attribu
 		} else if (store_value == 100) {
 			fled_set_mled_current(fled, 0x7);    /* Set mled=225mA */
 		} else if (store_value >= 1001 && store_value <= 1010) {
-			/* Torch on (Normal) */
-			if (store_value-1001 > 7)
-				fled_set_mled_current(fled, 0x07); /* Max 225mA(0x7)  */
-			else {
-				fled_set_mled_current(fled, (store_value-1001));
+			if (flashlight_using_dt == 1) {
+				/* (value) 1001, 1002, 1004, 1006, 1009 */
 				/* 50mA(0x0) ~ 225mA(0x7) at 25mA step */
+				pr_info("flashlight_current is in dt file.\n");
+				if (store_value <= 1001)
+					fled_set_mled_current(fled, flashlight_current[0]);
+				else if (store_value <= 1002)
+					fled_set_mled_current(fled, flashlight_current[1]);
+				else if (store_value <= 1004)
+					fled_set_mled_current(fled, flashlight_current[2]);
+				else if (store_value <= 1006)
+					fled_set_mled_current(fled, flashlight_current[3]);
+				else if (store_value <= 1009)
+					fled_set_mled_current(fled, flashlight_current[4]);
+				else
+					fled_set_mled_current(fled, fled->pdata->led.torch_brightness);
+			} else {
+				/* Torch on (Normal) */
+				if (store_value-1001 > 7)
+					fled_set_mled_current(fled, 0x07); /* Max 225mA(0x7)  */
+				else {
+					fled_set_mled_current(fled, (store_value-1001));
+					/* 50mA(0x0) ~ 225mA(0x7) at 25mA step */
+				}
 			}
 		} else {
 			dev_err(fled->dev, "%s: failed store cmd\n", __func__);
@@ -616,6 +638,13 @@ static int sm5714_fled_parse_dt(struct device *dev, struct sm5714_fled_platform_
 	of_property_read_u32(np, "timeout", &temp);
 	pdata->led.timeout = (temp & 0xff);
 	of_property_read_u8(np, "factory_current", &pdata->led.factory_current);
+	ret = of_property_read_u32_array(np, "flashlight_current",
+			flashlight_current, SM5714_FLASH_LIGHT_MAX);
+	if (ret < 0)
+		pr_info("%s : could not find flashlight_current\n", __func__);
+	else		
+		flashlight_using_dt = 1;
+	
 
 	ret = pdata->led.fen_pin = of_get_named_gpio(np, "flash-en-gpio", 0);
 	if (ret < 0) {

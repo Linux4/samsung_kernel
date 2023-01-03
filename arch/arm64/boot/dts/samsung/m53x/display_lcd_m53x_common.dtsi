@@ -63,9 +63,11 @@
 				gpio_det = <&pio 1 0x1>;	/* EL_ON1_DET */
 				gpio_err = <&pio 8 0x0>;	/* FG_ERR */
 
+#ifndef CONFIG_SEC_FACTORY
 				abd_func_refresh =
 					//"gpio_det",	"CHAIN_TYPE_EVENT",
 					"gpio_err",	"CHAIN_TYPE_EVENT";
+#endif
 
 				panel_power_enable {
 					type =

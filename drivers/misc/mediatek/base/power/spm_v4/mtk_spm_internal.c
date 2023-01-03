@@ -51,6 +51,10 @@
 #include <mt-plat/mtk_meminfo.h>
 #endif
 
+#if IS_ENABLED(CONFIG_SEC_PM)
+#include <linux/wakeup_reason.h>
+#endif
+
 /**************************************
  * Config and Parameter
  **************************************/
@@ -268,6 +272,11 @@ unsigned int __spm_output_wake_reason(const struct wake_status *wakesta,
 					wakesta->debug_flag1);
 #endif /* CONFIG_MACH_MT6763 */
 
+#if IS_ENABLED(CONFIG_SEC_PM)
+		if (!strcmp(scenario, "suspend"))
+			log_wakeup_reason_spm(SPM_IRQ0_ID, NULL, wakesta->assert_pc);
+#endif
+
 		return WR_PCM_ASSERT;
 	}
 
@@ -325,6 +334,11 @@ unsigned int __spm_output_wake_reason(const struct wake_status *wakesta,
 	WARN_ON(log_size >= 1024);
 
 	spm_print(suspend, "%s", log_buf);
+
+#if IS_ENABLED(CONFIG_SEC_PM)
+	if (!strcmp(scenario, "suspend"))
+		log_wakeup_reason_spm(SPM_IRQ0_ID, buf, 0);
+#endif
 
 	return wr;
 }

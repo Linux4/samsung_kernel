@@ -29,6 +29,7 @@
 enum {
 	FM_READ = 0,
 	FM_WRITE,
+	FM_REMOVE,
 	FM_READY,
 };
 
@@ -161,7 +162,23 @@ int shub_file_read(char *path, char *buf, int buf_len, long long pos)
 	mutex_lock(&fm_mutex);
 	fm_msg.tx_buf_size = snprintf(fm_msg.tx_buf, sizeof(fm_msg.tx_buf), "%s,%d,%lld", path, buf_len, pos);
 	ret = _shub_file_rw(FM_READ, true);
-	memcpy(buf, fm_msg.rx_buf, buf_len);
+	if (ret > 0)
+		memcpy(buf, fm_msg.rx_buf, buf_len);
+	mutex_unlock(&fm_mutex);
+
+	return ret;
+}
+
+int shub_file_remove(char *path)
+{
+	int ret;
+
+	if (!is_fm_ready)
+		return -ENODEV;
+
+	mutex_lock(&fm_mutex);
+	fm_msg.tx_buf_size = snprintf(fm_msg.tx_buf, sizeof(fm_msg.tx_buf), "%s", path);
+	ret = _shub_file_rw(FM_REMOVE, true);
 	mutex_unlock(&fm_mutex);
 
 	return ret;
@@ -198,6 +215,7 @@ ssize_t shub_file_store(struct device *dev, struct device_attribute *attr, const
 		memset(fm_msg.tx_buf, 0, fm_msg.tx_buf_size);
 		fm_msg.tx_buf_size = 0;
 
+		memset(fm_msg.rx_buf, 0, PAGE_SIZE);
 		memcpy(&fm_msg.result, &buf[1], sizeof(int32_t));
 		if (buf[0] == FM_READ && fm_msg.result > 0) {
 			fm_msg.rx_buf_size = fm_msg.result;

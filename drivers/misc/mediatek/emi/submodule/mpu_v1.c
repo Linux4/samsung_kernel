@@ -123,6 +123,14 @@ static void check_violation(void)
 	axi_id = (master_id >> 3) & 0x1FFF;
 	master_name = id2name(axi_id, port_id);
 
+#ifdef MPU_BYPASS
+	if (bypass_violation(mpus, &init_flag)) {
+		clear_violation();
+		clear_md_violation();
+		return;
+	}
+#endif
+
 	pr_info("[MPU] EMI MPU violation\n");
 	pr_info("[MPU] MPUS: %x, MPUT: %x, MPUT_2ND: %x.\n",
 		mpus, mput, mput_2nd);
@@ -146,14 +154,7 @@ static void check_violation(void)
 	else if (wr_oo_vio == 2)
 		pr_info("[MPU] read out-of-range violation\n");
 
-#ifdef MPU_BYPASS
-	if (bypass_violation(mpus, &init_flag)) {
-		pr_info("[MPU] bypass flow\n");
-		clear_violation();
-		clear_md_violation();
-		return;
-	}
-#endif
+
 
 #ifdef CONFIG_MTK_AEE_FEATURE
 	if (wr_vio != 0) {

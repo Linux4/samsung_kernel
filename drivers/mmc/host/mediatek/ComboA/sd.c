@@ -4818,6 +4818,8 @@ skip:
 			 * if data CRC error
 			 */
 			mrq->cmd->error = (unsigned int)-EILSEQ;
+			pr_err("%s: <%s> saved intsts: 0x%08x\n",
+				mmc_hostname(host->mmc), __func__, host->intsts);
 		} else {
 			dbg_add_host_log(host->mmc, 3, 0, 0);
 			msdc_dma_clear(host);
@@ -5294,7 +5296,8 @@ static int msdc_drv_probe(struct platform_device *pdev)
 	if ((hw->flags & MSDC_SDIO_IRQ) || (hw->flags & MSDC_EXT_SDIO_IRQ))
 		mmc->caps |= MMC_CAP_SDIO_IRQ;  /* yes for sdio */
 #ifdef MTK_MSDC_USE_CMD23
-	if (host->hw->host_function == MSDC_EMMC)
+	if (host->hw->host_function == MSDC_EMMC
+		|| host->hw->host_function == MSDC_SD)
 		mmc->caps |= MMC_CAP_CMD23;
 #endif
 	if (host->hw->host_function == MSDC_SD) {
@@ -5385,7 +5388,8 @@ static int msdc_drv_probe(struct platform_device *pdev)
 		host->mmc->caps & MMC_CAP_NONREMOVABLE ? 1 : 0;
 	host->timeout_clks = DEFAULT_DTOC * 1048576;
 
-	if (host->hw->host_function == MSDC_EMMC) {
+	if (host->hw->host_function == MSDC_EMMC
+		|| host->hw->host_function == MSDC_SD) {
 #ifdef MTK_MSDC_USE_CMD23
 		host->autocmd &= ~MSDC_AUTOCMD12;
 #if (MSDC_USE_AUTO_CMD23 == 1)
@@ -5394,8 +5398,6 @@ static int msdc_drv_probe(struct platform_device *pdev)
 #else
 		host->autocmd |= MSDC_AUTOCMD12;
 #endif
-	} else if (host->hw->host_function == MSDC_SD) {
-		host->autocmd |= MSDC_AUTOCMD12;
 	} else {
 		host->autocmd &= ~MSDC_AUTOCMD12;
 	}

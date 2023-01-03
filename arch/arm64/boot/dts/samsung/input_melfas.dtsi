@@ -30,7 +30,7 @@
 };
 
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/melfas/dts/input-mtk-tsp-melfas.f22.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/melfas/dts/input-mtk-tsp-melfas.f22.dtsi */
 &pio {
 	melfas_icid: melfas_icid {
 		pins_cmd_dat {

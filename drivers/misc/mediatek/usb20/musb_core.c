@@ -1411,6 +1411,11 @@ void musb_start(struct musb *musb)
 		if (musb->softconnect) {
 			DBG(0, "add softconn\n");
 			val |= MUSB_POWER_SOFTCONN;
+		} else if (!mtk_musb->is_ready && !musb->is_host) {
+			DBG(0, "pullup dp\n");
+			usb_dpdm_pullup(true);
+			mdelay(50);
+			usb_dpdm_pullup(false);
 		}
 		musb_writeb(regs, MUSB_POWER, val);
 	}

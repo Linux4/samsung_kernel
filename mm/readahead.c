@@ -221,7 +221,10 @@ int force_page_cache_readahead(struct address_space *mapping, struct file *filp,
 	 * be up to the optimal hardware IO size
 	 */
 	max_pages = max_t(unsigned long, bdi->io_pages, ra->ra_pages);
-	nr_to_read = min(nr_to_read, max_pages);
+
+	if (likely(!(filp->f_flags & O_DIRECT)))
+		nr_to_read = min(nr_to_read, max_pages);
+
 	while (nr_to_read) {
 		int err;
 

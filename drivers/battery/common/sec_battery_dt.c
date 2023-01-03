@@ -350,6 +350,9 @@ int sec_bat_parse_dt(struct device *dev,
 	pdata->dynamic_cv_factor = of_property_read_bool(np,
 						     "battery,dynamic_cv_factor");
 
+	pdata->slowcharging_usb_bootcomplete = of_property_read_bool(np,
+						     "battery,slowcharging_usb_bootcomplete");
+
 	ret = of_property_read_string(np,
 		"battery,chip_vendor", (char const **)&pdata->chip_vendor);
 	if (ret)

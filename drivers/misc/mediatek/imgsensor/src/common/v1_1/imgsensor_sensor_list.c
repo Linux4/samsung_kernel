@@ -518,7 +518,7 @@ struct IMGSENSOR_SENSOR_LIST
 {GC5035_SENSOR_ID, SENSOR_DRVNAME_GC5035_MIPI_RAW, GC5035_MIPI_RAW_SensorInit},
 #endif
 #if defined(GC5035F_MIPI_RAW)
-{GC5035F_SENSOR_ID, SENSOR_DRVNAME_GC5035F_MIPI_RAW, GC5035F_MIPI_RAW_SensorInit},
+{GC5035F_SENSOR_ID, SENSOR_DRVNAME_GC5035F_MIPI_RAW, GC5035_MIPI_RAW_SensorInit},
 #endif
 #if defined(GC2375H_MIPI_RAW)
 {GC2375H_SENSOR_ID, SENSOR_DRVNAME_GC2375H_MIPI_RAW, GC2375H_MIPI_RAW_SensorInit},
@@ -566,14 +566,13 @@ struct IMGSENSOR_SENSOR_LIST
 	GC02K0_MIPI_MONO_SensorInit},
 #endif
 #if defined(GC02M1B_MIPI_RAW)
-{GC02M1B_SENSOR_ID, SENSOR_DRVNAME_GC02M1B_MIPI_RAW, GC02M1B_MIPI_RAW_SensorInit},
+{GC02M1B_SENSOR_ID, SENSOR_DRVNAME_GC02M1B_MIPI_RAW, GC02M1_MIPI_RAW_SensorInit},
 #endif
 #if defined(GC02M1_MIPI_RAW)
 {GC02M1_SENSOR_ID, SENSOR_DRVNAME_GC02M1_MIPI_RAW, GC02M1_MIPI_RAW_SensorInit},
 #endif
 #if defined(GC02M1B_MIPI_MONO)
-{GC02M1B_SENSOR_ID, SENSOR_DRVNAME_GC02M1B_MIPI_MONO,
-	GC02M1B_MIPI_MONO_SensorInit},
+{GC02M1B_SENSOR_ID, SENSOR_DRVNAME_GC02M1B_MIPI_MONO, GC02M1_MIPI_RAW_SensorInit},
 #endif
 /*SP*/
 #if defined(SP0A19_YUV)
@@ -656,7 +655,7 @@ unsigned int imgsensor_read_otp_cal(struct i2c_client *client, struct CAM_CAL_SE
 #endif
 #if defined(GC5035F_MIPI_RAW)
 	case GC5035F_SENSOR_ID:
-		ret = gc5035f_read_otp_cal(addr, data, size);
+		ret = gc5035_read_otp_cal(addr, data, size);
 		break;
 #endif
 #if defined(S5K3L6_MIPI_RAW)
@@ -671,12 +670,12 @@ unsigned int imgsensor_read_otp_cal(struct i2c_client *client, struct CAM_CAL_SE
 #endif
 #if defined(GC02M1B_MIPI_MONO)
 	case GC02M1B_SENSOR_ID:
-		ret = gc02m1b_read_otp_cal(addr, data, size);
+		ret = gc02m1_read_otp_cal(addr, data, size);
 		break;
 #endif
 #if defined(GC02M1B_MIPI_RAW)
 	case GC02M1B_SENSOR_ID:
-		ret = gc02m1b_read_otp_cal(addr, data, size);
+		ret = gc02m1_read_otp_cal(addr, data, size);
 		break;
 #endif
 	default:
