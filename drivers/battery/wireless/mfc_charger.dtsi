@@ -70,7 +70,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/wireless/mfc_charger_gki/mfc_charger.o1s.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/wireless/mfc_charger_gki/mfc_charger.o1s.dtsi */
 &hsi2c_3 {
 	samsung,stop-after-trans;
 	samsung,stand-mode;

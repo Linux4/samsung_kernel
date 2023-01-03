@@ -10,7 +10,7 @@
 };
 
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/charger/max77705_charger_gki/max77705_charger.o1s.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/charger/max77705_charger_gki/max77705_charger.o1s.dtsi */
 &max77705_charger {
 	charger,enable_sysovlo_irq;
 	charger,fsw = <0>; /* 3MHz */
