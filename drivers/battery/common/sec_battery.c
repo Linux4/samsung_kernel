@@ -3158,7 +3158,7 @@ static void sec_bat_siop_level_work(struct work_struct *work)
 
 	pr_info("%s : set current by siop level(%d), siop_step(%d)\n", __func__, battery->siop_level, siop_step);
 
-	if ((battery->siop_level >= 100) ||
+	if ((battery->siop_level >= 100) || is_slate_mode(battery) ||
 		((battery->siop_level == 80) && is_wired_type(battery->cable_type))) {
 #if defined(CONFIG_SUPPORT_HV_CTRL)
 		sec_vote(battery->iv_vote, VOTER_SIOP, false, 0);
