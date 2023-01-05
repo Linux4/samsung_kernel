@@ -112,13 +112,12 @@ int sec_debug_summary_save_die_info(const char *str, struct pt_regs *regs)
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 	sec_delay_check = 0;
 #endif
-	if (!secdbg_apss)
-		return -ENOMEM;
-
-	snprintf(secdbg_apss->excp.pc_sym, sizeof(secdbg_apss->excp.pc_sym),
-		"%pS", (void *)regs->PT_REGS_PC);
-	snprintf(secdbg_apss->excp.lr_sym, sizeof(secdbg_apss->excp.lr_sym),
-		"%pS", (void *)regs->PT_REGS_LR);
+	if (secdbg_apss) {
+		snprintf(secdbg_apss->excp.pc_sym, sizeof(secdbg_apss->excp.pc_sym),
+				"%pS", (void *)regs->PT_REGS_PC);
+		snprintf(secdbg_apss->excp.lr_sym, sizeof(secdbg_apss->excp.lr_sym),
+				"%pS", (void *)regs->PT_REGS_LR);
+	}
 
 	__summary_save_dying_msg_for_user_reset_debug(str,
 			(void *)regs->PT_REGS_PC, (void *)regs->PT_REGS_LR);
@@ -131,16 +130,15 @@ int sec_debug_summary_save_panic_info(const char *str, unsigned long caller)
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 	sec_delay_check = 0;
 #endif
-	if (!secdbg_apss)
-		return -ENOMEM;
-
-	snprintf(secdbg_apss->excp.panic_caller,
-		sizeof(secdbg_apss->excp.panic_caller), "%pS", (void *)caller);
-	snprintf(secdbg_apss->excp.panic_msg,
-		sizeof(secdbg_apss->excp.panic_msg), "%s", str);
-	snprintf(secdbg_apss->excp.thread,
-		sizeof(secdbg_apss->excp.thread), "%s:%d", current->comm,
-		task_pid_nr(current));
+	if (secdbg_apss) {
+		snprintf(secdbg_apss->excp.panic_caller,
+			sizeof(secdbg_apss->excp.panic_caller), "%pS", (void *)(caller - ARCH_INSTR_SIZE));
+		snprintf(secdbg_apss->excp.panic_msg,
+			sizeof(secdbg_apss->excp.panic_msg), "%s", str);
+		snprintf(secdbg_apss->excp.thread,
+			sizeof(secdbg_apss->excp.thread), "%s:%d", current->comm,
+			task_pid_nr(current));
+	}
 
 	__summary_save_dying_msg_for_user_reset_debug(str,
 			(void *)(caller - ARCH_INSTR_SIZE), (void *)caller);

@@ -131,7 +131,6 @@ enum dex_support_res_t {
 	DEX_RES_2560X1440, /* QHD */
 	DEX_RES_2560X1600, /* WQXGA */
 	DEX_RES_3440X1440, /* UW-QHD */
-	DEX_RES_MAX,
 };
 #define DEX_RES_DFT	DEX_RES_1920X1080   /* DeX default resolution */
 #define DEX_RES_MAX	DEX_RES_3440X1440   /* DeX max resolution */
@@ -143,6 +142,8 @@ static inline char *secdp_dex_res_to_string(int res)
 	switch (res) {
 	case DEX_RES_NOT_SUPPORT:
 		return DP_ENUM_STR(DEX_RES_NOT_SUPPORT);
+	case DEX_RES_1600X900:
+		return DP_ENUM_STR(DEX_RES_1600X900);
 	case DEX_RES_1920X1080:
 		return DP_ENUM_STR(DEX_RES_1920X1080);
 	case DEX_RES_1920X1200:
@@ -220,6 +221,8 @@ struct secdp_misc {
 	struct delayed_work	hpd_noti_work;
 	struct delayed_work	hdcp_start_work;
 	struct delayed_work	link_status_work;
+	struct delayed_work	link_backoff_work;
+	bool			backoff_start;
 	struct delayed_work	poor_discon_work;
 
 	bool is_mst_receiver;	/*true if MST receiver, false otherwise(SST)*/
@@ -300,7 +303,6 @@ struct secdp_attention_node {
 bool secdp_check_if_lpm_mode(void);
 int  secdp_send_deferred_hpd_noti(void);
 bool secdp_get_clk_status(enum dp_pm_type type);
-void secdp_send_poor_connection_event(void);
 
 int  secdp_ccic_noti_register_ex(struct secdp_misc *sec, bool retry);
 bool secdp_get_power_status(void);
@@ -360,6 +362,8 @@ enum dex_support_res_t secdp_get_dex_res(void);
 void secdp_clear_link_status_update_cnt(struct dp_link *dp_link);
 void secdp_reset_link_status(struct dp_link *dp_link);
 bool secdp_check_link_stable(struct dp_link *dp_link);
+void secdp_link_backoff_start(void);
+void secdp_link_backoff_stop(void);
 bool secdp_dex_adapter_skip_show(void);
 void secdp_dex_adapter_skip_store(bool skip);
 
@@ -424,7 +428,6 @@ static inline char *secdp_phy_type_to_string(int param)
 }
 
 int  secdp_show_hmd_dev(char *buf);
-int  secdp_show_phy_param(char *buf);
 
 /* preshoot adjustment */
 int  secdp_catalog_preshoot_show(char *buf);
@@ -435,6 +438,7 @@ int  secdp_parse_vxpx_show(enum secdp_hw_ver_t hw,
 				enum secdp_phy_param_t vxpx, char *buf);
 int  secdp_parse_vxpx_store(enum secdp_hw_ver_t hw,
 				enum secdp_phy_param_t vxpx, char *buf);
+int  secdp_show_phy_param(char *buf);
 
 /* AUX configuration */
 int  secdp_aux_cfg_show(char *buf);
@@ -445,6 +449,7 @@ int  secdp_debug_prefer_skip_show(void);
 void secdp_debug_prefer_skip_store(bool skip);
 int  secdp_debug_prefer_ratio_show(void);
 void secdp_debug_prefer_ratio_store(int ratio);
-#endif
+int  secdp_show_link_param(char *buf);
+#endif/*CONFIG_SEC_DISPLAYPORT_ENG*/
 
 #endif/*__SECDP_H*/

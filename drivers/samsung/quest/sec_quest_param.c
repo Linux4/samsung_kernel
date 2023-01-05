@@ -112,11 +112,12 @@ void quest_print_param_quest_data()
 
 	QUEST_PRINT("curr_step : %d\n", param_quest_data.curr_step);
 
-	QUEST_PRINT("hlos_count(%d) quefi_count(%d) suefi_count(%d) ddrscan_count(%d)\n",
+	QUEST_PRINT("hlos_count(%d) quefi_count(%d) suefi_count(%d) ddrscan_count(%d), num_smd_try(%d)\n",
  		param_quest_data.hlos_remained_count,
 		param_quest_data.quefi_remained_count,
 		param_quest_data.suefi_remained_count,
-		param_quest_data.ddrscan_remained_count);
+		param_quest_data.ddrscan_remained_count,
+		param_quest_data.num_smd_try);
 
 	QUEST_PRINT("err_codes          : (%llu)\n",	param_quest_data.err_codes);
 
@@ -178,6 +179,7 @@ void quest_print_param_quest_data()
 #endif
 	QUEST_PRINT("smd_hlos_init_thermal_first    : (%d)\n", param_quest_data.smd_hlos_init_thermal_first);
 	QUEST_PRINT("smd_hlos_max_thermal_first     : (%d)\n", param_quest_data.smd_hlos_max_thermal_first);
+	QUEST_PRINT("smd_CPER     : (%d)\n", param_quest_data.smd_cper);
 
 	QUEST_PRINT("======================\n");
 }
@@ -226,8 +228,6 @@ void quest_sync_param_quest_ddr_result_data(void)
 
 void quest_clear_param_quest_data()
 {
-	int modeIdx = 0;
-
 	param_quest_data.smd_item_result = 0;
 	param_quest_data.smd_subitem_result = 0;
 	param_quest_data.cal_item_result = 0;
@@ -284,19 +284,6 @@ void quest_clear_param_quest_data()
 	//param_quest_data.smd_quefi_rework = 0;
 	//param_quest_data.smd_suefi_rework = 0;
 	//param_quest_data.smd_max_aoss_thermal_diff_first = 0;	
-
-	for(modeIdx = 0; modeIdx < QUEST_CPR_MODE_CNT; modeIdx++)
-	{
-		param_quest_data.curr_mx_cpr[modeIdx].Modes = 0;
-		param_quest_data.curr_mx_cpr[modeIdx].Floor = 0;
-		param_quest_data.curr_mx_cpr[modeIdx].Ceiling = 0;
-		param_quest_data.curr_mx_cpr[modeIdx].Current = 0;
-
-		param_quest_data.curr_cx_cpr[modeIdx].Modes = 0;
-		param_quest_data.curr_cx_cpr[modeIdx].Floor = 0;
-		param_quest_data.curr_cx_cpr[modeIdx].Ceiling = 0;
-		param_quest_data.curr_mx_cpr[modeIdx].Current = 0;
-	}
 
 	quest_sync_param_quest_data();
 

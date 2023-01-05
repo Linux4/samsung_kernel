@@ -64,6 +64,12 @@ extern unsigned int mfc_chip_id_now;
 #define EXTERN_MFC_FUNC
 #endif
 
+struct sgf_data {
+	unsigned int	size;
+	unsigned int	type;
+	char			*data;
+};
+
 extern bool sleep_mode;
 extern unsigned int lpcharge;
 extern bool mfc_fw_update;
@@ -1964,8 +1970,8 @@ static int VerifyMTPwRAM_IDT(struct mfc_charger_data *charger, unsigned short st
 	msleep(10);
 	// Clear MTP program status byte
 	if (mfc_reg_write(charger->client, 0x0400, 0x00) < 0) {
-			pr_err("%s %s: clear MTP verifier status byte error\n", MFC_FW_MSG, __func__);
-		   return MFC_VERIFY_ERR_CLR_MTP_STATUS_BYTE;
+		pr_err("%s %s: clear MTP verifier status byte error\n", MFC_FW_MSG, __func__);
+		return MFC_VERIFY_ERR_CLR_MTP_STATUS_BYTE;
 	}
 
 	msleep(10);
@@ -2220,8 +2226,8 @@ static int PgmOTPwRAM_IDT(struct mfc_charger_data *charger, unsigned short OtpAd
 
 	// Clear MTP program status byte
 	if (mfc_reg_write(charger->client, 0x0400, 0x00) < 0) {
-			pr_err("%s: clear MTP programming status byte error\n", __func__);
-		   return MFC_FWUP_ERR_CLR_MTP_STATUS_BYTE;
+		pr_err("%s: clear MTP programming status byte error\n", __func__);
+		return MFC_FWUP_ERR_CLR_MTP_STATUS_BYTE;
 	}
 
 	if (mfc_reg_write(charger->client, 0x3048, 0xD0) < 0) {
@@ -2512,6 +2518,12 @@ static void mfc_wpc_afc_vout_work(struct work_struct *work)
 		__pm_stay_awake(charger->wpc_vout_mode_lock);
 		queue_delayed_work(charger->wqueue,
 			&charger->wpc_vout_mode_work, 0);
+
+		if ((charger->pdata->cable_type == SEC_WIRELESS_PAD_WPC_HV_20) &&
+			(charger->tx_id == 0xEF)) {
+			pr_info("%s: set power = %d\n", __func__, charger->current_rx_power);
+			mfc_reset_rx_power(charger, charger->current_rx_power);
+		}
 	}
 
 skip_set_afc_vout:
@@ -3299,6 +3311,72 @@ static void mfc_cs100_work(struct work_struct *work)
 	__pm_relax(charger->wpc_cs100_lock);
 }
 
+static void mfc_set_tx_data(struct mfc_charger_data *charger, int idx)
+{
+	if (idx < 0)
+		idx = 0;
+	else if (idx >= charger->pdata->len_wc20_list)
+		idx = charger->pdata->len_wc20_list - 1;
+
+	charger->vout_by_txid = charger->pdata->wireless20_vout_list[idx];
+	charger->vrect_by_txid = charger->pdata->wireless20_vrect_list[idx];
+	charger->max_power_by_txid = charger->pdata->wireless20_max_power_list[idx];
+}
+
+static int mfc_set_sgf_data(struct mfc_charger_data *charger, struct sgf_data *pdata)
+{
+	pr_info("%s: size = %d, type = %d\n", __func__, pdata->size, pdata->type);
+
+	switch (pdata->type) {
+	case WPC_TX_COM_RX_POWER:
+	{
+		union power_supply_propval value = {0, };
+		int tx_power = *(int *)pdata->data;
+
+		switch (tx_power) {
+		case TX_RX_POWER_7_5W:
+			pr_info("%s : TX Power is 7.5W\n", __func__);
+			charger->current_rx_power = TX_RX_POWER_7_5W;
+			mfc_set_tx_data(charger, 0);
+			break;
+		case TX_RX_POWER_12W:
+			pr_info("%s : TX Power is 12W\n", __func__);
+			charger->current_rx_power = TX_RX_POWER_12W;
+			mfc_set_tx_data(charger, 1);
+			break;
+		case TX_RX_POWER_15W:
+			pr_info("%s : TX Power is 15W\n", __func__);
+			charger->current_rx_power = TX_RX_POWER_15W;
+			mfc_set_tx_data(charger, 2);
+			break;
+		case TX_RX_POWER_17_5W:
+			pr_info("%s : TX Power is 17.5W\n", __func__);
+			charger->current_rx_power = TX_RX_POWER_17_5W;
+			mfc_set_tx_data(charger, 3);
+			break;
+		case TX_RX_POWER_20W:
+			pr_info("%s : TX Power is 20W\n", __func__);
+			charger->current_rx_power = TX_RX_POWER_20W;
+			mfc_set_tx_data(charger, 4);
+			break;
+		default:
+			pr_info("%s : Undefined TX Power(%d)\n", __func__, tx_power);
+			return -EINVAL;
+		}
+		charger->adt_transfer_status = WIRELESS_AUTH_PASS;
+		charger->pdata->cable_type = value.intval = SEC_WIRELESS_PAD_WPC_HV_20;
+		pr_info("%s: change cable type to WPC HV 2.0\n", __func__);
+
+		__pm_stay_awake(charger->wpc_afc_vout_lock);
+		queue_delayed_work(charger->wqueue, &charger->wpc_afc_vout_work, msecs_to_jiffies(0));
+	}
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+
 #if defined(CONFIG_UPDATE_BATTERY_DATA)
 static int mfc_chg_parse_dt(struct device *dev, mfc_charger_platform_data_t *pdata);
 #endif
@@ -3738,6 +3816,13 @@ out:
 				msleep(150);
 			}
 			break;
+		case POWER_SUPPLY_EXT_PROP_WC_EPT_UNKNOWN:
+			if (val->intval == 1) {
+				pr_info("%s: EPT-Unknown\n", __func__);
+				mfc_reg_write(charger->client, MFC_EPT_REG, MFC_WPC_EPT_UNKNOWN);
+				mfc_set_cmd_l_reg(charger, MFC_CMD_SEND_EOP_MASK, MFC_CMD_SEND_EOP_MASK);
+			}
+			break;
 		case POWER_SUPPLY_EXT_PROP_WIRELESS_SWITCH:
 			/* It is a RX device , send a packet to TX device to stop power sharing.
 				TX device will have MFC_INTA_H_TRX_DATA_RECEIVED_MASK irq */
@@ -3911,6 +3996,16 @@ out:
 				mfc_set_wpc_en(charger, WPC_EN_MST, false);
 			break;
 #endif
+		case POWER_SUPPLY_EXT_PROP_WIRELESS_SGF:
+		{
+			struct sgf_data data;
+
+			data.size = *(int *)val->strval;
+			data.type = *(int *)(val->strval + 4);
+			data.data = (char *)(val->strval + 8);
+			mfc_set_sgf_data(charger, &data);
+		}
+			break;
 		default:
 			return -ENODATA;
 		}

@@ -14,6 +14,159 @@
 
 
 #ifdef CONFIG_OF
+
+#define PROPERTY_NAME_SIZE 128
+
+int sec_bat_parse_dt_lrp(
+	struct sec_battery_info *battery, struct device_node *np, int type)
+{
+	sec_battery_platform_data_t *pdata = battery->pdata;
+	int ret = 0, len = 0;
+	char prop_name[PROPERTY_NAME_SIZE];
+	int lrp_table[LRP_PROPS];
+
+	snprintf(prop_name, PROPERTY_NAME_SIZE,
+			"battery,temp_table_%s", LRP_TYPE_STRING[type]);
+	len = of_property_count_u32_elems(np, prop_name);
+	if (len != LRP_PROPS)
+		return -1;
+
+	ret = of_property_read_u32_array(np, prop_name,
+		(u32 *)lrp_table, LRP_PROPS);
+	if (ret) {
+		pr_info("%s: failed to parse %s!!, ret = %d\n",
+			__func__, LRP_TYPE_STRING[type], ret);
+		return ret;
+	}
+
+	pdata->lrp_temp[type].trig[ST2][LCD_OFF] = lrp_table[0];
+	pdata->lrp_temp[type].recov[ST2][LCD_OFF] = lrp_table[1];
+	pdata->lrp_temp[type].trig[ST1][LCD_OFF] = lrp_table[2];
+	pdata->lrp_temp[type].recov[ST1][LCD_OFF] = lrp_table[3];
+	pdata->lrp_temp[type].trig[ST2][LCD_ON] = lrp_table[4];
+	pdata->lrp_temp[type].recov[ST2][LCD_ON] = lrp_table[5];
+	pdata->lrp_temp[type].trig[ST1][LCD_ON] = lrp_table[6];
+	pdata->lrp_temp[type].recov[ST1][LCD_ON] = lrp_table[7];
+	pdata->lrp_curr[type].st_icl[ST1] = lrp_table[8];
+	pdata->lrp_curr[type].st_fcc[ST1] = lrp_table[9];
+	pdata->lrp_curr[type].st_icl[ST2] = lrp_table[10];
+	pdata->lrp_curr[type].st_fcc[ST2] = lrp_table[11];
+
+	pr_info("%s: pdata->lrp_temp[%s].trig_st1=%d\n",
+		__func__, LRP_TYPE_STRING[type], pdata->lrp_temp[type].trig[ST1][LCD_OFF]);
+	pr_info("%s: pdata->lrp_temp[%s].trig_st2=%d\n",
+		__func__, LRP_TYPE_STRING[type], pdata->lrp_temp[type].trig[ST2][LCD_OFF]);
+	pr_info("%s: pdata->lrp_temp[%s].recov_st1=%d\n",
+		__func__, LRP_TYPE_STRING[type], pdata->lrp_temp[type].recov[ST1][LCD_OFF]);
+	pr_info("%s: pdata->lrp_temp[%s].recov_st2=%d\n",
+		__func__, LRP_TYPE_STRING[type], pdata->lrp_temp[type].recov[ST2][LCD_OFF]);
+	pr_info("%s: pdata->lrp_temp[%s].trig_st1_lcdon=%d\n",
+		__func__, LRP_TYPE_STRING[type], pdata->lrp_temp[type].trig[ST1][LCD_ON]);
+	pr_info("%s: pdata->lrp_temp[%s].trig_st2_lcdon=%d\n",
+		__func__, LRP_TYPE_STRING[type], pdata->lrp_temp[type].trig[ST2][LCD_ON]);
+	pr_info("%s: pdata->lrp_temp[%s].recov_st1_lcdon=%d\n",
+		__func__, LRP_TYPE_STRING[type], pdata->lrp_temp[type].recov[ST1][LCD_ON]);
+	pr_info("%s: pdata->lrp_temp[%s].recov_st2_lcdon=%d\n",
+		__func__, LRP_TYPE_STRING[type], pdata->lrp_temp[type].recov[ST2][LCD_ON]);
+	pr_info("%s: pdata->lrp_temp[%s].st1_icl=%d\n",
+		__func__, LRP_TYPE_STRING[type], pdata->lrp_curr[type].st_icl[ST1]);
+	pr_info("%s: pdata->lrp_temp[%s].st1_fcc=%d\n",
+		__func__, LRP_TYPE_STRING[type], pdata->lrp_curr[type].st_fcc[ST1]);
+	pr_info("%s: pdata->lrp_temp[%s].st2_icl=%d\n",
+		__func__, LRP_TYPE_STRING[type], pdata->lrp_curr[type].st_icl[ST2]);
+	pr_info("%s: pdata->lrp_temp[%s].st2_fcc=%d\n",
+		__func__, LRP_TYPE_STRING[type], pdata->lrp_curr[type].st_fcc[ST2]);
+
+	return 0;
+}
+
+#if IS_ENABLED(CONFIG_DIRECT_CHARGING)
+static void sec_bat_parse_dc_thm(struct device_node *np, sec_battery_platform_data_t *pdata)
+{
+	int ret = 0, len = 0, i = 0;
+	const u32 *p;
+
+	/* dchg_high_temp */
+	p = of_get_property(np, "battery,dchg_high_temp", &len);
+	if (!p) {
+		pr_info("%s: failed to parse dchg_high_temp!\n", __func__);
+		return;
+	}
+	len = len / sizeof(u32);
+	if (len != 4)
+		goto failed_dchg_high_temp;
+	ret = of_property_read_u32_array(np, "battery,dchg_high_temp",
+			pdata->dchg_high_temp, len);
+	if (ret) {
+		pr_err("%s failed to read dchg_high_temp: %d\n", __func__, ret);
+		goto failed_dchg_high_temp;
+	}
+
+	/* dchg_high_temp_recovery */
+	p = of_get_property(np, "battery,dchg_high_temp_recovery", &len);
+	if (!p) {
+		pr_info("%s: failed to parse dchg_high_temp_recovery!\n", __func__);
+		goto failed_dchg_high_temp;
+	}
+	len = len / sizeof(u32);
+	if (len != 4)
+		goto failed_dchg_high_temp_recovery;
+	ret = of_property_read_u32_array(np, "battery,dchg_high_temp_recovery",
+			pdata->dchg_high_temp_recovery, len);
+	if (ret) {
+		pr_err("%s failed to read dchg_high_temp_recovery: %d\n", __func__, ret);
+		goto failed_dchg_high_temp_recovery;
+	}
+
+	/* dchg_high_batt_temp */
+	p = of_get_property(np, "battery,dchg_high_batt_temp", &len);
+	if (!p) {
+		pr_info("%s: failed to parse dchg_high_batt_temp!\n", __func__);
+		goto failed_dchg_high_temp_recovery;
+	}
+	len = len / sizeof(u32);
+	if (len != 4)
+		goto failed_dchg_high_batt_temp;
+	ret = of_property_read_u32_array(np, "battery,dchg_high_batt_temp",
+			pdata->dchg_high_batt_temp, len);
+	if (ret) {
+		pr_err("%s failed to read dchg_high_batt_temp: %d\n", __func__, ret);
+		goto failed_dchg_high_batt_temp;
+	}
+
+	/* dchg_high_batt_temp_recovery */
+	p = of_get_property(np, "battery,dchg_high_batt_temp_recovery", &len);
+	if (!p) {
+		pr_info("%s: failed to parse dchg_high_batt_temp_recovery!\n", __func__);
+		goto failed_dchg_high_batt_temp;
+	}
+	len = len / sizeof(u32);
+	if (len != 4)
+		goto failed_dchg_high_batt_temp_recovery;
+	ret = of_property_read_u32_array(np, "battery,dchg_high_batt_temp_recovery",
+			pdata->dchg_high_batt_temp_recovery, len);
+	if (ret) {
+		pr_err("%s failed to read dchg_high_batt_temp_recovery: %d\n", __func__, ret);
+		goto failed_dchg_high_batt_temp_recovery;
+	}
+
+	return;
+
+failed_dchg_high_temp:
+	for (i = 0; i < 4; i++)
+		pdata->dchg_high_temp[i] = 690;
+failed_dchg_high_temp_recovery:
+	for (i = 0; i < 4; i++)
+		pdata->dchg_high_temp_recovery[i] = 630;
+failed_dchg_high_batt_temp:
+	for (i = 0; i < 4; i++)
+		pdata->dchg_high_batt_temp[i] = 400;
+failed_dchg_high_batt_temp_recovery:
+	for (i = 0; i < 4; i++)
+		pdata->dchg_high_batt_temp_recovery[i] = 380;
+}
+#endif
+
 int sec_bat_parse_dt(struct device *dev,
 		struct sec_battery_info *battery)
 {
@@ -648,34 +801,8 @@ int sec_bat_parse_dt(struct device *dev,
 				pr_info("%s : dchg_input_limit_current is Empty\n", __func__);
 				pdata->dchg_input_limit_current = pdata->chg_input_limit_current;
 			}
-
-			ret = of_property_read_u32(np, "battery,dchg_high_temp",
-						   &pdata->dchg_high_temp);
-			if (ret) {
-				pr_info("%s : dchg_high_temp is Empty\n", __func__);
-				pdata->dchg_high_temp = pdata->chg_high_temp;
-			}
-
-			ret = of_property_read_u32(np, "battery,dchg_high_temp_recovery",
-						   &pdata->dchg_high_temp_recovery);
-			if (ret) {
-				pr_info("%s : dchg_high_temp_recovery is Empty\n", __func__);
-				pdata->dchg_high_temp_recovery = pdata->chg_high_temp_recovery;
-			}
-
-			ret = of_property_read_u32(np, "battery,dchg_high_batt_temp",
-						   &pdata->dchg_high_batt_temp);
-			if (ret) {
-				pr_info("%s : dchg_high_batt_temp is Empty\n", __func__);
-				pdata->dchg_high_batt_temp = pdata->chg_high_temp;
-			}
-
-			ret = of_property_read_u32(np, "battery,dchg_high_batt_temp_recovery",
-						   &pdata->dchg_high_batt_temp_recovery);
-			if (ret) {
-				pr_info("%s : dchg_high_batt_temp_recovery is Empty\n", __func__);
-				pdata->dchg_high_batt_temp_recovery = pdata->chg_high_temp_recovery;
-			}
+			/* parse dc thm info */
+			sec_bat_parse_dc_thm(np, pdata);
 		}
 #endif
 		ret = of_property_read_u32(np, "battery,mix_high_temp",
@@ -695,6 +822,30 @@ int sec_bat_parse_dt(struct device *dev,
 		pdata->mix_high_temp_recovery = (int)temp;
 		if (ret)
 			pr_info("%s : mix_high_temp_recovery is Empty\n", __func__);
+	}
+
+	ret = of_property_read_u32(np, "battery,lrp_temp_check_type",
+			&pdata->lrp_temp_check_type);
+	if (ret)
+		pr_info("%s : lrp_temp_check_type is Empty\n", __func__);
+
+	if (pdata->lrp_temp_check_type) {
+		for (i = 0; i < LRP_MAX; i++) {
+			if (sec_bat_parse_dt_lrp(battery, np, i) < 0) {
+				pdata->lrp_temp[i].trig[ST1][LCD_OFF] = 375;
+				pdata->lrp_temp[i].trig[ST2][LCD_OFF] = 375;
+				pdata->lrp_temp[i].recov[ST1][LCD_OFF] = 365;
+				pdata->lrp_temp[i].recov[ST2][LCD_OFF] = 365;
+				pdata->lrp_temp[i].trig[ST1][LCD_ON] = 375;
+				pdata->lrp_temp[i].trig[ST2][LCD_ON] = 375;
+				pdata->lrp_temp[i].recov[ST1][LCD_ON] = 365;
+				pdata->lrp_temp[i].recov[ST2][LCD_ON] = 365;
+				pdata->lrp_curr[i].st_icl[0] = pdata->default_input_current;
+				pdata->lrp_curr[i].st_fcc[0] = pdata->default_charging_current;
+				pdata->lrp_curr[i].st_icl[1] = pdata->default_input_current;
+				pdata->lrp_curr[i].st_fcc[1] = pdata->default_charging_current;
+			}
+		}
 	}
 
 	if (pdata->wpc_temp_check_type) {
@@ -1871,6 +2022,13 @@ int sec_bat_parse_dt(struct device *dev,
 		pdata->max_charging_charge_power = 25000;
 	}
 
+	ret = of_property_read_u32(np, "battery,apdo_max_volt",
+			&pdata->apdo_max_volt);
+	if (ret) {
+		pr_err("%s: apdo_max_volt is Empty\n", __func__);
+		pdata->apdo_max_volt = 11000; /* 11v */
+	}
+
 #if defined(CONFIG_DUAL_BATTERY)
 #if defined(CONFIG_DUAL_BATTERY_CELL_SENSING)
 	ret = of_property_read_u32(np, "battery,main_cell_margin_cv",
@@ -1920,30 +2078,47 @@ int sec_bat_parse_dt(struct device *dev,
 		if (ret < 0) {
 			pr_info("%s : can't get sub_bat_enb_gpio\n", __func__);
 		}
-		ret = of_property_read_u32(np, "battery,main_charging_rate",
-				&pdata->main_charging_rate);
+
+		/* zone1 current ratio, 0C ~ 0.4C */
+		ret = of_property_read_u32(np, "battery,main_zone1_current_rate",
+				&pdata->main_zone1_current_rate);
 		if (ret) {
-			pr_err("%s: main_charging_rate is Empty\n", __func__);
-			pdata->main_charging_rate = 60;
+			pr_err("%s: main_zone1_current_rate is Empty\n", __func__);
+			pdata->main_zone1_current_rate = 50;
 		}
-		ret = of_property_read_u32(np, "battery,sub_charging_rate",
-				&pdata->sub_charging_rate);
+		ret = of_property_read_u32(np, "battery,sub_zone1_current_rate",
+				&pdata->sub_zone1_current_rate);
 		if (ret) {
-			pr_err("%s: sub_charging_rate is Empty\n", __func__);
-			pdata->sub_charging_rate = 50;
+			pr_err("%s: sub_zone1_current_rate is Empty\n", __func__);
+			pdata->sub_zone1_current_rate = 60;
 		}
-		ret = of_property_read_u32(np, "battery,dc_main_charging_rate",
-				&pdata->dc_main_charging_rate);
+		/* zone2 current ratio, 0.4C ~ 1.1C */
+		ret = of_property_read_u32(np, "battery,main_zone2_current_rate",
+				&pdata->main_zone2_current_rate);
 		if (ret) {
-			pr_err("%s: dc_main_charging_rate is Empty\n", __func__);
-			pdata->dc_main_charging_rate = pdata->main_charging_rate;
+			pr_err("%s: main_zone2_current_rate is Empty\n", __func__);
+			pdata->main_zone2_current_rate = 50;
 		}
-		ret = of_property_read_u32(np, "battery,dc_sub_charging_rate",
-				&pdata->dc_sub_charging_rate);
+		ret = of_property_read_u32(np, "battery,sub_zone2_current_rate",
+				&pdata->sub_zone2_current_rate);
 		if (ret) {
-			pr_err("%s: dc_sub_charging_rate is Empty\n", __func__);
-			pdata->dc_sub_charging_rate = pdata->sub_charging_rate;
+			pr_err("%s: sub_zone2_current_rate is Empty\n", __func__);
+			pdata->sub_zone2_current_rate = 60;
 		}
+		/* zone3 current ratio, 1.1C ~ MAX */
+		ret = of_property_read_u32(np, "battery,main_zone3_current_rate",
+				&pdata->main_zone3_current_rate);
+		if (ret) {
+			pr_err("%s: main_zone3_current_rate is Empty\n", __func__);
+			pdata->main_zone3_current_rate = pdata->main_zone2_current_rate;
+		}
+		ret = of_property_read_u32(np, "battery,sub_zone3_current_rate",
+				&pdata->sub_zone3_current_rate);
+		if (ret) {
+			pr_err("%s: sub_zone3_current_rate is Empty\n", __func__);
+			pdata->sub_zone3_current_rate = pdata->sub_zone2_current_rate;
+		}
+
 		ret = of_property_read_u32(np, "battery,force_recharge_margin",
 				&pdata->force_recharge_margin);
 		if (ret) {
@@ -1974,10 +2149,10 @@ int sec_bat_parse_dt(struct device *dev,
 			pr_err("%s: min_sub_charging_current is Empty\n", __func__);
 			pdata->min_sub_charging_current = 450;
 		}
-		pr_info("%s : main rate:%d(dc %d), sub rate:%d(dc %d), recharge marging:%d, "
+		pr_info("%s : main ratio:%d(zn1) %d(zn2) %d(zn3), sub ratio:%d(zn1) %d(zn2) %d(zn3), recharge marging:%d, "
 				"max main curr:%d, min main curr:%d, max sub curr:%d, min sub curr:%d \n",
-				__func__, pdata->main_charging_rate, pdata->dc_main_charging_rate,
-				pdata->sub_charging_rate, pdata->dc_sub_charging_rate,
+				__func__, pdata->main_zone1_current_rate, pdata->main_zone2_current_rate, pdata->main_zone3_current_rate,
+				pdata->sub_zone1_current_rate, pdata->sub_zone2_current_rate, pdata->sub_zone3_current_rate,
 				pdata->force_recharge_margin, pdata->max_main_charging_current, pdata->min_main_charging_current,
 				pdata->max_sub_charging_current, pdata->min_sub_charging_current);
 	}

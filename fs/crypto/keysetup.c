@@ -501,18 +501,9 @@ static void put_crypt_info(struct fscrypt_info *ci)
 
 	if (ci->ci_direct_key)
 		fscrypt_put_direct_key(ci->ci_direct_key);
-	else if (ci->ci_owns_key) {
-		if (fscrypt_policy_contents_mode(&ci->ci_policy) !=
-		    FSCRYPT_MODE_PRIVATE) {
-			fscrypt_destroy_prepared_key(&ci->ci_key);
-		} else {
-			crypto_free_skcipher(ci->ci_key.tfm);
-#ifdef CONFIG_FS_ENCRYPTION_INLINE_CRYPT
-			if (ci->ci_key.blk_key)
-				kzfree(ci->ci_key.blk_key);
-#endif
-		}
-	}
+    else if (ci->ci_owns_key)
+        fscrypt_destroy_prepared_key(&ci->ci_key);
+
 	key = ci->ci_master_key;
 	if (key) {
 		struct fscrypt_master_key *mk = key->payload.data[0];
@@ -579,6 +570,25 @@ int fscrypt_get_encryption_info(struct inode *inode)
 		       FSCRYPT_KEY_DESCRIPTOR_SIZE);
 		res = sizeof(ctx.v1);
 	}
+
+#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (res == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			res = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (res == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			res = sizeof(ctx.v2);
+		}
+		break;
+	}
+	}
+#endif
 
 	crypt_info = kmem_cache_zalloc(fscrypt_info_cachep, GFP_NOFS);
 	if (!crypt_info)

@@ -6,7 +6,7 @@
  * Provides type definitions and function prototypes used to create, delete and manage flow rings at
  * high level.
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -67,6 +67,10 @@
 	((flowid >= (pub)->htput_flow_ring_start) && \
 	(flowid < ((pub)->htput_flow_ring_start + HTPUT_TOTAL_FLOW_RINGS)))
 #endif /* DHD_HTPUT_TUNABLES */
+
+#if defined(FLOW_RING_PREALLOC)
+#define MAX_FLOW_RINGS 40
+#endif /* FLOW_RING_PREALLOC */
 
 #define DHD_FLOWRING_RX_BUFPOST_PKTSZ	2048
 

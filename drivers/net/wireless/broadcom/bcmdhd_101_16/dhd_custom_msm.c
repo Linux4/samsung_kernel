@@ -1,7 +1,7 @@
 /*
  * Platform Dependent file for Qualcomm MSM/APQ
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -203,11 +203,11 @@ struct resource dhd_wlan_resources = {
 	.start	= 0, /* Dummy */
 	.end	= 0, /* Dummy */
 	.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_SHAREABLE |
-#ifdef CONFIG_BCMDHD_PCIE
+#if defined(CONFIG_BCMDHD_PCIE) && !defined(IRQ_HIGHLEVEL_TRIGGER)
 	IORESOURCE_IRQ_HIGHEDGE,
 #else
 	IORESOURCE_IRQ_HIGHLEVEL,
-#endif /* CONFIG_BCMDHD_PCIE */
+#endif /* CONFIG_BCMDHD_PCIE && !IRQ_HIGHLEVEL_TRIGGER */
 };
 EXPORT_SYMBOL(dhd_wlan_resources);
 

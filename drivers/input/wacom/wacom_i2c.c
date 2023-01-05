@@ -29,9 +29,11 @@ void wacom_forced_release(struct wacom_i2c *wac_i2c)
 		input_info(true, &wac_i2c->client->dev, "%s : [R] dd:%d,%d mc:%d & [HO] dd:%d,%d\n",
 				__func__, wac_i2c->x - wac_i2c->p_x, wac_i2c->y - wac_i2c->p_y,
 				wac_i2c->mcount, wac_i2c->x - wac_i2c->hi_x, wac_i2c->y - wac_i2c->hi_y);
+		sec_input_notify(&wac_i2c->nb, NOTIFIER_WACOM_PEN_HOVER_OUT, NULL);
 	} else  if (wac_i2c->pen_prox) {
 		input_info(true, &wac_i2c->client->dev, "%s : [HO] dd:%d,%d mc:%d\n",
 				__func__, wac_i2c->x - wac_i2c->hi_x, wac_i2c->y - wac_i2c->hi_y, wac_i2c->mcount);
+		sec_input_notify(&wac_i2c->nb, NOTIFIER_WACOM_PEN_HOVER_OUT, NULL);
 	} else {
 		input_info(true, &wac_i2c->client->dev, "%s : pen_prox(%d), pen_pressed(%d)\n",
 				__func__, wac_i2c->pen_prox, wac_i2c->pen_pressed);
@@ -42,10 +44,12 @@ void wacom_forced_release(struct wacom_i2c *wac_i2c)
 				__func__, wac_i2c->x, wac_i2c->y,
 				wac_i2c->x - wac_i2c->p_x, wac_i2c->y - wac_i2c->p_y,
 				wac_i2c->mcount, wac_i2c->x - wac_i2c->hi_x, wac_i2c->y - wac_i2c->hi_y);
+		sec_input_notify(&wac_i2c->nb, NOTIFIER_WACOM_PEN_HOVER_OUT, NULL);
 	} else  if (wac_i2c->pen_prox) {
 		input_info(true, &wac_i2c->client->dev, "%s : [HO] lx:%d ly:%d dd:%d,%d mc:%d\n",
 				__func__, wac_i2c->x, wac_i2c->y,
 				wac_i2c->x - wac_i2c->hi_x, wac_i2c->y - wac_i2c->hi_y, wac_i2c->mcount);
+		sec_input_notify(&wac_i2c->nb, NOTIFIER_WACOM_PEN_HOVER_OUT, NULL);
 	} else {
 		input_info(true, &wac_i2c->client->dev, "%s : pen_prox(%d), pen_pressed(%d)\n",
 				__func__, wac_i2c->pen_prox, wac_i2c->pen_pressed);
@@ -1104,13 +1108,11 @@ static void wacom_i2c_cover_handler(struct wacom_i2c *wac_i2c, char *data)
 
 	change_status = (data[3] >> 7) & 0x01;
 
-	if (wac_i2c->flip_state != change_status) {
-		input_info(true, &wac_i2c->client->dev, "%s: cover status %d\n", __func__, change_status);
-		input_report_switch(wac_i2c->input_dev,
-			SW_FLIP, change_status);
-		input_sync(wac_i2c->input_dev);
-		wac_i2c->flip_state = change_status;
-	}
+	input_info(true, &wac_i2c->client->dev, "%s: cover status %d\n", __func__, change_status);
+	input_report_switch(wac_i2c->input_dev,
+		SW_FLIP, change_status);
+	input_sync(wac_i2c->input_dev);
+	wac_i2c->flip_state = change_status;
 }
 
 static void wacom_i2c_noti_handler(struct wacom_i2c *wac_i2c, char *data)
@@ -1386,6 +1388,7 @@ static void wacom_i2c_coord_handler(struct wacom_i2c *wac_i2c, char *data)
 			input_info(true, &client->dev, "[HI]  x:%d  y:%d loc:%s (%s) \n",
 					wac_i2c->x, wac_i2c->y, location, wac_i2c->tool == BTN_TOOL_PEN ? "pen" : "rubber");
 #endif
+			sec_input_notify(&wac_i2c->nb, NOTIFIER_WACOM_PEN_HOVER_IN, NULL);
 			return;
 		}
 
@@ -1490,6 +1493,7 @@ static void wacom_i2c_coord_handler(struct wacom_i2c *wac_i2c, char *data)
 						location, wac_i2c->mcount);
 #endif
 			}
+			sec_input_notify(&wac_i2c->nb, NOTIFIER_WACOM_PEN_HOVER_OUT, NULL);
 			wac_i2c->p_x = wac_i2c->p_y = wac_i2c->hi_x = wac_i2c->hi_y = 0;
 
 		} else {
@@ -1664,9 +1668,10 @@ static void pen_insert_work(struct work_struct *work)
 {
 	struct wacom_i2c *wac_i2c =
 		container_of(work, struct wacom_i2c, pen_insert_dwork.work);
+	char data;
+	int ret = 0;
 
 #if !WACOM_SEC_FACTORY
-	int ret = 0;
 
 	if (wac_i2c->pdata->support_garage_open_test) {
 		ret = wacom_open_test(wac_i2c, WACOM_GARAGE_TEST);
@@ -1706,6 +1711,15 @@ static void pen_insert_work(struct work_struct *work)
 
 	input_info(true, &wac_i2c->client->dev, "%s : pen is %s\n", __func__,
 			(wac_i2c->function_result & EPEN_EVENT_PEN_OUT) ? "OUT" : "IN");
+
+	/* occur cover status event*/
+	if (wac_i2c->pdata->support_cover_detection) {
+		data = COM_KBDCOVER_CHECK_STATUS;
+		ret = wacom_i2c_send(wac_i2c, &data, 1);
+		if (ret < 0) {
+			input_err(true, &wac_i2c->client->dev, "%s: failed to send cover status event %d\n", __func__, ret);
+		}
+	}
 }
 
 static void init_pen_insert(struct wacom_i2c *wac_i2c)
