@@ -1,0 +1,38 @@
+# drivers/samsung/pm/Kconfig
+#
+# Copyright (c) 2010-2019 Samsung Electronics Co., Ltd.
+#		http://www.samsung.com/
+#
+# Licensed under GPLv2
+#
+comment "Samsung Mobile Power Management Options"
+menuconfig SEC_PM
+	bool "Samsung Mobile Power Management"
+	default n
+	help
+	  This option enables support for various drivers and features for
+	  Samsung Mobile Power Management.
+
+config SEC_PM_DEBUG
+	bool "Enable Samsung Mobile Power management debug support"
+	default n
+	depends on SEC_PM
+	help
+	  This option enables Samsung Mobile Power management debug support.
+	  Intended for test and debug only.
+
+config SEC_PM_BIGDATA
+	bool "Enable Samsung Mobile Power management big data support"
+	default n
+	depends on SEC_PM
+	help
+	  This option enables Samsung Mobile Power management big data support.
+
+config SEC_PM_CPUFREQ
+	bool "Enable Samsung Mobile CPU Frequency control support"
+	default n
+	depends on SEC_PM
+	help
+	  This option enables Samsung Mobile CPU Frequency control support.
+	  Adjust the minimum and maximum frequency for each CPU clusters.
+

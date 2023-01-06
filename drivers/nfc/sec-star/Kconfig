@@ -1,0 +1,15 @@
+#
+# SEC STAR platform devices
+#
+
+config STAR_MEMORY_LEAK
+	bool "memory leak test in sec-star"
+	help
+	  memory leak test in sec-star.
+	  All allocated memory are listed in array.
+
+config STAR_K250A
+	bool "S.LSI k250a driver"
+	help
+	  S.LSI k250a driver except ISO7816 protocol layer
+	  This driver provides support for S.LSI k250a product.
