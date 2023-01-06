@@ -810,7 +810,8 @@
 
 			dpu: dpu@31000000 {
 				compatible = "sprd,display-processor";
-				reg = <0x0 0x31000000 0x0 0x1000>;
+				reg = <0x0 0x31000000 0x0 0x1000>,
+				      <0x0 0x31001000 0x0 0x1000>;
 				syscons = <&ap_ahb_regs 0x0004 0x2>,
 					<&ap_ahb_regs 0x0004 0x4000>;
 				syscon-names = "disp_reset", "iommu_reset";
@@ -2249,6 +2250,7 @@
 
 	audiocp_boot {
 		compatible = "sprd,audcp-boot";
+		dsp-reboot-mode = <1>;
 		syscons = <&pmu_apb_regs REG_PMU_APB_PD_AUDCP_CFG_0 0x3000000>,
 			<&pmu_apb_regs REG_PMU_APB_PD_AUDCP_AUDDSP_CFG_0 0x3000000>,
 			<&pmu_apb_regs REG_PMU_APB_FORCE_DEEP_SLEEP_CFG_0 MASK_PMU_APB_AUDCP_FORCE_DEEP_SLEEP_REG>,

@@ -268,7 +268,18 @@ static const struct irq_chip regmap_irq_chip = {
 	.irq_set_type		= regmap_irq_set_type,
 	.irq_set_wake		= regmap_irq_set_wake,
 };
-
+/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 start */
+#ifdef  CONFIG_TARGET_UMS9230_4H10
+#define ANA_IRQ_NUM (70)
+#endif
+#ifdef  CONFIG_TARGET_UMS512_1H10
+#define ANA_IRQ_NUM (68)
+#endif
+bool is_pmic_irq(int irq)
+{
+	return (irq == ANA_IRQ_NUM);
+}
+/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 end */
 static irqreturn_t regmap_irq_thread(int irq, void *d)
 {
 	struct regmap_irq_chip_data *data = d;

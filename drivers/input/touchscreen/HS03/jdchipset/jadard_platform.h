@@ -17,6 +17,10 @@
 #define JADARD_BUS_RETRY_TIMES 10
 /*HS03 code for SL6215DEV-2515 by chenyihong at 20211020 end*/
 
+/*HS03 code for SR-SL6215-01-1189  by duanyaoming at 20220407  start*/
+extern const char *lcd_name;
+/*HS03 code for SR-SL6215-01-1189  by duanyaoming at 20220407  end*/
+
 #if defined(CONFIG_TOUCHSCREEN_JADARD_DEBUG)
 extern bool jd_g_dbg_enable;
 #define JD_I(x...) printk("[JDTP] " x)

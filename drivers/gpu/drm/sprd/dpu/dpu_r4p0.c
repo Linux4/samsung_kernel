@@ -16,6 +16,8 @@
 #include <linux/of_address.h>
 #include <linux/wait.h>
 #include <linux/workqueue.h>
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
 #include "sprd_bl.h"
 #include "sprd_dpu.h"
 #include "sprd_dvfs_dpu.h"
@@ -25,7 +27,6 @@
 
 #define DISPC_INT_FBC_PLD_ERR_MASK	BIT(8)
 #define DISPC_INT_FBC_HDR_ERR_MASK	BIT(9)
-/*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 start*/
 #define DISPC_INT_MMU_PAOR_WR_MASK	BIT(7)
 #define DISPC_INT_MMU_PAOR_RD_MASK	BIT(6)
 #define DISPC_INT_MMU_UNS_WR_MASK	BIT(5)
@@ -34,7 +35,7 @@
 #define DISPC_INT_MMU_INV_RD_MASK	BIT(2)
 #define DISPC_INT_MMU_VAOR_WR_MASK	BIT(1)
 #define DISPC_INT_MMU_VAOR_RD_MASK	BIT(0)
-/*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 end*/
+
 #define XFBC8888_HEADER_SIZE(w, h) (ALIGN((ALIGN((w), 16)) * \
 				(ALIGN((h), 16)) / 16, 128))
 #define XFBC8888_PAYLOAD_SIZE(w, h) (ALIGN((w), 16) * ALIGN((h), 16) * 4)
@@ -196,7 +197,6 @@ struct dpu_reg {
 	u32 bot_corner_lut_addr;
 	u32 bot_corner_lut_wdata;
 	u32 bot_corner_lut_rdata;
-        /*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 start*/
 	u32 reserved_0x0520_0x0520[206];
 	u32 mmu_vaor_addr_rd;
 	u32 mmu_vaor_addr_wr;
@@ -207,7 +207,6 @@ struct dpu_reg {
 	u32 mmu_int_clr;
 	u32 mmu_int_sts;
 	u32 mmu_int_raw;
-        /*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 end*/
 };
 
 struct wb_region {
@@ -369,6 +368,12 @@ enum {
 	CABC_DISABLED
 };
 
+enum sprd_fw_attr {
+	FW_ATTR_NON_SECURE = 0,
+	FW_ATTR_SECURE,
+	FW_ATTR_PROTECTED,
+};
+
 static struct scale_cfg scale_copy;
 static struct cm_cfg cm_copy;
 static struct slp_cfg slp_copy;
@@ -381,9 +386,6 @@ static struct epf_cfg sr_epf;
 static bool sr_epf_ready;
 static u32 enhance_en;
 extern int gsp_enabled_layer_count;
-/*HS03 code for P220125-07187 by wenghailong at 20220217 start*/
-static bool tos_msg_alloc = false;
-/*HS03 code for P220125-07187 by wenghailong at 20220217 end*/
 
 static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 static bool panel_ready = true;
@@ -488,7 +490,7 @@ static void dpu_corner_init(struct dpu_context *ctx)
 
 	reg->corner_config |= (TOP_CORNER_EN | BOT_CORNER_EN);
 }
-/*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 start*/
+
 static void dpu_dump(struct dpu_context *ctx)
 {
 	u32 *reg = (u32 *)ctx->base;
@@ -536,19 +538,18 @@ static u32 check_mmu_isr(struct dpu_context *ctx, u32 reg_val)
 
 	return val;
 }
-/*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 end*/
+
 static u32 dpu_isr(struct dpu_context *ctx)
 {
 	struct dpu_reg *reg = (struct dpu_reg *)ctx->base;
 	u32 reg_val, int_mask = 0;
-        /*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 start*/
 	u32 mmu_reg_val, mmu_int_mask = 0;
-        /*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 end*/
+
 	reg_val = reg->dpu_int_sts;
 	reg->dpu_int_clr = reg_val;
-        /*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 start*/
+
 	mmu_reg_val = reg->mmu_int_sts;
-        /*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 end*/
+
 	/* disable err interrupt */
 	if (reg_val & DISPC_INT_ERR_MASK)
 		int_mask |= DISPC_INT_ERR_MASK;
@@ -613,15 +614,15 @@ static u32 dpu_isr(struct dpu_context *ctx)
 		int_mask |= DISPC_INT_FBC_HDR_ERR_MASK;
 		pr_err("dpu afbc header error\n");
 	}
-        /*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 start*/
+
 	mmu_int_mask |= check_mmu_isr(ctx, mmu_reg_val);
-        /*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 end*/
+
 	reg->dpu_int_clr = reg_val;
 	reg->dpu_int_en &= ~int_mask;
-        /*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 start*/
+
 	reg->mmu_int_clr = mmu_reg_val;
 	reg->mmu_int_en &= ~mmu_int_mask;
-        /*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 end*/
+
 	return reg_val;
 }
 
@@ -672,7 +673,7 @@ static void dpu_stop(struct dpu_context *ctx)
 {
 	struct dpu_reg *reg = (struct dpu_reg *)ctx->base;
 
-	//if (ctx->if_type == SPRD_DISPC_IF_DPI)
+	if (ctx->if_type == SPRD_DISPC_IF_DPI)
 		reg->dpu_ctrl |= BIT(1);
 
 	dpu_wait_stop_done(ctx);
@@ -992,10 +993,8 @@ static void dpu_dvfs_task_init(struct dpu_context *ctx)
 static int dpu_init(struct dpu_context *ctx)
 {
 	struct dpu_reg *reg = (struct dpu_reg *)ctx->base;
-	/*HS03 code for P220125-07187 by wenghailong at 20220217 start*/
-	//static bool tos_msg_alloc = false;
-	/*HS03 code for P220125-07187 by wenghailong at 20220217 end*/
 	u32 size;
+	int ret;
 
 	/* set bg color */
 	reg->bg_color = 0;
@@ -1029,63 +1028,30 @@ static int dpu_init(struct dpu_context *ctx)
 	INIT_WORK(&ctx->cabc_bl_update, dpu_cabc_bl_update_func);
 
 	frame_no = 0;
-	ctx->pre_secure_prop = false;
-	ctx->cur_secure_prop = false;
 
-	/* Allocate memory for trusty */
-	if(!tos_msg_alloc){
-		ctx->tos_msg = kmalloc(sizeof(struct disp_message) +
-			sizeof(struct layer_reg), GFP_KERNEL);
-		if(!ctx->tos_msg)
-			return -ENOMEM;
-		tos_msg_alloc = true;
-	}
+	ctx->base_offset[0] = 0x0;
+	ctx->base_offset[1] = sizeof(struct dpu_reg) / 4;
 
-	if (tos_msg_alloc) {
-		disp_ca_connect();
-		udelay(time);
+	ret = trusty_fast_call32(NULL, SMC_FC_DPU_FW_SET_SECURITY, FW_ATTR_SECURE, 0, 0);
+	if (ret)
+		pr_err("Trusty fastcall set firewall failed, ret = %d\n", ret);
 
-		ctx->tos_msg->cmd = TA_FIREWALL_SET;
-		/*HS03 code for P220125-07187 by wenghailong at 20220217 start*/
-		ctx->tos_msg->version = DPU_R4P0;
-		/*HS03 code for P220125-07187 by wenghailong at 20220217 end*/
-		disp_ca_write(ctx->tos_msg, sizeof(*ctx->tos_msg));
-		disp_ca_wait_response();
-	}
 	return 0;
 }
 
 static void dpu_uninit(struct dpu_context *ctx)
 {
 	struct dpu_reg *reg = (struct dpu_reg *)ctx->base;
+	int ret;
 
 	reg->dpu_int_en = 0;
 	reg->dpu_int_clr = 0xff;
 
-	/*HS03 code for P220125-07187 by wenghailong at 20220217 start*/
-	/* Allocate memory for trusty */
-	if (!tos_msg_alloc) {
-		ctx->tos_msg = kmalloc(sizeof(struct disp_message) +
-			sizeof(struct layer_reg), GFP_KERNEL);
-		if(!ctx->tos_msg) {
-			//return -ENOMEM;
-			return;
-		}
-		tos_msg_alloc = true;
-	}
-
-	if (tos_msg_alloc) {
-		ctx->tos_msg->cmd = TA_REG_CLR;
-		ctx->tos_msg->version = DPU_R4P0;
-		disp_ca_write(ctx->tos_msg, sizeof(*ctx->tos_msg));
-		disp_ca_wait_response();
-		/*HS03 code for P220125-07187 by wenghailong at 20220126 start*/
-		disp_ca_set_disconnect_state();  //add CA Disconnect state check when dpu deinit
-		/*HS03 code for P220125-07187 by wenghailong at 20220126 end*/
-	}
+	ret = trusty_fast_call32(NULL, SMC_FC_DPU_FW_SET_SECURITY, FW_ATTR_NON_SECURE, 0, 0);
+	if (ret)
+		pr_err("Trusty fastcall clear firewall failed, ret = %d\n", ret);
 
 	panel_ready = false;
-	/*HS03 code for P220125-07187 by wenghailong at 20220217 end*/
 }
 
 enum {
@@ -1519,7 +1485,7 @@ static void dpu_flip(struct dpu_context *ctx,
 	 */
 	reg->dpu_int_en |= DISPC_INT_FBC_PLD_ERR_MASK |
 			   DISPC_INT_FBC_HDR_ERR_MASK;
-        /*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 start*/
+
 	reg->mmu_int_en |= DISPC_INT_MMU_VAOR_RD_MASK |
 			   DISPC_INT_MMU_VAOR_WR_MASK |
 			   DISPC_INT_MMU_INV_RD_MASK |
@@ -1528,7 +1494,6 @@ static void dpu_flip(struct dpu_context *ctx,
 			   DISPC_INT_MMU_UNS_WR_MASK |
 			   DISPC_INT_MMU_PAOR_RD_MASK |
 			   DISPC_INT_MMU_PAOR_WR_MASK;
-        /*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 end*/
 }
 
 static void dpu_epf_set(struct dpu_reg *reg, struct epf_cfg *epf)
@@ -1601,7 +1566,7 @@ static void dpu_dpi_init(struct dpu_context *ctx)
 	int_mask |= DISPC_INT_FBC_HDR_ERR_MASK;
 
 	reg->dpu_int_en = int_mask;
-        /*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 start*/
+
 	reg->mmu_int_en |= DISPC_INT_MMU_VAOR_RD_MASK |
 			   DISPC_INT_MMU_VAOR_WR_MASK |
 			   DISPC_INT_MMU_INV_RD_MASK |
@@ -1610,7 +1575,6 @@ static void dpu_dpi_init(struct dpu_context *ctx)
 			   DISPC_INT_MMU_UNS_WR_MASK |
 			   DISPC_INT_MMU_PAOR_RD_MASK |
 			   DISPC_INT_MMU_PAOR_WR_MASK;
-        /*Tab A8 code for AX6300DEV-1406 by huangzhongjie at 2021/10/19 end*/
 }
 
 static void enable_vsync(struct dpu_context *ctx)

@@ -28,7 +28,9 @@
 struct vsp_fh {
 	int is_vsp_aquired;
 	int is_clock_enabled;
-
+	/*Tab A8_s code for P220701-02273 by yingboyang at 20220709 start*/
+	bool is_wakelock_got;
+	/*Tab A8_s code for P220701-02273 by yingboyang at 20220709 end*/
 	wait_queue_head_t wait_queue_work;
 	int condition_work;
 	int vsp_int_status;

@@ -79,8 +79,11 @@ static inline u32 sprd_pcm_dma_get_addr(struct dma_chan *dma_chn,
 	dma_cookie_t cookie, struct snd_pcm_substream *substream)
 {
 	struct dma_tx_state dma_state;
+	enum dma_status status;
 
-	dmaengine_tx_status(dma_chn, cookie, &dma_state);
+	status = dmaengine_tx_status(dma_chn, cookie, &dma_state);
+	if (status == DMA_ERROR)
+		pr_err("dma_tx_status error!\n");
 
 	return dma_state.residue;
 }
@@ -1073,6 +1076,11 @@ static int sprd_pcm_hw_params(struct snd_pcm_substream *substream,
 	if (ch_cnt > SPRD_PCM_CHANNEL_MAX) {
 		pr_err("ERR: channel count(%d) is greater than %d\n",
 		       ch_cnt, SPRD_PCM_CHANNEL_MAX);
+		return -EINVAL;
+	}
+
+	if (ch_cnt <= 0) {
+		pr_err("ERR: channel count(%d) is less than 1\n", ch_cnt);
 		return -EINVAL;
 	}
 

@@ -140,6 +140,7 @@ struct sensor_muti_aec_i2c_tag {
 #define AEC_I2C_SENSOR_MAX 3
 
 #define SENSOR_IOC_MAGIC			'R'
+#define SENSOR_IOC_PRIVATE_KEY		0x789A
 
 #define SENSOR_IO_PD	\
 	 _IOW(SENSOR_IOC_MAGIC,  0,  uint8_t)
@@ -191,6 +192,8 @@ struct sensor_muti_aec_i2c_tag {
 	_IOW(SENSOR_IOC_MAGIC,  23, struct sensor_muti_aec_i2c_tag)
 #define SENSOR_IO_IF_SWITCH            \
 	_IOW(SENSOR_IOC_MAGIC,  24, struct sensor_if_cfg_tag)
+#define SENSOR_IO_PRI_KEY	\
+	_IOW(SENSOR_IOC_MAGIC, 	25, uint32_t)
 #define SENSOR_IO_READ_OTPDATA	\
 	_IOWR(SENSOR_IOC_MAGIC, 254, struct _sensor_otp_param_tag)
 #define SENSOR_IO_GET_SOCID	\

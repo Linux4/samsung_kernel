@@ -10,14 +10,12 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-#include <drm/drm_crtc_helper.h>
-#include <drm/drm_atomic_helper.h>
+
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
-#include <linux/pm_runtime.h>
 #include <linux/sysfs.h>
 #include <linux/timer.h>
 #include <linux/timex.h>
@@ -25,44 +23,15 @@
 
 #include "disp_lib.h"
 #include "sprd_dpu.h"
-#include "sprd_drm.h"
 #include "sprd_panel.h"
 #include "sprd_dsi.h"
 #include "sysfs_display.h"
-
-#define DRM_DPMS_SUSPEND 0
-#define DRM_DPMS_RESUME  1
 
 #define SHARKL3_SLP_SIZE 6
 #define SHARKL5_SLP_SIZE 12
 
 static uint32_t bg_color;
-
-static ssize_t cali_dpu_stop_store(struct device *dev,
-				struct device_attribute *attr,
-				const char *buf, size_t count)
-{
-	struct sprd_dpu *dpu = dev_get_drvdata(dev);
-
-	cali_sprd_dpu_stop(dpu);
-
-	return count;
-}
-static DEVICE_ATTR_WO(cali_dpu_stop);
-
-static ssize_t dpms_state_store(struct device *dev,
-				struct device_attribute *attr,
-				const char *buf, size_t count)
-{
-	struct sprd_dpu *dpu = dev_get_drvdata(dev);
-
-	//cali_dpu_glb_disable(&dpu->ctx);
-	dpu->glb->dpu_global_disable(&dpu->ctx);
-	//cali_dpu_clk_disable(&dpu->ctx);
-	dpu->clk->dpu_clk_disable(&dpu->ctx);
-	return count;
-}
-static DEVICE_ATTR_WO(dpms_state);
+static uint32_t max_reg_length;
 
 static ssize_t run_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -230,8 +199,24 @@ static ssize_t regs_offset_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct sprd_dpu *dpu = dev_get_drvdata(dev);
+	u32 input_param[2];
 
-	str_to_u32_array(buf, 16, dpu->ctx.base_offset);
+	str_to_u32_array(buf, 16, input_param, 2);
+	if ((input_param[0] + input_param[1]) > dpu->ctx.base_offset[1]) {
+		pr_err("set reg off set over dpu register limit size\n");
+		return -EINVAL;
+	}
+
+	if (input_param[0] % 4) {
+		pr_err("input_param[0] is not a multiple of 4\n");
+	} else {
+		if ((input_param[1] > max_reg_length) || (input_param[1] <= 0))
+			pr_err("input_param[1] should between 0 and %d\n", max_reg_length);
+		else {
+			dpu->ctx.base_offset[0] = input_param[0];
+			dpu->ctx.base_offset[1] = input_param[1];
+		}
+	}
 
 	return count;
 }
@@ -285,7 +270,7 @@ static ssize_t wr_regs_store(struct device *dev,
 		return -ENOMEM;
 	}
 
-	actual_len = str_to_u32_array(buf, 16, value);
+	actual_len = str_to_u32_array(buf, 16, value, (u8)length);
 	if (!actual_len) {
 		pr_err("input format error\n");
 		up(&dpu->ctx.refresh_lock);
@@ -448,8 +433,6 @@ static struct attribute *dpu_attrs[] = {
 	&dev_attr_wb_debug.attr,
 	&dev_attr_irq_register.attr,
 	&dev_attr_irq_unregister.attr,
-	&dev_attr_dpms_state.attr,
-	&dev_attr_cali_dpu_stop.attr,
 	NULL,
 };
 static const struct attribute_group dpu_group = {
@@ -1178,7 +1161,7 @@ static ssize_t scl_store(struct device *dev,
 		return -EIO;
 
 	down(&ctx->refresh_lock);
-	str_to_u32_array(buf, 10, param);
+	str_to_u32_array(buf, 10, param, 2);
 	dpu->core->enhance_set(ctx, ENHANCE_CFG_ID_SCL, param);
 	up(&ctx->refresh_lock);
 
@@ -1417,6 +1400,8 @@ int sprd_dpu_sysfs_init(struct device *dev)
 {
 	int rc;
 	struct sprd_dpu *dpu = dev_get_drvdata(dev);
+
+	max_reg_length = dpu->ctx.base_offset[1];
 
 	rc = sysfs_create_group(&(dev->kobj), &dpu_group);
 	if (rc)

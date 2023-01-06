@@ -21,7 +21,10 @@
 #include "sprd_debuglog_drv.h"
 
 #define INTC_TO_GIC(i)			((i) + 32)
-
+/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 start */
+#define ADI_ERR_BIT		(31)
+#define ADI_READ_TIMEOUT_BIT	(30)
+/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 end */
 struct intc_desc {
 	char *bit[32];
 };
@@ -844,7 +847,7 @@ LIST_HEAD(wakeup_node_list);
 int wakeup_info_register(int gic_num, int sub_num,
 			 int (*get)(void *info, void *data), void *data)
 {
-	struct wakeup_node *pos;
+	struct wakeup_node *pos = NULL;
 	struct wakeup_node *pn;
 
 	if (!get) {
@@ -881,7 +884,7 @@ EXPORT_SYMBOL_GPL(wakeup_info_register);
  */
 int wakeup_info_unregister(int gic_num, int sub_num)
 {
-	struct wakeup_node *pos;
+	struct wakeup_node *pos = NULL;
 
 	list_for_each_entry(pos, &wakeup_node_list, list) {
 		if (pos->gic_num != gic_num || pos->sub_num != sub_num)
@@ -928,7 +931,7 @@ static int gpio_int_handler(char **o1, char **o2, u32 m, u32 s, u32 t)
 {
 	#define GPIO_BIT_SHIFT		4
 
-	struct wakeup_node *node;
+	struct wakeup_node *node = NULL;
 	int inum, ibit, gnum;
 	int grp, bit;
 	char *iname;
@@ -980,7 +983,7 @@ static int eic_int_handler(char **o1, char **o2, u32 m, u32 s, u32 t)
 
 	static const char *eic_type[] = {"DBNC", "LATCH", "ASYNC", "SYNC"};
 
-	struct wakeup_node *node;
+	struct wakeup_node *node = NULL;
 	int inum, ibit, gnum;
 	int grp, bit, num;
 	int ret;
@@ -1032,7 +1035,7 @@ static int mbox_int_handler(char **o1, char **o2, u32 m, u32 s, u32 t)
 		"APCPU", "GNSS", "BTWF",
 	};
 
-	struct wakeup_node *node;
+	struct wakeup_node *node = NULL;
 	int inum, ibit, gnum;
 	int grp, bit;
 	int ret;
@@ -1089,7 +1092,7 @@ static int ana_int_handler(char **o1, char **o2, u32 m, u32 s, u32 t)
 		"EXT_XTL0_EN", "AUD_INT_ALL", "ENDURA_OPTION"
 	};
 
-	struct wakeup_node *node;
+	struct wakeup_node *node = NULL;
 	int inum, ibit, gnum;
 	int bit, num;
 	int pos, ret;
@@ -1098,7 +1101,13 @@ static int ana_int_handler(char **o1, char **o2, u32 m, u32 s, u32 t)
 	inum = (m >> 16) & 0xFFFF;
 	ibit = m & 0xFFFF;
 	iname = ap_intc[inum].bit[ibit];
+	/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 start */
+	if (s & BIT(ADI_ERR_BIT))
+		pr_err("%s: adi err occur.\n", __func__);
 
+	if (s & BIT(ADI_READ_TIMEOUT_BIT))
+		 pr_err("%s: adi read timeout occur.\n", __func__);
+	/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 end */
 	bit = s & 0xFFFF;
 	num = t & 0xFFFF;
 

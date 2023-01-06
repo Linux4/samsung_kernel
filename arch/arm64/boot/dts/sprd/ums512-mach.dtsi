@@ -122,6 +122,9 @@
 		compatible = "sprd,dfs";
 		freq-num = <8>;
 		backdoor = <1866>;
+		/* Tab A8_S code for P220617-05300 by yubaiwen at 2022/07/07 start */
+		info-socdump-enable-flag = <1>;
+		/* Tab A8_S code for P220617-05300 by yubaiwen at 2022/07/07 end */
 	};
 
 	sprd-sensorhub {

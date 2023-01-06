@@ -1171,6 +1171,12 @@ cts_multi_module_compatible_struct cts_multi_module_compatible_list[] = {
         .cts_all_lcdname = "lcd_nl9911c_genrpro_inx_mipi_hdp",
         .cts_name_data = "chipone_genrpro_inx",
     },
+    /*HS03 code for SR-SL6215-01-1213 by duanyaoming at 20220503 start*/
+    {
+        .cts_all_lcdname = "lcd_nl9911c_hlt_hsd_mipi_hdp_video",
+        .cts_name_data = "chipone_hlt_hsd",
+    },
+    /*HS03 code for SR-SL6215-01-1213 by duanyaoming at 20220503 end*/
 };
 /* HS03 code for SL6215DEV-969 by yuanliding at 20210908 start */
 static void cts_multi_module_compatible_init(struct chipone_ts_data *cts_data)

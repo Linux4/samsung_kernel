@@ -132,6 +132,9 @@
 #define BQ2560X_WAKE_UP_MS			1000
 #define BQ2560X_CURRENT_WORK_MS			msecs_to_jiffies(100)
 
+/* HS03_s code for P220607-05835 by lina at 20220613 start */
+#define BQ2560X_ICL_CURRENT_WORK_MS			msecs_to_jiffies(100)
+/* HS03_s code for P220607-05835 by lina at 20220613 end */
 /* HS03 code for SL6215DEV-245 by ditong at 20210824 start */
 #define CONSTANT_CHARGE_VOLTAGE_MAX_UV      4600000;
 /* HS03 code for P211026-03673 by ditong at 20211105 start */
@@ -165,6 +168,9 @@ struct bq2560x_charger_info {
 	struct delayed_work otg_work;
 	struct delayed_work wdt_work;
 	struct delayed_work cur_work;
+	/* HS03_s code for P220607-05835 by lina at 20220613 start */
+	struct delayed_work icl_cur_work;
+	/* HS03_s code for P220607-05835 by lina at 20220613 end */
 	struct regmap *pmic;
 	struct gpio_desc *gpiod;
 	struct extcon_dev *edev;
@@ -203,6 +209,7 @@ struct bq2560x_charger_info {
 
 	int reg_id;
 	bool disable_power_path;
+	bool enable_multi_charger_adapt;
 };
 
 struct bq2560x_charger_reg_tab {
@@ -1322,7 +1329,32 @@ static void bq2560x_current_work(struct work_struct *data)
 	schedule_delayed_work(&info->cur_work, BQ2560X_CURRENT_WORK_MS);
 }
 
+/* HS03_s code for P220607-05835 by lina at 20220613 start */
+static void bq2560x_icl_current_work(struct work_struct *data)
+{
+	struct delayed_work *dwork = to_delayed_work(data);
+	struct bq2560x_charger_info *info =
+		container_of(dwork, struct bq2560x_charger_info, icl_cur_work);
+	u32 limit_cur = 0;
+	int ret = 0;
 
+	ret = bq2560x_charger_get_limit_current(info, &limit_cur);
+	if (ret) {
+		dev_err(info->dev, "get limit cur failed\n");
+		return;
+	}
+
+	if (info->actual_limit_cur == limit_cur) {
+		return;
+        }
+
+	ret = bq2560x_charger_set_limit_current(info, info->actual_limit_cur);
+	if (ret) {
+		dev_err(info->dev, "set limit cur failed\n");
+		return;
+	}
+}
+/* HS03_s code for P220607-05835 by lina at 20220613 end */
 static int bq2560x_charger_usb_change(struct notifier_block *nb,
 				      unsigned long limit, void *data)
 {
@@ -1525,6 +1557,9 @@ static int bq2560x_charger_usb_set_property(struct power_supply *psy,
 		ret = bq2560x_charger_set_limit_current(info, val->intval);
 		if (ret < 0)
 			dev_err(info->dev, "set input current limit failed\n");
+		/* HS03_s code for P220607-05835 by lina at 20220613 start */
+		schedule_delayed_work(&info->icl_cur_work, BQ2560X_ICL_CURRENT_WORK_MS * 5);
+		/* HS03_s code for P220607-05835 by lina at 20220613 end */
 		break;
 
 	case POWER_SUPPLY_PROP_STATUS:
@@ -2151,6 +2186,16 @@ static const struct regulator_desc bq2560x_charger_vbus_desc = {
 	.n_voltages = 1,
 };
 
+static const struct regulator_desc bq2560x_charger_multi_vbus_desc = {
+	.name = "bq2560x_otg_vbus",
+	.of_match = "bq2560x_otg_vbus",
+	.type = REGULATOR_VOLTAGE,
+	.owner = THIS_MODULE,
+	.ops = &bq2560x_charger_vbus_ops,
+	.fixed_uV = 5000000,
+	.n_voltages = 1,
+};
+
 static int
 bq2560x_charger_register_vbus_regulator(struct bq2560x_charger_info *info)
 {
@@ -2160,8 +2205,15 @@ bq2560x_charger_register_vbus_regulator(struct bq2560x_charger_info *info)
 
 	cfg.dev = info->dev;
 	cfg.driver_data = info;
-	reg = devm_regulator_register(info->dev,
-				      &bq2560x_charger_vbus_desc, &cfg);
+	if (!info->enable_multi_charger_adapt) {
+		reg = devm_regulator_register(info->dev,
+					      &bq2560x_charger_vbus_desc, &cfg);
+		dev_info(info->dev, "use bq2560x_charger_vbus_desc\n");
+	} else {
+		reg = devm_regulator_register(info->dev,
+					      &bq2560x_charger_multi_vbus_desc, &cfg);
+		dev_info(info->dev, "use bq2560x_charger_multi_vbus_desc\n");
+	}
 	if (IS_ERR(reg)) {
 		ret = PTR_ERR(reg);
 		dev_err(info->dev, "Can't register regulator:%d\n", ret);
@@ -2347,7 +2399,9 @@ static int bq2560x_charger_probe(struct i2c_client *client,
 
 	INIT_WORK(&info->work, bq2560x_charger_work);
 	INIT_DELAYED_WORK(&info->cur_work, bq2560x_current_work);
-
+	/* HS03_s code for P220607-05835 by lina at 20220613 start */
+	INIT_DELAYED_WORK(&info->icl_cur_work, bq2560x_icl_current_work);
+	/* HS03_s code for P220607-05835 by lina at 20220613 end */
 	info->usb_notify.notifier_call = bq2560x_charger_usb_change;
 	ret = usb_register_notifier(info->usb_phy, &info->usb_notify);
 	if (ret) {
@@ -2418,6 +2472,9 @@ static void bq2560x_charger_shutdown(struct i2c_client *client)
 	int ret = 0;
 
 	cancel_delayed_work_sync(&info->wdt_work);
+	/* HS03_s code for P220607-05835 by lina at 20220613 start */
+	cancel_delayed_work_sync(&info->icl_cur_work);
+	/* HS03_s code for P220607-05835 by lina at 20220613 end */
 	if (info->otg_enable) {
 		info->otg_enable = false;
 		cancel_delayed_work_sync(&info->otg_work);
@@ -2467,7 +2524,9 @@ static int bq2560x_charger_suspend(struct device *dev)
 
 	cancel_delayed_work_sync(&info->wdt_work);
 	cancel_delayed_work_sync(&info->cur_work);
-
+	/* HS03_s code for P220607-05835 by lina at 20220613 start */
+	cancel_delayed_work_sync(&info->icl_cur_work);
+	/* HS03_s code for P220607-05835 by lina at 20220613 end */
 	/* feed watchdog first before suspend */
 	ret = bq2560x_update_bits(info, BQ2560X_REG_1,
 				   BQ2560X_REG_RESET_MASK,
@@ -2507,6 +2566,9 @@ static int bq2560x_charger_resume(struct device *dev)
 
 	schedule_delayed_work(&info->wdt_work, HZ * 15);
 	schedule_delayed_work(&info->cur_work, 0);
+	/* HS03_s code for P220607-05835 by lina at 20220613 start */
+	schedule_delayed_work(&info->icl_cur_work, 0);
+	/* HS03_s code for P220607-05835 by lina at 20220613 end */
 
 	return 0;
 }

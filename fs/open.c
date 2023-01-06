@@ -1075,36 +1075,11 @@ struct file *filp_clone_open(struct file *oldfile)
 }
 EXPORT_SYMBOL(filp_clone_open);
 
-#if defined(CONFIG_SPRD_DEBUG)
-void _trace_vfs(struct file *filp, char *op, u64 time)
-{
-	char *buf;
-	char *fname;
-
-	buf = kzalloc(PAGE_SIZE, GFP_KERNEL);
-	if (!buf)
-		return;
-	fname = d_path(&filp->f_path, buf, PAGE_SIZE);
-
-	if (IS_ERR(fname))
-		goto out;
-
-	pr_info("[%-16s]%-16s vfs %5s %5lldms %s\n", current->comm,
-		current->group_leader ? current->group_leader->comm : "",
-		op, ktime_to_ms(time), fname);
-out:
-	kfree(buf);
-}
-#endif
-
 long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 {
 	struct open_flags op;
 	int fd = build_open_flags(flags, mode, &op);
 	struct filename *tmp;
-#if defined(CONFIG_SPRD_DEBUG)
-	u64 time = ktime_get_boot_fast_ns();
-#endif
 
 	if (fd)
 		return fd;
@@ -1122,11 +1097,6 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 		} else {
 			fsnotify_open(f);
 			fd_install(fd, f);
-#if defined(CONFIG_SPRD_DEBUG)
-			time = ktime_get_boot_fast_ns() - time;
-			if (time > vfs_open_max_ms * NSEC_PER_MSEC)
-				_trace_vfs(f, "open", time);
-#endif
 		}
 	}
 	putname(tmp);

@@ -473,7 +473,7 @@ static int sprd_i2c_hw_clk_init(struct sprd_i2c_hw *i2c_dev)
 		clk_parent = NULL;
 	}
 
-	if (clk_i2c && !clk_set_parent(clk_i2c, clk_parent))
+	if (!!clk_i2c && !!clk_parent && !clk_set_parent(clk_i2c, clk_parent))
 		i2c_dev->src_clk = clk_get_rate(clk_i2c);
 	else
 		i2c_dev->src_clk = I2C_SOURCE_CLK_26M;

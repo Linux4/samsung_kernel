@@ -264,6 +264,7 @@ struct tcpm_port {
 	struct work_struct event_work;
 	struct delayed_work state_machine;
 	struct delayed_work vdm_state_machine;
+	struct delayed_work role_swap_work;
 	bool state_machine_running;
 
 	struct completion tx_complete;
@@ -279,6 +280,7 @@ struct tcpm_port {
 	unsigned int message_id;
 	unsigned int caps_count;
 	unsigned int hard_reset_count;
+	unsigned int power_role_send_psrdy_count;
 	bool pd_capable;
 	bool explicit_contract;
 	unsigned int rx_msgid;
@@ -341,9 +343,12 @@ struct tcpm_port {
 	/* port belongs to a self powered device */
 	bool self_powered;
 	bool role_swap_flag;
+
 	bool disable_typec_int;
 	bool swap_notify_typec;
 	bool power_role_swap;
+	bool power_role_swap_hard_reset;
+
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *dentry;
 	struct mutex logbuffer_lock;	/* log buffer access lock */
@@ -483,6 +488,7 @@ static void _tcpm_log(struct tcpm_port *port, const char *fmt, va_list args)
 		  LOG_BUFFER_ENTRY_SIZE, "[%5lu.%06lu] %s",
 		  (unsigned long)ts_nsec, rem_nsec / 1000,
 		  tmpbuffer);
+
 	if (tcpm_log_full(port)) {
 		port->logbuffer_full = true;
 		cancel_delayed_work(&port->log2printk);
@@ -712,6 +718,7 @@ static int tcpm_enable_typec_interrupt(struct tcpm_port *port, bool enable)
 		/* disable typec interrupt  */
 		port->disable_typec_int = true;
 		sc27xx_set_typec_int_disable();
+		schedule_delayed_work(&port->role_swap_work, msecs_to_jiffies(6000));
 		tcpm_log(port, "disable typec interrupt");
 	}
 
@@ -903,6 +910,9 @@ static int tcpm_set_roles(struct tcpm_port *port, bool attached,
 	enum typec_orientation orientation;
 	enum usb_role usb_role;
 	int ret;
+
+	tcpm_log(port, "%s:line%d set roles [%s:%s]", __func__, __LINE__,
+		 role ? "source" : "sink", data ? "host" : "device");
 
 	if (port->polarity == TYPEC_POLARITY_CC1)
 		orientation = TYPEC_ORIENTATION_NORMAL;
@@ -2065,8 +2075,8 @@ static void tcpm_pd_rx_handler(struct work_struct *work)
 
 	mutex_lock(&port->lock);
 
-	tcpm_log(port, "PD RX, header: %#x [%d]", le16_to_cpu(msg->header),
-		 port->attached);
+	tcpm_log(port, "PD RX, header: %#x [%d][%s]", le16_to_cpu(msg->header),
+		 port->attached, port->data_role ? "host" : "device");
 
 	if (port->attached) {
 		enum pd_ctrl_msg_type type = pd_header_type_le(msg->header);
@@ -2081,8 +2091,10 @@ static void tcpm_pd_rx_handler(struct work_struct *work)
 		 * Message). Note: this shall not apply to the Soft_Reset
 		 * Message which always has a MessageID value of zero."
 		 */
-		if (msgid == port->rx_msgid && type != PD_CTRL_SOFT_RESET)
+		if (msgid == port->rx_msgid && type != PD_CTRL_SOFT_RESET) {
+			tcpm_log(port, "%s:line%d msgid same", __func__, __LINE__);
 			goto done;
+		}
 		port->rx_msgid = msgid;
 
 		/*
@@ -3014,6 +3026,7 @@ static void run_state_machine(struct tcpm_port *port)
 			sc27xx_set_typec_int_clear();
 
 			port->disable_typec_int = false;
+			cancel_delayed_work(&port->role_swap_work);
 		}
 		if (port->power_role_swap) {
 			port->power_role_swap = false;
@@ -3170,6 +3183,16 @@ static void run_state_machine(struct tcpm_port *port)
 		port->hard_reset_count = 0;
 #endif
 		port->try_src_count = 0;
+		if (port->disable_typec_int) {
+			tcpm_log(port, "SRC_READY clear typec interrupt");
+			sc27xx_set_typec_int_clear();
+
+			/* enable typec interrupt  */
+			port->disable_typec_int = false;
+			tcpm_log(port, "enable typec interrupt");
+			cancel_delayed_work(&port->role_swap_work);
+		}
+
 		if (port->swap_notify_typec) {
 			port->swap_notify_typec = false;
 			tcpm_log(port, "SRC_READY swap_notify_typec");
@@ -3180,6 +3203,7 @@ static void run_state_machine(struct tcpm_port *port)
 		}
 		if (port->power_role_swap) {
 			port->power_role_swap = false;
+			port->power_role_swap_hard_reset = false;
 			tcpm_set_typec_roles(port, TYPEC_PORT_DRP, TYPEC_DEVICE);
 			tcpm_log(port, "SRC_READY clear power role swap flag");
 		}
@@ -3214,6 +3238,7 @@ static void run_state_machine(struct tcpm_port *port)
 			sc27xx_set_typec_int_clear();
 
 			port->disable_typec_int = false;
+			cancel_delayed_work(&port->role_swap_work);
 		}
 		if (port->power_role_swap) {
 			port->power_role_swap = false;
@@ -3427,6 +3452,7 @@ static void run_state_machine(struct tcpm_port *port)
 			tcpm_log(port, "notify TYPEC_SOURCE_TO_SINK %s %d", __func__, __LINE__);
 			sc27xx_typec_set_pd_swap_event(TYPEC_SOURCE_TO_SINK);
 			tcpm_log(port, "notify TYPEC_SOURCE_TO_SINK %s %d", __func__, __LINE__);
+			cancel_delayed_work(&port->role_swap_work);
 		} else if (port->swap_notify_typec) {
 			port->swap_notify_typec = false;
 			tcpm_log(port, "SNK_READY swap_notify_typec");
@@ -3437,6 +3463,7 @@ static void run_state_machine(struct tcpm_port *port)
 		}
 		if (port->power_role_swap) {
 			port->power_role_swap = false;
+			port->power_role_swap_hard_reset = false;
 			tcpm_set_typec_roles(port, TYPEC_PORT_DRP, TYPEC_DEVICE);
 			tcpm_log(port, "SNK_READY clear power role swap flag");
 		}
@@ -3478,15 +3505,8 @@ static void run_state_machine(struct tcpm_port *port)
 		tcpm_set_state(port, HARD_RESET_START, 0);
 		break;
 	case HARD_RESET_START:
-		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
-		if (port->disable_typec_int) {
-			tcpm_log(port, "HARD_RESET_START clear typec interrupt");
-			sc27xx_set_typec_int_clear();
-
-			port->disable_typec_int = false;
-			tcpm_set_typec_roles(port, TYPEC_PORT_DRP, TYPEC_DEVICE);
-		}
-		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
+		if (port->power_role_swap)
+			port->power_role_swap_hard_reset = true;
 		port->hard_reset_count++;
 		port->tcpc->set_pd_rx(port->tcpc, false);
 		tcpm_unregister_altmodes(port);
@@ -3500,8 +3520,15 @@ static void run_state_machine(struct tcpm_port *port)
 	case SRC_HARD_RESET_VBUS_OFF:
 		tcpm_set_vconn(port, true);
 		tcpm_set_vbus(port, false);
-		tcpm_set_roles(port, port->self_powered, TYPEC_SOURCE,
-			       TYPEC_HOST);
+		if (!port->power_role_swap_hard_reset) {
+			tcpm_set_roles(port, port->self_powered, TYPEC_SOURCE,
+				       port->data_role);
+		} else {
+			port->pwr_role = TYPEC_SOURCE;
+			port->tcpc->set_roles(port->tcpc, port->self_powered,
+					      TYPEC_SOURCE, port->data_role);
+		}
+
 		tcpm_set_state(port, SRC_HARD_RESET_VBUS_ON, PD_T_SRC_RECOVER);
 		break;
 	case SRC_HARD_RESET_VBUS_ON:
@@ -3515,8 +3542,14 @@ static void run_state_machine(struct tcpm_port *port)
 		tcpm_set_vconn(port, false);
 		if (port->pd_capable)
 			tcpm_set_charge(port, false);
-		tcpm_set_roles(port, port->self_powered, TYPEC_SINK,
-			       TYPEC_DEVICE);
+		if (!port->power_role_swap_hard_reset) {
+			tcpm_set_roles(port, port->self_powered, TYPEC_SINK,
+				       port->data_role);
+		} else {
+			port->pwr_role = TYPEC_SINK;
+			port->tcpc->set_roles(port->tcpc, port->self_powered,
+					      TYPEC_SINK, port->data_role);
+		}
 		/*
 		 * VBUS may or may not toggle, depending on the adapter.
 		 * If it doesn't toggle, transition to SNK_HARD_RESET_SINK_ON
@@ -3592,6 +3625,8 @@ static void run_state_machine(struct tcpm_port *port)
 		tcpm_set_state(port, ready_state(port), 0);
 		break;
 	case DR_SWAP_CHANGE_DR:
+		tcpm_log(port, "%s:line%d current roles [%s]", __func__,
+			 __LINE__, port->data_role ? "host" : "device");
 		if (port->data_role == TYPEC_HOST) {
 			tcpm_unregister_altmodes(port);
 			tcpm_set_roles(port, true, port->pwr_role,
@@ -3680,12 +3715,13 @@ static void run_state_machine(struct tcpm_port *port)
 		tcpm_set_pwr_role(port, TYPEC_SINK);
 		if (tcpm_pd_send_control(port, PD_CTRL_PS_RDY)) {
 			/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
+			tcpm_log(port, "OFF_CC_DEBOUNCED send ps rdy failed, ret = %d", ret);
 			tcpm_set_swap(port, false, false);
 			tcpm_set_pwr_role(port, TYPEC_SOURCE);
 			tcpm_set_state(port, hard_reset_state(port), 0);
 			break;
 		}
-		tcpm_set_state_cond(port, SNK_UNATTACHED, PD_T_PS_SOURCE_ON_SWAP);
+		tcpm_set_state_cond(port, hard_reset_state(port), PD_T_PS_SOURCE_ON_SWAP);
 		break;
 	case PR_SWAP_SRC_SNK_SINK_ON:
 		if (port->disable_typec_int) {
@@ -3697,6 +3733,7 @@ static void run_state_machine(struct tcpm_port *port)
 			port->swap_notify_typec = true;
 
 			tcpm_log(port, "enable typec interrupt");
+			cancel_delayed_work(&port->role_swap_work);
 		}
 
 		tcpm_set_swap(port, false, false);
@@ -3733,7 +3770,14 @@ static void run_state_machine(struct tcpm_port *port)
 		 * Source."
 		 */
 		tcpm_set_pwr_role(port, TYPEC_SOURCE);
-		tcpm_pd_send_control(port, PD_CTRL_PS_RDY);
+source_pr_send_psrdy_retry:
+		ret = tcpm_pd_send_control(port, PD_CTRL_PS_RDY);
+		if (ret < 0 && port->power_role_send_psrdy_count < 10) {
+			tcpm_log(port, "VBUS_RAMPED_UP retry to send ps ready, ret = %d", ret);
+			port->power_role_send_psrdy_count++;
+			goto source_pr_send_psrdy_retry;
+		}
+		port->power_role_send_psrdy_count = 0;
 		if (port->disable_typec_int) {
 			tcpm_log(port, "SRC_READY clear typec interrupt");
 			sc27xx_set_typec_int_clear();
@@ -3743,12 +3787,11 @@ static void run_state_machine(struct tcpm_port *port)
 			port->swap_notify_typec = true;
 
 			tcpm_log(port, "enable typec interrupt");
+			cancel_delayed_work(&port->role_swap_work);
 		}
 		tcpm_set_swap(port, true, false);
 		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
-		/* Tab A8 code for AX6300DEV-4101 by qiaodan at 20220509 start */
 		tcpm_set_state(port, SRC_STARTUP, 50);
-		/* Tab A8 code for AX6300DEV-4101 by qiaodan at 20220509 end */
 		break;
 
 	case VCONN_SWAP_ACCEPT:
@@ -3828,6 +3871,7 @@ static void run_state_machine(struct tcpm_port *port)
 			sc27xx_set_typec_int_clear();
 
 			port->disable_typec_int = false;
+			cancel_delayed_work(&port->role_swap_work);
 		}
 		if (port->power_role_swap) {
 			port->power_role_swap = false;
@@ -3891,6 +3935,35 @@ static void tcpm_state_machine_work(struct work_struct *work)
 
 done:
 	port->state_machine_running = false;
+	mutex_unlock(&port->lock);
+}
+
+static void tcpm_role_swap_work(struct work_struct *work)
+{
+	struct tcpm_port *port = container_of(work, struct tcpm_port,
+					      role_swap_work.work);
+
+	if (!port) {
+		pr_err("%s:line%d: NULL pointer!!!\n", __func__, __LINE__);
+		return;
+	}
+
+	tcpm_log_force(port, "%s enter", __func__);
+
+	mutex_lock(&port->lock);
+
+	if (port->disable_typec_int) {
+		tcpm_log_force(port, "%s clear typec interrupt", __func__);
+		sc27xx_set_typec_int_clear();
+
+		port->disable_typec_int = false;
+	}
+	if (port->power_role_swap) {
+		port->power_role_swap = false;
+		tcpm_set_typec_roles(port, TYPEC_PORT_DRP, TYPEC_DEVICE);
+		tcpm_log_force(port, "%s clear power role swap flag", __func__);
+	}
+
 	mutex_unlock(&port->lock);
 }
 
@@ -4263,7 +4336,8 @@ static int tcpm_dr_set(const struct typec_capability *cap,
 	struct tcpm_port *port = typec_cap_to_tcpm(cap);
 	int ret;
 
-	tcpm_log_force(port, "[%s:line%d] wait lock  ", __func__, __LINE__);
+	tcpm_log_force(port, "[%s:line%d] wait lock [%s] ",
+		       __func__, __LINE__, data ? "host" : "device");
 
 	mutex_lock(&port->swap_lock);
 	mutex_lock(&port->lock);
@@ -4274,14 +4348,16 @@ static int tcpm_dr_set(const struct typec_capability *cap,
 		ret = -EINVAL;
 		goto port_unlock;
 	}
-	tcpm_log_force(port, "[%s:line%d] current state  %s ", __func__, __LINE__,
-				 tcpm_states[port->state]);
+	tcpm_log_force(port, "[%s:line%d] current state  %s ",
+		       __func__, __LINE__, tcpm_states[port->state]);
 
 	if (port->state != SRC_READY && port->state != SNK_READY) {
 		ret = -EAGAIN;
 		goto port_unlock;
 	}
-	tcpm_log_force(port, "[%s:line%d] state ready ", __func__, __LINE__);
+
+	tcpm_log_force(port, "[%s:line%d] state ready [%s]", __func__, __LINE__,
+		       port->data_role ? "host" : "device");
 
 	if (port->data_role == data) {
 		ret = 0;
@@ -4832,10 +4908,12 @@ int tcpm_update_sink_capabilities(struct tcpm_port *port, const u32 *pdo,
 	case SNK_READY:
 	case SNK_TRANSITION_SINK:
 	case SNK_TRANSITION_SINK_VBUS:
-		if (port->pps_data.active)
+		if (port->pps_data.active) {
 			tcpm_set_state(port, SNK_NEGOTIATE_PPS_CAPABILITIES, 0);
-		else
+		} else {
+			tcpm_log(port, "%s SNK_NEGOTIATE_CAPABILITIES", __func__);
 			tcpm_set_state(port, SNK_NEGOTIATE_CAPABILITIES, 0);
+		}
 		break;
 	default:
 		break;
@@ -5206,6 +5284,7 @@ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
 		return ERR_PTR(-ENOMEM);
 	INIT_DELAYED_WORK(&port->state_machine, tcpm_state_machine_work);
 	INIT_DELAYED_WORK(&port->vdm_state_machine, vdm_state_machine_work);
+	INIT_DELAYED_WORK(&port->role_swap_work, tcpm_role_swap_work);
 	INIT_WORK(&port->event_work, tcpm_pd_event_handler);
 
 	spin_lock_init(&port->pd_event_lock);

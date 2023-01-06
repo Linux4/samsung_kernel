@@ -17,7 +17,9 @@
 #include <linux/spi/spi.h>
 #include <linux/sizes.h>
 #include <linux/sprd_dfs_drv.h>
-
+/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 start */
+#include <linux/syscore_ops.h>
+/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 end */
 /* Registers definitions for ADI controller */
 #define REG_ADI_CTRL0			0x4
 #define REG_ADI_CHN_PRIL		0x8
@@ -71,6 +73,9 @@
 #define ADI_FIFO_DRAIN_TIMEOUT		1000
 #define ADI_READ_TIMEOUT		2000
 #define ADI_WRITE_TIMEOUT		2000
+/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 start */
+#define ADI_READ_PMIC_TIMEOUT           40
+/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 end */
 #define REG_ADDR_LOW_MASK		GENMASK(16, 0)
 #define RDBACK_ADDR_OFFSET		2
 
@@ -107,7 +112,26 @@
 #define SC2720_CLK_EN			0xc10
 #define SC2720_WDT_BASE			0x40
 #define BIT_WDG_EN			BIT(2)
-
+#define UMP9620_SWRST_CTRL0             0x23f8
+#define UMP9620_SOFT_RST_HW             0x2024
+#define SC2730_SWRST_CTRL0              0x1bf8
+#define SC2730_SOFT_RST_HW              0x1824
+#define SC2721_SWRST_CTRL0              0xf1c
+#define SC2721_SOFT_RST_HW              0xc24
+#define SC2720_SWRST_CTRL0              0xe68
+#define SC2720_SOFT_RST_HW              0xc24
+#define REG_RST_EN                      BIT(4)
+#define REG_SOFT_RST                    BIT(0)
+/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 start */
+#define SC2720_PMIC_CHIPID_BASE         0xC04
+#define SC2721_PMIC_CHIPID_BASE         0xC04
+#define SC2730_PMIC_CHIPID_BASE         0x1804
+#define UMP9620_PMIC_CHIPID_BASE        0x2004
+#define SC2720_PMIC_CHIP_ID             0x2720
+#define SC2721_PMIC_CHIP_ID             0x2721
+#define SC2730_PMIC_CHIP_ID             0x2730
+#define UMP9620_PMIC_CHIP_ID            0x7520
+/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 end */
 /* Definition of PMIC reset status register */
 #define HWRST_STATUS_DEBUGLOW		0x10
 #define HWRST_STATUS_RECOVERY		0x20
@@ -128,7 +152,7 @@
 #define HWRST_STATUS_SPRDISK		0xc0
 #define HWRST_STATUS_DEBUGMID		0xd0
 #define HWRST_STATUS_FACTORYTEST	0xe0
-#define HWRST_STATUS_SECURITY	  	0x02
+#define HWRST_STATUS_SECURITY	        0x02
 #define HWRST_STATUS_WATCHDOG		0xf0
 
 /* Use default timeout 50 ms that converts to watchdog values */
@@ -149,6 +173,12 @@ struct sprd_adi_variant_data {
 	u32 wdt_base;
 	u32 wdt_en;
 	u32 wdt_clk;
+	u32 swrst_base;
+	u32 softrst_base;
+	/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 start */
+	u32 chip_id_base;
+	u32 chip_id;
+	/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 end */
 };
 
 struct sprd_adi {
@@ -161,7 +191,9 @@ struct sprd_adi {
 	struct notifier_block	restart_handler;
 	const struct sprd_adi_variant_data *data;
 };
-
+/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 start */
+struct sprd_adi *sadi_ss;
+/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 end */
 static int sprd_adi_check_paddr(struct sprd_adi *sadi, u32 paddr)
 {
 	if (paddr < sadi->slave_pbase || paddr >
@@ -417,7 +449,7 @@ static int sprd_adi_restart_handler(struct notifier_block *this,
 {
 	struct sprd_adi *sadi = container_of(this, struct sprd_adi,
 					     restart_handler);
-	u32 wdt_base, val = 0, reboot_mode = 0;
+	u32 val = 0, reboot_mode = 0;
 	unsigned long opt_code;
 
 	if (!cmd)
@@ -480,40 +512,19 @@ static int sprd_adi_restart_handler(struct notifier_block *this,
 
 	/* Record the reboot mode */
 	sprd_adi_read(sadi, sadi->slave_pbase + sadi->data->rst_sts, &val);
-	val &= ~0xff;
+	val &= ~0xFF;
 	val |= reboot_mode;
 	sprd_adi_write(sadi, sadi->slave_pbase + sadi->data->rst_sts, val);
 
-	/* Enable the interface clock of the watchdog */
-	sprd_adi_read(sadi, sadi->slave_pbase + sadi->data->wdt_en, &val);
-	val |= BIT_WDG_EN;
-	sprd_adi_write(sadi, sadi->slave_pbase + sadi->data->wdt_en, val);
+	/*enable register reboot mode*/
+	sprd_adi_read(sadi, sadi->slave_pbase + sadi->data->swrst_base, &val);
+	val |= REG_RST_EN;
+	sprd_adi_write(sadi, sadi->slave_pbase + sadi->data->swrst_base, val);
 
-	/* Enable the work clock of the watchdog */
-	sprd_adi_read(sadi, sadi->slave_pbase + sadi->data->wdt_clk, &val);
-	val |= BIT_WDG_EN;
-	sprd_adi_write(sadi, sadi->slave_pbase + sadi->data->wdt_clk, val);
-
-	wdt_base = sadi->slave_pbase + sadi->data->wdt_base;
-
-	/* Unlock the watchdog */
-	sprd_adi_write(sadi, wdt_base + REG_WDG_LOCK, WDG_UNLOCK_KEY);
-
-	sprd_adi_read(sadi, wdt_base + REG_WDG_CTRL, &val);
-	val |= BIT_WDG_NEW;
-	sprd_adi_write(sadi, wdt_base + REG_WDG_CTRL, val);
-
-	/* Load the watchdog timeout value, 50ms is always enough. */
-	sprd_adi_write(sadi, wdt_base + REG_WDG_LOAD_LOW,
-		       WDG_LOAD_VAL & WDG_LOAD_MASK);
-	sprd_adi_write(sadi, wdt_base + REG_WDG_LOAD_HIGH, 0);
-
-	/* Start the watchdog to reset system */
-	sprd_adi_read(sadi, wdt_base + REG_WDG_CTRL, &val);
-	val |= BIT_WDG_RUN | BIT_WDG_RST;
-	sprd_adi_write(sadi, wdt_base + REG_WDG_CTRL, val);
-
-	sprd_adi_write(sadi, wdt_base + REG_WDG_LOCK, ~WDG_UNLOCK_KEY);
+	/*enable soft reboot mode */
+	sprd_adi_read(sadi, sadi->slave_pbase + sadi->data->softrst_base, &val);
+	val |= REG_SOFT_RST;
+	sprd_adi_write(sadi, sadi->slave_pbase + sadi->data->softrst_base, val);
 
 	mdelay(1000);
 
@@ -660,7 +671,9 @@ static int sprd_adi_probe(struct platform_device *pdev)
 			goto put_ctlr;
 		}
 	}
-
+	/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 start */
+	sadi_ss = sadi;
+	/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 end */
 	return 0;
 
 put_ctlr:
@@ -676,7 +689,54 @@ static int sprd_adi_remove(struct platform_device *pdev)
 	unregister_restart_handler(&sadi->restart_handler);
 	return 0;
 }
+/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 start */
+static int spi_sprd_adi_syscore_suspend(void)
+{
+	return 0;
+}
 
+static void spi_sprd_adi_syscore_resume(void)
+{
+	u32 adi_debug0 = 0, adi_debug1 = 0, adi_debug2 = 0, adi_rddata = 0;
+	u32 value = 0;
+	u32 timeout = ADI_READ_PMIC_TIMEOUT;
+
+	do {
+		sprd_adi_read(sadi_ss, sadi_ss->slave_pbase + sadi_ss->data->chip_id_base, &value);
+		if (sadi_ss->data->chip_id != value) {
+			dev_emerg(sadi_ss->dev, "PMIC chip id is: %d\n", value);
+			udelay(500);
+		} else
+			break;
+
+	} while (timeout--);
+
+	if (timeout == 0) {
+		dev_emerg(sadi_ss->dev, "ADI read PMIC is abnormal\n");
+		adi_debug0 = readl_relaxed(sadi_ss->base + REG_ADI_ARM_FIFO_STS);
+		adi_debug1 = readl_relaxed(sadi_ss->base + REG_ADI_STS);
+		adi_debug2 = readl_relaxed(sadi_ss->base + REG_ADI_EVT_FIFO_STS);
+		adi_rddata = readl_relaxed(sadi_ss->base + REG_ADI_RD_DATA);
+		dev_emerg(sadi_ss->dev, "adi_debug0: 0x%x adi_debug1:0x %xadi_debug2: 0x%x adi_rddata: 0x%x\n",
+		adi_debug0, adi_debug1, adi_debug2, adi_rddata);
+	}
+
+	return;
+}
+
+static struct syscore_ops spi_sprd_adi_syscore_ops = {
+	.resume = spi_sprd_adi_syscore_resume,
+	.suspend = spi_sprd_adi_syscore_suspend
+};
+
+static int __init spi_sprd_adi_init_ops(void)
+{
+	register_syscore_ops(&spi_sprd_adi_syscore_ops);
+	return 0;
+}
+
+late_initcall(spi_sprd_adi_init_ops);
+/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 end */
 static struct sprd_adi_variant_data sc9860_data = {
 	.read_check = sprd_adi_read_check,
 	.channel_offset = ADI_CHANNEL_OFFSET,
@@ -695,6 +755,12 @@ static struct sprd_adi_variant_data sharkl5_data = {
 	.rst_sts = SC2730_RST_STATUS,
 	.wdt_en = SC2730_MODULE_EN,
 	.wdt_clk = SC2730_CLK_EN,
+	.swrst_base = SC2730_SWRST_CTRL0,
+	.softrst_base = SC2730_SOFT_RST_HW,
+	/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 start */
+	.chip_id_base = SC2730_PMIC_CHIPID_BASE,
+	.chip_id = SC2730_PMIC_CHIP_ID,
+	/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 end */
 };
 
 static struct sprd_adi_variant_data sharkl3_data = {
@@ -705,6 +771,12 @@ static struct sprd_adi_variant_data sharkl3_data = {
 	.rst_sts = SC2721_RST_STATUS,
 	.wdt_en = SC2721_MODULE_EN,
 	.wdt_clk = SC2721_CLK_EN,
+	.swrst_base = SC2721_SWRST_CTRL0,
+	.softrst_base = SC2721_SOFT_RST_HW,
+	/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 start */
+	.chip_id_base = SC2721_PMIC_CHIPID_BASE,
+	.chip_id = SC2721_PMIC_CHIP_ID,
+	/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 end */
 };
 
 struct sprd_adi_variant_data pike2_data = {
@@ -715,6 +787,12 @@ struct sprd_adi_variant_data pike2_data = {
 	.rst_sts = SC2720_RST_STATUS,
 	.wdt_en = SC2720_MODULE_EN,
 	.wdt_clk = SC2720_CLK_EN,
+	.swrst_base = SC2720_SWRST_CTRL0,
+	.softrst_base = SC2720_SOFT_RST_HW,
+	/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 start */
+	.chip_id_base = SC2720_PMIC_CHIPID_BASE,
+	.chip_id = SC2720_PMIC_CHIP_ID,
+	/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 end */
 };
 
 static struct sprd_adi_variant_data qogirl6_data = {
@@ -731,6 +809,12 @@ static struct sprd_adi_variant_data qogirn6pro_data = {
 	.rst_sts = UMP9620_RST_STATUS,
 	.wdt_en = UMP9620_MODULE_EN,
 	.wdt_clk = UMP9620_CLK_EN,
+	/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 start */
+	.swrst_base = UMP9620_SWRST_CTRL0,
+	.softrst_base = UMP9620_SOFT_RST_HW,
+	.chip_id_base = UMP9620_PMIC_CHIPID_BASE,
+	.chip_id = UMP9620_PMIC_CHIP_ID,
+	/* HS03 code(Unisoc Patch) for SL6215SDEV-958 by qiaodan at 20220807 end */
 };
 
 static const struct of_device_id sprd_adi_of_match[] = {

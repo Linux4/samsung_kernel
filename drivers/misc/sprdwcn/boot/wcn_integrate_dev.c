@@ -1020,7 +1020,7 @@ static ssize_t wcn_platform_write(struct file *filp,
 		else
 			sub_sys = str[0] - '0';
 	} else {
-		WCN_ERR("copy_from_user too length %s!\n", buf);
+		WCN_ERR("copy_from_user too length !\n");
 		return -EINVAL;
 	}
 	if (strncmp(str, "manual_boot_on",

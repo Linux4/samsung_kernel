@@ -85,6 +85,7 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 	int i, ret;
 	struct scatterlist *sg;
 	struct timeval time;
+	long nr_alloc_cur, nr_alloc_peak;
 
 	buffer = kzalloc(sizeof(*buffer), GFP_KERNEL);
 	if (!buffer)
@@ -135,6 +136,10 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 	if (heap->type == ION_HEAP_TYPE_SYSTEM)
 
 		atomic_long_add(len, &total_heap_bytes);
+	nr_alloc_cur = atomic_long_add_return(len, &heap->total_allocated);
+	nr_alloc_peak = atomic_long_read(&heap->total_allocated_peak);
+	if (nr_alloc_cur > nr_alloc_peak)
+		atomic_long_set(&heap->total_allocated_peak, nr_alloc_cur);
 	return buffer;
 
 err1:
@@ -151,6 +156,7 @@ void ion_buffer_destroy(struct ion_buffer *buffer)
 			     __func__);
 		buffer->heap->ops->unmap_kernel(buffer->heap, buffer);
 	}
+	atomic_long_sub(buffer->size, &buffer->heap->total_allocated);
 	buffer->heap->ops->free(buffer);
 	sprd_iommu_notifier_call_chain((void *)buffer);
 	kfree(buffer);

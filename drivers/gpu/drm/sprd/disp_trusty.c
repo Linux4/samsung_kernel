@@ -27,10 +27,6 @@
 #endif
 
 #define DISP_TA_PORT_NAME "com.android.trusty.disp"
-/*HS03 code for P220125-07187 by wenghailong at 20220217 start*/
-#define RELEASE_LIST_NODE_ADDR1		0xdead000000000100
-#define RELEASE_LIST_NODE_ADDR2		0xdead000000000200
-/*HS03 code for P220125-07187 by wenghailong at 20220217 end*/
 
 struct disp_ca {
 	int state;
@@ -55,17 +51,9 @@ struct tipc_msg_buf *disp_ca_handle_msg(void *data,
 		if (newbuf) {
 			pr_info("received new data, rxbuf %p, newbuf %p\n",
 						  rxbuf, newbuf);
-			/*HS03 code for P220125-07187 by wenghailong at 20220217 start*/
-			if (((unsigned long)&rxbuf->node == RELEASE_LIST_NODE_ADDR1) ||
-				((unsigned long)&rxbuf->node == RELEASE_LIST_NODE_ADDR2)) {
-				pr_info("discard deleted message\n");
-				newbuf = rxbuf;
-			} else {
-				/* queue an old buffer and return a new one */
-				list_add_tail(&rxbuf->node, &ca->rx_msg_queue);
-				wake_up_interruptible(&ca->readq);
-			}
-			/*HS03 code for P220125-07187 by wenghailong at 20220217 end*/
+			/* queue an old buffer and return a new one */
+			list_add_tail(&rxbuf->node, &ca->rx_msg_queue);
+			wake_up_interruptible(&ca->readq);
 		} else {
 			/*
 			 * return an old buffer effectively discarding
@@ -116,16 +104,12 @@ int disp_ca_connect(void)
 	static bool initialized;
 	int ret;
 
-	/*HS03 code for P220125-07187 by wenghailong at 20220217 start*/
-	//if (ca->state == TIPC_CHANNEL_CONNECTED) {
-	if (initialized) {
-	/*HS03 code for P220125-07187 by wenghailong at 20220217 end*/
+	if (ca->state == TIPC_CHANNEL_CONNECTED) {
 		pr_warn("disp ca has already been connected\n");
-		/*HS03 code for P220125-07187 by wenghailong at 20220217 start*/
-		ca->state = TIPC_CHANNEL_CONNECTED;
-		/*HS03 code for P220125-07187 by wenghailong at 20220217 end*/
 		return 0;
-	} else {
+	}
+
+	if (!initialized) {
 		struct tipc_chan *chan;
 
 		chan = tipc_create_channel(NULL, &disp_ca_ops, ca);
@@ -138,30 +122,15 @@ int disp_ca_connect(void)
 		init_waitqueue_head(&ca->readq);
 		INIT_LIST_HEAD(&ca->rx_msg_queue);
 		initialized = true;
-
-		/*HS03 code for P220125-07187 by wenghailong at 20220217 start*/
-		ret = tipc_chan_connect(ca->chan, DISP_TA_PORT_NAME);
-		if (ret) {
-			pr_err("connect channel failed\n");
-		} else {
-			ca->state = TIPC_CHANNEL_CONNECTED;
-			pr_info("connect channel done\n");
-		}
-		/*HS03 code for P220125-07187 by wenghailong at 20220217 end*/
 	}
 
+	ret = tipc_chan_connect(ca->chan, DISP_TA_PORT_NAME);
+	if (ret)
+		pr_err("connect channel failed\n");
+	else
+		pr_info("connect channel done\n");
+
 	return 0;
-}
-
-/*HS03 code for P220125-07187 by wenghailong at 20220217 start*/
-void disp_ca_set_disconnect_state(void)
-{
-	struct disp_ca *ca = &disp_ca;
-
-	ca->state = TIPC_CHANNEL_DISCONNECTED;
-
-	pr_info("disp ca set disconnect state\n");
-/*HS03 code for P220125-07187 by wenghailong at 20220217 end*/
 }
 
 static void disp_ca_free_msg_buf_list(struct list_head *list)

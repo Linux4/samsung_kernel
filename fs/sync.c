@@ -468,20 +468,7 @@ EXPORT_SYMBOL(vfs_fsync_range);
  */
 int vfs_fsync(struct file *file, int datasync)
 {
-#if defined(CONFIG_SPRD_DEBUG)
-	int ret;
-	u64 time = ktime_get_boot_fast_ns();
-
-	ret = vfs_fsync_range(file, 0, LLONG_MAX, datasync);
-
-	time = ktime_get_boot_fast_ns() - time;
-	if (time > fs_sync_max_ms * NSEC_PER_MSEC)
-		_trace_vfs(file, "fsync", time);
-
-	return ret;
-#else
 	return vfs_fsync_range(file, 0, LLONG_MAX, datasync);
-#endif
 }
 EXPORT_SYMBOL(vfs_fsync);
 

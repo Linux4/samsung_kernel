@@ -16,6 +16,8 @@
 #include <linux/of_address.h>
 #include <linux/wait.h>
 #include <linux/workqueue.h>
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
 #include "sprd_bl.h"
 #include "sprd_dpu.h"
 #include "sprd_dvfs_dpu.h"
@@ -357,6 +359,12 @@ enum {
 	CABC_DISABLED
 };
 
+enum sprd_fw_attr {
+	FW_ATTR_NON_SECURE = 0,
+	FW_ATTR_SECURE,
+	FW_ATTR_PROTECTED,
+};
+
 static struct scale_cfg scale_copy;
 static struct cm_cfg cm_copy;
 static struct slp_cfg slp_copy;
@@ -367,9 +375,6 @@ static struct hsv_lut hsv_copy;
 static struct epf_cfg epf_copy;
 static u32 enhance_en;
 extern int gsp_enabled_layer_count;
-/*HS03 code for P220125-07187 by wenghailong at 20220217 start*/
-static bool tos_msg_alloc = false;
-/*HS03 code for P220125-07187 by wenghailong at 20220217 end*/
 
 static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 static bool panel_ready = true;
@@ -657,7 +662,7 @@ static void dpu_stop(struct dpu_context *ctx)
 {
 	struct dpu_reg *reg = (struct dpu_reg *)ctx->base;
 
-	//if (ctx->if_type == SPRD_DISPC_IF_DPI)
+	if (ctx->if_type == SPRD_DISPC_IF_DPI)
 		reg->dpu_ctrl |= BIT(1);
 
 	dpu_wait_stop_done(ctx);
@@ -977,10 +982,8 @@ static void dpu_dvfs_task_init(struct dpu_context *ctx)
 static int dpu_init(struct dpu_context *ctx)
 {
 	struct dpu_reg *reg = (struct dpu_reg *)ctx->base;
-	/*HS03 code for P220125-07187 by wenghailong at 20220217 start*/
-	//static bool tos_msg_alloc = false;
-	/*HS03 code for P220125-07187 by wenghailong at 20220217 end*/
 	u32 size;
+	int ret;
 
 	/* set bg color */
 	reg->bg_color = 0;
@@ -1017,27 +1020,10 @@ static int dpu_init(struct dpu_context *ctx)
 
 	ctx->base_offset[0] = 0x0;
 	ctx->base_offset[1] = sizeof(struct dpu_reg) / 4;
-	ctx->pre_secure_prop = false;
-	ctx->cur_secure_prop = false;
 
-	/* Allocate memory for trusty */
-	if(!tos_msg_alloc){
-		ctx->tos_msg = kmalloc(sizeof(struct disp_message) +
-			sizeof(struct layer_reg), GFP_KERNEL);
-		if(!ctx->tos_msg)
-			return -ENOMEM;
-		tos_msg_alloc = true;
-	}
-
-	if (tos_msg_alloc) {
-		disp_ca_connect();
-		udelay(time);
-
-		ctx->tos_msg->cmd = TA_FIREWALL_SET;
-		ctx->tos_msg->version = DPU_R5P0;
-		disp_ca_write(ctx->tos_msg, sizeof(*ctx->tos_msg));
-		disp_ca_wait_response();
-	}
+	ret = trusty_fast_call32(NULL, SMC_FC_DPU_FW_SET_SECURITY, FW_ATTR_SECURE, 0, 0);
+	if (ret)
+		pr_err("Trusty fastcall set firewall failed, ret = %d\n", ret);
 
 	return 0;
 }
@@ -1045,34 +1031,16 @@ static int dpu_init(struct dpu_context *ctx)
 static void dpu_uninit(struct dpu_context *ctx)
 {
 	struct dpu_reg *reg = (struct dpu_reg *)ctx->base;
+	int ret;
 
 	reg->dpu_int_en = 0;
 	reg->dpu_int_clr = 0xff;
 
-	/*HS03 code for P220125-07187 by wenghailong at 20220217 start*/
-	/* Allocate memory for trusty */
-	if (!tos_msg_alloc) {
-		ctx->tos_msg = kmalloc(sizeof(struct disp_message) +
-			sizeof(struct layer_reg), GFP_KERNEL);
-		if(!ctx->tos_msg) {
-			//return -ENOMEM;
-			return;
-		}
-		tos_msg_alloc = true;
-	}
-
-	if (tos_msg_alloc) {
-		ctx->tos_msg->cmd = TA_REG_CLR;
-		ctx->tos_msg->version = DPU_R5P0;
-		disp_ca_write(ctx->tos_msg, sizeof(*ctx->tos_msg));
-		disp_ca_wait_response();
-		/*HS03 code for P220125-07187 by wenghailong at 20220126 start*/
-		disp_ca_set_disconnect_state();  //add CA Disconnect state check when dpu deinit
-		/*HS03 code for P220125-07187 by wenghailong at 20220126 end*/
-	}
+	ret = trusty_fast_call32(NULL, SMC_FC_DPU_FW_SET_SECURITY, FW_ATTR_NON_SECURE, 0, 0);
+	if (ret)
+		pr_err("Trusty fastcall clear firewall failed, ret = %d\n", ret);
 
 	panel_ready = false;
-	/*HS03 code for P220125-07187 by wenghailong at 20220217 end*/
 }
 
 enum {
@@ -1493,17 +1461,7 @@ static void dpu_flip(struct dpu_context *ctx,
 	if (ctx->if_type == SPRD_DISPC_IF_DPI) {
 		if (!ctx->is_stopped) {
 			reg->dpu_ctrl |= BIT(2);
-                        /*
-			if ((!layers[0].secure_en) && reg->dpu_secure) {
-				dpu_wait_update_done(ctx);
-				ctx->tos_msg->cmd = TA_FIREWALL_CLR;
-				disp_ca_write(&(ctx->tos_msg), sizeof(ctx->tos_msg));
-				disp_ca_wait_response();
-				ctx->pre_secure_prop = false;
-			} else
-				dpu_wait_update_done(ctx);
-                        */
-                        dpu_wait_update_done(ctx);
+			dpu_wait_update_done(ctx);
 		}
 
 		reg->dpu_int_en |= DISPC_INT_ERR_MASK;

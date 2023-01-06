@@ -149,7 +149,7 @@ static ssize_t hporch_store(struct device *dev,
 	u32 val[4] = {0};
 	int len;
 
-	len = str_to_u32_array(buf, 0, val);
+	len = str_to_u32_array(buf, 0, val, 4);
 	drm_display_mode_to_videomode(&panel->info.mode, &vm);
 
 	switch (len) {
@@ -204,7 +204,7 @@ static ssize_t vporch_store(struct device *dev,
 	u32 val[4] = {0};
 	int len;
 
-	len = str_to_u32_array(buf, 0, val);
+	len = str_to_u32_array(buf, 0, val, 4);
 	drm_display_mode_to_videomode(&panel->info.mode, &vm);
 
 	switch (len) {
@@ -369,7 +369,7 @@ static ssize_t esd_check_register_store(struct device *dev,
 	int reg_index = 0;
 	int len = 0;
 
-	len = str_to_u8_array(buf, 16, input_param);
+	len = str_to_u8_array(buf, 16, input_param, 2);
 	if (len != 2) {
 		pr_err("invalid input for esd check register, need 2 parameters\n");
 		return -EINVAL;
@@ -432,7 +432,7 @@ static ssize_t esd_check_value_store(struct device *dev,
 	int new_total_val_count = 0;
 	int pre_reg_len = 0;
 
-	len = str_to_u8_array(buf, 16, input_param);
+	len = str_to_u8_array(buf, 16, input_param, 6);
 	if ((len < 3 )|| (len > 6)) {
 		pr_err("invalid input for esd check value, need 2 parameters\n");
 		return -EINVAL;

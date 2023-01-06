@@ -652,13 +652,13 @@ static void vbc_da23_mixto_da01_dg(u32 chan, struct vbc_codec_priv *vbc_codec)
 {
 	if (chan == AUDIO_CHAN_ALL) {
 		vbc_da01_set_dgmixer_step(vbc_codec->dgmixerstep_da23);
-		vbc_da01_set_dgmixer_dg(chan,
+		vbc_da01_set_dgmixer_dg(AUDIO_CHAN_L,
 					vbc_codec->dgmixer01[AUDIO_CHAN_L]);
-		vbc_da01_set_dgmixer_dg(chan,
+		vbc_da01_set_dgmixer_dg(AUDIO_CHAN_R,
 					vbc_codec->dgmixer01[AUDIO_CHAN_R]);
-		vbc_da23_set_dgmixer_dg(chan,
+		vbc_da23_set_dgmixer_dg(AUDIO_CHAN_L,
 					vbc_codec->dgmixer23[AUDIO_CHAN_L]);
-		vbc_da23_set_dgmixer_dg(chan,
+		vbc_da23_set_dgmixer_dg(AUDIO_CHAN_R,
 					vbc_codec->dgmixer23[AUDIO_CHAN_R]);
 	} else {
 		vbc_da01_set_dgmixer_step(vbc_codec->dgmixerstep_da23);

@@ -143,6 +143,10 @@
 
 /* Bits definitions for SC27XX_TYPEC_SW_CFG register */
 #define SC27XX_TYPEC_SW_SWITCH(x)	(((x) << 10) & GENMASK(11, 10))
+#define SC27XX_TYPEC_CC1_SW_SWITCH(x)	(((x) << 12) & GENMASK(13, 12))
+#define SC27XX_TYPEC_CC1_SW_SWITCH_MASK	GENMASK(13, 12)
+#define SC27XX_TYPEC_CC2_SW_SWITCH(x)	(((x) << 14) & GENMASK(15, 14))
+#define SC27XX_TYPEC_CC2_SW_SWITCH_MASK	GENMASK(15, 14)
 
 /* Bits definitions for SC27XX_INT_FLG register */
 #define SC27XX_PD_HARD_RST_FLAG		BIT(0)
@@ -254,12 +258,11 @@
 #define SPRD_PD_LOG_BUFFER_ENTRY_SIZE	128
 #define SPRD_PD_LOG_PRINTK_NUM	15
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
-/* Tab A8 code for P220316-03052  by zhaichao at 20220509 start */
 #define SC27XX_PD_RX_ERROR_CNT_THRESHOLD	100
 #define SC27XX_PD_RX_ERROR_TIME_THRESHOLD	120
 #define SC27XX_PD_HARD_RESET_TIME_THRESHOLD	4
 #define SC27XX_PD_RX_ERROR_INT_STATUS		0x100
-/* Tab A8 code for P220316-03052  by zhaichao at 20220509 end */
+
 enum sc27xx_state {
 	SC27XX_DETACHED_SNK,
 	SC27XX_ATTACHWAIT_SNK,
@@ -372,14 +375,13 @@ struct sc27xx_pd {
 	bool pr_swap;
 	bool is_sink;
 	bool is_source;
-	/* Tab A8 code for P220316-03052  by zhaichao at 20220509 start */
 	int rx_error_cnt;
 	int hard_reset_cnt;
 	bool ignore_hard_reset;
 	bool can_communication;
 	struct timespec64 start_time;
 	struct timespec64 hard_start_time;
-	/* Tab A8 code for P220316-03052  by zhaichao at 20220509 end */
+	bool sw_switch_cc;
 #ifdef CONFIG_DEBUG_FS
 	struct mutex logbuffer_lock;	/* log buffer access lock */
 	struct mutex logprintk_lock;	/* log buffer printk lock */
@@ -667,6 +669,9 @@ static void sc27xx_pd_debug_init_work(struct sc27xx_pd *pd) { }
 
 #endif
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
+
+static int sc27xx_set_cc_default(struct sc27xx_pd *pd);
+
 static inline struct sc27xx_pd *tcpc_to_sc27xx_pd(struct tcpc_dev *tcpc)
 {
 	return container_of(tcpc, struct sc27xx_pd, tcpc);
@@ -805,6 +810,7 @@ static int sc27xx_pd_set_typec_roles(struct tcpc_dev *tcpc,
 					 pd->typec_base + SC27XX_TYPEC_EN,
 					 mask0,
 					 ~mask0);
+		sc27xx_set_cc_default(pd);
 		pd->role_swap = false;
 		cancel_delayed_work(&pd->power_role_swap_work);
 		sprd_pd_log(pd, "clear try source and sink en");
@@ -835,6 +841,118 @@ static int sc27xx_pd_set_swap(struct tcpc_dev *tcpc, bool en, bool role)
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 static int sc27xx_pd_set_cc(struct tcpc_dev *tcpc, enum typec_cc_status cc)
 {
+	struct sc27xx_pd *pd = tcpc_to_sc27xx_pd(tcpc);
+	int ret;
+
+	sprd_pd_log(pd, "cc:=%d", cc);
+	if (!pd->role_swap) {
+		sprd_pd_log(pd, "current state is not in power role swap");
+		return 0;
+	}
+
+	switch (cc) {
+	case TYPEC_CC_RA:
+		sprd_pd_log(pd, "TYPEC_CC_RA");
+		break;
+	case TYPEC_CC_RD:
+		sprd_pd_log(pd, "TYPEC_CC_RD");
+		if (pd->cc_polarity == TYPEC_POLARITY_CC1) {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC1_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC1_SW_SWITCH(2));
+			if (ret < 0)
+				return ret;
+		} else {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC2_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC2_SW_SWITCH(2));
+			if (ret < 0)
+				return ret;
+		}
+		pd->sw_switch_cc = true;
+		break;
+	case TYPEC_CC_RP_DEF:
+		sprd_pd_log(pd, "TYPEC_CC_RP_DEF");
+		if (pd->cc_polarity == TYPEC_POLARITY_CC1) {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC1_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC1_SW_SWITCH(3));
+			if (ret < 0)
+				return ret;
+		} else {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC2_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC2_SW_SWITCH(3));
+			if (ret < 0)
+				return ret;
+		}
+		pd->sw_switch_cc = true;
+		break;
+	case TYPEC_CC_RP_1_5:
+		sprd_pd_log(pd, "TYPEC_CC_RP_1_5");
+		if (pd->cc_polarity == TYPEC_POLARITY_CC1) {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC1_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC1_SW_SWITCH(3));
+			if (ret < 0)
+				return ret;
+		} else {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC2_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC2_SW_SWITCH(3));
+			if (ret < 0)
+				return ret;
+		}
+		pd->sw_switch_cc = true;
+		break;
+	case TYPEC_CC_RP_3_0:
+		sprd_pd_log(pd, "TYPEC_CC_RP_3_0");
+		if (pd->cc_polarity == TYPEC_POLARITY_CC1) {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC1_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC1_SW_SWITCH(3));
+			if (ret < 0)
+				return ret;
+		} else {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC2_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC2_SW_SWITCH(3));
+			if (ret < 0)
+				return ret;
+		}
+		pd->sw_switch_cc = true;
+		break;
+	case TYPEC_CC_OPEN:
+	default:
+		sprd_pd_log(pd, "TYPEC_CC_OPEN");
+		if (pd->cc_polarity == TYPEC_POLARITY_CC1) {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC1_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC1_SW_SWITCH(0));
+			if (ret < 0)
+				return ret;
+		} else {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC2_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC2_SW_SWITCH(0));
+			if (ret < 0)
+				return ret;
+		}
+		break;
+	}
+
+	sprd_pd_log(pd, "set cc done");
+
 	return 0;
 }
 
@@ -1637,10 +1755,8 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 	struct pd_message pd_msg;
 	u32 int_sts = 0, pd_sts1 = 0;
 	int ret, state;
-	/* Tab A8 code for P220316-03052  by zhaichao at 20220509 start */
 	struct timespec64 cur_time;
 	u32 rx_error_mask = SC27XX_PD_PKG_RV_ERROR_EN;
-	/* Tab A8 code for P220316-03052  by zhaichao at 20220509 end */
 
 	sprd_pd_log(pd, "pd irq: start handle irq, irq = %d", irq);
 
@@ -1651,7 +1767,6 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 		goto done;
 	}
 
-	/* Tab A8 code for P220316-03052  by zhaichao at 20220509 start */
 	if (int_sts == SC27XX_PD_RX_ERROR_INT_STATUS) {
 		if (!pd->rx_error_cnt)
 			pd->start_time = ktime_to_timespec64(ktime_get_boottime());
@@ -1672,7 +1787,6 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 					   rx_error_mask, ~rx_error_mask);
 		}
 	}
-	/* Tab A8 code for P220316-03052  by zhaichao at 20220509 end */
 
 	sprd_pd_log(pd, "pd irq: int sts = 0x%x", int_sts);
 
@@ -1698,7 +1812,7 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 	if (int_sts & SC27XX_PD_HARD_RST_FLAG) {
 		dev_warn(pd->dev, "IRQ: PD received hardreset");
 		sprd_pd_log(pd, "pd irq: receive hard reset");
-/* Tab A8 code for P220316-03052  by zhaichao at 20220509 start */
+
 		if (pd->ignore_hard_reset) {
 			sprd_pd_log(pd, "pd irq: ignore hard reset, hard_reset_cnt = %d", pd->hard_reset_cnt);
 			ret = regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_CLR,
@@ -1709,7 +1823,7 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 				goto done;
 			}
 
-				if (pd->hard_reset_cnt) {
+			if (pd->hard_reset_cnt) {
 				cur_time = ktime_to_timespec64(ktime_get_boottime());
 				sprd_pd_log(pd, "pd irq: hard reset cur_time.tv_sec = %d", cur_time.tv_sec);
 				if ((cur_time.tv_sec - pd->hard_start_time.tv_sec) <= SC27XX_PD_HARD_RESET_TIME_THRESHOLD) {
@@ -1728,10 +1842,7 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 			}
 			goto done;
 		}
-
 irq_hard_reset:
-/* Tab A8 code for P220316-03052  by zhaichao at 20220509 end */
-
 		if (pd->need_retry) {
 			sprd_pd_log(pd, "start cancle retry read msg");
 			pd->need_retry = false;
@@ -1791,9 +1902,7 @@ irq_hard_reset:
 	}
 
 	if ((int_sts & SC27XX_PD_PKG_RV_FLAG)) {
-		/* Tab A8 code for P220316-03052  by zhaichao at 20220509 start */
 		pd->can_communication = true;
-		/* Tab A8 code for P220316-03052  by zhaichao at 20220509 end */
 		ret = regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_CLR,
 					 SC27XX_PD_PKG_RV_CLR,
 					 SC27XX_PD_PKG_RV_CLR);
@@ -1826,9 +1935,7 @@ irq_hard_reset:
 	}
 
 	if (int_sts & SC27XX_PD_TX_OK_FLAG) {
-		/* Tab A8 code for P220316-03052  by zhaichao at 20220509 start */
 		pd->can_communication = true;
-		/* Tab A8 code for P220316-03052  by zhaichao at 20220509 end */
 		sprd_pd_log(pd, "pd irq: tx ok flag");
 		tcpm_pd_transmit_complete(pd->tcpm_port, TCPC_TX_SUCCESS);
 		ret = regmap_update_bits(pd->regmap,
@@ -2004,13 +2111,68 @@ static void sc27xx_cc_status(struct sc27xx_pd *pd, u32 status)
 	tcpm_cc_change(pd->tcpm_port);
 }
 
+static int sc27xx_set_cc_default(struct sc27xx_pd *pd)
+{
+	int ret;
+
+	if (!pd->sw_switch_cc) {
+		sprd_pd_log(pd, "don't set cc to default");
+		return 0;
+	}
+
+	if (pd->cc_polarity == TYPEC_POLARITY_CC1) {
+		sprd_pd_log(pd, "cc1 set default");
+		ret = regmap_update_bits(pd->regmap,
+				 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+				 SC27XX_TYPEC_CC1_SW_SWITCH_MASK,
+				 SC27XX_TYPEC_CC1_SW_SWITCH(0));
+		if (ret < 0)
+			return ret;
+	} else {
+		sprd_pd_log(pd, "cc2 set default");
+		ret = regmap_update_bits(pd->regmap,
+				 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+				 SC27XX_TYPEC_CC2_SW_SWITCH_MASK,
+				 SC27XX_TYPEC_CC2_SW_SWITCH(0));
+		if (ret < 0)
+			return ret;
+	}
+	pd->sw_switch_cc = false;
+
+	return 0;
+}
+
+static int sc27xx_pd_update_header(struct sc27xx_pd *pd)
+{
+	int ret;
+
+	if (pd->state == SC27XX_ATTACHED_SNK) {
+		sprd_pd_log(pd, "update head cfg");
+		ret = regmap_update_bits(pd->regmap,
+					 pd->base + SC27XX_PD_HEAD_CFG,
+					 SC27XX_PD_POWER_ROLE, 0);
+		if (ret < 0) {
+			sprd_pd_log(pd, "write head cfg power role fail, ret = %d", ret);
+			return ret;
+		}
+
+		ret = regmap_update_bits(pd->regmap,
+					 pd->base + SC27XX_PD_HEAD_CFG,
+					 SC27XX_PD_DATA_ROLE, 0);
+		if (ret < 0) {
+			sprd_pd_log(pd, "write head cfg data role fail, ret = %d", ret);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
 static int sc27xx_pd_check_vbus_cc_status(struct sc27xx_pd *pd)
 {
 	u32 val = 0;
 	int ret;
-	/* Tab A8 code for P220316-03052  by zhaichao at 20220509 start */
 	u32 rx_error_mask = SC27XX_PD_PKG_RV_ERROR_EN;
-	/* Tab A8 code for P220316-03052  by zhaichao at 20220509 end */
 
 	ret = regmap_read(pd->regmap, pd->typec_base + SC27XX_TYPEC_STATUS,
 			  &val);
@@ -2032,7 +2194,6 @@ static int sc27xx_pd_check_vbus_cc_status(struct sc27xx_pd *pd)
 	} else {
 		sprd_pd_log(pd, "typec plug out");
 		pd->typec_online = false;
-		/* Tab A8 code for P220316-03052  by zhaichao at 20220509 start */
 		pd->can_communication = false;
 		if (pd->ignore_hard_reset) {
 			sprd_pd_log(pd, "rx error handle clear");
@@ -2042,7 +2203,6 @@ static int sc27xx_pd_check_vbus_cc_status(struct sc27xx_pd *pd)
 			regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_EN,
 					   rx_error_mask, rx_error_mask);
 		}
-		/* Tab A8 code for P220316-03052  by zhaichao at 20220509 end */
 #ifdef CONFIG_DEBUG_FS
 		if (pd->pd_attached) {
 			cancel_delayed_work(&pd->log2printk);
@@ -2051,6 +2211,8 @@ static int sc27xx_pd_check_vbus_cc_status(struct sc27xx_pd *pd)
 #endif
 	}
 
+	sc27xx_pd_update_header(pd);
+	sc27xx_set_cc_default(pd);
 	sc27xx_pd_reset(pd, true);
 	sc27xx_cc_polarity_status(pd, val);
 	sc27xx_cc_status(pd, val);

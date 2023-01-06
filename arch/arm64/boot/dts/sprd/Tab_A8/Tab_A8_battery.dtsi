@@ -438,7 +438,9 @@
 		data-role = "dual";
 		power-role = "dual";
 		try-power-role = "sink";
-		source-pdos = <PDO_FIXED(5000, 400, PDO_FIXED_USB_COMM)>;
+		/* Tab A8_s code(Unisoc Patch 1910379) for P220616-02938 by wenyaqi at 20220620 start */
+		source-pdos = <PDO_FIXED(5000, 400, PDO_FIXED_USB_COMM | PDO_FIXED_DUAL_ROLE)>;
+		/* Tab A8_s code(Unisoc Patch 1910379) for P220616-02938 by wenyaqi at 20220620 end */
 		sink-pdos = <PDO_FIXED(5000, 2000, PDO_FIXED_USB_COMM)>;
 		op-sink-microwatt = <10000000>;
 	};

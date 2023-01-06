@@ -11,6 +11,9 @@ struct jadard_common_variable g_common_variable;
 extern char *jd_i_CTPM_firmware_name;
 #if defined(JD_ZERO_FLASH)
 bool jd_g_f_0f_update = false;
+/* HS03 code for SL6215DEV-4194 by duanyaoming at 20220411 start */
+bool jadard_fw_ready = false;
+/* HS03 code for SL6215DEV-4194 by duanyaoming at 20220411 end */
 #endif
 #endif
 
@@ -147,6 +150,11 @@ int jadard_mcu_0f_upgrade_fw(const char *file_name)
 		err = g_module_fp.fp_ram_write(0, (uint8_t *)fw->data, fw->size);
 		release_firmware(fw);
 		jd_g_f_0f_update = false;
+		/* HS03 code for SL6215DEV-4194 by duanyaoming at 20220411 start */
+		if (err >= 0) {
+			jadard_fw_ready = true;
+		}
+		/* HS03 code for SL6215DEV-4194 by duanyaoming at 20220411 end */
 	}
 
 	return err;

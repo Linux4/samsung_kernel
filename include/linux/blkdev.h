@@ -215,11 +215,6 @@ struct request {
 	unsigned long long start_time_ns;
 	unsigned long long io_start_time_ns;    /* when passed to hardware */
 #endif
-
-#if defined(CONFIG_SPRD_DEBUG)
-	unsigned long long	io_insert_ns;
-	unsigned long long	io_issue_ns;
-#endif
 	/* Number of scatter-gather DMA addr+len pairs after
 	 * physical address coalescing is performed.
 	 */
@@ -1774,43 +1769,6 @@ int kblockd_schedule_work_on(int cpu, struct work_struct *work);
 int kblockd_schedule_delayed_work(struct delayed_work *dwork, unsigned long delay);
 int kblockd_schedule_delayed_work_on(int cpu, struct delayed_work *dwork, unsigned long delay);
 int kblockd_mod_delayed_work_on(int cpu, struct delayed_work *dwork, unsigned long delay);
-
-#if defined(CONFIG_SPRD_DEBUG)
-static inline void set_io_insert_ns(struct request *req)
-{
-	preempt_disable();
-	req->io_insert_ns = sched_clock();
-	preempt_enable();
-}
-
-static inline void set_io_issue_ns(struct request *req)
-{
-	preempt_disable();
-	req->io_issue_ns = sched_clock();
-	preempt_enable();
-}
-
-static inline uint64_t rq_io_insert_ns(struct request *req)
-{
-	return req->io_insert_ns;
-}
-
-static inline uint64_t rq_io_issue_ns(struct request *req)
-{
-	return req->io_issue_ns;
-}
-
-static inline uint64_t rq_io_ns(struct request *req)
-{
-	uint64_t io_tmp;
-
-	preempt_disable();
-	io_tmp = sched_clock();
-	preempt_enable();
-
-	return io_tmp;
-}
-#endif
 
 #ifdef CONFIG_BLK_CGROUP
 /*

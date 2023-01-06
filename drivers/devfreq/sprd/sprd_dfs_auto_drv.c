@@ -314,7 +314,9 @@ void dfs_register_save(void)
 	if (g_dfs_data->socdump_flag) {
 		err = dfs_msg_send(&msg, DFS_CMD_SAVE_DUMP_DATA,
 				   msecs_to_jiffies(100), 0);
-		mdelay(100);
+		/* Tab A8_S code for P220617-05300 by yubaiwen at 2022/07/07 start */
+		mdelay(1000);
+		/* Tab A8_S code for P220617-05300 by yubaiwen at 2022/07/07 end */
 		dev_info(g_dfs_data->dev, "info cm4 to save soc_dump data");
 	}
 }

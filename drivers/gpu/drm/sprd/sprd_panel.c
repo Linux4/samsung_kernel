@@ -213,7 +213,9 @@ static int sprd_panel_prepare(struct drm_panel *p)
 		DRM_ERROR("enable lcd regulator failed\n");
 	/* HS03 code for SL6215DEV-1777 by LiChao at 20210916 start */
 	/*Tab A8 code for AX6300DEV-3002 by huangzhongjie at 20211111 start*/
-	if(tp_gesture == 0 || panel->esd_flag) {
+	/* HS03 code for P220718-03172 by wenghailong at 20220722 start */
+	if (tp_gesture == 0 || panel->esd_flag || panel->info.power_vsp_out) {
+	/* HS03 code for P220718-03172 by wenghailong at 20220722 start */
 	/*Tab A8 code for AX6300DEV-3002 by huangzhongjie at 20211111 end*/
 		if (panel->info.avdd_gpio) {
 			gpiod_direction_output(panel->info.avdd_gpio, 1);
@@ -690,6 +692,13 @@ static void sprd_panel_esd_work_func(struct work_struct *work)
 		ret = sprd_panel_esd_check(panel);
 	} else if (info->esd_conf.esd_check_mode == ESD_MODE_TE_CHECK) {
 		ret = sprd_panel_te_check(panel);
+/* HS03 code for SR-SL6215-01-1148 by wenghailong at 20220421 start */
+#ifdef CONFIG_TARGET_UMS9230_4H10
+		if (gcore_tp_esd_fail) {
+			ret = -1;
+		}
+#endif
+/* HS03 code for SR-SL6215-01-1148 by wenghailong at 20220421 end */
 	} else if (info->esd_conf.esd_check_mode == ESD_MODE_MIX_CHECK) {
 		ret = sprd_panel_mix_check(panel);
 	} else {
@@ -1274,6 +1283,16 @@ int sprd_panel_parse_lcddtb(struct device_node *lcd_node,
 		info->reset_low_before_power_delay = 0;
 	}
 	/*Tab A8 code for SR-AX6300-01-441 by huangzhongjie at 20211129 end*/
+
+	/* HS03 code for P220718-03172 by wenghailong at 20220722 start */
+	rc = of_property_read_u32(lcd_node, "sprd,power-vsp-out", &val);
+	if (!rc) {
+		info->power_vsp_out = val;
+		DRM_INFO("HS03 get power_vsp_out%d\n", info->power_vsp_out);
+	} else {
+		info->power_vsp_out = 0;
+	}
+	/* HS03 code for P220718-03172 by wenghailong at 20220722 end */
 
 	/* HS03 code for SL6215DEV-1777 by LiChao at 20210916 start */
 	rc = of_property_read_u32(lcd_node, "sprd,power-vsp-on-delay", &val);

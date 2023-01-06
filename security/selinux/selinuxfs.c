@@ -613,7 +613,7 @@ static ssize_t sel_write_backtrace_filter(struct file *file,
 		goto out;
 
 	length = -EINVAL;
-	if (sscanf(page, "%s", new_value) != 1)
+	if (count >= AVC_BACKTRACE_COMM_LEN || sscanf(page, "%s", new_value) != 1)
 		goto out;
 
 	if (new_value) {

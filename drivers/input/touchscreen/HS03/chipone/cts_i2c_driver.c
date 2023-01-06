@@ -842,21 +842,25 @@ static struct spi_driver cts_spi_driver = {
 /*HS03 code for SL6215DEV-10 by yuanliding at 20210803 start*/
 static int __init cts_driver_init(void)
 {
-    cts_info("Init");
-    /* HS03 code for SL6215DEV-100 by yuanliding at 20210813 start */
-    if(tp_is_used != UNKNOWN_TP) {
-        cts_info("it is not chipone tp\n");
+     /*HS03 code for SR-SL6215-01-1213 by duanyaoming at 20220503 start*/
+    if (lcd_name) {
+        if (NULL == strstr(lcd_name,"nl9911c")) {
+            cts_err("it is not nl9911c tp probe");
+            return -ENODEV;
+        } else {
+#ifdef CONFIG_CTS_I2C_HOST
+            cts_info(" start cts_i2c_driver");
+            return i2c_add_driver(&cts_i2c_driver);
+#else
+            cts_info(" start cts_spi_driver");
+            return spi_register_driver(&cts_spi_driver);
+#endif
+        }
+    } else {
+        cts_err("lcd_name is null");
         return -ENODEV;
     }
-    /* HS03 code for SL6215DEV-100 by yuanliding at 20210813 end */
-
-#ifdef CONFIG_CTS_I2C_HOST
-    cts_info(" start cts_i2c_driver");
-    return i2c_add_driver(&cts_i2c_driver);
-#else
-    cts_info(" start cts_spi_driver");
-    return spi_register_driver(&cts_spi_driver);
-#endif
+    /*HS03 code for SR-SL6215-01-1213 by duanyaoming at 20220503 end*/
 }
 
 static void __exit cts_driver_exit(void)

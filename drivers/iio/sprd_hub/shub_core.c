@@ -44,6 +44,8 @@
 #include <linux/pm_wakeup.h>
 
 #define MAX_SENSOR_HANDLE 200
+/*HS03_s code for SL6215SDEV-366 by zhangziyi at 2022/05/17 start*/
+#define MAX_SENSOR_TYPE   9
 static u8 sensor_status[MAX_SENSOR_HANDLE];
 
 static struct task_struct *thread;
@@ -119,7 +121,7 @@ static char *color_temp_firms[MAX_COMPATIBLE_SENSORS];
 static char *light_first_firms[MAX_COMPATIBLE_SENSORS];
 static char *light_second_firms[MAX_COMPATIBLE_SENSORS];
 
-static char *sensor_names[9] = {"null", "null", "null", "null", "null", "null", "null", "null", "null"};
+static char *sensor_names[MAX_SENSOR_TYPE] = {"null", "null", "null", "null", "null", "null", "null", "null", "null"};
 module_param(sensor_fusion_mode, uint, 0644);
 module_param_array(acc_firms, charp, 0, 0644);
 module_param_array(gryo_firms, charp, 0, 0644);
@@ -133,6 +135,7 @@ module_param_array(light_second_firms, charp, 0, 0644);
 
 module_param_array(sensor_names, charp, 0, 0644);
 /*Tab A8 code for AX6300DEV-43|P211028-01737 by hujincan at 2021/10/29 end*/
+/*HS03_s code for SL6215SDEV-366 by zhangziyi at 2022/05/17 end*/
 struct sensor_cali_info {
 	unsigned char size;
 	void *data;
@@ -608,9 +611,13 @@ static void request_send_firmware(struct shub_data *sensor,
 		}
 		kfree(fw_data);
 		set_sensor_info(sensor_firms, sensor_type, i);
-		/*Tab A8 code for AX6300DEV-43|P211028-01737 by hujincan at 2021/10/29 start*/
-		sensor_names[sensor_type - 1] = *(sensor_firms + i);
-		/*Tab A8 code for AX6300DEV-43|P211028-01737 by hujincan at 2021/10/29 end*/
+		/*HS03_s code for SL6215SDEV-366 by zhangziyi at 2022/05/17 start*/
+		if (sensor_type < MAX_SENSOR_TYPE + 1) {
+			/*Tab A8 code for AX6300DEV-43|P211028-01737 by hujincan at 2021/10/29 start*/
+			sensor_names[sensor_type - 1] = *(sensor_firms + i);
+			/*Tab A8 code for AX6300DEV-43|P211028-01737 by hujincan at 2021/10/29 end*/
+		}
+		/*HS03_s code for SL6215SDEV-366 by zhangziyi at 2022/05/17 end*/
 		dev_info(&sensor->sensor_pdev->dev, "init sensor success\n");
 		success = 1;
 		break;
@@ -947,6 +954,7 @@ static ssize_t reader_enable_store(struct device *dev,
 static DEVICE_ATTR_RW(reader_enable);
 /* Tab A7 Lite T618 code for AX6189DEV-849|AX6189DEV-953 by duxinqi at 2022/01/24 start */
 /* HS03 code for SL6215DEV-3827 by liuguangqiang at 2021/12/15 start */
+/* HS03_s code for SL6215SDEV-129|SL6215SDEV-366 by zhangziyi at 2022/05/17 start */
 #ifndef CONFIG_TARGET_UMS512_25C10
 static void lcd_info_judge(struct shub_data *sensor, int *data)
 {
@@ -961,6 +969,8 @@ static void lcd_info_judge(struct shub_data *sensor, int *data)
 		{LCD_GC7202H_GENRPRO, "lcd_gc7202h_genrpro_mipi_hdp"},
 		{LCD_GC7202H_GENRPRO, "lcd_nl9911c_genrpro_mipi_hdp"},
 		{LCD_NL9911C_TM, "lcd_nl9911c_tm_mipi_hdp"},
+		{LCD_JD9365T_HOLITECH, "lcd_gc7202h_hlt_ctc_mipi_hdp"},
+		{LCD_JD9365T_HOLITECH, "lcd_nl9911c_hlt_hsd_mipi_hdp_video"},
 	};
 	dev_info(&sensor->sensor_pdev->dev, "command_line = %s\n", command_line);
 
@@ -1015,6 +1025,7 @@ static void lcd_info_judge(struct shub_data *sensor, int *data)
 
 }
 #endif
+/* HS03_s code for SL6215SDEV-129|SL6215SDEV-366 by zhangziyi at 2022/05/17 end */
 /* Tab A7 Lite T618 code for AX6189DEV-849|AX6189DEV-953 by duxinqi at 2022/01/24 end */
 static int send_lcd_info(struct shub_data *sensor)
 {

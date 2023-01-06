@@ -2877,7 +2877,7 @@ static inline void setup_nr_node_ids(void) {}
 
 #ifdef CONFIG_PROCESS_RECLAIM
 struct reclaim_param {
-	struct vm_area_struct *vma;
+	void *private;
 	/* Number of pages scanned */
 	int nr_scanned;
 	/* max pages to reclaim */

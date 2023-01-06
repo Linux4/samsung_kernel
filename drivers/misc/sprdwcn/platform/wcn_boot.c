@@ -361,7 +361,31 @@ static struct imageinfo *marlin_judge_images(char *buffer)
 
 	return  NULL;
 }
+#define WCN_XPE_EFUSE_DDR 0x40859060
+unsigned int marlin_get_wcn_xpe_efuse_data(void)
+{
+        static unsigned int efuse_data;
+        int ret;
+        pr_info("marlin: efuse ddr=%x, data=%x, %s\n",
+		WCN_XPE_EFUSE_DDR, efuse_data, __func__);
 
+        if (unlikely(efuse_data != 0))
+                return efuse_data;
+
+        ret = sprdwcn_bus_reg_read(WCN_XPE_EFUSE_DDR, &efuse_data, 4);
+        if (ret < 0) {
+                pr_err("marlin read efuse data fail\n");
+                return 0;
+        }
+	efuse_data = efuse_data & (0x6);
+        pr_info("marlin: efuse ddr=%x, data=%x, %s\n",
+		WCN_XPE_EFUSE_DDR, efuse_data, __func__);
+
+        return efuse_data;
+}
+EXPORT_SYMBOL_GPL(marlin_get_wcn_xpe_efuse_data);
+
+#define WCN_WFBT_LOAD_FIRMWARE_OFFSET 0x180000
 static char *btwf_load_firmware_data(loff_t off, unsigned long int imag_size)
 {
 	int read_len, size, i, opn_num_max = 15;
@@ -405,7 +429,12 @@ static char *btwf_load_firmware_data(loff_t off, unsigned long int imag_size)
 		functionmask[7] = 0;
 
 	data = buffer;
+	if ((marlin_get_wcn_xpe_efuse_data() == WCN_XPE_EFUSE_DATA)) {
+			off = WCN_WFBT_LOAD_FIRMWARE_OFFSET;
+			WCN_INFO("btwf bin --------\r\n");
+	}
 	offset += off;
+	pr_info("btwf bin off =%x, offset =%x \n", off, offset);
 	do {
 		read_len = kernel_read(file, buffer, size, &offset);
 		if (read_len > 0) {

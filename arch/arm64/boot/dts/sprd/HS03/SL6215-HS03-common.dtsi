@@ -11,9 +11,6 @@
 /* HS03 code for SR-SL6215-01-165 by shibinbin at 2021/08/09 start */
 #include "hs03_sar.dtsi"
 /* HS03 code for SR-SL6215-01-165 by shibinbin at 2021/08/09 end */
-/* HS03 code for SL6215DEV-657 by ditong at 20210830 start */
-#include "hs03_thermal.dtsi"
-/* HS03 code for SL6215DEV-657 by ditong at 20210830 end */
 /* HS03 code for SL6215DEV-729 by lina at 20210903 start */
 #include "HS03_battery_common.dtsi"
 /* HS03 code for SL6215DEV-729 by lina at 20210903 end */

@@ -25,6 +25,9 @@
 /*HS03 code for SL6215DEV-872 by zhoulingyun at 20210909 start*/
 #include <linux/sprd_drm_notifier.h>
 /*HS03 code for SL6215DEV-872 by zhoulingyun at 20210909 end*/
+/*Tab A8 code for AX6300DEV-4080 by yuli at 2022/03/10 start*/
+#include <linux/touchscreen_info.h>
+/*Tab A8 code for AX6300DEV-4080 by yuli at 2022/03/10 end*/
 
 #include "disp_lib.h"
 #include "sprd_dpu.h"
@@ -277,9 +280,10 @@ static void sprd_dsi_encoder_disable(struct drm_encoder *encoder)
 		return;
 	}
 
-	/*Tab A8 code for SR-AX6300-01-373 by luxinjun at 2021/09/30 start*/
+/*Tab A8 code for AX6300DEV-4080 by yuli at 2022/03/10 start*/
+#if defined (CONFIG_TARGET_UMS512_1H10)
 	if (dsi->panel) {
-		if (strstr(dsi->panel->dev->of_node->full_name, "lcd_nt36523b_qc_inx_mipi_hdp")) {
+		if (tp_is_used == NVT_TOUCH) {
 			if ((dsi->ctx.dpms == DRM_MODE_DPMS_SUSPEND) &&
 			    ((dsi->ctx.last_dpms == DRM_MODE_DPMS_STANDBY)
 			     || (dsi->ctx.last_dpms == DRM_MODE_DPMS_ON))) {
@@ -289,7 +293,8 @@ static void sprd_dsi_encoder_disable(struct drm_encoder *encoder)
 			}
 		}
 	}
-	/*Tab A8 code for SR-AX6300-01-373 by luxinjun at 2021/09/30 end*/
+#endif
+/*Tab A8 code for AX6300DEV-4080 by yuli at 2022/03/10 end*/
 
 	sprd_dpu_stop(dpu);
 	if (dsi->ctx.dpi_clk_div) {
@@ -311,15 +316,25 @@ static void sprd_dsi_encoder_disable(struct drm_encoder *encoder)
 		if ((dsi->ctx.dpms == DRM_MODE_DPMS_SUSPEND) &&
 		    ((dsi->ctx.last_dpms == DRM_MODE_DPMS_STANDBY)
 		     || (dsi->ctx.last_dpms == DRM_MODE_DPMS_ON))) {
-			if (!strstr(dsi->panel->dev->of_node->full_name, "lcd_nt36523b_qc_inx_mipi_hdp")) {
+/*Tab A8 code for AX6300DEV-4080 by yuli at 2022/03/10 start*/
+#if defined (CONFIG_TARGET_UMS512_1H10)
+			if (tp_is_used != NVT_TOUCH) {
 				disp_notifier_call_chain(DISPC_POWER_OFF, NULL);
 			}
+#else
+			disp_notifier_call_chain(DISPC_POWER_OFF, NULL);
+#endif
 			sprd_panel_enter_doze(dsi->panel);
 			DRM_INFO("%s(panel enter doze)\n", __func__);
 		} else {
-			if (!strstr(dsi->panel->dev->of_node->full_name, "lcd_nt36523b_qc_inx_mipi_hdp")) {
+#if defined (CONFIG_TARGET_UMS512_1H10)
+			if (tp_is_used != NVT_TOUCH) {
 				disp_notifier_call_chain(DISPC_POWER_OFF, NULL);
 			}
+#else
+			disp_notifier_call_chain(DISPC_POWER_OFF, NULL);
+#endif
+/*Tab A8 code for AX6300DEV-4080 by yuli at 2022/03/10 end*/
 			drm_panel_disable(dsi->panel);
 			if (dsi->phy->ctx.ulps_enable)
 				sprd_dphy_ulps_enter(dsi->phy);
@@ -399,7 +414,10 @@ static int sprd_dsi_encoder_init(struct drm_device *drm,
 static int sprd_dsi_find_panel(struct sprd_dsi *dsi)
 {
 	struct device *dev = dsi->host.dev;
-	struct device_node *child, *lcds_node;
+	/*Tab A8_S code for AX6300SDEV-234 by fengzhigang at 2022/05/24 start*/
+	struct device_node *child = NULL;
+	struct device_node *lcds_node;
+	/*Tab A8_S code for AX6300SDEV-234 by fengzhigang at 2022/05/24 end*/
 	struct drm_panel *panel;
 
 	/* search /lcds child node first */
@@ -617,7 +635,9 @@ sprd_dsi_connector_mode_valid(struct drm_connector *connector,
 			 struct drm_display_mode *mode)
 {
 	struct sprd_dsi *dsi = connector_to_dsi(connector);
-	struct drm_display_mode *pmode;
+	/*Tab A8_S code for AX6300SDEV-234 by fengzhigang at 2022/05/24 start*/
+	struct drm_display_mode *pmode = NULL;
+	/*Tab A8_S code for AX6300SDEV-234 by fengzhigang at 2022/05/24 end*/
 
 	DRM_INFO("%s() mode: "DRM_MODE_FMT"\n", __func__, DRM_MODE_ARG(mode));
 

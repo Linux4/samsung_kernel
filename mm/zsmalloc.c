@@ -1512,6 +1512,8 @@ unsigned long zs_malloc(struct zs_pool *pool, size_t size, gfp_t gfp)
 	enum fullness_group newfg;
 	struct zspage *zspage;
 
+	gfp |= __GFP_NOWARN;
+
 	if (unlikely(!size || size > ZS_MAX_ALLOC_SIZE))
 		return 0;
 

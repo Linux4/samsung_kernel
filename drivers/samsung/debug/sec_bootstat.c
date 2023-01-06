@@ -670,6 +670,11 @@ static int __init sec_bsp_init(void)
 		return -ENOMEM;
 	
 	bs_addr = ioremap(SEC_BOOT_STAT_BASE_ADDR, SEC_BOOT_STAT_MEM_SIZE);
+	if (!bs_addr) {
+		pr_err("Failed to create devce\n");
+                err = -ENOMEM;
+		goto err_dev_create;
+	}
 	bootloader_start=readl_relaxed(bs_addr+(SYSTEM_START_LK*sizeof(uint32_t)));
 	sec_boot_stat_record(SYSTEM_START_LK, bootloader_start);
 #if 0
