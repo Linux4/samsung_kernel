@@ -668,7 +668,6 @@ static void a96t3x6_debug_work_func(struct work_struct *work)
 {
 	struct a96t3x6_data *data = container_of((struct delayed_work *)work,
 						 struct a96t3x6_data, debug_work);
-
 	static int hall_prev_state, cert_hall_prev_state;
 	int hall_state, cert_hall_state;
 
@@ -678,14 +677,20 @@ static void a96t3x6_debug_work_func(struct work_struct *work)
 		schedule_delayed_work(&data->debug_work, msecs_to_jiffies(1000));
 		return;
 	}
+
 	hall_state = a96t3x6_get_hallic_state(HALL_PATH);
 	cert_hall_state = a96t3x6_get_hallic_state(HALLIC_CERT_PATH);
 
 	if ((hall_state == HALL_CLOSE_STATE && hall_prev_state != hall_state)
 	    || (cert_hall_state == HALL_CLOSE_STATE &&
 		cert_hall_prev_state != cert_hall_state)) {
+#if defined(CONFIG_SENSORS_TABLET_CONCEPT)
+		GRIP_INFO("%s - hall is closed %d %d - skip tablet concept\n",
+				__func__, hall_state, cert_hall_state);
+#else
 		GRIP_INFO("%s - hall is closed %d %d\n", __func__, hall_state, cert_hall_state);
 		a96t3x6_grip_sw_reset(data);
+#endif
 	}
 	hall_prev_state = hall_state;
 	cert_hall_prev_state = cert_hall_state;
@@ -2953,107 +2958,46 @@ static int a96t3x6_parse_dt(struct a96t3x6_data *data, struct device *dev)
 static int a96t3x6_ccic_handle_notification(struct notifier_block *nb,
 					    unsigned long action, void *data)
 {
-	static int ccic_pre_attach;
-	CC_NOTI_USB_STATUS_TYPEDEF usb_status =
-		*(CC_NOTI_USB_STATUS_TYPEDEF *) data;
+	CC_NOTI_ATTACH_TYPEDEF usb_typec_info =
+		*(CC_NOTI_ATTACH_TYPEDEF *)data;
 	struct a96t3x6_data *grip_data =
 		container_of(nb, struct a96t3x6_data, ccic_nb);
-	u8 cmd = CMD_ON;
+	static int pre_attach = -1;
+	static int pre_otg_attach = 0;
+	u8 cmd = RESET_SKIP;
 
-	if ((usb_status.drp != USB_STATUS_NOTIFY_ATTACH_DFP) &&
-	    (usb_status.drp != USB_STATUS_NOTIFY_DETACH))
+	if (usb_typec_info.id != CCIC_NOTIFY_ID_ATTACH)
 		return 0;
 
-	if (ccic_pre_attach == usb_status.drp)
+	if (pre_attach == usb_typec_info.attach)
 		return 0;
 
-	switch (usb_status.drp) {
-	case USB_STATUS_NOTIFY_ATTACH_DFP:
-		cmd = CMD_OFF;
-		a96t3x6_i2c_write(grip_data->client, REG_TSPTA, &cmd);
-		GRIP_INFO("TA/USB is inserted\n");
-		break;
-	case USB_STATUS_NOTIFY_DETACH:
+	GRIP_INFO("src = %d, id = %d, attach = %d",
+			usb_typec_info.src, usb_typec_info.id, usb_typec_info.attach);
+
+	if (usb_typec_info.attach == MUIC_NOTIFY_CMD_DETACH) {
 		cmd = CMD_ON;
-		a96t3x6_i2c_write(grip_data->client, REG_TSPTA, &cmd);
-		GRIP_INFO("TA/USB is removed\n");
-		break;
-	default:
-		GRIP_INFO("ccic skip attach = %d\n", usb_status.drp);
-		break;
-	}
-
-	ccic_pre_attach = usb_status.drp;
-	return 0;
-}
-#endif
-
-#if defined(CONFIG_VBUS_NOTIFIER)
-static int a96t3x6_cpuidle_vbus_notifier(struct notifier_block *nb,
-					 unsigned long action, void *data)
-{
-	vbus_status_t vbus_type = *(vbus_status_t *) data;
-	struct a96t3x6_data *grip_data =
-		container_of(nb, struct a96t3x6_data, vbus_nb);
-	static int vbus_pre_attach;
-	u8 cmd = CMD_ON;
-
-	if (vbus_pre_attach == vbus_type)
-		return 0;
-
-	switch (vbus_type) {
-	case STATUS_VBUS_HIGH:
+	} else if (usb_typec_info.attach == MUIC_NOTIFY_CMD_ATTACH) {
 		cmd = CMD_OFF;
-		a96t3x6_i2c_write(grip_data->client, REG_TSPTA, &cmd);
-		GRIP_INFO("TA/USB is inserted\n");
-		break;
-	case STATUS_VBUS_LOW:
-		cmd = CMD_ON;
-		a96t3x6_i2c_write(grip_data->client, REG_TSPTA, &cmd);
-		GRIP_INFO("TA/USB is removed\n");
-		break;
-	default:
-		GRIP_INFO("vbus skip attach = %d\n", vbus_type);
-		break;
 	}
 
-	vbus_pre_attach = vbus_type;
+	if (usb_typec_info.rprd == CCIC_NOTIFY_HOST) {
+		pre_otg_attach = usb_typec_info.rprd;
+		cmd = RESET_SKIP;
+		GRIP_INFO("otg attach - reset skip");
+	} else if (pre_otg_attach) {
+		pre_otg_attach = 0;
+		cmd = RESET_SKIP;
+		GRIP_INFO("otg detach");
+	}
+
+	if (cmd) {
+		a96t3x6_i2c_write(grip_data->client, REG_TSPTA, &cmd);
+		a96t3x6_enter_unknown_mode(grip_data, TYPE_USB);
+	}
+
+	pre_attach = usb_typec_info.attach;
 	return 0;
-}
-#endif
-
-#if defined(CONFIG_MUIC_NOTIFIER)
-static int a96t3x6_cpuidle_muic_notifier(struct notifier_block *nb,
-					 unsigned long action, void *data)
-{
-	struct a96t3x6_data *grip_data;
-	u8 cmd = CMD_ON;
-
-	muic_attached_dev_t attached_dev = *(muic_attached_dev_t *)data;
-
-	grip_data = container_of(nb, struct a96t3x6_data, muic_nb);
-	switch (attached_dev) {
-	case ATTACHED_DEV_OTG_MUIC:
-	case ATTACHED_DEV_USB_MUIC:
-	case ATTACHED_DEV_TA_MUIC:
-	case ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC:
-	case ATTACHED_DEV_AFC_CHARGER_9V_MUIC:
-		if (action == MUIC_NOTIFY_CMD_ATTACH) {
-			cmd = CMD_OFF;
-			GRIP_INFO("TA/USB is inserted\n");
-		} else if (action == MUIC_NOTIFY_CMD_DETACH) {
-			cmd = CMD_ON;
-			GRIP_INFO("TA/USB is removed\n");
-		}
-		a96t3x6_i2c_write(grip_data->client, REG_TSPTA, &cmd);
-		break;
-	default:
-		break;
-	}
-
-	GRIP_INFO("dev=%d, action=%lu\n", attached_dev, action);
-
-	return NOTIFY_DONE;
 }
 #endif
 
@@ -3266,16 +3210,9 @@ static int a96t3x6_probe(struct i2c_client *client,
 
 #if defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER) && defined(CONFIG_CCIC_NOTIFIER)
 	manager_notifier_register(&data->ccic_nb,
-				  a96t3x6_ccic_handle_notification, MANAGER_NOTIFY_CCIC_USB);
+				  a96t3x6_ccic_handle_notification, MANAGER_NOTIFY_CCIC_SENSORHUB2);
 #endif
-#if defined(CONFIG_VBUS_NOTIFIER)
-	vbus_notifier_register(&data->vbus_nb,
-			       a96t3x6_cpuidle_vbus_notifier,  VBUS_NOTIFY_DEV_CHARGER);
-#endif
-#if defined(CONFIG_MUIC_NOTIFIER)
-	muic_notifier_register(&data->muic_nb,
-			       a96t3x6_cpuidle_muic_notifier, MUIC_NOTIFY_DEV_CPUIDLE);
-#endif
+
 	GRIP_INFO("done\n");
 	data->probe_done = true;
 	data->resume_called = false;

@@ -107,6 +107,7 @@
 #define GRIP_ALWAYS_ACTIVE_READY	0x21
 
 /* command */
+#define RESET_SKIP		0
 #define CMD_ON			0x20
 #define CMD_OFF			0x10
 #define CMD_SW_RESET		0x10
