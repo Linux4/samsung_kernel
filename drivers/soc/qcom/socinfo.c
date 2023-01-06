@@ -660,7 +660,7 @@ msm_get_crash(struct device *dev,
 {
 	pr_err("intentional cdsp runtime failed! comment out-just footprint!\n");
 #ifndef CONFIG_SEC_CDSP_NOT_CRASH_ENG
-	BUG_ON(1);
+	//BUG_ON(1);
 #endif /* CONFIG_SEC_CDSP_NOT_CRASH_ENG */
 	return snprintf(buf, PAGE_SIZE, "Qualcomm Technologies, Inc\n");
 }
