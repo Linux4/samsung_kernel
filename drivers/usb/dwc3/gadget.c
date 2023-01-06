@@ -2761,21 +2761,6 @@ static int dwc3_gadget_stop(struct usb_gadget *g)
 
 	mutex_lock(&dwc->mutex);
 	spin_lock_irqsave(&dwc->lock, flags);
-
-	if (pm_runtime_suspended(dwc->dev) ||
-		(dwc->current_dr_role != DWC3_GCTL_PRTCAP_DEVICE)) {
-		pr_info("%s: current_dr_role = %d\n", __func__, dwc->current_dr_role);
-		goto out;
-	}
-
-	if (g->deactivated) {
-		pr_info("%s gadget deactivated!\n", __func__);
-		goto out;
-	}
-
-	__dwc3_gadget_stop(dwc);
-
-out:
 	dwc->gadget_driver	= NULL;
 	dwc->max_cfg_eps = 0;
 	spin_unlock_irqrestore(&dwc->lock, flags);
@@ -4509,10 +4494,9 @@ int dwc3_gadget_suspend(struct dwc3 *dwc)
 
 int dwc3_gadget_resume(struct dwc3 *dwc)
 {
-	struct dwc3_vendor	*vdwc = container_of(dwc, struct dwc3_vendor, dwc);
 	int			ret;
 
-	if (!dwc->gadget_driver || !vdwc->softconnect)
+	if (!dwc->gadget_driver || !dwc->gadget->connected)
 		return 0;
 
 	if (dwc->gadget->deactivated) {

@@ -605,6 +605,17 @@ static const struct is_cis_log log_hm3[] = {
 	{I2C_READ, 16, 0x0B32, 0, "0x0B32"},
 	{I2C_READ, 16, 0x0E00, 0, "0x0E00"},
 	{I2C_READ, 16, 0x19C2, 0, "0x19C2"},
+	{I2C_WRITE, 16, 0xFCFC, 0x2000, "0x2000 page"},
+	{I2C_READ, 16, 0xCCE0, 0, "0xCCE0"},
+	{I2C_READ, 16, 0xCCE2, 0, "0xCCE2"},
+	{I2C_READ, 16, 0xCCE4, 0, "0xCCE4"},
+	{I2C_READ, 16, 0xCCE6, 0, "0xCCE6"},
+	{I2C_READ, 16, 0xCCE8, 0, "0xCCE8"},
+	{I2C_READ, 16, 0xCCEA, 0, "0xCCEA"},
+	{I2C_READ, 16, 0xCCEC, 0, "0xCCEC"},
+	{I2C_READ, 16, 0xCCEE, 0, "0xCCEE"},
+	{I2C_READ, 16, 0xCCF0, 0, "0xCCF0"},
+	{I2C_READ, 16, 0xCCF2, 0, "0xCCF2"},
 	{I2C_WRITE, 16, 0xFCFC, 0x2001, "0x2001 page"},
 	{I2C_READ, 16, 0x96A0, 0, "0x96A0"},
 	{I2C_READ, 16, 0x96A2, 0, "0x96A2"},
@@ -1525,6 +1536,7 @@ int sensor_hm3_cis_update_seamless_mode(struct v4l2_subdev *subdev)
 	u16 next_fast_change_idx = 0;
 	u32 load_sram_idx = SENSOR_HM3_LOAD_SRAM_IDX_NONE;
 	u32 dummy_value = 0;
+	u8 cur_frame_count = 0;
 
 	WARN_ON(!subdev);
 
@@ -1591,6 +1603,7 @@ int sensor_hm3_cis_update_seamless_mode(struct v4l2_subdev *subdev)
 	}
 
 	ret |= is_sensor_write16(cis->client, 0xFCFC, 0x4000);
+	ret |= is_sensor_read8(cis->client, 0x0005, &cur_frame_count);
 	ret |= is_sensor_write16(cis->client, 0x0B30, next_fast_change_idx);
 	if (ret < 0)
 		err("sensor_hm3_set_registers fail!!");
@@ -1600,8 +1613,8 @@ int sensor_hm3_cis_update_seamless_mode(struct v4l2_subdev *subdev)
 
 	sensor_hm3_cis_data_calculation(sensor_hm3_pllinfos[next_mode], cis->cis_data);
 
-	info("[%s] pre(%d)->cur(%d) 12bit[%d] LN[%d] ZOOM[%d] AEB[%d] => load_sram_idx[%d] fast_change_idx[0x%x]\n",
-		 __func__,
+	info("[%s] F(%d) pre(%d)->cur(%d) 12bit[%d] LN[%d] ZOOM[%d] AEB[%d] => load_sram_idx[%d] fast_change_idx[0x%x]\n",
+		 __func__, cur_frame_count,
 		cis->cis_data->sens_config_index_pre, cis->cis_data->sens_config_index_cur,
 		cis->cis_data->cur_12bit_mode,
 		cis->cis_data->cur_lownoise_mode,
@@ -1956,9 +1969,10 @@ int sensor_hm3_cis_retention_prepare(struct v4l2_subdev *subdev)
 	ext_info = &module->ext;
 	WARN_ON(!ext_info);
 
-	I2C_MUTEX_LOCK(cis->i2c_lock);
 	for (i = 0; i < sensor_hm3_max_retention_num; i++) {
+		I2C_MUTEX_LOCK(cis->i2c_lock);
 		ret = sensor_cis_set_registers(subdev, sensor_hm3_retention[i], sensor_hm3_retention_size[i]);
+		I2C_MUTEX_UNLOCK(cis->i2c_lock);
 		if (ret < 0) {
 			err("sensor_hm3_set_registers fail!!");
 			goto p_err;
@@ -1966,7 +1980,9 @@ int sensor_hm3_cis_retention_prepare(struct v4l2_subdev *subdev)
 	}
 
 #if IS_ENABLED(CIS_CALIBRATION)
+	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = sensor_hm3_cis_set_cal(subdev);
+	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 	if (ret < 0) {
 		err("sensor_hm3_cis_set_cal fail!!");
 		goto p_err;
@@ -1974,13 +1990,16 @@ int sensor_hm3_cis_retention_prepare(struct v4l2_subdev *subdev)
 #endif
 
 	//FAST AE Setting
+	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = sensor_cis_set_registers(subdev, sensor_hm3_setfiles[SENSOR_HM3_992X744_120FPS],
 						sensor_hm3_setfile_sizes[SENSOR_HM3_992X744_120FPS]);
+	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 	if (ret < 0) {
 		err("sensor_hm3_set_registers fail!!");
 		goto p_err;
 	}
 
+	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret |= is_sensor_write16(cis->client, 0xFCFC, 0x2000);
 	ret |= is_sensor_write16(cis->client, 0x16DA, 0x0001);
 	ret |= is_sensor_write16(cis->client, 0x16DE, 0x2002);
@@ -2008,7 +2027,6 @@ int sensor_hm3_cis_retention_prepare(struct v4l2_subdev *subdev)
 	ret |= is_sensor_write16(cis->client, 0x0B30, 0x01FF);
 	ret |= is_sensor_write16(cis->client, 0x010E, 0x0100);
 	ret |= is_sensor_write16(cis->client, 0x6000, 0x0085);
-
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	if (sensor_hm3_need_stream_on_retention) {
@@ -2039,7 +2057,6 @@ int sensor_hm3_cis_retention_prepare(struct v4l2_subdev *subdev)
 	info("[%s] retention sensor RAM write done\n", __func__);
 
 p_err:
-
 	return ret;
 }
 
