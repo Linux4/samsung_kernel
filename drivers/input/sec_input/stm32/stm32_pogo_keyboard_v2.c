@@ -228,7 +228,7 @@ static int stm32_keypad_set_input_dev(struct stm32_keypad_dev *device_data, stru
 	__set_bit(LED_CAPSL, device_data->input_dev->ledbit);
 
 	for (i = 0; i < STM32_KEY_MAX; i++) {
-		if (i >= STM32_GAMEPAD_KEY_START && i <= STM32_GAMEPAD_KEY_END)
+		if ((i >= STM32_GAMEPAD_KEY_START && i <= STM32_GAMEPAD_KEY_END) || i == BTN_TOUCH)
 			continue;
 		set_bit(i, input_dev->keybit);
 		device_data->key_state[i] = 0;

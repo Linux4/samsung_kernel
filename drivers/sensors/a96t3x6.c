@@ -731,7 +731,9 @@ static int a96t3x6_pdic_handle_notification(struct notifier_block *nb,
 		return 0;
 
 	GRIP_INFO("accept attach = %d\n", (int)usb_typec_info.attach);
-#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_SENSORS_SKIP_CABLE_RESET) && IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+	GRIP_INFO("grip reset, unknown skip for tablet");
+#elif IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
 	if (usb_typec_info.rprd == PDIC_NOTIFY_HOST) {
 		grip_data->pre_otg_attach = usb_typec_info.rprd;
 		GRIP_INFO("otg attach - unknown, reset skip");

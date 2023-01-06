@@ -9,6 +9,7 @@
 #define CONFIG_SENSORS_CORE_AP
 
 #define VENDOR_NAME              "SEMTECH"
+#define NOTI_MODULE_NAME         "grip_notifier"
 
 enum ic_num {
 	MAIN_GRIP = 0,

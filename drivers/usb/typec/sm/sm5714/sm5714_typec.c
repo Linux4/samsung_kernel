@@ -22,7 +22,7 @@
 #include <linux/delay.h>
 #include <linux/completion.h>
 #include <linux/version.h>
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_BATTERY_GKI)
 #include <linux/sec_batt.h>
 #endif
 #if IS_ENABLED(CONFIG_BATTERY_NOTIFIER)
@@ -2966,8 +2966,8 @@ void sm5714_vbus_turn_on_ctrl(struct sm5714_phydrv_data *usbpd_data,
 	}
 #endif
 	pr_info("%s : enable=%d\n", __func__, enable);
-	
-#if defined(CONFIG_USB_HOST_NOTIFY)	
+
+#if defined(CONFIG_USB_HOST_NOTIFY)
 	if (o_notify && o_notify->booting_delay_sec && enable) {
 		pr_info("%s %d, is booting_delay_sec. skip to control booster\n",
 			__func__, __LINE__);
@@ -2982,8 +2982,8 @@ void sm5714_vbus_turn_on_ctrl(struct sm5714_phydrv_data *usbpd_data,
 		}
 	}
 #endif
-	
-	
+
+
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	psy_otg = get_power_supply_by_name("otg");
 
@@ -3540,7 +3540,7 @@ static int sm5714_usbpd_irq_init(struct sm5714_phydrv_data *_data)
 	}
 
 	i2c->irq = gpio_to_irq(_data->irq_gpio);
-	
+
 	ret = gpio_request(_data->irq_gpio, "usbpd_irq");
 	if (ret) {
 		dev_err(_data->dev, "%s: failed requesting gpio %d\n",

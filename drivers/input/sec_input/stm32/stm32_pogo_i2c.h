@@ -377,6 +377,7 @@ struct stm32_dev {
 	u32					reset_count;
 
 	volatile bool				hall_closed;
+	volatile bool				enabled;
 	int					debug_flag;
 	bool					hall_flag;
 	struct completion			i2c_done;

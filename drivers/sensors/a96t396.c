@@ -3387,9 +3387,6 @@ static int a96t396_suspend(struct device *dev)
 	GRIP_INFO("current_state : %d\n", data->current_state);
 	a96t396_set_debug_work(data, 0, 0);
 
-	if (data->current_state)
-		disable_irq(data->irq);
-
 	cancel_work_sync(&data->pdic_attach_reset_work);
 	cancel_work_sync(&data->pdic_detach_reset_work);
 
@@ -3403,9 +3400,6 @@ static int a96t396_resume(struct device *dev)
 	GRIP_INFO("current_state : %d\n", data->current_state);
 	data->resume_called = true;
 	a96t396_set_debug_work(data, 1, 0);
-
-	if (data->current_state)
-		enable_irq(data->irq);
 
 	return 0;
 }

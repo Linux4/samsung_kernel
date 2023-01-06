@@ -29,9 +29,15 @@ void wacom_forced_release(struct wacom_i2c *wac_i2c)
 		input_info(true, &wac_i2c->client->dev, "%s : [R] dd:%d,%d mc:%d & [HO] dd:%d,%d\n",
 				__func__, wac_i2c->x - wac_i2c->p_x, wac_i2c->y - wac_i2c->p_y,
 				wac_i2c->mcount, wac_i2c->x - wac_i2c->hi_x, wac_i2c->y - wac_i2c->hi_y);
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+		sec_input_notify(&wac_i2c->nb, NOTIFIER_WACOM_PEN_HOVER_OUT, NULL);
+#endif
 	} else  if (wac_i2c->pen_prox) {
 		input_info(true, &wac_i2c->client->dev, "%s : [HO] dd:%d,%d mc:%d\n",
 				__func__, wac_i2c->x - wac_i2c->hi_x, wac_i2c->y - wac_i2c->hi_y, wac_i2c->mcount);
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+		sec_input_notify(&wac_i2c->nb, NOTIFIER_WACOM_PEN_HOVER_OUT, NULL);
+#endif
 	} else {
 		input_info(true, &wac_i2c->client->dev, "%s : pen_prox(%d), pen_pressed(%d)\n",
 				__func__, wac_i2c->pen_prox, wac_i2c->pen_pressed);
@@ -42,10 +48,16 @@ void wacom_forced_release(struct wacom_i2c *wac_i2c)
 				__func__, wac_i2c->x, wac_i2c->y,
 				wac_i2c->x - wac_i2c->p_x, wac_i2c->y - wac_i2c->p_y,
 				wac_i2c->mcount, wac_i2c->x - wac_i2c->hi_x, wac_i2c->y - wac_i2c->hi_y);
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+		sec_input_notify(&wac_i2c->nb, NOTIFIER_WACOM_PEN_HOVER_OUT, NULL);
+#endif
 	} else  if (wac_i2c->pen_prox) {
 		input_info(true, &wac_i2c->client->dev, "%s : [HO] lx:%d ly:%d dd:%d,%d mc:%d\n",
 				__func__, wac_i2c->x, wac_i2c->y,
 				wac_i2c->x - wac_i2c->hi_x, wac_i2c->y - wac_i2c->hi_y, wac_i2c->mcount);
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+		sec_input_notify(&wac_i2c->nb, NOTIFIER_WACOM_PEN_HOVER_OUT, NULL);
+#endif
 	} else {
 		input_info(true, &wac_i2c->client->dev, "%s : pen_prox(%d), pen_pressed(%d)\n",
 				__func__, wac_i2c->pen_prox, wac_i2c->pen_pressed);
@@ -1287,6 +1299,9 @@ static void wacom_i2c_coord_handler(struct wacom_i2c *wac_i2c, char *data)
 			input_info(true, &client->dev, "[HI]  x:%d  y:%d loc:%s (%s) \n",
 					wac_i2c->x, wac_i2c->y, location, wac_i2c->tool == BTN_TOOL_PEN ? "pen" : "rubber");
 #endif
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+			sec_input_notify(&wac_i2c->nb, NOTIFIER_WACOM_PEN_HOVER_IN, NULL);
+#endif
 			return;
 		}
 
@@ -1391,6 +1406,9 @@ static void wacom_i2c_coord_handler(struct wacom_i2c *wac_i2c, char *data)
 						location, wac_i2c->mcount);
 #endif
 			}
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+			sec_input_notify(&wac_i2c->nb, NOTIFIER_WACOM_PEN_HOVER_OUT, NULL);
+#endif
 			wac_i2c->p_x = wac_i2c->p_y = wac_i2c->hi_x = wac_i2c->hi_y = 0;
 
 		} else {
@@ -2002,7 +2020,7 @@ int wacom_fw_update_on_hidden_menu(struct wacom_i2c *wac_i2c, u8 fw_update_way)
 	wac_i2c->update_status = FW_UPDATE_PASS;
 
 #if WACOM_SEC_FACTORY
-	ret = wacom_check_ub(wac_i2c->client);
+	ret = sec_input_get_lcd_id(&client->dev);
 	if (ret < 0) {
 		wacom_i2c_set_survey_mode(wac_i2c, EPEN_SURVEY_MODE_GARAGE_AOP);
 		input_info(true, &client->dev, "Change mode for garage scan\n");
@@ -2022,7 +2040,7 @@ err_update_load_fw:
 	mutex_unlock(&wac_i2c->update_lock);
 
 #if WACOM_SEC_FACTORY
-	ret = wacom_check_ub(wac_i2c->client);
+	ret = sec_input_get_lcd_id(&client->dev);
 	if (ret < 0) {
 		wacom_i2c_set_survey_mode(wac_i2c, EPEN_SURVEY_MODE_GARAGE_AOP);
 		input_info(true, &client->dev, "Change mode for garage scan\n");
@@ -2157,7 +2175,7 @@ out_update_fw:
 skip_update_fw:
 
 #if WACOM_SEC_FACTORY
-	ret = wacom_check_ub(wac_i2c->client);
+	ret = sec_input_get_lcd_id(&client->dev);
 	if (ret < 0) {
 		wacom_i2c_set_survey_mode(wac_i2c, EPEN_SURVEY_MODE_GARAGE_AOP);
 		input_info(true, &client->dev, "Change mode for garage scan\n");
@@ -2171,7 +2189,7 @@ err_update_fw:
 err_update_load_fw:
 
 #if WACOM_SEC_FACTORY
-	ret = wacom_check_ub(wac_i2c->client);
+	ret = sec_input_get_lcd_id(&client->dev);
 	if (ret < 0) {
 		wacom_i2c_set_survey_mode(wac_i2c, EPEN_SURVEY_MODE_GARAGE_AOP);
 		input_info(true, &client->dev, "Change mode for garage scan\n");
@@ -2602,44 +2620,6 @@ static int wacom_request_gpio(struct i2c_client *client,
 	return 0;
 }
 
-int wacom_check_ub(struct i2c_client *client)
-{
-	int lcdtype = 0;
-#if IS_ENABLED(CONFIG_EXYNOS_DPU30)
-	int connected;
-#endif
-
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	lcdtype = get_lcd_attached("GET");
-	if (lcdtype == 0xFFFFFF) {
-		input_info(true, &client->dev, "lcd is not attached\n");
-		return -ENODEV;
-	}
-#endif
-
-#if IS_ENABLED(CONFIG_EXYNOS_DPU30)
-	connected = get_lcd_info("connected");
-	if (connected < 0) {
-		input_info(true, &client->dev, "Failed to get connection info\n");
-		return -ENODEV;
-	}
-
-	if (!connected) {
-		input_info(true, &client->dev, "lcd is not attached\n");
-		return -ENODEV;
-	}
-
-	lcdtype = get_lcd_info("id");
-	if (lcdtype < 0) {
-		input_info(true, &client->dev, "Failed to get id info\n");
-		return -ENODEV;
-	}
-#endif
-	input_info(true, &client->dev, "%s: lcdtype 0x%08x\n", __func__, lcdtype);
-
-	return lcdtype;
-}
-
 #if IS_ENABLED(CONFIG_OF)
 static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 {
@@ -2648,11 +2628,9 @@ static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 	struct device_node *np = dev->of_node;
 	u32 tmp[5] = { 0, };
 	int ret;
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	int count = 0;
 	int ii;
 	int lcdtype = 0;
-#endif
 
 	if (!np)
 		return ERR_PTR(-ENODEV);
@@ -2735,9 +2713,8 @@ static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 	pdata->y_invert = tmp[1];
 	pdata->xy_switch = tmp[2];
 
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	lcdtype = get_lcd_attached("GET");
-	if (lcdtype == 0xFFFFFF) {
+	lcdtype = sec_input_get_lcd_id(&client->dev);
+	if (lcdtype < 0) {
 		input_err(true, &client->dev, "%s: lcd is not attached\n", __func__);
 #if !WACOM_SEC_FACTORY
 		return ERR_PTR(-ENODEV);
@@ -2773,12 +2750,6 @@ static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 				pdata->bringup = 1;
 		}
 	}
-#else
-	ret = of_property_read_string(np, "wacom,fw_path", &pdata->fw_path);
-	if (ret) {
-		input_err(true, &client->dev, "failed to read fw_path %d\n", ret);
-	}
-#endif
 
 	ret = of_property_read_u32(np, "wacom,module_ver", &pdata->module_ver);
 	if (ret) {
@@ -2807,6 +2778,7 @@ static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 	}
 
 	pdata->regulator_boot_on = of_property_read_bool(np, "wacom,regulator_boot_on");
+	pdata->enable_sysinput_enabled = of_property_read_bool(np, "wacom,enable_sysinput_enabled");
 
 	ret = of_property_read_u32(np, "wacom,bringup", &pdata->bringup);
 	if (ret) {
@@ -2946,8 +2918,6 @@ static int wacom_i2c_probe(struct i2c_client *client,
 
 	input->name = "sec_e-pen";
 
-	wacom_i2c_query(wac_i2c);
-
 	/*Initializing for semaphor */
 	mutex_init(&wac_i2c->i2c_mutex);
 	mutex_init(&wac_i2c->lock);
@@ -2956,6 +2926,8 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	mutex_init(&wac_i2c->mode_lock);
 	mutex_init(&wac_i2c->ble_lock);
 	mutex_init(&wac_i2c->ble_charge_mode_lock);
+
+	wacom_i2c_query(wac_i2c);
 
 	wac_i2c->wacom_fw_ws = wakeup_source_register(&wac_i2c->client->dev, "wacom");
 	wac_i2c->wacom_ws = wakeup_source_register(&wac_i2c->client->dev, "wacom_wakelock");
@@ -3035,6 +3007,8 @@ err_register_input_dev:
 	mutex_destroy(&wac_i2c->ble_charge_mode_lock);
 
 	i2c_unregister_device(wac_i2c->client_boot);
+
+	wacom_power(wac_i2c, false);
 	regulator_put(pdata->avdd);
 
 	input_err(true, &client->dev, "failed to probe\n");

@@ -862,7 +862,7 @@ static int stm32_dev_firmware_update(struct stm32_dev *data, const u8 *fw_data, 
 	}
 
 	/* verify checkSum */
-	checksum_bin = stm32_crc32(tmp_data, size - 1);
+	checksum_bin = stm32_crc32(tmp_data, size);
 	input_info(true, &data->client->dev, "%s: cal checksum:0x%04X\n", __func__, checksum_bin);
 
 	/* boot loader mode */
@@ -917,7 +917,7 @@ static int stm32_dev_firmware_update(struct stm32_dev *data, const u8 *fw_data, 
 	tmp_data = tmp_data - (address - stm32_memory_map.flashbase);
 	ic_data = ic_data - (address - stm32_memory_map.flashbase);
 
-	checksum_ic = stm32_crc32(ic_data, size - 1);
+	checksum_ic = stm32_crc32(ic_data, size);
 	input_info(true, &data->client->dev, "%s: checksum_bin:0x%04X, checksum_ic:0x%04x \n", __func__, checksum_bin, checksum_ic);
 	if (empty_check_en > 0) {
 		if (stm32_target_empty_check_clear(data)<0) {
@@ -1028,7 +1028,7 @@ static int stm32_dev_checksum(struct stm32_dev *data, const u8 *fw_data, size_t 
 	check_size = size - stm32_memory_map.pages->size  * last_sector_number;
 
 	/* verify checkSum */
-	checksum_bin = stm32_crc32(&tmp_data2[stm32_memory_map.pages->size  * last_sector_number], check_size - 1);
+	checksum_bin = stm32_crc32(&tmp_data2[stm32_memory_map.pages->size  * last_sector_number], check_size);
 
 	input_info(true, &data->client->dev, "%s: cal checksum:0x%04X last_sector_number:%d size:%ld memory_map_size:%d\n", __func__, checksum_bin, last_sector_number, size, stm32_memory_map.pages->size);
 
@@ -1067,7 +1067,7 @@ static int stm32_dev_checksum(struct stm32_dev *data, const u8 *fw_data, size_t 
 	}
 
 	tmp_data = tmp_data - check_size;
-	checksum_ic = stm32_crc32(tmp_data, check_size - 1);
+	checksum_ic = stm32_crc32(tmp_data, check_size);
 
 	input_info(true, &data->client->dev, "%s: checksum ic:0x%02X bin 0x%02X\n", __func__, checksum_ic, checksum_bin);
 	/* sysboot_disconnect */

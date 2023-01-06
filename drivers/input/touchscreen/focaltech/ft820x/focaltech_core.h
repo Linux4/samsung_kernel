@@ -144,6 +144,7 @@ struct fts_ts_platform_data {
 	const char *panel_reset;
 	u32 irq_gpio;
 	u32 irq_gpio_flags;
+	u32 cs_gpio;
 	u32 reset_gpio;
 	u32 reset_gpio_flags;
 	u32 gpio_vendor_check;

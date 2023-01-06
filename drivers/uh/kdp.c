@@ -267,11 +267,11 @@ struct cred *prepare_ro_creds(struct cred *old, int kdp_cmd, u64 p)
 	void *rcu_ptr = NULL;
 	void *tsec = NULL;
 
-	new_ro = kmem_cache_alloc(cred_jar_ro, GFP_KERNEL);
+	new_ro = kmem_cache_alloc(cred_jar_ro, GFP_KERNEL | __GFP_NOFAIL);
 	if (!new_ro)
 		panic("[%d] : kmem_cache_alloc() failed", kdp_cmd);
 
-	use_cnt_ptr = kmem_cache_alloc(usecnt_jar, GFP_KERNEL);
+	use_cnt_ptr = kmem_cache_alloc(usecnt_jar, GFP_KERNEL | __GFP_NOFAIL);
 	if (!use_cnt_ptr)
 		panic("[%d] : Unable to allocate usage pointer\n", kdp_cmd);
 
@@ -279,7 +279,7 @@ struct cred *prepare_ro_creds(struct cred *old, int kdp_cmd, u64 p)
 	rcu_ptr = (struct ro_rcu_head *)((atomic_t *)use_cnt_ptr + 1);
 	((struct ro_rcu_head *)rcu_ptr)->bp_cred = (void *)new_ro;
 
-	tsec = kmem_cache_alloc(tsec_jar, GFP_KERNEL);
+	tsec = kmem_cache_alloc(tsec_jar, GFP_KERNEL | __GFP_NOFAIL);
 	if (!tsec)
 		panic("[%d] : Unable to allocate security pointer\n", kdp_cmd);
 

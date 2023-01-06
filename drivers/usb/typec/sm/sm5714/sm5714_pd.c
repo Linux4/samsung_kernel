@@ -1352,6 +1352,7 @@ void sm5714_usbpd_turn_on_source(struct sm5714_usbpd_data *pd_data)
 
 void sm5714_usbpd_turn_on_reverse_booster(struct sm5714_usbpd_data *pd_data)
 {
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	union power_supply_propval val;
 
 	pr_info("%s\n", __func__);
@@ -1359,10 +1360,12 @@ void sm5714_usbpd_turn_on_reverse_booster(struct sm5714_usbpd_data *pd_data)
 	 /* disable dc reverse boost before otg on */
 	psy_do_property("battery", set,
 		POWER_SUPPLY_EXT_PROP_CHARGE_OTG_CONTROL, val);
+#endif
 }
 
 void sm5714_usbpd_turn_off_reverse_booster(struct sm5714_usbpd_data *pd_data)
 {
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	union power_supply_propval val;
 
 	pr_info("%s\n", __func__);
@@ -1370,6 +1373,7 @@ void sm5714_usbpd_turn_off_reverse_booster(struct sm5714_usbpd_data *pd_data)
 	 /* disable dc reverse boost before otg on */
 	psy_do_property("battery", set,
 		POWER_SUPPLY_EXT_PROP_CHARGE_OTG_CONTROL, val);
+#endif
 }
 
 void sm5714_usbpd_turn_off_power_supply(struct sm5714_usbpd_data *pd_data)

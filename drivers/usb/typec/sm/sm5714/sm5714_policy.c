@@ -2974,10 +2974,12 @@ static policy_state sm5714_usbpd_policy_dfp_vdm_status_update(
 						}
 						manager->is_sent_pin_configuration = 1;
 #if IS_ENABLED(CONFIG_ARCH_QCOM) && !defined(CONFIG_USB_ARCH_EXYNOS) && !defined(CONFIG_ARCH_EXYNOS)
+#if !defined(CONFIG_USB_MTK_OTG)
 						if (manager->dp_selected_pin == PDIC_NOTIFY_DP_PIN_C ||
 									manager->dp_selected_pin == PDIC_NOTIFY_DP_PIN_E ||
 									manager->dp_selected_pin == PDIC_NOTIFY_DP_PIN_A)
 							dwc3_restart_usb_host_mode_hs();
+#endif
 #endif
 					}
 
@@ -3108,10 +3110,12 @@ static policy_state sm5714_usbpd_policy_dfp_vdm_displayport_configure(
 			}
 			manager->is_sent_pin_configuration = 1;
 #if IS_ENABLED(CONFIG_ARCH_QCOM) && !defined(CONFIG_USB_ARCH_EXYNOS) && !defined(CONFIG_ARCH_EXYNOS)
+#if !defined(CONFIG_USB_MTK_OTG)
 			if (manager->dp_selected_pin == PDIC_NOTIFY_DP_PIN_C ||
 						manager->dp_selected_pin == PDIC_NOTIFY_DP_PIN_E ||
 						manager->dp_selected_pin == PDIC_NOTIFY_DP_PIN_A)
 				dwc3_restart_usb_host_mode_hs();
+#endif
 #endif
 
 		}

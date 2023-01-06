@@ -385,6 +385,7 @@ struct wacom_g5_platform_data {
 	struct wacom_elec_data *edatas[3];	/* 0:main, 1:sub unit, 2:sub assy(reserved) */
 
 	volatile bool enabled;
+	volatile int display_state;
 
 	int irq_gpio;
 	int pdct_gpio;
@@ -415,6 +416,7 @@ struct wacom_g5_platform_data {
 	u32 bringup;
 	bool support_cover_noti;
 	bool support_cover_detection;
+	bool enable_sysinput_enabled;
 
 	u32	area_indicator;
 	u32	area_navigation;
@@ -616,7 +618,5 @@ void wacom_sec_remove(struct wacom_i2c *);
 void wacom_print_info(struct wacom_i2c *wac_i2c);
 void wacom_i2c_coord_modify(struct wacom_i2c *wac_i2c);
 void wacom_disable_mode(struct wacom_i2c *wac_i2c, wacom_disable_mode_t mode);
-
-int wacom_check_ub(struct i2c_client *client);
 
 void wacom_swap_compensation(struct wacom_i2c *wac_i2c, char cmd);
