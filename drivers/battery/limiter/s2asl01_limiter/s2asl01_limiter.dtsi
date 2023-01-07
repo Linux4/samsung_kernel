@@ -65,10 +65,10 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/limiter/s2asl01_limiter_gki/s2asl01_limiter.q2q.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1788/android/kernel/kmodule/battery/limiter/s2asl01_limiter_gki/s2asl01_limiter.q2q.dtsi */
 &s2asl01_limiter_sub {
 	limiter,chg_current_fully_turnon = <0>;
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/limiter/s2asl01_limiter_gki/s2asl01_limiter.q2q.07.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1788/android/kernel/kmodule/battery/limiter/s2asl01_limiter_gki/s2asl01_limiter.q2q.07.dtsi */
 /* Pack sensing from HWID07 (main:pack sensing, sub:cell sensing) */

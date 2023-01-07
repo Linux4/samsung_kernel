@@ -33,7 +33,7 @@ int gw3x_spi_read_bytes(struct gf_device *gf_dev, u16 addr,
 	*(tmp_buf + 2) = (u8)(addr & 0xFF);
 	xfer[0].tx_buf = tmp_buf;
 	xfer[0].len = 3;
-	xfer[0].delay_usecs = 5;
+	set_delay_in_spi_transfer(&xfer[0], SPI_TRANSFER_DELAY);
 	spi_message_add_tail(&xfer[0], &msg);
 	spi_sync(gf_dev->spi, &msg);
 
@@ -44,7 +44,7 @@ int gw3x_spi_read_bytes(struct gf_device *gf_dev, u16 addr,
 	xfer[1].tx_buf = tmp_buf + 4;
 	xfer[1].rx_buf = tmp_buf + 4;
 	xfer[1].len = data_len + 1;
-	xfer[1].delay_usecs = 5;
+	set_delay_in_spi_transfer(&xfer[1], SPI_TRANSFER_DELAY);
 	spi_message_add_tail(&xfer[1], &msg);
 	spi_sync(gf_dev->spi, &msg);
 
@@ -77,7 +77,7 @@ int gw3x_spi_write_bytes(struct gf_device *gf_dev, u16 addr,
 	memcpy(tmp_buf + 3, tx_buf, data_len);
 	xfer[0].len = data_len + 3;
 	xfer[0].tx_buf = tmp_buf;
-	xfer[0].delay_usecs = 5;
+	set_delay_in_spi_transfer(&xfer[0], SPI_TRANSFER_DELAY);
 	spi_message_add_tail(&xfer[0], &msg);
 	spi_sync(gf_dev->spi, &msg);
 
@@ -104,7 +104,7 @@ int gw3x_spi_read_byte(struct gf_device *gf_dev, u16 addr, u8 *value)
 
 	xfer[0].tx_buf = gf_dev->spi_buffer;
 	xfer[0].len = 3;
-	xfer[0].delay_usecs = 5;
+	set_delay_in_spi_transfer(&xfer[0], SPI_TRANSFER_DELAY);
 	spi_message_add_tail(&xfer[0], &msg);
 	spi_sync(gf_dev->spi, &msg);
 
@@ -114,7 +114,7 @@ int gw3x_spi_read_byte(struct gf_device *gf_dev, u16 addr, u8 *value)
 	xfer[1].tx_buf = gf_dev->spi_buffer + 4;
 	xfer[1].rx_buf = gf_dev->spi_buffer + 4;
 	xfer[1].len = 2;
-	xfer[1].delay_usecs = 5;
+	set_delay_in_spi_transfer(&xfer[1], SPI_TRANSFER_DELAY);
 	spi_message_add_tail(&xfer[1], &msg);
 	spi_sync(gf_dev->spi, &msg);
 
@@ -144,7 +144,7 @@ int gw3x_spi_write_byte(struct gf_device *gf_dev, u16 addr, u8 value)
 
 	xfer[0].tx_buf = gf_dev->spi_buffer;
 	xfer[0].len = 3 + 1;
-	xfer[0].delay_usecs = 5;
+	set_delay_in_spi_transfer(&xfer[0], SPI_TRANSFER_DELAY);
 	spi_message_add_tail(&xfer[0], &msg);
 	spi_sync(gf_dev->spi, &msg);
 

@@ -681,6 +681,7 @@ static void isg5320a_initialize(struct isg5320a_data *data)
 	int i;
 	u8 val;
 	u8 buf[2];
+	u8 buf8[2];
 
 	pr_info("%s %s\n", ISG5320A_TAG, __func__);
 
@@ -713,6 +714,9 @@ static void isg5320a_initialize(struct isg5320a_data *data)
 		pr_err("%s fail to read DIGITAL ACC(%d)\n", ISG5320A_TAG, ret);
 	else
 		data->cfcal_th = ISG5320A_RESET_CONDITION * val / 8;
+
+	isg5320a_i2c_read(data, ISG5320A_B_PROXCTL3_REG, buf8, sizeof(buf8));
+	data->normal_th = ((u32)buf8[0] << 8) | (u32)buf8[1];
 
 	data->initialized = ON;
 }
@@ -858,7 +862,7 @@ static ssize_t isg5320a_onoff_store(struct device *dev,
 		if (data->enable == ON) {
 			data->state = FAR;
 			input_report_rel(data->input_dev, REL_MISC, 2);
-			input_report_rel(data->input_dev, REL_X, data->is_unknown_mode);
+			input_report_rel(data->input_dev, REL_X, UNKNOWN_OFF);
 			input_sync(data->input_dev);
 		}
 		data->motion = 1;
@@ -1729,7 +1733,7 @@ static void cal_work_func(struct work_struct *work)
 		isg5320a_enter_unknown_mode(data, TYPE_FORCE);
 		force_cal = true;
 	}
-
+#if 0
 	// check bfcal
 	if (data->bfcal_chk_start) {
 		data->bfcal_chk_count++;
@@ -1757,7 +1761,7 @@ static void cal_work_func(struct work_struct *work)
 			}
 		}
 	}
-
+#endif
 	if (force_cal)
 		schedule_delayed_work(&data->cal_work, msecs_to_jiffies(1000));
 	else

@@ -1370,6 +1370,12 @@ config SUPPORT_SSC_SPU
 	help
 	  Add support for SSC SPU.
 
+config SUPPORT_SLPI_SLEEP_DEBUG
+	bool "Support SSC(SLPI) Sleep debug"
+	default n
+	help
+	  Say 'Y' here to change sleep issue detect condition for SLPI
+
 source "drivers/soc/qcom/icnss2/Kconfig"
 
 source "drivers/soc/qcom/gnsssirf/Kconfig"

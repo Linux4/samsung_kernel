@@ -32,6 +32,7 @@
 #include <linux/pinctrl/pinmux.h>
 #include "../pinctrl/core.h"
 #include "../pinctrl/pinctrl-utils.h"
+#include <linux/delay.h>
 
 #define PCA953X_INPUT		0x0
 #define PCA953X_OUTPUT		0x1
@@ -86,10 +87,11 @@ enum EXP_PINCTRL_DRV_STR {
 	PINCTRL_DRV_LV4,
 };
 
-#define MAX_BANK 5
-#define BANK_SZ 8
+#define MAX_BANK	5
+#define BANK_SZ		8
+#define I2C_RETRY_CNT	3
 
-#define NBANK(chip) DIV_ROUND_UP(chip->gpio_chip.ngpio, BANK_SZ)
+#define NBANK(chip)	DIV_ROUND_UP(chip->gpio_chip.ngpio, BANK_SZ)
 
 struct pca953x_reg_config {
 	int direction;
@@ -150,9 +152,19 @@ static int pca953x_read_single(struct pca953x_chip *chip, int reg, u32 *val,
 	int ret;
 	int bank_shift = fls((chip->gpio_chip.ngpio - 1) / BANK_SZ);
 	int offset = off / BANK_SZ;
+	int i;
 
-	ret = i2c_smbus_read_byte_data(chip->client,
-				(reg << bank_shift) + offset);
+	for (i = 0; i < I2C_RETRY_CNT; ++i) {
+		ret = i2c_smbus_read_byte_data(chip->client,
+					(reg << bank_shift) + offset);
+
+		if (ret >= 0)
+			break;
+		else
+			pr_info("%s reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+				__func__, reg, ret, i + 1, I2C_RETRY_CNT);
+	}
+
 	*val = ret;
 
 	if (ret < 0) {
@@ -169,9 +181,18 @@ static int pca953x_write_single(struct pca953x_chip *chip, int reg, u32 val,
 	int ret;
 	int bank_shift = fls((chip->gpio_chip.ngpio - 1) / BANK_SZ);
 	int offset = off / BANK_SZ;
+	int i;
 
-	ret = i2c_smbus_write_byte_data(chip->client,
+	for (i = 0; i < I2C_RETRY_CNT; ++i) {
+		ret = i2c_smbus_write_byte_data(chip->client,
 					(reg << bank_shift) + offset, val);
+
+		if (ret >= 0)
+			break;
+		else
+			pr_info("%s reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+				__func__, reg, ret, i + 1, I2C_RETRY_CNT);
+	}
 
 	if (ret < 0) {
 		dev_err(&chip->client->dev, "failed writing register\n");
@@ -216,8 +237,18 @@ static int pca953x_write_regs_24(struct pca953x_chip *chip, int reg, u8 *val)
 static int pca953x_write_regs(struct pca953x_chip *chip, int reg, u8 *val)
 {
 	int ret = 0;
+	int i;
 
-	ret = chip->write_regs(chip, reg, val);
+	for (i = 0; i < I2C_RETRY_CNT; ++i) {
+		ret = chip->write_regs(chip, reg, val);
+
+		if (ret >= 0)
+			break;
+		else
+			pr_info("%s reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+				__func__, reg, ret, i + 1, I2C_RETRY_CNT);
+	}
+
 	if (ret < 0) {
 		dev_err(&chip->client->dev, "failed writing register\n");
 		return ret;
@@ -258,8 +289,17 @@ static int pca953x_read_regs_24(struct pca953x_chip *chip, int reg, u8 *val)
 static int pca953x_read_regs(struct pca953x_chip *chip, int reg, u8 *val)
 {
 	int ret;
+	int i;
 
-	ret = chip->read_regs(chip, reg, val);
+	for (i = 0; i < I2C_RETRY_CNT; ++i) {
+		ret = chip->read_regs(chip, reg, val);
+		if (ret >= 0)
+			break;
+		else
+			pr_info("%s reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+				__func__, reg, ret, i + 1, I2C_RETRY_CNT);
+	}
+
 	if (ret < 0) {
 		dev_err(&chip->client->dev, "failed reading register 0x%x\n", reg);
 		return ret;
@@ -387,6 +427,7 @@ static void pca953x_gpio_set_multiple(struct gpio_chip *gc,
 	int bank_shift, bank;
 	u8 reg_val[MAX_BANK];
 	int ret;
+	int i;
 
 	bank_shift = fls((chip->gpio_chip.ngpio - 1) / BANK_SZ);
 
@@ -403,9 +444,17 @@ static void pca953x_gpio_set_multiple(struct gpio_chip *gc,
 		}
 	}
 
-	ret = i2c_smbus_write_i2c_block_data(chip->client,
-					     chip->regs->output << bank_shift,
-					     NBANK(chip), reg_val);
+	for (i = 0; i < I2C_RETRY_CNT; ++i) {
+		ret = i2c_smbus_write_i2c_block_data(chip->client,
+						     chip->regs->output << bank_shift,
+						     NBANK(chip), reg_val);
+		if (ret >= 0)
+			break;
+		else
+			pr_info("%s reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+				__func__, chip->regs->output << bank_shift, ret, i + 1, I2C_RETRY_CNT);
+	}
+
 	if (ret)
 		goto exit;
 
@@ -725,10 +774,8 @@ static void pca953x_irq_bus_sync_unlock(struct irq_data *d)
 		reg_val = chip->irq_trig_type[bank_nb] & 0xFF;
 
 	ret = pca953x_write_single(chip, PCAL953X_INT_EDGE, (u8)reg_val, (d->hwirq) * 2);
-	if (ret) {
+	if (ret)
 		pr_info("[%s] failed to write reg\n", __func__);
-		return;
-	}
 
 	mutex_unlock(&chip->irq_lock);
 }
@@ -1089,6 +1136,17 @@ static struct pca953x_platform_data *of_pca953x_parse_dt(struct device *dev)
 
 	pr_info("[%s] gpio_base: %d, gpio_num: %d\n", __func__, pdata->gpio_base, pdata->gpio_num);
 
+#if IS_ENABLED(CONFIG_GPIO_PCA953X_RESET)
+	pdata->reset_gpio = of_get_named_gpio(np, "reset-gpios", 0);
+	if (pdata->reset_gpio >= 0) {
+		pr_info("[%s] reset gpio: %d, start reset\n", __func__, pdata->reset_gpio);
+		
+		gpio_direction_output(pdata->reset_gpio, 0);
+		usleep_range(100, 101);
+		gpio_direction_output(pdata->reset_gpio, 1);
+	}
+#endif
+
 	return pdata;
 
 err_parsing_dt:
@@ -1288,8 +1346,14 @@ err_exit:
 	if (pdata->pba_conn_det_gpio >= 0 && gpio_get_value(pdata->pba_conn_det_gpio)) {
 		pr_info("%s this is SMD/SUB assay test, W/A to skip expander probe fail\n", __func__);
 		return 0;
-	} else
+	} else {
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+		panic("expander probe fail, please check device with HW team");
+#else
+		pr_err("%s: expander probe fail\n", __func__);
+#endif
 		return ret;
+	}
 }
 
 static int pca953x_remove(struct i2c_client *client)

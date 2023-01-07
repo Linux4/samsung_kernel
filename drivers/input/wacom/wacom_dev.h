@@ -66,6 +66,7 @@ extern unsigned int lpcharge;
 
 /* wacom features */
 #define USE_OPEN_CLOSE
+#undef USE_RESET_IRQ
 #define WACOM_USE_SURVEY_MODE /* SURVEY MODE is LPM mode : Only detect garage(pdct) & aop */
 
 #ifdef WACOM_USE_SURVEY_MODE
@@ -110,7 +111,8 @@ enum NOTI_SUB_ID {
 	OOK_PACKET,
 	CMD_PACKET,
 	GCF_PACKET		= 7,	/* Garage Charging Finished notification data*/
-	STANDBY_PACKET = 9,
+	STANDBY_PACKET		= 9,
+	ESD_DETECT_PACKET	= 126,
 };
 
 enum REPLY_SUB_ID {
@@ -349,9 +351,11 @@ enum {
 };
 
 enum epen_elec_spec_mode {
-	EPEN_ELEC_DATA_MAIN	= 0,	// main
-	EPEN_ELEC_DATA_ASSY	= 1,	// sub - assy
-	EPEN_ELEC_DATA_UNIT	= 2,	// sub - unit
+	EPEN_ELEC_DATA_MAIN		= 0,	// main
+	EPEN_ELEC_DATA_ASSY		= 1,	// sub - assy
+	EPEN_ELEC_DATA_UNIT		= 2,	// sub - unit
+	EPEN_ELEC_DATA_NEW_ASSY	= 3,	// sub - new assy
+	EPEN_ELEC_DATA_DGT_ASSY	= 4,	// sub - dgt assy
 };
 
 struct wacom_elec_data {
@@ -430,13 +434,15 @@ struct wacom_elec_data {
 
 struct wacom_g5_platform_data {
 	struct wacom_elec_data *edata;		/* currnet test spec */
-	struct wacom_elec_data *edatas[3];	/* 0:main, 1:sub unit, 2:sub assy(reserved) */
+	struct wacom_elec_data *edatas[5];	/* 0:main, 1:sub assy, 2:sub unit, 3:sub new assy */
 
 	volatile bool enabled;
 
 	int irq_gpio;
 	int pdct_gpio;
 	int fwe_gpio;
+	int esd_detect_gpio;
+
 	int boot_addr;
 	struct regulator *avdd;
 
@@ -467,6 +473,7 @@ struct wacom_g5_platform_data {
 	bool support_cover_noti;
 	bool support_set_display_mode;
 	int support_sensor_hall;
+	bool enable_sysinput_enabled;
 
 	u32	area_indicator;
 	u32	area_navigation;
@@ -502,6 +509,7 @@ struct wacom_i2c {
 
 	int irq;
 	int irq_pdct;
+	int irq_esd_detect;
 	int pen_pdct;
 	bool pdct_lock_fail;
 	struct delayed_work open_test_dwork;
@@ -689,3 +697,7 @@ void wacom_disable_mode(struct wacom_i2c *wac_i2c, wacom_disable_mode_t mode);
 int wacom_check_ub(struct i2c_client *client);
 
 void wacom_swap_compensation(struct wacom_i2c *wac_i2c, char cmd);
+
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+extern void hall_ic_request_notitfy(void);
+#endif

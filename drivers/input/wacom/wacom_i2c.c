@@ -811,16 +811,32 @@ void wacom_enable_irq(struct wacom_i2c *wac_i2c, bool enable)
 	} else {
 		disable_irq(wac_i2c->irq);
 	}
+
+#ifdef USE_RESET_IRQ
+	if (gpio_is_valid(wac_i2c->pdata->esd_detect_gpio)) {
+		struct irq_desc *desc_esd = irq_to_desc(wac_i2c->irq_esd_detect);
+
+		if (enable) {
+			while (desc_esd->depth > 0)
+				enable_irq(wac_i2c->irq_esd_detect);
+		} else {
+			disable_irq(wac_i2c->irq_esd_detect);
+		}
+	}
+#endif
 	mutex_unlock(&wac_i2c->irq_lock);
 }
 
 static void wacom_enable_irq_wake(struct wacom_i2c *wac_i2c, bool enable)
 {
+	struct irq_desc *desc = irq_to_desc(wac_i2c->irq);
 
 	if (enable) {
-		enable_irq_wake(wac_i2c->irq);
+		while (desc->wake_depth < 1)
+			enable_irq_wake(wac_i2c->irq);
 	} else {
-		disable_irq_wake(wac_i2c->irq);
+		while (desc->wake_depth > 0)
+			disable_irq_wake(wac_i2c->irq);
 	}
 }
 
@@ -958,6 +974,11 @@ void wacom_sleep_sequence(struct wacom_i2c *wac_i2c)
 	}
 	cancel_delayed_work_sync(&wac_i2c->work_print_info);
 	wacom_print_info(wac_i2c);
+
+	if (gpio_is_valid(wac_i2c->pdata->esd_detect_gpio)) {
+		if (gpio_get_value(wac_i2c->pdata->esd_detect_gpio) == 0)
+			wac_i2c->reset_flag = true;
+	}
 
 reset:
 	if (wac_i2c->reset_flag) {
@@ -1144,6 +1165,10 @@ static void wacom_i2c_noti_handler(struct wacom_i2c *wac_i2c, char *data)
 					__func__, wac_i2c->standby_state, wac_i2c->standby_enable);
 		break;
 #endif
+	case ESD_DETECT_PACKET:
+		input_err(true, &wac_i2c->client->dev, "%s: DETECT ESD\n", __func__);
+		wac_i2c->reset_flag = true;
+		break;
 	default:
 		input_err(true, &wac_i2c->client->dev, "%s: unexpected packet %d\n", __func__, pack_sub_id);
 		break;
@@ -1622,6 +1647,16 @@ static irqreturn_t wacom_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+#ifdef USE_RESET_IRQ
+static irqreturn_t wacom_esd_detect_interrupt(int irq, void *dev_id)
+{
+	struct wacom_i2c *wac_i2c = dev_id;
+
+	input_info(true, &wac_i2c->client->dev, "%s: esd detect interrupt(%d)\n", __func__, gpio_get_value(wac_i2c->pdata->esd_detect_gpio));
+	return IRQ_HANDLED;
+}
+#endif
+
 static void open_test_work(struct work_struct *work)
 {
 	struct wacom_i2c *wac_i2c =
@@ -1698,6 +1733,7 @@ static int wacom_i2c_input_open(struct input_dev *dev)
 	if (wac_i2c->power_enable == false) {
 		mutex_lock(&wac_i2c->lock);
 		wacom_power(wac_i2c, true);
+		msleep(100);
 		wac_i2c->reset_flag = false;
 		mutex_unlock(&wac_i2c->lock);
 	}
@@ -1740,6 +1776,8 @@ static void wacom_i2c_input_close(struct input_dev *dev)
 		wacom_power(wac_i2c, false);
 		wac_i2c->screen_on = false;
 		wac_i2c->reset_flag = false;
+		wac_i2c->survey_mode = EPEN_SURVEY_MODE_NONE;
+		wac_i2c->function_result &= ~EPEN_EVENT_SURVEY;
 		mutex_unlock(&wac_i2c->lock);
 	} else {
 		wacom_sleep_sequence(wac_i2c);
@@ -2234,8 +2272,9 @@ int wacom_fw_update_on_probe(struct wacom_i2c *wac_i2c)
 
 	ret = wacom_i2c_load_fw(wac_i2c, FW_BUILT_IN);
 	if (ret < 0) {
-		input_info(true, &client->dev, "failed to load fw data\n");
-		goto err_update_load_fw;
+		input_info(true, &client->dev, "failed to load fw data (set bringup 1)\n");
+		wac_i2c->pdata->bringup = 1;
+		goto skip_update_fw;
 	}
 
 	if (wac_i2c->pdata->bringup == 2) {
@@ -2352,7 +2391,6 @@ skip_update_fw:
 
 err_update_fw:
 	wacom_i2c_unload_fw(wac_i2c);
-err_update_load_fw:
 
 #if WACOM_SEC_FACTORY
 	ret = wacom_check_ub(wac_i2c->client);
@@ -2753,6 +2791,13 @@ static int wacom_request_gpio(struct i2c_client *client,
 		return ret;
 	}
 
+	if (gpio_is_valid(pdata->esd_detect_gpio)) {
+		ret = devm_gpio_request(&client->dev, pdata->esd_detect_gpio, "wacom_esd_detect");
+		if (ret) {
+			input_err(true, &client->dev, "unable to request gpio for irq]\n");
+			return ret;
+		}
+	}
 	return 0;
 }
 
@@ -2822,6 +2867,11 @@ static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 	if (!gpio_is_valid(pdata->fwe_gpio)) {
 		input_err(true, &client->dev, "failed to get fwe-gpio\n");
 		return ERR_PTR(-EINVAL);
+	}
+
+	pdata->esd_detect_gpio = of_get_named_gpio(np, "wacom,esd_detect_gpio", 0);
+	if (!gpio_is_valid(pdata->esd_detect_gpio)) {
+		input_err(true, &client->dev, "failed to get esd_detect_gpio\n");
 	}
 
 	/* get features */
@@ -2950,6 +3000,10 @@ static struct wacom_g5_platform_data *wacom_parse_dt(struct i2c_client *client)
 	pdata->support_cover_noti = of_property_read_bool(np, "wacom,support_cover_noti");
 	pdata->support_set_display_mode = of_property_read_bool(np, "wacom,support_set_display_mode");
 	of_property_read_u32(np, "wacom,support_sensor_hall", &pdata->support_sensor_hall);
+	pdata->enable_sysinput_enabled = of_property_read_bool(np, "enable_sysinput_enabled");
+
+	input_info(true, &client->dev, "%s: Sysinput enabled %s\n",
+				__func__, pdata->enable_sysinput_enabled ? "ON" : "OFF");
 
 	input_info(true, &client->dev,
 			"boot_addr: 0x%X, origin: (%d,%d), max_coords: (%d,%d), "
@@ -3049,6 +3103,10 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	wac_i2c->client = client;
 	wac_i2c->pdata = pdata;
 	wac_i2c->irq = gpio_to_irq(pdata->irq_gpio);
+#ifdef USE_RESET_IRQ
+	if (gpio_is_valid(pdata->esd_detect_gpio))
+		wac_i2c->irq_esd_detect = gpio_to_irq(pdata->esd_detect_gpio);
+#endif
 	wac_i2c->fw_img = NULL;
 	wac_i2c->fw_update_way = FW_NONE;
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
@@ -3075,6 +3133,15 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	complete_all(&wac_i2c->i2c_done);
 	init_completion(&wac_i2c->resume_done);
 	complete_all(&wac_i2c->resume_done);
+
+	/*Initializing for semaphor */
+	mutex_init(&wac_i2c->i2c_mutex);
+	mutex_init(&wac_i2c->lock);
+	mutex_init(&wac_i2c->update_lock);
+	mutex_init(&wac_i2c->irq_lock);
+	mutex_init(&wac_i2c->mode_lock);
+	mutex_init(&wac_i2c->ble_lock);
+	mutex_init(&wac_i2c->ble_charge_mode_lock);
 
 	/* Power on */
 	if (gpio_get_value(pdata->fwe_gpio) == 1) {
@@ -3133,15 +3200,6 @@ static int wacom_i2c_probe(struct i2c_client *client,
 		}
 	}
 
-	/*Initializing for semaphor */
-	mutex_init(&wac_i2c->i2c_mutex);
-	mutex_init(&wac_i2c->lock);
-	mutex_init(&wac_i2c->update_lock);
-	mutex_init(&wac_i2c->irq_lock);
-	mutex_init(&wac_i2c->mode_lock);
-	mutex_init(&wac_i2c->ble_lock);
-	mutex_init(&wac_i2c->ble_charge_mode_lock);
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
 	// 4.19 R 
 	wakeup_source_init(wac_i2c->wacom_fw_ws, "wacom");
@@ -3198,6 +3256,14 @@ static int wacom_i2c_probe(struct i2c_client *client,
 		input_err(true, &client->dev, "failed to request irq(%d) - %d\n", wac_i2c->irq, ret);
 		goto err_request_irq;
 	}
+#ifdef USE_RESET_IRQ
+	if (gpio_is_valid(pdata->esd_detect_gpio)) {
+		ret = devm_request_threaded_irq(&client->dev, wac_i2c->irq_esd_detect, NULL, wacom_esd_detect_interrupt,
+				IRQF_ONESHOT | IRQF_TRIGGER_LOW, "sec_epen_esd_detectirq", wac_i2c);
+		if (ret < 0)
+			input_err(true, &client->dev, "failed to request esd_detect_irq(%d) - %d\n", wac_i2c->irq_esd_detect, ret);
+	}
+#endif
 	input_info(true, &client->dev, "init irq %d\n", wac_i2c->irq);
 
 	ret = wacom_sec_init(wac_i2c);
@@ -3246,6 +3312,10 @@ static int wacom_i2c_probe(struct i2c_client *client,
 #ifdef SUPPORT_STANDBY_MODE
 	// wacom ic default mode : WACOM_LOW_SCAN_RATE
 	wac_i2c->standby_state = WACOM_LOW_SCAN_RATE;
+#endif
+
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+	hall_ic_request_notitfy();
 #endif
 
 	return 0;

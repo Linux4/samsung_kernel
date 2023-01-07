@@ -14446,7 +14446,7 @@ dhd_bus_force_bt_quiesce_enabled(struct dhd_bus *bus)
 uint8
 dhd_d11_slices_num_get(dhd_pub_t *dhdp)
 {
-	return si_scan_core_present(dhdp->bus->sih) ?
+	return (dhdp->bus->sih && si_scan_core_present(dhdp->bus->sih)) ?
 		MAX_NUM_D11_CORES_WITH_SCAN : MAX_NUM_D11CORES;
 }
 

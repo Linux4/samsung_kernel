@@ -368,20 +368,6 @@ enum stm_ts_nvm_data_type {		/* Write Command */
 	STM_TS_NVM_OFFSET_CAL_FAIL_COUNT,
 };
 
-enum {
-	LCD_EARLY_EVENT = 0,
-	LCD_LATE_EVENT
-};
-
-enum {
-	SERVICE_SHUTDOWN = -1,
-	LCD_NONE = 0,
-	LCD_OFF,
-	LCD_ON,
-	LCD_DOZE1,
-	LCD_DOZE2
-};
-
 struct stm_ts_nvm_data_map {
 	int type;
 	int offset;
@@ -453,6 +439,9 @@ struct stm_ts_data {
 	u8 touch_opmode;
 	u8 charger_mode;
 	u8 scan_mode;
+	u8 game_mode;
+	u8 sip_mode;
+	u8 note_mode;
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	atomic_t secure_enabled;
@@ -645,6 +634,9 @@ int stm_ts_get_channel_info(struct stm_ts_data *ts);
 int stm_ts_set_opmode(struct stm_ts_data *ts, u8 mode);
 int stm_ts_set_touch_function(struct stm_ts_data *ts);
 void stm_ts_get_touch_function(struct work_struct *work);
+int stm_ts_sip_mode_enable(struct stm_ts_data *ts);
+int stm_ts_game_mode_enable(struct stm_ts_data *ts);
+int stm_ts_note_mode_enable(struct stm_ts_data *ts);
 
 //cmd
 void stm_ts_fn_remove(struct stm_ts_data *ts);

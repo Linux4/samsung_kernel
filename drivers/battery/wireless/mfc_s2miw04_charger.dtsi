@@ -78,7 +78,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/wireless/mfc_s2miw04_charger_gki/mfc_s2miw04_charger.q2q.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1788/android/kernel/kmodule/battery/wireless/mfc_s2miw04_charger_gki/mfc_s2miw04_charger.q2q.dtsi */
 &wpc_pdrc_default {
 	power-source = <1>; /* need to set default MV gpio to LV */
 };

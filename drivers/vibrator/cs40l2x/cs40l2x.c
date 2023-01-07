@@ -153,6 +153,25 @@ static int set_current_dig_scale(struct cs40l2x_private *cs40l2x)
 	return 0;
 }
 
+static int cs40l2x_index_mapping(int sep_index)
+{
+	int cirrus_index = 0;
+
+	switch (sep_index) {
+	case 0:
+	case 100:
+		break;
+	case 119 ... 124:
+		cirrus_index = sep_index + 16;
+		break;
+	default:
+		cirrus_index = sep_index + 9;
+		break;
+	}
+
+	return cirrus_index;
+}
+
 static bool is_short_duration_index(unsigned int trigger_idx)
 {
 	switch (trigger_idx) {
@@ -1510,6 +1529,12 @@ static ssize_t cs40l2x_set_cp_trigger_index(struct device *dev, const char *buf)
 		return -EINVAL;
 
 #ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
+	if (index >= CS40L2X_INDEX_CLICK_MIN && index <= CS40L2X_INDEX_CLICK_MAX) {
+		if (cs40l2x->use_sep_index) {
+			pr_info("%s SEP index:%u\n", __func__, index);
+			index = cs40l2x_index_mapping(index);
+		}
+	}
 	pr_info("%s index:%u (num_waves:%u)\n", __func__, index, cs40l2x->num_waves);
 #endif
 
@@ -1774,6 +1799,12 @@ static ssize_t cs40l2x_set_cp_trigger_queue(struct device *dev, const char *buf)
 			if (ret) {
 				ret = -EINVAL;
 				goto err_mutex;
+			}
+
+			if (cs40l2x->use_sep_index) {
+				dev_info(cs40l2x->dev,
+					"SEP index: %d\n", val);
+				val = cs40l2x_index_mapping(val);
 			}
 			if (val == 0) {
 				pbq_temp = strnchr(pbq_seg, 20, '.');
@@ -6234,6 +6265,23 @@ static int cs40l2x_get_motor_type(struct device *dev, char *buf)
 	pr_info("%s: %s\n", __func__, sec_motor_type);
 
 	return ret;
+}
+
+static int cs40l2x_set_use_sep_index(struct device *dev, bool use_sep_index)
+{
+	struct cs40l2x_private *cs40l2x = cs40l2x_get_private(dev);
+
+	dev_info(cs40l2x->dev, "%s +\n", __func__);
+
+	mutex_lock(&cs40l2x->lock);
+
+	cs40l2x->use_sep_index = use_sep_index;
+
+	mutex_unlock(&cs40l2x->lock);
+
+	dev_info(cs40l2x->dev, "%s -\n", __func__);
+
+	return 0;
 }
 
 #if defined(CONFIG_CS40L2X_VIB_FOLD_MODEL)
@@ -12529,6 +12577,7 @@ static const struct sec_vibrator_ops cs40l2x_vib_ops = {
 	.set_intensity = cs40l2x_vib_set_intensity,
 	.get_num_waves = cs40l2x_get_num_waves,
 	.get_motor_type = cs40l2x_get_motor_type,
+	.set_use_sep_index = cs40l2x_set_use_sep_index,
 	.set_cp_trigger_index = cs40l2x_set_cp_trigger_index,
 	.get_cp_trigger_index = cs40l2x_get_cp_trigger_index,
 	.set_cp_trigger_queue = cs40l2x_set_cp_trigger_queue,

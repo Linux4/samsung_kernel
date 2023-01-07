@@ -25,7 +25,7 @@
 #include <linux/pm_wakeup.h>
 #include "../common/sec_charging_common.h"
 
-#define MFC_FW_BIN_VERSION		0x1028
+#define MFC_FW_BIN_VERSION		0x102C
 #define MFC_FW_VER_BIN_LSI		0xBFC
 #define MTP_MAX_PROGRAM_SIZE 0x4000
 #define MTP_VERIFY_ADDR			0x0000
@@ -889,9 +889,11 @@ struct mfc_charger_data {
 	const struct firmware *firm_data_bin;
 
 	int wc_w_state;
+	u8 pdrc_state; /* ACTIVE LOW */
 
 	struct power_supply *psy_chg;
 	struct wakeup_source *wpc_ws;
+	struct wakeup_source *wpc_det_ws;
 	struct wakeup_source *wpc_tx_ws;
 	struct wakeup_source *wpc_rx_ws;
 	struct wakeup_source *wpc_update_ws;
@@ -988,7 +990,7 @@ struct mfc_charger_data {
 	int req_afc_delay;
 
 	bool sleep_mode;
-	wait_queue_head_t suspend_wait;
+	bool skip_phm_work_in_sleep;
 
 #if defined(CONFIG_WIRELESS_IC_PARAM)
 	unsigned int wireless_param_info;
