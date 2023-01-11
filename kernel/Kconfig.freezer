@@ -1,0 +1,8 @@
+config FREEZER
+	def_bool PM_SLEEP || CGROUP_FREEZER
+
+config ARM64_THREADINFO_SLABCACHE
+	def_bool y
+
+config THREADINFO_MEMPOOL
+	def_bool y

@@ -1,0 +1,13 @@
+Mrvell MMP EDGE WAKEUP
+
+Required properties:
+- compatible : Should be "mrvl,mmp-edge-wakeup"
+- reg : Address and length of the register set which checks edge wakeup
+  status.
+- interrupts : Should be the edge wakeup interrupt
+
+edgewakeup: edgewakeup@d4019800 {
+		compatible = "mrvl,mmp-edge-wakeup";
+		reg = <0xd4019800 0x10>;
+		interrupts = <0 50 0x4>;
+		};

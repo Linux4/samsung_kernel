@@ -1,0 +1,33 @@
+* Marvell 2D Graphics Accelerator
+
+Required properties:
+- compatible : should be "mrvl, xxx" for SoCs:
+- reg: should be register base and length as documented in the
+  SoC reference manual
+- interrupts : Should contain the VPU interrupt. For CODA960,
+  a second interrupt is needed for the MJPEG unit.
+- clocks : Should contain the ahb and per clocks, in the order
+  determined by the clock-names property.
+- clock-names : Should be "ahb", "per"
+- iram : phandle pointing to the SRAM device node
+- marvell,[core]-clk-freq-combine : core in [] can be 3d, sh, 2d;
+  present diffent cores' frequency table node.
+
+Example:
+gpu: gpu@C0400000 {
+	compatible = "marvell,gpu";
+	reg = <0xC0400000 0x1000>;
+	interrupts = <0 8 0x4>;
+    marvell,3d-clk-freq-combine =
+          <156000 156000>,
+          <312000 208000>,
+          <416000 312000>,
+          <624000 416000>,
+          <705000 416000>;
+	status = "disabled";
+};
+
+gpu2d {
+	compatible = "marvell,gpu2d";
+	status = "disabled";
+};

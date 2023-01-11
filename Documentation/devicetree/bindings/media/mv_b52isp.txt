@@ -1,0 +1,39 @@
+ISP: Converts raw Bayer pixels from external CMOS sensors to either
+RGB or YUV pixel format. The ISP has 2 image pipelines to support
+2 independent raw sensors.
+
+b52isp node
+------------
+Required properties:
+- compatible	: should be "ovt,double-pipeline ISP";
+- reg		: physical base address and length of the registers set;
+- interrupts	: must contain CCIC interrupts;
+- clocks	: list of clock specifiers, corresponding to entries in
+		  clock-names property;
+- clock-names	: must contain "SC2AXICLK", "ISPCORECLK", "ISPPIPECLK"
+				entries, matching entries in the clocks property.
+- marvell, power-domain: the power domain
+
+Example:
+b52isp: b52isp@0xF0B00000 {
+	compatible = "ovt,double-pipeline ISP";
+	reg = <0xF0B00000 0xFFFFF>;
+	interrupts = <0 92 0x4>;
+	clocks = <&soc_clocks PXA1928_CLK_SC2_AXI_MIX_CLK>,
+		   <&soc_clocks PXA1928_CLK_ISP_CORE_MIX_CLK>,
+		   <&soc_clocks PXA1928_CLK_ISP_PIPE_MIX_CLK>;
+	clock-names = "SC2AXICLK", "ISPCORECLK", "ISPPIPECLK";
+	marvell,power-domain = <&pd_sc2>;
+};
+
+plat_cam node
+------------
+Required properties:
+- compatible	: should be "marvell,platform-cam";
+
+b52isp_sc2_csi and b52isp_sc2_dma node
+------------
+Required properties:
+- compatible	: should be "marvell,ccicv2"; used for sc2 csi and dma.
+- cciv2_type	: 0 means csi, 1 means dma;
+- interrupts	: must contain CCIC interrupts;

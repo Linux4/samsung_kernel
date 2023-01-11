@@ -1,0 +1,373 @@
+/* Marvell ISP OV2680 Driver
+ *
+ * Copyright (C) 2009-2014 Marvell International Ltd.
+ *
+ * Based on mt9v011 -Micron 1/4-Inch VGA Digital Image OV2680
+ *
+ * Copyright (c) 2009 Mauro Carvalho Chehab (mchehab@redhat.com)
+ * This code is placed under the terms of the GNU General Public License v2
+ */
+
+#ifndef	B52_OV2680_H
+#define	B52_OV2680_H
+
+#include <media/b52-sensor.h>
+#include <media/b52_api.h>
+struct regval_tab ov2680_res_init[] = {
+	{0x0103, 0x01},
+	{SENSOR_MDELAY, SENSOR_MDELAY, 5},
+	{0x3002, 0x00},
+	{0x3016, 0x1c},
+	{0x3018, 0x44},
+	{0x3020, 0x00},
+	{0x3080, 0x02},
+	{0x3082, 0x33},/* MCLK =26 MHZ, SYS_CLCK = 66.3 MHZ */
+	{0x3084, 0x09},
+	{0x3085, 0x04},
+	{0x3086, 0x01},/*MIPI data rate 330Mbp*/
+	{0x3501, 0x26},
+	{0x3502, 0x40},
+	{0x3503, 0x03},
+	{0x350b, 0x36},
+	{0x3600, 0xb4},
+	{0x3603, 0x35},
+	{0x3604, 0x24},
+	{0x3605, 0x00},
+	{0x3620, 0x26},
+	{0x3621, 0x37},
+	{0x3622, 0x04},
+	{0x3628, 0x00},
+	{0x3701, 0x64},
+	{0x3705, 0x3c},
+	{0x370c, 0x50},
+	{0x370d, 0xc0},
+	{0x3718, 0x88},
+	{0x3720, 0x00},
+	{0x3721, 0x00},
+	{0x3722, 0x00},
+	{0x3723, 0x00},
+	{0x3738, 0x00},
+	{0x370a, 0x23},
+	{0x3717, 0x58},
+	{0x3781, 0x80},
+	{0x3784, 0x0c},
+	{0x3789, 0x60},
+	{0x3800, 0x00},
+	{0x3801, 0x00},
+	{0x3802, 0x00},
+	{0x3803, 0x00},
+	{0x3804, 0x06},
+	{0x3805, 0x4f},
+	{0x3806, 0x04},
+	{0x3807, 0xbf},
+	{0x3808, 0x03},
+	{0x3809, 0x20},
+	{0x380a, 0x02},
+	{0x380b, 0x58},
+	{0x380c, 0x06},
+	{0x380d, 0xa4},
+	{0x380e, 0x05},
+	{0x380f, 0x0e},
+	{0x3810, 0x00},
+	{0x3811, 0x04},
+	{0x3812, 0x00},
+	{0x3813, 0x04},
+	{0x3814, 0x31},
+	{0x3815, 0x31},
+	{0x3819, 0x04},
+	{0x3820, 0xc2},
+	{0x3821, 0x01},
+	{0x4000, 0x81},
+	{0x4001, 0x40},
+	{0x4008, 0x00},
+	{0x4009, 0x03},
+	{0x4602, 0x02},
+	{0x481f, 0x36},
+	{0x4825, 0x36},
+	{0x4837, 0x30},
+	{0x5002, 0x30},
+	{0x5080, 0x00},
+	{0x5081, 0x41},
+/* MCLK =26 MHZ, sysclk = 66Mhz, MIPI data rate 660Mbp 1600x1200 30fps */
+	{0x3086, 0x00},/*MIPI data rate 660Mbp*/
+	{0x3501, 0x4e},
+	{0x3502, 0xe0},
+	{0x3620, 0x24},
+	{0x3621, 0x34},
+	{0x3622, 0x03},
+	{0x370a, 0x21},
+	{0x370d, 0xc0},
+	{0x3718, 0x80},
+	{0x3721, 0x09},
+	{0x3722, 0x06},
+	{0x3723, 0x59},
+	{0x3738, 0x99},
+	{0x3803, 0x00},
+	{0x3807, 0xbf},
+	{0x3808, 0x06},
+	{0x3809, 0x40},
+	{0x380a, 0x04},
+	{0x380b, 0xb0},
+	{0x380c, 0x06},
+	{0x380d, 0xa4},
+	{0x380e, 0x05},
+	{0x380f, 0x0e},
+	{0x3811, 0x08},
+	{0x3813, 0x08},
+	{0x3814, 0x11},
+	{0x3815, 0x11},
+	{0x3820, 0xc0},
+	{0x3821, 0x00},
+	{0x4008, 0x02},
+	{0x4009, 0x09},
+	{0x4837, 0x18},
+};
+
+struct regval_tab ov2680_fmt_raw8[] = {
+};
+
+struct regval_tab ov2680_res_800X600[] = {
+	 /* sysclk = 33Mhz, MIPI data rate 330Mbps, 800x600 30fps */
+	{0x3086, 0x01},
+	{0x3501, 0x26},
+	{0x3502, 0x40},
+	{0x3620, 0x26},
+	{0x3621, 0x37},
+	{0x3622, 0x04},
+	{0x370a, 0x23},
+	{0x370d, 0xc0},
+	{0x3718, 0x88},
+	{0x3721, 0x00},
+	{0x3722, 0x00},
+	{0x3723, 0x00},
+	{0x3738, 0x00},
+	{0x3803, 0x00},
+	{0x3807, 0xbf},
+	{0x3808, 0x03},
+	{0x3809, 0x20},
+	{0x380a, 0x02},
+	{0x380b, 0x58},
+	{0x380c, 0x06},
+	{0x380d, 0xa4},
+	{0x380e, 0x02},
+	{0x380f, 0x84},
+	{0x3811, 0x04},
+	{0x3813, 0x04},
+	{0x3814, 0x31},
+	{0x3815, 0x31},
+	{0x3820, 0xc2},
+	{0x3821, 0x01},
+	{0x4008, 0x00},
+	{0x4009, 0x03},
+	{0x4837, 0x30},
+
+};
+struct regval_tab ov2680_res_1600X1200[] = {
+/* sysclk = 66Mhz, MIPI data rate 330Mbp 1600x1200 30fps */
+	{0x3086, 0x00},
+	{0x3501, 0x4e},
+	{0x3502, 0xe0},
+	{0x3620, 0x24},
+	{0x3621, 0x34},
+	{0x3622, 0x03},
+	{0x370a, 0x21},
+	{0x370d, 0xc0},
+	{0x3718, 0x80},
+	{0x3721, 0x09},
+	{0x3722, 0x06},
+	{0x3723, 0x59},
+	{0x3738, 0x99},
+	{0x3803, 0x00},
+	{0x3807, 0xbf},
+	{0x3808, 0x06},
+	{0x3809, 0x40},
+	{0x380a, 0x04},
+	{0x380b, 0xb0},
+	{0x380c, 0x06},
+	{0x380d, 0xa4},
+	{0x380e, 0x05},
+	{0x380f, 0x0e},
+	{0x3811, 0x08},
+	{0x3813, 0x08},
+	{0x3814, 0x11},
+	{0x3815, 0x11},
+	{0x3820, 0xc0},
+	{0x3821, 0x00},
+	{0x4008, 0x02},
+	{0x4009, 0x09},
+	{0x4837, 0x18},
+
+};
+
+struct regval_tab ov2680_id[] = {
+	{0x300a, 0x26, 0xff},
+	{0x300b, 0x80, 0xff},
+};
+struct regval_tab ov2680_vts[] = {
+	{0x380e, 0x05, 0xff},
+	{0x380f, 0x0e, 0xff},
+};
+struct regval_tab ov2680_expo[] = {
+	{0x3500, 0x00, 0x0f},
+	{0x3501, 0x00, 0xff},
+	{0x3502, 0x00, 0xf0},
+};
+struct regval_tab ov2680_ag[] = {
+	{0x350a, 0x00, 0xff},
+	{0x350b, 0x10, 0xff},
+};
+struct regval_tab ov2680_af[] = {
+};
+
+struct regval_tab ov2680_stream_on[] = {
+	{0x0100, 0x01, 0xff},
+};
+struct regval_tab ov2680_stream_off[] = {
+	{0x0100, 0x00, 0xff},
+};
+
+struct regval_tab ov2680_vflip[] = {
+	{0x3820, 0x04, 0x04},
+};
+struct regval_tab ov2680_hflip[] = {
+	{0x3821, 0x04, 0x04},
+};
+
+struct b52_sensor_i2c_attr ov2680_i2c_attr[] = {
+	[0] = {
+		.reg_len = I2C_16BIT,
+		.val_len = I2C_8BIT,
+		.addr = 0x36,
+	},
+};
+#define N_OV2680_I2C_ATTR ARRAY_SIZE(ov2680_i2c_attr)
+#define N_OV2680_INIT ARRAY_SIZE(ov2680_res_init)
+#define N_OV2680_ID ARRAY_SIZE(ov2680_id)
+#define N_OV2680_FMT_RAW8 ARRAY_SIZE(ov2680_fmt_raw8)
+#define N_OV2680_5M ARRAY_SIZE(ov2680_res_1600X1200)
+#define N_OV2680_QUARTER_5M ARRAY_SIZE(ov2680_res_800X600)
+#define N_OV2680_VTS ARRAY_SIZE(ov2680_vts)
+#define N_OV2680_EXPO ARRAY_SIZE(ov2680_expo)
+#define N_OV2680_AG ARRAY_SIZE(ov2680_ag)
+#define N_OV2680_AF ARRAY_SIZE(ov2680_af)
+#define N_OV2680_STREAM_ON ARRAY_SIZE(ov2680_stream_on)
+#define N_OV2680_STREAM_OFF ARRAY_SIZE(ov2680_stream_off)
+#define N_OV2680_HFLIP ARRAY_SIZE(ov2680_hflip)
+#define N_OV2680_VFLIP ARRAY_SIZE(ov2680_vflip)
+
+struct b52_sensor_mbus_fmt ov2680_fmt = {
+	.mbus_code	= V4L2_MBUS_FMT_SBGGR10_1X10,
+	.colorspace	= V4L2_COLORSPACE_SRGB,
+	.regs = {
+		.tab = ov2680_fmt_raw8,
+		.num = N_OV2680_FMT_RAW8,
+	}
+};
+struct b52_sensor_resolution ov2680_res[] = {
+	[0] = {
+		 .width = 1600,
+		 .height = 1200,
+		 .hts = 0x06a4,
+		 .min_vts = 0x050e,
+		 .prop = SENSOR_RES_BINING1,
+		 .regs = {
+			.tab = ov2680_res_1600X1200,
+			.num = N_OV2680_5M,
+		},
+	},
+	[1] = {
+		 .width = 800,
+		 .height = 600,
+		 .hts = 0x06a4,
+		 .min_vts = 0x050e,
+		 .prop = SENSOR_RES_BINING2,
+		 .regs = {
+			.tab = ov2680_res_800X600,
+			.num = N_OV2680_QUARTER_5M,
+		},
+	},
+};
+
+static int OV2680_get_pixelclock(struct v4l2_subdev *sd, u32 *rate, u32 mclk);
+static int OV2680_get_dphy_desc(struct v4l2_subdev *sd, struct csi_dphy_desc *dphy_desc, u32 mclk);
+
+struct b52_sensor_spec_ops ov2680_ops = {
+	.get_pixel_rate = OV2680_get_pixelclock,
+	.get_dphy_desc = OV2680_get_dphy_desc,
+};
+struct b52_sensor_data b52_ov2680 = {
+	.name = "ovt.ov2680",
+	.type = OVT_SENSOR,
+	.i2c_attr = ov2680_i2c_attr,
+	.num_i2c_attr = N_OV2680_I2C_ATTR,
+	.id = {
+		.tab = ov2680_id,
+		.num = N_OV2680_ID,
+	},
+	.global_setting = {
+		.tab = ov2680_res_init,
+		.num = N_OV2680_INIT,
+	},
+	.mbus_fmt = &ov2680_fmt,
+	.num_mbus_fmt = 1,
+	.res = ov2680_res,
+	.num_res = 2,
+	.streamon = {
+		.tab = ov2680_stream_on,
+		.num = N_OV2680_STREAM_ON,
+	},
+	.streamoff = {
+		.tab = ov2680_stream_off,
+		.num = N_OV2680_STREAM_OFF,
+	},
+	.gain2iso_ratio = {
+		.numerator = 100,
+		.denominator = 0x10,
+	},
+	.vts_range = {0x050e, 0x7fff},
+	.gain_range = {
+		[B52_SENSOR_AG] = {0x0010, 0x00f8},
+		[B52_SENSOR_DG] = {0x0010, 0x0010},
+	},
+	.expo_range = {0x0010, 0x050e},
+	.focus_range = {0x0000, 0x0000},
+	.vts_reg = {
+		.tab = ov2680_vts,
+		.num = N_OV2680_VTS,
+	},
+	.expo_reg = {
+		.tab = ov2680_expo,
+		.num = N_OV2680_EXPO,
+	},
+	.gain_reg = {
+		[B52_SENSOR_AG] = {
+			.tab = ov2680_ag,
+			.num = N_OV2680_AG,
+		},
+		[B52_SENSOR_DG] = {
+			.tab = NULL,
+			.num = 0,
+		},
+	},
+	.af_reg = {
+		.tab = ov2680_af,
+		.num = N_OV2680_AF,
+	},
+	.hflip = {
+		.tab = ov2680_hflip,
+		.num = N_OV2680_HFLIP,
+	},
+	.vflip = {
+		.tab = ov2680_vflip,
+		.num = N_OV2680_VFLIP,
+	},
+	.flip_change_phase = 0,
+	.gain_shift = 0x00,
+	.expo_shift = 0x08,
+	.nr_lane = 1,
+	.mipi_clk_bps = 660000000,
+	.ops = &ov2680_ops,
+};
+
+#endif
+

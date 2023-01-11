@@ -1,0 +1,28 @@
+Binding for div type clock
+
+The div clock is defined as common clock.
+
+
+Required properties
+- compatible : It should be "marvell,mmp-clk-div".
+- clocks : The parents of the clock.
+- marvell,mmp-clk-bits-div : The width and shift of divider bits.
+
+Optional properties:
+- marvell,mmp-clk-div-power-of-two : The value of divider is a power of two.
+- marvell,mmp-clk-div-one-based : The value of divider starts from 1.
+- marvell,mmp-clk-div-table : The value of divider is not continous, and need
+                              a table to record it.
+
+
+Examples
+apmu_clk {
+	compatible = "marvell,mmp-clk-master";
+	reg = <0xd4282800 0x1000>;
+	dsi_phy_slow_div: dsi_phy_slow_div {
+		compatible = "marvell,mmp-clk-div";
+		marvell,reg-offset = <0 0x44>;
+		clocks = <&vctcxo>;
+		marvell,mmp-clk-bits-div = <5 6>;
+	};
+};

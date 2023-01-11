@@ -1,0 +1,118 @@
+if ARCH_MMP
+
+menu "Marvell PXA19x8 Implementations"
+
+config MACH_PXA1908DKB
+	bool "Marvell's PXA1908 DKB"
+	help
+	  Say 'Y' here if you want to support the Marvell PXA1908-based
+	  DKB Board.
+
+config MACH_PXA1936DKB
+	bool "Marvell's PXA1936 DKB"
+	help
+	  Say 'Y' here if you want to support the Marvell PXA1936-based
+	  DKB Board.
+
+config MACH_J7MLTE
+	bool "Samsung's PXA1936 J7 LTE Development Board"
+	help
+	  Say 'Y' here if you want to support the Samsung PXA1936-based
+	  J7 LTE Development Board.
+
+config MACH_XCOVER3LTE
+	bool "Samsung's PXA1908 XCOVER3 LTE Development Board"
+	help
+	  Say 'Y' here if you want to support the Samsung PXA1908-based
+	  XCOVER3LTE Development Board.
+
+config MACH_COREPRIMEVELTE
+    bool "Samsung's PXA1908 CORE PRIME VE LTE Development Board"
+    help
+      Say 'Y' here if you want to support the Samsung PXA1908-based
+      CORE PRIME VE LTE Development Board.
+
+config MACH_COREPRIMEVELTE_LTN
+    bool "Samsung's PXA1908 CORE PRIME VE LTE LTN Development Board"
+    depends on MACH_COREPRIMEVELTE
+    default n
+    help
+      Say 'Y' here if you want to support the Samsung PXA1908-based
+      CORE PRIME VE LTE LTN Development Board
+      which has no nfc function.
+
+config MACH_GRANDPRIMEVELTE
+    bool "Samsung's PXA1908 GRAND PRIME VE LTE Development Board"
+    help
+      Say 'Y' here if you want to support the Samsung PXA1908-based
+      GRAND PRIME VE LTE Development Board.
+
+config MACH_GRANDPRIMEVELTE_LTN
+    bool "Samsung's PXA1908 GRAND PRIME VE LTE LTN Development Board"
+    depends on MACH_GRANDPRIMEVELTE
+    default n
+    help
+      Say 'Y' here if you want to support the Samsung PXA1908-based
+      GRAND PRIME VE LTE LTN Development Board
+      which has no nfc function.
+
+config MACH_J1ACELTE_LTN
+    bool "Samsung's PXA1908 J1 ACE LTE LTN Development Board"
+    help
+      Say 'Y' here if you want to support the Samsung PXA1908-based
+      J1 ACE LTE LTN Development Board.
+
+config MACH_J7M3G
+    bool "Samsung's PXA1936 J7 3G Development Board"
+    help
+      Say 'Y' here if you want to support the Samsung PXA1936-based
+      J7 3G Development Board.
+
+config SAMSUNG_PRODUCT_SHIP
+    bool "set up for product shipping"
+    default n
+
+menuconfig SEC_TIMA
+	bool "Samsung TIMA Feature"
+	default n
+	help
+	  Samsung TIMA Feature.
+
+if SEC_TIMA
+config TIMA_LKMAUTH
+    bool "Enable LKM authentication TIMA feature"
+    default n
+    help
+      TIMA authenticates loaded kernel modules. Disable it if you don't
+      want TIMA enabled.
+
+config TIMA_PKM
+    bool "Enable PKM virtual address store TIMA feature"
+    default n
+    help
+      secure world cannot read physical address so storing virtual address
+
+config TIMA_LKMAUTH_CODE_PROT
+    bool
+    depends on TIMA_LKMAUTH
+    default y
+    help
+      When enabled, this feature will mark all Executable sections in an
+      LKM as RO
+
+config TIMA_UEVENT
+    bool "Uevent message propagation for TIMA"
+    default n
+    help
+      Uevent messages for TIMA PKM/LKM
+
+config TIMA_LOG
+    bool "Log dumping support for TIMA"
+    default n
+    help
+      TIMA Log dumping support
+endif
+
+endmenu
+
+endif

@@ -1,0 +1,17 @@
+#ifndef _DT_BINDINGS_VIDEO_GEN_PANEL_H
+#define _DT_BINDINGS_VIDEO_GEN_PANEL_H
+
+/* mmp generic panel */
+#define EXT_PIN_GPIO		0
+#define EXT_PIN_REGULATOR	1
+#define EXT_PIN_OFF		0
+#define EXT_PIN_ON		1
+#define EXT_PIN_LOCK		2
+
+#define ESD_POLLING	(0)
+#define ESD_RISING	(1 << 0)
+#define ESD_FALLING	(1 << 1)
+#define ESD_HIGH	(1 << 2)
+#define ESD_LOW		(1 << 3)
+
+#endif	/* _DT_BINDINGS_VIDEO_GEN_PANEL_H */

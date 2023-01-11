@@ -1,0 +1,16 @@
+* Maxscend CMMB module
+
+Required properties:
+- Compatibility : "maxscend,cmmb"
+
+Example:
+	spi1: spi@d4035000 {
+		cmmb_if {
+			compatible = "maxscend,cmmb";
+			bits_per_word = /bits/ 8 <8>;
+			reg = <0x0 0x0>;
+			bus_num = <1>;
+			mode = <0x0>;
+			spi-max-frequency = <8000000>;
+		};
+	};

@@ -1,0 +1,1017 @@
+/*
+ *  Copyright (C) 2013 Marvell Technology Group Ltd.
+ *  Author: Chao Xie <chao.xie@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+/memreserve/ 0x01210000 0x8;
+#include "pxa1928-pinfunc.h"
+#include "pxa1928-pm.h"
+#include "../../../../include/dt-bindings/clock/marvell-pxa1928.h"
+#include "../../../../include/dt-bindings/clock/marvell-audio-map.h"
+#include "../../../../include/dt-bindings/interrupt-controller/irq.h"
+#include "../../../../include/dt-bindings/usb/mv_usb.h"
+
+/ {
+	interrupt-parent = <&gic>;
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	cpus {
+		#address-cells = <2>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0 0>;
+			enable-method = "mcpm";
+			cpu-release-addr = <0x0 0x01210000>;
+		};
+		cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0 1>;
+			enable-method = "mcpm";
+			cpu-release-addr = <0x0 0x01210000>;
+		};
+		cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0 2>;
+			enable-method = "mcpm";
+			cpu-release-addr = <0x0 0x01210000>;
+		};
+		cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0 3>;
+			enable-method = "mcpm";
+			cpu-release-addr = <0x0 0x01210000>;
+		};
+	};
+
+    mcpm {
+		compatible      = "arm,mcpm";
+		method          = "smc";
+		cpu_off		= <0x85000001>;
+		cpu_on		= <0x85000002>;
+	};
+
+	gic: interrupt-controller@d1e02000 {
+		compatible = "arm,cortex-a7-gic";
+		interrupt-controller;
+		#interrupt-cells = <3>;
+		reg = <0xd1e01000 0x1000>,
+		      <0xd1e02000 0x1000>;
+	};
+
+	generic-timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <1 13 0xf04>,
+		             <1 14 0xf04>;
+		clock-frequency = <3250000>;
+	};
+
+	profile {
+		compatible = "marvell,profile";
+		marvell,profile-number = <0>;
+	};
+
+	ion: ion {
+		compatible = "marvell,pxa-ion";
+		#stream-id-cells = <1>;
+		status = "disabled";
+	};
+
+	pmu {
+		compatible = "arm,armv8-pmuv3";
+		interrupts = <0 110 4>,
+			     <0 111 4>,
+			     <0 112 4>,
+			     <0 113 4>;
+	};
+
+	pxa1928_apmu_ver {
+		version = "ax";
+	};
+
+	soc {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		bus_number = <1>;
+		ranges;
+
+		version {
+			ver = "ax";
+		};
+
+		reset {
+			compatible = "marvell,pxa-reset";
+			/* RTC Backup Registers 0 that store erasable data */
+			reg = <0xd4080000 0xc8>,
+			      <0xd4050000 0x1024>,
+			      <0xd4010014 0x4>;
+		};
+
+		devfreq-ddr {  /* DDR memory controller */
+			compatible = "marvell,devfreq-ddr";
+			reg = <0xd0000000 0xbb0>;
+			interrupts = <0 118 4>;
+			clocks = <&soc_clocks PXA1928_CLK_DDR>;
+			marvell,qos;
+		};
+
+		isram: sram@d1018000 {
+			compatible = "mmio-sram";
+			reg = <0xd1018000 0x8000>;	/* 32KB */
+		};
+
+		asram: sram@d1020000 {
+			compatible = "mmio-sram";
+			reg = <0xd1020000 0x10000>;	/* 64KB */
+		};
+
+		smmu {
+			compatible = "arm,mmu-400";
+			reg = <0xf0500000 0x10000>;
+			#global-interrupts = <1>;
+
+			/* we need a context intr
+			/* unless there is error
+			 */
+			interrupts = <0 34 4>,
+				     <0 34 4>;
+			pd_index = <1>;
+			mmu-masters = <&ion 0x0>;
+		};
+
+		axi@d4200000 {	/* AXI */
+			compatible = "arm,axi-bus", "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0xd4200000 0x00200000>;
+			ranges;
+
+			usbphy: usbphy@d4207000 {
+				compatible = "marvell,usb2-phy-28lp";
+				reg = <0xd4207000 0xe0>;
+				marvell,udc-name = "mv-udc";
+				marvell,ehci-name = "pxa-u2oehci";
+				marvell,otg-name = "mv-otg";
+				marvell,phy-name = "mv-usb-phy";
+				marvell,pll-lock-bypass;
+				clocks = <&soc_clocks PXA1928_CLK_USB>;
+				status = "disabled";
+			};
+
+			udc: udc@d4208100 {
+				compatible = "marvell,mv-udc";
+				reg = <0xd4208100 0x200>;
+				interrupts = <0 67 0x4>;
+				marvell,udc-name = "mv-udc";
+				marvell,udc-mode = <MV_USB_MODE_OTG>;
+				marvell,extern-attr = <MV_USB_HAS_VBUS_IDPIN_DETECTION>;
+				marvell,otg-force-a-bus-req;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1928_CLK_USB>;
+				status = "disabled";
+			};
+
+			ehci: ehci@d4208100 {
+				compatible = "marvell,pxa-u2oehci";
+				reg = <0xd4208100 0x200>;
+				interrupts = <0 67 0x4>;
+				marvell,ehci-name = "pxa-u2oehci";
+				marvell,udc-mode = <MV_USB_MODE_OTG>;
+				marvell,extern-attr = <MV_USB_HAS_VBUS_IDPIN_DETECTION>;
+				marvell,otg-force-a-bus-req;
+				clocks = <&soc_clocks PXA1928_CLK_USB>;
+				status = "disabled";
+			};
+
+			otg: otg@d4208100 {
+				compatible = "marvell,mv-otg";
+				reg = <0xd4208100 0x200>;
+				interrupts = <0 67 0x4>;
+				marvell,udc-name = "mv-udc";
+				marvell,ehci-name = "pxa-u2oehci";
+				marvell,otg-name = "mv-otg";
+				marvell,udc-mode = <MV_USB_MODE_OTG>;
+				marvell,extern-attr = <MV_USB_HAS_VBUS_IDPIN_DETECTION>;
+				marvell,otg-force-a-bus-req;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1928_CLK_USB>;
+				status = "disabled";
+			};
+
+			intc: interrupt-controller@d4284000 {
+				compatible = "marvell,pxa1928-intc";
+				interrupt-controller;
+				#interrupt-cells = <1>;
+				reg = <0xd4284000 0x1000>;
+				mrvl,intc-nr-irqs = <64>;
+				status = "disabled";
+			};
+
+			gpu: gpu@d420d000 {
+				compatible = "marvell,gpu";
+				reg = <0xd420d000 0x1000>;
+				interrupts = <0 81 0x4>;
+				status = "disabled";
+			};
+
+			gpu2d: gpu2d@d420f000 {
+				compatible = "marvell,gpu2d";
+				reg = <0xd420f000 0x1000>;
+				interrupts = <0 82 0x4>;
+				status = "disabled";
+			};
+
+			pd_sc2: pd_sc2@d4282800 {
+				compatible = "marvell,power-domain-sc2";
+				reg = <0xd4282800 0x1000>;
+			};
+
+			sc2mmu1: sc2mmu@d4209000 {
+				compatible = "marvell,mmp-sc2mmu";
+				reg = <0xd4209000 0x84c>;
+				reg-names = "mmu-regs";
+				interrupts = <0 91 0x4>;
+				status = "disable";
+			};
+
+			ccic1: ccic@d420a000 {
+				compatible = "marvell,mmp-sc2ccic", "marvell,mmp-ccic";
+				reg = <0xd420a000 0x31c>;
+				reg-names = "ccic-regs";
+				dma-burst = <64>;
+				interrupts = <0 120 0x4>;
+				clocks = <&soc_clocks PXA1928_CLK_SC2_MCLK1_CLK>,
+					   <&soc_clocks PXA1928_CLK_SC2_DPHY4LN_CLK>,
+					   <&soc_clocks PXA1928_CLK_SC2_CSI_GATE_CLK>,
+					   <&soc_clocks PXA1928_CLK_SC2_4X_GATE_CLK>,
+					   <&soc_clocks PXA1928_CLK_SC2_AXI_GATE_CLK>;
+				clock-names = "SC2MCLK", "SC2DPHYCLK", "SC2CSICLK",
+							"SC24XCLK", "SC2AXICLK";
+				status = "disable";
+			};
+
+			ccic2: ccic@d420a800 {
+				compatible = "marvell,mmp-sc2ccic", "marvell,mmp-ccic";
+				reg = <0xd420a800 0x31c>;
+				reg-names = "ccic-regs";
+				dma-burst = <64>;
+				interrupts = <0 119 0x4>;
+				clocks = <&soc_clocks PXA1928_CLK_SC2_MCLK2_CLK>,
+					   <&soc_clocks PXA1928_CLK_SC2_DPHY2LN_CLK>,
+					   <&soc_clocks PXA1928_CLK_SC2_CSI_GATE_CLK>,
+					   <&soc_clocks PXA1928_CLK_SC2_4X_GATE_CLK>,
+					   <&soc_clocks PXA1928_CLK_SC2_AXI_GATE_CLK>;
+				clock-names = "SC2MCLK", "SC2DPHYCLK", "SC2CSICLK",
+							"SC24XCLK", "SC2AXICLK";
+				status = "disable";
+			};
+
+			dsi: dsi@d420b800 {
+				compatible = "marvell,mmp-dsi";
+				reg = <0xd420b800 0x1ec>;
+				interrupts = <0 29 0x4>;
+				status = "disabled";
+			};
+
+			adma0: adma@c0ffd800 {
+				compatible = "marvell,adma-1.0";
+				reg = <0xC0FFD800 0x100>;
+				interrupts = <0 153 0x4>, <0 154 0x4>;
+				#dma-cells = <1>;
+				asram = <&asram>;
+				status = "disabled";
+			};
+
+			adma1: adma@c0ffd900 {
+				compatible = "marvell,adma-1.0";
+				reg = <0xC0FFD900 0x100>;
+				interrupts = <0 155 0x4>, <0 156 0x4>;
+				#dma-cells = <1>;
+				asram = <&asram>;
+				status = "disabled";
+			};
+
+			vdma: vdma@d427f000 {
+				compatible = "marvell,mmp-vdma";
+				reg = <0xd427f000 0x850>, <0xd420b000 0x3d0>;
+				status = "disabled";
+			};
+
+			apical: apical@d420b400 {
+				compatible = "marvell,mmp-apical";
+				reg = <0xd420b400 0x400>, <0xd420b000 0x3d0>;
+				status = "disabled";
+			};
+			disp: disp@d420b000 {
+				compatible = "marvell,mmp-disp";
+				reg = <0xd420b000 0x3d0>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
+				interrupts = <0 41 0x4>;
+				status = "disabled";
+			};
+
+			fb: fb {
+				bus_number = <2>;
+				compatible = "marvell,mmp-fb";
+				status = "disabled";
+			};
+
+			fb1: fb-overlay {
+				compatible = "marvell,mmp-fb-overlay";
+				status = "disabled";
+			};
+
+			/* emmc */
+			sdh2: sdh@d4217000 {
+				compatible = "marvell,pxav3-mmc-v3";
+				reg = <0xd4217000 0x120>;
+				interrupts = <0 73 0x4>;
+				clocks = <&soc_clocks PXA1928_CLK_SDH2>;
+				clock-names = "sdh-base-clk";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				status = "disabled";
+			};
+
+			/* sd card */
+			sdh0: sdh@d4280000 {
+				compatible = "marvell,pxav3-mmc-v3";
+				reg = <0xd4280000 0x120>;
+				interrupts = <0 69 0x4>;
+				clocks = <&soc_clocks PXA1928_CLK_SDH0>;
+				clock-names = "sdh-base-clk";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				status = "disabled";
+			};
+
+			/* sdio */
+			sdh1: sdh@d4280800 {
+				compatible = "marvell,pxav3-mmc-v3";
+				reg = <0xd4280800 0x120>;
+				interrupts = <0 71 0x4>;
+				clocks = <&soc_clocks PXA1928_CLK_SDH1>;
+				clock-names = "sdh-base-clk";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				status = "disabled";
+			};
+
+			devfreq-dec {
+				compatible = "marvell,devfreq-vpu";
+				marvell,vpu-id = <0>;
+				clocks = <&soc_clocks PXA1928_CLK_VPUDEC
+					  &soc_clocks PXA1928_CLK_VPUBUS>;
+				clock-names = "vpu-fclk", "vpu-bclk";
+				marvell,mmp-clk-freq-combine =
+						<104000 104000>,
+						<156000 156000>,
+						<208000 208000>,
+						<312000 312000>,
+						<416000 416000>;
+			};
+
+			devfreq-enc {
+				compatible = "marvell,devfreq-vpu";
+				marvell,vpu-id = <1>;
+				clocks = <&soc_clocks PXA1928_CLK_VPUENC
+					  &soc_clocks PXA1928_CLK_VPUBUS>;
+				clock-names = "vpu-fclk", "vpu-bclk";
+				marvell,mmp-clk-freq-combine =
+						<156000 156000>,
+						<208000 208000>,
+						<312000 312000>,
+						<416000 416000>,
+						<531555 416000>;
+			};
+		};
+
+		pd_vpu: pd_vpu@d4282800 {
+			compatible = "marvell,power-domain-hantro";
+			reg = <0xd4282800 0x1000>;
+		};
+
+		axi@f0400000 {
+			compatible = "arm,axi-bus", "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0xf0400000 0x07c00000>;
+			ranges;
+
+			b52isp: b52isp@0xF0B00000 {
+				compatible = "ovt,double-pipeline ISP";
+				reg = <0xF0B00000 0xFFFFF>;
+				interrupts = <0 92 0x4>;
+				clocks = <&soc_clocks PXA1928_CLK_SC2_AXI_GATE_CLK>,
+					   <&soc_clocks PXA1928_CLK_ISP_CORE_GATE_CLK>,
+					   <&soc_clocks PXA1928_CLK_ISP_PIPE_GATE_CLK>;
+				clock-names = "SC2AXICLK", "ISPCORECLK", "ISPPIPECLK";
+				marvell,power-domain = <&pd_sc2>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				status = "disabled";
+			};
+
+			dec@0xf0400000 {
+				compatible = "mrvl,mmp-hantro";
+				reg = <0xf0400000 0x00000800>;
+				interrupts = <0 26 0x4>;
+				marvell,power-domain = <&pd_smmu>;
+				clocks = <&soc_clocks PXA1928_CLK_VPUDEC
+					  &soc_clocks PXA1928_CLK_VPUBUS>;
+				clock-names = "vpu-fclk", "vpu-bclk";
+				status = "disabled";
+			};
+
+			pp@0xf0400000 {
+				compatible = "mrvl,mmp-hantro";
+				reg = <0xf0400000 0x00000800>;
+				interrupts = <0 26 0x4>;
+				marvell,power-domain = <&pd_smmu>;
+				clocks = <&soc_clocks PXA1928_CLK_VPUDEC
+					  &soc_clocks PXA1928_CLK_VPUBUS>;
+				clock-names = "vpu-fclk", "vpu-bclk";
+				status = "disabled";
+			};
+
+			enc@0xf0400800 {
+				compatible = "mrvl,mmp-hantro";
+				reg = <0xf0400800 0x003ff800>;
+				interrupts = <0 26 0x4>;
+				marvell,power-domain = <&pd_smmu>;
+				clocks = <&soc_clocks PXA1928_CLK_VPUENC
+					  &soc_clocks PXA1928_CLK_VPUBUS>;
+				clock-names = "vpu-fclk", "vpu-bclk";
+				status = "disabled";
+			};
+		};
+
+		apb@d4000000 {	/* APB */
+			compatible = "arm,apb-bus", "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0xd4000000 0x00200000>;
+			ranges;
+
+			pdma0: pdma@d4000000 {
+				compatible = "marvell,pdma-1.0";
+				reg = <0xd4000000 0x1000>;
+				interrupts = <0 135 0x4>, <0 136 0x4>, <0 137 0x4>, <0 138 0x4>,
+					     <0 139 0x4>, <0 140 0x4>, <0 141 0x4>, <0 142 0x4>,
+					     <0 143 0x4>, <0 144 0x4>, <0 145 0x4>, <0 146 0x4>,
+					     <0 147 0x4>, <0 148 0x4>, <0 149 0x4>, <0 150 0x4>;
+				#dma-cells= <2>;
+				#dma-channels = <16>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				status = "disabled";
+			};
+
+			pdma1: pdma@d4008000 {
+				compatible = "marvell,pdma-1.0";
+				reg = <0xd4008000 0x1000>;
+				interrupts = <0 135 0x4>, <0 136 0x4>, <0 137 0x4>, <0 138 0x4>,
+					     <0 139 0x4>, <0 140 0x4>, <0 141 0x4>, <0 142 0x4>,
+					     <0 143 0x4>, <0 144 0x4>, <0 145 0x4>, <0 146 0x4>,
+					     <0 147 0x4>, <0 148 0x4>, <0 149 0x4>, <0 150 0x4>;
+				#dma-cells= <2>;
+				#dma-channels = <16>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				status = "disabled";
+			};
+
+			sspa0: sspa@c0ffdc00 {
+				compatible = "mrvl,mmp-sspa-dai";
+				reg = <0xc0ffdc00 0x100>;
+				dmas = <&adma0 1
+					&adma0 0>;
+				dma-names = "rx", "tx";
+				asram = <&asram>;
+				platform_driver_name = "tdma_platform";
+				clocks = <&audio_map_clocks AUDIO_CLK_SSPA0>;
+				status = "disabled";
+			};
+
+			sspa1: sspa@c0ffdd00 {
+				compatible = "mrvl,mmp-sspa-dai";
+				reg = <0xc0ffdd00 0x100>;
+				dmas = <&adma1 1
+					&adma1 0>;
+				dma-names = "rx", "tx";
+				asram = <&asram>;
+				platform_driver_name = "tdma_platform";
+				clocks = <&audio_map_clocks AUDIO_CLK_SSPA1>;
+				status = "disabled";
+			};
+
+			uart0: uart@d4030000 {
+				compatible = "mrvl,mmp-uart";
+				reg = <0xd4030000 0x1000>;
+				interrupts = <0 27 0x4>;
+				dmas = <&pdma0 4 1
+					&pdma0 5 1>;
+				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1928_CLK_UART0>;
+				status = "disabled";
+			};
+
+			uart1: uart@d4017000 {
+				compatible = "mrvl,mmp-uart";
+				reg = <0xd4017000 0x1000>;
+				interrupts = <0 28 0x4>;
+				dmas = <&pdma1 20 1
+					&pdma1 21 1>;
+				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1928_CLK_UART1>;
+				status = "disabled";
+			};
+
+			uart2: uart@d4018000 {
+				compatible = "mrvl,mmp-uart";
+				reg = <0xd4018000 0x1000>;
+				interrupts = <0 24 0x4>;
+				dmas = <&pdma0 22 1
+					&pdma0 23 1>;
+				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1928_CLK_UART2>;
+				status = "disabled";
+			};
+
+			uart3: uart@d4016000 {
+				compatible = "mrvl,mmp-uart";
+				reg = <0xd4016000 0x1000>;
+				interrupts = <0 46 0x4>;
+				dmas = <&pdma1 18 1
+					&pdma1 19 1>;
+				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1928_CLK_UART3>;
+				status = "disabled";
+			};
+
+			pwm1: pwm@d401a000 {
+				compatible = "marvell,pxa250-pwm";
+				reg = <0xd401a000 0x10>;
+				#pwm-cells = <2>;
+				status = "disabled";
+			};
+
+			pwm2: pwm@d401a400 {
+				compatible = "marvell,pxa250-pwm";
+				reg = <0xd401a400 0x10>;
+				#pwm-cells = <2>;
+				status = "disabled";
+			};
+
+			pwm3: pwm@d401a800 {
+				compatible = "marvell,pxa250-pwm";
+				reg = <0xd401a800 0x10>;
+				#pwm-cells = <2>;
+				status = "disabled";
+			};
+
+			pwm4: pwm@d401ac00 {
+				compatible = "marvell,pxa250-pwm";
+				reg = <0xd401ac00 0x10>;
+				#pwm-cells = <2>;
+				status = "disabled";
+			};
+
+			thermal: thermal@d403b000 {
+				compatible = "mrvl,thermal";
+				reg = <0xd403b000 0x7c>;
+				marvell,version-flag = <3>;
+				interrupts = <0 132 0x4>;
+				status = "disabled";
+			};
+
+			map: map@c3000000 {
+				compatible = "marvell,mmp-map";
+				reg = <0xc0140000 0x100
+					0xc3000000 0x8000>;
+				audio_reg = <356>;
+				bit_sram = <1>;
+				bit_apb = <3>;
+				pll_sel = <1>;
+				power_ctrl = <1>;
+				clocks = <&audio_map_clocks AUDIO_CLK_MAP>;
+				status = "disabled";
+			};
+
+			gpio: gpio@d4019000 {
+				compatible = "marvell,mmp-gpio";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				reg = <0xd4019000 0x1000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupts = <0 49 0x4>;
+				clocks = <&soc_clocks PXA1928_CLK_GPIO>;
+				interrupt-names = "gpio_mux";
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				ranges;
+
+				gcb0: gpio@d4019000 {
+					reg-offset = <0x0>;
+					gpio-ranges = <PXA1928_GPIO_0_31>;
+				};
+
+				gcb1: gpio@d4019004 {
+					reg-offset = <0x4>;
+					gpio-ranges = <PXA1928_GPIO_32_63>;
+				};
+
+				gcb2: gpio@d4019008 {
+					reg-offset = <0x8>;
+					gpio-ranges = <PXA1928_GPIO_64_95>;
+				};
+
+				gcb3: gpio@d4019100 {
+					reg-offset = <0x100>;
+					gpio-ranges = <PXA1928_GPIO_96_127>;
+				};
+
+				gcb4: gpio@d4019104 {
+					reg-offset = <0x104>;
+					gpio-ranges = <PXA1928_GPIO_128_159>;
+				};
+
+				gcb5: gpio@d4019108 {
+					reg-offset = <0x108>;
+					gpio-ranges = <PXA1928_GPIO_160_191>;
+				};
+
+				gcb6: gpio@d4019200 {
+					reg-offset = <0x200>;
+					gpio-ranges = <PXA1928_GPIO_192_197>;
+				};
+			};
+
+			rtc: rtc@d4010000 {
+				compatible = "mrvl,mmp-rtc";
+				reg = <0xd4010000 0x24>;
+				interrupts = <0 80 0x4>,<0 79 0x4>;
+				interrupt-names = "rtc 1Hz", "rtc alarm";
+				clocks = <&soc_clocks PXA1928_CLK_RTC>;
+			};
+
+			pmx: pinmux@d401e000 {
+				compatible = "pinconf-single";
+				reg = <0xd401e000 0x31c>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+				#gpio-range-cells = <3>;
+				ranges;
+
+				pinctrl-single,register-width = <32>;
+				pinctrl-single,function-mask = <7>;
+
+				range: gpio-range {
+					#pinctrl-single,gpio-range-cells = <3>;
+				};
+			};
+
+			acipc: acipc@d401c000 {
+				compatible = "marvell,mmp-acipc";
+				reg = <0xd401c000 0x100>;
+				interrupts = <0 59 0x4>;
+				interrupt-names = "IPC_CP2AP";
+				status = "disabled";
+			};
+
+			seh {
+				compatible = "marvell,seh";
+				/* add <0xffffffff 0xf> to coordinate with pxa988/1088/1L88
+				 * please don't touch it under eden. <pxd403d000 0x4> is
+				 * RIPC status register for RIPC lock */
+				reg = <0xffffffff 0xf>, <0xd403d000 0x4>;
+				interrupts = <0 39 0x4>;
+				interrupt-names = "CP_TIMER3";
+				clocks = <&soc_clocks PXA1928_CLK_RIPC_RST>;
+				watchdog-type = <2>; /* cp one-shot timer */
+				status = "disabled";
+			};
+
+			timer: timer@d4088000 {
+				compatible = "marvell,mmp-timer";
+				reg = <0xd4088000 0xc8>;
+				marvell,timer-fastclk-frequency = <13000000>;
+				marvell,timer-apb-frequency = <26000000>;
+
+				counter0 {
+					compatible = "marvell,timer-counter-clksrc";
+					marvell,timer-counter-id = <0>;
+					marvell,timer-counter-frequency = <32768>;
+				};
+
+				counter1 {
+					compatible = "marvell,timer-counter-clkevt";
+					interrupts = <0 38 0x104>;
+					marvell,timer-counter-id = <1>;
+					marvell,timer-counter-broadcast;
+					marvell,timer-counter-frequency = <32768>;
+					marvell,timer-counter-nodynirq;
+				};
+
+				counter2 {
+					compatible = "marvell,timer-counter-delay";
+					marvell,timer-counter-id = <2>;
+					marvell,timer-counter-frequency = <32768>;
+				};
+			};
+
+			coresight: coresight@d4100000 {
+				compatible = "marvell,coresight";
+				clocks = <&soc_clocks PXA1928_CLK_DBGCLK>,
+					 <&soc_clocks PXA1928_CLK_TRACECLK>;
+				clock-names = "DBGCLK","TRACECLK";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				reg = <0xd4100000 0x100000>;
+				ranges;
+
+				dbg: dbg@0xd4150000 {
+					compatible = "marvell,coresight-dbg";
+					reg = <0xd4150000 0x8000>;
+				};
+
+				cti: cti@0xd4158000 {
+					compatible = "marvell,coresight-cti";
+				        reg = <0xd4158000 0x4000>;
+				};
+
+				etm: etm@0xd415c000 {
+					compatible = "marvell,coresight-etm";
+				        reg = <0xd415c000 0x4000>;
+				};
+
+				letb: letb@0xd4190000 {
+					compatible = "marvell,coresight-letb";
+				        reg = <0xd4190000 0x4000>;
+				};
+			};
+
+			twsi0: i2c@d4011000 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				/* RIPC */
+				reg = <0xd4011000 0x70>,
+				      <0xd403d000 0x4>;
+				interrupts = <0 7 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks PXA1928_CLK_TWSI0>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
+
+				mrvl,i2c-fast-mode;
+				/*
+				 *ilcr: fast mode b17~9=0x1a, 380k
+				 *      standard mode b8~0=0x7e, 100k
+				 *iwcr: b5~0=b01010 recommended value from spec
+				 */
+				marvell,i2c-ilcr = <0x082c347e>;
+				marvell,i2c-iwcr = <0x0000142a>;
+				marvell,i2c-always-on;
+
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
+				status = "disabled";
+			};
+
+			twsi1: i2c@d4031000 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				reg = <0xd4031000 0x70>;
+				interrupts = <0 84 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks PXA1928_CLK_TWSI1>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
+
+				mrvl,i2c-fast-mode;
+				marvell,i2c-ilcr = <0x082c347e>;
+				marvell,i2c-iwcr = <0x0000142a>;
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
+				status = "disabled";
+			};
+
+			twsi2: i2c@d4032000 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				reg = <0xd4032000 0x70>;
+				interrupts = <0 85 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks PXA1928_CLK_TWSI2>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
+
+				mrvl,i2c-fast-mode;
+				marvell,i2c-ilcr = <0x082c347e>;
+				marvell,i2c-iwcr = <0x0000142a>;
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
+				status = "disabled";
+			};
+
+			twsi3: i2c@d4033000 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				reg = <0xd4033000 0x70>;
+				interrupts = <0 86 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks PXA1928_CLK_TWSI3>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
+
+				mrvl,i2c-fast-mode;
+				marvell,i2c-ilcr = <0x082c347e>;
+				marvell,i2c-iwcr = <0x0000142a>;
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
+				status = "disabled";
+			};
+
+			twsi4: i2c@d4033800 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				reg = <0xd4033800 0x70>;
+				interrupts = <0 87 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks PXA1928_CLK_TWSI4>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
+
+				mrvl,i2c-fast-mode;
+				marvell,i2c-ilcr = <0x082c347e>;
+				marvell,i2c-iwcr = <0x0000142a>;
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
+				status = "disabled";
+			};
+			twsi5: i2c@d4034000 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				reg = <0xd4034000 0x70>;
+				interrupts = <0 88 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&soc_clocks PXA1928_CLK_TWSI5>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
+
+				mrvl,i2c-fast-mode;
+				marvell,i2c-ilcr = <0x082c347e>;
+				marvell,i2c-iwcr = <0x0000142a>;
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
+				status = "disabled";
+			};
+
+			watchdog: wdt@d4080000 {
+				compatible = "marvell,mmp-wdt";
+				reg = <0xd4080000 0xc8>,
+				      <0xd4050000 0x1024>;
+				marvell,mmp-wdt-disabled;
+			};
+
+			edgewakeup: edgewakeup@d4019800 {
+				compatible = "mrvl,mmp-edge-wakeup";
+				reg = <0xd4019800 0x10>;
+			};
+		};
+
+		soc_clocks: clocks{
+			compatible = "marvell,pxa1928-clock";
+			reg = <0xd4050000 0x2000>,
+			      <0xd4282800 0x1000>,
+			      <0xd4015000 0x1000>,
+			      <0xd4282c00 0x400>;
+			reg-names = "mpmu", "apmu", "apbc", "ciu";
+			#clock-cells = <1>;
+	        };
+
+		audio_map_clocks: clock{
+			compatible = "marvell,audio-map-clock";
+			reg = <0xd4282800 0x1000>,
+			      <0xd4015000 0x1000>,
+			      <0xc3000000 0x8000>,
+			      <0xc0140000 0x80>;
+			reg-names = "apmu", "apbc", "map", "dspaux";
+			#clock-cells = <1>;
+			map = <&map>;
+		};
+	};
+
+	regs_addr {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		mpmu: pmu@d4050000 {
+			compatible = "marvell,mmp-pmu-mpmu";
+			reg = <0xd4050000 0x1210>;
+		};
+
+		apmu: pmu@d4282800 {
+			compatible = "marvell,mmp-pmu-apmu";
+			reg = <0xd4282800 0x3f0>;
+		};
+
+		ciu: ciu@d4282c00 {
+			compatible = "marvell,mmp-ciu";
+			reg = <0xd4282c00 0xf0>;
+		};
+
+		dmcu: dmcu@c0100000 {
+			compatible = "marvell,mmp-dmcu";
+			reg = <0xc0100000 0x880>;
+		};
+	};
+
+	soc-camera@0 {
+		compatible = "soc-camera-pdrv";
+		status = "disabled";
+		reg = <0x0 0x0>;
+	};
+
+	mcam0: mcam@0 {
+		compatible = "marvell,mv_sc2_camera";
+		clocks = <&soc_clocks PXA1928_CLK_SC2_AXI_GATE_CLK>;
+		clock-names = "SC2AXICLK";
+		marvell,power-domain = <&pd_sc2>;
+		reg = <0x0 0x0>;
+		status = "disabled";
+	};
+
+	mcam1: mcam@1 {
+		compatible = "marvell,mv_sc2_camera";
+		clocks = <&soc_clocks PXA1928_CLK_SC2_AXI_GATE_CLK>;
+		clock-names = "SC2AXICLK";
+		marvell,power-domain = <&pd_sc2>;
+		reg = <0x1 0x0>;
+		status = "disabled";
+	};
+
+	plat_cam {
+		compatible = "marvell,platform-cam";
+		status = "disabled";
+	};
+
+	b52isp_sc2_csi0 {
+		compatible = "marvell,ccicv2";
+		cciv2_type = <0>;
+		csi_id = <0>;
+		status = "disabled";
+		};
+
+	b52isp_sc2_csi1 {
+		compatible = "marvell,ccicv2";
+		cciv2_type = <0>;
+		csi_id = <1>;
+		status = "disabled";
+	};
+
+	b52isp_sc2_dma0 {
+		compatible = "marvell,ccicv2";
+		cciv2_type = <1>;
+		dma_id = <0>;
+		status = "disabled";
+	};
+
+	b52isp_sc2_dma1 {
+		compatible = "marvell,ccicv2";
+		cciv2_type = <1>;
+		dma_id = <1>;
+		status = "disabled";
+	};
+
+	touch: vnc {
+		compatible = "vnc-ts";
+	};
+
+	sd8x-rfkill {
+		compatible = "mrvl,sd8x-rfkill";
+		status = "disabled";
+	};
+
+	tzdd {
+		compatible = "pxa-tzdd";
+		status = "disabled";
+		lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+	};
+};

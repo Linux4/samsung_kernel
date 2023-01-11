@@ -1,0 +1,31 @@
+LEDs connected to lm3532
+
+Required properties:
+- compatible : should be : "marvell,lm3532".
+- reg: the slave address of lm3532 as one twsi device, it should be 0x38.
+- flags: to select
+	LM3532_CONFIG_BUTTON_BL/LM3532_CONFIG_ALS/LM3532_DISP_BTN_TIED/LM3532_HAS_WEBTOP.
+- ramp_time: startup/shutdon ramp rate, typically 0x0 (8µs/step).
+- ctrl_a_fs_current: full-scale current setting of control A, typically 0x13
+(20.2mA by default).
+- ctrl_a_mapping_mode: LED Current mapping mode of control A, typically 0x2 (linear mapping).
+- ctrl_a_pwm: to select which PWM input (PWM1 or PWM2) is mapped to Control
+Bank A and which zones the selected PWM input is active in, typically 0x86.
+- rst_gpio: reset control for lm3532, it's platform dependent.
+
+Optional properties:
+- avdd-supply: power domain for twsi bus. it's platform dependent.
+
+Examples:
+
+backlight: lm3532@38 {
+	compatible = "marvell,lm3532";
+	reg = <0x38>;
+	flags = <0>;
+	ramp_time = <0>;
+	ctrl_a_fs_current = <0x1b>;
+	ctrl_a_mapping_mode = <0x2>;
+	ctrl_a_pwm = <0x86>;
+	rst_gpio = <&gpio GPIO(6) 0>;
+	avdd-supply = <&ldo12>;
+};

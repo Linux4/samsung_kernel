@@ -1,0 +1,48 @@
+menuconfig MRVL_MMP_CLK_FULL_FEAT
+	bool "Marvell MMP Clock Full features"
+	depends on ARCH_MMP && COMMON_CLK
+	default n
+	---help---
+	  Enable full features of clock for Marvell MMP architecture.
+	  Now DVFS (DVC) and MAX_VOLTAGE debug features are included.
+	  And it could be expanded in the future.
+
+if MRVL_MMP_CLK_FULL_FEAT
+config PXA_DVFS
+	tristate "Enable DVFS feature"
+	depends on ARCH_MMP && COMMON_CLK
+	default y
+	---help---
+	  Enable Dynamic Voltage & Frequency Scaling feature.
+	  Multi-clients (clock nodes) could register to dvfs framework.
+	  Then it will dynamically change voltage according to the
+	  frequencies of all the clients.
+
+config PXA_DEBUG_MAX_VOLTAGE
+	bool "Enable Max Voltage Setting for Debug"
+	depends on PXA_DVFS
+	default n
+	---help---
+	  Use max voltage as vcc_main for debug popurse.
+	  It is only a debug feature. When it is enabled, max voltage
+	  will be set to vcc_main by default.
+
+config VOLDC_STAT
+	tristate "Enable voltage stat feature"
+	depends on ARCH_MMP && PXA_DVFS
+	default y
+	---help---
+	  Enable Dynamic Voltage state feature.
+
+config PXA1936_CLK
+	tristate "Enable pxa1936 clock"
+	depends on ARCH_MMP && COMMON_CLK
+	default n
+	---help---
+	  Enable clock driver for pxa1936. Though pxa1936 belongs to
+	  Helanx series, it has some difference due to the big.LITTLE
+	  architecture especially some PMU registers are totally
+	  different from those on previous platforms such as pxa1088,
+	  pxa1U88 and pxa1908.
+
+endif

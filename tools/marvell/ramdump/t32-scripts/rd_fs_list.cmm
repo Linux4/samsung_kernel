@@ -1,0 +1,292 @@
+;
+;------------------------------------------------------------
+;(C) Copyright [2006-2014] Marvell International Ltd.
+;All Rights Reserved
+;------------------------------------------------------------
+; rev.0.1: antone@marvell.com: initial version
+; rev.0.2: antone@marvell.com: support for saving file contents for tmpfs
+; rev.0.3: antone@marvell.com: fixes for arm64, support kernel 3.x, option for CONFIG_BASE_SMALL (/s)
+;
+; This T32 script should be run in RAMDUMP environment for AP with Linux kernel.
+; Lists the contents of a filesystem directory structure for a given mount point:
+;
+; USAGE: <mandatory: mountpoint address> <optional: output directory> </s>
+; The mount points are listed by T32 command Linux/Display File System/Display Mount points or a command task.fs.mount.
+; The hex value in Magic column is the mount point address
+;
+; If output directory is specified, the whole tree of directories and files is extracted with contents and put into this directory.
+; This works with tmpfs only
+; /s option (needed only to extract content) is to be specified when kernel is configured with CONFIG_BASE_SMALL
+
+ENTRY &mount &outpath &opt
+
+AREA.CREATE OUT 80 1000
+AREA.VIEW OUT
+AREA.SELECT OUT
+&slash="\"
+
+// Check kernel version
+data.find v.range("linux_banner") "version 3."
+&k3x=0
+IF FOUND()
+(
+	&k3x=1
+)
+
+// Find the memory physical base
+&pa_base=address.offset(mmu.physical(c:v.value(&swapper_pg_dir)))
+&pa_base=v.value(&pa_base&~0xfffffff)
+
+// By default assume CONFIG_FLATMEM
+&memmap=v.value(*(void **)&mem_map)
+// Reasonably ugly way to find out if CONFIG_SPARSEMEM_VMEMMAP is set
+IF sYmbol.EXIST(vmemmap_populate)
+(
+	// CONFIG_SPARSEMEM_VMEMMAP is set
+	// arch/arm64/include/asm/pgtable.h:#define vmemmap                        ((struct page *)(VMALLOC_END + SZ_64K))
+	&memmap=0xffffffbc00000000
+)
+
+&mshift=6 // RADIX_TREE_MAP_SHIFT: (CONFIG_BASE_SMALL ? 4 : 6)
+IF "&opt"=="/s"
+	&mshift=4
+
+IF "&outpath"!=""
+(
+  IF os.dir(&outpath)
+  (
+	PRINT "Saving files into &outpath"
+  )
+  ELSE
+  (
+    PRINT "Output directory &outpath does not exist: ignored"
+	&outpath=""
+  )
+)
+
+IF "&mount"==""
+(
+	PRINT "Please, supply mount point address: 0xNNNNNNNN"
+	ENDDO
+)
+
+LOCAL &list &name &path
+IF (&k3x==0)
+(
+	&list=v.value(&((struct vfsmount *)&mount)->mnt_root.d_subdirs)
+	&name=v.string(((struct vfsmount *)&mount)->mnt_devname)
+	&path="&slash"+v.string(((struct vfsmount *)&mount)->mnt_mountpoint.d_iname)
+)
+ELSE
+(
+	&list=v.value(&((struct mount *)&mount)->mnt_mountpoint.d_u)
+	&name=v.string(((struct mount *)&mount)->mnt_devname)
+	&path="&slash"+v.string(((struct mount *)&mount)->mnt_mountpoint.d_iname)
+)
+
+print "Mount &mount, name &name"
+print "----------------------------------------------------------------"
+; MODIFY THIS LINE: SET THE RELEVANT type and member names for your list
+; MODIFY THE handle_element function to perform actions relevant for your list, including printing fields and optionally walk another lists linked to an element
+gosub walk_list &list "struct dentry*" "d_u.d_child" handle_element &path
+ENDDO
+
+
+handle_element:
+LOCAL &element
+LOCAL &prefix
+ENTRY &element &path
+LOCAL &d_iname
+&d_iname=v.string(((struct dentry *)&element)->d_iname)
+&d_size=v.value(((struct dentry *)&element)->d_inode.i_size)
+&i_flags=v.value(((struct dentry *)&element)->d_inode.i_flags)
+&i_mode=v.value(((struct dentry *)&element)->d_inode.i_mode)
+
+PRINT "&path&slash&d_iname: dentry: &element: size: &d_size i_flags: &i_flags i_mode: &i_mode"
+
+IF "&outpath"!=""
+(
+		gosub save_file &element &path
+)
+RETURN 0
+
+walk_list:
+LOCAL &list
+LOCAL &type
+LOCAL &member
+LOCAL &pos
+LOCAL &offset
+LOCAL &el
+LOCAL &func
+LOCAL &_type
+LOCAL &_member
+LOCAL &subd
+LOCAL &path
+LOCAL &subpath
+ENTRY &list &type &member &func &path
+
+; The names come from caller in "", which causes a syntax error in v.value. This strips the "".
+&_type=&type
+
+&_member=&member
+&pos=v.value(((struct list_head *)&list)->next)
+&offset=v.value(&((&_type)0)->&_member)
+WHILE &pos!=&list
+(
+  &el=&pos-&offset
+  gosub &func &el &path
+  &subd=v.value(&((struct dentry *)&el)->d_subdirs)
+  &d_iname=v.string(((struct dentry *)&el)->d_iname)
+  &subpath="&path"+"&slash"+"&d_iname"
+  gosub walk_list &subd &type &member &func &subpath
+  &pos=v.value(((&_type)&el)->&_member.next)
+)
+
+RETURN 0
+
+save_file:
+LOCAL &element
+LOCAL &prefix
+ENTRY &element &path
+LOCAL &d_iname
+LOCAL &d_size
+LOCAL &i_mode
+LOCAL &fullpath
+LOCAL &pa
+LOCAL &psize
+LOCAL &page
+LOCAL &rnode
+
+IF "&outpath"!=""
+(
+	&fullpath="&outpath"+"&path"
+	IF !os.dir(&fullpath)
+			mkdir &fullpath
+	&i_mode=v.value(((struct dentry *)&element)->d_inode.i_mode)
+	&d_iname=v.string(((struct dentry *)&element)->d_iname)
+	&d_size=v.value(((struct dentry *)&element)->d_inode.i_size)
+	&fullpath="&fullpath"+"&slash"+"&d_iname"
+	&i_fmt=v.value(&i_mode&0xf000) // S_IFMT, see stat.h
+	IF (&i_fmt==0x4000) // S_ISDIR()
+	(
+		IF !os.dir(&fullpath)
+			mkdir &fullpath
+	)
+	ELSE
+	(
+		IF (&i_fmt!=0x8000) // !S_IFREG(): return for now, even though the pages may contain interesting data
+			RETURN 1
+		&psize=0
+		&pa=0
+		&pagetree=v.value(&((struct dentry *)&element)->d_inode.i_mapping->page_tree)
+		&rnode=v.value(((struct radix_tree_root *)&pagetree)->rnode)
+		IF (v.value(&rnode&1)!=0)
+		(
+			&rnode=v.value(&rnode&~1)
+			gosub save_file_page_tree &fullpath &rnode &d_size
+		)
+		ELSE
+		(
+			IF (&rnode!=0)
+			(
+				&page=v.value(&rnode&~1)
+				&psize=&d_size
+				IF (&psize>0x1000)
+				(
+					PRINT "Truncated: single node while size is more than 1 page: dentry at &element, node=&rnode, page=&page"
+					&psize=0x1000
+				)
+				gosub save_file_page &fullpath &page 0 &d_size
+			)
+			ELSE
+			(
+				IF (&d_size!=0)
+				(
+					PRINT "Skipped: NULL rnode for non-empty file: dentry at &element, node=&rnode"
+					RETURN 1
+				)
+			)
+		)
+	)
+)
+RETURN 0
+
+save_file_page_tree:
+LOCAL &fullpath
+LOCAL &rnode
+LOCAL &size
+ENTRY &fullpath &rnode &size
+LOCAL &idx
+LOCAL &h
+LOCAL &node
+LOCAL &shift
+LOCAL &mask
+LOCAL &psize
+
+&mask=v.value("(1<<&mshift)-1")
+
+&idx=0
+WHILE &size!=0
+(
+	// See lib/radix-tree.c:radix_tree_lookup_element()
+	&h=v.value(((struct radix_tree_node *)&rnode)->height)
+	&node=&rnode
+	&shift=(&h-1)*&mshift
+	REPEAT
+	(
+	//PRINT "RT: node=&node, h=&h"
+		&slot=v.value(&(((struct radix_tree_node *)&node)->slots[((&idx>>&shift)&&mask)]))
+		&node=v.value(*(void**)&slot)
+		&shift=&shift-&mshift
+		&h=&h-1
+		IF &h<=0
+			GOTO radix_done
+	)
+radix_done:
+	&psize=&size
+	IF &psize>0x1000
+		&psize=0x1000
+	//PRINT "RT: PAGE: &node at IDX=&idx"
+	gosub save_file_page &fullpath &node &idx &psize
+
+	&idx=&idx+1
+	&size=&size-&psize
+)
+RETURN 0
+
+save_file_page:
+LOCAL &fullpath
+LOCAL &page
+LOCAL &size
+LOCAL &idx
+ENTRY &fullpath &page &idx &size
+LOCAL &temppath
+
+IF (&page==0)
+(
+	PRINT "Skipped: &fullpath, index=&idx, page=&page"
+	RETURN 1
+)
+// PageUptodate, see page-flags.h
+IF (v.value((((struct page *)&page)->flags)&0x8)==0)
+(
+	PRINT "Skipped: !PageUptodate: dentry at &element, node=&rnode, page=&page"
+	RETURN 1
+)
+
+&pa=v.value(&pa_base+((struct page*)&page-(struct page*)&memmap)*0x1000)
+&size=&size-1
+
+// TEMP: APPEND IS TBD
+IF &idx!=0
+(
+	&temppath="&fullpath"+"&idx"
+	data.save.binary &temppath &pa++&size
+	os.hidden copy /B &fullpath +&temppath &fullpath
+	del &temppath
+)
+ELSE
+(
+	data.save.binary &fullpath &pa++&size
+)
+RETURN 0

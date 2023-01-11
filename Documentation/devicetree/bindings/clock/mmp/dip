@@ -1,0 +1,11 @@
+Binding for Marvell deep channel solution
+
+Required properties
+compatiable: it should be "marvell,simple_dip"
+
+Examples:
+
+	dip {
+		compatible = "marvell,simple-dip";
+	};
+

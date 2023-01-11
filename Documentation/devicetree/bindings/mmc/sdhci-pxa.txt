@@ -1,0 +1,29 @@
+* Marvell sdhci-pxa v2/v3 controller
+
+This file documents differences between the core properties in mmc.txt
+and the properties used by the sdhci-pxav2 and sdhci-pxav3 drivers.
+
+Required properties:
+- compatible: should be one of the following
+  - "mrvl,pxav2-mmc"
+  - "marvell,pxav3-mmc-v1": for pxa988/pxa1088/pxa1L88
+  - "marvell,pxav3-mmc-v2": for pxa1U88
+  - "marvell,pxav3-mmc-v3": for pxa1928
+
+Optional properties:
+- marvell,sdh-quirks: set to sdhci_host quirks
+- marvell,sdh-quirks2: set to sdhci_host quirks2
+- marvell,sdh-host-caps: set to sdhci_host caps
+- marvell,sdh-host-caps2: set to sdhci_host caps2
+- marvell,sdh-flags: PXA specific flags (see PXA_FLAG_* at include/dt-bindings/mmc/pxa_sdhci.h)
+- marvell,sdh-dtr-data: An array of <timing preset_rate src_rate tx_delay rx_delay>
+
+Example:
+
+sdhci@d4280800 {
+	compatible = "mrvl,pxav3-mmc";
+	reg = <0xd4280800 0x800>;
+	bus-width = <8>;
+	interrupts = <27>;
+	non-removable;
+};

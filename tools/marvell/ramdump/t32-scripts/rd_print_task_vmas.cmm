@@ -1,0 +1,119 @@
+;
+;------------------------------------------------------------
+;(C) Copyright [2006-2008] Marvell International Ltd.
+;All Rights Reserved
+;------------------------------------------------------------
+; rev.0.1: antone@marvell.com: initial version
+;
+; This T32 script should be run in RAMDUMP environment for AP with Linux kernel.
+; Prints the vma list of the specified task MM context:
+;
+; USAGE: <mandatory: task_struct address> <optional output file path-name>
+;
+;
+ENTRY &task &outfile
+
+IF "&task"==""
+(
+	PRINT "Please, supply task_struct address (magic): 0xNNNNNNNN"
+	ENDDO
+)
+&null=v.value("0")
+&one=v.value("1")
+
+&tofile=0==1
+
+AREA.CREATE VMAs 80 1000
+AREA.VIEW VMAs
+AREA.SELECT VMAs
+
+IF "&outfile"==""
+(
+	&outfile="c:\temp\tasks.txt"
+)
+
+IF "&outfile"!=""
+(
+  IF os.dir(&outfile)
+  (
+    ; 1) Double \\ is prohibited so let's ensure there's only one.
+	; 2) An ending quote is considered a part of a string, so need handling as well.
+    &adj="\"
+    &lastchar=string.mid("&outfile",string.len("&outfile")-1,1)
+	IF "&lastchar"==""""
+	(
+		&lastchar=string.mid("&outfile",string.len("&outfile")-2,1)
+	)
+	IF "&lastchar"=="\"
+	(
+	 &adj=""
+	)
+    &outfile="&outfile"+"&adj"+"vmas.txt"
+  )
+  PRINT "OUTOUT ALSO SENT TO FILE: &outfile"
+  OPEN #1 "&outfile" /create
+  &tofile=0==0
+)
+
+&mm=v.value("((struct task_struct*)&task)->mm")
+IF &mm!=0
+(
+  &vma=v.value("((struct mm_struct*)&mm)->mmap")
+  WHILE &vma!=0
+  (
+       &vm_start=v.value("((struct vm_area_struct*)&vma)->vm_start")
+       &vm_end=v.value("((struct vm_area_struct*)&vma)->vm_end")
+       &vm_file=v.value("((struct vm_area_struct*)&vma)->vm_file")
+       &vm_fname="none"
+       IF &vm_file!=0
+       (
+	  &vm_fname=v.string("((struct vm_area_struct*)&vma)->vm_file.f_path.dentry.d_iname ")
+       )
+       &vm_flags=v.value("((struct vm_area_struct*)&vma)->vm_flags")
+       gosub vm_flag_parser &vm_flags
+       ENTRY &flags
+       PRINT "vma=&vma: &vm_start - &vm_end (file=&vm_fname); vm_flags: &flags"
+       IF "&outfile"!=""
+       (
+        WRITE #1 "vma=&vma: &vm_start - &vm_end (file=&vm_fname)"
+       )
+       &vma=v.value("((struct vm_area_struct*)&vma)->vm_next")
+   )
+)
+PRINT "Done"
+IF "&outfile"!=""
+(
+WRITE #1 "Done"
+CLOSE #1
+)
+ENDDO
+
+vm_flag_parser:
+ENTRY &val
+;LOCAL &out
+&out=""
+IF (&val&0x00000001)!=0
+    &out="&out"+"READ"
+IF (&val&0x00000002)!=0
+    &out="&out"+"|"+"WRITE"
+IF (&val&0x00000004)!=0
+    &out="&out"+"|"+"EXEC"
+IF (&val&0x00000100)!=0
+    &out="&out"+"|"+"GROWSDOWN"
+IF (&val&0x00000200)!=0
+    &out="&out"+"|"+"GROWSUP"
+IF (&val&0x00000400)!=0
+    &out="&out"+"|"+"VM_PFNMAP"
+IF (&val&0x00001000)!=0
+    &out="&out"+"|"+"EXECUTABLE"
+IF (&val&0x00002000)!=0
+    &out="&out"+"|"+"LOCKED"
+IF (&val&0x00004000)!=0
+    &out="&out"+"|"+"IO"
+IF (&val&0x00020000)!=0
+    &out="&out"+"|"+"DONTCOPY"
+IF (&val&0x00040000)!=0
+    &out="&out"+"|"+"DONTEXPAND"
+IF (&val&0x00080000)!=0
+    &out="&out"+"|"+"RESERVED"
+RETURN &out

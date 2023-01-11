@@ -1,0 +1,685 @@
+&soc_clocks {
+	#address-cells = <1>;
+	#size-cells = <1>;
+	ranges;
+	fixed_clocks: fixed_clocks {
+		compatible = "marvell,mmp-clk-master";
+		clk32: clk32 {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <32768>;
+		};
+
+		vctcxo: vctcxo {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <26000000>;
+		};
+
+		pll1_624: pll1_624 {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <624000000>;
+		};
+
+		pll1_416: pll1_416 {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <416000000>;
+		};
+
+		pll1_499: pll1_499 {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <499000000>;
+		};
+
+		pll1_832: pll1_832 {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <832000000>;
+		};
+
+		pll1_1248: pll1_1248 {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <1248000000>;
+		};
+
+		pll1_2: pll1_2 {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&pll1_624>;
+			clock-div = <2>;
+			clock-mult = <1>;
+		};
+
+		pll1_4: pll1_4 {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&pll1_2>;
+			clock-div = <2>;
+			clock-mult = <1>;
+		};
+
+		pll1_8: pll1_8 {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&pll1_4>;
+			clock-div = <2>;
+			clock-mult = <1>;
+		};
+
+		pll1_16: pll1_16 {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&pll1_8>;
+			clock-div = <2>;
+			clock-mult = <1>;
+		};
+
+		pll1_6: pll1_6 {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&pll1_2>;
+			clock-div = <3>;
+			clock-mult = <1>;
+		};
+
+		pll1_12: pll1_12 {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&pll1_6>;
+			clock-div = <2>;
+			clock-mult = <1>;
+		};
+
+		pll1_24: pll1_24 {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&pll1_12>;
+			clock-div = <2>;
+			clock-mult = <1>;
+		};
+
+		pll1_48: pll1_48 {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&pll1_24>;
+			clock-div = <2>;
+			clock-mult = <1>;
+		};
+
+		pll1_96: pll1_96 {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&pll1_48>;
+			clock-div = <2>;
+			clock-mult = <1>;
+		};
+
+		pll1_13: pll1_13 {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&pll1_624>;
+			clock-div = <13>;
+			clock-mult = <1>;
+		};
+
+		pll1_13_1_5: pll1_13_1_5 {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&pll1_13>;
+			clock-div = <3>;
+			clock-mult = <2>;
+		};
+
+		pll1_2_1_5: pll1_2_1_5 {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&pll1_2>;
+			clock-div = <3>;
+			clock-mult = <2>;
+		};
+
+		pll1_3_16: pll1_3_16 {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&pll1_624>;
+			clock-div = <16>;
+			clock-mult = <3>;
+		};
+	};
+
+	plls: plls {
+		compatible = "marvell,mmp-clk-master";
+		pll2: pll2 {
+			#clock-cells = <0>;
+		};
+
+		pll2p: pll2p {
+			#clock-cells = <0>;
+		};
+
+		pll2_3: pll2_3 {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&pll2>;
+			clock-div = <3>;
+			clock-mult = <1>;
+		};
+
+		pll3: pll3 {
+			#clock-cells = <0>;
+		};
+
+		pll3p: pll3p {
+			#clock-cells = <0>;
+		};
+
+		pll4: pll4 {
+			#clock-cells = <0>;
+		};
+	};
+
+	apbs_clocks: apbs_clocks {
+		compatible = "marvell,mmp-clk-master";
+		reg = <0xd4090000 0x1000>;
+		pll1_499_en: pll1_499_en {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-general-gate";
+			clocks = <&pll1_499>;
+			marvell,reg-offset = <0 0x100>;
+			marvell,mmp-clk-bit-gate = <31>;
+		};
+	};
+
+	mpmu_clocks: mpmu_clocks {
+		compatible = "marvell,mmp-clk-master";
+		reg = <0xd4050000 0x1000>;
+		uart_pll: uart_pll {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-factor";
+			clocks = <&pll1_4>;
+			marvell,reg-offset = <0 0x14>;
+			marvell,mmp-clk-factor-factor = <2>;
+			marvell,mmp-clk-factor-bits-den = <13 0>;
+			marvell,mmp-clk-factor-bits-num = <13 16>;
+			marvell,mmp-clk-factor-table = <8125 1536>;
+		};
+	};
+
+	apmu_clocks: apmu_clocks {
+		compatible = "marvell,mmp-clk-master";
+		reg = <0xd4282800 0x1000>;
+		pll1_416_gate: pll1_416_gate {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-general-gate";
+			clocks = <&pll1_416>;
+			marvell,reg-offset = <0 0x40>;
+			marvell,mmp-clk-bit-gate = <27>;
+		};
+
+		pll1_624_gate: pll1_624_gate {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-general-gate";
+			clocks = <&pll1_624>;
+			marvell,reg-offset = <0 0x40>;
+			marvell,mmp-clk-bit-gate = <26>;
+		};
+
+		pll1_832_gate: pll1_832_gate {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-general-gate";
+			clocks = <&pll1_832>;
+			marvell,reg-offset = <0 0x40>;
+			marvell,mmp-clk-bit-gate = <30>;
+		};
+
+		pll1_1248_gate: pll1_1248_gate {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-general-gate";
+			clocks = <&pll1_1248>;
+			marvell,reg-offset = <0 0x40>;
+			marvell,mmp-clk-bit-gate = <28>;
+		};
+
+		pll1_312_gate: pll1_312_gate {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-general-gate";
+			clocks = <&pll1_2>;
+			marvell,reg-offset = <0 0x40>;
+			marvell,mmp-clk-bit-gate = <29>;
+		};
+
+		usb_clock: usb_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-gate";
+			marvell,reg-offset = <0 0x5c>;
+			marvell,mmp-clk-mask = <0x9 0x9 0x1>;
+		};
+
+		sdh_axi_clock: sdh_axi_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-gate";
+			marvell,reg-offset = <0 0x54>;
+			marvell,mmp-clk-mask = <0x8 0x8 0x0>;
+		};
+
+		sdh0_func_clock: sdh0_func_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-composite";
+			sdh0_func_mix: sdh0_func_mix {
+				#clock-cells = <0>;
+				compatible = "marvell,mmp-clk-mix";
+				clocks = <&pll1_416 &pll1_624>;
+				marvell,reg-offset = <0 0x54>;
+				marvell,mmp-clk-bits-mux = <1 6>;
+				marvell,mmp-clk-bits-div = <3 8>;
+				marvell,mmp-clk-bit-fc = <11>;
+			};
+			sdh0_func_gate: sdh0_func_gate {
+				compatible = "marvell,mmp-clk-gate";
+				marvell,reg-offset = <0 0x54>;
+				marvell,mmp-clk-mask = <0x12 0x12 0x0>;
+			};
+		};
+
+		sdh1_func_clock: sdh1_func_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-composite";
+			sdh1_func_mix: sdh1_func_mix {
+				#clock-cells = <0>;
+				compatible = "marvell,mmp-clk-mix";
+				clocks = <&pll1_416 &pll1_624>;
+				marvell,reg-offset = <0 0x58>;
+				marvell,mmp-clk-bits-mux = <1 6>;
+				marvell,mmp-clk-bits-div = <3 8>;
+				marvell,mmp-clk-bit-fc = <11>;
+			};
+			sdh1_func_gate: sdh1_func_gate {
+				compatible = "marvell,mmp-clk-gate";
+				marvell,reg-offset = <0 0x58>;
+				marvell,mmp-clk-mask = <0x12 0x12 0x0>;
+			};
+		};
+
+		sdh2_func_clock: sdh2_func_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-composite";
+			sdh2_func_mix: sdh2_func_mix {
+				#clock-cells = <0>;
+				compatible = "marvell,mmp-clk-mix";
+				clocks = <&pll1_416 &pll1_624>;
+				marvell,reg-offset = <0 0xe0>;
+				marvell,mmp-clk-bits-mux = <1 6>;
+				marvell,mmp-clk-bits-div = <3 8>;
+				marvell,mmp-clk-bit-fc = <11>;
+			};
+			sdh2_func_gate: sdh2_func_gate {
+				compatible = "marvell,mmp-clk-gate";
+				marvell,reg-offset = <0 0xe0>;
+				marvell,mmp-clk-mask = <0x12 0x12 0x0>;
+			};
+		};
+	};
+
+	gc_vpu: gc_vpu {
+		compatible = "marvell,mmp-clk-master";
+		reg = <0xd4282800 0x1000>;
+		vpu_axi_clock: vpu_axi_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-composite";
+			vpu_axi_mix: vpu_axi_mix {
+				#clock-cells = <0>;
+				compatible = "marvell,mmp-clk-mix";
+				clocks = <&pll1_416_gate &pll1_624_gate &pll2 &pll2_3>;
+				marvell,reg-offset = <0 0xa4>;
+				marvell,mmp-clk-bits-mux = <2 11>;
+				marvell,mmp-clk-bits-div = <3 13>;
+				marvell,mmp-clk-bit-fc = <21>;
+				marvell,mmp-clk-mix-table =
+							<156000000 1>,
+							<208000000 0>,
+							<312000000 1>,
+							<416000000 0>,
+							<528500000 2>;
+			};
+			vpu_axi_gate: vpu_axi_gate {
+				compatible = "marvell,mmp-clk-gate";
+				marvell,reg-offset = <0 0xa4>;
+				marvell,mmp-clk-mask = <0x8 0x8 0x0>;
+			};
+		};
+
+		vpu_func_clock: vpu_func_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-composite";
+			vpu_func_mix: vpu_func_mix {
+				#clock-cells = <0>;
+				compatible = "marvell,mmp-clk-mix";
+				clocks = <&pll1_416_gate &pll1_624_gate &pll2_3 &pll2p>;
+				marvell,reg-offset = <0 0xa4>;
+				marvell,mmp-clk-bits-mux = <2 6>;
+				marvell,mmp-clk-bits-div = <3 8>;
+				marvell,mmp-clk-bit-fc = <20>;
+				marvell,mmp-clk-mix-table =
+							<156000000 1>,
+							<208000000 0>,
+							<312000000 1>,
+							<416000000 0>,
+							<528500000 3>;
+			};
+			vpu_func_gate: vpu_func_gate {
+				compatible = "marvell,mmp-clk-gate";
+				marvell,reg-offset = <0 0xa4>;
+				marvell,mmp-clk-mask = <0x30 0x30 0x0>;
+			};
+		};
+
+		gc_axi_clock: gc_axi_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-composite";
+			gc_axi_mix: gc_axi_mix {
+				#clock-cells = <0>;
+				compatible = "marvell,mmp-clk-mix";
+				clocks = <&pll1_416_gate &pll1_624_gate &pll2 &pll2p>;
+				marvell,reg-offset = <0 0xcc>;
+				marvell,mmp-clk-bits-mux = <2 20>;
+				marvell,mmp-clk-bits-div = <3 17>;
+				marvell,mmp-clk-bit-fc = <16>;
+				marvell,mmp-clk-mix-table =
+							<78000000 1>,
+							<104000000 0>,
+							<156000000 1>,
+							<208000000 0>,
+							<312000000 1>,
+							<416000000 0>;
+			};
+			gc_axi_gate: gc_axi_gate {
+				compatible = "marvell,mmp-clk-gate";
+				marvell,reg-offset = <0 0xcc>;
+				marvell,mmp-clk-mask = <0x4 0x4 0x0>;
+			};
+		};
+
+		gc_axi_reset: gc_axi_reset {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-general-gate";
+			marvell,reg-offset = <0 0xf4>;
+			marvell,mmp-clk-bit-gate = <0x1 0x1 0x0>;
+		};
+
+		gc2d_axi_clock: gc2d_axi_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-composite";
+			gc2d_axi_mix: gc2d_axi_mix {
+				#clock-cells = <0>;
+				compatible = "marvell,mmp-clk-mix";
+				clocks = <&pll1_416_gate &pll1_624_gate &pll2 &pll4>;
+				marvell,reg-offset = <0 0xf4>;
+				marvell,mmp-clk-bits-mux = <2 20>;
+				marvell,mmp-clk-bits-div = <3 17>;
+				marvell,mmp-clk-bit-fc = <16>;
+				marvell,mmp-clk-mix-table =
+							<78000000 1>,
+							<104000000 0>,
+							<156000000 1>,
+							<208000000 0>,
+							<312000000 1>,
+							<416000000 0>;
+			};
+			gc2d_axi_gate: gc2d_axi_gate {
+				compatible = "marvell,mmp-clk-gate";
+				marvell,reg-offset = <0 0xf4>;
+				marvell,mmp-clk-mask = <0x8 0x8 0x0>;
+			};
+		};
+
+		gc_func_clock: gc_func_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-composite";
+			gc_func_mix: gc_func_mix {
+				#clock-cells = <0>;
+				compatible = "marvell,mmp-clk-mix";
+				clocks = <&pll1_832_gate &pll1_624_gate &pll2p &pll2_3>;
+				marvell,reg-offset = <0 0xcc>;
+				marvell,mmp-clk-bits-mux = <2 6>;
+				marvell,mmp-clk-bits-div = <3 12>;
+				marvell,mmp-clk-bit-fc = <15>;
+				marvell,mmp-clk-mix-table =
+							<156000000 1>,
+							<208000000 1>,
+							<416000000 0>,
+							<624000000 1>,
+							<705000000 3>;
+			};
+			gc_func_gate: gc_func_gate {
+				compatible = "marvell,mmp-clk-gate";
+				marvell,reg-offset = <0 0xcc>;
+				marvell,mmp-clk-mask = <0x30 0x30 0x0>;
+			};
+		};
+
+		gc2d_func_clock: gc2d_func_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-composite";
+			gc2d_func_mix: gc2d_func_mix {
+				#clock-cells = <0>;
+				compatible = "marvell,mmp-clk-mix";
+				clocks = <&pll1_416_gate &pll1_624_gate &pll2 &pll2_3>;
+				marvell,reg-offset = <0 0xf4>;
+				marvell,mmp-clk-bits-mux = <2 6>;
+				marvell,mmp-clk-bits-div = <3 12>;
+				marvell,mmp-clk-bit-fc = <15>;
+				marvell,mmp-clk-mix-table =
+							<78000000 1>,
+							<156000000 1>,
+							<208000000 0>,
+							<312000000 1>,
+							<416000000 0>;
+			};
+			gc2d_func_gate: gc2d_func_gate {
+				compatible = "marvell,mmp-clk-gate";
+				marvell,reg-offset = <0 0xf4>;
+				marvell,mmp-clk-mask = <0x30 0x30 0x0>;
+			};
+		};
+
+		gc_shader_clock: gc_shader_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-composite";
+			gc_shader_mix: gc_shader_mix {
+				#clock-cells = <0>;
+				compatible = "marvell,mmp-clk-mix";
+				clocks = <&pll1_416_gate &pll1_624_gate &pll2p &pll3p>;
+				marvell,reg-offset = <0 0xcc>;
+				marvell,mmp-clk-bits-mux = <2 26>;
+				marvell,mmp-clk-bits-div = <3 28>;
+				marvell,mmp-clk-bit-fc = <31>;
+				marvell,mmp-clk-mix-table =
+							<156000000 1>,
+							<312000000 1>,
+							<416000000 0>,
+							<624000000 1>,
+							<705000000 2>;
+			};
+			gc_shader_gate: gc_shader_gate {
+				compatible = "marvell,mmp-clk-gate";
+				marvell,reg-offset = <0 0xcc>;
+				marvell,mmp-clk-mask = <0x2000000 0x2000000 0x0>;
+			};
+		};
+	};
+
+	apbc_clocks: apbc_clocks {
+		compatible = "marvell,mmp-clk-master";
+		reg = <0xd4015000 0x1000>;
+		twsi0_clock: twsi0_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-gate";
+			clocks = <&pll1_13_1_5>;
+			marvell,reg-offset = <0 0x2c>;
+			marvell,mmp-clk-mask = <0x7 0x3 0x0>;
+		};
+
+		twsi1_clock: twsi1_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-gate";
+			clocks = <&pll1_13_1_5>;
+			marvell,reg-offset = <0 0x60>;
+			marvell,mmp-clk-mask = <0x7 0x3 0x0>;
+		};
+
+		twsi3_clock: twsi3_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-gate";
+			clocks = <&pll1_13_1_5>;
+			marvell,reg-offset = <0 0x70>;
+			marvell,mmp-clk-mask = <0x7 0x3 0x0>;
+		};
+
+		gpio_clock: gpio_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-gate";
+			clocks = <&vctcxo>;
+			marvell,reg-offset = <0 0x8>;
+			marvell,mmp-clk-mask = <0x7 0x3 0x0>;
+		};
+
+		kpc_clock: kpc_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-gate";
+			clocks = <&clk32>;
+			marvell,reg-offset = <0 0x30>;
+			marvell,mmp-clk-mask = <0x7 0x3 0x0>;
+			marvell,mmp-clk-gate-need-delay;
+		};
+
+		rtc_clock: rtc_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-gate";
+			clocks = <&clk32>;
+			marvell,reg-offset = <0 0x28>;
+			marvell,mmp-clk-mask = <0x87 0x83 0x0>;
+			marvell,mmp-clk-gate-need-delay;
+		};
+
+		pwm0_clock: pwm0_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-gate";
+			clocks = <&pll1_48>;
+			marvell,reg-offset = <0 0xc>;
+			marvell,mmp-clk-mask = <0x7 0x3 0x0>;
+		};
+
+		pwm1_clock: pwm1_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-gate";
+			clocks = <&pll1_48>;
+			marvell,reg-offset = <0 0x10>;
+			marvell,mmp-clk-mask = <0x7 0x3 0x0>;
+		};
+
+		pwm2_clock: pwm2_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-gate";
+			clocks = <&pll1_48>;
+			marvell,reg-offset = <0 0x14>;
+			marvell,mmp-clk-mask = <0x7 0x3 0x0>;
+		};
+
+		pwm3_clock: pwm3_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-gate";
+			clocks = <&pll1_48>;
+			marvell,reg-offset = <0 0x18>;
+			marvell,mmp-clk-mask = <0x7 0x3 0x0>;
+		};
+
+		uart0_clock: uart0_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-general-composite";
+			uart0_mux: uart0_mux {
+				#clock-cells = <0>;
+				compatible = "marvell,mmp-clk-mux";
+				clocks = <&pll1_3_16 &uart_pll>;
+				marvell,reg-offset = <0 0x0>;
+				marvell,mmp-clk-bits-mux = <3 4>;
+			};
+			uart0_gate: uart0_gate {
+				compatible = "marvell,mmp-clk-gate";
+				marvell,reg-offset = <0 0x0>;
+				marvell,mmp-clk-mask = <0x7 0x3 0x0>;
+			};
+		};
+
+		uart1_clock: uart1_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-general-composite";
+			uart1_mux: uart1_mux {
+				#clock-cells = <0>;
+				compatible = "marvell,mmp-clk-mux";
+				clocks = <&pll1_3_16 &uart_pll>;
+				marvell,reg-offset = <0 0x4>;
+				marvell,mmp-clk-bits-mux = <3 4>;
+			};
+			uart1_gate: uart1_gate {
+				compatible = "marvell,mmp-clk-gate";
+				marvell,reg-offset = <0 0x4>;
+				marvell,mmp-clk-mask = <0x7 0x3 0x0>;
+			};
+		};
+
+		swjtag_clock: swjtag_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-gate";
+			clocks = <&vctcxo>;
+			marvell,reg-offset = <0 0x40>;
+			marvell,mmp-clk-mask = <0x7 0x3 0x0>;
+		};
+
+		ipc_clock: ipc_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-gate";
+			marvell,reg-offset = <0 0x24>;
+			marvell,mmp-clk-mask = <0x7 0x3 0x4>;
+		};
+	};
+
+	apbcp_clocks: apbcp_clocks {
+		compatible = "marvell,mmp-clk-master";
+		reg = <0xd403b000 0x1000>;
+		twsi2_clock: twsi2_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-gate";
+			clocks = <&pll1_13_1_5>;
+			marvell,reg-offset = <0 0x28>;
+			marvell,mmp-clk-mask = <0x7 0x3 0x0>;
+		};
+
+		uart2_clock: uart2_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-general-composite";
+			uart2_mux: uart2_mux {
+				#clock-cells = <0>;
+				compatible = "marvell,mmp-clk-mux";
+				clocks = <&pll1_3_16 &uart_pll>;
+				marvell,reg-offset = <0 0x1c>;
+				marvell,mmp-clk-bits-mux = <1 4>;
+			};
+			uart2_gate: uart2_gate {
+				compatible = "marvell,mmp-clk-gate";
+				marvell,reg-offset = <0 0x1c>;
+				marvell,mmp-clk-mask = <0x7 0x3 0x0>;
+			};
+		};
+
+		ripc_clock: ripc_clock {
+			#clock-cells = <0>;
+			compatible = "marvell,mmp-clk-gate";
+			marvell,reg-offset = <0 0x38>;
+			marvell,mmp-clk-mask = <0x7 0x3 0x4>;
+		};
+	};
+};

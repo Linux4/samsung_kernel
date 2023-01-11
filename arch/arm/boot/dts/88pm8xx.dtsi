@@ -1,0 +1,59 @@
+/*
+ * Copyright (C) 2014 Marvell
+ * Yi Zhang <yizhang@marvell.com>
+ */
+
+/*
+ * Integrated Power Management Chip
+ * header file for Marvell PMIC: 88pm800/88pm822/88pm860x...
+ */
+
+#include <dt-bindings/mfd/88pm8xx.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+&pmic0 {
+	compatible = "marvell,88pm800";
+	interrupt-controller;
+	#interrupt-cells = <1>;
+
+	marvell,88pm800-irq-write-clear;
+
+	regulators {
+		compatible = "marvell,88pm80x-regulator";
+
+	        buck2: BUCK2 {PM8XX_BUCK2;};
+	        buck3: BUCK3 {PM8XX_BUCK3;};
+	        buck4: BUCK4 {PM8XX_BUCK4;};
+	        buck5: BUCK5 {PM8XX_BUCK5;};
+
+	        ldo1: LDO1 {PM8XX_LDO1;};
+	        ldo2: LDO2 {PM8XX_LDO2;};
+	        ldo3: LDO3 {PM8XX_LDO3;};
+	        ldo4: LDO4 {PM8XX_LDO4;};
+	        ldo5: LDO5 {PM8XX_LDO5;};
+	        ldo6: LDO6 {PM8XX_LDO6;};
+	        ldo7: LDO7 {PM8XX_LDO7;};
+	        ldo8: LDO8 {PM8XX_LDO8;};
+	        ldo9: LDO9 {PM8XX_LDO9;};
+	        ldo10: LDO10 {PM8XX_LDO10;};
+	        ldo11: LDO11 {PM8XX_LDO11;};
+	        ldo12: LDO12 {PM8XX_LDO12;};
+	        ldo13: LDO13 {PM8XX_LDO13;};
+	        ldo14: LDO14 {PM8XX_LDO14;};
+	};
+
+	vibrator {
+		  compatible = "marvell,88pm80x-vibrator";
+		  status = "disabled";
+	};
+
+	headset {
+		  compatible = "marvell,88pm80x-headset";
+		  status = "disabled";
+	};
+
+	dvc {
+		  compatible = "marvell,88pm8xx-dvc";
+		  status = "disabled";
+	};
+};

@@ -1,0 +1,21 @@
+* Marvell AXI timeout debug method
+
+Required Properties:
+
+- Compatibility 	: "marvell,mmp-debug"
+- reg			: Address of the debug registers in squ domain
+- interrupts:		: Interrupt number of axi timeout
+- detection_modes	: Which mode to detect axi timeout.
+				0x0: No mode enabled
+				0x1: Interrupt mode
+				0x2: Data abort mode
+				0x3: Both interupt and data abort modes
+
+Example:
+
+	debug: debug@d42a0000 {
+		compatible = "marvell,mmp-debug";
+		reg = <0xd42a0000 0x800>;
+		interrupts = <0 62 0x4>;
+		detection_modes = <0x3>;
+	};

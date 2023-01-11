@@ -1,0 +1,174 @@
+menuconfig MARVELL_DRIVERS
+	bool "Marvell kernel module drivers"
+	---help---
+	  marvell kernel module drivers
+
+if MARVELL_DRIVERS
+
+config MRVL_WIRELESS
+	bool "marvell wireless driver"
+	---help---
+	This enables the marvell wireless driver for application processor
+
+choice
+	depends on MRVL_WIRELESS
+	bool "Choose the chip for marvell wireless"
+	default MRVL_WL_SD8777
+
+config MRVL_WL_SD8777
+	bool "SD8777"
+	---help---
+	Marvell NIC driver: SD8777 chip
+
+config MRVL_WL_SD8787
+	bool "SD8787"
+	---help---
+	Marvell NIC driver: SD8787 chip
+
+config MRVL_WL_SD8887
+	bool "SD8887"
+	---help---
+	Marvell NIC driver: SD8887 chip
+
+config MRVL_WL_SD8897
+	bool "SD8897"
+	---help---
+	Temporarily maintain SD8897 specifically, this item will be
+	removed when Marvell combo driver support SD8897
+
+config MRVL_WL_SD8XXX
+	bool "SD8787/SD8777/SD8801/SD8887"
+	---help---
+	Marvell combo driver support: SD8787/SD8777/SD8801/SD8887 chips
+
+endchoice
+
+config MRVL_WL_BUILD_TYPE
+	depends on MRVL_WL_SD8777 || MRVL_WL_SD8787 || MRVL_WL_SD8887 || MRVL_WL_SD8897 || (MRVL_WL_SD8XXX && m)
+	tristate "Build type of the driver for MARVELL wireless"
+	default m
+	---help---
+	Choose <m> if you want to build the driver as module;
+	<y> to build-in kernel; <n> if you do not want to build.
+
+config MRVL_DEBUG
+	tristate "Support Marvell debug features"
+	default y
+	---help---
+	  This will enable Marvell debug features.
+
+config MRVL_LOG
+	tristate "Support Marvell non-cacheable buffer"
+	default y
+	---help---
+	  This will enable Marvell non-cacheable buffer shared between kernel and bootloader.
+
+config MRVL_TZDD
+	tristate "Marvell Trust Zone Device Driver"
+	default n
+	help
+	  Marvell Trust Execution Environment (TEE) Solution in non-trusted world
+
+config MRVL_SW_JTAG
+	tristate "Marvell software jtag driver"
+	default n
+	help
+	  Marvell software jtag driver to simulate jtag access
+
+config MRVL_PANIC_FLUSH
+        bool "cache flush when panic"
+        depends on KEXEC
+        help
+          Enable support for flush all cache during panic
+
+config PXA_RAMDUMP
+        bool "marvell ramdump driver"
+        help
+          marvell ramdump driver
+
+config MRVL_SKMALLOC
+	tristate "Marvell Supper Kmalloc Driver"
+	default y
+	---help---
+	Create skmalloc-xxx like as kmalloc-xxx.
+	Driver or module can use these skmalloc caches which will
+	be different with kmalloc-xxx.
+	Use this method will be helpful for kmalloc issue debugging.
+
+config SKMALLOC_REBOOT_NOTIFY
+	tristate "support changing skm_dbg_level by reboot cmd"
+	depends on MRVL_SKMALLOC && KEXEC
+	default y
+	---help---
+	If you want, you can change skm_dbg_level by reboot cmd,
+	like "reboot skm_dbg_level=2". Set this value to 0 will disable skmalloc;
+	set to 1, will create skmalloc-xxx with kernel default debug flags;
+	set to 2, which force enable all the debug flags for the skmalloc-xxx.
+
+config MRVL_SKMALLOC_WIRELESS_EN
+	tristate "marvell wireless driver use skmalloc"
+	depends on MRVL_SKMALLOC && MRVL_WIRELESS
+	default y
+	---help---
+	Whether marvell wireless driver uses Supper Kmalloc or not.
+	After enable this config, all the kmalloc used in marvell wireless
+	driver will use skmalloc-xxx instead of kmalloc-xxx.
+
+config MRVL_MMP_MODEM
+	tristate "Marvell mmp modem driver"
+	depends on PXA9XX_ACIPC
+	default n
+	help
+	  Marvell MMP modem driver for communication processor
+
+config SSIPC_SUPPORT
+	bool "SSIPC feature"
+	depends on MRVL_MMP_MODEM
+	default n
+	help
+	  support SSIPC feature
+
+config MRVL_MMP_CM3
+	tristate "Marvell CM3 resource manager driver"
+	depends on MRVL_MMP_MODEM && PXA9XX_AMIPC
+	default n
+	help
+	  Marvell CM3 resource manager driver for PXA1U88
+
+config MRVL_RSV_PAGE
+	tristate "Marvell emmc reserve page"
+	default y
+	---help---
+	Reserve some range both in eMMC and DDR memory.
+	With the help of bootloader, Driver or module can use
+	the data before eMMC is ready. It is something like DTB.
+
+config TEE_RES_CFG_8M
+	bool "Marvell TrustZone/TEE Resource Configuration (8M)"
+	default n
+	help
+		Marvell TrustZone/TEE Resource Configuration (8M)
+		
+config TEE_RES_CFG_16M
+	bool "Marvell TrustZone/TEE Resource Configuration (16M)"
+	default n
+	help
+		Marvell TrustZone/TEE Resource Configuration (16M)
+
+config TEE_RES_CFG_24M
+	bool "Marvell TrustZone/TEE Resource Configuration (24M)"
+	default n
+	help
+		Marvell TrustZone/TEE Resource Configuration (24M)
+
+endif
+
+config MRVL_GPU_GALCORE
+        tristate "Marvell Graphics Kernel Mode Driver"
+        default m
+        help
+          If you say Y here, graphics kernel mode driver named galcore
+          will be built into uImage.
+          To compile this driver as a module, choose M here: the driver
+          will be compiled into a separate module galcore.ko.
+          If you want to disable GPU hardware totally, just select N here.

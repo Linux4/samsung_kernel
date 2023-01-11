@@ -1,0 +1,11 @@
+* pxa1U88 thermal module
+- compatible = "marvell,pxa28nm-thermal"
+- reg : register offset
+- interrupts : interrupt
+Example:
+thermal: thermal@d4013300 {
+        compatible = "marvell,pxa28nm-thermal";
+        reg = <0xd4013300 0x1C>;
+        interrupts = <0 60 0x4>;
+        status = "okay";
+};

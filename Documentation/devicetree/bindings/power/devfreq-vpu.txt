@@ -1,0 +1,35 @@
+Device tree bindings for Marvell VPU devfreq device
+
+Required properties:
+
+ - compatible:          Should be "marvell,devfreq-vpu" for VPU devfreq.
+ - "marvell,vpu-id"	The id of VPU devfreq device. It supports 2 devices at
+			max now, one for decoder and another for decoder.
+ - clocks:              The id of VPU function clock and bus clock in device tree
+ - clock-names:		The name of VPU function clock and bus clock, which
+			should be "vpu-fclk","vpu-bclk".
+
+Optional properties:
+ - "marvell,mmp-clk-freq-combine"	The relationship of function clock and
+					bus clock. If there is no table, the
+					bus clock is fixed when function clock
+					changes.
+ - "marvell,qos"			Indicate the device supports min/max
+					qos feature.
+
+Example:
+
+	devfreq-vpu {
+		compatible = "marvell,devfreq-vpu";
+		marvell,vpu-id = <0>;
+		clocks = <&soc_clocks PXA1U88_CLK_VPU
+			  &soc_clocks PXA1U88_CLK_VPUBUS>;
+		clock-names = "vpu-fclk", "vpu-bclk";
+		marvell,mmp-clk-freq-combine =
+				<156000 156000>,
+				<208000 208000>,
+				<312000 312000>,
+				<416000 416000>,
+				<528750 528500>;
+		marvell,qos;
+	};

@@ -1,0 +1,74 @@
+*Marvell power domain
+
+Required properties:
+- compatible:
+  - "marvell,power-domain-display"
+- clocks: related clocks with dispaly power domain
+
+Examples:
+pd_display: pd_display@0xd4282800 {
+	compatible = "marvell,power-domain-display-pxa1928";
+	reg = <0xd4282800 0x1000>;
+	clocks = <&soc_clocks PXA1928_CLK_DISP_AXI_CLK>,
+		<&soc_clocks PXA1928_CLK_DISP_ESC_CLK>,
+		<&soc_clocks PXA1928_CLK_DISP_DISP1_EN>,
+		<&soc_clocks PXA1928_CLK_DISP_VDMA_EN>;
+	clock-names = "axi_clk", "esc_clk", "disp1_clk_gate", "vdma_clk_gate";
+};
+
+pd_display: pd_display@0xd4282800 {
+	compatible = "marvell,power-domain-display-pxa1u88";
+	reg = <0xd4282800 0x1000>;
+	clocks = <&soc_clocks PXA1U88_CLK_DISP_HCLK>,
+		<&soc_clocks PXA1U88_CLK_DSI_ESC>,
+		<&soc_clocks PXA1U88_CLK_DISP1_EN>;
+	clock-names = "LCDCIHCLK", "esc_clk", "disp1_clk_gate";
+
+pd_vpu: pd_vpu@d4282800 {
+	compatible = "marvell,power-domain-common-vpu";
+	reg = <0xd4282800 0x1000>;
+};
+
+pd_gc: pd_gc@d4282800 {
+	compatible = "marvell,power-domain-common-gc";
+	reg = <0xd4282800 0x1000>;
+};
+
+pd_gc2d: pd_gc2d@d4282800 {
+	compatible = "marvell,power-domain-common-gc2d";
+	reg = <0xd4282800 0x1000>;
+	clocks = <&soc_clocks PXA1U88_CLK_GC2D>;
+
+pd_vpu: pd_vpu@d4282800 {
+	compatible = "marvell,power-domain-hantro";
+	reg = <0xd4282800 0x1000>;
+};
+
+pd_gc: pd_gc@d4282800 {
+	compatible = "marvell,power-domain-gc3d";
+	reg = <0xd4282800 0x1000>;
+	clocks = <&soc_clocks PXA1928_CLK_GC3D1X>;
+};
+
+pd_gc2d: pd_gc2d@d4282800 {
+	compatible = "marvell,power-domain-gc2d";
+	reg = <0xd4282800 0x1000>;
+	clocks = <&soc_clocks PXA1928_CLK_GC2D>;
+};
+
+pd_smmu: pd_smmu@c0010000 {
+	compatible = "marvell,power-domain-smmu-pxa1u88";
+	reg = <0xc0010000 0x10000>;
+	marvell,power-domain-parent = <&pd_vpu>;
+	clocks = <&soc_clocks PXA1U88_CLK_VPU>;
+};
+
+pd_smmu: pd_smmu@f0500000 {
+	compatible = "marvell,power-domain-smmu-pxa1928";
+	reg = <0xf0500000 0x10000>;
+	marvell,power-domain-parent = <&pd_vpu>;
+	clocks = <&soc_clocks PXA1928_CLK_VPUBUS>;
+	clock-names = "VPUACLK";
+};
+
+

@@ -1,0 +1,20 @@
+Binding for mux type clock
+
+The mux clock is defined as common clock.
+
+Required properties
+- compatible : It should be "marvell,mmp-clk-mux".
+- clocks : The parents of the clock.
+- marvell,mmp-clk-bits-mux : The width and shift of mux bits.
+
+Examples
+apmu_clk {
+	compatible = "marvell,mmp-clk-master";
+	reg = <0xd4282800 0x1000>;
+	dsi_phy_esc_mux: dsi_phy_esc_mux {
+		compatible = "marvell,mmp-clk-mux";
+		marvell,reg-offset = <0 0x44>;
+		clocks = <&pll1_12 &pll1_13 &vctcxo &pll1_8>;
+		marvell,mmp-clk-bits-mux = <2 0>;
+	};
+};

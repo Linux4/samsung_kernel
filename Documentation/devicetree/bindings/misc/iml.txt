@@ -1,0 +1,28 @@
+* IML driver.
+
+The DMA addr provided by CP is not physical address so we may need to manually revert it to phy addr again or DMA operation will fail.
+The phy addr -> CP side address remapping rule is based on CP address remapping register, which defines how many bits in CP address are replaced
+with content in the remapping register.
+Note that DMA engine hardware on some platforms can support non phy addr provided by CP, in which case remap register is not needed.
+
+Required properties:
+- compatible: "marvell,mmp-iml"
+- reg: the share memory address, RIPC lock address, RIPC clock address, CP address remapping register (optional)
+- interrupts: the RIPC interrupt
+- interrupt-names: name of the interrupt
+- (optional) remap: <remap bit starting pos in CP addr remap register, remap bit starting pos in CP address, number of bits to remap>
+- dmas: dma channel for rx
+- dma-names: dma name
+
+Examples:
+
+iml: iml@7ffffe0{
+	compatible = "marvell,mmp-iml";
+	reg = <0x07ffffe0 0x10>, <0xd403d200 0x10>, <0xd403b038 0x10>, <0xd4282d24 0x4>;
+	interrupts = <0 56 0x4>;
+	interrupt-names = "IPC_MSA_DATA";
+	remap = <0 26 6>;
+	dmas = <&pdma0 0xFF 0>;
+	dma-names =  "iml-dma";
+	status = "disabled";
+};

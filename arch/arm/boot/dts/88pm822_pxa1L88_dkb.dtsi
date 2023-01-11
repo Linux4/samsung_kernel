@@ -1,0 +1,39 @@
+/*
+ * Copyright (C) 2014 Marvell
+ * Hongyan Song <hysong@marvell.com>
+ * 88pm820 description for helan_lte
+ */
+
+#include "88pm8xx.dtsi"
+#include "88pm822.dtsi"
+
+&pmic0 {
+	/*
+	 * board specific register configuration
+	 * marvell,pmic-board-cfg = <page reg mask data>;
+	 */
+	marvell,pmic-board-cfg = <>;
+
+		regulators {
+			compatible = "marvell,88pm80x-regulator";
+
+			buck1: BUCK1 {regulator-boot-on; regulator-always-on;};
+			buck2: BUCK2 {regulator-boot-on; regulator-always-on;};
+			buck3: BUCK3 {regulator-boot-on; regulator-always-on;};
+			buck4: BUCK4 {regulator-boot-on; regulator-always-on;};
+			buck5: BUCK5 {regulator-boot-on; regulator-always-on;};
+
+			ldo1: LDO1 {regulator-boot-on; regulator-always-on;};
+			ldo2: LDO2 {regulator-boot-on; regulator-always-on;};
+			ldo3: LDO3 {regulator-boot-on; regulator-always-on;};
+
+			ldo7: LDO7 {regulator-boot-on; regulator-always-on;};
+			ldo8: LDO8 {regulator-boot-on; regulator-always-on;};
+
+			ldo10: LDO10 {regulator-boot-on;};
+			ldo11: LDO11 {regulator-boot-on;};
+			ldo12: LDO12 {regulator-boot-on; regulator-always-on;};
+			ldo13: LDO13 {regulator-boot-on;};
+			};
+
+	       };

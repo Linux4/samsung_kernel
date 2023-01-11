@@ -1,0 +1,11 @@
+* Intersil ambient light + proximity sensors module
+- compatible = "intersil,isl29043"
+- reg : register offset
+- interrupts : interrupt
+Example:
+sensor: isl29043@44 {
+	        compatible = "intersil,isl29043";
+	        reg = <0x44>;
+	        interrupts = <14 0x1>;
+	        status = "okay";
+	};

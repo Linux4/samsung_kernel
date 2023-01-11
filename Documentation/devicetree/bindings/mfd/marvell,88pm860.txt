@@ -1,0 +1,22 @@
+* Marvell 88PM860 Power Management IC
+Required properties:
+- compatible : "marvell,88pm860"
+- reg : the I2C slave address for the 88pm860 chip
+
+88pm860 consists of one sub-device:
+pm860_codec: codec driver
+
+Required properties for pm860_codec:
+- compatible : "marvell,88pm860-codec"
+- #dailink-cells: sub device number
+
+Example:
+
+pmic2: 88pm860@38 {
+	compatible = "marvell,88pm860";
+	reg = <0x38>;
+	pm860_codec: pm860_codec {
+		compatible = "marvell,88pm860-codec";
+		#dailink-cells = <1>;
+	};
+};

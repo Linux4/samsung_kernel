@@ -1,0 +1,11 @@
+* Avago ambient light + proximity sensors module
+- compatible = "avago,apds990x"
+- reg : register offset
+- interrupts : interrupt
+Example:
+sensor: apds990x@39 {
+	        compatible = "avago,apds990x";
+	        reg = <0x39>;
+	        interrupts = <ALS_INT 0x1>;
+	        status = "okay";
+	};

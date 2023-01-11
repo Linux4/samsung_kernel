@@ -1,0 +1,18 @@
+sensor control2 descriptor: converts virtual addresses from CCICs
+and ISP to physical addresses in DDR using 16 independent channels.
+
+sc2mmu node
+------------
+Required properties:
+- compatible	: should be "marvell,mmp-sc2mmu"
+- reg		: physical base address and length of the registers set;
+- interrupts	: must contain CCIC interrupts;
+
+Example:
+sc2mmu1: sc2mmu@d4209000 {
+		compatible = "marvell,mmp-sc2mmu";
+		reg = <0xd4209000 0x84c>;
+		reg-names = "mmu-regs";
+		interrupts = <0 91 0x4>;
+		status = "disable";
+};

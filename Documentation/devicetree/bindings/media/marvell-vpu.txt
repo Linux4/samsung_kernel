@@ -1,0 +1,53 @@
+* Marvell codec
+
+Required properties:
+- compatible : should be "mrvl, mmp-xxx" for SoCs:
+- reg: should be register base and length as documented in the
+  SoC reference manual
+- interrupts : Should contain the VPU interrupt. For CODA960,
+  a second interrupt is needed for the MJPEG unit.
+- clocks : Should contain the ahb and per clocks, in the order
+  determined by the clock-names property.
+- clock-names : Should be "ahb", "per"
+- iram : phandle pointing to the SRAM device node
+
+Example:
+coda7542: coda7542@d420d000 {
+	compatible = "mrvl,mmp-coda7542";
+	reg = <0xd420d000 0x1000>,
+	      <0xd1004000 0x11600>;
+	interrupts = <0 25 0x4>;
+	marvell,power-domain = <&pd_vpu>;
+	status = "disabled";
+};
+
+axi@f0400000 {
+	compatible = "mrvl,axi-bus", "simple-bus";
+	#address-cells = <1>;
+	#size-cells = <1>;
+	reg = <0xf0400000 0x07c00000>;
+	ranges;
+
+	dec@0xf0400000 {
+		compatible = "mrvl,mmp-hantro";
+		reg = <0xf0400000 0x00000800>;
+		interrupts = <0 26 0x4>;
+		marvell,power-domain = <&pd_vpu>;
+		status = "disabled";
+	};
+
+	pp@0xf0400000 {
+		compatible = "mrvl,mmp-hantro";
+		reg = <0xf0400000 0x00000800>;
+		interrupts = <0 26 0x4>;
+		status = "disabled";
+	};
+
+	enc@0xf0400800 {
+		compatible = "mrvl,mmp-hantro";
+		reg = <0xf0400800 0x003ff800>;
+		interrupts = <0 26 0x4>;
+		marvell,power-domain = <&pd_vpu>;
+		status = "disabled";
+	};
+};

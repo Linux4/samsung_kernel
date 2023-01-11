@@ -1,0 +1,114 @@
+/*
+ *  Copyright (C) 2014 Marvell Technology Group Ltd.
+ *  Author: Hongyan Song <hysong@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+
+/ {
+	panel: mmp-dsi-panel {
+		panel_fl10802ctp {
+			/*
+			 * BACKLIGHT CONTROL BY GPIO
+			 */
+			bl_gpio = <&gpio 100 0>;
+			panel_id = <0x0307>;
+			/*
+			 * DSI PACKET HEADER INFO
+			 * @ data type : 1byte
+			 * @ command type : 1byte
+			 * @ delay(msec) : 2byte
+			 * @ size of data : 2byte
+			 */
+			marvell,dsi-panel-init-cmds = [
+				29 01 00 00 00 04 B9 F1 08 01
+				29 01 00 00 00 05 B1 20 1E 1E 87
+				29 01 00 00 00 02 B2 22
+				29 01 00 00 00 09 B3 01 00 06 06 18 13 39 35
+				29 01 00 00 00 12 BA 31 00 44 25 91 0A 00 00 E1 00 00 00 0F 02 4F B9 EE
+				29 01 00 00 00 06 E3 05 05 01 01 00
+				29 01 00 00 00 02 B4 00
+				29 01 00 00 00 03 B5 07 07
+				29 01 00 00 00 03 B6 A5 A5
+				29 01 00 00 00 03 B8 64 28
+				29 01 00 00 00 02 CC 00
+				29 01 00 00 00 02 BC 47
+				29 01 00 00 00 34 E9 00 00 05 00 00 0A B0 12 30
+						  00 33 09 0A B0 37 00 03 00 00
+						  00 00 08 00 00 20 64 02 00 00
+						  00 00 00 00 31 75 13 00 00 00
+						  00 00 00 00 00 00 00 00 00 00 00 00
+				29 01 00 00 00 17 EA 94 00 00 00 08 95 10 07 35
+						  10 00 00 00 08 94 00 06 24 00 00 00 00
+				29 01 00 00 00 23 E0 00 00 00 11 11 3F 23 35 06
+				      0F 11 15 18 16 16 12 16 00 00
+				      00 11 11 3F 23 35 06 0F 11 15
+							18 16 16 12 16
+			];
+			marvell,dsi-panel-enable-cmds = [
+				05 00 00 78 00 01	11
+				05 00 00 0A 00 01	29
+			];
+			marvell,dsi-panel-disable-cmds = [
+				05 00 00 0A 00 01	28
+				05 00 00 78 00 01	10
+			];
+			video_mode {
+				marvell,dsi-panel-xres = <480>;
+				marvell,dsi-panel-yres = <854>;
+				marvell,dsi-h-front-porch = <130>;   /* right margin */
+				marvell,dsi-h-back-porch = <130>;    /* left margin */
+				marvell,dsi-h-sync-width = <3>;    /* hsync len */
+				marvell,dsi-v-front-porch = <18>;    /* lower margin */
+				marvell,dsi-v-back-porch = <7>;    /* upper margin */
+				marvell,dsi-v-sync-width = <5>;     /* vsync len */
+			};
+			panel-ext-pin {
+				/*
+				 * Three properties are required
+				 * to control pwr pin
+				 * @node : panel-ext-pin node
+				 * @on : <0> - off / <1> - on
+				 * @usec : delay time of usec
+				 */
+				/*
+				 * panel-ext-pin-boot sequence
+				 * is skip power on mode
+				 */
+				panel-ext-pin-boot = <
+					&panel_pwr_avdd_4  1 20000
+				>;
+				panel-ext-pin-on = <
+					&panel_pwr_avdd_4  1 20000
+					&panel_pwr_rst_4   1 10000
+					&panel_pwr_rst_4   0 10000
+					&panel_pwr_rst_4   1 120000
+				>;
+				panel-ext-pin-off = <
+					&panel_pwr_avdd_4  0 1000
+				>;
+				/*
+				 * There are four properties to define pwr pin
+				 * <prefix>-name : pin name
+				 * <prefix>-type : <0> - GPIO, <1> - PMIC Regulator
+				 * <prefix>-gpio : If the type is GPIO, assign a gpio.
+				 * <prefix>-supply : If the type is PMIC Regulator, assign a regulator.
+				 */
+				panel_pwr_rst_4: panel-pwr-rst-4 {
+					panel-ext-pin-name = "rst";
+					panel-ext-pin-type = <0>;
+					panel-ext-pin-gpio = <&gpio 97 0>;
+				};
+				panel_pwr_avdd_4: panel-pwr-avdd-4 {
+					panel-ext-pin-name = "avdd";
+					panel-ext-pin-type = <1>;
+					panel-ext-pin-supply = <&ldo5>;
+					panel-ext-pin-value = <2800000>;
+					panel-ext-pin-gpio;
+				};
+			};
+		};
+	};
+};

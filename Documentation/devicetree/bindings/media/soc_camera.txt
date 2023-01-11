@@ -1,0 +1,14 @@
+SoC camera driver.
+
+soc camera node
+------------
+Required properties:
+- compatible	: should be "soc-camera-pdrv";
+- reg		: should be <0x0, 0x0>, <0x1, 0x0>;
+
+Example:
+soc-camera@0 {
+	compatible = "soc-camera-pdrv";
+	status = "disabled";
+	reg = <0x0 0x0>;
+};

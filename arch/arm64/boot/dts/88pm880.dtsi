@@ -1,0 +1,165 @@
+/*
+ * Copyright (C) 2014 Marvell
+ * Yi Zhang <yizhang@marvell.com>
+ */
+
+/*
+ * Integrated Power Management Chip
+ * header file for Marvell PMIC: 88pm880
+ */
+
+&pmic0 {
+	compatible = "marvell,88pm880";
+	/* ---buck--- */
+	buck1a: regulator-buck1a {
+		compatible = "marvell,88pm880-buck1a";
+		regulator-min-microvolt = <600000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	buck2: regulator-buck2 {
+		compatible = "marvell,88pm880-buck2";
+		regulator-min-microvolt = <600000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	vddr: regulator-buck3 {
+		compatible = "marvell,88pm880-buck3";
+		regulator-min-microvolt = <600000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	buck3: regulator-buck3 { /* alias label for buck3 */
+	};
+	buck4: regulator-buck4 {
+		compatible = "marvell,88pm880-buck4";
+		regulator-min-microvolt = <600000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	buck5: regulator-buck5 {
+		compatible = "marvell,88pm880-buck5";
+		regulator-min-microvolt = <600000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	buck6: regulator-buck6 {
+		compatible = "marvell,88pm880-buck6";
+		regulator-min-microvolt = <600000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	buck7: regulator-buck7 {
+		compatible = "marvell,88pm880-buck7";
+		regulator-min-microvolt = <600000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	/* ---ldo--- */
+	ldo1: regulator-ldo1 {
+		compatible = "marvell,88pm880-ldo1";
+		regulator-min-microvolt = <1700000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo2: regulator-ldo2 {
+		compatible = "marvell,88pm880-ldo2";
+		regulator-min-microvolt = <1700000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo3: regulator-ldo3 {
+		compatible = "marvell,88pm880-ldo3";
+		regulator-min-microvolt = <1700000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo4: regulator-ldo4 {
+		compatible = "marvell,88pm880-ldo4";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo5: regulator-ldo5 {
+		compatible = "marvell,88pm880-ldo5";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo6: regulator-ldo6 {
+		compatible = "marvell,88pm880-ldo6";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo7: regulator-ldo7 {
+		compatible = "marvell,88pm880-ldo7";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo8: regulator-ldo8 {
+		compatible = "marvell,88pm880-ldo8";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo9: regulator-ldo9 {
+		compatible = "marvell,88pm880-ldo9";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo10: regulator-ldo10 {
+		compatible = "marvell,88pm880-ldo10";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo11: regulator-ldo11 {
+		compatible = "marvell,88pm880-ldo11";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo12: regulator-ldo12 {
+		compatible = "marvell,88pm880-ldo12";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo13: regulator-ldo13 {
+		compatible = "marvell,88pm880-ldo13";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo14: regulator-ldo14 {
+		compatible = "marvell,88pm880-ldo14";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo15: regulator-ldo15 {
+		compatible = "marvell,88pm880-ldo15";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo16: regulator-ldo16 {
+		compatible = "marvell,88pm880-ldo16";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo17: regulator-ldo17 {
+		compatible = "marvell,88pm880-ldo17";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo18: regulator-ldo18 {
+		compatible = "marvell,88pm880-ldo18";
+		regulator-min-microvolt = <1700000>;
+		regulator-max-microvolt = <2800000>;
+	};
+
+	/* virtual regulator */
+	buck1aslp: regulator-buck1a-slp {
+		compatible = "marvell,88pm880-buck1a-slp";
+		regulator-min-microvolt = <600000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-always-on;
+		regulator-boot-on;
+		marvell,consumer-supplies = "buck1slp", "nameless";
+	};
+};

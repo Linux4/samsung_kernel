@@ -1,0 +1,33 @@
+CMOS Camera Interface Controller (CCIC) 1 and 2 -- Used to capture pixel
+data from external CMOS sensor(s). Each CCIC module includes a MIPI CSI-2
+controller. CCIC1 supports up to 4-lane MIPI CSI-2, and CCIC2 supports up
+to 2-lane MIPI CSI-2. When the external CMOS sensor is a smart sensor with
+built-in ISP, CCIC DMA is used to transfer the pixel data to DDR
+
+ccic node
+------------
+Required properties:
+- compatible	: should be "marvell,mmp-sc2ccic" for CCIC 1 and 2;
+- reg		: physical base address and length of the registers set;
+- dma-burst	: the length of dma burst;
+- interrupts	: must contain CCIC interrupts;
+- clocks	: list of clock specifiers, corresponding to entries in
+		  clock-names property;
+- clock-names	: must contain "SC2MCLK", "SC2DPHYCLK", "SC2CSICLK" entries,
+		  matching entries in the clocks property.
+
+Example:
+ccic1: ccic@d420a000 {
+		compatible = "marvell,mmp-sc2ccic", "marvell,mmp-ccic";
+		reg = <0xd420a000 0x31c>;
+		reg-names = "ccic-regs";
+		dma-burst = <64>;
+		interrupts = <0 120 0x4>;
+		clocks = <&soc_clocks PXA1928_CLK_SC2_MCLK1_CLK>,
+			   <&soc_clocks PXA1928_CLK_SC2_DPHY4LN_CLK>,
+			   <&soc_clocks PXA1928_CLK_SC2_CSI_MIX_CLK>,
+			   <&soc_clocks PXA1928_CLK_SC2_4X_MIX_CLK>,
+			   <&soc_clocks PXA1928_CLK_SC2_AXI_MIX_CLK>;
+		clock-names = "SC2MCLK", "SC2DPHYCLK", "SC2CSICLK",
+				"SC24XCLK", "SC2AXICLK";
+};

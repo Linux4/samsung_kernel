@@ -1,0 +1,79 @@
+comment "b52_camera sensor drivers"
+
+config B52_CAMERA_OV13850
+	tristate "OV13850 sensor support"
+	depends on VIDEO_MMPISP_B52SENSOR && I2C
+	help
+	  This is a V4L2 camera driver for the ov13850 sensor.
+
+config B52_CAMERA_OV13850_13M
+	tristate "OV13850 13M size support"
+	depends on VIDEO_MMPISP_B52SENSOR && I2C && B52_CAMERA_OV13850
+	help
+	  This is a V4L2 camera driver for the ov13850 13M setting.
+
+config B52_CAMERA_OV13850R2A
+	tristate "OV13850R2A sensor support"
+	depends on VIDEO_MMPISP_B52SENSOR && I2C && B52_CAMERA_OV13850
+	help
+	  This is a V4L2 camera driver for the ov13850R2A 13M setting.
+
+config B52_CAMERA_IMX219
+	tristate "imx219 sensor support"
+	depends on VIDEO_MMPISP_B52SENSOR && I2C
+	help
+	  This is a V4L2 camera driver for the imx219 sensor.
+
+config B52_CAMERA_OV5648
+       tristate "OV5648 camera support"
+       depends on VIDEO_MMPISP_B52 && I2C
+       help
+        This is a V4L2 camera driver for the ov5648 sensor
+
+config B52_CAMERA_OV2680
+       tristate "OV2680 camera support"
+       depends on VIDEO_MMPISP_B52 && I2C
+       help
+        This is a V4L2 camera driver for the ov2680 sensor
+
+config B52_CAMERA_OV8858
+       tristate "OV8858 camera support"
+       depends on VIDEO_MMPISP_B52 && I2C
+       help
+	This is a V4L2 camera driver for the ov8858 sensor
+
+config B52_CAMERA_SR544
+       tristate "SR544 camera support"
+       depends on VIDEO_MMPISP_B52 && I2C
+       help
+	This is a V4L2 camera driver for the sr544 sensor
+
+config B52_CAMERA_HI551
+       tristate "HI551 camera support"
+       depends on VIDEO_MMPISP_B52 && I2C
+       help
+	This is a V4L2 camera driver for the hi551 sensor
+
+config B52_CAMERA_S5K5E3
+       tristate "S5K5E3 camera support"
+       depends on VIDEO_MMPISP_B52 && I2C
+       help
+       This is a V4L2 camera driver for the s5k5e3 sensor
+
+config B52_CAMERA_OV5670
+       tristate "OV5670 camera support"
+       depends on VIDEO_MMPISP_B52 && I2C
+       help
+       This is a V4L2 camera driver for the ov5670 sensor
+
+config B52_CAMERA_S5K3L2
+       tristate "S5K3L2 camera support"
+       depends on VIDEO_MMPISP_B52 && I2C
+       help
+       This is a V4L2 camera driver for the s5k3l2 sensor
+
+config B52_CAMERA_S5K4H5
+       tristate "S5K4H5 camera support"
+       depends on VIDEO_MMPISP_B52 && I2C
+       help
+       This is a V4L2 camera driver for the s5k4h5 sensor

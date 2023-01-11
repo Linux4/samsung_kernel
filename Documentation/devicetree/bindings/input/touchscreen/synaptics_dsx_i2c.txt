@@ -1,0 +1,28 @@
+* Synaptics DSX touchscreen driver
+
+Required properties:
+- compatible: must be "synaptics,s3202-touch"
+
+Example:
+
+	twsi1: i2c@d4010800 {
+
+		touch1: s3202@720p {
+			compatible = "synaptics,s3202-touch";
+			pinctrl-names = "default"; pinctrl-0 = <&touch_pins>;
+			reg = <0x22>;
+			interrupt-parent = <&gpio>;
+			interrupts = <72 0x1>;
+			/* IRQF_ONESHOT | IRQF_TRIGGER_FALLING */
+			synaptics,irq-flags =  <0x2002>;
+			synaptics,irq-gpios = <&gpio 72 0>;
+			synaptics,reset-gpios = <&gpio 75 0>;
+			synaptics,sensor_res_x = <720>;
+			synaptics,sensor_res_y = <1280>;
+			synaptics,sensor_max_x = <798>;
+			synaptics,sensor_max_y = <1392>;
+			synaptics,sensor_margin_x = <39>;
+			synaptics,sensor_margin_y = <0>;
+			avdd-supply = <&ldo10>;
+	};
+

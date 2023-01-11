@@ -1,0 +1,47 @@
+Binding for Marvell MMP series master clock.
+
+The MMP related device tree support for clock based on the clock type not clock
+controller. So specific SOC, user need define the DT file for the clock such as
+pxa910-clock.dtsi.
+
+Almost all types of clock will need parameter as "register", and it will map the
+"register" before access it. If every clock map the "register" seperately, there
+will be a lot of waste.
+
+A master clock is defined for this kind of situation. It will be responsible for
+map the registers for all clocks that lists as its children in DT file.
+
+Required properties
+- compatible : It should be "marvell,mmp-clk-master".
+
+
+Optional properties:
+- reg : The register start and range the master clock covered.
+
+Optional properties for child node:
+- marvell,reg-offset : It is a two-values item - <register_index regiser_offset>.
+                   Master node will map the registers for all its children. So
+                   for the child it need to pass the information about register
+                   index and offset. "register_index" indicates which register space
+                   it from because master clock can have mutiple register space in
+                   "reg". "register_offset" indicates the offset in the register
+                   space.
+
+Examples
+There are two clocks, clk1 has register at 0xd4210010, and clk2 has register at
+0xd42100c0.
+
+apmu_clk {
+	compatible = "marvell,mmp-clk-master";
+	reg = <0xd4210000 0x1000>;
+
+	clk1 {
+		...
+		marvell,reg-offset = <0 0x10>;
+	};
+
+	clk2 {
+		...
+		marvell,reg-offset = <0 0xc0>;
+	};
+};

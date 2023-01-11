@@ -1,0 +1,8 @@
+* GPS module
+- compatible = "marvell,mmp-gps"
+- vgps-supply: power supply
+Example:
+mmp-gps {
+        compatible = "marvell,mmp-gps";
+        vgps-supply = <&ldo13>;
+};

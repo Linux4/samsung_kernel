@@ -1,0 +1,15 @@
+* Marvell 88pm805 driver
+
+Required properties:
+- compatible: must be "marvell,88pm805"
+
+Example:
+
+pmic2: 88pm805@38 {
+	compatible = "marvell,88pm805";
+	reg = <0x38>;
+	interrupt-parent = <&gpio>;
+	interrupts = <124 0x1>;
+	marvell,88pm805-irq-write-clear;
+};
+

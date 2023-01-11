@@ -1,0 +1,66 @@
+* Marvell MMP Timer controller
+
+Each timer have multiple counters, so the timer DT need include counter's
+description.
+
+1. Timer
+
+Required properties:
+- compatible : Should be "marvell,mmp-timer".
+- reg : Address and length of the register set of timer controller.
+- marvell,timer-fastclk-frequency : The fast clock frequency of the timer.
+  Timer will have several clock inputs: fast clock, 32KHZ, 1KHZ. For all
+  SOCes use this timer controller, fast clock may not be same.
+- marvell,timer-apb-frequency : The fequency of the apb bus that the timer
+  attached to. This frequency and "marvell,timer-fastclk-frequency" are used
+  to calculated delay loops for clock operations.
+
+Optional properties:
+- marvell,timer-has-crsr : This timer has CRSR register.
+- marvell,timer-has-shadow : This timer has shadow register.
+
+2. Counter
+
+Required properties:
+- compatible : It can be
+      "marvell,timer-counter-clkevt" : The counter is used for clock event
+                                       device.
+      "marvell,timer-counter-clksrc" : The counter is used for clock source.
+      "marvell,timer-counter-delay" : The counter is used for delay timer.
+- marvell,timer-counter-id : The counter index in this timer.
+
+Optional properties:
+- interrupts : The interrupt for clock event device.
+  Only valid for "marvell,timer-counter-clkevt".
+- marvell,timer-counter-cpu : which CPU the counter is bound. Only valid for
+  "marvell,timer-counter-clkevt".
+- marvell,timer-counter-broadcast : When this counter acts as clock event
+  device. It is broadcast clock event device.
+  Only valid for "marvell,timer-counter-clkevt".
+- marvell,timer-counter-nodynirq : When this counter acts as broadcast clock
+  event device, it cannot switch the IRQ of broadcast clock event to any CPU.
+  Only valid for "marvell,timer-counter-clkevt".
+
+3. Examples
+
+timer0: timer@d4014000 {
+	compatible = "marvell,mmp-timer";
+	reg = <0xd4014000 0xc8>;
+	marvell,timer-fastclk-frequency = <3250000>;
+	marvell,timer-apb-frequency = <26000000>;
+	status = "okay";
+
+	counter0 {
+		compatible = "marvell,timer-counter-clkevt";
+		interrupts = <13>;
+		marvell,timer-counter-id = <0>;
+		marvell,timer-counter-cpu = <0>;
+		marvell,timer-counter-frequency = <32768>;
+	};
+
+	counter1 {
+		compatible = "marvell,timer-counter-clksrc";
+		marvell,timer-counter-id = <1>;
+		marvell,timer-counter-frequency = <32768>;
+	};
+};

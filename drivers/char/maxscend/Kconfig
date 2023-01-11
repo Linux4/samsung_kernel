@@ -1,0 +1,18 @@
+#
+# maxscend cmmb driver configuration
+#
+#
+
+menuconfig MXDCMMB
+	tristate "Maxscend cmmb driver"
+
+help
+	Maxdscend cmmb driver support spi/sdio mode transfer base on mxd0265.
+
+if MXDCMMB
+	config MXDCMMB_DEBUG
+		boolean "Debug support for mxd cmmb drivers"
+	help
+		Say "yes" to enable debug messaging (like dev_dbg and pr_debug),
+		in mxd cmmb drivers.
+endif

@@ -1,0 +1,68 @@
+&gen_panel {
+	dsi_r63317_jdi_HD: gen-panel-r63317-jdi-HD-video {
+		gen-panel-manu = "JDI";		/* condensed manufacturer name */
+		gen-panel-name = "s6d77a1a01-boe";
+		gen-panel-id = <0x591160>;
+		gen-panel-type = "video_mode";
+		gen-panel-refresh = <60>;
+		gen-panel-xres = <720>;
+		gen-panel-yres = <1280>;
+		gen-panel-width= <69>;		/* screen width in mm */
+		gen-panel-height = <124>;	/* screen height in mm */
+		gen-panel-h-back-porch = <52>;	/* left margin */
+		gen-panel-h-front-porch = <116>;	/* right margin */
+		gen-panel-h-sync-width = <4>;	/* hsync len */
+		gen-panel-v-back-porch = <6>;	/* upper margin */
+		gen-panel-v-front-porch = <8>;	/* lower margin */
+		gen-panel-v-sync-width = <2>;	/* vsync len */
+		gen-panel-hsync-invert = <0>;	/* hsync invert */
+		gen-panel-vsync-invert = <0>;	/* vsync invert */
+		gen-panel-lanes = <4>;
+		gen-panel-burst-mode = <2>;
+		gen-panel-master-mode;
+		gen-panel-hfp-en;
+		gen-panel-hbp-en;
+
+		/*
+		 * DSI PACKET HEADER INFO
+		 * @ data type : 1byte
+		 * @ tx mode : 1byte
+		 * @ delay(msec) : 2byte
+		 * @ size of data : 2byte
+		 */
+		gen-panel-pkt-dinfo-addr-offset = <0>;
+		gen-panel-pkt-dinfo-addr-length = <1>;
+		gen-panel-pkt-dinfo-data-offset = <1>;
+		gen-panel-pkt-dinfo-data-length = <1>;
+		gen-panel-init-cmds = [
+			05 00 00 8C 00 01	11
+			39 00 00 14 00 02	B0 00
+			39 00 00 14 00 1F	C9 0C 19 1C 28 32 3E 48 57 3B 43 51 5F 68 70 7F
+						0C 19 1C 28 32 3E 48 57 3B 43 51 5F 68 70 7F
+			39 00 00 14 00 14	CA 01 00 00 00 00 C0 00 00 FF 00 FE B6 00 00 00
+						00 00 FC 00
+			39 00 00 14 00 07	BC 01 38 04 04 00 00
+			39 00 00 28 00 02	36 00
+			39 00 00 14 00 02	55 00
+			39 00 00 14 00 02	53 2C
+			05 00 00 3C 00 01	29
+		];
+		gen-panel-disable-cmds = [
+			05 00 00 32 00 01	28
+			05 00 00 78 00 01	10
+		];
+		gen-panel-backlight-set-brightness-cmds = [
+			39 00 00 14 00 02	51 80
+		];
+		gen-panel-backlight-set-brightness-reg = <0x51>;
+		gen-panel-backlight-get-brightness-reg = <0x51>;
+		gen-panel-read-id = [
+			DA 00 01
+			DB 00 01
+			DC 00 01
+		];
+		gen-panel-read-status-reg = [0A];
+		gen-panel-read-status-ok = [9A];
+		status = "okay";
+	};
+};

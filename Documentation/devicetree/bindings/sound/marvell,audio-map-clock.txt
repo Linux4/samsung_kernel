@@ -1,0 +1,21 @@
+* Marvell audio MAP clock
+
+Required properties:
+- compatible : "marvell,mmp-map-clock"
+- reg: register range for APMU, APBSP, MAP, DSPAUX
+- reg-names: register names for APMU, APBSP, MAP, DSPAUX
+- #clock-cells: clock cells
+- map: map node
+
+Example:
+
+audio_map_clocks: clock{
+	compatible = "marvell,audio-map-clock";
+	reg = <0xd4282800 0x400>,
+	      <0xd4090000 0x1000>,
+	      <0xd1200000 0x8000>,
+	      <0xd1230000 0x100>;
+	reg-names = "apmu", "apbs", "map", "dspaux";
+	#clock-cells = <1>;
+	map = <&map>;
+};

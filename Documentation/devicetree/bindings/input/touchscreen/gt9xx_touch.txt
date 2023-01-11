@@ -1,0 +1,22 @@
+* Goodix Technology touchscreen driver
+
+Required properties:
+- compatible: must be "goodix,gt913-touch"
+
+Example:
+
+	twsi0: i2c@d4011000 {
+		touch3: gt913@720p {
+			compatible = "goodix,gt913-touch";
+			pinctrl-names = "default"; pinctrl-0 = <&touch_pins>;
+			reg = <0x5d>;
+			interrupt-parent = <&gpio>;
+			interrupts = <17 0x1>;
+			irq-gpios = <&gpio 17 0>;
+			reset-gpios = <&gpio 16 0>;
+			goodix,cfg-group = <0>;
+			goodix,max-height = <1280>;
+			goodix,max-width = <720>;
+			avdd-supply = <&ldo10>;
+		};
+	};

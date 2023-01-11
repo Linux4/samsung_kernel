@@ -1,0 +1,14 @@
+* Marvell pcm hostless
+Required properties:
+- bus_number: bus number
+- compatible : "marvell,mmp-pcm-hostless"
+- #dailink-cells: sub device number
+
+Example:
+
+mmp_pcm_hostless: mmp_pcm_hostless {
+	bus_number = <0>;
+	compatible = "marvell,mmp-pcm-hostless";
+	#dailink-cells = <1>;
+	status = "okay";
+};

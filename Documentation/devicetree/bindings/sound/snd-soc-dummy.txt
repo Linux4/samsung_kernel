@@ -1,0 +1,12 @@
+* sound soc dummy
+Required properties:
+- compatible : "snd-soc-dummy"
+- #dailink-cells: sub device number
+
+Example:
+
+snd_soc_dummy: snd_soc_dummy {
+	compatible = "snd-soc-dummy";
+	#dailink-cells = <1>;
+	status = "okay";
+};

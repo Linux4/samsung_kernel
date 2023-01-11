@@ -1,0 +1,43 @@
+MARVELL SSPA dai
+
+Required properties:
+- compatible: "marvell,mmp-sspa-dai"
+- reg: register range
+- dmas: associated dma engine
+- dma-names: dma directions
+- asram: associated sram
+- platform_driver_name: associated platform driver
+- clocks: clock id
+- pinctrl-names: pinctrl name
+- pinctrl-0: sspa(0/1) pin mux
+- playback_period_bytes: peroid size for playback, in byte.
+- playback_buffer_bytes: buffer size for playback, in byte.
+- capture_period_bytes: peroid size for capture, in byte.
+- capture_buffer_bytes: buffer size for capture, in byte.
+- burst_size: dma burst size
+- sleep_vol: low power mode voltage settings.
+- #dailink-cells: dai number
+
+Example:
+
+/* SSPA port 0 */
+sspa0: sspa@d128dc00 {
+	compatible = "mrvl,mmp-sspa-dai";
+	reg = <0xd128dc00 0x100>;
+	dmas = <&adma0 1
+		&adma0 0>;
+	dma-names = "rx", "tx";
+	asram = <&asram>;
+	platform_driver_name = "tdma_platform";
+	clocks = <&audio_map_clocks AUDIO_CLK_SSPA1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sspa0_func>;
+	playback_period_bytes = <2048>;
+	playback_buffer_bytes = <4096>;
+	capture_period_bytes = <2048>;
+	capture_buffer_bytes = <4096>;
+	burst_size = <4>;
+	sleep_vol = <0x14>;
+	#dailink-cells = <1>;
+	status = "okay";
+};

@@ -1,0 +1,24 @@
+LEDs connected to 88pm828x
+
+Required properties:
+- compatible : should be : "marvell,88pm828x".
+- reg: the slave address of 88pm828x as one twsi device, it should be 0x10.
+- ramp_mode: IDAC current ramp up/down mode, typically 0x2 (Non-Linear Mode).
+- idac_current: IDAC current setting, typically 0xa00 (20mA by default).
+- ramp_clk: ramping clock for Linear or Non-Linear mode, typically 0x0 (8KHz).
+- str_config: WLED String Configuration, 1 for 88PM828; 0 for 88PM828A.
+
+Optional properties:
+- avdd-supply: power domain for twsi bus. it's platform dependent.
+
+Examples:
+
+backlight: pm828x@10 {
+	compatible = "marvell,88pm828x";
+	reg = <0x10>;
+	ramp_mode = <0x2>;
+	idac_current = <0xa00>;
+	ramp_clk = <0>;
+	str_config = <0x1>;
+	avdd-supply = <&ldo12>;
+};

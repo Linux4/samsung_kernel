@@ -1,0 +1,20 @@
+MARVELL HS USB EHCI controller
+
+Required properties:
+
+- compatible: should be "marvell,pxa-u2oehci"
+- reg: should contain one register range i.e. start and length
+- interrupts: description of the interrupt line
+
+Example:
+ehci: ehci@d4208100 {
+	compatible = "marvell,pxa-u2oehci";
+	reg = <0xd4208100 0x200>;
+	interrupts = <0 67 0x4>;
+	marvell,ehci-name = "pxa-u2oehci";
+	marvell,udc-mode = <1>;
+	marvell,extern-attr = <1>;
+	marvell,otg-force-a-bus-req;
+	clocks = <&soc_clocks PXA1928_CLK_USB>;
+	status = "disabled";
+};

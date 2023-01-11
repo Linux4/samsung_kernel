@@ -1,0 +1,18 @@
+Marvell TD043MGEA1 LCD panel
+
+Required properties:
+- compatible: should be "marvell,mmp-td043mgea1"
+
+
+Optional properties:
+- iovdd-supply: regulator to provide the supply voltage
+- marvell,path-name: clk name;
+- rst_gpio: GPIO pin to reset panel;
+
+Example:
+
+panel: td043mgea1 {
+	compatible = "marvell,mmp-td043mgea1";
+	marvell,path-name = "mmp_pnpath";
+	status = "okay";
+};

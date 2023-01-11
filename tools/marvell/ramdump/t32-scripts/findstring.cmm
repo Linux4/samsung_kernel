@@ -1,0 +1,28 @@
+ENTRY &str
+&r_start=0x80000000
+&r_end=0x90000000
+
+&outname="c:\temp\find.cmm.results.txt"
+OPEN #1 &outname /Create
+&count=0
+
+d.find &r_start--&r_end &str /nofind
+
+REPEAT
+(
+	DATA.FIND
+	IF FOUND()
+	(
+		&addr=ADDRESS.OFFSET(TRACK.ADDRESS())
+		WRITE #1 &addr ":" DATA.STRING(TRACK.ADDRESS())
+		&count=&count+1
+	)
+)
+WHILE FOUND()
+
+WRITE #1 "Total " %decimal &count " occurances found (saved in &outname )"
+CLOSE #1
+
+TYPE &outname
+
+ENDDO

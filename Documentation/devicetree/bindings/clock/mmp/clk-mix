@@ -1,0 +1,37 @@
+Binding for Marvell MMP series mix clock
+
+The mix clock is a combination of mux and div clock. It need to
+change the bits of mux and div together.
+
+
+Required properties
+- compatible : It should be "marvell,mmp-clk-mix".
+- clocks : The parents of the clock.
+- marvell,mmp-clk-bits-div : The width and shift of divider bits.
+- marvell,mmp-clk-bits-mux : The width and shift of divider bits.
+- marvell,mmp-clk-bit-fc : The offset of the frequency change bit.
+- marvell,mmp-clk-mix-table : The array of (rate, parent_index). The rate
+                              means the clock's rate, and parent_index means
+                              the suggested parent index from user.
+
+Optional properties:
+- marvell,mmp-clk-div-power-of-two : The value of divider is a power of two.
+- marvell,mmp-clk-div-one-based : The value of divider starts from 1.
+- marvell,mmp-clk-div-table : The value of divider is not continous, and need
+                              a table to record it.
+
+
+Exampels
+
+apmu_clk {
+	compatible = "marvell,mmp-clk-master";
+	reg = <0xd4282800 0x1000>;
+	lcd_clk {
+		compatible = "marvell,mmp-clk-mix";
+		clocks = <&pll1_416m &pll1_624 &pll2 &pll2p>;
+		marvell,reg-offset = <0 0x4c>;
+		marvell,mmp-clk-bits-mux = <2 17>;
+		marvell,mmp-clk-bits-div = <3 19>;
+		marvell,mmp-clk-bit-fc = <22>;
+	};
+};

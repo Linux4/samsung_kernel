@@ -1,0 +1,236 @@
+/*
+ *  Copyright (C) 2014 Marvell Technology Group Ltd.
+ *  Author: Yi Zhang <yizhang@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+
+/dts-v1/;
+#include "pxa1936-board-common.dtsi"
+
+/ {
+	model = "Marvell PXA1936 CMTB Development Board";
+	compatible = "marvell,pxa1936-dkb", "marvell,pxa1936";
+	soc {
+		apb@d4000000 {
+			pmx: pinmux@d401e000 {
+				sspa1_func: sspa1_func {
+					/*this config for camera on cmtb board */
+					pinctrl-single,pins = <
+						GPIO27 AF0
+						GPIO28 AF0
+					>;
+					MFP_LPM_FLOAT;
+				};
+			};
+			twsi1: i2c@d4010800 {
+				touch1: s3202@720p {
+					avdd-supply = <&ldo6>;
+				};
+
+				touch2: s3202@1080p {
+					avdd-supply = <&ldo6>;
+				};
+			};
+
+			twsi2: i2c@d4037000 {
+				status = "okay";
+
+				pmic0: 88pm880@30 {
+					reg = <0x30>;
+					interrupts = <0 4 IRQ_TYPE_LEVEL_HIGH>;
+					interrupt-parent = <&gic>;
+
+					dvc {
+						pinctrl-names = "default";
+						pinctrl-0 = <&dvc_pmx_func>;
+					};
+
+					/*
+					 * TODO: remove later, fake ldo,
+					 * to pass compile
+					 */
+					ldo19: regulator-ldo19 {
+					};
+				};
+
+				pmic2: 88pm860@38 {
+					compatible = "marvell,88pm860";
+					reg = <0x38>;
+					marvell,pmic-type = <1>;
+					/* no codec_int currently, comment out now */
+					/*
+					interrupt-parent = <&gpio>;
+					interrupts = <124 0x1>;
+					marvell,88pm805-irq-write-clear;
+					*/
+					pm860_codec: pm860_codec {
+						compatible = "marvell,88pm860-codec";
+						#dailink-cells = <1>;
+					};
+				};
+			};
+			twsi3: i2c@d4013800 {
+				status = "okay";
+				sensor1: apds9930@39 {
+					avdd-supply = <&ldo16>;
+					};
+				sensor2: bmi160@68 {
+					avdd-supply = <&ldo16>;
+					};
+
+				sensor3: bme280@76 {
+					avdd-supply = <&ldo16>;
+					};
+				sensor4: icm20628@69 {
+					avdd-supply = <&ldo16>;
+					};
+				sensor5: mxc400x@15 {
+					avdd-supply = <&ldo16>;
+					};
+				sensor6: mmc3524x@30 {
+					avdd-supply = <&ldo16>;
+					};
+			};
+			map@d1200000 {
+				pmic-name = "88pm880";
+				vccmain-supply = <&buck1aslp>;
+			};
+		};
+
+		axi@d4200000 {  /* AXI */
+			/* SD card */
+			sdh0: sdh@d4280000 {
+			      vqmmc-supply    = <&ldo10>;
+			      vmmc-supply     = <&ldo14>;
+			};
+		};
+	};
+	panel1: r63311 {
+		rst_gpio = <&gpio 98 0>;
+		power_gpio = <&gpio 96 0>;
+		marvell,mipi-backlight;
+	};
+	panel2: hx8394 {
+		rst_gpio = <&gpio 98 0>;
+		avdd-supply = <&ldo6>;
+	};
+
+	panel3: lg4591 {
+		rst_gpio = <&gpio 98 0>;
+		avdd-supply = <&ldo6>;
+	};
+
+	mmp_m3_1: apsenhb {
+		pmicver = <2>;
+		vm3pwr-supply = <&ldo3>;
+		antpwr-supply = <&ldo4>;
+		vccmain-supply = <&buck1aslp>;
+	};
+
+	mmp_m3_2: cm3senhb {
+		pmicver = <2>;
+		vm3pwr-supply = <&ldo3>;
+		antpwr-supply = <&ldo4>;
+		senpwr-supply = <&ldo16>;
+		vccmain-supply = <&buck1aslp>;
+	};
+
+	mcam0:mcam@0 {
+		sc2-i2c-dyn-ctrl;
+		pwdn-gpios = <&gpio 68 0>;
+		reset-gpios = <&gpio 67 0>;
+		/*
+		af_2v8-supply = <&ldo10>;
+		avdd_2v8-supply = <&ldo11>;
+		dovdd_1v8-supply = <&voutsw>;
+		dvdd_1v2-supply = <&ldo12>;
+		*/
+		dphy_val = <0xff1d00 0x00024733 0x04001001>;
+		status = "disable";
+	};
+
+	mcam1:mcam@1 {
+		sc2-i2c-dyn-ctrl;
+		pwdn-gpios = <&gpio 70 0>;
+		reset-gpios = <&gpio 69 0>;
+
+		af_2v8-supply = <&ldo8>;
+		avdd_2v8-supply = <&ldo7>;
+		dovdd_1v8-supply = <&buck2>;
+		dvdd_1v2-supply = <&ldo17>;
+
+		dphy_val = <0xff1d00 0x00024733 0x04001001>;
+		status = "disable";
+	};
+
+	soc-camera@0 {
+		status = "disable";
+	};
+
+	soc-camera@1 {
+		status = "disable";
+	};
+
+	plat_cam {
+		status = "okay";
+		backsensor {
+			compatible = "marvell,backsensor";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			S5K3L2: sensor@0 {
+				compatible = "samsung,s5k3l2";
+				status = "okay";
+				reg = <0x2d>;
+				clocks = <&soc_clocks PXA1936_CLK_SC2_MCLK>;
+				clock-names = "SC2MCLK";
+				sc2-i2c-dyn-ctrl;
+				cmtb_board;
+				assume_exist = <0x1>;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0xff4115>;
+				dphy5 = <0x247ff>;
+				dphy6 = <0x4001001>;
+				af_2v8-supply = <&ldo8>;
+				avdd_2v8-supply = <&ldo7>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo17>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+				mut-gpios = <&gpio 1 0>;
+				ecam1-gpios = <&gpio 27 0>;
+				ecam2-gpios = <&gpio 28 0>;
+				ecam3-gpios = <&gpio 29 0>;
+				ecam4-gpios = <&gpio 30 1>;
+				ilim-gpios = <&gpio 0 0>;
+				mutfault-gpios = <&gpio 2 0>;
+			};
+		};
+	};
+
+	b52isp_sc2_csi0 {
+	        status = "okay";
+	};
+	b52isp_sc2_csi1 {
+			csi_mux_repacked;
+	        status = "okay";
+	};
+	b52isp_sc2_dma0 {
+	        status = "okay";
+	};
+	b52isp_sc2_dma1 {
+	        status = "okay";
+	};
+};
+
+#include "88pm88x.dtsi"
+#include "88pm880.dtsi"
+#include "88pm88x_battery_common.dtsi"
+#include "88pm88x_battery_485760ar.dtsi"
+#include "88pm880_pxa1936_dkb.dtsi"

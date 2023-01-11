@@ -1,0 +1,21 @@
+Marvell FWVGA LCD panel
+
+Required properties:
+- compatible: should be "marvell,mmp-otm1283a"
+
+Optional properties:
+- avdd-supply: regulator to provide the supply voltage
+- marvell,path-name: clk name;
+- panel_esd: esd feature for panel;
+- rst_gpio: GPIO pin to reset panel;
+
+Example:
+
+panel3: otm1283a {
+	compatible = "marvell,mmp-otm1283a";
+	marvell,path-name = "mmp_pnpath";
+	panel_esd = <0>;
+	rst_gpio = <&gpio 4 0>;
+	avdd-supply = <&ldo11>;
+	status = "okay";
+};

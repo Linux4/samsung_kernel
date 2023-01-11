@@ -1,0 +1,66 @@
+/*
+ * Copyright (C) 2014 Marvell
+ * Yi Zhang <yizhang@marvell.com>
+ */
+
+/*
+ * Integrated Power Management Chip
+ * common header file for Marvell PMIC: 88pm88x
+ */
+
+&pmic0 {
+	interrupt-controller;
+	#interrupt-cells = <1>;
+
+	marvell,88pm88x-irq-write-clear;
+
+	onkey {
+		compatible = "marvell,88pm88x-onkey";
+		/* marvell,pm886-onkey-gpio-number = <1>; */
+	};
+
+	vbus {
+		compatible = "marvell,88pm88x-vbus";
+	};
+
+	rtc {
+		compatible = "marvell,88pm88x-rtc";
+	};
+
+	charger {
+		compatible = "marvell,88pm88x-charger";
+	};
+
+	battery {
+		compatible = "marvell,88pm88x-battery";
+	};
+
+	dvc {
+		  compatible = "marvell,88pm88x-dvc";
+	};
+
+	headset {
+		  compatible = "marvell,88pm88x-headset";
+		  status = "disabled";
+	};
+
+	led {
+		compatible = "marvell,88pm88x-leds";
+	};
+
+	red: led-rgb0 {
+		compatible = "marvell,88pm88x-rgb0";
+	};
+	green: led-rgb1 {
+	        compatible = "marvell,88pm88x-rgb1";
+        };
+	blue: led-rgb2 {
+	        compatible = "marvell,88pm88x-rgb2";
+	};
+
+	gpadc: gpadc{
+	        compatible = "marvell,88pm88x-gpadc";
+		#io-channel-cells = <1>;
+		io-channel-ranges;
+	};
+};

@@ -1,0 +1,43 @@
+B52 sensor
+
+backsensor node
+------------
+Required properties:
+- compatible	: "marvell,backsensor" "marvell,frontsensor";
+
+sensor node
+------------
+- compatible	: "sony,imx219", "ovt,ov5642", "ovt,ov13850r2a", "ovt,ov13850", "ovt,ov8858r2a", "samsung,sr544",
+			"ovt,ov5648", "ovt,ov2680", "hynix,hi551", "samsung,s5k3l2", "samsung,s5k5e3";
+- reg			: I2C slave address of the sensor;
+- adapter		: I2C adapter number;
+- sensor-pos	: 1 means sccb1, 2 means sccb2
+- mclk			: the rate of mclk;
+- dphy3			: HS Settle and HS Term;
+- dphy5			: Lane Enable control;
+- dphy6			: CLK Settle and CLK Term;
+- af_2v8-supply	  	: analog power supply 2.8V for vcm;
+- avdd_2v8-supply 	: analog power supply 2.8V;
+- dovdd_1v8-supply	: I/O power supply 1.8V;
+- dvdd_1v2-supply	: core power supply 1.2V;
+- pwdn-gpios		: GPIO connected to PWDN pin and FLAG_ACTIVE_LOW;
+- reset-gpios		: GPIO connected to RSTN pin and FLAG_ACTIVE_LOW;
+
+Example:
+IMX219: sensor@0 {
+	compatible = "sony,imx219";
+	status = "okay";
+	reg = <0x1A>;
+	adapter = <0x1>;
+	sensor-pos = <1>;
+	mclk = <26000000>;
+	dphy3 = <0x2700>;
+	dphy5 = <0xff>;
+	dphy6 = <0x1001>;
+	af_2v8-supply = <&ldo7>;
+	avdd_2v8-supply = <&ldo3>;
+	dovdd_1v8-supply = <&ldo6>;
+	dvdd_1v2-supply = <&CAMERA_DVDD_SUPPLY>;
+	pwdn-gpios = <&gpio CAM_MAIN_PWDN_N 1>;
+	reset-gpios = <&gpio CAM1_RST_N 1>;
+};

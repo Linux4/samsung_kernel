@@ -1,0 +1,28 @@
+Marvell RGB led driver
+-----------------------------------------------------
+This binding defines which gpios are used to control rgb leds over
+Marvell platform.
+
+Required properties:
+- compatible : "marvell,led-rgb"
+- pinctrl-names: which pinctrl set name is used
+- pinctrl-0: the default pinctrl group
+- led_r: which gpio is used to control red led
+- led_g: which gpio is used to control green led
+- led_b: which gpio is used to control blue led
+
+Example:
+	smc@0x3404c000 {
+		compatible = "brcm,bcm11351-smc", "brcm,kona-smc";
+		reg = <0x3404c000 0x400>; //1 KiB in SRAM
+	};
+
++       led-rgb {
++               compatible = "marvell,led-rgb";
++               pinctrl-names = "default";
++               pinctrl-0 = <&led_pmx_func>;
++               led_r = <&gpio 102 0>;
++               led_g = <&gpio 103 0>;
++               led_b = <&gpio 104 0>;
++               status = "okay";
++       };

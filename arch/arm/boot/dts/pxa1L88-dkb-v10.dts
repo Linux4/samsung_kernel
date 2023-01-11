@@ -1,0 +1,7 @@
+/dts-v1/;
+#include "pxa1L88-dkb.dtsi"
+/ {
+	compatible = "mrvl,pxa1L88-dkb-v10", "mrvl,pxa1L88";
+	soc {
+	};
+};

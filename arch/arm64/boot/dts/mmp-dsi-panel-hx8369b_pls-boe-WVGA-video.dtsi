@@ -1,0 +1,79 @@
+&gen_panel {
+	dsi_hx8369b_boe_WVGA: gen-panel-hx8369b-boe-WVGA-video {
+		gen-panel-manu = "BOE";		/* condensed manufacturer name */
+		gen-panel-name = "hx8369b-boe";
+		gen-panel-id = <0x55b890>;
+		gen-panel-type = "video_mode";
+		gen-panel-refresh = <60>;
+		gen-panel-xres = <480>;
+		gen-panel-yres = <800>;
+		gen-panel-width= <62>;		/* screen width in mm */
+		gen-panel-height = <110>;	/* screen height in mm */
+		gen-panel-h-front-porch = <106>;/* right margin */
+		gen-panel-h-back-porch = <110>;	/* left margin */
+		gen-panel-h-sync-width = <4>;	/* hsync len */
+		gen-panel-v-front-porch = <10>;	/* lower margin */
+		gen-panel-v-back-porch = <12>;	/* upper margin */
+		gen-panel-v-sync-width = <4>;	/* vsync len */
+		gen-panel-hsync-invert = <0>;	/* hsync invert */
+		gen-panel-vsync-invert = <0>;	/* vsync invert */
+		gen-panel-lanes = <2>;
+		gen-panel-burst-mode = <2>;
+		gen-panel-master-mode;
+		/* gen-panel-hfp-en; */
+		/* gen-panel-hbp-en; */
+
+		/*
+		 * DSI PACKET HEADER INFO
+		 * @ data type : 1byte
+		 * @ tx mode : 1byte
+		 * @ delay(msec) : 2byte
+		 * @ size of data : 2byte
+		 */
+		gen-panel-pkt-dinfo-addr-offset = <0>;
+		gen-panel-pkt-dinfo-addr-length = <1>;
+		gen-panel-pkt-dinfo-data-offset = <1>;
+		gen-panel-pkt-dinfo-data-length = <1>;
+		gen-panel-init-cmds = [
+			39 00 00 00 00 04	B9 FF 83 69
+			39 00 00 00 00 0B	B1 0B 83 77 00 0F 0F 0B 0B 0C 0A
+			39 00 00 00 00 04	C6 41 FF 7D
+			39 00 00 00 00 05	E3 00 00 00 00
+			39 00 00 00 00 07	C0 73 50 00 34 C4 00
+			39 00 00 00 00 10	BA 31 00 16 CA B1 0A 00 10 28 02 21 21 9A 1A 8F
+			39 00 00 00 00 02	3A 70
+			39 00 00 00 00 05	B3 83 00 31 03
+			39 00 00 00 00 02	B4 00
+			39 00 00 00 00 02	CC 0E
+			39 00 00 00 00 02	EA 72
+			39 00 00 00 00 02	B2 03
+			39 00 00 00 00 5D	D5 00 00 07 00 09 00 00 10 01 00 00 00 01 42 37
+								00 00 08 2A 08 47 00 00 03 00 00 00 00 00 00 00
+								00 00 00 00 15 00 00 98 98 44 66 00 22 51 00 00
+								89 98 33 11 77 55 04 00 00 98 98 55 77 11 33 40
+								00 00 89 98 22 00 66 44 15 00 00 00 01 00 00 00
+								03 00 0F FF FF 03 00 0F FF FF 00 8C 5A
+			39 00 00 00 00 24	E0 00 02 04 2C 33 3F 0D 32 05 0B 0E 11 14 12 13
+								13 1A 00 02 04 2C 32 3F 0F 31 05 0B 0E 11 14 12
+								13 13 1A 01
+			39 00 00 78 00 01	11
+			39 00 00 00 00 01	10
+		];
+		gen-panel-enable-cmds = [
+			05 00 00 79 00 01	11
+			05 00 00 0A 00 01	29
+		];
+		gen-panel-disable-cmds = [
+			05 00 00 0A 00 01	28
+			05 00 00 79 00 01	10
+		];
+		gen-panel-read-id = [
+			DA 00 01
+			DB 00 01
+			DC 00 01
+		];
+		gen-panel-read-status-reg = [0A];
+		gen-panel-read-status-ok = [9A];
+		status = "okay";
+	};
+};

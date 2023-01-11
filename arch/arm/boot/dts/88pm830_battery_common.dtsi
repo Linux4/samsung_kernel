@@ -1,0 +1,40 @@
+/*
+ * Copyright (C) 2014 Marvell
+ * Yi Zhang <yizhang@marvell.com>
+ */
+
+/*
+ * Integrated Power Management Chip
+ * 88pm830 parameters for most Li-ion batteries
+ */
+
+#include <dt-bindings/interrupt-controller/irq.h>
+
+&pmic1 {
+	charger {
+		prechg-current = <100>;	/* mA */
+		prechg-voltage = <3300>; /* mV */
+		prechg-timeout = <32>; /* minute */
+
+		fastchg-eoc = <20>; /* mA */
+		fastchg-voltage = <4200>; /* mV */
+		fastchg-timeout = <8>; /* hour */
+
+		over-voltage = <4500>; /* mV */
+
+		no-thermal-support = <1>;
+		thermal-threshold = <0x54 0x36 0x14 0xe>;
+		temp-configure = <0x22>;
+		temp-threshold = <150>;
+
+		mppt-weight = <0x2>; /* 25% */
+		mppt-period = <0x7>; /* 20ms */
+		mppt-start-current = <0xf>; /* 1600mA */
+	};
+
+	battery {
+		sleep-period = <1000>; /* second */
+		low-threshold = <30>; /* % */
+		high-threshold = <50>; /* % */
+	};
+};

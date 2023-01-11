@@ -1,0 +1,157 @@
+/*
+ *  Copyright (C) 2014 Marvell Technology Group Ltd.
+ *  Author: Dongjiu Geng <djgeng@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+
+/memreserve/ 0x08100000 0x00040000;     /* ramoops buffer (256KB) */
+/memreserve/ 0x09000000 0x01000000;	/* GPU Reserved mem (16MB) */
+/memreserve/ 0x17000000 0x01800000;     /* Frame buffer (24MB) */
+/memreserve/ 0x0a000000 0x00080000;     /* CM3 shared buffer(512KB) */
+#include "pxa1908-board-common.dtsi"
+
+/ {
+	model = "Marvell PXA1908 DKB Development Board";
+
+	soc {
+		axi@d4200000 {  /* AXI */
+			usbphy: usbphy@d4207000 {
+				status = "okay";
+			};
+
+			udc: udc@d4208100 {
+				status = "okay";
+			};
+
+			ehci: ehci@d4208100 {
+				status = "okay";
+			};
+
+			otg: otg@d4208100 {
+				status = "okay";
+			};
+		};
+
+		apb@d4000000 {
+			keypad: keypad@d4012000 {
+				marvell,direct-keys;
+				marvell,direct-key-low-active;
+				marvell,keypad-lpm-mod;
+				marvell,direct-key-count = <2>;
+				marvell,direct-key-mask = <0xff>;
+				marvell,direct-key-map = < 0x73
+							   0x72>;
+				marvell,debounce-interval = <30>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&keypad_in_func>;
+				status = "okay";
+			};
+
+			keyreset {
+				compatible = "marvell,keyreset";
+				keys-down = <0x73 0x72>;
+				keyreset-need-panic;
+				status = "okay";
+			};
+
+			twsi1: i2c@d4010800 {
+				touch1: s3202@720p {
+					status = "okay";
+				};
+				touch2: msg2133@26 {
+					status = "okay";
+				};
+				touch3: 88ms100@720p {
+					status = "okay";
+				};
+			};
+
+			twsi2: i2c@d4037000 {
+
+				pmic0: 88pm886@30 {
+					status = "okay";
+				};
+				pmic2: 88pm860@38 {
+					status = "okay";
+				};
+			};
+
+			twsi3: i2c@d4013800 {
+				sensor1: apds9930@39 {
+					status = "okay";
+				};
+				sensor2: bmi160@68 {
+					status = "okay";
+				};
+				sensor3: bme280@76 {
+					status = "okay";
+				};
+				sensor4: icm20628@69 {
+					status = "okay";
+				};
+				sensor5: mxc400x@15 {
+					status = "okay";
+				};
+				sensor6: mmc3524x@30 {
+					status = "okay";
+				};
+			};
+		};
+	};
+
+	sd8x-rfkill {
+		sd-host = <&sdh1>;
+		pd-gpio = <&gpio 7 0>;
+		rst-gpio = <&gpio 71 0>;
+		wib_3v3-supply = <&ldo15>;
+		wib_1v8-supply = <&buck2>;
+		3v3-ldo-gpio = <&gpio 14 0>;
+		edge-wakeup-gpio = <&gpio 39 0>;
+		marvell,sdh-tuning-dvfs;
+		status = "okay";
+	};
+
+	vibrator {
+		compatible = "marvell,pwm-vibrator";
+		pwms = <&pwm4 0 1000>;
+		min_timeout = <0>;
+		duty_cycle = <800>;
+		vibrator-supply = <&ldo9>;
+	};
+
+	panel1: hx8394 {
+		compatible = "marvell,mmp-hx8394";
+		marvell,path-name = "mmp_pnpath";
+		panel_esd = <0>;
+		rst_gpio = <&gpio 4 0>;
+		avdd-supply = <&ldo11>;
+		status = "okay";
+	};
+
+	panel2: otm8018b {
+		compatible = "marvell,mmp-otm8018b";
+		marvell,path-name = "mmp_pnpath";
+		panel_esd = <0>;
+		rst_gpio = <&gpio 4 0>;
+		avdd-supply = <&ldo11>;
+		status = "okay";
+	};
+
+	panel3: otm1283a {
+		compatible = "marvell,mmp-otm1283a";
+		marvell,path-name = "mmp_pnpath";
+		panel_esd = <0>;
+		rst_gpio = <&gpio 4 0>;
+		avdd-supply = <&ldo11>;
+		status = "okay";
+	};
+
+};
+#include "88pm88x.dtsi"
+#include "88pm886.dtsi"
+#include "88pm88x_battery_common.dtsi"
+#include "88pm88x_sp4555557sa.dtsi"
+#include "88pm886_pxa1908_dkb.dtsi"

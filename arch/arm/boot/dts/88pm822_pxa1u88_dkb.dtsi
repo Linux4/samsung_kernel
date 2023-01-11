@@ -1,0 +1,49 @@
+/*
+ * Copyright (C) 2014 Marvell
+ * Yi Zhang <yizhang@marvell.com>
+ * 88pm822 description for pxa1u88_dkb
+ */
+
+#include "88pm8xx.dtsi"
+#include "88pm822.dtsi"
+
+&pmic0 {
+	/*
+	 * board specific register configuration
+	 * marvell,pmic-board-cfg = <page reg mask data>;
+	 */
+	marvell,pmic-board-cfg = <>;
+
+	regulators {
+	        buck1: BUCK1 {regulator-boot-on; regulator-always-on;};
+	        buck2: BUCK2 {regulator-boot-on; regulator-always-on;};
+	        buck3: BUCK3 {regulator-boot-on; regulator-always-on;};
+	        buck4: BUCK4 {regulator-boot-on; regulator-always-on;};
+	        buck5: BUCK5 {regulator-boot-on; regulator-always-on;};
+
+	        ldo1: LDO1 {regulator-boot-on; regulator-always-on;};
+	        ldo2: LDO2 {regulator-boot-on; regulator-always-on;};
+	        ldo3: LDO3 {regulator-boot-on; regulator-always-on;};
+
+	        ldo7: LDO7 {regulator-boot-on; regulator-always-on;};
+	        ldo8: LDO8 {regulator-boot-on; regulator-always-on;};
+	};
+
+	vibrator {
+		min-timeout = <10>;
+		duty-cycle = <0x3f>;
+		status = "okay";
+	};
+
+	headset {
+		marvell,switch-name = "h2w";
+		marvell,headset-flag = <1>;
+		marvell,hook-press-th = <60>;
+		marvell,vol-up-press-th = <250>;
+		marvell,vol-down-press-th = <500>;
+		marvell,mic-det-th = <600>;
+		marvell,press-release-th = <600>;
+		marvell,micbias-supply = <&ldo14>;
+		status = "okay";
+	};
+};

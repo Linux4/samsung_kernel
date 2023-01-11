@@ -1,0 +1,17 @@
+MARVELL PXA910-SSP
+
+Required properties:
+- compatible: "mrvl,pxa910-ssp"
+- reg: register range
+- ssp-id: ssp index
+- interrupts: interrupt line
+
+Example:
+
+ssp4: ssp@d4039000 {
+	compatible = "mrvl,pxa910-ssp";
+	reg = <0xd4039000 0x90>;
+	ssp-id = <5>;
+	interrupts = <0 34 0x4>;
+	status = "disabled";
+};

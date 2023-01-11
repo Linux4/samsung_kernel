@@ -1,0 +1,51 @@
+menuconfig MMP_PM_DOMAIN
+	bool "power domain support for mmp"
+	depends on PM_GENERIC_DOMAINS
+	help
+	  Say Y to enable support for the power domain managment for
+	  Marvell mmp SOCes.
+	  It will includes the APIs and help functions for specific
+	  power domains. The power domain will provide power for
+	  VPU/GC/ISP and etc.
+
+if MMP_PM_DOMAIN
+
+config MMP_PM_DOMAIN_COMMON
+        bool "power domain for vpu/gc/isp"
+        help
+          Say Y here to enable related power domain for pxa1088/pxa1L88
+
+config MMP_PM_DOMAIN_ISP_V3
+	   bool "power domain for b52isp V3"
+	   help
+          Say Y here to enable related power domain for pxa1908
+
+config MMP_PM_DOMAIN_SC2_ISP
+	   bool "power domain for b52isp"
+	   help
+          Say Y here to enable related power domain for pxa1928
+
+config MMP_PM_DOMAIN_DISPLAY
+        bool "power domain for display"
+        help
+          Say Y here to enable related power domain for pxa1088/pxa1L88/pxa1920
+
+config MMP_PM_DOMAIN_HANTRO
+        bool "power domain for hantro"
+        help
+          Say Y here to enable related power domain for pxa1928
+config MMP_PM_DOMAIN_GC2D
+        bool "power domain for gc2d"
+        help
+          Say Y here to enable related power domain for pxa1928
+config MMP_PM_DOMAIN_GC3D
+        bool "power domain for gc3d"
+        help
+          Say Y here to enable related power domain for pxa1928
+config MMP_PM_DOMAIN_SMMU
+        bool "power domain for smmu"
+        help
+          Say Y here to enable smmu related power domain for pxa1U88/pxa1928.
+	  As now smmu at the same power domain of vpu, we need to set vpu as
+	  its parent power domain.
+endif

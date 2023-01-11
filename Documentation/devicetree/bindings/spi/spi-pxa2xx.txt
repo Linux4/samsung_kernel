@@ -1,0 +1,31 @@
+SPI
+
+MARVELL SPI 1
+
+Required properties:
+- Compatibility : "marvell,pxa910-spi"
+- reg		: Address of SPI1 Register
+- ssp-id	: Bus Id
+- interrupts	: One ssp interrupt should be required here
+
+Optional properties:
+-  dmas		: Used to choose dmas channel
+-  dma-names	: Names of dma
+
+Example:
+	spi1: spi@d4035000 {
+		compatible = "marvell,pxa910-spi";
+		reg = <0xd4035000 0x90>;
+		ssp-id = <1>;
+		interrupts = <0 0 0x4>;
+		dmas = <&pdma1 6 0
+			&pdma1 7 0>;
+		dma-names = "rx", "tx";
+		lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+		status = "disabled";
+		pinctrl-names = "default";
+		pinctrl-0 = <&spi1_pins>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";
+	};

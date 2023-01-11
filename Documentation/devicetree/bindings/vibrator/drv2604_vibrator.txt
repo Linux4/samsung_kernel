@@ -1,0 +1,15 @@
+Device tree bindings for Texas-Instruments drv2604 vibrator driver
+
+Required properties:
+
+ - compatible:          Should be "ti,drv2604-vibrator".
+ - reg:                 I2C client number (0x5a as defined in drv2604 datasheet).
+ - vibrator-supply:     Regulator that supplies the vibrator driver.
+
+Example:
+
+	vibrator: vibrator@5a {
+		compatible = "ti,drv2604-vibrator";
+		reg = <0x5a>;
+		vibrator-supply = <&ldo10>;
+	};

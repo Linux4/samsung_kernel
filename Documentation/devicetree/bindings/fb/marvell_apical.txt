@@ -1,0 +1,12 @@
+* MARVELL APICAL CONTROLLER
+
+Required properties:
+- compatible : should be "marvell,mmp-apical";
+- reg : register base address and size;
+
+Example:
+apical: apical@d420b400 {
+	compatible = "marvell,mmp-apical";
+	reg = <0xd420b400 0x400>, <0xd420b000 0x3d0>;
+	status = "disabled";
+};

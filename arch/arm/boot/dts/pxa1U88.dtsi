@@ -1,0 +1,863 @@
+/*
+ *  Copyright (C) 2013 Marvell Technology Group Ltd.
+ *  Author: Chao Xie <chao.xie@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+
+/include/ "skeleton.dtsi"
+#include "pxa988-pinfunc.h"
+#include "pxa1U88-pm.h"
+#include <dt-bindings/clock/marvell-pxa1U88.h>
+#include <dt-bindings/clock/marvell-audio-map.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	interrupt-parent = <&gic>;
+
+	aliases {
+		serial0 = &uart2;
+		serial1 = &uart0;
+		serial2 = &uart1;
+		i2c0 = &twsi0;
+		i2c1 = &twsi1;
+		i2c2 = &twsi2;
+		i2c3 = &twsi3;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0xf00>;
+		};
+		cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0xf01>;
+		};
+		cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0xf02>;
+		};
+		cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0xf03>;
+		};
+	};
+
+	gic: interrupt-controller@d1dfa000 {
+		compatible = "arm,cortex-a7-gic";
+		interrupt-controller;
+		#interrupt-cells = <3>;
+		reg = <0xd1df9000 0x1000>,
+		      <0xd1dfa000 0x2000>;
+	};
+
+	generic-timer {
+		compatible = "arm,armv7-timer";
+		/* PPI secure/nonsecure IRQ, active low level-sensitive */
+		interrupts = <1 13 0x308>,
+			     <1 14 0x308>;
+		clock-frequency = <26000000>;
+	};
+
+	soc {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		interrupt-parent = <&gic>;
+		ranges;
+
+		devfreq-ddr {  /* DDR memory controller */
+			compatible = "marvell,devfreq-ddr";
+			reg = <0xc0100000 0x880>;
+			interrupts = <0 43 0x4>;
+			clocks = <&soc_clocks PXA1U88_CLK_DDR>;
+			marvell,qos;
+		};
+
+		sram: sram@0xd1004000 {
+			compatible = "mmio-sram";
+			reg = <0xd1004000 0xaa00>;
+		};
+
+		smmu {
+			compatible = "arm,mmu-400";
+			reg = <0xc0010000 0x10000>;
+			#global-interrupts = <1>;
+
+			/* we need a context intr
+			/* unless there is error
+			 */
+			interrupts = <0 78 4>,
+				     <0 78 4>;
+			mmu-masters = <&ion 0x0>;
+			calxeda,smmu-secure-config-access;
+			status = "disabled";
+		};
+
+		axi@d4200000 {	/* AXI */
+			compatible = "mrvl,axi-bus", "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0xd4200000 0x00200000>;
+			ranges;
+
+			usbphy: usbphy@d4207000 {
+				compatible = "marvell,usb2-phy-28lp";
+				reg = <0xd4207000 0x200>;
+				marvell,udc-name = "mv-udc";
+				marvell,ehci-name = "pxa-u2oehci";
+				marvell,otg-name = "mv-otg";
+				marvell,phy-name = "mv-usb-phy";
+				marvell,pll-lock-bypass;
+				clocks = <&soc_clocks PXA1U88_CLK_USB>;
+				status = "disabled";
+			};
+
+			udc: udc@d4208100 {
+				compatible = "marvell,mv-udc";
+				reg = <0xd4208100 0x200>;
+				interrupts = <0 44 0x4>;
+				marvell,udc-name = "mv-udc";
+				marvell,udc-mode = <1>;
+				marvell,extern-attr = <1>;
+				marvell,otg-force-a-bus-req;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1U88_CLK_USB>;
+				status = "disabled";
+			};
+
+			ehci: ehci@d4208100 {
+				compatible = "marvell,pxa-u2oehci";
+				reg = <0xd4208100 0x200>;
+				marvell,ehci-name = "pxa-u2oehci";
+				marvell,udc-mode = <1>;
+				marvell,extern-attr = <1>;
+				marvell,otg-force-a-bus-req;
+				interrupts = <0 44 0x4>;
+				clocks = <&soc_clocks PXA1U88_CLK_USB>;
+				status = "disabled";
+			};
+
+			otg: otg@d4208100 {
+				compatible = "marvell,mv-otg";
+				reg = <0xd4208100 0x200>;
+				interrupts = <0 44 0x4>;
+				marvell,udc-name = "mv-udc";
+				marvell,ehci-name = "pxa-u2oehci";
+				marvell,otg-name = "mv-otg";
+				marvell,udc-mode = <1>;
+				marvell,extern-attr = <1>;
+				marvell,otg-force-a-bus-req;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1U88_CLK_USB>;
+				status = "disabled";
+			};
+
+			gpu: gpu@C0400000 {
+				compatible = "marvell,gpu";
+				reg = <0xC0400000 0x1000>;
+				interrupts = <0 8 0x4>;
+				marvell,3d-clk-freq-combine =
+						 <156000 156000>,
+						 <312000 208000>,
+						 <416000 312000>,
+						 <624000 416000>,
+						 <705000 416000>;
+				marvell,sh-clk-freq-combine =
+						 <156000 156000>,
+						 <312000 208000>,
+						 <416000 312000>,
+						 <624000 416000>,
+						 <705000 416000>;
+				status = "disabled";
+			};
+
+			gpu2d: gpu2d@d420c000 {
+				compatible = "marvell,gpu2d";
+				reg = <0xd420c000 0x1000>;
+				interrupts = <0 72 0x4>;
+				marvell,2d-clk-freq-combine =
+						 <78000 78000>,
+						 <156000 156000>,
+						 <208000 208000>,
+						 <312000 312000>,
+						 <416000 416000>;
+				status = "disabled";
+			};
+
+			coda7542: coda7542@d420d000 {
+				compatible = "mrvl,mmp-coda7542";
+				reg = <0xd420d000 0x1000>,
+				      <0xd1004000 0x11600>;
+				interrupts = <0 25 0x4>;
+				status = "disabled";
+			};
+
+			intc: wakeupgen@d4282000 {
+				compatible = "mrvl,mmp-intc-wakeupgen";
+				reg = <0xd4282000 0x1000>,
+				      <0xd4282800 0x12c>;
+				mrvl,intc-nr-irqs = <96>;
+				mrvl,intc-gbl-mask = <0x228 0x3
+						     0x238 0x3
+						     0x248 0x3
+						     0x258 0x3>;
+				mrvl,intc-for-cp = <0 31 32>;
+				mrvl,intc-for-sp = <92>;
+				mrvl,intc-wake-clr = <9  (1 << 3)
+						      39 (1 << 0 | 1 << 1 | 1 << 6)>;
+				status = "disabled";
+			};
+
+			sdh2: sdh@d4281000 {
+				compatible = "marvell,pxav3-mmc-v2";
+				reg = <0xd4281000 0x120>;
+				interrupts = <0 39 0x4>;
+				clocks = <&soc_clocks PXA1U88_CLK_SDH2
+					  &soc_clocks PXA1U88_CLK_SDH_AXI
+					  &soc_clocks PXA1U88_CLK_SDH2_DUMMY
+					  >;
+				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				status = "disabled";
+			};
+
+			sdh0: sdh@d4280000 {
+				compatible = "marvell,pxav3-mmc-v2";
+				reg = <0xd4280000 0x120>;
+				interrupts = <0 39 0x4>;
+				clocks = <&soc_clocks PXA1U88_CLK_SDH0
+					  &soc_clocks PXA1U88_CLK_SDH_AXI
+					  &soc_clocks PXA1U88_CLK_SDH0_DUMMY
+					  >;
+				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				status = "disabled";
+			};
+
+			sdh1: sdh@d4280800 {
+				compatible = "marvell,pxav3-mmc-v2";
+				reg = <0xd4280800 0x120>;
+				interrupts = <0 39 0x4>;
+				clocks = <&soc_clocks PXA1U88_CLK_SDH1
+					  &soc_clocks PXA1U88_CLK_SDH_AXI
+					  &soc_clocks PXA1U88_CLK_SDH1_DUMMY
+					  >;
+				clock-names = "sdh-base-clk", "sdh-axi-clk", "sdh-fclk-tuned";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				status = "disabled";
+			};
+
+			asram: asram@d12a0000 {
+				compatible = "mmio-sram";
+				reg = <0xd12a0000 0x10000>;
+				status = "disabled";
+			};
+
+			adma0: adma@d128d800 {
+				compatible = "marvell,adma-1.0";
+				reg = <0xD128D800 0x100>;
+				interrupts = <0 82 0x4>;
+				#dma-cells = <1>;
+				asram = <&asram>;
+				status = "disabled";
+			};
+
+			adma1: adma@d128d900 {
+				compatible = "marvell,adma-1.0";
+				reg = <0xD128D900 0x100>;
+				interrupts = <0 83 0x4>;
+				#dma-cells = <1>;
+				asram = <&asram>;
+				status = "disabled";
+			};
+
+			dsi: dsi@d420b800 {
+				compatible = "marvell,mmp-dsi";
+				reg = <0xd420b800 0x1ec>;
+				interrupts = <0 53 0x4>;
+				status = "disabled";
+			};
+
+			vdma: vdma@d4209000 {
+				compatible = "marvell,mmp-vdma";
+				reg = <0xd4209000 0x850>, <0xd420b000 0x3d0>;
+				status = "disabled";
+			};
+
+			apical: apical@d420b400 {
+				compatible = "marvell,mmp-apical";
+				reg = <0xd420b400 0x400>, <0xd420b000 0x3d0>;
+				status = "disabled";
+			};
+
+			disp: disp@d420b000 {
+				compatible = "marvell,mmp-disp";
+				reg = <0xd420b000 0x3d0>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
+				interrupts = <0 41 0x4>;
+				status = "disabled";
+			};
+
+			fb0: fbbase {
+				compatible = "marvell,mmp-fb";
+				status = "disabled";
+			};
+
+			fb1: fboverlay {
+				compatible = "marvell,mmp-fb-overlay";
+				status = "disabled";
+			};
+
+			devfreq-vpu {
+				compatible = "marvell,devfreq-vpu";
+				marvell,vpu-id = <0>;
+				clocks = <&soc_clocks PXA1U88_CLK_VPU
+					  &soc_clocks PXA1U88_CLK_VPUBUS>;
+				clock-names = "vpu-fclk", "vpu-bclk";
+				marvell,mmp-clk-freq-combine =
+						<156000 156000>,
+						<208000 208000>,
+						<312000 312000>,
+						<416000 416000>,
+						<528750 528500>;
+				marvell,qos;
+			};
+
+			debug: debug@d42a0000 {
+				compatible = "marvell,mmp-debug";
+				reg = <0xd42a0000 0x800>;
+			};
+		};
+
+		apb@d4000000 {	/* APB */
+			compatible = "mrvl,apb-bus", "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0xd4000000 0x00200000>;
+			ranges;
+
+			pdma0: pdma@d4000000 {
+				compatible = "marvell,pdma-1.0";
+				reg = <0xd4000000 0x10000>;
+				interrupts = <0 47 0x4>;
+				#dma-cells= <2>;
+				#dma-channels = <32>;
+				#dma-channels-tz = <32>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				status = "disabled";
+			};
+
+			timer0: timer@d4014000 {
+				compatible = "marvell,mmp-timer";
+				reg = <0xd4014000 0xc8>;
+				marvell,timer-fastclk-frequency = <3250000>;
+				marvell,timer-apb-frequency = <26000000>;
+				marvell,timer-has-shadow;
+
+				counter0 {
+					compatible = "marvell,timer-counter-clkevt";
+					interrupts = <0 13 0x4>;
+					marvell,timer-counter-id = <0>;
+					marvell,timer-counter-cpu = <0>;
+					marvell,timer-counter-frequency = <32768>;
+				};
+
+				counter1 {
+					compatible = "marvell,timer-counter-clkevt";
+					interrupts = <0 14 0x4>;
+					marvell,timer-counter-id = <1>;
+					marvell,timer-counter-cpu = <1>;
+					marvell,timer-counter-frequency = <32768>;
+				};
+
+				counter2 {
+					compatible = "marvell,timer-counter-clksrc";
+					marvell,timer-counter-id = <2>;
+					marvell,timer-counter-frequency = <32768>;
+				};
+			};
+
+			timer1: timer@d4016000 {
+				compatible = "marvell,mmp-timer";
+				reg = <0xd4016000 0xc8>;
+				marvell,timer-fastclk-frequency = <3250000>;
+				marvell,timer-apb-frequency = <26000000>;
+				marvell,timer-has-shadow;
+
+				counter0 {
+					compatible = "marvell,timer-counter-clkevt";
+					interrupts = <0 29 0x4>;
+					marvell,timer-counter-id = <0>;
+					marvell,timer-counter-cpu = <2>;
+					marvell,timer-counter-frequency = <32768>;
+				};
+
+				counter1 {
+					compatible = "marvell,timer-counter-clkevt";
+					interrupts = <0 30 0x4>;
+					marvell,timer-counter-id = <1>;
+					marvell,timer-counter-cpu = <3>;
+					marvell,timer-counter-frequency = <32768>;
+				};
+
+				counter2 {
+					compatible = "marvell,timer-counter-delay";
+					marvell,timer-counter-id = <2>;
+					marvell,timer-counter-frequency = <3250000>;
+				};
+			};
+
+			timer2: timer@d401f000 {
+				compatible = "marvell,mmp-timer";
+				reg = <0xd401f000 0xc8>;
+				marvell,timer-fastclk-frequency = <3250000>;
+				marvell,timer-apb-frequency = <26000000>;
+				marvell,timer-has-shadow;
+
+				counter0 {
+					compatible = "marvell,timer-counter-clkevt";
+					interrupts = <0 64 0x4>;
+					marvell,timer-counter-id = <0>;
+					marvell,timer-counter-broadcast;
+					marvell,timer-counter-frequency = <32768>;
+				};
+			};
+
+			uart0: uart@d4017000 {
+				compatible = "mrvl,mmp-uart";
+				reg = <0xd4017000 0x1000>;
+				interrupts = <0 27 0x4>;
+				dmas = <&pdma0 21 1
+					&pdma0 22 1>;
+				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1U88_CLK_UART0>;
+			};
+
+			uart1: uart@d4018000 {
+				compatible = "mrvl,mmp-uart";
+				reg = <0xd4018000 0x1000>;
+				interrupts = <0 28 0x4>;
+				dmas = <&pdma0 23 1
+					&pdma0 24 1>;
+				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1U88_CLK_UART1>;
+			};
+
+			uart2: uart@d4036000 {
+				compatible = "mrvl,mmp-uart";
+				reg = <0xd4036000 0x1000>;
+				interrupts = <0 59 0x4>;
+				dmas = <&pdma0 4 1
+					&pdma0 5 1>;
+				dma-names = "rx", "tx";
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+				clocks = <&soc_clocks PXA1U88_CLK_UART2>;
+			};
+
+			gpio: gpio@d4019000 {
+				compatible = "marvell,mmp-gpio";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				reg = <0xd4019000 0x800>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupts = <0 49 0x4>;
+				clocks = <&soc_clocks PXA1U88_CLK_GPIO>;
+				interrupt-names = "gpio_mux";
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				ranges;
+
+				gcb0: gpio@d4019000 {
+					reg-offset = <0x0>;
+					gpio-range = <&pmx 0 55 32>;
+				};
+
+				gcb1: gpio@d4019004 {
+					reg-offset = <0x4>;
+					gpio-ranges = <&pmx 0 87 23>;
+				};
+
+				gcb2: gpio@d4019008 {
+					reg-offset = <0x8>;
+					gpio-ranges = <&pmx 3 110 29>;
+				};
+
+				gcb3: gpio@d4019100 {
+					reg-offset = <0x100>;
+					gpio-ranges = <&pmx 0 139 3  &pmx 28 52 1>;
+				};
+			};
+
+			edgewakeup: edgewakeup@d4019800 {
+				compatible = "mrvl,mmp-edge-wakeup";
+				reg = <0xd4019800 0x10>;
+				status = "disabled";
+			};
+
+			mfpr: mfpr@d401e000 {
+				compatible = "marvell,mmp-mfp-leftover";
+				status = "disable";
+			};
+
+			rtc: rtc@d4010000 {
+				compatible = "mrvl,mmp-rtc";
+				reg = <0xd4010000 0x100>;
+				interrupts = <0 5 0x4>,<0 6 0x4>;
+				interrupt-names = "rtc 1Hz", "rtc alarm";
+				clocks = <&soc_clocks PXA1U88_CLK_RTC>;
+			};
+
+			keypad: keypad@d4012000 {
+				compatible = "marvell,pxa27x-keypad";
+				reg = <0xd4012000 0x4c>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
+				interrupts = <0 9 0x4>;
+				clocks = <&soc_clocks PXA1U88_CLK_KPC>;
+			};
+
+			pmx: pinmux@d401e000 {
+				compatible = "pinconf-single";
+				reg = <0xd401e000 0x330>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+				#gpio-range-cells = <3>;
+				ranges;
+
+				pinctrl-single,register-width = <32>;
+				pinctrl-single,function-mask = <7>;
+
+				range: gpio-range {
+					#pinctrl-single,gpio-range-cells = <3>;
+				};
+			};
+
+			twsi0: i2c@d4011000 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0xd4011000 0x60>;
+				interrupts = <0 7 IRQF_TRIGGER_HIGH>;
+				clocks = <&soc_clocks PXA1U88_CLK_TWSI0>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
+
+				mrvl,i2c-fast-mode;
+				/*
+				 *ilcr: fast mode b17~9=0x23, 390k
+				 *      standard mode b8~0=0x9f, 97k
+				 *iwcr: b5~0=b01010 recommended value from spec
+				 */
+				marvell,i2c-ilcr = <0x82c469f>;
+				marvell,i2c-iwcr = <0x142a>;
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
+				status = "disabled";
+			};
+
+			twsi1: i2c@d4010800 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0xd4010800 0x60>;
+				interrupts = <0 33 IRQF_TRIGGER_HIGH>;
+				clocks = <&soc_clocks PXA1U88_CLK_TWSI1>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
+
+				mrvl,i2c-fast-mode;
+				marvell,i2c-ilcr = <0x82c469f>;
+				marvell,i2c-iwcr = <0x142a>;
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
+				status = "disabled";
+			};
+
+			twsi2: i2c@d4037000 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				interrupts = <0 54 IRQF_TRIGGER_HIGH>;
+				clocks = <&soc_clocks PXA1U88_CLK_TWSI2>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
+
+				/* RIPC3 */
+				reg = <0xd4037000 0x60>,
+				      <0xd403d300 0x4>;
+				mrvl,i2c-fast-mode;
+				marvell,i2c-ilcr = <0x82c469f>;
+				marvell,i2c-iwcr = <0x142a>;
+
+				marvell,i2c-always-on;
+				status = "disabled";
+			};
+
+			twsi3: i2c@d4013800 {
+				compatible = "mrvl,mmp-twsi";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0xd4013800 0x60>;
+				interrupts = <0 93 IRQF_TRIGGER_HIGH>;
+				clocks = <&soc_clocks PXA1U88_CLK_TWSI3>;
+				lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
+
+				mrvl,i2c-fast-mode;
+				/*
+				 *ilcr: fast mode b17~9=0x23, 390k
+				 *      standard mode b8~0=0x9f, 97k
+				 *iwcr: b5~0=b01010 recommended value from spec
+				 */
+				marvell,i2c-ilcr = <0x82c469f>;
+				marvell,i2c-iwcr = <0x142a>;
+				marvell,i2c-enable-bus-rst;
+				marvell,i2c-gpio-bus-rst;
+
+				status = "disabled";
+			};
+
+			thermal: thermal@d4013300 {
+				compatible = "marvell,pxa28nm-thermal";
+				reg = <0xd4013300 0x1C>;
+				interrupts = <0 60 0x4>;
+				clocks = <&soc_clocks PXA1U88_CLK_THERMAL>;
+				clock-names = "ts_clk";
+				status = "disabled";
+			};
+
+			ssp4: ssp@d4039000 {
+				compatible = "mrvl,pxa910-ssp";
+				reg = <0xd4039000 0x90>;
+				ssp-id = <5>;
+				interrupts = <0 34 0x4>;
+				status = "disabled";
+			};
+
+			sspa0: sspa@d128dc00 {
+				compatible = "mrvl,mmp-sspa-dai";
+				reg = <0xd128dc00 0x100>;
+				dmas = <&adma0 1
+					&adma0 0>;
+				dma-names = "rx", "tx";
+				asram = <&asram>;
+				platform_driver_name = "tdma_platform";
+				clocks = <&audio_map_clocks AUDIO_CLK_SSPA0>;
+				status = "disabled";
+			};
+
+			sspa1: sspa@d128dd00 {
+				compatible = "mrvl,mmp-sspa-dai";
+				reg = <0xd128dd00 0x100>;
+				dmas = <&adma1 1
+					&adma1 0>;
+				dma-names = "rx", "tx";
+				asram = <&asram>;
+				platform_driver_name = "tdma_platform";
+				clocks = <&audio_map_clocks AUDIO_CLK_SSPA1>;
+				status = "disabled";
+			};
+
+			map: map@d1200000 {
+				compatible = "marvell,mmp-map";
+				reg = <0xd1230000 0x100
+					0xd1200000 0x8000>;
+				audio_reg = <128>;
+				bit_sram = <3>;
+				bit_apb = <2>;
+				pll_sel = <0>;
+				power_ctrl = <0>;
+				clocks = <&audio_map_clocks AUDIO_CLK_MAP>;
+				status = "disabled";
+			};
+
+			coresight: coresight@d4100000 {
+				compatible = "marvell,coresight";
+				clocks = <&soc_clocks PXA1U88_CLK_DBGCLK>,
+					 <&soc_clocks PXA1U88_CLK_TRACECLK>;
+				clock-names = "DBGCLK","TRACECLK";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				reg = <0xd4100000 0x100000>;
+				ranges;
+
+				dbg: dbg@0xd4110000 {
+					compatible = "marvell,coresight-dbg";
+					reg = <0xd4110000 0x8000>;
+				};
+
+				cti: cti@0xd4118000 {
+					compatible = "marvell,coresight-cti";
+				        reg = <0xd4118000 0x4000>;
+				};
+
+				etm: etm@0xd411c000 {
+					compatible = "marvell,coresight-etm";
+				        reg = <0xd411c000 0x4000>;
+				};
+
+				cstf: cstf@0xd4109000 {
+					compatible = "marvell,coresight-cstf";
+				        reg = <0xd4109000 0x4000>;
+				};
+
+				cetb: cetb@0xd4105000 {
+					compatible = "marvell,coresight-cetb";
+				        reg = <0xd4105000 0x4000>;
+				};
+
+				letb: letb@0xd410a000 {
+					compatible = "marvell,coresight-letb";
+				        reg = <0xd410a000 0x4000>;
+				};
+			};
+
+			watchdog: watchdog@d4080000 {
+				compatible = "marvell,mmp-wdt";
+				reg = <0xd4080000 0xff>,
+				      <0xd4050000 0x1024>;
+				status = "disabled";
+			};
+
+			swjtag: swjtag@d4013100 {
+				compatible = "marvell,sw-jtag";
+				reg = <0xd4013100 0x10>;
+				status = "disabled";
+			};
+
+			acipc: acipc@d401d000 {
+				compatible = "marvell,mmp-acipc";
+				reg = <0xd401d000 0x100>;
+				interrupts = <0 16 0x4>,<0 17 0x4>,<0 18 0x4>;
+				interrupt-names = "IPC_AP_DATAACK", "IPC_AP_SET_CMD", "IPC_AP_SET_MSG";
+				clocks = <&soc_clocks PXA1U88_CLK_IPC_RST>;
+				status = "disabled";
+			};
+
+			seh: seh@d4080000 {
+				compatible = "marvell,seh";
+				reg = <0xd4080000 0x100>, <0xd403d000 0x4>;
+				interrupts = <0 32 0x4>;
+				interrupt-names = "CP_TIMER2_3";
+				clocks = <&soc_clocks PXA1U88_CLK_AICER>;
+				watchdog-type = <1>; /* soc timer */
+				timer-num = <2>; /* timer num */
+				match-num = <0>; /* match num */
+				status = "disabled";
+			};
+		};
+	};
+
+	regs_addr {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		mpmu: pmu@d4050000 {
+			compatible = "marvell,mmp-pmu-mpmu";
+			reg = <0xd4050000 0x3004>;
+		};
+
+		apmu: pmu@d4282800 {
+			compatible = "marvell,mmp-pmu-apmu";
+			reg = <0xd4282800 0x1c0>;
+		};
+
+		apbc: pmu@d4015000 {
+			compatible = "marvell,mmp-pmu-apbc";
+			reg = <0xd4015000 0x74>;
+		};
+
+		apbs: apbs@d4090000 {
+			compatible = "marvell,mmp-apb-spare";
+			reg = <0xd4090000 0x154>;
+		};
+
+		ciu: ciu@d4282c00 {
+			compatible = "marvell,mmp-ciu";
+			reg = <0xd4282c00 0x1ac>;
+		};
+
+		dmcu: dmcu@c0100000 {
+			compatible = "marvell,mmp-dmcu";
+			reg = <0xc0100000 0x880>;
+		};
+
+		wdtrtc: wdtrtc@d4010000 {
+			compatible = "marvell,mmp-wdt-rtc";
+			reg = <0xd4010000 0x100>;
+		};
+
+		wdt: wdt@d4080000 {
+			compatible = "marvell,mmp-watchdog";
+			reg = <0xd4080000 0xff>;
+		};
+	};
+
+	soc_clocks: clocks{
+		compatible = "marvell,pxa1U88-clock";
+		reg = <0xd4050000 0x1000>,
+		      <0xd4282800 0x400>,
+		      <0xd4015000 0x1000>,
+		      <0xd403b000 0x1000>,
+		      <0xd4090000 0x1000>,
+		      <0xd4282c00 0x400>;
+		reg-names = "mpmu", "apmu", "apbc", "apbcp", "apbs", "ciu";
+		#clock-cells = <1>;
+        };
+
+	audio_map_clocks: clock{
+		compatible = "marvell,audio-map-clock";
+		reg = <0xd4282800 0x400>,
+		      <0xd4090000 0x1000>,
+		      <0xd1200000 0x8000>,
+		      <0xd1230000 0x100>;
+		reg-names = "apmu", "apbs", "map", "dspaux";
+		#clock-cells = <1>;
+		map = <&map>;
+	};
+
+	mmp_m3_1: apsenhb {
+		compatible = "marvell,mmp-m3";
+		ipver = <1>;
+		status = "disabled";
+	};
+
+	mmp_m3_2: cm3senhb {
+		compatible = "marvell,mmp-m3";
+		ipver = <1>;
+		status = "disabled";
+	};
+
+	amipc {
+		compatible = "marvell,mmp-amipc";
+		interrupts = <0 95 0x4>;
+		status = "okay";
+	};
+
+	touch: vnc {
+		compatible = "vnc-ts";
+	};
+
+	ion: ion {
+		compatible = "marvell,pxa-ion";
+		#stream-id-cells = <1>;
+		status = "disabled";
+	};
+
+	sd8x-rfkill {
+		compatible = "mrvl,sd8x-rfkill";
+		bus_number = <0>;
+		status = "disabled";
+	};
+};

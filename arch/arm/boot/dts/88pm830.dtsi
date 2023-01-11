@@ -1,0 +1,40 @@
+/*
+ * Copyright (C) 2014 Marvell
+ * Yi Zhang <yizhang@marvell.com>
+ */
+
+/*
+ * Integrated Power Management Chip
+ * header file for Marvell charger/fuel gauge/camera flash chip: 88pm830
+ */
+
+#include <dt-bindings/interrupt-controller/irq.h>
+
+&pmic1 {
+	compatible = "marvell,88pm830";
+	interrupt-controller;
+	#interrupt-cells = <1>;
+
+	/* IRQF_ONESHOT | IRQF_TRIGGER_FALLING */
+	marvell,88pm830-irq-flags =  <0x2002>;
+
+	charger {
+		compatible = "marvell,88pm830-chg";
+	};
+
+	battery {
+		compatible = "marvell,88pm830-bat";
+	};
+
+	led {
+		compatible = "marvell,88pm830-led";
+	};
+
+	vbus {
+		compatible = "marvell,88pm830-vbus";
+	};
+
+	debug {
+		compatible = "marvell,88pm830-debug";
+	};
+};

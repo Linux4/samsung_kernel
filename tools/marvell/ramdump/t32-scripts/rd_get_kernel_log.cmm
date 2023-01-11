@@ -1,0 +1,50 @@
+;
+;------------------------------------------------------------
+;(C) Copyright [2006-2008] Marvell International Ltd.
+;All Rights Reserved
+;------------------------------------------------------------
+; rev.0.1: antone@marvell.com: initial version
+;
+; This T32 script should be run in RAMDUMP environment for AP with Linux kernel.
+; Saves the printk buffer contents into a file
+;   kernel/printk.c
+;
+; USAGE: <optional output file path-name or path-only>
+;
+; GENERATES:
+;
+ENTRY &outfile
+
+IF "&outfile"==""
+(
+	&outfile="c:\temp\printks.txt"
+)
+
+IF "&outfile"!=""
+(
+  IF os.dir(&outfile)
+  (
+    ; 1) Double \\ is prohibited so let's ensure there's only one.
+	; 2) An ending quote is considered a part of a string, so need handling as well.
+    &adj="\"
+    &lastchar=string.mid("&outfile",string.len("&outfile")-1,1)
+	IF "&lastchar"==""""
+	(
+		&lastchar=string.mid("&outfile",string.len("&outfile")-2,1)
+	)
+	IF "&lastchar"=="\"
+	(
+	 &adj=""
+	)
+    &outfile="&outfile"+"&adj"+"printks.txt"
+  )
+)
+
+
+&printk_buf=v.value("(unsigned)log_buf")
+&printk_size=v.value("(unsigned)log_buf_len")
+IF (&printk_size<0x200000)
+(
+data.save.binary &outfile &printk_buf++&printk_size
+PRINT "Saved printk buffer contents into &outfile"
+)

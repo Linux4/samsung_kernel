@@ -1,0 +1,10 @@
+* ST pressure sensor module
+- compatible = "st,lps331ap"
+- reg : register offset
+- interrupts : interrupt
+Example:
+sensor: lps331ap@5d {
+	        compatible = "st,lps331ap";
+	        reg = <0x5d>;
+	        status = "okay";
+	};

@@ -1,0 +1,16 @@
+* PXA1L88 Thermal
+- compatible = "marvell,pxa-thermal"
+- reg : address range of the thermal sensor registers;
+- interrupts : interrupts generated from ICU;
+- trigger_levels_count: trip points number;
+- type: sensor type
+- status: enable/disable
+Example:
+thermal: thermal@d4013200 {
+        compatible = "marvell,pxa-thermal";
+        reg = <0xd4013200 0x50>;
+        interrupts = <0 60 0x4>;
+        trigger_levels_count = <4>;
+        type = <2>;
+        status = "ok";
+};

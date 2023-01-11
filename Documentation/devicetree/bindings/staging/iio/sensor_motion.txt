@@ -1,0 +1,41 @@
+* Invensense motion sensors module
+- compatible = "invensense,mpu9250"
+- reg : register offset
+- interrupts : interrupt
+Example:
+sensor: mpu9250@69 {
+	        compatible = "invensense,mpu9250";
+	        reg = <0x69>;
+	        interrupts = <65 IRQ_TYPE_EDGE_FALLING>;
+	        status = "okay";
+	};
+
+* Invensense motion sensors module
+- compatible = "invensense,icm20628"
+- reg : register offset
+- interrupts : interrupt
+Example:
+sensor4: icm20628@69 {
+                compatible = "invensense,icm20628";
+                reg = <0x69>;
+                interrupt-parent = <&gpio>;
+                interrupts = <91 0x1>;
+                inven,irq-gpios = <&gpio 91 0x00>;
+                avdd-supply = <&ldo4>;
+                axis_map_x = <1>;
+                negate_x = <0>;
+                axis_map_y = <0>;
+                negate_y = <0>;
+                axis_map_z = <2>;
+                negate_z = <1>;
+                inven,secondary_axis_map_x = <1>;
+                inven,secondary_negate_x = <0>;
+                inven,secondary_axis_map_y = <0>;
+                inven,secondary_negate_y = <0>;
+                inven,secondary_axis_map_z = <2>;
+                inven,secondary_negate_z = <1>;
+                inven,secondary_type = "compass";
+                inven,secondary_name = "ak09912";
+                inven,secondary_reg = <0x0D>;
+          };
+

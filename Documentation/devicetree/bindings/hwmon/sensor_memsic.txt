@@ -1,0 +1,19 @@
+* Memsic accelerometer sensor module
+- compatible = "memsic,mxc400x"
+- reg : register offset
+- interrupts : interrupt
+Example:
+sensor5: mxc400x@15 {
+                compatible = "memsic,mxc400x";
+                reg = <0x15>;
+        };
+
+* Memsic magnetic sensor module
+- compatible = "memsic,mmc3524x"
+- reg : register offset
+- interrupts : interrupt
+Example:
+sensor6: mmc3524x@30 {
+                 compatible = "memsic,mmc3524x";
+                 reg = <0x30>;
+        };

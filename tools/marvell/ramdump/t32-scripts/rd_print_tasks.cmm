@@ -1,0 +1,288 @@
+;
+;------------------------------------------------------------
+;(C) Copyright [2006-2008] Marvell International Ltd.
+;All Rights Reserved
+;------------------------------------------------------------
+; rev.0.1: antone@marvell.com: initial version
+; rev.0.2: antone@marvell.com: added protection for corrupted list cases to prevent endless loops in the script
+; rev.0.3: antone@marvell.com: added mipsram format output generation; added default output file names
+; rev.0.4: antone@marvell.com: added /frame option to print a stackframe (kernel) of each task.
+;
+; This T32 script should be run in RAMDUMP environment for AP with Linux kernel.
+; Finds all the processes/threads in the system, and prints:
+; - task_struct address (a.k.a Magic)
+; - pid
+; - executable name (a.k.a Comm)
+; In order to switch to the selected task/thread use the Magic (0xNNNNNNNN below):
+; MMU.SCAN TASKPAGETABLE 0xNNNNNNNN
+; TASK.SELECT 0xNNNNNNNN
+;
+; Linux kernel references:
+;   include/linux/sched.h:  for_each_process, do_each_thread
+;   include/linux/kernel.h: container_of
+;   include/linux/list.h:   struct list_head, list_entry_rcu
+;
+; USAGE: <optional output file path-name>
+;
+; GENERATES:
+; - tasklist including Magic, pid, name etc. in the file with given filename, or in c:\temp\tasks.txt
+; - tasklist for import into MIPSRAM xls in the file with given filename with _mipsram suffix, or in c:\temp\tasks_mipsram.txt
+;
+ENTRY &outfile &opt
+
+&printframes=0
+&opt=string.lwr("&opt")
+IF "&opt"=="/frame"
+      &printframes=1
+
+&null=v.value("0")
+&one=v.value("1")
+; Note, the below should be defined, otherwise assignment inside IF/ELSE below stays in the scope of this IF/ELSE
+&tcount=v.value("1")
+
+&tofile=0==1
+
+AREA.CREATE TASKS 80 1000
+AREA.VIEW TASKS
+AREA.SELECT TASKS
+
+IF "&outfile"==""
+(
+	&outfile="c:\temp\tasks.txt"
+)
+
+IF "&outfile"!=""
+(
+  IF os.dir(&outfile)
+  (
+    ; 1) Double \\ is prohibited so let's ensure there's only one.
+	; 2) An ending quote is considered a part of a string, so need handling as well.
+    &adj="\"
+    &lastchar=string.mid("&outfile",string.len("&outfile")-1,1)
+	IF "&lastchar"==""""
+	(
+		&lastchar=string.mid("&outfile",string.len("&outfile")-2,1)
+	)
+	IF "&lastchar"=="\"
+	(
+	 &adj=""
+	)
+    &outfile="&outfile"+"&adj"+"tasks.txt"
+  )
+  &ext=os.file.extension(&outfile)
+  &outfile_mipsram="&outfile"
+  IF "&ext"!=""
+  (
+    ; string functions are buggy: some count quotes and some do not
+    &adj=0
+    &lastchar=string.mid("&outfile",string.len("&outfile")-1,1)
+	IF "&lastchar"==""""
+	(
+	  &adj=1
+	)
+	&outfile_mipsram=string.mid("&outfile",0,string.len("&outfile")-string.len("&ext")-&adj)
+  )
+  &outfile_mipsram="&outfile_mipsram"+"_mipsram"+"&ext"
+  PRINT "OUTOUT ALSO SENT TO FILE: &outfile"
+  PRINT "MIPSRAM FORMAT OUTPUT SENT TO FILE: &outfile_mipsram"
+  OPEN #1 "&outfile" /create
+  OPEN #2 "&outfile_mipsram" /create
+  &tofile=0==0
+)
+
+data.find v.range("linux_banner") "2.6.32"
+&k32=0
+IF FOUND()
+(
+	&k32=1
+)
+
+&p0=v.value("(unsigned long long)&init_task")
+gosub walk_list &p0 0
+PRINT "Done"
+PRINT "Use task_struct address (0xNNNNNNNN) to switch (MM and context) to the desired task/thread:"
+PRINT "MMU.SCAN TASKPAGETABLE 0xNNNNNNNN"
+PRINT "TASK.SELECT 0xNNNNNNNN"
+IF "&outfile"!=""
+(
+WRITE #1 "Done"
+WRITE #1 "Use task_struct address (0xNNNNNNNN) to switch (MM and context) to the desired task/thread:"
+WRITE #1 "MMU.SCAN TASKPAGETABLE 0xNNNNNNNN"
+WRITE #1 "TASK.SELECT 0xNNNNNNNN"
+CLOSE #1
+CLOSE #2
+)
+ENDDO
+
+walk_list:
+entry &p0 &level
+&p=&p0
+&cont=0==0
+&maxlevel=v.value("2")
+; 0xd8
+&offset_tasks=v.value("&((struct task_struct*)0)->tasks")
+; 0x170
+&offset_thread_group=v.value("&((struct task_struct*)0)->thread_group")
+
+;RePeaT
+WHILE &cont
+(
+&pid=v.value("((struct task_struct*)&p)->pid")
+&comm=v.string("((struct task_struct*)&p)->comm")
+&mm=v.value("((struct task_struct*)&p)->mm")
+&mm_pgd=0
+IF &mm!=0
+	&mm_pgd=v.value("((struct mm_struct*)&mm)->pgd")
+PRINT "PROCESS: task_struct=&p pid=" %decimal &pid " pgd=&mm_pgd exe=&comm"
+IF "&outfile"!=""
+(
+	WRITE #1 "PROCESS: task_struct=&p pid=" %decimal &pid " pgd=&mm_pgd exe=&comm"
+	IF &printframes==1
+		gosub getframe &p #1
+)
+gosub print_task &pid "&comm" &tofile
+
+IF ("&k32"!="&null")
+(
+; 2.6.32:
+&tcount=v.value("((struct task_struct*)&p)->signal.count.counter")
+)
+ELSE
+(
+; 2.6.35:
+&tcount=v.value("((struct task_struct*)&p)->signal.nr_threads")
+)
+
+IF ("&tcount">"&one")
+(
+	;&ch=v.value("((struct task_struct*)&p)->children.next")
+	&ch=v.value("(((struct task_struct*)&p)->thread_group.next)")
+
+	IF ("&ch"!="&null")
+	(
+		&sublevel=&level+1
+ 		IF ("&sublevel"<"&maxlevel")
+		(
+			&ch=v.value("&ch - &offset_thread_group");
+			gosub walk_thread_list &ch &sublevel
+		)
+	)
+)
+&p= v.value("(unsigned long long)(((struct task_struct*)&p)->tasks.next) - &offset_tasks")
+;WHILE "&p"!="&p0"
+IF ("&p"=="&p0")
+(
+ &cont=0==1
+)
+&pid=v.value("((struct task_struct*)&p)->pid")
+
+IF ("&pid"=="&null")
+(
+ &cont=0==1
+)
+
+)
+RETURN 0
+
+walk_thread_list:
+entry &_p0 &_level
+&_p=&_p0
+&_cont=0==0
+&_null=v.value("0")
+&_maxlevel=v.value("2")
+;RePeaT
+WHILE &_cont
+(
+&pid=v.value("((struct task_struct*)&_p)->pid")
+IF ("&pid"!="&null")
+(
+   &comm=v.string("((struct task_struct*)&_p)->comm")
+   PRINT " THREAD: task_struct=&_p pid=" %decimal &pid " exe=&comm"
+   IF "&outfile"!=""
+   (
+   	WRITE #1 " THREAD: task_struct=&_p pid=" %decimal &pid " exe=&comm"
+   	IF &printframes==1
+    		gosub getframe &_p #1
+   )
+   gosub print_task &pid "&comm" &tofile
+
+   &_p= v.value("(unsigned long long)(((struct task_struct*)&_p)->thread_group.next) - &offset_thread_group")
+
+	IF ("&_p"=="&_p0")
+	(
+	&_cont=0==1
+	)
+)
+ELSE
+(
+   PRINT " BROKEN CHAIN: task_struct=&_p pid=" %decimal &pid
+   IF "&outfile"!=""
+   (
+   WRITE #1 " BROKEN CHAIN: task_struct=&_p pid=" %decimal &pid
+   )
+
+	&_cont=0==1
+)
+)
+RETURN 0
+
+; The below code takes care of indents so MIPSRAM xls fixed width text imports gets it right
+print_task:
+ENTRY &p_pid &p_comm &p_tofile
+&tab=" "
+IF &p_pid<10000.
+(
+	&tab="  "
+	IF &p_pid<1000.
+	(
+		&tab="   "
+		IF &p_pid<100.
+		(
+			&tab="    "
+			IF &p_pid<10.
+			(
+				&tab="     "
+			)
+		)
+	)
+)
+
+IF &p_tofile
+(
+   WRITE #2 "TASK   " "&tab" %decimal &p_pid "= " &p_comm
+)
+
+RETURN 0
+
+getframe:
+LOCAL &outfile
+LOCAL &magic
+LOCAL &prfile
+LOCAL &line
+ENTRY &magic &outfile
+&prfile=os.env("TEMP")
+IF string.len("&prfile")==0
+	&prfile="c:\temp"
+&prfile="&prfile"+"\frame-temp.txt"
+// There's no easy way to grab the output of var.frame and write in to a file.
+// Just use the winprint, then open the file produced, read, filter and output.
+printer.open "&prfile"
+winprint.var.frame /task &magic
+printer.close
+OPEN #20 &prfile
+REPEAT
+(
+	READ #20 %line &line
+	IF EOF()
+		GOTO endframe
+	IF STRING.SCAN("&line", "B::var.frame", 0)>=0
+		GOTO skipframe
+	WRITE &outfile "&line"
+	IF STRING.SCAN("&line", "end of frame", 0)>=0
+		GOTO endframe
+skipframe:
+)
+endframe:
+CLOSE #20
+WRITE &outfile "--------------------------------------------------------------------"
+RETURN 0

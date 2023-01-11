@@ -1,0 +1,10 @@
+* Bosch pressure sensor module
+- compatible = "bosch,bmp18x"
+- reg : register offset
+- interrupts : interrupt
+Example:
+sensor: bmp18x@77 {
+	        compatible = "bosch,bmp18x";
+	        reg = <0x77>;
+	        status = "okay";
+	};

@@ -1,0 +1,27 @@
+#
+# ARM64 CPU Idle drivers
+#
+
+config ARM64_CPUIDLE
+	bool "Generic ARM64 CPU idle Driver"
+	select ARM64_CPU_SUSPEND
+	help
+	  Select this to enable generic cpuidle driver for ARM v8.
+	  It provides a driver for testing purpose on ARM v8 models based
+	  on cpu_suspend API for entering power down modes.
+
+config CPU_IDLE_MMP_V8
+	bool "CPU Idle Driver for MMP processors (ARMv8)"
+	select ARM64_CPU_SUSPEND
+	depends on ARM64 && ARCH_MMP
+        default y
+	help
+	  Select this to enable cpuidle on MMP processors (ARMv8).
+
+config PXA1936_LPM
+	bool "LPM support for PXA1936"
+	default n
+	help
+	  Enable the PXA1936 dual cluster LPM support.
+	  This changes the behavior of the MCPM platform code.
+

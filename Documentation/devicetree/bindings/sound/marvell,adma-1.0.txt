@@ -1,0 +1,19 @@
+MARVELL ADMA 1.0
+
+Required properties:
+- compatible: "marvell,adma-1.0"
+- reg: register range
+- interrupts: interrupt line
+- #dma-cells: dma cells number
+- asram: sram associated with adma
+
+Example:
+
+adma0: adma@d128d800 {
+	compatible = "marvell,adma-1.0";
+	reg = <0xD128D800 0x100>;
+	interrupts = <0 82 0x4>;
+	#dma-cells = <1>;
+	asram = <&asram>;
+	status = "disabled";
+};

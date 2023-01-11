@@ -1,0 +1,23 @@
+Device tree bindings for Marvell MCK memory controllers
+
+It only supports MCK4 and MCK5 version memory controllers now.
+
+Required properties:
+
+ - compatible:          Should be "marvell,devfreq-ddr" for MCK memocry controller.
+ - reg:                 A resource specifier for the register space.
+ - interrupts:          The irq number of this device that is used to interrupt the CPU
+ - clocks:              the id of ddr clock in device tree
+
+Optional properties:
+ - "marvell,qos"	Indicate the device supports min/max qos feature.
+
+Example:
+
+	devfreq-ddr {
+		compatible = "marvell,devfreq-ddr";
+		reg = <0xc0100000 0x880>;
+		interrupts = <0 43 0x4>;
+		clocks = <&soc_clocks PXA1U88_CLK_DDR>;
+		marvell,qos;
+	};

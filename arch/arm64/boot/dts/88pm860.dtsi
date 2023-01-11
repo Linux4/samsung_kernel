@@ -1,0 +1,29 @@
+/*
+ * Copyright (C) 2014 Marvell
+ * Yi Zhang <yizhang@marvell.com>
+ * 88pm860 specific description
+ */
+
+#include "88pm8xx.dtsi"
+
+&pmic0 {
+	regulators {
+		buck1a: BUCK1A {PM8XX_BUCK1A;};
+		buck6: BUCK6 {PM8XX_BUCK6;};
+		buck1b: BUCK1B {PM8XX_BUCK1B;};
+
+		ldo3: LDO3 {PM86X_LDO3;};
+		ldo13: LDO13 {PM86X_LDO13;};
+		ldo15: LDO15 {PM8XX_LDO15;};
+		ldo16: LDO16 {PM8XX_LDO16;};
+		ldo17: LDO17 {PM8XX_LDO17;};
+		ldo18: LDO18 {PM8XX_LDO18;};
+		ldo19: LDO19 {PM8XX_LDO19;};
+		ldo20: LDO20 {PM8XX_LDO20;};
+	};
+	dvc {
+		/* pm860 dvc affect buck1/3/5, affected 32bit = (1 << 4) | (1 << 2) | (1 << 0)*/
+		/* we don't need to set buck1b since dual phase mode is enabled. */
+		dvc-affected-buckbits = <21>;
+	};
+};

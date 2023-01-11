@@ -1,0 +1,56 @@
+Binding for Marvell MMP series composite clock
+
+The common clock defines a general composite clock with div/mux/gate.
+Because MMP series has clock need combines the div/mux together, so
+there is a new type of clock "mix". The "mix" clock can also be
+composited with gate clock. In fact, many mix clocks and gate clocks
+share same registers.
+
+In the device tree file, the clock to be composited should be child
+of the composite clock.
+
+Required properties
+- compatible : It should be "marvell,mmp-clk-composite" for (mix, gate)
+               composition, or "marvell,mmp-clk-general-composite" for
+               (mux, div, gate) composition.
+
+
+Examples
+1. There are three clocks mux1, div1, gate1.
+
+apmu_clk {
+	compatible = "marvell,mmp-clk-master";
+	reg = <0xde210000 0x1000>;
+
+	general_composite_clk {
+		compatible = "marvell,mmp-clk-general-composite";
+
+		mux1 {
+			...
+		};
+		div1 {
+			...
+		};
+		gate1 {
+			...
+		};
+	};
+};
+
+2. There are two clocks mix1, gate2
+
+apmu_clk {
+	compatible = "marvell,mmp-clk-master";
+	reg = <0xde210000 0x1000>;
+
+	composite_clk {
+		compatible = "marvell,mmp-clk-composite";
+
+		mix1 {
+			...
+		};
+		gate2 {
+			...
+		};
+	};
+};

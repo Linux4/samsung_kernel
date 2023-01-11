@@ -1,0 +1,14 @@
+* MARVELL DSI CONTROLLER
+
+Required properties:
+- compatible : should be "marvell,mmp-dsi";
+- reg : register base address and size;
+- interrupts : DSI interrupt number;
+
+Example:
+dsi: dsi@d420b800 {
+	compatible = "marvell,mmp-dsi";
+	reg = <0xd420b800 0x1ec>;
+	interrupts = <0 53 0x4>;
+	status = "disabled";
+};

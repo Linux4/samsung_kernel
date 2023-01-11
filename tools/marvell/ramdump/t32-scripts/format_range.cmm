@@ -1,0 +1,30 @@
+;
+;------------------------------------------------------------
+;(C) Copyright [2006-2012] Marvell International Ltd.
+;All Rights Reserved
+;------------------------------------------------------------
+; rev.0.1: antone@marvell.com: initial version
+;
+; This T32 script should be run in RAMDUMP environment for AP with Linux kernel.
+; Prints out the contents of the memory region specified in desired format.
+; The range is from start_addr (inclusive) up to end_addr (exclusive).
+; target_addr is used as start address in the printed output (may be different from start_addr)
+; This example prints out in u-boot mw.l command format, so the ouput can be used to fill the
+; memory at target_addr with contents from the address range specified.
+;
+; USAGE: start_addr end_addr target_addr
+;
+
+AREA.CREATE OUT 80 1000
+AREA.VIEW OUT
+AREA.SELECT OUT
+
+ENTRY &start &end &target
+
+WHILE &start<&end
+(
+	&val=v.value(*(unsigned *)&start)
+	PRINT "mw.l &target &val;"
+	&start=&start+4
+	&target=&target+4
+)

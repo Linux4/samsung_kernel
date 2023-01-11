@@ -1,0 +1,16 @@
+* Cp Load
+
+Required properties:
+- compatible: "marvell, cp_load"
+- cp-type: 0 for pxa988, 1 for pxa1L88, 2 means pxa1928.
+- lpm-qos: should be PM_QOS_CPUIDLE_BLOCK_AXI;
+- remap-smc-funcid: the smc function id for seagull remap register
+
+Examples:
+	cp-load {
+		compatible = "marvell,cp_load";
+		cp-type = <3>;
+		lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+		remap-smc-funcid = <0xd0002001>;
+		status = "okay";
+	};

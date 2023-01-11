@@ -1,0 +1,10 @@
+* MARVELL frame buffer baselay
+
+Required properties:
+- compatible : should be "marvell,mmp-fb";
+
+Example:
+fb0: fbbase {
+	compatible = "marvell,mmp-fb";
+	status = "disabled";
+};

@@ -1,0 +1,19 @@
+/*
+ * Copyright (C) 2014 Marvell
+ * Yi Zhang <yizhang@marvell.com>
+ * 88pm822 specific description
+ */
+
+#include "88pm8xx.dtsi"
+
+&pmic0 {
+	regulators {
+	        buck1: BUCK1 {PM8XX_BUCK1;};
+		voutsw: VOUTSW {PM8XX_VOUTSW;};
+	};
+
+	dvc {
+		/* pm822 dvc affect buck1/3/5, affected 32bit = (1 << 4) | (1 << 2) | (1 << 0)*/
+		dvc-affected-buckbits = <21>;
+	};
+};

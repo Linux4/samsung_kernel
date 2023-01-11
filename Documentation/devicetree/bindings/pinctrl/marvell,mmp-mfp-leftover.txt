@@ -1,0 +1,15 @@
+* Marvell default mfp configuration
+
+Required properties:
+- compatible: "marvell,mmp-mfp-leftover"
+- pinctrl-names: which pinctrl group is used as initialization setting.
+- reg: mfp configuration register setting.
+- pinctrl-0: default pinctrl group.
+
+Example:
+mfpr: mfpr@d401e000 {
+	pinctrl-names = "default";
+	reg = <0xd401e000 0x280>;
+	pinctrl-0 = <&mfp_pins_group_0>;
+	status = "ok";
+}

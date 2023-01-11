@@ -1,0 +1,48 @@
+lm3532_bl bindings
+
+Required properties:
+  - compatible: "ti,lm3532"
+  - reg: I2C slave address (u8)
+  - avdd-supply: regulator that supplies the device.
+
+Optional properties:
+  - flags: various flags for the device:
+	# LM3532_CONFIG_MAP_ALL_CTRL_A- all ILEDS will be controlled by Control
+	  A PWM and Control A registers.
+	# LM3532_CONFIG_ALS- enables device working with IRQ, registering
+	  as input device.
+  - ramp_time: desired ramp time in microseconds. the larger the ramp time the
+    smoother is the transition to a new brightness level.
+  - ctrl_a_fs_current: configures the full-scale current setting for the
+    current sink assigned to Control Bank A.
+  - ctrl_a_mapping_mode: chooses the mapping type as either exponential or
+    linear.
+  - ctrl_a_pwm: configures control A PWM register.
+  - rst_gpio: gpio that resets the device.
+  - feedback_en_val: configures which current sinks are part of the boost
+    control loop.
+  - output_cfg_val: configures how the three control banks are routed to the
+    current sinks (ILED1, ILED2, ILED3).
+
+Example:
+	backlight1: lm3532@38 {
+		compatible = "ti,lm3532";
+		reg = <0x38>;
+		flags = <0>;
+		ramp_time = <0>;
+		ctrl_a_fs_current = <0x13>; /* 20.2mA */
+		ctrl_a_current_ctrl = <0x1> /* use I2C control */
+		ctrl_a_mapping_mode = <0x2>; /* use linear mapping */
+		ctrl_a_pwm = <0x86>;	/*
+					 * CTRL_A zone 0 PWM enable,
+					 * polarity active high
+					 */
+		rst_gpio = <&gpio 32 0>; /* reset GPIO is 32 */
+		avdd-supply = <&ldo9>; /* regulator is ldo9 */
+		feedback_en_val = <0x1> /* ILED1 feedback enable */
+		output_cfg_val = <0x0>	/*
+					 * ILEDX (X = 1, 2, 3) controlled by
+					 * Control A PWM and Control A
+					 * Brightness.
+					 */
+	};

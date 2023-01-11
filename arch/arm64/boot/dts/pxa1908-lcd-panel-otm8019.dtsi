@@ -1,0 +1,210 @@
+/*
+ *  Copyright (C) 2014 Marvell Technology Group Ltd.
+ *  Author: Hongyan Song <hysong@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+
+/ {
+	panel: mmp-dsi-panel {
+		panel_otm8019 {
+			/*
+			 * BACKLIGHT CONTROL BY GPIO
+			 */
+			bl_gpio = <&gpio 119 0>;
+			panel_id = <0x8019>;
+			/*
+			 * DSI PACKET HEADER INFO
+			 * @ data type : 1byte
+			 * @ command type : 1byte
+			 * @ delay(msec) : 2byte
+			 * @ size of data : 2byte
+			 */
+			marvell,dsi-panel-init-cmds = [
+				15 01 00 00 00 02 00 00
+				29 01 00 00 00 04 FF 80 19 01
+				15 01 00 00 00 02 00 80
+				29 01 00 00 00 03 FF 80 19
+				15 01 00 00 00 02 00 80
+				29 01 00 00 00 02 C4 30
+				15 01 00 00 00 02 00 8A
+				29 01 00 00 00 02 C4 40
+				15 01 00 00 00 02 00 B4
+				29 01 00 00 00 02 C0 77
+				15 01 00 00 00 02 00 90
+				29 01 00 00 00 07 C0 00 15 00 00 00 03
+				15 01 00 00 00 02 00 A6
+				29 01 00 00 00 03 C1 01 00
+				15 01 00 00 00 02 00 A8
+				29 01 00 00 00 02 C0 00
+				15 01 00 00 00 02 00 8B
+				29 01 00 00 00 02 B0 40
+				15 01 00 00 00 02 00 82
+				29 01 00 00 00 02 C5 B0
+				15 01 00 00 00 02 00 90
+				29 01 00 00 00 03 C5 4E b6
+				15 01 00 00 00 02 00 00
+				29 01 00 00 00 03 D8 57 57
+				15 01 00 00 00 02 00 00
+				29 01 00 00 00 02 D9 5F
+				15 01 00 00 00 02 00 81
+				29 01 00 00 00 02 C1 33
+				15 01 00 00 00 02 00 89
+				29 01 00 00 00 02 C4 08
+				15 01 00 00 00 02 00 A3
+				29 01 00 00 00 02 C0 00
+				15 01 00 00 00 02 00 81
+				29 01 00 00 00 02 C4 83
+				15 01 00 00 00 02 00 92
+				29 01 00 00 00 02 C5 00
+				15 01 00 00 00 02 00 B1
+				29 01 00 00 00 02 C5 A9
+				15 01 00 00 00 02 00 C7
+				29 01 00 00 00 02 CF 02
+				15 01 00 00 00 02 00 90
+				29 01 00 00 00 02 B3 00
+				15 01 00 00 00 02 00 92
+				29 01 00 00 00 02 B3 05
+				15 01 00 00 00 02 00 80
+				29 01 00 00 00 0A C0 00 5F 00 10 10 00 5F 10 10
+				15 01 00 00 00 02 00 A6
+				29 01 00 00 00 04 C1 01 00 00
+				15 01 00 00 00 02 00 80
+				29 01 00 00 00 0D CE 87 03 00 86 03 00 85 03 00 84 03 00
+				15 01 00 00 00 02 00 90
+				29 01 00 00 00 0F CE 33 1C 00 33 1D 00 33 1E 00 33 1F 00 00 00
+				15 01 00 00 00 02 00 A0
+				29 01 00 00 00 0F CE 38 05 03 20 00 78 00 38 04 03 21 00 78 00
+				15 01 00 00 00 02 00 B0
+				29 01 00 00 00 0F CE 38 03 03 22 00 78 00 38 02 03 23 00 78 00
+				15 01 00 00 00 02 00 C0
+				29 01 00 00 00 0F CE 38 01 03 24 00 78 00 38 00 03 25 00 78 00
+				15 01 00 00 00 02 00 D0
+				29 01 00 00 00 0F CE 30 00 03 26 00 78 00 30 01 03 27 00 78 00
+				15 01 00 00 00 02 00 C3
+				29 01 00 00 00 09 CB 55 55 55 55 55 55 55 55
+				15 01 00 00 00 02 00 DA
+				29 01 00 00 00 06 CB 55 55 55 55 55
+				15 01 00 00 00 02 00 E0
+				29 01 00 00 00 04 CB 55 55 55
+				15 01 00 00 00 02 00 83
+				29 01 00 00 00 08 CC 03 01 09 0B 0D 0F 05
+				15 01 00 00 00 02 00 90
+				29 01 00 00 00 02 CC 07
+				15 01 00 00 00 02 00 A0
+				29 01 00 00 00 09 CC 08 06 10 0E 0C 0A 02 04
+				15 01 00 00 00 02 00 B3
+				29 01 00 00 00 08 CC 06 08 0C 0A 10 0E 04
+				15 01 00 00 00 02 00 C0
+				29 01 00 00 00 02 CC 02
+				15 01 00 00 00 02 00 D0
+				29 01 00 00 00 09 CC 01 03 0D 0F 09 0B 07 05
+				15 01 00 00 00 02 00 00
+				29 01 00 00 00 15 E1 00 01 02 06 10 23 31 79 70 8A 7B 69 80 6B 70 68 61 53 4B 00
+				15 01 00 00 00 02 00 00
+				29 01 00 00 00 15 E2 00 01 02 06 10 23 31 79 70 8A 7A 69 80 6B 70 68 61 52 4C 00
+				15 01 00 00 00 02 00 98
+				29 01 00 00 00 02 C0 00
+				15 01 00 00 00 02 00 A9
+				29 01 00 00 00 02 C0 06
+				15 01 00 00 00 02 00 B0
+				29 01 00 00 00 04 C1 20 00 00
+				15 01 00 00 00 02 00 E1
+				29 01 00 00 00 03 C0 40 18
+				15 01 00 00 00 02 00 80
+				29 01 00 00 00 02 C4 30
+				15 01 00 00 00 02 00 80
+				29 01 00 00 00 03 C1 03 33
+				15 01 00 00 00 02 00 A0
+				29 01 00 00 00 02 C1 E8
+				15 01 00 00 00 02 00 90
+				29 01 00 00 00 02 B6 B4
+				15 01 00 00 00 02 00 C6
+				29 01 00 00 00 02 B0 03
+				15 01 00 00 00 02 00 81
+				29 01 00 00 00 02 C5 55
+				15 01 00 00 00 02 00 B6
+				29 01 00 00 00 02 F5 06
+				15 01 00 00 00 02 00 C1
+				29 01 00 00 00 02 F5 94
+				15 01 00 00 00 02 00 00
+				29 01 00 00 00 04 FF FF FF FF
+			];
+			marvell,dsi-panel-enable-cmds = [
+				05 00 00 78 00 01	29
+				05 00 00 0A 00 01	11
+			];
+			marvell,dsi-panel-disable-cmds = [
+				05 00 00 0A 00 01	28
+				05 00 00 78 00 01	10
+			];
+			video_mode {
+				marvell,dsi-panel-xres = <480>;
+				marvell,dsi-panel-yres = <800>;
+				marvell,dsi-panel-width= <50>;      /* screen width in mm */
+				marvell,dsi-panel-height = <90>;    /* screen height in mm */
+				marvell,dsi-h-front-porch = <90>;   /* right margin */
+				marvell,dsi-h-back-porch = <95>;    /* left margin */
+				marvell,dsi-h-sync-width = <4>;    /* hsync len */
+				marvell,dsi-v-front-porch = <30>;    /* lower margin */
+				marvell,dsi-v-back-porch = <32>;    /* upper margin */
+				marvell,dsi-v-sync-width = <1>;     /* vsync len */
+			};
+			panel-ext-pin {
+				/*
+				 * Three properties are required
+				 * to control pwr pin
+				 * @node : panel-ext-pin node
+				 * @on : <0> - off / <1> - on
+				 * @usec : delay time of usec
+				 */
+				/*
+				 * panel-ext-pin-boot sequence
+				 * is skip power on mode
+				 */
+				panel-ext-pin-boot = <
+					&panel_pwr_avdd_3  1 20000
+					&panel_pwr_dvdd_3  1 20000
+					>;
+				panel-ext-pin-on = <
+					&panel_pwr_avdd_3  1 20000
+					&panel_pwr_dvdd_3  1 20000
+					&panel_pwr_rst_3   1 10000
+					&panel_pwr_rst_3   0 10000
+					&panel_pwr_rst_3   1 120000
+					>;
+				panel-ext-pin-off = <
+					&panel_pwr_dvdd_3  0 1000
+					&panel_pwr_avdd_3  0 1000
+					>;
+				/*
+				 * There are four properties to define pwr pin
+				 * <prefix>-name : pin name
+				 * <prefix>-type : <0> - GPIO, <1> - PMIC Regulator
+				 * <prefix>-gpio : If the type is GPIO, assign a gpio.
+				 * <prefix>-supply : If the type is PMIC Regulator, assign a regulator.
+				 */
+				panel_pwr_rst_3: panel-pwr-rst-3 {
+					panel-ext-pin-name = "rst";
+					panel-ext-pin-type = <0>;
+					panel-ext-pin-gpio = <&gpio 97 0>;
+				};
+				panel_pwr_avdd_3: panel-pwr-avdd-3 {
+					panel-ext-pin-name = "avdd";
+					panel-ext-pin-type = <1>;
+					panel-ext-pin-supply = <&ldo5>;
+					panel-ext-pin-value = <1800000>;
+					panel-ext-pin-gpio;
+				};
+				panel_pwr_dvdd_3: panel-pwr-dvdd-3 {
+					panel-ext-pin-name = "dvdd";
+					panel-ext-pin-type = <1>;
+					panel-ext-pin-value = <2800000>;
+					panel-ext-pin-supply = <&ldo9>;
+				};
+			};
+		};
+	};
+};

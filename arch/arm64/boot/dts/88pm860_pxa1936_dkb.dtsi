@@ -1,0 +1,73 @@
+/*
+ * Copyright (C) 2014 Marvell
+ * Yi Zhang <yizhang@marvell.com>
+ * 88pm860 description for pxa1936-dkb
+ */
+
+#include "88pm8xx.dtsi"
+#include "88pm860.dtsi"
+
+&pmic0 {
+	/*
+	 * board specific register configuration
+	 * marvell,pmic-board-cfg = <page reg mask data>;
+	 */
+	/* disable ldo 5 ~ 8, 10, 11, 13, 17, 19, 20 in sleep mode */
+	marvell,pmic-board-cfg =
+			      <0x1 0x5d 0xff 0x0>,
+			      <0x1 0x5e 0x3c 0x0>,
+			      <0x1 0x5f 0x03 0x0>,
+			      <0x1 0x60 0xf3 0x0>,
+			      /* enable buck1a sleep mode */
+			      <0x1 0x5a 0x03 0x02>,
+			      /* set buck1a sleep voltage to 0.7v */
+			      <0x1 0x30 0x7f 0x08>;
+
+	regulators {
+		buck1a: BUCK1A {regulator-boot-on;regulator-always-on;};
+		buck2: BUCK2 {regulator-boot-on;regulator-always-on;};
+		buck3: BUCK3 {regulator-boot-on;regulator-always-on;};
+		buck4: BUCK4 {regulator-boot-on;regulator-always-on;};
+		buck5: BUCK5 {regulator-boot-on;regulator-always-on;};
+		buck1b: BUCK1B {regulator-boot-on;regulator-always-on;};
+
+		ldo1: LDO1 {regulator-boot-on;regulator-always-on;};
+		ldo2: LDO2 {regulator-boot-on;regulator-always-on;};
+		ldo3: LDO3 {regulator-boot-on;};
+		ldo4: LDO4 {regulator-boot-on;regulator-always-on;};
+		ldo5: LDO5 {regulator-boot-on;};
+		ldo6: LDO6 {regulator-boot-on;regulator-always-on;};
+		ldo7: LDO7 {regulator-boot-on;regulator-always-on;};
+		ldo8: LDO8 {regulator-boot-on;regulator-always-on;};
+		ldo9: LDO9 {regulator-boot-on;};
+		ldo10: LDO10 {regulator-boot-on;regulator-always-on;};
+		ldo11: LDO11 {regulator-boot-on;regulator-always-on;};
+		ldo12: LDO12 {regulator-boot-on;regulator-always-on;};
+		ldo13: LDO13 {regulator-boot-on;regulator-always-on;};
+		ldo14: LDO14 {regulator-boot-on;regulator-always-on;};
+		ldo15: LDO15 {regulator-boot-on;regulator-always-on;};
+		ldo16: LDO16 {regulator-boot-on;regulator-always-on;};
+		ldo17: LDO17 {regulator-boot-on;};
+		ldo18: LDO18 {regulator-boot-on;};
+		ldo19: LDO19 {regulator-boot-on;};
+	};
+
+	headset {
+		marvell,headset-flag = <1>;
+		marvell,hook-press-th = <60>;
+		marvell,vol-up-press-th = <250>;
+		marvell,vol-down-press-th = <500>;
+		marvell,mic-det-th = <600>;
+		marvell,press-release-th = <600>;
+		marvell,micbias-supply = <&ldo20>;
+		marvell,micbias-volt = <1700>;
+		status = "okay";
+	};
+
+	dvc {
+		status = "okay";
+	};
+	vbus {
+		status = "okay";
+	};
+};

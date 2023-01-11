@@ -1,0 +1,11 @@
+* apb apare
+
+Required properties:
+- compatible: "marvell,mmp-apb-spare".
+- reg: Should contain registers location and length
+
+Example:
+apbs: apbs@d4090000 {
+	compatible = "marvell,mmp-apb-spare";
+	reg = <0xd4090000 0x154>;
+};

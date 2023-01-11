@@ -1,0 +1,36 @@
+/*
+ * Copyright (C) 2014 Marvell
+ * Yi Zhang <yizhang@marvell.com>
+ */
+
+/*
+ * Integrated Power Management Chip
+ * 88pm886 parameters for most Li-ion batteries
+ */
+
+&pmic0 {
+	charger {
+	};
+
+	battery {
+		sleep-period = <1000>;		/* second */
+		alart-percent = <5>;		/* % */
+
+		power-off-th = <3350>;		/* mv */
+		safe-power-off-th = <3000>;	/* mv */
+		power-off-cnt-th = <20 4 4>; /* low-temp, standard-temp, high-temp */
+		io-channels 	 = <&gpadc 7>,  /* vbat */
+			           <&gpadc 13>, /* vbat_slp */
+				   <&gpadc 14>, /* gpadc0_res */
+				   <&gpadc 15>, /* gpadc1_res */
+				   <&gpadc 16>, /* gpadc2_res */
+				   <&gpadc 17>; /* gpadc3_res */
+		io-channel-names = "vbat",
+				   "vbat_slp",
+				   "gpadc0_res",
+				   "gpadc1_res",
+				   "gpadc2_res",
+				   "gpadc3_res";
+	};
+};
+

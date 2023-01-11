@@ -1,0 +1,25 @@
+* Structured Error Handler
+
+** seh
+
+Required properties:
+- compatible: "marvell,seh".
+- reg: Should contain registers location and length
+- interrupts: Should be one. If CP DWON, this interrupt will be triggered.
+- interrupt-names: Assign name of irq resource.
+- clocks: RIPC CLK.
+- watchdog-type: should be 1, which means use soc timer as watchdog.
+- timer-num: should be 2.
+- match-num: should be 0.
+
+Example:
+seh: seh@d4080000 {
+	compatible = "marvell,seh";
+	reg = <0xd4080000 0x100>;
+	interrupts = <0 32 0x4>;
+	interrupt-names = "CP_TIMER2_3";
+	clocks = <&soc_clocks PXA1L88_CLK_AICER>;
+	watchdog-type = <1>; /* soc timer */
+	timer-num = <2>; /* timer num */
+	match-num = <0>; /* match num */
+};

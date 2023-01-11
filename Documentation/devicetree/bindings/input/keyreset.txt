@@ -1,0 +1,31 @@
+Device tree bindings for key reset device
+
+description:
+This device allows to perform reset (or panic) by means of key-bindings.
+
+Required properties:
+
+ - compatible:          Should be "marvell,keyreset".
+ - keys-down :          list of keys which when pressed cause desired behavior.
+
+Optional properties:
+
+ - keyreset-need-panic: cause panic when key combination pressed, else cause reset.
+ - keyreset-press-msec: debounce time (msec) for reset/panic
+
+Example:
+	/* cause reset with no delay when pressing specified buttons */
+	keyreset {
+		compatible = "marvell,keyreset";
+		keys-down = <0x73 0x72>;
+		keyreset-need-panic;
+	};
+
+	/* cause panic after 2 seconds of pressing specified buttons */
+	keyreset {
+		compatible = "marvell,keyreset";
+		keys-down = <0x73 0x72>;
+		keyreset-need-panic;
+		keyreset-press-msec = <2000>;
+	};
+

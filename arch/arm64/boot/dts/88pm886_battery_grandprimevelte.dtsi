@@ -1,0 +1,113 @@
+/*
+ *	Samsung battery data device source tree
+ *
+ *	Copyright (C) 2014 Marvell Technology Group Ltd.
+ *	Copyright (C) 2014 Samsung Electronics Co, Ltd.
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License version 2 as
+ *	published by the Free Software Foundation.
+ */
+
+
+/{
+	sec-battery {
+		status = "okay";
+		compatible = "samsung,sec-battery";
+		battery,vendor = "SDI SDI";
+		battery,charger_name = "sec-charger";
+		battery,fuelgauge_name = "sec-fuelgauge";
+		battery,technology = <2>; /* POWER_SUPPLY_TECHNOLOGY_LION */
+
+		battery,chip_vendor = "MRVL";
+
+		battery,polling_time = <10 30 30 30 3600>;
+
+		battery,temp_table_adc = <276 326 383 455 530 629 740 787 866 1013
+			1181 1361 1564 1792 2024 2263 2493 2728 2948 3011
+			3135 3208 3313 3465 3588 3698 3779>;
+		battery,temp_table_data = <900 850 800 750 700 650 600 580 550 500
+			450 400 350 300 250 200 150 100 50 30
+			0 (-20) (-50) (-100) (-150) (-200) (-250)>;
+
+		battery,input_current_limit = <980 0 0 980 500 980 980 500 980 0 760 950 0 0 0 400 980 980 300 980 980 0>;
+		battery,fast_charging_current = <1500 0 0 1500 500 1500 1500 500 500 0 900 1500 0 0 0 400 1500 1500 300 700 1500 0>;
+		battery,full_check_current_1st = <170 0 0 170 170 170 170 170 170 0 170 170 0 0 0 170 170 170 170 170 170 0>;
+		battery,full_check_current_2nd = <2400 0 0 2400 2400 2400 2400 2400 2400 0 2400 2400 0 0 0 2400 2400 2400 2400 2400 2400 0>;
+
+		battery,adc_check_count = <5>;
+
+		battery,cable_check_type = <4>; /* SEC_BATTERY_CABLE_CHECK_PSY */
+		battery,cable_source_type = <1>; /* SEC_BATTERY_CABLE_SOURCE_EXTERNAL */
+		battery,event_waiting_time = <600>;
+		battery,polling_type = <1>; /* SEC_BATTERY_MONITOR_ALARM */
+		battery,monitor_initial_count = <0>;
+
+		battery,battery_check_type = <4>; /* SEC_BATTERY_CHECK_FUELGAUGE */
+		battery,check_count = <0>;
+		battery,check_adc_max = <1440>;
+		battery,check_adc_min = <0>;
+
+		battery,ovp_uvlo_check_type = <3>; /* SEC_BATTERY_OVP_UVLO_CHGPOLLING */
+
+		battery,thermal_source = <0>; /* SEC_BATTERY_THERMAL_SOURCE_FG */
+		battery,temp_check_type = <2>; /* SEC_BATTERY_TEMP_CHECK_TEMP */
+		battery,temp_check_count = <1>;
+		battery,temp_highlimit_threshold_event = <800>;
+		battery,temp_highlimit_recovery_event = <750>;
+		battery,temp_highlimit_threshold_normal = <800>;
+		battery,temp_highlimit_recovery_normal = <750>;
+		battery,temp_highlimit_threshold_lpm = <800>;
+		battery,temp_highlimit_recovery_lpm = <750>;
+		battery,temp_high_threshold_event = <600>;
+		battery,temp_high_recovery_event = <460>;
+		battery,temp_low_threshold_event = <(-50)>;
+		battery,temp_low_recovery_event = <0>;
+		battery,temp_high_threshold_normal = <600>;
+		battery,temp_high_recovery_normal = <460>;
+		battery,temp_low_threshold_normal = <(-50)>;
+		battery,temp_low_recovery_normal = <0>;
+		battery,temp_high_threshold_lpm = <600>;
+		battery,temp_high_recovery_lpm = <460>;
+		battery,temp_low_threshold_lpm = <(-50)>;
+		battery,temp_low_recovery_lpm = <0>;
+		battery,full_check_type = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
+		battery,full_check_type_2nd = <3>; /* SEC_BATTERY_FULLCHARGED_TIME */
+		battery,full_check_count = <1>;
+		battery,chg_gpio_full_check = <0>;
+		battery,chg_polarity_full_check = <1>;
+
+		/* SEC_BATTERY_FULL_CONDITION_SOC |
+		   SEC_BATTERY_FULL_CONDITION_NOTIMEFULL |
+		   SEC_BATTERY_FULL_CONDITION_VCELL
+		   SEC_BATTERY_FULL_CONDITION_NOSLEEPINFULL */
+		battery,full_condition_type = <15>;
+		battery,full_condition_soc = <100>;
+		battery,full_condition_vcell = <4250>;
+
+		battery,recharge_check_count = <3>;
+		battery,recharge_condition_type = <4>; /* SEC_BATTERY_RECHARGE_CONDITION_VCELL */
+		battery,recharge_condition_soc = <98>;
+		battery,recharge_condition_vcell = <4300>;
+		battery,recharge_condition_avgvcell = <4300>;
+
+		battery,charging_total_time = <21600>;
+		battery,recharging_total_time = <5400>;
+		battery,charging_reset_time = <0>;
+
+		battery,chg_float_voltage = <4350>;
+
+		battery,swelling_high_temp_block = <500>;
+		battery,swelling_high_temp_recov = <450>;
+		battery,swelling_low_temp_block = <50>;
+		battery,swelling_low_temp_recov = <100>;
+		/* Change to 0.5C only if charging current can exceed 2A*/
+		battery,swelling_chg_current = <920>;
+		battery,swelling_drop_float_voltage = <4200>;
+		battery,swelling_high_rechg_voltage = <4150>;
+		battery,swelling_low_rechg_voltage = <4050>;
+		battery,swelling_block_time = <600>;
+
+		battery,always_enable;
+	};
+};

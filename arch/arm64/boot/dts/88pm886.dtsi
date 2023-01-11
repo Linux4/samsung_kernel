@@ -1,0 +1,147 @@
+/*
+ * Copyright (C) 2014 Marvell
+ * Yi Zhang <yizhang@marvell.com>
+ */
+
+/*
+ * Integrated Power Management Chip
+ * header file for Marvell PMIC: 88pm886
+ */
+
+&pmic0 {
+	compatible = "marvell,88pm886";
+	/* ---buck--- */
+	vccmain: regulator-buck1 {
+		compatible = "marvell,88pm886-buck1";
+		regulator-min-microvolt = <600000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	buck2: regulator-buck2 {
+		compatible = "marvell,88pm886-buck2";
+		regulator-min-microvolt = <600000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	vddr: regulator-buck3 {
+		compatible = "marvell,88pm886-buck3";
+		regulator-min-microvolt = <600000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	buck4: regulator-buck4 {
+		compatible = "marvell,88pm886-buck4";
+		regulator-min-microvolt = <600000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	buck5: regulator-buck5 {
+		compatible = "marvell,88pm886-buck5";
+		regulator-min-microvolt = <600000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	/* ---ldo--- */
+	ldo1: regulator-ldo1 {
+		compatible = "marvell,88pm886-ldo1";
+		regulator-min-microvolt = <1700000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo2: regulator-ldo2 {
+		compatible = "marvell,88pm886-ldo2";
+		regulator-min-microvolt = <1700000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo3: regulator-ldo3 {
+		compatible = "marvell,88pm886-ldo3";
+		regulator-min-microvolt = <1700000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo4: regulator-ldo4 {
+		compatible = "marvell,88pm886-ldo4";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo5: regulator-ldo5 {
+		compatible = "marvell,88pm886-ldo5";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo6: regulator-ldo6 {
+		compatible = "marvell,88pm886-ldo6";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo7: regulator-ldo7 {
+		compatible = "marvell,88pm886-ldo7";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo8: regulator-ldo8 {
+		compatible = "marvell,88pm886-ldo8";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo9: regulator-ldo9 {
+		compatible = "marvell,88pm886-ldo9";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo10: regulator-ldo10 {
+		compatible = "marvell,88pm886-ldo10";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo11: regulator-ldo11 {
+		compatible = "marvell,88pm886-ldo11";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo12: regulator-ldo12 {
+		compatible = "marvell,88pm886-ldo12";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo13: regulator-ldo13 {
+		compatible = "marvell,88pm886-ldo13";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo14: regulator-ldo14 {
+		compatible = "marvell,88pm886-ldo14";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo15: regulator-ldo15 {
+		compatible = "marvell,88pm886-ldo15";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	ldo16: regulator-ldo16 {
+		compatible = "marvell,88pm886-ldo16";
+		regulator-min-microvolt = <1700000>;
+		regulator-max-microvolt = <2800000>;
+	};
+
+	/* virtual regulator */
+	buck1slp: regulator-buck1-slp {
+		compatible = "marvell,88pm886-buck1-slp";
+		regulator-min-microvolt = <600000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-always-on;
+		regulator-boot-on;
+		marvell,consumer-supplies = "buck1slp", "nameless";
+	};
+
+	gpadc: gpadc{
+	        compatible = "marvell,88pm886-gpadc";
+		#io-channel-cells = <1>;
+		io-channel-ranges;
+	};
+};

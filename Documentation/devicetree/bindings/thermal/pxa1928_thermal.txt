@@ -1,0 +1,14 @@
+* PXA1928 Thermal
+- compatible = "mrvl,thermal"
+- reg : address range of the thermal sensor registers;
+- interrupts : interrupts generated from ICU;
+- marvell,version-flag: sensor ip version;
+- status: enable/disable
+Example:
+thermal: thermal@d403b000 {
+        compatible = "mrvl,thermal";
+        reg = <0xd403b000 0x7c>;
+        marvell,version-flag = <3>;
+        interrupts = <0 132 0x4>;
+        status = "disabled";
+};

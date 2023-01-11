@@ -1,0 +1,40 @@
+* MARVELL USB CONTROLLER
+Required properties:
+- compatible : should be "marvell,mv-otg";
+- reg : register base address and size;
+
+otg: otg@d4208100 {
+	compatible = "marvell,mv-otg";
+	reg = <0xd4208100 0x200>;
+	interrupts = <0 67 0x4>;
+	marvell,udc-name = "mv-udc";
+	marvell,ehci-name = "pxa-u2oehci";
+	marvell,otg-name = "mv-otg";
+	marvell,udc-mode = <1>;
+	marvell,extern-attr = <3>;
+	marvell,otg-force-a-bus-req;
+	lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+	clocks = <&soc_clocks PXA1928_CLK_USB>;
+	status = "disabled";
+};
+
+
+MARVELL USB device controller
+
+Required properties:
+- compatible: Should be "marvell,mv-udc"
+- reg: Address and length of the register set for the device
+- interrupts: Should contain macb interrupt
+
+udc: udc@d4208100 {
+	compatible = "marvell,mv-udc";
+	reg = <0xd4208100 0x200>;
+	interrupts = <0 67 0x4>;
+	marvell,udc-name = "mv-udc";
+	marvell,udc-mode = <1>;
+	marvell,extern-attr = <3>;
+	marvell,otg-force-a-bus-req;
+	lpm-qos = <PM_QOS_CPUIDLE_BLOCK_AXI>;
+	clocks = <&soc_clocks PXA1928_CLK_USB>;
+	status = "disabled";
+};

@@ -1,0 +1,77 @@
+* Marvell MMP core debug related components
+
+Marvell MMP chips have a CoreSight System Components into their design
+and produce real-time instruction and data trace information from a SoC.
+We have software jtag as well.
+
+Required properties:
+For CoreSight components:
+- compatible : Should be "marvell,coresight"
+- clocks : From common clock binding. First clock is debug clock (ATCLK and
+  PCLKDBG). Another clock is for internal trace clock.
+- clock-names : From common clock binding. Shall be "DBGCLK" and "TRACECLK".
+- mapping of the CoreSight addresses into main address space:
+	#address-cells = <1>;
+	#size-cells = <1>;
+	reg = <base_addr size >;
+	ranges;
+- each component of CoreSight:
+  dbg: Debug Access Port.
+  cti: Cross Trigger Interface.
+  etm: Embedded Trace Macrocell.
+  cstf: CoreSight Trace Funnel.
+  etb: Embedded Trace Buffer.
+
+For software jtag:
+- compatible : Should be "marvell,sw-jtag".
+- reg : The software jtag address.
+- status : "disabled" indicates the software jtag is not available for use.
+
+Example:
+	coresight: coresight@d4100000 {
+		compatible = "marvell,coresight";
+		clocks = <&soc_clocks PXA1L88_CLK_DBGCLK>,
+			 <&soc_clocks PXA1L88_CLK_TRACECLK>;
+		clock-names = "DBGCLK","TRACECLK";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0xd4100000 0x100000>;
+		ranges;
+
+		dbg: dbg@0xd4110000 {
+			compatible = "marvell,coresight-dbg";
+			reg = <0xd4110000 0x8000>;
+		};
+
+		cti: cti@0xd4118000 {
+			compatible = "marvell,coresight-cti";
+			reg = <0xd4118000 0x4000>;
+		};
+
+		etm: etm@0xd411c000 {
+			compatible = "marvell,coresight-etm";
+			reg = <0xd411c000 0x4000>;
+		};
+
+		cstf: cstf@0xd4109000 {
+			compatible = "marvell,coresight-cstf";
+			reg = <0xd4109000 0x4000>;
+		};
+
+		cetb: cetb@0xd4105000 {
+			compatible = "marvell,coresight-cetb";
+			reg = <0xd4105000 0x4000>;
+		};
+
+		letb: letb@0xd410a000 {
+			compatible = "marvell,coresight-letb";
+			reg = <0xd410a000 0x4000>;
+		};
+	};
+
+	swjtag: swjtag@d4013100 {
+		compatible = "marvell,sw-jtag";
+		reg = <0xd4013100 0x10>;
+		status = "disabled";
+	};
+

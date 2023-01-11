@@ -1,0 +1,23 @@
+* 88MS100 touchscreen driver
+
+Required properties:
+- compatible: must be "marvell,88ms100-touch"
+
+Example:
+
+	twsi1: i2c@d4010800 {
+		touch3: 88ms100@720p {
+			compatible = "marvell,88ms100-touch";
+			pinctrl-names = "default"; pinctrl-0 = <&touch_pins>;
+			reg = <0x18>;
+			interrupt-parent = <&gpio>;
+			interrupts = <72 0x1>;
+			irq-gpios = <&gpio 72 0>;
+			reset-gpios = <&gpio 75 0>;
+			marvell,max-height = <1280>;
+			marvell,max-width = <720>;
+			avdd-supply = <&ldo11>;
+		};
+
+	};
+

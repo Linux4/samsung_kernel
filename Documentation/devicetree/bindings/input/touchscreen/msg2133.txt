@@ -1,0 +1,23 @@
+* MSG2133 touchscreen driver
+
+Required properties:
+- compatible: must be "focaltech,msg2133"
+
+Example:
+
+	twsi1: i2c@d4010800 {
+		touch2: msg2133@26 {
+			compatible = "focaltech,msg2133";
+			pinctrl-names = "default"; pinctrl-0 = <&touch_pins>;
+			reg = <0x26>;
+			interrupt-parent = <&gpio>;
+			interrupts = <72 0x1>;
+			focaltech,abs-x-max = <480>;
+			focaltech,abs-y-max = <854>;
+			focaltech,irq-gpios = <&gpio 72 0>;
+			focaltech,reset-gpios = <&gpio 75 0>;
+			focaltech,v_tsp-supply = <&ldo11>;
+		};
+
+	};
+

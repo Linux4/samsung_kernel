@@ -1,0 +1,10 @@
+* MARVELL frame buffer overlay
+
+Required properties:
+- compatible : should be "marvell,mmp-fb-overlay";
+
+Example:
+fb1: fboverlay {
+	compatible = "marvell,mmp-fb-overlay";
+	status = "disabled";
+};

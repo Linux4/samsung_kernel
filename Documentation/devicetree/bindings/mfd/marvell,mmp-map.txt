@@ -1,0 +1,48 @@
+* Marvell audio MAP
+
+Required properties:
+- compatible : "marvell,mmp-map"
+- reg: register range
+- audio_reg: pmu audio power control register
+- bit_sram: sram ctrl bit in pmu register
+- bit_apb: apb ctrl bit in pmu register
+- pll_sel: map pll select bit, which is different between Eden & Helan2
+- power_ctrl: power on/off API. 0: helanx_power_on; 1: edenx_power_on.
+- clocks: MAP clock index
+- marvell,apll: audio pll select bit. 0: 32k-apll; 1: 26m-apll
+
+marvell,mmp-map consists of a group of sub-devices:
+mmp_map_codec: map-codec driver
+mmp_map_be: map-be driver
+mmp_map_be_tdm: map-tdm driver
+
+Required properies for sub-devices
+- compatible : sub-device name
+- #dailink-cells: sub device number
+
+Example:
+
+map: map@d1200000 {
+	reg = <0xd1230000 0x80
+		0xd1200000 0x8000>;
+	audio_reg = <128>;
+	bit_sram = <3>;
+	bit_apb = <2>;
+	pll_sel = <0>;
+	power_ctrl = <0>;
+	clocks = <&audio_map_clocks AUDIO_CLK_MAP>;
+	marvell,apll = <0>;
+	status = "okay";
+	mmp_map_codec: mmp_map_codec {
+		compatible = "marvell,mmp-map-codec";
+		#dailink-cells = <1>;
+	};
+	mmp_map_be: mmp_map_be {
+		compatible = "marvell,mmp-map-be";
+		#dailink-cells = <1>;
+	};
+	mmp_map_be_tdm: mmp_map_be_tdm {
+		compatible = "marvell,mmp-map-be-tdm";
+		#dailink-cells = <1>;
+	};
+};

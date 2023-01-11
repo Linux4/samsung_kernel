@@ -1,0 +1,41 @@
+Binding for Marvell MMP series gate clock and common gate clock
+
+There two type of gate clock used by Marvell MMP series SOC.
+The common gate clock and the gate clock defined for MMP series SOC.
+
+For common gate clock
+
+Required properties
+- compatible : It should be "marvell,mmp-clk-general-gate";
+- clock : The parent of the clock.
+- marvell,mmp-clk-bit-gate : The offset of the bit control the gate.
+
+Examples
+apmu_clocks: apmu_clocks {
+	compatible = "marvell,mmp-clk-master";
+	reg = <0xd4282800 0x1000>;
+	pll1_416_gate: pll1_416_gate {
+		compatible = "marvell,mmp-clk-general-gate";
+		clocks = <&pll1_416m>;
+		marvell,reg-offset = <0 0x40>;
+		marvell,mmp-clk-bit-gate = <27>;
+	};
+};
+
+For MMP series gate clock
+
+Required properties
+- compatible : It should be "marvell,mmp-clk-gate";
+- clock : The parent of the clock.
+- marvell,mmp-clk-mask : The (mask, val_enable, val_disable) for the clock.
+
+Examples
+apmu_clocks: apmu_clocks {
+	compatible = "marvell,mmp-clk-master";
+	reg = <0xd4282800 0x1000>;
+	usb_clock: usb_clock {
+		compatible = "marvell,mmp-clk-gate";
+		marvell,reg-offset = <0 0x5c>;
+		marvell,mmp-clk-mask = <0x9 0x9 0x1>;
+	};
+};

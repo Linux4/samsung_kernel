@@ -1,0 +1,268 @@
+;
+;------------------------------------------------------------
+;(C) Copyright [2006-2008] Marvell International Ltd.
+;All Rights Reserved
+;------------------------------------------------------------
+;
+; This T32 script should be run in RAMDUMP environment for AP with Linux kernel.
+; Finds all the processes in the system, and prints:
+; - task_struct address (a.k.a Magic)
+; - pid
+; - executable name (a.k.a Comm)
+;
+; Linux kernel references:
+;   include/linux/sched.h:  for_each_process, do_each_thread
+;   include/linux/kernel.h: container_of
+;   include/linux/list.h:   struct list_head, list_entry_rcu
+;
+; USAGE: <optional output file path-name>
+;
+; GENERATES:
+; - tasklist including Magic, pid, name etc. in the file with given filename, or in c:\temp\tasks.txt
+;
+ENTRY &outfile &opt
+
+&printframes=0
+&opt=string.lwr("&opt")
+IF "&opt"=="/frame"
+      &printframes=1
+
+&null=v.value("0")
+&one=v.value("1")
+; Note, the below should be defined, otherwise assignment inside IF/ELSE below stays in the scope of this IF/ELSE
+&tcount=v.value("1")
+
+&tofile=0==1
+
+AREA.CREATE TASKS 80 1000
+AREA.VIEW TASKS
+AREA.SELECT TASKS
+
+IF "&outfile"==""
+(
+	&outfile="c:\temp\tasks.txt"
+)
+
+IF "&outfile"!=""
+(
+  IF os.dir(&outfile)
+  (
+    ; 1) Double \\ is prohibited so let's ensure there's only one.
+	; 2) An ending quote is considered a part of a string, so need handling as well.
+    &adj="\"
+    &lastchar=string.mid("&outfile",string.len("&outfile")-1,1)
+	IF "&lastchar"==""""
+	(
+		&lastchar=string.mid("&outfile",string.len("&outfile")-2,1)
+	)
+	IF "&lastchar"=="\"
+	(
+	 &adj=""
+	)
+    &outfile="&outfile"+"&adj"+"tasks.txt"
+  )
+  &ext=os.file.extension(&outfile)
+  ;&outfile_mipsram="&outfile"
+  IF "&ext"!=""
+  (
+    ; string functions are buggy: some count quotes and some do not
+    &adj=0
+    &lastchar=string.mid("&outfile",string.len("&outfile")-1,1)
+	IF "&lastchar"==""""
+	(
+	  &adj=1
+	)
+	&outfile_mipsram=string.mid("&outfile",0,string.len("&outfile")-string.len("&ext")-&adj)
+  )
+  ;;&outfile_mipsram="&outfile_mipsram"+"_mipsram"+"&ext"
+  PRINT "OUTOUT ALSO SENT TO FILE: &outfile"
+  OPEN #1 "&outfile" /create
+  ;;OPEN #2 "&outfile_mipsram" /create
+  &tofile=0==0
+)
+
+data.find v.range("linux_banner") "2.6.32"
+&k32=0
+IF FOUND()
+(
+	&k32=1
+)
+
+&p0=v.value("(unsigned)&init_task")
+gosub walk_list &p0 0
+PRINT "Done"
+ENDDO
+
+walk_list:
+entry &p0 &level
+&p=&p0
+&cont=0==0
+&maxlevel=v.value("2")
+; 0xd8
+&offset_tasks=v.value("&((struct task_struct*)0)->tasks")
+; 0x170
+&offset_thread_group=v.value("&((struct task_struct*)0)->thread_group")
+
+&TotalSizeTmp=0
+&TotalSize=0
+
+;RePeaT
+WHILE &cont
+(
+&pid=v.value("((struct task_struct*)&p)->pid")
+&comm=v.string("((struct task_struct*)&p)->comm")
+
+&mm=v.value("((struct task_struct*)&p)->mm")
+;&mm_users=   v.value("((struct mm_struct*)&mm)->mm_users")
+;&mm_count=   v.value("((struct mm_struct*)&mm)->mm_count")
+;&map_count=  v.value("((struct mm_struct*)&mm)->map_count")
+&hiwater_vm= v.value("((struct mm_struct*)&mm)->hiwater_vm")<<2
+&total_vm=   v.value("((struct mm_struct*)&mm)->total_vm")<<2
+&reserved_vm=v.value("((struct mm_struct*)&mm)->reserved_vm")<<2
+&hiwater_rss=v.value("((struct mm_struct*)&mm)->hiwater_rss")<<2
+&shared_vm=  v.value("((struct mm_struct*)&mm)->shared_vm")<<2
+&stack_vm=   v.value("((struct mm_struct*)&mm)->stack_vm")<<2
+&start_code= v.value("((struct mm_struct*)&mm)->start_code")
+&end_code=   v.value("((struct mm_struct*)&mm)->end_code")
+&exec_vm=    v.value("((struct mm_struct*)&mm)->exec_vm")<<2
+&nr_ptes=    v.value("((struct mm_struct*)&mm)->nr_ptes")
+&start_data= v.value("((struct mm_struct*)&mm)->start_data")
+&end_data=   v.value("((struct mm_struct*)&mm)->end_data")
+&start_brk=  v.value("((struct mm_struct*)&mm)->start_brk")
+&start_stack=v.value("((struct mm_struct*)&mm)->start_stack")
+;&rss_stat=  (count=          (0xAE, 0x0608, 0x0)),
+
+if &hiwater_vm>&total_vm
+ &Peak=&hiwater_vm
+else
+ &Peak=&total_vm
+&Size=(&total_vm-&reserved_vm)
+&RSS=&hiwater_rss
+&Data=(&total_vm-&shared_vm-&stack_vm)
+&Stack=&stack_vm
+&Exe=(&end_code-&start_code)>>10
+&Lib=&exec_vm-&Exe
+&PTEs=&nr_ptes*2
+&TotalSizeTmp=&TotalSize
+&TotalSize=&RSS+&TotalSizeTmp
+
+;PRINT "&p: pid=" %decimal &pid "   &comm"
+;PRINT     "   kB: Peak=" %decimal &Peak " Size=" %decimal &Size " RSS=" %decimal &RSS " Data=" %decimal &Data " Stack=" %decimal &Stack " Exe=" %decimal &Exe " Lib=" %decimal &Lib " PTEs=" %decimal &PTEs
+
+PRINT "&p: pid=" %decimal &pid "   &comm      &TotalSize         kB: Peak=" %decimal &Peak " Size=" %decimal &Size " RSS=" %decimal &RSS " Data=" %decimal &Data " Stack=" %decimal &Stack " Exe=" %decimal &Exe " Lib=" %decimal &Lib " PTEs=" %decimal &PTEs
+
+IF "&outfile"!=""
+(
+	;;%decimal should be outside of the "..."
+	;WRITE #1  "&p: pid=" %decimal &pid "   &comm               kB: Peak=" %decimal &Peak " Size=" %decimal &Size " RSS=" %decimal &RSS " Data=" %decimal &Data " Stack=" %decimal &Stack " Exe=" %decimal &Exe " Lib=" %decimal &Lib " PTEs=" %decimal &PTEs
+	WRITE #1  "&p: pid=" %decimal &pid "   &comm"
+	WRITE #1  "               kB: Peak=" %decimal &Peak " Size=" %decimal &Size " RSS=" %decimal &RSS " Data=" %decimal &Data " Stack=" %decimal &Stack " Exe=" %decimal &Exe " Lib=" %decimal &Lib " PTEs=" %decimal &PTEs
+	IF &printframes==1
+		gosub getframe &p #1
+)
+;;gosub print_task &pid "&comm" &tofile   MIPSRAM
+
+IF ("&k32"!="&null")
+(
+; 2.6.32:
+&tcount=v.value("((struct task_struct*)&p)->signal.count.counter")
+)
+ELSE
+(
+; 2.6.35:
+&tcount=v.value("((struct task_struct*)&p)->signal.nr_threads")
+)
+
+;;			gosub walk_thread_list &ch &sublevel
+
+
+&p= v.value("(unsigned)(((struct task_struct*)&p)->tasks.next) - &offset_tasks")
+;WHILE "&p"!="&p0"
+IF ("&p"=="&p0")
+(
+ &cont=0==1
+)
+&pid=v.value("((struct task_struct*)&p)->pid")
+
+IF ("&pid"=="&null")
+(
+ &cont=0==1
+)
+
+)
+   PRINT      "====== TotalSize(kB)=" %decimal &TotalSize
+   PRINT      "----------------------------------------------"
+   WRITE #1   "====== TotalSize(kB)=" %decimal &TotalSize
+
+RETURN 0
+
+
+
+getframe:
+LOCAL &outfile
+LOCAL &magic
+LOCAL &prfile
+LOCAL &line
+ENTRY &magic &outfile
+&prfile=os.env("TEMP")
+IF string.len("&prfile")==0
+	&prfile="c:\temp"
+&prfile="&prfile"+"\frame-temp.txt"
+// There's no easy way to grab the output of var.frame and write in to a file.
+// Just use the winprint, then open the file produced, read, filter and output.
+printer.open "&prfile"
+winprint.var.frame /task &magic
+printer.close
+OPEN #20 &prfile
+REPEAT
+(
+	READ #20 %line &line
+	IF EOF()
+		GOTO endframe
+	IF STRING.SCAN("&line", "B::var.frame", 0)>=0
+		GOTO skipframe
+	WRITE &outfile "&line"
+	IF STRING.SCAN("&line", "end of frame", 0)>=0
+		GOTO endframe
+skipframe:
+)
+endframe:
+CLOSE #20
+WRITE &outfile "--------------------------------------------------------------------"
+RETURN 0
+
+
+
+
+
+;; "VmPeak:\t%8lu kB\n"   MAX(mm->total_vm, mm->hiwater_vm) << 2,
+;; "VmSize:\t%8lu kB\n"    (mm->total_vm - mm->reserved_vm) << 2),
+;; "VmHWM:\t%8lu kB\n"    MAX(mm->hiwater_rss... << 2,
+;; "VmRSS:\t%8lu kB\n"    total_rss << 2,
+;; "VmData:\t%8lu kB\n"   mm->total_vm - mm->shared_vm - mm->stack_vm << 2,
+;; "VmStk:\t%8lu kB\n"    mm->stack_vm << 2,
+;; "VmExe:\t%8lu kB\n"    (mm->end_code - mm->start_code) >> 10
+;; "VmLib:\t%8lu kB\n"
+;; "VmPTE:\t%8lu kB\n"    (2*mm->nr_ptes),
+;; ------------------------------------------
+;;  mm = 0xC0AE6D80 -> (
+;;    mm_users = (counter = 0x13),
+;;    mm_count = (counter = 0x1),
+;;    map_count = 0x45,
+;;    hiwater_rss = 0x0675,
+;;    hiwater_vm = 0x1B1F,
+;;    total_vm = 0x22AE,
+;;    shared_vm = 0x0A92,
+;;    exec_vm = 0x011D,
+;;    stack_vm = 0x22,
+;;    reserved_vm = 0x0961,
+;;    nr_ptes = 0x19,
+;;    start_code = 0x8000,
+;;    end_code = 0x000AA80C,
+;;    start_data = 0x000AB000,
+;;    end_data = 0x000AD9C0,
+;;    start_brk = 0x000DC000,
+;;    brk = 0x00574000,
+;;    start_stack = 0xBE86DB40,
+;;    rss_stat = (count = (0xAE, 0x0608, 0x0)),
+;; =====================================================

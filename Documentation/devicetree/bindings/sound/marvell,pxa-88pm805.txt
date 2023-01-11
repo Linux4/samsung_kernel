@@ -1,0 +1,13 @@
+MARVELL audio machine driver
+
+Required properties:
+- compatible: must be "marvell,pxa-88pm805-snd-card"
+
+Example:
+
+	sound {
+		compatible = "marvell,pxa-88pm805-snd-card";
+		ssp-controllers = <&ssp_dai1 &ssp_dai4>;
+	};
+
+

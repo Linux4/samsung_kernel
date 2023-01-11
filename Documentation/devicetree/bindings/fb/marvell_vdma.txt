@@ -1,0 +1,12 @@
+* MARVELL VDMA
+
+Required properties:
+- compatible : should be "marvell,mmp-vdma";
+- reg : register base address and size;
+
+Example:
+vdma: vdma@d4209000 {
+	compatible = "marvell,mmp-vdma";
+	reg = <0xd4209000 0x850>, <0xd420b000 0x3d0>;
+	status = "disabled";
+};

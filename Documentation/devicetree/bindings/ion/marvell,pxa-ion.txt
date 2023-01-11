@@ -1,0 +1,53 @@
+* MARVELL PXA-ION Implementation
+
+** Required properties:
+
+- compatible: should be "marvell,pxa-ion"
+
+- marvell,ion-nr: indicates number of ion heaps we are going to create,
+		   should equal to the number of child heap nodes.
+
+** Optional properties
+
+- marvell,ion-iommu: indicates if we are going to attach ion devices
+		     to iommu mapping domains.
+- heap1: 	     the child node of heap we are going to create,
+		     include below properties:
+
+** heap required properties:
+
+- marvell,ion-name: name of the heap;
+
+- marvell,ion-type: indicates the type of heap_data to be created,
+		    like ION_HEAP_TYPE_SYSTEM etc.
+
+- marvell,ion-id:   the id for this heap, user can use this id to
+		    specify allocate buffer from which heap
+
+** heap optional properties:
+
+- marvell,ion-base:  indicates the start address of the heap
+
+- marvell,ion-size:  indicates the size of this heap
+
+
+Example:
+
+ion {
+	compatible = "marvell,pxa-ion";
+	marvell,ion-nr = <2>;
+	status = "okay";
+	marvell,ion-iommu = <1>;
+	heap1 {
+		marvell,ion-name = "carveout_heap";
+		marvell,ion-type = <2>;
+		marvell,ion-id = <2>;
+		marvell,ion-base = <0>;
+		marvell,ion-size = <0>;
+	};
+	heap2 {
+		marvell,ion-name = "system_heap";
+		marvell,ion-type = <0>;
+		marvell,ion-id = <0>;
+	};
+};

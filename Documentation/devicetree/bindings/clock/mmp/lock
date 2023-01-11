@@ -1,0 +1,44 @@
+Binding of spin lock support for Marvell MMP series clock
+
+Because some clocks share same register, spinlock need to be used to avoid
+conflicts.
+
+The spin lock sharing detection is based on regsiter address, and it is
+automatically. To support some clocks, the spin lock is not based on
+register address, some properies are provided.
+The properites are used as part of clock's properties in clock device tree
+files.
+
+Optional properties:
+marvell,mmp-clk-spinlock-new : Skip the automatic detection based on
+			       register address. Direclty create a new
+			       spin lock.
+marvell,mmp-clk-spinlock : It is handle. It points to the clock that share
+			   same spin lock.
+
+Examples:
+
+Assume that clk1, clk2, clk3 share same spin lock.
+
+apmu_clk {
+	compatible = "marvell,mmp-clk-master";
+	...
+
+	clk1 {
+		...
+		marvell,mmp-clk-spinlock-new;
+		...
+	};
+
+	clk2 {
+		...
+		mmp-clk-spinlock = <&clk1>;
+		...
+	};
+
+	clk3 {
+		...
+		mmp-clk-spinlock = <&clk1>;
+		...
+	};
+};

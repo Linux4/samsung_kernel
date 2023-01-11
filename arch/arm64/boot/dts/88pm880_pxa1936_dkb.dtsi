@@ -1,0 +1,194 @@
+/*
+ * Copyright (C) 2014 Marvell
+ * Yi Zhang <yizhang@marvell.com>
+ */
+
+/*
+ * Integrated Power Management Chip: 88pm880
+ * header file for pxa1936_dkb
+ */
+
+&pmic0 {
+	/*
+	 * board specific configuration
+	 * use value directly, not use macro
+	 * <page reg-addr mask value>
+	 */
+	marvell,pmic-bd-cfg =
+		/* enable GPADC duty cycle mode in sleep */
+		<0x2 0x06 0x10 0x10>,
+		/* set VDD to 0.9V in sleep */
+		<0x0 0x20 0xf0 0xf0>,
+		/* enable digital DVC, gate BK_CLK2M */
+		<0x0 0x21 0x50 0x50>,
+		/* enable reference group low power mode */
+		<0x0 0x23 0x80 0x80>,
+		/* enable buck1a sleep mode */
+		<0x4 0x24 0x30 0x20>,
+		/* enable buck 1b, 3, 7 sleep mode */
+		<0x4 0x3c 0x30 0x20>,
+		<0x4 0x6c 0x30 0x20>,
+		<0x4 0xb4 0x30 0x20>,
+		/* disable buck5 low ripple PFM mode */
+		<0x4 0x91 0x08 0x00>,
+		/* disable ldo 5 ~ 8, 10, 11, 14, 16, 17 */
+		<0x1 0x39 0x30 0x00>,
+		<0x1 0x3f 0x30 0x00>,
+		<0x1 0x45 0x30 0x00>,
+		<0x1 0x4b 0x30 0x00>,
+		<0x1 0x57 0x30 0x00>,
+		<0x1 0x5d 0x30 0x00>,
+		<0x1 0x6f 0x30 0x00>,
+		<0x1 0x7b 0x30 0x00>,
+		<0x1 0x81 0x30 0x00>;
+
+	/* ---buck--- */
+	vccmain: regulator-buck1a {
+	};
+	buck2: regulator-buck2 {
+	};
+	vddr: regulator-buck3 {
+	};
+	buck4: regulator-buck4 {
+	};
+	buck5: regulator-buck5 {
+	};
+	buck6: regulator-buck6 {
+	};
+	buck7: regulator-buck7 {
+	};
+
+	/* ---ldo--- */
+	ldo1: regulator-ldo1 {
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	ldo2: regulator-ldo2 {
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	ldo3: regulator-ldo3 {
+	};
+	ldo4: regulator-ldo4 {
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	ldo5: regulator-ldo5 {
+	};
+	ldo6: regulator-ldo6 {
+	};
+	ldo7: regulator-ldo7 {
+	};
+	ldo8: regulator-ldo8 {
+	};
+	ldo9: regulator-ldo9 {
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	ldo10: regulator-ldo10 {
+		regulator-boot-on;
+	};
+	ldo11: regulator-ldo11 {
+	};
+	ldo12: regulator-ldo12 {
+	};
+	ldo13: regulator-ldo13 {
+	};
+	ldo14: regulator-ldo14 {
+		regulator-boot-on;
+	};
+	ldo15: regulator-ldo15 {
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	ldo16: regulator-ldo16 {
+		regulator-boot-on;
+	};
+	ldo17: regulator-ldo17 {
+	};
+	ldo18: regulator-ldo18 {
+	};
+
+	headset {
+		marvell,headset-flag = <0>;
+		marvell,hook-press-th = <60>;
+		marvell,vol-up-press-th = <175>;
+		marvell,vol-down-press-th = <500>;
+		marvell,mic-det-th = <600>;
+		marvell,press-release-th = <600>;
+		marvell,micbias-supply = <&ldo18>;
+		marvell,micbias-volt = <1700>;
+		status = "okay";
+	};
+
+	battery {
+		bat-ntc-support;
+		gpadc-det-no = <1>;
+		gpadc-temp-no = <1>;
+
+		cc-fixup = <102>;
+	};
+
+	charger {
+		ir-comp-res = <65>; /* mohm */
+		ir-comp-update = <5>; /* s */
+	};
+
+	led {
+		gpio-en = <0>;
+		flash-en-gpio = <124>;
+		flash-txmsk-gpio = <19>;
+		flash-timer = <500>;	/* ms */
+		cls-ov-set = <5000>;	/* mV */
+		cls-uv-set = <1200>;	/* mV */
+		cfd-bst-vset = <5250>;	/* mV */
+		bst-uvvbat-set = <3100>;/* mV */
+		max-flash-current = <700>;	/* mA */
+		max-torch-current = <200>;	/* mA */
+		torch-force-max-current = <0>;
+	};
+
+	red: led-rgb0 {
+	       led-name = "led0";
+	       led-trigger-name = "timer";
+	       pm88x-rgb-breath-mode;
+	       pm88x-rgb-breath-speed = /bits/ 8 <1>;
+
+	       pm88x-rgb-current = /bits/ 8 <1>; /* 8 mA */
+	       pm88x-rgb-on-percent = /bits/ 8 <50>;
+
+       };
+
+	green: led-rgb1 {
+	       led-name = "led1";
+	       led-trigger-name = "timer";
+	       pm88x-rgb-breath-mode;
+	       pm88x-rgb-breath-speed = /bits/ 8 <2>;
+
+	       pm88x-rgb-current = /bits/ 8 <1>; /* 8 mA */
+	       pm88x-rgb-on-percent = /bits/ 8 <50>;
+       };
+
+	blue: led-rgb2 {
+	       led-name = "led2";
+	       led-trigger-name = "timer";
+	       pm88x-rgb-breath-mode;
+	       pm88x-rgb-breath-speed = /bits/ 8 <2>;
+
+	       pm88x-rgb-current = /bits/ 8 <1>; /* 8 mA */
+	       pm88x-rgb-on-percent = /bits/ 8 <50>;
+       };
+
+	onkey {
+		pm88x-onkey-gpio-number = <0>;
+		pm88x-onkey-long-onkey-type = <2>;
+		pm88x-onkey-disable-long-key-rst = <0>;
+		pm88x-onkey-long-key-press-time = <10>;
+		pm88x-onkey-hwrst-db-period = <1>;
+		pm88x-onkey-hwrst-type = <1>;
+	};
+
+	vbus {
+		gpadc-number = <3>;
+	};
+};

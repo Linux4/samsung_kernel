@@ -1,0 +1,140 @@
+;
+;------------------------------------------------------------
+;(C) Copyright [2006-2008] Marvell International Ltd.
+;All Rights Reserved
+;------------------------------------------------------------
+; rev.0.1: antone@marvell.com: initial version
+;
+; This T32 script should be run in RAMDUMP environment for AP with Linux kernel.
+; Given a task magic (task_struct address)
+; scans the task MM context page table and for all page tables
+; synchronizes the HW page table with the Linux page table.
+; Otherwise pages mapped (in Linux page tables) might not be "seen" because they are omitted in the HW (actual) page table.
+; USE THIS SCRIPT WHEN SELECTING THE MM CONTEXT OF A TASK with the Magic (0xNNNNNNNN below)
+; INSTEAD OF MMU.SCAN TASKPAGETABLE 0xNNNNNNNN:
+; 	DO <path>\rd_sync_task_mm.cmm 0xNNNNNNNN
+;
+; Linux kernel references:
+; - arch/arm/mm/proc-v7.S:cpu_v7_set_pte_ext(): this function sets the HW PTE (page table entry) given a Linux LPTE.
+; - arch/arm/include/asm/pgtable.h: see comment about HW vs Linux page table, and specifically about denying the access to young pages.
+;
+; USAGE: <mandatory: task_struct address>
+; It is sufficient to run the script once for each task (MM). Next time the number of modified PTE reported should be 0.
+;
+ENTRY &task
+
+AREA.CREATE SYNCMM
+AREA.VIEW SYNCMM
+AREA.SELECT SYNCMM
+
+IF "&task"==""
+(
+	PRINT "Please, supply task_struct address (magic): 0xNNNNNNNN"
+	ENDDO
+)
+
+; Extract the MM address from TASK:
+&mm=v.value("((struct task_struct*)&task)->mm")
+; Extract the PGD address (main MMU table virtual address) from MM:
+&pgd=v.value("((struct mm_struct*)&mm)->pgd")
+print "Syncing HW page tables for task 0x&task, mm 0x&mm, pgd 0x&pgd ..."
+IF v.value("&pgd&0x3FFF")!=0
+(
+	PRINT "Bad page table address (probably wrong task_struct address): task=&task, mm=&mm, pgd=&pgd"
+	ENDDO
+)
+&l1count=0x0
+&l2count=0x0
+
+; Scan the first level table
+REPEAT 0x1000
+(
+ &l1desc=v.value("*(unsigned*)&pgd")
+ &l1type=v.value("((unsigned)&l1desc)&0x3")
+ &l2addr=v.value("((unsigned)&l1desc)&0xfffffc00")
+ IF &l1type==0x1
+ (
+  ; Convert &l2addr from physical to kernel virtual
+  IF v.value("&l2addr&0xC0000000")==0x80000000
+  (
+	&l2addr=v.value("&l2addr|0xC0000000")
+  )
+  ELSE
+  (
+   IF v.value("&l2addr&0xC0000000")==0x00000000
+   (
+	&l2addr=v.value("&l2addr|0xC0000000")
+   )
+   ; Suspicious: second DDR bank might be not flat mapped in kernel space (HIGH MEM option)
+   ELSE
+   (
+  	IF v.value("&l2addr&0xC0000000")==0xC0000000
+		&l2addr=v.value("&l2addr|0xD0000000")
+   )
+  )
+  &pte=&l2addr
+  ; print ">> &pgd = &pte" ; debug
+  REPEAT 0x100
+  (
+	&pte_val=v.value("*(unsigned*)&pte")
+	; Linux page table is found 2KB above the HW page table
+	&lpte=&pte+0x800
+	&lpte_val=v.value("*(unsigned*)&lpte")
+	;print "&pte = &pte_val; &lpte = &lpte_val"
+	;ENDDO
+	IF &pte_val==0x0
+	(
+	IF &lpte_val!=0x0
+	(
+		; HW table is 0, while Linux table entry is OK: sync the HW entry
+		; Physical address (20 upper bits i.e. 4KB page)
+		; 	bic	r3, r1, #0x000003f0
+		;	bic	r3, r3, #PTE_TYPE_MASK ; #define PTE_TYPE_MASK 3
+		; 	orr	r3, r3, r2             ; TBD
+		;	orr	r3, r3, #PTE_EXT_AP0 | 2 ; #define PTE_EXT_AP0 (1 << 4)
+		&pte_val=v.value("(&lpte_val&0xfffffc0c)|0x12")
+
+		;	tst	r1, #1 << 4
+		;	orrne	r3, r3, #PTE_EXT_TEX(1) ; #define PTE_EXT_TEX(x) ((x)<<6)
+		IF v.value("&lpte_val&0x10")!=0x0
+			&pte_val=v.value("&pte_val|0x40")
+		;	tst	r1, #L_PTE_WRITE       ; #define L_PTE_WRITE (1 << 7)
+		;	tstne	r1, #L_PTE_DIRTY       ; #define L_PTE_DIRTY (1 << 6)
+		;	orreq	r3, r3, #PTE_EXT_APX   ; #define PTE_EXT_APX (1 << 9)
+		IF v.value("&lpte_val&0xc0")!=0xc0
+			&pte_val=v.value("&pte_val|0x200")
+
+		;	tst	r1, #L_PTE_USER        ; #define L_PTE_USER (1 << 8)
+		;	orrne	r3, r3, #PTE_EXT_AP1   ; #define PTE_EXT_AP1 (2 << 4)
+		;	tstne	r3, #PTE_EXT_APX
+		;	bicne	r3, r3, #PTE_EXT_APX | PTE_EXT_AP0
+		IF v.value("&lpte_val&0x100")!=0x0
+		(
+			&pte_val=v.value("&pte_val|0x20")
+			IF v.value("&pte_val&0x200")!=0x0
+				&pte_val=v.value("&pte_val&~0x210")
+		)
+
+		;	tst	r1, #L_PTE_EXEC 	; #define L_PTE_EXEC (1 << 9)
+		;	orreq	r3, r3, #PTE_EXT_XN     ; #define PTE_EXT_XN (1 << 0)
+		IF v.value("&lpte_val&0x200")==0x0
+			&pte_val=v.value("&pte_val|0x1")
+
+		;	tst	r1, #L_PTE_YOUNG
+		;	tstne	r1, #L_PTE_PRESENT
+		;	moveq	r3, #0
+		;	This is one of the reasons the HW PTE might have been left 0 in the first place :)
+
+		; SET THE PTE:
+		DATA.SET &pte %LONG &pte_val
+		&l2count=&l2count+1
+	)
+	)
+	&pte=&pte+4
+  )
+  &l1count=&l1count+1
+ )
+ &pgd=&pgd+4
+)
+PRINT "Done: written " %DECIMAL &l2count " PTE's in " %DECIMAL &l1count " page tables"
+MMU.SCAN TASKPAGETABLE &task

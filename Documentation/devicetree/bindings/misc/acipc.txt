@@ -1,0 +1,18 @@
+* ACIPC driver.
+
+Required properties:
+- compatible: "marvell,mmp-acipc"
+- reg: Should contain registers location and length
+- interrupts: Should be three. The first interrupt number is a composite interrupt.
+- interrupt-names: Assign name of irq resource.
+- clocks: soc_clocks PXA1L88_CLK_IPC_RST.
+
+Examples:
+acipc: acipc@d401d000 {
+	compatible = "marvell,mmp-acipc";
+	reg = <0xd401d000 0x100>;
+	interrupts = <0 16 0x4>,<0 17 0x4>,<0 18 0x4>;
+	interrupt-names = "IPC_AP_DATAACK", "IPC_AP_SET_CMD", "IPC_AP_SET_MSG";
+	clocks = <&soc_clocks PXA1L88_CLK_IPC_RST>;
+	status = "disabled";
+};

@@ -1,0 +1,23 @@
+Marvell 1080p TFT LCD panel
+
+Required properties:
+- compatible: should be "marvell,mmp-r63311"
+
+
+Optional properties:
+- avdd-supply: regulator to provide the supply voltage
+- marvell,path-name: clk name;
+- rst_gpio: GPIO pin to reset panel;
+- power_gpio: GPIO pin to control power on/off for panel;
+- bl_gpio: GPIO pin to control backlight;
+
+Example:
+
+panel2: r63311 {
+	compatible = "marvell,mmp-r63311";
+	marvell,path-name = "mmp_pnpath";
+	rst_gpio = <&gpio 4 0>;
+	power_gpio = <&gpio 6 0>;
+	bl_gpio = <&gpio 32 0>;
+	status = "okay";
+};

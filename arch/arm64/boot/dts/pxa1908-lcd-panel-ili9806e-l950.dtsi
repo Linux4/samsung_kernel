@@ -1,0 +1,207 @@
+/*
+ *  Copyright (C) 2014 Marvell Technology Group Ltd.
+ *  Author: Hongyan Song <hysong@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+
+/ {
+	panel: mmp-dsi-panel {
+		panel_ili9806e_haifei {
+			panel_id = <0x980604>;
+			/*
+			 * DSI PACKET HEADER INFO
+			 * @ data type : 1byte
+			 * @ command type : 1byte
+			 * @ delay(msec) : 2byte
+			 * @ size of data : 2byte
+			 */
+			marvell,dsi-panel-init-cmds = [
+				29 01 00 00 00 06 FF FF 98 06 04 01
+				29 01 00 00 00 02 08 10
+				29 01 00 00 00 02 21 01
+				29 01 00 00 00 02 30 01
+				29 01 00 00 00 02 31 02
+				29 01 00 00 00 02 50 78
+				29 01 00 00 00 02 51 78
+				29 01 00 00 00 02 60 07
+				29 01 00 00 00 02 60 04
+				29 01 00 00 00 02 62 06
+				29 01 00 00 00 02 63 02
+				29 01 00 00 00 02 40 16
+				29 01 00 00 00 02 41 55
+				29 01 00 00 00 02 42 02
+				29 01 00 00 00 02 44 09
+				29 01 00 00 00 02 A0 00
+				29 01 00 00 00 02 A1 0C
+				29 01 00 00 00 02 A2 16
+				29 01 00 00 00 02 A3 08
+				29 01 00 00 00 02 A4 0D
+				29 01 00 00 00 02 A5 10
+				29 01 00 00 00 02 A6 0A
+				29 01 00 00 00 02 A7 05
+				29 01 00 00 00 02 A8 07
+				29 01 00 00 00 02 A9 0A
+				29 01 00 00 00 02 AA 11
+				29 01 00 00 00 02 AB 0F
+				29 01 00 00 00 02 AC 10
+				29 01 00 00 00 02 AD 0F
+				29 01 00 00 00 02 AE 13
+				29 01 00 00 00 02 AF 00
+				29 01 00 00 00 02 C0 00
+				29 01 00 00 00 02 C1 0D
+				29 01 00 00 00 02 C2 1B
+				29 01 00 00 00 02 C3 14
+				29 01 00 00 00 02 C4 08
+				29 01 00 00 00 02 C5 1B
+				29 01 00 00 00 02 C6 08
+				29 01 00 00 00 02 C7 09
+				29 01 00 00 00 02 C8 04
+				29 01 00 00 00 02 C9 09
+				29 01 00 00 00 02 CA 04
+				29 01 00 00 00 02 CB 05
+				29 01 00 00 00 02 CC 11
+				29 01 00 00 00 02 CD 30
+				29 01 00 00 00 02 CE 29
+				29 01 00 00 00 02 CF 00
+				29 01 00 00 00 02 52 00
+				29 01 00 00 00 02 53 5A
+				29 01 00 00 00 06 FF FF 98 06 04 06
+				29 01 00 00 00 02 00 20
+				29 01 00 00 00 02 01 06
+				29 01 00 00 00 02 02 20
+				29 01 00 00 00 02 03 02
+				29 01 00 00 00 02 04 01
+				29 01 00 00 00 02 05 01
+				29 01 00 00 00 02 06 98
+				29 01 00 00 00 02 07 04
+				29 01 00 00 00 02 08 05
+				29 01 00 00 00 02 09 00
+				29 01 00 00 00 02 0A 00
+				29 01 00 00 00 02 0B 00
+				29 01 00 00 00 02 0C 01
+				29 01 00 00 00 02 0D 01
+				29 01 00 00 00 02 0E 00
+				29 01 00 00 00 02 0F 00
+				29 01 00 00 00 02 10 FF
+				29 01 00 00 00 02 11 F2
+				29 01 00 00 00 02 12 01
+				29 01 00 00 00 02 13 00
+				29 01 00 00 00 02 14 00
+				29 01 00 00 00 02 15 43
+				29 01 00 00 00 02 16 0B
+				29 01 00 00 00 02 17 00
+				29 01 00 00 00 02 18 00
+				29 01 00 00 00 02 19 00
+				29 01 00 00 00 02 1A 00
+				29 01 00 00 00 02 1B 00
+				29 01 00 00 00 02 1C 00
+				29 01 00 00 00 02 1D 00
+				29 01 00 00 00 02 20 01
+				29 01 00 00 00 02 21 23
+				29 01 00 00 00 02 22 45
+				29 01 00 00 00 02 23 67
+				29 01 00 00 00 02 24 01
+				29 01 00 00 00 02 25 23
+				29 01 00 00 00 02 26 45
+				29 01 00 00 00 02 27 67
+				29 01 00 00 00 02 30 02
+				29 01 00 00 00 02 31 22
+				29 01 00 00 00 02 32 22
+				29 01 00 00 00 02 33 22
+				29 01 00 00 00 02 34 97
+				29 01 00 00 00 02 35 86
+				29 01 00 00 00 02 36 DA
+				29 01 00 00 00 02 37 AB
+				29 01 00 00 00 02 38 BC
+				29 01 00 00 00 02 39 CD
+				29 01 00 00 00 02 3A 68
+				29 01 00 00 00 02 3B 79
+				29 01 00 00 00 02 3C 22
+				29 01 00 00 00 02 3D 22
+				29 01 00 00 00 02 3E 22
+				29 01 00 00 00 02 3F 22
+				29 01 00 00 00 02 40 22
+				29 01 00 00 00 06 FF FF 98 06 04 07
+				29 01 00 00 00 02 18 1D
+				29 01 00 00 00 02 02 77
+				29 01 00 00 00 02 06 13
+				29 01 00 00 00 06 FF FF 98 06 04 00
+				29 01 00 00 00 02 51 00
+				29 01 00 00 00 02 53 24
+			];
+			marvell,dsi-panel-enable-cmds = [
+				05 00 00 78 00 01	11
+				05 00 00 0A 00 01	29
+			];
+			marvell,dsi-panel-disable-cmds = [
+				05 00 00 0A 00 01	28
+				05 00 00 78 00 01	10
+			];
+			/*
+             * BACKLIGHT CONTROL BY PANEL
+             */
+            marvell,dsi-panel-backlight-set-brightness-cmds = [
+                    15 00 00 00 00 02       51 8F
+            ];
+			video_mode {
+				marvell,dsi-panel-xres = <480>;
+				marvell,dsi-panel-yres = <854>;
+				marvell,dsi-panel-width= <50>;      /* screen width in mm */
+				marvell,dsi-panel-height = <90>;    /* screen height in mm */
+				marvell,dsi-h-front-porch = <90>;   /* right margin */
+				marvell,dsi-h-back-porch = <95>;    /* left margin */
+				marvell,dsi-h-sync-width = <4>;    /* hsync len */
+				marvell,dsi-v-front-porch = <30>;    /* lower margin */
+				marvell,dsi-v-back-porch = <32>;    /* upper margin */
+				marvell,dsi-v-sync-width = <1>;     /* vsync len */
+			};
+			panel-ext-pin {
+				/*
+				 * Three properties are required
+				 * to control pwr pin
+				 * @node : panel-ext-pin node
+				 * @on : <0> - off / <1> - on
+				 * @usec : delay time of usec
+				 */
+				/*
+				 * panel-ext-pin-boot sequence
+				 * is skip power on mode
+				 */
+				panel-ext-pin-boot = <
+					&panel_pwr_avdd_6  1 20000
+					>;
+				panel-ext-pin-on = <
+					&panel_pwr_avdd_6  1 20000
+					&panel_pwr_rst_6   1 10000
+					&panel_pwr_rst_6   0 10000
+					&panel_pwr_rst_6   1 120000
+					>;
+				panel-ext-pin-off = <
+					&panel_pwr_avdd_6  0 1000
+					&panel_pwr_rst_6   0 1000
+					>;
+				/*
+				 * There are four properties to define pwr pin
+				 * <prefix>-name : pin name
+				 * <prefix>-type : <0> - GPIO, <1> - PMIC Regulator
+				 * <prefix>-gpio : If the type is GPIO, assign a gpio.
+				 * <prefix>-supply : If the type is PMIC Regulator, assign a regulator.
+				 */
+				panel_pwr_rst_6: panel-pwr-rst-6 {
+					panel-ext-pin-name = "rst";
+					panel-ext-pin-type = <0>;
+					panel-ext-pin-gpio = <&gpio 97 0>;
+				};
+				panel_pwr_avdd_6: panel-pwr-avdd-6 {
+					panel-ext-pin-name = "avdd";
+					panel-ext-pin-type = <1>;
+					panel-ext-pin-value = <2800000>;
+	                		panel-ext-pin-supply = <&ldo5>;
+				};
+			};
+		};
+	};
+};

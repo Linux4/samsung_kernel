@@ -1,0 +1,14 @@
+Marvell SoC PROFILE DEVICETREE BINDINGS
+
+Required properties:
+
+	- "compatible"			Must be set to "marvell,profile"
+	- "marvell,profile-number"	The profile number used by dvc driver
+					to determine the voltage.
+					Init it as 0 by default.
+
+Example:
+       profile {
+               compatible = "marvell,profile";
+               marvell,profile-number = <0>;
+       };

@@ -1,0 +1,19 @@
+SoC camera driver for SC2.
+
+mcam node
+------------
+Required properties:
+- compatible	: should be "marvell,mv_sc2_camera";
+- reg		: mcam1 or mcam2;
+- clocks	: list of clock specifiers, corresponding to entries in
+		  clock-names property;
+- clock-names	: must contain "SC2AXICLK" entries,
+		matching entries in the clocks property.
+- marvell,power-domain	: power domain;
+
+Example:
+mcam0: mcam@0 {
+	compatible = "marvell,mv_sc2_camera";
+	marvell,power-domain = <&pd_sc2>;
+	reg = <0x0 0x0>;
+};

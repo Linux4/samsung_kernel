@@ -1,0 +1,12 @@
+Power domain for sc2 isp
+
+Required properties:
+- compatible:
+  - "marvell,power-domain-sc2"
+- reg: apmu register and length
+
+Examples:
+pd_sc2: pd_sc2@d4282800 {
+	compatible = "marvell,power-domain-sc2";
+	reg = <0xd4282800 0x1000>;
+};

@@ -1,0 +1,30 @@
+
+menuconfig SEC_SENSORS
+	bool "Samsung Sensors Sets Support"
+	default y
+	help
+		Say Y to enable Sensors support. This allows control of supported
+		Sensors.
+
+if SEC_SENSORS
+config SEC_SENSORS_CORE
+	bool "SEC Sensors Core"
+	depends on I2C
+
+config SEC_SENSORS_CM36686
+	depends on I2C
+	tristate "CM36686 driver"
+	default n
+	select SENSORS_CORE
+	help
+	  This option enables proximity & light sensors using CM36686 driver.
+
+config SEC_SENSORS_K2HH
+	depends on I2C
+	tristate "ST K2HH accel,magnetic combo"
+	default n
+	select SENSORS_CORE
+	help
+	  This option enables st k2hh accel and mag driver
+endif # SSS_SENSORS
+

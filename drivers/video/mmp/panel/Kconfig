@@ -1,0 +1,102 @@
+config MMP_PANEL_GENERIC
+	bool "MIPI generic panel support"
+	default n
+	help
+		MIPI general panel support
+
+config MMP_PANEL_TPOHVGA
+	bool "tpohvga panel TJ032MD01BW support"
+	depends on SPI_MASTER
+	default n
+	help
+		tpohvga panel support
+
+config MMP_PANEL_HX8394_IPS3P5071
+	bool "MIPI panel hx8394-ips3p5071 support"
+	default n
+	help
+		MIPI panel hx8394-ips3p5071 support
+
+config MMP_PANEL_R63311
+	bool "MIPI Sharp panel R63311 support"
+	default n
+	help
+		MIPI Sharp 1080p panel support
+
+config MMP_PANEL_COMMON
+	bool "MIPI common panel support"
+	default n
+	help
+		MIPI common panel support
+
+config MMP_PANEL_LG4591
+	bool "MIPI panel LG4591 support"
+	default n
+	help
+		MIPI panel LG4591 support
+
+config MMP_PANEL_OTM1281A
+	bool "MIPI panel OTM1281A support"
+	default n
+	help
+		MIPI panel OTM1281A support
+
+config MMP_PANEL_OTM8018B
+	bool "MIPI panel OTM8018B support"
+	default n
+	help
+		MIPI panel OTM8018B support
+
+config MMP_PANEL_OTM1283A
+	bool "MIPI panel OTM1283A support"
+	default n
+	help
+		MIPI panel OTM1283A support
+
+config MMP_PANEL_TD043MGEA1
+	bool "parallel panel TD043MGEA1 support"
+	default n
+	help
+		parallel panel TD043MGEA1 support
+
+config MMP_PANEL_HX8394
+	bool "MIPI panel hx8394 support"
+	default n
+	help
+		MIPI panel hx8394 support
+
+config MMP_PANEL_FL10802
+	bool "MIPI panel fl10802 support"
+	default n
+	help
+		MIPI panel fl10802 support
+
+config MMP_PANEL_JD9365
+	bool "MIPI Fiti panel JD9365 support"
+	default n
+	help
+		MIPI panel JD9365 support
+
+config MMP_PANEL_JD9161_HSD5
+	bool "MIPI Fiti JD9161_HSD5 support"
+	default n
+	help
+		MIPI panel JD9161_HSD5 support
+
+config MMP_PANEL_OTM1284
+	bool "MIPI panel OTM1284 support"
+	default n
+	help
+		MIPI panel OTM1284 support
+
+config MMP_PANEL_R63317
+	bool "MIPI panel R63317 support"
+	default n
+	help
+		MIPI panel R63317 support
+
+config MMP_PANEL_S6D7AA0X62
+	bool "MIPI panel S6D7AA0X62 support"
+	default n
+	help
+		MIPI panel S6D7AA0X62 support

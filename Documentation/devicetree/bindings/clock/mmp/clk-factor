@@ -1,0 +1,28 @@
+Binding for Marvell MMP series factor clock
+
+The factor clock is calculated by
+  Fout = (Fin * (den / num)) / factor;
+
+Required properties
+- compatible : It should be "marvell,mmp-clk-factor";
+- clock: The parent of the clock.
+- marvell,mmp-clk-factor-factor : The "factor" of the clock.
+- marvell,mmp-clk-factor-bits-num : The width and shift of bits for "num".
+- marvell,mmp-clk-factor-bits-den : The width and shift of bits for "dev".
+- marvell,mmp-clk-factor-table : The table of (num, den) for the clock.
+
+Examples
+mpmu_clocks: mpmu_clocks {
+	compatible = "marvell,mmp-clk-master";
+	reg = <0xd4050000 0x1000>;
+	uart_pll: uart_pll {
+		compatible = "marvell,mmp-clk-factor";
+		clocks = <&pll1_4>;
+		marvell,reg-offset = <0 0x14>;
+		marvell,mmp-clk-factor-factor = <2>;
+		marvell,mmp-clk-factor-bits-den = <13 0>;
+		marvell,mmp-clk-factor-bits-num = <13 16>;
+		marvell,mmp-clk-factor-table = <8125 1536>;
+	};
+};
++

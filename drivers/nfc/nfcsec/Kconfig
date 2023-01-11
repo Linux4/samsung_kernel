@@ -1,0 +1,44 @@
+menuconfig NFC_SEC
+	tristate "Samsung NFC driver support"
+	depends on I2C
+	help
+	  The core driver to support Samsung NFC devices.
+
+	  Say Y here to compile Samsung NFC driver into the kernel or
+	  say M to compile it as module.
+
+if NFC_SEC
+
+choice
+	prompt "SEC NFC Products"
+	default SEC_NFC_PRODUCT_N5
+config SEC_NFC_PRODUCT_N3
+	bool "N3"
+config SEC_NFC_PRODUCT_N5
+	bool "N5"
+endchoice
+
+choice
+	prompt "SEC NFC Interface"
+	default SEC_NFC_IF_I2C
+config SEC_NFC_IF_UART
+	bool "UART"
+config SEC_NFC_IF_I2C
+	depends on I2C
+	bool "I2C"
+config SEC_NFC_IF_I2C_GPIO
+	bool "I2C-GPIO (S/W-I2C)"
+	select I2C_ALGOBIT
+endchoice
+
+config SEC_NFC_CLK_REQ
+	bool "External clock control (RF clock)"
+	depends on SEC_NFC_PRODUCT_N5
+	default n
+	help
+	  Driver controls NFC external clock.
+	  This option should be enabled to control NFC external clock.
+	  you should select if your NFC device requests exnternal clock.
+	  Say Y here to compile support for exnternal clock control in the kernel.
+
+endif #NFC_SEC

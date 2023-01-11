@@ -1,0 +1,321 @@
+/*
+ *  Copyright (C) 2014 Marvell Technology Group Ltd.
+ *  Author: Qiming Wu <wuqm@marvell.com>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License version 2 as
+ *  publishhed by the Free Software Foundation.
+ */
+
+/dts-v1/;
+#include "pxa1908-dkb.dtsi"
+
+/ {
+	compatible = "marvell,pxa1908-dkb", "marvell,pxa1908";
+
+	soc {
+		apb@d4000000 {
+			pmx: pinmux@d401e000 {
+				sspa1_func: sspa1_func {
+					pinctrl-single,pins = <
+						GPIO25 AF7
+						GPIO26 AF7
+						GPIO27 AF7
+						GPIO28 AF7
+					>;
+					DS_MEDIUM;PULL_NONE;EDGE_NONE;LPM_NONE;
+				};
+			};
+		};
+	};
+
+	mcam0:mcam@0 {
+		sc2-i2c-dyn-ctrl;
+		pwdn-gpios = <&gpio 68 0>;
+		reset-gpios = <&gpio 67 0>;
+		/*
+		af_2v8-supply = <&ldo10>;
+		avdd_2v8-supply = <&ldo11>;
+		dovdd_1v8-supply = <&voutsw>;
+		dvdd_1v2-supply = <&ldo12>;
+		*/
+		dphy_val = <0xff1d00 0x00024733 0x04001001>;
+		status = "disable";
+	};
+
+	mcam1:mcam@1 {
+		sc2-i2c-dyn-ctrl;
+		pwdn-gpios = <&gpio 70 0>;
+		reset-gpios = <&gpio 69 0>;
+
+		af_2v8-supply = <&ldo11>;
+		avdd_2v8-supply = <&ldo10>;
+		dovdd_1v8-supply = <&buck2>;
+		dvdd_1v2-supply = <&ldo8>;
+
+		dphy_val = <0xff1d00 0x00024733 0x04001001>;
+		status = "okay";
+	};
+
+	soc-camera@0 {
+		status = "okay";
+	};
+
+	soc-camera@1 {
+		status = "okay";
+	};
+
+	plat_cam {
+		status = "okay";
+		frontsensor {
+			compatible = "marvell,frontsensor";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			OV2680f: sensor@0 {
+				compatible = "ovt,ov2680";
+				status = "okay";
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
+				reg = <0x36>;
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0xff1d00>;
+				dphy5 = <0x00024733>;
+				dphy6 = <0x4001001>;
+				af_2v8-supply = <&ldo11>;
+				avdd_2v8-supply = <&ldo10>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo8>;
+				pwdn-gpios = <&gpio 70 1>;
+				reset-gpios = <&gpio 69 1>;
+			};
+			S5K5E3F: sensor@1 {
+				compatible = "samsung,s5k5e3";
+				status = "okay";
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
+				reg = <0x10>;
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x5100>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo11>;
+				avdd_2v8-supply = <&ldo10>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo8>;
+				pwdn-gpios = <&gpio 70 1>;
+				reset-gpios = <&gpio 69 1>;
+			};
+		};
+		backsensor {
+			compatible = "marvell,backsensor";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			OV5642: sensor@0 {
+				compatible = "ovt,ov5642";
+				sensor-name = "ovt,ov5642";
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
+				reg = <0x3c>;
+				adapter = <0x1>;
+				status = "okay";
+				mclk = <24000000>;
+				sensor-pos = <1>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				/*
+				af_2v8-supply = <&ldo10>;
+				avdd_2v8-supply = <&ldo11>;
+				dovdd_1v8-supply = <&voutsw>;
+				dvdd_1v2-supply = <&ldo12>;
+				*/
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+			OV13850: sensor@1 {
+				compatible = "ovt,ov13850";
+				status = "okay";
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
+				reg = <0x10>;
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo11>;
+				avdd_2v8-supply = <&ldo10>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo8>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+			SR544: sensor@2 {
+				compatible = "samsung,sr544";
+				status = "okay";
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
+				reg = <0x28>;
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo11>;
+				avdd_2v8-supply = <&ldo10>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo8>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+			imx219: sensor@3 {
+				compatible = "sony,imx219";
+				status = "okay";
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
+				reg = <0x1A>;
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo11>;
+				avdd_2v8-supply = <&ldo10>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo8>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+			HI551: sensor@4 {
+				compatible = "hynix,hi551";
+				status = "okay";
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
+				reg = <0x20>;
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo11>;
+				avdd_2v8-supply = <&ldo10>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo8>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+			OV8858R2A: sensor@5 {
+				compatible = "ovt,ov8858r2a";
+				status = "okay";
+				clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+				clock-names =  "SC2MCLK";
+				reg = <0x10>;
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x1500>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo11>;
+				avdd_2v8-supply = <&ldo10>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo8>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+			OV2680b: sensor@6 {
+                                compatible = "ovt,ov2680";
+                                status = "okay";
+                                clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+                                clock-names =  "SC2MCLK";
+                                reg = <0x36>;
+                                sc2-i2c-dyn-ctrl;
+                                adapter = <0x1>;
+                                sensor-pos = <1>;
+                                mclk = <26000000>;
+                                dphy3 = <0x1500>;
+                                dphy5 = <0x11>;
+                                dphy6 = <0x1001>;
+                                af_2v8-supply = <&ldo11>;
+                                avdd_2v8-supply = <&ldo10>;
+                                dovdd_1v8-supply = <&buck2>;
+                                dvdd_1v2-supply = <&ldo8>;
+                                pwdn-gpios = <&gpio 68 1>;
+                                reset-gpios = <&gpio 67 1>;
+                        };
+                        S5K5E3B: sensor@7 {
+				compatible = "samsung,s5k5e3";
+				status = "okay";
+                                clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+                                clock-names =  "SC2MCLK";
+				reg = <0x10>;
+				sc2-i2c-dyn-ctrl;
+				adapter = <0x1>;
+				sensor-pos = <1>;
+				mclk = <26000000>;
+				dphy3 = <0x5100>;
+				dphy5 = <0xff>;
+				dphy6 = <0x1001>;
+				af_2v8-supply = <&ldo11>;
+				avdd_2v8-supply = <&ldo10>;
+				dovdd_1v8-supply = <&buck2>;
+				dvdd_1v2-supply = <&ldo8>;
+				pwdn-gpios = <&gpio 68 1>;
+				reset-gpios = <&gpio 67 1>;
+			};
+			S5K4H5: sensor@8 {
+			         compatible = "samsung,s5k4h5";
+			         status = "okay";
+			         clocks = <&soc_clocks PXA1U88_CLK_SC2_MCLK>;
+			         clock-names =  "SC2MCLK";
+			         reg = <0x37>;
+			         sc2-i2c-dyn-ctrl;
+			         adapter = <0x1>;
+			         sensor-pos = <1>;
+			         mclk = <26000000>;
+			         dphy3 = <0x1500>;
+			         dphy5 = <0x11>;
+			         dphy6 = <0x1001>;
+			         af_2v8-supply = <&ldo11>;
+			         avdd_2v8-supply = <&ldo10>;
+			         dovdd_1v8-supply = <&buck2>;
+			         dvdd_1v2-supply = <&ldo8>;
+			         pwdn-gpios = <&gpio 68 1>;
+			         reset-gpios = <&gpio 67 1>;
+			};
+
+		};
+	};
+
+	b52isp_sc2_csi0 {
+	        status = "okay";
+	};
+	b52isp_sc2_csi1 {
+			csi_mux_repacked;
+	        status = "okay";
+	};
+	b52isp_sc2_dma0 {
+	        status = "okay";
+	};
+	b52isp_sc2_dma1 {
+	        status = "okay";
+	};
+};

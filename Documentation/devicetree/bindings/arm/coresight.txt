@@ -1,0 +1,85 @@
+* ARM Coresight
+
+Required Properties:
+
+- Compatibility : "marvell,coresight"
+- clocks	: clocks for debug and etb modules.
+- clock-names	: clock name for debug and etb modules
+- reg		: Address of the coresight registers
+
+Example for arm:
+
+	coresight: coresight@d4100000 {
+        compatible = "marvell,coresight";
+        clocks = <&soc_clocks PXA1U88_CLK_DBGCLK>,
+                 <&soc_clocks PXA1U88_CLK_TRACECLK>;
+        clock-names = "DBGCLK","TRACECLK";
+        #address-cells = <1>;
+        #size-cells = <1>;
+        reg = <0xd4100000 0x100000>;
+        ranges;
+
+        dbg: dbg@0xd4110000 {
+                compatible = "marvell,coresight-dbg";
+                reg = <0xd4110000 0x8000>;
+        };
+
+        cti: cti@0xd4118000 {
+                compatible = "marvell,coresight-cti";
+                reg = <0xd4118000 0x4000>;
+        };
+
+        etm: etm@0xd411c000 {
+                compatible = "marvell,coresight-etm";
+                reg = <0xd411c000 0x4000>;
+        };
+
+        cstf: cstf@0xd4109000 {
+                compatible = "marvell,coresight-cstf";
+                reg = <0xd4109000 0x4000>;
+        };
+
+        cetb: cetb@0xd4105000 {
+                compatible = "marvell,coresight-cetb";
+                reg = <0xd4105000 0x4000>;
+        };
+
+        letb: letb@0xd410a000 {
+                compatible = "marvell,coresight-letb";
+                reg = <0xd410a000 0x4000>;
+        };
+	};
+
+
+Example for arm64:
+
+	coresight: coresight@d4100000 {
+        compatible = "marvell,coresight";
+        clocks = <&soc_clocks PXA1U88_CLK_DBGCLK>,
+                 <&soc_clocks PXA1U88_CLK_TRACECLK>;
+        clock-names = "DBGCLK","TRACECLK";
+        #address-cells = <1>;
+        #size-cells = <1>;
+        reg = <0xd4100000 0x100000>;
+        ranges;
+
+        dbg: dbg@0xd4110000 {
+                compatible = "marvell,coresight-dbg";
+                reg = <0xd4110000 0x8000>;
+        };
+
+        cti: cti@0xd4118000 {
+                compatible = "marvell,coresight-cti";
+                reg = <0xd4118000 0x4000>;
+        };
+
+        etm: etm@0xd411c000 {
+                compatible = "marvell,coresight-etm";
+                reg = <0xd411c000 0x4000>;
+        };
+
+        letb: letb@0xd410a000 {
+                compatible = "marvell,coresight-letb";
+                reg = <0xd410a000 0x4000>;
+        };
+	};

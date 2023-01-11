@@ -1,0 +1,26 @@
+ramdump rdp parser and scripts
+
+ramdump parser tool (rdp) and a set of T32 scripts
+useful for offline analysis with T32 (Lauterbach) simulator.
+
+rdp build:
+- Windows: MSVC is supported; use rdp.dsw/rdp.dsp.
+- Linux: run build_rdp_linux.sh
+
+rdp usage: rdp ramdump-file
+The input file can be in:
+- raw binary format: legacy PXA memory map is assumed
+  where detection is impossible
+- ELF32 format
+
+FORMAT:
+All the text files are stored with unix line endings.
+Before copying to a Windows machine for build or
+use with T32 (.cmm files), please, convert to DOS:
+
+todos *.c *.h *.cpp *.dsp *.dsw *.bat t32-scripts/*.cmm *.txt README
+
+When copying back from Windows:
+fromdos *.c *.h *.cpp *.dsp *.dsw *.bat t32-scripts/* *.txt README
+chmod 644 *.c *.cpp *.h *.dsw *.dsp README t32-scripts/* *.txt README
+

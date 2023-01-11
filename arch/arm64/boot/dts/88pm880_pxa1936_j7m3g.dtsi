@@ -1,0 +1,152 @@
+/*
+ * Copyright (C) 2014 Marvell
+ * Yi Zhang <yizhang@marvell.com>
+ */
+
+/*
+ * Integrated Power Management Chip: 88pm880
+ * header file for pxa1936_dkb
+ */
+
+&pmic0 {
+	/*
+	 * board specific configuration
+	 * use value directly, not use macro
+	 * <page reg-addr mask value>
+	 */
+	marvell,pmic-bd-cfg =
+		/* enable buck1a sleep mode */
+		<0x4 0x24 0x30 0x20>,
+		/* set buck1a sleep voltage to 0.8v */
+		<0x4 0x26 0x7f 0x10>,
+		/* disable ldo 5 ~ 8, 10, 11, 14, 16, 17 */
+		<0x1 0x39 0x30 0x00>,
+		<0x1 0x3f 0x30 0x00>,
+		<0x1 0x45 0x30 0x00>,
+		<0x1 0x4b 0x30 0x00>,
+		<0x1 0x57 0x30 0x00>,
+		<0x1 0x5d 0x30 0x00>,
+		<0x1 0x6f 0x30 0x00>,
+		<0x1 0x7b 0x30 0x00>,
+		<0x1 0x81 0x30 0x00>;
+
+	/* ---buck--- */
+	vccmain: regulator-buck1a {
+	};
+	buck2: regulator-buck2 {
+	};
+	vddr: regulator-buck3 {
+	};
+	buck4: regulator-buck4 {
+	};
+	buck5: regulator-buck5 {
+	};
+	buck6: regulator-buck6 {
+	};
+	buck7: regulator-buck7 {
+	};
+
+	/* ---ldo--- */
+	ldo1: regulator-ldo1 {
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	ldo2: regulator-ldo2 {
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	ldo3: regulator-ldo3 {
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	ldo4: regulator-ldo4 {
+	};
+	ldo5: regulator-ldo5 {
+		regulator-boot-on;
+	};
+	ldo6: regulator-ldo6 {
+	};
+	ldo7: regulator-ldo7 {
+	};
+	ldo8: regulator-ldo8 {
+	};
+	ldo9: regulator-ldo9 {
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	ldo10: regulator-ldo10 {
+		regulator-boot-on;
+	};
+	ldo11: regulator-ldo11 {
+	};
+	ldo12: regulator-ldo12 {
+	};
+	ldo13: regulator-ldo13 {
+	};
+	ldo14: regulator-ldo14 {
+		regulator-boot-on;
+	};
+	ldo15: regulator-ldo15 {
+		regulator-always-on;
+		regulator-boot-on;
+	};
+	ldo16: regulator-ldo16 {
+		regulator-boot-on;
+	};
+	ldo17: regulator-ldo17 {
+	};
+	ldo18: regulator-ldo18 {
+	};
+
+	/* KSND Headset detection by PMIC  */
+	headset {
+		marvell,headset-flag = <0>;
+		marvell,hook-press-th = <68>;
+		marvell,voc-command-press-th = <75>;
+		marvell,vol-up-press-th = <142>;
+		marvell,vol-down-press-th = <350>;
+		marvell,voc-command-press-th = <396>;
+		marvell,mic-det-th = <397>;
+		marvell,press-release-th = <397>;
+		marvell,micbias-supply = <&ldo18>;
+		marvell,micbias-volt = <2800>;
+		marvell,gpio5v-detect-mode = <1>;
+		status = "okay";
+	};
+
+	charger {
+		ir-comp-res = <65>; /* mohm */
+		ir-comp-update = <5>; /* s */
+	};
+
+	led {
+		gpio-en = <0>;
+		flash-en-gpio = <98>;
+		flash-txmsk-gpio = <19>;
+		flash-timer = <500>;	/* ms */
+		cls-ov-set = <4400>;	/* mV */
+		cls-uv-set = <1500>;	/* mV */
+		cfd-bst-vset = <5000>;	/* mV */
+		bst-uvvbat-set = <3100>;/* mV */
+		max-flash-current = <1200>;	/* mA */
+		max-torch-current = <200>;	/* mA */
+		torch-force-max-current = <0>;
+	};
+
+	onkey {
+		pm88x-onkey-gpio-number = <1>;
+		pm88x-onkey-long-onkey-type = <1>;
+		pm88x-onkey-disable-long-key-rst = <10>;
+		pm88x-onkey-long-key-press-time = <15>;
+		pm88x-onkey-hwrst-db-period = <1>;
+		pm88x-onkey-hwrst-type = <1>;
+	};
+
+	vbus {
+		/*
+		* there is no otg function for J7 project,
+		* so do not configure gpadc number
+		* gpadc-number = <3>;
+		*/
+	};
+};

@@ -1,0 +1,91 @@
+;
+;------------------------------------------------------------
+;(C) Copyright [2006-2008] Marvell International Ltd.
+;All Rights Reserved
+;------------------------------------------------------------
+; rev.0.1: antone@marvell.com: initial version
+;
+; This T32 script should be run in RAMDUMP environment for AP with Linux kernel.
+; Iterates a list with given list_head address (same as list_for_each in include/linux/list.h):
+;
+; USAGE: <mandatory: list_head address>
+; In order to find the address of the list head (field inside some object you look at), use Right-click-Format-Location
+; THIS IS A SAMPLE SCRIPT: COPY AND MODIFY IT TO WALK THE LIST YOU NEED AND PERFORM ACTIONS YOU WANT FOR EACH ELEMENT
+;
+
+ENTRY &list
+
+IF "&list"==""
+(
+	PRINT "Please, supply list_head address: 0xNNNNNNNN"
+	ENDDO
+)
+
+AREA.CREATE OUT 80 1000
+AREA.VIEW OUT
+AREA.SELECT OUT
+
+; MODIFY THIS LINE: SET THE RELEVANT type and member names for your list
+; MODIFY THE print_element function to perform actions relevant for your list, including printing fields and optionally walk another lists linked to an element
+gosub walk_list &list "struct pmem_data *" "list" print_element
+ENDDO
+
+
+print_element:
+LOCAL &element
+ENTRY &element
+LOCAL &pid
+LOCAL &task
+LOCAL &vma
+&pid=v.value(((struct pmem_data *)&element)->pid)
+&task=v.value(((struct pmem_data *)&element)->task)
+&vma=v.value(((struct pmem_data *)&element)->vma)
+&reg_list=v.value(&((struct pmem_data *)&element)->region_list)
+PRINT "pmem_data (&element): pid=&pid, task=&task, vma=&vma"
+
+; EXAMPLE: walk another list linked to this element
+gosub walk_list &reg_list "struct pmem_region_node*" "list" print_region
+
+RETURN 0
+
+print_region:
+LOCAL &element
+ENTRY &element
+LOCAL &offset
+LOCAL &len
+
+&offset=v.value(((struct pmem_region_node *)&element)->region.offset)
+&len=v.value(((struct pmem_region_node *)&element)->region.len)
+
+PRINT "pmem_region_node (&element): offset=&offset len=&len"
+
+RETURN 0
+
+; DO NOT CHANGE THE LIST ITERATION CODE BELOW: THIS IS GENERIC
+walk_list:
+LOCAL &list
+LOCAL &type
+LOCAL &member
+LOCAL &pos
+LOCAL &offset
+LOCAL &el
+LOCAL &func
+LOCAL &_type
+LOCAL &_member
+ENTRY &list &type &member &func
+
+; The names come from caller in "", which causes a syntax error in v.value. This strips the "".
+&_type=&type
+&_member=&member
+&pos=v.value(((struct list_head *)&list)->next)
+;&offset=v.value(&((struct pmem_data *)0)->list)
+&offset=v.value(&((&_type)0)->list)
+WHILE &pos!=&list
+(
+  &el=&pos-&offset
+  ;PRINT "&pos"
+  gosub &func &el
+  &pos=v.value(((&_type)&el)->&_member.next)
+)
+
+RETURN 0

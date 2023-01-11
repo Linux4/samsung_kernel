@@ -1,0 +1,20 @@
+
+choice
+        prompt "Support dynamic CPU Hotplug"
+        depends on HOTPLUG_CPU
+        default NO_HOTPLUG_POLICY
+
+config CPU_HOTPLUG_POL_STANDALONE
+        bool "Stand alone CPU hotplug policy"
+        help
+          PM hotplug policy.
+          Enable to use pm hotplug, then it uses stand-hotplug.c file.
+          Avg-load is calculated with both cpu frequency aspect
+          and run queue status.
+
+config NO_HOTPLUG_POLICY
+        bool "NO automatic CPU hotplug policy"
+        help
+          PM hotplug policy
+          Do not select an automatic hotplug policy
+endchoice

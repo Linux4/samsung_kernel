@@ -1,0 +1,20 @@
+USB PHY
+
+MARVELL USB2 PHY
+
+Required properties:
+- compatible: Should be "marvell,usb2-phy-28lp"
+- reg : Address and length of the register set for the device.
+
+Example:
+usbphy: usbphy@d4207000 {
+	compatible = "marvell,usb2-phy-28lp";
+	reg = <0xd4207000 0xe0>;
+	marvell,udc-name = "mv-udc";
+	marvell,ehci-name = "pxa-u2oehci";
+	marvell,otg-name = "mv-otg";
+	marvell,phy-name = "mv-usb-phy";
+	marvell,pll-lock-bypass;
+	clocks = <&soc_clocks PXA1928_CLK_USB>;
+	status = "disabled";
+};

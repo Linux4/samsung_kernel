@@ -1,0 +1,43 @@
+* Marvell MMP Watchdog Time
+
+Required Properties:
+
+- Compatibility : "marvell,mmp-wdt"
+- reg		: Address of the timer and main pmu registers
+
+Optional properties:
+
+-  marvell,mmp-wdt-disabled	: Used to decide whether watchdog timer needed.
+
+Example:
+
+	watchdog: wdt@d4080000 {
+		compatible = "marvell,mmp-wdt";
+		reg = <0xd4080000 0xc8>,
+			  <0xd4050000 0x1024>;
+		marvell,mmp-wdt-disabled;
+	};
+
+Required Properties:
+
+- Compatibility : "marvell,mmp-wdt-rtc"
+- reg		: Address of the wdtrtc registers
+
+Example:
+	wdtrtc: wdtrtc@d4010000 {
+		compatible = "marvell,mmp-wdt-rtc";
+		reg = <0xd4010000 0x10000>;
+	};
+
+
+Required Properties:
+
+- Compatibility : "marvell,mmp-watchdog"
+- reg		: Address of the watchdog registers
+
+Example:
+
+	wdt: wdt@d4080000 {
+		compatible = "marvell,mmp-watchdog";
+		reg = <0xd4080000 0xff>;
+	};

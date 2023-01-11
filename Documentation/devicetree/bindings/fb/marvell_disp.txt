@@ -1,0 +1,15 @@
+* MARVELL DISP CONTROLLER
+
+Required properties:
+- compatible : should be "marvell,mmp-disp";
+- reg : register base address and size;
+- interrupts : DISP interrupt number;
+
+Example:
+disp: disp@d420b000 {
+	compatible = "marvell,mmp-disp";
+	reg = <0xd420b000 0x3d0>;
+	lpm-qos = <PM_QOS_CPUIDLE_BLOCK_DDR>;
+	interrupts = <0 41 0x4>;
+	status = "disabled";
+};

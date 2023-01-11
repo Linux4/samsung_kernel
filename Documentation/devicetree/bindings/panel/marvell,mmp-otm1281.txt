@@ -1,0 +1,20 @@
+Marvell HD720 TFT LCD panel
+
+Required properties:
+- compatible: should be "marvell,mmp-otm1281"
+
+
+Optional properties:
+- iovdd-supply: regulator to provide the supply voltage
+- marvell,path-name: clk name;
+- rst_gpio: GPIO pin to reset panel;
+
+Example:
+
+panel: otm1281 {
+	compatible = "marvell,mmp-otm1281";
+	marvell,path-name = "mmp_pnpath";
+	rst_gpio = <&gpio GPIO(121) 0>;
+	iovdd-supply = <&buck2>;
+	status = "okay";
+};
