@@ -554,9 +554,9 @@ int ufs_perf_init_v1(struct ufs_perf *perf)
 	perf->ctrl[__CTRL_REQ_WB] = __ctrl_wb;
 
 	/* default thresholds for stats */
-	stat->th_qd_max = 15;
+	stat->th_qd_max = 14;
 	stat->th_qd_min = 2;
-	stat->th_dwell_in_high = 30;
+	stat->th_dwell_in_high = 22;
 	stat->th_reach_up_to_high = 30;
 
 	stat->th_duration = 1;

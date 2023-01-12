@@ -28,10 +28,6 @@
 #include <gpex_ifpo.h>
 #include <gpex_clock.h>
 #include <gpexbe_pm.h>
-#include <gpex_cmar_sched.h>
-
-#include <soc/samsung/exynos-migov.h>
-#include <soc/samsung/exynos-profiler.h>
 
 #include "gpex_tsg_internal.h"
 
@@ -111,7 +107,7 @@ uint32_t exynos_stats_get_gpu_table_size(void)
 EXPORT_SYMBOL(exynos_stats_get_gpu_table_size);
 
 static uint32_t freqs[DVFS_TABLE_ROW_MAX];
-uint32_t *gpu_dvfs_get_freq_table(void)
+uint32_t *exynos_stats_get_gpu_freq_table(void)
 {
 	int i;
 	int idx_max_clk, idx_min_clk;
@@ -131,7 +127,7 @@ uint32_t *gpu_dvfs_get_freq_table(void)
 
 	return freqs;
 }
-EXPORT_SYMBOL(gpu_dvfs_get_freq_table);
+EXPORT_SYMBOL(exynos_stats_get_gpu_freq_table);
 
 static uint32_t volts[DVFS_TABLE_ROW_MAX];
 uint32_t *exynos_stats_get_gpu_volt_table(void)
@@ -157,8 +153,7 @@ uint32_t *exynos_stats_get_gpu_volt_table(void)
 EXPORT_SYMBOL(exynos_stats_get_gpu_volt_table);
 
 static ktime_t time_in_state[DVFS_TABLE_ROW_MAX];
-ktime_t tis_last_update;
-ktime_t *gpu_dvfs_get_time_in_state(void)
+ktime_t *exynos_stats_get_gpu_time_in_state(void)
 {
 	int i;
 	int idx_max_clk, idx_min_clk;
@@ -180,15 +175,9 @@ ktime_t *gpu_dvfs_get_time_in_state(void)
 
 	return time_in_state;
 }
-EXPORT_SYMBOL(gpu_dvfs_get_time_in_state);
+EXPORT_SYMBOL(exynos_stats_get_gpu_time_in_state);
 
-ktime_t gpu_dvfs_get_tis_last_update(void)
-{
-	return (ktime_t)(gpex_clock_get_time_in_state_last_update());
-}
-EXPORT_SYMBOL(gpu_dvfs_get_tis_last_update);
-
-int gpu_dvfs_get_max_freq(void)
+int exynos_stats_get_gpu_max_lock(void)
 {
 	unsigned long flags;
 	int locked_clock = -1;
@@ -201,9 +190,9 @@ int gpu_dvfs_get_max_freq(void)
 
 	return locked_clock;
 }
-EXPORT_SYMBOL(gpu_dvfs_get_max_freq);
+EXPORT_SYMBOL(exynos_stats_get_gpu_max_lock);
 
-int gpu_dvfs_get_min_freq(void)
+int exynos_stats_get_gpu_min_lock(void)
 {
 	unsigned long flags;
 	int locked_clock = -1;
@@ -216,7 +205,7 @@ int gpu_dvfs_get_min_freq(void)
 
 	return locked_clock;
 }
-EXPORT_SYMBOL(gpu_dvfs_get_min_freq);
+EXPORT_SYMBOL(exynos_stats_get_gpu_min_lock);
 
 int exynos_stats_set_queued_threshold_0(uint32_t threshold)
 {
@@ -228,12 +217,11 @@ EXPORT_SYMBOL(exynos_stats_set_queued_threshold_0);
 int exynos_stats_set_queued_threshold_1(uint32_t threshold)
 {
 	gpex_tsg_set_queued_threshold(1, threshold);
-
 	return gpex_tsg_get_queued_threshold(1);
 }
 EXPORT_SYMBOL(exynos_stats_set_queued_threshold_1);
 
-ktime_t *gpu_dvfs_get_job_queue_count(void)
+ktime_t *exynos_stats_get_gpu_queued_job_time(void)
 {
 	int i;
 	for (i = 0; i < 2; i++) {
@@ -241,13 +229,13 @@ ktime_t *gpu_dvfs_get_job_queue_count(void)
 	}
 	return gpex_tsg_get_queued_time_array();
 }
-EXPORT_SYMBOL(gpu_dvfs_get_job_queue_count);
+EXPORT_SYMBOL(exynos_stats_get_gpu_queued_job_time);
 
-ktime_t gpu_dvfs_get_job_queue_last_updated(void)
+ktime_t exynos_stats_get_gpu_queued_last_updated(void)
 {
 	return gpex_tsg_get_queued_last_updated();
 }
-EXPORT_SYMBOL(gpu_dvfs_get_job_queue_last_updated);
+EXPORT_SYMBOL(exynos_stats_get_gpu_queued_last_updated);
 
 void exynos_stats_set_gpu_polling_speed(int polling_speed)
 {
@@ -261,112 +249,33 @@ int exynos_stats_get_gpu_polling_speed(void)
 }
 EXPORT_SYMBOL(exynos_stats_get_gpu_polling_speed);
 
-void gpu_dvfs_set_amigo_governor(int mode)
+void exynos_migov_set_mode(int mode)
 {
 	gpex_tsg_set_migov_mode(mode);
-
-	if (mode)
-		gpex_cmar_sched_set_forced_sched(1);
-	else
-		gpex_cmar_sched_set_forced_sched(0);
 }
-EXPORT_SYMBOL(gpu_dvfs_set_amigo_governor);
+EXPORT_SYMBOL(exynos_migov_set_mode);
 
-void gpu_dvfs_set_freq_margin(int margin)
+void exynos_migov_set_gpu_margin(int margin)
 {
 	gpex_tsg_set_freq_margin(margin);
 }
-EXPORT_SYMBOL(gpu_dvfs_set_freq_margin);
+EXPORT_SYMBOL(exynos_migov_set_gpu_margin);
 
-void exynos_stats_get_run_times(u64 *times)
+int register_frag_utils_change_notifier(struct notifier_block *nb)
 {
-	gpex_tsg_stats_get_run_times(times);
+	int ret = 0;
+	ret = atomic_notifier_chain_register(gpex_tsg_get_frag_utils_change_notifier_list(), nb);
+	return ret;
 }
-EXPORT_SYMBOL(exynos_stats_get_run_times);
+EXPORT_SYMBOL(register_frag_utils_change_notifier);
 
-void exynos_stats_set_vsync(ktime_t ktime_us)
+int unregister_frag_utils_change_notifier(struct notifier_block *nb)
 {
-	gpex_tsg_stats_set_vsync(ktime_us);
+	int ret = 0;
+	ret = atomic_notifier_chain_unregister(gpex_tsg_get_frag_utils_change_notifier_list(), nb);
+	return ret;
 }
-EXPORT_SYMBOL(exynos_stats_set_vsync);
-
-void exynos_stats_get_frame_info(s32 *nrframe, u64 *nrvsync, u64 *delta_ms)
-{
-	gpex_tsg_stats_get_frame_info(nrframe, nrvsync, delta_ms);
-}
-EXPORT_SYMBOL(exynos_stats_get_frame_info);
-
-void exynos_migov_set_targetframetime(int us)
-{
-	gpex_tsg_migov_set_targetframetime(us);
-}
-EXPORT_SYMBOL(exynos_migov_set_targetframetime);
-
-void exynos_migov_set_targettime_margin(int us)
-{
-	gpex_tsg_migov_set_targettime_margin(us);
-}
-EXPORT_SYMBOL(exynos_migov_set_targettime_margin);
-
-void exynos_migov_set_util_margin(int percentage)
-{
-	gpex_tsg_migov_set_util_margin(percentage);
-}
-EXPORT_SYMBOL(exynos_migov_set_util_margin);
-
-void exynos_migov_set_decon_time(int us)
-{
-	gpex_tsg_migov_set_decon_time(us);
-}
-EXPORT_SYMBOL(exynos_migov_set_decon_time);
-
-void exynos_migov_set_comb_ctrl(int val)
-{
-	gpex_tsg_migov_set_comb_ctrl(val);
-}
-EXPORT_SYMBOL(exynos_migov_set_comb_ctrl);
-
-void exynos_sdp_set_powertable(int id, int cnt, struct freq_table *table)
-{
-	gpex_tsg_sdp_set_powertable(id, cnt, table);
-}
-EXPORT_SYMBOL(exynos_sdp_set_powertable);
-
-void exynos_sdp_set_busy_domain(int id)
-{
-	gpex_tsg_sdp_set_busy_domain(id);
-}
-EXPORT_SYMBOL(exynos_sdp_set_busy_domain);
-
-void exynos_sdp_set_cur_freqlv(int id, int idx)
-{
-	gpex_tsg_sdp_set_cur_freqlv(id, idx);
-}
-EXPORT_SYMBOL(exynos_sdp_set_cur_freqlv);
-
-int exynos_gpu_stc_config_show(int page_size, char *buf)
-{
-	return gpex_tsg_stc_config_show(page_size, buf);
-}
-EXPORT_SYMBOL(exynos_gpu_stc_config_show);
-
-int exynos_gpu_stc_config_store(const char *buf)
-{
-	return gpex_tsg_stc_config_store(buf);
-}
-EXPORT_SYMBOL(exynos_gpu_stc_config_store);
-
-int gpu_dvfs_register_utilization_notifier(struct notifier_block *nb)
-{
-	return atomic_notifier_chain_register(gpex_tsg_get_frag_utils_change_notifier_list(), nb);
-}
-EXPORT_SYMBOL(gpu_dvfs_register_utilization_notifier);
-
-int gpu_dvfs_unregister_utilization_notifier(struct notifier_block *nb)
-{
-	return atomic_notifier_chain_unregister(gpex_tsg_get_frag_utils_change_notifier_list(), nb);
-}
-EXPORT_SYMBOL(gpu_dvfs_unregister_utilization_notifier);
+EXPORT_SYMBOL(unregister_frag_utils_change_notifier);
 
 /* TODO: this sysfs function use external fucntion. */
 /* Actually, Using external function in internal module is not ideal with the Refactoring rules */
@@ -401,10 +310,10 @@ static ssize_t show_feedback_governor_impl(char *buf)
 	ret += snprintf(buf + ret, PAGE_SIZE - ret, "         +- %u\n",
 			exynos_stats_get_gpu_coeff());
 	ret += snprintf(buf + ret, PAGE_SIZE - ret,
-			" +- unsigned int *gpu_dvfs_get_freq_table(void)\n");
+			" +- unsigned int *exynos_stats_get_gpu_freq_table(void)\n");
 	ret += snprintf(buf + ret, PAGE_SIZE - ret,
-			"     +- uint32_t *gpu_dvfs_get_freqs(void)\n");
-	freqs = gpu_dvfs_get_freq_table();
+			"     +- unsigned int *gpu_dvfs_get_freqs(void)\n");
+	freqs = exynos_stats_get_gpu_freq_table();
 	for (i = 0; i < exynos_stats_get_gpu_table_size(); i++) {
 		ret += snprintf(buf + ret, PAGE_SIZE - ret, "         +- %u\n", freqs[i]);
 	}
@@ -417,16 +326,16 @@ static ssize_t show_feedback_governor_impl(char *buf)
 		ret += snprintf(buf + ret, PAGE_SIZE - ret, "         +- %u\n", volts[i]);
 	}
 	ret += snprintf(buf + ret, PAGE_SIZE - ret,
-			" +- ktime_t *gpu_dvfs_get_time_in_state(void)\n");
+			" +- ktime_t *exynos_stats_get_gpu_time_in_state(void)\n");
 	ret += snprintf(buf + ret, PAGE_SIZE - ret,
 			"     +- ktime_t *gpu_dvfs_get_time_in_state(void)\n");
-	time_in_state = gpu_dvfs_get_time_in_state();
+	time_in_state = exynos_stats_get_gpu_time_in_state();
 	for (i = 0; i < exynos_stats_get_gpu_table_size(); i++) {
 		ret += snprintf(buf + ret, PAGE_SIZE - ret, "         +- %lld\n", time_in_state[i]);
 	}
 	ret += snprintf(buf + ret, PAGE_SIZE - ret,
-			" +- ktime_t *gpu_dvfs_get_job_queue_count(void)\n");
-	time_in_state = gpu_dvfs_get_job_queue_count();
+			" +- ktime_t *exynos_stats_get_gpu_queued_job_time(void)\n");
+	time_in_state = exynos_stats_get_gpu_queued_job_time();
 	for (i = 0; i < 2; i++) {
 		ret += snprintf(buf + ret, PAGE_SIZE - ret, "         +- %lld\n", time_in_state[i]);
 	}

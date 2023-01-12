@@ -69,6 +69,11 @@ static inline bool dpu_bts_is_normal_boot(void)
 }
 #endif
 
+enum mif_update_dir {
+	SET_TO_STATIC = 0,
+	GET_FROM_STATIC,
+};
+
 /* unit : usec x 1000 -> 5592 (5.592us) for WQHD+ case */
 static inline u32 dpu_bts_get_one_line_time(struct decon_device *decon)
 {
@@ -479,7 +484,7 @@ static void dpu_bts_sum_all_decon_bw(struct decon_device *decon, u32 ch_bw[])
 	int i, j;
 
 	if (decon->id >= MAX_DECON_CNT) {
-		DPU_INFO_BTS(decon, "[%s] undefined decon id!\n", __func__);
+		DPU_INFO_BTS(decon, "undefined decon id!\n");
 		return;
 	}
 
@@ -652,9 +657,23 @@ static void dpu_bts_convert_config_to_info(const struct decon_device *decon,
 			dpp->dst.x1, dpp->dst.x2, dpp->dst.y1, dpp->dst.y2);
 }
 
+static bool dpu_bts_request_mif_qos(bool state, enum mif_update_dir dir)
+{
+	static bool prev_state = false;
+	static bool updated = false;
+
+	if (dir == SET_TO_STATIC) {
+		updated = (prev_state != state) ? true : false;
+		prev_state = state;
+	}
+
+	return (updated && !prev_state);
+}
+
 static void
 dpu_bts_calc_dpp_bw(struct decon_device *decon, struct bts_dpp_info *dpp,
-				struct bts_decon_info *bts_info, u32 format, int idx)
+				struct bts_decon_info *bts_info, u32 format,
+				int idx, bool *hold)
 {
 	u64 ch_bw = 0, rot_bw;
 	u32 src_w, src_h;
@@ -724,6 +743,23 @@ dpu_bts_calc_dpp_bw(struct decon_device *decon, struct bts_dpp_info *dpp,
 
 	dpp->bw = (u32)ch_bw;
 
+	/*
+	 * NV12 square ratio
+	 *  - MIF min freq : 845Mhz @ 120
+	 */
+	if (((dpp->src_w == dpp->src_h) && (dpp->src_w == 1440)) &&
+		((dst_w == dst_h) && (dst_w == 1080)) &&
+		decon->bts.fps == 120 && dpp->rotation &&
+		decon->config.out_type & DECON_OUT_DSI) {
+		const struct dpu_fmt *fmt_info;
+
+		fmt_info = dpu_find_fmt_info(format);
+		if (fmt_info->fmt == DRM_FORMAT_NV12) {
+			exynos_pm_qos_update_request(&decon->bts.mif_qos, 845 * 1000);
+			*hold |= true;
+		}
+	}
+
 	DPU_DEBUG_BTS(decon, "\tDPP%d BW = %d\n", idx, dpp->bw);
 }
 
@@ -735,12 +771,13 @@ void dpu_bts_calc_bw(struct exynos_drm_crtc *exynos_crtc)
 	int idx, i, wb_idx;
 	u32 read_bw = 0, write_bw = 0;
 	u64 resol_clock;
+	bool updated = false;
 
 	if (!decon->bts.enabled)
 		return;
 
 	DPU_DEBUG_BTS(decon, "\n");
-	DPU_DEBUG_BTS(decon, "%s +\n", __func__);
+	DPU_DEBUG_BTS(decon, "+\n");
 
 	memset(&bts_info, 0, sizeof(struct bts_decon_info));
 
@@ -759,6 +796,9 @@ void dpu_bts_calc_bw(struct exynos_drm_crtc *exynos_crtc)
 	bts_info.lcd_w = decon->config.image_width;
 	bts_info.lcd_h = decon->config.image_height;
 
+	if (dpu_bts_request_mif_qos(false, GET_FROM_STATIC))
+		exynos_pm_qos_update_request(&decon->bts.mif_qos, 0);
+
 	/* read bw calculation */
 	for (i = 0; i < decon->win_cnt; ++i) {
 		if (config[i].state != DPU_WIN_STATE_BUFFER)
@@ -767,7 +807,7 @@ void dpu_bts_calc_bw(struct exynos_drm_crtc *exynos_crtc)
 		idx = config[i].dpp_ch;
 		dpu_bts_convert_config_to_info(decon, &bts_info.dpp[idx], &config[i]);
 		dpu_bts_calc_dpp_bw(decon, &bts_info.dpp[idx], &bts_info,
-					config[i].format, idx);
+					config[i].format, idx, &updated);
 
 		read_bw += bts_info.dpp[idx].bw;
 	}
@@ -778,12 +818,14 @@ void dpu_bts_calc_bw(struct exynos_drm_crtc *exynos_crtc)
 	if (config->state == DPU_WIN_STATE_BUFFER) {
 		dpu_bts_convert_config_to_info(decon, &bts_info.dpp[wb_idx], config);
 		dpu_bts_calc_dpp_bw(decon, &bts_info.dpp[wb_idx], &bts_info,
-					config->format, wb_idx);
+					config->format, wb_idx, &updated);
 		write_bw += bts_info.dpp[wb_idx].bw;
 	}
 
 	for (i = 0; i < MAX_DPP_CNT; i++)
 		decon->bts.bw[i].val = bts_info.dpp[i].bw;
+
+	dpu_bts_request_mif_qos(updated, SET_TO_STATIC);
 
 	decon->bts.read_bw = read_bw;
 	decon->bts.write_bw = write_bw;
@@ -798,8 +840,13 @@ void dpu_bts_calc_bw(struct exynos_drm_crtc *exynos_crtc)
 	/* update bw for other decons */
 	dpu_bts_share_bw_info(decon->id);
 
-	DPU_EVENT_LOG(DPU_EVT_BTS_CALC_BW, decon->crtc, &decon->bts.max_disp_freq);
-	DPU_DEBUG_BTS(decon, "%s -\n", __func__);
+	DPU_EVENT_LOG("BTS_CALC_BW", decon->crtc, 0,
+			"mif(%lu) int(%lu) disp(%lu) calculated disp(%u)",
+			exynos_devfreq_get_domain_freq(DEVFREQ_MIF),
+			exynos_devfreq_get_domain_freq(DEVFREQ_INT),
+			exynos_devfreq_get_domain_freq(DEVFREQ_DISP),
+			decon->bts.max_disp_freq);
+	DPU_DEBUG_BTS(decon, "-\n");
 }
 
 
@@ -811,15 +858,14 @@ void dpu_bts_update_bw(struct exynos_drm_crtc *exynos_crtc, bool shadow_updated)
 	if (!decon->bts.enabled)
 		return;
 
-	DPU_DEBUG_BTS(decon, "%s +\n", __func__);
+	DPU_DEBUG_BTS(decon, "+\n");
 
 	/* update peak & read bandwidth per DPU port */
 	bw.peak = decon->bts.peak;
 	bw.read = decon->bts.read_bw;
 	bw.write = decon->bts.write_bw;
-	DPU_DEBUG_BTS(decon, "\t(%s shadow_update)",
-			(shadow_updated ? "after" : "before"));
-	DPU_DEBUG_BTS(decon, "\tpeak = %d, read = %d, write = %d\n",
+	DPU_DEBUG_BTS(decon, "\t(%s shadow_update) peak = %d, read = %d, write = %d\n",
+			(shadow_updated ? "after" : "before"),
 			bw.peak, bw.read, bw.write);
 
 	if (shadow_updated) {
@@ -856,8 +902,11 @@ void dpu_bts_update_bw(struct exynos_drm_crtc *exynos_crtc, bool shadow_updated)
 	}
 #endif
 
-	DPU_EVENT_LOG(DPU_EVT_BTS_UPDATE_BW, decon->crtc, NULL);
-	DPU_DEBUG_BTS(decon, "%s -\n", __func__);
+	DPU_EVENT_LOG("BTS_UPDATE_BW", decon->crtc, 0, "mif(%lu) int(%lu) disp(%lu)",
+			exynos_devfreq_get_domain_freq(DEVFREQ_MIF),
+			exynos_devfreq_get_domain_freq(DEVFREQ_INT),
+			exynos_devfreq_get_domain_freq(DEVFREQ_DISP));
+	DPU_DEBUG_BTS(decon, "-\n");
 }
 
 void dpu_bts_release_bw(struct exynos_drm_crtc *exynos_crtc)
@@ -868,30 +917,34 @@ void dpu_bts_release_bw(struct exynos_drm_crtc *exynos_crtc)
 	if (!decon->bts.enabled)
 		return;
 
-	DPU_DEBUG_BTS(decon, "%s +\n", __func__);
+	DPU_DEBUG_BTS(decon, "+\n");
 
 	if ((decon->config.out_type & DECON_OUT_DSI) ||
 		(decon->config.out_type == DECON_OUT_WB)) {
 		bts_update_bw(decon->bts.bw_idx, bw);
 		decon->bts.prev_total_bw = 0;
 
+		if (exynos_pm_qos_request_active(&decon->bts.mif_qos))
+			exynos_pm_qos_update_request(&decon->bts.mif_qos, 0);
+		else
+			DPU_ERR_BTS(decon, "mif qos setting error\n");
+
 		if (exynos_pm_qos_request_active(&decon->bts.int_qos))
 			exynos_pm_qos_update_request(&decon->bts.int_qos, 0);
 		else
-			DPU_ERR_BTS(decon, "%s int qos setting error\n", __func__);
+			DPU_ERR_BTS(decon, "int qos setting error\n");
 
 		if (exynos_pm_qos_request_active(&decon->bts.disp_qos))
 			exynos_pm_qos_update_request(&decon->bts.disp_qos, 0);
 		else
-			DPU_ERR_BTS(decon, "%s disp qos setting error\n", __func__);
-
+			DPU_ERR_BTS(decon, "disp qos setting error\n");
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 		/* Workaround min lock for LPM / Recovery Scenario */
 		if (!dpu_bts_is_normal_boot()) {
 			if (exynos_pm_qos_request_active(&decon->bts.mif_qos))
 				exynos_pm_qos_update_request(&decon->bts.mif_qos, 0);
 			else
-				DPU_ERR_BTS(decon, "%s mif qos setting error\n", __func__);
+				DPU_ERR_BTS(decon, "mif qos setting error\n");
 		}
 #endif
 		decon->bts.prev_max_disp_freq = 0;
@@ -899,23 +952,26 @@ void dpu_bts_release_bw(struct exynos_drm_crtc *exynos_crtc)
 		if (exynos_pm_qos_request_active(&decon->bts.mif_qos))
 			exynos_pm_qos_update_request(&decon->bts.mif_qos, 0);
 		else
-			DPU_ERR_BTS(decon, "%s mif qos setting error\n", __func__);
+			DPU_ERR_BTS(decon, "mif qos setting error\n");
 
 		if (exynos_pm_qos_request_active(&decon->bts.int_qos))
 			exynos_pm_qos_update_request(&decon->bts.int_qos, 0);
 		else
-			DPU_ERR_BTS(decon, "%s int qos setting error\n", __func__);
+			DPU_ERR_BTS(decon, "int qos setting error\n");
 
 		if (exynos_pm_qos_request_active(&decon->bts.disp_qos))
 			exynos_pm_qos_update_request(&decon->bts.disp_qos, 0);
 		else
-			DPU_ERR_BTS(decon, "%s disp qos setting error\n", __func__);
+			DPU_ERR_BTS(decon, "disp qos setting error\n");
 
 		bts_del_scenario(decon->bts.scen_idx[DPU_BS_DP_DEFAULT]);
 	}
 
-	DPU_EVENT_LOG(DPU_EVT_BTS_RELEASE_BW, decon->crtc, NULL);
-	DPU_DEBUG_BTS(decon, "%s -\n", __func__);
+	DPU_EVENT_LOG("BTS_RELEASE_BW", decon->crtc, 0, "mif(%lu) int(%lu) disp(%lu)",
+			exynos_devfreq_get_domain_freq(DEVFREQ_MIF),
+			exynos_devfreq_get_domain_freq(DEVFREQ_INT),
+			exynos_devfreq_get_domain_freq(DEVFREQ_DISP));
+	DPU_DEBUG_BTS(decon, "-\n");
 }
 
 #define MAX_IDX_NAME_SIZE	16
@@ -926,7 +982,7 @@ void dpu_bts_init(struct exynos_drm_crtc *exynos_crtc)
 	const struct drm_encoder *encoder;
 	struct decon_device *decon = exynos_crtc->ctx;
 
-	DPU_DEBUG_BTS(decon, "%s +\n", __func__);
+	DPU_DEBUG_BTS(decon, "+\n");
 
 	decon->bts.enabled = false;
 
@@ -985,11 +1041,11 @@ void dpu_bts_deinit(struct exynos_drm_crtc *exynos_crtc)
 	if (!decon->bts.enabled)
 		return;
 
-	DPU_DEBUG_BTS(decon, "%s +\n", __func__);
+	DPU_DEBUG_BTS(decon, "+\n");
 	exynos_pm_qos_remove_request(&decon->bts.disp_qos);
 	exynos_pm_qos_remove_request(&decon->bts.int_qos);
 	exynos_pm_qos_remove_request(&decon->bts.mif_qos);
-	DPU_DEBUG_BTS(decon, "%s -\n", __func__);
+	DPU_DEBUG_BTS(decon, "-\n");
 }
 
 void dpu_bts_print_info(const struct exynos_drm_crtc *exynos_crtc)

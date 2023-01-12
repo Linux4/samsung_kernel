@@ -16,8 +16,6 @@ fmp-core-$(CONFIG_EXYNOS_FMP_FIPS) += $(FIPS_PR)fmp.o \
 
 fmp-core-$(CONFIG_EXYNOS_FMP_INTEGRITY_TEST) += $(FIPS_PR)fmp_fips_integrity.o
 fmp-core-$(CONFIG_EXYNOS_FMP_INTEGRITY_TEST) += fips140_ic_support.o
-fmp-core-$(CONFIG_EXYNOS_FMP_ACVP_TEST) += fmp_fips_fops.o
-fmp-core-$(CONFIG_EXYNOS_FMP_FIPS_FUNC_TEST) += fmp_fips_func_test.o
 
 ifeq ($(CONFIG_EXYNOS_FMP_INTEGRITY_TEST), y)
 FMP_OUT_DIR        := $(objtree)/drivers/crypto/fmp/

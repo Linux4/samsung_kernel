@@ -19,6 +19,12 @@
 #include "is-device-sensor.h"
 #include "is-video.h"
 #include "is-ois-mcu.h"
+#if defined(CONFIG_LEDS_S2MU106_FLASH)
+#include <linux/muic/common/muic.h>
+#include <linux/muic/slsi/s2mu106/s2mu106-muic.h>
+#include <linux/muic/slsi/s2mu106/s2mu106-muic-hv.h>
+#include <linux/usb/typec/slsi/common/usbpd_ext.h>
+#endif
 
 static struct is_device_sensor_peri *get_sensor_peri(struct v4l2_subdev *subdev)
 {
@@ -206,6 +212,10 @@ int is_sensor_mode_change(struct is_cis *cis, u32 mode)
 	CALL_CISOPS(cis, cis_data_calculation, cis->subdev, cis->cis_data->sens_config_index_cur);
 
 	schedule_work(&sensor_peri->cis.mode_setting_work);
+#if defined(CONFIG_CAMERA_USE_MCU)
+	if (sensor_peri->mcu && sensor_peri->mcu->ois)
+		schedule_work(&sensor_peri->cis.ois_init_work);
+#endif
 
 	return ret;
 }
@@ -509,6 +519,11 @@ void is_sensor_flash_fire_work(struct work_struct *data)
 				ret = is_sensor_flash_fire(sensor_peri, flash->flash_data.intensity);
 				if (ret) {
 					err("failed to turn off flash at flash expired handler\n");
+#ifdef CONFIG_LEDS_S2MU106_FLASH
+					pdo_ctrl_by_flash(0);
+					muic_afc_set_voltage(9);
+					info("[%s](%d) MAIN Flash ERR: Power Down set Clear(5V -> 9V).\n" ,__func__, __LINE__);
+#endif
 				}
 			} else {
 				flash->flash_ae.main_fls_ae_reset = false;
@@ -532,6 +547,12 @@ void is_sensor_flash_fire_work(struct work_struct *data)
 			if (ret) {
 				err("failed to turn off flash at flash expired handler\n");
 			}
+
+#ifdef CONFIG_LEDS_S2MU106_FLASH
+			pdo_ctrl_by_flash(0);
+			muic_afc_set_voltage(9);
+			info("[%s](%d) MAIN Flash ERR: Power Down set Clear(5V -> 9V).\n" ,__func__, __LINE__);
+#endif
 
 			flash->flash_ae.main_fls_ae_reset = false;
 			flash->flash_ae.main_fls_strm_on_off_step = 0;
@@ -709,29 +730,80 @@ void is_sensor_ois_set_deinit_work(struct work_struct *data)
 	info("[%s] X\n", __func__);
 }
 
-#ifdef USE_OIS_INIT_WORK
+#if defined(CONFIG_CAMERA_USE_MCU)
 void is_sensor_ois_init_work(struct work_struct *data)
 {
 	int ret = 0;
-	struct is_ois *ois;
+	struct is_core *core;
+	struct is_device_sensor *device_mcu = NULL;
 	struct is_device_sensor_peri *sensor_peri;
 
-	WARN_ON(!data);
+	core = is_get_is_core();
+	device_mcu = &core->sensor[0];
+	sensor_peri = get_sensor_peri(device_mcu->subdev_module);
 
-	ois = container_of(data, struct is_ois, init_work);
+	if (sensor_peri->mcu && sensor_peri->mcu->ois) {
+		if (!CALL_OISOPS(sensor_peri->mcu->ois, ois_get_active)) {
+			CALL_OISOPS(sensor_peri->mcu->ois, ois_fw_update, core);
 
-	sensor_peri = ois->sensor_peri;
-
-	if (sensor_peri->subdev_ois) {
-#ifdef CONFIG_OIS_DIRECT_FW_CONTROL
-		ret = CALL_OISOPS(ois, ois_fw_update, sensor_peri->subdev_ois);
-		if (ret < 0)
-			err("v4l2_subdev_call(ois_init) is fail(%d)", ret);
+			ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_init, device_mcu->subdev_mcu);
+			if (ret < 0) {
+				err("v4l2_subdev_call(ois_init) is fail(%d)", ret);
+				return;
+			}
+			ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_set_mode, device_mcu->subdev_mcu,
+				OPTICAL_STABILIZATION_MODE_STILL);
+			if (ret < 0) {
+				err("v4l2_subdev_call(ois_set_mode) is fail(%d)", ret);
+				return;
+			}
+		}
+	}
+	info("[%d] ois init work done!\n", sensor_peri->module->instance);
+}
 #endif
 
-		ret = CALL_OISOPS(ois, ois_init, sensor_peri->subdev_ois);
-		if (ret < 0)
-			err("v4l2_subdev_call(ois_init) is fail(%d)", ret);
+#ifdef CONFIG_LEDS_S2MU106_FLASH
+void is_sensor_muic_ctrl_and_flash_fire(struct work_struct *data)
+{
+	struct is_flash *flash;
+	struct is_flash_data *flash_data;
+	struct is_device_sensor_peri *sensor_peri;
+
+	FIMC_BUG_VOID(!data);
+
+	flash_data = container_of(data, struct is_flash_data, muic_ctrl_and_flash_fire_work);
+	FIMC_BUG_VOID(!flash_data);
+
+	flash = container_of(flash_data, struct is_flash, flash_data);
+	FIMC_BUG_VOID(!flash);
+
+	sensor_peri = flash->sensor_peri;
+
+	/* Pre-flash on */
+	if (flash->flash_data.mode == CAM2_FLASH_MODE_TORCH) {
+		muic_afc_set_voltage(5);
+		pdo_ctrl_by_flash(1);
+		info("[%s](%d) Pre-Flash On: Power Down Volatge set(9V -> 5V). \n" ,__func__, __LINE__);
+	}
+
+	info("[%s] pre-flash mode(%d), pow(%d), time(%d)\n", __func__,
+		flash->flash_data.mode,
+		flash->flash_data.intensity, flash->flash_data.firing_time_us);
+
+	/* If pre-flash on failed, set voltage to 9V */
+	if (is_sensor_flash_fire(sensor_peri, flash->flash_data.intensity)) {
+		err("failed to turn off flash at flash expired handler\n");
+		if(flash->flash_data.mode == CAM2_FLASH_MODE_TORCH) {
+			pdo_ctrl_by_flash(0);
+			muic_afc_set_voltage(9);
+			info("[%s](%d) Pre-Flash ERR: Power Down Volatge set Clear(5V -> 9V).\n" ,__func__, __LINE__);
+		}
+	}
+	else if (flash->flash_data.mode == CAM2_FLASH_MODE_OFF) { /* Torch off - used only in Video Mode */
+		pdo_ctrl_by_flash(0);
+		muic_afc_set_voltage(9);
+		info("[%s](%d) Pre-Flash OFF: Power Down Volatge set Clear(5V -> 9V).\n" ,__func__, __LINE__);
 	}
 }
 #endif
@@ -1092,11 +1164,15 @@ int is_sensor_peri_pre_flash_fire(struct v4l2_subdev *subdev, void *arg)
 		flash->flash_data.mode = flash_uctl->flashMode;
 		flash->flash_data.intensity = flash_uctl->firingPower;
 		flash->flash_data.firing_time_us = flash_uctl->firingTime;
+#ifdef CONFIG_LEDS_S2MU106_FLASH
+		schedule_work(&sensor_peri->flash->flash_data.muic_ctrl_and_flash_fire_work);
+#else
 
 		info("[%s](%d) pre-flash mode(%d), pow(%d), time(%d)\n", __func__,
 			vsync_count, flash->flash_data.mode,
 			flash->flash_data.intensity, flash->flash_data.firing_time_us);
 		ret = is_sensor_flash_fire(sensor_peri, flash->flash_data.intensity);
+#endif
 	}
 
 	/* update flash expecting dm in current mode */
@@ -1463,6 +1539,9 @@ void is_sensor_peri_init_work(struct is_device_sensor_peri *sensor_peri)
 	if (sensor_peri->flash) {
 		INIT_WORK(&sensor_peri->flash->flash_data.flash_fire_work, is_sensor_flash_fire_work);
 		INIT_WORK(&sensor_peri->flash->flash_data.flash_expire_work, is_sensor_flash_expire_work);
+#ifdef CONFIG_LEDS_S2MU106_FLASH
+		INIT_WORK(&sensor_peri->flash->flash_data.muic_ctrl_and_flash_fire_work, is_sensor_muic_ctrl_and_flash_fire);
+#endif
 	}
 
 	INIT_WORK(&sensor_peri->cis.cis_status_dump_work, is_sensor_cis_status_dump_work);
@@ -1498,6 +1577,10 @@ void is_sensor_peri_init_work(struct is_device_sensor_peri *sensor_peri)
 
 	INIT_WORK(&sensor_peri->cis.global_setting_work, is_sensor_cis_global_setting_work);
 	INIT_WORK(&sensor_peri->cis.mode_setting_work, is_sensor_cis_mode_setting_work);
+#if defined(CONFIG_CAMERA_USE_MCU)
+	if (sensor_peri->mcu && sensor_peri->mcu->ois)
+		INIT_WORK(&sensor_peri->cis.ois_init_work, is_sensor_ois_init_work);
+#endif
 }
 
 void is_sensor_peri_probe(struct is_device_sensor_peri *sensor_peri)
@@ -1818,17 +1901,15 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 		device_mcu = &core->sensor[0];
 
 		if (sensor_peri->mcu && sensor_peri->mcu->ois) {
-			if (!CALL_OISOPS(sensor_peri->mcu->ois, ois_get_active)) {
-				CALL_OISOPS(sensor_peri->mcu->ois, ois_fw_update, core);
-
-				ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_init, device_mcu->subdev_mcu);
-				if (ret < 0)
-					err("v4l2_subdev_call(ois_init) is fail(%d)", ret);
-
-				ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_set_mode, device_mcu->subdev_mcu,
-					sensor_peri->mcu->ois->ois_mode);
-				if (ret < 0)
-					err("v4l2_subdev_call(ois_set_mode) is fail(%d)", ret);
+			if (!skip_sub_device) {
+				if (CALL_OISOPS(sensor_peri->mcu->ois, ois_get_active)) {
+					ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_set_mode, sensor_peri->subdev_mcu,
+						sensor_peri->mcu->ois->ois_mode);
+					if (ret < 0) {
+						err("v4l2_subdev_call(ois_set_mode) is fail(%d)", ret);
+						goto p_err;
+					}
+				}
 			}
 		}
 #endif
@@ -1874,7 +1955,10 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 		/* If sensor setting @work is queued or executing,
 		   wait for it to finish execution when working s_format */
 		flush_work(&cis->mode_setting_work);
-
+#if defined(CONFIG_CAMERA_USE_MCU)
+		if (sensor_peri->mcu && sensor_peri->mcu->ois)
+			flush_work(&cis->ois_init_work);
+#endif
 		/* set mode_change or initial exp/gain and stats */
 		is_sensor_setting_mode_change(sensor_peri);
 
@@ -2047,16 +2131,32 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 		if (sensor_peri->flash != NULL) {
 			/* single camera */
 			if (sensor_cnt <= 1) {
+				mutex_lock(&sensor_peri->cis.control_lock);
 				sensor_peri->flash->flash_data.mode = CAM2_FLASH_MODE_OFF;
 				sensor_peri->flash->flash_data.high_resolution_flash = false;
 				if (sensor_peri->flash->flash_data.flash_fired == true) {
-					mutex_lock(&sensor_peri->cis.control_lock);
+					sensor_peri->flash->flash_data.intensity = 0;
+					sensor_peri->flash->flash_data.firing_time_us = 0;
+
+					info("[%s] Flash OFF(%d), pow(%d), time(%d)\n",
+					__func__,
+						sensor_peri->flash->flash_data.mode,
+						sensor_peri->flash->flash_data.intensity,
+						sensor_peri->flash->flash_data.firing_time_us);
+
 					ret = is_sensor_flash_fire(sensor_peri, 0);
-					mutex_unlock(&sensor_peri->cis.control_lock);
 					if (ret) {
 						err("failed to turn off flash at flash expired handler\n");
 					}
+					sensor_peri->flash->flash_ae.pre_fls_ae_reset = false;
+					sensor_peri->flash->flash_ae.frm_num_pre_fls = 0;
+#if defined(CONFIG_LEDS_S2MU106_FLASH)
+					pdo_ctrl_by_flash(0);
+					muic_afc_set_voltage(9);
+					info("[%s]%d Down Voltage set Clear \n" ,__func__, __LINE__);
+#endif
 				}
+				mutex_unlock(&sensor_peri->cis.control_lock);
 			}
 			memset(&sensor_peri->flash->expecting_flash_dm[0], 0, sizeof(camera2_flash_dm_t) * EXPECT_DM_NUM);
 		}

@@ -65,7 +65,6 @@ void dsp_lib_free(struct dsp_lib *lib)
 	dsp_dl_out_free(lib);
 }
 
-/*
 void dsp_lib_print(struct dsp_lib *lib)
 {
 	DL_INFO(DL_BORDER);
@@ -106,7 +105,6 @@ void dsp_lib_print(struct dsp_lib *lib)
 		dsp_dl_out_print(lib->dl_out);
 	}
 }
-*/
 
 void dsp_lib_manager_init(const char *lib_path)
 {
@@ -146,7 +144,6 @@ void dsp_lib_manager_free(void)
 	dsp_dl_free(dsp_lib_hash);
 }
 
-/*
 void dsp_lib_manager_print(void)
 {
 	unsigned int idx;
@@ -171,7 +168,6 @@ void dsp_lib_manager_print(void)
 		}
 	}
 }
-*/
 
 struct dsp_lib **dsp_lib_manager_get_libs(struct dsp_dl_lib_info *lib_infos,
 	size_t lib_infos_size)
@@ -336,7 +332,9 @@ static int __dsp_lib_manager_load_kernel_table(struct dsp_lib *lib,
 static void __dsp_lib_manager_load_gpt(struct dsp_lib *lib)
 {
 	DL_DEBUG("load gpt\n");
-	lib->dl_out->gpt_addr = (unsigned int)lib->gpt->addr;
+	if (likely(lib && lib->dl_out)) {
+		lib->dl_out->gpt_addr = (unsigned int)lib->gpt->addr;
+	}
 }
 
 static void __dsp_lib_manager_load_pm(struct dsp_lib *lib)

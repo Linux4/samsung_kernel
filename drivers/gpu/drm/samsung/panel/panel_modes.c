@@ -13,7 +13,7 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/errno.h>
-#include <kunit/mock.h>
+#include "panel_kunit.h"
 #include "panel_modes.h"
 
 static const char *refresh_mode_names[MAX_REFRESH_MODE] = {

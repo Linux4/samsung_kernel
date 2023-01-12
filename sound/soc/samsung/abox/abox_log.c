@@ -96,8 +96,13 @@ static void abox_log_flush(struct device *dev,
 	unsigned int index_writer = log_buffer->index_writer;
 	struct abox_log_kernel_buffer *kernel_buffer = &info->kernel_buffer;
 
-	if (!abox_log_check_sanity(log_buffer))
+	if (!abox_log_check_sanity(log_buffer)) {
+		dev_err_ratelimited(dev, "%d: writer=%u, reader=%u, size=%u\n",
+				info->id, log_buffer->index_writer,
+				log_buffer->index_reader, log_buffer->size);
 		abox_failsafe_report(dev, true);
+		return;
+	}
 
 	if (log_buffer->index_reader == index_writer)
 		return;

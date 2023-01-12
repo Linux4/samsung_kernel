@@ -9,7 +9,7 @@
  */
 
 #include <linux/backlight.h>
-#include <kunit/mock.h>
+#include "panel_kunit.h"
 #include "panel.h"
 #include "panel_bl.h"
 #ifdef CONFIG_EXYNOS_DECON_LCD_COPR

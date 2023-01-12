@@ -74,6 +74,7 @@ struct ufc_domain {
 	unsigned int		min_freq;
 	unsigned int		max_freq;
 	unsigned int		hold_freq;
+	unsigned int		little_min_timeout;
 
 	struct freq_qos_request	user_min_qos_req;
 	struct freq_qos_request	user_max_qos_req;

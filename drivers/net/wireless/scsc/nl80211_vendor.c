@@ -111,6 +111,8 @@
 #define WIFI_TAG_VD_MGMT_FRAME_SUBTYPE        0xf04c
 #define SLSI_WIFI_TAG_VD_IS_ROAMING           0xf04d
 
+#define SLSI_PSID_UNIFI_AC_NO_ACKS 0x0918
+
 #define MAX_SSID_LEN 100
 #define SLSI_MAX_NUM_RING 10
 
@@ -1942,11 +1944,11 @@ void slsi_lls_debug_dump_stats(struct slsi_dev *sdev, struct slsi_lls_radio_stat
 	}
 	SLSI_DBG3(sdev, SLSI_GSCAN, "iface_stat====\n");
 	SLSI_DBG3(sdev, SLSI_GSCAN, "\tiface %p info : (mode : %d, mac_addr : %pM, state : %d, roaming : %d,"
-		  " capabilities : %d, ssid : %s, bssid : %pM, ap_country_str : [%d%d%d])\trssi_data : %d\n",
+		  " capabilities : %d, ssid : %s, bssid : %pM, ap_country_str : [%d%d%d])\trssi_data : %d, rssi_mgmt : %d\n",
 		  iface_stat->iface, iface_stat->info.mode, iface_stat->info.mac_addr, iface_stat->info.state,
 		  iface_stat->info.roaming, iface_stat->info.capabilities, iface_stat->info.ssid,
 		  iface_stat->info.bssid, iface_stat->info.ap_country_str[0], iface_stat->info.ap_country_str[1],
-		  iface_stat->info.ap_country_str[2], iface_stat->rssi_data);
+		  iface_stat->info.ap_country_str[2], iface_stat->rssi_data, iface_stat->rssi_mgmt);
 
 	SLSI_DBG3(sdev, SLSI_GSCAN, "\tnum_peers %d\n", iface_stat->num_peers);
 	for (i = 0; i < iface_stat->num_peers; i++) {
@@ -2240,7 +2242,11 @@ static void slsi_lls_iface_stat_fill(struct slsi_dev *sdev,
 						 { SLSI_PSID_UNIFI_AC_RETRIES, { SLSI_TRAFFIC_Q_VO + 1, 0 } },
 						 { SLSI_PSID_UNIFI_BEACON_RECEIVED, {0, 0} },
 						 { SLSI_PSID_UNIFI_PS_LEAKY_AP, {0, 0} },
-						 { SLSI_PSID_UNIFI_RSSI, {0, 0} } };
+						 { SLSI_PSID_UNIFI_RSSI, {0, 0} },
+						 { SLSI_PSID_UNIFI_AC_NO_ACKS, { SLSI_TRAFFIC_Q_BE + 1, 0 } },
+						 { SLSI_PSID_UNIFI_AC_NO_ACKS, { SLSI_TRAFFIC_Q_BK + 1, 0 } },
+						 { SLSI_PSID_UNIFI_AC_NO_ACKS, { SLSI_TRAFFIC_Q_VI + 1, 0 } },
+						 { SLSI_PSID_UNIFI_AC_NO_ACKS, { SLSI_TRAFFIC_Q_VO + 1, 0 } } };
 
 	iface_stat->iface = NULL;
 	iface_stat->info.mode = SLSI_LLS_INTERFACE_UNKNOWN;
@@ -2292,6 +2298,7 @@ static void slsi_lls_iface_stat_fill(struct slsi_dev *sdev,
 			iface_stat->ac[i].retries = values[i].u.uintValue;
 			iface_stat->ac[i].rx_mpdu = ndev_vif->rx_packets[i];
 			iface_stat->ac[i].tx_mpdu = ndev_vif->tx_packets[i];
+			ndev_vif->tx_no_ack[i] = values[i+7].u.uintValue;
 			iface_stat->ac[i].mpdu_lost = ndev_vif->tx_no_ack[i];
 		}
 	}
@@ -2304,8 +2311,10 @@ static void slsi_lls_iface_stat_fill(struct slsi_dev *sdev,
 		iface_stat->leaky_ap_guard_time = 5; /* 5 milli sec. As mentioned in lls document */
 	}
 
-	if (values[6].type == SLSI_MIB_TYPE_INT)
+	if (values[6].type == SLSI_MIB_TYPE_INT) {
 		iface_stat->rssi_data = values[6].u.intValue;
+		iface_stat->rssi_mgmt = values[6].u.intValue;
+	}
 
 exit:
 	kfree(values);
@@ -3731,7 +3740,7 @@ void slsi_handle_nan_rx_event_log_ind(struct slsi_dev *sdev, struct net_device *
 #endif
 
 	event_id = fapi_get_s16(skb, u.mlme_event_log_ind.event);
-	timestamp = fapi_get_u64(skb, u.mlme_event_log_ind.timestamp);
+	timestamp = fapi_get_u64(skb, u.mlme_event_log_ind.fw_tsf);
 	tlv_data = fapi_get_data(skb);
 	while (i + 4 < tlv_buffer__len) {
 		tag_id = le16_to_cpu(*((__le16 *)&tlv_data[i]));
@@ -3902,7 +3911,7 @@ void slsi_handle_nan_rx_event_log_ind(struct slsi_dev *sdev, struct net_device *
 
 static void dump_roam_scan_result(struct slsi_dev *sdev, struct net_device *dev,
 				  bool *curr, char *bssid, int freq,
-				  int rssi, int cu,
+				  int rssi, short cu,
 				  int score, int tp_score, bool eligible_value)
 {
 	slsi_conn_log2us_roam_scan_result(sdev, dev, *curr, bssid,
@@ -3911,13 +3920,14 @@ static void dump_roam_scan_result(struct slsi_dev *sdev, struct net_device *dev,
 					  tp_score, eligible_value);
 	if (*curr) {
 		SLSI_INFO(sdev, "WIFI_EVENT_ROAM_SCAN_RESULT, Current AP, BSSID:" MACSTR
-			  ", RSSI:%d, CU:%d, Score:%d, TP Score:%d\n",
-			  MAC2STR(bssid), rssi, cu, score, tp_score);
+			  ", RSSI:%d, CU:%d, Score:%d.%02d, TP Score:%d\n",
+			  MAC2STR(bssid), rssi, cu, score / 100, score % 100, tp_score);
 		*curr = false;
 	} else {
 		SLSI_INFO(sdev, "WIFI_EVENT_ROAM_SCAN_RESULT, Candidate AP, BSSID:" MACSTR
-			  ", RSSI:%d, CU:%d, Score:%d, TP Score:%d, Eligible:%s\n",
-			  MAC2STR(bssid), rssi, cu, score, tp_score, eligible_value ? "true" : "false");
+			  ", RSSI:%d, CU:%d, Score:%d, TP Score:%d.%02d, Eligible:%s\n",
+			  MAC2STR(bssid), rssi, cu, score / 100, score % 100, tp_score,
+			  eligible_value ? "true" : "false");
 	}
 }
 
@@ -3927,7 +3937,7 @@ void slsi_rx_event_log_indication(struct slsi_dev *sdev, struct net_device *dev,
 	u64 timestamp = 0;
 	u8 *tlv_data;
 	u8 full_scan_count = 0;
-	u32 roam_reason = 0, chan_utilisation = 0, tp_score_val = 0;
+	u32 roam_reason = 0, tp_score_val = 0;
 	u32 btm_request_mode = 0, btm_response = 0, eapol_msg_type = 0;
 	u32 reason_code = 0, eapol_retry_count = 0, status_code = 0, tx_status = 0;
 	u16 vendor_len, tag_id, tag_len, vtag_id, eapol_key_type = 0, cu_thresh = 0;
@@ -3935,7 +3945,7 @@ void slsi_rx_event_log_indication(struct slsi_dev *sdev, struct net_device *dev,
 	short score_val = 0, rssi_thresh = 0, cu_rssi_thresh = 0;
 	u32 operating_class = 0, measure_mode = 0, measure_duration = 0, ap_count = 0, candidate_count = 0;
 	u32 message_type = 0, expired_timer_value = 0;
-	short roam_rssi_val = 0;
+	short roam_rssi_val = 0, chan_utilisation = 0;
 	u8 mac_addr[6] = {0};
 	int tlv_buffer__len = fapi_get_datalen(skb), i = 0, channel_val = 0, iter = 0, channel_count = 0, lim = 0;
 	int channel_list[MAX_CHANNEL_COUNT] = {0};
@@ -3950,7 +3960,7 @@ void slsi_rx_event_log_indication(struct slsi_dev *sdev, struct net_device *dev,
 
 	SLSI_MUTEX_LOCK(sdev->logger_mutex);
 	event_id = fapi_get_s16(skb, u.mlme_event_log_ind.event);
-	timestamp = fapi_get_u64(skb, u.mlme_event_log_ind.timestamp);
+	timestamp = fapi_get_u64(skb, u.mlme_event_log_ind.fw_tsf);
 	tlv_data = fapi_get_data(skb);
 
 	SLSI_DBG3(sdev, SLSI_GSCAN,
@@ -3992,7 +4002,7 @@ void slsi_rx_event_log_indication(struct slsi_dev *sdev, struct net_device *dev,
 			vtag_value = slsi_convert_tlv_data_to_value(&tlv_data[i + 2], vendor_len);
 			switch (vtag_id) {
 			case SLSI_WIFI_TAG_VD_CHANNEL_UTILISATION:
-				chan_utilisation = vtag_value;
+				chan_utilisation = (short)vtag_value;
 				break;
 			case SLSI_WIFI_TAG_VD_ROAMING_REASON:
 				roam_reason = vtag_value;

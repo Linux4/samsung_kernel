@@ -328,6 +328,94 @@ static int slsi_mbssid_to_ssid_list(struct slsi_dev *sdev, struct netdev_vif *nd
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0))
+static int slsi_extract_mbssids(struct slsi_dev *sdev, struct netdev_vif *ndev_vif,
+				const struct ieee80211_mgmt *mgmt,
+				struct sk_buff *skb, u8 akm_type)
+{
+	u8 *transmitter_bssid;
+	const u8 *probe_beacon;
+	const u8 *ie;
+	int ie_len;
+	int current_rssi;
+	u16 current_freq;
+	size_t mgmt_len;
+	const struct element *elem, *sub_elem;
+
+	mgmt_len = fapi_get_mgmtlen(skb);
+	current_rssi = fapi_get_s16(skb, u.mlme_scan_ind.rssi);
+	current_freq = fapi_get_s16(skb, u.mlme_scan_ind.channel_frequency);
+
+	transmitter_bssid = (u8 *)mgmt->bssid;
+	if (ieee80211_is_beacon(mgmt->frame_control)) {
+		probe_beacon = (u8 *)mgmt->u.beacon.variable;
+		ie_len = mgmt_len - (mgmt->u.beacon.variable - (u8 *)mgmt);
+	} else {
+		probe_beacon = (u8 *)mgmt->u.probe_resp.variable;
+		ie_len = mgmt_len - (mgmt->u.probe_resp.variable - (u8 *)mgmt);
+	}
+	ie = probe_beacon;
+
+	for_each_element_id(elem, WLAN_EID_MULTIPLE_BSSID, ie, ie_len) {
+		if ((elem->data - ie) + elem->datalen > ie_len) {
+			SLSI_WARN(sdev, "Invalid ie length found\n");
+			break;
+		}
+
+		if (elem->datalen < 4)
+			continue;
+
+		SLSI_DBG1_NODEV(SLSI_MLME, "MBSSID IE Found\n");
+		for_each_element(sub_elem, elem->data + 1, elem->datalen - 1) {
+			u8 new_bssid[ETH_ALEN];
+			const u8 *scan_ssid;
+			const u8 *index;
+			const u8 *ssid_ie;
+			int ssid_len = 0;
+
+			if ((sub_elem->data - (u8 *)elem) + sub_elem->datalen > elem->datalen) {
+				SLSI_WARN(sdev, "Invalid mbssid set length found\n");
+				break;
+			}
+
+
+			if (sub_elem->id != 0 || sub_elem->datalen < 4) {
+				/* not a valid BSS profile */
+				continue;
+			}
+
+			if (sub_elem->data[0] != WLAN_EID_NON_TX_BSSID_CAP ||
+				sub_elem->data[1] != 2) {
+				/* The first element of the
+				 * Nontransmitted BSSID Profile is not
+				 * the Nontransmitted BSSID Capability
+				 * element.
+				 */
+				continue;
+			}
+
+			/* found a Nontransmitted BSSID Profile */
+			index = cfg80211_find_ie(WLAN_EID_MULTI_BSSID_IDX,
+						 sub_elem->data, sub_elem->datalen);
+			if (!index || index[1] < 1 || index[2] == 0) {
+				/* Invalid MBSSID Index element */
+				continue;
+			}
+			ssid_ie = cfg80211_find_ie(WLAN_EID_SSID, sub_elem->data, sub_elem->datalen);
+			if (!ssid_ie || ssid_ie[1] >= IEEE80211_MAX_SSID_LEN)
+				continue;
+			ssid_len = ssid_ie[1];
+			scan_ssid = &ssid_ie[2];
+			slsi_gen_new_bssid(transmitter_bssid,
+					   elem->data[0], index[2], new_bssid);
+			slsi_mbssid_to_ssid_list(sdev, ndev_vif, (u8 *)scan_ssid, ssid_len, new_bssid, current_freq,
+						 current_rssi, akm_type);
+		}
+	}
+
+	return 0;
+}
+#else
 static int slsi_extract_mbssids(struct slsi_dev *sdev, struct netdev_vif *ndev_vif,
 				const struct ieee80211_mgmt *mgmt,
 				struct sk_buff *skb, u8 akm_type)
@@ -412,10 +500,11 @@ static int slsi_extract_mbssids(struct slsi_dev *sdev, struct netdev_vif *ndev_v
 			slsi_mbssid_to_ssid_list(sdev, ndev_vif, (u8 *)scan_ssid, ssid_len, new_bssid, current_freq,
 						 current_rssi, akm_type);
 		}
-		ie = ie + ie[1];
+		ie += ie[1] + 2;
 	}
 	return 0;
 }
+#endif
 
 static void slsi_remove_assoc_disallowed_bssid(struct slsi_dev *sdev, struct netdev_vif *ndev_vif,
 					       struct slsi_scan_result *scan_result)
@@ -3287,12 +3376,15 @@ void slsi_rx_disconnected_ind(struct slsi_dev *sdev, struct net_device *dev, str
 		      fapi_get_vif(skb),
 		      fapi_get_u16(skb, u.mlme_disconnected_ind.reason_code),
 		      fapi_get_buff(skb, u.mlme_disconnected_ind.peer_sta_address));
-
 #if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_HOST_WLAN_REASON_DISCONNECTED_IND);
 #else
 #ifndef SLSI_TEST_DEV
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
+	SLSI_NET_INFO(dev, "SCSC_LOG_COLLECTION not enabled. Sable will not be triggered\n");
+#else
 	mx140_log_dump();
+#endif
 #endif
 #endif
 	if (reason <= 0xFF) {
@@ -4274,3 +4366,4 @@ void slsi_rx_send_frame_cfm_async(struct slsi_dev *sdev, struct net_device *dev,
 	kfree_skb(skb);
 }
 #endif
+

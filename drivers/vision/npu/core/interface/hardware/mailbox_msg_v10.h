@@ -40,13 +40,13 @@
  *  |      Padding                |    |     |
  *  +-----------------------------+-----     |
  *  |      Mailbox #1             |         16MB in maximum (= MAILBOX MEMORY)
- *  | (high priority command)     |          |
+ *  | (low priority command)      |          |
  *  +-----------------------------+          |
  *  |      Mailbox #2             |          |
  *  | (medium priority command)   |          |
  *  +-----------------------------+          |
  *  |      Mailbox #3             |          |
- *  | (low priority command)      |          |
+ *  | (high priority command)     |          |
  *  +-----------------------------+          |
  *  |      Mailbox #4             |          |
  *  | (high priority response)    |          |
@@ -61,7 +61,7 @@
 
 #define MESSAGE_MAX_CNT			64
 #define MESSAGE_MAGIC			0xC0DECAFE
-#define MESSAGE_MARK			0xCAFEC0DE
+#define MESSAGE_MARK			0xDEADC0DE
 
 /* payload size of load includes only ncp header */
 struct cmd_load {

@@ -232,7 +232,7 @@ int auto_sleep_thread_terminate(struct auto_sleep_thread *thrctx)
 	dump_auto_sleep_thread(thrctx);
 
 	/* Wake-up the thread because sleeping thread would not check the stop flag */
-	wake_up_all(&(thrctx->wq));
+	wake_up_interruptible(&(thrctx->wq));
 
 	npu_info("wait for thread termination of (%s)...\n", thrctx->name);
 
@@ -262,7 +262,7 @@ void auto_sleep_thread_signal(struct auto_sleep_thread *thrctx)
 	npu_dbg("sending wakeup signal on ASThread (%s)...\n", thrctx->name);
 
 	// Wake up tasks on the wait_queue
-	wake_up_all(&(thrctx->wq));
+	wake_up_interruptible(&(thrctx->wq));
 
 	return;
 }

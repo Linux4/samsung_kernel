@@ -146,6 +146,9 @@ static bool suspended;
 static DEFINE_MUTEX (thermal_suspend_lock);
 #endif
 
+static int thermal_status_level[3];
+static bool update_thermal_status;
+
 int exynos_build_static_power_table(struct device_node *np, int **var_table,
 		unsigned int *var_volt_size, unsigned int *var_temp_size, char *tz_name)
 {
@@ -427,6 +430,29 @@ static int exynos_get_temp(void *p, int *temp)
 	exynos_acpm_tmu_set_read_temp(data->id, &acpm_temp, &stat, acpm_data);
 
 	*temp = acpm_temp * MCELSIUS;
+
+	// Update thermal status
+	if (update_thermal_status) {
+		ktime_t diff;
+		ktime_t cur_time = ktime_get() / NSEC_PER_MSEC;
+
+		diff = cur_time - data->last_thermal_status_updated;
+
+		if (data->last_thermal_status_updated == 0 && *temp >= thermal_status_level[0]) {
+			data->last_thermal_status_updated = cur_time;
+		} else if (*temp >= thermal_status_level[2]) {
+			data->thermal_status[2] += diff;
+			data->last_thermal_status_updated = cur_time;
+		} else if (*temp >= thermal_status_level[1]) {
+			data->thermal_status[1] += diff;
+			data->last_thermal_status_updated = cur_time;
+		} else if (*temp >= thermal_status_level[0]) {
+			data->thermal_status[0] += diff;
+			data->last_thermal_status_updated = cur_time;
+		} else {
+			data->last_thermal_status_updated = 0;
+		}
+	}
 
 	if (data->id == 0)
 	    limited_max_freq = PM_QOS_CLUSTER2_FREQ_MAX_DEFAULT_VALUE;
@@ -1263,6 +1289,12 @@ static int exynos_map_dt_data(struct platform_device *pdev)
 	} else
 		strncpy(data->tmu_name, tmu_name, THERMAL_NAME_LENGTH);
 
+	if (of_property_read_bool(pdev->dev.of_node, "thermal_status_level")) {
+		of_property_read_u32_array(pdev->dev.of_node, "thermal_status_level", (u32 *)&thermal_status_level,
+				(size_t)(ARRAY_SIZE(thermal_status_level)));
+		update_thermal_status = true;
+	}
+
 	data->hotplug_enable = of_property_read_bool(pdev->dev.of_node, "hotplug_enable");
 	if (data->hotplug_enable) {
 		dev_info(&pdev->dev, "thermal zone use hotplug function \n");
@@ -1865,11 +1897,37 @@ static ssize_t thermal_log_show(struct file *file, struct kobject *kobj,
 	return printed;
 }
 
+static ssize_t thermal_status_show(struct kobject *kobj, struct kobj_attribute *attr,
+		char *buf)
+{
+	ssize_t count = 0;
+	struct exynos_tmu_data *devnode;
+
+	count += snprintf(buf + count, PAGE_SIZE, "DOMAIN %10d %10d %10d\n",
+			thermal_status_level[0], thermal_status_level[1],
+			thermal_status_level[2]);
+	list_for_each_entry(devnode, &dtm_dev_list, node) {
+		exynos_report_trigger(devnode);
+		mutex_lock(&devnode->lock);
+		count += snprintf(buf + count, PAGE_SIZE, "%6s %10llu %10llu %10llu\n",
+				devnode->tmu_name, devnode->thermal_status[0],
+				devnode->thermal_status[1], devnode->thermal_status[2]);
+		devnode->thermal_status[0] = 0;
+		devnode->thermal_status[1] = 0;
+		devnode->thermal_status[2] = 0;
+		mutex_unlock(&devnode->lock);
+	}
+
+	return count;
+}
+
 static struct bin_attribute thermal_log_bin_attr = {
 	.attr.name = "thermal_log",
 	.attr.mode = 0400,
 	.read = thermal_log_show,
 };
+
+static struct kobj_attribute thermal_status_attr = __ATTR(thermal_status, 0440, thermal_status_show, NULL);
 
 #define create_s32_param_attr(name)						\
 	static ssize_t								\
@@ -2357,6 +2415,7 @@ static int exynos_tmu_probe(struct platform_device *pdev)
 
 		kobj = kobject_create_and_add("exynos-thermal", kernel_kobj);
 		sysfs_create_bin_file(kobj, &thermal_log_bin_attr);
+		sysfs_create_file(kobj, &thermal_status_attr.attr);
 	}
 
 	if (data->use_pi_thermal) {

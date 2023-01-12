@@ -102,12 +102,19 @@ static inline bool is_dsim_enabled(const struct dsim_device *dsim)
 	return	dsim->state == DSIM_STATE_HSCLKEN || dsim->state == DSIM_STATE_INIT;
 }
 
+static inline bool is_dsim_doze_suspended(const struct dsim_device *dsim)
+{
+	return	dsim->state == DSIM_STATE_SUSPEND && dsim->lp_mode_state;
+}
+
 static const struct of_device_id dsim_of_match[] = {
 	{ .compatible = "samsung,exynos-dsim",
 	  .data = NULL },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, dsim_of_match);
+
+static int dsim_wait_fifo_empty(struct dsim_device *dsim, u32 frames);
 
 void dsim_dump(struct dsim_device *dsim)
 {
@@ -120,6 +127,21 @@ void dsim_dump(struct dsim_device *dsim)
 	regs.phy_regs = dsim->res.phy_regs;
 	regs.phy_regs_ex = dsim->res.phy_regs_ex;
 	__dsim_dump(dsim->id, &regs);
+}
+
+static struct drm_connector *exynos_encoder_get_conn(struct drm_encoder *encoder,
+						     struct drm_atomic_state *state)
+{
+	struct drm_connector *conn;
+	const struct drm_connector_state *new_conn_state;
+	int i;
+
+	for_each_new_connector_in_state(state, conn, new_conn_state, i) {
+		if (new_conn_state->best_encoder == encoder)
+			return conn;
+	}
+
+	return NULL;
 }
 
 static int dsim_phy_power_on(struct dsim_device *dsim)
@@ -180,13 +202,14 @@ void dsim_exit_ulps(struct dsim_device *dsim)
 {
 	dsim_debug(dsim, "%s +\n", __func__);
 
+	mutex_lock(&dsim->cmd_lock);
 	if (dsim->state != DSIM_STATE_ULPS)
-		return;
+		goto out;
 
+	pm_runtime_get_sync(dsim->dev);
 #if defined(CONFIG_CPU_IDLE)
 	exynos_update_ip_idle_status(dsim->idle_ip_index, 0);
 #endif
-
 	dsim_phy_power_on(dsim);
 
 	dsim_reg_init(dsim->id, &dsim->config, &dsim->clk_param, false);
@@ -194,22 +217,30 @@ void dsim_exit_ulps(struct dsim_device *dsim)
 
 	dsim->state = DSIM_STATE_HSCLKEN;
 	enable_irq(dsim->irq);
+out:
+	mutex_unlock(&dsim->cmd_lock);
 
 	dsim_debug(dsim, "%s -\n", __func__);
 }
 
-static void dsim_enable(struct drm_encoder *encoder)
+static void dsim_enable_locked(struct drm_encoder *encoder)
 {
 	struct dsim_device *dsim = encoder_to_dsim(encoder);
 	struct exynos_drm_crtc *exynos_crtc = dsim_get_exynos_crtc(dsim);
+	bool irq_enabled = dsim->state == DSIM_STATE_INIT;
+
+	if (!mutex_is_locked(&dsim->cmd_lock)){
+		dsim_err(dsim, "%s is called w/o lock from %ps\n", __func__,
+				__builtin_return_address(0));
+		return;
+	}
 
 	if (dsim->state == DSIM_STATE_HSCLKEN) {
 		dsim_info(dsim, "already enabled(%d)\n", dsim->state);
 		return;
 	}
 
-	dsim_info(dsim, "%s +\n", __func__);
-
+	pm_runtime_get_sync(dsim->dev);
 	pm_stay_awake(dsim->dev);
 #if IS_ENABLED(CONFIG_PM_SLEEP)
 	dev_warn(dsim->dev, "pm_stay_awake(active : %lu, relax : %lu)\n",
@@ -223,19 +254,14 @@ static void dsim_enable(struct drm_encoder *encoder)
 	exynos_update_ip_idle_status(dsim->idle_ip_index, 0);
 #endif
 
-	mutex_lock(&dsim->cmd_lock);
-
 	dsim_phy_power_on(dsim);
 
 	dsim_reg_init(dsim->id, &dsim->config, &dsim->clk_param, true);
 	dsim_reg_start(dsim->id);
 
-	if (dsim->state != DSIM_STATE_INIT)
-		enable_irq(dsim->irq);
-
 	dsim->state = DSIM_STATE_HSCLKEN;
-
-	mutex_unlock(&dsim->cmd_lock);
+	if (!irq_enabled)
+		enable_irq(dsim->irq);
 
 #if defined(DSIM_BIST)
 	dsim_reg_set_bist(dsim->id, true, DSIM_GRAY_GRADATION);
@@ -243,23 +269,47 @@ static void dsim_enable(struct drm_encoder *encoder)
 #endif
 
 	DPU_EVENT_LOG(DPU_EVT_DSIM_ENABLED, exynos_crtc, dsim);
+}
+
+static void dsim_atomic_enable(struct drm_encoder *encoder,
+			       struct drm_atomic_state *state)
+{
+	struct dsim_device *dsim = encoder_to_dsim(encoder);
+	struct drm_connector *conn;
+	struct drm_connector_state *conn_state;
+	struct exynos_drm_connector_state *exynos_conn_state;
+
+	dsim_info(dsim, "%s +\n", __func__);
+
+	conn = exynos_encoder_get_conn(encoder, state);
+	if (!conn) {
+		dsim_err(dsim, "%s can't find binded connector\n", __func__);
+		return;
+	}
+
+	conn_state = drm_atomic_get_new_connector_state(state, conn);
+	exynos_conn_state = to_exynos_connector_state(conn_state);
+
+	mutex_lock(&dsim->cmd_lock);
+	dsim_enable_locked(encoder);
+	dsim->lp_mode_state = exynos_conn_state->exynos_mode.is_lp_mode;
+	mutex_unlock(&dsim->cmd_lock);
 
 	dsim_info(dsim, "%s -\n", __func__);
 }
 
 void dsim_enter_ulps(struct dsim_device *dsim)
 {
-	if (dsim->state != DSIM_STATE_HSCLKEN)
-		return;
-
 	dsim_debug(dsim, "%s +\n", __func__);
 
 	/* Wait for current read & write CMDs. */
 	mutex_lock(&dsim->cmd_lock);
-	dsim->state = DSIM_STATE_ULPS;
-	mutex_unlock(&dsim->cmd_lock);
+
+	if (!is_dsim_enabled(dsim))
+		goto out;
 
 	disable_irq(dsim->irq);
+	dsim->state = DSIM_STATE_ULPS;
 	dsim_reg_stop_and_enter_ulps(dsim->id, 0, 0x1F);
 
 	dsim_phy_power_off(dsim);
@@ -267,36 +317,42 @@ void dsim_enter_ulps(struct dsim_device *dsim)
 #if defined(CONFIG_CPU_IDLE)
 	exynos_update_ip_idle_status(dsim->idle_ip_index, 1);
 #endif
+	pm_runtime_put_sync(dsim->dev);
+out:
+	mutex_unlock(&dsim->cmd_lock);
 
 	dsim_debug(dsim, "%s -\n", __func__);
 }
 
-static void dsim_disable(struct drm_encoder *encoder)
+static void dsim_disable_locked(struct drm_encoder *encoder)
 {
-	u32 lanes;
 	struct dsim_device *dsim = encoder_to_dsim(encoder);
 	struct exynos_drm_crtc *exynos_crtc = dsim_get_exynos_crtc(dsim);
+	u32 lanes;
+
+	if (!mutex_is_locked(&dsim->cmd_lock)){
+		dsim_err(dsim, "%s is called w/o lock from %ps\n", __func__,
+				__builtin_return_address(0));
+		return;
+	}
 
 	if (dsim->state == DSIM_STATE_SUSPEND) {
 		dsim_info(dsim, "already disabled(%d)\n", dsim->state);
 		return;
 	}
 
-	dsim_info(dsim, "%s +\n", __func__);
+	dsim_wait_fifo_empty(dsim, 3);
 
-	/* Wait for current read & write CMDs. */
-	mutex_lock(&dsim->cmd_lock);
 	del_timer(&dsim->cmd_timer);
 #if defined(CONFIG_EXYNOS_DMA_DSIMFC)
 	del_timer(&dsim->fcmd_timer);
 #endif
 
+	disable_irq(dsim->irq);
+	dsim->state = DSIM_STATE_SUSPEND;
+
 	lanes = DSIM_LANE_CLOCK | GENMASK(dsim->config.data_lane_cnt, 1);
 	dsim_reg_stop(dsim->id, lanes);
-	disable_irq(dsim->irq);
-
-	dsim->state = DSIM_STATE_SUSPEND;
-	mutex_unlock(&dsim->cmd_lock);
 
 	dsim_phy_power_off(dsim);
 
@@ -304,6 +360,7 @@ static void dsim_disable(struct drm_encoder *encoder)
 	exynos_update_ip_idle_status(dsim->idle_ip_index, 1);
 #endif
 
+	pm_runtime_put_sync(dsim->dev);
 	pm_relax(dsim->dev);
 #if IS_ENABLED(CONFIG_PM_SLEEP)
 	dev_warn(dsim->dev, "pm_relax(active : %lu, relax : %lu)\n",
@@ -314,6 +371,19 @@ static void dsim_disable(struct drm_encoder *encoder)
 #endif
 
 	DPU_EVENT_LOG(DPU_EVT_DSIM_DISABLED, exynos_crtc, dsim);
+}
+
+static void dsim_atomic_disable(struct drm_encoder *encoder,
+				struct drm_atomic_state *state)
+{
+	struct dsim_device *dsim = encoder_to_dsim(encoder);
+
+	dsim_info(dsim, "%s +\n", __func__);
+
+	/* Wait for current read & write CMDs. */
+	mutex_lock(&dsim->cmd_lock);
+	dsim_disable_locked(encoder);
+	mutex_unlock(&dsim->cmd_lock);
 
 	dsim_info(dsim, "%s -\n", __func__);
 }
@@ -641,18 +711,12 @@ static void dsim_set_display_mode(struct dsim_device *dsim,
 			config->dsc.slice_height);
 }
 
-static void dsim_atomic_mode_set(struct drm_encoder *encoder,
-				 struct drm_crtc_state *crtc_state,
-				 struct drm_connector_state *conn_state)
+static void dsim_atomic_seamless_mode_set(struct dsim_device *dsim,
+		struct exynos_drm_connector_state *exynos_conn_state)
 {
-	struct dsim_device *dsim = encoder_to_dsim(encoder);
 	struct dsim_reg_config *config = &dsim->config;
-	struct exynos_drm_connector_state *exynos_conn_state =
-					to_exynos_connector_state(conn_state);
 
-	dsim_set_display_mode(dsim, &crtc_state->adjusted_mode,
-			&exynos_conn_state->exynos_mode);
-
+	mutex_lock(&dsim->cmd_lock);
 	if (exynos_conn_state->seamless_modeset & SEAMLESS_MODESET_MRES)
 		dsim_reg_set_mres(dsim->id, config);
 	if (exynos_conn_state->seamless_modeset & SEAMLESS_MODESET_VREF) {
@@ -663,6 +727,24 @@ static void dsim_atomic_mode_set(struct drm_encoder *encoder,
 			dsim_reg_set_porch(dsim->id, config);
 		}
 	}
+	if (exynos_conn_state->seamless_modeset & SEAMLESS_MODESET_LP) {
+		dsim->lp_mode_state = exynos_conn_state->exynos_mode.is_lp_mode;
+	}
+	mutex_unlock(&dsim->cmd_lock);
+}
+
+static void dsim_atomic_mode_set(struct drm_encoder *encoder,
+				 struct drm_crtc_state *crtc_state,
+				 struct drm_connector_state *conn_state)
+{
+	struct dsim_device *dsim = encoder_to_dsim(encoder);
+	struct exynos_drm_connector_state *exynos_conn_state =
+					to_exynos_connector_state(conn_state);
+
+	dsim_set_display_mode(dsim, &crtc_state->adjusted_mode,
+			&exynos_conn_state->exynos_mode);
+	if (exynos_conn_state->seamless_modeset)
+		dsim_atomic_seamless_mode_set(dsim, exynos_conn_state);
 }
 
 static enum drm_mode_status dsim_mode_valid(struct drm_encoder *encoder,
@@ -724,8 +806,8 @@ static int dsim_atomic_check(struct drm_encoder *encoder,
 static const struct drm_encoder_helper_funcs dsim_encoder_helper_funcs = {
 	.mode_valid = dsim_mode_valid,
 	.atomic_mode_set = dsim_atomic_mode_set,
-	.enable = dsim_enable,
-	.disable = dsim_disable,
+	.atomic_enable = dsim_atomic_enable,
+	.atomic_disable = dsim_atomic_disable,
 	.atomic_check = dsim_atomic_check,
 };
 
@@ -910,8 +992,7 @@ static irqreturn_t dsim_irq_handler(int irq, void *dev_id)
 
 	if (!is_dsim_enabled(dsim)) {
 		dsim_info(dsim, "dsim power is off state(0x%x)\n", dsim->state);
-		spin_unlock(&dsim->slock);
-		return IRQ_HANDLED;
+		goto out;
 	}
 
 	int_src = dsim_reg_get_int_and_clear(dsim->id);
@@ -950,6 +1031,7 @@ static irqreturn_t dsim_irq_handler(int irq, void *dev_id)
 		}
 	}
 
+out:
 	spin_unlock(&dsim->slock);
 
 	return IRQ_HANDLED;
@@ -1060,7 +1142,7 @@ static int dsim_host_detach(struct mipi_dsi_host *host,
 
 	dsim_info(dsim, "%s +\n", __func__);
 
-	dsim_disable(&dsim->encoder);
+	dsim_atomic_disable(&dsim->encoder, NULL);
 	if (dsim->panel_bridge) {
 		struct drm_bridge *bridge = dsim->panel_bridge;
 
@@ -1074,32 +1156,33 @@ static int dsim_host_detach(struct mipi_dsi_host *host,
 	return 0;
 }
 
-#if defined(CONFIG_EXYNOS_DMA_DSIMFC)
-#define FCMD_SEND_START		0x4c
-#define FCMD_SEND_CONTINUE	0x5c
-#define FCMD_DATA_MAX_SIZE	0x00100000
-#define FCMD_DFT_FPS		60
+#define DFT_FPS		60
 static int dsim_wait_fifo_empty(struct dsim_device *dsim, u32 frames)
 {
-	const struct decon_device *decon = dsim_get_decon(dsim);
 	int cnt, fps;
+	u64 time_us;
 
-	if (!decon)
-		dsim_info(dsim, "no decon drvdata!!!\n");
-
-	fps = decon ? decon->config.fps : FCMD_DFT_FPS;
-	cnt = frames * 1000000 / fps / 10;
+	fps = dsim->config.p_timing.vrefresh ? : DFT_FPS;
+	time_us = frames * USEC_PER_SEC / fps;
+	cnt = time_us / 10;
 
 	do {
 		if (dsim_reg_header_fifo_is_empty(dsim->id) &&
 			dsim_reg_payload_fifo_is_empty(dsim->id))
 			break;
 		usleep_range(10, 11);
-	} while (cnt--);
+	} while (--cnt);
+
+	if (!cnt)
+		dsim_err(dsim, "%s failed usec(%lld)\n", __func__, time_us);
 
 	return cnt;
 }
 
+#if defined(CONFIG_EXYNOS_DMA_DSIMFC)
+#define FCMD_SEND_START		0x4c
+#define FCMD_SEND_CONTINUE	0x5c
+#define FCMD_DATA_MAX_SIZE	0x00100000
 static int dsim_wait_for_fcmd_xfer_done(struct dsim_device *dsim)
 {
 	const struct decon_device *decon = dsim_get_decon(dsim);
@@ -1109,7 +1192,7 @@ static int dsim_wait_for_fcmd_xfer_done(struct dsim_device *dsim)
 	if (!decon)
 		dsim_info(dsim, "no decon drvdata!!!\n");
 
-	fps = decon ? decon->config.fps : FCMD_DFT_FPS;
+	fps = decon ? decon->config.fps : DFT_FPS;
 	dsimfc_timeout = 10 * 1000000 / fps / 1000;
 
 	ret = wait_event_interruptible_timeout(dsim->dsimfc->xferdone_wq,
@@ -1258,6 +1341,8 @@ static void dsim_fcmd_fail_detector(struct timer_list *arg)
 	struct dsim_device *dsim = from_timer(dsim, arg, fcmd_timer);
 
 	dsim_debug(dsim, "%s +\n", __func__);
+
+	mutex_lock(&dsim->cmd_lock);
 	if (!is_dsim_enabled(dsim)) {
 		dsim_err(dsim, "%s: DSIM is not ready. state(%d)\n", __func__,
 				dsim->state);
@@ -1273,8 +1358,9 @@ static void dsim_fcmd_fail_detector(struct timer_list *arg)
 	}
 
 exit:
+	mutex_unlock(&dsim->cmd_lock);
+
 	dsim_debug(dsim, "%s -\n", __func__);
-	return;
 }
 
 static unsigned int dsim_fcmd_map_handle(struct device *dev,
@@ -1517,6 +1603,7 @@ static void dsim_cmd_fail_detector(struct timer_list *arg)
 
 	dsim_debug(dsim, "%s +\n", __func__);
 
+	mutex_lock(&dsim->cmd_lock);
 	if (!is_dsim_enabled(dsim)) {
 		dsim_err(dsim, "%s: DSIM is not ready. state(%d)\n", __func__,
 				dsim->state);
@@ -1532,11 +1619,12 @@ static void dsim_cmd_fail_detector(struct timer_list *arg)
 	}
 
 exit:
+	mutex_unlock(&dsim->cmd_lock);
+
 	dsim_debug(dsim, "%s -\n", __func__);
 }
 
-static int dsim_wait_for_cmd_fifo_empty(struct dsim_device *dsim,
-		bool must_wait)
+static int dsim_wait_for_cmd_fifo_empty(struct dsim_device *dsim, bool must_wait)
 {
 	int ret = 0;
 
@@ -1736,13 +1824,6 @@ int dsim_write_cmd_set(struct dsim_device *dsim,
 
 	dsim_debug(dsim, "%s+\n", __func__);
 
-	mutex_lock(&dsim->cmd_lock);
-	if (!is_dsim_enabled(dsim)) {
-		dsim_err(dsim, "Not ready(%d)\n", dsim->state);
-		ret = -EINVAL;
-		goto err_exit;
-	}
-
 	if (dsim->config.burst_cmd_en == 0) {
 		dsim_err(dsim, "MIPI burst command is not supported\n");
 		ret = -EINVAL;
@@ -1855,7 +1936,6 @@ int dsim_write_cmd_set(struct dsim_device *dsim,
 	dsim_debug(dsim, "%s-\n", __func__);
 
 err_exit:
-	mutex_unlock(&dsim->cmd_lock);
 
 	return ret;
 }
@@ -1867,11 +1947,29 @@ int dsim_host_cmdset_transfer(struct mipi_dsi_host *host,
 	struct dsim_device *dsim = host_to_dsi(host);
 	const struct exynos_drm_crtc *exynos_crtc = dsim_get_exynos_crtc(dsim);
 	int ret = 0;
+	bool doze_suspend;
 
 	if (exynos_crtc)
 		hibernation_block_exit(exynos_crtc->hibernation);
 
+	mutex_lock(&dsim->cmd_lock);
+	doze_suspend = is_dsim_doze_suspended(dsim);
+	if (!is_dsim_enabled(dsim) && !doze_suspend) {
+		dsim_err(dsim, "Not ready(%d)\n", dsim->state);
+		ret = -EINVAL;
+		goto err_exit;
+	}
+
+	if (doze_suspend)
+		dsim_enable_locked(&dsim->encoder);
+
 	ret = dsim_write_cmd_set(dsim, msg, cmd_cnt, wait_vsync, wait_fifo);
+
+	if (doze_suspend)
+		dsim_disable_locked(&dsim->encoder);
+
+err_exit:
+	mutex_unlock(&dsim->cmd_lock);
 
 	if (exynos_crtc)
 		hibernation_unblock(exynos_crtc->hibernation);
@@ -1887,13 +1985,6 @@ static int dsim_write_data(struct dsim_device *dsim, u32 id, unsigned long d0,
 	bool must_wait = true;
 	struct exynos_drm_crtc *exynos_crtc = dsim_get_exynos_crtc(dsim);
 	const struct exynos_drm_crtc_ops *ops;
-
-	mutex_lock(&dsim->cmd_lock);
-	if (!is_dsim_enabled(dsim)) {
-		dsim_err(dsim, "Not ready(%d)\n", dsim->state);
-		ret = -EINVAL;
-		goto err_exit;
-	}
 
 	if (exynos_crtc) {
 		DPU_EVENT_LOG_CMD(exynos_crtc, id, d0);
@@ -1991,7 +2082,6 @@ static int dsim_write_data(struct dsim_device *dsim, u32 id, unsigned long d0,
 		dsim_err(dsim, "ID(%d): DSIM cmd wr timeout 0x%lx\n", id, d0);
 
 err_exit:
-	mutex_unlock(&dsim->cmd_lock);
 
 	return ret;
 }
@@ -2030,11 +2120,6 @@ static int dsim_read_data(struct dsim_device *dsim, u32 id, u32 addr, u32 cnt,
 	u32 rx_fifo, rx_size = 0;
 	int i = 0, ret = 0;
 
-	if (!is_dsim_enabled(dsim)) {
-		dsim_err(dsim, "Not ready(%d)\n", dsim->state);
-		return -EINVAL;
-	}
-
 	if (cnt > DSIM_RX_FIFO_MAX_DEPTH * 4 - DSIM_RX_PHK_HEADER_SIZE) {
 		dsim_err(dsim, "requested rx size is wrong(%d)\n", cnt);
 		return -EINVAL;
@@ -2061,8 +2146,6 @@ static int dsim_read_data(struct dsim_device *dsim, u32 id, u32 addr, u32 cnt,
 		dsim_err(dsim, "read timeout\n");
 		return -ETIMEDOUT;
 	}
-
-	mutex_lock(&dsim->cmd_lock);
 
 	rx_fifo = dsim_reg_get_rx_fifo(dsim->id);
 	dsim_debug(dsim, "rx fifo:0x%8x, response:0x%x, rx_size:%d\n", rx_fifo,
@@ -2120,7 +2203,6 @@ static int dsim_read_data(struct dsim_device *dsim, u32 id, u32 addr, u32 cnt,
 		ret = rx_size;
 	}
 exit:
-	mutex_unlock(&dsim->cmd_lock);
 
 	return ret;
 }
@@ -2150,9 +2232,21 @@ static ssize_t dsim_host_transfer(struct mipi_dsi_host *host,
 	struct dsim_device *dsim = host_to_dsi(host);
 	const struct exynos_drm_crtc *exynos_crtc = dsim_get_exynos_crtc(dsim);
 	int ret;
+	bool doze_suspend;
 
 	if (exynos_crtc)
 		hibernation_block_exit(exynos_crtc->hibernation);
+
+	mutex_lock(&dsim->cmd_lock);
+	doze_suspend = is_dsim_doze_suspended(dsim);
+	if (!is_dsim_enabled(dsim) && !doze_suspend) {
+		dsim_err(dsim, "Not ready(%d)\n", dsim->state);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	if (doze_suspend)
+		dsim_enable_locked(&dsim->encoder);
 
 	switch (msg->type) {
 	case MIPI_DSI_DCS_READ:
@@ -2166,6 +2260,12 @@ static ssize_t dsim_host_transfer(struct mipi_dsi_host *host,
 		ret = dsim_wr_data(dsim, msg->type, msg->tx_buf, msg->tx_len);
 		break;
 	}
+
+	if (doze_suspend)
+		dsim_disable_locked(&dsim->encoder);
+
+exit:
+	mutex_unlock(&dsim->cmd_lock);
 
 	if (exynos_crtc)
 		hibernation_unblock(exynos_crtc->hibernation);
@@ -2214,14 +2314,16 @@ static ssize_t bist_mode_store(struct device *dev,
 
 	bist_en = bist_mode > 0;
 
+	mutex_lock(&dsim->cmd_lock);
 	if (bist_en && dsim->state == DSIM_STATE_SUSPEND)
-		dsim_enable(&dsim->encoder);
+		dsim_enable_locked(&dsim->encoder);
 
 	dsim_reg_set_bist(dsim->id, bist_en, bist_mode - 1);
 	dsim->bist_mode = bist_mode;
 
 	if (!bist_en && dsim->state == DSIM_STATE_HSCLKEN)
-		dsim_disable(&dsim->encoder);
+		dsim_disable_locked(&dsim->encoder);
+	mutex_unlock(&dsim->cmd_lock);
 
 	dsim_info(dsim, "0:Disable 1:ColorBar 2:GRAY Gradient 3:UserDefined\n");
 	dsim_info(dsim, "4:Prbs7 Random (%d)\n", dsim->bist_mode);
@@ -2441,19 +2543,19 @@ bool dsim_check_stuck(const struct drm_crtc *crtc)
 	if (exynos_crtc)
 		hibernation_block_exit(exynos_crtc->hibernation);
 
+	mutex_lock(&dsim->cmd_lock);
 	if (!is_dsim_enabled(dsim))
 		goto exit;
 
-	spin_lock(&dsim->slock);
 	link = dsim_reg_get_link_status2(dsim->id);
 	dphy = dsim_reg_get_dphy_status(dsim->id);
-	spin_unlock(&dsim->slock);
 
 	if (dsim_check_clklane_stuck(link, dphy) ||
 		dsim_check_datalane_stuck(link, dphy))
 		ret = true;
 
 exit:
+	mutex_unlock(&dsim->cmd_lock);
 	if (exynos_crtc)
 		hibernation_unblock(exynos_crtc->hibernation);
 

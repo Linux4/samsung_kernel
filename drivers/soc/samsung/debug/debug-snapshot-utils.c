@@ -23,6 +23,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
+#include <linux/console.h>
 
 #include <asm/cputype.h>
 #include <asm/stacktrace.h>
@@ -1032,6 +1033,9 @@ static int dbg_snapshot_pre_panic_handler(struct notifier_block *nb,
 {
 	static int in_panic;
 	static int cpu = PANIC_CPU_INVALID;
+
+	if (is_console_locked())
+		console_unlock();
 
 	dbg_snapshot_report_reason(DSS_SIGN_PANIC);
 

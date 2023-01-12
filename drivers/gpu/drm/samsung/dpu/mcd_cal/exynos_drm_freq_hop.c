@@ -161,7 +161,8 @@ void dpu_set_freq_hop(struct exynos_drm_crtc *exynos_crtc, bool en)
 	if ((pms->freq_hop_m != target_m) || (pms->freq_hop_k != target_k)) {
 		if (en) {
 			dsim_set_freq_hop(dsim, &dsim->freq_hop);
-			DPU_EVENT_LOG_FREQ_HOP(exynos_crtc, pms->freq_hop_m, pms->freq_hop_k, target_m, target_k);
+			DPU_EVENT_LOG("FREQ_HOP", exynos_crtc, 0, "[m: %d->%d, k: %d->%d]",
+					pms->freq_hop_m, pms->freq_hop_k, target_m, target_k);
 		} else {
 			pms->freq_hop_m = dsim->freq_hop.target_m;
 			pms->freq_hop_k = dsim->freq_hop.target_k;

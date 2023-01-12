@@ -21,6 +21,7 @@ struct {
 	int qjump;
 	int enabled[CGROUP_COUNT];
 	int prio;
+	int suppress;
 } tex;
 
 int tex_task(struct task_struct *p)
@@ -124,10 +125,25 @@ tex_pinning_schedule(struct tp_env *env, struct cpumask *candidates)
 	cpumask_set_cpu(max_spare_cpu, candidates);
 }
 
+int tex_suppress_task(struct task_struct *p)
+{
+	int sched_class_idx;
+
+	if (!tex.suppress)
+		return 0;
+
+	sched_class_idx = get_sched_class_idx(p->sched_class);
+	if (sched_class_idx == EMS_SCHED_FAIR && p->prio <= DEFAULT_PRIO)
+		return 0;
+
+	return 1;
+}
+
 static void
 tex_pinning_fit_cpus(struct tp_env *env, struct cpumask *fit_cpus)
 {
 	int target = tex_task(env->p);
+	int suppress = tex_suppress_task(env->p);
 
 	if (target) {
 		cpumask_andnot(fit_cpus, &tex.pinning_cpus, &tex.busy_cpus);
@@ -144,13 +160,21 @@ tex_pinning_fit_cpus(struct tp_env *env, struct cpumask *fit_cpus)
 			/* Pick best cpu among fit_cpus */
 			tex_pinning_schedule(env, fit_cpus);
 		}
+	} else if (suppress) {
+		/* Clear fastest & tex-busy cpus for the supressed task */
+		cpumask_andnot(fit_cpus, &env->cpus_allowed, cpu_fastest_mask());
+		cpumask_andnot(fit_cpus, fit_cpus, &tex.busy_cpus);
+
+		if (cpumask_empty(fit_cpus))
+			cpumask_copy(fit_cpus, &env->cpus_allowed);
 	} else {
 		/* Exclude cpus where priority pinning tasks run */
 		cpumask_andnot(fit_cpus, cpu_possible_mask,
 					&tex.busy_cpus);
 	}
 
-	trace_tex_pinning_fit_cpus(env->p, target, fit_cpus, &tex.pinning_cpus, &tex.busy_cpus);
+	trace_tex_pinning_fit_cpus(env->p, target, suppress, fit_cpus,
+				   &tex.pinning_cpus, &tex.busy_cpus);
 }
 
 static int tex_emstune_notifier_call(struct notifier_block *nb,
@@ -169,6 +193,8 @@ static int tex_emstune_notifier_call(struct notifier_block *nb,
 
 	tex.prio = cur_set->tex.prio;
 
+	tex.suppress = cur_set->tex.suppress;
+
 	return NOTIFY_OK;
 }
 
@@ -186,6 +212,8 @@ static void tex_init(void)
 	for (i = 0; i < CGROUP_COUNT; i++)
 		tex.enabled[i] = 0;
 	tex.prio = 0;
+
+	tex.suppress = 0;
 
 	emstune_register_notifier(&tex_emstune_notifier);
 }
@@ -370,14 +398,15 @@ static void prefer_cpu_get(struct tp_env *env, struct cpumask *mask)
 {
 	cpumask_copy(mask, cpu_active_mask);
 
-	if (env->task_util < prefer_cpu.small_task.threshold) {
-		cpumask_and(mask, mask, &prefer_cpu.small_task.mask);
-		return;
-	}
+	if (uclamp_boosted(env->p) || emstune_sched_boost()) {
+		if (env->task_util < prefer_cpu.small_task.threshold) {
+			cpumask_and(mask, mask, &prefer_cpu.small_task.mask);
+			return;
+		}
 
-	if (uclamp_boosted(env->p) || emstune_sched_boost())
 		cpumask_and(mask, mask,
 			&prefer_cpu.mask[cpuctl_task_group_idx(env->p)]);
+	}
 }
 
 static int prefer_cpu_emstune_notifier_call(struct notifier_block *nb,
@@ -753,7 +782,7 @@ static int find_semi_perf_cpu(struct tp_env *env)
 	int cpu;
 	int max_spare_cap_cpu_ls = task_cpu(env->p);
 	unsigned long max_spare_cap_ls = 0;
-	unsigned long spare_cap, util, cpu_cap, target_cap;
+	unsigned long spare_cap, util, cpu_cap, target_cap = 0;
 	struct cpuidle_state *idle;
 
 	for_each_cpu(cpu, &env->fit_cpus) {
@@ -868,6 +897,11 @@ static void find_overcap_cpus(struct tp_env *env, struct cpumask *mask)
 	int cpu;
 	unsigned long util;
 
+	if (env->sched_policy == SCHED_POLICY_SEMI_PERF) {
+		cpumask_clear(mask);
+		return;
+	}
+
 	if (is_misfit_task_util(env->task_util_clamped))
 		goto misfit;
 
@@ -931,7 +965,7 @@ static void find_busy_cpus(struct tp_env *env, struct cpumask *mask)
 
 static int find_fit_cpus(struct tp_env *env)
 {
-	struct cpumask mask[5];
+	struct cpumask mask[6];
 	int cpu = smp_processor_id();
 
 	if (EMS_PF_GET(env->p) & EMS_PF_RUNNABLE_BUSY) {
@@ -949,12 +983,14 @@ static int find_fit_cpus(struct tp_env *env)
 	 * - mask2 : ontime fit cpus
 	 * - mask3 : prefer cpu
 	 * - mask4 : busy cpu
+	 * - mask5 : gsc cpus
 	 */
 	find_overcap_cpus(env, &mask[0]);
 	tex_pinning_fit_cpus(env, &mask[1]);
 	ontime_select_fit_cpus(env->p, &mask[2]);
 	prefer_cpu_get(env, &mask[3]);
 	find_busy_cpus(env, &mask[4]);
+	gsc_fit_cpus(env->p, &mask[5]);
 
 	/*
 	 * Exclude overcap cpu from cpus_allowed. If there is only one or no
@@ -1030,6 +1066,10 @@ static int find_fit_cpus(struct tp_env *env)
 	/* Apply prefer cpu if it is applicable */
 	if (cpumask_intersects(&env->fit_cpus, &mask[3]))
 		cpumask_and(&env->fit_cpus, &env->fit_cpus, &mask[3]);
+
+	/* Apply gsc fit cpus if it is applicable */
+	if (cpumask_intersects(&env->fit_cpus, &mask[5]))
+		cpumask_and(&env->fit_cpus, &env->fit_cpus, &mask[5]);
 
 out:
 	trace_ems_find_fit_cpus(env, mask);

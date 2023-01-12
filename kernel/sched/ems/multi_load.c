@@ -30,8 +30,6 @@ int ml_task_hungry(struct task_struct *p)
 	return 0; /* HACK */
 }
 
-#define UTIL_AVG_UNCHANGED 0x1
-
 /*
  * ml_task_util_est - task util with util-est
  *
@@ -42,7 +40,7 @@ static unsigned long _ml_task_util_est(struct task_struct *p)
 {
 	struct util_est ue = READ_ONCE(p->se.avg.util_est);
 
-	return (max(ue.ewma, ue.enqueued) | UTIL_AVG_UNCHANGED);
+	return max(ue.ewma, (ue.enqueued & ~UTIL_AVG_UNCHANGED));
 }
 
 unsigned long ml_task_util_est(struct task_struct *p)

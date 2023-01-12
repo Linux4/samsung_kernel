@@ -193,6 +193,9 @@ struct is_cis {
 
 	struct work_struct		global_setting_work;
 	struct work_struct		mode_setting_work;
+#if defined(CONFIG_CAMERA_USE_MCU)
+	struct work_struct		ois_init_work;
+#endif
 
 	/* cis_off work for streaming off onto vsync */
 	struct work_struct		cis_off_work;
@@ -319,6 +322,9 @@ struct is_flash_data {
 	struct work_struct		flash_fire_work;
 	struct timer_list		flash_expire_timer;
 	struct work_struct		flash_expire_work;
+#ifdef CONFIG_LEDS_S2MU106_FLASH
+	struct work_struct		muic_ctrl_and_flash_fire_work;
+#endif
 
 	/* used for LED calibration */
 	u32				cal_input_curr[FLASH_LED_CH_MAX];

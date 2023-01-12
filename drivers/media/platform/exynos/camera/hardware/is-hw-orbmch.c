@@ -914,12 +914,8 @@ static int is_hw_orbmch_disable(struct is_hw_ip *hw_ip, u32 instance, ulong hw_m
 	param_set = &hw_orbmch->param_set[instance];
 	param_set->fcount = 0;
 
-	if (test_bit(HW_RUN, &hw_ip->state)) {
-		if (IS_ENABLED(ORBMCH_DDK_LIB_CALL))
-			is_lib_isp_stop(hw_ip, &hw_orbmch->lib[instance], instance, 1);
-	} else {
-		msdbg_hw(2, "already disabled\n", instance, hw_ip);
-	}
+	if (IS_ENABLED(ORBMCH_DDK_LIB_CALL))
+		is_lib_isp_stop(hw_ip, &hw_orbmch->lib[instance], instance, 1);
 
 	if (atomic_dec_return(&hw_ip->run_rsccount) > 0)
 		return 0;

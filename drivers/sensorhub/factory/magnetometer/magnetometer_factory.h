@@ -30,5 +30,8 @@ int check_mmc5633_adc_data_spec(s32 sensor_value[3]);
 struct device_attribute **get_magnetometer_yas539_dev_attrs(char *name);
 int check_yas539_adc_data_spec(s32 sensor_value[3]);
 
+struct device_attribute **get_magnetometer_mxg4300s_dev_attrs(char *name);
+int check_mxg4300s_adc_data_spec(s32 sensor_value[3]);
+
 void get_magnetometer_sensor_value_s32(struct mag_power_event *event, s32 *sensor_value);
 #endif

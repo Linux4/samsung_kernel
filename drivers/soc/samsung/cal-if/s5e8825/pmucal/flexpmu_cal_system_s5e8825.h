@@ -1,7 +1,7 @@
 #ifndef ACPM_FRAMEWORK
 /* common sequence descriptor for lpm init. - exposed to common logic */
 struct pmucal_seq pmucal_lpm_init[] = {
-	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "TCXO_DURATION3", 0x11860000, 0x0284, (0xfffff << 0), (0xa27 << 0), 0, 0, 0xffffffff, 0),
+//	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "TCXO_DURATION3", 0x11860000, 0x0284, (0xfffff << 0), (0xa27 << 0), 0, 0, 0xffffffff, 0), //move fullswpmu
 	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "PS_HOLD_CONTROL", 0x11860000, 0x030c, (0x1 << 31), (0x1 << 31), 0, 0, 0xffffffff, 0),
 	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "PS_HOLD_CONTROL", 0x11860000, 0x030c, (0x1 << 8), (0x1 << 8), 0, 0, 0xffffffff, 0),
 	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "CPUCL0_CLKDIVSTEP_CON", 0x10820000, 0x0834, (0xffffffff << 0), (0xf041c3 << 0), 0, 0, 0xffffffff, 0),

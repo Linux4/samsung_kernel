@@ -52,10 +52,6 @@
 #include "./mafpc/mafpc_drv.h"
 #endif
 
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-#include "./display_profiler/display_profiler.h"
-#endif
-
 #ifdef CONFIG_SUPPORT_POC_SPI
 #include "panel_spi.h"
 #endif
@@ -107,6 +103,7 @@ enum panel_gpio_lists {
 	PANEL_GPIO_PCD,
 	PANEL_GPIO_ERR_FG,
 	PANEL_GPIO_CONN_DET,
+	PANEL_GPIO_DISP_TE,
 	PANEL_GPIO_MAX,
 };
 
@@ -115,6 +112,7 @@ enum panel_gpio_lists {
 #define PANEL_GPIO_NAME_PCD ("pcd")
 #define PANEL_GPIO_NAME_ERR_FG ("err-fg")
 #define PANEL_GPIO_NAME_CONN_DET ("conn-det")
+#define PANEL_GPIO_NAME_DISP_TE ("disp-te")
 
 #define PANEL_REGULATOR_NAME_DDI_VCI ("ddi-vci")
 #define PANEL_REGULATOR_NAME_DDI_VDD3 ("ddi-vdd3")
@@ -206,6 +204,7 @@ struct panel_drv_funcs {
 	int (*get_mres)(struct panel_device *, void *);
 	int (*set_display_mode)(struct panel_device *, void *);
 	int (*get_display_mode)(struct panel_device *, void *);
+	int (*reset_lp11)(struct panel_device *);
 
 	/* display controller event operation */
 	int (*vsync)(struct panel_device *, void *);
@@ -256,6 +255,9 @@ int panel_drv_dm_off_panel_ffc_ioctl(struct panel_device *panel, void *arg);
 bool panel_is_gpio_valid(struct panel_device *panel, enum panel_gpio_lists panel_gpio_id);
 int panel_enable_gpio_irq(struct panel_device *panel, enum panel_gpio_lists panel_gpio_id);
 int panel_disable_gpio_irq(struct panel_device *panel, enum panel_gpio_lists panel_gpio_id);
+int panel_poll_gpio(struct panel_device *panel,
+		enum panel_gpio_lists panel_gpio_id, bool expect_level,
+		unsigned long sleep_us, unsigned long timeout_us);
 int panel_enable_disp_det_irq(struct panel_device *panel);
 int panel_disable_disp_det_irq(struct panel_device *panel);
 int panel_enable_pcd_irq(struct panel_device *panel);
@@ -578,9 +580,6 @@ struct panel_device {
 	struct dynamic_mipi_info dynamic_mipi;
 #endif
 
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	struct profiler_device profiler;
-#endif
 	struct panel_obj_properties properties;
 	struct panel_debug d;
 
@@ -598,6 +597,8 @@ int panel_ssr_test(struct panel_device *panel);
 #ifdef CONFIG_SUPPORT_ECC_TEST
 int panel_ecc_test(struct panel_device *panel);
 #endif
+int panel_decoder_test(struct panel_device *panel, u8 *buf, int len);
+bool check_panel_decoder_test_exists(struct panel_device *panel);
 int panel_ddi_init(struct panel_device *panel);
 
 #ifdef CONFIG_SUPPORT_DIM_FLASH

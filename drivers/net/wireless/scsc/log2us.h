@@ -35,10 +35,10 @@ void slsi_conn_log2us_disconnect(struct slsi_dev *sdev, struct net_device *dev,
 void slsi_conn_log2us_eapol_gtk(struct slsi_dev *sdev, struct net_device *dev, int eapol_msg_type);
 void slsi_conn_log2us_eapol_ptk(struct slsi_dev *sdev, struct net_device *dev, int eapol_msg_type);
 void slsi_conn_log2us_roam_scan_start(struct slsi_dev *sdev, struct net_device *dev, int reason,
-				      int roam_rssi_val, int chan_utilisation,
-				      int rssi_thresh, int timestamp);
+				      int roam_rssi_val, short chan_utilisation,
+				      int rssi_thresh, u64 timestamp);
 void slsi_conn_log2us_roam_result(struct slsi_dev *sdev, struct net_device *dev,
-				  char *bssid, u32 timestamp, bool roam_candidate);
+				  char *bssid, u64 timestamp, bool roam_candidate);
 void slsi_conn_log2us_eap(struct slsi_dev *sdev, struct net_device *dev, u8 *eap_type);
 void slsi_conn_log2us_dhcp(struct slsi_dev *sdev, struct net_device *dev, char *str);
 void slsi_conn_log2us_dhcp_tx(struct slsi_dev *sdev, struct net_device *dev,
@@ -67,10 +67,10 @@ void slsi_conn_log2us_deauth(struct slsi_dev *sdev, struct net_device *dev, char
 
 void slsi_conn_log2us_disassoc(struct slsi_dev *sdev, struct net_device *dev, char *str_type,
 			       const unsigned char *bssid, int sn, int status);
-void slsi_conn_log2us_roam_scan_done(struct slsi_dev *sdev, struct net_device *dev, int timestamp);
+void slsi_conn_log2us_roam_scan_done(struct slsi_dev *sdev, struct net_device *dev, u64 timestamp);
 void slsi_conn_log2us_roam_scan_result(struct slsi_dev *sdev, struct net_device *dev, bool curr,
 				       char *bssid, int freq,
-				       int rssi, int cu,
+				       int rssi, short cu,
 				       int score, int tp_score, bool eligible);
 void slsi_conn_log2us_btm_query(struct slsi_dev *sdev, struct net_device *dev,
 				int dialog, int reason);

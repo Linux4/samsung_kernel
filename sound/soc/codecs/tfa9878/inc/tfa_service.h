@@ -110,7 +110,7 @@ extern "C" {
  * The total wait time depends on device settings. Those
  * are application specific.
  */
-#define TFA98XX_LOADFW_NTRIES			20
+#define TFA98XX_LOADFW_NTRIES			800
 #define TFA98XX_WAITRESULT_NTRIES		40
 #define TFA98XX_WAITRESULT_NTRIES_LONG	2000
 

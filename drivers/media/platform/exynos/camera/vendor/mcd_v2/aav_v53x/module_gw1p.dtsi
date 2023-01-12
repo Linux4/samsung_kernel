@@ -279,7 +279,7 @@
 						gpio_scenario = <GPIO_SCENARIO_ON>;
 						/* pname = "name"; pin = <act value delay voltage>; gpio = <gpx# # 0x1>; */
 						10 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 5000>; };
-						20 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
+						20 { pname = "on_i2c"; pin = <PIN_I2C 1 1500>; };
 					};
 
 					scenario_read_rom_off {

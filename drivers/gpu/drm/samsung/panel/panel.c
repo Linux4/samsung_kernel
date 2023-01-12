@@ -14,7 +14,7 @@
 #include <video/mipi_display.h>
 #include <linux/lcd.h>
 #include <linux/spi/spi.h>
-#include <kunit/mock.h>
+#include "panel_kunit.h"
 #include "panel_drv.h"
 #include "panel.h"
 #include "panel_debug.h"
@@ -335,23 +335,23 @@ struct seqinfo *find_panel_seqtbl(struct panel_info *panel_data, char *name)
 	return NULL;
 }
 
-int check_seqtbl_exist(struct panel_info *panel_data, u32 index)
+bool check_seqtbl_exist(struct panel_info *panel_data, u32 index)
 {
 	if (unlikely(!panel_data->seqtbl)) {
 		panel_err("seqtbl not exist\n");
-		return -EINVAL;
+		return false;
 	}
 
 	if (unlikely(index >= MAX_PANEL_SEQ)) {
 		panel_err("invalid parameter (index %d)\n", index);
-		return -EINVAL;
+		return false;
 	}
 
 
 	if (panel_data->seqtbl[index].cmdtbl != NULL)
-		return 1;
+		return true;
 
-	return 0;
+	return false;
 }
 
 struct seqinfo *find_index_seqtbl(struct panel_info *panel_data, u32 index)
@@ -956,10 +956,6 @@ DEFINE_REDIRECT_MOCKABLE(panel_cmdq_flush, RETURNS(int), PARAMS(struct panel_dev
 int REAL_ID(panel_cmdq_flush)(struct panel_device *panel)
 {
 	int i, ret;
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	struct profiler_log pp, pc;
-	struct timespec64 start, end;
-#endif
 	bool tx_done_wait = true;
 
 	if (unlikely(!panel))
@@ -967,21 +963,6 @@ int REAL_ID(panel_cmdq_flush)(struct panel_device *panel)
 
 	if (panel_cmdq_is_empty(panel))
 		return 0;
-
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	memset(&pp, 0, sizeof(struct profiler_log));
-	memset(&pc, 0, sizeof(struct profiler_log));
-
-	if (panel->profiler.initialized) {
-		ktime_get_ts64(&start);
-		pp.time = start;
-		PLOG_SET_TYPE(pp.header, PLOG_PANEL);
-		PLOG_SET_SUBTYPE(pp.header, PLOG_PANEL_CMD_FLUSH_START);
-		pp.panel.count = panel_cmdq_get_size(panel);
-		pp.panel.size = panel->cmdq.cmd_payload_size + panel->cmdq.img_payload_size;
-		v4l2_subdev_call(&panel->profiler.sd, core, ioctl, PROFILE_LOG, &pp);
-	}
-#endif
 
 	if (panel->mipi_drv.write_table != NULL) {
 		if (panel_get_property_value(panel, PANEL_OBJ_PROPERTY_WAIT_TX_DONE) == WAIT_TX_DONE_MANUAL_OFF)
@@ -991,21 +972,6 @@ int REAL_ID(panel_cmdq_flush)(struct panel_device *panel)
 				panel_cmdq_get_size(panel), tx_done_wait);
 		if (ret < 0)
 			panel_err("failed to panel_dsi_write_table %d\n", ret);
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-		if (ret >= 0 && panel->profiler.initialized) {
-			for (i = 0; i < panel_cmdq_get_size(panel); i++) {
-				ktime_get_ts64(&pc.time);
-				PLOG_SET_DIR(pc.header, PLOG_DIRECTION_WRITE);
-				PLOG_SET_TYPE(pc.header, PLOG_CMD_DSI_FLUSH);
-				PLOG_SET_SUBTYPE(pc.header, (panel->cmdq.cmd[i].cmd_id & 0xFF));
-				pc.cmd.command = *panel->cmdq.cmd[i].buf;
-				pc.cmd.size = panel->cmdq.cmd[i].size;
-				pc.cmd.offset = panel->cmdq.cmd[i].offset;
-				pc.cmd.data = (u8 *)panel->cmdq.cmd[i].buf;
-				v4l2_subdev_call(&panel->profiler.sd, core, ioctl, PROFILE_LOG, &pc);
-			}
-		}
-#endif
 	} else if (panel->mipi_drv.write != NULL) {
 		for (i = 0; i < panel_cmdq_get_size(panel); i++) {
 			if (panel_get_property_value(panel, PANEL_OBJ_PROPERTY_WAIT_TX_DONE) == WAIT_TX_DONE_MANUAL_OFF)
@@ -1023,31 +989,9 @@ int REAL_ID(panel_cmdq_flush)(struct panel_device *panel)
 				panel_err("failed to panel_dsi_write_data %d\n", ret);
 				break;
 			}
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-			if (panel->profiler.initialized) {
-				ktime_get_ts64(&pc.time);
-				PLOG_SET_DIR(pc.header, PLOG_DIRECTION_WRITE);
-				PLOG_SET_TYPE(pc.header, PLOG_CMD_DSI);
-				PLOG_SET_SUBTYPE(pc.header, (panel->cmdq.cmd[i].cmd_id & 0xFF));
-				pc.cmd.command = *panel->cmdq.cmd[i].buf;
-				pc.cmd.size = panel->cmdq.cmd[i].size;
-				pc.cmd.offset = panel->cmdq.cmd[i].offset;
-				pc.cmd.data = (u8 *)panel->cmdq.cmd[i].buf;
-				v4l2_subdev_call(&panel->profiler.sd, core, ioctl, PROFILE_LOG, &pc);
-			}
-#endif
 		}
 	}
 
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	if (panel->profiler.initialized) {
-		PLOG_SET_TYPE(pp.header, PLOG_PANEL);
-		PLOG_SET_SUBTYPE(pp.header, PLOG_PANEL_CMD_FLUSH_END);
-		ktime_get_ts64(&end);
-		pp.time = timespec64_sub(end, start);
-		v4l2_subdev_call(&panel->profiler.sd, core, ioctl, PROFILE_LOG, &pp);
-	}
-#endif
 	for (i = 0; i < panel_cmdq_get_size(panel); i++) {
 		kfree(panel->cmdq.cmd[i].buf);
 		panel->cmdq.cmd[i].buf = NULL;
@@ -1166,9 +1110,6 @@ static int panel_dsi_sr_write_data(struct panel_device *panel,
 		u8 cmd_id, const u8 *buf, u32 ofs, int size, u32 option)
 {
 	void *ctx;
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	struct profiler_log pp;
-#endif
 
 	if (unlikely(!panel || !panel->mipi_drv.sr_write))
 		return -EINVAL;
@@ -1176,22 +1117,6 @@ static int panel_dsi_sr_write_data(struct panel_device *panel,
 	ctx = get_ctrl_interface(panel);
 	if (!ctx)
 		return -EINVAL;
-
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	memset(&pp, 0, sizeof(struct profiler_log));
-	if (panel->profiler.initialized) {
-		ktime_get_ts64(&pp.time);
-		PLOG_SET_DIR(pp.header, PLOG_DIRECTION_WRITE);
-		PLOG_SET_TYPE(pp.header, PLOG_CMD_DSI);
-		PLOG_SET_TYPE(pp.header, PLOG_DSI_SR_FAST_CMD);
-		pp.cmd.command = *buf;
-		pp.cmd.size = size;
-		pp.cmd.offset = ofs;
-		pp.cmd.data = (u8 *)buf;
-		pp.cmd.option = 0;
-		v4l2_subdev_call(&panel->profiler.sd, core, ioctl, PROFILE_LOG, &pp);
-	}
-#endif
 
 	return panel->mipi_drv.sr_write(ctx, cmd_id, buf, ofs, size, option);
 }
@@ -1331,9 +1256,6 @@ static int panel_dsi_read_data(struct panel_device *panel,
 {
 	u32 option = 0;
 	int ret;
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	struct profiler_log pp;
-#endif
 	void *ctx;
 
 	if (unlikely(!panel || !panel->mipi_drv.read))
@@ -1353,22 +1275,6 @@ static int panel_dsi_read_data(struct panel_device *panel,
 	mutex_lock(&panel->cmdq.lock);
 	panel_cmdq_flush(panel);
 	ret = panel->mipi_drv.read(ctx, addr, ofs, buf, size, option);
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	memset(&pp, 0, sizeof(struct profiler_log));
-
-	if (panel->profiler.initialized) {
-		ktime_get_ts64(&pp.time);
-		PLOG_SET_DIR(pp.header, PLOG_DIRECTION_READ);
-		PLOG_SET_TYPE(pp.header, PLOG_CMD_DSI);
-		PLOG_SET_SUBTYPE(pp.header, PLOG_DSI_GEN_CMD);
-		pp.cmd.command = addr;
-		pp.cmd.size = size;
-		pp.cmd.offset = ofs;
-		pp.cmd.data = (u8 *)buf;
-		pp.cmd.option = option;
-		v4l2_subdev_call(&panel->profiler.sd, core, ioctl, PROFILE_LOG, &pp);
-	}
-#endif
 	mutex_unlock(&panel->cmdq.lock);
 
 	return ret;
@@ -1986,29 +1892,11 @@ static int _panel_do_seqtbl(struct panel_device *panel,
 	bool condition = true, cont;
 	int cond_skip_count = 0;
 	ktime_t s_time = ktime_get();
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	struct profiler_log pp;
-	struct timespec64 end = { 0, 0 };
-#endif
 
 	if (unlikely(!panel || !seqtbl)) {
 		panel_err("invalid parameter (panel %p, seqtbl %p)\n", panel, seqtbl);
 		return -EINVAL;
 	}
-
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	memset(&pp, 0, sizeof(struct profiler_log));
-	if (panel->profiler.initialized) {
-		ktime_get_ts64(&pp.time);
-		PLOG_SET_DIR(pp.header, PLOG_DIRECTION_WRITE);
-		PLOG_SET_TYPE(pp.header, PLOG_PANEL);
-		PLOG_SET_SUBTYPE(pp.header, PLOG_PANEL_SEQ_START);
-		pp.panel.size = seqtbl->size;
-		pp.panel.index = depth;
-		pp.panel.name = seqtbl->name;
-		v4l2_subdev_call(&panel->profiler.sd, core, ioctl, PROFILE_LOG, &pp);
-	}
-#endif
 
 	cmdtbl = seqtbl->cmdtbl;
 	if (unlikely(!cmdtbl)) {
@@ -2206,20 +2094,6 @@ static int _panel_do_seqtbl(struct panel_device *panel,
 		mutex_unlock(&panel->cmdq.lock);
 	}
 
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	if (panel->profiler.initialized) {
-		ktime_get_ts64(&end);
-		pp.time = timespec64_sub(end, pp.time);
-		PLOG_SET_DIR(pp.header, PLOG_DIRECTION_WRITE);
-		PLOG_SET_TYPE(pp.header, PLOG_PANEL);
-		PLOG_SET_SUBTYPE(pp.header, PLOG_PANEL_SEQ_END);
-		pp.panel.size = i;
-		pp.panel.index = depth;
-		pp.panel.name = seqtbl->name;
-		v4l2_subdev_call(&panel->profiler.sd, core, ioctl, PROFILE_LOG, &pp);
-	}
-#endif
-
 	if (!condition)
 		panel_err("condition end missing!\n");
 
@@ -2330,6 +2204,7 @@ int panel_do_seqtbl_by_index_nolock(struct panel_device *panel, int index)
 
 	return excute_seqtbl_nolock(panel, panel->panel_data.seqtbl, index);
 }
+EXPORT_SYMBOL(panel_do_seqtbl_by_index_nolock);
 
 int panel_do_seqtbl_by_index(struct panel_device *panel, int index)
 {
@@ -2652,7 +2527,7 @@ int panel_tx_nbytes(struct panel_device *panel,
 }
 
 
-#if defined(CONFIG_EXYNOS_DECON_LCD_TFT_COMMON)
+#if IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_TFT_COMMON)
 int read_panel_id(struct panel_device *panel, u8 *buf)
 {
 	int len, ret = 0;

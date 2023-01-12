@@ -73,4 +73,7 @@ bool mali_exynos_dmabuf_is_cached(struct dma_buf *dmabuf);
 typedef ssize_t (*sysfs_read_func)(struct device *, struct device_attribute *, char *);
 void mali_exynos_sysfs_set_gpu_model_callback(sysfs_read_func show_gpu_model_fn);
 
+/* debug */
+void mali_exynos_debug_print_info(struct kbase_device *kbdev);
+
 #endif /* _MALI_EXYNOS_KBASE_ENTRYPOINTS_H_ */

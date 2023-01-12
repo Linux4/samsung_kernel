@@ -541,7 +541,7 @@ int abox_core_download_firmware(void)
 	abox_info(dev, "%s\n", __func__);
 
 	memset(data->dram_base, 0, DRAM_FIRMWARE_SIZE);
-	memset_io(data->sram_base, 0, data->sram_size);
+	memset_io(data->sram_base, 0, SRAM_FIRMWARE_SIZE);
 
 	list_for_each_entry(core, &cores, list) {
 		size_t len = ARRAY_SIZE(core->fw);

@@ -122,7 +122,7 @@ static ssize_t thresh_low_store(struct device *dev, struct device_attribute *att
 	return size;
 }
 
-static ssize_t raw_data_show(struct device *dev, struct device_attribute *attr, char *buf)
+u16 get_prox_raw_data(void)
 {
 	u16 raw_data = 0;
 	s32 ms_delay = 20;
@@ -143,7 +143,13 @@ static ssize_t raw_data_show(struct device *dev, struct device_attribute *attr, 
 		raw_data = sensor_value->prox_raw;
 	}
 
-	return sprintf(buf, "%u\n", raw_data);
+	return raw_data;
+}
+
+
+static ssize_t raw_data_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", get_prox_raw_data());
 }
 
 static ssize_t prox_avg_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -191,6 +197,40 @@ static ssize_t prox_position_show(struct device *dev, struct device_attribute *a
 		       position[5]);
 }
 
+static ssize_t trim_check_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int ret = 0;
+	char *buffer = NULL;
+	int buffer_len = 0;
+	u8 trim_check;
+
+	ret = shub_send_command_wait(CMD_GETVALUE, SENSOR_TYPE_PROXIMITY, PROX_SUBCMD_TRIM_CHECK, 1000, NULL, 0,
+								 &buffer, &buffer_len, true);
+
+	if (ret < 0) {
+		shub_errf("shub_send_command_wait fail %d", ret);
+		return ret;
+	}
+
+	if (buffer_len != sizeof(trim_check)) {
+		shub_errf("buffer length error %d", buffer_len);
+		kfree(buffer);
+		return -EINVAL;
+	}
+
+	memcpy(&trim_check, buffer, sizeof(trim_check));
+	kfree(buffer);
+
+	shub_infof("%d", __func__, trim_check);
+
+	if (trim_check != 0 && trim_check != 1) {
+		shub_errf("hub read trim NG");
+		return -EINVAL;
+	}
+
+	return snprintf(buf, PAGE_SIZE, "%s\n", (trim_check == 0) ? "TRIM" : "UNTRIM");
+}
+
 static DEVICE_ATTR_RO(prox_position);
 static DEVICE_ATTR_RO(prox_probe);
 static DEVICE_ATTR(thresh_high, 0664, thresh_high_show, thresh_high_store);
@@ -198,6 +238,7 @@ static DEVICE_ATTR(thresh_low, 0664, thresh_low_show, thresh_low_store);
 static DEVICE_ATTR_RO(raw_data);
 static DEVICE_ATTR(prox_avg, 0664, prox_avg_show, prox_avg_store);
 static DEVICE_ATTR_RO(prox_offset_pass);
+static DEVICE_ATTR_RO(trim_check);
 
 static struct device_attribute *proximity_attrs[] = {
 	&dev_attr_prox_probe,
@@ -206,6 +247,7 @@ static struct device_attribute *proximity_attrs[] = {
 	&dev_attr_raw_data,
 	&dev_attr_prox_avg,
 	&dev_attr_prox_offset_pass,
+	NULL,
 	NULL,
 	NULL,
 };
@@ -217,11 +259,13 @@ get_chipset_dev_attrs get_proximity_chipset_dev_attrs[] = {
 	get_proximity_stk3328_dev_attrs,
 	get_proximity_tmd4912_dev_attrs,
 	get_proximity_stk33910_dev_attrs,
+	get_proximity_stk33512_dev_attrs,
 };
 
 static void check_proximity_dev_attr(void)
 {
 	struct device_node *np = get_shub_device()->of_node;
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PROXIMITY);
 	int index = 0;
 
 	while (proximity_attrs[index] != NULL)
@@ -232,6 +276,11 @@ static void check_proximity_dev_attr(void)
 			proximity_attrs[index++] = &dev_attr_prox_position;
 		shub_info("prox-position - %u.%u %u.%u %u.%u", position[0], position[1], position[2], position[3],
 			   position[4], position[5]);
+	}
+
+	if (sensor->spec.vendor == VENDOR_AMS || sensor->spec.vendor == VENDOR_SITRONIX) {
+		if (index < ARRAY_SIZE(proximity_attrs))
+			proximity_attrs[index++] = &dev_attr_trim_check;
 	}
 }
 

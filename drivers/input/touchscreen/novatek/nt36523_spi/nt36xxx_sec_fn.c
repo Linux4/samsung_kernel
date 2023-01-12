@@ -212,7 +212,7 @@ static void nvt_ts_read_mdata(struct nvt_ts_data *ts, int *buff, u32 xdata_addr,
 	data_len = ts->platdata->x_num * ts->platdata->y_num * 2;
 	residual_len = (head_addr + dummy_len + data_len) % XDATA_SECTOR_SIZE;
 
-	rawdata_buf = kzalloc(ts->platdata->x_num * ts->platdata->y_num * 2 + dummy_len, GFP_KERNEL);
+	rawdata_buf = vzalloc(ts->platdata->x_num * ts->platdata->y_num * 2 + dummy_len);
 	if (!rawdata_buf)
 		return;
 
@@ -265,7 +265,7 @@ static void nvt_ts_read_mdata(struct nvt_ts_data *ts, int *buff, u32 xdata_addr,
 	//---set xdata index to EVENT BUF ADDR---
 	nvt_set_page(ts->mmap->EVENT_BUF_ADDR);
 
-	kfree(rawdata_buf);
+	vfree(rawdata_buf);
 }
 
 static void nvt_ts_change_mode(struct nvt_ts_data *ts, u8 mode)
@@ -1554,6 +1554,11 @@ u16 nvt_ts_mode_read(struct nvt_ts_data *ts)
 	u8 buf[4] = {0};
 	int mode_masked;
 
+	if (ts->shutdown_called) {
+		input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
+		return -EIO;
+	}
+
 	//---set xdata index to EVENT BUF ADDR---
 	nvt_set_page(ts->mmap->EVENT_BUF_ADDR | EVENT_MAP_FUNCT_STATE);
 
@@ -1590,6 +1595,11 @@ int nvt_ts_mode_switch(struct nvt_ts_data *ts, u8 cmd, bool print_log)
 		buf[0] = EVENT_MAP_HOST_CMD;
 		buf[1] = cmd;
 		CTP_SPI_WRITE(ts->client, buf, 2);
+
+		if (ts->shutdown_called) {
+			input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
+			return -EIO;
+		}
 
 		usleep_range(15000, 16000);
 
@@ -1630,7 +1640,13 @@ int nvt_ts_mode_switch_extended(struct nvt_ts_data *ts, u8 *cmd, u8 len, bool pr
 	for (i = 0; i < retry; i++) {
 		//---set cmd---
 		CTP_SPI_WRITE(ts->client, cmd, len);
+
+		if (ts->shutdown_called) {
+			input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
+			return -EIO;
+		}
 		usleep_range(15000, 16000);
+
 		//---read cmd status---
 		CTP_SPI_READ(ts->client, buf, 2);
 		if (buf[1] == 0x00)
@@ -1666,80 +1682,26 @@ int nvt_ts_mode_restore(struct nvt_ts_data *ts)
 	input_info(true, &ts->client->dev, "%s: sec_function:0x%X\n",
 				__func__, ts->sec_function);
 
-	for (i = GLOVE; i < FUNCT_MAX; i++) {
+	for (i = FUNCT_MIN; i < FUNCT_MAX; i++) {
 		if ((ts->sec_function >> i) & 0x01) {
 			switch(i) {
 			case GLOVE:
-				if (ts->sec_function & GLOVE_MASK)
-					cmd = GLOVE_ENTER;
-				else
-					cmd = GLOVE_LEAVE;
+				cmd = GLOVE_ENTER;
 				break;
 			case CHARGER:
-				if (ts->sec_function & CHARGER_MASK)
-					cmd = CHARGER_PLUG_AC;
-				else
-					cmd = CHARGER_PLUG_OFF;
+				cmd = CHARGER_PLUG_AC;
 				break;
-/*
-			case EDGE_REJECT_L:
-				i++;
-			case EDGE_REJECT_H:
-				switch((ts->sec_function & EDGE_REJECT_MASK) >> EDGE_REJECT_L) {
-					case EDGE_REJ_LEFT_UP:
-						cmd = EDGE_REJ_LEFT_UP_MODE;
-						break;
-					case EDGE_REJ_RIGHT_UP:
-						cmd = EDGE_REJ_RIGHT_UP_MODE;
-						break;
-					default:
-						cmd = EDGE_REJ_VERTICLE_MODE;
-				}
-				break;
-			case EDGE_PIXEL:
-				if (ts->sec_function & EDGE_PIXEL_MASK)
-					cmd = EDGE_AREA_ENTER;
-				else
-					cmd = EDGE_AREA_LEAVE;
-				break;
-			case HOLE_PIXEL:
-				if (ts->sec_function & HOLE_PIXEL_MASK)
-					cmd = HOLE_AREA_ENTER;
-				else
-					cmd = HOLE_AREA_LEAVE;
-				break;
-*/
 			case SPAY_SWIPE:
-				if (ts->sec_function & SPAY_SWIPE_MASK)
-					cmd = SPAY_SWIPE_ENTER;
-				else
-					cmd = SPAY_SWIPE_LEAVE;
+				cmd = SPAY_SWIPE_ENTER;
 				break;
 			case DOUBLE_CLICK:
-				if (ts->sec_function & DOUBLE_CLICK_MASK)
-					cmd = DOUBLE_CLICK_ENTER;
-				else
-					cmd = DOUBLE_CLICK_LEAVE;
+				cmd = DOUBLE_CLICK_ENTER;
 				break;
-/*
-			case BLOCK_AREA:
-				if (ts->touchable_area && ts->sec_function & BLOCK_AREA_MASK)
-					cmd = BLOCK_AREA_ENTER;
-				else
-					cmd = BLOCK_AREA_LEAVE;
-				break;
-*/
 			case HIGH_SENSITIVITY:
-				if (ts->sec_function & HIGH_SENSITIVITY_MASK)
-					cmd = HIGH_SENSITIVITY_ENTER;
-				else
-					cmd = HIGH_SENSITIVITY_LEAVE;
+				cmd = HIGH_SENSITIVITY_ENTER;
 				break;
 			case SENSITIVITY:
-				if (ts->sec_function & SENSITIVITY_MASK)
-					cmd = SENSITIVITY_ENTER;
-				else
-					cmd = SENSITIVITY_LEAVE;
+				cmd = SENSITIVITY_ENTER;
 				break;
 			default:
 				continue;
@@ -1751,8 +1713,7 @@ int nvt_ts_mode_restore(struct nvt_ts_data *ts)
 				if (ret < 0)
 					cmd = BLOCK_AREA_LEAVE;
 			}
-#endif	// end of #if SHOW_NOT_SUPPORT_CMD
-
+#endif
 			ret = nvt_ts_mode_switch(ts, cmd, false);
 			if (ret)
 				input_info(true, &ts->client->dev, "%s: failed to restore %X\n", __func__, cmd);
@@ -2255,9 +2216,9 @@ static void ear_detect_enable(void *device_data)
 		ts->ear_detect_mode = sec->cmd_param[0];
 	}
 
-	if (ts->power_status == POWER_OFF_STATUS) {
+	if (ts->power_status == POWER_OFF_STATUS || ts->power_status == LP_MODE_EXIT) {
 		ts->ed_reset_flag = true;
-		input_err(true, &ts->client->dev, "%s: POWER_STATUS IS NOT ON(%d)!\n",
+		input_err(true, &ts->client->dev, "%s: not handle cmd, power state(%d)!\n",
 					__func__, ts->power_status);
 		goto out;
 	}
@@ -2313,6 +2274,11 @@ static void prox_lp_scan_mode(void *device_data)
 
 	if (ts->power_status != LP_MODE_STATUS) {
 		input_err(true, &ts->client->dev, "%s: Not LP_MODE_STATUS!\n", __func__);
+		goto out;
+	}
+
+	if (!ts->ear_detect_mode) {
+		input_err(true, &ts->client->dev, "%s: ED mode off skip!\n", __func__);
 		goto out;
 	}
 
@@ -2510,7 +2476,7 @@ static void aot_enable(void *device_data)
 	sec_cmd_set_default_result(sec);
 
 	if (!ts->platdata->enable_settings_aot) {
-		input_err(true, &ts->client->dev, "%s: Not support AOT!\n", __func__);
+		input_err(true, &ts->client->dev, "%s: Not support AOT(%d)!\n", __func__, sec->cmd_param[0]);
 		goto out;
 	}
 
@@ -5211,6 +5177,11 @@ void read_tsp_info_onboot(void *device_data)
 	sec->cmd_all_factory_state = SEC_CMD_STATUS_RUNNING;
 	ts->cmd_result_all_onboot = true;
 
+	if (ts->power_status == POWER_OFF_STATUS) {
+		input_err(true, &ts->client->dev, "%s: POWER_STATUS : OFF!\n", __func__);
+		goto out;
+	}
+
 	mutex_lock(&ts->lock);
 	//---Download MP FW---
 	nvt_ts_fw_update_from_mp_bin(ts, true);
@@ -5225,11 +5196,17 @@ void read_tsp_info_onboot(void *device_data)
 	run_self_noise_min_read(sec);
 	run_sram_test(sec);
 
+	if (ts->power_status == POWER_OFF_STATUS) {
+		input_err(true, &ts->client->dev, "%s: POWER_STATUS : OFF!\n", __func__);
+		goto out;
+	}
+
 	mutex_lock(&ts->lock);
 	//---Download Normal FW---
 	nvt_ts_fw_update_from_mp_bin(ts, false);
 	mutex_unlock(&ts->lock);
 
+out:
 	ts->cmd_result_all_onboot = false;
 	sec->cmd_all_factory_state = SEC_CMD_STATUS_OK;
 
@@ -5387,7 +5364,7 @@ static void get_func_mode(void *device_data)
 
 	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
 }
-#endif	// end of #if SHOW_NOT_SUPPORT_CMD
+#endif
 
 static void run_prox_intensity_read_all(void *device_data)
 {
@@ -5503,7 +5480,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("run_sram_test", run_sram_test),},
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	{SEC_CMD("get_func_mode", get_func_mode),},
-#endif	// end of #if SHOW_NOT_SUPPORT_CMD
+#endif
 	{SEC_CMD("run_prox_intensity_read_all", run_prox_intensity_read_all),},
 	{SEC_CMD("factory_cmd_result_all", factory_cmd_result_all),},
 	{SEC_CMD("incell_power_control", incell_power_control),},
@@ -5926,23 +5903,25 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 
 	input_info(true, &ts->client->dev, "%s: %d %d\n", __func__, buff[0], buff[1]);
 
-	/* handle same sequence : buff[0] = LCD_ON, LCD_DOZE1, LCD_DOZE2*/
-	if (buff[0] == LCD_DOZE1 || buff[0] == LCD_DOZE2)
-		buff[0] = LCD_ON;
+	/* handle same sequence : buff[0] = DISPLAY_STATE_ON, DISPLAY_STATE_DOZE, DISPLAY_STATE_DOZE_SUSPEND */
+	if (buff[0] == DISPLAY_STATE_DOZE || buff[0] == DISPLAY_STATE_DOZE_SUSPEND)
+		buff[0] = DISPLAY_STATE_ON;
 
-	if (buff[0] == LCD_ON) {
-		if (buff[1] == LCD_EARLY_EVENT)
+	if (buff[0] == DISPLAY_STATE_ON) {
+		if (buff[1] == DISPLAY_EVENT_EARLY)
 			nvt_ts_early_resume(&ts->client->dev);
-		else if (buff[1] == LCD_LATE_EVENT)
+		else if (buff[1] == DISPLAY_EVENT_LATE)
 			nvt_ts_resume(&ts->client->dev);
-	} else if (buff[0] == LCD_OFF) {
-		if (buff[1] == LCD_EARLY_EVENT)
+	} else if (buff[0] == DISPLAY_STATE_OFF) {
+		if (buff[1] == DISPLAY_EVENT_EARLY)
 			nvt_ts_suspend(&ts->client->dev);
-	} else if (buff[0] == LPM_OFF) {
-		cancel_delayed_work_sync(&ts->nvt_fwu_work);
-		nvt_ts_suspend(&ts->client->dev);
-	} else if (buff[0] == SHUTDOWN) {
-		cancel_delayed_work_sync(&ts->nvt_fwu_work);
+	} else if (buff[0] == DISPLAY_STATE_LPM_OFF) {
+		input_info(true, &ts->client->dev, "%s: DISPLAY_STATE_LPM_OFF ++\n", __func__);
+		ts->power_status = POWER_OFF_STATUS;
+		pinctrl_configure(ts, false);
+		nvt_irq_enable(false);
+		input_info(true, &ts->client->dev, "%s: DISPLAY_STATE_LPM_OFF --\n", __func__);
+	} else if (buff[0] == DISPLAY_STATE_SERVICE_SHUTDOWN) {
 		nvt_irq_enable(false);
 		ts->power_status = POWER_OFF_STATUS;
 		pinctrl_configure(ts, false);
@@ -5952,7 +5931,7 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 	return count;
 }
 
-ssize_t get_lp_dump(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t get_lp_dump(struct device *dev, struct device_attribute *attr, char *buf)
 {
 #if SEC_LPWG_DUMP
 	nvt_ts_lpwg_dump_buf_read(buf);

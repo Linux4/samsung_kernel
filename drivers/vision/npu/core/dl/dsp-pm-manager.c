@@ -69,7 +69,6 @@ void dsp_pm_manager_free(void)
 	dsp_dl_free(pm_init_lib);
 }
 
-/*
 void dsp_pm_manager_print(void)
 {
 	DL_INFO(DL_BORDER);
@@ -78,7 +77,6 @@ void dsp_pm_manager_print(void)
 	DL_INFO("\n");
 	dsp_tlsf_print(pm_manager);
 }
-*/
 
 int dsp_pm_manager_alloc_libs(struct dsp_lib **libs, int libs_size,
 	int *pm_inv)
@@ -149,7 +147,6 @@ void dsp_pm_free(struct dsp_lib *lib)
 	}
 }
 
-/*
 void dsp_pm_print(struct dsp_lib *lib)
 {
 	unsigned int *text = (unsigned int *)lib->pm->start_addr;
@@ -173,4 +170,3 @@ void dsp_pm_print(struct dsp_lib *lib)
 	DL_BUF_STR("\n");
 	DL_PRINT_BUF(DEBUG);
 }
-*/

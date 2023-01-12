@@ -940,6 +940,7 @@
 					vcc-supply = <0x41>;
 					clocks = <0x22 0x04>;
 					clock-names = "refclk";
+					no-hpd;
 					phandle = <0xee>;
 
 					ports {

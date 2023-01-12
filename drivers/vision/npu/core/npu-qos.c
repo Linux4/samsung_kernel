@@ -742,6 +742,9 @@ npu_s_param_ret npu_qos_param_handler(struct npu_session *sess, struct vs4l_para
 	BUG_ON(!sess);
 	BUG_ON(!param);
 
+	if (!qos_setting)
+		return S_PARAM_NOMB;
+
 	npu_info("uid:%u category:%u offset:%u\n", sess->uid, param->target, param->offset);
 
 	mutex_lock(&qos_setting->npu_qos_lock);

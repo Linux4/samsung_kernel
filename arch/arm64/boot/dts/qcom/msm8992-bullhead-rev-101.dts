@@ -152,11 +152,6 @@
 		interrupts = <0x01 0x07 0xf04>;
 	};
 
-	psci {
-		compatible = "arm,psci-0.2";
-		method = "hvc";
-	};
-
 	reserved-memory {
 		#address-cells = <0x02>;
 		#size-cells = <0x02>;

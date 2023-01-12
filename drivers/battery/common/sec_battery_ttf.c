@@ -28,99 +28,74 @@ static bool check_ttf_state(unsigned int capacity, int bat_sts)
 		(bat_sts == POWER_SUPPLY_STATUS_FULL && capacity != 100));
 }
 
-int sec_calc_ttf(struct sec_battery_info * battery, unsigned int ttf_curr)
+static int get_cc_cv_time(struct sec_battery_info * battery, int ttf_curr, int soc, bool minimum)
 {
 	struct sec_cv_slope *cv_data = battery->ttf_d->cv_data;
-	int i, cc_time = 0, cv_time = 0;
-	int soc = battery->capacity;
-	int charge_current = ttf_curr;
-	int design_cap = battery->ttf_d->ttf_capacity;
+	int i, design_cap = battery->ttf_d->ttf_capacity;
+	int cc_time = 0, cv_time = 0;
+	int minimum_time = 0;
+
+	for (i = 0; i < battery->ttf_d->cv_data_length; i++) {
+		if (ttf_curr >= cv_data[i].fg_current)
+			break;
+	}
+	i = i >= battery->ttf_d->cv_data_length ? battery->ttf_d->cv_data_length - 1 : i;
+	if (cv_data[i].soc < soc) {
+		for (i = 0; i < battery->ttf_d->cv_data_length; i++) {
+			if (soc <= cv_data[i].soc)
+				break;
+		}
+		cv_time =
+		    ((cv_data[i - 1].time - cv_data[i].time) * (cv_data[i].soc - soc)
+		     / (cv_data[i].soc - cv_data[i - 1].soc)) + cv_data[i].time;
+	} else {		/* CC mode || NONE */
+		cv_time = cv_data[i].time;
+		cc_time =
+			design_cap * (cv_data[i].soc - soc) / ttf_curr * 3600 / 1000;
+		pr_debug("%s: cc_time: %d\n", __func__, cc_time);
+		if (cc_time < 0)
+			cc_time = 0;
+	}
+
+	pr_info("%s: cap: %d, soc: %4d, T: %6d, avg: %4d, cv soc: %4d, i: %4d, val: %d, minimum:%d\n",
+	     __func__, design_cap, soc, cv_time + cc_time,
+	     battery->current_avg, cv_data[i].soc, i, ttf_curr, minimum);
+
+	if (minimum)
+		minimum_time = 60;
+
+	return ((cc_time + cv_time >= 0) ? (cc_time + cv_time + minimum_time) : minimum_time);
+}
+
+static int get_current_soc( char *name)
+{
 	union power_supply_propval value = {0, };
 
 	value.intval = SEC_FUELGAUGE_CAPACITY_TYPE_DYNAMIC_SCALE;
-	psy_do_property(battery->pdata->fuelgauge_name, get,
+	psy_do_property(name, get,
 			POWER_SUPPLY_PROP_CAPACITY, value);
-	soc = value.intval;
 
-	if (!cv_data || (ttf_curr <= 0)) {
-		pr_info("%s: no cv_data or val: %d\n", __func__, ttf_curr);
-		return -1;
-	}
-	for (i = 0; i < battery->ttf_d->cv_data_length; i++) {
-		if (charge_current >= cv_data[i].fg_current)
-			break;
-	}
-	i = i >= battery->ttf_d->cv_data_length ? battery->ttf_d->cv_data_length - 1 : i;
-	if (cv_data[i].soc < soc) {
-		for (i = 0; i < battery->ttf_d->cv_data_length; i++) {
-			if (soc <= cv_data[i].soc)
-				break;
-		}
-		cv_time =
-		    ((cv_data[i - 1].time - cv_data[i].time) * (cv_data[i].soc - soc)
-		     / (cv_data[i].soc - cv_data[i - 1].soc)) + cv_data[i].time;
-	} else {		/* CC mode || NONE */
-		cv_time = cv_data[i].time;
-		cc_time =
-			design_cap * (cv_data[i].soc - soc) / ttf_curr * 3600 / 1000;
-		pr_debug("%s: cc_time: %d\n", __func__, cc_time);
-		if (cc_time < 0)
-			cc_time = 0;
-	}
-
-	pr_info("%s: cap: %d, soc: %4d, T: %6d, avg: %4d, cv soc: %4d, i: %4d, val: %d\n",
-	     __func__, design_cap, soc, cv_time + cc_time,
-	     battery->current_avg, cv_data[i].soc, i, ttf_curr);
-
-	if (cv_time + cc_time >= 0)
-		return cv_time + cc_time + 60;
-	else
-		return 60;	/* minimum 1minutes */
+	return value.intval;
 }
 
 #define FULL_CAPACITY 850
-int sec_calc_ttf_to_full_capacity(struct sec_battery_info *battery, unsigned int ttf_curr)
+int sec_calc_ttf(struct sec_battery_info * battery, unsigned int ttf_curr)
 {
 	struct sec_cv_slope *cv_data = battery->ttf_d->cv_data;
-	int i, cc_time = 0, cv_time = 0;
-	int soc = FULL_CAPACITY;
-	int charge_current = ttf_curr;
-	int design_cap = battery->ttf_d->ttf_capacity;
+	int total_time;
 
 	if (!cv_data || (ttf_curr <= 0)) {
 		pr_info("%s: no cv_data or val: %d\n", __func__, ttf_curr);
 		return -1;
 	}
-	for (i = 0; i < battery->ttf_d->cv_data_length; i++) {
-		if (charge_current >= cv_data[i].fg_current)
-			break;
-	}
-	i = i >= battery->ttf_d->cv_data_length ? battery->ttf_d->cv_data_length - 1 : i;
-	if (cv_data[i].soc < soc) {
-		for (i = 0; i < battery->ttf_d->cv_data_length; i++) {
-			if (soc <= cv_data[i].soc)
-				break;
-		}
-		cv_time =
-		    ((cv_data[i - 1].time - cv_data[i].time) * (cv_data[i].soc - soc)
-		     / (cv_data[i].soc - cv_data[i - 1].soc)) + cv_data[i].time;
-	} else {		/* CC mode || NONE */
-		cv_time = cv_data[i].time;
-		cc_time =
-			design_cap * (cv_data[i].soc - soc) / ttf_curr * 3600 / 1000;
-		pr_debug("%s: cc_time: %d\n", __func__, cc_time);
-		if (cc_time < 0)
-			cc_time = 0;
+
+	total_time = get_cc_cv_time(battery, ttf_curr, get_current_soc(battery->pdata->fuelgauge_name), true);
+	if (battery->batt_full_capacity > 0 && battery->batt_full_capacity < 100) {
+		pr_info("%s: time to 85 percent\n", __func__);
+		total_time -= get_cc_cv_time(battery, ttf_curr, FULL_CAPACITY, false);
 	}
 
-	pr_info("%s: cap: %d, soc: %4d, T: %6d, avg: %4d, cv soc: %4d, i: %4d, val: %d\n",
-	     __func__, design_cap, soc, cv_time + cc_time,
-	     battery->current_avg, cv_data[i].soc, i, ttf_curr);
-
-	if (cv_time + cc_time >= 0)
-		return cv_time + cc_time;
-	else
-		return 0;
+	return total_time;
 }
 
 void sec_bat_calc_time_to_full(struct sec_battery_info * battery)
@@ -167,12 +142,8 @@ void sec_bat_calc_time_to_full(struct sec_battery_info * battery)
 			charge = (battery->max_charge_power / 5) > battery->pdata->charging_current[battery->cable_type].fast_charging_current ?
 					battery->pdata->charging_current[battery->cable_type].fast_charging_current : (battery->max_charge_power / 5);
 		}
-		if (battery->batt_full_capacity > 0 && battery->batt_full_capacity < 100) {
-			pr_info("%s: time to 85 percent\n", __func__);
-			battery->ttf_d->timetofull =
-				sec_calc_ttf(battery, charge) - sec_calc_ttf_to_full_capacity(battery, charge);
-		} else
-			battery->ttf_d->timetofull = sec_calc_ttf(battery, charge);
+
+		battery->ttf_d->timetofull = sec_calc_ttf(battery, charge);
 		dev_info(battery->dev, "%s: T: %5d sec, passed time: %5ld, current: %d\n",
 				__func__, battery->ttf_d->timetofull, battery->charging_passed_time, charge);
 	} else {
@@ -191,6 +162,7 @@ void sec_bat_predict_wc20_time_to_full_current(struct sec_battery_info *battery,
 
 	pr_info("%s: %dmA \n", __func__, battery->ttf_d->ttf_predict_wc20_charge_current);
 }
+EXPORT_SYMBOL_KUNIT(sec_bat_predict_wc20_time_to_full_current);
 #endif
 
 int sec_ttf_parse_dt(struct sec_battery_info *battery)
@@ -354,6 +326,7 @@ int ttf_display(unsigned int capacity, int bat_sts, int thermal_zone, int time)
 
 	return 0;
 }
+EXPORT_SYMBOL_KUNIT(ttf_display);
 
 void ttf_init(struct sec_battery_info *battery)
 {
@@ -367,3 +340,4 @@ void ttf_init(struct sec_battery_info *battery)
 
 	INIT_DELAYED_WORK(&battery->ttf_d->timetofull_work, sec_bat_time_to_full_work);
 }
+EXPORT_SYMBOL_KUNIT(ttf_init);

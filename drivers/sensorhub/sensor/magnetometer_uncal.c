@@ -20,6 +20,8 @@
 #include "../sensormanager/shub_sensor.h"
 #include "../sensormanager/shub_sensor_manager.h"
 
+#define UNCAL_MAG_RECEIVE_EVENT_SIZE(x) ((x) * 6)
+
 void print_magnetometer_uncal_debug(void)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_MAGNETIC_FIELD_UNCALIBRATED);
@@ -35,25 +37,24 @@ void print_magnetometer_uncal_debug(void)
 
 int get_magnetometer_uncal_sensor_value(char *dataframe, int *index, struct sensor_event *event, int frame_len)
 {
-	struct magnetometer_data *data = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD)->data;
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_MAGNETIC_FIELD_UNCALIBRATED);
 	struct uncal_mag_event *sensor_value = (struct uncal_mag_event *)event->value;
 
-	if (data->mag_event_size == sizeof(s16)) {
+	if (sensor->receive_event_size == sizeof(struct uncal_mag_event)) {
+		memcpy(sensor_value, dataframe + *index, sizeof(struct uncal_mag_event));
+	} else {
 		s16 temp_mag_value[6];
 
 		memcpy(&temp_mag_value, dataframe + *index, sizeof(temp_mag_value));
-		*index += sizeof(temp_mag_value);
 		sensor_value->uncal_x = (s32) temp_mag_value[0];
 		sensor_value->uncal_y = (s32) temp_mag_value[1];
 		sensor_value->uncal_z = (s32) temp_mag_value[2];
 		sensor_value->offset_x = (s32) temp_mag_value[3];
 		sensor_value->offset_y = (s32) temp_mag_value[4];
 		sensor_value->offset_z = (s32) temp_mag_value[5];
-
-	} else { // sizeof(s32)
-		memcpy(sensor_value, dataframe + *index, sizeof(struct uncal_mag_event));
-		*index += sizeof(struct uncal_mag_event);
 	}
+
+	*index += sensor->receive_event_size;
 
 	return 0;
 }
@@ -68,7 +69,13 @@ int init_magnetometer_uncal(bool en)
 	if (en) {
 		strcpy(sensor->name, "uncal_geomagnetic_sensor");
 		sensor->report_mode_continuous = true;
-		sensor->receive_event_size = sizeof(struct uncal_mag_event);
+		if (sensor->spec.version >= MAG_EVENT_SIZE_4BYTE_VERSION)
+			sensor->receive_event_size = UNCAL_MAG_RECEIVE_EVENT_SIZE(sizeof(s32));
+		else
+			sensor->receive_event_size = UNCAL_MAG_RECEIVE_EVENT_SIZE(sizeof(s16));
+
+		shub_infof("receive_event_size : %d", sensor->receive_event_size);
+
 		sensor->report_event_size = sizeof(struct uncal_mag_event);
 		sensor->event_buffer.value = kzalloc(sizeof(struct uncal_mag_event), GFP_KERNEL);
 		if (!sensor->event_buffer.value)

@@ -183,6 +183,7 @@ struct exynos_ufs {
 	/* value 1 whenever resuming, and then we can deal with
 	   UAC(Unit Attention Condition). */
 	u32 resume_state;
+	bool suspend_done;
 
 	/* This variable is for featuring hw functionality */
 	void *fmp;

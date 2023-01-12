@@ -70,11 +70,6 @@ config SUPPORT_AOD_BL
 	depends on MCD_PANEL && MCD_PANEL_LPM
 	default n
 
-config SUPPORT_DISPLAY_PROFILER
-	bool "Support Display Profiler"
-	depends on MCD_PANEL
-	default n
-
 config SUPPORT_DDI_FLASH
 	bool "Support display ddi flash"
 	depends on MCD_PANEL
@@ -215,6 +210,11 @@ config SUPPORT_BRIGHTDOT_TEST
 	depends on MCD_PANEL
 	default n
 
+config SUPPORT_PANEL_DECODER_TEST
+	bool "Support panel decoder test"
+	depends on MCD_PANEL
+	default n
+
 config EVASION_DISP_DET
     bool "Support avoid disp_det interrupt"
     depends on MCD_PANEL
@@ -235,11 +235,8 @@ config MCD_PANEL_BLIC
 	depends on MCD_PANEL
 	default n
 
-source "$(MCD_PANEL_PATH)/s6e3fab/Kconfig"
-source "$(MCD_PANEL_PATH)/s6e3fac/Kconfig"
-source "$(MCD_PANEL_PATH)/s6e3hab/Kconfig"
-source "$(MCD_PANEL_PATH)/s6e3had/Kconfig"
-source "$(MCD_PANEL_PATH)/s6e3hae/Kconfig"
-source "$(MCD_PANEL_PATH)/s6e3fc3/Kconfig"
-source "$(MCD_PANEL_PATH)/s6e8fc3/Kconfig"
-source "$(MCD_PANEL_PATH)/tft_common/Kconfig"
+config UNSUPPORT_INIT_READ
+	bool "Support unsupport init read"
+	depends on MCD_PANEL
+	default n
+

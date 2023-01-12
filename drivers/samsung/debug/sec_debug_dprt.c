@@ -23,8 +23,8 @@
 #include "sec_debug_internal.h"
 
 /* "D9" for all DEBUG partition magic */
-#define DPRT_HEADER_MAGIC	(0xD9A70914)
-#define DPRT_HEADER_VERSION	(0xD9211122)
+#define DPRT_HEADER_MAGIC	(0xD9A70214)
+#define DPRT_HEADER_VERSION	(0xD9220214)
 
 /* common header structure for DEBUG partition */
 struct dprt_header {

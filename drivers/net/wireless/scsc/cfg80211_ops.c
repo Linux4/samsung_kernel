@@ -1961,7 +1961,7 @@ int slsi_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
-	SLSI_NET_DBG3(dev, SLSI_CFG80211, "enabled:%d, vif_type:%d, vif_index:%d\n", enabled, ndev_vif->vif_type,
+	SLSI_NET_INFO(dev, "PS MODE enabled:%d, vif_type:%d, vif_index:%d\n", enabled, ndev_vif->vif_type,
 		      ndev_vif->ifnum);
 
 	if (ndev_vif->activated && ndev_vif->vif_type == FAPI_VIFTYPE_STATION) {

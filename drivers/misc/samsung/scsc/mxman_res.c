@@ -132,6 +132,7 @@ struct memlog_obj *mxman_res_get_memlog_obj(struct scsc_mif_abs *mif, const char
 	return obj;
 }
 
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
 static void mxman_res_set_memlog_version(struct scsc_mif_abs *mif)
 {
 	struct memlog *desc = memlog_get_desc("WB_LOG");
@@ -161,6 +162,7 @@ static void mxman_res_set_memlog_version(struct scsc_mif_abs *mif)
 		memlog_version_info = (struct scsc_memlog_version_info *)scsc_memlog_version_info_obj->vaddr;
 	}
 }
+#endif
 #endif
 
 #if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
@@ -865,8 +867,8 @@ static int mxman_res_transports_init_wlan(struct mxman *mxman, void *data, size_
 	mxconf->version.minor = MXCONF_VERSION_MINOR;
 	/* Pass pre-existing FM status to FW */
 	mxconf->flags = 0;
-#ifdef CONFIG_SCSC_FM
-	mxconf->flags |= is_fm_on ? MXCONF_FLAGS_FM_ON : 0;
+#if IS_ENABLED(CONFIG_SCSC_FM)
+	mxconf->flags |= mxman->on_halt_ldos_on ? MXCONF_FLAGS_FM_ON : 0;
 #endif
 	SCSC_TAG_INFO(MXMAN, "mxconf flags 0x%08x\n", mxconf->flags);
 
@@ -1009,8 +1011,8 @@ static int mxman_res_transports_init_wpan(struct mxman *mxman, void *data, size_
 	mxconf_wpan->version.minor = MXCONF_VERSION_MINOR;
 	/* Pass pre-existing FM status to FW */
 	mxconf_wpan->flags = 0;
-#ifdef CONFIG_SCSC_FM
-	mxconf_wpan->flags |= is_fm_on ? MXCONF_FLAGS_FM_ON : 0;
+#if IS_ENABLED(CONFIG_SCSC_FM)
+	mxconf_wpan->flags |= mxman->on_halt_ldos_on ? MXCONF_FLAGS_FM_ON : 0;
 #endif
 	SCSC_TAG_INFO(MXMAN, "mxconf_wpan flags 0x%08x\n", mxconf_wpan->flags);
 

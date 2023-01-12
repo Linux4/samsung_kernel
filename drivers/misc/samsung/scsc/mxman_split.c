@@ -278,6 +278,7 @@ struct scsc_logring_mx_cb mx_logring = {
 #endif
 int mxman_stop(struct mxman *mxman, enum scsc_subsystem sub);
 
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
 #if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 static int mxman_minimoredump_collect(struct scsc_log_collector_client *collect_client, size_t size)
 {
@@ -330,6 +331,7 @@ struct scsc_log_collector_mx_cb mx_cb = {
 	.call_wlbtd_sable = call_wlbtd_sable_cb,
 };
 
+#endif
 #endif
 
 #if IS_ENABLED(CONFIG_DEBUG_SNAPSHOT)
@@ -751,7 +753,12 @@ static int wait_for_mm_msg_halt_rsp(struct mxman *mxman)
 static int send_mm_msg_stop_blocking(struct mxman *mxman, enum scsc_subsystem sub)
 {
 	int r;
+#if IS_ENABLED(CONFIG_SCSC_FM)
+	struct ma_msg_packet message = { .ma_msg = MM_HALT_REQ,
+		.arg = mxman->on_halt_ldos_on };
+#else
 	struct ma_msg_packet message = { .ma_msg = MM_HALT_REQ };
+#endif
 	struct mxmgmt_transport *mxmgmt_transport;
 
 	reinit_completion(&mxman->mm_msg_halt_rsp_completion);
@@ -2264,6 +2271,15 @@ int mxman_open(struct mxman *mxman, enum scsc_subsystem sub, void *data, size_t 
 		} else
 			break; /* Running or given up */
 	}
+
+#if IS_ENABLED(CONFIG_SCSC_FM)
+	/* If we have stored FM radio parameters, deliver them to FW now */
+	if (ret == 0 && mxman->fm_params_pending) {
+		SCSC_TAG_INFO(MXMAN, "Send pending FM params\n");
+		mxman_fm_set_params(&mxman->fm_params);
+	}
+#endif
+
 error:
 	SCSC_TAG_INFO(MXMAN, "Exit state %d users_wlan=%d users_wpan=%d\n", mxman->mxman_state, mxman->users, mxman->users_wpan);
 	mutex_unlock(&mxman->mxman_mutex);
@@ -2595,6 +2611,10 @@ void mxman_init(struct mxman *mxman, struct scsc_mx *mx)
 {
 	mxman->mx = mx;
 	mxman->suspended = 0;
+#if IS_ENABLED(CONFIG_SCSC_FM)
+	mxman->on_halt_ldos_on = 0;
+	mxman->fm_params_pending = 0;
+#endif
 	//fw_crc_wq_init(mxman);
 	failure_wq_init(mxman);
 	syserr_recovery_wq_init(mxman);
@@ -3006,3 +3026,117 @@ int mxman_lerna_send(struct mxman *mxman, void *message, u32 message_size)
 	mutex_unlock(&active_mxman->mxman_mutex);
 	return -EAGAIN;
 }
+
+#if IS_ENABLED(CONFIG_SCSC_FM)
+static bool send_fm_params_to_active_mxman(struct wlbt_fm_params *params)
+{
+	bool ret = false;
+	struct srvman *srvman = NULL;
+
+	SCSC_TAG_INFO(MXMAN, "\n");
+	if (!active_mxman) {
+		SCSC_TAG_ERR(MXMAN, "Active MXMAN NOT FOUND...cannot send FM params\n");
+		return false;
+	}
+
+	mutex_lock(&active_mxman->mxman_mutex);
+	srvman = scsc_mx_get_srvman(active_mxman->mx);
+	if (srvman && srvman->error) {
+		mutex_unlock(&active_mxman->mxman_mutex);
+		SCSC_TAG_INFO(MXMAN, "Called during error - ignore\n");
+		return false;
+	}
+
+	if (active_mxman->mxman_state == MXMAN_STATE_STARTED_WPAN	||
+		active_mxman->mxman_state == MXMAN_STATE_STARTED_WLAN_WPAN) {
+		struct ma_msg_packet_fm_radio_config message = { .ma_msg = MM_FM_RADIO_CONFIG,
+			.fm_params = *params };
+
+		SCSC_TAG_INFO(MXMAN, "MM_FM_RADIO_CONFIG\n");
+		mxmgmt_transport_send(scsc_mx_get_mxmgmt_transport_wpan(active_mxman->mx),
+				MMTRANS_CHAN_ID_MAXWELL_MANAGEMENT, &message,
+				sizeof(message));
+
+		ret = true;     /* Success */
+	} else
+		SCSC_TAG_INFO(MXMAN, "MXMAN is NOT STARTED...cannot send MM_FM_RADIO_CONFIG msg.\n");
+
+	mutex_unlock(&active_mxman->mxman_mutex);
+
+	return ret;
+}
+
+void mxman_fm_on_halt_ldos_on(void)
+{
+	/* Should always be an active mxman unless module is unloaded */
+	if (!active_mxman) {
+		SCSC_TAG_ERR(MXMAN, "No active MXMAN\n");
+		return;
+	}
+
+	active_mxman->on_halt_ldos_on = 1;
+
+	/* FM status to pass into FW at next FW init,
+	 * by which time driver context is lost.
+	 * This is required, because now WLBT gates
+	 * LDOs with TCXO instead of leaving them
+	 * always on, to save power in deep sleep.
+	 * FM, however, needs them always on. So
+	 * we need to know when to leave the LDOs
+	 * alone at WLBT boot.
+	 */
+	//is_fm_on = 1;
+}
+EXPORT_SYMBOL(mxman_fm_on_halt_ldos_on);
+
+void mxman_fm_on_halt_ldos_off(void)
+{
+	/* Should always be an active mxman unless module is unloaded */
+	if (!active_mxman) {
+		SCSC_TAG_ERR(MXMAN, "No active MXMAN\n");
+		return;
+	}
+
+	/* Newer FW no longer need set shared LDOs
+	 * always-off at WLBT halt, as TCXO gating
+	 * has the same effect. But pass the "off"
+	 * request for backwards compatibility
+	 * with old FW.
+	 */
+	active_mxman->on_halt_ldos_on = 0;
+	//is_fm_on = 0;
+}
+EXPORT_SYMBOL(mxman_fm_on_halt_ldos_off);
+
+/* Update parameters passed to WLBT FM */
+int mxman_fm_set_params(struct wlbt_fm_params *params)
+{
+	/* Should always be an active mxman unless module is unloaded */
+	if (!active_mxman) {
+		SCSC_TAG_ERR(MXMAN, "No active MXMAN\n");
+		return -EINVAL;
+	}
+
+	/* Params are no longer valid (FM stopped) */
+	if (!params) {
+		active_mxman->fm_params_pending = 0;
+		SCSC_TAG_INFO(MXMAN, "FM params cleared\n");
+		return 0;
+	}
+
+	/* Once set the value needs to be remembered for each time WLBT starts */
+	active_mxman->fm_params = *params;
+	active_mxman->fm_params_pending = 1;
+
+	if (send_fm_params_to_active_mxman(params)) {
+		SCSC_TAG_INFO(MXMAN, "FM params sent to FW\n");
+		return 0;
+	}
+
+	/* Stored for next time FW is up */
+	SCSC_TAG_INFO(MXMAN, "FM params stored\n");
+
+	return -EAGAIN;
+}
+EXPORT_SYMBOL(mxman_fm_set_params);
+#endif

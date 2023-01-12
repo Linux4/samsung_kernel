@@ -323,7 +323,7 @@ int shub_scontext_send_instruction(const char *buf, int count)
 	} else if (buf[0] == SCONTEXT_INST_LIB_SET_DATA) {
 		cmd = CMD_SETVALUE;
 		if (buf[1] != SCONTEXT_VALUE_LIBRARY_DATA) {
-			type = TYPE_MCU;
+			type = TYPE_HUB;
 			sub_cmd = convert_scontext_putvalue_subcmd(buf[1]);
 		} else {
 			type = buf[2] + SENSOR_TYPE_SS_BASE;

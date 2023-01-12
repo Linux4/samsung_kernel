@@ -916,8 +916,8 @@ static int find_median_of_8bits(struct dw_mci *host, unsigned int map, bool forc
 	u8 i, divratio;
 	int sel = -1;
 	u16 mask[NUM_OF_MASK] = { 0x7f, 0x3f, 0x1f, 0x7 };
-	/* Tuning during the center value is set to 3/2 */
-	int optimum[NUM_OF_MASK] = { 6, 4, 3, 2};
+	/* Tuning during the center value is set to 1/2 */
+	int optimum[NUM_OF_MASK] = { 3, 3, 2, 1};
 
 	/* replicate the map so "arithimetic shift right" shifts in
 	 * the same bits "again". e.g. portable "Rotate Right" bit operation.
@@ -973,7 +973,7 @@ static void dw_mci_exynos_phase_detect(struct dw_mci_slot *slot, struct dw_mci *
 	struct scatterlist sg;
 	struct mmc_host *mmc = slot->mmc;
 	struct dw_mci_exynos_priv_data *priv = host->priv;
-	u32 clksel;
+	u32 clksel, sample;
 	u8 *tuning_blk;		/* data read from device */
 
 	if (!(priv->ctrl_flag & DW_MMC_EXYNOS_USE_PHASE_DETECT)) {
@@ -1028,10 +1028,16 @@ static void dw_mci_exynos_phase_detect(struct dw_mci_slot *slot, struct dw_mci *
 
 	clksel = mci_readl(host, CLKSEL);
 	clksel &= ~SDMMC_CLKSEL_SAMPLE_MASK;
-	clksel |= SDMMC_CLKSEL_GET_PHASE_DETECT_SAMPLE(clksel);
+	sample = SDMMC_CLKSEL_GET_PHASE_DETECT_SAMPLE(clksel);
+	clksel |= sample;
 	clksel &= ~SDMMC_CLKSEL_HW_PHASE_EN;
 	dev_info(host->dev, "use phase detect CLKSEL:%08x\n", clksel);
 	mci_writel(host, CLKSEL, clksel);
+
+	if (sample == 6 || sample == 7)
+		sample_path_sel_en(host, AXI_BURST_LEN);
+	else
+		sample_path_sel_dis(host, AXI_BURST_LEN);
 }
 
 /*
@@ -1054,7 +1060,7 @@ static int dw_mci_exynos_execute_tuning(struct dw_mci_slot *slot, u32 opcode,
 	unsigned int sample_good = 0;	/* bit map of clock sample (0-7) */
 	u32 test_sample = -1;
 	u32 orig_sample;
-	int best_sample = 0, best_sample_ori = 0;
+	int best_sample = 0;
 	u8 pass_index;
 	unsigned int abnormal_result = 0xFF;
 	unsigned int temp_ignore_phase = priv->ignore_phase;
@@ -1082,6 +1088,11 @@ static int dw_mci_exynos_execute_tuning(struct dw_mci_slot *slot, u32 opcode,
 		return -ENOMEM;
 
 	test_sample = orig_sample = dw_mci_exynos_get_sample(host);
+	if (test_sample == 6 || test_sample == 7)
+		sample_path_sel_en(host, AXI_BURST_LEN);
+	else
+		sample_path_sel_dis(host, AXI_BURST_LEN);
+
 	host->cd_rd_thr = 512;
 	mci_writel(host, CDTHRCTL, host->cd_rd_thr << 16 | 1);
 
@@ -1219,16 +1230,6 @@ static int dw_mci_exynos_execute_tuning(struct dw_mci_slot *slot, u32 opcode,
 		tuning_loop--;
 	} while (!tuned);
 
-	/*
-	 * To set sample value with mid, the value should be divided by 2,
-	 * because mid represents index in pass map extended.(8 -> 16 bits)
-	 * And that mid is odd number, means the selected case includes
-	 * using fine tuning.
-	 */
-
-	best_sample_ori = best_sample;
-	best_sample /= 2;
-
 	if (host->pdata->io_mode == MMC_TIMING_MMC_HS400)
 		host->quirks &= ~DW_MCI_QUIRK_NO_DETECT_EBIT;
 
@@ -1243,9 +1244,6 @@ static int dw_mci_exynos_execute_tuning(struct dw_mci_slot *slot, u32 opcode,
 			host->pdata->clk_smpl = priv->tuned_sample = best_sample;
 			if (host->pdata->only_once_tune)
 				host->pdata->tuned = true;
-
-			if (best_sample_ori % 2)
-				best_sample += 1;
 
 			dw_mci_exynos_set_sample(host, best_sample, false);
 		}

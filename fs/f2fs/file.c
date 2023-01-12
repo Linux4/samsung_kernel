@@ -32,6 +32,8 @@
 #include <trace/events/f2fs.h>
 #include <uapi/linux/f2fs.h>
 
+/* @fs.sec -- 80d73a766b8cf3cd0e32fdfe7adebe4b -- */
+
 #ifdef CONFIG_FSCRYPT_SDP
 #include <linux/fscrypto_sdp_ioctl.h>
 #endif
@@ -284,8 +286,7 @@ static int f2fs_do_sync_file(struct file *file, loff_t start, loff_t end,
 	};
 	unsigned int seq_id = 0;
 
-	if (unlikely(f2fs_readonly(inode->i_sb) ||
-				is_sbi_flag_set(sbi, SBI_CP_DISABLED)))
+	if (unlikely(f2fs_readonly(inode->i_sb)))
 		return 0;
 
 	trace_f2fs_sync_file_enter(inode);
@@ -302,7 +303,7 @@ static int f2fs_do_sync_file(struct file *file, loff_t start, loff_t end,
 	ret = file_write_and_wait_range(file, start, end);
 	clear_inode_flag(inode, FI_NEED_IPU);
 
-	if (ret) {
+	if (ret || is_sbi_flag_set(sbi, SBI_CP_DISABLED)) {
 		trace_f2fs_sync_file_exit(inode, cp_reason, datasync, ret);
 		return ret;
 	}
@@ -2047,19 +2048,24 @@ static int f2fs_setflags_common(struct inode *inode, u32 iflags, u32 mask)
 		if (iflags & F2FS_COMPR_FL) {
 			if (!f2fs_may_compress(inode))
 				return -EINVAL;
-			if (S_ISREG(inode->i_mode) &&
-					fi->i_extra_isize
-					< F2FS_COMPRESS_SUPPORT_EXTRA_ATTR_SIZE)
-				return -EINVAL;
-
+			if (S_ISREG(inode->i_mode)) {
 #ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
-			f2fs_drop_extent_tree(inode);
-			if (convert_and_set_compress_context(inode))
-				return -EINVAL;
-#else
-			set_compress_context(inode);
-#endif
+				if (fi->i_extra_isize
+				    < F2FS_COMPRESS_SUPPORT_EXTRA_ATTR_SIZE)
+					return -EINVAL;
 
+				f2fs_drop_extent_tree(inode);
+				if (convert_and_set_compress_context(inode))
+					return -EINVAL;
+#else
+				if (inode->i_size)
+					return -EINVAL;
+
+				set_compress_context(inode);
+#endif
+			} else {
+				set_compress_context(inode);
+			}
 		}
 	}
 	if ((iflags ^ masked_flags) & F2FS_NOCOMP_FL) {
@@ -3463,15 +3469,15 @@ static int f2fs_ioc_set_pin_file(struct file *filp, unsigned long arg)
 
 	inode_lock(inode);
 
-	if (f2fs_should_update_outplace(inode, NULL)) {
-		ret = -EINVAL;
-		goto out;
-	}
-
 	if (!pin) {
 		clear_inode_flag(inode, FI_PIN_FILE);
 		f2fs_i_gc_failures_write(inode, 0);
 		goto done;
+	}
+
+	if (f2fs_should_update_outplace(inode, NULL)) {
+		ret = -EINVAL;
+		goto out;
 	}
 
 	if (f2fs_pin_file_control(inode, false)) {
@@ -4321,6 +4327,12 @@ static int f2fs_ioc_decompress_file(struct file *filp, unsigned long arg)
 		ret = -EOPNOTSUPP;
 		goto out;
 	}
+
+	if (is_inode_flag_set(inode, FI_COMPRESS_RELEASED)) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 #ifndef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
 	if (f2fs_is_mmap_file(inode)) {
 		ret = -EBUSY;
@@ -4396,6 +4408,12 @@ static int f2fs_ioc_compress_file(struct file *filp, unsigned long arg)
 		ret = -EOPNOTSUPP;
 		goto out;
 	}
+
+	if (is_inode_flag_set(inode, FI_COMPRESS_RELEASED)) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 #ifndef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
 	if (f2fs_is_mmap_file(inode)) {
 		ret = -EBUSY;

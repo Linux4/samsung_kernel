@@ -82,7 +82,7 @@ static ssize_t exynos_show_hibernation_exit(struct device *dev,
 	char *p = buf;
 	int len = 0;
 
-	hiber_debug("%s +\n", __func__);
+	hiber_debug("+\n");
 
 	if (!exynos_crtc->hibernation->early_wakeup_enable)
 		return len;
@@ -92,7 +92,7 @@ static ssize_t exynos_show_hibernation_exit(struct device *dev,
 			&exynos_crtc->hibernation->exit_work);
 	len = sprintf(p, "%d\n", exynos_crtc->hibernation->early_wakeup_cnt);
 
-	hiber_debug("%s -\n", __func__);
+	hiber_debug("-\n");
 	return len;
 }
 static DEVICE_ATTR(hiber_exit, S_IRUGO, exynos_show_hibernation_exit, NULL);
@@ -111,7 +111,7 @@ static void exynos_hibernation_trig_reset(struct exynos_hibernation *hiber)
 
 static bool exynos_hibernation_check(struct exynos_hibernation *hiber)
 {
-	hiber_debug("%s +\n", __func__);
+	hiber_debug("+\n");
 
 	return (!is_hibernaton_blocked(hiber) && !is_dsr_operating(hiber) &&
 		!is_dim_operating(hiber) && atomic_dec_and_test(&hiber->trig_cnt));
@@ -122,7 +122,7 @@ static void exynos_hibernation_enter(struct exynos_hibernation *hiber)
 	struct decon_device *decon = hiber->decon;
 	struct exynos_drm_crtc *exynos_crtc;
 
-	hiber_debug("%s +\n", __func__);
+	hiber_debug("+\n");
 
 	if (!decon)
 		return;
@@ -136,7 +136,8 @@ static void exynos_hibernation_enter(struct exynos_hibernation *hiber)
 	if (decon->state != DECON_STATE_ON)
 		goto ret;
 
-	DPU_EVENT_LOG(DPU_EVT_ENTER_HIBERNATION_IN, decon->crtc, NULL);
+	DPU_EVENT_LOG("ENTER_HIBERNATION_IN", decon->crtc, 0, "DPU POWER %s",
+			pm_runtime_active(exynos_crtc->dev) ? "ON" : "OFF");
 
 #if IS_ENABLED(CONFIG_DRM_SAMSUNG_WB)
 	hiber->wb = decon_get_wb(decon);
@@ -154,7 +155,8 @@ static void exynos_hibernation_enter(struct exynos_hibernation *hiber)
 
 	pm_runtime_put_sync(decon->dev);
 
-	DPU_EVENT_LOG(DPU_EVT_ENTER_HIBERNATION_OUT, decon->crtc, NULL);
+	DPU_EVENT_LOG("ENTER_HIBERNATION_OUT", decon->crtc, 0, "DPU POWER %s",
+			pm_runtime_active(exynos_crtc->dev) ? "ON" : "OFF");
 
 	dpu_profile_hiber_enter(exynos_crtc);
 ret:
@@ -162,7 +164,7 @@ ret:
 	mutex_unlock(&hiber->lock);
 	DPU_ATRACE_END("exynos_hibernation_enter");
 
-	hiber_debug("%s: DPU power %s -\n", __func__,
+	hiber_debug("DPU power %s -\n",
 			pm_runtime_active(decon->dev) ? "on" : "off");
 }
 
@@ -171,7 +173,7 @@ static void exynos_hibernation_exit(struct exynos_hibernation *hiber)
 	struct decon_device *decon = hiber->decon;
 	struct exynos_drm_crtc *exynos_crtc;
 
-	hiber_debug("%s +\n", __func__);
+	hiber_debug("+\n");
 
 	if (!decon)
 		return;
@@ -194,7 +196,8 @@ static void exynos_hibernation_exit(struct exynos_hibernation *hiber)
 
 	DPU_ATRACE_BEGIN("exynos_hibernation_exit");
 
-	DPU_EVENT_LOG(DPU_EVT_EXIT_HIBERNATION_IN, decon->crtc, NULL);
+	DPU_EVENT_LOG("EXIT_HIBERNATION_IN", decon->crtc, 0, "DPU POWER %s",
+			pm_runtime_active(exynos_crtc->dev) ? "ON" : "OFF");
 
 	pm_runtime_get_sync(decon->dev);
 
@@ -215,14 +218,15 @@ static void exynos_hibernation_exit(struct exynos_hibernation *hiber)
 	if (decon->crtc->partial)
 		exynos_partial_restore(decon->crtc->partial);
 
-	DPU_EVENT_LOG(DPU_EVT_EXIT_HIBERNATION_OUT, decon->crtc, NULL);
+	DPU_EVENT_LOG("EXIT_HIBERNATION_OUT", decon->crtc, 0, "DPU POWER %s",
+			pm_runtime_active(exynos_crtc->dev) ? "ON" : "OFF");
 	DPU_ATRACE_END("exynos_hibernation_exit");
 	dpu_profile_hiber_exit(exynos_crtc);
 ret:
 	mutex_unlock(&hiber->lock);
 	hibernation_unblock(hiber);
 
-	hiber_debug("%s: DPU power %s -\n", __func__,
+	hiber_debug("DPU power %s -\n",
 			pm_runtime_active(decon->dev) ? "on" : "off");
 }
 

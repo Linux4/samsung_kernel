@@ -98,6 +98,9 @@ struct npu_hw_device *npu_get_hdev_by_id(int id);
 static inline int npu_hw_ref_get(
 		struct npu_device *device, struct npu_hw_refcount *hw_ref)
 {
+	if (!hw_ref->first)
+		return 0;
+
 	return (atomic_inc_return(&hw_ref->refcount) == 1) ?
 		hw_ref->first(device, hw_ref->hdev) : 0;
 }
@@ -105,6 +108,9 @@ static inline int npu_hw_ref_get(
 static inline int npu_hw_ref_put(
 		struct npu_device *device, struct npu_hw_refcount *hw_ref)
 {
+	if (!hw_ref->final)
+		return 0;
+
 	return (atomic_dec_return(&hw_ref->refcount) == 0) ?
 		hw_ref->final(device, hw_ref->hdev) : 0;
 }
@@ -208,6 +214,11 @@ static inline void npu_hw_ref_setup(
 	int (*first)(struct npu_device *device, struct npu_hw_device *hdev),
 	int (*final)(struct npu_device *device, struct npu_hw_device *hdev))
 {
+	if (!hdev->ops.boot || !hdev->ops.init) {
+		atomic_set(&hw_ref->refcount, 0);
+		return;
+	}
+
 	hw_ref->hdev = hdev;
 	hw_ref->first = first;
 	hw_ref->final = final;

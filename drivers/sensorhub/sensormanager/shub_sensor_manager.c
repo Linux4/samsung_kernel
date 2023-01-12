@@ -39,46 +39,46 @@
 
 struct sensor_manager_t *sensor_manager;
 
-init_sensor init_sensor_funcs[] = {
-	init_accelerometer,
-	init_accelerometer_uncal,
-	init_step_counter,
-	init_magnetometer,
-	init_magnetometer_uncal,
-	init_flip_cover_detector,
-	init_gyroscope,
-	init_gyroscope_uncal,
-	init_light,
-	init_light_cct,
-	init_light_ir,
-	init_light_seamless,
-	init_light_autobrightness,
-	init_proximity,
-	init_proximity_raw,
-	init_proximity_calibration,
-	init_pressure,
-	init_scontext,
-	init_interrupt_gyroscope,
-	init_vdis_gyroscope,
-	init_step_detector,
-	init_magnetometer_power,
-	init_significant_motion,
-	init_tilt_detector,
-	init_pick_up_gesture,
-	init_call_gesture,
-	init_wake_up_motion,
-	init_protos_motion,
-	init_pocket_mode,
-	init_pocket_mode_lite,
-	init_super,
-	init_hub_debugger,
-	init_thermistor,
-	init_tap_tracker,
-	init_shake_tracker,
-	init_move_detector,
-	init_led_cover_event,
-	init_device_orientation,
-	init_device_orientation_wu,
+struct init_func_t {
+	int type;
+	init_sensor func;
+};
+
+struct init_func_t init_sensor_funcs[] = {
+	{SENSOR_TYPE_ACCELEROMETER, init_accelerometer},
+	{SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED, init_accelerometer_uncal},
+	{SENSOR_TYPE_STEP_COUNTER, init_step_counter},
+	{SENSOR_TYPE_GEOMAGNETIC_FIELD, init_magnetometer},
+	{SENSOR_TYPE_MAGNETIC_FIELD_UNCALIBRATED, init_magnetometer_uncal},
+	{SENSOR_TYPE_FLIP_COVER_DETECTOR, init_flip_cover_detector},
+	{SENSOR_TYPE_GYROSCOPE, init_gyroscope},
+	{SENSOR_TYPE_GYROSCOPE_UNCALIBRATED, init_gyroscope_uncal},
+	{SENSOR_TYPE_LIGHT, init_light},
+	{SENSOR_TYPE_LIGHT_CCT, init_light_cct},
+	{SENSOR_TYPE_LIGHT_AUTOBRIGHTNESS, init_light_autobrightness},
+	{SENSOR_TYPE_PROXIMITY, init_proximity},
+	{SENSOR_TYPE_PROXIMITY_RAW, init_proximity_raw},
+	{SENSOR_TYPE_PROXIMITY_CALIBRATION, init_proximity_calibration},
+	{SENSOR_TYPE_PRESSURE, init_pressure},
+	{SENSOR_TYPE_SCONTEXT, init_scontext},
+	{SENSOR_TYPE_INTERRUPT_GYRO, init_interrupt_gyroscope},
+	{SENSOR_TYPE_VDIS_GYROSCOPE, init_vdis_gyroscope},
+	{SENSOR_TYPE_SUPER_STEADY_GYROSCOPE, init_super_steady_gyroscope},
+	{SENSOR_TYPE_STEP_DETECTOR, init_step_detector},
+	{SENSOR_TYPE_GEOMAGNETIC_POWER, init_magnetometer_power},
+	{SENSOR_TYPE_SIGNIFICANT_MOTION, init_significant_motion},
+	{SENSOR_TYPE_TILT_DETECTOR, init_tilt_detector},
+	{SENSOR_TYPE_PICK_UP_GESTURE, init_pick_up_gesture},
+	{SENSOR_TYPE_CALL_GESTURE, init_call_gesture},
+	{SENSOR_TYPE_WAKE_UP_MOTION, init_wake_up_motion},
+	{SENSOR_TYPE_PROTOS_MOTION, init_protos_motion},
+	{SENSOR_TYPE_POCKET_MODE_LITE, init_pocket_mode_lite},
+	{SENSOR_TYPE_SENSORHUB, init_super},
+	{SENSOR_TYPE_HUB_DEBUGGER, init_hub_debugger},
+	{SENSOR_TYPE_DEVICE_ORIENTATION, init_device_orientation},
+	{SENSOR_TYPE_DEVICE_ORIENTATION_WU, init_device_orientation_wu},
+	{SENSOR_TYPE_SAR_BACKOFF_MOTION, init_sar_backoff_motion},
+	{SENSOR_TYPE_POGO_REQUEST_HANDLER, init_pogo_request_handler},
 };
 
 static int make_sensor_instance(void)
@@ -105,6 +105,7 @@ static int make_sensor_instance(void)
 			sensor->sampling_period = 0;
 			sensor->max_report_latency = 0;
 			memset(&(sensor->funcs), 0, sizeof(sensor->funcs));
+			sensor->hal_sensor = true;
 			if (type > SENSOR_TYPE_SS_BASE) {
 				get_ss_sensor_name(type, sensor->name, sizeof(sensor->name));
 				sensor->receive_event_size = 0;
@@ -124,7 +125,7 @@ static void remove_sensor_list(struct device *dev)
 	uint64_t i;
 
 	for (i = 0; i < ARRAY_SIZE(init_sensor_funcs); i++)
-		init_sensor_funcs[i](false);
+		init_sensor_funcs[i].func(false);
 
 	for (i = 0; i < SENSOR_TYPE_MAX; i++) {
 		kfree(sensor_manager->sensor_list[i]);
@@ -353,6 +354,7 @@ int inject_sensor_additional_data(int type, char *buf, int buf_len)
 void print_sensor_debug(int type)
 {
 	struct shub_sensor *sensor = get_sensor(type);
+
 	if (!sensor)
 		return;
 
@@ -374,7 +376,7 @@ int get_sensor_value(int type, char *dataframe, int *index, struct sensor_event 
 	int receive_event_size;
 	int ret = 0;
 	u64 current_timestamp = get_current_timestamp();
-#ifdef CONFIG_SHUB_DEBUG
+#if defined(CONFIG_SHUB_DEBUG) && defined(CONFIG_SHUB_MTK)
 	char buf[255];
 	int buf_len;
 #endif
@@ -404,9 +406,14 @@ int get_sensor_value(int type, char *dataframe, int *index, struct sensor_event 
 	*index += 8;
 #ifdef CONFIG_SHUB_DEBUG
 	if (check_debug_log_state(SHUB_LOG_EVENT_TIMESTAMP)) {
+#ifdef CONFIG_SHUB_MTK
 		buf_len = snprintf(buf, sizeof(buf), "ts (%d) %lld %lld %lld",
 				   type, current_timestamp, event->timestamp, current_timestamp - event->timestamp);
 		print_log_debug(buf, buf_len, current_timestamp);
+#else
+		shub_info("ts (%d) %lld %lld %lld",
+				   type, current_timestamp, event->timestamp, current_timestamp - event->timestamp);
+#endif
 	}
 #endif
 
@@ -441,7 +448,7 @@ int parsing_bypass_data(char *dataframe, int *index, int frame_len)
 
 	do {
 		if (get_sensor_value(type, dataframe, index, event, frame_len) < 0) {
-			shub_errf("Parsing error : sensor(%d) event error");
+			shub_errf("Parsing error : sensor(%d) event error", type);
 			return -EINVAL;
 		}
 		EXECUTE_FUNC(sensor, sensor->funcs->report_event);
@@ -696,7 +703,7 @@ int get_sensor_spec_from_hub(void)
 	int i = 0, count;
 	struct sensor_spec_t *specs = NULL;
 
-	ret = shub_send_command_wait(CMD_GETVALUE, TYPE_MCU, SENSOR_SPEC, 1000, NULL, 0, &buffer, &buffer_length, true);
+	ret = shub_send_command_wait(CMD_GETVALUE, TYPE_HUB, SENSOR_SPEC, 1000, NULL, 0, &buffer, &buffer_length, true);
 
 	if (ret < 0 || buffer_length < 1) {
 		shub_errf("fail %d", ret);
@@ -756,23 +763,25 @@ static void init_sensors(void)
 	uint64_t i;
 	int ret;
 
-	for (i = 0; i < ARRAY_SIZE(init_sensor_funcs); i++)
-		init_sensor_funcs[i](true);
+	for (i = 0; i < ARRAY_SIZE(init_sensor_funcs); i++) {
+		int type = init_sensor_funcs[i].type;
+		struct shub_sensor *sensor = get_sensor(type);
 
-	for (i = 0; i < SENSOR_TYPE_LEGACY_MAX; i++) {
-		struct shub_sensor *sensor = get_sensor(i);
+		if (!sensor)
+			continue;
 
-		if (sensor) {
-			if (sensor->receive_event_size != 0 && !sensor->event_buffer.value) { /* there is a error from init_sensor_funcs */
-				shub_errf("%d has error", i);
+		ret = init_sensor_funcs[i].func(true);
+		if (ret < 0) {
+			shub_errf("%d has error", type);
+			kfree(sensor);
+			sensor_manager->sensor_list[type] = NULL;
+		} else {
+			ret = init_shub_sensor(sensor);
+			if (ret < 0) {
+				shub_errf("%d init error", type);
+				init_sensor_funcs[i].func(false);
 				kfree(sensor);
 				sensor_manager->sensor_list[i] = NULL;
-			} else if (sensor->funcs && sensor->funcs->init_chipset) {
-				ret = sensor->funcs->init_chipset();
-				if (ret < 0) {
-					kfree(sensor);
-					sensor_manager->sensor_list[i] = NULL;
-				}
 			}
 		}
 	}

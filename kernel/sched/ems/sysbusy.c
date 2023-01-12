@@ -18,6 +18,7 @@ struct sysbusy {
 	u64 release_start_time;
 	enum sysbusy_state state;
 	struct work_struct work;
+	int enabled;
 } sysbusy;
 
 struct somac_env {
@@ -297,7 +298,7 @@ void somac_tasks(void)
 		return;
 
 	raw_spin_lock(&sysbusy.lock);
-	if (!sysbusy_on_somac()) {
+	if (!sysbusy.enabled || !sysbusy_on_somac()) {
 		raw_spin_unlock(&sysbusy.lock);
 		goto unlock;
 	}
@@ -522,6 +523,11 @@ void monitor_sysbusy(void)
 	if (!raw_spin_trylock_irqsave(&sysbusy.lock, flags))
 		return;
 
+	if (!sysbusy.enabled) {
+		raw_spin_unlock_irqrestore(&sysbusy.lock, flags);
+		return;
+	}
+
 	if (now < sysbusy.last_update_time + sysbusy.monitor_interval) {
 		raw_spin_unlock_irqrestore(&sysbusy.lock, flags);
 		return;
@@ -659,6 +665,45 @@ static ssize_t store_somac_ready_cpus(struct kobject *kobj,
 static struct kobj_attribute somac_ready_cpus_attr =
 __ATTR(somac_ready_cpus, 0644, show_somac_ready_cpus, store_somac_ready_cpus);
 
+static ssize_t show_sysbusy_control(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return snprintf(buf, 10, "%d\n", sysbusy.enabled);
+}
+
+static ssize_t store_sysbusy_control(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int input;
+	unsigned long flags;
+
+	if (sscanf(buf, "%d", &input) != 1)
+		return -EINVAL;
+
+	/* Make input 0 or 1 */
+	input = !!input;
+
+	/* No state change, just return */
+	if (sysbusy.enabled == input)
+		return count;
+
+	raw_spin_lock_irqsave(&sysbusy.lock, flags);
+
+	/* Store input value to enabled with sysbusy.lock */
+	sysbusy.enabled = input;
+
+	/* If sysbusy is disabled, transition to SYSBUSY_STATE0 */
+	if (!sysbusy.enabled)
+		change_sysbusy_state(SYSBUSY_STATE0, jiffies);
+
+	raw_spin_unlock_irqrestore(&sysbusy.lock, flags);
+
+	return count;
+}
+
+static struct kobj_attribute sysbusy_control_attr =
+__ATTR(sysbusy_control, 0644, show_sysbusy_control, store_sysbusy_control);
+
 static int sysbusy_sysfs_init(struct kobject *ems_kobj)
 {
 	int ret;
@@ -684,6 +729,10 @@ static int sysbusy_sysfs_init(struct kobject *ems_kobj)
 	ret = sysfs_create_file(sysbusy_kobj, &somac_ready_cpus_attr.attr);
 	if (ret)
 		pr_warn("%s: failed to create somac sysfs\n", __func__);
+
+	ret = sysfs_create_file(sysbusy_kobj, &sysbusy_control_attr.attr);
+	if (ret)
+		pr_warn("%s: failed to create sysbusy sysfs\n", __func__);
 
 	return ret;
 }
@@ -751,6 +800,8 @@ int sysbusy_init(struct kobject *ems_kobj)
 	ret = sysbusy_sysfs_init(ems_kobj);
 	if (ret)
 		pr_err("failed to init sysfs for sysbusy\n");
+
+	sysbusy.enabled = 1;
 
 	dn = of_find_node_by_path("/ems/sysbusy");
 	if (!dn) {

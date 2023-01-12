@@ -971,7 +971,6 @@ static void freq_qos_release(struct work_struct *work)
 static int ufc_update_little_min_limit(int target_freq)
 {
 	struct ufc_domain *ufc_dom;
-	unsigned long boosting_timeout = MSEC_PER_SEC;
 
 	list_for_each_entry(ufc_dom, &ufc.ufc_domain_list, list) {
 		unsigned int col_idx = ufc_dom->table_col_idx;
@@ -983,11 +982,15 @@ static int ufc_update_little_min_limit(int target_freq)
 			freq_qos_update_request(&ufc_dom->hold_lit_max_qos_req, ufc_dom->max_freq);
 			freq_qos_update_request(&ufc_dom->user_lit_min_qos_req, target_freq);
 
-			/* boosting timeout 1s */
+			if (!ufc_dom->little_min_timeout)
+				break;
+
+			/* set a boosting timeout */
 			if (delayed_work_pending(&ufc_dom->work))
 				cancel_delayed_work_sync(&ufc_dom->work);
 
-			schedule_delayed_work(&ufc_dom->work, msecs_to_jiffies(boosting_timeout));
+			schedule_delayed_work(&ufc_dom->work,
+				msecs_to_jiffies(ufc_dom->little_min_timeout));
 		} else {
 			freq_qos_update_request(&ufc_dom->hold_lit_max_qos_req, ufc_dom->hold_freq);
 			freq_qos_update_request(&ufc_dom->user_lit_min_qos_req, ufc_dom->min_freq);
@@ -1653,7 +1656,9 @@ static int init_ufc_domain(struct device_node *dn)
 	ufc_dom->min_freq = policy->cpuinfo.min_freq;
 	ufc_dom->max_freq = policy->cpuinfo.max_freq;
 
-	INIT_DELAYED_WORK(&ufc_dom->work, freq_qos_release);
+	of_property_read_u32(dn, "little-min-timeout", &ufc_dom->little_min_timeout);
+	if (ufc_dom->little_min_timeout)
+		INIT_DELAYED_WORK(&ufc_dom->work, freq_qos_release);
 
 #define BOOTCPU 0
 	if (cpumask_test_cpu(BOOTCPU, &ufc_dom->cpus)

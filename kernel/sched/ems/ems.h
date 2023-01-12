@@ -327,6 +327,7 @@ extern int ecs_cpu_available(int cpu, struct task_struct *p);
  * Priority-pinning
  */
 extern int tex_task(struct task_struct *p);
+extern int tex_suppress_task(struct task_struct *p);
 extern void tex_enqueue_task(struct task_struct *p, int cpu);
 extern void tex_dequeue_task(struct task_struct *p, int cpu);
 extern void tex_replace_next_task_fair(struct rq *rq, struct task_struct **p_ptr,
@@ -402,6 +403,7 @@ struct emstune_tex {
 	int qjump;
 	int enabled[CGROUP_COUNT];
 	int prio;
+	int suppress;
 };
 
 /* emstune - stt */
@@ -488,8 +490,6 @@ struct emstune_set {
 	struct emstune_fclamp			fclamp;
 	struct emstune_sync			sync;
 };
-
-#define MAX_MODE_LEVEL	100
 
 struct emstune_mode {
 	const char			*desc;
@@ -722,3 +722,16 @@ extern const struct cpumask *cpu_coregroup_mask(int cpu);
 extern const struct cpumask *cpu_slowest_mask(void);
 extern const struct cpumask *cpu_fastest_mask(void);
 extern int send_uevent(char *msg);
+
+extern void gsc_init(struct kobject *ems_kobj);
+extern void gsc_init_new_task(struct task_struct *p);
+extern void gsc_update_tick(struct rq *rq);
+extern void gsc_task_update_stat(struct task_struct *p, unsigned long prv_util);
+extern void gsc_fit_cpus(struct task_struct *p, struct cpumask *fit_cpus);
+extern int  gsc_activated(struct task_struct *p);
+extern void gsc_task_cgroup_attach(struct cgroup_taskset *tset);
+extern void gsc_flush_task(struct task_struct *p);
+
+/* balance */
+#define SCHED_MIGRATION_COST	500000
+extern void ems_newidle_balance(void *data, struct rq *this_rq, struct rq_flags *rf, int *pulled_task, int *done);

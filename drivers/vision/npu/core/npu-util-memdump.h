@@ -32,3 +32,7 @@ int npu_util_dump_handle_error_k(struct npu_device *device);
 #ifdef CONFIG_NPU_USE_HW_DEVICE
 void npu_util_dump_handle_nrespone(struct npu_system *system);
 #endif
+
+#ifndef CONFIG_NPU_USE_HW_DEVICE
+void npu_util_dump_handle_nrespone_watchdog(void);
+#endif

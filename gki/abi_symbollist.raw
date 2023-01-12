@@ -103,6 +103,8 @@ __get_free_pages
 __get_task_comm
 __get_vm_area_caller
 __getblk_gfp
+__hci_cmd_sync
+__hci_cmd_sync_ev
 __hid_register_driver
 __hid_request
 __hrtimer_get_remaining
@@ -206,11 +208,13 @@ __request_module
 __request_percpu_irq
 __request_region
 __rht_bucket_nested
+__rt_mutex_init
 __rtc_register_device
 __scsi_execute
 __scsi_iterate_devices
 __scsi_print_sense
 __sdhci_add_host
+__sdhci_set_timeout
 __seq_open_private
 __serio_register_driver
 __serio_register_port
@@ -259,6 +263,7 @@ __traceiter_android_rvh_cpufreq_transition
 __traceiter_android_rvh_dequeue_task
 __traceiter_android_rvh_die_kernel_fault
 __traceiter_android_rvh_do_mem_abort
+__traceiter_android_rvh_do_sched_yield
 __traceiter_android_rvh_do_sp_pc_abort
 __traceiter_android_rvh_enqueue_task
 __traceiter_android_rvh_find_busiest_queue
@@ -297,6 +302,7 @@ __traceiter_android_rvh_schedule_bug
 __traceiter_android_rvh_select_fallback_rq
 __traceiter_android_rvh_select_task_rq_fair
 __traceiter_android_rvh_select_task_rq_rt
+__traceiter_android_rvh_set_balance_anon_file_reclaim
 __traceiter_android_rvh_set_gfp_zone_flags
 __traceiter_android_rvh_set_iowait
 __traceiter_android_rvh_set_readahead_gfp_mask
@@ -310,6 +316,7 @@ __traceiter_android_rvh_ttwu_cond
 __traceiter_android_rvh_typec_tcpci_chk_contaminant
 __traceiter_android_rvh_typec_tcpci_get_vbus
 __traceiter_android_rvh_uclamp_eff_get
+__traceiter_android_rvh_ufs_complete_init
 __traceiter_android_rvh_ufs_reprogram_all_keys
 __traceiter_android_rvh_update_cpu_capacity
 __traceiter_android_rvh_update_cpus_allowed
@@ -356,6 +363,7 @@ __traceiter_android_vh_printk_hotplug
 __traceiter_android_vh_ptype_head
 __traceiter_android_vh_rmqueue
 __traceiter_android_vh_rproc_recovery
+__traceiter_android_vh_rproc_recovery_set
 __traceiter_android_vh_scheduler_tick
 __traceiter_android_vh_set_wake_flags
 __traceiter_android_vh_setscheduler_uclamp
@@ -384,6 +392,8 @@ __traceiter_android_vh_ufs_send_uic_command
 __traceiter_android_vh_ufs_update_sdev
 __traceiter_android_vh_ufs_update_sysfs
 __traceiter_android_vh_update_topology_flags_workfn
+__traceiter_android_vh_usb_dev_resume
+__traceiter_android_vh_usb_dev_suspend
 __traceiter_binder_transaction_received
 __traceiter_clock_set_rate
 __traceiter_cpu_frequency
@@ -403,6 +413,7 @@ __traceiter_ipi_exit
 __traceiter_ipi_raise
 __traceiter_irq_handler_entry
 __traceiter_irq_handler_exit
+__traceiter_kfree_skb
 __traceiter_mm_vmscan_direct_reclaim_begin
 __traceiter_mm_vmscan_direct_reclaim_end
 __traceiter_pelt_cfs_tp
@@ -440,6 +451,7 @@ __tracepoint_android_rvh_dequeue_task
 __tracepoint_android_rvh_dequeue_task_idle
 __tracepoint_android_rvh_die_kernel_fault
 __tracepoint_android_rvh_do_mem_abort
+__tracepoint_android_rvh_do_sched_yield
 __tracepoint_android_rvh_do_sea
 __tracepoint_android_rvh_do_sp_pc_abort
 __tracepoint_android_rvh_do_undefinstr
@@ -480,6 +492,7 @@ __tracepoint_android_rvh_schedule_bug
 __tracepoint_android_rvh_select_fallback_rq
 __tracepoint_android_rvh_select_task_rq_fair
 __tracepoint_android_rvh_select_task_rq_rt
+__tracepoint_android_rvh_set_balance_anon_file_reclaim
 __tracepoint_android_rvh_set_gfp_zone_flags
 __tracepoint_android_rvh_set_iowait
 __tracepoint_android_rvh_set_readahead_gfp_mask
@@ -493,6 +506,7 @@ __tracepoint_android_rvh_ttwu_cond
 __tracepoint_android_rvh_typec_tcpci_chk_contaminant
 __tracepoint_android_rvh_typec_tcpci_get_vbus
 __tracepoint_android_rvh_uclamp_eff_get
+__tracepoint_android_rvh_ufs_complete_init
 __tracepoint_android_rvh_ufs_reprogram_all_keys
 __tracepoint_android_rvh_update_cpu_capacity
 __tracepoint_android_rvh_update_cpus_allowed
@@ -548,6 +562,7 @@ __tracepoint_android_vh_psi_group
 __tracepoint_android_vh_ptype_head
 __tracepoint_android_vh_rmqueue
 __tracepoint_android_vh_rproc_recovery
+__tracepoint_android_vh_rproc_recovery_set
 __tracepoint_android_vh_rtmutex_wait_finish
 __tracepoint_android_vh_rtmutex_wait_start
 __tracepoint_android_vh_rwsem_read_wait_finish
@@ -586,6 +601,8 @@ __tracepoint_android_vh_ufs_send_uic_command
 __tracepoint_android_vh_ufs_update_sdev
 __tracepoint_android_vh_ufs_update_sysfs
 __tracepoint_android_vh_update_topology_flags_workfn
+__tracepoint_android_vh_usb_dev_resume
+__tracepoint_android_vh_usb_dev_suspend
 __tracepoint_android_vh_watchdog_timer_softlockup
 __tracepoint_android_vh_wq_lockup_pool
 __tracepoint_binder_transaction_received
@@ -607,6 +624,7 @@ __tracepoint_ipi_exit
 __tracepoint_ipi_raise
 __tracepoint_irq_handler_entry
 __tracepoint_irq_handler_exit
+__tracepoint_kfree_skb
 __tracepoint_mm_vmscan_direct_reclaim_begin
 __tracepoint_mm_vmscan_direct_reclaim_end
 __tracepoint_pelt_cfs_tp
@@ -787,6 +805,7 @@ bio_init
 bio_put
 bioset_exit
 bioset_init
+bit_wait_timeout
 bitmap_allocate_region
 bitmap_find_next_zero_area_off
 bitmap_from_arr32
@@ -798,6 +817,7 @@ bitmap_release_region
 bitmap_to_arr32
 bitmap_zalloc
 blk_alloc_queue
+blk_check_plugged
 blk_cleanup_queue
 blk_execute_rq
 blk_execute_rq_nowait
@@ -915,6 +935,11 @@ bpf_warn_invalid_xdp_action
 bsearch
 bt_err
 bt_info
+bt_to_errno
+bt_warn
+btbcm_set_bdaddr
+btbcm_setup_apple
+btbcm_setup_patchram
 build_skb
 bus_find_device
 bus_for_each_dev
@@ -2237,6 +2262,7 @@ gpiod_get_raw_value
 gpiod_get_raw_value_cansleep
 gpiod_get_value
 gpiod_get_value_cansleep
+gpiod_put
 gpiod_set_consumer_name
 gpiod_set_debounce
 gpiod_set_raw_value
@@ -2264,7 +2290,9 @@ hash_digest_size
 hashlen_string
 have_governor_per_policy
 hci_alloc_dev
+hci_cmd_sync
 hci_free_dev
+hci_recv_diag
 hci_recv_frame
 hci_register_dev
 hci_unregister_dev
@@ -2427,6 +2455,7 @@ iio_get_channel_type
 iio_push_to_buffers
 iio_read_channel_processed
 iio_read_channel_raw
+iio_write_channel_raw
 import_iovec
 in4_pton
 in6_dev_finish_destroy
@@ -2561,6 +2590,7 @@ irq_dispose_mapping
 irq_do_set_affinity
 irq_domain_alloc_irqs_parent
 irq_domain_create_hierarchy
+irq_domain_disconnect_hierarchy
 irq_domain_free_irqs_common
 irq_domain_free_irqs_parent
 irq_domain_get_irq_data
@@ -2624,6 +2654,7 @@ kernel_recvmsg
 kernel_restart
 kernel_sendmsg
 kernel_sigaction
+kernel_sock_shutdown
 kernfs_find_and_get_ns
 kernfs_notify
 kernfs_path_from_node
@@ -2730,6 +2761,7 @@ ktime_get_raw_ts64
 ktime_get_real_seconds
 ktime_get_real_ts64
 ktime_get_seconds
+ktime_get_snapshot
 ktime_get_ts64
 ktime_get_with_offset
 kvasprintf
@@ -2740,12 +2772,16 @@ led_classdev_flash_register_ext
 led_classdev_flash_unregister
 led_classdev_register_ext
 led_classdev_unregister
+led_set_brightness_nosleep
 led_trigger_event
+led_trigger_register
 led_trigger_register_simple
+led_trigger_unregister
 led_trigger_unregister_simple
 list_sort
 llist_add_batch
 llist_reverse_order
+load_trusted_app
 lock_sock_nested
 log_abnormal_wakeup_reason
 log_buf_addr_get
@@ -2868,7 +2904,9 @@ mmc_gpio_get_ro
 mmc_gpiod_request_cd
 mmc_gpiod_request_cd_irq
 mmc_gpiod_request_ro
+mmc_hs200_tuning
 mmc_hw_reset
+mmc_issue_type
 mmc_of_parse
 mmc_of_parse_voltage
 mmc_put_card
@@ -2884,9 +2922,17 @@ mmc_retune_release
 mmc_retune_unpause
 mmc_run_bkops
 mmc_sanitize
+mmc_select_bus_width
+mmc_select_hs
+mmc_select_hs400
+mmc_select_hs_ddr
+mmc_select_timing
 mmc_send_status
 mmc_send_tuning
+mmc_set_clock
 mmc_set_data_timeout
+mmc_set_initial_state
+mmc_set_timing
 mmc_start_request
 mmc_switch
 mmc_unregister_driver
@@ -2920,6 +2966,7 @@ napi_gro_receive
 napi_schedule_prep
 neigh_destroy
 neigh_lookup
+neigh_resolve_output
 neigh_xmit
 net_namespace_list
 net_ns_type_operations
@@ -3127,6 +3174,7 @@ on_each_cpu
 oops_in_progress
 open_candev
 orderly_poweroff
+out_of_line_wait_on_bit_timeout
 overflowuid
 page_endio
 page_mapping
@@ -3333,6 +3381,7 @@ pipe_lock
 pipe_unlock
 pktgen_xfrm_outer_mode_output
 platform_add_devices
+platform_bus
 platform_bus_type
 platform_device_add
 platform_device_add_data
@@ -3353,6 +3402,8 @@ platform_get_irq_optional
 platform_get_resource
 platform_get_resource_byname
 platform_irq_count
+platform_msi_domain_alloc_irqs
+platform_msi_domain_free_irqs
 pm_clk_add
 pm_clk_create
 pm_clk_destroy
@@ -3533,6 +3584,7 @@ register_kprobe
 register_kretprobe
 register_memory_notifier
 register_module_notifier
+register_mz_tee_crypto_driver
 register_net_sysctl
 register_netdev
 register_netdevice
@@ -3542,6 +3594,7 @@ register_oom_notifier
 register_pernet_device
 register_pernet_subsys
 register_pm_notifier
+register_qdisc
 register_reboot_notifier
 register_restart_handler
 register_shrinker
@@ -3701,9 +3754,11 @@ rt_mutex_trylock
 rt_mutex_unlock
 rtc_class_close
 rtc_class_open
+rtc_ktime_to_tm
 rtc_read_time
 rtc_set_time
 rtc_time64_to_tm
+rtc_tm_to_ktime
 rtc_tm_to_time64
 rtc_update_irq
 rtc_valid_tm
@@ -4119,11 +4174,13 @@ sock_no_sendpage
 sock_no_shutdown
 sock_no_socketpair
 sock_queue_rcv_skb
+sock_recvmsg
 sock_register
 sock_release
 sock_setsockopt
 sock_unregister
 sock_wfree
+sockfd_lookup
 softnet_data
 sort
 spi_bus_lock
@@ -4395,6 +4452,7 @@ tty_port_register_device
 tty_port_tty_get
 tty_port_tty_wakeup
 tty_register_driver
+tty_register_ldisc
 tty_set_operations
 tty_standard_install
 tty_std_termios
@@ -4403,6 +4461,7 @@ tty_termios_copy_hw
 tty_termios_encode_baud_rate
 tty_unregister_device
 tty_unregister_driver
+tty_unregister_ldisc
 tty_vhangup
 typec_altmode_get_partner
 typec_altmode_update_active
@@ -4475,6 +4534,7 @@ ufshcd_system_suspend
 ufshcd_uic_hibern8_enter
 ufshcd_uic_hibern8_exit
 uio_unregister_device
+unload_trusted_app
 unlock_page
 unmap_mapping_range
 unpin_user_page
@@ -4491,6 +4551,7 @@ unregister_inetaddr_notifier
 unregister_kprobe
 unregister_kretprobe
 unregister_module_notifier
+unregister_mz_tee_crypto_driver
 unregister_netdev
 unregister_netdevice_many
 unregister_netdevice_notifier
@@ -4500,6 +4561,7 @@ unregister_oom_notifier
 unregister_pernet_device
 unregister_pernet_subsys
 unregister_pm_notifier
+unregister_qdisc
 unregister_reboot_notifier
 unregister_restart_handler
 unregister_rpmsg_driver
@@ -4548,6 +4610,8 @@ usb_deregister
 usb_deregister_dev
 usb_disable_xhci_ports
 usb_disabled
+usb_driver_claim_interface
+usb_driver_release_interface
 usb_enable_autosuspend
 usb_enable_intel_xhci_ports
 usb_ep_alloc_request
@@ -4582,6 +4646,7 @@ usb_gadget_vbus_draw
 usb_gadget_wakeup
 usb_get_dev
 usb_get_dr_mode
+usb_get_from_anchor
 usb_get_gadget_udc_name
 usb_get_intf
 usb_get_maximum_speed
@@ -4605,6 +4670,7 @@ usb_hcd_resume_root_hub
 usb_hcd_start_port_resume
 usb_hcd_unlink_urb_from_ep
 usb_hcds_loaded
+usb_hid_driver
 usb_hub_clear_tt_buffer
 usb_hub_find_child
 usb_ifnum_to_if
@@ -4622,6 +4688,7 @@ usb_put_dev
 usb_put_function_instance
 usb_put_hcd
 usb_put_intf
+usb_queue_reset_device
 usb_register_dev
 usb_register_driver
 usb_register_notify
@@ -4635,6 +4702,7 @@ usb_role_switch_register
 usb_role_switch_set_role
 usb_role_switch_unregister
 usb_root_hub_lost_power
+usb_scuttle_anchored_urbs
 usb_set_device_state
 usb_set_interface
 usb_show_dynids
@@ -4795,6 +4863,7 @@ video_device_release
 video_device_release_empty
 video_ioctl2
 video_unregister_device
+virtio_break_device
 virtio_check_driver_offered_feature
 virtio_config_changed
 virtio_device_freeze
@@ -4881,9 +4950,11 @@ vring_new_virtqueue
 vring_transport_features
 vscnprintf
 vsnprintf
+vsock_addr_init
 vsock_core_register
 vsock_core_unregister
 vsock_for_each_connected_socket
+vsock_remove_sock
 vsprintf
 vunmap
 vzalloc
@@ -4896,6 +4967,7 @@ wait_for_completion_killable
 wait_for_completion_killable_timeout
 wait_for_completion_timeout
 wait_woken
+wake_up_bit
 wake_up_if_idle
 wake_up_process
 wakeup_source_add

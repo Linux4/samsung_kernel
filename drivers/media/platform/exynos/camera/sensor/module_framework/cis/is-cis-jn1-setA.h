@@ -16,15 +16,7 @@
 #include "is-cis-jn1.h"
 
 /*
- * [Mode Information]
- *
  * Reference File : JN1_EVT0.0_Setfile_20211108_ver0.12.xlsx
- * Update Data    : 2021-12-03
- * Author         : g.lakshay
- *
- * - Remosaic Full For Single Still Remosaic Capture -
- *    [  0 ] FULL : Remosaic Full 8000x6000 10fps  2054Mbps     : Single Still Remosaic Capture (4:3)
- *
  *
  */
 
@@ -1181,7 +1173,7 @@ const struct sensor_pll_info_compact sensor_jn1_pllinfo_A2A2_2032x1524_120FPS = 
 const struct sensor_pll_info_compact sensor_jn1_pllinfo_FULL_8160x6120_10FPS = {
 	EXT_CLK_Mhz * 1000 * 1000,     /* ext_clk */
 	1443*1000*1000,                /* mipi_datarate = OPSYCK */
-	59800*10*1000,                 /* pclk = VTPXCK of Clock Information */
+	56333*10*1000,                 /* pclk = VTPXCK of Clock Information */
 	0x188C,                        /* frame_length_lines */
 	0x21F0,                        /* line_length_pck */
 };

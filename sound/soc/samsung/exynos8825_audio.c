@@ -144,14 +144,14 @@ static int exynos_late_probe(struct snd_soc_card *card)
 		for_each_rtd_cpu_dais(rtd, i, dai) {
 			dapm = snd_soc_component_get_dapm(dai->component);
 			if (dai->playback_widget) {
-				name = dai->playback_widget->name;
+				name = dai->driver->playback.stream_name;
 				dev_dbg(card->dev, "ignore suspend: %s\n",
 						name);
 				snd_soc_dapm_ignore_suspend(dapm, name);
 				snd_soc_dapm_sync(dapm);
 			}
 			if (dai->capture_widget) {
-				name = dai->capture_widget->name;
+				name = dai->driver->capture.stream_name;
 				dev_dbg(card->dev, "ignore suspend: %s\n",
 						name);
 				snd_soc_dapm_ignore_suspend(dapm, name);
@@ -163,14 +163,14 @@ static int exynos_late_probe(struct snd_soc_card *card)
 		for_each_rtd_codec_dais(rtd, i, dai) {
 			dapm = snd_soc_component_get_dapm(dai->component);
 			if (dai->playback_widget) {
-				name = dai->playback_widget->name;
+				name = dai->driver->playback.stream_name;
 				dev_dbg(card->dev, "ignore suspend: %s\n",
 						name);
 				snd_soc_dapm_ignore_suspend(dapm, name);
 				snd_soc_dapm_sync(dapm);
 			}
 			if (dai->capture_widget) {
-				name = dai->capture_widget->name;
+				name = dai->driver->capture.stream_name;
 				dev_dbg(card->dev, "ignore suspend: %s\n",
 						name);
 				snd_soc_dapm_ignore_suspend(dapm, name);

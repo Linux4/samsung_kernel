@@ -56,6 +56,7 @@
 #define MESSAGE_MARK			0xCAFEC0DE
 
 /* payload size of load includes only ncp header */
+/* modify "strArr" variable in npu-interface.c, when changes in cmd_done structure */
 struct cmd_load {
 	u32				oid; /* object id */
 	u32				tid; /* task id */

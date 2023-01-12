@@ -2250,9 +2250,15 @@ static const struct snd_soc_component_driver abox_rdma = {
 static int abox_rdma_mute_stream(struct snd_soc_dai *dai, int mute, int stream)
 {
 	struct abox_dma_data *data = snd_soc_dai_get_drvdata(dai);
-	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(data->substream);
+	struct snd_soc_pcm_runtime *rtd;
 	struct device *dev = dai->dev;
 
+	if (!data->substream) {
+		abox_warn(dev, "%s(%d): substream is null\n", __func__, mute);
+		return 0;
+	}
+
+	rtd = asoc_substream_to_rtd(data->substream);
 	if (mute) {
 		if (!abox_dma_can_stop(rtd, stream))
 			return 0;

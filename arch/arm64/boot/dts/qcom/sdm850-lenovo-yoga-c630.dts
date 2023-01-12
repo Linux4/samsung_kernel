@@ -3629,7 +3629,7 @@
 						wsa8810-left {
 							compatible = "sdw10217211000";
 							reg = <0x00 0x03>;
-							powerdown-gpios = <0xa6 0x02 0x00>;
+							powerdown-gpios = <0xa6 0x01 0x00>;
 							#thermal-sensor-cells = <0x00>;
 							sound-name-prefix = "SpkrLeft";
 							#sound-dai-cells = <0x00>;
@@ -3638,7 +3638,7 @@
 
 						wsa8810-right {
 							compatible = "sdw10217211000";
-							powerdown-gpios = <0xa6 0x03 0x00>;
+							powerdown-gpios = <0xa6 0x02 0x00>;
 							reg = <0x00 0x04>;
 							#thermal-sensor-cells = <0x00>;
 							sound-name-prefix = "SpkrRight";

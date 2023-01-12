@@ -789,6 +789,11 @@ IS_TIMER_FUNC(is_hardware_shot_timer)
 flush_frame:
 
 	if (timeout) {
+		if (hw_ip_chd->id == DEV_HW_PAF0) {
+			struct is_device_sensor *sensor = group->device->sensor;
+			is_sensor_dump(sensor);
+		}
+
 		print_all_hw_frame_count(hw_ip->hardware);
 		is_hardware_flush_frame(hw_ip, FS_HW_REQUEST, IS_SHOT_TIMEOUT);
 	} else {

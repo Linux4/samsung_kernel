@@ -1785,7 +1785,7 @@ int is_sec_readcal_otprom_4ha(int rom_id)
 
 	camera_running = is_vendor_check_camera_running(finfo->rom_power_position);
 
-	/* 0. Sensor Initial Settings (Global) */
+	/* Sensor Initial Settings (Global) */
 i2c_write_retry_global:
 	if (camera_running == false) {
 		ret = is_sec_set_registers(client, sensor_otp_4ha_global, sensor_otp_4ha_global_size);
@@ -1801,16 +1801,12 @@ i2c_write_retry_global:
 		}
 	}
 
-	/* 1. Stream On */
-	is_sensor_write8(client, 0x0100, 0x01);
-	msleep(50);
-
 	is_sensor_write8(client, S5K4HA_STANDBY_ADDR, 0x00); /* standby on */
 	msleep(10); /* sleep 10msec */
 
-	is_sensor_write8(client, S5K4HA_OTP_R_W_MODE_ADDR, 0x01); //write "read" command
+	is_sensor_write8(client, S5K4HA_OTP_R_W_MODE_ADDR, 0x01); /* write "read" command */
 
-	/* confirm write complete*/
+	/* confirm write complete */
 write_complete_retry:
 	msleep(1);
 
@@ -1825,7 +1821,7 @@ write_complete_retry:
 	}
 
 crc_retry:
-	/* 3. Read OTP Cal Data */
+	/* Read OTP Cal Data */
 	info("I2C read cal data\n");
 	ret = is_sec_i2c_read_otp_4ha(client, buf, S5K4HA_OTP_START_ADDR, S5K4HA_OTP_USED_CAL_SIZE);
 	if (unlikely(ret)) {
@@ -1834,7 +1830,7 @@ crc_retry:
 		goto exit;
 	}
 
-	/* 4. Parse Cal */
+	/* Parse Cal */
 	retry = IS_CAL_RETRY_CNT;
 	ret = is_sec_read_otprom_header(rom_id);
 	if (unlikely(ret)) {
@@ -1848,7 +1844,7 @@ crc_retry:
 	is_sec_parse_rom_info(finfo, buf, rom_id);
 
 exit:
-	/* 5. streaming mode change */
+	/* streaming mode change */
 	is_sensor_write8(client, S5K4HA_OTP_R_W_MODE_ADDR, 0x04); /* clear error bit */
 	msleep(1); /* sleep 1msec */
 	is_sensor_write8(client, S5K4HA_OTP_R_W_MODE_ADDR, 0x00); /* initial command */
@@ -1873,7 +1869,8 @@ int is_sec_readcal_otprom_hi1336(int rom_id)
 	struct is_device_sensor_peri *sensor_peri = NULL;
 	struct is_module_enum *module = NULL;
 	u32 i2c_channel;
-	u16 bank;
+	u8 bank;
+	u16 start_addr = 0;
 #ifdef CONFIG_SEC_CAL_ENABLE
 	char *buf_rom_data = NULL;
 #endif
@@ -1926,39 +1923,63 @@ i2c_write_retry_global:
 
 	read_addr = 0x0308;
 crc_retry:
-	is_i2c_write(client, 0x0808, 0x0001); // stream on
+	is_i2c_write(client, 0x0808, 0x0001); /* stream on */
 
-	is_i2c_write(client, 0x0B02, 0x01); // fast standby on
-	is_i2c_write(client, 0x0809, 0x00); // stream off
-	is_i2c_write(client, 0x0B00, 0x00); // stream off
-	usleep_range(10000,10000); // sleep 10msec
-	is_i2c_write(client, 0x0260, 0x10); // OTP test mode enable
-	is_i2c_write(client, 0x0809, 0x01); // stream on
-	is_i2c_write(client, 0x0b00, 0x01); // stream on
-	usleep_range(1000,1000); // sleep 1msec
+	is_i2c_write(client, 0x0B02, 0x01); /* fast standby on */
+	is_i2c_write(client, 0x0809, 0x00); /* stream off */
+	is_i2c_write(client, 0x0B00, 0x00); /* stream off */
+	usleep_range(10000,10000); /* sleep 10msec */
+	is_i2c_write(client, 0x0260, 0x10); /* OTP test mode enable */
+	is_i2c_write(client, 0x0809, 0x01); /* stream on */
+	is_i2c_write(client, 0x0b00, 0x01); /* stream on */
+	usleep_range(1000,1000); /* sleep 1msec */
 
-	//read otp bank
-	is_i2c_write(client, 0x030A, ((0x400) >> 8) & 0xFF); // upper 16bit
-	is_i2c_write(client, 0x030B, 0x400 & 0xFF); // lower 16bit
-	is_i2c_write(client, 0x0302, 0x01); // read mode
+	/* read otp bank */
+	is_i2c_write(client, 0x030A, ((0x400) >> 8) & 0xFF); /* upper 16bit */
+	is_i2c_write(client, 0x030B, 0x400 & 0xFF); /* lower 16bit */
+	is_i2c_write(client, 0x0302, 0x01); /* read mode */
 
-	ret = is_i2c_read(client,&bank,read_addr,1);
+	ret = is_i2c_read(client, &bank, read_addr, 1);
+	if (unlikely(ret)) {
+		err("failed to read OTP bank address (%d)\n", ret);
+		goto exit;
+	}
 
-	//OTP burst read
-	is_i2c_write(client, 0x030A, ((0x404) >> 8) & 0xFF); // upper 16bit
-	is_i2c_write(client, 0x030B, 0x404 & 0xFF); // lower 16bit
-	is_i2c_write(client, 0x0302, 0x01); // read mode
-	is_i2c_write(client, 0x0712, 0x01); // burst read register on
+	/* select start address */
+	switch (bank) {
+	case 0x01 :
+		start_addr = HI1336_OTP_START_ADDR_BANK1;
+		break;
+	case 0x03 :
+		start_addr = HI1336_OTP_START_ADDR_BANK2;
+		break;
+	case 0x07 :
+		start_addr = HI1336_OTP_START_ADDR_BANK3;
+		break;
+	case 0x0F :
+		start_addr = HI1336_OTP_START_ADDR_BANK4;
+		break;
+	default :
+		start_addr = HI1336_OTP_START_ADDR_BANK1;
+		break;
+	}
+	info("%s: otp_bank = %d start_addr = %x\n", __func__, bank, start_addr);
+
+	/* OTP burst read */
+	is_i2c_write(client, 0x030A, ((start_addr) >> 8) & 0xFF); /* upper 16bit */
+	is_i2c_write(client, 0x030B, start_addr & 0xFF); /* lower 16bit */
+	is_i2c_write(client, 0x0302, 0x01); /* read mode */
+	is_i2c_write(client, 0x0712, 0x01); /* burst read register on */
 
 	info("Camera: I2C read cal data for rom_id:%d\n",rom_id);
-	ret = is_i2c_read(client, &buf[0], read_addr, IS_READ_MAX_EEP_CAL_SIZE);
+	ret = is_i2c_read(client, &buf[0], read_addr, IS_READ_MAX_HI1336_OTP_CAL_SIZE);
 	if (ret) {
 		err("failed to is_i2c_read (%d)\n", ret);
 		ret = -EINVAL;
 		goto exit;
 	}
 	
-	is_sensor_write16(client, 0x0712, 0x00); // burst read register off
+	is_sensor_write16(client, 0x0712, 0x00); /* burst read register off */
 
 	if (finfo->rom_header_cal_map_ver_start_addr != -1)
 		memcpy(finfo->cal_map_ver, &buf[finfo->rom_header_cal_map_ver_start_addr], IS_CAL_MAP_VER_SIZE);
@@ -2033,14 +2054,14 @@ crc_retry:
 	}
 #endif
 exit:
-	// streaming mode change
-	is_i2c_write(client, 0x0809, 0x00); // stream off
-	is_i2c_write(client, 0x0b00, 0x00); // stream off
-	usleep_range(10000, 10000); // sleep 10msec
-	is_i2c_write(client, 0x0260, 0x00); // OTP mode display
-	is_i2c_write(client, 0x0809, 0x01); // stream on
-	is_i2c_write(client, 0x0b00, 0x01); // stream on
-	usleep_range(1000, 1000); // sleep 1msec
+	/* streaming mode change */
+	is_i2c_write(client, 0x0809, 0x00); /* stream off */
+	is_i2c_write(client, 0x0b00, 0x00); /* stream off */
+	usleep_range(10000, 10000); /* sleep 10msec */
+	is_i2c_write(client, 0x0260, 0x00); /* OTP mode display */
+	is_i2c_write(client, 0x0809, 0x01); /* stream on */
+	is_i2c_write(client, 0x0b00, 0x01); /* stream on */
+	usleep_range(1000, 1000); /* sleep 1msec */
 	return ret;
 }
 #endif /* CAMERA_UWIDE_DUALIZED */
@@ -2697,7 +2718,7 @@ int is_sec_readcal_eeprom(int rom_id)
 	}
 	rom_type = module->pdata->rom_type;
 
-	if (!(sensor_id==SENSOR_NAME_S5KGD2))	//put all dualized sensor names here
+	if (!(sensor_id == SENSOR_NAME_S5KGD2))	//put all dualized sensor names here
 		finfo->is_read_dualized_values = true;
 	if (!(finfo->is_read_dualized_values)){
 		is_sec_readcal_eeprom_dualized(rom_id); // call this function only once for EEPROM dualized sensors
@@ -4263,8 +4284,10 @@ int is_sec_sensorid_find_front(struct is_core *core)
 
 	if (is_sec_fw_module_compare(finfo->header_ver, FW_IMX576_C)) {
 		specific->sensor_id[SENSOR_POSITION_FRONT] = SENSOR_NAME_IMX576;
-	} else if (is_sec_fw_module_compare(finfo->header_ver, FW_IMX616_S)) {
+	} else if (is_sec_fw_module_compare(finfo->header_ver, FW_IMX616_PAPAYA)) {
 		specific->sensor_id[SENSOR_POSITION_FRONT] = SENSOR_NAME_IMX616;
+	} else if (is_sec_fw_module_compare(finfo->header_ver, FW_S5KGD2)) {
+		specific->sensor_id[SENSOR_POSITION_FRONT] = SENSOR_NAME_S5KGD2;
 	}
 
 	info("%s sensor id %d\n", __func__, specific->sensor_id[SENSOR_POSITION_FRONT]);
@@ -4376,6 +4399,9 @@ int is_sec_fw_find(struct is_core *core)
 	switch (front_id) {
 	case SENSOR_NAME_IMX616:
 		snprintf(finfo_front->load_front_setfile_name, sizeof(IS_IMX616_SETF), "%s", IS_IMX616_SETF);
+		break;
+	case SENSOR_NAME_S5KGD2:
+		snprintf(finfo_front->load_front_setfile_name, sizeof(IS_GD2_SETF), "%s", IS_GD2_SETF);
 		break;
 	default:
 		snprintf(finfo_front->load_front_setfile_name, sizeof(IS_IMX616_SETF), "%s", IS_IMX616_SETF);

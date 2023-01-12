@@ -28,17 +28,17 @@ void dbg_print_hdr(volatile struct mailbox_hdr *mHdr);
 static int wait_for_mem_value(struct npu_system *system, volatile u32 *addr, const u32 expected, int ms_timeout);
 static u32 get_logging_time_ms(void);
 
-
 //TODO : interface should assign the ioremaped address with (NPU_IOMEM_SRAM_END, NPU_MAILBOX_SIZE)
 int mailbox_init(volatile struct mailbox_hdr *header, struct npu_system *system)
 {
 	//Memory Alloc, and Wait Sig.
 	int ret = 0;
 	int i, j;
-	u32 cur_ofs;
+	u32 cur_ofs = 0;
 	volatile struct mailbox_ctrl ctrl[MAX_MAILBOX];
 
-	npu_info("mailbox initialize: start, header base at %pK\n", header);
+	npu_info("cold(%d) mailbox initialize: start, header base at %pK\n",
+			system->fw_cold_boot, header);
 
 	if (!header) {
 		npu_err("invalid mailbox header pointer\n");
@@ -48,58 +48,84 @@ int mailbox_init(volatile struct mailbox_hdr *header, struct npu_system *system)
 
 	header->debug_time = get_logging_time_ms();
 
-#ifdef CONFIG_NPU_SECURE_MODE
-	if (system->saved_warm_boot_flag) {
-		header->signature2 = MAILBOX_SIGNATURE2;
-		return 0;
-	}
+#ifndef CONFIG_NPU_USE_HW_DEVICE
+	cur_ofs = NPU_MAILBOX_SECTION_CONFIG[0];  /* Start position of data_ofs */
 #endif
-	cur_ofs = configs[NPU_MAILBOX_HDR_SECTION_LEN];  /* Start position of data_ofs */
-	for (i = 0; i < MAX_MAILBOX; i++) {
+	for (i = 0; i < MAX_MAILBOX - 1; i++) {
 		if (unlikely(NPU_MAILBOX_SECTION_CONFIG[i] == 0)) {
-		npu_err("invalid mailbox size on %d th mailbox\n", i);
-		BUG_ON(1);
+			npu_err("invalid mailbox size on %d th mailbox\n", i);
+			BUG_ON(1);
 		}
+#ifndef CONFIG_NPU_USE_HW_DEVICE
+		cur_ofs += NPU_MAILBOX_SECTION_CONFIG[i + 1];
+#else
 		cur_ofs += NPU_MAILBOX_SECTION_CONFIG[i];
+#endif
 		ctrl[i].sgmt_ofs = cur_ofs;
-		ctrl[i].sgmt_len = NPU_MAILBOX_SECTION_CONFIG[i];
+		ctrl[i].sgmt_len = NPU_MAILBOX_SECTION_CONFIG[i + 1];
 		ctrl[i].wptr = ctrl[i].rptr = 0;
 	}
 
 	j = 0;
-	for (i = 0; i < MAX_MAILBOX / 2; i++, j++)
+	for (i = 0; i < (MAX_MAILBOX - 1) / 2; i++, j++) {
 		header->h2fctrl[i] = ctrl[j];
-	for (i = 0; i < MAX_MAILBOX / 2; i++, j++)
+	}
+	for (i = 0; i < (MAX_MAILBOX - 1) / 2; i++, j++) {
 		header->f2hctrl[i] = ctrl[j];
-	BUG_ON(j > MAX_MAILBOX);
+	}
+	BUG_ON(j > (MAX_MAILBOX - 1));
 
-	header->max_slot = 0;//TODO : TBD in firmware policy.
-	/* half low 16 bits is mailbox ipc version, half high 16 bits is command version */
-	header->version = ((CONFIG_NPU_COMMAND_VERSION << 16) |
-			CONFIG_NPU_MAILBOX_VERSION);
-	npu_info("header version \t: %08X\n", header->version);
-	header->log_level = 192;
+	mb();
 
-	/* Write Signature */
-	header->signature2 = MAILBOX_SIGNATURE2;
-	//dbg_print_hdr(header);
+	if (!system->fw_cold_boot) {
+		header->signature2 = MAILBOX_SIGNATURE2;
+	} else {
+#if (CONFIG_NPU_MAILBOX_VERSION == 9)
+		header->boottype = 0;
+#endif
+
+		header->max_slot = 0;//TODO : TBD in firmware policy.
+		/* half low 16 bits is mailbox ipc version, half high 16 bits is command version */
+		header->version = ((CONFIG_NPU_COMMAND_VERSION << 16) |
+				CONFIG_NPU_MAILBOX_VERSION);
+		npu_info("header version \t: %08X\n", header->version);
+		header->log_level = 192;
+
+		/* Write Signature */
+		header->signature2 = MAILBOX_SIGNATURE2;
+	}
 
 	npu_info("mailbox initialize: wait for firmware boot signature.\n");
 	ret = wait_for_mem_value(system, &(header->signature1), MAILBOX_SIGNATURE1, 3000);
 	if (ret) {
 		npu_err("init. error(%d) in firmware waiting\n", ret);
+		// dbg_print_hdr(header);
 		goto err_exit;
 	}
 	npu_info("header signature \t: %X\n", header->signature1);
 
 	npu_info("init. success in NPU mailbox\n");
-	return ret;
-err_exit:
-	/* Dump mailbox controller */
-	if (header)
-		npu_debug_memdump32((u32 *)header, (u32 *)(header + 1));
 
+err_exit:
 	return ret;
+}
+
+
+void mailbox_deinit(volatile struct mailbox_hdr *header, struct npu_system *system)
+{
+#if (CONFIG_NPU_MAILBOX_VERSION == 9)
+#define BOOT_TYPE_WARM_BOOT         (0xb0080c0d)
+
+	system->fw_cold_boot = (header->boottype == BOOT_TYPE_WARM_BOOT) ? (false) : (true);
+	npu_info("cold(%d) requested by fw, boottype(%#x)\n",
+			system->fw_cold_boot, header->boottype);
+
+	header->signature1 = 0;
+	header->signature2 = 0;
+#else
+	(void)header;
+	system->fw_cold_boot = true;
+#endif
 }
 
 /*
@@ -121,15 +147,17 @@ static int wait_for_mem_value(struct npu_system *system, volatile u32 *addr, con
 			ret = 0;
 			goto ok_exit;
 		}
-		msleep(1);
+		mdelay(1);
 		if (!(i % 100)) {
 			npu_info("waiting Frimware signature\n");
+#ifdef CONFIG_NPU_USE_HW_DEVICE
 			ret = npu_cmd_map(system, "cpupc");
 			if (ret) {
 				npu_err("fail(%d) in npu_cmd_map for cpupc\n", ret);
 				ret = -EFAULT;
 				goto ok_exit;
 			}
+#endif
 		}
 	}
 	/* Timed-out */
@@ -204,7 +232,7 @@ static inline u32 __copy_command_to_line(char *base, u32 sgmt_len, u32 wptr, con
 	//npu_info("base : %pK\t Move : %08X\t dst : %pK\n",
 	//	base, LINE_TO_SGMT(sgmt_len, wptr), (base + LINE_TO_SGMT(sgmt_len, wptr)));
 	//npu_info("sgmt_len : %d\t wptr : %d\t size of Cmd : %d\n", sgmt_len, wptr, cmd_size);
-	memcpy_toio(base + LINE_TO_SGMT(sgmt_len, wptr), cmd, cmd_size);
+	memcpy(base + LINE_TO_SGMT(sgmt_len, wptr), cmd, cmd_size);
 
 	return wptr + cmd_size;
 }
@@ -218,7 +246,7 @@ void *mbx_ipc_translate(char *underlay, volatile struct mailbox_ctrl *ctrl, u32 
 	return base + LINE_TO_SGMT(ctrl->sgmt_len, ptr);
 }
 
-static void __mbx_ipc_print(char *underlay, volatile struct mailbox_ctrl *ctrl, bool is_dbg)
+static void __mbx_ipc_print(char *underlay, volatile struct mailbox_ctrl *ctrl, u32 log_level)
 {
 	u32 wptr, rptr, sgmt_len;
 	struct message msg;
@@ -230,13 +258,8 @@ static void __mbx_ipc_print(char *underlay, volatile struct mailbox_ctrl *ctrl, 
 	rptr = ctrl->rptr;
 	wptr = ctrl->wptr;
 
-	if (is_dbg) {
-		npu_dbg("   VADDR    PADDR    MAGIC      MID      CMD      LEN     DATA  PAYLOAD      LEN\n");
-		npu_dbg("--------------------------------------------------------------------------------\n");
-	} else {
-		npu_info("   VADDR    PADDR    MAGIC      MID      CMD      LEN     DATA  PAYLOAD      LEN\n");
-		npu_info("--------------------------------------------------------------------------------\n");
-	}
+	npu_dbg("   MAGIC        MID      CMD       LEN       DATA       PAYLOAD    LEN\n");
+	npu_dbg("-----------------------------------------------------------------------------------\n");
 
 	while (rptr < wptr) {
 		__copy_message_from_line(base, sgmt_len, rptr, &msg);
@@ -246,28 +269,44 @@ static void __mbx_ipc_print(char *underlay, volatile struct mailbox_ctrl *ctrl, 
 		}
 		/* copy_command should copy only command part else payload */
 		__copy_command_from_line(base, sgmt_len, msg.data, &cmd, sizeof(struct command));
-		if (is_dbg)
-			npu_dbg("0x%08X 0x%08X 0x%08X %8d %8d 0x%08X 0x%08X 0x%08X 0x%08X\n",
-				rptr, LINE_TO_SGMT(sgmt_len, rptr),
-				msg.magic, msg.mid, msg.command, msg.length, msg.data,
-				cmd.payload, cmd.length);
-		else
-			npu_info("0x%08X 0x%08X 0x%08X %8d %8d 0x%08X 0x%08X 0x%08X 0x%08X\n",
-				rptr, LINE_TO_SGMT(sgmt_len, rptr),
-				msg.magic, msg.mid, msg.command, msg.length, msg.data,
-				cmd.payload, cmd.length);
+
+		if (msg.magic == MESSAGE_MARK) {
+			rptr = msg.data + msg.length;
+			continue;
+		}
+
+		switch (log_level) {
+		case (NPU_LOG_DBG):
+			npu_dbg(
+				"0x%08X %8d %8d    0x%08X 0x%08X 0x%08X 0x%08X\n",
+				msg.magic, msg.mid, msg.command, msg.length,
+				msg.data, cmd.payload, cmd.length);
+			break;
+		case (NPU_LOG_INFO):
+			npu_info(
+				"0x%08X %8d %8d    0x%08X 0x%08X 0x%08X 0x%08X\n",
+				msg.magic, msg.mid, msg.command, msg.length,
+				msg.data, cmd.payload, cmd.length);
+			break;
+		case (NPU_LOG_ERR):
+			dbg_print_msg(&msg, &cmd);
+			break;
+		default:
+			break;
+		}
 
 		rptr = msg.data + msg.length;
 	}
+	npu_dbg("-----------------------------------------------------------------------------------\n");
 }
 
-void mbx_ipc_print(char *underlay, volatile struct mailbox_ctrl *ctrl)
+void mbx_ipc_print(char *underlay, volatile struct mailbox_ctrl *ctrl, u32 log_level)
 {
-	__mbx_ipc_print(underlay, ctrl, false);
+	__mbx_ipc_print(underlay, ctrl, log_level);
 }
 void mbx_ipc_print_dbg(char *underlay, volatile struct mailbox_ctrl *ctrl)
 {
-	__mbx_ipc_print(underlay, ctrl, true);
+	__mbx_ipc_print(underlay, ctrl, NPU_LOG_DBG);
 }
 
 int mbx_ipc_put(char *underlay, volatile struct mailbox_ctrl *ctrl, struct message *msg, struct command *cmd)
@@ -286,6 +325,7 @@ int mbx_ipc_put(char *underlay, volatile struct mailbox_ctrl *ctrl, struct messa
 
 	if (msg->length != sizeof(struct command)) {
 		ret = -EALIGN;
+		dbg_print_msg(msg, cmd);
 		goto p_err;
 	}
 
@@ -303,6 +343,8 @@ int mbx_ipc_put(char *underlay, volatile struct mailbox_ctrl *ctrl, struct messa
 	writable_size = __get_writable_size(sgmt_len, wptr, rptr);
 	if (writable_size < sizeof(struct message)) {
 		ret = -ERESOURCE;
+		dbg_print_ctrl(ctrl);
+		dbg_print_msg(msg, cmd);
 		goto p_err;
 	}
 
@@ -318,6 +360,8 @@ int mbx_ipc_put(char *underlay, volatile struct mailbox_ctrl *ctrl, struct messa
 	readable_size = __get_readable_size(sgmt_len, cmd_end_wptr, rptr);
 	if (readable_size > sgmt_len) {
 		ret = -ERESOURCE;
+		dbg_print_ctrl(ctrl);
+		dbg_print_msg(msg, cmd);
 		goto p_err;
 	}
 
@@ -371,15 +415,21 @@ int mbx_ipc_peek_msg(char *underlay, volatile struct mailbox_ctrl *ctrl, struct 
 		goto p_err;
 	} else if (readable_size < sizeof(struct message)) {
 		ret = -ERESOURCE;
+		dbg_print_ctrl(ctrl);
+		dbg_print_msg(msg, NULL);
 		goto p_err;
 	}
 	updated_rptr = __copy_message_from_line(base, sgmt_len, rptr, msg);
 	if (msg->magic != MESSAGE_MAGIC) {
 		ret = -EINVAL;
+		dbg_print_ctrl(ctrl);
+		dbg_print_msg(msg, NULL);
 		goto p_err;
 	}
 	if (msg->length != sizeof(struct command)) {
 		ret = -ERESOURCE;
+		dbg_print_ctrl(ctrl);
+		dbg_print_msg(msg, NULL);
 		goto p_err;
 	}
 	msg->self = rptr;
@@ -420,16 +470,22 @@ int mbx_ipc_get_msg(char *underlay, volatile struct mailbox_ctrl *ctrl, struct m
 		goto p_err;
 	} else if (readable_size < sizeof(struct message)) {
 		ret = -ERESOURCE;
+		dbg_print_ctrl(ctrl);
+		dbg_print_msg(msg, NULL);
 		goto p_err;
 	}
 	updated_rptr = __copy_message_from_line(base, sgmt_len, rptr, msg);
 	if (msg->magic != MESSAGE_MAGIC) {
 		ret = -EINVAL;
+		dbg_print_ctrl(ctrl);
+		dbg_print_msg(msg, NULL);
 		goto p_err;
 	}
 
 	if (msg->length != sizeof(struct command)) {
 		ret = -ERESOURCE;
+		dbg_print_ctrl(ctrl);
+		dbg_print_msg(msg, NULL);
 		goto p_err;
 	}
 
@@ -462,6 +518,8 @@ int mbx_ipc_get_cmd(char *underlay, volatile struct mailbox_ctrl *ctrl, struct m
 	readable_size = __get_readable_size(sgmt_len, wptr, rptr);
 	if (readable_size < sizeof(struct command)) {
 		ret = -EINVAL;
+		dbg_print_ctrl(ctrl);
+		dbg_print_msg(msg, cmd);
 		goto p_err;
 	}
 
@@ -556,55 +614,58 @@ p_err:
 
 void dbg_print_msg(struct message *msg, struct command *cmd)
 {
-	npu_info("debug message\n");
-	npu_info("msg->magic: (0x%08X)\n", msg->magic);
-	npu_info("msg->mid: (%d)\n", msg->mid);
-	npu_info("msg->command: (%d)\n", msg->command);
-	npu_info("msg->length: (%d)\n", msg->length);
+	if (!msg || !cmd)
+		return;
 
-	switch (msg->command) {
-	case (COMMAND_LOAD):
-		npu_info("\t command_load\n");
-		npu_info("\t cmd_load->oid: (%d)\n", cmd->c.load.oid);
-		npu_info("\t cmd_load->tid: (%d)\n", cmd->c.load.tid);
-		break;
-	case (COMMAND_PROCESS):
-		npu_info("\t command_process\n");
-		npu_info("\t cmd_process->oid \t: (%d)\n", cmd->c.process.oid);
-		npu_info("\t cmd_process->fid \t: (%d)\n", cmd->c.process.fid);
-		break;
-	case (COMMAND_DONE):
-		npu_info("\t command_done\n");
-		npu_info("\t cmd_done->fid: (0x%x)\n", cmd->c.done.fid);
-		break;
-	case (COMMAND_NDONE):
-		npu_info("\t command_ndone\n");
-		npu_info("\t cmd_ndone->fid: (0x%x)\n", cmd->c.ndone.fid);
-		npu_info("\t cmd_ndone->error: (0x%x)\n", cmd->c.ndone.error);
-		break;
-	default:
-		break;
+	if (msg) {
+		npu_info(
+				"0x%08X %8d %8d    0x%08X 0x%08X 0x%08X 0x%08X\n",
+				msg->magic, msg->mid, msg->command, msg->length,
+				msg->data, cmd->payload, cmd->length);
 	}
-	npu_info("\t cmd->payload \t: (%u)\n", cmd->payload);
-	npu_info("\t cmd->length \t: (%d)\n", cmd->length);
+
+	if (cmd) {
+		switch (msg->command) {
+		case (COMMAND_LOAD):
+			npu_info("cmd_load->oid: (%d), cmd_load->tid: (%d)\n",
+					cmd->c.load.oid, cmd->c.load.tid);
+			break;
+		case (COMMAND_PROCESS):
+			npu_info("cmd_process->oid: (%d), cmd_process->fid: (%d)\n",
+				 cmd->c.process.oid, cmd->c.process.fid);
+			break;
+		case (COMMAND_DONE):
+			npu_info("cmd_done->fid: (0x%x)\n", cmd->c.done.fid);
+			break;
+		case (COMMAND_NDONE):
+			npu_info("cmd_ndone->fid: (0x%x), cmd_ndone->error: (0x%x)\n",
+				 cmd->c.ndone.fid, cmd->c.ndone.error);
+			break;
+		default:
+			break;
+		}
+	}
 }
 
 void dbg_print_ctrl(volatile struct mailbox_ctrl *mCtrl)
 {
-	npu_info("sgmt_ofs \t: (%d)\n", mCtrl->sgmt_ofs);
-	npu_info("sgmt_len \t: (%d)\n", mCtrl->sgmt_len);
-	npu_info("wptr \t: (%d)\n", mCtrl->wptr);
-	npu_info("rptr \t: (%d)\n", mCtrl->rptr);
+	if (mCtrl) {
+		npu_info("sgmt_ofs: (%d)\n", mCtrl->sgmt_ofs);
+		npu_info("sgmt_len: (%d)\n", mCtrl->sgmt_len);
+		npu_info("wptr: (%d)\n", mCtrl->wptr);
+		npu_info("rptr: (%d)\n", mCtrl->rptr);
+	}
 }
 
 void dbg_print_hdr(volatile struct mailbox_hdr *mHdr)
 {
-	npu_info("debug mailbox_hdr\n");
-	npu_info("max_slot \t\t: (%d)\n", mHdr->max_slot);
-	npu_info("debug_time \t\t: (%d)\n", mHdr->debug_time);
-	npu_info("debug_code \t\t: (%d)\n", mHdr->debug_code);
-	npu_info("totsize \t\t: (%d)\n", mHdr->totsize);
-	npu_info("version \t\t: (0x%08X)\n", mHdr->version);
-	npu_info("signature2 \t\t: (0x%x)\n", mHdr->signature2);
-	npu_info("signature1 \t\t: (0x%x)\n", mHdr->signature1);
+	if (mHdr) {
+		npu_info("max_slot: (%d)\n", mHdr->max_slot);
+		npu_info("debug_time: (%d)\n", mHdr->debug_time);
+		npu_info("debug_code: (%d)\n", mHdr->debug_code);
+		npu_info("totsize: (%d)\n", mHdr->totsize);
+		npu_info("version: (0x%08X)\n", mHdr->version);
+		npu_info("signature2: (0x%x)\n", mHdr->signature2);
+		npu_info("signature1: (0x%x)\n", mHdr->signature1);
+	}
 }

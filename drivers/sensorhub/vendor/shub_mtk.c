@@ -22,6 +22,7 @@
 
 #include <linux/delay.h>
 #include <linux/notifier.h>
+#include <linux/version.h>
 
 #define IPI_SHUB	    IPI_SENSOR
 #define IPI_DMA_LEN 8
@@ -32,8 +33,9 @@ static uint8_t scp_system_ready;
 static phys_addr_t shub_dram_phys;
 static phys_addr_t shub_dram_virt;
 static phys_addr_t shub_dram_size;
-
+#if !defined(CONFIG_MTK_TINYSYS_SCP_RV_SUPPORT) && (LINUX_VERSION_CODE <= KERNEL_VERSION(5, 0, 0))
 void scp_wdt_reset(enum scp_core_id cpu_id);
+#endif
 
 static void sensorhub_IPI_handler(int id, void *packet, unsigned int len)
 {
@@ -109,8 +111,8 @@ int sensorhub_refresh_func(void)
 	dram_info[1] = shub_dram_size;
 
 	shub_infof("dma address phys 0x%llx virt 0x%llx size 0x%llx", shub_dram_phys, shub_dram_virt, shub_dram_size);
-	// ret = shub_send_command(CMD_SETVALUE, TYPE_MCU, DMA_ADDRESS, (char *)&shub_dram_phys, sizeof(shub_dram_phys));
-	ret = shub_send_command(CMD_SETVALUE, TYPE_MCU, DMA_ADDRESS, (char *)dram_info, sizeof(dram_info));
+	// ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, DMA_ADDRESS, (char *)&shub_dram_phys, sizeof(shub_dram_phys));
+	ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, DMA_ADDRESS, (char *)dram_info, sizeof(dram_info));
 
 	if (ret < 0)
 		shub_errf("DMA_ADDRESS CMD fail %d", ret);
@@ -174,8 +176,11 @@ void shub_dump_write_file(void *dump_data, int dump_size)
 
 	if (data->reset_type < RESET_TYPE_MAX)
 		dump_type = DUMP_TYPE_BASE + data->reset_type;
-	else
+	else {
+		shub_errf("hub crash");
 		dump_type = 1;
+		data->hub_crash_timestamp = get_current_timestamp();
+	}
 
 	write_shub_dump_file((char *)dump_data, dump_size, dump_type, 4);
 }

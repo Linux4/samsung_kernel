@@ -156,8 +156,6 @@ out:
 	return ret;
 }
 
-
-
 /* test block device release for fmp test */
 void fmp_test_exit(struct fmp_test_data *fdata)
 {

@@ -342,7 +342,7 @@ void emstune_update_request(struct emstune_mode_request *req, s32 new_level)
 		return;
 
 	/* ignore if the value is out of range except boost level */
-	if ((new_level < 0 || new_level > MAX_MODE_LEVEL))
+	if ((new_level < 0 || new_level > emstune.level_count))
 		return;
 
 	__emstune_update_request(req, REQ_UPDATE, new_level);
@@ -730,6 +730,8 @@ static void parse_tex(struct device_node *dn, struct emstune_tex *tex)
 	of_property_read_u32(dn, "qjump", &tex->qjump);
 
 	of_property_read_u32(dn, "prio", &tex->prio);
+
+	of_property_read_u32(dn, "suppress", &tex->suppress);
 }
 
 /* Fluid RT scheduling */
@@ -1010,7 +1012,7 @@ static ssize_t req_level_store(struct device *dev,
 	if (sscanf(buf, "%d", &level) != 1)
 		return -EINVAL;
 
-	if (level < 0 || level >= MAX_MODE_LEVEL)
+	if (level < 0 || level >= emstune.level_count)
 		return -EINVAL;
 
 	emstune_level_change(level);
@@ -1080,6 +1082,7 @@ enum {
 	prefer_cpu_small_task_threshold,
 	prefer_cpu_small_task_mask,
 	sync,
+	tex_suppress,
 	field_count,
 };
 
@@ -1205,6 +1208,9 @@ static ssize_t aio_tuner_show(struct device *dev,
 	ret += sprintf(buf + ret, "\n");
 	ret += sprintf(buf + ret, "[%d] sync - apply\n", sync);
 	ret += sprintf(buf + ret, "	# echo <%d,mode,level> <apply> > aio_tuner\n", sync);
+	ret += sprintf(buf + ret, "\n");
+	ret += sprintf(buf + ret, "[%d] tex - suppress enabled\n", tex_suppress);
+	ret += sprintf(buf + ret, "	# echo <%d,mode,level> <en> > aio_tuner\n", tex_suppress);
 	ret += sprintf(buf + ret, "\n");
 
 	return ret;
@@ -1610,6 +1616,9 @@ static ssize_t aio_tuner_store(struct device *dev,
 	case sync:
 		set_value_single(&set->sync.apply, arg1, VAL_TYPE_ONOFF, 1);
 		break;
+	case tex_suppress:
+		set_value_single(&set->tex.suppress, arg1, VAL_TYPE_ONOFF, 1);
+		break;
 	}
 
 	emstune_notify();
@@ -1834,8 +1843,9 @@ static ssize_t cur_set_read(struct file *file, struct kobject *kobj,
 	count += sprintf(msg + count, "mask : %#x\n",
 			*(unsigned int *)cpumask_bits(&cur_set->tex.mask));
 	count += sprintf(msg + count, "qjump: %d\n", cur_set->tex.qjump);
-	count += sprintf(msg + count, "prio : %d", cur_set->tex.prio);
-	count += sprintf(msg + count, "\n\n");
+	count += sprintf(msg + count, "prio : %d\n", cur_set->tex.prio);
+	count += sprintf(msg + count, "suppress : %d\n", cur_set->tex.suppress);
+	count += sprintf(msg + count, "\n");
 	for (group = 0; group < CGROUP_COUNT; group++)
 		count += sprintf(msg + count, "%4s", task_cgroup_simple_name[group]);
 	count += sprintf(msg + count, "\n");

@@ -1578,6 +1578,10 @@ static void __mfc_core_nal_q_handle_stream_input(struct mfc_core_ctx *core_ctx,
 				mfc_set_mb_flag(src_mb, MFC_FLAG_CONSUMED_ONLY);
 			}
 
+			if (call_bop(ctx, core_recover_buf_ctrls_nal_q, ctx,
+						&ctx->src_ctrls[index]) < 0)
+				mfc_err("[NALQ] failed in core_recover_buf_ctrls_nal_q\n");
+
 			if (call_bop(ctx, core_get_buf_ctrls_nal_q_enc, ctx,
 						&ctx->src_ctrls[index], pOutStr) < 0)
 				mfc_err("[NALQ] failed in core_get_buf_ctrls_nal_q_enc\n");
@@ -1592,6 +1596,10 @@ static void __mfc_core_nal_q_handle_stream_input(struct mfc_core_ctx *core_ctx,
 					mfc_clear_mb_flag(ref_mb);
 					mfc_set_mb_flag(ref_mb, MFC_FLAG_CONSUMED_ONLY);
 				}
+
+				if (call_bop(ctx, core_recover_buf_ctrls_nal_q, ctx,
+							&ctx->src_ctrls[index]) < 0)
+					mfc_err("[NALQ] failed in core_recover_buf_ctrls_nal_q\n");
 
 				if (call_bop(ctx, core_get_buf_ctrls_nal_q_enc, ctx,
 							&ctx->src_ctrls[index], pOutStr) < 0)
@@ -2431,6 +2439,10 @@ static void __mfc_core_nal_q_handle_frame_input(struct mfc_core *core, struct mf
 		mfc_set_mb_flag(src_mb, MFC_FLAG_CONSUMED_ONLY);
 		mfc_debug(2, "[NALQ][STREAM] decoding only but there is no address\n");
 	}
+
+	if (call_bop(ctx, core_recover_buf_ctrls_nal_q, ctx,
+				&ctx->src_ctrls[index]) < 0)
+		mfc_ctx_err("[NALQ] failed in core_recover_buf_ctrls_nal_q\n");
 
 	if (call_bop(ctx, core_get_buf_ctrls_nal_q_dec, ctx,
 				&ctx->src_ctrls[index], pOutStr) < 0)

@@ -149,6 +149,8 @@ struct sm5714_charger_data {
 
 #if IS_ENABLED(CONFIG_USE_POGO)
 	struct delayed_work pogo_init_work;
+	struct delayed_work pogo_detect_work;
+	struct wakeup_source *pogo_det_ws;
 #endif
 };
 

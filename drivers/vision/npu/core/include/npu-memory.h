@@ -28,12 +28,14 @@ struct npu_memory_buffer {
 	size_t				ncp_max_size;
 #endif
 	int				fd;
+	char name[15];
 };
 
 struct npu_memory_v_buf {
 	struct list_head		list;
 	u8				*v_buf;
 	size_t				size;
+	char name[15];
 };
 
 struct npu_memory;
@@ -56,6 +58,10 @@ struct npu_memory {
 	spinlock_t			alloc_lock;
 	struct list_head		alloc_list;
 	u32				alloc_count;
+
+	spinlock_t			valloc_lock;
+	struct list_head		valloc_list;
+	u32				valloc_count;
 };
 
 int npu_memory_probe(struct npu_memory *memory, struct device *dev);
@@ -70,5 +76,6 @@ int npu_memory_v_alloc(struct npu_memory *memory, struct npu_memory_v_buf *buffe
 void npu_memory_v_free(struct npu_memory *memory, struct npu_memory_v_buf *buffer);
 int npu_memory_secure_alloc(struct npu_memory *memory, struct npu_memory_buffer *buffer, int prot);
 int npu_memory_secure_free(struct npu_memory *memory, struct npu_memory_buffer *buffer);
+void npu_memory_dump(struct npu_memory *memory);
 
 #endif

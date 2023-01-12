@@ -741,4 +741,5 @@ int slsi_retry_connection(struct slsi_dev *sdev, struct net_device *dev);
 void slsi_free_connection_params(struct slsi_dev *sdev, struct net_device *dev);
 #endif
 int slsi_add_probe_ies_request(struct slsi_dev *sdev, struct net_device *dev);
+int slsi_dump_eth_packet(struct slsi_dev *sdev, struct sk_buff *skb);
 #endif /*__SLSI_MGT_H__*/

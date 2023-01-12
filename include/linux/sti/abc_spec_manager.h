@@ -22,23 +22,27 @@
 #include <linux/sti/abc_common.h>
 #define ERROR_KEY					"name_list"
 #define MODULE_KEY					"module_list"
-#define SPEC_CNT_KEY				"spec_cnt_list"
+#define THRESHOLD_CNT_KEY			"threshold_cnt"
+#define THRESHOLD_TIME_KEY			"threshold_time"
 
-extern struct device *sec_abc;
-extern int abc_enable_mode;
-extern int abc_init;
+extern struct list_head abc_spec_list;
 
 int abc_parse_dt(struct device *dev);
-bool sec_abc_is_enabled_error(struct abc_key_data *key_data);
-void sec_abc_dequeue_event_data(struct abc_key_data *key_data);
 void sec_abc_reset_event_buffer(struct abc_key_data *key_data);
-void sec_abc_make_key_data(struct abc_key_data *key_data, char *str);
-bool sec_abc_reached_spec(struct abc_key_data *key_data, unsigned int cur_time);
-void sec_abc_enqueue_event_data(struct abc_key_data *key_data, unsigned int cur_time);
-void sec_abc_send_uevent(struct abc_key_data *key_data, unsigned int cur_time, char *event_type);
-struct abc_common_spec_data *sec_abc_get_matched_common_spec(struct abc_key_data *key_data);
-bool sec_abc_reached_spec_pre(struct abc_key_data *key_data, struct abc_pre_event *pre_event);
-int sec_abc_get_buffer_size_from_th_cnt(int th_max);
+int sec_abc_make_key_data(struct abc_key_data *key_data, char *str);
+bool sec_abc_reached_spec(struct abc_key_data *key_data);
+void sec_abc_enqueue_event_data(struct abc_key_data *key_data);
+struct abc_common_spec_data *sec_abc_get_matched_common_spec(char *module_name, char *error_name);
+int sec_abc_get_buffer_size_from_threshold_cnt(int th_max);
+int sec_abc_apply_changed_spec(char *str);
+int sec_abc_get_event_module(char *dst, char *src);
+int sec_abc_get_event_name(char *dst, char *src);
+int sec_abc_get_event_type(char *dst, char *src);
+int sec_abc_get_ext_log(char *dst, char *src);
+int sec_abc_get_count(int *dst, char *src);
+void sec_abc_reset_all_spec(void);
+void sec_abc_free_spec_buffer(void);
+void sec_abc_reset_all_buffer(void);
 /* spec_type1 */
 int abc_parse_dt_type1(struct device *dev,
 			  struct device_node *np, int idx,
@@ -51,7 +55,7 @@ struct abc_fault_info sec_abc_dequeue_type1(struct abc_event_buffer *buffer);
 void sec_abc_dequeue_event_data_type1(struct abc_common_spec_data *common_spec);
 void sec_abc_enqueue_type1(struct abc_event_buffer *buffer, struct abc_fault_info in);
 bool sec_abc_reached_spec_type1(struct abc_common_spec_data *common_spec, unsigned int cur_time);
-struct abc_common_spec_data *sec_abc_get_matched_common_spec_type1(struct abc_key_data *key_data);
+struct abc_common_spec_data *sec_abc_get_matched_common_spec_type1(char *module_name, char *error_name);
 void sec_abc_enqueue_event_data_type1(struct abc_common_spec_data *common_spec, unsigned int cur_time);
-bool sec_abc_reached_spec_type1_pre(struct abc_common_spec_data *common_spec, struct abc_pre_event *pre_event);
+int abc_alloc_memory_to_buffer_type1(struct spec_data_type1 *spec_type1, int size);
 #endif

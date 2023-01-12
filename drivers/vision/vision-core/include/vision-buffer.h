@@ -174,6 +174,7 @@ int vb_queue_prepare(struct vb_queue *q, struct vs4l_container_list *c);
 int vb_queue_unprepare(struct vb_queue *q, struct vs4l_container_list *c);
 void vb_queue_process(struct vb_queue *q, struct vb_bundle *vb);
 void vb_queue_done(struct vb_queue *q, struct vb_bundle *vb);
+void vb_queue_sync(u32 direction, struct vb_container_list *c);
 
 #define call_memop(q, op, args...) (((q)->mem_ops->op) ? ((q)->mem_ops->op(args)) : 0)
 #define call_op(q, op, args...) (((q)->ops->op) ? ((q)->ops->op(args)) : 0)

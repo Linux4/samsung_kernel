@@ -13,10 +13,13 @@
 
 #include <scsc/scsc_logring.h>
 #include <scsc/scsc_mx.h>
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
+#include <scsc/api/bhcd.h>
+#endif
 
 #include "mxman.h"	/* Special case service driver that looks inside mxman */
 
-#ifdef CONFIG_SCSC_FM_TEST
+#if IS_ENABLED(CONFIG_SCSC_FM_TEST)
 #include "mx250_fm_test.h"
 #endif
 
@@ -105,17 +108,46 @@ static int open_start_service(void)
 	struct scsc_service *fm_service;
 	int	r;
 	int	r2;
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
+	struct bhcd_start_fm *start_data;
+#else
 	struct fm_ldo_conf *ldo_conf;
+#endif
 	scsc_mifram_ref ref;
 
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
+	struct bhcd_boot *boot_data;
+
+	r = scsc_bt_get_boot_data(&boot_data);
+	if (r) {
+		SCSC_TAG_ERR(FM, "get fm boot_data failed %d\n", r);
+		goto done;
+	}
+
+	SCSC_TAG_INFO(FM, "service open boot data %p, %d\n", boot_data, boot_data->total_length);
+	fm_service = scsc_mx_service_open_boot_data(
+			fm_client->mx,
+			service_id,
+			&fm_client->fm_service_client,
+			&r,
+			boot_data,
+			boot_data->total_length);
+	kfree(boot_data);
+#else
 	fm_service = scsc_mx_service_open(fm_client->mx, service_id, &fm_client->fm_service_client, &r);
+#endif
 	if (!fm_service) {
 		r = -EINVAL;
 		SCSC_TAG_ERR(FM, "scsc_mx_service_open(fm_service) failed %d\n", r);
 		goto done;
 	}
+
 	/* Allocate memory */
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
+	r = scsc_mx_service_mifram_alloc(fm_service, sizeof(*start_data), &ref, 32);
+#else
 	r = scsc_mx_service_mifram_alloc(fm_service, sizeof(struct fm_ldo_conf), &ref, 32);
+#endif
 	if (r) {
 		SCSC_TAG_ERR(FM, "scsc_mx_service_mifram_alloc(fm_service) failed %d\n", r);
 		r2 = scsc_mx_service_close(fm_service);
@@ -123,10 +155,21 @@ static int open_start_service(void)
 			SCSC_TAG_ERR(FM, "scsc_mx_service_close(fm_service) failed %d\n", r2);
 		goto done;
 	}
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
+	start_data = (struct bhcd_start_fm *) scsc_mx_service_mif_addr_to_ptr(fm_service, ref);
+	start_data->total_length_tl.tag = BHCD_TAG_TOTAL_LENGTH;
+	start_data->total_length_tl.length = sizeof(start_data->total_length);
+	start_data->total_length = sizeof(*start_data);
+
+	start_data->ldo_conf_tl.tag = BHCD_TAG_FM_LDO_CONFIGURATION;
+	start_data->ldo_conf_tl.length = sizeof(start_data->ldo_conf);
+	start_data->ldo_conf.version = FM_LDO_CONFIG_VERSION;
+	start_data->ldo_conf.ldo_on = fm_client->ldo_on;
+#else
 	ldo_conf = (struct fm_ldo_conf *)scsc_mx_service_mif_addr_to_ptr(fm_service, ref);
 	ldo_conf->version = FM_LDO_CONFIG_VERSION;
 	ldo_conf->ldo_on = fm_client->ldo_on;
-
+#endif
 	r = scsc_mx_service_start(fm_service, ref);
 	if (r) {
 		SCSC_TAG_ERR(FM, "scsc_mx_service_start(fm_service) failed %d\n", r);
@@ -372,7 +415,7 @@ static int __init scsc_fm_client_module_init(void)
 		SCSC_TAG_ERR(FM, "scsc_mx_module_register_client_module failed: r=%d\n", r);
 		return r;
 	}
-#ifdef CONFIG_SCSC_FM_TEST
+#if IS_ENABLED(CONFIG_SCSC_FM_TEST)
 	mx250_fm_test_init();
 #endif
 	return 0;
@@ -382,7 +425,7 @@ static void __exit scsc_fm_client_module_exit(void)
 {
 	SCSC_TAG_INFO(FM, "exit\n");
 	scsc_mx_module_unregister_client_module(&fm_client_driver);
-#ifdef CONFIG_SCSC_FM_TEST
+#if IS_ENABLED(CONFIG_SCSC_FM_TEST)
 	mx250_fm_test_exit();
 #endif
 	SCSC_TAG_DEBUG(FM, "exit\n");
