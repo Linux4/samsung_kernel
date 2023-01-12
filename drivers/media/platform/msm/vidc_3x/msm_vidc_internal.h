@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, 2020,2021 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -40,11 +40,13 @@
 #define MSM_VIDC_VERSION KERNEL_VERSION(0, 0, 1)
 #define MAX_DEBUGFS_NAME 50
 #define DEFAULT_TIMEOUT 3
-#define DEFAULT_HEIGHT 1088
-#define DEFAULT_WIDTH 1920
+#define DEFAULT_HEIGHT 480
+#define DEFAULT_WIDTH 720
 #define MIN_SUPPORTED_WIDTH 32
 #define MIN_SUPPORTED_HEIGHT 32
 #define DEFAULT_FPS 15
+#define HD_WIDTH 1920
+#define HD_HEIGHT 1088
 
 /* Maintains the number of FTB's between each FBD over a window */
 #define DCVS_FTB_WINDOW 32

@@ -331,7 +331,7 @@ int ilitek_tddi_ic_watch_dog_ctrl(bool write, bool enable)
 		return ret;
 	}
 
-	ipio_info("%s WDT, key = %x\n", (enable ? "Enable" : "Disable"), idev->chip->wtd_key);
+	ipio_debug("%s WDT, key = %x\n", (enable ? "Enable" : "Disable"), idev->chip->wtd_key);
 
 	if (enable) {
 		if (ilitek_ice_mode_write(idev->chip->wdt_addr, 1, 1) < 0)
@@ -374,9 +374,9 @@ int ilitek_tddi_ic_watch_dog_ctrl(bool write, bool enable)
 	}
 
 	if (enable) {
-		ipio_info("WDT turn on succeed\n");
+		ipio_debug("WDT turn on succeed\n");
 	} else {
-		ipio_info("WDT turn off succeed\n");
+		ipio_debug("WDT turn off succeed\n");
 		if (ilitek_ice_mode_write(idev->chip->wdt_addr, 0, 1) < 0)
 			ipio_err("Write turn off cmd failed\n");
 	}
@@ -652,7 +652,7 @@ void ilitek_tddi_ic_check_otp_prog_mode(void)
 		if (ilitek_ice_mode_read(0x43008, &prog_mode, sizeof(u8)) < 0)
 			ipio_err("Read prog_mode error\n");
 
-		ipio_info("otp prog_mode = 0x%x, prog_done = 0x%x\n", prog_mode, prog_done);
+		ipio_debug("otp prog_mode = 0x%x, prog_done = 0x%x\n", prog_mode, prog_done);
 		if (prog_done == 0x0 && prog_mode == 0x80)
 			break;
 	} while (--retry > 0);
@@ -859,7 +859,7 @@ int ilitek_tddi_ic_get_core_ver(void)
 	}
 
 out:
-	ipio_info("Core version = %d.%d.%d\n", buf[1], buf[2], buf[3]);
+	ipio_debug("Core version = %d.%d.%d\n", buf[1], buf[2], buf[3]);
 	idev->chip->core_ver = buf[1] << 16 | buf[2] << 8 | buf[3];
 	return ret;
 }
@@ -968,7 +968,7 @@ int ilitek_tddi_ic_get_panel_info(void)
 	}
 
 out:
-	ipio_info("Panel info: width = %d, height = %d\n", idev->panel_wid, idev->panel_hei);
+	ipio_debug("Panel info: width = %d, height = %d\n", idev->panel_wid, idev->panel_hei);
 	return ret;
 }
 
@@ -1029,8 +1029,8 @@ out:
 	idev->stx = buf[11];
 	idev->srx = buf[12];
 
-	ipio_info("TP Info: min_x = %d, min_y = %d, max_x = %d, max_y = %d\n", idev->min_x, idev->min_y, idev->max_x, idev->max_y);
-	ipio_info("TP Info: xch = %d, ych = %d, stx = %d, srx = %d\n", idev->xch_num, idev->ych_num, idev->stx, idev->srx);
+	ipio_debug("TP Info: min_x = %d, min_y = %d, max_x = %d, max_y = %d\n", idev->min_x, idev->min_y, idev->max_x, idev->max_y);
+	ipio_debug("TP Info: xch = %d, ych = %d, stx = %d, srx = %d\n", idev->xch_num, idev->ych_num, idev->stx, idev->srx);
 	return ret;
 }
 
@@ -1039,7 +1039,7 @@ static void ilitek_tddi_ic_check_protocol_ver(u32 pver)
 	int i = 0;
 
 	if (idev->protocol->ver == pver) {
-		ipio_info("same procotol version, do nothing\n");
+		ipio_debug("same procotol version, do nothing\n");
 		return;
 	}
 
@@ -1101,7 +1101,7 @@ out:
 
 	ilitek_tddi_ic_check_protocol_ver(ver);
 
-	ipio_info("Protocol version = %d.%d.%d\n", idev->protocol->ver >> 16,
+	ipio_debug("Protocol version = %d.%d.%d\n", idev->protocol->ver >> 16,
 		(idev->protocol->ver >> 8) & 0xFF, idev->protocol->ver & 0xFF);
 	return ret;
 }

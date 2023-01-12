@@ -131,7 +131,7 @@ extern int ili_get_array_size(void);
 #define WQ_BAT_DELAY			2000
 #define MT_B_TYPE			ENABLE
 #define TDDI_RST_BIND			DISABLE
-#define MT_PRESSURE			DISABLE
+#define MT_PRESSURE			ENABLE
 /* HS70 modify for HS70-326 by liufurong at 2019/10/25 start */
 #define ENABLE_WQ_ESD			DISABLE
 /* HS70 modify for HS70-326 by liufurong at 2019/10/25 end */
@@ -169,11 +169,25 @@ struct module_name_use{
 	int  size_ili;
 };
 
+/*HS70 code for txd-cd bringup by gaozhengwei at 2020/03/26 start*/
+#define TXD_CD_ILI7807G_INI_NAME "mp_txd_cd.ini"
+#define TXD_CD_ILI7807G_BIN_NAME "ILITEK_FW_TXD_CD_ILI7807G"
+/*HS70 code for txd-cd bringup by gaozhengwei at 2020/03/26 end*/
+
 #define TM_ILI7807G_INI_NAME "mp_tm.ini"
 #define TM_ILI7807G_BIN_NAME "ILITEK_FW_TM_ILI7807G"
 
 #define TXD_ILI7807G_INI_NAME "mp_txd.ini"
 #define TXD_ILI7807G_BIN_NAME "ILITEK_FW_TXD_ILI7807G"
+
+#define TXD12_ILI7807G_INI_NAME "mp_txd12.ini"
+#define TXD12_ILI7807G_BIN_NAME "ILITEK_FW_TXD12_ILI7807G"
+
+#define TXD15_ILI7807G_INI_NAME "mp_txd15.ini"
+#define TXD15_ILI7807G_BIN_NAME "ILITEK_FW_TXD15_ILI7807G"
+/*inx18 use the same ini with TXD*/
+#define INX18_ILI7807G_INI_NAME "mp_txd.ini"
+#define INX18_ILI7807G_BIN_NAME "ILITEK_FW_TXD_ILI7807G"
 /* HS70 add for HS70-1717 by zhanghao at 20191129 end */
 /* Debug messages */
 #define DEBUG_NONE	0
@@ -496,7 +510,9 @@ enum TP_DATA_FORMAT {
 #define GESTURE_S					0x6A
 #define GESTURE_Z					0x6B
 /* HS70 add for SR-ZQL1871-01-177 by gaozhengwei at 2019/11/02 start */
-#define KEY_GESTURE_POWER				KEY_HOMEPAGE
+/* HS70 HS50 add for P210915-03922 all screen issue by zhangkexin at 2021/9/17 start */
+#define KEY_GESTURE_POWER				KEY_WAKEUP
+/* HS70 HS50 add for P210915-03922 all screen issue by zhangkexin at 2021/9/17 end */
 /* HS70 add for SR-ZQL1871-01-177 by gaozhengwei at 2019/11/02 end */
 #define KEY_GESTURE_UP					KEY_UP
 #define KEY_GESTURE_DOWN				KEY_DOWN
@@ -663,6 +679,9 @@ struct ilitek_tddi_dev {
 	struct mutex debug_mutex;
 	struct mutex debug_read_mutex;
 	spinlock_t irq_spin;
+
+	struct completion dev_pm_suspend_completion;
+	bool dev_pm_suspend;
 
 	/* physical path to the input device in the system hierarchy */
 	const char *phys;

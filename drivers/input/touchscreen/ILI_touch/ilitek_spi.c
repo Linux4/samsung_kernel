@@ -781,6 +781,24 @@ static int ilitek_spi_probe(struct spi_device *spi)
 	core_spi_setup(SPI_CLK);
 	return info->hwif->plat_probe();
 }
+static int ilitek_pm_suspend(struct device *dev)
+{
+	idev->dev_pm_suspend = true;
+	reinit_completion(&idev->dev_pm_suspend_completion);
+	return 0;
+}
+
+static int ilitek_pm_resume(struct device *dev)
+{
+	idev->dev_pm_suspend = false;
+	complete(&idev->dev_pm_suspend_completion);
+	return 0;
+}
+
+static const struct dev_pm_ops ilitek_dev_pm_ops = {
+	.suspend = ilitek_pm_suspend,
+	.resume = ilitek_pm_resume,
+};
 
 /* HS70 modify for SR-ZQL1871-01-94 by liufurong at 2019/10/26 start */
 static void ilitek_shutdown(struct spi_device *spi)
@@ -825,6 +843,7 @@ int ilitek_tddi_interface_dev_init(struct ilitek_hwif_info *hwif)
 	info->bus_driver.probe = ilitek_spi_probe;
 	info->bus_driver.remove = ilitek_spi_remove;
 	info->bus_driver.id_table = tp_spi_id;
+	info->bus_driver.driver.pm = &ilitek_dev_pm_ops;
 /* HS70 modify for SR-ZQL1871-01-94 by liufurong at 2019/10/26 start */
 	info->bus_driver.shutdown = ilitek_shutdown;
 /* HS70 modify for SR-ZQL1871-01-94 by liufurong at 2019/10/26 end */

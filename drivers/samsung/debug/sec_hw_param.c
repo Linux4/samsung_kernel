@@ -34,6 +34,15 @@
 #include <linux/input/qpnp-power-on.h>
 #endif
 
+enum {
+	CONVERSION_SOC_REV_1_0 = 0,
+	CONVERSION_SOC_REV_2_0,
+	CONVERSION_SOC_REV_2_1,
+	CONVERSION_SOC_REV_2_2,
+	CONVERSION_SOC_REV_1_1,
+	CONVERSION_SOC_REV_UNKNOWN,
+};      
+
 #define DEFAULT_LEN_STR         1023
 #define SPECIAL_LEN_STR         2047
 #define EXTRA_LEN_STR           ((SPECIAL_LEN_STR) - (31 + 5))
@@ -163,12 +172,14 @@ void battery_last_dcvs(int cap, int volt, int temp, int curr)
 	phealth->battery.tail++;
 }
 
+EXPORT_SYMBOL_GPL(battery_last_dcvs);
+
 static ssize_t show_last_dcvs(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	ssize_t info_size = 0;
 	unsigned int reset_reason;
-	char *prefix[MAX_CLUSTER_NUM] = { "L3", "SC", "GC" };
+	char *prefix[MAX_CLUSTER_NUM] = { "L3", "SC", "GC", "GP"};
 	size_t i;
 
 	if (!phealth)
@@ -316,6 +327,14 @@ static ssize_t show_ap_health(struct device *dev,
 			phealth->cache.edac_l3.ue_cnt);
 	default_scnprintf(buf, info_size, "\"EDB\":\"%d\",",
 			phealth->cache.edac_bus_cnt);
+	default_scnprintf(buf, info_size, "\"LDc\":\"%d\",",
+			phealth->cache.edac_llcc_data_ram.ce_cnt);
+	default_scnprintf(buf, info_size, "\"LDu\":\"%d\",",
+			phealth->cache.edac_llcc_data_ram.ue_cnt);
+	default_scnprintf(buf, info_size, "\"LTc\":\"%d\",",
+			phealth->cache.edac_llcc_tag_ram.ce_cnt);
+	default_scnprintf(buf, info_size, "\"LTu\":\"%d\",",
+			phealth->cache.edac_llcc_tag_ram.ue_cnt);
 
 	default_scnprintf(buf, info_size, "\"dL1c\":\"");
 	for (cpu = 0; cpu < num_present_cpus(); cpu++) {
@@ -367,6 +386,14 @@ static ssize_t show_ap_health(struct device *dev,
 			phealth->daily_cache.edac_l3.ue_cnt);
 	default_scnprintf(buf, info_size, "\"dEDB\":\"%d\",",
 			phealth->daily_cache.edac_bus_cnt);
+	default_scnprintf(buf, info_size, "\"dLDc\":\"%d\",",
+			phealth->daily_cache.edac_llcc_data_ram.ce_cnt);
+	default_scnprintf(buf, info_size, "\"dLDu\":\"%d\",",
+			phealth->daily_cache.edac_llcc_data_ram.ue_cnt);
+	default_scnprintf(buf, info_size, "\"dLTc\":\"%d\",",
+			phealth->daily_cache.edac_llcc_tag_ram.ce_cnt);
+	default_scnprintf(buf, info_size, "\"dLTu\":\"%d\",",
+			phealth->daily_cache.edac_llcc_tag_ram.ue_cnt);
 
 	for (i = 0; i < MAX_PCIE_NUM; i++) {
 		default_scnprintf(buf, info_size, "\"P%zuPF\":\"%d\",", i,
@@ -404,8 +431,10 @@ static ssize_t show_ap_health(struct device *dev,
 			phealth->daily_rr.tp);
 	default_scnprintf(buf, info_size, "\"dSP\":\"%d\",",
 			phealth->daily_rr.sp);
-	default_scnprintf(buf, info_size, "\"dPP\":\"%d\"",
+	default_scnprintf(buf, info_size, "\"dPP\":\"%d\",",
 			phealth->daily_rr.pp);
+	default_scnprintf(buf, info_size, "\"dCP\":\"%d\"",
+			phealth->daily_rr.cp);
 
 	check_format(buf, &info_size, DEFAULT_LEN_STR);
 
@@ -471,6 +500,31 @@ static DEVICE_ATTR(ddr_info, 0440, show_ddr_info, NULL);
 #define PARAM0_IVALID			1
 #define PARAM0_LESS_THAN_0		2
 
+#if defined(CONFIG_SEC_NOEYEINFO)
+static ssize_t eye_rd_info_show(struct device *dev,
+                struct device_attribute *attr, char *buf)
+{
+        ssize_t info_size = 0;
+
+        default_scnprintf(buf, info_size, "\"DDRV\":\"%s\",",
+                        get_ddr_vendor_name());
+        default_scnprintf(buf, info_size, "\"DSF\":\"%d.%d\",",
+                        (get_ddr_DSF_version() >> 16) & 0xFFFF,
+                        get_ddr_DSF_version() & 0xFFFF);
+
+        default_scnprintf(buf, info_size, "\"REV1\":\"%02x\",", get_ddr_revision_id_1());
+        default_scnprintf(buf, info_size, "\"REV2\":\"%02x\",", get_ddr_revision_id_2());
+        default_scnprintf(buf, info_size, "\"SIZE\":\"%02x\",", get_ddr_total_density());
+
+        /* remove the last ',' character */
+        info_size--;
+
+        check_format(buf, &info_size, DEFAULT_LEN_STR);
+
+        return info_size;
+}
+static DEVICE_ATTR(eye_rd_info, 0440, eye_rd_info_show, NULL);
+#else
 static ssize_t eye_rd_info_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -614,6 +668,7 @@ static ssize_t eye_wr2_info_show(struct device *dev,
 	return info_size;
 }
 static DEVICE_ATTR(eye_wr2_info, 0440, eye_wr2_info_show, NULL);
+#endif
 
 static int get_param0(const char *name)
 {
@@ -641,17 +696,20 @@ char * get_soc_hw_rev(void)
 	soc_value = get_param0("soc_rev");
 
 	switch (soc_value) {
-		case 0:         // ES1
+		case CONVERSION_SOC_REV_1_0:
 			return "1.0";
 			break;
-		case 1:         // ES2
+		case CONVERSION_SOC_REV_2_0:
 			return "2.0";
 			break;
-		case 2:         // ES3
+		case CONVERSION_SOC_REV_2_1:
 			return "2.1";
 			break;
-		case 3:
+		case CONVERSION_SOC_REV_2_2:
 			return "2.2";
+			break;
+		case CONVERSION_SOC_REV_1_1:
+			return "1.1";
 			break;
 		default:
 			return "unknown";
@@ -791,7 +849,13 @@ static ssize_t show_extra_info(struct device *dev,
 	}
 
 	extra_scnprintf(buf, offset, "\"BUG\":\"%s\",", p_kinfo->bug_buf);
-	extra_scnprintf(buf, offset, "\"PANIC\":\"%s\",", p_kinfo->panic_buf);
+	if (strlen(p_kinfo->panic_buf)) {
+		extra_scnprintf(buf, offset, "\"PANIC\":\"%s\",", p_kinfo->panic_buf);
+	} else {
+		if (p_rst_exinfo->uc_ex_info.magic == RESTART_REASON_SEC_DEBUG_MODE) {     
+			extra_scnprintf(buf, offset, "\"PANIC\":\"UCS-%s\",", p_rst_exinfo->uc_ex_info.str);
+		}
+	}
 	extra_scnprintf(buf, offset, "\"PC\":\"%s\",", p_kinfo->pc);
 	extra_scnprintf(buf, offset, "\"LR\":\"%s\",", p_kinfo->lr);
 	extra_scnprintf(buf, offset, "\"UFS\":\"%s\",", p_kinfo->ufs_err);
@@ -1029,6 +1093,7 @@ static ssize_t show_extrt_info(struct device *dev,
 	ssize_t offset = 0;
 	unsigned int reset_reason;
 	struct tzdbg_t *tz_diag_info = NULL;
+	struct tzdbg_log_v9_2_t *log_v9_2 = NULL; 
 	unsigned int i = 0;
 
 	if (!__is_ready_debug_reset_header()) {
@@ -1060,43 +1125,100 @@ static ssize_t show_extrt_info(struct device *dev,
 	if (tz_diag_info->magic_num != TZ_DIAG_LOG_MAGIC) {
 		special_scnprintf(buf, offset,
 				"\"ERR\":\"tzlog magic num error\"");
+		goto out;
+	}
+
+	if (tz_diag_info->version > TZBSP_DIAG_VERSION_V9_2) {
+		struct tzbsp_encr_info_t *encr_info = (struct tzbsp_encr_info_t *)((void *)tz_diag_info
+				+ tz_diag_info->v9_3.encr_info_for_log_off);
+		
+		if (encr_info->chunks[1].size_to_encr > 0x200) {	/* 512 byte */
+			special_scnprintf(buf, offset,
+					"\"ERR\":\"tzlog size over\"");
+			goto out;
+		}
+
+		special_scnprintf(buf, offset, "\"TZDA\":\"");
+		special_scnprintf(buf, offset, "%08X%08X",
+				cpu_to_be32(tz_diag_info->magic_num),
+				cpu_to_be32(tz_diag_info->version));
+		special_scnprintf(buf, offset, "%08X%08X%08X%08X",
+				cpu_to_be32(tz_diag_info->ring_off),
+				cpu_to_be32(tz_diag_info->ring_len),
+				cpu_to_be32(tz_diag_info->v9_3.encr_info_for_log_off),
+				cpu_to_be32(encr_info->chunks[1].size_to_encr));
+
+		for (i = 0; i < TZBSP_AES_256_ENCRYPTED_KEY_SIZE; i++)
+			special_scnprintf(buf, offset, "%02X", encr_info->key[i]);
+
+		for (i = 0; i < TZBSP_NONCE_LEN; i++)
+			special_scnprintf(buf, offset, "%02X", encr_info->chunks[1].nonce[i]);
+
+		for (i = 0; i < TZBSP_TAG_LEN; i++)
+			special_scnprintf(buf, offset, "%02X", encr_info->chunks[1].tag[i]);
+
+		log_v9_2 = (struct tzdbg_log_v9_2_t *)((void *)tz_diag_info
+				+ tz_diag_info->ring_off - sizeof(struct tzdbg_log_pos_v9_2_t));
+		special_scnprintf(buf, offset, "%08X%08X",
+				cpu_to_be32(log_v9_2->log_pos.wrap),
+				cpu_to_be32(log_v9_2->log_pos.offset));
+
+		for (i = 0; i < encr_info->chunks[1].size_to_encr; i++)
+			special_scnprintf(buf, offset, "%02X", log_v9_2->log_buf[i]);
+		
+		special_scnprintf(buf, offset, "\"");
 	} else {
 		if (tz_diag_info->ring_len > 0x200) {	/* 512 byte */
 			special_scnprintf(buf, offset,
 					"\"ERR\":\"tzlog size over\"");
-		} else {
-			special_scnprintf(buf, offset, "\"TZDA\":\"");
-			special_scnprintf(buf, offset, "%08X%08X%08X",
-					tz_diag_info->magic_num,
-					tz_diag_info->version,
-					tz_diag_info->cpu_count);
-			special_scnprintf(buf, offset, "%08X%08X%08X",
-					tz_diag_info->ring_off,
-					tz_diag_info->ring_len,
-					tz_diag_info->num_interrupts);
+			goto out;
+		}
 
-			for (i = 0; i < TZBSP_AES_256_ENCRYPTED_KEY_SIZE; i++)
-				special_scnprintf(buf, offset, "%02X",
-						tz_diag_info->key[i]);
+		special_scnprintf(buf, offset, "\"TZDA\":\"");
+		special_scnprintf(buf, offset, "%08X%08X",
+				tz_diag_info->magic_num,
+				tz_diag_info->version);
+		special_scnprintf(buf, offset, "%08X%08X%08X%08X",
+				tz_diag_info->cpu_count,
+				tz_diag_info->ring_off,
+				tz_diag_info->ring_len,
+				tz_diag_info->v9_2.num_interrupts);
 
-			for (i = 0; i < TZBSP_NONCE_LEN; i++)
-				special_scnprintf(buf, offset, "%02X",
-						tz_diag_info->nonce[i]);
+		for (i = 0; i < TZBSP_AES_256_ENCRYPTED_KEY_SIZE; i++)
+			special_scnprintf(buf, offset, "%02X",
+					tz_diag_info->v9_2.key[i]);
 
-			for (i = 0; i < TZBSP_TAG_LEN; i++)
-				special_scnprintf(buf, offset, "%02X",
-						tz_diag_info->tag[i]);
+		for (i = 0; i < TZBSP_NONCE_LEN; i++)
+			special_scnprintf(buf, offset, "%02X",
+					tz_diag_info->v9_2.nonce[i]);
 
-			special_scnprintf(buf, offset, "%04X%04X",
-				tz_diag_info->ring_buffer.log_pos.wrap,
-				tz_diag_info->ring_buffer.log_pos.offset);
+		for (i = 0; i < TZBSP_TAG_LEN; i++)
+			special_scnprintf(buf, offset, "%02X",
+					tz_diag_info->v9_2.tag[i]);
+
+		if (tz_diag_info->version == TZBSP_DIAG_VERSION_V9_2) {
+			log_v9_2 = (struct tzdbg_log_v9_2_t *)((void *)tz_diag_info
+				+ tz_diag_info->ring_off - sizeof(struct tzdbg_log_pos_v9_2_t));
+
+			special_scnprintf(buf, offset, "%08X%08X",
+					log_v9_2->log_pos.wrap,
+					log_v9_2->log_pos.offset);
 
 			for (i = 0; i < tz_diag_info->ring_len; i++)
 				special_scnprintf(buf, offset, "%02X",
-					tz_diag_info->ring_buffer.log_buf[i]);
+						log_v9_2->log_buf[i]);
+		} else {
+			struct tzdbg_log_t *log = (struct tzdbg_log_t *)((void *)tz_diag_info
+				+ tz_diag_info->ring_off - sizeof(struct tzdbg_log_pos_t));
+			special_scnprintf(buf, offset, "%04X%04X",
+					log->log_pos.wrap,
+					log->log_pos.offset);
 
-			special_scnprintf(buf, offset, "\"");
+			for (i = 0; i < tz_diag_info->ring_len; i++)
+				special_scnprintf(buf, offset, "%02X", log->log_buf[i]);
 		}
+
+		special_scnprintf(buf, offset, "\"");
 	}
 
 out:
@@ -1142,10 +1264,10 @@ static ssize_t show_extrm_info(struct device *dev,
 	offset += scnprintf((char*)(buf + offset), SPECIAL_LEN_STR - offset,
 			"\"RWC\":\"%d\",", sec_debug_get_reset_write_cnt());
 
-	extrm_buf[SEC_DEBUG_RESET_ETRM_SIZE-1] = '\0';
+	extrm_buf[SEC_DEBUG_RESET_ETRM_SIZE - 1] = '\0';
 
 	offset += scnprintf((char*)(buf + offset), SPECIAL_LEN_STR - offset,
-			"\"RKP\":\"%s\"", &extrm_buf[offset]);
+			"\"RKP\":\"%s\"", extrm_buf);
 out:
 	if (extrm_buf)
 		kfree(extrm_buf);
@@ -1176,9 +1298,11 @@ static struct attribute *sec_hw_param_attributes[] = {
 	&dev_attr_ap_info.attr,
 	&dev_attr_ddr_info.attr,
 	&dev_attr_eye_rd_info.attr,
+#if !defined(CONFIG_SEC_NOEYEINFO)
 	&dev_attr_eye_wr1_info.attr,
 	&dev_attr_eye_wr2_info.attr,
 	&dev_attr_eye_dcc_info.attr,
+#endif
 	&dev_attr_ap_health.attr,
 	&dev_attr_last_dcvs.attr,
 	&dev_attr_extra_info.attr,
@@ -1213,9 +1337,6 @@ static int sec_errp_extra_show(struct seq_file *m, void *v)
 	if (!__is_valid_reset_reason(reset_reason))
 		goto out;
 
-	if (reset_reason == USER_UPLOAD_CAUSE_SMPL)
-		goto out;
-
 	p_rst_exinfo = kmalloc(sizeof(rst_exinfo_t), GFP_KERNEL);
 	if (!p_rst_exinfo)
 		goto out;
@@ -1230,10 +1351,23 @@ static int sec_errp_extra_show(struct seq_file *m, void *v)
 	offset += scnprintf((char*)(buf + offset), EXTEND_RR_SIZE - offset,
 			"RWC:%d", sec_debug_get_reset_write_cnt());
 
-	sec_debug_upload_cause_str(p_kinfo->upload_cause,
-			upload_cause_str, sizeof(upload_cause_str));
-	offset += scnprintf((char*)(buf + offset), EXTEND_RR_SIZE - offset,
-			" UPLOAD:%s_0x%x", upload_cause_str, p_kinfo->upload_cause);
+	if (reset_reason == USER_UPLOAD_CAUSE_SMPL) {
+		if (strstr(p_kinfo->panic_buf, "SMPL")) {
+			offset += scnprintf((char*)(buf + offset), EXTEND_RR_SIZE - offset,
+				" PANIC:%s", p_kinfo->panic_buf);
+		}
+		goto out;
+	}
+
+	if (p_rst_exinfo->uc_ex_info.magic == RESTART_REASON_SEC_DEBUG_MODE) {
+		offset += scnprintf((char*)(buf + offset), EXTEND_RR_SIZE - offset,
+				" UPLOAD:%s", p_rst_exinfo->uc_ex_info.str);
+	} else {
+		sec_debug_upload_cause_str(p_kinfo->upload_cause,
+				upload_cause_str, sizeof(upload_cause_str));
+		offset += scnprintf((char*)(buf + offset), EXTEND_RR_SIZE - offset,
+				" UPLOAD:%s_0x%x", upload_cause_str, p_kinfo->upload_cause);
+	}
 
 	if (reset_reason == USER_UPLOAD_CAUSE_WATCHDOG) {
 		goto out;
@@ -1250,17 +1384,11 @@ static int sec_errp_extra_show(struct seq_file *m, void *v)
 			" PC:%s", p_kinfo->pc);
 	offset += scnprintf((char*)(buf + offset), EXTEND_RR_SIZE - offset,
 			" LR:%s", p_kinfo->lr);
-	if ((cpu > -1) && (cpu < num_present_cpus())) {
-		if (p_kinfo->fault[cpu].esr) {
-			offset += scnprintf((char*)(buf + offset), EXTEND_RR_SIZE - offset,
-					" FNM:%s", p_kinfo->fault[cpu].str);
-		}
-	}
 out:
 	kfree(p_rst_exinfo);
 
 	if (offset != 0)
-		seq_printf(m, buf);
+		seq_puts(m, buf);
 
 	return 0;
 }
@@ -1306,7 +1434,7 @@ static int __init sec_hw_param_init(void)
 	struct device *sec_hw_param_dev;
 	struct device *sec_reset_reason_dev;
 	int err_hw_param;
-	int err_errp_extra;
+	int err_errp_extra = 0;
 
 	dbg_partition_notifier_register(&sec_hw_param_dbg_part_notifier);
 

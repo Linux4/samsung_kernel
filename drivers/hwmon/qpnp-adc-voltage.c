@@ -209,6 +209,10 @@ struct qpnp_vadc_chip {
 	struct sensor_device_attribute	sens_attr[0];
 };
 
+/* Huaqin add for P200204-04939 add spinlock for qpnp_get_vadc by qianyingdong at 2020/02/13 start */
+static DEFINE_SPINLOCK(qpnp_get_vadc_lock);
+/* Huaqin add for P200204-04939 add spinlock for qpnp_get_vadc by qianyingdong at 2020/02/13 end */
+
 LIST_HEAD(qpnp_vadc_device_list);
 
 static struct qpnp_vadc_scale_fn vadc_scale_fn[] = {
@@ -280,10 +284,18 @@ static int32_t qpnp_vadc_write_reg(struct qpnp_vadc_chip *vadc, int16_t reg,
 static int qpnp_vadc_is_valid(struct qpnp_vadc_chip *vadc)
 {
 	struct qpnp_vadc_chip *vadc_chip = NULL;
-
+	/* Huaqin add for P200204-04939 add spinlock for qpnp_get_vadc by qianyingdong at 2020/02/13 start */
+	spin_lock(&qpnp_get_vadc_lock);
 	list_for_each_entry(vadc_chip, &qpnp_vadc_device_list, list)
+	{
 		if (vadc == vadc_chip)
+		{
+			spin_unlock(&qpnp_get_vadc_lock);
 			return 0;
+		}
+	}
+	spin_unlock(&qpnp_get_vadc_lock);
+	/* Huaqin add for P200204-04939 add spinlock for qpnp_get_vadc by qianyingdong at 2020/02/13 end */
 
 	return -EINVAL;
 }
@@ -2025,10 +2037,18 @@ struct qpnp_vadc_chip *qpnp_get_vadc(struct device *dev, const char *name)
 	node = of_parse_phandle(dev->of_node, prop_name, 0);
 	if (node == NULL)
 		return ERR_PTR(-ENODEV);
-
+	/* Huaqin add for P200204-04939 add spinlock for qpnp_get_vadc by qianyingdong at 2020/02/13 start */
+	spin_lock(&qpnp_get_vadc_lock);
 	list_for_each_entry(vadc, &qpnp_vadc_device_list, list)
+	{
 		if (vadc->adc->pdev->dev.of_node == node)
+		{
+			spin_unlock(&qpnp_get_vadc_lock);
 			return vadc;
+		}
+	}
+	spin_unlock(&qpnp_get_vadc_lock);
+	/* Huaqin add for P200204-04939 add spinlock for qpnp_get_vadc by qianyingdong at 2020/02/13 end */
 	return ERR_PTR(-EPROBE_DEFER);
 }
 EXPORT_SYMBOL(qpnp_get_vadc);
@@ -2976,8 +2996,11 @@ static int qpnp_vadc_probe(struct platform_device *pdev)
 
 	vadc->vadc_iadc_sync_lock = false;
 	dev_set_drvdata(&pdev->dev, vadc);
+	/* Huaqin add for P200204-04939 add spinlock for qpnp_get_vadc by qianyingdong at 2020/02/13 start */
+	spin_lock(&qpnp_get_vadc_lock);
 	list_add(&vadc->list, &qpnp_vadc_device_list);
-
+	spin_unlock(&qpnp_get_vadc_lock);
+	/* Huaqin add for P200204-04939 add spinlock for qpnp_get_vadc by qianyingdong at 2020/02/13 end */
 	return 0;
 
 err_setup:
@@ -3008,7 +3031,11 @@ static int qpnp_vadc_remove(struct platform_device *pdev)
 		i++;
 	}
 	hwmon_device_unregister(vadc->vadc_hwmon);
+	/* Huaqin add for P200204-04939 add spinlock for qpnp_get_vadc by qianyingdong at 2020/02/13 start */
+	spin_lock(&qpnp_get_vadc_lock);
 	list_del(&vadc->list);
+	spin_unlock(&qpnp_get_vadc_lock);
+	/* Huaqin add for P200204-04939 add spinlock for qpnp_get_vadc by qianyingdong at 2020/02/13 end */
 	if (vadc->adc->hkadc_ldo && vadc->adc->hkadc_ldo_ok)
 		qpnp_adc_free_voltage_resource(vadc->adc);
 	dev_set_drvdata(&pdev->dev, NULL);

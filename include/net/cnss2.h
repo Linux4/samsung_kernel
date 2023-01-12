@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -27,9 +27,11 @@
 
 enum cnss_bus_width_type {
 	CNSS_BUS_WIDTH_NONE,
+	CNSS_BUS_WIDTH_IDLE,
 	CNSS_BUS_WIDTH_LOW,
 	CNSS_BUS_WIDTH_MEDIUM,
-	CNSS_BUS_WIDTH_HIGH
+	CNSS_BUS_WIDTH_HIGH,
+	CNSS_BUS_WIDTH_VERY_HIGH,
 };
 
 enum cnss_platform_cap_flag {
@@ -158,6 +160,7 @@ struct cnss_wlan_enable_cfg {
 	struct cnss_shadow_reg_v2_cfg *shadow_reg_v2_cfg;
 	bool rri_over_ddr_cfg_valid;
 	struct cnss_rri_over_ddr_cfg rri_over_ddr_cfg;
+	bool send_msi_ce;
 };
 
 enum cnss_driver_mode {
@@ -181,6 +184,8 @@ enum cnss_recovery_reason {
 extern int cnss_wlan_register_driver(struct cnss_wlan_driver *driver);
 extern void cnss_wlan_unregister_driver(struct cnss_wlan_driver *driver);
 extern void cnss_device_crashed(struct device *dev);
+extern int cnss_pci_prevent_l1(struct device *dev);
+extern void cnss_pci_allow_l1(struct device *dev);
 extern int cnss_pci_link_down(struct device *dev);
 extern int cnss_pci_is_device_down(struct device *dev);
 extern void cnss_schedule_recovery(struct device *dev,
@@ -189,6 +194,11 @@ extern int cnss_self_recovery(struct device *dev,
 			      enum cnss_recovery_reason reason);
 extern int cnss_force_fw_assert(struct device *dev);
 extern int cnss_force_collect_rddm(struct device *dev);
+extern int cnss_qmi_send_get(struct device *dev);
+extern int cnss_qmi_send_put(struct device *dev);
+extern int cnss_qmi_send(struct device *dev, int type, void *cmd,
+			 int cmd_len, void *cb_ctx,
+			 int (*cb)(void *ctx, void *event, int event_len));
 extern void *cnss_get_virt_ramdump_mem(struct device *dev, unsigned long *size);
 extern int cnss_get_fw_files_for_target(struct device *dev,
 					struct cnss_fw_files *pfw_files,
@@ -208,6 +218,9 @@ extern void cnss_request_pm_qos(struct device *dev, u32 qos_val);
 extern void cnss_remove_pm_qos(struct device *dev);
 extern void cnss_lock_pm_sem(struct device *dev);
 extern void cnss_release_pm_sem(struct device *dev);
+extern void cnss_pci_lock_reg_window(struct device *dev, unsigned long *flags);
+extern void cnss_pci_unlock_reg_window(struct device *dev,
+				       unsigned long *flags);
 extern int cnss_wlan_pm_control(struct device *dev, bool vote);
 extern int cnss_auto_suspend(struct device *dev);
 extern int cnss_auto_resume(struct device *dev);

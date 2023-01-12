@@ -110,3 +110,4 @@ module_exit(fingerprint_class_exit);
 
 MODULE_DESCRIPTION("fingerprint sysfs class");
 MODULE_LICENSE("GPL");
+

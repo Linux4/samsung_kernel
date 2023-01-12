@@ -1,0 +1,55 @@
+/* Overlay DT source file for QRD board. All DTSI files included by this file must not contain any SOC-specific bindings.
+ */
+
+/*HS70 code for AR-ZQL1871-01-269 by panmeiling at 20191031 start*/
+#include "zql1879-tps61280.dtsi"
+/*HS70 code for AR-ZQL1871-01-269 by panmeiling at 20191031 end*/
+
+/*HS70 code for HS70-26/HS70-131 by shicheng at 2020/11/09 start*/
+#include "sdm450-fingerprint.dtsi"
+/*HS70 code for HS70-26/HS70-131 by shicheng at 2020/11/09  end*/
+
+/*HS70 code for HS70-7 by wangdeyan at 2019/09/29 start*/
+#include "display/sdm450-zql1871-display.dtsi"
+/*HS70 code for HS70-7 by wangdeyan at 2019/09/29 end*/
+/* huaqin add for HS70-35 bringup TP/key function by zhouzichun at 2019/09/30 start*/
+#include "zql1871-key.dtsi"
+#include "zql1871-tp.dtsi"
+/* huaqin add for HS70-35 bringup TP/key function by zhouzichun at 2019/09/30 end*/
+/*HS70 code for HS70-16 by tangqingyong at 20191003 start*/
+#include "sdcard-hs70.dtsi"
+/*HS70 code for HS70-16 by tangqingyong at 20191003 end*/
+/*HS70 code for HS70-1960 by tangqingyong at 20191206 start*/
+#include "zql187x-sdhc1.dtsi"
+/*HS70 code for HS70-1960 by tangqingyong at 20191206 end*/
+/* Huaqin add for HS70-38 Configure battery NTC for charging by qianyingdong at 2019/09/30 start */
+#include "battery-common.dtsi"
+/* Huaqin add for HS70-38 Configure battery NTC for charging by qianyingdong at 2019/09/30 end */
+/* huaqin add for HS70-19 bringup headphone function by xuyuqing at 2019/09/30 start */
+#include "audio-common.dtsi"
+/* huaqin add for HS70-19 bringup headphone function by xuyuqing at 2019/09/30 end */
+/* huaqin add for HS70-19 bringup headphone function by xuyuqing at 2019/09/30 end */
+/* HS70 add for HS70-196 Configure charge-thermal and MSM-thermal NTC by gaochao at 2019/10/22 start */
+#include "thermal_zones-common.dtsi"
+/* HS70 add for HS70-196 Configure charge-thermal and MSM-thermal NTC by gaochao at 2019/10/22 end */
+/* HS70 add for HS70-250 Distinguish HS60 and HS70 charging by gaochao at 2019/10/31 start */
+#include "usb-thermal-common.dtsi"
+/* HS70 add for HS70-250 Distinguish HS60 and HS70 charging by gaochao at 2019/10/31 end */
+/* Huaqin add for ZQL1871/HS70-610 modify usb eye diagram by qianyingdong at 2019/11/5 start */
+#include "zql187x-usb-eye-diagram.dtsi"
+/* Huaqin add for ZQL1871/HS70-610 modify usb eye diagram by qianyingdong at 2019/11/5 end */
+
+/* samsung qc-bsp start */
+#include "sdm450-hs70-sec-bsp.dtsi"
+/* samsung qc-bsp end */
+
+#include "sdm450-hs70-afc.dtsi"
+/* samsung afc end */
+
+/* samsung abc start */
+#include "abc_common.dtsi"
+/* samsung abc end */
+
+/* samsung qc-pm start */
+#include "sdm450-sec-pm.dtsi"
+/* samsung qc-pm end */

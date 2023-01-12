@@ -71,17 +71,13 @@ struct wakeup_source wakeup_source_fp;
  */
 //spinlock_t interrupt_lock;
 struct interrupt_desc fps_ints = {0 , 0, "BUT0" , 0};
-/* HS70 code for HS70-859 by chenlei at 2019/11/14 start */
 extern int finger_sysfs;
-/* HS70 code for HS70-859 by chenlei at 2019/11/14 end */
 unsigned int bufsiz = 4096;
 
 int gpio_irq;
 int request_irq_done = 0;
 /* int t_mode = 255; */
-/* HS70 code for HS70-861 by chenlei at 2019/11/20 start */
 int g_screen_onoff = 1;
-/* HS70 code for HS70-861 by chenlei at 2019/11/20 end */
 
 struct ioctl_cmd {
 int int_mode;
@@ -249,7 +245,6 @@ void egis_irq_enable(bool irq_wake,bool enable)
 	DEBUG_PRINT("irq_type = %d, g_data->irq_enable_flag = %d,desc->depth = %d\n",irq_wake,g_data->irq_enable_flag,desc->depth);
 	spin_unlock_irqrestore(&g_data->irq_lock, nIrqFlag);
 }
-
 static irqreturn_t fp_eint_func(int irq, void *dev_id)
 {
 	if (!fps_ints.int_count)
@@ -358,7 +353,6 @@ int Interrupt_Init(struct etspi_data *etspi, int int_mode, int detect_period, in
 		request_irq_done = 1;
 	}
 	egis_irq_enable(0,1);
-
 done:
 	
 	return 0;
@@ -595,9 +589,7 @@ static long etspi_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			retval = -EFAULT;
 			goto done;
 		}
-/* HS70 code for HS70-859 by chenlei at 2019/11/14 start */
 		finger_sysfs = 0x04;
-/* HS70 code for HS70-859 by chenlei at 2019/11/14 end */
 		DEBUG_PRINT("fp_ioctl >>> fp Trigger function init\n");
 		retval = Interrupt_Init(etspi, data.int_mode, data.detect_period, data.detect_threshold);
 		DEBUG_PRINT("fp_ioctl trigger init = %x\n", retval);
@@ -974,14 +966,13 @@ static int etspi_probe(struct platform_device *pdev)
 		pr_err("%s - Failed to kzalloc\n", __func__);
 		return -ENOMEM;
 	}
-
 /* HS70 code for HS70-861 by chenlei at 2019/11/20 start */
 	etspi->notifier.notifier_call = egistec_fb_notifier_callback;
 	status = fb_register_client(&etspi->notifier);
 	if (status){
 		pr_err(" register fb failed, retval=%d\n", status);
 	}
-/* HS70 code for HS70-861 by chenlei at 2019/11/20 end */
+/* HS70 code for HS70-861 by chenlei at 2019/11/20 end */	
 	/* device tree call */
 	if (pdev->dev.of_node) {
 		status = etspi_parse_dt(&pdev->dev, etspi);
@@ -1025,9 +1016,7 @@ static int etspi_probe(struct platform_device *pdev)
 	/* Initialize the driver data */
 	etspi->spi = pdev;
 	g_data = etspi;
-
 	g_data->irq_enable_flag = 0;
-
 	spin_lock_init(&etspi->spi_lock);
 	spin_lock_init(&g_data->irq_lock);
 	//spin_lock_init(&interrupt_lock);

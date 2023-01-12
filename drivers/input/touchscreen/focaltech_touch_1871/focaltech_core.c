@@ -53,6 +53,10 @@
 #include <linux/power_supply.h>//charge flag
 #endif
 /* HS70 add for HS70-1007 by gaozhengwei at 2019/11/22 end */
+#include <linux/touchscreen_info.h>
+/* HS70 add for P210127-01632 by gaozhengwei at 2021/02/24 start */
+#include <linux/pm_wakeirq.h>
+/* HS70 add for P210127-01632 by gaozhengwei at 2021/02/24 end */
 
 /*****************************************************************************
 * Private constant and macro definitions using #define
@@ -910,7 +914,7 @@ static int fts_read_parse_touchdata(struct fts_ts_data *data)
     u8 *buf = data->point_buf;
 
     ret = fts_read_touchdata(data);
-    if (ret || !fts_data->tp_is_enabled) {
+    if (ret) {
         return -1;
     }
 
@@ -925,6 +929,10 @@ static int fts_read_parse_touchdata(struct fts_ts_data *data)
             fts_tp_state_recovery(data);
             return -EIO;
         }
+    }
+    if(!fts_data->tp_is_enabled){
+        FTS_ERROR("TP is suspend,don't report point\n");
+        return -EIO;
     }
 
     if (data->point_num > max_touch_num) {
@@ -1006,13 +1014,18 @@ static irqreturn_t fts_irq_handler(int irq, void *data)
         return IRQ_HANDLED;
     }
 
+    /* HS70 add for P210127-01632 by gaozhengwei at 2021/02/24 start */
     if (ts_data->dev_pm_suspend) {
+
+        pm_wakeup_event(&ts_data->input_dev->dev, 5000);
+
         ret = wait_for_completion_timeout(&ts_data->dev_pm_suspend_completion, msecs_to_jiffies(700));
         if (!ret) {
             FTS_ERROR("system(spi) can't finished resuming procedure, skip it");
             return IRQ_HANDLED;
         }
     }
+    /* HS70 add for P210127-01632 by gaozhengwei at 2021/02/24 end */
     /* HS70 add for HS70-193 by gaozhengwei at 2019/11/20 end */
     fts_irq_read_report();
     return IRQ_HANDLED;
@@ -1687,7 +1700,7 @@ static int fts_charger_notifier_callback(struct notifier_block *nb,unsigned long
 }
 #endif
 /* HS70 add for HS70-1007 by gaozhengwei at 2019/11/22 end */
-extern bool is_ilitek_tp;
+extern enum tp_module_used tp_is_used;
 static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 {
     int ret = 0;
@@ -1843,6 +1856,15 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
         FTS_ERROR("request irq failed");
         goto err_irq_req;
     }
+
+/* HS70 add for P210127-01632 by gaozhengwei at 2021/02/24 start */
+#if FTS_GESTURE_EN
+	/* enable wake via this device */
+	device_init_wakeup(&ts_data->input_dev->dev, true);
+	dev_pm_set_wake_irq(&ts_data->input_dev->dev, ts_data->irq);
+#endif
+/* HS70 add for P210127-01632 by gaozhengwei at 2021/02/24 end */
+
     /* HS70 add for HS70-193 by gaozhengwei at 2019/11/20 start */
     ts_data->dev_pm_suspend = false;
     init_completion(&ts_data->dev_pm_suspend_completion);
@@ -1889,6 +1911,13 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
     return 0;
 
 err_irq_req:
+/* HS70 add for P210127-01632 by gaozhengwei at 2021/02/24 start */
+#if FTS_GESTURE_EN
+	dev_pm_clear_wake_irq(&ts_data->input_dev->dev);
+	device_init_wakeup(&ts_data->input_dev->dev, false);
+#endif
+/* HS70 add for P210127-01632 by gaozhengwei at 2021/02/24 end */
+
 #if FTS_POWER_SOURCE_CUST_EN
 err_power_init:
     fts_power_source_exit(ts_data);
@@ -1964,6 +1993,13 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
 
     fts_gesture_exit(ts_data);
     fts_bus_exit(ts_data);
+
+/* HS70 add for P210127-01632 by gaozhengwei at 2021/02/24 start */
+#if FTS_GESTURE_EN
+	dev_pm_clear_wake_irq(&ts_data->input_dev->dev);
+	device_init_wakeup(&ts_data->input_dev->dev, false);
+#endif
+/* HS70 add for P210127-01632 by gaozhengwei at 2021/02/24 end */
 
     free_irq(ts_data->irq, ts_data);
     input_unregister_device(ts_data->input_dev);
@@ -2118,8 +2154,8 @@ static int fts_ts_probe(struct spi_device *spi)
     struct fts_ts_data *ts_data = NULL;
 
     FTS_INFO("Touch Screen(SPI BUS) driver prboe...");
-    if(is_ilitek_tp) {
-        FTS_INFO("ILITEK tp has probe ok, don't run FTS probe\n");
+    if(tp_is_used != UNKNOWN_TP) {
+        FTS_INFO("it is not focal TP\n");
         return -ENOMEM;
     }
 
@@ -2173,7 +2209,7 @@ static int fts_ts_probe(struct spi_device *spi)
     }
 #endif
 /* Huaqin add for HS70-195 add cmd for get IC and binary FW version by gaozhengwei at 2019/10/15 end */
-
+    tp_is_used = FOCALTECH;
     FTS_INFO("Touch Screen(SPI BUS) driver prboe successfully");
     return 0;
 }
@@ -2185,6 +2221,13 @@ static void fts_ts_shutdown(struct spi_device *spi)
             fts_lcm_power_source_ctrl(fts_data, 0);//disable vsp/vsn
             FTS_INFO("sleep suspend end  disable vsp/vsn\n");
     #endif
+
+/* HS70 add for P210127-01632 by gaozhengwei at 2021/02/24 start */
+#if FTS_GESTURE_EN
+	dev_pm_clear_wake_irq(&fts_data->input_dev->dev);
+	device_init_wakeup(&fts_data->input_dev->dev, false);
+#endif
+/* HS70 add for P210127-01632 by gaozhengwei at 2021/02/24 end */
 }
 /* HS70 add for HS70-735 by liufurong at 2019/11/05 end */
 static int fts_ts_remove(struct spi_device *spi)

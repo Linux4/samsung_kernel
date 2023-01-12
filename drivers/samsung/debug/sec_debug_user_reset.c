@@ -29,12 +29,16 @@
 #include <linux/fs.h>
 #include <linux/memblock.h>
 #include <linux/of.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/sec_debug.h>
 #include <linux/sec_param.h>
 #include <linux/sec_class.h>
 
 #ifdef CONFIG_RKP_CFP_ROPP
 #include <linux/rkp_cfp.h>
+#endif
+#ifdef CONFIG_CFP_ROPP
+#include <linux/cfp.h>
 #endif
 
 #include <linux/qseecom.h>
@@ -51,6 +55,7 @@ static char rr_str[][3] = {
 	[USER_UPLOAD_CAUSE_BOOTLOADER_REBOOT]	= "BP",
 	[USER_UPLOAD_CAUSE_POWER_ON]		= "NP",
 	[USER_UPLOAD_CAUSE_THERMAL]		= "TP",
+	[USER_UPLOAD_CAUSE_CP_CRASH]		= "CP",
 	[USER_UPLOAD_CAUSE_UNKNOWN]		= "NP",
 };
 
@@ -170,6 +175,10 @@ static void reset_reason_update_and_clear(void)
 	case USER_UPLOAD_CAUSE_THERMAL:
 		p_health->daily_rr.tp++;
 		p_health->rr.tp++;
+		break;
+	case USER_UPLOAD_CAUSE_CP_CRASH:
+		p_health->daily_rr.cp++;
+		p_health->rr.cp++;
 		break;
 	default:
 		p_health->daily_rr.np++;
@@ -318,8 +327,8 @@ static int __init sec_debug_ex_info_setup(char *str)
 		sec_debug_reset_ex_info_size =
 					(size + 0x1000 - 1) & ~(0x1000 - 1);
 
-		pr_info("ex info phy=0x%llx, size=0x%x\n",
-				(uint64_t)sec_debug_reset_ex_info_paddr,
+		pr_info("ex info phy=%pa, size=0x%x\n",
+				&sec_debug_reset_ex_info_paddr,
 				sec_debug_reset_ex_info_size);
 	}
 	return 1;
@@ -454,14 +463,16 @@ static const struct file_operations sec_debug_rdx_bootdev_fops = {
 	.write = sec_debug_rdx_bootdev_proc_write,
 };
 
-static int __init sec_debug_map_rdx_bootdev_region(void)
+static int sec_debug_get_rdx_bootdev_region(phys_addr_t *paddr, u64 *size)
 {
-#if !defined(CONFIG_SAMSUNG_USER_TRIAL) && defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-	return 0;
-#else
 	struct device_node *parent, *node;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+	struct reserved_mem *res_mem;
+#else
 	int ret = 0;
 	u64 temp[2];
+#endif
 
 	parent = of_find_node_by_path("/reserved-memory");
 	if (!parent) {
@@ -475,15 +486,43 @@ static int __init sec_debug_map_rdx_bootdev_region(void)
 		return -EINVAL;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+	res_mem = of_reserved_mem_lookup(node);
+	if (!res_mem)
+		goto fail;
+
+	*paddr = res_mem->base;
+	*size = (u64)res_mem->size;
+#else
 	ret = of_property_read_u64_array(node, "reg", &temp[0], 2);
-	if (ret) {
-		pr_err("failed to get address from node\n");
-		return -1;
-	}
+	if (ret)
+		goto fail;
+
+	*paddr = (phys_addr_t)temp[0];
+	*size = temp[1];
+#endif
+
+	return 0;
+
+fail:
+	pr_err("failed to get address from node\n");
+	return -1;
+}
+
+static int __init sec_debug_map_rdx_bootdev_region(void)
+{
+	int ret;
+	phys_addr_t paddr;
+	u64 size;
+
+	ret = sec_debug_get_rdx_bootdev_region(&paddr, &size);
 
 	mutex_lock(&rdx_bootdev_mutex);
-	sec_debug_rdx_bootdev_paddr = temp[0];
-	sec_debug_rdx_bootdev_size = temp[1];
+
+	if (!ret) {
+		sec_debug_rdx_bootdev_paddr = paddr;
+		sec_debug_rdx_bootdev_size = size;
+	}
 
 	pr_info("sec_debug_rdx_bootdev : %pa, 0x%llx\n",
 		&sec_debug_rdx_bootdev_paddr, sec_debug_rdx_bootdev_size);
@@ -503,7 +542,6 @@ static int __init sec_debug_map_rdx_bootdev_region(void)
 
 	mutex_unlock(&rdx_bootdev_mutex);
 	return 0;
-#endif
 }
 arch_initcall_sync(sec_debug_map_rdx_bootdev_region);
 
@@ -571,6 +609,7 @@ static int set_debug_reset_header(struct debug_reset_header *header)
 	return ret;
 }
 
+static uint32_t summary_size;
 static int sec_reset_summary_info_init(void)
 {
 	int ret = 0;
@@ -586,14 +625,15 @@ static int sec_reset_summary_info_init(void)
 	summary_info = get_debug_reset_header();
 	if (summary_info == NULL)
 		return -EINVAL;
+	summary_size = dbg_parttion_get_part_size(debug_index_reset_summary);
 
-	if (summary_info->summary_size > SEC_DEBUG_RESET_SUMMARY_SIZE) {
+	if (summary_info->summary_size > summary_size) {
 		pr_err("summary_size has problem.\n");
 		ret = -EINVAL;
 		goto error_summary_info;
 	}
 
-	summary_buf = vmalloc(SEC_DEBUG_RESET_SUMMARY_SIZE);
+	summary_buf = vmalloc(summary_size);
 	if (!summary_buf) {
 		pr_err("fail - kmalloc for summary_buf\n");
 		ret = -ENOMEM;
@@ -648,7 +688,7 @@ static ssize_t sec_reset_summary_info_proc_read(struct file *file,
 	}
 
 	if ((pos >= summary_info->summary_size) ||
-	    (pos >= SEC_DEBUG_RESET_SUMMARY_SIZE)) {
+	    (pos >= summary_size)) {
 		pr_info("pos %lld, size %d\n", pos, summary_info->summary_size);
 		sec_reset_summary_completed();
 		mutex_unlock(&summary_mutex);
@@ -674,6 +714,8 @@ static const struct file_operations sec_reset_summary_info_proc_fops = {
 static int sec_reset_klog_init(void)
 {
 	int ret = 0;
+	uint32_t klog_buf_max_size, last_idx;
+	char *log_src;
 
 	if ((klog_read_buf != NULL) && (klog_buf != NULL))
 		return true;
@@ -699,10 +741,24 @@ static int sec_reset_klog_init(void)
 		goto error_klog_read_buf;
 	}
 
-	pr_info("idx[%d]\n", klog_info->ap_klog_idx);
+	pr_info("magic[0x%x], idx[%u, %u]\n",
+		((struct sec_log_buf *)klog_read_buf)->magic,
+		((struct sec_log_buf *)klog_read_buf)->idx, klog_info->ap_klog_idx);
 
-	klog_size = min_t(uint32_t, SEC_DEBUG_RESET_KLOG_SIZE,
-			klog_info->ap_klog_idx);
+	if (((struct sec_log_buf *)klog_read_buf)->magic == SEC_LOG_MAGIC) {
+		last_idx = max_t(uint32_t,
+			((struct sec_log_buf *)klog_read_buf)->idx, klog_info->ap_klog_idx);
+		log_src = klog_read_buf + offsetof(struct sec_log_buf, buf);
+	} else {
+		last_idx = klog_info->ap_klog_idx;
+		log_src = klog_read_buf;
+	}
+
+	klog_buf_max_size = SEC_DEBUG_RESET_KLOG_SIZE - offsetof(struct sec_log_buf, buf);
+	klog_size = min_t(uint32_t, klog_buf_max_size, last_idx);
+
+	pr_debug("klog_size(0x%x), klog_buf_max_size(0x%x)\n",
+		klog_size, klog_buf_max_size);
 
 	klog_buf = vmalloc(klog_size);
 	if (!klog_buf) {
@@ -712,14 +768,14 @@ static int sec_reset_klog_init(void)
 	}
 
 	if (klog_size && klog_buf && klog_read_buf) {
-		unsigned int i;
-		size_t idx;
+		uint32_t idx = last_idx % klog_buf_max_size, len = 0;
 
-		for (i = 0; i < klog_size; i++) {
-			idx = (klog_info->ap_klog_idx - klog_size + i) %
-					SEC_DEBUG_RESET_KLOG_SIZE;
-			klog_buf[i] = klog_read_buf[idx];
+		if (last_idx > klog_buf_max_size) {
+			len = klog_buf_max_size - idx;
+			memcpy(klog_buf, log_src + idx, len);
 		}
+
+		memcpy(klog_buf + len, log_src, idx);
 	}
 
 	return ret;
@@ -920,8 +976,9 @@ static void sec_restore_modem_reset_data(void)
 		return;
 	}
 
-	if (sec_debug_get_reset_reason() != USER_UPLOAD_CAUSE_PANIC) {
-		pr_info("it was not kernel panic.\n");
+	if ((sec_debug_get_reset_reason() != USER_UPLOAD_CAUSE_PANIC)
+			&& (sec_debug_get_reset_reason() != USER_UPLOAD_CAUSE_CP_CRASH)) {
+		pr_info("it was not kernel panic/cp crash.\n");
 		return;
 	}
 
@@ -935,8 +992,9 @@ static void sec_restore_modem_reset_data(void)
 
 void __deprecated sec_debug_summary_modem_print(void)
 {
-	if (sec_debug_get_reset_reason() != USER_UPLOAD_CAUSE_PANIC) {
-		pr_info("it was not kernel panic.\n");
+	if ((sec_debug_get_reset_reason() != USER_UPLOAD_CAUSE_PANIC)
+			&& (sec_debug_get_reset_reason() != USER_UPLOAD_CAUSE_CP_CRASH)) {
+		pr_info("it was not kernel panic/cp crash.\n");
 		return;
 	}
 
@@ -1432,14 +1490,20 @@ void sec_debug_backtrace(void)
 	static int once;
 	struct stackframe frame;
 	int skip_callstack = 0;
-#ifdef CONFIG_RKP_CFP_ROPP
+#if defined (CONFIG_CFP_ROPP) || defined(CONFIG_RKP_CFP_ROPP)
 	unsigned long where = 0x0;
 #endif
 
 	if (!once++) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0)
+		start_backtrace(&frame, (unsigned long)__builtin_frame_address(0), (unsigned long)sec_debug_backtrace);
+#else
 		frame.fp = (unsigned long)__builtin_frame_address(0);
 		frame.pc = (unsigned long)sec_debug_backtrace;
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+		frame.sp = current_stack_pointer;
+#endif
+#endif
 		while (1) {
 			int ret;
 
@@ -1448,7 +1512,7 @@ void sec_debug_backtrace(void)
 				break;
 
 			if (skip_callstack++ > 3) {
-#ifdef CONFIG_RKP_CFP_ROPP
+#if defined (CONFIG_CFP_ROPP) || defined(CONFIG_RKP_CFP_ROPP)
 				where = frame.pc;
 				if (where>>40 != 0xffffff)
 					where = ropp_enable_backtrace(where,

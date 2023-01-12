@@ -46,3 +46,4 @@ struct fp_plat_t {
 #endif /* __SILEAD_FP_QCOM_H__ */
 
 /* End of file silead_fp_qcom.h */
+

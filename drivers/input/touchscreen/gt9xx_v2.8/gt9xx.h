@@ -252,8 +252,10 @@ struct goodix_ts_data {
 /* STEP_4(optional): If keys are available and reported as keys,
  * config your key info here
  */
-#define GTP_KEY_TAB {KEY_MENU, KEY_HOME, KEY_BACK, KEY_HOMEPAGE, \
+/* HS70 HS50 add for P210915-03922 all screen issue by zhangkexin at 2021/9/17 start */
+#define GTP_KEY_TAB {KEY_MENU, KEY_HOME, KEY_BACK, KEY_WAKEUP, \
 	KEY_F1, KEY_F2, KEY_F3}
+/* HS70 HS50 add for P210915-03922 all screen issue by zhangkexin at 2021/9/17 end */
 
 /**************************PART3:OTHER define*******************************/
 #define GTP_DRIVER_VERSION	"V2.8.0.2<2017/12/14>"

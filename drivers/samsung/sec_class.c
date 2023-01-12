@@ -18,6 +18,7 @@
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/sec_class.h>
+#include <linux/module.h>
 
 /* CAUTION : Do not be declared as external sec_class  */
 static struct class *sec_class;
@@ -27,14 +28,15 @@ static int sec_class_match_device_by_name(struct device *dev, const void *data)
 {
 	const char *name = data;
 
-	return !strcmp(dev->kobj.name, name);
+	return sysfs_streq(name, dev_name(dev));
 }
 
-struct device *sec_dev_get_by_name(char *name)
+struct device *sec_dev_get_by_name(const char *name)
 {
 	return class_find_device(sec_class, NULL, name,
 			sec_class_match_device_by_name);
 }
+EXPORT_SYMBOL(sec_dev_get_by_name);
 
 struct device *___sec_device_create(void *drvdata, const char *fmt)
 {
@@ -51,7 +53,7 @@ struct device *___sec_device_create(void *drvdata, const char *fmt)
 	}
 
 	dev = device_create(sec_class, NULL, atomic_inc_return(&sec_dev),
-			drvdata, fmt);
+			drvdata, "%s", fmt);
 	if (IS_ERR(dev))
 		pr_err("Failed to create device %s %ld\n", fmt, PTR_ERR(dev));
 	else
@@ -59,6 +61,7 @@ struct device *___sec_device_create(void *drvdata, const char *fmt)
 
 	return dev;
 }
+EXPORT_SYMBOL(___sec_device_create);
 
 void sec_device_destroy(dev_t devt)
 {
@@ -69,6 +72,7 @@ void sec_device_destroy(dev_t devt)
 		device_destroy(sec_class, devt);
 	}
 }
+EXPORT_SYMBOL_GPL(sec_device_destroy);
 
 static int __init sec_class_create(void)
 {
@@ -79,4 +83,8 @@ static int __init sec_class_create(void)
 	}
 	return 0;
 }
-arch_initcall_sync(sec_class_create);
+
+arch_initcall(sec_class_create);
+
+MODULE_DESCRIPTION("sec-class");
+MODULE_LICENSE("GPL v2");

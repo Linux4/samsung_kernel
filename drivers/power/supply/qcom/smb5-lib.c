@@ -224,23 +224,34 @@ static void smblib_notify_extcon_props(struct smb_charger *chg, int id)
 				EXTCON_PROP_USB_SS, val);
 }
 
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 start*/
+extern bool usb_data_enabled;
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 end*/
+
 static void smblib_notify_device_mode(struct smb_charger *chg, bool enable)
 {
 #ifdef CONFIG_USB_NOTIFY_LAYER
 	struct otg_notify *o_notify = get_otg_notify();
 
-	smblib_dbg(chg, PR_MISC, "enable=%d\n", enable);
+	smblib_dbg(chg, PR_MISC, "enable=%d\n", enable && usb_data_enabled);
 #endif
 
-	if (enable)
+	if (enable && usb_data_enabled)
 		smblib_notify_extcon_props(chg, EXTCON_USB);
 
-	extcon_set_state_sync(chg->extcon, EXTCON_USB, enable);
+	extcon_set_state_sync(chg->extcon, EXTCON_USB,(enable && usb_data_enabled));
 
 #ifdef CONFIG_USB_NOTIFY_LAYER
-	send_otg_notify(o_notify, NOTIFY_EVENT_VBUS, enable);
+	send_otg_notify(o_notify, NOTIFY_EVENT_VBUS, enable && usb_data_enabled);
 #endif
 }
+
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 start*/
+inline void notify_device_mode(struct smb_charger *chg, bool enable)
+{
+	smblib_notify_device_mode(chg,enable);
+}
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 end*/
 
 static void smblib_notify_usb_host(struct smb_charger *chg, bool enable)
 {
@@ -257,18 +268,25 @@ static void smblib_notify_usb_host(struct smb_charger *chg, bool enable)
 		return;
 	}
 
-	smblib_dbg(chg, PR_MISC, "enable=%d\n", enable);
+	smblib_dbg(chg, PR_MISC, "enable=%d\n", enable && usb_data_enabled );
 #endif
 
-	if (enable)
+	if (enable && usb_data_enabled)
 		smblib_notify_extcon_props(chg, EXTCON_USB_HOST);
 
-	extcon_set_state_sync(chg->extcon, EXTCON_USB_HOST, enable);
+	extcon_set_state_sync(chg->extcon, EXTCON_USB_HOST, (enable && usb_data_enabled));
 
 #ifdef CONFIG_USB_NOTIFY_LAYER
-	send_otg_notify(o_notify, NOTIFY_EVENT_HOST, enable);
+	send_otg_notify(o_notify, NOTIFY_EVENT_HOST, enable && usb_data_enabled);
 #endif
 }
+
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 start*/
+inline void notify_usb_host(struct smb_charger *chg, bool enable)
+{
+	smblib_notify_usb_host(chg,enable);
+}
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 end*/
 
 /********************
  * REGISTER GETTERS *
@@ -1102,8 +1120,11 @@ void ss_retail_app_rule(struct smb_charger *chg)
 
 		bat_capacity = prop.intval;
 		/* HS60 add for SR-ZQL1695-01-495 by wangzikang at 2019/10/28 start */
-		if (sales_code_is("VZW")) {
-			pr_err("%s: Sales is VZW\n", __func__);
+		/* HS60 add for P200502-00042 by wangzikang at 2020/05/12 start */
+		/*if (sales_code_is("VZW")) {*/
+		if (sales_code_is("VZW") || sales_code_is("VPP")) {
+			pr_err("%s: Sales is VZW or VPP\n", __func__);
+			/* HS60 add for P200502-00042 by wangzikang at 2020/05/12 end */
 			retail_app_dischg_threshold = SS_RETAIL_APP_DISCHG_THRESHOLD_VZW;
 			retail_app_chg_threshold = SS_RETAIL_APP_CHG_THRESHOLD_VZW;
 		} else {
@@ -1207,6 +1228,11 @@ void smblib_set_prop_batt_store_mode_samsung(struct smb_charger *chg,
 			printk("Set store mode while usb is present!");
 			schedule_delayed_work(&chg->retail_app_status_change_work, msecs_to_jiffies(RETAIL_APP_START_DETECT_TIME));
 		}else{
+			/* HS60 add for HS70-4387 by wangzikang at 2020/02/25 end */
+			rc = vote(chg->fcc_votable,STORE_MODE_VOTER,false,STORE_MODE_FCC);
+			if(rc < 0)
+				pr_err("Failed to vote STORE_MODE_VOTER, rc=%d\n", rc);
+			/* HS60 add for HS70-4387 by wangzikang at 2020/02/25 end */
 			cancel_delayed_work_sync(&chg->retail_app_status_change_work);
 			printk("Clear store mode while usb is present!");
 		}
@@ -1267,7 +1293,9 @@ static void hq_rerun_apsd_work(struct work_struct *work)
 				}
 				else
 				{
-					chg->real_charger_type = POWER_SUPPLY_TYPE_USB_FLOAT;
+					/* HS70 add for P200615-07791 force float charger to sdp to resolve disconnectiong of USB port by gaochao at 2020/07/16 start */
+					chg->real_charger_type = POWER_SUPPLY_TYPE_USB;
+					/* HS70 add for P200615-07791 force float charger to sdp to resolve disconnectiong of USB port by gaochao at 2020/07/16 end */
 				}
 				/* HS70 add for HS70-565 Set ICL of float charger as 500mA by gaochao at 2019/12/20 end */
 				#endif
@@ -1297,7 +1325,9 @@ static void hq_rerun_apsd_work(struct work_struct *work)
 				}
 				else
 				{
-					chg->real_charger_type = POWER_SUPPLY_TYPE_USB_FLOAT;
+					/* HS70 add for P200615-07791 force float charger to sdp to resolve disconnectiong of USB port by gaochao at 2020/07/16 start */
+					// chg->real_charger_type = POWER_SUPPLY_TYPE_USB_FLOAT;
+					/* HS70 add for P200615-07791 force float charger to sdp to resolve disconnectiong of USB port by gaochao at 2020/07/16 end */
 				}
 				/* HS70 add for HS70-565 Set ICL of float charger as 500mA by gaochao at 2019/12/20 end */
 				#endif
@@ -2138,8 +2168,12 @@ int smblib_get_prop_batt_capacity(struct smb_charger *chg,
 
 /* HS60 add for SR-ZQL1695-01000000455 Provide sysFS node named /sys/class/power_supply/battery/batt_current_event by gaochao at 2019/08/08 start */
 #if !defined(HQ_FACTORY_BUILD)	//ss version
-#define SS_BAT_LOW_TEMP_SWELLING		180
-#define SS_BAT_HIGH_TEMP_SWELLING		410
+/*HS60 add for P200214-01131 modify the threshold of current event by wangzikang at 2020/02/14 start*/
+/*#define SS_BAT_LOW_TEMP_SWELLING		180
+#define SS_BAT_HIGH_TEMP_SWELLING		410*/
+#define SS_BAT_LOW_TEMP_SWELLING		120
+#define SS_BAT_HIGH_TEMP_SWELLING		450
+/*HS60 add for P200214-01131 modify the threshold of current event by wangzikang at 2020/02/14 end*/
 extern int g_usb_connected_unconfigured;
 
 void smblib_get_prop_batt_batt_current_event_samsung(struct smb_charger *chg,
@@ -2366,6 +2400,30 @@ int smblib_get_prop_batt_status(struct smb_charger *chg,
 /* HS60 add for SR-ZQL1695-01000000467 Provide sysFS node named xxx/battery/charge_type by gaochao at 2019/08/14 start */
 #if !defined(HQ_FACTORY_BUILD)	//ss version
 #define SLOW_CHARGING_CURRENT_STANDARD 400000
+#define SLOW_CHARGING_COUNT  10
+/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 start*/
+/*HS60 add for P220315-05837 Slow Charging Optimize by gengyifei at 20220329 start*/
+#if 0
+#define SLOW_CHARGING_COUNT_POWERON  3
+#define BOOT_MODE_STR_LEN 7
+static char boot_mode_from_cmdline[BOOT_MODE_STR_LEN + 1];
+static int __init boot_mode_setup(char *str)
+{
+	strlcpy(boot_mode_from_cmdline, str,
+		ARRAY_SIZE(boot_mode_from_cmdline));
+
+	return 1;
+}
+__setup("androidboot.mode=", boot_mode_setup);
+
+bool boot_mode_is(char* str)
+{
+	return !strncmp(boot_mode_from_cmdline, str,
+		BOOT_MODE_STR_LEN + 1);
+}
+#endif
+/*HS60 add for P220315-05837 Slow Charging Optimize by gengyifei at 20220329 end*/
+/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 end*/
 #endif
 /* HS60 add for SR-ZQL1695-01000000467 Provide sysFS node named xxx/battery/charge_type by gaochao at 2019/08/14 end */
 
@@ -2377,6 +2435,11 @@ int smblib_get_prop_batt_charge_type(struct smb_charger *chg,
 	/* HS60 add for SR-ZQL1695-01000000467 Provide sysFS node named xxx/battery/charge_type by gaochao at 2019/08/14 start */
 	#if !defined(HQ_FACTORY_BUILD)	//ss version
 	int settled_icl = 0;
+	/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 start*/
+	/*HS60 add for P220315-05837 Slow Charging Optimize by gengyifei at 20220329 start*/
+	//int slow_charging_count = 0;
+	/*HS60 add for P220315-05837 Slow Charging Optimize by gengyifei at 20220329 end*/
+	/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 end*/
 	#endif
 	/* HS60 add for SR-ZQL1695-01000000467 Provide sysFS node named xxx/battery/charge_type by gaochao at 2019/08/14 end */
 
@@ -2411,13 +2474,41 @@ int smblib_get_prop_batt_charge_type(struct smb_charger *chg,
 		return rc;
 	}
 	/* HS60 add for P191114-09571  by wangzikang at 2019/11/26 start */
+	/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 start*/
+	/*HS60 add for P220315-05837 Slow Charging Optimize by gengyifei at 20220329 start*/
+	#if 0
+	if(boot_mode_is("charger"))
+		slow_charging_count = SLOW_CHARGING_COUNT;
+	else
+		slow_charging_count = SLOW_CHARGING_COUNT_POWERON;
+	#endif
+	/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 end*/
+	/*HS60 add for P200213-04659 Slow Charging Optimize by wangzikang at 2020/02/14 start*/
+	/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 start*/
+	if ((chg->slow_charging_count <= SLOW_CHARGING_COUNT) && (chg->real_charger_type != POWER_SUPPLY_TYPE_UNKNOWN))
+	{
+		chg->slow_charging_count++;
+	}
+	else
+	{
+		chg->slow_charging_count = 0;
+	}
+
+	pr_debug("[ss]slow charging off: settled_icl = %d, Type = %d, slow_charging_count = %d, chg->real_charger_type = %d \n",
+			settled_icl, val->intval, chg->slow_charging_count, chg->real_charger_type);
 	//if (settled_icl < SLOW_CHARGING_CURRENT_STANDARD  && val->intval != POWER_SUPPLY_CHARGE_TYPE_NONE)
-	if (((settled_icl < SLOW_CHARGING_CURRENT_STANDARD) && !chg->flash_active)  && (val->intval != POWER_SUPPLY_CHARGE_TYPE_NONE))
+	//if (((settled_icl < SLOW_CHARGING_CURRENT_STANDARD) && !chg->flash_active)  && (val->intval != POWER_SUPPLY_CHARGE_TYPE_NONE))
+	if (((settled_icl < SLOW_CHARGING_CURRENT_STANDARD) && !chg->flash_active)  && (val->intval != POWER_SUPPLY_CHARGE_TYPE_NONE)
+		&& (chg->slow_charging_count > SLOW_CHARGING_COUNT) && (chg->real_charger_type != POWER_SUPPLY_TYPE_UNKNOWN))
+	/*HS60 add for P220315-05837 Slow Charging Optimize by gengyifei at 20220329 end*/
+	/*HS50 add for P200213-04659 Slow Charging Optimize by wenyaqi at 20210301 end*/
 	/* HS60 add for P191114-09571  by wangzikang at 2019/11/26 end */
 	{
+		chg->slow_charging_count = 0;
 		val->intval = POWER_SUPPLY_CHARGE_TYPE_SLOW;
-
-		smblib_dbg(chg, PR_MISC, "[ss]slow charging on\n");
+		smblib_dbg(chg, PR_MISC, "[ss]slow charging on: settled_icl = %d, Type = %d, slow_charging_count = %d, chg->real_charger_type = %d \n",
+			settled_icl, val->intval, chg->slow_charging_count, chg->real_charger_type);
+		/*HS60 add for P200213-04659 Slow Charging Optimize by wangzikang at 2020/02/14 end*/
 	}
 	#endif
 	/* HS60 add for SR-ZQL1695-01000000467 Provide sysFS node named xxx/battery/charge_type by gaochao at 2019/08/14 end */
@@ -2787,7 +2878,14 @@ int smblib_dp_dm(struct smb_charger *chg, int val)
 		}
 		#endif
 		/*HS70 add for HS70-919 import Handle QC2.0 charger collapse patch by qianyingdong at 2019/11/18 end*/
-		rc = smblib_force_vbus_voltage(chg, FORCE_9V_BIT);
+		/* HS50 add for HS50-4045 resolve protocol conflictation between afc and qc by wenyaqi at 2020/11/02 start */
+		#if defined(CONFIG_AFC)
+		if(chg->afc_sts == AFC_FAIL)
+			rc = smblib_force_vbus_voltage(chg, FORCE_5V_BIT);
+		else
+		#endif
+		/* HS50 add for HS50-4045 resolve protocol conflictation between afc and qc by wenyaqi at 2020/11/02 end */
+			rc = smblib_force_vbus_voltage(chg, FORCE_9V_BIT);
 		if (rc < 0)
 			pr_err("Failed to force 9V\n");
 #if !defined(HQ_FACTORY_BUILD)	//ss version
@@ -2938,8 +3036,10 @@ int smblib_get_prop_usb_online(struct smb_charger *chg,
 		return rc;
 	}
 
-	if (is_client_vote_enabled(chg->usb_icl_votable,
+	/* HS50 add for HS50-1898 Import qcom patch to resolve deadlock by wenyaqi at 2020/9/27 start */
+	if (is_client_vote_enabled_locked(chg->usb_icl_votable,
 					CHG_TERMINATION_VOTER)) {
+	/* HS50 add for HS50-1898 Import qcom patch to resolve deadlock by wenyaqi at 2020/9/27 end */
 		rc = smblib_get_prop_usb_present(chg, val);
 		return rc;
 	}
@@ -4167,6 +4267,16 @@ void smblib_usb_plugin_hard_reset_locked(struct smb_charger *chg)
 					vbus_rising ? "attached" : "detached");
 }
 
+/* Huaqin add for P200731-01593 Enable charging while TYPE-C is  default mode by gaochao at 2020/08/10 start */
+enum HS70_NA {
+	HS70_HQ_PCBA_AT_T = 0x5,
+	HS70_HQ_PCBA_Canada = 0x8,
+};
+
+#define PCB_MASK_HQ		0xFF0
+#define PCB_SHIFT_HQ		4
+/* Huaqin add for P200731-01593 Enable charging while TYPE-C is  default mode by gaochao at 2020/08/10 end */
+
 #define PL_DELAY_MS	30000
 void smblib_usb_plugin_locked(struct smb_charger *chg)
 {
@@ -4175,6 +4285,10 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 	bool vbus_rising;
 	struct smb_irq_data *data;
 	struct storm_watch *wdata;
+	/* Huaqin add for P200731-01593 enable charging while Rp-Rp on both CC Pins by gaochao at 2020/08/10 start */
+	u32 pcba_config = 0;
+	pcba_config = hq_get_huaqin_pcba_config();
+	/* Huaqin add for P200731-01593 enable charging while Rp-Rp on both CC Pins by gaochao at 2020/08/10 end */
 
 	rc = smblib_read(chg, USBIN_BASE + INT_RT_STS_OFFSET, &stat);
 	if (rc < 0) {
@@ -4255,6 +4369,41 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 			smblib_err(chg, "Couldn't disable DPDM rc=%d\n", rc);
 
 		smblib_update_usb_type(chg);
+		/* Huaqin add for P200731-01593 Enable charging while TYPE-C is default mode by gaochao at 2020/08/10 start */
+		if (chg->distinguish_sdm439_sdm450_others == DETECT_SDM450_PLATFORM)		//HS70
+		{
+			if ((((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HS70_HQ_PCBA_AT_T)
+				|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HS70_HQ_PCBA_Canada))
+			{
+				pr_info("[%s]line=%d: ignore A11 NA\n", __FUNCTION__, __LINE__);
+			}
+			else
+			{
+				if (chg->use_extcon)
+					smblib_notify_device_mode(chg, false);
+				vote(chg->usb_icl_votable, USB_PSY_VOTER, false, 0); //remove USB_PSY voting when plugin detach
+			}
+		}
+		else
+		{
+			/*Huaqin add for Enable Charge while TypeC mode detected as DEFAULT by wangzikang at 2020/07/14 start*/
+			if (chg->use_extcon)
+				smblib_notify_device_mode(chg, false);
+			rc = vote(chg->usb_icl_votable, USB_PSY_VOTER, false, 0); //remove USB_PSY voting when plugin detach
+			if (rc < 0)
+			{
+			    pr_err("line=%d: Couldn't vote USB_PSY_VOTER rc=%d\n", __LINE__, rc);
+			}
+			/*Huaqin add for Enable Charge while TypeC mode detected as DEFAULT by wangzikang at 2020/07/14 start*/
+		}
+		/* Huaqin add for P200731-01593 Enable charging while TYPE-C is default mode by gaochao at 2020/08/10 end */
+		/* QL3095 add for P210204-02894 Set ICL 500ma when usb plugin detach by shixuanxuan at 2020/02/14 start */
+			rc = vote(chg->usb_icl_votable, SW_ICL_MAX_VOTER, true, SDP_CURRENT_UA);
+			if (rc < 0)
+			{
+			    pr_err("line=%d: Couldn't vote SW_ICL_MAX_VOTER rc=%d\n", __LINE__, rc);
+			}
+		/* QL3095 add for P210204-02894 Set ICL 500ma when usb plugin detach by shixuanxuan at 2020/02/14 end */
 	}
 
 	if (chg->connector_type == POWER_SUPPLY_CONNECTOR_MICRO_USB)
@@ -4295,6 +4444,11 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 	/* HS60 add for HS60-811 Set float charger by gaochao at 2019/08/27 start */
 	if (vbus_rising)
 	{
+		/*HS60 add for P200213-04659 Slow Charging Optimize by wangzikang at 2020/02/14 start*/
+		#if !defined(HQ_FACTORY_BUILD)	//ss version
+		chg->slow_charging_count = 0;
+		#endif
+		/*HS60 add for P200213-04659 Slow Charging Optimize by wangzikang at 2020/02/14 end*/
 		/* HS60 add for ZQL1693-8 rerun apsd to identify charger type by gaochao at 2019/09/04 start */
 		pr_info("[%s]line=%d, start float_charger_detect_work after %d ms, rerun_apsd_work after %d ms\n",
 				__FUNCTION__, __LINE__, FLOAT_CHARGER_START_DETECT_TIME, FLOAT_CHARGER_START_DETECT_TIME + RERUN_APSD_DETECT_TIME);
@@ -4303,7 +4457,7 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 		/* HS70 add for HS70-565 Set ICL of float charger as 500mA by gaochao at 2019/12/20 start */
 		#if !defined(HQ_FACTORY_BUILD)	//ss version
 		/* HS70 add for HS70-565 remove float_charger_redetect_work by qianyingdong at 2019/1/22 start */
-		/*
+		/* HS70 add for HS60-5436 by wangzikang at 2020/03/24 start */
 		if (chg->boot_to_detect_charger == BOOT_TO_DETECT_INIT)
 		{
 			schedule_delayed_work(&chg->float_charger_detect_work, msecs_to_jiffies(BOOT_TO_DETECT_FLOAT_CHARGER_START_DETECT_TIME));
@@ -4315,7 +4469,7 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 
 		pr_info("[%s]line=%d, boot_to_detect_charger=%d\n",
 				__FUNCTION__, __LINE__, chg->boot_to_detect_charger);
-		*/
+		/* HS70 add for HS60-5436 by wangzikang at 2020/03/24 end */
 		/* HS70 add for HS70-565 remove float_charger_redetect_work by qianyingdong at 2019/1/22 end */
 		#else	//factory
 		schedule_delayed_work(&chg->float_charger_detect_work, msecs_to_jiffies(FLOAT_CHARGER_START_DETECT_TIME));
@@ -4324,6 +4478,11 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 	}
 	else
 	{
+		/*HS60 add for P200213-04659 Slow Charging Optimize by wangzikang at 2020/02/14 start*/
+		#if !defined(HQ_FACTORY_BUILD)	//ss version
+		chg->slow_charging_count = 0;
+		#endif
+		/*HS60 add for P200213-04659 Slow Charging Optimize by wangzikang at 2020/02/14 end*/
 		/* HS60 add for ZQL1693-8 rerun apsd to identify charger type by gaochao at 2019/09/04 start */
 		pr_info("[%s]line=%d, cancel float_charger_detect_work, cancel rerun_apsd_work\n",
 				__FUNCTION__, __LINE__);
@@ -4494,8 +4653,23 @@ static void smblib_handle_hvdcp_detect_done(struct smb_charger *chg,
 
 static void update_sw_icl_max(struct smb_charger *chg, int pst)
 {
+	/* HS70 add for HS60-5436 by wangzikang at 2020/03/24 start */
 	int typec_mode;
 	int rp_ua;
+	/* HS70 add for HS60-5436 by wangzikang at 2020/03/24 end */
+
+	/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/03 start */
+	chg->is_dcp = false;
+#if defined(CONFIG_AFC)
+	if (pst == POWER_SUPPLY_TYPE_USB_DCP && chg->real_charger_type != POWER_SUPPLY_TYPE_AFC)
+#else
+	if (pst == POWER_SUPPLY_TYPE_USB_DCP)
+#endif
+	{
+		chg->is_dcp = true;
+	}
+	pr_debug("is_dcp=%d\n", chg->is_dcp);
+	/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/03 end */
 
 	/* while PD is active it should have complete ICL control */
 	if (chg->pd_active)
@@ -4516,13 +4690,14 @@ static void update_sw_icl_max(struct smb_charger *chg, int pst)
 		return;
 
 	/* TypeC rp med or high, use rp value */
+	/* HS70 add for HS60-5436 by wangzikang at 2020/03/24 start */
 	typec_mode = smblib_get_prop_typec_mode(chg);
 	if (typec_rp_med_high(chg, typec_mode)) {
 		rp_ua = get_rp_based_dcp_current(chg, typec_mode);
 		vote(chg->usb_icl_votable, SW_ICL_MAX_VOTER, true, rp_ua);
 		return;
 	}
-
+	/* HS70 add for HS60-5436 by wangzikang at 2020/03/24 end */
 	/* rp-std or legacy, USB BC 1.2 */
 	switch (pst) {
 	case POWER_SUPPLY_TYPE_USB:
@@ -4649,6 +4824,10 @@ irqreturn_t usb_source_change_irq_handler(int irq, void *data)
 	}
 	smblib_dbg(chg, PR_REGISTER, "APSD_STATUS = 0x%02x\n", stat);
 
+/* HS70 add for P200302-05335 Remove re-running APSD when micro-usb cable plugged by qianyingdong at 2020/03/02 start */
+#if !defined(HQ_FACTORY_BUILD)	//ss version
+	smblib_dbg(chg, PR_INTERRUPT, "[%s]skip re-runing APSD\n", __func__);
+#else
 	if ((chg->connector_type == POWER_SUPPLY_CONNECTOR_MICRO_USB)
 		&& (stat & APSD_DTC_STATUS_DONE_BIT)
 		&& !chg->uusb_apsd_rerun_done) {
@@ -4660,6 +4839,8 @@ irqreturn_t usb_source_change_irq_handler(int irq, void *data)
 		smblib_rerun_apsd_if_required(chg);
 		return IRQ_HANDLED;
 	}
+#endif
+/* HS70 add for P200302-05335 Remove re-running APSD when micro-usb cable plugged by qianyingdong at 2020/03/02 start */
 
 	smblib_handle_apsd_done(chg,
 		(bool)(stat & APSD_DTC_STATUS_DONE_BIT));
@@ -4726,8 +4907,7 @@ static void typec_src_insertion(struct smb_charger *chg)
 	chg->typec_legacy = stat & TYPEC_LEGACY_CABLE_STATUS_BIT;
 	chg->ok_to_pd = (!(chg->typec_legacy || *chg->pd_disabled)
 			|| chg->early_usb_attach) && !chg->pd_not_supported;
-	/* HS60 add for HQ000001 Remove re-running APSD to satisfy BC1.2 by gaochao at 2020/01/13 start */
-	/*
+	/* HS70 add for HS60-5436 by wangzikang at 2020/03/24 start */
 	if (!chg->ok_to_pd) {
 		rc = smblib_configure_hvdcp_apsd(chg, true);
 		if (rc < 0) {
@@ -4737,8 +4917,7 @@ static void typec_src_insertion(struct smb_charger *chg)
 		}
 		smblib_rerun_apsd_if_required(chg);
 	}
-	*/
-	/* HS60 add for HQ000001 Remove re-running APSD to satisfy BC1.2 by gaochao at 2020/01/13 end */
+	/* HS70 add for HS60-5436 by wangzikang at 2020/03/24 end */
 }
 
 static void typec_sink_removal(struct smb_charger *chg)
@@ -5964,6 +6143,11 @@ int smblib_init(struct smb_charger *chg)
 	chg->boot_to_detect_charger = BOOT_TO_DETECT_INIT;
 	#endif
 	/* HS70 add for HS70-565 Set ICL of float charger as 500mA by gaochao at 2019/12/20 end */
+	/*HS60 add for P200213-04659 Slow Charging Optimize by wangzikang at 2020/02/14 start*/
+	#if !defined(HQ_FACTORY_BUILD)	//ss version
+	chg->slow_charging_count = 0;
+	#endif
+	/*HS60 add for P200213-04659 Slow Charging Optimize by wangzikang at 2020/02/14 end*/
 	chg->fake_capacity = -EINVAL;
 	chg->fake_input_current_limited = -EINVAL;
 	chg->fake_batt_status = -EINVAL;
@@ -6059,6 +6243,11 @@ int smblib_deinit(struct smb_charger *chg)
 		chg->boot_to_detect_charger = BOOT_TO_DETECT_INIT;
 		#endif
 		/* HS70 add for HS70-565 Set ICL of float charger as 500mA by gaochao at 2019/12/20 end */
+		/*HS60 add for P200213-04659 Slow Charging Optimize by wangzikang at 2020/02/14 start*/
+		#if !defined(HQ_FACTORY_BUILD)	//ss version
+		chg->slow_charging_count = 0;
+		#endif
+		/*HS60 add for P200213-04659 Slow Charging Optimize by wangzikang at 2020/02/14 end*/
 		power_supply_unreg_notifier(&chg->nb);
 		smblib_destroy_votables(chg);
 		qcom_step_chg_deinit();
@@ -6109,6 +6298,10 @@ int is_afc_result(struct smb_charger *chg,int result)
 		vote(chg->usb_icl_votable, SEC_BATTERY_AFC_VOTER, true, AFC_CURRENT_UA);
 		vote(chg->fcc_votable, SEC_BATTERY_AFC_VOTER, true, 2700000);
 		vote(chg->usb_icl_votable, SW_ICL_MAX_VOTER, false, 0);
+		/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/10 start */
+		chg->is_dcp = false;
+		pr_debug("is_dcp=%d\n", chg->is_dcp);
+		/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/10 end */
 	} else if (result == AFC_DISABLE) {
 		smblib_err(chg, "afc disable\n");
 		vote(chg->usb_icl_votable, SEC_BATTERY_AFC_VOTER, false, 0);

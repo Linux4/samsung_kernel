@@ -126,6 +126,12 @@ struct drm_display_info {
 	unsigned int bpc;
 
 	/**
+	 * @bpc: Maximum bits per color channel for YCbCr420 modes.
+	 * Used by HDMI and DP outputs.
+	 */
+	unsigned int y420_bpc;
+
+	/**
 	 * @subpixel_order: Subpixel order of LCD panels.
 	 */
 	enum subpixel_order subpixel_order;
@@ -133,6 +139,8 @@ struct drm_display_info {
 #define DRM_COLOR_FORMAT_RGB444		(1<<0)
 #define DRM_COLOR_FORMAT_YCRCB444	(1<<1)
 #define DRM_COLOR_FORMAT_YCRCB422	(1<<2)
+#define DRM_COLOR_FORMAT_DC_RGB444	(1<<3)
+#define DRM_COLOR_FORMAT_DC_YCRCB444	(1<<4)
 
 	/**
 	 * @color_formats: HDMI Color formats, selects between RGB and YCrCb
@@ -489,6 +497,12 @@ struct drm_connector_funcs {
 
 /* mode specified on the command line */
 struct drm_cmdline_mode {
+	/**
+	 * @name:
+	 *
+	 * Name of the mode.
+	 */
+	char name[DRM_DISPLAY_MODE_LEN];
 	bool specified;
 	bool refresh_specified;
 	bool bpp_specified;
@@ -542,12 +556,15 @@ struct drm_cmdline_mode {
  * @pt_scan_info: PT scan info obtained from the VCDB of EDID
  * @it_scan_info: IT scan info obtained from the VCDB of EDID
  * @ce_scan_info: CE scan info obtained from the VCDB of EDID
+ * @color_enc_fmt: Colorimetry encoding formats of sink
  * @hdr_eotf: Electro optical transfer function obtained from HDR block
  * @hdr_metadata_type_one: Metadata type one obtained from HDR block
  * @hdr_max_luminance: desired max luminance obtained from HDR block
  * @hdr_avg_luminance: desired avg luminance obtained from HDR block
  * @hdr_min_luminance: desired min luminance obtained from HDR block
  * @hdr_supported: does the sink support HDR content
+ * @rgb_qs: does the sink declare RGB selectable quantization range
+ * @yuv_qs: does the sink declare YCC selectable quantization range
  * @edid_corrupt: indicates whether the last read EDID was corrupt
  * @debugfs_entry: debugfs directory for this connector
  * @state: current atomic state for this connector
@@ -703,12 +720,15 @@ struct drm_connector {
 	u8 pt_scan_info;
 	u8 it_scan_info;
 	u8 ce_scan_info;
+	u8 color_enc_fmt;
 	u32 hdr_eotf;
 	bool hdr_metadata_type_one;
 	u32 hdr_max_luminance;
 	u32 hdr_avg_luminance;
 	u32 hdr_min_luminance;
 	bool hdr_supported;
+	bool rgb_qs;
+	bool yuv_qs;
 
 	/* Flag for raw EDID header corruption - used in Displayport
 	 * compliance testing - * Displayport Link CTS Core 1.2 rev1.1 4.2.2.6
@@ -821,5 +841,18 @@ int drm_mode_connector_update_edid_property(struct drm_connector *connector,
 					  struct drm_connector, head);		\
 	     &connector->head != (&(dev)->mode_config.connector_list);		\
 	     connector = list_next_entry(connector, head))
+
+/**
+ * drm_connector_for_each_possible_encoder - iterate connector's possible encoders
+ * @connector: &struct drm_connector pointer
+ * @encoder: &struct drm_encoder pointer used as cursor
+ * @__i: int iteration cursor, for macro-internal use
+ */
+#define drm_connector_for_each_possible_encoder(connector, encoder, __i) \
+	for ((__i) = 0; (__i) < ARRAY_SIZE((connector)->encoder_ids) && \
+		     (connector)->encoder_ids[(__i)] != 0; (__i)++) \
+		for_each_if((encoder) = \
+			    drm_encoder_find((connector)->dev, \
+					     (connector)->encoder_ids[(__i)])) \
 
 #endif

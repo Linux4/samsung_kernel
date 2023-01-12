@@ -7,4 +7,3 @@ ifdef CONFIG_ARCH_QCOM
 endif
 
 obj-$(CONFIG_SILEAD_FP_PLATFORM)	+= silead_fp_platform.o
-

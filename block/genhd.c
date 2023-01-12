@@ -575,18 +575,14 @@ exit:
 	/* announce disk after possible partitions are created */
 	dev_set_uevent_suppress(ddev, 0);
 	kobject_uevent(&ddev->kobj, KOBJ_ADD);
-#ifdef CONFIG_BLOCK_SUPPORT_STLOG
 	ST_LOG("<%s> KOBJ_ADD %d:%d", __func__, major, first_minor);
-#endif
 
 	/* announce possible partitions */
 	disk_part_iter_init(&piter, disk, 0);
 	while ((part = disk_part_iter_next(&piter))) {
 		kobject_uevent(&part_to_dev(part)->kobj, KOBJ_ADD);
-#ifdef CONFIG_BLOCK_SUPPORT_STLOG
 		ST_LOG("<%s> KOBJ_ADD %d:%d", __func__, major,
 		                        first_minor + part->partno);
-#endif
 	}
 	disk_part_iter_exit(&piter);
 }
@@ -916,7 +912,7 @@ static int show_partition(struct seq_file *seqf, void *v)
 	struct hd_struct *part;
 	char buf[BDEVNAME_SIZE];
 
-	/* Don't show non-partitionable removeable devices or empty devices */
+	/* Don't show non-partitionable removable devices or empty devices */
 	if (!get_capacity(sgp) || (!disk_max_parts(sgp) &&
 				   (sgp->flags & GENHD_FL_REMOVABLE)))
 		return 0;
@@ -971,7 +967,7 @@ static int show_iodevs(struct seq_file *seqf, void *v)
 	struct hd_struct *part;
 	char buf[BDEVNAME_SIZE];
 
-	/* Don't show non-partitionable removeable devices or empty devices */
+	/* Don't show non-partitionable removable devices or empty devices */
 	if (!get_capacity(sgp) || (!disk_max_parts(sgp) &&
 				(sgp->flags & GENHD_FL_REMOVABLE)))
 		return 0;
@@ -1409,7 +1405,7 @@ static int iostats_show(struct seq_file *seqf, void *v)
 				nread + nwrite,
 				jiffies_to_msecs(part_stat_read(hd, io_ticks)),
 				jiffies_to_msecs(part_stat_read(hd, time_in_queue)),
-				/* followings are added */
+				/* following are added */
 				part_stat_read(hd, discard_ios),
 				part_stat_read(hd, discard_sectors),
 				part_stat_read(hd, flush_ios),

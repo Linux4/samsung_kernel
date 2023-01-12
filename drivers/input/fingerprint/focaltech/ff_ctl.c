@@ -61,11 +61,7 @@
  * Define the driver name.
  */
 #define FF_DRV_NAME "focaltech_fp"
-
-/* HS70 code for HS70-186 by zhuqiang at 2019/10/28 start */
 extern int finger_sysfs;
-/* HS70 code for HS70-186 by zhuqiang at 2019/10/28 end */
-
 /*
  * Driver context definition and its singleton instance.
  */
@@ -338,7 +334,6 @@ static int ff_ctl_register_input(void)
         return (-ENOMEM);
     }
 
-    /*HS70 code for P200102-05384 by zhuqiang at 2020/01/09 start*/
     #ifdef FP_INPUT_EVENT
     /* Register the key event capabilities. */
     if (g_config) {
@@ -352,8 +347,6 @@ static int ff_ctl_register_input(void)
         input_set_capability(g_context->input, EV_KEY, g_config->keycode_simulation  );
     }
     #endif
-    /*HS70 code for P200102-05384 by zhuqiang at 2020/01/09 end*/
-
     /* Register the allocated input device. */
     g_context->input->name = "ff_key";
     err = input_register_device(g_context->input);
@@ -585,9 +578,7 @@ static long ff_ctl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         break;
     }
     case FF_IOC_SET_IC_INFORMATION: {
-        /* HS70 code for HS70-186 by zhuqiang at 2019/10/28 start */
         finger_sysfs = 0x03;
-        /* HS70 code for HS70-186 by zhuqiang at 2019/10/28 end */
         if (copy_from_user(&ic_information, (ic_information_t *)arg, sizeof(ic_information_t))) {
             FF_LOGE("copy_from_user(..) failed.");
             err = (-EFAULT);
@@ -734,4 +725,5 @@ module_exit(ff_ctl_driver_exit);
 MODULE_DESCRIPTION("The device control driver for FocalTech's fingerprint sensor.");
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("FocalTech Fingerprint R&D department");
+
 

@@ -360,9 +360,18 @@ end_afc:
 
 int afc_set_voltage(int vol)
 {
+	if (!gafc) {
+		pr_info("%s, afc is not ready, return\n",__func__);
+		return -ENODEV;
+	}
+
 	pr_info("%s, set_voltage(%d)\n", __func__, vol);
 
 	gafc->vol = vol;
+	if(vol == SET_9V && gafc->afc_disable){
+		gafc->vol = SET_5V;
+	}
+	
 	schedule_work(&gafc->afc_set_voltage_work);
 
 	return 0;
@@ -441,10 +450,14 @@ static ssize_t afc_disable_store(struct device *dev,
 	
 	pr_info("%s, val: %d\n", __func__, val);
 
-	if (!strncasecmp(buf, "1", 1))
+	if (!strncasecmp(buf, "1", 1)){
 		gafc->afc_disable = true;
-	else if (!strncasecmp(buf, "0", 1))
+		val = '1';
+	}
+	else if (!strncasecmp(buf, "0", 1)){
 		gafc->afc_disable = false;
+		val = '0';
+	}
 	else {
 		pr_warn("%s: invalid value\n", __func__);
 		return count;
@@ -456,7 +469,7 @@ static ssize_t afc_disable_store(struct device *dev,
 			pr_err("%s: Failed to Register psy_usb\n", __func__);
 		}
 	}
-	value.intval = val ? HV_DISABLE : HV_ENABLE;
+	value.intval = val == '1' ? HV_DISABLE : HV_ENABLE;
 #if defined(CONFIG_AFC_ENUM)
 	ret = power_supply_set_property(psy_usb,
 			(enum power_supply_property)POWER_SUPPLY_PROP_HV_DISABLE, &value);
@@ -563,7 +576,7 @@ static int gpio_afc_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	get_afc_mode();
+	gafc->afc_disable = get_afc_mode();
 	spin_lock_init(&gafc->afc_spin_lock);
 	INIT_WORK(&gafc->afc_set_voltage_work, afc_set_voltage_workq);
 

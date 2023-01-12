@@ -591,3 +591,4 @@ err:
 #endif /* BSP_SIL_PLAT_QCOM */
 
 /* End of file spilead_fp_qcom.c */
+

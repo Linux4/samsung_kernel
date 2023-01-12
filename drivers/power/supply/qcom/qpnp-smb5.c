@@ -374,6 +374,30 @@ static int smb5_configure_internal_pull(struct smb_charger *chg, int type,
 	return rc;
 }
 
+/* Huaqin add for P200731-01593 Enable charging while TYPE-C is default mode by gaochao at 2020/08/10 start */
+enum HS70_NA {
+	HS70_HQ_PCBA_AT_T = 0x5,
+	HS70_HQ_PCBA_Canada = 0x8,
+};
+/* Huaqin add for P200731-01593 Enable charging while TYPE-C is default mode by gaochao at 2020/08/10 end */
+
+
+/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 start */
+enum {
+	HQ_PCBA_ROW_ZQL1695_SMB = 1,
+	HQ_PCBA_PRC_IN_ID_ZQL1695_SMB,
+	HQ_PCBA_LATAM_ZQL1695_SMB,
+	HQ_PCBA_ROW_Q_ZQL1695_SMB = 0x14,
+	HQ_PCBA_PRC_IN_ID_Q_ZQL1695_SMB ,
+	HQ_PCBA_LATAM_Q_ZQL1695_SMB ,
+	HQ_PCBA_ROW_4000mAh_ZQL1695_SMB = 0x1D,
+	HQ_PCBA_PRC_IN_ID_4000mAh_ZQL1695_SMB,
+	HQ_PCBA_LATAM_4000mAh_ZQL1695_SMB,
+};
+#define PCB_MASK_HQ		0xFF0
+#define PCB_SHIFT_HQ		4
+u32 hq_get_huaqin_pcba_config(void);
+/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 end */
 #define MICRO_1P5A		1500000
 #define MICRO_1PA		1000000
 #define MICRO_P1A		100000
@@ -392,6 +416,10 @@ static int smb5_parse_dt(struct smb5 *chip)
 	int index = 0;
 	/* HS70 add for HS70-135 Distinguish HS60 and HS70 charging by gaochao at 2019/10/08 end */
 
+	/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 start */
+	u32 pcba_config = 0;
+	pcba_config = hq_get_huaqin_pcba_config();
+	/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 end */
 	if (!node) {
 		pr_err("device tree node missing\n");
 		return -EINVAL;
@@ -420,12 +448,13 @@ static int smb5_parse_dt(struct smb5 *chip)
 				"qcom,fv-max-uv", &chip->dt.batt_profile_fv_uv);
 	if (rc < 0)
 		chip->dt.batt_profile_fv_uv = -EINVAL;
-
-	rc = of_property_read_u32(node,
+	/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 start */
+	/*rc = of_property_read_u32(node,
 				"qcom,usb-icl-ua", &chip->dt.usb_icl_ua);
 	if (rc < 0)
 		chip->dt.usb_icl_ua = -EINVAL;
-
+	*/
+	/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 end */
 	rc = of_property_read_u32(node,
 				"qcom,otg-cl-ua", &chg->otg_cl_ua);
 	if (rc < 0)
@@ -436,10 +465,20 @@ static int smb5_parse_dt(struct smb5 *chip)
 			&chip->dt.term_current_src);
 	if (rc < 0)
 		chip->dt.term_current_src = ITERM_SRC_UNSPECIFIED;
-
-	rc = of_property_read_u32(node, "qcom,chg-term-current-ma",
+	/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 start */
+	if (chg->distinguish_sdm439_sdm450_others == DETECT_SDM439_PLATFORM &&
+		((((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_ROW_4000mAh_ZQL1695_SMB)
+		|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_PRC_IN_ID_4000mAh_ZQL1695_SMB)
+		|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_LATAM_4000mAh_ZQL1695_SMB)))
+	{
+		chip->dt.term_current_thresh_hi_ma = -180; //HS60 4000mAh
+	}
+	else
+	{
+		rc = of_property_read_u32(node, "qcom,chg-term-current-ma",
 			&chip->dt.term_current_thresh_hi_ma);
-
+	}
+	/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 end */
 	if (chip->dt.term_current_src == ITERM_SRC_ADC)
 		rc = of_property_read_u32(node, "qcom,chg-term-base-current-ma",
 				&chip->dt.term_current_thresh_lo_ma);
@@ -472,7 +511,8 @@ static int smb5_parse_dt(struct smb5 *chip)
 				__FUNCTION__, __LINE__, index, chg->thermal_mitigation[index]);
 		}
 
-		if (chg->distinguish_sdm439_sdm450_others == DETECT_SDM450_PLATFORM)  //HS70
+		if (chg->distinguish_sdm439_sdm450_others == DETECT_SDM450_PLATFORM ||
+			chg->distinguish_sdm439_sdm450_others == DETECT_SDM450_HS50)  //HS70 or HS50
 		{
 			//HS70 thermal cooling device battery, should chg->thermal_mitigation[index] = setting value;
 			//must first distinguish NA and Global by board id, pcba_config = hq_get_huaqin_pcba_config();
@@ -1844,7 +1884,10 @@ static int smb5_batt_get_prop(struct power_supply *psy,
 		rc = smb5_get_prop_batt_iterm(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
+		/* Huaqin add for ZQL1695-HQ000001 Fix the battery temperature as 25 degree by gaochao at 2019/07/11 start */
 		rc = smblib_get_prop_from_bms(chg, POWER_SUPPLY_PROP_TEMP, val);
+		//val->intval = 250;
+		/* Huaqin add for ZQL1695-HQ000001 Fix the battery temperature as 25 degree by gaochao at 2019/07/11 end */
 		break;
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
 		val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
@@ -2536,6 +2579,10 @@ static int smb5_init_hw(struct smb5 *chip)
 	struct smb_charger *chg = &chip->chg;
 	int rc, type = 0;
 	u8 val = 0;
+	/* Huaqin add for P200731-01593 Enable charging while TYPE-C is default mode by gaochao at 2020/08/10 start */
+	u32 pcba_config = 0;
+	pcba_config = hq_get_huaqin_pcba_config();
+	/* Huaqin add for P200731-01593 Enable charging while TYPE-C is default mode by gaochao at 2020/08/10 end */
 
 	if (chip->dt.no_battery)
 		chg->fake_capacity = 50;
@@ -2553,8 +2600,16 @@ static int smb5_init_hw(struct smb5 *chip)
 	smblib_get_charge_param(chg, &chg->param.aicl_5v_threshold,
 				&chg->default_aicl_5v_threshold_mv);
 
+	/* HS50 add for HS50-186 re-enable hw jeita by wenyaqi at 2020/9/2 start */
+	rc = smblib_masked_write(chg, JEITA_EN_CFG_REG, 0x10, 0x10);
+	if (rc < 0) {
+		dev_err(chg->dev, "Couldn't re-enable hw jeita rc=%d\n", rc);
+	}
+	/* HS50 add for HS50-186 re-enable hw jeita by wenyaqi at 2020/9/2 end */
+
  	/* HS70 add for HS70-736 Decrease threshold of AICL to get more ICL from TA by gaochao at 2019/11/19 start */
- 	if (chg->distinguish_sdm439_sdm450_others == DETECT_SDM450_PLATFORM)  //HS70
+	if (chg->distinguish_sdm439_sdm450_others == DETECT_SDM450_PLATFORM ||
+		chg->distinguish_sdm439_sdm450_others == DETECT_SDM450_HS50)  //HS70 or HS50
  	{
   		chg->default_aicl_5v_threshold_mv = CUSTOM_DEFAULT_AICL_5V_THRESHOLD_MV;
  	}
@@ -2563,7 +2618,8 @@ static int smb5_init_hw(struct smb5 *chip)
 	chg->aicl_5v_threshold_mv = chg->default_aicl_5v_threshold_mv;
 
  	/* HS70 add for HS70-736 Decrease threshold of AICL to get more ICL from TA by gaochao at 2019/11/19 start */
- 	if (chg->distinguish_sdm439_sdm450_others == DETECT_SDM450_PLATFORM)  //HS70
+	if (chg->distinguish_sdm439_sdm450_others == DETECT_SDM450_PLATFORM ||
+		chg->distinguish_sdm439_sdm450_others == DETECT_SDM450_HS50)  //HS70 or HS50
  	{
   		smblib_set_charge_param(chg, &chg->param.aicl_5v_threshold, chg->aicl_5v_threshold_mv);
  	}
@@ -2586,7 +2642,7 @@ static int smb5_init_hw(struct smb5 *chip)
 		rc = smblib_masked_write(chg, USBIN_OPTIONS_1_CFG_REG, HVDCP_EN_BIT, 0);
 		/* HS60 add for HS60-162 Disable HVDCP by gaochao at 2019/08/07 end */
 	}
-	else		//HS70
+	else		//HS70 or HS50
 	{
 		rc = smblib_masked_write(chg, USBIN_OPTIONS_1_CFG_REG,
 			HVDCP_AUTH_ALG_EN_CFG_BIT | HVDCP_AUTONOMOUS_MODE_EN_CFG_BIT,
@@ -2940,6 +2996,39 @@ static int smb5_init_hw(struct smb5 *chip)
 		}
 	}
 
+	/*Huaqin add for HQ00001 enable charging while Rp-Rp on both CC Pins by qianyingdong at 2020/06/02 start*/
+	rc = smblib_write(chg, 0x154A, 0x17);
+	if (rc < 0) {
+		dev_err(chg->dev, "Couldn't set 0x154A rc=%d\n", rc);
+		return rc;
+	}
+	/*Huaqin add for HQ00001 enable charging while Rp-Rp on both CC Pins by qianyingdong at 2020/06/02 end*/
+	/* Huaqin add for P200731-01593 Enable charging while TYPE-C is default mode by gaochao at 2020/08/10 start */
+	if (chg->distinguish_sdm439_sdm450_others == DETECT_SDM450_PLATFORM)		//HS70
+	{
+		if ((((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HS70_HQ_PCBA_AT_T)
+			|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HS70_HQ_PCBA_Canada))
+		{
+			pr_info("[%s]line=%d: ignore A11 NA\n", __FUNCTION__, __LINE__);
+		}
+		else
+		{
+			rc = smblib_write(chg, 0x1342, 0x1);
+			if (rc < 0) {
+				dev_err(chg->dev, "Couldn't config 0x1342 to 0x1 rc=%d\n", rc);
+			}
+		}
+	}
+	else
+	{
+		/*Huaqin add for Enable Charge while TypeC mode detected as DEFAULT by qianyingdong at 2020/07/14 start*/
+		rc = smblib_write(chg, 0x1342, 0x1);
+		if (rc < 0) {
+			dev_err(chg->dev, "Couldn't config 0x1342 to 0x1 rc=%d\n", rc);
+		}
+		/*Huaqin add for Enable Charge while TypeC mode detected as DEFAULT by qianyingdong at 2020/07/14 end*/
+	}
+	/* Huaqin add for P200731-01593 Enable charging while TYPE-C is default mode by gaochao at 2020/08/10 end */
 	return rc;
 }
 
@@ -3748,6 +3837,9 @@ void hq_vbus_control_gpio_init_config(struct smb_charger *chg, struct platform_d
 }
 /* HS60 add for HS60-163 Set usb thermal by gaochao at 2019/07/30 end */
 
+/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/03 stcharge_typeart */
+struct smb_charger *chg_dev = NULL;
+/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/03 end */
 /* HS70 add for HS71-21 Optimize the stop and resume charging of battery temperature by gaochao at 2019/11/29 start */
 #if !defined(HQ_FACTORY_BUILD)	//ss version
 struct smb_charger *smbchg_dev = NULL;
@@ -3758,12 +3850,50 @@ extern int batt_create_attrs(struct device *dev);
 #endif
 /* HS70 add for HS71-21 Optimize the stop and resume charging of battery temperature by gaochao at 2019/11/29 end */
 
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220613 start*/
+
+bool usb_data_enabled = true;
+EXPORT_SYMBOL(usb_data_enabled);
+
+void usb_notify_control(bool data_enabled)
+{
+// #ifdef CONFIG_USB_DWC3
+	struct smb_charger *chg = chg_dev;
+	if(IS_ERR_OR_NULL(chg))
+		return;
+
+	usb_data_enabled = data_enabled;
+
+	if(!data_enabled){
+		pr_info("disable usb");
+		notify_device_mode(chg, false);
+		notify_usb_host(chg, false);
+		return;
+	}
+
+	if((chg->real_charger_type == POWER_SUPPLY_TYPE_USB) || 
+		(chg->real_charger_type == POWER_SUPPLY_TYPE_USB_CDP)){
+		notify_device_mode(chg, true);
+		pr_info("enable usb device");
+	}
+	
+	if(chg->otg_present){
+		notify_usb_host(chg, true);
+		pr_info("enable usb host");
+	}
+// #endif
+}
+EXPORT_SYMBOL(usb_notify_control);
+/*HS60 add for P220517-05405 usb_date_enable by duanweiping at 20220613 end*/
+
 static int smb5_probe(struct platform_device *pdev)
 {
 	struct smb5 *chip;
 	struct smb_charger *chg;
 	int rc = 0;
-
+	/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 start */
+	u32 pcba_config = 0;
+	/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 end */
 	chip = devm_kzalloc(&pdev->dev, sizeof(*chip), GFP_KERNEL);
 	if (!chip)
 		return -ENOMEM;
@@ -3806,29 +3936,51 @@ static int smb5_probe(struct platform_device *pdev)
 			__FUNCTION__, __LINE__, chg->distinguish_sdm439_sdm450_others, chg->vbus_control_gpio_enable);
 	/* HS70 add for HS70-135 Distinguish HS60 and HS70 charging by gaochao at 2019/10/10 end */
 
+	/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/03 start */
+	chg->is_dcp = false;
+	chg_dev = chg;
+	pr_debug("[%s]line=%d: init chg_dev\n", __FUNCTION__, __LINE__);
+	/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/03 end */
+
 	/* Huaqin add for HS60-139 Set VREG_L8 as 2.9V by gaochao at 2019/07/18 start */
 	hq_board_pcba_config();
 	/* Huaqin add for HS60-139 Set VREG_L8 as 2.9V by gaochao at 2019/07/18 end */
-
 	/* HS70 add for HS70-919 Set ICL as 1650mA and 2000mA in different versions by qianyingdong at 2019/11/21 start */
+	/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 start */
+	pcba_config = hq_get_huaqin_pcba_config();
+	/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 end */
 	if (chg->distinguish_sdm439_sdm450_others == DETECT_SDM439_PLATFORM)  //HS60
 	{
-		/* HS60 add for ZQL1693-60 Set ICL as 1650mA instead of QC default 3A by gaochao at 2019/11/07 start */
-		rc = of_property_read_u32(chg->dev->of_node, "qcom,usb-icl-ua", &chip->dt.usb_icl_ua);
-		if (rc < 0)
-			chip->dt.usb_icl_ua = -EINVAL;
-		/* HS60 add for ZQL1693-60 Set ICL as 1650mA instead of QC default 3A by gaochao at 2019/11/07 end */
-	}
-	else if(chg->distinguish_sdm439_sdm450_others == DETECT_SDM450_PLATFORM) //HS70
-	{
-		#if !defined(HQ_FACTORY_BUILD)	//ss version
+		/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 start */
+		if ((((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_ROW_ZQL1695_SMB)
+			|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_PRC_IN_ID_ZQL1695_SMB)
+			|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_LATAM_ZQL1695_SMB)
+			|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_ROW_Q_ZQL1695_SMB)
+			|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_PRC_IN_ID_Q_ZQL1695_SMB)
+			|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_LATAM_Q_ZQL1695_SMB)
+			|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_ROW_4000mAh_ZQL1695_SMB)
+			|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_PRC_IN_ID_4000mAh_ZQL1695_SMB)
+			|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_LATAM_4000mAh_ZQL1695_SMB))
+		{
+			//ZQL1695 & ZQL1635
+			chip->dt.usb_icl_ua = 1050000;
+		}
+		else //ZQL1693 & ZQL1690
+		{
+			/* HS60 add for ZQL1693-60 Set ICL as 1650mA instead of QC default 3A by gaochao at 2019/11/07 start */
 			rc = of_property_read_u32(chg->dev->of_node, "qcom,usb-icl-ua", &chip->dt.usb_icl_ua);
 			if (rc < 0)
 				chip->dt.usb_icl_ua = -EINVAL;
-		#else //factory version
-			chip->dt.usb_icl_ua = 2200000;
-			printk("set usb-icl-ua = %d \n", chip->dt.usb_icl_ua);
-		#endif
+			/* HS60 add for ZQL1693-60 Set ICL as 1650mA instead of QC default 3A by gaochao at 2019/11/07 end */
+		}
+	}
+	/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 end */
+	else if(chg->distinguish_sdm439_sdm450_others == DETECT_SDM450_PLATFORM ||
+			chg->distinguish_sdm439_sdm450_others == DETECT_SDM450_HS50)  //HS70 or HS50
+	{
+		rc = of_property_read_u32(chg->dev->of_node, "qcom,usb-icl-ua", &chip->dt.usb_icl_ua);
+		if (rc < 0)
+			chip->dt.usb_icl_ua = -EINVAL;
 	}
 	else
 	{
@@ -4079,6 +4231,18 @@ static void smb5_shutdown(struct platform_device *pdev)
 	/* force enable APSD */
 	smblib_masked_write(chg, USBIN_OPTIONS_1_CFG_REG,
 				BC1P2_SRC_DETECT_BIT, BC1P2_SRC_DETECT_BIT);
+/* HS50 add for P201023-04559 re-connect vbus when shutdown with afc TA by wenyaqi at 2020/10/28 start */
+#if defined(CONFIG_AFC)
+	if (chg->real_charger_type == POWER_SUPPLY_TYPE_AFC)
+	{
+		if (chg->vbus_control_gpio_enable)
+		{
+			ss_vbus_control_gpio_set(chg, DRAW_VBUS_GPIO59_HIGH);
+			ss_vbus_control_gpio_set(chg, DRAW_VBUS_GPIO59_LOW);
+		}
+	}
+#endif
+/* HS50 add for P201023-04559 re-connect vbus when shutdown with afc TA by wenyaqi at 2020/10/28 end */
 }
 
 static const struct of_device_id match_table[] = {

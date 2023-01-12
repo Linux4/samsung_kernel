@@ -16,6 +16,7 @@
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
 
+#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/uaccess.h>
 #include <linux/preempt.h>
@@ -30,7 +31,11 @@
 #include <linux/irq.h>
 #include <linux/slab.h>
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0)
+#include <linux/qcom_scm.h>
+#else
 #include <soc/qcom/scm.h>
+#endif
 
 #include <linux/sec_debug.h>
 
@@ -47,16 +52,21 @@ module_param_call(force_error, force_error, NULL, NULL, 0644);
 
 static void __simulate_apps_wdog_bark(void)
 {
+	unsigned long time_out_jiffies;
+
 	pr_emerg("Simulating apps watch dog bark\n");
-	preempt_disable();
-	mdelay(DELAY_TIME);
-	preempt_enable();
+	local_irq_disable();
+	time_out_jiffies = jiffies + msecs_to_jiffies(DELAY_TIME);
+	while (time_is_after_jiffies(time_out_jiffies))
+		udelay(1);
+	local_irq_enable();
 	/* if we reach here, simulation failed */
 	pr_emerg("Simulation of apps watch dog bark failed\n");
 }
 
 static void __simulate_apps_wdog_bite(void)
 {
+	unsigned long time_out_jiffies;
 #ifdef CONFIG_HOTPLUG_CPU
 	int cpu;
 
@@ -68,7 +78,9 @@ static void __simulate_apps_wdog_bite(void)
 #endif
 	pr_emerg("Simulating apps watch dog bite\n");
 	local_irq_disable();
-	mdelay(DELAY_TIME);
+	time_out_jiffies = jiffies + msecs_to_jiffies(DELAY_TIME);
+	while (time_is_after_jiffies(time_out_jiffies))
+		udelay(1);
 	local_irq_enable();
 	/* if we reach here, simulation had failed */
 	pr_emerg("Simualtion of apps watch dog bite failed\n");
@@ -78,15 +90,18 @@ static void __simulate_apps_wdog_bite(void)
 	defined(CONFIG_SEC_USER_RESET_DEBUG_TEST)
 static void __simulate_secure_wdog_bite(void)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0)
+	qcom_scm_sec_wdog_trigger();
+#else
 #define SCM_SVC_SEC_WDOG_TRIG	0x8
 	struct scm_desc desc = {
 		.args[0] = 0,
 		.arginfo = SCM_ARGS(1),
 	};
 
-	pr_emerg("simulating secure watch dog bite\n");
 	scm_call2(SCM_SIP_FNID(SCM_SVC_BOOT,
 			SCM_SVC_SEC_WDOG_TRIG), &desc);
+#endif
 	/* if we hit, scm_call has failed */
 	pr_emerg("simulation of secure watch dog bite failed\n");
 	__simulate_apps_wdog_bite();
@@ -172,6 +187,7 @@ static void simulate_bus_hang(void)
 	uint32_t address = HANG_ADDRESS;
 	void *hang_address;
 	struct regulator *r;
+	unsigned long time_out_jiffies;
 
 	/* simulate */
 	hang_address = ioremap(address, SZ_4K);
@@ -188,7 +204,9 @@ static void simulate_bus_hang(void)
 				ARRAY_SIZE(bus_timeout_camera_clocks_on));
 
 	dummy_value = readl_relaxed(hang_address);
-	mdelay(DELAY_TIME);
+	time_out_jiffies = jiffies + msecs_to_jiffies(DELAY_TIME);
+	while (time_is_after_jiffies(time_out_jiffies))
+		udelay(1);
 	/* if we hit here, test had failed */
 	pr_emerg("Bus timeout test failed...0x%x\n", dummy_value);
 	iounmap(hang_address);
@@ -278,7 +296,7 @@ static int force_error(const char *val, const struct kernel_param *kp)
 		const char *msg;
 		void (*func)(void);
 	} magic[] = {
-		{ "apppdogbark",
+		{ "appdogbark",
 			"Generating an apps wdog bark!",
 			&__simulate_apps_wdog_bark },
 		{ "appdogbite",
@@ -310,7 +328,7 @@ static int force_error(const char *val, const struct kernel_param *kp)
 			&__simulate_memcorrupt },
 #ifdef CONFIG_SEC_DEBUG_SEC_WDOG_BITE
 		{ "secdogbite",
-			NULL,
+			"simulating secure watch dog bite!",
 			&__simulate_secure_wdog_bite },
 #endif
 #ifdef CONFIG_SEC_USER_RESET_DEBUG_TEST
@@ -321,7 +339,7 @@ static int force_error(const char *val, const struct kernel_param *kp)
 			NULL,
 			&force_watchdog_bark },
 		{ "WP",
-			NULL,
+			"simulating secure watch dog bite!",
 			&__simulate_secure_wdog_bite },
 #endif
 #ifdef CONFIG_FREE_PAGES_RDONLY

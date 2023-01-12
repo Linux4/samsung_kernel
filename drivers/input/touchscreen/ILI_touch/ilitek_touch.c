@@ -688,6 +688,8 @@ out:
 void ilitek_tddi_touch_press(u16 x, u16 y, u16 pressure, u16 id)
 {
 	ipio_debug("Touch Press: id = %d, x = %d, y = %d, p = %d\n", id, x, y, pressure);
+	if(pressure == 0)
+		pressure = 1;
 
 	if (MT_B_TYPE) {
 		input_mt_slot(idev->input, id);

@@ -78,7 +78,6 @@ static const char* host_info(struct Scsi_Host *host)
 	return us->scsi_name;
 }
 
-//HS60 code add by tangqingyong for P191125-00477 at 20191206 start
 static int slave_alloc (struct scsi_device *sdev)
 {
 	struct us_data *us = host_to_us(sdev->host);
@@ -102,7 +101,6 @@ static int slave_alloc (struct scsi_device *sdev)
 
 	return 0;
 }
-//HS60 code add by tangqingyong for P191125-00477 at 20191206 end
 
 static int slave_configure(struct scsi_device *sdev)
 {

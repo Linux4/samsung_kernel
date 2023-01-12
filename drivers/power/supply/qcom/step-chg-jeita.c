@@ -19,6 +19,7 @@
 #include <linux/slab.h>
 #include <linux/pmic-voter.h>
 #include "step-chg-jeita.h"
+#include "smb5-lib.h"
 
 #define MAX_STEP_CHG_ENTRIES	8
 #define STEP_CHG_VOTER		"STEP_CHG_VOTER"
@@ -71,6 +72,9 @@ struct step_chg_info {
 	/* HS70 add for HS70-135 Distinguish HS60 and HS70 charging by gaochao at 2019/10/03 start */
 	bool			hs60_define_enable;
 	/* HS70 add for HS70-135 Distinguish HS60 and HS70 charging by gaochao at 2019/10/03 end */
+	/* HS50 add for SR-QL3095-01-67 Distinguish HS60, HS70 and HS50 charging by wenyaqi at 2020/08/03 start */
+	int			distinguish_hs_projects;
+	/* HS50 add for SR-QL3095-01-67 Distinguish HS60, HS70 and HS50 charging by wenyaqi at 2020/08/03 end */
 	int			jeita_fcc_index;
 	int			jeita_fv_index;
 	int			step_index;
@@ -230,6 +234,137 @@ enum {
 u32 hq_get_huaqin_pcba_config(void);
 /* HS60 add for HS60-293 Import main-source ATL battery profile by gaochao at 2019/07/31 end */
 
+/* HS50 add for SR-QL3095-01-67 Distinguish HS60, HS70 and HS50 charging by wenyaqi at 2020/08/03 start */
+enum {
+	DETECT_HS60,
+	DETECT_HS70,
+	DETECT_HS50,
+};
+/* HS50 add for SR-QL3095-01-67 Distinguish HS60, HS70 and HS50 charging by wenyaqi at 2020/08/03 end */
+
+/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/03 start */
+extern struct smb_charger *chg_dev;
+static int hq_switch_step_jeita_setting(struct step_chg_info *chip)
+{
+	struct device_node *batt_node, *profile_node;
+	u32 max_fcc_ma;
+	const __be32 *handle;
+	int batt_id_ohms, rc;
+	static bool is_first_flag = true;
+	static bool is_dcp_old;
+
+	struct range_data fcc_cfg_hs50_dcp[FCC_FV_RANGE_HQ] = {
+		{0, 50, 400000},
+		{51, 120, 1200000},
+		{121, 450, 2000000},
+		{451, 500, 2000000},
+	};
+	union power_supply_propval prop = {0, };
+
+	handle = of_get_property(chip->dev->of_node,
+			"qcom,battery-data", NULL);
+	if (!handle) {
+		pr_debug("ignore getting sw-jeita/step charging settings from profile\n");
+		return 0;
+	}
+
+	batt_node = of_find_node_by_phandle(be32_to_cpup(handle));
+	if (!batt_node) {
+		pr_err("Get battery data node failed\n");
+		return -EINVAL;
+	}
+
+	if (!is_bms_available(chip))
+		return -ENODEV;
+
+	power_supply_get_property(chip->bms_psy,
+			POWER_SUPPLY_PROP_RESISTANCE_ID, &prop);
+	batt_id_ohms = prop.intval;
+
+	/* bms_psy has not yet read the batt_id */
+	if (batt_id_ohms < 0)
+		return -EBUSY;
+
+	profile_node = of_batterydata_get_best_profile(batt_node,
+					batt_id_ohms / 1000, NULL);
+	if (IS_ERR(profile_node))
+		return PTR_ERR(profile_node);
+
+	if (!profile_node) {
+		pr_err("Couldn't find profile\n");
+		return -ENODATA;
+	}
+
+	rc = of_property_read_u32(profile_node, "qcom,fastchg-current-ma",
+					&max_fcc_ma);
+	if (rc < 0) {
+		pr_err("max-fastchg-current-ma reading failed, rc=%d\n", rc);
+		return rc;
+	}
+
+	rc = of_property_read_u32(profile_node, "qcom,distinguish-hs-projects",
+			&chip->distinguish_hs_projects);
+	if (!rc && (chip->distinguish_hs_projects < 0))
+	{
+		pr_err("qcom,distinguish-hs-projects is incorrect\n");
+	}
+
+	if (chip->distinguish_hs_projects == DETECT_HS50)
+	{
+		if (!chg_dev)
+		{
+			pr_err("line=%d: chg_dev is null\n", __LINE__);
+			return -ENODATA;
+		}
+
+		if(is_first_flag)
+		{
+			is_dcp_old = !chg_dev->is_dcp;
+			is_first_flag = false;
+		}
+
+		if (chg_dev->is_dcp == is_dcp_old)
+		{
+			pr_debug("chg_dev->is_dcp = is_dcp_old, do not config again!\n");
+			return 1;
+		}
+		else
+		{
+			if(chg_dev->is_dcp)
+			{
+				chip->jeita_fcc_config->fcc_cfg[2].low_threshold = fcc_cfg_hs50_dcp[2].low_threshold;
+				chip->jeita_fcc_config->fcc_cfg[2].high_threshold = fcc_cfg_hs50_dcp[2].high_threshold;
+				chip->jeita_fcc_config->fcc_cfg[2].value = fcc_cfg_hs50_dcp[2].value;
+
+				chip->jeita_fcc_config->fcc_cfg[3].low_threshold = fcc_cfg_hs50_dcp[3].low_threshold;
+				chip->jeita_fcc_config->fcc_cfg[3].high_threshold = fcc_cfg_hs50_dcp[3].high_threshold;
+				chip->jeita_fcc_config->fcc_cfg[3].value = fcc_cfg_hs50_dcp[3].value;
+			}
+			else
+			{
+				chip->sw_jeita_cfg_valid = true;
+				rc = read_range_data_from_node(profile_node,
+						"qcom,jeita-fcc-ranges",
+						chip->jeita_fcc_config->fcc_cfg,
+						BATT_HOT_DECIDEGREE_MAX, max_fcc_ma * 1000);
+				if (rc < 0) {
+					pr_debug("Read qcom,jeita-fcc-ranges failed from battery profile, rc=%d\n",
+								rc);
+					chip->sw_jeita_cfg_valid = false;
+				}
+			}
+			is_dcp_old = chg_dev->is_dcp;
+		}
+		pr_debug("jeita_fcc_config->fcc_cfg[2]=%d,%d,%d,jeita_fcc_config->fcc_cfg[3]=%d,%d,%d\n",
+			chip->jeita_fcc_config->fcc_cfg[2].low_threshold, chip->jeita_fcc_config->fcc_cfg[2].high_threshold,
+			chip->jeita_fcc_config->fcc_cfg[2].value, chip->jeita_fcc_config->fcc_cfg[3].low_threshold,
+			chip->jeita_fcc_config->fcc_cfg[3].high_threshold, chip->jeita_fcc_config->fcc_cfg[3].value);
+	}
+	return 1;
+
+}
+/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/03 end */
+
 static int get_step_chg_jeita_setting_from_profile(struct step_chg_info *chip)
 {
 	struct device_node *batt_node, *profile_node;
@@ -242,9 +377,11 @@ static int get_step_chg_jeita_setting_from_profile(struct step_chg_info *chip)
 	struct range_data	fcc_cfg_global[FCC_FV_RANGE_HQ] = {
 		{0, 50, 300000},
 		{51, 120, 900000},
-		{121, 450, 1000000},
+		/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 start */
+		{121, 450, 1200000},
 		//Huaqin add for ZQL1693-50 by wangzikang at 2019/09/26 start
-		{451, 500, 1000000},
+		{451, 500, 1200000},
+		/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 start */
 		//{451, 550, 1000000},
 		//Huaqin add for ZQL1693-50 by wangzikang at 2019/09/26 end
 	};
@@ -375,6 +512,14 @@ static int get_step_chg_jeita_setting_from_profile(struct step_chg_info *chip)
 	}
 	/* HS70 add for HS70-135 Distinguish HS60 and HS70 charging by gaochao at 2019/10/03 end */
 	/* HS60 add for HS60-293 Import main-source ATL battery profile by gaochao at 2019/07/31 end */
+
+	/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/03 start */
+	rc = hq_switch_step_jeita_setting(chip);
+	if (rc <= 0)
+		pr_err("hq_switch_step_jeita_setting fail\n");
+	pr_debug("[%s]line=%d: chip->distinguish_hs_projects=%d\n",
+		__FUNCTION__, __LINE__, chip->distinguish_hs_projects);
+	/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/08/03 end */
 
 	rc = read_range_data_from_node(profile_node,
 			"qcom,jeita-fv-ranges",
@@ -590,7 +735,9 @@ reschedule:
 #define CUSTOM_BAT_HIGH_TEMP_STOP_CHARGE_VOL		4100000
 #define CUSTOM_BAT_HIGH_TEMP_RESUME_CHARGE_VOL		3900000
 #define CUSTOM_BAT_RECHARGE_THRESHOLD				4130
-
+/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 start*/
+#define CUSTOM_BAT_RECHARGE_THRESHOLD_SDI			4030
+/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 end*/
 static void handle_high_temp_charge(struct step_chg_info *chip, int fcc_ua)
 {
 	int rc = 0;
@@ -598,6 +745,44 @@ static void handle_high_temp_charge(struct step_chg_info *chip, int fcc_ua)
 	int battery_voltage = 0;
 	int recharge_threshold = 4330;
 	union power_supply_propval pval = {0, };
+
+	/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 start*/
+	union power_supply_propval prop = {0, };
+	int custom_recharge_threshold = 4330;
+	int batt_id_ohms = 200000;
+
+	rc = power_supply_get_property(chip->bms_psy,
+			POWER_SUPPLY_PROP_RESISTANCE_ID, &prop);
+	if (rc == 0)
+	{
+		batt_id_ohms = prop.intval;
+	}
+	else
+	{
+		pr_err("Cannot get Batt_ID! rc = %d. \n",rc);
+	}
+
+	/* HS50 add for SR-QL3095-01-67 Distinguish HS60, HS70 and HS50 charging by wenyaqi at 2020/08/03 start */
+	if (chip->distinguish_hs_projects == DETECT_HS50)
+	{
+		custom_recharge_threshold = CUSTOM_BAT_RECHARGE_THRESHOLD;
+		pr_debug("Threshold  =  %d.\n", custom_recharge_threshold);
+	}
+	else
+	{
+		if ((!chip->hs60_define_enable) && (batt_id_ohms > 170000))
+		{
+			custom_recharge_threshold = CUSTOM_BAT_RECHARGE_THRESHOLD_SDI;
+			pr_debug("SDI Threshold  =  %d.\n", custom_recharge_threshold);
+		}
+		else
+		{
+			custom_recharge_threshold = CUSTOM_BAT_RECHARGE_THRESHOLD;
+			pr_debug("Threshold  =  %d.\n", custom_recharge_threshold);
+		}
+	}
+	/* HS50 add for SR-QL3095-01-67 Distinguish HS60, HS70 and HS50 charging by wenyaqi at 2020/08/03 end */
+	/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 end*/
 
 	if (chip)
 	{
@@ -626,11 +811,14 @@ static void handle_high_temp_charge(struct step_chg_info *chip, int fcc_ua)
 		{
 			pr_debug("[%s]line=%d, Come into 45~50 degrees Celsius! The threshold is %d mV\n",
 				__FUNCTION__, __LINE__, recharge_threshold);
-
-			if (recharge_threshold != CUSTOM_BAT_RECHARGE_THRESHOLD)			//set recharge voltage once
+			/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 start*/
+			if (recharge_threshold != custom_recharge_threshold)			//set recharge voltage once
+			/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 end*/
 			{
 				chip->temp_recharge_threshold_ma = recharge_threshold;		//restore recharge voltage
-				pval.intval = CUSTOM_BAT_RECHARGE_THRESHOLD;					//set recharge voltage
+				/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 start*/
+				pval.intval = custom_recharge_threshold;					//set recharge voltage
+				/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 end*/
 
 				pr_debug("[%s]line=%d, Set recharge_threshold to %d mV\n",
 					__FUNCTION__, __LINE__, pval.intval);
@@ -647,8 +835,9 @@ static void handle_high_temp_charge(struct step_chg_info *chip, int fcc_ua)
 		{
 			pr_debug("[%s]line=%d, Back to normal temperature, temp_recharge_threshold_ma=%d mV\n",
 				__FUNCTION__, __LINE__, chip->temp_recharge_threshold_ma);
-
-			if (recharge_threshold == CUSTOM_BAT_RECHARGE_THRESHOLD)			//recover recharge voltage
+			/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 start*/
+			if (recharge_threshold == custom_recharge_threshold)			//recover recharge voltage
+			/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 end*/
 			{
 				pval.intval = chip->temp_recharge_threshold_ma;
 				pr_info("[%s]line=%d, Set back the recharge threshold, temp_recharge_threshold_ma=%d mV\n",
@@ -712,6 +901,12 @@ static int handle_jeita(struct step_chg_info *chip)
 				chip->jeita_fcc_config->prop_name, rc);
 		return rc;
 	}
+
+	/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/07/31 start */
+	rc = hq_switch_step_jeita_setting(chip);
+	if (rc <= 0)
+		pr_err("hq_switch_step_jeita_setting fail\n");
+	/* HS50 add for SR-QL3095-01-67 Import default charger profile by wenyaqi at 2020/07/31 end */
 
 	rc = get_val(chip->jeita_fcc_config->fcc_cfg,
 			chip->jeita_fcc_config->hysteresis,

@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright (C) 2012-2019, Focaltech Systems (R)£¬All Rights Reserved.
+* Copyright (C) 2012-2019, Focaltech Systems (R)ï¿½ï¿½All Rights Reserved.
 *
 * File Name: focaltech_flash.h
 *
@@ -91,7 +91,7 @@
 #define FTS_FW_BIN_FILEPATH                         "/sdcard/"
 #define FTS_FW_IDE_SIG                              "IDE_"
 #define FTS_FW_IDE_SIG_LEN                          4
-#define MAX_MODULE_VENDOR_NAME_LEN                  16
+#define MAX_MODULE_VENDOR_NAME_LEN                  32
 
 #define FTS_ROMBOOT_CMD_ECC_NEW_LEN                 7
 #define FTS_ECC_FINISH_TIMEOUT                      100

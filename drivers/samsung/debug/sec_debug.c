@@ -16,7 +16,7 @@
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
 
-#include <linux/bootmem.h>
+#include <linux/version.h>
 #include <linux/delay.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -31,12 +31,18 @@
 #include <linux/regulator/consumer.h>
 #include <linux/seq_file.h>
 
-#include <soc/qcom/scm.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0)
+#include <linux/memblock.h>
+#include <soc/qcom/qseecom_scm.h>
+#include <linux/qcom_scm.h>
+#else
+#include <linux/bootmem.h>
+#include <asm/compiler.h>
+#endif
 #include <linux/soc/qcom/smem.h>
 #include <soc/qcom/restart.h>
 
 #include <asm/cacheflush.h>
-#include <asm/compiler.h>
 #include <asm/stacktrace.h>
 #include <asm/system_misc.h>
 
@@ -50,6 +56,11 @@
 
 #ifdef CONFIG_ARM64
 static inline void outer_flush_all(void) { }
+#endif
+
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
+unsigned long sec_delay_check __read_mostly = 1;
+EXPORT_SYMBOL(sec_delay_check);
 #endif
 
 /* enable sec_debug feature */
@@ -67,6 +78,9 @@ module_param_named(enable_cp_debug, enable_cp_debug, uint, 0644);
 static unsigned int dump_sink;
 module_param_named(dump_sink, dump_sink, uint, 0644);
 
+static unsigned int reboot_multicmd;
+module_param_named(reboot_multicmd, reboot_multicmd, uint, 0644);
+
 uint64_t get_pa_dump_sink(void)
 {
 	return virt_to_phys(&dump_sink);
@@ -75,6 +89,14 @@ uint64_t get_pa_dump_sink(void)
 /* This is shared with msm-power off module. */
 void __iomem *restart_reason;
 static void __iomem *upload_cause;
+#if IS_ENABLED(CONFIG_POWER_RESET_QCOM_DOWNLOAD_MODE)
+static void __iomem *watchdog_base;
+#define WDT0_RST        0x04
+#define WDT0_EN         0x08
+#define WDT0_BITE_TIME  0x14
+#endif
+
+void (*sec_nvmem_pon_write)(u8 pon_rr) = NULL;
 
 DEFINE_PER_CPU(struct sec_debug_core_t, sec_debug_core_reg);
 DEFINE_PER_CPU(struct sec_debug_mmu_reg_t, sec_debug_mmu_reg);
@@ -174,7 +196,7 @@ static inline void __sec_debug_set_restart_reason(
 	__raw_writel((u32)__r, qcom_restart_reason);
 }
 
-static enum pon_restart_reason __pon_restart_pory_start(
+static enum pon_restart_reason __pon_restart_rory_start(
 				unsigned long opt_code)
 {
 	return (PON_RESTART_REASON_RORY_START | opt_code);
@@ -218,10 +240,8 @@ static enum pon_restart_reason __pon_restart_dump_sink(
 				unsigned long opt_code)
 {
 	switch (opt_code) {
-#if defined(CONFIG_SAMSUNG_USER_TRIAL) || !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	case DUMP_SINK_TO_BOOTDEV:
 		return PON_RESTART_REASON_DUMP_SINK_BOOTDEV;
-#endif
 	case DUMP_SINK_TO_SDCARD:
 		return PON_RESTART_REASON_DUMP_SINK_SDCARD;
 	default:
@@ -230,6 +250,20 @@ static enum pon_restart_reason __pon_restart_dump_sink(
 
 	return PON_RESTART_REASON_UNKNOWN;
 }
+
+static enum pon_restart_reason __pon_restart_cdsp_signoff(
+				unsigned long opt_code)
+{
+	switch (opt_code) {
+	case CDSP_SIGNOFF_ON:
+		return PON_RESTART_REASON_CDSP_ON;
+	case CDSP_SIGNOFF_BLOCK:
+		return PON_RESTART_REASON_CDSP_BLOCK;
+	}
+
+	return PON_RESTART_REASON_UNKNOWN;
+}
+
 
 #ifdef CONFIG_MUIC_SUPPORT_RUSTPROOF
 static enum pon_restart_reason __pon_restart_swsel(
@@ -242,7 +276,15 @@ static enum pon_restart_reason __pon_restart_swsel(
 }
 #endif
 
-static inline void sec_debug_pm_restart(const char *cmd)
+/* FIXME: QC's linux-5.4.y does not have 'arm_pm_restart' call back in
+ * arch/arm64/kernel/process.c file.
+ * This is an weak symbol having a same name and this will be eliminated
+ * while linking if the kernel has a 'arm_pm_restart' and if it does't
+ * this variable has a 'NULL' value by default.
+ */
+void (*arm_pm_restart)(enum reboot_mode reboot_mode, const char *cmd) __weak;
+
+static inline void sec_debug_pm_restart(char *cmd)
 {
 	__pr_err("(%s) %s %s\n", __func__,
 		init_uts_ns.name.release, init_uts_ns.name.version);
@@ -250,7 +292,26 @@ static inline void sec_debug_pm_restart(const char *cmd)
 	flush_cache_all();
 	outer_flush_all();
 
-	arm_pm_restart(REBOOT_COLD, cmd);
+#if IS_ENABLED(CONFIG_POWER_RESET_QCOM_DOWNLOAD_MODE)
+	if (!sec_nvmem_pon_write && watchdog_base) {
+		pr_emerg("Causing a watchdog bite!\n");
+		__raw_writel(1, watchdog_base + WDT0_EN);
+		mb();
+		__raw_writel(1, watchdog_base + WDT0_BITE_TIME);
+		/* Mke sure bite time is written before we reset */
+		mb();
+		__raw_writel(1, watchdog_base + WDT0_RST);
+		/* Make sure we wait only after reset */
+		mb();
+
+		/* while (1) ; */
+		asm volatile ("b .");
+	}
+#endif
+	if (arm_pm_restart)
+		arm_pm_restart(REBOOT_COLD, cmd);
+	else
+		do_kernel_restart(cmd);
 
 	/* while (1) ; */
 	asm volatile ("b .");
@@ -260,6 +321,18 @@ static void __sec_debug_hw_reset(void)
 {
 	sec_debug_pm_restart("sec_debug_hw_reset");
 }
+
+#ifndef CONFIG_SEC_LOG_STORE_LAST_KMSG
+static bool sec_check_leave_reboot_reason(enum pon_restart_reason pon_rr)
+{
+	bool result = false;
+
+	result = (pon_rr == PON_RESTART_REASON_MULTICMD) || result;
+	result = (pon_rr == PON_RESTART_REASON_LIMITED_DRAM_SETTING) || result;
+
+	return result;
+}
+#endif
 
 void sec_debug_update_restart_reason(const char *cmd, const int in_panic,
 		const int restart_mode)
@@ -314,7 +387,7 @@ void sec_debug_update_restart_reason(const char *cmd, const int in_panic,
 			RESTART_REASON_NORMAL, NULL},
 		{ "sud",
 			PON_RESTART_REASON_UNKNOWN,
-			RESTART_REASON_NORMAL, __pon_restart_pory_start},
+			RESTART_REASON_NORMAL, __pon_restart_rory_start},
 		{ "debug",
 			PON_RESTART_REASON_UNKNOWN,
 			RESTART_REASON_NORMAL, __pon_restart_set_debug_level},
@@ -327,10 +400,16 @@ void sec_debug_update_restart_reason(const char *cmd, const int in_panic,
 		{ "dump_sink",
 			PON_RESTART_REASON_UNKNOWN,
 			RESTART_REASON_NORMAL, __pon_restart_dump_sink},
+		{ "signoff",
+			PON_RESTART_REASON_UNKNOWN,
+			RESTART_REASON_NORMAL, __pon_restart_cdsp_signoff},
 		{ "cross_fail",
 			PON_RESTART_REASON_CROSS_FAIL,
 			RESTART_REASON_NORMAL, NULL},
 		{ "from_fastboot",
+			PON_RESTART_REASON_NORMALBOOT,
+			RESTART_REASON_NOT_HANDLE, NULL},
+		{ "disallow,fastboot",
 			PON_RESTART_REASON_NORMALBOOT,
 			RESTART_REASON_NOT_HANDLE, NULL},
 #ifdef CONFIG_MUIC_SUPPORT_RUSTPROOF
@@ -343,15 +422,37 @@ void sec_debug_update_restart_reason(const char *cmd, const int in_panic,
 			PON_RESTART_REASON_SECURE_CHECK_FAIL,
 			RESTART_REASON_NORMAL, NULL},
 #endif
+#ifdef CONFIG_SEC_QUEST_UEFI_USER
+		{ "user_quefi_quest",
+			PON_RESTART_REASON_QUEST_QUEFI_USER_START,
+			RESTART_REASON_NORMAL, NULL},
+		{ "user_suefi_quest",
+			PON_RESTART_REASON_QUEST_SUEFI_USER_START,
+			RESTART_REASON_NORMAL, NULL},			
+#endif
+#ifdef CONFIG_SEC_QUEST_DDR_SCAN_USER
+		{ "user_dram_test",
+			PON_RESTART_REASON_USER_DRAM_TEST,
+			RESTART_REASON_NORMAL, NULL},
+#endif			
+		{ "multicmd",
+			PON_RESTART_REASON_MULTICMD,
+			RESTART_REASON_NORMAL, NULL},
+		{ "dram",
+			PON_RESTART_REASON_LIMITED_DRAM_SETTING,
+			RESTART_REASON_NORMAL, NULL}
 	};
 	enum pon_restart_reason pon_rr = PON_RESTART_REASON_UNKNOWN;
 	enum sec_restart_reason_t sec_rr = RESTART_REASON_NORMAL;
-	char cmd_buf[128];
+	char cmd_buf[256];
 	size_t i;
 
 	if (!in_panic && restart_mode != RESTART_DLOAD)
 		pon_rr = PON_RESTART_REASON_NORMALBOOT;
 
+#ifndef CONFIG_SEC_LOG_STORE_LAST_KMSG
+__next_cmd:
+#endif
 	if (!cmd)
 		__pr_err("(%s) reboot cmd : NULL\n", __func__);
 	else if (!strlen(cmd))
@@ -364,26 +465,29 @@ void sec_debug_update_restart_reason(const char *cmd, const int in_panic,
 	if (!cmd || !strlen(cmd) || !strncmp(cmd, "adb", 3))
 		goto __done;
 
-#ifdef CONFIG_SEC_QUEST_UEFI_ACT_TRIGGER
-	if (!strcmp(cmd, "ACTThread")) {
-		pon_rr = PON_RESTART_REASON_QUEST_NMCHECKER_SMD_START;	
-		goto __done;
-	}
-#endif
-
 	for (i = 0; i < ARRAY_SIZE(magic); i++) {
 		size_t len = strlen(magic[i].cmd);
 
 		if (strncmp(cmd, magic[i].cmd, len))
 			continue;
 
+#ifndef CONFIG_SEC_LOG_STORE_LAST_KMSG
+		if (sec_check_leave_reboot_reason(magic[i].pon_rr)) {
+			cmd = cmd + len + 1;
+			goto __next_cmd;
+		}
+#endif
 		pon_rr = magic[i].pon_rr;
 		sec_rr = magic[i].sec_rr;
 
 		if (magic[i].func != NULL) {
 			unsigned long opt_code;
+			char *ptr = strstr(cmd_buf, ":");
 
-			if (!kstrtoul(cmd + len, 0, &opt_code))
+			if (ptr != NULL)
+				*ptr = '\0';
+
+			if (!kstrtoul(cmd_buf + len, 0, &opt_code))
 				pon_rr = magic[i].func(opt_code);
 		}
 
@@ -395,8 +499,12 @@ void sec_debug_update_restart_reason(const char *cmd, const int in_panic,
 	return;
 
 __done:
-	if (pon_rr != PON_RESTART_REASON_NOT_HANDLE)
-		qpnp_pon_set_restart_reason(pon_rr);
+	if (pon_rr != PON_RESTART_REASON_NOT_HANDLE) {
+		if (sec_nvmem_pon_write)
+			sec_nvmem_pon_write(pon_rr);
+		else
+			qpnp_pon_set_restart_reason(pon_rr);
+	}
 	if (sec_rr != RESTART_REASON_NOT_HANDLE)
 		__sec_debug_set_restart_reason(sec_rr);
 	__pr_err("(%s) restart_reason = 0x%x(0x%x)\n",
@@ -408,8 +516,10 @@ void sec_debug_set_upload_cause(enum sec_debug_upload_cause_t type)
 	if (unlikely(!upload_cause)) {
 		pr_err("upload cause address unmapped.\n");
 	} else {
-		per_cpu(sec_debug_upload_cause, smp_processor_id()) = type;
+		int cpu = get_cpu();
+		per_cpu(sec_debug_upload_cause, cpu) = type;
 		__raw_writel(type, upload_cause);
+		put_cpu();
 
 		pr_emerg("%x\n", type);
 	}
@@ -430,11 +540,23 @@ void sec_peripheral_secure_check_fail(void)
 {
 	if (!sec_debug_is_enabled()) {
 		sec_debug_set_qc_dload_magic(0);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0)                                           
+		sec_debug_update_restart_reason("peripheral_hw_reset", 0, RESTART_NORMAL);
+#endif                                                                                    
 		sec_debug_pm_restart("peripheral_hw_reset");
 		/* never reach here */
 	}
 
 	panic("subsys - modem secure check fail");
+}
+
+void sec_modem_loading_fail_to_bootloader(void)
+{
+	if (!sec_debug_is_enabled()) {
+		sec_debug_set_qc_dload_magic(0);
+		sec_debug_pm_restart("peripheral_hw_reset");
+		/* never reach here */
+	}
 }
 #endif
 
@@ -495,6 +617,7 @@ struct __upload_cause upload_cause_st[] = {
 	{ "npu", UPLOAD_CAUSE_NPU_ERROR_FATAL, SEC_STRNSTR },
 	{ "cdsp", UPLOAD_CAUSE_CDSP_ERROR_FATAL, SEC_STRNSTR },
 	{ "MDM Crash", UPLOAD_CAUSE_MDM_ERROR_FATAL, SEC_STRNCMP },
+	{ "unrecoverable external_modem", UPLOAD_CAUSE_MDM_CRITICAL_FATAL, SEC_STRNSTR },
 	{ "external_modem", UPLOAD_CAUSE_MDM_ERROR_FATAL, SEC_STRNSTR },
 	{ "esoc0 crashed", UPLOAD_CAUSE_MDM_ERROR_FATAL, SEC_STRNSTR },
 	{ "modem", UPLOAD_CAUSE_MODEM_RST_ERR, SEC_STRNSTR },
@@ -502,6 +625,7 @@ struct __upload_cause upload_cause_st[] = {
 	{ "lpass", UPLOAD_CAUSE_LPASS_RST_ERR, SEC_STRNSTR },
 	{ "dsps", UPLOAD_CAUSE_DSPS_RST_ERR, SEC_STRNSTR },
 	{ "subsys", UPLOAD_CAUSE_PERIPHERAL_ERR, SEC_STRNCASECMP },
+	{ "SMPL", UPLOAD_CAUSE_SMPL, SEC_STRNSTR },
 #if defined(CONFIG_SEC_QUEST)
 	{ "crypto_test", UPLOAD_CAUSE_QUEST_CRYPTO, SEC_STRNCMP },
 	{ "icache_test", UPLOAD_CAUSE_QUEST_ICACHE, SEC_STRNCMP },
@@ -515,12 +639,15 @@ struct __upload_cause upload_cause_st[] = {
 	{ "sdcard_test", UPLOAD_CAUSE_QUEST_SDCARD, SEC_STRNCMP },
 	{ "sensor_test", UPLOAD_CAUSE_QUEST_SENSOR, SEC_STRNCMP },
 	{ "sensorprobe_test", UPLOAD_CAUSE_QUEST_SENSORPROBE, SEC_STRNCMP },
-	{ "gfx_test", UPLOAD_CAUSE_QUEST_GFX, SEC_STRNCMP },
+	{ "naturescene_test", UPLOAD_CAUSE_QUEST_NATURESCENE, SEC_STRNCMP },
 	{ "a75g_test", UPLOAD_CAUSE_QUEST_A75G, SEC_STRNCMP },
 	{ "q65g_test", UPLOAD_CAUSE_QUEST_Q65G, SEC_STRNCMP },
 	{ "thermal_test", UPLOAD_CAUSE_QUEST_THERMAL, SEC_STRNCMP },
 	{ "qdaf_fail", UPLOAD_CAUSE_QUEST_QDAF_FAIL, SEC_STRNCMP },
+	{ "zip_unzip_test", UPLOAD_CAUSE_QUEST_ZIP_UNZIP, SEC_STRNCMP },
 	{ "quest_fail", UPLOAD_CAUSE_QUEST_FAIL, SEC_STRNCMP },
+	{ "aoss_thermal_diff", UPLOAD_CAUSE_QUEST_AOSSTHERMALDIFF, SEC_STRNCMP },
+	{ "stressapptest_test", UPLOAD_CAUSE_QUEST_STRESSAPPTEST, SEC_STRNCMP },	
 #endif
 };
 
@@ -601,10 +728,9 @@ static int sec_debug_panic_handler(struct notifier_block *nb,
 	/* enable after SSR feature */
 	/* ssr_panic_handler_for_sec_dbg(); */
 
-	show_state_filter(TASK_UNINTERRUPTIBLE);
-
 	/* platform lockup suspected, it needs more info */
 	if (sec_debug_platform_lockup_suspected((char *)buf)) {
+		show_state_filter(TASK_UNINTERRUPTIBLE);
 		dump_memory_info();
 		dump_cpu_stat();
 	}
@@ -620,6 +746,9 @@ static int sec_debug_panic_handler(struct notifier_block *nb,
 
 void sec_debug_prepare_for_wdog_bark_reset(void)
 {
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
+	sec_delay_check = 0;
+#endif
 	sec_debug_set_upload_magic(RESTART_REASON_SEC_DEBUG_MODE);
 	sec_debug_set_upload_cause(UPLOAD_CAUSE_NON_SECURE_WDOG_BARK);
 }
@@ -657,7 +786,7 @@ static int __init __sec_debug_dt_addr_init(void)
 	/* check restart_reason address here */
 	pr_emerg("restart_reason addr : 0x%p(0x%llx)\n",
 			qcom_restart_reason,
-			(uint64_t)virt_to_phys(qcom_restart_reason));
+			(unsigned long long)virt_to_phys(qcom_restart_reason));
 
 	/* Using bottom of sec_dbg DDR address range for writing upload_cause */
 	np = of_find_compatible_node(NULL, NULL, "qcom,msm-imem-upload_cause");
@@ -674,7 +803,27 @@ static int __init __sec_debug_dt_addr_init(void)
 
 	/* check upload_cause here */
 	pr_emerg("upload_cause addr : 0x%p(0x%llx)\n", upload_cause,
-			(uint64_t)virt_to_phys(upload_cause));
+			(unsigned long long)virt_to_phys(upload_cause));
+
+#if IS_ENABLED(CONFIG_POWER_RESET_QCOM_DOWNLOAD_MODE)
+	np = of_find_compatible_node(NULL, NULL, "qcom,msm-watchdog");
+	if (unlikely(!np)) {
+		pr_err("unable to find DT qcom,msm-watchdog node\n");
+		return -ENODEV;
+	}
+
+	if (of_device_is_available(np)) {
+		watchdog_base = of_iomap(np, 0);
+		if (unlikely(!watchdog_base)) {
+			pr_err("unable to map watchdog_base offset\n");
+			return -ENODEV;
+		}
+
+		/* check upload_cause here */
+		pr_emerg("watchdog_base addr : 0x%p(0x%llx)\n", watchdog_base,
+				(unsigned long long)virt_to_phys(watchdog_base));
+	}
+#endif
 
 	return 0;
 }
@@ -682,38 +831,20 @@ static int __init __sec_debug_dt_addr_init(void)
 static int __init __sec_debug_dt_addr_init(void) { return 0; }
 #endif /* CONFIG_OF */
 
-#define SCM_WDOG_DEBUG_BOOT_PART 0x9
-
-void sec_do_bypass_sdi_execution_in_low(void)
-{
-	int ret;
-	struct scm_desc desc = {
-		.args[0] = 1,
-		.args[1] = 0,
-		.arginfo = SCM_ARGS(2),
-	};
-
-	/* Needed to bypass debug image on some chips */
-	ret = scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_BOOT,
-			  SCM_WDOG_DEBUG_BOOT_PART), &desc);
-	if (ret)
-		pr_err("Failed to disable wdog debug: %d\n", ret);
-}
-
 static int __init force_upload_setup(char *en)
 {
 	get_option(&en, &force_upload);
-	return 1;
+	return 0;
 }
-__setup("androidboot.force_upload=", force_upload_setup);
+early_param("androidboot.force_upload", force_upload_setup);
 
 /* for sec debug level */
 static int __init sec_debug_level_setup(char *str)
 {
 	get_option(&str, &sec_dbg_level);
-	return 1;
+	return 0;
 }
-__setup("androidboot.debug_level=", sec_debug_level_setup);
+early_param("androidboot.debug_level", sec_debug_level_setup);
 
 static int __init sec_debug_init(void)
 {
@@ -736,13 +867,21 @@ static int __init sec_debug_init(void)
 	case ANDROID_DEBUG_LEVEL_MID:
 #endif
 
-#if 0	/* FIXME: */
+#if defined(CONFIG_ARCH_ATOLL) || defined(CONFIG_ARCH_SEC_SM7150)
 		if (!force_upload)
-			sec_do_bypass_sdi_execution_in_low();
+			qcom_scm_disable_sdi();
 #endif
 		break;
 	}
 
+#ifdef CONFIG_SEC_LOG_STORE_LAST_KMSG
+	if (reboot_multicmd)
+		reboot_multicmd = 1;
+	else
+		reboot_multicmd = 0;
+#else
+	reboot_multicmd = 0;
+#endif
 	return 0;
 }
 arch_initcall_sync(sec_debug_init);
@@ -800,7 +939,9 @@ void dump_memory_info(void)
 #else
 	show_mem(0);
 #endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,4,0)
 	dump_tasks(NULL, NULL);
+#endif
 }
 
 void dump_all_task_info(void)
@@ -966,7 +1107,11 @@ char *__init sec_debug_get_erased_command_line(void)
 
 	cmdline_len = strlen(boot_command_line) + 1;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0)
+	erased_command_line = memblock_alloc(cmdline_len, SMP_CACHE_BYTES);
+#else
 	erased_command_line = memblock_virt_alloc(cmdline_len, 0);
+#endif
 	strlcpy(erased_command_line, saved_command_line, cmdline_len);
 
 	for (i = 0; i < ARRAY_SIZE(to_be_deleted); i++) {

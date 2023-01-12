@@ -68,9 +68,7 @@ struct cdfinger_key_map {
 #define CDFINGER_REPORT_KEY_LEGACY			_IOW(CDFINGER_IOCTL_MAGIC_NO, 10, uint8_t)
 #define CDFINGER_POWERDOWN					_IO(CDFINGER_IOCTL_MAGIC_NO, 11)
 #define CDFINGER_GETID						_IO(CDFINGER_IOCTL_MAGIC_NO,12)
-/* HS70 code for HS70-186 by zhuqiang at 2019/10/24 start */
 #define CDFINGER_SETID						_IOW(CDFINGER_IOCTL_MAGIC_NO,8,uint8_t)
-/* HS70 code for HS70-186 by zhuqiang at 2019/10/24 end */
 #define CDFINGER_INIT_GPIO					_IO(CDFINGER_IOCTL_MAGIC_NO,20)
 #define CDFINGER_INIT_IRQ					_IO(CDFINGER_IOCTL_MAGIC_NO,21)
 #define CDFINGER_POWER_ON					_IO(CDFINGER_IOCTL_MAGIC_NO,22)
@@ -84,7 +82,7 @@ struct cdfinger_key_map {
 #define CDFINGER_REPORT_KEY					_IOW(CDFINGER_IOCTL_MAGIC_NO,19,key_report_t)
 #define CDFINGER_NEW_KEYMODE				_IOW(CDFINGER_IOCTL_MAGIC_NO, 37, uint8_t)
 #define CDFINGER_WAKE_LOCK					_IOW(CDFINGER_IOCTL_MAGIC_NO,26,uint8_t)
-
+#define CDFINGER_GET_HW_ID					_IO(CDFINGER_IOCTL_MAGIC_NO,39)
 /*if want change key value for event , do it*/
 #define CF_NAV_INPUT_UP						600
 #define CF_NAV_INPUT_DOWN					601
@@ -103,6 +101,7 @@ struct cdfinger_key_map {
 #define DEVICE_NAME "fpsdev0"
 #define INPUT_DEVICE_NAME "cdfinger_input"
 
+#define SUPPORT_ID_NUM
 //#define SUPPORT_ID_NUM
 //#define POWER_GPIO
 #define POWER_REGULATOR
@@ -111,10 +110,7 @@ static int isInKeyMode = 0; // key mode
 static int screen_status = 1; // screen on
 static u8 cdfinger_debug = 0x01;
 static int isInit = 0;
-
-/* HS70 code for HS70-186 by zhuqiang at 2019/10/24 start */
 extern int finger_sysfs;
-/* HS70 code for HS70-186 by zhuqiang at 2019/10/24 end */
 
 #define CDFINGER_DBG(fmt, args...) \
 	do{ \
@@ -133,6 +129,7 @@ struct cdfingerfp_data {
 	u8 chip_id;
 #ifdef SUPPORT_ID_NUM
 	u32 id_num;
+	u32 hw_id_num;
 //	struct pinctrl *fps_pinctrl;
 //	struct pinctrl_state *fps_id_high;
 #endif
@@ -143,11 +140,11 @@ struct cdfingerfp_data {
 #endif
 #ifdef POWER_REGULATOR
 	struct regulator *vdd;
-#endif	
+#endif
 	struct fasync_struct *async_queue;
 #ifdef CONFIG_PM_WAKELOCKS
 	struct wakeup_source cdfinger_ws;
-#else 
+#else
 	struct wake_lock cdfinger_lock;
 #endif
 
@@ -157,7 +154,6 @@ struct cdfingerfp_data {
 }*g_cdfingerfp_data;
 
 static struct cdfinger_key_map maps[] = {
-	/*HS70 code for P200102-05384 by zhuqiang at 2020/01/09 start*/
 	#ifdef FP_INPUT_EVENT
 	{ EV_KEY, CF_KEY_INPUT_HOME },
 	{ EV_KEY, CF_KEY_INPUT_MENU },
@@ -173,7 +169,6 @@ static struct cdfinger_key_map maps[] = {
 	{ EV_KEY, CF_NAV_INPUT_DOUBLE_CLICK },
 	{ EV_KEY, CF_NAV_INPUT_LONG_PRESS },
 	#endif
-	/*HS70 code for P200102-05384 by zhuqiang at 2020/01/09 end*/
 };
 
 static int cdfinger_init_gpio(struct cdfingerfp_data *cdfinger)
@@ -392,7 +387,6 @@ static irqreturn_t cdfinger_eint_handler(int irq, void *dev_id)
 	cdfinger_async_report();
 	return IRQ_HANDLED;
 }
-
 static int cdfinger_create_inputdev(struct cdfingerfp_data *pdata)
 {
     int i;
@@ -471,7 +465,7 @@ static int cdfinger_report_key(struct cdfingerfp_data *cdfinger, unsigned long a
 		CDFINGER_ERR("%s err\n", __func__);
 		return -1;
 	}
-	
+
 	switch(report.key)
 	{
 	case KEY_UP:
@@ -571,15 +565,18 @@ static long cdfinger_ioctl(struct file* filp, unsigned int cmd, unsigned long ar
 			err = cdfinger_report_key(cdfinger, arg);
 			break;
 
-		case CDFINGER_GETID:
+		case CDFINGER_GET_HW_ID:
 #ifdef SUPPORT_ID_NUM
-			err = cdfinger->chip_id;
+			err = cdfinger->hw_id_num;
 #endif
 			break;
 		/* HS70 code for HS70-186 by zhuqiang at 2019/10/24 start */
 		case CDFINGER_SETID:
 			cdfinger->chip_id = arg;
-			finger_sysfs = 0x02;
+			if (cdfinger->hw_id_num)
+			    finger_sysfs = 0x05;
+			else
+			    finger_sysfs = 0x02;
 			CDFINGER_DBG("set cdfinger chip id 0x%x\n",cdfinger->chip_id);
 		/* HS70 code for HS70-186 by zhuqiang at 2019/10/24 end */
 		default:
@@ -646,22 +643,11 @@ static int cdfinger_fb_notifier_callback(struct notifier_block* self,
 #ifdef SUPPORT_ID_NUM
 static int cdfinger_support_id(struct cdfingerfp_data *cdfinger)
 {
-	int err = 0;
-	//cdfinger->fps_id_high = pinctrl_lookup_state(cdfinger->fps_pinctrl, "cdfinger_id_pin");
-	//if (IS_ERR(cdfinger->fps_id_high)){
-	//	CDFINGER_ERR("look up state err\n");
-	//	return -1;
-	//}
-	//pinctrl_select_state(cdfinger->fps_pinctrl, cdfinger->fps_id_high);
+	int id_value = 0;
 	if (gpio_is_valid(cdfinger->id_num)) {
-		err = gpio_request(cdfinger->id_num, "cdfinger-id");
-		if (err) {
-			gpio_free(cdfinger->id_num);
-			err = gpio_request(cdfinger->id_num, "cdfinger-id");
-			if (err) {
-				CDFINGER_ERR("Could not request id gpio.\n");
-				return err;
-			}
+		if (gpio_request(cdfinger->id_num, "cdfinger-id")) {
+			CDFINGER_ERR("Could not request id gpio.\n");
+			return -EIO;
 		}
 		gpio_direction_input(cdfinger->id_num);
 	}
@@ -669,9 +655,9 @@ static int cdfinger_support_id(struct cdfingerfp_data *cdfinger)
 		CDFINGER_ERR(KERN_ERR "not valid irq gpio\n");
 		return -EIO;
 	}
-	err = gpio_get_value(cdfinger->id_num);
+	id_value = gpio_get_value(cdfinger->id_num);
 	gpio_free(cdfinger->id_num);
-	return err;
+	return id_value;
 }
 #endif
 
@@ -681,6 +667,10 @@ static int cdfinger_probe(struct platform_device *pdev)
 	int status = -ENODEV;
 
 	cdfingerdev = kzalloc(sizeof(struct cdfingerfp_data),GFP_KERNEL);
+	if(!cdfingerdev){
+		CDFINGER_ERR("cdfingerdev kzalloc err\n");
+		return -1;
+	}
 	cdfingerdev->cdfinger_dev = pdev;
 
 	status=cdfinger_parse_dts(&cdfingerdev->cdfinger_dev->dev, cdfingerdev);
@@ -690,11 +680,8 @@ static int cdfinger_probe(struct platform_device *pdev)
 	}
 
 #ifdef SUPPORT_ID_NUM
-	status = cdfinger_support_id(cdfingerdev);
-	if (status != 1) {  // id pin is high , cdfinger
-		CDFINGER_ERR("cdfinger support id error %d\n",status);
-		return -1;
-	}
+	cdfingerdev->hw_id_num = cdfinger_support_id(cdfingerdev);
+	CDFINGER_ERR("FPG_ID is %d\n",cdfingerdev->hw_id_num);
 #endif
 
 	status = misc_register(&st_cdfinger_dev);
@@ -716,8 +703,6 @@ static int cdfinger_probe(struct platform_device *pdev)
                      __func__, status);
 		goto free_miscdevice;
 	}
-
-
 	platform_set_drvdata(pdev,cdfingerdev);
 	g_cdfingerfp_data = cdfingerdev;
 

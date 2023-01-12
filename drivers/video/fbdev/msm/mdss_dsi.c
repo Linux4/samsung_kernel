@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, 2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -35,6 +35,8 @@
 #include "mdss_debug.h"
 #include "mdss_dsi_phy.h"
 #include "mdss_dba_utils.h"
+#include <linux/touchscreen_info.h>
+#include "mdss_smmu.h"
 
 #define XO_CLK_RATE	19200000
 #define CMDLINE_DSI_CTL_NUM_STRING_LEN 2
@@ -56,10 +58,22 @@ enum {
 	GX_HSD_ST7703_720P_VIDEO_PANEL
 	};
 extern int mdss_mdp_parse_panel_id_kernel(void);
+#ifdef HQ_FACTORY_BUILD
+extern int test_flag;
+extern struct device_node *wdy_pan_node;
+extern int mdss_dsi_parse_dcs_cmds(struct device_node *np,
+		 struct dsi_panel_cmds *pcmds, char *cmd_key, char *link_key);
+#endif /* HQ_FACTORY_BUILD */
 /* HS70 code for HS70-133 by liufurong at 2019/10/31 start */
+/*HS50 code for SR-QL3095-01-120 by gaozhengwei at 2020/07/31 start*/
+enum tp_module_used tp_is_used = UNKNOWN_TP;
 #ifdef CONFIG_TOUCHSCREEN_ILI
+/*HS50 code for SR-QL3095-01-120 by gaozhengwei at 2020/07/31 end*/
 extern void ilitek_resume_by_ddi(void);
-extern bool is_ilitek_tp;
+extern void ili_resume_by_ddi(void);
+#endif
+#ifdef CONFIG_TOUCHSCREEN_ILI_HS50
+extern void ilitek_resume_by_ddi(void);
 #endif
 /* HS70 code for HS70-133 by liufurong at 2019/10/31 end */
 /*HS60 code for HS60-296 by wangqilin at 2019/08/13 end*/
@@ -1056,7 +1070,7 @@ static ssize_t mdss_dsi_cmd_write(struct file *file, const char __user *p,
 {
 	struct buf_data *pcmds = file->private_data;
 	ssize_t ret = 0;
-	int blen = 0;
+	unsigned int blen = 0;
 	char *string_buf;
 
 	mutex_lock(&pcmds->dbg_mutex);
@@ -1068,6 +1082,11 @@ static ssize_t mdss_dsi_cmd_write(struct file *file, const char __user *p,
 
 	/* Allocate memory for the received string */
 	blen = count + (pcmds->sblen);
+	if (blen > U32_MAX - 1) {
+		mutex_unlock(&pcmds->dbg_mutex);
+		return -EINVAL;
+	}
+
 	string_buf = krealloc(pcmds->string_buf, blen + 1, GFP_KERNEL);
 	if (!string_buf) {
 		pr_err("%s: Failed to allocate memory\n", __func__);
@@ -1075,6 +1094,7 @@ static ssize_t mdss_dsi_cmd_write(struct file *file, const char __user *p,
 		return -ENOMEM;
 	}
 
+	pcmds->string_buf = string_buf;
 	/* Writing in batches is possible */
 	ret = simple_write_to_buffer(string_buf, blen, ppos, p, count);
 	if (ret < 0) {
@@ -1084,7 +1104,6 @@ static ssize_t mdss_dsi_cmd_write(struct file *file, const char __user *p,
 	}
 
 	string_buf[ret] = '\0';
-	pcmds->string_buf = string_buf;
 	pcmds->sblen = count;
 	mutex_unlock(&pcmds->dbg_mutex);
 	return ret;
@@ -1411,6 +1430,8 @@ static int mdss_dsi_off(struct mdss_panel_data *pdata, int power_state)
 	int ret = 0;
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct mdss_panel_info *panel_info = NULL;
+	struct platform_device *pdev;
+	struct dsi_buf *tp;
 
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
@@ -1421,6 +1442,16 @@ static int mdss_dsi_off(struct mdss_panel_data *pdata, int power_state)
 				panel_data);
 
 	panel_info = &ctrl_pdata->panel_data.panel_info;
+
+	pdev = mdss_res->pdev;
+	tp = &ctrl_pdata->tx_buf;
+	mdss_smmu_dma_free_coherent(&pdev->dev, SZ_4K, tp->start, tp->dmap,
+			ctrl_pdata->dma_addr, MDSS_IOMMU_DOMAIN_UNSECURE);
+	tp->end = NULL;
+	tp->size = 0;
+	ctrl_pdata->dma_addr = 0;
+	tp->start = NULL;
+	tp->dmap = 0;
 
 	pr_debug("%s+: ctrl=%pK ndx=%d power_state=%d\n",
 		__func__, ctrl_pdata, ctrl_pdata->ndx, power_state);
@@ -1590,6 +1621,8 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 	struct mipi_panel_info *mipi;
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	int cur_power_state;
+	struct platform_device *pdev;
+	struct dsi_buf *tp;
 
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
@@ -1598,6 +1631,20 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
+
+	pdev = mdss_res->pdev;
+	tp = &ctrl_pdata->tx_buf;
+	if (!ctrl_pdata->mdss_util->iommu_attached())
+		pr_err("%s : iommu not attached\n", __func__);
+
+	ret = mdss_smmu_dma_alloc_coherent(&pdev->dev, SZ_4K, &tp->dmap,
+		&ctrl_pdata->dma_addr, (void *)&tp->start, GFP_KERNEL,
+			MDSS_IOMMU_DOMAIN_UNSECURE);
+	if (IS_ERR_VALUE((unsigned long)ret))
+		pr_err("%s : mdss_smmu_dma_alloc_coherent failed\n", __func__);
+
+	tp->end = tp->start + SZ_4K;
+	tp->size = SZ_4K;
 
 	if (ctrl_pdata->debugfs_info)
 		mdss_dsi_validate_debugfs_info(ctrl_pdata);
@@ -1675,8 +1722,17 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 		mdss_dsi_panel_reset(pdata, 1);
 	}
 	/* HS70 code for HS70-133 by liufurong at 2019/10/31 start */
-	#ifdef CONFIG_TOUCHSCREEN_ILI
-	if (is_ilitek_tp) {
+	/*HS50 code for SR-QL3095-01-120 by gaozhengwei at 2020/07/31 start*/
+	#if (defined CONFIG_TOUCHSCREEN_ILI)
+	/*HS50 code for SR-QL3095-01-120 by gaozhengwei at 2020/07/31 end*/
+	if (tp_is_used == ILITEK_ILI7807G) {
+		ilitek_resume_by_ddi();
+	} else if(tp_is_used == ILITEK_ILI7806S){
+		ili_resume_by_ddi();
+	}
+	#endif
+	#ifdef CONFIG_TOUCHSCREEN_ILI_HS50
+	if (tp_is_used == ILITEK_ILI7807G) {
 		ilitek_resume_by_ddi();
 	}
 	#endif
@@ -1765,6 +1821,55 @@ static int mdss_dsi_pinctrl_init(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef HQ_FACTORY_BUILD
+static int mdss_reload_initcode(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
+{
+	pr_err("[LCD sorting] ctrl_pdata is %p\n",ctrl_pdata);
+	pr_err("[LCD sorting] test_flag is %d\n",test_flag);
+	pr_err("[LCD sorting] node is %p\n",wdy_pan_node);
+	if (ctrl_pdata->panel_data.panel_info.reload_flag) {
+		pr_err("[LCD sorting] get true panel\n");
+		if (wdy_pan_node) {
+			switch (test_flag)
+			{
+			case 0:
+				mdss_dsi_parse_dcs_cmds(wdy_pan_node, &ctrl_pdata->on_cmds,
+					"qcom,mdss-dsi-on-command",
+					"qcom,mdss-dsi-on-command-state");
+				break;
+			case 1:
+				mdss_dsi_parse_dcs_cmds(wdy_pan_node, &ctrl_pdata->on_cmds,
+					"qcom,mdss-dsi-on-command1",
+					"qcom,mdss-dsi-on-command-state");
+				break;
+			case 2:
+				mdss_dsi_parse_dcs_cmds(wdy_pan_node, &ctrl_pdata->on_cmds,
+					"qcom,mdss-dsi-on-command2",
+					"qcom,mdss-dsi-on-command-state");
+				break;
+			case 3:
+				mdss_dsi_parse_dcs_cmds(wdy_pan_node, &ctrl_pdata->on_cmds,
+					"qcom,mdss-dsi-on-command3",
+					"qcom,mdss-dsi-on-command-state");
+				break;
+			case 4:
+				mdss_dsi_parse_dcs_cmds(wdy_pan_node, &ctrl_pdata->on_cmds,
+					"qcom,mdss-dsi-on-command4",
+					"qcom,mdss-dsi-on-command-state");
+				break;
+
+			default:
+				mdss_dsi_parse_dcs_cmds(wdy_pan_node, &ctrl_pdata->on_cmds,
+					"qcom,mdss-dsi-on-command",
+					"qcom,mdss-dsi-on-command-state");
+				break;
+			}
+		}
+    }
+	return 0;
+}
+#endif /* HQ_FACTORY_BUILD */
+
 static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 {
 	int ret = 0;
@@ -1779,6 +1884,9 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
+#ifdef HQ_FACTORY_BUILD
+	ret = mdss_reload_initcode(ctrl_pdata);
+#endif /* HQ_FACTORY_BUILD */
 	mipi  = &pdata->panel_info.mipi;
 
 	pr_debug("%s+: ctrl=%pK ndx=%d cur_power_state=%d ctrl_state=%x\n",
@@ -3603,6 +3711,10 @@ static int mdss_dsi_parse_dt_params(struct platform_device *pdev,
 	sdata->cmd_clk_ln_recovery_en =
 		of_property_read_bool(pdev->dev.of_node,
 		"qcom,dsi-clk-ln-recovery");
+
+	sdata->skip_clamp =
+		of_property_read_bool(pdev->dev.of_node,
+		"qcom,mdss-skip-clamp");
 
 	return 0;
 }

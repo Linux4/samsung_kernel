@@ -24,7 +24,7 @@ struct sec_param_data {
 	unsigned int debuglevel;
 	unsigned int uartsel;
 	unsigned int rory_control;
-	unsigned int reserved0;
+	unsigned int product_device;   /* product/dev device */
 	unsigned int reserved1;
 	unsigned int cp_debuglevel;
 	unsigned int reserved2;
@@ -61,7 +61,7 @@ struct sec_param_data {
 	unsigned int cp_reserved_mem;
 	char used5[4];
 	char used6[4];
-	char param_lcd_resolution[8]; // Variable LCD resolution
+	char reserved8[8];
 	char used7[16];
 	unsigned int api_gpio_test;
 	char api_gpio_test_result[256];
@@ -75,6 +75,12 @@ struct sec_param_data {
 	struct fiemap_p fiemap_result;
 	char used8[80];
 	char window_color[2];
+	char VrrStatus[16];
+#if defined(CONFIG_PD_CHARGER_HV_DISABLE)
+	unsigned int pd_disable;
+#else
+	unsigned int reserved9;
+#endif
 };
 
 struct sec_param_data_s {
@@ -108,7 +114,6 @@ enum sec_param_index {
 	param_index_afc_disable,
 #endif
 	param_index_cp_reserved_mem,
-	param_index_lcd_resolution,
 	param_index_api_gpio_test,
 	param_index_api_gpio_test_result,
 	param_index_reboot_recovery_cause,
@@ -123,6 +128,13 @@ enum sec_param_index {
 #ifdef CONFIG_SEC_QUEST
 	param_index_quest,
 	param_index_quest_ddr_result,
+#endif
+#ifdef CONFIG_SEC_QUEST_BPS_CLASSIFIER
+	param_index_quest_bps_data,
+#endif
+	param_index_VrrStatus,
+#ifdef CONFIG_PD_CHARGER_HV_DISABLE
+	param_index_pd_hv_disable,
 #endif
 	param_index_max_sec_param_data,
 };
@@ -144,6 +156,12 @@ enum sec_param_index {
 #define SEC_PARAM_QUEST_OFFSET			(SEC_PARAM_FILE_OFFSET - 0x100000)
 #define SEC_PARAM_QUEST_SIZE				(0x2000) /* 8KB */
 #define SEC_PARAM_QUEST_DDR_RESULT_OFFSET	(SEC_PARAM_QUEST_OFFSET + SEC_PARAM_QUEST_SIZE) /* 8MB + 8KB */
+#endif
+
+#ifdef CONFIG_SEC_QUEST_BPS_CLASSIFIER
+/* SEC QUEST BPS region in PARAM partition */
+#define SEC_PARAM_QUEST_DDR_RESULT_SIZE				(0x2000) /* 8KB */
+#define SEC_PARAM_QUEST_BPS_DATA_OFFSET	(SEC_PARAM_QUEST_DDR_RESULT_OFFSET + SEC_PARAM_QUEST_DDR_RESULT_SIZE) /* 8MB + 8KB + 8KB*/
 #endif
 
 #ifdef CONFIG_SEC_PARAM

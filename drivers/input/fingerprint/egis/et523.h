@@ -24,10 +24,8 @@
 #include <linux/printk.h>
 #include <linux/module.h>
 #include <linux/spi/spi.h>
-/* HS70 code for HS70-861 by chenlei at 2019/11/20 start */
 #include <linux/fb.h>
 #include <linux/notifier.h>
-/* HS70 code for HS70-861 by chenlei at 2019/11/20 end */
 
 /*#define FP_SPI_DEBUG*/
 #define FP_SPI_DEBUG
@@ -85,9 +83,7 @@
 #define FP_FREE_GPIO				0x83
 #define FP_WAKELOCK_TIMEOUT_ENABLE  0Xb1
 #define FP_WAKELOCK_TIMEOUT_DISABLE 0Xb2
-/* HS70 code for HS70-861 by chenlei at 2019/11/20 start */
 #define GET_SCREEN_ONOFF 			0xb3
-/* HS70 code for HS70-861 by chenlei at 2019/11/20 end */
 #define SPI_MAX_SPEED				12500000
 #define FP_SENSOR_NAME				"fp_server_egistec"
 
@@ -139,9 +135,7 @@ struct etspi_data {
 	spinlock_t irq_lock;
 	struct platform_device *spi;
 	struct list_head device_entry;
-/* HS70 code for HS70-861 by chenlei at 2019/11/20 start */
 	struct notifier_block notifier;
-/* HS70 code for HS70-861 by chenlei at 2019/11/20 end */
 	/* buffer is NULL unless this device is open (users > 0) */
 	struct mutex buf_lock;
 	unsigned users;

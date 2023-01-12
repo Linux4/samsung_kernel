@@ -770,9 +770,15 @@ int msm_camera_request_gpio_table(struct gpio *gpio_tbl, uint8_t size,
 				 * apply new gpios, outout a error message
 				 * for driver bringup debug
 				 */
-				pr_err("%s:%d gpio %d:%s request fails\n",
-					__func__, __LINE__,
+				/*HS70 code for HS70-5265 by zhangpeng at 20200426 start*/
+				pr_err("%s:%d err:%d, gpio %d:%s request fails\n",
+					__func__, __LINE__, err,
 					gpio_tbl[i].gpio, gpio_tbl[i].label);
+				msleep(10);
+			    err = gpio_request_one(gpio_tbl[i].gpio,
+				    gpio_tbl[i].flags, gpio_tbl[i].label);
+				pr_err("%s:%d err:%d\n",__func__, __LINE__, err);
+				/*HS70 code for HS70-5265 by zhangpeng at 20200426 end*/
 			}
 		}
 	} else {

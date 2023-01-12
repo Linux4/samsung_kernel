@@ -24,6 +24,7 @@
 #include <linux/of.h>
 #include <linux/ratelimit.h>
 #include <linux/slab.h>
+#include <linux/suspend.h>
 
 #include <linux/sec_debug.h>
 
@@ -97,7 +98,8 @@ static struct event_state crashkey_user_state = {
 	.received_pattern = received_user_pattern,
 	.nr_pattern = ARRAY_SIZE(crashkey_user_pattern),
 	.msg = UPLOAD_MSG_USER_CRASH_KEY,
-	.interval = 7 * HZ,
+	/* TODO: set this value to '0' to ignore 'ratelimit' */
+	.interval = 19 * HZ,	/* COVID-19 */
 };
 
 static struct event_state *key_event_state;
@@ -129,16 +131,19 @@ static int sec_crashkey_notifier_call(struct notifier_block *this,
 	key_event_state->received_pattern[idx].down = !!param->down;
 	key_event_state->sequence++;
 
-	if (!__ratelimit(&(key_event_state->rs))) {
-		if (!__crashkey_test_pattern(key_event_state->nr_pattern)) {
+	if (__crashkey_test_pattern(key_event_state->sequence))
+		goto clear_state;
+
+	if (!key_event_state->interval ||
+	    !__ratelimit(&(key_event_state->rs))) {
+		if (key_event_state->sequence == key_event_state->nr_pattern) {
 #ifdef CONFIG_SEC_USER_RESET_DEBUG
 			sec_debug_store_extc_idx(false);
 #endif
-			panic(key_event_state->msg);
-		} else
+			panic("%s", key_event_state->msg);
+		} else if (key_event_state->interval)
 			goto clear_state;
-	} else if (__crashkey_test_pattern(key_event_state->sequence))
-		goto clear_state;
+	}
 
 	return NOTIFY_DONE;
 
@@ -230,6 +235,23 @@ no_dt:
 	pr_info("use default keymap");
 }
 
+static int sec_crashkey_pm_notifier_call(struct notifier_block *nb,
+		unsigned long action, void *data)
+{
+	switch (action) {
+	case PM_SUSPEND_PREPARE:
+	case PM_POST_SUSPEND:
+		__crashkey_clear_received_pattern();
+		break;
+	}
+
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block sec_crashkey_pm_notifier = {
+	.notifier_call = sec_crashkey_pm_notifier_call,
+};
+
 static int __init sec_crashkey_init(void)
 {
 	int err;
@@ -253,6 +275,8 @@ static int __init sec_crashkey_init(void)
 
 	sec_kn_register_notifier(&sec_crashkey_notifier,
 			carashkey_used_event, crashkey_nr_used_event);
+
+	register_pm_notifier(&sec_crashkey_pm_notifier);
 
 	return 0;
 }

@@ -39,7 +39,9 @@
 #include "qg-soc.h"
 #include "qg-battery-profile.h"
 #include "qg-defs.h"
-
+/*HS60 & HS70 add for HS60-5163  by wangzikang at 2020/02/20 start */
+#include <kernel_project_defines.h>
+/*HS60 & HS70 add for HS60-5163  by wangzikang at 2020/02/20 end */
 static int qg_debug_mask;
 module_param_named(
 	debug_mask, qg_debug_mask, int, 0600
@@ -1549,7 +1551,10 @@ static int qg_get_battery_capacity(struct qpnp_qg *chip, int *soc)
 		*soc = chip->maint_soc;
 	else
 		*soc = chip->msoc;
-
+	/*Huaqin added for P200709-06720  hold soc=100 if it beyond 100 by wangzikang at 2020/07/15 start */
+	if (*soc > FULL_SOC)
+		*soc = FULL_SOC;
+	/*Huaqin added for P200709-06720  hold soc=100 if it beyond 100 by wangzikang at 2020/07/15 end */
 	mutex_unlock(&chip->soc_lock);
 
 	return 0;
@@ -1745,7 +1750,10 @@ static int qg_psy_get_property(struct power_supply *psy,
 		rc = qg_sdam_read(SDAM_OCV_UV, &pval->intval);
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
+		/* Huaqin add for ZQL1695-HQ000001 Fix the battery temperature as 25 degree by gaochao at 2019/07/11 start */
 		rc = qg_get_battery_temp(chip, &pval->intval);
+		//pval->intval = 250;
+		/* Huaqin add for ZQL1695-HQ000001 Fix the battery temperature as 25 degree by gaochao at 2019/07/11 end */
 		break;
 	case POWER_SUPPLY_PROP_RESISTANCE_ID:
 		pval->intval = chip->batt_id_ohm;
@@ -2113,6 +2121,9 @@ static int qg_handle_battery_insertion(struct qpnp_qg *chip)
 #define CUSTOM_BAT_HIGH_TEMP_DOWM_THRESHOLD		450
 #define CUSTOM_BAT_HIGH_TEMP_RESUME_THRESHOLD		440
 #define CUSTOM_BAT_HIGH_TEMP_RECHARGE_THRESHOLD	        4130
+/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 end*/
+#define CUSTOM_BAT_HIGH_TEMP_RECHARGE_THRESHOLD_SDI		4030
+/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 end*/
 /* HS60 add for ZQL1693-56 Optimize the charging experience at temperature 45~50 by gaochao at 2019/11/14 end */
 static int qg_battery_aging_update(struct qpnp_qg *chip)
 {
@@ -2121,6 +2132,19 @@ static int qg_battery_aging_update(struct qpnp_qg *chip)
 	/* HS60 add for ZQL1693-56 Optimize the charging experience at temperature 45~50 by gaochao at 2019/11/14 start */
 	int battery_temperature = 0;
 	/* HS60 add for ZQL1693-56 Optimize the charging experience at temperature 45~50 by gaochao at 2019/11/14 end */
+	/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 start*/
+	int custom_recharge_threshold = 4030;
+	if ((chip->batt_id_ohm_default == 150000) && (chip->batt_id_ohm > 170000))
+	{
+		custom_recharge_threshold = CUSTOM_BAT_HIGH_TEMP_RECHARGE_THRESHOLD_SDI;
+		pr_debug("SDI Threshold  =  %d.\n", custom_recharge_threshold);
+	}
+	else
+	{
+		custom_recharge_threshold = CUSTOM_BAT_HIGH_TEMP_RECHARGE_THRESHOLD;
+		pr_debug("Threshold  =  %d.\n", custom_recharge_threshold);
+	}
+	/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 end*/
 
 	/* HS60 add for ZQL1693-56 Optimize the charging experience at temperature 45~50 by gaochao at 2019/11/14 start */
 	rc = qg_get_battery_temp(chip, &battery_temperature);
@@ -2172,7 +2196,9 @@ static int qg_battery_aging_update(struct qpnp_qg *chip)
 	//prop.intval = vbat / 1000;
 	if (battery_temperature >= CUSTOM_BAT_HIGH_TEMP_DOWM_THRESHOLD)
 	{
-		prop.intval = CUSTOM_BAT_HIGH_TEMP_RECHARGE_THRESHOLD;
+		/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 start*/
+		prop.intval = custom_recharge_threshold;
+		/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 end*/
 	}
 	else if (battery_temperature < CUSTOM_BAT_HIGH_TEMP_RESUME_THRESHOLD)
 	{
@@ -2180,7 +2206,9 @@ static int qg_battery_aging_update(struct qpnp_qg *chip)
 	}
 	else
 	{
-                prop.intval = CUSTOM_BAT_HIGH_TEMP_RECHARGE_THRESHOLD;
+		/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 start*/
+        prop.intval = custom_recharge_threshold;
+		/*HS70 add for HS70-5059 Optimize the charging experience of SDI at temperature 45~50 by wangzikang at 2020/03/31 end*/
 		pr_debug("[%s]line=%d, Keep recharge status, recharge_threshold=%d mV",
 			__FUNCTION__, __LINE__, prop.intval);
 	}
@@ -2555,9 +2583,28 @@ unregister_chrdev:
 /*HS60 & HS70 add for HS60-3421 by wangzikang at 2019/10/31 start */
 #define WORK_AROUND_BATT_ID_DELAY 100
 #define WORK_AROUND_DETECT_TIMES_ID 3
+
+/*HS60 & HS70 add for HS60-5163  by wangzikang at 2020/02/20 start */
+u32 hq_get_huaqin_pcba_config(void);
+u32 hq_board_pcba_config(void);
+#define HQ_ZQL1635_DEFAULT_BATT_ID 200000
+/* ZQL1635 */
+enum
+{
+	HQ_PCBA_ROW_ZQL1635 = 0x1d,
+	HQ_PCBA_PRC_ZQL1635,
+	HQ_PCBA_LATAM_ZQL1635,
+};
+
+#define PCB_MASK_HQ		0xFF0
+#define PCB_SHIFT_HQ		4
+/*HS60 & HS70 add for HS60-5163  by wangzikang at 2020/02/20 end */
 static int get_batt_id_ohm(struct qpnp_qg *chip, u32 *batt_id_ohm)
 {
-	int rc, batt_id_mv;
+	/*HS60 & HS70 add for HS60-5163  by wangzikang at 2020/02/20 start */
+	//int rc, batt_id_mv;
+	int rc, batt_id_mv, pcba_config;
+	/*HS60 & HS70 add for HS60-5163  by wangzikang at 2020/02/20 end */
 	int64_t denom;
 	struct qpnp_vadc_result result;
 	int re_detect_cycle;
@@ -2565,12 +2612,14 @@ static int get_batt_id_ohm(struct qpnp_qg *chip, u32 *batt_id_ohm)
 	/* Read battery-id */
 	rc = qpnp_vadc_read(chip->vadc_dev, VADC_BAT_ID_PU2, &result);
 
-	if (rc) {
+	if (rc)
+	{
 		pr_err("[%s]Failed to read BATT_ID over vadc, rc=%d;re-detect BATT_ID after 100ms.\n", __func__,rc);
 		re_detect_cycle = 0;
 		mdelay(WORK_AROUND_BATT_ID_DELAY);		//delay 100ms
 
-		while ((re_detect_cycle < WORK_AROUND_DETECT_TIMES_ID) && (rc)) {
+		while ((re_detect_cycle < WORK_AROUND_DETECT_TIMES_ID) && (rc))
+		{
 			rc = qpnp_vadc_read(chip->vadc_dev, VADC_BAT_ID_PU2, &result);
 			pr_err("[%s]Re-detect BATT_ID, result.physical = %lld \n", __func__,result.physical);
 			if (rc)
@@ -2581,11 +2630,35 @@ static int get_batt_id_ohm(struct qpnp_qg *chip, u32 *batt_id_ohm)
 			re_detect_cycle++;
 		}
 		if (rc){
-/*HS60 & HS70 add for HS70-1415 Aging Test Workaround by wangzikang at 2019/11/20 start */
+			/*HS60 & HS70 add for HS70-1415 Aging Test Workaround by wangzikang at 2019/11/20 start */
+			/*HS60 & HS70 add for HS60-5163  by wangzikang at 2020/02/20 start */
+			rc = hq_board_pcba_config();
+			if (rc)
+			{
+				pr_err("Failed to get PCBA Config!");
+			}
+			else
+			{
+				pcba_config = hq_get_huaqin_pcba_config();
+				pr_info("[%s]line=%d: pcba_config=0x%x, match=%d\n",
+						__FUNCTION__, __LINE__, pcba_config, ((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ));
+				#if defined (HUAQIN_KERNEL_PROJECT_HS60)
+				if ((((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_ROW_ZQL1635)
+					|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_PRC_ZQL1635)
+					|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_LATAM_ZQL1635))
+				{
+					chip->batt_id_ohm_default = HQ_ZQL1635_DEFAULT_BATT_ID;
+					pr_err("[%s]chip->batt_id_ohm_default = %d , rc=%d, PCBA = 0x%x!",
+						__func__ , chip->batt_id_ohm_default, rc, pcba_config);
+				}
+				#endif
+			}
 			*batt_id_ohm = chip->batt_id_ohm_default;
 			pr_err("[%s]Finally, failed to read BATT_ID over vadc , rc=%d;Force to set HS60 batt_id to %dK!",__func__,rc,chip->batt_id_ohm_default/1000);
-/*HS60 & HS70 add for HS70-1415 Aging Test Workaround by wangzikang at 2019/11/20 end */
+			/*HS60 & HS70 add for HS60-5163  by wangzikang at 2020/02/20 end */
+			/*HS60 & HS70 add for HS70-1415 Aging Test Workaround by wangzikang at 2019/11/20 end */
 			chip->batt_id_error = 1;
+
 			return 0;
 		}
 	}
@@ -3504,6 +3577,10 @@ static int qg_parse_dt(struct qpnp_qg *chip)
 	struct device_node *revid_node, *child, *node = chip->dev->of_node;
 	u32 base, temp;
 	u8 type;
+	/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 start */
+	u32 pcba_config = 0;
+	pcba_config = hq_get_huaqin_pcba_config();
+	/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 end */
 
 	if (!node)  {
 		pr_err("Failed to find device-tree node\n");
@@ -3671,7 +3748,19 @@ static int qg_parse_dt(struct qpnp_qg *chip)
 		chip->dt.vbatt_cutoff_mv = temp;
 
 	/* IBAT thresholds */
-	rc = of_property_read_u32(node, "qcom,qg-iterm-ma", &temp);
+	/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 start */
+	if (chip->batt_id_ohm_default == 47000 &&
+		((((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_ROW_ZQL1635)
+		|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_PRC_ZQL1635)
+		|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_LATAM_ZQL1635)))
+	{
+		temp = 350; //HS60 4000mAh
+	}
+	else
+	{
+		rc = of_property_read_u32(node, "qcom,qg-iterm-ma", &temp);
+	}
+	/*HS60 added for HS60-5473 Optimize the charge expierience for HS60 with 4000mAh battery by wangzikang at 2020/04/07 end */
 	if (rc < 0)
 		chip->dt.iterm_ma = DEFAULT_ITERM_MA;
 	else

@@ -1,0 +1,26 @@
+&soc {
+    sar_mode_detect {
+        compatible = "qcom,sar_mode_detect";
+        input-device-name = "sar_mode_detect";
+        interrupt-parent = <&tlmm>;
+        interrupts = <139 4>;
+        qcom,gpio_irq = <&tlmm 139 4>;
+        pinctrl-names = "sardsi_irq_active";
+        pinctrl-0 = <&dsi_irq_active>;
+    };
+};
+
+&tlmm {
+    dsi_irq_active: dsi_irq_active {
+        mux {
+            pins = "gpio139";
+            function = "gpio";
+        };
+        config {
+            pins = "gpio139";
+            drive-strength = <2>;
+            bias-disable = <0>;
+            input-enable;
+        };
+    };
+};

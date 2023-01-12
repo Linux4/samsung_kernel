@@ -205,7 +205,7 @@
 /*
  * Numbers of modules support
  */
-#define FTS_GET_MODULE_NUM                      2
+#define FTS_GET_MODULE_NUM                      12
 
 #define FTS_USE_ENABLE_NODE                     1
 
@@ -220,7 +220,18 @@
 /* HS70 add for HS70-1119 by gaozhengwei at 2019/11/14 start */
 #define FTS_MODULE2_ID                         0x0010
 /* HS70 add for HS70-1119 by gaozhengwei at 2019/11/14 end */
-#define FTS_MODULE3_ID                         0x0000
+#define FTS_MODULE3_ID                         0x0080
+/*HS70 code for hlt qm bringup by liufurong at 2020/06/11 start*/
+#define FTS_MODULE4_ID                         0x0081
+/*HS70 code for hlt qm bringup by liufurong at 2020/06/11 end*/
+#define FTS_MODULE5_ID                         0x0082
+#define FTS_MODULE6_ID                         0x0083
+#define FTS_MODULE7_ID                         0x0084
+#define FTS_MODULE8_ID                         0x00F0
+#define FTS_MODULE9_ID                         0x0086
+#define FTS_MODULEA_ID                         0x0085
+#define FTS_MODULEB_ID                         0x0088
+#define FTS_MODULEC_ID                         0x0090
 
 /*
  * Need set the following when get firmware via firmware_request()
@@ -234,27 +245,60 @@
 #define FTS_MODULE_NAME                        "QC-INX"
 #define FTS_MODULE2_NAME                       "HLT-BOE"
 /* HS70 add for HS70-1119 by gaozhengwei at 2019/11/14 end */
-#define FTS_MODULE3_NAME                       ""
-
+/*HS70 code for boe bringup by zhouzichun at 2020/3/20 start*/
+#define FTS_MODULE3_NAME                       "HLT-CD"
+/*HS70 code for boe bringup by zhouzichun at 2020/3/20 end*/
+/*HS70 code for hlt qm bringup by liufurong at 2020/06/11 start*/
+#define FTS_MODULE4_NAME                       "HLT-QM"
+/*HS70 code for hlt qm bringup by liufurong at 2020/06/11 end*/
+#define FTS_MODULE5_NAME                       "HLT-BOE-07"
+#define FTS_MODULE6_NAME                       "HLT-BOE-08"
+#define FTS_MODULE7_NAME                       "HLT-BOE-09"
+#define FTS_MODULE8_NAME                       "TXD-BOE-11"
+#define FTS_MODULE9_NAME                       "TXD-BOE-13"
+#define FTS_MODULEA_NAME                       "HLT-BOE-14"
+#define FTS_MODULEB_NAME                       "INX-INX-17"
+#define FTS_MODULEC_NAME                       "DPT-BOE-20"
 /*
  * FW.i file for auto upgrade, you must replace it with your own
  * define your own fw_file, the sample one to be replaced is invalid
  * NOTE: if FTS_GET_MODULE_NUM > 1, it's the fw corresponding with FTS_VENDOR_ID
  */
-#define FTS_UPGRADE_FW_FILE                      "include/firmware/HQ_N20_FT8615_INX6.39_VER0x13_SPI_20200119_app.i"
+#define FTS_UPGRADE_FW_FILE                      "include/firmware/HQ_N20_FT8615_INX6.39_Ver0x16_SPI_20200617_app.i"
 
 /*
  * if FTS_GET_MODULE_NUM >= 2, fw corrsponding with FTS_VENDOR_ID2
  * define your own fw_file, the sample one is invalid
  */
-#define FTS_UPGRADE_FW2_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x0c_SPI_20200120_app.i"
+/*HS70 code for P210722-02732 by zhangkexin at 2021/12/21 start*/
+#define FTS_UPGRADE_FW2_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x14_SPI_20210831_app.i"
+/*HS70 code for P210722-02732 by zhangkexin at 2021/12/21 end*/
 
 /*
  * if FTS_GET_MODULE_NUM >= 3, fw corrsponding with FTS_VENDOR_ID3
  * define your own fw_file, the sample one is invalid
  */
-#define FTS_UPGRADE_FW3_FILE                     "include/firmware/HQ_N20_FT8615_INX6.39_VER0x04_SPI_20191106_app.i"
+#define FTS_UPGRADE_FW3_FILE                     "include/firmware/HQ_N20_FT8615_HLTCD_6P39_HD_Ver0x10_SPI_20200307_app.i"
 
+/*
+ * if FTS_GET_MODULE_NUM >= 4, fw corrsponding with FTS_VENDOR_ID4
+ * define your own fw_file, the sample one is invalid
+ */
+#define FTS_UPGRADE_FW4_FILE                     "include/firmware/HQ_N20_FT8615_HLT_QM_6P39_HD_Ver0x12_SPI_20200402_app.i"
+
+/*
+ * module 5 to module A use the FW is same as module 2, if need update one of them, the FW file name must chage to another name
+ */
+/*HS70 code for P210722-02732 by zhangkexin at 2021/12/21 start*/
+#define FTS_UPGRADE_FW5_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x14_SPI_20210831_app.i"
+#define FTS_UPGRADE_FW6_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x14_SPI_20210831_app.i"
+#define FTS_UPGRADE_FW7_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x14_SPI_20210831_app.i"
+#define FTS_UPGRADE_FW8_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x14_SPI_20210831_app.i"
+#define FTS_UPGRADE_FW9_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x14_SPI_20210831_app.i"
+#define FTS_UPGRADE_FWA_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x14_SPI_20210831_app.i"
+#define FTS_UPGRADE_FWB_FILE                     "include/firmware/HQ_N20_FT8615_INX6.39_Ver0x16_SPI_20200617_app.i"
+#define FTS_UPGRADE_FWC_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x14_SPI_20210831_app.i"
+/*HS70 code for P210722-02732 by zhangkexin at 2021/12/21 end*/
 /*********************************************************/
 
 #endif /* _LINUX_FOCLATECH_CONFIG_H_ */

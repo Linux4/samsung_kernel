@@ -21,18 +21,25 @@
  */
 
 #include "ilitek.h"
+#include <linux/touchscreen_info.h>
 
 #define DTS_INT_GPIO	"touch,irq-gpio"
 #define DTS_RESET_GPIO	"touch,reset-gpio"
 #define DTS_OF_NAME	"tchip,ilitek"
 /* HS70 code for HS70-133 by liufurong at 2019/10/31 start */
-bool is_ilitek_tp =false;
+extern enum tp_module_used tp_is_used;
 /* HS70 code for HS70-133 by liufurong at 2019/10/31 end */
 /* HS70 add for HS70-1717 by zhanghao at 20191129 start */
 enum module_name{
-	TM_ILI7807G_MODULE_NAME = 0,
-	TXD_ILI7807G_MODULE_NAME = 1,
-	UNKNOW_MODULE_NAME = 2,
+	/*HS70 code for txd-cd bringup by gaozhengwei at 2020/03/26 start*/
+	TXD_CD_ILI7807G_MODULE_NAME = 0,
+	/*HS70 code for txd-cd bringup by gaozhengwei at 2020/03/26 end*/
+	TM_ILI7807G_MODULE_NAME = 1,
+	TXD_ILI7807G_MODULE_NAME = 2,
+	TXD12_ILI7807G_MODULE_NAME = 3,
+	TXD15_ILI7807G_MODULE_NAME = 4,
+	INX18_ILI7807G_MODULE_NAME = 5,
+	UNKNOW_MODULE_NAME = 6,
 };
 //int name_modue = -1;
 extern unsigned char *CTPM_FW;
@@ -40,16 +47,40 @@ unsigned char CTPM_FW_UNKNOW[] = {
 	#include "firmware/SMS1871_INX_639_LongH_V0xCD.0x04.0x04_AP_0x04.0x00_MP_20191129.ili"
 };
 
+/*HS70 code for txd-cd bringup by gaozhengwei at 2020/03/26 start*/
+unsigned char CTPM_FW_TXD_CD_ILI7807G[] = {
+	#include "firmware/SMS1871_TXD-CD_639_LongH_V0xCD.0x13.0x00_AP_0x05.0x00_MP_20200617.ili"
+};
+/*HS70 code for txd-cd bringup by gaozhengwei at 2020/03/26 end*/
+
 unsigned char CTPM_FW_TM_ILI7807G[] = {
-	#include "firmware/SMS1871_TM_639_LongH_V0x2D.0x06.0x00_AP_0x03.0x00_MP_20200115.ili"
+	#include "firmware/SMS1871_TM_639_LongH_V0x2D.0x0A.0x00_AP_0x03.0x00_MP_20200408.ili"
 };
 
 unsigned char CTPM_FW_TXD_ILI7807G[] = {
-	#include "firmware/SMS1871_TXD_639_LongH_V0xCD.0x09.0x00_AP_0x04.0x00_MP_20200116.ili"
+	#include "firmware/SMS1871_TXD_639_LongH_V0xCD.0x12.0x00_AP_0x05.0x00_MP_20200617.ili"
+};
+
+unsigned char CTPM_FW_TXD12_ILI7807G[] = {
+	#include "firmware/SMS1871_TXD12_BOE_639_LongH_V0xCD.0x02.0x00_AP_0x01.0x00_MP_20200618.ili"
+};
+
+unsigned char CTPM_FW_TXD15_ILI7807G[] = {
+	#include "firmware/SMS1871_TXD_639_LongH_V0xCD.0x12.0x00_AP_0x05.0x00_MP_20200617.ili"
+};
+
+unsigned char CTPM_FW_INX18_ILI7807G[] = {
+	#include "firmware/SMS1871_TXD_639_LongH_V0xCD.0x12.0x00_AP_0x05.0x00_MP_20200617.ili"
 };
 struct module_name_use module_name_is_use[] = {
+	/*HS70 code for txd-cd bringup by gaozhengwei at 2020/03/26 start*/
+	{.module_ini_name = TXD_CD_ILI7807G_INI_NAME, .module_bin_name = TXD_CD_ILI7807G_BIN_NAME, .size_ili = sizeof(CTPM_FW_TXD_CD_ILI7807G)},
+	/*HS70 code for txd-cd bringup by gaozhengwei at 2020/03/26 end*/
 	{.module_ini_name = TM_ILI7807G_INI_NAME, .module_bin_name = TM_ILI7807G_BIN_NAME, .size_ili = sizeof(CTPM_FW_TM_ILI7807G)},
 	{.module_ini_name = TXD_ILI7807G_INI_NAME, .module_bin_name = TXD_ILI7807G_BIN_NAME, .size_ili = sizeof(CTPM_FW_TXD_ILI7807G)},
+	{.module_ini_name = TXD12_ILI7807G_INI_NAME, .module_bin_name = TXD12_ILI7807G_BIN_NAME, .size_ili = sizeof(CTPM_FW_TXD12_ILI7807G)},
+	{.module_ini_name = TXD15_ILI7807G_INI_NAME, .module_bin_name = TXD15_ILI7807G_BIN_NAME, .size_ili = sizeof(CTPM_FW_TXD15_ILI7807G)},
+	{.module_ini_name = INX18_ILI7807G_INI_NAME, .module_bin_name = INX18_ILI7807G_BIN_NAME, .size_ili = sizeof(CTPM_FW_INX18_ILI7807G)},
 	{.module_ini_name = "mp.ini", .module_bin_name = "ILITEK_FW_TXD_ILI7807G", .size_ili = sizeof(CTPM_FW_UNKNOW)},
 };
 /* HS70 add for HS70-1717 by zhanghao at 20191129 end */
@@ -655,33 +686,68 @@ void ilitek_plat_charger_init(void)
 }
 /* HS70 add for HS70-905 by liufurong at 20191113 end */
 /* hs70 add for HS70-1475 by liufurong at 20191123 start */
-void ilitek_get_module_info(void)
+bool ilitek_get_module_info(void)
 {
 /* HS70 add for HS70-1717 by zhanghao at 20191129 start */
     if (NULL != strstr(idev->panel_name, "mdss_dsi_txd_ili7807g_hd_video")) {
-	idev->ini_name = module_name_is_use[TXD_ILI7807G_MODULE_NAME].module_ini_name;
-	idev->bin_name = module_name_is_use[TXD_ILI7807G_MODULE_NAME].module_bin_name;
-	idev->size_ili = module_name_is_use[TXD_ILI7807G_MODULE_NAME].size_ili;
-	CTPM_FW = CTPM_FW_TXD_ILI7807G;
+		idev->ini_name = module_name_is_use[TXD_ILI7807G_MODULE_NAME].module_ini_name;
+		idev->bin_name = module_name_is_use[TXD_ILI7807G_MODULE_NAME].module_bin_name;
+		idev->size_ili = module_name_is_use[TXD_ILI7807G_MODULE_NAME].size_ili;
+		CTPM_FW = CTPM_FW_TXD_ILI7807G;
         strcpy(idev->module_name,"ili7807g_txd");
         ipio_info("the specified display module is txd\n");
     }
     else if(NULL != strstr(idev->panel_name, "mdss_dsi_tm_ili7807g_hd_video")) {
-	idev->ini_name = module_name_is_use[TM_ILI7807G_MODULE_NAME].module_ini_name;
-	idev->bin_name = module_name_is_use[TM_ILI7807G_MODULE_NAME].module_bin_name;
-	idev->size_ili = module_name_is_use[TM_ILI7807G_MODULE_NAME].size_ili;
-	CTPM_FW = CTPM_FW_TM_ILI7807G;
+		idev->ini_name = module_name_is_use[TM_ILI7807G_MODULE_NAME].module_ini_name;
+		idev->bin_name = module_name_is_use[TM_ILI7807G_MODULE_NAME].module_bin_name;
+		idev->size_ili = module_name_is_use[TM_ILI7807G_MODULE_NAME].size_ili;
+		CTPM_FW = CTPM_FW_TM_ILI7807G;
         strcpy(idev->module_name,"ili7807g_tm");
         ipio_info("the specified display module is tm\n");
     }
+	/*HS70 code for txd-cd bringup by gaozhengwei at 2020/03/26 start*/
+    else if(NULL != strstr(idev->panel_name, "mdss_dsi_txd_cd_ili7807g_hd_video")) {
+		idev->ini_name = module_name_is_use[TXD_CD_ILI7807G_MODULE_NAME].module_ini_name;
+		idev->bin_name = module_name_is_use[TXD_CD_ILI7807G_MODULE_NAME].module_bin_name;
+		idev->size_ili = module_name_is_use[TXD_CD_ILI7807G_MODULE_NAME].size_ili;
+		CTPM_FW = CTPM_FW_TXD_CD_ILI7807G;
+        strcpy(idev->module_name,"ili7807g_txd-cd");
+        ipio_info("the specified display module is txd-cd\n");
+    }
+	/*HS70 code for txd-cd bringup by gaozhengwei at 2020/03/26 end*/
+	else if (NULL != strstr(idev->panel_name, "mdss_dsi_txd12_ili7807g_hd_video")) {
+		idev->ini_name = module_name_is_use[TXD12_ILI7807G_MODULE_NAME].module_ini_name;
+		idev->bin_name = module_name_is_use[TXD12_ILI7807G_MODULE_NAME].module_bin_name;
+		idev->size_ili = module_name_is_use[TXD12_ILI7807G_MODULE_NAME].size_ili;
+		CTPM_FW = CTPM_FW_TXD12_ILI7807G;
+        strcpy(idev->module_name,"ili7807g_txd_12");
+        ipio_info("the specified display module is %s\n",idev->module_name);
+    }
+	else if (NULL != strstr(idev->panel_name, "mdss_dsi_txd15_ili7807g_hd_video")) {
+		idev->ini_name = module_name_is_use[TXD15_ILI7807G_MODULE_NAME].module_ini_name;
+		idev->bin_name = module_name_is_use[TXD15_ILI7807G_MODULE_NAME].module_bin_name;
+		idev->size_ili = module_name_is_use[TXD15_ILI7807G_MODULE_NAME].size_ili;
+		CTPM_FW = CTPM_FW_TXD15_ILI7807G;
+        strcpy(idev->module_name,"ili7807g_txd_15");
+        ipio_info("the specified display module is %s\n",idev->module_name);
+    } else if (NULL != strstr(idev->panel_name, "mdss_dsi_inx18_ili7807g_hd_video")) {
+		idev->ini_name = module_name_is_use[INX18_ILI7807G_MODULE_NAME].module_ini_name;
+		idev->bin_name = module_name_is_use[INX18_ILI7807G_MODULE_NAME].module_bin_name;
+		idev->size_ili = module_name_is_use[INX18_ILI7807G_MODULE_NAME].size_ili;
+		CTPM_FW = CTPM_FW_INX18_ILI7807G;
+		strcpy(idev->module_name,"ili7807g_inx_18");
+		ipio_info("the specified display module is %s\n",idev->module_name);
+    }
     else {
-	idev->ini_name = module_name_is_use[UNKNOW_MODULE_NAME].module_ini_name;
-	idev->bin_name = module_name_is_use[UNKNOW_MODULE_NAME].module_bin_name;
-	idev->size_ili = module_name_is_use[UNKNOW_MODULE_NAME].size_ili;
-	CTPM_FW = CTPM_FW_UNKNOW;
+		idev->ini_name = module_name_is_use[UNKNOW_MODULE_NAME].module_ini_name;
+		idev->bin_name = module_name_is_use[UNKNOW_MODULE_NAME].module_bin_name;
+		idev->size_ili = module_name_is_use[UNKNOW_MODULE_NAME].size_ili;
+		CTPM_FW = CTPM_FW_UNKNOW;
         strcpy(idev->module_name,"ili7807g_txd");
         ipio_err("can't find the specified display module .\n");
+		return 0;
     }
+	return 1;
 /* HS70 add for HS70-1717 by zhanghao at 20191129 end */
 }
 /* hs70 add for HS70-1475 by liufurong at 20191123 end */
@@ -712,8 +778,9 @@ static int ilitek_plat_probe(void)
 /* HS70 code for HS70-133 by liufurong at 2019/10/31 start */
 	if (ilitek_plat_gpio_register() < 0)
 		ipio_err("Register gpio failed\n");
-	is_ilitek_tp = false;
-	ilitek_get_module_info();
+
+	if(ilitek_get_module_info() == 0)
+		goto ili_probe_failed;
 	/* HS70 add for HS70-1042 by gaozhengwei at 2019/11/12 start */
 	ret = ilitek_pinctrl_init();
 	if (!ret && idev->ts_pinctrl) {
@@ -734,12 +801,14 @@ static int ilitek_plat_probe(void)
 		goto ili_probe_failed;
 		// huaqin add for HS70-35 bringup TP function by zhouzichun at 2019/10/8 end
 	}
-	is_ilitek_tp = true;
+	tp_is_used = ILITEK_ILI7807G;
 	#ifdef CONFIG_HW_INFO
 	set_tp_module_name(idev->module_name);
 	#endif
 	ilitek_plat_irq_register(idev->irq_tirgger_type);
 	ilitek_plat_sleep_init();
+	idev->dev_pm_suspend = false;
+	init_completion(&idev->dev_pm_suspend_completion);
 	/* HS70 add for HS70-905 by liufurong at 20191113 start */
 	ilitek_plat_charger_init();
 	/* HS70 add for HS70-905 by liufurong at 20191113 end */

@@ -51,7 +51,9 @@
 #include <linux/qpnp/qpnp-adc.h>
 
 #include <linux/msm-bus.h>
-
+/* Huaqin add for ZQL1693-261 Distinguish USB eye diagram by wangzikang at 2020/02/12 start */
+#include <kernel_project_defines.h>
+/* Huaqin add for ZQL1693-261 Distinguish USB eye diagram by wangzikang at 2020/02/12 end */
 /**
  * Requested USB votes for BUS bandwidth
  *
@@ -887,6 +889,7 @@ static int msm_otg_reset(struct usb_phy *phy)
 	u32 val = 0;
 	u32 ulpi_val = 0;
 
+	mutex_lock(&motg->lock);
 	msm_otg_dbg_log_event(&motg->phy, "USB RESET", phy->otg->state,
 			get_pm_runtime_counter(phy->dev));
 	/*
@@ -895,10 +898,13 @@ static int msm_otg_reset(struct usb_phy *phy)
 	 * USB BAM reset on other cases e.g. USB cable disconnections.
 	 * If hardware reported error then it must be reset for recovery.
 	 */
-	if (motg->err_event_seen)
+	if (motg->err_event_seen) {
 		dev_info(phy->dev, "performing USB h/w reset for recovery\n");
-	else if (pdata->disable_reset_on_disconnect && motg->reset_counter)
+	} else if (pdata->disable_reset_on_disconnect &&
+				motg->reset_counter) {
+		mutex_unlock(&motg->lock);
 		return 0;
+	}
 
 	motg->reset_counter++;
 
@@ -913,6 +919,7 @@ static int msm_otg_reset(struct usb_phy *phy)
 			enable_irq(motg->phy_irq);
 
 		enable_irq(motg->irq);
+		mutex_unlock(&motg->lock);
 		return ret;
 	}
 
@@ -923,10 +930,14 @@ static int msm_otg_reset(struct usb_phy *phy)
 	ret = msm_otg_link_reset(motg);
 	if (ret) {
 		dev_err(phy->dev, "link reset failed\n");
+		mutex_unlock(&motg->lock);
 		return ret;
 	}
 
-	msleep(100);
+	/* HS60 add for HQ000001 Reduce delay time to satisfy  BC1.2 by gaochao at 2020/01/30 start */
+	//msleep(100);
+	msleep(40);
+	/* HS60 add for HQ000001 Reduce delay time to satisfy  BC1.2 by gaochao at 2020/01/30 end */
 
 	/* Reset USB PHY after performing USB Link RESET */
 	msm_usb_phy_reset(motg);
@@ -976,6 +987,8 @@ static int msm_otg_reset(struct usb_phy *phy)
 	 * Disable USB BAM as block reset resets USB BAM registers.
 	 */
 	msm_usb_bam_enable(CI_CTRL, false);
+
+	mutex_unlock(&motg->lock);
 
 	return 0;
 }
@@ -1894,6 +1907,10 @@ static int msm_otg_notify_chg_type(struct msm_otg *motg)
 	return ret;
 }
 
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 start*/
+extern bool usb_data_enabled;
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 end*/
+
 static void msm_otg_notify_charger(struct msm_otg *motg, unsigned int mA)
 {
 	struct usb_gadget *g = motg->phy.otg->gadget;
@@ -1932,13 +1949,15 @@ static void msm_otg_notify_charger(struct msm_otg *motg, unsigned int mA)
 	pval.intval = 1000 * mA;
 
 set_prop:
-	if (power_supply_set_property(psy, POWER_SUPPLY_PROP_SDP_CURRENT_MAX,
-								&pval)) {
-		dev_dbg(motg->phy.dev, "power supply error when setting property\n");
-		return;
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 start*/
+	if(usb_data_enabled){
+		if (power_supply_set_property(psy, POWER_SUPPLY_PROP_SDP_CURRENT_MAX, &pval)) {
+			dev_dbg(motg->phy.dev, "power supply error when setting property\n");
+			return;
+		} 
+		motg->cur_power = mA;
 	}
-
-	motg->cur_power = mA;
+/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 end*/
 }
 
 static void msm_otg_notify_charger_work(struct work_struct *w)
@@ -2563,6 +2582,12 @@ static void msm_chg_detect_work(struct work_struct *w)
 	case USB_CHG_STATE_WAIT_FOR_DCD:
 		if (!motg->vbus_state) {
 			motg->chg_state = USB_CHG_STATE_IN_PROGRESS;
+			/* HS60 add for SR-ZQL1695-01000000466 Provide sysFS node named /sys/class/power_supply/battery/online by gaochao at 2019/08/08 start */
+			#if !defined(HQ_FACTORY_BUILD)	//ss version
+			g_sec_battery_cable_timeout = 1;
+			printk("[ss][%s]g_sec_battery_cable_timeout=%d\n", __FUNCTION__, g_sec_battery_cable_timeout);
+			#endif
+			/* HS60 add for SR-ZQL1695-01000000466 Provide sysFS node named /sys/class/power_supply/battery/online by gaochao at 2019/08/08 end */
 			break;
 		}
 
@@ -2578,14 +2603,14 @@ static void msm_chg_detect_work(struct work_struct *w)
 			msm_chg_enable_primary_det(motg);
 			delay = MSM_CHG_PRIMARY_DET_TIME;
 			motg->chg_state = USB_CHG_STATE_DCD_DONE;
+		} else {
+			delay = MSM_CHG_DCD_POLL_TIME;
 			/* HS60 add for SR-ZQL1695-01000000466 Provide sysFS node named /sys/class/power_supply/battery/online by gaochao at 2019/08/08 start */
 			#if !defined(HQ_FACTORY_BUILD)	//ss version
 			g_sec_battery_cable_timeout = 1;
 			printk("[ss][%s]g_sec_battery_cable_timeout=%d\n", __FUNCTION__, g_sec_battery_cable_timeout);
 			#endif
 			/* HS60 add for SR-ZQL1695-01000000466 Provide sysFS node named /sys/class/power_supply/battery/online by gaochao at 2019/08/08 end */
-		} else {
-			delay = MSM_CHG_DCD_POLL_TIME;
 		}
 		break;
 	case USB_CHG_STATE_DCD_DONE:
@@ -3011,7 +3036,10 @@ static void msm_otg_set_vbus_state(int online)
 
 	if (motg->err_event_seen)
 		return;
-
+	/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 start*/
+	if(!usb_data_enabled)
+		pr_err("usb date disable\n");
+	/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 end*/
 	if (online) {
 		pr_debug("EXTCON: BSV set\n");
 		msm_otg_dbg_log_event(&motg->phy, "EXTCON: BSV SET",
@@ -3820,7 +3848,14 @@ static DEVICE_ATTR(dpdm_pulldown_enable, 0644,
 static int msm_otg_vbus_notifier(struct notifier_block *nb, unsigned long event,
 				void *ptr)
 {
-	msm_otg_set_vbus_state(!!event);
+
+	/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 start*/
+	unsigned long event_temp = event;
+	if(!usb_data_enabled)
+		event_temp = 0;
+
+	msm_otg_set_vbus_state(!!event_temp);
+	/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 end*/
 
 	return NOTIFY_DONE;
 }
@@ -3834,6 +3869,12 @@ static int msm_otg_id_notifier(struct notifier_block *nb, unsigned long event,
 		motg->id_state = USB_ID_GROUND;
 	else
 		motg->id_state = USB_ID_FLOAT;
+	/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 start*/
+	if(!usb_data_enabled){
+		motg->id_state = USB_ID_FLOAT;
+		dev_err(&motg->pdev->dev,"msm_otg_id_disable");
+	}
+	/*HS60 add for P220517-05405 add usb_date_enable by duanweiping at 20220615 end*/
 
 	msm_id_status_w(&motg->id_status_work.work);
 
@@ -3943,6 +3984,53 @@ static int msm_otg_psy_changed(struct notifier_block *nb, unsigned long evt,
 
 	return 0;
 }
+/* Huaqin add for ZQL1693-261 Distinguish USB eye diagram by wangzikang at 2020/02/12 start */
+#if defined (HUAQIN_KERNEL_PROJECT_HS60)
+#define HQ_PCBA_CONFIG_SMEM_ITEM_KERNEL         135
+static u32  huaqin_pcba_config = 0xffffffff;
+
+void *smem_get_entry(unsigned int id, unsigned int *size, unsigned int to_proc, unsigned int flags);
+
+u32 hq_board_pcba_config_usb(void)
+{
+	u32 *pcba_config_addr = NULL;
+	u32 smem_pcba_config_size = 0;
+
+	pcba_config_addr = (u32 *)smem_get_entry(HQ_PCBA_CONFIG_SMEM_ITEM_KERNEL, &smem_pcba_config_size, 0, 0);
+	if (pcba_config_addr)
+	{
+		huaqin_pcba_config = *pcba_config_addr;
+
+		pr_debug("[ss]line=%d: board_pcba_config: smem_pcba_config_size=%d, pcba_config=0x%x\n",
+				__LINE__, smem_pcba_config_size, huaqin_pcba_config);
+		return 0;
+	}
+	else
+	{
+		pr_err("[ss]line=%d: board_pcba_config: reading the smem pcba config address fail\n", __LINE__);
+		return 1;
+	}
+}
+
+u32 hq_get_huaqin_pcba_config_usb(void)
+{
+	return huaqin_pcba_config;
+}
+
+#define PCB_MASK_HQ		0xFF0
+#define PCB_SHIFT_HQ		4
+enum
+{
+	HQ_PCBA_VZW_ZQL1693 = 0x4,
+	HQ_PCBA_ATT_ZQL1693,
+	HQ_PCBA_TMobile_ZQL1693,
+	HQ_PCBA_TRF_ZQL1693,
+	HQ_PCBA_Canada_ZQL1693,
+	HQ_PCBA_USCC_ZQL1690,
+	HQ_PCBA_AIO_ZQL1693,
+};
+#endif
+/* Huaqin add for ZQL1693-261 Distinguish USB eye diagram by wangzikang at 2020/02/12 end */
 
 struct msm_otg_platform_data *msm_otg_dt_to_pdata(struct platform_device *pdev)
 {
@@ -3950,6 +4038,14 @@ struct msm_otg_platform_data *msm_otg_dt_to_pdata(struct platform_device *pdev)
 	struct msm_otg_platform_data *pdata;
 	int len = 0;
 	int res_gpio;
+	/* Huaqin add for ZQL1693-261 Distinguish USB eye diagram by wangzikang at 2020/02/12 start */
+	#if defined (HUAQIN_KERNEL_PROJECT_HS60)
+	int rc;
+	u32 pcba_config = 0;
+	//Only work on ZQL1693/ZQL1690
+	int hsusb_range[9] = {0x7d, 0x80, 0x2f, 0x81, 0x3f, 0x82, 0x33, 0x83, 0xffffffff };
+	#endif
+	/* Huaqin add for ZQL1693-261 Distinguish USB eye diagram by wangzikang at 2020/02/12 end */
 
 	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
 	if (!pdata)
@@ -3964,6 +4060,39 @@ struct msm_otg_platform_data *msm_otg_dt_to_pdata(struct platform_device *pdev)
 			return NULL;
 		of_property_read_u32_array(node, "qcom,hsusb-otg-phy-init-seq",
 				pdata->phy_init_seq, len);
+		/* Huaqin add for ZQL1693-261 Distinguish USB eye diagram by wangzikang at 2020/02/12 start */
+		#if defined (HUAQIN_KERNEL_PROJECT_HS60)
+		rc = hq_board_pcba_config_usb();
+		if (rc)
+		{
+			pr_err("Failed to get PCBA Config!");
+		}
+		else
+		{
+			pcba_config = hq_get_huaqin_pcba_config_usb();
+			pr_debug("[%s]line=%d: pcba_config=0x%x, match=%d\n",
+				__FUNCTION__, __LINE__, pcba_config, ((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ));
+			if ((((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_VZW_ZQL1693)
+				|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_ATT_ZQL1693)
+				|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_TMobile_ZQL1693)
+				|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_TRF_ZQL1693)
+				|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_Canada_ZQL1693)
+				|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_USCC_ZQL1690)
+				|| (((pcba_config & PCB_MASK_HQ) >> PCB_SHIFT_HQ) == HQ_PCBA_AIO_ZQL1693))
+			{
+				pr_info("%s: Use Eye Diagram from code.\n" ,__func__);
+				pdata->phy_init_seq = hsusb_range;
+			}
+			else
+			{
+				pr_info("%s: Use Eye Diagram from dts.\n" ,__func__ );
+			}
+			pr_info("%s: The config of qcom,hsusb-otg-phy-init-seq is <0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x>\n", __func__  , pdata->phy_init_seq[0],
+					 pdata->phy_init_seq[1]  , pdata->phy_init_seq[2]  , pdata->phy_init_seq[3]  , pdata->phy_init_seq[4]  , pdata->phy_init_seq[5]  , pdata->phy_init_seq[6],
+					 pdata->phy_init_seq[7]  , pdata->phy_init_seq[8]);
+		}
+		#endif
+		/* Huaqin add for ZQL1693-261 Distinguish USB eye diagram by wangzikang at 2020/02/12 end */
 	}
 	of_property_read_u32(node, "qcom,hsusb-otg-power-budget",
 				&pdata->power_budget);
@@ -4286,6 +4415,7 @@ static int msm_otg_probe(struct platform_device *pdev)
 	motg->pdev = pdev;
 	motg->dbg_idx = 0;
 	motg->dbg_lock = __RW_LOCK_UNLOCKED(lck);
+	mutex_init(&motg->lock);
 
 	if (motg->pdata->bus_scale_table) {
 		motg->bus_perf_client =
