@@ -368,6 +368,10 @@ struct dsi_phy_hw {
 
 	DECLARE_BITMAP(feature_map, DSI_PHY_MAX_FEATURES);
 	struct dsi_phy_hw_ops ops;
+
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	int display_index; //primary display or secondary dispaly.
+#endif
 };
 
 /**

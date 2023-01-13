@@ -112,6 +112,7 @@ static struct mutex asm_lock;
 static int loopback_mode;
 static int loopback_prev_mode;
 static uint32_t upscaler_val;
+static uint32_t echo_ref_mute_val;
 
 int q6audio_get_afe_cal_validation(u16 port_id, u32 topology_id)
 {
@@ -1387,6 +1388,13 @@ static int32_t q6audio_adaptation_cvp_callback(struct apr_client_data *data,
 				atomic_set(&this_cvp.state, 0);
 				wake_up(&this_cvp.wait);
 				break;
+			case VSS_ICOMMON_CMD_GET_PARAM_V2:
+			case VSS_ICOMMON_CMD_GET_PARAM_V3:
+				pr_info("%s: VSS_ICOMMON_CMD_GET_PARAM\n",
+					__func__);
+				atomic_set(&this_cvp.state, 0);
+				wake_up(&this_cvp.wait);
+				break;
 			case VSS_ICOMMON_CMD_SET_UI_PROPERTY:
 			case VSS_ICOMMON_CMD_SET_UI_PROPERTY_V2:
 				pr_info("%s: VSS_ICOMMON_CMD_SET_UI_PROPERTY\n",
@@ -1399,6 +1407,13 @@ static int32_t q6audio_adaptation_cvp_callback(struct apr_client_data *data,
 				break;
 			}
 		}
+	} else if (data->opcode == VSS_ICOMMON_RSP_GET_PARAM ||
+		   data->opcode == VSS_ICOMMON_RSP_GET_PARAM_V3) {
+		ptr = data->payload;
+		pr_info("%s: VSS_ICOMMON_RSP_GET_PARAM, value: %d\n", __func__, ptr[5]);
+		echo_ref_mute_val = ptr[5];
+		atomic_set(&this_cvp.state, 0);
+		wake_up(&this_cvp.wait);
 	}
 	return 0;
 }
@@ -2074,6 +2089,96 @@ int sec_voice_ref_lch_mute(short enable)
 	return ret;
 }
 
+static int sec_voice_send_get_echo_ref_mute_cmd(struct voice_data *v)
+{
+	struct cvp_get_echo_ref_mute_cmd cvp_echo_ref_mute_cmd;
+	int ret = 0;
+	u16 cvp_handle;
+
+	pr_info("%s: Enter\n", __func__);
+
+	if (v == NULL) {
+		pr_err("%s: v is NULL\n", __func__);
+		return -EINVAL;
+	}
+
+	if (this_cvp.apr == NULL) {
+		this_cvp.apr = apr_register("ADSP", "CVP",
+					q6audio_adaptation_cvp_callback,
+					SEC_ADAPTATAION_VOICE_SRC_PORT,
+					&this_cvp);
+	}
+	cvp_handle = voice_get_cvp_handle(v);
+
+	cvp_echo_ref_mute_cmd.cvp_get_echo_ref_mute.mem_handle = 0;
+	cvp_echo_ref_mute_cmd.cvp_get_echo_ref_mute.mem_address = 0;
+	cvp_echo_ref_mute_cmd.cvp_get_echo_ref_mute.mem_size = sizeof(struct vss_icommon_cmd_get_param_v3_t) + 2;
+	cvp_echo_ref_mute_cmd.cvp_get_echo_ref_mute.module_id = VOICE_MODULE_ECHO_REF_MUTE;
+	cvp_echo_ref_mute_cmd.cvp_get_echo_ref_mute.instance_id = 0x8000;
+	cvp_echo_ref_mute_cmd.cvp_get_echo_ref_mute.reserved = 0;
+	cvp_echo_ref_mute_cmd.cvp_get_echo_ref_mute.param_id = VOICE_MODULE_ECHO_REF_MUTE_PARAM;
+
+	/* fill in the header */
+	cvp_echo_ref_mute_cmd.hdr.hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
+				APR_HDR_LEN(APR_HDR_SIZE),
+				APR_PKT_VER);
+	cvp_echo_ref_mute_cmd.hdr.pkt_size = APR_PKT_SIZE(APR_HDR_SIZE,
+		sizeof(cvp_echo_ref_mute_cmd) - APR_HDR_SIZE);
+	cvp_echo_ref_mute_cmd.hdr.src_port = SEC_ADAPTATAION_VOICE_SRC_PORT;
+	cvp_echo_ref_mute_cmd.hdr.dest_port = cvp_handle;
+	cvp_echo_ref_mute_cmd.hdr.token = 0;
+	cvp_echo_ref_mute_cmd.hdr.opcode =
+		q6common_is_instance_id_supported() ? VSS_ICOMMON_CMD_GET_PARAM_V3 :
+				VSS_ICOMMON_CMD_GET_PARAM_V2;
+
+	atomic_set(&this_cvp.state, 1);
+	ret = apr_send_pkt(this_cvp.apr, (uint32_t *) &cvp_echo_ref_mute_cmd);
+	if (ret < 0) {
+		pr_err("%s: Failed to send cvp_set_echo_ref_mute_cmd\n",
+			__func__);
+		goto fail;
+	}
+
+	ret = wait_event_timeout(this_cvp.wait,
+				(atomic_read(&this_cvp.state) == 0),
+				msecs_to_jiffies(TIMEOUT_MS));
+	if (!ret) {
+		pr_err("%s: wait_event timeout\n", __func__);
+		goto fail;
+	}
+
+	return 0;
+
+fail:
+	return ret;
+}
+
+int sec_voice_get_echo_ref_mute(void)
+{
+	struct voice_data *v = NULL;
+	int ret = 0;
+	struct voice_session_itr itr;
+
+	voice_itr_init(&itr, ALL_SESSION_VSID);
+	while (voice_itr_get_next_session(&itr, &v)) {
+		if (v != NULL) {
+			mutex_lock(&v->lock);
+			if (is_voc_state_active(v->voc_state) &&
+				(v->lch_mode != VOICE_LCH_START) &&
+				!v->disable_topology)
+				ret = sec_voice_send_get_echo_ref_mute_cmd(v);
+			mutex_unlock(&v->lock);
+		} else {
+			pr_err("%s: invalid session\n", __func__);
+			ret = -EINVAL;
+			break;
+		}
+	}
+	pr_info("%s: Exit, ret=%d\n", __func__, ret);
+
+	return ret;
+}
+
 static int sec_voice_send_aec_effect_cmd(struct voice_data *v, int enable)
 {
 	struct cvp_set_aec_effect_cmd cvp_aec_effect_cmd;
@@ -2445,6 +2550,33 @@ static int sec_voice_ref_lch_mute_put(struct snd_kcontrol *kcontrol,
 	return sec_voice_ref_lch_mute(enable);
 }
 
+static int sec_voice_echo_ref_mute_get(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	int value = 0;
+	int ret = 0;
+
+	echo_ref_mute_val = 0;
+	ret = sec_voice_get_echo_ref_mute();
+
+	if(!ret) {
+		value = echo_ref_mute_val;
+	} else {
+		pr_err("%s: failed to get echo ref mute value %d\n", __func__, ret);
+		return -EINVAL;
+	}
+	pr_info("%s: value=%d\n", __func__, value);
+	
+	ucontrol->value.integer.value[0] = value;
+	return 0;
+}
+
+static int sec_voice_echo_ref_mute_put(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
 static const char * const aec_switch[] = {
 	"OFF", "ON"
 };
@@ -2537,6 +2669,8 @@ static const struct snd_kcontrol_new samsung_solution_mixer_controls[] = {
 				sec_voice_spk_mode_get, sec_voice_spk_mode_put),
 	SOC_SINGLE_EXT("Loopback Enable", SND_SOC_NOPM, 0, LOOPBACK_MAX, 0,
 				sec_voice_loopback_get, sec_voice_loopback_put),
+	SOC_SINGLE_EXT("Echo Ref Mute", SND_SOC_NOPM, 0, 2, 0,
+				sec_voice_echo_ref_mute_get, sec_voice_echo_ref_mute_put),
 	SOC_ENUM_EXT("Voice Device Info", sec_voice_device_enum[0],
 				sec_voice_dev_info_get, sec_voice_dev_info_put),
 	SOC_SINGLE_EXT("REF LCH MUTE", SND_SOC_NOPM, 0, 1, 0,

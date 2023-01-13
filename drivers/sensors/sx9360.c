@@ -72,7 +72,7 @@
 				| SX9360_IRQSTAT_COMPDONE_FLAG)
 
 #if defined(CONFIG_FOLDER_HALL)
-#define HALLIC_PATH		"/sys/class/sec/sec_flip/flipStatus"
+#define HALLIC_PATH		"/sys/class/sec/hall_ic/flip_status"
 #else
 #define HALLIC_PATH		"/sys/class/sec/hall_ic/hall_detect"
 #endif
@@ -136,7 +136,7 @@ struct sx9360_p {
 	struct regulator *dvdd_vreg;	/* regulator */
 #endif
 };
-
+#ifndef CONFIG_NOT_SUPPORT_HALL
 static int sx9360_check_hallic_state(char *file_path, char hall_ic_status[])
 {
 	int iRet = 0;
@@ -172,7 +172,7 @@ static int sx9360_check_hallic_state(char *file_path, char hall_ic_status[])
 
 	return iRet;
 }
-
+#endif
 static int sx9360_get_nirq_state(struct sx9360_p *data)
 {
 	return gpio_get_value_cansleep(data->gpio_nirq);
@@ -1267,11 +1267,13 @@ static void sx9360_debug_work_func(struct work_struct *work)
 {
 	struct sx9360_p *data = container_of((struct delayed_work *)work,
 		struct sx9360_p, debug_work);
+#ifndef CONFIG_NOT_SUPPORT_HALL
 	static int hall_flag = 1;
 	static int hall_cert_flag = 1;
+#endif
 	int ret;
 	u8 value = 0;
-
+#ifndef CONFIG_NOT_SUPPORT_HALL
 #if defined(CONFIG_FOLDER_HALL)
 	char str[2] = "0";
 #else
@@ -1307,7 +1309,7 @@ static void sx9360_debug_work_func(struct work_struct *work)
 			hall_cert_flag = 1;
 		}
 	}
-
+#endif
 	if (atomic_read(&data->enable) == ON) {
 		if (data->abnormal_mode) {
 			sx9360_get_data(data);

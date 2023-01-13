@@ -216,7 +216,7 @@ config STATIC_USERMODEHELPER
 config STATIC_USERMODEHELPER_PATH
 	string "Path to the static usermode helper binary"
 	depends on STATIC_USERMODEHELPER
-	default "/sbin/usermode-helper"
+	default "/system/bin/umh/usermode-helper-replica"
 	help
 	  The binary called by the kernel when any usermode helper
 	  program is wish to be run.  The "real" application's name will
@@ -239,6 +239,7 @@ source security/samsung/five/Kconfig
 source security/samsung/defex_lsm/Kconfig
 source security/samsung/dsms/Kconfig
 source security/proca/Kconfig
+source security/qrng/s2q000/Kconfig
 
 choice
 	prompt "Default security module"

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -60,6 +60,8 @@
 #define MSM_VERSION_MINOR	2
 #define MSM_VERSION_PATCHLEVEL	0
 
+static DEFINE_MUTEX(msm_release_lock);
+
 static BLOCKING_NOTIFIER_HEAD(msm_drm_notifier_list);
 
 int msm_drm_register_notifier_client(struct notifier_block *nb)
@@ -74,7 +76,7 @@ int msm_drm_unregister_notifier_client(struct notifier_block *nb)
 }
 EXPORT_SYMBOL(msm_drm_unregister_notifier_client);
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 int __msm_drm_notifier_call_chain(unsigned long event, void *data)
 {
 	return blocking_notifier_call_chain(&msm_drm_notifier_list,
@@ -841,6 +843,11 @@ static void load_gpu(struct drm_device *dev)
 }
 #endif
 
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+struct msm_file_private *msm_ioctl_power_ctrl_ctx;
+DEFINE_MUTEX(msm_ioctl_power_ctrl_ctx_lock);
+#endif
+
 static int msm_open(struct drm_device *dev, struct drm_file *file)
 {
 	struct msm_file_private *ctx;
@@ -899,6 +906,13 @@ static void msm_postclose(struct drm_device *dev, struct drm_file *file)
 				priv->pclient, false);
 	}
 	mutex_unlock(&ctx->power_lock);
+
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	mutex_lock(&msm_ioctl_power_ctrl_ctx_lock);
+	if (msm_ioctl_power_ctrl_ctx == ctx)
+		msm_ioctl_power_ctrl_ctx = NULL;
+	mutex_unlock(&msm_ioctl_power_ctrl_ctx_lock);
+#endif
 
 	kfree(ctx);
 }
@@ -1533,13 +1547,25 @@ void msm_mode_object_event_notify(struct drm_mode_object *obj,
 static int msm_release(struct inode *inode, struct file *filp)
 {
 	struct drm_file *file_priv = filp->private_data;
-	struct drm_minor *minor = file_priv->minor;
-	struct drm_device *dev = minor->dev;
-	struct msm_drm_private *priv = dev->dev_private;
+	struct drm_minor *minor;
+	struct drm_device *dev;
+	struct msm_drm_private *priv;
 	struct msm_drm_event *node, *temp, *tmp_node;
 	u32 count;
 	unsigned long flags;
 	LIST_HEAD(tmp_head);
+	int ret = 0;
+
+	mutex_lock(&msm_release_lock);
+
+	if (!file_priv) {
+		ret = -EINVAL;
+		goto end;
+	}
+
+	minor = file_priv->minor;
+	dev = minor->dev;
+	priv = dev->dev_private;
 
 	spin_lock_irqsave(&dev->event_lock, flags);
 	list_for_each_entry_safe(node, temp, &priv->client_event_list,
@@ -1567,7 +1593,11 @@ static int msm_release(struct inode *inode, struct file *filp)
 		kfree(node);
 	}
 
-	return drm_release(inode, filp);
+	ret = drm_release(inode, filp);
+	filp->private_data = NULL;
+end:
+	mutex_unlock(&msm_release_lock);
+	return ret;
 }
 
 /**
@@ -1642,6 +1672,12 @@ static int msm_ioctl_power_ctrl(struct drm_device *dev, void *data,
 	}
 
 	priv = dev->dev_private;
+
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	mutex_lock(&msm_ioctl_power_ctrl_ctx_lock);
+	msm_ioctl_power_ctrl_ctx = ctx;
+	mutex_unlock(&msm_ioctl_power_ctrl_ctx_lock);
+#endif
 
 	mutex_lock(&ctx->power_lock);
 
@@ -1819,9 +1855,15 @@ static int msm_runtime_suspend(struct device *dev)
 	struct msm_drm_private *priv = ddev->dev_private;
 
 	DBG("");
-
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	if (priv->mdss)
+		msm_mdss_disable(priv->mdss);
+	else
+		sde_power_resource_enable(&priv->phandle, priv->pclient, false);
+#else
 	if (priv->mdss)
 		return msm_mdss_disable(priv->mdss);
+#endif
 
 	return 0;
 }
@@ -1831,12 +1873,25 @@ static int msm_runtime_resume(struct device *dev)
 	struct drm_device *ddev = dev_get_drvdata(dev);
 	struct msm_drm_private *priv = ddev->dev_private;
 
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	int ret;
+
+	DBG("");
+
+	if (priv->mdss)
+		ret = msm_mdss_enable(priv->mdss);
+	else
+		ret = sde_power_resource_enable(&priv->phandle, priv->pclient, true);
+
+	return ret;
+#else
 	DBG("");
 
 	if (priv->mdss)
 		return msm_mdss_enable(priv->mdss);
 
 	return 0;
+#endif
 }
 #endif
 

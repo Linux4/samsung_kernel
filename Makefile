@@ -310,8 +310,9 @@ SUBARCH := $(shell uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
 # "make" in the configured kernel build directory always uses that.
 # Default value for CROSS_COMPILE is not to prefix executables
 # Note: Some architectures assign CROSS_COMPILE in their arch/*/Makefile
-ARCH		?= $(SUBARCH)
-CROSS_COMPILE	?= $(CONFIG_CROSS_COMPILE:"%"=%)
+
+ARCH		?=arm64
+CROSS_COMPILE	?=$(srctree)/toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-
 
 # Architecture as present in compile.h
 UTS_MACHINE 	:= $(ARCH)
@@ -377,7 +378,6 @@ endif
 # Make variables (CC, etc...)
 AS		= $(CROSS_COMPILE)as
 LD		= $(CROSS_COMPILE)ld
-# REAL_CC		= $(CROSS_COMPILE)gcc
 REAL_CC		= $(srctree)/toolchain/llvm-arm-toolchain-ship/10.0/bin/clang
 LDGOLD		= $(CROSS_COMPILE)ld.gold
 CPP		= $(CC) -E
@@ -499,7 +499,6 @@ endif
 
 ifeq ($(cc-name),clang)
 ifneq ($(CROSS_COMPILE),)
-# CLANG_TRIPLE	?= $(CROSS_COMPILE)
 CLANG_TRIPLE	?= aarch64-linux-gnu-
 CLANG_FLAGS	+= --target=$(notdir $(CLANG_TRIPLE:%-=%))
 ifeq ($(shell $(srctree)/scripts/clang-android.sh $(CC) $(CLANG_FLAGS)), y)
@@ -824,7 +823,6 @@ KBUILD_CFLAGS	+= $(call cc-option, -gdwarf-4,)
 endif
 
 ifdef CONFIG_RKP_CFP
-# CFP_CC		?= $(srctree)/../../vendor/qcom/proprietary/llvm-arm-toolchain-ship/10.0/bin/clang
 CFP_CC		?= $(srctree)/toolchain/llvm-arm-toolchain-ship/10.0/bin/clang
 CC		= $(srctree)/scripts/gcc-wrapper.py $(CFP_CC)
 endif
@@ -1043,17 +1041,24 @@ USE_SECGETSPF := $(shell echo $(PATH))
 ifneq ($(findstring buildscript/build_common/core/bin, $(USE_SECGETSPF)),)
   ifneq ($(shell secgetspf SEC_PRODUCT_FEATURE_BIOAUTH_CONFIG_FINGERPRINT_TZ), false)
     ifeq ($(CONFIG_SENSORS_FINGERPRINT), y)
-      ifneq ($(SEC_FACTORY_BUILD), true)
+      ifneq ($(CONFIG_SEC_FACTORY), y)
         export KBUILD_FP_SENSOR_CFLAGS := -DENABLE_SENSORS_FPRINT_SECURE
       endif
     endif
   endif
 else
   ifeq ($(CONFIG_SENSORS_FINGERPRINT), y)
-    ifneq ($(SEC_FACTORY_BUILD), true)
+    ifneq ($(CONFIG_SEC_FACTORY), y)
       export KBUILD_FP_SENSOR_CFLAGS := -DENABLE_SENSORS_FPRINT_SECURE
     endif
   endif
+endif
+
+
+ifneq ($(shell secgetspf SEC_PRODUCT_FEATURE_COMMON_CONFIG_SEP_VERSION),)
+      SEP_MAJOR_VERSION := $(shell secgetspf SEC_PRODUCT_FEATURE_COMMON_CONFIG_SEP_VERSION | cut -f1 -d.)
+      SEP_MINOR_VERSION := $(shell secgetspf SEC_PRODUCT_FEATURE_COMMON_CONFIG_SEP_VERSION | cut -f2 -d.)
+      export KBUILD_SEP_VERSION := -DSEP_KVERSION=$(SEP_MAJOR_VERSION)$(SEP_MINOR_VERSION)
 endif
 
 # Default kernel image to build when no specific target is given.

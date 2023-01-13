@@ -2367,6 +2367,10 @@ int ss_panel_off_post(struct samsung_display_driver_data *vdd)
 	if (vdd->finger_mask)
 		vdd->finger_mask = false;
 
+	/* To prevent panel off without finger off */
+	if (vdd->br.finger_mask_hbm_on)
+		vdd->br.finger_mask_hbm_on = false;
+
 	LCD_INFO("- vdd->ndx = %d\n", vdd->ndx);
 	SS_XLOG(SS_XLOG_FINISH);
 

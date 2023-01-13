@@ -2713,7 +2713,7 @@ static int cam_icp_mgr_destroy_handle(
 			HFI_DEBUG_MODE_QUEUE)
 			cam_icp_mgr_process_dbg_buf(icp_hw_mgr.a5_dbg_lvl);
 		cam_hfi_queue_dump();
-		BUG_ON(1);
+	//	BUG_ON(1);
 	}
 	kfree(destroy_cmd);
 	return rc;
@@ -3272,7 +3272,7 @@ static int cam_icp_mgr_send_config_io(struct cam_icp_hw_ctx_data *ctx_data,
 		rc = -ETIMEDOUT;
 		CAM_ERR(CAM_ICP, "FW response timed out %d", rc);
 		//cam_hfi_queue_dump();
-        	BUG_ON(1);
+        //	BUG_ON(1);
 	}
 
 	return rc;
@@ -3931,7 +3931,8 @@ static void cam_icp_mgr_print_io_bufs(struct cam_packet *packet,
 			rc = cam_mem_get_io_buf(io_cfg[i].mem_handle[j],
 				mmu_hdl, &iova_addr, &src_buf_size);
 			if (rc < 0) {
-				CAM_ERR(CAM_UTIL, "get src buf address fail");
+				CAM_ERR(CAM_UTIL,
+					"get src buf address fail rc %d", rc);
 				continue;
 			}
 			if (iova_addr >> 32) {
@@ -4534,7 +4535,7 @@ static int cam_icp_mgr_create_handle(uint32_t dev_type,
 		rc = -ETIMEDOUT;
 		CAM_ERR(CAM_ICP, "FW response timed out %d", rc);
 		//cam_hfi_queue_dump();
-		BUG_ON(1);
+		//BUG_ON(1);
 	}
 
 	if (ctx_data->fw_handle == 0) {
@@ -4581,7 +4582,7 @@ static int cam_icp_mgr_send_ping(struct cam_icp_hw_ctx_data *ctx_data)
 		rc = -ETIMEDOUT;
 		CAM_ERR(CAM_ICP, "FW response timed out %d", rc);
 		//cam_hfi_queue_dump();
-        	BUG_ON(1);
+        //	BUG_ON(1);
 	}
 
 	return rc;

@@ -115,7 +115,7 @@ static int cam_ois_thread_func(void *data)
 					if (rc < 0)
 						CAM_ERR(CAM_OIS, "OIS centering failed %d", rc);
 #endif
-					msleep(40);
+					usleep_range(10000, 10050);
 					mutex_unlock(&(o_ctrl->ois_mode_mutex));
 					break;
 				case CAM_OIS_THREAD_MSG_APPLY_SETTING:
@@ -151,7 +151,7 @@ static int cam_ois_thread_func(void *data)
 					case CAM_OIS_THREAD_MSG_RESET_RUMBA:
 						mutex_lock(&(o_ctrl->ois_mode_mutex));
 						CAM_DBG(CAM_OIS, "CAM_OIS_THREAD_MSG_RESET_RUMBA");
-									
+
 						cam_ois_set_ois_mode(o_ctrl, 0x16);
 						if (rc < 0)
 							CAM_ERR(CAM_OIS, "OIS centering failed %d", rc);

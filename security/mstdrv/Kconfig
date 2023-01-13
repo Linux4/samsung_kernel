@@ -36,7 +36,8 @@ config MFC_CHARGER
 	bool "MFC IC using model"
 	depends on !(SEC_BOLTQ5G_PROJECT) && !(SEC_GTS5L_PROJECT) && !(SEC_GTS5LWIFI_PROJECT) \
 			&& !(SEC_GTS6L_PROJECT) && !(SEC_GTS6LWIFI_PROJECT) && !(SEC_R3Q_PROJECT) && !(SEC_R5Q_PROJECT) \
-			&& !(SEC_R5QSWA_PROJECT) && !(SEC_GTS6X_PROJECT) && !(SEC_ZODIAC_PROJECT)
+			&& !(SEC_R5QSWA_PROJECT) && !(SEC_GTS6X_PROJECT) && !(SEC_ZODIAC_PROJECT) \
+			&& !(SEC_A82XQ_PROJECT)
 	default n
 	help
 	This enables the MFC IC sysfs node
@@ -61,3 +62,4 @@ config MST_LPM_CONTROL
 	default n
 	help
 	This enables the MST LPM control code
+

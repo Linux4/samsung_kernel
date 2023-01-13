@@ -747,6 +747,7 @@ struct sec_ts_data {
 	struct completion secure_powerdown;
 	struct completion secure_interrupt;
 	struct sec_touch_driver *ss_drv;
+	struct mutex st_lock;
 #if defined(CONFIG_TRUSTONIC_TRUSTED_UI_QC)
 	struct completion st_irq_received;
 #endif
@@ -922,12 +923,15 @@ struct sec_ts_plat_data {
 	bool regulator_boot_on;
 	bool support_mt_pressure;
 	bool support_dex;
+	bool support_ear_detect;
 #ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
 	int ss_touch_num;
 #endif
 	bool support_fod;
 	bool enable_settings_aot;
 	bool sync_reportrate_120;
+	bool support_open_short_test;
+	bool support_mis_calibration_test;
 };
 
 typedef struct {

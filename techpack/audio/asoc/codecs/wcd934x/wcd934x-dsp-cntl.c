@@ -181,6 +181,9 @@ static void wcd_cntl_collect_debug_dumps(struct wcd_dsp_cntl *cntl,
 					 bool internal)
 {
 }
+static void wcd_cntl_reset_wdsp(struct wcd_dsp_cntl *cntl)
+{
+}
 #endif
 
 static ssize_t wdsp_boot_show(struct wcd_dsp_cntl *cntl, char *buf)

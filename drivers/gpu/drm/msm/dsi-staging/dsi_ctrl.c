@@ -30,7 +30,7 @@
 #include "dsi_clk.h"
 #include "dsi_pwr.h"
 #include "dsi_catalog.h"
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 #include "ss_dsi_panel_common.h"
 #include "sde_trace.h"
 #endif
@@ -39,7 +39,7 @@
 
 #define DSI_CTRL_DEFAULT_LABEL "MDSS DSI CTRL"
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 #define DSI_CTRL_TX_TO_MS     500
 #else
 #define DSI_CTRL_TX_TO_MS     200
@@ -128,6 +128,9 @@ static ssize_t debugfs_state_info_read(struct file *file,
 			dsi_ctrl->clk_freq.pix_clk_rate,
 			dsi_ctrl->clk_freq.esc_clk_rate);
 
+	if (len > count)
+		len = count;
+
 	len = min_t(size_t, len, SZ_4K);
 	if (copy_to_user(buff, buf, len)) {
 		kfree(buf);
@@ -182,6 +185,9 @@ static ssize_t debugfs_reg_dump_read(struct file *file,
 		kfree(buf);
 		return rc;
 	}
+
+	if (len > count)
+		len = count;
 
 	len = min_t(size_t, len, SZ_4K);
 	if (copy_to_user(buff, buf, len)) {
@@ -1138,23 +1144,37 @@ int dsi_message_validate_tx_mode(struct dsi_ctrl *dsi_ctrl,
 			pr_err(" Cannot transfer command,ops not defined\n");
 			return -ENOTSUPP;
 		}
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+		if ((cmd_len + 4) > SZ_1M) {
+			pr_err("[SDE] Cannot transfer,size is greater than SZ_1M (NON_EMBEDDED)\n");
+			return -ENOTSUPP;
+		}
+#else 
 		if ((cmd_len + 4) > SZ_4K) {
 			pr_err("Cannot transfer,size is greater than 4096\n");
 			return -ENOTSUPP;
 		}
+#endif
 	}
 
 	if (*flags & DSI_CTRL_CMD_FETCH_MEMORY) {
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+		if ((dsi_ctrl->cmd_len + cmd_len + 4) > SZ_1M) {
+			pr_err("[SDE] Cannot transfer,size is greater than SZ_1M (FETCH_MEMORY)\n");
+			return -ENOTSUPP;
+		}
+#else
 		if ((dsi_ctrl->cmd_len + cmd_len + 4) > SZ_4K) {
 			pr_err("Cannot transfer,size is greater than 4096\n");
 			return -ENOTSUPP;
 		}
+#endif
 	}
 
 	return rc;
 }
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 static void print_cmd_desc(const struct mipi_dsi_msg *msg)
 {
 	char buf[1024];
@@ -1201,7 +1221,7 @@ static int dsi_message_tx(struct dsi_ctrl *dsi_ctrl,
 	struct dsi_mode_info *timing;
 	struct dsi_ctrl_hw_ops dsi_hw_ops = dsi_ctrl->hw.ops;
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	struct samsung_display_driver_data *vdd = ss_get_vdd(dsi_ctrl->cell_index);
 	if (vdd->debug_data->print_cmds)
 		print_cmd_desc(msg);
@@ -1351,7 +1371,7 @@ kickoff:
 							&cmd_mem,
 							hw_flags);
 			} else {
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 				if (msg->tx_buf[0] == 0x2a || msg->tx_buf[0] == 0x2b)
 					SDE_ATRACE_BEGIN("dsi_message_tx_flush");
 #endif
@@ -1360,7 +1380,7 @@ kickoff:
 						&cmd_mem,
 						hw_flags);
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 				if (msg->tx_buf[0] == 0x2a || msg->tx_buf[0] == 0x2b)
 					SDE_ATRACE_END("dsi_message_tx_flush");
 #endif
@@ -1371,7 +1391,7 @@ kickoff:
 							      hw_flags);
 		}
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 		if (msg->tx_buf[0] == 0x2a || msg->tx_buf[0] == 0x2b)
 			SDE_ATRACE_BEGIN("dsi_message_tx_wait");
 #endif
@@ -1380,7 +1400,7 @@ kickoff:
 				&dsi_ctrl->irq_info.cmd_dma_done,
 				msecs_to_jiffies(DSI_CTRL_TX_TO_MS));
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 		if (msg->tx_buf[0] == 0x2a || msg->tx_buf[0] == 0x2b)
 			SDE_ATRACE_END("dsi_message_tx_wait");
 #endif
@@ -1413,7 +1433,7 @@ kickoff:
 				*/
 				err_flag = 0;
 				SDE_EVT32(0xbad, 0x1);
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 				/* check physical display connection */
 				if (gpio_is_valid(vdd->ub_con_det.gpio)) {
 					pr_err("[SDE] ub_con_det.gpio(%d) level=%d\n",
@@ -1583,7 +1603,7 @@ static int dsi_message_rx(struct dsi_ctrl *dsi_ctrl,
 		if (rc) {
 			pr_err("Message transmission failed, rc=%d\n", rc);
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 			{
 				struct dsi_display *display = dsi_ctrl->irq_info.irq_err_cb.event_usr_ptr;
 
@@ -1888,6 +1908,10 @@ static int dsi_ctrl_dev_probe(struct platform_device *pdev)
 	enum dsi_ctrl_version version;
 	int rc = 0;
 
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	LCD_INFO("dsi_ctrl_dev_probe ++ \n");
+#endif
+
 	id = of_match_node(msm_dsi_of_match, pdev->dev.of_node);
 	if (!id)
 		return -ENODEV;
@@ -1959,6 +1983,10 @@ static int dsi_ctrl_dev_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, dsi_ctrl);
 	pr_info("Probe successful for %s\n", dsi_ctrl->name);
 
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	LCD_INFO("dsi_ctrl_dev_probe -- \n");
+#endif
+
 	return 0;
 
 fail_supplies:
@@ -2021,8 +2049,6 @@ static struct platform_driver dsi_ctrl_driver = {
 	},
 };
 
-#if defined(CONFIG_DEBUG_FS)
-
 void dsi_ctrl_debug_dump(u32 *entries, u32 size)
 {
 	struct list_head *pos, *tmp;
@@ -2043,7 +2069,6 @@ void dsi_ctrl_debug_dump(u32 *entries, u32 size)
 	mutex_unlock(&dsi_ctrl_list_lock);
 }
 
-#endif
 /**
  * dsi_ctrl_get() - get a dsi_ctrl handle from an of_node
  * @of_node:    of_node of the DSI controller.
@@ -2555,7 +2580,7 @@ static void dsi_ctrl_handle_error_status(struct dsi_ctrl *dsi_ctrl,
 	if (dsi_ctrl->hw.ops.error_intr_ctrl)
 		dsi_ctrl->hw.ops.error_intr_ctrl(&dsi_ctrl->hw, true);
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	inc_dpui_u32_field_nolock(DPUI_KEY_QCT_DSIE, 1);
 	ss_get_vdd(dsi_ctrl->cell_index)->dsi_errors = error;
 #endif

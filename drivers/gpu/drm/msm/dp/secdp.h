@@ -201,6 +201,9 @@ struct secdp_dex {
 	int prev;                /* previously known as "dex_now" */
 	int curr;                /* previously known as "dex_en" */
 	int setting_ui;          /* "dex_set", true if setting has Dex mode */
+
+	bool adapter_check_skip;
+
 	/*
 	 * 2 if resolution is changed during dex mode change.
 	 * And once dex framework reads the dex_node_stauts using dex node,
@@ -339,6 +342,8 @@ enum dex_support_res_t secdp_get_dex_res(void);
 void secdp_clear_link_status_update_cnt(struct dp_link *dp_link);
 void secdp_reset_link_status(struct dp_link *dp_link);
 bool secdp_check_link_stable(struct dp_link *dp_link);
+bool secdp_dex_adapter_skip_show(void);
+void secdp_dex_adapter_skip_store(bool skip);
 
 bool secdp_find_supported_resolution(struct dp_panel_info *timing);
 

@@ -150,6 +150,11 @@ enum drm_mode_status {
 
 #define DRM_MODE_FLAG_3D_MAX	DRM_MODE_FLAG_3D_SIDE_BY_SIDE_HALF
 
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+/* Used for VRR SOT HS mode */
+#define DRM_MODE_MATCH_TYPE_USERDEF (1 << 5)
+#endif
+
 /**
  * struct drm_display_mode - DRM kernel-internal display mode structure
  * @hdisplay: horizontal display size

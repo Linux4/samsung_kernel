@@ -114,6 +114,16 @@ config SENSORS_SX9360_SUB
 	  SemTech sx9360 sub device driver.
 	  Say N here if you do not use sx9360 sub.
 
+config SENSORS_SX9364
+	depends on I2C
+	tristate "SX9364 driver"
+	default n
+	help
+	  Say Y here if you use sx9364.
+	  This option enables grip sensors using
+	  SemTech sx9364 device driver.
+	  Say N here if you do not use sx9364.
+
 config SENSORS_A96T3X6
 	depends on I2C
 	tristate "A96T3X6 driver for grip"
@@ -208,3 +218,9 @@ config SENSORS_SYSFS
 	  sensor factory test.
 	  To compile this driver as a module, choose M here: the
 	  module will be called sensors_core.
+
+config NOT_SUPPORT_HALL
+	bool "Not support hall"
+	default n
+	help
+	  Not support hall

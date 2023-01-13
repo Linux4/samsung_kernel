@@ -135,7 +135,10 @@ void trigger_input_booster(struct work_struct *work)
 					&(ib->ib_timeout_work[IB_TAIL]),
 					msecs_to_jiffies(ib->ib_dt->tail_time));
 			} else {
-				pr_err(ITAG" IB Trigger Release :: tail timeout start");
+				cancel_delayed_work(&(ib->ib_timeout_work[IB_TAIL]));
+				queue_delayed_work(ib_unbound_highwq,
+					&(ib->ib_timeout_work[IB_TAIL]),
+					msecs_to_jiffies(ib->ib_dt->tail_time));
 			}
 		}
 		mutex_unlock(&ib->lock);
@@ -368,6 +371,10 @@ void release_state_func(struct work_struct *work)
 		} else {
 			pr_err(ITAG" Release State Func :: tail timeout start");
 		}
+	} else {
+		queue_delayed_work(ib_unbound_highwq,
+			&(target_ib->ib_timeout_work[IB_TAIL]),
+			msecs_to_jiffies(60000));
 	}
 	mutex_unlock(&target_ib->lock);
 }

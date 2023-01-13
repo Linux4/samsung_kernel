@@ -19,7 +19,7 @@
 #include "sde_formats.h"
 #include "sde_trace.h"
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 #include "ss_dsi_panel_common.h"
 #endif
 
@@ -37,19 +37,6 @@
 	container_of(x, struct sde_encoder_phys_cmd, base)
 
 #define PP_TIMEOUT_MAX_TRIALS	4
-
-#if 0 // KR_TODO : dont need
-#if defined(CONFIG_DISPLAY_SAMSUNG)
-/*
- * Incase of AOD, 1frame takes 33ms(30FPS)
- * So we need to wait more time than normal case
- */
-#define CTL_START_TIMEOUT_MS	100
-#else
-/* wait for 2 vyncs only */
-#define CTL_START_TIMEOUT_MS	32
-#endif
-#endif
 
 /*
  * Tearcheck sync start and continue thresholds are empirically found
@@ -569,7 +556,7 @@ static int _sde_encoder_phys_cmd_handle_ppdone_timeout(
 	cmd_enc->pp_timeout_report_cnt++;
 	pending_kickoff_cnt = atomic_read(&phys_enc->pending_kickoff_cnt);
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	SS_XLOG(cmd_enc->pp_timeout_report_cnt);
 	phys_enc->sde_kms->base.funcs->ss_callback(PRIMARY_DISPLAY_NDX,
 		SS_EVENT_CHECK_TE, (void *)phys_enc);
@@ -1121,6 +1108,11 @@ static void sde_encoder_phys_cmd_tearcheck_config(
 	 */
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	tc_cfg.sync_cfg_height = mode->vtotal * 3;// 3* 16.6ms based on mode->vtotal
+#elif defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+	/* 3 * 16.6ms based on mode->vtotal
+	   note : need to multiply current_fps / 60 to match 16ms regardless of current fps
+	*/
+	tc_cfg.sync_cfg_height = (mode->vtotal * 3 * mode->vrefresh) / 12 / 5;
 #else
 	tc_cfg.sync_cfg_height = 0xFFF0;
 #endif
@@ -1674,6 +1666,12 @@ static void sde_encoder_phys_cmd_prepare_commit(
 		udelay(SDE_ENC_MAX_POLL_TIMEOUT_US);
 		if ((trial * SDE_ENC_MAX_POLL_TIMEOUT_US)
 				> (KICKOFF_TIMEOUT_MS * USEC_PER_MSEC)) {
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+			struct samsung_display_driver_data *vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
+			vdd->is_autorefresh_fail = true;
+			LCD_INFO("set is_autorefresh_fail true\n");
+#endif
+
 			SDE_ERROR_CMDENC(cmd_enc,
 					"disable autorefresh failed\n");
 			break;

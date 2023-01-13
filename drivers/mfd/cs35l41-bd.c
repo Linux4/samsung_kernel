@@ -42,7 +42,7 @@ static int cs35l41_bd_probe(struct platform_device *pdev)
 	bool right_channel_amp;
 	const char *dsp_part_name;
 	const char *mfd_suffix;
-	int ret;
+	int ret, bd_max_temp;
 
 	regmap_read(cs35l41->regmap, 0x00000000, &temp);
 	dev_info(&pdev->dev,
@@ -60,7 +60,13 @@ static int cs35l41_bd_probe(struct platform_device *pdev)
 						"cirrus,mfd-suffix",
 						&mfd_suffix);
 
-	ret = cirrus_bd_amp_add(cs35l41->regmap, mfd_suffix, dsp_part_name);
+	ret = of_property_read_u32(cs35l41->dev->of_node,
+					"cirrus,bd-max-temp", &bd_max_temp);
+	if (ret < 0)
+		bd_max_temp = -1;
+
+	ret = cirrus_bd_amp_add(cs35l41->regmap, mfd_suffix, dsp_part_name,
+							bd_max_temp);
 
 	if (ret < 0) {
 		dev_info(&pdev->dev,

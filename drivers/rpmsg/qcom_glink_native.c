@@ -134,6 +134,9 @@ struct qcom_glink {
 	struct device *dev;
 
 	const char *name;
+#if IS_ENABLED(CONFIG_SEC_PM)
+	char irq_name[32];
+#endif
 
 	struct mbox_client mbox_client;
 	struct mbox_chan *mbox_chan;
@@ -2042,10 +2045,18 @@ struct qcom_glink *qcom_glink_native_probe(struct device *dev,
 	else
 		irqflags = IRQF_NO_SUSPEND | IRQF_SHARED;
 
+#if IS_ENABLED(CONFIG_SEC_PM)
+	snprintf(glink->irq_name, 32, "glink-native-%s", glink->name);
+	ret = devm_request_irq(dev, irq,
+			       qcom_glink_native_intr,
+			       irqflags,
+			       glink->irq_name, glink);
+#else
 	ret = devm_request_irq(dev, irq,
 			       qcom_glink_native_intr,
 			       irqflags,
 			       "glink-native", glink);
+#endif
 	if (ret) {
 		dev_err(dev, "failed to request IRQ\n");
 		goto unregister;
@@ -2156,7 +2167,7 @@ const char *glink_intr_owner(int irq)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
 	struct qcom_glink *glink;
-	
+
 	if (desc && desc->action) {
 		glink = desc->action->dev_id;
 		return glink?glink->name:NULL;

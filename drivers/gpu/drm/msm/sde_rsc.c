@@ -1673,6 +1673,9 @@ static void _sde_rsc_init_debugfs(struct sde_rsc_priv *rsc, char *name)
 static void _sde_rsc_init_debugfs(struct sde_rsc_priv *rsc, char *name)
 {
 }
+void sde_rsc_debug_dump(u32 mux_sel)
+{
+}
 #endif /* defined(CONFIG_DEBUG_FS) */
 
 static void sde_rsc_deinit(struct platform_device *pdev,

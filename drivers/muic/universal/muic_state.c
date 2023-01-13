@@ -561,7 +561,8 @@ void muic_detect_dev(muic_data_t *pmuic)
 
 	if (pmuic->is_powerrole_state) {
 		pr_info("%s Power Role state, skip muic and check vbus!\n", __func__);
-		muic_notifier_attach_attached_dev(pmuic->attached_dev);
+		if (pmuic->attached_dev == ATTACHED_DEV_OTG_MUIC)
+			muic_notifier_attach_attached_dev(pmuic->attached_dev);
 		goto check_vb;
 	}
 

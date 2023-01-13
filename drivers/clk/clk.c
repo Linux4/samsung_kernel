@@ -40,40 +40,6 @@
 	.ib = _ib,				\
 }
 
-static struct msm_bus_vectors clk_debugfs_vectors[] = {
-	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
-			MSM_BUS_SLAVE_CAMERA_CFG, 0, 0),
-	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
-			MSM_BUS_SLAVE_VENUS_CFG, 0, 0),
-	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
-			MSM_BUS_SLAVE_DISPLAY_CFG, 0, 0),
-	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
-			MSM_BUS_SLAVE_CAMERA_CFG, 0, 1),
-	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
-			MSM_BUS_SLAVE_VENUS_CFG, 0, 1),
-	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
-			MSM_BUS_SLAVE_DISPLAY_CFG, 0, 1),
-};
-
-static struct msm_bus_paths clk_debugfs_usecases[] = {
-	{
-		.num_paths = 3,
-		.vectors = &clk_debugfs_vectors[0],
-	},
-	{
-		.num_paths = 3,
-		.vectors = &clk_debugfs_vectors[3],
-	}
-};
-
-static struct msm_bus_scale_pdata clk_debugfs_scale_table = {
-	.usecase = clk_debugfs_usecases,
-	.num_usecases = ARRAY_SIZE(clk_debugfs_usecases),
-	.name = "clk_debugfs",
-};
-
-static uint32_t clk_debugfs_bus_cl_id;
-
 #if defined(CONFIG_COMMON_CLK)
 
 static DEFINE_SPINLOCK(enable_lock);
@@ -142,6 +108,9 @@ struct clk_core {
 #ifdef CONFIG_DEBUG_FS
 	struct dentry		*dentry;
 	struct hlist_node	debug_node;
+#endif
+#ifdef CONFIG_SEC_PM
+	struct hlist_node	sec_debug_node;
 #endif
 	struct kref		ref;
 	struct clk_vdd_class	*vdd_class;
@@ -2715,6 +2684,49 @@ bool clk_is_match(const struct clk *p, const struct clk *q)
 }
 EXPORT_SYMBOL_GPL(clk_is_match);
 
+#ifdef CONFIG_SEC_PM
+static DEFINE_MUTEX(sec_clk_debug_lock);
+static HLIST_HEAD(sec_clk_debug_list);
+static int sec_clock_debug_print_clock(struct clk_core *c)
+{
+	char *start = "\t";
+	struct clk *clk;
+	if (!c || !c->prepare_count)
+		return 0;
+	pr_info("    ");
+	clk = c->hw->clk;
+	do {
+		c = clk->core;
+		pr_cont("%s%s:%u:%u [%ld]", start,
+				c->name,
+				c->prepare_count,
+				c->enable_count,
+				c->rate);
+		start = " -> ";
+	} while ((clk = clk_get_parent(clk)));
+	pr_cont("\n");
+	return 1;
+}
+void sec_clock_debug_print_enabled(void)
+{
+	struct clk_core *core;
+	int cnt = 0;
+	
+	if (!mutex_trylock(&sec_clk_debug_lock))
+		return;
+	pr_info("Enabled clocks:\n");
+	
+	hlist_for_each_entry(core, &sec_clk_debug_list, sec_debug_node)
+		cnt += sec_clock_debug_print_clock(core);
+	if (cnt)
+		pr_info("Enabled clock count: %d\n", cnt);
+	else
+		pr_info("No clocks enabled.\n");
+	mutex_unlock(&sec_clk_debug_lock);
+}
+EXPORT_SYMBOL(sec_clock_debug_print_enabled);
+#endif
+
 int clk_set_flags(struct clk *clk, unsigned long flags)
 {
 	if (!clk)
@@ -2737,6 +2749,8 @@ static int inited = 0;
 static u32 debug_suspend = 1;
 static DEFINE_MUTEX(clk_debug_lock);
 static HLIST_HEAD(clk_debug_list);
+
+static uint32_t clk_debugfs_bus_cl_id;
 
 static struct hlist_head *all_lists[] = {
 	&clk_root_list,
@@ -3527,6 +3541,38 @@ void clock_debug_print_enabled(bool print_parent)
 }
 EXPORT_SYMBOL_GPL(clock_debug_print_enabled);
 
+static struct msm_bus_vectors clk_debugfs_vectors[] = {
+	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
+			MSM_BUS_SLAVE_CAMERA_CFG, 0, 0),
+	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
+			MSM_BUS_SLAVE_VENUS_CFG, 0, 0),
+	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
+			MSM_BUS_SLAVE_DISPLAY_CFG, 0, 0),
+	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
+			MSM_BUS_SLAVE_CAMERA_CFG, 0, 1),
+	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
+			MSM_BUS_SLAVE_VENUS_CFG, 0, 1),
+	MSM_BUS_VECTOR(MSM_BUS_MASTER_AMPSS_M0,
+			MSM_BUS_SLAVE_DISPLAY_CFG, 0, 1),
+};
+
+static struct msm_bus_paths clk_debugfs_usecases[] = {
+	{
+		.num_paths = 3,
+		.vectors = &clk_debugfs_vectors[0],
+	},
+	{
+		.num_paths = 3,
+		.vectors = &clk_debugfs_vectors[3],
+	}
+};
+
+static struct msm_bus_scale_pdata clk_debugfs_scale_table = {
+	.usecase = clk_debugfs_usecases,
+	.num_usecases = ARRAY_SIZE(clk_debugfs_usecases),
+	.name = "clk_debugfs",
+};
+
 /**
  * clk_debug_init - lazily populate the debugfs clk directory
  *
@@ -3839,8 +3885,17 @@ static int __clk_core_init(struct clk_core *core)
 out:
 	clk_prepare_unlock();
 
+#ifdef CONFIG_SEC_PM
+	if (!ret) {
+		clk_debug_register(core);
+		mutex_lock(&sec_clk_debug_lock);
+		hlist_add_head(&core->sec_debug_node, &sec_clk_debug_list);
+		mutex_unlock(&sec_clk_debug_lock);
+	}
+#else
 	if (!ret)
 		clk_debug_register(core);
+#endif
 
 	return ret;
 }
@@ -4068,6 +4123,12 @@ void clk_unregister(struct clk *clk)
 		return;
 
 	clk_debug_unregister(clk->core);
+
+#ifdef CONFIG_SEC_PM
+	mutex_lock(&sec_clk_debug_lock);
+	hlist_del_init(&clk->core->sec_debug_node);
+	mutex_unlock(&sec_clk_debug_lock);	
+#endif
 
 	clk_prepare_lock();
 

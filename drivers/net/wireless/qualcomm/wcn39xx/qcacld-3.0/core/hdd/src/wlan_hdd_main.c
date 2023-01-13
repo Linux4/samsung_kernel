@@ -231,7 +231,11 @@ void hdd_sysfs_update_driver_status(int32_t status);
 int wlan_hdd_sec_get_psm(void);
 #endif /* SEC_CONFIG_PSM_SYSFS */
 #ifdef SEC_WRITE_SOFTAP_INFO_IN_SYSFS
+#ifdef SEC_CONFIG_SUPPORT_MIMO
 static int sec_hw_dbs_capable = 1;
+#else //!SEC_CONFIG_SUPPORT_MIMO
+static int sec_hw_dbs_capable = 0;
+#endif //SEC_CONFIG_SUPPORT_MIMO
 static uint16_t sec_max_station = 0;
 #endif //SEC_WRITE_SOFTAP_INFO_IN_SYSFS
 #ifdef SEC_CONFIG_POWER_BACKOFF
@@ -2784,6 +2788,9 @@ wlan_hdd_update_dbs_scan_and_fw_mode_config(void)
 	cfg.fw_mode_config = 0;
 	cfg.set_dual_mac_cb = policy_mgr_soc_set_dual_mac_cfg_cb;
 	if (policy_mgr_is_hw_dbs_capable(hdd_ctx->psoc)) {
+#ifdef SEC_WRITE_SOFTAP_INFO_IN_SYSFS
+               sec_hw_dbs_capable = 1;
+#endif //SEC_WRITE_SOFTAP_INFO_IN_SYSFS
 		status =
 		ucfg_policy_mgr_get_chnl_select_plcy(hdd_ctx->psoc,
 						     &chnl_sel_logic_conc);
@@ -3906,6 +3913,13 @@ int hdd_wlan_start_modules(struct hdd_context *hdd_ctx, bool reinit)
 		hdd_enable_power_management();
 
 		hdd_skip_acs_scan_timer_init(hdd_ctx);
+		
+#ifdef SEC_CONFIG_WLAN_BEACON_CHECK
+		qdf_mc_timer_init(&hdd_ctx->skip_bmiss_set_timer,
+			QDF_TIMER_TYPE_SW,
+			hdd_skip_bmiss_set_timer_handler,
+			hdd_ctx);
+#endif /* SEC_CONFIG_WLAN_BEACON_CHECK */
 
 		wlan_hdd_init_tx_rx_histogram(hdd_ctx);
 
@@ -8588,20 +8602,6 @@ void hdd_wlan_exit(struct hdd_context *hdd_ctx)
 	hdd_debugfs_mws_coex_info_deinit(hdd_ctx);
 	hdd_psoc_idle_timer_stop(hdd_ctx);
 
-#ifdef SEC_CONFIG_POWER_BACKOFF
-	cur_sec_sar_index = 0;
-#endif /* SEC_CONFIG_POWER_BACKOFF */
-#ifdef SEC_CONFIG_WLAN_BEACON_CHECK
-	if (QDF_TIMER_STATE_RUNNING ==
-		qdf_mc_timer_get_current_state(&hdd_ctx->skip_bmiss_set_timer)) {
-		hdd_debug("Stop skip_bmiss_set_timer");
-		qdf_mc_timer_stop(&hdd_ctx->skip_bmiss_set_timer);
-	}
-
-	if (!QDF_IS_STATUS_SUCCESS
-	   (qdf_mc_timer_destroy(&hdd_ctx->skip_bmiss_set_timer)))
-		hdd_err("Cannot delete skip_bmiss_set_timer");
-#endif /* SEC_CONFIG_WLAN_BEACON_CHECK */
 	/*
 	 * Powersave Offload Case
 	 * Disable Idle Power Save Mode
@@ -13403,6 +13403,20 @@ int hdd_wlan_stop_modules(struct hdd_context *hdd_ctx, bool ftm_mode)
 	pld_request_bus_bandwidth(hdd_ctx->parent_dev, PLD_BUS_WIDTH_NONE);
 	hdd_deinit_adapter_ops_wq(hdd_ctx);
 	hdd_bus_bandwidth_deinit(hdd_ctx);
+#ifdef SEC_CONFIG_POWER_BACKOFF
+	cur_sec_sar_index = 0;
+#endif /* SEC_CONFIG_POWER_BACKOFF */
+#ifdef SEC_CONFIG_WLAN_BEACON_CHECK
+	if (QDF_TIMER_STATE_RUNNING ==
+		qdf_mc_timer_get_current_state(&hdd_ctx->skip_bmiss_set_timer)) {
+		hdd_debug("Stop skip_bmiss_set_timer");
+		qdf_mc_timer_stop(&hdd_ctx->skip_bmiss_set_timer);
+	}
+
+	if (!QDF_IS_STATUS_SUCCESS
+	   (qdf_mc_timer_destroy(&hdd_ctx->skip_bmiss_set_timer)))
+		hdd_err("Cannot delete skip_bmiss_set_timer");
+#endif /* SEC_CONFIG_WLAN_BEACON_CHECK */
 	hdd_check_for_leaks(hdd_ctx, is_recovery_stop);
 	hdd_debug_domain_set(QDF_DEBUG_DOMAIN_INIT);
 
@@ -13956,12 +13970,6 @@ int hdd_wlan_startup(struct hdd_context *hdd_ctx)
 
 	wlan_hdd_update_11n_mode(hdd_ctx);
 
-#ifdef SEC_CONFIG_WLAN_BEACON_CHECK
-	qdf_mc_timer_init(&hdd_ctx->skip_bmiss_set_timer,
-			  QDF_TIMER_TYPE_SW,
-			  hdd_skip_bmiss_set_timer_handler,
-			  hdd_ctx);
-#endif /* SEC_CONFIG_WLAN_BEACON_CHECK */
 	hdd_lpass_notify_wlan_version(hdd_ctx);
 
 	status = wlansap_global_init();

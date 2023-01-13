@@ -2080,6 +2080,7 @@ typedef enum {
 #define WMI_CHAN_FLAG_DFS_CFREQ2  16 /* Enable radar event reporting for sec80 in VHT80p80 */
 #define WMI_CHAN_FLAG_ALLOW_HE    17 /* HE (11ax) is allowed on this channel */
 #define WMI_CHAN_FLAG_PSC         18 /* Indicate it is a PSC (preferred scanning channel) */
+#define WMI_CHAN_FLAG_NAN_DISABLED 19 /* Indicates that NAN operations are disabled on this channel */
 
 #define WMI_SET_CHANNEL_FLAG(pwmi_channel,flag) do { \
         (pwmi_channel)->info |=  (1 << flag);      \
@@ -3906,6 +3907,32 @@ typedef struct {
     WMI_GET_BITS(host_service_flags, 0, 1)
 #define WMI_RSRC_CFG_HOST_SERVICE_FLAG_NAN_IFACE_SUPPORT_SET(host_service_flags, val) \
     WMI_SET_BITS(host_service_flags, 0, 1, val)
+
+#define WMI_RSRC_CFG_HOST_SERVICE_FLAG_HOST_SUPPORT_MULTI_RADIO_EVTS_PER_RADIO_GET(host_service_flags) \
+    WMI_GET_BITS(host_service_flags, 1, 1)
+#define WMI_RSRC_CFG_HOST_SERVICE_FLAG_HOST_SUPPORT_MULTI_RADIO_EVTS_PER_RADIO_SET(host_service_flags, val) \
+    WMI_SET_BITS(host_service_flags, 1, 1, val)
+
+#define WMI_RSRC_CFG_HOST_SERVICE_FLAG_SPLIT_AST_FEATURE_HOST_SUPPORT_GET(host_service_flags) \
+    WMI_GET_BITS(host_service_flags, 2, 1)
+#define WMI_RSRC_CFG_HOST_SERVICE_FLAG_SPLIT_AST_FEATURE_HOST_SUPPORT_SET(host_service_flags, val) \
+    WMI_SET_BITS(host_service_flags, 2, 1, val)
+
+#define WMI_RSRC_CFG_HOST_SERVICE_FLAG_SAE_EAPOL_OFFLOAD_SUPPORT_GET(host_service_flags) \
+    WMI_GET_BITS(host_service_flags, 3, 1)
+#define WMI_RSRC_CFG_HOST_SERVICE_FLAG_SAE_EAPOL_OFFLOAD_SUPPORT_SET(host_service_flags, val) \
+    WMI_SET_BITS(host_service_flags, 3, 1, val)
+
+#define WMI_RSRC_CFG_HOST_SERVICE_FLAG_REG_CC_EXT_SUPPORT_GET(host_service_flags) \
+    WMI_GET_BITS(host_service_flags, 4, 1)
+#define WMI_RSRC_CFG_HOST_SERVICE_FLAG_REG_CC_EXT_SUPPORT_SET(host_service_flags, val) \
+    WMI_SET_BITS(host_service_flags, 4, 1, val)
+
+#define WMI_RSRC_CFG_HOST_SERVICE_FLAG_NAN_CHANNEL_SUPPORT_GET(host_service_flags) \
+    WMI_GET_BITS(host_service_flags, 5, 1)
+#define WMI_RSRC_CFG_HOST_SERVICE_FLAG_NAN_CHANNEL_SUPPORT_SET(host_service_flags, val) \
+    WMI_SET_BITS(host_service_flags, 5, 1, val)
+
 
 typedef struct {
     A_UINT32 tlv_header; /* TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_init_cmd_fixed_param */

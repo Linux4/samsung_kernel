@@ -33,6 +33,7 @@
 #define CPUFREQ_NAME_LEN		16
 /* Print length for names. Extra 1 space for accommodating '\n' in prints */
 #define CPUFREQ_NAME_PLEN		(CPUFREQ_NAME_LEN + 1)
+#define SCHED_CPUFREQ_FPS (1U << 9)
 
 struct cpufreq_governor;
 
@@ -224,16 +225,10 @@ enum {
 #ifdef CONFIG_USB_AUDIO_ENHANCED_DETECT_TIME
 	DVFS_BOOST_HOST_ID		= 5,
 #endif
+	DVFS_USER_MIN_ID		= 6,
+	DVFS_USER_MAX_ID		= 7,
 	DVFS_MAX_ID
 };
-
-#define DVFS_TOUCH_ID_MASK (1 << DVFS_TOUCH_ID)
-#define DVFS_FINGER_ID_MASK (1 << DVFS_FINGER_ID)
-#define DVFS_MULTI_TOUCH_ID_MASK (1 << DVFS_MULTI_TOUCH_ID)
-#define DVFS_ARGOS_ID_MASK (1 << DVFS_ARGOS_ID)
-#ifdef CONFIG_USB_AUDIO_ENHANCED_DETECT_TIME
-#define DVFS_BOOST_HOST_ID_MASK (1 << DVFS_BOOST_HOST_ID)
-#endif
 
 int set_freq_limit(unsigned long id, unsigned int freq);
 #endif

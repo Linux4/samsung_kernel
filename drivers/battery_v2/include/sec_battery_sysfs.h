@@ -286,6 +286,7 @@ enum {
 	UPDATE_DT_STR,
 	CABLE_CURRENT,
 #endif
+	BATT_FULL_CAPACITY,
 };
 
 #endif /* __SEC_BATTERY_SYSFS_H */

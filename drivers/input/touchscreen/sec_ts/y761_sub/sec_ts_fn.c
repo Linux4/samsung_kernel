@@ -1440,11 +1440,19 @@ static ssize_t read_support_feature(struct device *dev,
 	if (ts->plat_data->sync_reportrate_120)
 		feature |= INPUT_FEATURE_ENABLE_SYNC_RR120;
 
-	input_info(true, &ts->client->dev, "%s: %d%s%s%s\n",
+	if (ts->plat_data->support_open_short_test)
+		feature |= INPUT_FEATURE_SUPPORT_OPEN_SHORT_TEST;
+
+	if (ts->plat_data->support_mis_calibration_test)
+		feature |= INPUT_FEATURE_SUPPORT_MIS_CALIBRATION_TEST;
+
+	input_info(true, &ts->client->dev, "%s: %d%s%s%s%s%s\n",
 			__func__, feature,
 			feature & INPUT_FEATURE_ENABLE_SETTINGS_AOT ? " aot" : "",
 			feature & INPUT_FEATURE_ENABLE_PRESSURE ? " pressure" : "",
-			feature & INPUT_FEATURE_ENABLE_SYNC_RR120 ? " RR120hz" : "");
+			feature & INPUT_FEATURE_ENABLE_SYNC_RR120 ? " RR120hz" : "",
+			feature & INPUT_FEATURE_SUPPORT_OPEN_SHORT_TEST ? " openshort" : "",
+			feature & INPUT_FEATURE_SUPPORT_MIS_CALIBRATION_TEST ? " miscal" : "");
 
 	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", feature);
 }

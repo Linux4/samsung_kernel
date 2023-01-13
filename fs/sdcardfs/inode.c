@@ -22,6 +22,10 @@
 #include <linux/fs_struct.h>
 #include <linux/sched/task.h>
 
+#ifdef CONFIG_RKP_KDP
+#include <linux/cred.h>
+#endif
+
 const struct cred *override_fsids(struct sdcardfs_sb_info *sbi,
 		struct sdcardfs_inode_data *data)
 {
@@ -54,6 +58,10 @@ void revert_fsids(const struct cred *old_cred)
 	const struct cred *cur_cred;
 
 	cur_cred = current->cred;
+#ifdef CONFIG_RKP_KDP
+	if (rkp_ro_page((unsigned long)cur_cred))
+		cur_cred = (const struct cred *)get_rocred_rcu(cur_cred)->reflected_cred;
+#endif
 	revert_creds(old_cred);
 	put_cred(cur_cred);
 }

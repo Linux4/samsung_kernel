@@ -1375,6 +1375,7 @@ int muic_core_handle_detach(struct muic_platform_data *muic_pdata)
 	case ATTACHED_DEV_QC_CHARGER_PREPARE_MUIC:
 	case ATTACHED_DEV_AFC_CHARGER_ERR_V_MUIC:
 	case ATTACHED_DEV_AFC_CHARGER_ERR_V_DUPLI_MUIC:
+	case ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC:
 		ret = muic_core_detach_charger(muic_pdata);
 		MUIC_PDATA_FUNC(muic_if->reset_hvcontrol_reg,muic_pdata->drv_data, &ret);
 		break;
@@ -1425,6 +1426,7 @@ bool muic_core_hv_is_hv_dev(struct muic_platform_data *muic_pdata)
 	case ATTACHED_DEV_HV_ID_ERR_UNDEFINED_MUIC:
 	case ATTACHED_DEV_HV_ID_ERR_UNSUPPORTED_MUIC:
 	case ATTACHED_DEV_HV_ID_ERR_SUPPORTED_MUIC:
+	case ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC:
 		ret = true;
 		break;
 	default:

@@ -3112,7 +3112,7 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	mutex_init(&info->switching_mutex);
 	INIT_DELAYED_WORK(&info->switching_work, fts_switching_work);
 
-	sec_input_register_notify(&info->nb, fts_notifier_call);
+	sec_input_register_notify(&info->nb, fts_notifier_call, 1);
 
 	info->flip_status = -1;
 	info->flip_status_current = FTS_STATUS_UNFOLDING;	// default : 0 unfolding
@@ -3361,7 +3361,7 @@ out:
 	info->flip_status_prev = info->flip_status_current;
 
 	if (!info->board->support_hall_ic)
-		sec_input_notify(&info->nb, SEC_INPUT_CUSTOM_NOTIFIER_MAIN_TOUCH_ON);
+		sec_input_notify(&info->nb, NOTIFIER_MAIN_TOUCH_ON, NULL);
 
 	return 0;
 }
@@ -3431,7 +3431,7 @@ static void fts_input_close(struct input_dev *dev)
 	mutex_unlock(&info->device_mutex);
 
 	if (!info->board->support_hall_ic)
-		sec_input_notify(&info->nb, SEC_INPUT_CUSTOM_NOTIFIER_MAIN_TOUCH_OFF);
+		sec_input_notify(&info->nb, NOTIFIER_MAIN_TOUCH_OFF, NULL);
 }
 #endif
 
@@ -3780,7 +3780,7 @@ static void fts_read_info_work(struct work_struct *work)
 	 * so, 
 	 */
 	if (!info->board->support_hall_ic)
-		sec_input_notify(&info->nb, SEC_INPUT_CUSTOM_NOTIFIER_MAIN_TOUCH_ON);
+		sec_input_notify(&info->nb, NOTIFIER_MAIN_TOUCH_ON, NULL);
 
 	input_info(true, &info->client->dev, "%s done\n", __func__);
 

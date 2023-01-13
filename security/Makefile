@@ -53,3 +53,7 @@ obj-$(CONFIG_GAF)    += proca/gaf/
 
 # MST driver
 obj-$(CONFIG_MST_LDO)	  += mstdrv/
+
+# QRNG
+subdir-$(CONFIG_HW_RANDOM_S2Q000) 	+= qrng/s2q000
+obj-$(CONFIG_HW_RANDOM_S2Q000)		+= qrng/s2q000/

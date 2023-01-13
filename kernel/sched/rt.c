@@ -1751,6 +1751,9 @@ static int rt_energy_aware_wake_cpu(struct task_struct *task)
 	struct sched_domain *sd;
 	struct sched_group *sg;
 	struct cpumask *lowest_mask = this_cpu_cpumask_var_ptr(local_cpu_mask);
+#ifdef CONFIG_PERF_MGR
+	struct cpumask tmp_mask;
+#endif
 	int cpu, best_cpu = -1;
 	unsigned long best_capacity = ULONG_MAX;
 	unsigned long util, best_cpu_util = ULONG_MAX;
@@ -1762,6 +1765,10 @@ static int rt_energy_aware_wake_cpu(struct task_struct *task)
 	bool boost_on_big = sched_boost() == FULL_THROTTLE_BOOST ?
 				  (sched_boost_policy() == SCHED_BOOST_ON_BIG) :
 				  false;
+
+#ifdef CONFIG_PERF_MGR
+	boost_on_big = boost_on_big || task->drawing_mig_boost;
+#endif
 
 	rcu_read_lock();
 
@@ -1780,8 +1787,16 @@ retry:
 		int capacity_orig = capacity_orig_of(fcpu);
 
 		if (boost_on_big) {
-			if (is_min_capacity_cpu(fcpu))
+			if (is_min_capacity_cpu(fcpu)) {
 				continue;
+			} else {
+#ifdef CONFIG_PERF_MGR
+				if (task->drawing_mig_boost) {
+					cpumask_or(&tmp_mask, &tmp_mask, sched_group_span(sg));
+					lowest_mask = &tmp_mask;
+				}
+#endif
+			}
 		} else {
 			if (capacity_orig > best_capacity)
 				continue;
@@ -1796,8 +1811,19 @@ retry:
 
 			util = cpu_util(cpu);
 
+#ifdef CONFIG_PERF_MGR
+			if (task->drawing_mig_boost) {
+				if (capacity_orig_of(cpu) < util + tutil) {
+					continue;
+				}
+			} else {
+				if (__cpu_overutilized(cpu, util + tutil))
+					continue;
+			}
+#else
 			if (__cpu_overutilized(cpu, tutil))
 				continue;
+#endif
 
 			/* Find the least loaded CPU */
 			if (util > best_cpu_util)
@@ -1880,8 +1906,13 @@ static int find_lowest_rq(struct task_struct *task)
 	 * We prioritize the last cpu that the task executed on since
 	 * it is most likely cache-hot in that location.
 	 */
+#ifdef CONFIG_PERF_MGR
+	if (task->drawing_mig_boost || cpumask_test_cpu(cpu, lowest_mask))
+		return cpu;
+#else
 	if (cpumask_test_cpu(cpu, lowest_mask))
 		return cpu;
+#endif
 
 	/*
 	 * Otherwise, we consult the sched_domains span maps to figure
@@ -1935,6 +1966,7 @@ static struct rq *find_lock_lowest_rq(struct task_struct *task, struct rq *rq)
 	struct rq *lowest_rq = NULL;
 	int tries;
 	int cpu;
+	bool cpu_allow_check = true;
 
 	for (tries = 0; tries < RT_MAX_TRIES; tries++) {
 		cpu = find_lowest_rq(task);
@@ -1962,7 +1994,13 @@ static struct rq *find_lock_lowest_rq(struct task_struct *task, struct rq *rq)
 			 * migrated already or had its affinity changed.
 			 * Also make sure that it wasn't scheduled on its rq.
 			 */
+			cpu_allow_check = cpumask_test_cpu(lowest_rq->cpu, &task->cpus_allowed);
+#ifdef CONFIG_PERF_MGR
+			if (task->drawing_mig_boost)
+				cpu_allow_check = cpu_active(cpu);
+#endif
 			if (unlikely(task_rq(task) != rq ||
+				     !cpu_allow_check ||
 				     !cpumask_test_cpu(lowest_rq->cpu, &task->cpus_allowed) ||
 				     task_running(rq, task) ||
 				     !rt_task(task) ||

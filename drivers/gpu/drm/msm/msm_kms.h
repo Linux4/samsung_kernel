@@ -43,7 +43,7 @@
 /* Request to switch the panel mode */
 #define MSM_MODE_FLAG_SEAMLESS_POMS			(1<<5)
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 enum mdss_intf_events {
 	SS_EVENT_FRAME_UPDATE_POST = 0,
 	SS_EVENT_FRAME_UPDATE_PRE,
@@ -141,7 +141,7 @@ struct msm_kms_funcs {
 			const struct drm_display_mode *mode,
 			u32 mode_max_width, u32 *num_lm);
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	int (*ss_callback)(int display_ndx,
 			enum mdss_intf_events event, void *arg);
 #endif

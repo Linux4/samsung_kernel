@@ -45,6 +45,7 @@ struct cirrus_bd_t {
 	struct cirrus_mfd_amp *amps;
 	int num_amps;
 	const char *bd_suffixes[CIRRUS_MAX_AMPS];
+	int max_temp_limit[CIRRUS_MAX_AMPS];
 	unsigned int max_exc[CIRRUS_MAX_AMPS];
 	unsigned int over_exc_count[CIRRUS_MAX_AMPS];
 	unsigned int max_temp[CIRRUS_MAX_AMPS];
@@ -90,7 +91,7 @@ struct cirrus_mfd_amp *cirrus_bd_get_amp_from_suffix(const char *suffix)
 }
 
 int cirrus_bd_amp_add(struct regmap *regmap_new, const char *mfd_suffix,
-					const char *dsp_part_name)
+					const char *dsp_part_name, int bd_max_temp)
 {
 	struct cirrus_mfd_amp *amp = cirrus_bd_get_amp_from_suffix(mfd_suffix);
 
@@ -101,6 +102,11 @@ int cirrus_bd_amp_add(struct regmap *regmap_new, const char *mfd_suffix,
 				mfd_suffix, dsp_part_name);
 			amp->regmap = regmap_new;
 			amp->dsp_part_name = dsp_part_name;
+			if (bd_max_temp > 0)
+				cirrus_bd->max_temp_limit[amp->index] =
+								bd_max_temp - 1;
+			else
+				cirrus_bd->max_temp_limit[amp->index] = 99;
 		} else {
 			dev_err(cirrus_bd->dev,
 				"No amp with suffix %s registered\n",
@@ -136,9 +142,11 @@ void cirrus_bd_store_values(const char *mfd_suffix)
 	regmap_read(regmap, CS35L41_BD_ABNORMAL_MUTE,
 			&abnm_mute);
 
-	if (max_temp > (99 * (1 << CS35L41_BD_TEMP_RADIX)) &&
+	if (max_temp > (cirrus_bd->max_temp_limit[amp->index] *
+			(1 << CS35L41_BD_TEMP_RADIX)) &&
 		over_temp_count == 0)
-		max_temp = (99 * (1 << CS35L41_BD_TEMP_RADIX));
+		max_temp = (cirrus_bd->max_temp_limit[amp->index] *
+			    (1 << CS35L41_BD_TEMP_RADIX));
 
 	cirrus_bd->over_temp_count[amp->index] += over_temp_count;
 	cirrus_bd->over_exc_count[amp->index] += over_exc_count;

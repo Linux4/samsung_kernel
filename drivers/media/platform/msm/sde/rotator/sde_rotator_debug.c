@@ -57,7 +57,7 @@
 
 #define SDE_ROT_TEST_MASK(id, tp)	((id << 4) | (tp << 1) | BIT(0))
 
-#ifdef CONFIG_DISPLAY_SAMSUNG
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 /**
  * To pulling out 256 * 4 eventlog line & print to kernel log
  */

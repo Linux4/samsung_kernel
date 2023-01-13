@@ -91,6 +91,10 @@
 #define HDD_SSR_BRING_UP_TIME 30000
 #endif
 
+#ifdef SEC_CONFIG_POWER_BACKOFF
+extern int cur_sec_sar_index;
+#endif /* SEC_CONFIG_POWER_BACKOFF */
+
 /* Type declarations */
 
 #ifdef FEATURE_WLAN_DIAG_SUPPORT

@@ -61,6 +61,17 @@ struct cam_smmu_work_payload {
 	struct list_head list;
 };
 
+struct cam_smmu_saved_info {
+	int ion_fd;
+	unsigned long FAR_addr;
+	size_t mapping_len;
+	size_t closest_mapping_len;
+	unsigned long closest_mapping_paddr;
+	unsigned long closest_mapping_end_addr;
+	struct dma_buf closest_mapping_buf;
+	uint32_t buf_handle;
+}saved_info;
+
 enum cam_protection_type {
 	CAM_PROT_INVALID,
 	CAM_NON_SECURE,
@@ -388,6 +399,15 @@ end:
 			(unsigned long)closest_mapping->paddr + mapping->len,
 			closest_mapping->buf,
 			buf_handle);
+		saved_info.ion_fd = closest_mapping->ion_fd;
+		saved_info.FAR_addr = current_addr;
+		saved_info.mapping_len = mapping->len;
+		saved_info.closest_mapping_len = closest_mapping->len;
+		saved_info.closest_mapping_paddr = (unsigned long)closest_mapping->paddr;
+		saved_info.closest_mapping_end_addr = saved_info.closest_mapping_paddr +
+				(unsigned long)saved_info.mapping_len;
+		memcpy(&saved_info.closest_mapping_buf, closest_mapping->buf, sizeof(struct dma_buf));
+		saved_info.buf_handle = buf_handle;
 	} else
 		CAM_INFO(CAM_SMMU,
 			"Cannot find vaddr:%lx in SMMU %s virt address",

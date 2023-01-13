@@ -398,7 +398,7 @@ static struct clk_rcg2 disp_cc_mdss_byte1_clk_src = {
 };
 
 static const struct freq_tbl ftbl_disp_cc_mdss_dp_aux1_clk_src[] = {
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	F(12800000, P_BI_TCXO, 1.5, 0, 0),
 #endif
 	F(19200000, P_BI_TCXO, 1, 0, 0),

@@ -1551,6 +1551,27 @@ int pinctrl_pm_select_idle_state(struct device *dev)
 EXPORT_SYMBOL_GPL(pinctrl_pm_select_idle_state);
 #endif
 
+#if defined(CONFIG_SEC_PM)
+void sec_gpio_debug_print(void)
+{
+	struct pinctrl_dev *pctldev;
+	const struct pinconf_ops *confops;
+
+	mutex_lock(&pinctrldev_list_mutex);
+
+	list_for_each_entry(pctldev, &pinctrldev_list, node) {
+		confops = pctldev->desc->confops;
+		if (confops && confops->pin_config_sec_dbg_print) {
+			pr_info("%s\n", pctldev->desc->name);
+			confops->pin_config_sec_dbg_print(pctldev);
+		}
+	}
+
+	mutex_unlock(&pinctrldev_list_mutex);
+}
+EXPORT_SYMBOL_GPL(sec_gpio_debug_print);
+#endif
+
 #ifdef CONFIG_DEBUG_FS
 
 static int pinctrl_pins_show(struct seq_file *s, void *what)
@@ -1809,25 +1830,6 @@ static int sec_gpio_debug_show(struct seq_file *s, void *what)
 
 	return 0;
 }
-
-void sec_gpio_debug_print(void)
-{
-	struct pinctrl_dev *pctldev;
-	const struct pinconf_ops *confops;
-
-	mutex_lock(&pinctrldev_list_mutex);
-
-	list_for_each_entry(pctldev, &pinctrldev_list, node) {
-		confops = pctldev->desc->confops;
-		if (confops && confops->pin_config_sec_dbg_print) {
-			pr_info("%s\n", pctldev->desc->name);
-			confops->pin_config_sec_dbg_print(pctldev);
-		}
-	}
-
-	mutex_unlock(&pinctrldev_list_mutex);
-}
-EXPORT_SYMBOL_GPL(sec_gpio_debug_print);
 #endif
 
 static int pinctrl_pins_open(struct inode *inode, struct file *file)

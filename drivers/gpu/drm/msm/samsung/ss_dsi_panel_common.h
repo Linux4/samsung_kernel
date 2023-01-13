@@ -724,6 +724,10 @@ struct samsung_display_debug_data {
 	bool print_cmds;
 	bool *is_factory_mode;
 	bool panic_on_pptimeout;
+
+	/* misc */
+	struct miscdevice dev;
+	bool report_once;
 };
 
 struct self_display {

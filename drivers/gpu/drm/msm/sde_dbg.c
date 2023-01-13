@@ -24,7 +24,7 @@
 #include "sde_dbg.h"
 #include "sde/sde_hw_catalog.h"
 #include "msm_drv.h"
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 #include "ss_dsi_panel_common.h"
 #endif
 
@@ -83,7 +83,7 @@
 #define DUMP_LINE_SIZE			256
 #define DUMP_MAX_LINES_PER_BLK		512
 
-#ifdef CONFIG_DISPLAY_SAMSUNG
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 /**
  * To print in kernel log
  */
@@ -4028,7 +4028,7 @@ static void _sde_dump_array(struct sde_dbg_reg_base *blk_arr[],
 		dsi_ctrl_debug_dump(sde_dbg_base.dbgbus_dsi.entries,
 				    sde_dbg_base.dbgbus_dsi.size);
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	if (do_panic && sde_dbg_base.panic_on_err)
 		ss_store_xlog_panic_dbg();
 #endif
@@ -4187,7 +4187,47 @@ void sde_dbg_ctrl(const char *name, ...)
 	va_end(args);
 }
 
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+void ss_sde_dbg_debugfs_open(void)
+{
+	mutex_lock(&sde_dbg_base.mutex);
+	sde_dbg_base.cur_evt_index = 0;
+	sde_dbg_base.evtlog->first = sde_dbg_base.evtlog->curr + 1;
+	sde_dbg_base.evtlog->last =
+		sde_dbg_base.evtlog->first + SDE_EVTLOG_ENTRY;
+	mutex_unlock(&sde_dbg_base.mutex);
+}
 
+ssize_t ss_sde_evtlog_dump_read(struct file *file, char __user *buff,
+		size_t count, loff_t *ppos)
+{
+	ssize_t len = 0;
+	char evtlog_buf[SDE_EVTLOG_BUF_MAX];
+
+	if (!buff || !ppos)
+		return -EINVAL;
+
+	mutex_lock(&sde_dbg_base.mutex);
+	len = sde_evtlog_dump_to_buffer(sde_dbg_base.evtlog,
+			evtlog_buf, SDE_EVTLOG_BUF_MAX,
+			!sde_dbg_base.cur_evt_index, true);
+	sde_dbg_base.cur_evt_index++;
+	mutex_unlock(&sde_dbg_base.mutex);
+
+	if (len < 0 || len > count) {
+		pr_err("len is more than user buffer size\n");
+		return 0;
+	}
+
+	if (copy_to_user(buff, evtlog_buf, len))
+		return -EFAULT;
+	*ppos += len;
+
+	return len;
+}
+#endif
+
+#ifdef CONFIG_DEBUG_FS
 /*
  * sde_dbg_debugfs_open - debugfs open handler for evtlog dump
  * @inode: debugfs inode
@@ -5102,7 +5142,7 @@ int sde_dbg_debugfs_register(struct device *dev)
 
 	debugfs_create_file("dbg_ctrl", 0600, debugfs_root, NULL,
 			&sde_dbg_ctrl_fops);
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	debugfs_create_file("dump", 0644, debugfs_root, NULL,
 #else
 	debugfs_create_file("dump", 0600, debugfs_root, NULL,
@@ -5156,6 +5196,14 @@ int sde_dbg_debugfs_register(struct device *dev)
 
 	return 0;
 }
+#else
+
+int sde_dbg_debugfs_register(struct device *dev)
+{
+	return 0;
+}
+
+#endif
 
 static void _sde_dbg_debugfs_destroy(void)
 {
@@ -5229,7 +5277,7 @@ int sde_dbg_init(struct device *dev, struct sde_dbg_power_ctrl *power_ctrl)
 
 	INIT_WORK(&sde_dbg_base.dump_work, _sde_dump_work);
 	sde_dbg_base.work_panic = false;
-#if defined(CONFIG_DISPLAY_SAMSUNG) && defined(CONFIG_SEC_DEBUG)
+#if (defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)) && defined(CONFIG_SEC_DEBUG)
 	if (sec_debug_is_enabled())
 		sde_dbg_base.panic_on_err = DEFAULT_PANIC;
 	else

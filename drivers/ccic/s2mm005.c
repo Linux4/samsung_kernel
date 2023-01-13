@@ -1261,7 +1261,9 @@ static int s2mm005_usbpd_probe(struct i2c_client *i2c,
 	struct i2c_adapter *adapter = to_i2c_adapter(i2c->dev.parent);
 	struct s2mm005_data *usbpd_data;
 	int ret = 0;
+#ifdef CONFIG_CCIC_LPM_ENABLE
 	u8 check[8] = {0,};
+#endif
 	uint16_t REG_ADD;
 	uint8_t MSG_BUF[32] = {0,};
 	SINK_VAR_SUPPLY_Typedef *pSINK_MSG;

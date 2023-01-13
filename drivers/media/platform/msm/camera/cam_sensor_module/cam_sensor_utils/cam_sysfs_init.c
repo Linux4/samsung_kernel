@@ -200,7 +200,11 @@ static ssize_t rear_type_show(struct device *dev,
 #else
 	char cam_type_lsi[] = "SLSI_SAK2L4SX\n";
 #endif
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+	char cam_type_sony[] = "SONY_IMX682\n";
+#else
 	char cam_type_sony[] = "SONY_IMX345\n";
+#endif
 
 	if (cam_fw_ver[4] == 'L')
 		rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type_lsi);
@@ -489,17 +493,16 @@ static ssize_t rear_afcal_show(struct device *dev,
 {
 	int rc = 0;
 
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
-	pr_info("rear3_af_cal_str : 10 %s\n", rear_af_cal_str);
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+	rc = scnprintf(buf, PAGE_SIZE, "20 %s", rear_af_cal_str);
+#elif defined(CONFIG_SAMSUNG_REAR_TRIPLE)
 	rc = scnprintf(buf, PAGE_SIZE, "10 %s", rear_af_cal_str);
-	if (rc)
-		return rc;
 #else
-	pr_info("rear3_af_cal_str : 1 %s\n", rear_af_cal_str);
 	rc = scnprintf(buf, PAGE_SIZE, "1 %s", rear_af_cal_str);
+#endif
+	pr_info("rear_af_cal_str : %s\n", buf);
 	if (rc)
 		return rc;
-#endif
 
 	return 0;
 }
@@ -728,6 +731,8 @@ static ssize_t front_camera_afcal_show(struct device *dev,
 	rc = scnprintf(buf, PAGE_SIZE, "1 %d %d\n", front_af_cal_macro, front_af_cal_pan);
 #ifdef CONFIG_SEC_BLOOMQ_PROJECT
 	rc = scnprintf(buf, PAGE_SIZE, "1 %c %c\n", 'N', 'N');
+#elif defined(CONFIG_SEC_A82XQ_PROJECT)
+	rc = scnprintf(buf, PAGE_SIZE, "20 %d %d\n", front_af_cal_macro, front_af_cal_pan);
 #endif
 	if (rc)
 		return rc;
@@ -1185,10 +1190,10 @@ static ssize_t front3_camera_moduleid_show(struct device *dev,
 
 #if defined(CONFIG_SEC_R3Q_PROJECT)
 char supported_camera_ids[] = {
-        0,   //REAR_0,
-        1,   //FRONT_1
-	50,  // REAR_UW
-        52,  // REAR_DEPTH
+    0,   //REAR_0,
+    1,   //FRONT_1
+    50,  // REAR_UW
+    52,  // REAR_DEPTH
 };
 #elif defined(CONFIG_SEC_BLOOMQ_PROJECT)
 char supported_camera_ids[] = {
@@ -1196,6 +1201,52 @@ char supported_camera_ids[] = {
     3,
     23,
     50,
+};
+#elif defined(CONFIG_SEC_A82XQ_PROJECT)
+char supported_camera_ids[] = {
+    0,  //REAR_0,
+    3,  //FRONT_FULL_FOV
+    23, //DUAL_REAR_ZOOM
+    50, //REAR_2ND = Rear UW
+    54, // Macro Sensor
+};
+#elif defined(CONFIG_SEC_BEYOND2QLTE_PROJECT) || defined(CONFIG_SEC_WINNERLTE_PROJECT) || defined(CONFIG_SEC_WINNERX_PROJECT)
+char supported_camera_ids[] = {
+	0,  //REAR_0
+	3,  //FRONT_FULL_FOV
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+	20, //DUAL_REAR_ZOOM
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+	21, //DUAL_REAR_PORTRAIT
+#endif
+#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
+	22, //DUAL_FRONT_PORTRAIT
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_DUAL) || defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+	23, //DUAL_REAR_PORTRAIT, SW and W
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_DUAL) || defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+	50, //REAR_2ND
+#endif
+#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
+	51, //FRONT_2ND
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+	52, //REAR_3RD
+#endif
+#if defined(CONFIG_SAMSUNG_FRONT_TOP)
+	71, //FRONT_TOP
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_TOF)
+	80, //REAR_TOF
+#endif
+#if defined(CONFIG_SAMSUNG_FRONT_TOF)
+	81, //FRONT_TOF
+#endif
+#if defined(CONFIG_SAMSUNG_SECURE_CAMERA)
+	90,  //IRIS
+#endif
 };
 #else
 char supported_camera_ids[] = {
@@ -1837,6 +1888,53 @@ static ssize_t ois_supperssion_ratio_rear_show(struct device *dev,
 
 #endif //defined(CONFIG_SAMSUNG_OIS_RUMBA_S4)
 
+#if defined(CONFIG_SAMSUNG_REAR_MACRO)
+char cam3_fw_user_ver[SYSFS_FW_VER_SIZE] = "NULL\n";//multi module
+static ssize_t rear3_firmware_user_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+
+	pr_info("[FW_DBG] cam3_fw_user_ver : %s\n", cam3_fw_user_ver);
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cam3_fw_user_ver);
+	if (rc)
+		return rc;
+	return 0;
+}
+
+static ssize_t rear3_firmware_user_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+
+	pr_info("[FW_DBG] buf : %s\n", buf);
+	scnprintf(cam3_fw_user_ver, sizeof(cam3_fw_user_ver), "%s", buf);
+
+	return size;
+}
+
+char cam3_fw_factory_ver[SYSFS_FW_VER_SIZE] = "NULL\n";//multi module
+static ssize_t rear3_firmware_factory_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+
+	pr_info("[FW_DBG] cam3_fw_factory_ver : %s\n", cam3_fw_factory_ver);
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cam3_fw_factory_ver);
+	if (rc)
+		return rc;
+	return 0;
+}
+
+static ssize_t rear3_firmware_factory_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	pr_info("[FW_DBG] buf : %s\n", buf);
+	scnprintf(cam3_fw_factory_ver, sizeof(cam3_fw_factory_ver), "%s", buf);
+
+	return size;
+}
+#endif
+
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
 char cam3_fw_ver[SYSFS_FW_VER_SIZE] = "NULL NULL\n";//multi module
 static ssize_t rear3_firmware_show(struct device *dev,
@@ -1888,9 +1986,12 @@ static ssize_t rear3_afcal_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	int rc = 0;
-
-	pr_info("rear3_af_cal_str : 10 %s\n", rear3_af_cal_str);
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+	rc = scnprintf(buf, PAGE_SIZE, "20 %s", rear3_af_cal_str);
+#else
 	rc = scnprintf(buf, PAGE_SIZE, "10 %s", rear3_af_cal_str);
+#endif
+	pr_info("rear3_af_cal_str : %s\n", buf);
 	if (rc)
 		return rc;
 	return 0;
@@ -2003,6 +2104,8 @@ static ssize_t rear3_type_show(struct device *dev,
 #elif defined(CONFIG_SEC_D2XQ_PROJECT) || defined(CONFIG_SEC_D2Q_PROJECT) || defined(CONFIG_SEC_D1Q_PROJECT)\
 	|| defined(CONFIG_SEC_D2XQ2_PROJECT)
 	char cam_type[] = "SLSI_S5K3M5\n";
+#elif defined(CONFIG_SEC_A82XQ_PROJECT)
+	char cam_type[] = "SLSI_GC5035\n";
 #else
 	char cam_type[] = "SLSI_S5K3M3\n";
 #endif
@@ -2134,7 +2237,7 @@ static ssize_t rear3_tilt_show(struct device *dev,
 #endif
 
 uint8_t rear3_module_id[FROM_MODULE_ID_SIZE + 1] = "\0";
-#if 0
+#if defined(CONFIG_SAMSUNG_REAR_MACRO)
 static ssize_t rear3_moduleid_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -2443,6 +2546,8 @@ static ssize_t rear2_type_show(struct device *dev,
 	int rc = 0;
 #if defined(CONFIG_SEC_GTS5L_PROJECT) || defined(CONFIG_SEC_GTS5LWIFI_PROJECT) || defined(CONFIG_SEC_GTS6L_PROJECT) || defined(CONFIG_SEC_GTS6X_PROJECT) || defined(CONFIG_SEC_GTS6LWIFI_PROJECT)
 	char cam_type[] = "SLSI_S5K5E9\n";
+#elif defined(CONFIG_SEC_A82XQ_PROJECT)
+	char cam_type[] = "SLSI_S5K3L6\n";
 #else
 	char cam_type[] = "SLSI_S5K3P9\n";
 #endif
@@ -2521,7 +2626,7 @@ static ssize_t ois_autotest_store(struct device *dev,
 	return size;
 }
 
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 static ssize_t ois_autotest_2nd_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -2845,7 +2950,7 @@ static ssize_t ois_gain_rear_show(struct device *dev,
 	return 0;
 }
 
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 extern uint8_t ois_tele_xygg[OIS_XYGG_SIZE];
 extern uint8_t ois_tele_cal_mark;
 int ois_gain_rear3_result = 2; //0:normal, 1: No cal, 2: rear cal fail
@@ -2897,7 +3002,7 @@ static ssize_t ois_supperssion_ratio_rear_show(struct device *dev,
 	return 0;
 }
 
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 extern uint8_t ois_tele_xysr[OIS_XYSR_SIZE];
 int ois_sr_rear3_result = 2; //0:normal, 1: No cal, 2: rear cal fail
 static ssize_t ois_supperssion_ratio_rear3_show(struct device *dev,
@@ -5940,7 +6045,14 @@ static DEVICE_ATTR(iris_caminfo, S_IRUGO|S_IWUSR|S_IWGRP,
 	iris_camera_info_show, iris_camera_info_store);
 #endif
 #endif
-
+#if defined(CONFIG_SAMSUNG_REAR_MACRO)
+static DEVICE_ATTR(rear3_checkfw_user, S_IRUGO|S_IWUSR|S_IWGRP,
+	rear3_firmware_user_show, rear3_firmware_user_store);
+static DEVICE_ATTR(rear3_checkfw_factory, S_IRUGO|S_IWUSR|S_IWGRP,
+	rear3_firmware_factory_show, rear3_firmware_factory_store);
+static DEVICE_ATTR(rear3_moduleid, S_IRUGO|S_IWUSR|S_IWGRP,
+	rear3_moduleid_show, NULL);
+#endif
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
 static DEVICE_ATTR(rear3_camfw, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear3_firmware_show, rear3_firmware_store);
@@ -6029,7 +6141,7 @@ static DEVICE_ATTR(front3_hwparam, S_IRUGO|S_IWUSR|S_IWGRP,
 #if defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
 static DEVICE_ATTR(ois_power, S_IWUSR, NULL, ois_power_store);
 static DEVICE_ATTR(autotest, S_IRUGO|S_IWUSR|S_IWGRP, ois_autotest_show, ois_autotest_store);
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 static DEVICE_ATTR(autotest_2nd, S_IRUGO|S_IWUSR|S_IWGRP, ois_autotest_2nd_show, ois_autotest_2nd_store);
 #endif
 static DEVICE_ATTR(calibrationtest, S_IRUGO, gyro_calibration_show, NULL);
@@ -6038,11 +6150,11 @@ static DEVICE_ATTR(ois_rawdata, S_IRUGO, gyro_rawdata_test_show, NULL);
 static DEVICE_ATTR(oisfw, S_IRUGO|S_IWUSR|S_IWGRP, ois_fw_full_show, ois_fw_full_store);
 static DEVICE_ATTR(ois_exif, S_IRUGO|S_IWUSR|S_IWGRP, ois_exif_show, ois_exif_store);
 static DEVICE_ATTR(ois_gain_rear, S_IRUGO, ois_gain_rear_show, NULL);
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 static DEVICE_ATTR(ois_gain_rear3, S_IRUGO, ois_gain_rear3_show, NULL);
 #endif
 static DEVICE_ATTR(ois_supperssion_ratio_rear, S_IRUGO, ois_supperssion_ratio_rear_show, NULL);
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 static DEVICE_ATTR(ois_supperssion_ratio_rear3, S_IRUGO, ois_supperssion_ratio_rear3_show, NULL);
 #endif
 static DEVICE_ATTR(reset_check, S_IRUGO, ois_reset_check, NULL);
@@ -6642,6 +6754,23 @@ static int __init cam_sysfs_init(void)
 	}
 #endif
 #endif
+#if defined(CONFIG_SAMSUNG_REAR_MACRO)	
+	if (device_create_file(cam_dev_rear, &dev_attr_rear3_checkfw_user) < 0) {
+		pr_err("Failed to create device file!(%s)!\n",
+			dev_attr_rear3_checkfw_user.attr.name);
+		ret = -ENODEV;
+	}
+	if (device_create_file(cam_dev_rear, &dev_attr_rear3_checkfw_factory) < 0) {
+		pr_err("Failed to create device file!(%s)!\n",
+			dev_attr_rear3_checkfw_factory.attr.name);
+		ret = -ENODEV;
+	}
+	if (device_create_file(cam_dev_rear, &dev_attr_rear3_moduleid) < 0) {
+		printk("Failed to create device file!(%s)!\n",
+			dev_attr_rear3_moduleid.attr.name);
+		ret = -ENODEV;
+	}
+#endif
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
 	if (device_create_file(cam_dev_rear, &dev_attr_rear3_camfw) < 0) {
 		pr_err("Failed to create device file!(%s)!\n",
@@ -6777,7 +6906,6 @@ static int __init cam_sysfs_init(void)
 		ret = -ENODEV;
 	}
 #endif
-
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 	if (device_create_file(cam_dev_rear, &dev_attr_rear_hwparam) < 0) {
 		pr_err("Failed to create device file!(%s)!\n",
@@ -6880,7 +7008,7 @@ static int __init cam_sysfs_init(void)
 		ret = -ENODEV;
 	}
 
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 	if (device_create_file(cam_dev_ois, &dev_attr_autotest_2nd) < 0) {
 		pr_err("Failed to create device file, %s\n",
 			dev_attr_autotest_2nd.attr.name);
@@ -6922,7 +7050,7 @@ static int __init cam_sysfs_init(void)
 		ret = -ENODEV;
 	}
 
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 	if (device_create_file(cam_dev_ois, &dev_attr_ois_gain_rear3) < 0) {
 		pr_err("Failed to create device file,%s\n",
 			dev_attr_ois_gain_rear3.attr.name);
@@ -6936,7 +7064,7 @@ static int __init cam_sysfs_init(void)
 		ret = -ENODEV;
 	}
 
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 	if (device_create_file(cam_dev_ois, &dev_attr_ois_supperssion_ratio_rear3) < 0) {
 		pr_err("Failed to create device file,%s\n",
 			dev_attr_ois_supperssion_ratio_rear3.attr.name);

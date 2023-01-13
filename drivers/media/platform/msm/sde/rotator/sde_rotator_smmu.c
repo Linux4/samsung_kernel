@@ -37,6 +37,10 @@
 #include <linux/delay.h>
 #include "../../../../../gpu/drm/msm/samsung/ss_dsi_panel_debug.h"
 #include <linux/sec_debug.h>
+#elif defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+#include <linux/delay.h>
+#include "../../../../../gpu/drm/msm/samsung_lego/ss_dsi_panel_debug.h"
+#include <linux/sec_debug.h>
 #endif
 
 #define SMMU_SDE_ROT_SEC	"qcom,smmu_sde_rot_sec"
@@ -352,7 +356,7 @@ int sde_smmu_map_dma_buf(struct dma_buf *dma_buf,
 	struct sde_smmu_client *sde_smmu = sde_smmu_get_cb(domain);
 	unsigned long attrs = 0;
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	int retry_cnt;
 #endif
 
@@ -363,7 +367,7 @@ int sde_smmu_map_dma_buf(struct dma_buf *dma_buf,
 
 	rc = dma_map_sg_attrs(sde_smmu->dev, table->sgl, table->nents, sde_smmu_set_dma_direction(dir),
 			attrs);
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	if (!in_interrupt()) {
 		if (!rc) {
 			for (retry_cnt = 0; retry_cnt < 62 ; retry_cnt++) {
@@ -389,7 +393,7 @@ int sde_smmu_map_dma_buf(struct dma_buf *dma_buf,
 	*iova = table->sgl->dma_address;
 	*size = table->sgl->dma_length;
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	if (sec_debug_is_enabled())
 		ss_smmu_debug_map(SMMU_NRT_ROTATOR_DEBUG, table);
 #endif
@@ -406,7 +410,7 @@ void sde_smmu_unmap_dma_buf(struct sg_table *table, int domain,
 		return;
 	}
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	if (sec_debug_is_enabled())
 		ss_smmu_debug_unmap(SMMU_NRT_ROTATOR_DEBUG, table);
 #endif
@@ -574,7 +578,7 @@ static int sde_smmu_fault_handler(struct iommu_domain *domain,
 			iova, flags);
 	SDEROT_ERR("SMMU device:%s", sde_smmu->dev->kobj.name);
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	ss_smmu_debug_log();
 #endif
 	/* generate dump, but no panic */

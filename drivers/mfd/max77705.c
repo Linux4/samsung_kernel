@@ -33,6 +33,8 @@
 #include <linux/ccic/max77705C_pass2_PID04.h>
 #elif defined(CONFIG_SEC_R3Q_PROJECT) || defined(CONFIG_SEC_BLOOMQ_PROJECT)
 #include <linux/ccic/max77705C_pass2_PID05.h>
+#elif defined(CONFIG_SEC_A82XQ_PROJECT)
+#include <linux/ccic/max77705C_pass2_PID07.h>
 #else
 #include <linux/ccic/max77705C_pass2.h>
 #endif
@@ -953,6 +955,19 @@ static u8 max77705_revision_check(u8 pmic_id, u8 pmic_rev) {
 	}
 	return logical_id;
 }
+
+void max77705_register_pdmsg_func(struct max77705_dev *max77705,
+	void (*check_pdmsg)(void *data, u8 pdmsg), void *data)
+{
+	if (!max77705) {
+		pr_err("%s max77705 is null\n", __func__);
+		return;
+	}
+
+	max77705->check_pdmsg = check_pdmsg;
+	max77705->usbc_data = data;
+}
+EXPORT_SYMBOL_GPL(max77705_register_pdmsg_func);
 
 static int max77705_i2c_probe(struct i2c_client *i2c,
 				const struct i2c_device_id *dev_id)

@@ -452,7 +452,11 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 		rc = cam_sensor_get_dt_camera_info(of_node, rear2_cam_info);
 #endif
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+	else if (s_ctrl->id == CAMERA_10)
+#else
 	else if (s_ctrl->id == CAMERA_4)
+#endif
 		rc = cam_sensor_get_dt_camera_info(of_node, rear3_cam_info);
 #endif
 #if defined(CONFIG_SAMSUNG_SECURE_CAMERA)

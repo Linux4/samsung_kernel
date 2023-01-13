@@ -96,7 +96,11 @@ enum registers1 {
 #define SX9360_STAT_COMPSTAT_ALL_FLAG ( SX9360_STAT_COMPSTAT_PHM | SX9360_STAT_COMPSTAT_PHR )
 
 /* Who Am I */
+#ifdef CONFIG_SENSORS_SX9364
+#define WHO_AM_I 100 // 0x64
+#else
 #define WHO_AM_I 96 // 0x60
+#endif
 
 struct smtc_reg_data {
     unsigned char reg;

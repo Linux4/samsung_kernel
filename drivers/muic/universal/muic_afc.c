@@ -110,6 +110,7 @@ int muic_disable_afc(int disable)
 	} else {
 		/*  AFC enable state */
 		if ((gpmuic->attached_dev == ATTACHED_DEV_AFC_CHARGER_5V_MUIC) ||
+				(gpmuic->attached_dev == ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC) ||
 				((gpmuic->is_afc_device) && (gpmuic->attached_dev != ATTACHED_DEV_AFC_CHARGER_9V_MUIC)))
 			muic_restart_afc(1);
 		return 1;
@@ -292,7 +293,7 @@ int muic_dpreset_afc(void)
 
 		muic_afc_delay_check_state(0);
 
-		afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_ENQC20, 0);		
+		afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_ENQC20, 0);
 
 		// DP_RESET
 		pr_info("%s:AFC Disable \n", __func__);
@@ -419,7 +420,7 @@ static void muic_afc_retry_work(struct work_struct *work)
 
 		muic_afc_delay_check_state(0);
 
-		afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_ENQC20, 0);		
+		afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_ENQC20, 0);
 
 		pr_info("%s: [MUIC] devtype is afc prepare - Disable AFC\n", __func__);
 		afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_DIS_AFC, 1);
@@ -764,6 +765,8 @@ static ssize_t afc_off_store(struct device *dev,
 	int ret = 0;
 	union power_supply_propval psy_val;
 #endif
+	struct afc_ops *afcops = gpmuic->regmapdesc->afcops;
+
 	if (!strncmp(buf, "1", 1)) {
 		pr_info("%s, Disable AFC\n", __func__);
 		pdata->afc_disable = true;
@@ -794,6 +797,33 @@ static ssize_t afc_off_store(struct device *dev,
 	psy_do_property("battery", set,
 		POWER_SUPPLY_EXT_PROP_HV_DISABLE, psy_val);
 	#endif
+
+	if (pdata->afc_disable) {
+		if (gpmuic->attached_dev == ATTACHED_DEV_AFC_CHARGER_9V_MUIC ||
+			gpmuic->attached_dev == ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC ||
+			gpmuic->attached_dev == ATTACHED_DEV_AFC_CHARGER_5V_MUIC ||
+			gpmuic->attached_dev == ATTACHED_DEV_QC_CHARGER_9V_MUIC ||
+			gpmuic->attached_dev == ATTACHED_DEV_QC_CHARGER_PREPARE_MUIC ||
+			gpmuic->attached_dev == ATTACHED_DEV_QC_CHARGER_5V_MUIC ||
+			gpmuic->attached_dev == ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC) {
+			afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_ENQC20, 0); /*QC20TA disable*/
+			afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_DIS_AFC, 1); /*DP_RESET*/
+			msleep(50);
+			afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_DIS_AFC, 0);/*DP_RESET*/
+
+			gpmuic->legacy_dev = gpmuic->attached_dev = ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC;
+			muic_notifier_attach_attached_dev(gpmuic->attached_dev);
+		}
+	} else {
+		if (gpmuic->attached_dev == ATTACHED_DEV_TA_MUIC ||
+			gpmuic->attached_dev == ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC) {
+			afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_ENQC20, 0); /*QC20TA disable*/
+			afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_DIS_AFC, 1); /*DP_RESET*/
+			msleep(50);
+			afcops->afc_ctrl_reg(gpmuic->regmapdesc, AFCCTRL_DIS_AFC, 0);/*DP_RESET*/
+		}
+	}
+
 	return size;
 }
 static DEVICE_ATTR(afc_disable, S_IRUGO | S_IWUSR | S_IWGRP,
