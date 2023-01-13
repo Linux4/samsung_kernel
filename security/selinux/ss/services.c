@@ -87,7 +87,7 @@ const char *selinux_policycap_names[__POLICYDB_CAPABILITY_MAX] = {
 };
 
 static struct selinux_ss selinux_ss;
-#if (defined CONFIG_KDP_CRED && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
+#if (defined CONFIG_RKP_KDP && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
 int ss_initialized __kdp_ro; // SEC_SELINUX_PORTING_COMMON Change to use RKP
 #else
 int ss_initialized;
@@ -1241,9 +1241,6 @@ static int context_struct_to_string(struct policydb *p,
 				    char **scontext, u32 *scontext_len)
 {
 	char *scontextp;
-// [ SEC_SELINUX_PORTING_COMMON 
-	gfp_t kmalloc_flag = GFP_ATOMIC;
-// ] SEC_SELINUX_PORTING_COMMON 
 
 	if (scontext)
 		*scontext = NULL;
@@ -1252,7 +1249,7 @@ static int context_struct_to_string(struct policydb *p,
 	if (context->len) {
 		*scontext_len = context->len;
 		if (scontext) {
-			*scontext = kstrdup(context->str, GFP_ATOMIC);		
+			*scontext = kstrdup(context->str, GFP_ATOMIC);
 			if (!(*scontext))
 				return -ENOMEM;
 		}
@@ -1269,11 +1266,7 @@ static int context_struct_to_string(struct policydb *p,
 		return 0;
 
 	/* Allocate space for the context; caller must free this space. */
-// [ SEC_SELINUX_PORTING_COMMON 
-	if (!in_interrupt() && !in_atomic())
-		kmalloc_flag = GFP_KERNEL;
-	scontextp = kmalloc(*scontext_len, kmalloc_flag);
-// ] SEC_SELINUX_PORTING_COMMON 	
+	scontextp = kmalloc(*scontext_len, GFP_ATOMIC);
 	if (!scontextp)
 		return -ENOMEM;
 	*scontext = scontextp;
@@ -2212,7 +2205,11 @@ int security_load_policy(struct selinux_state *state, void *data, size_t len)
 
 		state->ss->sidtab = newsidtab;
 		security_load_policycaps(state);
+#if (defined CONFIG_RKP_KDP && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
+		uh_call(UH_APP_RKP, RKP_KDP_X60, (u64)&ss_initialized, 1, 0, 0);
+#else
 		ss_initialized = 1; // SEC_SELINUX_PORTING_COMMON Change to use RKP 
+#endif
 		seqno = ++state->ss->latest_granting;
 		selinux_complete_init();
 		avc_ss_reset(state->avc, seqno);

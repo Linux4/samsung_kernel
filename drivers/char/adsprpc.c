@@ -49,6 +49,7 @@
 #include <soc/qcom/ramdump.h>
 #include <linux/debugfs.h>
 #include <linux/pm_qos.h>
+#include <linux/sec_debug.h>
 
 #define TZ_PIL_PROTECT_MEM_SUBSYS_ID 0x0C
 #define TZ_PIL_CLEAR_PROTECT_MEM_SUBSYS_ID 0x0D
@@ -401,6 +402,8 @@ struct fastrpc_file {
 	int wake_enable;
 	/* To indicate attempt has been made to allocate memory for debug_buf */
 	int debug_buf_alloced_attempted;
+	/* Flag to indicate dynamic process creation status */
+	bool in_process_create;
 };
 
 static struct fastrpc_apps gfa;
@@ -2152,6 +2155,15 @@ static int fastrpc_init_process(struct fastrpc_file *fl,
 			int siglen;
 		} inbuf;
 
+		spin_lock(&fl->hlock);
+		if (fl->in_process_create) {
+			err = -EALREADY;
+			pr_err("Already in create init process\n");
+			spin_unlock(&fl->hlock);
+			return err;
+		}
+		fl->in_process_create = true;
+		spin_unlock(&fl->hlock);
 		inbuf.pgid = fl->tgid;
 		inbuf.namelen = strlen(current->comm) + 1;
 		inbuf.filelen = init->filelen;
@@ -2343,6 +2355,11 @@ bail:
 		mutex_lock(&fl->map_mutex);
 		fastrpc_mmap_free(file, 0);
 		mutex_unlock(&fl->map_mutex);
+	}
+	if (init->flags == FASTRPC_INIT_CREATE) {
+		spin_lock(&fl->hlock);
+		fl->in_process_create = false;
+		spin_unlock(&fl->hlock);
 	}
 	return err;
 }
@@ -3014,6 +3031,7 @@ static int fastrpc_file_free(struct fastrpc_file *fl)
 	hlist_del_init(&fl->hn);
 	spin_unlock(&fl->apps->hlock);
 	kfree(fl->debug_buf);
+	fl->debug_buf_alloced_attempted = 0;
 
 	if (!fl->sctx) {
 		kfree(fl);
@@ -3021,6 +3039,7 @@ static int fastrpc_file_free(struct fastrpc_file *fl)
 	}
 	spin_lock(&fl->hlock);
 	fl->file_close = 1;
+	fl->in_process_create = false;
 	spin_unlock(&fl->hlock);
 	if (!IS_ERR_OR_NULL(fl->init_mem))
 		fastrpc_buf_free(fl->init_mem, 0);
@@ -3157,6 +3176,7 @@ static ssize_t fastrpc_debugfs_read(struct file *filp, char __user *buffer,
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 			"%s%s%s%s%s\n", single_line, single_line,
 			single_line, single_line, single_line);
+		spin_lock(&me->hlock);
 		hlist_for_each_entry_safe(gmaps, n, &me->maps, hn) {
 			len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 				"%-20d|0x%-18llX|0x%-18X|0x%-20lX\n\n",
@@ -3164,18 +3184,21 @@ static ssize_t fastrpc_debugfs_read(struct file *filp, char __user *buffer,
 				(uint32_t)gmaps->size,
 				gmaps->va);
 		}
+		spin_unlock(&me->hlock);
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 			"%-20s|%-20s|%-20s|%-20s\n",
 			"len", "refs", "raddr", "flags");
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 			"%s%s%s%s%s\n", single_line, single_line,
 			single_line, single_line, single_line);
+		spin_lock(&me->hlock);
 		hlist_for_each_entry_safe(gmaps, n, &me->maps, hn) {
 			len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 				"0x%-18X|%-20d|%-20lu|%-20u\n",
 				(uint32_t)gmaps->len, gmaps->refs,
 				gmaps->raddr, gmaps->flags);
 		}
+		spin_unlock(&me->hlock);
 	} else {
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 			"\n%s %13s %d\n", "cid", ":", fl->cid);
@@ -3217,12 +3240,14 @@ static ssize_t fastrpc_debugfs_read(struct file *filp, char __user *buffer,
 			"%s%s%s%s%s\n",
 			single_line, single_line, single_line,
 			single_line, single_line);
+		mutex_lock(&fl->map_mutex);
 		hlist_for_each_entry_safe(map, n, &fl->maps, hn) {
 			len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 				"0x%-20lX|0x%-20llX|0x%-20zu\n\n",
 				map->va, map->phys,
 				map->size);
 		}
+		mutex_unlock(&fl->map_mutex);
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 			"%-20s|%-20s|%-20s|%-20s\n",
 			"len", "refs",
@@ -3231,24 +3256,27 @@ static ssize_t fastrpc_debugfs_read(struct file *filp, char __user *buffer,
 			"%s%s%s%s%s\n",
 			single_line, single_line, single_line,
 			single_line, single_line);
+		mutex_lock(&fl->map_mutex);
 		hlist_for_each_entry_safe(map, n, &fl->maps, hn) {
 			len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 				"%-20zu|%-20d|0x%-20lX|%-20d\n\n",
 				map->len, map->refs, map->raddr,
 				map->uncached);
 		}
+		mutex_unlock(&fl->map_mutex);
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 			"%-20s|%-20s\n", "secure", "attr");
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 			"%s%s%s%s%s\n",
 			single_line, single_line, single_line,
 			single_line, single_line);
+		mutex_lock(&fl->map_mutex);
 		hlist_for_each_entry_safe(map, n, &fl->maps, hn) {
 			len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 				"%-20d|0x%-20lX\n\n",
 				map->secure, map->attr);
 		}
-
+		mutex_unlock(&fl->map_mutex);
 		len += scnprintf(fileinfo + len, DEBUGFS_SIZE - len,
 			"\n======%s %s %s======\n", title,
 			" LIST OF BUFS ", title);
@@ -3400,6 +3428,7 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 	fl->cid = -1;
 	fl->dev_minor = dev_minor;
 	fl->init_mem = NULL;
+	fl->in_process_create = false;
 	memset(&fl->perf, 0, sizeof(fl->perf));
 	fl->qos_request = 0;
 	fl->dsp_proc_init = 0;
@@ -3449,6 +3478,7 @@ static int fastrpc_set_process_info(struct fastrpc_file *fl)
 				cur_comm, __func__, fl->debug_buf);
 			fl->debugfs_file = NULL;
 			kfree(fl->debug_buf);
+			fl->debug_buf_alloced_attempted = 0;
 			fl->debug_buf = NULL;
 		}
 	}
@@ -4208,10 +4238,28 @@ static void configure_secure_channels(uint32_t secure_domains)
 	for (ii = ADSP_DOMAIN_ID; ii <= CDSP_DOMAIN_ID; ++ii) {
 		int secure = (secure_domains >> ii) & 0x01;
 
+		printk("adsprpc: setting channel [%d]\n", ii);
 		me->channel[ii].secure = secure;
 	}
 }
 
+#define CDSP_SIGNOFF_BLOCK 0x2377
+static unsigned int signoff_val;
+static int __init signoff_setup(char *str)
+{
+	get_option(&str, &signoff_val);
+	return 0;
+}
+early_param("signoff", signoff_setup);
+
+unsigned int is_signoff_block(void)
+{
+	printk("is_signoff_block : 0x%08x\n", signoff_val);
+	if (signoff_val == CDSP_SIGNOFF_BLOCK)
+			return 1;
+
+	return 0;
+}
 
 static int fastrpc_probe(struct platform_device *pdev)
 {
@@ -4235,7 +4283,7 @@ static int fastrpc_probe(struct platform_device *pdev)
 		of_property_read_u32(dev->of_node, "qcom,rpc-latency-us",
 			&me->latency);
 		if (of_get_property(dev->of_node,
-			"qcom,secure-domains", NULL) != NULL) {
+			"qcom,secure-domains", NULL) != NULL && is_signoff_block()) {
 			VERIFY(err, !of_property_read_u32(dev->of_node,
 					  "qcom,secure-domains",
 			      &secure_domains));

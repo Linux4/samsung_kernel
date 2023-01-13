@@ -802,6 +802,7 @@ struct fts_ts_info {
 	struct completion st_powerdown;
 	struct completion st_interrupt;
 	struct sec_touch_driver *ss_drv;
+	struct mutex st_lock;
 #endif
 	struct mutex i2c_mutex;
 	struct mutex irq_mutex;

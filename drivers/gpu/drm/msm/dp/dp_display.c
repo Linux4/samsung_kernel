@@ -46,6 +46,7 @@
 #include <linux/string.h>
 #include <linux/reboot.h>
 #include <linux/sec_displayport.h>
+#include <linux/sched/clock.h>
 #ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
 #include <linux/displayport_bigdata.h>
 #endif

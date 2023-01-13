@@ -838,7 +838,7 @@ const struct cred *override_creds(const struct cred *new)
 		rcu_assign_pointer(current->cred, new_ro);
 	} else
 #endif /* CONFIG_RKP_KDP */
-		rcu_assign_pointer(current->cred, new);
+	rcu_assign_pointer(current->cred, new);
 	alter_cred_subscribers(old, -1);
 
 	kdebug("override_creds() = %p{%d,%d}", old,
