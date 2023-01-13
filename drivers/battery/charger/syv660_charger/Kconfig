@@ -1,0 +1,18 @@
+config CHARGER_SYV660
+	tristate "SYV660 charger driver"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	  Say Y here to enable support for the SYV660 charger
+	  support for the SYV660 charger.
+	  This includes boost mode.
+	  This is Switching Mode Charger.
+
+config BC12_DEVICE
+    bool "support for bc12 device"
+    default n
+    help
+	  Say Y here to enable
+	  support for bc12 device
+	  If this is N in models,
+	  not support to bc12 device.

@@ -1,0 +1,595 @@
+/* linux/arch/arm/mach-exynos/setup-fimc-is.c
+ *
+ * Copyright (c) 2018 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com/
+ *
+ * FIMC-IS gpio and clock configuration
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <linux/kernel.h>
+#include <linux/types.h>
+#include <linux/gpio.h>
+#include <linux/clk.h>
+#include <linux/err.h>
+#include <linux/io.h>
+#include <linux/regulator/consumer.h>
+#include <linux/delay.h>
+#include <linux/clk-provider.h>
+#include <linux/clkdev.h>
+
+#include <soc/samsung/exynos-pd.h>
+
+#include <exynos-is.h>
+#include <is-config.h>
+
+/*------------------------------------------------------*/
+/*		Common control				*/
+/*------------------------------------------------------*/
+
+#define REGISTER_CLK(name) {name, NULL}
+
+struct is_clk is_clk_list[] = {
+	REGISTER_CLK("GATE_ISPHQ_CMU_ISPHQ"),
+	REGISTER_CLK("GATE_IS_ISPHQ_ISPHQ"),
+	REGISTER_CLK("GATE_IS_ISPHQ_VGEN_LITE_ISPHQ"),
+	REGISTER_CLK("GATE_IS_ISPHQ_ISPHQ_C2COM"),
+
+	REGISTER_CLK("UMUX_CLKCMU_ISPLP_BUS"),
+	REGISTER_CLK("UMUX_CLKCMU_ISPLP_GDC"),
+	REGISTER_CLK("GATE_IS_ISPLP_MC_SCALER"),
+	REGISTER_CLK("GATE_IS_ISPLP_ISPLP"),
+	REGISTER_CLK("GATE_IS_ISPLP_GDC"),
+	REGISTER_CLK("GATE_IS_ISPLP_VGEN_LITE"),
+	REGISTER_CLK("GATE_IS_ISPLP_ISPLP_C2"),
+
+	REGISTER_CLK("UMUX_CLKCMU_ISPPRE_BUS"),
+	REGISTER_CLK("GATE_IS_ISPPRE_CSIS0"),
+	REGISTER_CLK("GATE_IS_ISPPRE_CSIS1"),
+	REGISTER_CLK("GATE_IS_ISPPRE_CSIS2"),
+	REGISTER_CLK("GATE_IS_ISPPRE_CSIS3"),
+	REGISTER_CLK("GATE_IS_ISPPRE_PDP_TOP_DMA"),
+	REGISTER_CLK("GATE_IS_ISPPRE_3AA0"),
+	REGISTER_CLK("GATE_IS_ISPPRE_3AA1"),
+	REGISTER_CLK("GATE_IS_ISPPRE_PDP_TOP_CORE_TOP"),
+#ifdef CONFIG_SOC_EXYNOS9820_EVT0
+	REGISTER_CLK("GATE_IS_ISPPRE_CSISX4_PDP_RDMA"),
+#endif
+	REGISTER_CLK("GATE_IS_ISPPRE_VGEN_LITE"),
+	REGISTER_CLK("GATE_IS_ISPPRE_VGEN_LITE1"),
+	REGISTER_CLK("GATE_IS_ISPPRE_CSIS4"),
+	REGISTER_CLK("GATE_IS_ISPPRE_CSISX4_PDP_DMA"),
+	REGISTER_CLK("GATE_IS_ISPPRE_VGEN_LITE2"),
+#ifdef CONFIG_SOC_EXYNOS9820_EVT0
+	REGISTER_CLK("GATE_IS_ISPPRE_PAFSTAT0"),
+	REGISTER_CLK("GATE_IS_ISPPRE_PAFSTAT1"),
+#endif
+
+	REGISTER_CLK("UMUX_CLKCMU_VRA2_BUS"),
+	REGISTER_CLK("GATE_VRA2"),
+	REGISTER_CLK("DOUT_CLK_VRA2_BUSP"),
+
+	REGISTER_CLK("CIS_CLK0"),
+	REGISTER_CLK("CIS_CLK1"),
+	REGISTER_CLK("CIS_CLK2"),
+	REGISTER_CLK("CIS_CLK3"),
+	REGISTER_CLK("CIS_CLK3"),
+
+	REGISTER_CLK("MUX_CIS_CLK0"),
+	REGISTER_CLK("MUX_CIS_CLK1"),
+	REGISTER_CLK("MUX_CIS_CLK2"),
+	REGISTER_CLK("MUX_CIS_CLK3"),
+	REGISTER_CLK("MUX_CIS_CLK4"),
+};
+
+int is_set_rate(struct device *dev,
+	const char *name, ulong frequency)
+{
+	int ret = 0;
+	size_t index;
+	struct clk *clk = NULL;
+
+	for (index = 0; index < ARRAY_SIZE(is_clk_list); index++) {
+		if (!strcmp(name, is_clk_list[index].name))
+			clk = is_clk_list[index].clk;
+	}
+
+	if (IS_ERR_OR_NULL(clk)) {
+		pr_err("[@][ERR] %s: clk_target_list is NULL : %s\n", __func__, name);
+		return -EINVAL;
+	}
+
+	ret = clk_set_rate(clk, frequency);
+	if (ret) {
+		pr_err("[@][ERR] %s: clk_set_rate is fail(%s)(ret: %d)\n", __func__, name, ret);
+		return ret;
+	}
+
+	/* is_get_rate_dt(dev, name); */
+
+	return ret;
+}
+
+/* utility function to get rate with DT */
+ulong is_get_rate(struct device *dev,
+	const char *name)
+{
+	ulong frequency;
+	size_t index;
+	struct clk *clk = NULL;
+
+	for (index = 0; index < ARRAY_SIZE(is_clk_list); index++) {
+		if (!strcmp(name, is_clk_list[index].name))
+			clk = is_clk_list[index].clk;
+	}
+
+	if (IS_ERR_OR_NULL(clk)) {
+		pr_err("[@][ERR] %s: clk_target_list is NULL : %s\n", __func__, name);
+		return -EINVAL;
+	}
+
+	frequency = clk_get_rate(clk);
+
+	pr_info("[@] %s : %ldMhz (enable_count : %d)\n", name, frequency/1000000, __clk_get_enable_count(clk));
+
+	return frequency;
+}
+
+/* utility function to eable with DT */
+int  is_enable(struct device *dev,
+	const char *name)
+{
+	int ret = 0;
+	size_t index;
+	struct clk *clk = NULL;
+
+	for (index = 0; index < ARRAY_SIZE(is_clk_list); index++) {
+		if (!strcmp(name, is_clk_list[index].name))
+			clk = is_clk_list[index].clk;
+	}
+
+	if (IS_ERR_OR_NULL(clk)) {
+		pr_err("[@][ERR] %s: clk_target_list is NULL : %s\n", __func__, name);
+		return -EINVAL;
+	}
+
+	if (debug_clk > 1)
+		pr_info("[@][ENABLE] %s : (enable_count : %d)\n", name, __clk_get_enable_count(clk));
+
+	ret = clk_prepare_enable(clk);
+	if (ret) {
+		pr_err("[@][ERR] %s: clk_prepare_enable is fail(%s)(ret: %d)\n", __func__, name, ret);
+		return ret;
+	}
+
+	return ret;
+}
+
+/* utility function to disable with DT */
+int is_disable(struct device *dev,
+	const char *name)
+{
+	size_t index;
+	struct clk *clk = NULL;
+
+	for (index = 0; index < ARRAY_SIZE(is_clk_list); index++) {
+		if (!strcmp(name, is_clk_list[index].name))
+			clk = is_clk_list[index].clk;
+	}
+
+	if (IS_ERR_OR_NULL(clk)) {
+		pr_err("[@][ERR] %s: clk_target_list is NULL : %s\n", __func__, name);
+		return -EINVAL;
+	}
+
+	clk_disable_unprepare(clk);
+
+	if (debug_clk > 1)
+		pr_info("[@][DISABLE] %s : (enable_count : %d)\n", name, __clk_get_enable_count(clk));
+
+	return 0;
+}
+
+#ifdef CONFIG_SOC_EXYNOS9820
+int is_enabled_clk_disable(struct device *dev, const char *name)
+{
+	int i;
+	struct clk *clk = NULL;
+
+	for (i = 0; i < ARRAY_SIZE(is_clk_list); i++) {
+		if (!strcmp(name, is_clk_list[i].name))
+			clk = is_clk_list[i].clk;
+	}
+
+	if (IS_ERR_OR_NULL(clk)) {
+		pr_err("%s: failed to find clk: %s\n", __func__, name);
+		return -EINVAL;
+	}
+
+	if (__clk_get_enable_count(clk)) {
+		pr_err("%s: abnormal clock state is detected: %s, %d\n",
+				__func__, name,  __clk_get_enable_count(clk));
+		clk_disable_unprepare(clk);
+	}
+
+	return 0;
+}
+#endif
+
+/* utility function to set parent with DT */
+int is_set_parent_dt(struct device *dev,
+	const char *child, const char *parent)
+{
+	int ret = 0;
+	struct clk *p;
+	struct clk *c;
+
+	p = clk_get(dev, parent);
+	if (IS_ERR_OR_NULL(p)) {
+		pr_err("%s: could not lookup clock : %s\n", __func__, parent);
+		return -EINVAL;
+	}
+
+	c = clk_get(dev, child);
+	if (IS_ERR_OR_NULL(c)) {
+		pr_err("%s: could not lookup clock : %s\n", __func__, child);
+		return -EINVAL;
+	}
+
+	ret = clk_set_parent(c, p);
+	if (ret) {
+		pr_err("%s: clk_set_parent is fail(%s -> %s)(ret: %d)\n", __func__, child, parent, ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+/* utility function to set rate with DT */
+int is_set_rate_dt(struct device *dev,
+	const char *conid, unsigned int rate)
+{
+	int ret = 0;
+	struct clk *target;
+
+	target = clk_get(dev, conid);
+	if (IS_ERR_OR_NULL(target)) {
+		pr_err("%s: could not lookup clock : %s\n", __func__, conid);
+		return -EINVAL;
+	}
+
+	ret = clk_set_rate(target, rate);
+	if (ret) {
+		pr_err("%s: clk_set_rate is fail(%s)(ret: %d)\n", __func__, conid, ret);
+		return ret;
+	}
+
+	/* is_get_rate_dt(dev, conid); */
+
+	return 0;
+}
+
+/* utility function to get rate with DT */
+ulong is_get_rate_dt(struct device *dev,
+	const char *conid)
+{
+	struct clk *target;
+	ulong rate_target;
+
+	target = clk_get(dev, conid);
+	if (IS_ERR_OR_NULL(target)) {
+		pr_err("%s: could not lookup clock : %s\n", __func__, conid);
+		return -EINVAL;
+	}
+
+	rate_target = clk_get_rate(target);
+	pr_info("[@] %s: %ldMhz\n", conid, rate_target/1000000);
+
+	return rate_target;
+}
+
+/* utility function to eable with DT */
+int is_enable_dt(struct device *dev,
+	const char *conid)
+{
+	int ret;
+	struct clk *target;
+
+	target = clk_get(dev, conid);
+	if (IS_ERR_OR_NULL(target)) {
+		pr_err("%s: could not lookup clock : %s\n", __func__, conid);
+		return -EINVAL;
+	}
+
+	ret = clk_prepare(target);
+	if (ret) {
+		pr_err("%s: clk_prepare is fail(%s)(ret: %d)\n", __func__, conid, ret);
+		return ret;
+	}
+
+	ret = clk_enable(target);
+	if (ret) {
+		pr_err("%s: clk_enable is fail(%s)(ret: %d)\n", __func__, conid, ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+/* utility function to disable with DT */
+int is_disable_dt(struct device *dev,
+	const char *conid)
+{
+	struct clk *target;
+
+	target = clk_get(dev, conid);
+	if (IS_ERR_OR_NULL(target)) {
+		pr_err("%s: could not lookup clock : %s\n", __func__, conid);
+		return -EINVAL;
+	}
+
+	clk_disable(target);
+	clk_unprepare(target);
+
+	return 0;
+}
+
+static void exynos9820_is_print_clk_reg(void)
+{
+
+}
+
+static int exynos9820_is_print_clk(struct device *dev)
+{
+	struct exynos_pm_domain *exynos_pd;
+
+	pr_info("FIMC-IS CLOCK DUMP\n");
+
+	exynos_pd = exynos_pd_lookup_name("pd-isppre");
+	if (exynos_pd_status(exynos_pd) == 1) {
+		is_get_rate_dt(dev, "UMUX_CLKCMU_ISPPRE_BUS");
+		is_get_rate_dt(dev, "GATE_IS_ISPPRE_CSIS0");
+		is_get_rate_dt(dev, "GATE_IS_ISPPRE_CSIS1");
+		is_get_rate_dt(dev, "GATE_IS_ISPPRE_CSIS2");
+		is_get_rate_dt(dev, "GATE_IS_ISPPRE_CSIS3");
+		is_get_rate_dt(dev, "GATE_IS_ISPPRE_PDP_TOP_DMA");
+		is_get_rate_dt(dev, "GATE_IS_ISPPRE_3AA0");
+		is_get_rate_dt(dev, "GATE_IS_ISPPRE_3AA1");
+		is_get_rate_dt(dev, "GATE_IS_ISPPRE_PDP_TOP_CORE_TOP");
+#ifdef CONFIG_SOC_EXYNOS9820_EVT0
+		is_get_rate_dt(dev, "GATE_IS_ISPPRE_CSISX4_PDP_RDMA");
+#endif
+		is_get_rate_dt(dev, "GATE_IS_ISPPRE_VGEN_LITE");
+		is_get_rate_dt(dev, "GATE_IS_ISPPRE_VGEN_LITE1");
+		is_get_rate_dt(dev, "GATE_IS_ISPPRE_CSIS4");
+		is_get_rate_dt(dev, "GATE_IS_ISPPRE_CSISX4_PDP_DMA");
+		is_get_rate_dt(dev, "GATE_IS_ISPPRE_VGEN_LITE2");
+#ifdef CONFIG_SOC_EXYNOS9820_EVT0
+		is_get_rate_dt(dev, "GATE_IS_ISPPRE_PAFSTAT0");
+		is_get_rate_dt(dev, "GATE_IS_ISPPRE_PAFSTAT1");
+#endif
+
+		is_get_rate_dt(dev, "CIS_CLK0");
+		is_get_rate_dt(dev, "CIS_CLK1");
+		is_get_rate_dt(dev, "CIS_CLK2");
+		is_get_rate_dt(dev, "CIS_CLK3");
+		is_get_rate_dt(dev, "CIS_CLK4");
+	}
+
+	exynos_pd = exynos_pd_lookup_name("pd-isplp");
+	if (exynos_pd_status(exynos_pd) == 1) {
+		is_get_rate_dt(dev, "UMUX_CLKCMU_ISPLP_BUS");
+		is_get_rate_dt(dev, "UMUX_CLKCMU_ISPLP_GDC");
+		is_get_rate_dt(dev, "GATE_IS_ISPLP_MC_SCALER");
+		is_get_rate_dt(dev, "GATE_IS_ISPLP_ISPLP");
+		is_get_rate_dt(dev, "GATE_IS_ISPLP_GDC");
+		is_get_rate_dt(dev, "GATE_IS_ISPLP_VGEN_LITE");
+		is_get_rate_dt(dev, "GATE_IS_ISPLP_ISPLP_C2");
+	}
+
+	exynos_pd = exynos_pd_lookup_name("pd-isphq");
+	if (exynos_pd_status(exynos_pd) == 1) {
+		is_get_rate_dt(dev, "GATE_ISPHQ_CMU_ISPHQ");
+		is_get_rate_dt(dev, "GATE_IS_ISPHQ_ISPHQ");
+		is_get_rate_dt(dev, "GATE_IS_ISPHQ_VGEN_LITE_ISPHQ");
+		is_get_rate_dt(dev, "GATE_IS_ISPHQ_ISPHQ_C2COM");
+	}
+
+	exynos_pd = exynos_pd_lookup_name("pd-vra2");
+	if (exynos_pd_status(exynos_pd) == 1) {
+		is_get_rate_dt(dev, "UMUX_CLKCMU_VRA2_BUS");
+		is_get_rate_dt(dev, "GATE_VRA2");
+		is_get_rate_dt(dev, "DOUT_CLK_VRA2_BUSP");
+	}
+
+	exynos9820_is_print_clk_reg();
+
+	return 0;
+}
+
+int exynos9820_is_clk_gate(u32 clk_gate_id, bool is_on)
+{
+	return 0;
+}
+
+int exynos9820_is_uart_gate(struct device *dev, bool mask)
+{
+	return 0;
+}
+
+int exynos9820_is_get_clk(struct device *dev)
+{
+	struct clk *clk;
+	size_t i;
+
+	for (i = 0; i < ARRAY_SIZE(is_clk_list); i++) {
+		clk = devm_clk_get(dev, is_clk_list[i].name);
+		if (IS_ERR_OR_NULL(clk)) {
+			pr_err("[@][ERR] %s: could not lookup clock : %s\n",
+				__func__, is_clk_list[i].name);
+			return -EINVAL;
+		}
+
+		is_clk_list[i].clk = clk;
+	}
+
+	return 0;
+}
+
+int exynos9820_is_cfg_clk(struct device *dev)
+{
+	return 0;
+}
+
+int exynos9820_is_clk_on(struct device *dev)
+{
+	int ret = 0;
+	struct exynos_platform_is *pdata;
+
+	pdata = dev_get_platdata(dev);
+	if (pdata->clock_on) {
+		ret = pdata->clk_off(dev);
+		if (ret) {
+			pr_err("clk_off is fail(%d)\n", ret);
+			goto p_err;
+		}
+	}
+
+	is_enable(dev, "GATE_ISPHQ_CMU_ISPHQ");
+	is_enable(dev, "GATE_IS_ISPHQ_ISPHQ");
+	is_enable(dev, "GATE_IS_ISPHQ_VGEN_LITE_ISPHQ");
+	is_enable(dev, "GATE_IS_ISPHQ_ISPHQ_C2COM");
+
+	is_enable(dev, "UMUX_CLKCMU_ISPLP_BUS");
+	is_enable(dev, "UMUX_CLKCMU_ISPLP_GDC");
+	is_enable(dev, "GATE_IS_ISPLP_MC_SCALER");
+	is_enable(dev, "GATE_IS_ISPLP_ISPLP");
+	is_enable(dev, "GATE_IS_ISPLP_GDC");
+	is_enable(dev, "GATE_IS_ISPLP_VGEN_LITE");
+	is_enable(dev, "GATE_IS_ISPLP_ISPLP_C2");
+
+	is_enable(dev, "UMUX_CLKCMU_ISPPRE_BUS");
+	is_enable(dev, "GATE_IS_ISPPRE_3AA0");
+	is_enable(dev, "GATE_IS_ISPPRE_3AA1");
+	is_enable(dev, "GATE_IS_ISPPRE_PDP_TOP_CORE_TOP");
+#ifdef CONFIG_SOC_EXYNOS9820_EVT0
+	is_enable(dev, "GATE_IS_ISPPRE_CSISX4_PDP_RDMA");
+#endif
+	is_enable(dev, "GATE_IS_ISPPRE_VGEN_LITE");
+	is_enable(dev, "GATE_IS_ISPPRE_VGEN_LITE1");
+	is_enable(dev, "GATE_IS_ISPPRE_VGEN_LITE2");
+#ifdef CONFIG_SOC_EXYNOS9820_EVT0
+	is_enable(dev, "GATE_IS_ISPPRE_PAFSTAT0");
+	is_enable(dev, "GATE_IS_ISPPRE_PAFSTAT1");
+#endif
+
+	is_enable(dev, "UMUX_CLKCMU_VRA2_BUS");
+	is_enable(dev, "GATE_VRA2");
+	is_enable(dev, "DOUT_CLK_VRA2_BUSP");
+
+	if (debug_clk > 1)
+		exynos9820_is_print_clk(dev);
+
+	pdata->clock_on = true;
+
+p_err:
+	return 0;
+}
+
+int exynos9820_is_clk_off(struct device *dev)
+{
+	int ret = 0;
+	struct exynos_platform_is *pdata;
+
+	pdata = dev_get_platdata(dev);
+	if (!pdata->clock_on) {
+		pr_err("clk_off is fail(already off)\n");
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	is_disable(dev, "GATE_ISPHQ_CMU_ISPHQ");
+	is_disable(dev, "GATE_IS_ISPHQ_ISPHQ");
+	is_disable(dev, "GATE_IS_ISPHQ_VGEN_LITE_ISPHQ");
+	is_disable(dev, "GATE_IS_ISPHQ_ISPHQ_C2COM");
+
+	is_disable(dev, "UMUX_CLKCMU_ISPLP_BUS");
+	is_disable(dev, "UMUX_CLKCMU_ISPLP_GDC");
+	is_disable(dev, "GATE_IS_ISPLP_MC_SCALER");
+	is_disable(dev, "GATE_IS_ISPLP_ISPLP");
+	is_disable(dev, "GATE_IS_ISPLP_GDC");
+	is_disable(dev, "GATE_IS_ISPLP_VGEN_LITE");
+	is_disable(dev, "GATE_IS_ISPLP_ISPLP_C2");
+
+	is_disable(dev, "UMUX_CLKCMU_ISPPRE_BUS");
+	is_disable(dev, "GATE_IS_ISPPRE_3AA0");
+	is_disable(dev, "GATE_IS_ISPPRE_3AA1");
+	is_disable(dev, "GATE_IS_ISPPRE_PDP_TOP_CORE_TOP");
+#ifdef CONFIG_SOC_EXYNOS9820_EVT0
+	is_disable(dev, "GATE_IS_ISPPRE_CSISX4_PDP_RDMA");
+#endif
+	is_disable(dev, "GATE_IS_ISPPRE_VGEN_LITE");
+	is_disable(dev, "GATE_IS_ISPPRE_VGEN_LITE1");
+	is_disable(dev, "GATE_IS_ISPPRE_VGEN_LITE2");
+#ifdef CONFIG_SOC_EXYNOS9820_EVT0
+	is_disable(dev, "GATE_IS_ISPPRE_PAFSTAT0");
+	is_disable(dev, "GATE_IS_ISPPRE_PAFSTAT1");
+#endif
+
+	is_disable(dev, "UMUX_CLKCMU_VRA2_BUS");
+	is_disable(dev, "GATE_VRA2");
+	is_disable(dev, "DOUT_CLK_VRA2_BUSP");
+
+	pdata->clock_on = false;
+
+p_err:
+	return 0;
+}
+
+/* Wrapper functions */
+int exynos_is_clk_get(struct device *dev)
+{
+	exynos9820_is_get_clk(dev);
+	return 0;
+}
+
+int exynos_is_clk_cfg(struct device *dev)
+{
+	exynos9820_is_cfg_clk(dev);
+	return 0;
+}
+
+int exynos_is_clk_on(struct device *dev)
+{
+	exynos9820_is_clk_on(dev);
+	return 0;
+}
+
+int exynos_is_clk_off(struct device *dev)
+{
+	exynos9820_is_clk_off(dev);
+	return 0;
+}
+
+int exynos_is_print_clk(struct device *dev)
+{
+	exynos9820_is_print_clk(dev);
+	return 0;
+}
+
+int exynos_is_set_user_clk_gate(u32 group_id, bool is_on,
+	u32 user_scenario_id,
+	unsigned long msk_state,
+	struct exynos_is_clk_gate_info *gate_info)
+{
+	return 0;
+}
+
+int exynos_is_clk_gate(u32 clk_gate_id, bool is_on)
+{
+	exynos9820_is_clk_gate(clk_gate_id, is_on);
+	return 0;
+}
