@@ -2176,7 +2176,7 @@ static void sec_bat_send_cs100(struct sec_battery_info *battery)
 	union power_supply_propval value = {0, };
 	bool send_cs100_cmd = true;
 
-	if (is_wireless_type(battery->cable_type)) {
+	if (is_wireless_fake_type(battery->cable_type)) {
 #ifdef CONFIG_CS100_JPNCONCEPT
 		psy_do_property(battery->pdata->wireless_charger_name, get,
 			POWER_SUPPLY_EXT_PROP_WIRELESS_TX_ID, value);

@@ -46,6 +46,7 @@ struct hall_drvdata {
 };
 
 static int hall_logical_status = 0;
+static int hall_backflip_status = 0;
 
 static ssize_t hall_logical_detect_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
@@ -104,19 +105,20 @@ static int logical_hallic_notifier_handler(struct notifier_block *nb,
 
 		if (hall_status == E_LID_0) {
 			hall_logical_status = LOGICAL_HALL_CLOSE;
-			pr_info("%s hall_status = %d (CLOSE)\n", __func__, hall_status);
+			input_info(true, &logical_hall_dev->input->dev, "%s hall_status = %d (CLOSE)\n", __func__, hall_status);
 			input_report_switch(logical_hall_dev->input, SW_FLIP, hall_logical_status);
 			input_sync(logical_hall_dev->input);
 		} else if (hall_status == E_LID_NORMAL) {
 			hall_logical_status = LOGICAL_HALL_OPEN;
-			pr_info("%s hall_status = %d (NORMAL)\n", __func__, hall_status);
+			hall_backflip_status = 0;
+			input_info(true, &logical_hall_dev->input->dev, "%s hall_status = %d (NORMAL)\n", __func__, hall_status);
 			input_report_switch(logical_hall_dev->input, SW_FLIP, hall_logical_status);
-			input_report_switch(logical_hall_dev->input, SW_HALL_LOGICAL, 0);
+			input_report_switch(logical_hall_dev->input, SW_HALL_LOGICAL, hall_backflip_status);
 			input_sync(logical_hall_dev->input);
 		} else if (hall_status == E_LID_360) {
-			hall_logical_status = LOGICAL_HALL_BACK;
-			pr_info("%s hall_status = %d (BACK)\n", __func__, hall_status);
-			input_report_switch(logical_hall_dev->input, SW_HALL_LOGICAL, 1);
+			hall_backflip_status = 1;
+			input_info(true, &logical_hall_dev->input->dev, "%s hall_status = %d (BACK)\n", __func__, hall_status);
+			input_report_switch(logical_hall_dev->input, SW_HALL_LOGICAL, hall_backflip_status);
 			input_sync(logical_hall_dev->input);
 		}
 		
@@ -199,6 +201,10 @@ static int hall_logical_probe(struct platform_device *pdev)
 
 	pogo_notifier_register(&ddata->pogo_nb,
 			logical_hallic_notifier_handler, POGO_NOTIFY_DEV_HALLIC);
+
+	input_report_switch(input, SW_FLIP, hall_logical_status);
+	input_report_switch(input, SW_HALL_LOGICAL, hall_backflip_status);
+	input_info(true, dev, "%s hall_status = %d backflip_status = %d\n", __func__, hall_logical_status, hall_backflip_status);
 
 	pr_info("%s end", __func__);
 	return 0;
