@@ -72,6 +72,7 @@ enum power_supply_ext_property {
 	POWER_SUPPLY_EXT_PROP_WIRELESS_INITIAL_WC_CHECK,
 	POWER_SUPPLY_EXT_PROP_WIRELESS_PARAM_INFO,
 	POWER_SUPPLY_EXT_PROP_WIRELESS_CHECK_FW_VER,
+	POWER_SUPPLY_EXT_PROP_WIRELESS_SGF,
 	POWER_SUPPLY_EXT_PROP_AICL_CURRENT,
 	POWER_SUPPLY_EXT_PROP_CHECK_MULTI_CHARGE,
 	POWER_SUPPLY_EXT_PROP_CHIP_ID,
@@ -159,6 +160,8 @@ enum power_supply_ext_property {
 	POWER_SUPPLY_EXT_PROP_WPC_EN_MST,
 	POWER_SUPPLY_EXT_PROP_INBAT_VOLTAGE,
 	POWER_SUPPLY_EXT_PROP_INFO,
+	POWER_SUPPLY_EXT_PROP_TTF_FULL_CAPACITY,
+	POWER_SUPPLY_EXT_PROP_WC_EPT_UNKNOWN,
 };
 
 enum rx_device_type {
@@ -398,7 +401,18 @@ enum sec_wireless_pad_id {
 	WC_PAD_ID_EXT_BATT_PACK = 0x40,
 	WC_PAD_ID_EXT_BATT_PACK_TA,
 	/* 0x50~6F : Reserved */
-	WC_PAD_ID_MAX = 0x6F,
+	WC_PAD_ID_UNO_TX = 0x72,
+	WC_PAD_ID_UNO_TX_B0 = 0x80,
+	WC_PAD_ID_UNO_TX_B1,
+	WC_PAD_ID_UNO_TX_B2,
+	WC_PAD_ID_UNO_TX_MAX = 0x9F,
+	WC_PAD_ID_AUTH_PAD = 0xA0,
+	WC_PAD_ID_DAVINCI_PAD_V,
+	WC_PAD_ID_DAVINCI_PAD_H,
+	WC_PAD_ID_AUTH_PAD_ACLASS_END = 0xAF,
+	WC_PAD_ID_AUTH_PAD_END = 0xBF,
+	/* reserved 0xA1 ~ 0xBF for auth pad */
+	WC_PAD_ID_MAX = 0xFF,
 };
 
 enum sec_wireless_rx_power_list {
@@ -893,6 +907,50 @@ struct sec_wireless_rx_power_info {
 #define sec_wireless_rx_power_info_t \
 	struct sec_wireless_rx_power_info
 
+#define LRP_PROPS 12
+#define FOREACH_LRP_TYPE(GEN_LRP_TYPE) \
+	GEN_LRP_TYPE(LRP_NORMAL) \
+	GEN_LRP_TYPE(LRP_25W) \
+	GEN_LRP_TYPE(LRP_45W) \
+	GEN_LRP_TYPE(LRP_MAX)
+
+#define GENERATE_LRP_ENUM(ENUM) ENUM,
+#define GENERATE_LRP_STRING(STRING) #STRING,
+
+enum LRP_TYPE_ENUM {
+	FOREACH_LRP_TYPE(GENERATE_LRP_ENUM)
+};
+
+static const char * const LRP_TYPE_STRING[] = {
+	FOREACH_LRP_TYPE(GENERATE_LRP_STRING)
+};
+
+enum {
+	LRP_NONE = 0,
+	LRP_STEP1,
+	LRP_STEP2,
+};
+
+enum {
+	ST1 = 0,
+	ST2,
+};
+
+enum {
+	LCD_ON = 0,
+	LCD_OFF,
+};
+
+struct lrp_temp_t {
+	int trig[2][2];
+	int recov[2][2];
+};
+
+struct lrp_current_t {
+	int st_icl[2];
+	int st_fcc[2];
+};
+
 typedef struct {
 	unsigned int cycle;
 	unsigned int asoc;
@@ -1099,6 +1157,7 @@ struct sec_battery_platform_data {
 	unsigned int blkt_temp_adc_table_size;
 
 	sec_battery_temp_check_t temp_check_type;
+	int lrp_temp_check_type;
 	unsigned int temp_check_count;
 	sec_battery_temp_check_t usb_temp_check_type;
 	sec_battery_temp_check_t usb_temp_check_type_backup;
@@ -1142,10 +1201,14 @@ struct sec_battery_platform_data {
 	int chg_12v_high_temp;
 	int chg_high_temp;
 	int chg_high_temp_recovery;
-	int dchg_high_temp;
-	int dchg_high_temp_recovery;
-	int dchg_high_batt_temp;
-	int dchg_high_batt_temp_recovery;
+	int dchg_high_temp[4];
+	int dchg_high_temp_recovery[4];
+	int dchg_high_batt_temp[4];
+	int dchg_high_batt_temp_recovery[4];
+
+	struct lrp_temp_t lrp_temp[LRP_MAX];
+	struct lrp_current_t lrp_curr[LRP_MAX];
+
 	unsigned int chg_charging_limit_current;
 #if defined(CONFIG_DUAL_BATTERY)
 	unsigned int chg_main_charging_limit_current;
@@ -1169,6 +1232,7 @@ struct sec_battery_platform_data {
 	unsigned int wc_full_input_limit_current;
 	unsigned int max_charging_current;
 	unsigned int max_charging_charge_power;
+	unsigned int apdo_max_volt;
 	int mix_high_temp;
 	int mix_high_chg_temp;
 	int mix_high_temp_recovery;
@@ -1349,11 +1413,16 @@ struct sec_battery_platform_data {
 #endif
 
 #if defined(CONFIG_DUAL_BATTERY)
-	/* main + sub value should be over 110% */
-	unsigned int main_charging_rate;
-	unsigned int sub_charging_rate;
-	unsigned int dc_main_charging_rate;
-	unsigned int dc_sub_charging_rate;
+	/* zone 1 : 0C ~ 0.4C */
+	unsigned int main_zone1_current_rate;
+	unsigned int sub_zone1_current_rate;
+	/* zone 2 : 0.4C ~ 1.1C */
+	unsigned int main_zone2_current_rate;
+	unsigned int sub_zone2_current_rate;
+	/* zone 3 : 1.1C ~ MAX */
+	unsigned int main_zone3_current_rate;
+	unsigned int sub_zone3_current_rate;
+
 	unsigned int force_recharge_margin;
 	unsigned int max_main_charging_current;
 	unsigned int min_main_charging_current;

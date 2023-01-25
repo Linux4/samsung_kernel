@@ -8,6 +8,7 @@ typedef enum {
 	POGO_NOTIFY_DEV_TOUCHPAD = 0,
 	POGO_NOTIFY_DEV_KEYPAD,
 	POGO_NOTIFY_DEV_HALLIC,
+	POGO_NOTIFY_DEV_SENSOR,
 } pogo_notifier_device_t;
 
 enum STM32_ED_ID {
@@ -47,6 +48,7 @@ struct stm32_pogo_notifier {
 struct pogo_data_struct {
 	u8 size;
 	char *data;
+	int module_id;
 };
 
 int pogo_notifier_register(struct notifier_block *nb, notifier_fn_t notifier, pogo_notifier_device_t listener);

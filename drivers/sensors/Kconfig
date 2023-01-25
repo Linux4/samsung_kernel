@@ -230,3 +230,15 @@ config SEC_SLPI_SLEEP_DEBUG
 	help
 	  Say Y to make a force crash when slpi can not enter low power mode
 	  Say N to make silent restart when slpi can not enter low power mode
+
+config SEC_SENSORS_ENG_DEBUG
+	tristate "For debugging sensors"
+	default n
+	help
+	  Say Y to provide debugging, crash etc only ENG binary.
+	  
+config SENSORS_SKIP_CABLE_RESET
+	tristate "skip grip reset when usb/ta/data cable attached"
+	default n
+	help
+	  new ANFR concept to skip grip reset  

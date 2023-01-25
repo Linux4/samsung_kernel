@@ -11,11 +11,7 @@
 
 #include <linux/types.h>
 #include <linux/slab.h>
-
 #include <kunit/strerror.h>
-//#include <linux/string.h>
-//#include <linux/errno.h>
-
 #include <kunit/test-stream.h>
 #include <kunit/try-catch.h>
 
@@ -452,16 +448,16 @@ static inline void test_expect_end(struct test *test,
 	typeof(expression) __result = (expression);			       \
 	char buf[64];							       \
 									       \
-	if (result != 0)						       \
+	if (__result != 0)						       \
 		__stream->add(__stream,					       \
 			      "Expected " #expression " is not error, "	       \
 			      "but is: %s.",				       \
-			      strerror_r(-result, buf, sizeof(buf)));	       \
-	EXPECT_END(test, result != 0, __stream);			       \
+			      strerror_r(-__result, buf, sizeof(buf)));	       \
+	EXPECT_END(test, __result == 0, __stream);			       \
 } while (0)
 
 /**
- * EXPECT_ERROR() - Causes a test failure when @expression evaluates to @errno.
+ * EXPECT_ERROR() - Causes a test failure when @expression does not evaluate to @errno.
  * @test: The test context object.
  * @expression: an arbitrary expression evaluating to an int error code. The
  * test fails when this does not evaluate to @errno.
@@ -476,12 +472,12 @@ static inline void test_expect_end(struct test *test,
 	char buf1[64];							       \
 	char buf2[64];							       \
 									       \
-	if (result != errno)						       \
+	if (__result != errno)						       \
 		__stream->add(__stream,					       \
 			      "Expected " #expression " is %s, but is: %s.",   \
-			      strerror_t(-errno, buf1, sizeof(buf1)),	       \
-			      strerror_r(-result, buf2, sizeof(buf2)));	       \
-	EXPECT_END(test, result == errno, __stream);			       \
+			      strerror_r(-errno, buf1, sizeof(buf1)),	       \
+			      strerror_r(-__result, buf2, sizeof(buf2)));	       \
+	EXPECT_END(test, __result == errno, __stream);			       \
 } while (0)
 
 static inline void test_expect_binary(struct test *test,
@@ -538,6 +534,7 @@ static inline void test_expect_binary(struct test *test,
  * (@right)).  See EXPECT_TRUE() for more information.
  */
 #define EXPECT_EQ(test, left, right) EXPECT_BINARY(test, left, ==, right)
+#define EXPECT_PTR_EQ(test, left, right) EXPECT_BINARY(test, left, ==, right)
 
 /**
  * EXPECT_NE() - An expectation that @left and @right are not equal.
@@ -550,6 +547,7 @@ static inline void test_expect_binary(struct test *test,
  * (@right)).  See EXPECT_TRUE() for more information.
  */
 #define EXPECT_NE(test, left, right) EXPECT_BINARY(test, left, !=, right)
+#define EXPECT_PTR_NE(test, left, right) EXPECT_BINARY(test, left, !=, right)
 
 /**
  * EXPECT_LT() - An expectation that @left is less than @right.
@@ -753,12 +751,12 @@ static inline void test_assert_end(struct test *test,
 	typeof(expression) __result = (expression);			       \
 	char buf[64];							       \
 									       \
-	if (result != 0)						       \
+	if (__result != 0)						       \
 		__stream->add(__stream,					       \
 			      "Asserted " #expression " is not error, "	       \
 			      "but is: %s.",				       \
-			      strerror_r(-result, buf, sizeof(buf)));	       \
-	ASSERT_END(test, result != 0, __stream);			       \
+			      strerror_r(-__result, buf, sizeof(buf)));	       \
+	ASSERT_END(test, __result == 0, __stream);			       \
 } while (0)
 
 /**
@@ -777,12 +775,12 @@ static inline void test_assert_end(struct test *test,
 	char buf1[64];							       \
 	char buf2[64];							       \
 									       \
-	if (result != errno)						       \
+	if (__result != errno)						       \
 		__stream->add(__stream,					       \
 			      "Expected " #expression " is %s, but is: %s.",   \
-			      strerror_t(-errno, buf1, sizeof(buf1)),	       \
-			      strerror_r(-result, buf2, sizeof(buf2)));	       \
-	ASSERT_END(test, result == errno, __stream);			       \
+			      strerror_r(-errno, buf1, sizeof(buf1)),	       \
+			      strerror_r(-__result, buf2, sizeof(buf2)));	       \
+	ASSERT_END(test, __result == errno, __stream);			       \
 } while (0)
 
 static inline void test_assert_binary(struct test *test,
@@ -839,6 +837,7 @@ static inline void test_assert_binary(struct test *test,
  * (see ASSERT_TRUE()) when the assertion is not met.
  */
 #define ASSERT_EQ(test, left, right) ASSERT_BINARY(test, left, ==, right)
+#define ASSERT_PTR_EQ(test, left, right) ASSERT_BINARY(test, left, ==, right)
 
 /**
  * ASSERT_NE() - An assertion that @left and @right are not equal.
@@ -851,6 +850,7 @@ static inline void test_assert_binary(struct test *test,
  * (see ASSERT_TRUE()) when the assertion is not met.
  */
 #define ASSERT_NE(test, left, right) ASSERT_BINARY(test, left, !=, right)
+#define ASSERT_PTR_NE(test, left, right) ASSERT_BINARY(test, left, !=, right)
 
 /**
  * ASSERT_LT() - An assertion that @left is less than @right.

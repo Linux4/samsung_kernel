@@ -26,6 +26,7 @@
 #include <linux/of_gpio.h>
 #endif
 #include <linux/input/pogo_i2c_notifier.h>
+#include "stm32_pogo_i2c.h"
 
 #define STM32_TOUCHPAD_DRV_NAME			"stm32_tpd"
 
@@ -487,6 +488,11 @@ static void stm32_pogo_touchpad_event(struct stm32_touchpad_dev *stm32, char *ev
 				skip_touch_event = stm32_check_skip_move(stm32, i);
 			}
 
+			if (stm32->button == ICON_BUTTON_DOWN) {
+				skip_touch_event = false;
+				stm32->edge_touch[i].action = TOUCHED_AREA_NOTEDGE;
+			}
+
 			if (skip_touch_event == false) {
 				if (stm32->coord[i].action == TOUCH_ACTION_PRESS)
 					stm32_print_event(stm32, i, GENERATE_PRESS);
@@ -679,7 +685,8 @@ static int stm32_touchpad_pogo_notifier(struct notifier_block *nb,
 	mutex_lock(&stm32->dev_lock);
 	switch (action) {
 	case POGO_NOTIFIER_ID_ATTACHED:
-		stm32_touchpad_set_input_dev(stm32);
+		if (pogo_data.module_id != 1)
+			stm32_touchpad_set_input_dev(stm32);
 		break;
 	case POGO_NOTIFIER_ID_DETACHED:
 		stm32_release_all_finger(stm32);

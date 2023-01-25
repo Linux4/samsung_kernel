@@ -1393,7 +1393,7 @@ static void nvt_ts_close(struct nvt_ts_data *ts)
 		ts->sec_function = mode;
 	}
 
-	if (ts->lowpower_mode && !(ts->platdata->scanoff_cover_close && ts->flip_enable)) {
+	if (ts->lowpower_mode) {
 		//---write command to enter "wakeup gesture mode"---
 		buf[0] = EVENT_MAP_HOST_CMD;
 		buf[1] = NVT_CMD_GESTURE_MODE;
@@ -1406,6 +1406,12 @@ static void nvt_ts_close(struct nvt_ts_data *ts)
 
 		input_info(true, &ts->client->dev, "%s: enter lp mode, 0x%02X\n",
 				__func__, ts->lowpower_mode);
+		if (ts->platdata->scanoff_cover_close && ts->flip_enable) {
+			buf[0] = EVENT_MAP_HOST_CMD;
+			buf[1] = NVT_CMD_DEEP_SLEEP_MODE;
+			nvt_ts_i2c_write(ts, I2C_FW_Address, buf, 2);
+			input_info(true, &ts->client->dev, "%s: deep sleep mode for cover\n", __func__);
+		}
 	} else {
 		//---write i2c command to enter "deep sleep mode"---
 		buf[0] = EVENT_MAP_HOST_CMD;
@@ -1633,6 +1639,7 @@ static struct nvt_ts_platdata *nvt_ts_parse_dt(struct device *dev)
 	platdata->support_dex = of_property_read_bool(np, "support_dex_mode");
 	platdata->enable_settings_aot = of_property_read_bool(np, "enable_settings_aot");
 	platdata->scanoff_cover_close = of_property_read_bool(np, "novatek,scanoff_when_cover_closed");
+	platdata->enable_glove_mode = of_property_read_bool(np, "novatek,enable_glove_mode");
 
 	if (of_property_read_u32(np, "novatek,bringup", &platdata->bringup) < 0)
 		platdata->bringup = 0;
