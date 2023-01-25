@@ -1,0 +1,7 @@
+GCC_VERSION      := $(shell $(CONFIG_SHELL) $(PWD)/scripts/gcc-version.sh $(CROSS_COMPILE)gcc)
+EXTRA_CFLAGS += -Idrivers/media/video/msm
+EXTRA_CFLAGS += -Idrivers/media/video/msm/io
+obj-$(CONFIG_MSM_ACTUATOR) += msm_actuator.o
+ifndef CONFIG_MACH_KS02
+obj-$(CONFIG_MSM_ACTUATOR) += hvca_actuator.o
+endif
