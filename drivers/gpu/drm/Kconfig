@@ -495,4 +495,3 @@ config DRM_LIB_RANDOM
 	default n
 
 MCD_PANEL_PATH := drivers/gpu/drm/samsung/panel
-source "$(MCD_PANEL_PATH)/Kconfig"

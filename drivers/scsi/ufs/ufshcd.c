@@ -38,7 +38,7 @@
 				 UTP_TASK_REQ_COMPL |\
 				 UFSHCD_ERROR_MASK)
 /* UIC command timeout, unit: ms */
-#define UIC_CMD_TIMEOUT	5000
+#define UIC_CMD_TIMEOUT	500
 
 /* NOP OUT retries waiting for NOP IN response */
 #define NOP_OUT_RETRIES    10
@@ -4688,6 +4688,10 @@ link_startup:
 
 		ret = ufshcd_dme_link_startup(hba);
 
+		/* UFS error dump in first link startup fail. */
+		if (ret && (retries == DME_LINKSTARTUP_RETRIES))
+			ufshcd_print_evt_hist(hba);
+
 		/* check if device is detected by inter-connect layer */
 		if (!ret && !ufshcd_is_device_present(hba)) {
 			ufshcd_update_evt_hist(hba,
@@ -5086,8 +5090,8 @@ ufshcd_transfer_rsp_status(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
 			if (!hba->pm_op_in_progress &&
 			    !ufshcd_eh_in_progress(hba) &&
 			    ufshcd_is_exception_event(lrbp->ucd_rsp_ptr) &&
-			    schedule_work(&hba->eeh_work) &&
-			    scsi_host_in_recovery(hba->host)) {
+			    scsi_host_in_recovery(hba->host) &&
+				schedule_work(&hba->eeh_work)) {
 				/*
 				 * Prevent suspend once eeh_work is scheduled
 				 * to avoid deadlock between ufshcd_suspend
@@ -8031,11 +8035,26 @@ static void ufshcd_async_scan(void *data, async_cookie_t cookie)
 {
 	struct ufs_hba *hba = (struct ufs_hba *)data;
 	int ret;
+	int retries = 5;
 
 	down(&hba->host_sem);
 	/* Initialize hba, detect and initialize UFS device */
 	ret = ufshcd_probe_hba(hba, true);
+
+	/* retry 5 times if ufs init is failed*/
+	while (ret && retries--) {
+		dev_err(hba->dev, "%s: fail to probe_hba %d, retries: %d\n",
+				__func__, ret, retries);
+		ufshcd_vops_device_reset(hba);
+		ufshcd_hba_stop(hba);
+		ufshcd_set_clk_freq(hba, true);
+		ret = ufshcd_hba_enable(hba);
+		if (!ret)
+			ret =  ufshcd_probe_hba(hba, true);
+	}
+
 	up(&hba->host_sem);
+
 	if (ret)
 		goto out;
 

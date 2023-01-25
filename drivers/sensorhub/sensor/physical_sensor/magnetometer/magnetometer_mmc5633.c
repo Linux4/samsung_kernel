@@ -27,12 +27,14 @@
 
 #define MMC5633_NAME   "MMC5633"
 
-static void init_mag_mmc5633(void)
+static int init_mag_mmc5633(void)
 {
 	struct magnetometer_data *data = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD)->data;
 
 	data->mag_matrix_len = 27;
 	data->cal_data_len = sizeof(struct calibration_data_mmc5633);
+
+	return 0;
 }
 
 static void parse_dt_magnetometer_mmc5633(struct device *dev)
@@ -58,9 +60,8 @@ static void parse_dt_magnetometer_mmc5633(struct device *dev)
 		value_nfc = gpio_get_value(check_nfc_gpio);
 
 	check_mst_gpio = of_get_named_gpio(np, "mag-check-mst", 0);
-	if (check_mst_gpio >= 0) {
+	if (check_mst_gpio >= 0)
 		value_mst = gpio_get_value(check_mst_gpio);
-	}
 
 	if (value_mst == 1) {
 		shub_info("mag matrix(%d %d) nfc/mst array", value_nfc, value_mst);
@@ -75,12 +76,12 @@ static void parse_dt_magnetometer_mmc5633(struct device *dev)
 	}
 }
 
-struct magnetometer_chipset_funcs magnetic_mmc5633_ops = {
+struct sensor_chipset_init_funcs magnetic_mmc5633_ops = {
 	.init = init_mag_mmc5633,
 	.parse_dt = parse_dt_magnetometer_mmc5633,
 };
 
-struct magnetometer_chipset_funcs *get_magnetic_mmc5633_function_pointer(char *name)
+struct sensor_chipset_init_funcs *get_magnetic_mmc5633_function_pointer(char *name)
 {
 	if (strcmp(name, MMC5633_NAME) != 0)
 		return NULL;

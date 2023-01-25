@@ -98,6 +98,7 @@ static void simulate_EMERGENT_REBOOT(char **argv, int argc);
 static void simulate_SHUTDOWN_LOCKUP(char **argv, int argc);
 static void simulate_SUSPEND_LOCKUP(char **argv, int argc);
 static void simulate_FLUSH_WQ(char **argv, int argc);
+static void simulate_FLUSH_WORK(char **argv, int argc);
 static void simulate_PAC_TEST(char **argv, int argc);
 static void simulate_PTRAUTH_FAULT(char **argv, int argc);
 static void simulate_FREE_DEBUG_OBJECTS(char **argv, int argc);
@@ -171,6 +172,7 @@ enum {
 	FORCE_SHUTDOWN_LOCKUP,		/* SHUTDOWN LOCKUP */
 	FORCE_SUSPEND_LOCKUP,		/* SUSPEND LOCKUP */
 	FORCE_FLUSH_WQ,			/* FLUSH WQ */
+	FORCE_FLUSH_WORK,		/* FLUSH WORK */
 	FORCE_PAC_TEST,			/* PAC TEST */
 	FORCE_PTRAUTH_FAULT,		/* PTR AUTH FAULT */
 	FORCE_FREE_DEBUG_OBJECTS,	/* Free activate DEBUG OBJECTs */
@@ -256,6 +258,7 @@ struct force_error force_error_vector = {
 		{"shutdownlockup",	&simulate_SHUTDOWN_LOCKUP},
 		{"suspendlockup",	&simulate_SUSPEND_LOCKUP},
 		{"flushwq",	&simulate_FLUSH_WQ},
+		{"flushwork",	&simulate_FLUSH_WORK},
 		{"pactest",	&simulate_PAC_TEST},
 		{"ptrauthfault",	&simulate_PTRAUTH_FAULT},
 		{"free-debugobjects",	&simulate_FREE_DEBUG_OBJECTS},
@@ -955,14 +958,14 @@ static void simulate_IRQ_STORM(char **argv, int argc)
 			struct irq_desc *desc = irq_to_desc(i);
 
 			if (desc && desc->action && desc->action->name)
-				if (!strcmp(desc->action->name, "gpio-keys: KEY_VOLUMEDOWN")) {
+				if (!strcmp(desc->action->name, "gpio-keys: KEY_VOLUMEUP")) {
 					irq_set_irq_type(i,
 						IRQF_TRIGGER_HIGH | IRQF_SHARED);
 					break;
 				}
 		}
 		if (i == nr_irqs)
-			pr_crit("%s : irq (gpio-keys: KEY_VOLUMEDOWN) not found\n", __func__);
+			pr_crit("%s : irq (gpio-keys: KEY_VOLUMEUP) not found\n", __func__);
 
 	}
 }
@@ -1652,6 +1655,13 @@ static void sec_debug_wq_sleep_func(struct work_struct *work)
 	pr_crit("end %s\n", __func__);
 }
 
+static void sec_debug_wq_busy_func(struct work_struct *work)
+{
+	pr_crit("%s\n", __func__);
+	cpu_park_loop();
+	pr_crit("end %s\n", __func__);
+}
+
 static void simulate_FLUSH_WQ(char **argv, int argc)
 {
 	static DECLARE_WORK(secdbg_wq_sleep_work1, sec_debug_wq_sleep_func);
@@ -1663,6 +1673,59 @@ static void simulate_FLUSH_WQ(char **argv, int argc)
 	schedule_work(&secdbg_wq_sleep_work3);
 
 	flush_scheduled_work();
+}
+
+/*
+ * @count : busy work before the target work
+ *    ex) 0 : might make the target In-flight
+ *       10 : might make the target Pending
+ *       20 : might make the target Inactive
+ */
+static void simulate_FLUSH_WORK(char **argv, int argc)
+{
+	int i;
+	int count = 0;
+	int ret;
+	struct workqueue_struct *wq;
+
+	DECLARE_WORK(secdbg_wq_sleep_work1, sec_debug_wq_sleep_func);
+	DECLARE_WORK(secdbg_wq_sleep_work2, sec_debug_wq_sleep_func);
+	DECLARE_WORK(secdbg_wq_sleep_work3, sec_debug_wq_sleep_func);
+
+	if (argc > 0) {
+		ret = kstrtoint(argv[0], 0, &count);
+		if (ret)
+			pr_err("%s: Failed 1st arg: %s\n", __func__, argv[0]);
+	}
+
+	if (count < 0)
+		count = 0;
+	if (count > 100)
+		count = 100;
+
+	pr_info("%s: try to schedule %d works\n", __func__, count);
+
+	wq = alloc_workqueue("sec_test_wq", 0, 10);
+
+	for (i = 0; i < count; i++) {
+		struct work_struct *work;
+
+		work = kzalloc(sizeof(*work), GFP_KERNEL);
+		INIT_WORK(work, sec_debug_wq_busy_func);
+		queue_work(wq, work);
+	}
+
+	pr_info("%s: %d works are scheduled\n", __func__, i);
+
+	queue_work(wq, &secdbg_wq_sleep_work1);
+	queue_work(wq, &secdbg_wq_sleep_work2);
+	queue_work(wq, &secdbg_wq_sleep_work3);
+
+	msleep(100);
+
+	flush_work(&secdbg_wq_sleep_work1);
+	flush_work(&secdbg_wq_sleep_work2);
+	flush_work(&secdbg_wq_sleep_work3);
 }
 
 static void _read_reg_apiakey(u64 *keyh, u64 *keyl)

@@ -822,6 +822,7 @@ struct slsi_last_disconnected_sta {
 	bool mimo_used;
 	u16 reason;
 	int support_mode;
+	int supported_band;
 };
 
 struct slsi_vif_ap {

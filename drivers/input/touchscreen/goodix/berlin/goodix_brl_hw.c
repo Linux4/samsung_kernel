@@ -359,8 +359,8 @@ static int brl_write_to_sponge(struct goodix_ts_core *cd,
 #define GOODIX_CMD_RETRY		6
 #define CMD_ADDR				0x10174
 static DEFINE_MUTEX(cmd_mutex);
-static int brl_send_cmd(struct goodix_ts_core *cd,
-		struct goodix_ts_cmd *cmd)
+static int brl_send_cmd_with_delay(struct goodix_ts_core *cd,
+		struct goodix_ts_cmd *cmd, int delayms)
 {
 	int ret, retry, i;
 	struct goodix_ts_cmd cmd_ack;
@@ -391,7 +391,7 @@ static int brl_send_cmd(struct goodix_ts_core *cd,
 			ts_debug("cmd ack data %*ph",
 					(int)sizeof(cmd_ack), cmd_ack.buf);
 			if (cmd_ack.ack == CMD_ACK_OK) {
-				sec_delay(20);
+				sec_delay(delayms);
 				ret = 0;
 				goto out;
 			}
@@ -411,6 +411,12 @@ static int brl_send_cmd(struct goodix_ts_core *cd,
 out:
 	mutex_unlock(&cmd_mutex);
 	return ret;
+}
+
+static int brl_send_cmd(struct goodix_ts_core *cd,
+		struct goodix_ts_cmd *cmd)
+{
+	return brl_send_cmd_with_delay(cd, cmd, 20);
 }
 
 /* flash write/read interface, limit 4096 bytes */
@@ -1635,6 +1641,7 @@ static struct goodix_ts_hw_ops brl_hw_ops = {
 	.write_to_flash = brl_write_to_flash,
 	.read_from_flash = brl_read_from_flash,
 	.send_cmd = brl_send_cmd,
+	.send_cmd_delay = brl_send_cmd_with_delay,
 	.send_config = brl_send_config,
 	.read_config = brl_read_config,
 	.read_version = brl_read_version,

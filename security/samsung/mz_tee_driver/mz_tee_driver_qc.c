@@ -20,7 +20,6 @@
 #include <linux/kthread.h>
 #include <linux/firmware.h>
 #include <linux/mz.h>
-
 #include "qseecom_kernel.h"
 
 int target_count;
@@ -196,7 +195,7 @@ static int send_cmd(uint16_t cmd,
 	iResult = qseecom_set_bandwidth(session, true);
 	if (iResult != 0) {
 		pr_err("MZ %s qseecom_set_bandwidth fail\n", __func__);
-		return -1;
+		goto exit_error;
 	}
 
 	// send command
@@ -209,22 +208,22 @@ static int send_cmd(uint16_t cmd,
 		iResult = qseecom_set_bandwidth(session, false);
 		if (iResult != 0) {
 			pr_err("MZ %s qseecom_set_bandwidth fail 2\n", __func__);
-			return -1;
+			goto exit_error;
 		}
 		pr_err("MZ %s qseecom_send_command fail\n", __func__);
-		return -1;
+		goto exit_error;
 	}
 
 	iResult = qseecom_set_bandwidth(session, false);
 	if (iResult != 0) {
 		pr_err("MZ %s qseecom_set_bandwidth fail 3\n", __func__);
-		return -1;
+		goto exit_error;
 	}
 
 	// Check the Trustlet return code
 	if (rsptci->response.header.returnCode != 0) {
 		pr_err("MZ %s ta return error %d\n", __func__, rsptci->response.header.returnCode);
-		return -1;
+		goto exit_error;
 	}
 
 	// Read result from TCI buffer
@@ -251,6 +250,7 @@ static int send_cmd(uint16_t cmd,
 exit_error:
 	memset(tci, 0x00, sizeof(tciMessage_t));
 	memset(rsptci, 0x00, sizeof(tciMessage_t));
+	kfree(mzbuffer);
 
 	return retVal;
 }
@@ -283,7 +283,7 @@ MzResult encrypt_impl(uint8_t *pt, uint8_t *ct, uint8_t *iv)
 	int taret;
 
 	taret = send_cmd_kthread(CMD_MZ_WB_ENCRYPT, 0, pt, iv);
-	if (taret != MZ_TA_SUCCESS) {
+	if (taret != MZ_SUCCESS) {
 		pr_err("MZ %s ta return error %d\n", __func__, taret);
 		mzret = MZ_TA_FAIL;
 	}
@@ -291,7 +291,7 @@ MzResult encrypt_impl(uint8_t *pt, uint8_t *ct, uint8_t *iv)
 	return mzret;
 }
 
-MzResult load_trusted_app(void)
+MzResult load_trusted_app_qc(void)
 {
 	int qsee_res = 0;
 	int tci_size = 0;
@@ -339,14 +339,15 @@ static void unregister_tee_driver(void)
 	unregister_mz_tee_crypto_driver();
 }
 
-void unload_trusted_app(void)
+void unload_trusted_app_qc(void)
 {
 	int iResult = 0;
 
-	pr_info("MZ %s target_count %d\n", __func__, target_count); //TODO remove
-	if (target_count > 1 && session != NULL)
+	pr_info("MZ %s target_count %d\n", __func__, target_count);
+	if (target_count > 1 && session != NULL) {
 		target_count--;
 		return;
+	}
 
 	if (session == NULL) {
 		pr_err("MZ %s ta session is null\n", __func__);
@@ -374,6 +375,9 @@ static int __init tee_driver_init(void)
 		pr_err("MZ Can't register tee_driver\n");
 		goto out;
 	}
+
+	load_trusted_app = load_trusted_app_qc;
+	unload_trusted_app = unload_trusted_app_qc;
 
 out:
 	return rc;

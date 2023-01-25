@@ -132,7 +132,7 @@ static void abox_boot_done(struct device *dev, unsigned int version);
 
 void abox_set_magic(struct abox_data *data, unsigned int val)
 {
-	writel(val, data->sram_base + data->sram_size - sizeof(u32));
+	writel(val, data->sram_base + SRAM_FIRMWARE_SIZE - sizeof(u32));
 }
 
 static void exynos_abox_panic_handler(void)
@@ -200,7 +200,7 @@ static irqreturn_t abox_wdt_handler(int irq, void *dev_id)
 
 	if (abox_is_on()) {
 		abox_dbg_dump_gpr(dev, data, ABOX_DBG_DUMP_KERNEL, "watchdog");
-		writel(0x504E4943, data->sram_base + data->sram_size -
+		writel(0x504E4943, data->sram_base + SRAM_FIRMWARE_SIZE -
 				sizeof(u32));
 		abox_cpu_enable(false);
 		abox_cpu_power(false);
@@ -388,7 +388,7 @@ void *abox_get_resource_info(struct abox_data *data, enum abox_region rid,
 	case ABOX_REG_SRAM:
 		ret = kaddr ? data->sram_base : (void *)data->sram_phys;
 		if (buf_size && (*buf_size == 0))
-			*buf_size = data->sram_size;
+			*buf_size = SRAM_FIRMWARE_SIZE;
 		break;
 	case ABOX_REG_DRAM:
 		ret = kaddr ? data->dram_base : (void *)data->dram_phys;
@@ -2713,7 +2713,7 @@ static void abox_ext_bin_download(struct abox_data *data,
 	switch (efw->area) {
 	case 0:
 		base = data->sram_base;
-		size = data->sram_size;
+		size = SRAM_FIRMWARE_SIZE;
 		efw->iova = efw->offset;
 		break;
 	case 1:

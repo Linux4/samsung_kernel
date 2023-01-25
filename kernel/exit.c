@@ -75,7 +75,7 @@
 #endif
 
 #if defined(CONFIG_MEMORY_ZEROISATION)
-#include <linux/mz.h> /* for Memory zeroisation */
+#include <trace/hooks/mz.h>
 #endif
 
 static void __unhash_process(struct task_struct *p, bool group_dead)
@@ -498,9 +498,8 @@ static void exit_mm(void)
 	if (test_thread_flag(TIF_MEMDIE))
 		exit_oom_victim();
 
-	/* Memory zeroisation */
 #if defined(CONFIG_MEMORY_ZEROISATION)
-	mz_exit();
+	trace_android_vh_mz_exit(current);
 #endif
 }
 

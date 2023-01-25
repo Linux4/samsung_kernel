@@ -197,6 +197,7 @@ struct exynos_drm_crtc_state {
 	bool tui_status : 1;
 	bool tui_changed : 1;
 	bool modeset_only : 1;
+	bool skip_frameupdate : 1;
 	struct drm_rect partial_region;
 	struct drm_property_blob *partial;
 	bool needs_reconfigure;
@@ -209,9 +210,6 @@ struct exynos_drm_crtc_state {
 	int64_t dqe_fd;
 	s32 __user *bts_fps_ptr;
 	u32 boost_bts_fps;
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-	bool skip_frame_update;
-#endif
 };
 
 int exynos_drm_crtc_add_crc_entry(struct drm_crtc *crtc, bool has_frame,

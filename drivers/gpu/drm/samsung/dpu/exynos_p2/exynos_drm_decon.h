@@ -46,11 +46,8 @@ extern int dbg_snapshot_expire_watchdog(void);
 enum decon_state {
 	DECON_STATE_INIT = 0,
 	DECON_STATE_ON,
-	DECON_STATE_DOZE,
 	DECON_STATE_HIBERNATION,
-	DECON_STATE_DOZE_SUSPEND,
 	DECON_STATE_OFF,
-	DECON_STATE_TUI,
 };
 
 struct decon_resources {
@@ -158,7 +155,6 @@ decon_get_wb(struct decon_device *decon)
 static inline bool IS_DECON_OFF_STATE(struct decon_device *decon)
 {
 	return decon->state == DECON_STATE_HIBERNATION ||
-	       decon->state == DECON_STATE_DOZE_SUSPEND ||
 	       decon->state == DECON_STATE_OFF;
 }
 

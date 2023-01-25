@@ -1803,6 +1803,7 @@ EXPORT_SYMBOL(scsc_service_get_panic_record);
 size_t scsc_service_mxlogger_buff_size(struct scsc_service *service, enum scsc_log_chunk_type fw_buffer,
 				       enum scsc_mifintr_target dir)
 {
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER) && IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	struct scsc_mx *mx;
 	enum scsc_mif_abs_target target;
 
@@ -1823,12 +1824,17 @@ size_t scsc_service_mxlogger_buff_size(struct scsc_service *service, enum scsc_l
 		target = SCSC_MIF_ABS_TARGET_WPAN;
 
 	return mxlogger_get_fw_buf_size(scsc_mx_get_mxlogger(mx), fw_buffer, target);
+#else
+	SCSC_TAG_INFO(MXMAN, "MX LOGGING and LOG collection is disabled\n");
+	return 0;
+#endif
 }
 EXPORT_SYMBOL(scsc_service_mxlogger_buff_size);
 
 size_t scsc_service_collect_buffer(struct scsc_service *service, enum scsc_log_chunk_type fw_buffer,
 				   void *buffer, size_t size, enum scsc_mifintr_target dir)
 {
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER) && IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	struct scsc_mx *mx;
 	size_t bytes = 0;
 	enum scsc_mif_abs_target target;
@@ -1859,6 +1865,10 @@ size_t scsc_service_collect_buffer(struct scsc_service *service, enum scsc_log_c
 	SCSC_TAG_DEBUG(MXMAN, "Unable to dump buffer\n");
 exit:
 	return 0;
+#else
+	SCSC_TAG_INFO(MXMAN, "MX LOGGING and LOG collection is disabled\n");
+	return 0;
+#endif
 }
 EXPORT_SYMBOL(scsc_service_collect_buffer);
 #endif

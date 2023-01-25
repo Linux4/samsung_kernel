@@ -303,6 +303,7 @@ int of_get_panel_power_ctrl(struct panel_device *panel, struct device_node *seq_
 		return -EINVAL;
 
 	INIT_LIST_HEAD(&pctrl->action_list);
+	pctrl->funcs = &panel_power_ctrl_funcs;
 
 	sz = of_property_count_u32_elems(seq_np, prop_name);
 	if (sz <= 0) {
@@ -364,7 +365,6 @@ int of_get_panel_power_ctrl(struct panel_device *panel, struct device_node *seq_
 		of_node_put(action_np);
 	}
 
-	pctrl->funcs = &panel_power_ctrl_funcs;
 	return 0;
 }
 EXPORT_SYMBOL(of_get_panel_power_ctrl);

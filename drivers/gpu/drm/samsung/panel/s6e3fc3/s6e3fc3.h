@@ -554,9 +554,11 @@ __visible_for_testing int getidx_vrr_fps_table(struct maptbl *);
 #if defined(__PANEL_NOT_USED_VARIABLE__)
 __visible_for_testing int getidx_vrr_gamma_table(struct maptbl *);
 #endif
+
+#ifdef CONFIG_SUPPORT_MASK_LAYER
 __visible_for_testing bool s6e3fc3_is_120hz(struct panel_device *panel);
 __visible_for_testing bool s6e3fc3_is_60hz(struct panel_device *panel);
-__visible_for_testing bool s6e3fc3_is_a52_panel(struct panel_device *panel);
+#endif
 
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
 __visible_for_testing int init_color_blind_table(struct maptbl *tbl);
@@ -583,7 +585,6 @@ __visible_for_testing int init_gamma_mtp_all_table(struct maptbl *tbl);
 __visible_for_testing int getidx_mdnie_scr_white_maptbl(struct pkt_update_info *pktui);
 __visible_for_testing void update_current_scr_white(struct maptbl *tbl, u8 *dst);
 #endif /* CONFIG_EXYNOS_DECON_MDNIE_LITE */
-__visible_for_testing int s6e3fc3_getidx_ffc_table(struct maptbl *tbl);
 __visible_for_testing bool is_panel_state_not_lpm(struct panel_device *panel);
 static inline bool is_panel_state_lpm(struct panel_device *panel) {
 	return !is_panel_state_not_lpm(panel);

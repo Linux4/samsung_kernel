@@ -73,6 +73,7 @@
 #include <trace/hooks/snd_compr.h>
 #include <trace/hooks/ipv4.h>
 #include <trace/hooks/pci.h>
+#include <trace/hooks/mz.h>
 
 /*
  * Export tracepoints that act as a bare tracehook (ie: have no trace event
@@ -399,3 +400,4 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mem_cgroup_css_offline);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mem_cgroup_css_online);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mem_cgroup_free);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mem_cgroup_alloc);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mz_exit);

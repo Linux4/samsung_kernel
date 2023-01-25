@@ -21,6 +21,8 @@ subdir-ccflags-$(CONFIG_SOC_S5E9925) += \
 subdir-ccflags-$(CONFIG_SOC_S5E8825) += \
 	-I$(srctree)/drivers/gpu/drm/samsung/dpu/exynos_p2 \
 	-I$(srctree)/drivers/gpu/drm/samsung/dpu/exynos_p2/cal_py
+subdir-ccflags-$(CONFIG_SOC_S5E9935) += \
+	-I$(srctree)/drivers/gpu/drm/samsung/dpu/cal_qd
 endif
 
 ifneq ($(filter y m,$(CONFIG_EXYNOS_DPU30)),)
@@ -55,21 +57,8 @@ mcd-panel-$(CONFIG_PANEL_NOTIFY) += panel_notify.o
 mcd-panel-$(CONFIG_DISPLAY_USE_INFO) += dpui.o
 mcd-panel-$(CONFIG_EXYNOS_DECON_LCD_COPR) += copr.o
 mcd-panel-$(CONFIG_SUPPORT_POC_SPI) += panel_poc.o panel_spi.o
-mcd-panel-$(CONFIG_SUPPORT_DISPLAY_PROFILER) += \
-	display_profiler/display_profiler.o \
-	display_profiler/maskgen.o
 mcd-panel-$(CONFIG_MCD_PANEL_I2C) += panel_i2c.o
 mcd-panel-$(CONFIG_MCD_PANEL_BLIC) += panel_blic.o
-
-
-obj-y += s6e3fab/
-obj-y += s6e3fac/
-obj-y += s6e3hab/
-obj-y += s6e3had/
-obj-y += s6e3hae/
-obj-y += s6e3fc3/
-obj-y += s6e8fc3/
-obj-y += tft_common/
 obj-$(CONFIG_MCD_PANEL) += mcd-panel.o
 
 subdir-ccflags-$(CONFIG_SEC_KUNIT) += \

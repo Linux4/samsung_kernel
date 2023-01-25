@@ -17,6 +17,21 @@
 #include "s6e3fc3_a53x_self_mask_img.h"
 #include "s6e3fc3_a53x_self_mask_img_factory.h"
 
+__visible_for_testing bool s6e3fc3_is_a52_panel(struct panel_device *panel)
+{
+	struct panel_info *panel_data;
+
+	if (!panel)
+		return false;
+
+	panel_data = &panel->panel_data;
+
+	if (panel_data->id[0] == 0x90 && panel_data->id[1] == 0x40 && panel_data->id[2] & 0x02)
+		return true;
+
+	return false;
+}
+
 static u8 S6E3FC3_AOD_KEY1_ENABLE[] = { 0xF0, 0x5A, 0x5A };
 static u8 S6E3FC3_AOD_KEY1_DISABLE[] = { 0xF0, 0xA5, 0xA5 };
 

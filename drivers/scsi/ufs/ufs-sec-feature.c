@@ -785,6 +785,9 @@ void ufs_set_sec_features(struct ufs_hba *hba)
 	u8 *desc_buf = NULL;
 	int err;
 
+	if (ufs_vdi.hba)
+		return;
+
 	ufs_vdi.hba = hba;
 
 	/* read device desc */

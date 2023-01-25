@@ -111,6 +111,8 @@
 #define WIFI_TAG_VD_MGMT_FRAME_SUBTYPE        0xf04c
 #define SLSI_WIFI_TAG_VD_IS_ROAMING           0xf04d
 
+#define SLSI_PSID_UNIFI_AC_NO_ACKS 0x0918
+
 #define MAX_SSID_LEN 100
 #define SLSI_MAX_NUM_RING 10
 
@@ -1942,11 +1944,11 @@ void slsi_lls_debug_dump_stats(struct slsi_dev *sdev, struct slsi_lls_radio_stat
 	}
 	SLSI_DBG3(sdev, SLSI_GSCAN, "iface_stat====\n");
 	SLSI_DBG3(sdev, SLSI_GSCAN, "\tiface %p info : (mode : %d, mac_addr : %pM, state : %d, roaming : %d,"
-		  " capabilities : %d, ssid : %s, bssid : %pM, ap_country_str : [%d%d%d])\trssi_data : %d\n",
+		  " capabilities : %d, ssid : %s, bssid : %pM, ap_country_str : [%d%d%d])\trssi_data : %d, rssi_mgmt : %d\n",
 		  iface_stat->iface, iface_stat->info.mode, iface_stat->info.mac_addr, iface_stat->info.state,
 		  iface_stat->info.roaming, iface_stat->info.capabilities, iface_stat->info.ssid,
 		  iface_stat->info.bssid, iface_stat->info.ap_country_str[0], iface_stat->info.ap_country_str[1],
-		  iface_stat->info.ap_country_str[2], iface_stat->rssi_data);
+		  iface_stat->info.ap_country_str[2], iface_stat->rssi_data, iface_stat->rssi_mgmt);
 
 	SLSI_DBG3(sdev, SLSI_GSCAN, "\tnum_peers %d\n", iface_stat->num_peers);
 	for (i = 0; i < iface_stat->num_peers; i++) {
@@ -2240,7 +2242,11 @@ static void slsi_lls_iface_stat_fill(struct slsi_dev *sdev,
 						 { SLSI_PSID_UNIFI_AC_RETRIES, { SLSI_TRAFFIC_Q_VO + 1, 0 } },
 						 { SLSI_PSID_UNIFI_BEACON_RECEIVED, {0, 0} },
 						 { SLSI_PSID_UNIFI_PS_LEAKY_AP, {0, 0} },
-						 { SLSI_PSID_UNIFI_RSSI, {0, 0} } };
+						 { SLSI_PSID_UNIFI_RSSI, {0, 0} },
+						 { SLSI_PSID_UNIFI_AC_NO_ACKS, { SLSI_TRAFFIC_Q_BE + 1, 0 } },
+						 { SLSI_PSID_UNIFI_AC_NO_ACKS, { SLSI_TRAFFIC_Q_BK + 1, 0 } },
+						 { SLSI_PSID_UNIFI_AC_NO_ACKS, { SLSI_TRAFFIC_Q_VI + 1, 0 } },
+						 { SLSI_PSID_UNIFI_AC_NO_ACKS, { SLSI_TRAFFIC_Q_VO + 1, 0 } } };
 
 	iface_stat->iface = NULL;
 	iface_stat->info.mode = SLSI_LLS_INTERFACE_UNKNOWN;
@@ -2292,6 +2298,7 @@ static void slsi_lls_iface_stat_fill(struct slsi_dev *sdev,
 			iface_stat->ac[i].retries = values[i].u.uintValue;
 			iface_stat->ac[i].rx_mpdu = ndev_vif->rx_packets[i];
 			iface_stat->ac[i].tx_mpdu = ndev_vif->tx_packets[i];
+			ndev_vif->tx_no_ack[i] = values[i+7].u.uintValue;
 			iface_stat->ac[i].mpdu_lost = ndev_vif->tx_no_ack[i];
 		}
 	}
@@ -2304,8 +2311,10 @@ static void slsi_lls_iface_stat_fill(struct slsi_dev *sdev,
 		iface_stat->leaky_ap_guard_time = 5; /* 5 milli sec. As mentioned in lls document */
 	}
 
-	if (values[6].type == SLSI_MIB_TYPE_INT)
+	if (values[6].type == SLSI_MIB_TYPE_INT) {
 		iface_stat->rssi_data = values[6].u.intValue;
+		iface_stat->rssi_mgmt = values[6].u.intValue;
+	}
 
 exit:
 	kfree(values);
@@ -3911,13 +3920,14 @@ static void dump_roam_scan_result(struct slsi_dev *sdev, struct net_device *dev,
 					  tp_score, eligible_value);
 	if (*curr) {
 		SLSI_INFO(sdev, "WIFI_EVENT_ROAM_SCAN_RESULT, Current AP, BSSID:" MACSTR
-			  ", RSSI:%d, CU:%d, Score:%d, TP Score:%d\n",
-			  MAC2STR(bssid), rssi, cu, score, tp_score);
+			  ", RSSI:%d, CU:%d, Score:%d.%02d, TP Score:%d\n",
+			  MAC2STR(bssid), rssi, cu, score / 100, score % 100, tp_score);
 		*curr = false;
 	} else {
 		SLSI_INFO(sdev, "WIFI_EVENT_ROAM_SCAN_RESULT, Candidate AP, BSSID:" MACSTR
-			  ", RSSI:%d, CU:%d, Score:%d, TP Score:%d, Eligible:%s\n",
-			  MAC2STR(bssid), rssi, cu, score, tp_score, eligible_value ? "true" : "false");
+			  ", RSSI:%d, CU:%d, Score:%d, TP Score:%d.%02d, Eligible:%s\n",
+			  MAC2STR(bssid), rssi, cu, score / 100, score % 100, tp_score,
+			  eligible_value ? "true" : "false");
 	}
 }
 

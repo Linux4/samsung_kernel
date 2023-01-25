@@ -119,6 +119,9 @@ void mailbox_deinit(volatile struct mailbox_hdr *header, struct npu_system *syst
 	system->fw_cold_boot = (header->boottype == BOOT_TYPE_WARM_BOOT) ? (false) : (true);
 	npu_info("cold(%d) requested by fw, boottype(%#x)\n",
 			system->fw_cold_boot, header->boottype);
+
+	header->signature1 = 0;
+	header->signature2 = 0;
 #else
 	(void)header;
 	system->fw_cold_boot = true;

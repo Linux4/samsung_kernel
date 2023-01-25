@@ -23,10 +23,11 @@
 
 /* Uses */
 #include <mali_kbase.h>
+#include <debug/mali_kbase_debug_ktrace.h>
 
-#include <gpex_common.h>
 #include <gpex_platform.h>
 #include <gpex_utils.h>
+#include <gpex_debug.h>
 #include <gpex_pm.h>
 #include <gpex_qos.h>
 #include <gpex_clock.h>
@@ -38,12 +39,13 @@
 #include <gpexbe_llc_coherency.h>
 #include <gpexbe_utilization.h>
 #include <gpexbe_pm.h>
-#include <gpexbe_power_cycle_wa.h>
 #include <gpexbe_secure.h>
 #include <gpexbe_dmabuf.h>
 #include <gpexwa_interactive_boost.h>
 
 #include <mali_exynos_ioctl.h>
+
+#include <gpexbe_clock.h>
 
 static int mali_exynos_ioctl_amigo_flags_fn(struct kbase_context *kctx,
 					    struct mali_exynos_ioctl_amigo_flags *flags)
@@ -403,9 +405,36 @@ bool mali_exynos_dmabuf_is_cached(struct dma_buf *dmabuf)
 	return gpexbe_dmabuf_is_cached(dmabuf);
 }
 
+void mali_exynos_debug_print_info(struct kbase_device *kbdev)
+{
+	static ktime_t current_time;
+	static ktime_t prev_time;
+	s64 diff;
+
+	current_time = ktime_get_boottime();
+
+	diff = ktime_to_ns(ktime_sub(current_time, prev_time));
+
+#define ONESEC_IN_NS (1000 * 1000 * 1000)
+#define INTERVAL_IN_SEC 10
+
+	if (diff > (s64)ONESEC_IN_NS * INTERVAL_IN_SEC) {
+		prev_time = current_time;
+
+		KBASE_KTRACE_DUMP(kbdev);
+
+		gpex_debug_dump_hist(HIST_CLOCK);
+		gpex_debug_dump_hist(HIST_BTS);
+		gpex_debug_dump_hist(HIST_LLC);
+		gpex_debug_dump_hist(HIST_RTPM);
+		gpex_debug_dump_hist(HIST_SUSPEND);
+	}
+}
+
 static int mali_exynos_kbase_entrypoint_init(struct kbase_device *kbdev)
 {
-	kbdev->platform_context = (void *)gpex_platform_init(&kbdev->dev);
+	gpex_platform_init(&kbdev->dev);
+	kbdev->platform_context = (void *)gpex_utils_get_exynos_context();
 
 	return 0;
 }
@@ -419,9 +448,13 @@ static void mali_exynos_kbase_entrypoint_term(struct kbase_device *kbdev)
 static int mali_exynos_kbase_context_init(struct kbase_context *kctx)
 {
 	struct platform_context *pctx = kcalloc(1, sizeof(struct platform_context), GFP_KERNEL);
+	char current_name[sizeof(current->comm)];
 
 	pctx->cmar_boost = CMAR_BOOST_DEFAULT;
 	pctx->pid = kctx->pid;
+
+	get_task_comm(current_name, current);
+	strncpy((char *)(&pctx->name), current_name, sizeof(current->comm));
 
 	kctx->platform_data = pctx;
 

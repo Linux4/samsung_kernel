@@ -278,6 +278,7 @@ struct scsc_logring_mx_cb mx_logring = {
 #endif
 int mxman_stop(struct mxman *mxman, enum scsc_subsystem sub);
 
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
 #if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 static int mxman_minimoredump_collect(struct scsc_log_collector_client *collect_client, size_t size)
 {
@@ -330,6 +331,7 @@ struct scsc_log_collector_mx_cb mx_cb = {
 	.call_wlbtd_sable = call_wlbtd_sable_cb,
 };
 
+#endif
 #endif
 
 #if IS_ENABLED(CONFIG_DEBUG_SNAPSHOT)

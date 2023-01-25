@@ -50,11 +50,8 @@ static inline int dbg_snapshot_expire_watchdog(void) { return 0; }
 enum decon_state {
 	DECON_STATE_INIT = 0,
 	DECON_STATE_ON,
-	DECON_STATE_DOZE,
 	DECON_STATE_HIBERNATION,
-	DECON_STATE_DOZE_SUSPEND,
 	DECON_STATE_OFF,
-	DECON_STATE_TUI,
 };
 
 struct decon_resources {

@@ -31,9 +31,8 @@ bool check_flip_cover_detector_supported(void)
 	struct device_node *np = get_shub_device()->of_node;
 	uint32_t axis;
 
-	if (of_property_read_u32(np, "fcd-axis", &axis)) {
+	if (of_property_read_u32(np, "fcd-axis", &axis))
 		return false;
-	}
 
 	return true;
 }
@@ -147,8 +146,7 @@ int init_flip_cover_detector(bool en)
 		sensor->funcs->sync_status = sync_flip_cover_detector_status;
 		sensor->funcs->report_event = report_event_flip_cover_detector;
 		sensor->funcs->print_debug = print_flip_cover_detector_debug;
-
-		parse_dt_flip_cover_detector_variable(get_shub_device());
+		sensor->funcs->parse_dt = parse_dt_flip_cover_detector_variable;
 	} else {
 		kfree(sensor->event_buffer.value);
 		sensor->event_buffer.value = NULL;

@@ -722,3 +722,16 @@ extern const struct cpumask *cpu_coregroup_mask(int cpu);
 extern const struct cpumask *cpu_slowest_mask(void);
 extern const struct cpumask *cpu_fastest_mask(void);
 extern int send_uevent(char *msg);
+
+extern void gsc_init(struct kobject *ems_kobj);
+extern void gsc_init_new_task(struct task_struct *p);
+extern void gsc_update_tick(struct rq *rq);
+extern void gsc_task_update_stat(struct task_struct *p, unsigned long prv_util);
+extern void gsc_fit_cpus(struct task_struct *p, struct cpumask *fit_cpus);
+extern int  gsc_activated(struct task_struct *p);
+extern void gsc_task_cgroup_attach(struct cgroup_taskset *tset);
+extern void gsc_flush_task(struct task_struct *p);
+
+/* balance */
+#define SCHED_MIGRATION_COST	500000
+extern void ems_newidle_balance(void *data, struct rq *this_rq, struct rq_flags *rf, int *pulled_task, int *done);

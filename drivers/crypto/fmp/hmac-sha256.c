@@ -14,8 +14,8 @@
 #include <linux/kernel.h>
 #include <linux/string.h>
 
-#include "hmac-sha256.h"
-#include "sha256.h"
+#include <crypto/hmac-sha256.h>
+#include <crypto/sha256.h>
 
 int hmac_sha256_init(struct hmac_sha256_ctx *ctx, const u8 *key, unsigned int key_len)
 {
@@ -76,6 +76,7 @@ err:
 
 	return ret;
 }
+EXPORT_SYMBOL(hmac_sha256_init);
 
 int hmac_sha256_update(struct hmac_sha256_ctx *ctx, const u8 *data, unsigned int data_len)
 {
@@ -84,6 +85,7 @@ int hmac_sha256_update(struct hmac_sha256_ctx *ctx, const u8 *data, unsigned int
 
 	return fmp_sha256_update(&ctx->inner_ctx, data, data_len);
 }
+EXPORT_SYMBOL(hmac_sha256_update);
 
 int hmac_sha256_final(struct hmac_sha256_ctx *ctx, u8 *out)
 {
@@ -109,6 +111,7 @@ int hmac_sha256_final(struct hmac_sha256_ctx *ctx, u8 *out)
 err:
 	return ret;
 }
+EXPORT_SYMBOL(hmac_sha256_final);
 
 int hmac_sha256(const u8 *key, unsigned int key_len, const u8 *data, unsigned int data_len, u8 *out)
 {
@@ -134,3 +137,4 @@ void hmac_sha256_ctx_cleanup(struct hmac_sha256_ctx *ctx)
 {
 	memset(ctx, 0, sizeof(struct hmac_sha256_ctx));
 }
+EXPORT_SYMBOL(hmac_sha256_ctx_cleanup);

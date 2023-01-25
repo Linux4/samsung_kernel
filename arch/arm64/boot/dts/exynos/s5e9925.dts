@@ -9547,6 +9547,10 @@
 		dun-swap = [00];
 	};
 
+	fmp-simulator {
+		compatible = "samsung,exynos-fmp-simulator";
+	};
+
 	ssp {
 		compatible = "samsung,exynos-ssp";
 		power-domains = <0x139>;
@@ -14002,6 +14006,15 @@
 			somac-ready-run = <0x01>;
 			somac-ready-cpus = "0-3";
 		};
+
+		gsc {
+			enabled = <0x01>;
+			up_threshold = <0xb9>;
+			down_threshold = <0x9b>;
+			min_interval_us = <0xbb80>;
+			min_retain_us = <0x1d4c0>;
+			min_admit_ns = <0x5f5e100>;
+		};
 	};
 
 	mfc {
@@ -14117,7 +14130,7 @@
 		idle_clk_ctrl = <0x01>;
 		qos_ctrl_level = <0x01>;
 		int_freq_fw_verify = <0x61a80>;
-		enc_timing_dis = <0x00>;
+		enc_timing_dis = <0x01>;
 		#address-cells = <0x02>;
 		#size-cells = <0x01>;
 		ranges;

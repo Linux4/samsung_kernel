@@ -12,7 +12,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/of.h>
 #include <linux/regulator/of_regulator.h>
-#include <kunit/mock.h>
+#include "panel_kunit.h"
 
 #include "panel_regulator.h"
 #include "panel_debug.h"

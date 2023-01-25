@@ -28,7 +28,7 @@
 #include <linux/of_platform.h>
 #include <linux/ctype.h>
 #include <video/mipi_display.h>
-#include <kunit/mock.h>
+#include "panel_kunit.h"
 #include "kernel/irq/internals.h"
 #include "panel_modes.h"
 #include "panel.h"
@@ -171,6 +171,7 @@ int panel_log_level = 3;
 int panel_log_level = 6;
 #endif
 EXPORT_SYMBOL(panel_log_level);
+module_param(panel_log_level, int, 0600);
 int panel_cmd_log;
 EXPORT_SYMBOL(panel_cmd_log);
 #ifdef CONFIG_SUPPORT_PANEL_SWAP
@@ -661,21 +662,6 @@ bool panel_disconnected(struct panel_device *panel)
 
 static void panel_set_cur_state(struct panel_device *panel, enum panel_active_state state)
 {
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	struct profiler_log pp;
-
-	memset(&pp, 0, sizeof(struct profiler_log));
-	if (panel->profiler.initialized) {
-		ktime_get_ts64(&pp.time);
-		PLOG_SET_TYPE(pp.header, PLOG_PANEL);
-		PLOG_SET_SUBTYPE(pp.header, PLOG_PANEL_STATE);
-		pp.state.prev = panel->state.cur_state;
-		pp.state.prev_name = panel_state_names[panel->state.cur_state];
-		pp.state.cur = state;
-		pp.state.cur_name = panel_state_names[state];
-		v4l2_subdev_call(&panel->profiler.sd, core, ioctl, PROFILE_LOG, &pp);
-	}
-#endif
 	panel->state.cur_state = state;
 }
 
@@ -849,7 +835,7 @@ static int __panel_seq_boot(struct panel_device *panel)
 {
 	int ret;
 
-	if (check_seqtbl_exist(&panel->panel_data, PANEL_BOOT_SEQ) < 1)
+	if (!check_seqtbl_exist(&panel->panel_data, PANEL_BOOT_SEQ))
 		return 0;
 
 	ret = panel_do_seqtbl_by_index(panel, PANEL_BOOT_SEQ);
@@ -1119,6 +1105,7 @@ static int __panel_seq_exit_alpm(struct panel_device *panel)
 
 	/* PANEL_ALPM_EXIT_AFTER_SEQ temporary added */
 	if (check_seqtbl_exist(&panel->panel_data, PANEL_ALPM_EXIT_AFTER_SEQ)) {
+		panel_bl_set_brightness(&panel->panel_bl, PANEL_BL_SUBDEV_TYPE_DISP, SKIP_CMD);
 		ret = panel_do_seqtbl_by_index_nolock(panel, PANEL_ALPM_EXIT_AFTER_SEQ);
 		if (ret)
 			panel_err("failed to alpm-exit-after seq\n");
@@ -1398,7 +1385,7 @@ static struct common_panel_info *panel_detect(struct panel_device *panel)
 	panel_data = &panel->panel_data;
 
 	memset(id, 0, sizeof(id));
-#if IS_ENABLED(CONFIG_DRM_SAMSUNG_DPU) && !defined(CONFIG_SUPPORT_PANEL_SWAP)
+#if IS_ENABLED(CONFIG_DRM_SAMSUNG_DPU) && (!defined(CONFIG_SUPPORT_PANEL_SWAP) || IS_ENABLED(CONFIG_UNSUPPORT_INIT_READ))
 	panel_info("use BL panel id : 0x%06x\n", boot_panel_id);
 	id[0] = (boot_panel_id >> 16) & 0xFF;
 	id[1] = (boot_panel_id >> 8) & 0xFF;
@@ -2436,12 +2423,6 @@ int panel_probe(struct panel_device *panel)
 	}
 #endif
 
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	ret = profiler_probe(panel, info->profile_tune);
-	if (unlikely(ret))
-		panel_err("failed to probe profiler\n");
-#endif
-
 #ifdef CONFIG_DYNAMIC_MIPI
 	ret = dynamic_mipi_probe(panel, info->dm_total_band);
 	if (ret)
@@ -2512,14 +2493,6 @@ int panel_remove(struct panel_device *panel)
 
 #ifdef CONFIG_DYNAMIC_MIPI
 	/* TODO: remove dynamic_freq */
-#endif
-
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	ret = profiler_remove(panel);
-	if (ret < 0) {
-		panel_err("failed to remove profiler\n");
-		return ret;
-	}
 #endif
 
 #ifdef CONFIG_EXTEND_LIVE_CLOCK
@@ -2619,9 +2592,6 @@ __visible_for_testing int panel_sleep_in(struct panel_device *panel)
 	panel_set_cur_state(panel, PANEL_STATE_ON);
 	PRINT_PANEL_STATE_END(prev_state, state->cur_state, start);
 
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	panel->profiler.flag_font = 0;
-#endif
 	return 0;
 
 do_exit:
@@ -2735,6 +2705,45 @@ __visible_for_testing int panel_power_off(struct panel_device *panel)
 		panel_err("failed to aod power off\n");
 #endif
 	PRINT_PANEL_STATE_END(prev_state, state->cur_state, start);
+
+	return 0;
+
+do_exit:
+	return ret;
+}
+
+__visible_for_testing int panel_reset_lp11(struct panel_device *panel)
+{
+	int ret = 0;
+	struct panel_state *state;
+	enum panel_active_state prev_state;
+	struct panel_bl_device *panel_bl;
+
+	if (!panel)
+		return -EINVAL;
+
+	panel_bl = &panel->panel_bl;
+
+	if (panel_bypass_is_on(panel)) {
+		panel_print_bypass_reason(panel);
+		ret = -ENODEV;
+		goto do_exit;
+	}
+
+	state = &panel->state;
+	prev_state = state->cur_state;
+
+	if (state->cur_state == PANEL_POWER_ON) {
+		mutex_lock(&panel_bl->lock);
+		mutex_lock(&panel->op_lock);
+
+		ret = panel_power_control_execute(panel, "panel_reset_lp11");
+		if (ret < 0 && ret != -ENODATA)
+			panel_err("failed to panel_reset_lp11\n");
+
+		mutex_unlock(&panel->op_lock);
+		mutex_unlock(&panel_bl->lock);
+	}
 
 	return 0;
 
@@ -2896,7 +2905,7 @@ __visible_for_testing int panel_doze(struct panel_device *panel)
 		if (ret)
 			panel_err("failed to write alpm\n");
 		panel_set_cur_state(panel, PANEL_STATE_ALPM);
-#ifdef EXYNOS_DECON_MDNIE_LITE
+#ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
 		panel_mdnie_update(panel);
 #endif
 		break;
@@ -3422,6 +3431,21 @@ static int panel_set_display_mode(struct panel_device *panel, void *arg)
 		goto out;
 	}
 
+	if (panel->state.cur_state != PANEL_STATE_NORMAL &&
+			panel->state.cur_state != PANEL_STATE_ALPM) {
+		ret = panel_update_display_mode_props(panel, panel_mode);
+		if (ret < 0) {
+			panel_err("failed to update display mode properties\n");
+			goto out;
+		}
+
+		props->vrr_origin_fps = props->vrr_fps;
+		props->vrr_origin_mode = props->vrr_mode;
+		props->vrr_origin_idx = props->vrr_idx;
+
+		goto out;
+	}
+
 #ifdef CONFIG_PANEL_VRR_BRIDGE
 	props->target_panel_mode = panel_mode;
 	if (panel_vrr_bridge_changeable(panel) &&
@@ -3452,7 +3476,7 @@ out:
  * panel_update_display_mode - update display mode
  * @panel: panel device
  *
- * excute DISPLAY_MODE seq with current display mode.
+ * execute DISPLAY_MODE seq with current display mode.
  */
 int panel_update_display_mode(struct panel_device *panel)
 {
@@ -4321,7 +4345,7 @@ static int panel_parse_power_ctrl(struct panel_device *panel)
 	for_each_property_of_node(seq_np, pp) {
 		if (!strcmp(pp->name, "name") || !strcmp(pp->name, "phandle"))
 			continue;
-		p_seq = kmalloc(sizeof(struct panel_power_ctrl), GFP_KERNEL);
+		p_seq = kzalloc(sizeof(struct panel_power_ctrl), GFP_KERNEL);
 		if (!p_seq) {
 			ret = -ENOMEM;
 			goto exit_power;
@@ -5292,6 +5316,8 @@ struct panel_drv_funcs panel_drv_funcs = {
 	.get_mres = NULL,
 	.set_display_mode = panel_set_display_mode,
 	.get_display_mode = panel_get_display_mode,
+
+	.reset_lp11 = panel_reset_lp11,
 
 	.frame_done = panel_ioctl_event_frame_done,
 	.vsync = panel_ioctl_event_vsync,

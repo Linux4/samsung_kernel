@@ -52,10 +52,6 @@
 #include "./mafpc/mafpc_drv.h"
 #endif
 
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-#include "./display_profiler/display_profiler.h"
-#endif
-
 #ifdef CONFIG_SUPPORT_POC_SPI
 #include "panel_spi.h"
 #endif
@@ -208,6 +204,7 @@ struct panel_drv_funcs {
 	int (*get_mres)(struct panel_device *, void *);
 	int (*set_display_mode)(struct panel_device *, void *);
 	int (*get_display_mode)(struct panel_device *, void *);
+	int (*reset_lp11)(struct panel_device *);
 
 	/* display controller event operation */
 	int (*vsync)(struct panel_device *, void *);
@@ -583,9 +580,6 @@ struct panel_device {
 	struct dynamic_mipi_info dynamic_mipi;
 #endif
 
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	struct profiler_device profiler;
-#endif
 	struct panel_obj_properties properties;
 	struct panel_debug d;
 

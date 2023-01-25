@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 VERSION = 5
 PATCHLEVEL = 10
-SUBLEVEL = 43
+SUBLEVEL = 66
 EXTRAVERSION =
 NAME = Dare mighty things
 
@@ -382,8 +382,6 @@ include scripts/subarch.include
 # Default value for CROSS_COMPILE is not to prefix executables
 # Note: Some architectures assign CROSS_COMPILE in their arch/*/Makefile
 ARCH		?= $(SUBARCH)
-#CROSS_COMPILE= $(srctree)/toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-
-CROSS_COMPILE   ?= ../PLATFORM/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-
 
 # Architecture as present in compile.h
 UTS_MACHINE 	:= $(ARCH)
@@ -452,9 +450,7 @@ OBJDUMP		= llvm-objdump
 READELF		= llvm-readelf
 STRIP		= llvm-strip
 else
-#CC		= $(CROSS_COMPILE)gcc
-CC    = $(srctree)/toolchain/clang/host/linux-x86/clang-r416183b/bin/clang
-#CC    = ../PLATFORM/prebuilts/clang/host/linux-x86/clang-r383902/bin/clang
+CC		= $(CROSS_COMPILE)gcc
 LD		= $(CROSS_COMPILE)ld
 AR		= $(CROSS_COMPILE)ar
 NM		= $(CROSS_COMPILE)nm
@@ -518,13 +514,11 @@ LINUXINCLUDE    := \
 
 KBUILD_AFLAGS   := -D__ASSEMBLY__ -fno-PIE
 KBUILD_CFLAGS   := -Wall -Wundef -Werror=strict-prototypes -Wno-trigraphs \
-           -fno-strict-aliasing -fno-common -fshort-wchar -fno-PIE \
-           -Werror=implicit-function-declaration -Werror=implicit-int \
-           -Wno-error=frame-larger-than= \
-           -Werror=return-type -Wno-format-security \
-           -Werror \
-           -std=gnu89
-
+		   -fno-strict-aliasing -fno-common -fshort-wchar -fno-PIE \
+		   -Werror=implicit-function-declaration -Werror=implicit-int \
+		   -Werror=return-type -Wno-format-security \
+		   -Werror \
+		   -std=gnu89
 KBUILD_CPPFLAGS := -D__KERNEL__
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
@@ -545,6 +539,12 @@ export KBUILD_CFLAGS CFLAGS_KERNEL CFLAGS_MODULE
 export KBUILD_AFLAGS AFLAGS_KERNEL AFLAGS_MODULE
 export KBUILD_AFLAGS_MODULE KBUILD_CFLAGS_MODULE KBUILD_LDFLAGS_MODULE
 export KBUILD_AFLAGS_KERNEL KBUILD_CFLAGS_KERNEL
+
+ifneq ($(SEC_BUILD_CONF_VENDOR_BUILD_OS),)
+export PLATFORM_VERSION_FOR_GPU=$(SEC_BUILD_CONF_VENDOR_BUILD_OS)
+else
+export PLATFORM_VERSION_FOR_GPU=$(PLATFORM_VERSION)
+endif
 
 # Files to ignore in find ... statements
 
@@ -589,7 +589,6 @@ endif
 
 ifneq ($(shell $(CC) --version 2>&1 | head -n 1 | grep clang),)
 ifneq ($(CROSS_COMPILE),)
-CLANG_TRIPLE	?= $(srctree)/toolchain/clang/host/linux-x86/clang-r416183b/bin/aarch64-linux-gnu-
 CLANG_FLAGS	+= --target=$(notdir $(CROSS_COMPILE:%-=%))
 GCC_TOOLCHAIN_DIR := $(dir $(shell which $(CROSS_COMPILE)elfedit))
 CLANG_FLAGS	+= --prefix=$(GCC_TOOLCHAIN_DIR)$(notdir $(CROSS_COMPILE))
@@ -734,11 +733,12 @@ $(KCONFIG_CONFIG):
 # This exploits the 'multi-target pattern rule' trick.
 # The syncconfig should be executed only once to make all the targets.
 # (Note: use the grouped target '&:' when we bump to GNU Make 4.3)
-quiet_cmd_syncconfig = SYNC    $@
-      cmd_syncconfig = $(MAKE) -f $(srctree)/Makefile syncconfig
-
+#
+# Do not use $(call cmd,...) here. That would suppress prompts from syncconfig,
+# so you cannot notice that Kconfig is waiting for the user input.
 %/config/auto.conf %/config/auto.conf.cmd %/generated/autoconf.h: $(KCONFIG_CONFIG)
-	+$(call cmd,syncconfig)
+	$(Q)$(kecho) "  SYNC    $@"
+	$(Q)$(MAKE) -f $(srctree)/Makefile syncconfig
 else # !may-sync-config
 # External modules and some install targets need include/generated/autoconf.h
 # and include/config/auto.conf but do not care if they are up-to-date.
@@ -1220,7 +1220,7 @@ endif
 	$(Q)$(MAKE) $(hdr-inst)=$(hdr-prefix)arch/$(SRCARCH)/include/uapi
 
 ifeq ($(KBUILD_EXTMOD),)
-core-y		+= kernel/ certs/ mm/ fs/ ipc/ security/ crypto/ block/ test/
+core-y		+= kernel/ certs/ mm/ fs/ ipc/ security/ crypto/ block/
 
 vmlinux-dirs	:= $(patsubst %/,%,$(filter %/, \
 		     $(core-y) $(core-m) $(drivers-y) $(drivers-m) \

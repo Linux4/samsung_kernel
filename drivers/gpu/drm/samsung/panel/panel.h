@@ -15,7 +15,7 @@
 #include <linux/backlight.h>
 #include <linux/spi/spi.h>
 #include <linux/sysfs.h>
-#include <kunit/mock.h>
+#include "panel_kunit.h"
 #include "maptbl.h"
 #include "util.h"
 
@@ -87,7 +87,7 @@ enum {
 #define PN_CONCAT(a, b)  _PN_CONCAT(a, b)
 #define _PN_CONCAT(a, b) a ## _ ## b
 
-#if defined(CONFIG_EXYNOS_DECON_LCD_TFT_COMMON)
+#if IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_TFT_COMMON)
 #define PANEL_ID_REG		(0xDA)
 #else
 #define PANEL_ID_REG		(0x04)
@@ -757,6 +757,8 @@ enum PANEL_SEQ {
 	PANEL_ECC_TEST_SEQ,
 #endif
 	PANEL_DECODER_TEST_SEQ,
+	PANEL_PRE_READ_SEQ,
+	PANEL_POST_READ_SEQ,
 	PANEL_DUMMY_SEQ,
 	MAX_PANEL_SEQ,
 };
@@ -981,9 +983,6 @@ struct common_panel_info {
 #endif
 #ifdef CONFIG_DYNAMIC_MIPI
 	struct dm_total_band_info *dm_total_band;
-#endif
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	struct profiler_tune *profile_tune;
 #endif
 #ifdef CONFIG_SUPPORT_MAFPC
 	struct mafpc_info *mafpc_info;
@@ -1418,7 +1417,7 @@ struct device_node *find_panel_modes_node(struct panel_device *panel, u32 id);
 const char *get_panel_lut_dqe_suffix(struct panel_device *panel, u32 id);
 struct device_node *find_panel_power_ctrl_node(struct panel_device *panel, u32 id);
 void print_panel_lut(struct panel_dt_lut *lut_info);
-int check_seqtbl_exist(struct panel_info *panel_data, u32 index);
+bool check_seqtbl_exist(struct panel_info *panel_data, u32 index);
 struct seqinfo *find_panel_seqtbl(struct panel_info *panel_data, char *name);
 struct seqinfo *find_index_seqtbl(struct panel_info *panel_data, u32 index);
 struct pktinfo *find_packet(struct seqinfo *seqtbl, char *name);

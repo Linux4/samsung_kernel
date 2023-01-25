@@ -22,9 +22,10 @@
 #include <linux/moduleparam.h>
 #include <linux/scatterlist.h>
 
+#include <crypto/sha256.h>
+#include <crypto/hmac-sha256.h>
+
 #include "fmp_fips_fops_info.h"
-#include "sha256.h"
-#include "hmac-sha256.h"
 
 #define BYPASS_MODE	0
 #define CBC_MODE	1
@@ -223,21 +224,5 @@ struct hash_test_suite {
 	const struct hash_testvec *vecs;
 	unsigned int count;
 };
-
-#ifdef CONFIG_KEYS_IN_PRDT
-struct exynos_fmp_fips_test_vops {
-	int	(*integrity)(HMAC_SHA256_CTX *desc, unsigned long *start_addr);
-	int	(*zeroization)(struct fmp_table_setting *table, char *str);
-	int	(*hmac_sha256)(char *digest, char *algorithm);
-	int	(*aes)(const int mode, char *key, unsigned char klen);
-};
-#else
-struct exynos_fmp_fips_test_vops {
-	int	(*integrity)(HMAC_SHA256_CTX *desc, unsigned long *start_addr);
-	int	(*zeroization)(int slot, char *str);
-	int	(*hmac_sha256)(char *digest, char *algorithm);
-	int	(*aes)(const int mode, char *key, unsigned char klen);
-};
-#endif
 
 #endif

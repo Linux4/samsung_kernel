@@ -26,24 +26,6 @@ config EXYNOS_FMP_INTEGRITY_TEST
 	  Say yes here to build support for FMP (Flash Memory Protector)
 	  Integrity Test validataion.
 
-config EXYNOS_FMP_ACVP_TEST
-	bool "Samsung EXYNOS FMP Driver for ACVP Test"
-	depends on EXYNOS_FMP_FIPS
-	default n
-	help
-	  Say yes here to build support for FMP (Flash Memory Protector)
-	  ACVP Test validataion.
-	  IF unsure, say N.
-
-config EXYNOS_FMP_FIPS_FUNC_TEST
-	bool "Samsung EXYNOS FMP Driver for FIPS FUNC TEST"
-	depends on EXYNOS_FMP_FIPS
-	default n
-	help
-	  Say yes here to build support for FMP (Flash Memory Protector)
-	  FIPS validation driver for detail functional test.
-	  If unsure, say N.
-
 choice
 	prompt "Option for self-test failure"
 	depends on EXYNOS_FMP_FIPS

@@ -12,7 +12,7 @@
 
 #include <linux/of_gpio.h>
 #include <video/mipi_display.h>
-#include <kunit/mock.h>
+#include "../panel_kunit.h"
 #include "../panel.h"
 #include "s6e3fc3.h"
 #include "s6e3fc3_panel.h"
@@ -25,6 +25,10 @@
 
 #if IS_ENABLED(CONFIG_SEC_ABC)
 #include <linux/sti/abc_common.h>
+#endif
+
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO)
+#include "../dpui.h"
 #endif
 
 #ifdef PANEL_PR_TAG
@@ -1392,33 +1396,7 @@ __visible_for_testing int getidx_gamma_mode2_brt_table(struct maptbl *tbl)
 	return maptbl_index(tbl, 0, row, 0);
 }
 
-__visible_for_testing int s6e3fc3_getidx_ffc_table(struct maptbl *tbl)
-{
-	int idx;
-	u32 dsi_clk;
-	struct panel_device *panel = (struct panel_device *)tbl->pdata;
-	struct panel_info *panel_data = &panel->panel_data;
-
-	dsi_clk = panel_data->props.dsi_freq;
-
-	switch (dsi_clk) {
-	case 1108000:
-		idx = S6E3FC3_HS_CLK_1108;
-		break;
-	case 1124000:
-		idx = S6E3FC3_HS_CLK_1124;
-		break;
-	case 1125000:
-		idx = S6E3FC3_HS_CLK_1125;
-		break;
-	default:
-		panel_err("invalid dsi clock: %d\n", dsi_clk);
-		BUG();
-	}
-	return maptbl_index(tbl, 0, idx, 0);
-}
-
-
+#ifdef CONFIG_SUPPORT_MASK_LAYER
 __visible_for_testing bool s6e3fc3_is_120hz(struct panel_device *panel)
 {
 	return (getidx_s6e3fc3_current_vrr_fps(panel) == S6E3FC3_VRR_FPS_120);
@@ -1428,6 +1406,7 @@ __visible_for_testing bool s6e3fc3_is_60hz(struct panel_device *panel)
 {
 	return (getidx_s6e3fc3_current_vrr_fps(panel) == S6E3FC3_VRR_FPS_60);
 }
+#endif
 
 __visible_for_testing bool is_panel_state_not_lpm(struct panel_device *panel)
 {
@@ -1437,37 +1416,5 @@ __visible_for_testing bool is_panel_state_not_lpm(struct panel_device *panel)
 	return false;
 }
 
-__visible_for_testing bool s6e3fc3_is_a52_panel(struct panel_device *panel)
-{
-	struct panel_info *panel_data;
-
-	if (!panel)
-		return false;
-
-	panel_data = &panel->panel_data;
-
-	if (panel_data->id[0] == 0x90 && panel_data->id[1] == 0x40 && panel_data->id[2] & 0x02)
-		return true;
-
-	return false;
-}
-
-__visible_for_testing int __init s6e3fc3_panel_init(void)
-{
-	register_common_panel(&s6e3fc3_r8s_panel_info);
-	register_common_panel(&s6e3fc3_a53x_panel_info);
-	register_common_panel(&s6e3fc3_a33x_panel_info);
-	return 0;
-}
-
-__visible_for_testing void __exit s6e3fc3_panel_exit(void)
-{
-	deregister_common_panel(&s6e3fc3_r8s_panel_info);
-	deregister_common_panel(&s6e3fc3_a53x_panel_info);
-	deregister_common_panel(&s6e3fc3_a33x_panel_info);
-}
-
-module_init(s6e3fc3_panel_init)
-module_exit(s6e3fc3_panel_exit)
 MODULE_DESCRIPTION("Samsung Mobile Panel Driver");
 MODULE_LICENSE("GPL");

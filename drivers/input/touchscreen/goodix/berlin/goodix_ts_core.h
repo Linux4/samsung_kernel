@@ -481,6 +481,7 @@ struct goodix_ts_hw_ops {
 	int (*write_to_flash)(struct goodix_ts_core *cd, int addr, unsigned char *buf, int len);
 	int (*read_from_flash)(struct goodix_ts_core *cd, int addr, unsigned char *buf, int len);
 	int (*send_cmd)(struct goodix_ts_core *cd, struct goodix_ts_cmd *cmd);
+	int (*send_cmd_delay)(struct goodix_ts_core *cd, struct goodix_ts_cmd *cmd, int delay);
 	int (*send_config)(struct goodix_ts_core *cd, u8 *config, int len);
 	int (*read_config)(struct goodix_ts_core *cd, u8 *config_data, int size);
 	int (*read_version)(struct goodix_ts_core *cd, struct goodix_fw_version *version);

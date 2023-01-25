@@ -17,12 +17,20 @@
 #include "../panel_drv.h"
 #include "../panel_debug.h"
 
+#if IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_TFT_A14X)
+#include "./a14x/tft_common_a14x_panel_list.h"
+#endif
+
 #if IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_TFT_M33)
-#include "./m33/tft_common_m33_panel_list.h"
+#include "./m33x/tft_common_m33_panel_list.h"
 #endif
 
 #if IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_TFT_GTS8L)
 #include "./gts8l/tft_common_gts8l_panel_list.h"
+#endif
+
+#if IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_TFT_BIRDIEP)
+#include "./birdiep/tft_common_birdiep_panel_list.h"
 #endif
 
 #ifdef PANEL_PR_TAG

@@ -12,13 +12,13 @@
 #include <linux/crypto.h>
 
 #include <crypto/fmp.h>
+#include <crypto/sha256.h>
+#include <crypto/hmac-sha256.h>
 
 #include "fmp_fips_info.h"
 #include "fmp_test.h"
 #include "fmp_fips_cipher.h"
 #include "fmp_fips_selftest.h"
-#include "sha256.h"
-#include "hmac-sha256.h"
 
 static const char *ALG_SHA256_FMP = "sha256";
 static const char *ALG_HMAC_SHA256_FMP = "hmac(sha256)";
@@ -70,23 +70,12 @@ static int selftest_sha256(struct exynos_fmp *fmp)
 	int ret;
 	unsigned char buf[SHA256_DIGEST_LENGTH];
 	unsigned char temp_digest[SHA256_DIGEST_LENGTH];
-	struct exynos_fmp_fips_test_vops *test_vops;
-
-	test_vops = (struct exynos_fmp_fips_test_vops *)fmp->test_vops;
 
 	for (i = 0; i < SHA256_TEST_VECTORS; i++) {
 		if (0 != fmp_sha256(sha256_tv_template[i].plaintext, sha256_tv_template[i].psize, buf))
 			return -EINVAL;
 
 		memcpy(temp_digest, sha256_tv_template[i].digest, SHA256_DIGEST_LENGTH);
-		if (test_vops) {
-			ret = test_vops->hmac_sha256(temp_digest, "sha256");
-			if (ret) {
-				pr_err("%s: Fail to set digest for func test. ret(%d)\n",
-						__func__, ret);
-				return -EINVAL;
-			}
-		}
 
 		ret = memcmp(buf, temp_digest, SHA256_DIGEST_LENGTH);
 		if (ret) {
@@ -108,9 +97,6 @@ static int selftest_hmac_sha256(struct exynos_fmp *fmp)
 	int ret;
 	unsigned char buf[SHA256_DIGEST_LENGTH];
 	unsigned char temp_digest[SHA256_DIGEST_LENGTH];
-	struct exynos_fmp_fips_test_vops *test_vops;
-
-	test_vops = (struct exynos_fmp_fips_test_vops *)fmp->test_vops;
 
 	for (i = 0; i < HMAC_SHA256_TEST_VECTORS; i++) {
 		if (0 != hmac_sha256(hmac_sha256_tv_template[i].key,
@@ -122,15 +108,6 @@ static int selftest_hmac_sha256(struct exynos_fmp *fmp)
 
 		memcpy(temp_digest, hmac_sha256_tv_template[i].digest,
 				SHA256_DIGEST_LENGTH);
-		if (test_vops) {
-			ret =
-			    test_vops->hmac_sha256(temp_digest, "hmac-sha256");
-			if (ret) {
-				pr_err("%s: Fail to set digest for func test. ret(%d)\n",
-						__func__, ret);
-				return -EINVAL;
-			}
-		}
 
 		ret = memcmp(buf, temp_digest, SHA256_DIGEST_LENGTH);
 		if (ret) {
@@ -153,7 +130,6 @@ static int fmp_test_run(struct exynos_fmp *fmp, const struct cipher_testvec *tem
 {
 	int ret = 0;
 	char *temp_key;
-	struct exynos_fmp_fips_test_vops *test_vops;
 
 	temp_key = kzalloc(template->klen, GFP_KERNEL);
 	if (!temp_key) {
@@ -161,16 +137,6 @@ static int fmp_test_run(struct exynos_fmp *fmp, const struct cipher_testvec *tem
 		return -ENOMEM;
 	}
 	memcpy(temp_key, template->key, template->klen);
-
-	test_vops = (struct exynos_fmp_fips_test_vops *)fmp->test_vops;
-	if (test_vops) {
-		ret = test_vops->aes(mode, temp_key, template->klen);
-		if (ret) {
-			dev_err(fmp->dev, "%s: Fail to set key for func test. ret(%d)\n",
-					__func__, ret);
-			goto err;
-		}
-	}
 
 	ret = fmp_cipher_set_key(fmp->test_data, temp_key, template->klen);
 	if (ret) {
@@ -326,33 +292,33 @@ int do_fmp_selftest(struct exynos_fmp *fmp)
 	if (ret) {
 		dev_err(fmp->dev, "FIPS: self-tests for FMP aes-xts failed\n");
 		fmp->result.aes_xts = 0;
-		goto err;
-	}
-	if (xts_cipher.enc.count)
-		dev_info(fmp->dev, "FIPS: self-tests for FMP aes-xts passed\n");
+	} else {
+		if (xts_cipher.enc.count)
+			dev_info(fmp->dev, "FIPS: self-tests for FMP aes-xts passed\n");
 
-	fmp->result.aes_xts = 1;
+		fmp->result.aes_xts = 1;
+	}
 
 	ret = selftest_sha256(fmp);
 	if (ret) {
 		dev_err(fmp->dev, "FIPS: self-tests for FMP %s failed\n", ALG_SHA256_FMP);
 		fmp->result.sha256 = 0;
-		goto err;
+	} else {
+		dev_info(fmp->dev, "FIPS: self-tests for FMP %s passed\n", ALG_SHA256_FMP);
+		fmp->result.sha256 = 1;
 	}
-	dev_info(fmp->dev, "FIPS: self-tests for FMP %s passed\n", ALG_SHA256_FMP);
-	fmp->result.sha256 = 1;
 
 	ret = selftest_hmac_sha256(fmp);
 	if (ret) {
 		dev_err(fmp->dev, "FIPS: self-tests for FMP %s failed\n", ALG_HMAC_SHA256_FMP);
 		fmp->result.hmac = 0;
-		goto err;
+	} else {
+		dev_info(fmp->dev, "FIPS: self-tests for FMP %s passed\n", ALG_HMAC_SHA256_FMP);
+		fmp->result.hmac = 1;
 	}
-	dev_info(fmp->dev, "FIPS: self-tests for FMP %s passed\n", ALG_HMAC_SHA256_FMP);
-	fmp->result.hmac = 1;
 
-	return 0;
+	if (fmp->result.aes_xts && fmp->result.sha256 && fmp->result.hmac)
+		return 0;
 
-err:
 	return -1;
 }

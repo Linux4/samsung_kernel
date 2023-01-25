@@ -35,6 +35,7 @@ exynos_drm_plane_duplicate_state(struct drm_plane *plane)
 		return NULL;
 
 	memcpy(copy, exynos_state, sizeof(*exynos_state));
+	copy->hdr_en = false;
 
 	__drm_atomic_helper_plane_duplicate_state(plane, &copy->base);
 	return &copy->base;

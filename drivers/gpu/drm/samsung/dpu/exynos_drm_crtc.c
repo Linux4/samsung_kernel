@@ -16,6 +16,7 @@
 #include <uapi/linux/sched/types.h>
 #include <uapi/drm/drm.h>
 #include <linux/circ_buf.h>
+#include <linux/dma-fence.h>
 
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_atomic.h>
@@ -249,7 +250,8 @@ void exynos_crtc_handle_event(struct exynos_drm_crtc *exynos_crtc)
 	spin_lock_irqsave(&crtc->dev->event_lock, flags);
 	fence = event->base.fence;
 	if (fence)
-		DPU_FENCE_EVENT_LOG(DPU_FENCE_ARM_CRTC_OUT_FENCE, exynos_crtc, fence);
+		DPU_EVENT_LOG("ARM_CRTC_OUT_FENCE", exynos_crtc, EVENT_FLAG_FENCE,
+				FENCE_FMT, FENCE_ARG(fence));
 	drm_crtc_arm_vblank_event(crtc, event);
 	spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
 }
@@ -344,6 +346,7 @@ exynos_drm_crtc_duplicate_state(struct drm_crtc *crtc)
 	copy->freed_win_mask = 0;
 	copy->win_inserted = false;
 	copy->modeset_only = false;
+	copy->skip_frameupdate = false;
 	copy->tui_changed = false;
 	copy->bts_fps_ptr = NULL;
 	copy->boost_bts_fps = 0;
@@ -470,7 +473,7 @@ static int get_next_adjusted_vblank_timestamp(struct drm_crtc *crtc, uint64_t *v
 	}
 	*val = timestamp;
 
-	DPU_EVENT_LOG(DPU_EVT_NEXT_ADJ_VBLANK, exynos_crtc, &timestamp);
+	DPU_EVENT_LOG("NEXT_ADJ_VBLANK", exynos_crtc, 0, "timestamp(%lld)", timestamp);
 
 	return 0;
 }
@@ -552,7 +555,6 @@ static void exynos_drm_crtc_print_state(struct drm_printer *p,
 		exynos_crtc->ops->atomic_print_state(p, exynos_crtc);
 }
 
-/* add early_unregister callback to unregister debugfs */
 static int exynos_drm_crtc_late_register(struct drm_crtc *crtc)
 {
 	int ret = 0;
@@ -566,6 +568,13 @@ static int exynos_drm_crtc_late_register(struct drm_crtc *crtc)
 		ret = exynos_crtc->ops->late_register(exynos_crtc);
 
 	return ret;
+}
+
+static void exysno_drm_crtc_early_unregister(struct drm_crtc *crtc)
+{
+	struct exynos_drm_crtc *exynos_crtc = to_exynos_crtc(crtc);
+
+	dpu_deinit_debug(exynos_crtc);
 }
 
 /**
@@ -688,6 +697,7 @@ static const struct drm_crtc_funcs exynos_crtc_funcs = {
 	.disable_vblank		= exynos_drm_crtc_disable_vblank,
 	.get_vblank_counter	= exynos_drm_crtc_get_vblank_counter,
 	.late_register		= exynos_drm_crtc_late_register,
+	.early_unregister	= exysno_drm_crtc_early_unregister,
 	.set_crc_source		= exynos_drm_crtc_set_crc_source,
 	.verify_crc_source		= exynos_drm_crtc_verify_crc_source,
 	.get_crc_sources		= exynos_drm_crtc_get_crc_sources,

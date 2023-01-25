@@ -2956,7 +2956,6 @@ mutex_lock_interruptible
 mutex_trylock
 mutex_trylock_recursive
 mutex_unlock
-mz_exynos_pmu_write
 name_to_dev_t
 names_cachep
 napi_complete_done

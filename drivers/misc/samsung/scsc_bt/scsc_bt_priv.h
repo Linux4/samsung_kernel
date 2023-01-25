@@ -293,8 +293,11 @@ extern struct scsc_common_service common_service;
 
 #ifdef CONFIG_SCSC_QOS
 struct scsc_qos_service {
-	struct work_struct             work_queue;
+	struct work_struct             update_work;
+	struct delayed_work            disable_work;
 	bool                           enabled;
+	bool                           disabling;
+	enum scsc_qos_config           pending_state;
 	enum scsc_qos_config           current_state;
 	uint32_t                       hci_events_stats[BSMHCP_TRANSFER_RING_EVT_SIZE];
 	uint32_t                       acl_packet_stats[BSMHCP_TRANSFER_RING_ACL_SIZE];

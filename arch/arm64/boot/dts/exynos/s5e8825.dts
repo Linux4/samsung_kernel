@@ -2670,7 +2670,7 @@
 		port-name = "DPUF0 D0";
 		#iommu-cells = <0x00>;
 		power-domains = <0x30>;
-		phandle = <0xa4>;
+		phandle = <0xa2>;
 	};
 
 	sysmmu@149D0000 {
@@ -2685,7 +2685,7 @@
 		port-name = "DPUF0 D1";
 		#iommu-cells = <0x00>;
 		power-domains = <0x30>;
-		phandle = <0xa5>;
+		phandle = <0xa3>;
 	};
 
 	sysmmu@0x15680000 {
@@ -4552,7 +4552,7 @@
 	};
 
 	dsim_modes {
-		phandle = <0xa3>;
+		phandle = <0xa6>;
 
 		dsim-modes {
 
@@ -4749,7 +4749,7 @@
 		isolation = <0x714>;
 		owner = <0x00>;
 		#phy-cells = <0x01>;
-		phandle = <0xa2>;
+		phandle = <0xa5>;
 	};
 
 	drmdsim@0x148C0000 {
@@ -4759,9 +4759,11 @@
 		dsim,id = <0x00>;
 		interrupts = <0x00 0xfc 0x04>;
 		interrupt-names = "dsim";
-		phys = <0xa2 0x00>;
+		iommus = <0xa2 0xa3>;
+		samsung,iommu-group = <0xa4>;
+		phys = <0xa5 0x00>;
 		phy-names = "dsim_dphy";
-		dsim_mode = <0xa3>;
+		dsim_mode = <0xa6>;
 		dsi-burst-cmd = <0x01>;
 		#address-cells = <0x01>;
 		#size-cells = <0x00>;
@@ -4775,8 +4777,8 @@
 		decon,id = <0x00>;
 		interrupts = <0x00 0xe3 0x04 0x00 0xe2 0x04 0x00 0xdd 0x04>;
 		interrupt-names = "frame_start\0frame_done\0extra";
-		iommus = <0xa4 0xa5>;
-		samsung,iommu-group = <0xa6>;
+		iommus = <0xa2 0xa3>;
+		samsung,iommu-group = <0xa4>;
 		samsung,iommu-identity-map = <0x00 0xfa000000 0x1400000 0x00 0xfb400000 0x2800000>;
 		samsung,tzmp;
 		clock-names = "aclk";
@@ -4851,8 +4853,8 @@
 		decon,id = <0x01>;
 		interrupts = <0x00 0xe8 0x04 0x00 0xe7 0x04 0x00 0xe6 0x04>;
 		interrupt-names = "frame_start\0frame_done\0extra";
-		iommus = <0xa4 0xa5>;
-		samsung,iommu-group = <0xa6>;
+		iommus = <0xa2 0xa3>;
+		samsung,iommu-group = <0xa4>;
 		samsung,tzmp;
 		clock-names = "aclk";
 		clocks = <0x02 0x259>;
@@ -4944,6 +4946,10 @@
 	fmp {
 		compatible = "samsung,exynos-fmp";
 		dun-swap = [00];
+	};
+
+	fmp-simulator {
+		compatible = "samsung,exynos-fmp-simulator";
 	};
 
 	cryptomanager {
@@ -6619,7 +6625,7 @@
 			root = <0x00>;
 			foreground = <0x00>;
 			background = <0x00>;
-			top-app = <0x05>;
+			top-app = <0x04>;
 			rt = <0x00>;
 			system = <0x00>;
 			system-background = <0x00>;
@@ -6655,15 +6661,34 @@
 			active-ratio = <0x19 0x05>;
 		};
 
-		prefer_cpu {
-			top-app = "6-7";
-		};
-
 		freqboost {
 			top-app = <0x1e 0x05>;
 		};
 
 		ecs {
+		};
+
+		ontime {
+			top-app = <0x01>;
+			foreground = <0x00>;
+
+			domain0 {
+				cpus = "0-5";
+				lower-boundary = <0x00>;
+				upper-boundary = <0x5a>;
+			};
+
+			domain1 {
+				cpus = "6-7";
+				lower-boundary = <0x14>;
+				upper-boundary = <0x64>;
+			};
+		};
+
+		prefer_cpu {
+			top-app = "0-7";
+			small-task-threshold = <0x32>;
+			small-task-mask = "0-5";
 		};
 
 		tex {
@@ -9384,7 +9409,7 @@
 		int_freq_fw_verify = <0x40f10>;
 		memlog_size = <0x80000>;
 		memlog_sfr_size = <0x1000>;
-		enc_timing_dis = <0x00>;
+		enc_timing_dis = <0x01>;
 		#address-cells = <0x02>;
 		#size-cells = <0x01>;
 		ranges;
@@ -10344,7 +10369,7 @@
 
 	iommu_group_dpu {
 		compatible = "samsung,sysmmu-group";
-		phandle = <0xa6>;
+		phandle = <0xa4>;
 	};
 
 	iommu_group_mfc {
@@ -12124,6 +12149,8 @@
 		};
 
 		drmdsim@0x148C0000 {
+			iommus = <0x00 0x04>;
+			samsung,iommu-group = <0x00>;
 			phys = <0x00>;
 			dsim_mode = <0x00>;
 		};

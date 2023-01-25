@@ -296,9 +296,12 @@ SECDBG_DEFINE_MEMBER_TYPE(pool_workqueue_flush_color, pool_workqueue, flush_colo
 SECDBG_DEFINE_MEMBER_TYPE(pool_workqueue_nr_in_flight, pool_workqueue, nr_in_flight);
 SECDBG_DEFINE_MEMBER_TYPE(pool_workqueue_pool, pool_workqueue, pool);
 SECDBG_DEFINE_MEMBER_TYPE(worker_pool_busy_hash, worker_pool, busy_hash);
+SECDBG_DEFINE_MEMBER_TYPE(worker_pool_manager, worker_pool, manager);
 SECDBG_DEFINE_MEMBER_TYPE(worker_hentry, worker, hentry);
 SECDBG_DEFINE_MEMBER_TYPE(worker_current_pwq, worker, current_pwq);
 SECDBG_DEFINE_MEMBER_TYPE(worker_task, worker, task);
+SECDBG_DEFINE_MEMBER_TYPE(worker_current_work, worker, current_work);
+SECDBG_DEFINE_MEMBER_TYPE(worker_current_func, worker, current_func);
 #endif
 
 static struct kmem_cache *pwq_cache;

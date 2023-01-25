@@ -2006,6 +2006,17 @@ p_err:
 	return ret;
 }
 
+void npu_session_ion_sync_for_device(struct npu_memory_buffer *pbuf, off_t offset, size_t size, enum dma_data_direction dir)
+{
+	if (likely(pbuf->vaddr)) {
+		BUG_ON((offset < 0) || (offset > pbuf->size));
+		BUG_ON((offset + size) < size);
+		BUG_ON((size > pbuf->size) || ((offset + size) > pbuf->size));
+
+		__npu_session_ion_sync_for_device(pbuf, offset, size, dir);
+	}
+}
+
 int __ion_alloc_IMB(struct npu_session *session, struct addr_info **IMB_av, struct npu_memory_buffer *IMB_mem_buf)
 {
 	int ret = 0;
@@ -2043,6 +2054,8 @@ int __ion_alloc_IMB(struct npu_session *session, struct addr_info **IMB_av, stru
 			 session, i, (session->IMB_info + i)->vaddr, &(session->IMB_info + i)->daddr,
 			 (session->IMB_info + i)->size);
 	}
+
+	npu_session_ion_sync_for_device(IMB_mem_buf, 0, IMB_mem_buf->size, DMA_TO_DEVICE);
 	return ret;
 
 p_err:
@@ -2054,17 +2067,6 @@ p_err:
 	session->IMB_mem_buf = NULL;
 
 	return ret;
-}
-
-void npu_session_ion_sync_for_device(struct npu_memory_buffer *pbuf, off_t offset, size_t size, enum dma_data_direction dir)
-{
-	if (likely(pbuf->vaddr)) {
-		BUG_ON((offset < 0) || (offset > pbuf->size));
-		BUG_ON((offset + size) < size);
-		BUG_ON((size > pbuf->size) || ((offset + size) > pbuf->size));
-
-		__npu_session_ion_sync_for_device(pbuf, offset, size, dir);
-	}
 }
 
 int __config_session_info(struct npu_session *session)
@@ -2148,7 +2150,6 @@ int __config_session_info(struct npu_session *session)
 			goto p_err;
 		}
 		session->ss_state |= BIT(NPU_SESSION_STATE_IMB_ION_ALLOC);
-		npu_session_ion_sync_for_device(IMB_mem_buf, 0, IMB_mem_buf->size, DMA_TO_DEVICE);
 	}
 
 	npu_session_ion_sync_for_device(session->ncp_mem_buf, 0, session->ncp_mem_buf->size, DMA_TO_DEVICE);
@@ -3114,7 +3115,6 @@ static int npu_session_queue(struct npu_queue *queue, struct vb_container_list *
 		}
 		session->ss_state |= BIT(NPU_SESSION_STATE_IMB_ION_ALLOC);
 		npu_session_ion_sync_for_device(session->ncp_mem_buf, 0, session->ncp_mem_buf->size, DMA_TO_DEVICE);
-		npu_session_ion_sync_for_device(session->IMB_mem_buf, 0, session->IMB_mem_buf->size, DMA_TO_DEVICE);
 	}
 
 #ifdef CONFIG_NPU_USE_HW_DEVICE

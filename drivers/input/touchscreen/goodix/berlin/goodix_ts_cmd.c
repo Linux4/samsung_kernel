@@ -1857,6 +1857,51 @@ static void factory_cmd_result_all_imagetest(void *device_data)
 out:
 	ts_info("%d%s", sec->item_count, sec->cmd_result_all);
 }
+
+static void fix_active_mode(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct goodix_ts_core *core_data = container_of(sec, struct goodix_ts_core, sec);
+	struct goodix_ts_cmd temp_cmd;
+	int ret;
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+
+	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
+		snprintf(buff, sizeof(buff), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec_cmd_set_cmd_exit(sec);
+		return;
+	}
+
+	ts_info("fix active mode : %s", sec->cmd_param[0] ? "enable" : "disabled");
+
+	if (sec->cmd_param[0]) {	//enable
+		temp_cmd.len = 5;
+		temp_cmd.cmd = 0x9F;
+		temp_cmd.data[0] = 2;
+	} else {					//disabled
+		temp_cmd.len = 5;
+		temp_cmd.cmd = 0x9F;
+		temp_cmd.data[0] = 1;
+	}
+
+	ret = core_data->hw_ops->send_cmd(core_data, &temp_cmd);
+	if (ret < 0) {
+		ts_err("send fix active mode cmd failed");
+		snprintf(buff, sizeof(buff), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	} else {
+		snprintf(buff, sizeof(buff), "OK");
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+	}
+
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+}
+
 #if 0
 static int goodix_ts_set_mode(struct goodix_ts_core *core_data, u8 reg, u8 data, int len)
 {
@@ -2532,7 +2577,6 @@ void goodix_get_custom_library(struct goodix_ts_core *ts)
 	u8 data[6] = { 0 };
 	int ret, i;
 
-	mutex_lock(&ts->modechange_mutex);
 	ret = ts->hw_ops->read_from_sponge(ts, SEC_TS_CMD_SPONGE_AOD_ACTIVE_INFO, data, 6);
 	if (ret < 0) {
 		ts_err("Failed to read aod active area");
@@ -2551,7 +2595,6 @@ void goodix_get_custom_library(struct goodix_ts_core *ts)
 	if (ret < 0) {
 		ts_err("Failed to read fod info");
 	}
-	mutex_unlock(&ts->modechange_mutex);
 
 	sec_input_set_fod_info(ts->bus->dev, data[0], data[1], data[2], data[3]);
 }
@@ -2562,7 +2605,6 @@ int goodix_set_custom_library(struct goodix_ts_core *ts)
 	int ret;
 	u8 force_fod_enable = 0;
 
-	mutex_lock(&ts->modechange_mutex);
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 		/* enable FOD when LCD on state */
 	if (ts->plat_data->support_fod && ts->plat_data->enabled)
@@ -2584,7 +2626,6 @@ int goodix_set_custom_library(struct goodix_ts_core *ts)
 	ret = ts->hw_ops->write_to_sponge(ts, 0, data, 1);
 	if (ret < 0)
 		ts_err("Failed to write sponge");
-	mutex_unlock(&ts->modechange_mutex);
 
 	return ret;
 }
@@ -2664,7 +2705,8 @@ static void fod_enable(void *device_data)
 			ts->plat_data->fod_data.press_prop & 2 ? "on" : "off",
 			ts->plat_data->lowpower_mode);
 
-//	mutex_lock(&ts->modechange);
+	mutex_lock(&ts->modechange_mutex);
+
 
 	if (!ts->plat_data->enabled && !ts->plat_data->lowpower_mode && !ts->plat_data->pocket_mode
 			&& !ts->plat_data->ed_enable && !ts->plat_data->fod_lp_mode) {
@@ -2677,7 +2719,7 @@ static void fod_enable(void *device_data)
 		goodix_set_press_property(ts);
 	}
 
-//	mutex_unlock(&ts->modechange);
+	mutex_unlock(&ts->modechange_mutex);
 
 	snprintf(buff, sizeof(buff), "OK");
 	sec->cmd_state = SEC_CMD_STATUS_OK;
@@ -3252,7 +3294,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("get_disassemble_count", get_disassemble_count),},
 	{SEC_CMD("factory_cmd_result_all", factory_cmd_result_all),},
 	{SEC_CMD("factory_cmd_result_all_imagetest", factory_cmd_result_all_imagetest),},
-//	{SEC_CMD_H("fix_active_mode", fix_active_mode),},
+	{SEC_CMD_H("fix_active_mode", fix_active_mode),},
 //	{SEC_CMD_H("touch_aging_mode", touch_aging_mode),},
 	{SEC_CMD("run_snr_non_touched", run_snr_non_touched),},
 	{SEC_CMD("run_snr_touched", run_snr_touched),},
@@ -3594,7 +3636,7 @@ static ssize_t goodix_fod_position_show(struct device *dev,
 
 	if (!ts->plat_data->support_fod) {
 		ts_err("fod is not supported");
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	if (!ts->plat_data->fod_data.vi_size) {

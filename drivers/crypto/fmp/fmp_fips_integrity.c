@@ -8,7 +8,8 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <crypto/fmp.h>
-#include "hmac-sha256.h"
+#include <crypto/hmac-sha256.h>
+
 #include "fmp_fips_info.h"
 #include "fips140_ic_support.h"
 
@@ -55,7 +56,6 @@ int do_fmp_integrity_check(struct exynos_fmp *fmp)
 	uint32_t size = 0;
 	struct hmac_sha256_ctx ctx;
 	const char *builtime_hmac = 0;
-	struct exynos_fmp_fips_test_vops *test_vops;
 
 #ifndef FIPS_CHECK_INTEGRITY
 	return 0;
@@ -103,22 +103,6 @@ int do_fmp_integrity_check(struct exynos_fmp *fmp)
 					__func__);
 				return -1;
 			}
-		}
-	}
-
-	test_vops = (struct exynos_fmp_fips_test_vops *)fmp->test_vops;
-
-	if (test_vops) {
-		// Weird code here and in fmp_func_test_integrity
-		// in fmp_fips_func_test.c. To be revised
-		unsigned long ic_fail_data = 0x5a5a5a5a;
-
-		err = test_vops->integrity(&ctx, &ic_fail_data);
-		if (err) {
-			pr_err("FIPS(%s): Error to update hash for func test\n",
-				__func__);
-			hmac_sha256_ctx_cleanup(&ctx);
-			return -1;
 		}
 	}
 

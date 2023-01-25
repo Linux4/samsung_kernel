@@ -32,6 +32,8 @@
 #include <trace/events/f2fs.h>
 #include <uapi/linux/f2fs.h>
 
+/* @fs.sec -- 80d73a766b8cf3cd0e32fdfe7adebe4b -- */
+
 #ifdef CONFIG_FSCRYPT_SDP
 #include <linux/fscrypto_sdp_ioctl.h>
 #endif
@@ -2046,19 +2048,24 @@ static int f2fs_setflags_common(struct inode *inode, u32 iflags, u32 mask)
 		if (iflags & F2FS_COMPR_FL) {
 			if (!f2fs_may_compress(inode))
 				return -EINVAL;
-			if (S_ISREG(inode->i_mode) &&
-					fi->i_extra_isize
-					< F2FS_COMPRESS_SUPPORT_EXTRA_ATTR_SIZE)
-				return -EINVAL;
-
+			if (S_ISREG(inode->i_mode)) {
 #ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
-			f2fs_drop_extent_tree(inode);
-			if (convert_and_set_compress_context(inode))
-				return -EINVAL;
-#else
-			set_compress_context(inode);
-#endif
+				if (fi->i_extra_isize
+				    < F2FS_COMPRESS_SUPPORT_EXTRA_ATTR_SIZE)
+					return -EINVAL;
 
+				f2fs_drop_extent_tree(inode);
+				if (convert_and_set_compress_context(inode))
+					return -EINVAL;
+#else
+				if (inode->i_size)
+					return -EINVAL;
+
+				set_compress_context(inode);
+#endif
+			} else {
+				set_compress_context(inode);
+			}
 		}
 	}
 	if ((iflags ^ masked_flags) & F2FS_NOCOMP_FL) {
@@ -4320,6 +4327,12 @@ static int f2fs_ioc_decompress_file(struct file *filp, unsigned long arg)
 		ret = -EOPNOTSUPP;
 		goto out;
 	}
+
+	if (is_inode_flag_set(inode, FI_COMPRESS_RELEASED)) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 #ifndef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
 	if (f2fs_is_mmap_file(inode)) {
 		ret = -EBUSY;
@@ -4395,6 +4408,12 @@ static int f2fs_ioc_compress_file(struct file *filp, unsigned long arg)
 		ret = -EOPNOTSUPP;
 		goto out;
 	}
+
+	if (is_inode_flag_set(inode, FI_COMPRESS_RELEASED)) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 #ifndef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
 	if (f2fs_is_mmap_file(inode)) {
 		ret = -EBUSY;

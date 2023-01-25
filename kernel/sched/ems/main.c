@@ -553,6 +553,8 @@ void ems_tick(struct rq *rq)
 
 	ontime_migration();
 	ecs_update();
+
+	gsc_update_tick(rq);
 }
 
 void ems_enqueue_task(struct rq *rq, struct task_struct *p, int flags)
@@ -712,6 +714,7 @@ static int ems_probe(struct platform_device *pdev)
 	sysbusy_init(ems_kobj);
 	emstune_init(ems_kobj, pdev->dev.of_node);
 	stt_init(ems_kobj);
+	gsc_init(ems_kobj);
 
 	ret = hook_init();
 	if (ret) {

@@ -1217,6 +1217,12 @@ static void pogo_init_work(struct work_struct *work)
 	if (ret < 0)
 		pr_err("%s: failed to request pogo_int irq(ret = %d)\n", __func__, ret);
 
+	pr_info("%s: pogo_int(%d)\n", __func__,
+		gpio_get_value(charger->pdata->gpio_pogo_int));
+
+	__pm_stay_awake(charger->pogo_det_ws);
+	queue_delayed_work(charger->wqueue, &charger->pogo_detect_work, msecs_to_jiffies(50));
+
 	dev_info(charger->dev, "%s - done\n", __func__);
 }
 
@@ -1515,6 +1521,7 @@ static int sm5714_charger_probe(struct platform_device *pdev)
 
 		queue_delayed_work(charger->wqueue, &charger->pogo_init_work, msecs_to_jiffies(2000));
 	}
+	device_init_wakeup(charger->dev, 1);
 #endif
 
 	sec_chg_set_dev_init(SC_DEV_MAIN_CHG);
@@ -1552,11 +1559,33 @@ static int sm5714_charger_remove(struct platform_device *pdev)
 #if defined CONFIG_PM
 static int sm5714_charger_suspend(struct device *dev)
 {
+#if IS_ENABLED(CONFIG_USE_POGO)
+	struct i2c_client *i2c = container_of(dev, struct i2c_client, dev);
+	struct sm5714_charger_data *charger = i2c_get_clientdata(i2c);
+
+	if (device_may_wakeup(dev))
+		enable_irq_wake(charger->pdata->irq_pogo_int);
+
+#if !defined(CONFIG_ARCH_QCOM) && !defined(CONFIG_ARCH_MEDIATEK)
+	disable_irq(charger->pdata->irq_pogo_int);
+#endif
+#endif
 	return 0;
 }
 
 static int sm5714_charger_resume(struct device *dev)
 {
+#if IS_ENABLED(CONFIG_USE_POGO)
+	struct i2c_client *i2c = container_of(dev, struct i2c_client, dev);
+	struct sm5714_charger_data *charger = i2c_get_clientdata(i2c);
+
+	if (device_may_wakeup(dev))
+		disable_irq_wake(charger->pdata->irq_pogo_int);
+
+#if !defined(CONFIG_ARCH_QCOM) && !defined(CONFIG_ARCH_MEDIATEK)
+	enable_irq(charger->pdata->irq_pogo_int);
+#endif
+#endif
 	return 0;
 }
 #else
