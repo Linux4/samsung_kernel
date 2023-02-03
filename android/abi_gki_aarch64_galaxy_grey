@@ -1,0 +1,11 @@
+[abi_symbol_list]
+  __tracepoint_android_rvh_die_kernel_fault
+  __tracepoint_android_rvh_do_mem_abort
+  __tracepoint_android_rvh_do_sp_pc_abort
+  __tracepoint_android_rvh_report_bug
+  __tracepoint_hrtimer_expire_entry
+  __tracepoint_hrtimer_expire_exit
+  __tracepoint_irq_handler_entry
+  __tracepoint_irq_handler_exit
+  __tracepoint_sched_switch
+  __tracepoint_workqueue_execute_start

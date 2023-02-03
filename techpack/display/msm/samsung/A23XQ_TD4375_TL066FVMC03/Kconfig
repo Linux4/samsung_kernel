@@ -1,0 +1,6 @@
+config PANEL_A23XQ_TD4375_TL066FVMC03_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "Omnivision TD4375 A23XQ TDDI"
+	default n
+	---help---
+	Omnivision TD4375 TDDI 1080_2408 A23XQ
