@@ -39,6 +39,9 @@ struct a96t396_fw_data {
 	_IOWR(A96T396_IOCTL_MAGIC, 0x01, struct a96t396_fw_data)
 #endif
 
+#define HALL_PATH		"/sys/class/sec/hall_ic/hall_detect"
+#define HALL_CLOSE_STATE        1
+
 enum ic_num {
 	MAIN_GRIP = 0,
 	SUB_GRIP,

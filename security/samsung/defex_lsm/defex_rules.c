@@ -9,7 +9,6 @@
 #if 0
 	{feature_ped_exception,"/system/bin/run-as"},	/* DEFAULT */
 	{feature_ped_exception,"/system/bin/dumpstate"},	/* DEFAULT */
-	{feature_ped_exception,"/system/bin/dumpstate"},	/* DEFAULT */
 	{feature_safeplace_path,"/init"},
 	{feature_safeplace_path,"/system/bin/init"},
 	{feature_safeplace_path,"/system/bin/app_process32"},
@@ -204,10 +203,6 @@
 	{feature_safeplace_path,"/apex/com.android.art/bin/dex2oat32"},
 	{feature_safeplace_path,"/apex/com.android.art/bin/dex2oat64"},
 	{feature_safeplace_path,"/system/bin/incident"},
-	{feature_safeplace_path,"/system/bin/dumpstate"},
-	{feature_safeplace_path,"/system/xbin/su"},
-	{feature_safeplace_path,"/system/bin/remount"},
-	{feature_safeplace_path,"/vendor/bin/qcom-system-daemon"},
 	{feature_safeplace_path,"/tmp/update_binary;updater_intermediates/updater;obj/EXECUTABLES"},
 	{feature_safeplace_path,"/tmp/update-binary"},
 	{feature_safeplace_path,"/system/bin/install-recovery.sh"},	/* DEFAULT */
@@ -236,6 +231,13 @@
 	{feature_immutable_src_exception,"/init"},
 	{feature_immutable_src_exception,"/system/bin/init"},
 	{feature_immutable_src_exception,"/system/bin/lshal"},
+	{feature_integrity_check,"/vendor/bin/hw/android.hardware.gatekeeper@1.0-service"},
+	{feature_integrity_check,"/vendor/bin/hw/android.hardware.keymaster@4.0-service"},
+	{feature_integrity_check,"/vendor/bin/hw/android.hardware.security.keymint-service"},
+	{feature_integrity_check,"/vendor/bin/hw/vendor.samsung.hardware.tlc.kg@1.0-service"},
+	{feature_integrity_check,"/vendor/bin/vendor.samsung.hardware.security.wsm@1.0-service"},
+	{feature_integrity_check,"/vendor/bin/vaultkeeperd"},
+	{feature_integrity_check,"/vendor/bin/hw/vendor.samsung.hardware.tlc.kg@1.1-service"},
 	/* Rules will be added here */
 	/* Never modify the above line. Rules will be added for buildtime */
 #endif /* if 0 */

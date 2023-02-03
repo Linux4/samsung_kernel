@@ -384,6 +384,7 @@ struct s2mu106_charger_platform_data {
 	bool block_otg_psk_mode_en;
 	bool reduce_async_debounce_time;
 	bool lx_freq_recover;
+	bool change_3_level_osc;
 };
 
 

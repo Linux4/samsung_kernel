@@ -79,6 +79,12 @@ enum battery_thermal_zone {
 	BAT_THERMAL_OVERHEATLIMIT,
 };
 
+enum sb_wireless_mode {
+	SB_WRL_NONE = 0,
+	SB_WRL_RX_MODE = 1,
+	SB_WRL_TX_MODE = 2,
+};
+
 enum rx_device_type {
 	NO_DEV = 0,
 	OTHER_DEV,
@@ -137,6 +143,8 @@ enum sec_battery_capacity_mode {
 	SEC_BATTERY_CAPACITY_QH,
 	/* vfsoc */
 	SEC_BATTERY_CAPACITY_VFSOC,
+	/* rcomp0 */
+	SEC_BATTERY_CAPACITY_RC0,
 };
 
 enum sec_wireless_info_mode {

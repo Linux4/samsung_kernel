@@ -136,7 +136,7 @@ static struct dc_vib_pdata *dc_vib_get_dt(struct device *dev)
 	ret = of_property_read_string(node, "dc_vib,regulator_name",
 			&pdata->regulator_name);
 	if (!ret) {
-		pdata->regulator = regulator_get(NULL, pdata->regulator_name);
+		pdata->regulator = regulator_get(dev, pdata->regulator_name);
 		if (IS_ERR(pdata->regulator)) {
 			ret = PTR_ERR(pdata->regulator);
 			pdata->regulator = NULL;

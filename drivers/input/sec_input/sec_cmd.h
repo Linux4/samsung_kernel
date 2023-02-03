@@ -85,13 +85,21 @@ enum SEC_CMD_STATUS {
 #define INPUT_CMD_RESULT_NOT_EXIT	0
 #define INPUT_CMD_RESULT_NEED_EXIT	1
 
-#define input_cmd_result(cmd_state_parm, need_exit)						\
+#define input_cmd_result(cmd_state_parm, need_exit)				\
 ({										\
-	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));	\
-	sec->cmd_state = cmd_state_parm;	\
-	if (need_exit == INPUT_CMD_RESULT_NEED_EXIT)	\
-		sec_cmd_set_cmd_exit(sec); \
-	input_info(true, ptsp, "%s: %s\n", __func__, buff);	\
+	if (need_exit == INPUT_CMD_RESULT_NEED_EXIT) {				\
+		if (cmd_state_parm == SEC_CMD_STATUS_OK)			\
+			snprintf(buff, sizeof(buff), "OK");			\
+		else if (cmd_state_parm == SEC_CMD_STATUS_FAIL)			\
+			snprintf(buff, sizeof(buff), "NG");			\
+		else if (cmd_state_parm == SEC_CMD_STATUS_NOT_APPLICABLE)	\
+			snprintf(buff, sizeof(buff), "NA");			\
+	}									\
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));		\
+	sec->cmd_state = cmd_state_parm;					\
+	if (need_exit == INPUT_CMD_RESULT_NEED_EXIT)				\
+		sec_cmd_set_cmd_exit(sec);					\
+	input_info(true, ptsp, "%s: %s\n", __func__, buff);			\
 })
 
 #ifdef USE_SEC_CMD_QUEUE

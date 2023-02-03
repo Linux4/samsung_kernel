@@ -118,7 +118,12 @@ struct qrtr_sock {
 	struct sockaddr_qrtr peer;
 
 	int state;
-	struct task_struct *sent;
+
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+	/* qrtr_ws debugging */
+	char sent_name[TASK_COMM_LEN];
+	pid_t sent_pid;
+#endif
 };
 
 static inline struct qrtr_sock *qrtr_sk(struct sock *sk)
@@ -826,6 +831,7 @@ static void qrtr_backup_deinit(void)
 	skb_queue_purge(&qrtr_backup_hi);
 }
 
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
 /**
  * change qrtr_ws name to last changed one who's net_id/port
  */
@@ -834,7 +840,7 @@ static void qrtr_backup_deinit(void)
 static void qrtr_debug_change_ws_name(struct qrtr_node *node,
 							int src_node, int src_port,
 							int dst_node, int dst_port,
-							struct task_struct *sent)
+							char *sent_name, pid_t sent_pid)
 {
 	if (node->ws->name != node->ws_name) {
 		pr_err("qrtr: alloc new buffer for ws name(%d)\n", !!node->ws_name);
@@ -855,8 +861,9 @@ static void qrtr_debug_change_ws_name(struct qrtr_node *node,
 	snprintf((char *)node->ws_name, MAX_QRTR_WS_NAME - 1,
 			"qrtr_ws_src_%d_%d_dst_%d_%d_sent_%d_%s",
 			src_node, src_port, dst_node, dst_port,
-			(sent ? sent->pid : -1), (sent ? sent->comm : ""));
+			sent_pid, (sent_name ? sent_name : ""));
 }
+#endif
 
 /**
  * qrtr_endpoint_post() - post incoming data
@@ -966,14 +973,18 @@ int qrtr_endpoint_post(struct qrtr_endpoint *ep, const void *data, size_t len)
 	 * queued to the worker for forwarding handling.
 	 */
 	if (cb->type != QRTR_TYPE_DATA || cb->dst_node != qrtr_local_nid) {
-		skb_queue_tail(&node->rx_queue, skb);
-		kthread_queue_work(&node->kworker, &node->read_data);
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
 		qrtr_debug_change_ws_name(node, cb->src_node, cb->src_port,
 						cb->dst_node, cb->dst_port,
-						NULL);
+						NULL, -1);
+#endif
+		skb_queue_tail(&node->rx_queue, skb);
+		kthread_queue_work(&node->kworker, &node->read_data);
 		pm_wakeup_ws_event(node->ws, qrtr_wakeup_ms, true);
-
 	} else {
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+		struct qrtr_cb copied_cb = *cb;
+#endif
 		ipc = qrtr_port_lookup(cb->dst_port);
 		if (!ipc) {
 			kfree_skb(skb);
@@ -1000,9 +1011,14 @@ int qrtr_endpoint_post(struct qrtr_endpoint *ep, const void *data, size_t len)
 		 */
 		if ((node->nid != 9 && node->nid != 5) ||
 			(node->nid == 5 && wake)) {
-			qrtr_debug_change_ws_name(node, cb->src_node, cb->src_port,
-							cb->dst_node, cb->dst_port,
-							ipc->sent);
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+			qrtr_debug_change_ws_name(node, copied_cb.src_node,
+							copied_cb.src_port,
+							copied_cb.dst_node,
+							copied_cb.dst_port,
+							ipc->sent_name,
+							ipc->sent_pid);
+#endif
 			pm_wakeup_ws_event(node->ws, qrtr_wakeup_ms, true);
 		}
 
@@ -1801,8 +1817,11 @@ static int qrtr_sendmsg(struct socket *sock, struct msghdr *msg, size_t len)
 		qrtr_node_release(srv_node);
 	}
 
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
 	/* store who sent ipc */
-	ipc->sent = current;
+	strncpy(ipc->sent_name, current->comm, TASK_COMM_LEN - 1);
+	ipc->sent_pid = current->pid;
+#endif
 
 	rc = enqueue_fn(node, skb, type, &ipc->us, addr, msg->msg_flags);
 	if (rc >= 0)

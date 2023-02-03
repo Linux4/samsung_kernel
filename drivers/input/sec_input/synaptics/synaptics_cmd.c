@@ -816,7 +816,7 @@ static ssize_t synaptics_ts_fod_position_show(struct device *dev,
 
 	if (!ts->plat_data->support_fod) {
 		input_err(true, &ts->client->dev, "%s: fod is not supported\n", __func__);
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	if (!ts->plat_data->fod_data.vi_size) {
@@ -2993,6 +2993,70 @@ static void ear_detect_enable(void *device_data)
 	return;
 }
 
+static void pocket_mode_enable(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct synaptics_ts_data *ts = container_of(sec, struct synaptics_ts_data, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+
+	if (sec->cmd_param[0] != 0 && sec->cmd_param[0] != 1) {
+		snprintf(buff, sizeof(buff), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec_cmd_set_cmd_exit(sec);
+		return;
+	} else if (!ts->plat_data->support_ear_detect) {
+		snprintf(buff, sizeof(buff), "NA");
+		sec->cmd_state = SEC_CMD_STATUS_NOT_APPLICABLE;
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec_cmd_set_cmd_exit(sec);
+		return;
+	}
+
+	ts->plat_data->pocket_mode = sec->cmd_param[0];
+	synaptics_ts_pocket_mode_enable(ts, ts->plat_data->pocket_mode);
+
+	input_info(true, &ts->client->dev, "%s: %s\n",
+			__func__, ts->plat_data->pocket_mode ? "on" : "off");
+
+	snprintf(buff, sizeof(buff), "OK");
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+}
+
+static void low_sensitivity_mode_enable(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct synaptics_ts_data *ts = container_of(sec, struct synaptics_ts_data, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+
+	if (sec->cmd_param[0] != 0 && sec->cmd_param[0] != 1) {
+		snprintf(buff, sizeof(buff), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec_cmd_set_cmd_exit(sec);
+		return;
+	}
+
+	mutex_lock(&ts->modechange);
+	ts->plat_data->low_sensitivity_mode = sec->cmd_param[0];
+	synaptics_ts_low_sensitivity_mode_enable(ts, ts->plat_data->low_sensitivity_mode);
+	mutex_unlock(&ts->modechange);
+
+	input_info(true, &ts->client->dev, "%s: %s\n",
+			__func__, ts->plat_data->low_sensitivity_mode ? "on" : "off");
+
+	snprintf(buff, sizeof(buff), "OK");
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+}
+
 static void fod_enable(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -3596,6 +3660,8 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("set_fod_rect", set_fod_rect),},
 	{SEC_CMD_H("singletap_enable", singletap_enable),},
 	{SEC_CMD_H("ear_detect_enable", ear_detect_enable),},
+	{SEC_CMD_H("pocket_mode_enable", pocket_mode_enable),},
+	{SEC_CMD_H("low_sensitivity_mode_enable", low_sensitivity_mode_enable),},
 	{SEC_CMD("set_grip_data", set_grip_data),},
 /*	{SEC_CMD_H("external_noise_mode", external_noise_mode),},*/
 	{SEC_CMD_H("set_scan_rate", set_scan_rate),},
@@ -3660,7 +3726,7 @@ exit:
 void synaptics_ts_fn_remove(struct synaptics_ts_data *ts)
 {
 	input_err(true, &ts->client->dev, "%s\n", __func__);
-	
+
 	sec_input_sysfs_remove(&ts->plat_data->input_dev->dev.kobj);
 
 	sysfs_remove_link(&ts->sec.fac_dev->kobj, "input");

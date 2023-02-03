@@ -1736,6 +1736,22 @@ static void s2mu106_reset_bat_id(struct s2mu106_fuelgauge_data *fuelgauge)
 			s2mu106_get_bat_id(bat_id, fuelgauge->pdata->bat_gpio_cnt);
 }
 
+static void s2mu106_fg_bd_log(struct s2mu106_fuelgauge_data *fuelgauge)
+{
+	union power_supply_propval raw_soc_val;
+
+	memset(fuelgauge->d_buf, 0x0, sizeof(fuelgauge->d_buf));
+
+	if (s2mu106_get_rawsoc(fuelgauge, &raw_soc_val) < 0)
+		pr_err("%s: failed to read raw soc\n", __func__);
+
+	snprintf(fuelgauge->d_buf + strlen(fuelgauge->d_buf), sizeof(fuelgauge->d_buf),
+		"%d,%d,%d",
+		s2mu106_get_ocv(fuelgauge),
+		raw_soc_val.intval,
+		fuelgauge->capacity_max);
+}
+
 static int s2mu106_fg_get_property(struct power_supply *psy,
 		enum power_supply_property psp,
 		union power_supply_propval *val)
@@ -1922,7 +1938,8 @@ static int s2mu106_fg_get_property(struct power_supply *psy,
 			}
 			break;
 		case POWER_SUPPLY_EXT_PROP_BATT_DUMP:
-			val->strval = "FG LOG";
+			s2mu106_fg_bd_log(fuelgauge);
+			val->strval = fuelgauge->d_buf;
 			break;
 		case POWER_SUPPLY_EXT_PROP_MONITOR_WORK:
 			break;

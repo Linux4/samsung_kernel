@@ -40,6 +40,8 @@
 #include <linux/usb/typec/slsi/s2mu205/usbpd-s2mu205.h>
 #elif IS_ENABLED(CONFIG_PDIC_S2MU107)
 #include <linux/usb/typec/slsi/s2mu107/usbpd-s2mu107.h>
+#elif IS_ENABLED(CONFIG_PDIC_S2MF301)
+#include <linux/usb/typec/slsi/s2mf301/usbpd-s2mf301.h>
 #endif
 
 #if IS_ENABLED(CONFIG_SUPPORT_USB_TYPEC_OPS)
@@ -505,6 +507,8 @@ int typec_port_type_set(const struct typec_capability *cap, enum typec_port_type
 		struct s2mu205_usbpd_data *usbpd_data = (struct s2mu205_usbpd_data *)pd_data->phy_driver_data;
 #elif IS_ENABLED(CONFIG_PDIC_S2MU107)
 		struct s2mu107_usbpd_data *usbpd_data = (struct s2mu107_usbpd_data *)pd_data->phy_driver_data;
+#elif IS_ENABLED(CONFIG_PDIC_S2MF301)
+		struct s2mf301_usbpd_data *usbpd_data = (struct s2mf301_usbpd_data *)pd_data->phy_driver_data;
 #endif
 		int timeout = 0;
 

@@ -427,6 +427,7 @@ static void s2mu106_set_buck(
 	struct s2mu106_charger_data *charger, int enable)
 {
 	int prev_current;
+	u8 data;
 
 	if (factory_mode) {
 		pr_info("%s: Skip in Factory Mode\n", __func__);
@@ -452,8 +453,13 @@ static void s2mu106_set_buck(
 		}
 		regmode_vote(charger, REG_MODE_CHG|REG_MODE_BUCK, 0);
 		if (chgin_sts) {
-			/* auto async mode */
-			s2mu106_update_reg(charger->i2c, 0x3A, 0x01, 0x03);
+			if (charger->cable_type != SEC_BATTERY_CABLE_PDIC_APDO) {
+				/* auto async mode */
+				s2mu106_update_reg(charger->i2c, 0x3A, 0x01, 0x03);
+			} else {
+				s2mu106_read_reg(charger->i2c, 0x3A, &data);
+				pr_info("%s: skip sync mode default value in DC charging(%02x)\n", __func__, data);
+			}
 			s2mu106_set_input_current_limit(charger, prev_current);
 		}
 	}
@@ -821,6 +827,12 @@ static bool s2mu106_chg_init(struct s2mu106_charger_data *charger)
 	/* change ramp delay 128usec 0x92[3:0] = 0x05 */
 	s2mu106_update_reg(charger->i2c, 0x92, 0x05, 0x0F);
 
+	if (charger->pdata->change_3_level_osc) {
+		/* change 3 level osc 0x98[6:4] = 011 */
+		s2mu106_update_reg(charger->i2c, 0x98, 0x30, 0x70);
+		pr_info("%s: change_3_level_osc\n", __func__);
+	}
+
 	/* OTG OCP 1200mA, TX OCP 1500mA */
 	s2mu106_update_reg(charger->i2c, S2MU106_CHG_CTRL3,
 			(S2MU106_SET_OTG_TX_OCP_1500mA << SET_TX_OCP_SHIFT) |
@@ -965,6 +977,7 @@ static void s2mu106_set_charging_efficiency(struct s2mu106_charger_data *charger
 		s2mu106_update_reg(charger->i2c, 0x9E,
 				(charger->reg_0x9E & 0xF0) >> 4, 0x0F);
 		s2mu106_update_reg(charger->i2c, 0xAD, 0x04, 0x1F);
+		s2mu106_update_reg(charger->i2c, 0x3A, 0x01, 0x03); // SET_auto sync
 
 		s2mu106_read_reg(charger->i2c, 0x9E, &data);
 		pr_info("%s, 9V TA Setting! : 0x9E = 0x%2x(0x%2x)\n",
@@ -1300,6 +1313,7 @@ static int s2mu106_chg_set_property(struct power_supply *psy,
 		if (is_nocharge_type(charger->cable_type)) {
 			pr_err("[DEBUG]%s:[BATT] Type Battery\n", __func__);
 			regmode_vote(charger, REG_MODE_BUCK_OFF_FOR_FLASH | REG_MODE_BST, 0);
+			s2mu106_update_reg(charger->i2c, 0x3A, 0x01, 0x03); // SET_auto sync
 			value.intval = 0;
 		} else {
 			value.intval = 1;
@@ -1756,8 +1770,11 @@ static int s2mu106_chg_set_property(struct power_supply *psy,
 				if (val->intval) {
 					pr_info("%s : 5V->9V\n", __func__);
 					s2mu106_update_reg(charger->i2c, 0xAD, 0x04, 0x1F);
+					s2mu106_update_reg(charger->i2c, 0x3A, 0x03, 0x03); // SET_Async
 					queue_delayed_work(charger->charger_wqueue,
 						&charger->pmeter_3lv_work, msecs_to_jiffies(5000));
+					s2mu106_read_reg(charger->i2c, 0x3A, &data);
+					pr_info("%s : 5V->9V 0x3A:(%02x)\n", __func__, data);
 				} else {
 					pr_info("%s : 9V->5V or detach\n", __func__);
 					s2mu106_update_reg(charger->i2c, 0xAD, 0x0F, 0x1F);
@@ -2225,6 +2242,7 @@ static void s2mu106_pmeter_3lv_check_work(struct work_struct *work)
 	union power_supply_propval value = {0, };
 	int voltage;
 
+	s2mu106_update_reg(charger->i2c, 0x3A, 0x01, 0x03); // SET_auto sync
 	psy_do_property("s2mu106_pmeter", get,
 					POWER_SUPPLY_LSI_PROP_VCHGIN, value);
 
@@ -2321,6 +2339,9 @@ static int s2mu106_charger_parse_dt(struct device *dev,
 
 		pdata->lx_freq_recover = of_property_read_bool(np,
 				"charger,lx_freq_recover");
+
+		pdata->change_3_level_osc = of_property_read_bool(np,
+				"charger,change_3_level_osc");
 	}
 
 	np = of_find_node_by_name(NULL, "battery");

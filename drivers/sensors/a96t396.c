@@ -46,15 +46,6 @@
 #include <linux/of_gpio.h>
 #endif
 
-#if 0
-#include <linux/hall/hall_ic_notifier.h>
-#define HALL_NAME		"hall"
-#define HALL_CERT_NAME		"certify_hall"
-#define HALL_FLIP_NAME		"flip"
-#define HALL_ATTACH		1
-#define HALL_DETACH		0
-#endif
-
 #include "a96t396.h"
 
 #define SENSOR_ATTR_SIZE 55
@@ -159,9 +150,6 @@ struct a96t396_data {
 	int pdic_pre_attach;
 	int pre_attach;
 	int pre_otg_attach;
-#endif
-#if 0
-	struct notifier_block hall_nb;
 #endif
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 	u8 read_reg;
@@ -566,6 +554,39 @@ static void a96t396_grip_sw_reset(struct a96t396_data *data)
 		usleep_range(35000, 35010);
 }
 
+static int a96t396_get_hallic_state(char *file_path)
+{
+	char hall_buf[6];
+	int ret = -ENODEV;
+	int hall_state = -1;
+	mm_segment_t old_fs;
+	struct file *filep;
+
+	memset(hall_buf, 0, sizeof(hall_buf));
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	filep = filp_open(file_path, O_RDONLY, 0666);
+	if (IS_ERR(filep)) {
+		set_fs(old_fs);
+		return hall_state;
+	}
+
+	ret = filep->f_op->read(filep, hall_buf,
+		sizeof(hall_buf) - 1, &filep->f_pos);
+	if (ret != sizeof(hall_buf) - 1)
+		goto exit;
+
+	if (strcmp(hall_buf, "CLOSE") == 0)
+		hall_state = HALL_CLOSE_STATE;
+
+exit:
+	filp_close(filep, current->files);
+	set_fs(old_fs);
+
+	return hall_state;
+}
+
 #ifdef CONFIG_SENSORS_FW_VENDOR
 static void a96t396_firmware_work_func(struct work_struct *work)
 {
@@ -596,11 +617,22 @@ static void a96t396_debug_work_func(struct work_struct *work)
 	struct a96t396_data *data = container_of((struct delayed_work *)work,
 		struct a96t396_data, debug_work);
 
+	static int hall_prev_state;
+	int hall_state;
+
 	if (data->resume_called == true) {
 		data->resume_called = false;
 		schedule_delayed_work(&data->debug_work, msecs_to_jiffies(1000));
 		return;
 	}
+
+	hall_state = a96t396_get_hallic_state(HALL_PATH);
+	if (hall_state == HALL_CLOSE_STATE && hall_prev_state != hall_state) {
+		GRIP_INFO("hall is closed %d\n", hall_state);
+		a96t396_grip_sw_reset(data);
+	}
+
+	hall_prev_state = hall_state;
 
 	if (data->current_state) {
 #ifdef CONFIG_SEC_FACTORY
@@ -1828,7 +1860,7 @@ static int a96t396_load_fw(struct a96t396_data *data, u8 cmd)
 	GRIP_INFO("fw_size : %lu, success (%u)\n", data->firm_size, cmd);
 	return ret;
 fail_sdcard_size:
-	kfree(&data->firm_data_ums);
+	kfree(data->firm_data_ums);
 fail_sdcard_kzalloc:
 	filp_close(fp, current->files);
 fail_sdcard_open:
@@ -2990,26 +3022,6 @@ static int a96t396_pdic_handle_notification(struct notifier_block *nb,
 }
 #endif
 
-#if 0
-static int a96t396_hall_notifier(struct notifier_block *nb,
-				unsigned long action, void *hall_data)
-{
-	struct hall_notifier_context *hall_notifier;
-	struct a96t396_data *data =
-			container_of(nb, struct a96t396_data, hall_nb);
-	hall_notifier = hall_data;
-
-	if (action == HALL_ATTACH) {
-		GRIP_INFO("%s attach\n", hall_notifier->name);
-		a96t396_grip_sw_reset(data);
-	} else {
-		return 0;
-	}
-
-	return 0;
-}
-#endif
-
 static void a96t396_check_first_working(struct a96t396_data *data)
 {
 	if (data->grip_p_thd < data->diff) {
@@ -3296,12 +3308,6 @@ static int a96t396_probe(struct i2c_client *client,
 				a96t396_pdic_handle_notification,
 				MANAGER_NOTIFY_PDIC_SENSORHUB);
 #endif
-#if 0
-	GRIP_INFO("register hall notifier\n");
-	data->hall_nb.priority = 1;
-	data->hall_nb.notifier_call = a96t396_hall_notifier;
-	hall_notifier_register(&data->hall_nb);
-#endif
 
 	GRIP_INFO("done\n");
 	data->probe_done = true;
@@ -3381,9 +3387,6 @@ static int a96t396_suspend(struct device *dev)
 	GRIP_INFO("current_state : %d\n", data->current_state);
 	a96t396_set_debug_work(data, 0, 0);
 
-	if (data->current_state)
-		disable_irq(data->irq);
-
 	cancel_work_sync(&data->pdic_attach_reset_work);
 	cancel_work_sync(&data->pdic_detach_reset_work);
 
@@ -3397,9 +3400,6 @@ static int a96t396_resume(struct device *dev)
 	GRIP_INFO("current_state : %d\n", data->current_state);
 	data->resume_called = true;
 	a96t396_set_debug_work(data, 1, 0);
-
-	if (data->current_state)
-		enable_irq(data->irq);
 
 	return 0;
 }

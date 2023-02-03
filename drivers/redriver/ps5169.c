@@ -467,10 +467,10 @@ static int ps5169_probe(struct i2c_client *i2c,
 	if (ps5169_i2c_check() < 0) {
 		pr_info("%s: i2c transfer failed. stop to try i2c transfer\n", __func__);
 		redrv_data = NULL;
-	} else
+	} else {
 		ps5169_config(WORK_MODE, 0);
-
-	redrv_data->is_DFP = -1;
+		redrv_data->is_DFP = -1;
+	}
 
 	return ret;
 }

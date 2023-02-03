@@ -355,7 +355,7 @@ policy_state usbpd_policy_src_transition_supply(struct policy_data *policy)
 				if (ms2 > tSrcTransition)
 					break;
 			}
-
+ 
 			pr_info("%s, cur [%d, %s] -> requested [%d, %s]\n", __func__, 
 					policy->selected_pdo_num, pdo_type_to_str[policy->selected_pdo_type],
 					policy->requested_pdo_num, pdo_type_to_str[policy->requested_pdo_type]);
@@ -6243,7 +6243,9 @@ void usbpd_init_policy(struct usbpd_data *pd_data)
 {
 	int i;
 	struct policy_data *policy = &pd_data->policy;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	struct usbpd_manager_data *manager = &pd_data->manager;	
+#endif
 
 	pr_info("%s\n", __func__);
 
@@ -6278,8 +6280,8 @@ void usbpd_init_policy(struct usbpd_data *pd_data)
 	pd_data->pd_noti.sink_status.current_pdo_num = 0;
 	pd_data->pd_noti.sink_status.selected_pdo_num = 0;
 	pd_data->pd_noti.sink_status.available_pdo_num = 0;
-#endif
 	manager->auth_type = AUTH_NONE;
+#endif
 
 	for (i = 0; i < USBPD_MAX_COUNT_MSG_OBJECT; i++) {
 		policy->rx_data_obj[i].object = 0;

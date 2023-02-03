@@ -37,12 +37,6 @@ int cam_flash_led_prepare(struct led_trigger *trigger, int options,
 {
 	int rc = 0;
 
-// Set the PMIC voltage to 5V for Flash operation
-#if defined(CONFIG_LEDS_SM5714)
-	sm5714_fled_mode_ctrl(SM5714_FLED_MODE_PREPARE_FLASH, 0);
-	return rc;
-#endif
-
 	if (is_wled) {
 #if IS_REACHABLE(CONFIG_BACKLIGHT_QCOM_SPMI_WLED)
 		rc = wled_flash_led_prepare(trigger, options, max_current);
@@ -1863,8 +1857,12 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 
 #if defined(CONFIG_LEDS_SM5714)
 			CAM_INFO(CAM_FLASH, "CAMERA_SENSOR_FLASH_CMD_TYPE_INIT_INFO led_current_ma = %d", fctrl->nrt_info.led_current_ma[0]);
-			if(fctrl->nrt_info.led_current_ma[0] > 0)
-			    sm5714_fled_mode_ctrl(SM5714_FLED_MODE_TORCH_FLASH, fctrl->nrt_info.led_current_ma[0] & 0x0FFF);
+			if(flash_operation_info->opcode == CAMERA_SENSOR_FLASH_OP_FIRELOW) {
+				sm5714_fled_mode_ctrl(SM5714_FLED_MODE_PREPARE_FLASH, 0);
+			}
+			if(fctrl->nrt_info.led_current_ma[0] > 0) {
+				sm5714_fled_mode_ctrl(SM5714_FLED_MODE_TORCH_FLASH, fctrl->nrt_info.led_current_ma[0] & 0x0FFF);
+			}
 #endif
 
 			rc = fctrl->func_tbl.apply_setting(fctrl, 0);
@@ -1968,8 +1966,10 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 				= flash_operation_info->led_current_ma[i];
 
 #if defined(CONFIG_LEDS_SM5714)
-			if(flash_data->opcode == CAMERA_SENSOR_FLASH_OP_FIRELOW)
+			if(flash_data->opcode == CAMERA_SENSOR_FLASH_OP_FIRELOW) {
+				sm5714_fled_mode_ctrl(SM5714_FLED_MODE_PREPARE_FLASH, 0);
 				sm5714_fled_mode_ctrl(SM5714_FLED_MODE_TORCH_FLASH, flash_data->led_current_ma[0] & 0x0FFF);
+			}
 			else if(flash_data->opcode == CAMERA_SENSOR_FLASH_OP_FIREHIGH)
 				sm5714_fled_mode_ctrl(SM5714_FLED_MODE_MAIN_FLASH, flash_data->led_current_ma[0] & 0x0FFF);
 #endif
