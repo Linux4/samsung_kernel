@@ -923,6 +923,29 @@ static int fts_input_pen_report(struct fts_ts_data *data)
 }
 #endif
 
+static int fts_read_proximity_result(struct fts_ts_data *ts_data)
+{
+	int ret = 0;
+	u8 val = 0;
+
+	ret = fts_read_reg(PROXIMITY_DATA_REG, &val);
+	if (ret < 0) {
+		FTS_ERROR("read pocket data fail");
+		return ret;
+	}
+
+	if (ts_data->hover_event == (val >> 4))
+		return 0;
+	else
+		ts_data->hover_event = (val >> 4);
+
+	input_report_abs(ts_data->input_dev_proximity, ABS_MT_CUSTOM, ts_data->hover_event);
+	input_sync(ts_data->input_dev_proximity);
+	FTS_INFO("proximity: %d", ts_data->hover_event);
+
+	return 0;
+}
+
 static int fts_read_touchdata(struct fts_ts_data *data)
 {
 	int ret = 0;
@@ -1061,6 +1084,8 @@ static void fts_irq_read_report(void)
 #if FTS_POINT_REPORT_CHECK_EN
 	fts_prc_queue_work(ts_data);
 #endif
+	if (ts_data->proximity_mode)
+		fts_read_proximity_result(ts_data);
 
 	ret = fts_read_parse_touchdata(ts_data);
 	if (ret == 0) {
@@ -1111,7 +1136,8 @@ static irqreturn_t fts_irq_handler(int irq, void *data)
 	int ret = 0;
 	struct fts_ts_data *ts_data = fts_data;
 
-	if ((ts_data->suspended) && (ts_data->pm_suspend)) {
+//	if ((ts_data->suspended) && (ts_data->pm_suspend)) {
+	if (ts_data->power_status == LP_MODE_STATUS) {
 		__pm_wakeup_event(ts_data->wake_lock, FTS_WAKELOCK_TIME);
 		ret = wait_for_completion_timeout(
 				&ts_data->pm_completion,
@@ -1245,6 +1271,24 @@ static int fts_input_set_prop(struct fts_ts_data *ts_data, struct input_dev *inp
 	return 0;
 }
 
+static void fts_input_set_prop_proximity(struct fts_ts_data *ts_data, struct input_dev *input_dev, int propbit)
+{
+	if (ts_data->bus_type == BUS_TYPE_I2C)
+		input_dev->id.bustype = BUS_I2C;
+	else
+		input_dev->id.bustype = BUS_SPI;
+
+	input_dev->dev.parent = ts_data->dev;
+
+	set_bit(EV_SYN, input_dev->evbit);
+	set_bit(EV_SW, input_dev->evbit);
+
+	set_bit(INPUT_PROP_DIRECT, input_dev->propbit);
+
+	input_set_abs_params(input_dev, ABS_MT_CUSTOM, 0, 0xFFFFFFFF, 0, 0);
+	input_set_drvdata(input_dev, ts_data);
+}
+
 static int fts_input_init(struct fts_ts_data *ts_data)
 {
 	int ret = 0;
@@ -1254,6 +1298,13 @@ static int fts_input_init(struct fts_ts_data *ts_data)
 	if (!ts_data->input_dev) {
 		FTS_ERROR("Failed to allocate memory for input device");
 		return -ENOMEM;
+	}
+
+	ts_data->input_dev_proximity = input_allocate_device();
+	if (ts_data->input_dev_proximity == NULL) {
+		FTS_ERROR("allocate input proximity device failed");
+		ret = -ENOMEM;
+		return ret;
 	}
 
 	/* Init and register Input device */
@@ -1280,6 +1331,14 @@ static int fts_input_init(struct fts_ts_data *ts_data)
 		}
 		ts_data->input_dev_pad->name = "sec_touchpad";
 		fts_input_set_prop(ts_data, ts_data->input_dev_pad, INPUT_PROP_POINTER);
+	}
+
+	ts_data->input_dev_proximity->name = "sec_touchproximity";
+	fts_input_set_prop_proximity(ts_data, ts_data->input_dev_proximity, INPUT_PROP_DIRECT);
+	ret = input_register_device(ts_data->input_dev_proximity);
+	if (ret) {
+		FTS_ERROR("Unable to register %s input device", ts_data->input_dev_proximity->name);
+		return ret;
 	}
 
 	FTS_FUNC_EXIT();
@@ -1743,9 +1802,26 @@ static int fts_gpio_configure(struct fts_ts_data *data)
 		}
 	}
 
+	if (gpio_is_valid(data->pdata->cs_gpio)) {
+		ret = gpio_request(data->pdata->cs_gpio, "fts_cs_gpio");
+		if (ret) {
+			FTS_ERROR("[GPIO]cs gpio request failed");
+			goto err_reset_gpio_dir;
+		}
+
+		ret = gpio_direction_output(data->pdata->cs_gpio, 1);
+		if (ret) {
+			FTS_ERROR("[GPIO]set_direction for cs gpio failed");
+			goto err_cs_gpio_dir;
+		}
+	}
+
 	FTS_FUNC_EXIT();
 	return 0;
 
+err_cs_gpio_dir:
+	if (gpio_is_valid(data->pdata->cs_gpio))
+		gpio_free(data->pdata->cs_gpio);
 err_reset_gpio_dir:
 	if (gpio_is_valid(data->pdata->reset_gpio))
 		gpio_free(data->pdata->reset_gpio);
@@ -1836,7 +1912,7 @@ static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
 	if (ret < 0)
 		FTS_ERROR("Unable to get display-coords");
 
-	/* key */
+	/* key : not used */
 	pdata->have_key = of_property_read_bool(np, "focaltech,have-key");
 	if (pdata->have_key) {
 		ret = of_property_read_u32(np, "focaltech,key-number", &pdata->key_number);
@@ -1881,6 +1957,12 @@ static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
 			0, &pdata->irq_gpio_flags);
 	if (pdata->irq_gpio < 0)
 		FTS_ERROR("Unable to get irq_gpio");
+
+	pdata->cs_gpio = of_get_named_gpio(np, "focaltech,cs-gpio", 0);
+	if (!gpio_is_valid(pdata->cs_gpio)) {
+		pdata->cs_gpio = -1;
+		FTS_ERROR(" DT:cs_gpio value is not valid");
+	}
 
 	ret = of_property_read_u32(np, "focaltech,max-touch-number", &temp_val);
 	if (ret < 0) {
@@ -1968,16 +2050,21 @@ static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
 		FTS_INFO("ramtest bin path %s\n", pdata->ramtest_name);
 	}
 
-	FTS_INFO("max touch number:%d, irq gpio:%d, reset gpio:%d",
-			pdata->max_touch_number, pdata->irq_gpio, pdata->reset_gpio);
+	FTS_INFO("max touch number:%d, irq gpio:%d, reset gpio:%d, cs gpio:%d",
+			pdata->max_touch_number, pdata->irq_gpio, pdata->reset_gpio, pdata->cs_gpio);
 
 	pdata->enable_settings_aot = of_property_read_bool(np, "enable_settings_aot");
+	FTS_INFO("enable settings aot %s", pdata->enable_settings_aot ? "ON" : "OFF");
+	pdata->prox_lp_scan_enabled = of_property_read_bool(np, "prox_lp_scan_enabled");
+	FTS_INFO("prox lp scan enabled %s", pdata->prox_lp_scan_enabled ? "ON" : "OFF");
 	pdata->enable_sysinput_enabled = of_property_read_bool(np, "enable_sysinput_enabled");
+	FTS_INFO("enable sysinput enabled %s", pdata->enable_sysinput_enabled ? "ON" : "OFF");
 	pdata->support_dex = of_property_read_bool(np, "support_dex");
+	FTS_INFO("support dex %s", pdata->support_dex ? "ON" : "OFF");
 	pdata->scan_off_when_cover_closed = of_property_read_bool(np, "scan_off_when_cover_closed");
+	FTS_INFO("scan off when cover closed %s", pdata->scan_off_when_cover_closed ? "ON" : "OFF");
 	pdata->enable_vbus_notifier = of_property_read_bool(np, "enable_vbus_notifier");
-
-	FTS_INFO("scan_off_when_cover_closed:%d", pdata->scan_off_when_cover_closed);
+	FTS_INFO("enable vbus notifier %s", pdata->enable_vbus_notifier ? "ON" : "OFF");
 
 	if (of_property_read_string(np, "sec,name_lcd_rst", &pdata->name_lcd_rst)) {
 		FTS_ERROR("Failed to get name_lcd_rst property");
@@ -2048,22 +2135,30 @@ int fts_charger_attached(struct fts_ts_data *ts_data, bool status)
 {
 	int ret = 0;
 
-	FTS_INFO("%s [START] %s\n", __func__, status ? "connected" : "disconnected");
+	FTS_INFO("%s", status ? "connected" : "disconnected");
+
+	if (ts_data->power_status == POWER_OFF_STATUS) {
+		FTS_ERROR("tsp ic is off");
+		return ret;
+	}
 
 	if (status == 1) {
-		FTS_DEBUG("enter charger mode");
+		FTS_INFO("enter charger mode");
 		ret = fts_write_reg(FTS_REG_CHARGER_MODE_EN, ENABLE);
-		if (ret >= 0)
+		if (ret >= 0) {
 			ts_data->charger_mode = ENABLE;
+			FTS_ERROR("entering charger mode failed");
+		}
 	} else if (status == 0) {
-		FTS_DEBUG("exit charger mode");
+		FTS_INFO("exit charger mode");
 		ret = fts_write_reg(FTS_REG_CHARGER_MODE_EN, DISABLE);
-		if (ret >= 0)
+		if (ret >= 0) {
 			ts_data->charger_mode = DISABLE;
+			FTS_ERROR("exit charger mode failed");
+		}
 	} else
-		FTS_ERROR("%s [ERROR] Unknown value[%d]\n", __func__, status);
+		FTS_ERROR("[ERROR] Unknown value[%d]", status);
 
-	FTS_INFO("%s [DONE]\n", __func__);
 	return ret;
 }
 
@@ -2073,15 +2168,15 @@ int fts_vbus_notification(struct notifier_block *nb,
 	struct fts_ts_data *ts_data = container_of(nb, struct fts_ts_data, vbus_nb);
 	vbus_status_t vbus_type = *(vbus_status_t *)data;
 
-	FTS_INFO("%s cmd=%lu, vbus_type=%d\n", __func__, cmd, vbus_type);
+	FTS_INFO("cmd=%lu, vbus_type=%d", cmd, vbus_type);
 
 	switch (vbus_type) {
 	case STATUS_VBUS_HIGH:
-		FTS_INFO("%s : attach\n", __func__);
+		FTS_INFO("attach");
 		ts_data->ta_stsatus = true;
 		break;
 	case STATUS_VBUS_LOW:
-		FTS_INFO("%s : detach\n", __func__);
+		FTS_INFO("detach");
 		ts_data->ta_stsatus = false;
 		break;
 	default:
@@ -2172,6 +2267,8 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 #if (!FTS_CHIP_IDC)
 	fts_reset_proc(200);
 #endif
+
+	ts_data->power_status = POWER_ON_STATUS;
 
 	ret = fts_get_ic_information(ts_data);
 	if (ret) {
@@ -2290,6 +2387,8 @@ err_power_init:
 		gpio_free(ts_data->pdata->reset_gpio);
 	if (gpio_is_valid(ts_data->pdata->irq_gpio))
 		gpio_free(ts_data->pdata->irq_gpio);
+	if (gpio_is_valid(ts_data->pdata->cs_gpio))
+		gpio_free(ts_data->pdata->cs_gpio);
 err_gpio_config:
 err_report_buffer:
 err_input_init:
@@ -2355,6 +2454,11 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
 	if (gpio_is_valid(ts_data->pdata->irq_gpio))
 		gpio_free(ts_data->pdata->irq_gpio);
 
+	if (gpio_is_valid(ts_data->pdata->cs_gpio))
+		gpio_free(ts_data->pdata->cs_gpio);
+
+	ts_data->power_status = POWER_OFF_STATUS;
+
 #if FTS_POWER_SOURCE_CUST_EN
 	fts_power_source_exit(ts_data);
 #endif
@@ -2374,13 +2478,14 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
 
 int fts_ts_suspend(struct device *dev)
 {
-	int ret = 0;
 	struct fts_ts_data *ts_data = fts_data;
+//	int enter_force_ed_mode = 0;
+	int ret = 0;
 
 	mutex_lock(&ts_data->device_lock);
 	FTS_INFO("Enter. gesture_mode=0x%x, prox_power_off=%d", ts_data->gesture_mode, ts_data->prox_power_off);
 
-	if (ts_data->suspended) {
+	if (ts_data->power_status == POWER_OFF_STATUS || ts_data->power_status == LP_MODE_STATUS) {
 		FTS_INFO("Already in suspend state");
 		mutex_unlock(&ts_data->device_lock);
 		return 0;
@@ -2396,15 +2501,19 @@ int fts_ts_suspend(struct device *dev)
 	fts_esdcheck_suspend();
 #endif
 
-	if (ts_data->prox_power_off == 1 && ts_data->aot_enable) {
-		ts_data->gesture_mode = false;
-		FTS_INFO("disable aot when prox_power_off");
-	}
-
-	if (ts_data->gesture_mode) {
+	if (ts_data->gesture_mode || ts_data->proximity_mode) {
 		fts_ctrl_lcd_reset_regulator(ts_data, true);
 		fts_ctrl_lcd_regulators(ts_data, true);
 		fts_gesture_suspend(ts_data);
+ 		if (ts_data->proximity_mode == 3 || (!(ts_data->gesture_mode) && ts_data->proximity_mode == 1)) {
+			ret = fts_write_reg(FTS_REG_POWER_MODE, FTS_REG_POWER_MODE_SCAN_OFF);
+			if (ret < 0)
+				FTS_ERROR("failed to lp scan off, ret=%d", ret);
+		}
+		ts_data->power_status = LP_MODE_STATUS;
+		FTS_INFO("aot %d, spay %d, gesture mode 0x%x, ed %d, prox off %d",
+			ts_data->aot_enable, ts_data->spay_enable, ts_data->gesture_mode,
+			ts_data->proximity_mode, ts_data->prox_power_off);
 	} else {
 		FTS_INFO("make TP enter into sleep mode");
 		ret = fts_write_reg(FTS_REG_POWER_MODE, FTS_REG_POWER_MODE_SLEEP);
@@ -2420,8 +2529,10 @@ int fts_ts_suspend(struct device *dev)
 			if (ret < 0) {
 				FTS_ERROR("power enter suspend fail");
 			}
+			ts_data->power_status = POWER_OFF_STATUS;
 #endif
 		} else {
+			ts_data->power_status = POWER_OFF_STATUS;
 			ts_data->power_disabled = true;
 		}
 #if FTS_PINCTRL_EN
@@ -2430,7 +2541,7 @@ int fts_ts_suspend(struct device *dev)
 	}
 
 	fts_release_all_finger();
-	ts_data->suspended = true;
+//	ts_data->suspended = true;
 
 	cancel_delayed_work(&ts_data->print_info_work);
 	fts_print_info(ts_data);
@@ -2448,13 +2559,24 @@ static int fts_ts_resume(struct device *dev)
 
 	mutex_lock(&ts_data->device_lock);
 	FTS_FUNC_ENTER();
-	if (!ts_data->suspended) {
+
+	if (ts_data->power_status == POWER_ON_STATUS) {
 		FTS_DEBUG("Already in awake state");
 		mutex_unlock(&ts_data->device_lock);
 		return 0;
 	}
 
 	fts_release_all_finger();
+
+/*
+	if (ts_data->power_status == LP_MODE_STATUS) {
+		if (device_may_wakeup(&ts_data->client->dev))
+			disable_irq_wake(ts_data->client->irq);
+	}
+*/
+
+	ts_data->prox_power_off = 0;
+	ts_data->power_status = POWER_ON_STATUS;
 
 	if (!ts_data->gesture_mode) {
 #if FTS_PINCTRL_EN
@@ -2484,11 +2606,10 @@ static int fts_ts_resume(struct device *dev)
 		fts_gesture_resume(ts_data);
 	}
 
-	if (ts_data->aot_enable)
-		ts_data->gesture_mode |= GESTURE_DOUBLECLICK_EN;
-	ts_data->prox_power_off = 0;
+//	if (ts_data->aot_enable)
+//		ts_data->gesture_mode |= GESTURE_DOUBLECLICK_EN;
 
-	ts_data->suspended = false;
+//	ts_data->suspended = false;
 
 	cancel_delayed_work(&ts_data->print_info_work);
 	ts_data->print_info_cnt_open = 0;

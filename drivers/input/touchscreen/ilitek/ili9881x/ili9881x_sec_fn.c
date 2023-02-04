@@ -42,25 +42,28 @@ static int sec_fn_load_fw(int update_mode, bool signing)
 	ilits->signing = signing;
 
 	if (update_mode == BUILT_IN) {
-		ilits->fw_open = REQUEST_FIRMWARE;
+		ilits->fw_index = ILITEK_TSP_FW_IDX_BIN;
+		ilits->md_fw_rq_path = (char *)ilits->fw_name;
+		if (ilits->tp_ums_fw.data != NULL) {
+			vfree(ilits->tp_ums_fw.data);
+		}
+		ilits->tp_ums_fw.size = 0;
+		ilits->tp_ums_fw.data = NULL;
 	} else if (update_mode == UMS) {
-		ilits->fw_open = FILP_OPEN;
-		if (ilits->signing)
-			ilits->md_fw_filp_path = TSP_PATH_EXTERNAL_FW_SIGNED;
+		ilits->fw_index = ILITEK_TSP_FW_IDX_UMS;
+		if (signing)
+			ilits->md_fw_rq_path = TSP_PATH_EXTERNAL_FW_SIGNED;
 		else
-			ilits->md_fw_filp_path = TSP_PATH_EXTERNAL_FW;
+			ilits->md_fw_rq_path = TSP_PATH_EXTERNAL_FW;
 	} else {
-		ilits->fw_open = REQUEST_FIRMWARE;
+		ilits->fw_index = ILITEK_TSP_FW_IDX_BIN;
 	}
 
 	ilits->force_fw_update = ENABLE;
-	ilits->node_update = true;
 
 	ret = ili_fw_upgrade_handler(NULL);
 
-	ilits->node_update = false;
 	ilits->force_fw_update = DISABLE;
-	ilits->fw_open = REQUEST_FIRMWARE;
 
 	g_user_buf[0] = 0x0;
 	g_user_buf[1] = (ret < 0) ? -ret : ret;
@@ -173,7 +176,7 @@ static void aot_enable(void *device_data)
 	ptr = (u8 *) ptr_sym;
 	ges_sym_value = (ptr[0] | (ptr[1] << 8) | (ptr[2] << 16)) & DOUBLE_TAP_MASK;
 
-	input_info(true, ilits->dev, "%s cmd:%d, gesture:%d, ilits->ges_sym.double_tap:0x%x, ges_sym_value:0x%d\n",
+	input_info(true, ilits->dev, "%s cmd:%d, gesture:%d, ilits->ges_sym.double_tap:0x%x, ges_sym_value:%d\n",
 			__func__, sec->cmd_param[0], ilits->gesture, ilits->ges_sym.double_tap, ges_sym_value);
 
 	if (!!sec->cmd_param[0]) {
@@ -201,6 +204,52 @@ out:
 
 	input_info(true, ilits->dev, "%s, %s, gesture:%d, ilits->ges_sym.double_tap:0x%x\n",
 			__func__, sec->cmd_result, ilits->gesture, ilits->ges_sym.double_tap);
+}
+
+static void high_sensitivity_mode(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int ret;
+
+	sec_cmd_set_default_result(sec);
+	mutex_lock(&ilits->touch_mutex);
+	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
+		snprintf(buff, sizeof(buff), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		input_err(true, ilits->dev, "%s not supported mode, cmd:%d\n",
+					__func__, sec->cmd_param[0]);
+	} else {
+		ilits->high_sensitivity_mode_enabled = sec->cmd_param[0];
+		if (ilits->tp_suspend) {
+			input_info(true, ilits->dev, "%s: now screen off stae, it'll setting after screen on\n",
+					__func__);
+			snprintf(buff, sizeof(buff), "OK");
+			goto out;
+		}
+		if (sec->cmd_param[0])
+			ret = ili_ic_func_ctrl("high_sensitivity_mode", HIGH_SENSITIVITY_ENABLE);
+		else
+			ret = ili_ic_func_ctrl("high_sensitivity_mode", HIGH_SENSITIVITY_DISABLE);
+
+		if (ret < 0) {
+			input_err(true, ilits->dev, "%s Failed to enable high_sensitivity_mode, cmd:%d\n",
+					__func__, sec->cmd_param[0]);
+			snprintf(buff, sizeof(buff), "NG");
+			sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		} else {
+			snprintf(buff, sizeof(buff), "OK");
+			sec->cmd_state = SEC_CMD_STATUS_OK;
+		}
+	}
+out:
+	mutex_unlock(&ilits->touch_mutex);
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+
+	input_info(true, ilits->dev, "%s: %s\n", __func__, buff);
+
+	return;
 }
 
 static void spay_enable(void *device_data)
@@ -404,18 +453,19 @@ static void run_raw_test_read(void *device_data)
 		goto out;
 	}
 
-	/* only for 9882q */
+	//only for 9882q
 	if (ilits->chip->id == ILI9882_CHIP && ilits->chip->type == 0x1A) {
 		ilits->current_mpitem = "raw data(have bk)";
 		ilits->allnode = TEST_MODE_MIN_MAX;
 		ilits->node_min = ilits->node_max = 0;
-		ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATAHAVEBK_LCMON_PATH_NUM], ON);
+		ret = ilitek_node_mp_test_read(sec, MP_ITEM_RAW_DATA_HAVE_BK, ON);
 	} else {
 		ilits->current_mpitem = "raw data(no bk)";
 		ilits->allnode = TEST_MODE_MIN_MAX;
 		ilits->node_min = ilits->node_max = 0;
-		ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATANOBK_LCMON_PATH_NUM], ON);
+		ret = ilitek_node_mp_test_read(sec, MP_ITEM_RAW_DATA_NOBK, ON);
 	}
+
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -452,18 +502,19 @@ static void run_raw_test_read_all(void *device_data)
 		goto out;
 	}
 
-	/* only for 9882q */
+	//only for 9882q
 	if (ilits->chip->id == ILI9882_CHIP && ilits->chip->type == 0x1A) {
 		ilits->current_mpitem = "raw data(have bk)";
 		ilits->allnode = TEST_MODE_ALL_NODE;
 		ilits->node_min = ilits->node_max = 0;
-		ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATAHAVEBK_LCMON_PATH_NUM], ON);
+		ret = ilitek_node_mp_test_read(sec, MP_ITEM_RAW_DATA_HAVE_BK, ON);
 	} else {
 		ilits->current_mpitem = "raw data(no bk)";
 		ilits->allnode = TEST_MODE_ALL_NODE;
 		ilits->node_min = ilits->node_max = 0;
-		ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATANOBK_LCMON_PATH_NUM], ON);
+		ret = ilitek_node_mp_test_read(sec, MP_ITEM_RAW_DATA_NOBK, ON);
 	}
+
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -497,7 +548,7 @@ static void run_raw_doze_test_read(void *device_data)
 	ilits->allnode = TEST_MODE_MIN_MAX;
 	ilits->node_min = ilits->node_max = 0;
 
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[DOZERAW_PATH_NUM], ON);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_DOZE_RAW_DATA, ON);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -537,7 +588,7 @@ static void run_raw_doze_test_read_all(void *device_data)
 	ilits->allnode = TEST_MODE_ALL_NODE;
 	ilits->node_min = ilits->node_max = 0;
 
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[DOZERAW_PATH_NUM], ON);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_DOZE_RAW_DATA, ON);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -574,7 +625,7 @@ static void run_cal_dac_test_read(void *device_data)
 	ilits->current_mpitem = "calibration data(dac)";
 	ilits->allnode = TEST_MODE_MIN_MAX;
 	ilits->node_min = ilits->node_max = 0;
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[DAC_PATH_NUM], ON);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_CALIBRATION_DATA_DAC, ON);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -611,7 +662,7 @@ static void run_cal_dac_test_read_all(void *device_data)
 	ilits->current_mpitem = "calibration data(dac)";
 	ilits->allnode = TEST_MODE_ALL_NODE;
 	ilits->node_min = ilits->node_max = 0;
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[DAC_PATH_NUM], ON);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_CALIBRATION_DATA_DAC, ON);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -644,7 +695,7 @@ static void run_open_test_read(void *device_data)
 	ilits->current_mpitem = "open test_c";
 	ilits->allnode = TEST_MODE_MIN_MAX;
 	ilits->node_min = ilits->node_max = 0;
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[OPENTESTC_PATH_NUM], ON);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_OPEN_TEST_C, ON);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -681,7 +732,7 @@ static void run_open_test_read_all(void *device_data)
 	ilits->current_mpitem = "open test_c";
 	ilits->allnode = TEST_MODE_ALL_NODE;
 	ilits->node_min = ilits->node_max = 0;
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[OPENTESTC_PATH_NUM], ON);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_OPEN_TEST_C, ON);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -718,7 +769,7 @@ static void run_short_test_read(void *device_data)
 	ilits->current_mpitem = "short test";
 	ilits->allnode = TEST_MODE_MIN_MAX;
 	ilits->node_min = ilits->node_max = 0;
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[SHORTTEST_PATH_NUM], ON);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_SHORT_TEST, ON);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -755,7 +806,7 @@ static void run_short_test_read_all(void *device_data)
 	ilits->current_mpitem = "short test";
 	ilits->allnode = TEST_MODE_ALL_NODE;
 	ilits->node_min = ilits->node_max = 0;
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[SHORTTEST_PATH_NUM], ON);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_SHORT_TEST, ON);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -794,7 +845,7 @@ static void run_noise_test_read(void *device_data)
 	ilits->current_mpitem = "noise peak to peak(with panel)";
 	ilits->allnode = TEST_MODE_MIN_MAX;
 	ilits->node_min = ilits->node_max = 0;
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[NOISEPP_LCMON_PATH_NUM], ON);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_NOISE_PEAK_TO_PEAK_WITH_PANEL, ON);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -831,7 +882,7 @@ static void run_noise_test_read_all(void *device_data)
 	ilits->current_mpitem = "noise peak to peak(with panel)";
 	ilits->allnode = TEST_MODE_ALL_NODE;
 	ilits->node_min = ilits->node_max = 0;
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[NOISEPP_LCMON_PATH_NUM], ON);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_NOISE_PEAK_TO_PEAK_WITH_PANEL, ON);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -865,7 +916,7 @@ static void run_noise_doze_test_read(void *device_data)
 	ilits->allnode = TEST_MODE_MIN_MAX;
 	ilits->node_min = ilits->node_max = 0;
 
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[DOZEPP_PATH_NUM], ON);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_DOZE_PEAK_TO_PEAK, ON);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -905,7 +956,7 @@ static void run_noise_doze_test_read_all(void *device_data)
 	ilits->allnode = TEST_MODE_ALL_NODE;
 	ilits->node_min = ilits->node_max = 0;
 
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[DOZEPP_PATH_NUM], ON);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_DOZE_PEAK_TO_PEAK, ON);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -942,7 +993,7 @@ static void run_noise_test_read_lcdoff(void *device_data)
 	ilits->current_mpitem = "noise peak to peak(with panel) (lcm off)";
 	ilits->allnode = TEST_MODE_MIN_MAX;
 	ilits->node_min = ilits->node_max = 0;
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[NOISEPP_LCMOFF_PATH_NUM], OFF);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_NOISE_PEAK_TO_PEAK_WITH_PANEL_LCM_OFF, OFF);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -979,7 +1030,7 @@ static void run_noise_test_read_all_lcdoff(void *device_data)
 	ilits->current_mpitem = "noise peak to peak(with panel) (lcm off)";
 	ilits->allnode = TEST_MODE_ALL_NODE;
 	ilits->node_min = ilits->node_max = 0;
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[NOISEPP_LCMOFF_PATH_NUM], OFF);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_NOISE_PEAK_TO_PEAK_WITH_PANEL_LCM_OFF, OFF);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -1013,7 +1064,7 @@ static void run_noise_doze_test_read_lcdoff(void *device_data)
 	ilits->allnode = TEST_MODE_MIN_MAX;
 	ilits->node_min = ilits->node_max = 0;
 
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[P2P_TD_PATH_NUM], OFF);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_PEAK_TO_PEAK_TD_LCM_OFF, OFF);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -1051,7 +1102,7 @@ static void run_noise_doze_test_read_all_lcdoff(void *device_data)
 	ilits->allnode = TEST_MODE_ALL_NODE;
 	ilits->node_min = ilits->node_max = 0;
 
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[P2P_TD_PATH_NUM], OFF);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_PEAK_TO_PEAK_TD_LCM_OFF, OFF);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -1089,7 +1140,7 @@ static void run_raw_doze_test_read_lcdoff(void *device_data)
 	ilits->allnode = TEST_MODE_MIN_MAX;
 	ilits->node_min = ilits->node_max = 0;
 
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATATD_PATH_NUM], OFF);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_RAW_DATA_TD_LCM_OFF, OFF);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -1127,7 +1178,7 @@ static void run_raw_doze_test_read_all_lcdoff(void *device_data)
 	ilits->allnode = TEST_MODE_ALL_NODE;
 	ilits->node_min = ilits->node_max = 0;
 
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATATD_PATH_NUM], OFF);
+	ret = ilitek_node_mp_test_read(sec, MP_ITEM_RAW_DATA_TD_LCM_OFF, OFF);
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -1161,18 +1212,19 @@ static void run_raw_test_read_lcdoff(void *device_data)
 		goto out;
 	}
 
-	/* only for 9882q */
+	//only for 9882q
 	if (ilits->chip->id == ILI9882_CHIP && ilits->chip->type == 0x1A) {
 		ilits->current_mpitem = "raw data(have bk) (lcm off)";
 		ilits->allnode = TEST_MODE_MIN_MAX;
 		ilits->node_min = ilits->node_max = 0;
-		ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATAHAVEBK_LCMOFF_PATH_NUM], OFF);
+		ret = ilitek_node_mp_test_read(sec, MP_ITEM_RAW_DATA_HAVE_BK_LCM_OFF, OFF);
 	} else {
 		ilits->current_mpitem = "raw data(no bk) (lcm off)";
 		ilits->allnode = TEST_MODE_MIN_MAX;
 		ilits->node_min = ilits->node_max = 0;
-		ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATANOBK_LCMOFF_PATH_NUM], OFF);
+		ret = ilitek_node_mp_test_read(sec, MP_ITEM_RAW_DATA_NOBK_LCM_OFF, OFF);
 	}
+
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -1206,19 +1258,19 @@ static void run_raw_test_read_all_lcdoff(void *device_data)
 		goto out;
 	}
 
-	/* only for 9882q */
+//only for 9882q
 	if (ilits->chip->id == ILI9882_CHIP && ilits->chip->type == 0x1A) {
 		ilits->current_mpitem = "raw data(have bk) (lcm off)";
 		ilits->allnode = TEST_MODE_ALL_NODE;
 		ilits->node_min = ilits->node_max = 0;
-		ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATAHAVEBK_LCMOFF_PATH_NUM], OFF);
+		ret = ilitek_node_mp_test_read(sec, MP_ITEM_RAW_DATA_HAVE_BK_LCM_OFF, OFF);
 	} else {
-		
 		ilits->current_mpitem = "raw data(no bk) (lcm off)";
 		ilits->allnode = TEST_MODE_ALL_NODE;
 		ilits->node_min = ilits->node_max = 0;
-		ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATANOBK_LCMOFF_PATH_NUM], OFF);
+		ret = ilitek_node_mp_test_read(sec, MP_ITEM_RAW_DATA_NOBK_LCM_OFF, OFF);
 	}
+
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -1420,8 +1472,8 @@ static void ear_detect_enable(void *device_data)
 	ret = ili_ic_func_ctrl("proximity", ilits->prox_face_mode);
 	if (ret < 0)
 		input_err(true, ilits->dev, "%s Ear Detect Mode Setting failed\n", __func__);
-	
-	if((ilits->prox_face_mode == EAR_DETECT_DISABLE) && ilits->started_prox_intensity) {
+
+	if ((ilits->prox_face_mode == EAR_DETECT_DISABLE) && ilits->started_prox_intensity) {
 		debug_mode_onoff(false);
 		ilits->started_prox_intensity = false;
 	}
@@ -1688,6 +1740,7 @@ static void not_support_cmd(void *device_data)
 
 static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("fw_update", fw_update),},
+	{SEC_CMD_H("glove_mode", high_sensitivity_mode),},
 	{SEC_CMD_H("aot_enable", aot_enable),},
 	{SEC_CMD_H("spay_enable", spay_enable),},
 	{SEC_CMD("get_chip_vendor", get_chip_vendor),},
@@ -1792,7 +1845,7 @@ static ssize_t read_support_feature(struct device *dev,
 	if (ilits->enable_sysinput_enabled)
 		feature |= INPUT_FEATURE_ENABLE_SYSINPUT_ENABLED;
 
-	if(ilits->prox_lp_scan_enabled)
+	if (ilits->prox_lp_scan_enabled)
 		feature |= INPUT_FEATURE_ENABLE_PROX_LP_SCAN_ENABLED;
 
 	input_info(true, ilits->dev, "%s: %d%s%s%s\n",
@@ -1905,29 +1958,29 @@ static ssize_t enabled_store(struct device *dev,
 
 	input_info(true, ilits->dev, "%s: %d %d\n", __func__, buff[0], buff[1]);
 
-	/* handle same sequence : buff[0] = LCD_ON, LCD_DOZE1, LCD_DOZE2*/
-	if (buff[0] == LCD_DOZE1 || buff[0] == LCD_DOZE2)
-		buff[0] = LCD_ON;
+	/* handle same sequence : buff[0] = DISPLAY_STATE_ON, DISPLAY_STATE_DOZE, DISPLAY_STATE_DOZE_SUSPEND */
+	if (buff[0] == DISPLAY_STATE_DOZE || buff[0] == DISPLAY_STATE_DOZE_SUSPEND)
+		buff[0] = DISPLAY_STATE_ON;
 
 	switch (buff[0]) {
-	case SERVICE_SHUTDOWN:
+	case DISPLAY_STATE_SERVICE_SHUTDOWN:
 		ilits->tp_shutdown = true;
-	case LPM_OFF:
+	case DISPLAY_STATE_LPM_OFF:
 		ilits->tp_suspend = true;
 		ilits->power_status = POWER_OFF_STATUS;
 		ilitek_pin_control(false);
 		break;
-	case LCD_OFF:
-		if (buff[1] == LCD_EARLY_EVENT) {
+	case DISPLAY_STATE_OFF:
+		if (buff[1] == DISPLAY_EVENT_EARLY) {
 			if (ili_sleep_handler(TP_EARLY_SUSPEND) < 0)
 				input_err(true, ilits->dev, "%s TP suspend failed\n", __func__);
 		}
 		break;
-	case LCD_ON:
-		if (buff[1] == LCD_EARLY_EVENT) {
+	case DISPLAY_STATE_ON:
+		if (buff[1] == DISPLAY_EVENT_EARLY) {
 			if ((ilits->screen_off_sate != TP_EARLY_RESUME) && (ilits->screen_off_sate != TP_RESUME))
 				ili_sleep_handler(TP_EARLY_RESUME);
-		} else if (buff[1] == LCD_LATE_EVENT) {
+		} else if (buff[1] == DISPLAY_EVENT_LATE) {
 			if (ili_sleep_handler(TP_RESUME) < 0)
 				input_err(true, ilits->dev, "%s TP resume failed\n", __func__);
 		}

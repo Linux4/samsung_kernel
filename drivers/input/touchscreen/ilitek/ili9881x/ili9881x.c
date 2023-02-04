@@ -19,7 +19,6 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
-#include "ili9881x_fw.h"
 #include "ili9881x.h"
 
 /* Debug level */
@@ -229,7 +228,7 @@ void ili_print_info(void)
 
 		input_info(true, ilits->dev,
 				"tc:%d ver:%02d%02d%02d%02d// #%d %d\n",
-				ilits->touch_count, ilits->fw_cur_info[2],ilits->fw_cur_info[3],ilits->fw_cur_info[4],
+				ilits->touch_count, ilits->fw_cur_info[2], ilits->fw_cur_info[3], ilits->fw_cur_info[4],
 				ilits->fw_cur_info[5], ilits->print_info_cnt_open, ilits->print_info_cnt_release);
 
 }
@@ -420,6 +419,12 @@ void set_current_ic_mode(int mode)
 				input_err(true, ilits->dev, "%s SIP_MODE_ENABLE failed\n", __func__);
 		}
 
+		if (ilits->high_sensitivity_mode_enabled) {
+			ret = ili_ic_func_ctrl("high_sensitivity_mode", HIGH_SENSITIVITY_ENABLE);
+			if (ret < 0)
+				input_err(true, ilits->dev, "%s HIGH_SENSITIVITY_ENABLE failed\n", __func__);
+		}
+
 		if (ilits->game_mode_enabled) {
 			ret = ili_ic_func_ctrl("lock_point", GAME_MODE_ENABLE);
 			if (ret < 0)
@@ -435,7 +440,7 @@ void set_current_ic_mode(int mode)
 		if (ilits->prox_face_mode) {
 			ret = ili_ic_func_ctrl("proximity", ilits->prox_face_mode);
 			if (ret < 0)
-				input_err(true, ilits->dev, "%s ear detect enabled fail(%d)\n", __func__,ilits->prox_face_mode);
+				input_err(true, ilits->dev, "%s ear detect enabled fail(%d)\n", __func__, ilits->prox_face_mode);
 		}
 	break;
 	case SET_MODE_PROXIMTY_LCDOFF:
@@ -649,7 +654,7 @@ int ili_fw_upgrade_handler(void *data)
 	atomic_set(&ilits->fw_stat, START);
 
 	ilits->fw_update_stat = FW_STAT_INIT;
-	ret = ili_fw_upgrade(ilits->fw_open);
+	ret = ili_fw_upgrade();
 	if (ret != 0) {
 		input_info(true, ilits->dev, "%s FW upgrade fail\n", __func__);
 		ilits->fw_update_stat = FW_UPDATE_FAIL;
@@ -1029,114 +1034,6 @@ int ili_reset_ctrl(int mode)
 	return ret;
 }
 
-static int ilitek_get_tp_module(void)
-{
-	/*
-	 * TODO: users should implement this function
-	 * if there are various tp modules been used in projects.
-	 */
-
-	return MODEL_DEF;
-}
-
-static void ili_update_tp_module_info(void)
-{
-	int module;
-
-	module = ilitek_get_tp_module();
-
-	switch (module) {
-	case MODEL_CSOT:
-		ilits->md_name = "CSOT";
-		ilits->md_fw_filp_path = CSOT_FW_FILP_PATH;
-		ilits->md_fw_rq_path = CSOT_FW_REQUEST_PATH;
-		ilits->md_ini_path = CSOT_INI_NAME_PATH;
-		ilits->md_ini_rq_path = CSOT_INI_REQUEST_PATH;
-		ilits->md_fw_ili = CTPM_FW_CSOT;
-		ilits->md_fw_ili_size = sizeof(CTPM_FW_CSOT);
-		break;
-	case MODEL_AUO:
-		ilits->md_name = "AUO";
-		ilits->md_fw_filp_path = AUO_FW_FILP_PATH;
-		ilits->md_fw_rq_path = AUO_FW_REQUEST_PATH;
-		ilits->md_ini_path = AUO_INI_NAME_PATH;
-		ilits->md_ini_rq_path = AUO_INI_REQUEST_PATH;
-		ilits->md_fw_ili = CTPM_FW_AUO;
-		ilits->md_fw_ili_size = sizeof(CTPM_FW_AUO);
-		break;
-	case MODEL_BOE:
-		ilits->md_name = "BOE";
-		ilits->md_fw_filp_path = BOE_FW_FILP_PATH;
-		ilits->md_fw_rq_path = BOE_FW_REQUEST_PATH;
-		ilits->md_ini_path = BOE_INI_NAME_PATH;
-		ilits->md_ini_rq_path = BOE_INI_REQUEST_PATH;
-		ilits->md_fw_ili = CTPM_FW_BOE;
-		ilits->md_fw_ili_size = sizeof(CTPM_FW_BOE);
-		break;
-	case MODEL_INX:
-		ilits->md_name = "INX";
-		ilits->md_fw_filp_path = INX_FW_FILP_PATH;
-		ilits->md_fw_rq_path = INX_FW_REQUEST_PATH;
-		ilits->md_ini_path = INX_INI_NAME_PATH;
-		ilits->md_ini_rq_path = INX_INI_REQUEST_PATH;
-		ilits->md_fw_ili = CTPM_FW_INX;
-		ilits->md_fw_ili_size = sizeof(CTPM_FW_INX);
-		break;
-	case MODEL_DJ:
-		ilits->md_name = "DJ";
-		ilits->md_fw_filp_path = DJ_FW_FILP_PATH;
-		ilits->md_fw_rq_path = DJ_FW_REQUEST_PATH;
-		ilits->md_ini_path = DJ_INI_NAME_PATH;
-		ilits->md_ini_rq_path = DJ_INI_REQUEST_PATH;
-		ilits->md_fw_ili = CTPM_FW_DJ;
-		ilits->md_fw_ili_size = sizeof(CTPM_FW_DJ);
-		break;
-	case MODEL_TXD:
-		ilits->md_name = "TXD";
-		ilits->md_fw_filp_path = TXD_FW_FILP_PATH;
-		ilits->md_fw_rq_path = TXD_FW_REQUEST_PATH;
-		ilits->md_ini_path = TXD_INI_NAME_PATH;
-		ilits->md_ini_rq_path = TXD_FW_REQUEST_PATH;
-		ilits->md_fw_ili = CTPM_FW_TXD;
-		ilits->md_fw_ili_size = sizeof(CTPM_FW_TXD);
-		break;
-	case MODEL_TM:
-		ilits->md_name = "TM";
-		ilits->md_fw_filp_path = TM_FW_REQUEST_PATH;
-		ilits->md_fw_rq_path = TM_FW_REQUEST_PATH;
-		ilits->md_ini_path = TM_INI_NAME_PATH;
-		ilits->md_ini_rq_path = TM_INI_REQUEST_PATH;
-		ilits->md_fw_ili = CTPM_FW_TM;
-		ilits->md_fw_ili_size = sizeof(CTPM_FW_TM);
-		break;
-	default:
-		break;
-	}
-
-	if (module == 0 || ilits->md_fw_ili_size < ILI_FILE_HEADER) {
-		input_err(true, ilits->dev, "%s Couldn't find any tp modules, applying default settings\n", __func__);
-		ilits->md_name = "DEF";
-		ilits->md_fw_filp_path = DEF_FW_FILP_PATH;
-		ilits->md_fw_rq_path = (char *)ilits->fw_name;
-		ilits->md_ini_path = DEF_INI_NAME_PATH;
-		ilits->md_ini_rq_path = DEF_INI_REQUEST_PATH;
-		/*Fw data loaded ilitek__get_fw_image function
-		 *ilits->md_fw_ili = CTPM_FW_DEF;
-		 *ilits->md_fw_ili_size = sizeof(CTPM_FW_DEF);
-		 */
-	}
-
-	input_info(true, ilits->dev, "%s Found %s module: ini path = %s, fw path = (%s, %s, %d)\n",
-			__func__,
-			ilits->md_name,
-			ilits->md_ini_path,
-			ilits->md_fw_filp_path,
-			ilits->md_fw_rq_path,
-			ilits->md_fw_ili_size);
-
-	ilits->tp_module = module;
-}
-
 int ili_tddi_init(void)
 {
 #if (BOOT_FW_UPDATE | HOST_DOWN_LOAD)
@@ -1192,10 +1089,8 @@ int ili_tddi_init(void)
 
 	if (ili_ic_get_info() < 0)
 		input_err(true, ilits->dev, "%s Chip info is incorrect\n", __func__);
-
-	ili_update_tp_module_info();
-
-	ili_get_ini_path();
+	ilits->fw_index = ILITEK_TSP_FW_IDX_BIN;
+	ilits->md_fw_rq_path = (char *)ilits->fw_name;
 
 	ili_node_init();
 
@@ -1255,7 +1150,12 @@ void ili_dev_remove(void)
 
 	ili_shutdown_is_on_going_tsp = true;
 	ilits->power_status = POWER_OFF_STATUS;
-
+	if (ilits->tp_ums_fw.data != NULL) {
+		vfree(ilits->tp_ums_fw.data);
+	}
+	if (ilits->tp_bin_fw.data != NULL) {
+		vfree(ilits->tp_bin_fw.data);
+	}
 	ili_irq_wake_disable();
 	ili_irq_disable();
 	ilitek_pin_control(false);

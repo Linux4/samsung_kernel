@@ -654,6 +654,10 @@ enum regmap_endian regmap_get_val_endian(struct device *dev,
 }
 EXPORT_SYMBOL_GPL(regmap_get_val_endian);
 
+#ifdef CONFIG_SEC_A23_PROJECT
+struct regmap *g_wcd937x_regmap;
+#endif /* CONFIG_SEC_A23_PROJECT */
+
 struct regmap *__regmap_init(struct device *dev,
 			     const struct regmap_bus *bus,
 			     void *bus_context,
@@ -1121,6 +1125,13 @@ skip_format_initialization:
 		ret = regmap_attach_dev(dev, map, config);
 		if (ret != 0)
 			goto err_regcache;
+
+#ifdef CONFIG_SEC_A23_PROJECT
+		if (!strncmp(dev_name(dev), "wcd937x-slave.a01170223", strlen("wcd937x-slave.a01170223"))) {
+			pr_info("[%s] found %s\n", __func__, dev_name(dev));
+			g_wcd937x_regmap = map;
+		}
+#endif /* CONFIG_SEC_A23_PROJECT */
 	} else {
 		regmap_debugfs_init(map, config->name);
 	}

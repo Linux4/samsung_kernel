@@ -89,11 +89,17 @@ static int fts_spi_transfer(u8 *tx_buf, u8 *rx_buf, u32 len)
 	spi_message_init(&msg);
 	spi_message_add_tail(&xfer, &msg);
 
+	if (fts_data->pdata->cs_gpio > 0)
+		gpio_direction_output(fts_data->pdata->cs_gpio, 0);
+
 	ret = spi_sync(spi, &msg);
 	if (ret) {
 		FTS_ERROR("spi_sync fail,ret:%d", ret);
 		return ret;
 	}
+
+	if (fts_data->pdata->cs_gpio > 0)
+		gpio_direction_output(fts_data->pdata->cs_gpio, 1);
 
 	return ret;
 }
@@ -171,6 +177,11 @@ int fts_write(u8 *writebuf, u32 writelen)
 	u32 txlen = 0;
 	u32 txlen_need = writelen + SPI_HEADER_LENGTH + ts_data->dummy_byte;
 	u32 datalen = writelen - 1;
+
+	if (ts_data->power_status == POWER_OFF_STATUS) {
+		FTS_ERROR("POWER_STATUS : OFF!");
+		return -EIO;
+	}
 
 	if (!writebuf || !writelen) {
 		FTS_ERROR("writebuf/len is invalid");
@@ -263,6 +274,12 @@ int fts_read(u8 *cmd, u32 cmdlen, u8 *data, u32 datalen)
 	u32 txlen_need = datalen + SPI_HEADER_LENGTH + ts_data->dummy_byte;
 	u8 ctrl = READ_CMD;
 	u32 dp = 0;
+
+
+	if (ts_data->power_status == POWER_OFF_STATUS) {
+		FTS_ERROR("POWER_STATUS : OFF!");
+		return -EIO;
+	}
 
 	if (!cmd || !cmdlen || !data || !datalen) {
 		FTS_ERROR("cmd/cmdlen/data/datalen is invalid");

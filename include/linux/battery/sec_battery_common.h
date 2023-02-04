@@ -41,6 +41,7 @@ enum power_supply_ext_property {
 	POWER_SUPPLY_EXT_PROP_WIRELESS_TX_UNO_IIN,
 	POWER_SUPPLY_EXT_PROP_WIRELESS_RX_CONNECTED,
 	POWER_SUPPLY_EXT_PROP_WIRELESS_RX_POWER,
+	POWER_SUPPLY_EXT_PROP_WIRELESS_WR_CONNECTED,
 	POWER_SUPPLY_EXT_PROP_WIRELESS_MAX_VOUT,
 	POWER_SUPPLY_EXT_PROP_WIRELESS_ABNORMAL_PAD,
 	POWER_SUPPLY_EXT_PROP_WIRELESS_AUTH_ADT_STATUS,
@@ -56,6 +57,7 @@ enum power_supply_ext_property {
 	POWER_SUPPLY_EXT_PROP_WIRELESS_CHECK_FW_VER,
 	POWER_SUPPLY_EXT_PROP_WIRELESS_SGF,
 	POWER_SUPPLY_EXT_PROP_WIRELESS_MST_PWR_EN,
+	POWER_SUPPLY_EXT_PROP_WIRELESS_JIG_PAD,
 	POWER_SUPPLY_EXT_PROP_AICL_CURRENT,
 	POWER_SUPPLY_EXT_PROP_CHECK_MULTI_CHARGE,
 	POWER_SUPPLY_EXT_PROP_CHIP_ID,
@@ -108,6 +110,7 @@ enum power_supply_ext_property {
 	POWER_SUPPLY_EXT_PROP_EOC_VOLTAGE,
 	POWER_SUPPLY_EXT_PROP_EOC_CURRENT,
 	POWER_SUPPLY_EXT_PROP_POWERMETER_ENABLE,
+	POWER_SUPPLY_EXT_PROP_POWER_MODE2,
 	POWER_SUPPLY_EXT_PROP_TSD_ENABLE,
 	POWER_SUPPLY_EXT_PROP_DUAL_BAT_DET,
 	POWER_SUPPLY_EXT_PROP_FULL_CONDITION,
@@ -175,7 +178,7 @@ enum power_supply_ext_property {
 	POWER_SUPPLY_EXT_PROP_THERMAL_ZONE,
 	POWER_SUPPLY_EXT_PROP_DC_INITIALIZE,
 	POWER_SUPPLY_EXT_PROP_BATTERY_ID,
-#if defined(CONFIG_DUAL_BATTERY_CELL_SENSING)
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	POWER_SUPPLY_EXT_PROP_DIRECT_VBAT_CHECK,
 #endif
 	POWER_SUPPLY_EXT_PROP_WIRELESS_RX_CONTROL,
@@ -199,6 +202,23 @@ enum power_supply_ext_property {
 	POWER_SUPPLY_EXT_PROP_CHARGER_IC_NAME,
 	POWER_SUPPLY_EXT_PROP_D2D_REVERSE_OCP,
 	POWER_SUPPLY_EXT_PROP_BATT_DUMP,
+	POWER_SUPPLY_EXT_PROP_FLASH_STATE,
+	POWER_SUPPLY_EXT_PROP_PMIC_BAT_VOLTAGE,
+	POWER_SUPPLY_EXT_PROP_USB_BOOTCOMPLETE,
+#if defined(CONFIG_MTK_CHARGER)
+	POWER_SUPPLY_EXT_PROP_BATT_VSYS,
+	POWER_SUPPLY_EXT_PROP_RP_LEVEL,
+	POWER_SUPPLY_EXT_PROP_BUCK_STATE,
+	POWER_SUPPLY_EXT_PROP_AFC_INIT,
+	POWER_SUPPLY_EXT_PROP_MTK_FG_INIT,
+#endif
+	POWER_SUPPLY_EXT_PROP_D2D_REVERSE_VBUS,
+	POWER_SUPPLY_EXT_PROP_ADC_MODE,
+	POWER_SUPPLY_EXT_PROP_DC_OP_MODE,
+	POWER_SUPPLY_EXT_PROP_LRP_CHG_SRC,
+	POWER_SUPPLY_EXT_PROP_MISC_EVENT,
+	POWER_SUPPLY_EXT_PROP_MISC_EVENT_CLEAR,
+	POWER_SUPPLY_EXT_PROP_MST_EN,
 	POWER_SUPPLY_EXT_PROP_MAX,
 };
 
@@ -280,6 +300,31 @@ static inline struct power_supply *get_power_supply_by_name(char *name)
 ({ \
 	pdata->value = of_property_read_bool(np, #value); \
 	pr_info("%s: %s - write "#value" to %d\n", __func__, np->name, pdata->value); \
+})
+
+#define sb_of_parse_str_dt(np, dt_name, pdata, path) \
+({ \
+	int ret = 0; \
+	ret = of_property_read_string(np, dt_name, (const char **)&pdata->path); \
+	if (!ret) \
+		pr_info("%s: %s - write "dt_name" to %s\n", __func__, np->name, pdata->path); \
+	ret;\
+})
+
+#define sb_of_parse_u32_dt(np, dt_name, pdata, path, deft) \
+({ \
+	int ret = 0; \
+	ret = of_property_read_u32(np, dt_name, (unsigned int *)&pdata->path); \
+	if (ret) \
+		pdata->path = deft; \
+	pr_info("%s: %s - write "dt_name" to %d\n", __func__, np->name, pdata->path); \
+	ret;\
+})
+
+#define sb_of_parse_bool_dt(np, dt_name, pdata, path) \
+({ \
+	pdata->path = of_property_read_bool(np, dt_name); \
+	pr_info("%s: %s - write "dt_name" to %d\n", __func__, np->name, pdata->path); \
 })
 #endif
 

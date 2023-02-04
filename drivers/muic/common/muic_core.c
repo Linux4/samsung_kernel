@@ -45,6 +45,10 @@ struct switch_dev switch_uart3 = {
 };
 #endif /* CONFIG_SWITCH */
 
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU004_AFC) || IS_ENABLED(CONFIG_MUIC_HV)
+int muic_afc_request_cause_clear(void);
+#endif
+
 static struct muic_platform_data *static_pdata;
 
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
@@ -408,6 +412,13 @@ static int muic_core_detach_charger(struct muic_platform_data *muic_pdata)
 #ifndef CONFIG_MUIC_SKIP_INCOMPLETE_INSERT
 	if (muic_if != NULL)
 		muic_if->is_dcp_charger = false;
+#endif
+
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU004_AFC) || IS_ENABLED(CONFIG_MUIC_HV)
+	if (muic_if != NULL) {
+		pr_info("%s clear afc request cause\n", __func__);
+		ret = muic_afc_request_cause_clear();
+	}
 #endif
 
 	muic_pdata->attached_dev = ATTACHED_DEV_NONE_MUIC;
@@ -1368,7 +1379,7 @@ int muic_afc_get_voltage(void)
 	int ret;
 
 	if (static_pdata == NULL)
-		return -1;
+		return -ENOENT;
 	muic_if = static_pdata->muic_if;
 
 	ret = muic_if->afc_get_voltage(static_pdata);
@@ -1383,7 +1394,7 @@ int muic_afc_set_voltage(int vol)
 	int ret;
 
 	if (static_pdata == NULL)
-		return -1;
+		return -ENOENT;
 	muic_if = static_pdata->muic_if;
 
 	ret = muic_if->afc_set_voltage(static_pdata, vol);
@@ -1392,6 +1403,70 @@ int muic_afc_set_voltage(int vol)
 
 }
 EXPORT_SYMBOL_GPL(muic_afc_set_voltage);
+
+int muic_afc_request_cause_clear(void)
+{
+	struct muic_interface_t *muic_if;
+	if (static_pdata == NULL)
+		return -ENOENT;
+
+	muic_if = static_pdata->muic_if;
+	if (muic_if == NULL)
+		return -ENOENT;
+
+	muic_if->afc_request_cause = 0;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(muic_afc_request_cause_clear);
+
+static int muic_afc_request_voltage_check(int cause, int vol)
+{
+	int ret = 0;
+
+	if (vol == 9 && cause == 0)
+		ret = 9;
+	else
+		ret = 5;
+	pr_info("%s: cause=%x %dv->%dv\n", __func__, cause, vol, ret);
+	return ret;
+}
+
+int muic_afc_request_voltage(int cause, int voltage)
+{
+	struct muic_interface_t *muic_if;
+	int set_vol = 0, ret = 0;
+
+	if (static_pdata == NULL) {
+		ret = -ENOENT;
+		goto out;
+	}
+
+	muic_if = static_pdata->muic_if;
+	
+	if (muic_if == NULL) {
+		ret = -ENOENT;
+		goto out;
+	}
+
+	if (voltage == 9) {
+		pr_info("%s: afc request clear, cause(%d), voltage(%d)\n", __func__, cause, voltage);
+		muic_if->afc_request_cause &= ~(cause);
+		
+	} else if (voltage == 5) {
+		pr_info("%s: afc request set, cause(%d), voltage(%d)\n", __func__, cause, voltage);
+		muic_if->afc_request_cause |= (cause);
+	} else {
+		pr_err("%s: not support. cause(%d), voltage(%d)\n", __func__, cause, voltage);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	set_vol = muic_afc_request_voltage_check(muic_if->afc_request_cause, voltage);
+	ret = muic_afc_set_voltage(set_vol);
+out:
+	return ret;
+}
+EXPORT_SYMBOL_GPL(muic_afc_request_voltage);
 #endif /* CONFIG_HV_MUIC_VOLTAGE_CTRL */
 #endif
 

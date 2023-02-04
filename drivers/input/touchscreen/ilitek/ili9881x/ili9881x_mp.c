@@ -21,6 +21,19 @@
  */
 
 #include "ili9881x.h"
+#include "./include/ilitek_mp_calibration_data_dac.h"
+#include "./include/ilitek_mp_doze_peak_to_peak.h"
+#include "./include/ilitek_mp_doze_raw_data.h"
+#include "./include/ilitek_mp_noise_peak_to_peak_with_panel.h"
+#include "./include/ilitek_mp_open_test_c.h"
+#include "./include/ilitek_mp_raw_data_nobk.h"
+#include "./include/ilitek_mp_short_test.h"
+#include "./include/ilitek_mp_noise_peak_to_peak_with_panel_lcm_off.h"
+#include "./include/ilitek_mp_peak_to_peak_td_lcm_off.h"
+#include "./include/ilitek_mp_raw_data_nobk_lcm_off.h"
+#include "./include/ilitek_mp_raw_data_td_lcm_off.h"
+#include "./include/ilitek_mp_raw_data_have_bk_lcm_off.h"
+#include "./include/ilitek_mp_raw_data_have_bk.h"
 
 #define VALUE			0
 #define RETRY_COUNT		3
@@ -800,71 +813,82 @@ out:
 	return ret;
 }
 
-static int ilitek_tddi_mp_ini_parser(const char *path)
+static int ilitek_tddi_mp_parser(void)
 {
-	int i, ret = 0, fsize = 0;
-	char *tmp = NULL;
-	const struct firmware *ini = NULL;
-	struct file *f = NULL;
-	mm_segment_t old_fs;
-	loff_t pos = 0;
+	u8 *tmp = NULL;
+	int ret, i, size = 0;
 
-	input_info(true, ilits->dev, "%s ini file path = %s\n", __func__, path);
+	input_info(true, ilits->dev, "%s run MP test item = %d\n", __func__, ilits->mp_test_item);
 
-	f = filp_open(path, O_RDONLY, 644);
-	if (ERR_ALLOC_MEM(f)) {
-		input_err(true, ilits->dev, "%s Failed to open ini file at %ld, try to request_firmware\n",
-			__func__, PTR_ERR(f));
-		f = NULL;
-		path = ilits->md_ini_rq_path;
-		input_info(true, ilits->dev, "%s request path = %s\n", __func__, path);
-		if (request_firmware(&ini, path, ilits->dev) < 0) {
-			input_err(true, ilits->dev, "%s Request ini file failed\n", __func__);
-			return -EINVAL;
-		}
-	}
-
-	if (f != NULL) {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0))
-		fsize = f->f_inode->i_size;
-#else
-		struct inode *inode;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0))
-		inode = f->f_dentry->d_inode;
-#else
-		inode = f->f_path.dentry->d_inode;
-#endif
-		fsize = inode->i_size;
-#endif
+	if (ilits->mp_test_item == MP_ITEM_NOISE_PEAK_TO_PEAK_WITH_PANEL) {
+		size = strlen(MPINI_NOISE_PEAK_TO_PEAK_WITH_PANEL);
+	}  else if (ilits->mp_test_item == MP_ITEM_DOZE_PEAK_TO_PEAK) {
+		size = strlen(MPINI_DOZE_PEAK_TO_PEAK);
+	}  else if (ilits->mp_test_item == MP_ITEM_SHORT_TEST) {
+		size = strlen(MPINI_SHORT_TEST);
+	}  else if (ilits->mp_test_item == MP_ITEM_OPEN_TEST_C) {
+		size = strlen(MPINI_OPEN_TEST_C);
+	}  else if (ilits->mp_test_item == MP_ITEM_RAW_DATA_NOBK) {
+		size = strlen(MPINI_RAW_DATA_NOBK);
+	}  else if (ilits->mp_test_item == MP_ITEM_CALIBRATION_DATA_DAC) {
+		size = strlen(MPINI_CALIBRATION_DATA_DAC);
+	}  else if (ilits->mp_test_item == MP_ITEM_DOZE_RAW_DATA) {
+		size = strlen(MPINI_DOZE_RAW_DATA);
+	}  else if (ilits->mp_test_item == MP_ITEM_NOISE_PEAK_TO_PEAK_WITH_PANEL_LCM_OFF) {
+		size = strlen(MPINI_NOISE_PEAK_TO_PEAK_WITH_PANEL_LCM_OFF);
+	}  else if (ilits->mp_test_item == MP_ITEM_PEAK_TO_PEAK_TD_LCM_OFF) {
+		size = strlen(MPINI_PEAK_TO_PEAK_TD_LCM_OFF);
+	}  else if (ilits->mp_test_item == MP_ITEM_RAW_DATA_NOBK_LCM_OFF) {
+		size = strlen(MPINI_RAW_DATA_NOBK_LCM_OFF);
+	}  else if (ilits->mp_test_item == MP_ITEM_RAW_DATA_TD_LCM_OFF) {
+		size = strlen(MPINI_RAW_DATA_TD_LCM_OFF);
+	}  else if (ilits->mp_test_item == MP_ITEM_RAW_DATA_HAVE_BK) {
+		size = strlen(MPINI_RAW_DATA_HAVE_BK);
+	}  else if (ilits->mp_test_item == MP_ITEM_RAW_DATA_HAVE_BK_LCM_OFF) {
+		size = strlen(MPINI_RAW_DATA_HAVE_BK_LCM_OFF);
 	} else {
-		fsize = ini->size;
-	}
-
-	input_info(true, ilits->dev, "%s ini file size = %d\n", __func__, fsize);
-	if (fsize <= 0) {
-		input_err(true, ilits->dev, "%s The size of file is invaild\n", __func__);
+		input_err(true, ilits->dev, "%s ERROR MP test item = %d\n", __func__, ilits->mp_test_item);
 		ret = -EINVAL;
 		goto out;
 	}
 
-	tmp = vmalloc(fsize+1);
+	tmp = vmalloc(size + 1);
+
 	if (ERR_ALLOC_MEM(tmp)) {
 		input_err(true, ilits->dev, "%s Failed to allocate tmp memory, %ld\n", __func__, PTR_ERR(tmp));
 		ret = -ENOMEM;
 		goto out;
 	}
 
-	if (f != NULL) {
-		old_fs = get_fs();
-		set_fs(get_ds());
-		vfs_read(f, tmp, fsize, &pos);
-		set_fs(old_fs);
-		tmp[fsize] = 0x0;
-	} else {
-		memcpy(tmp, ini->data, fsize);
-	}
-
 	g_ini_items = 0;
+
+	if (ilits->mp_test_item == MP_ITEM_NOISE_PEAK_TO_PEAK_WITH_PANEL) {
+		memcpy(tmp, MPINI_NOISE_PEAK_TO_PEAK_WITH_PANEL, size);
+	}  else if (ilits->mp_test_item == MP_ITEM_DOZE_PEAK_TO_PEAK) {
+		memcpy(tmp, MPINI_DOZE_PEAK_TO_PEAK, size);
+	}  else if (ilits->mp_test_item == MP_ITEM_SHORT_TEST) {
+		memcpy(tmp, MPINI_SHORT_TEST, size);
+	}  else if (ilits->mp_test_item == MP_ITEM_OPEN_TEST_C) {
+		memcpy(tmp, MPINI_OPEN_TEST_C, size);
+	}  else if (ilits->mp_test_item == MP_ITEM_RAW_DATA_NOBK) {
+		memcpy(tmp, MPINI_RAW_DATA_NOBK, size);
+	}  else if (ilits->mp_test_item == MP_ITEM_CALIBRATION_DATA_DAC) {
+		memcpy(tmp, MPINI_CALIBRATION_DATA_DAC, size);
+	}  else if (ilits->mp_test_item == MP_ITEM_DOZE_RAW_DATA) {
+		memcpy(tmp, MPINI_DOZE_RAW_DATA, size);
+	}  else if (ilits->mp_test_item == MP_ITEM_NOISE_PEAK_TO_PEAK_WITH_PANEL_LCM_OFF) {
+		memcpy(tmp, MPINI_NOISE_PEAK_TO_PEAK_WITH_PANEL_LCM_OFF, size);
+	}  else if (ilits->mp_test_item == MP_ITEM_PEAK_TO_PEAK_TD_LCM_OFF) {
+		memcpy(tmp, MPINI_PEAK_TO_PEAK_TD_LCM_OFF, size);
+	}  else if (ilits->mp_test_item == MP_ITEM_RAW_DATA_NOBK_LCM_OFF) {
+		memcpy(tmp, MPINI_RAW_DATA_NOBK_LCM_OFF, size);
+	}  else if (ilits->mp_test_item == MP_ITEM_RAW_DATA_TD_LCM_OFF) {
+		memcpy(tmp, MPINI_RAW_DATA_TD_LCM_OFF, size);
+	}  else if (ilits->mp_test_item == MP_ITEM_RAW_DATA_HAVE_BK) {
+		memcpy(tmp, MPINI_RAW_DATA_HAVE_BK, size);
+	}  else if (ilits->mp_test_item == MP_ITEM_RAW_DATA_HAVE_BK_LCM_OFF) {
+		memcpy(tmp, MPINI_RAW_DATA_HAVE_BK_LCM_OFF, size);
+	}
 
 	/* Initialise ini strcture */
 	for (i = 0; i < PARSER_MAX_KEY_NUM; i++) {
@@ -877,24 +901,19 @@ static int ilitek_tddi_mp_ini_parser(const char *path)
 	}
 
 	/* change all characters to lower case */
-	for (i = 0; i < fsize; i++)
+	for (i = 0; i < size; i++)
 		tmp[i] = tolower(tmp[i]);
 
-	ret = parser_get_ini_phy_data(tmp, fsize);
+	ret = parser_get_ini_phy_data(tmp, size);
 	if (ret < 0) {
 		input_err(true, ilits->dev, "%s Failed to get physical ini data, ret = %d\n", __func__, ret);
 		goto out;
 	}
 
-	input_info(true, ilits->dev, "%s Parsed ini file done\n", __func__);
+	input_info(true, ilits->dev, "%s Parsed mp ini data done\n", __func__);
+
 out:
 	ipio_vfree((void **)&tmp);
-
-	if (f != NULL)
-		filp_close(f, NULL);
-	else
-		release_firmware(ini);
-
 	return ret;
 }
 
@@ -3119,9 +3138,6 @@ static int mp_show_result(bool lcm_on)
 	s32 *max_threshold = NULL, *min_threshold = NULL;
 	char *csv = NULL;
 	char *ret_pass_name = NULL, *ret_fail_name = NULL;
-	struct file *f = NULL;
-	mm_segment_t fs;
-	loff_t pos;
 
 	csv = vmalloc(CSV_FILE_SIZE);
 	if (ERR_ALLOC_MEM(csv)) {
@@ -3364,11 +3380,11 @@ static int mp_show_result(bool lcm_on)
 		}
 
 		if (lcm_on) {
-			snprintf(csv_name, (CSV_FILE_SIZE - csv_len), "%s/%s_%s_%s.csv",
-				CSV_LCM_ON_PATH, get_date_time_str(), ret_fail_name, tItems[k].desp);
+			snprintf(csv_name, (CSV_FILE_SIZE - csv_len), "%s_%s_%s.csv",
+				get_date_time_str(), ret_fail_name, tItems[k].desp);
 		} else {
-			snprintf(csv_name, (CSV_FILE_SIZE - csv_len), "%s/%s_%s_%s.csv",
-				CSV_LCM_OFF_PATH, get_date_time_str(), ret_fail_name, tItems[k].desp);
+			snprintf(csv_name, (CSV_FILE_SIZE - csv_len), "%s_%s_%s.csv",
+				get_date_time_str(), ret_fail_name, tItems[k].desp);
 		}
 	} else {
 		core_mp.final_result = MP_DATA_PASS;
@@ -3381,26 +3397,15 @@ static int mp_show_result(bool lcm_on)
 				__func__);
 		}
 		if (lcm_on) {
-			snprintf(csv_name, (CSV_FILE_SIZE - csv_len), "%s/%s_%s_%s.csv",
-				CSV_LCM_ON_PATH, get_date_time_str(), ret_pass_name, tItems[k].desp);
+			snprintf(csv_name, (CSV_FILE_SIZE - csv_len), "%s_%s_%s.csv",
+				get_date_time_str(), ret_pass_name, tItems[k].desp);
 		} else {
-			snprintf(csv_name, (CSV_FILE_SIZE - csv_len), "%s/%s_%s_%s.csv",
-				CSV_LCM_OFF_PATH, get_date_time_str(), ret_pass_name, tItems[k].desp);
+			snprintf(csv_name, (CSV_FILE_SIZE - csv_len), "%s_%s_%s.csv",
+				get_date_time_str(), ret_pass_name, tItems[k].desp);
 		}
 	}
 
-	goto fail_open;
-
 	input_info(true, ilits->dev, "%s Open CSV : %s\n", __func__, csv_name);
-
-	if (f == NULL)
-		f = filp_open(csv_name, O_WRONLY | O_CREAT | O_TRUNC, 644);
-
-	if (ERR_ALLOC_MEM(f)) {
-		input_err(true, ilits->dev, "%s Failed to open CSV file", __func__);
-		ret = -EMP_NOMEM;
-		goto fail_open;
-	}
 
 	input_info(true, ilits->dev, "%s Open CSV succeed, its length = %d\n ", __func__, csv_len);
 
@@ -3410,14 +3415,22 @@ static int mp_show_result(bool lcm_on)
 		goto fail_open;
 	}
 
-	fs = get_fs();
-	set_fs(KERNEL_DS);
-	pos = 0;
-	vfs_write(f, csv, csv_len, &pos);
-	set_fs(fs);
-	filp_close(f, NULL);
+	mutex_lock(&ilits->debug_mutex);
 
-	input_info(true, ilits->dev, "%s Writing Data into CSV succeed\n", __func__);
+	/* mp csv file data keep to buffer */
+	ipio_vfree((void **)&ilits->mp_csv_name);
+	ilits->mp_csv_name = vmalloc(128 * sizeof(char));
+	memset(ilits->mp_csv_name, 0, 128 * sizeof(char));
+	sprintf(ilits->mp_csv_name, "%s", csv_name);
+
+	ipio_vfree((void **)&ilits->output_data);
+	ilits->output_data = vmalloc(CSV_FILE_SIZE);
+	memset(ilits->output_data, 0, CSV_FILE_SIZE);
+	ipio_memcpy(ilits->output_data, csv, csv_len, CSV_FILE_SIZE);
+
+	mutex_unlock(&ilits->debug_mutex);
+
+	input_info(true, ilits->dev, "%s copy CSV Data into Buffer succeed\n", __func__);
 
 fail_open:
 	ipio_vfree((void **)&csv);
@@ -3461,7 +3474,6 @@ static void ilitek_tddi_mp_init_item(void)
 
 	input_info(true, ilits->dev, "%s ============== TP & Panel info ================\n", __func__);
 	input_info(true, ilits->dev, "Driver version = %s\n", DRIVER_VERSION);
-	input_info(true, ilits->dev, "TP Module = %s\n", ilits->md_name);
 	input_info(true, ilits->dev, "CHIP = 0x%x\n", core_mp.chip_pid);
 	input_info(true, ilits->dev, "Firmware version = %x\n", core_mp.fw_ver);
 	input_info(true, ilits->dev, "Protocol version = %x\n", core_mp.protocol_ver);
@@ -3866,15 +3878,16 @@ int ili_mp_test_main(char *apk, bool lcm_on)
 		}
 	}
 
+
 	ilitek_tddi_mp_init_item();
 
 	if ((ilits->sec.cmd_all_factory_state != SEC_CMD_STATUS_RUNNING) &&
 			(ilits->sec.cmd_state != SEC_CMD_STATUS_RUNNING))
 		ilitek_tddi_mp_all_pass_check();
 
-	ret = ilitek_tddi_mp_ini_parser(ilits->md_ini_path);
+	ret = ilitek_tddi_mp_parser();
 	if (ret < 0) {
-		input_err(true, ilits->dev, "%s Failed to parsing INI file\n", __func__);
+		input_err(true, ilits->dev, "%s Failed to parsing file\n", __func__);
 		ret = -EMP_INI;
 		goto out;
 	}

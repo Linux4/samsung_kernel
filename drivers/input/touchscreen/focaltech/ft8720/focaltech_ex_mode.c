@@ -240,6 +240,10 @@ int fts_ex_mode_recovery(struct fts_ts_data *ts_data)
 		fts_write_reg(FTS_REG_CHARGER_MODE_EN, ts_data->charger_mode);
 	}
 
+	if (ts_data->proximity_mode) {
+		fts_write_reg(FTS_REG_PROXIMITY_MODE, ts_data->proximity_mode);
+	}
+
 	fts_set_edge_handler(ts_data);
 
 	return 0;

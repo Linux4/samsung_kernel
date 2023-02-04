@@ -27,9 +27,19 @@ Copyright (C) 2021, Samsung Electronics. All rights reserved.
 #include "A23_FT8720_LPS066A767A_mdnie.h"
 #include "A23_FT8720_LPS066A767A_panel.h"
 
-static int samsung_panel_on_pre(struct samsung_display_driver_data *vdd)
+enum {
+	BLIC_STATE_OFF = 0,
+	BLIC_STATE_ON,
+	BLIC_STATE_UNKNOWN,
+};
+
+static void ss_blic_ctrl(struct samsung_display_driver_data *vdd, bool on)
 {
-	u8 data[][2] = {
+	/* W/A: PWM floating causes brightness on in LCD off case.
+	 * Change brightness mode: pwm -> i2c mode.
+	 * Default i2c mode brightness is zero.
+	 */
+	u8 on_data[][2] = {
 		/* pwmi brightness mode */
 		/* addr value */
 		{0x1C, 0x13},
@@ -37,7 +47,7 @@ static int samsung_panel_on_pre(struct samsung_display_driver_data *vdd)
 		{0x1E, 0x70},
 		{0x1F, 0x0A},
 		{0x21, 0x0F},
-		{0x22, 0x00},
+		{0x22, 0x60}, /* PWMI Hysteresis */
 		{0x23, 0x00},
 		{0x24, 0x01},
 		{0x25, 0x01},
@@ -48,19 +58,47 @@ static int samsung_panel_on_pre(struct samsung_display_driver_data *vdd)
 		{0x20, 0x01}, /* enable backlight */
 		{0x24, 0x00}, /* Brightness mode = pwm mode */
 	};
-	int size = ARRAY_SIZE(data);
+	int on_size = ARRAY_SIZE(on_data);
+
+	u8 off_data[][2] = {
+		/* addr value */
+		{0x24, 0x01},	/* Brightness Mode = I2C */
+		{0x20, 0x00},	/* Backlight Disable */
+	};
+	int off_size = ARRAY_SIZE(off_data);
+
+	static int blic_state = BLIC_STATE_UNKNOWN;
+
+	LCD_INFO(vdd, "+++ state: %s, on: %d, data size: %d\n",
+			(blic_state == BLIC_STATE_OFF) ? "off" :
+			(blic_state == BLIC_STATE_ON) ? "on" : "unknown",
+			on, on ? on_size : off_size);
+
+	if (on && blic_state != BLIC_STATE_ON) {
+		ss_blic_s2dps01a01_configure(on_data, on_size);
+		blic_state = BLIC_STATE_ON;
+	} else if (!on && blic_state != BLIC_STATE_OFF) {
+		ss_blic_s2dps01a01_configure(off_data, off_size);
+		blic_state = BLIC_STATE_OFF;
+	} else {
+		LCD_INFO(vdd, "skip\n");
+	}
+
+	LCD_INFO(vdd, "--- state: %s, on: %d\n",
+			(blic_state == BLIC_STATE_OFF) ? "off" :
+			(blic_state == BLIC_STATE_ON) ? "on" : "unknown");
+}
+
+static int samsung_panel_on_pre(struct samsung_display_driver_data *vdd)
+{
 
 	if (IS_ERR_OR_NULL(vdd)) {
 		pr_err("%s: Invalid data vdd 0x%zx", __func__, (size_t)vdd);
 		return -EINVAL;
 	}
 
-	LCD_INFO(vdd, "blic data size: %d\n", size);
-
+	LCD_INFO(vdd, "+++\n");
 	ss_panel_attach_set(vdd, true);
-	ss_blic_s2dps01a01_configure(data, size);
-
-	LCD_INFO(vdd, "---\n");
 
 	return 0;
 }
@@ -84,26 +122,12 @@ static int samsung_panel_off_pre(struct samsung_display_driver_data *vdd)
 
 static int samsung_panel_off_post(struct samsung_display_driver_data *vdd)
 {
-	/* W/A: PWM floating causes brightness on in LCD off case.
-	 * Change brightness mode: pwm -> i2c mode.
-	 * Default i2c mode brightness is zero.
-	 * Set back to pwm mode in samsung_panel_on_pre().
-	 */
-	u8 data[][2] = {
-		/* addr value */
-		{0x24, 0x01},	/* Brightness Mode = I2C */
-		{0x20, 0x00},	/* Backlight Disable */
-	};
-	int size = ARRAY_SIZE(data);
-
 	if (IS_ERR_OR_NULL(vdd)) {
 		pr_err("%s: Invalid data vdd 0x%zx", __func__, (size_t)vdd);
 		return -EINVAL;
 	}
 
-	LCD_INFO(vdd, "blic data size: %d\n", size);
-
-	ss_blic_s2dps01a01_configure(data, size);
+	LCD_INFO(vdd, "+++\n");
 
 	return 0;
 }
@@ -146,6 +170,19 @@ static struct dsi_panel_cmd_set *tft_pwm(struct samsung_display_driver_data *vdd
 		LCD_ERR(vdd, "Invalid data vdd : 0x%zx", (size_t)vdd);
 		return NULL;
 	}
+
+	/* To prevent pwm floating in pwm duty rate 0,
+	 * set i2c mode and disable backlight for pwm 0,
+	 * and set back to pwmi mode and enable backlight for more than pwm 0.
+	 *
+	 * To prevent pwm duty rate 0 in pwmi mode,
+	 * off seq.: i2c config. -> pwm signal low
+	 * on seq. : i2c config. -> pwm signal on
+	 */
+	if (pwm == 0)
+		ss_blic_ctrl(vdd, false);
+	else
+		ss_blic_ctrl(vdd, true);
 
 	/* 12 bits PWM: 000h = off, 001h = 2/4096, FFFh = 4096/4096
 	 * 8 bits PWM: 00=off, 01=2/256, FF=256/256

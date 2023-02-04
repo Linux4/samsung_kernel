@@ -158,6 +158,7 @@ struct fts_ts_platform_data {
 
 	u32 irq_gpio;
 	u32 irq_gpio_flags;
+	u32 cs_gpio;
 	u32 reset_gpio;
 	u32 reset_gpio_flags;
 	u32 gpio_vendor_check;
@@ -176,6 +177,7 @@ struct fts_ts_platform_data {
 	u32 max_touch_number;
 	const char *firmware_name;
 	bool enable_settings_aot;
+	bool prox_lp_scan_enabled;
 	bool enable_sysinput_enabled;
 	bool support_dex;
 	bool scan_off_when_cover_closed;
@@ -217,6 +219,13 @@ struct fts_fw_ver {
 	u8 fw_ver;
 };
 
+enum {
+	POWER_OFF_STATUS = 0,
+	POWER_ON_STATUS,
+	LP_MODE_STATUS,
+	LP_MODE_EXIT,
+};
+
 struct fts_ts_data {
 	struct i2c_client *client;
 	struct spi_device *spi;
@@ -224,6 +233,7 @@ struct fts_ts_data {
 	struct input_dev *input_dev;
 	struct input_dev *input_dev_pad;
 	struct input_dev *pen_dev;
+	struct input_dev *input_dev_proximity;
 	struct fts_ts_platform_data *pdata;
 	struct ts_ic_info ic_info;
 	struct sec_cmd_data sec;
@@ -250,17 +260,20 @@ struct fts_ts_data {
 	struct completion pm_completion;
 	bool pm_suspend;
 #endif
-	bool suspended;
+//	bool suspended;
 	bool fw_loading;
 	bool irq_disabled;
 	bool power_disabled;
 	bool glove_mode;
 	bool cover_mode;
 	bool charger_mode;
-	u8 gesture_mode;       /*bit_1: double click; bit_2:spay;*/
+	int  proximity_mode;
+	volatile int power_status;
+	u8   gesture_mode;      /*bit_0:single tap; bit_1: double click; bit_2:sapy; bit_3:fod*/
 	bool aot_enable;
 	bool spay_enable;
 	bool prc_mode;
+	u8 hover_event;
 	int prox_power_off;
 	struct pen_event pevent;
 	/* multi-touch */

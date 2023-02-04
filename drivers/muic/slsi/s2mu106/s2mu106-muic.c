@@ -61,9 +61,6 @@
 #if IS_ENABLED(CONFIG_CP_UART_NOTI)
 #include <soc/samsung/exynos-modem-ctrl.h>
 #endif
-#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
-#include <linux/sec_batt.h>
-#endif
 #include <linux/usb/typec/common/pdic_param.h>
 
 struct s2mu106_muic_data *static_data;
@@ -1015,7 +1012,12 @@ static int s2mu106_if_check_usb_killer(void *mdata)
 {
 	struct s2mu106_muic_data *muic_data = (struct s2mu106_muic_data *)mdata;
 	int ret = MUIC_NORMAL_OTG, i;
-
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+	int event;
+#endif
+#if defined(CONFIG_USB_HW_PARAM)
+	struct otg_notify *o_notify = get_otg_notify();
+#endif
 	if (muic_data->is_water_detected) {
 		pr_err("%s water is detected\n", __func__);
 		return MUIC_ABNORMAL_OTG;
@@ -1027,7 +1029,14 @@ static int s2mu106_if_check_usb_killer(void *mdata)
 			return ret;
 		msleep(150);
 	}
-
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+	event = NOTIFY_EXTRA_USBKILLER;
+	store_usblog_notify(NOTIFY_EXTRA, (void *)&event, NULL);
+#endif
+#if defined(CONFIG_USB_HW_PARAM)
+	if (o_notify)
+		inc_hw_param(o_notify, USB_CCIC_USB_KILLER_COUNT);
+#endif
 	pr_info("%s, USB Killer is detected.", __func__);
 	return ret;
 }
@@ -1895,6 +1904,10 @@ static irqreturn_t s2mu106_muic_detach_isr(int irq, void *data)
 	muic_core_handle_detach(muic_data->pdata);
 #endif
 
+#if IS_ENABLED(CONFIG_LEDS_S2MU106_FLASH)
+	muic_data->is_requested_step_down = false;
+#endif
+
 detach_skip:
 	pr_info("%s done(%s)\n", __func__, dev_to_str(muic_pdata->attached_dev));
 
@@ -2527,6 +2540,8 @@ static int s2mu106_muic_probe(struct platform_device *pdev)
 	if (muic_pdata->is_rustproof) {
 		pr_err("%s rustproof is enabled\n", __func__);
 		ret = _s2mu106_muic_sel_path(muic_data, S2MU106_PATH_OPEN);
+		if (ret < 0)
+			pr_err("%s, fail to open mansw\n", __func__);
 	}
 #if IS_ENABLED(CONFIG_HV_MUIC_S2MU106_AFC)
 #if !IS_ENABLED(CONFIG_HV_MUIC_AFC_DISABLE_ENFORCE)

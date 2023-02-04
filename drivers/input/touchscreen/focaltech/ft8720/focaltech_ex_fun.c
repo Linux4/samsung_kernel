@@ -1216,6 +1216,47 @@ static ssize_t fts_log_level_store(
 	return count;
 }
 
+static ssize_t fts_proximity_show(
+	struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int count = 0;
+	u8 val = 0;
+	struct fts_ts_data *ts_data = fts_data;
+
+	mutex_lock(&ts_data->input_dev->mutex);
+	fts_read_reg(FTS_REG_PROXIMITY_MODE, &val);
+	count += snprintf(buf + count, PAGE_SIZE, "proximity Reg(0xB0)=%d\n", val);
+
+	mutex_unlock(&ts_data->input_dev->mutex);
+
+	return count;
+}
+
+static ssize_t fts_proximity_store(
+	struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct fts_ts_data *ts_data = fts_data;
+
+	mutex_lock(&ts_data->input_dev->mutex);
+	if (FTS_SYSFS_ECHO_ON(buf)) {
+		ts_data->proximity_mode = ENABLE;
+		FTS_DEBUG("enable low proximity %d", ts_data->proximity_mode);
+	} else if (FTS_SYSFS_ECHO_OFF(buf)) {
+		ts_data->proximity_mode = DISABLE;
+		FTS_DEBUG("disable proximity %d", ts_data->proximity_mode);
+	} else if (buf[0] == '3') {
+		ts_data->proximity_mode = 3;
+		FTS_DEBUG("enable sensitive proximity %d", ts_data->proximity_mode);
+	}
+	fts_write_reg(FTS_REG_PROXIMITY_MODE, ts_data->proximity_mode);
+	mutex_unlock(&ts_data->input_dev->mutex);
+
+	return count;
+}
+static DEVICE_ATTR(fts_proximity_mode, 0644, fts_proximity_show, fts_proximity_store);
+
+
 /* get the fw version  example:cat fw_version */
 static DEVICE_ATTR(fts_fw_version, S_IRUGO | S_IWUSR, fts_tpfwver_show, fts_tpfwver_store);
 
@@ -1261,6 +1302,7 @@ static struct attribute *fts_attributes[] = {
 	&dev_attr_fts_boot_mode.attr,
 	&dev_attr_fts_touch_point.attr,
 	&dev_attr_fts_log_level.attr,
+	&dev_attr_fts_proximity_mode.attr,
 	NULL
 };
 

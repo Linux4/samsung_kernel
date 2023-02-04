@@ -280,7 +280,8 @@ static void dsi_catalog_phy_4_0_init(struct dsi_phy_hw *phy)
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	phy->ops.store_str = dsi_phy_hw_v4_0_store_str;
-	phy->ops.store_emphasis= dsi_phy_hw_v4_0_store_emphasis;
+	phy->ops.show_str = dsi_phy_hw_v4_0_show_str;
+	phy->ops.store_emphasis = dsi_phy_hw_v4_0_store_emphasis;
 #endif
 }
 

@@ -13,7 +13,7 @@
 		/* Topoff Current :: 500mA */
 		hl7132,topoff-current = <500000>;
 		/* ts protection Enabled */
-		hl7132,ts-prot-en;
+		//hl7132,ts-prot-en;
 		/* All auto recovery Disabled */
 		//hl7132,all-auto-recovery;
 		/* Enable Manual mode, Set 8-samples, Enable ADC-Read */
@@ -27,4 +27,11 @@
 		/* WDT enabled */
 		//hl7132,wd-dis;
 	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/hl7132/hl7132_charger.a23.dtsi */
+
+&hl7132_charger {
+	/* ts protection Enabled */
+	hl7132,ts-prot-en;
 };

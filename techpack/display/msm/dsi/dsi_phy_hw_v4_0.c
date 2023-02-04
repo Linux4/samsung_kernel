@@ -213,7 +213,7 @@ void dsi_phy_hw_v4_0_store_str(struct dsi_phy_hw *phy, u32 *val)
 	u32 cal_sel = 0;
 
 	/* The register setting range is from 'b0000 (weakest) to 'b1111 (strongest). */
-	DSI_PHY_INFO(phy, "val:0x%x (ndx:%x)\n", *val, phy->index);
+	DSI_PHY_INFO(phy, "base : 0x%X, val : 0x%X\n", phy->base, *val);
 	DSI_W32(phy, DSIPHY_CMN_GLBL_HSTX_STR_CTRL_0, *val);
 	hstx_str = DSI_R32(phy, DSIPHY_CMN_GLBL_HSTX_STR_CTRL_0);
 
@@ -223,8 +223,18 @@ void dsi_phy_hw_v4_0_store_str(struct dsi_phy_hw *phy, u32 *val)
 	cal_sel = DSI_R32(phy, DSIPHY_CMN_GLBL_STR_SWI_CAL_SEL_CTRL);
 	cal_sel |= BIT(0);		
 	DSI_W32(phy, DSIPHY_CMN_GLBL_STR_SWI_CAL_SEL_CTRL, cal_sel);
-	
-	DSI_PHY_INFO(phy, "applied hstx:0x%x, cal_sel:0x%x\n", hstx_str, cal_sel);
+
+	DSI_PHY_INFO(phy, "applied hstx : 0x%X, cal_sel : 0x%X\n", hstx_str, cal_sel);
+}
+
+u32 dsi_phy_hw_v4_0_show_str(struct dsi_phy_hw *phy)
+{
+	u32 hstx_str = 0;
+
+	hstx_str = DSI_R32(phy, DSIPHY_CMN_GLBL_HSTX_STR_CTRL_0);
+	DSI_PHY_INFO(phy, "cur base : 0x%X, hstx_str : 0x%X (0x00 ~ 0xFF)\n", phy->base, hstx_str);
+
+	return hstx_str;
 }
 
 /* To store de-emphasis adjusted for Motto tool  */

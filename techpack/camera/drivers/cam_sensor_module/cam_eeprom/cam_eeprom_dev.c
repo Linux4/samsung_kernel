@@ -223,6 +223,7 @@ static int cam_eeprom_i2c_driver_probe(struct i2c_client *client,
 	e_ctrl->cal_data.mapdata = NULL;
 	e_ctrl->cal_data.map = NULL;
 	e_ctrl->userspace_probe = false;
+	e_ctrl->dualization_id = 0;
 
 	rc = cam_eeprom_parse_dt(e_ctrl);
 	if (rc) {
@@ -462,6 +463,7 @@ static int32_t cam_eeprom_platform_driver_probe(
 	e_ctrl->cal_data.mapdata = NULL;
 	e_ctrl->cal_data.map = NULL;
 	e_ctrl->userspace_probe = false;
+	e_ctrl->dualization_id = 0;
 
 	e_ctrl->io_master_info.master_type = CCI_MASTER;
 	e_ctrl->io_master_info.cci_client = kzalloc(

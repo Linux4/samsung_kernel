@@ -120,8 +120,8 @@
 #define REAR4_MODULE_ID_ADDR                    0x002E
 #define REAR4_SENSOR_ID_ADDR                    0x003E
 #define HW_INFO_MACRO                           ("F02EG")
-#define FRONT_SW_INFO                           ("OHR0")
-#define FRONT_VENDOR_INFO                       ("P")
+#define SW_INFO_MACRO                           ("OHR0")
+#define VENDOR_INFO_MACRO                       ("P")
 #define PROCESS_INFO_MACRO                      ("A")
 #define CRITERION_REV_MACRO                      (0)
 
@@ -133,9 +133,14 @@
 #define FROM_FRONT_MODULE_ID_ADDR               0x002E
 #define FROM_FRONT_SENSOR_ID_ADDR               0x003E
 #define FRONT_HW_INFO                           ("V08EG")
-#define SW_INFO_MACRO                           ("OHF0")
-#define VENDOR_INFO_MACRO                       ("M")
+#define FRONT_SW_INFO                           ("OHF0")
+#define FRONT_VENDOR_INFO                       ("M")
 #define FRONT_PROCESS_INFO                      ("A")
+#define FRONT_HW_INFO_SR846D                    ("Y08EF")
+#define FRONT_SW_INFO_SR846D                    ("PAF0")
+#define FRONT_VENDOR_INFO_SR846D                ("M")
+#define FRONT_PROCESS_INFO_SR846D               ("A")
+
 #define CRITERION_REV_FRONT                      (0)
 
 //multi cal
@@ -368,6 +373,10 @@ extern char cal_crc[SYSFS_FW_VER_SIZE];
 
 extern char front_module_info[SYSFS_MODULE_INFO_SIZE];
 extern char module_info[SYSFS_MODULE_INFO_SIZE];
+extern char module2_info[SYSFS_MODULE_INFO_SIZE];
+extern char module3_info[SYSFS_MODULE_INFO_SIZE];
+
+
 
 /* phone fw info */
 #define HW_INFO_MAX_SIZE 6
@@ -702,6 +711,7 @@ struct cam_eeprom_ctrl_t {
 	char device_name[20];
 	uint32_t is_supported;
 	uint16_t is_multimodule_node;
+	uint32_t dualization_id;
 	struct i2c_settings_array wr_settings;
 	struct eebin_info eebin_info;
 	uint32_t open_cnt;

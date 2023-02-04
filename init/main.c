@@ -99,6 +99,11 @@
 #include <asm/sections.h>
 #include <asm/cacheflush.h>
 
+#ifdef CONFIG_SECURITY_DEFEX
+#include <linux/defex.h>
+void __init __weak defex_load_rules(void) { }
+#endif
+
 #if IS_ENABLED(CONFIG_SEC_GPIO_DVS)
 #include <linux/secgpio_dvs.h>
 #endif /* CONFIG_SEC_GPIO_DVS */
@@ -1312,4 +1317,8 @@ static noinline void __init kernel_init_freeable(void)
 
 	integrity_load_keys();
 	load_default_modules();
+#ifdef CONFIG_SECURITY_DEFEX
+	defex_load_rules();
+#endif
+
 }

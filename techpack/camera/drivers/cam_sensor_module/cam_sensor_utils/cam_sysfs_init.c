@@ -197,59 +197,23 @@ static ssize_t rear4_camera_type_show(struct device *dev,
 }
 #endif
 
-
-#if defined(CONFIG_SEC_A42XQ_PROJECT) || defined(CONFIG_SEC_A51XQ_PROJECT) || defined(CONFIG_SEC_A42XUQ_PROJECT)
 static ssize_t front_camera_type_show(struct device *dev,
     struct device_attribute *attr, char *buf)
 {
     int rc = 0;
-    char cam_type[] = "HYNIX_HI2021Q\n";
-    rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
-    if (rc)
-        return rc;
-    return 0;
-}
-#elif defined(CONFIG_SEC_A52XQ_PROJECT) || defined(CONFIG_SEC_M62XQ_PROJECT)
-static ssize_t front_camera_type_show(struct device *dev,
-    struct device_attribute *attr, char *buf)
-{
-    int rc = 0;
-    char cam_type_sony[] = "SONY_IMX616\n";
-    char cam_type_lsi[] = "SLSI_S5KGD2\n";
+    char cam_type_lsi[] = "SLSI_SR846D\n";
+    char cam_type_lsi2[] = "SLSI_GC08A3\n";
 
-    if (front_cam_fw_ver[4] == 'L') 
-        rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type_lsi);
-    else 
-        rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type_sony);
+	if (front_cam_fw_ver[4] == 'G')
+		rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type_lsi2);
+	else		
+    		rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type_lsi);
+    if (rc)
+        return rc;
+    return 0;
+}
 
-    if (rc)
-        return rc;
-    return 0;
-}
-#elif defined(CONFIG_SEC_GTS7XLLITE_PROJECT)|| defined(CONFIG_SEC_GTS7XLLITEWIFI_PROJECT)
-static ssize_t front_camera_type_show(struct device *dev,
-    struct device_attribute *attr, char *buf)
-{
-    int rc = 0;
-    char cam_type[] = "SLSI_GC5035\n";
-    rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
-    if (rc)
-        return rc;
-    return 0;
-}
-#else
-static ssize_t front_camera_type_show(struct device *dev,
-    struct device_attribute *attr, char *buf)
-{
-    int rc = 0;
-    char cam_type[] = "SLSI_GC08A3\n";
 
-    rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
-    if (rc)
-        return rc;
-    return 0;
-}
-#endif
 
 #if defined(CONFIG_SAMSUNG_FRONT_DUAL)
 #if defined(CONFIG_SEC_A42XQ_PROJECT) || defined(CONFIG_SEC_A42XUQ_PROJECT)

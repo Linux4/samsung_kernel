@@ -647,9 +647,10 @@ static void qcom_glink_rx_done(struct qcom_glink *glink,
 
 	/* We don't send RX_DONE to intentless systems */
 	if (glink->intentless) {
-		CH_INFO(channel, "[intent] %px data : %px\n", intent, intent->data);
-		kfree(intent->data);
-		kfree(intent);
+		if (intent->id != 0xdeadbead) {
+			kfree(intent->data);
+			kfree(intent);
+		}
 		return;
 	}
 
@@ -956,10 +957,9 @@ static int qcom_glink_rx_defer(struct qcom_glink *glink, size_t extra)
 	return 0;
 }
 
-#include <soc/qcom/watchdog.h>
-#include <linux/delay.h>
-struct kmem_cache *intent_cachep = NULL;
-
+#define RPM_REQ_DATA_LEN       256
+static struct glink_core_rx_intent g_rpm_request_intent;
+static char g_rpm_request_data[RPM_REQ_DATA_LEN];
 static int qcom_glink_rx_data(struct qcom_glink *glink, size_t avail)
 {
 	struct glink_core_rx_intent *intent;
@@ -1013,60 +1013,23 @@ static int qcom_glink_rx_data(struct qcom_glink *glink, size_t avail)
 	if (glink->intentless) {
 		/* Might have an ongoing, fragmented, message to append */
 		if (!channel->buf) {
+#if 0
 			intent = kzalloc(sizeof(*intent), GFP_ATOMIC);
-			if (!intent) {
-				intent = kmem_cache_zalloc(intent_cachep, GFP_ATOMIC);
-				if (intent)
-					CH_INFO(channel, "Allocated intent %px from intent_cachep\n", intent);
-				else {
-					int idx = kmalloc_index(sizeof(*intent)) + 1;
-					while (idx <= KMALLOC_SHIFT_HIGH) {
-						size_t size = kmalloc_size(idx);
-						intent = kzalloc(size, GFP_ATOMIC);
-						if (intent) {
-							CH_INFO(channel, "Allocated intent %px from kmalloc[%d]\n", intent, idx);
-							break;
-						}
-						idx++;
-					}
-
 			if (!intent)
 				return -ENOMEM;
-				}
-			}
 
-			intent->data = kmalloc(chunk_size + left_size, GFP_ATOMIC);
-			if (!intent->data) {
-				if (chunk_size + left_size < 0x80) {
-					intent->data = kmem_cache_alloc(intent_cachep, GFP_ATOMIC);
-					if (!intent->data) {
-						kfree(intent);
-						CH_INFO(channel, "Failed to alloc data of %d\n", chunk_size + left_size);
-						return -ENOMEM;
-					}
-					CH_INFO(channel, "Allocated intent->data %px from intent_cachep\n", intent->data);
-				}
-				else {
-					int idx = kmalloc_index(chunk_size + left_size) + 1;
-					while (idx <= KMALLOC_SHIFT_HIGH) {
-						size_t size = kmalloc_size(idx);
-						intent->data = kmalloc(size, GFP_ATOMIC);
-						if (intent->data) {
-							CH_INFO(channel, "Allocated intent->data %px from kmalloc[%d]\n", intent->data, idx);
-							break;
-						}
-						idx++;
-					}
-
+			intent->data = kmalloc(chunk_size + left_size,
+					       GFP_ATOMIC);
 			if (!intent->data) {
 				kfree(intent);
-						CH_INFO(channel, "Failed to alloc data of %d\n", chunk_size + left_size);
 				return -ENOMEM;
 			}
-				}
-			}
+#endif
+			intent = &g_rpm_request_intent;
+			intent->data = &g_rpm_request_data[0];
+			memset((void *)intent->data, 0x0, RPM_REQ_DATA_LEN);
 
-			intent->id = 0xbabababa;
+			intent->id = 0xdeadbead;
 			intent->size = chunk_size + left_size;
 			intent->offset = 0;
 
@@ -2168,16 +2131,6 @@ struct qcom_glink *qcom_glink_native_probe(struct device *dev,
 
 	glink->ilc = ipc_log_context_create(GLINK_LOG_PAGE_CNT, glink->name, 0);
 
-	if (intentless == true) {
-		intent_cachep = kmem_cache_create(
-			"intent_cachep",
-			max(sizeof(struct glink_core_rx_intent), (size_t)0x80),
-			0, SLAB_NOLEAKTRACE, NULL);
-		if (intent_cachep)
-			pr_info("[%s] intent : %px\n", __func__, kmem_cache_alloc(intent_cachep, GFP_KERNEL));
-		else
-			pr_info("[%s] failed to create intent_cachep\n");
-	}
 	return glink;
 
 unregister:

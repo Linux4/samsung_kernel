@@ -432,6 +432,66 @@ out:
 	return err;
 }
 
+ssize_t sdcardfs_file_splice_read(struct file *in, loff_t *ppos,
+		struct pipe_inode_info *pipe, size_t len, unsigned int flags)
+{
+	struct file *lower_file = sdcardfs_lower_file(in);
+	ssize_t (*splice_read)(struct file *, loff_t *,
+			struct pipe_inode_info *, size_t, unsigned int);
+	int err;
+
+	if (lower_file->f_op->splice_read)
+		splice_read = lower_file->f_op->splice_read;
+	else if (lower_file->f_op->read_iter)
+		splice_read = generic_file_splice_read;
+	else
+		/* 
+		 * Just support file systems that have explicit
+		 * .splice_{read|write} or .{read|write}_iter operations.
+		 */
+		return -EINVAL;
+
+	get_file(lower_file);
+	err = splice_read(lower_file, ppos, pipe, len, flags);
+	fput(lower_file);
+
+	if (err >= 0 || err == -EIOCBQUEUED)
+		fsstack_copy_attr_atime(in->f_path.dentry->d_inode,
+					file_inode(lower_file));
+	return err;
+}
+
+ssize_t sdcardfs_file_splice_write(struct pipe_inode_info *pipe,
+		struct file *out, loff_t *ppos, size_t len, unsigned int flags)
+{
+	struct file *lower_file = sdcardfs_lower_file(out);
+	struct inode *inode = out->f_path.dentry->d_inode;
+	ssize_t (*splice_write)(struct pipe_inode_info *, struct file *,
+				loff_t *, size_t, unsigned int);
+	int err;
+
+	if (lower_file->f_op->splice_write)
+		splice_write = lower_file->f_op->splice_write;
+	else if (lower_file->f_op->write_iter)
+		splice_write = iter_file_splice_write;
+	else
+		return -EINVAL;
+
+	get_file(lower_file);
+	err = splice_write(pipe, lower_file, ppos, len, flags);
+	fput(lower_file);
+
+	if (err >= 0 || err == -EIOCBQUEUED) {
+		if (sizeof(loff_t) > sizeof(long))
+			inode_lock(inode);
+		fsstack_copy_inode_size(inode, file_inode(lower_file));
+		fsstack_copy_attr_times(inode, file_inode(lower_file));
+		if (sizeof(loff_t) > sizeof(long))
+			inode_unlock(inode);
+	}
+	return err;
+}
+
 const struct file_operations sdcardfs_main_fops = {
 	.llseek		= generic_file_llseek,
 	.read		= sdcardfs_read,
@@ -448,6 +508,8 @@ const struct file_operations sdcardfs_main_fops = {
 	.fasync		= sdcardfs_fasync,
 	.read_iter	= sdcardfs_read_iter,
 	.write_iter	= sdcardfs_write_iter,
+	.splice_read	= sdcardfs_file_splice_read,
+	.splice_write	= sdcardfs_file_splice_write,
 };
 
 /* trimmed directory options */

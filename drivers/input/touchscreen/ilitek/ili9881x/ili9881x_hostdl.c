@@ -51,7 +51,6 @@ static struct flash_block_info {
 } fbi[FW_BLOCK_INFO_NUM];
 
 static u8 *pfw;
-static u8 *CTPM_FW;
 
 static u32 HexToDec(char *phex, s32 len)
 {
@@ -203,9 +202,6 @@ static int ilitek_tddi_fw_iram_read(u8 *buf, u32 start, int len)
 
 int ili_fw_dump_iram_data(u32 start, u32 end, bool save)
 {
-	struct file *f = NULL;
-	mm_segment_t old_fs;
-	loff_t pos = 0;
 	int i, ret = 0;
 	int len, tmp = debug_en;
 	bool ice = atomic_read(&ilits->ice_stat);
@@ -236,21 +232,14 @@ int ili_fw_dump_iram_data(u32 start, u32 end, bool save)
 	}
 
 	if (save) {
-		f = filp_open(DUMP_IRAM_PATH, O_WRONLY | O_CREAT | O_TRUNC, 644);
-		if (ERR_ALLOC_MEM(f)) {
-			input_err(true, ilits->dev, "%s Failed to open the file at %ld.\n", __func__, PTR_ERR(f));
-			ret = -ENOMEM;
-			goto out;
-		}
-
-		old_fs = get_fs();
-		set_fs(get_ds());
-		set_fs(KERNEL_DS);
-		pos = 0;
-		vfs_write(f, ilits->update_buf, len, &pos);
-		set_fs(old_fs);
-		filp_close(f, NULL);
-		input_info(true, ilits->dev, "%s Save iram data to %s\n", __func__, DUMP_IRAM_PATH);
+		mutex_lock(&ilits->debug_mutex);
+		ilits->output_data_len = len;
+		ipio_vfree((void **)&ilits->output_data);
+		ilits->output_data = vmalloc(MAX_HEX_FILE_SIZE);
+		memset(ilits->output_data, 0, MAX_HEX_FILE_SIZE);
+		ipio_memcpy(ilits->output_data, ilits->update_buf, len, MAX_HEX_FILE_SIZE);
+		input_info(true, ilits->dev, "Save iram data to output buffer\n");
+		mutex_unlock(&ilits->debug_mutex);
 	} else {
 		debug_en = DEBUG_ALL;
 		ili_dump_data(ilits->update_buf, 8, len, 0, "IRAM");
@@ -575,82 +564,6 @@ static int ilitek_tddi_fw_update_block_info(u8 *pfw)
 	return 0;
 }
 
-static int ilitek_tddi_fw_ili_convert(u8 *pfw)
-{
-	int i, size, blk_num = 0, blk_map = 0, num;
-	int b0_addr = 0, b0_num = 0;
-
-	if (ERR_ALLOC_MEM(ilits->md_fw_ili))
-		return -ENOMEM;
-
-	CTPM_FW = ilits->md_fw_ili;
-	size = ilits->md_fw_ili_size;
-
-	if (size < ILI_FILE_HEADER || size > MAX_HEX_FILE_SIZE) {
-		input_err(true, ilits->dev, "%s size of ILI file is invalid\n", __func__);
-		return -EINVAL;
-	}
-
-	/* Check if it's old version of ILI format. */
-	if (CTPM_FW[22] == 0xFF && CTPM_FW[23] == 0xFF &&
-		CTPM_FW[24] == 0xFF && CTPM_FW[25] == 0xFF) {
-		input_err(true, ilits->dev, "%s Invaild ILI format, abort!\n", __func__);
-		return -EINVAL;
-	}
-
-	blk_num = CTPM_FW[131];
-	blk_map = (CTPM_FW[129] << 8) | CTPM_FW[130];
-	input_info(true, ilits->dev, "%s Parsing ILI file, block num = %d, block mapping = %x\n",
-		__func__, blk_num, blk_map);
-
-	if (blk_num > (FW_BLOCK_INFO_NUM - 1) || !blk_num || !blk_map) {
-		input_err(true, ilits->dev, "%s Number of block or block mapping is invalid, abort!\n", __func__);
-		return -EINVAL;
-	}
-
-	memset(fbi, 0x0, sizeof(fbi));
-
-	tfd.start_addr = 0;
-	tfd.end_addr = 0;
-	tfd.hex_tag = BLOCK_TAG_AF;
-
-	/* Parsing block info */
-	for (i = 0; i < FW_BLOCK_INFO_NUM - 1; i++) {
-		/* B0 tag */
-		b0_addr = (CTPM_FW[4 + i * 4] << 16) | (CTPM_FW[5 + i * 4] << 8) | (CTPM_FW[6 + i * 4]);
-		b0_num = CTPM_FW[7 + i * 4];
-		if ((b0_num != 0) && (b0_addr != 0x000000))
-			fbi[b0_num].fix_mem_start = b0_addr;
-
-		/* AF tag */
-		num = i + 1;
-		if (((blk_map >> i) & 0x01) == 0x01) {
-			fbi[num].start =
-				(CTPM_FW[132 + i * 6] << 16) | (CTPM_FW[133 + i * 6] << 8) | CTPM_FW[134 + i * 6];
-			fbi[num].end =
-				(CTPM_FW[135 + i * 6] << 16) | (CTPM_FW[136 + i * 6] << 8) |  CTPM_FW[137 + i * 6];
-
-			if (fbi[num].fix_mem_start == 0)
-				fbi[num].fix_mem_start = INT_MAX;
-
-			fbi[num].len = fbi[num].end - fbi[num].start + 1;
-			ILI_DBG("%s Block[%d]: start_addr = %x, end = %x, fix_mem_start = 0x%x\n",
-			 __func__, num, fbi[num].start, fbi[num].end, fbi[num].fix_mem_start);
-			if (num == GESTURE)
-				ilits->gesture_load_code = true;
-		}
-	}
-
-	memcpy(pfw, CTPM_FW + ILI_FILE_HEADER, size - ILI_FILE_HEADER);
-
-	if (ilitek_fw_calc_file_crc(pfw) < 0)
-		return -1;
-
-	tfd.block_number = blk_num;
-	tfd.end_addr = size - ILI_FILE_HEADER;
-	return 0;
-}
-
 static int ilitek_tddi_fw_hex_convert(u8 *phex, int size, u8 *pfw)
 {
 	int block = 0;
@@ -743,169 +656,128 @@ static int ilitek_tddi_fw_hex_convert(u8 *phex, int size, u8 *pfw)
 	return 0;
 }
 
-static int ilitek_tdd_fw_hex_open(u8 op, u8 *pfw)
+static int ilitek_tdd_fw_hex_open(u8 *pfw)
 {
 	int ret = 0, fsize = 0;
 	const struct firmware *fw = NULL;
-	struct file *f = NULL;
-	mm_segment_t old_fs;
 #ifdef CONFIG_SPU_VERIFY
-	loff_t pos = 0;
-	size_t spu_fw_size;
-	int nread;
+	long spu_ret = 0, org_size = 0;
 #endif
 
-	input_info(true, ilits->dev, "%s Open file method = %s, path = %s\n",
-		__func__, op ? "FILP_OPEN" : "REQUEST_FIRMWARE",
-		op ? ilits->md_fw_filp_path : ilits->md_fw_rq_path);
+	input_info(true, ilits->dev, "%s , fw_index:%d, path:%s, force_fw_update:%d, signing:%d\n",
+		__func__, ilits->fw_index, ilits->md_fw_rq_path, ilits->force_fw_update, ilits->signing);
 
-	switch (op) {
-	case REQUEST_FIRMWARE:
-		if (request_firmware(&fw, ilits->md_fw_rq_path, ilits->dev) < 0) {
-			input_err(true, ilits->dev, "%s Request firmware failed, try again\n", __func__);
+	if (ilits->fw_index == ILITEK_TSP_FW_IDX_BIN) {
+		if (ilits->tp_bin_fw.data == NULL) {
+			input_info(true, ilits->dev, "%s : tp_bin_fw request\n", __func__);
 			if (request_firmware(&fw, ilits->md_fw_rq_path, ilits->dev) < 0) {
-				input_err(true, ilits->dev, "%s Request firmware failed after retry\n", __func__);
+				input_err(true, ilits->dev, "%s Request firmware failed, try again\n", __func__);
+				if (request_firmware(&fw, ilits->md_fw_rq_path, ilits->dev) < 0) {
+					input_err(true, ilits->dev, "%s Request firmware failed after retry\n", __func__);
+					ret = -1;
+					goto out_request_fail;
+				}
+			}
+			fsize = fw->size;
+			input_info(true, ilits->dev, "%s fsize = %d\n", __func__, fsize);
+			if (fsize <= 0) {
+				input_err(true, ilits->dev, "%s The size of file is invaild\n", __func__);
 				ret = -1;
 				goto out;
 			}
-		}
-
-		fsize = fw->size;
-		input_info(true, ilits->dev, "%s fsize = %d\n", __func__, fsize);
-		if (fsize <= 0) {
-			input_err(true, ilits->dev, "%s The size of file is invaild\n", __func__);
-			release_firmware(fw);
-			ret = -1;
-			goto out;
-		}
-
-		ilits->tp_fw.size = 0;
-		ilits->tp_fw.data = vmalloc(fsize);
-		if (ERR_ALLOC_MEM(ilits->tp_fw.data)) {
-			input_err(true, ilits->dev, "%s Failed to allocate tp_fw by vmalloc, try again\n", __func__);
-			ilits->tp_fw.data = vmalloc(fsize);
-			if (ERR_ALLOC_MEM(ilits->tp_fw.data)) {
-				input_err(true, ilits->dev, "%s Failed to allocate tp_fw after retry\n", __func__);
-				release_firmware(fw);
-				ret = -ENOMEM;
-				goto out;
+			// save bin fw data
+			ilits->tp_bin_fw.size = 0;
+			ilits->tp_bin_fw.data = vmalloc(fsize);
+			if (ERR_ALLOC_MEM(ilits->tp_bin_fw.data)) {
+				input_err(true, ilits->dev, "%s Failed to allocate tp_bin_fw by vmalloc, try again\n", __func__);
+				ilits->tp_bin_fw.data = vmalloc(fsize);
+				if (ERR_ALLOC_MEM(ilits->tp_bin_fw.data)) {
+					input_err(true, ilits->dev, "%s Failed to allocate tp_bin_fw after retry\n", __func__);
+					ret = -ENOMEM;
+					goto out;
+				}
 			}
+			ipio_memcpy((u8 *)ilits->tp_bin_fw.data, fw->data, fsize * sizeof(*fw->data), fsize);
+			ilits->tp_bin_fw.size = fsize;
 		}
-
-		/* Copy fw data got from request_firmware to global */
-		ipio_memcpy((u8 *)ilits->tp_fw.data, fw->data, fsize * sizeof(*fw->data), fsize);
-		ilits->tp_fw.size = fsize;
-		release_firmware(fw);
-		break;
-	case FILP_OPEN:
-		f = filp_open(ilits->md_fw_filp_path, O_RDONLY, 0644);
-		if (ERR_ALLOC_MEM(f)) {
-			input_err(true, ilits->dev, "%s Failed to open the file, %ld\n", __func__, PTR_ERR(f));
-			ret = -1;
-			goto out;
-		}
-
-		fsize = f->f_inode->i_size;
-		input_info(true, ilits->dev, "%s fsize = %d\n", __func__, fsize);
-		if (fsize <= 0) {
-			input_err(true, ilits->dev, "%s The size of file is invaild\n", __func__);
-			filp_close(f, NULL);
-			ret = -1;
-			goto out;
-		}
-
+		input_info(true, ilits->dev, "%s : set bin fw\n", __func__);
+		ilits->tp_cur_fw = ilits->tp_bin_fw;
+	} else if (ilits->fw_index == ILITEK_TSP_FW_IDX_UMS) {
+		if (ilits->force_fw_update || (ilits->tp_ums_fw.data == NULL)) {
+			input_info(true, ilits->dev, "%s : tp_ums_fw request\n", __func__);
+			if (ilits->tp_ums_fw.data != NULL) {
+				input_info(true, ilits->dev, "%s tp_ums_fw.data null\n", __func__);
+				vfree(ilits->tp_ums_fw.data);
+				ilits->tp_ums_fw.size = 0;
+				ilits->tp_ums_fw.data = NULL;
+			}
+			if (request_firmware(&fw, ilits->md_fw_rq_path, ilits->dev) < 0) {
+				input_err(true, ilits->dev, "%s Request firmware failed, try again\n", __func__);
+				if (request_firmware(&fw, ilits->md_fw_rq_path, ilits->dev) < 0) {
+					input_err(true, ilits->dev, "%s Request firmware failed after retry\n", __func__);
+					ret = -1;
+					goto out_request_fail;
+				}
+			}
 #if IS_ENABLED(CONFIG_SPU_VERIFY)
-		if (ilits->signing) {
-			/* name 3, digest 32, signature 512 */
-			spu_fw_size = fsize;
-			fsize -= SPU_METADATA_SIZE(TSP);
-		}
+			if (ilits->signing) {
+				org_size = fw->size - SPU_METADATA_SIZE(TSP);
+				spu_ret = spu_firmware_signature_verify("TSP", fw->data, fw->size);
+				input_info(true, ilits->dev, "%s: org_size:%ld, spu_ret:%ld, spu_fw_size:%ld\n",
+						__func__, org_size, spu_ret, fw->size);
+
+				if (spu_ret != org_size) {
+					input_err(true, ilits->dev, "%s: signature verify failed, %ld\n", __func__, spu_ret);
+					ret = -EIO;
+					goto out;
+				}
+				ilits->tp_ums_fw.data = vzalloc(org_size);
+				ilits->tp_ums_fw.size = org_size;
+			} else {
+				ilits->tp_ums_fw.data = vzalloc(fw->size);
+				ilits->tp_ums_fw.size = fw->size;
+			}
+#else
+			ilits->tp_ums_fw.data = vzalloc(fw->size);
+			ilits->tp_ums_fw.size = fw->size;
 #endif
-		ilits->tp_fw.size = 0;
-		ilits->tp_fw.data = vmalloc(fsize);
-		if (ERR_ALLOC_MEM(ilits->tp_fw.data)) {
-			input_err(true, ilits->dev, "%s Failed to allocate tp_fw by vmalloc, try again\n", __func__);
-			ilits->tp_fw.data = vmalloc(fsize);
-			if (ERR_ALLOC_MEM(ilits->tp_fw.data)) {
-				input_err(true, ilits->dev, "%s Failed to allocate tp_fw after retry\n", __func__);
-				filp_close(f, NULL);
-				ret = -ENOMEM;
-				goto out;
+
+			if (ERR_ALLOC_MEM(ilits->tp_ums_fw.data)) {
+				input_err(true, ilits->dev, "%s Failed to allocate tp_ums_fw by vmalloc\n", __func__);
+					ret = -ENOMEM;
+					goto out;
 			}
+			ipio_memcpy((u8 *)ilits->tp_ums_fw.data, fw->data, ilits->tp_ums_fw.size * sizeof(*fw->data), ilits->tp_ums_fw.size);
 		}
-
-		/* ready to map user's memory to obtain data by reading files */
-		old_fs = get_fs();
-		set_fs(get_ds());
-		set_fs(KERNEL_DS);
-#ifdef CONFIG_SPU_VERIFY
-		if (ilits->signing) {
-			unsigned char *spu_fw_data;
-			size_t spu_ret = 0;
-
-			spu_fw_data = vzalloc(spu_fw_size);
-			if (!spu_fw_data) {
-				input_err(true, ilits->dev, "%s: failed to alloc mem for spu\n", __func__);
-				ret = -ENOMEM;
-				goto signing_out;
-			}
-			nread = vfs_read(f, (char __user *)spu_fw_data, spu_fw_size, &f->f_pos);
-
-			input_info(true, ilits->dev, "%s: start, file path %s, size %ld Bytes\n",
-					__func__, ilits->md_fw_filp_path, spu_fw_size);
-
-			if (nread != spu_fw_size) {
-				input_err(true, ilits->dev,
-					"%s: failed to read firmware file, nread %d Bytes\n",
-					__func__, nread);
-				ret = -EIO;
-				vfree(spu_fw_data);
-				goto signing_out;
-			}
-			spu_ret = spu_firmware_signature_verify("TSP", spu_fw_data, spu_fw_size);
-			if (spu_ret != fsize) {
-				input_err(true, ilits->dev, "%s: signature verify failed, %ld\n",
-						__func__, spu_ret);
-				ret = -EINVAL;
-				vfree(spu_fw_data);
-				goto signing_out;
-			}
-
-			memcpy((u8 *)ilits->tp_fw.data, spu_fw_data, fsize);
-			vfree(spu_fw_data);
+		if (ilits->tp_ums_fw.data != NULL) {
+			input_info(true, ilits->dev, "%s : set ums fw\n", __func__);
+			ilits->tp_cur_fw = ilits->tp_ums_fw;
 		} else {
-			pos = 0;
-			vfs_read(f, (u8 *)ilits->tp_fw.data, fsize, &pos);
+			input_err(true, ilits->dev, "%s tp_ums_fw.data is null\n", __func__);
 		}
-signing_out:
-		set_fs(old_fs);
-		filp_close(f, NULL);
-		ilits->tp_fw.size = fsize;
-		break;
-#endif
-	default:
-		input_err(true, ilits->dev, "%s Unknown open file method, %d\n", __func__, op);
-		break;
 	}
 
-	if (ERR_ALLOC_MEM(ilits->tp_fw.data) || ilits->tp_fw.size <= 0) {
+	if (ERR_ALLOC_MEM(ilits->tp_cur_fw.data) || ilits->tp_cur_fw.size <= 0) {
 		input_err(true, ilits->dev, "%s fw data/size is invaild\n", __func__);
 		ret = -1;
 		goto out;
 	}
 
 	/* Convert hex and copy data from tp_fw.data to pfw */
-	if (ilitek_tddi_fw_hex_convert((u8 *)ilits->tp_fw.data, ilits->tp_fw.size, pfw) < 0) {
+	if (ilitek_tddi_fw_hex_convert((u8 *)ilits->tp_cur_fw.data, ilits->tp_cur_fw.size, pfw) < 0) {
 		input_err(true, ilits->dev, "%s Convert hex file failed\n", __func__);
 		ret = -1;
 	}
-
 out:
-	ipio_vfree((void **)&(ilits->tp_fw.data));
+	if (fw) {
+		input_info(true, ilits->dev, "%s : release_firmware\n", __func__);
+		release_firmware(fw);
+	}
+out_request_fail:
 	return ret;
 }
 
-int ili_fw_upgrade(int op)
+int ili_fw_upgrade(void)
 {
 	int i, ret = 0, retry = 3;
 
@@ -927,25 +799,10 @@ int ili_fw_upgrade(int op)
 		for (i = 0; i < MAX_HEX_FILE_SIZE; i++)
 			pfw[i] = 0xFF;
 
-		if (ilitek_tdd_fw_hex_open(op, pfw) < 0) {
-			input_err(true, ilits->dev, "%s Open hex file fail, try upgrade from ILI file\n", __func__);
-
-			/*
-			 * Users might not be aware of a broken hex file when recovering
-			 * fw from ILI file. We should force them to check
-			 * hex files if they attempt to update via device node.
-			 */
-			if (ilits->node_update) {
-				input_err(true, ilits->dev, "%s Ignore update from ILI file\n", __func__);
-				ipio_vfree((void **)&pfw);
-				return -EFW_CONVERT_FILE;
-			}
-
-			if (ilitek_tddi_fw_ili_convert(pfw) < 0) {
-				input_err(true, ilits->dev, "%s Convert ILI file error\n", __func__);
-				ret = -EFW_CONVERT_FILE;
-				goto out;
-			}
+		if (ilitek_tdd_fw_hex_open(pfw) < 0) {
+			input_err(true, ilits->dev, "%s Open hex file fail\n", __func__);
+			ipio_vfree((void **)&pfw);
+			return -EFW_CONVERT_FILE;
 		}
 
 		if (ilitek_tddi_fw_update_block_info(pfw) < 0) {

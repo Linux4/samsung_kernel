@@ -32,6 +32,7 @@
 #include <linux/pinctrl/pinmux.h>
 #include "../pinctrl/core.h"
 #include "../pinctrl/pinctrl-utils.h"
+#include <linux/delay.h>
 
 #define PCA953X_INPUT		0x0
 #define PCA953X_OUTPUT		0x1
@@ -689,7 +690,9 @@ static void pca953x_irq_bus_sync_unlock(struct irq_data *d)
 	struct pca953x_chip *chip = gpiochip_get_data(gc);
 	u8 new_irqs;
 	int level, i;
+	int bank_nb = d->hwirq / BANK_SZ, ret;
 	u8 invert_irq_mask[MAX_BANK];
+	u16 reg_val;
 
 	pr_info("[%s]\n", __func__);
 
@@ -717,6 +720,15 @@ static void pca953x_irq_bus_sync_unlock(struct irq_data *d)
 		}
 	}
 
+	if (d->hwirq % BANK_SZ > 3) /* upper 8 bits */
+		reg_val = chip->irq_trig_type[bank_nb] >> 8;
+	else /* lower 8 bits */
+		reg_val = chip->irq_trig_type[bank_nb] & 0xFF;
+
+	ret = pca953x_write_single(chip, PCAL953X_INT_EDGE, (u8)reg_val, (d->hwirq) * 2);
+	if (ret)
+		pr_info("[%s] failed to write reg\n", __func__);
+
 	mutex_unlock(&chip->irq_lock);
 }
 
@@ -724,9 +736,8 @@ static int pca953x_irq_set_type(struct irq_data *d, unsigned int type)
 {
 	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
 	struct pca953x_chip *chip = gpiochip_get_data(gc);
-	int bank_nb = d->hwirq / BANK_SZ, ret;
+	int bank_nb = d->hwirq / BANK_SZ;
 	u8 mask = 1 << (d->hwirq % BANK_SZ);
-	u16 reg_val;
 
 	pr_info("[%s] idx: %d, type: %d\n", __func__, d->hwirq, type);
 
@@ -754,17 +765,6 @@ static int pca953x_irq_set_type(struct irq_data *d, unsigned int type)
 		if (type & IRQ_TYPE_EDGE_RISING) {
 			pr_info("[%s] rising edge\n", __func__);
 			chip->irq_trig_type[bank_nb] |= IRQ_TYPE_EDGE_RISING << (d->hwirq % BANK_SZ) * 2;
-		}
-
-		if (d->hwirq % BANK_SZ > 3) /* upper 8 bits */
-			reg_val = chip->irq_trig_type[bank_nb] >> 8;
-		else /* lower 8 bits */
-			reg_val = chip->irq_trig_type[bank_nb] & 0xFF;
-
-		ret = pca953x_write_single(chip, PCAL953X_INT_EDGE, (u8)reg_val, (d->hwirq) * 2);
-		if (ret) {
-			pr_info("[%s] failed to write reg\n", __func__);
-			return ret;
 		}
 	}
 
@@ -1088,6 +1088,17 @@ static struct pca953x_platform_data *of_pca953x_parse_dt(struct device *dev)
 
 	pr_info("[%s] gpio_base: %d, gpio_num: %d\n", __func__, pdata->gpio_base, pdata->gpio_num);
 
+#if IS_ENABLED(CONFIG_GPIO_PCA953X_RESET)
+	pdata->reset_gpio = of_get_named_gpio(np, "reset-gpios", 0);
+	if (pdata->reset_gpio >= 0) {
+		pr_info("[%s] reset gpio: %d, start reset\n", __func__, pdata->reset_gpio);
+		
+		gpio_direction_output(pdata->reset_gpio, 0);
+		usleep_range(100, 101);
+		gpio_direction_output(pdata->reset_gpio, 1);
+	}
+#endif
+
 	return pdata;
 
 err_parsing_dt:
@@ -1287,8 +1298,14 @@ err_exit:
 	if (pdata->pba_conn_det_gpio >= 0 && gpio_get_value(pdata->pba_conn_det_gpio)) {
 		pr_info("%s this is SMD/SUB assay test, W/A to skip expander probe fail\n", __func__);
 		return 0;
-	} else
+	} else {
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+		panic("expander probe fail, please check device with HW team");
+#else
+		pr_err("%s: expander probe fail\n", __func__);
+#endif
 		return ret;
+	}
 }
 
 static int pca953x_remove(struct i2c_client *client)

@@ -83,7 +83,7 @@ ssize_t ili_secure_touch_enable_store(struct device *dev,
 		}
 
 		msleep(200);
-		
+
 		/* syncronize_irq -> disable_irq + enable_irq
 		 * concern about timing issue.
 		 */
@@ -783,7 +783,7 @@ static int ilitek_vbus_notifier(struct notifier_block *nb, unsigned long cmd, vo
 	int ret = 0;
 
 	input_info(true, ilits->dev, "%s: cmd: %lu, vbus_type: %d\n", __func__, cmd, vbus_type);
-	
+
 	switch (vbus_type) {
 	case STATUS_VBUS_HIGH:
 		ilits->usb_plug_status = USB_PLUG_ATTACHED;
@@ -866,7 +866,7 @@ static int parse_dt(void)
 			ilits->lcdtype = -1;
 		} else {
 			input_info(true, ilits->dev, "%s: DT lcd type(0x%06X), lcdtype(0x%06X)\n", __func__, ilits->lcdtype, lcdtype);
-		
+
 			if (ilits->lcdtype != 0x00 && ilits->lcdtype != (lcdtype & 0x00ffff)) {
 				input_err(true, ilits->dev, "%s: panel mismatched, unload driver\n", __func__);
 				return -EINVAL;
@@ -881,7 +881,7 @@ static int parse_dt(void)
 			input_err(true, ilits->dev, "%s: Failed to get ilitek,lcdid1-gpio\n", __func__);
 			return -EINVAL;
 		}
-	
+
 		lcd_id2_gpio = of_get_named_gpio(np, "ilitek,lcdid2-gpio", 0);
 		if (gpio_is_valid(lcd_id2_gpio)) {
 			input_info(true, ilits->dev, "%s: lcd id2_gpio %d(%d)\n",
@@ -890,7 +890,7 @@ static int parse_dt(void)
 			input_err(true, ilits->dev, "%s: Failed to get ilitek,lcdid2-gpio\n", __func__);
 			return -EINVAL;
 		}
-	
+
 		/* support lcd id3 */
 		lcd_id3_gpio = of_get_named_gpio(np, "ilitek,lcdid3-gpio", 0);
 		if (gpio_is_valid(lcd_id3_gpio)) {
@@ -902,12 +902,12 @@ static int parse_dt(void)
 			input_err(true, ilits->dev, "%s: Failed to get ilitek,lcdid3-gpio and use #1 &#2 id\n", __func__);
 			fw_sel_idx = (gpio_get_value(lcd_id2_gpio) << 1) | gpio_get_value(lcd_id1_gpio);
 		}
-	
+
 		lcdtype_cnt = of_property_count_u32_elems(np, "ilitek,lcdtype");
-	
+
 		input_info(true, ilits->dev, "%s: fw_name_cnt(%d) & lcdtype_cnt(%d) & fw_sel_idx(%d)\n",
 					__func__, fw_name_cnt, lcdtype_cnt, fw_sel_idx);
-	
+
 		if (lcdtype_cnt <= 0 || fw_name_cnt <= 0 || lcdtype_cnt <= fw_sel_idx || fw_name_cnt <= fw_sel_idx) {
 			input_err(true, ilits->dev, "%s: abnormal lcdtype & fw name count, fw_sel_idx(%d)\n",
 					__func__, fw_sel_idx);
@@ -1025,11 +1025,11 @@ static int parse_dt(void)
 		ilits->spi_mode = 0;
 	}
 
-	prop = of_find_property(np, "iliteck,lcd_rst_delay", NULL);
+	prop = of_find_property(np, "ilitek,lcd_rst_delay", NULL);
 	if (prop && prop->length) {
-		retval = of_property_read_u32(np, "iliteck,lcd_rst_delay", &value);
+		retval = of_property_read_u32(np, "ilitek,lcd_rst_delay", &value);
 		if (retval < 0) {
-			input_err(true, ilits->dev, "%s Unable to read iliteck,lcd_rst_delay property\n", __func__);
+			input_err(true, ilits->dev, "%s Unable to read ilitek,lcd_rst_delay property\n", __func__);
 			ilits->lcd_rst_delay = 0;
 		} else{
 			ilits->lcd_rst_delay = value;
@@ -1038,7 +1038,20 @@ static int parse_dt(void)
 		ilits->lcd_rst_delay = 0;
 	}
 
-	input_info(true, ilits->dev, "%s: lcd_rst_delay : %d(us)\n", __func__, ilits->lcd_rst_delay);
+	prop = of_find_property(np, "ilitek,poweroff-discharging-us", NULL);
+	if (prop && prop->length) {
+		retval = of_property_read_u32(np, "ilitek,poweroff-discharging-us", &value);
+		if (retval < 0) {
+			input_err(true, ilits->dev, "%s Unable to read ilitek,poweroff-discharging-us property\n", __func__);
+			return retval;
+		}
+		ilits->poweroff_discharging_us = value;
+	} else {
+		ilits->poweroff_discharging_us = 0;
+	}
+
+	input_info(true, ilits->dev, "%s: lcd_rst_delay : %d(us), poweroff_discharing_us:%d(us)\n", __func__,
+			ilits->lcd_rst_delay, ilits->poweroff_discharging_us);
 
 	if (of_property_read_u32_array(np, "ilitek,area-size", px_zone, 3)) {
 		input_err(true, ilits->dev, "%s : Failed to get zone's size\n", __func__);
@@ -1097,15 +1110,7 @@ static int ilitek_plat_probe(void)
 		input_err(true, ilits->dev, "%s : parse_dt fail unload driver!\n", __func__);
 		return -EINVAL;
 	}
-/*
-#ifdef CONFIG_BATTERY_SAMSUNG
-	if (lpcharge) {
-		input_info(true, ilits->dev, "%s: enter sleep mode in lpcharge %d\n", __func__, lpcharge);
-		ilitek_pin_control(false);
-		return -ENODEV;
-	}
-#endif
-*/
+
 #if REGULATOR_POWER
 	ilitek_plat_regulator_power_init();
 #endif

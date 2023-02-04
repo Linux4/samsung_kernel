@@ -605,6 +605,7 @@ static void deassert_ps_hold(void)
 static void do_msm_restart(enum reboot_mode reboot_mode, const char *cmd)
 {
 	pr_notice("Going down for restart now\n");
+	qpnp_pon_wd_config(0);  // diable pm wdt
 
 	msm_restart_prepare(cmd);
 
@@ -625,6 +626,7 @@ static void do_msm_restart(enum reboot_mode reboot_mode, const char *cmd)
 static void do_msm_poweroff(void)
 {
 	pr_notice("Powering off the SoC\n");
+	qpnp_pon_wd_config(0);  // diable pm wdt
 
 	set_dload_mode(0);
 	scm_disable_sdi();

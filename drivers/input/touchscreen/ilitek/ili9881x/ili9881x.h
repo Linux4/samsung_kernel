@@ -165,11 +165,8 @@
 #define CHIP_ID_9882Q			"9882q"
 #define CHIP_TYPE_9882N			0x17
 #define CHIP_TYPE_9882Q			0x1A
-#define INI_PATH_SIZE			64
 #define DEBUG_DATA_FILE_SIZE		(10*K)
 #define DEBUG_DATA_FILE_PATH		"/sdcard/ILITEK_log.csv"
-#define CSV_LCM_ON_PATH			"/sdcard/ilitek_mp_lcm_on_log"
-#define CSV_LCM_OFF_PATH		"/sdcard/ilitek_mp_lcm_off_log"
 #define INI_PATH			"/vendor/firmware/"
 
 /* 9882n & 7806S */
@@ -219,10 +216,6 @@ do {									\
 #define NONE			-1
 #define DO_SPI_RECOVER		-2
 #define DO_I2C_RECOVER		-3
-
-#ifdef CONFIG_BATTERY_SAMSUNG
-extern unsigned int lpcharge;
-#endif
 
 enum TP_SPI_CLK_LIST {
 	TP_SPI_CLK_1M = 1000000,
@@ -428,39 +421,9 @@ enum {
 	LP_FACTORY_STATUS,
 };
 
-enum {
-	SERVICE_SHUTDOWN = -1,
-	LCD_NONE = 0,
-	LCD_OFF,
-	LCD_ON,
-	LCD_DOZE1,
-	LCD_DOZE2,
-	LPM_OFF = 20,
-	FORCE_OFF,
-	FORCE_ON,
-};
-
-enum {
-	LCD_EARLY_EVENT = 0,
-	LCD_LATE_EVENT
-};
-
-enum MP_INI_PATH {
-	RAWDATANOBK_LCMON_PATH_NUM = 0,
-	DOZERAW_PATH_NUM,
-	DAC_PATH_NUM,
-	OPENTESTC_PATH_NUM,
-	SHORTTEST_PATH_NUM,
-	NOISEPP_LCMON_PATH_NUM,
-	DOZEPP_PATH_NUM,
-	NOISEPP_LCMOFF_PATH_NUM,
-	P2P_TD_PATH_NUM,
-	RAWDATATD_PATH_NUM,
-	RAWDATANOBK_LCMOFF_PATH_NUM,
-	/* only for 9882q */
-	RAWDATAHAVEBK_LCMON_PATH_NUM,
-	RAWDATAHAVEBK_LCMOFF_PATH_NUM,
-	MP_INI_PATH_MAX
+enum ILITEK_TSP_FW_INDEX {
+	ILITEK_TSP_FW_IDX_BIN	= 0,
+	ILITEK_TSP_FW_IDX_UMS	= 1,
 };
 
 struct gesture_symbol {
@@ -497,6 +460,29 @@ struct report_info_block {
 	u8 nReserved02		:8;
 	u8 nReserved03		:8;
 } __packed;
+
+enum MPINI_TEST_ITEM_NUM {
+	MP_ITEM_NOISE_PEAK_TO_PEAK_WITH_PANEL = 0,
+	MP_ITEM_DOZE_PEAK_TO_PEAK,
+	MP_ITEM_SHORT_TEST,
+	MP_ITEM_OPEN_TEST_C,
+	MP_ITEM_RAW_DATA_NOBK,
+	MP_ITEM_CALIBRATION_DATA_DAC,
+	MP_ITEM_DOZE_RAW_DATA,
+	MP_ITEM_NOISE_PEAK_TO_PEAK_WITH_PANEL_LCM_OFF,
+	MP_ITEM_PEAK_TO_PEAK_TD_LCM_OFF,
+	MP_ITEM_RAW_DATA_NOBK_LCM_OFF,
+	MP_ITEM_RAW_DATA_TD_LCM_OFF,
+	MP_ITEM_RAW_DATA_HAVE_BK,
+	MP_ITEM_RAW_DATA_HAVE_BK_LCM_OFF,
+	MP_MAX
+};
+
+enum OUTPUT_DATA_MODE {
+	OUTPUT_DATA = 0,
+	OUTPUT_CSV_NAME,
+	OUTPUT_IRAM_DUMP,
+};
 
 #define TDDI_I2C_ADDR				0x41
 #define TDDI_DEV_ID				"ilit_ts"
@@ -787,6 +773,7 @@ struct report_info_block {
 #define DATA_FORMAT_DEBUG_LITE_AREA_CMD			0x03
 #define P5_X_DEMO_MODE_PACKET_INFO_LEN			3
 #define P5_X_DEMO_MODE_PACKET_LEN			43
+#define P5_X_SEC_DEMO_MODE_PACKET_LEN		112
 #define P5_X_DEMO_MODE_AXIS_LEN				50
 #define P5_X_DEMO_MODE_STATE_INFO			16
 #define P5_X_INFO_HEADER_LENGTH				3
@@ -978,7 +965,10 @@ struct ilitek_ts_data {
 	u8 *spi_tx;
 	u8 *spi_rx;
 	unsigned int spi_mode;
-	struct firmware tp_fw;
+	struct firmware tp_cur_fw;
+	struct firmware tp_bin_fw;
+	struct firmware tp_ums_fw;
+	char *md_fw_rq_path;
 
 	int actual_tp_mode;
 	int tp_data_mode;
@@ -994,6 +984,7 @@ struct ilitek_ts_data {
 	int cs_gpio;
 	int wait_int_timeout;
 	int lcd_rst_delay;
+	int poweroff_discharging_us;
 
 	u32 lcd_id;
 	int lcd_id1_gpio;
@@ -1010,7 +1001,6 @@ struct ilitek_ts_data {
 
 	int fw_retry;
 	int fw_update_stat;
-	int fw_open;
 	u8  fw_info[75];
 	u8  fw_mp_ver[4];
 	u8  fw_customer_info[6];
@@ -1047,6 +1037,9 @@ struct ilitek_ts_data {
 	int rst_edge_delay;
 	int fw_upgrade_mode;
 	int mp_ret_len;
+	int mp_test_item;
+	int output_data_mode;
+	int output_data_len;
 	u8 proxmity_face;
 	bool wtd_ctrl;
 	bool force_fw_update;
@@ -1060,7 +1053,6 @@ struct ilitek_ts_data {
 	bool gesture_load_code;
 	bool trans_xy;
 	bool ss_ctrl;
-	bool node_update;
 	bool int_pulse;
 	bool pll_clk_wakeup;
 	int power_status;
@@ -1071,14 +1063,8 @@ struct ilitek_ts_data {
 	int screen_off_sate;
 
 	/* module info */
-	int tp_module;
-	int md_fw_ili_size;
-	char *md_name;
-	char *md_fw_filp_path;
-	char *md_fw_rq_path;
-	char *md_ini_path;
-	char *md_ini_rq_path;
-	u8 *md_fw_ili;
+	char *mp_csv_name;
+	char *output_data;
 
 	atomic_t irq_stat;
 	atomic_t irq_wake_stat;
@@ -1111,6 +1097,7 @@ struct ilitek_ts_data {
 	bool dead_zone_enabled;
 	bool sip_mode_enabled;
 	bool game_mode_enabled;
+	bool high_sensitivity_mode_enabled;
 	int clear_cover_mode_enabled;
 	int clear_cover_type;
 	bool prox_lp_scan_mode_enabled;
@@ -1123,6 +1110,7 @@ struct ilitek_ts_data {
 	char *print_buf;
 	short *pFrame;
 	const char *fw_name;
+	int fw_index;
 	bool allnode;
 	char *current_mpitem;
 	u32 node_min;
@@ -1134,8 +1122,6 @@ struct ilitek_ts_data {
 	bool started_prox_intensity;
 	bool incell_power_state;
 	bool signing;
-	char mp_ini_path[MP_INI_PATH_MAX][INI_PATH_SIZE];
-
 	unsigned int scrub_id;
 
 	/* platform data*/
@@ -1262,7 +1248,7 @@ extern u32 ili_fw_read_hw_crc(u32 start, u32 end, u32 *flash_crc);
 extern int ili_fw_read_flash(u32 start, u32 end, u8 *data, int len);
 extern int ili_fw_dump_iram_data(u32 start, u32 end, bool save);
 extern int ili_fw_dump_flash_data(u32 start, u32 end, bool user);
-extern int ili_fw_upgrade(int op);
+extern int ili_fw_upgrade(void);
 
 /* Prototypes for tddi mp test */
 extern int ili_mp_test_main(char *apk, bool lcm_on);
@@ -1310,7 +1296,6 @@ extern int ili_ic_get_core_ver(void);
 extern int ili_ic_get_protocl_ver(void);
 extern int ili_ic_get_fw_ver(void);
 extern int ili_ic_get_info(void);
-extern void ili_get_ini_path(void);
 extern int ili_ic_dummy_check(void);
 extern int ili_ice_mode_bit_mask_write(u32 addr, u32 mask, u32 value);
 extern int ili_ice_mode_write(u32 addr, u32 data, int len);

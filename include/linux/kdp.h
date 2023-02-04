@@ -9,6 +9,7 @@
 #include <linux/binfmts.h>
 #include <linux/uh.h>
 
+#define __kdp_ro_aligned __attribute__((__section__(".kdp_ro"), aligned((sizeof(void *)))))
 #define __kdp_ro __section(.kdp_ro)
 #define __lsm_ro_after_init_kdp __section(.kdp_ro)
 
@@ -173,12 +174,6 @@ extern void kdp_free_security(unsigned long tsec);
 
 extern bool is_kdp_protect_addr(unsigned long addr);
 #endif /* CONFIG_KDP_CRED */
-
-/************** KDP_SELINUX **************/
-#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
-extern int selinux_enforcing __kdp_ro;
-extern int ss_initialized __kdp_ro;
-#endif
 
 #ifdef CONFIG_KDP_NS
 /***************** KDP_NS *****************/

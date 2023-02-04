@@ -1441,7 +1441,7 @@ static struct msm_vidc_common_data bengal_common_data_v0[] = {
 	},
 	{
 		.key = "qcom,max-hw-load",
-		.value = 489600, /* ((1088x1920)/256)@60fps */
+		.value = 612000, /* ((1088x1920)/256)@75fps */
 	},
 	{
 		.key = "qcom,max-image-load",

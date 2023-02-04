@@ -39,6 +39,33 @@ struct mmc_gpio {
 	char cd_label[];
 };
 
+#ifdef CONFIG_SEC_A23_PROJECT
+#include <linux/regmap.h>
+#include <linux/delay.h>
+
+extern struct regmap *g_wcd937x_regmap;
+static void wcd937x_wa_work_func(struct work_struct *work);
+static DECLARE_DELAYED_WORK(wcd937x_wa_work, wcd937x_wa_work_func);
+static void wcd937x_wa_work_func(struct work_struct *work)
+{
+	int val = 0, start_reg = 0x3001, end_reg = 0x34CF, i;
+
+	pr_debug("+++ %s +++\n", __func__);
+
+	//read from 0x3001 to 0x34CF
+	for (i = start_reg ; i <= end_reg; i++)
+		regmap_read(g_wcd937x_regmap, i, &val);
+
+	//toggle 0x3471
+	regmap_write(g_wcd937x_regmap, 0x3471, 0x10);
+	regmap_read(g_wcd937x_regmap, 0x3471, &val);
+	if (val == 0x10) {
+		regmap_write(g_wcd937x_regmap, 0x3471, 0x00);
+		regmap_read(g_wcd937x_regmap, 0x3471, &val);
+	}
+}
+#endif /* CONFIG_SEC_A23_PROJECT */
+
 static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 {
 	/* Schedule a card detection after a debounce timeout */
@@ -78,6 +105,11 @@ static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 		mmc_detect_change(host, msecs_to_jiffies(ctx->cd_debounce_delay_ms));
 #endif
 	}
+
+#ifdef CONFIG_SEC_A23_PROJECT
+	if (g_wcd937x_regmap)
+		schedule_delayed_work(&wcd937x_wa_work, msecs_to_jiffies(500));
+#endif /* CONFIG_SEC_A23_PROJECT */
 
 	return IRQ_HANDLED;
 }

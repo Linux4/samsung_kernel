@@ -337,6 +337,7 @@ struct dsi_phy_hw_ops {
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	void (*store_str)(struct dsi_phy_hw *phy, u32 *val);
+	u32 (*show_str)(struct dsi_phy_hw *phy);
 	void (*store_emphasis)(struct dsi_phy_hw *phy, u32 *val);
 #endif
 };

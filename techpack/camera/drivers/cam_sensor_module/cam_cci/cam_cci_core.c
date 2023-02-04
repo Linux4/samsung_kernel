@@ -810,9 +810,26 @@ static int32_t cam_cci_data_queue(struct cci_device *cci_dev,
 						return -EINVAL;
 					}
 
-					if (c_ctrl->cmd ==
-						MSM_CCI_I2C_WRITE_SEQ)
-						reg_addr++;
+					if (c_ctrl->cmd == MSM_CCI_I2C_WRITE_SEQ) {
+						switch (i2c_msg->data_type) {
+							case CAMERA_SENSOR_I2C_TYPE_DWORD:
+								reg_addr++;
+							/* fallthrough */
+							case CAMERA_SENSOR_I2C_TYPE_3B:
+								reg_addr++;
+							/* fallthrough */
+							case CAMERA_SENSOR_I2C_TYPE_WORD:
+								reg_addr++;
+							/* fallthrough */
+							case CAMERA_SENSOR_I2C_TYPE_BYTE:
+								reg_addr++;
+								break;
+							default:
+								CAM_ERR(CAM_CCI,
+									"CCI%d_I2C_M%d_Q%d invalid data type: %d",
+									cci_dev->soc_info.index, master, queue, i2c_msg->data_type);
+						}
+					}
 				} else
 					break;
 			}

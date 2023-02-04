@@ -101,7 +101,10 @@ struct sec_nfc_info {
 
 #ifdef CONFIG_ESE_COLDRESET
 struct mutex coldreset_mutex;
+struct mutex sleep_wake_mutex;
+bool sleep_wakeup_state[2];
 u8 disable_combo_reset_cmd[4] = { 0x2F, 0x30, 0x01, 0x00};
+enum sec_nfc_mode cur_mode;
 #endif
 
 static struct sec_nfc_info *g_nfc_info;
@@ -627,7 +630,14 @@ static void sec_nfc_set_mode(struct sec_nfc_info *info,
 	 * It is released after first write
 	 */
 	mutex_lock(&info->i2c_info.read_mutex);
+	info->i2c_info.read_irq = SEC_NFC_SKIP;
+	mutex_unlock(&info->i2c_info.read_mutex);
 #ifdef CONFIG_ESE_COLDRESET
+	mutex_lock(&sleep_wake_mutex);
+	cur_mode = SEC_NFC_MODE_TURNING_ON_OFF;
+	mutex_unlock(&sleep_wake_mutex);
+	memset(sleep_wakeup_state, false, sizeof(sleep_wakeup_state));
+
 	if (oldmode == SEC_NFC_MODE_OFF) {
 		if (gpio_get_value_cansleep(pdata->firm) == 1) {
 			alreadFirmHigh = 1;
@@ -652,8 +662,6 @@ static void sec_nfc_set_mode(struct sec_nfc_info *info,
 		}
 	}
 #endif
-	info->i2c_info.read_irq = SEC_NFC_SKIP;
-	mutex_unlock(&info->i2c_info.read_mutex);
 
 #ifdef CONFIG_ESE_COLDRESET
 	usleep_range(1000, 1100);
@@ -684,6 +692,11 @@ pin_setting_retry:
 			disable_irq_wake(info->i2c_info.i2c_dev->irq);
 			goto pin_setting_retry;
 		}
+#ifdef CONFIG_SEC_ESE_COLDRESET
+		mutex_lock(&sleep_wake_mutex);
+		cur_mode = mode;
+		mutex_unlock(&sleep_wake_mutex);
+#endif
 	} else {
 #ifdef CONFIG_ESE_COLDRESET
 		int PW_OFF_DURATION = 20;
@@ -698,6 +711,9 @@ pin_setting_retry:
 		NFC_LOG_INFO("DeepStby: PW_OFF duration (%d)ms, real PW_OFF duration is (%ld-%ld)ms\n",
 									PW_OFF_DURATION, t0, t1);
 		NFC_LOG_INFO("DeepStby: enter DeepStby(PW_ON)\n");
+		mutex_lock(&sleep_wake_mutex);
+		cur_mode = mode;
+		mutex_unlock(&sleep_wake_mutex);
 #endif
 		sec_nfc_clk_ctl_disable(info);
 		nfc_state_print(info);
@@ -721,6 +737,21 @@ struct cold_reset_gpio cold_reset_gpio_data;
 void init_coldreset_mutex(void)
 {
 	mutex_init(&coldreset_mutex);
+}
+
+void init_sleep_wake_mutex(void)
+{
+	mutex_init(&sleep_wake_mutex);
+}
+
+void check_and_sleep_nfc(unsigned int gpio, int value)
+{
+	if (sleep_wakeup_state[IDX_SLEEP_WAKEUP_NFC] == true ||
+			sleep_wakeup_state[IDX_SLEEP_WAKEUP_ESE] == true) {
+		NFC_LOG_INFO("%s keep wake up state\n", __func__);
+		return;
+	}
+	gpio_set_value_cansleep(gpio, value);
 }
 
 int trig_cold_reset_id(int id)
@@ -747,7 +778,7 @@ int trig_cold_reset_id(int id)
 
 	t1 = ktime_get();
 	gpio_set_value(cold_reset_gpio_data.coldreset_gpio, SEC_NFC_COLDRESET_ON);
-	usleep_range(duration, duration);
+	usleep_range(duration * 1000, duration * 1000 + 10);
 	gpio_set_value(cold_reset_gpio_data.coldreset_gpio, SEC_NFC_COLDRESET_OFF);
 	t2 = ktime_get();
 
@@ -770,6 +801,39 @@ extern int trig_cold_reset(void)
 {	/*only called GTO*/
 	return trig_cold_reset_id(ESE_ID);
 }
+
+extern int trig_nfc_wakeup(void)
+{
+	NFC_LOG_INFO("%s\n", __func__);
+
+	mutex_lock(&sleep_wake_mutex);
+	if (cur_mode != SEC_NFC_MODE_FIRMWARE) {
+		NFC_LOG_ERR("nfc mode not support to wake up\n");
+		mutex_unlock(&sleep_wake_mutex);
+		return -EPERM;
+	}
+	gpio_set_value_cansleep(cold_reset_gpio_data.firm_gpio, SEC_NFC_WAKE_UP);
+	sleep_wakeup_state[IDX_SLEEP_WAKEUP_ESE] = true;
+	mutex_unlock(&sleep_wake_mutex);
+	return 0;
+}
+
+extern int trig_nfc_sleep(void)
+{
+	NFC_LOG_INFO("%s\n", __func__);
+
+	mutex_lock(&sleep_wake_mutex);
+	if (cur_mode != SEC_NFC_MODE_FIRMWARE) {
+		NFC_LOG_ERR("nfc mode not support to sleep\n");
+		mutex_unlock(&sleep_wake_mutex);
+		return -EPERM;
+	}
+	sleep_wakeup_state[IDX_SLEEP_WAKEUP_ESE] = false;
+	check_and_sleep_nfc(cold_reset_gpio_data.firm_gpio, SEC_NFC_WAKE_SLEEP);
+	mutex_unlock(&sleep_wake_mutex);
+	return 0;
+}
+
 #endif
 
 static long sec_nfc_ioctl(struct file *file, unsigned int cmd,
@@ -810,13 +874,25 @@ static long sec_nfc_ioctl(struct file *file, unsigned int cmd,
 		if (info->mode != SEC_NFC_MODE_BOOTLOADER) {
 			if (wake_lock_active(&info->nfc_wake_lock))
 				wake_unlock(&info->nfc_wake_lock);
+#ifdef CONFIG_SEC_ESE_COLDRESET
+			mutex_lock(&sleep_wake_mutex);
+			sleep_wakeup_state[IDX_SLEEP_WAKEUP_NFC] = false;
+			check_and_sleep_nfc(pdata->wake, SEC_NFC_WAKE_SLEEP);
+			mutex_unlock(&sleep_wake_mutex);
+#else
 			gpio_set_value_cansleep(pdata->wake, SEC_NFC_WAKE_SLEEP);
+#endif
 		}
 		break;
 
 	case SEC_NFC_WAKEUP:
 		if (info->mode != SEC_NFC_MODE_BOOTLOADER) {
 			gpio_set_value_cansleep(pdata->wake, SEC_NFC_WAKE_UP);
+#ifdef CONFIG_SEC_ESE_COLDRESET
+			mutex_lock(&sleep_wake_mutex);
+			sleep_wakeup_state[IDX_SLEEP_WAKEUP_NFC] = true;
+			mutex_unlock(&sleep_wake_mutex);
+#endif
 			if (!wake_lock_active(&info->nfc_wake_lock))
 				wake_lock(&info->nfc_wake_lock);
 		}
@@ -1337,6 +1413,8 @@ static int __sec_nfc_probe(struct device *dev)
 	}
 #ifdef CONFIG_ESE_COLDRESET
 	init_coldreset_mutex();
+	init_sleep_wake_mutex();
+	memset(sleep_wakeup_state, false, sizeof(sleep_wakeup_state));
 	ret = gpio_request(pdata->coldreset, "nfc_coldreset");
 	if (ret) {
 		dev_err(dev, "failed to get gpio coldreset(NFC-GPIO3)\n");

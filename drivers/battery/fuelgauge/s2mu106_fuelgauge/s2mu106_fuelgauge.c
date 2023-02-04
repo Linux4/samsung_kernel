@@ -161,10 +161,10 @@ static void s2mu106_fg_test_read(struct i2c_client *client)
 {
 	static int reg_list[] = {
 		0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0E, 0x0F,
-		0x10, 0x11, 0x14, 0x1A, 0x1B, 0x1E, 0x1F, 0x24, 0x25, 0x26,
-		0x27, 0x28, 0x29, 0x40, 0x41, 0x43, 0x44, 0x45, 0x48, 0x4A,
-		0x4B, 0x50, 0x51, 0x52, 0x53, 0x58, 0x59, 0x5A, 0x5B, 0x5C,
-		0x67
+		0x10, 0x11, 0x13, 0x14, 0x1A, 0x1B, 0x1E, 0x1F, 0x24, 0x25,
+		0x26, 0x27, 0x28, 0x29, 0x40, 0x41, 0x43, 0x44, 0x45, 0x48,
+		0x4A, 0x4B, 0x50, 0x51, 0x52, 0x53, 0x58, 0x59, 0x5A, 0x5B,
+		0x5C, 0x67, 0xEA, 0xEB, 0xEC, 0xED
 	};
 	u8 data = 0;
 	char str[1016] = {0,};
@@ -398,6 +398,15 @@ static void s2mu106_init_regs(struct s2mu106_fuelgauge_data *fuelgauge)
 	s2mu106_fg_read_reg_byte(fuelgauge->i2c, 0x52, &temp);
 	fuelgauge->reg_OTP_52 = temp;
 
+	/* check 0x52, 0x53 (Vslope, Voffset) range */
+	/* 0x53[3:0] : 0, 1, 2, D, E, F		0x53[7:4] : 0, 1, 2 */
+
+	if ((((fuelgauge->reg_OTP_53 & 0xF0) >> 4) >= 0x3) ||
+		(((fuelgauge->reg_OTP_53 & 0x0F) >= 3) && ((fuelgauge->reg_OTP_53 & 0x0F) < 0x0D))) {
+		pr_info("%s: Abnormal Register detected!\n", __func__);
+		fuelgauge->reg_OTP_53 = 0x10;	/* for FG reset */
+	}
+
 	/* Disable VM3_flag_EN */
 	s2mu106_fg_read_reg_byte(fuelgauge->i2c, S2MU106_REG_VM, &temp);
 	temp = temp & 0xFB;
@@ -573,6 +582,7 @@ static void s2mu106_temperature_compensation(struct s2mu106_fuelgauge_data *fuel
 							__func__, ui_soc, data[1], data[0]);
 
 					fuelgauge->ui_soc = ui_soc;
+					fuelgauge->scaled_soc = ui_soc * 10;
 					fuelgauge->capacity_old = ui_soc;
 					if (fuelgauge->temperature < fuelgauge->low_temp_limit)
 						fuelgauge->initial_update_of_soc = false;
@@ -619,6 +629,7 @@ static void s2mu106_temperature_compensation(struct s2mu106_fuelgauge_data *fuel
 				((fuelgauge->temperature < fuelgauge->low_temp_limit) && (data[1] != 0))) {
 				fuelgauge->soc_r = soc_map;
 				fuelgauge->ui_soc = fuelgauge->soc_r / 100;
+				fuelgauge->scaled_soc = fuelgauge->soc_r / 10;
 				pr_info("%s: When Initial Mapping, UI SOC = %d, soc_r = soc_map = %d\n",
 					__func__, fuelgauge->ui_soc, fuelgauge->soc_r);
 				fuelgauge->capacity_old = fuelgauge->ui_soc;
@@ -1101,8 +1112,8 @@ static int s2mu106_get_rawsoc(struct s2mu106_fuelgauge_data *fuelgauge, union po
 	s2mu106_fg_read_reg_byte(fuelgauge->i2c, 0x4A, &fg_mode_reg);
 
 	dev_info(&fuelgauge->i2c->dev,
-		"%s: UI SOC=%d, is_charging=%d, avg_vbat=%d, float_voltage=%d, avg_current=%d, 0x4A=0x%02x\n",
-		__func__, fuelgauge->ui_soc, fuelgauge->is_charging, avg_vbat,
+		"%s: UI SOC=%d, scaled_soc=%d, is_charging=%d, avg_vbat=%d, float_voltage=%d, avg_current=%d, 0x4A=0x%02x\n",
+		__func__, fuelgauge->ui_soc, fuelgauge->scaled_soc, fuelgauge->is_charging, avg_vbat,
 		float_voltage, avg_current, fg_mode_reg);
 
 	if (is_swelling_status) {
@@ -1117,7 +1128,7 @@ static int s2mu106_get_rawsoc(struct s2mu106_fuelgauge_data *fuelgauge, union po
 			dev_info(&fuelgauge->i2c->dev, "%s: FG is in current mode\n", __func__);
 		}
 	} else {
-		if (((fuelgauge->is_charging == true) && (fuelgauge->ui_soc >= 98) && (avg_current > 50)) ||
+		if (((fuelgauge->is_charging == true) && (fuelgauge->scaled_soc >= 977) && (avg_current > 50)) ||
 				((fuelgauge->is_charging == true) && (avg_vbat > float_voltage) &&
 				 (avg_current < s2mu106_fg_check_current_level(fuelgauge) && (avg_current > 50)))) {
 			if (fuelgauge->mode == CURRENT_MODE) { /* switch to VOLTAGE_MODE */
@@ -1601,6 +1612,8 @@ static void s2mu106_fg_get_scaled_capacity(
 		0 : ((val->intval - fuelgauge->pdata->capacity_min) * 1000 /
 		(fuelgauge->capacity_max - fuelgauge->pdata->capacity_min));
 
+	fuelgauge->scaled_soc = val->intval;
+
 	dev_info(&fuelgauge->i2c->dev,
 			"%s: capacity_max(%d) scaled capacity(%d.%d), raw_soc(%d.%d)\n",
 			__func__, fuelgauge->capacity_max,
@@ -1721,6 +1734,22 @@ static void s2mu106_reset_bat_id(struct s2mu106_fuelgauge_data *fuelgauge)
 
 	fuelgauge->battery_id =
 			s2mu106_get_bat_id(bat_id, fuelgauge->pdata->bat_gpio_cnt);
+}
+
+static void s2mu106_fg_bd_log(struct s2mu106_fuelgauge_data *fuelgauge)
+{
+	union power_supply_propval raw_soc_val;
+
+	memset(fuelgauge->d_buf, 0x0, sizeof(fuelgauge->d_buf));
+
+	if (s2mu106_get_rawsoc(fuelgauge, &raw_soc_val) < 0)
+		pr_err("%s: failed to read raw soc\n", __func__);
+
+	snprintf(fuelgauge->d_buf + strlen(fuelgauge->d_buf), sizeof(fuelgauge->d_buf),
+		"%d,%d,%d",
+		s2mu106_get_ocv(fuelgauge),
+		raw_soc_val.intval,
+		fuelgauge->capacity_max);
 }
 
 static int s2mu106_fg_get_property(struct power_supply *psy,
@@ -1909,7 +1938,10 @@ static int s2mu106_fg_get_property(struct power_supply *psy,
 			}
 			break;
 		case POWER_SUPPLY_EXT_PROP_BATT_DUMP:
-			val->strval = "FG LOG";
+			s2mu106_fg_bd_log(fuelgauge);
+			val->strval = fuelgauge->d_buf;
+			break;
+		case POWER_SUPPLY_EXT_PROP_MONITOR_WORK:
 			break;
 		default:
 			return -EINVAL;
@@ -2238,6 +2270,7 @@ static int s2mu106_fuelgauge_parse_dt(struct s2mu106_fuelgauge_data *fuelgauge)
 				pdata->bat_id_gpio[i] = of_get_named_gpio(np, "fuelgauge,bat_id_gpio", i);
 				if (pdata->bat_id_gpio[i] >= 0) {
 					bat_id[i] = gpio_get_value(pdata->bat_id_gpio[i]);
+					pr_info("%s: bat_id[%d] = %d\n", __func__, i, bat_id[i]);
 				} else {
 					pr_err("%s: error reading bat_id_gpio = %d\n",
 						__func__, pdata->bat_id_gpio[i]);
@@ -2272,6 +2305,8 @@ static int s2mu106_fuelgauge_parse_dt(struct s2mu106_fuelgauge_data *fuelgauge)
 			ret = of_property_read_string(np,
 					"battery,fuelgauge_name",
 					(char const **)&fuelgauge->pdata->fuelgauge_name);
+			if (ret < 0)
+				pr_err("%s fail to get fuelgauge_name %d\n", __func__, ret);
 		}
 
 		/* get battery node */
@@ -2314,22 +2349,15 @@ static int s2mu106_fuelgauge_parse_dt(struct s2mu106_fuelgauge_data *fuelgauge)
 				pr_err("%s error reading battery,ocv_arr_val\n", __func__);
 
 #else
-			if (fuelgauge->battery_id >= 0) {
-				battery_id = fuelgauge->battery_id;
-
-				snprintf(prop_name, PROPERTY_NAME_SIZE, "battery%d,%s", battery_id, "battery_data");
-				if (!of_find_property(np, prop_name, NULL)) {
-					pr_err("%s: no battery_id(%d) data\n", __func__, battery_id);
-					/* get battery_id */
-					battery_id = 0;
-					if (of_property_read_u32(np, "battery,id", &battery_id) < 0)
-						pr_err("%s: not battery,id property\n", __func__);
-					pr_err("%s: use battery default id = %d\n", __func__, battery_id);
-				}
-			} else {
+			battery_id = fuelgauge->battery_id;
+			snprintf(prop_name, PROPERTY_NAME_SIZE, "battery%d,%s", battery_id, "battery_data");
+			if (!of_find_property(np, prop_name, NULL)) {
+				pr_err("%s: no battery_id(%d) data\n", __func__, battery_id);
+				/* get battery_id */
 				battery_id = 0;
 				if (of_property_read_u32(np, "battery,id", &battery_id) < 0)
 					pr_err("%s: not battery,id property\n", __func__);
+				pr_err("%s: use battery default id = %d\n", __func__, battery_id);
 			}
 
 			snprintf(prop_name, PROPERTY_NAME_SIZE, "battery%d,%s", battery_id, "battery_data");

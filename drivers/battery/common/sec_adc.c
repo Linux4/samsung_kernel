@@ -10,6 +10,7 @@
  * published by the Free Software Foundation.
  */
 
+#include <linux/version.h>
 #include "sec_adc.h"
 
 #define DEBUG
@@ -27,7 +28,7 @@ static DEFINE_MUTEX(adclock);
 
 static struct adc_list batt_adc_list[SEC_BAT_ADC_CHANNEL_NUM] = {
 	{.name = "adc-cable"},
-	{.name = "adc-bat"},
+	{.name = "adc-bat-id"},
 	{.name = "adc-temp"},
 	{.name = "adc-temp-amb"},
 	{.name = "adc-full"},
@@ -72,8 +73,13 @@ int adc_read_type(struct device *dev, int channel)
 
 	if (batt_adc_list[channel].is_used) {
 		do {
+#if defined(CONFIG_ARCH_MTK_PROJECT) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+			ret = (batt_adc_list[channel].is_used) ?
+				iio_read_channel_raw(batt_adc_list[channel].channel, &adc) : 0;
+#else
 			ret = (batt_adc_list[channel].is_used) ?
 				iio_read_channel_processed(batt_adc_list[channel].channel, &adc) : 0;
+#endif
 			retry_cnt--;
 		} while ((retry_cnt > 0) && (adc < 0));
 	}
@@ -276,7 +282,7 @@ bool sec_bat_check_vf_adc(struct sec_battery_info *battery)
 	int adc = 0;
 
 	adc = sec_bat_get_adc_data(battery->dev,
-		SEC_BAT_ADC_CHANNEL_BAT_CHECK,
+		SEC_BAT_ADC_CHANNEL_BATID_CHECK,
 		battery->pdata->adc_check_count);
 
 	if (adc < 0) {
@@ -289,7 +295,8 @@ bool sec_bat_check_vf_adc(struct sec_battery_info *battery)
 		(battery->check_adc_value >= battery->pdata->check_adc_min)) {
 		return true;
 	} else {
-		dev_info(battery->dev, "%s: adc (%d)\n", __func__, battery->check_adc_value);
+		dev_info(battery->dev, "%s: VF_ADC(%d) is out of range(min:%d, max:%d)\n",
+			__func__, battery->check_adc_value, battery->pdata->check_adc_min, battery->pdata->check_adc_max);
 		return false;
 	}
 }

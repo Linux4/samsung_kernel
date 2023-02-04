@@ -1410,7 +1410,7 @@ void sdhci_msm_exit_dbg_mode(struct sdhci_host *host)
 int sdhci_msm_execute_tuning(struct sdhci_host *host, u32 opcode)
 {
 	unsigned long flags;
-	int tuning_seq_cnt = 10;
+	int tuning_seq_cnt = 3;
 	u8 phase, *data_buf, tuned_phases[NUM_TUNING_PHASES], tuned_phase_cnt;
 	const u32 *tuning_block_pattern = tuning_block_64;
 	int size = sizeof(tuning_block_64); /* Tuning pattern size in bytes */
@@ -1535,7 +1535,7 @@ retry:
 			sts_cmd.opcode = MMC_SEND_STATUS;
 			sts_cmd.arg = card->rca << 16;
 			sts_cmd.flags = MMC_RSP_R1 | MMC_CMD_AC;
-			sts_retry = 5;
+			sts_retry = 3;
 			while (sts_retry) {
 				mmc_wait_for_cmd(mmc, &sts_cmd, 0);
 
@@ -6095,7 +6095,6 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	host->quirks2 |= SDHCI_QUIRK2_ALWAYS_USE_BASE_CLOCK;
 	host->quirks2 |= SDHCI_QUIRK2_IGNORE_DATATOUT_FOR_R1BCMD;
 	host->quirks2 |= SDHCI_QUIRK2_BROKEN_PRESET_VALUE;
-	host->quirks2 |= SDHCI_QUIRK2_USE_RESERVED_MAX_TIMEOUT;
 	host->quirks2 |= SDHCI_QUIRK2_NON_STANDARD_TUNING;
 	host->quirks2 |= SDHCI_QUIRK2_USE_PIO_FOR_EMMC_TUNING;
 

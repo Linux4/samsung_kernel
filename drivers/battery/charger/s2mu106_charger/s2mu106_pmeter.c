@@ -564,8 +564,10 @@ static int s2mu106_pm_set_property(struct power_supply *psy,
 static void s2mu106_pm_psy_set_property(struct power_supply *psy,
 		int prop, union power_supply_propval *value)
 {
-	if (!psy)
+	if (!psy) {
 		pr_err("%s invalid psy, prop(%d)\n", __func__, prop);
+		return;
+	}
 
 	power_supply_set_property(psy, (enum power_supply_property)prop, value);
 }
@@ -573,8 +575,10 @@ static void s2mu106_pm_psy_set_property(struct power_supply *psy,
 static void s2mu106_pm_psy_get_property(struct power_supply *psy,
 		int prop, union power_supply_propval *value)
 {
-	if (!psy)
+	if (!psy) {
 		pr_err("%s invalid psy, prop(%d)\n", __func__, prop);
+		return;
+	}
 
 	power_supply_get_property(psy, (enum power_supply_property)prop, value);
 }
@@ -721,6 +725,11 @@ static int s2mu106_pm_gpadc_check_water_extern(struct s2mu106_pmeter_data *pmete
 
 	mutex_lock(&pmeter->water_mutex);
 	pr_info("%s water_status(%s)\n", __func__, pm_water_status_str[pmeter->water_status]);
+
+	if (!pmeter->pdic_psy) {
+		pr_err("%s, pdic_psy is null\n", __func__);
+		pmeter->pdic_psy = power_supply_get_by_name("usbpd-manager");
+	}
 
 	if (pmeter->water_status == PM_WATER_IDLE) {
 		ret = true;
@@ -1121,14 +1130,16 @@ static void s2mu106_pm_late_init_work(struct work_struct *work)
 
 	pr_info("%s dev_drv_version(%#x)\n", __func__, DEV_DRV_VERSION);
 
-	pmeter->pdic_psy = power_supply_get_by_name("s2mu106-usbpd");
+	pmeter->pdic_psy = power_supply_get_by_name("usbpd-manager");
 	if (!pmeter->muic_psy)
 		pmeter->muic_psy = power_supply_get_by_name("muic-manager");
 
 #if defined(CONFIG_SEC_FACTORY)
 	s2mu106_pm_mask_irq(pmeter, true, PM_TYPE_VGPADC);
 #else
+	mutex_lock(&pmeter->water_mutex);
 	s2mu106_pm_set_gpadc_mode(pmeter, PM_RMODE);
+	mutex_unlock(&pmeter->water_mutex);
 
 	pmeter->irq_gpadc = pmeter->s2mu106->pdata->irq_base + S2MU106_PM_IRQ1_VGPADCUP;
 	ret = request_threaded_irq(pmeter->irq_gpadc, NULL,

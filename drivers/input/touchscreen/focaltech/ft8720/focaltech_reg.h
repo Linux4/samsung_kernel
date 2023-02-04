@@ -50,7 +50,7 @@
 #define FTS_REG_COVER_MODE_EN			0xC1
 
 #define FTS_REG_SPAY_EN			0xC4
-#define FTS_REG_DOUBLETAP_TO_WAKEUP_EN	0xD0
+#define FTS_REG_DOUBLETAP_TO_WAKEUP_EN	0xD1
 
 #define GESTURE_DOUBLECLICK_EN                  0x02
 #define GESTURE_SPAY_EN                         0x04
@@ -59,9 +59,11 @@
 #define FTS_REG_GESTURE_OUTPUT_ADDRESS		0xD3	//need to check
 
 #define FTS_REG_ESDCHECK_DISABLE		0x8D
+#define FTS_REG_POWER_MODE_SCAN_ON		0x00
 #define FTS_REG_POWER_MODE_SLEEP		0x03
 #define FTS_REG_POWER_MODE_SCAN_OFF		0x04
 #define FTS_REG_FACE_DEC_MODE_STATUS		0x01
+#define FTS_PROX_AOT_IDLE_SCAN		0x9A
 
 #define FTS_REG_MODULE_ID			0xE3
 #define FTS_REG_LIC_VER 			0xE4
@@ -96,6 +98,7 @@
 #define FTS_REG_SNR_FRAME_COUNT_L		0x72
 #define FTS_REG_SNR_TEST_RESULT1		0x74
 #define FTS_REG_SNR_TEST_RESULT2		0x75
+#define FTS_PROX_TOUCH_SENS             0x98
 
 #define FTS_REG_GRIP_MODE			0x8C
 /* bank 1 */

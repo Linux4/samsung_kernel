@@ -231,6 +231,7 @@ config STATIC_USERMODEHELPER_PATH
 	  specify an empty string here (i.e. "").
 
 source security/selinux/Kconfig
+source security/samsung/defex_lsm/Kconfig
 source security/smack/Kconfig
 source security/tomoyo/Kconfig
 source security/apparmor/Kconfig

@@ -42,6 +42,9 @@ void sec_chg_check_modprobe(void)
 #endif
 #if IS_ENABLED(CONFIG_WIRELESS_CHARGING)
 	check_dev |= SC_DEV_WRL_CHG;
+#if IS_ENABLED(CONFIG_SB_MFC)
+	check_dev |= SC_DEV_SB_MFC;
+#endif
 #endif
 
 	if (!wait_event_timeout(gdev_init.dev_wait,
@@ -51,8 +54,19 @@ void sec_chg_check_modprobe(void)
 		pr_info("%s: takes time to wait(0x%x)\n", __func__, gdev_init.dev);
 }
 EXPORT_SYMBOL(sec_chg_check_modprobe);
+
+void sec_chg_check_dev_modprobe(unsigned int dev)
+{
+	if (!wait_event_timeout(gdev_init.dev_wait,
+		gdev_init.dev & dev, msecs_to_jiffies(MODPROB_TIMEOUT)))
+		pr_info("%s: dev_init timeout(0x%x)\n", __func__, dev);
+	else
+		pr_info("%s: takes time to wait(0x%x)\n", __func__, dev);
+}
+EXPORT_SYMBOL(sec_chg_check_dev_modprobe);
 #else
 void sec_chg_init_gdev(void) { }
 int sec_chg_set_dev_init(unsigned int dev) { return 0; }
 void sec_chg_check_modprobe(void) { }
+void sec_chg_check_dev_modprobe(unsigned int dev) { }
 #endif

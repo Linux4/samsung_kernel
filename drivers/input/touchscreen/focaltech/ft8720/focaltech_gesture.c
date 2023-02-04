@@ -311,7 +311,7 @@ int fts_gesture_readdata(struct fts_ts_data *ts_data, u8 *data)
 	u8 buf[FTS_GESTURE_DATA_LEN] = { 0 };
 	struct fts_gesture_st *gesture = &fts_gesture_data;
 
-	if (!ts_data->suspended || !ts_data->gesture_mode) {
+	if (ts_data->power_status == POWER_ON_STATUS || !ts_data->gesture_mode) {
 		return 1;
 	}
 
@@ -358,7 +358,7 @@ void fts_gesture_recovery(struct fts_ts_data *ts_data)
 {
 	FTS_DEBUG("gesture recovery...");
 
-	if (ts_data->gesture_mode && ts_data->suspended) {
+	if (ts_data->gesture_mode && ts_data->power_status == LP_MODE_STATUS) {
 		if (ts_data->aot_enable)
 			fts_write_reg(FTS_REG_DOUBLETAP_TO_WAKEUP_EN, !!(ts_data->gesture_mode & GESTURE_DOUBLECLICK_EN));
 
@@ -371,6 +371,9 @@ void fts_gesture_recovery(struct fts_ts_data *ts_data)
 
 int fts_gesture_suspend(struct fts_ts_data *ts_data)
 {
+	int i = 0;
+	u8 state = 0xFF;
+
 	FTS_FUNC_ENTER();
 	if (enable_irq_wake(ts_data->irq)) {
 		FTS_DEBUG("enable_irq_wake(irq:%d) fail", ts_data->irq);
@@ -381,6 +384,18 @@ int fts_gesture_suspend(struct fts_ts_data *ts_data)
 
 	if (ts_data->spay_enable)
 		fts_write_reg(FTS_REG_SPAY_EN, !!(ts_data->gesture_mode & GESTURE_SPAY_EN));
+
+	for (i = 0; i < 5; i++) {
+		fts_write_reg(FTS_REG_GESTURE_EN, ENABLE);
+		sec_delay(1);
+		fts_read_reg(FTS_REG_GESTURE_EN, &state);
+		if (state == ENABLE)
+			break;
+	}
+	if (i >= 5)
+		FTS_ERROR("make IC enter into gesture(suspend) fail, state:0x%02X", state);
+	else
+		FTS_INFO("Enter into gesture(suspend) successfully");
 
 	FTS_FUNC_EXIT();
 	return 0;

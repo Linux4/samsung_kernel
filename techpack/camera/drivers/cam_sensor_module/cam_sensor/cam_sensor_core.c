@@ -684,8 +684,18 @@ void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl)
 	cam_sensor_release_stream_rsc(s_ctrl);
 	cam_sensor_release_per_frame_resource(s_ctrl);
 
-	if (s_ctrl->sensor_state != CAM_SENSOR_INIT)
+	if (s_ctrl->sensor_state != CAM_SENSOR_INIT) {
+// Added for PLM P191224-07745 (suggestion from sLSI PMIC team)
+// Re-Set the PMIC voltage
+#if defined(CONFIG_LEDS_S2MU106_FLASH)
+		if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
+		{
+			pdo_ctrl_by_flash(0);
+			muic_afc_set_voltage(9);
+		}
+#endif
 		cam_sensor_power_down(s_ctrl);
+	}
 
 	if (s_ctrl->bridge_intf.device_hdl != -1) {
 		rc = cam_destroy_device_hdl(s_ctrl->bridge_intf.device_hdl);
@@ -1048,6 +1058,29 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			goto free_power_settings;
 		}
 #endif
+#if defined(CONFIG_SAMSUNG_SUPPORT_MULTI_MODULE)
+		// Case 1. I2C fail(rc != -ENODEV)
+		//		Any sensor tried to probe first will be probed.
+		// Case 2. Match id fail(rc == -ENODEV)
+		//		probe fail and try other sensor
+		if (((rc == -ENODEV) || (rc == -ENOTCONN) || (rc == -EINVAL)) &&
+#if defined(CONFIG_SEC_A23_PROJECT)
+			(((s_ctrl->soc_info.index == 1) && (s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_GC08A3)) ||
+			 ((s_ctrl->soc_info.index == 13) && (s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_GC08A3)))
+#endif
+		)
+		{
+			CAM_ERR(CAM_SENSOR,
+				"[MultiModule]checking sensor:slot:%d,slave_addr:0x%x,sensor_id:0x%x , rc = %d",
+				s_ctrl->soc_info.index,
+				s_ctrl->sensordata->slave_info.sensor_slave_addr,
+				s_ctrl->sensordata->slave_info.sensor_id,rc);
+
+			cam_sensor_power_down(s_ctrl);
+			usleep_range(20*1000, 21*1000);;
+			goto free_power_settings;
+		}
+#endif
 
 		CAM_INFO(CAM_SENSOR,
 			"Probe success,slot:%d,slave_addr:0x%x,sensor_id:0x%x",
@@ -1127,6 +1160,15 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			CAM_ERR(CAM_SENSOR, "Sensor Power up failed");
 			goto release_mutex;
 		}
+// Added for PLM P191224-07745 (suggestion from sLSI PMIC team)
+// Set the PMIC voltage to 5V for Flash operation on Rear Sensor
+#if defined(CONFIG_LEDS_S2MU106_FLASH)
+		if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
+		{
+			pdo_ctrl_by_flash(1);
+			muic_afc_set_voltage(5);
+		}
+#endif
 
 		s_ctrl->sensor_state = CAM_SENSOR_ACQUIRE;
 		s_ctrl->last_flush_req = 0;
@@ -1154,6 +1196,15 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			rc = -EAGAIN;
 			goto release_mutex;
 		}
+// Added for PLM P191224-07745 (suggestion from sLSI PMIC team)
+// Re-Set the PMIC voltage
+#if defined(CONFIG_LEDS_S2MU106_FLASH)
+		if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
+		{
+			pdo_ctrl_by_flash(0);
+			muic_afc_set_voltage(9);
+		}
+#endif
 
 		rc = cam_sensor_power_down(s_ctrl);
 		if (rc < 0) {
@@ -1458,15 +1509,6 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		return -EINVAL;
 	}
 
-// Added for PLM P191224-07745 (suggestion from sLSI PMIC team)
-// Set the PMIC voltage to 5V for Flash operation on Rear Sensor
-#if defined(CONFIG_LEDS_S2MU106_FLASH)
-	if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
-	{
-		pdo_ctrl_by_flash(1);
-		muic_afc_set_voltage(5);
-	}
-#endif
 
 	power_info = &s_ctrl->sensordata->power_info;
 	slave_info = &(s_ctrl->sensordata->slave_info);
@@ -1509,16 +1551,6 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_ERR(CAM_SENSOR, "failed: s_ctrl %pK", s_ctrl);
 		return -EINVAL;
 	}
-
-// Added for PLM P191224-07745 (suggestion from sLSI PMIC team)
-// Re-Set the PMIC voltage
-#if defined(CONFIG_LEDS_S2MU106_FLASH)
-	if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
-	{
-		pdo_ctrl_by_flash(0);
-		muic_afc_set_voltage(9);
-	}
-#endif
 
 	power_info = &s_ctrl->sensordata->power_info;
 	soc_info = &s_ctrl->soc_info;

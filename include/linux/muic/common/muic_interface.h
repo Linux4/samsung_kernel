@@ -266,6 +266,10 @@ struct muic_interface_t {
 	struct power_supply_desc psy_muic_desc;
 #endif
 
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU004_AFC) || IS_ENABLED(CONFIG_MUIC_HV)
+	int afc_request_cause;
+#endif
+
 	/* function pointer should be registered from each specific driver file */
 	int (*set_com_to_open_with_vbus)(void *);
 	int (*set_com_to_open)(void *);

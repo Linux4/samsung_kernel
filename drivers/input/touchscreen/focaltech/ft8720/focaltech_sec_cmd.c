@@ -163,11 +163,11 @@ static ssize_t sensitivity_mode_store(struct device *dev,
 
 	ret = kstrtoint(buf, 10, &data);
 	if (ret < 0)
-		return ret;
+		return count;
 
 	if (data != 0 && data != 1) {
 		FTS_ERROR("invalid param %d", data);
-		return -EINVAL;
+		return count;
 	}
 
 	enable = data & 0xFF;
@@ -247,6 +247,53 @@ static ssize_t prox_power_off_store(struct device *dev,
 	return count;
 }
 
+static ssize_t protos_event_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct fts_ts_data *ts = container_of(sec, struct fts_ts_data, sec);
+
+	FTS_INFO("%d", ts->hover_event);
+
+	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", ts->hover_event != 3 ? 0 : 3);
+}
+
+static ssize_t protos_event_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct fts_ts_data *ts_data = container_of(sec, struct fts_ts_data, sec);
+	u8 data;
+	int ret;
+
+	ret = kstrtou8(buf, 10, &data);
+	if (ret < 0)
+		return ret;
+
+	FTS_INFO("%d\n", data);
+
+	if (data != 0 && data != 1) {
+		FTS_ERROR("incorrect data");
+		return -EINVAL;
+	}
+
+	if (ts_data->power_status == POWER_OFF_STATUS) {
+		FTS_ERROR("POWER_STATUS : OFF!");
+		return count;
+	}
+
+	ts_data->proximity_mode = data;
+
+	ret = fts_write_reg(FTS_REG_PROXIMITY_MODE, ts_data->proximity_mode);
+	if (ret < 0) {
+		FTS_ERROR("send ear detect cmd failed");
+	}
+	ts_data->hover_event = 0xFF;
+
+	return count;
+}
+
 static ssize_t read_support_feature(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -260,9 +307,13 @@ static ssize_t read_support_feature(struct device *dev,
 	if (ts->pdata->enable_sysinput_enabled)
 		feature |= INPUT_FEATURE_ENABLE_SYSINPUT_ENABLED;
 
-	FTS_INFO("%d%s%s", feature,
+	if (ts->pdata->prox_lp_scan_enabled)
+		feature |= INPUT_FEATURE_ENABLE_PROX_LP_SCAN_ENABLED;
+
+	FTS_INFO("%d%s%s%s", feature,
 			feature & INPUT_FEATURE_ENABLE_SETTINGS_AOT ? " aot" : "",
-			feature & INPUT_FEATURE_ENABLE_SYSINPUT_ENABLED ? " SE" : "");
+			feature & INPUT_FEATURE_ENABLE_SYSINPUT_ENABLED ? " SE" : "",
+			feature & INPUT_FEATURE_ENABLE_PROX_LP_SCAN_ENABLED ? " LPSCAN" : "");
 
 	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", feature);
 }
@@ -273,9 +324,9 @@ static ssize_t enabled_show(struct device *dev, struct device_attribute *attr,
 	struct sec_cmd_data *sec = dev_get_drvdata(dev);
 	struct fts_ts_data *ts_data = container_of(sec, struct fts_ts_data, sec);
 
-	FTS_INFO("%d", !ts_data->suspended);
+	FTS_INFO("power_status : %d", ts_data->power_status);
 
-	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", !ts_data->suspended);
+	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", !ts_data->power_status);
 }
 
 static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
@@ -297,19 +348,19 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 
 	FTS_INFO("%d %d", buff[0], buff[1]);
 
-	if (buff[0] == LCD_ON || buff[0] == LCD_DOZE || buff[0] == LCD_DOZE_SUSPEND) {
-		if (buff[1] == LCD_EARLY_EVENT) {
+	if (buff[0] == DISPLAY_STATE_ON || buff[0] == DISPLAY_STATE_DOZE || buff[0] == DISPLAY_STATE_DOZE_SUSPEND) {
+		if (buff[1] == DISPLAY_EVENT_EARLY) {
 			if (ts_data->gesture_mode) {
 				fts_ctrl_lcd_reset_regulator(ts_data, false);
 			}
-		} else if (buff[1] == LCD_LATE_EVENT) {
+		} else if (buff[1] == DISPLAY_EVENT_LATE) {
 			queue_work(ts_data->ts_workqueue, &ts_data->resume_work);
 		}
-	} else if (buff[0] == LCD_OFF) {
-		if (buff[1] == LCD_EARLY_EVENT) {
+	} else if (buff[0] == DISPLAY_STATE_OFF) {
+		if (buff[1] == DISPLAY_EVENT_EARLY) {
 			cancel_work_sync(&ts_data->resume_work);
 			fts_ts_suspend(ts_data->dev);
-		} else if (buff[1] == LCD_LATE_EVENT) {
+		} else if (buff[1] == DISPLAY_EVENT_LATE) {
 			/* do nothing */
 		}
 	}
@@ -319,6 +370,7 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR(sensitivity_mode, 0644, sensitivity_mode_show, sensitivity_mode_store);
 static DEVICE_ATTR(prox_power_off, 0644, prox_power_off_show, prox_power_off_store);
+static DEVICE_ATTR(virtual_prox, 0664, protos_event_show, protos_event_store);
 static DEVICE_ATTR(support_feature, 0444, read_support_feature, NULL);
 static DEVICE_ATTR(enabled, 0664, enabled_show, enabled_store);
 
@@ -326,6 +378,7 @@ static DEVICE_ATTR(enabled, 0664, enabled_show, enabled_store);
 static struct attribute *cmd_attributes[] = {
 	&dev_attr_sensitivity_mode.attr,
 	&dev_attr_prox_power_off.attr,
+	&dev_attr_virtual_prox.attr,
 	&dev_attr_support_feature.attr,
 	&dev_attr_enabled.attr,
 	NULL,
@@ -345,7 +398,7 @@ static void fw_update(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
-	if (ts_data->suspended) {
+	if (ts_data->power_status == POWER_OFF_STATUS) {
 		FTS_ERROR("IC is suspend state");
 		snprintf(buff, sizeof(buff), "NG");
 		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
@@ -394,6 +447,14 @@ static void get_fw_ver_ic(void *device_data)
 	int ret = 0;
 
 	sec_cmd_set_default_result(sec);
+
+	if (ts_data->power_status == POWER_OFF_STATUS) {
+		FTS_ERROR("IC is suspend state");
+		snprintf(buff, sizeof(buff), "NG");
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		return;
+	}
 
 	ret = fts_get_fw_ver(ts_data);
 	if (ret < 0) {
@@ -1376,9 +1437,9 @@ static void factory_cmd_result_all(void *dev_data)
 	get_short(sec);
 	get_open(sec);
 	get_cb(sec);
+	get_noise(sec);
 	get_rawdata(sec);
 	get_gap_data(sec);
-	get_noise(sec);
 
 	enter_work_mode();
 	get_nonflash_ram_test(sec);
@@ -1812,8 +1873,10 @@ static void spay_enable(void *device_data)
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
 	struct fts_ts_data *ts_data = container_of(sec, struct fts_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
+#if 1
 	u8 enable;
 	int ret = 0;
+#endif
 
 	sec_cmd_set_default_result(sec);
 
@@ -1829,6 +1892,13 @@ static void spay_enable(void *device_data)
 	else
 		ts_data->gesture_mode &= ~GESTURE_SPAY_EN;
 
+#if 1	/* vendor request 0(need to check) */
+	if (ts_data->power_disabled) {
+		FTS_ERROR("ic power is disabled");
+		ret = -ENODEV;
+		goto out;
+	}
+
 	enable = sec->cmd_param[0] & 0xFF;
 	ret = fts_write_reg(FTS_REG_SPAY_EN, enable);
 	if (ret < 0) {
@@ -1837,6 +1907,7 @@ static void spay_enable(void *device_data)
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		goto out;
 	}
+#endif
 
 	FTS_INFO("%s, gesture_mode:0x%02X", sec->cmd_param[0] ? "on" : "off",
 			ts_data->gesture_mode);
@@ -1869,6 +1940,12 @@ static void aot_enable(void *device_data)
 		ts_data->gesture_mode |= GESTURE_DOUBLECLICK_EN;
 	else
 		ts_data->gesture_mode &= ~GESTURE_DOUBLECLICK_EN;
+
+	if (ts_data->power_disabled) {
+		FTS_ERROR("ic power is disabled");
+		ret = -ENODEV;
+		goto out;
+	}
 
 	enable = sec->cmd_param[0] & 0xFF;
 	ret = fts_write_reg(FTS_REG_DOUBLETAP_TO_WAKEUP_EN, enable);
@@ -2269,6 +2346,164 @@ out:
 	sec_cmd_set_cmd_exit(sec);
 }
 
+static void ear_detect_enable(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct fts_ts_data *ts_data = container_of(sec, struct fts_ts_data, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int ret;
+
+	sec_cmd_set_default_result(sec);
+
+	if (!(sec->cmd_param[0] == 0 || sec->cmd_param[0] == 1 || sec->cmd_param[0] == 3)) {
+		FTS_ERROR("abnormal parm (%d)", sec->cmd_param[0]);
+		goto fail;
+	}
+
+	ts_data->proximity_mode = sec->cmd_param[0];
+
+	if (ts_data->power_disabled) {
+		FTS_ERROR("ic power is disabled");
+		snprintf(buff, sizeof(buff), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		goto fail;
+	}
+
+	ret = fts_write_reg(FTS_REG_PROXIMITY_MODE, ts_data->proximity_mode);
+	if (ret < 0) {
+		FTS_ERROR("send ear detect cmd failed");
+		goto fail;
+	}
+	ts_data->hover_event = 0xFF;
+
+	FTS_INFO("%d", sec->cmd_param[0]);
+
+	snprintf(buff, sizeof(buff), "OK");
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+	return;
+
+fail:
+	snprintf(buff, sizeof(buff), "NG");
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+	return;
+}
+
+static void prox_lp_scan_mode(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct fts_ts_data *ts_data = container_of(sec, struct fts_ts_data, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int ret;
+	u8 mode;
+	int retry = 10;
+
+	sec_cmd_set_default_result(sec);
+
+	if (!ts_data->pdata->prox_lp_scan_enabled) {
+		FTS_ERROR("Not support LPSCAN!");
+		goto out;
+	}
+
+	if (ts_data->power_status != LP_MODE_STATUS) {
+		FTS_ERROR("Not LP_MODE_STATUS!");
+		goto out;
+	}
+
+	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
+		FTS_ERROR("invalid parameter %d", sec->cmd_param[0]);
+		goto out;
+	} else {
+		mode = sec->cmd_param[0] ? FTS_REG_POWER_MODE_SCAN_ON : FTS_REG_POWER_MODE_SCAN_OFF;
+	}
+
+	if (mutex_lock_interruptible(&ts_data->device_lock)) {
+		FTS_ERROR("another task is running");
+		goto out;
+	}
+
+	if (mode == FTS_REG_POWER_MODE_SCAN_ON) {
+		ret = fts_write_reg(FTS_PROX_AOT_IDLE_SCAN, 1);
+		if (ret < 0) {
+			FTS_ERROR("write FTS_PROX_AOT_IDLE_SCAN fail\n");
+			mutex_unlock(&ts_data->device_lock);
+			goto out;
+		}
+	}
+
+	while (retry) {
+		ret = fts_write_reg(FTS_REG_POWER_MODE, mode);
+		if (ret < 0) {
+			FTS_ERROR("retry:%d", retry);
+			retry--;
+		} else {
+			break;
+		}
+	}
+	if (ret < 0) {
+		FTS_ERROR("failed to switch %s mode", (mode == FTS_REG_POWER_MODE_SCAN_OFF) ? "SCAN OFF" : "SCAN");
+		mutex_unlock(&ts_data->device_lock);
+		goto out;
+	}
+
+	mutex_unlock(&ts_data->device_lock);
+
+	snprintf(buff, sizeof(buff), "%s", "OK");
+	sec->cmd_state =  SEC_CMD_STATUS_OK;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+
+	FTS_INFO("switch to %s mode OK",
+					(mode == FTS_REG_POWER_MODE_SCAN_OFF) ? "SCAN OFF" : "SCAN");
+
+	return;
+out:
+	snprintf(buff, sizeof(buff), "%s", "NG");
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+
+	FTS_ERROR("failed to switch %d mode", mode);
+}
+
+static void run_prox_intensity_read_all(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+//	struct fts_ts_data *ts_data = container_of(sec, struct fts_ts_data, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	u16 thd = 0;
+	short sum = 0;
+	u8 cmd = 0;
+	u8 val[4] = {0};
+	int ret = 0;
+
+	sec_cmd_set_default_result(sec);
+
+	FTS_FUNC_ENTER();
+
+	cmd = FTS_PROX_TOUCH_SENS;
+	ret = fts_read(&cmd, 1, val, 4);
+	if (ret < 0) {
+		FTS_ERROR("failed to read snr test result1, ret=%d", ret);
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		snprintf(buff, sizeof(buff), "NG");
+		goto out;
+	}
+
+	thd = (val[0] << 8) + val[1];
+	sum = (val[2] << 8) + val[3];
+	snprintf(buff, sizeof(buff), "SUM_X:%d THD_X:%d", sum, thd);
+
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	FTS_INFO("%s", buff);
+out:
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+}
+
 static void not_support_cmd(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -2319,6 +2554,9 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("dead_zone_enable", dead_zone_enable),},
 	{SEC_CMD_H("clear_cover_mode", clear_cover_mode),},
 	{SEC_CMD_H("scan_block", scan_block),},
+	{SEC_CMD_H("ear_detect_enable", ear_detect_enable),},
+	{SEC_CMD_H("prox_lp_scan_mode", prox_lp_scan_mode),},
+	{SEC_CMD("run_prox_intensity_read_all", run_prox_intensity_read_all),},
 	{SEC_CMD("not_support_cmd", not_support_cmd),},
 };
 

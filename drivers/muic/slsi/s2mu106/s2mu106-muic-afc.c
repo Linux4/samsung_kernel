@@ -354,6 +354,7 @@ static bool _s2mu106_hv_muic_check_afc_enabled(struct s2mu106_muic_data *muic_da
 	} else if (muic_data->pdata->afc_disable == true) {
 		str = "User Disable";
 		s2mu106_hv_muic_set_chgtype_usrcmd(muic_data);
+		muic_afc_request_cause_clear();
 #if IS_ENABLED(CONFIG_MUIC_MANAGER)
 	} else if (muic_if->is_afc_pdic_ready == false) {
 		str = "VBUS-CC Short";
@@ -362,7 +363,7 @@ static bool _s2mu106_hv_muic_check_afc_enabled(struct s2mu106_muic_data *muic_da
 #endif
 #if IS_ENABLED(CONFIG_LEDS_S2MU106_FLASH)
 	} else if (muic_data->is_requested_step_down == true) {
-		str = "Flash from CAM";
+		str = "requested step down";
 #endif
 	}
 
@@ -792,14 +793,6 @@ static void s2mu106_if_change_afc_voltage(void *mdata, int tx_data)
 
 	pr_info("%s attached_dev:%d, tx_data:%#x, hv_state:%d\n", __func__,
 			muic_pdata->attached_dev, tx_data, muic_pdata->hv_state);
-
-#if IS_ENABLED(CONFIG_LEDS_S2MU106_FLASH)
-	if (tx_data == MUIC_HV_5V) {
-		muic_data->is_requested_step_down = true;
-	} else if (tx_data == MUIC_HV_9V) {
-		muic_data->is_requested_step_down = false;
-	}
-#endif
 
 	switch (muic_pdata->attached_dev) {
 	case ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC:

@@ -68,6 +68,13 @@ int __init __weak early_init_dt_alloc_reserved_memory_arch(phys_addr_t size,
 }
 #endif
 
+static bool __init need_memsize_skip(unsigned long node, const char *uname)
+{
+	if (!strncmp(uname, "disp_rdump_region", 17))
+		return true;
+	return false;
+}
+
 /**
  * res_mem_save_node() - save fdt node for second pass initialization
  */
@@ -75,6 +82,9 @@ void __init fdt_reserved_mem_save_node(unsigned long node, const char *uname,
 				      phys_addr_t base, phys_addr_t size)
 {
 	struct reserved_mem *rmem = &reserved_mem[reserved_mem_count];
+
+	if (need_memsize_skip(node, uname))
+		return;
 
 	if (reserved_mem_count == ARRAY_SIZE(reserved_mem)) {
 		pr_err("not enough space all defined regions.\n");

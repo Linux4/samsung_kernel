@@ -109,6 +109,7 @@ void dsi_phy_hw_v3_0_toggle_resync_fifo(struct dsi_phy_hw *phy);
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 void dsi_phy_hw_v4_0_store_str(struct dsi_phy_hw *phy, u32 *val);
+u32 dsi_phy_hw_v4_0_show_str(struct dsi_phy_hw *phy);
 void dsi_phy_hw_v4_0_store_emphasis(struct dsi_phy_hw *phy, u32 *val);
 #endif
 

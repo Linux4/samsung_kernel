@@ -79,6 +79,7 @@ struct cam_eeprom_query_cap_t {
 	uint32_t            slot_info;
 	uint16_t            eeprom_kernel_probe;
 	uint16_t            is_multimodule_mode;
+	uint32_t            dualization_id;
 } __attribute__((packed));
 
 /**

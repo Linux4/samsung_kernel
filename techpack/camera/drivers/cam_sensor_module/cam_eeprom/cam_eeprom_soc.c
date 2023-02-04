@@ -308,6 +308,10 @@ int cam_eeprom_parse_dt(struct cam_eeprom_ctrl_t *e_ctrl)
 
 	of_node = soc_info->dev->of_node;
 
+	if (of_property_read_u32(of_node, "dualization-id", &e_ctrl->dualization_id)) {
+		CAM_DBG(CAM_UTIL, "dualization-id %d",e_ctrl->dualization_id);
+	}
+
 	rc = of_property_read_string(of_node, "eeprom-name",
 		&soc_private->eeprom_name);
 
