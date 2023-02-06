@@ -38,7 +38,7 @@ struct fsverity_hash_alg {
 	const char *name;	  /* crypto API name, e.g. sha256 */
 	unsigned int digest_size; /* digest size in bytes, e.g. 32 for SHA-256 */
 	unsigned int block_size;  /* block size in bytes, e.g. 64 for SHA-256 */
-	mempool_t *req_pool;	  /* mempool with a preallocated hash request */
+	mempool_t req_pool;	  /* mempool with a preallocated hash request */
 };
 
 /* Merkle tree parameters: hash algorithm, initial hash state, and topology */

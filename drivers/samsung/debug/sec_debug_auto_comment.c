@@ -1,7 +1,7 @@
 /*
  * sec_debug_auto_comment.c
  *
- * Copyright (c) 2016 Samsung Electronics Co., Ltd
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd
  *              http://www.samsung.com
  *
  *  This program is free software; you can redistribute  it and/or modify it
@@ -22,8 +22,11 @@
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
 #include <asm/sections.h>
+#include <linux/memblock.h>
+#include <linux/of.h>
+#include <linux/of_reserved_mem.h>
 
-static u32 __initdata sec_auto_comment_base = SEC_AUTO_COMMENT_BASE;
+static u32 sec_auto_comment_base;
 
 static struct sec_debug_auto_comm_log_idx ac_idx[SEC_DEBUG_AUTO_COMM_BUF_SIZE];
 static struct sec_debug_auto_comment *auto_comment_info;
@@ -36,13 +39,8 @@ void sec_debug_auto_comment_log_disable(int type)
 
 void sec_debug_auto_comment_log_once(int type)
 {
-#ifdef CONFIG_MACH_MT6739
-	if (atomic_read(&(ac_idx[type].logging_entry)))
-		sec_debug_auto_comment_log_disable(type);
-#else
 	if (atomic64_read(&(ac_idx[type].logging_entry)))
 		sec_debug_auto_comment_log_disable(type);
-#endif
 	else
 		atomic_inc(&(ac_idx[type].logging_entry));
 }
@@ -52,26 +50,15 @@ static inline void sec_debug_hook_auto_comm(int type, const char *buf, size_t si
 	struct sec_debug_auto_comm_buf *p = &auto_comment_info->auto_comm_buf[type];
 	unsigned int offset = p->offset;
 
-#ifdef CONFIG_MACH_MT6739
-	if (atomic_read(&(ac_idx[type].logging_disable)))
-		return;
-#else
 	if (atomic64_read(&(ac_idx[type].logging_disable)))
 		return;
-#endif
 
 	if (offset + size > SZ_4K)
 		return;
 
-#ifdef CONFIG_MACH_MT6739
-	if (init_data[type].max_count &&
-	    (atomic_read(&(ac_idx[type].logging_count)) > init_data[type].max_count))
-		return;
-#else
 	if (init_data[type].max_count &&
 	    (atomic64_read(&(ac_idx[type].logging_count)) > init_data[type].max_count))
 		return;
-#endif
 
 	if (!(auto_comment_info->fault_flag & 1 << type)) {
 		auto_comment_info->fault_flag |= 1 << type;
@@ -284,6 +271,10 @@ late_initcall(sec_debug_auto_comment_proc_init);
 static int __init sec_debug_auto_comment_init(void)
 {
 	int i;
+	struct reserved_mem *rmem;
+
+	rmem = sec_log_get_rmem("samsung,sec-autocomment");
+	sec_auto_comment_base = rmem->base;	
 
 	if (!sec_debug_auto_comment_init_print_buf())
 		return -1;

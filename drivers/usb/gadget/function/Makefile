@@ -6,6 +6,7 @@
 ccflags-y			:= -I$(srctree)/drivers/usb/gadget/
 ccflags-y			+= -I$(srctree)/drivers/usb/gadget/udc/
 ccflags-y			+= -I$(srctree)/drivers/misc/mediatek/rps/
+ccflags-y			+= -I$(srctree)/drivers/misc/mediatek/usb_boost/
 
 # USB Functions
 usb_f_acm-y			:= f_acm.o
@@ -51,16 +52,19 @@ usb_f_printer-y			:= f_printer.o
 obj-$(CONFIG_USB_F_PRINTER)	+= usb_f_printer.o
 usb_f_dm-y			:= f_dm.o
 obj-$(CONFIG_USB_CONFIGFS_F_DM)	+= usb_f_dm.o
-usb_f_adm-y			:= f_adm.o
-obj-$(CONFIG_USB_CONFIGFS_F_ADM)	+= usb_f_adm.o
 usb_f_tcm-y			:= f_tcm.o
 obj-$(CONFIG_USB_F_TCM)		+= usb_f_tcm.o
-usb_f_audio_source-y            := f_audio_source.o
-obj-$(CONFIG_USB_F_AUDIO_SRC)   += usb_f_audio_source.o
-usb_f_accessory-y               := f_accessory.o
-obj-$(CONFIG_USB_F_ACC)         += usb_f_accessory.o
+usb_f_accessory-y		:= f_accessory.o
+obj-$(CONFIG_USB_F_ACC)		+= usb_f_accessory.o
+usb_f_audio_source-y		:= f_audio_source.o
+obj-$(CONFIG_USB_F_AUDIO_SRC)	+= usb_f_audio_source.o
+ifeq ($(CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE),y)
+	usb_f_mtp_samsung-y     := f_mtp_samsung.o
+	obj-$(CONFIG_USB_CONFIGFS_UEVENT) += usb_f_mtp_samsung.o
+else
 usb_f_mtp-y                     := f_mtp.o
 obj-$(CONFIG_USB_CONFIGFS_UEVENT)         += usb_f_mtp.o
+endif
 usb_f_ptp-y                     := f_ptp.o
 obj-$(CONFIG_USB_CONFIGFS_UEVENT)         += usb_f_ptp.o
 usb_f_conn_gadget-y             := f_conn_gadget.o

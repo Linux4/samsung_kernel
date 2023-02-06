@@ -1,15 +1,6 @@
-/*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+/* SPDX-License-Identifier: GPL-2.0 */
+//
+// Copyright (c) 2015 MediaTek Inc.
 
 #ifndef _MT_FDVT_H
 #define _MT_FDVT_H
@@ -314,12 +305,12 @@ struct fdvt_config {
 	unsigned int FDVT_FD_POSE_CON_BUFSIZE;
 	unsigned int FDVT_LOOPS_OF_FDMODE;
 	unsigned int FDVT_NUMBERS_OF_PYRAMID;
-	struct FD_RESULT *FDOUTPUT;
-	struct ATTRIBUTE_RESULT *ATTRIBUTEOUTPUT;
-	struct POSE_RESULT *POSEOUTPUT;
+	uint64_t FDOUTPUT;
+	uint64_t ATTRIBUTEOUTPUT;
+	uint64_t POSEOUTPUT;
 	FDVT_MetaDataToGCE FDVT_METADATA_TO_GCE;
-	unsigned int *FDVT_IMG_Y_VA;
-	unsigned int *FDVT_IMG_UV_VA;
+	uint64_t FDVT_IMG_Y_VA;
+	uint64_t FDVT_IMG_UV_VA;
 	unsigned int FDVT_IMG_Y_FD;
 	unsigned int FDVT_IMG_UV_FD;
 	unsigned int FDVT_IMG_Y_OFFSET;

@@ -15,15 +15,17 @@
 #include "gpiolib.h"
 #include "../pinctrl/mediatek/pinctrl-paris.h"
 
-#if IS_ENABLED(CONFIG_MACH_MT6739)
-#define AP_GPIO_COUNT   164
-#elif IS_ENABLED(CONFIG_MACH_MT6768)
-#define AP_GPIO_COUNT   180
-#elif IS_ENABLED(CONFIG_MACH_MT6833)
-#define AP_GPIO_COUNT   201
-#elif IS_ENABLED(CONFIG_MACH_MT6853)
+#if defined(CONFIG_MACH_MT6853)
 #define AP_GPIO_COUNT   203
-#elif IS_ENABLED(CONFIG_MACH_MT6877)
+#elif defined(CONFIG_MACH_MT6833)
+#define AP_GPIO_COUNT   201
+#elif defined(CONFIG_MACH_MT6768)
+#define AP_GPIO_COUNT   180
+#elif defined(CONFIG_MACH_MT6739)
+#define AP_GPIO_COUNT   164
+#elif defined(CONFIG_MACH_MT6765)
+#define AP_GPIO_COUNT   179
+#elif defined(CONFIG_MACH_MT6877)
 #define AP_GPIO_COUNT   209
 #endif
 
@@ -38,14 +40,46 @@ static struct gpiomap_result gpiomap_result = {
 	.sleep = checkgpiomap_result[PHONE_SLEEP]
 };
 
-/***************************************************************
+/*
+ **************************************************************
   Pre-defined variables. (DO NOT CHANGE THIS!!)
   static unsigned char checkgpiomap_result[GDVS_PHONE_STATUS_MAX][AP_GPIO_COUNT];
   static struct gpiomap_result gpiomap_result = {
   .init = checkgpiomap_result[PHONE_INIT],
   .sleep = checkgpiomap_result[PHONE_SLEEP]
   };
- ***************************************************************/
+ **************************************************************
+ */
+
+static int mtk_hw_get_value_wrap(struct mtk_pinctrl *hw, unsigned int gpio,
+				int field)
+{
+	const struct mtk_pin_desc *desc;
+	int value, err;
+
+	if (gpio > hw->soc->npins)
+		return -EINVAL;
+
+	desc = (const struct mtk_pin_desc *)&hw->soc->pins[gpio];
+
+	err = mtk_hw_get_value(hw, desc, field, &value);
+	if (err)
+		return err;
+
+	return value;
+}
+
+#define mtk_pctrl_get_pinmux(hw, gpio)			\
+	mtk_hw_get_value_wrap(hw, gpio, PINCTRL_PIN_REG_MODE)
+
+#define mtk_pctrl_get_direction(hw, gpio)		\
+	mtk_hw_get_value_wrap(hw, gpio, PINCTRL_PIN_REG_DIR)
+
+#define mtk_pctrl_get_out(hw, gpio)			\
+	mtk_hw_get_value_wrap(hw, gpio, PINCTRL_PIN_REG_DO)
+
+#define mtk_pctrl_get_in(hw, gpio)			\
+	mtk_hw_get_value_wrap(hw, gpio, PINCTRL_PIN_REG_DI)
 
 static void mt_check_gpio_status(unsigned char phonestate)
 {
@@ -139,8 +173,6 @@ static void mt_check_gpio_status(unsigned char phonestate)
 		(unsigned char)GET_RESULT_GPIO(temp_io, temp_pupd, temp_level);
 	}
 	spin_unlock_irqrestore(&gpio_lock, flags);
-
-	return;
 }
 
 static void check_gpio_status(unsigned char phonestate)
@@ -149,12 +181,10 @@ static void check_gpio_status(unsigned char phonestate)
 			(phonestate == PHONE_INIT) ? "init" : "sleep");
 
 	mt_check_gpio_status(phonestate);
-
-	return ;
 }
 
 static struct gpio_dvs mt_gpio_dvs = {
-	.result =&gpiomap_result,
+	.result = &gpiomap_result,
 	.check_gpio_status = check_gpio_status,
 	.count = AP_GPIO_COUNT,
 };
@@ -162,14 +192,16 @@ static struct gpio_dvs mt_gpio_dvs = {
 struct platform_device secgpio_dvs_device = {
 	.name   = "secgpio_dvs",
 	.id             = -1,
-	/****************************************************************/
-	/* Designate appropriate variable pointer
-	   in accordance with the specification of each BB vendor.*/
+	/*
+	 ***************************************************************
+	   Designate appropriate variable pointer
+	   in accordance with the specification of each BB vendor.
+	 ***************************************************************
+	 */
 	.dev.platform_data = &mt_gpio_dvs,
-	/****************************************************************/
 };
 
-static struct platform_device *secgpio_dvs_devices[] __initdata= {
+static struct platform_device *secgpio_dvs_devices[] __initdata = {
 	&secgpio_dvs_device,
 };
 

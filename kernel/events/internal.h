@@ -201,10 +201,6 @@ arch_perf_out_copy_user(void *dst, const void *src, unsigned long n)
 
 DEFINE_OUTPUT_COPY(__output_copy_user, arch_perf_out_copy_user)
 
-/* Callchain handling */
-extern struct perf_callchain_entry *
-perf_callchain(struct perf_event *event, struct pt_regs *regs);
-
 static inline int get_recursion_context(int *recursion)
 {
 	int rctx;
@@ -213,7 +209,7 @@ static inline int get_recursion_context(int *recursion)
 		rctx = 3;
 	else if (in_irq())
 		rctx = 2;
-	else if (in_softirq())
+	else if (in_serving_softirq())
 		rctx = 1;
 	else
 		rctx = 0;

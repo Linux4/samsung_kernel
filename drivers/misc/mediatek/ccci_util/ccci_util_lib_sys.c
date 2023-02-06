@@ -1,18 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
  */
 
-#include <mt-plat/sync_write.h>
-#include <mt-plat/mtk_ccci_common.h>
+//#include <mt-plat/sync_write.h>
+#include "mt-plat/mtk_ccci_common.h"
 #include <linux/slab.h>
 #include <linux/kobject.h>
 #include "ccci_util_log.h"
@@ -227,7 +219,7 @@ static ssize_t debug_enable_show(char *buf)
 {
 	int curr = 0;
 
-	curr = snprintf(buf, 16, "%d\n", ccci_debug_enable);
+	curr = snprintf(buf, 16, "%d\n", 2);/* ccci_debug_enable); */
 	if (curr < 0 || curr >= 16) {
 		CCCI_UTIL_INF_MSG(
 			"%s-%d:snprintf fail,curr=%d\n", __func__, __LINE__, curr);
@@ -238,7 +230,7 @@ static ssize_t debug_enable_show(char *buf)
 
 static ssize_t debug_enable_store(const char *buf, size_t count)
 {
-	ccci_debug_enable = buf[0] - '0';
+	/* ccci_debug_enable = buf[0] - '0'; */
 	return count;
 }
 
@@ -354,15 +346,6 @@ static ssize_t kcfg_setting_show(char *buf)
 	if (actual_write > 0 && actual_write < (4096 - curr))
 		curr += actual_write;
 
-#ifdef CONFIG_MTK_SRIL_SUPPORT
-	actual_write = snprintf(&buf[curr], 4096 - curr,
-		"[MTK_SRIL_SUPPORT]:1\n");
-#else
-	actual_write = snprintf(&buf[curr], 4096 - curr,
-		"[MTK_SRIL_SUPPORT]:0\n");
-#endif
-	curr += actual_write;
-
 	/* Add total size to tail */
 	actual_write = snprintf(&buf[curr],
 		4096 - curr, "total:%d\n", curr);
@@ -387,6 +370,7 @@ static ssize_t kcfg_setting_store(const char *buf, size_t count)
 
 CCCI_ATTR(kcfg_setting, 0444, &kcfg_setting_show, &kcfg_setting_store);
 
+
 static ssize_t ccci_pin_cfg_store(const char *buf, size_t count)
 {
 	unsigned int pin_val;
@@ -397,7 +381,6 @@ static ssize_t ccci_pin_cfg_store(const char *buf, size_t count)
 }
 
 CCCI_ATTR(pincfg, 0220, NULL, &ccci_pin_cfg_store);
-
 /* Sys -- Add to group */
 static struct attribute *ccci_default_attrs[] = {
 	&ccci_attr_boot.attr,
@@ -426,6 +409,10 @@ int ccci_sysfs_add_modem(int md_id, void *kobj, void *ktype,
 	int ret;
 	static int md_add_flag;
 
+	if (md_id < 0 || md_id >= MAX_MD_NUM) {
+		CCCI_UTIL_ERR_MSG("invalid md_id = %d\n", md_id);
+		return -CCCI_ERR_SYSFS_NOT_READY;
+	}
 	md_add_flag = 0;
 	if (!ccci_sys_info) {
 		CCCI_UTIL_ERR_MSG("common sys not ready\n");
@@ -452,6 +439,7 @@ int ccci_sysfs_add_modem(int md_id, void *kobj, void *ktype,
 
 	return ret;
 }
+EXPORT_SYMBOL(ccci_sysfs_add_modem);
 
 int ccci_common_sysfs_init(void)
 {

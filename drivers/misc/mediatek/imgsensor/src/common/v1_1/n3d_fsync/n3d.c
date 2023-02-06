@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2021 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/init.h>
@@ -638,6 +630,9 @@ static int n3d_remove(struct platform_device *pDev)
 	struct SENINF_N3D *pn3d = &gn3d;
 
 	LOG_D("- E.");
+
+	n3d_clk_exit(&pn3d->clk);
+
 	/* unregister char driver. */
 	n3d_unreg_char_dev(pn3d);
 

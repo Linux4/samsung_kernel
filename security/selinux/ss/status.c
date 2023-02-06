@@ -62,7 +62,7 @@ struct page *selinux_kernel_status_page(struct selinux_state *state)
 #else
 			status->enforcing = enforcing_enabled(state);
 #endif
-// ] SEC_SELINUX_PORTING_COMMON				   
+// ] SEC_SELINUX_PORTING_COMMON
 			/*
 			 * NOTE: the next policyload event shall set
 			 * a positive value on the status->policyload,

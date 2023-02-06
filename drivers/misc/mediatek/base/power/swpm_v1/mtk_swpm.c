@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -576,25 +568,25 @@ int swpm_interface_manager_init(struct swpm_mem_ref_tbl *ref_tbl,
 
 	return 0;
 }
+void swpm_update_periodic_timer(void)
+{
+	mod_timer(&swpm_timer, jiffies + msecs_to_jiffies(log_interval_ms));
+}
 
-int swpm_set_periodic_timer(void (*func)(unsigned long))
+int swpm_set_periodic_timer(void (*func)(struct timer_list *))
 {
 	swpm_lock(&swpm_mutex);
 
 	if (func != NULL) {
 		swpm_timer.function = func;
-		swpm_timer.data = (unsigned long)&swpm_timer;
-		init_timer_deferrable(&swpm_timer);
+		//init_timer_deferrable(&swpm_timer);
+		timer_setup(&swpm_timer,func,0);
 	}
 	swpm_unlock(&swpm_mutex);
 
 	return 0;
 }
 
-void swpm_update_periodic_timer(void)
-{
-	mod_timer(&swpm_timer, jiffies + msecs_to_jiffies(log_interval_ms));
-}
 
 int swpm_mem_addr_request(enum swpm_type id, phys_addr_t **ptr)
 {

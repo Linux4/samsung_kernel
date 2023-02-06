@@ -1,16 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2021 MediaTek Inc.
  */
-
 #include <linux/platform_device.h>
 #include <linux/interrupt.h>
 #include <linux/module.h>
@@ -18,8 +9,10 @@
 #include <linux/of_address.h>
 #include <linux/uaccess.h>
 #include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 #include <ap_thermal_limit.h>
 #include "mt-plat/mtk_thermal_monitor.h"
+
 
 /* #define INTR_UT */
 /* #define OT_THROTTLE_CPU */

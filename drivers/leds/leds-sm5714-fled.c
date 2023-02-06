@@ -17,12 +17,8 @@
 #include <linux/moduleparam.h>
 #include <linux/platform_device.h>
 
-#define SM5714_FLED_VERSION "XXX.UA1"
-
 static struct sm5714_fled_data *g_sm5714_fled;
-#ifdef CONFIG_IMGSENSOR_SYSFS
 extern struct class *camera_class; /*sys/class/camera*/
-#endif
 #ifdef CONFIG_CHARGER_SM5714
 extern void sm5714_request_default_power_src(void);
 extern int muic_request_disable_afc_state(void);
@@ -478,7 +474,7 @@ EXPORT_SYMBOL_GPL(sm5714_fled_mode_ctrl);
 /**
  *  For camera_class device file control (Torch-LED)
  */
-#ifdef CONFIG_IMGSENSOR_SYSFS
+
 static ssize_t sm5714_rear_flash_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
 	u32 store_value;
@@ -584,7 +580,6 @@ static ssize_t sm5714_rear_flash_show(struct device *dev, struct device_attribut
 }
 
 static DEVICE_ATTR(rear_flash, 0664, sm5714_rear_flash_show, sm5714_rear_flash_store);
-#endif
 
 bool sm5714_is_fd_in_use(void)
 {
@@ -684,7 +679,6 @@ static int sm5714_fled_probe(struct platform_device *pdev)
 	sm5714_fled_init(fled);
 	g_sm5714_fled = fled;
 
-#ifdef CONFIG_IMGSENSOR_SYSFS
 	if (camera_class == NULL)
 		camera_class = class_create(THIS_MODULE, "camera");
 
@@ -705,15 +699,15 @@ static int sm5714_fled_probe(struct platform_device *pdev)
 	ret = device_create_file(fled->rear_fled_dev, &dev_attr_rear_flash);
 	if (IS_ERR_VALUE((unsigned long)ret)) {
 		dev_err(fled->dev, "%s failed create device file for rear_flash\n", __func__);
-		device_destroy(camera_class, fled->rear_fled_dev->devt);
+		goto free_device;
 	}
 
-	dev_info(&pdev->dev, "sm5714 fled probe done.[%s]\n",SM5714_FLED_VERSION);
-#else
-	dev_err(fled->dev, "%s: Failed to build sysfs: CONFIG_IMGSENSOR_SYSFS is not defined", __func__);
-#endif
+	dev_info(&pdev->dev, "sm5714 fled probe done.\n");
+
 	return 0;
 
+free_device:
+	device_destroy(camera_class, fled->rear_fled_dev->devt);
 free_pdata:
 	devm_kfree(&pdev->dev, fled->pdata);
 free_dev:
@@ -725,12 +719,10 @@ free_dev:
 static int sm5714_fled_remove(struct platform_device *pdev)
 {
 	struct sm5714_fled_data *fled = platform_get_drvdata(pdev);
-#ifdef CONFIG_IMGSENSOR_SYSFS
+
 	device_remove_file(fled->rear_fled_dev, &dev_attr_rear_flash);
 
-
 	device_destroy(camera_class, fled->rear_fled_dev->devt);
-#endif
 
 
 	fled_set_mode(fled, FLED_MODE_OFF);
@@ -779,4 +771,4 @@ module_exit(sm5714_led_driver_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Samsung Electronics");
 MODULE_DESCRIPTION("Flash-LED device driver for SM5714");
-MODULE_VERSION(SM5714_FLED_VERSION);
+

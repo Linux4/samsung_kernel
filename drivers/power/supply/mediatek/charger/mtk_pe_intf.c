@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 
 #include <linux/device.h>
@@ -309,7 +301,8 @@ _err:
 
 int mtk_pe_init(struct charger_manager *pinfo)
 {
-	wakeup_source_init(&pinfo->pe.suspend_lock, "PE+ suspend wakelock");
+	//wakeup_source_init(pinfo->pe.suspend_lock, "PE+ suspend wakelock");
+	pinfo->pe.suspend_lock = wakeup_source_register(NULL, "PE+ suspend wakelock");
 	mutex_init(&pinfo->pe.access_lock);
 	mutex_init(&pinfo->pe.pmic_sync_lock);
 
@@ -401,7 +394,7 @@ int mtk_pe_check_charger(struct charger_manager *pinfo)
 
 	/* Lock */
 	mutex_lock(&pe->access_lock);
-	__pm_stay_awake(&pe->suspend_lock);
+	__pm_stay_awake(pe->suspend_lock);
 
 	chr_debug("%s: starts\n", __func__);
 
@@ -440,7 +433,7 @@ int mtk_pe_check_charger(struct charger_manager *pinfo)
 	pe->to_check_chr_type = false;
 
 	/* Unlock */
-	__pm_relax(&pe->suspend_lock);
+	__pm_relax(pe->suspend_lock);
 	mutex_unlock(&pe->access_lock);
 	chr_info("%s: OK, to_check_chr_type = %d\n",
 		__func__, pe->to_check_chr_type);
@@ -449,7 +442,7 @@ int mtk_pe_check_charger(struct charger_manager *pinfo)
 
 _err:
 	/* Unlock */
-	__pm_relax(&pe->suspend_lock);
+	__pm_relax(pe->suspend_lock);
 	mutex_unlock(&pe->access_lock);
 	chr_info("%s: stop, SOC = %d, to_check_chr_type = %d, chr_type = %d, ret = %d\n",
 		__func__, battery_get_soc(), pe->to_check_chr_type,
@@ -484,7 +477,7 @@ int mtk_pe_start_algorithm(struct charger_manager *pinfo)
 
 	/* Lock */
 	mutex_lock(&pe->access_lock);
-	__pm_stay_awake(&pe->suspend_lock);
+	__pm_stay_awake(pe->suspend_lock);
 
 	chr_debug("%s: starts\n", __func__);
 
@@ -545,7 +538,7 @@ int mtk_pe_start_algorithm(struct charger_manager *pinfo)
 		(chr_volt - pe->ta_vchr_org) / 1000);
 	chr_info("%s: OK\n", __func__);
 
-	__pm_relax(&pe->suspend_lock);
+	__pm_relax(pe->suspend_lock);
 	mutex_unlock(&pe->access_lock);
 	return ret;
 
@@ -557,7 +550,7 @@ _out:
 		__func__, pe->ta_vchr_org / 1000, chr_volt / 1000,
 		(chr_volt - pe->ta_vchr_org) / 1000);
 
-	__pm_relax(&pinfo->pe.suspend_lock);
+	__pm_relax(pinfo->pe.suspend_lock);
 	mutex_unlock(&pinfo->pe.access_lock);
 
 	return ret;
@@ -595,24 +588,24 @@ int mtk_pe_set_charging_current(struct charger_manager *pinfo,
 void mtk_pe_set_to_check_chr_type(struct charger_manager *pinfo, bool check)
 {
 	mutex_lock(&pinfo->pe.access_lock);
-	__pm_stay_awake(&pinfo->pe.suspend_lock);
+	__pm_stay_awake(pinfo->pe.suspend_lock);
 
 	chr_info("%s: check = %d\n", __func__, check);
 	pinfo->pe.to_check_chr_type = check;
 
-	__pm_relax(&pinfo->pe.suspend_lock);
+	__pm_relax(pinfo->pe.suspend_lock);
 	mutex_unlock(&pinfo->pe.access_lock);
 }
 
 void mtk_pe_set_is_enable(struct charger_manager *pinfo, bool enable)
 {
 	mutex_lock(&pinfo->pe.access_lock);
-	__pm_stay_awake(&pinfo->pe.suspend_lock);
+	__pm_stay_awake(pinfo->pe.suspend_lock);
 
 	chr_info("%s: enable = %d\n", __func__, enable);
 	pinfo->pe.is_enabled = enable;
 
-	__pm_relax(&pinfo->pe.suspend_lock);
+	__pm_relax(pinfo->pe.suspend_lock);
 	mutex_unlock(&pinfo->pe.access_lock);
 }
 

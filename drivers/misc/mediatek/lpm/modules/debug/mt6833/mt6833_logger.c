@@ -41,6 +41,8 @@
 #define SPM_VIRQ (999)
 #endif /* CONFIG_SEC_PM */
 
+
+
 #ifdef CONFIG_MTK_LPM_GS_DUMP_SUPPORT
 struct MT6886_LOGGER_NODE mt6833_log_gs_idle;
 struct MTK_LPM_GS_IDLE_INFO {
@@ -514,8 +516,8 @@ static int mt6833_show_message(struct mt6833_spm_wake_status *wakesrc, int type,
 			" b_sw_flag = 0x%x 0x%x",
 			wakesrc->b_sw_flag0, wakesrc->b_sw_flag1);
 #ifdef CONFIG_SEC_PM
-		if (!strcmp(scenario, "suspend"))
-			log_wakeup_reason_spm(SPM_VIRQ, NULL, wakesrc->r13);
+				if (!strcmp(scenario, "suspend"))
+					log_wakeup_reason_spm(SPM_VIRQ, NULL, wakesrc->r13);
 #endif /* CONFIG_SEC_PM */
 		wr =  WR_ABORT;
 	} else {
@@ -769,7 +771,7 @@ static int mt6833_logger_nb_func(struct notifier_block *nb,
 			struct mtk_lpm_callee_simple *callee = NULL;
 			struct mtk_lpm_data val;
 
-			val.d.v_u32 = mt6833_log_gs_info.dump_type;
+			val.d.u32 = mt6833_log_gs_info.dump_type;
 			if (!mtk_lpm_callee_get(MTK_LPM_CALLEE_PWR_GS, &callee))
 				callee->set(MTK_LPM_PWR_GS_TYPE_VCORELP_26M, &val);
 

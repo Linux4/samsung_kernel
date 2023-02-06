@@ -30,6 +30,15 @@
 
 /* Format of the ULOG packets passed through netlink */
 typedef struct ulog_packet_msg {
+#ifdef CONFIG_NETFILTER_XT_MATCH_QUOTA2_LOG_32BIT
+	unsigned int mark;
+	int timestamp_sec;
+	int timestamp_usec;
+	unsigned int hook;
+	char indev_name[IFNAMSIZ];
+	char outdev_name[IFNAMSIZ];
+	unsigned int data_len;
+#else
 	unsigned long mark;
 	long timestamp_sec;
 	long timestamp_usec;
@@ -37,6 +46,7 @@ typedef struct ulog_packet_msg {
 	char indev_name[IFNAMSIZ];
 	char outdev_name[IFNAMSIZ];
 	size_t data_len;
+#endif
 	char prefix[ULOG_PREFIX_LEN];
 	unsigned char mac_len;
 	unsigned char mac[ULOG_MAC_LEN];
@@ -301,6 +311,8 @@ quota_mt2(const struct sk_buff *skb, struct xt_action_param *par)
 {
 	struct xt_quota_mtinfo2 *q = (void *)par->matchinfo;
 	struct xt_quota_counter *e = q->master;
+	int charge = (q->flags & XT_QUOTA_PACKET) ? 1 : skb->len;
+	bool no_change = q->flags & XT_QUOTA_NO_CHANGE;
 	bool ret = q->flags & XT_QUOTA_INVERT;
 
 	spin_lock_bh(&e->lock);
@@ -309,24 +321,21 @@ quota_mt2(const struct sk_buff *skb, struct xt_action_param *par)
 		 * While no_change is pointless in "grow" mode, we will
 		 * implement it here simply to have a consistent behavior.
 		 */
-		if (!(q->flags & XT_QUOTA_NO_CHANGE)) {
-			e->quota += (q->flags & XT_QUOTA_PACKET) ? 1 : skb->len;
-		}
-		ret = true;
+		if (!no_change)
+			e->quota += charge;
+		ret = true; /* note: does not respect inversion (bug??) */
 	} else {
-		if (e->quota >= skb->len) {
-			if (!(q->flags & XT_QUOTA_NO_CHANGE))
-				e->quota -= (q->flags & XT_QUOTA_PACKET) ? 1 : skb->len;
+		if (e->quota > charge) {
+			if (!no_change)
+				e->quota -= charge;
 			ret = !ret;
-		} else {
+		} else if (e->quota) {
 			/* We are transitioning, log that fact. */
-			if (e->quota) {
-				quota2_log(xt_hooknum(par),
-					   skb,
-					   xt_in(par),
-					   xt_out(par),
-					   q->name);
-			}
+			quota2_log(xt_hooknum(par),
+				   skb,
+				   xt_in(par),
+				   xt_out(par),
+				   q->name);
 			/* we do not allow even small packets from now on */
 			e->quota = 0;
 		}

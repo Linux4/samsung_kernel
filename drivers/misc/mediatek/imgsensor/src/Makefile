@@ -1,15 +1,5 @@
-#
-# Copyright (C) 2015 MediaTek Inc.
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License version 2 as
-# published by the Free Software Foundation.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
+# SPDX-License-Identifier: GPL-2.0
+
 subdir-ccflags-y += -I$(srctree)/drivers/i2c/busses/ \
              -I$(srctree)/drivers/misc/mediatek/ccu/inc
 
@@ -20,7 +10,7 @@ MTK_PLATFORM_PATH_ROOT := $(srctree)/drivers/misc/mediatek/mach/$(MTK_PLATFORM)
 MTK_PROJECT_PATH_ROOT := $(srctree)/drivers/misc/mediatek/mach/$(MTK_PLATFORM)/$(ARCH_MTK_PROJECT)
 
 ifeq ($(CONFIG_MACH_MT6781),y)
-CONFIG_MTK_PLATFORM_SENSOR := mt6853
+CONFIG_MTK_PLATFORM_SENSOR := mt6781
 else
 CONFIG_MTK_PLATFORM_SENSOR := $(CONFIG_MTK_PLATFORM)
 endif

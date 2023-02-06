@@ -111,8 +111,8 @@ bool parameq(const char *a, const char *b)
 static void param_check_unsafe(const struct kernel_param *kp)
 {
 	if (kp->flags & KERNEL_PARAM_FL_UNSAFE) {
-		pr_warn("Setting dangerous option %s - tainting kernel\n",
-			kp->name);
+		pr_notice("Setting dangerous option %s - tainting kernel\n",
+			  kp->name);
 		add_taint(TAINT_USER, LOCKDEP_STILL_OK);
 	}
 }
@@ -924,6 +924,7 @@ static const struct kset_uevent_ops module_uevent_ops = {
 };
 
 struct kset *module_kset;
+EXPORT_SYMBOL_GPL(module_kset);
 int module_sysfs_initialized;
 
 static void module_kobj_release(struct kobject *kobj)
@@ -936,6 +937,7 @@ struct kobj_type module_ktype = {
 	.release   =	module_kobj_release,
 	.sysfs_ops =	&module_sysfs_ops,
 };
+EXPORT_SYMBOL_GPL(module_ktype);
 
 /*
  * param_sysfs_init - wrapper for built-in params support

@@ -1,26 +1,22 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 #include <linux/delay.h>
 #include <linux/time.h>
 
 #include <mt-plat/upmu_common.h>
-#include <mt-plat/mtk_battery.h>
+#include <mt-plat/v1/mtk_battery.h>
 
 #include <mt-plat/mtk_auxadc_intf.h>
 #include <mach/mtk_pmic.h>
 
 #include <mtk_battery_internal.h>
+#if defined (CONFIG_MACH_MT6833) || defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6893) || defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6853) || defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6785)
+#include <mt-plat/v1/mtk_charger.h>
+#else
 #include <mtk_charger.h>
+#endif
 #include "include/pmic_auxadc.h"
 
 bool __attribute__ ((weak)) is_power_path_supported(void)

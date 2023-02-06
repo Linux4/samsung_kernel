@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/version.h>
@@ -32,13 +24,8 @@
 #include <linux/uidgid.h>
 #include <linux/slab.h>
 #include "tzbatt_initcfg.h"
-#if (CONFIG_MTK_GAUGE_VERSION == 30)
-#include <mtk_battery.h>
-#else 
-#if !defined (CONFIG_MACH_MT6739)
-#include <tmp_battery.h>
-#endif
-#endif
+#include <linux/power_supply.h>
+
 
 /* ************************************ */
 /* Function prototype*/
@@ -51,9 +38,7 @@ static void tsbattery_exit(void);
 int __attribute__ ((weak))
 read_tbat_value(void)
 {
-#if !defined(CONFIG_POWER_EXT)
-	pr_debug("[Thermal] E_WF: %s doesn't exist\n", __func__);
-#endif
+	pr_notice("[Thermal] E_WF: %s doesn't exist\n", __func__);
 	return 30;
 }
 
@@ -171,57 +156,29 @@ pr_debug("[Thermal/TZ/BATTERY]" fmt, ##args)
  */
 static int get_hw_battery_temp(void)
 {
-/*
- *	int fd;
- *    char buf[64];
- *    char *pmtdbufp = NULL;
- *    ssize_t pmtdsize;
- *
- *    char *pvalue = NULL;
- *    int got_value=0;
- *
- *    //open file and read current value
- *    fd = my_open("/sys/class/power_supply/battery/batt_temp", O_RDONLY);
- *    if (fd < 0)
- *    {
- *	mtktsbattery_dprintk("[get_hw_battery_temp]: open file fail");
- *	return 0;
- *    }
- *    mtktsbattery_dprintk("[get_hw_battery_temp]: open file ok");
- *    buf[sizeof(buf) - 1] = '\0';
- *    pmtdsize = sys_read(fd, buf, sizeof(buf) - 1);
- *    pmtdbufp = buf;
- *    got_value = simple_strtol(pmtdbufp,&pvalue,10);
- *
- *    // close file
- *    my_close(fd);
- *
- *    // debug
- *    mtktsbattery_dprintk("[get_hw_battery_temp]: got_value=%d\n", got_value);
- *
- *    return got_value;
- */
-	int ret = 0;
-#if defined(CONFIG_POWER_EXT)
-	/* EVB */
-	ret = -1270;
-#else
-	/* Phone */
 #if defined(CONFIG_BATTERY_SAMSUNG)
-	ret = 250;
+/*
+ * When HW team is testing device in high temperatures there is always kernel panic from MTK thermal side
+ * So, disable MTK battery thermal (ALPS05253270)
+ *
+ */
+	return 250;
 #else
-#if (CONFIG_MTK_GAUGE_VERSION == 30)
-	ret = battery_get_bat_temperature();
-#else
-	/* MTK_GAUGE_VERSION = 10 or 20 */
-	ret = read_tbat_value();
-#endif
-	ret = ret * 10;
-#endif
-#endif
+	union power_supply_propval prop;
+	struct power_supply *psy;
+	int ret = 0;
 
-	return ret;
+	psy = power_supply_get_by_name("battery");
+	if (psy == NULL)
+		return -1270;
+	ret = power_supply_get_property(psy,
+		POWER_SUPPLY_PROP_TEMP, &prop);
+		mtktsbattery_dprintk("%s %d\n", __func__, prop.intval);
+	if (ret != 0)
+		return -1270;
 
+	return prop.intval;
+#endif
 }
 
 static DEFINE_MUTEX(Battery_lock);

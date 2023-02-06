@@ -15,7 +15,7 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/v2
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/mt6781/
 obj-y += pmic_ipi_v2.o
 else
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/
+#ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/
 ifneq ($(CONFIG_MTK_TINYSYS_SSPM_VERSION),"")
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/$(CONFIG_MTK_TINYSYS_SSPM_VERSION)/
 else

@@ -1,25 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2019 MediaTek Inc.
  */
-
-#ifdef CONFIG_MTK_PID_MAP
-
 #include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/sched.h>
 #include <linux/seq_file.h>
-#include <linux/slab.h>
+#include <linux/tracepoint.h>
 #include <linux/uaccess.h>
-#include <linux/vmalloc.h>
 #include <mt-plat/mtk_pidmap.h>
 
 /*
@@ -35,83 +23,21 @@
  * handling flow, e.g., hwt or hw reboot.
  */
 
-#define TAG "[PIDMAP]"
-
-static DEFINE_SPINLOCK(mtk_pidmap_lock);
-static char __rcu *mtk_pidmap;
-static bool mtk_pidmap_enable;
+static char mtk_pidmap[PIDMAP_AEE_BUF_SIZE];
 static int  mtk_pidmap_proc_dump_mode;
 static int  mtk_pidmap_max_pid;
+static char mtk_pidmap_proc_cmd_buf[PIDMAP_PROC_CMD_BUF_SIZE];
 static struct proc_dir_entry *mtk_pidmap_proc_entry;
 
-static bool mtk_pidmap_allocate(void)
-{
-	char *pidmap = NULL;
-	char *old_pidmap = NULL;
-
-	pidmap = kmalloc(PIDMAP_AEE_BUF_SIZE, GFP_KERNEL);
-	if (!pidmap)
-		return false;
-
-	memset(pidmap, 0, PIDMAP_AEE_BUF_SIZE);
-	spin_lock(&mtk_pidmap_lock);
-	old_pidmap = rcu_dereference_protected(mtk_pidmap,
-		lockdep_is_held(&mtk_pidmap_lock));
-	rcu_assign_pointer(mtk_pidmap, pidmap);
-	spin_unlock(&mtk_pidmap_lock);
-	synchronize_rcu();
-	kfree(old_pidmap);
-	return true;
-}
-
-static void mtk_pidmap_reset(void)
-{
-	char *pidmap;
-
-	rcu_read_lock();
-	pidmap = rcu_dereference(mtk_pidmap);
-	if (pidmap)
-		memset(pidmap, 0, PIDMAP_AEE_BUF_SIZE);
-	rcu_read_unlock();
-}
-
-static void mtk_pidmap_free(void)
-{
-	char *old_pidmap = NULL;
-
-	spin_lock(&mtk_pidmap_lock);
-	old_pidmap = rcu_dereference_protected(mtk_pidmap,
-		lockdep_is_held(&mtk_pidmap_lock));
-	rcu_assign_pointer(mtk_pidmap, NULL);
-	spin_unlock(&mtk_pidmap_lock);
-	synchronize_rcu();
-	kfree(old_pidmap);
-}
-
-static void mtk_pidmap_init_map(void)
-{
-	/*
-	 * now pidmap is designed for keeping
-	 * maximum 32768 pids in 512 KB buffer.
-	 */
-	bool rs = mtk_pidmap_allocate();
-
-	if (rs) {
-		mtk_pidmap_proc_dump_mode = PIDMAP_PROC_DUMP_RAW;
-		mtk_pidmap_max_pid = PIDMAP_AEE_BUF_SIZE / PIDMAP_ENTRY_SIZE;
-		mtk_pidmap_enable = true;
-	} else {
-		pr_info(TAG " init: fail to init pidmap\n");
-		mtk_pidmap_enable = false;
-	}
-}
-
-static void mtk_pidmap_destroy_map(void)
-{
-	mtk_pidmap_free();
-	mtk_pidmap_enable = false;
-	mtk_pidmap_max_pid = 0;
-}
+/**
+ * Data structures to store tracepoints information
+ */
+struct tracepoints_table {
+	const char *name;
+	void *func;
+	struct tracepoint *tp;
+	bool init;
+};
 
 /*
  * mtk_pidmap_update
@@ -119,24 +45,16 @@ static void mtk_pidmap_destroy_map(void)
  *
  * task: current task
  */
-void mtk_pidmap_update(struct task_struct *task)
+static void mtk_pidmap_update(struct task_struct *task)
 {
-	char *pidmap = NULL;
 	char *name;
 	int len;
 	pid_t pid;
 
-	rcu_read_lock();
-	pidmap = rcu_dereference(mtk_pidmap);
-	if (unlikely(!pidmap)) {
-		pr_debug(TAG " update: pid map is not ready\n");
-		goto out;
-	}
-
 	pid = task->pid;
 
 	if (unlikely((pid < 1) || (pid > mtk_pidmap_max_pid)))
-		goto out;
+		return;
 
 	/*
 	 * part 1, get current task's name.
@@ -144,7 +62,7 @@ void mtk_pidmap_update(struct task_struct *task)
 	 * this could be lockless because the specific offset
 	 * will be updated by its task only.
 	 */
-	name = pidmap + ((pid - 1) * PIDMAP_ENTRY_SIZE);
+	name = mtk_pidmap + ((pid - 1) * PIDMAP_ENTRY_SIZE);
 
 	/* copy task name */
 	memcpy(name, task->comm, PIDMAP_TASKNAME_SIZE);
@@ -162,25 +80,86 @@ void mtk_pidmap_update(struct task_struct *task)
 	name += PIDMAP_TASKNAME_SIZE;
 	*(name + 0) = (char)(task->tgid & 0xFF);
 	*(name + 1) = (char)(task->tgid >> 8);
-out:
-	rcu_read_unlock();
 }
 
-static void mtk_pidmap_seq_dump_disable(struct seq_file *seq)
+static void probe_task_rename(void *data, struct task_struct *task,
+			      const char *comm)
 {
-	seq_puts(seq, "<PID Map>\n");
-	seq_puts(seq, "PIDMAP is disabled, please use \"echo 2 > pidmap\" to enable it\n");
-	seq_puts(seq, "\n<Configuration>\n");
-	seq_puts(seq, "echo 0 > pidmap: Dump raw pidmap (default, for AEE DB)\n");
-	seq_puts(seq, "echo 1 > pidmap: Dump readable pidmap\n");
-	seq_puts(seq, "echo 2 > pidmap: Reset or Enable pidmap\n");
-	seq_puts(seq, "echo 3 > pidmap: Disable pidmap\n");
+	mtk_pidmap_update(task);
+}
+
+static void probe_task_newtask(void *data, struct task_struct *task,
+			       unsigned long clone_flags)
+{
+	mtk_pidmap_update(task);
+}
+
+static struct tracepoints_table interests[] = {
+	{.name = "task_rename", .func = probe_task_rename},
+	{.name = "task_newtask", .func = probe_task_newtask}
+};
+
+#define FOR_EACH_INTEREST(i) \
+	for (i = 0; i < sizeof(interests) / \
+	     sizeof(struct tracepoints_table); i++)
+
+/**
+ * Find the struct tracepoint* associated with a given tracepoint
+ * name.
+ */
+static void lookup_tracepoints(struct tracepoint *tp, void *ignore)
+{
+	int i;
+
+	FOR_EACH_INTEREST(i) {
+		if (strcmp(interests[i].name, tp->name) == 0)
+			interests[i].tp = tp;
+	}
+}
+
+static void mtk_pidmap_deinit(void)
+{
+	int i;
+
+	FOR_EACH_INTEREST(i) {
+		if (interests[i].init) {
+			tracepoint_probe_unregister(interests[i].tp,
+						    interests[i].func, NULL);
+		}
+	}
+}
+
+static void mtk_pidmap_init_map(void)
+{
+	int i;
+
+	/* Install the tracepoints */
+	for_each_kernel_tracepoint(lookup_tracepoints, NULL);
+
+	FOR_EACH_INTEREST(i) {
+		if (interests[i].tp == NULL) {
+			pr_info("Error: %s not found\n", interests[i].name);
+			/* Unload previously loaded */
+			mtk_pidmap_deinit();
+			return;
+		}
+
+		tracepoint_probe_register(interests[i].tp, interests[i].func,
+					  NULL);
+		interests[i].init = true;
+	}
+
+	/*
+	 * now pidmap is designed for keeping
+	 * maximum 32768 pids in 512 KB buffer.
+	 */
+	mtk_pidmap_max_pid =
+		PIDMAP_AEE_BUF_SIZE / PIDMAP_ENTRY_SIZE;
 }
 
 static void mtk_pidmap_seq_dump_readable(char **buff, unsigned long *size,
 	struct seq_file *seq)
 {
-	char *pidmap;
 	int i, active_pid;
 	pid_t tgid;
 	char *name;
@@ -194,14 +173,9 @@ static void mtk_pidmap_seq_dump_readable(char **buff, unsigned long *size,
 	 * we ignore locking here to favor performance.
 	 */
 	active_pid = 0;
-	rcu_read_lock();
-	pidmap = rcu_dereference(mtk_pidmap);
-	if (unlikely(!pidmap)) {
-		pr_debug(TAG " dump readable: pid map is not ready\n");
-		goto out;
-	}
+
 	for (i = 0; i < PIDMAP_ENTRY_CNT; i++) {
-		name = pidmap + (i * PIDMAP_ENTRY_SIZE);
+		name = &mtk_pidmap[i * PIDMAP_ENTRY_SIZE];
 		if (name[0]) {
 			/* get task name */
 			memset(name_tmp, 0, PIDMAP_TASKNAME_SIZE);
@@ -219,9 +193,6 @@ static void mtk_pidmap_seq_dump_readable(char **buff, unsigned long *size,
 		}
 	}
 
-out:
-	rcu_read_unlock();
-
 	seq_puts(seq, "\n<Information>\n");
 	seq_printf(seq, "Total PIDs: %d\n", active_pid);
 	seq_printf(seq, "Entry size: %d bytes\n",
@@ -232,19 +203,20 @@ out:
 			(int)PIDMAP_TGID_SIZE);
 	seq_printf(seq, "Total Buffer Size: %d bytes\n",
 			PIDMAP_AEE_BUF_SIZE + PIDMAP_PROC_CMD_BUF_SIZE);
-	seq_printf(seq, "mtk_pidmap address: 0x%p\n", pidmap);
+	seq_printf(seq, "mtk_pidmap address: 0x%p\n",
+			&mtk_pidmap[0]);
+
 	seq_puts(seq, "\n<Configuration>\n");
 	seq_puts(seq, "echo 0 > pidmap: Dump raw pidmap (default, for AEE DB)\n");
 	seq_puts(seq, "echo 1 > pidmap: Dump readable pidmap\n");
-	seq_puts(seq, "echo 2 > pidmap: Reset or Enable pidmap\n");
-	seq_puts(seq, "echo 3 > pidmap: Disable pidmap\n");
+	seq_puts(seq, "echo 2 > pidmap: Reset pidmap\n");
 
 }
 
 static void mtk_pidmap_seq_dump_raw(struct seq_file *seq)
 {
 	int i;
-	char *pidmap;
+
 	/*
 	 * pid map shall be protected for dump, however
 	 * we ignore locking here to favor performance.
@@ -257,24 +229,12 @@ static void mtk_pidmap_seq_dump_raw(struct seq_file *seq)
 	 * 0Ah may be existed for TGID, and you'll get an incorrect
 	 * PID map outputs.
 	 */
-	rcu_read_lock();
-	pidmap = rcu_dereference(mtk_pidmap);
-	if (unlikely(!pidmap)) {
-		pr_debug(TAG " dump raw: pid map is not ready\n");
-		rcu_read_unlock();
-		return;
-	}
 	for (i = 0; i < PIDMAP_AEE_BUF_SIZE; i++)
-		seq_putc(seq, pidmap[i]);
-	rcu_read_unlock();
+		seq_putc(seq, mtk_pidmap[i]);
 }
 
 static int mtk_pidmap_seq_show(struct seq_file *seq, void *v)
 {
-	if (!mtk_pidmap_enable) {
-		mtk_pidmap_seq_dump_disable(seq);
-		return 0;
-	}
 	if (mtk_pidmap_proc_dump_mode == PIDMAP_PROC_DUMP_READABLE)
 		mtk_pidmap_seq_dump_readable(NULL, NULL, seq);
 	else if (mtk_pidmap_proc_dump_mode == PIDMAP_PROC_DUMP_RAW)
@@ -285,26 +245,13 @@ static int mtk_pidmap_seq_show(struct seq_file *seq, void *v)
 
 void get_pidmap_aee_buffer(unsigned long *vaddr, unsigned long *size)
 {
-	char *pidmap;
+	/* retrun start location */
+	if (vaddr)
+		*vaddr = (unsigned long)mtk_pidmap;
 
-	rcu_read_lock();
-	pidmap = rcu_dereference(mtk_pidmap);
-	if (unlikely(pidmap == NULL)) {
-		pr_info(TAG " aee buffer: pid map is not ready\n");
-		if (vaddr)
-			*vaddr = 0;
-		if (size)
-			*size = 0;
-	} else {
-		/* retrun start location */
-		/* FIXME pidmap is exposed to external module without rcu read lock. */
-		if (vaddr)
-			*vaddr = (unsigned long) pidmap;
-		/* return valid buffer size */
-		if (size)
-			*size = PIDMAP_AEE_BUF_SIZE;
-	}
-	rcu_read_unlock();
+	/* return valid buffer size */
+	if (size)
+		*size = PIDMAP_AEE_BUF_SIZE;
 }
 EXPORT_SYMBOL(get_pidmap_aee_buffer);
 
@@ -312,47 +259,33 @@ static ssize_t mtk_pidmap_proc_write(struct file *file, const char *buf,
 	size_t count, loff_t *data)
 {
 	int ret;
-	char cmd[PIDMAP_PROC_CMD_BUF_SIZE] = {0};
 
 	if (count == 0)
 		goto err;
 	else if (count > PIDMAP_PROC_CMD_BUF_SIZE)
 		count = PIDMAP_PROC_CMD_BUF_SIZE;
 
-	ret = copy_from_user(cmd, buf, count);
+	ret = copy_from_user(mtk_pidmap_proc_cmd_buf, buf, count);
 
 	if (ret < 0)
 		goto err;
 
-	if (cmd[0] == '0') {
+	if (mtk_pidmap_proc_cmd_buf[0] == '0') {
 		mtk_pidmap_proc_dump_mode = PIDMAP_PROC_DUMP_RAW;
-		pr_info(TAG " dump mode: raw\n");
-	} else if (cmd[0] == '1') {
+		pr_info("[pidmap] dump mode: raw\n");
+	} else if (mtk_pidmap_proc_cmd_buf[0] == '1') {
 		mtk_pidmap_proc_dump_mode = PIDMAP_PROC_DUMP_READABLE;
-		pr_info(TAG " dump mode: readable\n");
-	} else if (cmd[0] == '2') {
-		if (mtk_pidmap_enable) {
-			mtk_pidmap_reset();
-			pr_info(TAG " reset pidmap\n");
-		} else {
-			mtk_pidmap_allocate();
-			mtk_pidmap_enable = true;
-			pr_info(TAG " enable pidmap\n");
-		}
-	} else if (cmd[0] == '3') {
-		if (mtk_pidmap_enable) {
-			mtk_pidmap_free();
-			mtk_pidmap_enable = false;
-			pr_info(TAG " disable pidmap\n");
-		} else
-			pr_info(TAG " pidmap has been disabled");
+		pr_info("[pidmap] dump mode: readable\n");
+	} else if (mtk_pidmap_proc_cmd_buf[0] == '2') {
+		memset(mtk_pidmap, 0, sizeof(mtk_pidmap));
+		pr_info("[pidmap] reset pidmap\n");
 	} else
 		goto err;
 
 	goto out;
 
 err:
-	pr_info(TAG " invalid arg: 0x%x\n", cmd[0]);
+	pr_info("[pidmap] invalid arg: 0x%x\n", mtk_pidmap_proc_cmd_buf[0]);
 	return -1;
 out:
 	return count;
@@ -386,40 +319,31 @@ static int mtk_pidmap_proc_init(void)
 	if (mtk_pidmap_proc_entry)
 		proc_set_user(mtk_pidmap_proc_entry, uid, gid);
 	else
-		pr_info(TAG " failed to create /proc/pidmap\n");
+		pr_info("[pidmap] failed to create /proc/pidmap\n");
 
 	return 0;
 }
 
 static int __init mtk_pidmap_init(void)
 {
-	mtk_pidmap_proc_init();
 	mtk_pidmap_init_map();
+	mtk_pidmap_proc_init();
 
 	return 0;
 }
 
 static void __exit mtk_pidmap_exit(void)
 {
-	mtk_pidmap_destroy_map();
 	proc_remove(mtk_pidmap_proc_entry);
 }
 
-module_init(mtk_pidmap_init);
-module_exit(mtk_pidmap_exit);
-
-#else /* CONFIG_MTK_PID_MAP */
-
-void get_pidmap_aee_buffer(unsigned long *vaddr, unsigned long *size)
-{
-	/* return valid buffer size */
-	if (size)
-		*size = 0;
-}
-EXPORT_SYMBOL(get_pidmap_aee_buffer);
-
-#endif /* CONFIG_MTK_PID_MAP */
+/*
+ * TODO: The timing of loadable module is too late to have full
+ * list of kernel threads. Need to find out solution.
+ */
+early_initcall(mtk_pidmap_init);
 
 MODULE_AUTHOR("Stanley Chu <stanley.chu@mediatek.com>");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("PID Map");
+

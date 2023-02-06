@@ -20,6 +20,7 @@
 #include "adsp_platform.h"
 #include "adsp_platform_driver.h"
 #include "adsp_core.h"
+#include "adsp_timesync.h"
 
 #include <linux/suspend.h>
 #include <linux/arm-smccc.h> /* for Kernel Native SMC API */
@@ -84,14 +85,12 @@ int adsp_core0_init(struct adsp_priv *pdata)
 	adsp_update_mpu_memory_info(pdata);
 
 	/* exception init & irq */
-	init_adsp_exception_control(adsp_wq, &adsp_waitq);
+	init_adsp_exception_control(pdata->dev, adsp_wq, &adsp_waitq);
 	adsp_irq_registration(pdata->id, ADSP_IRQ_WDT_ID, adsp_wdt_handler,
 			      pdata);
 
 	/* logger */
-	pdata->log_ctrl = adsp_logger_init(ADSP_A_LOGGER_MEM_ID);
-	if (pdata->log_ctrl)
-		INIT_DELAYED_WORK(&pdata->log_ctrl->work, adsp_logger_init0_cb);
+	pdata->log_ctrl = adsp_logger_init(ADSP_A_LOGGER_MEM_ID, adsp_logger_init0_cb);
 
 	/* mailbox */
 	mutex_init(&pdata->send_mbox->mutex_send);
@@ -145,11 +144,10 @@ int adsp_core0_suspend(void)
 	u32 status = 0;
 	struct adsp_priv *pdata = adsp_cores[ADSP_A_ID];
 	ktime_t start = ktime_get();
-	pr_info("%s(), start. state = %d", __func__,
-		get_adsp_state(pdata));
 
 	if (get_adsp_state(pdata) == ADSP_RUNNING) {
 		reinit_completion(&pdata->done);
+		adsp_timesync_suspend(APTIME_UNFREEZE);
 		ret = adsp_push_message(ADSP_IPI_DVFS_SUSPEND, &status,
 					sizeof(status), 2000, pdata->id);
 		if (ret != ADSP_IPI_DONE) {
@@ -195,8 +193,6 @@ int adsp_core0_resume(void)
 	int ret = 0;
 	struct adsp_priv *pdata = adsp_cores[ADSP_A_ID];
 	ktime_t start = ktime_get();
-	pr_info("%s(), start. state = %d", __func__,
-		get_adsp_state(pdata));
 
 	if (get_adsp_state(pdata) == ADSP_SUSPEND) {
 		switch_adsp_power(true);
@@ -204,7 +200,6 @@ int adsp_core0_resume(void)
 
 		set_adsp_dram_remapping(pdata->sysram_phys,
 					pdata->sysram_size);
-		timesync_to_adsp(pdata, APTIME_UNFREEZE);
 
 		reinit_completion(&pdata->done);
 		adsp_mt_run(pdata->id);
@@ -215,6 +210,7 @@ int adsp_core0_resume(void)
 			adsp_aed_dispatch(EXCEP_KERNEL, pdata);
 			return -ETIME;
 		}
+		adsp_timesync_resume();
 	}
 	pr_info("%s(), done elapse %lld us", __func__,
 		ktime_us_delta(ktime_get(), start));
@@ -224,7 +220,7 @@ int adsp_core0_resume(void)
 void adsp_logger_init0_cb(struct work_struct *ws)
 {
 	int ret;
-	unsigned int info[6];
+	uint64_t info[6];
 
 	info[0] = adsp_get_reserve_mem_phys(ADSP_A_LOGGER_MEM_ID);
 	info[1] = adsp_get_reserve_mem_size(ADSP_A_LOGGER_MEM_ID);
@@ -512,23 +508,19 @@ static int adsp_ap_suspend(struct device *dev)
 		}
 	}
 
-#ifdef CONFIG_MTK_TIMER_TIMESYNC
 	if (is_adsp_system_running()) {
-		timesync_to_adsp(adsp_cores[ADSP_A_ID], APTIME_FREEZE);
+		adsp_timesync_suspend(APTIME_FREEZE);
 		pr_info("%s, time sync freeze", __func__);
 	}
-#endif
 	return 0;
 }
 
 static int adsp_ap_resume(struct device *dev)
 {
-#ifdef CONFIG_MTK_TIMER_TIMESYNC
 	if (is_adsp_system_running()) {
-		timesync_to_adsp(adsp_cores[ADSP_A_ID], APTIME_UNFREEZE);
+		adsp_timesync_resume();
 		pr_info("%s, time sync unfreeze", __func__);
 	}
-#endif
 	return 0;
 }
 

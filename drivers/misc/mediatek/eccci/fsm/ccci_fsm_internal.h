@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 #ifndef __CCCI_FSM_INTERNAL_H__
@@ -245,7 +237,7 @@ struct ccci_fsm_ctl {
 	struct task_struct *fsm_thread;
 	atomic_t fs_ongoing;
 	char wakelock_name[32];
-	struct wakeup_source wakelock;
+	struct wakeup_source *wakelock;
 
 	unsigned long boot_count; /* for throttling feature */
 
@@ -287,6 +279,10 @@ int fsm_sys_init(void);
 int ccci_get_ap_debug_level(void);
 #endif
 
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+	int ccci_get_ap_debug_level(void);
+#endif
+
 struct ccci_fsm_ctl *fsm_get_entity_by_device_number(dev_t dev_n);
 struct ccci_fsm_ctl *fsm_get_entity_by_md_id(int md_id);
 int fsm_monitor_send_message(int md_id, enum CCCI_MD_MSG msg, u32 resv);
@@ -309,6 +305,6 @@ extern void inject_md_status_event(int md_id, int event_type, char reason[]);
 extern void ccci_set_mem_access_protection_second_stage(int md_id);
 #endif
 extern void mdee_set_ex_start_str(struct ccci_fsm_ee *ee_ctl,
-	const unsigned int type, const char *str);
+	unsigned int type, char *str);
 #endif /* __CCCI_FSM_INTERNAL_H__ */
 

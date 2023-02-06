@@ -8,6 +8,7 @@
 #include "mtk_cpuidle_cpc.h"
 #include "mtk_cpuidle_status.h"
 #include "mtk_idle_procfs.h"
+#include "mt6853_spm_comm.h"
 
 static int idle_proc_kernel_show(struct seq_file *m, void *v)
 {

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/soc/mediatek/mtk-cmdq.h>
 #include <linux/math64.h>
@@ -21,14 +13,9 @@
 
 void cmdq_sec_setup_tee_context(struct cmdq_sec_tee_context *tee)
 {
-#if defined(CONFIG_TEEGRIS_TEE_SUPPORT)
-	tee->uuid = (TEEC_UUID) { 0x00000000, 0x4D54, 0x4B5F,
-		{0x42, 0x46, 0x43, 0x4D, 0x44, 0x51, 0x54, 0x41} };
-#else
 	/* 09010000 0000 0000 0000000000000000 */
 	tee->uuid = (struct TEEC_UUID) { 0x09010000, 0x0, 0x0,
 		{ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 } };
-#endif
 }
 
 #include <linux/atomic.h>
@@ -44,7 +31,7 @@ s32 cmdq_sec_init_context(struct cmdq_sec_tee_context *tee)
 		cmdq_msg("[SEC]Microtrust TEE is not ready, wait...");
 		msleep(1000);
 	}
-#elif defined(CONFIG_TRUSTONIC_TEE_SUPPORT)
+#else
 	while (!is_mobicore_ready()) {
 		cmdq_msg("[SEC]Trustonic TEE is not ready, wait...");
 		msleep(1000);
@@ -76,7 +63,7 @@ s32 cmdq_sec_allocate_wsm(struct cmdq_sec_tee_context *tee,
 	void **wsm_buffer, u8 idx, u32 size)
 {
 	s32 status;
-	TYPE_STRUCT TEEC_SharedMemory *mem = &tee->shared_mem[idx];
+	struct TEEC_SharedMemory *mem = &tee->shared_mem[idx];
 
 	if (!wsm_buffer)
 		return -EINVAL;
@@ -147,10 +134,10 @@ s32 cmdq_sec_execute_session(struct cmdq_sec_tee_context *tee,
 	u32 cmd, s32 timeout_ms, bool mem_ex1, bool mem_ex2)
 {
 	s32 status;
-	TYPE_STRUCT TEEC_Operation operation;
+	struct TEEC_Operation operation;
 	u64 ts = sched_clock();
 
-	memset(&operation, 0, sizeof(TYPE_STRUCT TEEC_Operation));
+	memset(&operation, 0, sizeof(struct TEEC_Operation));
 #if defined(CONFIG_TRUSTONIC_TEE_SUPPORT)
 	operation.param_types = TEEC_PARAM_TYPES(TEEC_MEMREF_PARTIAL_INOUT,
 		mem_ex1 ? TEEC_MEMREF_PARTIAL_INOUT : TEEC_NONE,

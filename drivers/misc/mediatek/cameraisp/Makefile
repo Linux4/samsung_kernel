@@ -13,11 +13,14 @@
 
 obj-y += dip/
 obj-y += src/
-obj-y += owe/
-obj-y += rsc/
-obj-y += wpe/
-obj-y += dpe/
-obj-y += tsf/
-obj-y += mfb/
-obj-y += fdvt/
-obj-y += pda/
+#ifeq ($(CONFIG_MACH_MT6763),y)
+#obj-y += owe/
+#endif
+obj-$(CONFIG_MTK_CAMERA_ISP_RSC_SUPPORT) += rsc/
+obj-$(CONFIG_MTK_CAMERA_ISP_WPE_SUPPORT) += wpe/
+obj-$(CONFIG_MTK_CAMERA_ISP_DPE_SUPPORT) += dpe/
+#ifeq ($(CONFIG_MACH_MT6763),y)
+#obj-y += tsf/
+#endif
+obj-$(CONFIG_MTK_CAMERA_ISP_MFB_SUPPORT) += mfb/
+obj-$(CONFIG_MTK_CAMERA_ISP_FD_SUPPORT) += fdvt/

@@ -3,6 +3,12 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
+//#include <linux/mm.h>
+#include <linux/types.h>
+#include <linux/stat.h>
+#include <linux/unistd.h>
+#include <linux/slab.h>
+#include <linux/vmalloc.h>
 
 #include "imgsensor_vendor.h"
 #include "imgsensor_vendor_specific.h"
@@ -148,55 +154,64 @@ int cam_info_probe(struct device_node *np) {
 
 void imgsensor_sec_init_err_cnt(struct cam_hw_param *hw_param)
 {
-        if (hw_param) {
-                memset(hw_param, 0, sizeof(struct cam_hw_param));
-        }
+	if (hw_param) {
+		memset(hw_param, 0, sizeof(struct cam_hw_param));
+	}
 }
 
 void imgsensor_sec_get_hw_param(struct cam_hw_param **hw_param, u32 position)
 {
-        switch (position) {
-                case SENSOR_POSITION_REAR:
-                        *hw_param = &cam_hwparam_collector.rear_hwparam;
-                        break;
-                case SENSOR_POSITION_REAR2:
-                        *hw_param = &cam_hwparam_collector.rear2_hwparam;
-                        break;
-                case SENSOR_POSITION_REAR3:
-                        *hw_param = &cam_hwparam_collector.rear3_hwparam;
-                        break;
-                case SENSOR_POSITION_REAR4:
-                        *hw_param = &cam_hwparam_collector.rear4_hwparam;
-                        break;
-                case SENSOR_POSITION_FRONT:
-                        *hw_param = &cam_hwparam_collector.front_hwparam;
-                        break;
-                default:
-			pr_err("Sensor Position(%d) not found",position);
-                        return;
-        }
+	switch (position) {
+		case SENSOR_POSITION_REAR:
+			*hw_param = &cam_hwparam_collector.rear_hwparam;
+			break;
+		case SENSOR_POSITION_REAR2:
+			*hw_param = &cam_hwparam_collector.rear2_hwparam;
+			break;
+		case SENSOR_POSITION_REAR3:
+			*hw_param = &cam_hwparam_collector.rear3_hwparam;
+			break;
+		case SENSOR_POSITION_REAR4:
+			*hw_param = &cam_hwparam_collector.rear4_hwparam;
+			break;
+		case SENSOR_POSITION_FRONT:
+			*hw_param = &cam_hwparam_collector.front_hwparam;
+			break;
+		default:
+			pr_err("Sensor Position(%d) not found", position);
+			return;
+	}
+}
+
+void imgsensor_increase_hw_param_err_cnt(u32 position)
+{
+	struct cam_hw_param *hw_param = NULL;
+
+	imgsensor_sec_get_hw_param(&hw_param, position);
+	if (hw_param)
+		hw_param->i2c_sensor_err_cnt++;
 }
 
 bool imgsensor_sec_is_valid_moduleid(char* moduleid)
 {
-        int i = 0;
+	int i = 0;
 
-        if (moduleid == NULL || strlen(moduleid) < 5) {
-                goto err;
-        }
+	if (moduleid == NULL || strlen(moduleid) < 5) {
+		goto err;
+	}
 
-        for (i = 0; i < 5; i++)
-        {
-                if (!((moduleid[i] > 47 && moduleid[i] < 58) || // 0 to 9
-                        (moduleid[i] > 64 && moduleid[i] < 91))) {  // A to Z
-                        goto err;
-                }
-        }
+	for (i = 0; i < 5; i++)
+	{
+		if (!((moduleid[i] > 47 && moduleid[i] < 58) || // 0 to 9
+				(moduleid[i] > 64 && moduleid[i] < 91))) {  // A to Z
+				goto err;
+		}
+	}
 
-        return true;
+	return true;
 
 err:
-        pr_err("invalid moduleid\n");
-        return false;
+	pr_err("invalid moduleid\n");
+	return false;
 }
 #endif

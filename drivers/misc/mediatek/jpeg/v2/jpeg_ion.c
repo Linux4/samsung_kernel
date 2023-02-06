@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2021 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #include "jpeg_ion.h"
@@ -241,7 +233,7 @@ u64 jpg_translate_fd(u64 fd, u32 offset, u32 port)
 	iova += offset;
 
 	jpg_ion_free_handle(ion_h);
-	JPEG_LOG(1, "iova 0x%x", iova);
+	JPEG_LOG(1, "iova 0x%llx", iova);
 
 	return iova;
 }

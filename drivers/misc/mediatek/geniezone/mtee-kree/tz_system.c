@@ -1,14 +1,18 @@
+// SPDX-License-Identifier: GPL-2.0
+
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
+ */
+
+/*
+ * GenieZone (hypervisor-based seucrity platform) enables hardware protected
+ * and isolated security execution environment, includes
+ * 1. GZ hypervisor
+ * 2. Hypervisor-TEE OS (built-in Trusty OS)
+ * 3. Drivers (ex: debug, communication and interrupt) for GZ and
+ *    hypervisor-TEE OS
+ * 4. GZ and hypervisor-TEE and GZ framework (supporting multiple TEE
+ *    ecosystem, ex: M-TEE, Trusty, GlobalPlatform, ...)
  */
 
 
@@ -60,6 +64,12 @@
 #define KREE_ERR(fmt...) pr_info("[KREE][ERR]" fmt)
 #endif
 
+#if IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
+	#define TYPE_STRUCT
+#else
+	#define TYPE_STRUCT struct
+#endif
+
 #define DYNAMIC_TIPC_LEN
 #define GZ_SYS_SERVICE_NAME_TRUSTY "com.mediatek.geniezone.srv.sys"
 #define GZ_SYS_SERVICE_NAME_NEBULA "nebula.com.mediatek.geniezone.srv.sys"
@@ -95,7 +105,7 @@ struct completion ree_dummy_event;
 struct task_struct *ree_dummy_task;
 
 #if IS_ENABLED(CONFIG_PM_SLEEP)
-struct wakeup_source TeeServiceCall_wake_lock; /*4.14*/
+struct wakeup_source *TeeServiceCall_wake_lock; /*4.19*/
 #endif
 
  /* only need to open sys service once */
@@ -111,12 +121,6 @@ static struct tipc_k_handle
 static uint32_t _kree_session_handle_idx;
 
 #define debugFg 0
-
-#if defined(CONFIG_TEEGRIS_TEE_SUPPORT)
-	#define TYPE_STRUCT
-#else
-	#define TYPE_STRUCT struct
-#endif
 
 #define TIPC_PORT_START_ID		(1000)
 #define TIPC_PORT_END_ID		(0xFFFFFFFF)
@@ -980,7 +984,7 @@ TZ_RESULT _Gz_KreeServiceCall_body(KREE_SESSION_HANDLE handle, uint32_t command,
 		param[1].value.a = ret;
 		break;
 
-#if IS_ENABLED(CONFIG_MTK_TEE_GP_SUPPORT)
+#if IS_ENABLED(CONFIG_MTK_TEE_GP_SUPPORT) && !IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
 	case REE_SERVICE_CMD_TEE_INIT_CTX:
 		ret = TEEC_InitializeContext(
 			(char *)param[0].mem.buffer,
@@ -1072,7 +1076,7 @@ TZ_RESULT _GzServiceCall_body(int32_t Fd, unsigned int cmd,
 #endif
 	if (rc < 0) {
 		KREE_ERR("%s: gz client cmd failed\n", __func__);
-		return rc;//TZ_RESULT_ERROR_COMMUNICATION;
+		return TZ_RESULT_ERROR_COMMUNICATION;
 	}
 
 	/* keeps serving REE call until ends */
@@ -1080,7 +1084,7 @@ TZ_RESULT _GzServiceCall_body(int32_t Fd, unsigned int cmd,
 		rc = _gz_client_wait_ret(Fd, &ree_param);
 		if (rc < 0) {
 			KREE_ERR("%s: wait ret failed(%d)\n", __func__, rc);
-			ret = rc;//TZ_RESULT_ERROR_COMMUNICATION;
+			ret = TZ_RESULT_ERROR_COMMUNICATION;
 			break;
 		}
 		KREE_DEBUG("=====> %s, ree service %d\n", __func__,
@@ -1152,7 +1156,7 @@ static void kree_perf_boost(int enable)
 		if (perf_boost_cnt == 0) {
 			KREE_DEBUG("%s wake_lock\n", __func__);
 #if IS_ENABLED(CONFIG_PM_SLEEP)
-			__pm_stay_awake(&TeeServiceCall_wake_lock); /*4.14*/
+			__pm_stay_awake(TeeServiceCall_wake_lock); /*4.19*/
 #endif
 		}
 		perf_boost_cnt++;
@@ -1160,7 +1164,7 @@ static void kree_perf_boost(int enable)
 		if (perf_boost_cnt == 1) {
 			KREE_DEBUG("%s wake_unlock\n", __func__);
 #if IS_ENABLED(CONFIG_PM_SLEEP)
-			__pm_relax(&TeeServiceCall_wake_lock); /*4.14*/
+			__pm_relax(TeeServiceCall_wake_lock); /*4.19*/
 #endif
 		}
 		if (perf_boost_cnt > 0)
@@ -1325,6 +1329,8 @@ TZ_RESULT KREE_TeeServiceCallPlus(KREE_SESSION_HANDLE handle, uint32_t command,
 		KREE_ERR("%s: port is not found\n", __func__);
 		return TZ_RESULT_ERROR_BAD_PARAMETERS;
 	}
+
+	memset(&cparam, 0, sizeof(cparam));
 
 	cparam.command = command;
 	cparam.paramTypes = paramTypes;

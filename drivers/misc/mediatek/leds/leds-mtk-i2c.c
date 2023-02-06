@@ -1,4 +1,3 @@
-
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2018 MediaTek Inc.
@@ -136,7 +135,7 @@ static int brightness_maptolevel(struct led_conf_info *led_dat, int brightness)
  * add API for temperature control
  ***************************************************************************/
 
-int setMaxBrightness(char *name, int percent, bool enable)
+int mt_leds_max_brightness_set(char *name, int percent, bool enable)
 {
 	struct mtk_led_data *led_dat;
 	int max_l = 0, limit_l = 0, cur_l = 0;
@@ -172,7 +171,7 @@ int setMaxBrightness(char *name, int percent, bool enable)
 	return 0;
 
 }
-EXPORT_SYMBOL(setMaxBrightness);
+EXPORT_SYMBOL(mt_leds_max_brightness_set);
 
 int mt_leds_brightness_set(char *name, int level)
 {
@@ -271,10 +270,6 @@ static int led_level_set(struct led_classdev *led_cdev, enum led_brightness brig
 
 	trans_level = brightness_maptolevel(led_conf, brightness);
 
-#ifdef MET_USER_EVENT_SUPPORT
-	if (enable_met_backlight_tag())
-		output_met_backlight_tag(brightness);
-#endif
 	pr_debug("set brightness: %d, %d", brightness, trans_level);
 
 	led_data->last_brightness = brightness;
@@ -283,9 +278,7 @@ static int led_level_set(struct led_classdev *led_cdev, enum led_brightness brig
 	call_notifier(1, led_conf);
 #endif
 
-#ifdef CONFIG_MTK_AAL_SUPPORT
-	disp_pq_notify_backlight_changed(trans_level);
-#else
+#ifndef CONFIG_MTK_AAL_SUPPORT
 	led_level_i2c_set(led_data, trans_level);
 	led_data->last_level = trans_level;
 #endif

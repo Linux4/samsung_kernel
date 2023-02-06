@@ -47,7 +47,7 @@
 #define EN_ETHTOOL_SHORT_MASK cpu_to_be16(0xffff)
 #define EN_ETHTOOL_WORD_MASK  cpu_to_be32(0xffffffff)
 
-static int mlx4_en_moderation_update(struct mlx4_en_priv *priv)
+int mlx4_en_moderation_update(struct mlx4_en_priv *priv)
 {
 	int i, t;
 	int err = 0;
@@ -199,6 +199,10 @@ static const char main_strings[][ETH_GSTRING_LEN] = {
 	"rx_xdp_drop",
 	"rx_xdp_tx",
 	"rx_xdp_tx_full",
+
+	/* phy statistics */
+	"rx_packets_phy", "rx_bytes_phy",
+	"tx_packets_phy", "tx_bytes_phy",
 };
 
 static const char mlx4_en_test_names[][ETH_GSTRING_LEN]= {
@@ -411,6 +415,10 @@ static void mlx4_en_get_ethtool_stats(struct net_device *dev,
 		if (bitmap_iterator_test(&it))
 			data[index++] = ((unsigned long *)&priv->xdp_stats)[i];
 
+	for (i = 0; i < NUM_PHY_STATS; i++, bitmap_iterator_inc(&it))
+		if (bitmap_iterator_test(&it))
+			data[index++] = ((unsigned long *)&priv->phy_stats)[i];
+
 	for (i = 0; i < priv->tx_ring_num[TX]; i++) {
 		data[index++] = priv->tx_ring[TX][i]->packets;
 		data[index++] = priv->tx_ring[TX][i]->bytes;
@@ -485,6 +493,12 @@ static void mlx4_en_get_strings(struct net_device *dev,
 				       main_strings[strings]);
 
 		for (i = 0; i < NUM_XDP_STATS; i++, strings++,
+		     bitmap_iterator_inc(&it))
+			if (bitmap_iterator_test(&it))
+				strcpy(data + (index++) * ETH_GSTRING_LEN,
+				       main_strings[strings]);
+
+		for (i = 0; i < NUM_PHY_STATS; i++, strings++,
 		     bitmap_iterator_inc(&it))
 			if (bitmap_iterator_test(&it))
 				strcpy(data + (index++) * ETH_GSTRING_LEN,
@@ -1115,12 +1129,21 @@ static int mlx4_en_set_ringparam(struct net_device *dev,
 	if (param->rx_jumbo_pending || param->rx_mini_pending)
 		return -EINVAL;
 
+	if (param->rx_pending < MLX4_EN_MIN_RX_SIZE) {
+		en_warn(priv, "%s: rx_pending (%d) < min (%d)\n",
+			__func__, param->rx_pending,
+			MLX4_EN_MIN_RX_SIZE);
+		return -EINVAL;
+	}
+	if (param->tx_pending < MLX4_EN_MIN_TX_SIZE) {
+		en_warn(priv, "%s: tx_pending (%d) < min (%lu)\n",
+			__func__, param->tx_pending,
+			MLX4_EN_MIN_TX_SIZE);
+		return -EINVAL;
+	}
+
 	rx_size = roundup_pow_of_two(param->rx_pending);
-	rx_size = max_t(u32, rx_size, MLX4_EN_MIN_RX_SIZE);
-	rx_size = min_t(u32, rx_size, MLX4_EN_MAX_RX_SIZE);
 	tx_size = roundup_pow_of_two(param->tx_pending);
-	tx_size = max_t(u32, tx_size, MLX4_EN_MIN_TX_SIZE);
-	tx_size = min_t(u32, tx_size, MLX4_EN_MAX_TX_SIZE);
 
 	if (rx_size == (priv->port_up ? priv->rx_ring[0]->actual_size :
 					priv->rx_ring[0]->size) &&
@@ -1764,13 +1787,18 @@ static int mlx4_en_set_rxnfc(struct net_device *dev, struct ethtool_rxnfc *cmd)
 	return err;
 }
 
+static int mlx4_en_get_max_num_rx_rings(struct net_device *dev)
+{
+	return min_t(int, num_online_cpus(), MAX_RX_RINGS);
+}
+
 static void mlx4_en_get_channels(struct net_device *dev,
 				 struct ethtool_channels *channel)
 {
 	struct mlx4_en_priv *priv = netdev_priv(dev);
 
-	channel->max_rx = MAX_RX_RINGS;
-	channel->max_tx = MLX4_EN_MAX_TX_RING_P_UP;
+	channel->max_rx = mlx4_en_get_max_num_rx_rings(dev);
+	channel->max_tx = priv->mdev->profile.max_num_tx_rings_p_up;
 
 	channel->rx_count = priv->rx_ring_num;
 	channel->tx_count = priv->tx_ring_num[TX] /
@@ -1784,6 +1812,7 @@ static int mlx4_en_set_channels(struct net_device *dev,
 	struct mlx4_en_dev *mdev = priv->mdev;
 	struct mlx4_en_port_profile new_prof;
 	struct mlx4_en_priv *tmp;
+	int total_tx_count;
 	int port_up = 0;
 	int xdp_count;
 	int err = 0;
@@ -1798,13 +1827,12 @@ static int mlx4_en_set_channels(struct net_device *dev,
 
 	mutex_lock(&mdev->state_lock);
 	xdp_count = priv->tx_ring_num[TX_XDP] ? channel->rx_count : 0;
-	if (channel->tx_count * priv->prof->num_up + xdp_count >
-	    MAX_TX_RINGS) {
+	total_tx_count = channel->tx_count * priv->prof->num_up + xdp_count;
+	if (total_tx_count > MAX_TX_RINGS) {
 		err = -EINVAL;
 		en_err(priv,
 		       "Total number of TX and XDP rings (%d) exceeds the maximum supported (%d)\n",
-		       channel->tx_count * priv->prof->num_up  + xdp_count,
-		       MAX_TX_RINGS);
+		       total_tx_count, MAX_TX_RINGS);
 		goto out;
 	}
 

@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 #include <linux/list.h>
@@ -34,15 +26,16 @@
 #include <linux/of_fdt.h>
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
-
-#include <mach/mtk_pbm.h>
-
 #include "ccci_config.h"
+#include "ccci_common_config.h"
 #include "ccci_core.h"
 #include "ccci_modem.h"
 #include "ccci_bm.h"
 #include "ccci_platform.h"
+
+#ifdef MODEM_SYS1_CONFIG_FILE
 #if (MD_GENERATION <= 6292)
+#include <mach/mtk_pbm.h>
 #include "ccif_c2k_platform.h"
 #include "ccci_hif.h"
 #include "hif/ccci_hif_ccif.h"
@@ -53,6 +46,15 @@ static irqreturn_t md_cd_wdt_isr(int irq, void *data)
 {
 	struct ccci_modem *md = (struct ccci_modem *)data;
 
+	/*1. disable MD WDT */
+#ifdef ENABLE_MD_WDT_DBG
+	unsigned int state;
+
+	state = ccif_read32(md->md_rgu_base, C2K_WDT_MD_STA);
+	ccif_write32(md->md_rgu_base, C2K_WDT_MD_MODE, C2K_WDT_MD_MODE_KEY);
+	CCCI_NORMAL_LOG(md->index, TAG,
+		"WDT IRQ disabled for debug, state=%X\n", state);
+#endif
 	CCCI_NORMAL_LOG(md->index, TAG, "MD WDT IRQ\n");
 	ccci_event_log("md%d: MD WDT IRQ\n", md->index);
 
@@ -73,7 +75,7 @@ static void md_ccif_exception(struct ccci_modem *md, enum HIF_EX_STAGE stage)
 	case HIF_EX_INIT_DONE:
 		break;
 	case HIF_EX_CLEARQ_DONE:
-		ccci_hif_dump_status(md->hif_flag, DUMP_FLAG_CCIF, 0);
+		ccci_hif_dump_status(md->hif_flag, DUMP_FLAG_CCIF, NULL, 0);
 		md_ccif_reset_queue(CCIF_HIF_ID, 0);
 		md_ccif_send(CCIF_HIF_ID, H2D_EXCEPTION_CLEARQ_ACK);
 		break;
@@ -154,7 +156,7 @@ static int md_ccif_op_start(struct ccci_modem *md)
 #endif
 
 	/*enable ccif clk*/
-	ccci_set_clk_cg(md, 1);
+	md->hw_info->plat_ptr->set_clk_cg(md, 1);
 	/* 0. init security, as security depends on dummy_char,
 	 * which is ready very late.
 	 */
@@ -234,7 +236,7 @@ static int md_ccif_op_stop(struct ccci_modem *md, unsigned int stop_type)
 		"ccif modem is power off done, %d\n", ret);
 
 	/*disable ccif clk*/
-	ccci_set_clk_cg(md, 0);
+	md->hw_info->plat_ptr->set_clk_cg(md, 0);
 
 #ifdef FEATURE_BSI_BPI_SRAM_CFG
 	ccci_set_bsi_bpi_SRAM_cfg(md, 0, stop_type);
@@ -413,7 +415,7 @@ static int md_ccif_op_force_assert(struct ccci_modem *md,
 
 static inline void clear_md1_md3_smem(struct ccci_modem *md)
 {
-	struct ccci_smem_region *region = NULL;
+	struct ccci_smem_region *region;
 
 	CCCI_NORMAL_LOG(md->index, TAG, "%s start\n", __func__);
 	region = ccci_md_get_smem_by_user_id(md->index, SMEM_USER_RAW_MD2MD);
@@ -442,7 +444,7 @@ static int md_ccif_dump_info(struct ccci_modem *md, enum MODEM_DUMP_FLAG flag,
 	if (flag & DUMP_FLAG_CCIF_REG)
 		dump_c2k_register(md, 2);
 	/*runtime data, boot, long time no response EE */
-	ccci_hif_dump_status(md->hif_flag, flag, length);
+	ccci_hif_dump_status(md->hif_flag, flag, NULL, length);
 
 	return 0;
 }
@@ -493,7 +495,7 @@ static void md_ccif_hw_init(struct ccci_modem *md)
 
 static int md_ccif_probe(struct platform_device *dev)
 {
-	struct ccci_modem *md = NULL;
+	struct ccci_modem *md;
 	int md_id, ret;
 	struct ccci_dev_cfg dev_cfg;
 	struct md_hw_info *md_hw;
@@ -541,7 +543,13 @@ static int md_ccif_probe(struct platform_device *dev)
 	CCCI_INIT_LOG(md_id, TAG, "modem ccif module probe...\n");
 	snprintf(md->trm_wakelock_name, sizeof(md->trm_wakelock_name),
 		"md%d_ccif_trm", md->index + 1);
-	wakeup_source_init(&md->trm_wake_lock, md->trm_wakelock_name);
+	md->trm_wake_lock = wakeup_source_register(NULL, md->trm_wakelock_name);
+	if (!md->trm_wake_lock) {
+		CCCI_ERROR_LOG(md_id, TAG,
+			"%s %d: init wakeup source fail",
+			__func__, __LINE__);
+		return -1;
+	}
 
 
 	/*init modem structure */
@@ -681,4 +689,5 @@ module_init(md_ccif_init);
 MODULE_AUTHOR("Yanbin Ren <Yanbin.Ren@mediatek.com>");
 MODULE_DESCRIPTION("CCIF modem driver v0.1");
 MODULE_LICENSE("GPL");
+#endif
 #endif

@@ -1,15 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (c) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
+ * Author: Owen Chen <owen.chen@mediatek.com>
  */
+
 / {
 	mt6370_typec: type_c_port0 {
 		mt-tcpc,name = "type_c_port0"; /* tcpc_device's name */
@@ -26,6 +20,9 @@
 #endif
 		mt6370pd,intr_gpio = <&pio 24 0x0>;
 		mt6370pd,intr_gpio_num = <24>;
+
+		charger = <&mt6370_chg>;
+
 		pd-data {
 			pd,vid = <0x29cf>;
 			pd,pid = <0x5081>;

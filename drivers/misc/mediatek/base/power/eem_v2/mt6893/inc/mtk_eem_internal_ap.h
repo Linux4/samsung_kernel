@@ -1,15 +1,6 @@
-
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2021 MediaTek Inc.
  */
 
 #ifndef _MTK_EEM_INTERNAL_AP_H_
@@ -130,12 +121,12 @@ struct eem_det {
 	unsigned int BTS;
 	unsigned int t250;
 	/* dvfs */
-#if 0
-	unsigned int init2_vop30;
-	unsigned int init2_vop74;
-	unsigned int mon_vop30;
-	unsigned int mon_vop74;
-#endif
+	/*
+	 * unsigned int init2_vop30;
+	 * unsigned int init2_vop74;
+	 * unsigned int mon_vop30;
+	 * unsigned int mon_vop74;
+	 */
 	/* could be got @ the same time with freq_tbl[] */
 	unsigned int num_freq_tbl;
 	/* maximum frequency used to calculate percentage */
@@ -148,19 +139,19 @@ struct eem_det {
 	/* unsigned int volt_tbl_init2[NR_FREQ]; */ /* pmic value */
 	unsigned int volt_tbl_pmic[NR_FREQ]; /* pmic value */
 	int volt_aging[NR_FREQ]; /* aging margin value */
-#if 0
-	struct mutex *loo_mutex;
-	unsigned char loo_role;
-	unsigned char loo_couple;
-	unsigned char turn_pt;
-
-	/* Picachu */
-	unsigned int pi_efuse;
-
-	unsigned int pi_dvtfixed : 16;
-	unsigned int pi_loo_enabled: 1;
-	unsigned int pi_reserved: 15;
-#endif
+	/*
+	 * struct mutex *loo_mutex;
+	 * unsigned char loo_role;
+	 * unsigned char loo_couple;
+	 * unsigned char turn_pt;
+	 *
+	 * //Picachu
+	 * unsigned int pi_efuse;
+	 *
+	 * unsigned int pi_dvtfixed : 16;
+	 * unsigned int pi_loo_enabled: 1;
+	 * unsigned int pi_reserved: 15;
+	 */
 	unsigned char init2_phase;
 	unsigned char total2_phase;
 
@@ -298,41 +289,40 @@ struct eem_devinfo {
 	unsigned int CPU_L_HI_DCBDET:8;
 	unsigned int CPU_L_HI_DCMDET:8;
 
-
-#if 0
-	/* M_HW_RES13 */
-	unsigned int GPU_MID_DCBDET:8;
-	unsigned int GPU_MID_DCMDET:8;
-	unsigned int GPU_HI_DCBDET:8;
-	unsigned int GPU_HI_DCMDET:8;
-
-	/* M_HW_RES14 (org:8) */
-	unsigned int GPU_MTDES:8;
-	unsigned int GPU_INITEN:1;
-	unsigned int GPU_MONEN:1;
-	unsigned int GPU_DVFS_LOW:3;
-	unsigned int GPU_SPEC:3;
-	unsigned int GPU_BDES:8;
-	unsigned int GPU_MDES:8;
-
-	/* M_HW_RES15 (org:9) */
-	unsigned int GPU_HI_MTDES:8;
-	unsigned int GPU_HI_INITEN:1;
-	unsigned int GPU_HI_MONEN:1;
-	unsigned int GPU_HI_DVFS_LOW:3;
-	unsigned int GPU_HI_SPEC:3;
-	unsigned int GPU_HI_BDES:8;
-	unsigned int GPU_HI_MDES:8;
-
-	/* M_HW_RES16 (org:10) */
-	unsigned int GPU_LO_MTDES:8;
-	unsigned int GPU_LO_INITEN:1;
-	unsigned int GPU_LO_MONEN:1;
-	unsigned int GPU_LO_DVFS_LOW:3;
-	unsigned int GPU_LO_SPEC:3;
-	unsigned int GPU_LO_BDES:8;
-	unsigned int GPU_LO_MDES:8;
-#endif
+	/*
+	 * //M_HW_RES13
+	 * unsigned int GPU_MID_DCBDET:8;
+	 * unsigned int GPU_MID_DCMDET:8;
+	 * unsigned int GPU_HI_DCBDET:8;
+	 * unsigned int GPU_HI_DCMDET:8;
+	 *
+	 * //M_HW_RES14 (org:8)
+	 * unsigned int GPU_MTDES:8;
+	 * unsigned int GPU_INITEN:1;
+	 * unsigned int GPU_MONEN:1;
+	 * unsigned int GPU_DVFS_LOW:3;
+	 * unsigned int GPU_SPEC:3;
+	 * unsigned int GPU_BDES:8;
+	 * unsigned int GPU_MDES:8;
+	 *
+	 * //M_HW_RES15 (org:9)
+	 * unsigned int GPU_HI_MTDES:8;
+	 * unsigned int GPU_HI_INITEN:1;
+	 * unsigned int GPU_HI_MONEN:1;
+	 * unsigned int GPU_HI_DVFS_LOW:3;
+	 * unsigned int GPU_HI_SPEC:3;
+	 * unsigned int GPU_HI_BDES:8;
+	 * unsigned int GPU_HI_MDES:8;
+	 *
+	 * //M_HW_RES16 (org:10)
+	 * unsigned int GPU_LO_MTDES:8;
+	 * unsigned int GPU_LO_INITEN:1;
+	 * unsigned int GPU_LO_MONEN:1;
+	 * unsigned int GPU_LO_DVFS_LOW:3;
+	 * unsigned int GPU_LO_SPEC:3;
+	 * unsigned int GPU_LO_BDES:8;
+	 * unsigned int GPU_LO_MDES:8;
+	 */
 };
 
 /*********************************************

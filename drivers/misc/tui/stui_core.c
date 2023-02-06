@@ -13,6 +13,7 @@
 #include <linux/highmem.h>
 #include <linux/interrupt.h>
 #include <linux/uaccess.h>
+#include <linux/device.h>
 #include <linux/pm_wakeup.h>
 
 #include "stui_core.h"

@@ -310,7 +310,8 @@ void hsr_addr_subst_dest(struct hsr_node *node_src, struct sk_buff *skb,
 
 	node_dst = find_node_by_AddrA(&port->hsr->node_db, eth_hdr(skb)->h_dest);
 	if (!node_dst) {
-		WARN_ONCE(1, "%s: Unknown node\n", __func__);
+		if (net_ratelimit())
+			netdev_err(skb->dev, "%s: Unknown node\n", __func__);
 		return;
 	}
 	if (port->type != node_dst->AddrB_port)
@@ -377,15 +378,13 @@ static struct hsr_port *get_late_port(struct hsr_priv *hsr,
 /* Remove stale sequence_nr records. Called by timer every
  * HSR_LIFE_CHECK_INTERVAL (two seconds or so).
  */
-void hsr_prune_nodes(unsigned long data)
+void hsr_prune_nodes(struct timer_list *t)
 {
-	struct hsr_priv *hsr;
+	struct hsr_priv *hsr = from_timer(hsr, t, prune_timer);
 	struct hsr_node *node;
 	struct hsr_port *port;
 	unsigned long timestamp;
 	unsigned long time_a, time_b;
-
-	hsr = (struct hsr_priv *) data;
 
 	rcu_read_lock();
 	list_for_each_entry_rcu(node, &hsr->node_db, mac_list) {

@@ -1,16 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2016 MediaTek Inc.
- * Author: Tiffany Lin <tiffany.lin@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/clk.h>
 #include <linux/of_address.h>
@@ -33,12 +24,13 @@
 
 #if ENC_DVFS
 #include <linux/pm_qos.h>
+#include <linux/soc/mediatek/mtk-pm-qos.h>
 #include <mmdvfs_pmqos.h>
 #include "vcodec_dvfs.h"
 #define STD_VENC_FREQ 249
 #define STD_LUMA_BW 70
 #define STD_CHROMA_BW 35
-static struct pm_qos_request venc_qos_req_f;
+static struct mtk_pm_qos_request venc_qos_req_f;
 static u64 venc_freq;
 static u32 venc_freq_step_size;
 static u64 venc_freq_steps[MAX_FREQ_STEP];
@@ -58,7 +50,6 @@ static struct mm_qos_request venc_cur_luma;
 static struct mm_qos_request venc_cur_chroma;
 static struct mm_qos_request venc_ref_luma;
 static struct mm_qos_request venc_ref_chroma;
-struct pm_qos_request venc_qos_req_bw;
 #endif
 
 void mtk_venc_init_ctx_pm(struct mtk_vcodec_ctx *ctx)
@@ -166,7 +157,6 @@ void mtk_vcodec_enc_clock_off(struct mtk_vcodec_ctx *ctx, int core_id)
 {
 #ifndef FPGA_PWRCLK_API_DISABLE
 	struct mtk_vcodec_pm *pm = &ctx->dev->pm;
-
 	set_swpm_venc_active(false);
 	clk_disable_unprepare(pm->clk_MT_CG_VENC);
 	smi_bus_disable_unprepare(SMI_LARB7, "VENC");
@@ -179,7 +169,7 @@ void mtk_prepare_venc_dvfs(void)
 #if ENC_DVFS
 	int ret;
 
-	pm_qos_add_request(&venc_qos_req_f, PM_QOS_VENC_FREQ,
+	mtk_pm_qos_add_request(&venc_qos_req_f, PM_QOS_VENC_FREQ,
 				PM_QOS_DEFAULT_VALUE);
 	venc_freq_step_size = 1;
 	ret = mmdvfs_qos_get_freq_steps(PM_QOS_VENC_FREQ, &venc_freq_steps[0],
@@ -195,8 +185,8 @@ void mtk_unprepare_venc_dvfs(void)
 	int freq_idx = 0;
 
 	freq_idx = (venc_freq_step_size == 0) ? 0 : (venc_freq_step_size - 1);
-	pm_qos_update_request(&venc_qos_req_f, venc_freq_steps[freq_idx]);
-	pm_qos_remove_request(&venc_qos_req_f);
+	mtk_pm_qos_update_request(&venc_qos_req_f, venc_freq_steps[freq_idx]);
+	mtk_pm_qos_remove_request(&venc_qos_req_f);
 	free_hist(&venc_hists, 0);
 	/* TODO: jobs error handle */
 #endif
@@ -234,7 +224,7 @@ void mtk_prepare_venc_emi_bw(void)
 void mtk_unprepare_venc_emi_bw(void)
 {
 #if ENC_EMI_BW
-	pm_qos_remove_request(&venc_qos_req_bw);
+	mm_qos_remove_all_request(&venc_rlist);
 #endif
 }
 
@@ -258,18 +248,22 @@ void mtk_venc_dvfs_begin(struct mtk_vcodec_ctx *ctx)
 		if (target_freq_64 > 458)
 			target_freq_64 = 458;
 
+		if (ctx->enc_params.svp_mode)
+			target_freq_64 = 624;
+
 		if (target_freq > 0) {
 			venc_freq = target_freq;
 			if (venc_freq > target_freq_64)
 				venc_freq = target_freq_64;
 
+			pr_info("final freq = %lld\n", target_freq_64);
 			venc_cur_job->mhz = (int)target_freq_64;
-			pm_qos_update_request(&venc_qos_req_f, target_freq_64);
+			mtk_pm_qos_update_request(&venc_qos_req_f, target_freq_64);
 		}
 	} else {
 		target_freq_64 = match_freq(DEFAULT_MHZ, &venc_freq_steps[0],
 						venc_freq_step_size);
-		pm_qos_update_request(&venc_qos_req_f, target_freq_64);
+		mtk_pm_qos_update_request(&venc_qos_req_f, target_freq_64);
 	}
 	mutex_unlock(&ctx->dev->enc_dvfs_mutex);
 #endif
@@ -350,7 +344,7 @@ void mtk_venc_dvfs_end(struct mtk_vcodec_ctx *ctx)
 	}
 
 	freq_idx = (venc_freq_step_size == 0) ? 0 : (venc_freq_step_size - 1);
-	pm_qos_update_request(&venc_qos_req_f, venc_freq_steps[freq_idx]);
+	mtk_pm_qos_update_request(&venc_qos_req_f, venc_freq_steps[freq_idx]);
 	mutex_unlock(&ctx->dev->enc_dvfs_mutex);
 #endif
 }

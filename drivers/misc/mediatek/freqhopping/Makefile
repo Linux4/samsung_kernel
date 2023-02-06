@@ -10,8 +10,12 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
-
+ifeq ($(CONFIG_MACH_MT6877), y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/freqhopping/mt6877/
+else
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/freqhopping/$(MTK_PLATFORM)/
+endif
+
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include/mach/
 
 ifeq (y,$(filter y,$(CONFIG_MACH_MT6853) \

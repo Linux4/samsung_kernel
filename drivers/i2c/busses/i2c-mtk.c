@@ -1,15 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2014 MediaTek Inc.
- * Author: Xudong.chen <xudong.chen@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/kernel.h>
@@ -33,9 +24,13 @@
 #include <linux/of_irq.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
+#include <linux/arm-smccc.h>
+#include <linux/soc/mediatek/mtk_sip_svc.h>
 #include <linux/syscore_ops.h>
 
-#include "mtk_secure_api.h"
+#ifdef CONFIG_MTK_GPU_SPM_DVFS_SUPPORT
+#include <mtk_kbase_spm.h>
+#endif
 #include "i2c-mtk.h"
 
 static struct i2c_dma_info g_dma_regs[I2C_MAX_CHANNEL];
@@ -65,21 +60,19 @@ static inline u16 _i2c_readw(struct mt_i2c *i2c, u16 offset)
 
 #define raw_i2c_writew(val, i2c, ch_ofs, ofs) \
 	do { \
-		if (((i2c)->dev_comp->ver != 0x2 && (ofs != 0xfff)) || \
-		    (((i2c)->dev_comp->ver == 0x2) && (V2_##ofs != 0xfff))) \
-			_i2c_writew(val, i2c, ch_ofs + \
-				    (((i2c)->dev_comp->ver == 0x2) ? \
-				    (V2_##ofs) : ofs)); \
+		if (((i2c)->dev_comp->ver == 0x2) && (V2_##ofs != 0xfff)) \
+			_i2c_writew(val, i2c, ch_ofs + (V2_##ofs)); \
+		else if (((i2c)->dev_comp->ver == 0x1) && (ofs != 0xfff)) \
+			_i2c_writew(val, i2c, ch_ofs + ofs); \
 	} while (0)
 
 #define raw_i2c_readw(i2c, ch_ofs, ofs) \
 	({ \
 		u16 value = 0; \
-		if (((i2c)->dev_comp->ver != 0x2 && (ofs != 0xfff)) || \
-		    (((i2c)->dev_comp->ver == 0x2) && (V2_##ofs != 0xfff))) \
-			value = _i2c_readw(i2c, ch_ofs + \
-					   (((i2c)->dev_comp->ver == 0x2) ? \
-					   (V2_##ofs) : ofs)); \
+		if (((i2c)->dev_comp->ver == 0x2) && (V2_##ofs != 0xfff)) \
+			value = _i2c_readw(i2c, ch_ofs + (V2_##ofs)); \
+		else if (((i2c)->dev_comp->ver == 0x1) && (ofs != 0xfff)) \
+			value = _i2c_readw(i2c, ch_ofs + ofs); \
 		value; \
 	})
 
@@ -370,6 +363,36 @@ static void mt_i2c_clock_disable(struct mt_i2c *i2c)
 	i2c->cg_cnt--;
 	spin_unlock(&i2c->cg_lock);
 #endif
+}
+
+static int i2c_get_semaphore(struct mt_i2c *i2c)
+{
+#ifdef CONFIG_MTK_GPU_SPM_DVFS_SUPPORT
+	if (i2c->gpupm) {
+		if (dvfs_gpu_pm_spin_lock_for_vgpu() != 0) {
+			dev_info(i2c->dev, "sema time out.\n");
+			return -EBUSY;
+		}
+	}
+#endif
+
+	switch (i2c->id) {
+	default:
+		return 0;
+	}
+}
+
+static int i2c_release_semaphore(struct mt_i2c *i2c)
+{
+#ifdef CONFIG_MTK_GPU_SPM_DVFS_SUPPORT
+	if (i2c->gpupm)
+		dvfs_gpu_pm_spin_unlock_for_vgpu();
+#endif
+
+	switch (i2c->id) {
+	default:
+		return 0;
+	}
 }
 
 static void free_i2c_dma_bufs(struct mt_i2c *i2c)
@@ -815,13 +838,14 @@ static int mt_i2c_do_transfer(struct mt_i2c *i2c)
 
 	i2c->trans_stop = false;
 	i2c->irq_stat = 0;
-	if ((i2c->total_len > 8 || i2c->msg_aux_len > 8))
-		if (!i2c->fifo_only)
+	if ((i2c->total_len > 8 || i2c->msg_aux_len > 8)) {
+		if (!i2c->fifo_only) {
 			isDMA = true;
-		else {
+		} else {
 			dev_info(i2c->dev, "i2c does not support dma mode\n");
 			return -EINVAL;
 		}
+	}
 
 	if (i2c->ext_data.isEnable && i2c->ext_data.timing)
 		speed_hz = i2c->ext_data.timing;
@@ -1011,6 +1035,11 @@ static int mt_i2c_do_transfer(struct mt_i2c *i2c)
 		if (i2c_readl_dma(i2c, OFFSET_EN)) {
 			i2c_writel_dma(I2C_DMA_WARM_RST, i2c, OFFSET_RST);
 			udelay(5);
+		}
+
+		if (i2c->ch_offset != 0) {
+			i2c_writel_dma(I2C_DMA_HARD_RST, i2c, OFFSET_RST);
+			i2c_writel_dma(0, i2c, OFFSET_RST);
 		}
 
 		if (i2c->op == I2C_MASTER_RD) {
@@ -1337,8 +1366,21 @@ static int __mt_i2c_transfer(struct mt_i2c *i2c,
 			}
 		}
 
+		/* Use HW semaphore to protect device access between
+		 * AP and SPM, or SCP
+		 */
+		if (i2c_get_semaphore(i2c) != 0) {
+			dev_info(i2c->dev, "get hw semaphore failed.\n");
+			return -EBUSY;
+		}
 		ret = mt_i2c_do_transfer(i2c);
-
+		/* Use HW semaphore to protect device access between
+		 * AP and SPM, or SCP
+		 */
+		if (i2c_release_semaphore(i2c) != 0) {
+			dev_info(i2c->dev, "release hw semaphore failed.\n");
+			ret = -EBUSY;
+		}
 		if (ret < 0)
 			goto err_exit;
 		if (i2c->op == I2C_MASTER_WRRD)
@@ -1545,15 +1587,6 @@ EXPORT_SYMBOL(i2c_ccu_disable);
 static irqreturn_t mt_i2c_irq(int irqno, void *dev_id)
 {
 	struct mt_i2c *i2c = dev_id;
-
-	#if 0
-	/* Clear interrupt mask */
-	i2c_writew(~(I2C_HS_NACKERR | I2C_ACKERR | I2C_TRANSAC_COMP),
-		i2c, OFFSET_INTR_MASK);
-	i2c->irq_stat = i2c_readw(i2c, OFFSET_INTR_STAT);
-	i2c_writew(I2C_HS_NACKERR | I2C_ACKERR | I2C_TRANSAC_COMP,
-		i2c, OFFSET_INTR_STAT);
-	#endif
 
 	/* mask and clear all interrupt for i2c, need think of i3c~~ */
 	i2c_writew(~(I2C_INTR_ALL), i2c, OFFSET_INTR_MASK);
@@ -2005,6 +2038,7 @@ static int mt_i2c_resume_noirq(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct mt_i2c *i2c = platform_get_drvdata(pdev);
+	struct arm_smccc_res res;
 
 	spin_lock(&i2c->cg_lock);
 	i2c->suspended = false;
@@ -2014,15 +2048,9 @@ static int mt_i2c_resume_noirq(struct device *dev)
 		if (mt_i2c_clock_enable(i2c))
 			dev_info(i2c->dev, "%s enable clock failed\n",
 				 __func__);
-#if 0
-		/* Disable rollback mode for multi-channel */
-		mt_secure_call(MTK_SIP_KERNEL_I2C_SEC_WRITE,
-			i2c->id, V2_OFFSET_ROLLBACK, 0);
-#endif
 		/* Enable multi-channel DMA mode at ATF */
-		mt_secure_call(MTK_SIP_KERNEL_I2C_SEC_WRITE, i2c->id,
-			       V2_OFFSET_MULTI_DMA, I2C_SHADOW_REG_MODE, 0);
-
+		arm_smccc_smc(MTK_SIP_I2C_CONTROL, i2c->id,
+				V2_OFFSET_MULTI_DMA, I2C_SHADOW_REG_MODE, 0, 0, 0, 0, &res);
 		mt_i2c_clock_disable(i2c);
 	}
 	return 0;

@@ -1,16 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * Richtek TypeC Port Control Interface Core Driver
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/init.h>
@@ -61,7 +51,10 @@ static struct device_attribute tcpc_device_attributes[] = {
 	TCPC_DEVICE_ATTR(timer, 0664),
 	TCPC_DEVICE_ATTR(caps_info, 0444),
 	TCPC_DEVICE_ATTR(pe_ready, 0444),
-	TCPC_DEVICE_ATTR(ss_factory, 0666),
+#if defined(CONFIG_USB_FACTORY_MODE)
+/* [ALPS07177780] battery: factory higher sleep current by charger buck mode*/
+	TCPC_DEVICE_ATTR(ss_factory, 0664),
+#endif
 };
 
 enum {
@@ -72,7 +65,10 @@ enum {
 	TCPC_DESC_TIMER,
 	TCPC_DESC_CAP_INFO,
 	TCPC_DESC_PE_READY,
+#if defined(CONFIG_USB_FACTORY_MODE)
+/* [ALPS07177780] battery: factory higher sleep current by charger buck mode*/
 	TCPC_DESC_SS_FACTORY,
+#endif
 };
 
 static struct attribute *__tcpc_attrs[ARRAY_SIZE(tcpc_device_attributes) + 1];
@@ -238,11 +234,14 @@ static ssize_t tcpc_show_property(struct device *dev,
 		}
 		break;
 #endif
+#if defined(CONFIG_USB_FACTORY_MODE)
+/* [ALPS07177780] battery: factory higher sleep current by charger buck mode*/
 	case TCPC_DESC_SS_FACTORY:
 		ret = snprintf(buf, 256, "en = %d\n", tcpc->ss_factory);
 		if (ret < 0)
 			break;
 		break;
+#endif
 	default:
 		break;
 	}
@@ -278,7 +277,7 @@ static ssize_t tcpc_store_property(struct device *dev,
 	struct tcpc_device *tcpc = to_tcpc_device(dev);
 	const ptrdiff_t offset = attr - tcpc_device_attributes;
 	int ret;
-	long int val;
+	long val;
 
 	switch (offset) {
 	case TCPC_DESC_ROLE_DEF:
@@ -361,6 +360,8 @@ static ssize_t tcpc_store_property(struct device *dev,
 		}
 		break;
 	#endif /* CONFIG_USB_POWER_DELIVERY */
+#if defined(CONFIG_USB_FACTORY_MODE)
+/* [ALPS07177780] battery: factory higher sleep current by charger buck mode*/
 	case TCPC_DESC_SS_FACTORY:
 		ret = get_parameters((char *)buf, &val, 1);
 		if (ret < 0) {
@@ -375,6 +376,7 @@ static ssize_t tcpc_store_property(struct device *dev,
 			return ret;
 		}
 		break;
+#endif
 	default:
 		break;
 	}
@@ -395,6 +397,7 @@ struct tcpc_device *tcpc_dev_get_by_name(const char *name)
 			NULL, (const void *)name, tcpc_match_device_by_name);
 	return dev ? dev_get_drvdata(dev) : NULL;
 }
+EXPORT_SYMBOL(tcpc_dev_get_by_name);
 
 static void tcpc_device_release(struct device *dev)
 {
@@ -436,6 +439,9 @@ struct tcpc_device *tcpc_device_register(struct device *parent,
 	mutex_init(&tcpc->typec_lock);
 	mutex_init(&tcpc->timer_lock);
 	mutex_init(&tcpc->mr_lock);
+#ifdef CONFIG_WATER_DETECTION
+	mutex_init(&tcpc->wd_lock);
+#endif /* CONFIG_WATER_DETECTION */
 	sema_init(&tcpc->timer_enable_mask_lock, 1);
 	spin_lock_init(&tcpc->timer_tick_lock);
 
@@ -492,8 +498,8 @@ static int tcpc_device_irq_enable(struct tcpc_device *tcpc)
 #endif
 
 	if (!tcpc->ops->init) {
-		pr_notice("%s Please implment tcpc ops init function\n",
-			  __func__);
+		pr_err("%s Please implment tcpc ops init function\n",
+		__func__);
 		return -EINVAL;
 	}
 
@@ -590,6 +596,19 @@ static void tcpc_event_init_work(struct work_struct *work)
 
 	tcpci_lock_typec(tcpc);
 	tcpci_event_init(tcpc);
+#ifdef CONFIG_USB_PD_WAIT_BC12
+#ifdef ADAPT_CHARGER_V1
+	tcpc->chg_psy = power_supply_get_by_name("charger");
+#else
+	tcpc->chg_psy = devm_power_supply_get_by_phandle(
+		tcpc->dev.parent, "charger");
+#endif
+	if (IS_ERR_OR_NULL(tcpc->chg_psy)) {
+		tcpci_unlock_typec(tcpc);
+		TCPC_ERR("%s get charger psy fail\n", __func__);
+		return;
+	}
+#endif /* CONFIG_USB_PD_WAIT_BC12 */
 	tcpc->pd_inited_flag = 1; /* MTK Only */
 	pr_info("%s typec attach new = %d\n",
 			__func__, tcpc->typec_attach_new);
@@ -901,8 +920,6 @@ static int __init tcpc_class_init(void)
 		return PTR_ERR(tcpc_class);
 	}
 	tcpc_init_attrs(&tcpc_dev_type);
-	tcpc_class->suspend = NULL;
-	tcpc_class->resume = NULL;
 
 	pr_info("TCPC class init OK\n");
 	return 0;
@@ -954,12 +971,8 @@ static int __tcpc_class_complete_work(struct device *dev, void *data)
 
 	if (tcpc != NULL) {
 		pr_info("%s = %s\n", __func__, dev_name(dev));
-#if 1
+
 		tcpc_device_irq_enable(tcpc);
-#else
-		schedule_delayed_work(&tcpc->init_work,
-			msecs_to_jiffies(1000));
-#endif
 
 #ifdef CONFIG_USB_POWER_DELIVERY
 #ifdef CONFIG_RECV_BAT_ABSENT_NOTIFY
@@ -973,12 +986,7 @@ static int __tcpc_class_complete_work(struct device *dev, void *data)
 		}
 #endif /* CONFIG_RECV_BAT_ABSENT_NOTIFY */
 #endif /* CONFIG_USB_POWER_DELIVERY */
-
-#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
-		pdic_core_register_chip(tcpc->ppdic_data);
-#endif
 	}
-
 	return 0;
 }
 

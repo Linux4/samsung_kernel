@@ -1,17 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Mediatek's mt6853 SoC device tree source
- *
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2022 MediaTek Inc.
  */
+
 /dts-v1/;
 /plugin/;
 #include <dt-bindings/interrupt-controller/irq.h>
@@ -131,22 +122,17 @@
 	gpslna_pins_init: gpslna@0 {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO87__FUNC_GPIO87>;
-			slew-rate = <1>;
-			bias-disable;
 			output-low;
 		};
 	};
 	gpslna_pins_oh: gpslna@1 {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO87__FUNC_GPS_L1_ELNA_EN>;
-			slew-rate = <1>;
-			output-high;
 		};
 	};
 	gpslna_pins_ol: gpslna@2 {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO87__FUNC_GPIO87>;
-			slew-rate = <1>;
 			output-low;
 		};
 	};
@@ -431,6 +417,10 @@
 		55 27090
 		60 22224 >;
 };
+
+#if (CONFIG_MTK_GAUGE_VERSION == 30)
+	#include "mediatek/bat_setting/k6853v1_64_titan/battery_prop.dtsi"
+#endif
 
 #endif
 /*End of this file, DO NOT ADD ANYTHING HERE*/

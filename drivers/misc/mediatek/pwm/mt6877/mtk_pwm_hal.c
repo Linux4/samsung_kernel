@@ -1,19 +1,8 @@
-/******************************************************************************
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2018 MediaTek Inc.
+ *
  * mtk_pwm_hal.c PWM Drvier
- *
- * Copyright (c) 2018, Media Teck.inc
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public Licence,
- * version 2, as publish by the Free Software Foundation.
- *
- * This program is distributed and in hope it will be useful, but WITHOUT
- * ANY WARRNTY; without even the implied warranty of MERCHANTABITLITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- *
- ******************************************************************************
  */
 
 #include <linux/types.h>
@@ -630,4 +619,3 @@ int mt_get_pwm_clk_src(struct platform_device *pdev)
 	}
 	return 0;
 }
-

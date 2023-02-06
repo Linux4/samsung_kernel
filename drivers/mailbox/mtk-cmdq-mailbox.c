@@ -162,7 +162,7 @@ struct cmdq {
 	bool			suspended;
 	atomic_t		usage;
 	struct workqueue_struct *timeout_wq;
-	struct wakeup_source	wake_lock;
+	struct wakeup_source	*wake_lock;
 	bool			wake_locked;
 	spinlock_t		lock;
 	u32			token_cnt;
@@ -238,7 +238,7 @@ static void cmdq_lock_wake_lock(struct cmdq *cmdq, bool lock)
 
 	if (lock) {
 		if (!cmdq->wake_locked) {
-			__pm_stay_awake(&cmdq->wake_lock);
+			__pm_stay_awake(cmdq->wake_lock);
 			cmdq->wake_locked = true;
 		} else  {
 			/* should not reach here */
@@ -248,7 +248,7 @@ static void cmdq_lock_wake_lock(struct cmdq *cmdq, bool lock)
 		}
 	} else {
 		if (cmdq->wake_locked) {
-			__pm_relax(&cmdq->wake_lock);
+			__pm_relax(cmdq->wake_lock);
 			cmdq->wake_locked = false;
 		} else {
 			/* should not reach here */
@@ -1368,7 +1368,7 @@ void cmdq_thread_dump(struct mbox_chan *chan, struct cmdq_pkt *cl_pkt,
 	spin_lock_irqsave(&chan->lock, flags);
 
 	if (atomic_read(&cmdq->usage) <= 0) {
-		cmdq_err("%s gce off cmdq:%lx thread:%u",
+		cmdq_err("%s gce off cmdq:%p thread:%u",
 			__func__, cmdq, thread->idx);
 		dump_stack();
 		spin_unlock_irqrestore(&chan->lock, flags);
@@ -2017,7 +2017,7 @@ static int cmdq_probe(struct platform_device *pdev)
 	WARN_ON(clk_prepare(cmdq->clock) < 0);
 	WARN_ON(clk_prepare(cmdq->clock_timer) < 0);
 
-	wakeup_source_add(&cmdq->wake_lock);
+	cmdq->wake_lock = wakeup_source_register(NULL, "cmdq_wake_lock");
 
 	spin_lock_init(&cmdq->lock);
 	clk_enable(cmdq->clock);

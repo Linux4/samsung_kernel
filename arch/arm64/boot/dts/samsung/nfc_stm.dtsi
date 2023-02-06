@@ -11,12 +11,19 @@
 #include <dt-bindings/pinctrl/mt6877-pinfunc.h>
 &pio {
 	nfc_rst: nfc_rst {
-		 pins_cmd_dat {
-			 pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,107), 0)>;
-			 output-low;
-			 bias-disable;
-		 };
-	 };
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,107), 0)>;
+			output-low;
+			bias-disable;
+		};
+	};
+	nfc_rst_nc: nfc_rst_nc {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,107), 0)>;
+			output-low;
+			bias-pull-down;
+		};
+	};
 };
 &pio {
 	nfc_clk_req: nfc_clk_req {
@@ -30,7 +37,7 @@
 		pins_cmd_dat{
 			pinmux =  <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,13), 0)>;
 			input-enable;
-			bias-disable;
+			bias-pull-down;
 		};
 	};
 };
@@ -120,7 +127,7 @@
 			&nfc_check
 #endif
 			>;
-		pinctrl-1 = <&clk_req_nc &irq_nc &nfc_rst>;
+		pinctrl-1 = <&clk_req_nc &irq_nc &nfc_rst_nc>;
 		pinctrl-2 = <&nfc_i2c_on>;
 		pinctrl-3 = <&nfc_i2c_off>;
 

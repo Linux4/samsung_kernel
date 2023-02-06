@@ -1,17 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek, Inc.
- * Author: Wilma Wu <wilma.wu@mediatek.com>
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+ * Copyright (C) 2016 MediaTek Inc.
  */
+
 
 #include <asm/div64.h>
 #include <linux/kernel.h>
@@ -40,9 +31,11 @@
 #include <linux/workqueue.h>
 #include <linux/jiffies.h>
 #include <linux/cpumask.h>
+#include <linux/of.h>
+
 #include "../misc/mediatek/include/mt-plat/mtk_boot_common.h"
 #include "../misc/mediatek/include/mt-plat/mtk_reboot.h"
-
+#include "../misc/mediatek/include/mt-plat/mtk_rtc.h"
 #ifdef pr_fmt
 #undef pr_fmt
 #endif
@@ -148,8 +141,6 @@
 #define RTC_PDN2_PWRON_LOGO		BIT(15)
 #define RTC_PDN2_PWRON_ALARM	BIT(4)
 
-#define RTC_SPAR0_BATT_REMOVAL  BIT(15)
-
 #define RTC_POFF_ALM_SET	_IOW('p', 0x15, struct rtc_time) /* Set alarm time  */
 
 
@@ -196,6 +187,14 @@ struct mt6358_rtc {
 	struct work_struct work;
 	struct completion comp;
 };
+
+struct tag_bootmode {
+	u32 size;
+	u32 tag;
+	u32 bootmode;
+	u32 boottype;
+};
+
 static struct mt6358_rtc *mt_rtc;
 static struct wakeup_source *mt6358_rtc_suspend_lock;
 
@@ -588,6 +587,7 @@ static void mtk_rtc_work_queue(struct work_struct *work)
 	} else {
 		msecs = jiffies_to_msecs(ret);
 		pr_notice("%s timeleft= %d\n", __func__, msecs);
+		rtc_mark_kpoc();
 		kernel_restart("kpoc");
 	}
 }
@@ -730,6 +730,28 @@ static irqreturn_t mtk_rtc_irq_handler(int irq, void *data)
 	struct rtc_time nowtm, tm;
 	int status = RTC_NONE;
 	unsigned long flags;
+// modify get_boot_mode
+	struct device *dev = NULL;
+	struct device_node *boot_node = NULL;
+	struct tag_bootmode *tag = NULL;
+	int boot_mode = 11;//UNKNOWN_BOOT
+
+	dev = mt_rtc->dev;
+	if (dev != NULL){
+		boot_node = of_parse_phandle(dev->of_node, "bootmode", 0);
+		if (!boot_node){
+			pr_notice("%s: failed to get boot mode phandle\n", __func__);
+		}
+		else {
+			tag = (struct tag_bootmode *)of_get_property(boot_node,
+								"atag,boot", NULL);
+			if (!tag){
+				pr_notice("%s: failed to get atag,boot\n", __func__);
+			}
+			else
+				boot_mode = tag->bootmode;
+		}
+	}
 
 	spin_lock_irqsave(&mt_rtc->lock, flags);
 
@@ -775,8 +797,8 @@ static irqreturn_t mtk_rtc_irq_handler(int irq, void *data)
 
 		/* power on */
 		if (now_time >= time - 1 && now_time <= time + 4) {
-			if (get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT
-			    || get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT) {
+			if (boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT
+			    || boot_mode == LOW_POWER_OFF_CHARGING_BOOT) {
 				mtk_rtc_reboot();
 				spin_unlock_irqrestore(&mt_rtc->lock, flags);
 				disable_irq_nosync(mt_rtc->irq);
@@ -1059,56 +1081,6 @@ static const struct rtc_class_ops rtc_ops = {
 	.set_alarm = rtc_ops_set_alarm,
 };
 
-#ifdef CONFIG_SEC_PM
-static int poff_status;
-
-static void rtc_reset_check(struct platform_device *pdev)
-{
-	unsigned long flags;
-	int ret;
-	u32 spar0 = 0;
-	struct mt6358_rtc *rtc = platform_get_drvdata(pdev);
-
-	rtc_read(RTC_SPAR0, &spar0);
-	if(!(spar0 & RTC_SPAR0_BATT_REMOVAL)) {
-		poff_status = 1;
-		pr_info("%s BATTERY REMOVED\n", __func__);
-
-		spin_lock_irqsave(&rtc->lock, flags);
-		ret = rtc_update_bits(RTC_SPAR0, RTC_SPAR0_BATT_REMOVAL, RTC_SPAR0_BATT_REMOVAL);
-		if (ret < 0) {
-			spin_unlock_irqrestore(&rtc->lock, flags);
-			goto exit;
-		}
-		ret = rtc_write_trigger();
-		if (ret < 0) {
-			spin_unlock_irqrestore(&rtc->lock, flags);
-			goto exit;
-		}
-		spin_unlock_irqrestore(&rtc->lock, flags);
-	}
-exit:
-	pr_err("%s error\n", __func__);
-}
-
-static ssize_t rtc_status_show(struct kobject *kobj,
-				  struct kobj_attribute *attr, char *buf)
-{
-	int status = poff_status;
-	pr_info("complete power off status(%d)\n", status);
-	poff_status = 0;
-	return sprintf(buf, "%d\n", status);
-}
-
-static struct kobj_attribute rtc_status_attr = {
-	.attr = {
-		.name = __stringify(rtc_status),
-		.mode = S_IRUGO,
-	},
-	.show = rtc_status_show,
-};
-#endif /* CONFIG_SEC_PM */
-
 static void mtk_rtc_set_lp_irq(void)
 {
 	unsigned int irqen = 0;
@@ -1185,15 +1157,6 @@ static int mtk_rtc_pdrv_probe(struct platform_device *pdev)
 	else
 		rtc_pm_notifier_registered = true;
 #endif /* CONFIG_PM */
-
-#ifdef CONFIG_SEC_PM
-	rtc_reset_check(pdev);
-	if(power_kobj) {
-		ret = sysfs_create_file(power_kobj, &rtc_status_attr.attr);
-		if (ret)
-			pr_err("%s: failed %d\n", __func__, ret);
-	}
-#endif /* CONFIG_SEC_PM */
 
 	INIT_WORK(&rtc->work, mtk_rtc_work_queue);
 

@@ -751,6 +751,7 @@ static int ilitek_tdd_fw_hex_open(u8 op, u8 *pfw)
 	mm_segment_t old_fs;
 	loff_t pos = 0;
 	size_t spu_fw_size;
+	size_t spu_ret = 0;
 	int nread;
 
 	input_info(true, ilits->dev, "%s Open file method = %s, path = %s\n",
@@ -815,9 +816,7 @@ static int ilitek_tdd_fw_hex_open(u8 op, u8 *pfw)
 		if (ilits->signing) {
 			/* name 3, digest 32, signature 512 */
 			spu_fw_size = fsize;
-#ifdef SUPPORT_FW_SIGNED
 			fsize -= SPU_METADATA_SIZE(TSP);
-#endif
 		}
 
 		ilits->tp_fw.size = 0;
@@ -838,9 +837,7 @@ static int ilitek_tdd_fw_hex_open(u8 op, u8 *pfw)
 		set_fs(get_ds());
 		set_fs(KERNEL_DS);
 		if (ilits->signing) {
-#ifdef SUPPORT_FW_SIGNED
 			unsigned char *spu_fw_data;
-			size_t spu_ret = 0;
 
 			spu_fw_data = vzalloc(spu_fw_size);
 			if (!spu_fw_data) {
@@ -872,7 +869,6 @@ static int ilitek_tdd_fw_hex_open(u8 op, u8 *pfw)
 
 			memcpy((u8 *)ilits->tp_fw.data, spu_fw_data, fsize);
 			vfree(spu_fw_data);
-#endif
 		} else {
 			pos = 0;
 			vfs_read(f, (u8 *)ilits->tp_fw.data, fsize, &pos);

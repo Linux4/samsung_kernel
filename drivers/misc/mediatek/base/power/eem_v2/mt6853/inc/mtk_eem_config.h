@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 #ifndef _MTK_EEM_CONFIG_H_
 #define _MTK_EEM_CONFIG_H_
 
@@ -208,17 +201,8 @@ enum mt_cpu_dvfs_id {
 #define SN_V_BASE		(50000)
 #define SN_V_DENOM		(110000 - 50000)
 
-/*
- * 100 us, This is the EEMSN Detector sampling time as represented in
- * cycles of bclk_ck during INIT. 52 MHz
- */
 #define DETWINDOW_VAL		0xA28
 
-/*
- * mili Volt to config value. voltage = 600mV + val * 6.25mV
- * val = (voltage - 600) / 6.25
- * @mV: mili volt
- */
 
 /* 1mV=>10uV */
 /* EEMSN */

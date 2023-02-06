@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (c) 2019 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+*/
 
 #include <drm/drmP.h>
 #include <linux/clk.h>
@@ -43,10 +35,6 @@
 #define CONFIG_LEDS_BRIGHTNESS_CHANGED
 #endif
 #include <leds-mtk-i2c.h>
-#else
-#define mt_leds_brightness_set(x, y) do { } while (0)
-#define MT65XX_LED_MODE_NONE (0)
-#define MT65XX_LED_MODE_CUST_LCM (4)
 #endif
 #else
 #define mt_leds_brightness_set(x, y) do { } while (0)

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 /*****************************************************************************
  *
@@ -60,9 +52,9 @@
 #include <linux/gpio.h>
 
 #include <mt-plat/aee.h>
-#include <mt-plat/charger_type.h>
-#include <mt-plat/mtk_charger.h>
-#include <mt-plat/mtk_battery.h>
+#include <mt-plat/v1/charger_type.h>
+#include <mt-plat/v1/mtk_charger.h>
+#include <mt-plat/v1/mtk_battery.h>
 #include <mt-plat/mtk_boot.h>
 #include <mt-plat/upmu_common.h>
 #include <pmic_lbat_service.h>
@@ -84,6 +76,9 @@
 #include "simulator_kernel.h"
 #endif
 
+#if defined(CONFIG_SEC_FACTORY)
+#include <../drivers/battery/common/sec_charging_common.h>
+#endif
 
 
 /* ============================================================ */
@@ -94,6 +89,14 @@ struct mtk_battery gm;
 /* ============================================================ */
 /* gauge hal interface */
 /* ============================================================ */
+
+void __attribute__ ((weak)) 
+		pmic_register_interrupt_callback(unsigned int intNo,
+  		void (EINT_FUNC_PTR) (void))
+{
+	/*work around for mt6768*/
+}
+
 bool gauge_get_current(int *bat_current)
 {
 	bool is_charging = false;
@@ -1118,7 +1121,7 @@ static int fg_read_dts_val(const struct device_node *np,
 		bm_debug("Get %s: %d\n",
 			 node_srting, *param);
 	} else {
-		bm_err("Get %s failed\n", node_srting);
+		bm_debug("Get %s failed\n", node_srting);
 		return -1;
 	}
 	return 0;
@@ -1135,7 +1138,7 @@ static int fg_read_dts_val_by_idx(const struct device_node *np,
 		bm_debug("Get %s %d: %d\n",
 			 node_srting, idx, *param);
 	} else {
-		bm_err("Get %s failed, idx %d\n", node_srting, idx);
+		bm_debug("Get %s failed, idx %d\n", node_srting, idx);
 		return -1;
 	}
 	return 0;
@@ -1694,7 +1697,6 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 	/* dynamic CV */
 	fg_read_dts_val(np, "DYNAMIC_CV_FACTOR", &(fg_cust_data.dynamic_cv_factor), 1);
 	fg_read_dts_val(np, "CHARGER_IEOC", &(fg_cust_data.charger_ieoc), 1);
-
 
 #if defined(CONFIG_MTK_ADDITIONAL_BATTERY_TABLE)
 	if (fg_table_cust_data.active_table_number == 0)
@@ -3369,7 +3371,13 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 			int is_bat_exist = 0;
 
 			is_bat_exist = pmic_is_battery_exist();
-
+#if defined(CONFIG_SEC_FACTORY)
+			if (battery_main.f_mode == OB_MODE) {
+				is_bat_exist = 0;
+				bm_err("[fr] FG_DAEMON_CMD_IS_BAT_EXIST = %d\n",
+					is_bat_exist);
+			}
+#endif
 			ret_msg->fgd_data_len += sizeof(is_bat_exist);
 			memcpy(ret_msg->fgd_data,
 				&is_bat_exist, sizeof(is_bat_exist));
@@ -4796,7 +4804,8 @@ void mtk_battery_init(struct platform_device *dev)
 		fg_zcv_int_handler);
 
 		if (gauge_get_hw_version() < GAUGE_HW_V2000) {
-			lbat_user_register(&gm.lowbat_service, "fuel gauge",
+// workaround for mt6768
+			/*lbat_user_register(&gm.lowbat_service, "fuel gauge",
 			fg_cust_data.vbat2_det_voltage3 / 10,
 			fg_cust_data.vbat2_det_voltage1 / 10,
 			fg_cust_data.vbat2_det_voltage2 / 10,
@@ -4806,7 +4815,7 @@ void mtk_battery_init(struct platform_device *dev)
 			fg_cust_data.vbat2_det_time * 1000,
 			fg_cust_data.vbat2_det_counter,
 			fg_cust_data.vbat2_det_time * 1000,
-			fg_cust_data.vbat2_det_counter);
+			fg_cust_data.vbat2_det_counter);*/
 
 			/* sw bat_cycle_car init, gm25 should start from 0 */
 			gm.bat_cycle_car = gauge_get_coulomb();

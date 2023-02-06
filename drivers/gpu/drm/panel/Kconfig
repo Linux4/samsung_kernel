@@ -50,6 +50,17 @@ config DRM_PANEL_JDI_LT070ME05000
 	  The panel has a 1200(RGB)×1920 (WUXGA) resolution and uses
 	  24 bit per pixel.
 
+config DRM_PANEL_RAYDIUM_RM692H0
+	tristate "RAYDIUM RM690H2 WQXGA DSI panel"
+	depends on OF
+	depends on DRM_MIPI_DSI
+	depends on BACKLIGHT_CLASS_DEVICE
+	help
+	  Say Y here if you want to enable support for RAYDIUM DSI command mode
+	  panel as found in tb8797p2 wifi-only devices.
+	  The panel has a 2560(RGB)×1536 (WQXGA) resolution and uses
+	  24 bit per pixel.
+
 config DRM_PANEL_SAMSUNG_LD9040
 	tristate "Samsung LD9040 RGB/SPI panel"
 	depends on OF && SPI
@@ -349,6 +360,17 @@ config DRM_PANEL_TIANMA_R66451_CMD_120HZ
 	  and uses 24-bits RGB per pixel. It provides a MIPI DSI interface
 	  to host.
 
+config DRM_PANEL_TIANMA_R66451_CMD_120HZ_6382
+         tristate "TIANMA  FHD+ cmd mode panel"
+         depends on OF
+         depends on DRM_MIPI_DSI
+         depends on BACKLIGHT_CLASS_DEVICE
+         help
+           Say Y here if you want to enable support for TIANMA R66451 CMD
+           mode 120HZ Full HD Plus panel. The panel has a 1080x2340 resolution
+           and uses 24-bits RGB per pixel. It provides a MIPI DSI interface
+           to host.
+
 config DRM_PANEL_K6885V1_64_ALPHA_VDO_01
 	tristate "K6885V1 alpha phone vdo mode panel"
 	depends on OF
@@ -626,6 +648,17 @@ config DRM_PANEL_TIANMA_NT36672E_VDO_120HZ_VFP
 	  resolution and uses 24-bits RGB per pixel. It provides a
 	  MIPI DSI interface to host.
 
+config DRM_PANEL_TIANMA_NT36672E_VDO_120HZ_VFP_6382
+         tristate "TIANMA FHD+ vdo mode 120 HZ VFP 6382 panel"
+         depends on OF
+         depends on DRM_MIPI_DSI
+         depends on BACKLIGHT_CLASS_DEVICE
+         help
+           Say Y here if you want to enable support for TIANMA DPHY
+           vdo mode HFP Full HD Plus 120HZ panel. The panel has a 1080x2408
+           resolution and uses 24-bits RGB per pixel. It provides a
+           MIPI DSI interface to host.
+
 config DRM_PANEL_K6853V1_64_ALPHA_VDO_01
 	tristate "K6853V1 alpha phone vdo mode panel"
 	depends on OF
@@ -720,6 +753,26 @@ config DRM_RT4831A_I2C
 	help
 	  Say Y here if you want to enable support for rt4831a.
 
+config DRM_PANEL_HIMAX_HX83102D_VDO
+	tristate "HIMAX panel"
+	depends on OF
+	depends on DRM_MIPI_DSI
+	depends on BACKLIGHT_CLASS_DEVICE
+	help
+	  Say Y here if you want to enable support for HIMAX panel.
+	  The panel has a 720x1560 resolution and uses 24-bits RGB per pixel.
+	  It provides a MIPI DSI interface to host.
+
+config DRM_PANEL_BOE_NT36525B_HDP_DSI_VDO_LM36274
+	tristate "NOVATEK panel"
+	depends on OF
+	depends on DRM_MIPI_DSI
+	depends on BACKLIGHT_CLASS_DEVICE
+	help
+	  Say Y here if you want to enable support for NOVATEK panel.
+	  The panel has a 720x1560 resolution and uses 24-bits RGB per pixel.
+	  It provides a MIPI DSI interface to host.
+
 config DRM_PANEL_BOE_SW83109_CMD
 	tristate "SW83109 panel"
 	depends on OF
@@ -730,72 +783,23 @@ config DRM_PANEL_BOE_SW83109_CMD
 	  The panel has a 1080x2400 resolution and uses 24-bits RGB per pixel.
 	  It provides a MIPI DSI interface to host.
 
-config DRM_PANEL_K6853V1_64_TD4150_VDO
-	tristate "K6853V1 burst mode panel"
-	depends on OF
-	depends on DRM_MIPI_DSI
-	depends on BACKLIGHT_CLASS_DEVICE
-	help
-	  Say Y here if you want to enable support for K6853V1 burst mode panel.
-	  The panel has a 720x1600 resolution and uses 24-bits RGB per pixel.
-	  It provides a MIPI DSI interface to host.
-
-config DRM_PANEL_K6853V1_64_ILI9882N_VDO
-	tristate "K6853V1 panel"
-	depends on OF
-	depends on DRM_MIPI_DSI
-	depends on BACKLIGHT_CLASS_DEVICE
-	help
-	  Say Y here if you want to enable support for K6853V1 panel.
-	  The panel has a 720x1600 resolution and uses 24-bits RGB per pixel.
-	  It provides a MIPI DSI interface to host.
-
-config DRM_PANEL_K6853V1_64_NT36675_VDO_90HZ
-	tristate "K6853V1 panel"
-	depends on OF
-	depends on DRM_MIPI_DSI
-	depends on BACKLIGHT_CLASS_DEVICE
-	help
-	  Say Y here if you want to enable support for K6853V1 panel.
-	  The panel has a 720x1600 resolution and uses 24-bits RGB per pixel.
-	  It provides a MIPI DSI interface to host.
-
-config DRM_PANEL_CSOT_NT36525B_HDP_DSI_VDO_LM36274
-	tristate "NOVATEK panel"
-	depends on OF
-	depends on DRM_MIPI_DSI
-	depends on BACKLIGHT_CLASS_DEVICE
-	help
-	  Say Y here if you want to enable support for NOVATEK panel.
-	  The panel has a 720x1600 resolution and uses 24-bits RGB per pixel.
-	  It provides a MIPI DSI interface to host.
-
-config DRM_PANEL_CSOT_NT36525C_HDP_DSI_VDO_LM36274
-	tristate "NOVATEK panel"
-	depends on OF
-	depends on DRM_MIPI_DSI
-	depends on BACKLIGHT_CLASS_DEVICE
-	help
-	  Say Y here if you want to enable support for NOVATEK panel.
-	  The panel has a 720x1600 resolution and uses 24-bits RGB per pixel.
-	  It provides a MIPI DSI interface to host.
-
-config DRM_PANEL_HIMAX_HX83108A_VDO
-	tristate "HIMAX HX83108A panel"
-	depends on OF
-	depends on DRM_MIPI_DSI
-	depends on BACKLIGHT_CLASS_DEVICE
-	help
-	  Say Y here if you want to enable support for HIMAX panel.
-	  The panel has a 720x1600 resolution and uses 24-bits RGB per pixel.
-	  It provides a MIPI DSI interface to host.
-
-config DRM_PANEL_HIMAX_HX83102D_VDO
+config DRM_PANEL_HIMAX_HX83102J_VDO
 	tristate "HIMAX panel"
 	depends on OF
 	depends on DRM_MIPI_DSI
 	depends on BACKLIGHT_CLASS_DEVICE
 	help
 	  Say Y here if you want to enable support for HIMAX panel.
-	  The panel has a 720x1560 resolution and uses 24-bits RGB per pixel.
+	  The panel has a 1440x2304 resolution.
 	  It provides a MIPI DSI interface to host.
+
+config DRM_PANEL_S6E8FC3_VDO
+	tristate "S6E8FC3 panel"
+	depends on OF
+	depends on DRM_MIPI_DSI
+	depends on BACKLIGHT_CLASS_DEVICE
+	help
+	  Say Y here if you want to enable support for S6E8FC3 panel.
+	  The panel has a 1080x2400 resolution.
+	  It provides a MIPI DSI interface to host.
+

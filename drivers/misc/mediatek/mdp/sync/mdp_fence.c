@@ -1,16 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/file.h>
 #include <linux/fs.h>
@@ -183,7 +174,7 @@ static void timeline_fence_release(struct dma_fence *dma_fence)
 	unsigned long flags;
 
 	spin_lock_irqsave(dma_fence->lock, flags);
-	if (!list_empty(&pt->link)) {
+	if (pt && !list_empty(&pt->link)) {
 		list_del(&pt->link);
 		rb_erase(&pt->node, &parent->pt_tree);
 	}

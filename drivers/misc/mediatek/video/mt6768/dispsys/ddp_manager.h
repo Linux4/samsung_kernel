@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __DDP_PATH_MANAGER_H__
 #define __DDP_PATH_MANAGER_H__
@@ -62,6 +54,30 @@ enum DDP_IRQ_BIT {
 
 /* path handle */
 #define disp_path_handle void *
+
+struct DPMGR_WQ_HANDLE {
+	unsigned int init;
+	enum DISP_PATH_EVENT event;
+	wait_queue_head_t wq;
+	unsigned long long data;
+};
+
+struct DDP_IRQ_EVENT_MAPPING {
+	enum DDP_IRQ_BIT irq_bit;
+};
+
+struct ddp_path_handle {
+	struct cmdqRecStruct *cmdqhandle;
+	int hwmutexid;
+	int power_state;
+	enum DDP_MODE mode;
+	struct mutex mutex_lock;
+	struct DDP_IRQ_EVENT_MAPPING irq_event_map[DISP_PATH_EVENT_NUM];
+	struct DPMGR_WQ_HANDLE wq_list[DISP_PATH_EVENT_NUM];
+	enum DDP_SCENARIO_ENUM scenario;
+	enum DISP_MODULE_ENUM mem_module;
+	struct disp_ddp_path_config last_config;
+};
 
 /**
  * Init ddp manager, now only register irq handler to ddp_irq.c

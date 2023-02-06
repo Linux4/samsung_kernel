@@ -47,7 +47,7 @@
 
 #define FLASH_DUMP_FILE "/sdcard/HX_Flash_Dump.bin"
 
-#if defined(CONFIG_TOUCHSCREEN_HIMAX_DEBUG)
+#if defined(CONFIG_TOUCHSCREEN_HX83102_DEBUG)
 #define HX_TP_PROC_2T2R
 /*if enable, selftest works in driver*/
 /*#define HX_TP_SELF_TEST_DRIVER*/
@@ -587,12 +587,12 @@ extern struct himax_ts_data *private_ts;
 extern struct himax_ic_data *ic_data;
 extern struct device *g_device;
 
-#if defined(CONFIG_TOUCHSCREEN_HIMAX_DEBUG)
+#if defined(CONFIG_TOUCHSCREEN_HX83102_DEBUG)
 	int himax_debug_init(void);
 	int himax_debug_remove(void);
 #endif
 
-#if defined(CONFIG_TOUCHSCREEN_HIMAX_INSPECT)
+#if defined(CONFIG_TOUCHSCREEN_HX83102_INSPECT)
 	extern char *g_rslt_data;
 	extern void (*fp_himax_self_test_init)(void);
 #endif

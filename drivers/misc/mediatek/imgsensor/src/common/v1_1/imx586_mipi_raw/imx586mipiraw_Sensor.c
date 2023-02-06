@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 /*****************************************************************************
@@ -3143,7 +3135,12 @@ static void custom3_setting(void)
 
 	if (otp_flag == OTP_QSC_NONE) {
 		pr_info("OTP no QSC Data, close qsc register");
-		write_cmos_sensor_8(0x3621, 0x00);
+		if (!imx586_is_seamless)
+			write_cmos_sensor_8(0x3621, 0x00);
+		else {
+			imx586_i2c_data[imx586_size_to_write++] = 0x3621;
+			imx586_i2c_data[imx586_size_to_write++] = 0x0;
+		}
 	}
 
 	pr_debug("%s 30 fpsX\n", __func__);
@@ -3171,6 +3168,15 @@ static void custom4_setting(void)
 		imx586_size_to_write += _length;
 	}
 
+	if (otp_flag == OTP_QSC_NONE) {
+		pr_info("OTP no QSC Data, close qsc register");
+		if (!imx586_is_seamless)
+			write_cmos_sensor_8(0x3621, 0x00);
+		else {
+			imx586_i2c_data[imx586_size_to_write++] = 0x3621;
+			imx586_i2c_data[imx586_size_to_write++] = 0x0;
+		}
+	}
 
 	pr_debug("X\n");
 }
@@ -4266,7 +4272,6 @@ static kal_uint32 set_test_pattern_mode(kal_uint32 modes,
 	kal_uint16 Color_R, Color_Gr, Color_Gb, Color_B;
 
 	pr_debug("set_test_pattern enum: %d\n", modes);
-
 	if (modes) {
 		write_cmos_sensor_8(0x0601, modes);
 		if (modes == 1 && (pdata != NULL)) { //Solid Color
@@ -4416,9 +4421,11 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 			break;
 		}
 		break;
+#if defined(IMGSENSOR_MT6885) || defined(IMGSENSOR_MT6877)
 	case SENSOR_FEATURE_GET_OFFSET_TO_START_OF_EXPOSURE:
 		*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = 1500000;
 		break;
+#endif
 	case SENSOR_FEATURE_GET_PERIOD_BY_SCENARIO:
 		switch (*feature_data) {
 		case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:

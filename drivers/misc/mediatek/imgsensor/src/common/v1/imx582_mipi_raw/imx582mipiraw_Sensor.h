@@ -1,31 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd
  */
 
-/*****************************************************************************
- *
- * Filename:
- * ---------
- *     IMX582mipi_Sensor.h
- *
- * Project:
- * --------
- *     ALPS
- *
- * Description:
- * ------------
- *     CMOS sensor header file
- *
- ****************************************************************************/
 #ifndef _IMX582MIPI_SENSOR_H
 #define _IMX582MIPI_SENSOR_H
 
@@ -44,35 +21,13 @@ enum IMGSENSOR_MODE {
 	IMGSENSOR_MODE_CUSTOM1,
 	IMGSENSOR_MODE_CUSTOM2,
 	IMGSENSOR_MODE_CUSTOM3,
+	IMGSENSOR_MODE_MAX
 };
 
-/*
- *    CHIP Revision Confirmation
- *
- *        Chip ID   : Sensor setfile version
- *          0x02    :      ver5.1
- *          0x08    :      ver5.1
- *          0x09    :      ver5.1
- *          0x10    :      ver5.1
- *          0x18    :      ver5.1
- *          0x0D    :      ver6.1
- *          0x1B    :      ver6.1
- *          0x20    :      ver6.1
- */
-enum IMGSENSOR_IMX582_CHID_ID {
-	IMGSENSOR_IMX582_CHIP_ID_0X02 = 0x02,
-	IMGSENSOR_IMX582_CHIP_ID_0X08 = 0x08,
-	IMGSENSOR_IMX582_CHIP_ID_0X09 = 0x09,
-	IMGSENSOR_IMX582_CHIP_ID_0X10 = 0x10,
-	IMGSENSOR_IMX582_CHIP_ID_0X18 = 0x18,
-	IMGSENSOR_IMX582_CHIP_ID_0X0D = 0x0D,
-	IMGSENSOR_IMX582_CHIP_ID_0X1B = 0x1B,
-	IMGSENSOR_IMX582_CHIP_ID_0X20 = 0x20
-};
-
-enum IMGSENSOR_IMX582_SETFILE_VER {
-	IMGSENSOR_IMX582_SETFILE_VER_5 = 0x0,
-	IMGSENSOR_IMX582_SETFILE_VER_6 = 0x1
+struct setfile_mode_info {
+	kal_uint16 *setfile;
+	kal_uint32 size;
+	char *name;
 };
 
 struct imgsensor_mode_struct {
@@ -157,6 +112,7 @@ struct imgsensor_info_struct {
 	kal_uint32 min_gain;
 	kal_uint32 max_gain;
 	kal_uint32 min_gain_iso;
+	kal_uint32 exp_step;
 	kal_uint32 gain_step;
 	kal_uint32 gain_type;
 	kal_uint32 max_frame_length;

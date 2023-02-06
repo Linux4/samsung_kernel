@@ -1,21 +1,15 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * mtk-base-afe.h  --  Mediatek base afe structure
  *
  * Copyright (c) 2016 MediaTek Inc.
  * Author: Garlic Tseng <garlic.tseng@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  */
 
 #ifndef _MTK_BASE_AFE_H_
 #define _MTK_BASE_AFE_H_
+
+#define MTK_STREAM_NUM (SNDRV_PCM_STREAM_LAST + 1)
 
 struct mtk_base_memif_data {
 	int id;
@@ -105,9 +99,6 @@ struct mtk_base_afe {
 	int memif_32bit_supported;
 	struct mtk_base_afe_irq *irqs;
 	int irqs_size;
-
-	/* using scp semaphore to protect reg access */
-	int is_scp_sema_support;
 
 	struct list_head sub_dais;
 	struct snd_soc_dai_driver *dai_drivers;

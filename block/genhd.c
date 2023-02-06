@@ -214,14 +214,17 @@ struct hd_struct *disk_part_iter_next(struct disk_part_iter *piter)
 		part = rcu_dereference(ptbl->part[piter->idx]);
 		if (!part)
 			continue;
+		get_device(part_to_dev(part));
+		piter->part = part;
 		if (!part_nr_sects_read(part) &&
 		    !(piter->flags & DISK_PITER_INCL_EMPTY) &&
 		    !(piter->flags & DISK_PITER_INCL_EMPTY_PART0 &&
-		      piter->idx == 0))
+		      piter->idx == 0)) {
+			put_device(part_to_dev(part));
+			piter->part = NULL;
 			continue;
+		}
 
-		get_device(part_to_dev(part));
-		piter->part = part;
 		piter->idx += inc;
 		break;
 	}
@@ -326,19 +329,22 @@ void blkdev_show(struct seq_file *seqf, off_t offset)
 /**
  * register_blkdev - register a new block device
  *
- * @major: the requested major device number [1..255]. If @major = 0, try to
- *         allocate any unused major number.
+ * @major: the requested major device number [1..BLKDEV_MAJOR_MAX-1]. If
+ *         @major = 0, try to allocate any unused major number.
  * @name: the name of the new block device as a zero terminated string
  *
  * The @name must be unique within the system.
  *
  * The return value depends on the @major input parameter:
  *
- *  - if a major device number was requested in range [1..255] then the
- *    function returns zero on success, or a negative error code
+ *  - if a major device number was requested in range [1..BLKDEV_MAJOR_MAX-1]
+ *    then the function returns zero on success, or a negative error code
  *  - if any unused major number was requested with @major = 0 parameter
  *    then the return value is the allocated major number in range
- *    [1..255] or a negative error code otherwise
+ *    [1..BLKDEV_MAJOR_MAX-1] or a negative error code otherwise
+ *
+ * See Documentation/admin-guide/devices.txt for the list of allocated
+ * major numbers.
  */
 int register_blkdev(unsigned int major, const char *name)
 {
@@ -365,8 +371,8 @@ int register_blkdev(unsigned int major, const char *name)
 	}
 
 	if (major >= BLKDEV_MAJOR_MAX) {
-		pr_err("register_blkdev: major requested (%d) is greater than the maximum (%d) for %s\n",
-		       major, BLKDEV_MAJOR_MAX, name);
+		pr_err("register_blkdev: major requested (%u) is greater than the maximum (%u) for %s\n",
+		       major, BLKDEV_MAJOR_MAX-1, name);
 
 		ret = -EINVAL;
 		goto out;
@@ -393,7 +399,7 @@ int register_blkdev(unsigned int major, const char *name)
 		ret = -EBUSY;
 
 	if (ret < 0) {
-		printk("register_blkdev: cannot get major %d for %s\n",
+		printk("register_blkdev: cannot get major %u for %s\n",
 		       major, name);
 		kfree(p);
 	}
@@ -521,6 +527,18 @@ void blk_free_devt(dev_t devt)
 	}
 }
 
+/**
+ *	We invalidate devt by assigning NULL pointer for devt in idr.
+ */
+void blk_invalidate_devt(dev_t devt)
+{
+	if (MAJOR(devt) == BLOCK_EXT_MAJOR) {
+		spin_lock_bh(&ext_devt_lock);
+		idr_replace(&ext_devt_idr, NULL, blk_mangle_minor(MINOR(devt)));
+		spin_unlock_bh(&ext_devt_lock);
+	}
+}
+
 static char *bdevt_str(dev_t devt, char *buf)
 {
 	if (MAJOR(devt) <= 0xff && MINOR(devt) <= 0xff) {
@@ -565,7 +583,7 @@ static int exact_lock(dev_t devt, void *data)
 {
 	struct gendisk *p = data;
 
-	if (!get_disk(p))
+	if (!get_disk_and_module(p))
 		return -1;
 	return 0;
 }
@@ -611,6 +629,9 @@ static void register_disk(struct device *parent, struct gendisk *disk)
 	disk->part0.holder_dir = kobject_create_and_add("holders", &ddev->kobj);
 	disk->slave_dir = kobject_create_and_add("slaves", &ddev->kobj);
 
+	if (disk->flags & GENHD_FL_HIDDEN)
+		return;
+
 	/* No minors to use for partitions */
 	if (!disk_part_scan_enabled(disk))
 		goto exit;
@@ -643,21 +664,29 @@ exit:
 		                        first_minor + part->partno);
 	}
 	disk_part_iter_exit(&piter);
+
+	if (disk->queue->backing_dev_info->dev) {
+		err = sysfs_create_link(&ddev->kobj,
+			  &disk->queue->backing_dev_info->dev->kobj,
+			  "bdi");
+		WARN_ON(err);
+	}
 }
 
 /**
- * device_add_disk - add partitioning information to kernel list
+ * __device_add_disk - add disk information to kernel list
  * @parent: parent device for the disk
  * @disk: per-device partitioning information
+ * @register_queue: register the queue if set to true
  *
  * This function registers the partitioning information in @disk
  * with the kernel.
  *
  * FIXME: error handling
  */
-void device_add_disk(struct device *parent, struct gendisk *disk)
+static void __device_add_disk(struct device *parent, struct gendisk *disk,
+			      bool register_queue)
 {
-	struct backing_dev_info *bdi;
 	dev_t devt;
 	int retval;
 
@@ -666,7 +695,8 @@ void device_add_disk(struct device *parent, struct gendisk *disk)
 	 * parameters make sense.
 	 */
 	WARN_ON(disk->minors && !(disk->major || disk->first_minor));
-	WARN_ON(!disk->minors && !(disk->flags & GENHD_FL_EXT_DEVT));
+	WARN_ON(!disk->minors &&
+		!(disk->flags & (GENHD_FL_EXT_DEVT | GENHD_FL_HIDDEN)));
 
 	disk->flags |= GENHD_FL_UP;
 
@@ -675,24 +705,32 @@ void device_add_disk(struct device *parent, struct gendisk *disk)
 		WARN_ON(1);
 		return;
 	}
-	disk_to_dev(disk)->devt = devt;
-
-	/* ->major and ->first_minor aren't supposed to be
-	 * dereferenced from here on, but set them just in case.
-	 */
 	disk->major = MAJOR(devt);
 	disk->first_minor = MINOR(devt);
 
 	disk_alloc_events(disk);
 
-	/* Register BDI before referencing it from bdev */
-	bdi = disk->queue->backing_dev_info;
-	bdi_register_owner(bdi, disk_to_dev(disk));
+	if (disk->flags & GENHD_FL_HIDDEN) {
+		/*
+		 * Don't let hidden disks show up in /proc/partitions,
+		 * and don't bother scanning for partitions either.
+		 */
+		disk->flags |= GENHD_FL_SUPPRESS_PARTITION_INFO;
+		disk->flags |= GENHD_FL_NO_PART_SCAN;
+	} else {
+		int ret;
 
-	blk_register_region(disk_devt(disk), disk->minors, NULL,
-			    exact_match, exact_lock, disk);
+		/* Register BDI before referencing it from bdev */
+		disk_to_dev(disk)->devt = devt;
+		ret = bdi_register_owner(disk->queue->backing_dev_info,
+						disk_to_dev(disk));
+		WARN_ON(ret);
+		blk_register_region(disk_devt(disk), disk->minors, NULL,
+				    exact_match, exact_lock, disk);
+	}
 	register_disk(parent, disk);
-	blk_register_queue(disk);
+	if (register_queue)
+		blk_register_queue(disk);
 
 	/*
 	 * Take an extra ref on queue which will be put on disk_release()
@@ -700,14 +738,21 @@ void device_add_disk(struct device *parent, struct gendisk *disk)
 	 */
 	WARN_ON_ONCE(!blk_get_queue(disk->queue));
 
-	retval = sysfs_create_link(&disk_to_dev(disk)->kobj, &bdi->dev->kobj,
-				   "bdi");
-	WARN_ON(retval);
-
 	disk_add_events(disk);
 	blk_integrity_add(disk);
 }
+
+void device_add_disk(struct device *parent, struct gendisk *disk)
+{
+	__device_add_disk(parent, disk, true);
+}
 EXPORT_SYMBOL(device_add_disk);
+
+void device_add_disk_no_queue_reg(struct device *parent, struct gendisk *disk)
+{
+	__device_add_disk(parent, disk, false);
+}
+EXPORT_SYMBOL(device_add_disk_no_queue_reg);
 
 void del_gendisk(struct gendisk *disk)
 {
@@ -721,6 +766,11 @@ void del_gendisk(struct gendisk *disk)
 	blk_integrity_del(disk);
 	disk_del_events(disk);
 
+	/*
+	 * Block lookups of the disk until all bdevs are unhashed and the
+	 * disk is marked as dead (GENHD_FL_UP cleared).
+	 */
+	down_write(&disk->lookup_sem);
 	/* invalidate stuff */
 	disk_part_iter_init(&piter, disk,
 			     DISK_PITER_INCL_EMPTY | DISK_PITER_REVERSE);
@@ -735,25 +785,37 @@ void del_gendisk(struct gendisk *disk)
 	bdev_unhash_inode(disk_devt(disk));
 	set_capacity(disk, 0);
 	disk->flags &= ~GENHD_FL_UP;
+	up_write(&disk->lookup_sem);
 
-	sysfs_remove_link(&disk_to_dev(disk)->kobj, "bdi");
+	if (!(disk->flags & GENHD_FL_HIDDEN))
+		sysfs_remove_link(&disk_to_dev(disk)->kobj, "bdi");
 	if (disk->queue) {
 		/*
 		 * Unregister bdi before releasing device numbers (as they can
 		 * get reused and we'd get clashes in sysfs).
 		 */
-		bdi_unregister(disk->queue->backing_dev_info);
+		if (!(disk->flags & GENHD_FL_HIDDEN))
+			bdi_unregister(disk->queue->backing_dev_info);
 		blk_unregister_queue(disk);
 	} else {
 		WARN_ON(1);
 	}
-	blk_unregister_region(disk_devt(disk), disk->minors);
 
-	part_stat_set_all(&disk->part0, 0);
-	disk->part0.stamp = 0;
+	if (!(disk->flags & GENHD_FL_HIDDEN))
+		blk_unregister_region(disk_devt(disk), disk->minors);
+	/*
+	 * Remove gendisk pointer from idr so that it cannot be looked up
+	 * while RCU period before freeing gendisk is running to prevent
+	 * use-after-free issues. Note that the device number stays
+	 * "in-use" until we really free the gendisk.
+	 */
+	blk_invalidate_devt(disk_devt(disk));
 
 	kobject_put(disk->part0.holder_dir);
 	kobject_put(disk->slave_dir);
+
+	part_stat_set_all(&disk->part0, 0);
+	disk->part0.stamp = 0;
 	if (!sysfs_deprecated)
 		sysfs_remove_link(block_depr, dev_name(disk_to_dev(disk)));
 	pm_runtime_set_memalloc_noio(disk_to_dev(disk), false);
@@ -814,13 +876,29 @@ struct gendisk *get_gendisk(dev_t devt, int *partno)
 
 		spin_lock_bh(&ext_devt_lock);
 		part = idr_find(&ext_devt_idr, blk_mangle_minor(MINOR(devt)));
-		if (part && get_disk(part_to_disk(part))) {
+		if (part && get_disk_and_module(part_to_disk(part))) {
 			*partno = part->partno;
 			disk = part_to_disk(part);
 		}
 		spin_unlock_bh(&ext_devt_lock);
 	}
 
+	if (!disk)
+		return NULL;
+
+	/*
+	 * Synchronize with del_gendisk() to not return disk that is being
+	 * destroyed.
+	 */
+	down_read(&disk->lookup_sem);
+	if (unlikely((disk->flags & GENHD_FL_HIDDEN) ||
+		     !(disk->flags & GENHD_FL_UP))) {
+		up_read(&disk->lookup_sem);
+		put_disk_and_module(disk);
+		disk = NULL;
+	} else {
+		up_read(&disk->lookup_sem);
+	}
 	return disk;
 }
 EXPORT_SYMBOL(get_gendisk);
@@ -996,18 +1074,6 @@ static const struct seq_operations partitions_op = {
 	.show	= show_partition
 };
 
-static int partitions_open(struct inode *inode, struct file *file)
-{
-	return seq_open(file, &partitions_op);
-}
-
-static const struct file_operations proc_partitions_operations = {
-	.open		= partitions_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
-};
-
 static void *show_iodevs_start(struct seq_file *seqf, loff_t *pos)
 {
 	void *p;
@@ -1054,18 +1120,6 @@ static const struct seq_operations iodevs_op = {
 	.next	= disk_seqf_next,
 	.stop	= disk_seqf_stop,
 	.show	= show_iodevs
-};
-
-static int iodevs_open(struct inode *inode, struct file *file)
-{
-	return seq_open(file, &iodevs_op);
-}
-
-static const struct file_operations proc_iodevs_operations = {
-	.open		= iodevs_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
 };
 #endif
 
@@ -1124,6 +1178,15 @@ static ssize_t disk_removable_show(struct device *dev,
 		       (disk->flags & GENHD_FL_REMOVABLE ? 1 : 0));
 }
 
+static ssize_t disk_hidden_show(struct device *dev,
+				   struct device_attribute *attr, char *buf)
+{
+	struct gendisk *disk = dev_to_disk(dev);
+
+	return sprintf(buf, "%d\n",
+		       (disk->flags & GENHD_FL_HIDDEN ? 1 : 0));
+}
+
 static ssize_t disk_ro_show(struct device *dev,
 				   struct device_attribute *attr, char *buf)
 {
@@ -1158,10 +1221,7 @@ static ssize_t disk_discard_alignment_show(struct device *dev,
 	return sprintf(buf, "%d\n", queue_discard_alignment(disk->queue));
 }
 
-/* IOPP-bigdata-v1.0.4.14 */
-#undef DISCARD
-
-#define DISCARD	(WRITE + 1)
+/* IOPP-bigdata-v1.0.4.19 */
 #define DIFF_IOs(n, o, i) ( \
 	((n)->ios[(i)] >= (o)->ios[(i)]) ? \
 	((n)->ios[(i)] - (o)->ios[(i)]) : \
@@ -1172,14 +1232,14 @@ static ssize_t disk_discard_alignment_show(struct device *dev,
 	((n)->sectors[(i)] + (0 - (o)->sectors[(i)])) / 2)
 
 static ssize_t disk_ios_show(struct device *dev,
-			     struct device_attribute *attr,
-			     char *buf)
+		struct device_attribute *attr,
+		char *buf)
 {
 	/* disk->accios is set to all zero in alloc_disk_node */
 	struct gendisk *disk = dev_to_disk(dev);
 	struct hd_struct *hd = dev_to_part(dev);
-	struct accumulated_stats *old = &(disk->accios);
-	struct accumulated_stats new;
+	struct accumulated_io_stats *old = &(disk->accios);
+	struct accumulated_io_stats new;
 	long hours;
 	int cpu;
 	int ret;
@@ -1188,69 +1248,67 @@ static ssize_t disk_ios_show(struct device *dev,
 	part_round_stats(disk->queue, cpu, hd);
 	part_stat_unlock();
 
-	new.ios[READ] = part_stat_read(hd, ios[READ]);
-	new.ios[WRITE] = part_stat_read(hd, ios[WRITE]);
-	new.ios[DISCARD] = part_stat_read(hd, discard_ios);
-	new.sectors[READ] = part_stat_read(hd, sectors[READ]);
-	new.sectors[WRITE] = part_stat_read(hd, sectors[WRITE]);
-	new.sectors[DISCARD] = part_stat_read(hd, discard_sectors);
+	new.ios[STAT_READ] = part_stat_read(hd, ios[STAT_READ]);
+	new.ios[STAT_WRITE] = part_stat_read(hd, ios[STAT_WRITE]);
+	new.ios[STAT_DISCARD] = part_stat_read(hd, ios[STAT_DISCARD]);
+	new.sectors[STAT_READ] = part_stat_read(hd, sectors[STAT_READ]);
+	new.sectors[STAT_WRITE] = part_stat_read(hd, sectors[STAT_WRITE]);
+	new.sectors[STAT_DISCARD] = part_stat_read(hd, sectors[STAT_DISCARD]);
 
 	get_monotonic_boottime(&(new.uptime));
 	hours = (new.uptime.tv_sec - old->uptime.tv_sec) / 60; /* to minutes */
 	hours = (hours + 30) / 60 ; /* round up to hours */
 
 	ret = sprintf(buf, "\"ReadC\":\"%lu\",\"ReadKB\":\"%lu\","
-			   "\"WriteC\":\"%lu\",\"WriteKB\":\"%lu\","
-			   "\"DiscardC\":\"%lu\",\"DiscardKB\":\"%lu\","
-			   "\"Hours\":\"%ld\"\n",
-			   DIFF_IOs(&new, old, READ),
-			   DIFF_KBs(&new, old, READ),
-			   DIFF_IOs(&new, old, WRITE),
-			   DIFF_KBs(&new, old, WRITE),
-			   DIFF_IOs(&new, old, DISCARD),
-			   DIFF_KBs(&new, old, DISCARD),
-			   hours);
+			"\"WriteC\":\"%lu\",\"WriteKB\":\"%lu\","
+			"\"DiscardC\":\"%lu\",\"DiscardKB\":\"%lu\","
+			"\"Hours\":\"%ld\"\n",
+			DIFF_IOs(&new, old, STAT_READ),
+			DIFF_KBs(&new, old, STAT_READ),
+			DIFF_IOs(&new, old, STAT_WRITE) + DIFF_IOs(&new, old, STAT_DISCARD),
+			DIFF_KBs(&new, old, STAT_WRITE) + DIFF_KBs(&new, old, STAT_DISCARD),
+			DIFF_IOs(&new, old, STAT_DISCARD),
+			DIFF_KBs(&new, old, STAT_DISCARD),
+			hours);
 
-	disk->accios.ios[READ] = new.ios[READ];
-	disk->accios.ios[WRITE] = new.ios[WRITE];
-	disk->accios.ios[DISCARD] = new.ios[DISCARD];
-	disk->accios.sectors[READ] = new.sectors[READ];
-	disk->accios.sectors[WRITE] = new.sectors[WRITE];
-	disk->accios.sectors[DISCARD] = new.sectors[DISCARD];
+	disk->accios.ios[STAT_READ] = new.ios[STAT_READ];
+	disk->accios.ios[STAT_WRITE] = new.ios[STAT_WRITE];
+	disk->accios.ios[STAT_DISCARD] = new.ios[STAT_DISCARD];
+	disk->accios.sectors[STAT_READ] = new.sectors[STAT_READ];
+	disk->accios.sectors[STAT_WRITE] = new.sectors[STAT_WRITE];
+	disk->accios.sectors[STAT_DISCARD] = new.sectors[STAT_DISCARD];
 	disk->accios.uptime = new.uptime;
 
 	return ret;
 }
-#undef DISCARD
 
-static DEVICE_ATTR(range, S_IRUGO, disk_range_show, NULL);
-static DEVICE_ATTR(ext_range, S_IRUGO, disk_ext_range_show, NULL);
-static DEVICE_ATTR(removable, S_IRUGO, disk_removable_show, NULL);
-static DEVICE_ATTR(ro, S_IRUGO, disk_ro_show, NULL);
-static DEVICE_ATTR(size, S_IRUGO, part_size_show, NULL);
-static DEVICE_ATTR(alignment_offset, S_IRUGO, disk_alignment_offset_show, NULL);
-static DEVICE_ATTR(discard_alignment, S_IRUGO, disk_discard_alignment_show,
-		   NULL);
-static DEVICE_ATTR(capability, S_IRUGO, disk_capability_show, NULL);
-static DEVICE_ATTR(stat, S_IRUGO, part_stat_show, NULL);
-static DEVICE_ATTR(inflight, S_IRUGO, part_inflight_show, NULL);
-static DEVICE_ATTR(badblocks, S_IRUGO | S_IWUSR, disk_badblocks_show,
-		disk_badblocks_store);
+static DEVICE_ATTR(range, 0444, disk_range_show, NULL);
+static DEVICE_ATTR(ext_range, 0444, disk_ext_range_show, NULL);
+static DEVICE_ATTR(removable, 0444, disk_removable_show, NULL);
+static DEVICE_ATTR(hidden, 0444, disk_hidden_show, NULL);
+static DEVICE_ATTR(ro, 0444, disk_ro_show, NULL);
+static DEVICE_ATTR(size, 0444, part_size_show, NULL);
+static DEVICE_ATTR(alignment_offset, 0444, disk_alignment_offset_show, NULL);
+static DEVICE_ATTR(discard_alignment, 0444, disk_discard_alignment_show, NULL);
+static DEVICE_ATTR(capability, 0444, disk_capability_show, NULL);
+static DEVICE_ATTR(stat, 0444, part_stat_show, NULL);
+static DEVICE_ATTR(inflight, 0444, part_inflight_show, NULL);
+static DEVICE_ATTR(badblocks, 0644, disk_badblocks_show, disk_badblocks_store);
 static DEVICE_ATTR(diskios, 0400, disk_ios_show, NULL);
 #ifdef CONFIG_FAIL_MAKE_REQUEST
 static struct device_attribute dev_attr_fail =
-	__ATTR(make-it-fail, S_IRUGO|S_IWUSR, part_fail_show, part_fail_store);
+	__ATTR(make-it-fail, 0644, part_fail_show, part_fail_store);
 #endif
 #ifdef CONFIG_FAIL_IO_TIMEOUT
 static struct device_attribute dev_attr_fail_timeout =
-	__ATTR(io-timeout-fail,  S_IRUGO|S_IWUSR, part_timeout_show,
-		part_timeout_store);
+	__ATTR(io-timeout-fail, 0644, part_timeout_show, part_timeout_store);
 #endif
 
 static struct attribute *disk_attrs[] = {
 	&dev_attr_range.attr,
 	&dev_attr_ext_range.attr,
 	&dev_attr_removable.attr,
+	&dev_attr_hidden.attr,
 	&dev_attr_ro.attr,
 	&dev_attr_size.attr,
 	&dev_attr_alignment_offset.attr,
@@ -1432,21 +1490,28 @@ static int diskstats_show(struct seq_file *seqf, void *v)
 		part_round_stats(gp->queue, cpu, hd);
 		part_stat_unlock();
 		part_in_flight(gp->queue, hd, inflight);
-		seq_printf(seqf, "%4d %7d %s %lu %lu %lu "
-			   "%u %lu %lu %lu %u %u %u %u\n",
+		seq_printf(seqf, "%4d %7d %s "
+			   "%lu %lu %lu %u "
+			   "%lu %lu %lu %u "
+			   "%u %u %u "
+			   "%lu %lu %lu %u\n",
 			   MAJOR(part_devt(hd)), MINOR(part_devt(hd)),
 			   disk_name(gp, hd->partno, buf),
-			   part_stat_read(hd, ios[READ]),
-			   part_stat_read(hd, merges[READ]),
-			   part_stat_read(hd, sectors[READ]),
-			   jiffies_to_msecs(part_stat_read(hd, ticks[READ])),
-			   part_stat_read(hd, ios[WRITE]),
-			   part_stat_read(hd, merges[WRITE]),
-			   part_stat_read(hd, sectors[WRITE]),
-			   jiffies_to_msecs(part_stat_read(hd, ticks[WRITE])),
+			   part_stat_read(hd, ios[STAT_READ]),
+			   part_stat_read(hd, merges[STAT_READ]),
+			   part_stat_read(hd, sectors[STAT_READ]),
+			   (unsigned int)part_stat_read_msecs(hd, STAT_READ),
+			   part_stat_read(hd, ios[STAT_WRITE]),
+			   part_stat_read(hd, merges[STAT_WRITE]),
+			   part_stat_read(hd, sectors[STAT_WRITE]),
+			   (unsigned int)part_stat_read_msecs(hd, STAT_WRITE),
 			   inflight[0],
 			   jiffies_to_msecs(part_stat_read(hd, io_ticks)),
-			   jiffies_to_msecs(part_stat_read(hd, time_in_queue))
+			   jiffies_to_msecs(part_stat_read(hd, time_in_queue)),
+			   part_stat_read(hd, ios[STAT_DISCARD]),
+			   part_stat_read(hd, merges[STAT_DISCARD]),
+			   part_stat_read(hd, sectors[STAT_DISCARD]),
+			   (unsigned int)part_stat_read_msecs(hd, STAT_DISCARD)
 			);
 	}
 	disk_part_iter_exit(&piter);
@@ -1461,19 +1526,7 @@ static const struct seq_operations diskstats_op = {
 	.show	= diskstats_show
 };
 
-static int diskstats_open(struct inode *inode, struct file *file)
-{
-	return seq_open(file, &diskstats_op);
-}
-
-static const struct file_operations proc_diskstats_operations = {
-	.open		= diskstats_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
-};
-
-/* IOPP-iod-v1.0.4.14 */
+/* IOPP-iod-v1.1.k4.19 */
 #define PG2KB(x) ((unsigned long)((x) << (PAGE_SHIFT - 10)))
 static int iostats_show(struct seq_file *seqf, void *v)
 {
@@ -1486,67 +1539,54 @@ static int iostats_show(struct seq_file *seqf, void *v)
 	unsigned long thresh = 0;
 	unsigned long bg_thresh = 0;
 	struct backing_dev_info *bdi;
-	unsigned int nread, nwrite;
+	unsigned int inflight[2];
 
-	unsigned long long uptime_s;
-	unsigned long long uptime_ms;
-	unsigned long long flight_tmp;
-
-	/* Enhanced diskstats for IOD V 2.2 */
 	global_dirty_limits(&bg_thresh, &thresh);
 
 	disk_part_iter_init(&piter, gp, DISK_PITER_INCL_EMPTY_PART0);
 	while ((hd = disk_part_iter_next(&piter))) {
 		cpu = part_stat_lock();
 		part_round_stats(gp->queue, cpu, hd);
+		part_in_flight_rw(gp->queue, hd, inflight);
 		part_stat_unlock();
 		uptime = ktime_to_ns(ktime_get());
-		do_div(uptime, 1000000);
-		uptime_s = uptime;
-		uptime_ms = do_div(uptime_s, 1000);
-
-		flight_tmp = (unsigned long) gp->queue->in_flight_time;
-		do_div(flight_tmp, USEC_PER_MSEC);
-
+		uptime /= 1000000; /* in ms */
 		bdi = gp->queue->backing_dev_info;
-		nread = part_in_flight_read(hd);
-		nwrite = part_in_flight_write(hd);
 		seq_printf(seqf, "%4d %7d %s %lu %lu %lu %u "
 				"%lu %lu %lu %u %u %u %u "
 				/* added */
 				"%lu %lu %lu %lu "
 				"%u %llu %lu %lu %lu %u "
-				"%llu.%03llu\n",
+				"%lu.%03lu\n",
 				MAJOR(part_devt(hd)), MINOR(part_devt(hd)),
 				disk_name(gp, hd->partno, buf),
-				part_stat_read(hd, ios[READ]),
-				part_stat_read(hd, merges[READ]),
-				part_stat_read(hd, sectors[READ]),
-				jiffies_to_msecs(part_stat_read(hd, ticks[READ])),
+				part_stat_read(hd, ios[STAT_READ]),
+				part_stat_read(hd, merges[STAT_READ]),
+				part_stat_read(hd, sectors[STAT_READ]),
+				(unsigned int)part_stat_read_msecs(hd, STAT_READ),
 
-				part_stat_read(hd, ios[WRITE]),
-				part_stat_read(hd, merges[WRITE]),
-				part_stat_read(hd, sectors[WRITE]),
-				jiffies_to_msecs(part_stat_read(hd, ticks[WRITE])),
-				/*part_in_flight(hd),*/
-				nread + nwrite,
+				part_stat_read(hd, ios[WRITE]) + part_stat_read(hd, ios[STAT_DISCARD]),
+				part_stat_read(hd, merges[WRITE]) + part_stat_read(hd, merges[STAT_DISCARD]),
+				part_stat_read(hd, sectors[WRITE]) + part_stat_read(hd, sectors[STAT_DISCARD]),
+				(unsigned int)part_stat_read_msecs(hd, STAT_WRITE),
+				inflight[0] + inflight[1],
 				jiffies_to_msecs(part_stat_read(hd, io_ticks)),
 				jiffies_to_msecs(part_stat_read(hd, time_in_queue)),
 				/* following are added */
-				part_stat_read(hd, discard_ios),
-				part_stat_read(hd, discard_sectors),
+				part_stat_read(hd, ios[STAT_DISCARD]),
+				part_stat_read(hd, sectors[STAT_DISCARD]),
 				part_stat_read(hd, flush_ios),
 				gp->queue->flush_ios,
 
-				nread,
-				flight_tmp,
+				inflight[0], /* read request count */
+				gp->queue->in_flight_time / USEC_PER_MSEC,
 				PG2KB(thresh),
 				PG2KB(bdi->last_thresh),
 				PG2KB(bdi->last_nr_dirty),
 				jiffies_to_msecs(bdi->paused_total),
 
-				uptime_s,
-				uptime_ms);
+				(unsigned long)(uptime / 1000),
+				(unsigned long)(uptime % 1000));
 	}
 	disk_part_iter_exit(&piter);
 
@@ -1554,30 +1594,18 @@ static int iostats_show(struct seq_file *seqf, void *v)
 }
 
 static const struct seq_operations iostats_op = {
-	.start  = disk_seqf_start,
-	.next   = disk_seqf_next,
-	.stop   = disk_seqf_stop,
-	.show   = iostats_show
-};
-
-static int iostats_open(struct inode *inode, struct file *file)
-{
-	return seq_open(file, &iostats_op);
-}
-
-static const struct file_operations proc_iostats_operations = {
-	.open           = iostats_open,
-	.read           = seq_read,
-	.llseek         = seq_lseek,
-	.release        = seq_release,
+	.start	= disk_seqf_start,
+	.next	= disk_seqf_next,
+	.stop	= disk_seqf_stop,
+	.show	= iostats_show
 };
 
 static int __init proc_genhd_init(void)
 {
-	proc_create("iostats", 0, NULL, &proc_iostats_operations);
-	proc_create("diskstats", 0, NULL, &proc_diskstats_operations);
-	proc_create("iodevs", 0, NULL, &proc_iodevs_operations);
-	proc_create("partitions", 0, NULL, &proc_partitions_operations);
+	proc_create_seq("iostats", 0, NULL, &iostats_op);
+	proc_create_seq("diskstats", 0, NULL, &diskstats_op);
+	proc_create_seq("iodevs", 0, NULL, &iodevs_op);
+	proc_create_seq("partitions", 0, NULL, &partitions_op);
 	return 0;
 }
 module_init(proc_genhd_init);
@@ -1618,20 +1646,14 @@ dev_t blk_lookup_devt(const char *name, int partno)
 }
 EXPORT_SYMBOL(blk_lookup_devt);
 
-struct gendisk *alloc_disk(int minors)
-{
-	return alloc_disk_node(minors, NUMA_NO_NODE);
-}
-EXPORT_SYMBOL(alloc_disk);
-
-struct gendisk *alloc_disk_node(int minors, int node_id)
+struct gendisk *__alloc_disk_node(int minors, int node_id)
 {
 	struct gendisk *disk;
 	struct disk_part_tbl *ptbl;
 
 	if (minors > DISK_MAX_PARTS) {
 		printk(KERN_ERR
-			"block: can't allocated more than %d partitions\n",
+			"block: can't allocate more than %d partitions\n",
 			DISK_MAX_PARTS);
 		minors = DISK_MAX_PARTS;
 	}
@@ -1642,6 +1664,7 @@ struct gendisk *alloc_disk_node(int minors, int node_id)
 			kfree(disk);
 			return NULL;
 		}
+		init_rwsem(&disk->lookup_sem);
 		disk->node_id = node_id;
 		if (disk_expand_part_tbl(disk, 0)) {
 			free_part_stats(&disk->part0);
@@ -1675,9 +1698,9 @@ struct gendisk *alloc_disk_node(int minors, int node_id)
 	}
 	return disk;
 }
-EXPORT_SYMBOL(alloc_disk_node);
+EXPORT_SYMBOL(__alloc_disk_node);
 
-struct kobject *get_disk(struct gendisk *disk)
+struct kobject *get_disk_and_module(struct gendisk *disk)
 {
 	struct module *owner;
 	struct kobject *kobj;
@@ -1695,16 +1718,29 @@ struct kobject *get_disk(struct gendisk *disk)
 	return kobj;
 
 }
-
-EXPORT_SYMBOL(get_disk);
+EXPORT_SYMBOL(get_disk_and_module);
 
 void put_disk(struct gendisk *disk)
 {
 	if (disk)
 		kobject_put(&disk_to_dev(disk)->kobj);
 }
-
 EXPORT_SYMBOL(put_disk);
+
+/*
+ * This is a counterpart of get_disk_and_module() and thus also of
+ * get_gendisk().
+ */
+void put_disk_and_module(struct gendisk *disk)
+{
+	if (disk) {
+		struct module *owner = disk->fops->owner;
+
+		put_disk(disk);
+		module_put(owner);
+	}
+}
+EXPORT_SYMBOL(put_disk_and_module);
 
 static void set_disk_ro_uevent(struct gendisk *gd, int ro)
 {
@@ -2101,9 +2137,9 @@ static ssize_t disk_events_poll_msecs_store(struct device *dev,
 	return count;
 }
 
-static const DEVICE_ATTR(events, S_IRUGO, disk_events_show, NULL);
-static const DEVICE_ATTR(events_async, S_IRUGO, disk_events_async_show, NULL);
-static const DEVICE_ATTR(events_poll_msecs, S_IRUGO|S_IWUSR,
+static const DEVICE_ATTR(events, 0444, disk_events_show, NULL);
+static const DEVICE_ATTR(events_async, 0444, disk_events_async_show, NULL);
+static const DEVICE_ATTR(events_poll_msecs, 0644,
 			 disk_events_poll_msecs_show,
 			 disk_events_poll_msecs_store);
 

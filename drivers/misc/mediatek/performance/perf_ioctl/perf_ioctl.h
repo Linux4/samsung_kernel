@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 #ifndef PERF_IOCTL_H
 #define PERF_IOCTL_H
@@ -49,7 +41,7 @@ struct _FPSGO_PACKAGE {
 		__u64 frame_time;
 		__u64 bufID;
 	};
-	__u64 frame_id;
+	__u64 frame_id; /* for HWUI only*/
 	union {
 		__s32 queue_SF;
 		__s32 value2;
@@ -88,14 +80,6 @@ struct _EARA_NN_PACKAGE {
 	};
 };
 
-#define EARASYS_MAX_SIZE 27
-struct _EARA_SYS_PACKAGE {
-	union {
-		__s32 cmd;
-		__s32 data[EARASYS_MAX_SIZE];
-	};
-};
-
 enum  {
 	USAGE_DEVTYPE_CPU  = 0,
 	USAGE_DEVTYPE_GPU  = 1,
@@ -103,6 +87,14 @@ enum  {
 	USAGE_DEVTYPE_MDLA = 3,
 	USAGE_DEVTYPE_VPU  = 4,
 	USAGE_DEVTYPE_MAX  = 5,
+};
+
+#define EARASYS_MAX_SIZE 27
+struct _EARA_SYS_PACKAGE {
+	union {
+		__s32 cmd;
+		__s32 data[EARASYS_MAX_SIZE];
+	};
 };
 
 #define FPSGO_QUEUE                  _IOW('g', 1,  struct _FPSGO_PACKAGE)
@@ -123,6 +115,5 @@ enum  {
 
 #define EARA_GETINDEX                _IOW('g', 1, struct _EARA_SYS_PACKAGE)
 #define EARA_COLLECT                 _IOW('g', 2, struct _EARA_SYS_PACKAGE)
-
 #endif
 

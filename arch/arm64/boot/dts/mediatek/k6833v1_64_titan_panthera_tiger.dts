@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2022 MediaTek Inc.
+ */
+
+/* Please add dts files into arch/arm64/boot/dts/mediatek/k6833v1_64_titan_panthera_tiger
+ * To support multi DTBO, Please add  MTK_PROJECT_DTB_NAMES through ProjectConfig.mk in
+ * device/mediateksample/[PROJECT_NAME]/.
+ *
+ * Example )
+ *  MTK_PROJECT_DTB_NAMES =mediatek/k6833v1_64_titan_panthera_tiger/Board_00
+ */
+

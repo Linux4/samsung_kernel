@@ -28,6 +28,7 @@ void proximity_calibration_off(void)
 void report_event_proximity_calibration(void)
 {
 	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY_CALIBRATION)->data;
+	struct proximity_chipset_funcs *chipset_funcs = get_sensor(SENSOR_TYPE_PROXIMITY)->chipset_funcs;
 	struct prox_cal_event *sensor_value =
 	    (struct prox_cal_event *)(get_sensor_event(SENSOR_TYPE_PROXIMITY_CALIBRATION)->value);
 
@@ -37,8 +38,8 @@ void report_event_proximity_calibration(void)
 
 	proximity_calibration_off();
 
-	if (data->chipset_funcs->pre_report_event_proximity)
-		data->chipset_funcs->pre_report_event_proximity();
+	if (chipset_funcs->pre_report_event_proximity)
+		chipset_funcs->pre_report_event_proximity();
 }
 
 int init_proximity_calibration(bool en)
@@ -50,6 +51,8 @@ int init_proximity_calibration(bool en)
 
 	if (en) {
 		strcpy(sensor->name, "proximity_calibration");
+		sensor->hal_sensor = false;
+
 		sensor->receive_event_size = 4;
 		sensor->report_event_size = 0;
 		sensor->event_buffer.value = kzalloc(sizeof(struct prox_cal_event), GFP_KERNEL);

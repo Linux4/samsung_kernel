@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (C) 2021 MediaTek Inc.
  */
 
 #include <linux/of.h>
@@ -191,8 +183,7 @@ static unsigned int mt6315_vproc_settletime(unsigned int old_volt,
 static int set_cur_volt_sram_cpu(struct buck_ctrl_t *buck_p,
 	unsigned int volt)
 {
-/* HW auto-tracking */
-#if 1
+	/* HW auto-tracking */
 	unsigned int max_volt = MAX_VSRAM_VOLT + 625;
 
 	if (buck_p->buck_id == CPU_DVFS_VSRAM2)
@@ -201,7 +192,7 @@ static int set_cur_volt_sram_cpu(struct buck_ctrl_t *buck_p,
 	else
 		return regulator_set_voltage(regulator_sram1, volt * 10,
 		max_volt * 10);
-#endif
+
 	return 0;
 }
 
@@ -512,11 +503,11 @@ unsigned int get_cur_phy_freq(struct pll_ctrl_t *pll_p)
 	ckdiv1 = cpufreq_read(pll_p->armpll_div_addr);
 	ckdiv1 = _GET_BITS_VAL_(21:17, ckdiv1);
 	cur_khz = _cpu_freq_calc(con1, ckdiv1);
-#if 0
-	tag_pr_info
-	("@%s: (%s) = cur_khz = %u, con1[0x%p] = 0x%x, ckdiv1_val = 0x%x\n",
-	__func__, pll_p->name, cur_khz, pll_p->armpll_addr, con1, ckdiv1);
-#endif
+	/*
+	 * tag_pr_info
+	 * ("@%s: (%s) = cur_khz = %u, con1[0x%p] = 0x%x, ckdiv1_val = 0x%x\n",
+	 * __func__, pll_p->name, cur_khz, pll_p->armpll_addr, con1, ckdiv1);
+	 */
 	return cur_khz;
 }
 

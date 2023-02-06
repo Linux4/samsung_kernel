@@ -69,6 +69,12 @@ config USE_MULTI_CHANNEL
 	help
 	  Enable grip multi channel
 	  This option enables feature that is related multi-Channel for grip Sensor.
+	  
+config UNSUPPORT_UNKNOWN_MODE
+	tristate "Unsupport unknown mode for specific regions"
+	default n
+	help
+	  This option disable grip unknown mode concept for specific project.
 
 config SUPPORT_MCC_THRESHOLD_CHANGE
 	depends on I2C
@@ -79,6 +85,13 @@ config SUPPORT_MCC_THRESHOLD_CHANGE
 	  This option enables when it is necessary to adjust the threshold
 	  according to the mcc value.
 	  Say N here if you do not need to check mcc.
+	  
+config SENSORS_SKIP_CABLE_RESET
+	tristate "skip grip reset when usb/ta/data cable attached"
+	default n
+	help
+	  new ANFR concept to skip grip reset  
+
 #
 # grip sensors configuration
 #

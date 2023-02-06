@@ -1,17 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #ifndef _XGF_H_
@@ -31,12 +20,6 @@
 #define XGF_DEP_FRAMES_MAX 20
 #define XGF_DO_SP_SUB 0
 #define XGF_MAX_UFRMAES 200
-#define XGF_UBOOST 1
-#define XGF_UBOOST_STDDEV_M 1
-#define TIME_50MS  50000000
-#define UB_SKIP_FRAME 20
-#define UB_BEGIN_FRAME 50
-#define XGF_MAX_SPID_LIST_LENGTH 20
 #define N 8
 
 enum XGF_ERROR {
@@ -286,13 +269,12 @@ int fpsgo_comp2xgf_qudeq_notify(int rpid, unsigned long long bufID, int cmd,
 void fpsgo_fstb2xgf_do_recycle(int fstb_active);
 void fpsgo_create_render_dep(void);
 int has_xgf_dep(pid_t tid);
-int uboost2xgf_get_info(int pid, unsigned long long bufID,
-	unsigned long long *timer_period, int *frame_idx);
 
 int fpsgo_xgf2ko_calculate_target_fps(int pid, unsigned long long bufID,
 	int *target_fps_margin, unsigned long long cur_dequeue_start_ts,
 	unsigned long long cur_queue_end_ts);
 void fpsgo_xgf2ko_do_recycle(int pid, unsigned long long bufID);
+void fpsgo_ctrl2xgf_display_rate(int dfrc_fps);
 int xgf_get_display_rate(void);
 int xgf_get_process_id(int pid);
 int xgf_check_main_sf_pid(int pid, int process_id);

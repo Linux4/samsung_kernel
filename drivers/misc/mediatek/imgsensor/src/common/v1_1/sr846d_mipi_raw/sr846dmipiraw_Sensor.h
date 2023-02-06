@@ -26,12 +26,6 @@
 #include "kd_imgsensor_define.h"
 #include "kd_imgsensor_errcode.h"
 
-#define SR846D_OTP_CHECK_BANK       0x0230
-#define SR846D_OTP_BANK1_MARK       0x01
-#define SR846D_OTP_BANK2_MARK       0x03
-#define SR846D_OTP_BANK1_START_ADDR 0x0234
-#define SR846D_OTP_BANK2_START_ADDR 0x6A4
-
 enum{
 	IMGSENSOR_MODE_INIT,
 	IMGSENSOR_MODE_PREVIEW,
@@ -122,11 +116,10 @@ struct imgsensor_info_struct {
 	kal_uint8  hs_video_delay_frame; //enter high speed videodelayframenum
 	kal_uint8  slim_video_delay_frame; //enter slim video delay frame num
 	kal_uint8  custom1_delay_frame;     //enter custom1 delay frame num
-	kal_uint8  custom2_delay_frame;     //enter custom2 delay frame num
-	kal_uint8  custom3_delay_frame;     //enter custom3 delay frame num
-	kal_uint8  custom4_delay_frame;     //enter custom4 delay frame num
-	kal_uint8  custom5_delay_frame;     //enter custom5 delay frame num
-	kal_uint8  frame_time_delay_frame;  // enter frame_time_delay_frame num
+	kal_uint8  custom2_delay_frame;     //enter custom1 delay frame num
+	kal_uint8  custom3_delay_frame;     //enter custom1 delay frame num
+	kal_uint8  custom4_delay_frame;     //enter custom1 delay frame num
+	kal_uint8  custom5_delay_frame;     //enter custom1 delay frame num
 
 	kal_uint8  margin; //sensor framelength & shutter margin
 	kal_uint32 min_shutter; //min shutter
@@ -146,7 +139,7 @@ struct imgsensor_info_struct {
 
 	kal_uint8  mipi_lane_num;		//mipi lane num
 	kal_uint8  i2c_addr_table[5];
-	kal_uint32 i2c_speed;     //i2c speed
+	kal_uint32  i2c_speed;     //i2c speed
 } imgsensor_info_struct;
 
 

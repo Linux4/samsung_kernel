@@ -19,16 +19,18 @@
 						R1_WP_VIOLATION | R1_OUT_OF_RANGE)
 
 /* Only [0:4] bits in response are reserved. The other bits shouldn't be used */
-#define HALT_UNHALT_ERR		0x00000001
-#define CQ_EN_DIS_ERR		0x00000002
-#define RPMB_SWITCH_ERR		0x00000004
-#define CQ_HW_RST		0x00000008
-#define CQERR_MASK		(HALT_UNHALT_ERR | CQ_EN_DIS_ERR |\
-						RPMB_SWITCH_ERR | CQ_HW_RST)
+#define HALT_UNHALT_ERR         0x00000001
+#define CQ_EN_DIS_ERR           0x00000002
+#define RPMB_SWITCH_ERR         0x00000004
+#define HW_RST			0x00000008
+#define STATUS_ERR_MASK		(HALT_UNHALT_ERR | CQ_EN_DIS_ERR |\
+							RPMB_SWITCH_ERR | HW_RST)
 
 #define MAX_REQ_TYPE_INDEX	5		// sbc, cmd, data, stop, busy
 #define MAX_ERR_TYPE_INDEX	2		// timeout, crc
 #define MAX_ERR_LOG_INDEX	(MAX_REQ_TYPE_INDEX * MAX_ERR_TYPE_INDEX)
+
+struct mmc_blk_request;
 
 struct mmc_cid {
 	unsigned int		manfid;
@@ -77,7 +79,6 @@ struct mmc_ext_csd {
 	u8			packed_event_en;
 	unsigned int		part_time;		/* Units: ms */
 	unsigned int		sa_timeout;		/* Units: 100ns */
-	unsigned int		sleep_notification_time; /* Uints: 10us */
 	unsigned int		generic_cmd6_time;	/* Units: 10ms */
 	unsigned int            power_off_longtime;     /* Units: ms */
 	u8			power_off_notification;	/* state */
@@ -103,7 +104,6 @@ struct mmc_ext_csd {
 	bool			bkops;		/* background support bit */
 	bool			man_bkops_en;	/* manual bkops enable bit */
 	bool			auto_bkops_en;	/* auto bkops enable bit */
-	bool			auto_bkops;	/* manual bkops support bit */
 	unsigned int            data_sector_size;       /* 512 bytes or 4KB */
 	unsigned int            data_tag_unit_size;     /* DATA TAG UNIT size */
 	unsigned int		boot_ro_lock;		/* ro lock support */
@@ -117,7 +117,6 @@ struct mmc_ext_csd {
 	u8			raw_exception_status;	/* 54 */
 	u8			raw_partition_support;	/* 160 */
 	u8			raw_rpmb_size_mult;	/* 168 */
-	u8			boot_wp_status;	        /* 174 */
 	u8			raw_erased_mem_count;	/* 181 */
 	u8			strobe_support;		/* 184 */
 	u8			raw_ext_csd_structure;	/* 194 */
@@ -177,6 +176,7 @@ struct sd_switch_caps {
 #define UHS_DDR50_MAX_DTR	50000000
 #define UHS_SDR25_MAX_DTR	UHS_DDR50_MAX_DTR
 #define UHS_SDR12_MAX_DTR	25000000
+#define DEFAULT_SPEED_MAX_DTR	UHS_SDR12_MAX_DTR
 	unsigned int		sd3_bus_mode;
 #define UHS_SDR12_BUS_SPEED	0
 #define HIGH_SPEED_BUS_SPEED	1
@@ -217,9 +217,7 @@ struct sdio_cccr {
 				wide_bus:1,
 				high_power:1,
 				high_speed:1,
-				disable_cd:1,
-				sai:1,
-				eai:1;
+				disable_cd:1;
 };
 
 struct sdio_cis {
@@ -249,7 +247,7 @@ struct mmc_queue_req;
  * MMC Physical partitions
  */
 struct mmc_part {
-	unsigned int	size;	/* partition size (in bytes) */
+	u64		size;	/* partition size (in bytes) */
 	unsigned int	part_cfg;	/* partition type */
 	char	name[MAX_MMC_PART_NAME_LEN];
 	bool	force_ro;	/* to make boot parts RO by default */
@@ -260,11 +258,9 @@ struct mmc_part {
 #define MMC_BLK_DATA_AREA_RPMB	(1<<3)
 };
 
-#define MMC_QUIRK_CMDQ_DELAY_BEFORE_DCMD 6 /* microseconds */
-
 struct mmc_card_error_log {
-	char	type[MAX_REQ_TYPE_INDEX];
-	int	err_type;
+	char type[MAX_REQ_TYPE_INDEX];
+	int err_type;
 	u32	status;
 	u64	first_issue_time;
 	u64	last_issue_time;
@@ -295,10 +291,8 @@ struct mmc_card {
 #define MMC_TYPE_SDIO		2		/* SDIO card */
 #define MMC_TYPE_SD_COMBO	3		/* SD combo (IO+mem) card */
 	unsigned int		state;		/* (our) card state */
-#ifdef CONFIG_MMC_FFU
-#define MMC_STATE_FFUED		(1<<22)		/* card has been FFUed */
-#endif
 	unsigned int		quirks; 	/* card quirks */
+	unsigned int		quirk_max_rate;	/* max rate set by quirks */
 #define MMC_QUIRK_LENIENT_FN0	(1<<0)		/* allow SDIO FN0 writes outside of the VS CCCR range */
 #define MMC_QUIRK_BLKSZ_FOR_BYTE_MODE (1<<1)	/* use func->cur_blksize */
 						/* for byte mode */
@@ -315,19 +309,15 @@ struct mmc_card {
 #define MMC_QUIRK_BROKEN_IRQ_POLLING	(1<<11)	/* Polling SDIO_CCCR_INTx could create a fake interrupt */
 #define MMC_QUIRK_TRIM_BROKEN	(1<<12)		/* Skip trim */
 #define MMC_QUIRK_BROKEN_HPI	(1<<13)		/* Disable broken HPI support */
-#define MMC_QUIRK_DISABLE_SNO   (1<<22)
-
-/* Make sure CMDQ is empty before queuing DCMD */
-#define MMC_QUIRK_CMDQ_EMPTY_BEFORE_DCMD (1 << 17)
 
 	bool			reenable_cmdq;	/* Re-enable Command Queue */
 
 	unsigned int		erase_size;	/* erase size in sectors */
-	unsigned int		erase_shift;	/* if erase unit is power 2 */
-	unsigned int		pref_erase;	/* in sectors */
+ 	unsigned int		erase_shift;	/* if erase unit is power 2 */
+ 	unsigned int		pref_erase;	/* in sectors */
 	unsigned int		eg_boundary;	/* don't cross erase-group boundaries */
-	u8			erased_byte;	/* value of erased bytes */
-	unsigned int		wp_grp_size;    /* write group size(sectors) */
+ 	u8			erased_byte;	/* value of erased bytes */
+	unsigned int		wp_grp_size; /* write group size in sectors */
 
 	u32			raw_cid[4];	/* raw card CID */
 	u32			raw_csd[4];	/* raw card CSD */
@@ -362,7 +352,7 @@ struct mmc_card {
 #endif
 
 	unsigned int		bouncesz;	/* Bounce buffer size */
-
+	struct workqueue_struct *complete_wq;	/* Private workqueue */
 	struct mmc_card_error_log err_log[MAX_ERR_LOG_INDEX];
 	struct mmc_card_error_log err_log_backup[MAX_ERR_LOG_INDEX];
 };
@@ -373,15 +363,10 @@ static inline bool mmc_large_sector(struct mmc_card *card)
 }
 
 bool mmc_card_is_blockaddr(struct mmc_card *card);
+void mmc_card_error_logging(struct mmc_card *card, struct mmc_blk_request *brq, u32 status);
 
 #define mmc_card_mmc(c)		((c)->type == MMC_TYPE_MMC)
 #define mmc_card_sd(c)		((c)->type == MMC_TYPE_SD)
 #define mmc_card_sdio(c)	((c)->type == MMC_TYPE_SDIO)
-
-#if defined(CONFIG_MTK_EMMC_CQ_SUPPORT) || defined(CONFIG_MTK_EMMC_HW_CQ)
-struct mmc_cmdq_req;
-extern void mmc_cmdq_error_logging(struct mmc_card *card,
-		struct mmc_cmdq_req *cqrq, u32 status);
-#endif
 
 #endif /* LINUX_MMC_CARD_H */

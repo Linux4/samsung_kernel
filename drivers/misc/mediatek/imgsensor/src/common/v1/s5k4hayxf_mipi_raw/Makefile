@@ -1,15 +1,13 @@
-#
-# Copyright (C) 2019 MediaTek Inc.
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License version 2 as
-# published by the Free Software Foundation.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2022 Samsung Electronics Co., Ltd
 
-obj-y += s5k4hayxfmipiraw_Sensor.o
+COMMON_SENSOR := s5k4hayx
+CHECK_DRIVER_DIR := $(COMMON_SENSOR)_mipi_raw
 
+ifneq ($(findstring $(CHECK_DRIVER_DIR), $(CONFIG_CUSTOM_KERNEL_IMGSENSOR)), )
+$(info $(COMMON_SENSOR) device driver is already in use)
+obj-y += $(COMMON_SENSOR)f_dummy.o
+else
+$(info used common driver:  $(COMMON_SENSOR))
+obj-y += ../$(COMMON_SENSOR)_mipi_raw/
+endif

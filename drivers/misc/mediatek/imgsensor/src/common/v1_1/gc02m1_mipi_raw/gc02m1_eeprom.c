@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #define PFX "GC02M1_pdafotp"
@@ -34,8 +26,8 @@
 
 #define Sleep(ms) mdelay(ms)
 
-#define GC02M1_EEPROM_READ_ID  0xA5
-#define GC02M1_EEPROM_WRITE_ID 0xA4
+#define GC02M1_EEPROM_READ_ID  0xA0
+#define GC02M1_EEPROM_WRITE_ID 0xA1
 #define GC02M1_I2C_SPEED       100
 #define GC02M1_MAX_OFFSET      0xFFFF
 

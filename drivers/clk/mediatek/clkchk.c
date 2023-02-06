@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #define pr_fmt(fmt) "[clkchk] " fmt
@@ -22,19 +14,20 @@
 #include <mt-plat/devapc_public.h>
 #endif
 #include "clkchk.h"
-
-#define AEE_EXCP_CHECK_FAIL		0
-#define CLKDBG_CCF_API_4_4		1
-#define MAX_PLLS			32
+#include "clkdbg.h"
+#define AEE_EXCP_CHECK_PLL_FAIL	0
+#define CLKDBG_CCF_API_4_4	1
+#define MAX_PLLS		32
 #define MAX_MTCMOS			32
 #define CLKCHK_OFF_MODE			0
 #define CLKCHK_NOTICE_MODE		1
 #define PLL_TYPE			0
 #define MTCMOS_TYPE			1
 
-#if AEE_EXCP_CHECK_FAIL
+#if AEE_EXCP_CHECK_PLL_FAIL
 #include <mt-plat/aee.h>
 #endif
+
 
 #if !CLKDBG_CCF_API_4_4
 
@@ -90,6 +83,10 @@ bool is_valid_reg(void __iomem *addr)
 #endif
 }
 
+#if (defined(CONFIG_MACH_MT6877) \
+			|| defined(CONFIG_MACH_MT6768) \
+			|| defined(CONFIG_MACH_MT6781) \
+			|| defined(CONFIG_MACH_MT6739))
 #if IS_ENABLED(CONFIG_MTK_DEVAPC) && !IS_ENABLED(CONFIG_DEVAPC_LEGACY)
 static void devapc_dump_regs(void)
 {
@@ -103,7 +100,7 @@ static struct devapc_vio_callbacks devapc_vio_handle = {
 	.debug_dump = devapc_dump_regs,
 };
 #endif
-
+#endif
 /******************* TOPCKGEN Subsys *******************************/
 static int get_vcore_opp(void)
 {
@@ -153,12 +150,12 @@ static int mtk_clk_rate_change(struct notifier_block *nb,
 {
 	struct clk_notifier_data *ndata = data;
 	struct clk_hw *hw = __clk_get_hw(ndata->clk);
+	const char *clk_name = __clk_get_name(hw->clk);
+	int vcore_opp = get_vcore_opp();
 	if (!hw) {
 		pr_notice("%s: hw is NULL", __func__);
 		return NOTIFY_BAD;
 	}
-	const char *clk_name = __clk_get_name(hw->clk);
-	int vcore_opp = get_vcore_opp();
 
 	if (flags == PRE_RATE_CHANGE && clk_name) {
 		warn_vcore(vcore_opp, clk_name,
@@ -221,32 +218,29 @@ static const char *ccf_state(struct clk_hw *hw)
 
 static void print_enabled_clks(void)
 {
-	const char * const *cn;
+	const char * const *cn = clkchk_cfg->all_clk_names;
 	const char * const *off_pn;
 	const char *fix_clk = "clk26m";
-	struct clk_hw *c_hw;
+    if (!clkchk_cfg)
+        return;
 
-	if (!clkchk_cfg)
-		return;
-
-	cn = clkchk_cfg->all_clk_names;
+	pr_warn("enabled clks:\n");
 	off_pn = clkchk_cfg->off_pll_names;
 
-	for (; *cn; cn++) {
+	for (; *cn != NULL; cn++) {
 		int valid = 0;
 		struct clk *c = __clk_lookup(*cn);
-		c_hw = __clk_get_hw(c);
+		struct clk_hw *c_hw = __clk_get_hw(c);
 		struct clk_hw *p_hw;
 		const char *c_name;
 		const char *p_name;
 		const char * const *pn;
 
-		if (IS_ERR_OR_NULL(c) || !c_hw)
+		if (IS_ERR_OR_NULL(c) || c_hw == NULL)
 			continue;
 
 		if (!__clk_get_enable_count(c))
 			continue;
-
 		p_hw = clk_hw_get_parent(c_hw);
 		c_name = clk_hw_get_name(c_hw);
 		p_name = p_hw ? clk_hw_get_name(p_hw) : 0;
@@ -272,13 +266,22 @@ static void print_enabled_clks(void)
 			continue;
 
 		p_hw = clk_hw_get_parent(c_hw);
-		pr_notice("[%-17s: %8s, %3d, %3d, %10ld, %17s]\n",
+		pr_warn("[%-17s: %8s, %3d, %3d, %10ld, %17s]\n",
 			clk_hw_get_name(c_hw),
 			ccf_state(c_hw),
 			clk_hw_is_prepared(c_hw),
 			__clk_get_enable_count(c),
 			clk_hw_get_rate(c_hw),
-			p_hw ? clk_hw_get_name(p_hw) : "- ");
+			p_hw != NULL ? clk_hw_get_name(p_hw) : "- ");
+	}
+}
+void dump_enabled_clks_once(void)
+{
+	static bool first_flag = true;
+
+	if (first_flag) {
+		first_flag = false;
+		print_enabled_clks();
 	}
 }
 
@@ -300,6 +303,8 @@ static int __clkchk_clk_init(struct clk **clks, const char * const *name, u32 le
 
 	return -EINVAL;
 }
+
+
 
 static void __clkchk_clk_internal(struct clk **clks, unsigned int mode,
 			unsigned int type)
@@ -333,7 +338,7 @@ static void __clkchk_clk_internal(struct clk **clks, unsigned int mode,
 		print_enabled_clks();
 
 	if (mode == CLKCHK_OFF_MODE) {
-#if AEE_EXCP_CHECK_FAIL
+#if AEE_EXCP_CHECK_PLL_FAIL
 		if (clkchk_cfg->aee_excp_on_fail) {
 			if (type == PLL_TYPE)
 				aee_kernel_exception("clkchk",
@@ -353,15 +358,7 @@ static void __clkchk_clk_internal(struct clk **clks, unsigned int mode,
 	}
 }
 
-void dump_enabled_clks_once(void)
-{
-	static bool first_flag = true;
 
-	if (first_flag) {
-		first_flag = false;
-		print_enabled_clks();
-	}
-}
 
 static void check_pll_off(void)
 {
@@ -382,7 +379,6 @@ static void check_mtcmos_notice(void)
 {
 	__clkchk_clk_internal(notice_mtcmos, CLKCHK_NOTICE_MODE, MTCMOS_TYPE);
 }
-
 static int clkchk_syscore_suspend(void)
 {
 	check_pll_off();

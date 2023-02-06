@@ -1,11 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0
-// Copyright (c) 2018-2019 MediaTek Inc.
+/* SPDX-License-Identifier: GPL-2.0 */
 
 /*
- * Driver for MediaTek Command-Queue DMA Controller
- *
- * Author: Shun-Chih Yu <shun-chih.yu@mediatek.com>
- *
+ * Copyright (c) 2018-2019 MediaTek Inc.
  */
 
 #include <linux/bitops.h>

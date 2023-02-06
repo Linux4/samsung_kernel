@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (C) 2016 MediaTek Inc.
  */
 
 #include <linux/delay.h>
@@ -76,7 +68,7 @@ enum IMGSENSOR_RETURN imgsensor_hw_init(struct IMGSENSOR_HW *phw)
 		if (of_property_read_string(
 			of_node, str_prop_name,
 			&phw->enable_sensor_by_index[i]) < 0) {
-			PK_DBG("Property cust-sensor not defined\n");
+			PK_INFO("Property cust-sensor not defined\n");
 			phw->enable_sensor_by_index[i] = NULL;
 		}
 	}
@@ -102,8 +94,7 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 		struct IMGSENSOR_HW_POWER_SEQ   *ppower_sequence,
 		char *pcurr_idx)
 {
-	struct IMGSENSOR_HW_SENSOR_POWER *psensor_pwr =
-					&phw->sensor_pwr[sensor_idx];
+	struct IMGSENSOR_HW_SENSOR_POWER *psensor_pwr =	&phw->sensor_pwr[sensor_idx];
 	struct IMGSENSOR_HW_POWER_SEQ    *ppwr_seq = ppower_sequence;
 	struct IMGSENSOR_HW_POWER_INFO   *ppwr_info;
 	struct IMGSENSOR_HW_DEVICE       *pdev;
@@ -113,7 +104,7 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 
 #ifdef CONFIG_FPGA_EARLY_PORTING  /*for FPGA*/
 	if (1) {
-		PK_DBG("FPGA return true for power control\n");
+		PK_INFO("FPGA return true for power control\n");
 		return IMGSENSOR_RETURN_SUCCESS;
 	}
 #endif
@@ -140,24 +131,18 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 
 		if (pwr_status == IMGSENSOR_HW_POWER_STATUS_ON) {
 			if (ppwr_info->pin != IMGSENSOR_HW_PIN_UNDEF) {
-				pdev =
-				phw->pdev[psensor_pwr->id[ppwr_info->pin]];
+				pdev = phw->pdev[psensor_pwr->id[ppwr_info->pin]];
 
 				if (__ratelimit(&ratelimit))
-					PK_INFO(
-					"sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_on %d, delay %u",
-					sensor_idx,
-					ppwr_info->pin,
-					ppwr_info->pin_state_on,
-					ppwr_info->pin_on_delay);
+					PK_INFO("sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_on %d, delay %u",
+					sensor_idx, ppwr_info->pin, ppwr_info->pin_state_on, ppwr_info->pin_on_delay);
 
 				if (pdev->set != NULL)
-					pdev->set(pdev->pinstance,
-					sensor_idx,
-				    ppwr_info->pin, ppwr_info->pin_state_on);
+					pdev->set(pdev->pinstance, sensor_idx, ppwr_info->pin, ppwr_info->pin_state_on);
 			}
 
-			mDELAY(ppwr_info->pin_on_delay);
+			if (ppwr_info->pin_on_delay)
+				mDELAY(ppwr_info->pin_on_delay);
 		}
 
 		ppwr_info++;
@@ -169,25 +154,20 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 			ppwr_info--;
 			pin_cnt--;
 
+			if (ppwr_info->pin_on_delay)
+				mDELAY(ppwr_info->pin_on_delay);
+
 			if (__ratelimit(&ratelimit))
-				PK_INFO(
-				"sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_off %d, delay %u",
-				sensor_idx,
-				ppwr_info->pin,
-				ppwr_info->pin_state_off,
-				ppwr_info->pin_on_delay);
+				PK_INFO("sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_off %d, delay %u",
+					sensor_idx,	ppwr_info->pin,	ppwr_info->pin_state_off, ppwr_info->pin_on_delay);
 
 			if (ppwr_info->pin != IMGSENSOR_HW_PIN_UNDEF) {
-				pdev =
-				phw->pdev[psensor_pwr->id[ppwr_info->pin]];
+				pdev = phw->pdev[psensor_pwr->id[ppwr_info->pin]];
 
 				if (pdev->set != NULL)
-					pdev->set(pdev->pinstance,
-					sensor_idx,
-				ppwr_info->pin, ppwr_info->pin_state_off);
+					pdev->set(pdev->pinstance, sensor_idx,
+						ppwr_info->pin, ppwr_info->pin_state_off);
 			}
-
-			mDELAY(ppwr_info->pin_on_delay);
 		}
 	}
 
@@ -204,7 +184,7 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 	char *curr_sensor_name = psensor->inst.psensor_list->name;
 	char str_index[LENGTH_FOR_SNPRINTF];
 
-	PK_DBG("sensor_idx %d, power %d curr_sensor_name %s, enable list %s\n",
+	PK_INFO("sensor_idx %d, power %d curr_sensor_name %s, enable list %s\n",
 		sensor_idx,
 		pwr_status,
 		curr_sensor_name,

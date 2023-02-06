@@ -1,21 +1,8 @@
- /*
-  * Goodix Touchscreen Driver
-  * Core layer of touchdriver architecture.
-  *
-  * Copyright (C) 2019 - 2020 Goodix, Inc.
-  *
-  * This program is free software; you can redistribute it and/or modify
-  * it under the terms of the GNU General Public License as published by
-  * the Free Software Foundation; either version 2 of the License, or
-  * (at your option) any later version.
-  *
-  * This program is distributed in the hope that it will be a reference
-  * to you, when you are integrating the GOODiX's CTP IC into your system,
-  * but WITHOUT ANY WARRANTY; without even the implied warranty of
-  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  * General Public License for more details.
-  *
-  */
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Copyright (C) 2016 MediaTek Inc.
+ */
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -1592,6 +1579,11 @@ static void gt9896s_ts_esd_work(struct work_struct *work)
 	u8 data = GOODIX_ESD_TICK_WRITE_DATA;
 	int r = 0;
 
+	if (!hw_ops) {
+		ts_info("hw_ops is NULL");
+		return;
+	}
+
 	if (!atomic_read(&ts_esd->esd_on))
 		return;
 
@@ -2013,6 +2005,11 @@ static int gt9896s_generic_noti_callback(struct notifier_block *self,
 	struct gt9896s_ts_device *ts_dev = ts_device(ts_core);
 	const struct gt9896s_ts_hw_ops *hw_ops = ts_hw_ops(ts_core);
 	int r;
+
+	if (!hw_ops) {
+		ts_info("hw_ops is NULL");
+		return -1;
+	}
 
 	ts_info("notify event type 0x%x", (unsigned int)action);
 	switch (action) {

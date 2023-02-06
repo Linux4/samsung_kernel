@@ -45,11 +45,11 @@ static void makeCRCtable(unsigned long *table, unsigned long id)
 {
 	unsigned long i, j, k;
 
-	for(i = 0; i < 256; ++i) {
+	for (i = 0; i < 256; ++i) {
 		k = i;
 
-		for(j = 0; j < 8; ++j) {
-			if(k & 1)
+		for (j = 0; j < 8; ++j) {
+			if (k & 1)
 				k = (k >> 1) ^ id;
 			else
 				k >>= 1;
@@ -72,7 +72,7 @@ unsigned long getCRC(volatile unsigned short *mem, signed long size,
 	count = size/2;
 
 	CRC = ~CRC;
-	for(i = 0; i < count; i++) {
+	for (i = 0; i < count; i++) {
 		mem0 = (unsigned char)(mem[i] & 0x00ff);
 		mem1 = (unsigned char)((mem[i] >> 8) & 0x00ff);
 
@@ -89,13 +89,13 @@ unsigned long getCRC(volatile unsigned short *mem, signed long size,
 	 * high 2 byte of crc32
 	 * g_CAL[0page 31 addr.] or g_CAL[127page 31 addr.]
 	 */
-	if(crcH)
+	if (crcH)
 		*crcH = (unsigned short)((CRC >> 16)&(0x0000ffff));
 	/*
 	 * low 2 byte of crc32
 	 * g_CAL[0page 30 addr.] or g_CAL[127page 30 addr.]
 	 */
-	if(crcL)
+	if (crcL)
 		*crcL = (unsigned short)((CRC) & (0x0000ffff));
 
 	return CRC;

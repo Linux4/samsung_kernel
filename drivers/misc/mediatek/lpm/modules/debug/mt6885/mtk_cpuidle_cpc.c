@@ -253,6 +253,7 @@ struct notifier_block mtk_cpc_nb = {
 int __init mtk_cpc_init(void)
 {
 	int cx;
+
 	cpc.prof_en = false;
 
 	cx = snprintf(cpc.cpu[CPU_TYPE_L].name, PROF_DEV_NAME_SIZE, "cpu_L");

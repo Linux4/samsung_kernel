@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 /**
 * @file    mtk_clk_buf_hw.h
@@ -19,6 +11,8 @@
 #ifndef __MTK_CLK_BUF_HW_H__
 #define __MTK_CLK_BUF_HW_H__
 
+//#include <mtk-clkbuf-bridge.h>
+#include <linux/regmap.h>
 enum MTK_CLK_BUF_STATUS {
 	CLOCK_BUFFER_DISABLE,
 	CLOCK_BUFFER_SW_CONTROL,
@@ -33,19 +27,24 @@ enum MTK_CLK_BUF_DRIVING_CURR {
 	CLK_BUF_DRIVING_CURR_3
 };
 
+
 /* clk_buf_id: users of clock buffer */
+#ifndef _clk_buf_id_
+#define _clk_buf_id_
 enum clk_buf_id {
 	CLK_BUF_BB_MD		= 0,
 	CLK_BUF_CONN,
 	CLK_BUF_NFC,
 	CLK_BUF_RF,
-	CLK_BUF_AUDIO,
+	CLK_BUF_AUDIO    = 4,
 	CLK_BUF_CHG,
-	CLK_BUF_UFS,
+	CLK_BUF_UFS		= 6,
 	CLK_BUF_INVALID
-};
-
+}; 
+#endif
 /* xo_id: clock buffer list */
+#ifndef _xo_id_
+#define _xo_id_
 enum xo_id {
 	XO_SOC	= 0,
 	XO_WCN,
@@ -56,7 +55,7 @@ enum xo_id {
 	XO_EXT,		/* UFS */
 	XO_NUMBER
 };
-
+#endif
 enum {
 	BBLPM_COND_SKIP	= (1 << 0),
 	BBLPM_COND_WCN	= (1 << CLK_BUF_CONN),
@@ -73,9 +72,9 @@ enum {
 #define CLKBUF_USE_BBLPM
 
 void clk_buf_post_init(void);
-void clk_buf_init_pmic_clkbuf(void);
+void clk_buf_init_pmic_clkbuf_legacy(void);
 void clk_buf_init_pmic_wrap(void);
 void clk_buf_init_pmic_swctrl(void);
-
+void clk_buf_control_bblpm(bool on);
 #endif
 

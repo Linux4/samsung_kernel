@@ -1,0 +1,50 @@
+/*
+ * SAMSUNG Input Device Tree Source
+ *
+ * Copyright (c) Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+&spi4 {
+	num-cs = <1>;
+
+	ilitek_ili9882x@0 {
+		status = "disabled";
+	};
+	novatek@1 {
+		status = "disabled";
+	};
+
+	synaptics_tcm@0 {
+		status = "okay";
+		compatible = "synaptics,tcm-spi";
+		reg = <0>;
+		spi-max-frequency = <5000000>;
+		interrupt-parent = <&pio>;
+		interrupts = <10 0x2008>;
+		/* vdd-supply = <&pm8994_lvs2>; */
+		/* avdd-supply = <&pm8994_l22>; */
+		pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
+		pinctrl-0 = <&ts_pin_active>;
+		pinctrl-1 = <&ts_pin_suspend>;
+		synaptics,bus-reg-name = "vdd";
+		synaptics,pwr-reg-name = "avdd";
+		/* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
+		synaptics,irq-gpio = <&pio 10 0x2008>;
+		synaptics,irq-on-state = <0>;
+		synaptics,reset-on-state = <0>;
+		synaptics,reset-active-ms = <20>;
+		synaptics,reset-delay-ms = <200>;
+		synaptics,power-delay-ms = <200>;
+		synaptics,spi-mode = <3>;
+		synaptics,byte-delay-us = <0>;
+		synaptics,block-delay-us = <0>;
+		synaptics,ubl-max-freq = <5000000>;
+		synaptics,ubl-byte-delay-us = <20>;
+		/* tp-io reset is only used for specific tddi devices */
+		/* synaptics,tpio-reset-gpio = <&msm_gpio 102 0>; */
+	};
+};

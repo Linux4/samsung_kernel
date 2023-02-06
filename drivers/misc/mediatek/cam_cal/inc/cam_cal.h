@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 #ifndef _CAM_CAL_H
 #define _CAM_CAL_H
@@ -43,6 +35,9 @@
 /*CAM_CAL get cal data*/
 #define CAM_CALIOC_G_SENSOR_INFO \
 	_IOWR(CAM_CALAGIC, 3, struct CAM_CAL_SENSOR_INFO)
+
+#define CAM_CALIOC_S_CAM_OIS_CAL \
+	_IOW(CAM_CALAGIC, 50, struct CAM_CAL_OIS_GYRO_CAL)
 
 #ifdef CONFIG_COMPAT
 #define COMPAT_CAM_CALIOC_S_WRITE \

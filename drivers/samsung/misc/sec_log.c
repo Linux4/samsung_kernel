@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
  *      http://www.samsung.com
  *
  * This program is free software; you can redistribute it and/or modify
@@ -22,13 +22,15 @@
 #include <linux/of_reserved_mem.h>
 #include <linux/vmalloc.h>
 #include <linux/sec_ext.h>
+#include <linux/io.h>
+#include <linux/platform_device.h>
 
-static u32 __initdata seclogger_base = SEC_LOGGER_BASE;
-static u32 __initdata seclogger_size = SZ_4M;
-static u32 __initdata seclog_base = SEC_LOG_BASE;
-static u32 __initdata seclog_size = SZ_2M;
-static u32 __initdata seclastklog_base = SEC_LASTKMSG_BASE;
-static u32 __initdata seclastklog_size = SZ_2M;
+static u32 seclogger_base;
+static u32 seclogger_size;
+static u32 seclog_base;
+static u32 seclog_size;
+static u32 seclastklog_base;
+static u32 seclastklog_size;
 
 static char *sec_log_buf;
 static unsigned int sec_log_size;
@@ -42,6 +44,41 @@ static sec_logger logger;
 #ifdef CONFIG_SEC_DEBUG_LAST_KMSG
 static char *last_kmsg_buffer;
 static unsigned int last_kmsg_size;
+
+struct reserved_mem *sec_log_get_rmem(const char *compatible)
+{
+	struct reserved_mem *rmem;
+	struct device_node *rmem_np;
+
+	pr_info("%s: start to get %s\n", __func__, compatible);
+
+	rmem_np = of_find_compatible_node(NULL, NULL, compatible);
+	if (!rmem_np) {
+		pr_info("%s: no such reserved mem compatable with %s\n", __func__,
+			compatible);
+
+		return 0;
+	}
+
+	rmem = of_reserved_mem_lookup(rmem_np);
+	if (!rmem) {
+		pr_info("%s: no such reserved mem compatable with %s\n", __func__,
+			compatible);
+
+		return 0;
+	} else if (!rmem->base || !rmem->size) {
+		pr_info("%s: wrong base(0x%llx) or size(0x%llx)\n",
+				__func__, rmem->base, rmem->size);
+
+		return 0;
+	}
+
+	pr_info("%s: found (base=%llx, size=%llx)\n", __func__, 
+		(unsigned long long)rmem->base, (unsigned long long)rmem->size);
+
+	return rmem;
+}
+EXPORT_SYMBOL(sec_log_get_rmem);
 
 static void __init sec_log_save_old(unsigned int lastkbase, unsigned int lastksize)
 {
@@ -209,6 +246,15 @@ EXPORT_SYMBOL(register_hook_logger);
 static int __init sec_log_buf_init(void)
 {
 	unsigned int *sec_log_mag;
+	struct reserved_mem *rmem;
+
+	rmem = sec_log_get_rmem("samsung,sec-log");
+	seclog_base = rmem->base;
+	seclog_size = rmem->size;
+
+	rmem = sec_log_get_rmem("samsung,sec-lastklog");	
+	seclastklog_base = rmem->base;
+	seclastklog_size = rmem->size;	
 
 	sec_log_buf = persistent_ram_vmap((phys_addr_t)seclog_base, (phys_addr_t)seclog_size, 0);
 	sec_log_size = seclog_size - (sizeof(*sec_log_head) + sizeof(*sec_log_pos) + sizeof(*sec_log_mag));
@@ -368,8 +414,13 @@ EXPORT_SYMBOL(sec_log_hook_pmsg);
 static int __init sec_logger_init(void)
 {
 	unsigned int *sec_logger_mag;
+	struct reserved_mem *rmem;
 
-#if 0
+	rmem = sec_log_get_rmem("samsung,sec-logger");
+	seclogger_base = rmem->base;
+	seclogger_size = rmem->size;
+
+#ifdef CONFIG_SEC_DEBUG_REDUCED_RMEM
 	if (SEC_DEBUG_LEVEL(kernel) == 0) {
 		memblock_free_late(seclogger_base, seclogger_size);
 		pr_info("freed sec-logger memory : %uMB at %#.8x\n",

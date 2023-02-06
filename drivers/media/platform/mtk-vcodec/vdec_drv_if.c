@@ -1,16 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2016 MediaTek Inc.
- * Author: PC Chen <pc.chen@mediatek.com>
- *         Tiffany Lin <tiffany.lin@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/interrupt.h>
@@ -83,7 +73,15 @@ int vdec_if_init(struct mtk_vcodec_ctx *ctx, unsigned int fourcc)
 		return -EINVAL;
 	}
 #endif
+	if (!ctx->user_lock_hw) {
+		mtk_vdec_lock(ctx, MTK_VDEC_CORE);
+		mtk_vcodec_dec_clock_on(&ctx->dev->pm, MTK_VDEC_CORE);
+	}
 	ret = ctx->dec_if->init(ctx, &ctx->drv_handle);
+	if (!ctx->user_lock_hw) {
+		mtk_vcodec_dec_clock_off(&ctx->dev->pm, MTK_VDEC_CORE);
+		mtk_vdec_unlock(ctx, MTK_VDEC_CORE);
+	}
 
 	return ret;
 }
@@ -112,8 +110,13 @@ int vdec_if_decode(struct mtk_vcodec_ctx *ctx, struct mtk_vcodec_mem *bs,
 
 	if (ctx->drv_handle == 0)
 		return -EIO;
+	if (!ctx->user_lock_hw)
+		vdec_decode_prepare(ctx, MTK_VDEC_CORE);
 
 	ret = ctx->dec_if->decode(ctx->drv_handle, bs, fb, src_chg);
+
+	if (!ctx->user_lock_hw)
+		vdec_decode_unprepare(ctx, MTK_VDEC_CORE);
 
 	return ret;
 }
@@ -163,8 +166,13 @@ void vdec_if_deinit(struct mtk_vcodec_ctx *ctx)
 {
 	if (ctx->drv_handle == 0)
 		return;
+	if (!ctx->user_lock_hw)
+		vdec_decode_prepare(ctx, MTK_VDEC_CORE);
 
 	ctx->dec_if->deinit(ctx->drv_handle);
+
+	if (!ctx->user_lock_hw)
+		vdec_decode_unprepare(ctx, MTK_VDEC_CORE);
 
 	ctx->drv_handle = 0;
 }

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 
 #include <linux/delay.h>
@@ -75,7 +67,7 @@ static int ovl2mem_use_m4u = 1;
 #endif
 static int ovl2mem_use_cmdq = CMDQ_ENABLE;
 
-struct wakeup_source memout_wk_lock;
+struct wakeup_source *memout_wk_lock;
 
 struct ovl2mem_path_context {
 	int state;
@@ -108,7 +100,7 @@ static struct ovl2mem_path_context *_get_context_l(void)
 			sizeof(struct ovl2mem_path_context));
 		mutex_init(&(g_context.lock));
 		is_context_inited = 1;
-		wakeup_source_init(&memout_wk_lock, "memout_disp_wakelock");
+		memout_wk_lock = wakeup_source_register(NULL, "mem_disp_wakelock");
 	}
 
 	return &g_context;
@@ -367,7 +359,7 @@ int ovl2mem_init(unsigned int session)
 {
 	int ret = -1;
 #if defined(CONFIG_MTK_M4U)
-	struct M4U_PORT_STRUCT sPort;
+	struct m4u_port_config_struct sPort;
 #endif
 	DISPFUNC();
 
@@ -492,7 +484,7 @@ int ovl2mem_init(unsigned int session)
 	pgcl->session = session;
 	atomic_set(&g_trigger_ticket, 1);
 	atomic_set(&g_release_ticket, 0);
-	__pm_stay_awake(&memout_wk_lock);
+	__pm_stay_awake(memout_wk_lock);
 
 Exit:
 	_ovl2mem_path_unlock(__func__);
@@ -896,7 +888,7 @@ int ovl2mem_deinit(void)
 	pgcl->need_trigger_path = 0;
 	atomic_set(&g_trigger_ticket, 1);
 	atomic_set(&g_release_ticket, 0);
-	__pm_relax(&memout_wk_lock);
+	__pm_relax(memout_wk_lock);
 	ret = 0;
 
 Exit:

@@ -1,16 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2018 MediaTek Inc.
- * Author: Longfei Wang <longfei.wang@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or
- * modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include "../mtk_vcodec_drv.h"
@@ -32,6 +22,7 @@ static int venc_log_set_param(unsigned long handle,
 	switch (type) {
 	case VENC_SET_PARAM_LOG:
 		ret = vcu_set_log(enc_prm->log);
+		break;
 	default:
 		pr_info("invalid set parameter type=%d\n", type);
 		ret = -EINVAL;

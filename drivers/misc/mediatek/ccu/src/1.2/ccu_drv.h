@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2016 MediaTek Inc.
  */
 
 #ifndef __CCU_DRV_H__
@@ -16,11 +8,12 @@
 
 #include <linux/types.h>
 #include <linux/ioctl.h>
-#include <linux/fs.h>
+#include <linux/wait.h>
 #include "ccu_mailbox_extif.h"
 
 #ifdef CONFIG_COMPAT
 /*64 bit*/
+#include <linux/fs.h>
 #include <linux/compat.h>
 #endif
 
@@ -116,7 +109,7 @@ struct CCU_REG_IO_STRUCT {
 };
 
 struct CCU_IRQ_INFO_STRUCT {
-	/* Add an extra index for status type in Evere -> signal or dma */
+	/* Add an extra index for status type in Ever-> signal or dma */
 	unsigned int Status[CCU_IRQ_TYPE_AMOUNT]
 		[CCU_IRQ_ST_AMOUNT][IRQ_USER_NUM_MAX];
 	unsigned int Mask[CCU_IRQ_TYPE_AMOUNT][CCU_IRQ_ST_AMOUNT];

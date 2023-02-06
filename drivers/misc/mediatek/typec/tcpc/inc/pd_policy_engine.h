@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #ifndef PD_POLICY_ENGINE_H_
@@ -25,11 +17,6 @@ enum pd_pe_state_machine {
 	PE_STATE_MACHINE_PR_SWAP,
 	PE_STATE_MACHINE_VCONN_SWAP,
 };
-
-#define PE_STATE_DISCARD_AND_UNEXPECTED(pd_port) {\
-	pd_port->pe_data.pe_state_flags = \
-	PE_STATE_FLAG_HRESET_IF_SR_TIMEOUT |\
-	PE_STATE_FLAG_IGNORE_UNKNOWN_EVENT; }
 
 /* ---- Policy Engine Runtime Flags ---- */
 
@@ -421,14 +408,6 @@ enum pd_pe_state {
 #endif	/* CONFIG_USB_PD_ERROR_RECOVERY_ONCE */
 	PE_BIST_TEST_DATA,
 	PE_BIST_CARRIER_MODE_2,
-
-#ifdef CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG
-	PE_UNEXPECTED_TX_WAIT,
-	PE_SEND_SOFT_RESET_TX_WAIT,
-	PE_RECV_SOFT_RESET_TX_WAIT,
-	PE_SEND_SOFT_RESET_STANDBY,
-#endif	/* CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG */
-
 /* Wait tx finished */
 	PE_IDLE1,
 	PE_IDLE2,
@@ -941,17 +920,6 @@ void pe_bist_carrier_mode_2_entry(
 	struct pd_port *pd_port);
 void pe_bist_carrier_mode_2_exit(
 	struct pd_port *pd_port);
-#ifdef CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG
-void pe_unexpected_tx_wait_entry(
-	struct pd_port *pd_port);
-void pe_send_soft_reset_tx_wait_entry(
-	struct pd_port *pd_port);
-void pe_recv_soft_reset_tx_wait_entry(
-	struct pd_port *pd_port);
-void pe_send_soft_reset_standby_entry(
-	struct pd_port *pd_port);
-#endif	/* CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG */
-
 /* Wait tx finished */
 void pe_idle1_entry(
 	struct pd_port *pd_port);

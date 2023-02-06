@@ -34,6 +34,10 @@
 #define EARJACK_DEV_ID 0
 #define CODEC_DEV_ID 1
 #define AMP_DEV_ID 2
+#define ADSP_DEV_ID 3
+
+#define ADSP_SRCNT_MAX 1000
+#define ADSP_SRCNT_SUM_MAX 10000
 
 /* bigdata add */
 #define DECLARE_AMP_BIGDATA_SYSFS(id) \
@@ -134,6 +138,9 @@ static struct attribute *audio_amp_##id##_attr[] = { \
 }
 
 static struct sec_audio_sysfs_data *audio_data;
+
+static int adsp_silent_reset_count;
+static int adsp_silent_reset_count_sum;
 
 int audio_register_jack_select_cb(int (*set_jack) (int))
 {
@@ -490,6 +497,39 @@ static struct attribute_group sec_audio_amp_big_data_attr_group[AMP_ID_MAX] = {
 	[AMP_3] = {.attrs = audio_amp_3_attr, },
 };
 
+void send_adsp_silent_reset_ev(void)
+{
+	if (adsp_silent_reset_count < ADSP_SRCNT_MAX)
+		adsp_silent_reset_count++;
+	pr_info("%s: count %d\n", __func__, (adsp_silent_reset_count + adsp_silent_reset_count_sum));
+}
+EXPORT_SYMBOL_GPL(send_adsp_silent_reset_ev);
+
+static ssize_t srcnt_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int report = adsp_silent_reset_count;
+
+	if (adsp_silent_reset_count_sum < ADSP_SRCNT_SUM_MAX)
+		adsp_silent_reset_count_sum += adsp_silent_reset_count;
+	adsp_silent_reset_count = 0;
+
+	dev_info(dev, "%s: %d\n", __func__, report);
+
+	return snprintf(buf, 4, "%d\n", report);
+}
+
+static DEVICE_ATTR_RO(srcnt);
+
+static struct attribute *sec_audio_adsp_attr[] = {
+	&dev_attr_srcnt.attr,
+	NULL,
+};
+
+static struct attribute_group sec_audio_adsp_attr_group = {
+	.attrs = sec_audio_adsp_attr,
+};
+
 static int sec_audio_sysfs_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
@@ -624,16 +664,39 @@ static int __init sec_audio_sysfs_init(void)
 		}
 	}
 
+	audio_data->adsp_dev =
+			device_create(audio_data->audio_class,
+					NULL, ADSP_DEV_ID, NULL, "dsp");
+	if (IS_ERR(audio_data->adsp_dev)) {
+		pr_err("%s: Failed to create adsp device\n", __func__);
+		ret = PTR_ERR(audio_data->adsp_dev);
+		goto err_amp_attr;
+	}
+
+	ret = sysfs_create_group(&audio_data->adsp_dev->kobj,
+				&sec_audio_adsp_attr_group);
+	if (ret) {
+		pr_err("%s: Failed to create adsp sysfs\n", __func__);
+		goto err_adsp_device;
+	}
+
 	ret = platform_driver_register(&sec_audio_sysfs_driver);
 	if (ret) {
 		pr_err("%s : fail to register sysfs driver\n", __func__);
-		goto err_platform_register;
+		goto err_adsp_attr;
 	}
 
-	return ret;
-err_platform_register:
-	platform_driver_unregister(&sec_audio_sysfs_driver);
+	adsp_silent_reset_count = 0;
+	adsp_silent_reset_count_sum = 0;
 
+	return ret;
+
+err_adsp_attr:
+	sysfs_remove_group(&audio_data->adsp_dev->kobj,
+				&sec_audio_adsp_attr_group);
+err_adsp_device:
+	device_destroy(audio_data->audio_class, ADSP_DEV_ID);
+	audio_data->adsp_dev = NULL;
 err_amp_attr:
 	while (--i >= 0)
 		sysfs_remove_group(&audio_data->amp_dev->kobj,
@@ -665,10 +728,23 @@ subsys_initcall(sec_audio_sysfs_init);
 
 static void __exit sec_audio_sysfs_exit(void)
 {
+	int i;
+
 	platform_driver_unregister(&sec_audio_sysfs_driver);
 
-	if (audio_data->amp_dev)
+	if (audio_data->adsp_dev) {
+		sysfs_remove_group(&audio_data->adsp_dev->kobj,
+				&sec_audio_adsp_attr_group);
+		device_destroy(audio_data->audio_class, ADSP_DEV_ID);
+	}
+
+	if (audio_data->amp_dev) {
+		for (i = 0; i < AMP_ID_MAX; i++) {
+			sysfs_remove_group(&audio_data->amp_dev->kobj,
+						&sec_audio_amp_big_data_attr_group[i]);
+		}
 		device_destroy(audio_data->audio_class, AMP_DEV_ID);
+	}
 
 	if (audio_data->codec_dev) {
 		sysfs_remove_group(&audio_data->codec_dev->kobj,

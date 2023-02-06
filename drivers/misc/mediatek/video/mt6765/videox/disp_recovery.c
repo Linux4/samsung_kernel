@@ -1,18 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/delay.h>
 #include <linux/sched.h>
+#include <uapi/linux/sched/types.h>
 #include <linux/semaphore.h>
 #include <linux/module.h>
 #include <linux/wait.h>
@@ -24,7 +17,6 @@
 #include <linux/of_irq.h>
 #include <linux/slab.h>
 #include <linux/interrupt.h>
-#include <uapi/linux/sched/types.h>
 #include "ion_drv.h"
 #include "mtk_ion.h"
 #ifdef CONFIG_MTK_M4U
@@ -46,7 +38,9 @@
 #include "ddp_manager.h"
 #include "disp_lcm.h"
 #include "ddp_clkmgr.h"
-/* #include "mmdvfs_mgr.h" */
+#ifdef CONFIG_MTK_SMI_EXT
+#include "mmdvfs_mgr.h"
+#endif
 #include "disp_drv_log.h"
 #include "ddp_log.h"
 #include "disp_lowpower.h"
@@ -69,7 +63,6 @@
 #include "disp_partial.h"
 #include "ddp_dsi.h"
 #include "ddp_reg_dsi.h"
-
 
 /* For abnormal check */
 static struct task_struct *primary_display_check_task;
@@ -122,8 +115,7 @@ unsigned int _can_switch_check_mode(void)
 
 	params = primary_get_lcm()->params;
 	if (params->dsi.customization_esd_check_enable == 0 &&
-	    params->dsi.lcm_esd_check_table[0].cmd != 0 &&
-	    disp_helper_get_option(DISP_OPT_ESD_CHECK_SWITCH))
+	    params->dsi.lcm_esd_check_table[0].cmd != 0)
 		ret = 1;
 	return ret;
 }
@@ -181,7 +173,7 @@ int _esd_check_config_handle_cmd(struct cmdqRecStruct *qhandle)
 	ret = cmdqRecFlush(qhandle);
 	dprec_logger_done(DPREC_LOGGER_ESD_CMDQ, 0, 0);
 
-	DISPINFO("[ESD]%s ret=%d\n", __func__, ret);
+	DISPINFO("[ESD]_esd_check_config_handle_cmd ret=%d\n", ret);
 
 	if (ret)
 		ret = 1;
@@ -234,7 +226,7 @@ int _esd_check_config_handle_vdo(struct cmdqRecStruct *qhandle)
 	ret = cmdqRecFlush(qhandle);
 	dprec_logger_done(DPREC_LOGGER_ESD_CMDQ, 0, 0);
 
-	DISPINFO("[ESD]%s ret=%d\n", __func__, ret);
+	DISPINFO("[ESD]_esd_check_config_handle_vdo ret=%d\n", ret);
 
 	if (ret)
 		ret = 1;
@@ -247,7 +239,6 @@ static irqreturn_t _esd_check_ext_te_irq_handler(int irq, void *data)
 	mmprofile_log_ex(ddp_mmp_get_events()->esd_vdo_eint,
 		MMPROFILE_FLAG_PULSE, 0, 0);
 	atomic_set(&esd_ext_te_event, 1);
-	DISPINFO("[ESD]%s\n", __func__);
 	wake_up_interruptible(&esd_ext_te_wq);
 	return IRQ_HANDLED;
 }
@@ -267,11 +258,7 @@ void primary_display_switch_esd_mode(int mode)
 int do_esd_check_eint(void)
 {
 	int ret = 0;
-	mmp_event mmp_te = ddp_mmp_get_events()->esd_extte;
 
-	DISPINFO("[ESD]ESD check eint\n");
-	mmprofile_log_ex(mmp_te, MMPROFILE_FLAG_PULSE,
-		primary_display_is_video_mode(), GPIO_EINT_MODE);
 	primary_display_switch_esd_mode(GPIO_EINT_MODE);
 
 	if (wait_event_interruptible_timeout(esd_ext_te_wq,
@@ -303,18 +290,8 @@ int do_esd_check_dsi_te(void)
 int do_esd_check_read(void)
 {
 	int ret = 0;
-	struct cmdqRecStruct *qhandle = NULL;
+	struct cmdqRecStruct *qhandle;
 	disp_path_handle phandle = primary_get_dpmgr_handle();
-	mmp_event mmp_te = ddp_mmp_get_events()->esd_extte;
-
-	DISPCHECK("[ESD]ESD check read\n");
-	mmprofile_log_ex(mmp_te, MMPROFILE_FLAG_PULSE,
-		primary_display_is_video_mode(), GPIO_DSI_MODE);
-
-	/* only cmd mode read & with disable mmsys clk will kick */
-	if (disp_helper_get_option(DISP_OPT_IDLEMGR_ENTER_ULPS) &&
-	    !primary_display_is_video_mode())
-		primary_display_idlemgr_kick((char *)__func__, 1);
 
 	/* 0.create esd check cmdq */
 	ret = cmdqRecCreate(CMDQ_SCENARIO_DISP_ESD_CHECK, &qhandle);
@@ -594,7 +571,6 @@ DISPTORY:
 
 	return ret;
 }
-
 int do_lcm_vdo_lp_read_v1(struct dsi_cmd_desc *cmd_tab)
 {
 	int ret = 0;
@@ -873,15 +849,16 @@ int do_lcm_vdo_lp_write(struct dsi_cmd_desc *write_table,
 
 	/* 1.use cmdq to read from lcm */
 	if (primary_display_is_video_mode()) {
-		/* 1.reset */
-		cmdqRecReset(handle);
 
-		/* wait stream eof first */
-		cmdqRecWait(handle, CMDQ_EVENT_MUTEX0_STREAM_EOF);
+	/* 1.reset */
+	cmdqRecReset(handle);
 
-		/* 2.stop dsi vdo mode */
-		dpmgr_path_build_cmdq(primary_get_dpmgr_handle(),
-					handle, CMDQ_STOP_VDO_MODE, 0);
+	/* wait stream eof first */
+	cmdqRecWait(handle, CMDQ_EVENT_MUTEX0_STREAM_EOF);
+
+	/* 2.stop dsi vdo mode */
+	dpmgr_path_build_cmdq(primary_get_dpmgr_handle(),
+				handle, CMDQ_STOP_VDO_MODE, 0);
 
 		/* 3.write instruction */
 		for (i = 0; i < count; i++) {
@@ -893,26 +870,25 @@ int do_lcm_vdo_lp_write(struct dsi_cmd_desc *write_table,
 				break;
 		}
 
-		/* 4.start dsi vdo mode */
-		dpmgr_path_build_cmdq(primary_get_dpmgr_handle(),
-			handle, CMDQ_START_VDO_MODE, 0);
+	/* 4.start dsi vdo mode */
+	dpmgr_path_build_cmdq(primary_get_dpmgr_handle(),
+		handle, CMDQ_START_VDO_MODE, 0);
 
-		cmdqRecClearEventToken(handle,
-			CMDQ_EVENT_MUTEX0_STREAM_EOF);
+	cmdqRecClearEventToken(handle, CMDQ_EVENT_MUTEX0_STREAM_EOF);
 
-		/* 5. trigger path */
-		dpmgr_path_trigger(primary_get_dpmgr_handle(),
-			handle, CMDQ_ENABLE);
+	/* 5. trigger path */
+	dpmgr_path_trigger(primary_get_dpmgr_handle(), handle, CMDQ_ENABLE);
 
-		/*	mutex sof wait*/
-		ddp_mutex_set_sof_wait(dpmgr_path_get_mutex(
-			primary_get_dpmgr_handle()), handle, 0);
+	/*	mutex sof wait*/
+	ddp_mutex_set_sof_wait(dpmgr_path_get_mutex(
+		primary_get_dpmgr_handle()), handle, 0);
 
 
-		/* 6.flush instruction */
-		ret = cmdqRecFlush(handle);
+	/* 6.flush instruction */
+	ret = cmdqRecFlush(handle);
+
 	} else {
-		DISPERR("Not support cmd mode\n");
+		DISPINFO("Not support cmd mode\n");
 	}
 
 	if (ret == 1) {	/* cmdq fail */
@@ -962,12 +938,11 @@ int primary_display_esd_check(void)
 	}
 	primary_display_manual_unlock();
 
-	/* Esd Check: EXT TE */
+	/*  Esd Check : EXT TE */
 	params = primary_get_lcm()->params;
 	if (params->dsi.customization_esd_check_enable == 0) {
-		/* use TE for esd check */
+		/* use te for esd check */
 		mmprofile_log_ex(mmp_te, MMPROFILE_FLAG_START, 0, 0);
-
 		if (primary_display_is_video_mode()) {
 			mode = get_esd_check_mode();
 			if (mode == GPIO_EINT_MODE) {
@@ -981,13 +956,11 @@ int primary_display_esd_check(void)
 			}
 		} else
 			ret = do_esd_check_eint();
-
 		mmprofile_log_ex(mmp_te, MMPROFILE_FLAG_END, 0, ret);
-
 		goto done;
 	}
 
-	/* Esd Check: Read from lcm */
+	/*  Esd Check : Read from lcm */
 	mmprofile_log_ex(mmp_rd, MMPROFILE_FLAG_START,
 			 0, primary_display_cmdq_enabled());
 
@@ -1001,12 +974,16 @@ int primary_display_esd_check(void)
 			 0, primary_display_is_video_mode());
 
 	/* only cmd mode read & with disable mmsys clk will kick */
+	if (disp_helper_get_option(DISP_OPT_IDLEMGR_ENTER_ULPS) &&
+	    !primary_display_is_video_mode())
+		primary_display_idlemgr_kick((char *)__func__, 1);
+
 	ret = do_esd_check_read();
 
 	mmprofile_log_ex(mmp_rd, MMPROFILE_FLAG_END, 0, ret);
 
 done:
-	DISPINFO("[ESD]ESD check %s\n", ret ? "fail" : "pass");
+	DISPCHECK("[ESD]ESD check end, ret = %d\n", ret);
 	mmprofile_log_ex(mmp_chk, MMPROFILE_FLAG_END, 0, ret);
 	dprec_logger_done(DPREC_LOGGER_ESD_CHECK, 0, 0);
 	return ret;
@@ -1224,6 +1201,7 @@ void primary_display_requset_eint(void)
 {
 	struct LCM_PARAMS *params;
 	struct device_node *node;
+	u32 ints[2] = { 0, 0 };
 
 	params = primary_get_lcm()->params;
 	if (params->dsi.customization_esd_check_enable == 0) {
@@ -1237,6 +1215,9 @@ void primary_display_requset_eint(void)
 		}
 
 		/* 1.register irq handler */
+		of_property_read_u32_array(node, "debounce",
+					   ints, ARRAY_SIZE(ints));
+
 		te_irq = irq_of_parse_and_map(node, 0);
 		if (request_irq(te_irq, _esd_check_ext_te_irq_handler,
 				IRQF_TRIGGER_RISING, "DSI_TE-eint", NULL)) {
@@ -1249,7 +1230,6 @@ void primary_display_requset_eint(void)
 
 		/* 3.set DSI_TE GPIO to TE MODE */
 		disp_dts_gpio_select_state(DTS_GPIO_STATE_TE_MODE_TE);
-
 	}
 }
 
@@ -1269,9 +1249,6 @@ void primary_display_check_recovery_init(void)
 			primary_display_requset_eint();
 			set_esd_check_mode(GPIO_EINT_MODE);
 			primary_display_esd_check_enable(1);
-		} else {
-			atomic_set(&_check_task_wakeup, 1);
-			wake_up_interruptible(&_check_task_wq);
 		}
 	}
 }

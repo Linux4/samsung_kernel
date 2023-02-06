@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 /* #define DEBUG 1 */
 #include <linux/version.h>
@@ -38,7 +30,6 @@
 #endif
 
 #include <mt-plat/mtk_wd_api.h>
-#include <mtk_gpu_utility.h>
 #include <linux/time.h>
 
 #define __MT_MTK_LVTS_TC_C__
@@ -54,7 +45,7 @@
 #include <mt-plat/mtk_devinfo.h>
 #include "mtk_thermal_ipi.h"
 
-
+extern u32 __attribute__((weak)) get_devinfo_with_index(u32 index);
 /**
  * curr_temp >= tscpu_polling_trip_temp1:
  *	polling interval = interval

@@ -1,25 +1,17 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/cpumask.h>
 #include <linux/cpu.h>
+#include <mtk_dcm_internal.h>
 #include <mt-plat/mtk_io.h>
 #include <mt-plat/sync_write.h>
 #include <mt-plat/mtk_secure_api.h>
 
-#include <mtk_dcm_internal.h>
 
 static short dcm_cpu_cluster_stat;
 
@@ -432,12 +424,14 @@ void dcm_dump_regs(void)
 
 int dcm_smc_get_cnt(int type_id)
 {
-	return dcm_smc_read_cnt(type_id);
+	int dcm_smc_stats;
+	dcm_smc_stats = mt_secure_call(MTK_SIP_KERNEL_DCM, type_id, 1, 0, 0);
+	return dcm_smc_stats;
 }
 
 void dcm_smc_msg_send(unsigned int msg)
 {
-	dcm_smc_msg(msg);
+	mt_secure_call(MTK_SIP_KERNEL_DCM, msg, 0, 0, 0);
 }
 
 short dcm_get_cpu_cluster_stat(void)

@@ -1,13 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * core.c - ChipIdea USB IP core family device controller
  *
  * Copyright (C) 2008 Chipidea - MIPS Technologies, Inc. All rights reserved.
  *
  * Author: David Lopo
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 
 /*
@@ -838,7 +835,7 @@ static void ci_get_otg_capable(struct ci_hdrc *ci)
 	}
 }
 
-static ssize_t ci_role_show(struct device *dev, struct device_attribute *attr,
+static ssize_t role_show(struct device *dev, struct device_attribute *attr,
 			  char *buf)
 {
 	struct ci_hdrc *ci = dev_get_drvdata(dev);
@@ -849,7 +846,7 @@ static ssize_t ci_role_show(struct device *dev, struct device_attribute *attr,
 	return 0;
 }
 
-static ssize_t ci_role_store(struct device *dev,
+static ssize_t role_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t n)
 {
 	struct ci_hdrc *ci = dev_get_drvdata(dev);
@@ -880,7 +877,7 @@ static ssize_t ci_role_store(struct device *dev,
 
 	return (ret == 0) ? n : ret;
 }
-static DEVICE_ATTR(role, 0644, ci_role_show, ci_role_store);
+static DEVICE_ATTR_RW(role);
 
 static struct attribute *ci_attrs[] = {
 	&dev_attr_role.attr,
@@ -1072,9 +1069,7 @@ static int ci_hdrc_probe(struct platform_device *pdev)
 		ci_hdrc_otg_fsm_start(ci);
 
 	device_set_wakeup_capable(&pdev->dev, true);
-	ret = dbg_create_files(ci);
-	if (ret)
-		goto stop;
+	dbg_create_files(ci);
 
 	ret = sysfs_create_group(&dev->kobj, &ci_attr_group);
 	if (ret)
@@ -1159,6 +1154,29 @@ static void ci_controller_suspend(struct ci_hdrc *ci)
 	enable_irq(ci->irq);
 }
 
+/*
+ * Handle the wakeup interrupt triggered by extcon connector
+ * We need to call ci_irq again for extcon since the first
+ * interrupt (wakeup int) only let the controller be out of
+ * low power mode, but not handle any interrupts.
+ */
+static void ci_extcon_wakeup_int(struct ci_hdrc *ci)
+{
+	struct ci_hdrc_cable *cable_id, *cable_vbus;
+	u32 otgsc = hw_read_otgsc(ci, ~0);
+
+	cable_id = &ci->platdata->id_extcon;
+	cable_vbus = &ci->platdata->vbus_extcon;
+
+	if (!IS_ERR(cable_id->edev) && ci->is_otg &&
+		(otgsc & OTGSC_IDIE) && (otgsc & OTGSC_IDIS))
+		ci_irq(ci->irq, ci);
+
+	if (!IS_ERR(cable_vbus->edev) && ci->is_otg &&
+		(otgsc & OTGSC_BSVIE) && (otgsc & OTGSC_BSVIS))
+		ci_irq(ci->irq, ci);
+}
+
 static int ci_controller_resume(struct device *dev)
 {
 	struct ci_hdrc *ci = dev_get_drvdata(dev);
@@ -1191,6 +1209,7 @@ static int ci_controller_resume(struct device *dev)
 		enable_irq(ci->irq);
 		if (ci_otg_is_fsm_mode(ci))
 			ci_otg_fsm_wakeup_by_srp(ci);
+		ci_extcon_wakeup_int(ci);
 	}
 
 	return 0;

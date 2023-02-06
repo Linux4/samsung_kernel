@@ -16,7 +16,6 @@
 #include <linux/hashtable.h>
 
 #include "context.h"
-#include "flask.h"
 
 struct sidtab_entry_leaf {
 	u32 sid;

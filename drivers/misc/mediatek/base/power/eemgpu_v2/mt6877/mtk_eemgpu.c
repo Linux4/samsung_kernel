@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (C) 2021 MediaTek Inc.
  */
 
 /**
@@ -522,19 +514,6 @@ int base_ops_mon_mode_gpu(struct eemg_det *det)
 	det->BTS = ts_info.ts_BTS;
 #endif
 
-	/*
-	 * eemg_debug("[base_ops_mon_mode_gpu] Bk = %d,
-	 * MTS = 0x%08X, BTS = 0x%08X\n",
-	 * det->ctrl_id, det->MTS, det->BTS);
-	 */
-#if 0
-	if ((det->EEMINITEN == 0x0) || (det->EEMMONEN == 0x0)) {
-		eemg_debug("EEMINITEN = 0x%08X, EEMMONEN = 0x%08X\n",
-				det->EEMINITEN, det->EEMMONEN);
-		FUNC_EXIT(FUNC_LV_HELP);
-		return 1;
-	}
-#endif
 	/* det->ops->dump_status(det); */
 	det->ops->set_phase_gpu(det, EEMG_PHASE_MON);
 
@@ -895,19 +874,7 @@ static void mt_ptpgpu_unlock(unsigned long *flags)
 	spin_unlock_irqrestore(&eemg_spinlock, *flags);
 }
 EXPORT_SYMBOL(mt_ptpgpu_unlock);
-#if 0
-void mt_record_lock(unsigned long *flags)
-{
-	spin_lock_irqsave(&gpu_record_spinlock, *flags);
-}
-EXPORT_SYMBOL(mt_record_lock);
 
-void mt_record_unlock(unsigned long *flags)
-{
-	spin_unlock_irqrestore(&gpu_record_spinlock, *flags);
-}
-EXPORT_SYMBOL(mt_record_unlock);
-#endif
 /*
  * timer for log
  */
@@ -934,21 +901,6 @@ static enum hrtimer_restart eemg_log_timer_func(struct hrtimer *timer)
 			det->ops->pmic_2_volt_gpu(det, det->volt_tbl_pmic[6]),
 			det->ops->pmic_2_volt_gpu(det, det->volt_tbl_pmic[7]),
 			det->t250);
-
-#if 0
-		det->freq_tbl[0],
-		det->freq_tbl[1],
-		det->freq_tbl[2],
-		det->freq_tbl[3],
-		det->freq_tbl[4],
-		det->freq_tbl[5],
-		det->freq_tbl[6],
-		det->freq_tbl[7],
-		det->dcvalues[3],
-		det->freqpct30[3],
-		det->eemg_26c[3],
-		det->vop30[3]
-#endif
 	}
 
 	hrtimer_forward_now(timer, ns_to_ktime(LOG_INTERVAL));
@@ -1266,15 +1218,6 @@ static void get_volt_table_in_thread(struct eemg_det *det)
 					ndet->name);
 			break;
 		}
-#if 0
-		eemg_error("[%s].volt[%d]=0x%X, Ori[0x%x], pmic[%d]=0x%x(%d)\n",
-			det->name,
-			i, det->volt_tbl[i], det->volt_tbl_orig[i],
-			i, det->volt_tbl_pmic[i], det->ops->pmic_2_volt_gpu
-			(det, det->volt_tbl_pmic[i]));
-		eemg_error("low_temp_offset:%d, rm_dvtfix:%d, 'det'->id:%d\n",
-			low_temp_offset, rm_dvtfix_offset, det->ctrl_id);
-#endif
 	}
 
 #if SUPPORT_GPU_VB
@@ -1317,9 +1260,6 @@ static void get_volt_table_in_thread(struct eemg_det *det)
 
 	if (0 == (ndet->disabled % 2) && ndet->set_volt_to_upower)
 		ndet->ops->set_volt_gpu(ndet);
-#if 0
-skip_update:
-#endif
 #if ENABLE_LOO
 	if (det->loo_role != NO_LOO_BANK)
 		mutex_unlock(ndet->loo_mutex);
@@ -1516,30 +1456,6 @@ static void eemg_init_det(struct eemg_det *det, struct eemg_devinfo *devinfo)
 		break;
 	}
 	eemg_error("det[%d]->vmin = %d\n", det_id, det->VMIN);
-#if 0
-#if DVT
-	det->VBOOT = 0x30;
-	det->VMAX = 0xFF;
-	det->VMIN = 0x0;
-	det->VCO = 0x10;
-	det->DVTFIXED = 0x07;
-#if (SEC_MOD_SEL == 0xF0)
-	det->MDES	= 0x3C;
-	det->BDES	= 0x1B;
-	det->DCMDET = 0x10;
-	det->DCBDET = 0xBD;
-	det->MTDES	= 0x55;
-#else
-#if 0
-	det->MDES	= SEC_MDES;
-	det->BDES	= SEC_BDES;
-	det->DCMDET = SEC_DCMDET;
-	det->DCBDET = SEC_DCBDET;
-	det->MTDES	= SEC_MTDES;
-#endif
-#endif
-#endif
-#endif
 	/* get DVFS frequency table */
 	if (det->ops->get_freq_table_gpu)
 		det->ops->get_freq_table_gpu(det);
@@ -1587,21 +1503,6 @@ static void eemg_restore_eemg_volt(struct eemg_det *det)
 	wake_up_interruptible(&ctrl->wq);
 #endif
 }
-
-#if 0
-static void mt_eemg_reg_dump_locked(void)
-{
-	unsigned long addr;
-
-	for (addr = (unsigned long)EEMG_DESCHAR;
-			addr <= (unsigned long)EEMG_SMSTATE1; addr += 4)
-		eemg_isr_info("0x %lu = 0x %lu\n",
-			addr, *(unsigned long *)addr);
-
-	addr = (unsigned long)EEMGCORESEL;
-	eemg_isr_info("0x %lu = 0x %lu\n", addr, *(unsigned long *)addr);
-}
-#endif
 
 static inline void handle_init01_isr(struct eemg_det *det)
 {
@@ -2236,10 +2137,8 @@ static inline void eemg_isr_handler(struct eemg_det *det)
 	eemintsts = eemg_read(EEMGINTSTS);
 	eemen = eemg_read(EEMGEN);
 
-#if 1
 	eemg_debug("Bk_# = %d %s-isr, 0x%X, 0x%X\n",
 		det->ctrl_id, ((char *)(det->name) + 8), eemintsts, eemen);
-#endif
 
 	if (eemintsts == 0x1) { /* EEM init1 or init2 */
 		if ((eemen & 0x7) == 0x1) /* EEM init1 */
@@ -2333,29 +2232,21 @@ void eemg_corner(int testcnt)
 		unsigned long flag;
 
 		if (HAS_FEATURE(det, FEA_CORN)) {
-#if 1
 			if (det->ops->get_volt_gpu != NULL) {
 				det->real_vboot_gpu = det->ops->volt_2_eemg
 				(det, det->ops->get_volt_gpu(det));
-
 			}
-#endif
-
-#if 1
 			while (det->real_vboot != det->VBOOT) {
 				det->real_vboot = det->ops->volt_2_eemg(det,
 					det->ops->get_volt_gpu(det));
-#if 1
 				if (timeout++ % 300 == 0)
 					eemg_debug
 ("@%s():%d, get_volt_gpu(%s) = 0x%08X, VBOOT = 0x%08X vpu_return = %d\n",
 __func__, __LINE__, det->name, det->real_vboot, det->VBOOT,
 det->ops->get_volt_gpu(det));
-#endif
 			}
 			/* BUG_ON(det->real_vboot != det->VBOOT); */
 			WARN_ON(det->real_vboot != det->VBOOT);
-#endif
 			det->eemg_eemEn[EEMG_PHASE_INIT01] = 0;
 			det->DCVOFFSETIN = 0;
 			det->DCCONFIG = arrtype[testcnt];
@@ -2447,12 +2338,7 @@ static void eemg_dconfig_set_det(struct eemg_det *det, struct device_node *node)
 		eemg_debug("[%s]: Unknown det_id %d\n", __func__, det_id);
 		break;
 	}
-#if 0
-	eemg_error("[DCONFIG] det_id:%d, feature modified by DT(0x%x)\n",
-			det_id, doe_initmon);
-	eemg_error("[DCONFIG] doe_offset:%x, doe_clamp:%x\n",
-			doe_offset, doe_clamp);
-#endif
+
 	if (!rc1) {
 		if ((((doe_initmon >= 0x0) && (doe_initmon <= 0x3)) ||
 			((doe_initmon >= 0x6) && (doe_initmon <= 0x7))) &&
@@ -3359,12 +3245,7 @@ void eemg_set_pi_dvtfixed(enum eemg_det_id id, unsigned int pi_dvtfixed)
 
 	det->pi_dvtfixed = pi_dvtfixed;
 }
-#if 0
-unsigned int get_efuse_status(void)
-{
-	return eemg_checkEfuse;
-}
-#endif
+
 #ifdef CONFIG_PM
 static int eemg_pm_event(struct notifier_block *notifier,
 	unsigned long pm_event, void *unused)

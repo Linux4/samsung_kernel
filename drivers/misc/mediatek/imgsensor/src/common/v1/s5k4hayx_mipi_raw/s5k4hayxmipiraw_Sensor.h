@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 MediaTek Inc.
+ * Copyright (C) 2022 MediaTek Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -36,6 +36,16 @@ enum IMGSENSOR_MODE {
 	IMGSENSOR_MODE_HIGH_SPEED_VIDEO,
 	IMGSENSOR_MODE_SLIM_VIDEO,
 	IMGSENSOR_MODE_CUSTOM1,
+	IMGSENSOR_MODE_CUSTOM2,
+	IMGSENSOR_MODE_CUSTOM3,
+	IMGSENSOR_MODE_CUSTOM4,
+	IMGSENSOR_MODE_MAX
+};
+
+struct setfile_mode_info {
+	kal_uint16 *setfile;
+	kal_uint32 size;
+	char *name;
 };
 
 struct imgsensor_mode_struct {
@@ -84,8 +94,8 @@ struct imgsensor_struct {
 	kal_bool test_pattern;	//record test pattern mode or not
 	kal_bool enable_secure;	/* run as secure driver or not */
 	enum MSDK_SCENARIO_ID_ENUM current_scenario_id;	//current scenario id
-	kal_uint8 ihdr_en;	//ihdr enable or disable
 
+	kal_uint8 ihdr_mode; /* ihdr enable or disable */
 	kal_uint8 i2c_write_id;	//record current sensor's i2c write id
 };
 
@@ -108,11 +118,17 @@ struct imgsensor_info_struct {
 	//slim video for VT scenario relative information
 	struct imgsensor_mode_struct slim_video;
 	struct imgsensor_mode_struct custom1;
+	struct imgsensor_mode_struct custom2;
+	struct imgsensor_mode_struct custom3;
+	struct imgsensor_mode_struct custom4;
 
 	kal_uint8 ae_shut_delay_frame;	//shutter delay frame for AE cycle
 	//sensor gain delay frame for AE cycle
 	kal_uint8 ae_sensor_gain_delay_frame;
 	kal_uint8 ae_ispGain_delay_frame;//isp gain delay frame for AE cycle
+
+	kal_uint8  frame_time_delay_frame;
+
 	kal_uint8 ihdr_support;	//1, support; 0,not support
 	kal_uint8 ihdr_le_firstline;	//1,le first ; 0, se first
 	kal_uint8 sensor_mode_num;	//support sensor mode num
@@ -123,12 +139,16 @@ struct imgsensor_info_struct {
 	kal_uint8 hs_video_delay_frame;//enter high speed video  delay frame num
 	kal_uint8 slim_video_delay_frame;//enter slim video delay frame num
 	kal_uint8 custom1_delay_frame;
+	kal_uint8 custom2_delay_frame;
+	kal_uint8 custom3_delay_frame;
+	kal_uint8 custom4_delay_frame;
 
 	kal_uint8 margin;	//sensor framelength & shutter margin
 	kal_uint32 min_shutter;	//min shutter
 	kal_uint32 min_gain;
 	kal_uint32 max_gain;
 	kal_uint32 min_gain_iso;
+	kal_uint32 exp_step;
 	kal_uint32 gain_step;
 	kal_uint32 gain_type;
 	//max framelength by sensor register's limitation

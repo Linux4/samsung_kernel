@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 /*****************************************************************************
@@ -29,7 +21,6 @@
 #ifndef _S5KGW3MIPI_SENSOR_H
 #define _S5KGW3MIPI_SENSOR_H
 
-//#define DISABLE_PDAF_OUT
 
 enum IMGSENSOR_MODE {
 	IMGSENSOR_MODE_INIT,
@@ -40,16 +31,6 @@ enum IMGSENSOR_MODE {
 	IMGSENSOR_MODE_SLIM_VIDEO,
 	IMGSENSOR_MODE_CUSTOM1,
 	IMGSENSOR_MODE_CUSTOM2,
-	IMGSENSOR_MODE_CUSTOM3,
-	IMGSENSOR_MODE_CUSTOM4,
-	IMGSENSOR_MODE_CUSTOM5,
-	IMGSENSOR_MODE_MAX
-};
-
-struct setfile_mode_info {
-	kal_uint16 *setfile;
-	kal_uint32 size;
-	char *name;
 };
 
 struct imgsensor_mode_struct {
@@ -107,7 +88,7 @@ struct imgsensor_struct {
 	kal_uint8 ihdr_mode;
 
 	kal_uint8 i2c_write_id;	/* record current sensor's i2c write id */
-	kal_uint8 i2c_companion_write_id;	/* record current sensor's i2c write id */
+	kal_uint8 i2c_companion_write_id;
 };
 
 /* SENSOR PRIVATE STRUCT FOR CONSTANT*/
@@ -138,9 +119,6 @@ struct imgsensor_info_struct {
      /* custom1 for stereo relative information */
 	struct imgsensor_mode_struct custom1;
 	struct imgsensor_mode_struct custom2;
-	struct imgsensor_mode_struct custom3;
-	struct imgsensor_mode_struct custom4;
-	struct imgsensor_mode_struct custom5;
 	kal_uint8 ae_shut_delay_frame;	/* shutter delay frame for AE cycle */
 
 	/* sensor gain delay frame for AE cycle */
@@ -167,7 +145,6 @@ struct imgsensor_info_struct {
 
 	kal_uint8 custom1_delay_frame; /* enter custom1 delay frame num */
 	kal_uint8 custom2_delay_frame;
-	kal_uint8 custom5_delay_frame;
 	kal_uint8 margin;	/* sensor framelength & shutter margin */
 	kal_uint32 min_shutter;	/* min shutter */
 

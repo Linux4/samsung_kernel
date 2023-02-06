@@ -1,15 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- ****************************************************************************/
+ * Copyright (c) 2019 MediaTek Inc.
+ */
+
 /*****************************************************************************
  *
  * Filename:
@@ -32,20 +25,14 @@
 #define VENDOR_EDIT
 #endif
 
-#define GC02M1B_OTP_START_ADDR    0x0078
-
-enum {
+enum{
 	IMGSENSOR_MODE_INIT,
 	IMGSENSOR_MODE_PREVIEW,
 	IMGSENSOR_MODE_CAPTURE,
 	IMGSENSOR_MODE_VIDEO,
 	IMGSENSOR_MODE_HIGH_SPEED_VIDEO,
 	IMGSENSOR_MODE_SLIM_VIDEO,
-	IMGSENSOR_MODE_CUSTOM1,
-	IMGSENSOR_MODE_CUSTOM2,
-	IMGSENSOR_MODE_CUSTOM3,
-	IMGSENSOR_MODE_CUSTOM4,
-	IMGSENSOR_MODE_CUSTOM5
+	IMGSENSOR_MODE_CUSTOM1
 };
 
 struct imgsensor_mode_struct {
@@ -99,14 +86,11 @@ struct imgsensor_info_struct {
 	kal_uint32 checksum_value;	//checksum value for Camera Auto Test
 	struct imgsensor_mode_struct pre;
 	struct imgsensor_mode_struct cap;
+	struct imgsensor_mode_struct cap1;
 	struct imgsensor_mode_struct normal_video;
 	struct imgsensor_mode_struct hs_video;
 	struct imgsensor_mode_struct slim_video;
 	struct imgsensor_mode_struct custom1;	//dual cam
-	struct imgsensor_mode_struct custom2;
-	struct imgsensor_mode_struct custom3;
-	struct imgsensor_mode_struct custom4;
-	struct imgsensor_mode_struct custom5;
 
 	kal_uint8  ae_shut_delay_frame;	//shutter delay frame for AE cycle
 	kal_uint8  ae_sensor_gain_delay_frame;
@@ -121,10 +105,6 @@ struct imgsensor_info_struct {
 	kal_uint8  hs_video_delay_frame;//enter high speed video  delay frame
 	kal_uint8  slim_video_delay_frame;    //enter slim video delay frame
 	kal_uint8 custom1_delay_frame; /* enter custom1 delay frame num */
-	kal_uint8 custom2_delay_frame; /* enter custom2 delay frame num */
-	kal_uint8 custom3_delay_frame; /* enter custom3 delay frame num */
-	kal_uint8 custom4_delay_frame; /* enter custom4 delay frame num */
-	kal_uint8 custom5_delay_frame; /* enter custom5 delay frame num */
 
 	kal_uint8  margin;   //sensor framelength & shutter margin
 	kal_uint32 min_shutter;			//min shutter

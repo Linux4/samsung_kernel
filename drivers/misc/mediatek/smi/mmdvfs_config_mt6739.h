@@ -1,21 +1,20 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __MMDVFS_CONFIG_MT6739_H__
 #define __MMDVFS_CONFIG_MT6739_H__
 
 #include "mmdvfs_config_util.h"
+#ifdef VCORE_READY
 #include "mtk_vcorefs_manager.h"
+#else
+#define OPP_0 0
+#define OPP_1 1
+#define OPP_2 2
+#define OPP_3 3
+#endif
 
 /* Part I MMSVFS HW Configuration (OPP)*/
 /* Define the number of mmdvfs, vcore and mm clks opps */

@@ -48,13 +48,8 @@
 
 #define CUSTOM_DIR_NAME "custom"
 
-#if defined(CONFIG_MACH_MT6739)
-#define FW_IMAGE_NAME "tsp_synaptics/"\
-		"PR3160762_TD4150_A3CORE_01020001.img"
-#else /* CONFIG_MACH_MT6768 */
 #define FW_IMAGE_NAME "tsp_synaptics/"\
 		"PR2100000870-td4150b0_01010011_20200504.img"
-#endif
 
 #define FW_IMAGE_NAME_MANUAL "synaptics/reflash_firmware_manual.img"
 

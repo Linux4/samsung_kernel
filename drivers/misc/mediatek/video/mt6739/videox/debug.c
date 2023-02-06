@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/string.h>
 #include <linux/time.h>
@@ -37,6 +29,7 @@
 #include "ddp_path.h"
 #include "ddp_reg.h"
 #include "primary_display.h"
+#include "mtk_disp_mgr.h"
 #include "display_recorder.h"
 #ifdef CONFIG_MTK_LEGACY
 #include <mach/mt_gpio.h>
@@ -58,9 +51,14 @@
 #include "disp_arr.h"
 #include "disp_recovery.h"
 #include "disp_partial.h"
+#include "disp_drv_platform.h"
+#if defined(MTK_FB_ION_SUPPORT)
 #include "mtk_ion.h"
 #include "ion_drv.h"
 #include "ion.h"
+#endif
+#include "layering_rule.h"
+#include "ddp_clkmgr.h"
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 static struct dentry *mtkfb_dbgfs;
@@ -74,7 +72,206 @@ static struct proc_dir_entry *disp_lowpower_proc;
 unsigned int g_mobilelog;
 int bypass_blank;
 int lcm_mode_status;
+int layer_layout_allow_non_continuous;
+/* Boundary of enter screen idle */
+unsigned long long idle_check_interval = 50;
+/* modify rdma threshold for debug */
+int dbg_ultlow, dbg_ulthigh, dbg_prehigh, dbg_urg_low, dbg_urg_high;
 
+/* hrt */
+int hrt_high, hrt_low;
+int hrt_show_flag;
+
+struct BMP_FILE_HEADER {
+	UINT16 bfType;
+	UINT32 bfSize;
+	UINT16 bfReserved1;
+	UINT16 bfReserved2;
+	UINT32 bfOffBits;
+};
+
+struct BMP_INFO_HEADER {
+	UINT32 biSize;
+	UINT32 biWidth;
+	UINT32 biHeight;
+	UINT16 biPlanes;
+	UINT16 biBitCount;
+	UINT32 biCompression;
+	UINT32 biSizeImage;
+	UINT32 biXPelsPerMeter;
+	UINT32 biYPelsPerMeter;
+	UINT32 biClrUsed;
+	UINT32 biClrImportant;
+};
+
+/*********************** layer information statistic *********************/
+#define STATISTIC_MAX_LAYERS 20
+struct layer_statistic {
+	unsigned long total_frame_cnt;
+	unsigned long cnt_by_layers[STATISTIC_MAX_LAYERS];
+	unsigned long cnt_by_layers_with_ext[STATISTIC_MAX_LAYERS];
+	unsigned long cnt_by_layers_with_arm_ext[STATISTIC_MAX_LAYERS];
+};
+static struct layer_statistic layer_stat;
+static int layer_statistic_enable;
+
+static int _is_overlap(unsigned int x1, unsigned int y1,
+	unsigned int w1, unsigned int h1, unsigned int x2,
+	unsigned int y2, unsigned int w2, unsigned int h2)
+{
+	if (x2 >= x1 + w1 || x1 >= x2 + w2)
+		return 0;
+	if (y2 >= y1 + h1 || y1 >= y2 + h2)
+		return 0;
+	return 1;
+}
+
+static int layer_is_overlap(struct disp_frame_cfg_t *cfg,
+	int idx, int from, int to)
+{
+	int i;
+
+	for (i = from; i <= to; i++) {
+		if (_is_overlap(cfg->input_cfg[idx].tgt_offset_x,
+			cfg->input_cfg[idx].tgt_offset_y,
+			cfg->input_cfg[idx].src_width,
+			cfg->input_cfg[idx].src_height,
+			cfg->input_cfg[i].tgt_offset_x,
+			cfg->input_cfg[i].tgt_offset_y,
+			cfg->input_cfg[i].src_width,
+			cfg->input_cfg[i].src_height))
+			return 1;
+	}
+	return 0;
+}
+
+
+static int calc_layer_num_with_arm_ext(struct disp_frame_cfg_t *cfg)
+{
+	int ovl_phy_num[2] = {4, 2};
+	int ovl_ext_num[2] = {3, 3};
+	int ovl_idx = 0;
+	int i, cur_phy_num, cur_ext_num;
+	int cur_phy_idx_in_cfg;
+	int total_phy_layer = 0;
+
+	cur_phy_num = 0;
+	cur_ext_num = 0;
+	cur_phy_idx_in_cfg = 0;
+	for (i = 0; i < cfg->input_layer_num; i++) {
+		int is_overlap;
+
+		if (!cfg->input_cfg[i].layer_enable)
+			continue;
+
+		if (cur_phy_num && cur_ext_num < ovl_ext_num[ovl_idx])
+			is_overlap = layer_is_overlap(cfg, i,
+				cur_phy_idx_in_cfg, i - 1);
+		else
+			is_overlap = 1;
+
+		if (!is_overlap) {
+			/* put it in ext layer */
+			cur_ext_num++;
+			continue;
+		}
+
+		/* now put it into a phy layer */
+		if (cur_phy_num < ovl_phy_num[ovl_idx]) {
+			cur_phy_num++;
+			cur_phy_idx_in_cfg = i;
+		} else if (ovl_idx < ARRAY_SIZE(ovl_phy_num)) {
+			/* dispatch to next ovl */
+			ovl_idx++;
+			cur_phy_num = 1;
+			cur_phy_idx_in_cfg = i;
+			cur_ext_num = 0;
+		} else {
+			/* no ovl layer aviable !! */
+			goto err_out;
+		}
+	}
+
+	for (i = 0; i < ovl_idx; i++)
+		total_phy_layer += ovl_phy_num[i];
+	total_phy_layer += cur_phy_num;
+	return total_phy_layer;
+
+err_out:
+	DISPWARN("%s failed: ovl_idx=%d, cur_phy=%d, cur_ext=%d\n",
+		__func__, ovl_idx, cur_phy_num, cur_ext_num);
+	for (i = 1; i < cfg->input_layer_num; i++)
+		dump_input_cfg_info(&cfg->input_cfg[i],
+			MAKE_DISP_SESSION(DISP_SESSION_PRIMARY, 0), 1);
+
+	return -1;
+}
+
+int disp_layer_info_statistic(struct disp_ddp_path_config *last_config,
+	struct disp_frame_cfg_t *cfg)
+{
+	unsigned int i, phy_num = 0, ext_num = 0;
+	int phy_num_with_arm_ext;
+
+	if (!READ_ONCE(layer_statistic_enable))
+		return 0;
+
+	layer_stat.total_frame_cnt++;
+
+	for (i = 0; i < cfg->input_layer_num; i++) {
+		if (!cfg->input_cfg[i].layer_enable)
+			continue;
+		if (cfg->input_cfg[i].ext_sel_layer != -1)
+			ext_num++;
+		else
+			phy_num++;
+	}
+	layer_stat.cnt_by_layers[phy_num + ext_num]++;
+	layer_stat.cnt_by_layers_with_ext[phy_num]++;
+
+	phy_num_with_arm_ext = calc_layer_num_with_arm_ext(cfg);
+	if (phy_num_with_arm_ext > 0) {
+		phy_num_with_arm_ext =
+			min(phy_num_with_arm_ext, STATISTIC_MAX_LAYERS);
+		layer_stat.cnt_by_layers_with_arm_ext[phy_num_with_arm_ext]++;
+	}
+
+	if (!(layer_stat.total_frame_cnt % 100)) {
+		char str[200];
+		int offset = 0;
+
+		offset += snprintf(str + offset, sizeof(str) - offset,
+			"total:%ld.layers:", layer_stat.total_frame_cnt);
+		for (i = 1; i <= 12; i++)
+			offset += snprintf(str + offset, sizeof(str) - offset,
+				"%ld,", layer_stat.cnt_by_layers[i]);
+		DISPMSG("layer_cnt %s\n", str);
+
+		offset = 0;
+		offset += snprintf(str + offset,
+			sizeof(str) - offset, ".ext:");
+		for (i = 1; i <= 6 ; i++)
+			offset += snprintf(str + offset, sizeof(str) - offset,
+				"%ld,", layer_stat.cnt_by_layers_with_ext[i]);
+
+		offset += snprintf(str + offset,
+			sizeof(str) - offset, ".arm_ext:");
+		for (i = 1; i <= 6 ; i++)
+			offset += snprintf(str + offset, sizeof(str) - offset,
+			"%ld,", layer_stat.cnt_by_layers_with_arm_ext[i]);
+		DISPMSG("layer_cnt %s\n", str);
+	}
+
+	return 0;
+}
+
+void disp_layer_info_statistic_reset(void)
+{
+	memset(&layer_stat, 0, sizeof(layer_stat));
+}
+
+/*********************** basic test ****************************/
+static int basic_test_cancel;
 static int draw_buffer(char *va, int w, int h,
 		       enum UNIFIED_COLOR_FMT ufmt,
 		       char r, char g, char b, char a)

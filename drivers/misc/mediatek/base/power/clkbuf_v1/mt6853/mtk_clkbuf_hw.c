@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 /*
  * @file    mtk_clk_buf_hw.c
@@ -36,12 +28,12 @@
 /* static void __iomem *pwrap_base; */
 static void __iomem *pmif_spi_base;
 static void __iomem *pmif_spmi_base;
-static void __iomem *spm_base;
+static void __iomem *spm_base_for_clk;
 
 /* #define PWRAP_REG(ofs)		(pwrap_base + ofs) */
 #define PMIF_SPI_REG(ofs)	(pmif_spi_base + ofs)
 #define PMIF_SPMI_REG(ofs)	(pmif_spmi_base + ofs)
-#define SPM_REG(ofs)		(spm_base + ofs)
+#define SPM_REG(ofs)		(spm_base_for_clk + ofs)
 
 /* PMIF Register*/
 #define PMIFSPI_INF_EN				PMIF_SPI_REG(0x024)
@@ -171,6 +163,8 @@ static unsigned int xo_mode_init[XO_NUMBER];
 /* TODO: enable BBLPM if its function is ready (set as 1) */
 /* #define CLK_BUF_HW_BBLPM_EN */
 static unsigned int bblpm_switch = 2;
+
+static unsigned int bblpm_cnt;
 
 /* todo: remove */
 static unsigned int pwrap_dcxo_en_init;
@@ -881,6 +875,32 @@ bool clk_buf_ctrl(enum clk_buf_id id, bool onoff)
 }
 EXPORT_SYMBOL(clk_buf_ctrl);
 
+void clk_buf_disp_ctrl(bool onoff)
+{
+	if (onoff) {
+		pmic_config_interface(PMIC_DCXO_CW00_CLR,
+			      PMIC_XO_EXTBUF3_MODE_MASK,
+			      PMIC_XO_EXTBUF3_MODE_MASK,
+			      PMIC_XO_EXTBUF3_MODE_SHIFT);
+		pmic_config_interface(PMIC_DCXO_CW00_SET,
+			PMIC_XO_EXTBUF3_EN_M_MASK,
+			PMIC_XO_EXTBUF3_EN_M_MASK,
+			PMIC_XO_EXTBUF3_EN_M_SHIFT);
+		pmic_clk_buf_swctrl[XO_NFC] = 1;
+	} else {
+		pmic_config_interface(PMIC_DCXO_CW00_CLR,
+			PMIC_XO_EXTBUF3_MODE_MASK,
+			PMIC_XO_EXTBUF3_MODE_MASK,
+			PMIC_XO_EXTBUF3_MODE_SHIFT);
+		pmic_config_interface(PMIC_DCXO_CW00_CLR,
+			PMIC_XO_EXTBUF3_EN_M_MASK,
+			PMIC_XO_EXTBUF3_EN_M_MASK,
+			PMIC_XO_EXTBUF3_EN_M_SHIFT);
+		pmic_clk_buf_swctrl[XO_NFC] = 0;
+	}
+}
+EXPORT_SYMBOL(clk_buf_disp_ctrl);
+
 void clk_buf_dump_dts_log(void)
 {
 	pr_info("%s: CLK_BUF?_STATUS=%d %d %d %d %d %d %d\n", __func__,
@@ -1462,14 +1482,11 @@ static ssize_t clk_buf_bblpm_show(struct kobject *kobj,
 	return len;
 }
 
-static void capid_trim_write(uint32_t cap_code)
+static void pre_capid_trim_write(void)
 {
 	pmic_config_interface(PMIC_XO_COFST_FPM_ADDR, 0x0,
 		PMIC_XO_COFST_FPM_MASK,
 		PMIC_XO_COFST_FPM_SHIFT);
-	pmic_config_interface(PMIC_XO_CDAC_FPM_ADDR, cap_code,
-		PMIC_XO_CDAC_FPM_MASK,
-		PMIC_XO_CDAC_FPM_SHIFT);
 	pmic_config_interface(PMIC_XO_AAC_FPM_SWEN_ADDR, 0x0,
 		PMIC_XO_AAC_FPM_SWEN_MASK,
 		PMIC_XO_AAC_FPM_SWEN_SHIFT);
@@ -1478,6 +1495,13 @@ static void capid_trim_write(uint32_t cap_code)
 		PMIC_XO_AAC_FPM_SWEN_MASK,
 		PMIC_XO_AAC_FPM_SWEN_SHIFT);
 	mdelay(30);
+}
+
+static void capid_trim_write(uint32_t cap_code)
+{
+	pmic_config_interface(PMIC_XO_CDAC_FPM_ADDR, cap_code,
+		PMIC_XO_CDAC_FPM_MASK,
+		PMIC_XO_CDAC_FPM_SHIFT);
 }
 
 static uint32_t capid_trim_read(void)
@@ -1495,25 +1519,56 @@ static ssize_t clk_buf_capid_store(struct kobject *kobj,
 {
 	uint32_t capid;
 	int ret;
+	const char *capid_buf;
 
 	if (buf != NULL && count != 0) {
-		ret = kstrtouint(buf, 0, &capid);
-		if (ret) {
-			pr_info("wrong format!\n");
-			return ret;
-		}
-		if (capid > PMIC_XO_CDAC_FPM_MASK) {
-			pr_info("offset should be within(%x) %x!\n",
-				PMIC_XO_CDAC_FPM_MASK, capid);
-			return -EINVAL;
-		}
+		if (!strncmp(buf, "cmd1#", 5)) {
+			pre_capid_trim_write();
+		} else if (!strncmp(buf, "cmd2#", 5)) {
+			capid_buf = &buf[5];
+			ret = kstrtouint(capid_buf, 0, &capid);
+			if (ret) {
+				pr_info("wrong format!\n");
+				return ret;
+			}
 
-		pr_info("original cap code: 0x%x\n", capid_trim_read());
+			if (capid > 0xFF) {
+				pr_info("offset should be within(%x) %x!\n",
+					0xFF, capid);
+				return -EINVAL;
+			}
 
-		capid_trim_write(capid);
-		mdelay(1);
-		pr_info("write capid 0x%x done. current capid: 0x%x\n",
-			capid, capid_trim_read());
+			pr_info("original cap code: 0x%x\n", capid_trim_read());
+
+			capid_trim_write(capid);
+			mdelay(1);
+			pr_info("write capid 0x%x done. current capid: 0x%x\n",
+				capid, capid_trim_read());
+		} else {
+			ret = kstrtouint(buf, 0, &capid);
+			if (ret) {
+				pr_info("wrong format!\n");
+				return ret;
+			}
+
+			if (capid > 0xFF) {
+				pr_info("offset should be within(%x) %x!\n",
+					0xFF, capid);
+				return -EINVAL;
+			}
+
+			pr_info("original cap code: 0x%x\n", capid_trim_read());
+
+			pre_capid_trim_write();
+			capid_trim_write(capid);
+			mdelay(1);
+
+			pr_info("write capid 0x%x done. current capid: 0x%x\n",
+				capid, capid_trim_read());
+		}
+	} else {
+		pr_info("invalid parameter!\n");
+		return -EINVAL;
 	}
 
 	return count;
@@ -1529,10 +1584,52 @@ struct kobj_attribute *attr, char *buf)
 
 	return len;
 }
+
+static ssize_t clk_buf_heater_store(struct kobject *kobj,
+			struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	bool on;
+	const char *heater_buf;
+	int ret = 0;
+
+	heater_buf = &buf[0];
+	ret = kstrtobool(heater_buf, &on);
+	if (ret) {
+		pr_info("wrong format!\n");
+		return ret;
+	}
+
+	if (on)
+		pmic_config_interface(PMIC_RG_XO_HEATER_SEL_ADDR, 0x2,
+			PMIC_RG_XO_HEATER_SEL_MASK,
+			PMIC_RG_XO_HEATER_SEL_SHIFT);
+	else
+		pmic_config_interface(PMIC_RG_XO_HEATER_SEL_ADDR, 0x0,
+			PMIC_RG_XO_HEATER_SEL_MASK,
+			PMIC_RG_XO_HEATER_SEL_SHIFT);
+	return count;
+}
+
+static ssize_t clk_buf_heater_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	int len = 0;
+	uint32_t heater;
+
+	pmic_read_interface(PMIC_RG_XO_HEATER_SEL_ADDR, &heater,
+		PMIC_RG_XO_HEATER_SEL_MASK,
+		PMIC_RG_XO_HEATER_SEL_SHIFT);
+	len += snprintf(buf+len, PAGE_SIZE-len, "dcxo heater: 0x%x\n",
+					heater);
+
+	return len;
+}
+
 DEFINE_ATTR_RW(clk_buf_ctrl);
 DEFINE_ATTR_RW(clk_buf_debug);
 DEFINE_ATTR_RW(clk_buf_bblpm);
 DEFINE_ATTR_RW(clk_buf_capid);
+DEFINE_ATTR_RW(clk_buf_heater);
 
 static struct attribute *clk_buf_attrs[] = {
 	/* for clock buffer control */
@@ -1540,6 +1637,7 @@ static struct attribute *clk_buf_attrs[] = {
 	__ATTR_OF(clk_buf_debug),
 	__ATTR_OF(clk_buf_bblpm),
 	__ATTR_OF(clk_buf_capid),
+	__ATTR_OF(clk_buf_heater),
 
 	/* must */
 	NULL,
@@ -1638,9 +1736,9 @@ int clk_buf_dts_map(void)
 
 	node = of_find_compatible_node(NULL, NULL, "mediatek,sleep");
 	if (node)
-		spm_base = of_iomap(node, 0);
+		spm_base_for_clk = of_iomap(node, 0);
 	else {
-		pr_notice("%s can't findcompatible node for spm_base\n",
+		pr_notice("%s can't findcompatible node for spm_base_for_clk\n",
 			__func__);
 		return -1;
 	}
@@ -1654,7 +1752,7 @@ int clk_buf_dts_map(void)
 }
 #endif
 
-void clk_buf_init_pmic_clkbuf(void)
+void clk_buf_init_pmic_clkbuf(struct regmap *regmap)
 {
 	clk_buf_dump_clkbuf_log();
 }
@@ -1779,11 +1877,13 @@ void clk_buf_post_init(void)
 #endif
 #endif
 
-#ifndef CONFIG_MTK_NFC_CLKBUF_ENABLE
-	/* no need to use XO_NFC if no NFC */
+//XO_NFC as 6382 26M CLK, so can't disable clk for 6382 project
+/*#ifndef CONFIG_MTK_NFC_CLKBUF_ENABLE
 	clk_buf_ctrl_internal(CLK_BUF_NFC, CLK_BUF_FORCE_OFF);
 	CLK_BUF3_STATUS = CLOCK_BUFFER_DISABLE;
 #endif
+*/
+
 #ifdef CLKBUF_USE_BBLPM
 	if (bblpm_switch == 2) {
 		clk_buf_ctrl_bblpm_mask(CLK_BUF_BB_MD, true);

@@ -27,7 +27,7 @@
 #include <linux/sti/abc_common.h>
 #endif
 
-#define SM5451_DC_VERSION  "VD1"
+#define SM5451_DC_VERSION  "VF1"
 
 static int sm5451_read_reg(struct sm5451_charger *sm5451, u8 reg, u8 *dest)
 {
@@ -510,23 +510,34 @@ static int sm5451_prechg_enable(struct sm5451_charger *sm5451, bool enable)
 {
 	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5451);
 	int state = sm_dc_get_current_state(sm_dc);
+	u8 reg, i;
 
 	if (enable) {
 		if (state > SM_DC_EOC || sm5451_check_charging_enable(sm5451)) {
 			dev_info(sm5451->dev, "%s: charging state (state=%d)\n", __func__, state);
 		} else {
-			sm5451_write_reg(sm5451, SM5451_REG_PRECHG_MODE, 0xEA);
-			sm5451_write_reg(sm5451, SM5451_REG_PRECHG_MODE, 0xAE);
-			sm5451_write_reg(sm5451, SM5451_REG_CTRL_STM_0, 0x90);
-			sm5451_write_reg(sm5451, SM5451_REG_CTRL_STM_3, 0x80);
-			msleep(10);
 			dev_info(sm5451->dev, "%s: ON\n", __func__);
+			for (i = 0; i < 2; ++i) {
+				sm5451_write_reg(sm5451, SM5451_REG_PRECHG_MODE, 0xEA);
+				sm5451_write_reg(sm5451, SM5451_REG_PRECHG_MODE, 0xAE);
+				sm5451_write_reg(sm5451, SM5451_REG_CTRL_STM_0, 0xB0);
+				sm5451_write_reg(sm5451, SM5451_REG_CTRL_STM_3, 0x80);
+				sm5451_write_reg(sm5451, SM5451_REG_CTRL_STM_5, 0x08);
+				sm5451_write_reg(sm5451, SM5451_REG_CTRL_STM_2, 0x08);
+				sm5451_read_reg(sm5451, SM5451_REG_CTRL_STM_0, &reg);
+
+				if (reg != 0xB0)
+					sm5451_write_reg(sm5451, SM5451_REG_PRECHG_MODE, 0x00);
+				else
+					break;
+				dev_info(sm5451->dev, "%s: fail to pre-charging\n", __func__);
+			}
+			usleep_range(10000, 11000);
 		}
 	} else {
-		sm5451_write_reg(sm5451, SM5451_REG_PRECHG_MODE, 0x00);
 		dev_info(sm5451->dev, "%s: OFF\n", __func__);
+		sm5451_write_reg(sm5451, SM5451_REG_PRECHG_MODE, 0x00);
 	}
-
 	return 0;
 }
 
@@ -821,7 +832,7 @@ static int sm5451_chg_get_property(struct power_supply *psy,
 		adc_them = sm5451_convert_adc(sm5451, SM5451_ADC_THEM);
 		val->intval = adc_them;
 		break;
-#if defined(CONFIG_DUAL_BATTERY_CELL_SENSING)
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		val->intval = sm5451_convert_adc(sm5451, SM5451_ADC_VBAT);
 		break;

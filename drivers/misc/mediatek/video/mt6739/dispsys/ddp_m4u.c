@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include "ddp_m4u.h"
 #include "m4u.h"
@@ -53,7 +45,7 @@ enum DISP_MODULE_ENUM m4u_port_to_module(int port)
 	return DISP_MODULE_UNKNOWN;
 }
 
-enum m4u_callback_ret_t disp_m4u_callback(
+int disp_m4u_callback(
 		int port, unsigned long mva, void *data)
 {
 
@@ -92,7 +84,7 @@ int config_display_m4u_port(void)
 {
 	unsigned int i;
 	int ret = 0;
-	struct M4U_PORT_STRUCT sPort;
+	struct m4u_port_config_struct sPort;
 	char *m4u_usage = disp_helper_get_option(DISP_OPT_USE_M4U) ? "virtual"
 								   : "physical";
 

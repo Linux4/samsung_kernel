@@ -695,11 +695,9 @@ ecryptfs_write_tag_70_packet(char *dest, size_t *remaining_bytes,
 	int rc = 0;
 
 	s = kzalloc(sizeof(*s), GFP_KERNEL);
-	if (!s) {
-		printk(KERN_ERR "%s: Out of memory whilst trying to kmalloc "
-		       "[%zd] bytes of kernel memory\n", __func__, sizeof(*s));
+	if (!s)
 		return -ENOMEM;
-	}
+
 	(*packet_size) = 0;
 	rc = ecryptfs_find_auth_tok_for_sig(
 		&auth_tok_key,
@@ -745,7 +743,7 @@ ecryptfs_write_tag_70_packet(char *dest, size_t *remaining_bytes,
 	 *    separator, and then the filename */
 	s->max_packet_size = (ECRYPTFS_TAG_70_MAX_METADATA_SIZE
 			      + s->block_aligned_filename_size);
-	if (dest == NULL) {
+	if (!dest) {
 		(*packet_size) = s->max_packet_size;
 		goto out_unlock;
 	}
@@ -772,9 +770,6 @@ ecryptfs_write_tag_70_packet(char *dest, size_t *remaining_bytes,
 	s->block_aligned_filename = kzalloc(s->block_aligned_filename_size,
 					    GFP_KERNEL);
 	if (!s->block_aligned_filename) {
-		printk(KERN_ERR "%s: Out of kernel memory whilst attempting to "
-		       "kzalloc [%zd] bytes\n", __func__,
-		       s->block_aligned_filename_size);
 		rc = -ENOMEM;
 		goto out_unlock;
 	}
@@ -827,10 +822,6 @@ ecryptfs_write_tag_70_packet(char *dest, size_t *remaining_bytes,
 	s->hash_desc = kmalloc(sizeof(*s->hash_desc) +
 			       crypto_shash_descsize(s->hash_tfm), GFP_KERNEL);
 	if (!s->hash_desc) {
-		printk(KERN_ERR "%s: Out of kernel memory whilst attempting to "
-		       "kmalloc [%zd] bytes\n", __func__,
-		       sizeof(*s->hash_desc) +
-		       crypto_shash_descsize(s->hash_tfm));
 		rc = -ENOMEM;
 		goto out_release_free_unlock;
 	}
@@ -983,11 +974,9 @@ ecryptfs_parse_tag_70_packet(char **filename, size_t *filename_size,
 	(*filename_size) = 0;
 	(*filename) = NULL;
 	s = kzalloc(sizeof(*s), GFP_KERNEL);
-	if (!s) {
-		printk(KERN_ERR "%s: Out of memory whilst trying to kmalloc "
-		       "[%zd] bytes of kernel memory\n", __func__, sizeof(*s));
+	if (!s)
 		return -ENOMEM;
-	}
+
 	if (max_packet_size < ECRYPTFS_TAG_70_MIN_METADATA_SIZE) {
 		printk(KERN_WARNING "%s: max_packet_size is [%zd]; it must be "
 		       "at least [%d]\n", __func__, max_packet_size,
@@ -1075,9 +1064,6 @@ ecryptfs_parse_tag_70_packet(char **filename, size_t *filename_size,
 	s->decrypted_filename = kmalloc(s->block_aligned_filename_size,
 					GFP_KERNEL);
 	if (!s->decrypted_filename) {
-		printk(KERN_ERR "%s: Out of memory whilst attempting to "
-		       "kmalloc [%zd] bytes\n", __func__,
-		       s->block_aligned_filename_size);
 		rc = -ENOMEM;
 		goto out_unlock;
 	}
@@ -1157,9 +1143,6 @@ ecryptfs_parse_tag_70_packet(char **filename, size_t *filename_size,
 	}
 	(*filename) = kmalloc(((*filename_size) + 1), GFP_KERNEL);
 	if (!(*filename)) {
-		printk(KERN_ERR "%s: Out of memory whilst attempting to "
-		       "kmalloc [%zd] bytes\n", __func__,
-		       ((*filename_size) + 1));
 		rc = -ENOMEM;
 		goto out_free_unlock;
 	}
@@ -1393,7 +1376,7 @@ parse_tag_1_packet(struct ecryptfs_crypt_stat *crypt_stat,
 	if ((*new_auth_tok)->session_key.encrypted_key_size
 	    > ECRYPTFS_MAX_ENCRYPTED_KEY_BYTES) {
 		printk(KERN_WARNING "Tag 1 packet contains key larger "
-		       "than ECRYPTFS_MAX_ENCRYPTED_KEY_BYTES");
+		       "than ECRYPTFS_MAX_ENCRYPTED_KEY_BYTES\n");
 		rc = -EINVAL;
 		goto out_free;
 	}
@@ -1930,6 +1913,14 @@ int ecryptfs_parse_packet_set(struct ecryptfs_crypt_stat *crypt_stat,
 	size_t tag_11_packet_size;
 	struct key *auth_tok_key = NULL;
 	int rc = 0;
+#ifdef CONFIG_ECRYPTFS_FEK_INTEGRITY
+#ifdef CONFIG_SDP
+	char session_key_encryption_key[ECRYPTFS_MAX_KEY_BYTES];
+	int is_integrity_check_for_sdp = 0;
+	u8 ksize = 0;
+	int rz = 0;
+#endif
+#endif
 
 	INIT_LIST_HEAD(&auth_tok_list);
 	/* Parse the header to find as many packets as we can; these will be
@@ -2035,7 +2026,7 @@ find_next_matching_auth_tok:
 		candidate_auth_tok = &auth_tok_list_item->auth_tok;
 		if (unlikely(ecryptfs_verbosity > 0)) {
 			ecryptfs_printk(KERN_DEBUG,
-					"Considering cadidate auth tok:\n");
+					"Considering candidate auth tok:\n");
 			ecryptfs_dump_auth_tok(candidate_auth_tok);
 		}
 		rc = ecryptfs_get_auth_tok_sig(&candidate_auth_tok_sig,
@@ -2717,11 +2708,9 @@ int ecryptfs_add_keysig(struct ecryptfs_crypt_stat *crypt_stat, char *sig)
 	struct ecryptfs_key_sig *new_key_sig;
 
 	new_key_sig = kmem_cache_alloc(ecryptfs_key_sig_cache, GFP_KERNEL);
-	if (!new_key_sig) {
-		printk(KERN_ERR
-		       "Error allocating from ecryptfs_key_sig_cache\n");
+	if (!new_key_sig)
 		return -ENOMEM;
-	}
+
 	memcpy(new_key_sig->keysig, sig, ECRYPTFS_SIG_SIZE_HEX);
 	new_key_sig->keysig[ECRYPTFS_SIG_SIZE_HEX] = '\0';
 	/* Caller must hold keysig_list_mutex */
@@ -2737,16 +2726,12 @@ ecryptfs_add_global_auth_tok(struct ecryptfs_mount_crypt_stat *mount_crypt_stat,
 			     char *sig, u32 global_auth_tok_flags)
 {
 	struct ecryptfs_global_auth_tok *new_auth_tok;
-	int rc = 0;
 
 	new_auth_tok = kmem_cache_zalloc(ecryptfs_global_auth_tok_cache,
 					GFP_KERNEL);
-	if (!new_auth_tok) {
-		rc = -ENOMEM;
-		printk(KERN_ERR "Error allocating from "
-		       "ecryptfs_global_auth_tok_cache\n");
-		goto out;
-	}
+	if (!new_auth_tok)
+		return -ENOMEM;
+
 	memcpy(new_auth_tok->sig, sig, ECRYPTFS_SIG_SIZE_HEX);
 	new_auth_tok->flags = global_auth_tok_flags;
 	new_auth_tok->sig[ECRYPTFS_SIG_SIZE_HEX] = '\0';
@@ -2754,7 +2739,6 @@ ecryptfs_add_global_auth_tok(struct ecryptfs_mount_crypt_stat *mount_crypt_stat,
 	list_add(&new_auth_tok->mount_crypt_stat_list,
 		 &mount_crypt_stat->global_auth_tok_list);
 	mutex_unlock(&mount_crypt_stat->global_auth_tok_list_mutex);
-out:
-	return rc;
+	return 0;
 }
 

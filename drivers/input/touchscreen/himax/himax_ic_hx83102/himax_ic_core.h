@@ -117,7 +117,7 @@
 
 #define HX_0F_DEBUG
 
-#if defined(CONFIG_TOUCHSCREEN_HIMAX_INCELL)
+#if defined(CONFIG_TOUCHSCREEN_HX83102_INCELL)
 
 #if defined(HX_TP_PROC_GUEST_INFO)
 extern struct hx_guest_info *g_guest_info_data;

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __DSI_M4U_H__
 #define __DSI_M4U_H__
@@ -37,8 +29,7 @@ struct module_to_m4u_port_t {
 
 int module_to_m4u_port(enum DISP_MODULE_ENUM module);
 enum DISP_MODULE_ENUM m4u_port_to_module(int port);
-enum m4u_callback_ret_t disp_m4u_callback(
-		int port, unsigned long mva, void *data);
+int disp_m4u_callback(int port, unsigned long mva, void *data);
 void disp_m4u_init(void);
 int config_display_m4u_port(void);
 int disp_allocate_mva(struct m4u_client_t *client, enum DISP_MODULE_ENUM module,

@@ -973,4 +973,3 @@ struct LCM_DRIVER nt36672c_fhdp_dsi_vdo_90hz_shenchao_6382_lcm_drv = {
 	.ata_check = lcm_ata_check,
 	.update = lcm_update,
 };
-

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /* sma1303.c -- sma1303 ALSA SoC Audio driver
  *
- * r010_ps, 2020.05.18	- initial version  sma1303
+ * r013, 2020.05.06	- initial version  sma1303
  *
  * Copyright 2019 Silicon Mitus Corporation / Iron Device Corporation
  *
@@ -77,6 +77,7 @@ struct sma1303_priv {
 	bool force_amp_power_down;
 	bool stereo_two_chip;
 	bool impossible_bst_ctrl;
+	bool fault_reg_flag;
 	struct mutex lock;
 	struct delayed_work check_fault_work;
 	long check_fault_period;
@@ -99,8 +100,8 @@ PLL_MATCH("19.2MHz",   "24.343MHz", 19200000, 0x07, 0x47, 0x8B, 0x0A),
 PLL_MATCH("24.576MHz", "24.576MHz", 24576000, 0x07, 0x70, 0x8B, 0x0F),
 };
 
-static int sma1303_startup(struct snd_soc_codec *);
-static int sma1303_shutdown(struct snd_soc_codec *);
+static int sma1303_startup(struct snd_soc_component *);
+static int sma1303_shutdown(struct snd_soc_component *);
 
 /* Initial register value - {register, value} 2019.10.17 */
 static const struct reg_default sma1303_reg_def[] = {
@@ -231,9 +232,9 @@ static const DECLARE_TLV_DB_SCALE(sma1303_spk_tlv, -6000, 50, 0);
 static int bytes_ext_get(struct snd_kcontrol *kcontrol,
 			struct snd_ctl_elem_value *ucontrol, int reg)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	struct soc_bytes_ext *params = (void *)kcontrol->private_value;
 	unsigned int i, reg_val;
 	u8 *val;
@@ -254,9 +255,9 @@ static int bytes_ext_get(struct snd_kcontrol *kcontrol,
 static int bytes_ext_put(struct snd_kcontrol *kcontrol,
 			struct snd_ctl_elem_value *ucontrol, int reg)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	struct soc_bytes_ext *params = (void *)kcontrol->private_value;
 	void *data;
 	u8 *val;
@@ -271,7 +272,7 @@ static int bytes_ext_put(struct snd_kcontrol *kcontrol,
 	for (i = 0; i < params->max; i++) {
 		ret = regmap_write(sma1303->regmap, reg + i, *(val + i));
 		if (ret) {
-			dev_err(codec->dev,
+			dev_err(component->dev,
 				"configuration fail, register: %x ret: %d\n",
 				reg + i, ret);
 			kfree(data);
@@ -286,9 +287,9 @@ static int bytes_ext_put(struct snd_kcontrol *kcontrol,
 static int power_up_down_control_get(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 
 	ucontrol->value.integer.value[0] = sma1303->amp_power_status;
 
@@ -298,15 +299,15 @@ static int power_up_down_control_get(struct snd_kcontrol *kcontrol,
 static int power_up_down_control_put(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	if (sel && !(sma1303->force_amp_power_down))
-		sma1303_startup(codec);
+		sma1303_startup(component);
 	else
-		sma1303_shutdown(codec);
+		sma1303_shutdown(component);
 
 	return 0;
 }
@@ -314,9 +315,9 @@ static int power_up_down_control_put(struct snd_kcontrol *kcontrol,
 static int power_down_control_get(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 
 	ucontrol->value.integer.value[0] = sma1303->force_amp_power_down;
 
@@ -326,15 +327,15 @@ static int power_down_control_get(struct snd_kcontrol *kcontrol,
 static int power_down_control_put(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 
 	sma1303->force_amp_power_down = ucontrol->value.integer.value[0];
 
 	if (sma1303->force_amp_power_down) {
-		dev_info(codec->dev, "%s\n", "Force AMP Power Down");
-		sma1303_shutdown(codec);
+		dev_info(component->dev, "%s\n", "Force AMP Power Down");
+		sma1303_shutdown(component);
 	}
 
 	return 0;
@@ -353,9 +354,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_input_format_text),
 static int sma1303_input_format_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_01_INPUT1_CTRL1, &val);
@@ -367,9 +368,9 @@ static int sma1303_input_format_get(struct snd_kcontrol *kcontrol,
 static int sma1303_input_format_put(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -389,9 +390,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_in_audio_mode_text),
 static int sma1303_in_audio_mode_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_02_INPUT1_CTRL2, &val);
@@ -403,9 +404,9 @@ static int sma1303_in_audio_mode_get(struct snd_kcontrol *kcontrol,
 static int sma1303_in_audio_mode_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -427,9 +428,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_pcm_n_slot_text),
 static int sma1303_pcm_n_slot_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_03_INPUT1_CTRL3, &val);
@@ -441,9 +442,9 @@ static int sma1303_pcm_n_slot_get(struct snd_kcontrol *kcontrol,
 static int sma1303_pcm_n_slot_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -465,9 +466,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_pcm1_slot_text),
 static int sma1303_pcm1_slot_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_04_INPUT1_CTRL4, &val);
@@ -479,9 +480,9 @@ static int sma1303_pcm1_slot_get(struct snd_kcontrol *kcontrol,
 static int sma1303_pcm1_slot_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -502,9 +503,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_pcm2_slot_text),
 static int sma1303_pcm2_slot_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_04_INPUT1_CTRL4, &val);
@@ -516,9 +517,9 @@ static int sma1303_pcm2_slot_get(struct snd_kcontrol *kcontrol,
 static int sma1303_pcm2_slot_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -538,9 +539,9 @@ static const struct soc_enum sma1303_port_config_enum =
 static int sma1303_port_config_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_09_OUTPUT_CTRL, &val);
@@ -552,9 +553,9 @@ static int sma1303_port_config_get(struct snd_kcontrol *kcontrol,
 static int sma1303_port_config_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -575,9 +576,9 @@ static const struct soc_enum sma1303_port_out_sel_enum =
 static int sma1303_port_out_sel_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_09_OUTPUT_CTRL, &val);
@@ -589,9 +590,9 @@ static int sma1303_port_out_sel_get(struct snd_kcontrol *kcontrol,
 static int sma1303_port_out_sel_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -610,9 +611,9 @@ static const struct soc_enum sma1303_bst_off_slope_enum =
 static int sma1303_bst_off_slope_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_0B_BST_TEST, &val);
@@ -624,9 +625,9 @@ static int sma1303_bst_off_slope_get(struct snd_kcontrol *kcontrol,
 static int sma1303_bst_off_slope_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -646,9 +647,9 @@ static const struct soc_enum sma1303_set_ocp_h_enum =
 static int sma1303_set_ocp_h_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_0C_BST_TEST1, &val);
@@ -660,9 +661,9 @@ static int sma1303_set_ocp_h_get(struct snd_kcontrol *kcontrol,
 static int sma1303_set_ocp_h_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -682,10 +683,9 @@ static const struct soc_enum sma1303_spk_off_slope_enum =
 static int sma1303_spk_off_slope_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
-
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_0D_SPK_TEST, &val);
@@ -697,10 +697,9 @@ static int sma1303_spk_off_slope_get(struct snd_kcontrol *kcontrol,
 static int sma1303_spk_off_slope_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
-
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -721,9 +720,9 @@ static const struct soc_enum sma1303_vol_slope_enum =
 static int sma1303_vol_slope_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_0E_MUTE_VOL_CTRL, &val);
@@ -735,9 +734,9 @@ static int sma1303_vol_slope_get(struct snd_kcontrol *kcontrol,
 static int sma1303_vol_slope_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -758,9 +757,9 @@ static const struct soc_enum sma1303_mute_slope_enum =
 static int sma1303_mute_slope_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_0E_MUTE_VOL_CTRL, &val);
@@ -772,9 +771,9 @@ static int sma1303_mute_slope_get(struct snd_kcontrol *kcontrol,
 static int sma1303_mute_slope_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -795,9 +794,9 @@ static const struct soc_enum sma1303_spkmode_enum =
 static int sma1303_spkmode_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_10_SYSTEM_CTRL1, &val);
@@ -809,9 +808,9 @@ static int sma1303_spkmode_get(struct snd_kcontrol *kcontrol,
 static int sma1303_spkmode_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -836,9 +835,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_input_gain_text),
 static int sma1303_input_gain_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_12_SYSTEM_CTRL3, &val);
@@ -850,9 +849,9 @@ static int sma1303_input_gain_get(struct snd_kcontrol *kcontrol,
 static int sma1303_input_gain_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -871,9 +870,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_input_r_gain_text),
 static int sma1303_input_r_gain_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_12_SYSTEM_CTRL3, &val);
@@ -885,9 +884,9 @@ static int sma1303_input_r_gain_get(struct snd_kcontrol *kcontrol,
 static int sma1303_input_r_gain_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -906,9 +905,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_spk_hysfb_text), sma1303_spk_hysfb_text);
 static int sma1303_spk_hysfb_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_14_MODULATOR, &val);
@@ -920,9 +919,9 @@ static int sma1303_spk_hysfb_get(struct snd_kcontrol *kcontrol,
 static int sma1303_spk_hysfb_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -979,9 +978,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_lr_delay_text), sma1303_lr_delay_text);
 static int sma1303_lr_delay_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_36_PROTECTION, &val);
@@ -993,9 +992,9 @@ static int sma1303_lr_delay_get(struct snd_kcontrol *kcontrol,
 static int sma1303_lr_delay_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1014,9 +1013,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_otp_mode_text), sma1303_otp_mode_text);
 static int sma1303_otp_mode_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_36_PROTECTION, &val);
@@ -1028,9 +1027,9 @@ static int sma1303_otp_mode_get(struct snd_kcontrol *kcontrol,
 static int sma1303_otp_mode_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap, SMA1303_36_PROTECTION, 0x03, sel);
@@ -1100,9 +1099,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_trm_lvl_text),
 static int sma1303_trm_lvl_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_8E_PLL_CTRL, &val);
@@ -1114,9 +1113,9 @@ static int sma1303_trm_lvl_get(struct snd_kcontrol *kcontrol,
 static int sma1303_trm_lvl_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 	int device_info, otp_data;
 
@@ -1161,9 +1160,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_attack_lvl_text),
 static int sma1303_attack_lvl_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_91_CLASS_G_CTRL, &val);
@@ -1175,9 +1174,9 @@ static int sma1303_attack_lvl_get(struct snd_kcontrol *kcontrol,
 static int sma1303_attack_lvl_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1199,9 +1198,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_release_time_text),
 static int sma1303_release_time_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_91_CLASS_G_CTRL, &val);
@@ -1213,9 +1212,9 @@ static int sma1303_release_time_get(struct snd_kcontrol *kcontrol,
 static int sma1303_release_time_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1237,9 +1236,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_flt_vdd_gain_text),
 static int sma1303_flt_vdd_gain_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_92_FDPEC_CTRL, &val);
@@ -1251,9 +1250,9 @@ static int sma1303_flt_vdd_gain_get(struct snd_kcontrol *kcontrol,
 static int sma1303_flt_vdd_gain_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	sma1303->flt_vdd_gain_status = sel;
@@ -1275,9 +1274,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_trm_osc_text), sma1303_trm_osc_text);
 static int sma1303_trm_osc_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_94_BOOST_CTRL1, &val);
@@ -1289,9 +1288,9 @@ static int sma1303_trm_osc_get(struct snd_kcontrol *kcontrol,
 static int sma1303_trm_osc_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1310,9 +1309,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_trm_rmp_text), sma1303_trm_rmp_text);
 static int sma1303_trm_rmp_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_94_BOOST_CTRL1, &val);
@@ -1324,9 +1323,9 @@ static int sma1303_trm_rmp_get(struct snd_kcontrol *kcontrol,
 static int sma1303_trm_rmp_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1346,9 +1345,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_trm_ocl_text), sma1303_trm_ocl_text);
 static int sma1303_trm_ocl_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_95_BOOST_CTRL2, &val);
@@ -1360,9 +1359,9 @@ static int sma1303_trm_ocl_get(struct snd_kcontrol *kcontrol,
 static int sma1303_trm_ocl_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1382,9 +1381,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_trm_comp_i_text),
 static int sma1303_trm_comp_i_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_95_BOOST_CTRL2, &val);
@@ -1396,9 +1395,9 @@ static int sma1303_trm_comp_i_get(struct snd_kcontrol *kcontrol,
 static int sma1303_trm_comp_i_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1417,9 +1416,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_trm_comp_p_text),
 static int sma1303_trm_comp_p_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_95_BOOST_CTRL2, &val);
@@ -1431,9 +1430,9 @@ static int sma1303_trm_comp_p_get(struct snd_kcontrol *kcontrol,
 static int sma1303_trm_comp_p_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1455,9 +1454,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_trm_dt_text), sma1303_trm_dt_text);
 static int sma1303_trm_dt_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_96_BOOST_CTRL3, &val);
@@ -1469,9 +1468,9 @@ static int sma1303_trm_dt_get(struct snd_kcontrol *kcontrol,
 static int sma1303_trm_dt_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1489,9 +1488,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_trm_slw_text), sma1303_trm_slw_text);
 static int sma1303_trm_slw_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_96_BOOST_CTRL3, &val);
@@ -1503,9 +1502,9 @@ static int sma1303_trm_slw_get(struct snd_kcontrol *kcontrol,
 static int sma1303_trm_slw_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1525,9 +1524,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_trm_vbst_text), sma1303_trm_vbst_text);
 static int sma1303_trm_vbst_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_97_BOOST_CTRL4, &val);
@@ -1539,13 +1538,13 @@ static int sma1303_trm_vbst_get(struct snd_kcontrol *kcontrol,
 static int sma1303_trm_vbst_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	if (sma1303->impossible_bst_ctrl)
-		dev_info(codec->dev,
+		dev_info(component->dev,
 		"Trimming of boost voltage does not change on 'impossible-bst-ctrl' property\n");
 	else {
 		sma1303->bst_vol_lvl_status = sel;
@@ -1566,9 +1565,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_trm_tmin_text), sma1303_trm_tmin_text);
 static int sma1303_trm_tmin_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_97_BOOST_CTRL4, &val);
@@ -1580,9 +1579,9 @@ static int sma1303_trm_tmin_get(struct snd_kcontrol *kcontrol,
 static int sma1303_trm_tmin_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1601,9 +1600,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_pll_div_text), sma1303_pll_div_text);
 static int sma1303_pll_div_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_A2_TOP_MAN1, &val);
@@ -1615,9 +1614,9 @@ static int sma1303_pll_div_get(struct snd_kcontrol *kcontrol,
 static int sma1303_pll_div_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1638,9 +1637,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_o_format_text), sma1303_o_format_text);
 static int sma1303_o_format_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_A4_TOP_MAN3, &val);
@@ -1652,9 +1651,9 @@ static int sma1303_o_format_get(struct snd_kcontrol *kcontrol,
 static int sma1303_o_format_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1672,9 +1671,9 @@ SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(sma1303_sck_rate_text), sma1303_sck_rate_text);
 static int sma1303_sck_rate_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_A4_TOP_MAN3, &val);
@@ -1686,9 +1685,9 @@ static int sma1303_sck_rate_get(struct snd_kcontrol *kcontrol,
 static int sma1303_sck_rate_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1708,9 +1707,9 @@ static const struct soc_enum sma1303_tdm_slot1_rx_enum =
 static int sma1303_tdm_slot1_rx_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_A5_TDM1, &val);
@@ -1722,9 +1721,9 @@ static int sma1303_tdm_slot1_rx_get(struct snd_kcontrol *kcontrol,
 static int sma1303_tdm_slot1_rx_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1743,9 +1742,9 @@ static const struct soc_enum sma1303_tdm_slot2_rx_enum =
 static int sma1303_tdm_slot2_rx_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_A5_TDM1, &val);
@@ -1757,9 +1756,9 @@ static int sma1303_tdm_slot2_rx_get(struct snd_kcontrol *kcontrol,
 static int sma1303_tdm_slot2_rx_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1779,9 +1778,9 @@ static const struct soc_enum sma1303_tdm_slot1_tx_enum =
 static int sma1303_tdm_slot1_tx_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_A6_TDM2, &val);
@@ -1793,9 +1792,9 @@ static int sma1303_tdm_slot1_tx_get(struct snd_kcontrol *kcontrol,
 static int sma1303_tdm_slot1_tx_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1814,9 +1813,9 @@ static const struct soc_enum sma1303_tdm_slot2_tx_enum =
 static int sma1303_tdm_slot2_tx_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_A6_TDM2, &val);
@@ -1828,9 +1827,9 @@ static int sma1303_tdm_slot2_tx_get(struct snd_kcontrol *kcontrol,
 static int sma1303_tdm_slot2_tx_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -1850,9 +1849,9 @@ static const struct soc_enum sma1303_clk_mon_time_sel_enum =
 static int sma1303_clk_mon_time_sel_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int val;
 
 	regmap_read(sma1303->regmap, SMA1303_A7_CLK_MON, &val);
@@ -1864,9 +1863,9 @@ static int sma1303_clk_mon_time_sel_get(struct snd_kcontrol *kcontrol,
 static int sma1303_clk_mon_time_sel_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_kcontrol_codec(kcontrol);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int sel = (int)ucontrol->value.integer.value[0];
 
 	regmap_update_bits(sma1303->regmap,
@@ -2164,17 +2163,17 @@ SOC_SINGLE("Limiter Oper Range(1:en_0:dis)",
 		SMA1303_A7_CLK_MON, 3, 1, 0),
 };
 
-static int sma1303_startup(struct snd_soc_codec *codec)
+static int sma1303_startup(struct snd_soc_component *component)
 {
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 
 	if (sma1303->amp_power_status) {
-		dev_info(codec->dev, "%s : %s\n",
+		dev_info(component->dev, "%s : %s\n",
 			__func__, "Already AMP Power on");
 		return 0;
 	}
 
-	dev_info(codec->dev, "%s : TRM_%s, FLT_%s\n",
+	dev_info(component->dev, "%s : TRM_%s, FLT_%s\n",
 	__func__, sma1303_trm_vbst_text[sma1303->bst_vol_lvl_status],
 	sma1303_flt_vdd_gain_text[sma1303->flt_vdd_gain_status]);
 
@@ -2213,17 +2212,17 @@ static int sma1303_startup(struct snd_soc_codec *codec)
 	return 0;
 }
 
-static int sma1303_shutdown(struct snd_soc_codec *codec)
+static int sma1303_shutdown(struct snd_soc_component *component)
 {
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 
 	if (!(sma1303->amp_power_status)) {
-		dev_info(codec->dev, "%s : %s\n",
+		dev_info(component->dev, "%s : %s\n",
 			__func__, "Already AMP Shutdown");
 		return 0;
 	}
 
-	dev_info(codec->dev, "%s\n", __func__);
+	dev_info(component->dev, "%s\n", __func__);
 
 	regmap_update_bits(sma1303->regmap, SMA1303_0E_MUTE_VOL_CTRL,
 			SPK_MUTE_MASK, SPK_MUTE);
@@ -2253,16 +2252,16 @@ static int sma1303_shutdown(struct snd_soc_codec *codec)
 static int sma1303_clk_supply_event(struct snd_soc_dapm_widget *w,
 			struct snd_kcontrol *kcontrol, int event)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_dapm_to_codec(w->dapm);
+	struct snd_soc_component *component =
+		snd_soc_dapm_to_component(w->dapm);
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
-		dev_info(codec->dev, "%s : PRE_PMU\n", __func__);
+		dev_info(component->dev, "%s : PRE_PMU\n", __func__);
 	break;
 
 	case SND_SOC_DAPM_POST_PMD:
-		dev_info(codec->dev, "%s : POST_PMD\n", __func__);
+		dev_info(component->dev, "%s : POST_PMD\n", __func__);
 	break;
 	}
 
@@ -2272,33 +2271,33 @@ static int sma1303_clk_supply_event(struct snd_soc_dapm_widget *w,
 static int sma1303_dac_event(struct snd_soc_dapm_widget *w,
 			struct snd_kcontrol *kcontrol, int event)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_dapm_to_codec(w->dapm);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_dapm_to_component(w->dapm);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
-		dev_info(codec->dev, "%s : PRE_PMU\n", __func__);
+		dev_info(component->dev, "%s : PRE_PMU\n", __func__);
 
 		if (sma1303->force_amp_power_down == false)
-			sma1303_startup(codec);
+			sma1303_startup(component);
 
 		break;
 
 	case SND_SOC_DAPM_POST_PMU:
-		dev_info(codec->dev, "%s : POST_PMU\n", __func__);
+		dev_info(component->dev, "%s : POST_PMU\n", __func__);
 
 		break;
 
 	case SND_SOC_DAPM_PRE_PMD:
-		dev_info(codec->dev, "%s : PRE_PMD\n", __func__);
+		dev_info(component->dev, "%s : PRE_PMD\n", __func__);
 
-		sma1303_shutdown(codec);
+		sma1303_shutdown(component);
 
 		break;
 
 	case SND_SOC_DAPM_POST_PMD:
-		dev_info(codec->dev, "%s : POST_PMD\n", __func__);
+		dev_info(component->dev, "%s : POST_PMD\n", __func__);
 
 		break;
 	}
@@ -2309,13 +2308,13 @@ static int sma1303_dac_event(struct snd_soc_dapm_widget *w,
 static int sma1303_dac_feedback_event(struct snd_soc_dapm_widget *w,
 			struct snd_kcontrol *kcontrol, int event)
 {
-	struct snd_soc_codec *codec =
-		snd_soc_dapm_to_codec(w->dapm);
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_dapm_to_component(w->dapm);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
-		dev_info(codec->dev, "%s : DAC feedback ON\n", __func__);
+		dev_info(component->dev, "%s : DAC feedback ON\n", __func__);
 		regmap_update_bits(sma1303->regmap,
 			SMA1303_09_OUTPUT_CTRL,
 				PORT_CONFIG_MASK|PORT_OUT_SEL_MASK,
@@ -2329,7 +2328,7 @@ static int sma1303_dac_feedback_event(struct snd_soc_dapm_widget *w,
 		break;
 
 	case SND_SOC_DAPM_PRE_PMD:
-		dev_info(codec->dev, "%s : DAC feedback OFF\n", __func__);
+		dev_info(component->dev, "%s : DAC feedback OFF\n", __func__);
 		regmap_update_bits(sma1303->regmap,
 			SMA1303_09_OUTPUT_CTRL, PORT_OUT_SEL_MASK,
 				OUT_SEL_DISABLE);
@@ -2362,18 +2361,18 @@ static const struct snd_soc_dapm_route sma1303_audio_map[] = {
 {"DAC_FEEDBACK", NULL, "SDO"},
 };
 
-static int sma1303_setup_pll(struct snd_soc_codec *codec,
+static int sma1303_setup_pll(struct snd_soc_component *component,
 		unsigned int bclk)
 {
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 
 	int i = 0;
 
-	dev_info(codec->dev, "%s : BCLK = %dHz\n",
-		__func__, bclk);
+	dev_info(component->dev, "%s : BCLK = %d kHz\n",
+		__func__, bclk/1000);
 
 	if (sma1303->sys_clk_id == SMA1303_PLL_CLKIN_MCLK) {
-		dev_info(codec->dev, "%s : MCLK is not supported\n",
+		dev_info(component->dev, "%s : MCLK is not supported\n",
 		__func__);
 	} else if (sma1303->sys_clk_id == SMA1303_PLL_CLKIN_BCLK) {
 		/* PLL operation, PLL Clock, External Clock,
@@ -2404,15 +2403,13 @@ static int sma1303_setup_pll(struct snd_soc_codec *codec,
 static int sma1303_dai_hw_params_amp(struct snd_pcm_substream *substream,
 		struct snd_pcm_hw_params *params, struct snd_soc_dai *dai)
 {
-	struct snd_soc_codec *codec = dai->codec;
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component = dai->component;
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	unsigned int input_format = 0;
 	unsigned int bclk = params_rate(params) * params_physical_width(params)
-		* params_channels(params);
+			* params_channels(params);
 
-	dev_info(codec->dev, "%s : rate = %d : bit size = %d : channel =%d\n",
-			__func__, params_rate(params), params_width(params),
-			params_channels(params));
+	dev_info(component->dev, "%s : rate = %d : bit size = %d : channel = %d\n", __func__, params_rate(params), params_width(params), params_channels(params));
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 
@@ -2423,11 +2420,11 @@ static int sma1303_dai_hw_params_amp(struct snd_pcm_substream *substream,
 
 			if (sma1303->last_bclk != bclk) {
 				if (sma1303->amp_power_status) {
-					sma1303_shutdown(codec);
-					sma1303_setup_pll(codec, bclk);
-					sma1303_startup(codec);
+					sma1303_shutdown(component);
+					sma1303_setup_pll(component, bclk);
+					sma1303_startup(component);
 				} else
-					sma1303_setup_pll(codec, bclk);
+					sma1303_setup_pll(component, bclk);
 
 				sma1303->last_bclk = bclk;
 			}
@@ -2456,7 +2453,7 @@ static int sma1303_dai_hw_params_amp(struct snd_pcm_substream *substream,
 		break;
 
 		default:
-			dev_err(codec->dev, "%s not support rate : %d\n",
+			dev_err(component->dev, "%s not support rate : %d\n",
 				__func__, params_rate(params));
 
 		return -EINVAL;
@@ -2467,19 +2464,19 @@ static int sma1303_dai_hw_params_amp(struct snd_pcm_substream *substream,
 		switch (params_format(params)) {
 
 		case SNDRV_PCM_FORMAT_S16_LE:
-			dev_info(codec->dev,
+			dev_info(component->dev,
 				"%s set format SNDRV_PCM_FORMAT_S16_LE\n",
 				__func__);
 			break;
 
 		case SNDRV_PCM_FORMAT_S24_LE:
-			dev_info(codec->dev,
+			dev_info(component->dev,
 				"%s set format SNDRV_PCM_FORMAT_S24_LE\n",
 				__func__);
 			break;
 
 		default:
-			dev_err(codec->dev,
+			dev_err(component->dev,
 				"%s not support data bit : %d\n", __func__,
 						params_format(params));
 			return -EINVAL;
@@ -2515,7 +2512,7 @@ static int sma1303_dai_hw_params_amp(struct snd_pcm_substream *substream,
 		break;
 
 	default:
-		dev_err(codec->dev,
+		dev_err(component->dev,
 			"%s not support data bit : %d\n", __func__,
 					params_format(params));
 		return -EINVAL;
@@ -2530,10 +2527,10 @@ static int sma1303_dai_hw_params_amp(struct snd_pcm_substream *substream,
 static int sma1303_dai_set_sysclk_amp(struct snd_soc_dai *dai,
 				int clk_id, unsigned int freq, int dir)
 {
-	struct snd_soc_codec *codec = dai->codec;
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component = dai->component;
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 
-	dev_info(codec->dev, "%s\n", __func__);
+	dev_info(component->dev, "%s\n", __func__);
 
 	switch (clk_id) {
 	case SMA1303_EXTERNAL_CLOCK_19_2:
@@ -2545,7 +2542,7 @@ static int sma1303_dai_set_sysclk_amp(struct snd_soc_dai *dai,
 	case SMA1303_PLL_CLKIN_BCLK:
 		break;
 	default:
-		dev_err(codec->dev, "Invalid clk id: %d\n", clk_id);
+		dev_err(component->dev, "Invalid clk id: %d\n", clk_id);
 		return -EINVAL;
 	}
 	sma1303->sys_clk_id = clk_id;
@@ -2554,22 +2551,22 @@ static int sma1303_dai_set_sysclk_amp(struct snd_soc_dai *dai,
 
 static int sma1303_dai_digital_mute(struct snd_soc_dai *dai, int mute)
 {
-	struct snd_soc_codec *codec = dai->codec;
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component = dai->component;
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 
 	if (!(sma1303->amp_power_status)) {
-		dev_info(codec->dev, "%s : %s\n",
+		dev_info(component->dev, "%s : %s\n",
 			__func__, "Already AMP Shutdown");
 		return 0;
 	}
 
 	if (mute) {
-		dev_info(codec->dev, "%s : %s\n", __func__, "MUTE");
+		dev_info(component->dev, "%s : %s\n", __func__, "MUTE");
 
 		regmap_update_bits(sma1303->regmap, SMA1303_0E_MUTE_VOL_CTRL,
 					SPK_MUTE_MASK, SPK_MUTE);
 	} else {
-		dev_info(codec->dev, "%s : %s\n", __func__, "UNMUTE");
+		dev_info(component->dev, "%s : %s\n", __func__, "UNMUTE");
 
 		regmap_update_bits(sma1303->regmap, SMA1303_0E_MUTE_VOL_CTRL,
 					SPK_MUTE_MASK, SPK_UNMUTE);
@@ -2581,13 +2578,13 @@ static int sma1303_dai_digital_mute(struct snd_soc_dai *dai, int mute)
 static int sma1303_dai_set_fmt_amp(struct snd_soc_dai *dai,
 					unsigned int fmt)
 {
-	struct snd_soc_codec *codec  = dai->codec;
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component  = dai->component;
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
 
 	case SND_SOC_DAIFMT_CBS_CFS:
-		dev_info(codec->dev,
+		dev_info(component->dev,
 				"%s : %s\n", __func__, "I2S slave mode");
 		/* I2S/PCM clock mode - slave mode */
 		regmap_update_bits(sma1303->regmap, SMA1303_01_INPUT1_CTRL1,
@@ -2596,7 +2593,7 @@ static int sma1303_dai_set_fmt_amp(struct snd_soc_dai *dai,
 		break;
 
 	case SND_SOC_DAIFMT_CBM_CFM:
-		dev_info(codec->dev,
+		dev_info(component->dev,
 				"%s : %s\n", __func__, "I2S master mode");
 		/* I2S/PCM clock mode - master mode */
 		regmap_update_bits(sma1303->regmap, SMA1303_01_INPUT1_CTRL1,
@@ -2604,7 +2601,7 @@ static int sma1303_dai_set_fmt_amp(struct snd_soc_dai *dai,
 		break;
 
 	default:
-		dev_err(codec->dev,
+		dev_err(component->dev,
 				"Unsupported MASTER/SLAVE : 0x%x\n", fmt);
 		return -EINVAL;
 	}
@@ -2618,7 +2615,7 @@ static int sma1303_dai_set_fmt_amp(struct snd_soc_dai *dai,
 		break;
 
 	default:
-		dev_err(codec->dev,
+		dev_err(component->dev,
 				"Unsupported I2S FORMAT : 0x%x\n", fmt);
 		return -EINVAL;
 	}
@@ -2659,39 +2656,39 @@ static struct snd_soc_dai_driver sma1303_dai[] = {
 }
 };
 
-static int sma1303_set_bias_level(struct snd_soc_codec *codec,
+static int sma1303_set_bias_level(struct snd_soc_component *component,
 				enum snd_soc_bias_level level)
 {
 	switch (level) {
 	case SND_SOC_BIAS_ON:
 
-		dev_info(codec->dev, "%s\n", "SND_SOC_BIAS_ON");
-		sma1303_startup(codec);
+		dev_info(component->dev, "%s\n", "SND_SOC_BIAS_ON");
+		sma1303_startup(component);
 
 		break;
 
 	case SND_SOC_BIAS_PREPARE:
 
-		dev_info(codec->dev, "%s\n", "SND_SOC_BIAS_PREPARE");
+		dev_info(component->dev, "%s\n", "SND_SOC_BIAS_PREPARE");
 
 		break;
 
 	case SND_SOC_BIAS_STANDBY:
 
-		dev_info(codec->dev, "%s\n", "SND_SOC_BIAS_STANDBY");
+		dev_info(component->dev, "%s\n", "SND_SOC_BIAS_STANDBY");
 
 		break;
 
 	case SND_SOC_BIAS_OFF:
 
-		dev_info(codec->dev, "%s\n", "SND_SOC_BIAS_OFF");
-		sma1303_shutdown(codec);
+		dev_info(component->dev, "%s\n", "SND_SOC_BIAS_OFF");
+		sma1303_shutdown(component);
 
 		break;
 	}
 
 	/* Don't use codec->dapm.bias_level,
-	 * use snd_soc_codec_get_dapm() if it is needed
+	 * use snd_soc_component_get_dapm() if it is needed
 	 */
 
 	return 0;
@@ -2703,6 +2700,7 @@ static void sma1303_check_fault_worker(struct work_struct *work)
 		container_of(work, struct sma1303_priv, check_fault_work.work);
 	int ret;
 	unsigned int over_temp, ocp_val, uvlo_val;
+	bool fault_val_flag = false;
 
 	mutex_lock(&sma1303->lock);
 
@@ -2754,6 +2752,7 @@ static void sma1303_check_fault_worker(struct work_struct *work)
 				SMA1303_0A_SPK_VOL, sma1303->cur_vol + 6);
 
 		sma1303->tsdw_cnt++;
+		fault_val_flag = true;
 	} else if (sma1303->tsdw_cnt) {
 		regmap_write(sma1303->regmap,
 			SMA1303_0A_SPK_VOL, sma1303->init_vol);
@@ -2764,22 +2763,27 @@ static void sma1303_check_fault_worker(struct work_struct *work)
 	if (~over_temp & OT2_OK_STATUS) {
 		dev_crit(sma1303->dev,
 			"%s : OT2(Over Temperature Level 2)\n", __func__);
+		fault_val_flag = true;
 	}
 	if (ocp_val & OCP_SPK_STATUS) {
 		dev_crit(sma1303->dev,
 			"%s : OCP_SPK(Over Current Protect SPK)\n", __func__);
+		fault_val_flag = true;
 	}
 	if (ocp_val & OCP_BST_STATUS) {
 		dev_crit(sma1303->dev,
 			"%s : OCP_BST(Over Current Protect Boost)\n", __func__);
+		fault_val_flag = true;
 	}
 	if ((ocp_val & CLK_MON_STATUS) && (sma1303->amp_power_status)) {
 		dev_crit(sma1303->dev,
 			"%s : CLK_FAULT(No clock input)\n", __func__);
+		fault_val_flag = true;
 	}
 	if (uvlo_val & UVLO_BST_STATUS) {
 		dev_crit(sma1303->dev,
 			"%s : UVLO(Under Voltage Lock Out)\n", __func__);
+		fault_val_flag = true;
 	}
 
 	if ((over_temp != sma1303->last_over_temp) ||
@@ -2802,20 +2806,99 @@ static void sma1303_check_fault_worker(struct work_struct *work)
 				&sma1303->check_fault_work,
 					CHECK_PERIOD_TIME * HZ);
 	}
+
+	if (fault_val_flag && sma1303->fault_reg_flag) {
+		int i, j = 0;
+		char reg[256];
+		char reg_str[12][50] = { };
+		bool state;
+
+		regmap_bulk_read(sma1303->regmap,
+			SMA1303_00_SYSTEM_CTRL, reg, ARRAY_SIZE(reg));
+		dev_crit(sma1303->dev, "\n");
+		dev_crit(sma1303->dev, "sma1303 register values\n");
+		dev_crit(sma1303->dev, "\t   0\t1\t2\t3\t4\t5\t6\t7\t8\t9\tA\tB\tC\tD\tE\tF\n");
+		dev_crit(sma1303->dev, "\t  ---------------------------------------------------------------------------------------------------------\n");
+		for (i = 0; i <= SMA1303_A7_CLK_MON; i++) {
+			switch (i) {
+			case SMA1303_00_SYSTEM_CTRL ... SMA1303_04_INPUT1_CTRL4:
+			case SMA1303_09_OUTPUT_CTRL
+				... SMA1303_0E_MUTE_VOL_CTRL:
+			case SMA1303_10_SYSTEM_CTRL1
+				... SMA1303_12_SYSTEM_CTRL3:
+			case SMA1303_14_MODULATOR ... SMA1303_1B_BASS_SPK7:
+			case SMA1303_23_COMP_LIM1 ... SMA1303_26_COMP_LIM4:
+			case SMA1303_33_SDM_CTRL ... SMA1303_34_OTP_DATA1:
+			case SMA1303_36_PROTECTION  ... SMA1303_38_OTP_TRM0:
+			case SMA1303_3B_TEST1  ... SMA1303_3F_ATEST2:
+			case SMA1303_8B_PLL_POST_N ... SMA1303_92_FDPEC_CTRL:
+			case SMA1303_94_BOOST_CTRL1 ... SMA1303_97_BOOST_CTRL4:
+			case SMA1303_A0_PAD_CTRL0 ... SMA1303_A7_CLK_MON:
+				state = true;
+				break;
+			default:
+				state = false;
+			}
+			if (state == false)
+				sprintf(reg_str[j], "%sX\t", reg_str[j]);
+			else
+				sprintf(reg_str[j], "%s%02X\t",
+					reg_str[j], reg[i]);
+
+			if (i%16 == 15 || i == SMA1303_A7_CLK_MON) {
+				dev_crit(sma1303->dev, "%X  |%s",
+					j, reg_str[j]);
+				j++;
+			}
+		}
+
+		for (i = SMA1303_FA_STATUS1-10;
+				i <= SMA1303_FF_DEVICE_INDEX; i++) {
+			switch (i) {
+			case SMA1303_FA_STATUS1 ... SMA1303_FB_STATUS2:
+			case SMA1303_FF_DEVICE_INDEX:
+				state = true;
+				break;
+			default:
+				state = false;
+			}
+			if (state == false)
+				sprintf(reg_str[j], "%sX\t", reg_str[j]);
+			else
+				sprintf(reg_str[j], "%s%02X\t",
+					reg_str[j], reg[i]);
+
+			if (i == SMA1303_FF_DEVICE_INDEX) {
+				dev_crit(sma1303->dev, "F  |%s",  reg_str[j]);
+				j++;
+			}
+		}
+		sma1303->fault_reg_flag = false;
+	}
+
+	if (!(~over_temp & OT1_OK_STATUS) && !(~over_temp & OT2_OK_STATUS)
+			&& !(ocp_val & OCP_SPK_STATUS)
+			&& !(ocp_val & OCP_BST_STATUS)
+			&& !(ocp_val & CLK_MON_STATUS)
+			&& !(uvlo_val & UVLO_BST_STATUS)) {
+		fault_val_flag = false;
+		sma1303->fault_reg_flag = true;
+	}
+
 	mutex_unlock(&sma1303->lock);
 }
 
 #ifdef CONFIG_PM
-static int sma1303_suspend(struct snd_soc_codec *codec)
+static int sma1303_suspend(struct snd_soc_component *component)
 {
-	dev_info(codec->dev, "%s\n", __func__);
+	dev_info(component->dev, "%s\n", __func__);
 
 	return 0;
 }
 
-static int sma1303_resume(struct snd_soc_codec *codec)
+static int sma1303_resume(struct snd_soc_component *component)
 {
-	dev_info(codec->dev, "%s\n", __func__);
+	dev_info(component->dev, "%s\n", __func__);
 
 	return 0;
 }
@@ -2824,13 +2907,13 @@ static int sma1303_resume(struct snd_soc_codec *codec)
 #define sma1303_resume NULL
 #endif
 
-static int sma1303_reset(struct snd_soc_codec *codec)
+static int sma1303_reset(struct snd_soc_component *component)
 {
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 	int ret;
 	unsigned int status, otp_stat;
 
-	dev_info(codec->dev, "%s\n", __func__);
+	dev_info(component->dev, "%s\n", __func__);
 
 	/* I2C Register Reset */
 	regmap_update_bits(sma1303->regmap,
@@ -2845,9 +2928,9 @@ static int sma1303_reset(struct snd_soc_codec *codec)
 		sma1303->rev_num = status & REV_NUM_STATUS;
 
 	if (sma1303->rev_num == REV_NUM_TV0)
-		dev_info(sma1303->dev, "SMA1303 Trimming Version 0\n");
+		dev_info(component->dev, "SMA1303 Trimming Version 0\n");
 	else if (sma1303->rev_num == REV_NUM_TV1)
-		dev_info(sma1303->dev, "SMA1303 Trimming Version 1\n");
+		dev_info(component->dev, "SMA1303 Trimming Version 1\n");
 
 	regmap_read(sma1303->regmap, SMA1303_FB_STATUS2, &otp_stat);
 
@@ -2855,9 +2938,9 @@ static int sma1303_reset(struct snd_soc_codec *codec)
 		((otp_stat & 0x0E) == OTP_STAT_OK_0)) ||
 		((sma1303->rev_num != REV_NUM_TV0) &&
 		((otp_stat & 0x0C) == OTP_STAT_OK_1)))
-		dev_info(sma1303->dev, "SMA1303 OTP Status Successful\n");
+		dev_info(component->dev, "SMA1303 OTP Status Successful\n");
 	else
-		dev_info(sma1303->dev, "SMA1303 OTP Status Fail\n");
+		dev_info(component->dev, "SMA1303 OTP Status Fail\n");
 
 	regmap_write(sma1303->regmap, SMA1303_00_SYSTEM_CTRL, 0x80);
 	/* Volume control (-0.5dB) */
@@ -2951,26 +3034,26 @@ static int sma1303_reset(struct snd_soc_codec *codec)
 			SMA1303_A2_TOP_MAN1, PLL_LOCK_SKIP_MASK,
 			PLL_LOCK_DISABLE);
 
-	dev_info(sma1303->dev,
+	dev_info(component->dev,
 		"%s init_vol is 0x%x\n", __func__, sma1303->init_vol);
 
 	return 0;
 }
 
-static int sma1303_probe(struct snd_soc_codec *codec)
+static int sma1303_probe(struct snd_soc_component *component)
 {
 	struct snd_soc_dapm_context *dapm =
-		snd_soc_codec_get_dapm(codec);
+		snd_soc_component_get_dapm(component);
 	char *dapm_widget_str = NULL;
 	int prefix_len = 0, str_max = 30;
 
-	dev_info(codec->dev, "%s\n", __func__);
+	dev_info(component->dev, "%s\n", __func__);
 
-	if (codec->component.name_prefix != NULL) {
-		dev_info(codec->dev, "%s : component name prefix - %s\n",
-			__func__, codec->component.name_prefix);
+	if (component->name_prefix != NULL) {
+		dev_info(component->dev, "%s : component name prefix - %s\n",
+			__func__, component->name_prefix);
 
-		prefix_len = strlen(codec->component.name_prefix);
+		prefix_len = strlen(component->name_prefix);
 		dapm_widget_str = kzalloc(prefix_len + str_max, GFP_KERNEL);
 
 		if (!dapm_widget_str) {
@@ -2978,14 +3061,14 @@ static int sma1303_probe(struct snd_soc_codec *codec)
 			return -ENOMEM;
 		}
 
-		strcpy(dapm_widget_str, codec->component.name_prefix);
+		strcpy(dapm_widget_str, component->name_prefix);
 		strcat(dapm_widget_str, " Playback");
 
 		snd_soc_dapm_ignore_suspend(dapm, dapm_widget_str);
 
 		memset(dapm_widget_str + prefix_len, 0, str_max);
 
-		strcpy(dapm_widget_str, codec->component.name_prefix);
+		strcpy(dapm_widget_str, component->name_prefix);
 		strcat(dapm_widget_str, " SPK");
 
 		snd_soc_dapm_ignore_suspend(dapm, dapm_widget_str);
@@ -2998,37 +3081,32 @@ static int sma1303_probe(struct snd_soc_codec *codec)
 
 	snd_soc_dapm_sync(dapm);
 
-	sma1303_reset(codec);
+	sma1303_reset(component);
 
 	return 0;
 }
 
-static int sma1303_remove(struct snd_soc_codec *codec)
+static void sma1303_remove(struct snd_soc_component *component)
 {
-	struct sma1303_priv *sma1303 = snd_soc_codec_get_drvdata(codec);
+	struct sma1303_priv *sma1303 = snd_soc_component_get_drvdata(component);
 
-	dev_info(codec->dev, "%s\n", __func__);
+	dev_info(component->dev, "%s\n", __func__);
 
 	cancel_delayed_work_sync(&sma1303->check_fault_work);
-	sma1303_set_bias_level(codec, SND_SOC_BIAS_OFF);
-
-	return 0;
+	sma1303_set_bias_level(component, SND_SOC_BIAS_OFF);
 }
 
-static const struct snd_soc_codec_driver soc_codec_dev_sma1303 = {
+static const struct snd_soc_component_driver sma1303_component = {
 	.probe = sma1303_probe,
 	.remove = sma1303_remove,
 	.suspend = sma1303_suspend,
 	.resume = sma1303_resume,
-	.component_driver = {
-		.controls = sma1303_snd_controls,
-		.num_controls = ARRAY_SIZE(sma1303_snd_controls),
-		.dapm_widgets = sma1303_dapm_widgets,
-		.num_dapm_widgets = ARRAY_SIZE(sma1303_dapm_widgets),
-		.dapm_routes = sma1303_audio_map,
-		.num_dapm_routes = ARRAY_SIZE(sma1303_audio_map),
-	},
-	.idle_bias_off = true,
+	.controls = sma1303_snd_controls,
+	.num_controls = ARRAY_SIZE(sma1303_snd_controls),
+	.dapm_widgets = sma1303_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(sma1303_dapm_widgets),
+	.dapm_routes = sma1303_audio_map,
+	.num_dapm_routes = ARRAY_SIZE(sma1303_audio_map),
 };
 
 const struct regmap_config sma_i2c_regmap = {
@@ -3131,15 +3209,13 @@ int sma1303_i2c_probe(struct i2c_client *client,
 	u32 value;
 	unsigned int device_info;
 
-	dev_info(&client->dev, "%s is here. Driver version REV010_PS\n", __func__);
+	dev_info(&client->dev, "%s is here. Driver version REV013\n", __func__);
 
 	sma1303 = devm_kzalloc(&client->dev, sizeof(struct sma1303_priv),
 							GFP_KERNEL);
 
-	if (!sma1303) {
-		devm_kfree(&client->dev, sma1303);
+	if (!sma1303)
 		return -ENOMEM;
-	}
 
 	sma1303->regmap = devm_regmap_init_i2c(client, &sma_i2c_regmap);
 
@@ -3242,18 +3318,20 @@ int sma1303_i2c_probe(struct i2c_client *client,
 	sma1303->force_amp_power_down = false;
 	sma1303->amp_power_status = false;
 	sma1303->check_fault_status = true;
-
+	sma1303->fault_reg_flag = true;
 	sma1303->pll_matches = sma1303_pll_matches;
 	sma1303->num_of_pll_matches =
 		ARRAY_SIZE(sma1303_pll_matches);
 
-	ret = snd_soc_register_codec(&client->dev,
-		&soc_codec_dev_sma1303, sma1303_dai, ARRAY_SIZE(sma1303_dai));
+	ret = devm_snd_soc_register_component(&client->dev,
+			&sma1303_component, sma1303_dai, 1);
 
 	if (ret) {
-		dev_err(&client->dev, "Failed to register codec");
-		devm_kfree(&client->dev, sma1303);
-		snd_soc_unregister_codec(&client->dev);
+		dev_err(&client->dev, "Failed to register component");
+		snd_soc_unregister_component(&client->dev);
+
+		if (sma1303)
+			devm_kfree(&client->dev, sma1303);
 
 		return ret;
 	}
@@ -3280,15 +3358,15 @@ int sma1303_i2c_remove(struct i2c_client *client)
 
 	cancel_delayed_work_sync(&sma1303->check_fault_work);
 
+	snd_soc_unregister_component(&client->dev);
+
 	if (sma1303)
 		devm_kfree(&client->dev, sma1303);
-
-	snd_soc_unregister_codec(&client->dev);
 
 	return 0;
 }
 
-/*
+/* 
  * register amp i2c driver at mtk common spk amp driver
  */
 #if 0

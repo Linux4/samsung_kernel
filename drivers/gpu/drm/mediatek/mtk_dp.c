@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2020 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -3791,7 +3783,7 @@ static int mtk_dp_bind(struct device *dev, struct device *master, void *data)
 
 	mtk_dp->enc.possible_crtcs = 2;
 
-	drm_mode_connector_attach_encoder(&mtk_dp->conn, &mtk_dp->enc);
+	drm_connector_attach_encoder(&mtk_dp->conn, &mtk_dp->enc);
 
 	g_mtk_dp = mtk_dp;
 

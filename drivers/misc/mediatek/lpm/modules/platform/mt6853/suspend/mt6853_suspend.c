@@ -28,6 +28,7 @@
 #include <linux/sched/signal.h>
 #include <linux/spinlock.h>
 #include <uapi/linux/sched/types.h>
+#include <mt6853_spm_comm.h>
 
 #include <mtk_lpm.h>
 #include <mtk_lpm_module.h>
@@ -39,11 +40,6 @@
 #include <uapi/linux/sched/types.h>
 #include "mt6853.h"
 #include "mt6853_suspend.h"
-
-#if IS_ENABLED(CONFIG_SEC_PM)
-#include <linux/regulator/consumer.h>
-extern void sec_clock_debug_print_enabled(void);
-#endif /* CONFIG_SEC_PM */
 
 unsigned int mt6853_suspend_status;
 static struct cpumask abort_cpumask;
@@ -174,10 +170,7 @@ static int __mt6853_suspend_prompt(int type, int cpu,
 
 	printk_deferred("[name:spm&][%s:%d] - prepare suspend enter\n",
 			__func__, __LINE__);
-#if IS_ENABLED(CONFIG_SEC_PM)
-	regulator_debug_print_enabled();
-	sec_clock_debug_print_enabled();
-#endif /* CONFIG_SEC_PM */
+
 	ret = mt6853_suspend_common_enter(&mt6853_suspend_status);
 
 	if (ret)

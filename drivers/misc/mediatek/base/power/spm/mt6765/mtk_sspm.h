@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2016 MediaTek Inc.
  */
 
 #ifndef __MTK_SSPM_H__
@@ -59,6 +51,8 @@ struct spm_data {
 int spm_to_sspm_command(u32 cmd, struct spm_data *spm_d);
 int spm_to_sspm_command_async(u32 cmd, struct spm_data *spm_d);
 int spm_to_sspm_command_async_wait(u32 cmd);
+void sspm_timesync_ts_get(unsigned int *ts_h, unsigned int *ts_l);
+void sspm_timesync_clk_get(unsigned int *clk_h, unsigned int *clk_l);
 
 
 #endif /* __MTK_SSPM_H__ */

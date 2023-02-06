@@ -72,14 +72,13 @@ struct mipi_dsi_lcd_common {
 	struct drm_encoder		*encoder;
 
 	struct mipi_dsi_lcd_config	config[LCD_CONFIG_MAX];
-
-	int error;
 };
 
 struct mipi_dsi_lcd_driver {
 	struct platform_device	*pdev;
 	struct device_driver	driver;
 	int	(*match)(void *maybe_unused);
+	int	(*setup)(struct platform_device *p);
 	int	(*probe)(struct platform_device *p);
 	int	(*init)(struct platform_device *p);
 	int	(*exit)(struct platform_device *p);

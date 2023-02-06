@@ -1,14 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2020 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2022 MediaTek Inc.
+ * Author Harry.Lee <Harry.Lee@mediatek.com>
  */
 
 #ifndef __MTK_NOTIFY_H
@@ -32,6 +25,16 @@
 
 enum {
 	MTK_FPS_CHANGE = 0,
+	MTK_POWER_MODE_CHANGE = 1,
+	MTK_POWER_MODE_DONE = 2,
+};
+
+enum {
+	DISP_NONE = -1,
+	DISP_OFF = 0,
+	DISP_ON = 1,
+	DISP_DOZE = 2,
+	DISP_DOZE_SUSPEND = 3,
 };
 
 struct mtk_uevent_dev {
@@ -44,6 +47,7 @@ struct mtk_uevent_dev {
 struct mtk_notifier {
 	struct notifier_block notifier;
 	int fps;
+	int power_mode;
 };
 
 int uevent_dev_register(struct mtk_uevent_dev *sdev);

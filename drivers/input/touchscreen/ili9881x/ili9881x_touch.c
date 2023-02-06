@@ -1218,12 +1218,6 @@ void ili_debug_mode_report_point(u8 *buf, int len)
 	u32 xop = 0, yop = 0;
 	static u8 p[MAX_TOUCH_NUM];
 	s16 proximity_cdc_info[11][18];
-	u8 shift = 0;
-
-	if (ilits->chip->id == ILI7807_CHIP)//for 7806S or 7807V
-		shift = 144;
-	else//for 9882N
-		shift = 0;
 
 	if (ilits->started_prox_intensity) {
 		for (i = 0; i < 11; i++) {
@@ -1232,13 +1226,13 @@ void ili_debug_mode_report_point(u8 *buf, int len)
 					((buf[30 + ((i * 18) + j) * 2] << 8) | (buf[1 + 30 + ((i * 18) + j) * 2]));
 			}
 		}
-		ilits->proximity_thd = ((buf[1234 + shift] << 8) | (buf[1 + 1234 + shift]));
-		ilits->proximity_sum = ((buf[1236 + shift] << 8) | (buf[1 + 1236 + shift]));
+		ilits->proximity_thd = ((buf[1234] << 8) | (buf[1 + 1234]));
+		ilits->proximity_sum = ((buf[1236] << 8) | (buf[1 + 1236]));
 		ILI_DBG("prox_intensity thd:%d,sum:%d\n", ilits->proximity_thd, ilits->proximity_sum);
 	} else {
 		memset(ilits->sensitivity_info, 0x0, sizeof(ilits->sensitivity_info));
 		for (i = 0, j = 1212; i < SENSITIVITY_POINT_CNT; i++, j = j+2)
-			ilits->sensitivity_info[i] = ((buf[j + shift] << 8) | (buf[1 + j + shift]));
+			ilits->sensitivity_info[i] = ((buf[j] << 8) | (buf[1 + j]));
 
 		ILI_DBG("sensitivity_info [0]:%u,[1]:%u,[2]:%u,[3]:%u,[4]:%u,[5]:%u,[6]:%u,[7]:%u,[8]:%u\n",
 			ilits->sensitivity_info[0], ilits->sensitivity_info[1], ilits->sensitivity_info[2],
@@ -1250,7 +1244,7 @@ void ili_debug_mode_report_point(u8 *buf, int len)
 
 	ilits->finger = 0;
 #if AXIS_PACKET
-	ilits->palmflag = ((buf[1338 + shift] & 0x08) >> 3);
+	ilits->palmflag = ((buf[1338] & 0x08) >> 3);
 	ILI_DBG("palmflag = %d\n", ilits->palmflag);
 
 	if (ilits->prev_palmflag != ilits->palmflag) {
@@ -1278,11 +1272,11 @@ void ili_debug_mode_report_point(u8 *buf, int len)
 		}
 
 #if AXIS_PACKET
-		axis_info[ilits->finger].degree = buf[(5 * i) + (1286 + shift)];
+		axis_info[ilits->finger].degree = buf[(5 * i) + (1286)];
 		axis_info[ilits->finger].width_major =
-			(((buf[(5 * i) + 1 + (1286 + shift)]) << 8) | (buf[(5 * i) + 2 + (1286 + shift)]));
+			(((buf[(5 * i) + 1 + (1286)]) << 8) | (buf[(5 * i) + 2 + (1286)]));
 		axis_info[ilits->finger].width_minor =
-			(((buf[(5 * i) + 3 + (1286 + shift)]) << 8) | (buf[(5 * i) + 4 + (1286 + shift)]));
+			(((buf[(5 * i) + 3 + (1286)]) << 8) | (buf[(5 * i) + 4 + (1286)]));
 		ILI_DBG("finger = %d, degree = %d, width_major = %d, width_minor = %d\n",
 			ilits->finger, axis_info[ilits->finger].degree, axis_info[ilits->finger].width_major,
 			axis_info[ilits->finger].width_minor);
@@ -1431,10 +1425,6 @@ int ili_incell_power_control(int onoff)
 		} else {
 			input_err(true, ilits->dev, "%s: lcd_rst is already disabled\n", __func__);
 		}
-
-		if ((ilits->chip->id == ILI7807_CHIP) || (ilits->chip->id == ILI9882_CHIP))
-			usleep_range(5 * 1000, 5 * 1000);
-
 		if (regulator_is_enabled(ilits->lcd_bl_en)) {
 			ret = regulator_disable(ilits->lcd_bl_en);
 			if (ret)
@@ -1442,9 +1432,6 @@ int ili_incell_power_control(int onoff)
 		} else {
 			input_err(true, ilits->dev, "%s: lcd_bl_en is already disabled\n", __func__);
 		}
-
-		if (ilits->chip->id == ILI9882_CHIP)
-			usleep_range(1500, 2000);
 
 		if (regulator_is_enabled(ilits->lcd_vddi)) {
 			ret = regulator_disable(ilits->lcd_vddi);
@@ -1538,7 +1525,6 @@ void ili_report_gesture_mode(u8 *buf, int len)
 		break;
 	case GESTURE_UP:
 		input_info(true, ilits->dev, "%s spay event\n", __func__);
-		ilits->scrub_id = SPONGE_EVENT_TYPE_SPAY;
 		input_report_key(input, KEY_BLACK_UI_GESTURE, 1);
 		input_sync(input);
 		input_report_key(input, KEY_BLACK_UI_GESTURE, 0);

@@ -1,22 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #include <linux/semaphore.h>
 #include <linux/completion.h>
 #include "mdla.h"
-#include "gsm.h"
 #include "mdla_ioctl.h"
-#include "mdla_ion.h"
 #include "mdla_trace.h"
 #include "mdla_debug.h"
 #include "mdla_plat_api.h"
@@ -313,10 +303,7 @@ static int mdla_sw_multi_devices_init(void)
 			&mdla_devices[i].hw_lock,
 			&hw_lock_key[i],
 			hwlock_name[i]);
-		mdla_devices[i].power_timer.data = i;
-		mdla_devices[i].power_timer.function =
-				mdla_power_timeup;
-		init_timer(&mdla_devices[i].power_timer);
+		timer_setup(&mdla_devices[i].power_timer, mdla_power_timeup, 0);
 		INIT_WORK(&mdla_devices[i].power_off_work,
 				mdla_devices[i].power_pdn_work);
 		mdla_devices[i].mdla_power_status = 0;
@@ -346,10 +333,6 @@ static int mdla_probe(struct platform_device *pdev)
 		dev_info(dev, "register mdla power fail\n");
 		return -EINVAL;
 	}
-
-#ifdef CONFIG_MTK_MDLA_ION
-	mdla_ion_init();
-#endif
 
 #if defined(CONFIG_FPGA_EARLY_PORTING)
 	for (i = 0; i < mdla_max_num_core; i++)
@@ -435,9 +418,6 @@ static int mdla_remove(struct platform_device *pdev)
 		iounmap(mdla_reg_control[i].apu_mdla_biu_top);
 	}
 
-#ifdef CONFIG_MTK_MDLA_ION
-	mdla_ion_exit();
-#endif
 	platform_set_drvdata(pdev, NULL);
 
 	mdla_drv_debug("%s done -\n", __func__);
@@ -508,18 +488,28 @@ int apusys_mdla_handler(int type,
 	struct apusys_cmd_hnd *cmd_hnd = hnd;
 	struct mdla_dev *mdla_info = (struct mdla_dev *)dev->private;
 
+
 	if (dev->dev_type == APUSYS_DEVICE_MDLA) {
 		mdla_info = (struct mdla_dev *)dev->private;
-		if (mdla_info->mdlaid >= mdla_max_num_core)
+		if (mdla_info->mdlaid >= mdla_max_num_core) {
+			mdla_error("%s:%d illegal mdla id\n",
+				__func__, __LINE__);
 			return -EINVAL;
+		}
 	} else if (dev->dev_type == APUSYS_DEVICE_MDLA_RT) {
 		mdla_info = (struct mdla_dev *)dev->private;
-		if (mdla_info->mdlaid >= mdla_max_num_core)
+		if (mdla_info->mdlaid >= mdla_max_num_core) {
+			mdla_error("%s:%d illegal mdla id\n",
+				__func__, __LINE__);
 			return -EINVAL;
+		}
 		if (type != APUSYS_CMD_EXECUTE)
 			return 0;
-	} else
+	} else {
+		mdla_error("%s:%d illegal device type\n",
+			__func__, __LINE__);
 		return -EINVAL;
+	}
 
 	switch (type) {
 	case APUSYS_CMD_POWERON:
@@ -549,11 +539,13 @@ int apusys_mdla_handler(int type,
 			mdla_info,
 			cmd_hnd,
 			priority);
+
 		break;
 	}
 	case APUSYS_CMD_PREEMPT:
-		return -EINVAL;
 	default:
+		mdla_error("%s:%d illegal cmd type\n",
+			__func__, __LINE__);
 		return -EINVAL;
 	}
 	return retval;

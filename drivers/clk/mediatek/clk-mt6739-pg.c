@@ -1,16 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2014 MediaTek Inc.
- * Author: James Liao <jamesjj.liao@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -19,6 +10,11 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/clkdev.h>
+#include <linux/module.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
+#include <linux/of_device.h>
+#include <linux/platform_device.h>
 
 #include "clk-mtk-v1.h"
 #include "clk-mt6739-pg.h"
@@ -1495,7 +1491,7 @@ struct clk *mt_clk_register_power_gate(const char *name,
 {
 	struct mt_power_gate *pg;
 	struct clk *clk;
-	struct clk_init_data init;
+	struct clk_init_data init = {};
 
 	pg = kzalloc(sizeof(*pg), GFP_KERNEL);
 	if (!pg)
@@ -1576,7 +1572,7 @@ struct mtk_power_gate scp_clks[] __initdata = {
 	PGATE2(SCP_SYS_VEN, pg_ven, NULL, mm_sel, NULL, SYS_VEN),
 };
 #endif
-static void __init init_clk_scpsys(void __iomem *infracfg_reg,
+static int  init_clk_scpsys(void __iomem *infracfg_reg,
 					void __iomem *spm_reg,
 					struct clk_onecell_data *clk_data)
 {
@@ -1618,6 +1614,7 @@ static void __init init_clk_scpsys(void __iomem *infracfg_reg,
 		pr_debug("[CCF] %s: pgate %3d: %s\n", __func__, i, pg->name);
 #endif				/* MT_CCF_DEBUG */
 	}
+	return 0;
 }
 
 /*
@@ -1703,20 +1700,27 @@ void isp_mtcmos_patch(int on)
 
 }
 
-static void __init mt_scpsys_init(struct device_node *node)
+static int  clk_mt6739_scpsys_probe(struct platform_device *pdev)
 {
+	struct device_node *node = pdev->dev.of_node;
 	struct clk_onecell_data *clk_data;
 	void __iomem *infracfg_reg;
 	void __iomem *spm_reg;
 	int r;
+	pr_notice("%s: start\n", __func__);
 
+	if (!node) {
+		pr_err("%s: node is null\n", __func__);
+		return -EINVAL;
+	}
+	
 	infracfg_reg = get_reg(node, 0);
 	spm_reg = get_reg(node, 1);
 	infra_base = get_reg(node, 2);
 
 	if (!infracfg_reg || !spm_reg) {
 		pr_debug("clk-pg-mt6739: missing reg\n");
-		return;
+		return -EINVAL;
 	}
 
 /*
@@ -1725,7 +1729,8 @@ static void __init mt_scpsys_init(struct device_node *node)
 */
 
 	clk_data = alloc_clk_data(NR_SYSS);
-
+	if (!clk_data)
+		return -ENOMEM;
 	init_clk_scpsys(infracfg_reg, spm_reg, clk_data);
 
 	r = of_clk_add_provider(node, of_clk_src_onecell_get, clk_data);
@@ -1751,9 +1756,11 @@ static void __init mt_scpsys_init(struct device_node *node)
 	spm_mtcmos_ctrl_vcodec(STA_POWER_ON);
 #endif
 #endif				/* !MT_CCF_BRINGUP */
+	pr_notice("%s: done\n", __func__);
+	return r;
 }
 
-CLK_OF_DECLARE_DRIVER(mtk_pg_regs, "mediatek,scpsys", mt_scpsys_init);
+//CLK_OF_DECLARE_DRIVER(mtk_pg_regs, "mediatek,scpsys", mt_scpsys_init);
 
 int mtcmos_mfg_series_on(void)
 {
@@ -1818,6 +1825,33 @@ void mtcmos_force_off(void)
 	spm_mtcmos_ctrl_dis(STA_POWER_DOWN);
 }
 #endif
+
+static const struct of_device_id of_match_clk_mt6739_scpsys[] = {
+	{ .compatible = "mediatek,scpsys", },
+	{}
+};
+
+static struct platform_driver clk_mt6739_scpsys_drv = {
+	.probe = clk_mt6739_scpsys_probe,
+	.driver = {
+		.name = "clk-mt6739-scpsys",
+		.owner = THIS_MODULE,
+		.of_match_table = of_match_clk_mt6739_scpsys,
+	},
+};
+
+static int __init clk_mt6739_scpsys_init(void)
+{
+	return platform_driver_register(&clk_mt6739_scpsys_drv);
+}
+
+static void __exit clk_mt6739_scpsys_exit(void)
+{
+}
+
+
+
+
 
 #if CLK_DEBUG
 /*
@@ -2021,4 +2055,13 @@ static void __exit debug_exit(void)
 module_init(debug_init);
 module_exit(debug_exit);
 
-#endif				/* CLK_DEBUG */
+#endif
+/* CLK_DEBUG */
+
+arch_initcall(clk_mt6739_scpsys_init);
+module_exit(clk_mt6739_scpsys_exit);
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("MTK");
+MODULE_DESCRIPTION("MTK CCF  Driver");
+
+

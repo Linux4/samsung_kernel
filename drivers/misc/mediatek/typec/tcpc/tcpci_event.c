@@ -1,16 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * TCPC Interface for event handler
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/kthread.h>
@@ -93,28 +83,6 @@ static void __pd_free_event(
 		__pd_free_msg(tcpc, pd_event->pd_msg);
 		pd_event->pd_msg = NULL;
 	}
-}
-
-bool __pd_is_msg_empty(struct tcpc_device *tcpc)
-{
-	int i;
-	uint8_t mask;
-
-	for (i = 0, mask = 1; i < PD_MSG_BUF_SIZE; i++, mask <<= 1) {
-		if ((mask & tcpc->pd_msg_buffer_allocated) != 0)
-			return false;
-	}
-	return true;
-}
-
-bool pd_is_msg_empty(struct tcpc_device *tcpc)
-{
-	bool empty;
-
-	mutex_lock(&tcpc->access_lock);
-	empty = __pd_is_msg_empty(tcpc);
-	mutex_unlock(&tcpc->access_lock);
-	return empty;
 }
 
 void pd_free_msg(struct tcpc_device *tcpc, struct pd_msg *pd_msg)
@@ -753,13 +721,21 @@ bool pd_put_cc_attached_event(
 		struct tcpc_device *tcpc, uint8_t type)
 {
 	bool ret = false;
+#ifdef CONFIG_USB_POWER_DELIVERY
+#ifdef CONFIG_USB_PD_WAIT_BC12
+	int rv = 0;
+	union power_supply_propval val = {.intval = 0};
+#endif /* CONFIG_USB_PD_WAIT_BC12 */
+#endif /* CONFIG_USB_POWER_DELIVERY */
 
 	mutex_lock(&tcpc->access_lock);
 
 #ifdef CONFIG_USB_POWER_DELIVERY
 #ifdef CONFIG_USB_PD_WAIT_BC12
+	rv = power_supply_get_property(tcpc->chg_psy,
+		POWER_SUPPLY_PROP_USB_TYPE, &val);
 	if ((type == TYPEC_ATTACHED_SNK || type == TYPEC_ATTACHED_DBGACC_SNK) &&
-		mt_get_charger_type() == CHARGER_UNKNOWN) {
+		(rv < 0 || val.intval == POWER_SUPPLY_USB_TYPE_UNKNOWN)) {
 		tcpc->pd_wait_bc12_count = 1;
 		tcpc_enable_timer(tcpc, TYPEC_RT_TIMER_PD_WAIT_BC12);
 		mutex_unlock(&tcpc->access_lock);
@@ -779,10 +755,6 @@ bool pd_put_cc_attached_event(
 
 void pd_put_cc_detached_event(struct tcpc_device *tcpc)
 {
-#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
-	unsigned int boot_mode = get_boot_mode();
-#endif /* CONFIG_KPOC_GET_SOURCE_CAP_TRY */
-
 	mutex_lock(&tcpc->access_lock);
 
 #ifdef CONFIG_USB_POWER_DELIVERY
@@ -794,14 +766,17 @@ void pd_put_cc_detached_event(struct tcpc_device *tcpc)
 
 #ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
 	if ((tcpc->pd_port.error_recovery_once == 1) &&
-		(boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT ||
-		boot_mode == LOW_POWER_OFF_CHARGING_BOOT))
-		tcpci_notify_hard_reset_state(
-			tcpc, TCP_ERROR_RECOVERY_KPOC);
+		(tcpc->bootmode == KERNEL_POWER_OFF_CHARGING_BOOT ||
+		tcpc->bootmode == LOW_POWER_OFF_CHARGING_BOOT))
+		tcpci_notify_hard_reset_state(tcpc,
+			TCP_ERROR_RECOVERY_KPOC);
 	else
-#endif /* CONFIG_KPOC_GET_SOURCE_CAP_TRY */
 		tcpci_notify_hard_reset_state(
 			tcpc, TCP_HRESET_RESULT_FAIL);
+#else
+	tcpci_notify_hard_reset_state(
+		tcpc, TCP_HRESET_RESULT_FAIL);
+#endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
 
 	__pd_event_buf_reset(tcpc, TCP_DPM_RET_DROP_CC_DETACH);
 	__pd_put_hw_event(tcpc, PD_HW_CC_DETACHED);
@@ -949,7 +924,7 @@ bool pd_put_pd_msg_event(struct tcpc_device *tcpc, struct pd_msg *pd_msg)
 #ifdef CONFIG_USB_PD_RETRY_CRC_DISCARD
 	if (discard_pending) {
 		tcpc_disable_timer(tcpc, PD_TIMER_DISCARD);
-		pd_put_hw_event(tcpc, PD_HW_TX_DISCARD);
+		pd_put_hw_event(tcpc, PD_HW_TX_FAILED);
 	}
 #endif	/* CONFIG_USB_PD_RETRY_CRC_DISCARD */
 
@@ -1109,20 +1084,17 @@ void pd_notify_pe_wait_vbus_once(struct pd_port *pd_port, int wait_evt)
 void pd_notify_pe_error_recovery(struct pd_port *pd_port)
 {
 	struct tcpc_device *tcpc = pd_port->tcpc;
-#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
-	unsigned int boot_mode = get_boot_mode();
-#endif /* CONFIG_KPOC_GET_SOURCE_CAP_TRY */
 
 	mutex_lock(&tcpc->access_lock);
 
 #ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
 	if (pd_port->error_recovery_once == 1 &&
-		(boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT ||
-		boot_mode == LOW_POWER_OFF_CHARGING_BOOT))
+		(tcpc->bootmode == KERNEL_POWER_OFF_CHARGING_BOOT ||
+		tcpc->bootmode == LOW_POWER_OFF_CHARGING_BOOT))
 		tcpci_notify_hard_reset_state(
 			tcpc, TCP_ERROR_RECOVERY_KPOC);
 	else
-#endif /* CONFIG_KPOC_GET_SOURCE_CAP_TRY */
+#endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
 		tcpci_notify_hard_reset_state(
 			tcpc, TCP_HRESET_RESULT_FAIL);
 
@@ -1232,8 +1204,7 @@ void pd_notify_pe_cancel_pr_swap(struct pd_port *pd_port)
 	if (!tcpci_check_vbus_valid(tcpc)
 		&& (pd_port->request_v >= 4000)) {
 		TCPC_DBG("cancel_pr_swap_vbus=0\n");
-		pd_put_tcp_pd_event(pd_port, TCP_DPM_EVT_ERROR_RECOVERY,
-				    PD_TCP_FROM_PE);
+		pd_put_tcp_pd_event(pd_port, TCP_DPM_EVT_ERROR_RECOVERY);
 	}
 }
 
@@ -1253,18 +1224,6 @@ void pd_noitfy_pe_bist_mode(struct pd_port *pd_port, uint8_t mode)
 	mutex_lock(&tcpc->access_lock);
 	tcpc->pd_bist_mode = mode;
 	mutex_unlock(&tcpc->access_lock);
-}
-
-bool pd_is_pe_wait_pd_transmit_done(struct pd_port *pd_port)
-{
-	bool tx_wait;
-	struct tcpc_device *tcpc = pd_port->tcpc;
-
-	mutex_lock(&tcpc->access_lock);
-	tx_wait = tcpc->pd_transmit_state == PD_TX_STATE_WAIT_CRC_PD;
-	mutex_unlock(&tcpc->access_lock);
-
-	return tx_wait;
 }
 
 void pd_notify_pe_transmit_msg(
@@ -1381,11 +1340,7 @@ static int tcpc_event_thread_fn(void *data)
 	/* set_user_nice(current, -20); */
 	/* current->flags |= PF_NOFREEZE;*/
 
-	ret = sched_setscheduler(current, SCHED_FIFO, &sch_param);
-	if (ret != 0) {
-		PD_ERR("sched_setscheduler() error!\n");
-		return ret;
-	}
+	sched_setscheduler(current, SCHED_FIFO, &sch_param);
 
 	while (true) {
 		ret = wait_event_interruptible(tcpc->event_wait_que,

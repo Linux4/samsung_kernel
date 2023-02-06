@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/delay.h>
 #include <linux/sched.h>
@@ -27,6 +19,7 @@
 #if defined(CONFIG_MTK_DRAMC)
 #include "mtk_dramc.h"
 #endif
+#include "mmdvfs_pmqos.h"
 #include "layering_rule.h"
 #include "disp_drv_log.h"
 #include "ddp_rsz.h"
@@ -530,54 +523,68 @@ static void layering_rule_senario_decision(struct disp_layer_info *disp_info)
 		l_rule_info.layer_tb_idx | (l_rule_info.bound_tb_idx << 16));
 }
 
-static bool filter_by_hw_limitation(struct disp_layer_info *disp_info)
+static bool filter_by_yuv_layers(struct disp_layer_info *disp_info)
 {
 	bool flag = false;
-	unsigned int i = 0;
+	unsigned int disp_idx = 0, i = 0;
 	struct layer_config *info;
-	unsigned int disp_idx = 0;
-	unsigned int layer_cnt = 0;
+	unsigned int yuv_cnt = 0;
 
-	for (disp_idx = 0 ; disp_idx < 2; ++disp_idx) {
-		if (disp_info->layer_num[disp_idx] < 1)
-			continue;
-
-		/* display not support RGBA1010102 & RGBA_FP16 */
+	for (disp_idx = 0; disp_idx < 2; disp_idx++) {
+		yuv_cnt = 0;
 		for (i = 0; i < disp_info->layer_num[disp_idx]; i++) {
 			info = &(disp_info->input_config[disp_idx][i]);
-			if (info->src_fmt != DISP_FORMAT_RGBA1010102 &&
-					info->src_fmt != DISP_FORMAT_RGBA_FP16)
+
+			if (is_gles_layer(disp_info, disp_idx, i))
 				continue;
 
-			/* push to GPU */
-			if (disp_info->gles_head[disp_idx] == -1 ||
-					i < disp_info->gles_head[disp_idx])
-				disp_info->gles_head[disp_idx] = i;
-			if (disp_info->gles_tail[disp_idx] == -1 ||
-					i > disp_info->gles_tail[disp_idx])
-				disp_info->gles_tail[disp_idx] = i;
+			/* display not support RGBA1010102 & RGBA_FP16 */
+			if (info->src_fmt == DISP_FORMAT_RGBA1010102 ||
+				info->src_fmt == DISP_FORMAT_RGBA_FP16) {
+				rollback_layer_to_GPU(disp_info, disp_idx, i);
+				flag = true;
+				continue;
+			}
+
+			/* ovl support total 1 yuv layer, align to mt6853*/
+			if (is_yuv(info->src_fmt)) {
+				yuv_cnt++;
+				if (yuv_cnt > 1) {
+					rollback_layer_to_GPU(disp_info, disp_idx, i);
+					flag = true;
+				}
+			}
 		}
 	}
 
-	disp_idx = 1;
-	for (i = 0; i < disp_info->layer_num[disp_idx]; i++) {
-		info = &(disp_info->input_config[disp_idx][i]);
-		if (is_gles_layer(disp_info, disp_idx, i))
+	return flag;
+}
+
+static bool filter_by_sec_display(struct disp_layer_info *disp_info)
+{
+	bool flag = false;
+	unsigned int i, layer_cnt = 0;
+
+	for (i = 0; i < disp_info->layer_num[HRT_SECONDARY]; i++) {
+		if (is_gles_layer(disp_info, HRT_SECONDARY, i))
 			continue;
 
 		layer_cnt++;
 		if (layer_cnt > SECONDARY_OVL_LAYER_NUM) {
-			/* push to GPU */
-			if (disp_info->gles_head[disp_idx] == -1 ||
-				i < disp_info->gles_head[disp_idx])
-				disp_info->gles_head[disp_idx] = i;
-			if (disp_info->gles_tail[disp_idx] == -1 ||
-				i > disp_info->gles_tail[disp_idx])
-				disp_info->gles_tail[disp_idx] = i;
-
-			flag = false;
+			rollback_layer_to_GPU(disp_info, HRT_SECONDARY, i);
+			flag = true;
 		}
 	}
+
+	return flag;
+}
+
+static bool filter_by_hw_limitation(struct disp_layer_info *disp_info)
+{
+	bool flag = false;
+
+	flag |= filter_by_yuv_layers(disp_info);
+	flag |= filter_by_sec_display(disp_info);
 
 	return flag;
 }

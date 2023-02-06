@@ -82,6 +82,7 @@ struct lcd_info {
 	unsigned char			code[LDI_LEN_CHIP_ID];
 	unsigned char			date[LDI_LEN_DATE];
 	unsigned char			manufacture_info[LDI_LEN_CHIP_ID];
+	unsigned char			trim[LDI_LEN_TRIM + 1];
 
 	unsigned int			coordinate[2];
 	unsigned char			coordinates[20];
@@ -138,6 +139,8 @@ struct lcd_info {
 #endif
 };
 
+#define get_shift_width(value, shift, width)	((value >> shift) & (GENMASK(width - 1, 0)))
+
 static struct lcd_info *get_lcd_info(struct platform_device *p)
 {
 	return platform_get_drvdata(p);
@@ -155,13 +158,6 @@ static struct mipi_dsi_lcd_common *get_lcd_common_info(struct platform_device *p
 	return dev_get_drvdata(parent);
 }
 
-#define DSIM_MAX_FIFO 510
-/* Todo need to move dt file */
-#define SRAM_BYTE_ALIGN	16
-
-#define MIPI_DCS_WRITE_SIDE_RAM_START		0x4C
-#define MIPI_DCS_WRITE_SIDE_RAM_CONTINUE	0x5C
-
 static int smcdsd_commit_lock(struct lcd_info *lcd, bool lock)
 {
 	return lcd->pdata->commit_lock(NULL, lock);
@@ -169,7 +165,7 @@ static int smcdsd_commit_lock(struct lcd_info *lcd, bool lock)
 
 static int smcdsd_dsi_tx_img_sd(struct lcd_info *lcd, u8 *cmd, u32 size)
 {
-	u8 cmdbuf[DSIM_MAX_FIFO];
+	u8 cmdbuf[MTK_DSI_MAX_TX_FIFO];
 	int tx_size, ret, len = 0;
 	int remained = size;
 
@@ -178,7 +174,7 @@ static int smcdsd_dsi_tx_img_sd(struct lcd_info *lcd, u8 *cmd, u32 size)
 			MIPI_DCS_WRITE_SIDE_RAM_START :
 			MIPI_DCS_WRITE_SIDE_RAM_CONTINUE;
 
-		tx_size = min(remained, DSIM_MAX_FIFO - 1);
+		tx_size = min(remained, MTK_DSI_MAX_TX_FIFO - 1);
 		tx_size -= (tx_size % SRAM_BYTE_ALIGN);
 		memcpy(cmdbuf + 1, cmd + len, tx_size);
 
@@ -201,7 +197,7 @@ static int smcdsd_dsi_tx_img_sd(struct lcd_info *lcd, u8 *cmd, u32 size)
 
 static int smcdsd_dsi_tx_package(struct lcd_info *lcd, struct msg_package *package)
 {
-	struct msg_segment *segment[MAX_TX_CMD_NUM] = {0, };
+	struct msg_segment *segment[MAX_SEGMENT_NUM] = {0, };
 
 	return send_msg_package(&package, 1, &segment);
 }
@@ -537,7 +533,7 @@ static int smcdsd_panel_read_bit_info(struct lcd_info *lcd, u32 index, u8 *rxbuf
 {
 	int ret = 0;
 	u8 buf[RT_MAX_NUM] = {0, };
-	struct bit_info *bit_info_list = ldi_bit_info_list;
+	struct abd_bit_info *bit_info_list = ldi_bit_info_list;
 	unsigned int reg, len, mask, expect, offset, invert, print_tag, bit, i, bit_max = 0, merged = 0;
 	char **print_org = NULL;
 	char *print_new[sizeof(u32) * BITS_PER_BYTE] = {0, };
@@ -621,10 +617,10 @@ static int smcdsd_panel_read_bit_info(struct lcd_info *lcd, u32 index, u8 *rxbuf
 
 #if defined(CONFIG_SMCDSD_DPUI)
 {
-	struct bit_info *bit_dpui_list = ldi_bit_dpui_list;
+	struct abd_bit_info *bit_dpui_list = ldi_bit_dpui_list;
 	unsigned int key, value;
 
-	for (i = 0; i < ARRAY_SIZE(ldi_bit_dpui_list); i++) {	/* todo */
+	for (i = 0; i < ARRAY_SIZE(ldi_bit_dpui_list); i++) {
 		if (reg != bit_dpui_list[i].reg)
 			continue;
 
@@ -655,6 +651,7 @@ static int panel_dpui_notifier_callback(struct notifier_block *self,
 	struct dpui_info *dpui = data;
 	char tbuf[MAX_DPUI_VAL_LEN];
 	int size;
+#if 0
 	unsigned int site, rework, poc, i, invalid = 0;
 	unsigned char *m_info;
 
@@ -662,7 +659,7 @@ static int panel_dpui_notifier_callback(struct notifier_block *self,
 		.buf = tbuf,
 		.size = sizeof(tbuf) - 1,
 	};
-
+#endif
 	if (dpui == NULL) {
 		pr_err("%s: dpui is null\n", __func__);
 		return NOTIFY_DONE;
@@ -693,9 +690,9 @@ static int panel_dpui_notifier_callback(struct notifier_block *self,
 	set_dpui_field(DPUI_KEY_CELLID, tbuf, size);
 #if 0
 	m_info = lcd->manufacture_info;
-	site = get_bit(m_info[0], 4, 4);
-	rework = get_bit(m_info[0], 0, 4);
-	poc = get_bit(m_info[1], 0, 4);
+	site = get_shift_width(m_info[0], 4, 4);
+	rework = get_shift_width(m_info[0], 0, 4);
+	poc = get_shift_width(m_info[1], 0, 4);
 	seq_printf(&m, "%d%d%d%02x%02x", site, rework, poc, m_info[2], m_info[3]);
 
 	for (i = 4; i < LDI_LEN_MANUFACTURE_INFO + LDI_LEN_MANUFACTURE_INFO_CELL_ID; i++) {
@@ -943,6 +940,33 @@ static int sw83109_boe_read_chip_id(struct lcd_info *lcd)
 	return ret;
 }
 
+static int sw83109_boe_read_trim(struct lcd_info *lcd)
+{
+	int ret = 0;
+	unsigned char buf[LDI_LEN_TRIM] = {0, };
+
+	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_LEVEL_KEY_6)]);
+
+	ret = smcdsd_dsi_rx_info(lcd, LDI_REG_TRIM, LDI_LEN_TRIM, buf);
+	if (ret < 0) {
+		dev_info(&lcd->ld->dev, "%s: fail\n", __func__);
+
+		lcd->trim[0] = 0;
+	} else {
+		lcd->trim[0] = LDI_REG_TRIM;
+
+		memcpy(&lcd->trim[1], buf, LDI_LEN_TRIM);
+
+		dev_info(&lcd->ld->dev, "%s: %*ph\n", __func__, ARRAY_SIZE(lcd->trim), lcd->trim);
+
+		lcd->trim[LDI_LEN_TRIM] += 4;
+	}
+
+	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_LEVEL_KEY_0)]);
+
+	return ret;
+}
+
 static int sw83109_boe_read_init_info(struct lcd_info *lcd)
 {
 	int ret = 0;
@@ -963,6 +987,7 @@ static int sw83109_boe_read_init_info(struct lcd_info *lcd)
 
 	sw83109_boe_read_date(lcd);
 	sw83109_boe_read_chip_id(lcd);
+	sw83109_boe_read_trim(lcd);
 
 	return ret;
 }
@@ -1002,7 +1027,9 @@ static int sw83109_boe_init(struct lcd_info *lcd)
 	sw83109_boe_change_ffc(lcd, FFC_UPDATE);
 #endif
 
+	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_LEVEL_KEY_1)]);
 	smcdsd_panel_read_bit_info(lcd, LDI_BIT_ENUM_0F, NULL);
+	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_LEVEL_KEY_0)]);
 
 	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_MASK_INIT_START)]);
 	smcdsd_dsi_tx_img_sd(lcd, SW83109_BOE_00_SELF_MASK_DATA, ARRAY_SIZE(SW83109_BOE_00_SELF_MASK_DATA));	/* todo */
@@ -1025,6 +1052,8 @@ static int sw83109_boe_displayon(struct lcd_info *lcd)
 	/* 12. Display On(29h) */
 	//send_cmd(SW83109_BOE_00_DISPLAY_ON, ARRAY_SIZE(SW83109_BOE_00_DISPLAY_ON));
 	/* Display on cmd will be sent .set_dispon_cmdq */
+
+	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_DISPLAY_ON)]);
 
 	return ret;
 }
@@ -1090,7 +1119,7 @@ static int panel_after_notifier_callback(struct notifier_block *self,
 
 	mutex_lock(&lcd->lock);
 
-	//class_for_each_device(lcd->mdnie_class, NULL, __mdnie_send, mdnie_force_update);
+	//move to drm_panel_enable class_for_each_device(lcd->mdnie_class, NULL, __mdnie_send, mdnie_force_update);
 
 	lcd->state = 1;
 
@@ -1159,7 +1188,7 @@ static int sw83109_boe_probe(struct lcd_info *lcd)
 	lcd->adaptive_control = 1;
 	lcd->lux = -1;
 
-	lcd->vrefresh = 60;	/* todo */
+	lcd->vrefresh = 60;
 
 	lcd->fac_info = 1;
 
@@ -1239,6 +1268,71 @@ static ssize_t mcd_mode_store(struct device *dev,
 	return size;
 }
 
+static ssize_t error_flag_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	unsigned char rxbuf[RT_MAX_NUM] = {0, };
+	int ret;
+	unsigned int valid = 0;
+
+	dev_info(&lcd->ld->dev, "+ %s\n", __func__);
+
+	smcdsd_commit_lock(lcd, true);
+
+	memset(rxbuf, 0xff, sizeof(rxbuf));
+
+	if (IS_NORMAL_MODE(lcd)) {
+		smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_LEVEL_KEY_1)]);
+		ret = smcdsd_panel_read_bit_info(lcd, LDI_BIT_ENUM_9F, rxbuf);
+		smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_LEVEL_KEY_0)]);
+	}
+
+	smcdsd_commit_lock(lcd, false);
+
+	if (ret < 0)
+		dev_info(&lcd->ld->dev, "%s: fail\n", __func__);
+
+	if ((rxbuf[0] | rxbuf[1]) == 0)
+		valid = 1;
+
+	dev_info(&lcd->ld->dev, "- %s: %d %*ph\n", __func__, valid, ldi_bit_info_list[LDI_BIT_ENUM_9F].len, rxbuf);
+
+	sprintf(buf, "%d %*ph\n", valid, ldi_bit_info_list[LDI_BIT_ENUM_9F].len, rxbuf);
+
+	return strlen(buf);
+}
+
+static ssize_t error_flag_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	unsigned int value;
+	int rc;
+
+	rc = kstrtouint(buf, 0, &value);
+	if (rc < 0)
+		return rc;
+
+	dev_info(&lcd->ld->dev, "%s: (%u) %*ph\n", __func__, value, ARRAY_SIZE(lcd->trim), lcd->trim);
+
+	if (value != 1)
+		return -EINVAL;
+
+	if (lcd->trim[0] == 0)
+		return -EINVAL;
+
+	smcdsd_commit_lock(lcd, true);
+	if (IS_NORMAL_MODE(lcd)) {
+		smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_LEVEL_KEY_6)]);
+		send_cmd(lcd->trim, ARRAY_SIZE(lcd->trim));
+		smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_LEVEL_KEY_0)]);
+	}
+	smcdsd_commit_lock(lcd, false);
+
+	return size;
+}
+
 static ssize_t lux_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -1266,6 +1360,7 @@ static ssize_t lux_store(struct device *dev,
 	mutex_lock(&lcd->lock);
 	lcd->lux = value;
 	mutex_unlock(&lcd->lock);
+
 #if defined(CONFIG_SMCDSD_MDNIE)
 	attr_store_for_each(lcd->mdnie_class, attr->attr.name, buf, size);
 #endif
@@ -2021,6 +2116,7 @@ static DEVICE_ATTR_RO(manufacture_date);
 static DEVICE_ATTR_RO(manufacture_code);
 static DEVICE_ATTR_RO(cell_id);
 static DEVICE_ATTR_RW(mcd_mode);
+static DEVICE_ATTR_RW(error_flag);
 
 static DEVICE_ATTR(SVC_OCTA, 0444, cell_id_show, NULL);
 static DEVICE_ATTR(SVC_OCTA_DDI_CHIPID, 0444, manufacture_code_show, NULL);
@@ -2060,6 +2156,7 @@ static struct attribute *lcd_sysfs_attributes[] = {
 	&dev_attr_dpci.attr,
 	&dev_attr_dpci_dbg.attr,
 #endif
+	&dev_attr_error_flag.attr,
 	NULL,
 };
 
@@ -2070,7 +2167,8 @@ static umode_t lcd_sysfs_is_visible(struct kobject *kobj,
 	struct lcd_info *lcd = dev_get_drvdata(dev);
 	umode_t mode = attr->mode;
 
-	if (attr == &dev_attr_conn_det.attr) {
+	if (attr == &dev_attr_conn_det.attr ||
+		attr == &dev_attr_error_flag.attr) {
 		if (!lcd->fac_info && !lcd->fac_done)
 			mode = 0;
 	}
@@ -2201,9 +2299,22 @@ static int smcdsd_panel_enable(struct platform_device *p)
 
 	smcdsd_panel_set_brightness(lcd, 1);
 
+#if defined(CONFIG_SMCDSD_MDNIE)
 	class_for_each_device(lcd->mdnie_class, NULL, __mdnie_send, mdnie_force_update);
+#endif
 
-	sw83109_boe_displayon(lcd);	/* OFF,DOZE_SUSPEND-> ON, DOZE */
+	//sw83109_boe_displayon(lcd);	/* OFF,DOZE_SUSPEND-> ON, DOZE */
+
+	return 0;
+}
+
+static int smcdsd_panel_displayon_late(struct platform_device *p)
+{
+	struct lcd_info *lcd = get_lcd_info(p);
+
+	dev_info(&lcd->ld->dev, "%s: state(%u) doze(%u)\n", __func__, lcd->state, lcd->doze_state);
+
+	sw83109_boe_displayon(lcd);
 
 	return 0;
 }
@@ -2306,8 +2417,7 @@ static int smcdsd_panel_probe(struct platform_device *p)
 	lcd_init_sysfs(lcd);
 
 #if defined(CONFIG_SMCDSD_MDNIE)
-	mdnie_register(&lcd->ld->dev, lcd, (mdnie_w)mdnie_send, (mdnie_r)mdnie_read, lcd->coordinate, &tune_info);
-	lcd->mdnie_class = get_mdnie_class();
+	lcd->mdnie_class = mdnie_register(&lcd->ld->dev, lcd, (mdnie_w)mdnie_send, (mdnie_r)mdnie_read, lcd->coordinate, &tune_info);
 #endif
 
 	dev_info(&lcd->ld->dev, "%s: %s: done\n", kbasename(__FILE__), __func__);
@@ -2330,6 +2440,7 @@ struct mipi_dsi_lcd_driver sw83109_boe_mipi_lcd_driver = {
 #endif
 	.enable		= smcdsd_panel_enable,
 	.framedone_notify = smcdsd_panel_framedone_notify,
+	.displayon_late = smcdsd_panel_displayon_late,
 };
 __XX_ADD_LCD_DRIVER(sw83109_boe_mipi_lcd_driver);
 

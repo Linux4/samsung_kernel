@@ -1,15 +1,12 @@
-#
-# Copyright (C) 2018 MediaTek Inc.
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License version 2 as
-# published by the Free Software Foundation.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
+# SPDX-License-Identifier: GPL-2.0
 
-obj-y += gc5035fmipiraw_Sensor.o
+COMMON_SENSOR := gc5035
+CHECK_DRIVER_DIR := $(COMMON_SENSOR)_mipi_raw
 
+ifneq ($(findstring $(CHECK_DRIVER_DIR), $(CONFIG_CUSTOM_KERNEL_IMGSENSOR)), )
+$(info $(COMMON_SENSOR) device driver is already in use)
+obj-y += $(COMMON_SENSOR)f_dummy.o
+else
+$(info used common driver: $(COMMON_SENSOR))
+obj-y += ../$(COMMON_SENSOR)_mipi_raw/
+endif

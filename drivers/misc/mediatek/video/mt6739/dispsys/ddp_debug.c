@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #define LOG_TAG "DEBUG"
 
@@ -59,8 +51,6 @@
 #include "disp_lowpower.h"
 #include "disp_drv_log.h"
 #include "mtk_notify.h"
-#include "disp_recovery.h"
-#include "disp_cust.h"
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 static struct dentry *debugfs;
@@ -132,82 +122,6 @@ void backup_vfp_for_lp_cust(unsigned int vfp)
 unsigned int get_backup_vfp(void)
 {
 	return vfp_backup;
-}
-
-void _ddic_test_read(void)
-{
-	struct ddp_lcm_read_cmd_table read_table;
-		memset(&read_table, 0,
-		sizeof(struct ddp_lcm_read_cmd_table));
-	read_table.cmd[0] = 0x0A;
-	read_table.cmd[1] = 0x0A;
-	read_table.cmd[2] = 0x0A;
-
-	do_lcm_vdo_lp_read(&read_table);
-
-	DDPMSG("after b0 %x, b1 %x, b2 %x, b3 = %x\n",
-		read_table.data[0].byte0,
-		read_table.data[0].byte1,
-		read_table.data[0].byte2,
-		read_table.data[0].byte3);
-	DDPMSG("after b0 %x, b1 %x, b2 %x, b3 = %x\n",
-		read_table.data[1].byte0,
-		read_table.data[1].byte1,
-		read_table.data[1].byte2,
-		read_table.data[1].byte3);
-	DDPMSG("after b0 %x, b1 %x, b2 %x, b3 = %x\n",
-		read_table.data[2].byte0,
-		read_table.data[2].byte1,
-		read_table.data[2].byte2,
-		read_table.data[2].byte3);
-
-}
-void _ddic_test_write(void)
-{
-	struct ddp_lcm_write_cmd_table write_table[5] = {
-		{0xB6, 1, {0x01} },
-		{0xC8, 1, {0x83} },
-		{0xF0, 5, {0x55, 0xAA, 0x52, 0x08, 0x01} },/*page 1*/
-		{0xB0, 2, {0x0F, 0x0F} },
-		{0xB1, 2, {0x0F, 0x0F } },
-		};
-
-	do_lcm_vdo_lp_write(write_table, 5);
-
-}
-
-void _ddic_test_read_write(void)
-{
-	struct ddp_lcm_write_cmd_table write_table1[3] = {
-		{0x51, 1, {0xFE} },
-		{0x53, 1, {0xff} },
-		{0x5E, 1, {0x45} },
-	};
-	struct ddp_lcm_read_cmd_table read_table1;
-
-	do_lcm_vdo_lp_write(write_table1, 3);
-	memset(&read_table1, 0,
-		sizeof(struct ddp_lcm_read_cmd_table));
-	read_table1.cmd[0] = 0x52;
-	read_table1.cmd[1] = 0x54;
-	read_table1.cmd[2] = 0x5F;
-	do_lcm_vdo_lp_read(&read_table1);
-	DDPMSG("after b0 %x, b1 %x, b2 %x, b3 = %x\n",
-		read_table1.data[0].byte0,
-		read_table1.data[0].byte1,
-		read_table1.data[0].byte2,
-		read_table1.data[0].byte3);
-	DDPMSG("after b0 %x, b1 %x, b2 %x, b3 = %x\n",
-		read_table1.data[1].byte0,
-		read_table1.data[1].byte1,
-		read_table1.data[1].byte2,
-		read_table1.data[1].byte3);
-	DDPMSG("after b0 %x, b1 %x, b2 %x, b3 = %x\n",
-		read_table1.data[2].byte0,
-		read_table1.data[2].byte1,
-		read_table1.data[2].byte2,
-		read_table1.data[2].byte3);
-
 }
 
 static char dbg_buf[2048];
@@ -374,23 +288,6 @@ static void process_dbg_opt(const char *opt)
 		} else {
 			goto Error;
 		}
-	} else if (strncmp(opt, "ddic_test:", 10) == 0) {
-		char *p = (char *)opt + 10;
-		unsigned int test_type;
-
-		ret = kstrtouint(p, 0, &test_type);
-		if (ret) {
-			snprintf(buf, 50, "error to parse cmd %s\n", opt);
-			return;
-		}
-
-		if (test_type < 1)
-			_ddic_test_read();
-		else if (test_type > 1 && test_type < 5)
-			_ddic_test_write();
-		else if (test_type > 10)
-			_ddic_test_read_write();
-
 	} else if (strncmp(opt, "partial:", 8) == 0) {
 		ret = sscanf(opt, "partial:%d,%d,%d,%d,%d\n", &dbg_force_roi,
 			     &dbg_partial_x, &dbg_partial_y, &dbg_partial_w,
@@ -643,53 +540,6 @@ static void process_dbg_opt(const char *opt)
 			tmp += snprintf(buf + tmp, buf_size_left - tmp,
 					"para[%d]=0x%x,", i, para[i]);
 		DISPMSG("%s\n", buf);
-	} else if (strncmp(opt, "set_customer_cmd:", 17) == 0) {
-		int cmd;
-		int hs;
-		int para_cnt, i;
-		char para[15] = {0};
-		struct LCM_setting_table_V3 test;
-		static char fmt[256] = "set_customer_cmd:0x%x, %d";
-
-		for (i = 0; i < ARRAY_SIZE(para); i++)
-			strncat(fmt, ",0x%hhx", sizeof(fmt) - strlen(fmt) - 1);
-		strncat(fmt, "\n", sizeof(fmt) - strlen(fmt) - 1);
-		ret = sscanf(opt, fmt, &cmd,
-			&hs, &para[0], &para[1], &para[2], &para[3], &para[4],
-			&para[5], &para[6], &para[7], &para[8], &para[9],
-			&para[10], &para[11], &para[12], &para[13], &para[14]);
-		if (ret < 1 || ret > ARRAY_SIZE(para) + 1) {
-			snprintf(buf, 50, "error to parse cmd %s\n", opt);
-			return;
-		}
-		para_cnt = ret - 2;
-		test.id = REGFLAG_ESCAPE_ID;
-		test.cmd = cmd;
-		test.count = para_cnt;
-		for (i = 0; i < 15; i++)
-			test.para_list[i] = para[i];
-		DDPMSG("set_dsi_cmd cmd=0x%x\n", cmd);
-		for (i = 0; i < para_cnt; i++)
-			DDPMSG("para[%d] = 0x%x\n", i, para[i]);
-		set_lcm(&test, 1, hs, true);
-	} else if (strncmp(opt, "read_customer_cmd:", 18) == 0) {
-		int cmd;
-		int size, i;
-		char para[15] = {0};
-		int sendhs;
-		unsigned char offset = 0;
-
-		DDPMSG("read_customer_cmd\n");
-		ret = sscanf(opt, "read_customer_cmd:0x%x, %d, %d %hhx\n",
-						&cmd, &size, &sendhs, &offset);
-		if (ret != 4 || size > ARRAY_SIZE(para)) {
-			snprintf(buf, 50, "error to parse cmd %s\n", opt);
-			return;
-		}
-		DDPMSG(" read_lcm: 0x%x, size= %d %d\n", cmd, size, sendhs);
-		read_lcm(cmd, para, size, sendhs, true, offset);
-		for (i = 0; i < size; i++)
-			pr_info("para[%d] = 0x%x\n", i, para[i]);
 	} else if (strncmp(opt, "lcd:", 4) == 0) {
 		if (strncmp(opt + 4, "on", 2) == 0) {
 			noti_uevent_user(&uevent_data, 1);

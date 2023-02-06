@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include "mtk_layering_rule.h"
 #include "mtk_drm_crtc.h"
@@ -25,7 +17,7 @@ static int g_freq_level = -1;
 static int step_size = 1;
 
 #ifdef MTK_FB_MMDVFS_SUPPORT
-static struct pm_qos_request mm_freq_request;
+static struct mtk_pm_qos_request mm_freq_request;
 int __mtk_disp_pmqos_slot_look_up(int comp_id, int mode)
 {
 	switch (comp_id) {
@@ -307,7 +299,7 @@ int mtk_disp_hrt_cond_init(struct drm_crtc *crtc)
 void mtk_drm_mmdvfs_init(void)
 {
 
-	pm_qos_add_request(&mm_freq_request, PM_QOS_DISP_FREQ,
+	mtk_pm_qos_add_request(&mm_freq_request, PM_QOS_DISP_FREQ,
 			   PM_QOS_MM_FREQ_DEFAULT_VALUE);
 
 	mmdvfs_qos_get_freq_steps(PM_QOS_DISP_FREQ, g_freq_steps, &step_size);
@@ -331,10 +323,10 @@ static void mtk_drm_set_mmclk(struct drm_crtc *crtc, int level,
 
 #ifdef MTK_FB_MMDVFS_SUPPORT
 	if (g_freq_level >= 0)
-		pm_qos_update_request(&mm_freq_request,
+		mtk_pm_qos_update_request(&mm_freq_request,
 			g_freq_steps[g_freq_level]);
 	else
-		pm_qos_update_request(&mm_freq_request, 0);
+		mtk_pm_qos_update_request(&mm_freq_request, 0);
 #endif
 }
 

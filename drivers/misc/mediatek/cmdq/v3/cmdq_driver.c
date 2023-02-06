@@ -35,7 +35,6 @@
 #include <linux/spinlock.h>
 #include <linux/sched.h>
 #include <linux/pm.h>
-#include <linux/pm_runtime.h>
 #include <linux/suspend.h>
 #include <linux/soc/mediatek/mtk-cmdq.h>
 #include <linux/sched/clock.h>
@@ -1051,35 +1050,9 @@ static long cmdq_ioctl(struct file *pf, unsigned int code,
 	CMDQ_VERBOSE("%s code:0x%08x f:0x%p\n", __func__, code, pf);
 
 	switch (code) {
-#if 0
-	case CMDQ_IOCTL_EXEC_COMMAND:
-		status = cmdq_driver_ioctl_exec_command(pf, param);
-		break;
-#endif
 	case CMDQ_IOCTL_QUERY_USAGE:
 		status = cmdq_driver_ioctl_query_usage(pf, param);
 		break;
-#if 0
-	case CMDQ_IOCTL_ASYNC_JOB_EXEC:
-		CMDQ_SYSTRACE_BEGIN("%s_async_job_exec\n", __func__);
-		status = cmdq_driver_ioctl_async_job_exec(pf, param);
-		CMDQ_SYSTRACE_END();
-		break;
-	case CMDQ_IOCTL_ASYNC_JOB_WAIT_AND_CLOSE:
-		CMDQ_SYSTRACE_BEGIN("%s_async_job_wait_and_close\n", __func__);
-		status = cmdq_driver_ioctl_async_job_wait_and_close(param);
-		CMDQ_SYSTRACE_END();
-		break;
-	case CMDQ_IOCTL_ALLOC_WRITE_ADDRESS:
-		status = cmdq_driver_ioctl_alloc_write_address(pf, param);
-		break;
-	case CMDQ_IOCTL_FREE_WRITE_ADDRESS:
-		status = cmdq_driver_ioctl_free_write_address(param);
-		break;
-	case CMDQ_IOCTL_READ_ADDRESS_VALUE:
-		status = cmdq_driver_ioctl_read_address_value(param);
-		break;
-#endif
 	case CMDQ_IOCTL_QUERY_CAP_BITS:
 		status = cmdq_driver_ioctl_query_cap_bits(param);
 		break;
@@ -1238,9 +1211,6 @@ static int cmdq_probe(struct platform_device *pDevice)
 	/* init cmdq context */
 	cmdq_mdp_init();
 
-	/* register mdp power domain control. */
-	pm_runtime_enable(&pDevice->dev);
-
 	status = alloc_chrdev_region(&gCmdqDevNo, 0, 1,
 		CMDQ_DRIVER_DEVICE_NAME);
 	if (status != 0) {
@@ -1295,8 +1265,6 @@ static int cmdq_probe(struct platform_device *pDevice)
 
 static int cmdq_remove(struct platform_device *pDevice)
 {
-	/* unregister mdp power domain control. */
-	pm_runtime_disable(&pDevice->dev);
 	disable_irq(cmdq_dev_get_irq_id());
 
 	device_remove_file(&pDevice->dev, &dev_attr_error);

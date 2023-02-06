@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2019 MediaTek Inc.
-
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
-
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/printk.h>
 #include <mach/upmu_hw.h>
@@ -2642,6 +2634,36 @@ unsigned int mt6359_upmu_get_rg_vbbck_vosel(void)
 		PMIC_RG_VBBCK_VOSEL_SHIFT);
 	if (ret)
 		pr_info("%s error\n", __func__);
+
+	return val;
+}
+
+unsigned int mt6359_upmu_get_pwrkey_deb(void)
+{
+	unsigned int ret = 0;
+	unsigned int val = 0;
+
+	ret = pmic_read_interface(
+		(MT6359_TOPSTATUS),
+		(&val),
+		(PMIC_PWRKEY_DEB_MASK),
+		(PMIC_PWRKEY_DEB_SHIFT)
+		);
+
+	return val;
+}
+
+unsigned int mt6359_upmu_get_homekey_deb(void)
+{
+	unsigned int ret = 0;
+	unsigned int val = 0;
+
+	ret = pmic_read_interface(
+		(MT6359_TOPSTATUS),
+		(&val),
+		(PMIC_HOMEKEY_DEB_MASK),
+		(PMIC_HOMEKEY_DEB_SHIFT)
+		);
 
 	return val;
 }

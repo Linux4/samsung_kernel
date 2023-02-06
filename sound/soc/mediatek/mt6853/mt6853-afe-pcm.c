@@ -33,7 +33,7 @@
 #include "mt6853-interconnection.h"
 
 #if defined(CONFIG_SND_SOC_MTK_AUDIO_DSP)
-#include "../audio_dsp/mtk-dsp-common.h"
+#include "../audio_dsp/v2/mtk-dsp-common.h"
 #include <adsp_core.h>
 #endif
 #if defined(CONFIG_SND_SOC_MTK_SCP_SMARTPA)
@@ -269,7 +269,9 @@ static int mt6853_memif_fs(struct snd_pcm_substream *substream,
 			   unsigned int rate)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct mtk_base_afe *afe = snd_soc_platform_get_drvdata(rtd->platform);
+	struct snd_soc_component *component =
+		snd_soc_rtdcom_lookup(rtd, AFE_PCM_NAME);
+	struct mtk_base_afe *afe = snd_soc_component_get_drvdata(component);
 	int id = rtd->cpu_dai->id;
 
 	return mt6853_rate_transform(afe->dev, rate, id);
@@ -284,7 +286,9 @@ static int mt6853_get_dai_fs(struct mtk_base_afe *afe,
 static int mt6853_irq_fs(struct snd_pcm_substream *substream, unsigned int rate)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct mtk_base_afe *afe = snd_soc_platform_get_drvdata(rtd->platform);
+	struct snd_soc_component *component =
+		snd_soc_rtdcom_lookup(rtd, AFE_PCM_NAME);
+	struct mtk_base_afe *afe = snd_soc_component_get_drvdata(component);
 
 	return mt6853_general_rate_transform(afe->dev, rate);
 }
@@ -1555,8 +1559,6 @@ static const struct snd_kcontrol_new memif_ul2_ch2_mix[] = {
 static const struct snd_kcontrol_new memif_ul3_ch1_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("CONNSYS_I2S_CH1", AFE_CONN32_1,
 				    I_CONNSYS_I2S_CH1, 1, 0),
-	SOC_DAPM_SINGLE_AUTODISABLE("GAIN2_OUT_CH1", AFE_CONN32,
-				    I_GAIN2_OUT_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL1_CH1", AFE_CONN32,
 				    I_DL1_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL2_CH1", AFE_CONN32,
@@ -1566,8 +1568,6 @@ static const struct snd_kcontrol_new memif_ul3_ch1_mix[] = {
 static const struct snd_kcontrol_new memif_ul3_ch2_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("CONNSYS_I2S_CH2", AFE_CONN33_1,
 				    I_CONNSYS_I2S_CH2, 1, 0),
-	SOC_DAPM_SINGLE_AUTODISABLE("GAIN2_OUT_CH2", AFE_CONN33,
-				    I_GAIN2_OUT_CH2, 1, 0),
 };
 
 static const struct snd_kcontrol_new memif_ul4_ch1_mix[] = {
@@ -1881,8 +1881,6 @@ static const struct snd_soc_dapm_route mt6853_memif_routes[] = {
 	{"UL3", NULL, "UL3_CH2"},
 	{"UL3_CH1", "CONNSYS_I2S_CH1", "Connsys I2S"},
 	{"UL3_CH2", "CONNSYS_I2S_CH2", "Connsys I2S"},
-	{"UL3_CH1", "GAIN2_OUT_CH1", "HW Gain 2 Out"},
-	{"UL3_CH2", "GAIN2_OUT_CH2", "HW Gain 2 Out"},
 
 	{"UL4", NULL, "UL4_CH1"},
 	{"UL4", NULL, "UL4_CH2"},
@@ -3435,7 +3433,9 @@ static int mt6853_afe_pcm_copy(struct snd_pcm_substream *substream,
 			       mtk_sp_copy_f sp_copy)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct mtk_base_afe *afe = snd_soc_platform_get_drvdata(rtd->platform);
+	struct snd_soc_component *component =
+		snd_soc_rtdcom_lookup(rtd, AFE_PCM_NAME);
+	struct mtk_base_afe *afe = snd_soc_component_get_drvdata(component);
 	int ret = 0;
 
 	mt6853_set_audio_int_bus_parent(afe, CLK_TOP_MAINPLL_D4_D4);
@@ -3551,14 +3551,15 @@ static const struct mtk_audio_sram_ops mt6853_sram_ops = {
 	.set_sram_mode = mt6853_set_sram_mode,
 };
 
-static int mt6853_afe_pcm_platform_probe(struct snd_soc_platform *platform)
+static int mt6853_afe_pcm_platform_probe(struct snd_soc_component *platform)
 {
 	mtk_afe_add_sub_dai_control(platform);
 	mt6853_add_misc_control(platform);
 	return 0;
 }
 
-const struct snd_soc_platform_driver mt6853_afe_pcm_platform = {
+const struct snd_soc_component_driver mt6853_afe_component = {
+	.name = AFE_PCM_NAME,
 	.ops = &mtk_afe_pcm_ops,
 	.pcm_new = mtk_afe_pcm_new,
 	.pcm_free = mtk_afe_pcm_free,
@@ -6182,11 +6183,11 @@ static int mt6853_afe_pcm_dev_probe(struct platform_device *pdev)
 					   afe, &mt6853_debugfs_ops);
 
 	/* register platform */
-	ret = devm_snd_soc_register_platform(&pdev->dev,
-					     &mt6853_afe_pcm_platform);
+	ret = devm_snd_soc_register_component(&pdev->dev,
+					     &mt6853_afe_component, NULL, 0);
 	if (ret) {
 		dev_warn(dev, "err_platform\n");
-		goto err_platform;
+		goto err_dai_component;
 	}
 
 	ret = devm_snd_soc_register_component(&pdev->dev,
@@ -6211,9 +6212,6 @@ static int mt6853_afe_pcm_dev_probe(struct platform_device *pdev)
 
 err_dai_component:
 	snd_soc_unregister_component(&pdev->dev);
-
-err_platform:
-	snd_soc_unregister_platform(&pdev->dev);
 
 err_pm_disable:
 	pm_runtime_disable(&pdev->dev);

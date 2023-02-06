@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #define LOG_TAG "WDMA"
 #include "ddp_log.h"
@@ -83,7 +75,7 @@ int wdma_reset(enum DISP_MODULE_ENUM module, void *handle)
 	return 0;
 }
 
-unsigned int ddp_wdma_get_cur_addr(void)
+unsigned int ddp_wdma_get_cur_addr(enum DISP_MODULE_ENUM module)
 {
 	return INREG32(DISP_REG_WDMA_DST_ADDR0);
 }
@@ -426,7 +418,7 @@ static int wdma_golden_setting(enum DISP_MODULE_ENUM module,
 
 	DISP_REG_SET(cmdq, offset + DISP_REG_WDMA_BUF_CON4, regval);
 
-	consume_rate = (unsigned long long)(res * frame_rate);
+	consume_rate = ((unsigned long long)res) * ((unsigned long long)frame_rate);
 	do_div(consume_rate, 1000);
 	consume_rate *= 1250;
 	do_div(consume_rate, 16 * 1000);

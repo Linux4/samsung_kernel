@@ -1,18 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- *  drivers/misc/mediatek/pmic/mt6360/mt6360_pmu_subdev.c
- *  Driver for MT6360 PMIC SubDev
- *
- *  Copyright (C) 2018 Mediatek Technology Inc.
- *  cy_huang <cy_huang@richtek.com>
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License version 2 as
- *  published by the Free Software Foundation.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- *  See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #include <linux/kernel.h>
@@ -52,9 +40,9 @@ static struct mfd_cell mt6360_pmu_subdevs[MT6360_PMUDEV_MAX] = {
 
 static int mt6360_pmu_init_of_subdevs(struct mt6360_pmu_info *mpi)
 {
-	struct mfd_cell *cell = NULL;
-	struct device_node *np = NULL;
-	struct resource *irq_res = NULL;
+	struct mfd_cell *cell;
+	struct device_node *np;
+	struct resource *irq_res;
 	int i, irq_cnt, ret;
 
 	for (i = 0; i < MT6360_PMUDEV_MAX; i++) {
@@ -83,8 +71,8 @@ static int mt6360_pmu_init_of_subdevs(struct mt6360_pmu_info *mpi)
 static int mt6360_pmu_init_nonof_subdevs(struct mt6360_pmu_info *mpi)
 {
 	struct mt6360_pmu_platform_data *pdata = dev_get_platdata(mpi->dev);
-	struct mfd_cell *cell = NULL;
-	struct resource *res = NULL;
+	struct mfd_cell *cell;
+	struct resource *res;
 	int i, j, ret;
 
 	for (i = 0; i < MT6360_PMUDEV_MAX; i++) {

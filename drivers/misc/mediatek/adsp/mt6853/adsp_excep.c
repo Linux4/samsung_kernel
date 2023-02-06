@@ -11,7 +11,9 @@
 #include <linux/mutex.h>
 #include <linux/delay.h>
 #include <linux/io.h>
+#if IS_ENABLED(CONFIG_PM_WAKELOCKS)
 #include <linux/pm_wakeup.h>
+#endif
 #include <mt-plat/aee.h>
 #include "adsp_reg.h"
 #include "adsp_core.h"
@@ -19,6 +21,10 @@
 #include "adsp_platform_driver.h"
 #include "adsp_excep.h"
 #include "adsp_logger.h"
+
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+#include <sound/samsung/sec_audio_sysfs.h>
+#endif
 
 #define ADSP_MISC_EXTRA_SIZE    0x400 //1KB
 #define ADSP_MISC_BUF_SIZE      0x10000 //64KB
@@ -223,7 +229,9 @@ void adsp_aed_worker(struct work_struct *ws)
 	int cid = 0, ret = 0, retry = 0;
 
 	/* wake lock AP*/
-	__pm_stay_awake(&ctrl->wakeup_lock);
+#if IS_ENABLED(CONFIG_PM_WAKELOCKS)
+	__pm_stay_awake(ctrl->wakeup_lock);
+#endif
 
 	/* stop adsp, set reset state */
 	for (cid = 0; cid < ADSP_CORE_TOTAL; cid++) {
@@ -241,6 +249,14 @@ void adsp_aed_worker(struct work_struct *ws)
 
 	/* exception dump */
 	adsp_exception_dump(ctrl);
+
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+	send_adsp_silent_reset_ev();
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	pr_info("%s, adsp dead, bug on", __func__);
+	BUG_ON(1);
+#endif
+#endif
 
 	/* reset adsp */
 	adsp_enable_clock();
@@ -269,8 +285,9 @@ void adsp_aed_worker(struct work_struct *ws)
 
 	adsp_extern_notify_chain(ADSP_EVENT_READY);
 	adsp_deregister_feature(SYSTEM_FEATURE_ID);
-
-	__pm_relax(&ctrl->wakeup_lock);
+#if IS_ENABLED(CONFIG_PM_WAKELOCKS)
+	__pm_relax(ctrl->wakeup_lock);
+#endif
 }
 
 bool adsp_aed_dispatch(enum adsp_excep_id type, void *data)
@@ -285,7 +302,7 @@ bool adsp_aed_dispatch(enum adsp_excep_id type, void *data)
 	return queue_work(ctrl->workq, &ctrl->aed_work);
 }
 
-static void adsp_wdt_counter_reset(unsigned long data)
+static void adsp_wdt_counter_reset(struct timer_list *t)
 {
 	excep_ctrl.wdt_counter = 0;
 	pr_info("[ADSP] %s\n", __func__);
@@ -294,7 +311,8 @@ static void adsp_wdt_counter_reset(unsigned long data)
 /*
  * init a work struct
  */
-int init_adsp_exception_control(struct workqueue_struct *workq,
+int init_adsp_exception_control(struct device *dev,
+				struct workqueue_struct *workq,
 				struct wait_queue_head *waitq)
 {
 	struct adsp_exception_control *ctrl = &excep_ctrl;
@@ -306,8 +324,10 @@ int init_adsp_exception_control(struct workqueue_struct *workq,
 	mutex_init(&ctrl->lock);
 	init_completion(&ctrl->done);
 	INIT_WORK(&ctrl->aed_work, adsp_aed_worker);
-	wakeup_source_init(&ctrl->wakeup_lock, "adsp wakelock");
-	setup_timer(&ctrl->wdt_timer, adsp_wdt_counter_reset, 0);
+#if IS_ENABLED(CONFIG_PM_WAKELOCKS)
+	ctrl->wakeup_lock = wakeup_source_register(dev, "adsp wakelock");
+#endif
+	timer_setup(&ctrl->wdt_timer, adsp_wdt_counter_reset, 0);
 
 	return 0;
 }
@@ -323,43 +343,37 @@ void adsp_wdt_handler(int irq, void *data, int cid)
 
 void get_adsp_misc_buffer(unsigned long *vaddr, unsigned long *size)
 {
+	struct adsp_priv *pdata = NULL;
+	struct log_info_s *log_info = NULL;
+	struct buffer_info_s *buf_info = NULL;
 	void *buf = adsp_ke_buffer;
 	void *addr = NULL;
-	u32 len =  ADSP_MISC_BUF_SIZE;
-
-	unsigned int w_pos, r_pos;
+	unsigned int w_pos, r_pos, buf_size;
 	unsigned int data_len[2];
-	struct adsp_priv *pdata = NULL;
-	struct log_ctrl_s *ctrl;
-	struct buffer_info_s *buf_info;
-	u32 id;
-	u32 n = 0, part_len = len / ADSP_CORE_TOTAL;
+	unsigned int id = 0, n = 0;
+	unsigned int part_len = ADSP_MISC_BUF_SIZE / ADSP_CORE_TOTAL;
 
 	memset(buf, 0, ADSP_KE_DUMP_LEN);
 
 	for (id = 0; id < ADSP_CORE_TOTAL; id++) {
 		w_pos = 0;
 		pdata = get_adsp_core_by_id(id);
-		if (!pdata)
+		if (!pdata || !pdata->log_ctrl ||
+		    !pdata->log_ctrl->inited || !pdata->log_ctrl->priv)
 			goto ERROR;
 
-		ctrl = pdata->log_ctrl;
-		addr = (void *)ctrl;
-		if (!addr)
-			goto ERROR;
+		log_info = (struct log_info_s *)pdata->log_ctrl->priv;
+		buf_info = (struct buffer_info_s *)(pdata->log_ctrl->priv
+						  + log_info->info_ofs);
 
-		buf_info = (struct buffer_info_s *)(addr + ctrl->info_ofs);
-
-		if (!ctrl->inited)
-			goto ERROR;
-
+		buf_size = log_info->buff_size;
 		memcpy_fromio(&w_pos, &buf_info->w_pos, sizeof(w_pos));
 
-		w_pos += ADSP_MISC_EXTRA_SIZE;
-		if (w_pos >= ctrl->buff_size)
-			w_pos -= ctrl->buff_size;
+		if (w_pos >= buf_size)
+			w_pos -= buf_size;
+
 		if (w_pos < part_len) {
-			r_pos = ctrl->buff_size + w_pos - part_len;
+			r_pos = buf_size + w_pos - part_len;
 			data_len[0] = part_len - w_pos;
 			data_len[1] = w_pos;
 		} else {
@@ -368,6 +382,7 @@ void get_adsp_misc_buffer(unsigned long *vaddr, unsigned long *size)
 			data_len[1] = 0;
 		}
 
+		addr = pdata->log_ctrl->priv + log_info->buff_ofs;
 		memcpy(buf + n, addr + r_pos, data_len[0]);
 		n += data_len[0];
 		memcpy(buf + n, addr, data_len[1]);
@@ -376,7 +391,7 @@ void get_adsp_misc_buffer(unsigned long *vaddr, unsigned long *size)
 
 	/* return value */
 	*vaddr = (unsigned long)buf;
-	*size = len;
+	*size = n;
 	return;
 
 ERROR:

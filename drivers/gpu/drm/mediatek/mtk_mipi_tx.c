@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2015 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
@@ -738,7 +730,7 @@ static bool mtk_is_mipi_tx_enable(struct clk_hw *hw)
 	return ((tmp & RG_DSI_PLL_EN) > 0);
 }
 
-static inline unsigned int _dsi_get_pcw(unsigned long data_rate,
+inline unsigned int _dsi_get_pcw(unsigned long data_rate,
 	unsigned int pcw_ratio)
 {
 	unsigned int pcw, tmp, pcw_floor;
@@ -1900,7 +1892,11 @@ void mtk_mipi_tx_pll_rate_switch_gce(struct phy *phy,
 static long mtk_mipi_tx_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 				       unsigned long *prate)
 {
+#ifndef CONFIG_MTK_MT6382_BDG
 	return clamp_val(rate, 50000000, 1250000000);
+#else
+	return clamp_val(rate, 50000000, 2300000000);
+#endif
 }
 
 static int mtk_mipi_tx_pll_set_rate(struct clk_hw *hw, unsigned long rate,

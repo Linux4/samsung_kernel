@@ -19,11 +19,13 @@
 #define LDI_REG_ID		0xAD
 #define LDI_REG_DATE		0xA9
 #define LDI_REG_CHIP_ID		0xEA
+#define LDI_REG_TRIM		0xEB
 
 /* len is read length */
 #define LDI_LEN_ID		3
 #define LDI_LEN_DATE		10	/* A9h 1st ... 11th but ap max rx length is 10 */
 #define LDI_LEN_CHIP_ID		10	/* EAh 1st ... 10th */
+#define LDI_LEN_TRIM		9
 
 #define NORMAL_TEMPERATURE	25	/* 25 degrees Celsius */
 

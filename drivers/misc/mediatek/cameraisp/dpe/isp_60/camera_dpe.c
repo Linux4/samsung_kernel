@@ -1,16 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2015 MediaTek Inc.
  */
-
 /**************************************************************
  * camera_DPE.c - Linux DPE Device Driver
  *
@@ -274,8 +265,6 @@ static struct Tasklet_table DPE_tasklet[DPE_IRQ_TYPE_AMOUNT] = {
 };
 static struct work_struct logWork;
 static void logPrint(struct work_struct *data);
-
-struct wakeup_source DPE_wake_lock;
 
 static DEFINE_MUTEX(gDpeMutex);
 static DEFINE_MUTEX(gDpeDequeMutex);
@@ -3374,6 +3363,14 @@ static long DPE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 				    g_DPE_ReqRing.DPEReq_Struct[
 							g_DPE_ReqRing.WriteIdx].
 				    State) {
+					if (enqueNum >
+						_SUPPORT_MAX_DPE_FRAME_REQUEST_ ||
+						enqueNum < 0) {
+						LOG_ERR(
+						"DPE Enque Num is bigger than enqueNum:%d\n",
+						enqueNum);
+						break;
+					}
 					spin_lock_irqsave(
 					&(DPEInfo.SpinLockIrq[
 						DPE_IRQ_TYPE_INT_DVP_ST]),
@@ -3388,12 +3385,6 @@ static long DPE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 					spin_unlock_irqrestore(
 					&(DPEInfo.SpinLockIrq[
 					DPE_IRQ_TYPE_INT_DVP_ST]), flags);
-					if (enqueNum >
-					_SUPPORT_MAX_DPE_FRAME_REQUEST_) {
-						LOG_ERR(
-						"DPE Enque Num is bigger than enqueNum:%d\n",
-						     enqueNum);
-					}
 					LOG_DBG(
 					"DPE_ENQNUE_NUM:%d\n", enqueNum);
 				} else {
@@ -4580,8 +4571,6 @@ if (DPE_dev->irq > 0) {
 		DPEInfo.wkqueue = create_singlethread_workqueue("DPE-CMDQ-WQ");
 		if (!DPEInfo.wkqueue)
 			LOG_ERR("NULL DPE-CMDQ-WQ\n");
-
-		wakeup_source_init(&DPE_wake_lock, "dpe_lock_wakelock");
 
 		INIT_WORK(&logWork, logPrint);
 		for (i = 0; i < DPE_IRQ_TYPE_AMOUNT; i++)

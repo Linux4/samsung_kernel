@@ -19,11 +19,15 @@ ifeq ($(CONFIG_MACH_MT6833),y)
 	PDIR = mt6833
 else ifeq ($(CONFIG_MACH_MT6893),y)
 	PDIR = mt6893
+else ifeq ($(CONFIG_MACH_MT6877),y)
+	PDIR = mt6877
 else
 	PDIR = $(MTK_PLATFORM)
 endif
 
 ccflags-y += \
+	-I$(srctree)/drivers/gpu/mediatek/gpufreq/include/ \
+	-I$(srctree)/drivers/gpu/mediatek/gpufreq/v1/include/$(PDIR)/	\
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/	\
 	-I$(srctree)/drivers/misc/mediatek/base/power/include/	\
 	-I$(srctree)/drivers/misc/mediatek/base/power/include/swpm_v1/	\

@@ -1,11 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Copyright (C) 2016 MediaTek Inc.
+ */
 
- /*
-  * Goodix Touchscreen Driver
-  *
-  * Copyright (C) 2019 - 2020 Goodix, Inc.
-  * License terms: GNU General Public License (GPL) version 2
-  *
-  */
 
 #include <linux/spi/spi.h>
 #include "goodix_ts_core.h"

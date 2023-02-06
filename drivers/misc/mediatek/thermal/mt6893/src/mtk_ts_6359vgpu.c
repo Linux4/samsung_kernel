@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2021 MediaTek Inc.
  */
 #include <linux/version.h>
 #include <linux/kernel.h>
@@ -74,10 +66,10 @@ static char g_bind7[20] = { 0 };
 static char g_bind8[20] = { 0 };
 static char g_bind9[20] = { 0 };
 
-static long int mt6359vgpu_cur_temp;
+static long mt6359vgpu_cur_temp;
 /*
- *static long int mt6359vgpu_start_temp;
- *static long int mt6359vgpu_end_temp;
+ *static long mt6359vgpu_start_temp;
+ *static long mt6359vgpu_end_temp;
  */
 /*=============================================================*/
 
@@ -265,10 +257,9 @@ static int mt6359vgpu_sysrst_set_cur_state
 		mtktspmic_info("*****************************************");
 		mtktspmic_info("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 
-#if 0	/* temp marked off to check temperature correctness. */
-		*(unsigned int *)0x0 = 0xdead;
+	/* temp marked off to check temperature correctness. */
+    //   *(unsigned int *)0x0 = 0xdead;
 	/* To trigger data abort to reset the system for thermal protection. */
-#endif
 	}
 	return 0;
 }

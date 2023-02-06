@@ -1,16 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * Power Delivery Process Event For SNK
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include "inc/pd_core.h"
@@ -20,7 +10,7 @@
 #include "inc/tcpci_typec.h"
 
 #include <mt-plat/mtk_boot.h>
-#include <mt-plat/charger_class.h>
+#include <mt-plat/v1/charger_class.h>
 
 /* PD Control MSG reactions */
 
@@ -340,8 +330,7 @@ static inline bool pd_process_hw_msg(
 		return pd_process_vbus_absent(pd_port);
 
 	case PD_HW_TX_FAILED:
-	case PD_HW_TX_DISCARD:
-		return pd_process_tx_failed_discard(pd_port, pd_event->msg);
+		return pd_process_tx_failed(pd_port);
 
 #ifdef CONFIG_USB_PD_REV30_COLLISION_AVOID
 	case PD_HW_SINK_TX_CHANGE:
@@ -408,18 +397,16 @@ static inline bool pd_process_timer_msg(
 	struct pe_data __maybe_unused *pe_data = &pd_port->pe_data;
 
 #ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
-	unsigned int boot_mode = get_boot_mode();
 	struct charger_device *chg_dev = get_charger_by_name("primary_chg");
 	int vbus = 10000000, ret = -1;
-	bool is_power_off_boot = (boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT ||
-			boot_mode == LOW_POWER_OFF_CHARGING_BOOT) ? true:false;
-#endif /* CONFIG_KPOC_GET_SOURCE_CAP_TRY */
+	bool is_power_off_boot = (tcpc->bootmode == KERNEL_POWER_OFF_CHARGING_BOOT ||
+			tcpc->bootmode == LOW_POWER_OFF_CHARGING_BOOT) ? true:false;
+#endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
 
 	switch (pd_event->msg) {
 	case PD_TIMER_SINK_REQUEST:
 		return PE_MAKE_STATE_TRANSIT_SINGLE(
 			PE_SNK_READY, PE_SNK_SELECT_CAPABILITY);
-
 #ifndef CONFIG_USB_PD_DBG_IGRONE_TIMEOUT
 	case PD_TIMER_SINK_WAIT_CAP:
 	case PD_TIMER_PS_TRANSITION:

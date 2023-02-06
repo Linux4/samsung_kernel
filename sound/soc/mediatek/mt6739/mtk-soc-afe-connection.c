@@ -1,20 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- *
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License
- * along with this program
- * If not, see <http://www.gnu.org/licenses/>.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 /*****************************************************************************
  *
  * Filename:
@@ -294,24 +281,6 @@ bool SetConnsysToHwGain1Out(unsigned int ConnectionState)
 	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I34,
 			   Soc_Aud_InterConnectionOutput_O13);
 	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I35,
-			   Soc_Aud_InterConnectionOutput_O14);
-	return true;
-}
-
-bool SetDLToHwGain1Out(unsigned int ConnectionState)
-{
-	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I05,
-			   Soc_Aud_InterConnectionOutput_O13);
-	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I06,
-			   Soc_Aud_InterConnectionOutput_O14);
-	return true;
-}
-
-bool SetDL2ToHwGain1Out(unsigned int ConnectionState)
-{
-	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I07,
-			   Soc_Aud_InterConnectionOutput_O13);
-	SetConnectionState(ConnectionState, Soc_Aud_InterConnectionInput_I08,
 			   Soc_Aud_InterConnectionOutput_O14);
 	return true;
 }
@@ -810,10 +779,6 @@ static const struct connection_link_t mConnectionLink[] = {
 	 Soc_Aud_AFE_IO_Block_HW_GAIN1_OUT, SetI2s0ToHwGain1Out},
 	{Soc_Aud_AFE_IO_Block_I2S_CONNSYS,
 	 Soc_Aud_AFE_IO_Block_HW_GAIN1_OUT, SetConnsysToHwGain1Out},
-	{Soc_Aud_AFE_IO_Block_MEM_DL1,
-	 Soc_Aud_AFE_IO_Block_HW_GAIN1_OUT, SetDLToHwGain1Out},
-	{Soc_Aud_AFE_IO_Block_MEM_DL2,
-	 Soc_Aud_AFE_IO_Block_HW_GAIN1_OUT, SetDL2ToHwGain1Out},
 	{Soc_Aud_AFE_IO_Block_HW_GAIN1_IN,
 	 Soc_Aud_AFE_IO_Block_I2S1_DAC, SetHwGain1InToI2s1Dac},
 	{Soc_Aud_AFE_IO_Block_HW_GAIN1_IN,

@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 /**
  * @file	mkt_cinst.c
@@ -19,11 +12,6 @@
 
 #define __MTK_CINST_C__
 
-/*
- *=============================================================
- * Include files
- *=============================================================
- */
 
 /* system includes */
 #include <linux/init.h>
@@ -370,7 +358,7 @@ static unsigned int cinst_smc_handle(
 }
 
 /************************************************
- * IPI between kernel and mcupm/cpu_eb
+ * IPI between kernel and mcupm/cputoeb
  ************************************************/
 #ifdef CONFIG_MTK_TINYSYS_MCUPM_SUPPORT
 static void cinst_ipi_handle(
@@ -385,7 +373,7 @@ static void cinst_ipi_handle(
 	cinst_msg("[%s]:cpu(%d) param(%d) val(%d)\n",
 		__func__, cpu, param, val);
 
-	/* update mcupm or cpueb via ipi */
+	/* update mcupm or cputoeb via ipi */
 	while (ptp3_ipi_handle(&cinst_data) != 0)
 		udelay(500);
 }
@@ -420,7 +408,7 @@ static void mtk_cinst(unsigned int cpu,
 	/* update bren via atf */
 	cinst_smc_handle(CINST_RW_WRITE, cpu, param, value);
 
-	/* update via mcupm or cpu_eb */
+	/* update via mcupm or cputoeb */
 	cinst_ipi_handle(cpu, param, value);
 }
 

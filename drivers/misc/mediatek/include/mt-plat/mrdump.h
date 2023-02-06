@@ -1,23 +1,15 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 #if !defined(__MRDUMP_H__)
 #define __MRDUMP_H__
 
-#include <stdarg.h>
+#include <asm/ptrace.h>
 #include <linux/elf.h>
 #include <linux/elfcore.h>
-#include <asm/ptrace.h>
+#include <stdarg.h>
 #include <mt-plat/aee.h>
 
 #ifdef __aarch64__
@@ -120,8 +112,8 @@ struct mrdump_machdesc {
 	uint64_t kimage_etext;
 	uint64_t kimage_stext_real;
 	uint64_t kimage_voffset;
-	uint64_t unused0;
-	uint64_t unused1;
+	uint64_t kimage_sdata;
+	uint64_t kimage_edata;
 
 	uint64_t vmalloc_start;
 	uint64_t vmalloc_end;
@@ -186,34 +178,29 @@ struct mrdump_mini_elf_misc {
 #define NOTE_NAME_LONG  20
 
 struct mrdump_mini_elf_psinfo {
-		struct elf_note note;
-		char name[NOTE_NAME_SHORT];
-		struct elf_prpsinfo data;
+	struct elf_note note;
+	char name[NOTE_NAME_SHORT];
+	struct elf_prpsinfo data;
 };
 
 struct mrdump_mini_elf_prstatus {
-		struct elf_note note;
-		char name[NOTE_NAME_SHORT];
-		struct elf_prstatus data;
+	struct elf_note note;
+	char name[NOTE_NAME_SHORT];
+	struct elf_prstatus data;
 };
 
 struct mrdump_mini_elf_note {
-		struct elf_note note;
-		char name[NOTE_NAME_LONG];
-		struct mrdump_mini_elf_misc data;
+	struct elf_note note;
+	char name[NOTE_NAME_LONG];
+	struct mrdump_mini_elf_misc data;
 };
 
 struct mrdump_mini_elf_header {
 	struct elfhdr ehdr;
 	struct elf_phdr phdrs[MRDUMP_MINI_NR_SECTION];
 	struct mrdump_mini_elf_psinfo psinfo;
-	struct mrdump_mini_elf_prstatus prstatus[NR_CPUS];
+	struct mrdump_mini_elf_prstatus prstatus[AEE_MTK_CPU_NUMS];
 	struct mrdump_mini_elf_note misc[MRDUMP_MINI_NR_MISC];
-};
-
-struct mrdump_rsvmem_block {
-	phys_addr_t start_addr;
-	phys_addr_t size;
 };
 
 
@@ -225,8 +212,12 @@ struct mrdump_rsvmem_block {
 
 int mrdump_init(void);
 void __mrdump_create_oops_dump(enum AEE_REBOOT_MODE reboot_mode,
-		struct pt_regs *regs, const char *msg, ...);
-
-int mrdump_common_die(int fiq_step, int reboot_reason, const char *msg,
+				struct pt_regs *regs, const char *msg, ...);
+int mrdump_common_die(u8 fiq_step, int reboot_reason, const char *msg,
 		      struct pt_regs *regs);
+void mrdump_mini_add_hang_raw(unsigned long vaddr, unsigned long size);
+void mrdump_mini_add_extra_misc(void);
+extern void mlog_get_buffer(char **ptr, int *size)__attribute__((weak));
+extern void get_msdc_aee_buffer(unsigned long *buff,
+	unsigned long *size)__attribute__((weak));
 #endif

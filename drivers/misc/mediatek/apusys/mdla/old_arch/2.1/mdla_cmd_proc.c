@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #include <linux/semaphore.h>
@@ -108,16 +100,22 @@ int mdla_run_command_sync(
 	int boost_val = 0;
 	uint32_t cmdbuf_size = 0;
 
-	if (unlikely(cd == NULL || mdla_info == NULL))
+	if (unlikely(cd == NULL || mdla_info == NULL)) {
+		mdla_error("%s:%d null check fail\n",
+			__func__, __LINE__);
 		return -EINVAL;
+	}
 	if (unlikely(cd->count == 0))
 		return 0;
 	/*
 	 * apusys_hd == NULL: it call from UT
 	 */
 	if (unlikely(apusys_hd != NULL)) {
-		if (unlikely(apusys_hd->cmdbuf == NULL))
+		if (unlikely(apusys_hd->cmdbuf == NULL)) {
+			mdla_error("%s:%d null check fail\n",
+				__func__, __LINE__);
 			return -EINVAL;
+		}
 	}
 	core_id = mdla_info->mdlaid;
 	sched = mdla_info->sched;
@@ -140,6 +138,8 @@ int mdla_run_command_sync(
 	spin_lock_irqsave(&sched->lock, flags);
 	if (unlikely(sched->ce[priority] != NULL)) {
 		spin_unlock_irqrestore(&sched->lock, flags);
+		mdla_error("%s:%d has ongoing cmd with same priority\n",
+			__func__, __LINE__);
 		return -EINVAL;
 	}
 	sched->ce[priority] =
@@ -151,6 +151,8 @@ int mdla_run_command_sync(
 	ce = sched->ce[priority];
 	if (unlikely(ce == NULL)) {
 		spin_unlock_irqrestore(&sched->lock, flags);
+		mdla_error("%s:%d null check fail\n",
+			__func__, __LINE__);
 		return -EINVAL;
 	}
 	/* Get now boost_val */
@@ -162,13 +164,31 @@ int mdla_run_command_sync(
 	mdla_run_command_prepare(cd, apusys_hd, ce, priority);
 
 	/* check kva and mva are valid */
-	if (ce->kva == 0)
+	if (ce->kva == 0) {
+		spin_lock_irqsave(&sched->lock, flags);
+		if (priority == MDLA_LOW_PRIORITY && ce->batch_list_head)
+			kfree(ce->batch_list_head);
+		kfree(sched->ce[priority]);
+		sched->ce[priority] = NULL;
+		spin_unlock_irqrestore(&sched->lock, flags);
+		mdla_error("%s:%d rcv cmd with kva = 0\n",
+			__func__, __LINE__);
 		return -EINVAL;
+	}
 	/* check ce->count is valid */
 	cmdbuf_size =
 		apusys_hd->cmd_entry + apusys_hd->size - (uint64_t)ce->kva;
-	if (ce->count * MREG_CMD_SIZE > cmdbuf_size)
+	if (ce->count * MREG_CMD_SIZE > cmdbuf_size) {
+		spin_lock_irqsave(&sched->lock, flags);
+		if (priority == MDLA_LOW_PRIORITY && ce->batch_list_head)
+			kfree(ce->batch_list_head);
+		kfree(sched->ce[priority]);
+		sched->ce[priority] = NULL;
+		spin_unlock_irqrestore(&sched->lock, flags);
+		mdla_error("%s:%d illegal cmd size\n",
+			__func__, __LINE__);
 		return -EINVAL;
+	}
 
 #ifdef __APUSYS_MDLA_PMU_SUPPORT__
 	if (likely(!pmu_apusys_pmu_addr_check(apusys_hd))) {

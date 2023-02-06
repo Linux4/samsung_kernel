@@ -1,9 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2021 Samsung Electronics Co., Ltd
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * Copyright (c) 2022 Samsung Electronics Inc.
  */
 
 #ifndef __S5KJN1_SENSOR_SETFILE_H__
@@ -12,7 +9,7 @@
 #include "s5kjn1mipiraw_Sensor.h"
 #include "kd_imgsensor_adaptive_mipi.h"
 
-/* sensor set-file: JN1_EVT0.0_Setfile_20210809_ver0.06.xlsx */
+/* sensor set-file: JN1_EVT0.0_Setfile_20220302_ver0.13.xlsx */
 static kal_uint16 addr_data_init_s5kjn1[] = {
 	0x6226, 0x0001,
 	0x6028, 0x2400,
@@ -174,7 +171,6 @@ static kal_uint16 addr_data_init_s5kjn1[] = {
 	0x2042, 0x001A,
 	0x2148, 0x0001,
 	0x21E4, 0x0004,
-	0x21EC, 0x0000,
 	0x2210, 0x0134,
 	0x222E, 0x0100,
 	0x3570, 0x0000,
@@ -262,6 +258,7 @@ static kal_uint16 addr_data_preview_s5kjn1[] = {
 	0x20BC, 0x1C11,
 	0x20BE, 0xF454,
 	0x212E, 0x0002,
+	0x21EC, 0x0000,
 	0x3574, 0x0060,
 	0x4A74, 0x0028,
 	0x4A78, 0x0000,
@@ -412,6 +409,7 @@ static kal_uint16 addr_data_capture_s5kjn1[] = {
 	0x20BC, 0x1C11,
 	0x20BE, 0xF454,
 	0x212E, 0x0002,
+	0x21EC, 0x0000,
 	0x3574, 0x0060,
 	0x4A74, 0x0028,
 	0x4A78, 0x0000,
@@ -562,6 +560,7 @@ static kal_uint16 addr_data_video_s5kjn1[] = {
 	0x20BC, 0x1C11,
 	0x20BE, 0xF454,
 	0x212E, 0x0002,
+	0x21EC, 0x0000,
 	0x3574, 0x0060,
 	0x4A74, 0x0028,
 	0x4A78, 0x0000,
@@ -712,6 +711,7 @@ static kal_uint16 addr_data_hs_s5kjn1[] = {
 	0x20BC, 0x0000,
 	0x20BE, 0x0000,
 	0x212E, 0x000A,
+	0x21EC, 0x0000,
 	0x3574, 0x0220,
 	0x4A74, 0x0000,
 	0x4A78, 0xFFD8,
@@ -755,6 +755,7 @@ static kal_uint16 addr_data_hs_s5kjn1[] = {
 	0x8104, 0x0001,
 	0xFCFC, 0x4000,
 	0x0114, 0x0103,
+	0x0116, 0x002B,
 	0x0300, 0x0600,
 	0x0302, 0x0100,
 	0x0304, 0x0400,
@@ -864,6 +865,7 @@ static kal_uint16 addr_data_custom1_s5kjn1[] = {
 	0x20BC, 0x0000,
 	0x20BE, 0x0000,
 	0x212E, 0x000A,
+	0x21EC, 0x0000,
 	0x3574, 0x0220,
 	0x4A74, 0x0000,
 	0x4A78, 0xFFD8,
@@ -907,6 +909,7 @@ static kal_uint16 addr_data_custom1_s5kjn1[] = {
 	0x8104, 0x0001,
 	0xFCFC, 0x4000,
 	0x0114, 0x0003,
+	0x0116, 0x002B,
 	0x0300, 0x0600,
 	0x0302, 0x0100,
 	0x0304, 0x0400,
@@ -934,11 +937,11 @@ static kal_uint16 addr_data_custom1_s5kjn1[] = {
 	0x080E, 0x0000,
 	0x0900, 0x4401,
 	0x0D00, 0x0101,
-	0x0D02, 0x0100,//implant mode
+	0x0D02, 0x0100,
 	0x0D04, 0x0200,
 	0x6226, 0x0000,
 	0xF46A, 0xAE80,
-	0x6000, 0x0085,
+	0x6000, 0x0085
 };
 
 static kal_uint16 addr_data_custom2_s5kjn1[] = {
@@ -1013,6 +1016,7 @@ static kal_uint16 addr_data_custom2_s5kjn1[] = {
 	0x20BC, 0x0000,
 	0x20BE, 0x0000,
 	0x212E, 0x0002,
+	0x21EC, 0x0000,
 	0x3574, 0x0020,
 	0x4A74, 0x0000,
 	0x4A78, 0xFFE2,
@@ -1056,6 +1060,7 @@ static kal_uint16 addr_data_custom2_s5kjn1[] = {
 	0x8104, 0x0000,
 	0xFCFC, 0x4000,
 	0x0114, 0x0003,
+	0x0116, 0x002B,
 	0x0300, 0x0600,
 	0x0302, 0x0100,
 	0x0304, 0x0400,
@@ -1135,7 +1140,11 @@ static kal_uint16 s5kjn1_mipi_full_793mhz[] = {
 
 struct cam_mipi_channel s5kjn1_mipi_channel_full[] = {
 	{ CAM_RAT_BAND(CAM_RAT_1_GSM, CAM_BAND_001_GSM_GSM850), 0, 0, CAM_JN1_SET_A_all_721p5_MHZ },
+#if defined(CONFIG_CAMERA_AAV_V13VE)
+	{ CAM_RAT_BAND(CAM_RAT_1_GSM, CAM_BAND_002_GSM_EGSM900), 0, 0, CAM_JN1_SET_A_all_773p5_MHZ },
+#else
 	{ CAM_RAT_BAND(CAM_RAT_1_GSM, CAM_BAND_002_GSM_EGSM900), 0, 0, CAM_JN1_SET_A_all_793_MHZ },
+#endif
 	{ CAM_RAT_BAND(CAM_RAT_1_GSM, CAM_BAND_003_GSM_DCS1800), 0, 0, CAM_JN1_SET_A_all_773p5_MHZ },
 	{ CAM_RAT_BAND(CAM_RAT_1_GSM, CAM_BAND_004_GSM_PCS1900), 0, 0, CAM_JN1_SET_A_all_793_MHZ },
 	{ CAM_RAT_BAND(CAM_RAT_2_WCDMA, CAM_BAND_011_WCDMA_WB01), 10562, 10604, CAM_JN1_SET_A_all_721p5_MHZ },

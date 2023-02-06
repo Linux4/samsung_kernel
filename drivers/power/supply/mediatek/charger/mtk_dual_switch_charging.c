@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 #include <linux/device.h>
 #include <linux/errno.h>
@@ -149,11 +141,12 @@ dual_swchg_select_charging_current_limit(struct charger_manager *info)
 		goto done;
 	}
 
-	if ((get_boot_mode() == META_BOOT) ||
-	    (get_boot_mode() == ADVMETA_BOOT)) {
-		pdata->input_current_limit = 200000; /* 200mA */
-		goto done;
-	}
+// workaround for mt6768
+//	if ((get_boot_mode() == META_BOOT) ||
+//	    (get_boot_mode() == ADVMETA_BOOT)) {
+//		pdata->input_current_limit = 200000; /* 200mA */
+//		goto done;
+//	}
 
 	if (info->atm_enabled == true && (info->chr_type == STANDARD_HOST ||
 	    info->chr_type == CHARGING_HOST)) {
@@ -559,11 +552,12 @@ static void dual_swchg_turn_on_charging(struct charger_manager *info)
 		chg1_enable = false;
 		chg2_enable = false;
 		pr_notice("Charging Error, disable charging!\n");
-	} else if ((get_boot_mode() == META_BOOT) ||
-		   (get_boot_mode() == ADVMETA_BOOT)) {
-		chg1_enable = false;
-		chg2_enable = false;
-		pr_notice("In meta mode, disable charging\n");
+// workaround for mt6768
+//	} else if ((get_boot_mode() == META_BOOT) ||
+//		   (get_boot_mode() == ADVMETA_BOOT)) {
+//		chg1_enable = false;
+//		chg2_enable = false;
+//		pr_notice("In meta mode, disable charging\n");
 	} else {
 		mtk_pe20_start_algorithm(info);
 		if (mtk_pe20_get_is_connect(info) == false)

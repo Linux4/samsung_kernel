@@ -1,16 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * Power Delivery Policy Engine for Common
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include "inc/pd_core.h"
@@ -58,7 +48,6 @@ void pe_idle1_entry(struct pd_port *pd_port)
 
 void pe_idle2_entry(struct pd_port *pd_port)
 {
-	pd_free_unexpected_event(pd_port);
 	memset(&pd_port->pe_data, 0, sizeof(struct pe_data));
 	pd_set_rx_enable(pd_port, PD_RX_CAP_PE_IDLE);
 	pd_disable_timer(pd_port, PD_TIMER_PE_IDLE_TOUT);
@@ -133,44 +122,6 @@ void pe_bist_carrier_mode_2_exit(struct pd_port *pd_port)
 	pd_disable_bist_mode2(pd_port);
 }
 
-#ifdef CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG
-void pe_unexpected_tx_wait_entry(struct pd_port *pd_port)
-{
-	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
-
-	PE_INFO("##$$123\n");
-	PE_STATE_DISCARD_AND_UNEXPECTED(pd_port);
-	pd_enable_timer(pd_port, PD_TIMER_SENDER_RESPONSE);
-}
-
-void pe_send_soft_reset_tx_wait_entry(struct pd_port *pd_port)
-{
-	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
-
-	PE_INFO("##$$124\n");
-	PE_STATE_DISCARD_AND_UNEXPECTED(pd_port);
-	pd_enable_timer(pd_port, PD_TIMER_SENDER_RESPONSE);
-}
-
-void pe_recv_soft_reset_tx_wait_entry(struct pd_port *pd_port)
-{
-	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
-
-	PE_INFO("##$$125\n");
-	PE_STATE_DISCARD_AND_UNEXPECTED(pd_port);
-	pd_enable_timer(pd_port, PD_TIMER_SENDER_RESPONSE);
-}
-
-void pe_send_soft_reset_standby_entry(struct pd_port *pd_port)
-{
-	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
-
-	PE_INFO("##$$126\n");
-	PE_STATE_DISCARD_AND_UNEXPECTED(pd_port);
-	pd_put_dpm_ack_event(pd_port);
-}
-#endif	/* CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG */
-
 /*
  * Policy Engine Share State Activity
  */
@@ -213,10 +164,6 @@ void pe_power_ready_entry(struct pd_port *pd_port)
 #ifdef CONFIG_USB_PD_RENEGOTIATION_COUNTER
 	pd_port->pe_data.renegotiation_count = 0;
 #endif	/* CONFIG_USB_PD_RENEGOTIATION_COUNTER */
-
-#ifdef CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG
-	pd_port->pe_data.pd_sent_ams_init_cmd = true;
-#endif /* CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG */
 
 	if (pd_check_rev30(pd_port))
 		rx_cap = pe30_power_ready_entry(pd_port);

@@ -1,15 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2021 MediaTek Inc.
  */
+
 #ifndef _MTK_EEMG_CONFIG_H_
 #define _MTK_EEMG_CONFIG_H_
 
@@ -115,18 +108,17 @@
 #define NR_HW_RES_FOR_BANK	(5) /* real eem banks for efuse */
 #define EEMG_INIT01_FLAG (0x01) /* 0x01=> [0]:GPU */
 #define EEMG_CORNER_FLAG (0x30) /* 0x30=> [5]:VPU, [4]:MDLA */
-#if 0
-#if ENABLE_LOO
-#if DVT
-#define EEMG_GPU_INIT02_FLAG (0x48) /* should be 0x048=>[6]:GPU_HI,[3]:GPU_LO */
-#else
-#define EEMG_GPU_INIT02_FLAG (0x18) /* should be 0x018=>[4]:GPU_HI,[3]:GPU_LO */
-#endif
-#else
-#define EEMG_GPU_INIT02_FLAG (0x8) /* should be 0x08=>[3]:GPU */
-#endif
-#endif
-
+/*
+ * #if ENABLE_LOO
+ * #if DVT
+ * #define EEMG_GPU_INIT02_FLAG (0x48) //should be 0x048=>[6]:GPU_HI,[3]:GPU_LO
+ * #else
+ * #define EEMG_GPU_INIT02_FLAG (0x18) //should be 0x018=>[4]:GPU_HI,[3]:GPU_LO
+ * #endif
+ * #else
+ * *#define EEMG_GPU_INIT02_FLAG (0x8) //should be 0x08=>[3]:GPU
+ * #endif
+ */
 #define NR_FREQ 16
 #define NR_FREQ_GPU 16
 #define NR_FREQ_VPU 16

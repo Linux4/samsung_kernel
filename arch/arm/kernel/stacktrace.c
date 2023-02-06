@@ -3,6 +3,7 @@
 #include <linux/sched/debug.h>
 #include <linux/stacktrace.h>
 
+#include <asm/sections.h>
 #include <asm/stacktrace.h>
 #include <asm/traps.h>
 
@@ -65,12 +66,6 @@ int notrace unwind_frame(struct stackframe *frame)
 	frame->pc = *(unsigned long *)(fp - 4);
 #endif
 
-	if (ALIGN(frame->fp, THREAD_SIZE) != ALIGN(fp, THREAD_SIZE))
-		return -EINVAL;
-
-	if (ALIGN(frame->sp, THREAD_SIZE) != ALIGN(low, THREAD_SIZE))
-		return -EINVAL;
-
 	return 0;
 }
 #endif
@@ -93,7 +88,6 @@ EXPORT_SYMBOL(walk_stackframe);
 #ifdef CONFIG_STACKTRACE
 struct stack_trace_data {
 	struct stack_trace *trace;
-	unsigned long last_pc;
 	unsigned int no_sched_functions;
 	unsigned int skip;
 };
@@ -117,19 +111,12 @@ static int save_trace(struct stackframe *frame, void *d)
 	if (trace->nr_entries >= trace->max_entries)
 		return 1;
 
-	/*
-	 * in_exception_text() is designed to test if the PC is one of
-	 * the functions which has an exception stack above it, but
-	 * unfortunately what is in frame->pc is the return LR value,
-	 * not the saved PC value.  So, we need to track the previous
-	 * frame PC value when doing this.
-	 */
-	addr = data->last_pc;
-	data->last_pc = frame->pc;
-	if (!in_exception_text(addr))
+	if (!in_entry_text(frame->pc))
 		return 0;
 
 	regs = (struct pt_regs *)frame->sp;
+	if ((unsigned long)&regs[1] > ALIGN(frame->sp, THREAD_SIZE))
+		return 0;
 
 	trace->entries[trace->nr_entries++] = regs->ARM_pc;
 
@@ -144,12 +131,10 @@ static noinline void __save_stack_trace(struct task_struct *tsk,
 	struct stackframe frame;
 
 	data.trace = trace;
-	data.last_pc = ULONG_MAX;
 	data.skip = trace->skip;
 	data.no_sched_functions = nosched;
 
 	if (tsk != current) {
-#if 0
 #ifdef CONFIG_SMP
 		/*
 		 * What guarantees do we have here that 'tsk' is not
@@ -159,7 +144,6 @@ static noinline void __save_stack_trace(struct task_struct *tsk,
 		if (trace->nr_entries < trace->max_entries)
 			trace->entries[trace->nr_entries++] = ULONG_MAX;
 		return;
-#endif
 #else
 		frame.fp = thread_saved_fp(tsk);
 		frame.sp = thread_saved_sp(tsk);

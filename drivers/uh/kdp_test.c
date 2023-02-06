@@ -6,11 +6,9 @@
 #include <linux/security.h>
 #include <../../fs/mount.h>
 #include <linux/sched/signal.h>
-#ifdef CONFIG_RUSTUH_KDP
-#include <linux/rustkdp.h>
-#else
+
 #include <linux/kdp.h>
-#endif
+
 /* Never enable this flag*/
 //#define CONFIG_KDP_SEC_TEST
 
@@ -63,23 +61,20 @@ static struct vfsmount *get_vfsmnt(struct task_struct *p)
 
 	return p->nsproxy->mnt_ns->root->mnt;
 }
-#ifdef CONFIG_RUSTUH_KDP
+
 static bool hyp_check_page_ro(u64 va)
 {
 	unsigned long flags;
 	u64 par = 0;
 
 	raw_spin_lock_irqsave(&par_lock, flags);
-
 	uh_call(UH_APP_KDP, TEST_GET_PAR, (unsigned long)va, KDP_PA_WRITE, 0, 0);
 	par = *ha1;
 	raw_spin_unlock_irqrestore(&par_lock, flags);
 
 	return (par & 0x1)? true: false;
 }
-#else
-extern bool hyp_check_page_ro(u64 va);
-#endif
+
 static int test_case_kdp_ro(int cmd_id)
 {
 	struct task_struct *p = NULL;
@@ -313,14 +308,14 @@ ssize_t kdp_write(struct file *filep, const char __user *buffer, size_t len, lof
 ssize_t kdp_read(struct file *filep, char __user *buffer, size_t count, loff_t *ppos)
 {
 	int ret = 0, temp_ret = 0, i = 0;
-	struct uh_app_test_case tc_funcs[] = {
+	struct test_case tc_funcs[] = {
 		{test_case_cred_ro,		"TEST TASK_CRED_RO"},
 		{test_case_sec_context_ro,	"TEST TASK_SECURITY_CONTEXT_RO"},
 		{test_case_cred_match_bp,	"TEST CRED_MATCH_BACKPOINTERS"},
 		{test_case_sec_context_match_bp,"TEST TASK_SEC_CONTEXT_BACKPOINTER"},
 		{test_case_ns_ro,	"TEST NAMESPACE_RO"},
 	};
-	int tc_num = sizeof(tc_funcs)/sizeof(struct uh_app_test_case);
+	int tc_num = sizeof(tc_funcs)/sizeof(struct test_case);
 
 	static bool done = false;
 	if (done)
@@ -369,24 +364,22 @@ static int __init kdp_test_init(void)
 		return -1;
 	}
 
-#ifdef CONFIG_RUSTUH_KDP
 	va = __get_free_page(GFP_KERNEL | __GFP_ZERO);
 	if (!va)
 		return -1;
 
 	uh_call(UH_APP_KDP, TEST_INIT, va, 0, 0, 0);
+
 	ha1 = (u64 *)va;
-#endif
+
 	return 0;
 }
 
 static void __exit kdp_test_exit(void)
 {
-#ifdef CONFIG_RUSTUH_KDP
 	uh_call(UH_APP_KDP, TEST_EXIT, (u64)ha1, 0, 0, 0);
-
 	free_page((unsigned long)ha1);
-#endif
+
 	remove_proc_entry("kdp_test", NULL);
 }
 

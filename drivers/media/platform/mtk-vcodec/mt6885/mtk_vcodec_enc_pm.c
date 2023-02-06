@@ -1,16 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2016 MediaTek Inc.
- * Author: Tiffany Lin <tiffany.lin@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/clk.h>
 #include <linux/of_address.h>
@@ -33,12 +24,13 @@
 #define USE_GCE 1
 #ifdef ENC_DVFS
 #include <linux/pm_qos.h>
+#include <linux/soc/mediatek/mtk-pm-qos.h>
 #include <mmdvfs_pmqos.h>
 #include "vcodec_dvfs.h"
 #define STD_VENC_FREQ 273
 #define STD_LUMA_BW 100
 #define STD_CHROMA_BW 50
-static struct pm_qos_request venc_qos_req_f;
+static struct mtk_pm_qos_request venc_qos_req_f;
 static u64 venc_freq;
 
 static u32 venc_freq_step_size;
@@ -174,6 +166,7 @@ void mtk_venc_init_ctx_pm(struct mtk_vcodec_ctx *ctx)
 {
 	ctx->async_mode = 1;
 
+#ifdef CONFIG_MTK_SLBC
 	ctx->sram_data.uid = UID_MM_VENC;
 	ctx->sram_data.type = TP_BUFFER;
 	ctx->sram_data.size = 0;
@@ -184,6 +177,7 @@ void mtk_venc_init_ctx_pm(struct mtk_vcodec_ctx *ctx)
 	else
 		ctx->use_slbc = 0;
 	pr_debug("slbc_request %d, %p\n", &ctx->sram_data, ctx->use_slbc);
+#endif
 }
 
 int mtk_vcodec_init_enc_pm(struct mtk_vcodec_dev *mtkdev)
@@ -245,10 +239,12 @@ void mtk_vcodec_release_enc_pm(struct mtk_vcodec_dev *mtkdev)
 
 void mtk_venc_deinit_ctx_pm(struct mtk_vcodec_ctx *ctx)
 {
+#ifdef CONFIG_MTK_SLBC
 	if (ctx->use_slbc == 1) {
 		pr_debug("slbc_release, %p\n", &ctx->sram_data);
 		slbc_release(&ctx->sram_data);
 	}
+#endif
 }
 
 void mtk_vcodec_enc_clock_on(struct mtk_vcodec_ctx *ctx, int core_id)
@@ -280,11 +276,13 @@ void mtk_vcodec_enc_clock_on(struct mtk_vcodec_ctx *ctx, int core_id)
 	}
 	time_check_end(MTK_FMT_ENC, core_id, 50);
 #endif
+#ifdef CONFIG_MTK_SLBC
 	if (ctx->use_slbc == 1) {
 		time_check_start(MTK_FMT_ENC, core_id);
 		ret = slbc_power_on(&ctx->sram_data);
 		time_check_end(MTK_FMT_ENC, core_id, 50);
 	}
+#endif
 
 #ifdef CONFIG_MTK_PSEUDO_M4U
 	time_check_start(MTK_FMT_ENC, core_id);
@@ -300,11 +298,13 @@ void mtk_vcodec_enc_clock_on(struct mtk_vcodec_ctx *ctx, int core_id)
 	for (i = 0; i < larb_port_num; i++) {
 		if (i == 5 || i == 6 || i == 13 ||
 			i == 14 || i == 21 || i == 22) {
-			ret = smi_sysram_enable(MTK_M4U_ID(larb_id, i),
-				true, "LARB_VENC");
+#if IS_ENABLED(CONFIG_MTK_SMI_EXT)
+			ret = smi_sysram_enable(MTK_M4U_ID(larb_id, i), true, "LARB_VENC");
 			if (ret)
-				mtk_v4l2_err("%#x is not ready err: %#x\n",
-					i, ret);
+				mtk_v4l2_err("%#x is not ready err: %#x\n", i, ret);
+#else
+			smi_sysram_enable(MTK_M4U_ID(larb_id, i), true, "LARB_VENC");
+#endif
 		} else {
 			port.ePortID = MTK_M4U_ID(larb_id, i);
 			port.Direction = 0;
@@ -324,8 +324,10 @@ void mtk_vcodec_enc_clock_off(struct mtk_vcodec_ctx *ctx, int core_id)
 {
 	struct mtk_vcodec_pm *pm = &ctx->dev->pm;
 
+#ifdef CONFIG_MTK_SLBC
 	if (ctx->use_slbc == 1)
 		slbc_power_off(&ctx->sram_data);
+#endif
 
 #ifndef FPGA_PWRCLK_API_DISABLE
 	if (core_id == MTK_VENC_CORE_0 ||
@@ -348,7 +350,7 @@ void mtk_prepare_venc_dvfs(void)
 	int ret;
 	int i;
 
-	pm_qos_add_request(&venc_qos_req_f, PM_QOS_VENC_FREQ,
+	mtk_pm_qos_add_request(&venc_qos_req_f, PM_QOS_VENC_FREQ,
 				PM_QOS_DEFAULT_VALUE);
 	venc_freq_step_size = 1;
 	ret = mmdvfs_qos_get_freq_steps(PM_QOS_VENC_FREQ, &venc_freq_steps[0],
@@ -367,8 +369,8 @@ void mtk_unprepare_venc_dvfs(void)
 	int freq_idx = 0;
 
 	freq_idx = (venc_freq_step_size == 0) ? 0 : (venc_freq_step_size - 1);
-	pm_qos_update_request(&venc_qos_req_f, venc_freq_steps[freq_idx]);
-	pm_qos_remove_request(&venc_qos_req_f);
+	mtk_pm_qos_update_request(&venc_qos_req_f, venc_freq_steps[freq_idx]);
+	mtk_pm_qos_remove_request(&venc_qos_req_f);
 	/* free_hist(&venc_hists, 0); */
 	/* TODO: jobs error handle */
 #endif
@@ -481,12 +483,12 @@ void mtk_venc_dvfs_begin(struct temp_job **job_list)
 				venc_freq = target_freq_64;
 
 			venc_cur_job->mhz = (int)target_freq_64;
-			pm_qos_update_request(&venc_qos_req_f, target_freq_64);
+			mtk_pm_qos_update_request(&venc_qos_req_f, target_freq_64);
 		}
 	} else {
 		target_freq_64 = match_freq(DEFAULT_MHZ, &venc_freq_steps[0],
 						venc_freq_step_size);
-		pm_qos_update_request(&venc_qos_req_f, target_freq_64);
+		mtk_pm_qos_update_request(&venc_qos_req_f, target_freq_64);
 	}
 	mutex_unlock(&ctx->dev->enc_dvfs_mutex);
 #endif
@@ -538,7 +540,7 @@ void mtk_venc_dvfs_begin(struct temp_job **job_list)
 	if (venc_freq < venc_req_freq[1])
 		venc_freq = venc_req_freq[1];
 
-	pm_qos_update_request(&venc_qos_req_f, venc_freq);
+	mtk_pm_qos_update_request(&venc_qos_req_f, venc_freq);
 #endif
 }
 
@@ -570,7 +572,7 @@ void mtk_venc_dvfs_end(struct temp_job *job)
 	}
 
 	freq_idx = (venc_freq_step_size == 0) ? 0 : (venc_freq_step_size - 1);
-	pm_qos_update_request(&venc_qos_req_f, venc_freq_steps[freq_idx]);
+	mtk_pm_qos_update_request(&venc_qos_req_f, venc_freq_steps[freq_idx]);
 	mutex_unlock(&ctx->dev->enc_dvfs_mutex);
 #endif
 #if ENC_DVFS
@@ -583,7 +585,7 @@ void mtk_venc_dvfs_end(struct temp_job *job)
 	if (venc_freq < venc_req_freq[1])
 		venc_freq = venc_req_freq[1];
 
-	pm_qos_update_request(&venc_qos_req_f, venc_freq);
+	mtk_pm_qos_update_request(&venc_qos_req_f, venc_freq);
 #endif
 }
 
@@ -622,7 +624,7 @@ void mtk_venc_emi_bw_begin(struct temp_job **jobs)
 	/* bits/s to mbytes/s */
 	emi_bw = emi_bw / (1024 * 1024) / 8;
 
-	pm_qos_update_request(&venc_qos_req_bw, (int)emi_bw);
+	mtk_pm_qos_update_request(&venc_qos_req_bw, (int)emi_bw);
 #endif
 #if ENC_EMI_BW
 	struct temp_job *job = 0;

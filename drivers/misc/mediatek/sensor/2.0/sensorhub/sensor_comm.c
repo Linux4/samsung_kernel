@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2020 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 #define pr_fmt(fmt) "sensor_comm " fmt
@@ -94,10 +86,10 @@ int sensor_comm_ctrl_send(struct sensor_comm_ctrl *ctrl, unsigned int size)
 {
 	int retry = 0, ret = 0;
 	const int max_retry = 10;
-	const int64_t timeout = 2000000000LL;
+	const int64_t timeout = 10000000000LL;
 	int64_t start_time = 0, duration = 0;
 
-	start_time = ktime_get_boot_ns();
+	start_time = ktime_get_boottime_ns();
 	if (!READ_ONCE(scp_status)) {
 		pr_err_ratelimited("dropped comm %u %u\n",
 			ctrl->sensor_type, ctrl->command);
@@ -108,11 +100,10 @@ int sensor_comm_ctrl_send(struct sensor_comm_ctrl *ctrl, unsigned int size)
 		ret = sensor_comm_ctrl_seq_send(ctrl, size);
 	} while (retry++ < max_retry && ret < 0);
 
-	duration = ktime_get_boot_ns() - start_time;
-	if (duration > timeout) {
-		pr_notice("running time %lld\n", duration);
-		WARN_ON(1);
-	}
+	duration = ktime_get_boottime_ns() - start_time;
+	if (duration > timeout)
+		pr_notice("running time %lld, type %u, cmd %u, retries %d\n",
+			duration, ctrl->sensor_type, ctrl->command, retry);
 	return ret;
 }
 

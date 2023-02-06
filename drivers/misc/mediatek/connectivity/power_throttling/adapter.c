@@ -26,7 +26,7 @@
 
 /* termal related macro */
 #if IS_ENABLED(CONFIG_MTK_LOW_BATTERY_POWER_THROTTLING)
-#define CONN_PWR_LOW_BATTERY_ENABLE
+//#define CONN_PWR_LOW_BATTERY_ENABLE
 #endif
 #define CONN_PWR_INVALID_TEMP (-888)
 #define CONN_PWR_MAX_TEMP_HIGH  110
@@ -104,7 +104,7 @@ EXPORT_SYMBOL(conn_pwr_enable);
 
 int conn_pwr_send_msg(enum conn_pwr_drv_type drv, enum conn_pwr_msg_type msg, void *data)
 {
-	struct conn_pwr_update_info info;
+	struct conn_pwr_update_info info = {0};
 
 	if (drv < 0 || drv >= CONN_PWR_DRV_MAX || msg < 0 || msg > CONN_PWR_MSG_MAX) {
 		pr_info("%s, invalid parameter. drv (%d), msg(%d)", __func__, drv, msg);
@@ -168,7 +168,7 @@ int conn_pwr_set_battery_level(int level)
 
 	pr_info("%s level = %d\n", __func__, level);
 #if IS_ENABLED(CONFIG_MTK_LOW_BATTERY_POWER_THROTTLING)
-	if (level < LOW_BATTERY_LEVEL_0 || level >= LOW_BATTERY_LEVEL_NUM) {
+	if (level < LOW_BATTERY_LEVEL_0 || level > LOW_BATTERY_LEVEL_2) {
 		pr_info("invalid level %d\n", level);
 		return -1;
 	}
@@ -240,7 +240,7 @@ int conn_pwr_get_plat_level(enum conn_pwr_plat_type type, int *data)
 
 int conn_pwr_set_customer_level(enum conn_pwr_drv_type type, enum conn_pwr_low_battery_level level)
 {
-	struct conn_pwr_update_info info;
+	struct conn_pwr_update_info info = {0};
 	int i;
 	int updated = 0;
 	unsigned long long sec;
@@ -375,7 +375,7 @@ int conn_pwr_notify_event(enum conn_pwr_drv_type drv, enum conn_pwr_event_type e
 		pr_info("%s, drv = %d, max_t = %d, rcv_t = %d, ret = %d\n", __func__,
 			drv, d->max_temp, d->recovery_temp, ret);
 	} else {
-		pr_info("invalid. event = %d, drv = %d\n", event, drv);
+		pr_info("invalid. event = %d, data = %d\n", event, drv);
 		return -3;
 	}
 	return ret;

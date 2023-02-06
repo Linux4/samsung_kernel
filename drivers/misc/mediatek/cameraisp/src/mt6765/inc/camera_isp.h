@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #ifndef _MT_ISP_H
@@ -20,6 +12,9 @@
 extern void mt_irq_set_sens(unsigned int irq, unsigned int sens);
 extern void mt_irq_set_polarity(unsigned int irq, unsigned int polarity);
 #endif
+
+m4u_callback_ret_t ISP_M4U_TranslationFault_callback(
+	int port, unsigned int mva, void *data);
 
 /**
  * enforce kernel log enable
@@ -684,7 +679,9 @@ enum ISP_CMD_ENUM {
 	ISP_CMD_SET_MEM_INFO,
 	ISP_CMD_SET_PM_QOS,
 	ISP_CMD_SET_PM_QOS_INFO,
-	ISP_CMD_TRANSFOR_CCU_REG
+	ISP_CMD_TRANSFOR_CCU_REG,
+	ISP_CMD_SET_VIR_CQCNT,
+	ISP_CMD_SET_SEC_DAPC_REG
 };
 
 enum ISP_HALT_DMA_ENUM {
@@ -706,7 +703,7 @@ enum ISP_HALT_DMA_ENUM {
 };
 
 
-/* mt6797 reset ioctl */
+/* reset ioctl */
 #define ISP_RESET_BY_HWMODULE    \
 	_IOW(ISP_MAGIC, ISP_CMD_RESET_BY_HWMODULE, unsigned long)
 
@@ -797,8 +794,12 @@ enum ISP_HALT_DMA_ENUM {
 	_IOWR(ISP_MAGIC, ISP_CMD_GET_DUMP_INFO, struct ISP_GET_DUMP_INFO_STRUCT)
 #define ISP_SET_MEM_INFO            \
 	_IOWR(ISP_MAGIC, ISP_CMD_SET_MEM_INFO,  struct ISP_MEM_INFO_STRUCT)
+#define ISP_SET_SEC_DAPC_REG \
+	_IOW(ISP_MAGIC, ISP_CMD_SET_SEC_DAPC_REG, unsigned int)
 #define ISP_TRANSFOR_CCU_REG \
 	_IOWR(ISP_MAGIC, ISP_CMD_TRANSFOR_CCU_REG,  unsigned char*)
+#define ISP_SET_VIR_CQCNT \
+	_IOWR(ISP_MAGIC, ISP_CMD_SET_VIR_CQCNT, unsigned int)
 
 #ifdef CONFIG_COMPAT
 #define COMPAT_ISP_READ_REGISTER      \
@@ -842,6 +843,8 @@ enum ISP_HALT_DMA_ENUM {
 					struct compat_ISP_MEM_INFO_STRUCT)
 #define COMPAT_ISP_TRANSFOR_CCU_REG     \
 	_IOWR(ISP_MAGIC, ISP_CMD_TRANSFOR_CCU_REG,   compat_uptr_t)
+#define COMPAT_ISP_SET_VIR_CQCNT      \
+	_IOWR(ISP_MAGIC, ISP_CMD_SET_VIR_CQCNT, unsigned int)
 #endif
 
 int32_t ISP_MDPClockOnCallback(uint64_t engineFlag);

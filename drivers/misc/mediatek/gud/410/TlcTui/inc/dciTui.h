@@ -162,6 +162,6 @@ struct tui_dci_msg_t {
 /**
  * Driver UUID. Update accordingly after reserving UUID
  */
-#define DR_TUI_UUID { { 0xff, 0xff, 0xff, 0xff, 0xd0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x14 } }
+#define DR_TUI_UUID { { 7, 0xC, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }
 
 #endif /* __DCITUI_H__ */

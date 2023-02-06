@@ -695,7 +695,7 @@ int ili_report_handler(void)
 	pack_checksum = ilits->tr_buf[rlen-1];
 	trdata = ilits->tr_buf;
 	pid = trdata[0];
-	ILI_INFO("Packet ID = %x\n", pid);
+	ILI_DBG("Packet ID = %x\n", pid);
 
 	if (checksum != pack_checksum && pid != P5_X_I2CUART_PACKET_ID) {
 		ILI_ERR("Checksum Error (0x%X)! Pack = 0x%X, len = %d\n", checksum, pack_checksum, rlen);

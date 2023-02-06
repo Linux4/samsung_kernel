@@ -40,12 +40,7 @@
 #include <asm/tls.h>
 #include <asm/system_misc.h>
 #include <asm/opcodes.h>
-#include <mt-plat/aee.h>
 
-#ifdef CONFIG_SEC_DEBUG
-#include <linux/sec_debug.h>
-#include <asm/stacktrace.h>
-#endif
 
 static const char *handler[]= {
 	"prefetch abort",
@@ -72,29 +67,17 @@ static void dump_mem(const char *, const char *, unsigned long, unsigned long);
 
 void dump_backtrace_entry(unsigned long where, unsigned long from, unsigned long frame)
 {
+	unsigned long end = frame + 4 + sizeof(struct pt_regs);
+
 #ifdef CONFIG_KALLSYMS
 	printk("[<%08lx>] (%ps) from [<%08lx>] (%pS)\n", where, (void *)where, from, (void *)from);
 #else
 	printk("Function entered at [<%08lx>] from [<%08lx>]\n", where, from);
 #endif
 
-	if (in_exception_text(where))
-		dump_mem("", "Exception stack", frame + 4, frame + 4 + sizeof(struct pt_regs));
+	if (in_entry_text(from) && end <= ALIGN(frame, THREAD_SIZE))
+		dump_mem("", "Exception stack", frame + 4, end);
 }
-
-#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
-void dump_backtrace_entry_auto_comment(unsigned long where, unsigned long from, unsigned long frame)
-{
-#ifdef CONFIG_KALLSYMS
-	pr_auto(ASL2, "[<%08lx>] (%ps) from [<%08lx>] (%pS)\n", where, (void *)where, from, (void *)from);
-#else
-	pr_auto(ASL2, "Function entered at [<%08lx>] from [<%08lx>]\n", where, from);
-#endif
-
-	if (in_exception_text(where))
-		dump_mem("", "Exception stack", frame + 4, frame + 4 + sizeof(struct pt_regs));
-}
-#endif
 
 void dump_backtrace_stm(u32 *stack, u32 instruction)
 {
@@ -221,12 +204,12 @@ static void dump_instr(const char *lvl, struct pt_regs *regs)
 }
 
 #ifdef CONFIG_ARM_UNWIND
-void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk)
+static inline void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk)
 {
 	unwind_backtrace(regs, tsk);
 }
 #else
-void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk)
+static void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk)
 {
 	unsigned int fp, mode;
 	int ok = 1;
@@ -262,65 +245,11 @@ void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk)
 }
 #endif
 
-#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
-void dump_backtrace_auto_comment(struct pt_regs *regs, struct task_struct *tsk)
-{
-	struct stackframe frame;
-
-	pr_debug("%s(regs = %p tsk = %p)\n", __func__, regs, tsk);
-
-	if (!tsk)
-		tsk = current;
-
-	if (regs) {
-		arm_get_current_stackframe(regs, &frame);
-		/* PC might be corrupted, use LR in that case. */
-		if (!kernel_text_address(regs->ARM_pc))
-			frame.pc = regs->ARM_lr;
-	} else if (tsk == current) {
-		frame.fp = (unsigned long)__builtin_frame_address(0);
-		frame.sp = current_stack_pointer;
-		frame.lr = (unsigned long)__builtin_return_address(0);
-		frame.pc = (unsigned long)dump_backtrace_auto_comment;
-	} else {
-		/* task blocked in __switch_to */
-		frame.fp = thread_saved_fp(tsk);
-		frame.sp = thread_saved_sp(tsk);
-		/*
-		 * The function calling __switch_to cannot be a leaf function
-		 * so LR is recovered from the stack.
-		 */
-		frame.lr = 0;
-		frame.pc = thread_saved_pc(tsk);
-	}
-
-	pr_auto_once(2);
-	pr_auto(ASL2, "Backtrace:\n");
-	while (1) {
-		int urc;
-		unsigned long where = frame.pc;
-
-		urc = unwind_frame(&frame);
-		if (urc < 0)
-			break;
-		dump_backtrace_entry_auto_comment(where, frame.pc, frame.sp - 4);
-	}
-}
-#endif
-
 void show_stack(struct task_struct *tsk, unsigned long *sp)
 {
 	dump_backtrace(NULL, tsk);
 	barrier();
 }
-
-#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
-void show_stack_auto_comment(struct task_struct *tsk, unsigned long *sp)
-{
-	dump_backtrace_auto_comment(NULL, tsk);
-	barrier();
-}
-#endif /* CONFIG_SEC_DEBUG_AUTO_COMMENT */
 
 #ifdef CONFIG_PREEMPT
 #define S_PREEMPT " PREEMPT"
@@ -426,11 +355,6 @@ void die(const char *str, struct pt_regs *regs, int err)
 	unsigned long flags = oops_begin();
 	int sig = SIGSEGV;
 
-#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
-	if (regs && (!user_mode(regs)))
-		sec_debug_set_extra_info_backtrace(regs);
-#endif
-
 	if (!user_mode(regs))
 		bug_type = report_bug(regs->ARM_pc, regs);
 	if (bug_type != BUG_TRAP_TYPE_NONE)
@@ -513,33 +437,13 @@ int call_undef_hook(struct pt_regs *regs, unsigned int instr)
 	return fn ? fn(regs, instr) : 1;
 }
 
-asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
+asmlinkage void do_undefinstr(struct pt_regs *regs)
 {
-	struct thread_info *thread = current_thread_info();
 	unsigned int instr;
 	siginfo_t info;
 	void __user *pc;
 
-#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
-	if (!user_mode(regs)) {
-		sec_debug_set_extra_info_fault((unsigned long)regs->ARM_pc, regs);
-	}
-#endif
-
-	if (!user_mode(regs)) {
-		thread->cpu_excp++;
-		if (thread->cpu_excp == 1) {
-			thread->regs_on_excp = (void *)regs;
-#ifdef CONFIG_MTK_AEE_IPANIC
-			aee_excp_regs = (void *)regs;
-#endif
-		}
-#ifdef CONFIG_MTK_AEE_IPANIC
-		if (thread->cpu_excp >= 2)
-			aee_stop_nested_panic(regs);
-#endif
-	}
-
+	clear_siginfo(&info);
 	pc = (void __user *)instruction_pointer(regs);
 
 	if (processor_mode(regs) == SVC_MODE) {
@@ -571,11 +475,8 @@ asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 		instr = __mem_to_opcode_arm(instr);
 	}
 
-	if (call_undef_hook(regs, instr) == 0) {
-		if (!user_mode(regs))
-			thread->cpu_excp--;
+	if (call_undef_hook(regs, instr) == 0)
 		return;
-	}
 
 die_sig:
 #ifdef CONFIG_DEBUG_USER
@@ -631,17 +532,7 @@ asmlinkage void bad_mode(struct pt_regs *regs, int reason)
 {
 	console_verbose();
 
-#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
-	pr_auto(ASL1, "Bad mode in %s handler detected\n", handler[reason]);
-#else
 	pr_crit("Bad mode in %s handler detected\n", handler[reason]);
-#endif
-
-#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
-	if (!user_mode(regs)) {
-		sec_debug_set_extra_info_fault((unsigned long)regs->ARM_pc, regs);
-	}
-#endif
 
 	die("Oops - bad mode", regs, 0);
 	local_irq_disable();
@@ -652,6 +543,7 @@ static int bad_syscall(int n, struct pt_regs *regs)
 {
 	siginfo_t info;
 
+	clear_siginfo(&info);
 	if ((current->personality & PER_MASK) != PER_LINUX) {
 		send_sig(SIGSEGV, current, 1);
 		return regs->ARM_r0;
@@ -719,6 +611,7 @@ asmlinkage int arm_syscall(int no, struct pt_regs *regs)
 {
 	siginfo_t info;
 
+	clear_siginfo(&info);
 	if ((no >> 16) != (__ARM_NR_BASE>> 16))
 		return bad_syscall(no, regs);
 
@@ -769,6 +662,9 @@ asmlinkage int arm_syscall(int no, struct pt_regs *regs)
 	case NR(set_tls):
 		set_tls(regs->ARM_r0);
 		return 0;
+
+	case NR(get_tls):
+		return current_thread_info()->tp_value[0];
 
 	default:
 		/* Calls 9f00xx..9f07ff are defined to return -ENOSYS
@@ -851,6 +747,8 @@ baddataabort(int code, unsigned long instr, struct pt_regs *regs)
 {
 	unsigned long addr = instruction_pointer(regs);
 	siginfo_t info;
+
+	clear_siginfo(&info);
 
 #ifdef CONFIG_DEBUG_USER
 	if (user_debug & UDBG_BADABORT) {

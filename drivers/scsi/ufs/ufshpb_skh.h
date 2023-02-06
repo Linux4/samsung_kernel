@@ -1,42 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Universal Flash Storage Host Performance Booster
- *
- * Original work Copyright (C) 2017-2018 Samsung Electronics Co., Ltd.
+ * Copyright (C) 2017-2018 Samsung Electronics Co., Ltd.
  * Modified work Copyright (C) 2018, Google, Inc.
  * Modified work Copyright (C) 2019 SK hynix
- *
- * Origianl work Authors:
- *	Yongmyung Lee <ymhungry.lee@samsung.com>
- *	Jinyoung Choi <j-young.choi@samsung.com>
- * Modifier
- * 	Kihyun Cho <kihyun.cho@sk.com>
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- * See the COPYING file in the top-level directory or visit
- * <http://www.gnu.org/licenses/gpl-2.0.html>
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * This program is provided "AS IS" and "WITH ALL FAULTS" and
- * without warranty of any kind. You are solely responsible for
- * determining the appropriateness of using and distributing
- * the program and assume all risks associated with your exercise
- * of rights with respect to the program, including but not limited
- * to infringement of third party rights, the risks and costs of
- * program errors, damage to or loss of data, programs or equipment,
- * and unavailability or interruption of operations. Under no
- * circumstances will the contributor of this Program be liable for
- * any damages of any kind arising from your use or distribution of
- * this program.
- *
- * The Linux Foundation chooses to take subject only to the GPLv2
- * license terms, and distributes only under these terms.
  */
 
 #ifndef _SKHPB_H_
@@ -47,12 +13,7 @@
 #include <linux/workqueue.h>
 
 /* Version info*/
-#define SKHPB_DD_VER				0x010506
-
-/* QUIRKs */
-/* Use READ16 instead of HPB_READ command,
- * This is workaround solution to countmeasure QCT ICE issue. */
-#define SKHPB_QUIRK_USE_READ_16_FOR_ENCRYPTION (1 << 0)
+#define SKHPB_DD_VER				0x010508
 
 /* This quirk makes HPB driver always works as Devie Control Mode.
  * To cover old Configuration descriptor format which interpret
@@ -391,7 +352,7 @@ struct skhpb_lu {
 	/* for debug constant variables */
 	unsigned long long lu_num_blocks;
 
-	u8 lun;
+	int lun;
 
 	struct ufs_hba *hba;
 
@@ -469,34 +430,34 @@ enum SKHPB_LOG_MASK {
 };
 #define SKHPB_DRIVER_E(fmt, args...)								\
 	do {											\
-		if(likely(skhpb_debug_mask & SKHPB_LOG_ERR))                             	\
+		if (likely(skhpb_debug_mask & SKHPB_LOG_ERR))                             	\
 			pr_err("[HPB E][%s:%d] "	fmt, __func__, __LINE__, ##args);	\
 	} while (0)
 
 #define SKHPB_DRIVER_I(fmt, args...)								\
 	do {											\
-		if(unlikely(skhpb_debug_mask & SKHPB_LOG_INFO))                             	\
+		if (unlikely(skhpb_debug_mask & SKHPB_LOG_INFO))                             	\
 			pr_err("[HPB][%s:%d] "	fmt, __func__, __LINE__, ##args);		\
 	} while (0)
 
 #define SKHPB_DRIVER_D(fmt, args...)								\
 	do {											\
-		if(unlikely(skhpb_debug_mask & SKHPB_LOG_DEBUG))                             	\
+		if (unlikely(skhpb_debug_mask & SKHPB_LOG_DEBUG))                             	\
 			printk(KERN_DEBUG "[HPB][%s:%d] "	fmt, __func__, __LINE__, ##args);		\
 	} while (0)
 
 #define SKHPB_DRIVER_HEXDUMP(fmt, args...)							\
 	do {											\
-		if(unlikely(skhpb_debug_mask & SKHPB_LOG_HEX)) {					\
+		if (unlikely(skhpb_debug_mask & SKHPB_LOG_HEX)) {					\
 			print_hex_dump(KERN_DEBUG, fmt, DUMP_PREFIX_ADDRESS, ##args);		\
 		}                             							\
 	} while (0)
 
 #define SKHPB_MAP_REQ_TIME(map_req, val, print)							\
 	do {											\
-		if(unlikely(debug_map_req)) {							\
+		if (unlikely(debug_map_req)) {							\
 			val = ktime_to_us(ktime_get());						\
-			if(print) {								\
+			if (print) {								\
 				SKHPB_DRIVER_I("SKHPB COMPL BUFFER %d - %d\n",			\
 						map_req->region, map_req->subregion);		\
 				SKHPB_DRIVER_I("start~issue = %lluus, issue~end = %lluus\n",	\
@@ -508,9 +469,9 @@ enum SKHPB_LOG_MASK {
 
 #define SKHPB_RSP_TIME(val)									\
 	do {											\
-		if(unlikely(debug_map_req)) {							\
+		if (unlikely(debug_map_req)) {							\
 			val = ktime_to_us(ktime_get());						\
 		}										\
-	} while(0)
+	} while (0)
 
 #endif /* End of Header */

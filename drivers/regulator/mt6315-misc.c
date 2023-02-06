@@ -127,6 +127,7 @@ static int is_mt6315_S3_exist(void)
 	return ret;
 }
 
+#if !(defined(CONFIG_MACH_MT6833) || defined(CONFIG_MACH_MT6853))
 static int is_mt6315_S6_exist(void)
 {
 	int ret = 0;
@@ -141,7 +142,10 @@ static int is_mt6315_S6_exist(void)
 
 	return ret;
 }
+#endif
 
+#if defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6873) \
+|| defined(CONFIG_MACH_MT6893)
 static int is_mt6315_S7_exist(void)
 {
 	int ret = 0;
@@ -156,6 +160,7 @@ static int is_mt6315_S7_exist(void)
 
 	return ret;
 }
+#endif
 
 int is_mt6315_exist(void)
 {

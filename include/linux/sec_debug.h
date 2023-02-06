@@ -16,59 +16,13 @@
 #include <linux/sizes.h>
 
 #include "mt-plat/aee.h"
-#if defined (CONFIG_MACH_MT6739)
-#include "mt-plat/mt6739/include/mach/upmu_hw.h"
-#elif defined (CONFIG_MACH_MT6768)
-#include "mt-plat/mt6768/include/mach/upmu_hw.h"
-#elif defined (CONFIG_MACH_MT6833)
-#include "mt-plat/mt6833/include/mach/upmu_hw.h"
-#elif defined (CONFIG_MACH_MT6853)
-#include "mt-plat/mt6853/include/mach/upmu_hw.h"
-#elif defined (CONFIG_MACH_MT6877)
-#include "mt-plat/mt6877/include/mach/upmu_hw.h"
-#else
-#include "mt-plat/mt6768/include/mach/upmu_hw.h"
-#endif
-
-/* RESERVED MEMORY BASE ADDRESS */
-#if defined (CONFIG_MACH_MT6739)
-#define SEC_LOG_BASE				0x4B000000    /* SZ_2M */
-#define SEC_LASTKMSG_BASE			0x4B200000    /* SZ_2M */
-#define SEC_LOGGER_BASE				0x4B400000    /* SZ_4M */
-#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
-#define SEC_AUTO_COMMENT_BASE		0x4B800000    /* SZ_64K */
-#endif
-#ifdef CONFIG_SEC_DEBUG_HIST_LOG
-#define SEC_HIST_LOG_BASE				0x4B900000    /* SZ_512K */
-#endif
-#else
-#define SEC_LOG_BASE				0x46C00000    /* SZ_2M */
-#define SEC_LASTKMSG_BASE			0x46E00000    /* SZ_2M */
-#define SEC_LOGGER_BASE				0x47000000    /* SZ_4M */
-#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
-#define SEC_AUTO_COMMENT_BASE		0x47400000    /* SZ_64K */
-#endif
-#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
-#define SEC_EXTRA_INFO_BASE			0x47410000    /* SZ_2M - SZ_64K */
-#endif
-#ifdef CONFIG_SEC_DEBUG_INIT_LOG
-#define SEC_INIT_LOG_BASE				0x47600000    /* SZ_2M */
-#endif
-#ifdef CONFIG_SEC_DEBUG_HIST_LOG
-#define SEC_HIST_LOG_BASE				0x47500000    /* SZ_512K */
-#endif
-#endif
-
-#if defined(CONFIG_SEC_DUMP_SINK)	
-#define SEC_DUMPSINK_MASK 0x0000FFFF
-#endif
 
 /* +++ MediaTek Feature +++ */
 
 #define PANIC_STRBUF_LEN	(256)
-#define THERMAL_RESERVED_TZS (25)
+#define THERMAL_RESERVED_TZS (10)
 
-struct ram_console_buffer {
+struct mboot_params_buffer {
 	uint32_t sig;
 	/* for size comptible */
 	uint32_t off_pl;
@@ -80,14 +34,10 @@ struct ram_console_buffer {
 	uint32_t padding[3];
 	uint32_t sz_buffer;
 	uint32_t off_linux;	/* struct last_reboot_reason */
-	uint32_t off_console;
-
-	/* console buffer */
-	uint32_t log_start;
-	uint32_t log_size;
-	uint32_t sz_console;
+	uint32_t filling[4];
 };
 
+#define CPU_NUMS 8
 /*
  *  This group of API call by sub-driver module to report reboot reasons
  *  aee_rr_* stand for previous reboot reason
@@ -99,13 +49,18 @@ struct last_reboot_reason {
 	uint64_t kaslr_offset;
 	uint64_t oops_in_progress_addr;
 
-	uint32_t last_irq_enter[AEE_MTK_CPU_NUMS];
-	uint64_t jiffies_last_irq_enter[AEE_MTK_CPU_NUMS];
+	uint32_t kick;
+	uint32_t check;
+	uint64_t wdk_ktime;
+	uint64_t wdk_systimer_cnt;
 
-	uint32_t last_irq_exit[AEE_MTK_CPU_NUMS];
-	uint64_t jiffies_last_irq_exit[AEE_MTK_CPU_NUMS];
+	uint32_t last_irq_enter[CPU_NUMS];
+	uint64_t jiffies_last_irq_enter[CPU_NUMS];
 
-	uint8_t hotplug_footprint[AEE_MTK_CPU_NUMS];
+	uint32_t last_irq_exit[CPU_NUMS];
+	uint64_t jiffies_last_irq_exit[CPU_NUMS];
+
+	uint8_t hotplug_footprint[CPU_NUMS];
 	uint8_t hotplug_cpu_event;
 	uint8_t hotplug_cb_index;
 	uint64_t hotplug_cb_fp;
@@ -129,14 +84,11 @@ struct last_reboot_reason {
 	uint32_t deepidle_data;
 	uint32_t sodi3_data;
 	uint32_t sodi_data;
-	uint32_t cidle_model;
-	uint32_t cidle_data;
-	uint64_t cidle_time;
 	uint32_t mcsodi_data;
 	uint32_t spm_suspend_data;
 	uint32_t spm_common_scenario_data;
-	uint32_t mtk_cpuidle_footprint[AEE_MTK_CPU_NUMS];
-	uint32_t mcdi_footprint[AEE_MTK_CPU_NUMS];
+	uint32_t mtk_cpuidle_footprint[CPU_NUMS];
+	uint32_t mcdi_footprint[CPU_NUMS];
 	uint32_t clk_data[8];
 	uint32_t suspend_debug_flag;
 	uint32_t fiq_cache_step;
@@ -164,7 +116,6 @@ struct last_reboot_reason {
 	uint8_t gpu_dvfs_vgpu;
 	uint8_t gpu_dvfs_oppidx;
 	uint8_t gpu_dvfs_status;
-	int8_t gpu_dvfs_power_count;
 
 	uint32_t drcc_0;
 	uint32_t drcc_1;
@@ -221,7 +172,7 @@ struct last_reboot_reason {
 	uint8_t etc_mode;
 
 
-	int16_t thermal_temp[THERMAL_RESERVED_TZS];
+	int8_t thermal_temp[THERMAL_RESERVED_TZS];
 	uint8_t thermal_status;
 	uint8_t thermal_ATM_status;
 	uint64_t thermal_ktime;
@@ -255,27 +206,24 @@ struct last_reboot_reason {
 	uint32_t power_reset_reason;
 	uint32_t mcupm_skip;
 	char panic_str[PANIC_STRBUF_LEN];
-#if defined(CONFIG_SEC_DUMP_SINK)	
-	uint32_t reboot_magic;
-#endif
 	/* - SEC Feature - */
 };
 
 /* aee sram flags save */
 #define RR_BASE(stage)	\
-	((void *)ram_console_buffer + ram_console_buffer->off_##stage)
+	((void *)mboot_params_buffer + mboot_params_buffer->off_##stage)
 #define RR_LINUX ((struct last_reboot_reason *)RR_BASE(linux))
 #define RR_BASE_PA(stage)	\
-	((void *)ram_console_buffer_pa + ram_console_buffer->off_##stage)
+	((void *)mboot_params_buffer_pa + mboot_params_buffer->off_##stage)
 #define RR_LINUX_PA ((struct last_reboot_reason *)RR_BASE_PA(linux))
 
-/*NOTICE: You should check if ram_console is null before call these macros*/
+/*NOTICE: You should check if mboot_params is null before call these macros*/
 #define LAST_RR_SET(rr_item, value) (RR_LINUX->rr_item = value)
 
 #define LAST_RR_SET_WITH_ID(rr_item, id, value) (RR_LINUX->rr_item[id] = value)
 
 #define LAST_RR_VAL(rr_item)				\
-	(ram_console_buffer ? RR_LINUX->rr_item : 0)
+	(mboot_params_buffer ? RR_LINUX->rr_item : 0)
 
 #define LAST_RR_MEMCPY(rr_item, str, len)				\
 	(strlcpy(RR_LINUX->rr_item, str, len))
@@ -283,9 +231,7 @@ struct last_reboot_reason {
 #define LAST_RR_MEMCPY_WITH_ID(rr_item, id, str, len)			\
 	(strlcpy(RR_LINUX->rr_item[id], str, len))
 
-extern struct ram_console_buffer *ram_console_buffer;
-extern unsigned short pmic_get_register_value(PMU_FLAGS_LIST_ENUM flagname);
-extern unsigned short pmic_get_register_value_nolock(PMU_FLAGS_LIST_ENUM flagname);
+extern struct mboot_params_buffer *mboot_params_buffer;
 
 extern void mrdump_reboot(void);
 extern void wdt_arch_reset(char mode);
@@ -313,14 +259,6 @@ enum sec_power_flags {
 	SEC_POWER_OFF = 0x0,
 	SEC_POWER_RESET = 0x12345678,
 };
-
-#if defined(CONFIG_SEC_DUMP_SINK)	
-enum sec_reboot_magic_flags {
-	MAGIC_SDR_FOR_MINFORM = 0x3,
-	MAGIC_STR_FOR_MINFORM = 0xC,
-};
-#endif
-
 #define SEC_RESET_REASON_PREFIX 0x12345670
 #define SEC_RESET_SET_PREFIX    0xabc00000
 enum sec_reset_reason {
@@ -352,10 +290,6 @@ enum sec_reset_reason {
 	#ifdef CONFIG_DIAG_MODE
 	SEC_RESET_SET_DIAG         = (SEC_RESET_SET_PREFIX | 0xe)	/* Diag enable for CP */
 	#endif
-
-#if defined(CONFIG_SEC_DUMP_SINK)	
-	SEC_RESET_SET_DUMPSINK     = (SEC_RESET_SET_PREFIX | 0x80000),	/* dumpsink */
-#endif
 };
 
 #define	_THIS_CPU	(-1)
@@ -419,80 +353,6 @@ typedef struct sec_logger {
 	void		(*func_hook_logger)(const char*, size_t);
 } __attribute__((__packed__)) sec_logger;
 
-#if defined (CONFIG_MACH_MT6739)
-typedef struct {
-	/* COMMON */
-	unsigned int r0;
-	unsigned int r1;
-	unsigned int r2;
-	unsigned int r3;
-	unsigned int r4;
-	unsigned int r5;
-	unsigned int r6;
-	unsigned int r7;
-	unsigned int r8;
-	unsigned int r9;
-	unsigned int r10;
-	unsigned int r11;
-	unsigned int r12;
-	/* SVC */
-	unsigned int r13_svc;
-	unsigned int r14_svc;
-	unsigned int spsr_svc;
-	/* PC & CPSR */
-	unsigned int pc;
-	unsigned int cpsr;
-	/* USR/SYS */
-	unsigned int r13_usr;
-	unsigned int r14_usr;
-	/* FIQ */
-	unsigned int r8_fiq;
-	unsigned int r9_fiq;
-	unsigned int r10_fiq;
-	unsigned int r11_fiq;
-	unsigned int r12_fiq;
-	unsigned int r13_fiq;
-	unsigned int r14_fiq;
-	unsigned int spsr_fiq;
-	/* IRQ */
-	unsigned int r13_irq;
-	unsigned int r14_irq;
-	unsigned int spsr_irq;
-	/* MON */
-	unsigned int r13_mon;
-	unsigned int r14_mon;
-	unsigned int spsr_mon;
-	/* ABT */
-	unsigned int r13_abt;
-	unsigned int r14_abt;
-	unsigned int spsr_abt;
-	/* UNDEF */
-	unsigned int r13_und;
-	unsigned int r14_und;
-	unsigned int spsr_und;
-} sec_debug_core_reg_t;
-
-typedef struct {
-	int SCTLR;
-	int TTBR0;
-	int TTBR1;
-	int TTBCR;
-	int DACR;
-	int DFSR;
-	int DFAR;
-	int IFSR;
-	int IFAR;
-	int DAFSR;
-	int IAFSR;
-	int PMRRR;
-	int NMRRR;
-	int FCSEPID;
-	int CONTEXT;
-	int URWTPID;
-	int UROTPID;
-	int POTPIDR;
-} sec_debug_mmu_reg_t;
-#else
 typedef struct {
 	u64 regs[31];
 	u64 sp_el1;
@@ -517,7 +377,6 @@ typedef struct {
 	long TPIDR_EL1;
 	long MAIR_EL1;
 } sec_debug_mmu_reg_t;
-#endif
 
 enum sec_debug_reset_reason_t {
 	RR_S = 1,
@@ -797,10 +656,6 @@ extern void sec_debug_save_last_kmsg(unsigned char* head_ptr, unsigned char* cur
 #define sec_debug_save_last_kmsg(a, b)		do { } while(0)
 #endif
 
-#ifdef CONFIG_SEC_DEBUG_SOFTDOG
-extern void secdbg_softdog_show_info(void);
-#else
-#define secdbg_softdog_show_info()		do { } while (0)
-#endif
+extern struct reserved_mem *sec_log_get_rmem(const char *compatible);
 
 #endif /* SEC_DEBUG_H */

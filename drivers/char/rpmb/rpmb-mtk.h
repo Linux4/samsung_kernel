@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2020 MediaTek Inc.
  */
 
 #ifndef _EMMC_RPMB_H
@@ -17,7 +9,9 @@
 #include <linux/mmc/ioctl.h>
 #include <linux/mmc/card.h>
 
+#if defined(CONFIG_MMC_MTK_PRO)
 extern struct msdc_host *mtk_msdc_host[];
+#endif
 
 /************************************************************************
  *
@@ -118,7 +112,7 @@ struct emmc_rpmb_req {
 	__u8 *data_frame;
 };
 
-
+int mmc_rpmb_register(struct mmc_host *mmc);
 int mmc_rpmb_set_key(struct mmc_card *card, void *key);
 int mmc_rpmb_read(struct mmc_card *card, u8 *buf, u16 blk, u16 cnt, void *key);
 int mmc_rpmb_write(struct mmc_card *card, u8 *buf, u16 blk, u16 cnt, void *key);

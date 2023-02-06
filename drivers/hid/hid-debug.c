@@ -681,7 +681,7 @@ void hid_dump_report(struct hid_device *hid, int type, u8 *data,
 	char *buf;
 	unsigned int i;
 
-	buf = kmalloc(sizeof(char) * HID_DEBUG_BUFSIZE, GFP_ATOMIC);
+	buf = kmalloc(HID_DEBUG_BUFSIZE, GFP_ATOMIC);
 
 	if (!buf)
 		return;
@@ -1165,15 +1165,15 @@ out:
 	return ret;
 }
 
-static unsigned int hid_debug_events_poll(struct file *file, poll_table *wait)
+static __poll_t hid_debug_events_poll(struct file *file, poll_table *wait)
 {
 	struct hid_debug_list *list = file->private_data;
 
 	poll_wait(file, &list->hdev->debug_wait, wait);
 	if (!kfifo_is_empty(&list->hid_debug_fifo))
-		return POLLIN | POLLRDNORM;
+		return EPOLLIN | EPOLLRDNORM;
 	if (!list->hdev->debug)
-		return POLLERR | POLLHUP;
+		return EPOLLERR | EPOLLHUP;
 	return 0;
 }
 

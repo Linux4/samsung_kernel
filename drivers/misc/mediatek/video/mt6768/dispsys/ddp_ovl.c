@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #define LOG_TAG "OVL"
 #include "ddp_log.h"
@@ -654,10 +646,12 @@ static int ovl_layer_config(enum DISP_MODULE_ENUM module, unsigned int layer,
 	} else {
 		unsigned int size;
 		int m4u_port;
-		enum TRUSTED_MEM_REQ_TYPE mem_type;
 
 		size = (dst_h - 1) * cfg->src_pitch + dst_w * Bpp;
 		m4u_port = module_to_m4u_port(module);
+
+#ifdef CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM
+		enum TRUSTED_MEM_REQ_TYPE mem_type;
 		mem_type = -1;
 
 		if ((module == DISP_MODULE_OVL0_2L) && (cfg->hnd != NULL)) {
@@ -669,7 +663,9 @@ static int ovl_layer_config(enum DISP_MODULE_ENUM module, unsigned int layer,
 			DDPDBG("[SVP]before ovl0_2l setting sec id as: %d,type:%d, port:%d\n",
 				sec_id, mem_type, m4u_port);
 		}
-
+#else
+		int mem_type = -1; //avoid build error
+#endif
 		if (cfg->security != DISP_SECURE_BUFFER) {
 			/*
 			 * ovl is sec but this layer is non-sec

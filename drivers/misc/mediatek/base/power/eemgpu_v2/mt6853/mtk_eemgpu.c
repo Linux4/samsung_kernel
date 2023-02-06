@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 /**
  * @file	mtk_eem.
@@ -943,9 +936,6 @@ void mt_record_unlock(unsigned long *flags)
 }
 EXPORT_SYMBOL(mt_record_unlock);
 #endif
-/*
- * timer for log
- */
 static enum hrtimer_restart eemg_log_timer_func(struct hrtimer *timer)
 {
 	struct eemg_det *det;
@@ -1394,9 +1384,6 @@ skip_update:
 		mutex_unlock(ndet->loo_mutex);
 #endif
 }
-/*
- * Thread for voltage setting
- */
 static int eemg_volt_thread_handler(void *data)
 {
 	struct eemg_ctrl *ctrl = (struct eemg_ctrl *)data;
@@ -2968,9 +2955,6 @@ int mt_eemg_status(enum eemg_det_id id)
  * ===============================================
  */
 
-/*
- * show current EEM stauts
- */
 static int eemg_debug_proc_show(struct seq_file *m, void *v)
 {
 	struct eemg_det *det = (struct eemg_det *)m->private;
@@ -2989,9 +2973,6 @@ static int eemg_debug_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-/*
- * set EEM status by procfs interface
- */
 static ssize_t eemg_debug_proc_write(struct file *file,
 	const char __user *buffer, size_t count, loff_t *pos)
 {
@@ -3040,9 +3021,6 @@ out:
 	return (ret < 0) ? ret : count;
 }
 
-/*
- * show current aging margin
- */
 static int eemg_setmargin_proc_show(struct seq_file *m, void *v)
 {
 	struct eemg_det *det = (struct eemg_det *)m->private;
@@ -3065,9 +3043,6 @@ static int eemg_setmargin_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-/*
- * remove aging margin
- */
 static ssize_t eemg_setmargin_proc_write(struct file *file,
 			const char __user *buffer, size_t count, loff_t *pos)
 {
@@ -3147,9 +3122,6 @@ out:
 	return ret;
 }
 
-/*
- * show current EEM data
- */
 void eemg_dump_reg_by_det(struct eemg_det *det, struct seq_file *m)
 {
 	unsigned int i, k;
@@ -3220,9 +3192,6 @@ static int eemg_dump_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-/*
- * show current voltage
- */
 static int eemg_cur_volt_proc_show(struct seq_file *m, void *v)
 {
 	struct eemg_det *det = (struct eemg_det *)m->private;
@@ -3253,9 +3222,6 @@ static int eemg_cur_volt_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-/*
- * show current EEM status
- */
 static int eemg_status_proc_show(struct seq_file *m, void *v)
 {
 	int i;
@@ -3279,9 +3245,6 @@ static int eemg_status_proc_show(struct seq_file *m, void *v)
 
 	return 0;
 }
-/*
- * set EEM log enable by procfs interface
- */
 
 static int eemg_log_en_proc_show(struct seq_file *m, void *v)
 {
@@ -3350,9 +3313,6 @@ out:
 	return (ret < 0) ? ret : count;
 }
 
-/*
- * show EEM offset
- */
 static int eemg_offset_proc_show(struct seq_file *m, void *v)
 {
 	struct eemg_det *det = (struct eemg_det *)m->private;
@@ -3366,9 +3326,6 @@ static int eemg_offset_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-/*
- * set EEM offset by procfs
- */
 static ssize_t eemg_offset_proc_write(struct file *file,
 	const char __user *buffer, size_t count, loff_t *pos)
 {
@@ -3591,9 +3548,6 @@ static struct notifier_block eemg_pm_notifier_func = {
 };
 #endif /* CONFIG_PM */
 
-/*
- * Module driver
- */
 static int __init eemg_init(void)
 {
 	int err = 0;

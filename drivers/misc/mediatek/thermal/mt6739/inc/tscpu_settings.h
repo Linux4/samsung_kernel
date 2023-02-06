@@ -1,19 +1,9 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 #ifndef __TSCPU_SETTINGS_H__
 #define __TSCPU_SETTINGS_H__
-
-#include "mtk_gpufreq.h"
 
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -288,6 +278,15 @@ extern int fast_polling_factor;
 extern int tscpu_cur_fp_factor;
 extern int tscpu_next_fp_factor;
 #endif
+
+//#if !IS_ENABLED(CONFIG_MTK_GPU_SUPPORT)
+struct mt_gpufreq_power_table_info {
+	unsigned int gpufreq_khz;
+	unsigned int gpufreq_volt;
+	unsigned int gpufreq_power;
+};
+//#endif
+
 
 /*In common/thermal_zones/mtk_ts_cpu.c*/
 extern long long thermal_get_current_time_us(void);

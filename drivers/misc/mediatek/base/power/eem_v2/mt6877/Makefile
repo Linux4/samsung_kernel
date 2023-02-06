@@ -24,6 +24,10 @@ ccflags-y += \
 	-I$(srctree)/drivers/misc/mediatek/pmic/extbuck \
 	-I$(srctree)/drivers/misc/mediatek/pmic/include/mt6356	\
 	-I$(srctree)/drivers/misc/mediatek/pmic/include/mt6358	\
+	-I$(srctree)/drivers/misc/mediatek/thermal/mt6877/inc/mach  \
+	-I$(srctree)/drivers/misc/mediatek/base/power/include/gpufreq_v1/  \
+	-I$(srctree)/drivers/gpu/mediatek/gpufreq/   \
+	-I$(srctree)/drivers/gpu/mediatek/ged/include/   \
 	-I$(srctree)/drivers/misc/mediatek/thermal/$(CONFIG_MTK_PLATFORM)/inc/mach	\
 	-I$(srctree)/include/linux/	\
 	-I$(srctree)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM)	\
@@ -35,19 +39,19 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/mcupm/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/mcupm/$(MTK_PLATFORM)/
 endif
 
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6877v1_64_mcl)
+ifeq ($(PROJECT_DTB_NAMES),mediatek/k6877v1_64_mcl_k419)
 subdir-ccflags-y += -DMC50_LOAD
 endif
 
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6877v1_64_77t_mcl)
+ifeq ($(PROJECT_DTB_NAMES),mediatek/k6877v1_64_77t_mcl_k419)
 subdir-ccflags-y += -DMC50_LOAD
 endif
 
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6877v1_64_120hz_vdo_dphy_mcl)
+ifeq ($(PROJECT_DTB_NAMES),mediatek/k6877v1_64_120hz_vdo_dphy_mcl_k419)
 subdir-ccflags-y += -DMC50_LOAD
 endif
 
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6877v1_64_6gb_mcl)
+ifeq ($(PROJECT_DTB_NAMES),mediatek/k6877v1_64_6gb_mcl_k419)
 subdir-ccflags-y += -DMC50_LOAD
 endif
 

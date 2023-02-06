@@ -15,6 +15,10 @@ obj-y := cameradip_dummy.o
 MTK_DIP_COUNT := 1
 MTK_MSF_OFFSET := 0
 
+ifeq ($(CONFIG_MTK_PLATFORM), "mt6779")
+  obj-y += $(subst ",,mt6779)/
+endif
+
 ifeq ($(CONFIG_MACH_MT6775),y)
   obj-y += $(subst ",,isp_50)/
 endif

@@ -1,16 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2015 MediaTek Inc.
- * Author: CK Hu <ck.hu@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <drm/drmP.h>
 #include <drm/drm_atomic.h>
@@ -25,6 +16,7 @@
 #include "mtk_drm_gem.h"
 #include "mtk_drm_plane.h"
 #include "cmdq-sec.h"
+#include "mtk_drm_mmp.h"
 
 #define MTK_DRM_PLANE_SCALING_MIN 16
 #define MTK_DRM_PLANE_SCALING_MAX (1 << 16)
@@ -201,10 +193,6 @@ mtk_plane_duplicate_state(struct drm_plane *plane)
 	state->pending = old_state->pending;
 	state->comp_state = old_state->comp_state;
 	state->crtc = old_state->crtc;
-	if ((&state->base)->fb)
-		(&state->base)->crtc = (&old_state->base)->crtc;
-	else
-		(&state->base)->crtc = NULL;
 
 	return &state->base;
 }
@@ -293,9 +281,6 @@ static int mtk_plane_atomic_check(struct drm_plane *plane,
 {
 	struct drm_framebuffer *fb = state->fb;
 	struct drm_crtc_state *crtc_state;
-	struct drm_rect clip = {
-		0,
-	};
 	struct mtk_drm_private *private = plane->dev->dev_private;
 
 	if (!fb)
@@ -313,17 +298,14 @@ static int mtk_plane_atomic_check(struct drm_plane *plane,
 	if (IS_ERR(crtc_state))
 		return PTR_ERR(crtc_state);
 
-	clip.x2 = crtc_state->mode.hdisplay;
-	clip.y2 = crtc_state->mode.vdisplay;
-
 	if (mtk_drm_helper_get_opt(private->helper_opt, MTK_DRM_OPT_RPO))
-		return drm_plane_helper_check_state(
-			state, &clip, MTK_DRM_PLANE_SCALING_MIN,
-			MTK_DRM_PLANE_SCALING_MAX, true, true);
+		return drm_atomic_helper_check_plane_state(
+				state, crtc_state, MTK_DRM_PLANE_SCALING_MIN,
+				MTK_DRM_PLANE_SCALING_MAX, true, true);	
 	else
-		return drm_plane_helper_check_state(
-			state, &clip, DRM_PLANE_HELPER_NO_SCALING,
-			DRM_PLANE_HELPER_NO_SCALING, true, true);
+		return drm_atomic_helper_check_plane_state(
+				state, crtc_state, DRM_PLANE_HELPER_NO_SCALING,
+				DRM_PLANE_HELPER_NO_SCALING, true, true);
 }
 
 #ifdef MTK_DRM_ADVANCE
@@ -343,7 +325,7 @@ static void _mtk_plane_get_comp_state(struct mtk_drm_lyeblob_ids *lyeblob_ids,
 		if (blob) {
 			memcpy(comp_state, blob->data,
 			       sizeof(struct mtk_plane_comp_state));
-			drm_property_unreference_blob(blob);
+			drm_property_blob_put(blob);
 		}
 	}
 }
@@ -419,7 +401,7 @@ static void mtk_plane_atomic_update(struct drm_plane *plane,
 	state->pending.enable = plane->state->visible;
 	state->pending.pitch = fb->pitches[0];
 	state->pending.format = fb->format->format;
-	state->pending.modifier = fb->modifier[0];
+	state->pending.modifier = fb->modifier;
 	state->pending.addr = mtk_fb_get_dma(fb);
 	state->pending.size = mtk_fb_get_size(fb);
 	state->pending.src_x = (plane->state->src.x1 >> 16);

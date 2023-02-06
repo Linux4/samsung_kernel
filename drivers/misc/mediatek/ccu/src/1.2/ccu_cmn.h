@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2016 MediaTek Inc.
  */
 
 #ifndef __CCU_CMN_H__
@@ -48,6 +40,7 @@ struct ccu_device_s {
 	unsigned long pmem_base;
 	unsigned long n3d_a_base;
 	unsigned int irq_num;
+	struct mutex dev_mutex;
 	struct mutex user_mutex;
 	struct mutex clk_mutex;
 	/* list of vlist_type(struct ccu_user_s) */
@@ -272,9 +265,7 @@ void ccu_clock_disable(void);
 	pr_info(CCU_TAG "[%s] " format, __func__, ##args)
 
 #define LOG_DBG(format, args...)
-
 #define LOG_INF(format, args...)
-
 #define LOG_WARN(format, args...) \
 	pr##_##warn(CCU_TAG "[%s] " format, __func__, ##args)
 
@@ -307,6 +298,7 @@ void ccu_clock_disable(void);
 		ccu_name, CCU_TAG "error" format, ##args); \
 		LOG_ERR(CCU_TAG " error:" format, ##args);  \
 	} while (0)
+
 
 #define IS_KERNEL_32 ((sizeof(uint32_t *) == 4))
 #endif

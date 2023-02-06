@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 /*****************************************************************************
@@ -30,7 +22,7 @@
 #define _HI2021QMIPI_SENSOR_H
 
 
-typedef enum{
+enum IMGSENSOR_MODE{
 	IMGSENSOR_MODE_INIT,
 	IMGSENSOR_MODE_PREVIEW,
 	IMGSENSOR_MODE_CAPTURE,
@@ -42,15 +34,15 @@ typedef enum{
 	IMGSENSOR_MODE_CUSTOM3,
 	IMGSENSOR_MODE_CUSTOM4,
 	IMGSENSOR_MODE_CUSTOM5,
-} IMGSENSOR_MODE;
+} ;
 
-typedef struct imgsensor_mode_struct {
+struct imgsensor_mode_struct{
 	kal_uint32 pclk;				//record different mode's pclk
 	kal_uint32 linelength;			//record different mode's linelength
 	kal_uint32 framelength;			//record different mode's framelength
 
-	kal_uint8 startx;				//record different mode's startx of grabwindow
-	kal_uint8 starty;				//record different mode's startx of grabwindow
+	kal_uint8 startx;			//record different mode's startx of grabwindow
+	kal_uint8 starty;			//record different mode's startx of grabwindow
 
 	kal_uint16 grabwindow_width;	//record different mode's width of grabwindow
 	kal_uint16 grabwindow_height;	//record different mode's height of grabwindow
@@ -61,10 +53,10 @@ typedef struct imgsensor_mode_struct {
 	/*	 following for GetDefaultFramerateByScenario()	*/
 	kal_uint16 max_framerate;
 	kal_uint32 mipi_pixel_rate;
-} imgsensor_mode_struct;
+};
 
 /* SENSOR PRIVATE STRUCT FOR VARIABLES*/
-typedef struct imgsensor_struct {
+struct imgsensor_struct{
 	kal_uint8 mirror;				//mirrorflip information
 
 	kal_uint8 sensor_mode;			//record IMGSENSOR_MODE enum value
@@ -92,11 +84,11 @@ typedef struct imgsensor_struct {
 	kal_uint8  ihdr_en;                //ihdr enable or disable
 
 	kal_uint8 i2c_write_id;            //record current sensor's i2c write id
-} imgsensor_struct;
+};
 
 /* SENSOR PRIVATE STRUCT FOR CONSTANT*/
-typedef struct imgsensor_info_struct {
-	kal_uint16 sensor_id;			//record sensor id defined in Kd_imgsensor.h
+struct imgsensor_info_struct{
+	kal_uint16 sensor_id;		//record sensor id defined in Kd_imgsensor.h
 	#ifdef VENDOR_EDIT
 	/*Zhenagjiang.zhu@camera.drv 2017/10/18,modify for different module*/
 	kal_uint16 module_id;
@@ -104,13 +96,17 @@ typedef struct imgsensor_info_struct {
 	kal_uint32 checksum_value;        //checksum value for Camera Auto Test
 	imgsensor_mode_struct pre;        //preview scenario relative information
 	imgsensor_mode_struct cap;        //capture scenario relative information
-	imgsensor_mode_struct cap1;        //capture for PIP 24fps relative information, capture1 mode must use same framelength, linelength with Capture mode for shutter calculate
+	imgsensor_mode_struct cap1;
+	//capture for PIP 24fps relative information, capture1 mode must use same framelength
+	//linelength with Capture mode for shutter calculate
 	imgsensor_mode_struct normal_video;//normal video  scenario relative information
 	imgsensor_mode_struct hs_video;    //high speed video scenario relative information
 	imgsensor_mode_struct slim_video;    //slim video for VT scenario relative information
 	imgsensor_mode_struct custom1;    //slim video for VT scenario relative information
-	imgsensor_mode_struct custom2;    //custom setting for 1080p*60fps scenario relative information
-	imgsensor_mode_struct custom3;    //custom setting for 1080p*60fps scenario relative information
+	imgsensor_mode_struct custom2;
+	//custom setting for 1080p*60fps scenario relative information
+	imgsensor_mode_struct custom3;
+	//custom setting for 1080p*60fps scenario relative information
 	imgsensor_mode_struct custom4;
 	imgsensor_mode_struct custom5;
 	kal_uint8  ae_shut_delay_frame;    //shutter delay frame for AE cycle
@@ -138,23 +134,27 @@ typedef struct imgsensor_info_struct {
 
 	kal_uint8  isp_driving_current;    //mclk driving current
 	kal_uint8  sensor_interface_type;//sensor_interface_type
-	kal_uint8  mipi_sensor_type; //0,MIPI_OPHY_NCSI2; 1,MIPI_OPHY_CSI2, default is NCSI2, don't modify this para
-	kal_uint8  mipi_settle_delay_mode; //0, high speed signal auto detect; 1, use settle delay,unit is ns, default is auto detect, don't modify this para
+	kal_uint8  mipi_sensor_type;
+	//0,MIPI_OPHY_NCSI2; 1,MIPI_OPHY_CSI2, default is NCSI2, don't modify this para
+	kal_uint8  mipi_settle_delay_mode; //0, high speed signal auto detect; 1
+	//use settle delay,unit is ns, default is auto detect, don't modify this para
 	kal_uint8  sensor_output_dataformat;//sensor output first pixel color
 	kal_uint8  mclk;                //mclk value, suggest 24 or 26 for 24Mhz or 26Mhz
 
 	kal_uint8  mipi_lane_num;        //mipi lane num
-	kal_uint8  i2c_addr_table[5];    //record sensor support all write id addr, only supprt 4must end with 0xff
+	kal_uint8  i2c_addr_table[5];
+	//record sensor support all write id addr, only supprt 4must end with 0xff
 	kal_uint32  i2c_speed;
 	kal_uint32 min_gain;
 	kal_uint32 max_gain;
 	kal_uint32 min_gain_iso;
 	kal_uint32 gain_step;
 	kal_uint32 gain_type;
-} imgsensor_info_struct;
+};
 
 
-extern int iReadRegI2C(u8 *a_pSendData , u16 a_sizeSendData, u8 * a_pRecvData, u16 a_sizeRecvData, u16 i2cId);
+extern int iReadRegI2C(u8 *a_pSendData , u16 a_sizeSendData, u8 *a_pRecvData,
+					u16 a_sizeRecvData, u16 i2cId);
 extern int iWriteRegI2C(u8 *a_pSendData , u16 a_sizeSendData, u16 i2cId);
 extern int iBurstWriteReg(u8 *pData, u32 bytes, u16 i2cId);
 extern int iReadRegI2CTiming(u8 *a_pSendData, u16 a_sizeSendData,

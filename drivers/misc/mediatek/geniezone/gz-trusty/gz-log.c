@@ -1,16 +1,25 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015 Google, Inc.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
+/*
+ * GenieZone (hypervisor-based seucrity platform) enables hardware protected
+ * and isolated security execution environment, includes
+ * 1. GZ hypervisor
+ * 2. Hypervisor-TEE OS (built-in Trusty OS)
+ * 3. Drivers (ex: debug, communication and interrupt) for GZ and
+ *    hypervisor-TEE OS
+ * 4. GZ and hypervisor-TEE and GZ framework (supporting multiple TEE
+ *    ecosystem, ex: M-TEE, Trusty, GlobalPlatform, ...)
+ */
+/*
+ * This is log driver
+ *
+ * Memory log is supported - a shared memory is used for memory log
+ * Driver provides read function for user-space debug apps getting log
+ */
+
 #include <linux/platform_device.h>
 #include <gz-trusty/smcall.h>
 #include <gz-trusty/trusty.h>
@@ -40,7 +49,7 @@
 #include <asm/arch_timer.h>
 
 #if ENABLE_GZ_TRACE_DUMP
-#if IS_BUILTIN(CONFIG_GZ_LOG)
+#if IS_BUILTIN(CONFIG_MTK_GZ_LOG)
 	#include "gz_trace_builtin.h"
 #else
 	#include "gz_trace_module.h"
@@ -118,7 +127,7 @@ static struct gz_log_context glctx = {
 	.flag = DYNAMIC,
 };
 
-#if IS_BUILTIN(CONFIG_GZ_LOG)
+#if IS_BUILTIN(CONFIG_MTK_GZ_LOG)
 static int __init gz_log_context_init(struct reserved_mem *rmem)
 {
 	unsigned long node;
@@ -182,7 +191,7 @@ static int gz_log_page_init(void)
 	if (glctx.virt)
 		return 0;
 
-#if IS_MODULE(CONFIG_GZ_LOG)
+#if IS_MODULE(CONFIG_MTK_GZ_LOG)
 	gz_log_find_mblock();
 #endif
 
@@ -745,12 +754,9 @@ static int trusty_gz_send_ktime(struct platform_device *pdev)
 	uint32_t diff_msb;
 	uint32_t diff_lsb;
 
-#if IS_ENABLED(CONFIG_ARM64)
 	current_ktime = sched_clock();
 	current_cnt = arch_counter_get_cntvct();
-#endif
-
-	diff_all = current_cnt - (13 * current_ktime)/1000;
+	diff_all = current_cnt - div64_u64((13 * current_ktime), 1000);
 	diff_msb = (diff_all >> 32);
 	diff_lsb = (diff_all & U32_MAX);
 

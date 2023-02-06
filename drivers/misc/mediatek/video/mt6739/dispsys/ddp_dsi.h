@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __DSI_DRV_H__
 #define __DSI_DRV_H__
@@ -205,23 +197,6 @@ void DSI_set_cmdq_V2(enum DISP_MODULE_ENUM module, struct cmdqRecStruct *cmdq,
 int dsi_enable_irq(enum DISP_MODULE_ENUM module, void *handle,
 		   unsigned int enable);
 int ddp_dsi_power_on(enum DISP_MODULE_ENUM module, void *cmdq_handle);
-unsigned int _is_power_on_status(enum DISP_MODULE_ENUM module);
-int ddp_dsi_read_lcm_cmdq(enum DISP_MODULE_ENUM module,
-		cmdqBackupSlotHandle *read_Slot,
-		struct cmdqRecStruct *cmdq_trigger_handle,
-		struct ddp_lcm_read_cmd_table *read_table);
-int ddp_dsi_write_lcm_cmdq(enum DISP_MODULE_ENUM module,
-		struct cmdqRecStruct *cmdq,
-		unsigned char cmd, unsigned int count,
-		unsigned char *para_list);
-void DSI_dcs_set_lcm_reg_v4(enum DISP_MODULE_ENUM module,
-	bool hs, struct LCM_setting_table_V3 *para_tbl, unsigned int size,
-	unsigned char force_update);
-UINT32 DSI_dcs_read_lcm_reg_v4(enum DISP_MODULE_ENUM module,
-	UINT8 cmd, UINT8 *user_buffer, UINT8 buffer_size, bool sendhs,
-	UINT8 offset);
-int ddp_dsi_build_cmdq(enum DISP_MODULE_ENUM module,
-	void *cmdq_trigger_handle, enum CMDQ_STATE state);
 void ddp_dump_and_reset_dsi0(void);
 
 #ifdef __cplusplus

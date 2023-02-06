@@ -33,3 +33,12 @@
      
 };
 #endif
+
+#if 0 && 0
+&mt_pmic_vdram2_ldo_reg {
+    regulator-min-microvolt = <${mt_pmic_vdram2_ldo7_ldo_reg_Vmin}>;
+    regulator-max-microvolt = <${mt_pmic_vdram2_ldo7_ldo_reg_Vmax}>;
+    ${mt_pmic_vdram2_ldo7_ldo_reg_basic_properties}
+    ${mt_pmic_vdram2_ldo7_ldo_reg_opt_properties}
+};
+#endif

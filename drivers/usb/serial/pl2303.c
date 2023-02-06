@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Prolific PL2303 USB to serial adaptor driver
  *
@@ -5,10 +6,6 @@
  * Copyright (C) 2003 IBM Corp.
  *
  * Original driver for 2.2.x by anonymous
- *
- *	This program is free software; you can redistribute it and/or
- *	modify it under the terms of the GNU General Public License version
- *	2 as published by the Free Software Foundation.
  *
  * See Documentation/usb/usb-serial.txt for more information on using this
  * driver
@@ -97,6 +94,7 @@ static const struct usb_device_id id_table[] = {
 	{ USB_DEVICE(HP_VENDOR_ID, HP_LD220_PRODUCT_ID) },
 	{ USB_DEVICE(HP_VENDOR_ID, HP_LD220TA_PRODUCT_ID) },
 	{ USB_DEVICE(HP_VENDOR_ID, HP_LD381_PRODUCT_ID) },
+	{ USB_DEVICE(HP_VENDOR_ID, HP_LD381GC_PRODUCT_ID) },
 	{ USB_DEVICE(HP_VENDOR_ID, HP_LD960_PRODUCT_ID) },
 	{ USB_DEVICE(HP_VENDOR_ID, HP_LD960TA_PRODUCT_ID) },
 	{ USB_DEVICE(HP_VENDOR_ID, HP_LCM220_PRODUCT_ID) },
@@ -546,6 +544,17 @@ static int pl2303_set_line_request(struct usb_serial_port *port,
 	return 0;
 }
 
+static bool pl2303_termios_change(const struct ktermios *a, const struct ktermios *b)
+{
+	bool ixon_change;
+
+	ixon_change = ((a->c_iflag ^ b->c_iflag) & (IXON | IXANY)) ||
+			a->c_cc[VSTART] != b->c_cc[VSTART] ||
+			a->c_cc[VSTOP] != b->c_cc[VSTOP];
+
+	return tty_termios_hw_change(a, b) || ixon_change;
+}
+
 static void pl2303_set_termios(struct tty_struct *tty,
 		struct usb_serial_port *port, struct ktermios *old_termios)
 {
@@ -557,7 +566,7 @@ static void pl2303_set_termios(struct tty_struct *tty,
 	int ret;
 	u8 control;
 
-	if (old_termios && !tty_termios_hw_change(&tty->termios, old_termios))
+	if (old_termios && !pl2303_termios_change(&tty->termios, old_termios))
 		return;
 
 	buf = kzalloc(7, GFP_KERNEL);
@@ -675,6 +684,9 @@ static void pl2303_set_termios(struct tty_struct *tty,
 			pl2303_vendor_write(serial, 0x0, 0x41);
 		else
 			pl2303_vendor_write(serial, 0x0, 0x61);
+	} else if (I_IXON(tty) && !I_IXANY(tty) && START_CHAR(tty) == 0x11 &&
+			STOP_CHAR(tty) == 0x13) {
+		pl2303_vendor_write(serial, 0x0, 0xc0);
 	} else {
 		pl2303_vendor_write(serial, 0x0, 0x0);
 	}
@@ -1036,4 +1048,4 @@ static struct usb_serial_driver * const serial_drivers[] = {
 module_usb_serial_driver(serial_drivers, id_table);
 
 MODULE_DESCRIPTION("Prolific PL2303 USB to serial adaptor driver");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("GPL v2");

@@ -57,5 +57,7 @@
  * If not defined TEE dynamically using all platform CPUs (recommended)
  */
 /* #define PLAT_DEFAULT_TEE_AFFINITY_MASK (0xXX)  */
-
+#if IS_ENABLED(TEE_WORKER_BIG_CORE)
+#define PLAT_DEFAULT_TEE_AFFINITY_MASK (0xC0)
+#endif
 #endif /* _MC_DRV_PLATFORM_H_ */

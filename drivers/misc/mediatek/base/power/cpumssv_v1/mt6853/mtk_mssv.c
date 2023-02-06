@@ -1,29 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
-/*
- * @file	mkt_mssv.c
- * @brief   Driver for MSSV
- *
- */
+
 
 #define __MTK_MSSV_C__
 
-/*
- *=============================================================
- * Include files
- *=============================================================
- */
 
 /* system includes */
 #include <linux/init.h>
@@ -50,11 +33,6 @@
 	#include <mt-plat/aee.h>
 #endif
 
-/*
- *=============================================================
- * LOG
- *=============================================================
- */
 #define MSSV_TAG	 "[CPU][MSSV] "
 
 #define mssv_emerg(fmt, args...)	pr_debug(MSSV_TAG fmt, ##args)
@@ -84,11 +62,6 @@ enum {
 	UNIVPLL
 };
 
-/*
- *=============================================================
- * static Variable
- *=============================================================
- */
 
 #ifdef CONFIG_OF
 static unsigned int mssv_state;
@@ -105,11 +78,6 @@ static int mssv_low_opp = -1;
 static int mssv_cur_opp;
 static int mssv_opp_switch_test;
 
-/*
- *=============================================================
- * global function
- *=============================================================
- */
 int mssv_calc_new_opp_idx(int opp)
 {
 	if (mssv_opp_switch_test == 0)
@@ -126,11 +94,6 @@ unsigned int cpumssv_get_state(void)
 	return mssv_state;
 }
 
-/*
- *=============================================================
- * static function
- *=============================================================
- */
 static void switch_pll(unsigned int pll, unsigned int reg)
 {
 	unsigned int val;

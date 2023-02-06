@@ -42,6 +42,12 @@ static char *mtk_otg_supplied_to[] = {
 	"otg",
 };
 
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+static char *mtk_charger_bc12_supplied_to[] = {
+	"bc12",
+};
+#endif
+
 static enum power_supply_property mtk_charger_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 };
@@ -50,6 +56,12 @@ static enum power_supply_property mtk_charger_otg_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 };
 
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+static enum power_supply_property mtk_charger_bc12_props[] = {
+	POWER_SUPPLY_PROP_ONLINE,
+	POWER_SUPPLY_PROP_VOLTAGE_NOW,
+};
+#endif
 static int mtk_charger_get_charging_health(struct mtk_charger_data *charger);
 static void mtk_charger_set_input_current_limit(
 		struct mtk_charger_data *charger, int charging_current);
@@ -212,8 +224,7 @@ static int mtk_charger_plug_in_out(
 		ret = charger_dev_set_mivr(charger->chg_dev,
 			charger->pdata->vbus_min_charger_voltage); /* uV */
 		if (ret < 0)
-			pr_err("[DEBUG]%s: failed to get set_mivr\n",
-								__func__);
+			pr_err("[DEBUG]%s: failed to get set_mivr\n", __func__);
 	} else {
 		/* Do AFC charging only if BUCK is ON */
 		if (charger->buck_state) {
@@ -231,6 +242,37 @@ static int mtk_charger_plug_in_out(
 }
 
 #if defined(CONFIG_AFC_CHARGER)
+static void afc_charger_plug_in_out(
+	struct mtk_charger_data *charger, int cable_type)
+{
+	int ret = 0;
+
+	pr_info("[DEBUG]%s:cable_type : %d\n", __func__, cable_type);
+
+	if (cable_type == SEC_BATTERY_CABLE_NONE) {
+#if defined(CONFIG_AFC_CHARGER)
+		/* Clear performance related flags */
+		set_afc_voltage_for_performance(false);
+#endif
+		/* disable wdt */
+		charger_dev_en_wdt(charger->chg_dev, false);
+		/* Set MIVR for vbus 5V */
+		ret = charger_dev_set_mivr(charger->chg_dev,
+			charger->pdata->vbus_min_charger_voltage); /* uV */
+		if (ret < 0)
+			pr_err("[DEBUG]%s: failed to get set_mivr\n", __func__);
+	} else {
+		/* enable wdt */
+		/* mt6360: wtd default value is 40s */
+		charger_dev_en_wdt(charger->chg_dev, true);
+#if defined(CONFIG_AFC_CHARGER)
+		if (mtk_charger_check_afc_conditions(charger))
+			set_afc_voltage(0x9);
+#endif
+	}
+
+}
+
 int afc_set_voltage(int volt)
 {
 	pr_info("[DEBUG]%s: %dV to AFC driver\n", __func__, volt);
@@ -311,8 +353,6 @@ static int mtk_charger_get_regulation_voltage(struct mtk_charger_data *charger)
 static void mtk_charger_set_input_current_limit(
 			struct mtk_charger_data *charger, int input_current)
 {
-	unsigned int input_current_limit_by_aicl = 0;
-
 	if (charger->f_mode != NO_MODE) {
 		pr_info("%s: Skip in IB/OB Mode\n", __func__);
 		return;
@@ -417,25 +457,27 @@ static void mtk_charger_ob_mode(struct mtk_charger_data *charger, bool enable)
 		/* DISABLE AICC */
 		charger_dev_enable_aicc(charger->chg_dev, false);
 		/* CHG OFF */
-		pr_info("[DEBUG]%s: turn off charger\n", __func__);
+		pr_info("[DEBUG]%s: turn off charger(chgenb_en %d)\n", __func__, charger->pdata->chgenb_en);
 		charger_dev_enable(charger->chg_dev, false);
 		/* BUCK ON */
 		pr_info("[DEBUG]%s: set buck on\n", __func__);
 		charger_dev_enable_powerpath(charger->chg_dev, true);
 		/* Set VSYS (float voltage) to 4.0V */
 		charger_dev_set_constant_voltage(charger->chg_dev,
-								(4000 * 1000));
+								(4200 * 1000));
 		/* Select 3.25A input current limit from CHG_ILIM */
 		/* CHG_CTRL2: IINLMTSEL set AICR 3.25A, 0x12[3:2] = 00 */
 		charger_dev_set_iinlmtsel(charger->chg_dev, false);
 		if (charger->pdata->chgenb_en == 0) {
 			/* SET GPIO_ILIM = "H" */
-			gpio_direction_output(charger->pdata->gpio_ilim, 1);
+			//gpio_direction_output(charger->pdata->gpio_ilim, 1);
 			/* SET GPIO_CHGENB = "H" */
 			gpio_direction_output(charger->pdata->gpio_chgenb, 1);
 		} else {
-			/* SET GPIO_ILIM = "H" */
-			gpio_direction_output(charger->pdata->gpio_ilim, 1);
+			if (charger->pdata->chgilm_en == 1) {
+				/* SET GPIO_ILIM = "H" */
+				gpio_direction_output(charger->pdata->gpio_ilim, 1);
+			}
 			/* SET GPIO_CHGENB = "L" */
 			gpio_direction_output(charger->pdata->gpio_chgenb, 0);
 		}
@@ -462,7 +504,7 @@ static void mtk_charger_ib_mode(struct mtk_charger_data *charger, bool enable)
 		/* DISABLE AICC */
 		charger_dev_enable_aicc(charger->chg_dev, false);
 		/* CHG ON */
-		pr_info("[DEBUG]%s: turn on charger\n", __func__);
+		pr_info("[DEBUG]%s: turn on charger(chgenb_en %d)\n", __func__, charger->pdata->chgenb_en);
 		charger_dev_enable(charger->chg_dev, true);
 		/* BUCK ON */
 		pr_info("[DEBUG]%s: set buck on\n", __func__);
@@ -472,12 +514,14 @@ static void mtk_charger_ib_mode(struct mtk_charger_data *charger, bool enable)
 		charger_dev_set_iinlmtsel(charger->chg_dev, false);
 		if (charger->pdata->chgenb_en == 0) {
 			/* SET GPIO_ILIM = "H" */
-			gpio_direction_output(charger->pdata->gpio_ilim, 1);
+			//gpio_direction_output(charger->pdata->gpio_ilim, 0);
 			/* SET GPIO_CHGENB = "L" */
 			gpio_direction_output(charger->pdata->gpio_chgenb, 0);
 		} else {
-			/* SET GPIO_ILIM = "L" */
-			gpio_direction_output(charger->pdata->gpio_ilim, 0);
+			if (charger->pdata->chgilm_en == 1) {
+				/* SET GPIO_ILIM = "L" */
+				gpio_direction_output(charger->pdata->gpio_ilim, 0);
+			}
 			/* SET GPIO_CHGENB = "H" */
 			gpio_direction_output(charger->pdata->gpio_chgenb, 1);
 		}
@@ -491,17 +535,19 @@ static void mtk_charger_ib_mode(struct mtk_charger_data *charger, bool enable)
 		charger_dev_dump_registers(charger->chg_dev);
 	} else {
 		/* Clear IB settings */
-		pr_info("%s: Clear IB Mode settings\n", __func__);
+		pr_info("%s: Clear IB Mode settings (chgenb_en %d)\n", __func__, charger->pdata->chgenb_en);
 		/* Select input current limit from IAICR */
 		charger_dev_set_iinlmtsel(charger->chg_dev, true);
 		if (charger->pdata->chgenb_en == 0) {
 			/* SET GPIO_ILIM = "L" */
-			gpio_direction_output(charger->pdata->gpio_ilim, 0);
+			//gpio_direction_output(charger->pdata->gpio_ilim, 0);
 			/* SET GPIO_CHGENB = "L" */
 			gpio_direction_output(charger->pdata->gpio_chgenb, 0);
 		} else {
-			/* SET GPIO_ILIM = "L" */
-			gpio_direction_output(charger->pdata->gpio_ilim, 0);
+			if (charger->pdata->chgilm_en == 1) {
+				/* SET GPIO_ILIM = "L" */
+				gpio_direction_output(charger->pdata->gpio_ilim, 0);
+			}
 			/* SET GPIO_CHGENB = "H" */
 			gpio_direction_output(charger->pdata->gpio_chgenb, 1);
 		}
@@ -521,7 +567,7 @@ static bool mtk_charger_chg_init(struct mtk_charger_data *charger)
 
 #if IS_ENABLED(CONFIG_USB_FACTORY_MODE)
 	pr_info("%s: f_mode: %s\n", __func__, f_mode);
-	pr_info("%s: lpcharge: %s\n", __func__, lpcharge);
+	pr_info("%s: lpcharge: %d\n", __func__, lpcharge);
 
 	if (!f_mode)
 		charger->f_mode = NO_MODE;
@@ -622,7 +668,7 @@ static int mtk_charger_get_charge_type(struct mtk_charger_data *charger)
 	}
 
 	if (charger->slow_charging)
-		charge_type = POWER_SUPPLY_CHARGE_TYPE_SLOW;
+		charge_type = POWER_SUPPLY_CHARGE_TYPE_TRICKLE;
 
 	return charge_type;
 }
@@ -782,7 +828,7 @@ static int mtk_charger_chg_set_property(struct power_supply *psy,
 		mtk_charger_set_fast_charging_current(charger,
 						charger->charging_current);
 		break;
-	case POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT:	
+	case POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT:
 	case POWER_SUPPLY_PROP_CURRENT_FULL:
 		charger->topoff_current = val->intval;
 		mtk_charger_set_topoff_current(charger, val->intval);
@@ -853,27 +899,35 @@ static int mtk_charger_chg_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_EXT_PROP_MIN ... POWER_SUPPLY_EXT_PROP_MAX:
 		switch (ext_psp) {
 		case POWER_SUPPLY_EXT_PROP_CHARGING_ENABLED:
-			charger->charge_mode = val->intval;
+			{
+				int buck_status = false;
 
-			switch (charger->charge_mode) {
-			case SEC_BAT_CHG_MODE_BUCK_OFF:
-				charger->is_charging = false;
-				charger->buck_state = false;
-				break;
-			case SEC_BAT_CHG_MODE_CHARGING_OFF:
-				charger->is_charging = false;
-				charger->buck_state = true;
-				break;
-			case SEC_BAT_CHG_MODE_CHARGING:
-				charger->is_charging = true;
-				charger->buck_state = true;
-				break;
-			}
+				charger->charge_mode = val->intval;
+				switch (charger->charge_mode) {
+				case SEC_BAT_CHG_MODE_BUCK_OFF:
+					charger->is_charging = false;
+					buck_status = false;
+					break;
+				case SEC_BAT_CHG_MODE_CHARGING_OFF:
+					charger->is_charging = false;
+					buck_status = true;
+					break;
+				case SEC_BAT_CHG_MODE_CHARGING:
+					charger->is_charging = true;
+					buck_status = true;
+					break;
+				}
 
-			mtk_charger_set_buck(charger, charger->buck_state);
-			if (charger->buck_state)
-				mtk_charger_enable_charger_switch(charger,
+				if (buck_status != charger->buck_state) {
+					pr_info("[DEBUG]%s: buck state : old(%d), new(%d)\n",
+									__func__, charger->buck_state, buck_status);
+					charger->buck_state = buck_status;
+					mtk_charger_set_buck(charger, charger->buck_state);
+				}
+				if (charger->buck_state)
+					mtk_charger_enable_charger_switch(charger,
 								charger->is_charging);
+			}
 			break;
 		case POWER_SUPPLY_EXT_PROP_BATT_F_MODE:
 		case POWER_SUPPLY_EXT_PROP_CURRENT_MEASURE:
@@ -933,6 +987,12 @@ static int mtk_charger_chg_set_property(struct power_supply *psy,
 			pr_info("%s: AICL current: %d\n", __func__, val->intval);
 			mtk_charger_set_aicl(charger, val->intval);
 			break;
+#if defined(CONFIG_AFC_CHARGER)
+		case POWER_SUPPLY_EXT_PROP_AFC_INIT:
+			pr_info("%s: afc_charger_plug_in_out(): %d\n", __func__, val->intval);
+			afc_charger_plug_in_out(charger, val->intval);
+			break;
+#endif
 		default:
 			return -EINVAL;
 		}
@@ -986,6 +1046,48 @@ static int mtk_charger_otg_set_property(struct power_supply *psy,
 	}
 	return 0;
 }
+
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+static int mtk_charger_bc12_get_property(struct power_supply *psy,
+		enum power_supply_property psp,
+		union power_supply_propval *val)
+{
+	struct mtk_charger_data *charger = power_supply_get_drvdata(psy);
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		mutex_lock(&charger->charger_mutex);
+		val->intval = charger->cable_type;
+		mutex_unlock(&charger->charger_mutex);
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int mtk_charger_bc12_set_property(struct power_supply *psy,
+		enum power_supply_property psp,
+		const union power_supply_propval *val)
+{
+	struct mtk_charger_data *charger = power_supply_get_drvdata(psy);
+	union power_supply_propval value;
+	int ret;
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		charger->cable_type = val->intval;
+		charger->slow_charging = false;
+		power_supply_changed(charger->psy_bc12);
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+#endif
 
 static int mtk_charger_parse_dt(struct device *dev,
 		struct mtk_charger_platform_data *pdata)
@@ -1058,6 +1160,14 @@ static int mtk_charger_parse_dt(struct device *dev,
 			pdata->chgenb_en = 1;
 		}
 		pr_info("%s: chgenb_en %d\n", __func__, pdata->chgenb_en);
+
+		ret = of_property_read_u32(np, "charger,chgilm_en",
+							&pdata->chgilm_en);
+		if (ret) {
+			pr_info("%s: chgilm_en is empty\n", __func__);
+			pdata->chgilm_en = 1;
+		}
+		pr_info("%s: chgilm_en %d\n", __func__, pdata->chgilm_en);
 	}
 
 	np = of_find_node_by_name(NULL, "battery");
@@ -1183,7 +1293,7 @@ static int mtk_charger_probe(struct platform_device *pdev)
 	charger->otg_on = false;
 	charger->ivr_on = false;
 	charger->slow_charging = false;
-	charger->buck_state = true;
+	charger->buck_state = -1;
 
 	charger->dev = &pdev->dev;
 
@@ -1197,10 +1307,12 @@ static int mtk_charger_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto err_parse_dt;
 
-	ret = gpio_request(charger->pdata->gpio_ilim, "charger,gpio_ilim");
-	if (ret < 0) {
-		pr_err("failed to request ilim gpio\n", __func__);
-		goto err_parse_gpio;
+	if ((charger->pdata->chgenb_en == 1) && (charger->pdata->chgilm_en == 1)) {
+		ret = gpio_request(charger->pdata->gpio_ilim, "charger,gpio_ilim");
+		if (ret < 0) {
+			pr_err("failed to request ilim gpio\n", __func__);
+			goto err_parse_gpio;
+		}
 	}
 
 	ret = gpio_request(charger->pdata->gpio_chgenb, "charger,gpio_chgenb");
@@ -1230,6 +1342,15 @@ static int mtk_charger_probe(struct platform_device *pdev)
 	charger->psy_chg_desc.properties = mtk_charger_props;
 	charger->psy_chg_desc.num_properties = ARRAY_SIZE(mtk_charger_props);
 
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	charger->psy_bc12_desc.name = "bc12";
+	charger->psy_bc12_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
+	charger->psy_bc12_desc.get_property = mtk_charger_bc12_get_property;
+	charger->psy_bc12_desc.set_property = mtk_charger_bc12_set_property;
+	charger->psy_bc12_desc.properties = mtk_charger_bc12_props;
+	charger->psy_bc12_desc.num_properties =
+					ARRAY_SIZE(mtk_charger_bc12_props);
+#endif
 	mtk_charger_chg_init(charger);
 	charger->input_current = mtk_charger_get_input_current_limit(charger);
 	charger->charging_current =
@@ -1267,6 +1388,19 @@ static int mtk_charger_probe(struct platform_device *pdev)
 		goto err_power_supply_register_otg;
 	}
 
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	psy_cfg.supplied_to = mtk_charger_bc12_supplied_to;
+	psy_cfg.num_supplicants = ARRAY_SIZE(mtk_charger_bc12_supplied_to);
+
+	charger->psy_bc12 = power_supply_register(&pdev->dev,
+					&charger->psy_bc12_desc, &psy_cfg);
+	if (IS_ERR(charger->psy_bc12)) {
+		pr_err("%s: Failed to Register psy_bc12\n", __func__);
+		ret = PTR_ERR(charger->psy_bc12);
+		goto err_power_supply_register_bc12;
+	}
+#endif
+
 #if EN_TEST_READ
 	mtk_charger_test_read(charger);
 #endif
@@ -1286,6 +1420,10 @@ err_attrs_create:
 	power_supply_unregister(charger->psy_otg);
 err_power_supply_register_otg:
 	power_supply_unregister(charger->psy_chg);
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+err_power_supply_register_bc12:
+	power_supply_unregister(charger->psy_bc12);
+#endif
 err_power_supply_register:
 err_parse_gpio:
 err_parse_dt:
@@ -1300,6 +1438,9 @@ static int mtk_charger_remove(struct platform_device *pdev)
 	struct mtk_charger_data *charger = platform_get_drvdata(pdev);
 
 	power_supply_unregister(charger->psy_chg);
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	power_supply_unregister(charger->psy_bc12);
+#endif
 	mutex_destroy(&charger->charger_mutex);
 	kfree(charger);
 	return 0;

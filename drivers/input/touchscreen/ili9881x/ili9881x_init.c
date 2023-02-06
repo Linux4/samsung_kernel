@@ -571,14 +571,17 @@ static int parse_dt(void)
 	struct property *prop;
 	struct device_node *np = ilits->dev->of_node;
 	u32 px_zone[3] = { 0 };
+	u32 read_lcdid;
 #if defined(CONFIG_EXYNOS_DPU30)
 	int lcdtype = 0;
 	int connected = 0;
 #endif
-	int lcd_id1_gpio = 0, lcd_id2_gpio = 0, lcd_id3_gpio = 0;
-	int fw_name_cnt = 0;
-	int lcdtype_cnt = 0;
-	int fw_sel_idx = 0;
+
+	retval = of_property_read_u32(np, "iliteck,lcdtype", &ilits->lcdtype);
+	if (retval < 0) {
+		input_err(true, ilits->dev, "%s Unable to read iliteck,lcdid property\n", __func__);
+		ilits->lcdtype = -1;
+	}
 
 #if defined(CONFIG_EXYNOS_DPU30)
 	connected = get_lcd_info("connected");
@@ -599,85 +602,46 @@ static int parse_dt(void)
 		input_err(true, ilits->dev, "%s: Failed to get lcd info\n", __func__);
 		return -EINVAL;
 	}
-	input_info(true, ilits->dev, "%s: lcdtype : 0x%08X\n", __func__, lcdtype);
+	input_info(true, ilits->dev, "%s: lcdtype : 0x%08X, panel type : 0x%08X\n", __func__, lcdtype, ilits->lcdtype);
+
+	if (ilits->lcdtype != 0x00 && ilits->lcdtype != lcdtype) {
+		input_err(true, ilits->dev, "%s: panel mismatched, unload driver\n", __func__);
+		return -EINVAL;
+	}
 
 #else
-	input_info(true, ilits->dev, "%s: lcdtype : 0x%08X\n", __func__, lcdtype);
+	input_info(true, ilits->dev, "%s: DT lcd type(0x%06X), lcdtype(0x%06X)\n", __func__, ilits->lcdtype, lcdtype);
 #endif
 
-	fw_name_cnt = of_property_count_strings(np, "iliteck,fw_name");
-
-	if (fw_name_cnt == 0) {
-		input_err(true, ilits->dev, "%s: abnormal fw count\n", __func__);
-		return -EINVAL;
-
-	} else if (fw_name_cnt == 1) {
-
-		retval = of_property_read_u32(np, "iliteck,lcdtype", &ilits->lcdtype);
-		if (retval < 0) {
-			input_err(true, ilits->dev, "%s Unable to read iliteck,lcdid property\n", __func__);
-			ilits->lcdtype = -1;
-		} else {
-			input_info(true, ilits->dev, "%s: DT lcd type(0x%06X), lcdtype(0x%06X)\n", __func__, ilits->lcdtype, lcdtype);
-		
-			if (ilits->lcdtype != 0x00 && ilits->lcdtype != (lcdtype & 0x00ffff)) {
-				input_err(true, ilits->dev, "%s: panel mismatched, unload driver\n", __func__);
-				return -EINVAL;
-			}
-		}
+	ilits->lcd_id1_gpio = of_get_named_gpio(np, "iliteck,lcdid1-gpio", 0);
+	if (gpio_is_valid(ilits->lcd_id1_gpio)) {
+		input_info(true, ilits->dev, "%s: lcd id1_gpio %d(%d)\n",
+			__func__, ilits->lcd_id1_gpio, gpio_get_value(ilits->lcd_id1_gpio));
 	} else {
-		lcd_id1_gpio = of_get_named_gpio(np, "iliteck,lcdid1-gpio", 0);
-		if (gpio_is_valid(lcd_id1_gpio))
-			input_info(true, ilits->dev, "%s: lcd id1_gpio %d(%d)\n",
-				__func__, lcd_id1_gpio, gpio_get_value(lcd_id1_gpio));
-		else {
-			input_err(true, ilits->dev, "%s: Failed to get iliteck,lcdid1-gpio\n", __func__);
-			return -EINVAL;
-		}
-	
-		lcd_id2_gpio = of_get_named_gpio(np, "iliteck,lcdid2-gpio", 0);
-		if (gpio_is_valid(lcd_id2_gpio)) {
-			input_info(true, ilits->dev, "%s: lcd id2_gpio %d(%d)\n",
-				__func__, lcd_id2_gpio, gpio_get_value(lcd_id2_gpio));
-		} else {
-			input_err(true, ilits->dev, "%s: Failed to get iliteck,lcdid2-gpio\n", __func__);
-			return -EINVAL;
-		}
-	
-		/* support lcd id3 */
-		lcd_id3_gpio = of_get_named_gpio(np, "iliteck,lcdid3-gpio", 0);
-		if (gpio_is_valid(lcd_id3_gpio)) {
-			input_info(true, ilits->dev, "%s: lcd id3_gpio %d(%d)\n",
-				__func__, lcd_id3_gpio, gpio_get_value(lcd_id3_gpio));
-			fw_sel_idx =
-				(gpio_get_value(lcd_id3_gpio) << 2) | (gpio_get_value(lcd_id2_gpio) << 1) | gpio_get_value(lcd_id1_gpio);
-		} else {
-			input_err(true, ilits->dev, "%s: Failed to get iliteck,lcdid3-gpio and use #1 &#2 id\n", __func__);
-			fw_sel_idx = (gpio_get_value(lcd_id2_gpio) << 1) | gpio_get_value(lcd_id1_gpio);
-		}
-	
-		lcdtype_cnt = of_property_count_u32_elems(np, "iliteck,lcdtype");
-	
-		input_info(true, ilits->dev, "%s: fw_name_cnt(%d) & lcdtype_cnt(%d) & fw_sel_idx(%d)\n",
-					__func__, fw_name_cnt, lcdtype_cnt, fw_sel_idx);
-	
-		if (lcdtype_cnt <= 0 || fw_name_cnt <= 0 || lcdtype_cnt <= fw_sel_idx || fw_name_cnt <= fw_sel_idx) {
-			input_err(true, ilits->dev, "%s: abnormal lcdtype & fw name count, fw_sel_idx(%d)\n",
-					__func__, fw_sel_idx);
-			return -EINVAL;
-		}
-		of_property_read_u32_index(np, "iliteck,lcdtype", fw_sel_idx, &ilits->lcdtype);
-		input_info(true, ilits->dev, "%s: lcd id(%d), ap lcdtype=0x%06X & dt lcdtype=0x%06X\n",
-						__func__, fw_sel_idx, lcdtype, ilits->lcdtype);
+		input_err(true, ilits->dev, "%s: Failed to get iliteck,lcdid1-gpio\n", __func__);
 	}
 
-	of_property_read_string_index(np, "iliteck,fw_name", fw_sel_idx, &ilits->fw_name);
-	if (ilits->fw_name == NULL || strlen(ilits->fw_name) == 0) {
-		input_err(true, ilits->dev, "%s: Failed to get fw name\n", __func__);
-		return -EINVAL;
+	ilits->lcd_id2_gpio = of_get_named_gpio(np, "iliteck,lcdid2-gpio", 0);
+	if (gpio_is_valid(ilits->lcd_id2_gpio)) {
+		input_info(true, ilits->dev, "%s: lcd id2_gpio %d(%d)\n",
+				__func__, ilits->lcd_id2_gpio, gpio_get_value(ilits->lcd_id2_gpio));
+	} else {
+		input_err(true, ilits->dev, "%s: Failed to get iliteck,lcdid2-gpio\n", __func__);
 	}
-	input_info(true, ilits->dev, "%s: fw name(%s)\n", __func__, ilits->fw_name);
 
+	read_lcdid = (gpio_get_value(ilits->lcd_id2_gpio) << 1) | gpio_get_value(ilits->lcd_id1_gpio);
+
+	retval = of_property_read_u32(np, "iliteck,lcdid", &ilits->lcd_id);
+	if (retval < 0) {
+		input_err(true, ilits->dev, "%s Unable to read iliteck,lcdid property\n", __func__);
+		ilits->lcd_id = -1;
+	} else {
+		input_info(true, ilits->dev, "%s: lcd id(%d), read lcd id(%d)\n", __func__, ilits->lcd_id, read_lcdid);
+		if (ilits->lcd_id != read_lcdid) {
+			input_err(true, ilits->dev, "%s: lcd id mismatched!\n", __func__);
+			return -EINVAL;
+		}
+	}
 	retval = of_property_read_string(np, "iliteck,lcd_rst", &ilits->regulator_lcd_rst);
 	if (retval < 0) {
 		input_err(true, ilits->dev, "%s: Failed to get regulator_lcd_rst name property\n", __func__);
@@ -753,6 +717,14 @@ static int parse_dt(void)
 	} else {
 		ilits->spi_mode = 0;
 	}
+
+	retval = of_property_read_string(np, "iliteck,fw_name", &ilits->fw_name);
+	if (retval < 0) {
+		input_err(true, ilits->dev,
+				"%s Unable to read iliteck,fw_name property\n", __func__);
+		return retval;
+	}
+	input_info(true, ilits->dev, "fw path %s\n", ilits->fw_name);
 
 	if (of_property_read_u32_array(np, "iliteck,area-size", px_zone, 3)) {
 		input_err(true, ilits->dev, "%s : Failed to get zone's size\n", __func__);
@@ -903,9 +875,8 @@ static struct ilitek_hwif_info hwif = {
 	.name = TDDI_DEV_ID,
 	.of_match_table = of_match_ptr(tp_match_table),
 	.plat_probe = ilitek_plat_probe,
-/* Shutdown is called from the SemInputDeviceManagerService. */
-//	.plat_shutdown = ilitek_plat_shutdown,
-//	.plat_remove = ilitek_plat_remove,
+	.plat_shutdown = ilitek_plat_shutdown,
+	.plat_remove = ilitek_plat_remove,
 	.pm = &tp_pm_ops,
 };
 

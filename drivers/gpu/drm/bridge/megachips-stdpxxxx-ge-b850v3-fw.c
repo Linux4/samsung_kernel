@@ -152,7 +152,7 @@ static int ge_b850v3_lvds_get_modes(struct drm_connector *connector)
 	ge_b850v3_lvds_ptr->edid = (struct edid *)stdp2690_get_edid(client);
 
 	if (ge_b850v3_lvds_ptr->edid) {
-		drm_mode_connector_update_edid_property(connector,
+		drm_connector_update_edid_property(connector,
 						      ge_b850v3_lvds_ptr->edid);
 		num_modes = drm_add_edid_modes(connector,
 					       ge_b850v3_lvds_ptr->edid);
@@ -241,7 +241,7 @@ static int ge_b850v3_lvds_attach(struct drm_bridge *bridge)
 		return ret;
 	}
 
-	ret = drm_mode_connector_attach_encoder(connector, bridge->encoder);
+	ret = drm_connector_attach_encoder(connector, bridge->encoder);
 	if (ret)
 		return ret;
 
@@ -306,8 +306,12 @@ static int stdp4028_ge_b850v3_fw_probe(struct i2c_client *stdp4028_i2c,
 				       const struct i2c_device_id *id)
 {
 	struct device *dev = &stdp4028_i2c->dev;
+	int ret;
 
-	ge_b850v3_lvds_init(dev);
+	ret = ge_b850v3_lvds_init(dev);
+
+	if (ret)
+		return ret;
 
 	ge_b850v3_lvds_ptr->stdp4028_i2c = stdp4028_i2c;
 	i2c_set_clientdata(stdp4028_i2c, ge_b850v3_lvds_ptr);
@@ -365,8 +369,12 @@ static int stdp2690_ge_b850v3_fw_probe(struct i2c_client *stdp2690_i2c,
 				       const struct i2c_device_id *id)
 {
 	struct device *dev = &stdp2690_i2c->dev;
+	int ret;
 
-	ge_b850v3_lvds_init(dev);
+	ret = ge_b850v3_lvds_init(dev);
+
+	if (ret)
+		return ret;
 
 	ge_b850v3_lvds_ptr->stdp2690_i2c = stdp2690_i2c;
 	i2c_set_clientdata(stdp2690_i2c, ge_b850v3_lvds_ptr);

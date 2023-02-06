@@ -1,23 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2015 MediaTek Inc.
  */
-
-/**************************************************************
- * camera_dip.c - MT6799 Linux DIP Device Driver
- *
- * DESCRIPTION:
- *     This file provid the other drivers DIP relative functions
- *
- **************************************************************/
 /* MET: define to enable MET*/
 //#include <error_test.h>
 #include <linux/types.h>
@@ -73,7 +57,7 @@
 /*#include"../../../smi/smi_debug.h" YWclose*/
 
 /*for kernel log count*/
-#define _K_LOG_ADJUST (1)
+#define _K_LOG_ADJUST (0)
 
 #ifdef CONFIG_COMPAT
 /* 64 bit */
@@ -505,9 +489,10 @@ static struct DIP_MEM_INFO_STRUCT g_CmdqBaseAddrInfo = {
 static unsigned int m_CurrentPPB;
 
 #ifdef CONFIG_PM_SLEEP
-struct wakeup_source dip_wake_lock;
-struct wakeup_source isp_mdp_wake_lock;
+struct wakeup_source *dip_wake_lock;
+struct wakeup_source *isp_mdp_wake_lock;
 #endif
+
 static int g_bWaitLock;
 static unsigned int g_dip1sterr = DIP_GCE_EVENT_NONE;
 
@@ -5994,16 +5979,18 @@ static long DIP_ioctl(
 			if (wakelock_ctrl == 1) {    /* Enable     wakelock */
 				if (g_bWaitLock == 0) {
 #ifdef CONFIG_PM_SLEEP
-					__pm_stay_awake(&dip_wake_lock);
+					__pm_stay_awake(dip_wake_lock);
 #endif
+
 					g_bWaitLock = 1;
 					LOG_DBG("wakelock enable!!\n");
 				}
 			} else {        /* Disable wakelock */
 				if (g_bWaitLock == 1) {
 #ifdef CONFIG_PM_SLEEP
-					__pm_relax(&dip_wake_lock);
+					__pm_relax(dip_wake_lock);
 #endif
+
 					g_bWaitLock = 0;
 					LOG_DBG("wakelock disable!!\n");
 				}
@@ -6672,18 +6659,19 @@ static signed int DIP_open(
 	}
 	/* Enable clock */
 #ifdef CONFIG_PM_SLEEP
-	__pm_stay_awake(&dip_wake_lock);
+	__pm_stay_awake(dip_wake_lock);
 #endif
+
 	DIP_EnableClock(MTRUE);
 	/* Initial HW default value */
 	if (G_u4DipEnClkCnt == 1)
 		DIP_Load_InitialSettings();
 
-
 	g_u4DipCnt = 0;
 #ifdef CONFIG_PM_SLEEP
-	__pm_relax(&dip_wake_lock);
+	__pm_relax(dip_wake_lock);
 #endif
+
 	LOG_DBG("dip open G_u4DipEnClkCnt: %d\n", G_u4DipEnClkCnt);
 #ifdef KERNEL_LOG
 	IspInfo.DebugMask = (DIP_DBG_INT);
@@ -6752,8 +6740,9 @@ static signed int DIP_release(
 
 	if (g_bWaitLock == 1) {
 #ifdef CONFIG_PM_SLEEP
-		__pm_relax(&dip_wake_lock);
+		__pm_relax(dip_wake_lock);
 #endif
+
 		g_bWaitLock = 0;
 	}
 	/* reset */
@@ -6843,12 +6832,14 @@ static signed int DIP_release(
 #endif
 
 #ifdef CONFIG_PM_SLEEP
-	__pm_stay_awake(&dip_wake_lock);
+	__pm_stay_awake(dip_wake_lock);
 #endif
+
 	DIP_EnableClock(MFALSE);
 #ifdef CONFIG_PM_SLEEP
-	__pm_relax(&dip_wake_lock);
+	__pm_relax(dip_wake_lock);
 #endif
+
 	LOG_DBG("dip release G_u4DipEnClkCnt: %d", G_u4DipEnClkCnt);
 EXIT:
 	mutex_unlock(&gDipMutex);
@@ -7223,9 +7214,10 @@ static signed int DIP_probe(struct platform_device *pDev)
 		for (i = 0 ; i < DIP_IRQ_TYPE_AMOUNT; i++)
 			init_waitqueue_head(&IspInfo.WaitQueueHead[i]);
 
-#ifdef CONFIG_PM_SLEEP
-		wakeup_source_init(&dip_wake_lock, "dip_lock_wakelock");
-		wakeup_source_init(&isp_mdp_wake_lock, "isp_mdp_wakelock");
+#ifdef CONFIG_PM_WAKELOCKS
+		dip_wake_lock = wakeup_source_register(&pDev->dev, "dip_lock_wakelock");
+		isp_mdp_wake_lock = wakeup_source_register(&pDev->dev,
+							"isp_mdp_wakelock");
 #endif
 
 		/* enqueue/dequeue control in ihalpipe wrapper */
@@ -8624,7 +8616,7 @@ int32_t DIP_MDPClockOnCallback(uint64_t engineFlag)
 	/* LOG_DBG("DIP_MDPClockOnCallback"); */
 	/*LOG_DBG("+MDPEn:%d", G_u4DipEnClkCnt);*/
 #ifdef CONFIG_PM_SLEEP
-	__pm_stay_awake(&isp_mdp_wake_lock);
+	__pm_stay_awake(isp_mdp_wake_lock);
 #endif
 	DIP_EnableClock(MTRUE);
 
@@ -8699,7 +8691,7 @@ int32_t DIP_MDPClockOffCallback(uint64_t engineFlag)
 	/*LOG_INF("DIP_MDPClockOffCallback");*/
 	DIP_EnableClock(MFALSE);
 #ifdef CONFIG_PM_SLEEP
-	__pm_relax(&isp_mdp_wake_lock);
+	__pm_relax(isp_mdp_wake_lock);
 #endif
 	/*LOG_INF("-MDPEn:%d", G_u4DipEnClkCnt);*/
 	return 0;

@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/kernel.h>
 #include <linux/mm.h>
@@ -55,7 +47,7 @@ do { \
 
 #undef CONFIG_MTK_HDMI_SUPPORT
 #ifdef CONFIG_MTK_HDMI_SUPPORT
-static EXTD_DRIVER *extd_driver[DEV_MAX_NUM - 1];
+static EXTD_DRIVER * extd_driver[DEV_MAX_NUM - 1];
 #endif
 
 static dev_t mtkfb_vsync_devno;

@@ -1,17 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/slab.h>
@@ -25,18 +14,16 @@
 #include <linux/mutex.h>
 #include <linux/sched/task.h>
 
-#include <fpsgo_common.h>
+#include <mt-plat/fpsgo_common.h>
 
 #include "fpsgo_base.h"
 #include "fpsgo_sysfs.h"
-#include "fpsgo_common.h"
 #include "fpsgo_usedext.h"
 #include "fps_composer.h"
 #include "fbt_cpu.h"
 #include "fstb.h"
 #include "xgf.h"
-#include "gbe2.h"
-#include "uboost.h"
+#include "mini_top.h"
 
 /*#define FPSGO_COM_DEBUG*/
 
@@ -191,10 +178,8 @@ static int fpsgo_com_refetch_buffer(struct render_info *f_render, int pid,
 
 	f_render->buffer_id = buffer_id;
 	f_render->queue_SF = queue_SF;
-	if (!f_render->pLoading || !f_render->p_blc) {
+	if (!f_render->pLoading || !f_render->p_blc)
 		fpsgo_base2fbt_node_init(f_render);
-		fpsgo_base2uboost_init(f_render);
-	}
 
 	FPSGO_COM_TRACE("%s: refetch %d: %llu, %llu, %d\n", __func__,
 				pid, identifier, buffer_id, queue_SF);
@@ -237,28 +222,33 @@ void fpsgo_ctrl2comp_enqueue_start(int pid,
 	if (!f_render->api && identifier) {
 		ret = fpsgo_com_refetch_buffer(f_render, pid, identifier, 1);
 		if (!ret) {
-			goto exit;
+			fpsgo_render_tree_unlock(__func__);
+			fpsgo_thread_unlock(&f_render->thr_mlock);
 			return;
 		}
 
 		ret = fpsgo_com_update_render_api_info(f_render);
 		if (!ret) {
-			goto exit;
+			fpsgo_render_tree_unlock(__func__);
+			fpsgo_thread_unlock(&f_render->thr_mlock);
 			return;
 		}
 	} else if (identifier) {
 		ret = fpsgo_com_refetch_buffer(f_render, pid, identifier, 1);
 		if (!ret) {
-			goto exit;
+			fpsgo_render_tree_unlock(__func__);
+			fpsgo_thread_unlock(&f_render->thr_mlock);
 			return;
 		}
 	}
+
+	fpsgo_render_tree_unlock(__func__);
 
 	if (f_render->api == NATIVE_WINDOW_API_CAMERA)
 		fpsgo_comp2fstb_camera_active(pid);
 
 	if (!f_render->queue_SF) {
-		goto exit;
+		fpsgo_thread_unlock(&f_render->thr_mlock);
 		return;
 	}
 
@@ -287,9 +277,7 @@ void fpsgo_ctrl2comp_enqueue_start(int pid,
 			pid, f_render->frame_type);
 		break;
 	}
-exit:
 	fpsgo_thread_unlock(&f_render->thr_mlock);
-	fpsgo_render_tree_unlock(__func__);
 }
 
 void fpsgo_ctrl2comp_enqueue_end(int pid,
@@ -297,7 +285,6 @@ void fpsgo_ctrl2comp_enqueue_end(int pid,
 	unsigned long long identifier)
 {
 	struct render_info *f_render;
-	struct hwui_info *h_info;
 	int xgf_ret = 0;
 	int check_render;
 	unsigned long long running_time = 0;
@@ -327,21 +314,15 @@ void fpsgo_ctrl2comp_enqueue_end(int pid,
 
 	ret = fpsgo_com_refetch_buffer(f_render, pid, identifier, 0);
 	if (!ret) {
-		goto exit;
+		fpsgo_render_tree_unlock(__func__);
+		fpsgo_thread_unlock(&f_render->thr_mlock);
 		return;
 	}
 
-	/* hwui */
-	if (!f_render->hwui) {
-		h_info = fpsgo_search_and_add_hwui_info(f_render->pid, 0);
-		if (h_info)
-			f_render->hwui = RENDER_INFO_HWUI_TYPE;
-		else
-			f_render->hwui = RENDER_INFO_HWUI_NONE;
-	}
+	fpsgo_render_tree_unlock(__func__);
 
 	if (!f_render->queue_SF) {
-		goto exit;
+		fpsgo_thread_unlock(&f_render->thr_mlock);
 		return;
 	}
 
@@ -368,6 +349,7 @@ void fpsgo_ctrl2comp_enqueue_end(int pid,
 
 		fpsgo_comp2fbt_frame_start(f_render,
 				enqueue_end_time);
+
 		fpsgo_comp2fstb_queue_time_update(pid,
 			f_render->buffer_id,
 			f_render->frame_type,
@@ -376,7 +358,7 @@ void fpsgo_ctrl2comp_enqueue_end(int pid,
 		fpsgo_comp2fstb_enq_end(f_render->pid,
 			f_render->buffer_id,
 			f_render->enqueue_length);
-		fpsgo_comp2gbe_frame_update(f_render->pid, f_render->buffer_id);
+		fpsgo_comp2minitop_queue_update(enqueue_end_time);
 		fpsgo_systrace_c_fbt_gm(-300, 0, f_render->enqueue_length,
 			"%d_%d-enqueue_length", pid, f_render->frame_type);
 		break;
@@ -387,9 +369,8 @@ void fpsgo_ctrl2comp_enqueue_end(int pid,
 			pid, f_render->frame_type);
 		break;
 	}
-exit:
 	fpsgo_thread_unlock(&f_render->thr_mlock);
-	fpsgo_render_tree_unlock(__func__);
+
 }
 
 void fpsgo_ctrl2comp_dequeue_start(int pid,
@@ -440,12 +421,15 @@ void fpsgo_ctrl2comp_dequeue_start(int pid,
 
 	ret = fpsgo_com_refetch_buffer(f_render, pid, identifier, 0);
 	if (!ret) {
-		goto exit;
+		fpsgo_render_tree_unlock(__func__);
+		fpsgo_thread_unlock(&f_render->thr_mlock);
 		return;
 	}
 
+	fpsgo_render_tree_unlock(__func__);
+
 	if (!f_render->queue_SF) {
-		goto exit;
+		fpsgo_thread_unlock(&f_render->thr_mlock);
 		return;
 	}
 
@@ -466,9 +450,7 @@ void fpsgo_ctrl2comp_dequeue_start(int pid,
 			pid, f_render->frame_type);
 		break;
 	}
-exit:
 	fpsgo_thread_unlock(&f_render->thr_mlock);
-	fpsgo_render_tree_unlock(__func__);
 
 }
 
@@ -514,12 +496,15 @@ void fpsgo_ctrl2comp_dequeue_end(int pid,
 
 	ret = fpsgo_com_refetch_buffer(f_render, pid, identifier, 0);
 	if (!ret) {
-		goto exit;
+		fpsgo_render_tree_unlock(__func__);
+		fpsgo_thread_unlock(&f_render->thr_mlock);
 		return;
 	}
 
+	fpsgo_render_tree_unlock(__func__);
+
 	if (!f_render->queue_SF) {
-		goto exit;
+		fpsgo_thread_unlock(&f_render->thr_mlock);
 		return;
 	}
 
@@ -546,9 +531,8 @@ void fpsgo_ctrl2comp_dequeue_end(int pid,
 			pid, f_render->frame_type);
 		break;
 	}
-exit:
 	fpsgo_thread_unlock(&f_render->thr_mlock);
-	fpsgo_render_tree_unlock(__func__);
+
 }
 
 void fpsgo_ctrl2comp_connect_api(int pid, int api,

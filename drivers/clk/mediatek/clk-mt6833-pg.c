@@ -1,16 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2014 MediaTek Inc.
- * Author: James Liao <jamesjj.liao@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -127,8 +118,8 @@ static void __iomem *infracfg_base;/* infracfg_ao */
 static void __iomem *spm_base;/* spm */
 static void __iomem *infra_base;/* infra */
 static void __iomem *infra_pdn_base;/* infra_pdn */
-static void __iomem *apu_vcore_base;
-static void __iomem *apu_conn_base;
+//static void __iomem *apu_vcore_base;
+//static void __iomem *apu_conn_base;
 
 #define INFRACFG_REG(offset)		(infracfg_base + offset)
 #define SPM_REG(offset)			(spm_base + offset)
@@ -655,6 +646,30 @@ static struct subsys syss[] =	/* NR_SYSS */
 			.bus_prot_mask = 0,
 			.ops = &CAM_RAWB_sys_ops,
 			},
+	[SYS_MFG5] = {
+			.name = __stringify(SYS_MFG5),
+			.sta_mask = MFG3_PWR_STA_MASK,
+			.sram_pdn_bits = 8,
+			.sram_pdn_ack_bits = 12,
+			.bus_prot_mask = 0,
+			.ops = &MFG5_sys_ops,
+			},
+	[SYS_ADSP] = {
+			.name = __stringify(SYS_ADSP),
+			.sta_mask = AUDIO_PWR_STA_MASK,
+			.sram_pdn_bits = 8,
+			.sram_pdn_ack_bits = 12,
+			.bus_prot_mask = 0,
+			.ops = &ADSP_sys_ops,
+			},
+	[SYS_VPU17] = {
+			.name = __stringify(SYS_VPU17),
+			.sta_mask = AUDIO_PWR_STA_MASK,
+			.sram_pdn_bits = 8,
+			.sram_pdn_ack_bits = 12,
+			.bus_prot_mask = 0,
+			.ops = &VPU_sys_ops,
+			},
 };
 
 struct pg_callbacks *register_pg_callback(struct pg_callbacks *pgcb)
@@ -902,7 +917,8 @@ static void ram_console_update(void)
 		WARN_ON(1);
 }
 
-#ifdef CONFIG_OF
+#if 0
+// #ifdef CONFIG_OF
 static void __iomem *find_and_iomap(char *comp_str)
 {
 	void __iomem *ret;
@@ -921,11 +937,11 @@ static void __iomem *find_and_iomap(char *comp_str)
 	return ret;
 }
 #endif
-
+#if 0
 static void enable_subsys_hwcg(enum subsys_id id)
 {
 }
-
+#endif
 /* auto-gen begin*/
 int spm_mtcmos_ctrl_md1_bus_prot(int state)
 {
@@ -4164,7 +4180,7 @@ struct clk *mt_clk_register_power_gate(const char *name,
 {
 	struct mt_power_gate *pg;
 	struct clk *clk;
-	struct clk_init_data init;
+	struct clk_init_data init = {};
 
 	pg = kzalloc(sizeof(*pg), GFP_KERNEL);
 	if (!pg)
@@ -4432,7 +4448,7 @@ static int __init clk_mt6833_scpsys_init(void)
 {
 	return platform_driver_register(&clk_mt6833_scpsys_drv);
 }
-arch_initcall_sync(clk_mt6833_scpsys_init);
+arch_initcall(clk_mt6833_scpsys_init);
 
 /* for suspend LDVT only */
 void mtcmos_force_off(void)

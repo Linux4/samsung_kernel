@@ -46,6 +46,7 @@
 #include <linux/string.h>
 #include <linux/list.h>
 #include <linux/ratelimit.h>
+#include <linux/iversion.h>
 #include "multiuser.h"
 
 /* the file system name */

@@ -1,16 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2014 MediaTek Inc.
- * Author: James Liao <jamesjj.liao@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -4322,30 +4313,7 @@ int allow[NR_SYSS] = {
 };
 #endif
 
-static int isNeedMfgFakePowerOn(enum subsys_id id)
-{
-#if 0
-	int isGpuDfdTriggered = 0;
-	unsigned int gpu_dfd_status;
 
-	if (id == SYS_MFG0 || id == SYS_MFG1 || id == SYS_MFG2 ||
-	    id == SYS_MFG3 ||  id == SYS_MFG4 || id == SYS_MFG5) {
-		gpu_dfd_status = spm_read(MFG_MISC_CON);
-
-		// if gpu dfd is triggered, the power control will be locked
-		// so we need to do fake power on
-		if (gpu_dfd_status & MFG_DFD_TRIGGER) {
-			pr_info("%s:power on, MFG_MISC_CON(0x%x)\n",
-				__func__, gpu_dfd_status);
-			isGpuDfdTriggered = 1;
-		}
-	}
-
-	return isGpuDfdTriggered;
-#else
-	return 1;
-#endif
-}
 
 static int enable_subsys(enum subsys_id id, enum mtcmos_op action)
 {
@@ -4628,7 +4596,7 @@ struct clk *mt_clk_register_power_gate(const char *name,
 {
 	struct mt_power_gate *pg;
 	struct clk *clk;
-	struct clk_init_data init;
+	struct clk_init_data init = {};
 
 	pg = kzalloc(sizeof(*pg), GFP_KERNEL);
 	if (!pg)

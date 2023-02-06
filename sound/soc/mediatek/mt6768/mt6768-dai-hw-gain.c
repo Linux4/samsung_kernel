@@ -18,6 +18,8 @@ static const struct snd_kcontrol_new mtk_hw_gain1_in_ch1_mix[] = {
 				    I_CONNSYS_I2S_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL1_CH1", AFE_CONN13,
 				    I_DL1_CH1, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL2_CH1", AFE_CONN13,
+				    I_DL2_CH1, 1, 0),
 };
 
 static const struct snd_kcontrol_new mtk_hw_gain1_in_ch2_mix[] = {
@@ -25,6 +27,8 @@ static const struct snd_kcontrol_new mtk_hw_gain1_in_ch2_mix[] = {
 				    I_CONNSYS_I2S_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL1_CH2", AFE_CONN14,
 				    I_DL1_CH2, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL2_CH2", AFE_CONN14,
+				    I_DL2_CH2, 1, 0),
 };
 
 static const struct snd_kcontrol_new mtk_hw_gain2_in_ch1_mix[] = {
@@ -107,6 +111,8 @@ static const struct snd_soc_dapm_widget mtk_dai_hw_gain_widgets[] = {
 static const struct snd_soc_dapm_route mtk_dai_hw_gain_routes[] = {
 	{"HW_GAIN1_IN_CH1", "DL1_CH1", "DL1"},
 	{"HW_GAIN1_IN_CH2", "DL1_CH2", "DL1"},
+	{"HW_GAIN1_IN_CH1", "DL2_CH1", "DL2"},
+	{"HW_GAIN1_IN_CH2", "DL2_CH2", "DL2"},
 
 	{"HW_GAIN2_IN_CH1", "CONNSYS_I2S_CH1", "Connsys I2S"},
 	{"HW_GAIN2_IN_CH2", "CONNSYS_I2S_CH2", "Connsys I2S"},

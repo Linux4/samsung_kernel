@@ -118,6 +118,22 @@ struct abd_udr {
 	struct udr_log log[ABD_LOG_MAX];
 };
 
+struct abd_bit_info {
+	unsigned int reg;
+	unsigned int len;
+	char **print;
+	unsigned int expect;
+	unsigned int offset;
+	unsigned int g_para;
+	unsigned int invert;
+	unsigned int mask;
+	unsigned int result;
+	union {
+		unsigned int reserved;
+		unsigned int dpui_key;
+	};
+};
+
 struct bit_log {
 	u64 stamp;
 	u64 ktime;

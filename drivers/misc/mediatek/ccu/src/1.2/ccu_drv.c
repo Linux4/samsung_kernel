@@ -1,16 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2016 MediaTek Inc.
  */
-
 #include <linux/types.h>
 #include <linux/device.h>
 #include <linux/cdev.h>
@@ -76,6 +67,9 @@
 #define CCU_DEV_NAME            "ccu"
 
 #define CCU_CLK_PWR_NUM 2
+
+static int32_t _user_count;
+
 struct clk *ccu_clk_pwr_ctrl[CCU_CLK_PWR_NUM];
 
 struct ccu_device_s *g_ccu_device;
@@ -86,7 +80,7 @@ static wait_queue_head_t wait_queue_deque;
 static wait_queue_head_t wait_queue_enque;
 
 #ifdef CONFIG_PM_SLEEP
-struct wakeup_source ccu_wake_lock;
+// struct wakeup_source ccu_wake_lock;
 #endif
 /*static  int g_bWaitLock;*/
 
@@ -233,7 +227,7 @@ static const struct file_operations ccu_fops = {
 /*---------------------------------------------------------------------------*/
 /* M4U: fault callback                                                       */
 /*---------------------------------------------------------------------------*/
-enum m4u_callback_ret_t ccu_m4u_fault_callback(int port, unsigned int mva,
+m4u_callback_ret_t ccu_m4u_fault_callback(int port, unsigned int mva,
 	void *data)
 {
 	LOG_DBG("[m4u] fault callback: port=%d, mva=0x%x", port, mva);
@@ -377,7 +371,7 @@ int ccu_pop_command_from_queue(struct ccu_user_s *user, struct ccu_cmd_s **rcmd)
 int ccu_delete_user(struct ccu_user_s *user)
 {
 
-	if (IS_ERR_OR_NULL(user)) {
+	if (!user) {
 		LOG_ERR("delete empty user!\n");
 		return -1;
 	}
@@ -417,22 +411,34 @@ int ccu_set_power(struct ccu_power_s *power)
 static int ccu_open(struct inode *inode, struct file *flip)
 {
 	int ret = 0;
-	struct ccu_user_s *user;
 
-	LOG_INF_MUST("%s +", __func__);
+	struct ccu_user_s *user = NULL;
 
-	_clk_count = 0;
+	mutex_lock(&g_ccu_device->dev_mutex);
 
-	user = NULL;
-	ccu_create_user(&user);
-	flip->private_data = user;
+	LOG_INF_MUST("%s pid:%d tid:%d cnt:%d+\n",
+		__func__, current->pid, current->tgid, _user_count);
 
+	ret = ccu_create_user(&user);
 	if (IS_ERR_OR_NULL(user)) {
 		LOG_ERR("fail to create user\n");
+		mutex_unlock(&g_ccu_device->dev_mutex);
 		return -ENOMEM;
 	}
 
-	LOG_INF_MUST("%s -", __func__);
+	flip->private_data = user;
+	_user_count++;
+
+	if (_user_count > 1) {
+		LOG_INF_MUST("%s clean legacy data flow-\n", __func__);
+		ccu_force_powerdown();
+	}
+
+	LOG_INF_MUST("%s-\n",
+		__func__);
+
+	mutex_unlock(&g_ccu_device->dev_mutex);
+
 	return ret;
 }
 
@@ -440,6 +446,7 @@ static int ccu_open(struct inode *inode, struct file *flip)
 static long ccu_compat_ioctl(struct file *flip, unsigned int cmd,
 	unsigned long arg)
 {
+	/*<<<<<<<<<< debug 32/64 compat check*/
 	struct compat_ccu_power_s __user *ptr_power32;
 	struct ccu_power_s __user *ptr_power64;
 
@@ -565,17 +572,19 @@ int ccu_clock_enable(void)
 	int ret;
 
 	LOG_DBG_MUST("%s %d.\n", __func__, _clk_count);
-
 	mutex_lock(&g_ccu_device->clk_mutex);
-	_clk_count++;
 
+	_clk_count++;
 	ret = clk_prepare_enable(ccu_clk_pwr_ctrl[0]);
 	if (ret)
 		LOG_ERR("CAM_PWR enable fail.\n");
 	ret = clk_prepare_enable(ccu_clk_pwr_ctrl[1]);
 	if (ret)
 		LOG_ERR("CCU_CLK_CAM_CCU enable fail.\n");
+
 	mutex_unlock(&g_ccu_device->clk_mutex);
+	if (ret)
+		LOG_ERR("clock enable fail.\n");
 
 	return ret;
 }
@@ -583,7 +592,6 @@ int ccu_clock_enable(void)
 void ccu_clock_disable(void)
 {
 	LOG_DBG_MUST("%s %d.\n", __func__, _clk_count);
-
 	mutex_lock(&g_ccu_device->clk_mutex);
 	if (_clk_count > 0) {
 		clk_disable_unprepare(ccu_clk_pwr_ctrl[1]);
@@ -653,7 +661,13 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 			struct ccu_cmd_s *cmd = 0;
 
 			/*allocate ccu_cmd_st_list instead of struct ccu_cmd_s*/
-			ccu_alloc_command(&cmd);
+			ret = ccu_alloc_command(&cmd);
+			if (ret != 0) {
+				LOG_ERR(
+					"[%s] ccu_alloc_command failed, ret=%d\n",
+					"ENQUE_COMMAND", ret);
+				return -EFAULT;
+			}
 			ret = copy_from_user(cmd, (void *)arg,
 				sizeof(struct ccu_cmd_s));
 			if (ret != 0) {
@@ -696,17 +710,10 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 				LOG_ERR(
 					"[%s] copy_to_user failed, ret=%d\n",
 					"DEQUE_COMMAND", ret);
-				return -EFAULT;
+				ret = -EFAULT;
 			}
 
-			ret = ccu_free_command(cmd);
-			if (ret != 0) {
-				LOG_ERR(
-					"[%s] free command, ret=%d\n",
-					"DEQUE_COMMAND", ret);
-				return -EFAULT;
-			}
-
+			ccu_free_command(cmd);
 			break;
 		}
 	case CCU_IOCTL_FLUSH_COMMAND:
@@ -756,7 +763,6 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 
 			break;
 		}
-
 	case CCU_IOCTL_FLUSH_LOG:
 		{
 			ccu_flushLog(0, NULL);
@@ -794,7 +800,7 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 			break;
 		}
 	case CCU_IOCTL_SET_I2C_CHANNEL:
-		{
+	{
 		uint32_t sensor_idx;
 
 		ret = copy_from_user(&sensor_idx, (void *)arg,
@@ -806,7 +812,7 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 			LOG_ERR("invalid i2c sensor_idx: %d\n", sensor_idx);
 
 		break;
-		}
+	}
 	case CCU_IOCTL_GET_CURRENT_FPS:
 		{
 			int32_t current_fps = ccu_get_current_fps();
@@ -817,7 +823,7 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 			break;
 		}
 	case CCU_IOCTL_GET_SENSOR_I2C_SLAVE_ADDR:
-		{
+	{
 		struct ccu_i2c_info sensor_info[IMGSENSOR_SENSOR_IDX_MAX_NUM];
 
 		ccu_get_sensor_i2c_info(&sensor_info[0]);
@@ -827,11 +833,11 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 			IMGSENSOR_SENSOR_IDX_MAX_NUM);
 
 		break;
-		}
+	}
 
 	case CCU_IOCTL_GET_SENSOR_NAME:
-		{
-			#define SENSOR_NAME_MAX_LEN 32
+	{
+		#define SENSOR_NAME_MAX_LEN 32
 
 		char *sensor_names[IMGSENSOR_SENSOR_IDX_MAX_NUM];
 
@@ -849,8 +855,8 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 				}
 			}
 		}
-			#undef SENSOR_NAME_MAX_LEN
-			break;
+		#undef SENSOR_NAME_MAX_LEN
+		break;
 	}
 
 	case CCU_READ_REGISTER:
@@ -934,14 +940,24 @@ static int ccu_release(struct inode *inode, struct file *flip)
 {
 	struct ccu_user_s *user = flip->private_data;
 
-	LOG_INF_MUST("%s +", __func__);
+	mutex_lock(&g_ccu_device->dev_mutex);
 
+	LOG_INF_MUST("%s pid:%d tid:%d cnt:%d+\n",
+		__func__, user->open_pid, user->open_tgid, _user_count);
 	ccu_delete_user(user);
+	_user_count--;
+
+	if (_user_count > 0) {
+		LOG_INF_MUST("%s bypass release flow-", __func__);
+		mutex_unlock(&g_ccu_device->dev_mutex);
+		return 0;
+	}
 
 	ccu_force_powerdown();
 
-	flip->private_data = NULL;
 	LOG_INF_MUST("%s -", __func__);
+
+	mutex_unlock(&g_ccu_device->dev_mutex);
 
 	return 0;
 }
@@ -966,55 +982,55 @@ static int ccu_mmap(struct file *flip, struct vm_area_struct *vma)
 
 	/*if (pfn >= CCU_REG_BASE_HW) {*/
 
-		if (pfn == (ccu_hw_base - CCU_HW_OFFSET)) {
-			if (length > PAGE_SIZE) {
-				LOG_ERR("mmap range error :module(0x%lx), ",
-					pfn);
-				LOG_ERR
-				    ("length(0x%lx), CCU_HW_BASE(0x%x)!\n",
-				    length, 0x4000);
-				return -EAGAIN;
-			}
-		} else if (pfn == CCU_CAMSYS_BASE) {
-			if (length > CCU_CAMSYS_SIZE) {
-				LOG_ERR("mmap range error :module(0x%lx), ",
-					pfn);
-				LOG_ERR
-				    ("length(0x%lx), %s(0x%x)!\n",
-				    length, "CCU_CAMSYS_BASE_HW", 0x4000);
-				return -EAGAIN;
-			}
-		} else if (pfn == CCU_PMEM_BASE) {
-			if (length > CCU_PMEM_SIZE) {
-				LOG_ERR("mmap range error :module(0x%lx), ",
-					pfn);
-				LOG_ERR
-				    ("length(0x%lx), CCU_PMEM_BASE_HW(0x%x)!\n",
-				    length, 0x4000);
-				return -EAGAIN;
-			}
-		} else if (pfn == CCU_DMEM_BASE) {
-			if (length > CCU_DMEM_SIZE) {
-				LOG_ERR("mmap range error :module(0x%lx), ",
-					pfn);
-				LOG_ERR
-				    ("length(0x%lx), CCU_PMEM_BASE_HW(0x%x)!\n",
-				    length, 0x4000);
-				return -EAGAIN;
-			}
-		} else {
-			LOG_ERR("Illegal starting HW addr for mmap!\n");
+	if (pfn == (ccu_hw_base - CCU_HW_OFFSET)) {
+		if (length > PAGE_SIZE) {
+			LOG_ERR("mmap range error :module(0x%lx), ",
+				pfn);
+			LOG_ERR
+			    ("length(0x%lx), CCU_HW_BASE(0x%x)!\n",
+			    length, 0x4000);
 			return -EAGAIN;
 		}
+	} else if (pfn == CCU_CAMSYS_BASE) {
+		if (length > CCU_CAMSYS_SIZE) {
+			LOG_ERR("mmap range error :module(0x%lx), ",
+				pfn);
+			LOG_ERR
+			    ("length(0x%lx), %s(0x%x)!\n",
+			    length, "CCU_CAMSYS_BASE_HW", 0x4000);
+			return -EAGAIN;
+		}
+	} else if (pfn == CCU_PMEM_BASE) {
+		if (length > CCU_PMEM_SIZE) {
+			LOG_ERR("mmap range error :module(0x%lx), ",
+				pfn);
+			LOG_ERR
+			    ("length(0x%lx), CCU_PMEM_BASE_HW(0x%x)!\n",
+			    length, 0x4000);
+			return -EAGAIN;
+		}
+	} else if (pfn == CCU_DMEM_BASE) {
+		if (length > CCU_DMEM_SIZE) {
+			LOG_ERR("mmap range error :module(0x%lx), ",
+				pfn);
+			LOG_ERR
+			    ("length(0x%lx), CCU_PMEM_BASE_HW(0x%x)!\n",
+			    length, 0x4000);
+			return -EAGAIN;
+		}
+	} else {
+		LOG_ERR("Illegal starting HW addr for mmap!\n");
+		return -EAGAIN;
+	}
 
-		if (remap_pfn_range
-		    (vma, vma->vm_start, vma->vm_pgoff,
-			 vma->vm_end - vma->vm_start,
-		     vma->vm_page_prot)) {
-			LOG_ERR("remap_pfn_range\n");
-			return -EAGAIN;
-		}
-		LOG_DBG("map_check_1\n");
+	if (remap_pfn_range
+	    (vma, vma->vm_start, vma->vm_pgoff,
+		 vma->vm_end - vma->vm_start,
+	     vma->vm_page_prot)) {
+		LOG_ERR("remap_pfn_range\n");
+		return -EAGAIN;
+	}
+	LOG_DBG("map_check_1\n");
 
 	/*
 	 * } else {
@@ -1149,7 +1165,7 @@ static int ccu_probe(struct platform_device *pdev)
 			phy_addr = ccu_hw_base;
 			phy_size = 0x1000;
 			g_ccu_device->ccu_base =
-				(unsigned long)ioremap(phy_addr, phy_size);
+				(unsigned long)ioremap_wc(phy_addr, phy_size);
 			LOG_INF("ccu_base pa: 0x%x, size: 0x%x\n",
 				phy_addr, phy_size);
 			LOG_INF("ccu_base va: 0x%lx\n",
@@ -1159,7 +1175,7 @@ static int ccu_probe(struct platform_device *pdev)
 			phy_addr = CCU_DMEM_BASE;
 			phy_size = CCU_DMEM_SIZE;
 			g_ccu_device->dmem_base =
-				(unsigned long)ioremap(phy_addr, phy_size);
+				(unsigned long)ioremap_wc(phy_addr, phy_size);
 			LOG_INF("dmem_base pa: 0x%x, size: 0x%x\n",
 				phy_addr, phy_size);
 			LOG_INF("dmem_base va: 0x%lx\n",
@@ -1169,7 +1185,7 @@ static int ccu_probe(struct platform_device *pdev)
 			phy_addr = CCU_PMEM_BASE;
 			phy_size = CCU_PMEM_SIZE;
 			g_ccu_device->pmem_base =
-				(unsigned long)ioremap(phy_addr, phy_size);
+				(unsigned long)ioremap_wc(phy_addr, phy_size);
 			LOG_INF("pmem_base pa: 0x%x, size: 0x%x\n",
 				phy_addr, phy_size);
 			LOG_INF("pmem_base va: 0x%lx\n",
@@ -1179,7 +1195,7 @@ static int ccu_probe(struct platform_device *pdev)
 			phy_addr = CCU_CAMSYS_BASE;
 			phy_size = CCU_CAMSYS_SIZE;
 			g_ccu_device->camsys_base =
-				(unsigned long)ioremap(phy_addr, phy_size);
+				(unsigned long)ioremap_wc(phy_addr, phy_size);
 			LOG_INF("camsys_base pa: 0x%x, size: 0x%x\n",
 				phy_addr, phy_size);
 			LOG_INF("camsys_base va: 0x%lx\n",
@@ -1189,7 +1205,7 @@ static int ccu_probe(struct platform_device *pdev)
 			phy_addr = CCU_N3D_A_BASE;
 			phy_size = CCU_N3D_A_SIZE;
 			g_ccu_device->n3d_a_base =
-				(unsigned long)ioremap(phy_addr, phy_size);
+				(unsigned long)ioremap_wc(phy_addr, phy_size);
 			LOG_INF("n3d_a_base pa: 0x%x, size: 0x%x\n",
 				phy_addr, phy_size);
 			LOG_INF("n3d_a_base va: 0x%lx\n",
@@ -1266,7 +1282,7 @@ static int ccu_probe(struct platform_device *pdev)
 				goto EXIT;
 			}
 #ifdef CONFIG_PM_SLEEP
-			wakeup_source_init(&ccu_wake_lock, "ccu_lock_wakelock");
+// wakeup_source_init(&ccu_wake_lock, "ccu_lock_wakelock");
 #endif
 
 			/* enqueue/dequeue control in ihalpipe wrapper */
@@ -1364,6 +1380,7 @@ static int __init CCU_INIT(void)
 
 	INIT_LIST_HEAD(&g_ccu_device->user_list);
 	mutex_init(&g_ccu_device->user_mutex);
+	mutex_init(&g_ccu_device->dev_mutex);
 	mutex_init(&g_ccu_device->clk_mutex);
 	init_waitqueue_head(&g_ccu_device->cmd_wait);
 

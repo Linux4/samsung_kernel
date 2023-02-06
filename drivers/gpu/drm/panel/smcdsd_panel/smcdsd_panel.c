@@ -166,10 +166,9 @@ static void common_lcd_bridge_enable(struct drm_bridge *bridge)
 
 static int common_framedone_notify(struct drm_panel *panel)
 {
-	int ret = 0;
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
-	ret = call_drv_ops(plcd, framedone_notify);
-	return ret;
+
+	return call_drv_ops(plcd, framedone_notify);
 }
 
 static int common_lcd_set_dispon_cmdq(void *dsi, dcs_write_gce cb,
@@ -360,6 +359,7 @@ static int common_lcd_late_register(struct drm_panel *panel)
 }
 
 #if defined(CONFIG_SMCDSD_DOZE)
+#if 0
 static unsigned long common_lcd_doze_get_mode_flags(struct drm_panel *panel,
 	int doze_en)
 {
@@ -374,7 +374,6 @@ static unsigned long common_lcd_doze_get_mode_flags(struct drm_panel *panel,
 	return mode_flags;
 }
 
-#if 0
 static int common_lcd_doze_enable_start(struct drm_panel *panel,
 	void *dsi, dcs_write_gce cb, void *handle)
 {
@@ -396,6 +395,17 @@ static int common_lcd_doze_enable(struct drm_panel *panel,
 	return 0;
 }
 
+#if 0
+static int common_lcd_doze_area(struct drm_panel *panel,
+	void *dsi, dcs_write_gce cb, void *handle)
+{
+	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
+
+	dbg_info("%s\n", __func__);
+
+	return call_drv_ops(plcd, doze_area);
+}
+
 static int common_lcd_doze_post_disp_on(struct drm_panel *panel,
 		void *dsi, dcs_write_gce cb, void *handle)
 {
@@ -407,6 +417,7 @@ static int common_lcd_doze_post_disp_on(struct drm_panel *panel,
 
 	return 0;
 }
+#endif
 
 static int common_lcd_doze_disable(struct drm_panel *panel,
 	void *dsi, dcs_write_gce cb, void *handle)
@@ -426,39 +437,19 @@ static int common_lcd_set_aod_light_mode(void *dsi,
 {
 	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-//todo: how dsi -> panel
-//todo: change cb parameter structure
-
 	dbg_info("%s\n", __func__);
 
 	return 0;
 }
-
-static int common_lcd_doze_area(struct drm_panel *panel,
-	void *dsi, dcs_write_gce cb, void *handle)
-{
-	struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
-
-	dbg_info("%s\n", __func__);
-
-	return call_drv_ops(plcd, doze_area);
-}
 #endif
 #endif
 
-static int common_lcd_crtc_state_notify(struct drm_encoder *encoder,
+static int common_lcd_crtc_state_notify(struct drm_panel *panel,
 	int active, int prepare)
 {
-	struct drm_bridge *bridge;
-	struct mipi_dsi_lcd_common *plcd;
+	//struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-	if (!encoder->bridge) {
-		dbg_info("%s: bridge is null\n", __func__);
-		return 0;
-	}
-
-	bridge = encoder->bridge;
-	plcd = bridge_to_common_lcd(bridge);
+	//dbg_info("%s: dev_name(%s)\n", __func__, dev_name(plcd->dev));
 
 	smcdsd_fb_simple_notifier_call_chain(prepare ? SMCDSD_EARLY_EVENT_BLANK : SMCDSD_EVENT_BLANK, active ? FB_BLANK_UNBLANK : FB_BLANK_POWERDOWN);
 
@@ -528,7 +519,6 @@ int smcdsd_panel_dsi_command_tx(void *drvdata,
 	ret = set_lcm_wrapper(&dsi_msg, 1);
 	if (ret < 0) {
 		dbg_info("%s: error(%d)\n", __func__, ret);
-		plcd->error = ret;
 		return -EINVAL;
 	}
 
@@ -549,7 +539,6 @@ int smcdsd_dsi_msg_tx(void *drvdata, unsigned long data0, int blocking)
 	ret = set_lcm_wrapper(dsi_msg, blocking);
 	if (ret < 0) {
 		dbg_info("%s: error(%d)\n", __func__, ret);
-		plcd->error = ret;
 		return -EINVAL;
 	}
 
@@ -653,7 +642,7 @@ static int smcdsd_probe(struct platform_device *p)
 		return -EINVAL;
 	}
 
-	run_list(&plcd->drv->pdev->dev, "panel_regulator_init");
+	//run_list(&plcd->drv->pdev->dev, "panel_regulator_init");
 
 	return 0;
 }
@@ -672,7 +661,7 @@ static int common_lcd_probe(struct mipi_dsi_device *dsi)
 {
 	struct device *dev = &dsi->dev;
 	struct mipi_dsi_lcd_common *plcd = &lcd_common;
-	int ret;
+	int ret, i;
 
 	dbg_info("%s: node(%s)\n", __func__, of_node_full_name(dev->of_node));
 
@@ -687,6 +676,9 @@ static int common_lcd_probe(struct mipi_dsi_device *dsi)
 	ret = smcdsd_panel_get_config(plcd);
 	if (ret <= 1)
 		ext_funcs.ext_param_set = NULL;
+
+	for (i = 0; i < LCD_CONFIG_MAX; i++)
+		plcd->config[i].ext.dpanel = &plcd->panel;
 
 	drm_panel_init(&plcd->panel);
 	plcd->panel.dev = dev;
@@ -705,6 +697,8 @@ static int common_lcd_probe(struct mipi_dsi_device *dsi)
 	if (ret < 0)
 		return ret;
 #endif
+
+	call_drv_ops(plcd, setup);
 
 	return ret;
 }

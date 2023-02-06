@@ -1,3 +1,4 @@
+#$(error "adsfasdf")
 MCUPM_VERSION := v1
 MCUPM_VERSION_PATH := ../$(MCUPM_VERSION)
 

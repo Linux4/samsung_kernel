@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 
 #ifndef __MT_PPM_PLATFORM_H__
@@ -37,6 +29,8 @@ extern "C" {
 
 #define DYNAMIC_TABLE2REAL_PERCENTAGE	(58)
 
+#define CORE_NUM_L	(4)
+
 /* for COBRA algo */
 #define PPM_COBRA_USE_CORE_LIMIT	(1)
 #ifdef PPM_COBRA_USE_CORE_LIMIT
@@ -46,6 +40,7 @@ extern "C" {
 #endif
 #define COBRA_OPP_NUM	(DVFS_OPP_NUM)
 #define TOTAL_CORE_NUM	(4)
+
 
 #ifdef PPM_SSPM_SUPPORT
 #define PPM_COBRA_TBL_SRAM_ADDR	(0x0011B800)

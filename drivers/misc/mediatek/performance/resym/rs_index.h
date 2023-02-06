@@ -16,10 +16,10 @@ struct rs_sys_data {
 	int io_q_dept;
 };
 
-extern void (*rsi_getindex_fp)(__s32 *data, __s32 input_size);
-extern void (*rsi_switch_collect_fp)(__s32 cmd);
+extern void (*perf_rsi_getindex_fp)(__s32 *data, __s32 input_size);
+extern void (*perf_rsi_switch_collect_fp)(__s32 cmd);
 
-int __init rs_index_init(void);
-void rsi_switch_collect(int cmd);
+int __init perf_rs_index_init(void);
+void perf_rsi_switch_collect(int cmd);
 
 #endif

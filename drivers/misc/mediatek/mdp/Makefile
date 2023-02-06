@@ -42,18 +42,24 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/smi/ \
 	     -I$(srctree)/drivers/misc/mediatek/mmp/ \
 	     -I$(srctree)/drivers/misc/mediatek/mach/$(MTK_PLATFORM)/include \
 	     -I$(srctree)/drivers/iommu/ \
-	     -I$(srctree)/drivers/staging/android/ion \
-	     -I$(srctree)/drivers/staging/android/ion/mtk \
 	     -I$(srctree)/drivers/misc/mediatek/trusted_mem/public
 
 ccflags-$(CONFIG_MTK_CMDQ_MBOX_EXT) += -I$(srctree)/drivers/misc/mediatek/cmdq/mailbox/
 
+ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6761" "mt6765" "mt6771" "mt6779" "mt6781" "mt6785" "mt6877" "mt6893" "mt6833" "mt6739" "mt6768" "mt6853" "mt6885" "mt6873"))
+	ccflags-y += -I$(srctree)/drivers/staging/android/mtk_ion \
+		-I$(srctree)/drivers/staging/android/mtk_ion/mtk
+else
+	ccflags-y += -I$(srctree)/drivers/staging/android/ion \
+		-I$(srctree)/drivers/staging/android/ion/mtk
+endif
+
 ifeq ($(CONFIG_MTK_CMDQ_V3),y)
-ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6739" "mt6768" "mt6771" "mt8168" "mt6785"))
+ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6739" "mt6768" "mt6771" "mt8168" "mt6785" "mt6761" "mt6765" "mt6779"))
 	ccflags-y += -I$(srctree)/drivers/misc/mediatek/cmdq/v3/ \
 		-I$(srctree)/drivers/misc/mediatek/cmdq/v3/$(MTK_PLATFORM)
 endif
-else ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt8167"))
+else ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt8167" "mt6761" "mt6765" "mt6779"))
 	ccflags-y += -I$(srctree)/drivers/misc/mediatek/cmdq/v2/ \
 		-I$(srctree)/drivers/misc/mediatek/cmdq/v2/$(MTK_PLATFORM)
 endif
@@ -83,12 +89,10 @@ endif
 # secure path
 # use CONFIG_MTK_CMDQ_MBOX_EXT support
 # secure path
-ifeq ($(or $(strip $(CONFIG_TRUSTONIC_TEE_SUPPORT)), $(strip $(CONFIG_MICROTRUST_TEE_SUPPORT)), \
-	$(strip $(CONFIG_MTK_ENABLE_GENIEZONE))),y)
+
 ifeq ($(or $(strip $(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT)), $(strip $(CONFIG_MTK_CAM_SECURITY_SUPPORT))),y)
 ccflags-y += -DCMDQ_SECURE_PATH_SUPPORT
 endif	# end of CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT or CONFIG_MTK_CAM_SECURITY_SUPPORT
-endif	# end of CONFIG_TRUSTONIC_TEE_SUPPORT or CONFIG_MICROTRUST_TEE_SUPPORT
 
 ifeq ($(or $(strip $(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT)), $(strip $(CONFIG_MTK_CAM_SECURITY_SUPPORT))),y)
 ifeq ($(strip $(CONFIG_MTK_ENABLE_GENIEZONE)),y)

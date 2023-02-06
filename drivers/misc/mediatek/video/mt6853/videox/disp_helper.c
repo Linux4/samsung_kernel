@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #include <linux/delay.h>
 #include <linux/sched.h>
@@ -34,10 +27,6 @@
 /* use this magic_code to detect memory corruption */
 #define MAGIC_CODE 0xDEADAAA0U
 
-/*
- * CONFIG_FPGA_EARLY_PORTING is used in linux kernel for early porting.
- * if the macro name changed, please modify the code here too.
- */
 #ifdef CONFIG_FPGA_EARLY_PORTING
 static unsigned int disp_global_stage =
 	MAGIC_CODE | DISP_HELPER_STAGE_EARLY_PORTING;

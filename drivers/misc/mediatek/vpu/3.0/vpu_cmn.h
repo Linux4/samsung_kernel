@@ -1,14 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #ifndef __VPU_CMN_H__
@@ -605,8 +598,8 @@ bool vpu_is_idle(int core);
 	do { if (g_vpu_log_level > Log_STATE_MACHINE) \
 		pr_info(VPU_TAG " " format, ##args); \
 	} while (0)
-#define LOG_INF(format, args...)    pr_info(VPU_TAG " " format, ##args)
-#define LOG_WRN(format, args...)    pr_info(VPU_TAG "[warn] " format, ##args)
+#define LOG_INF(format, args...)    pr_debug(VPU_TAG " " format, ##args)
+#define LOG_WRN(format, args...)    pr_debug(VPU_TAG "[warn] " format, ##args)
 #define LOG_ERR(format, args...)    pr_info(VPU_TAG "[error] " format, ##args)
 
 #define PRINT_LINE() pr_info(VPU_TAG " %s (%s:%d)\n", \

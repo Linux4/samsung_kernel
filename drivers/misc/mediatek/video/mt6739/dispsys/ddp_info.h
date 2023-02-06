@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __H_DDP_INFO__
 #define __H_DDP_INFO__
@@ -340,25 +332,6 @@ struct disp_ddp_path_config {
 	bool rsz_enable;
 	int hrt_path;
 	int hrt_scale;
-};
-
-struct rx_data {
-	unsigned char byte0;
-	unsigned char byte1;
-	unsigned char byte2;
-	unsigned char byte3;
-};
-
-struct ddp_lcm_read_cmd_table {
-	unsigned char cmd[3];
-	struct rx_data data[3];
-	struct rx_data data1[3];
-};
-
-struct ddp_lcm_write_cmd_table {
-	unsigned char cmd;
-	unsigned char count;
-	unsigned char para_list[64];
 };
 
 /* dpmgr_ioctl cmd definition */

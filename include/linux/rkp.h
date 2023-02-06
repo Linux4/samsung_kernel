@@ -1,45 +1,11 @@
-#ifndef _RKP_H
-#define _RKP_H
+#ifndef __RKP_H__
+#define __RKP_H__
 
 #ifndef __ASSEMBLY__
+#include <asm/stack_pointer.h>
+#include <asm/thread_info.h>
+#include <linux/spinlock.h>
 #include <linux/uh.h>
-/* uH_RKP Command ID */
-enum __RKP_CMD_ID{
-	RKP_START = 0x01,
-	RKP_DEFERRED_START = 0x02,
-	RKP_WRITE_PGT1 = 0x03,
-	RKP_WRITE_PGT2 = 0x04,
-	RKP_WRITE_PGT3 = 0x05,
-	RKP_EMULT_TTBR0 = 0x06,
-	RKP_EMULT_TTBR1 = 0x07,
-	RKP_EMULT_DORESUME = 0x08,
-	RKP_FREE_PGD = 0x09,
-	RKP_NEW_PGD = 0x0A,
-	RKP_KASLR_MEM = 0x0B,
-	RKP_FIMC_VERIFY = 0x0C,
-	/* CFP cmds */
-	RKP_JOPP_INIT = 0x0D,
-	RKP_ROPP_INIT = 0x0E,
-	RKP_ROPP_SAVE = 0x0F,
-	RKP_ROPP_RELOAD = 0x10,
-	/* RKP robuffer cmds*/
-	RKP_RKP_ROBUFFER_ALLOC = 0x11,
-	RKP_RKP_ROBUFFER_FREE = 0x12,
-	RKP_GET_RO_BITMAP = 0x13,
-	RKP_GET_DBL_BITMAP = 0x14,
-	RKP_GET_RKP_GET_BUFFER_BITMAP = 0x15,
-	/* dynamic load */
-	RKP_DYNAMIC_LOAD = 0x20,
-	RKP_MODULE_LOAD = 0x21,
-	RKP_BFP_LOAD = 0x22,
-	/* and KDP cmds */
-#ifdef CONFIG_RKP_TEST
-	CMD_ID_TEST_GET_PAR = 0x81,
-	CMD_ID_TEST_GET_RO = 0x83,
-	CMD_ID_TEST_GET_VA_XN,
-	CMD_ID_TEST_GET_VMM_INFO,
-#endif
-};
 
 #ifdef CONFIG_RKP_TEST
 #define RKP_INIT_MAGIC		0x5afe0002
@@ -47,16 +13,31 @@ enum __RKP_CMD_ID{
 #define RKP_INIT_MAGIC		0x5afe0001
 #endif
 
-#define SPARSE_UNIT_BIT (30)
-#define SPARSE_UNIT_SIZE (1<<SPARSE_UNIT_BIT)
+#define __rkp_ro __section(.rkp_ro)
 
-#define RKP_DYN_COMMAND_BREAKDOWN_BEFORE_INIT	0x00
-#define RKP_DYN_COMMAND_INS						0x01
-#define RKP_DYN_COMMAND_RM						0x10
-
-#define RKP_DYN_FIMC				0x02
-#define RKP_DYN_FIMC_COMBINED		0x03
-#define RKP_DYN_MODULE				0x04
+enum __RKP_CMD_ID {
+	RKP_START = 0x00,
+	RKP_DEFERRED_START = 0x01,
+	/* RKP robuffer cmds*/
+	RKP_GET_RO_INFO = 0x2,
+	RKP_CHG_RO = 0x03,
+	RKP_CHG_RW = 0x04,
+	RKP_PGD_RO = 0x05,
+	RKP_PGD_RWX = 0x06,
+	RKP_ROBUFFER_ALLOC = 0x07,
+	RKP_ROBUFFER_FREE = 0x08,
+	/* module, binary load */
+	RKP_DYNAMIC_LOAD = 0x09,
+	RKP_MODULE_LOAD = 0x0A,
+	RKP_BPF_LOAD = 0x0B,
+	/* Log */
+	RKP_LOG = 0x0C,
+#ifdef CONFIG_RKP_TEST
+	RKP_TEST_INIT = 0x0D,
+	RKP_TEST_GET_PAR = 0x0E,
+	RKP_TEST_EXIT = 0x0F,
+#endif
+};
 
 #define RKP_MODULE_PXN_CLEAR	0x1
 #define RKP_MODULE_PXN_SET		0x2
@@ -86,6 +67,7 @@ struct rkp_init { //copy from uh (app/rkp/rkp.h)
 };
 
 struct module_info {
+
 	u64 base_va;
 	u64 vm_size;
 	u64 core_base_va;
@@ -95,96 +77,16 @@ struct module_info {
 	u64 init_text_size;
 };
 
-typedef struct sparse_bitmap_for_kernel {
-	u64 start_addr;
-	u64 end_addr;
-	u64 maxn;
-	char **map;
-} sparse_bitmap_for_kernel_t;
+extern bool rkp_started;
 
-extern sparse_bitmap_for_kernel_t* rkp_s_bitmap_ro;
-extern sparse_bitmap_for_kernel_t* rkp_s_bitmap_dbl;
-extern sparse_bitmap_for_kernel_t* rkp_s_bitmap_buffer;
+extern void __init rkp_init(void);
+extern void rkp_deferred_init(void);
+extern void rkp_robuffer_init(void);
 
-typedef struct rkp_init rkp_init_t;
-extern u8 rkp_started;
-
-static inline u64 uh_call_static(u64 app_id, u64 cmd_id, u64 arg1){
-	register u64 ret __asm__("x0") = app_id;
-	register u64 cmd __asm__("x1") = cmd_id;
-	register u64 arg __asm__("x2") = arg1;
-
-	__asm__ volatile (
-		"hvc	0\n"
-		: "+r"(ret), "+r"(cmd), "+r"(arg)
-	);
-
-	return ret;
-}
-
-// void *rkp_ro_alloc(void);
-static inline void *rkp_ro_alloc(void){
-	u64 addr = 0;
-	uh_call(UH_APP_RKP, RKP_RKP_ROBUFFER_ALLOC, (u64)&addr, 0, 0, 0);
-	if(!addr)
-		return 0;
-	return (void *)__phys_to_virt(addr);
-}
-
-static inline void rkp_ro_free(void *free_addr){
-	uh_call(UH_APP_RKP, RKP_RKP_ROBUFFER_FREE, (u64)free_addr, 0, 0, 0);
-}
-
-
-static inline void rkp_deferred_init(void){
-	uh_call(UH_APP_RKP, RKP_DEFERRED_START, 0, 0, 0, 0);
-}
-
-static inline u8 rkp_check_bitmap(u64 pa, sparse_bitmap_for_kernel_t *kernel_bitmap, u8 overflow_ret, u8 uninitialized_ret)
-{
-	u8 val;
-	u64 offset, map_loc, bit_offset;
-	char *map;
-
-	if (!kernel_bitmap || !kernel_bitmap->map)
-		return uninitialized_ret;
-
-	offset = pa - kernel_bitmap->start_addr;
-	map_loc = ((offset % SPARSE_UNIT_SIZE) / PAGE_SIZE) >> 3;
-	bit_offset = ((offset % SPARSE_UNIT_SIZE) / PAGE_SIZE) % 8;
-
-	if (kernel_bitmap->maxn <= (offset >> SPARSE_UNIT_BIT)) 
-		return overflow_ret;
-
-	map = kernel_bitmap->map[(offset >> SPARSE_UNIT_BIT)];
-	if (!map)
-		return uninitialized_ret;
-
-	val = (u8)((*(u64 *)(&map[map_loc])) >> bit_offset) & ((u64)1);
-	return val;
-}
-
-static inline unsigned int is_rkp_ro_page(u64 va) {
-	return rkp_check_bitmap(__pa(va), rkp_s_bitmap_buffer,0 ,0);
-}
-
-static inline u8 rkp_is_pg_protected(u64 va) {
-	if (rkp_started == 1)
-		return rkp_check_bitmap(__pa(va), rkp_s_bitmap_ro, 1, 0);
-	else
-		return 0;
-	/* The fixmap is used in early stage
-	 * so __pa() prints "warning message" about "non-linear address".
-	 * It leads "infinity reboot".
-	 * RKP can use "trap way" instead of uh_call
-	 * even though below check function doesn't work.
-	 */
-	 //return rkp_check_bitmap(__pa(va), rkp_s_bitmap_ro, 1, 0);
-}
-
-static inline u8 rkp_is_pg_dbl_mapped(u64 pa) {
-	return rkp_check_bitmap(pa, rkp_s_bitmap_dbl, 0, 0);
-}
+extern inline phys_addr_t rkp_ro_alloc_phys(void);
+extern inline void *rkp_ro_alloc(void);
+extern inline void rkp_ro_free(void *free_addr);
+extern inline bool is_rkp_ro_buffer(u64 addr);
 
 #endif //__ASSEMBLY__
-#endif //_RKP_H
+#endif //__RKP_H__

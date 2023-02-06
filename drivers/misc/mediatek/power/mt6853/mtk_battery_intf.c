@@ -1,18 +1,10 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+* Copyright (C) 2021 MediaTek Inc.
+*/
 #include <linux/types.h>
-#include <mt-plat/mtk_battery.h>
-#include <mt-plat/mtk_charger.h>
+#include <mt-plat/v1/mtk_battery.h>
+#include <mt-plat/v1/mtk_charger.h>
 #include <mt-plat/mtk_boot.h>
 #include <mtk_gauge_class.h>
 #include <mtk_battery_internal.h>
@@ -20,6 +12,32 @@
 #ifdef CONFIG_CUSTOM_BATTERY_EXTERNAL_CHANNEL
 #include <custome_external_battery.h>
 #endif
+#include <linux/of.h>
+
+struct tag_bootmode {
+	u32 size;
+	u32 tag;
+	u32 bootmode;
+	u32 boottype;
+};
+
+signed int battery_get_uisoc(void)
+{
+	struct mtk_battery *gm = get_mtk_battery();
+	if (gm != NULL) {
+		int boot_mode = gm->boot_mode;
+
+		if ((boot_mode == META_BOOT) ||
+			(boot_mode == ADVMETA_BOOT) ||
+			(boot_mode == FACTORY_BOOT) ||
+			(boot_mode == ATE_FACTORY_BOOT))
+			return 75;
+		else if (boot_mode == 0)
+			return gm->ui_soc;
+	}
+
+	return 50;
+}
 
 int __attribute__((weak)) charger_get_vbus(void)
 {
@@ -52,6 +70,7 @@ signed int battery_get_precise_soc(void)
 	return 500;
 }
 
+/*
 signed int battery_get_uisoc(void)
 {
 	int boot_mode = get_boot_mode();
@@ -63,7 +82,7 @@ signed int battery_get_uisoc(void)
 		return 75;
 
 	return 50;
-}
+}*/
 
 signed int battery_get_precise_uisoc(void)
 {
@@ -144,6 +163,7 @@ signed int battery_get_precise_soc(void)
 		return 500;
 }
 
+/*
 signed int battery_get_uisoc(void)
 {
 	int boot_mode = get_boot_mode();
@@ -159,7 +179,7 @@ signed int battery_get_uisoc(void)
 		return gm->ui_soc;
 	else
 		return 50;
-}
+}*/
 
 signed int battery_get_precise_uisoc(void)
 {

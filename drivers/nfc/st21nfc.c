@@ -26,6 +26,7 @@
 #include <linux/miscdevice.h>
 #include <linux/spinlock.h>
 #include <linux/of_gpio.h>
+#include <linux/of_platform.h>
 #ifndef LEGACY
 #include <linux/workqueue.h>
 #include <linux/acpi.h>
@@ -718,12 +719,12 @@ static long st21nfc_dev_ioctl(struct file *filp, unsigned int cmd,
 
 			/* pulse low for 20 millisecs */
 			gpiod_set_value(st21nfc_dev->gpiod_reset, 0);
-			msleep(20);
+			usleep_range(20000, 21000);
 			gpiod_set_value(st21nfc_dev->gpiod_reset, 1);
 			usleep_range(10000, 11000);
 			/* pulse low for 20 millisecs */
 			gpiod_set_value(st21nfc_dev->gpiod_reset, 0);
-			msleep(20);
+			usleep_range(20000, 21000);
 			gpiod_set_value(st21nfc_dev->gpiod_reset, 1);
 			NFC_LOG_INFO("%s done Double Pulse Request\n", __func__);
 			if (st21nfc_st54spi_cb != 0)
@@ -787,19 +788,17 @@ static long st21nfc_dev_ioctl(struct file *filp, unsigned int cmd,
 			NFC_LOG_INFO("%s done Pulse Request\n", __func__);
 		}
 
-		msleep(20);
+		usleep_range(20000, 21000);
 		gpiod_set_value(st21nfc_dev->gpiod_irq, 0);
-		msleep(20);
+		usleep_range(20000, 21000);
 		gpiod_set_value(st21nfc_dev->gpiod_irq, 1);
-		msleep(20);
+		usleep_range(20000, 21000);
 		gpiod_set_value(st21nfc_dev->gpiod_irq, 0);
-		msleep(20);
+		usleep_range(20000, 21000);
 		NFC_LOG_INFO("%s Recovery procedure finished\n", __func__);
 		ret = gpiod_direction_input(st21nfc_dev->gpiod_irq);
-		if (ret) {
-			NFC_LOG_ERR("%s : gpiod_direction_input failed\n", __func__);
-			ret = -ENODEV;
-		}
+		if (ret)
+			NFC_LOG_ERR("%s : gpiod_direction_input failed %d\n", __func__, ret);
 
 		st21nfc_dev->irq_enabled = true;
 
@@ -887,16 +886,16 @@ static int st21nfc_ping(struct st21nfc_device *st21nfc_dev)
 
 	/* pulse low for 20 millisecs */
 	gpiod_set_value(st21nfc_dev->gpiod_reset, 0);
-	msleep(20);
+	usleep_range(20000, 21000);
 	gpiod_set_value(st21nfc_dev->gpiod_reset, 1);
 	usleep_range(10000, 11000);
 	/* pulse low for 20 millisecs */
 	gpiod_set_value(st21nfc_dev->gpiod_reset, 0);
-	msleep(20);
+	usleep_range(20000, 21000);
 	gpiod_set_value(st21nfc_dev->gpiod_reset, 1);
 	NFC_LOG_INFO("%s: done Double Pulse Request\n", __func__);
 
-	msleep(10);
+	usleep_range(10000, 11000);
 	while ((loops-- > 0) && gpiod_get_value(st21nfc_dev->gpiod_irq)) {
 		int len;
 
@@ -942,7 +941,7 @@ static int st21nfc_ping(struct st21nfc_device *st21nfc_dev)
 		    st21nfc_dev->buffer[1] == 0x00) {
 			ret = 0;
 		}
-		msleep(5);
+		usleep_range(5000, 5100);
 	}
 
 	return ret;
@@ -968,9 +967,7 @@ static ssize_t i2c_addr_show(struct device *dev, struct device_attribute *attr,
 {
 	struct i2c_client *client = to_i2c_client(dev);
 
-	if (client != NULL)
-		return scnprintf(buf, PAGE_SIZE, "0x%.2x\n", client->addr);
-	return -ENODEV;
+	return scnprintf(buf, PAGE_SIZE, "0x%.2x\n", client->addr);
 } /* i2c_addr_show() */
 
 static ssize_t i2c_addr_store(struct device *dev, struct device_attribute *attr,
@@ -1252,6 +1249,42 @@ static void secnfc_deinit(struct i2c_client *client)
 }
 #endif/*CONFIG_NFC_ST21NFC*/
 
+static int st21nfc_nc_pinctrl(struct device *dev)
+{
+	struct pinctrl *pinctrl;
+	struct device_node *np = dev->of_node;
+	struct device_node *i2c_dev_node = of_get_parent(np);
+
+	pinctrl = devm_pinctrl_get_select(dev, "nfc_nc");
+	if (IS_ERR_OR_NULL(pinctrl))
+		NFC_LOG_ERR("Failed to pinctrl nfc_nc %d\n", PTR_ERR(pinctrl));
+	else
+		devm_pinctrl_put(pinctrl);
+
+	/* i2c nc pin setting */
+	if (!IS_ERR_OR_NULL(i2c_dev_node)) {
+		struct platform_device *i2c_pdev;
+
+		i2c_pdev = of_find_device_by_node(i2c_dev_node);
+		NFC_LOG_DBG("parent node: %s\n", i2c_dev_node->full_name);
+		if (i2c_pdev) {
+			struct pinctrl *pinctrl_i2c;
+
+			pinctrl_i2c = devm_pinctrl_get_select(&i2c_pdev->dev, "nfc_i2c_nc");
+			if (IS_ERR_OR_NULL(pinctrl_i2c)) {
+				NFC_LOG_ERR("No nfc_i2c_nc pinctrl %d\n", PTR_ERR(pinctrl_i2c));
+			} else {
+				devm_pinctrl_put(pinctrl_i2c);
+				NFC_LOG_INFO("nfc_i2c_nc pinctrl done\n");
+			}
+		}
+	}
+
+	NFC_LOG_INFO("nfc_nc pinctrl done\n");
+
+	return 0;
+}
+
 static int st21nfc_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
@@ -1261,6 +1294,7 @@ static int st21nfc_probe(struct i2c_client *client,
 	const char *ap_str;
 	struct device_node *np = dev->of_node;
 	int nfc_det_gpio;
+	struct regulator *nfc_pvdd;
 	static int retry_count = 3;
 
 	NFC_LOG_INFO("%s start (v: %s)\n", __func__, DRIVER_VERSION);
@@ -1270,12 +1304,8 @@ static int st21nfc_probe(struct i2c_client *client,
 		return -ENODEV;
 	}
 
-	st21nfc_dev = devm_kzalloc(dev, sizeof(*st21nfc_dev), GFP_KERNEL);
-	if (st21nfc_dev == NULL)
-		return -ENOMEM;
-
 	/* check if device supports nfc */
-	nfc_det_gpio = of_get_named_gpio(np, "st21nfc,nfc-det-gpio", 0);
+	nfc_det_gpio = of_get_named_gpio(np, "st21nfc,nfc-det-gpio", GPIOD_ASIS);
 	if (!gpio_is_valid(nfc_det_gpio)) {
 		NFC_LOG_INFO("%s : nfc-det-gpio is not set\n", __func__);
 	} else {
@@ -1285,21 +1315,28 @@ static int st21nfc_probe(struct i2c_client *client,
 		gpio_direction_input(nfc_det_gpio);
 		if (!gpio_get_value(nfc_det_gpio)) {
 			/*NFC nc case*/
-			struct pinctrl *pinctrl = NULL;
-
 			NFC_LOG_INFO("%s : nfc is not supported\n", __func__);
+			st21nfc_nc_pinctrl(dev);
 
-			pinctrl = devm_pinctrl_get_select(dev, "nfc_nc");
-			if (IS_ERR_OR_NULL(pinctrl))
-				NFC_LOG_ERR("Failed to pinctrl nfc_nc\n");
-			else
-				devm_pinctrl_put(pinctrl);
-
-			NFC_LOG_ERR("nfc_nc pinctrl called\n");
 			return -ENODEV;
 		}
 		NFC_LOG_INFO("%s : nfc is supported\n", __func__);
 	}
+
+	nfc_pvdd = devm_regulator_get(dev, "nfc_pvdd");
+	if (IS_ERR_OR_NULL(nfc_pvdd)) {
+		NFC_LOG_ERR("%s: unable to get nfc_pvdd\n", __func__);
+		if (retry_count-- > 0)
+			return -EPROBE_DEFER;
+		else
+			return -ENODEV;
+	}
+
+	st21nfc_dev = devm_kzalloc(dev, sizeof(*st21nfc_dev), GFP_KERNEL);
+	if (st21nfc_dev == NULL)
+		return -ENOMEM;
+
+	st21nfc_dev->nfc_pvdd = nfc_pvdd;
 
 	/* store for later use */
 	st21nfc_dev->client = client;
@@ -1323,22 +1360,23 @@ static int st21nfc_probe(struct i2c_client *client,
 	}
 
 // QCOM and MTK54 use standard GPIO definition
+#ifdef CONFIG_NFC_ST21NFC
+	st21nfc_dev->gpiod_switch_en = devm_gpiod_get(dev, "switch_en", GPIOD_ASIS);
+	if (IS_ERR_OR_NULL(st21nfc_dev->gpiod_switch_en))
+		NFC_LOG_ERR("[OPTIONAL] Unable to request switch_en-gpios\n", __func__);
+#endif
+	st21nfc_dev->gpiod_reset = devm_gpiod_get(dev, "reset", GPIOD_ASIS);
+	if (IS_ERR_OR_NULL(st21nfc_dev->gpiod_reset)) {
+		NFC_LOG_ERR("%s : Unable to request reset-gpios\n", __func__);
+		return -ENODEV;
+	}
+
+// QCOM and MTK54 use standard GPIO definition
 	st21nfc_dev->gpiod_irq = devm_gpiod_get(dev, "irq", GPIOD_IN);
 	if (IS_ERR_OR_NULL(st21nfc_dev->gpiod_irq)) {
 		NFC_LOG_ERR("%s : Unable to request irq-gpios\n", __func__);
 		return -ENODEV;
 	}
-
-#ifdef CONFIG_NFC_ST21NFC
-	st21nfc_dev->gpiod_switch_en = devm_gpiod_get(dev, "switch_en", GPIOD_OUT_HIGH);
-	if (IS_ERR_OR_NULL(st21nfc_dev->gpiod_switch_en)) {
-		NFC_LOG_ERR("%s: Unable to request switch_en-gpios\n", __func__);
-	}
-	else {
-		NFC_LOG_INFO("%s: set switch_en ok:%d\n", __func__,
-			gpio_get_value(desc_to_gpio(st21nfc_dev->gpiod_switch_en)));
-	}
-#endif
 
 // QCOM and MTK54 use standard GPIO definition
 	st21nfc_dev->gpiod_pidle = devm_gpiod_get(dev, "pidle", GPIOD_IN);
@@ -1463,19 +1501,6 @@ static int st21nfc_probe(struct i2c_client *client,
 		goto err_misc_register;
 	}
 
-	st21nfc_dev->nfc_pvdd = devm_regulator_get(dev, "nfc_pvdd");
-	if (IS_ERR_OR_NULL(st21nfc_dev->nfc_pvdd)) {
-		NFC_LOG_ERR("%s: unable to get nfc_pvdd\n", __func__);
-		st21nfc_dev->nfc_pvdd = NULL;
-		if (--retry_count > 0) {
-			ret = -EPROBE_DEFER;
-			goto err_sysfs_create_group_failed;
-		} else {
-			ret = -ENODEV;
-			goto err_sysfs_create_group_failed;
-		}
-	}
-
 #ifdef CONFIG_NFC_ST21NFC
 	ret = secnfc_init(client);
 	if (ret) {
@@ -1484,13 +1509,17 @@ static int st21nfc_probe(struct i2c_client *client,
 	}
 #endif
 //if regulator is turned on late, it takes time for rst pin to turn on after the power.
-	msleep(20);
-// QCOM and MTK54 use standard GPIO definition
-	st21nfc_dev->gpiod_reset = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
-	if (IS_ERR_OR_NULL(st21nfc_dev->gpiod_reset)) {
-		NFC_LOG_ERR("%s : Unable to request reset-gpios\n", __func__);
-		return -ENODEV;
+	usleep_range(25000, 25100);
+
+#ifdef CONFIG_NFC_ST21NFC
+	if (!IS_ERR_OR_NULL(st21nfc_dev->gpiod_switch_en)) {
+		gpiod_direction_output(st21nfc_dev->gpiod_switch_en, 1);
+		NFC_LOG_INFO("%s: set switch_en ok:%d\n", __func__,
+			gpio_get_value(desc_to_gpio(st21nfc_dev->gpiod_switch_en)));
 	}
+#endif
+	gpiod_direction_output(st21nfc_dev->gpiod_reset, 1);
+
 	if (st21nfc_dev->ap_vendor == AP_VENDOR_MTK) {
 		/*use internal pull-up case*/
 		struct pinctrl *pinctrl = NULL;

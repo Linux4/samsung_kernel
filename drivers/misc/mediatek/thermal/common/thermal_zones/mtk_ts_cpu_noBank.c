@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #define DEBUG 1
@@ -24,7 +16,6 @@
 #include <linux/delay.h>
 #include <linux/proc_fs.h>
 #include <linux/spinlock.h>
-#include <mt-plat/sync_write.h>
 #include "mt-plat/mtk_thermal_monitor.h"
 #include <linux/seq_file.h>
 #include <linux/slab.h>
@@ -38,11 +29,6 @@
 #else
 #include <linux/clk.h>
 #endif
-
-#include <mtk_spm_vcore_dvfs.h>
-
-/* #include <mach/mt_wtd.h> */
-#include <mtk_gpu_utility.h>
 #include <linux/time.h>
 
 #include <tscpu_settings.h>
@@ -52,11 +38,6 @@
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
 #endif
-
-#if (CONFIG_THERMAL_AEE_RR_REC == 1)
-#include <mtk_ram_console.h>
-#endif
-
 #define __MT_MTK_TS_CPU_C__
 
 #if MTK_TS_CPU_RT
@@ -65,16 +46,14 @@
 #endif
 
 #if defined(ATM_USES_PPM)
+#ifdef CONFIG_MTK_PPM
 #include "mtk_ppm_api.h"
-#else
-#ifndef CONFIG_MACH_MT8168
-#include "mt_cpufreq.h"
 #endif
+#else
+#include "mt_cpufreq.h"
 #endif
 
 #include <linux/uidgid.h>
-
-#include "mtk_auxadc.h"
 
 #include <ap_thermal_limit.h>
 #if defined(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
@@ -211,6 +190,7 @@ static char g_bind9[20] = "";
 struct mt_gpufreq_power_table_info *mtk_gpu_power;
 /* max GPU opp idx from GPU DVFS driver, default is 0 */
 int gpu_max_opp;
+EXPORT_SYMBOL_GPL(gpu_max_opp);
 #if 0
 int Num_of_GPU_OPP = 1;		/* Set this value =1 for non-DVS GPU */
 #else				/* DVFS GPU */
@@ -222,6 +202,9 @@ int Num_of_GPU_OPP;
 struct regulator *vcore_reg_id;
 #endif
 #endif
+struct platform_device *tscpu_pdev;
+EXPORT_SYMBOL_GPL(tscpu_pdev);
+
 /*=============================================================
  * Local function definition
  *=============================================================
@@ -231,11 +214,15 @@ struct regulator *vcore_reg_id;
 static void _mt_thermal_aee_init(void)
 {
 	int i;
-
+#if defined(THERMAL_AEE_SELECTED_TS)
+	aee_rr_init_thermal_temp(THERMAL_AEE_MAX_SELECTED_TS);
+	for (i = 0; i < THERMAL_AEE_MAX_SELECTED_TS; i++)
+		aee_rr_rec_thermal_temp(i, 0xFF);
+#else
 	aee_rr_init_thermal_temp(TS_ENUM_MAX);
 	for (i = 0; i < TS_ENUM_MAX; i++)
-		aee_rr_rec_thermal_temp(i, 0xFFFF);
-
+		aee_rr_rec_thermal_temp(i, 0xFF);
+#endif
 	aee_rr_rec_thermal_status(0xFF);
 	aee_rr_rec_thermal_ATM_status(0xFF);
 	aee_rr_rec_thermal_ktime(0xFFFFFFFFFFFFFFFF);
@@ -292,22 +279,6 @@ IMM_IsAdcInitReady(void)
 	pr_notice("E_WF: %s doesn't exist\n", __func__);
 	return 0;
 }
-#endif
-
-#if 0
-#if defined(ATM_USES_PPM)
-	void __attribute__ ((weak))
-mt_ppm_cpu_thermal_protect(unsigned int limited_power)
-{
-	pr_notice("E_WF: %s doesn't exist\n", __func__);
-}
-#else
-	void __attribute__ ((weak))
-mt_cpufreq_thermal_protect(unsigned int limited_power)
-{
-	pr_notice("E_WF: %s doesn't exist\n", __func__);
-}
-#endif
 #endif
 
 	bool __attribute__ ((weak))
@@ -628,7 +599,6 @@ static int tscpu_get_temp
 #else
 	curr_temp = tscpu_get_curr_temp();
 #endif
-
 	tscpu_dprintk("%s CPU T=%d\n", __func__, curr_temp);
 
 	if ((curr_temp > (trip_temp[0] - 15000))
@@ -759,14 +729,14 @@ static ssize_t tscpu_write_Tj_out
 			/* TS_CON0[19:16] = 0x8: Tj sensor
 			 * Analog signal output via HW pin
 			 */
-			mt_reg_sync_writel(readl(TS_CON0_TM) | 0x00010000,
-								TS_CON0_TM);
+			writel(readl(TS_CON0_TM) | 0x00010000,
+				(void *)TS_CON0_TM);
 		} else {
 			/* TS_CON0[19:16] = 0x8: Tj sensor
 			 * Analog signal output via HW pin
 			 */
-			mt_reg_sync_writel(readl(TS_CON0_TM) & 0xfffeffff,
-								TS_CON0_TM);
+			writel(readl(TS_CON0_TM) & 0xfffeffff,
+				(void *)TS_CON0_TM);
 		}
 
 		tscpu_dprintk("%s lv_Tj_out_flag=%d\n", __func__,
@@ -1738,8 +1708,13 @@ static int tscpu_thermal_suspend
 		 *mt6768 TSCON0[29:28]=2'b11, Buffer off
 		 */
 		/* turn off the sensor buffer to save power */
+#if (defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6779))
+		writel(readl(TS_CONFIGURE) | TS_TURN_OFF,
+			(void *)TS_CONFIGURE);
+#else
 		mt_reg_sync_writel(readl(TS_CONFIGURE) | TS_TURN_OFF,
-								TS_CONFIGURE);
+			TS_CONFIGURE);
+#endif
 #endif
 #if defined(THERMAL_EBABLE_TC_CG)
 		tscpu_thermal_clock_off();
@@ -1800,7 +1775,11 @@ static int tscpu_thermal_resume(struct platform_device *dev)
 		 */
 		temp &= ~(TS_TURN_OFF); //0x30000000
 
+#if (defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6779))
+		writel(temp, (void *)TS_CONFIGURE);
+#else
 		mt_reg_sync_writel(temp, TS_CONFIGURE);	/* read abb need */
+#endif
 		/* RG_TS2AUXADC < set from 2'b11 to 2'b00
 		 * when resume.wait 100uS than turn on thermal controller.
 		 */
@@ -2360,10 +2339,15 @@ void tscpu_update_tempinfo(void)
 		g_tc_resume = 0;
 
 #if (CONFIG_THERMAL_AEE_RR_REC == 1)
+#if defined(THERMAL_AEE_SELECTED_TS)
+	for (i = 0; i < THERMAL_AEE_MAX_SELECTED_TS; i++)
+		aee_rr_rec_thermal_temp(i, get_aee_selected_tsX[i]() / 1000);
+#else
 	for (i = 0; i < TS_ENUM_MAX; i++)
 		aee_rr_rec_thermal_temp(i, get_immediate_tsX[i]() / 1000);
 	aee_rr_rec_thermal_status(TSCPU_NORMAL);
 	aee_rr_rec_thermal_ktime(ktime_to_us(now));
+#endif
 #endif
 
 #if THERMAL_DRV_UPDATE_TEMP_DIRECT_TO_MET
@@ -2546,9 +2530,11 @@ static void init_thermal(void)
 	 */
 	temp &= ~(TS_TURN_OFF);
 
-
-
+#if (defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6779))
+	writel(temp, (void *)TS_CONFIGURE);	/* read abb need */
+#else
 	mt_reg_sync_writel(temp, TS_CONFIGURE);	/* read abb need */
+#endif
 	/* RG_TS2AUXADC < set from 2'b11 to 2'b00
 	 * when resume.wait 100uS than turn on thermal controller.
 	 */
@@ -2708,8 +2694,10 @@ static int tscpu_thermal_probe(struct platform_device *dev)
 #if CFG_THERMAL_KERNEL_IGNORE_HOT_SENSOR
 	tscpu_check_cpu_segment();
 #endif
-
 	tscpu_thermal_clock_on();
+
+	/* let mtk_tc.c to use pdev pointer to access DT */
+	tscpu_pdev = dev;
 	init_thermal();
 
 #if MTK_TS_CPU_RT

@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/slab.h>
@@ -164,25 +156,7 @@ static unsigned int ppm_get_cpu_temp(enum ppm_cluster cluster)
 
 static int ppm_get_spower_devid(enum ppm_cluster cluster)
 {
-#if 0
-	int devid = -1;
-
-	switch (cluster) {
-	case PPM_CLUSTER_L:
-		devid = MTK_SPOWER_CPUL;
-		break;
-	case PPM_CLUSTER_B:
-		devid = MTK_SPOWER_CPUB;
-		break;
-	default:
-		ppm_err("@%s: invalid cluster id = %d\n", __func__, cluster);
-		break;
-	}
-
-	return devid;
-#else
 	return 0;
-#endif
 }
 
 
@@ -230,7 +204,6 @@ int ppm_find_pwr_idx(struct ppm_cluster_status *cluster_status)
 
 #ifdef CONFIG_MTK_UNIFY_POWER
 		if (core > 0 && opp >= 0 && opp < DVFS_OPP_NUM) {
-#if 1
 			if (i == 0) {
 				pwr_idx += cobra_tbl->basic_pwr_tbl
 				[get_cl_first_core_id(i)+core-1][opp].power_idx;
@@ -263,19 +236,6 @@ int ppm_find_pwr_idx(struct ppm_cluster_status *cluster_status)
 			}
 
 			/*TODO: change to get_cl_max_core_id()*/
-#else
-			pwr_idx +=
-				((upower_get_power(i, opp, UPOWER_DYN) +
-				upower_get_power(i, opp, UPOWER_LKG)) * core +
-				(upower_get_power(
-					i + NR_PPM_CLUSTERS,
-					opp,
-					UPOWER_DYN) +
-				upower_get_power(
-					i + NR_PPM_CLUSTERS,
-					opp,
-					UPOWER_LKG))) / 1000;
-#endif
 		}
 #else
 		pwr_idx += 100;

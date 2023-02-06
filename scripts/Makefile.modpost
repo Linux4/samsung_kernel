@@ -79,7 +79,7 @@ modpost = scripts/mod/modpost                    \
  $(if $(KBUILD_EXTMOD),-o $(modulesymfile))      \
  $(if $(CONFIG_DEBUG_SECTION_MISMATCH),,-S)      \
  $(if $(CONFIG_SECTION_MISMATCH_WARN_ONLY),,-E)  \
- $(if $(KBUILD_EXTMOD)$(KBUILD_MODPOST_WARN),$(if $(KBUILD_MODPOST_FAIL_ON_WARNINGS),,-w))
+ $(if $(KBUILD_EXTMOD)$(KBUILD_MODPOST_WARN),-w)
 
 MODPOST_OPT=$(subst -i,-n,$(filter -i,$(MAKEFLAGS)))
 
@@ -114,7 +114,7 @@ vmlinux.o: FORCE
 	$(call cmd,kernel-mod)
 
 # Declare generated files as targets for modpost
-$(modules:.ko=$(modpost-ext).mod.c): __modpost ;
+$(modules:.ko=.mod.c): __modpost ;
 
 # Step 5), compile all *.mod.c files
 
@@ -125,10 +125,10 @@ quiet_cmd_cc_o_c = CC      $@
       cmd_cc_o_c = $(CC) $(c_flags) $(KBUILD_CFLAGS_MODULE) $(CFLAGS_MODULE) \
 		   -c -o $@ $<
 
-$(modules:.ko=.mod.o): %.mod.o: %$(modpost-ext).mod.c FORCE
+$(modules:.ko=.mod.o): %.mod.o: %.mod.c FORCE
 	$(call if_changed_dep,cc_o_c)
 
-targets += $(modules:.ko=$(modpost-ext).mod.o)
+targets += $(modules:.ko=.mod.o)
 
 ARCH_POSTLINK := $(wildcard $(srctree)/arch/$(SRCARCH)/Makefile.postlink)
 
@@ -149,7 +149,7 @@ ifdef CONFIG_LTO_CLANG
   endif
 else
       cmd_ld_ko_o =                                                     \
-	$(LD) -r $(LDFLAGS)                                             \
+	$(LD) -r $(KBUILD_LDFLAGS)                                      \
                  $(KBUILD_LDFLAGS_MODULE) $(LDFLAGS_MODULE)             \
                  -o $@ $(filter-out FORCE,$^) ;                         \
 	$(if $(ARCH_POSTLINK), $(MAKE) -f $(ARCH_POSTLINK) $@, true)
@@ -173,15 +173,10 @@ FORCE:
 # optimization, we don't need to read them if the target does not
 # exist, we will rebuild anyway in that case.
 
-targets := $(wildcard $(sort $(targets)))
-cmd_files := $(wildcard $(foreach f,$(targets),$(dir $(f)).$(notdir $(f)).cmd))
+cmd_files := $(wildcard $(foreach f,$(sort $(targets)),$(dir $(f)).$(notdir $(f)).cmd))
 
 ifneq ($(cmd_files),)
   include $(cmd_files)
 endif
-
-
-# Declare the contents of the .PHONY variable as phony.  We keep that
-# information in a variable se we can use it in if_changed and friends.
 
 .PHONY: $(PHONY)

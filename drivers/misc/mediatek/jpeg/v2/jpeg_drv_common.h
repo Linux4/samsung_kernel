@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #ifndef __JPEG_DRV_COMMON_H__
@@ -85,10 +77,10 @@ struct JpegDrvEncCtrlCfg {
 #define JPEG_DRV_ENC_NV12                     (0x02 << 3)
 #define JPEG_DRV_ENC_NV21                     (0x03 << 3)
 
-#define JPEG_MSG pr_debug
-#define JPEG_WRN pr_debug
-#define JPEG_ERR pr_debug
-#define JPEG_VEB pr_debug
+#define JPEG_MSG pr_info
+#define JPEG_WRN pr_info
+#define JPEG_ERR pr_info
+#define JPEG_VEB pr_info
 #define JPEG_LOG(level, format, args...)                       \
 	do {                                                        \
 		if ((jpg_dbg_level & level) == level)              \
@@ -162,12 +154,17 @@ unsigned int jpeg_drv_enc_get_file_size(void);
 unsigned int jpeg_drv_enc_get_result(unsigned int *fileSize);
 unsigned int jpeg_drv_enc_get_cycle_count(void);
 
+
+
 void jpeg_drv_enc_dump_reg(void);
 
 unsigned int jpeg_drv_enc_rw_reg(void);
 void jpegenc_drv_enc_remove_bw_request(void);
 void jpeg_drv_enc_prepare_bw_request(void);
 void jpegenc_drv_enc_update_bw_request(struct JPEG_ENC_DRV_IN cfgEnc);
+
+
+
 
 
 int jpeg_isr_enc_lisr(void);

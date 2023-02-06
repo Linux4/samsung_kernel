@@ -1,15 +1,8 @@
+
+ /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __MT_IOMMU_PLAT_H__
 #define __MT_IOMMU_PLAT_H__
@@ -28,10 +21,15 @@
 #define MTK_DISABLE_DCM_SUPPORT
 #define MTK_WARN_PSEDUO_FIND_SG
 #include "clk-mt6877-pg.h"
-
+#if defined(CONFIG_FPGA_EARLY_PORTING) || !defined(CONFIG_MTK_APUSYS_SUPPORT)
+enum subsys_id iommu_mtcmos_subsys[MTK_IOMMU_M4U_COUNT] = {
+	SYS_DISP
+};
+#else
 enum subsys_id iommu_mtcmos_subsys[MTK_IOMMU_M4U_COUNT] = {
 	SYS_DISP, SYS_APU
 };
+#endif
 #endif
 #endif
 
@@ -59,7 +57,7 @@ enum subsys_id iommu_mtcmos_subsys[MTK_IOMMU_M4U_COUNT] = {
 #define MMU_PFH_VA_TO_SET(mmu, va)	\
 	F_MSK_SHIFT(va, MMU_SET_MSB_OFFSET(mmu), MMU_SET_LSB_OFFSET)
 
-#ifdef CONFIG_FPGA_EARLY_PORTING
+#if defined(CONFIG_FPGA_EARLY_PORTING) || !defined(CONFIG_MTK_APUSYS_SUPPORT)
 static unsigned int g_tag_count[MTK_IOMMU_M4U_COUNT] = {64};
 #else
 static unsigned int g_tag_count[MTK_IOMMU_M4U_COUNT] = {64, 64};
@@ -81,9 +79,12 @@ unsigned int port_size_not_aligned[] = {
 };
 const char *smi_larb_id = "mediatek,larb-id";
 
-#ifdef CONFIG_FPGA_EARLY_PORTING
+#if defined(CONFIG_FPGA_EARLY_PORTING) || !defined(CONFIG_MTK_APUSYS_SUPPORT)
 char *iommu_secure_compatible[MTK_IOMMU_M4U_COUNT] = {
 	"mediatek,sec_m4u",
+};
+char *iommu_bank_compatible[MTK_IOMMU_M4U_COUNT][MTK_IOMMU_BANK_NODE_COUNT] = {
+	{"mediatek,bank1_m4u0", "mediatek,bank2_m4u0", "mediatek,bank3_m4u0"},
 };
 #else
 char *iommu_secure_compatible[MTK_IOMMU_M4U_COUNT] = {
@@ -252,7 +253,7 @@ static inline unsigned int iommu_get_field_by_mask(
 #define F_READ_ENTRY_MMx_MAIN(id)		F_BIT_SET(27+id)
 #define F_READ_ENTRY_PFH			F_BIT_SET(26)
 #define F_READ_ENTRY_MAIN_IDX(mmu, idx)     \
-	F_VAL(idx, 19 + mmu * 6, 14 + mmu * 6)
+	F_VAL(idx, (19 + mmu * 6), (14 + mmu * 6))
 #define F_READ_ENTRY_PFH_IDX(idx)		F_VAL(idx, 11, 5)
 #define F_READ_ENTRY_PFH_PAGE_IDX(idx)		F_VAL(idx, 4, 2)
 #define F_READ_ENTRY_PFH_WAY(way)		F_VAL(way, 1, 0)
@@ -749,6 +750,21 @@ const struct mtk_iova_domain_data mtk_domain_array[MTK_IOVA_DOMAIN_COUNT] = {
 
 #define IOMMU_SECURITY_DBG_SUPPORT
 /* check 17GB~32GB-1 PA for out of range */
+#if defined(CONFIG_FPGA_EARLY_PORTING) || !defined(CONFIG_MTK_APUSYS_SUPPORT)
+struct mau_config_info mt6877_mau_info[MTK_IOMMU_M4U_COUNT] = {
+	{
+		.start = 0x40000000,
+		.end = 0xffffffff,
+		.port_mask = 0xffffffff,
+		.larb_mask = 0xffffffff,
+		.wr = 0x1,
+		.virt = 0x0,
+		.io = 0x1,
+		.start_bit32 = 0x4,
+		.end_bit32 = 0x7,
+	}
+};
+#else
 struct mau_config_info mt6877_mau_info[MTK_IOMMU_M4U_COUNT] = {
 	{
 		.start = 0x40000000,
@@ -773,6 +789,7 @@ struct mau_config_info mt6877_mau_info[MTK_IOMMU_M4U_COUNT] = {
 		.end_bit32 = 0x7,
 	}
 };
+#endif
 
 struct mau_config_info *get_mau_info(int m4u_id)
 {

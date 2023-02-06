@@ -1,17 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- *  drivers/misc/mediatek/pmic/mt6360/inc/mt6360_pmu.h
- *
- *  Copyright (C) 2018 Mediatek Technology Corp.
- *  cy_huang <cy_huang@richtek.com>
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License version 2 as
- *  published by the Free Software Foundation.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- *  See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #ifndef __MT6360_PMU_H
@@ -96,8 +85,7 @@ struct mt6360_pmu_irq_desc {
 #define MT6360_PMU_DEVICE_TYPE			(0x22)
 #define MT6360_PMU_DCP_CONTROL			(0x24)
 #define MT6360_PMU_USB_STATUS1			(0x27)
-#define MT6360_PMU_DPDM_CTRL1			(0x28)
-#define MT6360_PMU_DPDM_CTRL2			(0x29)
+#define MT6360_PMU_DPDM_CTRL			(0x28)
 #define MT6360_PMU_CHG_PUMP			(0x2A)
 #define MT6360_PMU_CHG_CTRL17			(0x2B)
 #define MT6360_PMU_CHG_CTRL18			(0x2C)
@@ -286,12 +274,6 @@ static inline int mt6360_pmu_reg_clr_bits(struct mt6360_pmu_info *mpi,
 {
 	return mt6360_pmu_reg_update_bits(mpi, addr, mask, 0);
 }
-#if 0
-#define mt6360_pmu_reg_set_bits(info, addr, mask) \
-			mt6360_pmu_reg_update_bits(info, addr, mask, mask)
-#define mt6360_pmu_reg_clr_bits(info, addr, mask) \
-			mt6360_pmu_reg_update_bits(info, addr, mask, 0)
-#endif
 extern int mt6360_pmu_reg_block_read(struct mt6360_pmu_info *mpi,
 				     u8 addr, u8 len, u8 *dst);
 extern int mt6360_pmu_reg_block_write(struct mt6360_pmu_info *mpi,

@@ -1,16 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2016 MediaTek Inc.
- * Author: PC Chen <pc.chen@mediatek.com>
- *         Tiffany Lin <tiffany.lin@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <media/v4l2-event.h>
@@ -116,6 +106,9 @@ static struct mtk_video_fmt *mtk_find_fmt_by_pixel(unsigned int pixelformat)
 static struct mtk_q_data *mtk_vdec_get_q_data(struct mtk_vcodec_ctx *ctx,
 	enum v4l2_buf_type type)
 {
+	if (ctx == NULL)
+		return NULL;
+
 	if (V4L2_TYPE_IS_OUTPUT(type))
 		return &ctx->q_data[MTK_Q_DATA_SRC];
 
@@ -461,9 +454,8 @@ static void mtk_vdec_pic_info_update(struct mtk_vcodec_ctx *ctx)
 	ctx->last_dpb_size = dpbsize;
 
 	ret = vdec_if_get_param(ctx, GET_PARAM_COLOR_DESC, &color_desc);
-	if (ret == 0) {
+	if (ret == 0)
 		ctx->last_is_hdr = color_desc.is_hdr;
-	}
 
 	mtk_v4l2_debug(1,
 				   "[%d]-> new(%d,%d),dpb(%d), old(%d,%d),dpb(%d), bit(%d) real(%d,%d) hdr(%d,%d)",
@@ -673,14 +665,15 @@ static void mtk_vdec_worker(struct work_struct *work)
 
 	buf = &src_buf_info->bs_buffer;
 	buf->va = vb2_plane_vaddr(src_buf, 0);
-	buf->dma_addr = vb2_dma_contig_plane_dma_addr(src_buf, 0);
+	buf->dma_addr = (src_buf->planes[0].mem_priv == NULL) ?
+		0 : vb2_dma_contig_plane_dma_addr(src_buf, 0);
 	buf->size = (size_t)src_buf->planes[0].bytesused;
 	buf->length = (size_t)src_buf->planes[0].length;
 	buf->dmabuf = src_buf->planes[0].dbuf;
 	buf->flags = src_vb2_v4l2->flags;
 	buf->index = src_buf->index;
 
-	if (buf->va == NULL && buf->dmabuf == NULL) {
+	if (buf->dma_addr == 0 && buf->dmabuf == NULL) {
 		v4l2_m2m_job_finish(dev->m2m_dev_dec, ctx->m2m_ctx);
 		mtk_v4l2_err("[%d] id=%d src_addr is NULL!!",
 					 ctx->id, src_buf->index);
@@ -722,12 +715,12 @@ static void mtk_vdec_worker(struct work_struct *work)
 		(!ctx->input_driven) && dst_buf_info != NULL)
 		dst_buf_info->flags |= CROP_CHANGED;
 
+
 	if (src_chg & VDEC_OUTPUT_NOT_GENERATED)
 		src_vb2_v4l2->flags |= V4L2_BUF_FLAG_OUTPUT_NOT_GENERATED;
 
-	if (!ctx->input_driven) {
+	if (!ctx->input_driven)
 		mtk_vdec_put_fb(ctx, -1);
-	}
 
 	if (ret < 0 || mtk_vcodec_unsupport) {
 		mtk_v4l2_err(
@@ -1930,14 +1923,21 @@ static int vb2ops_vdec_queue_setup(struct vb2_queue *vq,
 	unsigned int sizes[],
 	struct device *alloc_devs[])
 {
-	struct mtk_vcodec_ctx *ctx = vb2_get_drv_priv(vq);
+	struct mtk_vcodec_ctx *ctx;
 	struct mtk_q_data *q_data;
 	unsigned int i;
 
-	q_data = mtk_vdec_get_q_data(ctx, vq->type);
+	if (IS_ERR_OR_NULL(vq) || IS_ERR_OR_NULL(nbuffers) ||
+	    IS_ERR_OR_NULL(nplanes) || IS_ERR_OR_NULL(alloc_devs)) {
+		mtk_v4l2_err("vq %p, nbuffers %p, nplanes %p, alloc_devs %p",
+			vq, nbuffers, nplanes, alloc_devs);
+		return -EINVAL;
+	}
 
-	if (q_data == NULL) {
-		mtk_v4l2_err("vq->type=%d err\n", vq->type);
+	ctx = vb2_get_drv_priv(vq);
+	q_data = mtk_vdec_get_q_data(ctx, vq->type);
+	if (q_data == NULL || (*nplanes) > MTK_VCODEC_MAX_PLANES) {
+		mtk_v4l2_err("vq->type=%d nplanes %d err", vq->type, *nplanes);
 		return -EINVAL;
 	}
 
@@ -2165,7 +2165,7 @@ static void vb2ops_vdec_buf_queue(struct vb2_buffer *vb)
 	src_buf = v4l2_m2m_next_src_buf(ctx->m2m_ctx);
 	if (!src_buf ||
 		to_vb2_v4l2_buffer(src_buf) == &ctx->dec_flush_buf->vb) {
-		mtk_v4l2_err("No src buffer %px", src_buf);
+		mtk_v4l2_err("No src buffer %p", src_buf);
 		return;
 	}
 
@@ -2206,9 +2206,9 @@ static void vb2ops_vdec_buf_queue(struct vb2_buffer *vb)
 
 	vdec_if_set_param(ctx, SET_PARAM_FRAME_SIZE, frame_size);
 
-	if (ctx->dec_param_change & MTK_DEC_PARAM_DECODE_MODE) {
+	if (ctx->dec_param_change & MTK_DEC_PARAM_DECODE_MODE)
 		vdec_if_set_param(ctx, SET_PARAM_DECODE_MODE, &ctx->dec_params.decode_mode);
-	}
+
 	ret = vdec_if_decode(ctx, src_mem, NULL, &src_chg);
 	mtk_vdec_set_param(ctx);
 
@@ -2475,7 +2475,7 @@ static int vb2ops_vdec_buf_init(struct vb2_buffer *vb)
 		/* Do not reset EOS for 1st buffer with Early EOS*/
 		/* buf->lastframe = NON_EOS; */
 	} else {
-		mtk_v4l2_err("vb2ops_vdec_buf_init: unknown queue type");
+		mtk_v4l2_err("%s: unknown queue type", __func__);
 		return -EINVAL;
 	}
 
@@ -2939,28 +2939,10 @@ int mtk_vcodec_dec_ctrls_setup(struct mtk_vcodec_ctx *ctx)
 	return 0;
 }
 
-static void m2mops_vdec_lock(void *m2m_priv)
-{
-	struct mtk_vcodec_ctx *ctx = m2m_priv;
-
-	mtk_v4l2_debug(4, "[%d]", ctx->id);
-	mutex_lock(&ctx->dev->dev_mutex);
-}
-
-static void m2mops_vdec_unlock(void *m2m_priv)
-{
-	struct mtk_vcodec_ctx *ctx = m2m_priv;
-
-	mtk_v4l2_debug(4, "[%d]", ctx->id);
-	mutex_unlock(&ctx->dev->dev_mutex);
-}
-
 const struct v4l2_m2m_ops mtk_vdec_m2m_ops = {
 	.device_run     = m2mops_vdec_device_run,
 	.job_ready      = m2mops_vdec_job_ready,
 	.job_abort      = m2mops_vdec_job_abort,
-	.lock           = m2mops_vdec_lock,
-	.unlock         = m2mops_vdec_unlock,
 };
 
 static const struct vb2_ops mtk_vdec_vb2_ops = {

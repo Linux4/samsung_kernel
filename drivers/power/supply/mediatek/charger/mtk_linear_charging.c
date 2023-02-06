@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 #include <linux/delay.h>
 #include <linux/device.h>
@@ -148,10 +140,11 @@ static void linear_chg_turn_on_charging(struct charger_manager *info)
 	if (algo_data->state == CHR_ERROR) {
 		charging_enable = false;
 		chr_err("[charger]Charger Error, turn OFF charging !\n");
-	} else if ((get_boot_mode() == META_BOOT) ||
-			((get_boot_mode() == ADVMETA_BOOT))) {
-		charging_enable = false;
-		chr_err("[charger]In meta or advanced meta mode, disable charging\n");
+// workaround for mt6768
+//	} else if ((get_boot_mode() == META_BOOT) ||
+//			((get_boot_mode() == ADVMETA_BOOT))) {
+//		charging_enable = false;
+//		chr_err("[charger]In meta or advanced meta mode, disable charging\n");
 	} else {
 		linear_chg_select_charging_current_limit(info);
 		if (info->chg1_data.charging_current_limit == 0) {

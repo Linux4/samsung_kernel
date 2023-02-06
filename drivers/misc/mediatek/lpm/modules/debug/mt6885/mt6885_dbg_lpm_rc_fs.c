@@ -63,6 +63,7 @@ enum MT6885_RC_NODE_TYPE {
 	MT6885_RC_NODE_RATIO_INTERVAL,
 	MT6885_RC_NODE_VALID_BBLPM,
 	MT6885_RC_NODE_VALID_TRACE,
+	MT6885_RC_NODE_VALID_TIMESTAMP,
 	MT6885_RC_NODE_MAX
 };
 
@@ -91,6 +92,7 @@ struct MT6885_RC_VALID_HANDLES {
 	struct MT6885_RC_ENTERY root;
 	struct MT6885_RC_NODE hBblpm;
 	struct MT6885_RC_NODE hTrace;
+	struct MT6885_RC_NODE hTimestamp;
 };
 
 struct MT6885_RC_RATIO_HANDLES {
@@ -310,11 +312,16 @@ static ssize_t mt6885_generic_rc_read(char *ToUserBuf,
 	case MT6885_RC_NODE_VALID_BBLPM:
 		mt6885_rc_log(ToUserBuf, sz, len, "%lu\n",
 			MT6885_DBG_SMC(MT_SPM_DBG_SMC_UID_RC_BBLPM,
-				    MT_LPM_SMC_ACT_GET, node->rc_id, 0));
+				MT_LPM_SMC_ACT_GET, node->rc_id, 0));
 		break;
 	case MT6885_RC_NODE_VALID_TRACE:
 		mt6885_rc_log(ToUserBuf, sz, len, "%lu\n",
 			MT6885_DBG_SMC(MT_SPM_DBG_SMC_UID_RC_TRACE,
+				    MT_LPM_SMC_ACT_GET, node->rc_id, 0));
+		break;
+	case MT6885_RC_NODE_VALID_TIMESTAMP:
+		mt6885_rc_log(ToUserBuf, sz, len, "%lu\n",
+			MT6885_DBG_SMC(MT_SPM_DBG_SMC_UID_RC_TRACE_TIME,
 				    MT_LPM_SMC_ACT_GET, node->rc_id, 0));
 		break;
 	}
@@ -331,9 +338,10 @@ static ssize_t mt6885_generic_rc_write(char *FromUserBuf,
 		return -EINVAL;
 
 	if ((node->type == MT6885_RC_NODE_RC_ENABLE) ||
-	    (node->type == MT6885_RC_NODE_COND_ENABLE) ||
-	    (node->type == MT6885_RC_NODE_VALID_BBLPM) ||
-	    (node->type == MT6885_RC_NODE_VALID_TRACE)) {
+		(node->type == MT6885_RC_NODE_COND_ENABLE) ||
+		(node->type == MT6885_RC_NODE_VALID_BBLPM) ||
+		(node->type == MT6885_RC_NODE_VALID_TRACE) ||
+		(node->type == MT6885_RC_NODE_VALID_TIMESTAMP)) {
 		unsigned int parm;
 		int cmd;
 
@@ -345,7 +353,9 @@ static ssize_t mt6885_generic_rc_write(char *FromUserBuf,
 				(node->type == MT6885_RC_NODE_VALID_BBLPM) ?
 				MT_SPM_DBG_SMC_UID_RC_BBLPM :
 				(node->type == MT6885_RC_NODE_VALID_TRACE) ?
-				MT_SPM_DBG_SMC_UID_RC_TRACE : -1;
+				MT_SPM_DBG_SMC_UID_RC_TRACE :
+				(node->type == MT6885_RC_NODE_VALID_TIMESTAMP) ?
+				MT_SPM_DBG_SMC_UID_RC_TRACE_TIME : -1;
 
 			if (cmd < 0)
 				return -EINVAL;
@@ -430,6 +440,9 @@ static int mt6885_lpm_rc_valid_node_add(int rc_id,
 		MT6885_GENERIC_RC_NODE_INIT(valid->hTrace, "trace",
 				    rc_id, MT6885_RC_NODE_VALID_TRACE);
 		mt6885_lpm_rc_node_add(&valid->hTrace, 0200, &valid->root);
+		MT6885_GENERIC_RC_NODE_INIT(valid->hTimestamp, "timestamp",
+				    rc_id, MT6885_RC_NODE_VALID_TIMESTAMP);
+		mt6885_lpm_rc_node_add(&valid->hTimestamp, 0200, &valid->root);
 	}
 	return bRet;
 }

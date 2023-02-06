@@ -3,19 +3,14 @@
 		compatible = "samsung,sec_abc";
 		status = "okay";
 		abc_spec_type1 {
-			module_list = "gpu", "gpu_qc", "gpu_qc", "camera", "camera";
-			name_list = "gpu_fault", "gpu_fault", "gpu_page_fault", "mipi_overflow", "i2c_fail";
-			spec_cnt_list = <1>, <1>, <1>, <2>, <2>;
+			module_list = "gpu", "gpu_qc", "gpu_qc", "camera", "camera", "vib";
+			name_list = "gpu_fault", "gpu_fault", "gpu_page_fault", "mipi_overflow", "i2c_fail", "int_gnd_short";
 #ifndef CONFIG_SEC_FACTORY
-			th_cnt_list0 = <20>, <2>, <20>, <1>, <1>;
-			th_time_list0 = <1200>, <1200>, <1200>, <0>, <0>;
-			th_cnt_list1 = <20>, <2>, <20>, <3>, <2>;
-			th_time_list1 = <1200>, <1200>, <1200>, <0>, <0>;
+			threshold_cnt = <20>, <2>, <20>, <1>, <1>, <25>;
+			threshold_time = <1200>, <1200>, <1200>, <0>, <0>, <5>;
 #else
-			th_cnt_list0 = <20>, <2>, <20>, <1>, <1>;
-			th_time_list0 = <1200>, <1200>, <1200>, <0>, <0>;
-			th_cnt_list1 = <20>, <2>, <20>, <3>, <2>;
-			th_time_list1 = <1200>, <1200>, <1200>, <0>, <0>;
+			threshold_cnt = <20>, <2>, <20>, <1>, <1>, <25>;
+			threshold_time = <1200>, <1200>, <1200>, <0>, <0>, <5>;
 #endif
 		};
 	};

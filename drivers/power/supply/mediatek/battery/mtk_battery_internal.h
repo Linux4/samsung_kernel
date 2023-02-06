@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 #ifndef __MTK_BATTERY_INTF_H__
 #define __MTK_BATTERY_INTF_H__
@@ -50,7 +42,7 @@
 #define BAT_VOLTAGE_HIGH_BOUND 3450
 #define LOW_TMP_BAT_VOLTAGE_LOW_BOUND 3250
 #define SHUTDOWN_TIME 40
-#define AVGVBAT_ARRAY_SIZE 30
+#define AVGVBAT_ARRAY_SIZE 5
 #define INIT_VOLTAGE 3450
 #define BATTERY_SHUTDOWN_TEMPERATURE 60
 
@@ -107,6 +99,8 @@ do {\
 } while (0)
 
 #define BM_DAEMON_DEFAULT_LOG_LEVEL 3
+
+#define FG_BATT_DUMP_SIZE 128
 
 enum gauge_hw_version {
 	GAUGE_HW_V1000 = 1000,
@@ -673,9 +667,10 @@ struct battery_data {
 	/* Add for Battery Service */
 	int BAT_batt_vol;
 	int BAT_batt_temp;
-#if defined(CONFIG_BATTERY_SAMSUNG)
+#if defined(CONFIG_USB_FACTORY_MODE)
 	unsigned int f_mode;
 #endif
+	char d_buf[FG_BATT_DUMP_SIZE];
 };
 
 struct BAT_EC_Struct {
@@ -798,6 +793,9 @@ struct mtk_battery {
 
 	struct zcv_filter zcvf;
 
+/*boot mode*/
+	int boot_mode;
+
 /*simulator log*/
 	struct simulator_log log;
 
@@ -829,12 +827,12 @@ struct mtk_battery {
 	int precise_ui_soc;
 	int d_saved_car;
 	int tbat_precise;
-	int dynamic_cv;
 #if defined(CONFIG_BATTERY_SAMSUNG)
 	int tbat_adc;
 	int is_fake_soc;
 	int is_full;
 #endif
+	int dynamic_cv;
 
 /*battery flag*/
 	bool init_flag;
@@ -943,7 +941,7 @@ struct mtk_battery {
 	int sw_iavg_gap;
 
 	/*sw low battery interrupt*/
-	struct lbat_user lowbat_service;
+	struct lbat_user *lowbat_service;
 	int sw_low_battery_ht_en;
 	int sw_low_battery_ht_threshold;
 	int sw_low_battery_lt_en;
@@ -1093,6 +1091,9 @@ extern int gauge_enable_interrupt(int intr_number, int en);
 /* GM25 Plug out API */
 int en_intr_VBATON_UNDET(int en);
 int reg_VBATON_UNDET(void (*callback)(void));
+
+/* boot mode */
+int battery_get_boot_mode(void);
 
 /* zcvf */
 int zcv_filter_add(struct zcv_filter *zf);

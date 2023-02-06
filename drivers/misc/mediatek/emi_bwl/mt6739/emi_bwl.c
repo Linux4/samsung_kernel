@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -31,10 +23,14 @@
 #include <mt-plat/mtk_io.h>
 #include <mt-plat/sync_write.h>
 
-#include <ext_wd_drv.h>
+/* #include <ext_wd_drv.h> */
 #include "emi_bwl.h"
 #include "emi_mbw.h"
 #include "emi_elm.h"
+
+#define DRIVER_ATTR(_name, _mode, _show, _store) \
+ struct driver_attribute driver_attr_##_name = \
+ __ATTR(_name, _mode, _show, _store)
 
 DEFINE_SEMAPHORE(emi_bwl_sem);
 

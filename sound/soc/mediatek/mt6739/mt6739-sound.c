@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 /*****************************************************************************
  *                     C O M P I L E R   F L A G S
@@ -180,7 +172,7 @@ static const unsigned int mMemDuplicateWrite[Soc_Aud_Digital_Block_MEM_I2S +
 
 /* audio block, reg, bit position */
 static const unsigned int
-	mMemAudioBlockEnableReg[][MEM_EN_REG_IDX_NUM] = {
+	mMemAudioBlockEnableReg[][MEM_BLOCK_ENABLE_REG_INDEX_NUM] = {
 		{Soc_Aud_Digital_Block_MEM_DL1, AFE_DAC_CON0, 1},
 		{Soc_Aud_Digital_Block_MEM_DL2, AFE_DAC_CON0, 2},
 		{Soc_Aud_Digital_Block_MEM_VUL, AFE_DAC_CON0, 3},
@@ -1440,7 +1432,7 @@ unsigned int GetEnableAudioBlockRegInfo(unsigned int Aud_block, int index)
 
 	for (i = 0; i < MEM_BLOCK_ENABLE_REG_NUM; i++) {
 		if (mMemAudioBlockEnableReg
-			    [i][MEM_EN_REG_IDX_AUDIO_BLOCK] ==
+			    [i][MEM_BLOCK_ENABLE_REG_INDEX_AUDIO_BLOCK] ==
 		    Aud_block)
 			return mMemAudioBlockEnableReg[i][index];
 	}
@@ -1450,13 +1442,13 @@ unsigned int GetEnableAudioBlockRegInfo(unsigned int Aud_block, int index)
 unsigned int GetEnableAudioBlockRegAddr(unsigned int Aud_block)
 {
 	return GetEnableAudioBlockRegInfo(Aud_block,
-					  MEM_EN_REG_IDX_REG);
+					  MEM_BLOCK_ENABLE_REG_INDEX_REG);
 }
 
 unsigned int GetEnableAudioBlockRegOffset(unsigned int Aud_block)
 {
 	return GetEnableAudioBlockRegInfo(Aud_block,
-					  MEM_EN_REG_IDX_OFFSET);
+					  MEM_BLOCK_ENABLE_REG_INDEX_OFFSET);
 }
 
 bool SetMemIfFormatReg(unsigned int InterfaceType, unsigned int eFetchFormat)
@@ -2147,13 +2139,6 @@ bool SetFmI2sConnection(unsigned int ConnectionState)
 			  Soc_Aud_AFE_IO_Block_I2S1_DAC_2);
 	SetIntfConnection(ConnectionState, Soc_Aud_AFE_IO_Block_HW_GAIN1_IN,
 			  Soc_Aud_AFE_IO_Block_I2S3);
-	return true;
-}
-
-bool SetFmOnlyConnection(unsigned int ConnectionState)
-{
-	SetIntfConnection(ConnectionState, Soc_Aud_AFE_IO_Block_I2S_CONNSYS,
-			  Soc_Aud_AFE_IO_Block_HW_GAIN1_OUT);
 	return true;
 }
 

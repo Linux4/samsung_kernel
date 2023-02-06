@@ -25,7 +25,7 @@ extern bool _hx852xG_init(void);
 #if defined(CONFIG_TOUCHSCREEN_HIMAX_IC_HX852xJ)
 extern bool _hx852xJ_init(void);
 #endif
-#if defined(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83102)
+#if defined(CONFIG_TOUCHSCREEN_HIMAX_HX83102)
 extern bool _hx83102_init(void);
 #endif
 #if defined(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83103)
@@ -66,7 +66,7 @@ extern struct driver_operation *pdriver_op;
 #endif
 #endif
 
-#if defined(HX_ZERO_FLASH) && defined(CONFIG_TOUCHSCREEN_HIMAX_INCELL)
+#if defined(HX_ZERO_FLASH) && defined(CONFIG_TOUCHSCREEN_HX83102_INCELL)
 extern struct zf_operation *pzf_op;
 extern int G_POWERONOF;
 #endif
@@ -78,7 +78,7 @@ extern u8 HX_EXCP_RESET_ACTIVATE;
 #endif
 
 #if defined(HX_ZERO_FLASH) && defined(HX_CODE_OVERLAY)
-#if defined(CONFIG_TOUCHSCREEN_HIMAX_INCELL)
+#if defined(CONFIG_TOUCHSCREEN_HX83102_INCELL)
 extern uint8_t *ovl_idx;
 #endif
 #endif

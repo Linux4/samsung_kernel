@@ -1,23 +1,17 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
  */
 
 #ifndef __CCCI_UTIL_LOG_H__
 #define __CCCI_UTIL_LOG_H__
 
-#include "../eccci/mt6853/ccci_config.h"
-
+#if IS_ENABLED(CONFIG_MTK_AEE_IPANIC)
 extern void mrdump_mini_add_misc(unsigned long addr, unsigned long size,
 	unsigned long start, char *name);
+#endif
+
+#define BRING_UP_LOG_MODE
 
 /* #define BRING_UP_LOG_MODE */
 #ifndef BRING_UP_LOG_MODE
@@ -102,6 +96,7 @@ do {\
 
 #endif /* end of #ifndef BRING_UP_LOG_MODE */
 #endif /*__CCCI_UTIL_LOG_H__ */
+
 
 /* for direct dump reserved memory */
 extern void mrdump_mini_add_misc_pa(unsigned long va, unsigned long pa,

@@ -18,7 +18,7 @@
 
 #include "include/apparmor.h"
 #include "include/audit.h"
-#include "include/context.h"
+#include "include/cred.h"
 #include "include/domain.h"
 #include "include/file.h"
 #include "include/match.h"
@@ -121,7 +121,7 @@ static void audit_cb(struct audit_buffer *ab, void *va)
  * @src_name: src_name of object being mediated (MAYBE_NULL)
  * @type: type of filesystem (MAYBE_NULL)
  * @trans: name of trans (MAYBE NULL)
- * @flags: filesystem idependent mount flags
+ * @flags: filesystem independent mount flags
  * @data: filesystem mount flags
  * @request: permissions requested
  * @perms: the permissions computed for the request (NOT NULL)
@@ -216,13 +216,12 @@ static unsigned int match_mnt_flags(struct aa_dfa *dfa, unsigned int state,
 static struct aa_perms compute_mnt_perms(struct aa_dfa *dfa,
 					   unsigned int state)
 {
-	struct aa_perms perms;
-
-	perms.kill = 0;
-	perms.allow = dfa_user_allow(dfa, state);
-	perms.audit = dfa_user_audit(dfa, state);
-	perms.quiet = dfa_user_quiet(dfa, state);
-	perms.xindex = dfa_user_xindex(dfa, state);
+	struct aa_perms perms = {
+		.allow = dfa_user_allow(dfa, state),
+		.audit = dfa_user_audit(dfa, state),
+		.quiet = dfa_user_quiet(dfa, state),
+		.xindex = dfa_user_xindex(dfa, state),
+	};
 
 	return perms;
 }

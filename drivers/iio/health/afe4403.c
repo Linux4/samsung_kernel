@@ -71,6 +71,7 @@ static const struct reg_field afe4403_reg_fields[] = {
  * @regulator: Pointer to the regulator for the IC
  * @trig: IIO trigger for this device
  * @irq: ADC_RDY line interrupt number
+ * @buffer: Used to construct data layout to push into IIO buffer.
  */
 struct afe4403_data {
 	struct device *dev;
@@ -80,6 +81,8 @@ struct afe4403_data {
 	struct regulator *regulator;
 	struct iio_trigger *trig;
 	int irq;
+	/* Ensure suitable alignment for timestamp */
+	s32 buffer[8] __aligned(8);
 };
 
 enum afe4403_chan_id {
@@ -309,7 +312,6 @@ static const struct iio_info afe4403_iio_info = {
 	.attrs = &afe440x_attribute_group,
 	.read_raw = afe4403_read_raw,
 	.write_raw = afe4403_write_raw,
-	.driver_module = THIS_MODULE,
 };
 
 static irqreturn_t afe4403_trigger_handler(int irq, void *private)
@@ -318,7 +320,6 @@ static irqreturn_t afe4403_trigger_handler(int irq, void *private)
 	struct iio_dev *indio_dev = pf->indio_dev;
 	struct afe4403_data *afe = iio_priv(indio_dev);
 	int ret, bit, i = 0;
-	s32 buffer[8];
 	u8 tx[4] = {AFE440X_CONTROL0, 0x0, 0x0, AFE440X_CONTROL0_READ};
 	u8 rx[3];
 
@@ -335,9 +336,9 @@ static irqreturn_t afe4403_trigger_handler(int irq, void *private)
 		if (ret)
 			goto err;
 
-		buffer[i++] = (rx[0] << 16) |
-				(rx[1] << 8) |
-				(rx[2]);
+		afe->buffer[i++] = (rx[0] << 16) |
+				   (rx[1] << 8) |
+				   (rx[2]);
 	}
 
 	/* Disable reading from the device */
@@ -346,7 +347,8 @@ static irqreturn_t afe4403_trigger_handler(int irq, void *private)
 	if (ret)
 		goto err;
 
-	iio_push_to_buffers_with_timestamp(indio_dev, buffer, pf->timestamp);
+	iio_push_to_buffers_with_timestamp(indio_dev, afe->buffer,
+					   pf->timestamp);
 err:
 	iio_trigger_notify_done(indio_dev->trig);
 
@@ -354,7 +356,6 @@ err:
 }
 
 static const struct iio_trigger_ops afe4403_trigger_ops = {
-	.owner = THIS_MODULE,
 };
 
 #define AFE4403_TIMING_PAIRS			\

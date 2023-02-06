@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -115,6 +107,8 @@ int usb20_phy_init_debugfs(void)
 {
 	struct dentry *file;
 	int ret = 0;
+
+	printk("usb: %s\n", __func__);
 
 	file = debugfs_create_file("usb_phy", S_IRUGO|S_IWUSR,
 			usb20_debugfs, phy_data,

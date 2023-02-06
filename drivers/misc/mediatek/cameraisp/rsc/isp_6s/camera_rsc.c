@@ -1,14 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
+ * Copyright (c) 2016 MediaTek Inc.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * Author: Ya-Wen Hsu <Ya-Wen.Hsu@mediatek.com>
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 /******************************************************************************
@@ -266,7 +261,7 @@ static struct Tasklet_table RSC_tasklet[RSC_IRQ_TYPE_AMOUNT] = {
 static struct work_struct logWork;
 static void logPrint(struct work_struct *data);
 
-struct wakeup_source RSC_wake_lock;
+//struct wakeup_source RSC_wake_lock;
 
 static DEFINE_MUTEX(gRscMutex);
 static DEFINE_MUTEX(gRscDequeMutex);
@@ -286,7 +281,7 @@ static struct cmdq_base       *cmdq_base;
 static struct cmdq_client     *cmdq_clt;
 static s32                    cmdq_event_id;
 /* Get HW modules' base address from device nodes */
-#define RSC_DEV_NODE_IDX 1
+#define RSC_DEV_NODE_IDX 0
 #define IPESYS_DEV_MODE_IDX 0
 
 
@@ -1582,6 +1577,13 @@ static signed int RSC_ReadReg(struct RSC_REG_IO_STRUCT *pRegIo)
 		goto EXIT;
 	}
 
+	if (pData->Addr < 0x0 || pData->Addr > 0x1000) {
+		LOG_ERR("%s pData->addr is out of range",
+			__func__);
+		Ret = -EFAULT;
+		goto EXIT;
+	}
+
 	for (i = 0; i < pRegIo->Count; i++) {
 		if (get_user(reg.Addr, (unsigned int *) &pData->Addr) != 0) {
 			LOG_ERR("get_user failed");
@@ -2073,6 +2075,13 @@ static long RSC_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 				    g_RSC_ReqRing.RSCReq_Struct[
 							g_RSC_ReqRing.WriteIdx].
 				    State) {
+					if (enqueNum >
+					_SUPPORT_MAX_RSC_FRAME_REQUEST_ || enqueNum < 0) {
+						LOG_ERR(
+						"RSC Enque Num is bigger than enqueNum or NEG:%d\n",
+						     enqueNum);
+						break;
+					}
 					spin_lock_irqsave(
 					&(RSCInfo.SpinLockIrq[
 						RSC_IRQ_TYPE_INT_RSC_ST]),
@@ -2087,12 +2096,6 @@ static long RSC_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 					spin_unlock_irqrestore(
 					&(RSCInfo.SpinLockIrq[
 					RSC_IRQ_TYPE_INT_RSC_ST]), flags);
-					if (enqueNum >
-					_SUPPORT_MAX_RSC_FRAME_REQUEST_) {
-						LOG_ERR(
-						"RSC Enque Num is bigger than enqueNum:%d\n",
-						     enqueNum);
-					}
 					LOG_DBG(
 					"RSC_ENQNUE_NUM:%d\n", enqueNum);
 				} else {
@@ -3055,7 +3058,7 @@ static signed int RSC_probe(struct platform_device *pDev)
 #endif
 
 	/* Only register char driver in the 1st time */
-	if (nr_RSC_devs == 2) {
+	if (nr_RSC_devs == 1) {
 
 		/* Register char driver */
 		Ret = RSC_RegCharDev();
@@ -3106,7 +3109,7 @@ static signed int RSC_probe(struct platform_device *pDev)
 		if (!RSCInfo.wkqueue)
 			LOG_ERR("NULL RSC-CMDQ-WQ\n");
 
-		wakeup_source_init(&RSC_wake_lock, "rsc_lock_wakelock");
+		//wakeup_source_init(&RSC_wake_lock, "rsc_lock_wakelock");
 
 		INIT_WORK(&logWork, logPrint);
 		for (i = 0; i < RSC_IRQ_TYPE_AMOUNT; i++)
@@ -3311,7 +3314,7 @@ int RSC_pm_restore_noirq(struct device *device)
 
 
 static const struct of_device_id RSC_of_ids[] = {
-	{.compatible = "mediatek,ipesys_config",},
+/*	{.compatible = "mediatek,ipesys_config",},*/
 	{.compatible = "mediatek,rsc",},
 	{}
 };

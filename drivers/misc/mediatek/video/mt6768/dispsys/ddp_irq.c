@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 
 #define LOG_TAG "IRQ"
@@ -225,6 +217,8 @@ irqreturn_t disp_irq_handler(int irq, void *dev_id)
 		if (reg_val & (1 << 2)) {
 			mmprofile_log_ex(ddp_mmp_get_events()->DSI_IRQ[index],
 				MMPROFILE_FLAG_PULSE, reg_val, 0);
+			if (!primary_display_is_video_mode() && primary_display_is_tui_started())
+				primary_display_wakeup_pf_thread();
 			//DDPMSG("DSI TE\n");
 		}
 
@@ -373,7 +367,7 @@ irqreturn_t disp_irq_handler(int irq, void *dev_id)
 			rdma_start_time[index] = sched_clock();
 			DDPIRQ("IRQ: RDMA%d frame start!\n", index);
 			rdma_start_irq_cnt[index]++;
-			if (!primary_display_is_video_mode())
+			if (!primary_display_is_video_mode() && !primary_display_is_tui_started())
 				primary_display_wakeup_pf_thread();
 		}
 		if (reg_val & (1 << 3)) {

@@ -1,18 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- *  drivers/misc/mediatek/pmic/mt6360/mt6360_pmu_regmap.c
- *  Driver for MT6360 PMIC regmap
- *
- *  Copyright (C) 2018 Mediatek Technology Inc.
- *  cy_huang <cy_huang@richtek.com>
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License version 2 as
- *  published by the Free Software Foundation.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- *  See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #include <linux/kernel.h>
@@ -59,8 +47,7 @@ RT_REG_DECL(MT6360_PMU_CHG_AICC_RESULT, 1, RT_VOLATILE, {});
 RT_REG_DECL(MT6360_PMU_DEVICE_TYPE, 1, RT_VOLATILE, {});
 RT_REG_DECL(MT6360_PMU_DCP_CONTROL, 1, RT_NORMAL_WR_ONCE, {});
 RT_REG_DECL(MT6360_PMU_USB_STATUS1, 1, RT_VOLATILE, {});
-RT_REG_DECL(MT6360_PMU_DPDM_CTRL1, 1, RT_VOLATILE, {});
-RT_REG_DECL(MT6360_PMU_DPDM_CTRL2, 1, RT_VOLATILE, {});
+RT_REG_DECL(MT6360_PMU_DPDM_CTRL, 1, RT_VOLATILE, {});
 RT_REG_DECL(MT6360_PMU_CHG_PUMP, 1, RT_NORMAL_WR_ONCE, {});
 RT_REG_DECL(MT6360_PMU_CHG_CTRL17, 1, RT_VOLATILE, {});
 RT_REG_DECL(MT6360_PMU_CHG_CTRL18, 1, RT_NORMAL_WR_ONCE, {});
@@ -167,7 +154,7 @@ RT_REG_DECL(MT6360_PMU_SPARE1, 6, RT_VOLATILE, {});
 RT_REG_DECL(MT6360_PMU_SPARE2, 16, RT_VOLATILE, {});
 RT_REG_DECL(MT6360_PMU_SPARE3, 16, RT_VOLATILE, {});
 RT_REG_DECL(MT6360_PMU_SPARE4, 16, RT_VOLATILE, {});
-RT_REG_DECL(MT6360_PMU_CHG_IRQ1, 1, RT_VOLATILE, {});
+RT_REG_DECL(MT6360_PMU_CHG_IRQ1, 16, RT_VOLATILE, {});
 RT_REG_DECL(MT6360_PMU_CHG_IRQ2, 1, RT_VOLATILE, {});
 RT_REG_DECL(MT6360_PMU_CHG_IRQ3, 1, RT_VOLATILE, {});
 RT_REG_DECL(MT6360_PMU_CHG_IRQ4, 1, RT_VOLATILE, {});
@@ -254,8 +241,7 @@ static const rt_register_map_t mt6360_pmu_regmap[] = {
 	RT_REG(MT6360_PMU_DEVICE_TYPE),
 	RT_REG(MT6360_PMU_DCP_CONTROL),
 	RT_REG(MT6360_PMU_USB_STATUS1),
-	RT_REG(MT6360_PMU_DPDM_CTRL1),
-	RT_REG(MT6360_PMU_DPDM_CTRL2),
+	RT_REG(MT6360_PMU_DPDM_CTRL),
 	RT_REG(MT6360_PMU_CHG_PUMP),
 	RT_REG(MT6360_PMU_CHG_CTRL17),
 	RT_REG(MT6360_PMU_CHG_CTRL18),

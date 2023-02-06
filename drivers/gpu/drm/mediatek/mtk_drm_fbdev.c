@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/gfp.h>
 #include <linux/kmemleak.h>
@@ -251,10 +243,8 @@ static void mtk_drm_fbdev_vm_open(struct vm_area_struct *vma)
 		DDPPR_ERR("%s: priv is NULL\n", __func__);
 		return;
 	}
-
 	kref_get(&priv->kref_fb_buf);
 }
-
 
 static void mtk_drm_fbdev_vm_close(struct vm_area_struct *vma)
 {

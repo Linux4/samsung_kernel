@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 
 #include <generated/autoconf.h>
@@ -39,7 +31,7 @@ static struct legacy_pmic_callback pmic_cbs[300];
 /* KEY Int Handler */
 irqreturn_t key_int_handler(int irq, void *data)
 {
-#if !defined(CONFIG_FPGA_EARLY_PORTING) && defined(CONFIG_KEYBOARD_MTK)
+#if !defined(CONFIG_FPGA_EARLY_PORTING) && defined(CONFIG_KPD_PWRKEY_USE_PMIC)
 	struct irq_desc *desc = irq_to_desc(irq);
 	unsigned int hwirq;
 
@@ -100,13 +92,20 @@ void pmic_enable_interrupt(enum PMIC_IRQ_ENUM intNo, unsigned int en, char *str)
 		pr_notice(PMICTAG "[%s] No callback at intNo=%d\n",
 			__func__, intNo);
 		return;
+	} else if (IS_ERR_OR_NULL(pmic_dev)) {
+		pr_notice(PMICTAG "[%s] pmic_dev not initalize %d\n",
+			__func__, intNo);
+		return;
 	}
 	irq = mt6358_irq_get_virq(pmic_dev->parent, intNo);
 	if (!irq) {
 		pr_notice(PMICTAG "[%s] fail intNo=%d\n", __func__, intNo);
 		return;
 	}
+
 	name = mt6358_irq_get_name(pmic_dev->parent, intNo);
+	IRQLOG("mt6358_irq_get_name: %s............\n", name);
+
 	if (name == NULL) {
 		pr_notice(PMICTAG "[%s] no irq name at intNo=%d\n",
 			__func__, intNo);

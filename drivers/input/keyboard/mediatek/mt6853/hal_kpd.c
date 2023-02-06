@@ -1,14 +1,7 @@
-/*
- * Copyright (C) 2016 MediaTek Inc.
+/* 
+ * SPDX-License-Identifier: GPL-2.0
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/of.h>
@@ -27,6 +20,12 @@ static int kpd_enable_lprst = 1;
 static u16 kpd_keymap_state[KPD_NUM_MEMS] = {
 	0xffff, 0xffff, 0xffff, 0xffff, 0x00ff
 };
+
+unsigned int get_boot_mode(void)
+{
+	return 0;
+}
+
 
 static void enable_kpd(int enable)
 {
@@ -173,6 +172,30 @@ void kpd_double_key_enable(int en)
 }
 
 /********************************************************************/
+#if defined(PMIC_KEY_STATUS)
+unsigned int kpd_pmic_pwrkey_status_hal(void)
+{
+	unsigned int pressed;
+
+	pressed = mt6359_upmu_get_pwrkey_deb();
+	pressed = !pressed;
+	kpd_print("[%s] %s power key\n", __func__, pressed ? "pressed" : "released");
+
+	return pressed;
+}
+
+unsigned int kpd_pmic_homekey_status_hal(void)
+{
+	unsigned int pressed;
+
+	pressed = mt6359_upmu_get_homekey_deb();
+	pressed = !pressed;
+	kpd_print("[%s] %s home key\n", __func__, pressed ? "pressed" : "released");
+
+	return pressed;
+}
+#endif
+
 void kpd_pmic_rstkey_hal(unsigned long pressed)
 {
 	if (kpd_dts_data.kpd_sw_rstkey != 0) {

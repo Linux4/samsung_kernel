@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/slab.h>
@@ -73,14 +65,17 @@ void eara_pass_perf_first_hint(int enable)
 static unsigned int get_idx_in_pwr_tbl(enum ppm_cluster cluster)
 {
 	unsigned int idx = 0;
+	unsigned int cl = 0;
 
 	if (cluster >= NR_PPM_CLUSTERS) {
 		ppm_err("%s: Invalid input: cluster=%d\n", __func__, cluster);
 		WARN_ON(1);
 	}
 
-	while (cluster)
-		idx += get_cluster_max_cpu_core(--cluster);
+	cl = cluster;
+
+	while (cl)
+		idx += get_cluster_max_cpu_core(--cl);
 
 	return idx;
 }
@@ -506,9 +501,8 @@ void ppm_cobra_update_limit(void *user_req)
 	g_curr_bl_opp = opp[PPM_CLUSTER_B];
 	g_curr_bb_opp = opp[PPM_CLUSTER_BB];
 
-	if (ACT_CORE(BB) == 0) {
+	if (ACT_CORE(BB) == 0)
 		g_curr_bb_opp = -1;
-	}
 
 	/* increase ferquency limit */
 	if (delta_power >= 0) {
@@ -992,7 +986,6 @@ void ppm_cobra_init(void)
 
 void ppm_cobra_dump_tbl(struct seq_file *m)
 {
-#if 1
 	struct ppm_cluster_status cl_status[NR_PPM_CLUSTERS];
 	int i, j, k;
 	int power;
@@ -1028,38 +1021,6 @@ void ppm_cobra_dump_tbl(struct seq_file *m)
 			}
 		}
 	}
-#else
-	int i, j, k;
-
-	seq_puts(m, "\n==========================================\n");
-	seq_puts(m, "basic power table (pwr, perf)");
-	seq_puts(m, "\n==========================================\n");
-	for (i = 0; i < TOTAL_CORE_NUM; i++) {
-		for (j = 0; j < DVFS_OPP_NUM; j++) {
-			seq_printf(m, "[%d][%d] = (%d, %d)\n", i, j,
-				cobra_tbl->basic_pwr_tbl[i][j].power_idx,
-				cobra_tbl->basic_pwr_tbl[i][j].perf_idx);
-		}
-	}
-
-	if (ppm_debug > 0) {
-		seq_puts(m, "\n==================================================\n");
-		seq_puts(m, "delta table (delta_pwr)");
-		seq_puts(m, "\n==================================================\n");
-		for (i = 0; i < NR_PPM_CLUSTERS; i++) {
-			for (j = 0; j <= get_cluster_max_cpu_core(i); j++) {
-				for (k = 0; k < COBRA_OPP_NUM; k++) {
-					seq_printf(m,
-						"[%d][%d][%d] = (%d)\n",
-						i,
-						j,
-						k,
-						get_delta_pwr(i, j, k));
-				}
-			}
-		}
-	}
-#endif
 }
 
 #define c_data  cobra_lookup_data.limit

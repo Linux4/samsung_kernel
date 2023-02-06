@@ -288,7 +288,7 @@ static void run_system_test(void)
 	int32_t count = 0;
 
 	shub_infof("[SSC] run system test...");
-	shub_send_command(CMD_SETVALUE, TYPE_MCU, HUB_SYSTEM_CHECK, NULL, 0);
+	shub_send_command(CMD_SETVALUE, TYPE_HUB, HUB_SYSTEM_CHECK, NULL, 0);
 	usleep_range(500, 1000);
 
 	for (count = 0 ; count < ssc_count; count++)
@@ -435,7 +435,7 @@ static void report_test_result(void)
 	}
 
 	shub_infof("[SSC] == system test result ======");
-	ret = shub_send_command_wait(CMD_GETVALUE, TYPE_MCU, HUB_SYSTEM_CHECK,
+	ret = shub_send_command_wait(CMD_GETVALUE, TYPE_HUB, HUB_SYSTEM_CHECK,
 			       1000, NULL, 0, (char **)&buffer, &buffer_length, true);
 	if (ret < 0 || !buffer || buffer_length == 0) {
 		shub_infof("[SSC] ERROR! Fail to get system test result!!");

@@ -657,4 +657,3 @@ module_spi_driver(hifi4dsp_spi_drv);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Dehui Sun <dehui.sun@mediatek.com>");
 MODULE_DESCRIPTION("SPI driver for hifi4dsp chip");
-

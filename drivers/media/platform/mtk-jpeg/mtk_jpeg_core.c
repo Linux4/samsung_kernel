@@ -31,9 +31,9 @@
 #include "mach/pseudo_m4u.h"
 #include "smi_port.h"
 #include "mmdvfs_pmqos.h"
-#include "ion.h"
 #include "ion_drv.h"
 #include <linux/pm_qos.h>
+#include <linux/soc/mediatek/mtk-pm-qos.h>
 
 
 
@@ -141,7 +141,7 @@ static struct ion_client *g_ion_client;
 
 //pmqos
 static unsigned int cshot_spec_dts;
-static struct pm_qos_request jpeg_qos_request;
+static struct mtk_pm_qos_request jpeg_qos_request;
 static u64 g_freq_steps[MAX_FREQ_STEP];  //index 0 is max
 static u32 freq_step_size;
 
@@ -223,7 +223,7 @@ void mtk_jpeg_prepare_dvfs(void)
 	int i;
 
 	if (!freq_step_size) {
-		pm_qos_add_request(&jpeg_qos_request, PM_QOS_VENC_FREQ,
+		mtk_pm_qos_add_request(&jpeg_qos_request, PM_QOS_VENC_FREQ,
 				 PM_QOS_DEFAULT_VALUE);
 		ret = mmdvfs_qos_get_freq_steps(PM_QOS_VENC_FREQ, g_freq_steps,
 					&freq_step_size);
@@ -238,21 +238,21 @@ void mtk_jpeg_prepare_dvfs(void)
 
 void mtk_jpeg_unprepare_dvfs(void)
 {
-	pm_qos_update_request(&jpeg_qos_request,  0);
-	pm_qos_remove_request(&jpeg_qos_request);
+	mtk_pm_qos_update_request(&jpeg_qos_request,  0);
+	mtk_pm_qos_remove_request(&jpeg_qos_request);
 }
 
 void mtk_jpeg_start_dvfs(void)
 {
 	if (g_freq_steps[0] != 0) {
-		pr_info("highest freq 0x%x", g_freq_steps[0]);
-		pm_qos_update_request(&jpeg_qos_request,  g_freq_steps[0]);
+		pr_info("highest freq 0x%llx", g_freq_steps[0]);
+		mtk_pm_qos_update_request(&jpeg_qos_request,  g_freq_steps[0]);
 	}
 }
 
 void mtk_jpeg_end_dvfs(void)
 {
-	pm_qos_update_request(&jpeg_qos_request,  0);
+	mtk_pm_qos_update_request(&jpeg_qos_request,  0);
 }
 
 
@@ -289,16 +289,6 @@ void mtk_jpeg_update_bw_request(struct mtk_jpeg_ctx *ctx,
 
 	/* Support QoS */
 	picSize = (config->enc_w * config->enc_h) / 1000000;
-	/* BW = encode width x height x bpp x 1.6 */
-	/* Assume compress ratio is 0.6 */
-	#if 0
-	if (cfgEnc.encFormat == 0x0 || cfgEnc.encFormat == 0x1)
-		picCost = ((picSize * 2) * 8/5) + 1;
-	else
-		picCost = ((picSize * 3/2) * 8/5) + 1;
-	#endif
-
-
 	cshot_spec = cshot_spec_dts;
 
 	if ((picSize * target_fps) < cshot_spec) {
@@ -1525,8 +1515,8 @@ static int mtk_jpeg_queue_init(void *priv, struct vb2_queue *src_vq,
 static void mtk_jpeg_clk_on(struct mtk_jpeg_dev *jpeg)
 {
 	int ret;
-	pr_info("%s", __func__);
 
+	pr_info("%s", __func__);
 	smi_bus_prepare_enable(jpeg->larb_id[0], "JPEG");
 
 	if (jpeg->mode == MTK_JPEG_DEC) {
@@ -1614,6 +1604,7 @@ static void mtk_jpeg_clk_on_ctx(struct mtk_jpeg_ctx *ctx)
 static void mtk_jpeg_clk_off_ctx(struct mtk_jpeg_ctx *ctx)
 {
 	struct mtk_jpeg_dev *jpeg = ctx->jpeg;
+
 	pr_info("%s  +", __func__);
 	disable_irq(jpeg->irq[ctx->coreid]);
 

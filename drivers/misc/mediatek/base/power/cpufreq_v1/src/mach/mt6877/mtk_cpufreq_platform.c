@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2020 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -20,9 +12,9 @@
 #ifdef CONFIG_MTK_FREQ_HOPPING
 #include <mtk_freqhopping_drv.h>
 #else
-#define FH_PLL0 0 /* LL : ARMPLL */
-#define FH_PLL1 1 /* L : ARMPLL_L */
-#define FH_PLL5 5 /* CCI : CCIPLL */
+#define FH_TOP_PLL0 0 /* LL : ARMPLL */
+#define FH_TOP_PLL1 1 /* L : ARMPLL_L */
+#define FH_TOP_PLL5 5 /* CCI : CCIPLL */
 #endif
 
 #include "mtk_cpufreq_platform.h"
@@ -520,21 +512,21 @@ struct pll_ctrl_t pll_ctrl[NR_MT_PLL] = {
 [PLL_LL_CLUSTER] = {
 		.name		= __stringify(PLL_LL_CLUSTER),
 		.pll_id		= PLL_LL_CLUSTER,
-		.hopping_id	= FH_PLL0,	/* ARMPLL1 */
+		.hopping_id	= FH_TOP_PLL0,	/* ARMPLL1 */
 		.pll_ops	= &pll_ops_ll,
 	},
 
 	[PLL_L_CLUSTER] = {
 		.name		= __stringify(PLL_L_CLUSTER),
 		.pll_id		= PLL_L_CLUSTER,
-		.hopping_id	= FH_PLL1,	/* ARMPLL2 */
+		.hopping_id	= FH_TOP_PLL1,	/* ARMPLL2 */
 		.pll_ops	= &pll_ops_l,
 	},
 
 	[PLL_CCI_CLUSTER] = {
 		.name		= __stringify(PLL_CCI_CLUSTER),
 		.pll_id		= PLL_CCI_CLUSTER,
-		.hopping_id	= FH_PLL5,	/* CCIPLL */
+		.hopping_id	= FH_TOP_PLL5,	/* CCIPLL */
 		.pll_ops	= &pll_ops_cci,
 	},
 };

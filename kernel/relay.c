@@ -39,7 +39,7 @@ static void relay_file_mmap_close(struct vm_area_struct *vma)
 /*
  * fault() vm_op implementation for relay file mapping.
  */
-static int relay_buf_fault(struct vm_fault *vmf)
+static vm_fault_t relay_buf_fault(struct vm_fault *vmf)
 {
 	struct page *page;
 	struct rchan_buf *buf = vmf->vma->vm_private_data;
@@ -169,7 +169,8 @@ static struct rchan_buf *relay_create_buf(struct rchan *chan)
 	buf = kzalloc(sizeof(struct rchan_buf), GFP_KERNEL);
 	if (!buf)
 		return NULL;
-	buf->padding = kmalloc(chan->n_subbufs * sizeof(size_t *), GFP_KERNEL);
+	buf->padding = kmalloc_array(chan->n_subbufs, sizeof(size_t *),
+				     GFP_KERNEL);
 	if (!buf->padding)
 		goto free_buf;
 
@@ -196,6 +197,7 @@ free_buf:
 static void relay_destroy_channel(struct kref *kref)
 {
 	struct rchan *chan = container_of(kref, struct rchan, kref);
+	free_percpu(chan->buf);
 	kfree(chan);
 }
 
@@ -925,18 +927,18 @@ static int relay_file_mmap(struct file *filp, struct vm_area_struct *vma)
  *
  *	Poll implemention.
  */
-static unsigned int relay_file_poll(struct file *filp, poll_table *wait)
+static __poll_t relay_file_poll(struct file *filp, poll_table *wait)
 {
-	unsigned int mask = 0;
+	__poll_t mask = 0;
 	struct rchan_buf *buf = filp->private_data;
 
 	if (buf->finalized)
-		return POLLERR;
+		return EPOLLERR;
 
 	if (filp->f_mode & FMODE_READ) {
 		poll_wait(filp, &buf->read_wait, wait);
 		if (!relay_buf_empty(buf))
-			mask |= POLLIN | POLLRDNORM;
+			mask |= EPOLLIN | EPOLLRDNORM;
 	}
 
 	return mask;

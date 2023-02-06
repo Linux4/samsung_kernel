@@ -601,9 +601,9 @@ static ssize_t rx_store(struct file *f, const char __user *user_buf,
 		is_datatype = 1;
 	}
 
-	if (is_datatype)
+	if (is_datatype) {
 		ret = sscanf(pbuf, "%8x: %8x %8d %8d", &type, &cmd, &len, &pos);
-	else {
+	} else {
 		ret = sscanf(pbuf, "%8x %8d %8d", &cmd, &len, &pos);
 		type = MIPI_DSI_DCS_READ;
 	}
@@ -614,6 +614,10 @@ static ssize_t rx_store(struct file *f, const char __user *user_buf,
 	}
 
 	type = dsi_data_type_is_rx(type) ? type : MIPI_DSI_DCS_READ;
+	if (len == 0) {
+		dbg_info("%s: len(%d) is invalid so make it as 1 by force\n", __func__, len);
+		len = 1;
+	}
 
 	dbg_info("ret: %d, type: %02x, cmd: %02x, len: %u, pos: %u\n", ret, type, cmd, len, pos);
 
@@ -784,7 +788,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 
 	switch (event) {
 	case FB_EVENT_BLANK:
-	case FB_EARLY_EVENT_BLANK:
+	case SMCDSD_EARLY_EVENT_BLANK:
 		break;
 	default:
 		return NOTIFY_DONE;
@@ -797,10 +801,10 @@ static int fb_notifier_callback(struct notifier_block *self,
 	if (evdata->info->node)
 		return NOTIFY_DONE;
 
-	if (event == FB_EVENT_BLANK && fb_blank == FB_BLANK_UNBLANK)
-		d->enable = 1;
-	else if (fb_blank == FB_BLANK_POWERDOWN)
+	if (event == SMCDSD_EARLY_EVENT_BLANK)
 		d->enable = 0;
+	else if (event == FB_EVENT_BLANK && fb_blank == FB_BLANK_UNBLANK)
+		d->enable = 1;
 
 	return NOTIFY_DONE;
 }

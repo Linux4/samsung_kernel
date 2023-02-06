@@ -35,8 +35,9 @@ static ssize_t ufs_sec_manufacturer_id_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct ufs_hba *hba = dev_get_drvdata(dev);
+	struct ufs_dev_info *dev_info = &hba->dev_info;
 
-	return snprintf(buf, PAGE_SIZE, "%04x\n", hba->manu_id);
+	return snprintf(buf, PAGE_SIZE, "%04x\n", dev_info->wmanufacturerid);
 }
 static DEVICE_ATTR(man_id, 0444, ufs_sec_manufacturer_id_show, NULL);
 

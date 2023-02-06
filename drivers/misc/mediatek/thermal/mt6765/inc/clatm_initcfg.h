@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (C) 2019 MediaTek Inc.
  */
 
 #ifndef __CLATM_INITCFG_H__
@@ -16,13 +8,13 @@
 
 #define CLATM_SET_INIT_CFG			(1)
 
-#define CLATM_INIT_CFG_0_TARGET_TJ		(75000)
+#define CLATM_INIT_CFG_0_TARGET_TJ		(85000)
 #define CLATM_INIT_CFG_0_EXIT_POINT		(10000)
 #define CLATM_INIT_CFG_0_FIRST_STEP		(2000)
 #define CLATM_INIT_CFG_0_THETA_RISE		(2)
 #define CLATM_INIT_CFG_0_THETA_FALL		(8)
 #define CLATM_INIT_CFG_0_MIN_BUDGET_CHG		(1)
-#define CLATM_INIT_CFG_0_MIN_CPU_PWR	(400)
+#define CLATM_INIT_CFG_0_MIN_CPU_PWR	(500)
 #define CLATM_INIT_CFG_0_MAX_CPU_PWR	(2000)
 #define CLATM_INIT_CFG_0_MIN_GPU_PWR	(200)
 #define CLATM_INIT_CFG_0_MAX_GPU_PWR	(700)

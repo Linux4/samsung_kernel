@@ -250,7 +250,7 @@ struct imgsensor_vendor_rom_addr {
 /***** Sensor Maker and Name *****/
 	char *sensor_maker;
 	char *sensor_name;
- 	char *sub_sensor_maker;
+	char *sub_sensor_maker;
 	char *sub_sensor_name;
 
 /***** Sensor Bayerformat *****/

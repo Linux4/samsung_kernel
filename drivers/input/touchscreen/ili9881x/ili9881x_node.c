@@ -349,7 +349,7 @@ int dev_mkdir(char *name, umode_t mode)
 	input_info(true, ilits->dev, "%s mkdir: %s\n", __func__, name);
 	fs = get_fs();
 	set_fs(KERNEL_DS);
-	err = sys_mkdir(name, mode);
+	err = ksys_mkdir(name, mode);
 	set_fs(fs);
 
 	return err;
@@ -1903,9 +1903,6 @@ static ssize_t ilitek_node_ioctl_write(struct file *filp, const char *buff, size
 	} else if (strncmp(cmd, "swipe", strlen(cmd)) == 0) {
 		ilits->ges_sym.alphabet_line_2_top = !ilits->ges_sym.alphabet_line_2_top;
 		input_info(true, ilits->dev, "alphabet_line_2_top = %d\n", ilits->ges_sym.alphabet_line_2_top);
-	} else if (strncmp(cmd, "covermode", strlen(cmd)) == 0) {
-		if (ili_ic_func_ctrl("cover_mode", data[1]) < 0)
-			input_info(true, ilits->dev, "%s Write cover_mode cmd failed\n", __func__);
 	} else {
 		input_err(true, ilits->dev, "%s Unknown command\n", __func__);
 		size = -1;

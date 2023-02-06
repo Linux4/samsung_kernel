@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2020 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 /* Mouton_TO_FY_v0p5__200217 */
 
@@ -144,7 +136,7 @@ struct upower_tbl upower_tbl_b_FY = {
 		{.cap = 777, .volt = 73750, .dyn_pwr = 164400,
 			.lkg_pwr = {128501, 128501, 128501, 128501, 128501,
 				128501} },
-		{.cap = 776, .volt = 75625, .dyn_pwr = 186497,
+		{.cap = 793, .volt = 75625, .dyn_pwr = 186497,
 			.lkg_pwr = {134355, 134355, 134355, 134355, 134355,
 				134355} },
 		{.cap = 822, .volt = 80000, .dyn_pwr = 233693,
@@ -203,7 +195,7 @@ struct upower_tbl upower_tbl_cluster_b_FY = {
 			.lkg_pwr = {0, 0, 0, 0, 0, 0} },
 		{.cap = 777, .volt = 73750, .dyn_pwr = 0,
 			.lkg_pwr = {0, 0, 0, 0, 0, 0} },
-		{.cap = 776, .volt = 75625, .dyn_pwr = 0,
+		{.cap = 793, .volt = 75625, .dyn_pwr = 0,
 			.lkg_pwr = {0, 0, 0, 0, 0, 0} },
 		{.cap = 822, .volt = 80000, .dyn_pwr = 0,
 			.lkg_pwr = {0, 0, 0, 0, 0, 0} },

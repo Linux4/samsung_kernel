@@ -433,30 +433,6 @@ int ili_core_spi_setup(int num)
 	return 0;
 }
 
-#define LCD_ILI9882N_ID           (0)
-unsigned int _lcm_lcd_id_dt(void)
-{
-	struct device_node *root = of_find_node_by_path("/");
-	int _lcd_id_gpio1, _lcd_id_gpio2;
-	unsigned int _lcd_id;
-
-	if (IS_ERR_OR_NULL(root)) {
-		pr_info("root dev node is NULL\n");
-		return -1;
-	}
-
-	_lcd_id_gpio1 = of_get_named_gpio(root, "dtbo-lcd_id_1", 0);
-	_lcd_id_gpio2 = of_get_named_gpio(root, "dtbo-lcd_id_2", 0);
-
-	/* TO DO : read gpio value */
-	_lcd_id = (unsigned int) (gpio_get_value(_lcd_id_gpio2) << 1) |
-				gpio_get_value(_lcd_id_gpio1);
-
-	pr_info("[TOUCH][ili9882n] lcd_id 0x%x\n", _lcd_id);
-
-	return _lcd_id;
-}
-
 static int ilitek_spi_probe(struct spi_device *spi)
 {
 	struct touch_bus_info *info =
@@ -467,11 +443,6 @@ static int ilitek_spi_probe(struct spi_device *spi)
 
 	if (!spi) {
 		ILI_ERR("spi device is NULL\n");
-		return -ENODEV;
-	}
-
-	if (_lcm_lcd_id_dt() != LCD_ILI9882N_ID) {
-		ILI_ERR("%s : LCD ID not match.\n", __func__);
 		return -ENODEV;
 	}
 

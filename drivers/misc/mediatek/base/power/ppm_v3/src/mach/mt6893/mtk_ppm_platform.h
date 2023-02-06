@@ -1,16 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
-
 
 #ifndef __MT_PPM_PLATFORM_H__
 #define __MT_PPM_PLATFORM_H__
@@ -22,17 +13,12 @@ extern "C" {
 #include "mtk_ppm_api.h"
 #include "mach/mtk_cpufreq_api.h"
 
-#if 0 /* No PPM in SSPM @ 6885 */
-#ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
-#define PPM_SSPM_SUPPORT        (1)
-#endif
-#endif /* No PPM in SSPM @ 6885 */
-
 /*==============================================================*/
 /* Macros							*/
 /*==============================================================*/
 /* TODO: remove these workaround for k49 migration */
 #define NO_MTK_TRACE		(1)
+#define NO_SCHEDULE_API         (1)
 
 #define DYNAMIC_TABLE2REAL_PERCENTAGE	(58)
 

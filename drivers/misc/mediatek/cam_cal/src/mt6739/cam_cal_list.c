@@ -1,15 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 #include <linux/kernel.h>
 #include "cam_cal_list.h"
 #include "eeprom_i2c_common_driver.h"
@@ -33,8 +26,7 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{IMX386_MONO_SENSOR_ID, 0xA0, Common_read_region},
 	{IMX576_SENSOR_ID, 0xA2, Common_read_region},
 	/*99*/
-	{IMX258_SENSOR_ID, 0xB0, Common_read_region, A01_MAX_EEPROM_SIZE},
-	/* {IMX258_SENSOR_ID, 0xA0, Common_read_region}, */
+	{IMX258_SENSOR_ID, 0xA0, Common_read_region},
 	{IMX258_MONO_SENSOR_ID, 0xA0, Common_read_region},
 	/*97*/
 	{OV23850_SENSOR_ID, 0xA0, Common_read_region},

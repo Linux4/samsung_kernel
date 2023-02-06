@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 /*****************************************************************************
@@ -164,11 +156,16 @@ struct imgsensor_info_struct {
 	struct imgsensor_mode_struct pre;         /* preview scenario relative information */
 	struct imgsensor_mode_struct cap;         /* capture scenario relative information */
 	struct imgsensor_mode_struct cap1;        /* capture for PIP 24fps relative information */
-	/* capture1 mode must use same framelength, linelength with Capture mode for shutter calculate */
-	struct imgsensor_mode_struct normal_video;/* normal video  scenario relative information */
-	struct imgsensor_mode_struct hs_video;    /* high speed video scenario relative information */
-	struct imgsensor_mode_struct slim_video;  /* slim video for VT scenario relative information */
-	struct imgsensor_mode_struct custom1;     /* custom1 for stereo scenario relative information */
+	/*capture1 mode must use same framelength*/
+	/*linelength with Capture mode for shutter calculate*/
+	struct imgsensor_mode_struct normal_video;
+	/* normal video  scenario relative information */
+	struct imgsensor_mode_struct hs_video;
+	/* high speed video scenario relative information */
+	struct imgsensor_mode_struct slim_video;
+	/* slim video for VT scenario relative information */
+	struct imgsensor_mode_struct custom1;
+	/* custom1 for stereo scenario relative information */
 	kal_uint8 ae_shut_delay_frame;            /* shutter delay frame for AE cycle */
 	kal_uint8 ae_sensor_gain_delay_frame;     /* sensor gain delay frame for AE cycle */
 	kal_uint8 ae_ispGain_delay_frame;         /* isp gain delay frame for AE cycle */
@@ -184,7 +181,8 @@ struct imgsensor_info_struct {
 	kal_uint8 frame_time_delay_frame;         /* enter frame_time_delay_frame num */
 	kal_uint8 margin;                         /* sensor framelength & shutter margin */
 	kal_uint32 min_shutter;                   /* min shutter */
-	kal_uint32 max_frame_length;              /* max framelength by sensor register's limitation */
+	kal_uint32 max_frame_length;
+	/* max framelength by sensor register's limitation */
 	kal_uint8 isp_driving_current;            /* mclk driving current */
 	kal_uint8 sensor_interface_type;          /* sensor_interface_type */
 	kal_uint8 mipi_sensor_type;
@@ -193,13 +191,15 @@ struct imgsensor_info_struct {
 	/* 0, high speed signal auto detect; 1, use settle delay, unit is ns*/
 	/* default is auto detect, don't modify this para */
 	kal_uint8 sensor_output_dataformat;       /* sensor output first pixel color */
-	kal_uint8 mclk;                           /* mclk value, suggest 24 or 26 for 24Mhz or 26Mhz */
+	kal_uint8 mclk;
+	/* mclk value, suggest 24 or 26 for 24Mhz or 26Mhz */
 	kal_uint8 mipi_lane_num;                  /* mipi lane num */
 	kal_uint8 i2c_addr_table[5];
 	/* record sensor support all write id addr, only supprt 4must end with 0xff */
 };
 
-extern int iReadRegI2C(u8 *a_pSendData, u16 a_sizeSendData, u8 *a_pRecvData, u16 a_sizeRecvData, u16 i2cId);
+extern int iReadRegI2C(u8 *a_pSendData, u16 a_sizeSendData, u8 *a_pRecvData,
+					u16 a_sizeRecvData, u16 i2cId);
 extern int iWriteRegI2C(u8 *a_pSendData, u16 a_sizeSendData, u16 i2cId);
 extern int iWriteReg(u16 a_u2Addr, u32 a_u4Data, u32 a_u4Bytes, u16 i2cId);
 extern int iMultiReadReg(u16 a_u2Addr, u8 *a_puBuff, u16 i2cId, u8 number);

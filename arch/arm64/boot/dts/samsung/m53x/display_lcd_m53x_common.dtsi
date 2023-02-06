@@ -63,9 +63,11 @@
 				gpio_det = <&pio 1 0x1>;	/* EL_ON1_DET */
 				gpio_err = <&pio 8 0x0>;	/* FG_ERR */
 
+#ifndef CONFIG_SEC_FACTORY
 				abd_func_refresh =
 					//"gpio_det",	"CHAIN_TYPE_EVENT",
 					"gpio_err",	"CHAIN_TYPE_EVENT";
+#endif
 
 				panel_power_enable {
 					type =
@@ -96,11 +98,11 @@
 					"regulator,disable",	"vcamio",
 					"delay,usleep",	"1000";
 				};
-				panel_regulator_init {
+				panel_not_connected {
 					type =
-					"regulator,enable",	"vcamio",
-					"regulator,enable",	"gpio_lcd_3p0_en",
-					"regulator,enable",	"gpio_octa_rst_n";
+					"regulator,disable",	"vcamio",
+					"regulator,disable",	"gpio_lcd_3p0_en",
+					"regulator,disable",	"gpio_octa_rst_n";
 				};
 			};
 
@@ -175,12 +177,13 @@
 	};
 };
 
+&mt_pmic_vcamio_ldo_reg {
+	regulator-boot-on;
+};
+
 &dsi0 {
 	panel@0 {
 		compatible = "smcdsd_panel";
-		pm-enable-gpios;
-		reset-gpios;
-		bias-gpios;
 	};
 };
 

@@ -1,19 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
  */
 #include <linux/kernel.h>
 #include <linux/rtc.h>
 #include <linux/timer.h>
 #include "ccci_config.h"
+#include "ccci_common_config.h"
 #if defined(CONFIG_MTK_AEE_FEATURE)
 #include <mt-plat/aee.h>
 #endif
@@ -28,20 +21,18 @@
 #endif
 
 static void ccci_aed_v1(struct ccci_fsm_ee *mdee, unsigned int dump_flag,
-	const char *aed_str, int db_opt)
+	char *aed_str, int db_opt)
 {
 	void *ex_log_addr = NULL;
 	int ex_log_len = 0;
-#if defined(CONFIG_MTK_AEE_FEATURE)
 	void *md_img_addr = NULL;
 	int md_img_len = 0;
-#endif
 	int info_str_len = 0;
 	char *buff;		/*[AED_STR_LEN]; */
 #if defined(CONFIG_MTK_AEE_FEATURE)
 	char buf_fail[] = "Fail alloc mem for exception\n";
 #endif
-	char *img_inf = NULL;
+	char *img_inf;
 	int md_id = mdee->md_id;
 	struct mdee_dumper_v1 *dumper = mdee->dumper_obj;
 	struct ccci_smem_region *mdss_dbg =
@@ -97,9 +88,13 @@ static void ccci_aed_v1(struct ccci_fsm_ee *mdee, unsigned int dump_flag,
 		ex_log_addr = (void *)&dumper->ex_info;
 		ex_log_len = sizeof(struct ex_log_t);
 	}
+	if (dump_flag & CCCI_AED_DUMP_MD_IMG_MEM) {
+		md_img_addr = (void *)mem_layout->md_bank0.base_ap_view_vir;
+		md_img_len = MD_IMG_DUMP_SIZE;
+	}
 	if (buff == NULL) {
 #if defined(CONFIG_MTK_AEE_FEATURE)
-		if (md_dbg_dump_flag & (1U << MD_DBG_DUMP_SMEM))
+		if (md_dbg_dump_flag & (1 << MD_DBG_DUMP_SMEM))
 			aed_md_exception_api(ex_log_addr, ex_log_len,
 				md_img_addr, md_img_len, buf_fail, db_opt);
 		else
@@ -122,7 +117,7 @@ static void mdee_dumper_info_dump_v1(struct ccci_fsm_ee *mdee)
 {
 	struct mdee_dumper_v1 *dumper = mdee->dumper_obj;
 	int md_id = mdee->md_id;
-	char *ex_info = NULL;/* [EE_BUF_LEN] = ""; */
+	char *ex_info;/* [EE_BUF_LEN] = ""; */
 	char *ex_info_temp = NULL;
 	/* [EE_BUF_LEN] = "\n[Others] May I-Bit dis too long\n"; */
 	char *i_bit_ex_info = NULL;
@@ -327,10 +322,9 @@ static void mdee_dumper_info_dump_v1(struct ccci_fsm_ee *mdee)
 		/* use strcpy, otherwise if this happens after a MD EE,
 		 * the former EE info will be printed out
 		 */
-		if (snprintf(ex_info, EE_BUF_LEN,
-			"\n[Others] MD long time no response\n") < 0)
-			ex_info[0] = 0;
-		db_opt |= (unsigned int)DB_OPT_FTRACE;
+		strncpy(ex_info, "\n[Others] MD long time no response\n",
+			EE_BUF_LEN);
+		db_opt |= DB_OPT_FTRACE;
 		break;
 	case MD_EE_CASE_WDT:
 		strncpy(ex_info, "\n[Others] MD watchdog timeout interrupt\n",
@@ -433,7 +427,7 @@ err_exit:
  */
 static void mdee_dumper_info_prepare_v1(struct ccci_fsm_ee *mdee)
 {
-	struct ex_log_t *ex_info = NULL;
+	struct ex_log_t *ex_info;
 	int ee_type, ee_case;
 	struct mdee_dumper_v1 *dumper = mdee->dumper_obj;
 	int md_id = mdee->md_id;
@@ -638,9 +632,11 @@ static void mdee_dumper_info_prepare_v1(struct ccci_fsm_ee *mdee)
 			debug_info->dsp_assert.parameters[2] =
 				ex_info->content.assert.parameters[2];
 		}
-		if (ret < 0 || ret >= sizeof(debug_info->dsp_assert.file_name))
+		if (ret < 0 || ret >= sizeof(debug_info->dsp_assert.file_name)) {
 			CCCI_ERROR_LOG(md_id, FSM,
 				"%s-%d:snprintf fail,ret = %d\n", __func__, __LINE__, ret);
+			break;
+		}
 		if (val < 0 || val >= sizeof(debug_info->dsp_assert.execution_unit))
 			CCCI_ERROR_LOG(md_id, FSM,
 				"%s-%d:snprintf fail,val = %d\n", __func__, __LINE__, val);
@@ -679,6 +675,8 @@ static void mdee_dumper_info_prepare_v1(struct ccci_fsm_ee *mdee)
 
 	debug_info->ext_mem = ex_info;
 	debug_info->ext_size = sizeof(struct ex_log_t);
+	debug_info->md_image = (void *)mem_layout->md_bank0.base_ap_view_vir;
+	debug_info->md_size = MD_IMG_DUMP_SIZE;
 }
 static void mdee_dumper_v1_set_ee_pkg(struct ccci_fsm_ee *mdee,
 	char *data, int len)
@@ -721,7 +719,7 @@ static void mdee_dumper_v1_dump_ee_info(struct ccci_fsm_ee *mdee,
 				"\n[Others] MD_BOOT_UP_FAIL(HS%d)\n", 2);
 			/* Handshake 2 fail */
 			CCCI_MEM_LOG_TAG(md_id, FSM, "Dump MD EX log\n");
-			if (md_dbg_dump_flag & (1U << MD_DBG_DUMP_SMEM)) {
+			if (md_dbg_dump_flag & (1 << MD_DBG_DUMP_SMEM)) {
 				ccci_util_mem_dump(md_id, CCCI_DUMP_MEM_DUMP,
 					mdccci_dbg->base_ap_view_vir,
 					mdccci_dbg->size);

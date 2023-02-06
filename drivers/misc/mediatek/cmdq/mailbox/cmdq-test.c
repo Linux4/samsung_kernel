@@ -441,8 +441,10 @@ static void cmdq_test_mbox_large_cmd(struct cmdq_test *test)
 		cmdq_msg("val:%#x equals to i:%#x", val, i);
 }
 
-static void cmdq_test_mbox_sync_token_loop_iter(unsigned long data)
+static void cmdq_test_mbox_sync_token_loop_iter(struct timer_list *t)
 {
+	/*struct cmdq_test *test = from_timer(test, t, timer);*/
+
 	if (!gtest->tick)
 		del_timer(&gtest->timer);
 	else {
@@ -471,8 +473,8 @@ static void cmdq_test_mbox_loop(struct cmdq_test *test)
 
 	test->iter = 0;
 	test->tick = true;
-	setup_timer(&test->timer, &cmdq_test_mbox_sync_token_loop_iter,
-		test->token_user0);
+	timer_setup(&test->timer, cmdq_test_mbox_sync_token_loop_iter,
+		0);
 	mod_timer(&test->timer, jiffies + msecs_to_jiffies(300));
 
 	writel(test->token_user0,
@@ -575,18 +577,21 @@ static void cmdq_test_mbox_dma_access(struct cmdq_test *test, const bool secure)
 	cmdq_msg("%s done", __func__);
 }
 
-static void cmdq_test_mbox_sync_token_flush(unsigned long data)
+static void cmdq_test_mbox_sync_token_flush(struct timer_list *t)
 {
 	u32	val;
+	struct cmdq_test *test = from_timer(test, t, timer);
 
 	if (clk_prepare_enable(gtest->gce.clk)) {
 		cmdq_err("clk fail");
 		return;
 	}
 
-	writel((1L << 16) | data, (void *)CMDQ_SYNC_TOKEN_UPD(gtest->gce.va));
+	writel((1L << 16) | test->token_user0,
+			(void *)CMDQ_SYNC_TOKEN_UPD(gtest->gce.va));
 	val = readl((void *)CMDQ_SYNC_TOKEN_UPD(gtest->gce.va));
-	cmdq_log("data:%#lx event:%#x val:%#x", data, (1 << 16), val);
+	cmdq_log("data:%#hx event:%#x val:%#x",
+			test->token_user0, (1 << 16), val);
 
 	if (!gtest->tick)
 		del_timer(&gtest->timer);
@@ -606,8 +611,8 @@ void cmdq_test_mbox_flush(
 	cmdq_msg("%s sec:%d threaded:%d", __func__, secure, threaded);
 
 	test->tick = true;
-	setup_timer(&test->timer, &cmdq_test_mbox_sync_token_flush,
-		test->token_user0);
+	timer_setup(&test->timer, cmdq_test_mbox_sync_token_flush,
+			0);
 	mod_timer(&test->timer, jiffies + msecs_to_jiffies(10));
 
 	for (i = 0; i < CMDQ_TEST_CNT; i++) {
@@ -1194,4 +1199,20 @@ static struct platform_driver cmdq_test_drv = {
 		.of_match_table = cmdq_test_of_ids,
 	},
 };
-module_platform_driver(cmdq_test_drv);
+
+static int __init cmdq_test_init(void)
+{
+	return platform_driver_register(&cmdq_test_drv);
+}
+
+static void __exit cmdq_test_exit(void)
+{
+	return platform_driver_unregister(&cmdq_test_drv);
+}
+
+device_initcall_sync(cmdq_test_init);
+module_exit(cmdq_test_exit);
+
+MODULE_DESCRIPTION("MEDIATEK Module Cmdq-test driver");
+MODULE_AUTHOR("Mediatek");
+MODULE_LICENSE("GPL");

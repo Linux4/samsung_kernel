@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 struct seq_file;
@@ -27,6 +19,41 @@ enum PWR_STA_TYPE {
 	OTHER_PWR_STA,
 	STA_NUM,
 };
+
+
+
+enum FMETER_TYPE {
+	FT_NULL,
+	ABIST,
+	CKGEN,
+	ABIST_2,
+	SUBSYS,
+};
+
+struct fmeter_clk {
+	enum FMETER_TYPE type;
+	u32 id;
+	const char *name;
+	u32 ofs;
+	u32 pdn;
+	u32 grp;
+};
+
+struct regbase {
+	u32 phys;
+	void __iomem *virt;
+	const char *name;
+	const char *pg;
+};
+
+struct regname {
+	struct regbase *base;
+	u32 ofs;
+	const char *name;
+};
+
+#define ADDR(rn)	(rn->base->virt + rn->ofs)
+#define PHYSADDR(rn)	(rn->base->phys + rn->ofs)
 
 struct cmd_fn {
 	const char	*cmd;

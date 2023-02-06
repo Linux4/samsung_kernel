@@ -102,20 +102,8 @@ enum COLOR_LENS {
 	COLOR_LENS_MAX
 };
 
-struct mdnie_dsi_msg {
-	u8 channel;
-	u8 type;
-	u16 flags;
-
-	size_t tx_len;
-	mdnie_t *tx_buf;
-
-	size_t rx_len;
-	void *rx_buf;
-};
-
 struct mdnie_seq_info {
-	struct mdnie_dsi_msg dsi_msg;
+	struct mipi_dsi_msg dsi_msg;
 	char *msg_name;	/* tx_buf */
 	int delay;
 
@@ -243,9 +231,8 @@ struct mdnie_info {
 	mdnie_t sequence_buffer[256];
 };
 
-extern int mdnie_register(struct device *p, void *data, mdnie_w w, mdnie_r r, unsigned int *coordinate, struct mdnie_tune *tune);
+extern struct class *mdnie_register(struct device *p, void *data, mdnie_w w, mdnie_r r, unsigned int *coordinate, struct mdnie_tune *tune);
 extern ssize_t attr_store_for_each(struct class *cls, const char *name, const char *buf, size_t size);
-extern struct class *get_mdnie_class(void);
 extern int mdnie_force_update(struct device *dev, void *data);
 
 #endif /* __MDNIE_H__ */

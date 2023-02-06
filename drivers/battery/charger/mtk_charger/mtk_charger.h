@@ -20,10 +20,15 @@
 
 #ifndef MTK_CHARGER_H
 #define MTK_CHARGER_H
-#include <mt-plat/charger_class.h>
-#include <mt-plat/charger_type.h>
 #include <linux/version.h>
 #include <linux/sec_batt.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
+#include <mt-plat/v1/charger_class.h>
+#include <mt-plat/v1/charger_type.h>
+#else
+#include <mt-plat/charger_class.h>
+#include <mt-plat/charger_type.h>
+#endif
 #if defined(CONFIG_AFC_CHARGER)
 #include <mt-plat/afc_charger.h>
 #endif
@@ -109,6 +114,7 @@ typedef struct mtk_charger_platform_data {
 	int max_icl;
 	int ib_fcc;
 	int chgenb_en;
+	int chgilm_en;
 } mtk_charger_platform_data_t;
 
 
@@ -120,7 +126,10 @@ struct mtk_charger_data {
 	struct power_supply_desc psy_otg_desc;
 	struct power_supply *psy_bat;
 	struct power_supply *psy_fg;
-
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	struct power_supply *psy_bc12;
+	struct power_supply_desc psy_bc12_desc;
+#endif
 	struct charger_device *chg_dev;
 
 	mtk_charger_platform_data_t *pdata;
@@ -130,7 +139,7 @@ struct mtk_charger_data {
 	int topoff_current;
 	int cable_type;
 	bool is_charging;
-	bool buck_state;
+	int buck_state;
 	unsigned int charge_mode;
 #if IS_ENABLED(CONFIG_USB_FACTORY_MODE)
 	unsigned int f_mode;
@@ -151,7 +160,4 @@ struct mtk_charger_data {
 
 	u8 read_reg;
 };
-#if defined(CONFIG_AFC_CHARGER)
-extern int muic_afc_set_voltage(int voltage);
-#endif
 #endif /*MTK_CHARGER_H*/

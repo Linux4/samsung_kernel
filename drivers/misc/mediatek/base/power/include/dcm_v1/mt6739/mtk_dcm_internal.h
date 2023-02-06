@@ -1,22 +1,14 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __MTK_DCM_INTERNAL_H__
 #define __MTK_DCM_INTERNAL_H__
 
 #include <mtk_dcm_common.h>
 #include "mtk_dcm_autogen.h"
-
+#include <linux/arm-smccc.h>
 /* #define DCM_DEFAULT_ALL_OFF */
 /* #define DCM_BRINGUP */
 
@@ -27,6 +19,16 @@
 #endif
 
 /* #define CTRL_BIGCORE_DCM_IN_KERNEL */
+#ifndef mt_secure_call
+#define mtk_idle_smc_impl(p1, p2, p3, p4, p5, res) \
+  	arm_smccc_smc(p1, p2, p3, p4,\
+	p5, 0, 0, 0, &res)	
+			
+#define mt_secure_call(x1, x2, x3, x4, x5) ({\
+	struct arm_smccc_res res;\
+ 	mtk_idle_smc_impl(x1, x2, x3, x4, x5, res);\
+	res.a0; })
+#endif
 
 #define reg_read(addr)	__raw_readl(IOMEM(addr))
 #define reg_write(addr, val)	mt_reg_sync_writel((val), ((void *)addr))

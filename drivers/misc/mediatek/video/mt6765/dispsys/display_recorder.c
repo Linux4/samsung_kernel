@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/delay.h>
@@ -20,7 +12,6 @@
 #include <linux/mutex.h>
 #include <linux/string.h>
 #include <linux/printk.h>
-#include <linux/sched/clock.h>
 #include <stdarg.h>
 #include <linux/slab.h>
 #include "ddp_mmp.h"
@@ -895,6 +886,7 @@ int dprec_logger_get_result_string_all(char *stringbuf, int strlen)
 	return n;
 }
 
+
 int dprec_logger_get_result_value(enum DPREC_LOGGER_ENUM source,
 	struct fpsEx *fps)
 {
@@ -1204,6 +1196,11 @@ void init_log_buffer(void)
 	int i, buf_size, buf_idx;
 	char *temp_buf;
 
+	if (is_buffer_init) {
+		pr_info("[DISP]%s already initialized\n", __func__);
+		return;
+	}
+
 	/*1. Allocate debug buffer. This buffer used to store the output data.*/
 	debug_buffer = kzalloc(sizeof(char) * DEBUG_BUFFER_SIZE, GFP_KERNEL);
 	if (!debug_buffer)
@@ -1290,6 +1287,10 @@ void get_disp_fence_buffer(unsigned long *addr, unsigned long *size,
 void get_disp_dbg_buffer(unsigned long *addr, unsigned long *size,
 	unsigned long *start)
 {
+	if (!is_buffer_init) {
+		init_log_buffer();
+	}
+
 	if (is_buffer_init) {
 		*addr = (unsigned long)err_buffer[0];
 		*size = (DEBUG_BUFFER_SIZE - 4096);

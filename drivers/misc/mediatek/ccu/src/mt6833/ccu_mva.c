@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/fdtable.h>
 #include "ccu_cmn.h"
@@ -113,25 +105,6 @@ int ccu_allocate_mva(uint32_t *mva, void *va,
 	if (ret) {
 		LOG_ERR("fail to config m4u port!\n");
 		return ret;
-	}
-
-	// *handle = _ccu_ion_alloc(_ccu_ion_client,
-	// ION_HEAP_MULTIMEDIA_MAP_MVA_MASK,
-	// (unsigned long)va, buffer_size, false, false);
-
-	/*i2c dma buffer is PAGE_SIZE(4096B)*/
-
-	if (!(*handle)) {
-		LOG_ERR("Fatal Error, ion_alloc for size %d failed\n", 4096);
-		return -1;
-	}
-
-	ret = _ccu_ion_get_mva(_ccu_ion_client, *handle, mva, 0);
-
-	if (ret) {
-		LOG_ERR("ccu ion_get_mva failed\n");
-		ccu_deallocate_mva(handle);
-		return -1;
 	}
 
 	return ret;

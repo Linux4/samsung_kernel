@@ -37,6 +37,8 @@ const char *isg5320a_module_name[GRIP_MAX_CNT] = {
 	"grip_sensor_sub",
 };
 
+#define NOTI_MODULE_NAME        "grip_notifier"
+
 enum registers {
 	ISG5320A_IRQSRC_REG = 0x00,
 	ISG5320A_IRQSTS_REG,
@@ -135,6 +137,9 @@ enum registers {
 #define ISG5320A_IBAS_REG         0x13
 #define ISG5320A_THD_REG          0x9C
 #define ISG5320A_TARGET_CDC_REG   0xAA
+
+#define UNKNOWN_ON  1
+#define UNKNOWN_OFF 2
 
 enum {
 	OFF = 0,

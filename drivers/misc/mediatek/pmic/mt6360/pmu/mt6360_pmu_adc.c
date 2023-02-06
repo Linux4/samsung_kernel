@@ -1,18 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- *  drivers/misc/mediatek/pmic/mt6360/mt6360_pmu_adc.c
- *  Driver for MT6360 PMU ADC part
- *
- *  Copyright (C) 2018 Mediatek Technology Inc.
- *  cy_huang <cy_huang@richtek.com>
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License version 2 as
- *  published by the Free Software Foundation.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- *  See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #include <linux/init.h>
@@ -77,7 +65,7 @@ static int mt6360_adc_get_process_val(struct mt6360_pmu_adc_info *info,
 		ret = mt6360_pmu_reg_read(info->mpi, MT6360_PMU_CHG_CTRL3);
 		if (ret < 0)
 			return ret;
-		if ((((u32)ret & 0xfc) >> 2) < 0x6)
+		if (((ret & 0xfc) >> 2) < 0x6)
 			*val *= 1900;
 		else
 			*val *= 2500;
@@ -102,12 +90,10 @@ static int mt6360_adc_read_raw(struct iio_dev *iio_dev,
 	int retry_cnt = 0, ret;
 
 	mt_dbg(&iio_dev->dev, "%s: channel [%d] s\n", __func__, chan->channel);
-	if (chan->channel < 0 || chan->channel >= MAX_CHANNEL)
-		return -EINVAL;
 	mutex_lock(&mpai->adc_lock);
 	/* select preferred channel that we want */
 	ret = mt6360_pmu_reg_update_bits(mpai->mpi, MT6360_PMU_ADC_RPT_1,
-					 0xf0, (u8)chan->channel << 4);
+					 0xf0, chan->channel << 4);
 	if (ret < 0)
 		goto err_adc_init;
 	/* enable adc channel we want and adc_en */
@@ -184,7 +170,6 @@ err_adc_init:
 
 static const struct iio_info mt6360_adc_iio_info = {
 	.read_raw = mt6360_adc_read_raw,
-	.driver_module = THIS_MODULE,
 };
 
 #define MT6360_ADC_CHAN(idx, _type) {				\
@@ -219,7 +204,7 @@ static const struct iio_chan_spec mt6360_adc_channels[] = {
 	IIO_CHAN_SOFT_TIMESTAMP(MAX_CHANNEL),
 };
 
-static irqreturn_t mt6360_pmu_bat_ovp_adc_evt_handler(int irq, void *const data)
+static irqreturn_t mt6360_pmu_bat_ovp_adc_evt_handler(int irq, void *data)
 {
 	struct mt6360_pmu_adc_info *mpai = iio_priv(data);
 
@@ -235,7 +220,7 @@ static irqreturn_t mt6360_pmu_adc_wakeup_evt_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t mt6360_pmu_adc_donei_handler(int irq, void *const data)
+static irqreturn_t mt6360_pmu_adc_donei_handler(int irq, void *data)
 {
 	struct mt6360_pmu_adc_info *mpai = iio_priv(data);
 
@@ -252,7 +237,7 @@ static struct mt6360_pmu_irq_desc mt6360_pmu_adc_irq_desc[] = {
 
 static void mt6360_pmu_adc_irq_enable(const char *name, int en)
 {
-	struct mt6360_pmu_irq_desc *irq_desc = mt6360_pmu_adc_irq_desc;
+	struct mt6360_pmu_irq_desc *irq_desc;
 	int i = 0;
 
 	if (unlikely(!name))
@@ -273,7 +258,7 @@ static void mt6360_pmu_adc_irq_enable(const char *name, int en)
 
 static void mt6360_pmu_adc_irq_register(struct platform_device *pdev)
 {
-	struct mt6360_pmu_irq_desc *irq_desc = mt6360_pmu_adc_irq_desc;
+	struct mt6360_pmu_irq_desc *irq_desc;
 	int i, ret;
 
 	for (i = 0; i < ARRAY_SIZE(mt6360_pmu_adc_irq_desc); i++) {
@@ -321,13 +306,8 @@ static int mt6360_adc_scan_task_threadfn(void *data)
 		}
 		if (kthread_should_stop())
 			break;
-#if 1 /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)) */
 		iio_push_to_buffers_with_timestamp(indio_dev, channel_vals,
 						   iio_get_time_ns(indio_dev));
-#else
-		iio_push_to_buffers_with_timestamp(indio_dev, channel_vals,
-						   iio_get_time_ns());
-#endif
 	}
 	dev_dbg(mpai->dev, "%s --\n", __func__);
 	return 0;
@@ -369,7 +349,7 @@ static const struct iio_buffer_setup_ops mt6360_adc_iio_setup_ops = {
 static int mt6360_adc_iio_device_register(struct iio_dev *indio_dev)
 {
 	struct mt6360_pmu_adc_info *mpai = iio_priv(indio_dev);
-	struct iio_buffer *buffer = NULL;
+	struct iio_buffer *buffer;
 	int ret;
 
 	dev_dbg(mpai->dev, "%s ++\n", __func__);
@@ -447,8 +427,8 @@ static int mt6360_adc_parse_dt_data(struct device *dev,
 static int mt6360_pmu_adc_probe(struct platform_device *pdev)
 {
 	struct mt6360_adc_platform_data *pdata = dev_get_platdata(&pdev->dev);
-	struct mt6360_pmu_adc_info *mpai = NULL;
-	struct iio_dev *indio_dev = NULL;
+	struct mt6360_pmu_adc_info *mpai;
+	struct iio_dev *indio_dev;
 	bool use_dt = pdev->dev.of_node;
 	int ret;
 

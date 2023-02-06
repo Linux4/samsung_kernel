@@ -363,8 +363,13 @@
 &smd {
 	mtk_charger: mtk-charger {
 		compatible = "samsung,mtk-charger";
-		charger,vbus_min_charger_voltage = <4500000>;
-		charger,vbus_normal_mivr_voltage = <4500000>;
+#if defined(CONFIG_SEC_FACTORY)
+		charger,vbus_min_charger_voltage = <4200000>;
+		charger,vbus_normal_mivr_voltage = <4200000>;
+#else
+		charger,vbus_min_charger_voltage = <4400000>;
+		charger,vbus_normal_mivr_voltage = <4400000>;
+#endif
 		charger,gpio_ilim = <&pio 140 0x0>;
 		charger,gpio_chgenb = <&pio 135 0x0>;
 		charger,max_icl = <3250>;
@@ -3889,29 +3894,24 @@ g_FG_PSEUDO100 =
 		compatible = "samsung,sec_abc";
 		status = "okay";
 		abc_spec_type1 {
-			module_list = "gpu", "gpu_qc", "gpu_qc", "camera", "camera";
-			name_list = "gpu_fault", "gpu_fault", "gpu_page_fault", "mipi_overflow", "i2c_fail";
-			spec_cnt_list = <1>, <1>, <1>, <2>, <2>;
+			module_list = "gpu", "gpu_qc", "gpu_qc", "camera", "camera", "vib";
+			name_list = "gpu_fault", "gpu_fault", "gpu_page_fault", "mipi_overflow", "i2c_fail", "int_gnd_short";
 #ifndef CONFIG_SEC_FACTORY
-			th_cnt_list0 = <20>, <2>, <20>, <1>, <1>;
-			th_time_list0 = <1200>, <1200>, <1200>, <0>, <0>;
-			th_cnt_list1 = <20>, <2>, <20>, <3>, <2>;
-			th_time_list1 = <1200>, <1200>, <1200>, <0>, <0>;
+			threshold_cnt = <20>, <2>, <20>, <1>, <1>, <25>;
+			threshold_time = <1200>, <1200>, <1200>, <0>, <0>, <5>;
 #else
-			th_cnt_list0 = <20>, <2>, <20>, <1>, <1>;
-			th_time_list0 = <1200>, <1200>, <1200>, <0>, <0>;
-			th_cnt_list1 = <20>, <2>, <20>, <3>, <2>;
-			th_time_list1 = <1200>, <1200>, <1200>, <0>, <0>;
+			threshold_cnt = <20>, <2>, <20>, <1>, <1>, <25>;
+			threshold_time = <1200>, <1200>, <1200>, <0>, <0>, <5>;
 #endif
 		};
 	};
 };
 
-/* #include "../ap_mtk_mt6877.dtsi" */               /* From ap_mtk_mt6877.py */
+/* #include "../ap_mtk_mt6877_T.dtsi" */             /* From ap_mtk_mt6877_T.py */
 #include <dt-bindings/clock/mt6877-clk.h>
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6877/ap_mtk_mt6877.m53x_eur.00.dtsi */
-#include "../../mediatek/k6877v1_64_titan_syberian_tiger/Board_00.dts"
-#include "../../mediatek/k6877v1_64_titan_syberian_tiger/gpio_00.dtsi"
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6877/ap_mtk_mt6877_T.m53x_eur.00.dtsi */
+#include "../../mediatek/k6877v1_64_titan_syberian_tiger_k419/Board_00.dts"
+#include "../../mediatek/k6877v1_64_titan_syberian_tiger_k419/gpio_00.dtsi"
 
 /* #include "../abc_common.dtsi" */                  /* From abc_common.py */
 &smd {
@@ -3983,6 +3983,125 @@ g_FG_PSEUDO100 =
 		compatible = "siliconmitus,sm5451";
 		reg = <0x63>;
 	};
+};
+
+/* #include "../sec_thermistor-2.dtsi" */            /* From sec_thermistor.py */
+/ {
+	fragment@smd {
+		target-path = "/";
+		__overlay__ {
+			samsung_mobile_device {
+				sec_cp_thermistor: sec_thermistor@2 {
+					compatible = "samsung,sec-thermistor";
+					status = "okay";
+					thermistor_name = "sec-cp-thermistor";
+					id = <2>;
+
+					io-channels = SEC_ADC(auxadc,2);
+					io-channel-names = "cp_therm";
+					io-channel-ranges;
+				};
+			};
+		};
+	};
+};
+
+/* #include "../sec_thermistor.dtsi" */              /* From sec_thermistor.py */
+/ {
+	fragment@smd {
+		target-path = "/";
+		__overlay__ {
+			samsung_mobile_device {
+				sec_ap_thermistor: sec_thermistor@0 {
+					compatible = "samsung,sec-thermistor";
+					status = "okay";
+					thermistor_name = "sec-ap-thermistor";
+					id = <0>;
+
+					io-channels = SEC_ADC(auxadc,0);
+					io-channel-names = "ap_therm";
+					io-channel-ranges;
+				};
+			};
+		};
+	};
+};
+
+/* #include "../sec_thermistor-1.dtsi" */            /* From sec_thermistor.py */
+/ {
+	fragment@smd {
+		target-path = "/";
+		__overlay__ {
+			samsung_mobile_device {
+				sec_pa_thermistor: sec_thermistor@1 {
+					compatible = "samsung,sec-thermistor";
+					status = "okay";
+					thermistor_name = "sec-pa-thermistor";
+					id = <1>;
+
+					io-channels = SEC_ADC(auxadc,1);
+					io-channel-names = "pa_therm";
+					io-channel-ranges;
+				};
+			};
+		};
+	};
+};
+
+/* #include "../sec_thermistor-3.dtsi" */            /* From sec_thermistor.py */
+/ {
+	fragment@smd {
+		target-path = "/";
+		__overlay__ {
+			samsung_mobile_device {
+				sec_wf_thermistor: sec_thermistor@3 {
+					compatible = "samsung,sec-thermistor";
+					status = "okay";
+					thermistor_name = "sec-wf-thermistor";
+					id = <3>;
+
+					io-channels = SEC_ADC(auxadc,4);
+					io-channel-names = "wf_therm";
+					io-channel-ranges;
+				};
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sec_pm/sec_thermistor/dts/sec_thermistor_mtk.m53x.dtsi */
+&sec_ap_thermistor {
+	adc_array = <81 98 121 146 177 214 258 312 379 457
+				551 684 843 1021 1214 1440 1705 1994 2259 2593
+				2919 3245 3579>;
+
+	temp_array = <900 850 800 750 700 650 600 550 500 450
+				400 350 300 250 200 150 100 50 0 (-50)
+				(-100) (-150) (-200)>;
+};
+
+&sec_pa_thermistor {
+	adc_array = <317 375 451 531 632 752 885 1033 1218 1410
+				1630 1906 2211 2492 2765 3043 3321 3579 3782 4004>;
+
+	temp_array = <900 850 800 750 700 650 600 550 500 450
+				400 350 300 250 200 150 100 50 0 (-50)>;
+};
+
+&sec_cp_thermistor {
+	adc_array = <318 376 451 531 632 752 885 1034 1217 1410
+				1628 1905 2215 2490 2763 3043 3319 3578 3782 4004>;
+
+	temp_array = <900 850 800 750 700 650 600 550 500 450
+				400 350 300 250 200 150 100 50 0 (-50)>;
+};
+
+&sec_wf_thermistor {
+	adc_array = <314 372 448 528 629 748 881 1029 1212 1405
+				1623 1899 2207 2484 2757 3037 3314 3573 3777 4000>;
+
+	temp_array = <900 850 800 750 700 650 600 550 500 450
+				400 350 300 250 200 150 100 50 0 (-50)>;
 };
 
 /* #include "../fingerprint_et5xx.dtsi" */           /* From fingerprint_et5xx.py */
@@ -4155,129 +4274,6 @@ g_FG_PSEUDO100 =
 	};
 };
 
-/* #include "../sec_thermistor-2.dtsi" */            /* From sec_thermistor.py */
-/ {
-	fragment@smd {
-		target-path = "/";
-		__overlay__ {
-			samsung_mobile_device {
-				sec_pa_thermistor: sec_thermistor@2 {
-					compatible = "samsung,sec-thermistor";
-					status = "okay";
-					thermistor_name = "sec-pa-thermistor";
-					id = <2>;
-
-					io-channels = SEC_ADC(auxadc,1);
-					io-channel-names = "pa_therm";
-					io-channel-ranges;
-				};
-			};
-		};
-	};
-};
-
-/* #include "../sec_thermistor.dtsi" */              /* From sec_thermistor.py */
-/ {
-	fragment@smd {
-		target-path = "/";
-		__overlay__ {
-			samsung_mobile_device {
-				sec_wf_thermistor: sec_thermistor@0 {
-					compatible = "samsung,sec-thermistor";
-					status = "okay";
-					thermistor_name = "sec-wf-thermistor";
-					id = <0>;
-
-					io-channels = SEC_ADC(auxadc,4);
-					io-channel-names = "wf_therm";
-					io-channel-ranges;
-				};
-			};
-		};
-	};
-};
-
-/* #include "../sec_thermistor-1.dtsi" */            /* From sec_thermistor.py */
-/ {
-	fragment@smd {
-		target-path = "/";
-		__overlay__ {
-			samsung_mobile_device {
-				sec_cp_thermistor: sec_thermistor@1 {
-					compatible = "samsung,sec-thermistor";
-					status = "okay";
-					thermistor_name = "sec-cp-thermistor";
-					id = <1>;
-
-					io-channels = SEC_ADC(auxadc,2);
-					io-channel-names = "cp_therm";
-					io-channel-ranges;
-				};
-			};
-		};
-	};
-};
-
-/* #include "../sec_thermistor-3.dtsi" */            /* From sec_thermistor.py */
-/ {
-	fragment@smd {
-		target-path = "/";
-		__overlay__ {
-			samsung_mobile_device {
-				sec_ap_thermistor: sec_thermistor@3 {
-					compatible = "samsung,sec-thermistor";
-					status = "okay";
-					thermistor_name = "sec-ap-thermistor";
-					id = <3>;
-
-					io-channels = SEC_ADC(auxadc,0);
-					io-channel-names = "ap_therm";
-					io-channel-ranges;
-				};
-			};
-		};
-	};
-};
-
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/hwmon/sec_thermistor/sec_thermistor_mtk.m53x.dtsi */
-&sec_ap_thermistor {
-	use_iio_processed;
-	adc_array = <81 98 121 146 177 214 258 312 379 457
-				551 684 843 1021 1214 1440 1705 1994 2259 2593
-				2919 3245 3579>;
-
-	temp_array = <900 850 800 750 700 650 600 550 500 450
-				400 350 300 250 200 150 100 50 0 (-50)
-				(-100) (-150) (-200)>;
-};
-
-&sec_pa_thermistor {
-	use_iio_processed;
-	adc_array = <317 375 451 531 632 752 885 1033 1218 1410
-				1630 1906 2211 2492 2765 3043 3321 3579 3782 4004>;
-
-	temp_array = <900 850 800 750 700 650 600 550 500 450
-				400 350 300 250 200 150 100 50 0 (-50)>;
-};
-
-&sec_cp_thermistor {
-	use_iio_processed;
-	adc_array = <318 376 451 531 632 752 885 1034 1217 1410
-				1628 1905 2215 2490 2763 3043 3319 3578 3782 4004>;
-
-	temp_array = <900 850 800 750 700 650 600 550 500 450
-				400 350 300 250 200 150 100 50 0 (-50)>;
-};
-
-&sec_wf_thermistor {
-	use_iio_processed;
-	adc_array = <314 372 448 528 629 748 881 1029 1212 1405
-				1623 1899 2207 2484 2757 3037 3314 3573 3777 4000>;
-
-	temp_array = <900 850 800 750 700 650 600 550 500 450
-				400 350 300 250 200 150 100 50 0 (-50)>;
-};
-
 /* #include "../pmic_MT6360.dtsi" */                 /* From pmic_MT6360.py */
 #if 1800000 && 1800000
 &mt_pmic_vfp_ldo_reg {
@@ -4312,6 +4308,15 @@ g_FG_PSEUDO100 =
     regulator-max-microvolt = <0>;
     
      
+};
+#endif
+
+#if 0 && 0
+&mt_pmic_vdram2_ldo_reg {
+    regulator-min-microvolt = <${mt_pmic_vdram2_ldo7_ldo_reg_Vmin}>;
+    regulator-max-microvolt = <${mt_pmic_vdram2_ldo7_ldo_reg_Vmax}>;
+    ${mt_pmic_vdram2_ldo7_ldo_reg_basic_properties}
+    ${mt_pmic_vdram2_ldo7_ldo_reg_opt_properties}
 };
 #endif
 /* #include "../sensors_isg6320.dtsi" */             /* From sensors_isg6320.py */
@@ -5080,12 +5085,19 @@ g_FG_PSEUDO100 =
 #include <dt-bindings/pinctrl/mt6877-pinfunc.h>
 &pio {
 	nfc_rst: nfc_rst {
-		 pins_cmd_dat {
-			 pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,107), 0)>;
-			 output-low;
-			 bias-disable;
-		 };
-	 };
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,107), 0)>;
+			output-low;
+			bias-disable;
+		};
+	};
+	nfc_rst_nc: nfc_rst_nc {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,107), 0)>;
+			output-low;
+			bias-pull-down;
+		};
+	};
 };
 &pio {
 	nfc_clk_req: nfc_clk_req {
@@ -5099,7 +5111,7 @@ g_FG_PSEUDO100 =
 		pins_cmd_dat{
 			pinmux =  <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,13), 0)>;
 			input-enable;
-			bias-disable;
+			bias-pull-down;
 		};
 	};
 };
@@ -5189,7 +5201,7 @@ g_FG_PSEUDO100 =
 			&nfc_check
 #endif
 			>;
-		pinctrl-1 = <&clk_req_nc &irq_nc &nfc_rst>;
+		pinctrl-1 = <&clk_req_nc &irq_nc &nfc_rst_nc>;
 		pinctrl-2 = <&nfc_i2c_on>;
 		pinctrl-3 = <&nfc_i2c_off>;
 
@@ -5211,7 +5223,10 @@ g_FG_PSEUDO100 =
 						compatible = "samsung,dc_vibrator";
 						status = "okay";
 						dc_vib,motor_type = "COINDC";
-						dc_vib,regulator_name = "vibr";
+#if 1
+						dc_vib,regulator_name = "dc_vib";
+						dc_vib-supply = <&mt_pmic_vibr_ldo_reg>;
+#endif
 					};
 				};
 			};
@@ -5325,6 +5340,14 @@ g_FG_PSEUDO100 =
 #if 0
 				mag-check-nfc = <SEC_GPIO_REF(${gpio_nfc_check}) 0>;
 #endif
+
+#if 0
+				pogo-int = <SEC_GPIO_REF(${gpio_pogo_int}) 0>;
+#endif
+
+#if 0
+				sensor-ldo-en = <SEC_GPIO_REF(${gpio_sensor_ldo_en}) 0>;
+#endif
 			};
 		};
 	};
@@ -5380,14 +5403,14 @@ g_FG_PSEUDO100 =
 		battery,wire_cool2_cool1_thresh = <150>;
 		battery,wire_cool3_cool2_thresh = <50>;
 		battery,wire_cold_cool3_thresh = <0>;
-		battery,wireless_warm_overheat_thresh = <450>;
+		battery,wireless_warm_overheat_thresh = <500>;
 		battery,wireless_normal_warm_thresh = <420>;
 		battery,wireless_cool1_normal_thresh = <180>;
 		battery,wireless_cool2_cool1_thresh = <150>;
 		battery,wireless_cool3_cool2_thresh = <50>;
 		battery,wireless_cold_cool3_thresh = <0>;
-		battery,tx_high_threshold = <450>;
-		battery,tx_high_recovery = <400>;
+		battery,tx_high_threshold = <500>;
+		battery,tx_high_recovery = <450>;
 		battery,tx_low_threshold = <0>;
 		battery,tx_low_recovery = <50>;
 
@@ -5421,12 +5444,10 @@ g_FG_PSEUDO100 =
 		battery,wpc_temp_control_source = <TEMP_CONTROL_SOURCE_BAT_THM>;
 		battery,wpc_high_temp = <400>;
 		battery,wpc_high_temp_recovery = <380>;
-		battery,wpc_input_limit_current = <600>;
+		battery,wpc_input_limit_current = <800>;
 		battery,wpc_charging_limit_current = <1000>;
 		battery,wpc_temp_lcd_on_control_source = <TEMP_CONTROL_SOURCE_BAT_THM>;
-		battery,wpc_lcd_on_high_temp = <400>;
-		battery,wpc_lcd_on_high_temp_rec = <380>;
-		battery,wpc_lcd_on_input_limit_current = <450>;
+		battery,wpc_lcd_on_input_limit_current = <800>;
 
 		battery,wpc_store_high_temp = <360>;
 		battery,wpc_store_high_temp_recovery = <340>;
@@ -5445,6 +5466,14 @@ g_FG_PSEUDO100 =
 		battery,mix_high_temp = <420>;
 		battery,mix_high_chg_temp = <500>;
 		battery,mix_high_temp_recovery = <390>;
+
+		/* battery,enable_mix_v2; */
+		/* if you want to use mix_v2 concept, add "battery,enable_mix_v2;" */
+		battery,mix_v2_lrp_recov = <460>;
+		battery,mix_v2_lrp_cond = <480>;
+		battery,mix_v2_bat_cond = <480>;
+		battery,mix_v2_chg_cond = <0>;	/* 0 means no use chg thm condition */
+		battery,mix_v2_dchg_cond = <0>; /* 0 means no use dchg thm condition */
 
 		battery,full_condition_type = <(SEC_BATTERY_FULL_CONDITION_NOTIMEFULL | SEC_BATTERY_FULL_CONDITION_VCELL)>;
 		battery,full_condition_soc = <93>;
@@ -5913,6 +5942,8 @@ g_FG_PSEUDO100 =
 		battery,cisd_max_voltage_thr = <5000>; /* batttery ovp dettection voltage */
 
 		battery,inbat_ocv_type =  <SEC_BATTERY_OCV_VOLT_FROM_PMIC>;
+		battery,slowcharging_usb_bootcomplete;
+		battery,dynamic_cv_factor;
 
 		battery,ttf_hv_charge_current = <2610>;
 		battery,ttf_dc25_charge_current = <3800>;

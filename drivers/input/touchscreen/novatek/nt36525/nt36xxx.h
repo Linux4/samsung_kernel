@@ -25,6 +25,7 @@
 #include <linux/uaccess.h>
 #include <linux/input/sec_cmd.h>
 #include <linux/regulator/consumer.h>
+#include <linux/delay.h>
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
@@ -41,15 +42,9 @@
 #include <linux/platform_data/spi-mt65xx.h>
 #endif
 
-#ifdef CONFIG_SAMSUNG_TUI
-#include <linux/input/stui_inf.h>
-#endif
-
 #ifdef CONFIG_BATTERY_SAMSUNG
 extern unsigned int lpcharge;
 #endif
-
-extern struct device *ptsp;
 
 #define NVT_DEBUG 1
 
@@ -173,7 +168,6 @@ struct nvt_ts_platdata {
 	bool enable_settings_aot;
 	bool enable_sysinput_enabled;
 	bool prox_lp_scan_enabled;
-	bool support_spay;
 	const char *firmware_name;
 	const char *firmware_name_mp;
 	u32 open_test_spec[2];
@@ -184,14 +178,11 @@ struct nvt_ts_platdata {
 	const char *regulator_lcd_vdd;
 	const char *regulator_lcd_reset;
 	const char *regulator_lcd_bl;
-
-	u32 resume_lp_delay;
 };
 
 struct nvt_ts_data {
 	struct spi_device *client;
 	struct nvt_ts_platdata *platdata;
-	struct sec_ts_plat_data *plat_data;	/* only for tui */
 	struct nvt_ts_coord coords[TOUCH_MAX_FINGER_NUM];
 	u8 touch_count;
 	struct input_dev *input_dev;
@@ -235,10 +226,9 @@ struct nvt_ts_data {
 	u8 fw_ver_bin_bar;
 	volatile int power_status;
 	u16 sec_function;
-	u8 cover_mode_restored;
 	bool isUMS;
-	u8 lowpower_mode;
-	bool ear_detect_force_enable;
+	u8 aot_enable;
+	bool lowpower_mode;
 	u32 early_resume_cnt;
 	u32 resume_cnt;
 #ifdef CONFIG_MTK_SPI
@@ -266,8 +256,6 @@ struct nvt_ts_data {
 	struct regulator *regulator_lcd_bl_en;
 
 	u8 noise_mode;
-
-	unsigned int scrub_id;
 };
 
 #if NVT_TOUCH_PROC
@@ -307,11 +295,10 @@ enum {
 	POWER_OFF_STATUS = 0,
 	POWER_ON_STATUS,
 	LP_MODE_STATUS,
-	LP_MODE_EXIT
+	LP_MODE_EXIT,
 };
 
 enum {
-	SERVICE_SHUTDOWN = -1,
 	LCD_NONE = 0,
 	LCD_OFF,
 	LCD_ON,
@@ -355,12 +342,8 @@ enum {
 #define FREQ_HOP_ENABLE		0x65
 #define HANDSHAKING_HOST_READY	0xBB
 
-#define CHARGER_PLUG_OFF		0x51
-#define CHARGER_PLUG_AC			0x53
 #define GLOVE_ENTER				0xB1
 #define GLOVE_LEAVE				0xB2
-#define HOLSTER_ENTER			0xB5
-#define HOLSTER_LEAVE			0xB6
 #define EDGE_REJ_VERTICLE_MODE	0xBA
 #define EDGE_REJ_LEFT_UP_MODE	0xBB
 #define EDGE_REJ_RIGHT_UP_MODE	0xBC
@@ -400,10 +383,6 @@ typedef enum {
 	GAME_MODE_ENABLE = 1,
 } GAME_MODE;
 
-typedef enum {
-	SPONGE_EVENT_TYPE_SPAY			= 0x04,
-} SPONGE_EVENT_TYPE;
-
 #define BUS_TRANSFER_LENGTH  256
 
 #define XDATA_SECTOR_SIZE	256
@@ -428,16 +407,11 @@ typedef enum {
 #define CHECK_ONLY_OPEN_TEST	1
 #define CHECK_ONLY_SHORT_TEST	2
 
-#define SEC_TS_MODE_SWIPE		(1 << 1)
-#define SEC_TS_MODE_DOUBLETAP_TO_WAKEUP	(1 << 5)
-
 typedef enum {
 	GLOVE = 1,
-	CHARGER,
 #ifdef PROXIMITY_FUNCTION
 	PROXIMITY = 3,
 #endif
-	HOLSTER = 4,
 	EDGE_REJECT_L = 6,
 	EDGE_REJECT_H,
 	EDGE_PIXEL,
@@ -451,11 +425,9 @@ typedef enum {
 
 typedef enum {
 	GLOVE_MASK		= 0x0002,	// bit 1
-	CHARGER_MASK		= 0x0004,	// bit 2
 #ifdef PROXIMITY_FUNCTION
 	PROXIMITY_MASK	= 0x0008,	// bit 3
 #endif
-	HOLSTER_MASK = 0x0010,	//bit 4
 	EDGE_REJECT_MASK	= 0x00C0,	// bit [6|7]
 	EDGE_PIXEL_MASK		= 0x0100,	// bit 8
 	HOLE_PIXEL_MASK		= 0x0200,	// bit 9
@@ -465,9 +437,9 @@ typedef enum {
 	NOISE_MASK			= 0x2000,	// bit 13
 	SENSITIVITY_MASK	= 0x4000,	// bit 14
 #ifdef PROXIMITY_FUNCTION
-	FUNCT_ALL_MASK		= 0x7FDE,
+	FUNCT_ALL_MASK		= 0x7FCA,
 #else
-	FUNCT_ALL_MASK		= 0x7FD6,
+	FUNCT_ALL_MASK		= 0x7FC2,
 #endif
 } FUNCT_MASK;
 
@@ -526,12 +498,8 @@ int nvt_ts_mode_switch_extened(struct nvt_ts_data *ts, u8 *cmd, u8 len, bool pri
 extern void nvt_esd_check_enable(uint8_t enable);
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
 
-extern int smcdsd_fb_register_client(struct notifier_block *nb);
-extern int smcdsd_fb_unregister_client(struct notifier_block *nb);
-
 void nvt_ts_early_resume(struct device *dev);
 int32_t nvt_ts_resume(struct device *dev);
 int32_t nvt_ts_suspend(struct device *dev);
-void nvt_ts_shutdown(struct spi_device *client);
 
 #endif /* _LINUX_NVT_TOUCH_H */

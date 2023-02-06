@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2021 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2022 Samsung Electronics Inc.
  */
 
 /*****************************************************************************
@@ -61,9 +53,9 @@
 
 #define MULTI_WRITE                                   (1)
 #if MULTI_WRITE
-static const int I2C_BUFFER_LEN = 1020;
+#define I2C_BUFFER_LEN 1020
 #else
-static const int I2C_BUFFER_LEN = 4;
+#define I2C_BUFFER_LEN 4
 #endif
 
 #define INDIRECT_BURST                                (0)
@@ -229,7 +221,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.ae_sensor_gain_delay_frame = 0,
 	.ae_ispGain_delay_frame = 2,
 
-	.frame_time_delay_frame = 1,
+	.frame_time_delay_frame = 2, //chagned value by MTK guide(1->2)
 	.ihdr_support = 0,
 	.temperature_support = 0,/* 1, support; 0,not support */
 	.ihdr_le_firstline = 0,
@@ -270,7 +262,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_4CELL_Gr,
 	.mclk = 26,
 	.mipi_lane_num = SENSOR_MIPI_4_LANE,
-	.i2c_speed = 400,
+	.i2c_speed = 1000,
 
 	/* record sensor support all write id addr,
 	 * only supprt 4 must end with 0xff
@@ -312,19 +304,31 @@ static struct SENSOR_VC_INFO_STRUCT SENSOR_VC_INFO[4] = {
 	{0x02, 0x0a, 0x00, 0x08, 0x40, 0x00,
 	 0x00, 0x2b, 0x0ff0, 0x0bf4,/*VC0, 4080x3060 pixel*/
 	 0x00, 0x00, 0x0000, 0x0000,/*VC1*/
+#if defined(CONFIG_CAMERA_AAV_V13VE)
+	 0x01, 0x2b, 0x027b, 0x0bf0,/*VC2, 508x3056 pixel -> 635x3056 byte*/
+#else
 	 0x01, 0x2b, 0x01fc, 0x0bf0,/*VC2, 508x3056 pixel -> 635x3056 byte*/
+#endif
 	 0x00, 0x00, 0x0000, 0x0000},/*VC3*/
 	/* cap = pre mode setting */
 	{0x02, 0x0a, 0x00, 0x08, 0x40, 0x00,
 	 0x00, 0x2b, 0x0ff0, 0x0bf4,/*VC0, 4080x3060 pixel*/
 	 0x00, 0x00, 0x0000, 0x0000,/*VC1*/
+#if defined(CONFIG_CAMERA_AAV_V13VE)
+	 0x01, 0x2b, 0x027b, 0x0bf0,/*VC2, 508x3056 pixel -> 635x3056 byte*/
+#else
 	 0x01, 0x2b, 0x01fc, 0x0bf0,/*VC2, 508x3056 pixel -> 635x3056 byte*/
+#endif
 	 0x00, 0x00, 0x0000, 0x0000},/*VC3*/
 	/* Video mode setting */
 	{0x02, 0x0a, 0x00, 0x08, 0x40, 0x00,
 	 0x00, 0x2b, 0x0ff0, 0x08f8,/*VC0, 4080x2296 pixel*/
 	 0x00, 0x00, 0x0000, 0x0000,/*VC1*/
+#if defined(CONFIG_CAMERA_AAV_V13VE)
+	 0x01, 0x2b, 0x027b, 0x08f0,/*VC2, 508x2288 pixel -> 635x2288 byte*/
+#else
 	 0x01, 0x2b, 0x01fc, 0x08f0,/*VC2, 508x2288 pixel -> 635x2288 byte*/
+#endif
 	 0x00, 0x00, 0x0000, 0x0000},/*VC3*/
 	/* hs mode setting */
 	{0x01, 0x0a, 0x00, 0x08, 0x40, 0x00,
@@ -892,13 +896,14 @@ static void set_mode_setfile(enum IMGSENSOR_MODE mode)
 		LOG_ERR("invalid mode: %d\n", mode);
 		return;
 	}
-
+	LOG_INF(" - E");
 	LOG_INF("mode: %s\n", s5kjn1_setfile_info[mode].name);
 
 	table_write_cmos_sensor(s5kjn1_setfile_info[mode].setfile, s5kjn1_setfile_info[mode].size);
+	LOG_INF(" - X");
 }
 
-
+/** JN1_EVT0.0_Setfile_20220302_ver0.13 **/
 #if INDIRECT_BURST
 static kal_uint16 addr_data_burst_init_jn1[] = {
 	0x6F12,
@@ -1057,7 +1062,6 @@ static kal_uint16 addr_data_global_jn1[] = {
 	0x2042, 0x001A,
 	0x2148, 0x0001,
 	0x21E4, 0x0004,
-	0x21EC, 0x0000,
 	0x2210, 0x0134,
 	0x222E, 0x0100,
 	0x3570, 0x0000,
@@ -1077,9 +1081,6 @@ static kal_uint16 addr_data_global_jn1[] = {
 static void sensor_init(void)
 {
 	int ret = 0;
-#ifdef IMGSENSOR_HW_PARAM
-	struct cam_hw_param *hw_param = NULL;
-#endif
 
 	LOG_INF("%s", __func__);
 	ret = write_cmos_sensor(0xFCFC, 0x4000);
@@ -1107,11 +1108,8 @@ static void sensor_init(void)
 #endif
 
 #ifdef IMGSENSOR_HW_PARAM
-	if (ret != 0) {
-		imgsensor_sec_get_hw_param(&hw_param, S5KJN1_CAL_SENSOR_POSITION);
-		if (hw_param)
-			hw_param->i2c_sensor_err_cnt++;
-	}
+	if (ret != 0)
+		imgsensor_increase_hw_param_err_cnt(S5KJN1_CAL_SENSOR_POSITION);
 #endif
 }
 
@@ -1190,11 +1188,12 @@ static void sensor_HW_GGC_write(void)
 }
 #endif
 
+#define XTC_NUM 4
 int sensor_get_XTC_CAL_data(char *reordered_xtc_cal, unsigned int buf_len)
 {
 	char *rom_cal_buf = NULL;
 	int const MAX_COUNT = 15;
-	int const XTC_NUM = 4;
+
 	enum crosstalk_cal_name const XTC_ORDER[XTC_NUM] = {
 		CROSSTALK_CAL_TETRA_XTC,
 		CROSSTALK_CAL_SENSOR_XTC,
@@ -1398,7 +1397,10 @@ static kal_uint32 open(void)
 	kal_uint8 retry = 2;
 	kal_uint16 sensor_id = 0;
 
-	LOG_INF("%s", __func__);
+	LOG_INF(" - E");
+#if defined(CONFIG_MACH_MT6833)
+	LOG_INF("used MT6833");
+#endif
 
 	/* sensor have two i2c address 0x6c 0x6d & 0x21 0x20,
 	 * we should detect the module used i2c address
@@ -1452,6 +1454,7 @@ static kal_uint32 open(void)
 	imgsensor.current_fps		= imgsensor_info.pre.max_framerate;
 	spin_unlock(&imgsensor_drv_lock);
 
+	LOG_INF(" - X");
 	return ERROR_NONE;
 }
 

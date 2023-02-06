@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -23,7 +15,6 @@
 #include <linux/irq.h>
 #include <linux/sched.h>
 #include <linux/list.h>
-#include <mt-plat/mtk_secure_api.h>
 #ifdef CONFIG_MTK_AEE_FEATURE
 #include <mt-plat/aee.h>
 #endif
@@ -44,6 +35,8 @@
 #include <linux/delay.h>
 #include <emi_bwl.h>
 #include <linux/memblock.h>
+#include <linux/arm-smccc.h>
+#include <linux/soc/mediatek/mtk_sip_svc.h> 
 static int Violation_PortID = MASTER_ALL;
 
 #define EMI_MPU_TEST	0
@@ -53,6 +46,10 @@ char mpu_test_buffer[0x20000] __aligned(PAGE_SIZE);
 
 #define MAX_EMI_MPU_STORE_CMD_LEN 128
 #define AXI_VIO_MONITOR_TIME	(1 * HZ)
+
+#define DRIVER_ATTR(_name, _mode, _show, _store) \
+ struct driver_attribute driver_attr_##_name = \
+ __ATTR(_name, _mode, _show, _store)
 
 static void __iomem *CEN_EMI_BASE;
 static void __iomem *EMI_MPU_BASE;
@@ -299,19 +296,15 @@ unsigned long long end, int region, unsigned int access_permission)
 	unsigned int start_align;
 	unsigned int end_align;
 	unsigned long flags;
-
+	struct arm_smccc_res res;
+	
 	access_permission = access_permission & 0x4FFFFFF;
 	access_permission = access_permission | ((region & 0x1F)<<27);
 	start_align = (unsigned int) (start >> 16);
 	end_align = (unsigned int) (end >> 16);
 
-	emi_mpu_smc_read(EMI_MPU_DBG); /* dummy read for SMC call workaround */
 	spin_lock_irqsave(&emi_mpu_lock, flags);
-#ifndef CONFIG_ARM64
-	emi_mpu_smc_set(start_align, end_align, access_permission, access_permission);
-#else
-	emi_mpu_smc_set(start_align, end_align, access_permission);
-#endif
+	arm_smccc_smc(MTK_SIP_KERNEL_EMIMPU_SET, start_align,end_align, access_permission, 0, 0, 0, 0, &res);
 	spin_unlock_irqrestore(&emi_mpu_lock, flags);
 
 	return ret;

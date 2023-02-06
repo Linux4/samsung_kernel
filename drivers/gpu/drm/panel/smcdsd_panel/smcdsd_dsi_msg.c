@@ -27,7 +27,7 @@ void dump_dsi_msg_tx(unsigned long data0)
 		dsi_write_data_dump(mtk_msg->type[i], (unsigned long)mtk_msg->tx_buf[i], mtk_msg->tx_len[i]);
 }
 
-int send_msg_segment(void *msg, int len)
+static int send_msg_segment(void *msg, int len)
 {
 	struct msg_segment **segment = (struct msg_segment **)msg;
 	struct mtk_ddic_dsi_msg mtk_buf = {0, };
@@ -107,75 +107,23 @@ int send_msg_package(void *src, int len, void *dst)
 			segment[total++] = &((struct msg_segment *)package[i]->buf)[k];
 	}
 
+	BUG_ON(total >= MAX_SEGMENT_NUM);
+
 	return send_msg_segment(segment, total);
-}
-
-int append_msg_segment(struct mipi_dsi_msg *src, struct mtk_ddic_dsi_msg *dst)
-{
-	struct msg_segment segment = {0, };
-	struct mtk_ddic_dsi_msg *mtk_msg = dst;
-	int pos, type;
-	int tx_cmd_num = mtk_msg->tx_cmd_num;
-
-	if (tx_cmd_num >= MAX_TRANSFER_NUM) {
-		dbg_info("%s: NUM(%d) MAX(%d)\n", __func__, tx_cmd_num, MAX_TRANSFER_NUM);
-		return tx_cmd_num;
-	}
-
-	segment.dsi_msg = *src;
-
-	pos = mtk_msg->tx_cmd_num;
-
-	type = segment.dsi_msg.type;
-	if (!type) {
-		if (segment.dsi_msg.tx_len == 1)
-			type = MIPI_DSI_DCS_SHORT_WRITE;
-		else if (segment.dsi_msg.tx_len == 2)
-			type = MIPI_DSI_DCS_SHORT_WRITE_PARAM;
-		else
-			type = MIPI_DSI_DCS_LONG_WRITE;
-	}
-
-	segment.dsi_msg.type = type;
-
-	mtk_msg->tx_buf[pos] = segment.dsi_msg.tx_buf;
-	mtk_msg->tx_len[pos] = segment.dsi_msg.tx_len;
-	mtk_msg->type[pos] = segment.dsi_msg.type;
-	mtk_msg->flags = segment.dsi_msg.flags;
-
-	mtk_msg->tx_cmd_num++;
-
-	return mtk_msg->tx_cmd_num;
-}
-
-int append_msg(struct mipi_dsi_msg *src, struct mtk_ddic_dsi_msg *dst)
-{
-	return append_msg_segment(src, dst);
-}
-
-int append_cmd(unsigned char *cmd, int len, struct mtk_ddic_dsi_msg *dst)
-{
-	struct mipi_dsi_msg src = {0, };
-
-	src.tx_buf = (void *)cmd;
-	src.tx_len = len;
-
-	return append_msg(&src, dst);
 }
 
 int send_cmd(unsigned char *cmd, int len)
 {
-	struct mtk_ddic_dsi_msg mtk_buf = {0, };
-	struct mtk_ddic_dsi_msg *mtk_msg = &mtk_buf;
-	int tx_cmd_num = mtk_msg->tx_cmd_num;
-	int ret;
+	struct msg_segment segment = {0, };
+	struct msg_segment *segments[1] = { &segment };
 
-	ret = append_cmd(cmd, len, mtk_msg);
-	if (tx_cmd_num == ret) {
-		return -EINVAL;
-	}
+	segment.dsi_msg.tx_buf = (void *)cmd;
+	segment.dsi_msg.tx_len = len;
 
-	return smcdsd_dsi_msg_tx(NULL, (unsigned long)mtk_msg, 0);
+	segment.msg_name = "send_cmd";
+	segment.modes = MSG_MODE_SEND_MASK;
+
+	return send_msg_segment(&segments, 1);
 }
 
 void dump_msg_package(struct msg_package *package_list_for_dump, int max)

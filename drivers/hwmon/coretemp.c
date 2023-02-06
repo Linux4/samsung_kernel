@@ -246,7 +246,8 @@ static int adjust_tjmax(struct cpuinfo_x86 *c, u32 id, struct device *dev)
 	int err;
 	u32 eax, edx;
 	int i;
-	struct pci_dev *host_bridge = pci_get_bus_and_slot(0, PCI_DEVFN(0, 0));
+	u16 devfn = PCI_DEVFN(0, 0);
+	struct pci_dev *host_bridge = pci_get_domain_bus_and_slot(0, 0, devfn);
 
 	/*
 	 * Explicit tjmax table entries override heuristics.
@@ -741,7 +742,7 @@ static int __init coretemp_init(void)
 		return -ENODEV;
 
 	max_packages = topology_max_packages();
-	pkg_devices = kzalloc(max_packages * sizeof(struct platform_device *),
+	pkg_devices = kcalloc(max_packages, sizeof(struct platform_device *),
 			      GFP_KERNEL);
 	if (!pkg_devices)
 		return -ENOMEM;

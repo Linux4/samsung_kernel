@@ -52,7 +52,7 @@ struct dbg_info {
 struct rt5512_chip {
 	struct i2c_client *i2c;
 	struct device *dev;
-	struct snd_soc_codec *codec;
+	struct snd_soc_component *component;
 	struct mutex io_lock;
 	struct mutex var_lock;
 #if GENERIC_DEBUGFS
@@ -390,13 +390,13 @@ static inline int rt5512_chip_power_on(struct rt5512_chip *chip, int on_off)
 static int rt5512_codec_dac_event(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
 {
-	struct snd_soc_codec *codec = snd_soc_dapm_to_codec(w->dapm);
+	struct snd_soc_component *component = snd_soc_dapm_to_component(w->dapm);
 	int ret = 0;
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
 		/* un-mute */
-		ret = snd_soc_update_bits(codec, 0x03, 0x0002, 0x0000);
+		ret = snd_soc_component_update_bits(component, 0x03, 0x0002, 0x0000);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		break;
@@ -407,60 +407,63 @@ static int rt5512_codec_dac_event(struct snd_soc_dapm_widget *w,
 static int rt5512_codec_classd_event(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
 {
-	struct snd_soc_codec *codec = snd_soc_dapm_to_codec(w->dapm);
-	struct rt5512_chip *chip = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_dapm_to_component(w->dapm);
+	struct rt5512_chip *chip = snd_soc_component_get_drvdata(component);
 	int ret = 0;
 
-	dev_info(codec->dev, "%s, event(%d)\n", __func__, event);
+	dev_info(component->dev, "%s, event(%d)\n", __func__, event);
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
 		mdelay(11);
 		/*  charge pump disable & disable UVP */
-		ret |= snd_soc_write(codec, 0xb5, 0xf9fc);
+		ret |= snd_soc_component_write(component, 0xb5, 0xf9fc);
 		mdelay(2);
 		/* boost config to adaptive mode */
-		ret |= snd_soc_write(codec, 0x40, 0x0f5f);
+		ret |= snd_soc_component_write(component, 0x40, 0x0f5f);
 
-		ret |= snd_soc_write(codec, 0x98, 0x898c);
+		ret |= snd_soc_component_write(component, 0x98, 0x898c);
 
 		mdelay(2);
 		/* charge pump enable */
-		ret |= snd_soc_write(codec, 0xb5, 0xf9fd);
+		ret |= snd_soc_component_write(component, 0xb5, 0xf9fd);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
 		mdelay(15);
-		ret |= snd_soc_write(codec, 0x98, 0x8b8c);
+		ret |= snd_soc_component_write(component, 0x98, 0x8b8c);
 		/* UV enable */
-		ret |= snd_soc_write(codec, 0xb5, 0xfffd);
-		dev_info(codec->dev, "Amp on\n");
+		ret |= snd_soc_component_write(component, 0xb5, 0xfffd);
+		dev_info(component->dev, "Amp on\n");
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
-		dev_info(codec->dev, "amp off\n");
+		dev_info(component->dev, "amp off\n");
 		ret = richtek_spm_classdev_trigger_ampoff(&chip->spm);
 		if (ret < 0)
-			dev_err(codec->dev, "spm ampoff faled\n");
+			dev_err(component->dev, "spm ampoff faled\n");
 
 		/* enable mute */
-		ret = snd_soc_update_bits(codec, 0x03, 0x0002, 0x0002);
+		ret = snd_soc_component_update_bits(component, 0x03, 0x0002, 0x0002);
 		/* Adaptive Mode */
-		ret |= snd_soc_write(codec, 0x40, 0x0f5f);
+		ret |= snd_soc_component_write(component, 0x40, 0x0f5f);
 		/* Headroom 1.1V */
-		ret |= snd_soc_write(codec, 0x41, 0x002f);
+		ret |= snd_soc_component_write(component, 0x41, 0x002f);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 
 		/* un-mute */
-		ret |= snd_soc_update_bits(codec, 0x03, 0x0002, 0x0000);
+		ret |= snd_soc_component_update_bits(component, 0x03, 0x0002,
+						     0x0000);
 		mdelay(2);
 
 		/* charge pump disable*/
-		ret |= snd_soc_update_bits(codec, 0xb5, 0x0001, 0x0000);
+		ret |= snd_soc_component_update_bits(component, 0xb5, 0x0001,
+						     0x0000);
 
 		mdelay(1);
 		/* set boost to disable mode */
-		ret |= snd_soc_write(codec, 0x40, 0x0f5c);
+		ret |= snd_soc_component_write(component, 0x40, 0x0f5c);
 		/* D_VBG, Bias current disable */
-		ret |= snd_soc_write(codec, 0xb5, 0x00);
+		ret |= snd_soc_component_write(component, 0xb5, 0x00);
 		break;
 	default:
 		break;
@@ -493,10 +496,11 @@ static const struct snd_soc_dapm_route rt5512_component_dapm_routes[] = {
 static int rt5512_component_get_t0(struct snd_kcontrol *kcontrol,
 				   struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
-	struct rt5512_chip *chip = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct rt5512_chip *chip = snd_soc_component_get_drvdata(component);
 
-	dev_info(codec->dev, "%s, chip->t0 = %d\n", __func__, chip->t0);
+	dev_info(component->dev, "%s, chip->t0 = %d\n", __func__, chip->t0);
 	ucontrol->value.integer.value[0] = chip->t0;
 	return 0;
 }
@@ -506,25 +510,25 @@ static const DECLARE_TLV_DB_SCALE(vol_ctl_tlv, -1155, 5, 0);
 static int rt5512_codec_get_volsw(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
-	struct rt5512_chip *chip = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
+	struct rt5512_chip *chip = snd_soc_component_get_drvdata(component);
 	int ret;
 
 	ret = rt5512_chip_power_on(chip, 1);
 	if (ret < 0) {
-		dev_err(codec->dev, "%s power on fail\n", __func__);
+		dev_err(component->dev, "%s power on fail\n", __func__);
 		return ret;
 	}
 
 	ret = snd_soc_get_volsw(kcontrol, ucontrol);
 	if (ret < 0) {
-		dev_err(codec->dev, "%s get volsw fail\n", __func__);
+		dev_err(component->dev, "%s get volsw fail\n", __func__);
 		return ret;
 	}
 
 	ret = rt5512_chip_power_on(chip, 0);
 	if (ret < 0) {
-		dev_err(codec->dev, "%s power off fail\n", __func__);
+		dev_err(component->dev, "%s power off fail\n", __func__);
 		return ret;
 	}
 	return ret;
@@ -533,23 +537,23 @@ static int rt5512_codec_get_volsw(struct snd_kcontrol *kcontrol,
 static int rt5512_codec_put_volsw(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
-	struct rt5512_chip *chip = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
+	struct rt5512_chip *chip = snd_soc_component_get_drvdata(component);
 	int ret = 0, put_ret = 0;
 
 	ret = rt5512_chip_power_on(chip, 1);
 	if (ret < 0) {
-		dev_err(codec->dev, "%s power on fail\n", __func__);
+		dev_err(component->dev, "%s power on fail\n", __func__);
 		return ret;
 	}
 	put_ret = snd_soc_put_volsw(kcontrol, ucontrol);
 	if (put_ret < 0) {
-		dev_err(codec->dev, "%s put volsw fail\n", __func__);
+		dev_err(component->dev, "%s put volsw fail\n", __func__);
 		return put_ret;
 	}
 	ret = rt5512_chip_power_on(chip, 0);
 	if (ret < 0) {
-		dev_err(codec->dev, "%s power off fail\n", __func__);
+		dev_err(component->dev, "%s power off fail\n", __func__);
 		return ret;
 	}
 	return put_ret;
@@ -558,8 +562,9 @@ static int rt5512_codec_put_volsw(struct snd_kcontrol *kcontrol,
 static int rt5512_codec_get_chiprev(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
-	struct rt5512_chip *chip = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component =
+		snd_soc_kcontrol_component(kcontrol);
+	struct rt5512_chip *chip = snd_soc_component_get_drvdata(component);
 
 	ucontrol->value.integer.value[0] = chip->chip_rev & 0xf;
 
@@ -569,44 +574,44 @@ static int rt5512_codec_get_chiprev(struct snd_kcontrol *kcontrol,
 static int rt5512_codec_put_istcbypass(struct snd_kcontrol *kcontrol,
 				       struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
-	struct rt5512_chip *chip = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
+	struct rt5512_chip *chip = snd_soc_component_get_drvdata(component);
 	int ret;
 
 	ret = rt5512_chip_power_on(chip, 1);
 	if (ret < 0)
-		dev_err(codec->dev, "%s: pwr on fail\n", __func__);
+		dev_err(component->dev, "%s: pwr on fail\n", __func__);
 
 	if (ucontrol->value.integer.value[0]) {
-		ret = snd_soc_update_bits(codec, RT5512_REG_PATH_BYPASS, 0x0004,
+		ret = snd_soc_component_update_bits(component, RT5512_REG_PATH_BYPASS, 0x0004,
 					  0x0004);
 	} else {
-		ret = snd_soc_update_bits(codec, RT5512_REG_PATH_BYPASS, 0x0004,
+		ret = snd_soc_component_update_bits(component, RT5512_REG_PATH_BYPASS, 0x0004,
 					  0x0000);
 	}
 	if (ret) {
-		dev_err(codec->dev, "%s set CC Max Failed\n", __func__);
+		dev_err(component->dev, "%s set CC Max Failed\n", __func__);
 		return ret;
 	}
 
 	ret = rt5512_chip_power_on(chip, 0);
 	if (ret < 0)
-		dev_err(codec->dev, "%s: pwr off fail\n", __func__);
+		dev_err(component->dev, "%s: pwr off fail\n", __func__);
 	return ret;
 }
 
 static int rt5512_codec_get_istcbypass(struct snd_kcontrol *kcontrol,
 				       struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
-	struct rt5512_chip *chip = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
+	struct rt5512_chip *chip = snd_soc_component_get_drvdata(component);
 	int ret;
 
 	ret = rt5512_chip_power_on(chip, 1);
 	if (ret < 0)
-		dev_err(codec->dev, "%s: pwr on fail\n", __func__);
+		dev_err(component->dev, "%s: pwr on fail\n", __func__);
 
-	ret = snd_soc_test_bits(codec, RT5512_REG_PATH_BYPASS, 0x0004, 0x0004);
+	ret = snd_soc_component_test_bits(component, RT5512_REG_PATH_BYPASS, 0x0004, 0x0004);
 	if (ret) /* 4A */
 		ucontrol->value.integer.value[0] = 0;
 	else
@@ -614,7 +619,7 @@ static int rt5512_codec_get_istcbypass(struct snd_kcontrol *kcontrol,
 
 	ret = rt5512_chip_power_on(chip, 0);
 	if (ret < 0)
-		dev_err(codec->dev, "%s: pwr off fail\n", __func__);
+		dev_err(component->dev, "%s: pwr off fail\n", __func__);
 
 	return 0;
 }
@@ -640,110 +645,113 @@ static const struct snd_kcontrol_new rt5512_component_snd_controls[] = {
 		rt5512_codec_get_istcbypass, rt5512_codec_put_istcbypass),
 };
 
-static int rt5512_codec_setting(struct snd_soc_codec *codec)
+static int rt5512_codec_setting(struct snd_soc_component *component)
 {
-	struct rt5512_chip *chip = snd_soc_codec_get_drvdata(codec);
+	struct rt5512_chip *chip = snd_soc_component_get_drvdata(component);
 	int ret = 0;
 
-	chip->ff_gain = snd_soc_read(codec, 0x4d);
+	snd_soc_component_read(component, 0x4d, &chip->ff_gain);
 	if (chip->chip_rev == RT5512_REV_A) {
 		/* RT5512A_RU012B_algorithm_20201110.lua */
-		ret |= snd_soc_update_bits(codec, 0xA1, 0xff18, 0x5b18);
-		ret |= snd_soc_write(codec, 0x69, 0x0002);
-		ret |= snd_soc_write(codec, 0x68, 0x000D);
-		ret |= snd_soc_write(codec, 0x6C, 0x0010);
-		ret |= snd_soc_write(codec, 0x6D, 0x0008);
-		ret |= snd_soc_write(codec, 0x30, 0x0002);
-		ret |= snd_soc_write(codec, 0xA7, 0x0A84);
-		ret |= snd_soc_write(codec, 0x20, 0x00A2);
-		ret |= snd_soc_write(codec, 0x8B, 0x0040);
+		ret |= snd_soc_component_update_bits(component, 0xA1, 0xff18,
+						     0x5b18);
+		ret |= snd_soc_component_write(component, 0x69, 0x0002);
+		ret |= snd_soc_component_write(component, 0x68, 0x000D);
+		ret |= snd_soc_component_write(component, 0x6C, 0x0010);
+		ret |= snd_soc_component_write(component, 0x6D, 0x0008);
+		ret |= snd_soc_component_write(component, 0x30, 0x0002);
+		ret |= snd_soc_component_write(component, 0xA7, 0x0A84);
+		ret |= snd_soc_component_write(component, 0x20, 0x00A2);
+		ret |= snd_soc_component_write(component, 0x8B, 0x0040);
 
 		/* BST optimizations for efficiency */
-		ret |= snd_soc_write(codec, 0xAD, 0x40F7);
-		ret |= snd_soc_write(codec, 0x41, 0x0028);
-		ret |= snd_soc_write(codec, 0x49, 0x0495);
+		ret |= snd_soc_component_write(component, 0xAD, 0x40F7);
+		ret |= snd_soc_component_write(component, 0x41, 0x0028);
+		ret |= snd_soc_component_write(component, 0x49, 0x0495);
 		/* 2019.0821 */
-		ret |= snd_soc_write(codec, 0x46, 0x001D);
-		ret |= snd_soc_write(codec, 0x45, 0x5292);
-		ret |= snd_soc_write(codec, 0x4C, 0x0293);
+		ret |= snd_soc_component_write(component, 0x46, 0x001D);
+		ret |= snd_soc_component_write(component, 0x45, 0x5292);
+		ret |= snd_soc_component_write(component, 0x4C, 0x0293);
 
-		ret |= snd_soc_write(codec, 0xA2, 0x355D);
-		ret |= snd_soc_update_bits(codec, 0xAE, 0x00ff, 0x0056);
-		ret |= snd_soc_write(codec, 0xA5, 0x6612);
-		ret |= snd_soc_write(codec, 0x70, 0x0021);
-		ret |= snd_soc_write(codec, 0xA6, 0x3135);
+		ret |= snd_soc_component_write(component, 0xA2, 0x355D);
+		ret |= snd_soc_component_update_bits(component, 0xAE, 0x00ff,
+						     0x0056);
+		ret |= snd_soc_component_write(component, 0xA5, 0x6612);
+		ret |= snd_soc_component_write(component, 0x70, 0x0021);
+		ret |= snd_soc_component_write(component, 0xA6, 0x3135);
 
 		/* boost THD performance enhance */
-		ret |= snd_soc_write(codec, 0x9B, 0x5f37);
-		ret |= snd_soc_write(codec, 0x4A, 0xD755);
+		ret |= snd_soc_component_write(component, 0x9B, 0x5f37);
+		ret |= snd_soc_component_write(component, 0x4A, 0xD755);
 
 		/* V.I sense performance enhance */
-		ret |= snd_soc_write(codec, 0xB3, 0x9103);
-		ret |= snd_soc_update_bits(codec, 0xB1, 0xfff0, 0xA5AA);
-		ret |= snd_soc_write(codec, 0xB0, 0xD5A5);
-		ret |= snd_soc_write(codec, 0x98, 0x8B8C);
-		ret |= snd_soc_write(codec, 0x78, 0x00f2);
+		ret |= snd_soc_component_write(component, 0xB3, 0x9103);
+		ret |= snd_soc_component_update_bits(component, 0xB1, 0xfff0,
+						     0xA5AA);
+		ret |= snd_soc_component_write(component, 0xB0, 0xD5A5);
+		ret |= snd_soc_component_write(component, 0x98, 0x8B8C);
+		ret |= snd_soc_component_write(component, 0x78, 0x00f2);
 
-		ret |= snd_soc_write(codec, 0x9D, 0x00FC);
-		ret |= snd_soc_write(codec, 0x38, 0x9BEB);
-		ret |= snd_soc_write(codec, 0x39, 0x8BAC);
-		ret |= snd_soc_write(codec, 0x3A, 0x7E7D);
-		ret |= snd_soc_write(codec, 0x3B, 0x7395);
-		ret |= snd_soc_write(codec, 0x3C, 0x6A68);
-		ret |= snd_soc_write(codec, 0x3D, 0x6295);
-		ret |= snd_soc_write(codec, 0x3E, 0x5BD4);
+		ret |= snd_soc_component_write(component, 0x9D, 0x00FC);
+		ret |= snd_soc_component_write(component, 0x38, 0x9BEB);
+		ret |= snd_soc_component_write(component, 0x39, 0x8BAC);
+		ret |= snd_soc_component_write(component, 0x3A, 0x7E7D);
+		ret |= snd_soc_component_write(component, 0x3B, 0x7395);
+		ret |= snd_soc_component_write(component, 0x3C, 0x6A68);
+		ret |= snd_soc_component_write(component, 0x3D, 0x6295);
+		ret |= snd_soc_component_write(component, 0x3E, 0x5BD4);
 
-		ret |= snd_soc_update_bits(codec, 0x12, 0x0007, 0x0006);
-		ret |= snd_soc_update_bits(codec, 0xB6, 0x0400, 0x0000);
+		ret |= snd_soc_component_update_bits(component, 0x12, 0x0007, 0x0006);
+		ret |= snd_soc_component_update_bits(component, 0xB6, 0x0400, 0x0000);
 	} else if (chip->chip_rev == RT5512_REV_B) { /* REV_B */
 		/* RT5512B_RU012D_algorithm_20201110.lua */
-		ret |= snd_soc_update_bits(codec, 0xA1, 0xff18, 0x5b18);
-		ret |= snd_soc_write(codec, 0x69, 0x0002);
-		ret |= snd_soc_write(codec, 0x68, 0x000D);
-		ret |= snd_soc_write(codec, 0x6C, 0x0010);
-		ret |= snd_soc_write(codec, 0x6D, 0x0008);
-		ret |= snd_soc_write(codec, 0x30, 0x0002);
-		ret |= snd_soc_write(codec, 0xA7, 0x0A84);
-		ret |= snd_soc_write(codec, 0x20, 0x00A2);
-		ret |= snd_soc_write(codec, 0x8B, 0x0040);
+		ret |= snd_soc_component_update_bits(component, 0xA1, 0xff18, 0x5b18);
+		ret |= snd_soc_component_write(component, 0x69, 0x0002);
+		ret |= snd_soc_component_write(component, 0x68, 0x000D);
+		ret |= snd_soc_component_write(component, 0x6C, 0x0010);
+		ret |= snd_soc_component_write(component, 0x6D, 0x0008);
+		ret |= snd_soc_component_write(component, 0x30, 0x0002);
+		ret |= snd_soc_component_write(component, 0xA7, 0x0A84);
+		ret |= snd_soc_component_write(component, 0x20, 0x00A2);
+		ret |= snd_soc_component_write(component, 0x8B, 0x0040);
 
 		/* BST optimizations for efficiency */
-		ret |= snd_soc_write(codec, 0xAD, 0x40F7);
-		ret |= snd_soc_write(codec, 0x41, 0x0028);
-		ret |= snd_soc_write(codec, 0x49, 0x0495);
+		ret |= snd_soc_component_write(component, 0xAD, 0x40F7);
+		ret |= snd_soc_component_write(component, 0x41, 0x0028);
+		ret |= snd_soc_component_write(component, 0x49, 0x0495);
 		/* 2019.0821 */
-		ret |= snd_soc_write(codec, 0x46, 0x001D);
-		ret |= snd_soc_write(codec, 0x45, 0x5292);
-		ret |= snd_soc_write(codec, 0x4C, 0x0293);
+		ret |= snd_soc_component_write(component, 0x46, 0x001D);
+		ret |= snd_soc_component_write(component, 0x45, 0x5292);
+		ret |= snd_soc_component_write(component, 0x4C, 0x0293);
 
-		ret |= snd_soc_write(codec, 0xA2, 0x355D);
-		ret |= snd_soc_update_bits(codec, 0xAE, 0x00ff, 0x0056);
-		ret |= snd_soc_write(codec, 0xA5, 0x6612);
-		ret |= snd_soc_write(codec, 0x70, 0x0021);
-		ret |= snd_soc_write(codec, 0xA6, 0x3135);
+		ret |= snd_soc_component_write(component, 0xA2, 0x355D);
+		ret |= snd_soc_component_update_bits(component, 0xAE, 0x00ff, 0x0056);
+		ret |= snd_soc_component_write(component, 0xA5, 0x6612);
+		ret |= snd_soc_component_write(component, 0x70, 0x0021);
+		ret |= snd_soc_component_write(component, 0xA6, 0x3135);
 
 		/* boost THD performance enhance */
-		ret |= snd_soc_write(codec, 0x9B, 0x5f37);
-		ret |= snd_soc_write(codec, 0x4A, 0xD755);
+		ret |= snd_soc_component_write(component, 0x9B, 0x5f37);
+		ret |= snd_soc_component_write(component, 0x4A, 0xD755);
 
 		/* V.I sense performance enhance */
-		ret |= snd_soc_write(codec, 0xB3, 0x9103);
-		ret |= snd_soc_update_bits(codec, 0xB1, 0xfff0, 0xA5AA);
-		ret |= snd_soc_write(codec, 0xB0, 0xD5A5);
-		ret |= snd_soc_write(codec, 0x98, 0x8B8C);
-		ret |= snd_soc_write(codec, 0x78, 0x00f2);
+		ret |= snd_soc_component_write(component, 0xB3, 0x9103);
+		ret |= snd_soc_component_update_bits(component, 0xB1, 0xfff0, 0xA5AA);
+		ret |= snd_soc_component_write(component, 0xB0, 0xD5A5);
+		ret |= snd_soc_component_write(component, 0x98, 0x8B8C);
+		ret |= snd_soc_component_write(component, 0x78, 0x00f2);
 
-		ret |= snd_soc_write(codec, 0x9D, 0x00FC);
-		ret |= snd_soc_write(codec, 0x38, 0x9BEB);
-		ret |= snd_soc_write(codec, 0x39, 0x8BAC);
-		ret |= snd_soc_write(codec, 0x3A, 0x7E7D);
-		ret |= snd_soc_write(codec, 0x3B, 0x7395);
-		ret |= snd_soc_write(codec, 0x3C, 0x6A68);
-		ret |= snd_soc_write(codec, 0x3D, 0x6295);
-		ret |= snd_soc_write(codec, 0x3E, 0x5BD4);
+		ret |= snd_soc_component_write(component, 0x9D, 0x00FC);
+		ret |= snd_soc_component_write(component, 0x38, 0x9BEB);
+		ret |= snd_soc_component_write(component, 0x39, 0x8BAC);
+		ret |= snd_soc_component_write(component, 0x3A, 0x7E7D);
+		ret |= snd_soc_component_write(component, 0x3B, 0x7395);
+		ret |= snd_soc_component_write(component, 0x3C, 0x6A68);
+		ret |= snd_soc_component_write(component, 0x3D, 0x6295);
+		ret |= snd_soc_component_write(component, 0x3E, 0x5BD4);
 
-		ret |= snd_soc_update_bits(codec, 0x12, 0x0007, 0x0006);
-		ret |= snd_soc_update_bits(codec, 0xB6, 0x0400, 0x0000);
+		ret |= snd_soc_component_update_bits(component, 0x12, 0x0007, 0x0006);
+		ret |= snd_soc_component_update_bits(component, 0xB6, 0x0400, 0x0000);
 	}
 	pr_info("%s end\n", __func__);
 
@@ -753,15 +761,15 @@ static int rt5512_codec_setting(struct snd_soc_codec *codec)
 	return 0;
 }
 
-static int rt5512_codec_set_bias_level(struct snd_soc_codec *codec,
+static int rt5512_codec_set_bias_level(struct snd_soc_component *component,
 	enum snd_soc_bias_level level)
 {
-	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
-	struct rt5512_chip *chip = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(component);
+	struct rt5512_chip *chip = snd_soc_component_get_drvdata(component);
 	int ret = 0;
 
 	if (dapm->bias_level == level) {
-		dev_warn(codec->dev, "%s: repeat level change\n", __func__);
+		dev_warn(component->dev, "%s: repeat level change\n", __func__);
 		goto level_change_skip;
 	}
 	switch (level) {
@@ -771,22 +779,22 @@ static int rt5512_codec_set_bias_level(struct snd_soc_codec *codec,
 	case SND_SOC_BIAS_STANDBY:
 		if (dapm->bias_level != SND_SOC_BIAS_OFF)
 			break;
-		dev_info(codec->dev, "exit low power mode\n");
+		dev_info(component->dev, "exit low power mode\n");
 		ret = rt5512_chip_power_on(chip, 1);
 		if (ret < 0)
-			dev_err(codec->dev, "power on fail\n");
+			dev_err(component->dev, "power on fail\n");
 		break;
 	case SND_SOC_BIAS_OFF:
-		dev_info(codec->dev, "enter low power mode\n");
+		dev_info(component->dev, "enter low power mode\n");
 		ret = rt5512_chip_power_on(chip, 0);
 		if (ret < 0)
-			dev_err(codec->dev, "power off fail\n");
+			dev_err(component->dev, "power off fail\n");
 		break;
 	default:
 		return -EINVAL;
 	}
 	dapm->bias_level = level;
-	dev_info(codec->dev, "c bias_level = %d\n", level);
+	dev_info(component->dev, "c bias_level = %d\n", level);
 level_change_skip:
 	return 0;
 }
@@ -797,7 +805,7 @@ static int rt5512_spm_pre_calib(struct richtek_spm_classdev *ptc)
 	int ret = 0;
 
 	ret |= rt5512_chip_power_on(chip, 1);
-	ret |= snd_soc_update_bits(chip->codec, RT5512_REG_PATH_BYPASS, 0x0004,
+	ret |= snd_soc_component_update_bits(chip->component, RT5512_REG_PATH_BYPASS, 0x0004,
 				  0x0004);
 	ret |= rt5512_chip_power_on(chip, 0);
 	return ret;
@@ -809,7 +817,7 @@ static int rt5512_spm_post_calib(struct richtek_spm_classdev *ptc)
 	int ret = 0;
 
 	ret |= rt5512_chip_power_on(chip, 1);
-	ret |= snd_soc_update_bits(chip->codec, RT5512_REG_PATH_BYPASS, 0x0004,
+	ret |= snd_soc_component_update_bits(chip->component, RT5512_REG_PATH_BYPASS, 0x0004,
 				   0x00);
 	ret |= rt5512_chip_power_on(chip, 0);
 
@@ -822,7 +830,7 @@ static int rt5512_spm_pre_vvalid(struct richtek_spm_classdev *ptc)
 	int ret = 0;
 
 	ret |= rt5512_chip_power_on(chip, 1);
-	ret |= snd_soc_write(chip->codec, 0x4d, 0x00);
+	ret |= snd_soc_component_write(chip->component, 0x4d, 0x00);
 	ret |= rt5512_chip_power_on(chip, 0);
 	mdelay(5);
 	return ret;
@@ -834,7 +842,7 @@ static int rt5512_spm_post_vvalid(struct richtek_spm_classdev *ptc)
 	int ret = 0;
 
 	ret |= rt5512_chip_power_on(chip, 1);
-	ret |= snd_soc_write(chip->codec, 0x4d, chip->ff_gain);
+	ret |= snd_soc_component_write(chip->component, 0x4d, chip->ff_gain);
 	ret |= rt5512_chip_power_on(chip, 0);
 	return ret;
 }
@@ -846,80 +854,77 @@ static struct richtek_spm_device_ops rt5512_spm_ops = {
 	.post_vvalid = rt5512_spm_post_vvalid,
 };
 
-static int rt5512_codec_probe(struct snd_soc_codec *codec)
+static int rt5512_codec_probe(struct snd_soc_component *component)
 {
-	struct rt5512_chip *chip = snd_soc_codec_get_drvdata(codec);
+	struct rt5512_chip *chip = snd_soc_component_get_drvdata(component);
 	int ret = 0;
 
 	pr_info("%s\n", __func__);
 
-	chip->codec = codec;
-	snd_soc_codec_init_regmap(codec, chip->regmap);
-	ret = rt5512_codec_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
+	chip->component = component;
+	snd_soc_component_init_regmap(component, chip->regmap);
+	ret = rt5512_codec_set_bias_level(component, SND_SOC_BIAS_STANDBY);
 	if (ret < 0) {
-		dev_err(codec->dev, "config bias standby fail\n");
+		dev_err(component->dev, "config bias standby fail\n");
 		return ret;
 	}
 
-	ret = rt5512_codec_setting(codec);
+	ret = rt5512_codec_setting(component);
 	if (ret < 0) {
 		dev_err(chip->dev, "rt5512 codec setting failed\n");
 		return ret;
 	}
 
-	ret = rt5512_codec_set_bias_level(codec, SND_SOC_BIAS_OFF);
+	ret = rt5512_codec_set_bias_level(component, SND_SOC_BIAS_OFF);
 	if (ret < 0) {
-		dev_err(codec->dev, "config bias off fail\n");
+		dev_err(component->dev, "config bias off fail\n");
 		return ret;
 	}
 
 	chip->spm.max_pwr = 7000;
 	chip->spm.min_pwr = 5500;
 	chip->spm.ops = &rt5512_spm_ops;
-	ret = richtek_spm_classdev_register(codec->dev, &chip->spm);
+	ret = richtek_spm_classdev_register(component->dev, &chip->spm);
 	if (ret < 0) {
-		dev_err(codec->dev, "spm class register faled\n");
+		dev_err(component->dev, "spm class register faled\n");
 		return ret;
 	}
 	return ret;
 }
 
-static int rt5512_codec_remove(struct snd_soc_codec *codec)
+static void rt5512_codec_remove(struct snd_soc_component *component)
 {
-	struct rt5512_chip *chip = snd_soc_codec_get_drvdata(codec);
+	struct rt5512_chip *chip = snd_soc_component_get_drvdata(component);
 
 	pr_info("%s\n", __func__);
 	richtek_spm_classdev_unregister(&chip->spm);
-	snd_soc_codec_exit_regmap(codec);
-	return 0;
+	snd_soc_component_exit_regmap(component);
 }
 
-static const struct snd_soc_codec_driver rt5512_codec_driver = {
+static const struct snd_soc_component_driver rt5512_codec_driver = {
 	.probe = rt5512_codec_probe,
 	.remove = rt5512_codec_remove,
 
-	.component_driver = {
-		.controls = rt5512_component_snd_controls,
-		.num_controls = ARRAY_SIZE(rt5512_component_snd_controls),
-		.dapm_widgets = rt5512_component_dapm_widgets,
-		.num_dapm_widgets = ARRAY_SIZE(rt5512_component_dapm_widgets),
-		.dapm_routes = rt5512_component_dapm_routes,
-		.num_dapm_routes = ARRAY_SIZE(rt5512_component_dapm_routes),
-	},
+	.controls = rt5512_component_snd_controls,
+	.num_controls = ARRAY_SIZE(rt5512_component_snd_controls),
+	.dapm_widgets = rt5512_component_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(rt5512_component_dapm_widgets),
+	.dapm_routes = rt5512_component_dapm_routes,
+	.num_dapm_routes = ARRAY_SIZE(rt5512_component_dapm_routes),
 
 	.set_bias_level = rt5512_codec_set_bias_level,
-	.idle_bias_off = true,
+	.idle_bias_on = false,
 };
 
 static int rt5512_codec_aif_startup(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *dai)
 {
-	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(dai->codec);
+	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(dai->component);
 	int ret = 0;
 
 	dev_info(dai->dev, "%s\n", __func__);
 	if (dapm->bias_level == SND_SOC_BIAS_OFF)
-		ret = rt5512_codec_set_bias_level(dai->codec,
+		ret = rt5512_codec_set_bias_level(dai->component,
 						  SND_SOC_BIAS_STANDBY);
 	return ret;
 }
@@ -970,14 +975,14 @@ static int rt5512_component_aif_hw_params(struct snd_pcm_substream *substream,
 	default:
 		return -ENOTSUPP;
 	}
-	ret = snd_soc_update_bits(dai->codec,
+	ret = snd_soc_component_update_bits(dai->component,
 		RT5512_REG_SERIAL_CFG1, 0x00c0, (reg_data << 6));
 	if (ret < 0) {
 		dev_err(dai->dev, "config aud bit fail\n");
 		return ret;
 	}
 
-	ret = snd_soc_update_bits(dai->codec,
+	ret = snd_soc_component_update_bits(dai->component,
 		RT5512_REG_TDM_CFG3, 0x03f0, word_len << 4);
 	if (ret < 0) {
 		dev_err(dai->dev, "config word len fail\n");
@@ -1197,7 +1202,7 @@ int rt5512_i2c_probe(struct i2c_client *client,
 
 
 	dev_set_name(chip->dev, "RT5512_MT_%d", chip->dev_cnt);
-	ret = snd_soc_register_codec(chip->dev, &rt5512_codec_driver,
+	ret = snd_soc_register_component(chip->dev, &rt5512_codec_driver,
 				     &rt5512_codec_dai, 1);
 
 	pr_info("%s end, ret = %d\n", __func__, ret);

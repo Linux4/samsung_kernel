@@ -78,6 +78,11 @@ struct sb_tx {
 
 	struct notifier_block nb;
 
+	struct wakeup_source *ws;
+
+	struct workqueue_struct *wq;
+	struct delayed_work tx_err_work;
+
 	bool enable;
 	unsigned int event;
 
@@ -267,6 +272,41 @@ int sb_tx_monitor_aov(int vout, bool phm)
 	return aov->state;
 }
 
+static bool check_tx_err_state(struct sb_tx *tx)
+{
+	union power_supply_propval value = { 0, };
+	int vout, iout, freq;
+
+	psy_do_property(tx->wrl_name, get, POWER_SUPPLY_EXT_PROP_WIRELESS_TX_UNO_VIN, value);
+	vout = value.intval;
+
+	psy_do_property(tx->wrl_name, get, POWER_SUPPLY_EXT_PROP_WIRELESS_TX_UNO_IIN, value);
+	iout = value.intval;
+
+	psy_do_property(tx->wrl_name, get, POWER_SUPPLY_EXT_PROP_WIRELESS_OP_FREQ, value);
+	freq = value.intval;
+
+	return (vout <= 0) && (iout <= 0) && (freq <= 0);
+}
+
+static void cb_tx_err_work(struct work_struct *work)
+{
+	struct sb_tx *tx = container_of(work,
+		struct sb_tx, tx_err_work.work);
+
+	tx_log("start!\n");
+
+	if (check_tx_err_state(tx)) {
+		union power_supply_propval value = { 0, };
+
+		tx_log("set tx retry!!!\n");
+		value.intval = BATT_TX_EVENT_WIRELESS_TX_ETC;
+		psy_do_property("wireless", set, POWER_SUPPLY_EXT_PROP_WIRELESS_TX_ERR, value);
+	}
+
+	__pm_relax(tx->ws);
+}
+
 static ssize_t show_attrs(struct device *dev,
 		struct device_attribute *attr, char *buf);
 static ssize_t store_attrs(struct device *dev,
@@ -378,6 +418,16 @@ int sb_tx_init(struct sec_battery_info *battery, char *wrl_name)
 	if (ret)
 		goto err_parse_dt;
 
+	tx->wq = create_singlethread_workqueue(TX_MODULE_NAME);
+	if (!tx->wq) {
+		ret = -ENOMEM;
+		goto err_parse_dt;
+	}
+
+	tx->ws = wakeup_source_register(battery->dev, TX_MODULE_NAME);
+
+	INIT_DELAYED_WORK(&tx->tx_err_work, cb_tx_err_work);
+
 	mutex_init(&tx->event_lock);
 
 	tx->battery = battery;
@@ -405,6 +455,20 @@ EXPORT_SYMBOL(sb_tx_init);
 
 int sb_tx_set_enable(bool tx_enable, int cable_type)
 {
+	struct sb_tx *tx = get_sb_tx();
+
+	if (tx_enable) {
+		if (check_tx_err_state(tx)) {
+			tx_log("abnormal case - run tx err work!\n");
+
+			__pm_stay_awake(tx->ws);
+			queue_delayed_work(tx->wq, &tx->tx_err_work, msecs_to_jiffies(1000));
+		}
+	} else {
+		cancel_delayed_work(&tx->tx_err_work);
+		__pm_relax(tx->ws);
+	}
+
 	return 0;
 }
 EXPORT_SYMBOL(sb_tx_set_enable);

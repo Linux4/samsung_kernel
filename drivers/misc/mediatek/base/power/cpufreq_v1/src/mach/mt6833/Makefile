@@ -17,7 +17,7 @@ ccflags-y +=	\
 	-I$(srctree)/drivers/misc/mediatek/base/power/include	\
 	-I$(srctree)/drivers/misc/mediatek/base/power/eem_v2/mt6833/inc	\
 	-I$(srctree)/drivers/misc/mediatek/freqhopping	\
-	-I$(srctree)/drivers/misc/mediatek/freqhopping/$(CONFIG_MTK_PLATFORM)
+	-I$(srctree)/drivers/misc/mediatek/freqhopping/mt6833
 
 ifeq ($(CONFIG_MTK_TINYSYS_MCUPM_SUPPORT), y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/mcupm/

@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/miscdevice.h>
@@ -37,16 +29,20 @@
 #include <linux/mutex.h>
 #include <linux/hardirq.h>
 #include <linux/sched.h>
+#include <linux/sched/clock.h>
 #include <linux/debugfs.h>
 
 #include <linux/ftrace.h>
 #include <linux/trace_events.h>
 #include <linux/bug.h>
-#include <linux/sched/clock.h>
+#ifdef CONFIG_MTK_AEE_FEATURE
 #include "mt-plat/aee.h"
+#endif
 
 #define MMPROFILE_INTERNAL
-#include <mmprofile_internal.h>
+#include "mmprofile_internal.h"
+#include "mmprofile_function.h"
+#include "mmprofile_static_event.h"
 
 #ifdef CONFIG_MTK_USE_RESERVED_EXT_MEM
 #include <linux/exm_driver.h>
@@ -55,32 +51,12 @@
 /* #pragma GCC optimize ("O0") */
 #define MMP_DEVNAME "mmp"
 
-/* min buffer size is 0x400*32byte = 32KB */
-#define MMPROFILE_MIN_BUFFER_SIZE (0x400)
-/* default buffer size is 0x18000*32byte = 3MB */
-#define MMPROFILE_DEFAULT_BUFFER_SIZE (0x18000)
-/* max buffer size is 0x100000*32byte = 32MB */
-#define MMPROFILE_MAX_BUFFER_SIZE (0x100000)
+#define MMPROFILE_DEFAULT_BUFFER_SIZE 0x18000
 #ifdef CONFIG_MTK_ENG_BUILD
-#define MTK_MMP_LAYER_DUMP
-/* min meta buffer size is 0x10000byte = 64KB */
-#define MMPROFILE_MIN_META_BUFFER_SIZE (0x10000)
-/* default meta buffer size is 0x800000byte = 8MB */
-#define MMPROFILE_DEFAULT_META_BUFFER_SIZE (0x800000)
-/* max meta buffer size is 0x800000byte = 64MB */
-#define MMPROFILE_MAX_META_BUFFER_SIZE (0x4000000)
+#define MMPROFILE_DEFAULT_META_BUFFER_SIZE 0x800000
 static unsigned int mmprofile_meta_datacookie = 1;
 #else
-#ifdef MTK_MMP_LAYER_DUMP
-#define MMPROFILE_MIN_META_BUFFER_SIZE (0x10000)
-#define MMPROFILE_DEFAULT_META_BUFFER_SIZE (0x800000)
-#define MMPROFILE_MAX_META_BUFFER_SIZE (0x4000000)
-static unsigned int mmprofile_meta_datacookie = 1;
-#else
-#define MMPROFILE_MIN_META_BUFFER_SIZE (0)
-#define MMPROFILE_DEFAULT_META_BUFFER_SIZE (0)
-#define MMPROFILE_MAX_META_BUFFER_SIZE (0)
-#endif
+#define MMPROFILE_DEFAULT_META_BUFFER_SIZE 0x0
 #endif
 
 #define MMPROFILE_DUMP_BLOCK_SIZE (1024*4)
@@ -99,6 +75,13 @@ static unsigned int mmprofile_meta_datacookie = 1;
 static bool mmp_log_on;
 static bool mmp_trace_log_on;
 
+#ifndef CONFIG_MTK_AEE_FEATURE
+# undef aee_kernel_warning_api
+# define aee_kernel_warning_api(...)
+# undef aee_kernel_exception
+# define aee_kernel_exception(...)
+#endif
+
 #define MMP_LOG(prio, fmt, arg...) \
 	do { \
 		if (mmp_log_on) \
@@ -109,16 +92,12 @@ static bool mmp_trace_log_on;
 
 #define mmp_aee(string, args...) do {	\
 	char disp_name[100];						\
-	int r;	\
-	r = snprintf(disp_name, 100, "[MMP]"string, ##args); \
-	if (r < 0 || r >= sizeof(disp_name)) {	\
-		pr_debug("snprintf error\n");	\
-	}	\
-		aee_kernel_warning_api(__FILE__, __LINE__, \
+	snprintf(disp_name, 100, "[MMP]"string, ##args); \
+	aee_kernel_warning_api(__FILE__, __LINE__, \
 		DB_OPT_DEFAULT | DB_OPT_MMPROFILE_BUFFER | \
 		DB_OPT_DISPLAY_HANG_DUMP | DB_OPT_DUMP_DISPLAY, \
 		disp_name, "[MMP] error"string, ##args);		\
-		pr_info("MMP error: "string, ##args);				\
+	pr_info("MMP error: "string, ##args);				\
 } while (0)
 struct mmprofile_regtable_t {
 	struct mmprofile_eventinfo_t event_info;
@@ -137,9 +116,11 @@ struct mmprofile_meta_datablock_t {
 static int bmmprofile_init_buffer;
 static DEFINE_MUTEX(mmprofile_buffer_init_mutex);
 static DEFINE_MUTEX(mmprofile_regtable_mutex);
+#ifdef CONFIG_MTK_ENG_BUILD
 static DEFINE_MUTEX(mmprofile_meta_buffer_mutex);
+#endif
 static struct mmprofile_event_t *p_mmprofile_ring_buffer;
-#ifdef MTK_MMP_LAYER_DUMP
+#ifdef CONFIG_MTK_ENG_BUILD
 static unsigned char *p_mmprofile_meta_buffer;
 #endif
 
@@ -343,7 +324,7 @@ void mmprofile_get_dump_buffer(unsigned int start, unsigned long *p_addr,
 static void mmprofile_init_buffer(void)
 {
 	unsigned int b_reset_ring_buffer = 0;
-#ifdef MTK_MMP_LAYER_DUMP
+#ifdef CONFIG_MTK_ENG_BUILD
 	unsigned int b_reset_meta_buffer = 0;
 #endif
 
@@ -359,8 +340,8 @@ static void mmprofile_init_buffer(void)
 			mmprofile_globals.new_meta_buffer_size)) {
 		mutex_unlock(&mmprofile_buffer_init_mutex);
 		return;
-	} else
-		bmmprofile_init_buffer = 0;
+	}
+	bmmprofile_init_buffer = 0;
 
 	/* Initialize */
 	/* Allocate memory. */
@@ -397,7 +378,8 @@ static void mmprofile_init_buffer(void)
 	}
 	MMP_LOG(ANDROID_LOG_DEBUG, "p_mmprofile_ring_buffer=0x%08lx",
 		(unsigned long)p_mmprofile_ring_buffer);
-#ifdef MTK_MMP_LAYER_DUMP
+
+#ifdef CONFIG_MTK_ENG_BUILD
 	if (!p_mmprofile_meta_buffer) {
 		mmprofile_globals.meta_buffer_size =
 			mmprofile_globals.new_meta_buffer_size;
@@ -420,8 +402,8 @@ static void mmprofile_init_buffer(void)
 	    vmalloc(mmprofile_globals.meta_buffer_size);
 #endif
 	}
-	MMP_LOG(ANDROID_LOG_DEBUG,
-		"p_mmprofile_meta_buffer=0x%08lx",
+
+	MMP_LOG(ANDROID_LOG_DEBUG, "p_mmprofile_meta_buffer=0x%08lx",
 		(unsigned long)p_mmprofile_meta_buffer);
 
 	if ((!p_mmprofile_ring_buffer) || (!p_mmprofile_meta_buffer)) {
@@ -450,7 +432,7 @@ static void mmprofile_init_buffer(void)
 	if (b_reset_ring_buffer)
 		memset((void *)(p_mmprofile_ring_buffer), 0,
 		       mmprofile_globals.buffer_size_bytes);
-#ifdef MTK_MMP_LAYER_DUMP
+#ifdef CONFIG_MTK_ENG_BUILD
 	if (b_reset_meta_buffer) {
 		struct mmprofile_meta_datablock_t *p_block;
 
@@ -472,7 +454,8 @@ static void mmprofile_init_buffer(void)
 
 static void mmprofile_reset_buffer(void)
 {
-#ifdef MTK_MMP_LAYER_DUMP
+#ifdef CONFIG_MTK_ENG_BUILD
+
 	if (!mmprofile_globals.enable ||
 		(mmprofile_globals.buffer_size_record !=
 			mmprofile_globals.new_buffer_size_record))
@@ -523,6 +506,7 @@ void mmprofile_start(int start)
 	mmprofile_force_start(start);
 #endif
 }
+EXPORT_SYMBOL(mmprofile_start);
 
 void mmprofile_enable(int enable)
 {
@@ -533,6 +517,7 @@ void mmprofile_enable(int enable)
 	if (enable == 0)
 		mmprofile_force_start(0);
 }
+EXPORT_SYMBOL(mmprofile_enable);
 
 /* if using remote tool (PC side) or adb shell command, can always start mmp */
 static void mmprofile_remote_start(int start)
@@ -832,7 +817,7 @@ static void mmprofile_log_int(mmp_event event, enum mmp_log_type type,
 	 */
 	if (unlikely(event < 2))
 		return;
-	index = (atomic_inc_return((atomic_t *)
+	index = ((unsigned int)atomic_inc_return((atomic_t *)
 			&(mmprofile_globals.write_pointer)) - 1)
 	    % (mmprofile_globals.buffer_size_record);
 	/*check vmalloc address is valid or not*/
@@ -845,7 +830,7 @@ static void mmprofile_log_int(mmp_event event, enum mmp_log_type type,
 			mmprofile_globals.new_buffer_size_record);
 		return;
 	}
-	lock = atomic_inc_return((atomic_t *)
+	lock = (unsigned int)atomic_inc_return((atomic_t *)
 		&(p_mmprofile_ring_buffer[index].lock));
 	/*atomic_t is INT, write_pointer is UINT, avoid convert error*/
 	if (mmprofile_globals.write_pointer ==
@@ -857,7 +842,7 @@ static void mmprofile_log_int(mmp_event event, enum mmp_log_type type,
 		 */
 		while (1) {
 			index =
-				(atomic_inc_return((atomic_t *)
+				((unsigned int)atomic_inc_return((atomic_t *)
 				&(mmprofile_globals.write_pointer)) - 1) %
 				(mmprofile_globals.buffer_size_record);
 			if (!pfn_valid(vmalloc_to_pfn
@@ -872,7 +857,7 @@ static void mmprofile_log_int(mmp_event event, enum mmp_log_type type,
 				return;
 			}
 			lock =
-			    atomic_inc_return((atomic_t *) &
+			    (unsigned int)atomic_inc_return((atomic_t *) &
 					(p_mmprofile_ring_buffer[index].lock));
 			/*avoid convert error*/
 			if (mmprofile_globals.write_pointer ==
@@ -935,7 +920,7 @@ static void mmprofile_log_int(mmp_event event, enum mmp_log_type type,
 static long mmprofile_log_meta_int(mmp_event event, enum mmp_log_type type,
 	struct mmp_metadata_t *p_meta_data, long b_from_user)
 {
-#ifdef MTK_MMP_LAYER_DUMP
+#ifdef CONFIG_MTK_ENG_BUILD
 	unsigned long retn;
 	void __user *p_data;
 	struct mmprofile_meta_datablock_t *p_node = NULL;
@@ -943,7 +928,6 @@ static long mmprofile_log_meta_int(mmp_event event, enum mmp_log_type type,
 
 	if (!mmprofile_globals.enable)
 		return 0;
-
 	if ((event >= MMPROFILE_MAX_EVENT_COUNT) ||
 		(event == MMP_INVALID_EVENT))
 		return -3;
@@ -953,13 +937,11 @@ static long mmprofile_log_meta_int(mmp_event event, enum mmp_log_type type,
 
 	if (unlikely(!p_meta_data))
 		return -1;
-
 	block_size =
 	    ((offsetof(struct mmprofile_meta_datablock_t, meta_data) +
 	    p_meta_data->size) + 3) & (~3);
 	if (block_size > mmprofile_globals.meta_buffer_size)
 		return -2;
-
 	mutex_lock(&mmprofile_meta_buffer_mutex);
 	p_node = list_entry(mmprofile_meta_buffer_list.prev,
 		struct mmprofile_meta_datablock_t, list);
@@ -1313,8 +1295,6 @@ long mmprofile_log_meta_bitmap(mmp_event event, enum mmp_log_type type,
 		return 0;
 	if (!is_mmp_valid(event))
 		return 0;
-	if (!p_meta_data->p_data)
-		return 0;
 
 	meta_data.data1 = p_meta_data->data1;
 	meta_data.data2 = p_meta_data->data2;
@@ -1352,11 +1332,11 @@ long mmprofile_log_meta_bitmap(mmp_event event, enum mmp_log_type type,
 			p_meta_data->bpp);
 		for (y = 0, y0 = 0; y < p_meta_data->height;
 		     y0++, y += p_meta_data->down_sample_y) {
-			if (p_meta_data->down_sample_x == 1) {
+			if (p_meta_data->down_sample_x == 1)
 				memcpy(p_dst + new_width * bpp * y0,
 					p_src + p_meta_data->pitch * y,
 					p_meta_data->width * bpp);
-			} else {
+			else {
 				for (x = 0, x0 = 0; x < p_meta_data->width;
 				     x0++, x += p_meta_data->down_sample_x) {
 					dst_offset =
@@ -1396,8 +1376,7 @@ long mmprofile_log_meta_yuv_bitmap(mmp_event event, enum mmp_log_type type,
 		return 0;
 	if (!is_mmp_valid(event))
 		return 0;
-	if (!p_meta_data->p_data)
-		return 0;
+
 
 	meta_data.data1 = p_meta_data->data1;
 	meta_data.data2 = p_meta_data->data2;
@@ -1483,10 +1462,9 @@ static ssize_t mmprofile_dbgfs_start_read(struct file *file, char __user *buf,
 
 	MMP_LOG(ANDROID_LOG_DEBUG, "start=%d", mmprofile_globals.start);
 	r = sprintf(str, "start = %d\n", mmprofile_globals.start);
-	if (r < 0) {
-		/* Handle sprintf() error */
+	if (r < 0)
 		pr_debug("sprintf error\n");
-	}
+
 	return simple_read_from_buffer(buf, size, ppos, str, r);
 }
 
@@ -1515,10 +1493,9 @@ static ssize_t mmprofile_dbgfs_enable_read(struct file *file, char __user *buf,
 
 	MMP_LOG(ANDROID_LOG_DEBUG, "enable=%d", mmprofile_globals.enable);
 	r = sprintf(str, "enable = %d\n", mmprofile_globals.enable);
-	if (r < 0) {
-		/* Handle sprintf() error */
+	if (r < 0)
 		pr_debug("sprintf error\n");
-	}
+
 	return simple_read_from_buffer(buf, size, ppos, str, r);
 }
 
@@ -1587,15 +1564,6 @@ static ssize_t mmprofile_dbgfs_global_read(struct file *file, char __user *buf,
 		MMPROFILE_GLOBALS_SIZE);
 }
 
-#if 0
-static ssize_t mmprofile_dbgfs_global_write(struct file *file,
-	const char __user *buf, size_t size, loff_t *ppos)
-{
-	return simple_write_to_buffer(&mmprofile_globals,
-		MMPROFILE_GLOBALS_SIZE, ppos, buf, size);
-}
-#endif
-
 static const struct file_operations mmprofile_dbgfs_enable_fops = {
 	.read = mmprofile_dbgfs_enable_read,
 	.write = mmprofile_dbgfs_enable_write,
@@ -1620,12 +1588,8 @@ static const struct file_operations mmprofile_dbgfs_buffer_fops = {
 
 static const struct file_operations mmprofile_dbgfs_global_fops = {
 	.read = mmprofile_dbgfs_global_read,
-#if 0
-	.write = mmprofile_dbgfs_global_write,
-#endif
 	.llseek = generic_file_llseek,
 };
-
 
 /* Debug FS end */
 
@@ -1657,11 +1621,6 @@ static void process_dbg_cmd(char *cmd)
 }
 
 /* Driver specific begin */
-#if 0
-static dev_t mmprofile_devno;
-static struct cdev *mmprofile_cdev;
-static struct class *mmprofile_class;
-#endif
 static int mmprofile_release(struct inode *inode, struct file *file)
 {
 	return 0;
@@ -1876,7 +1835,8 @@ static long mmprofile_ioctl(struct file *file, unsigned int cmd,
 	break;
 	case MMP_IOC_DUMPMETADATA:
 	{
-#ifdef MTK_MMP_LAYER_DUMP
+#ifdef CONFIG_MTK_ENG_BUILD
+
 		unsigned int meta_data_count = 0;
 		unsigned int offset = 0;
 		unsigned int index;
@@ -1948,26 +1908,6 @@ static long mmprofile_ioctl(struct file *file, unsigned int cmd,
 	case MMP_IOC_SELECTBUFFER:
 		mmprofile_globals.selected_buffer = arg;
 		break;
-	case MMP_IOC_SETRECORDCNT:
-	{
-		if (arg > MMPROFILE_MAX_BUFFER_SIZE) {
-			arg = MMPROFILE_MAX_BUFFER_SIZE;
-			ret = -EINVAL;
-		} else if (arg < MMPROFILE_MIN_BUFFER_SIZE)
-			arg = MMPROFILE_MIN_BUFFER_SIZE;
-		mmprofile_globals.new_buffer_size_record = arg;
-		break;
-	}
-	case MMP_IOC_SETMETABUFSIZE:
-	{
-		if (arg > MMPROFILE_MAX_META_BUFFER_SIZE) {
-			arg = MMPROFILE_MAX_META_BUFFER_SIZE;
-			ret = -EINVAL;
-		} else if (arg < MMPROFILE_MIN_META_BUFFER_SIZE)
-			arg = MMPROFILE_MIN_META_BUFFER_SIZE;
-		mmprofile_globals.new_meta_buffer_size = arg;
-		break;
-	}
 	case MMP_IOC_TRYLOG:
 		if ((!mmprofile_globals.enable) ||
 		    (!bmmprofile_init_buffer) ||
@@ -2183,7 +2123,8 @@ static long mmprofile_ioctl_compat(struct file *file, unsigned int cmd,
 	break;
 	case COMPAT_MMP_IOC_DUMPMETADATA:
 	{
-#ifdef MTK_MMP_LAYER_DUMP
+#ifdef CONFIG_MTK_ENG_BUILD
+
 		unsigned int meta_data_count = 0;
 		unsigned int offset = 0;
 		unsigned int index;
@@ -2262,12 +2203,6 @@ static long mmprofile_ioctl_compat(struct file *file, unsigned int cmd,
 	case MMP_IOC_SELECTBUFFER:
 		ret = mmprofile_ioctl(file, MMP_IOC_SELECTBUFFER, arg);
 		break;
-	case MMP_IOC_SETRECORDCNT:
-		ret = mmprofile_ioctl(file, MMP_IOC_SETRECORDCNT, arg);
-		break;
-	case MMP_IOC_SETMETABUFSIZE:
-		ret = mmprofile_ioctl(file, MMP_IOC_SETMETABUFSIZE, arg);
-		break;
 	case MMP_IOC_TRYLOG:
 		if ((!mmprofile_globals.enable) ||
 		    (!bmmprofile_init_buffer) ||
@@ -2321,7 +2256,7 @@ static int mmprofile_mmap(struct file *file, struct vm_area_struct *vma)
 			pfn = __phys_to_pfn(__virt_to_phys(
 				(unsigned long)(&mmprofile_globals) + i));
 			if (remap_pfn_range
-			    (vma, pos, pfn, PAGE_SIZE, PAGE_READONLY))
+			    (vma, pos, pfn, PAGE_SIZE, PAGE_SHARED))
 				return -EAGAIN;
 			/* pr_debug("pfn: 0x%08x\n", pfn); */
 		}
@@ -2346,7 +2281,7 @@ static int mmprofile_mmap(struct file *file, struct vm_area_struct *vma)
 			    (vma, pos,
 					vmalloc_to_pfn((void *)((unsigned long)
 					p_mmprofile_ring_buffer + i)),
-			     PAGE_SIZE, PAGE_READONLY))
+			     PAGE_SIZE, PAGE_SHARED))
 				return -EAGAIN;
 		}
 	} else
@@ -2433,44 +2368,14 @@ static int mmprofile_remove(void)
 	return 0;
 }
 
-#if 0
-static struct platform_driver mmprofile_driver = {
-	.probe = mmprofile_probe,
-	.remove = mmprofile_remove,
-	.driver = {.name = MMP_DEVNAME}
-};
-
-static struct platform_device mmprofile_device = {
-	.name = MMP_DEVNAME,
-	.id = 0,
-};
-#endif
 static int __init mmprofile_init(void)
 {
-#if 0
-	if (platform_device_register(&mmprofile_device))
-		return -ENODEV;
-
-	if (platform_driver_register(&mmprofile_driver)) {
-		platform_device_unregister(&mmprofile_device);
-		return -ENODEV;
-	}
-#endif
 	mmprofile_probe();
 	return 0;
 }
 
 static void __exit mmprofile_exit(void)
 {
-#if 0
-	device_destroy(mmprofile_class, mmprofile_devno);
-	class_destroy(mmprofile_class);
-	cdev_del(mmprofile_cdev);
-	unregister_chrdev_region(mmprofile_devno, 1);
-
-	platform_driver_unregister(&mmprofile_driver);
-	platform_device_unregister(&mmprofile_device);
-#endif
 	mmprofile_remove();
 }
 

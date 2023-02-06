@@ -7,7 +7,6 @@ comment "Storage Block Tag"
 config MTK_BLOCK_TAG
 	bool "Storage Block Tag"
 	depends on BLOCK
-	depends on MEDIATEK_SOLUTION
 	default y
 	help
 	  Enable block tagging at block driver, tag requester pid to

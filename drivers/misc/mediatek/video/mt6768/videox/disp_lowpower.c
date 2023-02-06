@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/delay.h>
 #include <linux/sched.h>
@@ -24,7 +16,6 @@
 #include <linux/of_irq.h>
 #include <linux/slab.h>
 #include <linux/math64.h>
-#include <linux/sched/clock.h>
 #include "disp_drv_platform.h"	/* must be at the top-most */
 #if defined(MTK_FB_ION_SUPPORT)
 #include "ion_drv.h"
@@ -32,11 +23,11 @@
 #endif
 #include "mtk_boot_common.h"
 #ifdef MTK_FB_SPM_SUPPORT
-#include "spm/mtk_idle.h"
+#include "mtk_idle.h"
 #endif
 #ifdef MTK_FB_MMDVFS_SUPPORT
-#include "mt-plat/mtk_smi.h"
-#include "mtk_smi.h"
+//#include "mt-plat/mtk_smi.h"
+//#include "mtk_smi.h"
 #endif
 
 #include "debug.h"
@@ -66,16 +57,19 @@
 /* #include "mtk_dramc.h" */
 #include "disp_partial.h"
 #ifdef MTK_FB_MMDVFS_SUPPORT
-//#include "mmdvfs_mgr.h"
+#ifdef CONFIG_MTK_SMI_EXT
+#include "mmdvfs_mgr.h"
+#endif
 #include <mmdvfs_pmqos.h>
 #endif
-#include "ddp_disp_bdg.h"
 
+#include "mtk_disp_mgr.h"
 /* device tree */
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
 #include <linux/io.h>
+#include "ddp_disp_bdg.h"
 
 #define MMSYS_CLK_LOW (0)
 #define MMSYS_CLK_HIGH (1)
@@ -905,7 +899,7 @@ void _vdo_mode_enter_idle(void)
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_START,
 			!primary_display_is_decouple_mode(), bandwidth);
-	pm_qos_update_request(&primary_display_qos_request, bandwidth);
+	mtk_pm_qos_update_request(&primary_display_qos_request, bandwidth);
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_END,
 			!primary_display_is_decouple_mode(), bandwidth);
@@ -979,7 +973,7 @@ void _vdo_mode_leave_idle(void)
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_START,
 			!primary_display_is_decouple_mode(), bandwidth);
-	pm_qos_update_request(&primary_display_qos_request, bandwidth);
+	mtk_pm_qos_update_request(&primary_display_qos_request, bandwidth);
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_END,
 			!primary_display_is_decouple_mode(), bandwidth);
@@ -1015,7 +1009,7 @@ void _cmd_mode_enter_idle(void)
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_START,
 			!primary_display_is_decouple_mode(), 0);
-	pm_qos_update_request(&primary_display_qos_request, 0);
+	mtk_pm_qos_update_request(&primary_display_qos_request, 0);
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_END,
 			!primary_display_is_decouple_mode(), 0);
@@ -1060,7 +1054,7 @@ void _cmd_mode_leave_idle(void)
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_START,
 			!primary_display_is_decouple_mode(), bandwidth);
-	pm_qos_update_request(&primary_display_qos_request, bandwidth);
+	mtk_pm_qos_update_request(&primary_display_qos_request, bandwidth);
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_pm_qos,
 			MMPROFILE_FLAG_END,
 			!primary_display_is_decouple_mode(), bandwidth);
@@ -1162,7 +1156,7 @@ int primary_display_request_dvfs_perf(
 #endif
 		emi_opp =
 			(opp_level >= HRT_OPP_LEVEL_DEFAULT) ?
-				PM_QOS_DDR_OPP_DEFAULT_VALUE : opp_level;
+				MTK_PM_QOS_DDR_OPP_DEFAULT_VALUE : opp_level;
 		mm_freq =
 			(opp_level >= HRT_OPP_LEVEL_DEFAULT) ?
 				PM_QOS_MM_FREQ_DEFAULT_VALUE :
@@ -1173,9 +1167,9 @@ int primary_display_request_dvfs_perf(
 			MMPROFILE_FLAG_START,
 			scenario, (req << 16) |
 			(atomic_read(&dvfs_ovl_req_status) & 0xFFFF));
-		pm_qos_update_request(&primary_display_emi_opp_request,
+		mtk_pm_qos_update_request(&primary_display_emi_opp_request,
 					emi_opp);
-		pm_qos_update_request(&primary_display_mm_freq_request,
+		mtk_pm_qos_update_request(&primary_display_mm_freq_request,
 					mm_freq);
 		mmprofile_log_ex(ddp_mmp_get_events()->dvfs, MMPROFILE_FLAG_END,
 			scenario, (mm_freq << 16) | (emi_opp & 0xFFFF));
@@ -1419,8 +1413,10 @@ int primary_display_lowpower_init(void)
 		params->dsi.vertical_frontporch_for_low_power);
 
 	/* init idlemgr */
-	if (disp_helper_get_option(DISP_OPT_IDLE_MGR) &&
-		get_boot_mode() == NORMAL_BOOT)
+	if (disp_helper_get_option(DISP_OPT_IDLE_MGR)
+                //drivers/misc/mediatek/boot/  phased out
+                /*&& get_boot_mode() == NORMAL_BOOT*/
+                )
 		primary_display_idlemgr_init();
 
 	if (disp_helper_get_option(DISP_OPT_SODI_SUPPORT))

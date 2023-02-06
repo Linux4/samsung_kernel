@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
  */
 
 #include <linux/slab.h>
@@ -28,10 +20,9 @@
 #include <linux/of.h>
 #include <linux/of_fdt.h>
 #include <linux/of_reserved_mem.h>
-#include <mt-plat/mtk_rtc.h>
-#include <mt-plat/mtk_ccci_common.h>
-#include <mt-plat/mtk_meminfo.h>
+#include "mt-plat/mtk_ccci_common.h"
 #include <linux/rtc.h>
+#include <memory-amms.h>
 #include "ccci_util_log.h"
 
 /******************************************************************************/
@@ -39,6 +30,8 @@
 /******************************************************************************/
 #define CCCI_LOG_BUF_SIZE 4096	/* must be power of 2 */
 #define CCCI_LOG_MAX_WRITE 4096
+
+#define CUST_FT_DUMP_BUF_FROM_DT 
 
 /*extern u64 local_clock(void); */
 
@@ -280,14 +273,22 @@ static const struct file_operations ccci_log_fops = {
 /******************************************************************************/
 /* Dump buffer part, this type log is NON block read, used for AED dump       */
 /******************************************************************************/
-#define CCCI_INIT_SETTING_BUF		(4096 * 2)
-#define CCCI_BOOT_UP_BUF		(4096 * 16)
-#define CCCI_NORMAL_BUF			(4096 * 2)
-#define CCCI_REPEAT_BUF			(4096 * 32)
-#define CCCI_HISTORY_BUF		(4096 * 128)
-#define CCCI_REG_DUMP_BUF		(4096 * 64 * 2)
+#define CCCI_INIT_SETTING_BUF		(4096*2)
+#define CCCI_BOOT_UP_BUF		(4096*16)
+
+#ifdef CCCI_LOG_DISABLE
+#define CCCI_NORMAL_BUF			(0)
+#define CCCI_REPEAT_BUF			(0)
+#define CCCI_HISTORY_BUF		(0)
+#else
+#define CCCI_NORMAL_BUF			(4096*2)
+#define CCCI_REPEAT_BUF			(4096*32)
+#define CCCI_HISTORY_BUF		(4096*128)
+#endif
+
+#define CCCI_REG_DUMP_BUF		(4096*128 * 2)
 #define CCCI_DPMA_DRB_BUF		(1024 * 16 * 16)
-#define CCCI_DUMP_MD_INIT_BUF		(1024 * 16)
+#define CCCI_DUMP_MD_INIT_BUF		(1024*16)
 #define CCCI_KE_DUMP_BUF                (1024 * 32)
 
 #define MD3_CCCI_INIT_SETTING_BUF	(64)
@@ -296,6 +297,7 @@ static const struct file_operations ccci_log_fops = {
 #define MD3_CCCI_REPEAT_BUF		(64)
 #define MD3_CCCI_REG_DUMP_BUF		(64)
 #define MD3_CCCI_HISTORY_BUF		(64)
+
 
 struct ccci_dump_buffer {
 	void *buffer;
@@ -490,7 +492,7 @@ int ccci_dump_write(int md_id, int buf_type,
 			rtc_time_to_tm(savetv.tv_sec, &now_time);
 
 			write_len = scnprintf(temp_log, CCCI_LOG_MAX_WRITE,
-					     "[%04d-%02d-%02d %02d:%02d:%02d.%03d]",
+					     "[%04ld-%02d-%02d %02d:%02d:%02d.%03d]",
 					     now_time.tm_year + 1900,
 					     now_time.tm_mon + 1,
 					     now_time.tm_mday,
@@ -584,6 +586,7 @@ int ccci_dump_write(int md_id, int buf_type,
 
 	return write_len;
 }
+EXPORT_SYMBOL(ccci_dump_write);
 
 static void format_separate_str(char str[], int type)
 {
@@ -885,6 +888,7 @@ static void ccci_dump_buffer_init(void)
 	struct proc_dir_entry *ccci_dump_proc;
 	struct buffer_node *node_ptr = NULL;
 	struct ccci_dump_buffer *ptr = NULL;
+
 #ifdef CUST_FT_DUMP_BUF_FROM_DT
 	pgprot_t prot;
 #endif
@@ -942,10 +946,11 @@ static void ccci_dump_buffer_init(void)
 #ifdef CUST_FT_DUMP_BUF_FROM_DT
 		node_ptr = &node_array[i][0];
 		j = 0;
+
 		while (node_ptr->ctlb_ptr != NULL) {
 			ptr = node_ptr->ctlb_ptr;
 			spin_lock_init(&ptr->lock);
-			if (buff_en_bit_map & (1U<<i) && node_ptr->init_size) {
+			if (buff_en_bit_map & (1<<i) && node_ptr->init_size) {
 				if (cccimdee_reserve_memory_alloc(i, j, node_ptr->init_size, ptr)) {
 					/* allocate buffer */
 					ptr->buffer = kmalloc(node_ptr->init_size, GFP_KERNEL);
@@ -966,6 +971,7 @@ static void ccci_dump_buffer_init(void)
 		node_ptr = &node_array[i][0];
 		while (node_ptr->ctlb_ptr != NULL) {
 			ptr = node_ptr->ctlb_ptr;
+
 			spin_lock_init(&ptr->lock);
 			if (buff_en_bit_map & (1U<<i) && node_ptr->init_size) {
 				/* allocate buffer */
@@ -982,13 +988,13 @@ static void ccci_dump_buffer_init(void)
 #endif
 		}
 	}
-
-/*
- *kernel __pa is available for LM VA
- *so, if it's belongs to ioremap/vmap for DTS reserved memory
- *it should not use mrdump_mini_add_misc() directly
- *instead of it, it should fill pa explicitly
- */
+#if IS_ENABLED(CONFIG_MTK_AEE_IPANIC)
+	/*
+	 *kernel __pa is available for LM VA
+	 *so, if it's belongs to ioremap/vmap for DTS reserved memory
+	 *it should not use mrdump_mini_add_misc() directly
+	 *instead of it, it should fill pa explicitly
+	 */
 	if (reg_dump_ctlb[0].buf_pa) {
 		mrdump_mini_add_misc_pa((unsigned long)reg_dump_ctlb[0].buffer,
 				(unsigned long)reg_dump_ctlb[0].buf_pa,
@@ -1006,6 +1012,8 @@ static void ccci_dump_buffer_init(void)
 		mrdump_mini_add_misc((unsigned long)ke_dump_ctlb[0].buffer, CCCI_KE_DUMP_BUF,
 			0, "_EXTRA_CCCI_");
 	}
+
+#endif
 }
 
 /* functions will be called by external */
@@ -1082,6 +1090,7 @@ void ccci_util_mem_dump(int md_id, int buf_type, void *start_addr, int len)
 				*(curr_p + 2), *(curr_p + 3));
 	}
 }
+EXPORT_SYMBOL(ccci_util_mem_dump);
 
 void ccci_util_cmpt_mem_dump(int md_id, int buf_type,
 	void *start_addr, int len)
@@ -1259,6 +1268,7 @@ int ccci_event_log(const char *fmt, ...)
 
 	return write_len;
 }
+EXPORT_SYMBOL(ccci_event_log);
 
 int ccci_event_log_cpy(char buf[], int size)
 {
@@ -1297,6 +1307,7 @@ int ccci_event_log_cpy(char buf[], int size)
 
 	return cpy_size;
 }
+
 
 void ccci_log_init(void)
 {
@@ -1338,6 +1349,7 @@ void get_ccci_aee_buffer(unsigned long *vaddr, unsigned long *size)
 	}
 }
 EXPORT_SYMBOL(get_ccci_aee_buffer);
+
 void get_md_aee_buffer(unsigned long *vaddr, unsigned long *size)
 {
 	struct ccci_dump_buffer *ctlb_ptr = &reg_dump_ctlb[0];
@@ -1377,22 +1389,50 @@ static int cccimdee_reserve_memory_alloc(unsigned int zone,
 	static unsigned int total_size;
 
 	total_size += size;
-
 	if (total_size > cccimdee_reserved_size || !cccimdee_reserved_vir_addr) {
 		pr_notice("[ccci]err:alloc total_size(0x%x) > cccimdee_reserved_size(0x%x)|| cccimdee_reserved_vir_addr = 0x%lx\n",
 			total_size, cccimdee_reserved_size,
 			(unsigned long)cccimdee_reserved_vir_addr);
 		return -1;
 	}
+
 	ctlb_ptr->buffer = cccimdee_reserved_vir_addr;
 	ctlb_ptr->buf_pa = cccimdee_reserved_phy_addr;
+
 	pr_notice("[ccci]alloc ee dump DT reserve memory:zone %d,id:%d, size:0x%x, virt:0x%lx, phy:0x%llx\n",
 		zone, id, size, (unsigned long)ctlb_ptr->buffer, ctlb_ptr->buf_pa);
 	cccimdee_reserved_vir_addr += size;
 	cccimdee_reserved_phy_addr += size;
+
 	return 0;
 }
 
 RESERVEDMEM_OF_DECLARE(reserve_memory_cccimdeedump, "mediatek,ccci-md-ee-dump",
 	cccimdee_reserve_memory_init);
+#else
+void get_ccci_aee_buffer(unsigned long *vaddr, unsigned long *size)
+{
+	unsigned long data_size = ke_dump_ctlb[0].data_size;
+
+	if (data_size > ke_dump_ctlb[0].buf_size)
+		data_size = ke_dump_ctlb[0].buf_size;
+
+	*vaddr = (unsigned long)ke_dump_ctlb[0].buffer;
+	*size = data_size;
+
+}
+EXPORT_SYMBOL(get_ccci_aee_buffer);
+
+void get_md_aee_buffer(unsigned long *vaddr, unsigned long *size)
+{
+	unsigned long data_size = reg_dump_ctlb[0].data_size;
+
+	if (data_size > reg_dump_ctlb[0].buf_size)
+		data_size = reg_dump_ctlb[0].buf_size;
+
+	*vaddr = (unsigned long)reg_dump_ctlb[0].buffer;
+	*size = data_size;
+
+}
+EXPORT_SYMBOL(get_md_aee_buffer);
 #endif

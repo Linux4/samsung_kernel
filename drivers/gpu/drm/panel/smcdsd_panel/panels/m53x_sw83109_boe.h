@@ -6,6 +6,8 @@
 #include <linux/kernel.h>
 #include <drm/drm_mipi_dsi.h>
 
+#include "../smcdsd_abd.h"
+
 #if defined(CONFIG_SMCDSD_DPUI)
 #include "dpui.h"
 #endif
@@ -20,22 +22,6 @@
 #endif
 
 #include "m53x_sw83109_boe_00_param.h"
-
-struct bit_info {
-	unsigned int reg;
-	unsigned int len;
-	char **print;
-	unsigned int expect;
-	unsigned int offset;
-	unsigned int g_para;
-	unsigned int invert;
-	unsigned int mask;
-	unsigned int result;
-	union {
-		unsigned int reserved;
-		unsigned int dpui_key;
-	};
-};
 
 enum {
 	LDI_BIT_ENUM_05,	LDI_BIT_ENUM_RDNUMPE = LDI_BIT_ENUM_05,
@@ -98,10 +84,11 @@ static char *LDI_BIT_DESC_9F[BITS_PER_BYTE * 2] = {
 //	[3] = "PS_CHK",		/* Power sequence Error flag */
 //	[4] = "HS_CHK",		/* Hsync Time out flag */
 //	[5] = "VS_CHK",		/* Vsync Time out flag */
+	[6] = "FMEM0_CHK",	/* Frame memory write/read CRC Error flag */
 //	[8] = "PCD_OUT",	/* PCD output value */
 };
 
-static struct bit_info ldi_bit_info_list[LDI_BIT_ENUM_MAX] = {
+static struct abd_bit_info ldi_bit_info_list[LDI_BIT_ENUM_MAX] = {
 	[LDI_BIT_ENUM_05] = {0x05, 1, LDI_BIT_DESC_05, 0x00, },
 	[LDI_BIT_ENUM_0A] = {0x0A, 1, LDI_BIT_DESC_0A, 0x1C, .invert = BIT(2), },
 	[LDI_BIT_ENUM_0E] = {0x0E, 1, LDI_BIT_DESC_0E, 0x00, },
@@ -122,7 +109,7 @@ static struct bit_info ldi_bit_info_list[LDI_BIT_ENUM_MAX] = {
  * ESD_ERROR[6] = VLIN1 error is occurred by ESD
  */
 
-static struct bit_info ldi_bit_dpui_list[] = {
+static struct abd_bit_info ldi_bit_dpui_list[] = {
 	{0x05, .mask = GENMASK(7, 0), .dpui_key = DPUI_KEY_PNDSIE, },		/* panel dsi error count */
 	{0x0F, .mask = BIT(7), .invert = BIT(7), .dpui_key = DPUI_KEY_PNSDRE, },	/* panel OTP loading error count */
 //	{0xEE, .mask = BIT(2), .dpui_key = DPUI_KEY_PNVLO3E, },			/* panel VLOUT3 error count */

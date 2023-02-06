@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <generated/autoconf.h>
 #include <linux/module.h>
@@ -214,10 +206,6 @@ static int mtkfb_blank(int blank_mode, struct fb_info *info)
 {
 	enum mtkfb_power_mode prev_pm = primary_display_get_power_mode();
 
-#if defined(CONFIG_SMCDSD_PANEL)
-	pr_info("%s + blank_mode: %d, %s\n",
-			__func__, blank_mode, blank_mode == FB_BLANK_UNBLANK ? "UNBLANK" : "POWERDOWN");
-#endif
 	switch (blank_mode) {
 	case FB_BLANK_UNBLANK:
 	case FB_BLANK_NORMAL:
@@ -232,12 +220,11 @@ static int mtkfb_blank(int blank_mode, struct fb_info *info)
 		mtkfb_late_resume();
 
 		debug_print_power_mode_check(prev_pm, FB_RESUME);
-#if !defined(CONFIG_SMCDSD_PANEL)
+
 		if (!lcd_fps)
 			msleep(30);
 		else
 			msleep(2 * 100000 / lcd_fps); /* Delay 2 frames. */
-#endif
 		break;
 	case FB_BLANK_VSYNC_SUSPEND:
 	case FB_BLANK_HSYNC_SUSPEND:
@@ -259,10 +246,6 @@ static int mtkfb_blank(int blank_mode, struct fb_info *info)
 	default:
 		return -EINVAL;
 	}
-
-#if defined(CONFIG_SMCDSD_PANEL)
-	pr_info("%s - blank_mode: %d\n", __func__, blank_mode);
-#endif
 
 	return 0;
 }
@@ -1126,7 +1109,7 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd,
 
 		aod_pm = (enum mtkfb_aod_power_mode)arg;
 		DISPCHECK("AOD: ioctl: %s\n",
-			  aod_pm != MTKFB_AOD_DOZE  ? "AOD_DOZE_SUSPEND" : "AOD_DOZE");
+			aod_pm != MTKFB_AOD_DOZE  ? "AOD_DOZE_SUSPEND" : "AOD_DOZE");
 
 		if (!primary_is_aod_supported()) {
 			DISPCHECK("AOD: feature not support\n");
@@ -2544,9 +2527,9 @@ cleanup:
 }
 
 /* Called when the device is being detached from the driver */
-static int mtkfb_remove(struct platform_device *pdev)
+static int mtkfb_remove(struct device *dev)
 {
-	struct mtkfb_device *fbdev = dev_get_drvdata(&pdev->dev);
+	struct mtkfb_device *fbdev = dev_get_drvdata(dev);
 	enum mtkfb_state saved_state = fbdev->state;
 
 	MSG_FUNC_ENTER();
@@ -2560,74 +2543,16 @@ static int mtkfb_remove(struct platform_device *pdev)
 }
 
 /* PM suspend */
-static int mtkfb_suspend(struct platform_device *pdev, pm_message_t mesg)
+static int mtkfb_suspend(struct device *pdev, pm_message_t mesg)
 {
 	NOT_REFERENCED(pdev);
 	MSG_FUNC_ENTER();
-	MTKFB_LOG("[FB Driver] %s(): 0x%x\n", __func__, mesg.event);
+	MTKFB_LOG("[FB Driver] mtkfb_suspend(): 0x%x\n", mesg.event);
 	ovl2mem_wait_done();
 
 	MSG_FUNC_LEAVE();
 	return 0;
 }
-
-/* PM resume */
-static int mtkfb_resume(struct platform_device *pdev)
-{
-	NOT_REFERENCED(pdev);
-	MSG_FUNC_ENTER();
-	MTKFB_LOG("[FB Driver] %s()\n", __func__);
-	MSG_FUNC_LEAVE();
-	return 0;
-}
-
-#if defined(CONFIG_SMCDSD_PANEL)
-static void mtkfb_shutdown(struct platform_device *pdev)
-{
-	struct mtkfb_device *fbdev = dev_get_drvdata(&pdev->dev);
-
-	MTKFB_LOG("[FB Driver] %s()\n", __func__);
-	pr_info("%s: ++\n", __func__);
-
-	if (!lock_fb_info((fbdev->fb_info))) {
-		pr_info("%s: fblock is failed\n", __func__);
-		return;
-	}
-
-	if (primary_display_is_sleepd()) {
-		MTKFB_LOG("mtkfb has been power off\n");
-		unlock_fb_info(fbdev->fb_info);
-		return;
-	}
-	smcdsd_simple_notifier_call_chain(FB_EARLY_EVENT_BLANK, FB_BLANK_POWERDOWN);
-	primary_display_set_power_mode(FB_SUSPEND);
-	primary_display_suspend();
-
-	smcdsd_simple_notifier_call_chain(FB_EVENT_BLANK, FB_BLANK_POWERDOWN);
-	unlock_fb_info(fbdev->fb_info);
-
-	MTKFB_LOG("[FB Driver] leave %s\n", __func__);
-	pr_info("%s: --\n", __func__);
-}
-#else
-static void mtkfb_shutdown(struct platform_device *pdev)
-{
-	MTKFB_LOG("[FB Driver] %s()\n", __func__);
-	/* mt65xx_leds_brightness_set(MT65XX_LED_TYPE_LCD, LED_OFF); */
-	if (!lcd_fps)
-		msleep(30);
-	else
-		msleep(2 * 100000 / lcd_fps);	/* Delay 2 frames. */
-
-	if (primary_display_is_sleepd()) {
-		MTKFB_LOG("mtkfb has been power off\n");
-		return;
-	}
-	primary_display_set_power_mode(FB_SUSPEND);
-	primary_display_suspend();
-	MTKFB_LOG("[FB Driver] leave %s\n", __func__);
-}
-#endif
 
 bool mtkfb_is_suspend(void)
 {
@@ -2661,6 +2586,23 @@ int mtkfb_ipo_init(void)
 	return 0;
 }
 
+static void mtkfb_shutdown(struct device *pdev)
+{
+	MTKFB_LOG("[FB Driver] mtkfb_shutdown()\n");
+	/* mt65xx_leds_brightness_set(MT65XX_LED_TYPE_LCD, LED_OFF); */
+	if (!lcd_fps)
+		msleep(30);
+	else
+		msleep(2 * 100000 / lcd_fps); /* Delay 2 frames. */
+
+	if (primary_display_is_sleepd()) {
+		MTKFB_LOG("mtkfb has been power off\n");
+		return;
+	}
+	primary_display_suspend();
+	MTKFB_LOG("[FB Driver] leave mtkfb_shutdown\n");
+}
+
 void mtkfb_clear_lcm(void)
 {
 }
@@ -2686,6 +2628,16 @@ static void mtkfb_early_suspend(void)
 	}
 
 	DISPMSG("[FB Driver] leave early_suspend\n");
+}
+
+/* PM resume */
+static int mtkfb_resume(struct device *pdev)
+{
+	NOT_REFERENCED(pdev);
+	MSG_FUNC_ENTER();
+	MTKFB_LOG("[FB Driver] mtkfb_resume()\n");
+	MSG_FUNC_LEAVE();
+	return 0;
 }
 
 static void mtkfb_late_resume(void)
@@ -2721,7 +2673,7 @@ int mtkfb_pm_suspend(struct device *device)
 		return -1;
 	}
 
-	return mtkfb_suspend(pdev, PMSG_SUSPEND);
+	return mtkfb_suspend((struct device *)pdev, PMSG_SUSPEND);
 }
 
 int mtkfb_pm_resume(struct device *device)
@@ -2735,7 +2687,7 @@ int mtkfb_pm_resume(struct device *device)
 		return -1;
 	}
 
-	return mtkfb_resume(pdev);
+	return mtkfb_resume((struct device *)pdev);
 }
 
 int mtkfb_pm_freeze(struct device *device)
@@ -2790,17 +2742,16 @@ static const struct dev_pm_ops mtkfb_pm_ops = {
 
 static struct platform_driver mtkfb_driver = {
 	.probe = mtkfb_probe,
-	.remove = mtkfb_remove,
-	.suspend = mtkfb_suspend,
-	.resume = mtkfb_resume,
-	.shutdown = mtkfb_shutdown,
-
 	.driver = {
 			.name = MTKFB_DRIVER,
 #ifdef CONFIG_PM
 			.pm = &mtkfb_pm_ops,
 #endif
 			.bus = &platform_bus_type,
+			.remove = mtkfb_remove,
+			.suspend = mtkfb_suspend,
+			.resume = mtkfb_resume,
+			.shutdown = mtkfb_shutdown,
 			.of_match_table = mtkfb_of_ids,
 		},
 };

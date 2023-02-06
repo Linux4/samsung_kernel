@@ -1,3 +1,7 @@
-#include $(srctree)/drivers/misc/mediatek/Makefile.custom
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2022 Samsung Electronics Co., Ltd
 
-obj-y += s5kjn1mipiraw_Sensor.o
+SENSOR_NAME  := s5kjn1
+
+obj-y += $(SENSOR_NAME)mipiraw_Sensor.o
+$(info used driver: $(SENSOR_NAME))

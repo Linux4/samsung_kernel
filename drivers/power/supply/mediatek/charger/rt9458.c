@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 #include <linux/init.h>
 #include <linux/module.h>
@@ -23,7 +15,7 @@
 #include <mt-plat/rt-regmap.h>
 #endif /* #ifdef CONFIG_RT_REGMAP */
 #if defined(CONFIG_MTK_GAUGE_VERSION) && (CONFIG_MTK_GAUGE_VERSION == 30)
-#include <mt-plat/charger_class.h>
+#include <mt-plat/v1/charger_class.h>
 #include "mtk_charger_intf.h"
 #endif /* #if (CONFIG_MTK_GAUGE_VERSION == 30) */
 
@@ -675,8 +667,10 @@ static int rt9458_charger_dump_registers(struct charger_device *chg_dev)
 	if (ret < 0)
 		dev_info(ri->dev, "get cv fail\n");
 	ret = rt9458_charger_get_charging_stat(chg_dev, &chg_stat);
-	if (ret < 0)
+	if (ret < 0 || chg_stat >= RT9458_CHG_STAT_MAX || chg_stat < 0) {
 		dev_info(ri->dev, "get charger status fail\n");
+		chg_stat = RT9458_CHG_STAT_READY;
+	}
 
 	if (dbg_log_en) {
 		for (i = RT9458_REG_CTRL1; i <= RT9458_REG_CTRL8; i++) {
@@ -700,7 +694,7 @@ static int rt9458_charger_dump_registers(struct charger_device *chg_dev)
 	dev_info(ri->dev,
 		"%s: CV = %dmV, vmreg = %dmV, CHG_EN = %d, CHG_STATUS = %s\n",
 		__func__, voreg / 1000, pdata->vmreg / 1000, chg_en,
-		rt9458_chg_stat_name[(unsigned int)chg_stat]);
+		rt9458_chg_stat_name[chg_stat]);
 	return 0;
 }
 

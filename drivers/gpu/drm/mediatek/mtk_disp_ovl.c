@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2015 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <drm/drmP.h>
 #include <linux/clk.h>
@@ -2155,6 +2147,11 @@ static bool compr_l_config_AFBC_V1_2(struct mtk_ddp_comp *comp,
 	/* if no compress, do common config and return */
 	if (compress == 0) {
 		_ovl_common_config(comp, idx, state, handle);
+		return 0;
+	}
+
+	if (Bpp == 0) {
+		DDPDBG("%s fail, no Bpp info\n", __func__);
 		return 0;
 	}
 

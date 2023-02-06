@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 /*****************************************************************************
@@ -39,9 +31,6 @@ enum IMGSENSOR_MODE {
 	IMGSENSOR_MODE_SLIM_VIDEO,
 	IMGSENSOR_MODE_CUSTOM1,
 	IMGSENSOR_MODE_CUSTOM2,
-	IMGSENSOR_MODE_CUSTOM3,
-	IMGSENSOR_MODE_CUSTOM4,
-	IMGSENSOR_MODE_CUSTOM5,
 };
 
 struct imgsensor_mode_struct {
@@ -129,9 +118,6 @@ struct imgsensor_info_struct {
      /* custom1 for stereo relative information */
 	struct imgsensor_mode_struct custom1;
 	struct imgsensor_mode_struct custom2;
-	struct imgsensor_mode_struct custom3;
-	struct imgsensor_mode_struct custom4;
-	struct imgsensor_mode_struct custom5;
 	kal_uint8 ae_shut_delay_frame;	/* shutter delay frame for AE cycle */
 
 	/* sensor gain delay frame for AE cycle */
@@ -158,9 +144,6 @@ struct imgsensor_info_struct {
 
 	kal_uint8 custom1_delay_frame; /* enter custom1 delay frame num */
 	kal_uint8 custom2_delay_frame;
-	kal_uint8 custom3_delay_frame;
-	kal_uint8 custom4_delay_frame;
-	kal_uint8 custom5_delay_frame;
 	kal_uint8 margin;	/* sensor framelength & shutter margin */
 	kal_uint32 min_shutter;	/* min shutter */
 

@@ -150,8 +150,6 @@ static ssize_t pressure_sw_offset_store(struct device *dev, struct device_attrib
 		return ret;
 	}
 
-	save_pressure_sw_offset_file(sw_offset);
-
 	data->sw_offset = sw_offset;
 
 	shub_infof("%d", sw_offset);

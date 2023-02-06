@@ -1,20 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2020 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #include <linux/types.h>
 #include <linux/errno.h>
 #include <linux/list.h>
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 
 #include "apusys_device.h"
 #include "mdw_cmn.h"
@@ -724,7 +717,12 @@ static int mdw_cmd_end_sc(struct mdw_apu_sc *in, struct mdw_apu_sc **out)
 	if (c->sc_status_bmp & (1ULL << in->idx)) {
 		c->sc_status_bmp &= ~(1ULL << in->idx);
 		mdw_cmd_update_scr(in);
+
+		/* update subcmd return value */
+		if (in->status)
+			c->sc_rets |= (1ULL << in->idx);
 	}
+
 	mdw_flw_debug("cmd status = 0x%llx after #%d sc done\n",
 		c->sc_status_bmp, in->idx);
 

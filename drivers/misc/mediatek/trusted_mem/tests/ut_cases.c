@@ -1,14 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #define TMEM_UT_TEST_FMT
@@ -774,7 +767,7 @@ static struct test_case test_cases[] = {
 
 #define TEST_CASE_COUNT ARRAY_SIZE(test_cases)
 
-static int __init tmem_ut_cases_init(void)
+int tmem_ut_cases_init(void)
 {
 	int idx;
 
@@ -793,13 +786,7 @@ static int __init tmem_ut_cases_init(void)
 	return TMEM_OK;
 }
 
-static void __exit tmem_ut_cases_exit(void)
+void tmem_ut_cases_exit(void)
 {
 }
 
-module_init(tmem_ut_cases_init);
-module_exit(tmem_ut_cases_exit);
-
-MODULE_AUTHOR("MediaTek Inc.");
-MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("MediaTek Trusted Memory Test Cases");

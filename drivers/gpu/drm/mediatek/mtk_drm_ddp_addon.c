@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include "mtk_drm_ddp_addon.h"
 #include "mtk_drm_drv.h"
@@ -576,7 +568,7 @@ void mtk_addon_connect_after(struct drm_crtc *crtc, unsigned int ddp_mode,
 
 	prev_attach_comp_id =
 		mtk_crtc_find_comp(crtc, ddp_mode, module_data->attach_comp);
-	if (prev_attach_comp_id == -1) {
+	if (prev_attach_comp_id < 0) {
 		comp = priv->ddp_comp[module_data->attach_comp];
 		DDPMSG("[ERR]Attach module:%s is not in path mode %d\n",
 			  mtk_dump_comp_str(comp), ddp_mode);
@@ -660,7 +652,8 @@ void mtk_addon_disconnect_after(
 	prev_attach_comp_id =
 		mtk_crtc_find_comp(crtc, ddp_mode, module_data->attach_comp);
 	if (prev_attach_comp_id == -1) {
-		comp = priv->ddp_comp[module_data->attach_comp];
+		comp = priv->ddp_comp[(module_data->attach_comp > 0) ?
+				module_data->attach_comp : 0];
 		DDPMSG("[ERR]Attach module:%s is not in path mode %d\n",
 			  mtk_dump_comp_str(comp), ddp_mode);
 		return;

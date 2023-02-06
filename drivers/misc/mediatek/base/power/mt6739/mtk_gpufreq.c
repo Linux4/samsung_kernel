@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -1779,17 +1771,6 @@ int mt_gpufreq_get_cur_ceiling_idx(void)
 	return limited_id;
 }
 
-/* API : get immediate gpu temperature */
-int mt_gpufreq_get_immed_gpu_temp(void)
-{
-	return get_immediate_gpu_wrap();
-}
-
-struct mt_gpufreq_power_table_info *pass_gpu_table_to_eara(void)
-{
-	return mt_gpufreqs_power;
-}
-
 /************************************************
  * frequency adjust interface for thermal protect
  *************************************************/
@@ -2190,14 +2171,6 @@ unsigned int mt_gpufreq_get_leakage_mw(void)
 #else /* DISABLE_PBM_FEATURE */
 	return 0;
 #endif
-}
-
-/*
- * API : get current segment max opp index
- */
-unsigned int mt_gpufreq_get_seg_max_opp_index(void)
-{
-	return g_gpufreq_max_id;
 }
 
 /************************************************

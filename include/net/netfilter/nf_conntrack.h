@@ -45,6 +45,11 @@ union nf_conntrack_expect_proto {
 	/* insert expect proto private data here */
 };
 
+struct nf_conntrack_net {
+	unsigned int users4;
+	unsigned int users6;
+};
+
 #include <linux/types.h>
 #include <linux/skbuff.h>
 
@@ -133,17 +138,6 @@ struct nf_conn {
 	/* Atomic variable indicating end of intermediate flow */
 	atomic_t intermediateFlow;
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
-
-#ifdef CONFIG_HW_FORWARD
-	u32 packet_count;
-	bool forward_registered;
-	struct net_device *netdev;
-#endif
-#ifdef CONFIG_LINK_FORWARD
-	u32 packet_count;
-	bool linkforward_registered;
-	struct net_device *netdev;
-#endif
 };
 
 static inline struct nf_conn *
@@ -217,8 +211,6 @@ void nf_ct_netns_put(struct net *net, u8 nfproto);
  */
 void *nf_ct_alloc_hashtable(unsigned int *sizep, int nulls);
 
-void nf_ct_free_hashtable(void *hash, unsigned int size);
-
 int nf_conntrack_hash_check_insert(struct nf_conn *ct);
 bool nf_ct_delete(struct nf_conn *ct, u32 pid, int report);
 
@@ -258,11 +250,6 @@ static inline bool nf_ct_kill(struct nf_conn *ct)
 {
 	return nf_ct_delete(ct, 0, 0);
 }
-
-/* These are for NAT.  Icky. */
-extern s32 (*nf_ct_nat_offset)(const struct nf_conn *ct,
-			       enum ip_conntrack_dir dir,
-			       u32 seq);
 
 /* Set all unconfirmed conntrack as dying */
 void nf_ct_unconfirmed_destroy(struct net *);

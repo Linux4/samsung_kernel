@@ -42,7 +42,7 @@ static inline void wake_lock_init(struct wake_lock *lock, int type,
 				  const char *name)
 {
 #ifdef CONFIG_PM_WAKELOCKS
-	lock->ptr_ws = wakeup_source_register(NULL, name);
+	lock->ptr_ws = wakeup_source_register(NULL, "muic_wake");
 #else
 	wakeup_source_init(&lock->ws, name);
 #endif

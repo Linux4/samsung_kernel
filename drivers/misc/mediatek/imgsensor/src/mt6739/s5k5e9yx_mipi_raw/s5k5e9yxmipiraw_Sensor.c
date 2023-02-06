@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 /*****************************************************************************
  *
@@ -289,7 +281,7 @@ static kal_uint16 table_write_cmos_sensor(kal_uint16 *para,
 #endif
 	}
 
-#if 0 /*for debug*/
+#ifdef readback_debug /*for debug*/
 	for (int i = 0; i < len/2; i++)
 		LOG_INF("readback addr(0x%x)=0x%x\n",
 			para[2*i], read_cmos_sensor_8(para[2*i]));
@@ -485,7 +477,7 @@ static kal_uint16 set_gain(kal_uint16 gain)
 	return gain;
 }				/*  s5k5e9yxMIPI_SetGain  */
 
-#if 0
+#ifdef ihdr_write_shutter_gain_debug
 static void ihdr_write_shutter_gain(kal_uint16 le,
 				    kal_uint16 se, kal_uint16 gain)
 {
@@ -1321,7 +1313,7 @@ static kal_uint32 custom1(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 }		/* s5k5e9yxMIPIPreview */
 
 static kal_uint32 get_resolution(
-		MSDK_SENSOR_RESOLUTION_INFO_STRUCT * sensor_resolution)
+		MSDK_SENSOR_RESOLUTION_INFO_STRUCT *sensor_resolution)
 {
 	LOG_INF("E\n");
 	sensor_resolution->SensorFullWidth =

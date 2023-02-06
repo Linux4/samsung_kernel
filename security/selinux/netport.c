@@ -173,9 +173,8 @@ static int sel_netport_sid_slow(u8 protocol, u16 pnum, u32 *sid)
 out:
 	spin_unlock_bh(&sel_netport_lock);
 	if (unlikely(ret)) {
-		printk(KERN_WARNING
-		       "SELinux: failure in sel_netport_sid_slow(),"
-		       " unable to determine network port label\n");
+		pr_warn("SELinux: failure in %s(), unable to determine network port label\n",
+			__func__);
 		kfree(new);
 	}
 	return ret;
@@ -241,7 +240,7 @@ static __init int sel_netport_init(void)
 #ifdef CONFIG_ALWAYS_ENFORCE
 	selinux_enabled = 1;
 #endif
-// ] SEC_SELINUX_PORTING_COMMON					   
+// ] SEC_SELINUX_PORTING_COMMON
 
 	if (!selinux_enabled)
 		return 0;

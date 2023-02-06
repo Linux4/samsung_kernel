@@ -158,7 +158,7 @@
 /* Debug messages */
 #define DEBUG_NONE	0
 #define DEBUG_ALL	1
-#define DEBUG_OUTPUT	DEBUG_ALL//DEBUG_NONE
+#define DEBUG_OUTPUT	DEBUG_NONE
 
 #define ILI_INFO(fmt, arg...)						\
 ({									\

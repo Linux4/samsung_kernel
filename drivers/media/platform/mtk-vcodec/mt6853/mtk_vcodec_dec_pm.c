@@ -1,16 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (c) 2016 MediaTek Inc.
- * Author: Tiffany Lin <tiffany.lin@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #include <linux/clk.h>
 #include <linux/of_address.h>
@@ -33,10 +25,11 @@
 
 #if DEC_DVFS
 #include <linux/pm_qos.h>
+#include <linux/soc/mediatek/mtk-pm-qos.h>
 #include <mmdvfs_pmqos.h>
 #include "vcodec_dvfs.h"
 #define STD_VDEC_FREQ 218
-static struct pm_qos_request vdec_qos_req_f;
+static struct mtk_pm_qos_request vdec_qos_req_f;
 static u64 vdec_freq;
 static u32 vdec_freq_step_size;
 static u64 vdec_freq_steps[MAX_FREQ_STEP];
@@ -51,7 +44,6 @@ static unsigned int h265_frm_scale[4] = {12, 24, 40, 12};
 static unsigned int vp9_frm_scale[4] = {12, 24, 40, 12};
 static unsigned int vp8_frm_scale[4] = {12, 24, 40, 12};
 static unsigned int mp24_frm_scale[5] = {16, 20, 32, 50, 16};
-struct pm_qos_request vdec_qos_req_bw;
 
 static struct plist_head vdec_rlist;
 static struct mm_qos_request vdec_mc;
@@ -71,6 +63,7 @@ static struct mm_qos_request vdec_rg_ctrl_dma;
 void mtk_dec_init_ctx_pm(struct mtk_vcodec_ctx *ctx)
 {
 	ctx->input_driven = 0;
+	ctx->user_lock_hw = 1;
 }
 
 int mtk_vcodec_init_dec_pm(struct mtk_vcodec_dev *mtkdev)
@@ -540,7 +533,7 @@ void mtk_prepare_vdec_dvfs(void)
 #if DEC_DVFS
 	int ret;
 
-	pm_qos_add_request(&vdec_qos_req_f, PM_QOS_VDEC_FREQ,
+	mtk_pm_qos_add_request(&vdec_qos_req_f, PM_QOS_VDEC_FREQ,
 				PM_QOS_DEFAULT_VALUE);
 	vdec_freq_step_size = 1;
 	ret = mmdvfs_qos_get_freq_steps(PM_QOS_VDEC_FREQ, &vdec_freq_steps[0],
@@ -556,8 +549,8 @@ void mtk_unprepare_vdec_dvfs(void)
 	int freq_idx = 0;
 
 	freq_idx = (vdec_freq_step_size == 0) ? 0 : (vdec_freq_step_size - 1);
-	pm_qos_update_request(&vdec_qos_req_f, vdec_freq_steps[freq_idx]);
-	pm_qos_remove_request(&vdec_qos_req_f);
+	mtk_pm_qos_update_request(&vdec_qos_req_f, vdec_freq_steps[freq_idx]);
+	mtk_pm_qos_remove_request(&vdec_qos_req_f);
 	free_hist(&vdec_hists, 0);
 	/* TODO: jobs error handle */
 #endif
@@ -591,7 +584,7 @@ void mtk_prepare_vdec_emi_bw(void)
 void mtk_unprepare_vdec_emi_bw(void)
 {
 #if DEC_EMI_BW
-	pm_qos_remove_request(&vdec_qos_req_bw);
+	mm_qos_remove_all_request(&vdec_rlist);
 #endif
 }
 
@@ -620,7 +613,7 @@ void mtk_vdec_dvfs_begin(struct mtk_vcodec_ctx *ctx)
 		if (vdec_cur_job != 0)
 			vdec_cur_job->mhz = (int)target_freq_64;
 
-		pm_qos_update_request(&vdec_qos_req_f, target_freq_64);
+		mtk_pm_qos_update_request(&vdec_qos_req_f, target_freq_64);
 	} else if (vdec_cur_job != 0) {
 		vdec_cur_job->start = get_time_us();
 		target_freq = est_freq(vdec_cur_job->handle, &vdec_jobs,
@@ -632,12 +625,12 @@ void mtk_vdec_dvfs_begin(struct mtk_vcodec_ctx *ctx)
 			if (vdec_freq > target_freq_64)
 				vdec_freq = target_freq_64;
 			vdec_cur_job->mhz = (int)target_freq_64;
-			pm_qos_update_request(&vdec_qos_req_f, target_freq_64);
+			mtk_pm_qos_update_request(&vdec_qos_req_f, target_freq_64);
 		}
 	} else {
 		target_freq_64 = match_freq(DEFAULT_MHZ, &vdec_freq_steps[0],
 						vdec_freq_step_size);
-		pm_qos_update_request(&vdec_qos_req_f, target_freq_64);
+		mtk_pm_qos_update_request(&vdec_qos_req_f, target_freq_64);
 	}
 	mutex_unlock(&ctx->dev->dec_dvfs_mutex);
 #endif
@@ -663,7 +656,7 @@ void mtk_vdec_dvfs_end(struct mtk_vcodec_ctx *ctx)
 	}
 
 	freq_idx = (vdec_freq_step_size == 0) ? 0 : (vdec_freq_step_size - 1);
-	pm_qos_update_request(&vdec_qos_req_f, vdec_freq_steps[freq_idx]);
+	mtk_pm_qos_update_request(&vdec_qos_req_f, vdec_freq_steps[freq_idx]);
 	mutex_unlock(&ctx->dev->dec_dvfs_mutex);
 #endif
 }

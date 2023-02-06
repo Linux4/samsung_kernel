@@ -38,8 +38,7 @@
 #include "../mediatek/mtk_corner_pattern/mtk_data_hw_roundedpattern.h"
 #endif
 
-#define ENABLE_MTK_BOARD_ID_CHECK_HX
-
+#define ENABLE_MTK_LCD_DTS_CHECK_NVT
 /*******************************************************/
 /* Backlight Function                                  */
 /* Device Name : LM36274                               */
@@ -113,15 +112,10 @@ static void _lm36274_init(void)
 /*****************************************************************************
  * I2C Interface Function
  *****************************************************************************/
-#define BOARD_HW_REV_00     (0b0000)
-#define BOARD_HW_REV_01     (0b0001)
-#define BOARD_HW_REV_02     (0b0010)
-
 static int _lcm_i2c_probe(struct i2c_client *client,
 			  const struct i2c_device_id *id)
 {
-	struct device_node *root = of_find_node_by_path("/");
-	unsigned int hw_version;
+	struct device_node *lcd_comp;
 	int ret;
 
 	pr_debug("[LCM][I2C][hx83102d] %s\n", __func__);
@@ -129,26 +123,15 @@ static int _lcm_i2c_probe(struct i2c_client *client,
 		 client->addr);
 	_lcm_i2c_client = client;
 
-	if (IS_ERR_OR_NULL(root)) {
-		pr_info("root dev node is NULL\n");
-		return -1;
-	}
-
-	ret = of_property_read_u32(root, "dtbo-hw_rev", &hw_version);
-	if (ret < 0) {
-		pr_info("get dtbo-hw_rev fail:%d\n", ret);
-		hw_version = 0;
-	} else {
-		pr_info("Get HW version = %d\n", hw_version);
-	}
-
-#ifdef ENABLE_MTK_BOARD_ID_CHECK_HX
-	if (hw_version != BOARD_HW_REV_00) {
-		pr_info("hx83102d : %s : hw board revision	match\n", __func__);
+#ifdef ENABLE_MTK_LCD_DTS_CHECK_NVT
+	lcd_comp = of_find_compatible_node(NULL, NULL,
+	"auo,hx83102d,vdo");
+	if (lcd_comp) {
+		pr_info("hx83102d : %s : panel compatible match\n", __func__);
 		return 0;
 	}
 
-	pr_info("hx83102d : %s : hw board revision and LCM doesn't match.\n", __func__);
+	pr_info("hx83102d : %s : panel compatible doesn't match\n", __func__);
 	return -EPERM;
 #else
 	return 0;
@@ -717,26 +700,15 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 	struct device *dev = &dsi->dev;
 	struct lcm *ctx;
 	struct device_node *backlight;
-	struct device_node *root = of_find_node_by_path("/");
-	unsigned int hw_version;
+	struct device_node *lcd_comp;
+	int lcd_id_pins = 0;
 	int ret;
 
-	if (IS_ERR_OR_NULL(root)) {
-		pr_info("root dev node is NULL\n");
-		return -1;
-	}
-
-	ret = of_property_read_u32(root, "dtbo-hw_rev", &hw_version);
-	if (ret < 0) {
-		pr_info("get dtbo-hw_rev fail:%d\n", ret);
-		hw_version = 0;
-	} else {
-		pr_info("Get HW version = %d\n", hw_version);
-	}
-
-#ifdef ENABLE_MTK_BOARD_ID_CHECK_HX
-		if (hw_version == BOARD_HW_REV_00) {
-		pr_info("[NVT]%s: board ID not match\n", __func__);
+#ifdef ENABLE_MTK_LCD_DTS_CHECK_NVT
+	lcd_comp = of_find_compatible_node(NULL, NULL,
+	"auo,hx83102d,vdo");
+	if (!lcd_comp) {
+		pr_info("hx83102d : %s : panel compatible doesn't match\n", __func__);
 		return -1;
 	}
 #endif

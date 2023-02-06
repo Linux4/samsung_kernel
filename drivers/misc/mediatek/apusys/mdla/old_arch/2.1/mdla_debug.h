@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #ifndef __MDLA_DEBUG_H__
@@ -176,6 +168,7 @@ static inline void mdla_debugfs_exit(void)
 }
 #endif
 
+#define mdla_error(...) pr_info(__VA_ARGS__)
 #define mdla_drv_debug(...) mdla_debug(MDLA_DBG_DRV, __VA_ARGS__)
 #define mdla_mem_debug(...) mdla_debug(MDLA_DBG_MEM, __VA_ARGS__)
 #define mdla_cmd_debug(...) mdla_debug(MDLA_DBG_CMD, __VA_ARGS__)

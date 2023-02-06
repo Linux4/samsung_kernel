@@ -76,7 +76,7 @@ static atomic_t rc_num_succ_flush_fs = ATOMIC_INIT(0);
 /* statistics end */
 
 /* rbincache data structures */
-#define MAX_RC_POOLS 32
+#define MAX_RC_POOLS 64
 
 /* One rbincache pool per filesystem mount instance */
 struct rc_pool {
@@ -210,9 +210,6 @@ static void rc_rbnode_isolate(struct rc_pool *rcpool, struct rc_rbnode *rbnode)
 		rb_erase(&rbnode->rb_node, &rcpool->rbtree);
 		RB_CLEAR_NODE(&rbnode->rb_node);
 		kref_put(&rbnode->refcount, rc_rbnode_release);
-	} else {
-		trace_printk("rbincache: unabled to erase rbnode : refcount=%d\n",
-				atomic_read(&rbnode->refcount.refcount.refs));
 	}
 }
 
@@ -282,7 +279,6 @@ static int rc_store_handle(int pool_id, int rb_index, int ra_index, void *handle
 
 		spin_unlock(&rbnode->ra_lock);
 		write_unlock_irqrestore(&rcpool->rb_lock, flags);
-		trace_printk("rbincache: handle insertion failed\n");
 	} else {
 		atomic_inc(&rc_num_ra_entry);
 	}
@@ -510,7 +506,6 @@ static void rc_flush_inode(int pool_id, struct cleancache_filekey key)
 	write_unlock_irqrestore(&rcpool->rb_lock, flags1);
 
 	atomic_inc(&rc_num_succ_flush_inode);
-	trace_printk("rbincache: %d pages flushed\n", pages_flushed);
 }
 
 static void rc_flush_fs(int pool_id)
@@ -551,7 +546,6 @@ static void rc_flush_fs(int pool_id)
 	write_unlock_irqrestore(&rcpool->rb_lock, flags1);
 
 	atomic_inc(&rc_num_succ_flush_fs);
-	trace_printk("rbincache: %d pages flushed\n", pages_flushed);
 }
 
 static int rc_init_fs(size_t pagesize)
@@ -598,7 +592,6 @@ static int rc_init_fs(size_t pagesize)
 	pr_info("New pool created id:%d\n", ret);
 
 	atomic_inc(&rc_num_succ_init_fs);
-	trace_printk("rbincache\n");
 
 out_unlock:
 	spin_unlock(&rbincache.pool_lock);

@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #include <linux/bitops.h>
@@ -24,7 +16,6 @@
 #endif
 #include "mdla.h"
 #include "mdla_hw_reg.h"
-#include "mdla_ion.h"
 #include "mdla_trace.h"
 #include "mdla_debug.h"
 #include "mdla_util.h"
@@ -275,7 +266,7 @@ void mdla_reset(unsigned int core, int res)
 	/*TODO, 0x0 after verification*/
 	mdla_reg_write_with_mdlaid(core, cfg_eng11, MREG_TOP_ENG11);
 
-#ifdef CONFIG_MTK_MDLA_ION
+#ifndef CONFIG_MTK_MDLA_IOMMU_DISABLE
 	mdla_cfg_set_with_mdlaid(core, MDLA_AXI_CTRL_MASK, MDLA_AXI_CTRL);
 	mdla_cfg_set_with_mdlaid(core, MDLA_AXI_CTRL_MASK, MDLA_AXI1_CTRL);
 #endif
@@ -709,17 +700,26 @@ struct command_entry *mdla_dequeue_ce_2_1(unsigned int core_id)
 void mdla_preempt_ce_2_1(unsigned int core_id, struct command_entry *high_ce)
 {
 	struct mdla_scheduler *sched = mdla_get_scheduler(core_id);
-	struct command_entry *low_ce = sched->pro_ce;
+	struct command_entry *low_ce;
 	uint64_t deadline =
 		get_jiffies_64() + msecs_to_jiffies(mdla_timeout);
 
-	sched->pro_ce->req_end_t = sched_clock();
-	sched->pro_ce->state |= (1 << CE_PREEMPTED);
-	mdla_preemption_times++;
-	sched->enqueue_ce(core_id, low_ce, 1);
-	low_ce->deadline_t = deadline;
-	high_ce->state |= (1 << CE_PREEMPTING);
-	sched->pro_ce = high_ce;
+	if (unlikely(sched == NULL))
+		return;
+	low_ce = sched->pro_ce;
+
+	if (likely(sched->pro_ce != NULL)) {
+		sched->pro_ce->req_end_t = sched_clock();
+		sched->pro_ce->state |= (1 << CE_PREEMPTED);
+		mdla_preemption_times++;
+		sched->enqueue_ce(core_id, low_ce, 1);
+		low_ce->deadline_t = deadline;
+	}
+
+	if (likely(high_ce != NULL)) {
+		high_ce->state |= (1 << CE_PREEMPTING);
+		sched->pro_ce = high_ce;
+	}
 }
 
 /*

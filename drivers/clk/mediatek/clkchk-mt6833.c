@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (c) 2019 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+*/
 
 #include <linux/clk-provider.h>
 #include <linux/syscore_ops.h>
@@ -20,7 +12,7 @@
 #include "clkdbg-mt6833.h"
 
 #define TAG			"[clkchk] "
-#define	BUG_ON_CHK_ENABLE	1
+#define	BUG_ON_CHK_ENABLE	0
 
 const char * const *get_mt6833_all_clk_names(void)
 {
@@ -615,8 +607,8 @@ static void check_pll_off(void)
 
 	struct clk **c;
 	int invalid = 0;
-	char buf[128] = {0};
-	int n = 0;
+//	char buf[128] = {0};
+//	int n = 0;
 
 	if (!off_plls[0]) {
 		const char * const *pn;
@@ -659,15 +651,15 @@ static void check_pll_off(void)
 #endif
 	}
 }
-
+/*
 static void check_pll_notice(void)
 {
 	static struct clk *off_plls[ARRAY_SIZE(notice_pll_names)];
 
 	struct clk **c;
 	int invalid = 0;
-	char buf[128] = {0};
-	int n = 0;
+//	char buf[128] = {0};
+//	int n = 0;
 
 	if (!off_plls[0]) {
 		const char * const *pn;
@@ -694,15 +686,15 @@ static void check_pll_notice(void)
 	if (invalid)
 		print_enabled_clks();
 }
-
+*/
 static void check_mtcmos_off(void)
 {
 	static struct clk *off_mtcmos[ARRAY_SIZE(off_mtcmos_names)];
 
 	struct clk **c;
 	int invalid = 0;
-	char buf[128] = {0};
-	int n = 0;
+//	char buf[128] = {0};
+//	int n = 0;
 
 	if (!off_mtcmos[0]) {
 		const char * const *pn;
@@ -748,9 +740,9 @@ static void check_mtcmos_notice(void)
 	static struct clk *notice_mtcmos[ARRAY_SIZE(notice_mtcmos_names)];
 
 	struct clk **c;
-	int invalid = 0;
-	char buf[128] = {0};
-	int n = 0;
+//	int invalid = 0;
+//	char buf[128] = {0};
+//	int n = 0;
 
 	if (!notice_mtcmos[0]) {
 		const char * const *pn;

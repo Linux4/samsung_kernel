@@ -1,14 +1,7 @@
+
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2019 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 #ifndef _MT_PMIC_UPMU_SW_H_
 #define _MT_PMIC_UPMU_SW_H_
@@ -81,9 +74,6 @@ extern void register_low_battery_notify(
 extern void register_low_battery_notify_ext(
 			void (*low_battery_callback)(LOW_BATTERY_LEVEL tag),
 			LOW_BATTERY_PRIO prio_val);
-#if defined(CONFIG_BATTERY_SAMSUNG)
-extern void set_g_low_battery_stop(int val);
-#endif
 
 /* =============================================================================
  * Battery OC level define

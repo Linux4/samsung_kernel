@@ -18,9 +18,7 @@
 #include <linux/seq_file.h>
 #include <linux/sched/clock.h>
 #include <asm/stacktrace.h>
-#ifndef CONFIG_MACH_MT6739
 #include <asm/esr.h>
-#endif
 
 #define SZ_960	0x000003c0
 #define EXTRA_VERSION	"TE15"
@@ -224,15 +222,10 @@ void sec_debug_set_extra_info_fault(unsigned long addr, struct pt_regs *regs)
 	if (regs) {
 		pr_crit("sec_debug_set_extra_info_fault = 0x%lx\n", addr);
 		sec_debug_set_extra_info(INFO_FAULT, "0x%lx", addr);
-#ifdef CONFIG_MACH_MT6739
-		sec_debug_set_extra_info(INFO_PC, "%pS", regs->ARM_pc);
-		sec_debug_set_extra_info(INFO_LR, "%pS", regs->ARM_lr);
-#else
 		sec_debug_set_extra_info(INFO_PC, "%pS", regs->pc);
 		sec_debug_set_extra_info(INFO_LR, "%pS",
 					 compat_user_mode(regs) ?
 					  regs->compat_lr : regs->regs[30]);
-#endif
 	}
 }
 
@@ -276,14 +269,9 @@ void sec_debug_set_extra_info_backtrace(struct pt_regs *regs)
 	pr_crit("sec_debug_store_backtrace\n");
 
 	if (regs) {
-#ifdef CONFIG_MACH_MT6739
-		frame.fp = regs->ARM_fp;
-		frame.pc = regs->ARM_pc;
-#else
 		frame.fp = regs->regs[29];
 		//frame.sp = regs->sp;
 		frame.pc = regs->pc;
-#endif
 	} else {
 		frame.fp = (unsigned long)__builtin_frame_address(0);
 		//frame.sp = current_stack_pointer;
@@ -293,11 +281,8 @@ void sec_debug_set_extra_info_backtrace(struct pt_regs *regs)
 	while (1) {
 		unsigned long where = frame.pc;
 		int ret;
-#ifdef CONFIG_MACH_MT6739
-		ret = unwind_frame(&frame);
-#else
+
 		ret = unwind_frame(NULL, &frame);
-#endif
 		if (ret < 0)
 			break;
 
@@ -380,13 +365,13 @@ void sec_debug_set_extra_info_zswap(char *str)
 /******************************************************************************
  * sec_debug_set_extra_info_esr
 ******************************************************************************/
-#ifndef CONFIG_MACH_MT6739
+
 void sec_debug_set_extra_info_esr(unsigned int esr)
 {
 	sec_debug_set_extra_info(INFO_ESR, "%s (0x%08x)",
 				esr_get_class_string(esr), esr);
 }
-#endif
+
 void sec_debug_finish_extra_info(void)
 {
 	sec_debug_set_extra_info_ktime();

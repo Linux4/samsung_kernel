@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #include <linux/init.h>
 #include <linux/module.h>
@@ -40,10 +33,6 @@
 #endif
 
 
-/*
- * Little cluster: L = 2, CCI = 2
- * Big cluster: Big = 2
- */
 #define NR_EEM_EFUSE_PER_VPROC		(4)
 #define PICACHU_SIG			(0xA5)
 #define PICACHU_SIGNATURE_SHIFT_BIT     (24)

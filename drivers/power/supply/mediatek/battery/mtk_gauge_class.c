@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 #include <linux/module.h>
 #include <linux/stat.h>
@@ -18,7 +10,7 @@
 #include <linux/err.h>
 #include <linux/slab.h>
 #include <mach/mtk_pmic.h>
-#include <mt-plat/mtk_battery.h>
+#include <mt-plat/v1/mtk_battery.h>
 #include <mt-plat/upmu_common.h>
 #include <mt-plat/mtk_rtc.h>
 #include <linux/proc_fs.h>
@@ -49,6 +41,7 @@ static ssize_t gauge_show_name(struct device *dev,
 		       gauge_dev->props.alias_name : "anonymous");
 }
 
+/*
 static int gauge_suspend(struct device *dev, pm_message_t state)
 {
 	struct gauge_device *gauge_dev = to_gauge_device(dev);
@@ -74,6 +67,7 @@ static int gauge_resume(struct device *dev)
 
 	return ret;
 }
+*/
 
 int gauge_dev_initial(struct gauge_device *gauge_dev)
 {
@@ -1053,8 +1047,10 @@ static int __init gauge_class_init(void)
 		return PTR_ERR(gauge_class);
 	}
 	gauge_class->dev_groups = gauge_groups;
+	/*
 	gauge_class->suspend = gauge_suspend;
 	gauge_class->resume = gauge_resume;
+	*/
 	return 0;
 }
 

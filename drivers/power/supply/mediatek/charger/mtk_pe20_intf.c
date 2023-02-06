@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+*/
 
 #include <linux/device.h>
 #include <linux/delay.h>
@@ -497,7 +489,7 @@ int mtk_pe20_check_charger(struct charger_manager *pinfo)
 	}
 
 	mutex_lock(&pe20->access_lock);
-	__pm_stay_awake(&pe20->suspend_lock);
+	__pm_stay_awake(pe20->suspend_lock);
 
 	chr_debug("%s\n", __func__);
 
@@ -541,7 +533,7 @@ int mtk_pe20_check_charger(struct charger_manager *pinfo)
 
 	chr_info("%s: OK, to_check_chr_type = %d\n",
 		__func__, pe20->to_check_chr_type);
-	__pm_relax(&pe20->suspend_lock);
+	__pm_relax(pe20->suspend_lock);
 	mutex_unlock(&pe20->access_lock);
 
 	return ret;
@@ -553,7 +545,7 @@ out:
 		pinfo->data.ta_stop_battery_soc, pe20->to_check_chr_type,
 		mt_get_charger_type(), ret);
 
-	__pm_relax(&pe20->suspend_lock);
+	__pm_relax(pe20->suspend_lock);
 	mutex_unlock(&pe20->access_lock);
 
 	return ret;
@@ -586,7 +578,7 @@ int mtk_pe20_start_algorithm(struct charger_manager *pinfo)
 	}
 
 	mutex_lock(&pe20->access_lock);
-	__pm_stay_awake(&pe20->suspend_lock);
+	__pm_stay_awake(pe20->suspend_lock);
 	chr_debug("%s\n", __func__);
 
 	if (pe20->is_cable_out_occur)
@@ -596,7 +588,7 @@ int mtk_pe20_start_algorithm(struct charger_manager *pinfo)
 		ret = -EIO;
 		chr_info("%s: stop, PE+20 is not connected\n",
 			__func__);
-		__pm_relax(&pe20->suspend_lock);
+		__pm_relax(pe20->suspend_lock);
 		mutex_unlock(&pe20->access_lock);
 		return ret;
 	}
@@ -657,7 +649,7 @@ out:
 	chr_info("%s: SOC = %d, is_connect = %d, tune = %d, pes = %d, vbat = %d, ret = %d\n",
 		__func__, battery_get_soc(), pe20->is_connect, tune, pes,
 		vbat / 1000, ret);
-	__pm_relax(&pe20->suspend_lock);
+	__pm_relax(pe20->suspend_lock);
 	mutex_unlock(&pe20->access_lock);
 
 	return ret;
@@ -666,24 +658,24 @@ out:
 void mtk_pe20_set_to_check_chr_type(struct charger_manager *pinfo, bool check)
 {
 	mutex_lock(&pinfo->pe2.access_lock);
-	__pm_stay_awake(&pinfo->pe2.suspend_lock);
+	__pm_stay_awake(pinfo->pe2.suspend_lock);
 
 	chr_info("%s: check = %d\n", __func__, check);
 	pinfo->pe2.to_check_chr_type = check;
 
-	__pm_relax(&pinfo->pe2.suspend_lock);
+	__pm_relax(pinfo->pe2.suspend_lock);
 	mutex_unlock(&pinfo->pe2.access_lock);
 }
 
 void mtk_pe20_set_is_enable(struct charger_manager *pinfo, bool enable)
 {
 	mutex_lock(&pinfo->pe2.access_lock);
-	__pm_stay_awake(&pinfo->pe2.suspend_lock);
+	__pm_stay_awake(pinfo->pe2.suspend_lock);
 
 	chr_info("%s: enable = %d\n", __func__, enable);
 	pinfo->pe2.is_enabled = enable;
 
-	__pm_relax(&pinfo->pe2.suspend_lock);
+	__pm_relax(pinfo->pe2.suspend_lock);
 	mutex_unlock(&pinfo->pe2.access_lock);
 }
 
@@ -721,7 +713,8 @@ int mtk_pe20_init(struct charger_manager *pinfo)
 {
 	int ret = 0;
 
-	wakeup_source_init(&pinfo->pe2.suspend_lock, "PE+20 suspend wakelock");
+	//wakeup_source_init(pinfo->pe2.suspend_lock, "PE+20 suspend wakelock");
+	pinfo->pe2.suspend_lock = wakeup_source_register(NULL, "PE+20 suspend wakelock");
 	mutex_init(&pinfo->pe2.access_lock);
 	mutex_init(&pinfo->pe2.pmic_sync_lock);
 

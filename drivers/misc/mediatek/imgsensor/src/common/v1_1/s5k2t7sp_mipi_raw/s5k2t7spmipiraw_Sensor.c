@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 /*****************************************************************************
@@ -178,11 +170,10 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.ae_sensor_gain_delay_frame = 0,
 
 	.ae_ispGain_delay_frame = 2,	/* isp gain delay frame for AE cycle */
-	.frame_time_delay_frame = 2,
 	.ihdr_support = 0,	/* 1, support; 0,not support */
 	.ihdr_le_firstline = 0,	/* 1,le first ; 0, se first */
 	.sensor_mode_num = 5,	/* support sensor mode num */
-
+	.frame_time_delay_frame = 2,
 	.cap_delay_frame = 3,	/* enter capture delay frame num */
 	.pre_delay_frame = 3,	/* enter preview delay frame num */
 	.video_delay_frame = 3,	/* enter video delay frame num */
@@ -479,6 +470,7 @@ static void set_shutter(kal_uint16 shutter)
 	write_shutter(shutter);
 }				/*      set_shutter */
 
+
 static void set_shutter_frame_length(
 	kal_uint16 shutter, kal_uint16 frame_length,
 	kal_bool auto_extend_en)
@@ -490,15 +482,20 @@ static void set_shutter_frame_length(
 	spin_lock_irqsave(&imgsensor_drv_lock, flags);
 	imgsensor.shutter = shutter;
 	spin_unlock_irqrestore(&imgsensor_drv_lock, flags);
+
 	spin_lock(&imgsensor_drv_lock);
 	/* Change frame time */
 	if (frame_length > 1)
 		dummy_line = frame_length - imgsensor.frame_length;
+
 	imgsensor.frame_length = imgsensor.frame_length + dummy_line;
+
 	if (shutter > imgsensor.frame_length - imgsensor_info.margin)
 		imgsensor.frame_length = shutter + imgsensor_info.margin;
+
 	if (imgsensor.frame_length > imgsensor_info.max_frame_length)
 		imgsensor.frame_length = imgsensor_info.max_frame_length;
+
 	spin_unlock(&imgsensor_drv_lock);
 	shutter = (shutter < imgsensor_info.min_shutter) ?
 			imgsensor_info.min_shutter : shutter;
@@ -506,6 +503,7 @@ static void set_shutter_frame_length(
 		(imgsensor_info.max_frame_length - imgsensor_info.margin)) ?
 		(imgsensor_info.max_frame_length - imgsensor_info.margin) :
 		shutter;
+
 	if (imgsensor.autoflicker_en) {
 		realtime_fps = imgsensor.pclk / imgsensor.line_length * 10 /
 			imgsensor.frame_length;
@@ -522,8 +520,10 @@ static void set_shutter_frame_length(
 		/* Extend frame length */
 		write_cmos_sensor(0x0340, imgsensor.frame_length & 0xFFFF);
 	}
+
 	/* Update Shutter */
 	write_cmos_sensor(0x0202, shutter & 0xFFFF);
+
 	pr_debug("shutter = %d, framelength = %d/%d, dummy_line= %d\n",
 		shutter, imgsensor.frame_length, frame_length, dummy_line);
 }			/*      set_shutter_frame_length */
@@ -2000,6 +2000,8 @@ static kal_uint32 get_info(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 	sensor_info->SlimVideoDelayFrame =
 		imgsensor_info.slim_video_delay_frame;
 
+	sensor_info->FrameTimeDelayFrame =
+		imgsensor_info.frame_time_delay_frame;
 	sensor_info->SensorMasterClockSwitch = 0;	/* not use */
 	sensor_info->SensorDrivingCurrent = imgsensor_info.isp_driving_current;
 
@@ -2012,8 +2014,6 @@ static kal_uint32 get_info(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 
 	sensor_info->AEISPGainDelayFrame =
 				imgsensor_info.ae_ispGain_delay_frame;
-	sensor_info->FrameTimeDelayFrame =
-				imgsensor_info.frame_time_delay_frame;
 
 	sensor_info->IHDR_Support = imgsensor_info.ihdr_support;
 	sensor_info->IHDR_LE_FirstLine = imgsensor_info.ihdr_le_firstline;

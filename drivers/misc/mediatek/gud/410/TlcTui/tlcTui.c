@@ -276,7 +276,6 @@ static void tlc_process_cmd(void)
 		ret = hal_tui_deactivate();
 
 		if (ret != TUI_DCI_OK) {
-			hal_tui_activate();
 			hal_tui_free();
 			send_cmd_to_user(TLC_TUI_CMD_STOP_ACTIVITY, 0, 0);
 			break;

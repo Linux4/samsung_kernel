@@ -1,18 +1,19 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2020 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Copyright (C) 2022 MediaTek Inc.
+ * Author Harry.Lee <Harry.Lee@mediatek.com>
  */
 
 #include "mtk_drm_drv.h"
 #include "mtk_notify.h"
+
+const char *power_mode_name[] = {
+	"DISP_OFF",
+	"DISP_ON",
+	"DISP_DOZE",
+	"DISP_DOZE_SUSPEND"
+};
+
 
 static struct class *notify_class;
 static BLOCKING_NOTIFIER_HEAD(mtk_notifier_list);
@@ -111,6 +112,43 @@ int mtk_notifier_callback(struct notifier_block *p, unsigned long event, void *d
 			pr_info("%s: FPS_CHANGED: %d\n", __func__, n->fps);
 		} else {
 			pr_info("%s: Ignore_FPS_CHANGE: %d\n", __func__, fps);
+		}
+	}
+
+	if (event == MTK_POWER_MODE_CHANGE) {
+		int power_mode = *((unsigned int *)data);
+
+		if (power_mode != n->power_mode) {
+			n->power_mode = power_mode;
+
+			switch (power_mode) {
+			case DISP_OFF:
+				break;
+			case DISP_ON:
+				break;
+			case DISP_DOZE:
+				break;
+			case DISP_DOZE_SUSPEND:
+				break;
+			}
+			DDPINFO("%s : %s\n", __func__, power_mode_name[power_mode]);
+		}
+	}
+
+	if (event == MTK_POWER_MODE_DONE) {
+		if (n->power_mode != DISP_NONE) {
+			switch (n->power_mode) {
+			case DISP_OFF:
+				break;
+			case DISP_ON:
+				break;
+			case DISP_DOZE:
+				break;
+			case DISP_DOZE_SUSPEND:
+				break;
+			}
+			DDPINFO("%s: %s DONE\n", __func__, power_mode_name[n->power_mode]);
+			n->power_mode = DISP_NONE;
 		}
 	}
 	return 0;

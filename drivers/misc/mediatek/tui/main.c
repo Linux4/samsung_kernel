@@ -32,7 +32,7 @@ static struct cdev stui_cdev;
 static struct class *tui_class;
 static DEFINE_MUTEX(stui_mode_mutex);
 
-struct wakeup_source tui_ws;
+struct wakeup_source *tui_ws;
 
 struct device *get_stui_device(void)
 {
@@ -129,7 +129,7 @@ static int stui_handler_init(void)
 		pr_err("[STUI] Unable to add TUI char device(%d)\n", err);
 		goto err_cdev_add;
 	}
-	wakeup_source_init(&tui_ws, "TUI_WAKELOCK");
+	tui_ws = wakeup_source_register(NULL, "TUI_WAKELOCK");
 	stui_device = device_create(tui_class, NULL, devno, NULL, STUI_DEV_NAME);
 	if (!IS_ERR(stui_device)) {
 		pr_info("[STUI] stui_handler_init -\n");
@@ -143,7 +143,7 @@ static int stui_handler_init(void)
 
 err_reg_events:
 	err = PTR_ERR(stui_device);
-	wakeup_source_destroy(&tui_ws);
+	wakeup_source_unregister(tui_ws);
 
 err_cdev_add:
 	class_destroy(tui_class);
@@ -157,7 +157,7 @@ static void stui_handler_exit(void)
 {
 	pr_debug("[STUI] stui_handler_exit\n");
 	stui_unregister_from_events();
-	wakeup_source_destroy(&tui_ws);
+	wakeup_source_unregister(tui_ws);
 	unregister_chrdev_region(stui_cdev.dev, 1);
 	cdev_del(&stui_cdev);
 	device_destroy(tui_class, stui_cdev.dev);

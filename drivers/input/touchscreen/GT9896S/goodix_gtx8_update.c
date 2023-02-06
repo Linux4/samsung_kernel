@@ -1,19 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Goodix Firmware Update Driver.
- *
- * Copyright (C) 2019 - 2020 Goodix, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be a reference
- * to you, when you are integrating the GOODiX's CTP IC into your system,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
+ * Copyright (C) 2016 MediaTek Inc.
  */
+
 #include "goodix_ts_core.h"
 #include "goodix_cfg_bin.h"
 #include "goodix_default_fw.h"
@@ -1364,6 +1353,11 @@ static ssize_t gt9896s_sysfs_fwimage_store(struct file *file,
 	struct fw_update_ctrl *fw_ctrl;
 	struct firmware_data *fw_data;
 
+	if(IS_ERR_OR_NULL(attr) || IS_ERR_OR_NULL(kobj)) {
+		ts_err("attr or kobj is invalid or NULL!!!\n");
+		return -EINVAL;
+	}
+
 	fw_ctrl = container_of(attr, struct fw_update_ctrl,
 			attr_fwimage);
 	fw_data = &fw_ctrl->fw_data;
@@ -1380,6 +1374,17 @@ static ssize_t gt9896s_sysfs_fwimage_store(struct file *file,
 
 	if (pos + count > fw_data->firmware->size)
 		return -EFAULT;
+
+	if(IS_ERR_OR_NULL(buf)) {
+		ts_err("The buf is invalid!!!\n");
+		return -ENOMEM;
+	}
+
+	if (IS_ERR_OR_NULL(&fw_data->firmware->data[pos])) {
+		ts_err("fw_data->firmware->data[pos] is invalid or NULL!!!");
+		return -ENOMEM;
+	}
+
 	mutex_lock(&fw_ctrl->mutex);
 	memcpy((u8 *)&fw_data->firmware->data[pos], buf, count);
 	mutex_unlock(&fw_ctrl->mutex);

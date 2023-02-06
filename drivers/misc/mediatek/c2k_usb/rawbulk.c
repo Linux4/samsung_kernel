@@ -1,16 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
-
 
 /* #define DEBUG */
 /* #define VERBOSE_DEBUG */
@@ -39,6 +30,7 @@
 #define C2K_TTY_USB_SKIP
 #ifdef C2K_USB_UT
 #include <linux/random.h>
+#include <linux/sched/signal.h>
 #define UT_CMD 3
 #define UT_CLR_ERR 4
 #define SZ 4096
@@ -182,7 +174,7 @@ static ssize_t rawbulk_attr_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	int n;
-	int idx = 0;
+	int idx;
 	int enab;
 	struct rawbulk_function *fn;
 	ssize_t count = 0;
@@ -205,7 +197,7 @@ static ssize_t rawbulk_attr_show(struct device *dev,
 #endif
 	}
 
-	if ((n == _MAX_TID) || (fn == NULL))
+	if (n == _MAX_TID)
 		return 0;
 
 	enab = check_enable_state(fn);
@@ -427,7 +419,7 @@ static ssize_t rawbulk_attr_store(struct device *dev,
 
 
 				/* Start rawbulk transfer */
-				__pm_stay_awake(&fn->keep_awake);
+				__pm_stay_awake(fn->keep_awake);
 				rc = rawbulk_start_transactions(
 					fn->transfer_id, nups, ndowns, upsz,
 					downsz);
@@ -450,7 +442,7 @@ static ssize_t rawbulk_attr_store(struct device *dev,
 					modem_dcd_state();
 				}
 
-				__pm_relax(&fn->keep_awake);
+				__pm_relax(fn->keep_awake);
 			}
 		}
 	} else if (idx == ATTR_DTR) {
@@ -510,7 +502,7 @@ static ssize_t rawbulk_attr_store(struct device *dev,
 			fn->downsz = downsz;
 		} else {
 			rawbulk_stop_transactions(fn->transfer_id);
-			__pm_relax(&fn->keep_awake);
+			__pm_relax(fn->keep_awake);
 			C2K_NOTE("enable to 0\n");
 			set_enable_state(fn, 0);
 		}
@@ -689,7 +681,7 @@ static __init struct rawbulk_function *rawbulk_alloc_function(int transfer_id)
 	}
 
 	spin_lock_init(&fn->lock);
-	wakeup_source_init(&fn->keep_awake, fn->longname);
+	fn->keep_awake = wakeup_source_register(fn->dev, fn->longname);
 	return fn;
 }
 
@@ -699,7 +691,7 @@ static void rawbulk_destroy_function(struct rawbulk_function *fn)
 
 	if (!fn)
 		return;
-	wakeup_source_trash(&fn->keep_awake);
+	wakeup_source_remove(fn->keep_awake);
 	rawbulk_remove_files(fn);
 	device_destroy(rawbulk_class, fn->dev->devt);
 	kfree(fn);

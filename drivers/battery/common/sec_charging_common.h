@@ -79,6 +79,12 @@ enum battery_thermal_zone {
 	BAT_THERMAL_OVERHEATLIMIT,
 };
 
+enum sb_wireless_mode {
+	SB_WRL_NONE = 0,
+	SB_WRL_RX_MODE = 1,
+	SB_WRL_TX_MODE = 2,
+};
+
 enum rx_device_type {
 	NO_DEV = 0,
 	OTHER_DEV,
@@ -137,6 +143,8 @@ enum sec_battery_capacity_mode {
 	SEC_BATTERY_CAPACITY_QH,
 	/* vfsoc */
 	SEC_BATTERY_CAPACITY_VFSOC,
+	/* rcomp0 */
+	SEC_BATTERY_CAPACITY_RC0,
 };
 
 enum sec_wireless_info_mode {
@@ -146,21 +154,16 @@ enum sec_wireless_info_mode {
 	SEC_WIRELESS_IC_CHIP_ID,
 	SEC_WIRELESS_OTP_FIRM_VER_BIN,
 	SEC_WIRELESS_OTP_FIRM_VER,
-	SEC_WIRELESS_TX_FIRM_RESULT,
-	SEC_WIRELESS_TX_FIRM_VER,
-	SEC_TX_FIRMWARE,
 	SEC_WIRELESS_OTP_FIRM_VERIFY,
 	SEC_WIRELESS_MST_SWITCH_VERIFY,
 };
 
-enum sec_wireless_firm_update_mode {
-	SEC_WIRELESS_RX_SDCARD_MODE = 0,
-	SEC_WIRELESS_RX_BUILT_IN_MODE,
-	SEC_WIRELESS_TX_ON_MODE,
-	SEC_WIRELESS_TX_OFF_MODE,
-	SEC_WIRELESS_RX_INIT,
-	SEC_WIRELESS_RX_SPU_MODE,
-	SEC_WIRELESS_RX_SPU_VERIFY_MODE,	/* for automation test */
+enum sec_wireless_firmware_update_mode {
+	SEC_WIRELESS_FW_UPDATE_SDCARD_MODE = 0,		/* manual update mode , firmware file must be in sdcard */
+	SEC_WIRELESS_FW_UPDATE_BUILTIN_MODE,		/* factory line update mode, MSP wirtes only this mode */
+	SEC_WIRELESS_FW_UPDATE_AUTO_MODE,			/* auto update mode, it works during kernel on, very similar to BUILTIN MODE */
+	SEC_WIRELESS_FW_UPDATE_SPU_MODE,			/* spu update mode */
+	SEC_WIRELESS_FW_UPDATE_SPU_VERIFY_MODE,		/* for automation test */
 };
 
 enum sec_tx_sharing_mode {
@@ -536,6 +539,7 @@ typedef struct {
 	cable_type == SEC_BATTERY_CABLE_9V_ERR || \
 	cable_type == SEC_BATTERY_CABLE_9V_TA || \
 	cable_type == SEC_BATTERY_CABLE_9V_UNKNOWN || \
+	cable_type == SEC_BATTERY_CABLE_POGO_9V || \
 	cable_type == SEC_BATTERY_CABLE_QC20)
 
 #define is_hv_wire_12v_type(cable_type) ( \

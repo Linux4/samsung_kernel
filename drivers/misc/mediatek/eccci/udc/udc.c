@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2016 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 #include "udc.h"
 
@@ -359,7 +351,7 @@ int register_udc_functions(unsigned int id, void *f)
 		return register_udc_func_udc_GetCmpLen(func);
 	}
 	default:
-		pr_notice("udc func id %u not found\n", id);
+		pr_notice("udc func id %d not found\n", id);
 		return -1;
 	}
 }
@@ -380,7 +372,7 @@ void my_free(void *my_param, void *ptr)
 void *my_malloc(void *my_param, unsigned int size, unsigned int count)
 {
 	struct udc_private_data *p = (struct udc_private_data *)my_param;
-	unsigned char *ptr = NULL;
+	unsigned char *ptr;
 
 	if (p == NULL)
 		return NULL;
@@ -400,10 +392,6 @@ int udc_init(struct z_stream_s *zcpr, struct udc_private_data *my_param)
 	my_param->used = 0;
 	ret = udc_QueryPara_cb(NULL, UDC_QUERY_WORKSPACE_SIZE, &my_param->size);
 	my_param->mem = vmalloc(my_param->size);
-	if (my_param->mem == NULL) {
-		pr_debug("%s:my_param->mem malloc fail\n", __func__);
-		return -1;
-	}
 
 	pr_debug("%s:alloc memory:%p\n",  __func__, my_param->mem);
 

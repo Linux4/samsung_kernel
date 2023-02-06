@@ -17,7 +17,14 @@
 #define CMDQ_SEC_SHARED_RESET_CNT		0x308
 
 /* commanad buffer & metadata */
+#if defined(CONFIG_TEEGRIS_TEE_SUPPORT)
 #define CMDQ_IWC_MAX_CMD_LENGTH (5 << 12)
+#define CMDQ_TZ_CMD_BLOCK_SIZE	(CMDQ_IWC_MAX_CMD_LENGTH << 2)
+#else
+#define CMDQ_TZ_CMD_BLOCK_SIZE	 (79 * 1024)
+
+#define CMDQ_IWC_MAX_CMD_LENGTH (CMDQ_TZ_CMD_BLOCK_SIZE / 4)
+#endif
 
 #define CMDQ_IWC_MAX_ADDR_LIST_LENGTH (30)
 
@@ -169,26 +176,12 @@ struct iwcCmdqSecStatus_t {
 	char dispatch[CMDQ_SEC_DISPATCH_LEN];
 };
 
-#ifdef CONFIG_MTK_IN_HOUSE_TEE_SUPPORT
-/* tablet use */
-enum CMDQ_IWC_DISP_MODE {
-	CMDQ_IWC_DISP_NON_SUPPORTED_MODE = 0,
-	CMDQ_IWC_DISP_SINGLE_MODE = 1,
-	CMDQ_IWC_DISP_VIDEO_MODE = 2,
-	CMDQ_IWC_MDP_USER_MODE = 3,
-};
-#endif
-
-
 struct iwcCmdqMetadata_t {
 	uint32_t addrListLength;
 	struct iwcCmdqAddrMetadata_t addrList[CMDQ_IWC_MAX_ADDR_LIST_LENGTH];
 
 	uint64_t enginesNeedDAPC;
 	uint64_t enginesNeedPortSecurity;
-#ifdef CONFIG_MTK_IN_HOUSE_TEE_SUPPORT
-	uint32_t secMode;
-#endif
 };
 
 struct iwcCmdqPathResource_t {

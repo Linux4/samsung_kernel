@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #include <linux/delay.h>
 #include <linux/sched.h>
@@ -5419,10 +5412,6 @@ int primary_display_trigger(int blocking, void *callback, int need_merge)
 	return ret;
 }
 
-/*
- * the function will trigger dc and wake up dc thread for merge status;
- * decouple_trigger thread->trigger mirror->decouple_update_rdma_config_thread
- */
 static int decouple_trigger_worker_thread(void *data)
 {
 	struct sched_param param = {.sched_priority = 94 };
@@ -9180,11 +9169,6 @@ static enum DISP_POWER_STATE tui_power_stat_backup;
 static int tui_session_mode_backup;
 static struct DDP_MODULE_DRIVER *ddp_module_backup;
 
-/*
- * Now the normal display vsync is DDP_IRQ_RDMA0_DONE in vdo mode, but when
- * enter TUI, we must protect the rdma0, then, should switch it to the
- * DDP_IRQ_DSI0_FRAME_DONE.
- */
 int display_vsync_switch_to_dsi(unsigned int flg)
 {
 	if (!primary_display_is_video_mode())

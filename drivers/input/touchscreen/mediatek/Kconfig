@@ -136,7 +136,7 @@ config TOUCHSCREEN_MTK_GT5688
 	  module will be called.
 
 source "drivers/input/touchscreen/mediatek/GT5688/Kconfig"
-source "drivers/input/touchscreen/mediatek/hxchipset/Kconfig"
+# source "drivers/input/touchscreen/mediatek/hxchipset/Kconfig"
 
 config TOUCHSCREEN_HIMAX_CHIPSET_8789P1_8185P3
 	bool "hxchipset for Mediatek 8789p1 and 8185p3 package"
@@ -180,5 +180,26 @@ config TOUCHSCREEN_MTK_GT9157
 	  module will be called
 
 source "drivers/input/touchscreen/mediatek/GT9157/Kconfig"
+
+config TOUCHSCREEN_HIMAX_CHIPSET
+	bool "Himax touchpanel CHIPSET"
+	depends on SPI
+	help
+	Say Y here if you have a Himax CHIPSET touchscreen.
+	HIMAX controllers are multi touch controllers which can
+	report 10 touches at a time.
+
+	If unsure, say N.
+# source "drivers/input/touchscreen/mediatek/hxchipset_hx83102p/Kconfig"
+
+config TOUCHSCREEN_GOODIX_BRL
+	bool "Goodix berlin touchscreen"
+	help
+	  Say Y here if you have a Goodix berlin series touch controller
+	  to your system.
+
+	  If build module, say M.
+	  If unsure, say N.
+# source "drivers/input/touchscreen/mediatek/goodix_berlin_driver/Kconfig"
 
 endif

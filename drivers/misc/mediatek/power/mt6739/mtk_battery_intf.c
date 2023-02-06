@@ -1,17 +1,9 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 #include <linux/types.h>
-#include <mt-plat/mtk_battery.h>
+#include <mt-plat/v1/mtk_battery.h>
 #include <mt-plat/mtk_boot.h>
 #include <mtk_gauge_class.h>
 #include <mtk_battery_internal.h>
@@ -51,7 +43,9 @@ signed int battery_get_soc(void)
 
 signed int battery_get_uisoc(void)
 {
-	int boot_mode = get_boot_mode();
+// workaround for mt6739
+	int boot_mode = 0;
+	//int boot_mode = get_boot_mode();
 
 	if ((boot_mode == META_BOOT) ||
 		(boot_mode == ADVMETA_BOOT) ||
@@ -116,7 +110,9 @@ signed int battery_get_soc(void)
 
 signed int battery_get_uisoc(void)
 {
-	int boot_mode = get_boot_mode();
+// workaround for mt6739
+	int boot_mode = 0;
+	//int boot_mode = get_boot_mode();
 	struct mtk_battery *gm = get_mtk_battery();
 
 	if ((boot_mode == META_BOOT) ||

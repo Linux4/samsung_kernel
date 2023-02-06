@@ -1,15 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 #ifndef __MT6785_THERMAL_H__
 #define __MT6785_THERMAL_H__
 
@@ -23,20 +15,9 @@
 
 #include "mt-plat/sync_write.h"
 
-#include "mtk_thermal_typedefs.h"
-
-/* TODO: remove this! */
-/*#define GPUFREQ_NOT_READY*/
-
-#ifdef GPUFREQ_NOT_READY
-struct mt_gpufreq_power_table_info {
-	unsigned int gpufreq_khz;
-	unsigned int gpufreq_volt;
-	unsigned int gpufreq_power;
-};
-#else
 #include "mtk_gpufreq.h"
-#endif
+
+#include "mtk_thermal_typedefs.h"
 
 /*=============================================================
  * LVTS SW Configs

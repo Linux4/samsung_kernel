@@ -6,8 +6,8 @@
 #ifndef __ADSP_MBOX_H__
 #define __ADSP_MBOX_H__
 
-#include <mt-plat/mtk_tinysys_ipi.h>
-#include <mt-plat/mtk-mbox.h>
+#include <linux/soc/mediatek/mtk_tinysys_ipi.h>
+#include <linux/soc/mediatek/mtk-mbox.h>
 
 #define ADSP_MBOX_TOTAL (5)
 

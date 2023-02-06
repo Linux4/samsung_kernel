@@ -1,15 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2021 MediaTek Inc.
+ * Author: Owen Chen <owen.chen@mediatek.com>
+*/
 
 /*
  * @file    mtk_clk_buf_hw.c
@@ -35,7 +28,7 @@ static void __iomem *gpio_base;
 #endif
 
 #define SRCLKEN_REG(ofs)			(srclken_base + ofs)
-#define SRCLKEN_STA_REG(ofs)		(srclken_base + ofs + 0x900)
+#define SRCLKEN_STA_REG(ofs)			(srclken_base + ofs + 0x900)
 #define SCP_REG(ofs)				(scp_base + ofs)
 #if RC_GPIO_DBG_ENABLE
 #define GPIO_REG(ofs)				(gpio_base + ofs)
@@ -46,7 +39,7 @@ static void __iomem *gpio_base;
 #define RC_CENTRAL_CFG2				SRCLKEN_REG(0x008)
 #define RC_CMD_ARB_CFG				SRCLKEN_REG(0x00C)
 #define RC_PMIC_RCEN_ADDR			SRCLKEN_REG(0x010)
-#define RC_PMIC_RCEN_SET_CLR_ADDR	SRCLKEN_REG(0x014)
+#define RC_PMIC_RCEN_SET_CLR_ADDR		SRCLKEN_REG(0x014)
 #define RC_DCXO_FPM_CFG				SRCLKEN_REG(0x018)
 #define RC_CENTRAL_CFG3				SRCLKEN_REG(0x01C)
 #define RC_M00_SRCLKEN_CFG			SRCLKEN_REG(0x020)
@@ -62,8 +55,8 @@ static void __iomem *gpio_base;
 #define SUBSYS_INTF_CFG				SRCLKEN_REG(0x0BC)
 #define DBG_TRACE_0_LSB				SRCLKEN_STA_REG(0x050)
 #define DBG_TRACE_0_MSB				SRCLKEN_STA_REG(0x054)
-#define TIMER_LATCH_0_LSB				SRCLKEN_STA_REG(0x098)
-#define TIMER_LATCH_0_MSB				SRCLKEN_STA_REG(0x09C)
+#define TIMER_LATCH_0_LSB			SRCLKEN_STA_REG(0x098)
+#define TIMER_LATCH_0_MSB			SRCLKEN_STA_REG(0x09C)
 #endif	/* CONFIG_OF */
 
 /* TODO: marked this after driver is ready */
@@ -94,6 +87,9 @@ static void __iomem *gpio_base;
 #endif
 
 #define TRACE_NUM				8
+
+#define PWRAP_DTS_NODE_NAME			"mediatek,mt6885-pwrap"
+#define SCPSYS_DTS_NODE_NAME			"mediatek,scp"
 
 static bool srclken_debug;
 static bool rc_dts_init_done;
@@ -213,6 +209,8 @@ static ssize_t __subsys_ctl_show(char *buf, enum sys_id id)
 	u32 filter;
 	u32 cmd_ok;
 	int len = 0, shift = 0;
+
+	len = strlen(buf);
 
 	/* fix reg shift */
 	if (id > 0)
@@ -794,15 +792,19 @@ static ssize_t debug_ctl_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	u32 onoff = 0;
+	char cmd[32] = {'\0'};
 
-	if (kstrtouint(buf, 10, &onoff))
+	if ((sscanf(buf, "%31s %x", cmd, &onoff) != 2))
 		return -EPERM;
 
-	if (onoff == 0)
-		srclken_debug = false;
-	else if (onoff == 1)
-		srclken_debug = true;
-	else
+	if (!strcmp(cmd, "MORE_MSG")) {
+		if (onoff == 0)
+			srclken_debug = false;
+		else if (onoff == 1)
+			srclken_debug = true;
+		else
+			goto ERROR_CMD;
+	} else
 		goto ERROR_CMD;
 
 	return count;
@@ -958,7 +960,7 @@ int srclken_dts_map(void)
 		return -1;
 	}
 
-	node = of_find_compatible_node(NULL, NULL, "mediatek,mt6885-pwrap");
+	node = of_find_compatible_node(NULL, NULL, PWRAP_DTS_NODE_NAME);
 	if (node) {
 		pwrap_base = of_iomap(node, 0);
 		if (!pwrap_base) {
@@ -972,7 +974,7 @@ int srclken_dts_map(void)
 		return -1;
 	}
 
-	node = of_find_compatible_node(NULL, NULL, "mediatek,scp");
+	node = of_find_compatible_node(NULL, NULL, SCPSYS_DTS_NODE_NAME);
 	if (node) {
 		scp_base = of_iomap(node, 2);
 		if (!scp_base) {

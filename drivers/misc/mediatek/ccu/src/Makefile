@@ -11,6 +11,10 @@
 # GNU General Public License for more details.
 #
 
+#obj-y += $(subst ",,$(CONFIG_MTK_PLATFORM))/
+#obj-$(CONFIG_ARCH_MT6799) += 1.0/
+
+#subdir-ccflags-y += -DMTK_VPU_EMULATOR
 subdir-ccflags-y += -DMTK_VPU_KERNEL
 subdir-ccflags-y += -DCCU_AF_ENABLE
 

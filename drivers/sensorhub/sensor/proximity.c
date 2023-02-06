@@ -25,10 +25,23 @@
 #include <linux/of_gpio.h>
 #include <linux/slab.h>
 
-static int init_proximity_variable(struct proximity_data *data)
+get_init_chipset_funcs_ptr get_prox_funcs_ary[] = {
+	get_proximity_stk3x6x_function_pointer,
+	get_proximity_gp2ap110s_function_pointer,
+	get_proximity_stk3328_function_pointer,
+	get_proximity_stk33910_function_pointer,
+	get_proximity_stk33512_function_pointer,
+};
+
+static get_init_chipset_funcs_ptr *get_proximity_init_chipset_funcs(int *len)
 {
-	if (data->chipset_funcs && data->chipset_funcs->init_proximity_variable)
-		data->chipset_funcs->init_proximity_variable(data);
+	*len = ARRAY_SIZE(get_prox_funcs_ary);
+	return get_prox_funcs_ary;
+}
+
+static int init_proximity_variable(void)
+{
+	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
 
 	if (data->cal_data_len) {
 		data->cal_data = kzalloc(data->cal_data_len, GFP_KERNEL);
@@ -36,14 +49,6 @@ static int init_proximity_variable(struct proximity_data *data)
 			return -ENOMEM;
 	}
 	return 0;
-}
-
-static void parse_dt_proximity(struct device *dev)
-{
-	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
-
-	if (data->chipset_funcs && data->chipset_funcs->parse_dt)
-		data->chipset_funcs->parse_dt(dev);
 }
 
 #define TEMPERATURE_THRESH 50
@@ -79,6 +84,7 @@ void set_proximity_threshold(void)
 	u8 prox_th_mode = -1;
 	u16 prox_th[PROX_THRESH_SIZE] = {0, };
 	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
+	struct proximity_chipset_funcs *chipset_funcs = get_sensor(SENSOR_TYPE_PROXIMITY)->chipset_funcs;
 
 	if (!get_sensor_probe_state(SENSOR_TYPE_PROXIMITY)) {
 		shub_infof("proximity sensor is not connected");
@@ -101,66 +107,24 @@ void set_proximity_threshold(void)
 		prox_th[1] += compensation;
 	}
 
-	if (data->chipset_funcs && data->chipset_funcs->get_proximity_threshold_mode)
-		prox_th_mode = data->chipset_funcs->get_proximity_threshold_mode();
+	if (chipset_funcs && chipset_funcs->get_proximity_threshold_mode)
+		prox_th_mode = chipset_funcs->get_proximity_threshold_mode();
 
 	shub_info("Proximity Threshold[%d] - %u, %u", prox_th_mode, data->prox_threshold[PROX_THRESH_HIGH],
 		  data->prox_threshold[PROX_THRESH_LOW]);
-}
-
-typedef struct proximity_chipset_funcs *(get_proximity_function_pointer)(char *);
-
-get_proximity_function_pointer *get_prox_funcs_ary[] = {
-	get_proximity_stk3x6x_function_pointer,
-	get_proximity_gp2ap110s_function_pointer,
-	get_proximity_stk3328_function_pointer,
-	get_proximity_stk33910_function_pointer,
-};
-
-int init_proximity_chipset(void)
-{
-	int ret;
-	uint64_t i;
-	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PROXIMITY);
-	struct proximity_data *data = sensor->data;
-	struct proximity_chipset_funcs *funcs;
-
-	if (data->chipset_funcs)
-		return 0;
-
-	shub_infof("");
-
-	for (i = 0; i < ARRAY_SIZE(get_prox_funcs_ary); i++) {
-		funcs = get_prox_funcs_ary[i](sensor->spec.name);
-		if (funcs) {
-			data->chipset_funcs = funcs;
-			if (data->chipset_funcs->init)
-				data->chipset_funcs->init(data);
-			break;
-		}
-	}
-
-	if (!data->chipset_funcs) {
-		shub_errf("cannot find proximity sensor chipset");
-		return -EINVAL;
-	}
-
-	parse_dt_proximity(get_shub_device());
-	ret = init_proximity_variable(data);
-
-	return ret;
 }
 
 static int sync_proximity_status(void)
 {
 	int ret = 0;
 	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
+	struct proximity_chipset_funcs *chipset_funcs = get_sensor(SENSOR_TYPE_PROXIMITY)->chipset_funcs;
 
 	shub_infof();
 
 	set_proximity_threshold();
-	if (data->chipset_funcs && data->chipset_funcs->sync_proximity_state)
-		data->chipset_funcs->sync_proximity_state(data);
+	if (chipset_funcs && chipset_funcs->sync_proximity_state)
+		chipset_funcs->sync_proximity_state(data);
 
 	return ret;
 }
@@ -178,10 +142,11 @@ static void print_debug_proximity(void)
 static int enable_proximity(void)
 {
 	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
+	struct proximity_chipset_funcs *chipset_funcs = get_sensor(SENSOR_TYPE_PROXIMITY)->chipset_funcs;
 
 	set_proximity_threshold();
-	if (data->chipset_funcs && data->chipset_funcs->pre_enable_proximity)
-		data->chipset_funcs->pre_enable_proximity(data);
+	if (chipset_funcs && chipset_funcs->pre_enable_proximity)
+		chipset_funcs->pre_enable_proximity(data);
 
 	return 0;
 }
@@ -207,6 +172,7 @@ int parsing_proximity_threshold(char *dataframe, int *index, int frame_len)
 {
 	u16 thresh[2] = {0, };
 	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
+	struct proximity_chipset_funcs *chipset_funcs = get_sensor(SENSOR_TYPE_PROXIMITY)->chipset_funcs;
 
 	if (*index + sizeof(thresh) > frame_len) {
 		shub_errf("parsing error");
@@ -217,8 +183,8 @@ int parsing_proximity_threshold(char *dataframe, int *index, int frame_len)
 	data->prox_threshold[0] = thresh[0];
 	data->prox_threshold[1] = thresh[1];
 
-	if (data->chipset_funcs->set_proximity_threshold_mode)
-		data->chipset_funcs->set_proximity_threshold_mode(3);
+	if (chipset_funcs && chipset_funcs->set_proximity_threshold_mode)
+		chipset_funcs->set_proximity_threshold_mode(3);
 
 	(*index) += sizeof(thresh);
 	shub_infof("prox threshold received %u %u", data->prox_threshold[0], data->prox_threshold[1]);
@@ -279,10 +245,10 @@ int open_default_proximity_calibration(void)
 static int open_proximity_calibration(void)
 {
 	int ret = 0;
-	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
+	struct proximity_chipset_funcs *chipset_funcs = get_sensor(SENSOR_TYPE_PROXIMITY)->chipset_funcs;
 
-	if (data->chipset_funcs->open_calibration_file)
-		ret = data->chipset_funcs->open_calibration_file();
+	if (chipset_funcs && chipset_funcs->open_calibration_file)
+		ret = chipset_funcs->open_calibration_file();
 	else
 		ret = open_default_proximity_calibration();
 
@@ -299,7 +265,7 @@ int set_proximity_setting_mode(void)
 
 	shub_infof("%d", data->setting_mode);
 
-	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_PROXIMITY, PROXIMITY_SETTING_MODE, 
+	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_PROXIMITY, PROXIMITY_SETTING_MODE,
 				 (char *)&data->setting_mode, sizeof(data->setting_mode));
 	if (ret < 0)
 		shub_errf("failed %d", ret);
@@ -317,7 +283,7 @@ int save_proximity_setting_mode(void)
 
 	shub_infof("%d", data->setting_mode);
 
-	ret = shub_file_write_no_wait(PROX_SETTING_MODE_FILE_PATH, (char *)&data->setting_mode, 
+	ret = shub_file_write_no_wait(PROX_SETTING_MODE_FILE_PATH, (char *)&data->setting_mode,
 					sizeof(data->setting_mode), 0);
 	if (ret != sizeof(data->setting_mode)) {
 		shub_errf("failed");
@@ -374,8 +340,9 @@ int init_proximity(bool en)
 		sensor->funcs->print_debug = print_debug_proximity;
 		sensor->funcs->report_event = report_event_proximity;
 		sensor->funcs->parsing_data = parsing_proximity_threshold;
-		sensor->funcs->init_chipset = init_proximity_chipset;
 		sensor->funcs->open_calibration_file = open_proximity_calibration;
+		sensor->funcs->init_variable = init_proximity_variable;
+		sensor->funcs->get_init_chipset_funcs = get_proximity_init_chipset_funcs;
 	} else {
 		struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
 

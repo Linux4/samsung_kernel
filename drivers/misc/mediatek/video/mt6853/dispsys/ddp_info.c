@@ -1,15 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
+
 
 #define LOG_TAG "INFO"
 #include "ddp_info.h"
@@ -21,21 +14,6 @@
 static const char reg_magic[] = "no_regs_info";
 
 struct ddp_module ddp_modules[DISP_MODULE_NUM] = {
-/*
- * {module_id,
- *  module_type,
- *  module_name,
- *  can_connect,
- *  module_driver,
- *
- *  {reg_dt_name,
- *  reg_pa_check,
- *  reg_irq_check,
- *  irq_max_bit: The number of module INTEN reg enable bit
- *  reg_va,
- *  reg_irq}
- * },
- */
 	{DISP_MODULE_CONFIG,
 	 DISP_T_UNKNOWN,
 	 "disp_config",

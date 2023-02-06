@@ -1,16 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
-
 #include <linux/ioctl.h>
 #include <linux/notifier.h>
 #include "jpeg_ion.h"
@@ -109,6 +100,7 @@
 #else
 #define ENABLE_MMQOS 0
 #endif
+
 
 /* #ifdef CONFIG_OF */
 struct JpegDeviceStruct {
@@ -607,9 +599,6 @@ struct JPEG_ENC_DRV_IN {
 	int srcFd2;
 	int dstFd;
 	unsigned int memHeight;
-#ifdef CONFIG_MTK_SEC_JPEG_SUPPORT
-	bool		 bSecure;
-#endif
 };
 
 
@@ -618,9 +607,7 @@ struct JPEG_ENC_DRV_OUT {
 	unsigned int *fileSize;
 	unsigned int *result;
 	unsigned int *cycleCount;
-#ifdef CONFIG_MTK_SEC_JPEG_SUPPORT
-	unsigned int bSecure;
-#endif
+
 };
 
 

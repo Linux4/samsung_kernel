@@ -2,11 +2,8 @@
 #include <linux/sched/signal.h>
 #include <linux/proc_fs.h>
 #include <linux/mm.h>
-#ifdef CONFIG_RUSTUH_RKP
-#include <linux/rustrkp.h>
-#else
 #include <linux/rkp.h>
-#endif
+
 /*
  * BIT[0:1]	TYPE	PXN BIT
  * 01		BLOCK	53	For LEVEL 0, 1, 2 //defined by L012_BLOCK_PXN
@@ -26,12 +23,9 @@
 /* BUF define */
 #define RKP_BUF_SIZE	8192
 #define RKP_LINE_MAX	80
-
-#define RKP_ROBUFFER_ARG_TEST 1
-
 static char rkp_test_buf[RKP_BUF_SIZE];
 static unsigned long rkp_test_len = 0;
-static unsigned long prot_user_l2 = 0;
+static unsigned long prot_user_l2 = 1;
 
 static DEFINE_RAW_SPINLOCK(par_lock);
 static u64 *ha1;
@@ -59,36 +53,19 @@ static void buf_print(const char *fmt, ...)
 	va_end(aptr);
 }
 
-
-#ifdef CONFIG_RUSTUH_RKP
+//if RO, return true; RW return false
 static bool hyp_check_page_ro(u64 va)
 {
 	unsigned long flags;
 	u64 par = 0;
 
 	raw_spin_lock_irqsave(&par_lock, flags);
-
 	uh_call(UH_APP_RKP, RKP_TEST_GET_PAR, (unsigned long)va, RKP_PA_WRITE, 0, 0);
-
 	par = *ha1;
 	raw_spin_unlock_irqrestore(&par_lock, flags);
 
 	return (par & 0x1) ? true : false;
 }
-#else
-bool hyp_check_page_ro(u64 va){
-	unsigned long flags;
-	u64 par = 0;
-
-	raw_spin_lock_irqsave(&par_lock, flags);
-	uh_call(UH_APP_RKP, CMD_ID_TEST_GET_PAR, (unsigned long)va, RKP_PA_WRITE, 0, 0);
-
-	par = *ha1;
-	raw_spin_unlock_irqrestore(&par_lock, flags);
-
-	return (par & 0x1) ? true : false;
-}
-#endif
 
 static void hyp_check_l23pgt_rw(u64 *pg_l, unsigned int level, struct test_data *test)
 {
@@ -380,10 +357,10 @@ static int test_case_user_pxn(void)
 
 	//all 2nd level entries should be PXN
 	if (test[0].no_pxn == 0) {
-		//prot_user_l2 = 0;
+		prot_user_l2 = 0;
 		return 0;
 	} else if (test[1].no_pxn == 0) {
-		//prot_user_l2 = 1;
+		prot_user_l2 = 1;
 		return 0;
 	} else {
 		return 1;
@@ -409,22 +386,10 @@ static int test_case_kernel_range_rwx(void)
 	u64 va_temp;
 
 	struct mem_range test_ranges[] = {
-		{(u64)VMALLOC_START,		((u64)_text) - ((u64)VMALLOC_START),	"VMALLOC -  STEXT", false, true},
-		{((u64)_text),			((u64)_etext) - ((u64)_text),		"STEXT - ETEXT   ", true, false},
-		{((u64)_etext),			((u64) __end_rodata) - ((u64)_etext),	"ETEXT - ERODATA ", true, true},
-#ifdef CONFIG_USE_DIRECT_IS_CONTROL
-		// For STAR, FIMC is after erodata
-		{((u64) __end_rodata),		VRA_START_VA-((u64) __end_rodata),	"ERODATA - S_FIMC", false, true},
-		{VRA_START_VA,			VRA_CODE_SIZE,				"     VRA CODE   ", true, false},
-		{VRA_START_VA+VRA_CODE_SIZE,	VRA_DATA_SIZE,				"     VRA DATA   ", false, true},
-		{DDK_START_VA,			DDK_CODE_SIZE,				"     DDK CODE   ", true, false},
-		{DDK_START_VA+DDK_CODE_SIZE,	DDK_DATA_SIZE,				"     DDK_DATA   ", false, true},
-		{RTA_START_VA,			RTA_CODE_SIZE,				"     RTA CODE   ", true, false},
-		{RTA_START_VA+RTA_CODE_SIZE,	RTA_DATA_SIZE,				"     RTA DATA   ", false, true},
-		{FIMC_LIB_END_VA,		MEM_END-FIMC_LIB_END_VA,		"E_FIMC - MEM END", false, true},
-#else
-		{((u64) __end_rodata),		MEM_END-((u64) __end_rodata),		"ERODATA -MEM_END", false, true},
-#endif
+		{(u64)VMALLOC_START,		((u64)_text)          - ((u64)VMALLOC_START),	    "VMALLOC -  STEXT", false, true},
+		{((u64)_text),			    ((u64)_etext)         - ((u64)_text),		        "STEXT - ETEXT   ", true, false},
+		{((u64)__start_rodata),	    ((u64) __end_rodata)  - ((u64)__start_rodata),	    "SRODATA - ERODATA ", true, true},
+		{((u64)__end_rodata),		 MEM_END              - ((u64) __end_rodata),		"ERODATA -MEM_END", false, true},
 	};
 
 	int len = sizeof(test_ranges)/sizeof(struct mem_range);
@@ -473,14 +438,14 @@ static int test_case_kernel_range_rwx(void)
 ssize_t	rkp_read(struct file *filep, char __user *buffer, size_t count, loff_t *ppos)
 {
 	int ret = 0, temp_ret = 0, i = 0;
-	struct uh_app_test_case tc_funcs[] = {
+	struct test_case tc_funcs[] = {
 		{test_case_user_pxn,		"TEST USER_PXN"},
 		{test_case_user_pgtable_ro,	"TEST USER_PGTABLE_RO"},
 		{test_case_kernel_pgtable_ro,	"TEST KERNEL_PGTABLE_RO"},
 		{test_case_kernel_l3pgt_ro,	"TEST KERNEL TEXT HEAD TAIL L3PGT RO"},
 		{test_case_kernel_range_rwx,	"TEST KERNEL_RANGE_RWX"},
 	};
-	int tc_num = sizeof(tc_funcs)/sizeof(struct uh_app_test_case);
+	int tc_num = sizeof(tc_funcs)/sizeof(struct test_case);
 
 	static bool done = false;
 	if (done)
@@ -528,28 +493,22 @@ static int __init rkp_test_init(void)
 		return -1;
 	}
 
-#ifdef CONFIG_RUSTUH_RKP
 	va = __get_free_page(GFP_KERNEL | __GFP_ZERO);
 	if (!va)
 		return -1;
 
 	uh_call(UH_APP_RKP, RKP_TEST_INIT, va, 0,0, 0);
+
 	ha1 = (u64 *)va;
-#else
-	uh_call(UH_APP_RKP, RKP_RKP_ROBUFFER_ALLOC, (u64)&va | (u64)RKP_ROBUFFER_ARG_TEST, 0, 0, 0);	
-	ha1 = (u64 *)__va(va);
-#endif
 
 	return 0;
 }
 
 static void __exit rkp_test_exit(void)
 {
-#ifdef CONFIG_RUSTUH_RKP
 	uh_call(UH_APP_RKP, RKP_TEST_EXIT, (u64)ha1, 0, 0, 0);
-
 	free_page((unsigned long)ha1);
-#endif
+
 	remove_proc_entry("rkp_test", NULL);
 }
 

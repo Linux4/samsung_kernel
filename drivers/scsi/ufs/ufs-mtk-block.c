@@ -1,14 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2017 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (C) 2019 MediaTek Inc.
+ * Authors:
+ *	Perry Hsu <perry.hsu@mediatek.com>
+ *	Stanley Chu <stanley.chu@mediatek.com>
  */
 
 #define DEBUG 1
@@ -29,7 +24,6 @@
 #include <linux/smp.h>
 #include <mt-plat/mtk_blocktag.h>
 #include "ufs-mtk-block.h"
-#include "ufs-mtk-platform.h"
 
 /* ring trace for debugfs */
 struct mtk_blocktag *ufs_mtk_btag;
@@ -370,9 +364,9 @@ void ufs_mtk_biolog_check(unsigned long req_mask)
 	if (!ctx)
 		return;
 
-	end_time = sched_clock();
-
 	spin_lock_irqsave(&ctx->lock, flags);
+
+	end_time = sched_clock();
 
 	if (ctx->busy_start_t)
 		ufs_mtk_bio_ctx_count_usage(ctx, ctx->busy_start_t, end_time);

@@ -12,16 +12,6 @@ config TCPC_CLASS
 	  Controller Device
 	  Class
 
-config USB_POWER_DELIVERY
-	bool "Support USB power delivery Function"
-	depends on TCPC_CLASS
-	default n
-	help
-	  Say Y to enable
-	  USB
-	  Power Delivery
-	  support
-
 config TCPC_RT1711H
 	bool "Richtek RT1711H TypeC port Controller Driver"
 	depends on TCPC_CLASS
@@ -38,6 +28,15 @@ config TCPC_RT5081
 	default n
 	help
 	  Say Y to enable Richtek RT5081
+	  TypeC port Controller
+	  Also Support Power Delivery
+	  Say N to disable
+
+config TCPC_MT6360
+	bool "MediaTek MT6360 TypeC port Controller Driver"
+	depends on TCPC_CLASS
+	help
+	  Say Y to enable MediaTek MT6370
 	  TypeC port Controller
 	  Also Support Power Delivery
 	  Say N to disable
@@ -63,6 +62,26 @@ config TCPC_MT6370
 	  Also Support Power Delivery
 	  Say N to disable
 
+config PD_DBG_INFO
+	bool "TCPC power delivery debug information"
+	depends on TCPC_CLASS
+	default n
+	help
+	  Say Y to enable
+	  power delivery
+	  debug information
+	  Say N to disable
+
+config USB_POWER_DELIVERY
+	bool "Support USB power delivery Function"
+	depends on TCPC_CLASS
+	default n
+	help
+	  Say Y to enable
+	  USB
+	  Power Delivery
+	  support
+
 config USB_PD_VBUS_STABLE_TOUT
 	int "PD VBUS Stable Timeout"
 	depends on USB_POWER_DELIVERY
@@ -74,14 +93,23 @@ config USB_PD_VBUS_STABLE_TOUT
 	  VBUS change
 	  stable
 
-config PD_DBG_INFO
-	bool "PD debug information"
+config MTK_TYPEC_WATER_DETECT
+	bool "Water detection function for type-c connector"
 	depends on TCPC_CLASS
-	default n
 	help
-	  Say Y to enable PD debug
-	  information
-	  Say N to disable
+	  Say Yes to enable water detection on type-c connector.
+	  If water is detected on the connector, it will show
+	  warning to notify end user.
+	  If unsure, say N.
+
+config MTK_TYPEC_WATER_DETECT_BY_PCB
+	bool "Let PCB decides enabling water detection or not"
+	depends on MTK_TYPEC_WATER_DETECT
+	help
+	  Query GPIO on PCB to judge whether type-c water detection
+	  need to be enabled.
+	  Say Yes to let PCB decides enabling water detection or not.
+	  If unsure, say N.
 
 config SEC_HICCUP
 	bool "SEC HICCUP"
