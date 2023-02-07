@@ -61,6 +61,10 @@ extern const char *sb_get_hl_str(int health);
 extern const char *sb_get_tz_str(int tz);
 extern const char *sb_charge_mode_str(int charge_mode);
 
+#ifndef EXPORT_SYMBOL_KUNIT
+#define EXPORT_SYMBOL_KUNIT(sym)	/* nothing */
+#endif
+
 /* current event */
 #define SEC_BAT_CURRENT_EVENT_NONE					0x000000
 #define SEC_BAT_CURRENT_EVENT_AFC					0x000001
@@ -126,7 +130,8 @@ extern const char *sb_charge_mode_str(int charge_mode);
 #define BATT_MISC_EVENT_PASS_THROUGH		0x02000000
 #define BATT_MISC_EVENT_MAIN_POWERPATH		0x04000000
 #define BATT_MISC_EVENT_SUB_POWERPATH		0x08000000
-
+#define BATT_MISC_EVENT_HV_BY_AICL			0x10000000
+#define BATT_MISC_EVENT_WC_JIG_PAD			0x20000000
 
 #define BATTERY_HEALTH_SHIFT	16
 enum misc_battery_health {
@@ -187,6 +192,7 @@ enum {
 enum battery_misc_test {
 	MISC_TEST_RESET = 0,
 	MISC_TEST_DISPLAY,
+	MISC_TEST_EPT_UNKNOWN,
 	MISC_TEST_MAX,
 };
 
@@ -410,7 +416,7 @@ typedef struct sec_battery_platform_data {
 	unsigned int swelling_low_rechg_voltage;
 	unsigned int swelling_low_cool3_rechg_voltage;
 
-#if defined(CONFIG_STEP_CHARGING)
+#if IS_ENABLED(CONFIG_STEP_CHARGING)
 	/* step charging */
 	unsigned int **step_chg_cond;
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
@@ -430,6 +436,7 @@ typedef struct sec_battery_platform_data {
 	unsigned int **dc_step_chg_cond_vol;
 	unsigned int **dc_step_chg_cond_soc;
 	unsigned int *dc_step_chg_cond_iin;
+	unsigned int *dc_step_chg_vol_offset;
 	int dc_step_chg_iin_check_cnt;
 
 	unsigned int **dc_step_chg_val_iout;
@@ -570,6 +577,14 @@ typedef struct sec_battery_platform_data {
 	int mix_high_temp;
 	int mix_high_chg_temp;
 	int mix_high_temp_recovery;
+
+	bool enable_mix_v2;
+	int mix_v2_lrp_recov;
+	int mix_v2_lrp_cond;
+	int mix_v2_bat_cond;
+	int mix_v2_chg_cond;
+	int mix_v2_dchg_cond;
+
 	unsigned int icl_by_tx_gear; /* check limited charging current during wireless power sharing with cable charging */
 	unsigned int fcc_by_tx;
 	unsigned int fcc_by_tx_gear;
@@ -690,6 +705,7 @@ typedef struct sec_battery_platform_data {
 
 	bool fake_capacity;
 	bool dis_auto_shipmode_temp_ctrl;
+	bool boosting_voltage_aicl;
 	bool tx_5v_disable;
 	unsigned int phm_vout_ctrl_dev;
 	unsigned int power_value;
@@ -871,6 +887,7 @@ struct sec_battery_info {
 	unsigned int charge_power;		/* charge power (mW) */
 	unsigned int max_charge_power;		/* max charge power (mW) */
 	unsigned int pd_max_charge_power;		/* max charge power for pd (mW) */
+	unsigned int pd_rated_power;		/* rated power for pd (W) */
 
 	struct adc_sample_info	adc_sample[ADC_CH_COUNT];
 
@@ -938,7 +955,7 @@ struct sec_battery_info {
 #if defined(CONFIG_ENG_BATTERY_CONCEPT)
 	bool test_max_current;
 	bool test_charge_current;
-#if defined(CONFIG_STEP_CHARGING)
+#if IS_ENABLED(CONFIG_STEP_CHARGING)
 	int test_step_condition;
 #endif
 #endif
@@ -1102,25 +1119,29 @@ struct sec_battery_info {
 	bool wpc_vout_ctrl_mode;
 	char *hv_chg_name;
 #if IS_ENABLED(CONFIG_WIRELESS_CHARGING)
+	bool nv_wc_temp_ctrl_skip;
 	int tx_avg_curr;
 	int tx_time_cnt;
 	int tx_total_power;
 	struct delayed_work wpc_txpower_calc_work;
 
+	bool wc_ept_timeout;
 	unsigned int wc20_vout;
 	unsigned int wc20_power_class;
 	unsigned int wc20_rx_power;
 	unsigned int wc20_info_len;
 	unsigned int wc20_info_idx;
 	struct delayed_work wc20_current_work;
+	struct delayed_work wc_ept_timeout_work;
 	struct wakeup_source *wc20_current_ws;
+	struct wakeup_source *wc_ept_timeout_ws;
 #endif
 	struct delayed_work slowcharging_work;
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 	int batt_cycle;
 #endif
 	int batt_asoc;
-#if defined(CONFIG_STEP_CHARGING)
+#if IS_ENABLED(CONFIG_STEP_CHARGING)
 	bool step_charging_skip_lcd_on;
 	bool step_chg_en_in_factory;
 	unsigned int step_chg_type;
@@ -1129,13 +1150,14 @@ struct sec_battery_info {
 	int step_chg_step;
 #if IS_ENABLED(CONFIG_DIRECT_CHARGING)
 	int dc_step_chg_step;
-	unsigned int dc_step_chg_type;
+	unsigned int *dc_step_chg_type;
 	unsigned int dc_step_chg_charge_power;
 
 	bool dc_float_voltage_set;
 	unsigned int dc_step_chg_iin_cnt;
 #endif
 #endif
+	bool dchg_dc_in_swelling;
 	struct mutex misclock;
 	struct mutex txeventlock;
 	unsigned int misc_event;
@@ -1171,11 +1193,12 @@ struct sec_battery_info {
 	unsigned long cal_safety_time;
 	int fg_reset;
 
-	struct sec_vote * fcc_vote;
-	struct sec_vote * input_vote;
-	struct sec_vote * fv_vote;
-	struct sec_vote * chgen_vote;
-	struct sec_vote * topoff_vote;
+	struct sec_vote *fcc_vote;
+	struct sec_vote *input_vote;
+	struct sec_vote *fv_vote;
+	struct sec_vote *dc_fv_vote;
+	struct sec_vote *chgen_vote;
+	struct sec_vote *topoff_vote;
 	struct sec_vote *iv_vote;
 
 	/* 25w ta alert */
@@ -1205,6 +1228,9 @@ struct sec_battery_info {
 	bool usb_slow_chg;
 	bool usb_bootcomplete;
 	unsigned int flash_state;
+#if defined(CONFIG_MTK_CHARGER)
+	unsigned int mtk_fg_init;
+#endif
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER) && IS_ENABLED(CONFIG_LSI_IFPMIC)
 	struct notifier_block vbus_nb;
 #endif
@@ -1276,6 +1302,7 @@ extern bool sec_bat_check_full(struct sec_battery_info *battery, int full_check_
 extern bool sec_bat_check_fullcharged(struct sec_battery_info *battery);
 extern void sec_bat_check_wpc_temp(struct sec_battery_info *battery, int ct, int siop_level);
 extern void sec_bat_check_mix_temp(struct sec_battery_info *battery, int ct, int siop_level, bool is_apdo);
+extern void sec_bat_check_mix_temp_v2(struct sec_battery_info *battery);
 extern void sec_bat_check_afc_temp(struct sec_battery_info *battery, int siop_level);
 extern void sec_bat_check_pdic_temp(struct sec_battery_info *battery, int siop_level);
 extern void sec_bat_check_direct_chg_temp(struct sec_battery_info *battery, int siop_level);
@@ -1325,7 +1352,7 @@ extern void sec_bat_fw_update(struct sec_battery_info *battery, int mode);
 extern bool sec_bat_check_boost_mfc_condition(struct sec_battery_info *battery, int mode);
 #endif
 
-#if defined(CONFIG_STEP_CHARGING)
+#if IS_ENABLED(CONFIG_STEP_CHARGING)
 extern void sec_bat_reset_step_charging(struct sec_battery_info *battery);
 extern void sec_step_charging_init(struct sec_battery_info *battery, struct device *dev);
 extern bool sec_bat_check_step_charging(struct sec_battery_info *battery);

@@ -36,10 +36,12 @@ shub-y += factory/proximity/proximity_stk3x6x_factory.o
 shub-y += factory/proximity/proximity_stk3328_factory.o
 shub-y += factory/proximity/proximity_tmd4912_factory.o
 shub-y += factory/proximity/proximity_stk33910_factory.o
+shub-y += factory/proximity/proximity_stk33512_factory.o
 
 shub-y += others/shub_motor_callback.o
-shub-$(CONFIG_SHUB_OIS) += others/shub_ois.o
 shub-y += others/shub_panel.o
+shub-y += others/shub_pogo.o
+
 shub-y += sensor/accelerometer.o
 shub-y += sensor/gyroscope.o
 shub-y += sensor/gyroscope_uncal.o
@@ -61,6 +63,7 @@ shub-y += sensor/super.o
 shub-y += sensor/pocket_mode.o
 shub-y += sensor/device_orientation.o
 shub-y += sensor/sar_backoff_motion.o
+shub-y += sensor/pogo_request_handler.o
 
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_icm42605m.o
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_lsm6dsl.o
@@ -80,7 +83,9 @@ shub-y += sensor/physical_sensor/proximity/proximity_stk3x6x.o
 shub-y += sensor/physical_sensor/proximity/proximity_gp2ap110s.o
 shub-y += sensor/physical_sensor/proximity/proximity_stk3328.o
 shub-y += sensor/physical_sensor/proximity/proximity_tmd4912.o
+shub-y += sensor/physical_sensor/proximity/proximity_stk33512.o
 shub-y += sensor/physical_sensor/proximity/proximity_stk33910.o
+shub-y += sensor/physical_sensor/light/light_stk33512.o
 
 shub-y += sensor/physical_sensor/pressure/pressure_bmp580.o
 shub-y += sensor/physical_sensor/pressure/pressure_lps22hh.o

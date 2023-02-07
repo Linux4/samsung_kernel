@@ -111,9 +111,9 @@ static void vt_muic_work_func(struct work_struct *work)
 #endif
 		break;
 	case SEC_BATTERY_CABLE_TIMEOUT:
+	case SEC_BATTERY_CABLE_UNKNOWN:
 		new_dev = ATTACHED_DEV_TIMEOUT_OPEN_MUIC;
 		break;
-	case SEC_BATTERY_CABLE_UNKNOWN:
 	case SEC_BATTERY_CABLE_NONE:
 #if IS_ENABLED(CONFIG_AFC_CHARGER) && IS_ENABLED(CONFIG_CHARGER_SYV660)
 		if (vt_muic.ic_data && vt_muic.ic_data->m_ops.afc_dpdm_ctrl)

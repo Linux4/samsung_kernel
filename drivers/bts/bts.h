@@ -24,7 +24,7 @@
 #include <soc/samsung/bts.h>
 
 #define NUM_CHANNEL     2
-#define BUS_WIDTH       16
+#define BUS_WIDTH       8
 #define MIF_UTIL        65
 #define INT_UTIL        70
 #define VC_TIMER_TH_NR  8

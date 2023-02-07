@@ -1714,58 +1714,6 @@ int is_vender_remove_dump_fw_file(void)
 	return 0;
 }
 
-int is_vender_replace_sensorid_with_second_sensorid(struct is_vender *vender, int position)
-{
-	int ret = 0;
-	struct is_vender_specific *specific = NULL;
-	specific = vender->private_data;
-
-	if(position >= SENSOR_POSITION_REAR && position < SENSOR_POSITION_MAX) {
-		switch (position) {
-		case SENSOR_POSITION_REAR:
-			specific->sensor_id[position] = rear_dualized_sensor_id;
-			break;
-		case SENSOR_POSITION_FRONT:
-			specific->sensor_id[position] = front_dualized_sensor_id;
-			break;
-		case SENSOR_POSITION_REAR2:
-			specific->sensor_id[position] = rear2_dualized_sensor_id;
-			break;
-		case SENSOR_POSITION_FRONT2:
-			specific->sensor_id[position] = front2_dualized_sensor_id;
-			break;
-		case SENSOR_POSITION_REAR3:
-			specific->sensor_id[position] = rear3_dualized_sensor_id;
-			break;
-		case SENSOR_POSITION_FRONT3:
-			specific->sensor_id[position] = front3_dualized_sensor_id;
-			break;
-		case SENSOR_POSITION_REAR4:
-			specific->sensor_id[position] = rear4_dualized_sensor_id;
-			break;
-		case SENSOR_POSITION_FRONT4:
-			specific->sensor_id[position] = front4_dualized_sensor_id;
-			break;
-		case SENSOR_POSITION_REAR_TOF:
-			specific->sensor_id[position] = rear_dualized_tof_sensor_id;
-			break;
-		case SENSOR_POSITION_FRONT_TOF:
-			specific->sensor_id[position] = front_dualized_tof_sensor_id;
-			break;
-		default:
-			specific->sensor_id[position] = SENSOR_NAME_NOTHING;
-		}
-	}
-	else {
-		err("%s invalid module position(%d)", __func__ , position);
-		ret = -EINVAL;
-	}
-	if (ret != -EINVAL) {
-		info("%s Sensor ID modified for %d. New sensor_id - %d", __func__, position, specific->sensor_id[position]);
-	}
-	return ret;
-}
-
 int is_vender_get_dualized_sensorid(int position)
 {
 	int ret = SENSOR_NAME_NOTHING;

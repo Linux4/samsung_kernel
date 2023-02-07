@@ -638,7 +638,11 @@ static void aot_enable(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
-	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
+	if (!tcm_hcd->hw_if->bdata->enable_settings_aot) {
+		input_err(true, tcm_hcd->pdev->dev.parent, "%s: Not support AOT(%d)\n", __func__, sec->cmd_param[0]);
+		snprintf(buff, sizeof(buff), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	} else if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	} else {

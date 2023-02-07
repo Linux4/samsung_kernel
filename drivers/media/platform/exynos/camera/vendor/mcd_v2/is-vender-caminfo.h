@@ -32,7 +32,7 @@ static bool sec2lsi_conversion_done[8] = {false, false, false, false,
 
 #define IS_CAMINFO_IOCTL_COMMAND		_IOWR(IS_CAMINFO_IOCTL_MAGIC, 0x01, caminfo_ioctl_cmd *)
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 #define IS_CAMINFO_IOCTL_COMMAND_COMPAT		_IOWR(IS_CAMINFO_IOCTL_MAGIC, 0x01, caminfo_ioctl_cmd_compat *)
 #endif
 
@@ -47,7 +47,7 @@ typedef struct
 	void *data;
 } caminfo_ioctl_cmd;
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 typedef struct
 {
 	uint32_t cmd;
@@ -79,7 +79,7 @@ typedef struct
 	uint32_t rom_size;
 } caminfo_romdata;
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 typedef struct
 {
 	uint32_t cam_position;
@@ -106,7 +106,7 @@ typedef struct
 	uint32_t cal_size;
 } caminfo_romdata_sec2lsi;
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 typedef struct
 {
 	uint32_t camID;

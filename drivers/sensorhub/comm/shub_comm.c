@@ -111,6 +111,11 @@ static int comm_to_sensorhub(struct shub_msg *msg)
 {
 	int ret;
 
+	if (!is_shub_working()) {
+		shub_errf("sensorhub is not working");
+		return -EIO;
+	}
+
 	mutex_lock(&comm_mutex);
 	memcpy(shub_cmd_data, msg, SHUB_MSG_HEADER_SIZE);
 	if (msg->length > 0) {
@@ -119,12 +124,6 @@ static int comm_to_sensorhub(struct shub_msg *msg)
 		shub_errf("command size(%d) is over.", msg->length);
 		mutex_unlock(&comm_mutex);
 		return -EINVAL;
-	}
-
-	if (!is_shub_working()) {
-		shub_errf("sensorhub is not working");
-		mutex_unlock(&comm_mutex);
-		return -EIO;
 	}
 
 	shub_infof("cmd %d type %d subcmd %d send_buf_len %d ts %llu", msg->cmd, msg->type, msg->subcmd, msg->length,
@@ -509,8 +508,8 @@ int init_comm_to_hub(void)
 
 void exit_comm_to_hub(void)
 {
+	clean_pending_list();
 	mutex_destroy(&comm_mutex);
 	mutex_destroy(&pending_mutex);
 	mutex_destroy(&rx_msg_mutex);
-	clean_pending_list();
 }

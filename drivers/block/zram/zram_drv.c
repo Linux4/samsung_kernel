@@ -1056,7 +1056,7 @@ bool zram_is_app_launch(void)
 static bool zram_should_writeback(struct zram *zram,
 				unsigned long pages, bool trigger)
 {
-	unsigned long stored = atomic64_read(&zram->stats.pages_stored);
+	unsigned long stored = atomic64_read(&zram->stats.lru_pages);
 	unsigned long writtenback = atomic64_read(&zram->stats.bd_objcnt) -
 				    atomic64_read(&zram->stats.bd_ppr_objcnt) -
 				    atomic64_read(&zram->stats.bd_expire);
@@ -1556,8 +1556,13 @@ void swap_add_to_list(struct list_head *list, swp_entry_t entry)
 		zram_set_flag(zram, index, ZRAM_IDLE);
 		zram_set_flag(zram, index, ZRAM_UNDER_PPR);
 		spin_lock_irqsave(&zram->list_lock, flags);
-		if (!list_empty(&zram->table[index].lru_list))
+		if (!list_empty(&zram->table[index].lru_list)) {
 			list_move(&zram->table[index].lru_list, list);
+			if (zram_test_flag(zram, index, ZRAM_LRU)) {
+				zram_clear_flag(zram, index, ZRAM_LRU);
+				atomic64_dec(&zram->stats.lru_pages);
+			}
+		}
 		spin_unlock_irqrestore(&zram->list_lock, flags);
 	}
 	zram_slot_unlock(zram, index);
@@ -1952,7 +1957,7 @@ static void zram_handle_comp_page(struct work_struct *work)
 	if (ret) {
 		pr_err("%s Decompression failed! err=%d offset=%u size=%u addr=%p\n",
 			__func__, ret, offset, size, src);
-		print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1,
+		print_hex_dump(KERN_ERR, "", DUMP_PREFIX_OFFSET, 16, 1,
 				src, PAGE_SIZE, 1);
 		BUG_ON(ret);
 	}
@@ -2485,8 +2490,13 @@ out:
 	if (zram_test_flag(zram, index, ZRAM_UNDER_PPR))
 		zram_clear_flag(zram, index, ZRAM_UNDER_PPR);
 	spin_lock_irqsave(&zram->list_lock, flags);
-	if (!list_empty(&zram->table[index].lru_list))
+	if (!list_empty(&zram->table[index].lru_list)) {
 		list_del_init(&zram->table[index].lru_list);
+		if (zram_test_flag(zram, index, ZRAM_LRU)) {
+			zram_clear_flag(zram, index, ZRAM_LRU);
+			atomic64_dec(&zram->stats.lru_pages);
+		}
+	}
 	spin_unlock_irqrestore(&zram->list_lock, flags);
 #endif
 	WARN_ON_ONCE(zram->table[index].flags &
@@ -2566,7 +2576,7 @@ static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 	if (unlikely(ret)) {
 		pr_err("%s Decompression failed! err=%d, page=%u, len=%u, vaddr=0x%px\n",
 			zram->compressor, ret, index, size, src);
-		print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1, src, size, 1);
+		print_hex_dump(KERN_ERR, "", DUMP_PREFIX_OFFSET, 16, 1, src, size, 1);
 		BUG();
 	}
 
@@ -2575,8 +2585,13 @@ static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 	if (zram_test_flag(zram, index, ZRAM_UNDER_PPR))
 		zram_clear_flag(zram, index, ZRAM_UNDER_PPR);
 	spin_lock_irqsave(&zram->list_lock, flags);
-	if (!list_empty(&zram->table[index].lru_list))
+	if (!list_empty(&zram->table[index].lru_list)) {
 		list_del_init(&zram->table[index].lru_list);
+		if (zram_test_flag(zram, index, ZRAM_LRU)) {
+			zram_clear_flag(zram, index, ZRAM_LRU);
+			atomic64_dec(&zram->stats.lru_pages);
+		}
+	}
 	spin_unlock_irqrestore(&zram->list_lock, flags);
 #endif
 	zram_slot_unlock(zram, index);
@@ -2734,6 +2749,8 @@ out:
 			spin_lock_irqsave(&zram->list_lock, irq_flags);
 			list_add_tail(&zram->table[index].lru_list, &zram->list);
 			spin_unlock_irqrestore(&zram->list_lock, irq_flags);
+			zram_set_flag(zram, index, ZRAM_LRU);
+			atomic64_inc(&zram->stats.lru_pages);
 		}
 #endif
 	}

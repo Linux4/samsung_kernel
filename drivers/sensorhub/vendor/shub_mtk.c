@@ -95,7 +95,6 @@ int sensorhub_probe(void)
 int sensorhub_shutdown(void)
 {
 	scp_A_unregister_notify(&scp_state_notifier);
-	scp_ipi_unregistration(IPI_SHUB);
 	return 0;
 }
 

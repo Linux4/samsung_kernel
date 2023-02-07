@@ -44,6 +44,13 @@
 #if IS_ENABLED(CONFIG_SEC_ABC)
 #include <linux/sti/abc_common.h>
 #endif
+#include <linux/notifier.h>
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+#include <linux/vbus_notifier.h>
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
+#endif
+#endif
 
 #include "sec_cmd.h"
 #include "sec_tclm_v2.h"
@@ -142,10 +149,10 @@ const struct file_operations ops_name = {				\
 	}									\
 })
 
-#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 #define MAIN_TOUCH	1
 #define SUB_TOUCH	2
 
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 #define input_raw_info(mode, dev, fmt, ...)					\
 ({										\
 	static char input_log_buf[INPUT_LOG_BUF_SIZE];				\
@@ -628,6 +635,7 @@ struct sec_ts_plat_data {
 	struct input_dev *input_dev;
 	struct input_dev *input_dev_pad;
 	struct input_dev *input_dev_proximity;
+	struct device *dev;
 
 	int max_x;
 	int max_y;
@@ -752,13 +760,24 @@ struct sec_ts_plat_data {
 	bool not_support_vdd;
 	bool sense_off_when_cover_closed;
 	bool not_support_temp_noti;
+	bool support_vbus_notifier;
 
+	struct work_struct irq_work;
+	struct workqueue_struct *irq_workqueue;
 	struct completion resume_done;
 	struct wakeup_source *sec_ws;
 
 	struct sec_ts_hw_param_data hw_param;
 
 	struct delayed_work interrupt_notify_work;
+
+	int (*set_charger_mode)(struct device *dev, bool on);
+	bool charger_flag;
+	struct work_struct vbus_notifier_work;
+	struct workqueue_struct *vbus_notifier_workqueue;
+	struct notifier_block vbus_nb;
+	struct notifier_block ccic_nb;
+	bool otg_flag;
 
 	u32 print_info_cnt_release;
 	u32 print_info_cnt_open;
@@ -817,6 +836,8 @@ int sec_input_pinctrl_configure(struct device *dev, bool on);
 int sec_input_power(struct device *dev, bool on);
 int sec_input_sysfs_create(struct kobject *kobj);
 void sec_input_sysfs_remove(struct kobject *kobj);
+void sec_input_register_vbus_notifier(struct device *dev);
+void sec_input_unregister_vbus_notifier(struct device *dev);
 
 void sec_input_register_notify(struct notifier_block *nb, notifier_fn_t notifier_call, int priority);
 void sec_input_unregister_notify(struct notifier_block *nb);

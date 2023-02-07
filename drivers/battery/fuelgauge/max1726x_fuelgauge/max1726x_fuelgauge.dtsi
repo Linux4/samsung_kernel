@@ -47,7 +47,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/max1726x/max1726x_fuelgauge.a13.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/max1726x/max1726x_fuelgauge.a13.dtsi */
 &i2c_0 {
 	samsung,glitch-filter;
 	samsung,fix-doxfer-return;
@@ -64,7 +64,7 @@
 	fuelgauge,vbat_open_adc = <1295>;
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/max1726x/max1726x_fuelgauge.a13_eur.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/max1726x/max1726x_fuelgauge.a13_eur.dtsi */
 &max1726x_fuelgauge {
 	/*** SEC parameters ***/
 	fuelgauge,vbat_open_adc = <2323>;

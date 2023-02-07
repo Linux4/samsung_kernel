@@ -1554,6 +1554,11 @@ u16 nvt_ts_mode_read(struct nvt_ts_data *ts)
 	u8 buf[4] = {0};
 	int mode_masked;
 
+	if (ts->shutdown_called) {
+		input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
+		return -EIO;
+	}
+
 	//---set xdata index to EVENT BUF ADDR---
 	nvt_set_page(ts->mmap->EVENT_BUF_ADDR | EVENT_MAP_FUNCT_STATE);
 
@@ -1590,6 +1595,11 @@ int nvt_ts_mode_switch(struct nvt_ts_data *ts, u8 cmd, bool print_log)
 		buf[0] = EVENT_MAP_HOST_CMD;
 		buf[1] = cmd;
 		CTP_SPI_WRITE(ts->client, buf, 2);
+
+		if (ts->shutdown_called) {
+			input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
+			return -EIO;
+		}
 
 		usleep_range(15000, 16000);
 
@@ -1630,7 +1640,13 @@ int nvt_ts_mode_switch_extended(struct nvt_ts_data *ts, u8 *cmd, u8 len, bool pr
 	for (i = 0; i < retry; i++) {
 		//---set cmd---
 		CTP_SPI_WRITE(ts->client, cmd, len);
+
+		if (ts->shutdown_called) {
+			input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
+			return -EIO;
+		}
 		usleep_range(15000, 16000);
+
 		//---read cmd status---
 		CTP_SPI_READ(ts->client, buf, 2);
 		if (buf[1] == 0x00)
@@ -2460,7 +2476,7 @@ static void aot_enable(void *device_data)
 	sec_cmd_set_default_result(sec);
 
 	if (!ts->platdata->enable_settings_aot) {
-		input_err(true, &ts->client->dev, "%s: Not support AOT!\n", __func__);
+		input_err(true, &ts->client->dev, "%s: Not support AOT(%d)!\n", __func__, sec->cmd_param[0]);
 		goto out;
 	}
 

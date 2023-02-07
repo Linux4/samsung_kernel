@@ -19,6 +19,15 @@ config SENSORS_A96T396_SUB
 	  This option enables grip sensors using
 	  Above A96T396_SUB device driver for grip.
 
+config SENSORS_A96T396_WIFI
+	depends on I2C
+	tristate "A96T396_WIFI driver for grip"
+	default n
+	help
+	  Say Y here if you use A96T396_WIFI for grip.
+	  This option enables grip sensors using
+	  Above A96T396_WIFI device driver for grip.
+
 config SENSORS_A96T396_LDO_SHARE
 	depends on I2C
 	tristate "SENSOR_A96T396_LDO_SHARE driver for grip"
@@ -61,6 +70,27 @@ config SENSORS_A96T396_A13
 	default n
 	help
 	Say Y here if you use A13_LTE grip firmware.
+
+config SENSORS_A96T396_A13_KOR
+	depends on I2C
+	tristate "for grip sensor firmware of A13_LTE_KOR"
+	default n
+	help
+	Say Y here if you use A13_LTE grip firmware to separate for KOR.
+
+config SENSORS_A96T396_BIRDIE
+	depends on I2C
+	tristate "for grip sensor firmware of birdie"
+	default n
+	help
+	Say Y here if you use BIRDIE grip firmware.
+
+config SENSORS_FW_VENDOR
+	depends on I2C
+	tristate "for grip sensor firmware in vendor"
+	default n
+	help
+	Say Y here if you use firmware in vendor.
 
 config SENSORS_A96T396_2CH
 	depends on I2C

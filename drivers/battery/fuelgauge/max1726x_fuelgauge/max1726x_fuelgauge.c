@@ -80,6 +80,8 @@
 #define MAX1726X_FACTORY_MODE_SOC	50 /* 0DECIMAL */
 #define MAX1726X_FACTORY_MODE_VOL	4321 /* mV */
 
+#define FG_BATT_DUMP_SIZE 128
+
 enum max1726x_vempty_mode {
 	VEMPTY_MODE_HW = 0,
 	VEMPTY_MODE_SW,
@@ -135,6 +137,7 @@ struct max1726x_priv {
 	unsigned int f_mode;
 #endif
 	bool vbat_open;
+	char d_buf[FG_BATT_DUMP_SIZE];
 };
 
 static unsigned int __read_mostly lpcharge;
@@ -1291,6 +1294,17 @@ static int max1726x_get_asoc(struct max1726x_priv *priv)
 	return asoc;
 }
 
+static void max1726x_fg_bd_log(struct max1726x_priv *priv)
+{
+	memset(priv->d_buf, 0x0, sizeof(priv->d_buf));
+
+	snprintf(priv->d_buf + strlen(priv->d_buf), sizeof(priv->d_buf),
+		"%d,%d,%d",
+		max1726x_read_ocv(priv, SEC_BATTERY_VOLTAGE_MV),
+		max1726x_read_rawsoc(priv, MAX1726X_2DECIMAL),
+		priv->capacity_max);
+}
+
 static int max1726x_get_property(struct power_supply *psy,
 			enum power_supply_property psp,
 			union power_supply_propval *val)
@@ -1486,7 +1500,8 @@ static int max1726x_get_property(struct power_supply *psy,
 			val->intval = priv->vbat_open ? 1 : 0;
 			break;
 		case POWER_SUPPLY_EXT_PROP_BATT_DUMP:
-			val->strval = "FG LOG";
+			max1726x_fg_bd_log(priv);
+			val->strval = priv->d_buf;
 			break;
 		default:
 			return -EINVAL;

@@ -51,8 +51,10 @@
 #endif /* USE_HI1336_12M_FULL_SETFILE */
 
 #include "is-helper-i2c.h"
+#include "is-vender-specific.h"
 #ifdef CONFIG_VENDER_MCD_V2
 #include "is-sec-define.h"
+extern const struct is_vender_rom_addr *vender_rom_addr[SENSOR_POSITION_MAX];
 #endif
 
 #include "interface/is-interface-library.h"
@@ -447,12 +449,20 @@ int sensor_hi1336_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 {
 	int ret = 0;
 	struct is_cis *cis = NULL;
+	struct i2c_client *client;
 
 	FIMC_BUG(!subdev);
 
 	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
 	FIMC_BUG(!cis);
 	FIMC_BUG(!cis->cis_data);
+
+	client = cis->client;
+	if (unlikely(!client)) {
+		err("client is NULL");
+		ret = -EINVAL;
+		return ret;
+	}
 
 	if (mode > sensor_hi1336_max_setfile_num) {
 		err("invalid mode(%d)!!", mode);
@@ -477,6 +487,13 @@ int sensor_hi1336_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		err("[%s] fsync normal fail\n", __func__);
 		goto p_i2c_err;
 	}
+
+#ifdef APPLY_MIRROR_VERTICAL_FLIP
+	// Apply Mirror and Vertical Flip.
+	ret = is_sensor_write16(client, 0x0202, 0x0200);
+	if (ret < 0)
+		 goto p_i2c_err;
+#endif
 
 	dbg_sensor(1, "[%s] mode changed(%d)\n", __func__, mode);
 
@@ -1863,6 +1880,11 @@ int cis_hi1336_probe(struct i2c_client *client,
 	struct device_node *dnode;
 	int i;
 
+#if defined(CONFIG_VENDER_MCD_V2) || defined(CONFIG_CAMERA_OTPROM_SUPPORT_FRONT) || defined(CONFIG_CAMERA_OTPROM_SUPPORT_REAR)
+	struct is_vender_specific *specific = NULL;
+	u32 rom_position = 0;
+#endif
+
 	FIMC_BUG(!client);
 	FIMC_BUG(!is_dev);
 
@@ -1933,8 +1955,41 @@ int cis_hi1336_probe(struct i2c_client *client,
 
 		cis->cis_ops = &cis_ops_hi1336;
 
+#if defined(CONFIG_VENDER_MCD_V2)
+	if (of_property_read_bool(dnode, "use_sensor_otp")) {
+		ret = of_property_read_u32(dnode, "rom_position", &rom_position);
+		if (ret) {
+			err("rom_position read is fail(%d)", ret);
+		} else {
+			specific = core->vender.private_data;
+			specific->rom_data[rom_position].rom_type = ROM_TYPE_OTPROM;
+			specific->rom_data[rom_position].rom_valid = true;
+			specific->rom_client[rom_position] = cis->client;
+
+			if (cis->id == specific->sensor_id[rom_position]) {
+				specific->rom_client[rom_position] = cis->client;
+
+				if (vender_rom_addr[rom_position]) {
+					specific->rom_cal_map_addr[rom_position] = vender_rom_addr[rom_position];
+					probe_info("%s: rom_id=%d, OTP Registered\n", __func__, rom_position);
+				} else {
+					probe_info("%s: HI1336 OTP address not defined!\n", __func__);
+				}
+			} 
+			else {
+				err("%s: sensor id does not match", __func__);
+				goto p_err;
+			}
+		}
+	}
+#endif
+
 		/* belows are depend on sensor cis. MUST check sensor spec */
+#ifdef APPLY_MIRROR_VERTICAL_FLIP
+		cis->bayer_order = OTF_INPUT_ORDER_BAYER_GR_BG;
+#else
 		cis->bayer_order = OTF_INPUT_ORDER_BAYER_GB_RG;
+#endif
 
 		if (of_property_read_bool(dnode, "sensor_f_number")) {
 			ret = of_property_read_u32(dnode, "sensor_f_number", &cis->aperture_num);

@@ -64,11 +64,18 @@ void sec_bat_fw_update(struct sec_battery_info *battery, int mode)
 	case SEC_WIRELESS_FW_UPDATE_SPU_MODE:
 	case SEC_WIRELESS_FW_UPDATE_SPU_VERIFY_MODE:
 		battery->mfc_fw_update = true;
+		sec_vote(battery->chgen_vote, VOTER_FW, true, SEC_BAT_CHG_MODE_BUCK_OFF);
+		msleep(500);
+		sec_vote(battery->iv_vote, VOTER_FW, true, SEC_INPUT_VOLTAGE_5V);
+		msleep(500);
 		value.intval = mode;
 		ret = psy_do_property(battery->pdata->wireless_charger_name, set,
 				POWER_SUPPLY_EXT_PROP_CHARGE_POWERED_OTG_CONTROL, value);
-		if (ret < 0)
+		if (ret < 0) {
 			battery->mfc_fw_update = false;
+			sec_vote(battery->chgen_vote, VOTER_FW, false, 0);
+			sec_vote(battery->iv_vote, VOTER_FW, false, 0);
+		}
 		break;
 	default:
 		break;
@@ -534,6 +541,7 @@ bool sec_bat_hv_wc_normal_mode_check(struct sec_battery_info *battery)
 	}
 	return false;
 }
+EXPORT_SYMBOL_KUNIT(sec_bat_hv_wc_normal_mode_check);
 
 void sec_bat_ext_event_work_content(struct sec_battery_info *battery)
 {
@@ -909,6 +917,7 @@ void sec_bat_handle_tx_misalign(struct sec_battery_info *battery, bool trigger_m
 		}
 	}
 }
+EXPORT_SYMBOL_KUNIT(sec_bat_handle_tx_misalign);
 
 void sec_bat_handle_tx_ocp(struct sec_battery_info *battery, bool trigger_ocp)
 {
@@ -1069,6 +1078,7 @@ void sec_bat_wc_cv_mode_check(struct sec_battery_info *battery)
 			POWER_SUPPLY_PROP_STATUS, value);
 	}
 }
+EXPORT_SYMBOL_KUNIT(sec_bat_wc_cv_mode_check);
 
 static int is_5v_charger(struct sec_battery_info *battery, int wr_sts)
 {

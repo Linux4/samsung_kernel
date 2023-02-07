@@ -722,10 +722,10 @@ static irqreturn_t a96t396_interrupt(int irq, void *dev_id)
 	struct i2c_client *client = data->client;
 	int ret;
 	u8 buf;
-	int grip_data;
+	int grip_data = 0;
 	u8 grip_press = 0;
 #ifdef CONFIG_SENSORS_A96T396_2CH
-	int grip_data_2ch;
+	int grip_data_2ch = 0;
 	u8 grip_press_2ch = 0;
 #endif
 
@@ -2563,8 +2563,7 @@ static DEVICE_ATTR(noti_enable, 0664, a96t396_noti_enable_show, a96t396_noti_ena
 static DEVICE_ATTR(grip_register_recover, 0220, NULL, grip_register_recover_store);
 #endif
 #ifdef CONFIG_SENSORS_A96T396_2CH
-static DEVICE_ATTR(unknown_state_2ch, 0664,
-	grip_2ch_unknown_state_show, NULL);
+static DEVICE_ATTR(unknown_state_2ch, 0444, grip_2ch_unknown_state_show, NULL);
 
 static DEVICE_ATTR(grip_gain_2ch, 0444, grip_gain_2ch_show, NULL);
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
@@ -2806,7 +2805,7 @@ static int a96t396_parse_dt(struct a96t396_data *data, struct device *dev)
 {
 	struct device_node *np = dev->of_node;
 	struct pinctrl *p;
-	int ret;
+	int ret = 0;
 	enum of_gpio_flags flags;
 
 	if (data->ic_num == MAIN_GRIP)

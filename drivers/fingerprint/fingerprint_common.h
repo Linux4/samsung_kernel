@@ -49,5 +49,6 @@ void enable_fp_debug_timer(struct debug_logger *logger);
 void disable_fp_debug_timer(struct debug_logger *logger);
 int set_fp_debug_timer(struct debug_logger *logger,
 			void (*func)(struct work_struct *work));
+void set_delay_in_spi_transfer(struct spi_transfer *xfer, unsigned int usec);
 
 #endif /* _FINGERPRINT_COMMON_H_ */

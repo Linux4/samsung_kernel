@@ -82,7 +82,7 @@ static int is_vender_caminfo_cmd_get_factory_supported_id(void __user *user_data
 	return 0;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_cmd_get_factory_supported_id_compat(compat_uptr_t user_data)
 {
 	int i;
@@ -168,7 +168,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_sec2lsi_cmd_get_module_info_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -278,7 +278,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_cmd_get_rom_data_by_position_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -414,7 +414,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_sec2lsi_cmd_get_buff_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -626,7 +626,7 @@ EXIT:
 	return 0;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_sec2lsi_cmd_set_buff_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -813,7 +813,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_ap2ap_cmd_get_cal_size_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -921,7 +921,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_ap2ap_cmd_get_buff_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -1038,7 +1038,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static int is_vender_caminfo_ap2ap_cmd_set_buff_compat(compat_uptr_t user_data)
 {
 	int ret = 0;
@@ -1241,7 +1241,7 @@ EXIT:
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 static long is_vender_caminfo_ioctl_compat(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
@@ -1311,7 +1311,7 @@ static struct file_operations is_vender_caminfo_fops =
 	.open = is_vender_caminfo_open,
 	.release = is_vender_caminfo_release,
 	.unlocked_ioctl = is_vender_caminfo_ioctl,
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_CAMERA
 	.compat_ioctl = is_vender_caminfo_ioctl_compat,
 #endif
 };

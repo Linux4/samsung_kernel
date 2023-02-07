@@ -46,7 +46,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/syv660/syv660_charger.a13.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/syv660/syv660_charger.a13.dtsi */
 &i2c_0 {
 	samsung,glitch-filter;
 	samsung,fix-doxfer-return;

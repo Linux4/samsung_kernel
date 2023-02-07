@@ -16,8 +16,8 @@
 
 #define EXT_CLK_Mhz (26)
 
-#define SENSOR_HI1336_MAX_WIDTH                   (4208 + 0)
-#define SENSOR_HI1336_MAX_HEIGHT                  (3120 + 0)
+#define SENSOR_HI1336_MAX_WIDTH                   (4128 + 0)
+#define SENSOR_HI1336_MAX_HEIGHT                  (3096 + 0)
 
 #define USE_GROUP_PARAM_HOLD                      (0)
 #define TOTAL_NUM_OF_MIPI_LANES                   (4)
